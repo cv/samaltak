@@ -5,3 +5,4 @@ node_modules/
 build/
 vm/build/
 vm/platform/build/
+__pycache__/
