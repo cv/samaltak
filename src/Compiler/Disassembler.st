@@ -37,6 +37,11 @@ printInstruction
 ! !
 
 !Disassembler methodsFor: 'instructions'!
+doAll: messages
+	"A superinstruction: its parts, separated by semicolons."
+	^(messages collect: [:m | self perform: m selector withArguments: m arguments]) inject: '' into: [:all :each |
+		all isEmpty ifTrue: [each] ifFalse: [all , '; ' , each]]
+!
 pushTemporaryVariable: index
 	^'pushTemp: ' , index printString
 !

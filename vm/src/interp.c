@@ -686,6 +686,9 @@ void interpret(void)
         ops[0x92] = &&op_jump_false;
         ops[0x93] = &&op_push_int;
         ops[0x94] = &&op_make_array;
+        ops[0x97] = &&op_push2_send_tt;
+        ops[0x98] = &&op_push2_send_tl;
+        ops[0x99] = &&op_push2_send_ti;
         for (int i = 0xA0; i <= 0xBF; i++) ops[i] = &&op_special_send;
         ops[0xA0] = &&op_add;
         ops[0xA1] = &&op_sub;
@@ -1297,6 +1300,23 @@ op_push_int: {
     ip += 2;
     PUSH_FUSED(v_);
 }
+    /* push temp a, push temp b | literal b | SmallInteger b (signed byte), then the special-selector bytecode op
+       (compiler-chosen superinstructions: 0x97 a b op, 0x98 a b op, 0x99 a b op) */
+op_push2_send_tt:
+    sp[1] = fp[ip[0]];
+    sp[2] = fp[ip[1]];
+    goto push2_send;
+op_push2_send_tl:
+    sp[1] = fp[ip[0]];
+    sp[2] = lits[ip[1]];
+    goto push2_send;
+op_push2_send_ti:
+    sp[1] = fp[ip[0]];
+    sp[2] = int_oop((int8_t)ip[1]);
+push2_send:
+    sp += 2;
+    ip += 3;
+    goto *ops[ip[-1]];
 op_make_array: {
     int n = *ip++;
     EXTERNALIZE();

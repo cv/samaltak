@@ -259,6 +259,12 @@ outerContext: depth
 ! !
 
 !Simulator methodsFor: 'instruction decoding'!
+doAll: messages
+	"A superinstruction: perform its parts in order, like the VM."
+	| result |
+	messages do: [:m | result := self perform: m selector withArguments: m arguments].
+	^result
+!
 pushTemporaryVariable: index
 	context push: (context basicAt: index + 1).
 	^context

@@ -208,10 +208,15 @@ One opcode byte, then operand bytes (unsigned unless noted, `int16` = little-end
 | 0x92 o | int16 | pop, jump if false |
 | 0x93 v | int16 | push SmallInteger v |
 | 0x94 n | n | pop n values into a new Array, push it |
+| 0x97 a b op | temp, temp, opcode | superinstruction: push temp a, push temp b, then bytecode op (a special-selector send 0xA0–0xB0 with one argument) |
+| 0x98 a l op | temp, literal, opcode | push temp a, push literal constant l, then op |
+| 0x99 a c op | temp, int8, opcode | push temp a, push SmallInteger c (signed byte), then op |
 | 0xA0–0xBF | | send special selector i |
 | 0xC0–0xCF | | send literal 0–15, 0 args |
 | 0xD0–0xDF | | send literal 0–15, 1 arg |
 | 0xE0–0xEF | | send literal 0–15, 2 args |
+
+The compilers emit 0x97–0x99 for "push temp; push temp | literal | small integer; binary special send" (`+ - < > <= >= = ~= * / \\ bitShift: // bitAnd: bitOr: at:`) when no jump target or recorded pc falls inside the sequence; the source map entry of the send moves to the superinstruction. Each behaves exactly as its three parts: a send it makes returns to the instruction after it.
 
 Backward jumps and sends are **safepoints**: the VM checks its interrupt flag there.
 

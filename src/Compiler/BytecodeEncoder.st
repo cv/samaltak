@@ -1,9 +1,11 @@
 Object subclass: #BytecodeEncoder
-	instanceVariableNames: 'bytes count literals depth maxDepth sourceMap'
+	instanceVariableNames: 'bytes count literals depth maxDepth sourceMap pushes barrier'
 	classVariableNames: ''
 	package: 'Compiler'!
 
-BytecodeEncoder comment: 'I emit the bytecodes of docs/implementation.md, choosing the short forms when possible. I collect literals, track the operand stack depth (depth, maxDepth of the frame being generated) and record the sourceMap (pc start stop triples).'!
+BytecodeEncoder comment: 'I emit the bytecodes of docs/implementation.md, choosing the short forms when possible. I collect literals, track the operand stack depth (depth, maxDepth of the frame being generated) and record the sourceMap (pc start stop triples).
+
+Superinstructions: "push temp; push temp | literal | small integer; send a binary special selector" becomes one instruction (16r97-16r99) when nothing can jump between its parts. pushes remembers the last two pushes ({start. end. kind. operand}); barrier is the last pc something may jump to or record (jump targets and every pc asked for), so a fusion needs barrier <= the first push.'!
 
 !BytecodeEncoder class methodsFor: 'instance creation'!
 new
@@ -17,12 +19,15 @@ initialize
 	literals := OrderedCollection new.
 	depth := 0.
 	maxDepth := 0.
-	sourceMap := OrderedCollection new
+	sourceMap := OrderedCollection new.
+	pushes := OrderedCollection new.
+	barrier := 0
 ! !
 
 !BytecodeEncoder methodsFor: 'accessing'!
 pc
-	"Answer the 0-based pc of the next instruction."
+	"Answer the 0-based pc of the next instruction (a jump target or scope boundary: no superinstruction spans it)."
+	barrier := count.
 	^count
 !
 bytecodes
@@ -136,7 +141,10 @@ noteNode: aNode
 
 !BytecodeEncoder methodsFor: 'pushing'!
 pushTemp: index
+	| start |
+	start := count.
 	index < 16 ifTrue: [self emit: index] ifFalse: [self emit: 16r80 operand: index].
+	self notePush: #temp operand: index from: start.
 	self push
 !
 pushInstVar: index
@@ -149,19 +157,27 @@ pushOuterTemp: index depth: d
 !
 pushLiteral: anObject
 	"Push a constant."
-	| index |
+	| index start |
 	anObject isNil ifTrue: [^self pushNil].
 	anObject == true ifTrue: [self emit: 16r71. ^self push].
 	anObject == false ifTrue: [self emit: 16r72. ^self push].
+	start := count.
 	anObject class == SmallInteger ifTrue: [
-		anObject = 0 ifTrue: [self emit: 16r74. ^self push].
-		anObject = 1 ifTrue: [self emit: 16r75. ^self push].
-		(anObject >= -32768 and: [anObject <= 32767]) ifTrue: [
-			self emit: 16r93.
-			self emitInt16: anObject.
+		anObject = 0
+			ifTrue: [self emit: 16r74]
+			ifFalse: [
+				anObject = 1
+					ifTrue: [self emit: 16r75]
+					ifFalse: [
+						(anObject >= -32768 and: [anObject <= 32767]) ifTrue: [
+							self emit: 16r93.
+							self emitInt16: anObject]]].
+		count > start ifTrue: [
+			(anObject between: -128 and: 127) ifTrue: [self notePush: #int operand: anObject from: start].
 			^self push]].
 	index := self literalIndexOf: (self freeze: anObject).
 	index < 32 ifTrue: [self emit: 16r20 + index] ifFalse: [self emit: 16r82 operand: index].
+	self notePush: #lit operand: index from: start.
 	self push
 !
 pushLiteralVariable: anAssociation
@@ -237,6 +253,7 @@ nonLocalReturnTop
 !BytecodeEncoder methodsFor: 'sending'!
 send: selector numArgs: n super: isSuper
 	| special index |
+	(isSuper not and: [n = 1 and: [self fuseSend: (Compiler specialSelectorIndexOf: selector)]]) ifTrue: [^self pop: 1].
 	isSuper
 		ifTrue: [self emit: 16r8E operand: (self literalIndexOf: selector) operand: n]
 		ifFalse: [
@@ -254,6 +271,40 @@ makeArray: n
 	self emit: 16r94 operand: n.
 	self pop: n.
 	self push
+! !
+
+!BytecodeEncoder methodsFor: 'superinstructions'!
+notePush: kind operand: anInteger from: start
+	"Remember a push that the next send may fuse."
+	pushes addLast: (Array with: start with: count with: kind with: anInteger).
+	pushes size > 2 ifTrue: [pushes removeFirst]
+!
+fuseSend: special
+	"If the last two instructions are a push temp and a push temp, literal or small integer that only this send consumes, replace all three by one superinstruction (16r97 temp temp op, 16r98 temp literal op, 16r99 temp int8 op, op = the special send bytecode). Answer whether done."
+	| first second operand interval |
+	(special between: 1 and: 17) ifFalse: [^false].
+	special = 12 ifTrue: [^false].
+	pushes size < 2 ifTrue: [^false].
+	first := pushes first.
+	second := pushes last.
+	((second at: 2) = count and: [(first at: 2) = (second at: 1) and: [(first at: 3) == #temp and: [barrier <= (first at: 1)]]])
+		ifFalse: [^false].
+	(first at: 4) > 255 ifTrue: [^false].
+	operand := second at: 4.
+	(second at: 3) == #int ifTrue: [operand < 0 ifTrue: [operand := operand + 256]].
+	operand > 255 ifTrue: [^false].
+	interval := (sourceMap size >= 3 and: [(sourceMap at: sourceMap size - 2) = count])
+		ifTrue: [Array with: (sourceMap at: sourceMap size - 1) with: sourceMap last].
+	[sourceMap size >= 3 and: [(sourceMap at: sourceMap size - 2) >= (first at: 1)]] whileTrue: [
+		sourceMap removeLast; removeLast; removeLast].
+	count := first at: 1.
+	interval isNil ifFalse: [sourceMap add: count; add: interval first; add: interval last].
+	self emit: ((second at: 3) == #temp ifTrue: [16r97] ifFalse: [(second at: 3) == #lit ifTrue: [16r98] ifFalse: [16r99]]).
+	self emit: (first at: 4).
+	self emit: operand.
+	self emit: 16rA0 + special - 1.
+	pushes := OrderedCollection new.
+	^true
 ! !
 
 !BytecodeEncoder methodsFor: 'jumps'!
@@ -281,6 +332,7 @@ jumpFalse
 patchJump: position
 	"Make the jump whose operand is at position go to the current pc."
 	| offset v |
+	barrier := count.
 	offset := count - (position + 2).
 	offset > 32767 ifTrue: [^self compileError: 'Method too large'].
 	v := offset.

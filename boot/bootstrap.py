@@ -665,6 +665,9 @@ class MethodCompiler:
         self.file, self.line0, self.src = file, line0, src
         self.code = bytearray()
         self.lits, self.lit_index = [], {}
+        # superinstructions (as the Smalltalk compiler's BytecodeEncoder): the last two pushes
+        # (start, end, kind, operand) and the last pc anything may jump to or record
+        self.pushes, self.barrier = [], 0
 
     def error(self, msg, pos):
         raise CompileError(msg, self.file, self.line0 + self.src.count('\n', 0, pos))
@@ -684,7 +687,27 @@ class MethodCompiler:
         self.real.depth = d
 
     def here(self):
+        self.barrier = len(self.code)
         return len(self.code)
+
+    def note_push(self, kind, operand, start):
+        self.pushes = (self.pushes + [(start, len(self.code), kind, operand)])[-2:]
+
+    def fuse_send(self, special):
+        """push temp; push temp | literal | int8; binary special send -> 16r97 / 16r98 / 16r99 temp operand op."""
+        if not (0 <= special <= 16) or special == 11 or len(self.pushes) < 2:
+            return False
+        (s1, e1, k1, a), (s2, e2, k2, b) = self.pushes
+        if not (e2 == len(self.code) and e1 == s2 and k1 == 'temp' and self.barrier <= s1 and a <= 255):
+            return False
+        if k2 == 'int':
+            b &= 255
+        if b > 255:
+            return False
+        del self.code[s1:]
+        self.code.extend((0x97 if k2 == 'temp' else 0x98 if k2 == 'lit' else 0x99, a, b, 0xA0 + special))
+        self.pushes = []
+        return True
 
     def jump(self, op):
         p = self.here()
@@ -718,6 +741,7 @@ class MethodCompiler:
         return self.literal(('assoc', id(assoc)), ('assoc', assoc))
 
     def push_lit(self, v):
+        start = len(self.code)
         if v is NIL:
             self.emit(0x73, delta=1)
         elif v is TRUE:
@@ -726,14 +750,21 @@ class MethodCompiler:
             self.emit(0x72, delta=1)
         elif type(v) is int and v in (0, 1):
             self.emit(0x74 + v, delta=1)
+            self.note_push('int', v, start)
         elif type(v) is int and -32768 <= v <= 32767:
             self.emit(0x93, v & 255, (v >> 8) & 255, delta=1)
+            if -128 <= v <= 127:
+                self.note_push('int', v, start)
         else:
             i = self.const_index(v)
             self.emit(0x20 + i if i < 32 else 0x82, *([] if i < 32 else [i]), delta=1)
+            self.note_push('lit', i, start)
 
     def send(self, sel, argc, sup=False):
         if not sup and SPECIAL_INDEX.get(sel) is not None and selector_argc(sel) == argc:
+            if argc == 1 and self.fuse_send(SPECIAL_INDEX[sel]):
+                self.adj(-1)
+                return
             self.emit(0xA0 + SPECIAL_INDEX[sel], delta=-argc)
             return
         l = self.const_index(Sym(sel))
@@ -778,7 +809,9 @@ class MethodCompiler:
         if v[0] == 'temp':
             _, d, i, _ = v
             if d == 0:
+                start = len(self.code)
                 self.emit(i, delta=1) if i < 16 else self.emit(0x80, i, delta=1)
+                self.note_push('temp', i, start)
             else:
                 self.emit(0x8A, d, i, delta=1)
         elif v[0] == 'ivar':
@@ -1083,7 +1116,9 @@ def inline_to_do(c, node):
 
 
 def push_t(c, i):
+    start = len(c.code)
     c.emit(i, delta=1) if i < 16 else c.emit(0x80, i, delta=1)
+    c.note_push('temp', i, start)
 
 
 def pop_t(c, i):
