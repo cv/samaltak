@@ -21,8 +21,8 @@ if (!process.env.ELEVENLABS_API_KEY && existsSync(envFile))
 const key = process.env.ELEVENLABS_API_KEY;
 if (!key) { console.error('narrate: ELEVENLABS_API_KEY is not set'); process.exit(1); }
 
-const VOICE = process.env.ELEVENLABS_VOICE || 'JBFqnCBsd6RMkjVDRZzb'; // "George", a stock narrator voice
-const MODEL = 'eleven_multilingual_v2';
+const VOICE = process.env.ELEVENLABS_VOICE || 'CwhRBWXzGAHq8TQ4Fs17'; // "Roger": laid-back, casual, conversational
+const MODEL = 'eleven_v4'; // delivery via inline audio tags such as [warm], [pause]
 const steps = JSON.parse(readFileSync(join(here, 'narration.json'), 'utf8'));
 const durations = {};
 
@@ -33,7 +33,7 @@ for (const step of steps) {
     const res = await fetch(`https://api.elevenlabs.io/v1/text-to-speech/${VOICE}?output_format=mp3_44100_128`, {
       method: 'POST',
       headers: { 'xi-api-key': key, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ text: step.spoken, model_id: MODEL, voice_settings: { stability: 0.5, similarity_boost: 0.75 } }),
+      body: JSON.stringify({ text: step.spoken, model_id: MODEL }),
     });
     if (!res.ok) { console.error(`narrate: ${step.id}: HTTP ${res.status} ${await res.text()}`); process.exit(1); }
     writeFileSync(file, Buffer.from(await res.arrayBuffer()));
