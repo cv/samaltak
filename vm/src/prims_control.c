@@ -238,13 +238,13 @@ void p_try_primitive(void)
     b[0] = b[2];
     for (uint32_t i = 0; i < n; i++) b[1 + i] = slots(arr)[i];
     active_set_stackp(bi + 1 + n);
-    prim_nargs = (int)n;
+    set_prim_base((int)n);
     prim_status = PS_NONE;
     fn();
     oop res = prim_status == PS_OK ? prim_result : special(SO_SEL_PRIMITIVEFAILED);
     prim_result = nil_oop;
     active_slots()[bi] = res;
     active_set_stackp(bi + 1);
-    prim_nargs = 0;
+    vm_prim_nargs = 0;
     prim_status = PS_SWITCHED;
 }

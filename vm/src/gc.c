@@ -286,6 +286,7 @@ static bool scav_scan(oop o)
 
 void scavenge(void)
 {
+    interp_before_gc();
     int64_t t0 = now_us();
     stat_scavenges++;
     stat_allocated += (size_t)(eden_top - eden_lo);
@@ -369,6 +370,7 @@ static bool full_dead(oop *v)
 
 void full_gc(void)
 {
+    interp_before_gc();
     int64_t t0 = now_us();
     stat_full_gcs++;
     stat_allocated += (size_t)(eden_top - eden_lo);
@@ -449,6 +451,7 @@ static void become_root(oop *p)
 /* One-way become; call right after full_gc (no young objects). */
 void become_forward(oop from, oop to)
 {
+    interp_before_gc();
     become_from = from;
     become_to = to;
     for_each_root(become_root);

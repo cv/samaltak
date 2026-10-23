@@ -10,7 +10,9 @@ uint64_t hash_seed = 0x5A4D414C54414Bull;
 oop *root_stack[MAX_ROOTS];
 int root_count;
 
-#define LARGE_OBJECT_BYTES (256 * 1024)
+/* larger objects are allocated directly in old space: an eighth of eden, so short-lived buffers die in scavenges */
+static size_t large_object_bytes = 256 * 1024;
+#define LARGE_OBJECT_BYTES large_object_bytes
 
 void refresh_specials(void)
 {
@@ -453,5 +455,6 @@ char *utf8_of(oop s)
 void memory_init(size_t eden_bytes, size_t max_heap)
 {
     gc_init(eden_bytes, max_heap);
+    large_object_bytes = eden_bytes / 8 > 64 * 1024 ? eden_bytes / 8 : 64 * 1024;
     reset_alloc_limit();
 }

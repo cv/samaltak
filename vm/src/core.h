@@ -85,6 +85,7 @@ extern int nframes;                                     /* frames on the C stack
 extern uint64_t stat_materialized, stat_flushes;        /* frames flushed into Contexts; flushes */
 void materialize_all(void);                             /* flush all frames into Contexts (may GC); caller externalized */
 void interp_roots(void (*fn)(oop *));                   /* frames and their stack slots */
+void interp_before_gc(void);                            /* frames: raw bytecode pointers to offsets */
 void interp_after_gc(void);
 bool interp_frames_valid(bool (*valid)(oop));
 extern oop vm_tmp_root[4];                              /* scratch GC roots */
@@ -98,7 +99,14 @@ _Noreturn void fatal(const char *fmt, ...);
 /* primitive plumbing */
 typedef void (*prim_fn)(void);
 enum { PS_NONE, PS_OK, PS_FAIL, PS_SWITCHED, PS_RESEND };
-extern int prim_status, prim_error_code, prim_nargs;
+extern int prim_status, prim_error_code;
+/* core primitives read their arguments directly (vm.h's functions do the same for the platform layer) */
+extern oop *vm_prim_base;                               /* receiver slot of the running primitive, kept valid across GC */
+extern int vm_prim_nargs;
+#define prim_argc() (vm_prim_nargs)
+#define prim_receiver() (vm_prim_base[0])
+#define prim_arg(i) (vm_prim_base[1 + (i)])
+void set_prim_base(int argc);                           /* the primitive's receiver is at the active stack top - argc */
 extern oop prim_result, resend_selector;
 extern int resend_argc;
 oop *prim_stack_base(void);                             /* &receiver slot in the active context */
@@ -156,6 +164,7 @@ extern int vm_args_start;                               /* index of the first im
 prim_fn prim_lookup(int64_t n);
 const char *prim_name(int64_t n);
 bool prim_tryable(prim_fn f);
+bool prim_is_leaf(prim_fn f);                           /* never allocates, switches or inspects Contexts */
 oop primitive_names_array(void);
 
 #endif
