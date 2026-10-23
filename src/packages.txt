@@ -1,0 +1,44 @@
+# Samaltak packages in load order.
+# Each line: <package name> <layer> [uses <package>...]. Sources live in src/<package name>/.
+# Lines starting with '#' and blank lines are comments; every other line is loaded by the bootstrapper.
+# Order matters: a class's superclass must be defined by the same or an earlier package,
+# and class-side initialize methods run in this order.
+#
+# Layering (boot/bootstrap.py rejects violations, listing file:line): a package's methods and class definitions may
+# reference globals of packages on its own layer, the layer directly below, and layer 0. Higher layers are reached only
+# late-bound (Smalltalk at: #Name ifAbsent:). The allow-list:
+#   export <package> <layer> <global>...   these globals may be used from <layer> up
+#   <name> <layer> uses <package>...       this package may also use the listed packages (test fixtures only)
+# Graphics-Canvas' drawing vocabulary is exported to the UI layers and Tools:
+export Graphics-Canvas 3 Canvas Color Font Form
+Kernel-Objects 0
+Kernel-Numbers 0
+Kernel-Collections 0
+Kernel-Classes 0
+Kernel-Methods 0
+Kernel-Streams 0
+Kernel-Exceptions 0
+Kernel-Processes 0
+System-Support 0
+System-Files 0
+System-Profiling 0
+System-Debugging 0
+Compiler 0
+Tests-Kernel 0
+Tests-Compiler 0
+Tests-Profiling 0
+Tests-Debugging 0
+System-Remote 0
+Tests-Remote 0
+Graphics-GPU 1
+Graphics-Canvas 2
+Tests-Graphics 2
+UI-Windows 3
+Tests-UI-Windows 3
+Demos 3
+UI-Widgets 4
+Tests-UI-Widgets 4 uses Graphics-Canvas
+Tools 5
+Tests-Tools 5 uses UI-Windows Graphics-Canvas
+Tests-Tools-Profiler 5 uses Tests-UI-Windows UI-Windows
+Tests-Tools-Debugger 5 uses UI-Windows

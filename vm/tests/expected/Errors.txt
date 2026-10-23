@@ -1,0 +1,19 @@
+--- Errors
+DNU SmallInteger>>foo: args 1
+nil
+DNU UndefinedObject>>bar args 0
+nil
+mustBeBoolean 3
+'yes'
+attemptToAssign: 10 withIndex: 1 on 3@4
+3@4
+true
+true
+Error: at:put: failed
+nil
+false
+true
+true
+Error: stringAtPut failed
+nil
+10@4

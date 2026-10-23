@@ -1,0 +1,292 @@
+#!/usr/bin/env node
+// samaltak-ctl: drive a running Samaltak image through its control service (ControlServer, JSON lines over
+// TCP on 127.0.0.1). See README.md. Node >= 18, no dependencies.
+'use strict';
+
+const { spawn } = require('child_process');
+const net = require('net');
+const path = require('path');
+const fs = require('fs');
+const os = require('os');
+
+const ROOT = path.resolve(__dirname, '..');
+const USAGE = `usage: samaltak-ctl [--session name] <command> [args]
+  open [--headless] [--hidden] [--image path] [--theme t] [--port n] [--window-size WxH]   start an image with --control
+  snapshot [ref] [--depth n] [--bounds]    widget tree with stable @refs
+  find <text>                              refs whose label/ref contains text
+  click <ref|x,y> [--right] [--mods Shift+Meta]
+  dblclick <ref|x,y>    rightclick <ref|x,y>
+  type <ref> <text> [--end|--start|--replace] [--delay ms]   one command; the image types the characters ms apart (default 45)
+  key <combo> [ref]                        e.g. Meta+p, Escape, Meta+.  (Meta = platform modifier)
+  drag <ref> <dx> <dy> | drag <ref> <ref>  move windows by their title bar, splitters, handles
+  resize <ref> <w> <h>
+  select <ref> <text|all|end|from-to|line:n>   editor selection, or list item by label
+  scroll <ref> [dy]
+  eval <smalltalk>                         prints the printString; exit 3 on a Smalltalk error
+  wait <cond> [timeout-ms]                 cond: JSON ({"ref":..,"text":..,"idle":true,"gone":..}), @ref, idle, ms, or text
+  bounds <ref>
+  screenshot [ref] <path> [--scale 1|2] [--pointer]   window/widget, or the whole screen (default: display scale)
+  record start <out.mp4> [--size WxH] [--fps n]   record the screen with ffmpeg (raw RGBA through a FIFO)
+  record stop
+  state
+  close
+session: --session, $SAMALTAK_SESSION, default "samaltak"
+input commands wait until the image settles (at most 2 s); --settle ms changes that (0: return at once)
+exit codes: 1 error, 2 not found or timed out, 3 Smalltalk error`;
+
+let argv = process.argv.slice(2);
+let session = process.env.SAMALTAK_SESSION || 'samaltak';
+const flags = {};
+const pos = [];
+for (let i = 0; i < argv.length; i++) {
+  const a = argv[i];
+  if (a === '--session') session = argv[++i];
+  else if (/^--(theme|type|depth|mods|timeout|image|port|scale|size|fps|window-size|settle|delay)$/.test(a)) flags[a.slice(2)] = argv[++i];
+  else if (/^--(headless|hidden|headed|bounds|right|end|start|replace|json|pointer)$/.test(a)) flags[a.slice(2)] = true;
+  else if (a === '-h' || a === '--help') { console.log(USAGE); process.exit(0); }
+  else pos.push(a);
+}
+const [cmd, ...args] = pos;
+
+const DIR = path.join(process.env.TMPDIR || os.tmpdir(), 'samaltak-ctl');
+const SESSION_FILE = path.join(DIR, `${session}.json`);
+
+function die(msg, code = 1) { process.stderr.write(`samaltak-ctl: ${msg}\n`); process.exit(code); }
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+const alive = pid => { try { process.kill(pid, 0); return true; } catch (e) { return e.code === 'EPERM'; } };
+
+function readSession() {
+  try { return JSON.parse(fs.readFileSync(SESSION_FILE, 'utf8')); } catch (_) { return null; }
+}
+
+// Send one request, answer the parsed response.
+function request(port, req, timeout = 60000) {
+  return new Promise((resolve, reject) => {
+    const sock = net.createConnection({ host: '127.0.0.1', port });
+    let buf = '';
+    const timer = setTimeout(() => { sock.destroy(); reject(new Error(`no answer from the image within ${timeout} ms`)); }, timeout);
+    sock.setEncoding('utf8');
+    sock.on('connect', () => sock.write(JSON.stringify({ id: 1, ...req }) + '\n'));
+    sock.on('data', d => {
+      buf += d;
+      const nl = buf.indexOf('\n');
+      if (nl < 0) return;
+      clearTimeout(timer);
+      sock.end();
+      try { resolve(JSON.parse(buf.slice(0, nl))); } catch (e) { reject(new Error(`bad response: ${buf.slice(0, 200)}`)); }
+    });
+    sock.on('error', e => { clearTimeout(timer); reject(e); });
+    sock.on('close', () => { clearTimeout(timer); if (buf.indexOf('\n') < 0) reject(new Error('connection closed by the image')); });
+  });
+}
+
+async function call(req, timeout) {
+  const s = readSession();
+  if (!s) die(`no Samaltak in session ${session} (run: samaltak-ctl open)`);
+  if (flags.settle != null && /^(click|type|key|drag|select|scroll|resize)$/.test(req.cmd)) req = { ...req, settle: +flags.settle };
+  let r;
+  try { r = await request(s.port, req, timeout); }
+  catch (e) {
+    if (e.code === 'ECONNREFUSED' || e.code === 'ECONNRESET') die(`no Samaltak in session ${session} (run: samaltak-ctl open)`);
+    die(e.message);
+  }
+  if (!r.ok) {
+    if (r.code === 3) { delete r.id; console.log(JSON.stringify(r)); process.exit(3); }
+    die(r.error || JSON.stringify(r), r.code === 2 ? 2 : 1);
+  }
+  delete r.ok; delete r.id;
+  return r;
+}
+
+function print(v) {
+  if (typeof v === 'string') console.log(v);
+  else if (v !== undefined && v !== null) console.log(JSON.stringify(v, null, flags.json || cmd === 'state' ? 2 : 0));
+}
+const target = s => {
+  if (s == null) die('missing ref');
+  const m = String(s).match(/^(-?\d+(?:\.\d+)?)\s*,\s*(-?\d+(?:\.\d+)?)$/);
+  return m ? { x: +m[1], y: +m[2] } : String(s);
+};
+const need = (n, what) => { if (args.length < n) die(`${cmd}: ${what}\n${USAGE}`); };
+
+async function open() {
+  const old = readSession();
+  if (old && alive(old.pid)) {
+    try { await request(old.port, { cmd: 'ping' }, 2000); console.log(`already open (session ${session}, pid ${old.pid}, port ${old.port})`); return; }
+    catch (_) { /* stale: start a new one */ }
+  }
+  fs.mkdirSync(DIR, { recursive: true });
+  const vm = path.join(ROOT, 'vm/build/samaltak');
+  const image = path.resolve(flags.image || path.join(ROOT, 'build/samaltak.image'));
+  if (!fs.existsSync(vm)) die(`no VM at ${vm} (run: make vm)`);
+  if (!fs.existsSync(image)) die(`no image at ${image} (run: make image)`);
+  const portFile = path.join(DIR, `${session}.port`);
+  const logFile = path.join(DIR, `${session}.log`);
+  fs.rmSync(portFile, { force: true });
+  const port = flags.port || process.env.SAMALTAK_CONTROL_PORT || '0';
+  const vmArgs = [image, '--control', '--control-port', String(port), '--control-port-file', portFile];
+  if (flags.headless) vmArgs.push('--headless');
+  if (flags.hidden) vmArgs.push('--hidden');
+  if (flags.theme) vmArgs.push('--theme', flags.theme);
+  if (flags['window-size']) vmArgs.push('--window-size', flags['window-size']);
+  const log = fs.openSync(logFile, 'w');
+  const child = spawn(vm, vmArgs, { cwd: ROOT, detached: true, stdio: ['ignore', log, log] });
+  child.unref();
+  let exited = null;
+  child.on('exit', (code, sig) => { exited = sig || code; });
+  const t0 = Date.now();
+  for (;;) {
+    let p = NaN;
+    try { p = parseInt(fs.readFileSync(portFile, 'utf8'), 10); } catch (_) { /* not yet */ }
+    if (p > 0) {
+      fs.writeFileSync(SESSION_FILE, JSON.stringify({ pid: child.pid, port: p, image, log: logFile, started: new Date().toISOString() }, null, 2));
+      console.log(`opened ${image} (session ${session}, pid ${child.pid}, port ${p})`);
+      return;
+    }
+    if (exited !== null) die(`the image exited (${exited}) before listening; log ${logFile}:\n${fs.readFileSync(logFile, 'utf8').slice(-2000)}`);
+    if (Date.now() - t0 > 30000) { try { process.kill(child.pid); } catch (_) {} die(`the image did not start listening within 30 s; log ${logFile}`); }
+    await sleep(50);
+  }
+}
+
+async function close() {
+  const s = readSession();
+  if (!s) die(`no Samaltak in session ${session}`);
+  try { await request(s.port, { cmd: 'quit' }, 5000); } catch (_) { /* already gone, or hung: killed below */ }
+  const t0 = Date.now();
+  while (alive(s.pid) && Date.now() - t0 < 5000) await sleep(50);
+  if (alive(s.pid)) { try { process.kill(s.pid, 'SIGKILL'); } catch (_) {} }
+  fs.rmSync(SESSION_FILE, { force: true });
+  console.log(`closed session ${session}`);
+}
+
+// record start <out> spawns ffmpeg reading raw RGBA frames from a FIFO the image writes; record stop ends both.
+async function record() {
+  const action = args[0];
+  const s = readSession();
+  if (!s) die(`no Samaltak in session ${session} (run: samaltak-ctl open)`);
+  if (action === 'stop') {
+    const r = await call({ cmd: 'record', action: 'stop' });
+    const rec = s.recording;
+    if (rec) {
+      const t0 = Date.now();
+      while (alive(rec.pid) && Date.now() - t0 < 30000) await sleep(100);
+      if (alive(rec.pid)) { try { process.kill(rec.pid, 'SIGKILL'); } catch (_) {} }
+      fs.rmSync(rec.fifo, { force: true });
+      delete s.recording;
+      fs.writeFileSync(SESSION_FILE, JSON.stringify(s, null, 2));
+      console.log(`${rec.out} (${r.frames} frames)`);
+    } else print(r);
+    return;
+  }
+  if (action !== 'start' || !args[1]) die(`record: start <out.mp4> [--size WxH] [--fps n] | stop\n${USAGE}`);
+  if (s.recording && alive(s.recording.pid)) die('already recording (samaltak-ctl record stop)');
+  const out = path.resolve(args[1]);
+  let w, h;
+  if (flags.size) {
+    const m = String(flags.size).match(/^(\d+)x(\d+)$/);
+    if (!m) die('record: --size WxH');
+    w = +m[1]; h = +m[2];
+  } else {
+    const st = await call({ cmd: 'state' });
+    if (!st.screen) die('record: the image has no screen');
+    w = st.screen.w; h = st.screen.h;
+  }
+  const fps = +(flags.fps || 30);
+  const fifo = path.join(DIR, `${session}.fifo`);
+  fs.rmSync(fifo, { force: true });
+  require('child_process').execFileSync('mkfifo', [fifo]);
+  fs.mkdirSync(path.dirname(out), { recursive: true });
+  const log = fs.openSync(path.join(DIR, `${session}.ffmpeg.log`), 'w');
+  const ff = spawn('ffmpeg', ['-y', '-loglevel', 'error', '-f', 'rawvideo', '-pix_fmt', 'rgba', '-s', `${w}x${h}`, '-r', String(fps),
+    '-i', fifo, '-pix_fmt', 'yuv420p', '-c:v', 'libx264', '-preset', 'veryfast', '-crf', '20', out],
+    { detached: true, stdio: ['ignore', log, log] });
+  ff.unref();
+  let exited = null;
+  ff.on('exit', c => { exited = c; });
+  ff.on('error', e => { exited = e.message; });
+  await sleep(300);
+  if (exited !== null) { fs.rmSync(fifo, { force: true }); die(`ffmpeg failed to start (${exited}); see ${path.join(DIR, session + '.ffmpeg.log')}`); }
+  s.recording = { pid: ff.pid, out, fifo };
+  fs.writeFileSync(SESSION_FILE, JSON.stringify(s, null, 2));
+  const r = await call({ cmd: 'record', action: 'start', path: fifo, w, h, fps });
+  console.log(`recording ${w}x${h} at ${r.fps} fps to ${out} (samaltak-ctl record stop)`);
+}
+
+async function main() {
+  switch (cmd) {
+    case 'open': return open();
+    case 'close': return close();
+    case 'snapshot': {
+      const o = { cmd: 'snapshot' };
+      if (args[0]) o.ref = args[0];
+      if (flags.depth != null) o.depth = +flags.depth;
+      if (flags.bounds) o.bounds = true;
+      const r = await call(o);
+      return print(r.text.replace(/\n$/, ''));
+    }
+    case 'find': {
+      need(1, 'find <text>');
+      const r = await call({ cmd: 'find', text: args.join(' ') });
+      if (!r.matches.length) die(`nothing matches ${JSON.stringify(args.join(' '))}`, 2);
+      for (const n of r.matches) console.log(`${n.role} ${n.ref} ${JSON.stringify(n.label)}`);
+      return;
+    }
+    case 'click': need(1, 'click <ref|x,y>'); return print(await call({ cmd: 'click', target: target(args[0]), button: flags.right ? 'right' : 'left', mods: flags.mods }));
+    case 'rightclick': need(1, 'rightclick <ref|x,y>'); return print(await call({ cmd: 'click', target: target(args[0]), button: 'right', mods: flags.mods }));
+    case 'dblclick': need(1, 'dblclick <ref|x,y>'); return print(await call({ cmd: 'click', target: target(args[0]), count: 2, mods: flags.mods }));
+    case 'type': need(2, 'type <ref> <text>'); return print(await call({ cmd: 'type', target: target(args[0]), text: args.slice(1).join(' '), at: flags.end ? 'end' : flags.start ? 'start' : undefined, replace: !!flags.replace, delay: +(flags.delay ?? 45) }));
+    case 'key': need(1, 'key <combo> [ref]'); return print(await call({ cmd: 'key', combo: args[0], target: args[1] ? target(args[1]) : undefined }));
+    case 'drag':
+      need(2, 'drag <ref> <dx> <dy> | drag <ref> <ref>');
+      if (args.length >= 3 && !isNaN(+args[1]) && !isNaN(+args[2])) return print(await call({ cmd: 'drag', target: target(args[0]), dx: +args[1], dy: +args[2], mods: flags.mods }));
+      return print(await call({ cmd: 'drag', target: target(args[0]), to: target(args[1]), mods: flags.mods }));
+    case 'resize': need(3, 'resize <ref> <w> <h>'); return print(await call({ cmd: 'resize', target: args[0], w: +args[1], h: +args[2] }));
+    case 'select': {
+      need(2, 'select <ref> <spec>');
+      const s = args.slice(1).join(' ');
+      let spec = s, m;
+      if ((m = s.match(/^(\d+)-(\d+)$/))) spec = { from: +m[1], to: +m[2] };
+      else if ((m = s.match(/^line:(\d+)$/))) spec = { line: +m[1] };
+      return print(await call({ cmd: 'select', target: args[0], spec }));
+    }
+    case 'scroll': need(1, 'scroll <ref> [dy]'); return print(await call({ cmd: 'scroll', target: target(args[0]), dy: args[1] != null ? +args[1] : 120 }));
+    case 'eval': {
+      need(1, 'eval <smalltalk>');
+      const o = { cmd: 'eval', source: args.join(' ') };
+      if (flags.timeout) o.timeout = +flags.timeout;
+      const r = await call(o, 24 * 3600 * 1000);
+      return print(r.printString);
+    }
+    case 'wait': {
+      need(1, 'wait <cond> [timeout]');
+      const a = args[0];
+      let cond;
+      if (a.startsWith('{')) { try { cond = JSON.parse(a); } catch (e) { die(`wait: bad JSON: ${e.message}`); } }
+      else if (a === 'idle') cond = { idle: true };
+      else if (a.startsWith('@')) cond = { ref: a };
+      else if (/^\d+$/.test(a)) cond = { ms: +a };
+      else cond = { text: a };
+      const t = +(args[1] || flags.timeout || cond.timeout || 10000);
+      return print(await call({ ...cond, cmd: 'wait', timeout: t }, t + (cond.ms || 0) + 30000));
+    }
+    case 'bounds': need(1, 'bounds <ref>'); return print(await call({ cmd: 'bounds', target: args[0] }));
+    case 'state': return print(await call({ cmd: 'state' }));
+    case 'screenshot': {
+      need(1, 'screenshot [ref] <path>');
+      const file = path.resolve(args[args.length - 1]);
+      fs.mkdirSync(path.dirname(file), { recursive: true });
+      const o = { cmd: 'screenshot', path: file };
+      if (args.length > 1) o.target = args[0];
+      if (flags.scale) o.scale = +flags.scale;
+      if (flags.pointer) o.pointer = true;
+      await call(o);
+      return print(file);
+    }
+    case 'record': return record();
+    case undefined: console.log(USAGE); process.exit(1); break;
+    default: die(`unknown command ${JSON.stringify(cmd)}\n${USAGE}`);
+  }
+}
+
+main().catch(e => die(e && e.message || String(e)));

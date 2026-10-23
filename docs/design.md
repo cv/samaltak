@@ -6,7 +6,7 @@ Working decisions. Open questions marked **?**.
 
 - Freestanding C11 VM: object memory, bytecode interpreter, GC, ~100 primitives, image loader. Target ≈5k lines.
 - C is the bootstrap language because it is the simplest target for a Smalltalk-written translator (Slang-style) to emit later; Stage 1 replaces hand-written C with generated C, Stage 2 with Smalltalk-emitted native code.
-- Platform layer (window surface, input, GPU via `webgpu.h` / wgpu-native) is a separate C module behind a small primitive interface, not part of the core.
+- Platform layer (SDL3 windows and input, SDL_GPU on Metal, files, sockets) is a separate C module behind a small primitive interface, not part of the core.
 
 ## Language
 
@@ -20,11 +20,11 @@ Working decisions. Open questions marked **?**.
 - Green threads: Smalltalk `Process`es on one OS thread, priority-preemptive at safepoints (sends, backward jumps). Squeak semantics.
 - Every window runs in its own Process, so one busy window does not block others.
 - The compositor is a high-priority Process woken by the vsync Semaphore.
-- GC runs on its own OS thread(s), concurrently with the single mutator thread.
+- GC today: stop-the-world, generational, on the mutator thread. A concurrent GC on its own thread(s) is the goal; the rules below keep it possible.
 
 ## GC: keep the door open for pauseless (C4-style)
 
-Start with a simple collector, but the design must not preclude a concurrent, compacting, never-stop-the-world GC. Rules from day one:
+The collector is simple and stop-the-world: copying scavenges of eden and survivor spaces, full GC of old space (see implementation.md). The design must not preclude a concurrent, compacting, never-stop-the-world GC, so these are constraints on all VM and primitive code:
 
 1. **Single choke point for heap reference loads.** Every load of an object pointer from the heap goes through one VM macro/function (`load_ref`). Initially a no-op; later it becomes C4's loaded-value barrier (check, then self-heal on stale/unmarked refs). The future JIT emits the same barrier.
 2. **Single choke point for stores** (`store_ref`), for generational/remembered-set and SATB needs.
@@ -34,7 +34,7 @@ Start with a simple collector, but the design must not preclude a concurrent, co
 6. **Precise roots.** Contexts are heap objects (or precisely mapped stack frames); no conservative scanning.
 7. **Region (page) based heap** with bump allocation, so pages can be evacuated and relocated concurrently.
 8. **Mutator checkpoints instead of global stops.** The mutator polls at safepoints; GC phase changes use per-thread handshakes, not a world stop. With one mutator thread this is cheap.
-9. **`become:` via forwarding** handled by the same load barrier, not by a heap scan.
+9. **`become:` via forwarding** handled by the same load barrier, not by a heap scan. Today `becomeForward:` is a full GC followed by a scan of old space; only the primitive knows.
 10. **Off-heap memory for GPU and I/O buffers**: never moved, referenced by handle objects.
 11. Weak references and ephemerons designed for concurrent marking from the start.
 
@@ -52,7 +52,9 @@ Only features with no significant memory, performance or complexity cost.
 8. **The debugger never runs in the debugged Process.** Any window's Process can be stopped while the rest stays live.
 9. Profile data are ordinary objects behind a Kernel-level API; tools never call raw primitives.
 
-Rejected as too costly: record/replay and time-travel debugging, always-on send/allocation tracing, read watchpoints, remote debugging, an in-image VM simulator before Stage 1.
+Rejected as too costly: record/replay and time-travel debugging, always-on send/allocation tracing, read watchpoints, remote debugging.
+
+The debugger steps with an in-image bytecode simulator (`Simulator`, System-Debugging): it interprets the debugged Process's contexts in Smalltalk, so stepping needs no VM support.
 
 ## Remote control
 
@@ -60,7 +62,7 @@ The whole UI must be drivable by an agent (Claude) without a human, at no cost w
 
 - **Virtual input device** (Platform layer): synthetic pointer/key events enter the same input path as OS events, so remote input behaves exactly like real input and punches no hole through the layers.
 - **Frame readback** (Platform layer): PNG of the screen or one window's layer texture.
-- **Control service** (image, Tools layer): a Process blocked on a local socket. Commands:
+- **Control service** (image, System-Remote in layer 0; UI-Windows plugs the World in through `UIRemote`): a Process blocked on a local socket. Commands:
   - `snapshot`: the widget tree as structured text (window, role, label, bounds, state, stable ref per widget), like an accessibility tree;
   - `click` / `type` / `key` / `drag` on a ref or coordinate, sent through the virtual input device;
   - `eval`: run a Smalltalk expression, return its printString;
@@ -71,16 +73,17 @@ The whole UI must be drivable by an agent (Claude) without a human, at no cost w
 
 ## Graphics and UI layering
 
-Each layer only calls the one directly below.
+A package may use packages of its own layer, the layer directly below, and layer 0 (Kernel, System, Compiler). One exception: from layer 3 up, Graphics-Canvas' drawing vocabulary (`Canvas`, `Color`, `Font`, `Form`; `Point` and `Rectangle` are Kernel) may be used directly, since every widget and tool draws. Tools reach the window system through UI-Widgets' `Desktop` facade, never through `Window`/`World`. Lower layers reach higher ones only late-bound (`Smalltalk at: #Name ifAbsent:`). `boot/bootstrap.py` enforces this; `src/packages.txt` holds the layers and the allow-list (`export` lines for the vocabulary, `uses` for test fixtures).
 
 | Layer | Package | Responsibility |
 |---|---|---|
 | 5 | Tools | Browser, Workspace, Inspector, Debugger |
 | 4 | UI-Widgets | Widgets, layout, events. What normal UI code uses. |
-| 3 | UI-Windows | Window (owns a Process), Compositor |
+| 3 | UI-Windows, Demos | Window (owns a Process), Compositor; demo views and the Canvas demo |
 | 2 | Graphics-Canvas | 2D paths, text, images → immutable DisplayLists; GPU compute rasterizer |
 | 1 | Graphics-GPU | WebGPU-shaped 3D API: devices, buffers, pipelines, command encoders |
-| 0 | Platform (C) | Surface, input, wgpu-native |
+| 0 | Kernel, System, Compiler | Language, processes, files, profiling, debugging, remote control |
+| — | Platform (C) | SDL3 windows and input, SDL_GPU (Metal), files, sockets |
 
 Widgets draw on a `Canvas`; they never see `GPUDevice`.
 

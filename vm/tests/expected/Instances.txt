@@ -1,0 +1,11 @@
+--- Instances
+3
+Vec
+'vec 1,2'
+Error: changeClassTo: failed
+nil
+#('new' 'new')
+1@2
+4
+true
+3

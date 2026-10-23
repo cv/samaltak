@@ -1,0 +1,27 @@
+--- Misc
+772
+16909060
+1027
+67305985
+-1
+-1
+1.5
+0.5
+Error: uint32At: failed
+nil
+7
+#primitiveFailed
+#primitiveFailed
+#primitiveFailed
+6
+1
+2
+relinquished
+true
+true
+0.8414709848078965
+1.0
+0.7853981633974483
+0.0
+0.75
+3

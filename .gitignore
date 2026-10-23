@@ -2,3 +2,6 @@
 .context/
 node_modules/
 .DS_Store
+build/
+vm/build/
+vm/platform/build/

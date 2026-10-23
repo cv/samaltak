@@ -1,0 +1,16 @@
+--- Weak
+#('kept' nil 42 #sym)
+#('old')
+nil
+'strong tag'
+nil
+'kept'
+50
+99
+1
+nil
+5000
+9999
+finalization signaled
+true
+10000

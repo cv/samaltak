@@ -1,0 +1,9 @@
+--- Perform
+7
+6
+true
+DNU SmallInteger>>zork args 0
+nil
+#(1 2 3)
+Error: perform:with:with: failed
+nil

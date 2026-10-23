@@ -1,0 +1,15 @@
+--- Context
+#testContext
+#run:
+true
+true
+true
+true
+SmallInteger
+true
+nil
+MiniTests class
+Metaclass
+true
+true
+true

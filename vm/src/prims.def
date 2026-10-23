@@ -1,0 +1,145 @@
+/* Core primitives: PRIM(number, "name", c_function), numbers 1-399.
+ * Indices are 1-based over indexable fields. Methods may declare <primitive: 'x' error: ec>;
+ * the compiler then sets bit 16 (16r10000) in the method's primitive slot and ec is the
+ * first temp; a failing primitive that calls prim_fail_code stores a SmallInteger there.
+ * primitiveNames answers an Array whose element n is the name (String) of primitive n, nil for gaps.
+ * vmStats answers an Array of SmallIntegers:
+ *   1 scavenges  2 full GCs  3 scavenge µs  4 full GC µs  5 old bytes used  6 old budget
+ *   7 eden bytes  8 bytes allocated  9 remembered set size  10 process switches  11 bytes tenured  12 weak slots cleared
+ *   13 frames flushed into Contexts  14 flushes */
+
+/* SmallInteger: fail on non-SmallInteger args or overflow */
+PRIM(1, "intAdd", p_int_add)
+PRIM(2, "intSub", p_int_sub)
+PRIM(3, "intLess", p_int_less)
+PRIM(4, "intGreater", p_int_greater)
+PRIM(5, "intLessEq", p_int_less_eq)
+PRIM(6, "intGreaterEq", p_int_greater_eq)
+PRIM(7, "intEq", p_int_eq)
+PRIM(8, "intNotEq", p_int_not_eq)
+PRIM(9, "intMul", p_int_mul)
+PRIM(10, "intDiv", p_int_div)
+PRIM(11, "intMod", p_int_mod)
+PRIM(12, "intFloorDiv", p_int_floor_div)
+PRIM(13, "intQuo", p_int_quo)
+PRIM(14, "intBitAnd", p_int_bit_and)
+PRIM(15, "intBitOr", p_int_bit_or)
+PRIM(16, "intBitXor", p_int_bit_xor)
+PRIM(17, "intBitShift", p_int_bit_shift)
+PRIM(18, "intRem", p_int_rem)
+PRIM(19, "intAsFloat", p_int_as_float)
+
+/* Float (SmallFloat64 and BoxedFloat64; SmallInteger arguments accepted) */
+PRIM(41, "floatAdd", p_float_add)
+PRIM(42, "floatSub", p_float_sub)
+PRIM(43, "floatLess", p_float_less)
+PRIM(44, "floatGreater", p_float_greater)
+PRIM(45, "floatLessEq", p_float_less_eq)
+PRIM(46, "floatGreaterEq", p_float_greater_eq)
+PRIM(47, "floatEq", p_float_eq)
+PRIM(48, "floatNotEq", p_float_not_eq)
+PRIM(49, "floatMul", p_float_mul)
+PRIM(50, "floatDiv", p_float_div)
+PRIM(51, "floatTruncated", p_float_truncated)
+PRIM(52, "floatFractionPart", p_float_fraction_part)
+PRIM(53, "floatExponent", p_float_exponent)
+PRIM(54, "floatTimesTwoPower", p_float_times_two_power)
+PRIM(55, "floatSqrt", p_float_sqrt)
+PRIM(56, "floatSin", p_float_sin)
+PRIM(57, "floatCos", p_float_cos)
+PRIM(58, "floatArcTan", p_float_arctan)
+PRIM(59, "floatLn", p_float_ln)
+PRIM(60, "floatExp", p_float_exp)
+PRIM(61, "floatPrintString", p_float_print_string)
+PRIM(62, "floatAsIEEEBits", p_float_as_ieee_bits)
+PRIM(63, "floatFromIEEEBits", p_float_from_ieee_bits)
+PRIM(64, "floatAbs", p_float_abs)
+
+/* object */
+PRIM(70, "basicNew", p_basic_new)
+PRIM(71, "basicNew:", p_basic_new_size)
+PRIM(72, "basicSize", p_basic_size)
+PRIM(73, "at", p_at)
+PRIM(74, "atPut", p_at_put)
+PRIM(75, "instVarAt", p_inst_var_at)
+PRIM(76, "instVarAtPut", p_inst_var_at_put)
+PRIM(77, "identityHash", p_identity_hash)
+PRIM(78, "class", p_class)
+PRIM(79, "identical", p_identical)
+PRIM(80, "shallowCopy", p_shallow_copy)
+PRIM(81, "perform", p_perform)
+PRIM(82, "performWithArguments", p_perform_with_arguments)
+PRIM(83, "isImmutable", p_is_immutable)
+PRIM(84, "setImmutable:", p_set_immutable)
+PRIM(85, "changeClassTo:", p_change_class_to)
+PRIM(86, "allInstances", p_all_instances)
+PRIM(87, "tryPrimitiveWithArgs", p_try_primitive)
+PRIM(88, "becomeForward", p_become_forward)
+PRIM(89, "specialObjectsArray", p_special_objects_array)
+
+/* Character */
+PRIM(90, "charValue", p_char_value)
+PRIM(91, "charFromValue", p_char_from_value)
+
+/* strings & bytes (byte offsets 1-based, little-endian unless BigEndian) */
+PRIM(100, "stringAt", p_string_at)
+PRIM(101, "stringAtPut", p_string_at_put)
+PRIM(102, "stringHash", p_string_hash)
+PRIM(103, "stringCompare", p_string_compare)
+PRIM(104, "replaceFromToWithStartingAt", p_replace_from_to)
+PRIM(105, "bytesUint16At", p_bytes_uint16_at)
+PRIM(106, "bytesUint32At", p_bytes_uint32_at)
+PRIM(107, "bytesInt16At", p_bytes_int16_at)
+PRIM(108, "bytesFloat32At", p_bytes_float32_at)
+PRIM(109, "bytesFloat32AtPut", p_bytes_float32_at_put)
+PRIM(110, "bytesUint32AtPut", p_bytes_uint32_at_put)
+PRIM(111, "bytesFloat64At", p_bytes_float64_at)
+PRIM(112, "bytesFloat64AtPut", p_bytes_float64_at_put)
+PRIM(113, "bytesUint16BigEndianAt", p_bytes_uint16_be_at)
+PRIM(114, "bytesInt16BigEndianAt", p_bytes_int16_be_at)
+PRIM(115, "bytesUint32BigEndianAt", p_bytes_uint32_be_at)
+
+/* blocks */
+PRIM(120, "closureValue", p_closure_value)
+PRIM(121, "closureValueWithArguments", p_closure_value_with_arguments)
+
+/* processes */
+PRIM(130, "processResume", p_process_resume)
+PRIM(131, "processSuspend", p_process_suspend)
+PRIM(132, "processorYield", p_processor_yield)
+PRIM(133, "semaphoreSignal", p_semaphore_signal)
+PRIM(134, "semaphoreWait", p_semaphore_wait)
+PRIM(135, "processorLastPreempted", p_processor_last_preempted)
+PRIM(136, "processorRelinquish", p_processor_relinquish)
+PRIM(137, "signalAtMilliseconds", p_signal_at_milliseconds)
+PRIM(138, "samplerInterval", p_sampler_interval)
+PRIM(139, "allocationSampling", p_allocation_sampling)
+PRIM(140, "allocationSampleInfo", p_allocation_sample_info)
+PRIM(141, "processCpuTime", p_process_cpu_time)
+PRIM(142, "processStackInto", p_process_stack_into)
+PRIM(143, "allocationSampleTake", p_allocation_sample_take)
+PRIM(144, "samplerTickTake", p_sampler_tick_take)
+
+/* time */
+PRIM(150, "millisecondClock", p_millisecond_clock)
+PRIM(151, "microsecondClock", p_microsecond_clock)
+PRIM(152, "utcMicroseconds", p_utc_microseconds)
+
+/* system */
+PRIM(160, "quit", p_quit)
+PRIM(161, "snapshot", p_snapshot)
+PRIM(162, "gc", p_gc)
+PRIM(163, "scavenge", p_scavenge)
+PRIM(164, "vmStats", p_vm_stats)
+PRIM(165, "flushMethodCache", p_flush_method_cache)
+PRIM(166, "flushCacheForSelector", p_flush_cache_for_selector)
+PRIM(167, "vmArguments", p_vm_arguments)
+PRIM(168, "imagePath", p_image_path)
+PRIM(169, "stdoutWrite", p_stdout_write)
+PRIM(170, "stderrWrite", p_stderr_write)
+PRIM(171, "primitiveNames", p_primitive_names)
+PRIM(172, "getenv", p_getenv)
+
+/* markers: always fail; Smalltalk finds these contexts by method primitive */
+PRIM(PRIM_ENSURE_MARKER, "ensureMarker", p_marker)
+PRIM(PRIM_ONDO_MARKER, "onDoMarker", p_marker)

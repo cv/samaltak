@@ -1,0 +1,5 @@
+--- Snapshot
+saved
+resumed 42 shared state
+7
+1000

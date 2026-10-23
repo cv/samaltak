@@ -1,0 +1,218 @@
+Object subclass: #RemoteSocket
+	instanceVariableNames: 'handle readSemaphore writeSemaphore readIndex writeIndex sharesRead'
+	classVariableNames: ''
+	package: 'System-Remote'!
+
+RemoteSocket comment: 'I am a TCP socket over the platform''s socket primitives (vm/platform/README.md), with blocking accept, receive and send that wait on my read and write Semaphores instead of spinning: the platform signals a Semaphore once when the socket becomes ready and re-arms it when a primitive answers "would block".
+
+My Semaphores occupy two slots of the VM''s external objects (Smalltalk vm registerExternalSemaphore:), freed by close. A socket that is garbage collected unclosed is closed by the finalization process (WeakRegistry).'!
+
+!RemoteSocket methodsFor: 'initialization'!
+setHandle: anInteger
+	handle := anInteger.
+	readSemaphore := Semaphore new.
+	writeSemaphore := Semaphore new.
+	readIndex := Smalltalk vm registerExternalSemaphore: readSemaphore.
+	writeIndex := Smalltalk vm registerExternalSemaphore: writeSemaphore.
+	self class primSemaphore: handle read: readIndex write: writeIndex.
+	self registerForFinalization
+!
+setHandle: anInteger readSemaphore: aSemaphore index: anIndex
+	"Signal aSemaphore (registered at anIndex by my owner, possibly shared with other sockets) when I become readable."
+	handle := anInteger.
+	readSemaphore := aSemaphore.
+	readIndex := anIndex.
+	sharesRead := true.
+	writeSemaphore := Semaphore new.
+	writeIndex := Smalltalk vm registerExternalSemaphore: writeSemaphore.
+	self class primSemaphore: handle read: readIndex write: writeIndex.
+	self registerForFinalization
+!
+registerForFinalization
+	"If I am collected unclosed, a copy of me (same handle and Semaphores) closes the socket."
+	WeakRegistry default add: self executor: self shallowCopy
+! !
+
+!RemoteSocket methodsFor: 'accessing'!
+handle
+	^handle
+!
+isOpen
+	^handle notNil
+!
+localPort
+	^self class primLocalPort: handle
+! !
+
+!RemoteSocket methodsFor: 'operations'!
+accept
+	"Wait for the next connection on a listening socket; answer a new RemoteSocket, or nil once I am closed."
+	| client |
+	[handle isNil ifTrue: [^nil].
+	 client := self class primAccept: handle.
+	 client == false ifTrue: [^nil].
+	 client isNil] whileTrue: [readSemaphore wait].
+	^self class onHandle: client
+!
+readSemaphore: aSemaphore index: anIndex
+	"Signal aSemaphore (registered at anIndex by my owner, possibly shared) from now on when I become readable."
+	handle isNil ifTrue: [^self].
+	sharesRead == true ifFalse: [self class unregister: readSemaphore at: readIndex].
+	readSemaphore := aSemaphore.
+	readIndex := anIndex.
+	sharesRead := true.
+	self class primSemaphore: handle read: readIndex write: writeIndex
+!
+acceptNow
+	"A listening socket: answer the handle of a pending connection, or nil (none pending, or I am closed). Never waits."
+	| client |
+	handle isNil ifTrue: [^nil].
+	client := self class primAccept: handle.
+	(client isNil or: [client == false]) ifTrue: [^nil].
+	^client
+!
+receiveNowInto: aByteArray
+	"Answer the number of bytes stored at the start of aByteArray, 0 at end of stream or once I am closed, or nil if nothing arrived (never waits)."
+	| count |
+	handle isNil ifTrue: [^0].
+	count := self class primRecv: handle into: aByteArray start: 1 count: aByteArray size.
+	count isNil ifTrue: [^nil].
+	^count max: 0
+!
+receiveInto: aByteArray
+	"Wait for data; answer the number of bytes stored at the start of aByteArray, 0 at end of stream or once I am closed."
+	^self receiveInto: aByteArray timeout: nil
+!
+receiveInto: aByteArray timeout: milliseconds
+	"Like receiveInto:, but answer nil if nothing arrived within milliseconds (nil: wait forever)."
+	| count |
+	[handle isNil ifTrue: [^0].
+	 count := self class primRecv: handle into: aByteArray start: 1 count: aByteArray size.
+	 count isNil] whileTrue: [
+		milliseconds isNil
+			ifTrue: [readSemaphore wait]
+			ifFalse: [(readSemaphore waitTimeoutMSecs: milliseconds) ifTrue: [^nil]]].
+	^count max: 0
+!
+sendAll: bytes
+	"Send all of bytes (a ByteArray or ByteString), waiting while the socket is full. Answer false if the connection is gone."
+	| start sent |
+	start := 1.
+	[start <= bytes size] whileTrue: [
+		handle isNil ifTrue: [^false].
+		sent := self class primSend: handle from: bytes start: start count: bytes size - start + 1.
+		sent isNil
+			ifTrue: [writeSemaphore wait]
+			ifFalse: [
+				sent < 0 ifTrue: [^false].
+				start := start + sent]].
+	^true
+!
+close
+	"Close the socket and wake any process waiting on it."
+	| h |
+	h := handle.
+	h isNil ifTrue: [^self].
+	handle := nil.
+	WeakRegistry default remove: self.
+	self class primClose: h.
+	sharesRead == true ifFalse: [self class unregister: readSemaphore at: readIndex].
+	self class unregister: writeSemaphore at: writeIndex.
+	readSemaphore signal.
+	writeSemaphore signal
+!
+forget
+	"In an image resumed from a snapshot: my handle belonged to the VM that saved it (it may name a new socket now), so drop it without closing and free my Semaphore slots."
+	handle isNil ifTrue: [^self].
+	handle := nil.
+	WeakRegistry default remove: self.
+	sharesRead == true ifFalse: [self class unregister: readSemaphore at: readIndex].
+	self class unregister: writeSemaphore at: writeIndex
+!
+finalize
+	"I am the executor of a collected socket."
+	self close
+! !
+
+!RemoteSocket methodsFor: 'printing'!
+printOn: aStream
+	aStream nextPutAll: 'a RemoteSocket'.
+	handle isNil ifTrue: [^aStream nextPutAll: ' (closed)'].
+	aStream nextPutAll: ' #'; print: handle
+! !
+
+!RemoteSocket class methodsFor: 'instance creation'!
+onHandle: anInteger
+	^self new setHandle: anInteger
+!
+onHandle: anInteger readSemaphore: aSemaphore index: anIndex
+	^self new setHandle: anInteger readSemaphore: aSemaphore index: anIndex
+!
+listenOn: port host: hostString backlog: anInteger readSemaphore: aSemaphore index: anIndex
+	"Like listenOn:host:backlog:, signalling aSemaphore (registered at anIndex) when a connection is pending."
+	| h |
+	h := self primListen: hostString port: port backlog: anInteger.
+	h isNil ifTrue: [^RemoteError signal: 'cannot listen on ', hostString, ':', port printString, ': ', self lastError].
+	^self onHandle: h readSemaphore: aSemaphore index: anIndex
+!
+listenOn: port host: hostString backlog: anInteger
+	"Answer a socket listening on hostString:port (port 0 picks a free port; see localPort)."
+	| h |
+	h := self primListen: hostString port: port backlog: anInteger.
+	h isNil ifTrue: [^RemoteError signal: 'cannot listen on ', hostString, ':', port printString, ': ', self lastError].
+	^self onHandle: h
+!
+connectTo: hostString port: port
+	| h |
+	h := self primConnect: hostString port: port.
+	h isNil ifTrue: [^RemoteError signal: 'cannot connect to ', hostString, ':', port printString, ': ', self lastError].
+	^self onHandle: h
+! !
+
+!RemoteSocket class methodsFor: 'external semaphores'!
+unregister: aSemaphore at: index
+	"Free the external semaphore slot index unless it holds another Semaphore by now (an executor's copy of me may hold a stale index)."
+	(index notNil and: [(Smalltalk vm externalObjects at: index) == aSemaphore])
+		ifTrue: [Smalltalk vm unregisterExternalSemaphore: index]
+! !
+
+!RemoteSocket class methodsFor: 'primitives'!
+lastError
+	<primitive: 'platformLastError'>
+	^'unknown error'
+!
+primListen: host port: port backlog: backlog
+	<primitive: 'socketListen'>
+	^nil
+!
+primConnect: host port: port
+	<primitive: 'socketConnect'>
+	^nil
+!
+primAccept: aHandle
+	"Answer a handle, nil if none is pending, false on failure."
+	<primitive: 'socketAccept'>
+	^false
+!
+primRecv: aHandle into: bytes start: start count: count
+	"Answer the byte count, 0 at end of stream, nil if it would block, -1 on failure."
+	<primitive: 'socketRecv'>
+	^-1
+!
+primSend: aHandle from: bytes start: start count: count
+	"Answer the byte count sent, nil if it would block, -1 on failure."
+	<primitive: 'socketSend'>
+	^-1
+!
+primClose: aHandle
+	<primitive: 'socketClose'>
+	^nil
+!
+primSemaphore: aHandle read: readIndex write: writeIndex
+	<primitive: 'socketSemaphore'>
+	^RemoteError signal: 'socketSemaphore failed: ', self lastError
+!
+primLocalPort: aHandle
+	<primitive: 'socketLocalPort'>
+	^nil
+! !

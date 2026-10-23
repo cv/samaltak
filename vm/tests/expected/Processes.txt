@@ -1,0 +1,24 @@
+--- Processes
+high ran
+after high fork
+after low fork
+low ran
+main woke
+true
+signal 1
+consumer got 1
+signal 2
+consumer got 2
+2
+1
+A1
+B1
+A2
+B2
+A3
+B3
+true
+true
+true
+1
+40

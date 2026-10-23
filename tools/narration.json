@@ -1,0 +1,102 @@
+[
+  {
+    "id": "intro",
+    "caption": "Samaltak · Debugger and Profiler. Every click and keystroke here is sent remotely through samaltak-ctl.",
+    "spoken": "[warm] Hey! So this is Samaltak's debugger and profiler. And here's the fun part: nobody's touching the mouse. Every click and every keystroke you'll see comes in remotely, through samaltak control."
+  },
+  {
+    "id": "breakpoint",
+    "caption": "Breakpoints live in the image: pick Integer>>gcd: in the System Browser and click the dot next to it.",
+    "spoken": "Let's start with a breakpoint. Breakpoints just live in the image. So: Integer, gcd, and [pause] click that little dot next to the method."
+  },
+  {
+    "id": "run",
+    "caption": "Start the Mandelbrot rendering in its own Process, then print 48 gcd: 18 in the Workspace (⌘P).",
+    "spoken": "Now let's kick off the Mandelbrot. It renders in its own process. And over in the workspace, we print forty-eight gcd eighteen."
+  },
+  {
+    "id": "hit",
+    "caption": "The breakpoint hits. The Debugger is its own Process: the Workspace is suspended, the Mandelbrot keeps rendering.",
+    "spoken": "[excited] And there's our breakpoint! The debugger gets its own process, too. See? The workspace is suspended, but the Mandelbrot just keeps on rendering."
+  },
+  {
+    "id": "step",
+    "caption": "Step Over: the highlighted statement moves through gcd:, and the temps update live.",
+    "spoken": "Let's step over a few times. Watch the highlight move through the method, and the temps update right along with it."
+  },
+  {
+    "id": "eval",
+    "caption": "Evaluate in the stopped frame: a + b, printed with ⌘P.",
+    "spoken": "You can even evaluate right inside the stopped frame. a plus b, and [pause] there's the answer."
+  },
+  {
+    "id": "proceed",
+    "caption": "Proceed: the computation finishes and the Workspace prints the result.",
+    "spoken": "Okay, proceed. The computation finishes, and the workspace prints the result."
+  },
+  {
+    "id": "dnu",
+    "caption": "A message nobody implements: 3 zork. The notifier offers to Create the method.",
+    "spoken": "Now let's send a message nobody implements. Three zork. [pause] Yep, the notifier's offering to just create it."
+  },
+  {
+    "id": "create",
+    "caption": "Write the method right in the Debugger, accept with ⌘S, then Proceed: the original send is retried.",
+    "spoken": "So we write the method right there in the debugger, accept it, hit proceed, and the original send goes through. Three hundred."
+  },
+  {
+    "id": "watch",
+    "caption": "Watchpoints reuse the immutability bit: inspect p := 3 @ 4, right-click x, choose Halt on write.",
+    "spoken": "Watchpoints are pretty neat: they reuse the immutability bit. Inspect a point, right-click x, and pick halt on write."
+  },
+  {
+    "id": "watch-hit",
+    "caption": "A forked Process moves p. The store into x is refused, and the Debugger opens on the writing statement.",
+    "spoken": "Now a forked process tries to move that point. The store into x gets refused, and we land in the debugger, right on the line that wrote it."
+  },
+  {
+    "id": "unwatch",
+    "caption": "Unwatch and Proceed: the store is retried and the mover runs to completion.",
+    "spoken": "Unwatch, proceed, and the store goes through. The process finishes up."
+  },
+  {
+    "id": "profiler",
+    "caption": "The Profiler is always on: a 1 MB ring of stack samples. Fork a long computation, render the Mandelbrot, open the Profiler.",
+    "spoken": "Alright, the profiler. It's always on, keeping a one-megabyte ring of stack samples. Let's give it something to chew on: a long computation, a busy Mandelbrot, and then we open the profiler."
+  },
+  {
+    "id": "flame",
+    "caption": "Flame graph of every Process. Click a frame to zoom into it.",
+    "spoken": "Here's the flame graph for every process. Click a frame to zoom in."
+  },
+  {
+    "id": "filter",
+    "caption": "Filter by Process: one click profiles just the Mandelbrot window.",
+    "spoken": "Want just one window? One click, and it only shows the Mandelbrot."
+  },
+  {
+    "id": "tally",
+    "caption": "Tally: the classic Smalltalk MessageTally tree, from the same samples.",
+    "spoken": "This is the tally view: good old Smalltalk message tally, from the same samples."
+  },
+  {
+    "id": "alloc",
+    "caption": "Allocations are sampled on the bump allocator’s limit check, so the fast path is unchanged.",
+    "spoken": "Allocations get sampled too. It piggybacks on the allocator's limit check, so the fast path doesn't change at all."
+  },
+  {
+    "id": "frames",
+    "caption": "Frame timeline: per frame, which Processes ran, plus draw, raster, GPU and GC. Drag to select a range.",
+    "spoken": "And here's the frame timeline. For every frame, you see which processes ran, and how long drawing, rasterizing, the GPU, and GC took. Let's drag out a range."
+  },
+  {
+    "id": "range",
+    "caption": "The selected range now filters the flame graph.",
+    "spoken": "And now the flame graph only shows that range."
+  },
+  {
+    "id": "outro",
+    "caption": "Debugger, Profiler, every window: all driven remotely through samaltak-ctl.",
+    "spoken": "[warm] So, that's it. Debugger, profiler, every single window, all driven remotely. Thanks for watching!"
+  }
+]

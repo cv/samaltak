@@ -28,4 +28,4 @@ Refs (`@w1.packages.kernel-numbers`) are stable per widget; `@list#3` picks the 
     node narrate.mjs <dir>           # ElevenLabs narration per step (ELEVENLABS_API_KEY in .env), cached
     python3 compose-video.py <dir>   # caption band + narration → <dir>/walkthrough.mp4
 
-Run `narrate.mjs` before `walkthrough.mjs` so each step lasts as long as its narration. Steps and spoken text: `narration.json`. Result: `docs/media/walkthrough.mp4`.
+Run `narrate.mjs` before `walkthrough.mjs` so each step lasts as long as its narration. Steps and spoken text: `narration.json`. Result: `docs/media/prototype-walkthrough.mp4`.

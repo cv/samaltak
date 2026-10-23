@@ -1,0 +1,402 @@
+Object subclass: #TrueTypeFont
+	instanceVariableNames: 'name data tables unitsPerEm bounds indexToLocFormat numGlyphs numberOfHMetrics ascender descender lineGap typoAscender typoDescender typoLineGap winAscent winDescent xHeight capHeight weightClass fsSelection cmapOffset cmapFormat cmapCache'
+	classVariableNames: ''
+	package: 'Graphics-Canvas'!
+
+TrueTypeFont comment: 'I am a TrueType typeface parsed from the bytes of a .ttf file: the tables head, hhea, maxp, OS/2, hmtx, cmap (formats 4 and 12), loca and glyf (simple and composite glyphs). Everything is in font units (unitsPerEm per em, y up); Font scales me to a pixel size. Kerning and hinting are ignored.'!
+
+!TrueTypeFont methodsFor: 'initialization'!
+setName: aString data: aByteArray
+	name := aString.
+	data := aByteArray.
+	cmapCache := Dictionary new.
+	self readTableDirectory.
+	self readHead.
+	self readHhea.
+	self readMaxp.
+	self readOS2.
+	self readCmap
+!
+readTableDirectory
+	| count offset |
+	count := self u16: 5.
+	tables := Dictionary new.
+	offset := 13.
+	count timesRepeat: [
+		tables at: (data copyFrom: offset to: offset + 3) asString
+			put: (Array with: (self u32: offset + 8) with: (self u32: offset + 12)).
+		offset := offset + 16]
+!
+readHead
+	| h |
+	h := self tableOffset: 'head'.
+	unitsPerEm := self u16: h + 18.
+	bounds := Rectangle
+		left: (self s16: h + 36) right: (self s16: h + 40)
+		top: (self s16: h + 38) bottom: (self s16: h + 42).
+	indexToLocFormat := self s16: h + 50
+!
+readHhea
+	| h |
+	h := self tableOffset: 'hhea'.
+	ascender := self s16: h + 4.
+	descender := self s16: h + 6.
+	lineGap := self s16: h + 8.
+	numberOfHMetrics := self u16: h + 34
+!
+readMaxp
+	numGlyphs := self u16: (self tableOffset: 'maxp') + 4
+!
+readOS2
+	| o version |
+	(tables includesKey: 'OS/2') ifFalse: [
+		typoAscender := ascender. typoDescender := descender. typoLineGap := lineGap.
+		winAscent := ascender. winDescent := descender negated. weightClass := 400. fsSelection := 0.
+		^self].
+	o := self tableOffset: 'OS/2'.
+	version := self u16: o.
+	weightClass := self u16: o + 4.
+	fsSelection := self u16: o + 62.
+	typoAscender := self s16: o + 68.
+	typoDescender := self s16: o + 70.
+	typoLineGap := self s16: o + 72.
+	winAscent := self u16: o + 74.
+	winDescent := self u16: o + 76.
+	version >= 2 ifTrue: [
+		xHeight := self s16: o + 86.
+		capHeight := self s16: o + 88]
+!
+readCmap
+	"Pick the best Unicode subtable: format 12 (full repertoire) over format 4 (BMP)."
+	| c count best bestFormat rec platform encoding offset format |
+	c := self tableOffset: 'cmap'.
+	count := self u16: c + 2.
+	bestFormat := 0.
+	0 to: count - 1 do: [:i |
+		rec := c + 4 + (i * 8).
+		platform := self u16: rec.
+		encoding := self u16: rec + 2.
+		offset := c + (self u32: rec + 4).
+		format := self u16: offset.
+		((platform = 0 or: [platform = 3 and: [encoding = 1 or: [encoding = 10]]])
+			and: [(format = 4 or: [format = 12]) and: [format > bestFormat]])
+				ifTrue: [best := offset. bestFormat := format]].
+	best isNil ifTrue: [^self error: name, ': no Unicode cmap'].
+	cmapOffset := best.
+	cmapFormat := bestFormat
+! !
+
+!TrueTypeFont methodsFor: 'reading'!
+u16: offset
+	"Big-endian unsigned 16 bits at the 1-based byte offset."
+	^data uint16BigEndianAt: offset
+!
+s16: offset
+	^data int16BigEndianAt: offset
+!
+u32: offset
+	^data uint32BigEndianAt: offset
+!
+tableOffset: tag
+	"Answer the 1-based byte offset of the table tag."
+	^((tables at: tag ifAbsent: [^self error: name, ': missing table ', tag]) at: 1) + 1
+! !
+
+!TrueTypeFont methodsFor: 'accessing'!
+name
+	^name
+!
+data
+	^data
+!
+tableTags
+	^tables keys asSortedCollection asArray
+!
+unitsPerEm
+	^unitsPerEm
+!
+bounds
+	"The union of all glyph boxes, font units, y up (top < bottom numerically)."
+	^bounds
+!
+numGlyphs
+	^numGlyphs
+!
+ascender
+	"hhea ascender (font units, positive)."
+	^ascender
+!
+descender
+	"hhea descender (font units, negative)."
+	^descender
+!
+lineGap
+	^lineGap
+!
+typoAscender
+	^typoAscender
+!
+typoDescender
+	^typoDescender
+!
+typoLineGap
+	^typoLineGap
+!
+winAscent
+	^winAscent
+!
+winDescent
+	^winDescent
+!
+xHeight
+	^xHeight
+!
+capHeight
+	^capHeight
+!
+weightClass
+	^weightClass
+!
+isBold
+	^(fsSelection bitAnd: 32) ~= 0 or: [weightClass >= 700]
+!
+isItalic
+	^(fsSelection bitAnd: 1) ~= 0
+!
+usesTypoMetrics
+	^(fsSelection bitAnd: 128) ~= 0
+!
+cmapFormat
+	^cmapFormat
+! !
+
+!TrueTypeFont methodsFor: 'character mapping'!
+glyphIndexFor: codePoint
+	"Answer the glyph index of the Unicode code point (0, the .notdef glyph, if unmapped)."
+	^cmapCache at: codePoint ifAbsent: [
+		cmapCache at: codePoint put: (cmapFormat = 4
+			ifTrue: [self format4GlyphIndexFor: codePoint]
+			ifFalse: [self format12GlyphIndexFor: codePoint])]
+!
+format4GlyphIndexFor: codePoint
+	| segX2 endCodes startCodes idDeltas idRangeOffsets lo hi mid end start rangeOffset glyphOffset glyph |
+	codePoint > 16rFFFF ifTrue: [^0].
+	segX2 := self u16: cmapOffset + 6.
+	endCodes := cmapOffset + 14.
+	startCodes := endCodes + segX2 + 2.
+	idDeltas := startCodes + segX2.
+	idRangeOffsets := idDeltas + segX2.
+	lo := 0.
+	hi := segX2 // 2 - 1.
+	[lo <= hi] whileTrue: [
+		mid := (lo + hi) // 2.
+		end := self u16: endCodes + (mid * 2).
+		end < codePoint
+			ifTrue: [lo := mid + 1]
+			ifFalse: [
+				start := self u16: startCodes + (mid * 2).
+				start > codePoint
+					ifTrue: [hi := mid - 1]
+					ifFalse: [
+						rangeOffset := self u16: idRangeOffsets + (mid * 2).
+						rangeOffset = 0 ifTrue: [^(codePoint + (self s16: idDeltas + (mid * 2))) bitAnd: 16rFFFF].
+						glyphOffset := idRangeOffsets + (mid * 2) + rangeOffset + ((codePoint - start) * 2).
+						glyph := self u16: glyphOffset.
+						glyph = 0 ifTrue: [^0].
+						^(glyph + (self s16: idDeltas + (mid * 2))) bitAnd: 16rFFFF]]].
+	^0
+!
+format12GlyphIndexFor: codePoint
+	| groups lo hi mid rec start end |
+	groups := self u32: cmapOffset + 12.
+	lo := 0.
+	hi := groups - 1.
+	[lo <= hi] whileTrue: [
+		mid := (lo + hi) // 2.
+		rec := cmapOffset + 16 + (mid * 12).
+		start := self u32: rec.
+		end := self u32: rec + 4.
+		codePoint < start
+			ifTrue: [hi := mid - 1]
+			ifFalse: [
+				codePoint > end
+					ifTrue: [lo := mid + 1]
+					ifFalse: [^(self u32: rec + 8) + (codePoint - start)]]].
+	^0
+!
+includesCodePoint: codePoint
+	^(self glyphIndexFor: codePoint) ~= 0
+! !
+
+!TrueTypeFont methodsFor: 'metrics'!
+advanceWidthOf: glyphIndex
+	"Answer the horizontal advance of the glyph in font units."
+	^self u16: (self tableOffset: 'hmtx') + ((glyphIndex min: numberOfHMetrics - 1) * 4)
+!
+leftSideBearingOf: glyphIndex
+	| h |
+	h := self tableOffset: 'hmtx'.
+	glyphIndex < numberOfHMetrics ifTrue: [^self s16: h + (glyphIndex * 4) + 2].
+	^self s16: h + (numberOfHMetrics * 4) + ((glyphIndex - numberOfHMetrics) * 2)
+!
+advanceWidthOfCodePoint: codePoint
+	^self advanceWidthOf: (self glyphIndexFor: codePoint)
+! !
+
+!TrueTypeFont methodsFor: 'outlines'!
+glyphDataOffset: glyphIndex
+	"Answer the 1-based offset of the glyph's glyf record, or nil for an empty glyph."
+	| loca start end |
+	(glyphIndex < 0 or: [glyphIndex >= numGlyphs]) ifTrue: [^nil].
+	loca := self tableOffset: 'loca'.
+	indexToLocFormat = 0
+		ifTrue: [
+			start := (self u16: loca + (glyphIndex * 2)) * 2.
+			end := (self u16: loca + (glyphIndex * 2) + 2) * 2]
+		ifFalse: [
+			start := self u32: loca + (glyphIndex * 4).
+			end := self u32: loca + (glyphIndex * 4) + 4].
+	start = end ifTrue: [^nil].
+	^(self tableOffset: 'glyf') + start
+!
+boundsOf: glyphIndex
+	"Answer the glyph's box in font units as a Rectangle (left/right = xMin/xMax, top/bottom = yMin/yMax), or nil if it has no outline."
+	| g |
+	g := self glyphDataOffset: glyphIndex.
+	g isNil ifTrue: [^nil].
+	^Rectangle left: (self s16: g + 2) right: (self s16: g + 6) top: (self s16: g + 4) bottom: (self s16: g + 8)
+!
+contoursOf: glyphIndex
+	"Answer the glyph outline: an Array of contours, each a flat Array x1 y1 on1 x2 y2 on2 ... (font units, y up; on = true for on-curve points). Composite glyphs are flattened."
+	| result |
+	result := OrderedCollection new.
+	self addContoursOf: glyphIndex to: result transform: nil depth: 0.
+	^result asArray
+!
+addContoursOf: glyphIndex to: aCollection transform: anArrayOrNil depth: depth
+	| g count |
+	depth > 8 ifTrue: [^self].
+	g := self glyphDataOffset: glyphIndex.
+	g isNil ifTrue: [^self].
+	count := self s16: g.
+	count >= 0
+		ifTrue: [self addSimpleContoursAt: g count: count to: aCollection transform: anArrayOrNil]
+		ifFalse: [self addCompositeAt: g to: aCollection transform: anArrayOrNil depth: depth]
+!
+addSimpleContoursAt: g count: contourCount to: aCollection transform: anArrayOrNil
+	| endPts p numPoints flags xs ys flag repeat x y start contour |
+	contourCount = 0 ifTrue: [^self].
+	endPts := Array new: contourCount.
+	1 to: contourCount do: [:i | endPts at: i put: (self u16: g + 10 + ((i - 1) * 2))].
+	numPoints := (endPts at: contourCount) + 1.
+	p := g + 10 + (contourCount * 2).
+	p := p + 2 + (self u16: p).
+	flags := ByteArray new: numPoints.
+	x := 1.
+	[x <= numPoints] whileTrue: [
+		flag := data at: p.
+		p := p + 1.
+		flags at: x put: flag.
+		x := x + 1.
+		(flag bitAnd: 8) ~= 0 ifTrue: [
+			repeat := data at: p.
+			p := p + 1.
+			repeat timesRepeat: [x <= numPoints ifTrue: [flags at: x put: flag. x := x + 1]]]].
+	xs := Array new: numPoints.
+	x := 0.
+	1 to: numPoints do: [:i |
+		flag := flags at: i.
+		(flag bitAnd: 2) ~= 0
+			ifTrue: [
+				(flag bitAnd: 16) ~= 0 ifTrue: [x := x + (data at: p)] ifFalse: [x := x - (data at: p)].
+				p := p + 1]
+			ifFalse: [
+				(flag bitAnd: 16) = 0 ifTrue: [x := x + (self s16: p). p := p + 2]].
+		xs at: i put: x].
+	ys := Array new: numPoints.
+	y := 0.
+	1 to: numPoints do: [:i |
+		flag := flags at: i.
+		(flag bitAnd: 4) ~= 0
+			ifTrue: [
+				(flag bitAnd: 32) ~= 0 ifTrue: [y := y + (data at: p)] ifFalse: [y := y - (data at: p)].
+				p := p + 1]
+			ifFalse: [
+				(flag bitAnd: 32) = 0 ifTrue: [y := y + (self s16: p). p := p + 2]].
+		ys at: i put: y].
+	start := 1.
+	endPts do: [:last |
+		contour := Array new: (last + 2 - start) * 3.
+		start to: last + 1 do: [:i |
+			| k px py |
+			k := (i - start) * 3.
+			px := xs at: i.
+			py := ys at: i.
+			anArrayOrNil isNil ifFalse: [
+				| tx |
+				tx := ((anArrayOrNil at: 1) * px) + ((anArrayOrNil at: 3) * py) + (anArrayOrNil at: 5).
+				py := ((anArrayOrNil at: 2) * px) + ((anArrayOrNil at: 4) * py) + (anArrayOrNil at: 6).
+				px := tx].
+			contour at: k + 1 put: px.
+			contour at: k + 2 put: py.
+			contour at: k + 3 put: ((flags at: i) bitAnd: 1) ~= 0].
+		contour isEmpty ifFalse: [aCollection add: contour].
+		start := last + 2]
+!
+addCompositeAt: g to: aCollection transform: anArrayOrNil depth: depth
+	"Components: flags, glyph index, offsets (or point numbers, unsupported: treated as 0) and an optional scale or 2x2 matrix (F2Dot14)."
+	| p flags glyph dx dy a b c d m more |
+	p := g + 10.
+	more := true.
+	[more] whileTrue: [
+		flags := self u16: p.
+		glyph := self u16: p + 2.
+		p := p + 4.
+		(flags bitAnd: 1) ~= 0
+			ifTrue: [dx := self s16: p. dy := self s16: p + 2. p := p + 4]
+			ifFalse: [
+				dx := data at: p. dy := data at: p + 1.
+				dx > 127 ifTrue: [dx := dx - 256].
+				dy > 127 ifTrue: [dy := dy - 256].
+				p := p + 2].
+		(flags bitAnd: 2) = 0 ifTrue: [dx := 0. dy := 0].
+		a := 1. b := 0. c := 0. d := 1.
+		(flags bitAnd: 8) ~= 0
+			ifTrue: [a := d := (self s16: p) / 16384.0. p := p + 2]
+			ifFalse: [
+				(flags bitAnd: 16r40) ~= 0
+					ifTrue: [a := (self s16: p) / 16384.0. d := (self s16: p + 2) / 16384.0. p := p + 4]
+					ifFalse: [
+						(flags bitAnd: 16r80) ~= 0 ifTrue: [
+							a := (self s16: p) / 16384.0. b := (self s16: p + 2) / 16384.0.
+							c := (self s16: p + 4) / 16384.0. d := (self s16: p + 6) / 16384.0.
+							p := p + 8]]].
+		m := Array with: a with: b with: c with: d with: dx with: dy.
+		anArrayOrNil isNil ifFalse: [m := self compose: m with: anArrayOrNil].
+		self addContoursOf: glyph to: aCollection transform: m depth: depth + 1.
+		more := (flags bitAnd: 16r20) ~= 0]
+!
+compose: inner with: outer
+	"Answer the affine transform that applies inner, then outer (both {a. b. c. d. e. f}: x' = a x + c y + e, y' = b x + d y + f)."
+	| a b c d e f |
+	a := (outer at: 1) * (inner at: 1) + ((outer at: 3) * (inner at: 2)).
+	b := (outer at: 2) * (inner at: 1) + ((outer at: 4) * (inner at: 2)).
+	c := (outer at: 1) * (inner at: 3) + ((outer at: 3) * (inner at: 4)).
+	d := (outer at: 2) * (inner at: 3) + ((outer at: 4) * (inner at: 4)).
+	e := (outer at: 1) * (inner at: 5) + ((outer at: 3) * (inner at: 6)) + (outer at: 5).
+	f := (outer at: 2) * (inner at: 5) + ((outer at: 4) * (inner at: 6)) + (outer at: 6).
+	^Array with: a with: b with: c with: d with: e with: f
+! !
+
+!TrueTypeFont methodsFor: 'printing'!
+printOn: aStream
+	aStream nextPutAll: 'a TrueTypeFont('; nextPutAll: (name ifNil: ['?']); nextPut: $)
+! !
+
+!TrueTypeFont class methodsFor: 'instance creation'!
+named: aString bytes: aByteArray
+	^self new setName: aString data: aByteArray
+!
+fromFile: aPath
+	^self named: (aPath copyAfterLast: $/) bytes: (File readBytes: aPath)
+! !

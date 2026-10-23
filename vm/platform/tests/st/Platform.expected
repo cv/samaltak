@@ -1,0 +1,33 @@
+--- Platform
+nil
+7
+1.5
+8
+hello
+5
+3.0
+-1.0
+1
+nil
+#failed
+11
+5
+#[119 111 114 108 100]
+11
+false
+#failed
+open /tmp/samaltak-platform-st-test.txt: No such file or directory
+true
+nil
+false
+nil
+4
+4
+#[119 112 105 110 103]
+0
+255
+0
+true
+255
+#failed
+#(400 300)
