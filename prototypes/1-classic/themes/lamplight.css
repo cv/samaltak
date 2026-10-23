@@ -1,0 +1,300 @@
+/* Lamplight — the dark sibling of Reading Room: walnut ground, parchment ink,
+   brass accent. Same typography: Charter small caps, tracked mono, serif prose. */
+
+html[data-theme="lamplight"] {
+  color-scheme: dark;
+  --serif: Charter, "Bitstream Charter", "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, serif;
+  --ui: var(--serif);
+  --mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+
+  --desk: #15110c;
+  --desk-dot: rgba(234, 220, 192, .055);
+  --bar: #1f1913;
+  --win: #241d16;
+  --pane: #1e1812;
+  --pane-alt: #261f17;
+  --title: #2a221a;
+  --inset: #2d241b;
+  --stripe: #6f604c;
+  --frame: #0b0805;
+  --line: #3a3026;
+  --line-2: #4a3e31;
+  --rule-soft: #322920;
+  --rule-strong: #7c6c55;
+  --ink: #ebdfc6;
+  --ink-2: #c2b293;
+  --ink-3: #95856a;
+  --ink-4: #62553f;
+  --accent: #dca657;
+  --accent-deep: #f0c27c;
+  --accent-ink: #1c150e;
+  --accent-soft: rgba(220, 166, 87, .15);
+  --sel-text: rgba(220, 166, 87, .30);
+  --sel-inactive: #30271d;
+  --busy: #e0913f;
+  --busy-soft: rgba(224, 145, 63, .14);
+  --busy-rule: rgba(224, 145, 63, .38);
+  --ok: #9db577;
+  --ok-soft: rgba(157, 181, 119, .13);
+  --ok-rule: rgba(157, 181, 119, .36);
+  --err: #e5694b;
+  --err-soft: rgba(229, 105, 75, .13);
+  --err-rule: rgba(229, 105, 75, .40);
+  --chip-ink: #1c150e;
+  --chip-ink-pale: #ebdfc6;
+  --backdrop: rgba(8, 6, 3, .55);
+  --toast-bg: #ebdfc6;
+  --toast-ink: #1c150e;
+  --scroll: #4a3e31;
+  --shadow: 0 1px 2px rgba(0, 0, 0, .35), 0 8px 24px rgba(0, 0, 0, .35);
+  --shadow-active: 0 1px 2px rgba(0, 0, 0, .45), 0 18px 48px rgba(0, 0, 0, .55);
+  --shadow-menu: 0 18px 46px rgba(0, 0, 0, .55);
+  --shadow-help: 0 28px 70px rgba(0, 0, 0, .6);
+  --help-frame: #7c6c55;
+
+  /* syntax: parchment-led, lamp-warm hues */
+  --t-c: #8f8068;  --t-s: #a9bd84;  --t-sym: #d6a0b4; --t-n: #8ec2b6;  --t-ch: #a9bd84;
+  --t-pv: #ea8a64; --t-g: #e8c27e;  --t-k: #ebdfc6;   --t-arg: #c0a9d0; --t-r: #ea8a64;
+  --t-pr: #8ec2b6; --t-b: #8f8068;
+
+  /* layers 0..5 — brass, dimming away from the kernel */
+  --l0: #f2c983; --l1: #dca657; --l2: #bd8740; --l3: #946631; --l4: #6f4d27; --l5: #533b20;
+
+  --fractal-stops: 24 19 13, 52 36 22, 128 78 34, 220 166 87, 240 222 184, 24 19 13;
+  --fractal-inside: 12 9 6;
+}
+
+/* ---------- base ---------- */
+html[data-theme="lamplight"] body { -webkit-font-smoothing: auto; font-size: 13.5px; }
+html[data-theme="lamplight"] * { scrollbar-width: thin; scrollbar-color: var(--scroll) transparent; }
+html[data-theme="lamplight"] kbd {
+  font: 500 10.5px/1 var(--mono); color: var(--ink-2); background: var(--inset);
+  border: 1px solid var(--line); border-radius: 4px; box-shadow: none; padding: 3px 5px;
+}
+html[data-theme="lamplight"] #desktop { background-size: 24px 24px; background-position: 12px 12px; }
+
+/* ---------- top bar: the app header ---------- */
+html[data-theme="lamplight"] #topbar {
+  background: var(--bar); backdrop-filter: none; -webkit-backdrop-filter: none;
+  border-bottom: 1px solid var(--line); color: var(--ink-2); gap: 12px;
+}
+html[data-theme="lamplight"] #topbar .brand { font: 500 13px/1 var(--mono); letter-spacing: .01em; color: var(--ink); }
+html[data-theme="lamplight"] #topbar .sep { background: var(--line); }
+html[data-theme="lamplight"] #topbar > .sep + span {
+  padding: 4px 8px; font: 10px/1 var(--mono); letter-spacing: .05em; text-transform: uppercase;
+  color: var(--ink-3); background: var(--inset); border: 1px solid var(--line); border-radius: 3px;
+}
+html[data-theme="lamplight"] #topbar .hint { font: italic 13px/1 var(--serif); color: var(--ink-3); }
+html[data-theme="lamplight"] #topbar .stat { font: 11px/1 var(--mono); color: var(--ink-2); }
+html[data-theme="lamplight"] #topbar .stat b { font-weight: 600; }
+html[data-theme="lamplight"] #topbar .stat .lbl { font: 700 9px/1 var(--mono); letter-spacing: .16em; color: var(--ink-3); }
+html[data-theme="lamplight"] .tbtn { border-radius: 6px; color: var(--ink-2); font: 600 13px/1 var(--serif); }
+html[data-theme="lamplight"] .tbtn:hover { background: var(--inset); border-color: var(--line); }
+
+/* ---------- windows ---------- */
+html[data-theme="lamplight"] .win { border-radius: 6px; border-color: var(--frame); }
+html[data-theme="lamplight"] .win.active { border-color: var(--ink-4); }
+html[data-theme="lamplight"] .titlebar { background: var(--title); border-bottom: 1px solid var(--line); gap: 8px; padding: 0 8px; }
+html[data-theme="lamplight"] .titlebar .stripes,
+html[data-theme="lamplight"] .win.active .titlebar .stripes,
+html[data-theme="lamplight"] #help .card .titlebar .stripes {
+  height: 5px; opacity: 1; background: none;
+  border-top: 1px solid var(--rule-soft); border-bottom: 1px solid var(--rule-soft);
+}
+html[data-theme="lamplight"] .win.active .titlebar .stripes,
+html[data-theme="lamplight"] #help .card .titlebar .stripes { border-color: var(--line-2); }
+html[data-theme="lamplight"] .titlebar .title {
+  font: 600 15px/1 var(--serif); font-variant-caps: small-caps;
+  letter-spacing: .06em; color: var(--ink-3); padding: 0 6px 3px;
+}
+html[data-theme="lamplight"] .win.active .titlebar .title { color: var(--ink); }
+html[data-theme="lamplight"] .tb-box { border-radius: 3px; border-color: var(--line-2); background: transparent; color: var(--ink-3); }
+html[data-theme="lamplight"] .win.active .tb-box { border-color: var(--ink-4); }
+html[data-theme="lamplight"] .tb-box:hover { background: var(--ink-2); border-color: var(--ink-2) !important; color: var(--accent-ink); }
+html[data-theme="lamplight"] .tb-close:hover { background: var(--accent); border-color: var(--accent) !important; }
+
+html[data-theme="lamplight"] .tb-proc { font: 700 9px/1 var(--mono); letter-spacing: .14em; text-transform: uppercase; border-radius: 999px; }
+html[data-theme="lamplight"] .tb-proc:hover { background: var(--inset); }
+html[data-theme="lamplight"] .win.busy .tb-proc { background: var(--busy-soft); box-shadow: inset 0 0 0 1px var(--busy-rule); }
+html[data-theme="lamplight"] .win.suspended .tb-proc { background: var(--err-soft); box-shadow: inset 0 0 0 1px var(--err-rule); }
+html[data-theme="lamplight"] .win.busy .busybar { background: repeating-linear-gradient(-45deg, var(--busy) 0 6px, transparent 6px 12px); background-size: 17px 2px; }
+
+/* ---------- panes, lists ---------- */
+html[data-theme="lamplight"] .pane-h {
+  height: 22px; padding: 0 10px; background: var(--pane); border-bottom: 1px solid var(--line);
+  font: 600 9.5px/1 var(--mono); letter-spacing: .17em; color: var(--ink-3);
+}
+html[data-theme="lamplight"] .pane-h .r { font: 400 10px/1 var(--mono); letter-spacing: .02em; color: var(--ink-3); }
+html[data-theme="lamplight"] .list { font-size: 14px; padding: 3px 0; }
+html[data-theme="lamplight"] .li { height: 22px; line-height: 22px; padding: 0 11px; }
+html[data-theme="lamplight"] .li.sel { background: var(--sel-inactive); }
+html[data-theme="lamplight"] .list:focus .li.sel { background: var(--accent-soft); color: var(--ink); box-shadow: inset 3px 0 0 var(--accent); }
+html[data-theme="lamplight"] .list:focus .li.sel .muted { color: var(--accent); }
+html[data-theme="lamplight"] .li .muted { font: 600 9px/1 var(--mono); letter-spacing: .12em; text-transform: uppercase; color: var(--ink-3); }
+html[data-theme="lamplight"] .li.hdr { font: 600 9.5px/22px var(--mono); letter-spacing: .17em; color: var(--ink-3); }
+html[data-theme="lamplight"] .li.grp { box-shadow: 0 -1px 0 var(--rule-soft); }
+html[data-theme="lamplight"] .list:focus .li.grp.sel { box-shadow: 0 -1px 0 var(--rule-soft), inset 3px 0 0 var(--accent); }
+html[data-theme="lamplight"] .li.allproto { font-style: italic; color: var(--ink-3); }
+html[data-theme="lamplight"] .li.mod .t::after { color: var(--busy); }
+html[data-theme="lamplight"] .lchip { width: 16px; height: 16px; border-radius: 4px; font: 700 10px/1 var(--serif); color: var(--chip-ink); }
+html[data-theme="lamplight"] .lchip.L4,
+html[data-theme="lamplight"] .lchip.L5 { color: var(--chip-ink-pale); }
+
+html[data-theme="lamplight"] .vsplit { background: var(--pane-alt); border-color: var(--line); }
+html[data-theme="lamplight"] .vsplit::after { border-top-color: var(--ink-4); }
+html[data-theme="lamplight"] .hsplit, html[data-theme="lamplight"] .browser-top,
+html[data-theme="lamplight"] .insp-top, html[data-theme="lamplight"] .pb-bottom { background: var(--line); }
+
+/* ---------- controls: small-caps serif ---------- */
+html[data-theme="lamplight"] .seg { background: var(--pane); border-top: 1px solid var(--line); padding: 4px; gap: 4px; }
+html[data-theme="lamplight"] .seg button {
+  height: 20px; border-radius: 6px; font: 600 14px/1 var(--serif); font-variant-caps: small-caps;
+  text-transform: lowercase; letter-spacing: .08em; color: var(--ink-3);
+}
+html[data-theme="lamplight"] .seg button:hover { color: var(--ink); background: var(--inset); }
+html[data-theme="lamplight"] .seg button.on { background: transparent; border-color: var(--rule-strong); color: var(--ink); font-weight: 600; box-shadow: none; }
+html[data-theme="lamplight"] .btn {
+  height: 22px; padding: 0 11px 2px; border-radius: 6px; border: 1px solid var(--rule-strong); background: transparent;
+  font: 600 14px/1 var(--serif); font-variant-caps: small-caps; text-transform: lowercase; letter-spacing: .08em;
+  color: var(--ink-2); box-shadow: none;
+}
+html[data-theme="lamplight"] .btn:hover { background: var(--inset); border-color: var(--rule-strong); }
+html[data-theme="lamplight"] .btn:active { background: var(--sel-inactive); }
+html[data-theme="lamplight"] .btn.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+html[data-theme="lamplight"] .btn.primary:hover { background: var(--accent-deep); border-color: var(--accent-deep); }
+html[data-theme="lamplight"] .btn:disabled { opacity: .4; }
+html[data-theme="lamplight"] .toolbar { background: var(--pane-alt); border-bottom: 1px solid var(--line); padding: 5px 8px; gap: 6px; }
+html[data-theme="lamplight"] .toolbar .note { font: 10px/1 var(--mono); letter-spacing: .02em; color: var(--ink-3); }
+html[data-theme="lamplight"] .live { font: 700 9px/1 var(--mono); letter-spacing: .16em; text-transform: uppercase; color: var(--ok); }
+html[data-theme="lamplight"] .live i { box-shadow: 0 0 0 3px color-mix(in srgb, var(--ok) 17%, transparent); }
+
+/* ---------- editor ---------- */
+html[data-theme="lamplight"] .ed { background: var(--pane); }
+html[data-theme="lamplight"] .ed-hl, html[data-theme="lamplight"] .ed-ta { font: 12px/1.68 var(--mono); padding: 9px 14px; }
+html[data-theme="lamplight"] .ed.dirty { box-shadow: inset 3px 0 0 var(--busy); }
+html[data-theme="lamplight"] .t-g { font-weight: 600; }
+html[data-theme="lamplight"] .t-pr { background: var(--inset); box-shadow: 0 0 0 1px var(--rule-soft); }
+html[data-theme="lamplight"] .mark.result { background: var(--accent-soft); box-shadow: 0 0 0 1px var(--accent-soft); }
+html[data-theme="lamplight"] .mark.pc { background: var(--busy-soft); box-shadow: 0 0 0 1px var(--busy-rule); }
+
+/* Transcript: the system's voice, set as prose */
+html[data-theme="lamplight"] .ed.transcript .ed-ta { font: 15px/1.62 var(--serif); letter-spacing: -.003em; color: var(--ink); padding: 10px 18px; }
+
+html[data-theme="lamplight"] .statusbar {
+  height: 21px; padding: 0 11px; background: var(--pane-alt); border-top: 1px solid var(--line);
+  font: italic 12.5px/1 var(--serif); color: var(--ink-3);
+}
+html[data-theme="lamplight"] .statusbar .mono { font: normal 10.5px/1 var(--mono); color: var(--ink-2); }
+html[data-theme="lamplight"] .statusbar .lchip { font-style: normal; }
+html[data-theme="lamplight"] .statusbar .pill {
+  padding: 3px 8px; border-radius: 999px; font: normal 700 9px/1 var(--mono); letter-spacing: .12em; text-transform: uppercase;
+  border: 1px solid var(--line); color: var(--ink-3); background: var(--inset);
+}
+html[data-theme="lamplight"] .pill.dirty { color: var(--busy); background: var(--busy-soft); border-color: var(--busy-rule); }
+html[data-theme="lamplight"] .pill.ok { color: var(--ok); background: var(--ok-soft); border-color: var(--ok-rule); }
+html[data-theme="lamplight"] .pill.busy { color: var(--busy); background: var(--busy-soft); border-color: var(--busy-rule); }
+html[data-theme="lamplight"] .pill.busy.susp { color: var(--err); background: var(--err-soft); border-color: var(--err-rule); }
+html[data-theme="lamplight"] .statusbar .pill:empty { display: none; }
+
+/* ---------- process browser ---------- */
+html[data-theme="lamplight"] .pb-head { height: 22px; font: 600 9.5px/1 var(--mono); letter-spacing: .17em; color: var(--ink-3); background: var(--pane); border-bottom: 1px solid var(--line); }
+html[data-theme="lamplight"] .pb-rows { background: var(--pane); padding: 3px 0; }
+html[data-theme="lamplight"] .prow { height: 22px; font-size: 14px; }
+html[data-theme="lamplight"] .prow .pri { font: 11px var(--mono); color: var(--ink-3); }
+html[data-theme="lamplight"] .prow .nm svg { color: var(--ink-4); }
+html[data-theme="lamplight"] .prow .st { font: 600 9px/1 var(--mono); letter-spacing: .12em; text-transform: uppercase; color: var(--ink-3); }
+html[data-theme="lamplight"] .prow .cpu { font: 10px var(--mono); color: var(--ink-3); }
+html[data-theme="lamplight"] .prow .cpu .track { background: var(--rule-soft); }
+html[data-theme="lamplight"] .prow .cpu i { background: var(--ink-4); }
+html[data-theme="lamplight"] .prow .sd { background: var(--ink-4); }
+html[data-theme="lamplight"] .prow.s-running .sd { background: var(--ok); box-shadow: 0 0 0 3px color-mix(in srgb, var(--ok) 17%, transparent); }
+html[data-theme="lamplight"] .prow.s-running .st { color: var(--ok); font-weight: 700; }
+html[data-theme="lamplight"] .prow.s-running.busy .sd { background: var(--busy); box-shadow: 0 0 0 3px var(--busy-soft); }
+html[data-theme="lamplight"] .prow.s-running.busy .st { color: var(--busy); }
+html[data-theme="lamplight"] .prow.s-suspended .st { color: var(--err); font-weight: 700; }
+html[data-theme="lamplight"] .prow.sel { background: var(--sel-inactive); }
+html[data-theme="lamplight"] .pb-rows:focus .prow.sel { background: var(--accent-soft); color: var(--ink); box-shadow: inset 3px 0 0 var(--accent); }
+html[data-theme="lamplight"] .pb-rows:focus .prow.sel .pri,
+html[data-theme="lamplight"] .pb-rows:focus .prow.sel .cpu,
+html[data-theme="lamplight"] .pb-rows:focus .prow.sel svg { color: var(--ink-2); }
+html[data-theme="lamplight"] .pb-rows:focus .prow.sel .st { color: var(--accent); }
+html[data-theme="lamplight"] .pb-rows:focus .prow.s-running.sel .st { color: var(--ok); }
+
+/* ---------- inspector ---------- */
+html[data-theme="lamplight"] .insp-top .li { font: 12px var(--mono); }
+html[data-theme="lamplight"] .insp-top .li.k-self,
+html[data-theme="lamplight"] .insp-top .li.k-class,
+html[data-theme="lamplight"] .list:focus .li.sel.k-self,
+html[data-theme="lamplight"] .list:focus .li.sel.k-class { color: var(--accent); }
+html[data-theme="lamplight"] .insp-eval .pane-h code { font: 10.5px var(--mono); color: var(--accent); }
+html[data-theme="lamplight"] .insp-eval .pane-h > span:not(.r) { font-family: var(--mono); color: var(--ink-2); }
+
+/* ---------- notifier / debugger: a margin note ---------- */
+html[data-theme="lamplight"] .nt-head {
+  padding: 11px 14px 10px 12px; background: var(--err-soft); border-bottom: 1px solid var(--line);
+  box-shadow: inset 4px 0 0 var(--err);
+}
+html[data-theme="lamplight"] .nt-head.interrupt { background: var(--busy-soft); box-shadow: inset 4px 0 0 var(--busy); }
+html[data-theme="lamplight"] .nt-icon { width: 20px; height: 20px; border-radius: 5px; margin-left: 4px; background: var(--err); color: var(--accent-ink); }
+html[data-theme="lamplight"] .nt-head.interrupt .nt-icon { background: var(--busy); color: var(--accent-ink); }
+html[data-theme="lamplight"] .nt-msg b {
+  font: 600 17px/1.15 var(--serif); font-variant-caps: small-caps; letter-spacing: .06em; color: var(--err);
+}
+html[data-theme="lamplight"] .nt-head.interrupt .nt-msg b { color: var(--busy); }
+html[data-theme="lamplight"] .nt-msg span { font: italic 14px/1.45 var(--serif); color: var(--ink-2); margin-top: 3px; }
+html[data-theme="lamplight"] .nt-btns { background: var(--pane-alt); border-bottom: 1px solid var(--line); padding: 7px 12px; gap: 6px; }
+html[data-theme="lamplight"] .nt-btns .note { font: italic 12.5px/1 var(--serif) !important; color: var(--ink-3) !important; }
+html[data-theme="lamplight"] .nt-stack .li,
+html[data-theme="lamplight"] .pb-bottom .li { font: 12px var(--mono); }
+html[data-theme="lamplight"] .nt-stack .li .muted { font-family: var(--mono); }
+html[data-theme="lamplight"] .dbg-code { border-top: 1px solid var(--line); }
+
+/* ---------- mandelbrot ---------- */
+html[data-theme="lamplight"] .mb-queued {
+  background: var(--toast-bg); color: var(--toast-ink); border-radius: 4px; backdrop-filter: none;
+  font: italic 12.5px/1.2 var(--serif); padding: 5px 11px;
+}
+
+/* ---------- menus ---------- */
+html[data-theme="lamplight"] .menu {
+  padding: 5px; border-radius: 8px; background: var(--win); border: 1px solid var(--ink-4);
+  box-shadow: var(--shadow-menu); font-size: 14px;
+}
+html[data-theme="lamplight"] .menu-title {
+  margin: -5px -5px 5px; height: 26px; padding: 0 10px; gap: 10px; border-radius: 8px 8px 0 0;
+  background: var(--title); border-bottom: 1px solid var(--line);
+  font: 600 15.5px/1 var(--serif); font-variant-caps: small-caps; text-transform: lowercase; letter-spacing: .09em; color: var(--ink); padding-bottom: 3px;
+}
+html[data-theme="lamplight"] .menu-title::before,
+html[data-theme="lamplight"] .menu-title::after { height: 5px; background: none; border-top: 1px solid var(--line-2); border-bottom: 1px solid var(--line-2); }
+html[data-theme="lamplight"] .menu-head { padding: 6px 10px 3px; font: 600 9.5px/1.2 var(--mono); letter-spacing: .17em; color: var(--ink-3); }
+html[data-theme="lamplight"] .menu-item { height: 25px; padding: 0 10px; border-radius: 4px; }
+html[data-theme="lamplight"] .menu-item .k { font: 10.5px/1 var(--mono); color: var(--ink-3); }
+html[data-theme="lamplight"] .menu-item .d { font: italic 12.5px/1 var(--serif); color: var(--ink-3); }
+html[data-theme="lamplight"] .menu-item:hover { background: var(--accent-soft); color: var(--accent-deep); }
+html[data-theme="lamplight"] .menu-item:hover .k,
+html[data-theme="lamplight"] .menu-item:hover .d { color: var(--accent); }
+html[data-theme="lamplight"] .menu-sep { margin: 5px 8px; background: var(--rule-soft); }
+
+/* ---------- toast ---------- */
+html[data-theme="lamplight"] #toast {
+  background: var(--toast-bg); color: var(--toast-ink); border-radius: 6px; padding: 8px 14px;
+  font: italic 13.5px/1.3 var(--serif); box-shadow: var(--shadow-menu);
+}
+
+/* ---------- help ---------- */
+html[data-theme="lamplight"] #help { background: var(--backdrop); backdrop-filter: blur(2px); }
+html[data-theme="lamplight"] #help .card { background: var(--win); border: 1px solid var(--help-frame); border-radius: 12px; box-shadow: var(--shadow-help); }
+html[data-theme="lamplight"] #help .card .titlebar { height: 32px; padding: 0 12px; }
+html[data-theme="lamplight"] #help .card .titlebar .title { font-size: 17px; color: var(--ink); }
+html[data-theme="lamplight"] #help .content { padding: 18px 24px 22px; gap: 4px 32px; }
+html[data-theme="lamplight"] #help .lede {
+  margin: 0 0 10px; padding: 10px 16px 12px; background: var(--accent-soft); border-left: 4px solid var(--accent);
+  border-radius: 0 6px 6px 0; font: italic 15.5px/1.55 var(--serif); color: var(--ink);
+}
+html[data-theme="lamplight"] #help h3 {
+  margin: 14px 0 4px; padding-bottom: 6px; border-bottom: 1px solid var(--rule-strong);
+  font: 600 10px/1.5 var(--mono); letter-spacing: .17em; color: var(--ink-3);
+}
+html[data-theme="lamplight"] #help .row { font-size: 13.5px; min-height: 25px; gap: 8px; }
+html[data-theme="lamplight"] #help .row .keys { min-width: 72px; }

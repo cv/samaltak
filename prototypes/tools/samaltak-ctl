@@ -1,0 +1,187 @@
+#!/usr/bin/env node
+// samaltak-ctl — drive the Samaltak prototype through its control service (window.SamaltakCtl),
+// via agent-browser. See README.md.
+'use strict';
+
+const { execFileSync } = require('child_process');
+const path = require('path');
+const fs = require('fs');
+
+const URL_BASE = 'file://' + path.resolve(__dirname, '../1-classic/index.html');
+const USAGE = `usage: samaltak-ctl [--session name] <command> [args]
+  open [--theme t] [--type y] [--headed]   open the prototype at 1440x900
+  snapshot [ref] [--depth n] [--bounds]    widget tree with stable @refs
+  find <text>                              refs whose label/ref contains text
+  click <ref|x,y> [--right] [--mods Shift+Meta]
+  dblclick <ref|x,y>
+  type <ref> <text> [--end|--start|--replace]
+  key <combo> [ref]                        e.g. Meta+p, Escape, Meta+.  (Meta = platform modifier)
+  drag <ref> <dx> <dy> | drag <ref> <ref>  move windows by their title bar, splitters, handles
+  resize <ref> <w> <h>
+  select <ref> <text|all|end|from-to|line:n>   editor selection, or list item by label
+  scroll <ref> [dy]
+  eval <smalltalk>                         {printString} or {error}
+  wait <cond> [timeout-ms]                 cond: JSON ({"ref":..,"text":..,"idle":true,"gone":..,"frames":n}), @ref, idle, or text
+  bounds <ref>
+  screenshot [ref] <path>                  window/widget, or the whole screen
+  state
+  close
+session: --session, $SAMALTAK_SESSION, default "samaltak"`;
+
+let argv = process.argv.slice(2);
+let session = process.env.SAMALTAK_SESSION || 'samaltak';
+const flags = {};
+const pos = [];
+for (let i = 0; i < argv.length; i++) {
+  const a = argv[i];
+  if (a === '--session') session = argv[++i];
+  else if (/^--(theme|type|depth|mods|timeout)$/.test(a)) flags[a.slice(2)] = argv[++i];
+  else if (/^--(headed|bounds|right|end|start|replace|json|text)$/.test(a)) flags[a.slice(2)] = true;
+  else if (a === '-h' || a === '--help') { console.log(USAGE); process.exit(0); }
+  else pos.push(a);
+}
+const [cmd, ...args] = pos;
+
+function die(msg, code = 1) { process.stderr.write(`samaltak-ctl: ${msg}\n`); process.exit(code); }
+
+function ab(abArgs, { timeout = 60000, json = false } = {}) {
+  const full = ['--session', session, ...(json ? ['--json'] : []), ...abArgs];
+  try {
+    return execFileSync('agent-browser', full, { encoding: 'utf8', timeout, maxBuffer: 64 << 20, stdio: ['ignore', 'pipe', 'pipe'] });
+  } catch (e) {
+    if (e.code === 'ENOENT') die('agent-browser not found on PATH');
+    const out = (e.stdout || '') + (e.stderr || '');
+    if (json && out.includes('{')) return out;
+    die(`agent-browser ${abArgs[0]} failed: ${out.trim() || e.message}`);
+  }
+}
+
+// Call SamaltakCtl[fn](...args) in the page, await it, return its value or exit with its error.
+function call(fn, fnArgs = [], timeout = 60000) {
+  const r = callRaw(fn, fnArgs, timeout);
+  if ('__err' in r) die(r.__err);
+  return r.__ok;
+}
+function callRaw(fn, fnArgs, timeout) {
+  const js = `(async () => {
+    const C = window.SamaltakCtl;
+    if (!C) return { __err: 'Samaltak is not loaded in session ' + ${JSON.stringify(session)} + ' (run: samaltak-ctl open)' };
+    try { return { __ok: await C[${JSON.stringify(fn)}](...${JSON.stringify(fnArgs)}) }; }
+    catch (e) { return { __err: String(e && e.message || e) }; }
+  })()`;
+  const raw = ab(['eval', '-b', Buffer.from(js).toString('base64')], { timeout, json: true });
+  let res;
+  try { res = JSON.parse(raw.trim().split('\n').filter(l => l.startsWith('{')).pop()); }
+  catch (_) { die(`unexpected agent-browser output: ${raw.trim().slice(0, 400)}`); }
+  if (!res.success) die(/no (page|browser)|not running|closed/i.test(res.error || '') ? `no browser in session ${session} (run: samaltak-ctl open)` : String(res.error).split('\n')[0]);
+  const r = res.data && res.data.result;
+  if (!r || typeof r !== 'object') die(`no result from page (is the prototype open in session ${session}?)`);
+  return r;
+}
+
+function print(v) {
+  if (typeof v === 'string') console.log(v);
+  else if (v === undefined || v === null) return;
+  else console.log(JSON.stringify(v, null, flags.json || cmd === 'state' ? 2 : 0));
+}
+const target = s => {
+  if (s == null) die('missing ref');
+  const m = String(s).match(/^(-?\d+(?:\.\d+)?)\s*,\s*(-?\d+(?:\.\d+)?)$/);
+  return m ? { x: +m[1], y: +m[2] } : s;
+};
+const need = (n, what) => { if (args.length < n) die(`${cmd}: ${what}\n${USAGE}`); };
+
+switch (cmd) {
+  case 'open': {
+    const u = new URL(URL_BASE);
+    if (flags.theme) u.searchParams.set('theme', flags.theme);
+    if (flags.type) u.searchParams.set('type', flags.type);
+    ab([...(flags.headed ? ['--headed'] : []), 'open', 'about:blank']);
+    ab(['set', 'viewport', '1440', '900']);
+    ab(['open', u.href]);
+    call('wait', [{ frames: 3 }], 20000);
+    console.log(`opened ${u.href} (session ${session}, 1440x900)`);
+    break;
+  }
+  case 'snapshot': {
+    const o = {};
+    if (args[0]) o.ref = args[0];
+    if (flags.depth != null) o.depth = +flags.depth;
+    if (flags.bounds) o.bounds = true;
+    print(call('snapshot', [o]));
+    break;
+  }
+  case 'find': {
+    need(1, 'find <text>');
+    const r = call('find', [args.join(' ')]);
+    if (!r.length) die(`nothing matches ${JSON.stringify(args.join(' '))}`, 2);
+    for (const n of r) console.log(`${n.role} ${n.ref} ${JSON.stringify(n.label)}`);
+    break;
+  }
+  case 'click': need(1, 'click <ref|x,y>'); print(call('click', [target(args[0]), { button: flags.right ? 2 : 0, mods: flags.mods }])); break;
+  case 'rightclick': need(1, 'rightclick <ref|x,y>'); print(call('click', [target(args[0]), { button: 2, mods: flags.mods }])); break;
+  case 'dblclick': need(1, 'dblclick <ref|x,y>'); print(call('click', [target(args[0]), { double: true, mods: flags.mods }])); break;
+  case 'type': need(2, 'type <ref> <text>'); print(call('type', [args[0], args.slice(1).join(' '), { at: flags.end ? 'end' : flags.start ? 'start' : undefined, replace: !!flags.replace }])); break;
+  case 'key': need(1, 'key <combo> [ref]'); print(call('key', [args[0], args[1] || null])); break;
+  case 'drag':
+    need(2, 'drag <ref> <dx> <dy> | drag <ref> <ref>');
+    if (args.length >= 3 && !isNaN(+args[1]) && !isNaN(+args[2])) print(call('drag', [target(args[0]), { dx: +args[1], dy: +args[2] }]));
+    else print(call('drag', [target(args[0]), target(args[1])]));
+    break;
+  case 'resize': need(3, 'resize <ref> <w> <h>'); print(call('resize', [args[0], { w: +args[1], h: +args[2] }])); break;
+  case 'select': {
+    need(2, 'select <ref> <spec>');
+    const s = args.slice(1).join(' ');
+    let spec = s;
+    let m;
+    if ((m = s.match(/^(\d+)-(\d+)$/))) spec = { from: +m[1], to: +m[2] };
+    else if ((m = s.match(/^line:(\d+)$/))) spec = { line: +m[1] };
+    print(call('select', [args[0], spec]));
+    break;
+  }
+  case 'scroll': need(1, 'scroll <ref> [dy]'); print(call('scroll', [target(args[0]), { dy: args[1] != null ? +args[1] : 120 }])); break;
+  case 'eval': {
+    need(1, 'eval <smalltalk>');
+    const r = call('eval', [args.join(' ')]);
+    if (r.error) { console.log(JSON.stringify(r)); process.exit(3); }
+    print(r);
+    break;
+  }
+  case 'wait': {
+    need(1, 'wait <cond> [timeout]');
+    const a = args[0];
+    let cond;
+    if (a.startsWith('{')) { try { cond = JSON.parse(a); } catch (e) { die(`wait: bad JSON: ${e.message}`); } }
+    else if (a === 'idle') cond = { idle: true };
+    else if (a.startsWith('@')) cond = { ref: a };
+    else if (/^\d+$/.test(a)) cond = { ms: +a };
+    else cond = { text: a };
+    // agent-browser gives up on evals that run ~25 s, so long waits are polled in slices
+    const t = +(args[1] || flags.timeout || 10000), t0 = Date.now();
+    for (;;) {
+      const left = t - (Date.now() - t0), slice = Math.max(1, Math.min(15000, left));
+      const r = callRaw('wait', [cond, slice], slice + 20000);
+      if ('__ok' in r) { print({ ...r.__ok, ms: Date.now() - t0 }); break; }
+      if (!/^wait timed out/.test(r.__err)) die(r.__err);
+      if (left <= 15000) die(`wait timed out after ${t} ms: ${JSON.stringify(cond)}`, 2);
+    }
+    break;
+  }
+  case 'bounds': need(1, 'bounds <ref>'); print(call('bounds', [args[0]])); break;
+  case 'state': print(call('state')); break;
+  case 'screenshot': {
+    need(1, 'screenshot [ref] <path>');
+    const file = path.resolve(args[args.length - 1]);
+    fs.mkdirSync(path.dirname(file), { recursive: true });
+    if (args.length > 1) {
+      const ref = String(args[0]).replace(/^@/, '');
+      call('isolate', [ref]);                             // resolves the ref; hides windows covering it
+      try { ab(['screenshot', `[data-ref="${ref}"]`, file]); } finally { call('isolate', [null]); }
+    } else ab(['screenshot', file]);
+    console.log(file);
+    break;
+  }
+  case 'close': ab(['close']); console.log(`closed session ${session}`); break;
+  case undefined: console.log(USAGE); process.exit(1); break;
+  default: die(`unknown command ${JSON.stringify(cmd)}\n${USAGE}`);
+}

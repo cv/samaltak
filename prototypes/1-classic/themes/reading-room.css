@@ -1,0 +1,300 @@
+/* Reading Room — after pi-orb: warm paper, ink, terracotta. Charter small caps
+   for headings and buttons, quiet tracked mono for structure, serif prose. */
+
+html[data-theme="reading-room"] {
+  color-scheme: light;
+  --serif: Charter, "Bitstream Charter", "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, serif;
+  --ui: var(--serif);
+  --mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+
+  --desk: #e9e0cc;
+  --desk-dot: rgba(95, 85, 68, .13);
+  --bar: #f1eadb;
+  --win: #f8f3e9;
+  --pane: #f8f3e9;
+  --pane-alt: #f1eadb;
+  --title: #f1eadb;
+  --inset: #efe7d5;
+  --stripe: #8a7e68;
+  --frame: #cbbd9f;
+  --line: #ddd2bc;
+  --line-2: #d3c6ab;
+  --rule-soft: #e7ddc9;
+  --rule-strong: #8a7e68;
+  --ink: #221c12;
+  --ink-2: #5f5544;
+  --ink-3: #8a7e68;
+  --ink-4: #b9ac91;
+  --accent: #a03e1c;
+  --accent-deep: #873416;
+  --accent-ink: #f8f3e9;
+  --accent-soft: #f3e2d6;
+  --sel-text: rgba(160, 62, 28, .17);
+  --sel-inactive: #ebe2cf;
+  --busy: #8a6a1f;
+  --busy-soft: #f2e8cd;
+  --busy-rule: #d9c58a;
+  --ok: #35662f;
+  --ok-soft: #e2ecd9;
+  --ok-rule: #c4d4b6;
+  --err: #a03e1c;
+  --err-soft: #f3e2d6;
+  --err-rule: #dcb4a1;
+  --chip-ink: #f8f3e9;
+  --chip-ink-pale: #5e2410;
+  --backdrop: rgba(34, 28, 18, .35);
+  --toast-bg: #221c12;
+  --toast-ink: #f8f3e9;
+  --scroll: #d3c6ab;
+  --shadow: 0 1px 0 rgba(34, 28, 18, .04), 0 6px 18px rgba(34, 28, 18, .07);
+  --shadow-active: 0 1px 0 rgba(34, 28, 18, .05), 0 16px 40px rgba(34, 28, 18, .16);
+  --shadow-menu: 0 18px 46px rgba(34, 28, 18, .22);
+  --shadow-help: 0 28px 70px rgba(34, 28, 18, .28);
+  --help-frame: #5f5544;
+
+  /* syntax: ink-led, few hues */
+  --t-c: #8a7e68;  --t-s: #35662f;  --t-sym: #7b3f62; --t-n: #1f5f6b;  --t-ch: #35662f;
+  --t-pv: #a03e1c; --t-g: #2b4566;  --t-k: #221c12;   --t-arg: #6a4f7a; --t-r: #a03e1c;
+  --t-pr: #1f5f6b; --t-b: #8a7e68;
+
+  /* layers 0..5 — terracotta, deepening toward the kernel */
+  --l0: #5e2410; --l1: #7f3216; --l2: #a03e1c; --l3: #c0663f; --l4: #dc9e7c; --l5: #ecc9b2;
+
+  --fractal-stops: 248 243 233, 238 226 202, 214 172 118, 160 62 28, 70 42 24, 248 243 233;
+  --fractal-inside: 34 28 18;
+}
+
+/* ---------- base ---------- */
+html[data-theme="reading-room"] body { -webkit-font-smoothing: auto; font-size: 13.5px; }
+html[data-theme="reading-room"] * { scrollbar-width: thin; scrollbar-color: var(--scroll) transparent; }
+html[data-theme="reading-room"] kbd {
+  font: 500 10.5px/1 var(--mono); color: var(--ink-2); background: var(--inset);
+  border: 1px solid var(--line); border-radius: 4px; box-shadow: none; padding: 3px 5px;
+}
+html[data-theme="reading-room"] #desktop { background-size: 24px 24px; background-position: 12px 12px; }
+
+/* ---------- top bar: the app header ---------- */
+html[data-theme="reading-room"] #topbar {
+  background: var(--bar); backdrop-filter: none; -webkit-backdrop-filter: none;
+  border-bottom: 1px solid var(--line); color: var(--ink-2); gap: 12px;
+}
+html[data-theme="reading-room"] #topbar .brand { font: 500 13px/1 var(--mono); letter-spacing: .01em; color: var(--ink); }
+html[data-theme="reading-room"] #topbar .sep { background: var(--line); }
+html[data-theme="reading-room"] #topbar > .sep + span {
+  padding: 4px 8px; font: 10px/1 var(--mono); letter-spacing: .05em; text-transform: uppercase;
+  color: var(--ink-3); background: var(--inset); border: 1px solid var(--line); border-radius: 3px;
+}
+html[data-theme="reading-room"] #topbar .hint { font: italic 13px/1 var(--serif); color: var(--ink-3); }
+html[data-theme="reading-room"] #topbar .stat { font: 11px/1 var(--mono); color: var(--ink-2); }
+html[data-theme="reading-room"] #topbar .stat b { font-weight: 600; }
+html[data-theme="reading-room"] #topbar .stat .lbl { font: 700 9px/1 var(--mono); letter-spacing: .16em; color: var(--ink-3); }
+html[data-theme="reading-room"] .tbtn { border-radius: 6px; color: var(--ink-2); font: 600 13px/1 var(--serif); }
+html[data-theme="reading-room"] .tbtn:hover { background: var(--inset); border-color: var(--line); }
+
+/* ---------- windows ---------- */
+html[data-theme="reading-room"] .win { border-radius: 6px; border-color: var(--frame); }
+html[data-theme="reading-room"] .win.active { border-color: var(--ink-4); }
+html[data-theme="reading-room"] .titlebar { background: var(--title); border-bottom: 1px solid var(--line); gap: 8px; padding: 0 8px; }
+html[data-theme="reading-room"] .titlebar .stripes,
+html[data-theme="reading-room"] .win.active .titlebar .stripes,
+html[data-theme="reading-room"] #help .card .titlebar .stripes {
+  height: 5px; opacity: 1; background: none;
+  border-top: 1px solid var(--rule-soft); border-bottom: 1px solid var(--rule-soft);
+}
+html[data-theme="reading-room"] .win.active .titlebar .stripes,
+html[data-theme="reading-room"] #help .card .titlebar .stripes { border-color: var(--line-2); }
+html[data-theme="reading-room"] .titlebar .title {
+  font: 600 15px/1 var(--serif); font-variant-caps: small-caps;
+  letter-spacing: .06em; color: var(--ink-3); padding: 0 6px 3px;
+}
+html[data-theme="reading-room"] .win.active .titlebar .title { color: var(--ink); }
+html[data-theme="reading-room"] .tb-box { border-radius: 3px; border-color: var(--line-2); background: transparent; color: var(--ink-3); }
+html[data-theme="reading-room"] .win.active .tb-box { border-color: var(--ink-4); }
+html[data-theme="reading-room"] .tb-box:hover { background: var(--ink-2); border-color: var(--ink-2) !important; color: var(--accent-ink); }
+html[data-theme="reading-room"] .tb-close:hover { background: var(--accent); border-color: var(--accent) !important; }
+
+html[data-theme="reading-room"] .tb-proc { font: 700 9px/1 var(--mono); letter-spacing: .14em; text-transform: uppercase; border-radius: 999px; }
+html[data-theme="reading-room"] .tb-proc:hover { background: var(--inset); }
+html[data-theme="reading-room"] .win.busy .tb-proc { background: var(--busy-soft); box-shadow: inset 0 0 0 1px var(--busy-rule); }
+html[data-theme="reading-room"] .win.suspended .tb-proc { background: var(--err-soft); box-shadow: inset 0 0 0 1px var(--err-rule); }
+html[data-theme="reading-room"] .win.busy .busybar { background: repeating-linear-gradient(-45deg, var(--busy) 0 6px, transparent 6px 12px); background-size: 17px 2px; }
+
+/* ---------- panes, lists ---------- */
+html[data-theme="reading-room"] .pane-h {
+  height: 22px; padding: 0 10px; background: var(--pane); border-bottom: 1px solid var(--line);
+  font: 600 9.5px/1 var(--mono); letter-spacing: .17em; color: var(--ink-3);
+}
+html[data-theme="reading-room"] .pane-h .r { font: 400 10px/1 var(--mono); letter-spacing: .02em; color: var(--ink-3); }
+html[data-theme="reading-room"] .list { font-size: 14px; padding: 3px 0; }
+html[data-theme="reading-room"] .li { height: 22px; line-height: 22px; padding: 0 11px; }
+html[data-theme="reading-room"] .li.sel { background: var(--sel-inactive); }
+html[data-theme="reading-room"] .list:focus .li.sel { background: var(--accent-soft); color: var(--ink); box-shadow: inset 3px 0 0 var(--accent); }
+html[data-theme="reading-room"] .list:focus .li.sel .muted { color: var(--accent); }
+html[data-theme="reading-room"] .li .muted { font: 600 9px/1 var(--mono); letter-spacing: .12em; text-transform: uppercase; color: var(--ink-3); }
+html[data-theme="reading-room"] .li.hdr { font: 600 9.5px/22px var(--mono); letter-spacing: .17em; color: var(--ink-3); }
+html[data-theme="reading-room"] .li.grp { box-shadow: 0 -1px 0 var(--rule-soft); }
+html[data-theme="reading-room"] .list:focus .li.grp.sel { box-shadow: 0 -1px 0 var(--rule-soft), inset 3px 0 0 var(--accent); }
+html[data-theme="reading-room"] .li.allproto { font-style: italic; color: var(--ink-3); }
+html[data-theme="reading-room"] .li.mod .t::after { color: var(--busy); }
+html[data-theme="reading-room"] .lchip { width: 16px; height: 16px; border-radius: 4px; font: 700 10px/1 var(--serif); color: var(--chip-ink); }
+html[data-theme="reading-room"] .lchip.L4,
+html[data-theme="reading-room"] .lchip.L5 { color: var(--chip-ink-pale); }
+
+html[data-theme="reading-room"] .vsplit { background: var(--pane-alt); border-color: var(--line); }
+html[data-theme="reading-room"] .vsplit::after { border-top-color: var(--ink-4); }
+html[data-theme="reading-room"] .hsplit, html[data-theme="reading-room"] .browser-top,
+html[data-theme="reading-room"] .insp-top, html[data-theme="reading-room"] .pb-bottom { background: var(--line); }
+
+/* ---------- controls: small-caps serif ---------- */
+html[data-theme="reading-room"] .seg { background: var(--pane); border-top: 1px solid var(--line); padding: 4px; gap: 4px; }
+html[data-theme="reading-room"] .seg button {
+  height: 20px; border-radius: 6px; font: 600 14px/1 var(--serif); font-variant-caps: small-caps;
+  text-transform: lowercase; letter-spacing: .08em; color: var(--ink-3);
+}
+html[data-theme="reading-room"] .seg button:hover { color: var(--ink); background: var(--inset); }
+html[data-theme="reading-room"] .seg button.on { background: transparent; border-color: var(--rule-strong); color: var(--ink); font-weight: 600; box-shadow: none; }
+html[data-theme="reading-room"] .btn {
+  height: 22px; padding: 0 11px 2px; border-radius: 6px; border: 1px solid var(--rule-strong); background: transparent;
+  font: 600 14px/1 var(--serif); font-variant-caps: small-caps; text-transform: lowercase; letter-spacing: .08em;
+  color: var(--ink-2); box-shadow: none;
+}
+html[data-theme="reading-room"] .btn:hover { background: var(--inset); border-color: var(--rule-strong); }
+html[data-theme="reading-room"] .btn:active { background: var(--sel-inactive); }
+html[data-theme="reading-room"] .btn.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+html[data-theme="reading-room"] .btn.primary:hover { background: var(--accent-deep); border-color: var(--accent-deep); }
+html[data-theme="reading-room"] .btn:disabled { opacity: .4; }
+html[data-theme="reading-room"] .toolbar { background: var(--pane-alt); border-bottom: 1px solid var(--line); padding: 5px 8px; gap: 6px; }
+html[data-theme="reading-room"] .toolbar .note { font: 10px/1 var(--mono); letter-spacing: .02em; color: var(--ink-3); }
+html[data-theme="reading-room"] .live { font: 700 9px/1 var(--mono); letter-spacing: .16em; text-transform: uppercase; color: var(--ok); }
+html[data-theme="reading-room"] .live i { box-shadow: 0 0 0 3px color-mix(in srgb, var(--ok) 17%, transparent); }
+
+/* ---------- editor ---------- */
+html[data-theme="reading-room"] .ed { background: var(--pane); }
+html[data-theme="reading-room"] .ed-hl, html[data-theme="reading-room"] .ed-ta { font: 12px/1.68 var(--mono); padding: 9px 14px; }
+html[data-theme="reading-room"] .ed.dirty { box-shadow: inset 3px 0 0 var(--busy); }
+html[data-theme="reading-room"] .t-g { font-weight: 600; }
+html[data-theme="reading-room"] .t-pr { background: var(--inset); box-shadow: 0 0 0 1px var(--rule-soft); }
+html[data-theme="reading-room"] .mark.result { background: var(--accent-soft); box-shadow: 0 0 0 1px var(--accent-soft); }
+html[data-theme="reading-room"] .mark.pc { background: var(--busy-soft); box-shadow: 0 0 0 1px var(--busy-rule); }
+
+/* Transcript: the system's voice, set as prose */
+html[data-theme="reading-room"] .ed.transcript .ed-ta { font: 15px/1.62 var(--serif); letter-spacing: -.003em; color: var(--ink); padding: 10px 18px; }
+
+html[data-theme="reading-room"] .statusbar {
+  height: 21px; padding: 0 11px; background: var(--pane-alt); border-top: 1px solid var(--line);
+  font: italic 12.5px/1 var(--serif); color: var(--ink-3);
+}
+html[data-theme="reading-room"] .statusbar .mono { font: normal 10.5px/1 var(--mono); color: var(--ink-2); }
+html[data-theme="reading-room"] .statusbar .lchip { font-style: normal; }
+html[data-theme="reading-room"] .statusbar .pill {
+  padding: 3px 8px; border-radius: 999px; font: normal 700 9px/1 var(--mono); letter-spacing: .12em; text-transform: uppercase;
+  border: 1px solid var(--line); color: var(--ink-3); background: var(--inset);
+}
+html[data-theme="reading-room"] .pill.dirty { color: var(--busy); background: var(--busy-soft); border-color: var(--busy-rule); }
+html[data-theme="reading-room"] .pill.ok { color: var(--ok); background: var(--ok-soft); border-color: var(--ok-rule); }
+html[data-theme="reading-room"] .pill.busy { color: var(--busy); background: var(--busy-soft); border-color: var(--busy-rule); }
+html[data-theme="reading-room"] .pill.busy.susp { color: var(--err); background: var(--err-soft); border-color: var(--err-rule); }
+html[data-theme="reading-room"] .statusbar .pill:empty { display: none; }
+
+/* ---------- process browser ---------- */
+html[data-theme="reading-room"] .pb-head { height: 22px; font: 600 9.5px/1 var(--mono); letter-spacing: .17em; color: var(--ink-3); background: var(--pane); border-bottom: 1px solid var(--line); }
+html[data-theme="reading-room"] .pb-rows { background: var(--pane); padding: 3px 0; }
+html[data-theme="reading-room"] .prow { height: 22px; font-size: 14px; }
+html[data-theme="reading-room"] .prow .pri { font: 11px var(--mono); color: var(--ink-3); }
+html[data-theme="reading-room"] .prow .nm svg { color: var(--ink-4); }
+html[data-theme="reading-room"] .prow .st { font: 600 9px/1 var(--mono); letter-spacing: .12em; text-transform: uppercase; color: var(--ink-3); }
+html[data-theme="reading-room"] .prow .cpu { font: 10px var(--mono); color: var(--ink-3); }
+html[data-theme="reading-room"] .prow .cpu .track { background: var(--rule-soft); }
+html[data-theme="reading-room"] .prow .cpu i { background: var(--ink-4); }
+html[data-theme="reading-room"] .prow .sd { background: var(--ink-4); }
+html[data-theme="reading-room"] .prow.s-running .sd { background: var(--ok); box-shadow: 0 0 0 3px color-mix(in srgb, var(--ok) 17%, transparent); }
+html[data-theme="reading-room"] .prow.s-running .st { color: var(--ok); font-weight: 700; }
+html[data-theme="reading-room"] .prow.s-running.busy .sd { background: var(--busy); box-shadow: 0 0 0 3px var(--busy-soft); }
+html[data-theme="reading-room"] .prow.s-running.busy .st { color: var(--busy); }
+html[data-theme="reading-room"] .prow.s-suspended .st { color: var(--err); font-weight: 700; }
+html[data-theme="reading-room"] .prow.sel { background: var(--sel-inactive); }
+html[data-theme="reading-room"] .pb-rows:focus .prow.sel { background: var(--accent-soft); color: var(--ink); box-shadow: inset 3px 0 0 var(--accent); }
+html[data-theme="reading-room"] .pb-rows:focus .prow.sel .pri,
+html[data-theme="reading-room"] .pb-rows:focus .prow.sel .cpu,
+html[data-theme="reading-room"] .pb-rows:focus .prow.sel svg { color: var(--ink-2); }
+html[data-theme="reading-room"] .pb-rows:focus .prow.sel .st { color: var(--accent); }
+html[data-theme="reading-room"] .pb-rows:focus .prow.s-running.sel .st { color: var(--ok); }
+
+/* ---------- inspector ---------- */
+html[data-theme="reading-room"] .insp-top .li { font: 12px var(--mono); }
+html[data-theme="reading-room"] .insp-top .li.k-self,
+html[data-theme="reading-room"] .insp-top .li.k-class,
+html[data-theme="reading-room"] .list:focus .li.sel.k-self,
+html[data-theme="reading-room"] .list:focus .li.sel.k-class { color: var(--accent); }
+html[data-theme="reading-room"] .insp-eval .pane-h code { font: 10.5px var(--mono); color: var(--accent); }
+html[data-theme="reading-room"] .insp-eval .pane-h > span:not(.r) { font-family: var(--mono); color: var(--ink-2); }
+
+/* ---------- notifier / debugger: a margin note ---------- */
+html[data-theme="reading-room"] .nt-head {
+  padding: 11px 14px 10px 12px; background: var(--err-soft); border-bottom: 1px solid var(--line);
+  box-shadow: inset 4px 0 0 var(--err);
+}
+html[data-theme="reading-room"] .nt-head.interrupt { background: var(--busy-soft); box-shadow: inset 4px 0 0 var(--busy); }
+html[data-theme="reading-room"] .nt-icon { width: 20px; height: 20px; border-radius: 5px; margin-left: 4px; background: var(--err); color: var(--accent-ink); }
+html[data-theme="reading-room"] .nt-head.interrupt .nt-icon { background: var(--busy); color: var(--accent-ink); }
+html[data-theme="reading-room"] .nt-msg b {
+  font: 600 17px/1.15 var(--serif); font-variant-caps: small-caps; letter-spacing: .06em; color: var(--err);
+}
+html[data-theme="reading-room"] .nt-head.interrupt .nt-msg b { color: var(--busy); }
+html[data-theme="reading-room"] .nt-msg span { font: italic 14px/1.45 var(--serif); color: var(--ink-2); margin-top: 3px; }
+html[data-theme="reading-room"] .nt-btns { background: var(--pane-alt); border-bottom: 1px solid var(--line); padding: 7px 12px; gap: 6px; }
+html[data-theme="reading-room"] .nt-btns .note { font: italic 12.5px/1 var(--serif) !important; color: var(--ink-3) !important; }
+html[data-theme="reading-room"] .nt-stack .li,
+html[data-theme="reading-room"] .pb-bottom .li { font: 12px var(--mono); }
+html[data-theme="reading-room"] .nt-stack .li .muted { font-family: var(--mono); }
+html[data-theme="reading-room"] .dbg-code { border-top: 1px solid var(--line); }
+
+/* ---------- mandelbrot ---------- */
+html[data-theme="reading-room"] .mb-queued {
+  background: var(--toast-bg); color: var(--toast-ink); border-radius: 4px; backdrop-filter: none;
+  font: italic 12.5px/1.2 var(--serif); padding: 5px 11px;
+}
+
+/* ---------- menus ---------- */
+html[data-theme="reading-room"] .menu {
+  padding: 5px; border-radius: 8px; background: var(--win); border: 1px solid var(--ink-4);
+  box-shadow: var(--shadow-menu); font-size: 14px;
+}
+html[data-theme="reading-room"] .menu-title {
+  margin: -5px -5px 5px; height: 26px; padding: 0 10px; gap: 10px; border-radius: 8px 8px 0 0;
+  background: var(--title); border-bottom: 1px solid var(--line);
+  font: 600 15.5px/1 var(--serif); font-variant-caps: small-caps; text-transform: lowercase; letter-spacing: .09em; color: var(--ink); padding-bottom: 3px;
+}
+html[data-theme="reading-room"] .menu-title::before,
+html[data-theme="reading-room"] .menu-title::after { height: 5px; background: none; border-top: 1px solid var(--line-2); border-bottom: 1px solid var(--line-2); }
+html[data-theme="reading-room"] .menu-head { padding: 6px 10px 3px; font: 600 9.5px/1.2 var(--mono); letter-spacing: .17em; color: var(--ink-3); }
+html[data-theme="reading-room"] .menu-item { height: 25px; padding: 0 10px; border-radius: 4px; }
+html[data-theme="reading-room"] .menu-item .k { font: 10.5px/1 var(--mono); color: var(--ink-3); }
+html[data-theme="reading-room"] .menu-item .d { font: italic 12.5px/1 var(--serif); color: var(--ink-3); }
+html[data-theme="reading-room"] .menu-item:hover { background: var(--accent-soft); color: var(--accent-deep); }
+html[data-theme="reading-room"] .menu-item:hover .k,
+html[data-theme="reading-room"] .menu-item:hover .d { color: var(--accent); }
+html[data-theme="reading-room"] .menu-sep { margin: 5px 8px; background: var(--rule-soft); }
+
+/* ---------- toast ---------- */
+html[data-theme="reading-room"] #toast {
+  background: var(--toast-bg); color: var(--toast-ink); border-radius: 6px; padding: 8px 14px;
+  font: italic 13.5px/1.3 var(--serif); box-shadow: var(--shadow-menu);
+}
+
+/* ---------- help ---------- */
+html[data-theme="reading-room"] #help { background: var(--backdrop); backdrop-filter: blur(2px); }
+html[data-theme="reading-room"] #help .card { background: var(--win); border: 1px solid var(--help-frame); border-radius: 12px; box-shadow: var(--shadow-help); }
+html[data-theme="reading-room"] #help .card .titlebar { height: 32px; padding: 0 12px; }
+html[data-theme="reading-room"] #help .card .titlebar .title { font-size: 17px; color: var(--ink); }
+html[data-theme="reading-room"] #help .content { padding: 18px 24px 22px; gap: 4px 32px; }
+html[data-theme="reading-room"] #help .lede {
+  margin: 0 0 10px; padding: 10px 16px 12px; background: var(--accent-soft); border-left: 4px solid var(--accent);
+  border-radius: 0 6px 6px 0; font: italic 15.5px/1.55 var(--serif); color: var(--ink);
+}
+html[data-theme="reading-room"] #help h3 {
+  margin: 14px 0 4px; padding-bottom: 6px; border-bottom: 1px solid var(--rule-strong);
+  font: 600 10px/1.5 var(--mono); letter-spacing: .17em; color: var(--ink-3);
+}
+html[data-theme="reading-room"] #help .row { font-size: 13.5px; min-height: 25px; gap: 8px; }
+html[data-theme="reading-room"] #help .row .keys { min-width: 72px; }

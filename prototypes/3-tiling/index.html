@@ -1,0 +1,24 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Samaltak — tiling</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="stylesheet" href="style.css">
+</head>
+<body class="theme-acme">
+<div id="row"></div>
+<div id="cols"></div>
+<div id="fx"></div>
+<div id="cmdk" hidden>
+  <div class="ck-bar"><div class="handle"></div><input id="ck-in" spellcheck="false" autocomplete="off" placeholder="command, class, Class>>selector, package — or any Smalltalk expression"></div>
+  <div id="ck-list"></div>
+  <div id="ck-out"></div>
+  <div class="ck-hint">↵ run · ↑↓ choose · Tab complete · Esc close</div>
+</div>
+<div id="help" hidden></div>
+<script src="../shared/mini-st.js"></script>
+<script src="../shared/fake-image.js"></script>
+<script src="app.js"></script>
+</body>
+</html>

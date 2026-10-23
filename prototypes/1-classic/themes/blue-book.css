@@ -1,0 +1,335 @@
+/* blue-book — Smalltalk-80, Xerox PARC 1983, re-set for a high-DPI display.
+   Black on white, 1px frames, halftone desktop, inversion for selection,
+   one ultramarine (the Blue Book cover) as the only colour. */
+html[data-theme="blue-book"] {
+  --serif: "Iowan Old Style", "Palatino", "Palatino Linotype", "Book Antiqua", Georgia, serif;
+  --ui: var(--serif);
+  --mono: Menlo, "SF Mono", ui-monospace, monospace;
+  --code: var(--serif);
+
+  --ultra: #1b3a8c;
+  --desk: #ffffff;
+  --desk-dot: #000;
+  --bar: #ffffff;
+  --win: #ffffff;
+  --pane: #ffffff;
+  --pane-alt: #ffffff;
+  --title: #ffffff;
+  --stripe: #000;
+  --frame: #000;
+  --line: #000;
+  --line-2: #000;
+  --hair: #c9c9c9;
+  --ink: #000;
+  --ink-2: #3a3a3a;
+  --ink-3: #6b6b6b;
+  --ink-4: #a6a6a6;
+  --accent: #1b3a8c;
+  --accent-ink: #fff;
+  --accent-soft: rgba(27, 58, 140, .12);
+  --sel-text: rgba(27, 58, 140, .22);
+  --sel-inactive: transparent;
+  --busy: #1b3a8c;
+  --busy-soft: rgba(27, 58, 140, .10);
+  --ok: #000;
+  --err: #000;
+  --err-soft: transparent;
+  --shadow: none;
+  --shadow-active: 2px 2px 0 #000;
+
+  --t-c: #5e5e5e; --t-s: #000; --t-sym: #000; --t-n: #000; --t-ch: #000;
+  --t-pv: #000; --t-g: #1b3a8c; --t-k: #000; --t-arg: #000; --t-r: #1b3a8c;
+  --t-pr: #000; --t-b: #000;
+
+  /* layers: ultramarine fading through grey */
+  --l0: #000; --l1: #1b3a8c; --l2: #4a63a6; --l3: #7d8fbf; --l4: #b4bdd8; --l5: #dde1ec;
+
+  --fractal-stops: 255 255 255, 232 234 240, 176 184 206, 27 58 140, 6 12 36, 120 120 120, 255 255 255;
+  --fractal-inside: 0 0 0;
+}
+
+/* ---------- base ---------- */
+html[data-theme="blue-book"] body {
+  font: 13.5px/1.35 var(--serif); color: #000;
+  -webkit-font-smoothing: antialiased; font-feature-settings: "kern", "onum" 0, "lnum";
+}
+html[data-theme="blue-book"] ::selection { background: var(--sel-text); }
+html[data-theme="blue-book"] kbd {
+  font: 12.5px/1 var(--serif); padding: 2px 5px 3px; border-radius: 0; color: #000;
+  background: #fff; border: 1px solid #000; box-shadow: 1px 1px 0 #000;
+}
+
+/* ---------- desktop: 25% halftone ---------- */
+html[data-theme="blue-book"] #desktop {
+  background-color: #fff;
+  background-image: conic-gradient(from 90deg at 1px 1px, #000 25%, transparent 0);
+  background-size: 2px 2px; background-position: 0 0;
+}
+
+/* ---------- top bar: the menu bar ---------- */
+html[data-theme="blue-book"] #topbar {
+  height: 26px; background: #fff; backdrop-filter: none; -webkit-backdrop-filter: none;
+  border-bottom: 1px solid #000; font-size: 13px; color: #000;
+}
+html[data-theme="blue-book"] #topbar .brand { font-weight: 700; letter-spacing: .01em; font-style: italic; font-size: 14px; }
+html[data-theme="blue-book"] #topbar .sep { background: #000; height: 13px; }
+html[data-theme="blue-book"] #topbar .hint { color: var(--ink-3); font-style: italic; }
+html[data-theme="blue-book"] #topbar .stat { color: #000; }
+html[data-theme="blue-book"] #topbar .stat b { font-weight: 700; }
+html[data-theme="blue-book"] #topbar .stat .lbl {
+  font: 12px/1 var(--serif); text-transform: none; letter-spacing: .04em;
+  font-variant-caps: all-small-caps; color: #000;
+}
+html[data-theme="blue-book"] .tbtn { border-radius: 0; color: #000; height: 20px; }
+html[data-theme="blue-book"] .tbtn:hover { background: #000; border-color: #000; color: #fff; }
+
+/* ---------- windows ---------- */
+html[data-theme="blue-book"] .win {
+  border: 1px solid #000; border-radius: 0; box-shadow: 1px 1px 0 #000;
+  animation-duration: .08s;
+}
+html[data-theme="blue-book"] .win.active { box-shadow: 2px 2px 0 #000; }
+
+html[data-theme="blue-book"] .titlebar {
+  height: 21px; gap: 5px; padding: 0 6px; background: #fff; border-bottom: 1px solid #000;
+}
+html[data-theme="blue-book"] .titlebar .stripes { height: 11px; transition: none; }
+html[data-theme="blue-book"] .win.active .titlebar .stripes,
+html[data-theme="blue-book"] #help .card .titlebar .stripes {
+  background: repeating-linear-gradient(to bottom, #000 0 1px, transparent 1px 2px);
+  background-position: 0 0;
+}
+html[data-theme="blue-book"] .titlebar .title {
+  font: 700 13px/15px var(--serif); letter-spacing: .01em; color: var(--ink-3); padding: 0 6px;
+}
+html[data-theme="blue-book"] .win.active .titlebar .title,
+html[data-theme="blue-book"] #help .card .titlebar .title { color: #fff; background: #000; padding: 0 8px 1px; }
+
+html[data-theme="blue-book"] .tb-box {
+  width: 11px; height: 11px; border-radius: 0; border: 1px solid var(--ink-4); background: #fff; color: #000;
+}
+html[data-theme="blue-book"] .win.active .tb-box,
+html[data-theme="blue-book"] #help .card .tb-box { border-color: #000; box-shadow: 0 0 0 2px #fff; }
+html[data-theme="blue-book"] .tb-box:hover,
+html[data-theme="blue-book"] .tb-close:hover { background: #000; border-color: #000 !important; color: #fff; }
+
+html[data-theme="blue-book"] .tb-proc {
+  height: 15px; border-radius: 0; font: italic 12px/1 var(--serif); letter-spacing: 0; color: #000;
+  background: #fff; box-shadow: 0 0 0 2px #fff;
+}
+html[data-theme="blue-book"] .tb-proc:hover { background: #000; color: #fff; }
+html[data-theme="blue-book"] .tb-proc .dot { width: 5px; height: 5px; border-radius: 0; background: transparent; border: 1px solid var(--ink-4); }
+html[data-theme="blue-book"] .win.active .tb-proc .dot { border-color: #000; }
+html[data-theme="blue-book"] .tb-proc.input .dot { background: #000; border-color: #000; }
+html[data-theme="blue-book"] .win.busy .tb-proc { background: #fff; color: var(--ultra); }
+html[data-theme="blue-book"] .win.busy .tb-proc .dot {
+  width: 9px; height: 9px; border-radius: 50%; border: 1.5px solid var(--ultra); border-right-color: transparent; background: none;
+}
+html[data-theme="blue-book"] .win.suspended .tb-proc { background: #000; color: #fff; padding: 0 6px 1px; }
+html[data-theme="blue-book"] .win.suspended .tb-proc .dot { background: #fff; border-color: #fff; }
+
+html[data-theme="blue-book"] .win.busy .busybar {
+  background: repeating-linear-gradient(-45deg, var(--ultra) 0 4px, transparent 4px 8px);
+  background-size: 11.3px 2px; animation-duration: .4s;
+}
+@keyframes bb-barber { to { background-position: 11.3px 0; } }
+html[data-theme="blue-book"] .win.busy .busybar { animation-name: bb-barber; }
+
+html[data-theme="blue-book"] .rz-r, html[data-theme="blue-book"] .rz-l { top: 21px; }
+html[data-theme="blue-book"] .rz-br::after {
+  right: 2px; bottom: 2px; width: 9px; height: 9px;
+  background: linear-gradient(135deg, transparent 0 46%, #000 46% 53%, transparent 53% 67%, #000 67% 74%, transparent 74% 88%, #000 88% 95%, transparent 95%);
+}
+
+/* ---------- panes, lists ---------- */
+html[data-theme="blue-book"] .pane-h {
+  height: 19px; padding: 0 8px; background: #fff; border-bottom: 1px solid #000;
+  font: 600 12.5px/1 var(--serif); text-transform: none; letter-spacing: .05em;
+  font-variant-caps: all-small-caps; color: #000;
+}
+html[data-theme="blue-book"] .pane-h .r {
+  font: italic 12px/1 var(--serif); font-variant-caps: normal; letter-spacing: 0; color: var(--ink-3);
+}
+html[data-theme="blue-book"] .list { font-size: 13.5px; padding: 1px 0; }
+html[data-theme="blue-book"] .li { height: 19px; line-height: 19px; padding: 0 8px; }
+html[data-theme="blue-book"] .li.sel { background: transparent; box-shadow: inset 0 0 0 1px #000; }
+html[data-theme="blue-book"] .list:focus .li.sel { background: #000; color: #fff; box-shadow: none; }
+html[data-theme="blue-book"] .list:focus .li.sel .muted { color: rgba(255, 255, 255, .7); }
+html[data-theme="blue-book"] .li .muted { font-style: italic; font-size: 12px; color: var(--ink-3); }
+html[data-theme="blue-book"] .li.hdr {
+  height: 20px; line-height: 20px; padding: 0 8px; color: #000;
+  font: 600 12px/20px var(--serif); text-transform: none; letter-spacing: .05em; font-variant-caps: all-small-caps;
+}
+html[data-theme="blue-book"] .li.grp { box-shadow: 0 -1px 0 var(--hair); }
+html[data-theme="blue-book"] .li.grp.sel { box-shadow: 0 -1px 0 var(--hair), inset 0 0 0 1px #000; }
+html[data-theme="blue-book"] .list:focus .li.grp.sel { box-shadow: 0 -1px 0 var(--hair); }
+html[data-theme="blue-book"] .li.mod .t::after { content: " *"; color: var(--ultra); }
+html[data-theme="blue-book"] .li.allproto { color: var(--ink-3); }
+html[data-theme="blue-book"] .lchip {
+  width: 14px; height: 14px; border-radius: 0; font: 600 10px/1 var(--mono); color: #fff;
+}
+html[data-theme="blue-book"] .lchip.L4, html[data-theme="blue-book"] .lchip.L5 { color: #000; }
+html[data-theme="blue-book"] .lchip.L5 { box-shadow: inset 0 0 0 1px #000; background: #fff; }
+html[data-theme="blue-book"] .list:focus .li.sel .lchip { box-shadow: 0 0 0 1px #fff; }
+html[data-theme="blue-book"] .lbar { border-radius: 0; }
+
+html[data-theme="blue-book"] .vsplit { height: 4px; background: #fff; border-color: #000; }
+html[data-theme="blue-book"] .vsplit::after { display: none; }
+html[data-theme="blue-book"] .hsplit { background: #000; }
+
+html[data-theme="blue-book"] .seg { border-top: 1px solid #000; background: #fff; padding: 3px; gap: 0; }
+html[data-theme="blue-book"] .seg button {
+  height: 18px; border: 1px solid #000; border-radius: 0; font-size: 12.5px; color: #000;
+}
+html[data-theme="blue-book"] .seg button + button { border-left: 0; }
+html[data-theme="blue-book"] .seg button.on { background: #000; color: #fff; border-color: #000; font-weight: 600; box-shadow: none; }
+
+html[data-theme="blue-book"] .btn {
+  height: 20px; padding: 0 10px; border-radius: 4px; border: 1px solid #000; background: #fff;
+  font-size: 12.5px; color: #000; box-shadow: none;
+}
+html[data-theme="blue-book"] .btn:hover { border-color: #000; box-shadow: inset 0 0 0 1px #000; }
+html[data-theme="blue-book"] .btn:active { background: #000; color: #fff; }
+html[data-theme="blue-book"] .btn.primary { background: #fff; color: #000; border-color: #000; box-shadow: 0 0 0 1px #fff, 0 0 0 2.5px #000; font-weight: 700; }
+html[data-theme="blue-book"] .btn.primary:active { background: #000; color: #fff; }
+html[data-theme="blue-book"] .toolbar { background: #fff; border-bottom: 1px solid #000; }
+html[data-theme="blue-book"] .toolbar .note { font-style: italic; font-size: 12px; }
+
+/* ---------- editor: proportional serif, as the Blue Book set its code ---------- */
+html[data-theme="blue-book"] .ed-hl, html[data-theme="blue-book"] .ed-ta {
+  font: 14px/1.5 var(--code); padding: 7px 12px; font-kerning: none; font-variant-numeric: lining-nums;
+}
+html[data-theme="blue-book"] .t-c { color: var(--t-c); font-style: italic; }
+html[data-theme="blue-book"] .t-k { font-weight: 700; }
+html[data-theme="blue-book"] .t-g { color: var(--ultra); font-weight: 400; }
+html[data-theme="blue-book"] .t-pv { font-style: italic; }
+html[data-theme="blue-book"] .t-r { color: var(--ultra); font-weight: 700; }
+html[data-theme="blue-book"] .t-pr { background: none; border-radius: 0; box-shadow: inset 0 -1px 0 #000; }
+html[data-theme="blue-book"] .t-b, html[data-theme="blue-book"] .t-bar, html[data-theme="blue-book"] .t-as { color: #000; }
+html[data-theme="blue-book"] .mark { border-radius: 0; }
+html[data-theme="blue-book"] .mark.result { background: var(--accent-soft); box-shadow: none; }
+html[data-theme="blue-book"] .mark.error,
+html[data-theme="blue-book"] .mark.error * { color: #fff !important; background: #000; }
+html[data-theme="blue-book"] .mark.pc { background: rgba(0, 0, 0, .1); }
+html[data-theme="blue-book"] .ed.dirty { box-shadow: inset 2px 0 0 var(--ultra); }
+
+html[data-theme="blue-book"] .statusbar {
+  height: 20px; padding: 0 8px; font-size: 12px; font-style: italic; color: var(--ink-2);
+  background: #fff; border-top: 1px solid #000;
+}
+html[data-theme="blue-book"] .statusbar .mono { font: normal 11px var(--mono); color: #000; }
+html[data-theme="blue-book"] .statusbar .pill { border-radius: 0; font: normal 600 11.5px/1 var(--serif); padding: 2px 6px 3px; }
+html[data-theme="blue-book"] .pill.dirty { color: #fff; background: var(--ultra); }
+html[data-theme="blue-book"] .pill.ok { color: #000; background: none; box-shadow: inset 0 0 0 1px #000; }
+html[data-theme="blue-book"] .pill.busy { color: var(--ultra); background: none; box-shadow: inset 0 0 0 1px var(--ultra); }
+html[data-theme="blue-book"] .pill.busy.susp { color: #fff; background: #000; box-shadow: none; }
+html[data-theme="blue-book"] .pill.busy.susp::before { background: #fff; }
+
+/* ---------- process browser ---------- */
+html[data-theme="blue-book"] .pb-head {
+  height: 19px; background: #fff; border-bottom: 1px solid #000; color: #000;
+  font: 600 12.5px/1 var(--serif); text-transform: none; letter-spacing: .05em; font-variant-caps: all-small-caps;
+}
+html[data-theme="blue-book"] .prow { height: 19px; font-size: 13.5px; }
+html[data-theme="blue-book"] .prow .pri { color: #000; }
+html[data-theme="blue-book"] .prow .nm svg { color: #000; }
+html[data-theme="blue-book"] .prow .st { font-style: italic; font-size: 12.5px; color: var(--ink-3); }
+html[data-theme="blue-book"] .prow .cpu { color: #000; }
+html[data-theme="blue-book"] .prow .cpu .track { height: 5px; border-radius: 0; background: #fff; box-shadow: inset 0 0 0 1px #000; }
+html[data-theme="blue-book"] .prow .cpu i { height: 5px; border-radius: 0; background: #000; }
+html[data-theme="blue-book"] .prow .sd { width: 6px; height: 6px; border-radius: 0; background: #fff; box-shadow: inset 0 0 0 1px #000; }
+html[data-theme="blue-book"] .prow.s-running .sd { background: #000; box-shadow: none; }
+html[data-theme="blue-book"] .prow.s-running .st { color: #000; font-weight: 700; }
+html[data-theme="blue-book"] .prow.s-running.busy .sd { background: var(--ultra); box-shadow: none; }
+html[data-theme="blue-book"] .prow.s-running.busy .st { color: var(--ultra); }
+html[data-theme="blue-book"] .prow.s-running.busy .cpu i { background: var(--ultra); }
+html[data-theme="blue-book"] .prow.s-ready .sd { background: #fff; box-shadow: inset 0 0 0 1px var(--ultra); }
+html[data-theme="blue-book"] .prow.s-suspended .sd { background: #000; box-shadow: 0 0 0 1px #fff, 0 0 0 2px #000; }
+html[data-theme="blue-book"] .prow.s-suspended .st { color: #000; font-weight: 700; }
+html[data-theme="blue-book"] .prow.sel { background: transparent; box-shadow: inset 0 0 0 1px #000; }
+html[data-theme="blue-book"] .pb-rows:focus .prow.sel { background: #000; color: #fff; box-shadow: none; }
+html[data-theme="blue-book"] .pb-rows:focus .prow.sel .sd { background: #fff; }
+html[data-theme="blue-book"] .pb-rows:focus .prow.sel .cpu .track { background: #000; box-shadow: inset 0 0 0 1px #fff; }
+html[data-theme="blue-book"] .pb-rows:focus .prow.sel .cpu i { background: #fff; }
+html[data-theme="blue-book"] .live { font-style: italic; font-size: 12px; color: #000; }
+html[data-theme="blue-book"] .live i { border-radius: 0; width: 5px; height: 5px; background: #000; animation: none; }
+
+/* ---------- inspector ---------- */
+html[data-theme="blue-book"] .insp-top .li { font: 13.5px var(--serif); }
+html[data-theme="blue-book"] .insp-top .li.k-self,
+html[data-theme="blue-book"] .insp-top .li.k-class { color: #000; font-style: italic; }
+html[data-theme="blue-book"] .insp-eval .pane-h code { font: italic 12.5px var(--serif); color: #000; letter-spacing: 0; font-variant-caps: normal; }
+
+/* ---------- notifier / debugger ---------- */
+html[data-theme="blue-book"] .nt-head { padding: 10px 12px 9px; border-bottom: 1px solid #000; }
+html[data-theme="blue-book"] .nt-icon { border-radius: 0; background: #000; color: #fff; width: 22px; height: 22px; }
+html[data-theme="blue-book"] .nt-head.interrupt .nt-icon { background: var(--ultra); color: #fff; }
+html[data-theme="blue-book"] .nt-msg b { font: 700 15px/1.2 var(--serif); }
+html[data-theme="blue-book"] .nt-msg span { font: italic 13px/1.4 var(--serif); color: var(--ink-2); }
+html[data-theme="blue-book"] .nt-btns { background: #fff; border-bottom: 1px solid #000; padding: 6px 12px; }
+html[data-theme="blue-book"] .nt-stack .li { font: 13.5px var(--serif); }
+html[data-theme="blue-book"] .nt-stack .li .muted { font-family: var(--serif); }
+html[data-theme="blue-book"] .dbg-code { border-top: 1px solid #000; }
+
+/* ---------- mandelbrot ---------- */
+html[data-theme="blue-book"] .mb-queued {
+  border-radius: 0; background: #000; color: #fff; backdrop-filter: none; font: italic 12px var(--serif); box-shadow: 2px 2px 0 #fff;
+}
+
+/* ---------- menus ---------- */
+html[data-theme="blue-book"] .menu {
+  padding: 0 0 3px; border-radius: 0; border: 1px solid #000; box-shadow: 2px 2px 0 #000;
+  font-size: 13.5px; animation: none; background: #fff;
+}
+html[data-theme="blue-book"] .menu-title {
+  margin: 0 0 3px; padding: 0 6px; height: 21px; border-radius: 0; gap: 6px;
+  font: 700 13px/15px var(--serif); background: #fff; border-bottom: 1px solid #000; color: #000;
+}
+html[data-theme="blue-book"] .menu-title::before,
+html[data-theme="blue-book"] .menu-title::after {
+  height: 11px; background: repeating-linear-gradient(to bottom, #000 0 1px, transparent 1px 2px);
+}
+html[data-theme="blue-book"] .menu-head {
+  padding: 5px 12px 1px; color: var(--ink-3);
+  font: 600 12px/1.2 var(--serif); text-transform: none; letter-spacing: .05em; font-variant-caps: all-small-caps;
+}
+html[data-theme="blue-book"] .menu-item { height: 21px; padding: 0 12px; border-radius: 0; }
+html[data-theme="blue-book"] .menu-item .k { font-size: 12.5px; color: var(--ink-3); }
+html[data-theme="blue-book"] .menu-item .d { font-style: italic; font-size: 12px; color: var(--ink-3); }
+html[data-theme="blue-book"] .menu-item:hover { background: #000; color: #fff; }
+html[data-theme="blue-book"] .menu-item:hover .k, html[data-theme="blue-book"] .menu-item:hover .d { color: rgba(255, 255, 255, .75); }
+html[data-theme="blue-book"] .menu-sep { height: 0; margin: 3px 0; background: none; border-top: 1px dotted #000; }
+
+/* ---------- toast ---------- */
+html[data-theme="blue-book"] #toast {
+  border-radius: 0; background: #000; color: #fff; font: italic 13px var(--serif); box-shadow: 2px 2px 0 #fff, 3px 3px 0 #000;
+}
+
+/* ---------- help ---------- */
+html[data-theme="blue-book"] #help {
+  backdrop-filter: none; background-color: transparent;
+  background-image: conic-gradient(from 90deg at 1px 1px, rgba(0, 0, 0, .8) 25%, transparent 0);
+  background-size: 2px 2px;
+}
+html[data-theme="blue-book"] #help .card { border: 1px solid #000; border-radius: 0; box-shadow: 3px 3px 0 #000; }
+html[data-theme="blue-book"] #help .content { padding: 16px 22px 20px; gap: 4px 30px; }
+html[data-theme="blue-book"] #help h3 {
+  margin: 12px 0 3px; padding-bottom: 3px; border-bottom: 1px solid #000; color: #000;
+  font: 600 13px/1 var(--serif); text-transform: none; letter-spacing: .06em; font-variant-caps: all-small-caps;
+}
+html[data-theme="blue-book"] #help h3:first-child { margin-top: 0; }
+html[data-theme="blue-book"] #help .row { font-size: 13.5px; }
+html[data-theme="blue-book"] #help .lede { font-size: 14px; font-style: italic; color: #000; line-height: 1.45; }
+
+/* ---------- scrollbars: thin black thumb on a halftone track ---------- */
+html[data-theme="blue-book"] * { scrollbar-width: auto; }
+html[data-theme="blue-book"] ::-webkit-scrollbar { width: 12px; height: 12px; }
+html[data-theme="blue-book"] ::-webkit-scrollbar-track {
+  background-color: #fff; border-left: 1px solid #000;
+  background-image: conic-gradient(from 90deg at 1px 1px, #000 25%, transparent 0); background-size: 2px 2px;
+}
+html[data-theme="blue-book"] ::-webkit-scrollbar-track:horizontal { border-left: 0; border-top: 1px solid #000; }
+html[data-theme="blue-book"] ::-webkit-scrollbar-thumb { background: #fff; border: 1px solid #000; border-right: 0; }
+html[data-theme="blue-book"] ::-webkit-scrollbar-thumb:horizontal { border: 1px solid #000; border-bottom: 0; }
+html[data-theme="blue-book"] ::-webkit-scrollbar-corner { background: #fff; }
+html[data-theme="blue-book"] .insp-eval .pane-h > span:not(.r) { font: italic 12.5px var(--serif) !important; font-variant-caps: normal; color: var(--ink-2); }

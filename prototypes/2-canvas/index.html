@@ -1,0 +1,96 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Samaltak — Infinite canvas</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body data-zoom="detail">
+<div id="viewport">
+  <canvas id="bg"></canvas>
+  <div id="world"></div>
+</div>
+
+<div id="brand" class="hud panel">
+  <svg class="mark" viewBox="0 0 22 22" aria-hidden="true">
+    <rect x="3" y="2.5" width="16" height="2.4" rx="1.2" fill="#74b597"/>
+    <rect x="3" y="5.8" width="16" height="2.4" rx="1.2" fill="#65a3d8"/>
+    <rect x="3" y="9.1" width="16" height="2.4" rx="1.2" fill="#9587d8"/>
+    <rect x="3" y="12.4" width="16" height="2.4" rx="1.2" fill="#c27096"/>
+    <rect x="3" y="15.7" width="16" height="2.4" rx="1.2" fill="#cd7c5c"/>
+    <rect x="3" y="19" width="16" height="2.4" rx="1.2" fill="#cf9b52"/>
+  </svg>
+  <span class="name">Samaltak</span>
+  <span class="img">samaltak-0.1.image</span>
+</div>
+<div id="crumb" class="hud panel"></div>
+<div id="topright" class="hud">
+  <button id="homeBtn" class="panel hbtn" title="Back to the trail (H)">⌂</button>
+  <button id="spotBtn" class="panel"><span class="lens">⌕</span>Spotter — classes, methods, cards<kbd>⌘K</kbd></button>
+  <button id="helpBtn" class="panel hbtn" title="Help (?)">?</button>
+</div>
+<div id="stats" class="hud panel"><canvas width="72" height="18"></canvas><span class="t"></span></div>
+<div id="zoomctl" class="hud panel">
+  <button data-z="out" title="Zoom out (−)">−</button>
+  <button id="zpct" title="Zoom to 100% (1)">100%</button>
+  <button data-z="in" title="Zoom in (+)">+</button>
+  <button data-z="fit" title="Fit everything (0)">⤢</button>
+</div>
+<div id="minimap" class="hud panel"><canvas></canvas></div>
+
+<div id="menu" hidden></div>
+<div id="toast"></div>
+
+<div id="spotter" hidden>
+  <div class="box">
+    <div class="in"><span class="lens">⌕</span><input placeholder="Jump to a class, method, layer or card…" spellcheck="false"><kbd>esc</kbd></div>
+    <div class="results"></div>
+    <div class="foot"><span><kbd>↑</kbd><kbd>↓</kbd> choose</span><span><kbd>↵</kbd> fly there</span><span>try “isPrime”, “Compositor”, “L2”</span></div>
+  </div>
+</div>
+
+<div id="help" hidden>
+  <div class="box">
+    <button class="x" title="Close">×</button>
+    <h2>One plane. Every object a card.</h2>
+    <p class="lede">The whole image lives on an infinite canvas. Layers are regions, classes are cards, evaluations leave a trail. Every card runs in its own green-thread Process.</p>
+    <div class="cols">
+      <div>
+        <h3>Canvas</h3>
+        <dl>
+          <dt>Pinch · <kbd>⌘</kbd>/<kbd>Ctrl</kbd> + scroll</dt><dd>zoom at cursor</dd>
+          <dt>Two-finger scroll · drag empty space · <kbd>Space</kbd>+drag</dt><dd>pan</dd>
+          <dt>Double-click card header</dt><dd>zoom to fit card (again: back)</dd>
+          <dt>Double-click empty space</dt><dd>zoom into region</dd>
+          <dt><kbd>0</kbd> · <kbd>1</kbd> · <kbd>+</kbd>/<kbd>−</kbd> · <kbd>H</kbd></dt><dd>fit all · 100% · zoom · home</dd>
+          <dt><kbd>⌘K</kbd></dt><dd>Spotter: fly to class / method / card</dd>
+          <dt>Minimap</dt><dd>click or drag to navigate</dd>
+          <dt>Zoom out</dt><dd>cards collapse to titles, then to a map of layers</dd>
+        </dl>
+      </div>
+      <div>
+        <h3>Code</h3>
+        <dl>
+          <dt><kbd>⌘D</kbd> do it · <kbd>⌘P</kbd> print it · <kbd>⌘I</kbd> inspect it</dt><dd>selection, or the current line</dd>
+          <dt>Right-click in an editor</dt><dd>same, as a menu</dd>
+          <dt><kbd>⌘S</kbd></dt><dd>accept method</dd>
+          <dt>Click an inspector row</dt><dd>follow the field into a new card</dd>
+          <dt>Click a selector in a class card</dt><dd>open the method as a child card</dd>
+          <dt><code>[…] forkNamed: 'x'</code></dt><dd>spawns a Process card</dd>
+          <dt><kbd>⌘.</kbd></dt><dd>user interrupt → debugger card</dd>
+          <dt><kbd>N</kbd> · right-click canvas</dt><dd>new playground / note</dd>
+        </dl>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="../shared/mini-st.js"></script>
+<script src="../shared/fake-image.js"></script>
+<script src="editor.js"></script>
+<script src="sched.js"></script>
+<script src="cards.js"></script>
+<script src="app.js"></script>
+</body>
+</html>

@@ -1,0 +1,24 @@
+/* pi-orb typography over any theme: Iosevka Etoile for UI and text, JetBrains Mono for code.
+   Loaded after the themes so equal-specificity rules win. */
+html[data-type="pi-orb"] {
+  --ui: "Iosevka Etoile", serif;
+  --serif: "Iosevka Etoile", serif;
+  --sans: "Iosevka Etoile", serif;
+  --mono: "JetBrains Mono", monospace;
+  --code: "JetBrains Mono", monospace;
+}
+html[data-type="pi-orb"] body { font-feature-settings: "calt" 1; font-variant-numeric: tabular-nums; }
+
+/* Small caps would be synthesized (Iosevka Etoile has none); use tracked capitals instead. */
+html[data-type="pi-orb"] .pane-h,
+html[data-type="pi-orb"] .li.hdr,
+html[data-type="pi-orb"] .pb-head,
+html[data-type="pi-orb"] .menu-head,
+html[data-type="pi-orb"] #help h3,
+html[data-type="pi-orb"] #topbar .stat .lbl {
+  font-variant-caps: normal; text-transform: uppercase; font-size: 10.5px; font-weight: 700; letter-spacing: .08em;
+}
+
+/* pi-orb sets code at the 13px text size. */
+html[data-type="pi-orb"] .ed-hl,
+html[data-type="pi-orb"] .ed-ta { font-size: 13px; line-height: 20px; }

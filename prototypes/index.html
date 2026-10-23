@@ -1,0 +1,92 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Samaltak — UI prototypes</title>
+<style>
+  :root { color-scheme: light dark; --fg: #1d1d1f; --muted: #6e6e73; --bg: #f5f5f7; --card: #fff; --line: #e3e3e8; }
+  @media (prefers-color-scheme: dark) { :root { --fg: #f5f5f7; --muted: #a1a1a6; --bg: #111113; --card: #1c1c1f; --line: #2c2c30; } }
+  * { box-sizing: border-box; }
+  body { margin: 0; font: 15px/1.5 -apple-system, BlinkMacSystemFont, "Helvetica Neue", sans-serif; color: var(--fg); background: var(--bg); }
+  main { max-width: 1200px; margin: 0 auto; padding: 56px 32px; }
+  h1 { font-size: 28px; font-weight: 600; margin: 0 0 4px; letter-spacing: -0.01em; }
+  p.sub { color: var(--muted); margin: 0 0 40px; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(520px, 1fr)); gap: 24px; }
+  a.card { display: block; text-decoration: none; color: inherit; background: var(--card); border: 1px solid var(--line); border-radius: 14px; overflow: hidden; transition: transform .15s ease, box-shadow .15s ease; }
+  a.card:hover { transform: translateY(-2px); box-shadow: 0 12px 32px rgba(0,0,0,.12); }
+  .shot { aspect-ratio: 16 / 10; background: var(--line) center / cover no-repeat; }
+  .body { padding: 16px 20px 20px; }
+  .body h2 { font-size: 17px; margin: 0 0 4px; font-weight: 600; }
+  .body p { margin: 0; color: var(--muted); font-size: 14px; }
+  .n { font: 600 12px ui-monospace, Menlo, monospace; color: var(--muted); margin-right: 6px; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Samaltak — UI directions</h1>
+  <p class="sub">Four clickable prototypes. Same evaluator and class library underneath; only the interaction model differs.</p>
+  <div class="grid">
+    <a class="card" href="1-classic/index.html">
+      <div class="shot" style="background-image:url(screenshots/proto-1-classic.png)"></div>
+      <div class="body"><h2><span class="n">1</span>Classic revival</h2><p>Overlapping windows, 4-pane System Browser, Workspace, Inspector, Process Browser. Smalltalk-80 lineage, modern craft.</p></div>
+    </a>
+    <a class="card" href="2-canvas/index.html">
+      <div class="shot" style="background-image:url(screenshots/proto-2-canvas.png)"></div>
+      <div class="body"><h2><span class="n">2</span>Infinite canvas</h2><p>One zoomable plane of live cards. Inspecting spawns connected cards; semantic zoom reveals the layer structure.</p></div>
+    </a>
+    <a class="card" href="3-tiling/index.html">
+      <div class="shot" style="background-image:url(screenshots/proto-3-tiling.png)"></div>
+      <div class="body"><h2><span class="n">3</span>Acme-style tiling</h2><p>Columns of text panes. All text is executable; click a name to browse it. Keyboard-first, zero chrome.</p></div>
+    </a>
+    <a class="card" href="4-morphic/index.html">
+      <div class="shot" style="background-image:url(screenshots/proto-4-morphic.png)"></div>
+      <div class="body"><h2><span class="n">4</span>Spatial Morphic</h2><p>Halos on every widget, windows flip to show their implementation, 3D x-ray of the rendering layers.</p></div>
+    </a>
+  </div>
+  <h1 style="margin-top:56px">Classic revival — themes</h1>
+  <p class="sub">Same prototype, different palette and typography. Switch live with the top-bar theme button or ⌘⇧T; <b>Aa</b> swaps in pi-orb's typefaces (Iosevka Etoile + JetBrains Mono) over any theme.</p>
+  <div class="grid">
+    <a class="card" href="1-classic/index.html?theme=blue-book&type=pi-orb">
+      <div class="shot" style="background-image:url(screenshots/bb-piorb.png)"></div>
+      <div class="body"><h2>Blue Book · pi-orb type</h2><p>Blue Book frames and halftone desk, set in Iosevka Etoile and JetBrains Mono.</p></div>
+    </a>
+    <a class="card" href="1-classic/index.html?theme=reading-room&type=pi-orb">
+      <div class="shot" style="background-image:url(screenshots/rr-piorb.png)"></div>
+      <div class="body"><h2>Reading Room · pi-orb type</h2><p>Paper and terracotta, set in Iosevka Etoile and JetBrains Mono.</p></div>
+    </a>
+    <a class="card" href="1-classic/index.html?theme=reading-room">
+      <div class="shot" style="background-image:url(screenshots/theme-reading-room.png)"></div>
+      <div class="body"><h2>Reading Room</h2><p>pi-orb's earlier Reading Room style: Charter small caps, tracked mono labels, paper and terracotta.</p></div>
+    </a>
+    <a class="card" href="1-classic/index.html?theme=lamplight">
+      <div class="shot" style="background-image:url(screenshots/theme-lamplight.png)"></div>
+      <div class="body"><h2>Lamplight</h2><p>Reading Room typography on walnut, parchment and brass.</p></div>
+    </a>
+    <a class="card" href="1-classic/index.html?theme=blue-book">
+      <div class="shot" style="background-image:url(screenshots/theme-blue-book.png)"></div>
+      <div class="body"><h2>Blue Book</h2><p>Smalltalk-80, 1983: black on white, halftone desk, Iowan Old Style, ultramarine.</p></div>
+    </a>
+    <a class="card" href="1-classic/index.html?theme=swiss">
+      <div class="shot" style="background-image:url(screenshots/theme-swiss.png)"></div>
+      <div class="body"><h2>Swiss</h2><p>Helvetica Neue, flat grid, black title bars, signal red.</p></div>
+    </a>
+    <a class="card" href="1-classic/index.html?theme=sage">
+      <div class="shot" style="background-image:url(screenshots/theme-sage.png)"></div>
+      <div class="body"><h2>Sage</h2><p>Avenir Next, oat and sage, forest green, rounded and calm.</p></div>
+    </a>
+    <a class="card" href="1-classic/index.html?theme=phosphor">
+      <div class="shot" style="background-image:url(screenshots/theme-phosphor.png)"></div>
+      <div class="body"><h2>Phosphor</h2><p>All-monospace UI, warm charcoal, amber and cyan.</p></div>
+    </a>
+    <a class="card" href="1-classic/index.html?theme=light">
+      <div class="shot" style="background-image:url(screenshots/proto-1-classic.png)"></div>
+      <div class="body"><h2>Classic</h2><p>The original: system sans, blue.</p></div>
+    </a>
+    <a class="card" href="1-classic/index.html?theme=dark">
+      <div class="shot" style="background-image:url(screenshots/theme-smoke.png)"></div>
+      <div class="body"><h2>Classic Dark</h2><p>The original, dark.</p></div>
+    </a>
+  </div>
+</main>
+</body>
+</html>

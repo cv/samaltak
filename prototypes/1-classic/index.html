@@ -1,0 +1,34 @@
+<!doctype html>
+<html lang="en" data-theme="blue-book" data-type="pi-orb">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Samaltak — Classic</title>
+<link rel="stylesheet" href="style.css">
+<link rel="stylesheet" href="themes/reading-room.css">
+<link rel="stylesheet" href="themes/lamplight.css">
+<link rel="stylesheet" href="themes/blue-book.css">
+<link rel="stylesheet" href="themes/swiss.css">
+<link rel="stylesheet" href="themes/sage.css">
+<link rel="stylesheet" href="themes/phosphor.css">
+<link rel="stylesheet" href="../shared/pi-orb-fonts.css">
+<link rel="stylesheet" href="debugger.css">
+<link rel="stylesheet" href="profiler.css">
+<link rel="stylesheet" href="types/pi-orb.css">
+</head>
+<body>
+<script>
+  const q = new URLSearchParams(location.search), d = document.documentElement;
+  d.dataset.theme = q.get('theme') || localStorage.getItem('samaltak-theme') || 'blue-book';
+  d.dataset.type = q.get('type') || localStorage.getItem('samaltak-type') || 'pi-orb';
+</script>
+<script src="../shared/mini-st.js"></script>
+<script src="../shared/fake-image.js"></script>
+<script src="core.js"></script>
+<script src="tools.js"></script>
+<script src="debugger.js"></script>
+<script src="profiler.js"></script>
+<script src="remote.js"></script>
+<script src="main.js"></script>
+</body>
+</html>
