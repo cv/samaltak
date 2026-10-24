@@ -1,13 +1,13 @@
 VMCoreModule subclass: #Interpreter
 	instanceVariableNames: 'activeCtx tmpRoots primStatus primErrorCode primNargs primBase primBaseIndex primResult resendSelector resendArgc cstack frames nframes cstackUsed tagClass stackLimit stackCheckAt stackCheckDue stackCheckHash statMaterialized statFlushes cache icache specialArgc ip sp fp lits fr sel cls argc result epoch newMethod newBcs newLits newTemps newFsize newEcode newFp'
-	classVariableNames: 'CACHE_SIZE CSTACK_SLOTS ICACHE_SIZE K_CONST K_LEAF K_PRIM K_QUICK K_SETTER MAX_FRAMES'
+	classVariableNames: 'CACHE_SIZE CSTACK_SLOTS ICACHE_SIZE K_CONST K_CTX K_LEAF K_PRIM K_QUICK K_SETTER MAX_FRAMES'
 	package: 'VM-Core'!
 
 Interpreter class instanceVariableNames: 'handlers'!
 
 Interpreter comment: 'The bytecode interpreter: dispatch, sends, returns, stack frames, method caches, primitive plumbing.
 
-Activations live in frames on a C stack (cstack: arguments, temps and operand stacks of all frames, contiguous; frames: one Frame per activation) above a heap Context, the base (activeCtx). A Context for a frame is created only when Smalltalk could observe it: thisContext, closure creation (outerContext), non-local return through an unwind marker, process switch, snapshot, stack overflow. Then every frame is flushed into a Context (sender chain intact) and execution continues in the top Context, so Smalltalk only ever sees real Contexts. With no frames (nframes = 0) the interpreter executes activeCtx itself; a send pushes a frame.
+Activations live in frames on a C stack (cstack: arguments, temps and operand stacks of all frames, contiguous; frames: one Frame per activation) above a heap Context, the base (activeCtx). Creating a closure in a frame marries it: the frame gets a Context (the closure''s outerContext) whose sender is the frame''s index and whose pc, stackp, temps and stack stay in the frame; outer temp access goes to the frame, and when the frame returns its Context becomes a dead Context holding its final slots. Every frame is flushed into a Context (sender chain intact, married ones reusing theirs) when Smalltalk could observe it: thisContext, a send to a married Context, non-local return through an unwind marker, process switch, snapshot, stack overflow. Execution then continues in the top Context, so Smalltalk only ever sees real Contexts. With no frames (nframes = 0) the interpreter executes activeCtx itself; a send pushes a frame.
 
 interpret is one C function: the bytecode handlers (<bytecode:>) and the labels of the send and return paths (<label>) are labels in it, ip, sp, fp, lits and fr its locals (registers). In the simulator the handlers are methods and a goto is a call.'!
 
@@ -40,7 +40,8 @@ initialize
 	K_QUICK := 2.
 	K_SETTER := 4.
 	K_CONST := 8.
-	K_LEAF := 16
+	K_LEAF := 16.
+	K_CTX := 32
 !
 handlerTable
 	"Simulation: the handler selector of each bytecode."
@@ -120,11 +121,12 @@ statFlushes
 
 !Interpreter methodsFor: 'frames'!
 roots: fn
-	"The frames' methods and closures and the live C stack slots are GC roots."
+	"The frames' methods, closures and Contexts and the live C stack slots are GC roots."
 	<c: 'void interp_roots(void (*fn)(oop *))'>
 	0 to: nframes - 1 do: [:i |
 		fn call: ((frames + i) fieldAddress: #method).
-		fn call: ((frames + i) fieldAddress: #closure)].
+		fn call: ((frames + i) fieldAddress: #closure).
+		fn call: ((frames + i) fieldAddress: #ctx)].
 	0 to: cstackUsed asInt64 - 1 do: [:i | fn call: cstack + i]
 !
 methodBcs: m
@@ -174,21 +176,23 @@ frameSize: f
 framesValid: valid
 	<c: 'bool interp_frames_valid(bool (*valid)(oop))'>
 	0 to: nframes - 1 do: [:i |
-		((valid call: (frames + i) method) and: [valid call: (frames + i) closure]) ifFalse: [^false]].
+		((valid call: (frames + i) method) and: [(valid call: (frames + i) closure) and: [valid call: (frames + i) ctx]]) ifFalse: [^false]].
 	0 to: cstackUsed asInt64 - 1 do: [:i | (valid call: (cstack at: i)) ifFalse: [^false]].
 	^true
 !
 materializeAll
-	"Flush every frame into a Context (bottom up, so senders exist first); afterwards activeCtx is the top one. The caller has externalized the top frame."
+	"Flush every frame into a Context (bottom up, so senders exist first; a married frame fills its own); afterwards activeCtx is the top one. The caller has externalized the top frame."
 	<c: 'void materialize_all(void)'>
 	| n ctx f s byHeap |
 	nframes ~= 0 ifTrue: [statFlushes := statFlushes + 1].
 	statMaterialized := statMaterialized + nframes asUInt64.
 	0 to: nframes - 1 do: [:i |
-		n := (self frameSize: frames + i) + CTX_SLACK.
-		n < (frames + i) sp ifTrue: [n := (frames + i) sp].
-		ctx := memory allocContext: n asUInt32.
 		f := frames + i.
+		ctx := f ctx.
+		ctx = memory nilOop ifTrue: [
+			n := (self frameSize: f) + CTX_SLACK.
+			n < f sp ifTrue: [n := f sp].
+			ctx := memory allocContext: n asUInt32].
 		s := self slotsOf: ctx.
 		s at: CTX_SENDER put: activeCtx.
 		s at: CTX_PC put: (self intOop: f ip - (self methodBcs: f method)).
@@ -209,6 +213,52 @@ materializeAll
 		stackCheckDue := true.
 		stackCheckHash := self hashOf: scheduler activeProcess.
 		scheduler requestInterruptCheck]
+!
+marry: f
+	"Frame f's Context, created if it has none: method, closure and receiver set, sender f's index (the mark of a married Context), stackp 0; pc, temps and stack stay in the frame. The caller has externalized."
+	<c: 'oop marry(Frame *f)'>
+	| n ctx s |
+	f ctx ~= memory nilOop ifTrue: [^f ctx].
+	n := (self frameSize: f) + CTX_SLACK.
+	n < f sp ifTrue: [n := f sp].
+	ctx := memory allocContext: n asUInt32.
+	s := self slotsOf: ctx.
+	s at: CTX_SENDER put: (self intOop: f - frames).
+	s at: CTX_STACKP put: (self intOop: 0).
+	s at: CTX_METHOD put: f method.
+	s at: CTX_CLOSURE put: f closure.
+	s at: CTX_RECEIVER put: (f fp at: -1).
+	gc rememberIfOld: ctx.
+	f ctx: ctx.
+	^ctx
+!
+isMarried: o
+	"o is a Context married to a frame (its sender is the frame's index)."
+	<c: 'bool is_married(oop o)'>
+	^(self isPtr: o) and: [(self rawClass: o) = memory clsContext and: [self isInt: (self loadRef: o at: CTX_SENDER)]]
+!
+flushIfMarried: o
+	"Before reading o's slots: a married Context gets its frame's state (all frames are flushed). The caller has externalized."
+	<c: 'void flush_if_married(oop o)'>
+	(self isMarried: o) ifTrue: [self materializeAll]
+!
+widow: f
+	"Married frame f returns: its Context becomes a dead Context with the frame's slots (blocks that outlive it use them). f's sp is saved."
+	<c: 'void widow(Frame *f)'>
+	| ctx s |
+	ctx := f ctx.
+	s := self slotsOf: ctx.
+	libc memcpy: s + CTX_FIXED from: f fp size: f sp asUInt64 * 8.
+	s at: CTX_SENDER put: memory nilOop.
+	s at: CTX_PC put: memory nilOop.
+	s at: CTX_STACKP put: (self intOop: f sp).
+	gc rememberIfOld: ctx.
+	f ctx: memory nilOop
+!
+widowFrom: k
+	"Frames k to nframes - 1 are dropped (externalized)."
+	<c: 'void widow_from(int k)'>
+	k to: nframes - 1 do: [:i | (frames + i) ctx ~= memory nilOop ifTrue: [self widow: frames + i]]
 !
 stackOverflowDepth
 	"The active process's depth (frames + Contexts) if it is too deep: beyond stackLimit, or its Contexts take more than a quarter of the heap limit. Else 0."
@@ -350,6 +400,8 @@ fillCache: aClass selector: aSelector
 		bitOr: ((pf notNull and: [primitives isLeaf: p]) ifTrue: [K_LEAF] ifFalse: [0]))
 		bitOr: (e quick >= 0 ifTrue: [K_QUICK] ifFalse: [0]))
 		bitOr: ((e nset ~= 0 ifTrue: [K_SETTER] ifFalse: [0]) bitOr: (qc ifTrue: [K_CONST] ifFalse: [0]))) asUInt8.
+	"A receiver Context may be married: haveEntry checks it first."
+	aClass = memory clsContext ifTrue: [e kind: ((e kind bitClear: K_LEAF) bitOr: K_CTX) asUInt8].
 	^e
 !
 selectorArgc: aSelector
@@ -536,6 +588,7 @@ blockActivate: n fromArray: fromArray
 	nframes := nframes + 1.
 	f method: m.
 	f closure: cl.
+	f ctx: memory nilOop.
 	f fp: nfp.
 	f ip: (self methodBcs: m) + (self intVal: (self loadRef: cl at: BC_STARTPC)).
 	f lits: (self slotsOf: (self loadRef: m at: CM_LITERALS)).
@@ -962,9 +1015,9 @@ popStoreLiteralVariableX
 	sp := sp - 1
 !
 outerTemp
-	"push (8A), store (8B), pop-store (8C) a temp of an outer context: depth, index"
+	"push (8A), store (8B), pop-store (8C) a temp of an outer context: depth, index. A married Context's temps are in its frame."
 	<bytecodes: #(16r8A 16r8C)>
-	| op d i cl c |
+	| op d i cl c k |
 	op := ip at: -1.
 	d := (ip at: 0) asInt32.
 	i := ip at: 1.
@@ -972,6 +1025,14 @@ outerTemp
 	cl := fr notNull ifTrue: [fr closure] ifFalse: [self loadRef: activeCtx at: CTX_CLOSURE].
 	c := self loadRef: cl at: BC_OUTER.
 	[d := d - 1. d > 0] whileTrue: [c := self loadRef: (self loadRef: c at: CTX_CLOSURE) at: BC_OUTER].
+	k := self loadRef: c at: CTX_SENDER.
+	(self isInt: k) ifTrue: [
+		op = 16r8A
+			ifTrue: [self push: ((frames + (self intVal: k)) fp at: i)]
+			ifFalse: [
+				(frames + (self intVal: k)) fp at: i put: sp value.
+				op = 16r8C ifTrue: [sp := sp - 1]].
+		^self].
 	op = 16r8A
 		ifTrue: [self push: (self loadRef: c at: CTX_FIXED + i)]
 		ifFalse: [
@@ -1006,15 +1067,15 @@ closure
 	fs := ip at: 2.
 	size := ((ip at: 3) asInt64 << 8) bitOr: (ip at: 4).
 	ip := ip + 5.
-	self toContext.
-	self saveCtx.
+	self externalize.
+	fr notNull ifTrue: [self marry: fr].
 	bc := memory clsBlock.
 	isize := (self intVal: (self loadRef: bc at: BEH_FORMAT)) bitAnd: CLS_INSTSIZE_MASK.
 	b := memory allocObj: bc format: F_FIXED slots: (isize < 5 ifTrue: [5] ifFalse: [isize]) asUInt32.
-	self loadCtx.
+	self reload.
 	s := self slotsOf: b.
-	s at: BC_OUTER put: activeCtx.
-	s at: BC_STARTPC put: (self intOop: ip - (self methodBcs: (self loadRef: activeCtx at: CTX_METHOD))).
+	s at: BC_OUTER put: (fr notNull ifTrue: [fr ctx] ifFalse: [activeCtx]).
+	s at: BC_STARTPC put: (self intOop: ip - (self methodBcs: (fr notNull ifTrue: [fr method] ifFalse: [self loadRef: activeCtx at: CTX_METHOD]))).
 	s at: BC_NUMARGS put: (self intOop: na).
 	s at: BC_NUMTEMPS put: (self intOop: nt).
 	s at: BC_FRAMESIZE put: (self intOop: fs).
@@ -1471,6 +1532,7 @@ haveEntry: e
 			^self].
 		(primErrorCode >= 0 and: [newTemps > 0 and: [((self methodPrim: newMethod) bitAnd: CM_PRIM_ERROR_FLAG) ~= 0]]) ifTrue: [newEcode := primErrorCode].
 		^self activate].
+	((e kind bitAnd: K_CTX) ~= 0 and: [fr notNull and: [self isInt: (self loadRef: (sp at: argc negated) at: CTX_SENDER)]]) ifTrue: [^self sendToMarried].
 	(e kind bitAnd: K_CONST) ~= 0 ifTrue: [
 		v := e qconst ~= 0 ifTrue: [e qconst] ifFalse: [sp at: argc negated].
 		sp := sp - argc.
@@ -1569,6 +1631,7 @@ enterFrame
 	<label>
 	fr method: newMethod.
 	fr closure: memory nilOop.
+	fr ctx: memory nilOop.
 	fp := newFp.
 	fr fp: newFp.
 	ip := newBcs.
@@ -1578,6 +1641,20 @@ enterFrame
 	1 to: newTemps do: [:k | self push: memory nilOop].
 	(self unlikely: newEcode >= 0) ifTrue: [newFp at: argc put: (self intOop: newEcode)].
 	self checkInterrupts
+!
+sendToMarried
+	"The receiver is a married Context: flush the frames so that it holds its activation's state, then look up again."
+	<label>
+	self externalize.
+	tmpRoots at: 1 put: sel.
+	tmpRoots at: 2 put: cls.
+	self materializeAll.
+	sel := tmpRoots at: 1.
+	cls := tmpRoots at: 2.
+	tmpRoots at: 1 put: memory nilOop.
+	tmpRoots at: 2 put: memory nilOop.
+	self reload.
+	^self doLookup
 !
 sendDoesNotUnderstand
 	<label>
@@ -1624,11 +1701,17 @@ returnSelf
 	self push: (fp at: -1).
 	^self returnTop
 !
+widowIfMarried
+	(self unlikely: fr ctx ~= memory nilOop) ifTrue: [
+		fr sp: (sp - fp + 1) asInt32.
+		self widow: fr]
+!
 returnTop
 	<bytecodeList: #(16r79 16r7B)>
 	result := sp value.
 	fr notNull ifTrue: [
 		fr > (frames + 0) ifTrue: [
+			self widowIfMarried.
 			sp := fr fp - 1.
 			sp value: result.
 			fr := fr - 1.
@@ -1642,6 +1725,7 @@ returnTop
 			self materializeAll.
 			self loadCtx.
 			^self contextReturn].
+		self widowIfMarried.
 		nframes := 0.
 		cstackUsed := 0.
 		gc rememberIfOld: activeCtx.
@@ -1665,12 +1749,40 @@ contextReturn
 !
 nonLocalReturn
 	<bytecode: 16r7C>
-	| home fast c hs next |
+	| home fast c hs next hk h |
 	result := sp value.
 	fr isNull ifTrue: [^self contextNonLocalReturn].
-	nframes := (fr - frames) asInt32 + 1.
-	"The home Context is below the frames (the block's creation flushed them). Without an unwind marker on the way, drop the frames and return from home directly."
-	home := self ctxHome: (self loadRef: (frames + (nframes - 1)) closure at: BC_OUTER).
+	self saveFrame.
+	home := self ctxHome: (self loadRef: fr closure at: BC_OUTER).
+	hk := self loadRef: home at: CTX_SENDER.
+	(self isInt: hk) ifTrue: [
+		"Home is married to frame h. Without an unwind marker from there up, drop frames h and above and return to h's sender."
+		h := (self intVal: hk) asInt32.
+		fast := true.
+		h to: nframes - 1 do: [:j |
+			((self methodPrim: (frames + j) method) bitAnd: CM_PRIM_MASK) = PRIM_ENSURE_MARKER ifTrue: [fast := false]].
+		(fast and: [h > 0 or: [self isInt: ((self slotsOf: activeCtx) at: CTX_PC)]]) ifTrue: [
+			self widowFrom: h.
+			h = 0 ifTrue: [
+				nframes := 0.
+				cstackUsed := 0.
+				gc rememberIfOld: activeCtx.
+				self loadCtx.
+				self push: result.
+				^self].
+			nframes := h.
+			fr := frames + h.
+			sp := fr fp - 1.
+			sp value: result.
+			fr := fr - 1.
+			lits := fr lits.
+			fp := fr fp.
+			ip := fr ip.
+			^self].
+		self materializeAll.
+		self loadCtx.
+		^self contextNonLocalReturn].
+	"Home is a Context below the frames. Without an unwind marker on the way, drop the frames and return from home directly."
 	fast := self isInt: (self loadRef: home at: CTX_PC).
 	nframes - 1 to: 0 by: -1 do: [:k |
 		(fast and: [((self methodPrim: (frames + k) method) bitAnd: CM_PRIM_MASK) = PRIM_ENSURE_MARKER]) ifTrue: [fast := false]].
@@ -1682,10 +1794,10 @@ nonLocalReturn
 	(fast and: [((self methodPrim: (self loadRef: home at: CTX_METHOD)) bitAnd: CM_PRIM_MASK) = PRIM_ENSURE_MARKER]) ifTrue: [fast := false].
 	hs := fast ifTrue: [self loadRef: home at: CTX_SENDER] ifFalse: [memory nilOop].
 	(fast not or: [hs = memory nilOop or: [(self isInt: (self loadRef: hs at: CTX_PC)) not]]) ifTrue: [
-		self saveFrame.
 		self materializeAll.
 		self loadCtx.
 		^self contextNonLocalReturn].
+	self widowFrom: 0.
 	nframes := 0.
 	cstackUsed := 0.
 	c := activeCtx.
@@ -1741,11 +1853,11 @@ VMStruct subclass: #Frame
 	classVariableNames: ''
 	package: 'VM-Core'!
 
-Frame comment: 'An activation on the interpreter''s C stack: method and closure (GC roots; closure is nil for method activations), fp (first argument/temp in cstack; fp[-1] holds the receiver, as in a Context), ip (saved when not executing; a pc offset during GC), lits (refreshed after every GC), sp (used slots from fp, saved when the frame is not executing). 64 bytes.'!
+Frame comment: 'An activation on the interpreter''s C stack: method and closure (GC roots; closure is nil for method activations), fp (first argument/temp in cstack; fp[-1] holds the receiver, as in a Context), ip (saved when not executing; a pc offset during GC), lits (refreshed after every GC), sp (used slots from fp, saved when the frame is not executing), ctx (its married Context, a GC root; nil if none). 64 bytes.'!
 
 !Frame class methodsFor: 'declaring'!
 fields
-	^#((method oop) (closure oop) (fp 'oop *') (ip 'uint8_t *') (lits 'oop *') (pc int32_t) (sp int32_t) (pad 'oop[2]'))
+	^#((method oop) (closure oop) (fp 'oop *') (ip 'uint8_t *') (lits 'oop *') (pc int32_t) (sp int32_t) (ctx oop) (pad oop))
 ! !
 
 VMStruct subclass: #CacheEntry

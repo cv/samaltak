@@ -561,6 +561,7 @@ void prim_try_primitive(void)
         prim_error_code = -1;
         return;
     }
+    flush_if_married(prim_base[2]);
     idx = prim_base[1];
     arr = prim_base[3];
     failed = special(SO_SEL_PRIMITIVEFAILED);

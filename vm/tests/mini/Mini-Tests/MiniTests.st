@@ -203,6 +203,117 @@ testClosures
 	sum printNl
 ! !
 
+!MiniTests methodsFor: 'married contexts'!
+sharedTemp
+	"Blocks and their home read and write n while the home runs and after it returned."
+	| n get add |
+	n := 10.
+	get := [n].
+	add := [:d | n := n + d].
+	add value: 5.
+	n printNl.
+	n := n + 1.
+	get value printNl.
+	^Array with: get with: add
+!
+nestedTemps
+	| a |
+	a := 1.
+	[:x | | b | b := 10. [:y | [a := a + x + y + b] value] value: 100] value: 1000.
+	[[[a := a * 2] value] value] value.
+	^a
+!
+nlrFrom: aBlock
+	^self callBlock: [self callBlock: aBlock]
+!
+nlrThroughFrames
+	#(1 2 3) do: [:i | self nlrFrom: [i = 2 ifTrue: [^i * 100]]].
+	^0
+!
+nlrThroughEnsure
+	^[#(1 2 3) do: [:i | self nlrFrom: [[i = 2 ifTrue: [^i * 100]] ensure: [('ensure ' , i printString) displayNl]]]. 0]
+		ensure: ['outer ensure' displayNl]
+!
+escapeWith: v
+	| t |
+	t := v.
+	^[^t]
+!
+withMarried: aBlock
+	"aBlock gets this activation's Context, married to its frame (temps: aBlock, x)."
+	| x |
+	x := 42.
+	^aBlock value: [x] outerContext
+!
+identityAcrossFlush
+	| blk home |
+	blk := [thisContext].
+	home := blk outerContext.
+	(blk value home == home) printNl.
+	(thisContext == home) printNl.
+	(home sender method selector == #testMarried) printNl
+!
+replaceFromMarried
+	| x y |
+	x := 5.
+	y := 6.
+	^(Array new: 2) replaceFrom: 1 to: 2 with: [x] outerContext startingAt: 1
+!
+tryOn: aContext
+	| x |
+	x := 42.
+	^aContext tryPrimitive: 75 receiver: [x] outerContext args: #(4)
+!
+switchWith: s holder: h
+	| x blk |
+	x := 1.
+	blk := [x := x + 10].
+	blk value.
+	h at: 1 put: blk.
+	s signal.
+	x := x + 100.
+	blk value.
+	^x
+!
+blockDepth: n
+	^n = 0 ifTrue: [0] ifFalse: [[:k | (self blockDepth: k) + 1] value: n - 1]
+!
+testMarried
+	| pair s h old |
+	pair := self sharedTemp.
+	(pair at: 2) value: 100.
+	(pair at: 1) value printNl.
+	self nestedTemps printNl.
+	self nlrThroughFrames printNl.
+	self nlrThroughEnsure printNl.
+	(self escapeWith: 5) value printNl.
+	(self withMarried: [:c | c receiver == self]) printNl.
+	(self withMarried: [:c | c method selector]) printNl.
+	(self withMarried: [:c | c sender method selector]) printNl.
+	(self withMarried: [:c | thisContext sender == c]) printNl.
+	(self withMarried: [:c | c tempAt: 2]) printNl.
+	(self withMarried: [:c | c stackp]) printNl.
+	(self withMarried: [:c | c isDead]) printNl.
+	(self withMarried: [:c | c home == c]) printNl.
+	(self withMarried: [:c | (c instVarAt: 4) selector]) printNl.
+	(self withMarried: [:c | c printString]) printNl.
+	(self withMarried: [:c | c]) isDead printNl.
+	((self withMarried: [:c | c]) tempAt: 2) printNl.
+	self identityAcrossFlush.
+	self replaceFromMarried printNl.
+	(self tryOn: thisContext) selector printNl.
+	s := Semaphore new.
+	h := Array new: 1.
+	[s wait. (h at: 1) value. 'other process ran' displayNl] forkAt: 60.
+	(self switchWith: s holder: h) printNl.
+	(self blockDepth: 100000) printNl.
+	old := Smalltalk stackLimit: 20000.
+	(self blockDepth: 100000) printNl.
+	Smalltalk stackLimit: old.
+	((escaper at: 1) >= 1) printNl.
+	escaper := nil
+! !
+
 !MiniTests methodsFor: 'unwinding'!
 ensureNormal
 	^['body' displayNl. 7] ensure: ['ensure ran' displayNl]

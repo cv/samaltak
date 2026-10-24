@@ -288,6 +288,7 @@ void prim_become_forward(void)
         prim_error_code = -1;
         return;
     }
+    flush_if_married(prim_base[0]);
     full_gc();
     become_forward(prim_base[0], prim_nargs > 0 ? prim_base[1] : nil_oop);
     v = prim_base[0];
@@ -1204,6 +1205,11 @@ exit_element_kind_of:;
     r_element_kind_of_2 = 0;
 exit_element_kind_of_2:;
     r_element_kind_of_2; }))) {
+        prim_status = PS_FAIL;
+        prim_error_code = -1;
+        return;
+    }
+    if ((kind == 1) && is_married(src)) {
         prim_status = PS_FAIL;
         prim_error_code = -1;
         return;

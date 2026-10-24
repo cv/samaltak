@@ -258,6 +258,7 @@ primTryPrimitive
 	<notTryable>
 	| idx arr failed fn bi n b res |
 	self argCount ~= 3 ifTrue: [^self fail].
+	interpreter flushIfMarried: (self arg: 1).
 	idx := self arg: 0.
 	arr := self arg: 2.
 	failed := memory special: SO_SEL_PRIMITIVEFAILED.

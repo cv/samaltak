@@ -23,7 +23,7 @@ check() { # name expected-file actual-file
     fi
 }
 
-for t in Arith Float Strings Closures Unwind Errors Processes Context Perform Instances Sampling GC Misc Weak StackOverflow; do
+for t in Arith Float Strings Closures Unwind Errors Processes Context Married Perform Instances Sampling GC Misc Weak StackOverflow; do
     "$VM" "$IMG" --headless "$t" >"$OUT/$t.out" 2>&1
     check "$t" "$EXP/$t.txt" "$OUT/$t.out"
     SAMALTAK_VERIFY_GC=1 "$VM" --eden 1 "$IMG" --headless "$t" >"$OUT/$t.stress.out" 2>&1

@@ -1,0 +1,34 @@
+--- Married
+15
+16
+116
+2222
+200
+ensure 1
+ensure 2
+outer ensure
+200
+cannotReturn: 5
+5
+true
+#withMarried:
+#testMarried
+true
+42
+2
+false
+true
+#withMarried:
+'MiniTests>>withMarried:'
+true
+42
+true
+true
+true
+#(5 6)
+#tryOn:
+other process ran
+131
+100000
+100000
+true

@@ -214,6 +214,7 @@ primAllInstances
 primBecomeForward
 	<vmPrimitive: 88 name: 'becomeForward'>
 	((self isPtr: self receiver) and: [(self isPtr: self arg0) and: [self receiver ~= memory nilOop]]) ifFalse: [^self fail].
+	interpreter flushIfMarried: self receiver.
 	gc fullGC.
 	gc becomeForward: self receiver to: self arg0.
 	self answer: self receiver
@@ -301,6 +302,8 @@ primReplaceFromTo
 	((self isPtr: r) and: [(self isPtr: src) and: [(self isImmutable: r) not and: [(self isInt: so) and: [(self isInt: eo) and: [self isInt: ro]]]]]) ifFalse: [^self fail].
 	kind := self elementKindOf: r.
 	(kind = 0 or: [kind ~= (self elementKindOf: src)]) ifTrue: [^self fail].
+	"a married Context's slots are in its frame: the fallback's sends flush it"
+	(kind = 1 and: [interpreter isMarried: src]) ifTrue: [^self fail].
 	start := self intVal: so.
 	stop := self intVal: eo.
 	rstart := self intVal: ro.

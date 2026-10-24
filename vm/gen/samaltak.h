@@ -106,6 +106,7 @@ typedef void (*prim_fn)(void);
 #define K_BUF 6
 #define K_CMD 7
 #define K_CONST 8
+#define K_CTX 32
 #define K_DEV 1
 #define K_FENCE 9
 #define K_FILE 1
@@ -308,7 +309,8 @@ struct frame {
     oop *lits;
     int32_t pc;
     int32_t sp;
-    oop pad[2];
+    oop ctx;
+    oop pad;
 };
 _Static_assert(sizeof(frame) == 64, "the simulator lays out Frame as C does");
 
@@ -549,10 +551,12 @@ void interp_before_gc(void);
 int64_t ctx_stackp(oop ctx);
 void fatal_begin(void);
 _Noreturn void fatal_end(void);
+void flush_if_married(oop o);
 void flush_method_cache(void);
 void flush_method_cache_selector(oop sel);
 bool interp_frames_valid(bool (*valid)(oop));
 void interpret(void);
+bool is_married(oop o);
 void materialize_all(void);
 void prim_commit(oop result);
 void interp_roots(void (*fn)(oop *));
