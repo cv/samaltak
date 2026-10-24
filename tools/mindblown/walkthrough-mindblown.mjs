@@ -152,19 +152,66 @@ const beats = [
     S.busy = false;
   }],
 
-  // 7. Halt the window system itself. TODO (feature): conditional breakpoint for the Transcript's redraw.
+  // 7. Halt the window system itself: System Browser › UI-Windows › Window › redraw › break in window ▸ Transcript.
+  // The Transcript's Process stops in a debugger at its next redraw; the other windows keep working. From the
+  // debugger: write to the Transcript (it shows after Proceed), remove the breakpoint, proceed.
   ['halt-ui', async () => {
-    await sleep(4000);
+    await browse('UI-Windows', 'Window', 'redraw');
+    act('rightclick', `${W.browser}.methods.redraw`); await sleep(900);
+    act('click', '@menu.break-in-window'); await sleep(900);
+    act('click', '@menu~2.transcript');
+    const dbg = await S.win(/Breakpoint: Window>>redraw/);
+    await sleep(1500);
+    act('click', `${W.mandel}.view`); await sleep(1200);        // the rest of the system is live
+    act('type', `${dbg}.receiver.evaluator`, "Transcript show: 'hello from the debugger'; cr", '--delay', '60');
+    await sleep(3800);
+    act('key', 'Meta+d', `${dbg}.receiver.evaluator`); await sleep(1000);
+    act('click', `${dbg}.remove-breakpoint`); await sleep(800);
+    act('click', `${dbg}.proceed`); await sleep(2200);
   }],
 
-  // 8. Debug the debugger. TODO (feature): breakpoint in the Debugger's own Over.
+  // 8. Debug the debugger: a debugger A on 48 gcd: 18; Tools › Debugger › stepOver › break in window ▸ A; Over in A
+  // opens debugger B on A's Process; step in B; remove the breakpoint; proceed: A's Over completes.
   ['debug-debugger', async () => {
-    await sleep(4000);
+    await browse('Kernel-Numbers', 'Integer', 'gcd:');
+    act('click', `${W.browser}.methods.gcd.breakpoint-toggle`); await sleep(700);
+    act('select', `${W.workspace}.text`, '48 gcd: 18'); await sleep(400);
+    act('key', 'Meta+p', `${W.workspace}.text`);
+    const a = await S.win(/Breakpoint: Integer>>gcd:/);
+    const aTitle = ctl('snapshot', '--depth', '1').split('\n').find(l => l.startsWith(`window ${a} `)).match(/"([^"]+)"/)[1];
+    await sleep(800);
+    await browse('Tools', 'Debugger', 'stepOver');
+    act('rightclick', `${W.browser}.methods.stepover`); await sleep(800);
+    act('click', '@menu.break-in-window'); await sleep(800);
+    act('click', S.find('item', aTitle)); await sleep(800);
+    act('click', `${a}.over`);
+    const b = await S.win(/Breakpoint: Debugger>>stepOver/);
+    await sleep(1600);
+    act('click', `${b}.over`); await sleep(1100);
+    act('click', `${b}.over`); await sleep(1100);
+    act('click', `${b}.remove-breakpoint`); await sleep(700);
+    act('click', `${b}.proceed`); await sleep(1500);
+    act('click', `${a}.over`); await sleep(1100);
+    act('click', `${a}.proceed`); await sleep(1000);
+    await browse('Kernel-Numbers', 'Integer', 'gcd:');
+    act('click', `${W.browser}.methods.gcd.breakpoint-toggle`); await sleep(500);
   }],
 
-  // 9. Watch the window manager. TODO (feature): halt on write on a window's bounds, then drag it.
+  // 9. Watch the window manager: an Inspector on the Transcript's Window, halt on write (all processes) on bounds;
+  // drag the window: the input dispatcher stops in Window>>bounds: under the drag gesture; a stand-in dispatcher keeps
+  // input live. Unwatch, proceed.
   ['watch-wm', async () => {
-    await sleep(4000);
+    await evaluate("(World current windowNamed: 'Transcript') inspect");
+    const insp = await S.win(/Inspector: a Window/);
+    await sleep(900);
+    act('rightclick', `${insp}.fields.bounds`); await sleep(800);
+    act('click', '@menu.halt-on-write-everywhere'); await sleep(900);
+    act('drag', W.transcript, '-120', '60');
+    const dbg = await S.win(/watchpoint on #bounds/);
+    await sleep(2200);
+    act('click', `${dbg}.unwatch`); await sleep(700);
+    act('click', `${dbg}.proceed`); await sleep(1200);
+    act('click', `${insp}.close`); await sleep(500);
   }],
 
   // 10. Infinite recursion. TODO (feature): a debugger instead of the VM's out-of-memory exit.

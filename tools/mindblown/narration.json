@@ -36,8 +36,8 @@
   },
   {
     "id": "halt-ui",
-    "caption": "A conditional breakpoint in Window>>redraw for the Transcript only: it freezes in the debugger, every other window keeps working.",
-    "spoken": "Let's stop the window system itself. A breakpoint in redraw, only for the Transcript. It freezes, everything else keeps going. Fix it right there in the debugger, and proceed."
+    "caption": "Break in the Transcript's own Process (Window>>redraw): it freezes in a debugger, every other window keeps working.",
+    "spoken": "Let's stop the window system itself. A breakpoint in redraw, only for the Transcript's process. It freezes, everything else keeps going. Write to it from the debugger, remove the breakpoint, proceed, [pause] and it catches up."
   },
   {
     "id": "debug-debugger",
