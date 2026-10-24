@@ -15,7 +15,7 @@ testMiniImageInSimulation
 	| image sim status |
 	image := self scratchDirectory , '/mini.image'.
 	ImageBuilder buildFrom: 'vm/tests/mini' to: image.
-	sim := VMSimulation modules: (VMModule vmModules select: [:c | c packageName = 'VM-Core']).
+	sim := VMSimulation modules: (VMModule vmModules select: [:c | c packageName ~= 'VM-Platform']).
 	status := sim runMain: VMMain arguments: {'samaltak'. '--eden'. '1'. '--max-heap'. '64'. image. '--headless'. 'Arith'}.
 	self assert: status equals: 0.
 	self assert: sim stdoutContents equals: (File readText: 'vm/tests/expected/Arith.txt')

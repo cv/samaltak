@@ -7,7 +7,52 @@ int32_t args_start;
 char **argv;
 static bool headless;
 
+static bool jit_option(char **v, int32_t i, int32_t n);
 static _Noreturn void usage(void);
+
+/* VMMain>>jitOption:at:count: */
+static bool jit_option(char **v, int32_t i, int32_t n)
+{
+    char *a;
+    int32_t m;
+    long n_2;
+    long n_3;
+    long n_4;
+    if (!(i + 1 < n)) {
+        return false;
+    }
+    a = v[i + 1];
+    if (strcmp(v[i], "--jit") == 0) {
+        m = jit_mode_named(a);
+        if (m < 0) {
+            usage();
+        }
+        jit_mode = m;
+        return true;
+    }
+    if (strcmp(v[i], "--jit-threshold") == 0) {
+        n_2 = atol(a);
+        jit_threshold = n_2;
+        return true;
+    }
+    if (strcmp(v[i], "--jit-osr") == 0) {
+        n_3 = atol(a);
+        jit_osr_threshold = n_3;
+        return true;
+    }
+    if (strcmp(v[i], "--jit-flags") == 0) {
+        if (!jit_parse_flags(a)) {
+            usage();
+        }
+        return true;
+    }
+    if (strcmp(v[i], "--jit-cache") == 0) {
+        n_4 = atol(a);
+        jit_cache_mb = n_4;
+        return true;
+    }
+    return false;
+}
 
 /* VMMain>>main:argv: */
 int main(int n, char **v)
@@ -20,6 +65,7 @@ int main(int n, char **v)
     oop o;
     uint64_t proc;
     uint64_t ctx;
+    jit_defaults();
     max_heap = 4294967296ULL;
     eden = 16777216ULL;
     i = 1;
@@ -32,6 +78,8 @@ int main(int n, char **v)
             eden = ((uint64_t)atol(v[i])) << 20;
         } else if (strcmp(v[i], "--headless") == 0) {
             headless = true;
+        } else if (jit_option(v, (int32_t)i, n)) {
+            i = i + 1;
         } else {
             usage();
         }
@@ -52,6 +100,7 @@ int main(int n, char **v)
     memory_init(eden, max_heap);
     load_image(image);
     sched_init();
+    jit_start();
     if (!headless) {
         platform_init();
     }
@@ -78,7 +127,7 @@ int main(int n, char **v)
 /* VMMain>>usage */
 static void usage(void)
 {
-    fputs("usage: samaltak [--max-heap MB] [--eden MB] image [--headless] [arguments...]\n", stderr);
+    fputs("usage: samaltak [--max-heap MB] [--eden MB] [--jit none|template] [--jit-threshold N] [--jit-osr N]\n\t[--jit-flags [-]flag,...] [--jit-cache MB] image [--headless] [arguments...]\n  --jit-threshold N  activations before a method is compiled (0: the first one)\n  --jit-osr N        backward jumps before a running method is compiled and entered\n  --jit-flags        ablations: arith fuse barrier notes embed (-name turns one off)\n", stderr);
     exit(64);
 }
 

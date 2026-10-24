@@ -49,6 +49,47 @@ bytesTenured
 weakSlotsCleared
 	^self counterAt: 12
 !
+contextsMaterialized
+	"Frames flushed into Contexts."
+	^self counterAt: 13
+!
+frameFlushes
+	^self counterAt: 14
+!
+jitMethodsCompiled
+	^self counterAt: 15
+!
+jitBytecodesCompiled
+	^self counterAt: 16
+!
+jitCompileMicroseconds
+	^self counterAt: 17
+!
+jitCodeBytes
+	^self counterAt: 18
+!
+jitCacheFlushes
+	^self counterAt: 19
+!
+jitEntries
+	"Interpreter to machine code."
+	^self counterAt: 20
+!
+jitExits
+	"Machine code to the interpreter."
+	^self counterAt: 21
+!
+jitResumes
+	"Machine code continued after a return or a send the interpreter made."
+	^self counterAt: 22
+!
+jitOsrEntries
+	"On-stack replacements: a running method entered at a backward jump."
+	^self counterAt: 23
+!
+jitCompileFailures
+	^self counterAt: 24
+!
 gcCount
 	"Answer the scavenges plus the full GCs."
 	^self scavenges + self fullGCs
@@ -84,5 +125,5 @@ counters: anArray
 !VMStatistics class methodsFor: 'accessing'!
 counterNames
 	"Answer my counter accessors in vmStats order."
-	^#(#scavenges #fullGCs #scavengeMicroseconds #fullGCMicroseconds #oldBytesUsed #oldBudget #edenBytes #bytesAllocated #rememberedSetSize #processSwitches #bytesTenured #weakSlotsCleared)
+	^#(#scavenges #fullGCs #scavengeMicroseconds #fullGCMicroseconds #oldBytesUsed #oldBudget #edenBytes #bytesAllocated #rememberedSetSize #processSwitches #bytesTenured #weakSlotsCleared #contextsMaterialized #frameFlushes #jitMethodsCompiled #jitBytecodesCompiled #jitCompileMicroseconds #jitCodeBytes #jitCacheFlushes #jitEntries #jitExits #jitResumes #jitOsrEntries #jitCompileFailures)
 ! !

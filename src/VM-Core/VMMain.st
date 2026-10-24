@@ -3,7 +3,7 @@ VMCoreModule subclass: #VMMain
 	classVariableNames: ''
 	package: 'VM-Core'!
 
-VMMain comment: 'The entry point: samaltak [--max-heap MB] [--eden MB] image [--headless] [image arguments...].'!
+VMMain comment: 'The entry point: samaltak [--max-heap MB] [--eden MB] [--jit MODE] [--jit-threshold N] [--jit-osr N] [--jit-flags a,b,-c] [--jit-cache MB] image [--headless] [image arguments...].'!
 
 !VMMain class methodsFor: 'declaring'!
 declarations
@@ -28,13 +28,18 @@ argsStart
 usage
 	<c: 'void usage(void)'>
 	<noreturn>
-	libc fputs: 'usage: samaltak [--max-heap MB] [--eden MB] image [--headless] [arguments...]
+	libc fputs: 'usage: samaltak [--max-heap MB] [--eden MB] [--jit none|template] [--jit-threshold N] [--jit-osr N]
+	[--jit-flags [-]flag,...] [--jit-cache MB] image [--headless] [arguments...]
+  --jit-threshold N  activations before a method is compiled (0: the first one)
+  --jit-osr N        backward jumps before a running method is compiled and entered
+  --jit-flags        ablations: arith fuse barrier notes embed (-name turns one off)
 ' to: libc stderr.
 	libc exit: 64
 !
 main: n argv: v
 	<c: 'int main(int argc, char **argv)'>
 	| maxHeap eden i image proc ctx |
+	jit defaults.
 	maxHeap := (4096 << 20) asUInt64.
 	eden := (16 << 20) asUInt64.
 	i := 1.
@@ -51,7 +56,10 @@ main: n argv: v
 					ifFalse: [
 						(libc strcmp: (v at: i) with: '--headless') = 0
 							ifTrue: [headless := true]
-							ifFalse: [self usage]]].
+							ifFalse: [
+								(self jitOption: v at: i asInt32 count: n)
+									ifTrue: [i := i + 1]
+									ifFalse: [self usage]]]].
 		i := i + 1].
 	i >= n ifTrue: [self usage].
 	image := v at: i.
@@ -62,6 +70,7 @@ main: n argv: v
 	memory memoryInit: eden maxHeap: maxHeap.
 	imageFile loadImage: image.
 	scheduler init.
+	jit start.
 	headless ifFalse: [platform init].
 	proc := self loadRef: (memory special: SO_PROCESSOR) at: SCHED_ACTIVE.
 	ctx := self loadRef: proc at: PROC_SUSPENDED.
@@ -71,4 +80,29 @@ main: n argv: v
 	gc rememberIfOld: ctx.
 	interpreter interpret.
 	^0
+!
+jitOption: v at: i count: n
+	"--jit MODE, --jit-threshold N, --jit-osr N, --jit-flags a,b,-c or --jit-cache MB at v[i]: answer whether it is one (its value is v[i + 1])."
+	<c: 'bool jit_option(char **v, int32_t i, int32_t n)'>
+	| a m |
+	i + 1 < n ifFalse: [^false].
+	a := v at: i + 1.
+	(libc strcmp: (v at: i) with: '--jit') = 0 ifTrue: [
+		m := jit modeNamed: a.
+		m < 0 ifTrue: [self usage].
+		jit mode: m.
+		^true].
+	(libc strcmp: (v at: i) with: '--jit-threshold') = 0 ifTrue: [
+		jit threshold: (libc atol: a).
+		^true].
+	(libc strcmp: (v at: i) with: '--jit-osr') = 0 ifTrue: [
+		jit osrThreshold: (libc atol: a).
+		^true].
+	(libc strcmp: (v at: i) with: '--jit-flags') = 0 ifTrue: [
+		(jit parseFlags: a) ifFalse: [self usage].
+		^true].
+	(libc strcmp: (v at: i) with: '--jit-cache') = 0 ifTrue: [
+		jit cacheMB: (libc atol: a).
+		^true].
+	^false
 ! !

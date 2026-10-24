@@ -93,7 +93,8 @@ nowMs
 requestInterruptCheck
 	"Any thread."
 	<c: 'void request_interrupt_check(void)'>
-	self atomicStore: #interruptPending value: 1
+	self atomicStore: #interruptPending value: 1.
+	jit requestInterrupt
 !
 signalExternalSemaphore: index
 	"1-based index into externalObjects; VM thread only, queued."

@@ -1,13 +1,13 @@
 VMModule subclass: #VMCoreModule
-	instanceVariableNames: 'memory gc interpreter scheduler imageFile primitives platform vmMain libc libm posix'
-	classVariableNames: 'PS_FAIL PS_NONE PS_OK PS_RESEND PS_SWITCHED'
+	instanceVariableNames: 'memory gc interpreter scheduler imageFile primitives platform vmMain jit libc libm posix'
+	classVariableNames: 'K_CONST K_CTX K_JIT K_LEAF K_PRIM K_QUICK K_SETTER PS_FAIL PS_NONE PS_OK PS_RESEND PS_SWITCHED'
 	package: 'VM-Core'!
 
 VMCoreModule comment: 'I am the abstract class of the VM core''s modules: I connect them to each other and to the C libraries, and hold the object model''s inline helpers (tagging, headers, slot access with the GC''s load and store barriers) that every module uses.'!
 
 !VMCoreModule class methodsFor: 'declaring'!
 declarations
-	^#((memory ObjectMemory) (gc GarbageCollector) (interpreter Interpreter) (scheduler Scheduler) (imageFile ImageFile) (primitives PrimitiveTable) (platform PlatformInterface) (vmMain VMMain) (libc LibC) (libm LibM) (posix Posix))
+	^#((memory ObjectMemory) (gc GarbageCollector) (interpreter Interpreter) (scheduler Scheduler) (imageFile ImageFile) (primitives PrimitiveTable) (platform PlatformInterface) (vmMain VMMain) (jit JitRuntime) (libc LibC) (libm LibM) (posix Posix))
 !
 isAbstractModule
 	^self == VMCoreModule
@@ -18,7 +18,15 @@ initialize
 	PS_OK := 1.
 	PS_FAIL := 2.
 	PS_SWITCHED := 3.
-	PS_RESEND := 4
+	PS_RESEND := 4.
+	"What a method cache entry (CacheEntry kind) holds: bits."
+	K_PRIM := 1.
+	K_QUICK := 2.
+	K_SETTER := 4.
+	K_CONST := 8.
+	K_LEAF := 16.
+	K_CTX := 32.
+	K_JIT := 64
 ! !
 
 !VMCoreModule methodsFor: 'immediates'!

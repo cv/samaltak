@@ -61,7 +61,7 @@ run
 		status text: 'building the mini kernel image…'.
 		ImageBuilder buildFrom: 'vm/tests/mini' to: image].
 	output text: ''.
-	simulation := VMSimulation modules: (VMModule vmModules select: [:c | c packageName = 'VM-Core']).
+	simulation := VMSimulation modules: (VMModule vmModules select: [:c | c packageName ~= 'VM-Platform']).
 	simulation onOutput: [:text | lock critical: [pending nextPutAll: text]].
 	started := Time millisecondClockValue.
 	status text: 'running'.

@@ -244,7 +244,7 @@ void prim_vm_arguments(void)
 /* SystemPrimitives>>primVMStats */
 void prim_vm_stats(void)
 {
-    int64_t local[14];
+    int64_t local[24];
     int64_t *v;
     oop a;
     int i;
@@ -265,8 +265,18 @@ void prim_vm_stats(void)
     v[11] = (int64_t)stat_weak_cleared;
     v[12] = (int64_t)stat_materialized;
     v[13] = (int64_t)stat_flushes;
-    a = alloc_obj(cls_array, F_VAR, 14);
-    for (i = 0; i <= 13; i++) {
+    v[14] = (int64_t)stat_compiled;
+    v[15] = (int64_t)stat_bytecodes;
+    v[16] = (int64_t)stat_compile_us;
+    v[17] = (int64_t)stat_code_bytes;
+    v[18] = (int64_t)stat_cache_flushes;
+    v[19] = (int64_t)stat_entries;
+    v[20] = (int64_t)stat_exits;
+    v[21] = (int64_t)stat_resumes;
+    v[22] = (int64_t)stat_osr;
+    v[23] = (int64_t)stat_failed;
+    a = alloc_obj(cls_array, F_VAR, 24);
+    for (i = 0; i <= 23; i++) {
         v_2 = v[i];
         ((oop *)(a + 16))[i] = (uint64_t)((v_2 << 1) | 1);
     }

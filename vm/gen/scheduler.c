@@ -378,6 +378,7 @@ bool remove_link(oop link, oop list)
 void request_interrupt_check(void)
 {
     atomic_store_explicit(&interrupt_pending, 1, memory_order_relaxed);
+    state_block->interrupt = 1;
 }
 
 /* Scheduler>>requestPeriodicPoll: */

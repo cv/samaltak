@@ -244,6 +244,7 @@ verifyHeap
 	self verifySpaceFrom: survLo to: survTop old: false.
 	((self validRef: memory specialsOop) and: [self validRef: interpreter activeCtx]) ifFalse: [self fatal: 'verify: bad root'].
 	(interpreter framesValid: (self functionPointer: #validRef:)) ifFalse: [self fatal: 'verify: bad frame slot'].
+	(jit headersValid: (self functionPointer: #validRef:)) ifFalse: [self fatal: 'verify: bad compiled method'].
 	libc free: startBits
 !
 afterGC
@@ -254,6 +255,7 @@ afterGC
 	memory refreshSpecials.
 	interpreter flushMethodCache.
 	interpreter afterGC.
+	jit afterGC.
 	memory resetAllocLimit
 ! !
 
@@ -379,6 +381,7 @@ scavenge
 	tenureScan := oldTop.
 	weakCount := 0.
 	self forEachRoot: (self functionPointer: #scavRoot:).
+	jit youngRoots: (self functionPointer: #scavRoot:).
 	kept := 0.
 	0 to: remsetCount asInt64 - 1 do: [:i |
 		o := remset at: i.
@@ -453,6 +456,7 @@ fullGC
 	self fullRoot: nl.
 	memory nilOop: nl value.
 	self forEachRoot: (self functionPointer: #fullRoot:).
+	jit allRoots: (self functionPointer: #fullRoot:).
 	scan := oldAltLo.
 	[scan < ftTop] whileTrue: [
 		classSlot := self cCoerce: scan + 8 to: 'oop *'.
@@ -519,7 +523,9 @@ becomeForward: from to: to
 	interpreter beforeGC.
 	becomeFrom := from.
 	becomeTo := to.
+	jit becomeMethod: from.
 	self forEachRoot: (self functionPointer: #becomeRoot:).
+	jit allRoots: (self functionPointer: #becomeRoot:).
 	p := oldLo.
 	[p < oldTop] whileTrue: [
 		self becomeRoot: (self cCoerce: p + 8 to: 'oop *').

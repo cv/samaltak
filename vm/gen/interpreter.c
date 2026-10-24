@@ -6,9 +6,9 @@ oop active_ctx;
 static cache_entry cache[4096];
 static oop cstack[65536];
 static size_t cstack_used;
-static frame frames[65536];
-static cache_entry icache[4096];
-static int32_t nframes;
+frame frames[65536];
+cache_entry icache[4096];
+int32_t nframes;
 oop *prim_base;
 static int64_t prim_base_index;
 int32_t prim_error_code;
@@ -17,14 +17,14 @@ oop prim_result;
 int32_t prim_status;
 int32_t resend_argc;
 oop resend_selector;
-static int32_t special_argc[32];
+int32_t special_argc[32];
 uint64_t stack_check_at;
 static bool stack_check_due;
 static uint32_t stack_check_hash;
 int64_t stack_limit = 1000000LL;
 uint64_t stat_flushes;
 uint64_t stat_materialized;
-static oop tag_class[8];
+oop tag_class[8];
 oop tmp_roots[4];
 
 static void block_activate(int argc, bool from_array);
@@ -32,9 +32,7 @@ static void ctx_set_stackp(oop ctx, int64_t sp);
 static oop ctx_home(oop ctx);
 static cache_entry *fill_cache(oop cls, oop sel);
 static int64_t frame_size(frame *f);
-static void interrupt_safepoint(void);
 static oop lookup_method(oop cls, oop sel);
-static oop marry(frame *f);
 static void print_activation(oop m, oop r, oop closure, FILE *f);
 static void print_class_name(oop cls, FILE *f);
 static void print_stack(oop ctx, FILE *f);
@@ -42,7 +40,6 @@ static void print_symbol(oop s, FILE *f);
 static void refresh_prim_base(void);
 static void refresh_tag_classes(void);
 static int64_t stack_overflow_depth(void);
-static void widow(frame *f);
 static void widow_from(int k);
 
 /* Interpreter>>activateBlock: */
@@ -145,6 +142,7 @@ static void block_activate(int n, bool from_array)
     uint64_t outer;
     uint64_t m;
     frame *f;
+    uint64_t r_frame_code_for;
     uint64_t o_5;
     uint64_t o_6;
     uint64_t o_7;
@@ -195,6 +193,14 @@ static void block_activate(int n, bool from_array)
     f->method = m;
     f->closure = cl;
     f->ctx = nil_oop;
+    f->code = ({
+    if (jit_mode == JIT_NONE) {
+        r_frame_code_for = 0ULL;
+        goto exit_frame_code_for;
+    }
+    r_frame_code_for = jit_block_code(m);
+exit_frame_code_for:;
+    r_frame_code_for; });
     f->fp = nfp;
     o_5 = *(uint64_t *)(m + 16 + 24);
     o_6 = *(uint64_t *)(cl + 16 + 8);
@@ -206,6 +212,17 @@ static void block_activate(int n, bool from_array)
         nfp[i_3] = nil_oop;
     }
     cstack_used = (uint64_t)(nfp + count + ntemps - cstack);
+}
+
+/* Interpreter>>callPrimitive:base:argc: */
+int32_t interp_call_primitive(prim_fn fn, oop *b, int32_t n)
+{
+    prim_nargs = n;
+    prim_base = b;
+    prim_base_index = b - active_slots();
+    prim_status = PS_NONE;
+    fn();
+    return prim_status;
 }
 
 /* Interpreter>>ctx:setStackp: */
@@ -362,6 +379,12 @@ static cache_entry *fill_cache(oop a_class, oop a_selector)
     e->kind = (uint8_t)((pf != NULL ? K_PRIM : 0) | ((pf != NULL) && prim_is_leaf(p) ? K_LEAF : 0) | (e->quick >= 0 ? K_QUICK : 0) | ((e->nset != 0 ? K_SETTER : 0) | (qc ? K_CONST : 0)));
     if (a_class == cls_context) {
         e->kind = (uint8_t)((e->kind & -17) | K_CTX);
+    }
+    if ((e->kind == 0) && (jit_mode != JIT_NONE)) {
+        e->code = jit_cache_code(m);
+        if (e->code != 0) {
+            e->kind = K_JIT;
+        }
     }
     return e;
 }
@@ -533,6 +556,7 @@ void interpret(void)
     int32_t new_fsize;
     int32_t new_ecode;
     oop *new_fp;
+    uint64_t new_code;
     oop ss;
     int i;
     oop *s;
@@ -824,213 +848,287 @@ void interpret(void)
     oop o_59;
     uint64_t o_60;
     oop o_61;
+    oop *s_4;
+    oop m_4;
+    uint64_t o_62;
+    int64_t v_100;
+    int64_t v_101;
+    oop *s_5;
+    oop m_5;
+    oop o_63;
+    oop o_64;
+    oop o_65;
+    uint64_t o_66;
+    oop o_67;
     uint8_t r_next_bytecode_115;
     uint8_t r_next_bytecode_116;
     uint8_t r_next_bytecode_117;
-    oop *s_4;
-    oop m_4;
-    oop o_62;
-    oop o_63;
-    oop o_64;
-    uint64_t o_65;
-    oop o_66;
-    oop *s_5;
-    oop m_5;
-    uint64_t o_67;
-    int64_t v_100;
-    int64_t v_101;
+    oop *s_6;
+    oop m_6;
+    oop o_68;
+    oop o_69;
+    oop o_70;
+    uint64_t o_71;
+    oop o_72;
+    oop *s_7;
+    oop m_7;
+    uint64_t o_73;
+    int64_t v_102;
+    int64_t v_103;
     uint8_t r_next_bytecode_118;
     uint8_t r_next_bytecode_119;
     uint8_t r_next_bytecode_120;
-    uint8_t r_next_bytecode_121;
-    oop o_68;
-    oop *s_6;
-    oop m_6;
-    oop o_69;
-    oop o_70;
-    oop o_71;
-    uint64_t o_72;
-    oop o_73;
-    oop *s_7;
-    oop m_7;
-    oop o_74;
+    uint64_t c_2;
+    oop *s_8;
+    oop m_8;
+    uint64_t o_74;
+    int64_t v_104;
+    int64_t v_105;
+    oop *s_9;
+    oop m_9;
     oop o_75;
     oop o_76;
-    uint64_t o_77;
-    oop o_78;
-    uint8_t r_next_bytecode_122;
-    oop v_102;
+    oop o_77;
+    uint64_t o_78;
     oop o_79;
-    oop home;
-    uint64_t hk;
-    int32_t h;
-    bool fast;
-    int32_t j_2;
-    oop m_8;
-    int64_t r_method_prim;
-    uint64_t p_2;
+    uint8_t r_next_bytecode_121;
     oop o_80;
-    oop *s_8;
-    oop m_9;
+    oop *s_10;
+    oop m_10;
     oop o_81;
     oop o_82;
     oop o_83;
     uint64_t o_84;
     oop o_85;
-    uint8_t r_next_bytecode_123;
-    uint8_t r_next_bytecode_124;
-    oop *s_9;
-    oop m_10;
+    oop *s_11;
+    oop m_11;
     oop o_86;
     oop o_87;
     oop o_88;
     uint64_t o_89;
     oop o_90;
-    uint64_t o_91;
-    int32_t k;
-    oop m_11;
-    int64_t r_method_prim_2;
-    uint64_t p_3;
-    oop c_2;
-    uint64_t m_12;
-    int64_t r_method_prim_3;
-    uint64_t p_4;
-    uint64_t m_13;
-    int64_t r_method_prim_4;
-    uint64_t p_5;
-    uint64_t hs;
-    uint64_t o_92;
-    oop *s_10;
-    oop m_14;
+    uint8_t r_next_bytecode_122;
+    oop v_106;
+    oop o_91;
+    oop home;
+    uint64_t hk;
+    int32_t h;
+    bool fast;
+    int32_t j_2;
+    oop m_12;
+    int64_t r_method_prim;
+    uint64_t p_2;
+    oop o_92;
+    oop *s_12;
+    oop m_13;
     oop o_93;
     oop o_94;
     oop o_95;
     uint64_t o_96;
     oop o_97;
-    uint64_t next;
-    oop *s_11;
+    uint8_t r_next_bytecode_123;
+    uint64_t c_4;
+    oop *s_13;
+    oop m_14;
+    uint64_t o_98;
+    int64_t v_107;
+    int64_t v_108;
+    oop *s_14;
     oop m_15;
-    oop o_98;
     oop o_99;
     oop o_100;
-    uint64_t o_101;
-    oop o_102;
-    uint8_t r_next_bytecode_125;
-    oop v_103;
-    uint8_t r_next_bytecode_126;
+    oop o_101;
+    uint64_t o_102;
     oop o_103;
-    oop v_104;
-    uint8_t r_next_bytecode_127;
-    oop v_105;
-    uint8_t r_next_bytecode_128;
+    uint8_t r_next_bytecode_124;
+    oop *s_15;
+    oop m_16;
     oop o_104;
-    oop v_106;
+    oop o_105;
+    oop o_106;
+    uint64_t o_107;
+    oop o_108;
+    uint64_t o_109;
+    int32_t k;
+    oop m_17;
+    int64_t r_method_prim_2;
+    uint64_t p_3;
+    oop c_3;
+    uint64_t m_18;
+    int64_t r_method_prim_3;
+    uint64_t p_4;
+    uint64_t m_19;
+    int64_t r_method_prim_4;
+    uint64_t p_5;
+    uint64_t hs;
+    uint64_t o_110;
+    oop *s_16;
+    oop m_20;
+    oop o_111;
+    oop o_112;
+    oop o_113;
+    uint64_t o_114;
+    oop o_115;
+    uint64_t next;
+    oop *s_17;
+    oop m_21;
+    oop o_116;
+    oop o_117;
+    oop o_118;
+    uint64_t o_119;
+    oop o_120;
+    uint8_t r_next_bytecode_125;
+    oop v_109;
+    uint8_t r_next_bytecode_126;
+    oop o_121;
+    oop v_110;
+    uint8_t r_next_bytecode_127;
+    oop v_111;
+    uint8_t r_next_bytecode_128;
+    oop o_122;
+    oop v_112;
     uint8_t r_next_bytecode_129;
     uint8_t r_next_bytecode_130;
     uint8_t i_2;
     oop r_3;
-    oop v_107;
-    int v_108;
-    uint64_t v_109;
-    oop v_110;
+    oop v_113;
+    int v_114;
+    uint64_t v_115;
+    oop v_116;
     uint8_t r_next_bytecode_131;
-    oop o_105;
-    oop v_111;
+    oop o_123;
+    oop v_117;
     uint8_t r_next_bytecode_132;
     uint8_t r_next_bytecode_133;
-    oop o_106;
-    oop v_112;
+    oop o_124;
+    oop v_118;
     uint8_t r_next_bytecode_134;
     uint8_t op;
     int32_t d;
     uint8_t i_3;
     oop cl;
-    uint64_t c_3;
-    uint64_t o_107;
+    uint64_t c_5;
+    uint64_t o_125;
     uint64_t k_2;
-    oop v_113;
+    oop v_119;
     uint8_t r_next_bytecode_135;
     int i_4;
-    uint64_t v_114;
+    uint64_t v_120;
     int i_5;
-    oop v_115;
+    oop v_121;
     uint8_t r_next_bytecode_136;
-    oop o_108;
-    uint64_t o_109;
+    oop o_126;
+    uint64_t o_127;
     uint8_t na;
     uint8_t nt;
     uint8_t fs;
     int64_t size;
-    oop *s_13;
-    oop m_16;
-    uint64_t o_110;
-    int64_t v_116;
-    int64_t v_117;
-    oop bc;
-    uint64_t o_111;
-    int64_t isize;
-    oop b;
-    oop *s_14;
-    oop m_17;
-    oop o_112;
-    oop o_113;
-    oop o_114;
-    uint64_t o_115;
-    oop o_116;
-    oop *s_12;
-    oop m_18;
-    uint64_t o_117;
-    int64_t v_118;
-    uint8_t r_next_bytecode_137;
-    int16_t o_118;
-    oop *s_15;
-    oop m_19;
-    uint64_t o_119;
-    int64_t v_119;
-    int64_t v_120;
-    oop *s_16;
-    oop m_20;
-    oop o_120;
-    oop o_121;
-    oop o_122;
-    uint64_t o_123;
-    oop o_124;
-    uint8_t r_next_bytecode_138;
-    oop v_121;
-    int16_t o_125;
-    oop *s_17;
-    oop m_21;
-    uint64_t o_126;
+    oop *s_19;
+    oop m_22;
+    uint64_t o_128;
     int64_t v_122;
     int64_t v_123;
-    oop *s_18;
-    oop m_22;
-    oop o_127;
-    oop o_128;
-    oop o_129;
-    uint64_t o_130;
-    oop o_131;
-    uint8_t r_next_bytecode_139;
-    oop v_124;
-    int16_t o_132;
-    oop *s_19;
+    oop bc;
+    uint64_t o_129;
+    int64_t isize;
+    oop b;
+    oop *s_20;
     oop m_23;
+    oop o_130;
+    oop o_131;
+    oop o_132;
     uint64_t o_133;
+    oop o_134;
+    oop *s_18;
+    oop m_24;
+    uint64_t o_135;
+    int64_t v_124;
+    uint8_t r_next_bytecode_137;
+    int16_t o_136;
+    oop *s_21;
+    oop m_25;
+    uint64_t o_137;
     int64_t v_125;
     int64_t v_126;
-    oop *s_20;
-    oop m_24;
-    oop o_134;
-    oop o_135;
-    oop o_136;
-    uint64_t o_137;
+    oop *s_22;
+    oop m_26;
     oop o_138;
+    oop o_139;
+    oop o_140;
+    uint64_t o_141;
+    oop o_142;
+    oop *s_23;
+    oop m_27;
+    uint64_t o_143;
+    int64_t v_127;
+    int64_t v_128;
+    oop *s_24;
+    oop m_28;
+    oop o_144;
+    oop o_145;
+    oop o_146;
+    uint64_t o_147;
+    oop o_148;
+    uint8_t r_next_bytecode_138;
+    oop v_129;
+    int16_t o_149;
+    oop *s_25;
+    oop m_29;
+    uint64_t o_150;
+    int64_t v_130;
+    int64_t v_131;
+    oop *s_26;
+    oop m_30;
+    oop o_151;
+    oop o_152;
+    oop o_153;
+    uint64_t o_154;
+    oop o_155;
+    oop *s_27;
+    oop m_31;
+    uint64_t o_156;
+    int64_t v_132;
+    int64_t v_133;
+    oop *s_28;
+    oop m_32;
+    oop o_157;
+    oop o_158;
+    oop o_159;
+    uint64_t o_160;
+    oop o_161;
+    uint8_t r_next_bytecode_139;
+    oop v_134;
+    int16_t o_162;
+    oop *s_29;
+    oop m_33;
+    uint64_t o_163;
+    int64_t v_135;
+    int64_t v_136;
+    oop *s_30;
+    oop m_34;
+    oop o_164;
+    oop o_165;
+    oop o_166;
+    uint64_t o_167;
+    oop o_168;
+    oop *s_31;
+    oop m_35;
+    uint64_t o_169;
+    int64_t v_137;
+    int64_t v_138;
+    oop *s_32;
+    oop m_36;
+    oop o_170;
+    oop o_171;
+    oop o_172;
+    uint64_t o_173;
+    oop o_174;
     uint8_t r_next_bytecode_140;
-    int16_t v_128;
-    uint64_t v_127;
+    int16_t v_140;
+    uint64_t v_139;
     oop a_2;
     uint32_t nx_2;
-    oop o_140;
+    oop o_176;
     int64_t r_4;
     uint8_t n_3;
     uint8_t r_next_bytecode_141;
@@ -1039,364 +1137,520 @@ void interpret(void)
     uint8_t n_4;
     uint8_t r_next_bytecode_143;
     uint8_t r_next_bytecode_144;
-    bool c_4;
+    bool c_6;
     uint8_t j_3;
     uint8_t *p_6;
-    int16_t o_139;
-    oop *s_21;
-    oop m_25;
-    uint64_t o_141;
-    int64_t v_129;
-    int64_t v_130;
-    oop *s_22;
-    oop m_26;
-    oop o_142;
-    oop o_143;
-    oop o_144;
-    uint64_t o_145;
-    oop o_146;
+    int16_t o_175;
+    oop *s_33;
+    oop m_37;
+    uint64_t o_177;
+    int64_t v_141;
+    int64_t v_142;
+    oop *s_34;
+    oop m_38;
+    oop o_178;
+    oop o_179;
+    oop o_180;
+    uint64_t o_181;
+    oop o_182;
+    oop *s_35;
+    oop m_39;
+    uint64_t o_183;
+    int64_t v_143;
+    int64_t v_144;
+    oop *s_36;
+    oop m_40;
+    oop o_184;
+    oop o_185;
+    oop o_186;
+    uint64_t o_187;
+    oop o_188;
     uint8_t r_next_bytecode_145;
     uint8_t r_next_bytecode_146;
     uint8_t r_next_bytecode_147;
     uint8_t n_5;
-    oop *s_23;
-    oop m_27;
-    uint64_t o_147;
-    int64_t v_131;
-    int64_t v_132;
+    oop *s_37;
+    oop m_41;
+    uint64_t o_189;
+    int64_t v_145;
+    int64_t v_146;
     oop a_3;
-    oop *s_24;
-    oop m_28;
-    oop o_148;
-    oop o_149;
-    oop o_150;
-    uint64_t o_151;
-    oop o_152;
+    oop *s_38;
+    oop m_42;
+    oop o_190;
+    oop o_191;
+    oop o_192;
+    uint64_t o_193;
+    oop o_194;
     uint8_t r_next_bytecode_148;
-    int8_t v_133;
+    int8_t v_147;
     oop a_4;
     oop b_2;
-    oop o_153;
+    oop o_195;
     int64_t r_6;
     uint8_t n_6;
     uint8_t r_next_bytecode_149;
-    uint64_t v_134;
+    uint64_t v_148;
     uint8_t r_next_bytecode_150;
     oop a_5;
     oop b_3;
-    oop o_154;
+    oop o_196;
     int64_t r_7;
     uint8_t n_7;
     uint8_t r_next_bytecode_151;
-    uint64_t v_135;
+    uint64_t v_149;
     uint8_t r_next_bytecode_152;
     oop a_6;
     oop b_4;
-    oop o_155;
-    bool c_7;
+    oop o_197;
+    bool c_9;
     uint8_t j_4;
     uint8_t *p_7;
-    int16_t o_156;
-    oop *s_25;
-    oop m_29;
-    uint64_t o_157;
-    int64_t v_136;
-    int64_t v_137;
-    oop *s_26;
-    oop m_30;
-    oop o_158;
-    oop o_159;
-    oop o_160;
-    uint64_t o_161;
-    oop o_162;
-    uint8_t r_next_bytecode_153;
-    oop v_138;
-    uint8_t r_next_bytecode_154;
-    oop a_7;
-    oop b_5;
-    oop o_163;
-    bool c_8;
-    uint8_t j_5;
-    uint8_t *p_8;
-    int16_t o_164;
-    oop *s_27;
-    oop m_31;
-    uint64_t o_165;
-    int64_t v_139;
-    int64_t v_140;
-    oop *s_28;
-    oop m_32;
-    oop o_166;
-    oop o_167;
-    oop o_168;
-    uint64_t o_169;
-    oop o_170;
-    uint8_t r_next_bytecode_155;
-    oop v_141;
-    uint8_t r_next_bytecode_156;
-    oop a_8;
-    oop b_6;
-    oop o_171;
-    bool c_9;
-    uint8_t j_6;
-    uint8_t *p_9;
-    int16_t o_172;
-    oop *s_29;
-    oop m_33;
-    uint64_t o_173;
-    int64_t v_142;
-    int64_t v_143;
-    oop *s_30;
-    oop m_34;
-    oop o_174;
-    oop o_175;
-    oop o_176;
-    uint64_t o_177;
-    oop o_178;
-    uint8_t r_next_bytecode_157;
-    oop v_144;
-    uint8_t r_next_bytecode_158;
-    oop a_9;
-    oop b_7;
-    oop o_179;
-    bool c_10;
-    uint8_t j_7;
-    uint8_t *p_10;
-    int16_t o_180;
-    oop *s_31;
-    oop m_35;
-    uint64_t o_181;
-    int64_t v_145;
-    int64_t v_146;
-    oop *s_32;
-    oop m_36;
-    oop o_182;
-    oop o_183;
-    oop o_184;
-    uint64_t o_185;
-    oop o_186;
-    uint8_t r_next_bytecode_159;
-    oop v_147;
-    uint8_t r_next_bytecode_160;
-    oop a_10;
-    oop b_8;
-    oop o_187;
-    int64_t r_8;
-    uint8_t n_8;
-    uint8_t r_next_bytecode_161;
-    uint64_t v_148;
-    uint8_t r_next_bytecode_162;
-    oop a_11;
-    oop b_9;
-    oop o_188;
-    int64_t r_9;
-    uint8_t n_9;
-    uint8_t r_next_bytecode_163;
-    uint64_t v_149;
-    uint8_t r_next_bytecode_164;
-    oop a_12;
-    oop b_10;
-    oop o_189;
-    bool c_13;
-    uint8_t j_8;
-    uint8_t *p_11;
-    int16_t o_190;
-    oop *s_33;
-    oop m_37;
-    uint64_t o_191;
+    int16_t o_198;
+    oop *s_39;
+    oop m_43;
+    uint64_t o_199;
     int64_t v_150;
     int64_t v_151;
-    oop *s_34;
-    oop m_38;
-    oop o_192;
-    oop o_193;
-    oop o_194;
-    uint64_t o_195;
-    oop o_196;
-    uint8_t r_next_bytecode_165;
-    oop v_152;
-    uint8_t r_next_bytecode_166;
-    oop a_13;
-    oop b_11;
-    oop o_197;
-    bool c_14;
-    uint8_t j_9;
-    uint8_t *p_12;
-    int16_t o_198;
-    oop *s_35;
-    oop m_39;
-    uint64_t o_199;
-    int64_t v_153;
-    int64_t v_154;
-    oop *s_36;
-    oop m_40;
+    oop *s_40;
+    oop m_44;
     oop o_200;
     oop o_201;
     oop o_202;
     uint64_t o_203;
     oop o_204;
-    uint8_t r_next_bytecode_167;
-    oop v_155;
-    uint8_t r_next_bytecode_168;
-    oop a_14;
-    oop b_12;
-    oop o_205;
-    bool c_15;
-    uint8_t j_10;
-    uint8_t *p_13;
-    int16_t o_206;
-    oop *s_37;
-    oop m_41;
-    uint64_t o_207;
-    int64_t v_156;
-    int64_t v_157;
-    oop *s_38;
-    oop m_42;
-    oop o_208;
-    oop o_209;
-    oop o_210;
-    uint64_t o_211;
-    oop o_212;
-    uint8_t r_next_bytecode_169;
-    oop v_158;
-    uint8_t r_next_bytecode_170;
-    oop a_15;
-    oop b_13;
-    oop o_213;
-    bool c_16;
-    uint8_t j_11;
-    uint8_t *p_14;
-    int16_t o_214;
-    oop *s_39;
-    oop m_43;
-    uint64_t o_215;
-    int64_t v_159;
-    int64_t v_160;
-    oop *s_40;
-    oop m_44;
-    oop o_216;
-    oop o_217;
-    oop o_218;
-    uint64_t o_219;
-    oop o_220;
-    uint8_t r_next_bytecode_171;
-    oop v_161;
-    uint8_t r_next_bytecode_172;
-    oop a_16;
-    int8_t v_162;
-    uint64_t b_14;
-    oop o_221;
-    int64_t r_10;
-    uint8_t n_10;
-    uint8_t r_next_bytecode_173;
-    uint64_t v_163;
-    uint8_t r_next_bytecode_174;
-    oop a_17;
-    int8_t v_164;
-    uint64_t b_15;
-    oop o_222;
-    int64_t r_11;
-    uint8_t n_11;
-    uint8_t r_next_bytecode_175;
-    uint64_t v_165;
-    uint8_t r_next_bytecode_176;
-    oop a_18;
-    int8_t v_166;
-    uint64_t b_16;
-    oop o_223;
-    bool c_19;
-    uint8_t j_12;
-    uint8_t *p_15;
-    int16_t o_224;
     oop *s_41;
     oop m_45;
-    uint64_t o_225;
-    int64_t v_167;
-    int64_t v_168;
+    uint64_t o_205;
+    int64_t v_152;
+    int64_t v_153;
     oop *s_42;
     oop m_46;
-    oop o_226;
-    oop o_227;
-    oop o_228;
-    uint64_t o_229;
-    oop o_230;
-    uint8_t r_next_bytecode_177;
-    oop v_169;
-    uint8_t r_next_bytecode_178;
-    oop a_19;
-    int8_t v_170;
-    uint64_t b_17;
-    oop o_231;
-    bool c_20;
-    uint8_t j_13;
-    uint8_t *p_16;
-    int16_t o_232;
+    oop o_206;
+    oop o_207;
+    oop o_208;
+    uint64_t o_209;
+    oop o_210;
+    uint8_t r_next_bytecode_153;
+    oop v_154;
+    uint8_t r_next_bytecode_154;
+    oop a_7;
+    oop b_5;
+    oop o_211;
+    bool c_10;
+    uint8_t j_5;
+    uint8_t *p_8;
+    int16_t o_212;
     oop *s_43;
     oop m_47;
-    uint64_t o_233;
-    int64_t v_171;
-    int64_t v_172;
+    uint64_t o_213;
+    int64_t v_155;
+    int64_t v_156;
     oop *s_44;
     oop m_48;
+    oop o_214;
+    oop o_215;
+    oop o_216;
+    uint64_t o_217;
+    oop o_218;
+    oop *s_45;
+    oop m_49;
+    uint64_t o_219;
+    int64_t v_157;
+    int64_t v_158;
+    oop *s_46;
+    oop m_50;
+    oop o_220;
+    oop o_221;
+    oop o_222;
+    uint64_t o_223;
+    oop o_224;
+    uint8_t r_next_bytecode_155;
+    oop v_159;
+    uint8_t r_next_bytecode_156;
+    oop a_8;
+    oop b_6;
+    oop o_225;
+    bool c_11;
+    uint8_t j_6;
+    uint8_t *p_9;
+    int16_t o_226;
+    oop *s_47;
+    oop m_51;
+    uint64_t o_227;
+    int64_t v_160;
+    int64_t v_161;
+    oop *s_48;
+    oop m_52;
+    oop o_228;
+    oop o_229;
+    oop o_230;
+    uint64_t o_231;
+    oop o_232;
+    oop *s_49;
+    oop m_53;
+    uint64_t o_233;
+    int64_t v_162;
+    int64_t v_163;
+    oop *s_50;
+    oop m_54;
     oop o_234;
     oop o_235;
     oop o_236;
     uint64_t o_237;
     oop o_238;
-    uint8_t r_next_bytecode_179;
-    oop v_173;
-    uint8_t r_next_bytecode_180;
-    oop a_20;
-    int8_t v_174;
-    uint64_t b_18;
+    uint8_t r_next_bytecode_157;
+    oop v_164;
+    uint8_t r_next_bytecode_158;
+    oop a_9;
+    oop b_7;
     oop o_239;
-    bool c_21;
-    uint8_t j_14;
-    uint8_t *p_17;
+    bool c_12;
+    uint8_t j_7;
+    uint8_t *p_10;
     int16_t o_240;
-    oop *s_45;
-    oop m_49;
+    oop *s_51;
+    oop m_55;
     uint64_t o_241;
-    int64_t v_175;
-    int64_t v_176;
-    oop *s_46;
-    oop m_50;
+    int64_t v_165;
+    int64_t v_166;
+    oop *s_52;
+    oop m_56;
     oop o_242;
     oop o_243;
     oop o_244;
     uint64_t o_245;
     oop o_246;
-    uint8_t r_next_bytecode_181;
-    oop v_177;
-    uint8_t r_next_bytecode_182;
-    oop a_21;
-    int8_t v_178;
-    uint64_t b_19;
-    oop o_247;
-    bool c_22;
-    uint8_t j_15;
-    uint8_t *p_18;
-    int16_t o_248;
-    oop *s_47;
-    oop m_51;
-    uint64_t o_249;
+    oop *s_53;
+    oop m_57;
+    uint64_t o_247;
+    int64_t v_167;
+    int64_t v_168;
+    oop *s_54;
+    oop m_58;
+    oop o_248;
+    oop o_249;
+    oop o_250;
+    uint64_t o_251;
+    oop o_252;
+    uint8_t r_next_bytecode_159;
+    oop v_169;
+    uint8_t r_next_bytecode_160;
+    oop a_10;
+    oop b_8;
+    oop o_253;
+    int64_t r_8;
+    uint8_t n_8;
+    uint8_t r_next_bytecode_161;
+    uint64_t v_170;
+    uint8_t r_next_bytecode_162;
+    oop a_11;
+    oop b_9;
+    oop o_254;
+    int64_t r_9;
+    uint8_t n_9;
+    uint8_t r_next_bytecode_163;
+    uint64_t v_171;
+    uint8_t r_next_bytecode_164;
+    oop a_12;
+    oop b_10;
+    oop o_255;
+    bool c_15;
+    uint8_t j_8;
+    uint8_t *p_11;
+    int16_t o_256;
+    oop *s_55;
+    oop m_59;
+    uint64_t o_257;
+    int64_t v_172;
+    int64_t v_173;
+    oop *s_56;
+    oop m_60;
+    oop o_258;
+    oop o_259;
+    oop o_260;
+    uint64_t o_261;
+    oop o_262;
+    oop *s_57;
+    oop m_61;
+    uint64_t o_263;
+    int64_t v_174;
+    int64_t v_175;
+    oop *s_58;
+    oop m_62;
+    oop o_264;
+    oop o_265;
+    oop o_266;
+    uint64_t o_267;
+    oop o_268;
+    uint8_t r_next_bytecode_165;
+    oop v_176;
+    uint8_t r_next_bytecode_166;
+    oop a_13;
+    oop b_11;
+    oop o_269;
+    bool c_16;
+    uint8_t j_9;
+    uint8_t *p_12;
+    int16_t o_270;
+    oop *s_59;
+    oop m_63;
+    uint64_t o_271;
+    int64_t v_177;
+    int64_t v_178;
+    oop *s_60;
+    oop m_64;
+    oop o_272;
+    oop o_273;
+    oop o_274;
+    uint64_t o_275;
+    oop o_276;
+    oop *s_61;
+    oop m_65;
+    uint64_t o_277;
     int64_t v_179;
     int64_t v_180;
-    oop *s_48;
-    oop m_52;
-    oop o_250;
-    oop o_251;
-    oop o_252;
-    uint64_t o_253;
-    oop o_254;
-    uint8_t r_next_bytecode_183;
+    oop *s_62;
+    oop m_66;
+    oop o_278;
+    oop o_279;
+    oop o_280;
+    uint64_t o_281;
+    oop o_282;
+    uint8_t r_next_bytecode_167;
     oop v_181;
+    uint8_t r_next_bytecode_168;
+    oop a_14;
+    oop b_12;
+    oop o_283;
+    bool c_17;
+    uint8_t j_10;
+    uint8_t *p_13;
+    int16_t o_284;
+    oop *s_63;
+    oop m_67;
+    uint64_t o_285;
+    int64_t v_182;
+    int64_t v_183;
+    oop *s_64;
+    oop m_68;
+    oop o_286;
+    oop o_287;
+    oop o_288;
+    uint64_t o_289;
+    oop o_290;
+    oop *s_65;
+    oop m_69;
+    uint64_t o_291;
+    int64_t v_184;
+    int64_t v_185;
+    oop *s_66;
+    oop m_70;
+    oop o_292;
+    oop o_293;
+    oop o_294;
+    uint64_t o_295;
+    oop o_296;
+    uint8_t r_next_bytecode_169;
+    oop v_186;
+    uint8_t r_next_bytecode_170;
+    oop a_15;
+    oop b_13;
+    oop o_297;
+    bool c_18;
+    uint8_t j_11;
+    uint8_t *p_14;
+    int16_t o_298;
+    oop *s_67;
+    oop m_71;
+    uint64_t o_299;
+    int64_t v_187;
+    int64_t v_188;
+    oop *s_68;
+    oop m_72;
+    oop o_300;
+    oop o_301;
+    oop o_302;
+    uint64_t o_303;
+    oop o_304;
+    oop *s_69;
+    oop m_73;
+    uint64_t o_305;
+    int64_t v_189;
+    int64_t v_190;
+    oop *s_70;
+    oop m_74;
+    oop o_306;
+    oop o_307;
+    oop o_308;
+    uint64_t o_309;
+    oop o_310;
+    uint8_t r_next_bytecode_171;
+    oop v_191;
+    uint8_t r_next_bytecode_172;
+    oop a_16;
+    int8_t v_192;
+    uint64_t b_14;
+    oop o_311;
+    int64_t r_10;
+    uint8_t n_10;
+    uint8_t r_next_bytecode_173;
+    uint64_t v_193;
+    uint8_t r_next_bytecode_174;
+    oop a_17;
+    int8_t v_194;
+    uint64_t b_15;
+    oop o_312;
+    int64_t r_11;
+    uint8_t n_11;
+    uint8_t r_next_bytecode_175;
+    uint64_t v_195;
+    uint8_t r_next_bytecode_176;
+    oop a_18;
+    int8_t v_196;
+    uint64_t b_16;
+    oop o_313;
+    bool c_21;
+    uint8_t j_12;
+    uint8_t *p_15;
+    int16_t o_314;
+    oop *s_71;
+    oop m_75;
+    uint64_t o_315;
+    int64_t v_197;
+    int64_t v_198;
+    oop *s_72;
+    oop m_76;
+    oop o_316;
+    oop o_317;
+    oop o_318;
+    uint64_t o_319;
+    oop o_320;
+    oop *s_73;
+    oop m_77;
+    uint64_t o_321;
+    int64_t v_199;
+    int64_t v_200;
+    oop *s_74;
+    oop m_78;
+    oop o_322;
+    oop o_323;
+    oop o_324;
+    uint64_t o_325;
+    oop o_326;
+    uint8_t r_next_bytecode_177;
+    oop v_201;
+    uint8_t r_next_bytecode_178;
+    oop a_19;
+    int8_t v_202;
+    uint64_t b_17;
+    oop o_327;
+    bool c_22;
+    uint8_t j_13;
+    uint8_t *p_16;
+    int16_t o_328;
+    oop *s_75;
+    oop m_79;
+    uint64_t o_329;
+    int64_t v_203;
+    int64_t v_204;
+    oop *s_76;
+    oop m_80;
+    oop o_330;
+    oop o_331;
+    oop o_332;
+    uint64_t o_333;
+    oop o_334;
+    oop *s_77;
+    oop m_81;
+    uint64_t o_335;
+    int64_t v_205;
+    int64_t v_206;
+    oop *s_78;
+    oop m_82;
+    oop o_336;
+    oop o_337;
+    oop o_338;
+    uint64_t o_339;
+    oop o_340;
+    uint8_t r_next_bytecode_179;
+    oop v_207;
+    uint8_t r_next_bytecode_180;
+    oop a_20;
+    int8_t v_208;
+    uint64_t b_18;
+    oop o_341;
+    bool c_23;
+    uint8_t j_14;
+    uint8_t *p_17;
+    int16_t o_342;
+    oop *s_79;
+    oop m_83;
+    uint64_t o_343;
+    int64_t v_209;
+    int64_t v_210;
+    oop *s_80;
+    oop m_84;
+    oop o_344;
+    oop o_345;
+    oop o_346;
+    uint64_t o_347;
+    oop o_348;
+    oop *s_81;
+    oop m_85;
+    uint64_t o_349;
+    int64_t v_211;
+    int64_t v_212;
+    oop *s_82;
+    oop m_86;
+    oop o_350;
+    oop o_351;
+    oop o_352;
+    uint64_t o_353;
+    oop o_354;
+    uint8_t r_next_bytecode_181;
+    oop v_213;
+    uint8_t r_next_bytecode_182;
+    oop a_21;
+    int8_t v_214;
+    uint64_t b_19;
+    oop o_355;
+    bool c_24;
+    uint8_t j_15;
+    uint8_t *p_18;
+    int16_t o_356;
+    oop *s_83;
+    oop m_87;
+    uint64_t o_357;
+    int64_t v_215;
+    int64_t v_216;
+    oop *s_84;
+    oop m_88;
+    oop o_358;
+    oop o_359;
+    oop o_360;
+    uint64_t o_361;
+    oop o_362;
+    oop *s_85;
+    oop m_89;
+    uint64_t o_363;
+    int64_t v_217;
+    int64_t v_218;
+    oop *s_86;
+    oop m_90;
+    oop o_364;
+    oop o_365;
+    oop o_366;
+    uint64_t o_367;
+    oop o_368;
+    uint8_t r_next_bytecode_183;
+    oop v_219;
     uint8_t r_next_bytecode_184;
     oop a_22;
     oop b_20;
-    oop o_255;
+    oop o_369;
     int64_t r_12;
-    uint64_t v_182;
+    uint64_t v_220;
     uint8_t nx_3;
     uint8_t r_next_bytecode_185;
     uint8_t r_next_bytecode_186;
@@ -1417,9 +1671,9 @@ void interpret(void)
     int six;
     oop a_23;
     oop b_24;
-    oop o_256;
+    oop o_370;
     int64_t r_15;
-    uint64_t v_183;
+    uint64_t v_221;
     uint8_t nx_5;
     uint8_t r_next_bytecode_189;
     uint8_t r_next_bytecode_190;
@@ -1440,23 +1694,35 @@ void interpret(void)
     bool r_compare_for;
     oop a_24;
     oop b_28;
-    oop o_257;
-    bool c_23;
+    oop o_371;
+    bool c_25;
     uint8_t nx_7;
     uint8_t *p_19;
-    int16_t o_258;
-    oop *s_49;
-    oop m_53;
-    uint64_t o_259;
-    int64_t v_184;
-    int64_t v_185;
-    oop *s_50;
-    oop m_54;
-    oop o_260;
-    oop o_261;
-    oop o_262;
-    uint64_t o_263;
-    oop o_264;
+    int16_t o_372;
+    oop *s_87;
+    oop m_91;
+    uint64_t o_373;
+    int64_t v_222;
+    int64_t v_223;
+    oop *s_88;
+    oop m_92;
+    oop o_374;
+    oop o_375;
+    oop o_376;
+    uint64_t o_377;
+    oop o_378;
+    oop *s_89;
+    oop m_93;
+    uint64_t o_379;
+    int64_t v_224;
+    int64_t v_225;
+    oop *s_90;
+    oop m_94;
+    oop o_380;
+    oop o_381;
+    oop o_382;
+    uint64_t o_383;
+    oop o_384;
     double r_num_val_5;
     oop r_18;
     oop b_29;
@@ -1467,40 +1733,64 @@ void interpret(void)
     double y;
     uint8_t nx_8;
     uint8_t *p_20;
-    int16_t o_265;
-    oop *s_51;
-    oop m_55;
-    uint64_t o_266;
-    int64_t v_186;
-    int64_t v_187;
-    oop *s_52;
-    oop m_56;
-    oop o_267;
-    oop o_268;
-    oop o_269;
-    uint64_t o_270;
-    oop o_271;
+    int16_t o_385;
+    oop *s_91;
+    oop m_95;
+    uint64_t o_386;
+    int64_t v_226;
+    int64_t v_227;
+    oop *s_92;
+    oop m_96;
+    oop o_387;
+    oop o_388;
+    oop o_389;
+    uint64_t o_390;
+    oop o_391;
+    oop *s_93;
+    oop m_97;
+    uint64_t o_392;
+    int64_t v_228;
+    int64_t v_229;
+    oop *s_94;
+    oop m_98;
+    oop o_393;
+    oop o_394;
+    oop o_395;
+    uint64_t o_396;
+    oop o_397;
     uint8_t r_next_bytecode_193;
     bool r_compare_for_2;
     oop a_25;
     oop b_31;
-    oop o_272;
-    bool c_24;
+    oop o_398;
+    bool c_26;
     uint8_t nx_9;
     uint8_t *p_21;
-    int16_t o_273;
-    oop *s_53;
-    oop m_57;
-    uint64_t o_274;
-    int64_t v_188;
-    int64_t v_189;
-    oop *s_54;
-    oop m_58;
-    oop o_275;
-    oop o_276;
-    oop o_277;
-    uint64_t o_278;
-    oop o_279;
+    int16_t o_399;
+    oop *s_95;
+    oop m_99;
+    uint64_t o_400;
+    int64_t v_230;
+    int64_t v_231;
+    oop *s_96;
+    oop m_100;
+    oop o_401;
+    oop o_402;
+    oop o_403;
+    uint64_t o_404;
+    oop o_405;
+    oop *s_97;
+    oop m_101;
+    uint64_t o_406;
+    int64_t v_232;
+    int64_t v_233;
+    oop *s_98;
+    oop m_102;
+    oop o_407;
+    oop o_408;
+    oop o_409;
+    uint64_t o_410;
+    oop o_411;
     double r_num_val_7;
     oop r_20;
     oop b_32;
@@ -1511,40 +1801,64 @@ void interpret(void)
     double y_2;
     uint8_t nx_10;
     uint8_t *p_22;
-    int16_t o_280;
-    oop *s_55;
-    oop m_59;
-    uint64_t o_281;
-    int64_t v_190;
-    int64_t v_191;
-    oop *s_56;
-    oop m_60;
-    oop o_282;
-    oop o_283;
-    oop o_284;
-    uint64_t o_285;
-    oop o_286;
+    int16_t o_412;
+    oop *s_99;
+    oop m_103;
+    uint64_t o_413;
+    int64_t v_234;
+    int64_t v_235;
+    oop *s_100;
+    oop m_104;
+    oop o_414;
+    oop o_415;
+    oop o_416;
+    uint64_t o_417;
+    oop o_418;
+    oop *s_101;
+    oop m_105;
+    uint64_t o_419;
+    int64_t v_236;
+    int64_t v_237;
+    oop *s_102;
+    oop m_106;
+    oop o_420;
+    oop o_421;
+    oop o_422;
+    uint64_t o_423;
+    oop o_424;
     uint8_t r_next_bytecode_194;
     bool r_compare_for_3;
     oop a_26;
     oop b_34;
-    oop o_287;
-    bool c_25;
+    oop o_425;
+    bool c_27;
     uint8_t nx_11;
     uint8_t *p_23;
-    int16_t o_288;
-    oop *s_57;
-    oop m_61;
-    uint64_t o_289;
-    int64_t v_192;
-    int64_t v_193;
-    oop *s_58;
-    oop m_62;
-    oop o_290;
-    oop o_291;
-    oop o_292;
-    uint64_t o_293;
-    oop o_294;
+    int16_t o_426;
+    oop *s_103;
+    oop m_107;
+    uint64_t o_427;
+    int64_t v_238;
+    int64_t v_239;
+    oop *s_104;
+    oop m_108;
+    oop o_428;
+    oop o_429;
+    oop o_430;
+    uint64_t o_431;
+    oop o_432;
+    oop *s_105;
+    oop m_109;
+    uint64_t o_433;
+    int64_t v_240;
+    int64_t v_241;
+    oop *s_106;
+    oop m_110;
+    oop o_434;
+    oop o_435;
+    oop o_436;
+    uint64_t o_437;
+    oop o_438;
     double r_num_val_9;
     oop r_22;
     oop b_35;
@@ -1555,40 +1869,64 @@ void interpret(void)
     double y_3;
     uint8_t nx_12;
     uint8_t *p_24;
-    int16_t o_295;
-    oop *s_59;
-    oop m_63;
-    uint64_t o_296;
-    int64_t v_194;
-    int64_t v_195;
-    oop *s_60;
-    oop m_64;
-    oop o_297;
-    oop o_298;
-    oop o_299;
-    uint64_t o_300;
-    oop o_301;
+    int16_t o_439;
+    oop *s_107;
+    oop m_111;
+    uint64_t o_440;
+    int64_t v_242;
+    int64_t v_243;
+    oop *s_108;
+    oop m_112;
+    oop o_441;
+    oop o_442;
+    oop o_443;
+    uint64_t o_444;
+    oop o_445;
+    oop *s_109;
+    oop m_113;
+    uint64_t o_446;
+    int64_t v_244;
+    int64_t v_245;
+    oop *s_110;
+    oop m_114;
+    oop o_447;
+    oop o_448;
+    oop o_449;
+    uint64_t o_450;
+    oop o_451;
     uint8_t r_next_bytecode_195;
     bool r_compare_for_4;
     oop a_27;
     oop b_37;
-    oop o_302;
-    bool c_26;
+    oop o_452;
+    bool c_28;
     uint8_t nx_13;
     uint8_t *p_25;
-    int16_t o_303;
-    oop *s_61;
-    oop m_65;
-    uint64_t o_304;
-    int64_t v_196;
-    int64_t v_197;
-    oop *s_62;
-    oop m_66;
-    oop o_305;
-    oop o_306;
-    oop o_307;
-    uint64_t o_308;
-    oop o_309;
+    int16_t o_453;
+    oop *s_111;
+    oop m_115;
+    uint64_t o_454;
+    int64_t v_246;
+    int64_t v_247;
+    oop *s_112;
+    oop m_116;
+    oop o_455;
+    oop o_456;
+    oop o_457;
+    uint64_t o_458;
+    oop o_459;
+    oop *s_113;
+    oop m_117;
+    uint64_t o_460;
+    int64_t v_248;
+    int64_t v_249;
+    oop *s_114;
+    oop m_118;
+    oop o_461;
+    oop o_462;
+    oop o_463;
+    uint64_t o_464;
+    oop o_465;
     double r_num_val_11;
     oop r_24;
     oop b_38;
@@ -1599,40 +1937,64 @@ void interpret(void)
     double y_4;
     uint8_t nx_14;
     uint8_t *p_26;
-    int16_t o_310;
-    oop *s_63;
-    oop m_67;
-    uint64_t o_311;
-    int64_t v_198;
-    int64_t v_199;
-    oop *s_64;
-    oop m_68;
-    oop o_312;
-    oop o_313;
-    oop o_314;
-    uint64_t o_315;
-    oop o_316;
+    int16_t o_466;
+    oop *s_115;
+    oop m_119;
+    uint64_t o_467;
+    int64_t v_250;
+    int64_t v_251;
+    oop *s_116;
+    oop m_120;
+    oop o_468;
+    oop o_469;
+    oop o_470;
+    uint64_t o_471;
+    oop o_472;
+    oop *s_117;
+    oop m_121;
+    uint64_t o_473;
+    int64_t v_252;
+    int64_t v_253;
+    oop *s_118;
+    oop m_122;
+    oop o_474;
+    oop o_475;
+    oop o_476;
+    uint64_t o_477;
+    oop o_478;
     uint8_t r_next_bytecode_196;
     bool r_compare_for_5;
     oop a_28;
     oop b_40;
-    oop o_317;
-    bool c_27;
+    oop o_479;
+    bool c_29;
     uint8_t nx_15;
     uint8_t *p_27;
-    int16_t o_318;
-    oop *s_65;
-    oop m_69;
-    uint64_t o_319;
-    int64_t v_200;
-    int64_t v_201;
-    oop *s_66;
-    oop m_70;
-    oop o_320;
-    oop o_321;
-    oop o_322;
-    uint64_t o_323;
-    oop o_324;
+    int16_t o_480;
+    oop *s_119;
+    oop m_123;
+    uint64_t o_481;
+    int64_t v_254;
+    int64_t v_255;
+    oop *s_120;
+    oop m_124;
+    oop o_482;
+    oop o_483;
+    oop o_484;
+    uint64_t o_485;
+    oop o_486;
+    oop *s_121;
+    oop m_125;
+    uint64_t o_487;
+    int64_t v_256;
+    int64_t v_257;
+    oop *s_122;
+    oop m_126;
+    oop o_488;
+    oop o_489;
+    oop o_490;
+    uint64_t o_491;
+    oop o_492;
     double r_num_val_13;
     oop r_26;
     oop b_41;
@@ -1643,40 +2005,64 @@ void interpret(void)
     double y_5;
     uint8_t nx_16;
     uint8_t *p_28;
-    int16_t o_325;
-    oop *s_67;
-    oop m_71;
-    uint64_t o_326;
-    int64_t v_202;
-    int64_t v_203;
-    oop *s_68;
-    oop m_72;
-    oop o_327;
-    oop o_328;
-    oop o_329;
-    uint64_t o_330;
-    oop o_331;
+    int16_t o_493;
+    oop *s_123;
+    oop m_127;
+    uint64_t o_494;
+    int64_t v_258;
+    int64_t v_259;
+    oop *s_124;
+    oop m_128;
+    oop o_495;
+    oop o_496;
+    oop o_497;
+    uint64_t o_498;
+    oop o_499;
+    oop *s_125;
+    oop m_129;
+    uint64_t o_500;
+    int64_t v_260;
+    int64_t v_261;
+    oop *s_126;
+    oop m_130;
+    oop o_501;
+    oop o_502;
+    oop o_503;
+    uint64_t o_504;
+    oop o_505;
     uint8_t r_next_bytecode_197;
     bool r_compare_for_6;
     oop a_29;
     oop b_43;
-    oop o_332;
-    bool c_28;
+    oop o_506;
+    bool c_30;
     uint8_t nx_17;
     uint8_t *p_29;
-    int16_t o_333;
-    oop *s_69;
-    oop m_73;
-    uint64_t o_334;
-    int64_t v_204;
-    int64_t v_205;
-    oop *s_70;
-    oop m_74;
-    oop o_335;
-    oop o_336;
-    oop o_337;
-    uint64_t o_338;
-    oop o_339;
+    int16_t o_507;
+    oop *s_127;
+    oop m_131;
+    uint64_t o_508;
+    int64_t v_262;
+    int64_t v_263;
+    oop *s_128;
+    oop m_132;
+    oop o_509;
+    oop o_510;
+    oop o_511;
+    uint64_t o_512;
+    oop o_513;
+    oop *s_129;
+    oop m_133;
+    uint64_t o_514;
+    int64_t v_264;
+    int64_t v_265;
+    oop *s_130;
+    oop m_134;
+    oop o_515;
+    oop o_516;
+    oop o_517;
+    uint64_t o_518;
+    oop o_519;
     double r_num_val_15;
     oop r_28;
     oop b_44;
@@ -1687,25 +2073,37 @@ void interpret(void)
     double y_6;
     uint8_t nx_18;
     uint8_t *p_30;
-    int16_t o_340;
-    oop *s_71;
-    oop m_75;
-    uint64_t o_341;
-    int64_t v_206;
-    int64_t v_207;
-    oop *s_72;
-    oop m_76;
-    oop o_342;
-    oop o_343;
-    oop o_344;
-    uint64_t o_345;
-    oop o_346;
+    int16_t o_520;
+    oop *s_131;
+    oop m_135;
+    uint64_t o_521;
+    int64_t v_266;
+    int64_t v_267;
+    oop *s_132;
+    oop m_136;
+    oop o_522;
+    oop o_523;
+    oop o_524;
+    uint64_t o_525;
+    oop o_526;
+    oop *s_133;
+    oop m_137;
+    uint64_t o_527;
+    int64_t v_268;
+    int64_t v_269;
+    oop *s_134;
+    oop m_138;
+    oop o_528;
+    oop o_529;
+    oop o_530;
+    uint64_t o_531;
+    oop o_532;
     uint8_t r_next_bytecode_198;
     oop a_30;
     oop b_46;
-    oop o_347;
+    oop o_533;
     int64_t r_30;
-    uint64_t v_208;
+    uint64_t v_270;
     uint8_t nx_19;
     uint8_t r_next_bytecode_199;
     uint8_t r_next_bytecode_200;
@@ -1725,10 +2123,10 @@ void interpret(void)
     uint8_t r_next_bytecode_202;
     oop a_31;
     oop b_50;
-    oop o_348;
-    int64_t v_209;
-    int64_t v_210;
-    uint64_t v_211;
+    oop o_534;
+    int64_t v_271;
+    int64_t v_272;
+    uint64_t v_273;
     uint8_t nx_21;
     uint8_t r_next_bytecode_203;
     uint8_t r_next_bytecode_204;
@@ -1749,190 +2147,253 @@ void interpret(void)
     uint8_t r_next_bytecode_206;
     oop a_32;
     oop b_54;
-    oop o_349;
+    oop o_535;
     int64_t a_33;
     int64_t b_55;
     int64_t r_floor_mod;
     int64_t r_35;
-    int64_t v_212;
-    uint64_t v_213;
+    int64_t v_274;
+    uint64_t v_275;
     uint8_t nx_23;
     uint8_t r_next_bytecode_207;
     uint8_t r_next_bytecode_208;
     oop a_34;
     oop b_56;
-    oop o_350;
-    int64_t v_214;
-    int64_t s_73;
-    int64_t v_215;
-    int64_t v_216;
-    uint64_t v_217;
+    oop o_536;
+    int64_t v_276;
+    int64_t s_135;
+    int64_t v_277;
+    int64_t v_278;
+    uint64_t v_279;
     uint8_t nx_24;
     uint8_t r_next_bytecode_209;
     uint8_t r_next_bytecode_210;
     uint8_t nx_25;
     uint8_t r_next_bytecode_211;
     uint8_t r_next_bytecode_212;
-    int64_t v_218;
-    uint64_t v_219;
+    int64_t v_280;
+    uint64_t v_281;
     uint8_t nx_26;
     uint8_t r_next_bytecode_213;
     uint8_t r_next_bytecode_214;
     oop a_35;
     oop b_57;
-    oop o_351;
+    oop o_537;
     int64_t a_36;
     int64_t b_58;
     int64_t r_floor_div;
     int64_t q;
-    int64_t v_220;
+    int64_t v_282;
     int64_t a_37;
     int64_t b_59;
     int64_t r_floor_div_2;
     int64_t q_2;
-    int64_t v_221;
-    uint64_t v_222;
+    int64_t v_283;
+    uint64_t v_284;
     uint8_t nx_27;
     uint8_t r_next_bytecode_215;
     uint8_t r_next_bytecode_216;
     oop a_38;
     oop b_60;
-    oop o_352;
-    oop v_223;
+    oop o_538;
+    oop v_285;
     uint8_t nx_28;
     uint8_t r_next_bytecode_217;
     uint8_t r_next_bytecode_218;
     oop a_39;
     oop b_61;
-    oop o_353;
-    oop v_224;
+    oop o_539;
+    oop v_286;
     uint8_t nx_29;
     uint8_t r_next_bytecode_219;
     uint8_t r_next_bytecode_220;
     oop a_40;
     oop b_62;
-    uint64_t c_29;
+    uint64_t c_31;
     uint64_t k_21;
-    oop v_225;
+    oop v_287;
     uint8_t nx_30;
     uint8_t r_next_bytecode_221;
     uint8_t r_next_bytecode_222;
     uint8_t code_point;
-    uint64_t v_226;
+    uint64_t v_288;
     uint8_t nx_31;
     uint8_t r_next_bytecode_223;
     uint8_t r_next_bytecode_224;
-    uint8_t v_227;
-    uint64_t v_228;
+    uint8_t v_289;
+    uint64_t v_290;
     uint8_t nx_32;
     uint8_t r_next_bytecode_225;
     uint8_t r_next_bytecode_226;
-    oop o_354;
-    oop v_229;
+    oop o_540;
+    oop v_291;
     oop a_41;
-    uint64_t c_30;
+    uint64_t c_32;
     uint64_t k_22;
     uint8_t r_next_bytecode_227;
     uint8_t r_next_bytecode_228;
     uint8_t r_next_bytecode_229;
     oop b_63;
-    uint64_t c_31;
-    uint32_t v_230;
+    uint64_t c_33;
+    uint32_t v_292;
     uint8_t r_next_bytecode_230;
-    int64_t v_231;
+    int64_t v_293;
     uint8_t r_next_bytecode_231;
-    bool c_32;
+    bool c_34;
     uint8_t nx_33;
     uint8_t *p_31;
-    int16_t o_355;
-    oop *s_74;
-    oop m_77;
-    uint64_t o_356;
-    int64_t v_232;
-    int64_t v_233;
-    oop *s_75;
-    oop m_78;
-    oop o_357;
-    oop o_358;
-    oop o_359;
-    uint64_t o_360;
-    oop o_361;
+    int16_t o_541;
+    oop *s_136;
+    oop m_139;
+    uint64_t o_542;
+    int64_t v_294;
+    int64_t v_295;
+    oop *s_137;
+    oop m_140;
+    oop o_543;
+    oop o_544;
+    oop o_545;
+    uint64_t o_546;
+    oop o_547;
+    oop *s_138;
+    oop m_141;
+    uint64_t o_548;
+    int64_t v_296;
+    int64_t v_297;
+    oop *s_139;
+    oop m_142;
+    oop o_549;
+    oop o_550;
+    oop o_551;
+    uint64_t o_552;
+    oop o_553;
     uint8_t r_next_bytecode_232;
     uint8_t r_next_bytecode_233;
-    bool c_33;
+    bool c_35;
     uint8_t nx_34;
     uint8_t *p_32;
-    int16_t o_362;
-    oop *s_76;
-    oop m_79;
-    uint64_t o_363;
-    int64_t v_234;
-    int64_t v_235;
-    oop *s_77;
-    oop m_80;
-    oop o_364;
-    oop o_365;
-    oop o_366;
-    uint64_t o_367;
-    oop o_368;
+    int16_t o_554;
+    oop *s_140;
+    oop m_143;
+    uint64_t o_555;
+    int64_t v_298;
+    int64_t v_299;
+    oop *s_141;
+    oop m_144;
+    oop o_556;
+    oop o_557;
+    oop o_558;
+    uint64_t o_559;
+    oop o_560;
+    oop *s_142;
+    oop m_145;
+    uint64_t o_561;
+    int64_t v_300;
+    int64_t v_301;
+    oop *s_143;
+    oop m_146;
+    oop o_562;
+    oop o_563;
+    oop o_564;
+    uint64_t o_565;
+    oop o_566;
     uint8_t r_next_bytecode_234;
     uint8_t r_next_bytecode_235;
     oop bl;
-    oop *s_78;
-    oop m_81;
-    uint64_t o_369;
-    int64_t v_236;
-    int64_t v_237;
-    oop *s_79;
-    oop m_82;
-    uint64_t o_370;
-    int64_t v_238;
-    int64_t v_239;
-    oop *s_80;
-    oop m_83;
-    oop o_371;
-    oop o_372;
-    oop o_373;
-    uint64_t o_374;
-    oop o_375;
+    oop *s_144;
+    oop m_147;
+    uint64_t o_567;
+    int64_t v_302;
+    int64_t v_303;
+    uint64_t c_36;
+    oop *s_145;
+    oop m_148;
+    uint64_t o_568;
+    int64_t v_304;
+    int64_t v_305;
+    oop *s_146;
+    oop m_149;
+    oop o_569;
+    oop o_570;
+    oop o_571;
+    uint64_t o_572;
+    oop o_573;
+    oop *s_147;
+    oop m_150;
+    uint64_t o_574;
+    int64_t v_306;
+    int64_t v_307;
+    oop *s_148;
+    oop m_151;
+    oop o_575;
+    oop o_576;
+    oop o_577;
+    uint64_t o_578;
+    oop o_579;
     uint8_t r_next_bytecode_236;
     oop bl_2;
-    oop *s_81;
-    oop m_84;
-    uint64_t o_376;
-    int64_t v_240;
-    int64_t v_241;
-    oop *s_82;
-    oop m_85;
-    uint64_t o_377;
-    int64_t v_242;
-    int64_t v_243;
-    oop *s_83;
-    oop m_86;
-    oop o_378;
-    oop o_379;
-    oop o_380;
-    uint64_t o_381;
-    oop o_382;
+    oop *s_149;
+    oop m_152;
+    uint64_t o_580;
+    int64_t v_308;
+    int64_t v_309;
+    uint64_t c_37;
+    oop *s_150;
+    oop m_153;
+    uint64_t o_581;
+    int64_t v_310;
+    int64_t v_311;
+    oop *s_151;
+    oop m_154;
+    oop o_582;
+    oop o_583;
+    oop o_584;
+    uint64_t o_585;
+    oop o_586;
+    oop *s_152;
+    oop m_155;
+    uint64_t o_587;
+    int64_t v_312;
+    int64_t v_313;
+    oop *s_153;
+    oop m_156;
+    oop o_588;
+    oop o_589;
+    oop o_590;
+    uint64_t o_591;
+    oop o_592;
     uint8_t r_next_bytecode_237;
     oop bl_3;
-    oop *s_84;
-    oop m_87;
-    uint64_t o_383;
-    int64_t v_244;
-    int64_t v_245;
-    oop *s_85;
-    oop m_88;
-    uint64_t o_384;
-    int64_t v_246;
-    int64_t v_247;
-    oop *s_86;
-    oop m_89;
-    oop o_385;
-    oop o_386;
-    oop o_387;
-    uint64_t o_388;
-    oop o_389;
+    oop *s_154;
+    oop m_157;
+    uint64_t o_593;
+    int64_t v_314;
+    int64_t v_315;
+    uint64_t c_38;
+    oop *s_155;
+    oop m_158;
+    uint64_t o_594;
+    int64_t v_316;
+    int64_t v_317;
+    oop *s_156;
+    oop m_159;
+    oop o_595;
+    oop o_596;
+    oop o_597;
+    uint64_t o_598;
+    oop o_599;
+    oop *s_157;
+    oop m_160;
+    uint64_t o_600;
+    int64_t v_318;
+    int64_t v_319;
+    oop *s_158;
+    oop m_161;
+    oop o_601;
+    oop o_602;
+    oop o_603;
+    uint64_t o_604;
+    oop o_605;
     uint8_t r_next_bytecode_238;
     oop b_64;
     uint8_t r_next_bytecode_239;
@@ -1940,97 +2401,109 @@ void interpret(void)
     uint8_t r_next_bytecode_240;
     oop r_36;
     uint8_t r_next_bytecode_241;
-    oop *s_87;
-    oop m_90;
-    uint64_t o_390;
-    int64_t v_248;
-    int64_t v_249;
+    oop *s_159;
+    oop m_162;
+    uint64_t o_606;
+    int64_t v_320;
+    int64_t v_321;
     int32_t a_42;
-    uint64_t o_391;
-    uint64_t o_392;
-    oop *s_88;
-    oop m_91;
-    oop o_393;
-    oop o_394;
-    oop o_395;
-    uint64_t o_396;
-    oop o_397;
+    uint64_t o_607;
+    uint64_t o_608;
+    oop *s_160;
+    oop m_163;
+    oop o_609;
+    oop o_610;
+    oop o_611;
+    uint64_t o_612;
+    oop o_613;
     oop *src;
     int32_t k_23;
-    oop *s_89;
-    oop m_92;
-    uint64_t o_398;
-    int64_t v_250;
-    int64_t v_251;
+    oop *s_161;
+    oop m_164;
+    uint64_t o_614;
+    int64_t v_322;
+    int64_t v_323;
     oop home_2;
-    uint64_t o_399;
+    uint64_t o_615;
     uint64_t hs_2;
-    uint64_t o_400;
-    oop c_34;
+    uint64_t o_616;
+    oop c_39;
     uint64_t marked;
-    uint64_t m_93;
+    uint64_t m_165;
     int64_t r_method_prim_5;
     uint64_t p_33;
     uint64_t next_2;
-    oop *s_90;
-    oop m_94;
-    oop o_401;
-    oop o_402;
-    oop o_403;
-    uint64_t o_404;
-    oop o_405;
+    oop *s_162;
+    oop m_166;
+    oop o_617;
+    oop o_618;
+    oop o_619;
+    uint64_t o_620;
+    oop o_621;
     uint8_t r_next_bytecode_242;
-    oop *s_91;
+    oop *s_163;
     oop sender;
-    oop o_406;
-    oop *s_92;
-    oop m_95;
-    oop o_407;
-    oop o_408;
-    oop o_409;
-    uint64_t o_410;
-    oop o_411;
+    oop o_622;
+    oop *s_164;
+    oop m_167;
+    oop o_623;
+    oop o_624;
+    oop o_625;
+    uint64_t o_626;
+    oop o_627;
     uint8_t r_next_bytecode_243;
     cache_entry *e_5;
     cache_entry *e_6;
     oop r_37;
     oop r_38;
     uint64_t r_icache_index_of;
-    uint64_t s_93;
+    uint64_t s_165;
     cache_entry *e_7;
     cache_entry *g;
     int32_t k_24;
-    oop *s_94;
-    oop m_96;
-    uint64_t o_412;
-    int64_t v_252;
-    int64_t v_253;
-    oop *s_95;
-    oop m_97;
-    oop o_413;
-    oop o_414;
-    oop o_415;
-    uint64_t o_416;
-    oop o_417;
+    oop *s_166;
+    oop m_168;
+    uint64_t o_628;
+    int64_t v_324;
+    int64_t v_325;
+    oop *s_167;
+    oop m_169;
+    oop o_629;
+    oop o_630;
+    oop o_631;
+    uint64_t o_632;
+    oop o_633;
+    oop *s_168;
+    oop m_170;
+    uint64_t o_634;
+    int64_t v_326;
+    int64_t v_327;
+    oop *s_169;
+    oop m_171;
+    oop o_635;
+    oop o_636;
+    oop o_637;
+    uint64_t o_638;
+    oop o_639;
     uint8_t r_next_bytecode_244;
     uint8_t r_next_bytecode_245;
     int64_t r_method_prim_6;
     uint64_t p_34;
-    oop o_418;
-    uint64_t o_419;
-    oop v_254;
-    oop *s_96;
-    oop m_98;
-    uint64_t o_420;
-    int64_t v_255;
-    int64_t v_256;
-    oop *s_97;
-    oop m_99;
-    oop o_421;
-    oop o_422;
-    oop o_423;
-    uint64_t o_424;
-    oop o_425;
+    oop o_640;
+    uint64_t o_641;
+    oop v_328;
+    oop *s_170;
+    oop m_172;
+    uint64_t o_642;
+    int64_t v_329;
+    int64_t v_330;
+    oop *s_171;
+    oop m_173;
+    oop o_643;
+    oop o_644;
+    oop o_645;
+    uint64_t o_646;
+    oop o_647;
     uint8_t r_next_bytecode_246;
     oop r_39;
     uint32_t ns;
@@ -2038,118 +2511,131 @@ void interpret(void)
     int32_t k_25;
     int32_t k_26;
     uint8_t i_6;
-    oop v_257;
-    oop *s_98;
-    oop m_100;
-    uint64_t o_426;
-    int64_t v_258;
-    int64_t v_259;
-    oop *s_99;
-    oop m_101;
-    oop o_427;
-    oop o_428;
-    oop o_429;
-    uint64_t o_430;
-    oop o_431;
+    oop v_331;
+    oop *s_172;
+    oop m_174;
+    uint64_t o_648;
+    int64_t v_332;
+    int64_t v_333;
+    oop *s_173;
+    oop m_175;
+    oop o_649;
+    oop o_650;
+    oop o_651;
+    uint64_t o_652;
+    oop o_653;
     uint8_t r_next_bytecode_247;
     int8_t i_7;
-    oop *s_100;
-    oop m_102;
-    uint64_t o_432;
-    int64_t v_260;
-    int64_t v_261;
-    oop *s_101;
-    oop m_103;
-    oop o_433;
-    oop o_434;
-    oop o_435;
-    uint64_t o_436;
-    oop o_437;
+    oop *s_174;
+    oop m_176;
+    uint64_t o_654;
+    int64_t v_334;
+    int64_t v_335;
+    oop *s_175;
+    oop m_177;
+    oop o_655;
+    oop o_656;
+    oop o_657;
+    uint64_t o_658;
+    oop o_659;
     uint8_t r_next_bytecode_248;
-    oop *s_102;
-    oop m_104;
-    uint64_t o_438;
-    int64_t v_262;
-    int64_t v_263;
-    oop *s_103;
-    oop m_105;
-    oop o_439;
-    oop o_440;
-    oop o_441;
-    uint64_t o_442;
-    oop o_443;
+    oop *s_176;
+    oop m_178;
+    uint64_t o_660;
+    int64_t v_336;
+    int64_t v_337;
+    oop *s_177;
+    oop m_179;
+    oop o_661;
+    oop o_662;
+    oop o_663;
+    uint64_t o_664;
+    oop o_665;
     uint8_t r_next_bytecode_249;
-    oop *s_104;
-    oop m_106;
-    oop o_444;
-    oop o_445;
-    oop o_446;
-    uint64_t o_447;
-    oop o_448;
+    oop *s_178;
+    oop m_180;
+    oop o_666;
+    oop o_667;
+    oop o_668;
+    uint64_t o_669;
+    oop o_670;
+    uint64_t c_40;
+    oop *s_179;
+    oop m_181;
+    uint64_t o_671;
+    int64_t v_338;
+    int64_t v_339;
+    oop *s_180;
+    oop m_182;
+    oop o_672;
+    oop o_673;
+    oop o_674;
+    uint64_t o_675;
+    oop o_676;
     uint8_t r_next_bytecode_250;
-    oop *s_105;
-    oop m_107;
-    oop o_449;
-    oop o_450;
-    oop o_451;
-    uint64_t o_452;
-    oop o_453;
-    oop *s_106;
-    oop m_108;
-    oop o_454;
-    oop o_455;
-    oop o_456;
-    uint64_t o_457;
-    oop o_458;
-    uint64_t o_459;
-    uint64_t o_460;
+    oop *s_181;
+    oop m_183;
+    oop o_677;
+    oop o_678;
+    oop o_679;
+    uint64_t o_680;
+    oop o_681;
+    oop *s_182;
+    oop m_184;
+    oop o_682;
+    oop o_683;
+    oop o_684;
+    uint64_t o_685;
+    oop o_686;
+    uint64_t o_687;
+    uint64_t o_688;
     int64_t r_method_prim_7;
     uint64_t p_35;
     oop dnu;
-    oop *s_107;
-    oop m_109;
-    uint64_t o_461;
-    int64_t v_264;
-    int64_t v_265;
+    oop *s_183;
+    oop m_185;
+    uint64_t o_689;
+    int64_t v_340;
+    int64_t v_341;
     oop msg;
-    oop *s_108;
-    oop m_110;
-    uint64_t o_462;
-    int64_t v_266;
-    int64_t v_267;
+    oop *s_184;
+    oop m_186;
+    uint64_t o_690;
+    int64_t v_342;
+    int64_t v_343;
     oop args;
-    oop *s_109;
-    oop m_111;
-    oop o_463;
-    oop o_464;
-    oop o_465;
-    uint64_t o_466;
-    oop o_467;
+    oop *s_185;
+    oop m_187;
+    oop o_691;
+    oop o_692;
+    oop o_693;
+    uint64_t o_694;
+    oop o_695;
     oop mc;
-    uint64_t o_468;
+    uint64_t o_696;
     int64_t isize_2;
-    oop *s_110;
-    oop m_112;
-    oop o_469;
-    oop o_470;
-    oop o_471;
-    uint64_t o_472;
-    oop o_473;
-    oop v_268;
-    oop v_269;
-    oop o_474;
-    oop *s_111;
-    oop m_113;
-    uint64_t o_475;
-    int64_t v_270;
-    int64_t v_271;
-    oop *s_112;
-    oop m_114;
-    oop o_476;
-    oop o_477;
-    oop o_478;
-    uint64_t o_479;
-    oop o_480;
+    oop *s_186;
+    oop m_188;
+    oop o_697;
+    oop o_698;
+    oop o_699;
+    uint64_t o_700;
+    oop o_701;
+    oop v_344;
+    oop v_345;
+    oop o_702;
+    oop *s_187;
+    oop m_189;
+    uint64_t o_703;
+    int64_t v_346;
+    int64_t v_347;
+    oop *s_188;
+    oop m_190;
+    oop o_704;
+    oop o_705;
+    oop o_706;
+    uint64_t o_707;
+    oop o_708;
     ss = special(SO_SPECIAL_SELECTORS);
     for (i = 0; i <= 31; i++) {
         special_argc[i] = ((ss & 7) == 0) && ((uint32_t)i < (uint32_t)*(uint64_t *)ss) ? selector_argc(*(uint64_t *)(ss + 16 + 8 * i)) : 0;
@@ -3184,6 +3670,48 @@ op_push_one:;
                                 fr = (frame *)NULL;
                             }
                         }
+                        if (__builtin_expect((fr != NULL) && (fr->code != 0), 0)) {
+                            if (fr != NULL) {
+                                nframes = (int32_t)(fr - frames) + 1;
+                                fr->ip = ip;
+                                fr->sp = (int32_t)(sp - fp + 1);
+                                cstack_used = (uint64_t)(sp + 1 - cstack);
+                            } else {
+                                s_4 = (oop *)(active_ctx + 16);
+                                m_4 = s_4[CTX_METHOD];
+                                o_62 = *(uint64_t *)(m_4 + 16 + 24);
+                                v_100 = ip - (uint8_t *)(o_62 + 16);
+                                s_4[CTX_PC] = (uint64_t)((v_100 << 1) | 1);
+                                v_101 = sp - fp + 1;
+                                s_4[CTX_STACKP] = (uint64_t)((v_101 << 1) | 1);
+                            }
+                            jit_back_jump(fr);
+                            if (nframes != 0) {
+                                fr = frames + (nframes - 1);
+                                lits = fr->lits;
+                                fp = fr->fp;
+                                sp = fp + fr->sp - 1;
+                                ip = fr->ip;
+                            } else {
+                                s_5 = (oop *)(active_ctx + 16);
+                                m_5 = s_5[CTX_METHOD];
+                                o_63 = ((oop *)(m_5 + 16))[CM_LITERALS];
+                                lits = (oop *)(o_63 + 16);
+                                fp = s_5 + CTX_FIXED;
+                                o_64 = s_5[CTX_STACKP];
+                                sp = fp + (((int64_t)o_64) >> 1) - 1;
+                                o_65 = s_5[CTX_PC];
+                                if (!((o_65 & 1) != 0)) {
+                                    fatal_begin();
+                                    fprintf(stderr, "resuming a dead context");
+                                    fatal_end();
+                                }
+                                o_66 = *(uint64_t *)(m_5 + 16 + 24);
+                                o_67 = s_5[CTX_PC];
+                                ip = (uint8_t *)(o_66 + 16) + (((int64_t)o_67) >> 1);
+                                fr = (frame *)NULL;
+                            }
+                        }
                     }
                 }
                 goto *ops[({
@@ -3211,33 +3739,33 @@ op_push_this_context:;
         fr->sp = (int32_t)(sp - fp + 1);
         cstack_used = (uint64_t)(sp + 1 - cstack);
         materialize_all();
-        s_4 = (oop *)(active_ctx + 16);
-        m_4 = s_4[CTX_METHOD];
-        o_62 = ((oop *)(m_4 + 16))[CM_LITERALS];
-        lits = (oop *)(o_62 + 16);
-        fp = s_4 + CTX_FIXED;
-        o_63 = s_4[CTX_STACKP];
-        sp = fp + (((int64_t)o_63) >> 1) - 1;
-        o_64 = s_4[CTX_PC];
-        if (!((o_64 & 1) != 0)) {
+        s_6 = (oop *)(active_ctx + 16);
+        m_6 = s_6[CTX_METHOD];
+        o_68 = ((oop *)(m_6 + 16))[CM_LITERALS];
+        lits = (oop *)(o_68 + 16);
+        fp = s_6 + CTX_FIXED;
+        o_69 = s_6[CTX_STACKP];
+        sp = fp + (((int64_t)o_69) >> 1) - 1;
+        o_70 = s_6[CTX_PC];
+        if (!((o_70 & 1) != 0)) {
             fatal_begin();
             fprintf(stderr, "resuming a dead context");
             fatal_end();
         }
-        o_65 = *(uint64_t *)(m_4 + 16 + 24);
-        o_66 = s_4[CTX_PC];
-        ip = (uint8_t *)(o_65 + 16) + (((int64_t)o_66) >> 1);
+        o_71 = *(uint64_t *)(m_6 + 16 + 24);
+        o_72 = s_6[CTX_PC];
+        ip = (uint8_t *)(o_71 + 16) + (((int64_t)o_72) >> 1);
         fr = (frame *)NULL;
     }
     sp = sp + 1;
     *sp = active_ctx;
-    s_5 = (oop *)(active_ctx + 16);
-    m_5 = s_5[CTX_METHOD];
-    o_67 = *(uint64_t *)(m_5 + 16 + 24);
-    v_100 = ip - (uint8_t *)(o_67 + 16);
-    s_5[CTX_PC] = (uint64_t)((v_100 << 1) | 1);
-    v_101 = sp - fp + 1;
-    s_5[CTX_STACKP] = (uint64_t)((v_101 << 1) | 1);
+    s_7 = (oop *)(active_ctx + 16);
+    m_7 = s_7[CTX_METHOD];
+    o_73 = *(uint64_t *)(m_7 + 16 + 24);
+    v_102 = ip - (uint8_t *)(o_73 + 16);
+    s_7[CTX_PC] = (uint64_t)((v_102 << 1) | 1);
+    v_103 = sp - fp + 1;
+    s_7[CTX_STACKP] = (uint64_t)((v_103 << 1) | 1);
     goto *ops[({
     ip = ip + 1;
     r_next_bytecode_118 = *(ip - 1);
@@ -3269,34 +3797,77 @@ op_return_top:;
             lits = fr->lits;
             fp = fr->fp;
             ip = fr->ip;
+            c_2 = fr->code;
+            if (__builtin_expect(c_2 > JIT_MAX_COUNT, 0)) {
+                if (fr != NULL) {
+                    nframes = (int32_t)(fr - frames) + 1;
+                    fr->ip = ip;
+                    fr->sp = (int32_t)(sp - fp + 1);
+                    cstack_used = (uint64_t)(sp + 1 - cstack);
+                } else {
+                    s_8 = (oop *)(active_ctx + 16);
+                    m_8 = s_8[CTX_METHOD];
+                    o_74 = *(uint64_t *)(m_8 + 16 + 24);
+                    v_104 = ip - (uint8_t *)(o_74 + 16);
+                    s_8[CTX_PC] = (uint64_t)((v_104 << 1) | 1);
+                    v_105 = sp - fp + 1;
+                    s_8[CTX_STACKP] = (uint64_t)((v_105 << 1) | 1);
+                }
+                jit_resume(fr);
+                if (nframes != 0) {
+                    fr = frames + (nframes - 1);
+                    lits = fr->lits;
+                    fp = fr->fp;
+                    sp = fp + fr->sp - 1;
+                    ip = fr->ip;
+                } else {
+                    s_9 = (oop *)(active_ctx + 16);
+                    m_9 = s_9[CTX_METHOD];
+                    o_75 = ((oop *)(m_9 + 16))[CM_LITERALS];
+                    lits = (oop *)(o_75 + 16);
+                    fp = s_9 + CTX_FIXED;
+                    o_76 = s_9[CTX_STACKP];
+                    sp = fp + (((int64_t)o_76) >> 1) - 1;
+                    o_77 = s_9[CTX_PC];
+                    if (!((o_77 & 1) != 0)) {
+                        fatal_begin();
+                        fprintf(stderr, "resuming a dead context");
+                        fatal_end();
+                    }
+                    o_78 = *(uint64_t *)(m_9 + 16 + 24);
+                    o_79 = s_9[CTX_PC];
+                    ip = (uint8_t *)(o_78 + 16) + (((int64_t)o_79) >> 1);
+                    fr = (frame *)NULL;
+                }
+            }
             goto *ops[({
     ip = ip + 1;
     r_next_bytecode_121 = *(ip - 1);
     r_next_bytecode_121; })];
         }
-        o_68 = ((oop *)(active_ctx + 16))[CTX_PC];
-        if (!((o_68 & 1) != 0)) {
+        o_80 = ((oop *)(active_ctx + 16))[CTX_PC];
+        if (!((o_80 & 1) != 0)) {
             nframes = (int32_t)(fr - frames) + 1;
             fr->ip = ip;
             fr->sp = (int32_t)(sp - fp + 1);
             cstack_used = (uint64_t)(sp + 1 - cstack);
             materialize_all();
-            s_6 = (oop *)(active_ctx + 16);
-            m_6 = s_6[CTX_METHOD];
-            o_69 = ((oop *)(m_6 + 16))[CM_LITERALS];
-            lits = (oop *)(o_69 + 16);
-            fp = s_6 + CTX_FIXED;
-            o_70 = s_6[CTX_STACKP];
-            sp = fp + (((int64_t)o_70) >> 1) - 1;
-            o_71 = s_6[CTX_PC];
-            if (!((o_71 & 1) != 0)) {
+            s_10 = (oop *)(active_ctx + 16);
+            m_10 = s_10[CTX_METHOD];
+            o_81 = ((oop *)(m_10 + 16))[CM_LITERALS];
+            lits = (oop *)(o_81 + 16);
+            fp = s_10 + CTX_FIXED;
+            o_82 = s_10[CTX_STACKP];
+            sp = fp + (((int64_t)o_82) >> 1) - 1;
+            o_83 = s_10[CTX_PC];
+            if (!((o_83 & 1) != 0)) {
                 fatal_begin();
                 fprintf(stderr, "resuming a dead context");
                 fatal_end();
             }
-            o_72 = *(uint64_t *)(m_6 + 16 + 24);
-            o_73 = s_6[CTX_PC];
-            ip = (uint8_t *)(o_72 + 16) + (((int64_t)o_73) >> 1);
+            o_84 = *(uint64_t *)(m_10 + 16 + 24);
+            o_85 = s_10[CTX_PC];
+            ip = (uint8_t *)(o_84 + 16) + (((int64_t)o_85) >> 1);
             fr = (frame *)NULL;
             goto context_return;
         }
@@ -3309,22 +3880,22 @@ op_return_top:;
         if (((active_ctx & 7) == 0) && ((!((uint64_t)(active_ctx - young_lo) < young_hi - young_lo)) && (((*(uint64_t *)active_ctx) & H_REMEMBERED) == 0))) {
             vm_remember(active_ctx);
         }
-        s_7 = (oop *)(active_ctx + 16);
-        m_7 = s_7[CTX_METHOD];
-        o_74 = ((oop *)(m_7 + 16))[CM_LITERALS];
-        lits = (oop *)(o_74 + 16);
-        fp = s_7 + CTX_FIXED;
-        o_75 = s_7[CTX_STACKP];
-        sp = fp + (((int64_t)o_75) >> 1) - 1;
-        o_76 = s_7[CTX_PC];
-        if (!((o_76 & 1) != 0)) {
+        s_11 = (oop *)(active_ctx + 16);
+        m_11 = s_11[CTX_METHOD];
+        o_86 = ((oop *)(m_11 + 16))[CM_LITERALS];
+        lits = (oop *)(o_86 + 16);
+        fp = s_11 + CTX_FIXED;
+        o_87 = s_11[CTX_STACKP];
+        sp = fp + (((int64_t)o_87) >> 1) - 1;
+        o_88 = s_11[CTX_PC];
+        if (!((o_88 & 1) != 0)) {
             fatal_begin();
             fprintf(stderr, "resuming a dead context");
             fatal_end();
         }
-        o_77 = *(uint64_t *)(m_7 + 16 + 24);
-        o_78 = s_7[CTX_PC];
-        ip = (uint8_t *)(o_77 + 16) + (((int64_t)o_78) >> 1);
+        o_89 = *(uint64_t *)(m_11 + 16 + 24);
+        o_90 = s_11[CTX_PC];
+        ip = (uint8_t *)(o_89 + 16) + (((int64_t)o_90) >> 1);
         fr = (frame *)NULL;
         sp = sp + 1;
         *sp = result;
@@ -3335,9 +3906,9 @@ op_return_top:;
     }
     goto context_return;
 op_return_self:;
-    v_102 = fp[-1];
+    v_106 = fp[-1];
     sp = sp + 1;
-    *sp = v_102;
+    *sp = v_106;
     goto op_return_top;
 op_non_local_return:;
     result = *sp;
@@ -3348,24 +3919,24 @@ op_non_local_return:;
     fr->ip = ip;
     fr->sp = (int32_t)(sp - fp + 1);
     cstack_used = (uint64_t)(sp + 1 - cstack);
-    o_79 = fr->closure;
-    home = ctx_home(*(uint64_t *)(o_79 + 16 + 0));
+    o_91 = fr->closure;
+    home = ctx_home(*(uint64_t *)(o_91 + 16 + 0));
     hk = *(uint64_t *)(home + 16 + 0);
     if ((hk & 1) != 0) {
         h = (int32_t)(((int64_t)hk) >> 1);
         fast = true;
         for (j_2 = h; j_2 <= nframes - 1; j_2++) {
-            m_8 = (frames + j_2)->method;
+            m_12 = (frames + j_2)->method;
             if ((({
-    p_2 = *(uint64_t *)(m_8 + 16 + 56);
+    p_2 = *(uint64_t *)(m_12 + 16 + 56);
     r_method_prim = (p_2 & 1) != 0 ? ((int64_t)p_2) >> 1 : 0;
     r_method_prim; }) & CM_PRIM_MASK) == PRIM_ENSURE_MARKER) {
                 fast = false;
             }
         }
         if (fast && ((h > 0) || ({
-    o_80 = ((oop *)(active_ctx + 16))[CTX_PC];
-    (o_80 & 1) != 0; }))) {
+    o_92 = ((oop *)(active_ctx + 16))[CTX_PC];
+    (o_92 & 1) != 0; }))) {
             widow_from(h);
             if (h == 0) {
                 nframes = 0;
@@ -3373,22 +3944,22 @@ op_non_local_return:;
                 if (((active_ctx & 7) == 0) && ((!((uint64_t)(active_ctx - young_lo) < young_hi - young_lo)) && (((*(uint64_t *)active_ctx) & H_REMEMBERED) == 0))) {
                     vm_remember(active_ctx);
                 }
-                s_8 = (oop *)(active_ctx + 16);
-                m_9 = s_8[CTX_METHOD];
-                o_81 = ((oop *)(m_9 + 16))[CM_LITERALS];
-                lits = (oop *)(o_81 + 16);
-                fp = s_8 + CTX_FIXED;
-                o_82 = s_8[CTX_STACKP];
-                sp = fp + (((int64_t)o_82) >> 1) - 1;
-                o_83 = s_8[CTX_PC];
-                if (!((o_83 & 1) != 0)) {
+                s_12 = (oop *)(active_ctx + 16);
+                m_13 = s_12[CTX_METHOD];
+                o_93 = ((oop *)(m_13 + 16))[CM_LITERALS];
+                lits = (oop *)(o_93 + 16);
+                fp = s_12 + CTX_FIXED;
+                o_94 = s_12[CTX_STACKP];
+                sp = fp + (((int64_t)o_94) >> 1) - 1;
+                o_95 = s_12[CTX_PC];
+                if (!((o_95 & 1) != 0)) {
                     fatal_begin();
                     fprintf(stderr, "resuming a dead context");
                     fatal_end();
                 }
-                o_84 = *(uint64_t *)(m_9 + 16 + 24);
-                o_85 = s_8[CTX_PC];
-                ip = (uint8_t *)(o_84 + 16) + (((int64_t)o_85) >> 1);
+                o_96 = *(uint64_t *)(m_13 + 16 + 24);
+                o_97 = s_12[CTX_PC];
+                ip = (uint8_t *)(o_96 + 16) + (((int64_t)o_97) >> 1);
                 fr = (frame *)NULL;
                 sp = sp + 1;
                 *sp = result;
@@ -3405,121 +3976,164 @@ op_non_local_return:;
             lits = fr->lits;
             fp = fr->fp;
             ip = fr->ip;
+            c_4 = fr->code;
+            if (__builtin_expect(c_4 > JIT_MAX_COUNT, 0)) {
+                if (fr != NULL) {
+                    nframes = (int32_t)(fr - frames) + 1;
+                    fr->ip = ip;
+                    fr->sp = (int32_t)(sp - fp + 1);
+                    cstack_used = (uint64_t)(sp + 1 - cstack);
+                } else {
+                    s_13 = (oop *)(active_ctx + 16);
+                    m_14 = s_13[CTX_METHOD];
+                    o_98 = *(uint64_t *)(m_14 + 16 + 24);
+                    v_107 = ip - (uint8_t *)(o_98 + 16);
+                    s_13[CTX_PC] = (uint64_t)((v_107 << 1) | 1);
+                    v_108 = sp - fp + 1;
+                    s_13[CTX_STACKP] = (uint64_t)((v_108 << 1) | 1);
+                }
+                jit_resume(fr);
+                if (nframes != 0) {
+                    fr = frames + (nframes - 1);
+                    lits = fr->lits;
+                    fp = fr->fp;
+                    sp = fp + fr->sp - 1;
+                    ip = fr->ip;
+                } else {
+                    s_14 = (oop *)(active_ctx + 16);
+                    m_15 = s_14[CTX_METHOD];
+                    o_99 = ((oop *)(m_15 + 16))[CM_LITERALS];
+                    lits = (oop *)(o_99 + 16);
+                    fp = s_14 + CTX_FIXED;
+                    o_100 = s_14[CTX_STACKP];
+                    sp = fp + (((int64_t)o_100) >> 1) - 1;
+                    o_101 = s_14[CTX_PC];
+                    if (!((o_101 & 1) != 0)) {
+                        fatal_begin();
+                        fprintf(stderr, "resuming a dead context");
+                        fatal_end();
+                    }
+                    o_102 = *(uint64_t *)(m_15 + 16 + 24);
+                    o_103 = s_14[CTX_PC];
+                    ip = (uint8_t *)(o_102 + 16) + (((int64_t)o_103) >> 1);
+                    fr = (frame *)NULL;
+                }
+            }
             goto *ops[({
     ip = ip + 1;
     r_next_bytecode_124 = *(ip - 1);
     r_next_bytecode_124; })];
         }
         materialize_all();
-        s_9 = (oop *)(active_ctx + 16);
-        m_10 = s_9[CTX_METHOD];
-        o_86 = ((oop *)(m_10 + 16))[CM_LITERALS];
-        lits = (oop *)(o_86 + 16);
-        fp = s_9 + CTX_FIXED;
-        o_87 = s_9[CTX_STACKP];
-        sp = fp + (((int64_t)o_87) >> 1) - 1;
-        o_88 = s_9[CTX_PC];
-        if (!((o_88 & 1) != 0)) {
+        s_15 = (oop *)(active_ctx + 16);
+        m_16 = s_15[CTX_METHOD];
+        o_104 = ((oop *)(m_16 + 16))[CM_LITERALS];
+        lits = (oop *)(o_104 + 16);
+        fp = s_15 + CTX_FIXED;
+        o_105 = s_15[CTX_STACKP];
+        sp = fp + (((int64_t)o_105) >> 1) - 1;
+        o_106 = s_15[CTX_PC];
+        if (!((o_106 & 1) != 0)) {
             fatal_begin();
             fprintf(stderr, "resuming a dead context");
             fatal_end();
         }
-        o_89 = *(uint64_t *)(m_10 + 16 + 24);
-        o_90 = s_9[CTX_PC];
-        ip = (uint8_t *)(o_89 + 16) + (((int64_t)o_90) >> 1);
+        o_107 = *(uint64_t *)(m_16 + 16 + 24);
+        o_108 = s_15[CTX_PC];
+        ip = (uint8_t *)(o_107 + 16) + (((int64_t)o_108) >> 1);
         fr = (frame *)NULL;
         goto context_non_local_return;
     }
-    o_91 = *(uint64_t *)(home + 16 + 8);
-    fast = (o_91 & 1) != 0;
+    o_109 = *(uint64_t *)(home + 16 + 8);
+    fast = (o_109 & 1) != 0;
     for (k = nframes - 1; k >= 0; k--) {
         if (fast && ({
-    m_11 = (frames + k)->method;
+    m_17 = (frames + k)->method;
     (({
-    p_3 = *(uint64_t *)(m_11 + 16 + 56);
+    p_3 = *(uint64_t *)(m_17 + 16 + 56);
     r_method_prim_2 = (p_3 & 1) != 0 ? ((int64_t)p_3) >> 1 : 0;
     r_method_prim_2; }) & CM_PRIM_MASK) == PRIM_ENSURE_MARKER; })) {
             fast = false;
         }
     }
-    c_2 = active_ctx;
-    while (fast && (c_2 != home)) {
-        if ((c_2 == nil_oop) || ({
-    m_12 = *(uint64_t *)(c_2 + 16 + 24);
+    c_3 = active_ctx;
+    while (fast && (c_3 != home)) {
+        if ((c_3 == nil_oop) || ({
+    m_18 = *(uint64_t *)(c_3 + 16 + 24);
     (({
-    p_4 = *(uint64_t *)(m_12 + 16 + 56);
+    p_4 = *(uint64_t *)(m_18 + 16 + 56);
     r_method_prim_3 = (p_4 & 1) != 0 ? ((int64_t)p_4) >> 1 : 0;
     r_method_prim_3; }) & CM_PRIM_MASK) == PRIM_ENSURE_MARKER; })) {
             fast = false;
         } else {
-            c_2 = *(uint64_t *)(c_2 + 16 + 0);
+            c_3 = *(uint64_t *)(c_3 + 16 + 0);
         }
     }
     if (fast && ({
-    m_13 = *(uint64_t *)(home + 16 + 24);
+    m_19 = *(uint64_t *)(home + 16 + 24);
     (({
-    p_5 = *(uint64_t *)(m_13 + 16 + 56);
+    p_5 = *(uint64_t *)(m_19 + 16 + 56);
     r_method_prim_4 = (p_5 & 1) != 0 ? ((int64_t)p_5) >> 1 : 0;
     r_method_prim_4; }) & CM_PRIM_MASK) == PRIM_ENSURE_MARKER; })) {
         fast = false;
     }
     hs = fast ? *(uint64_t *)(home + 16 + 0) : nil_oop;
     if ((!fast) || ((hs == nil_oop) || ({
-    o_92 = *(uint64_t *)(hs + 16 + 8);
-    !((o_92 & 1) != 0); }))) {
+    o_110 = *(uint64_t *)(hs + 16 + 8);
+    !((o_110 & 1) != 0); }))) {
         materialize_all();
-        s_10 = (oop *)(active_ctx + 16);
-        m_14 = s_10[CTX_METHOD];
-        o_93 = ((oop *)(m_14 + 16))[CM_LITERALS];
-        lits = (oop *)(o_93 + 16);
-        fp = s_10 + CTX_FIXED;
-        o_94 = s_10[CTX_STACKP];
-        sp = fp + (((int64_t)o_94) >> 1) - 1;
-        o_95 = s_10[CTX_PC];
-        if (!((o_95 & 1) != 0)) {
+        s_16 = (oop *)(active_ctx + 16);
+        m_20 = s_16[CTX_METHOD];
+        o_111 = ((oop *)(m_20 + 16))[CM_LITERALS];
+        lits = (oop *)(o_111 + 16);
+        fp = s_16 + CTX_FIXED;
+        o_112 = s_16[CTX_STACKP];
+        sp = fp + (((int64_t)o_112) >> 1) - 1;
+        o_113 = s_16[CTX_PC];
+        if (!((o_113 & 1) != 0)) {
             fatal_begin();
             fprintf(stderr, "resuming a dead context");
             fatal_end();
         }
-        o_96 = *(uint64_t *)(m_14 + 16 + 24);
-        o_97 = s_10[CTX_PC];
-        ip = (uint8_t *)(o_96 + 16) + (((int64_t)o_97) >> 1);
+        o_114 = *(uint64_t *)(m_20 + 16 + 24);
+        o_115 = s_16[CTX_PC];
+        ip = (uint8_t *)(o_114 + 16) + (((int64_t)o_115) >> 1);
         fr = (frame *)NULL;
         goto context_non_local_return;
     }
     widow_from(0);
     nframes = 0;
     cstack_used = 0;
-    c_2 = active_ctx;
+    c_3 = active_ctx;
     for (;;) {
-        next = *(uint64_t *)(c_2 + 16 + 0);
-        ((oop *)(c_2 + 16))[CTX_PC] = nil_oop;
-        ((oop *)(c_2 + 16))[CTX_SENDER] = nil_oop;
-        if (!(c_2 != home)) {
+        next = *(uint64_t *)(c_3 + 16 + 0);
+        ((oop *)(c_3 + 16))[CTX_PC] = nil_oop;
+        ((oop *)(c_3 + 16))[CTX_SENDER] = nil_oop;
+        if (!(c_3 != home)) {
             break;
         }
-        c_2 = next;
+        c_3 = next;
     }
     active_ctx = hs;
     if (((hs & 7) == 0) && ((!(hs - young_lo < young_hi - young_lo)) && (((*(uint64_t *)hs) & H_REMEMBERED) == 0))) {
         vm_remember(hs);
     }
-    s_11 = (oop *)(active_ctx + 16);
-    m_15 = s_11[CTX_METHOD];
-    o_98 = ((oop *)(m_15 + 16))[CM_LITERALS];
-    lits = (oop *)(o_98 + 16);
-    fp = s_11 + CTX_FIXED;
-    o_99 = s_11[CTX_STACKP];
-    sp = fp + (((int64_t)o_99) >> 1) - 1;
-    o_100 = s_11[CTX_PC];
-    if (!((o_100 & 1) != 0)) {
+    s_17 = (oop *)(active_ctx + 16);
+    m_21 = s_17[CTX_METHOD];
+    o_116 = ((oop *)(m_21 + 16))[CM_LITERALS];
+    lits = (oop *)(o_116 + 16);
+    fp = s_17 + CTX_FIXED;
+    o_117 = s_17[CTX_STACKP];
+    sp = fp + (((int64_t)o_117) >> 1) - 1;
+    o_118 = s_17[CTX_PC];
+    if (!((o_118 & 1) != 0)) {
         fatal_begin();
         fprintf(stderr, "resuming a dead context");
         fatal_end();
     }
-    o_101 = *(uint64_t *)(m_15 + 16 + 24);
-    o_102 = s_11[CTX_PC];
-    ip = (uint8_t *)(o_101 + 16) + (((int64_t)o_102) >> 1);
+    o_119 = *(uint64_t *)(m_21 + 16 + 24);
+    o_120 = s_17[CTX_PC];
+    ip = (uint8_t *)(o_119 + 16) + (((int64_t)o_120) >> 1);
     fr = (frame *)NULL;
     sp = sp + 1;
     *sp = result;
@@ -3528,38 +4142,38 @@ op_non_local_return:;
     r_next_bytecode_125 = *(ip - 1);
     r_next_bytecode_125; })];
 op_push_temp_x:;
-    v_103 = fp[*ip];
+    v_109 = fp[*ip];
     sp = sp + 1;
-    *sp = v_103;
+    *sp = v_109;
     ip = ip + 1;
     goto *ops[({
     ip = ip + 1;
     r_next_bytecode_126 = *(ip - 1);
     r_next_bytecode_126; })];
 op_push_inst_var_x:;
-    o_103 = fp[-1];
-    v_104 = ((oop *)(o_103 + 16))[*ip];
+    o_121 = fp[-1];
+    v_110 = ((oop *)(o_121 + 16))[*ip];
     sp = sp + 1;
-    *sp = v_104;
+    *sp = v_110;
     ip = ip + 1;
     goto *ops[({
     ip = ip + 1;
     r_next_bytecode_127 = *(ip - 1);
     r_next_bytecode_127; })];
 op_push_literal_x:;
-    v_105 = lits[*ip];
+    v_111 = lits[*ip];
     sp = sp + 1;
-    *sp = v_105;
+    *sp = v_111;
     ip = ip + 1;
     goto *ops[({
     ip = ip + 1;
     r_next_bytecode_128 = *(ip - 1);
     r_next_bytecode_128; })];
 op_push_literal_variable_x:;
-    o_104 = lits[*ip];
-    v_106 = ((oop *)(o_104 + 16))[ASSOC_VALUE];
+    o_122 = lits[*ip];
+    v_112 = ((oop *)(o_122 + 16))[ASSOC_VALUE];
     sp = sp + 1;
-    *sp = v_106;
+    *sp = v_112;
     ip = ip + 1;
     goto *ops[({
     ip = ip + 1;
@@ -3577,21 +4191,21 @@ op_store_inst_var_x:;
     ip = ip + 1;
     r_3 = fp[-1];
     if (((*(uint64_t *)r_3) & H_IMMUTABLE) != 0) {
-        v_107 = *sp;
+        v_113 = *sp;
         *sp = r_3;
         sp = sp + 1;
-        *sp = v_107;
-        v_108 = i_2 + 1;
-        v_109 = (uint64_t)((((int64_t)v_108) << 1) | 1);
+        *sp = v_113;
+        v_114 = i_2 + 1;
+        v_115 = (uint64_t)((((int64_t)v_114) << 1) | 1);
         sp = sp + 1;
-        *sp = v_109;
+        *sp = v_115;
         sel = special(SO_SEL_ATTEMPTTOASSIGN);
         argc = 2;
         goto do_send;
     }
-    v_110 = *sp;
-    *(uint64_t *)(r_3 + 16 + 8 * i_2) = v_110;
-    if (((v_110 & 7) == 0) && (((uint64_t)(v_110 - young_lo) < young_hi - young_lo) && ((!((uint64_t)(r_3 - young_lo) < young_hi - young_lo)) && (((*(uint64_t *)r_3) & H_REMEMBERED) == 0)))) {
+    v_116 = *sp;
+    *(uint64_t *)(r_3 + 16 + 8 * i_2) = v_116;
+    if (((v_116 & 7) == 0) && (((uint64_t)(v_116 - young_lo) < young_hi - young_lo) && ((!((uint64_t)(r_3 - young_lo) < young_hi - young_lo)) && (((*(uint64_t *)r_3) & H_REMEMBERED) == 0)))) {
         vm_remember(r_3);
     }
     goto *ops[({
@@ -3599,11 +4213,11 @@ op_store_inst_var_x:;
     r_next_bytecode_131 = *(ip - 1);
     r_next_bytecode_131; })];
 op_store_literal_variable_x:;
-    o_105 = lits[*ip];
-    v_111 = *sp;
-    *(uint64_t *)(o_105 + 16 + 8) = v_111;
-    if (((v_111 & 7) == 0) && (((uint64_t)(v_111 - young_lo) < young_hi - young_lo) && ((!((uint64_t)(o_105 - young_lo) < young_hi - young_lo)) && (((*(uint64_t *)o_105) & H_REMEMBERED) == 0)))) {
-        vm_remember(o_105);
+    o_123 = lits[*ip];
+    v_117 = *sp;
+    *(uint64_t *)(o_123 + 16 + 8) = v_117;
+    if (((v_117 & 7) == 0) && (((uint64_t)(v_117 - young_lo) < young_hi - young_lo) && ((!((uint64_t)(o_123 - young_lo) < young_hi - young_lo)) && (((*(uint64_t *)o_123) & H_REMEMBERED) == 0)))) {
+        vm_remember(o_123);
     }
     ip = ip + 1;
     goto *ops[({
@@ -3619,11 +4233,11 @@ op_pop_store_temp_x:;
     r_next_bytecode_133 = *(ip - 1);
     r_next_bytecode_133; })];
 op_pop_store_literal_variable_x:;
-    o_106 = lits[*ip];
-    v_112 = *sp;
-    *(uint64_t *)(o_106 + 16 + 8) = v_112;
-    if (((v_112 & 7) == 0) && (((uint64_t)(v_112 - young_lo) < young_hi - young_lo) && ((!((uint64_t)(o_106 - young_lo) < young_hi - young_lo)) && (((*(uint64_t *)o_106) & H_REMEMBERED) == 0)))) {
-        vm_remember(o_106);
+    o_124 = lits[*ip];
+    v_118 = *sp;
+    *(uint64_t *)(o_124 + 16 + 8) = v_118;
+    if (((v_118 & 7) == 0) && (((uint64_t)(v_118 - young_lo) < young_hi - young_lo) && ((!((uint64_t)(o_124 - young_lo) < young_hi - young_lo)) && (((*(uint64_t *)o_124) & H_REMEMBERED) == 0)))) {
+        vm_remember(o_124);
     }
     ip = ip + 1;
     sp = sp - 1;
@@ -3637,21 +4251,21 @@ op_outer_temp:;
     i_3 = ip[1];
     ip = ip + 2;
     cl = fr != NULL ? fr->closure : *(uint64_t *)(active_ctx + 16 + 32);
-    c_3 = *(uint64_t *)(cl + 16 + 0);
+    c_5 = *(uint64_t *)(cl + 16 + 0);
     for (;;) {
         d = d - 1;
         if (!(d > 0)) {
             break;
         }
-        o_107 = *(uint64_t *)(c_3 + 16 + 32);
-        c_3 = *(uint64_t *)(o_107 + 16 + 0);
+        o_125 = *(uint64_t *)(c_5 + 16 + 32);
+        c_5 = *(uint64_t *)(o_125 + 16 + 0);
     }
-    k_2 = *(uint64_t *)(c_3 + 16 + 0);
+    k_2 = *(uint64_t *)(c_5 + 16 + 0);
     if ((k_2 & 1) != 0) {
         if (op == 0x8A) {
-            v_113 = (frames + (((int64_t)k_2) >> 1))->fp[i_3];
+            v_119 = (frames + (((int64_t)k_2) >> 1))->fp[i_3];
             sp = sp + 1;
-            *sp = v_113;
+            *sp = v_119;
         } else {
             (frames + (((int64_t)k_2) >> 1))->fp[i_3] = *sp;
             if (op == 0x8C) {
@@ -3665,15 +4279,15 @@ op_outer_temp:;
     }
     if (op == 0x8A) {
         i_4 = CTX_FIXED + i_3;
-        v_114 = *(uint64_t *)(c_3 + 16 + 8 * i_4);
+        v_120 = *(uint64_t *)(c_5 + 16 + 8 * i_4);
         sp = sp + 1;
-        *sp = v_114;
+        *sp = v_120;
     } else {
         i_5 = CTX_FIXED + i_3;
-        v_115 = *sp;
-        *(uint64_t *)(c_3 + 16 + 8 * i_5) = v_115;
-        if (((v_115 & 7) == 0) && (((uint64_t)(v_115 - young_lo) < young_hi - young_lo) && ((!(c_3 - young_lo < young_hi - young_lo)) && (((*(uint64_t *)c_3) & H_REMEMBERED) == 0)))) {
-            vm_remember(c_3);
+        v_121 = *sp;
+        *(uint64_t *)(c_5 + 16 + 8 * i_5) = v_121;
+        if (((v_121 & 7) == 0) && (((uint64_t)(v_121 - young_lo) < young_hi - young_lo) && ((!(c_5 - young_lo < young_hi - young_lo)) && (((*(uint64_t *)c_5) & H_REMEMBERED) == 0)))) {
+            vm_remember(c_5);
         }
         if (op == 0x8C) {
             sp = sp - 1;
@@ -3692,9 +4306,9 @@ op_super_send:;
     sel = lits[ip[0]];
     argc = ip[1];
     ip = ip + 2;
-    o_108 = fr != NULL ? fr->method : *(uint64_t *)(active_ctx + 16 + 24);
-    o_109 = *(uint64_t *)(o_108 + 16 + 8);
-    cls = *(uint64_t *)(o_109 + 16 + 0);
+    o_126 = fr != NULL ? fr->method : *(uint64_t *)(active_ctx + 16 + 24);
+    o_127 = *(uint64_t *)(o_126 + 16 + 8);
+    cls = *(uint64_t *)(o_127 + 16 + 0);
     goto do_site_lookup;
 op_closure:;
     na = ip[0];
@@ -3708,20 +4322,20 @@ op_closure:;
         fr->sp = (int32_t)(sp - fp + 1);
         cstack_used = (uint64_t)(sp + 1 - cstack);
     } else {
-        s_13 = (oop *)(active_ctx + 16);
-        m_16 = s_13[CTX_METHOD];
-        o_110 = *(uint64_t *)(m_16 + 16 + 24);
-        v_116 = ip - (uint8_t *)(o_110 + 16);
-        s_13[CTX_PC] = (uint64_t)((v_116 << 1) | 1);
-        v_117 = sp - fp + 1;
-        s_13[CTX_STACKP] = (uint64_t)((v_117 << 1) | 1);
+        s_19 = (oop *)(active_ctx + 16);
+        m_22 = s_19[CTX_METHOD];
+        o_128 = *(uint64_t *)(m_22 + 16 + 24);
+        v_122 = ip - (uint8_t *)(o_128 + 16);
+        s_19[CTX_PC] = (uint64_t)((v_122 << 1) | 1);
+        v_123 = sp - fp + 1;
+        s_19[CTX_STACKP] = (uint64_t)((v_123 << 1) | 1);
     }
     if (fr != NULL) {
         marry(fr);
     }
     bc = cls_block;
-    o_111 = *(uint64_t *)(bc + 16 + 16);
-    isize = (((int64_t)o_111) >> 1) & CLS_INSTSIZE_MASK;
+    o_129 = *(uint64_t *)(bc + 16 + 16);
+    isize = (((int64_t)o_129) >> 1) & CLS_INSTSIZE_MASK;
     b = alloc_obj(bc, F_FIXED, (uint32_t)(isize < 5 ? 5 : isize));
     if (nframes != 0) {
         fr = frames + (nframes - 1);
@@ -3730,33 +4344,33 @@ op_closure:;
         sp = fp + fr->sp - 1;
         ip = fr->ip;
     } else {
-        s_14 = (oop *)(active_ctx + 16);
-        m_17 = s_14[CTX_METHOD];
-        o_112 = ((oop *)(m_17 + 16))[CM_LITERALS];
-        lits = (oop *)(o_112 + 16);
-        fp = s_14 + CTX_FIXED;
-        o_113 = s_14[CTX_STACKP];
-        sp = fp + (((int64_t)o_113) >> 1) - 1;
-        o_114 = s_14[CTX_PC];
-        if (!((o_114 & 1) != 0)) {
+        s_20 = (oop *)(active_ctx + 16);
+        m_23 = s_20[CTX_METHOD];
+        o_130 = ((oop *)(m_23 + 16))[CM_LITERALS];
+        lits = (oop *)(o_130 + 16);
+        fp = s_20 + CTX_FIXED;
+        o_131 = s_20[CTX_STACKP];
+        sp = fp + (((int64_t)o_131) >> 1) - 1;
+        o_132 = s_20[CTX_PC];
+        if (!((o_132 & 1) != 0)) {
             fatal_begin();
             fprintf(stderr, "resuming a dead context");
             fatal_end();
         }
-        o_115 = *(uint64_t *)(m_17 + 16 + 24);
-        o_116 = s_14[CTX_PC];
-        ip = (uint8_t *)(o_115 + 16) + (((int64_t)o_116) >> 1);
+        o_133 = *(uint64_t *)(m_23 + 16 + 24);
+        o_134 = s_20[CTX_PC];
+        ip = (uint8_t *)(o_133 + 16) + (((int64_t)o_134) >> 1);
         fr = (frame *)NULL;
     }
-    s_12 = (oop *)(b + 16);
-    s_12[BC_OUTER] = fr != NULL ? fr->ctx : active_ctx;
-    m_18 = fr != NULL ? fr->method : *(uint64_t *)(active_ctx + 16 + 24);
-    o_117 = *(uint64_t *)(m_18 + 16 + 24);
-    v_118 = ip - (uint8_t *)(o_117 + 16);
-    s_12[BC_STARTPC] = (uint64_t)((v_118 << 1) | 1);
-    s_12[BC_NUMARGS] = (uint64_t)((((int64_t)na) << 1) | 1);
-    s_12[BC_NUMTEMPS] = (uint64_t)((((int64_t)nt) << 1) | 1);
-    s_12[BC_FRAMESIZE] = (uint64_t)((((int64_t)fs) << 1) | 1);
+    s_18 = (oop *)(b + 16);
+    s_18[BC_OUTER] = fr != NULL ? fr->ctx : active_ctx;
+    m_24 = fr != NULL ? fr->method : *(uint64_t *)(active_ctx + 16 + 24);
+    o_135 = *(uint64_t *)(m_24 + 16 + 24);
+    v_124 = ip - (uint8_t *)(o_135 + 16);
+    s_18[BC_STARTPC] = (uint64_t)((v_124 << 1) | 1);
+    s_18[BC_NUMARGS] = (uint64_t)((((int64_t)na) << 1) | 1);
+    s_18[BC_NUMTEMPS] = (uint64_t)((((int64_t)nt) << 1) | 1);
+    s_18[BC_FRAMESIZE] = (uint64_t)((((int64_t)fs) << 1) | 1);
     if (((b & 7) == 0) && ((!((uint64_t)(b - young_lo) < young_hi - young_lo)) && (((*(uint64_t *)b) & H_REMEMBERED) == 0))) {
         vm_remember(b);
     }
@@ -3768,9 +4382,9 @@ op_closure:;
     r_next_bytecode_137 = *(ip - 1);
     r_next_bytecode_137; })];
 op_jump:;
-    o_118 = *(int16_t *)(uint64_t)ip;
-    ip = ip + 2 + o_118;
-    if (o_118 < 0) {
+    o_136 = *(int16_t *)(uint64_t)ip;
+    ip = ip + 2 + o_136;
+    if (o_136 < 0) {
         if (__builtin_expect(atomic_load_explicit(&interrupt_pending, memory_order_relaxed) != 0, 0)) {
             if (fr != NULL) {
                 nframes = (int32_t)(fr - frames) + 1;
@@ -3778,13 +4392,13 @@ op_jump:;
                 fr->sp = (int32_t)(sp - fp + 1);
                 cstack_used = (uint64_t)(sp + 1 - cstack);
             } else {
-                s_15 = (oop *)(active_ctx + 16);
-                m_19 = s_15[CTX_METHOD];
-                o_119 = *(uint64_t *)(m_19 + 16 + 24);
-                v_119 = ip - (uint8_t *)(o_119 + 16);
-                s_15[CTX_PC] = (uint64_t)((v_119 << 1) | 1);
-                v_120 = sp - fp + 1;
-                s_15[CTX_STACKP] = (uint64_t)((v_120 << 1) | 1);
+                s_21 = (oop *)(active_ctx + 16);
+                m_25 = s_21[CTX_METHOD];
+                o_137 = *(uint64_t *)(m_25 + 16 + 24);
+                v_125 = ip - (uint8_t *)(o_137 + 16);
+                s_21[CTX_PC] = (uint64_t)((v_125 << 1) | 1);
+                v_126 = sp - fp + 1;
+                s_21[CTX_STACKP] = (uint64_t)((v_126 << 1) | 1);
             }
             interrupt_safepoint();
             if (nframes != 0) {
@@ -3794,22 +4408,64 @@ op_jump:;
                 sp = fp + fr->sp - 1;
                 ip = fr->ip;
             } else {
-                s_16 = (oop *)(active_ctx + 16);
-                m_20 = s_16[CTX_METHOD];
-                o_120 = ((oop *)(m_20 + 16))[CM_LITERALS];
-                lits = (oop *)(o_120 + 16);
-                fp = s_16 + CTX_FIXED;
-                o_121 = s_16[CTX_STACKP];
-                sp = fp + (((int64_t)o_121) >> 1) - 1;
-                o_122 = s_16[CTX_PC];
-                if (!((o_122 & 1) != 0)) {
+                s_22 = (oop *)(active_ctx + 16);
+                m_26 = s_22[CTX_METHOD];
+                o_138 = ((oop *)(m_26 + 16))[CM_LITERALS];
+                lits = (oop *)(o_138 + 16);
+                fp = s_22 + CTX_FIXED;
+                o_139 = s_22[CTX_STACKP];
+                sp = fp + (((int64_t)o_139) >> 1) - 1;
+                o_140 = s_22[CTX_PC];
+                if (!((o_140 & 1) != 0)) {
                     fatal_begin();
                     fprintf(stderr, "resuming a dead context");
                     fatal_end();
                 }
-                o_123 = *(uint64_t *)(m_20 + 16 + 24);
-                o_124 = s_16[CTX_PC];
-                ip = (uint8_t *)(o_123 + 16) + (((int64_t)o_124) >> 1);
+                o_141 = *(uint64_t *)(m_26 + 16 + 24);
+                o_142 = s_22[CTX_PC];
+                ip = (uint8_t *)(o_141 + 16) + (((int64_t)o_142) >> 1);
+                fr = (frame *)NULL;
+            }
+        }
+        if (__builtin_expect((fr != NULL) && (fr->code != 0), 0)) {
+            if (fr != NULL) {
+                nframes = (int32_t)(fr - frames) + 1;
+                fr->ip = ip;
+                fr->sp = (int32_t)(sp - fp + 1);
+                cstack_used = (uint64_t)(sp + 1 - cstack);
+            } else {
+                s_23 = (oop *)(active_ctx + 16);
+                m_27 = s_23[CTX_METHOD];
+                o_143 = *(uint64_t *)(m_27 + 16 + 24);
+                v_127 = ip - (uint8_t *)(o_143 + 16);
+                s_23[CTX_PC] = (uint64_t)((v_127 << 1) | 1);
+                v_128 = sp - fp + 1;
+                s_23[CTX_STACKP] = (uint64_t)((v_128 << 1) | 1);
+            }
+            jit_back_jump(fr);
+            if (nframes != 0) {
+                fr = frames + (nframes - 1);
+                lits = fr->lits;
+                fp = fr->fp;
+                sp = fp + fr->sp - 1;
+                ip = fr->ip;
+            } else {
+                s_24 = (oop *)(active_ctx + 16);
+                m_28 = s_24[CTX_METHOD];
+                o_144 = ((oop *)(m_28 + 16))[CM_LITERALS];
+                lits = (oop *)(o_144 + 16);
+                fp = s_24 + CTX_FIXED;
+                o_145 = s_24[CTX_STACKP];
+                sp = fp + (((int64_t)o_145) >> 1) - 1;
+                o_146 = s_24[CTX_PC];
+                if (!((o_146 & 1) != 0)) {
+                    fatal_begin();
+                    fprintf(stderr, "resuming a dead context");
+                    fatal_end();
+                }
+                o_147 = *(uint64_t *)(m_28 + 16 + 24);
+                o_148 = s_24[CTX_PC];
+                ip = (uint8_t *)(o_147 + 16) + (((int64_t)o_148) >> 1);
                 fr = (frame *)NULL;
             }
         }
@@ -3819,13 +4475,13 @@ op_jump:;
     r_next_bytecode_138 = *(ip - 1);
     r_next_bytecode_138; })];
 op_conditional_jump_91:;
-    v_121 = *sp;
+    v_129 = *sp;
     sp = sp - 1;
-    o_125 = *(int16_t *)(uint64_t)ip;
+    o_149 = *(int16_t *)(uint64_t)ip;
     ip = ip + 2;
-    if (v_121 == true_oop) {
-        ip = ip + o_125;
-        if (o_125 < 0) {
+    if (v_129 == true_oop) {
+        ip = ip + o_149;
+        if (o_149 < 0) {
             if (__builtin_expect(atomic_load_explicit(&interrupt_pending, memory_order_relaxed) != 0, 0)) {
                 if (fr != NULL) {
                     nframes = (int32_t)(fr - frames) + 1;
@@ -3833,13 +4489,13 @@ op_conditional_jump_91:;
                     fr->sp = (int32_t)(sp - fp + 1);
                     cstack_used = (uint64_t)(sp + 1 - cstack);
                 } else {
-                    s_17 = (oop *)(active_ctx + 16);
-                    m_21 = s_17[CTX_METHOD];
-                    o_126 = *(uint64_t *)(m_21 + 16 + 24);
-                    v_122 = ip - (uint8_t *)(o_126 + 16);
-                    s_17[CTX_PC] = (uint64_t)((v_122 << 1) | 1);
-                    v_123 = sp - fp + 1;
-                    s_17[CTX_STACKP] = (uint64_t)((v_123 << 1) | 1);
+                    s_25 = (oop *)(active_ctx + 16);
+                    m_29 = s_25[CTX_METHOD];
+                    o_150 = *(uint64_t *)(m_29 + 16 + 24);
+                    v_130 = ip - (uint8_t *)(o_150 + 16);
+                    s_25[CTX_PC] = (uint64_t)((v_130 << 1) | 1);
+                    v_131 = sp - fp + 1;
+                    s_25[CTX_STACKP] = (uint64_t)((v_131 << 1) | 1);
                 }
                 interrupt_safepoint();
                 if (nframes != 0) {
@@ -3849,30 +4505,72 @@ op_conditional_jump_91:;
                     sp = fp + fr->sp - 1;
                     ip = fr->ip;
                 } else {
-                    s_18 = (oop *)(active_ctx + 16);
-                    m_22 = s_18[CTX_METHOD];
-                    o_127 = ((oop *)(m_22 + 16))[CM_LITERALS];
-                    lits = (oop *)(o_127 + 16);
-                    fp = s_18 + CTX_FIXED;
-                    o_128 = s_18[CTX_STACKP];
-                    sp = fp + (((int64_t)o_128) >> 1) - 1;
-                    o_129 = s_18[CTX_PC];
-                    if (!((o_129 & 1) != 0)) {
+                    s_26 = (oop *)(active_ctx + 16);
+                    m_30 = s_26[CTX_METHOD];
+                    o_151 = ((oop *)(m_30 + 16))[CM_LITERALS];
+                    lits = (oop *)(o_151 + 16);
+                    fp = s_26 + CTX_FIXED;
+                    o_152 = s_26[CTX_STACKP];
+                    sp = fp + (((int64_t)o_152) >> 1) - 1;
+                    o_153 = s_26[CTX_PC];
+                    if (!((o_153 & 1) != 0)) {
                         fatal_begin();
                         fprintf(stderr, "resuming a dead context");
                         fatal_end();
                     }
-                    o_130 = *(uint64_t *)(m_22 + 16 + 24);
-                    o_131 = s_18[CTX_PC];
-                    ip = (uint8_t *)(o_130 + 16) + (((int64_t)o_131) >> 1);
+                    o_154 = *(uint64_t *)(m_30 + 16 + 24);
+                    o_155 = s_26[CTX_PC];
+                    ip = (uint8_t *)(o_154 + 16) + (((int64_t)o_155) >> 1);
+                    fr = (frame *)NULL;
+                }
+            }
+            if (__builtin_expect((fr != NULL) && (fr->code != 0), 0)) {
+                if (fr != NULL) {
+                    nframes = (int32_t)(fr - frames) + 1;
+                    fr->ip = ip;
+                    fr->sp = (int32_t)(sp - fp + 1);
+                    cstack_used = (uint64_t)(sp + 1 - cstack);
+                } else {
+                    s_27 = (oop *)(active_ctx + 16);
+                    m_31 = s_27[CTX_METHOD];
+                    o_156 = *(uint64_t *)(m_31 + 16 + 24);
+                    v_132 = ip - (uint8_t *)(o_156 + 16);
+                    s_27[CTX_PC] = (uint64_t)((v_132 << 1) | 1);
+                    v_133 = sp - fp + 1;
+                    s_27[CTX_STACKP] = (uint64_t)((v_133 << 1) | 1);
+                }
+                jit_back_jump(fr);
+                if (nframes != 0) {
+                    fr = frames + (nframes - 1);
+                    lits = fr->lits;
+                    fp = fr->fp;
+                    sp = fp + fr->sp - 1;
+                    ip = fr->ip;
+                } else {
+                    s_28 = (oop *)(active_ctx + 16);
+                    m_32 = s_28[CTX_METHOD];
+                    o_157 = ((oop *)(m_32 + 16))[CM_LITERALS];
+                    lits = (oop *)(o_157 + 16);
+                    fp = s_28 + CTX_FIXED;
+                    o_158 = s_28[CTX_STACKP];
+                    sp = fp + (((int64_t)o_158) >> 1) - 1;
+                    o_159 = s_28[CTX_PC];
+                    if (!((o_159 & 1) != 0)) {
+                        fatal_begin();
+                        fprintf(stderr, "resuming a dead context");
+                        fatal_end();
+                    }
+                    o_160 = *(uint64_t *)(m_32 + 16 + 24);
+                    o_161 = s_28[CTX_PC];
+                    ip = (uint8_t *)(o_160 + 16) + (((int64_t)o_161) >> 1);
                     fr = (frame *)NULL;
                 }
             }
         }
-    } else if (v_121 != false_oop) {
+    } else if (v_129 != false_oop) {
         ip = ip - 3;
         sp = sp + 1;
-        *sp = v_121;
+        *sp = v_129;
         sel = special(SO_SEL_MUSTBEBOOLEAN);
         argc = 0;
         goto do_send;
@@ -3882,13 +4580,13 @@ op_conditional_jump_91:;
     r_next_bytecode_139 = *(ip - 1);
     r_next_bytecode_139; })];
 op_conditional_jump_92:;
-    v_124 = *sp;
+    v_134 = *sp;
     sp = sp - 1;
-    o_132 = *(int16_t *)(uint64_t)ip;
+    o_162 = *(int16_t *)(uint64_t)ip;
     ip = ip + 2;
-    if (v_124 == false_oop) {
-        ip = ip + o_132;
-        if (o_132 < 0) {
+    if (v_134 == false_oop) {
+        ip = ip + o_162;
+        if (o_162 < 0) {
             if (__builtin_expect(atomic_load_explicit(&interrupt_pending, memory_order_relaxed) != 0, 0)) {
                 if (fr != NULL) {
                     nframes = (int32_t)(fr - frames) + 1;
@@ -3896,13 +4594,13 @@ op_conditional_jump_92:;
                     fr->sp = (int32_t)(sp - fp + 1);
                     cstack_used = (uint64_t)(sp + 1 - cstack);
                 } else {
-                    s_19 = (oop *)(active_ctx + 16);
-                    m_23 = s_19[CTX_METHOD];
-                    o_133 = *(uint64_t *)(m_23 + 16 + 24);
-                    v_125 = ip - (uint8_t *)(o_133 + 16);
-                    s_19[CTX_PC] = (uint64_t)((v_125 << 1) | 1);
-                    v_126 = sp - fp + 1;
-                    s_19[CTX_STACKP] = (uint64_t)((v_126 << 1) | 1);
+                    s_29 = (oop *)(active_ctx + 16);
+                    m_33 = s_29[CTX_METHOD];
+                    o_163 = *(uint64_t *)(m_33 + 16 + 24);
+                    v_135 = ip - (uint8_t *)(o_163 + 16);
+                    s_29[CTX_PC] = (uint64_t)((v_135 << 1) | 1);
+                    v_136 = sp - fp + 1;
+                    s_29[CTX_STACKP] = (uint64_t)((v_136 << 1) | 1);
                 }
                 interrupt_safepoint();
                 if (nframes != 0) {
@@ -3912,30 +4610,72 @@ op_conditional_jump_92:;
                     sp = fp + fr->sp - 1;
                     ip = fr->ip;
                 } else {
-                    s_20 = (oop *)(active_ctx + 16);
-                    m_24 = s_20[CTX_METHOD];
-                    o_134 = ((oop *)(m_24 + 16))[CM_LITERALS];
-                    lits = (oop *)(o_134 + 16);
-                    fp = s_20 + CTX_FIXED;
-                    o_135 = s_20[CTX_STACKP];
-                    sp = fp + (((int64_t)o_135) >> 1) - 1;
-                    o_136 = s_20[CTX_PC];
-                    if (!((o_136 & 1) != 0)) {
+                    s_30 = (oop *)(active_ctx + 16);
+                    m_34 = s_30[CTX_METHOD];
+                    o_164 = ((oop *)(m_34 + 16))[CM_LITERALS];
+                    lits = (oop *)(o_164 + 16);
+                    fp = s_30 + CTX_FIXED;
+                    o_165 = s_30[CTX_STACKP];
+                    sp = fp + (((int64_t)o_165) >> 1) - 1;
+                    o_166 = s_30[CTX_PC];
+                    if (!((o_166 & 1) != 0)) {
                         fatal_begin();
                         fprintf(stderr, "resuming a dead context");
                         fatal_end();
                     }
-                    o_137 = *(uint64_t *)(m_24 + 16 + 24);
-                    o_138 = s_20[CTX_PC];
-                    ip = (uint8_t *)(o_137 + 16) + (((int64_t)o_138) >> 1);
+                    o_167 = *(uint64_t *)(m_34 + 16 + 24);
+                    o_168 = s_30[CTX_PC];
+                    ip = (uint8_t *)(o_167 + 16) + (((int64_t)o_168) >> 1);
+                    fr = (frame *)NULL;
+                }
+            }
+            if (__builtin_expect((fr != NULL) && (fr->code != 0), 0)) {
+                if (fr != NULL) {
+                    nframes = (int32_t)(fr - frames) + 1;
+                    fr->ip = ip;
+                    fr->sp = (int32_t)(sp - fp + 1);
+                    cstack_used = (uint64_t)(sp + 1 - cstack);
+                } else {
+                    s_31 = (oop *)(active_ctx + 16);
+                    m_35 = s_31[CTX_METHOD];
+                    o_169 = *(uint64_t *)(m_35 + 16 + 24);
+                    v_137 = ip - (uint8_t *)(o_169 + 16);
+                    s_31[CTX_PC] = (uint64_t)((v_137 << 1) | 1);
+                    v_138 = sp - fp + 1;
+                    s_31[CTX_STACKP] = (uint64_t)((v_138 << 1) | 1);
+                }
+                jit_back_jump(fr);
+                if (nframes != 0) {
+                    fr = frames + (nframes - 1);
+                    lits = fr->lits;
+                    fp = fr->fp;
+                    sp = fp + fr->sp - 1;
+                    ip = fr->ip;
+                } else {
+                    s_32 = (oop *)(active_ctx + 16);
+                    m_36 = s_32[CTX_METHOD];
+                    o_170 = ((oop *)(m_36 + 16))[CM_LITERALS];
+                    lits = (oop *)(o_170 + 16);
+                    fp = s_32 + CTX_FIXED;
+                    o_171 = s_32[CTX_STACKP];
+                    sp = fp + (((int64_t)o_171) >> 1) - 1;
+                    o_172 = s_32[CTX_PC];
+                    if (!((o_172 & 1) != 0)) {
+                        fatal_begin();
+                        fprintf(stderr, "resuming a dead context");
+                        fatal_end();
+                    }
+                    o_173 = *(uint64_t *)(m_36 + 16 + 24);
+                    o_174 = s_32[CTX_PC];
+                    ip = (uint8_t *)(o_173 + 16) + (((int64_t)o_174) >> 1);
                     fr = (frame *)NULL;
                 }
             }
         }
-    } else if (v_124 != true_oop) {
+    } else if (v_134 != true_oop) {
         ip = ip - 3;
         sp = sp + 1;
-        *sp = v_124;
+        *sp = v_134;
         sel = special(SO_SEL_MUSTBEBOOLEAN);
         argc = 0;
         goto do_send;
@@ -3945,17 +4685,17 @@ op_conditional_jump_92:;
     r_next_bytecode_140 = *(ip - 1);
     r_next_bytecode_140; })];
 op_push_integer:;
-    v_128 = *(int16_t *)(uint64_t)ip;
-    v_127 = (uint64_t)((((int64_t)v_128) << 1) | 1);
+    v_140 = *(int16_t *)(uint64_t)ip;
+    v_139 = (uint64_t)((((int64_t)v_140) << 1) | 1);
     ip = ip + 2;
     a_2 = *sp;
     nx_2 = (uint32_t)(*ip - 0xA0);
     if ((nx_2 < 6) && ({
-    o_140 = a_2 & v_127;
-    (o_140 & 1) != 0; })) {
+    o_176 = a_2 & v_139;
+    (o_176 & 1) != 0; })) {
         if (nx_2 < 2) {
             if (nx_2 == 0) {
-                if (!__builtin_add_overflow((int64_t)a_2, (int64_t)v_127 - 1, &r_4)) {
+                if (!__builtin_add_overflow((int64_t)a_2, (int64_t)v_139 - 1, &r_4)) {
                     ip = ip + 1;
                     n_3 = *ip;
                     if ((n_3 & 0xF8) == 0x60) {
@@ -3973,7 +4713,7 @@ op_push_integer:;
     r_next_bytecode_142 = *(ip - 1);
     r_next_bytecode_142; })];
                 }
-            } else if (!__builtin_sub_overflow((int64_t)a_2, (int64_t)v_127 - 1, &r_5)) {
+            } else if (!__builtin_sub_overflow((int64_t)a_2, (int64_t)v_139 - 1, &r_5)) {
                 ip = ip + 1;
                 n_4 = *ip;
                 if ((n_4 & 0xF8) == 0x60) {
@@ -3992,17 +4732,17 @@ op_push_integer:;
     r_next_bytecode_144; })];
             }
         } else {
-            c_4 = nx_2 == 2 ? (int64_t)a_2 < (int64_t)v_127 : nx_2 == 3 ? (int64_t)a_2 > (int64_t)v_127 : nx_2 == 4 ? (int64_t)a_2 <= (int64_t)v_127 : (int64_t)a_2 >= (int64_t)v_127;
+            c_6 = nx_2 == 2 ? (int64_t)a_2 < (int64_t)v_139 : nx_2 == 3 ? (int64_t)a_2 > (int64_t)v_139 : nx_2 == 4 ? (int64_t)a_2 <= (int64_t)v_139 : (int64_t)a_2 >= (int64_t)v_139;
             ip = ip + 1;
             j_3 = *ip;
             if ((j_3 == 0x92) || (j_3 == 0x91)) {
                 p_6 = ip + 1;
-                o_139 = *(int16_t *)(uint64_t)p_6;
+                o_175 = *(int16_t *)(uint64_t)p_6;
                 sp = sp - 1;
                 ip = ip + 3;
-                if (c_4 == (j_3 == 0x91)) {
-                    ip = ip + o_139;
-                    if (o_139 < 0) {
+                if (c_6 == (j_3 == 0x91)) {
+                    ip = ip + o_175;
+                    if (o_175 < 0) {
                         if (__builtin_expect(atomic_load_explicit(&interrupt_pending, memory_order_relaxed) != 0, 0)) {
                             if (fr != NULL) {
                                 nframes = (int32_t)(fr - frames) + 1;
@@ -4010,13 +4750,13 @@ op_push_integer:;
                                 fr->sp = (int32_t)(sp - fp + 1);
                                 cstack_used = (uint64_t)(sp + 1 - cstack);
                             } else {
-                                s_21 = (oop *)(active_ctx + 16);
-                                m_25 = s_21[CTX_METHOD];
-                                o_141 = *(uint64_t *)(m_25 + 16 + 24);
-                                v_129 = ip - (uint8_t *)(o_141 + 16);
-                                s_21[CTX_PC] = (uint64_t)((v_129 << 1) | 1);
-                                v_130 = sp - fp + 1;
-                                s_21[CTX_STACKP] = (uint64_t)((v_130 << 1) | 1);
+                                s_33 = (oop *)(active_ctx + 16);
+                                m_37 = s_33[CTX_METHOD];
+                                o_177 = *(uint64_t *)(m_37 + 16 + 24);
+                                v_141 = ip - (uint8_t *)(o_177 + 16);
+                                s_33[CTX_PC] = (uint64_t)((v_141 << 1) | 1);
+                                v_142 = sp - fp + 1;
+                                s_33[CTX_STACKP] = (uint64_t)((v_142 << 1) | 1);
                             }
                             interrupt_safepoint();
                             if (nframes != 0) {
@@ -4026,22 +4766,64 @@ op_push_integer:;
                                 sp = fp + fr->sp - 1;
                                 ip = fr->ip;
                             } else {
-                                s_22 = (oop *)(active_ctx + 16);
-                                m_26 = s_22[CTX_METHOD];
-                                o_142 = ((oop *)(m_26 + 16))[CM_LITERALS];
-                                lits = (oop *)(o_142 + 16);
-                                fp = s_22 + CTX_FIXED;
-                                o_143 = s_22[CTX_STACKP];
-                                sp = fp + (((int64_t)o_143) >> 1) - 1;
-                                o_144 = s_22[CTX_PC];
-                                if (!((o_144 & 1) != 0)) {
+                                s_34 = (oop *)(active_ctx + 16);
+                                m_38 = s_34[CTX_METHOD];
+                                o_178 = ((oop *)(m_38 + 16))[CM_LITERALS];
+                                lits = (oop *)(o_178 + 16);
+                                fp = s_34 + CTX_FIXED;
+                                o_179 = s_34[CTX_STACKP];
+                                sp = fp + (((int64_t)o_179) >> 1) - 1;
+                                o_180 = s_34[CTX_PC];
+                                if (!((o_180 & 1) != 0)) {
                                     fatal_begin();
                                     fprintf(stderr, "resuming a dead context");
                                     fatal_end();
                                 }
-                                o_145 = *(uint64_t *)(m_26 + 16 + 24);
-                                o_146 = s_22[CTX_PC];
-                                ip = (uint8_t *)(o_145 + 16) + (((int64_t)o_146) >> 1);
+                                o_181 = *(uint64_t *)(m_38 + 16 + 24);
+                                o_182 = s_34[CTX_PC];
+                                ip = (uint8_t *)(o_181 + 16) + (((int64_t)o_182) >> 1);
+                                fr = (frame *)NULL;
+                            }
+                        }
+                        if (__builtin_expect((fr != NULL) && (fr->code != 0), 0)) {
+                            if (fr != NULL) {
+                                nframes = (int32_t)(fr - frames) + 1;
+                                fr->ip = ip;
+                                fr->sp = (int32_t)(sp - fp + 1);
+                                cstack_used = (uint64_t)(sp + 1 - cstack);
+                            } else {
+                                s_35 = (oop *)(active_ctx + 16);
+                                m_39 = s_35[CTX_METHOD];
+                                o_183 = *(uint64_t *)(m_39 + 16 + 24);
+                                v_143 = ip - (uint8_t *)(o_183 + 16);
+                                s_35[CTX_PC] = (uint64_t)((v_143 << 1) | 1);
+                                v_144 = sp - fp + 1;
+                                s_35[CTX_STACKP] = (uint64_t)((v_144 << 1) | 1);
+                            }
+                            jit_back_jump(fr);
+                            if (nframes != 0) {
+                                fr = frames + (nframes - 1);
+                                lits = fr->lits;
+                                fp = fr->fp;
+                                sp = fp + fr->sp - 1;
+                                ip = fr->ip;
+                            } else {
+                                s_36 = (oop *)(active_ctx + 16);
+                                m_40 = s_36[CTX_METHOD];
+                                o_184 = ((oop *)(m_40 + 16))[CM_LITERALS];
+                                lits = (oop *)(o_184 + 16);
+                                fp = s_36 + CTX_FIXED;
+                                o_185 = s_36[CTX_STACKP];
+                                sp = fp + (((int64_t)o_185) >> 1) - 1;
+                                o_186 = s_36[CTX_PC];
+                                if (!((o_186 & 1) != 0)) {
+                                    fatal_begin();
+                                    fprintf(stderr, "resuming a dead context");
+                                    fatal_end();
+                                }
+                                o_187 = *(uint64_t *)(m_40 + 16 + 24);
+                                o_188 = s_36[CTX_PC];
+                                ip = (uint8_t *)(o_187 + 16) + (((int64_t)o_188) >> 1);
                                 fr = (frame *)NULL;
                             }
                         }
@@ -4052,7 +4834,7 @@ op_push_integer:;
     r_next_bytecode_145 = *(ip - 1);
     r_next_bytecode_145; })];
             }
-            *sp = c_4 ? true_oop : false_oop;
+            *sp = c_6 ? true_oop : false_oop;
             goto *ops[({
     ip = ip + 1;
     r_next_bytecode_146 = *(ip - 1);
@@ -4060,7 +4842,7 @@ op_push_integer:;
         }
     }
     sp = sp + 1;
-    *sp = v_127;
+    *sp = v_139;
     goto *ops[({
     ip = ip + 1;
     r_next_bytecode_147 = *(ip - 1);
@@ -4074,13 +4856,13 @@ op_make_array:;
         fr->sp = (int32_t)(sp - fp + 1);
         cstack_used = (uint64_t)(sp + 1 - cstack);
     } else {
-        s_23 = (oop *)(active_ctx + 16);
-        m_27 = s_23[CTX_METHOD];
-        o_147 = *(uint64_t *)(m_27 + 16 + 24);
-        v_131 = ip - (uint8_t *)(o_147 + 16);
-        s_23[CTX_PC] = (uint64_t)((v_131 << 1) | 1);
-        v_132 = sp - fp + 1;
-        s_23[CTX_STACKP] = (uint64_t)((v_132 << 1) | 1);
+        s_37 = (oop *)(active_ctx + 16);
+        m_41 = s_37[CTX_METHOD];
+        o_189 = *(uint64_t *)(m_41 + 16 + 24);
+        v_145 = ip - (uint8_t *)(o_189 + 16);
+        s_37[CTX_PC] = (uint64_t)((v_145 << 1) | 1);
+        v_146 = sp - fp + 1;
+        s_37[CTX_STACKP] = (uint64_t)((v_146 << 1) | 1);
     }
     a_3 = alloc_obj(cls_array, F_VAR, n_5);
     if (nframes != 0) {
@@ -4090,22 +4872,22 @@ op_make_array:;
         sp = fp + fr->sp - 1;
         ip = fr->ip;
     } else {
-        s_24 = (oop *)(active_ctx + 16);
-        m_28 = s_24[CTX_METHOD];
-        o_148 = ((oop *)(m_28 + 16))[CM_LITERALS];
-        lits = (oop *)(o_148 + 16);
-        fp = s_24 + CTX_FIXED;
-        o_149 = s_24[CTX_STACKP];
-        sp = fp + (((int64_t)o_149) >> 1) - 1;
-        o_150 = s_24[CTX_PC];
-        if (!((o_150 & 1) != 0)) {
+        s_38 = (oop *)(active_ctx + 16);
+        m_42 = s_38[CTX_METHOD];
+        o_190 = ((oop *)(m_42 + 16))[CM_LITERALS];
+        lits = (oop *)(o_190 + 16);
+        fp = s_38 + CTX_FIXED;
+        o_191 = s_38[CTX_STACKP];
+        sp = fp + (((int64_t)o_191) >> 1) - 1;
+        o_192 = s_38[CTX_PC];
+        if (!((o_192 & 1) != 0)) {
             fatal_begin();
             fprintf(stderr, "resuming a dead context");
             fatal_end();
         }
-        o_151 = *(uint64_t *)(m_28 + 16 + 24);
-        o_152 = s_24[CTX_PC];
-        ip = (uint8_t *)(o_151 + 16) + (((int64_t)o_152) >> 1);
+        o_193 = *(uint64_t *)(m_42 + 16 + 24);
+        o_194 = s_38[CTX_PC];
+        ip = (uint8_t *)(o_193 + 16) + (((int64_t)o_194) >> 1);
         fr = (frame *)NULL;
     }
     sp = sp - n_5;
@@ -4133,16 +4915,16 @@ op_push_temp_literal_send:;
     goto *ops[ip[-1]];
 op_push_temp_integer_send:;
     sp[1] = fp[ip[0]];
-    v_133 = (int8_t)ip[1];
-    sp[2] = (uint64_t)((((int64_t)v_133) << 1) | 1);
+    v_147 = (int8_t)ip[1];
+    sp[2] = (uint64_t)((((int64_t)v_147) << 1) | 1);
     sp = sp + 2;
     ip = ip + 3;
     goto *ops[ip[-1]];
 op_fused_arithmetic_9a:;
     a_4 = fp[ip[0]];
     b_2 = fp[ip[1]];
-    o_153 = a_4 & b_2;
-    if ((o_153 & 1) != 0) {
+    o_195 = a_4 & b_2;
+    if ((o_195 & 1) != 0) {
         if (!__builtin_add_overflow((int64_t)a_4, (int64_t)b_2 - 1, &r_6)) {
             n_6 = ip[2];
             if ((n_6 & 0xF8) == 0x60) {
@@ -4153,9 +4935,9 @@ op_fused_arithmetic_9a:;
     r_next_bytecode_149 = *(ip - 1);
     r_next_bytecode_149; })];
             }
-            v_134 = (uint64_t)r_6;
+            v_148 = (uint64_t)r_6;
             sp = sp + 1;
-            *sp = v_134;
+            *sp = v_148;
             ip = ip + 2;
             goto *ops[({
     ip = ip + 1;
@@ -4172,8 +4954,8 @@ op_fused_arithmetic_9a:;
 op_fused_arithmetic_9b:;
     a_5 = fp[ip[0]];
     b_3 = fp[ip[1]];
-    o_154 = a_5 & b_3;
-    if ((o_154 & 1) != 0) {
+    o_196 = a_5 & b_3;
+    if ((o_196 & 1) != 0) {
         if (!__builtin_sub_overflow((int64_t)a_5, (int64_t)b_3 - 1, &r_7)) {
             n_7 = ip[2];
             if ((n_7 & 0xF8) == 0x60) {
@@ -4184,9 +4966,9 @@ op_fused_arithmetic_9b:;
     r_next_bytecode_151 = *(ip - 1);
     r_next_bytecode_151; })];
             }
-            v_135 = (uint64_t)r_7;
+            v_149 = (uint64_t)r_7;
             sp = sp + 1;
-            *sp = v_135;
+            *sp = v_149;
             ip = ip + 2;
             goto *ops[({
     ip = ip + 1;
@@ -4203,17 +4985,17 @@ op_fused_arithmetic_9b:;
 op_fused_arithmetic_9c:;
     a_6 = fp[ip[0]];
     b_4 = fp[ip[1]];
-    o_155 = a_6 & b_4;
-    if ((o_155 & 1) != 0) {
-        c_7 = (int64_t)a_6 < (int64_t)b_4;
+    o_197 = a_6 & b_4;
+    if ((o_197 & 1) != 0) {
+        c_9 = (int64_t)a_6 < (int64_t)b_4;
         j_4 = ip[2];
         if ((j_4 == 0x92) || (j_4 == 0x91)) {
             p_7 = ip + 3;
-            o_156 = *(int16_t *)(uint64_t)p_7;
+            o_198 = *(int16_t *)(uint64_t)p_7;
             ip = ip + 5;
-            if (c_7 == (j_4 == 0x91)) {
-                ip = ip + o_156;
-                if (o_156 < 0) {
+            if (c_9 == (j_4 == 0x91)) {
+                ip = ip + o_198;
+                if (o_198 < 0) {
                     if (__builtin_expect(atomic_load_explicit(&interrupt_pending, memory_order_relaxed) != 0, 0)) {
                         if (fr != NULL) {
                             nframes = (int32_t)(fr - frames) + 1;
@@ -4221,13 +5003,13 @@ op_fused_arithmetic_9c:;
                             fr->sp = (int32_t)(sp - fp + 1);
                             cstack_used = (uint64_t)(sp + 1 - cstack);
                         } else {
-                            s_25 = (oop *)(active_ctx + 16);
-                            m_29 = s_25[CTX_METHOD];
-                            o_157 = *(uint64_t *)(m_29 + 16 + 24);
-                            v_136 = ip - (uint8_t *)(o_157 + 16);
-                            s_25[CTX_PC] = (uint64_t)((v_136 << 1) | 1);
-                            v_137 = sp - fp + 1;
-                            s_25[CTX_STACKP] = (uint64_t)((v_137 << 1) | 1);
+                            s_39 = (oop *)(active_ctx + 16);
+                            m_43 = s_39[CTX_METHOD];
+                            o_199 = *(uint64_t *)(m_43 + 16 + 24);
+                            v_150 = ip - (uint8_t *)(o_199 + 16);
+                            s_39[CTX_PC] = (uint64_t)((v_150 << 1) | 1);
+                            v_151 = sp - fp + 1;
+                            s_39[CTX_STACKP] = (uint64_t)((v_151 << 1) | 1);
                         }
                         interrupt_safepoint();
                         if (nframes != 0) {
@@ -4237,22 +5019,64 @@ op_fused_arithmetic_9c:;
                             sp = fp + fr->sp - 1;
                             ip = fr->ip;
                         } else {
-                            s_26 = (oop *)(active_ctx + 16);
-                            m_30 = s_26[CTX_METHOD];
-                            o_158 = ((oop *)(m_30 + 16))[CM_LITERALS];
-                            lits = (oop *)(o_158 + 16);
-                            fp = s_26 + CTX_FIXED;
-                            o_159 = s_26[CTX_STACKP];
-                            sp = fp + (((int64_t)o_159) >> 1) - 1;
-                            o_160 = s_26[CTX_PC];
-                            if (!((o_160 & 1) != 0)) {
+                            s_40 = (oop *)(active_ctx + 16);
+                            m_44 = s_40[CTX_METHOD];
+                            o_200 = ((oop *)(m_44 + 16))[CM_LITERALS];
+                            lits = (oop *)(o_200 + 16);
+                            fp = s_40 + CTX_FIXED;
+                            o_201 = s_40[CTX_STACKP];
+                            sp = fp + (((int64_t)o_201) >> 1) - 1;
+                            o_202 = s_40[CTX_PC];
+                            if (!((o_202 & 1) != 0)) {
                                 fatal_begin();
                                 fprintf(stderr, "resuming a dead context");
                                 fatal_end();
                             }
-                            o_161 = *(uint64_t *)(m_30 + 16 + 24);
-                            o_162 = s_26[CTX_PC];
-                            ip = (uint8_t *)(o_161 + 16) + (((int64_t)o_162) >> 1);
+                            o_203 = *(uint64_t *)(m_44 + 16 + 24);
+                            o_204 = s_40[CTX_PC];
+                            ip = (uint8_t *)(o_203 + 16) + (((int64_t)o_204) >> 1);
+                            fr = (frame *)NULL;
+                        }
+                    }
+                    if (__builtin_expect((fr != NULL) && (fr->code != 0), 0)) {
+                        if (fr != NULL) {
+                            nframes = (int32_t)(fr - frames) + 1;
+                            fr->ip = ip;
+                            fr->sp = (int32_t)(sp - fp + 1);
+                            cstack_used = (uint64_t)(sp + 1 - cstack);
+                        } else {
+                            s_41 = (oop *)(active_ctx + 16);
+                            m_45 = s_41[CTX_METHOD];
+                            o_205 = *(uint64_t *)(m_45 + 16 + 24);
+                            v_152 = ip - (uint8_t *)(o_205 + 16);
+                            s_41[CTX_PC] = (uint64_t)((v_152 << 1) | 1);
+                            v_153 = sp - fp + 1;
+                            s_41[CTX_STACKP] = (uint64_t)((v_153 << 1) | 1);
+                        }
+                        jit_back_jump(fr);
+                        if (nframes != 0) {
+                            fr = frames + (nframes - 1);
+                            lits = fr->lits;
+                            fp = fr->fp;
+                            sp = fp + fr->sp - 1;
+                            ip = fr->ip;
+                        } else {
+                            s_42 = (oop *)(active_ctx + 16);
+                            m_46 = s_42[CTX_METHOD];
+                            o_206 = ((oop *)(m_46 + 16))[CM_LITERALS];
+                            lits = (oop *)(o_206 + 16);
+                            fp = s_42 + CTX_FIXED;
+                            o_207 = s_42[CTX_STACKP];
+                            sp = fp + (((int64_t)o_207) >> 1) - 1;
+                            o_208 = s_42[CTX_PC];
+                            if (!((o_208 & 1) != 0)) {
+                                fatal_begin();
+                                fprintf(stderr, "resuming a dead context");
+                                fatal_end();
+                            }
+                            o_209 = *(uint64_t *)(m_46 + 16 + 24);
+                            o_210 = s_42[CTX_PC];
+                            ip = (uint8_t *)(o_209 + 16) + (((int64_t)o_210) >> 1);
                             fr = (frame *)NULL;
                         }
                     }
@@ -4263,9 +5087,9 @@ op_fused_arithmetic_9c:;
     r_next_bytecode_153 = *(ip - 1);
     r_next_bytecode_153; })];
         }
-        v_138 = c_7 ? true_oop : false_oop;
+        v_154 = c_9 ? true_oop : false_oop;
         sp = sp + 1;
-        *sp = v_138;
+        *sp = v_154;
         ip = ip + 2;
         goto *ops[({
     ip = ip + 1;
@@ -4281,17 +5105,17 @@ op_fused_arithmetic_9c:;
 op_fused_arithmetic_9d:;
     a_7 = fp[ip[0]];
     b_5 = fp[ip[1]];
-    o_163 = a_7 & b_5;
-    if ((o_163 & 1) != 0) {
-        c_8 = (int64_t)a_7 > (int64_t)b_5;
+    o_211 = a_7 & b_5;
+    if ((o_211 & 1) != 0) {
+        c_10 = (int64_t)a_7 > (int64_t)b_5;
         j_5 = ip[2];
         if ((j_5 == 0x92) || (j_5 == 0x91)) {
             p_8 = ip + 3;
-            o_164 = *(int16_t *)(uint64_t)p_8;
+            o_212 = *(int16_t *)(uint64_t)p_8;
             ip = ip + 5;
-            if (c_8 == (j_5 == 0x91)) {
-                ip = ip + o_164;
-                if (o_164 < 0) {
+            if (c_10 == (j_5 == 0x91)) {
+                ip = ip + o_212;
+                if (o_212 < 0) {
                     if (__builtin_expect(atomic_load_explicit(&interrupt_pending, memory_order_relaxed) != 0, 0)) {
                         if (fr != NULL) {
                             nframes = (int32_t)(fr - frames) + 1;
@@ -4299,13 +5123,13 @@ op_fused_arithmetic_9d:;
                             fr->sp = (int32_t)(sp - fp + 1);
                             cstack_used = (uint64_t)(sp + 1 - cstack);
                         } else {
-                            s_27 = (oop *)(active_ctx + 16);
-                            m_31 = s_27[CTX_METHOD];
-                            o_165 = *(uint64_t *)(m_31 + 16 + 24);
-                            v_139 = ip - (uint8_t *)(o_165 + 16);
-                            s_27[CTX_PC] = (uint64_t)((v_139 << 1) | 1);
-                            v_140 = sp - fp + 1;
-                            s_27[CTX_STACKP] = (uint64_t)((v_140 << 1) | 1);
+                            s_43 = (oop *)(active_ctx + 16);
+                            m_47 = s_43[CTX_METHOD];
+                            o_213 = *(uint64_t *)(m_47 + 16 + 24);
+                            v_155 = ip - (uint8_t *)(o_213 + 16);
+                            s_43[CTX_PC] = (uint64_t)((v_155 << 1) | 1);
+                            v_156 = sp - fp + 1;
+                            s_43[CTX_STACKP] = (uint64_t)((v_156 << 1) | 1);
                         }
                         interrupt_safepoint();
                         if (nframes != 0) {
@@ -4315,22 +5139,64 @@ op_fused_arithmetic_9d:;
                             sp = fp + fr->sp - 1;
                             ip = fr->ip;
                         } else {
-                            s_28 = (oop *)(active_ctx + 16);
-                            m_32 = s_28[CTX_METHOD];
-                            o_166 = ((oop *)(m_32 + 16))[CM_LITERALS];
-                            lits = (oop *)(o_166 + 16);
-                            fp = s_28 + CTX_FIXED;
-                            o_167 = s_28[CTX_STACKP];
-                            sp = fp + (((int64_t)o_167) >> 1) - 1;
-                            o_168 = s_28[CTX_PC];
-                            if (!((o_168 & 1) != 0)) {
+                            s_44 = (oop *)(active_ctx + 16);
+                            m_48 = s_44[CTX_METHOD];
+                            o_214 = ((oop *)(m_48 + 16))[CM_LITERALS];
+                            lits = (oop *)(o_214 + 16);
+                            fp = s_44 + CTX_FIXED;
+                            o_215 = s_44[CTX_STACKP];
+                            sp = fp + (((int64_t)o_215) >> 1) - 1;
+                            o_216 = s_44[CTX_PC];
+                            if (!((o_216 & 1) != 0)) {
                                 fatal_begin();
                                 fprintf(stderr, "resuming a dead context");
                                 fatal_end();
                             }
-                            o_169 = *(uint64_t *)(m_32 + 16 + 24);
-                            o_170 = s_28[CTX_PC];
-                            ip = (uint8_t *)(o_169 + 16) + (((int64_t)o_170) >> 1);
+                            o_217 = *(uint64_t *)(m_48 + 16 + 24);
+                            o_218 = s_44[CTX_PC];
+                            ip = (uint8_t *)(o_217 + 16) + (((int64_t)o_218) >> 1);
+                            fr = (frame *)NULL;
+                        }
+                    }
+                    if (__builtin_expect((fr != NULL) && (fr->code != 0), 0)) {
+                        if (fr != NULL) {
+                            nframes = (int32_t)(fr - frames) + 1;
+                            fr->ip = ip;
+                            fr->sp = (int32_t)(sp - fp + 1);
+                            cstack_used = (uint64_t)(sp + 1 - cstack);
+                        } else {
+                            s_45 = (oop *)(active_ctx + 16);
+                            m_49 = s_45[CTX_METHOD];
+                            o_219 = *(uint64_t *)(m_49 + 16 + 24);
+                            v_157 = ip - (uint8_t *)(o_219 + 16);
+                            s_45[CTX_PC] = (uint64_t)((v_157 << 1) | 1);
+                            v_158 = sp - fp + 1;
+                            s_45[CTX_STACKP] = (uint64_t)((v_158 << 1) | 1);
+                        }
+                        jit_back_jump(fr);
+                        if (nframes != 0) {
+                            fr = frames + (nframes - 1);
+                            lits = fr->lits;
+                            fp = fr->fp;
+                            sp = fp + fr->sp - 1;
+                            ip = fr->ip;
+                        } else {
+                            s_46 = (oop *)(active_ctx + 16);
+                            m_50 = s_46[CTX_METHOD];
+                            o_220 = ((oop *)(m_50 + 16))[CM_LITERALS];
+                            lits = (oop *)(o_220 + 16);
+                            fp = s_46 + CTX_FIXED;
+                            o_221 = s_46[CTX_STACKP];
+                            sp = fp + (((int64_t)o_221) >> 1) - 1;
+                            o_222 = s_46[CTX_PC];
+                            if (!((o_222 & 1) != 0)) {
+                                fatal_begin();
+                                fprintf(stderr, "resuming a dead context");
+                                fatal_end();
+                            }
+                            o_223 = *(uint64_t *)(m_50 + 16 + 24);
+                            o_224 = s_46[CTX_PC];
+                            ip = (uint8_t *)(o_223 + 16) + (((int64_t)o_224) >> 1);
                             fr = (frame *)NULL;
                         }
                     }
@@ -4341,9 +5207,9 @@ op_fused_arithmetic_9d:;
     r_next_bytecode_155 = *(ip - 1);
     r_next_bytecode_155; })];
         }
-        v_141 = c_8 ? true_oop : false_oop;
+        v_159 = c_10 ? true_oop : false_oop;
         sp = sp + 1;
-        *sp = v_141;
+        *sp = v_159;
         ip = ip + 2;
         goto *ops[({
     ip = ip + 1;
@@ -4359,17 +5225,17 @@ op_fused_arithmetic_9d:;
 op_fused_arithmetic_9e:;
     a_8 = fp[ip[0]];
     b_6 = fp[ip[1]];
-    o_171 = a_8 & b_6;
-    if ((o_171 & 1) != 0) {
-        c_9 = (int64_t)a_8 <= (int64_t)b_6;
+    o_225 = a_8 & b_6;
+    if ((o_225 & 1) != 0) {
+        c_11 = (int64_t)a_8 <= (int64_t)b_6;
         j_6 = ip[2];
         if ((j_6 == 0x92) || (j_6 == 0x91)) {
             p_9 = ip + 3;
-            o_172 = *(int16_t *)(uint64_t)p_9;
+            o_226 = *(int16_t *)(uint64_t)p_9;
             ip = ip + 5;
-            if (c_9 == (j_6 == 0x91)) {
-                ip = ip + o_172;
-                if (o_172 < 0) {
+            if (c_11 == (j_6 == 0x91)) {
+                ip = ip + o_226;
+                if (o_226 < 0) {
                     if (__builtin_expect(atomic_load_explicit(&interrupt_pending, memory_order_relaxed) != 0, 0)) {
                         if (fr != NULL) {
                             nframes = (int32_t)(fr - frames) + 1;
@@ -4377,13 +5243,13 @@ op_fused_arithmetic_9e:;
                             fr->sp = (int32_t)(sp - fp + 1);
                             cstack_used = (uint64_t)(sp + 1 - cstack);
                         } else {
-                            s_29 = (oop *)(active_ctx + 16);
-                            m_33 = s_29[CTX_METHOD];
-                            o_173 = *(uint64_t *)(m_33 + 16 + 24);
-                            v_142 = ip - (uint8_t *)(o_173 + 16);
-                            s_29[CTX_PC] = (uint64_t)((v_142 << 1) | 1);
-                            v_143 = sp - fp + 1;
-                            s_29[CTX_STACKP] = (uint64_t)((v_143 << 1) | 1);
+                            s_47 = (oop *)(active_ctx + 16);
+                            m_51 = s_47[CTX_METHOD];
+                            o_227 = *(uint64_t *)(m_51 + 16 + 24);
+                            v_160 = ip - (uint8_t *)(o_227 + 16);
+                            s_47[CTX_PC] = (uint64_t)((v_160 << 1) | 1);
+                            v_161 = sp - fp + 1;
+                            s_47[CTX_STACKP] = (uint64_t)((v_161 << 1) | 1);
                         }
                         interrupt_safepoint();
                         if (nframes != 0) {
@@ -4393,22 +5259,64 @@ op_fused_arithmetic_9e:;
                             sp = fp + fr->sp - 1;
                             ip = fr->ip;
                         } else {
-                            s_30 = (oop *)(active_ctx + 16);
-                            m_34 = s_30[CTX_METHOD];
-                            o_174 = ((oop *)(m_34 + 16))[CM_LITERALS];
-                            lits = (oop *)(o_174 + 16);
-                            fp = s_30 + CTX_FIXED;
-                            o_175 = s_30[CTX_STACKP];
-                            sp = fp + (((int64_t)o_175) >> 1) - 1;
-                            o_176 = s_30[CTX_PC];
-                            if (!((o_176 & 1) != 0)) {
+                            s_48 = (oop *)(active_ctx + 16);
+                            m_52 = s_48[CTX_METHOD];
+                            o_228 = ((oop *)(m_52 + 16))[CM_LITERALS];
+                            lits = (oop *)(o_228 + 16);
+                            fp = s_48 + CTX_FIXED;
+                            o_229 = s_48[CTX_STACKP];
+                            sp = fp + (((int64_t)o_229) >> 1) - 1;
+                            o_230 = s_48[CTX_PC];
+                            if (!((o_230 & 1) != 0)) {
                                 fatal_begin();
                                 fprintf(stderr, "resuming a dead context");
                                 fatal_end();
                             }
-                            o_177 = *(uint64_t *)(m_34 + 16 + 24);
-                            o_178 = s_30[CTX_PC];
-                            ip = (uint8_t *)(o_177 + 16) + (((int64_t)o_178) >> 1);
+                            o_231 = *(uint64_t *)(m_52 + 16 + 24);
+                            o_232 = s_48[CTX_PC];
+                            ip = (uint8_t *)(o_231 + 16) + (((int64_t)o_232) >> 1);
+                            fr = (frame *)NULL;
+                        }
+                    }
+                    if (__builtin_expect((fr != NULL) && (fr->code != 0), 0)) {
+                        if (fr != NULL) {
+                            nframes = (int32_t)(fr - frames) + 1;
+                            fr->ip = ip;
+                            fr->sp = (int32_t)(sp - fp + 1);
+                            cstack_used = (uint64_t)(sp + 1 - cstack);
+                        } else {
+                            s_49 = (oop *)(active_ctx + 16);
+                            m_53 = s_49[CTX_METHOD];
+                            o_233 = *(uint64_t *)(m_53 + 16 + 24);
+                            v_162 = ip - (uint8_t *)(o_233 + 16);
+                            s_49[CTX_PC] = (uint64_t)((v_162 << 1) | 1);
+                            v_163 = sp - fp + 1;
+                            s_49[CTX_STACKP] = (uint64_t)((v_163 << 1) | 1);
+                        }
+                        jit_back_jump(fr);
+                        if (nframes != 0) {
+                            fr = frames + (nframes - 1);
+                            lits = fr->lits;
+                            fp = fr->fp;
+                            sp = fp + fr->sp - 1;
+                            ip = fr->ip;
+                        } else {
+                            s_50 = (oop *)(active_ctx + 16);
+                            m_54 = s_50[CTX_METHOD];
+                            o_234 = ((oop *)(m_54 + 16))[CM_LITERALS];
+                            lits = (oop *)(o_234 + 16);
+                            fp = s_50 + CTX_FIXED;
+                            o_235 = s_50[CTX_STACKP];
+                            sp = fp + (((int64_t)o_235) >> 1) - 1;
+                            o_236 = s_50[CTX_PC];
+                            if (!((o_236 & 1) != 0)) {
+                                fatal_begin();
+                                fprintf(stderr, "resuming a dead context");
+                                fatal_end();
+                            }
+                            o_237 = *(uint64_t *)(m_54 + 16 + 24);
+                            o_238 = s_50[CTX_PC];
+                            ip = (uint8_t *)(o_237 + 16) + (((int64_t)o_238) >> 1);
                             fr = (frame *)NULL;
                         }
                     }
@@ -4419,9 +5327,9 @@ op_fused_arithmetic_9e:;
     r_next_bytecode_157 = *(ip - 1);
     r_next_bytecode_157; })];
         }
-        v_144 = c_9 ? true_oop : false_oop;
+        v_164 = c_11 ? true_oop : false_oop;
         sp = sp + 1;
-        *sp = v_144;
+        *sp = v_164;
         ip = ip + 2;
         goto *ops[({
     ip = ip + 1;
@@ -4437,17 +5345,17 @@ op_fused_arithmetic_9e:;
 op_fused_arithmetic_9f:;
     a_9 = fp[ip[0]];
     b_7 = fp[ip[1]];
-    o_179 = a_9 & b_7;
-    if ((o_179 & 1) != 0) {
-        c_10 = (int64_t)a_9 >= (int64_t)b_7;
+    o_239 = a_9 & b_7;
+    if ((o_239 & 1) != 0) {
+        c_12 = (int64_t)a_9 >= (int64_t)b_7;
         j_7 = ip[2];
         if ((j_7 == 0x92) || (j_7 == 0x91)) {
             p_10 = ip + 3;
-            o_180 = *(int16_t *)(uint64_t)p_10;
+            o_240 = *(int16_t *)(uint64_t)p_10;
             ip = ip + 5;
-            if (c_10 == (j_7 == 0x91)) {
-                ip = ip + o_180;
-                if (o_180 < 0) {
+            if (c_12 == (j_7 == 0x91)) {
+                ip = ip + o_240;
+                if (o_240 < 0) {
                     if (__builtin_expect(atomic_load_explicit(&interrupt_pending, memory_order_relaxed) != 0, 0)) {
                         if (fr != NULL) {
                             nframes = (int32_t)(fr - frames) + 1;
@@ -4455,13 +5363,13 @@ op_fused_arithmetic_9f:;
                             fr->sp = (int32_t)(sp - fp + 1);
                             cstack_used = (uint64_t)(sp + 1 - cstack);
                         } else {
-                            s_31 = (oop *)(active_ctx + 16);
-                            m_35 = s_31[CTX_METHOD];
-                            o_181 = *(uint64_t *)(m_35 + 16 + 24);
-                            v_145 = ip - (uint8_t *)(o_181 + 16);
-                            s_31[CTX_PC] = (uint64_t)((v_145 << 1) | 1);
-                            v_146 = sp - fp + 1;
-                            s_31[CTX_STACKP] = (uint64_t)((v_146 << 1) | 1);
+                            s_51 = (oop *)(active_ctx + 16);
+                            m_55 = s_51[CTX_METHOD];
+                            o_241 = *(uint64_t *)(m_55 + 16 + 24);
+                            v_165 = ip - (uint8_t *)(o_241 + 16);
+                            s_51[CTX_PC] = (uint64_t)((v_165 << 1) | 1);
+                            v_166 = sp - fp + 1;
+                            s_51[CTX_STACKP] = (uint64_t)((v_166 << 1) | 1);
                         }
                         interrupt_safepoint();
                         if (nframes != 0) {
@@ -4471,22 +5379,64 @@ op_fused_arithmetic_9f:;
                             sp = fp + fr->sp - 1;
                             ip = fr->ip;
                         } else {
-                            s_32 = (oop *)(active_ctx + 16);
-                            m_36 = s_32[CTX_METHOD];
-                            o_182 = ((oop *)(m_36 + 16))[CM_LITERALS];
-                            lits = (oop *)(o_182 + 16);
-                            fp = s_32 + CTX_FIXED;
-                            o_183 = s_32[CTX_STACKP];
-                            sp = fp + (((int64_t)o_183) >> 1) - 1;
-                            o_184 = s_32[CTX_PC];
-                            if (!((o_184 & 1) != 0)) {
+                            s_52 = (oop *)(active_ctx + 16);
+                            m_56 = s_52[CTX_METHOD];
+                            o_242 = ((oop *)(m_56 + 16))[CM_LITERALS];
+                            lits = (oop *)(o_242 + 16);
+                            fp = s_52 + CTX_FIXED;
+                            o_243 = s_52[CTX_STACKP];
+                            sp = fp + (((int64_t)o_243) >> 1) - 1;
+                            o_244 = s_52[CTX_PC];
+                            if (!((o_244 & 1) != 0)) {
                                 fatal_begin();
                                 fprintf(stderr, "resuming a dead context");
                                 fatal_end();
                             }
-                            o_185 = *(uint64_t *)(m_36 + 16 + 24);
-                            o_186 = s_32[CTX_PC];
-                            ip = (uint8_t *)(o_185 + 16) + (((int64_t)o_186) >> 1);
+                            o_245 = *(uint64_t *)(m_56 + 16 + 24);
+                            o_246 = s_52[CTX_PC];
+                            ip = (uint8_t *)(o_245 + 16) + (((int64_t)o_246) >> 1);
+                            fr = (frame *)NULL;
+                        }
+                    }
+                    if (__builtin_expect((fr != NULL) && (fr->code != 0), 0)) {
+                        if (fr != NULL) {
+                            nframes = (int32_t)(fr - frames) + 1;
+                            fr->ip = ip;
+                            fr->sp = (int32_t)(sp - fp + 1);
+                            cstack_used = (uint64_t)(sp + 1 - cstack);
+                        } else {
+                            s_53 = (oop *)(active_ctx + 16);
+                            m_57 = s_53[CTX_METHOD];
+                            o_247 = *(uint64_t *)(m_57 + 16 + 24);
+                            v_167 = ip - (uint8_t *)(o_247 + 16);
+                            s_53[CTX_PC] = (uint64_t)((v_167 << 1) | 1);
+                            v_168 = sp - fp + 1;
+                            s_53[CTX_STACKP] = (uint64_t)((v_168 << 1) | 1);
+                        }
+                        jit_back_jump(fr);
+                        if (nframes != 0) {
+                            fr = frames + (nframes - 1);
+                            lits = fr->lits;
+                            fp = fr->fp;
+                            sp = fp + fr->sp - 1;
+                            ip = fr->ip;
+                        } else {
+                            s_54 = (oop *)(active_ctx + 16);
+                            m_58 = s_54[CTX_METHOD];
+                            o_248 = ((oop *)(m_58 + 16))[CM_LITERALS];
+                            lits = (oop *)(o_248 + 16);
+                            fp = s_54 + CTX_FIXED;
+                            o_249 = s_54[CTX_STACKP];
+                            sp = fp + (((int64_t)o_249) >> 1) - 1;
+                            o_250 = s_54[CTX_PC];
+                            if (!((o_250 & 1) != 0)) {
+                                fatal_begin();
+                                fprintf(stderr, "resuming a dead context");
+                                fatal_end();
+                            }
+                            o_251 = *(uint64_t *)(m_58 + 16 + 24);
+                            o_252 = s_54[CTX_PC];
+                            ip = (uint8_t *)(o_251 + 16) + (((int64_t)o_252) >> 1);
                             fr = (frame *)NULL;
                         }
                     }
@@ -4497,9 +5447,9 @@ op_fused_arithmetic_9f:;
     r_next_bytecode_159 = *(ip - 1);
     r_next_bytecode_159; })];
         }
-        v_147 = c_10 ? true_oop : false_oop;
+        v_169 = c_12 ? true_oop : false_oop;
         sp = sp + 1;
-        *sp = v_147;
+        *sp = v_169;
         ip = ip + 2;
         goto *ops[({
     ip = ip + 1;
@@ -4514,8 +5464,8 @@ op_fused_arithmetic_9f:;
 op_fused_arithmetic_f0:;
     a_10 = fp[ip[0]];
     b_8 = lits[ip[1]];
-    o_187 = a_10 & b_8;
-    if ((o_187 & 1) != 0) {
+    o_253 = a_10 & b_8;
+    if ((o_253 & 1) != 0) {
         if (!__builtin_add_overflow((int64_t)a_10, (int64_t)b_8 - 1, &r_8)) {
             n_8 = ip[2];
             if ((n_8 & 0xF8) == 0x60) {
@@ -4526,9 +5476,9 @@ op_fused_arithmetic_f0:;
     r_next_bytecode_161 = *(ip - 1);
     r_next_bytecode_161; })];
             }
-            v_148 = (uint64_t)r_8;
+            v_170 = (uint64_t)r_8;
             sp = sp + 1;
-            *sp = v_148;
+            *sp = v_170;
             ip = ip + 2;
             goto *ops[({
     ip = ip + 1;
@@ -4545,8 +5495,8 @@ op_fused_arithmetic_f0:;
 op_fused_arithmetic_f1:;
     a_11 = fp[ip[0]];
     b_9 = lits[ip[1]];
-    o_188 = a_11 & b_9;
-    if ((o_188 & 1) != 0) {
+    o_254 = a_11 & b_9;
+    if ((o_254 & 1) != 0) {
         if (!__builtin_sub_overflow((int64_t)a_11, (int64_t)b_9 - 1, &r_9)) {
             n_9 = ip[2];
             if ((n_9 & 0xF8) == 0x60) {
@@ -4557,9 +5507,9 @@ op_fused_arithmetic_f1:;
     r_next_bytecode_163 = *(ip - 1);
     r_next_bytecode_163; })];
             }
-            v_149 = (uint64_t)r_9;
+            v_171 = (uint64_t)r_9;
             sp = sp + 1;
-            *sp = v_149;
+            *sp = v_171;
             ip = ip + 2;
             goto *ops[({
     ip = ip + 1;
@@ -4576,17 +5526,17 @@ op_fused_arithmetic_f1:;
 op_fused_arithmetic_f2:;
     a_12 = fp[ip[0]];
     b_10 = lits[ip[1]];
-    o_189 = a_12 & b_10;
-    if ((o_189 & 1) != 0) {
-        c_13 = (int64_t)a_12 < (int64_t)b_10;
+    o_255 = a_12 & b_10;
+    if ((o_255 & 1) != 0) {
+        c_15 = (int64_t)a_12 < (int64_t)b_10;
         j_8 = ip[2];
         if ((j_8 == 0x92) || (j_8 == 0x91)) {
             p_11 = ip + 3;
-            o_190 = *(int16_t *)(uint64_t)p_11;
+            o_256 = *(int16_t *)(uint64_t)p_11;
             ip = ip + 5;
-            if (c_13 == (j_8 == 0x91)) {
-                ip = ip + o_190;
-                if (o_190 < 0) {
+            if (c_15 == (j_8 == 0x91)) {
+                ip = ip + o_256;
+                if (o_256 < 0) {
                     if (__builtin_expect(atomic_load_explicit(&interrupt_pending, memory_order_relaxed) != 0, 0)) {
                         if (fr != NULL) {
                             nframes = (int32_t)(fr - frames) + 1;
@@ -4594,13 +5544,13 @@ op_fused_arithmetic_f2:;
                             fr->sp = (int32_t)(sp - fp + 1);
                             cstack_used = (uint64_t)(sp + 1 - cstack);
                         } else {
-                            s_33 = (oop *)(active_ctx + 16);
-                            m_37 = s_33[CTX_METHOD];
-                            o_191 = *(uint64_t *)(m_37 + 16 + 24);
-                            v_150 = ip - (uint8_t *)(o_191 + 16);
-                            s_33[CTX_PC] = (uint64_t)((v_150 << 1) | 1);
-                            v_151 = sp - fp + 1;
-                            s_33[CTX_STACKP] = (uint64_t)((v_151 << 1) | 1);
+                            s_55 = (oop *)(active_ctx + 16);
+                            m_59 = s_55[CTX_METHOD];
+                            o_257 = *(uint64_t *)(m_59 + 16 + 24);
+                            v_172 = ip - (uint8_t *)(o_257 + 16);
+                            s_55[CTX_PC] = (uint64_t)((v_172 << 1) | 1);
+                            v_173 = sp - fp + 1;
+                            s_55[CTX_STACKP] = (uint64_t)((v_173 << 1) | 1);
                         }
                         interrupt_safepoint();
                         if (nframes != 0) {
@@ -4610,22 +5560,64 @@ op_fused_arithmetic_f2:;
                             sp = fp + fr->sp - 1;
                             ip = fr->ip;
                         } else {
-                            s_34 = (oop *)(active_ctx + 16);
-                            m_38 = s_34[CTX_METHOD];
-                            o_192 = ((oop *)(m_38 + 16))[CM_LITERALS];
-                            lits = (oop *)(o_192 + 16);
-                            fp = s_34 + CTX_FIXED;
-                            o_193 = s_34[CTX_STACKP];
-                            sp = fp + (((int64_t)o_193) >> 1) - 1;
-                            o_194 = s_34[CTX_PC];
-                            if (!((o_194 & 1) != 0)) {
+                            s_56 = (oop *)(active_ctx + 16);
+                            m_60 = s_56[CTX_METHOD];
+                            o_258 = ((oop *)(m_60 + 16))[CM_LITERALS];
+                            lits = (oop *)(o_258 + 16);
+                            fp = s_56 + CTX_FIXED;
+                            o_259 = s_56[CTX_STACKP];
+                            sp = fp + (((int64_t)o_259) >> 1) - 1;
+                            o_260 = s_56[CTX_PC];
+                            if (!((o_260 & 1) != 0)) {
                                 fatal_begin();
                                 fprintf(stderr, "resuming a dead context");
                                 fatal_end();
                             }
-                            o_195 = *(uint64_t *)(m_38 + 16 + 24);
-                            o_196 = s_34[CTX_PC];
-                            ip = (uint8_t *)(o_195 + 16) + (((int64_t)o_196) >> 1);
+                            o_261 = *(uint64_t *)(m_60 + 16 + 24);
+                            o_262 = s_56[CTX_PC];
+                            ip = (uint8_t *)(o_261 + 16) + (((int64_t)o_262) >> 1);
+                            fr = (frame *)NULL;
+                        }
+                    }
+                    if (__builtin_expect((fr != NULL) && (fr->code != 0), 0)) {
+                        if (fr != NULL) {
+                            nframes = (int32_t)(fr - frames) + 1;
+                            fr->ip = ip;
+                            fr->sp = (int32_t)(sp - fp + 1);
+                            cstack_used = (uint64_t)(sp + 1 - cstack);
+                        } else {
+                            s_57 = (oop *)(active_ctx + 16);
+                            m_61 = s_57[CTX_METHOD];
+                            o_263 = *(uint64_t *)(m_61 + 16 + 24);
+                            v_174 = ip - (uint8_t *)(o_263 + 16);
+                            s_57[CTX_PC] = (uint64_t)((v_174 << 1) | 1);
+                            v_175 = sp - fp + 1;
+                            s_57[CTX_STACKP] = (uint64_t)((v_175 << 1) | 1);
+                        }
+                        jit_back_jump(fr);
+                        if (nframes != 0) {
+                            fr = frames + (nframes - 1);
+                            lits = fr->lits;
+                            fp = fr->fp;
+                            sp = fp + fr->sp - 1;
+                            ip = fr->ip;
+                        } else {
+                            s_58 = (oop *)(active_ctx + 16);
+                            m_62 = s_58[CTX_METHOD];
+                            o_264 = ((oop *)(m_62 + 16))[CM_LITERALS];
+                            lits = (oop *)(o_264 + 16);
+                            fp = s_58 + CTX_FIXED;
+                            o_265 = s_58[CTX_STACKP];
+                            sp = fp + (((int64_t)o_265) >> 1) - 1;
+                            o_266 = s_58[CTX_PC];
+                            if (!((o_266 & 1) != 0)) {
+                                fatal_begin();
+                                fprintf(stderr, "resuming a dead context");
+                                fatal_end();
+                            }
+                            o_267 = *(uint64_t *)(m_62 + 16 + 24);
+                            o_268 = s_58[CTX_PC];
+                            ip = (uint8_t *)(o_267 + 16) + (((int64_t)o_268) >> 1);
                             fr = (frame *)NULL;
                         }
                     }
@@ -4636,9 +5628,9 @@ op_fused_arithmetic_f2:;
     r_next_bytecode_165 = *(ip - 1);
     r_next_bytecode_165; })];
         }
-        v_152 = c_13 ? true_oop : false_oop;
+        v_176 = c_15 ? true_oop : false_oop;
         sp = sp + 1;
-        *sp = v_152;
+        *sp = v_176;
         ip = ip + 2;
         goto *ops[({
     ip = ip + 1;
@@ -4654,17 +5646,17 @@ op_fused_arithmetic_f2:;
 op_fused_arithmetic_f3:;
     a_13 = fp[ip[0]];
     b_11 = lits[ip[1]];
-    o_197 = a_13 & b_11;
-    if ((o_197 & 1) != 0) {
-        c_14 = (int64_t)a_13 > (int64_t)b_11;
+    o_269 = a_13 & b_11;
+    if ((o_269 & 1) != 0) {
+        c_16 = (int64_t)a_13 > (int64_t)b_11;
         j_9 = ip[2];
         if ((j_9 == 0x92) || (j_9 == 0x91)) {
             p_12 = ip + 3;
-            o_198 = *(int16_t *)(uint64_t)p_12;
+            o_270 = *(int16_t *)(uint64_t)p_12;
             ip = ip + 5;
-            if (c_14 == (j_9 == 0x91)) {
-                ip = ip + o_198;
-                if (o_198 < 0) {
+            if (c_16 == (j_9 == 0x91)) {
+                ip = ip + o_270;
+                if (o_270 < 0) {
                     if (__builtin_expect(atomic_load_explicit(&interrupt_pending, memory_order_relaxed) != 0, 0)) {
                         if (fr != NULL) {
                             nframes = (int32_t)(fr - frames) + 1;
@@ -4672,13 +5664,13 @@ op_fused_arithmetic_f3:;
                             fr->sp = (int32_t)(sp - fp + 1);
                             cstack_used = (uint64_t)(sp + 1 - cstack);
                         } else {
-                            s_35 = (oop *)(active_ctx + 16);
-                            m_39 = s_35[CTX_METHOD];
-                            o_199 = *(uint64_t *)(m_39 + 16 + 24);
-                            v_153 = ip - (uint8_t *)(o_199 + 16);
-                            s_35[CTX_PC] = (uint64_t)((v_153 << 1) | 1);
-                            v_154 = sp - fp + 1;
-                            s_35[CTX_STACKP] = (uint64_t)((v_154 << 1) | 1);
+                            s_59 = (oop *)(active_ctx + 16);
+                            m_63 = s_59[CTX_METHOD];
+                            o_271 = *(uint64_t *)(m_63 + 16 + 24);
+                            v_177 = ip - (uint8_t *)(o_271 + 16);
+                            s_59[CTX_PC] = (uint64_t)((v_177 << 1) | 1);
+                            v_178 = sp - fp + 1;
+                            s_59[CTX_STACKP] = (uint64_t)((v_178 << 1) | 1);
                         }
                         interrupt_safepoint();
                         if (nframes != 0) {
@@ -4688,22 +5680,64 @@ op_fused_arithmetic_f3:;
                             sp = fp + fr->sp - 1;
                             ip = fr->ip;
                         } else {
-                            s_36 = (oop *)(active_ctx + 16);
-                            m_40 = s_36[CTX_METHOD];
-                            o_200 = ((oop *)(m_40 + 16))[CM_LITERALS];
-                            lits = (oop *)(o_200 + 16);
-                            fp = s_36 + CTX_FIXED;
-                            o_201 = s_36[CTX_STACKP];
-                            sp = fp + (((int64_t)o_201) >> 1) - 1;
-                            o_202 = s_36[CTX_PC];
-                            if (!((o_202 & 1) != 0)) {
+                            s_60 = (oop *)(active_ctx + 16);
+                            m_64 = s_60[CTX_METHOD];
+                            o_272 = ((oop *)(m_64 + 16))[CM_LITERALS];
+                            lits = (oop *)(o_272 + 16);
+                            fp = s_60 + CTX_FIXED;
+                            o_273 = s_60[CTX_STACKP];
+                            sp = fp + (((int64_t)o_273) >> 1) - 1;
+                            o_274 = s_60[CTX_PC];
+                            if (!((o_274 & 1) != 0)) {
                                 fatal_begin();
                                 fprintf(stderr, "resuming a dead context");
                                 fatal_end();
                             }
-                            o_203 = *(uint64_t *)(m_40 + 16 + 24);
-                            o_204 = s_36[CTX_PC];
-                            ip = (uint8_t *)(o_203 + 16) + (((int64_t)o_204) >> 1);
+                            o_275 = *(uint64_t *)(m_64 + 16 + 24);
+                            o_276 = s_60[CTX_PC];
+                            ip = (uint8_t *)(o_275 + 16) + (((int64_t)o_276) >> 1);
+                            fr = (frame *)NULL;
+                        }
+                    }
+                    if (__builtin_expect((fr != NULL) && (fr->code != 0), 0)) {
+                        if (fr != NULL) {
+                            nframes = (int32_t)(fr - frames) + 1;
+                            fr->ip = ip;
+                            fr->sp = (int32_t)(sp - fp + 1);
+                            cstack_used = (uint64_t)(sp + 1 - cstack);
+                        } else {
+                            s_61 = (oop *)(active_ctx + 16);
+                            m_65 = s_61[CTX_METHOD];
+                            o_277 = *(uint64_t *)(m_65 + 16 + 24);
+                            v_179 = ip - (uint8_t *)(o_277 + 16);
+                            s_61[CTX_PC] = (uint64_t)((v_179 << 1) | 1);
+                            v_180 = sp - fp + 1;
+                            s_61[CTX_STACKP] = (uint64_t)((v_180 << 1) | 1);
+                        }
+                        jit_back_jump(fr);
+                        if (nframes != 0) {
+                            fr = frames + (nframes - 1);
+                            lits = fr->lits;
+                            fp = fr->fp;
+                            sp = fp + fr->sp - 1;
+                            ip = fr->ip;
+                        } else {
+                            s_62 = (oop *)(active_ctx + 16);
+                            m_66 = s_62[CTX_METHOD];
+                            o_278 = ((oop *)(m_66 + 16))[CM_LITERALS];
+                            lits = (oop *)(o_278 + 16);
+                            fp = s_62 + CTX_FIXED;
+                            o_279 = s_62[CTX_STACKP];
+                            sp = fp + (((int64_t)o_279) >> 1) - 1;
+                            o_280 = s_62[CTX_PC];
+                            if (!((o_280 & 1) != 0)) {
+                                fatal_begin();
+                                fprintf(stderr, "resuming a dead context");
+                                fatal_end();
+                            }
+                            o_281 = *(uint64_t *)(m_66 + 16 + 24);
+                            o_282 = s_62[CTX_PC];
+                            ip = (uint8_t *)(o_281 + 16) + (((int64_t)o_282) >> 1);
                             fr = (frame *)NULL;
                         }
                     }
@@ -4714,9 +5748,9 @@ op_fused_arithmetic_f3:;
     r_next_bytecode_167 = *(ip - 1);
     r_next_bytecode_167; })];
         }
-        v_155 = c_14 ? true_oop : false_oop;
+        v_181 = c_16 ? true_oop : false_oop;
         sp = sp + 1;
-        *sp = v_155;
+        *sp = v_181;
         ip = ip + 2;
         goto *ops[({
     ip = ip + 1;
@@ -4732,17 +5766,17 @@ op_fused_arithmetic_f3:;
 op_fused_arithmetic_f4:;
     a_14 = fp[ip[0]];
     b_12 = lits[ip[1]];
-    o_205 = a_14 & b_12;
-    if ((o_205 & 1) != 0) {
-        c_15 = (int64_t)a_14 <= (int64_t)b_12;
+    o_283 = a_14 & b_12;
+    if ((o_283 & 1) != 0) {
+        c_17 = (int64_t)a_14 <= (int64_t)b_12;
         j_10 = ip[2];
         if ((j_10 == 0x92) || (j_10 == 0x91)) {
             p_13 = ip + 3;
-            o_206 = *(int16_t *)(uint64_t)p_13;
+            o_284 = *(int16_t *)(uint64_t)p_13;
             ip = ip + 5;
-            if (c_15 == (j_10 == 0x91)) {
-                ip = ip + o_206;
-                if (o_206 < 0) {
+            if (c_17 == (j_10 == 0x91)) {
+                ip = ip + o_284;
+                if (o_284 < 0) {
                     if (__builtin_expect(atomic_load_explicit(&interrupt_pending, memory_order_relaxed) != 0, 0)) {
                         if (fr != NULL) {
                             nframes = (int32_t)(fr - frames) + 1;
@@ -4750,13 +5784,13 @@ op_fused_arithmetic_f4:;
                             fr->sp = (int32_t)(sp - fp + 1);
                             cstack_used = (uint64_t)(sp + 1 - cstack);
                         } else {
-                            s_37 = (oop *)(active_ctx + 16);
-                            m_41 = s_37[CTX_METHOD];
-                            o_207 = *(uint64_t *)(m_41 + 16 + 24);
-                            v_156 = ip - (uint8_t *)(o_207 + 16);
-                            s_37[CTX_PC] = (uint64_t)((v_156 << 1) | 1);
-                            v_157 = sp - fp + 1;
-                            s_37[CTX_STACKP] = (uint64_t)((v_157 << 1) | 1);
+                            s_63 = (oop *)(active_ctx + 16);
+                            m_67 = s_63[CTX_METHOD];
+                            o_285 = *(uint64_t *)(m_67 + 16 + 24);
+                            v_182 = ip - (uint8_t *)(o_285 + 16);
+                            s_63[CTX_PC] = (uint64_t)((v_182 << 1) | 1);
+                            v_183 = sp - fp + 1;
+                            s_63[CTX_STACKP] = (uint64_t)((v_183 << 1) | 1);
                         }
                         interrupt_safepoint();
                         if (nframes != 0) {
@@ -4766,22 +5800,64 @@ op_fused_arithmetic_f4:;
                             sp = fp + fr->sp - 1;
                             ip = fr->ip;
                         } else {
-                            s_38 = (oop *)(active_ctx + 16);
-                            m_42 = s_38[CTX_METHOD];
-                            o_208 = ((oop *)(m_42 + 16))[CM_LITERALS];
-                            lits = (oop *)(o_208 + 16);
-                            fp = s_38 + CTX_FIXED;
-                            o_209 = s_38[CTX_STACKP];
-                            sp = fp + (((int64_t)o_209) >> 1) - 1;
-                            o_210 = s_38[CTX_PC];
-                            if (!((o_210 & 1) != 0)) {
+                            s_64 = (oop *)(active_ctx + 16);
+                            m_68 = s_64[CTX_METHOD];
+                            o_286 = ((oop *)(m_68 + 16))[CM_LITERALS];
+                            lits = (oop *)(o_286 + 16);
+                            fp = s_64 + CTX_FIXED;
+                            o_287 = s_64[CTX_STACKP];
+                            sp = fp + (((int64_t)o_287) >> 1) - 1;
+                            o_288 = s_64[CTX_PC];
+                            if (!((o_288 & 1) != 0)) {
                                 fatal_begin();
                                 fprintf(stderr, "resuming a dead context");
                                 fatal_end();
                             }
-                            o_211 = *(uint64_t *)(m_42 + 16 + 24);
-                            o_212 = s_38[CTX_PC];
-                            ip = (uint8_t *)(o_211 + 16) + (((int64_t)o_212) >> 1);
+                            o_289 = *(uint64_t *)(m_68 + 16 + 24);
+                            o_290 = s_64[CTX_PC];
+                            ip = (uint8_t *)(o_289 + 16) + (((int64_t)o_290) >> 1);
+                            fr = (frame *)NULL;
+                        }
+                    }
+                    if (__builtin_expect((fr != NULL) && (fr->code != 0), 0)) {
+                        if (fr != NULL) {
+                            nframes = (int32_t)(fr - frames) + 1;
+                            fr->ip = ip;
+                            fr->sp = (int32_t)(sp - fp + 1);
+                            cstack_used = (uint64_t)(sp + 1 - cstack);
+                        } else {
+                            s_65 = (oop *)(active_ctx + 16);
+                            m_69 = s_65[CTX_METHOD];
+                            o_291 = *(uint64_t *)(m_69 + 16 + 24);
+                            v_184 = ip - (uint8_t *)(o_291 + 16);
+                            s_65[CTX_PC] = (uint64_t)((v_184 << 1) | 1);
+                            v_185 = sp - fp + 1;
+                            s_65[CTX_STACKP] = (uint64_t)((v_185 << 1) | 1);
+                        }
+                        jit_back_jump(fr);
+                        if (nframes != 0) {
+                            fr = frames + (nframes - 1);
+                            lits = fr->lits;
+                            fp = fr->fp;
+                            sp = fp + fr->sp - 1;
+                            ip = fr->ip;
+                        } else {
+                            s_66 = (oop *)(active_ctx + 16);
+                            m_70 = s_66[CTX_METHOD];
+                            o_292 = ((oop *)(m_70 + 16))[CM_LITERALS];
+                            lits = (oop *)(o_292 + 16);
+                            fp = s_66 + CTX_FIXED;
+                            o_293 = s_66[CTX_STACKP];
+                            sp = fp + (((int64_t)o_293) >> 1) - 1;
+                            o_294 = s_66[CTX_PC];
+                            if (!((o_294 & 1) != 0)) {
+                                fatal_begin();
+                                fprintf(stderr, "resuming a dead context");
+                                fatal_end();
+                            }
+                            o_295 = *(uint64_t *)(m_70 + 16 + 24);
+                            o_296 = s_66[CTX_PC];
+                            ip = (uint8_t *)(o_295 + 16) + (((int64_t)o_296) >> 1);
                             fr = (frame *)NULL;
                         }
                     }
@@ -4792,9 +5868,9 @@ op_fused_arithmetic_f4:;
     r_next_bytecode_169 = *(ip - 1);
     r_next_bytecode_169; })];
         }
-        v_158 = c_15 ? true_oop : false_oop;
+        v_186 = c_17 ? true_oop : false_oop;
         sp = sp + 1;
-        *sp = v_158;
+        *sp = v_186;
         ip = ip + 2;
         goto *ops[({
     ip = ip + 1;
@@ -4810,17 +5886,17 @@ op_fused_arithmetic_f4:;
 op_fused_arithmetic_f5:;
     a_15 = fp[ip[0]];
     b_13 = lits[ip[1]];
-    o_213 = a_15 & b_13;
-    if ((o_213 & 1) != 0) {
-        c_16 = (int64_t)a_15 >= (int64_t)b_13;
+    o_297 = a_15 & b_13;
+    if ((o_297 & 1) != 0) {
+        c_18 = (int64_t)a_15 >= (int64_t)b_13;
         j_11 = ip[2];
         if ((j_11 == 0x92) || (j_11 == 0x91)) {
             p_14 = ip + 3;
-            o_214 = *(int16_t *)(uint64_t)p_14;
+            o_298 = *(int16_t *)(uint64_t)p_14;
             ip = ip + 5;
-            if (c_16 == (j_11 == 0x91)) {
-                ip = ip + o_214;
-                if (o_214 < 0) {
+            if (c_18 == (j_11 == 0x91)) {
+                ip = ip + o_298;
+                if (o_298 < 0) {
                     if (__builtin_expect(atomic_load_explicit(&interrupt_pending, memory_order_relaxed) != 0, 0)) {
                         if (fr != NULL) {
                             nframes = (int32_t)(fr - frames) + 1;
@@ -4828,13 +5904,13 @@ op_fused_arithmetic_f5:;
                             fr->sp = (int32_t)(sp - fp + 1);
                             cstack_used = (uint64_t)(sp + 1 - cstack);
                         } else {
-                            s_39 = (oop *)(active_ctx + 16);
-                            m_43 = s_39[CTX_METHOD];
-                            o_215 = *(uint64_t *)(m_43 + 16 + 24);
-                            v_159 = ip - (uint8_t *)(o_215 + 16);
-                            s_39[CTX_PC] = (uint64_t)((v_159 << 1) | 1);
-                            v_160 = sp - fp + 1;
-                            s_39[CTX_STACKP] = (uint64_t)((v_160 << 1) | 1);
+                            s_67 = (oop *)(active_ctx + 16);
+                            m_71 = s_67[CTX_METHOD];
+                            o_299 = *(uint64_t *)(m_71 + 16 + 24);
+                            v_187 = ip - (uint8_t *)(o_299 + 16);
+                            s_67[CTX_PC] = (uint64_t)((v_187 << 1) | 1);
+                            v_188 = sp - fp + 1;
+                            s_67[CTX_STACKP] = (uint64_t)((v_188 << 1) | 1);
                         }
                         interrupt_safepoint();
                         if (nframes != 0) {
@@ -4844,22 +5920,64 @@ op_fused_arithmetic_f5:;
                             sp = fp + fr->sp - 1;
                             ip = fr->ip;
                         } else {
-                            s_40 = (oop *)(active_ctx + 16);
-                            m_44 = s_40[CTX_METHOD];
-                            o_216 = ((oop *)(m_44 + 16))[CM_LITERALS];
-                            lits = (oop *)(o_216 + 16);
-                            fp = s_40 + CTX_FIXED;
-                            o_217 = s_40[CTX_STACKP];
-                            sp = fp + (((int64_t)o_217) >> 1) - 1;
-                            o_218 = s_40[CTX_PC];
-                            if (!((o_218 & 1) != 0)) {
+                            s_68 = (oop *)(active_ctx + 16);
+                            m_72 = s_68[CTX_METHOD];
+                            o_300 = ((oop *)(m_72 + 16))[CM_LITERALS];
+                            lits = (oop *)(o_300 + 16);
+                            fp = s_68 + CTX_FIXED;
+                            o_301 = s_68[CTX_STACKP];
+                            sp = fp + (((int64_t)o_301) >> 1) - 1;
+                            o_302 = s_68[CTX_PC];
+                            if (!((o_302 & 1) != 0)) {
                                 fatal_begin();
                                 fprintf(stderr, "resuming a dead context");
                                 fatal_end();
                             }
-                            o_219 = *(uint64_t *)(m_44 + 16 + 24);
-                            o_220 = s_40[CTX_PC];
-                            ip = (uint8_t *)(o_219 + 16) + (((int64_t)o_220) >> 1);
+                            o_303 = *(uint64_t *)(m_72 + 16 + 24);
+                            o_304 = s_68[CTX_PC];
+                            ip = (uint8_t *)(o_303 + 16) + (((int64_t)o_304) >> 1);
+                            fr = (frame *)NULL;
+                        }
+                    }
+                    if (__builtin_expect((fr != NULL) && (fr->code != 0), 0)) {
+                        if (fr != NULL) {
+                            nframes = (int32_t)(fr - frames) + 1;
+                            fr->ip = ip;
+                            fr->sp = (int32_t)(sp - fp + 1);
+                            cstack_used = (uint64_t)(sp + 1 - cstack);
+                        } else {
+                            s_69 = (oop *)(active_ctx + 16);
+                            m_73 = s_69[CTX_METHOD];
+                            o_305 = *(uint64_t *)(m_73 + 16 + 24);
+                            v_189 = ip - (uint8_t *)(o_305 + 16);
+                            s_69[CTX_PC] = (uint64_t)((v_189 << 1) | 1);
+                            v_190 = sp - fp + 1;
+                            s_69[CTX_STACKP] = (uint64_t)((v_190 << 1) | 1);
+                        }
+                        jit_back_jump(fr);
+                        if (nframes != 0) {
+                            fr = frames + (nframes - 1);
+                            lits = fr->lits;
+                            fp = fr->fp;
+                            sp = fp + fr->sp - 1;
+                            ip = fr->ip;
+                        } else {
+                            s_70 = (oop *)(active_ctx + 16);
+                            m_74 = s_70[CTX_METHOD];
+                            o_306 = ((oop *)(m_74 + 16))[CM_LITERALS];
+                            lits = (oop *)(o_306 + 16);
+                            fp = s_70 + CTX_FIXED;
+                            o_307 = s_70[CTX_STACKP];
+                            sp = fp + (((int64_t)o_307) >> 1) - 1;
+                            o_308 = s_70[CTX_PC];
+                            if (!((o_308 & 1) != 0)) {
+                                fatal_begin();
+                                fprintf(stderr, "resuming a dead context");
+                                fatal_end();
+                            }
+                            o_309 = *(uint64_t *)(m_74 + 16 + 24);
+                            o_310 = s_70[CTX_PC];
+                            ip = (uint8_t *)(o_309 + 16) + (((int64_t)o_310) >> 1);
                             fr = (frame *)NULL;
                         }
                     }
@@ -4870,9 +5988,9 @@ op_fused_arithmetic_f5:;
     r_next_bytecode_171 = *(ip - 1);
     r_next_bytecode_171; })];
         }
-        v_161 = c_16 ? true_oop : false_oop;
+        v_191 = c_18 ? true_oop : false_oop;
         sp = sp + 1;
-        *sp = v_161;
+        *sp = v_191;
         ip = ip + 2;
         goto *ops[({
     ip = ip + 1;
@@ -4887,10 +6005,10 @@ op_fused_arithmetic_f5:;
 op_fused_arithmetic_f6:;
     a_16 = fp[ip[0]];
     b_14 = ({
-    v_162 = (int8_t)ip[1];
-    (uint64_t)((((int64_t)v_162) << 1) | 1); });
-    o_221 = a_16 & b_14;
-    if ((o_221 & 1) != 0) {
+    v_192 = (int8_t)ip[1];
+    (uint64_t)((((int64_t)v_192) << 1) | 1); });
+    o_311 = a_16 & b_14;
+    if ((o_311 & 1) != 0) {
         if (!__builtin_add_overflow((int64_t)a_16, (int64_t)b_14 - 1, &r_10)) {
             n_10 = ip[2];
             if ((n_10 & 0xF8) == 0x60) {
@@ -4901,9 +6019,9 @@ op_fused_arithmetic_f6:;
     r_next_bytecode_173 = *(ip - 1);
     r_next_bytecode_173; })];
             }
-            v_163 = (uint64_t)r_10;
+            v_193 = (uint64_t)r_10;
             sp = sp + 1;
-            *sp = v_163;
+            *sp = v_193;
             ip = ip + 2;
             goto *ops[({
     ip = ip + 1;
@@ -4920,10 +6038,10 @@ op_fused_arithmetic_f6:;
 op_fused_arithmetic_f7:;
     a_17 = fp[ip[0]];
     b_15 = ({
-    v_164 = (int8_t)ip[1];
-    (uint64_t)((((int64_t)v_164) << 1) | 1); });
-    o_222 = a_17 & b_15;
-    if ((o_222 & 1) != 0) {
+    v_194 = (int8_t)ip[1];
+    (uint64_t)((((int64_t)v_194) << 1) | 1); });
+    o_312 = a_17 & b_15;
+    if ((o_312 & 1) != 0) {
         if (!__builtin_sub_overflow((int64_t)a_17, (int64_t)b_15 - 1, &r_11)) {
             n_11 = ip[2];
             if ((n_11 & 0xF8) == 0x60) {
@@ -4934,9 +6052,9 @@ op_fused_arithmetic_f7:;
     r_next_bytecode_175 = *(ip - 1);
     r_next_bytecode_175; })];
             }
-            v_165 = (uint64_t)r_11;
+            v_195 = (uint64_t)r_11;
             sp = sp + 1;
-            *sp = v_165;
+            *sp = v_195;
             ip = ip + 2;
             goto *ops[({
     ip = ip + 1;
@@ -4953,19 +6071,19 @@ op_fused_arithmetic_f7:;
 op_fused_arithmetic_f8:;
     a_18 = fp[ip[0]];
     b_16 = ({
-    v_166 = (int8_t)ip[1];
-    (uint64_t)((((int64_t)v_166) << 1) | 1); });
-    o_223 = a_18 & b_16;
-    if ((o_223 & 1) != 0) {
-        c_19 = (int64_t)a_18 < (int64_t)b_16;
+    v_196 = (int8_t)ip[1];
+    (uint64_t)((((int64_t)v_196) << 1) | 1); });
+    o_313 = a_18 & b_16;
+    if ((o_313 & 1) != 0) {
+        c_21 = (int64_t)a_18 < (int64_t)b_16;
         j_12 = ip[2];
         if ((j_12 == 0x92) || (j_12 == 0x91)) {
             p_15 = ip + 3;
-            o_224 = *(int16_t *)(uint64_t)p_15;
+            o_314 = *(int16_t *)(uint64_t)p_15;
             ip = ip + 5;
-            if (c_19 == (j_12 == 0x91)) {
-                ip = ip + o_224;
-                if (o_224 < 0) {
+            if (c_21 == (j_12 == 0x91)) {
+                ip = ip + o_314;
+                if (o_314 < 0) {
                     if (__builtin_expect(atomic_load_explicit(&interrupt_pending, memory_order_relaxed) != 0, 0)) {
                         if (fr != NULL) {
                             nframes = (int32_t)(fr - frames) + 1;
@@ -4973,13 +6091,13 @@ op_fused_arithmetic_f8:;
                             fr->sp = (int32_t)(sp - fp + 1);
                             cstack_used = (uint64_t)(sp + 1 - cstack);
                         } else {
-                            s_41 = (oop *)(active_ctx + 16);
-                            m_45 = s_41[CTX_METHOD];
-                            o_225 = *(uint64_t *)(m_45 + 16 + 24);
-                            v_167 = ip - (uint8_t *)(o_225 + 16);
-                            s_41[CTX_PC] = (uint64_t)((v_167 << 1) | 1);
-                            v_168 = sp - fp + 1;
-                            s_41[CTX_STACKP] = (uint64_t)((v_168 << 1) | 1);
+                            s_71 = (oop *)(active_ctx + 16);
+                            m_75 = s_71[CTX_METHOD];
+                            o_315 = *(uint64_t *)(m_75 + 16 + 24);
+                            v_197 = ip - (uint8_t *)(o_315 + 16);
+                            s_71[CTX_PC] = (uint64_t)((v_197 << 1) | 1);
+                            v_198 = sp - fp + 1;
+                            s_71[CTX_STACKP] = (uint64_t)((v_198 << 1) | 1);
                         }
                         interrupt_safepoint();
                         if (nframes != 0) {
@@ -4989,22 +6107,64 @@ op_fused_arithmetic_f8:;
                             sp = fp + fr->sp - 1;
                             ip = fr->ip;
                         } else {
-                            s_42 = (oop *)(active_ctx + 16);
-                            m_46 = s_42[CTX_METHOD];
-                            o_226 = ((oop *)(m_46 + 16))[CM_LITERALS];
-                            lits = (oop *)(o_226 + 16);
-                            fp = s_42 + CTX_FIXED;
-                            o_227 = s_42[CTX_STACKP];
-                            sp = fp + (((int64_t)o_227) >> 1) - 1;
-                            o_228 = s_42[CTX_PC];
-                            if (!((o_228 & 1) != 0)) {
+                            s_72 = (oop *)(active_ctx + 16);
+                            m_76 = s_72[CTX_METHOD];
+                            o_316 = ((oop *)(m_76 + 16))[CM_LITERALS];
+                            lits = (oop *)(o_316 + 16);
+                            fp = s_72 + CTX_FIXED;
+                            o_317 = s_72[CTX_STACKP];
+                            sp = fp + (((int64_t)o_317) >> 1) - 1;
+                            o_318 = s_72[CTX_PC];
+                            if (!((o_318 & 1) != 0)) {
                                 fatal_begin();
                                 fprintf(stderr, "resuming a dead context");
                                 fatal_end();
                             }
-                            o_229 = *(uint64_t *)(m_46 + 16 + 24);
-                            o_230 = s_42[CTX_PC];
-                            ip = (uint8_t *)(o_229 + 16) + (((int64_t)o_230) >> 1);
+                            o_319 = *(uint64_t *)(m_76 + 16 + 24);
+                            o_320 = s_72[CTX_PC];
+                            ip = (uint8_t *)(o_319 + 16) + (((int64_t)o_320) >> 1);
+                            fr = (frame *)NULL;
+                        }
+                    }
+                    if (__builtin_expect((fr != NULL) && (fr->code != 0), 0)) {
+                        if (fr != NULL) {
+                            nframes = (int32_t)(fr - frames) + 1;
+                            fr->ip = ip;
+                            fr->sp = (int32_t)(sp - fp + 1);
+                            cstack_used = (uint64_t)(sp + 1 - cstack);
+                        } else {
+                            s_73 = (oop *)(active_ctx + 16);
+                            m_77 = s_73[CTX_METHOD];
+                            o_321 = *(uint64_t *)(m_77 + 16 + 24);
+                            v_199 = ip - (uint8_t *)(o_321 + 16);
+                            s_73[CTX_PC] = (uint64_t)((v_199 << 1) | 1);
+                            v_200 = sp - fp + 1;
+                            s_73[CTX_STACKP] = (uint64_t)((v_200 << 1) | 1);
+                        }
+                        jit_back_jump(fr);
+                        if (nframes != 0) {
+                            fr = frames + (nframes - 1);
+                            lits = fr->lits;
+                            fp = fr->fp;
+                            sp = fp + fr->sp - 1;
+                            ip = fr->ip;
+                        } else {
+                            s_74 = (oop *)(active_ctx + 16);
+                            m_78 = s_74[CTX_METHOD];
+                            o_322 = ((oop *)(m_78 + 16))[CM_LITERALS];
+                            lits = (oop *)(o_322 + 16);
+                            fp = s_74 + CTX_FIXED;
+                            o_323 = s_74[CTX_STACKP];
+                            sp = fp + (((int64_t)o_323) >> 1) - 1;
+                            o_324 = s_74[CTX_PC];
+                            if (!((o_324 & 1) != 0)) {
+                                fatal_begin();
+                                fprintf(stderr, "resuming a dead context");
+                                fatal_end();
+                            }
+                            o_325 = *(uint64_t *)(m_78 + 16 + 24);
+                            o_326 = s_74[CTX_PC];
+                            ip = (uint8_t *)(o_325 + 16) + (((int64_t)o_326) >> 1);
                             fr = (frame *)NULL;
                         }
                     }
@@ -5015,9 +6175,9 @@ op_fused_arithmetic_f8:;
     r_next_bytecode_177 = *(ip - 1);
     r_next_bytecode_177; })];
         }
-        v_169 = c_19 ? true_oop : false_oop;
+        v_201 = c_21 ? true_oop : false_oop;
         sp = sp + 1;
-        *sp = v_169;
+        *sp = v_201;
         ip = ip + 2;
         goto *ops[({
     ip = ip + 1;
@@ -5033,19 +6193,19 @@ op_fused_arithmetic_f8:;
 op_fused_arithmetic_f9:;
     a_19 = fp[ip[0]];
     b_17 = ({
-    v_170 = (int8_t)ip[1];
-    (uint64_t)((((int64_t)v_170) << 1) | 1); });
-    o_231 = a_19 & b_17;
-    if ((o_231 & 1) != 0) {
-        c_20 = (int64_t)a_19 > (int64_t)b_17;
+    v_202 = (int8_t)ip[1];
+    (uint64_t)((((int64_t)v_202) << 1) | 1); });
+    o_327 = a_19 & b_17;
+    if ((o_327 & 1) != 0) {
+        c_22 = (int64_t)a_19 > (int64_t)b_17;
         j_13 = ip[2];
         if ((j_13 == 0x92) || (j_13 == 0x91)) {
             p_16 = ip + 3;
-            o_232 = *(int16_t *)(uint64_t)p_16;
+            o_328 = *(int16_t *)(uint64_t)p_16;
             ip = ip + 5;
-            if (c_20 == (j_13 == 0x91)) {
-                ip = ip + o_232;
-                if (o_232 < 0) {
+            if (c_22 == (j_13 == 0x91)) {
+                ip = ip + o_328;
+                if (o_328 < 0) {
                     if (__builtin_expect(atomic_load_explicit(&interrupt_pending, memory_order_relaxed) != 0, 0)) {
                         if (fr != NULL) {
                             nframes = (int32_t)(fr - frames) + 1;
@@ -5053,13 +6213,13 @@ op_fused_arithmetic_f9:;
                             fr->sp = (int32_t)(sp - fp + 1);
                             cstack_used = (uint64_t)(sp + 1 - cstack);
                         } else {
-                            s_43 = (oop *)(active_ctx + 16);
-                            m_47 = s_43[CTX_METHOD];
-                            o_233 = *(uint64_t *)(m_47 + 16 + 24);
-                            v_171 = ip - (uint8_t *)(o_233 + 16);
-                            s_43[CTX_PC] = (uint64_t)((v_171 << 1) | 1);
-                            v_172 = sp - fp + 1;
-                            s_43[CTX_STACKP] = (uint64_t)((v_172 << 1) | 1);
+                            s_75 = (oop *)(active_ctx + 16);
+                            m_79 = s_75[CTX_METHOD];
+                            o_329 = *(uint64_t *)(m_79 + 16 + 24);
+                            v_203 = ip - (uint8_t *)(o_329 + 16);
+                            s_75[CTX_PC] = (uint64_t)((v_203 << 1) | 1);
+                            v_204 = sp - fp + 1;
+                            s_75[CTX_STACKP] = (uint64_t)((v_204 << 1) | 1);
                         }
                         interrupt_safepoint();
                         if (nframes != 0) {
@@ -5069,22 +6229,64 @@ op_fused_arithmetic_f9:;
                             sp = fp + fr->sp - 1;
                             ip = fr->ip;
                         } else {
-                            s_44 = (oop *)(active_ctx + 16);
-                            m_48 = s_44[CTX_METHOD];
-                            o_234 = ((oop *)(m_48 + 16))[CM_LITERALS];
-                            lits = (oop *)(o_234 + 16);
-                            fp = s_44 + CTX_FIXED;
-                            o_235 = s_44[CTX_STACKP];
-                            sp = fp + (((int64_t)o_235) >> 1) - 1;
-                            o_236 = s_44[CTX_PC];
-                            if (!((o_236 & 1) != 0)) {
+                            s_76 = (oop *)(active_ctx + 16);
+                            m_80 = s_76[CTX_METHOD];
+                            o_330 = ((oop *)(m_80 + 16))[CM_LITERALS];
+                            lits = (oop *)(o_330 + 16);
+                            fp = s_76 + CTX_FIXED;
+                            o_331 = s_76[CTX_STACKP];
+                            sp = fp + (((int64_t)o_331) >> 1) - 1;
+                            o_332 = s_76[CTX_PC];
+                            if (!((o_332 & 1) != 0)) {
                                 fatal_begin();
                                 fprintf(stderr, "resuming a dead context");
                                 fatal_end();
                             }
-                            o_237 = *(uint64_t *)(m_48 + 16 + 24);
-                            o_238 = s_44[CTX_PC];
-                            ip = (uint8_t *)(o_237 + 16) + (((int64_t)o_238) >> 1);
+                            o_333 = *(uint64_t *)(m_80 + 16 + 24);
+                            o_334 = s_76[CTX_PC];
+                            ip = (uint8_t *)(o_333 + 16) + (((int64_t)o_334) >> 1);
+                            fr = (frame *)NULL;
+                        }
+                    }
+                    if (__builtin_expect((fr != NULL) && (fr->code != 0), 0)) {
+                        if (fr != NULL) {
+                            nframes = (int32_t)(fr - frames) + 1;
+                            fr->ip = ip;
+                            fr->sp = (int32_t)(sp - fp + 1);
+                            cstack_used = (uint64_t)(sp + 1 - cstack);
+                        } else {
+                            s_77 = (oop *)(active_ctx + 16);
+                            m_81 = s_77[CTX_METHOD];
+                            o_335 = *(uint64_t *)(m_81 + 16 + 24);
+                            v_205 = ip - (uint8_t *)(o_335 + 16);
+                            s_77[CTX_PC] = (uint64_t)((v_205 << 1) | 1);
+                            v_206 = sp - fp + 1;
+                            s_77[CTX_STACKP] = (uint64_t)((v_206 << 1) | 1);
+                        }
+                        jit_back_jump(fr);
+                        if (nframes != 0) {
+                            fr = frames + (nframes - 1);
+                            lits = fr->lits;
+                            fp = fr->fp;
+                            sp = fp + fr->sp - 1;
+                            ip = fr->ip;
+                        } else {
+                            s_78 = (oop *)(active_ctx + 16);
+                            m_82 = s_78[CTX_METHOD];
+                            o_336 = ((oop *)(m_82 + 16))[CM_LITERALS];
+                            lits = (oop *)(o_336 + 16);
+                            fp = s_78 + CTX_FIXED;
+                            o_337 = s_78[CTX_STACKP];
+                            sp = fp + (((int64_t)o_337) >> 1) - 1;
+                            o_338 = s_78[CTX_PC];
+                            if (!((o_338 & 1) != 0)) {
+                                fatal_begin();
+                                fprintf(stderr, "resuming a dead context");
+                                fatal_end();
+                            }
+                            o_339 = *(uint64_t *)(m_82 + 16 + 24);
+                            o_340 = s_78[CTX_PC];
+                            ip = (uint8_t *)(o_339 + 16) + (((int64_t)o_340) >> 1);
                             fr = (frame *)NULL;
                         }
                     }
@@ -5095,9 +6297,9 @@ op_fused_arithmetic_f9:;
     r_next_bytecode_179 = *(ip - 1);
     r_next_bytecode_179; })];
         }
-        v_173 = c_20 ? true_oop : false_oop;
+        v_207 = c_22 ? true_oop : false_oop;
         sp = sp + 1;
-        *sp = v_173;
+        *sp = v_207;
         ip = ip + 2;
         goto *ops[({
     ip = ip + 1;
@@ -5113,19 +6315,19 @@ op_fused_arithmetic_f9:;
 op_fused_arithmetic_fa:;
     a_20 = fp[ip[0]];
     b_18 = ({
-    v_174 = (int8_t)ip[1];
-    (uint64_t)((((int64_t)v_174) << 1) | 1); });
-    o_239 = a_20 & b_18;
-    if ((o_239 & 1) != 0) {
-        c_21 = (int64_t)a_20 <= (int64_t)b_18;
+    v_208 = (int8_t)ip[1];
+    (uint64_t)((((int64_t)v_208) << 1) | 1); });
+    o_341 = a_20 & b_18;
+    if ((o_341 & 1) != 0) {
+        c_23 = (int64_t)a_20 <= (int64_t)b_18;
         j_14 = ip[2];
         if ((j_14 == 0x92) || (j_14 == 0x91)) {
             p_17 = ip + 3;
-            o_240 = *(int16_t *)(uint64_t)p_17;
+            o_342 = *(int16_t *)(uint64_t)p_17;
             ip = ip + 5;
-            if (c_21 == (j_14 == 0x91)) {
-                ip = ip + o_240;
-                if (o_240 < 0) {
+            if (c_23 == (j_14 == 0x91)) {
+                ip = ip + o_342;
+                if (o_342 < 0) {
                     if (__builtin_expect(atomic_load_explicit(&interrupt_pending, memory_order_relaxed) != 0, 0)) {
                         if (fr != NULL) {
                             nframes = (int32_t)(fr - frames) + 1;
@@ -5133,13 +6335,13 @@ op_fused_arithmetic_fa:;
                             fr->sp = (int32_t)(sp - fp + 1);
                             cstack_used = (uint64_t)(sp + 1 - cstack);
                         } else {
-                            s_45 = (oop *)(active_ctx + 16);
-                            m_49 = s_45[CTX_METHOD];
-                            o_241 = *(uint64_t *)(m_49 + 16 + 24);
-                            v_175 = ip - (uint8_t *)(o_241 + 16);
-                            s_45[CTX_PC] = (uint64_t)((v_175 << 1) | 1);
-                            v_176 = sp - fp + 1;
-                            s_45[CTX_STACKP] = (uint64_t)((v_176 << 1) | 1);
+                            s_79 = (oop *)(active_ctx + 16);
+                            m_83 = s_79[CTX_METHOD];
+                            o_343 = *(uint64_t *)(m_83 + 16 + 24);
+                            v_209 = ip - (uint8_t *)(o_343 + 16);
+                            s_79[CTX_PC] = (uint64_t)((v_209 << 1) | 1);
+                            v_210 = sp - fp + 1;
+                            s_79[CTX_STACKP] = (uint64_t)((v_210 << 1) | 1);
                         }
                         interrupt_safepoint();
                         if (nframes != 0) {
@@ -5149,22 +6351,64 @@ op_fused_arithmetic_fa:;
                             sp = fp + fr->sp - 1;
                             ip = fr->ip;
                         } else {
-                            s_46 = (oop *)(active_ctx + 16);
-                            m_50 = s_46[CTX_METHOD];
-                            o_242 = ((oop *)(m_50 + 16))[CM_LITERALS];
-                            lits = (oop *)(o_242 + 16);
-                            fp = s_46 + CTX_FIXED;
-                            o_243 = s_46[CTX_STACKP];
-                            sp = fp + (((int64_t)o_243) >> 1) - 1;
-                            o_244 = s_46[CTX_PC];
-                            if (!((o_244 & 1) != 0)) {
+                            s_80 = (oop *)(active_ctx + 16);
+                            m_84 = s_80[CTX_METHOD];
+                            o_344 = ((oop *)(m_84 + 16))[CM_LITERALS];
+                            lits = (oop *)(o_344 + 16);
+                            fp = s_80 + CTX_FIXED;
+                            o_345 = s_80[CTX_STACKP];
+                            sp = fp + (((int64_t)o_345) >> 1) - 1;
+                            o_346 = s_80[CTX_PC];
+                            if (!((o_346 & 1) != 0)) {
                                 fatal_begin();
                                 fprintf(stderr, "resuming a dead context");
                                 fatal_end();
                             }
-                            o_245 = *(uint64_t *)(m_50 + 16 + 24);
-                            o_246 = s_46[CTX_PC];
-                            ip = (uint8_t *)(o_245 + 16) + (((int64_t)o_246) >> 1);
+                            o_347 = *(uint64_t *)(m_84 + 16 + 24);
+                            o_348 = s_80[CTX_PC];
+                            ip = (uint8_t *)(o_347 + 16) + (((int64_t)o_348) >> 1);
+                            fr = (frame *)NULL;
+                        }
+                    }
+                    if (__builtin_expect((fr != NULL) && (fr->code != 0), 0)) {
+                        if (fr != NULL) {
+                            nframes = (int32_t)(fr - frames) + 1;
+                            fr->ip = ip;
+                            fr->sp = (int32_t)(sp - fp + 1);
+                            cstack_used = (uint64_t)(sp + 1 - cstack);
+                        } else {
+                            s_81 = (oop *)(active_ctx + 16);
+                            m_85 = s_81[CTX_METHOD];
+                            o_349 = *(uint64_t *)(m_85 + 16 + 24);
+                            v_211 = ip - (uint8_t *)(o_349 + 16);
+                            s_81[CTX_PC] = (uint64_t)((v_211 << 1) | 1);
+                            v_212 = sp - fp + 1;
+                            s_81[CTX_STACKP] = (uint64_t)((v_212 << 1) | 1);
+                        }
+                        jit_back_jump(fr);
+                        if (nframes != 0) {
+                            fr = frames + (nframes - 1);
+                            lits = fr->lits;
+                            fp = fr->fp;
+                            sp = fp + fr->sp - 1;
+                            ip = fr->ip;
+                        } else {
+                            s_82 = (oop *)(active_ctx + 16);
+                            m_86 = s_82[CTX_METHOD];
+                            o_350 = ((oop *)(m_86 + 16))[CM_LITERALS];
+                            lits = (oop *)(o_350 + 16);
+                            fp = s_82 + CTX_FIXED;
+                            o_351 = s_82[CTX_STACKP];
+                            sp = fp + (((int64_t)o_351) >> 1) - 1;
+                            o_352 = s_82[CTX_PC];
+                            if (!((o_352 & 1) != 0)) {
+                                fatal_begin();
+                                fprintf(stderr, "resuming a dead context");
+                                fatal_end();
+                            }
+                            o_353 = *(uint64_t *)(m_86 + 16 + 24);
+                            o_354 = s_82[CTX_PC];
+                            ip = (uint8_t *)(o_353 + 16) + (((int64_t)o_354) >> 1);
                             fr = (frame *)NULL;
                         }
                     }
@@ -5175,9 +6419,9 @@ op_fused_arithmetic_fa:;
     r_next_bytecode_181 = *(ip - 1);
     r_next_bytecode_181; })];
         }
-        v_177 = c_21 ? true_oop : false_oop;
+        v_213 = c_23 ? true_oop : false_oop;
         sp = sp + 1;
-        *sp = v_177;
+        *sp = v_213;
         ip = ip + 2;
         goto *ops[({
     ip = ip + 1;
@@ -5193,19 +6437,19 @@ op_fused_arithmetic_fa:;
 op_fused_arithmetic_fb:;
     a_21 = fp[ip[0]];
     b_19 = ({
-    v_178 = (int8_t)ip[1];
-    (uint64_t)((((int64_t)v_178) << 1) | 1); });
-    o_247 = a_21 & b_19;
-    if ((o_247 & 1) != 0) {
-        c_22 = (int64_t)a_21 >= (int64_t)b_19;
+    v_214 = (int8_t)ip[1];
+    (uint64_t)((((int64_t)v_214) << 1) | 1); });
+    o_355 = a_21 & b_19;
+    if ((o_355 & 1) != 0) {
+        c_24 = (int64_t)a_21 >= (int64_t)b_19;
         j_15 = ip[2];
         if ((j_15 == 0x92) || (j_15 == 0x91)) {
             p_18 = ip + 3;
-            o_248 = *(int16_t *)(uint64_t)p_18;
+            o_356 = *(int16_t *)(uint64_t)p_18;
             ip = ip + 5;
-            if (c_22 == (j_15 == 0x91)) {
-                ip = ip + o_248;
-                if (o_248 < 0) {
+            if (c_24 == (j_15 == 0x91)) {
+                ip = ip + o_356;
+                if (o_356 < 0) {
                     if (__builtin_expect(atomic_load_explicit(&interrupt_pending, memory_order_relaxed) != 0, 0)) {
                         if (fr != NULL) {
                             nframes = (int32_t)(fr - frames) + 1;
@@ -5213,13 +6457,13 @@ op_fused_arithmetic_fb:;
                             fr->sp = (int32_t)(sp - fp + 1);
                             cstack_used = (uint64_t)(sp + 1 - cstack);
                         } else {
-                            s_47 = (oop *)(active_ctx + 16);
-                            m_51 = s_47[CTX_METHOD];
-                            o_249 = *(uint64_t *)(m_51 + 16 + 24);
-                            v_179 = ip - (uint8_t *)(o_249 + 16);
-                            s_47[CTX_PC] = (uint64_t)((v_179 << 1) | 1);
-                            v_180 = sp - fp + 1;
-                            s_47[CTX_STACKP] = (uint64_t)((v_180 << 1) | 1);
+                            s_83 = (oop *)(active_ctx + 16);
+                            m_87 = s_83[CTX_METHOD];
+                            o_357 = *(uint64_t *)(m_87 + 16 + 24);
+                            v_215 = ip - (uint8_t *)(o_357 + 16);
+                            s_83[CTX_PC] = (uint64_t)((v_215 << 1) | 1);
+                            v_216 = sp - fp + 1;
+                            s_83[CTX_STACKP] = (uint64_t)((v_216 << 1) | 1);
                         }
                         interrupt_safepoint();
                         if (nframes != 0) {
@@ -5229,22 +6473,64 @@ op_fused_arithmetic_fb:;
                             sp = fp + fr->sp - 1;
                             ip = fr->ip;
                         } else {
-                            s_48 = (oop *)(active_ctx + 16);
-                            m_52 = s_48[CTX_METHOD];
-                            o_250 = ((oop *)(m_52 + 16))[CM_LITERALS];
-                            lits = (oop *)(o_250 + 16);
-                            fp = s_48 + CTX_FIXED;
-                            o_251 = s_48[CTX_STACKP];
-                            sp = fp + (((int64_t)o_251) >> 1) - 1;
-                            o_252 = s_48[CTX_PC];
-                            if (!((o_252 & 1) != 0)) {
+                            s_84 = (oop *)(active_ctx + 16);
+                            m_88 = s_84[CTX_METHOD];
+                            o_358 = ((oop *)(m_88 + 16))[CM_LITERALS];
+                            lits = (oop *)(o_358 + 16);
+                            fp = s_84 + CTX_FIXED;
+                            o_359 = s_84[CTX_STACKP];
+                            sp = fp + (((int64_t)o_359) >> 1) - 1;
+                            o_360 = s_84[CTX_PC];
+                            if (!((o_360 & 1) != 0)) {
                                 fatal_begin();
                                 fprintf(stderr, "resuming a dead context");
                                 fatal_end();
                             }
-                            o_253 = *(uint64_t *)(m_52 + 16 + 24);
-                            o_254 = s_48[CTX_PC];
-                            ip = (uint8_t *)(o_253 + 16) + (((int64_t)o_254) >> 1);
+                            o_361 = *(uint64_t *)(m_88 + 16 + 24);
+                            o_362 = s_84[CTX_PC];
+                            ip = (uint8_t *)(o_361 + 16) + (((int64_t)o_362) >> 1);
+                            fr = (frame *)NULL;
+                        }
+                    }
+                    if (__builtin_expect((fr != NULL) && (fr->code != 0), 0)) {
+                        if (fr != NULL) {
+                            nframes = (int32_t)(fr - frames) + 1;
+                            fr->ip = ip;
+                            fr->sp = (int32_t)(sp - fp + 1);
+                            cstack_used = (uint64_t)(sp + 1 - cstack);
+                        } else {
+                            s_85 = (oop *)(active_ctx + 16);
+                            m_89 = s_85[CTX_METHOD];
+                            o_363 = *(uint64_t *)(m_89 + 16 + 24);
+                            v_217 = ip - (uint8_t *)(o_363 + 16);
+                            s_85[CTX_PC] = (uint64_t)((v_217 << 1) | 1);
+                            v_218 = sp - fp + 1;
+                            s_85[CTX_STACKP] = (uint64_t)((v_218 << 1) | 1);
+                        }
+                        jit_back_jump(fr);
+                        if (nframes != 0) {
+                            fr = frames + (nframes - 1);
+                            lits = fr->lits;
+                            fp = fr->fp;
+                            sp = fp + fr->sp - 1;
+                            ip = fr->ip;
+                        } else {
+                            s_86 = (oop *)(active_ctx + 16);
+                            m_90 = s_86[CTX_METHOD];
+                            o_364 = ((oop *)(m_90 + 16))[CM_LITERALS];
+                            lits = (oop *)(o_364 + 16);
+                            fp = s_86 + CTX_FIXED;
+                            o_365 = s_86[CTX_STACKP];
+                            sp = fp + (((int64_t)o_365) >> 1) - 1;
+                            o_366 = s_86[CTX_PC];
+                            if (!((o_366 & 1) != 0)) {
+                                fatal_begin();
+                                fprintf(stderr, "resuming a dead context");
+                                fatal_end();
+                            }
+                            o_367 = *(uint64_t *)(m_90 + 16 + 24);
+                            o_368 = s_86[CTX_PC];
+                            ip = (uint8_t *)(o_367 + 16) + (((int64_t)o_368) >> 1);
                             fr = (frame *)NULL;
                         }
                     }
@@ -5255,9 +6541,9 @@ op_fused_arithmetic_fb:;
     r_next_bytecode_183 = *(ip - 1);
     r_next_bytecode_183; })];
         }
-        v_181 = c_22 ? true_oop : false_oop;
+        v_219 = c_24 ? true_oop : false_oop;
         sp = sp + 1;
-        *sp = v_181;
+        *sp = v_219;
         ip = ip + 2;
         goto *ops[({
     ip = ip + 1;
@@ -5272,13 +6558,13 @@ op_fused_arithmetic_fb:;
 op_add:;
     a_22 = sp[-1];
     b_20 = *sp;
-    o_255 = a_22 & b_20;
-    if ((o_255 & 1) != 0) {
+    o_369 = a_22 & b_20;
+    if ((o_369 & 1) != 0) {
         if (!__builtin_add_overflow((int64_t)a_22, (int64_t)b_20 - 1, &r_12)) {
-            v_182 = (uint64_t)r_12;
+            v_220 = (uint64_t)r_12;
             nx_3 = *ip;
             if ((nx_3 & 0xF8) == 0x60) {
-                fp[nx_3 & 7] = v_182;
+                fp[nx_3 & 7] = v_220;
                 sp = sp - 2;
                 ip = ip + 1;
                 goto *ops[({
@@ -5287,7 +6573,7 @@ op_add:;
     r_next_bytecode_185; })];
             }
             sp = sp - 1;
-            *sp = v_182;
+            *sp = v_220;
             goto *ops[({
     ip = ip + 1;
     r_next_bytecode_186 = *(ip - 1);
@@ -5363,13 +6649,13 @@ op_special_send:;
 op_subtract:;
     a_23 = sp[-1];
     b_24 = *sp;
-    o_256 = a_23 & b_24;
-    if ((o_256 & 1) != 0) {
+    o_370 = a_23 & b_24;
+    if ((o_370 & 1) != 0) {
         if (!__builtin_sub_overflow((int64_t)a_23, (int64_t)b_24 - 1, &r_15)) {
-            v_183 = (uint64_t)r_15;
+            v_221 = (uint64_t)r_15;
             nx_5 = *ip;
             if ((nx_5 & 0xF8) == 0x60) {
-                fp[nx_5 & 7] = v_183;
+                fp[nx_5 & 7] = v_221;
                 sp = sp - 2;
                 ip = ip + 1;
                 goto *ops[({
@@ -5378,7 +6664,7 @@ op_subtract:;
     r_next_bytecode_189; })];
             }
             sp = sp - 1;
-            *sp = v_183;
+            *sp = v_221;
             goto *ops[({
     ip = ip + 1;
     r_next_bytecode_190 = *(ip - 1);
@@ -5452,18 +6738,18 @@ op_less_than:;
     if (!({
     a_24 = sp[-1];
     b_28 = *sp;
-    o_257 = a_24 & b_28;
-    if ((o_257 & 1) != 0) {
-        c_23 = (int64_t)a_24 < (int64_t)b_28;
+    o_371 = a_24 & b_28;
+    if ((o_371 & 1) != 0) {
+        c_25 = (int64_t)a_24 < (int64_t)b_28;
         nx_7 = *ip;
         if ((nx_7 == 0x92) || (nx_7 == 0x91)) {
             p_19 = ip + 1;
-            o_258 = *(int16_t *)(uint64_t)p_19;
+            o_372 = *(int16_t *)(uint64_t)p_19;
             sp = sp - 2;
             ip = ip + 3;
-            if (c_23 == (nx_7 == 0x91)) {
-                ip = ip + o_258;
-                if (o_258 < 0) {
+            if (c_25 == (nx_7 == 0x91)) {
+                ip = ip + o_372;
+                if (o_372 < 0) {
                     if (__builtin_expect(atomic_load_explicit(&interrupt_pending, memory_order_relaxed) != 0, 0)) {
                         if (fr != NULL) {
                             nframes = (int32_t)(fr - frames) + 1;
@@ -5471,13 +6757,13 @@ op_less_than:;
                             fr->sp = (int32_t)(sp - fp + 1);
                             cstack_used = (uint64_t)(sp + 1 - cstack);
                         } else {
-                            s_49 = (oop *)(active_ctx + 16);
-                            m_53 = s_49[CTX_METHOD];
-                            o_259 = *(uint64_t *)(m_53 + 16 + 24);
-                            v_184 = ip - (uint8_t *)(o_259 + 16);
-                            s_49[CTX_PC] = (uint64_t)((v_184 << 1) | 1);
-                            v_185 = sp - fp + 1;
-                            s_49[CTX_STACKP] = (uint64_t)((v_185 << 1) | 1);
+                            s_87 = (oop *)(active_ctx + 16);
+                            m_91 = s_87[CTX_METHOD];
+                            o_373 = *(uint64_t *)(m_91 + 16 + 24);
+                            v_222 = ip - (uint8_t *)(o_373 + 16);
+                            s_87[CTX_PC] = (uint64_t)((v_222 << 1) | 1);
+                            v_223 = sp - fp + 1;
+                            s_87[CTX_STACKP] = (uint64_t)((v_223 << 1) | 1);
                         }
                         interrupt_safepoint();
                         if (nframes != 0) {
@@ -5487,22 +6773,64 @@ op_less_than:;
                             sp = fp + fr->sp - 1;
                             ip = fr->ip;
                         } else {
-                            s_50 = (oop *)(active_ctx + 16);
-                            m_54 = s_50[CTX_METHOD];
-                            o_260 = ((oop *)(m_54 + 16))[CM_LITERALS];
-                            lits = (oop *)(o_260 + 16);
-                            fp = s_50 + CTX_FIXED;
-                            o_261 = s_50[CTX_STACKP];
-                            sp = fp + (((int64_t)o_261) >> 1) - 1;
-                            o_262 = s_50[CTX_PC];
-                            if (!((o_262 & 1) != 0)) {
+                            s_88 = (oop *)(active_ctx + 16);
+                            m_92 = s_88[CTX_METHOD];
+                            o_374 = ((oop *)(m_92 + 16))[CM_LITERALS];
+                            lits = (oop *)(o_374 + 16);
+                            fp = s_88 + CTX_FIXED;
+                            o_375 = s_88[CTX_STACKP];
+                            sp = fp + (((int64_t)o_375) >> 1) - 1;
+                            o_376 = s_88[CTX_PC];
+                            if (!((o_376 & 1) != 0)) {
                                 fatal_begin();
                                 fprintf(stderr, "resuming a dead context");
                                 fatal_end();
                             }
-                            o_263 = *(uint64_t *)(m_54 + 16 + 24);
-                            o_264 = s_50[CTX_PC];
-                            ip = (uint8_t *)(o_263 + 16) + (((int64_t)o_264) >> 1);
+                            o_377 = *(uint64_t *)(m_92 + 16 + 24);
+                            o_378 = s_88[CTX_PC];
+                            ip = (uint8_t *)(o_377 + 16) + (((int64_t)o_378) >> 1);
+                            fr = (frame *)NULL;
+                        }
+                    }
+                    if (__builtin_expect((fr != NULL) && (fr->code != 0), 0)) {
+                        if (fr != NULL) {
+                            nframes = (int32_t)(fr - frames) + 1;
+                            fr->ip = ip;
+                            fr->sp = (int32_t)(sp - fp + 1);
+                            cstack_used = (uint64_t)(sp + 1 - cstack);
+                        } else {
+                            s_89 = (oop *)(active_ctx + 16);
+                            m_93 = s_89[CTX_METHOD];
+                            o_379 = *(uint64_t *)(m_93 + 16 + 24);
+                            v_224 = ip - (uint8_t *)(o_379 + 16);
+                            s_89[CTX_PC] = (uint64_t)((v_224 << 1) | 1);
+                            v_225 = sp - fp + 1;
+                            s_89[CTX_STACKP] = (uint64_t)((v_225 << 1) | 1);
+                        }
+                        jit_back_jump(fr);
+                        if (nframes != 0) {
+                            fr = frames + (nframes - 1);
+                            lits = fr->lits;
+                            fp = fr->fp;
+                            sp = fp + fr->sp - 1;
+                            ip = fr->ip;
+                        } else {
+                            s_90 = (oop *)(active_ctx + 16);
+                            m_94 = s_90[CTX_METHOD];
+                            o_380 = ((oop *)(m_94 + 16))[CM_LITERALS];
+                            lits = (oop *)(o_380 + 16);
+                            fp = s_90 + CTX_FIXED;
+                            o_381 = s_90[CTX_STACKP];
+                            sp = fp + (((int64_t)o_381) >> 1) - 1;
+                            o_382 = s_90[CTX_PC];
+                            if (!((o_382 & 1) != 0)) {
+                                fatal_begin();
+                                fprintf(stderr, "resuming a dead context");
+                                fatal_end();
+                            }
+                            o_383 = *(uint64_t *)(m_94 + 16 + 24);
+                            o_384 = s_90[CTX_PC];
+                            ip = (uint8_t *)(o_383 + 16) + (((int64_t)o_384) >> 1);
                             fr = (frame *)NULL;
                         }
                     }
@@ -5511,7 +6839,7 @@ op_less_than:;
             goto exit_bool_result;
         }
         sp = sp - 1;
-        *sp = c_23 ? true_oop : false_oop;
+        *sp = c_25 ? true_oop : false_oop;
     exit_bool_result:;
         r_compare_for = true;
         goto exit_compare_for;
@@ -5545,16 +6873,16 @@ exit_num_val_5:;
     r_num_val_6 = lt_double_from_bits(b_30);
 exit_num_val_6:;
     r_num_val_6; });
-        c_23 = x < y;
+        c_25 = x < y;
         nx_8 = *ip;
         if ((nx_8 == 0x92) || (nx_8 == 0x91)) {
             p_20 = ip + 1;
-            o_265 = *(int16_t *)(uint64_t)p_20;
+            o_385 = *(int16_t *)(uint64_t)p_20;
             sp = sp - 2;
             ip = ip + 3;
-            if (c_23 == (nx_8 == 0x91)) {
-                ip = ip + o_265;
-                if (o_265 < 0) {
+            if (c_25 == (nx_8 == 0x91)) {
+                ip = ip + o_385;
+                if (o_385 < 0) {
                     if (__builtin_expect(atomic_load_explicit(&interrupt_pending, memory_order_relaxed) != 0, 0)) {
                         if (fr != NULL) {
                             nframes = (int32_t)(fr - frames) + 1;
@@ -5562,13 +6890,13 @@ exit_num_val_6:;
                             fr->sp = (int32_t)(sp - fp + 1);
                             cstack_used = (uint64_t)(sp + 1 - cstack);
                         } else {
-                            s_51 = (oop *)(active_ctx + 16);
-                            m_55 = s_51[CTX_METHOD];
-                            o_266 = *(uint64_t *)(m_55 + 16 + 24);
-                            v_186 = ip - (uint8_t *)(o_266 + 16);
-                            s_51[CTX_PC] = (uint64_t)((v_186 << 1) | 1);
-                            v_187 = sp - fp + 1;
-                            s_51[CTX_STACKP] = (uint64_t)((v_187 << 1) | 1);
+                            s_91 = (oop *)(active_ctx + 16);
+                            m_95 = s_91[CTX_METHOD];
+                            o_386 = *(uint64_t *)(m_95 + 16 + 24);
+                            v_226 = ip - (uint8_t *)(o_386 + 16);
+                            s_91[CTX_PC] = (uint64_t)((v_226 << 1) | 1);
+                            v_227 = sp - fp + 1;
+                            s_91[CTX_STACKP] = (uint64_t)((v_227 << 1) | 1);
                         }
                         interrupt_safepoint();
                         if (nframes != 0) {
@@ -5578,22 +6906,64 @@ exit_num_val_6:;
                             sp = fp + fr->sp - 1;
                             ip = fr->ip;
                         } else {
-                            s_52 = (oop *)(active_ctx + 16);
-                            m_56 = s_52[CTX_METHOD];
-                            o_267 = ((oop *)(m_56 + 16))[CM_LITERALS];
-                            lits = (oop *)(o_267 + 16);
-                            fp = s_52 + CTX_FIXED;
-                            o_268 = s_52[CTX_STACKP];
-                            sp = fp + (((int64_t)o_268) >> 1) - 1;
-                            o_269 = s_52[CTX_PC];
-                            if (!((o_269 & 1) != 0)) {
+                            s_92 = (oop *)(active_ctx + 16);
+                            m_96 = s_92[CTX_METHOD];
+                            o_387 = ((oop *)(m_96 + 16))[CM_LITERALS];
+                            lits = (oop *)(o_387 + 16);
+                            fp = s_92 + CTX_FIXED;
+                            o_388 = s_92[CTX_STACKP];
+                            sp = fp + (((int64_t)o_388) >> 1) - 1;
+                            o_389 = s_92[CTX_PC];
+                            if (!((o_389 & 1) != 0)) {
                                 fatal_begin();
                                 fprintf(stderr, "resuming a dead context");
                                 fatal_end();
                             }
-                            o_270 = *(uint64_t *)(m_56 + 16 + 24);
-                            o_271 = s_52[CTX_PC];
-                            ip = (uint8_t *)(o_270 + 16) + (((int64_t)o_271) >> 1);
+                            o_390 = *(uint64_t *)(m_96 + 16 + 24);
+                            o_391 = s_92[CTX_PC];
+                            ip = (uint8_t *)(o_390 + 16) + (((int64_t)o_391) >> 1);
+                            fr = (frame *)NULL;
+                        }
+                    }
+                    if (__builtin_expect((fr != NULL) && (fr->code != 0), 0)) {
+                        if (fr != NULL) {
+                            nframes = (int32_t)(fr - frames) + 1;
+                            fr->ip = ip;
+                            fr->sp = (int32_t)(sp - fp + 1);
+                            cstack_used = (uint64_t)(sp + 1 - cstack);
+                        } else {
+                            s_93 = (oop *)(active_ctx + 16);
+                            m_97 = s_93[CTX_METHOD];
+                            o_392 = *(uint64_t *)(m_97 + 16 + 24);
+                            v_228 = ip - (uint8_t *)(o_392 + 16);
+                            s_93[CTX_PC] = (uint64_t)((v_228 << 1) | 1);
+                            v_229 = sp - fp + 1;
+                            s_93[CTX_STACKP] = (uint64_t)((v_229 << 1) | 1);
+                        }
+                        jit_back_jump(fr);
+                        if (nframes != 0) {
+                            fr = frames + (nframes - 1);
+                            lits = fr->lits;
+                            fp = fr->fp;
+                            sp = fp + fr->sp - 1;
+                            ip = fr->ip;
+                        } else {
+                            s_94 = (oop *)(active_ctx + 16);
+                            m_98 = s_94[CTX_METHOD];
+                            o_393 = ((oop *)(m_98 + 16))[CM_LITERALS];
+                            lits = (oop *)(o_393 + 16);
+                            fp = s_94 + CTX_FIXED;
+                            o_394 = s_94[CTX_STACKP];
+                            sp = fp + (((int64_t)o_394) >> 1) - 1;
+                            o_395 = s_94[CTX_PC];
+                            if (!((o_395 & 1) != 0)) {
+                                fatal_begin();
+                                fprintf(stderr, "resuming a dead context");
+                                fatal_end();
+                            }
+                            o_396 = *(uint64_t *)(m_98 + 16 + 24);
+                            o_397 = s_94[CTX_PC];
+                            ip = (uint8_t *)(o_396 + 16) + (((int64_t)o_397) >> 1);
                             fr = (frame *)NULL;
                         }
                     }
@@ -5602,7 +6972,7 @@ exit_num_val_6:;
             goto exit_bool_result_2;
         }
         sp = sp - 1;
-        *sp = c_23 ? true_oop : false_oop;
+        *sp = c_25 ? true_oop : false_oop;
     exit_bool_result_2:;
         r_compare_for = true;
         goto exit_compare_for;
@@ -5621,18 +6991,18 @@ op_greater_than:;
     if (!({
     a_25 = sp[-1];
     b_31 = *sp;
-    o_272 = a_25 & b_31;
-    if ((o_272 & 1) != 0) {
-        c_24 = (int64_t)a_25 > (int64_t)b_31;
+    o_398 = a_25 & b_31;
+    if ((o_398 & 1) != 0) {
+        c_26 = (int64_t)a_25 > (int64_t)b_31;
         nx_9 = *ip;
         if ((nx_9 == 0x92) || (nx_9 == 0x91)) {
             p_21 = ip + 1;
-            o_273 = *(int16_t *)(uint64_t)p_21;
+            o_399 = *(int16_t *)(uint64_t)p_21;
             sp = sp - 2;
             ip = ip + 3;
-            if (c_24 == (nx_9 == 0x91)) {
-                ip = ip + o_273;
-                if (o_273 < 0) {
+            if (c_26 == (nx_9 == 0x91)) {
+                ip = ip + o_399;
+                if (o_399 < 0) {
                     if (__builtin_expect(atomic_load_explicit(&interrupt_pending, memory_order_relaxed) != 0, 0)) {
                         if (fr != NULL) {
                             nframes = (int32_t)(fr - frames) + 1;
@@ -5640,13 +7010,13 @@ op_greater_than:;
                             fr->sp = (int32_t)(sp - fp + 1);
                             cstack_used = (uint64_t)(sp + 1 - cstack);
                         } else {
-                            s_53 = (oop *)(active_ctx + 16);
-                            m_57 = s_53[CTX_METHOD];
-                            o_274 = *(uint64_t *)(m_57 + 16 + 24);
-                            v_188 = ip - (uint8_t *)(o_274 + 16);
-                            s_53[CTX_PC] = (uint64_t)((v_188 << 1) | 1);
-                            v_189 = sp - fp + 1;
-                            s_53[CTX_STACKP] = (uint64_t)((v_189 << 1) | 1);
+                            s_95 = (oop *)(active_ctx + 16);
+                            m_99 = s_95[CTX_METHOD];
+                            o_400 = *(uint64_t *)(m_99 + 16 + 24);
+                            v_230 = ip - (uint8_t *)(o_400 + 16);
+                            s_95[CTX_PC] = (uint64_t)((v_230 << 1) | 1);
+                            v_231 = sp - fp + 1;
+                            s_95[CTX_STACKP] = (uint64_t)((v_231 << 1) | 1);
                         }
                         interrupt_safepoint();
                         if (nframes != 0) {
@@ -5656,22 +7026,64 @@ op_greater_than:;
                             sp = fp + fr->sp - 1;
                             ip = fr->ip;
                         } else {
-                            s_54 = (oop *)(active_ctx + 16);
-                            m_58 = s_54[CTX_METHOD];
-                            o_275 = ((oop *)(m_58 + 16))[CM_LITERALS];
-                            lits = (oop *)(o_275 + 16);
-                            fp = s_54 + CTX_FIXED;
-                            o_276 = s_54[CTX_STACKP];
-                            sp = fp + (((int64_t)o_276) >> 1) - 1;
-                            o_277 = s_54[CTX_PC];
-                            if (!((o_277 & 1) != 0)) {
+                            s_96 = (oop *)(active_ctx + 16);
+                            m_100 = s_96[CTX_METHOD];
+                            o_401 = ((oop *)(m_100 + 16))[CM_LITERALS];
+                            lits = (oop *)(o_401 + 16);
+                            fp = s_96 + CTX_FIXED;
+                            o_402 = s_96[CTX_STACKP];
+                            sp = fp + (((int64_t)o_402) >> 1) - 1;
+                            o_403 = s_96[CTX_PC];
+                            if (!((o_403 & 1) != 0)) {
                                 fatal_begin();
                                 fprintf(stderr, "resuming a dead context");
                                 fatal_end();
                             }
-                            o_278 = *(uint64_t *)(m_58 + 16 + 24);
-                            o_279 = s_54[CTX_PC];
-                            ip = (uint8_t *)(o_278 + 16) + (((int64_t)o_279) >> 1);
+                            o_404 = *(uint64_t *)(m_100 + 16 + 24);
+                            o_405 = s_96[CTX_PC];
+                            ip = (uint8_t *)(o_404 + 16) + (((int64_t)o_405) >> 1);
+                            fr = (frame *)NULL;
+                        }
+                    }
+                    if (__builtin_expect((fr != NULL) && (fr->code != 0), 0)) {
+                        if (fr != NULL) {
+                            nframes = (int32_t)(fr - frames) + 1;
+                            fr->ip = ip;
+                            fr->sp = (int32_t)(sp - fp + 1);
+                            cstack_used = (uint64_t)(sp + 1 - cstack);
+                        } else {
+                            s_97 = (oop *)(active_ctx + 16);
+                            m_101 = s_97[CTX_METHOD];
+                            o_406 = *(uint64_t *)(m_101 + 16 + 24);
+                            v_232 = ip - (uint8_t *)(o_406 + 16);
+                            s_97[CTX_PC] = (uint64_t)((v_232 << 1) | 1);
+                            v_233 = sp - fp + 1;
+                            s_97[CTX_STACKP] = (uint64_t)((v_233 << 1) | 1);
+                        }
+                        jit_back_jump(fr);
+                        if (nframes != 0) {
+                            fr = frames + (nframes - 1);
+                            lits = fr->lits;
+                            fp = fr->fp;
+                            sp = fp + fr->sp - 1;
+                            ip = fr->ip;
+                        } else {
+                            s_98 = (oop *)(active_ctx + 16);
+                            m_102 = s_98[CTX_METHOD];
+                            o_407 = ((oop *)(m_102 + 16))[CM_LITERALS];
+                            lits = (oop *)(o_407 + 16);
+                            fp = s_98 + CTX_FIXED;
+                            o_408 = s_98[CTX_STACKP];
+                            sp = fp + (((int64_t)o_408) >> 1) - 1;
+                            o_409 = s_98[CTX_PC];
+                            if (!((o_409 & 1) != 0)) {
+                                fatal_begin();
+                                fprintf(stderr, "resuming a dead context");
+                                fatal_end();
+                            }
+                            o_410 = *(uint64_t *)(m_102 + 16 + 24);
+                            o_411 = s_98[CTX_PC];
+                            ip = (uint8_t *)(o_410 + 16) + (((int64_t)o_411) >> 1);
                             fr = (frame *)NULL;
                         }
                     }
@@ -5680,7 +7092,7 @@ op_greater_than:;
             goto exit_bool_result_3;
         }
         sp = sp - 1;
-        *sp = c_24 ? true_oop : false_oop;
+        *sp = c_26 ? true_oop : false_oop;
     exit_bool_result_3:;
         r_compare_for_2 = true;
         goto exit_compare_for_2;
@@ -5714,16 +7126,16 @@ exit_num_val_7:;
     r_num_val_8 = lt_double_from_bits(b_33);
 exit_num_val_8:;
     r_num_val_8; });
-        c_24 = x_2 > y_2;
+        c_26 = x_2 > y_2;
         nx_10 = *ip;
         if ((nx_10 == 0x92) || (nx_10 == 0x91)) {
             p_22 = ip + 1;
-            o_280 = *(int16_t *)(uint64_t)p_22;
+            o_412 = *(int16_t *)(uint64_t)p_22;
             sp = sp - 2;
             ip = ip + 3;
-            if (c_24 == (nx_10 == 0x91)) {
-                ip = ip + o_280;
-                if (o_280 < 0) {
+            if (c_26 == (nx_10 == 0x91)) {
+                ip = ip + o_412;
+                if (o_412 < 0) {
                     if (__builtin_expect(atomic_load_explicit(&interrupt_pending, memory_order_relaxed) != 0, 0)) {
                         if (fr != NULL) {
                             nframes = (int32_t)(fr - frames) + 1;
@@ -5731,13 +7143,13 @@ exit_num_val_8:;
                             fr->sp = (int32_t)(sp - fp + 1);
                             cstack_used = (uint64_t)(sp + 1 - cstack);
                         } else {
-                            s_55 = (oop *)(active_ctx + 16);
-                            m_59 = s_55[CTX_METHOD];
-                            o_281 = *(uint64_t *)(m_59 + 16 + 24);
-                            v_190 = ip - (uint8_t *)(o_281 + 16);
-                            s_55[CTX_PC] = (uint64_t)((v_190 << 1) | 1);
-                            v_191 = sp - fp + 1;
-                            s_55[CTX_STACKP] = (uint64_t)((v_191 << 1) | 1);
+                            s_99 = (oop *)(active_ctx + 16);
+                            m_103 = s_99[CTX_METHOD];
+                            o_413 = *(uint64_t *)(m_103 + 16 + 24);
+                            v_234 = ip - (uint8_t *)(o_413 + 16);
+                            s_99[CTX_PC] = (uint64_t)((v_234 << 1) | 1);
+                            v_235 = sp - fp + 1;
+                            s_99[CTX_STACKP] = (uint64_t)((v_235 << 1) | 1);
                         }
                         interrupt_safepoint();
                         if (nframes != 0) {
@@ -5747,22 +7159,64 @@ exit_num_val_8:;
                             sp = fp + fr->sp - 1;
                             ip = fr->ip;
                         } else {
-                            s_56 = (oop *)(active_ctx + 16);
-                            m_60 = s_56[CTX_METHOD];
-                            o_282 = ((oop *)(m_60 + 16))[CM_LITERALS];
-                            lits = (oop *)(o_282 + 16);
-                            fp = s_56 + CTX_FIXED;
-                            o_283 = s_56[CTX_STACKP];
-                            sp = fp + (((int64_t)o_283) >> 1) - 1;
-                            o_284 = s_56[CTX_PC];
-                            if (!((o_284 & 1) != 0)) {
+                            s_100 = (oop *)(active_ctx + 16);
+                            m_104 = s_100[CTX_METHOD];
+                            o_414 = ((oop *)(m_104 + 16))[CM_LITERALS];
+                            lits = (oop *)(o_414 + 16);
+                            fp = s_100 + CTX_FIXED;
+                            o_415 = s_100[CTX_STACKP];
+                            sp = fp + (((int64_t)o_415) >> 1) - 1;
+                            o_416 = s_100[CTX_PC];
+                            if (!((o_416 & 1) != 0)) {
                                 fatal_begin();
                                 fprintf(stderr, "resuming a dead context");
                                 fatal_end();
                             }
-                            o_285 = *(uint64_t *)(m_60 + 16 + 24);
-                            o_286 = s_56[CTX_PC];
-                            ip = (uint8_t *)(o_285 + 16) + (((int64_t)o_286) >> 1);
+                            o_417 = *(uint64_t *)(m_104 + 16 + 24);
+                            o_418 = s_100[CTX_PC];
+                            ip = (uint8_t *)(o_417 + 16) + (((int64_t)o_418) >> 1);
+                            fr = (frame *)NULL;
+                        }
+                    }
+                    if (__builtin_expect((fr != NULL) && (fr->code != 0), 0)) {
+                        if (fr != NULL) {
+                            nframes = (int32_t)(fr - frames) + 1;
+                            fr->ip = ip;
+                            fr->sp = (int32_t)(sp - fp + 1);
+                            cstack_used = (uint64_t)(sp + 1 - cstack);
+                        } else {
+                            s_101 = (oop *)(active_ctx + 16);
+                            m_105 = s_101[CTX_METHOD];
+                            o_419 = *(uint64_t *)(m_105 + 16 + 24);
+                            v_236 = ip - (uint8_t *)(o_419 + 16);
+                            s_101[CTX_PC] = (uint64_t)((v_236 << 1) | 1);
+                            v_237 = sp - fp + 1;
+                            s_101[CTX_STACKP] = (uint64_t)((v_237 << 1) | 1);
+                        }
+                        jit_back_jump(fr);
+                        if (nframes != 0) {
+                            fr = frames + (nframes - 1);
+                            lits = fr->lits;
+                            fp = fr->fp;
+                            sp = fp + fr->sp - 1;
+                            ip = fr->ip;
+                        } else {
+                            s_102 = (oop *)(active_ctx + 16);
+                            m_106 = s_102[CTX_METHOD];
+                            o_420 = ((oop *)(m_106 + 16))[CM_LITERALS];
+                            lits = (oop *)(o_420 + 16);
+                            fp = s_102 + CTX_FIXED;
+                            o_421 = s_102[CTX_STACKP];
+                            sp = fp + (((int64_t)o_421) >> 1) - 1;
+                            o_422 = s_102[CTX_PC];
+                            if (!((o_422 & 1) != 0)) {
+                                fatal_begin();
+                                fprintf(stderr, "resuming a dead context");
+                                fatal_end();
+                            }
+                            o_423 = *(uint64_t *)(m_106 + 16 + 24);
+                            o_424 = s_102[CTX_PC];
+                            ip = (uint8_t *)(o_423 + 16) + (((int64_t)o_424) >> 1);
                             fr = (frame *)NULL;
                         }
                     }
@@ -5771,7 +7225,7 @@ exit_num_val_8:;
             goto exit_bool_result_4;
         }
         sp = sp - 1;
-        *sp = c_24 ? true_oop : false_oop;
+        *sp = c_26 ? true_oop : false_oop;
     exit_bool_result_4:;
         r_compare_for_2 = true;
         goto exit_compare_for_2;
@@ -5790,18 +7244,18 @@ op_less_or_equal:;
     if (!({
     a_26 = sp[-1];
     b_34 = *sp;
-    o_287 = a_26 & b_34;
-    if ((o_287 & 1) != 0) {
-        c_25 = (int64_t)a_26 <= (int64_t)b_34;
+    o_425 = a_26 & b_34;
+    if ((o_425 & 1) != 0) {
+        c_27 = (int64_t)a_26 <= (int64_t)b_34;
         nx_11 = *ip;
         if ((nx_11 == 0x92) || (nx_11 == 0x91)) {
             p_23 = ip + 1;
-            o_288 = *(int16_t *)(uint64_t)p_23;
+            o_426 = *(int16_t *)(uint64_t)p_23;
             sp = sp - 2;
             ip = ip + 3;
-            if (c_25 == (nx_11 == 0x91)) {
-                ip = ip + o_288;
-                if (o_288 < 0) {
+            if (c_27 == (nx_11 == 0x91)) {
+                ip = ip + o_426;
+                if (o_426 < 0) {
                     if (__builtin_expect(atomic_load_explicit(&interrupt_pending, memory_order_relaxed) != 0, 0)) {
                         if (fr != NULL) {
                             nframes = (int32_t)(fr - frames) + 1;
@@ -5809,13 +7263,13 @@ op_less_or_equal:;
                             fr->sp = (int32_t)(sp - fp + 1);
                             cstack_used = (uint64_t)(sp + 1 - cstack);
                         } else {
-                            s_57 = (oop *)(active_ctx + 16);
-                            m_61 = s_57[CTX_METHOD];
-                            o_289 = *(uint64_t *)(m_61 + 16 + 24);
-                            v_192 = ip - (uint8_t *)(o_289 + 16);
-                            s_57[CTX_PC] = (uint64_t)((v_192 << 1) | 1);
-                            v_193 = sp - fp + 1;
-                            s_57[CTX_STACKP] = (uint64_t)((v_193 << 1) | 1);
+                            s_103 = (oop *)(active_ctx + 16);
+                            m_107 = s_103[CTX_METHOD];
+                            o_427 = *(uint64_t *)(m_107 + 16 + 24);
+                            v_238 = ip - (uint8_t *)(o_427 + 16);
+                            s_103[CTX_PC] = (uint64_t)((v_238 << 1) | 1);
+                            v_239 = sp - fp + 1;
+                            s_103[CTX_STACKP] = (uint64_t)((v_239 << 1) | 1);
                         }
                         interrupt_safepoint();
                         if (nframes != 0) {
@@ -5825,22 +7279,64 @@ op_less_or_equal:;
                             sp = fp + fr->sp - 1;
                             ip = fr->ip;
                         } else {
-                            s_58 = (oop *)(active_ctx + 16);
-                            m_62 = s_58[CTX_METHOD];
-                            o_290 = ((oop *)(m_62 + 16))[CM_LITERALS];
-                            lits = (oop *)(o_290 + 16);
-                            fp = s_58 + CTX_FIXED;
-                            o_291 = s_58[CTX_STACKP];
-                            sp = fp + (((int64_t)o_291) >> 1) - 1;
-                            o_292 = s_58[CTX_PC];
-                            if (!((o_292 & 1) != 0)) {
+                            s_104 = (oop *)(active_ctx + 16);
+                            m_108 = s_104[CTX_METHOD];
+                            o_428 = ((oop *)(m_108 + 16))[CM_LITERALS];
+                            lits = (oop *)(o_428 + 16);
+                            fp = s_104 + CTX_FIXED;
+                            o_429 = s_104[CTX_STACKP];
+                            sp = fp + (((int64_t)o_429) >> 1) - 1;
+                            o_430 = s_104[CTX_PC];
+                            if (!((o_430 & 1) != 0)) {
                                 fatal_begin();
                                 fprintf(stderr, "resuming a dead context");
                                 fatal_end();
                             }
-                            o_293 = *(uint64_t *)(m_62 + 16 + 24);
-                            o_294 = s_58[CTX_PC];
-                            ip = (uint8_t *)(o_293 + 16) + (((int64_t)o_294) >> 1);
+                            o_431 = *(uint64_t *)(m_108 + 16 + 24);
+                            o_432 = s_104[CTX_PC];
+                            ip = (uint8_t *)(o_431 + 16) + (((int64_t)o_432) >> 1);
+                            fr = (frame *)NULL;
+                        }
+                    }
+                    if (__builtin_expect((fr != NULL) && (fr->code != 0), 0)) {
+                        if (fr != NULL) {
+                            nframes = (int32_t)(fr - frames) + 1;
+                            fr->ip = ip;
+                            fr->sp = (int32_t)(sp - fp + 1);
+                            cstack_used = (uint64_t)(sp + 1 - cstack);
+                        } else {
+                            s_105 = (oop *)(active_ctx + 16);
+                            m_109 = s_105[CTX_METHOD];
+                            o_433 = *(uint64_t *)(m_109 + 16 + 24);
+                            v_240 = ip - (uint8_t *)(o_433 + 16);
+                            s_105[CTX_PC] = (uint64_t)((v_240 << 1) | 1);
+                            v_241 = sp - fp + 1;
+                            s_105[CTX_STACKP] = (uint64_t)((v_241 << 1) | 1);
+                        }
+                        jit_back_jump(fr);
+                        if (nframes != 0) {
+                            fr = frames + (nframes - 1);
+                            lits = fr->lits;
+                            fp = fr->fp;
+                            sp = fp + fr->sp - 1;
+                            ip = fr->ip;
+                        } else {
+                            s_106 = (oop *)(active_ctx + 16);
+                            m_110 = s_106[CTX_METHOD];
+                            o_434 = ((oop *)(m_110 + 16))[CM_LITERALS];
+                            lits = (oop *)(o_434 + 16);
+                            fp = s_106 + CTX_FIXED;
+                            o_435 = s_106[CTX_STACKP];
+                            sp = fp + (((int64_t)o_435) >> 1) - 1;
+                            o_436 = s_106[CTX_PC];
+                            if (!((o_436 & 1) != 0)) {
+                                fatal_begin();
+                                fprintf(stderr, "resuming a dead context");
+                                fatal_end();
+                            }
+                            o_437 = *(uint64_t *)(m_110 + 16 + 24);
+                            o_438 = s_106[CTX_PC];
+                            ip = (uint8_t *)(o_437 + 16) + (((int64_t)o_438) >> 1);
                             fr = (frame *)NULL;
                         }
                     }
@@ -5849,7 +7345,7 @@ op_less_or_equal:;
             goto exit_bool_result_5;
         }
         sp = sp - 1;
-        *sp = c_25 ? true_oop : false_oop;
+        *sp = c_27 ? true_oop : false_oop;
     exit_bool_result_5:;
         r_compare_for_3 = true;
         goto exit_compare_for_3;
@@ -5883,16 +7379,16 @@ exit_num_val_9:;
     r_num_val_10 = lt_double_from_bits(b_36);
 exit_num_val_10:;
     r_num_val_10; });
-        c_25 = x_3 <= y_3;
+        c_27 = x_3 <= y_3;
         nx_12 = *ip;
         if ((nx_12 == 0x92) || (nx_12 == 0x91)) {
             p_24 = ip + 1;
-            o_295 = *(int16_t *)(uint64_t)p_24;
+            o_439 = *(int16_t *)(uint64_t)p_24;
             sp = sp - 2;
             ip = ip + 3;
-            if (c_25 == (nx_12 == 0x91)) {
-                ip = ip + o_295;
-                if (o_295 < 0) {
+            if (c_27 == (nx_12 == 0x91)) {
+                ip = ip + o_439;
+                if (o_439 < 0) {
                     if (__builtin_expect(atomic_load_explicit(&interrupt_pending, memory_order_relaxed) != 0, 0)) {
                         if (fr != NULL) {
                             nframes = (int32_t)(fr - frames) + 1;
@@ -5900,13 +7396,13 @@ exit_num_val_10:;
                             fr->sp = (int32_t)(sp - fp + 1);
                             cstack_used = (uint64_t)(sp + 1 - cstack);
                         } else {
-                            s_59 = (oop *)(active_ctx + 16);
-                            m_63 = s_59[CTX_METHOD];
-                            o_296 = *(uint64_t *)(m_63 + 16 + 24);
-                            v_194 = ip - (uint8_t *)(o_296 + 16);
-                            s_59[CTX_PC] = (uint64_t)((v_194 << 1) | 1);
-                            v_195 = sp - fp + 1;
-                            s_59[CTX_STACKP] = (uint64_t)((v_195 << 1) | 1);
+                            s_107 = (oop *)(active_ctx + 16);
+                            m_111 = s_107[CTX_METHOD];
+                            o_440 = *(uint64_t *)(m_111 + 16 + 24);
+                            v_242 = ip - (uint8_t *)(o_440 + 16);
+                            s_107[CTX_PC] = (uint64_t)((v_242 << 1) | 1);
+                            v_243 = sp - fp + 1;
+                            s_107[CTX_STACKP] = (uint64_t)((v_243 << 1) | 1);
                         }
                         interrupt_safepoint();
                         if (nframes != 0) {
@@ -5916,22 +7412,64 @@ exit_num_val_10:;
                             sp = fp + fr->sp - 1;
                             ip = fr->ip;
                         } else {
-                            s_60 = (oop *)(active_ctx + 16);
-                            m_64 = s_60[CTX_METHOD];
-                            o_297 = ((oop *)(m_64 + 16))[CM_LITERALS];
-                            lits = (oop *)(o_297 + 16);
-                            fp = s_60 + CTX_FIXED;
-                            o_298 = s_60[CTX_STACKP];
-                            sp = fp + (((int64_t)o_298) >> 1) - 1;
-                            o_299 = s_60[CTX_PC];
-                            if (!((o_299 & 1) != 0)) {
+                            s_108 = (oop *)(active_ctx + 16);
+                            m_112 = s_108[CTX_METHOD];
+                            o_441 = ((oop *)(m_112 + 16))[CM_LITERALS];
+                            lits = (oop *)(o_441 + 16);
+                            fp = s_108 + CTX_FIXED;
+                            o_442 = s_108[CTX_STACKP];
+                            sp = fp + (((int64_t)o_442) >> 1) - 1;
+                            o_443 = s_108[CTX_PC];
+                            if (!((o_443 & 1) != 0)) {
                                 fatal_begin();
                                 fprintf(stderr, "resuming a dead context");
                                 fatal_end();
                             }
-                            o_300 = *(uint64_t *)(m_64 + 16 + 24);
-                            o_301 = s_60[CTX_PC];
-                            ip = (uint8_t *)(o_300 + 16) + (((int64_t)o_301) >> 1);
+                            o_444 = *(uint64_t *)(m_112 + 16 + 24);
+                            o_445 = s_108[CTX_PC];
+                            ip = (uint8_t *)(o_444 + 16) + (((int64_t)o_445) >> 1);
+                            fr = (frame *)NULL;
+                        }
+                    }
+                    if (__builtin_expect((fr != NULL) && (fr->code != 0), 0)) {
+                        if (fr != NULL) {
+                            nframes = (int32_t)(fr - frames) + 1;
+                            fr->ip = ip;
+                            fr->sp = (int32_t)(sp - fp + 1);
+                            cstack_used = (uint64_t)(sp + 1 - cstack);
+                        } else {
+                            s_109 = (oop *)(active_ctx + 16);
+                            m_113 = s_109[CTX_METHOD];
+                            o_446 = *(uint64_t *)(m_113 + 16 + 24);
+                            v_244 = ip - (uint8_t *)(o_446 + 16);
+                            s_109[CTX_PC] = (uint64_t)((v_244 << 1) | 1);
+                            v_245 = sp - fp + 1;
+                            s_109[CTX_STACKP] = (uint64_t)((v_245 << 1) | 1);
+                        }
+                        jit_back_jump(fr);
+                        if (nframes != 0) {
+                            fr = frames + (nframes - 1);
+                            lits = fr->lits;
+                            fp = fr->fp;
+                            sp = fp + fr->sp - 1;
+                            ip = fr->ip;
+                        } else {
+                            s_110 = (oop *)(active_ctx + 16);
+                            m_114 = s_110[CTX_METHOD];
+                            o_447 = ((oop *)(m_114 + 16))[CM_LITERALS];
+                            lits = (oop *)(o_447 + 16);
+                            fp = s_110 + CTX_FIXED;
+                            o_448 = s_110[CTX_STACKP];
+                            sp = fp + (((int64_t)o_448) >> 1) - 1;
+                            o_449 = s_110[CTX_PC];
+                            if (!((o_449 & 1) != 0)) {
+                                fatal_begin();
+                                fprintf(stderr, "resuming a dead context");
+                                fatal_end();
+                            }
+                            o_450 = *(uint64_t *)(m_114 + 16 + 24);
+                            o_451 = s_110[CTX_PC];
+                            ip = (uint8_t *)(o_450 + 16) + (((int64_t)o_451) >> 1);
                             fr = (frame *)NULL;
                         }
                     }
@@ -5940,7 +7478,7 @@ exit_num_val_10:;
             goto exit_bool_result_6;
         }
         sp = sp - 1;
-        *sp = c_25 ? true_oop : false_oop;
+        *sp = c_27 ? true_oop : false_oop;
     exit_bool_result_6:;
         r_compare_for_3 = true;
         goto exit_compare_for_3;
@@ -5959,18 +7497,18 @@ op_greater_or_equal:;
     if (!({
     a_27 = sp[-1];
     b_37 = *sp;
-    o_302 = a_27 & b_37;
-    if ((o_302 & 1) != 0) {
-        c_26 = (int64_t)a_27 >= (int64_t)b_37;
+    o_452 = a_27 & b_37;
+    if ((o_452 & 1) != 0) {
+        c_28 = (int64_t)a_27 >= (int64_t)b_37;
         nx_13 = *ip;
         if ((nx_13 == 0x92) || (nx_13 == 0x91)) {
             p_25 = ip + 1;
-            o_303 = *(int16_t *)(uint64_t)p_25;
+            o_453 = *(int16_t *)(uint64_t)p_25;
             sp = sp - 2;
             ip = ip + 3;
-            if (c_26 == (nx_13 == 0x91)) {
-                ip = ip + o_303;
-                if (o_303 < 0) {
+            if (c_28 == (nx_13 == 0x91)) {
+                ip = ip + o_453;
+                if (o_453 < 0) {
                     if (__builtin_expect(atomic_load_explicit(&interrupt_pending, memory_order_relaxed) != 0, 0)) {
                         if (fr != NULL) {
                             nframes = (int32_t)(fr - frames) + 1;
@@ -5978,13 +7516,13 @@ op_greater_or_equal:;
                             fr->sp = (int32_t)(sp - fp + 1);
                             cstack_used = (uint64_t)(sp + 1 - cstack);
                         } else {
-                            s_61 = (oop *)(active_ctx + 16);
-                            m_65 = s_61[CTX_METHOD];
-                            o_304 = *(uint64_t *)(m_65 + 16 + 24);
-                            v_196 = ip - (uint8_t *)(o_304 + 16);
-                            s_61[CTX_PC] = (uint64_t)((v_196 << 1) | 1);
-                            v_197 = sp - fp + 1;
-                            s_61[CTX_STACKP] = (uint64_t)((v_197 << 1) | 1);
+                            s_111 = (oop *)(active_ctx + 16);
+                            m_115 = s_111[CTX_METHOD];
+                            o_454 = *(uint64_t *)(m_115 + 16 + 24);
+                            v_246 = ip - (uint8_t *)(o_454 + 16);
+                            s_111[CTX_PC] = (uint64_t)((v_246 << 1) | 1);
+                            v_247 = sp - fp + 1;
+                            s_111[CTX_STACKP] = (uint64_t)((v_247 << 1) | 1);
                         }
                         interrupt_safepoint();
                         if (nframes != 0) {
@@ -5994,22 +7532,64 @@ op_greater_or_equal:;
                             sp = fp + fr->sp - 1;
                             ip = fr->ip;
                         } else {
-                            s_62 = (oop *)(active_ctx + 16);
-                            m_66 = s_62[CTX_METHOD];
-                            o_305 = ((oop *)(m_66 + 16))[CM_LITERALS];
-                            lits = (oop *)(o_305 + 16);
-                            fp = s_62 + CTX_FIXED;
-                            o_306 = s_62[CTX_STACKP];
-                            sp = fp + (((int64_t)o_306) >> 1) - 1;
-                            o_307 = s_62[CTX_PC];
-                            if (!((o_307 & 1) != 0)) {
+                            s_112 = (oop *)(active_ctx + 16);
+                            m_116 = s_112[CTX_METHOD];
+                            o_455 = ((oop *)(m_116 + 16))[CM_LITERALS];
+                            lits = (oop *)(o_455 + 16);
+                            fp = s_112 + CTX_FIXED;
+                            o_456 = s_112[CTX_STACKP];
+                            sp = fp + (((int64_t)o_456) >> 1) - 1;
+                            o_457 = s_112[CTX_PC];
+                            if (!((o_457 & 1) != 0)) {
                                 fatal_begin();
                                 fprintf(stderr, "resuming a dead context");
                                 fatal_end();
                             }
-                            o_308 = *(uint64_t *)(m_66 + 16 + 24);
-                            o_309 = s_62[CTX_PC];
-                            ip = (uint8_t *)(o_308 + 16) + (((int64_t)o_309) >> 1);
+                            o_458 = *(uint64_t *)(m_116 + 16 + 24);
+                            o_459 = s_112[CTX_PC];
+                            ip = (uint8_t *)(o_458 + 16) + (((int64_t)o_459) >> 1);
+                            fr = (frame *)NULL;
+                        }
+                    }
+                    if (__builtin_expect((fr != NULL) && (fr->code != 0), 0)) {
+                        if (fr != NULL) {
+                            nframes = (int32_t)(fr - frames) + 1;
+                            fr->ip = ip;
+                            fr->sp = (int32_t)(sp - fp + 1);
+                            cstack_used = (uint64_t)(sp + 1 - cstack);
+                        } else {
+                            s_113 = (oop *)(active_ctx + 16);
+                            m_117 = s_113[CTX_METHOD];
+                            o_460 = *(uint64_t *)(m_117 + 16 + 24);
+                            v_248 = ip - (uint8_t *)(o_460 + 16);
+                            s_113[CTX_PC] = (uint64_t)((v_248 << 1) | 1);
+                            v_249 = sp - fp + 1;
+                            s_113[CTX_STACKP] = (uint64_t)((v_249 << 1) | 1);
+                        }
+                        jit_back_jump(fr);
+                        if (nframes != 0) {
+                            fr = frames + (nframes - 1);
+                            lits = fr->lits;
+                            fp = fr->fp;
+                            sp = fp + fr->sp - 1;
+                            ip = fr->ip;
+                        } else {
+                            s_114 = (oop *)(active_ctx + 16);
+                            m_118 = s_114[CTX_METHOD];
+                            o_461 = ((oop *)(m_118 + 16))[CM_LITERALS];
+                            lits = (oop *)(o_461 + 16);
+                            fp = s_114 + CTX_FIXED;
+                            o_462 = s_114[CTX_STACKP];
+                            sp = fp + (((int64_t)o_462) >> 1) - 1;
+                            o_463 = s_114[CTX_PC];
+                            if (!((o_463 & 1) != 0)) {
+                                fatal_begin();
+                                fprintf(stderr, "resuming a dead context");
+                                fatal_end();
+                            }
+                            o_464 = *(uint64_t *)(m_118 + 16 + 24);
+                            o_465 = s_114[CTX_PC];
+                            ip = (uint8_t *)(o_464 + 16) + (((int64_t)o_465) >> 1);
                             fr = (frame *)NULL;
                         }
                     }
@@ -6018,7 +7598,7 @@ op_greater_or_equal:;
             goto exit_bool_result_7;
         }
         sp = sp - 1;
-        *sp = c_26 ? true_oop : false_oop;
+        *sp = c_28 ? true_oop : false_oop;
     exit_bool_result_7:;
         r_compare_for_4 = true;
         goto exit_compare_for_4;
@@ -6052,16 +7632,16 @@ exit_num_val_11:;
     r_num_val_12 = lt_double_from_bits(b_39);
 exit_num_val_12:;
     r_num_val_12; });
-        c_26 = x_4 >= y_4;
+        c_28 = x_4 >= y_4;
         nx_14 = *ip;
         if ((nx_14 == 0x92) || (nx_14 == 0x91)) {
             p_26 = ip + 1;
-            o_310 = *(int16_t *)(uint64_t)p_26;
+            o_466 = *(int16_t *)(uint64_t)p_26;
             sp = sp - 2;
             ip = ip + 3;
-            if (c_26 == (nx_14 == 0x91)) {
-                ip = ip + o_310;
-                if (o_310 < 0) {
+            if (c_28 == (nx_14 == 0x91)) {
+                ip = ip + o_466;
+                if (o_466 < 0) {
                     if (__builtin_expect(atomic_load_explicit(&interrupt_pending, memory_order_relaxed) != 0, 0)) {
                         if (fr != NULL) {
                             nframes = (int32_t)(fr - frames) + 1;
@@ -6069,13 +7649,13 @@ exit_num_val_12:;
                             fr->sp = (int32_t)(sp - fp + 1);
                             cstack_used = (uint64_t)(sp + 1 - cstack);
                         } else {
-                            s_63 = (oop *)(active_ctx + 16);
-                            m_67 = s_63[CTX_METHOD];
-                            o_311 = *(uint64_t *)(m_67 + 16 + 24);
-                            v_198 = ip - (uint8_t *)(o_311 + 16);
-                            s_63[CTX_PC] = (uint64_t)((v_198 << 1) | 1);
-                            v_199 = sp - fp + 1;
-                            s_63[CTX_STACKP] = (uint64_t)((v_199 << 1) | 1);
+                            s_115 = (oop *)(active_ctx + 16);
+                            m_119 = s_115[CTX_METHOD];
+                            o_467 = *(uint64_t *)(m_119 + 16 + 24);
+                            v_250 = ip - (uint8_t *)(o_467 + 16);
+                            s_115[CTX_PC] = (uint64_t)((v_250 << 1) | 1);
+                            v_251 = sp - fp + 1;
+                            s_115[CTX_STACKP] = (uint64_t)((v_251 << 1) | 1);
                         }
                         interrupt_safepoint();
                         if (nframes != 0) {
@@ -6085,22 +7665,64 @@ exit_num_val_12:;
                             sp = fp + fr->sp - 1;
                             ip = fr->ip;
                         } else {
-                            s_64 = (oop *)(active_ctx + 16);
-                            m_68 = s_64[CTX_METHOD];
-                            o_312 = ((oop *)(m_68 + 16))[CM_LITERALS];
-                            lits = (oop *)(o_312 + 16);
-                            fp = s_64 + CTX_FIXED;
-                            o_313 = s_64[CTX_STACKP];
-                            sp = fp + (((int64_t)o_313) >> 1) - 1;
-                            o_314 = s_64[CTX_PC];
-                            if (!((o_314 & 1) != 0)) {
+                            s_116 = (oop *)(active_ctx + 16);
+                            m_120 = s_116[CTX_METHOD];
+                            o_468 = ((oop *)(m_120 + 16))[CM_LITERALS];
+                            lits = (oop *)(o_468 + 16);
+                            fp = s_116 + CTX_FIXED;
+                            o_469 = s_116[CTX_STACKP];
+                            sp = fp + (((int64_t)o_469) >> 1) - 1;
+                            o_470 = s_116[CTX_PC];
+                            if (!((o_470 & 1) != 0)) {
                                 fatal_begin();
                                 fprintf(stderr, "resuming a dead context");
                                 fatal_end();
                             }
-                            o_315 = *(uint64_t *)(m_68 + 16 + 24);
-                            o_316 = s_64[CTX_PC];
-                            ip = (uint8_t *)(o_315 + 16) + (((int64_t)o_316) >> 1);
+                            o_471 = *(uint64_t *)(m_120 + 16 + 24);
+                            o_472 = s_116[CTX_PC];
+                            ip = (uint8_t *)(o_471 + 16) + (((int64_t)o_472) >> 1);
+                            fr = (frame *)NULL;
+                        }
+                    }
+                    if (__builtin_expect((fr != NULL) && (fr->code != 0), 0)) {
+                        if (fr != NULL) {
+                            nframes = (int32_t)(fr - frames) + 1;
+                            fr->ip = ip;
+                            fr->sp = (int32_t)(sp - fp + 1);
+                            cstack_used = (uint64_t)(sp + 1 - cstack);
+                        } else {
+                            s_117 = (oop *)(active_ctx + 16);
+                            m_121 = s_117[CTX_METHOD];
+                            o_473 = *(uint64_t *)(m_121 + 16 + 24);
+                            v_252 = ip - (uint8_t *)(o_473 + 16);
+                            s_117[CTX_PC] = (uint64_t)((v_252 << 1) | 1);
+                            v_253 = sp - fp + 1;
+                            s_117[CTX_STACKP] = (uint64_t)((v_253 << 1) | 1);
+                        }
+                        jit_back_jump(fr);
+                        if (nframes != 0) {
+                            fr = frames + (nframes - 1);
+                            lits = fr->lits;
+                            fp = fr->fp;
+                            sp = fp + fr->sp - 1;
+                            ip = fr->ip;
+                        } else {
+                            s_118 = (oop *)(active_ctx + 16);
+                            m_122 = s_118[CTX_METHOD];
+                            o_474 = ((oop *)(m_122 + 16))[CM_LITERALS];
+                            lits = (oop *)(o_474 + 16);
+                            fp = s_118 + CTX_FIXED;
+                            o_475 = s_118[CTX_STACKP];
+                            sp = fp + (((int64_t)o_475) >> 1) - 1;
+                            o_476 = s_118[CTX_PC];
+                            if (!((o_476 & 1) != 0)) {
+                                fatal_begin();
+                                fprintf(stderr, "resuming a dead context");
+                                fatal_end();
+                            }
+                            o_477 = *(uint64_t *)(m_122 + 16 + 24);
+                            o_478 = s_118[CTX_PC];
+                            ip = (uint8_t *)(o_477 + 16) + (((int64_t)o_478) >> 1);
                             fr = (frame *)NULL;
                         }
                     }
@@ -6109,7 +7731,7 @@ exit_num_val_12:;
             goto exit_bool_result_8;
         }
         sp = sp - 1;
-        *sp = c_26 ? true_oop : false_oop;
+        *sp = c_28 ? true_oop : false_oop;
     exit_bool_result_8:;
         r_compare_for_4 = true;
         goto exit_compare_for_4;
@@ -6128,18 +7750,18 @@ op_equal:;
     if (!({
     a_28 = sp[-1];
     b_40 = *sp;
-    o_317 = a_28 & b_40;
-    if ((o_317 & 1) != 0) {
-        c_27 = a_28 == b_40;
+    o_479 = a_28 & b_40;
+    if ((o_479 & 1) != 0) {
+        c_29 = a_28 == b_40;
         nx_15 = *ip;
         if ((nx_15 == 0x92) || (nx_15 == 0x91)) {
             p_27 = ip + 1;
-            o_318 = *(int16_t *)(uint64_t)p_27;
+            o_480 = *(int16_t *)(uint64_t)p_27;
             sp = sp - 2;
             ip = ip + 3;
-            if (c_27 == (nx_15 == 0x91)) {
-                ip = ip + o_318;
-                if (o_318 < 0) {
+            if (c_29 == (nx_15 == 0x91)) {
+                ip = ip + o_480;
+                if (o_480 < 0) {
                     if (__builtin_expect(atomic_load_explicit(&interrupt_pending, memory_order_relaxed) != 0, 0)) {
                         if (fr != NULL) {
                             nframes = (int32_t)(fr - frames) + 1;
@@ -6147,13 +7769,13 @@ op_equal:;
                             fr->sp = (int32_t)(sp - fp + 1);
                             cstack_used = (uint64_t)(sp + 1 - cstack);
                         } else {
-                            s_65 = (oop *)(active_ctx + 16);
-                            m_69 = s_65[CTX_METHOD];
-                            o_319 = *(uint64_t *)(m_69 + 16 + 24);
-                            v_200 = ip - (uint8_t *)(o_319 + 16);
-                            s_65[CTX_PC] = (uint64_t)((v_200 << 1) | 1);
-                            v_201 = sp - fp + 1;
-                            s_65[CTX_STACKP] = (uint64_t)((v_201 << 1) | 1);
+                            s_119 = (oop *)(active_ctx + 16);
+                            m_123 = s_119[CTX_METHOD];
+                            o_481 = *(uint64_t *)(m_123 + 16 + 24);
+                            v_254 = ip - (uint8_t *)(o_481 + 16);
+                            s_119[CTX_PC] = (uint64_t)((v_254 << 1) | 1);
+                            v_255 = sp - fp + 1;
+                            s_119[CTX_STACKP] = (uint64_t)((v_255 << 1) | 1);
                         }
                         interrupt_safepoint();
                         if (nframes != 0) {
@@ -6163,22 +7785,64 @@ op_equal:;
                             sp = fp + fr->sp - 1;
                             ip = fr->ip;
                         } else {
-                            s_66 = (oop *)(active_ctx + 16);
-                            m_70 = s_66[CTX_METHOD];
-                            o_320 = ((oop *)(m_70 + 16))[CM_LITERALS];
-                            lits = (oop *)(o_320 + 16);
-                            fp = s_66 + CTX_FIXED;
-                            o_321 = s_66[CTX_STACKP];
-                            sp = fp + (((int64_t)o_321) >> 1) - 1;
-                            o_322 = s_66[CTX_PC];
-                            if (!((o_322 & 1) != 0)) {
+                            s_120 = (oop *)(active_ctx + 16);
+                            m_124 = s_120[CTX_METHOD];
+                            o_482 = ((oop *)(m_124 + 16))[CM_LITERALS];
+                            lits = (oop *)(o_482 + 16);
+                            fp = s_120 + CTX_FIXED;
+                            o_483 = s_120[CTX_STACKP];
+                            sp = fp + (((int64_t)o_483) >> 1) - 1;
+                            o_484 = s_120[CTX_PC];
+                            if (!((o_484 & 1) != 0)) {
                                 fatal_begin();
                                 fprintf(stderr, "resuming a dead context");
                                 fatal_end();
                             }
-                            o_323 = *(uint64_t *)(m_70 + 16 + 24);
-                            o_324 = s_66[CTX_PC];
-                            ip = (uint8_t *)(o_323 + 16) + (((int64_t)o_324) >> 1);
+                            o_485 = *(uint64_t *)(m_124 + 16 + 24);
+                            o_486 = s_120[CTX_PC];
+                            ip = (uint8_t *)(o_485 + 16) + (((int64_t)o_486) >> 1);
+                            fr = (frame *)NULL;
+                        }
+                    }
+                    if (__builtin_expect((fr != NULL) && (fr->code != 0), 0)) {
+                        if (fr != NULL) {
+                            nframes = (int32_t)(fr - frames) + 1;
+                            fr->ip = ip;
+                            fr->sp = (int32_t)(sp - fp + 1);
+                            cstack_used = (uint64_t)(sp + 1 - cstack);
+                        } else {
+                            s_121 = (oop *)(active_ctx + 16);
+                            m_125 = s_121[CTX_METHOD];
+                            o_487 = *(uint64_t *)(m_125 + 16 + 24);
+                            v_256 = ip - (uint8_t *)(o_487 + 16);
+                            s_121[CTX_PC] = (uint64_t)((v_256 << 1) | 1);
+                            v_257 = sp - fp + 1;
+                            s_121[CTX_STACKP] = (uint64_t)((v_257 << 1) | 1);
+                        }
+                        jit_back_jump(fr);
+                        if (nframes != 0) {
+                            fr = frames + (nframes - 1);
+                            lits = fr->lits;
+                            fp = fr->fp;
+                            sp = fp + fr->sp - 1;
+                            ip = fr->ip;
+                        } else {
+                            s_122 = (oop *)(active_ctx + 16);
+                            m_126 = s_122[CTX_METHOD];
+                            o_488 = ((oop *)(m_126 + 16))[CM_LITERALS];
+                            lits = (oop *)(o_488 + 16);
+                            fp = s_122 + CTX_FIXED;
+                            o_489 = s_122[CTX_STACKP];
+                            sp = fp + (((int64_t)o_489) >> 1) - 1;
+                            o_490 = s_122[CTX_PC];
+                            if (!((o_490 & 1) != 0)) {
+                                fatal_begin();
+                                fprintf(stderr, "resuming a dead context");
+                                fatal_end();
+                            }
+                            o_491 = *(uint64_t *)(m_126 + 16 + 24);
+                            o_492 = s_122[CTX_PC];
+                            ip = (uint8_t *)(o_491 + 16) + (((int64_t)o_492) >> 1);
                             fr = (frame *)NULL;
                         }
                     }
@@ -6187,7 +7851,7 @@ op_equal:;
             goto exit_bool_result_9;
         }
         sp = sp - 1;
-        *sp = c_27 ? true_oop : false_oop;
+        *sp = c_29 ? true_oop : false_oop;
     exit_bool_result_9:;
         r_compare_for_5 = true;
         goto exit_compare_for_5;
@@ -6221,16 +7885,16 @@ exit_num_val_13:;
     r_num_val_14 = lt_double_from_bits(b_42);
 exit_num_val_14:;
     r_num_val_14; });
-        c_27 = x_5 == y_5;
+        c_29 = x_5 == y_5;
         nx_16 = *ip;
         if ((nx_16 == 0x92) || (nx_16 == 0x91)) {
             p_28 = ip + 1;
-            o_325 = *(int16_t *)(uint64_t)p_28;
+            o_493 = *(int16_t *)(uint64_t)p_28;
             sp = sp - 2;
             ip = ip + 3;
-            if (c_27 == (nx_16 == 0x91)) {
-                ip = ip + o_325;
-                if (o_325 < 0) {
+            if (c_29 == (nx_16 == 0x91)) {
+                ip = ip + o_493;
+                if (o_493 < 0) {
                     if (__builtin_expect(atomic_load_explicit(&interrupt_pending, memory_order_relaxed) != 0, 0)) {
                         if (fr != NULL) {
                             nframes = (int32_t)(fr - frames) + 1;
@@ -6238,13 +7902,13 @@ exit_num_val_14:;
                             fr->sp = (int32_t)(sp - fp + 1);
                             cstack_used = (uint64_t)(sp + 1 - cstack);
                         } else {
-                            s_67 = (oop *)(active_ctx + 16);
-                            m_71 = s_67[CTX_METHOD];
-                            o_326 = *(uint64_t *)(m_71 + 16 + 24);
-                            v_202 = ip - (uint8_t *)(o_326 + 16);
-                            s_67[CTX_PC] = (uint64_t)((v_202 << 1) | 1);
-                            v_203 = sp - fp + 1;
-                            s_67[CTX_STACKP] = (uint64_t)((v_203 << 1) | 1);
+                            s_123 = (oop *)(active_ctx + 16);
+                            m_127 = s_123[CTX_METHOD];
+                            o_494 = *(uint64_t *)(m_127 + 16 + 24);
+                            v_258 = ip - (uint8_t *)(o_494 + 16);
+                            s_123[CTX_PC] = (uint64_t)((v_258 << 1) | 1);
+                            v_259 = sp - fp + 1;
+                            s_123[CTX_STACKP] = (uint64_t)((v_259 << 1) | 1);
                         }
                         interrupt_safepoint();
                         if (nframes != 0) {
@@ -6254,22 +7918,64 @@ exit_num_val_14:;
                             sp = fp + fr->sp - 1;
                             ip = fr->ip;
                         } else {
-                            s_68 = (oop *)(active_ctx + 16);
-                            m_72 = s_68[CTX_METHOD];
-                            o_327 = ((oop *)(m_72 + 16))[CM_LITERALS];
-                            lits = (oop *)(o_327 + 16);
-                            fp = s_68 + CTX_FIXED;
-                            o_328 = s_68[CTX_STACKP];
-                            sp = fp + (((int64_t)o_328) >> 1) - 1;
-                            o_329 = s_68[CTX_PC];
-                            if (!((o_329 & 1) != 0)) {
+                            s_124 = (oop *)(active_ctx + 16);
+                            m_128 = s_124[CTX_METHOD];
+                            o_495 = ((oop *)(m_128 + 16))[CM_LITERALS];
+                            lits = (oop *)(o_495 + 16);
+                            fp = s_124 + CTX_FIXED;
+                            o_496 = s_124[CTX_STACKP];
+                            sp = fp + (((int64_t)o_496) >> 1) - 1;
+                            o_497 = s_124[CTX_PC];
+                            if (!((o_497 & 1) != 0)) {
                                 fatal_begin();
                                 fprintf(stderr, "resuming a dead context");
                                 fatal_end();
                             }
-                            o_330 = *(uint64_t *)(m_72 + 16 + 24);
-                            o_331 = s_68[CTX_PC];
-                            ip = (uint8_t *)(o_330 + 16) + (((int64_t)o_331) >> 1);
+                            o_498 = *(uint64_t *)(m_128 + 16 + 24);
+                            o_499 = s_124[CTX_PC];
+                            ip = (uint8_t *)(o_498 + 16) + (((int64_t)o_499) >> 1);
+                            fr = (frame *)NULL;
+                        }
+                    }
+                    if (__builtin_expect((fr != NULL) && (fr->code != 0), 0)) {
+                        if (fr != NULL) {
+                            nframes = (int32_t)(fr - frames) + 1;
+                            fr->ip = ip;
+                            fr->sp = (int32_t)(sp - fp + 1);
+                            cstack_used = (uint64_t)(sp + 1 - cstack);
+                        } else {
+                            s_125 = (oop *)(active_ctx + 16);
+                            m_129 = s_125[CTX_METHOD];
+                            o_500 = *(uint64_t *)(m_129 + 16 + 24);
+                            v_260 = ip - (uint8_t *)(o_500 + 16);
+                            s_125[CTX_PC] = (uint64_t)((v_260 << 1) | 1);
+                            v_261 = sp - fp + 1;
+                            s_125[CTX_STACKP] = (uint64_t)((v_261 << 1) | 1);
+                        }
+                        jit_back_jump(fr);
+                        if (nframes != 0) {
+                            fr = frames + (nframes - 1);
+                            lits = fr->lits;
+                            fp = fr->fp;
+                            sp = fp + fr->sp - 1;
+                            ip = fr->ip;
+                        } else {
+                            s_126 = (oop *)(active_ctx + 16);
+                            m_130 = s_126[CTX_METHOD];
+                            o_501 = ((oop *)(m_130 + 16))[CM_LITERALS];
+                            lits = (oop *)(o_501 + 16);
+                            fp = s_126 + CTX_FIXED;
+                            o_502 = s_126[CTX_STACKP];
+                            sp = fp + (((int64_t)o_502) >> 1) - 1;
+                            o_503 = s_126[CTX_PC];
+                            if (!((o_503 & 1) != 0)) {
+                                fatal_begin();
+                                fprintf(stderr, "resuming a dead context");
+                                fatal_end();
+                            }
+                            o_504 = *(uint64_t *)(m_130 + 16 + 24);
+                            o_505 = s_126[CTX_PC];
+                            ip = (uint8_t *)(o_504 + 16) + (((int64_t)o_505) >> 1);
                             fr = (frame *)NULL;
                         }
                     }
@@ -6278,7 +7984,7 @@ exit_num_val_14:;
             goto exit_bool_result_10;
         }
         sp = sp - 1;
-        *sp = c_27 ? true_oop : false_oop;
+        *sp = c_29 ? true_oop : false_oop;
     exit_bool_result_10:;
         r_compare_for_5 = true;
         goto exit_compare_for_5;
@@ -6297,18 +8003,18 @@ op_not_equal:;
     if (!({
     a_29 = sp[-1];
     b_43 = *sp;
-    o_332 = a_29 & b_43;
-    if ((o_332 & 1) != 0) {
-        c_28 = a_29 != b_43;
+    o_506 = a_29 & b_43;
+    if ((o_506 & 1) != 0) {
+        c_30 = a_29 != b_43;
         nx_17 = *ip;
         if ((nx_17 == 0x92) || (nx_17 == 0x91)) {
             p_29 = ip + 1;
-            o_333 = *(int16_t *)(uint64_t)p_29;
+            o_507 = *(int16_t *)(uint64_t)p_29;
             sp = sp - 2;
             ip = ip + 3;
-            if (c_28 == (nx_17 == 0x91)) {
-                ip = ip + o_333;
-                if (o_333 < 0) {
+            if (c_30 == (nx_17 == 0x91)) {
+                ip = ip + o_507;
+                if (o_507 < 0) {
                     if (__builtin_expect(atomic_load_explicit(&interrupt_pending, memory_order_relaxed) != 0, 0)) {
                         if (fr != NULL) {
                             nframes = (int32_t)(fr - frames) + 1;
@@ -6316,13 +8022,13 @@ op_not_equal:;
                             fr->sp = (int32_t)(sp - fp + 1);
                             cstack_used = (uint64_t)(sp + 1 - cstack);
                         } else {
-                            s_69 = (oop *)(active_ctx + 16);
-                            m_73 = s_69[CTX_METHOD];
-                            o_334 = *(uint64_t *)(m_73 + 16 + 24);
-                            v_204 = ip - (uint8_t *)(o_334 + 16);
-                            s_69[CTX_PC] = (uint64_t)((v_204 << 1) | 1);
-                            v_205 = sp - fp + 1;
-                            s_69[CTX_STACKP] = (uint64_t)((v_205 << 1) | 1);
+                            s_127 = (oop *)(active_ctx + 16);
+                            m_131 = s_127[CTX_METHOD];
+                            o_508 = *(uint64_t *)(m_131 + 16 + 24);
+                            v_262 = ip - (uint8_t *)(o_508 + 16);
+                            s_127[CTX_PC] = (uint64_t)((v_262 << 1) | 1);
+                            v_263 = sp - fp + 1;
+                            s_127[CTX_STACKP] = (uint64_t)((v_263 << 1) | 1);
                         }
                         interrupt_safepoint();
                         if (nframes != 0) {
@@ -6332,22 +8038,64 @@ op_not_equal:;
                             sp = fp + fr->sp - 1;
                             ip = fr->ip;
                         } else {
-                            s_70 = (oop *)(active_ctx + 16);
-                            m_74 = s_70[CTX_METHOD];
-                            o_335 = ((oop *)(m_74 + 16))[CM_LITERALS];
-                            lits = (oop *)(o_335 + 16);
-                            fp = s_70 + CTX_FIXED;
-                            o_336 = s_70[CTX_STACKP];
-                            sp = fp + (((int64_t)o_336) >> 1) - 1;
-                            o_337 = s_70[CTX_PC];
-                            if (!((o_337 & 1) != 0)) {
+                            s_128 = (oop *)(active_ctx + 16);
+                            m_132 = s_128[CTX_METHOD];
+                            o_509 = ((oop *)(m_132 + 16))[CM_LITERALS];
+                            lits = (oop *)(o_509 + 16);
+                            fp = s_128 + CTX_FIXED;
+                            o_510 = s_128[CTX_STACKP];
+                            sp = fp + (((int64_t)o_510) >> 1) - 1;
+                            o_511 = s_128[CTX_PC];
+                            if (!((o_511 & 1) != 0)) {
                                 fatal_begin();
                                 fprintf(stderr, "resuming a dead context");
                                 fatal_end();
                             }
-                            o_338 = *(uint64_t *)(m_74 + 16 + 24);
-                            o_339 = s_70[CTX_PC];
-                            ip = (uint8_t *)(o_338 + 16) + (((int64_t)o_339) >> 1);
+                            o_512 = *(uint64_t *)(m_132 + 16 + 24);
+                            o_513 = s_128[CTX_PC];
+                            ip = (uint8_t *)(o_512 + 16) + (((int64_t)o_513) >> 1);
+                            fr = (frame *)NULL;
+                        }
+                    }
+                    if (__builtin_expect((fr != NULL) && (fr->code != 0), 0)) {
+                        if (fr != NULL) {
+                            nframes = (int32_t)(fr - frames) + 1;
+                            fr->ip = ip;
+                            fr->sp = (int32_t)(sp - fp + 1);
+                            cstack_used = (uint64_t)(sp + 1 - cstack);
+                        } else {
+                            s_129 = (oop *)(active_ctx + 16);
+                            m_133 = s_129[CTX_METHOD];
+                            o_514 = *(uint64_t *)(m_133 + 16 + 24);
+                            v_264 = ip - (uint8_t *)(o_514 + 16);
+                            s_129[CTX_PC] = (uint64_t)((v_264 << 1) | 1);
+                            v_265 = sp - fp + 1;
+                            s_129[CTX_STACKP] = (uint64_t)((v_265 << 1) | 1);
+                        }
+                        jit_back_jump(fr);
+                        if (nframes != 0) {
+                            fr = frames + (nframes - 1);
+                            lits = fr->lits;
+                            fp = fr->fp;
+                            sp = fp + fr->sp - 1;
+                            ip = fr->ip;
+                        } else {
+                            s_130 = (oop *)(active_ctx + 16);
+                            m_134 = s_130[CTX_METHOD];
+                            o_515 = ((oop *)(m_134 + 16))[CM_LITERALS];
+                            lits = (oop *)(o_515 + 16);
+                            fp = s_130 + CTX_FIXED;
+                            o_516 = s_130[CTX_STACKP];
+                            sp = fp + (((int64_t)o_516) >> 1) - 1;
+                            o_517 = s_130[CTX_PC];
+                            if (!((o_517 & 1) != 0)) {
+                                fatal_begin();
+                                fprintf(stderr, "resuming a dead context");
+                                fatal_end();
+                            }
+                            o_518 = *(uint64_t *)(m_134 + 16 + 24);
+                            o_519 = s_130[CTX_PC];
+                            ip = (uint8_t *)(o_518 + 16) + (((int64_t)o_519) >> 1);
                             fr = (frame *)NULL;
                         }
                     }
@@ -6356,7 +8104,7 @@ op_not_equal:;
             goto exit_bool_result_11;
         }
         sp = sp - 1;
-        *sp = c_28 ? true_oop : false_oop;
+        *sp = c_30 ? true_oop : false_oop;
     exit_bool_result_11:;
         r_compare_for_6 = true;
         goto exit_compare_for_6;
@@ -6390,16 +8138,16 @@ exit_num_val_15:;
     r_num_val_16 = lt_double_from_bits(b_45);
 exit_num_val_16:;
     r_num_val_16; });
-        c_28 = x_6 != y_6;
+        c_30 = x_6 != y_6;
         nx_18 = *ip;
         if ((nx_18 == 0x92) || (nx_18 == 0x91)) {
             p_30 = ip + 1;
-            o_340 = *(int16_t *)(uint64_t)p_30;
+            o_520 = *(int16_t *)(uint64_t)p_30;
             sp = sp - 2;
             ip = ip + 3;
-            if (c_28 == (nx_18 == 0x91)) {
-                ip = ip + o_340;
-                if (o_340 < 0) {
+            if (c_30 == (nx_18 == 0x91)) {
+                ip = ip + o_520;
+                if (o_520 < 0) {
                     if (__builtin_expect(atomic_load_explicit(&interrupt_pending, memory_order_relaxed) != 0, 0)) {
                         if (fr != NULL) {
                             nframes = (int32_t)(fr - frames) + 1;
@@ -6407,13 +8155,13 @@ exit_num_val_16:;
                             fr->sp = (int32_t)(sp - fp + 1);
                             cstack_used = (uint64_t)(sp + 1 - cstack);
                         } else {
-                            s_71 = (oop *)(active_ctx + 16);
-                            m_75 = s_71[CTX_METHOD];
-                            o_341 = *(uint64_t *)(m_75 + 16 + 24);
-                            v_206 = ip - (uint8_t *)(o_341 + 16);
-                            s_71[CTX_PC] = (uint64_t)((v_206 << 1) | 1);
-                            v_207 = sp - fp + 1;
-                            s_71[CTX_STACKP] = (uint64_t)((v_207 << 1) | 1);
+                            s_131 = (oop *)(active_ctx + 16);
+                            m_135 = s_131[CTX_METHOD];
+                            o_521 = *(uint64_t *)(m_135 + 16 + 24);
+                            v_266 = ip - (uint8_t *)(o_521 + 16);
+                            s_131[CTX_PC] = (uint64_t)((v_266 << 1) | 1);
+                            v_267 = sp - fp + 1;
+                            s_131[CTX_STACKP] = (uint64_t)((v_267 << 1) | 1);
                         }
                         interrupt_safepoint();
                         if (nframes != 0) {
@@ -6423,22 +8171,64 @@ exit_num_val_16:;
                             sp = fp + fr->sp - 1;
                             ip = fr->ip;
                         } else {
-                            s_72 = (oop *)(active_ctx + 16);
-                            m_76 = s_72[CTX_METHOD];
-                            o_342 = ((oop *)(m_76 + 16))[CM_LITERALS];
-                            lits = (oop *)(o_342 + 16);
-                            fp = s_72 + CTX_FIXED;
-                            o_343 = s_72[CTX_STACKP];
-                            sp = fp + (((int64_t)o_343) >> 1) - 1;
-                            o_344 = s_72[CTX_PC];
-                            if (!((o_344 & 1) != 0)) {
+                            s_132 = (oop *)(active_ctx + 16);
+                            m_136 = s_132[CTX_METHOD];
+                            o_522 = ((oop *)(m_136 + 16))[CM_LITERALS];
+                            lits = (oop *)(o_522 + 16);
+                            fp = s_132 + CTX_FIXED;
+                            o_523 = s_132[CTX_STACKP];
+                            sp = fp + (((int64_t)o_523) >> 1) - 1;
+                            o_524 = s_132[CTX_PC];
+                            if (!((o_524 & 1) != 0)) {
                                 fatal_begin();
                                 fprintf(stderr, "resuming a dead context");
                                 fatal_end();
                             }
-                            o_345 = *(uint64_t *)(m_76 + 16 + 24);
-                            o_346 = s_72[CTX_PC];
-                            ip = (uint8_t *)(o_345 + 16) + (((int64_t)o_346) >> 1);
+                            o_525 = *(uint64_t *)(m_136 + 16 + 24);
+                            o_526 = s_132[CTX_PC];
+                            ip = (uint8_t *)(o_525 + 16) + (((int64_t)o_526) >> 1);
+                            fr = (frame *)NULL;
+                        }
+                    }
+                    if (__builtin_expect((fr != NULL) && (fr->code != 0), 0)) {
+                        if (fr != NULL) {
+                            nframes = (int32_t)(fr - frames) + 1;
+                            fr->ip = ip;
+                            fr->sp = (int32_t)(sp - fp + 1);
+                            cstack_used = (uint64_t)(sp + 1 - cstack);
+                        } else {
+                            s_133 = (oop *)(active_ctx + 16);
+                            m_137 = s_133[CTX_METHOD];
+                            o_527 = *(uint64_t *)(m_137 + 16 + 24);
+                            v_268 = ip - (uint8_t *)(o_527 + 16);
+                            s_133[CTX_PC] = (uint64_t)((v_268 << 1) | 1);
+                            v_269 = sp - fp + 1;
+                            s_133[CTX_STACKP] = (uint64_t)((v_269 << 1) | 1);
+                        }
+                        jit_back_jump(fr);
+                        if (nframes != 0) {
+                            fr = frames + (nframes - 1);
+                            lits = fr->lits;
+                            fp = fr->fp;
+                            sp = fp + fr->sp - 1;
+                            ip = fr->ip;
+                        } else {
+                            s_134 = (oop *)(active_ctx + 16);
+                            m_138 = s_134[CTX_METHOD];
+                            o_528 = ((oop *)(m_138 + 16))[CM_LITERALS];
+                            lits = (oop *)(o_528 + 16);
+                            fp = s_134 + CTX_FIXED;
+                            o_529 = s_134[CTX_STACKP];
+                            sp = fp + (((int64_t)o_529) >> 1) - 1;
+                            o_530 = s_134[CTX_PC];
+                            if (!((o_530 & 1) != 0)) {
+                                fatal_begin();
+                                fprintf(stderr, "resuming a dead context");
+                                fatal_end();
+                            }
+                            o_531 = *(uint64_t *)(m_138 + 16 + 24);
+                            o_532 = s_134[CTX_PC];
+                            ip = (uint8_t *)(o_531 + 16) + (((int64_t)o_532) >> 1);
                             fr = (frame *)NULL;
                         }
                     }
@@ -6447,7 +8237,7 @@ exit_num_val_16:;
             goto exit_bool_result_12;
         }
         sp = sp - 1;
-        *sp = c_28 ? true_oop : false_oop;
+        *sp = c_30 ? true_oop : false_oop;
     exit_bool_result_12:;
         r_compare_for_6 = true;
         goto exit_compare_for_6;
@@ -6465,14 +8255,14 @@ exit_compare_for_6:;
 op_multiply:;
     a_30 = sp[-1];
     b_46 = *sp;
-    o_347 = a_30 & b_46;
-    if ((o_347 & 1) != 0) {
+    o_533 = a_30 & b_46;
+    if ((o_533 & 1) != 0) {
         if (!__builtin_mul_overflow(((int64_t)a_30) >> 1, ((int64_t)b_46) >> 1, &r_30)) {
             if ((r_30 >= VM_INT_MIN) && (r_30 <= VM_INT_MAX)) {
-                v_208 = (uint64_t)((r_30 << 1) | 1);
+                v_270 = (uint64_t)((r_30 << 1) | 1);
                 nx_19 = *ip;
                 if ((nx_19 & 0xF8) == 0x60) {
-                    fp[nx_19 & 7] = v_208;
+                    fp[nx_19 & 7] = v_270;
                     sp = sp - 2;
                     ip = ip + 1;
                     goto *ops[({
@@ -6481,7 +8271,7 @@ op_multiply:;
     r_next_bytecode_199; })];
                 }
                 sp = sp - 1;
-                *sp = v_208;
+                *sp = v_270;
                 goto *ops[({
     ip = ip + 1;
     r_next_bytecode_200 = *(ip - 1);
@@ -6554,15 +8344,15 @@ exit_float_imm_3:;
 op_divide:;
     a_31 = sp[-1];
     b_50 = *sp;
-    o_348 = a_31 & b_50;
-    if (((o_348 & 1) != 0) && (((((int64_t)b_50) >> 1) != 0) && (((((int64_t)a_31) >> 1) % (((int64_t)b_50) >> 1) == 0) && ({
-    v_209 = (((int64_t)a_31) >> 1) / (((int64_t)b_50) >> 1);
-    (v_209 >= VM_INT_MIN) && (v_209 <= VM_INT_MAX); })))) {
-        v_210 = (((int64_t)a_31) >> 1) / (((int64_t)b_50) >> 1);
-        v_211 = (uint64_t)((v_210 << 1) | 1);
+    o_534 = a_31 & b_50;
+    if (((o_534 & 1) != 0) && (((((int64_t)b_50) >> 1) != 0) && (((((int64_t)a_31) >> 1) % (((int64_t)b_50) >> 1) == 0) && ({
+    v_271 = (((int64_t)a_31) >> 1) / (((int64_t)b_50) >> 1);
+    (v_271 >= VM_INT_MIN) && (v_271 <= VM_INT_MAX); })))) {
+        v_272 = (((int64_t)a_31) >> 1) / (((int64_t)b_50) >> 1);
+        v_273 = (uint64_t)((v_272 << 1) | 1);
         nx_21 = *ip;
         if ((nx_21 & 0xF8) == 0x60) {
-            fp[nx_21 & 7] = v_211;
+            fp[nx_21 & 7] = v_273;
             sp = sp - 2;
             ip = ip + 1;
             goto *ops[({
@@ -6571,7 +8361,7 @@ op_divide:;
     r_next_bytecode_203; })];
         }
         sp = sp - 1;
-        *sp = v_211;
+        *sp = v_273;
         goto *ops[({
     ip = ip + 1;
     r_next_bytecode_204 = *(ip - 1);
@@ -6645,21 +8435,21 @@ exit_float_imm_4:;
 op_modulo:;
     a_32 = sp[-1];
     b_54 = *sp;
-    o_349 = a_32 & b_54;
-    if (((o_349 & 1) != 0) && ((((int64_t)b_54) >> 1) != 0)) {
+    o_535 = a_32 & b_54;
+    if (((o_535 & 1) != 0) && ((((int64_t)b_54) >> 1) != 0)) {
         a_33 = ((int64_t)a_32) >> 1;
         b_55 = ((int64_t)b_54) >> 1;
-        v_212 = ({
+        v_274 = ({
     r_35 = a_33 % b_55;
     if ((r_35 != 0) && (r_35 < 0 != b_55 < 0)) {
         r_35 = r_35 + b_55;
     }
     r_floor_mod = r_35;
     r_floor_mod; });
-        v_213 = (uint64_t)((v_212 << 1) | 1);
+        v_275 = (uint64_t)((v_274 << 1) | 1);
         nx_23 = *ip;
         if ((nx_23 & 0xF8) == 0x60) {
-            fp[nx_23 & 7] = v_213;
+            fp[nx_23 & 7] = v_275;
             sp = sp - 2;
             ip = ip + 1;
             goto *ops[({
@@ -6668,7 +8458,7 @@ op_modulo:;
     r_next_bytecode_207; })];
         }
         sp = sp - 1;
-        *sp = v_213;
+        *sp = v_275;
         goto *ops[({
     ip = ip + 1;
     r_next_bytecode_208 = *(ip - 1);
@@ -6678,19 +8468,19 @@ op_modulo:;
 op_bit_shift:;
     a_34 = sp[-1];
     b_56 = *sp;
-    o_350 = a_34 & b_56;
-    if ((o_350 & 1) != 0) {
-        v_214 = ((int64_t)a_34) >> 1;
-        s_73 = ((int64_t)b_56) >> 1;
-        if (s_73 >= 0) {
-            if ((s_73 < 62) && ({
-    v_215 = (int64_t)(((uint64_t)v_214) << s_73);
-    (v_215 >= VM_INT_MIN) && (v_215 <= VM_INT_MAX) && ((((int64_t)(((uint64_t)v_214) << s_73)) >> s_73) == v_214); })) {
-                v_216 = (int64_t)(((uint64_t)v_214) << s_73);
-                v_217 = (uint64_t)((v_216 << 1) | 1);
+    o_536 = a_34 & b_56;
+    if ((o_536 & 1) != 0) {
+        v_276 = ((int64_t)a_34) >> 1;
+        s_135 = ((int64_t)b_56) >> 1;
+        if (s_135 >= 0) {
+            if ((s_135 < 62) && ({
+    v_277 = (int64_t)(((uint64_t)v_276) << s_135);
+    (v_277 >= VM_INT_MIN) && (v_277 <= VM_INT_MAX) && ((((int64_t)(((uint64_t)v_276) << s_135)) >> s_135) == v_276); })) {
+                v_278 = (int64_t)(((uint64_t)v_276) << s_135);
+                v_279 = (uint64_t)((v_278 << 1) | 1);
                 nx_24 = *ip;
                 if ((nx_24 & 0xF8) == 0x60) {
-                    fp[nx_24 & 7] = v_217;
+                    fp[nx_24 & 7] = v_279;
                     sp = sp - 2;
                     ip = ip + 1;
                     goto *ops[({
@@ -6699,13 +8489,13 @@ op_bit_shift:;
     r_next_bytecode_209; })];
                 }
                 sp = sp - 1;
-                *sp = v_217;
+                *sp = v_279;
                 goto *ops[({
     ip = ip + 1;
     r_next_bytecode_210 = *(ip - 1);
     r_next_bytecode_210; })];
             }
-            if (v_214 == 0) {
+            if (v_276 == 0) {
                 nx_25 = *ip;
                 if ((nx_25 & 0xF8) == 0x60) {
                     fp[nx_25 & 7] = a_34;
@@ -6724,11 +8514,11 @@ op_bit_shift:;
     r_next_bytecode_212; })];
             }
         } else {
-            v_218 = s_73 <= -63 ? v_214 < 0 ? -1 : 0 : v_214 >> (-s_73);
-            v_219 = (uint64_t)((v_218 << 1) | 1);
+            v_280 = s_135 <= -63 ? v_276 < 0 ? -1 : 0 : v_276 >> (-s_135);
+            v_281 = (uint64_t)((v_280 << 1) | 1);
             nx_26 = *ip;
             if ((nx_26 & 0xF8) == 0x60) {
-                fp[nx_26 & 7] = v_219;
+                fp[nx_26 & 7] = v_281;
                 sp = sp - 2;
                 ip = ip + 1;
                 goto *ops[({
@@ -6737,7 +8527,7 @@ op_bit_shift:;
     r_next_bytecode_213; })];
             }
             sp = sp - 1;
-            *sp = v_219;
+            *sp = v_281;
             goto *ops[({
     ip = ip + 1;
     r_next_bytecode_214 = *(ip - 1);
@@ -6748,31 +8538,31 @@ op_bit_shift:;
 op_floor_divide:;
     a_35 = sp[-1];
     b_57 = *sp;
-    o_351 = a_35 & b_57;
-    if (((o_351 & 1) != 0) && (((((int64_t)b_57) >> 1) != 0) && ({
+    o_537 = a_35 & b_57;
+    if (((o_537 & 1) != 0) && (((((int64_t)b_57) >> 1) != 0) && ({
     a_36 = ((int64_t)a_35) >> 1;
     b_58 = ((int64_t)b_57) >> 1;
-    v_220 = ({
+    v_282 = ({
     q = a_36 / b_58;
     if ((a_36 % b_58 != 0) && (a_36 < 0 != b_58 < 0)) {
         q = q - 1;
     }
     r_floor_div = q;
     r_floor_div; });
-    (v_220 >= VM_INT_MIN) && (v_220 <= VM_INT_MAX); }))) {
+    (v_282 >= VM_INT_MIN) && (v_282 <= VM_INT_MAX); }))) {
         a_37 = ((int64_t)a_35) >> 1;
         b_59 = ((int64_t)b_57) >> 1;
-        v_221 = ({
+        v_283 = ({
     q_2 = a_37 / b_59;
     if ((a_37 % b_59 != 0) && (a_37 < 0 != b_59 < 0)) {
         q_2 = q_2 - 1;
     }
     r_floor_div_2 = q_2;
     r_floor_div_2; });
-        v_222 = (uint64_t)((v_221 << 1) | 1);
+        v_284 = (uint64_t)((v_283 << 1) | 1);
         nx_27 = *ip;
         if ((nx_27 & 0xF8) == 0x60) {
-            fp[nx_27 & 7] = v_222;
+            fp[nx_27 & 7] = v_284;
             sp = sp - 2;
             ip = ip + 1;
             goto *ops[({
@@ -6781,7 +8571,7 @@ op_floor_divide:;
     r_next_bytecode_215; })];
         }
         sp = sp - 1;
-        *sp = v_222;
+        *sp = v_284;
         goto *ops[({
     ip = ip + 1;
     r_next_bytecode_216 = *(ip - 1);
@@ -6791,12 +8581,12 @@ op_floor_divide:;
 op_bit_and:;
     a_38 = sp[-1];
     b_60 = *sp;
-    o_352 = a_38 & b_60;
-    if ((o_352 & 1) != 0) {
-        v_223 = a_38 & b_60;
+    o_538 = a_38 & b_60;
+    if ((o_538 & 1) != 0) {
+        v_285 = a_38 & b_60;
         nx_28 = *ip;
         if ((nx_28 & 0xF8) == 0x60) {
-            fp[nx_28 & 7] = v_223;
+            fp[nx_28 & 7] = v_285;
             sp = sp - 2;
             ip = ip + 1;
             goto *ops[({
@@ -6805,7 +8595,7 @@ op_bit_and:;
     r_next_bytecode_217; })];
         }
         sp = sp - 1;
-        *sp = v_223;
+        *sp = v_285;
         goto *ops[({
     ip = ip + 1;
     r_next_bytecode_218 = *(ip - 1);
@@ -6815,12 +8605,12 @@ op_bit_and:;
 op_bit_or:;
     a_39 = sp[-1];
     b_61 = *sp;
-    o_353 = a_39 & b_61;
-    if ((o_353 & 1) != 0) {
-        v_224 = a_39 | b_61;
+    o_539 = a_39 & b_61;
+    if ((o_539 & 1) != 0) {
+        v_286 = a_39 | b_61;
         nx_29 = *ip;
         if ((nx_29 & 0xF8) == 0x60) {
-            fp[nx_29 & 7] = v_224;
+            fp[nx_29 & 7] = v_286;
             sp = sp - 2;
             ip = ip + 1;
             goto *ops[({
@@ -6829,7 +8619,7 @@ op_bit_or:;
     r_next_bytecode_219; })];
         }
         sp = sp - 1;
-        *sp = v_224;
+        *sp = v_286;
         goto *ops[({
     ip = ip + 1;
     r_next_bytecode_220 = *(ip - 1);
@@ -6840,14 +8630,14 @@ op_bc_at:;
     a_40 = sp[-1];
     b_62 = *sp;
     if (((b_62 & 1) != 0) && ((a_40 & 7) == 0)) {
-        c_29 = *(uint64_t *)(a_40 + 8);
+        c_31 = *(uint64_t *)(a_40 + 8);
         k_21 = (uint64_t)((((int64_t)b_62) >> 1) - 1);
-        if (c_29 == cls_array) {
+        if (c_31 == cls_array) {
             if (k_21 < (uint32_t)*(uint64_t *)a_40) {
-                v_225 = ((oop *)(a_40 + 16))[k_21];
+                v_287 = ((oop *)(a_40 + 16))[k_21];
                 nx_30 = *ip;
                 if ((nx_30 & 0xF8) == 0x60) {
-                    fp[nx_30 & 7] = v_225;
+                    fp[nx_30 & 7] = v_287;
                     sp = sp - 2;
                     ip = ip + 1;
                     goto *ops[({
@@ -6856,19 +8646,19 @@ op_bc_at:;
     r_next_bytecode_221; })];
                 }
                 sp = sp - 1;
-                *sp = v_225;
+                *sp = v_287;
                 goto *ops[({
     ip = ip + 1;
     r_next_bytecode_222 = *(ip - 1);
     r_next_bytecode_222; })];
             }
-        } else if (c_29 == cls_bytestring) {
+        } else if (c_31 == cls_bytestring) {
             if (k_21 < byte_size(a_40)) {
                 code_point = ((uint8_t *)(a_40 + 16))[k_21];
-                v_226 = (((uint64_t)code_point) << 3) | 2;
+                v_288 = (((uint64_t)code_point) << 3) | 2;
                 nx_31 = *ip;
                 if ((nx_31 & 0xF8) == 0x60) {
-                    fp[nx_31 & 7] = v_226;
+                    fp[nx_31 & 7] = v_288;
                     sp = sp - 2;
                     ip = ip + 1;
                     goto *ops[({
@@ -6877,19 +8667,19 @@ op_bc_at:;
     r_next_bytecode_223; })];
                 }
                 sp = sp - 1;
-                *sp = v_226;
+                *sp = v_288;
                 goto *ops[({
     ip = ip + 1;
     r_next_bytecode_224 = *(ip - 1);
     r_next_bytecode_224; })];
             }
-        } else if (c_29 == cls_bytearray) {
+        } else if (c_31 == cls_bytearray) {
             if (k_21 < byte_size(a_40)) {
-                v_227 = ((uint8_t *)(a_40 + 16))[k_21];
-                v_228 = (uint64_t)((((int64_t)v_227) << 1) | 1);
+                v_289 = ((uint8_t *)(a_40 + 16))[k_21];
+                v_290 = (uint64_t)((((int64_t)v_289) << 1) | 1);
                 nx_32 = *ip;
                 if ((nx_32 & 0xF8) == 0x60) {
-                    fp[nx_32 & 7] = v_228;
+                    fp[nx_32 & 7] = v_290;
                     sp = sp - 2;
                     ip = ip + 1;
                     goto *ops[({
@@ -6898,7 +8688,7 @@ op_bc_at:;
     r_next_bytecode_225; })];
                 }
                 sp = sp - 1;
-                *sp = v_228;
+                *sp = v_290;
                 goto *ops[({
     ip = ip + 1;
     r_next_bytecode_226 = *(ip - 1);
@@ -6908,37 +8698,37 @@ op_bc_at:;
     }
     goto op_special_send;
 op_bc_at_put:;
-    o_354 = sp[-2];
-    v_229 = *sp;
+    o_540 = sp[-2];
+    v_291 = *sp;
     a_41 = sp[-1];
-    if (((a_41 & 1) != 0) && (((o_354 & 7) == 0) && (!(((*(uint64_t *)o_354) & H_IMMUTABLE) != 0)))) {
-        c_30 = *(uint64_t *)(o_354 + 8);
+    if (((a_41 & 1) != 0) && (((o_540 & 7) == 0) && (!(((*(uint64_t *)o_540) & H_IMMUTABLE) != 0)))) {
+        c_32 = *(uint64_t *)(o_540 + 8);
         k_22 = (uint64_t)((((int64_t)a_41) >> 1) - 1);
-        if ((c_30 == cls_array) && (k_22 < (uint32_t)*(uint64_t *)o_354)) {
-            *(uint64_t *)(o_354 + 16 + 8 * k_22) = v_229;
-            if (((v_229 & 7) == 0) && (((uint64_t)(v_229 - young_lo) < young_hi - young_lo) && ((!((uint64_t)(o_354 - young_lo) < young_hi - young_lo)) && (((*(uint64_t *)o_354) & H_REMEMBERED) == 0)))) {
-                vm_remember(o_354);
+        if ((c_32 == cls_array) && (k_22 < (uint32_t)*(uint64_t *)o_540)) {
+            *(uint64_t *)(o_540 + 16 + 8 * k_22) = v_291;
+            if (((v_291 & 7) == 0) && (((uint64_t)(v_291 - young_lo) < young_hi - young_lo) && ((!((uint64_t)(o_540 - young_lo) < young_hi - young_lo)) && (((*(uint64_t *)o_540) & H_REMEMBERED) == 0)))) {
+                vm_remember(o_540);
             }
             sp = sp - 2;
-            *sp = v_229;
+            *sp = v_291;
             goto *ops[({
     ip = ip + 1;
     r_next_bytecode_227 = *(ip - 1);
     r_next_bytecode_227; })];
         }
-        if ((c_30 == cls_bytestring) && (((v_229 & 7) == 2) && (((uint32_t)(v_229 >> 3) < 256) && (k_22 < byte_size(o_354))))) {
-            ((uint8_t *)(o_354 + 16))[k_22] = (uint8_t)(uint32_t)(v_229 >> 3);
+        if ((c_32 == cls_bytestring) && (((v_291 & 7) == 2) && (((uint32_t)(v_291 >> 3) < 256) && (k_22 < byte_size(o_540))))) {
+            ((uint8_t *)(o_540 + 16))[k_22] = (uint8_t)(uint32_t)(v_291 >> 3);
             sp = sp - 2;
-            *sp = v_229;
+            *sp = v_291;
             goto *ops[({
     ip = ip + 1;
     r_next_bytecode_228 = *(ip - 1);
     r_next_bytecode_228; })];
         }
-        if ((c_30 == cls_bytearray) && (((v_229 & 1) != 0) && (((uint64_t)(((int64_t)v_229) >> 1) < 256) && (k_22 < byte_size(o_354))))) {
-            ((uint8_t *)(o_354 + 16))[k_22] = (uint8_t)(((int64_t)v_229) >> 1);
+        if ((c_32 == cls_bytearray) && (((v_291 & 1) != 0) && (((uint64_t)(((int64_t)v_291) >> 1) < 256) && (k_22 < byte_size(o_540))))) {
+            ((uint8_t *)(o_540 + 16))[k_22] = (uint8_t)(((int64_t)v_291) >> 1);
             sp = sp - 2;
-            *sp = v_229;
+            *sp = v_291;
             goto *ops[({
     ip = ip + 1;
     r_next_bytecode_229 = *(ip - 1);
@@ -6949,18 +8739,18 @@ op_bc_at_put:;
 op_bc_size:;
     b_63 = *sp;
     if ((b_63 & 7) == 0) {
-        c_31 = *(uint64_t *)(b_63 + 8);
-        if (c_31 == cls_array) {
-            v_230 = (uint32_t)*(uint64_t *)b_63;
-            *sp = (uint64_t)((((int64_t)v_230) << 1) | 1);
+        c_33 = *(uint64_t *)(b_63 + 8);
+        if (c_33 == cls_array) {
+            v_292 = (uint32_t)*(uint64_t *)b_63;
+            *sp = (uint64_t)((((int64_t)v_292) << 1) | 1);
             goto *ops[({
     ip = ip + 1;
     r_next_bytecode_230 = *(ip - 1);
     r_next_bytecode_230; })];
         }
-        if ((c_31 == cls_bytestring) || (c_31 == cls_bytearray)) {
-            v_231 = (int64_t)byte_size(b_63);
-            *sp = (uint64_t)((v_231 << 1) | 1);
+        if ((c_33 == cls_bytestring) || (c_33 == cls_bytearray)) {
+            v_293 = (int64_t)byte_size(b_63);
+            *sp = (uint64_t)((v_293 << 1) | 1);
             goto *ops[({
     ip = ip + 1;
     r_next_bytecode_231 = *(ip - 1);
@@ -6969,16 +8759,16 @@ op_bc_size:;
     }
     goto op_special_send;
 op_identical:;
-    c_32 = sp[-1] == *sp;
+    c_34 = sp[-1] == *sp;
     nx_33 = *ip;
     if ((nx_33 == 0x92) || (nx_33 == 0x91)) {
         p_31 = ip + 1;
-        o_355 = *(int16_t *)(uint64_t)p_31;
+        o_541 = *(int16_t *)(uint64_t)p_31;
         sp = sp - 2;
         ip = ip + 3;
-        if (c_32 == (nx_33 == 0x91)) {
-            ip = ip + o_355;
-            if (o_355 < 0) {
+        if (c_34 == (nx_33 == 0x91)) {
+            ip = ip + o_541;
+            if (o_541 < 0) {
                 if (__builtin_expect(atomic_load_explicit(&interrupt_pending, memory_order_relaxed) != 0, 0)) {
                     if (fr != NULL) {
                         nframes = (int32_t)(fr - frames) + 1;
@@ -6986,13 +8776,13 @@ op_identical:;
                         fr->sp = (int32_t)(sp - fp + 1);
                         cstack_used = (uint64_t)(sp + 1 - cstack);
                     } else {
-                        s_74 = (oop *)(active_ctx + 16);
-                        m_77 = s_74[CTX_METHOD];
-                        o_356 = *(uint64_t *)(m_77 + 16 + 24);
-                        v_232 = ip - (uint8_t *)(o_356 + 16);
-                        s_74[CTX_PC] = (uint64_t)((v_232 << 1) | 1);
-                        v_233 = sp - fp + 1;
-                        s_74[CTX_STACKP] = (uint64_t)((v_233 << 1) | 1);
+                        s_136 = (oop *)(active_ctx + 16);
+                        m_139 = s_136[CTX_METHOD];
+                        o_542 = *(uint64_t *)(m_139 + 16 + 24);
+                        v_294 = ip - (uint8_t *)(o_542 + 16);
+                        s_136[CTX_PC] = (uint64_t)((v_294 << 1) | 1);
+                        v_295 = sp - fp + 1;
+                        s_136[CTX_STACKP] = (uint64_t)((v_295 << 1) | 1);
                     }
                     interrupt_safepoint();
                     if (nframes != 0) {
@@ -7002,22 +8792,64 @@ op_identical:;
                         sp = fp + fr->sp - 1;
                         ip = fr->ip;
                     } else {
-                        s_75 = (oop *)(active_ctx + 16);
-                        m_78 = s_75[CTX_METHOD];
-                        o_357 = ((oop *)(m_78 + 16))[CM_LITERALS];
-                        lits = (oop *)(o_357 + 16);
-                        fp = s_75 + CTX_FIXED;
-                        o_358 = s_75[CTX_STACKP];
-                        sp = fp + (((int64_t)o_358) >> 1) - 1;
-                        o_359 = s_75[CTX_PC];
-                        if (!((o_359 & 1) != 0)) {
+                        s_137 = (oop *)(active_ctx + 16);
+                        m_140 = s_137[CTX_METHOD];
+                        o_543 = ((oop *)(m_140 + 16))[CM_LITERALS];
+                        lits = (oop *)(o_543 + 16);
+                        fp = s_137 + CTX_FIXED;
+                        o_544 = s_137[CTX_STACKP];
+                        sp = fp + (((int64_t)o_544) >> 1) - 1;
+                        o_545 = s_137[CTX_PC];
+                        if (!((o_545 & 1) != 0)) {
                             fatal_begin();
                             fprintf(stderr, "resuming a dead context");
                             fatal_end();
                         }
-                        o_360 = *(uint64_t *)(m_78 + 16 + 24);
-                        o_361 = s_75[CTX_PC];
-                        ip = (uint8_t *)(o_360 + 16) + (((int64_t)o_361) >> 1);
+                        o_546 = *(uint64_t *)(m_140 + 16 + 24);
+                        o_547 = s_137[CTX_PC];
+                        ip = (uint8_t *)(o_546 + 16) + (((int64_t)o_547) >> 1);
+                        fr = (frame *)NULL;
+                    }
+                }
+                if (__builtin_expect((fr != NULL) && (fr->code != 0), 0)) {
+                    if (fr != NULL) {
+                        nframes = (int32_t)(fr - frames) + 1;
+                        fr->ip = ip;
+                        fr->sp = (int32_t)(sp - fp + 1);
+                        cstack_used = (uint64_t)(sp + 1 - cstack);
+                    } else {
+                        s_138 = (oop *)(active_ctx + 16);
+                        m_141 = s_138[CTX_METHOD];
+                        o_548 = *(uint64_t *)(m_141 + 16 + 24);
+                        v_296 = ip - (uint8_t *)(o_548 + 16);
+                        s_138[CTX_PC] = (uint64_t)((v_296 << 1) | 1);
+                        v_297 = sp - fp + 1;
+                        s_138[CTX_STACKP] = (uint64_t)((v_297 << 1) | 1);
+                    }
+                    jit_back_jump(fr);
+                    if (nframes != 0) {
+                        fr = frames + (nframes - 1);
+                        lits = fr->lits;
+                        fp = fr->fp;
+                        sp = fp + fr->sp - 1;
+                        ip = fr->ip;
+                    } else {
+                        s_139 = (oop *)(active_ctx + 16);
+                        m_142 = s_139[CTX_METHOD];
+                        o_549 = ((oop *)(m_142 + 16))[CM_LITERALS];
+                        lits = (oop *)(o_549 + 16);
+                        fp = s_139 + CTX_FIXED;
+                        o_550 = s_139[CTX_STACKP];
+                        sp = fp + (((int64_t)o_550) >> 1) - 1;
+                        o_551 = s_139[CTX_PC];
+                        if (!((o_551 & 1) != 0)) {
+                            fatal_begin();
+                            fprintf(stderr, "resuming a dead context");
+                            fatal_end();
+                        }
+                        o_552 = *(uint64_t *)(m_142 + 16 + 24);
+                        o_553 = s_139[CTX_PC];
+                        ip = (uint8_t *)(o_552 + 16) + (((int64_t)o_553) >> 1);
                         fr = (frame *)NULL;
                     }
                 }
@@ -7029,22 +8861,22 @@ op_identical:;
     r_next_bytecode_232; })];
     }
     sp = sp - 1;
-    *sp = c_32 ? true_oop : false_oop;
+    *sp = c_34 ? true_oop : false_oop;
     goto *ops[({
     ip = ip + 1;
     r_next_bytecode_233 = *(ip - 1);
     r_next_bytecode_233; })];
 op_not_identical:;
-    c_33 = sp[-1] != *sp;
+    c_35 = sp[-1] != *sp;
     nx_34 = *ip;
     if ((nx_34 == 0x92) || (nx_34 == 0x91)) {
         p_32 = ip + 1;
-        o_362 = *(int16_t *)(uint64_t)p_32;
+        o_554 = *(int16_t *)(uint64_t)p_32;
         sp = sp - 2;
         ip = ip + 3;
-        if (c_33 == (nx_34 == 0x91)) {
-            ip = ip + o_362;
-            if (o_362 < 0) {
+        if (c_35 == (nx_34 == 0x91)) {
+            ip = ip + o_554;
+            if (o_554 < 0) {
                 if (__builtin_expect(atomic_load_explicit(&interrupt_pending, memory_order_relaxed) != 0, 0)) {
                     if (fr != NULL) {
                         nframes = (int32_t)(fr - frames) + 1;
@@ -7052,13 +8884,13 @@ op_not_identical:;
                         fr->sp = (int32_t)(sp - fp + 1);
                         cstack_used = (uint64_t)(sp + 1 - cstack);
                     } else {
-                        s_76 = (oop *)(active_ctx + 16);
-                        m_79 = s_76[CTX_METHOD];
-                        o_363 = *(uint64_t *)(m_79 + 16 + 24);
-                        v_234 = ip - (uint8_t *)(o_363 + 16);
-                        s_76[CTX_PC] = (uint64_t)((v_234 << 1) | 1);
-                        v_235 = sp - fp + 1;
-                        s_76[CTX_STACKP] = (uint64_t)((v_235 << 1) | 1);
+                        s_140 = (oop *)(active_ctx + 16);
+                        m_143 = s_140[CTX_METHOD];
+                        o_555 = *(uint64_t *)(m_143 + 16 + 24);
+                        v_298 = ip - (uint8_t *)(o_555 + 16);
+                        s_140[CTX_PC] = (uint64_t)((v_298 << 1) | 1);
+                        v_299 = sp - fp + 1;
+                        s_140[CTX_STACKP] = (uint64_t)((v_299 << 1) | 1);
                     }
                     interrupt_safepoint();
                     if (nframes != 0) {
@@ -7068,22 +8900,64 @@ op_not_identical:;
                         sp = fp + fr->sp - 1;
                         ip = fr->ip;
                     } else {
-                        s_77 = (oop *)(active_ctx + 16);
-                        m_80 = s_77[CTX_METHOD];
-                        o_364 = ((oop *)(m_80 + 16))[CM_LITERALS];
-                        lits = (oop *)(o_364 + 16);
-                        fp = s_77 + CTX_FIXED;
-                        o_365 = s_77[CTX_STACKP];
-                        sp = fp + (((int64_t)o_365) >> 1) - 1;
-                        o_366 = s_77[CTX_PC];
-                        if (!((o_366 & 1) != 0)) {
+                        s_141 = (oop *)(active_ctx + 16);
+                        m_144 = s_141[CTX_METHOD];
+                        o_556 = ((oop *)(m_144 + 16))[CM_LITERALS];
+                        lits = (oop *)(o_556 + 16);
+                        fp = s_141 + CTX_FIXED;
+                        o_557 = s_141[CTX_STACKP];
+                        sp = fp + (((int64_t)o_557) >> 1) - 1;
+                        o_558 = s_141[CTX_PC];
+                        if (!((o_558 & 1) != 0)) {
                             fatal_begin();
                             fprintf(stderr, "resuming a dead context");
                             fatal_end();
                         }
-                        o_367 = *(uint64_t *)(m_80 + 16 + 24);
-                        o_368 = s_77[CTX_PC];
-                        ip = (uint8_t *)(o_367 + 16) + (((int64_t)o_368) >> 1);
+                        o_559 = *(uint64_t *)(m_144 + 16 + 24);
+                        o_560 = s_141[CTX_PC];
+                        ip = (uint8_t *)(o_559 + 16) + (((int64_t)o_560) >> 1);
+                        fr = (frame *)NULL;
+                    }
+                }
+                if (__builtin_expect((fr != NULL) && (fr->code != 0), 0)) {
+                    if (fr != NULL) {
+                        nframes = (int32_t)(fr - frames) + 1;
+                        fr->ip = ip;
+                        fr->sp = (int32_t)(sp - fp + 1);
+                        cstack_used = (uint64_t)(sp + 1 - cstack);
+                    } else {
+                        s_142 = (oop *)(active_ctx + 16);
+                        m_145 = s_142[CTX_METHOD];
+                        o_561 = *(uint64_t *)(m_145 + 16 + 24);
+                        v_300 = ip - (uint8_t *)(o_561 + 16);
+                        s_142[CTX_PC] = (uint64_t)((v_300 << 1) | 1);
+                        v_301 = sp - fp + 1;
+                        s_142[CTX_STACKP] = (uint64_t)((v_301 << 1) | 1);
+                    }
+                    jit_back_jump(fr);
+                    if (nframes != 0) {
+                        fr = frames + (nframes - 1);
+                        lits = fr->lits;
+                        fp = fr->fp;
+                        sp = fp + fr->sp - 1;
+                        ip = fr->ip;
+                    } else {
+                        s_143 = (oop *)(active_ctx + 16);
+                        m_146 = s_143[CTX_METHOD];
+                        o_562 = ((oop *)(m_146 + 16))[CM_LITERALS];
+                        lits = (oop *)(o_562 + 16);
+                        fp = s_143 + CTX_FIXED;
+                        o_563 = s_143[CTX_STACKP];
+                        sp = fp + (((int64_t)o_563) >> 1) - 1;
+                        o_564 = s_143[CTX_PC];
+                        if (!((o_564 & 1) != 0)) {
+                            fatal_begin();
+                            fprintf(stderr, "resuming a dead context");
+                            fatal_end();
+                        }
+                        o_565 = *(uint64_t *)(m_146 + 16 + 24);
+                        o_566 = s_143[CTX_PC];
+                        ip = (uint8_t *)(o_565 + 16) + (((int64_t)o_566) >> 1);
                         fr = (frame *)NULL;
                     }
                 }
@@ -7095,7 +8969,7 @@ op_not_identical:;
     r_next_bytecode_234; })];
     }
     sp = sp - 1;
-    *sp = c_33 ? true_oop : false_oop;
+    *sp = c_35 ? true_oop : false_oop;
     goto *ops[({
     ip = ip + 1;
     r_next_bytecode_235 = *(ip - 1);
@@ -7109,13 +8983,13 @@ op_bc_value_b5:;
             fr->sp = (int32_t)(sp - fp + 1);
             cstack_used = (uint64_t)(sp + 1 - cstack);
         } else {
-            s_78 = (oop *)(active_ctx + 16);
-            m_81 = s_78[CTX_METHOD];
-            o_369 = *(uint64_t *)(m_81 + 16 + 24);
-            v_236 = ip - (uint8_t *)(o_369 + 16);
-            s_78[CTX_PC] = (uint64_t)((v_236 << 1) | 1);
-            v_237 = sp - fp + 1;
-            s_78[CTX_STACKP] = (uint64_t)((v_237 << 1) | 1);
+            s_144 = (oop *)(active_ctx + 16);
+            m_147 = s_144[CTX_METHOD];
+            o_567 = *(uint64_t *)(m_147 + 16 + 24);
+            v_302 = ip - (uint8_t *)(o_567 + 16);
+            s_144[CTX_PC] = (uint64_t)((v_302 << 1) | 1);
+            v_303 = sp - fp + 1;
+            s_144[CTX_STACKP] = (uint64_t)((v_303 << 1) | 1);
         }
         block_activate(0, false);
         fr = frames + (nframes - 1);
@@ -7123,6 +8997,50 @@ op_bc_value_b5:;
         fp = fr->fp;
         sp = fp + fr->sp - 1;
         ip = fr->ip;
+        if (__builtin_expect((fr != NULL) && ({
+    c_36 = fr->code;
+    c_36 > JIT_MAX_COUNT; }), 0)) {
+            if (fr != NULL) {
+                nframes = (int32_t)(fr - frames) + 1;
+                fr->ip = ip;
+                fr->sp = (int32_t)(sp - fp + 1);
+                cstack_used = (uint64_t)(sp + 1 - cstack);
+            } else {
+                s_145 = (oop *)(active_ctx + 16);
+                m_148 = s_145[CTX_METHOD];
+                o_568 = *(uint64_t *)(m_148 + 16 + 24);
+                v_304 = ip - (uint8_t *)(o_568 + 16);
+                s_145[CTX_PC] = (uint64_t)((v_304 << 1) | 1);
+                v_305 = sp - fp + 1;
+                s_145[CTX_STACKP] = (uint64_t)((v_305 << 1) | 1);
+            }
+            jit_resume(fr);
+            if (nframes != 0) {
+                fr = frames + (nframes - 1);
+                lits = fr->lits;
+                fp = fr->fp;
+                sp = fp + fr->sp - 1;
+                ip = fr->ip;
+            } else {
+                s_146 = (oop *)(active_ctx + 16);
+                m_149 = s_146[CTX_METHOD];
+                o_569 = ((oop *)(m_149 + 16))[CM_LITERALS];
+                lits = (oop *)(o_569 + 16);
+                fp = s_146 + CTX_FIXED;
+                o_570 = s_146[CTX_STACKP];
+                sp = fp + (((int64_t)o_570) >> 1) - 1;
+                o_571 = s_146[CTX_PC];
+                if (!((o_571 & 1) != 0)) {
+                    fatal_begin();
+                    fprintf(stderr, "resuming a dead context");
+                    fatal_end();
+                }
+                o_572 = *(uint64_t *)(m_149 + 16 + 24);
+                o_573 = s_146[CTX_PC];
+                ip = (uint8_t *)(o_572 + 16) + (((int64_t)o_573) >> 1);
+                fr = (frame *)NULL;
+            }
+        }
         if (__builtin_expect(atomic_load_explicit(&interrupt_pending, memory_order_relaxed) != 0, 0)) {
             if (fr != NULL) {
                 nframes = (int32_t)(fr - frames) + 1;
@@ -7130,13 +9048,13 @@ op_bc_value_b5:;
                 fr->sp = (int32_t)(sp - fp + 1);
                 cstack_used = (uint64_t)(sp + 1 - cstack);
             } else {
-                s_79 = (oop *)(active_ctx + 16);
-                m_82 = s_79[CTX_METHOD];
-                o_370 = *(uint64_t *)(m_82 + 16 + 24);
-                v_238 = ip - (uint8_t *)(o_370 + 16);
-                s_79[CTX_PC] = (uint64_t)((v_238 << 1) | 1);
-                v_239 = sp - fp + 1;
-                s_79[CTX_STACKP] = (uint64_t)((v_239 << 1) | 1);
+                s_147 = (oop *)(active_ctx + 16);
+                m_150 = s_147[CTX_METHOD];
+                o_574 = *(uint64_t *)(m_150 + 16 + 24);
+                v_306 = ip - (uint8_t *)(o_574 + 16);
+                s_147[CTX_PC] = (uint64_t)((v_306 << 1) | 1);
+                v_307 = sp - fp + 1;
+                s_147[CTX_STACKP] = (uint64_t)((v_307 << 1) | 1);
             }
             interrupt_safepoint();
             if (nframes != 0) {
@@ -7146,22 +9064,22 @@ op_bc_value_b5:;
                 sp = fp + fr->sp - 1;
                 ip = fr->ip;
             } else {
-                s_80 = (oop *)(active_ctx + 16);
-                m_83 = s_80[CTX_METHOD];
-                o_371 = ((oop *)(m_83 + 16))[CM_LITERALS];
-                lits = (oop *)(o_371 + 16);
-                fp = s_80 + CTX_FIXED;
-                o_372 = s_80[CTX_STACKP];
-                sp = fp + (((int64_t)o_372) >> 1) - 1;
-                o_373 = s_80[CTX_PC];
-                if (!((o_373 & 1) != 0)) {
+                s_148 = (oop *)(active_ctx + 16);
+                m_151 = s_148[CTX_METHOD];
+                o_575 = ((oop *)(m_151 + 16))[CM_LITERALS];
+                lits = (oop *)(o_575 + 16);
+                fp = s_148 + CTX_FIXED;
+                o_576 = s_148[CTX_STACKP];
+                sp = fp + (((int64_t)o_576) >> 1) - 1;
+                o_577 = s_148[CTX_PC];
+                if (!((o_577 & 1) != 0)) {
                     fatal_begin();
                     fprintf(stderr, "resuming a dead context");
                     fatal_end();
                 }
-                o_374 = *(uint64_t *)(m_83 + 16 + 24);
-                o_375 = s_80[CTX_PC];
-                ip = (uint8_t *)(o_374 + 16) + (((int64_t)o_375) >> 1);
+                o_578 = *(uint64_t *)(m_151 + 16 + 24);
+                o_579 = s_148[CTX_PC];
+                ip = (uint8_t *)(o_578 + 16) + (((int64_t)o_579) >> 1);
                 fr = (frame *)NULL;
             }
         }
@@ -7180,13 +9098,13 @@ op_bc_value_b6:;
             fr->sp = (int32_t)(sp - fp + 1);
             cstack_used = (uint64_t)(sp + 1 - cstack);
         } else {
-            s_81 = (oop *)(active_ctx + 16);
-            m_84 = s_81[CTX_METHOD];
-            o_376 = *(uint64_t *)(m_84 + 16 + 24);
-            v_240 = ip - (uint8_t *)(o_376 + 16);
-            s_81[CTX_PC] = (uint64_t)((v_240 << 1) | 1);
-            v_241 = sp - fp + 1;
-            s_81[CTX_STACKP] = (uint64_t)((v_241 << 1) | 1);
+            s_149 = (oop *)(active_ctx + 16);
+            m_152 = s_149[CTX_METHOD];
+            o_580 = *(uint64_t *)(m_152 + 16 + 24);
+            v_308 = ip - (uint8_t *)(o_580 + 16);
+            s_149[CTX_PC] = (uint64_t)((v_308 << 1) | 1);
+            v_309 = sp - fp + 1;
+            s_149[CTX_STACKP] = (uint64_t)((v_309 << 1) | 1);
         }
         block_activate(1, false);
         fr = frames + (nframes - 1);
@@ -7194,6 +9112,50 @@ op_bc_value_b6:;
         fp = fr->fp;
         sp = fp + fr->sp - 1;
         ip = fr->ip;
+        if (__builtin_expect((fr != NULL) && ({
+    c_37 = fr->code;
+    c_37 > JIT_MAX_COUNT; }), 0)) {
+            if (fr != NULL) {
+                nframes = (int32_t)(fr - frames) + 1;
+                fr->ip = ip;
+                fr->sp = (int32_t)(sp - fp + 1);
+                cstack_used = (uint64_t)(sp + 1 - cstack);
+            } else {
+                s_150 = (oop *)(active_ctx + 16);
+                m_153 = s_150[CTX_METHOD];
+                o_581 = *(uint64_t *)(m_153 + 16 + 24);
+                v_310 = ip - (uint8_t *)(o_581 + 16);
+                s_150[CTX_PC] = (uint64_t)((v_310 << 1) | 1);
+                v_311 = sp - fp + 1;
+                s_150[CTX_STACKP] = (uint64_t)((v_311 << 1) | 1);
+            }
+            jit_resume(fr);
+            if (nframes != 0) {
+                fr = frames + (nframes - 1);
+                lits = fr->lits;
+                fp = fr->fp;
+                sp = fp + fr->sp - 1;
+                ip = fr->ip;
+            } else {
+                s_151 = (oop *)(active_ctx + 16);
+                m_154 = s_151[CTX_METHOD];
+                o_582 = ((oop *)(m_154 + 16))[CM_LITERALS];
+                lits = (oop *)(o_582 + 16);
+                fp = s_151 + CTX_FIXED;
+                o_583 = s_151[CTX_STACKP];
+                sp = fp + (((int64_t)o_583) >> 1) - 1;
+                o_584 = s_151[CTX_PC];
+                if (!((o_584 & 1) != 0)) {
+                    fatal_begin();
+                    fprintf(stderr, "resuming a dead context");
+                    fatal_end();
+                }
+                o_585 = *(uint64_t *)(m_154 + 16 + 24);
+                o_586 = s_151[CTX_PC];
+                ip = (uint8_t *)(o_585 + 16) + (((int64_t)o_586) >> 1);
+                fr = (frame *)NULL;
+            }
+        }
         if (__builtin_expect(atomic_load_explicit(&interrupt_pending, memory_order_relaxed) != 0, 0)) {
             if (fr != NULL) {
                 nframes = (int32_t)(fr - frames) + 1;
@@ -7201,13 +9163,13 @@ op_bc_value_b6:;
                 fr->sp = (int32_t)(sp - fp + 1);
                 cstack_used = (uint64_t)(sp + 1 - cstack);
             } else {
-                s_82 = (oop *)(active_ctx + 16);
-                m_85 = s_82[CTX_METHOD];
-                o_377 = *(uint64_t *)(m_85 + 16 + 24);
-                v_242 = ip - (uint8_t *)(o_377 + 16);
-                s_82[CTX_PC] = (uint64_t)((v_242 << 1) | 1);
-                v_243 = sp - fp + 1;
-                s_82[CTX_STACKP] = (uint64_t)((v_243 << 1) | 1);
+                s_152 = (oop *)(active_ctx + 16);
+                m_155 = s_152[CTX_METHOD];
+                o_587 = *(uint64_t *)(m_155 + 16 + 24);
+                v_312 = ip - (uint8_t *)(o_587 + 16);
+                s_152[CTX_PC] = (uint64_t)((v_312 << 1) | 1);
+                v_313 = sp - fp + 1;
+                s_152[CTX_STACKP] = (uint64_t)((v_313 << 1) | 1);
             }
             interrupt_safepoint();
             if (nframes != 0) {
@@ -7217,22 +9179,22 @@ op_bc_value_b6:;
                 sp = fp + fr->sp - 1;
                 ip = fr->ip;
             } else {
-                s_83 = (oop *)(active_ctx + 16);
-                m_86 = s_83[CTX_METHOD];
-                o_378 = ((oop *)(m_86 + 16))[CM_LITERALS];
-                lits = (oop *)(o_378 + 16);
-                fp = s_83 + CTX_FIXED;
-                o_379 = s_83[CTX_STACKP];
-                sp = fp + (((int64_t)o_379) >> 1) - 1;
-                o_380 = s_83[CTX_PC];
-                if (!((o_380 & 1) != 0)) {
+                s_153 = (oop *)(active_ctx + 16);
+                m_156 = s_153[CTX_METHOD];
+                o_588 = ((oop *)(m_156 + 16))[CM_LITERALS];
+                lits = (oop *)(o_588 + 16);
+                fp = s_153 + CTX_FIXED;
+                o_589 = s_153[CTX_STACKP];
+                sp = fp + (((int64_t)o_589) >> 1) - 1;
+                o_590 = s_153[CTX_PC];
+                if (!((o_590 & 1) != 0)) {
                     fatal_begin();
                     fprintf(stderr, "resuming a dead context");
                     fatal_end();
                 }
-                o_381 = *(uint64_t *)(m_86 + 16 + 24);
-                o_382 = s_83[CTX_PC];
-                ip = (uint8_t *)(o_381 + 16) + (((int64_t)o_382) >> 1);
+                o_591 = *(uint64_t *)(m_156 + 16 + 24);
+                o_592 = s_153[CTX_PC];
+                ip = (uint8_t *)(o_591 + 16) + (((int64_t)o_592) >> 1);
                 fr = (frame *)NULL;
             }
         }
@@ -7251,13 +9213,13 @@ op_bc_value_be:;
             fr->sp = (int32_t)(sp - fp + 1);
             cstack_used = (uint64_t)(sp + 1 - cstack);
         } else {
-            s_84 = (oop *)(active_ctx + 16);
-            m_87 = s_84[CTX_METHOD];
-            o_383 = *(uint64_t *)(m_87 + 16 + 24);
-            v_244 = ip - (uint8_t *)(o_383 + 16);
-            s_84[CTX_PC] = (uint64_t)((v_244 << 1) | 1);
-            v_245 = sp - fp + 1;
-            s_84[CTX_STACKP] = (uint64_t)((v_245 << 1) | 1);
+            s_154 = (oop *)(active_ctx + 16);
+            m_157 = s_154[CTX_METHOD];
+            o_593 = *(uint64_t *)(m_157 + 16 + 24);
+            v_314 = ip - (uint8_t *)(o_593 + 16);
+            s_154[CTX_PC] = (uint64_t)((v_314 << 1) | 1);
+            v_315 = sp - fp + 1;
+            s_154[CTX_STACKP] = (uint64_t)((v_315 << 1) | 1);
         }
         block_activate(2, false);
         fr = frames + (nframes - 1);
@@ -7265,6 +9227,50 @@ op_bc_value_be:;
         fp = fr->fp;
         sp = fp + fr->sp - 1;
         ip = fr->ip;
+        if (__builtin_expect((fr != NULL) && ({
+    c_38 = fr->code;
+    c_38 > JIT_MAX_COUNT; }), 0)) {
+            if (fr != NULL) {
+                nframes = (int32_t)(fr - frames) + 1;
+                fr->ip = ip;
+                fr->sp = (int32_t)(sp - fp + 1);
+                cstack_used = (uint64_t)(sp + 1 - cstack);
+            } else {
+                s_155 = (oop *)(active_ctx + 16);
+                m_158 = s_155[CTX_METHOD];
+                o_594 = *(uint64_t *)(m_158 + 16 + 24);
+                v_316 = ip - (uint8_t *)(o_594 + 16);
+                s_155[CTX_PC] = (uint64_t)((v_316 << 1) | 1);
+                v_317 = sp - fp + 1;
+                s_155[CTX_STACKP] = (uint64_t)((v_317 << 1) | 1);
+            }
+            jit_resume(fr);
+            if (nframes != 0) {
+                fr = frames + (nframes - 1);
+                lits = fr->lits;
+                fp = fr->fp;
+                sp = fp + fr->sp - 1;
+                ip = fr->ip;
+            } else {
+                s_156 = (oop *)(active_ctx + 16);
+                m_159 = s_156[CTX_METHOD];
+                o_595 = ((oop *)(m_159 + 16))[CM_LITERALS];
+                lits = (oop *)(o_595 + 16);
+                fp = s_156 + CTX_FIXED;
+                o_596 = s_156[CTX_STACKP];
+                sp = fp + (((int64_t)o_596) >> 1) - 1;
+                o_597 = s_156[CTX_PC];
+                if (!((o_597 & 1) != 0)) {
+                    fatal_begin();
+                    fprintf(stderr, "resuming a dead context");
+                    fatal_end();
+                }
+                o_598 = *(uint64_t *)(m_159 + 16 + 24);
+                o_599 = s_156[CTX_PC];
+                ip = (uint8_t *)(o_598 + 16) + (((int64_t)o_599) >> 1);
+                fr = (frame *)NULL;
+            }
+        }
         if (__builtin_expect(atomic_load_explicit(&interrupt_pending, memory_order_relaxed) != 0, 0)) {
             if (fr != NULL) {
                 nframes = (int32_t)(fr - frames) + 1;
@@ -7272,13 +9278,13 @@ op_bc_value_be:;
                 fr->sp = (int32_t)(sp - fp + 1);
                 cstack_used = (uint64_t)(sp + 1 - cstack);
             } else {
-                s_85 = (oop *)(active_ctx + 16);
-                m_88 = s_85[CTX_METHOD];
-                o_384 = *(uint64_t *)(m_88 + 16 + 24);
-                v_246 = ip - (uint8_t *)(o_384 + 16);
-                s_85[CTX_PC] = (uint64_t)((v_246 << 1) | 1);
-                v_247 = sp - fp + 1;
-                s_85[CTX_STACKP] = (uint64_t)((v_247 << 1) | 1);
+                s_157 = (oop *)(active_ctx + 16);
+                m_160 = s_157[CTX_METHOD];
+                o_600 = *(uint64_t *)(m_160 + 16 + 24);
+                v_318 = ip - (uint8_t *)(o_600 + 16);
+                s_157[CTX_PC] = (uint64_t)((v_318 << 1) | 1);
+                v_319 = sp - fp + 1;
+                s_157[CTX_STACKP] = (uint64_t)((v_319 << 1) | 1);
             }
             interrupt_safepoint();
             if (nframes != 0) {
@@ -7288,22 +9294,22 @@ op_bc_value_be:;
                 sp = fp + fr->sp - 1;
                 ip = fr->ip;
             } else {
-                s_86 = (oop *)(active_ctx + 16);
-                m_89 = s_86[CTX_METHOD];
-                o_385 = ((oop *)(m_89 + 16))[CM_LITERALS];
-                lits = (oop *)(o_385 + 16);
-                fp = s_86 + CTX_FIXED;
-                o_386 = s_86[CTX_STACKP];
-                sp = fp + (((int64_t)o_386) >> 1) - 1;
-                o_387 = s_86[CTX_PC];
-                if (!((o_387 & 1) != 0)) {
+                s_158 = (oop *)(active_ctx + 16);
+                m_161 = s_158[CTX_METHOD];
+                o_601 = ((oop *)(m_161 + 16))[CM_LITERALS];
+                lits = (oop *)(o_601 + 16);
+                fp = s_158 + CTX_FIXED;
+                o_602 = s_158[CTX_STACKP];
+                sp = fp + (((int64_t)o_602) >> 1) - 1;
+                o_603 = s_158[CTX_PC];
+                if (!((o_603 & 1) != 0)) {
                     fatal_begin();
                     fprintf(stderr, "resuming a dead context");
                     fatal_end();
                 }
-                o_388 = *(uint64_t *)(m_89 + 16 + 24);
-                o_389 = s_86[CTX_PC];
-                ip = (uint8_t *)(o_388 + 16) + (((int64_t)o_389) >> 1);
+                o_604 = *(uint64_t *)(m_161 + 16 + 24);
+                o_605 = s_158[CTX_PC];
+                ip = (uint8_t *)(o_604 + 16) + (((int64_t)o_605) >> 1);
                 fr = (frame *)NULL;
             }
         }
@@ -7351,13 +9357,13 @@ op_bad_bytecode:;
         fr->sp = (int32_t)(sp - fp + 1);
         cstack_used = (uint64_t)(sp + 1 - cstack);
     } else {
-        s_87 = (oop *)(active_ctx + 16);
-        m_90 = s_87[CTX_METHOD];
-        o_390 = *(uint64_t *)(m_90 + 16 + 24);
-        v_248 = ip - (uint8_t *)(o_390 + 16);
-        s_87[CTX_PC] = (uint64_t)((v_248 << 1) | 1);
-        v_249 = sp - fp + 1;
-        s_87[CTX_STACKP] = (uint64_t)((v_249 << 1) | 1);
+        s_159 = (oop *)(active_ctx + 16);
+        m_162 = s_159[CTX_METHOD];
+        o_606 = *(uint64_t *)(m_162 + 16 + 24);
+        v_320 = ip - (uint8_t *)(o_606 + 16);
+        s_159[CTX_PC] = (uint64_t)((v_320 << 1) | 1);
+        v_321 = sp - fp + 1;
+        s_159[CTX_STACKP] = (uint64_t)((v_321 << 1) | 1);
     }
     a_42 = (int32_t)ip[-1];
     fatal_begin();
@@ -7377,26 +9383,26 @@ activate:;
         materialize_all();
         new_method = tmp_roots[0];
         tmp_roots[0] = nil_oop;
-        o_391 = *(uint64_t *)(new_method + 16 + 24);
-        new_bcs = (uint8_t *)(o_391 + 16);
-        o_392 = *(uint64_t *)(new_method + 16 + 16);
-        new_lits = (oop *)(o_392 + 16);
-        s_88 = (oop *)(active_ctx + 16);
-        m_91 = s_88[CTX_METHOD];
-        o_393 = ((oop *)(m_91 + 16))[CM_LITERALS];
-        lits = (oop *)(o_393 + 16);
-        fp = s_88 + CTX_FIXED;
-        o_394 = s_88[CTX_STACKP];
-        sp = fp + (((int64_t)o_394) >> 1) - 1;
-        o_395 = s_88[CTX_PC];
-        if (!((o_395 & 1) != 0)) {
+        o_607 = *(uint64_t *)(new_method + 16 + 24);
+        new_bcs = (uint8_t *)(o_607 + 16);
+        o_608 = *(uint64_t *)(new_method + 16 + 16);
+        new_lits = (oop *)(o_608 + 16);
+        s_160 = (oop *)(active_ctx + 16);
+        m_163 = s_160[CTX_METHOD];
+        o_609 = ((oop *)(m_163 + 16))[CM_LITERALS];
+        lits = (oop *)(o_609 + 16);
+        fp = s_160 + CTX_FIXED;
+        o_610 = s_160[CTX_STACKP];
+        sp = fp + (((int64_t)o_610) >> 1) - 1;
+        o_611 = s_160[CTX_PC];
+        if (!((o_611 & 1) != 0)) {
             fatal_begin();
             fprintf(stderr, "resuming a dead context");
             fatal_end();
         }
-        o_396 = *(uint64_t *)(m_91 + 16 + 24);
-        o_397 = s_88[CTX_PC];
-        ip = (uint8_t *)(o_396 + 16) + (((int64_t)o_397) >> 1);
+        o_612 = *(uint64_t *)(m_163 + 16 + 24);
+        o_613 = s_160[CTX_PC];
+        ip = (uint8_t *)(o_612 + 16) + (((int64_t)o_613) >> 1);
         fr = (frame *)NULL;
         goto activate_from_context;
     }
@@ -7411,13 +9417,13 @@ activate_from_context:;
         cstack[k_23] = src[k_23];
     }
     sp = src - 1;
-    s_89 = (oop *)(active_ctx + 16);
-    m_92 = s_89[CTX_METHOD];
-    o_398 = *(uint64_t *)(m_92 + 16 + 24);
-    v_250 = ip - (uint8_t *)(o_398 + 16);
-    s_89[CTX_PC] = (uint64_t)((v_250 << 1) | 1);
-    v_251 = sp - fp + 1;
-    s_89[CTX_STACKP] = (uint64_t)((v_251 << 1) | 1);
+    s_161 = (oop *)(active_ctx + 16);
+    m_164 = s_161[CTX_METHOD];
+    o_614 = *(uint64_t *)(m_164 + 16 + 24);
+    v_322 = ip - (uint8_t *)(o_614 + 16);
+    s_161[CTX_PC] = (uint64_t)((v_322 << 1) | 1);
+    v_323 = sp - fp + 1;
+    s_161[CTX_STACKP] = (uint64_t)((v_323 << 1) | 1);
     new_fp = cstack + 1;
     fr = frames + 0;
     goto enter_frame;
@@ -7430,34 +9436,34 @@ cannot_return:;
     goto do_send_global;
 context_non_local_return:;
     home_2 = ctx_home(active_ctx);
-    o_399 = *(uint64_t *)(home_2 + 16 + 8);
-    if (!((o_399 & 1) != 0)) {
+    o_615 = *(uint64_t *)(home_2 + 16 + 8);
+    if (!((o_615 & 1) != 0)) {
         goto cannot_return;
     }
     hs_2 = *(uint64_t *)(home_2 + 16 + 0);
     if ((hs_2 == nil_oop) || ({
-    o_400 = *(uint64_t *)(hs_2 + 16 + 8);
-    !((o_400 & 1) != 0); })) {
+    o_616 = *(uint64_t *)(hs_2 + 16 + 8);
+    !((o_616 & 1) != 0); })) {
         goto cannot_return;
     }
-    c_34 = active_ctx;
+    c_39 = active_ctx;
     marked = 0ULL;
     for (;;) {
-        if (c_34 == nil_oop) {
+        if (c_39 == nil_oop) {
             goto cannot_return;
         }
         if ((marked == 0) && ({
-    m_93 = *(uint64_t *)(c_34 + 16 + 24);
+    m_165 = *(uint64_t *)(c_39 + 16 + 24);
     (({
-    p_33 = *(uint64_t *)(m_93 + 16 + 56);
+    p_33 = *(uint64_t *)(m_165 + 16 + 56);
     r_method_prim_5 = (p_33 & 1) != 0 ? ((int64_t)p_33) >> 1 : 0;
     r_method_prim_5; }) & CM_PRIM_MASK) == PRIM_ENSURE_MARKER; })) {
-            marked = c_34;
+            marked = c_39;
         }
-        if (!(c_34 != home_2)) {
+        if (!(c_39 != home_2)) {
             break;
         }
-        c_34 = *(uint64_t *)(c_34 + 16 + 0);
+        c_39 = *(uint64_t *)(c_39 + 16 + 0);
     }
     if (marked != 0) {
         *sp = active_ctx;
@@ -7469,36 +9475,36 @@ context_non_local_return:;
         argc = 2;
         goto do_send_global;
     }
-    c_34 = active_ctx;
+    c_39 = active_ctx;
     for (;;) {
-        next_2 = *(uint64_t *)(c_34 + 16 + 0);
-        ((oop *)(c_34 + 16))[CTX_PC] = nil_oop;
-        ((oop *)(c_34 + 16))[CTX_SENDER] = nil_oop;
-        if (!(c_34 != home_2)) {
+        next_2 = *(uint64_t *)(c_39 + 16 + 0);
+        ((oop *)(c_39 + 16))[CTX_PC] = nil_oop;
+        ((oop *)(c_39 + 16))[CTX_SENDER] = nil_oop;
+        if (!(c_39 != home_2)) {
             break;
         }
-        c_34 = next_2;
+        c_39 = next_2;
     }
     active_ctx = hs_2;
     if (((hs_2 & 7) == 0) && ((!(hs_2 - young_lo < young_hi - young_lo)) && (((*(uint64_t *)hs_2) & H_REMEMBERED) == 0))) {
         vm_remember(hs_2);
     }
-    s_90 = (oop *)(active_ctx + 16);
-    m_94 = s_90[CTX_METHOD];
-    o_401 = ((oop *)(m_94 + 16))[CM_LITERALS];
-    lits = (oop *)(o_401 + 16);
-    fp = s_90 + CTX_FIXED;
-    o_402 = s_90[CTX_STACKP];
-    sp = fp + (((int64_t)o_402) >> 1) - 1;
-    o_403 = s_90[CTX_PC];
-    if (!((o_403 & 1) != 0)) {
+    s_162 = (oop *)(active_ctx + 16);
+    m_166 = s_162[CTX_METHOD];
+    o_617 = ((oop *)(m_166 + 16))[CM_LITERALS];
+    lits = (oop *)(o_617 + 16);
+    fp = s_162 + CTX_FIXED;
+    o_618 = s_162[CTX_STACKP];
+    sp = fp + (((int64_t)o_618) >> 1) - 1;
+    o_619 = s_162[CTX_PC];
+    if (!((o_619 & 1) != 0)) {
         fatal_begin();
         fprintf(stderr, "resuming a dead context");
         fatal_end();
     }
-    o_404 = *(uint64_t *)(m_94 + 16 + 24);
-    o_405 = s_90[CTX_PC];
-    ip = (uint8_t *)(o_404 + 16) + (((int64_t)o_405) >> 1);
+    o_620 = *(uint64_t *)(m_166 + 16 + 24);
+    o_621 = s_162[CTX_PC];
+    ip = (uint8_t *)(o_620 + 16) + (((int64_t)o_621) >> 1);
     fr = (frame *)NULL;
     sp = sp + 1;
     *sp = result;
@@ -7507,35 +9513,35 @@ context_non_local_return:;
     r_next_bytecode_242 = *(ip - 1);
     r_next_bytecode_242; })];
 context_return:;
-    s_91 = (oop *)(active_ctx + 16);
-    sender = s_91[CTX_SENDER];
+    s_163 = (oop *)(active_ctx + 16);
+    sender = s_163[CTX_SENDER];
     if ((sender == nil_oop) || ({
-    o_406 = ((oop *)(sender + 16))[CTX_PC];
-    !((o_406 & 1) != 0); })) {
+    o_622 = ((oop *)(sender + 16))[CTX_PC];
+    !((o_622 & 1) != 0); })) {
         goto cannot_return;
     }
-    s_91[CTX_PC] = nil_oop;
-    s_91[CTX_SENDER] = nil_oop;
+    s_163[CTX_PC] = nil_oop;
+    s_163[CTX_SENDER] = nil_oop;
     active_ctx = sender;
     if (((sender & 7) == 0) && ((!((uint64_t)(sender - young_lo) < young_hi - young_lo)) && (((*(uint64_t *)sender) & H_REMEMBERED) == 0))) {
         vm_remember(sender);
     }
-    s_92 = (oop *)(active_ctx + 16);
-    m_95 = s_92[CTX_METHOD];
-    o_407 = ((oop *)(m_95 + 16))[CM_LITERALS];
-    lits = (oop *)(o_407 + 16);
-    fp = s_92 + CTX_FIXED;
-    o_408 = s_92[CTX_STACKP];
-    sp = fp + (((int64_t)o_408) >> 1) - 1;
-    o_409 = s_92[CTX_PC];
-    if (!((o_409 & 1) != 0)) {
+    s_164 = (oop *)(active_ctx + 16);
+    m_167 = s_164[CTX_METHOD];
+    o_623 = ((oop *)(m_167 + 16))[CM_LITERALS];
+    lits = (oop *)(o_623 + 16);
+    fp = s_164 + CTX_FIXED;
+    o_624 = s_164[CTX_STACKP];
+    sp = fp + (((int64_t)o_624) >> 1) - 1;
+    o_625 = s_164[CTX_PC];
+    if (!((o_625 & 1) != 0)) {
         fatal_begin();
         fprintf(stderr, "resuming a dead context");
         fatal_end();
     }
-    o_410 = *(uint64_t *)(m_95 + 16 + 24);
-    o_411 = s_92[CTX_PC];
-    ip = (uint8_t *)(o_410 + 16) + (((int64_t)o_411) >> 1);
+    o_626 = *(uint64_t *)(m_167 + 16 + 24);
+    o_627 = s_164[CTX_PC];
+    ip = (uint8_t *)(o_626 + 16) + (((int64_t)o_627) >> 1);
     fr = (frame *)NULL;
     sp = sp + 1;
     *sp = result;
@@ -7563,8 +9569,8 @@ do_send_global:;
     goto do_lookup;
 do_site_lookup:;
     e_7 = icache + ({
-    s_93 = (uint64_t)ip;
-    r_icache_index_of = (s_93 ^ (s_93 >> 12)) & 4095;
+    s_165 = (uint64_t)ip;
+    r_icache_index_of = (s_165 ^ (s_165 >> 12)) & 4095;
     r_icache_index_of; });
     if (__builtin_expect((e_7->cls != cls) || (e_7->sel != (oop)ip), 0)) {
         g = cache + (((cls >> 3) ^ (sel >> 3) ^ (sel >> 12)) & 4095);
@@ -7583,6 +9589,7 @@ enter_frame:;
     fr->method = new_method;
     fr->closure = nil_oop;
     fr->ctx = nil_oop;
+    fr->code = new_code;
     fp = new_fp;
     fr->fp = new_fp;
     ip = new_bcs;
@@ -7596,6 +9603,48 @@ enter_frame:;
     if (__builtin_expect(new_ecode >= 0, 0)) {
         new_fp[argc] = (uint64_t)((((int64_t)new_ecode) << 1) | 1);
     }
+    if (__builtin_expect(new_code != 0, 0)) {
+        if (fr != NULL) {
+            nframes = (int32_t)(fr - frames) + 1;
+            fr->ip = ip;
+            fr->sp = (int32_t)(sp - fp + 1);
+            cstack_used = (uint64_t)(sp + 1 - cstack);
+        } else {
+            s_166 = (oop *)(active_ctx + 16);
+            m_168 = s_166[CTX_METHOD];
+            o_628 = *(uint64_t *)(m_168 + 16 + 24);
+            v_324 = ip - (uint8_t *)(o_628 + 16);
+            s_166[CTX_PC] = (uint64_t)((v_324 << 1) | 1);
+            v_325 = sp - fp + 1;
+            s_166[CTX_STACKP] = (uint64_t)((v_325 << 1) | 1);
+        }
+        jit_activated(fr);
+        if (nframes != 0) {
+            fr = frames + (nframes - 1);
+            lits = fr->lits;
+            fp = fr->fp;
+            sp = fp + fr->sp - 1;
+            ip = fr->ip;
+        } else {
+            s_167 = (oop *)(active_ctx + 16);
+            m_169 = s_167[CTX_METHOD];
+            o_629 = ((oop *)(m_169 + 16))[CM_LITERALS];
+            lits = (oop *)(o_629 + 16);
+            fp = s_167 + CTX_FIXED;
+            o_630 = s_167[CTX_STACKP];
+            sp = fp + (((int64_t)o_630) >> 1) - 1;
+            o_631 = s_167[CTX_PC];
+            if (!((o_631 & 1) != 0)) {
+                fatal_begin();
+                fprintf(stderr, "resuming a dead context");
+                fatal_end();
+            }
+            o_632 = *(uint64_t *)(m_169 + 16 + 24);
+            o_633 = s_167[CTX_PC];
+            ip = (uint8_t *)(o_632 + 16) + (((int64_t)o_633) >> 1);
+            fr = (frame *)NULL;
+        }
+    }
     if (__builtin_expect(atomic_load_explicit(&interrupt_pending, memory_order_relaxed) != 0, 0)) {
         if (fr != NULL) {
             nframes = (int32_t)(fr - frames) + 1;
@@ -7603,13 +9652,13 @@ enter_frame:;
             fr->sp = (int32_t)(sp - fp + 1);
             cstack_used = (uint64_t)(sp + 1 - cstack);
         } else {
-            s_94 = (oop *)(active_ctx + 16);
-            m_96 = s_94[CTX_METHOD];
-            o_412 = *(uint64_t *)(m_96 + 16 + 24);
-            v_252 = ip - (uint8_t *)(o_412 + 16);
-            s_94[CTX_PC] = (uint64_t)((v_252 << 1) | 1);
-            v_253 = sp - fp + 1;
-            s_94[CTX_STACKP] = (uint64_t)((v_253 << 1) | 1);
+            s_168 = (oop *)(active_ctx + 16);
+            m_170 = s_168[CTX_METHOD];
+            o_634 = *(uint64_t *)(m_170 + 16 + 24);
+            v_326 = ip - (uint8_t *)(o_634 + 16);
+            s_168[CTX_PC] = (uint64_t)((v_326 << 1) | 1);
+            v_327 = sp - fp + 1;
+            s_168[CTX_STACKP] = (uint64_t)((v_327 << 1) | 1);
         }
         interrupt_safepoint();
         if (nframes != 0) {
@@ -7619,22 +9668,22 @@ enter_frame:;
             sp = fp + fr->sp - 1;
             ip = fr->ip;
         } else {
-            s_95 = (oop *)(active_ctx + 16);
-            m_97 = s_95[CTX_METHOD];
-            o_413 = ((oop *)(m_97 + 16))[CM_LITERALS];
-            lits = (oop *)(o_413 + 16);
-            fp = s_95 + CTX_FIXED;
-            o_414 = s_95[CTX_STACKP];
-            sp = fp + (((int64_t)o_414) >> 1) - 1;
-            o_415 = s_95[CTX_PC];
-            if (!((o_415 & 1) != 0)) {
+            s_169 = (oop *)(active_ctx + 16);
+            m_171 = s_169[CTX_METHOD];
+            o_635 = ((oop *)(m_171 + 16))[CM_LITERALS];
+            lits = (oop *)(o_635 + 16);
+            fp = s_169 + CTX_FIXED;
+            o_636 = s_169[CTX_STACKP];
+            sp = fp + (((int64_t)o_636) >> 1) - 1;
+            o_637 = s_169[CTX_PC];
+            if (!((o_637 & 1) != 0)) {
                 fatal_begin();
                 fprintf(stderr, "resuming a dead context");
                 fatal_end();
             }
-            o_416 = *(uint64_t *)(m_97 + 16 + 24);
-            o_417 = s_95[CTX_PC];
-            ip = (uint8_t *)(o_416 + 16) + (((int64_t)o_417) >> 1);
+            o_638 = *(uint64_t *)(m_171 + 16 + 24);
+            o_639 = s_169[CTX_PC];
+            ip = (uint8_t *)(o_638 + 16) + (((int64_t)o_639) >> 1);
             fr = (frame *)NULL;
         }
     }
@@ -7649,7 +9698,12 @@ have_entry:;
     new_temps = e_6->ntemps;
     new_fsize = e_6->fsize;
     new_ecode = -1;
+    new_code = 0;
     if (__builtin_expect(e_6->kind == 0, 1)) {
+        goto activate;
+    }
+    if (e_6->kind == K_JIT) {
+        new_code = e_6->code;
         goto activate;
     }
     if ((e_6->kind & K_LEAF) != 0) {
@@ -7675,15 +9729,15 @@ have_entry:;
         goto activate;
     }
     if (((e_6->kind & K_CTX) != 0) && ((fr != NULL) && ({
-    o_418 = sp[-argc];
-    o_419 = *(uint64_t *)(o_418 + 16 + 0);
-    (o_419 & 1) != 0; }))) {
+    o_640 = sp[-argc];
+    o_641 = *(uint64_t *)(o_640 + 16 + 0);
+    (o_641 & 1) != 0; }))) {
         goto send_to_married;
     }
     if ((e_6->kind & K_CONST) != 0) {
-        v_254 = e_6->qconst != 0 ? e_6->qconst : sp[-argc];
+        v_328 = e_6->qconst != 0 ? e_6->qconst : sp[-argc];
         sp = sp - argc;
-        *sp = v_254;
+        *sp = v_328;
         if (__builtin_expect(atomic_load_explicit(&interrupt_pending, memory_order_relaxed) != 0, 0)) {
             if (fr != NULL) {
                 nframes = (int32_t)(fr - frames) + 1;
@@ -7691,13 +9745,13 @@ have_entry:;
                 fr->sp = (int32_t)(sp - fp + 1);
                 cstack_used = (uint64_t)(sp + 1 - cstack);
             } else {
-                s_96 = (oop *)(active_ctx + 16);
-                m_98 = s_96[CTX_METHOD];
-                o_420 = *(uint64_t *)(m_98 + 16 + 24);
-                v_255 = ip - (uint8_t *)(o_420 + 16);
-                s_96[CTX_PC] = (uint64_t)((v_255 << 1) | 1);
-                v_256 = sp - fp + 1;
-                s_96[CTX_STACKP] = (uint64_t)((v_256 << 1) | 1);
+                s_170 = (oop *)(active_ctx + 16);
+                m_172 = s_170[CTX_METHOD];
+                o_642 = *(uint64_t *)(m_172 + 16 + 24);
+                v_329 = ip - (uint8_t *)(o_642 + 16);
+                s_170[CTX_PC] = (uint64_t)((v_329 << 1) | 1);
+                v_330 = sp - fp + 1;
+                s_170[CTX_STACKP] = (uint64_t)((v_330 << 1) | 1);
             }
             interrupt_safepoint();
             if (nframes != 0) {
@@ -7707,22 +9761,22 @@ have_entry:;
                 sp = fp + fr->sp - 1;
                 ip = fr->ip;
             } else {
-                s_97 = (oop *)(active_ctx + 16);
-                m_99 = s_97[CTX_METHOD];
-                o_421 = ((oop *)(m_99 + 16))[CM_LITERALS];
-                lits = (oop *)(o_421 + 16);
-                fp = s_97 + CTX_FIXED;
-                o_422 = s_97[CTX_STACKP];
-                sp = fp + (((int64_t)o_422) >> 1) - 1;
-                o_423 = s_97[CTX_PC];
-                if (!((o_423 & 1) != 0)) {
+                s_171 = (oop *)(active_ctx + 16);
+                m_173 = s_171[CTX_METHOD];
+                o_643 = ((oop *)(m_173 + 16))[CM_LITERALS];
+                lits = (oop *)(o_643 + 16);
+                fp = s_171 + CTX_FIXED;
+                o_644 = s_171[CTX_STACKP];
+                sp = fp + (((int64_t)o_644) >> 1) - 1;
+                o_645 = s_171[CTX_PC];
+                if (!((o_645 & 1) != 0)) {
                     fatal_begin();
                     fprintf(stderr, "resuming a dead context");
                     fatal_end();
                 }
-                o_424 = *(uint64_t *)(m_99 + 16 + 24);
-                o_425 = s_97[CTX_PC];
-                ip = (uint8_t *)(o_424 + 16) + (((int64_t)o_425) >> 1);
+                o_646 = *(uint64_t *)(m_173 + 16 + 24);
+                o_647 = s_171[CTX_PC];
+                ip = (uint8_t *)(o_646 + 16) + (((int64_t)o_647) >> 1);
                 fr = (frame *)NULL;
             }
         }
@@ -7742,9 +9796,9 @@ have_entry:;
             if (ok) {
                 for (k_26 = 0; k_26 <= argc - 1; k_26++) {
                     i_6 = e_6->set_ivar[k_26];
-                    v_257 = sp[-argc + 1 + k_26];
-                    *(uint64_t *)(r_39 + 16 + 8 * i_6) = v_257;
-                    if (((v_257 & 7) == 0) && (((uint64_t)(v_257 - young_lo) < young_hi - young_lo) && ((!((uint64_t)(r_39 - young_lo) < young_hi - young_lo)) && (((*(uint64_t *)r_39) & H_REMEMBERED) == 0)))) {
+                    v_331 = sp[-argc + 1 + k_26];
+                    *(uint64_t *)(r_39 + 16 + 8 * i_6) = v_331;
+                    if (((v_331 & 7) == 0) && (((uint64_t)(v_331 - young_lo) < young_hi - young_lo) && ((!((uint64_t)(r_39 - young_lo) < young_hi - young_lo)) && (((*(uint64_t *)r_39) & H_REMEMBERED) == 0)))) {
                         vm_remember(r_39);
                     }
                 }
@@ -7757,13 +9811,13 @@ have_entry:;
                         fr->sp = (int32_t)(sp - fp + 1);
                         cstack_used = (uint64_t)(sp + 1 - cstack);
                     } else {
-                        s_98 = (oop *)(active_ctx + 16);
-                        m_100 = s_98[CTX_METHOD];
-                        o_426 = *(uint64_t *)(m_100 + 16 + 24);
-                        v_258 = ip - (uint8_t *)(o_426 + 16);
-                        s_98[CTX_PC] = (uint64_t)((v_258 << 1) | 1);
-                        v_259 = sp - fp + 1;
-                        s_98[CTX_STACKP] = (uint64_t)((v_259 << 1) | 1);
+                        s_172 = (oop *)(active_ctx + 16);
+                        m_174 = s_172[CTX_METHOD];
+                        o_648 = *(uint64_t *)(m_174 + 16 + 24);
+                        v_332 = ip - (uint8_t *)(o_648 + 16);
+                        s_172[CTX_PC] = (uint64_t)((v_332 << 1) | 1);
+                        v_333 = sp - fp + 1;
+                        s_172[CTX_STACKP] = (uint64_t)((v_333 << 1) | 1);
                     }
                     interrupt_safepoint();
                     if (nframes != 0) {
@@ -7773,22 +9827,22 @@ have_entry:;
                         sp = fp + fr->sp - 1;
                         ip = fr->ip;
                     } else {
-                        s_99 = (oop *)(active_ctx + 16);
-                        m_101 = s_99[CTX_METHOD];
-                        o_427 = ((oop *)(m_101 + 16))[CM_LITERALS];
-                        lits = (oop *)(o_427 + 16);
-                        fp = s_99 + CTX_FIXED;
-                        o_428 = s_99[CTX_STACKP];
-                        sp = fp + (((int64_t)o_428) >> 1) - 1;
-                        o_429 = s_99[CTX_PC];
-                        if (!((o_429 & 1) != 0)) {
+                        s_173 = (oop *)(active_ctx + 16);
+                        m_175 = s_173[CTX_METHOD];
+                        o_649 = ((oop *)(m_175 + 16))[CM_LITERALS];
+                        lits = (oop *)(o_649 + 16);
+                        fp = s_173 + CTX_FIXED;
+                        o_650 = s_173[CTX_STACKP];
+                        sp = fp + (((int64_t)o_650) >> 1) - 1;
+                        o_651 = s_173[CTX_PC];
+                        if (!((o_651 & 1) != 0)) {
                             fatal_begin();
                             fprintf(stderr, "resuming a dead context");
                             fatal_end();
                         }
-                        o_430 = *(uint64_t *)(m_101 + 16 + 24);
-                        o_431 = s_99[CTX_PC];
-                        ip = (uint8_t *)(o_430 + 16) + (((int64_t)o_431) >> 1);
+                        o_652 = *(uint64_t *)(m_175 + 16 + 24);
+                        o_653 = s_173[CTX_PC];
+                        ip = (uint8_t *)(o_652 + 16) + (((int64_t)o_653) >> 1);
                         fr = (frame *)NULL;
                     }
                 }
@@ -7811,13 +9865,13 @@ have_entry:;
                     fr->sp = (int32_t)(sp - fp + 1);
                     cstack_used = (uint64_t)(sp + 1 - cstack);
                 } else {
-                    s_100 = (oop *)(active_ctx + 16);
-                    m_102 = s_100[CTX_METHOD];
-                    o_432 = *(uint64_t *)(m_102 + 16 + 24);
-                    v_260 = ip - (uint8_t *)(o_432 + 16);
-                    s_100[CTX_PC] = (uint64_t)((v_260 << 1) | 1);
-                    v_261 = sp - fp + 1;
-                    s_100[CTX_STACKP] = (uint64_t)((v_261 << 1) | 1);
+                    s_174 = (oop *)(active_ctx + 16);
+                    m_176 = s_174[CTX_METHOD];
+                    o_654 = *(uint64_t *)(m_176 + 16 + 24);
+                    v_334 = ip - (uint8_t *)(o_654 + 16);
+                    s_174[CTX_PC] = (uint64_t)((v_334 << 1) | 1);
+                    v_335 = sp - fp + 1;
+                    s_174[CTX_STACKP] = (uint64_t)((v_335 << 1) | 1);
                 }
                 interrupt_safepoint();
                 if (nframes != 0) {
@@ -7827,22 +9881,22 @@ have_entry:;
                     sp = fp + fr->sp - 1;
                     ip = fr->ip;
                 } else {
-                    s_101 = (oop *)(active_ctx + 16);
-                    m_103 = s_101[CTX_METHOD];
-                    o_433 = ((oop *)(m_103 + 16))[CM_LITERALS];
-                    lits = (oop *)(o_433 + 16);
-                    fp = s_101 + CTX_FIXED;
-                    o_434 = s_101[CTX_STACKP];
-                    sp = fp + (((int64_t)o_434) >> 1) - 1;
-                    o_435 = s_101[CTX_PC];
-                    if (!((o_435 & 1) != 0)) {
+                    s_175 = (oop *)(active_ctx + 16);
+                    m_177 = s_175[CTX_METHOD];
+                    o_655 = ((oop *)(m_177 + 16))[CM_LITERALS];
+                    lits = (oop *)(o_655 + 16);
+                    fp = s_175 + CTX_FIXED;
+                    o_656 = s_175[CTX_STACKP];
+                    sp = fp + (((int64_t)o_656) >> 1) - 1;
+                    o_657 = s_175[CTX_PC];
+                    if (!((o_657 & 1) != 0)) {
                         fatal_begin();
                         fprintf(stderr, "resuming a dead context");
                         fatal_end();
                     }
-                    o_436 = *(uint64_t *)(m_103 + 16 + 24);
-                    o_437 = s_101[CTX_PC];
-                    ip = (uint8_t *)(o_436 + 16) + (((int64_t)o_437) >> 1);
+                    o_658 = *(uint64_t *)(m_177 + 16 + 24);
+                    o_659 = s_175[CTX_PC];
+                    ip = (uint8_t *)(o_658 + 16) + (((int64_t)o_659) >> 1);
                     fr = (frame *)NULL;
                 }
             }
@@ -7860,13 +9914,13 @@ have_entry:;
             fr->sp = (int32_t)(sp - fp + 1);
             cstack_used = (uint64_t)(sp + 1 - cstack);
         } else {
-            s_102 = (oop *)(active_ctx + 16);
-            m_104 = s_102[CTX_METHOD];
-            o_438 = *(uint64_t *)(m_104 + 16 + 24);
-            v_262 = ip - (uint8_t *)(o_438 + 16);
-            s_102[CTX_PC] = (uint64_t)((v_262 << 1) | 1);
-            v_263 = sp - fp + 1;
-            s_102[CTX_STACKP] = (uint64_t)((v_263 << 1) | 1);
+            s_176 = (oop *)(active_ctx + 16);
+            m_178 = s_176[CTX_METHOD];
+            o_660 = *(uint64_t *)(m_178 + 16 + 24);
+            v_336 = ip - (uint8_t *)(o_660 + 16);
+            s_176[CTX_PC] = (uint64_t)((v_336 << 1) | 1);
+            v_337 = sp - fp + 1;
+            s_176[CTX_STACKP] = (uint64_t)((v_337 << 1) | 1);
         }
         prim_nargs = argc;
         prim_base = sp - argc;
@@ -7884,22 +9938,22 @@ have_entry:;
                     sp = fp + fr->sp - 1;
                     ip = fr->ip;
                 } else {
-                    s_103 = (oop *)(active_ctx + 16);
-                    m_105 = s_103[CTX_METHOD];
-                    o_439 = ((oop *)(m_105 + 16))[CM_LITERALS];
-                    lits = (oop *)(o_439 + 16);
-                    fp = s_103 + CTX_FIXED;
-                    o_440 = s_103[CTX_STACKP];
-                    sp = fp + (((int64_t)o_440) >> 1) - 1;
-                    o_441 = s_103[CTX_PC];
-                    if (!((o_441 & 1) != 0)) {
+                    s_177 = (oop *)(active_ctx + 16);
+                    m_179 = s_177[CTX_METHOD];
+                    o_661 = ((oop *)(m_179 + 16))[CM_LITERALS];
+                    lits = (oop *)(o_661 + 16);
+                    fp = s_177 + CTX_FIXED;
+                    o_662 = s_177[CTX_STACKP];
+                    sp = fp + (((int64_t)o_662) >> 1) - 1;
+                    o_663 = s_177[CTX_PC];
+                    if (!((o_663 & 1) != 0)) {
                         fatal_begin();
                         fprintf(stderr, "resuming a dead context");
                         fatal_end();
                     }
-                    o_442 = *(uint64_t *)(m_105 + 16 + 24);
-                    o_443 = s_103[CTX_PC];
-                    ip = (uint8_t *)(o_442 + 16) + (((int64_t)o_443) >> 1);
+                    o_664 = *(uint64_t *)(m_179 + 16 + 24);
+                    o_665 = s_177[CTX_PC];
+                    ip = (uint8_t *)(o_664 + 16) + (((int64_t)o_665) >> 1);
                     fr = (frame *)NULL;
                 }
             }
@@ -7920,23 +9974,67 @@ have_entry:;
                 sp = fp + fr->sp - 1;
                 ip = fr->ip;
             } else {
-                s_104 = (oop *)(active_ctx + 16);
-                m_106 = s_104[CTX_METHOD];
-                o_444 = ((oop *)(m_106 + 16))[CM_LITERALS];
-                lits = (oop *)(o_444 + 16);
-                fp = s_104 + CTX_FIXED;
-                o_445 = s_104[CTX_STACKP];
-                sp = fp + (((int64_t)o_445) >> 1) - 1;
-                o_446 = s_104[CTX_PC];
-                if (!((o_446 & 1) != 0)) {
+                s_178 = (oop *)(active_ctx + 16);
+                m_180 = s_178[CTX_METHOD];
+                o_666 = ((oop *)(m_180 + 16))[CM_LITERALS];
+                lits = (oop *)(o_666 + 16);
+                fp = s_178 + CTX_FIXED;
+                o_667 = s_178[CTX_STACKP];
+                sp = fp + (((int64_t)o_667) >> 1) - 1;
+                o_668 = s_178[CTX_PC];
+                if (!((o_668 & 1) != 0)) {
                     fatal_begin();
                     fprintf(stderr, "resuming a dead context");
                     fatal_end();
                 }
-                o_447 = *(uint64_t *)(m_106 + 16 + 24);
-                o_448 = s_104[CTX_PC];
-                ip = (uint8_t *)(o_447 + 16) + (((int64_t)o_448) >> 1);
+                o_669 = *(uint64_t *)(m_180 + 16 + 24);
+                o_670 = s_178[CTX_PC];
+                ip = (uint8_t *)(o_669 + 16) + (((int64_t)o_670) >> 1);
                 fr = (frame *)NULL;
+            }
+            if (__builtin_expect((fr != NULL) && ({
+    c_40 = fr->code;
+    c_40 > JIT_MAX_COUNT; }), 0)) {
+                if (fr != NULL) {
+                    nframes = (int32_t)(fr - frames) + 1;
+                    fr->ip = ip;
+                    fr->sp = (int32_t)(sp - fp + 1);
+                    cstack_used = (uint64_t)(sp + 1 - cstack);
+                } else {
+                    s_179 = (oop *)(active_ctx + 16);
+                    m_181 = s_179[CTX_METHOD];
+                    o_671 = *(uint64_t *)(m_181 + 16 + 24);
+                    v_338 = ip - (uint8_t *)(o_671 + 16);
+                    s_179[CTX_PC] = (uint64_t)((v_338 << 1) | 1);
+                    v_339 = sp - fp + 1;
+                    s_179[CTX_STACKP] = (uint64_t)((v_339 << 1) | 1);
+                }
+                jit_resume(fr);
+                if (nframes != 0) {
+                    fr = frames + (nframes - 1);
+                    lits = fr->lits;
+                    fp = fr->fp;
+                    sp = fp + fr->sp - 1;
+                    ip = fr->ip;
+                } else {
+                    s_180 = (oop *)(active_ctx + 16);
+                    m_182 = s_180[CTX_METHOD];
+                    o_672 = ((oop *)(m_182 + 16))[CM_LITERALS];
+                    lits = (oop *)(o_672 + 16);
+                    fp = s_180 + CTX_FIXED;
+                    o_673 = s_180[CTX_STACKP];
+                    sp = fp + (((int64_t)o_673) >> 1) - 1;
+                    o_674 = s_180[CTX_PC];
+                    if (!((o_674 & 1) != 0)) {
+                        fatal_begin();
+                        fprintf(stderr, "resuming a dead context");
+                        fatal_end();
+                    }
+                    o_675 = *(uint64_t *)(m_182 + 16 + 24);
+                    o_676 = s_180[CTX_PC];
+                    ip = (uint8_t *)(o_675 + 16) + (((int64_t)o_676) >> 1);
+                    fr = (frame *)NULL;
+                }
             }
             goto *ops[({
     ip = ip + 1;
@@ -7951,22 +10049,22 @@ have_entry:;
                 sp = fp + fr->sp - 1;
                 ip = fr->ip;
             } else {
-                s_105 = (oop *)(active_ctx + 16);
-                m_107 = s_105[CTX_METHOD];
-                o_449 = ((oop *)(m_107 + 16))[CM_LITERALS];
-                lits = (oop *)(o_449 + 16);
-                fp = s_105 + CTX_FIXED;
-                o_450 = s_105[CTX_STACKP];
-                sp = fp + (((int64_t)o_450) >> 1) - 1;
-                o_451 = s_105[CTX_PC];
-                if (!((o_451 & 1) != 0)) {
+                s_181 = (oop *)(active_ctx + 16);
+                m_183 = s_181[CTX_METHOD];
+                o_677 = ((oop *)(m_183 + 16))[CM_LITERALS];
+                lits = (oop *)(o_677 + 16);
+                fp = s_181 + CTX_FIXED;
+                o_678 = s_181[CTX_STACKP];
+                sp = fp + (((int64_t)o_678) >> 1) - 1;
+                o_679 = s_181[CTX_PC];
+                if (!((o_679 & 1) != 0)) {
                     fatal_begin();
                     fprintf(stderr, "resuming a dead context");
                     fatal_end();
                 }
-                o_452 = *(uint64_t *)(m_107 + 16 + 24);
-                o_453 = s_105[CTX_PC];
-                ip = (uint8_t *)(o_452 + 16) + (((int64_t)o_453) >> 1);
+                o_680 = *(uint64_t *)(m_183 + 16 + 24);
+                o_681 = s_181[CTX_PC];
+                ip = (uint8_t *)(o_680 + 16) + (((int64_t)o_681) >> 1);
                 fr = (frame *)NULL;
             }
             sel = resend_selector;
@@ -7981,31 +10079,31 @@ have_entry:;
                     sp = fp + fr->sp - 1;
                     ip = fr->ip;
                 } else {
-                    s_106 = (oop *)(active_ctx + 16);
-                    m_108 = s_106[CTX_METHOD];
-                    o_454 = ((oop *)(m_108 + 16))[CM_LITERALS];
-                    lits = (oop *)(o_454 + 16);
-                    fp = s_106 + CTX_FIXED;
-                    o_455 = s_106[CTX_STACKP];
-                    sp = fp + (((int64_t)o_455) >> 1) - 1;
-                    o_456 = s_106[CTX_PC];
-                    if (!((o_456 & 1) != 0)) {
+                    s_182 = (oop *)(active_ctx + 16);
+                    m_184 = s_182[CTX_METHOD];
+                    o_682 = ((oop *)(m_184 + 16))[CM_LITERALS];
+                    lits = (oop *)(o_682 + 16);
+                    fp = s_182 + CTX_FIXED;
+                    o_683 = s_182[CTX_STACKP];
+                    sp = fp + (((int64_t)o_683) >> 1) - 1;
+                    o_684 = s_182[CTX_PC];
+                    if (!((o_684 & 1) != 0)) {
                         fatal_begin();
                         fprintf(stderr, "resuming a dead context");
                         fatal_end();
                     }
-                    o_457 = *(uint64_t *)(m_108 + 16 + 24);
-                    o_458 = s_106[CTX_PC];
-                    ip = (uint8_t *)(o_457 + 16) + (((int64_t)o_458) >> 1);
+                    o_685 = *(uint64_t *)(m_184 + 16 + 24);
+                    o_686 = s_182[CTX_PC];
+                    ip = (uint8_t *)(o_685 + 16) + (((int64_t)o_686) >> 1);
                     fr = (frame *)NULL;
                 }
             }
             new_method = tmp_roots[0];
             tmp_roots[0] = nil_oop;
-            o_459 = *(uint64_t *)(new_method + 16 + 24);
-            new_bcs = (uint8_t *)(o_459 + 16);
-            o_460 = *(uint64_t *)(new_method + 16 + 16);
-            new_lits = (oop *)(o_460 + 16);
+            o_687 = *(uint64_t *)(new_method + 16 + 24);
+            new_bcs = (uint8_t *)(o_687 + 16);
+            o_688 = *(uint64_t *)(new_method + 16 + 16);
+            new_lits = (oop *)(o_688 + 16);
             if ((prim_error_code >= 0) && ((new_temps > 0) && ((({
     p_35 = *(uint64_t *)(new_method + 16 + 56);
     r_method_prim_7 = (p_35 & 1) != 0 ? ((int64_t)p_35) >> 1 : 0;
@@ -8025,13 +10123,13 @@ send_does_not_understand:;
             fr->sp = (int32_t)(sp - fp + 1);
             cstack_used = (uint64_t)(sp + 1 - cstack);
         } else {
-            s_107 = (oop *)(active_ctx + 16);
-            m_109 = s_107[CTX_METHOD];
-            o_461 = *(uint64_t *)(m_109 + 16 + 24);
-            v_264 = ip - (uint8_t *)(o_461 + 16);
-            s_107[CTX_PC] = (uint64_t)((v_264 << 1) | 1);
-            v_265 = sp - fp + 1;
-            s_107[CTX_STACKP] = (uint64_t)((v_265 << 1) | 1);
+            s_183 = (oop *)(active_ctx + 16);
+            m_185 = s_183[CTX_METHOD];
+            o_689 = *(uint64_t *)(m_185 + 16 + 24);
+            v_340 = ip - (uint8_t *)(o_689 + 16);
+            s_183[CTX_PC] = (uint64_t)((v_340 << 1) | 1);
+            v_341 = sp - fp + 1;
+            s_183[CTX_STACKP] = (uint64_t)((v_341 << 1) | 1);
         }
         msg = *sp;
         fprintf(stderr, "samaltak: doesNotUnderstand: not understood (");
@@ -8049,13 +10147,13 @@ send_does_not_understand:;
         fr->sp = (int32_t)(sp - fp + 1);
         cstack_used = (uint64_t)(sp + 1 - cstack);
     } else {
-        s_108 = (oop *)(active_ctx + 16);
-        m_110 = s_108[CTX_METHOD];
-        o_462 = *(uint64_t *)(m_110 + 16 + 24);
-        v_266 = ip - (uint8_t *)(o_462 + 16);
-        s_108[CTX_PC] = (uint64_t)((v_266 << 1) | 1);
-        v_267 = sp - fp + 1;
-        s_108[CTX_STACKP] = (uint64_t)((v_267 << 1) | 1);
+        s_184 = (oop *)(active_ctx + 16);
+        m_186 = s_184[CTX_METHOD];
+        o_690 = *(uint64_t *)(m_186 + 16 + 24);
+        v_342 = ip - (uint8_t *)(o_690 + 16);
+        s_184[CTX_PC] = (uint64_t)((v_342 << 1) | 1);
+        v_343 = sp - fp + 1;
+        s_184[CTX_STACKP] = (uint64_t)((v_343 << 1) | 1);
     }
     tmp_roots[1] = sel;
     tmp_roots[2] = cls;
@@ -8067,22 +10165,22 @@ send_does_not_understand:;
         sp = fp + fr->sp - 1;
         ip = fr->ip;
     } else {
-        s_109 = (oop *)(active_ctx + 16);
-        m_111 = s_109[CTX_METHOD];
-        o_463 = ((oop *)(m_111 + 16))[CM_LITERALS];
-        lits = (oop *)(o_463 + 16);
-        fp = s_109 + CTX_FIXED;
-        o_464 = s_109[CTX_STACKP];
-        sp = fp + (((int64_t)o_464) >> 1) - 1;
-        o_465 = s_109[CTX_PC];
-        if (!((o_465 & 1) != 0)) {
+        s_185 = (oop *)(active_ctx + 16);
+        m_187 = s_185[CTX_METHOD];
+        o_691 = ((oop *)(m_187 + 16))[CM_LITERALS];
+        lits = (oop *)(o_691 + 16);
+        fp = s_185 + CTX_FIXED;
+        o_692 = s_185[CTX_STACKP];
+        sp = fp + (((int64_t)o_692) >> 1) - 1;
+        o_693 = s_185[CTX_PC];
+        if (!((o_693 & 1) != 0)) {
             fatal_begin();
             fprintf(stderr, "resuming a dead context");
             fatal_end();
         }
-        o_466 = *(uint64_t *)(m_111 + 16 + 24);
-        o_467 = s_109[CTX_PC];
-        ip = (uint8_t *)(o_466 + 16) + (((int64_t)o_467) >> 1);
+        o_694 = *(uint64_t *)(m_187 + 16 + 24);
+        o_695 = s_185[CTX_PC];
+        ip = (uint8_t *)(o_694 + 16) + (((int64_t)o_695) >> 1);
         fr = (frame *)NULL;
     }
     memcpy((oop *)(args + 16), sp - argc + 1, (uint64_t)argc * 8);
@@ -8091,8 +10189,8 @@ send_does_not_understand:;
     }
     tmp_roots[3] = args;
     mc = cls_message;
-    o_468 = *(uint64_t *)(mc + 16 + 16);
-    isize_2 = (((int64_t)o_468) >> 1) & CLS_INSTSIZE_MASK;
+    o_696 = *(uint64_t *)(mc + 16 + 16);
+    isize_2 = (((int64_t)o_696) >> 1) & CLS_INSTSIZE_MASK;
     msg = alloc_obj(mc, F_FIXED, (uint32_t)(isize_2 < 2 ? 2 : isize_2));
     if (nframes != 0) {
         fr = frames + (nframes - 1);
@@ -8101,32 +10199,32 @@ send_does_not_understand:;
         sp = fp + fr->sp - 1;
         ip = fr->ip;
     } else {
-        s_110 = (oop *)(active_ctx + 16);
-        m_112 = s_110[CTX_METHOD];
-        o_469 = ((oop *)(m_112 + 16))[CM_LITERALS];
-        lits = (oop *)(o_469 + 16);
-        fp = s_110 + CTX_FIXED;
-        o_470 = s_110[CTX_STACKP];
-        sp = fp + (((int64_t)o_470) >> 1) - 1;
-        o_471 = s_110[CTX_PC];
-        if (!((o_471 & 1) != 0)) {
+        s_186 = (oop *)(active_ctx + 16);
+        m_188 = s_186[CTX_METHOD];
+        o_697 = ((oop *)(m_188 + 16))[CM_LITERALS];
+        lits = (oop *)(o_697 + 16);
+        fp = s_186 + CTX_FIXED;
+        o_698 = s_186[CTX_STACKP];
+        sp = fp + (((int64_t)o_698) >> 1) - 1;
+        o_699 = s_186[CTX_PC];
+        if (!((o_699 & 1) != 0)) {
             fatal_begin();
             fprintf(stderr, "resuming a dead context");
             fatal_end();
         }
-        o_472 = *(uint64_t *)(m_112 + 16 + 24);
-        o_473 = s_110[CTX_PC];
-        ip = (uint8_t *)(o_472 + 16) + (((int64_t)o_473) >> 1);
+        o_700 = *(uint64_t *)(m_188 + 16 + 24);
+        o_701 = s_186[CTX_PC];
+        ip = (uint8_t *)(o_700 + 16) + (((int64_t)o_701) >> 1);
         fr = (frame *)NULL;
     }
-    v_268 = tmp_roots[1];
-    *(uint64_t *)(msg + 16 + 0) = v_268;
-    if (((v_268 & 7) == 0) && (((uint64_t)(v_268 - young_lo) < young_hi - young_lo) && ((!((uint64_t)(msg - young_lo) < young_hi - young_lo)) && (((*(uint64_t *)msg) & H_REMEMBERED) == 0)))) {
+    v_344 = tmp_roots[1];
+    *(uint64_t *)(msg + 16 + 0) = v_344;
+    if (((v_344 & 7) == 0) && (((uint64_t)(v_344 - young_lo) < young_hi - young_lo) && ((!((uint64_t)(msg - young_lo) < young_hi - young_lo)) && (((*(uint64_t *)msg) & H_REMEMBERED) == 0)))) {
         vm_remember(msg);
     }
-    v_269 = tmp_roots[3];
-    *(uint64_t *)(msg + 16 + 8) = v_269;
-    if (((v_269 & 7) == 0) && (((uint64_t)(v_269 - young_lo) < young_hi - young_lo) && ((!((uint64_t)(msg - young_lo) < young_hi - young_lo)) && (((*(uint64_t *)msg) & H_REMEMBERED) == 0)))) {
+    v_345 = tmp_roots[3];
+    *(uint64_t *)(msg + 16 + 8) = v_345;
+    if (((v_345 & 7) == 0) && (((uint64_t)(v_345 - young_lo) < young_hi - young_lo) && ((!((uint64_t)(msg - young_lo) < young_hi - young_lo)) && (((*(uint64_t *)msg) & H_REMEMBERED) == 0)))) {
         vm_remember(msg);
     }
     cls = tmp_roots[2];
@@ -8140,8 +10238,8 @@ send_does_not_understand:;
     argc = 1;
     goto do_lookup;
 send_special:;
-    o_474 = special(SO_SPECIAL_SELECTORS);
-    sel = *(uint64_t *)(o_474 + 16 + 8 * six);
+    o_702 = special(SO_SPECIAL_SELECTORS);
+    sel = *(uint64_t *)(o_702 + 16 + 8 * six);
     argc = special_argc[six];
     goto do_send;
 send_to_married:;
@@ -8151,13 +10249,13 @@ send_to_married:;
         fr->sp = (int32_t)(sp - fp + 1);
         cstack_used = (uint64_t)(sp + 1 - cstack);
     } else {
-        s_111 = (oop *)(active_ctx + 16);
-        m_113 = s_111[CTX_METHOD];
-        o_475 = *(uint64_t *)(m_113 + 16 + 24);
-        v_270 = ip - (uint8_t *)(o_475 + 16);
-        s_111[CTX_PC] = (uint64_t)((v_270 << 1) | 1);
-        v_271 = sp - fp + 1;
-        s_111[CTX_STACKP] = (uint64_t)((v_271 << 1) | 1);
+        s_187 = (oop *)(active_ctx + 16);
+        m_189 = s_187[CTX_METHOD];
+        o_703 = *(uint64_t *)(m_189 + 16 + 24);
+        v_346 = ip - (uint8_t *)(o_703 + 16);
+        s_187[CTX_PC] = (uint64_t)((v_346 << 1) | 1);
+        v_347 = sp - fp + 1;
+        s_187[CTX_STACKP] = (uint64_t)((v_347 << 1) | 1);
     }
     tmp_roots[1] = sel;
     tmp_roots[2] = cls;
@@ -8173,29 +10271,29 @@ send_to_married:;
         sp = fp + fr->sp - 1;
         ip = fr->ip;
     } else {
-        s_112 = (oop *)(active_ctx + 16);
-        m_114 = s_112[CTX_METHOD];
-        o_476 = ((oop *)(m_114 + 16))[CM_LITERALS];
-        lits = (oop *)(o_476 + 16);
-        fp = s_112 + CTX_FIXED;
-        o_477 = s_112[CTX_STACKP];
-        sp = fp + (((int64_t)o_477) >> 1) - 1;
-        o_478 = s_112[CTX_PC];
-        if (!((o_478 & 1) != 0)) {
+        s_188 = (oop *)(active_ctx + 16);
+        m_190 = s_188[CTX_METHOD];
+        o_704 = ((oop *)(m_190 + 16))[CM_LITERALS];
+        lits = (oop *)(o_704 + 16);
+        fp = s_188 + CTX_FIXED;
+        o_705 = s_188[CTX_STACKP];
+        sp = fp + (((int64_t)o_705) >> 1) - 1;
+        o_706 = s_188[CTX_PC];
+        if (!((o_706 & 1) != 0)) {
             fatal_begin();
             fprintf(stderr, "resuming a dead context");
             fatal_end();
         }
-        o_479 = *(uint64_t *)(m_114 + 16 + 24);
-        o_480 = s_112[CTX_PC];
-        ip = (uint8_t *)(o_479 + 16) + (((int64_t)o_480) >> 1);
+        o_707 = *(uint64_t *)(m_190 + 16 + 24);
+        o_708 = s_188[CTX_PC];
+        ip = (uint8_t *)(o_707 + 16) + (((int64_t)o_708) >> 1);
         fr = (frame *)NULL;
     }
     goto do_lookup;
 }
 
 /* Interpreter>>interruptSafepoint */
-static void interrupt_safepoint(void)
+void interrupt_safepoint(void)
 {
     oop o;
     int64_t depth;
@@ -8302,7 +10400,7 @@ static oop lookup_method(oop a_class, oop a_selector)
 }
 
 /* Interpreter>>marry: */
-static oop marry(frame *f)
+oop marry(frame *f)
 {
     int64_t n;
     oop ctx;
@@ -8508,6 +10606,86 @@ static void print_symbol(oop s, FILE *f)
     }
 }
 
+/* Interpreter>>pushFrame:argc:code:ecode: */
+frame *interp_push_frame(oop m, int32_t n, uint64_t c, int32_t ecode)
+{
+    frame *f;
+    uint64_t o;
+    int64_t ntemps;
+    uint64_t o_2;
+    int64_t fsize;
+    oop *nfp;
+    frame *g;
+    uint64_t o_3;
+    uint64_t o_4;
+    int64_t i;
+    f = frames + (nframes - 1);
+    o = *(uint64_t *)(m + 16 + 40);
+    ntemps = ((int64_t)o) >> 1;
+    o_2 = *(uint64_t *)(m + 16 + 48);
+    fsize = ((int64_t)o_2) >> 1;
+    if (fsize < n + ntemps) {
+        fsize = n + ntemps;
+    }
+    nfp = f->fp + f->sp - n;
+    if (nfp + fsize > cstack + 65534) {
+        return (frame *)NULL;
+    }
+    f->sp = f->sp - n - 1;
+    g = f + 1;
+    g->method = m;
+    g->closure = nil_oop;
+    g->ctx = nil_oop;
+    g->code = c;
+    g->fp = nfp;
+    o_3 = *(uint64_t *)(m + 16 + 24);
+    g->ip = (uint8_t *)(o_3 + 16);
+    o_4 = *(uint64_t *)(m + 16 + 16);
+    g->lits = (oop *)(o_4 + 16);
+    g->sp = (int32_t)(n + ntemps);
+    for (i = n; i <= n + ntemps - 1; i++) {
+        nfp[i] = nil_oop;
+    }
+    if (ecode >= 0) {
+        nfp[n] = (uint64_t)((((int64_t)ecode) << 1) | 1);
+    }
+    nframes = nframes + 1;
+    cstack_used = (uint64_t)(nfp + n + ntemps - cstack);
+    return g;
+}
+
+/* Interpreter>>pushFrameEntry:argc: */
+frame *interp_push_frame_entry(cache_entry *e, int32_t n)
+{
+    frame *f;
+    int32_t ntemps;
+    oop *nfp;
+    frame *g;
+    int32_t i;
+    f = frames + (nframes - 1);
+    ntemps = e->ntemps;
+    nfp = f->fp + f->sp - n;
+    if (nfp + e->fsize > cstack + 65534) {
+        return (frame *)NULL;
+    }
+    f->sp = f->sp - n - 1;
+    g = f + 1;
+    g->method = e->method;
+    g->closure = nil_oop;
+    g->ctx = nil_oop;
+    g->code = e->code;
+    g->fp = nfp;
+    g->ip = e->bcs;
+    g->lits = e->lits;
+    g->sp = n + ntemps;
+    for (i = n; i <= n + ntemps - 1; i++) {
+        nfp[i] = nil_oop;
+    }
+    nframes = nframes + 1;
+    cstack_used = (uint64_t)(nfp + n + ntemps - cstack);
+    return g;
+}
+
 /* Interpreter>>refreshPrimBase */
 static void refresh_prim_base(void)
 {
@@ -8565,12 +10743,55 @@ int selector_argc(oop a_selector)
     return c;
 }
 
+/* Interpreter>>setCacheCode:forMethod: */
+void set_cache_code(uint64_t c, oop m)
+{
+    int i;
+    int i_2;
+    for (i = 0; i <= 4095; i++) {
+        if (((cache + i)->method == m) && ((cache + i)->kind == K_JIT)) {
+            (cache + i)->code = c;
+        }
+    }
+    for (i_2 = 0; i_2 <= 4095; i_2++) {
+        if (((icache + i_2)->method == m) && ((icache + i_2)->kind == K_JIT)) {
+            (icache + i_2)->code = c;
+        }
+    }
+}
+
 /* Interpreter>>setPrimBase: */
 void set_prim_base(int n)
 {
     prim_nargs = n;
     prim_base_index = active_stackp() - 1 - n;
     prim_base = active_slots() + prim_base_index;
+}
+
+/* Interpreter>>siteEntry:class:selector: */
+cache_entry *site_entry(uint8_t *site, oop a_class, oop a_selector)
+{
+    uint64_t r_icache_index_of;
+    uint64_t s;
+    cache_entry *e;
+    cache_entry *g;
+    e = icache + ({
+    s = (uint64_t)site;
+    r_icache_index_of = (s ^ (s >> 12)) & 4095;
+    r_icache_index_of; });
+    if ((e->cls == a_class) && (e->sel == (oop)site)) {
+        return e;
+    }
+    g = cache + (((a_class >> 3) ^ (a_selector >> 3) ^ (a_selector >> 12)) & 4095);
+    if ((g->cls != a_class) || (g->sel != a_selector)) {
+        g = fill_cache(a_class, a_selector);
+        if (g == NULL) {
+            return (cache_entry *)NULL;
+        }
+    }
+    *e = *g;
+    e->sel = (oop)site;
+    return e;
 }
 
 /* Interpreter>>stackOverflowDepth */
@@ -8594,8 +10815,20 @@ static int64_t stack_overflow_depth(void)
     return (depth > stack_limit) || (bytes > max_heap_bytes / 4) ? depth : 0;
 }
 
+/* Interpreter>>syncFrame: */
+void interp_sync_frame(frame *f)
+{
+    oop m;
+    uint64_t o;
+    nframes = (int32_t)(f - frames) + 1;
+    m = f->method;
+    o = *(uint64_t *)(m + 16 + 24);
+    f->ip = (uint8_t *)(o + 16) + f->pc;
+    cstack_used = (uint64_t)(f->fp + f->sp - cstack);
+}
+
 /* Interpreter>>widow: */
-static void widow(frame *f)
+void widow(frame *f)
 {
     oop ctx;
     oop *s;

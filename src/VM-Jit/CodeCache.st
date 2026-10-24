@@ -1,5 +1,5 @@
 VMModule subclass: #CodeCache
-	instanceVariableNames: 'posix jit cacheStart cacheTop cacheLimit'
+	instanceVariableNames: 'posix jit cacheStart cacheBase cacheTop cacheLimit'
 	classVariableNames: ''
 	package: 'VM-Jit'!
 
@@ -16,7 +16,7 @@ Simulated, the region is simulated memory, and calls of a pointer into it run th
 
 !CodeCache class methodsFor: 'declaring'!
 declarations
-	^#((posix Posix) (jit DarwinJit) (cacheStart uint64_t) (cacheTop uint64_t) (cacheLimit uint64_t))
+	^#((posix Posix) (jit DarwinJit) (cacheStart uint64_t) (cacheBase uint64_t) (cacheTop uint64_t) (cacheLimit uint64_t))
 ! !
 
 !CodeCache methodsFor: 'region'!
@@ -28,6 +28,7 @@ openWithSize: size
 	p := posix mmap: self null length: size protection: ((posix PROT_READ bitOr: posix PROT_WRITE) bitOr: jit PROT_EXEC) flags: ((posix MAP_PRIVATE bitOr: posix MAP_ANON) bitOr: jit MAP_JIT) file: -1 offset: 0.
 	p = posix MAP_FAILED ifTrue: [^false].
 	cacheStart := self cCoerce: p to: 'uint64_t'.
+	cacheBase := cacheStart.
 	cacheTop := cacheStart.
 	cacheLimit := cacheStart + size.
 	^true
@@ -53,10 +54,18 @@ allocate: size
 	^a
 !
 flush
-	"Forget all code (none may be running)."
+	"Forget all code allocated since keep (none of it may be running)."
 	<c: 'void code_cache_flush(void)'>
 	<export>
-	cacheTop := cacheStart
+	cacheTop := cacheBase
+!
+keep
+	"What is allocated so far survives flushes."
+	cacheBase := cacheTop
+!
+resetTo: address
+	"Forget the code allocated from address on (the last allocations)."
+	cacheTop := address
 ! !
 
 !CodeCache methodsFor: 'writing'!
@@ -67,5 +76,13 @@ beginWriting
 endWritingFrom: start size: size
 	"Make the region executable again, with the instruction cache current for [start, start + size)."
 	jit pthreadJitWriteProtect: 1.
+	jit sysIcacheInvalidate: (self cCoerce: start to: 'void *') size: size
+!
+endWriting
+	"Make the region executable again; only data changed (or invalidate: what did)."
+	jit pthreadJitWriteProtect: 1
+!
+invalidate: start size: size
+	"Code changed in [start, start + size)."
 	jit sysIcacheInvalidate: (self cCoerce: start to: 'void *') size: size
 ! !

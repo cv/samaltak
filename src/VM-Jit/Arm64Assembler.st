@@ -58,6 +58,13 @@ errorCode
 failed
 	^asmError ~= ASM_OK
 !
+isOK: aCode
+	^aCode = ASM_OK
+!
+isFull: aCode
+	"aCode (finish's answer) says the buffer filled up."
+	^aCode = ASM_ERR_FULL
+!
 fail: aCode
 	asmError = ASM_OK ifTrue: [asmError := aCode]
 !

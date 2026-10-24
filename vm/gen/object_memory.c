@@ -23,7 +23,6 @@ static uint64_t sample_mark;
 oop specials_oop;
 oop true_oop;
 
-static oop alloc_bytes(oop cls, size_t n);
 static oop alloc_old_try(oop cls, int fmt, uint32_t n);
 static uint64_t alloc_slow(oop *cls, size_t bytes);
 static oop alloc_words32(oop cls, size_t n);
@@ -32,7 +31,7 @@ static uint32_t next_hash(void);
 static size_t utf8_decode(uint8_t *s, size_t n, size_t *index);
 
 /* ObjectMemory>>allocBytes:count: */
-static oop alloc_bytes(oop cls, size_t n)
+oop alloc_bytes(oop cls, size_t n)
 {
     return alloc_obj(cls, F_BYTES + (int32_t)((8 - n % 8) % 8), (uint32_t)((n + 7) / 8));
 }

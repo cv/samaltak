@@ -1,7 +1,9 @@
 #!/bin/sh
 # VM + image builder end-to-end tests: build the mini kernel image (vm/tests/mini), run each
 # Smalltalk test headless and compare stdout with vm/tests/expected/<Test>.txt.
-# Every test also runs with a 1 MB eden under the heap verifier (GC stress).
+# Every test also runs with a 1 MB eden under the heap verifier (GC stress), and all of it again under the
+# template JIT with every method compiled on its first activation; the tests also run under the JIT's
+# default thresholds (counting activations, on-stack replacement).
 set -u
 ROOT=$(cd "$(dirname "$0")/../.." && pwd)
 VM=${VM:-"$ROOT/vm/build/samaltak"}
@@ -10,6 +12,7 @@ EXP="$ROOT/vm/tests/expected"
 mkdir -p "$OUT"
 "$ROOT/boot/build-image.sh" "$ROOT/vm/tests/mini" "$OUT/mini.image" "$VM" >/dev/null 2>&1 || exit 1
 IMG="$OUT/mini.image"
+TESTS="Arith Float Strings Closures Unwind Errors Processes Context Married Perform Instances Sampling GC Misc Weak StackOverflow Jit"
 pass=0
 fail=0
 
@@ -22,31 +25,6 @@ check() { # name expected-file actual-file
         diff "$2" "$3" | head -20
     fi
 }
-
-for t in Arith Float Strings Closures Unwind Errors Processes Context Married Perform Instances Sampling GC Misc Weak StackOverflow; do
-    "$VM" "$IMG" --headless "$t" >"$OUT/$t.out" 2>&1
-    check "$t" "$EXP/$t.txt" "$OUT/$t.out"
-    SAMALTAK_VERIFY_GC=1 "$VM" --eden 1 "$IMG" --headless "$t" >"$OUT/$t.stress.out" 2>&1
-    check "$t (eden 1 MB, verified)" "$EXP/$t.txt" "$OUT/$t.stress.out"
-done
-
-"$VM" --max-heap 64 "$IMG" --headless OutOfMemory >"$OUT/OutOfMemory.out" 2>&1
-check OutOfMemory "$EXP/OutOfMemory.txt" "$OUT/OutOfMemory.out"
-SAMALTAK_VERIFY_GC=1 "$VM" --max-heap 64 --eden 1 "$IMG" --headless OutOfMemory >"$OUT/OutOfMemory.stress.out" 2>&1
-check "OutOfMemory (eden 1 MB, verified)" "$EXP/OutOfMemory.txt" "$OUT/OutOfMemory.stress.out"
-
-for opts in "" "--eden 1"; do
-    # shellcheck disable=SC2086
-    SAMALTAK_VERIFY_GC=$([ -n "$opts" ] && echo 1) "$VM" --max-heap 64 $opts "$IMG" --headless StackOverflowHeap >"$OUT/StackOverflowHeap.out" 2>&1
-    check "StackOverflowHeap $opts" "$EXP/StackOverflowHeap.txt" "$OUT/StackOverflowHeap.out"
-done
-
-rm -f "$OUT/snap.image"
-{
-    MINI_SNAPSHOT="$OUT/snap.image" "$VM" "$IMG" --headless Snapshot
-    "$VM" "$OUT/snap.image" --headless
-} >"$OUT/Snapshot.out" 2>&1
-check Snapshot "$EXP/Snapshot.txt" "$OUT/Snapshot.out"
 
 expect_fatal() { # name pattern vm-args...
     name=$1 pattern=$2
@@ -61,11 +39,49 @@ expect_fatal() { # name pattern vm-args...
         tail -5 "$OUT/$name.out"
     fi
 }
-expect_fatal Recurse 'MiniTests>>recurse:' --max-heap 64 "$IMG" --headless Recurse
-expect_fatal FatalDNU 'not understood (ProtoThing>>foo)' "$IMG" --headless FatalDNU
+
+suite() { # label vm-options...
+    label=$1
+    shift
+    for t in $TESTS; do
+        "$VM" "$@" "$IMG" --headless "$t" >"$OUT/$t.out" 2>&1
+        check "$t$label" "$EXP/$t.txt" "$OUT/$t.out"
+        SAMALTAK_VERIFY_GC=1 "$VM" --eden 1 "$@" "$IMG" --headless "$t" >"$OUT/$t.stress.out" 2>&1
+        check "$t (eden 1 MB, verified)$label" "$EXP/$t.txt" "$OUT/$t.stress.out"
+    done
+
+    "$VM" --max-heap 64 "$@" "$IMG" --headless OutOfMemory >"$OUT/OutOfMemory.out" 2>&1
+    check "OutOfMemory$label" "$EXP/OutOfMemory.txt" "$OUT/OutOfMemory.out"
+    SAMALTAK_VERIFY_GC=1 "$VM" --max-heap 64 --eden 1 "$@" "$IMG" --headless OutOfMemory >"$OUT/OutOfMemory.stress.out" 2>&1
+    check "OutOfMemory (eden 1 MB, verified)$label" "$EXP/OutOfMemory.txt" "$OUT/OutOfMemory.stress.out"
+
+    for eden in "" 1; do
+        # shellcheck disable=SC2046
+        SAMALTAK_VERIFY_GC=$([ -n "$eden" ] && echo 1) "$VM" --max-heap 64 $([ -n "$eden" ] && echo --eden $eden) "$@" "$IMG" --headless StackOverflowHeap >"$OUT/StackOverflowHeap.out" 2>&1
+        check "StackOverflowHeap ${eden:+--eden $eden}$label" "$EXP/StackOverflowHeap.txt" "$OUT/StackOverflowHeap.out"
+    done
+
+    rm -f "$OUT/snap.image"
+    {
+        MINI_SNAPSHOT="$OUT/snap.image" "$VM" "$@" "$IMG" --headless Snapshot
+        "$VM" "$@" "$OUT/snap.image" --headless
+    } >"$OUT/Snapshot.out" 2>&1
+    check "Snapshot$label" "$EXP/Snapshot.txt" "$OUT/Snapshot.out"
+
+    expect_fatal "Recurse$label" 'MiniTests>>recurse:' --max-heap 64 "$@" "$IMG" --headless Recurse
+    expect_fatal "FatalDNU$label" 'not understood (ProtoThing>>foo)' "$@" "$IMG" --headless FatalDNU
+}
+
+suite ""
+suite " (jit)" --jit template --jit-threshold 0
+for t in $TESTS; do
+    "$VM" --jit template "$IMG" --headless "$t" >"$OUT/$t.out" 2>&1
+    check "$t (jit, default thresholds)" "$EXP/$t.txt" "$OUT/$t.out"
+done
 
 if [ "${BENCH:-1}" = 1 ]; then
     "$VM" "$IMG" --headless Bench 2>&1 >/dev/null | sed 's/^/bench: /'
+    "$VM" --jit template "$IMG" --headless Bench 2>&1 >/dev/null | sed 's/^/bench (jit): /'
 fi
 echo "test-vm: $pass passed, $fail failed"
 [ $fail -eq 0 ]

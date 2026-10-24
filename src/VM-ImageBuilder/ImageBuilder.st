@@ -144,7 +144,7 @@ computeLayouts
 startObjectSpace
 	"The VM's object memory, simulated: every object is allocated in old space, in order."
 	| mods |
-	mods := VMModule vmModules select: [:c | c packageName = 'VM-Core'].
+	mods := VMModule vmModules select: [:c | c packageName ~= 'VM-Platform'].
 	sim := VMSimulation modules: mods.
 	memory := sim module: ObjectMemory.
 	memory memoryInit: 1024 * 1024 maxHeap: 4096 * 1024 * 1024.
