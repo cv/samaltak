@@ -292,8 +292,8 @@ userInterrupt
 	^best
 !
 crunchSource: aName
-	"The prototype's long computation (main.js runCrunch), as a background job (priority 30): user windows stay snappy."
-	^'[1 to: 400 do: [:i | 1000 factorial. i \\ 40 = 0 ifTrue: [Transcript show: i printString; show: '' '']]] forkAt: Processor userBackgroundPriority named: ', aName printString
+	"The prototype's long computation (main.js runCrunch; 4000 factorial takes as long here as its 1000 factorial), as a background job (priority 30): user windows stay snappy."
+	^'[1 to: 400 do: [:i | 4000 factorial. i \\ 40 = 0 ifTrue: [Transcript show: i printString; show: '' '']]] forkAt: Processor userBackgroundPriority named: ', aName printString
 !
 runLongComputation
 	"Fork ''crunch'': real work in the background (priority 30), shown in the Process Browser and the Profiler."

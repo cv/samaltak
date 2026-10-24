@@ -93,9 +93,37 @@ testFactorial
 	self assert: 1000 factorial printString size = 2568.
 	self assert: 100 factorial / 98 factorial = 9900.
 	self assert: (1000 factorial // 999 factorial) = 1000.
-	"factorial multiplies by small integers (32-bit limbs); the general product agrees"
-	self assert: 700 factorial = (Integer productFrom: 2 to: 700).
+	"factorial multiplies by binary splitting; one factor at a time agrees"
+	self assert: 700 factorial = ((1 to: 700) inject: 1 into: [:product :each | product * each]).
 	self assert: (2 raisedTo: 333) * 16rFFFFFF = ((2 raisedTo: 333) * (16rFFFFFF * (2 raisedTo: 100)) bitShift: -100)
+!
+testLimbBoundaries
+	"Carries and borrows across whole 32-bit limbs, shifts by limb and byte amounts, printing chunks."
+	#(1 2 3 7 8 9 31 32 33) do: [:k | | p |
+		p := 2 raisedTo: 32 * k.
+		self assert: (p - 1) + 1 = p.
+		self assert: p - 1 + p = ((p bitShift: 1) - 1).
+		self assert: (p + 1) - 2 = (p - 1).
+		self assert: p - (p - 1) = 1.
+		self assert: ((p - 1) bitShift: 8) = (p * 256 - 256).
+		self assert: ((p - 1) bitShift: -8) = (p // 256 - 1).
+		self assert: ((p - 1) * 16r3FFFFFFF) // 16r3FFFFFFF = (p - 1).
+		self assert: ((p - 1) * 16r3FFFFFFF) \\ (p - 1) = 0.
+		self assert: (p * 1000000000) printString = (p printString , '000000000').
+		self assert: (p - 1) negated printString = ('-' , (p - 1) printString)].
+	self assert: (10 raisedTo: 36) printString = ('1' , (String new: 36 withAll: $0)).
+	self assert: ((10 raisedTo: 36) - 1) printString = (String new: 36 withAll: $9)
+!
+testKaratsuba
+	"Karatsuba products (operands of 60 limbs of 24 bits and more) agree with schoolbook ones, also for lopsided operands and all-ones limbs."
+	#(#(59 59) #(60 60) #(61 75) #(64 300) #(300 64) #(121 120) #(250 250) #(90 400)) do: [:sizes | | a b |
+		a := (Integer productFrom: 3 to: sizes first * 9) magnitudeLimbs copyFrom: 1 to: sizes first.
+		b := (Integer productFrom: 5 to: sizes last * 9) magnitudeLimbs copyFrom: 1 to: sizes last.
+		self assert: (Integer multiplyLimbs: a by: b) = (Integer schoolbookMultiplyLimbs: a by: b).
+		a := Array new: sizes first withAll: 16rFFFFFF.
+		b := Array new: sizes last withAll: 16rFFFFFF.
+		self assert: (Integer multiplyLimbs: a by: b) = (Integer schoolbookMultiplyLimbs: a by: b)].
+	self assert: (2 raisedTo: 9000) - 1 * ((2 raisedTo: 7000) + 1) = ((2 raisedTo: 16000) + (2 raisedTo: 9000) - (2 raisedTo: 7000) - 1)
 !
 testPrinting
 	self assert: 0 printString = '0'.

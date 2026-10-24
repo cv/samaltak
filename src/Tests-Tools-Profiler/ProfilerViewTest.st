@@ -61,7 +61,7 @@ testFlameGraphShowsTheWorkloadsMethods
 	self assert: (labels includes: 'all Processes').
 	self assert: (labels includes: 'Process ''crunch''').
 	self assert: (labels includes: 'Integer>>factorial').
-	self assert: (labels anySatisfy: [:l | l beginsWith: 'Collection>>inject:into:']).
+	self assert: (labels anySatisfy: [:l | l beginsWith: 'Integer class>>productFrom:to:']).
 	parts := view flame remoteChildren.
 	self assert: (parts anySatisfy: [:p | p remoteRole == #'flame-frame' and: [(p remoteLabel beginsWith: 'Integer>>factorial ') and: [p remoteLabel includesSubstring: 'samples)']]]).
 	self assert: ((view processList items collect: [:row | row at: 2]) includes: 'crunch').

@@ -149,7 +149,7 @@ factorial
 	"Answer the factorial of the receiver."
 
 	self < 0 ifTrue: [^self error: 'Not valid for negative integers'].
-	^(1 to: self) inject: 1 into: [:product :each | product * each]
+	^Integer productFrom: 1 to: self
 !
 gcd: anInteger
 	| a b |
@@ -414,35 +414,48 @@ digitAt: index
 digitLength
 	^self subclassResponsibility
 !
+uint32At: byteIndex
+	"Bytes byteIndex .. byteIndex + 3 of the magnitude as one little-endian 32-bit limb."
+	^(self digitAt: byteIndex) + ((self digitAt: byteIndex + 1) bitShift: 8) + ((self digitAt: byteIndex + 2) bitShift: 16) + ((self digitAt: byteIndex + 3) bitShift: 24)
+!
 digitAdd: arg
-	"Answer the sum of the magnitudes, with the receiver's sign (unnormalized)."
-	| len arglen sum accum |
+	"Answer the sum of the magnitudes, with the receiver's sign (unnormalized). Adds 32-bit limbs; once the shorter operand and the carry are used up, the rest of the longer one is copied."
+	| long short len shortLen sum carry k t |
+	long := self.
+	short := arg.
 	len := self digitLength.
-	arglen := arg digitLength.
-	arglen > len ifTrue: [len := arglen].
-	sum := Integer new: len + 1 neg: self negative.
-	accum := 0.
-	1 to: len do: [:i |
-		accum := (accum bitShift: -8) + (self digitAt: i) + (arg digitAt: i).
-		sum digitAt: i put: (accum bitAnd: 255)].
-	sum digitAt: len + 1 put: (accum bitShift: -8).
+	shortLen := arg digitLength.
+	len < shortLen ifTrue: [long := arg. short := self. len := shortLen. shortLen := self digitLength].
+	sum := Integer new: len + 4 neg: self negative.
+	carry := 0.
+	k := 1.
+	[k <= shortLen or: [carry > 0 and: [k <= len]]] whileTrue: [
+		t := (long uint32At: k) + (short uint32At: k) + carry.
+		sum uint32At: k put: (t bitAnd: 16rFFFFFFFF).
+		carry := t bitShift: -32.
+		k := k + 4].
+	k <= len
+		ifTrue: [sum replaceFrom: k to: len with: long startingAt: k]
+		ifFalse: [sum digitAt: k put: carry].
 	^sum
 !
 digitSubtract: arg
-	"Answer the receiver minus arg, both taken with the receiver's sign; normalized."
-	| sl al larger smaller ng diff z |
-	sl := self digitLength.
-	al := arg digitLength.
+	"Answer the receiver minus arg, both taken with the receiver's sign; normalized. Subtracts 32-bit limbs like digitAdd:."
+	| larger smaller ng len shortLen diff borrow k t |
 	(self digitCompare: arg) < 0
-		ifTrue: [larger := arg. smaller := self. ng := self negative not. sl := al]
-		ifFalse: [larger := self. smaller := arg. ng := self negative. sl := sl max: al].
-	diff := Integer new: sl neg: ng.
-	z := 0.
-	1 to: sl do: [:i |
-		z := z + (larger digitAt: i) - (smaller digitAt: i).
-		z < 0
-			ifTrue: [diff digitAt: i put: z + 256. z := -1]
-			ifFalse: [diff digitAt: i put: z. z := 0]].
+		ifTrue: [larger := arg. smaller := self. ng := self negative not]
+		ifFalse: [larger := self. smaller := arg. ng := self negative].
+	shortLen := smaller digitLength.
+	len := larger digitLength max: shortLen.
+	diff := Integer new: len + 3 neg: ng.
+	borrow := 0.
+	k := 1.
+	[k <= shortLen or: [borrow > 0]] whileTrue: [
+		t := (larger uint32At: k) - (smaller uint32At: k) - borrow.
+		diff uint32At: k put: (t bitAnd: 16rFFFFFFFF).
+		borrow := 0 - (t bitShift: -32).
+		k := k + 4].
+	k <= len ifTrue: [diff replaceFrom: k to: len with: larger startingAt: k].
 	^diff normalize
 !
 digitCompare: arg
@@ -462,7 +475,7 @@ digitCompare: arg
 digitMultiply: arg neg: ng
 	"Answer the product of the magnitudes with sign ng."
 	| a b m prod carry ab k len |
-	(self = 0 or: [arg = 0]) ifTrue: [^0].
+	(self isZero or: [arg isZero]) ifTrue: [^0].
 	a := self.
 	b := arg.
 	a digitLength < b digitLength ifTrue: [a := arg. b := self].
@@ -470,12 +483,12 @@ digitMultiply: arg neg: ng
 		"short multiplication by a SmallInteger below 2^40"
 		m := b abs.
 		len := a digitLength.
-		prod := Integer new: len + 5 neg: ng.
+		prod := Integer new: len + 7 neg: ng.
 		carry := 0.
 		k := 1.
-		(a isLarge and: [m < 16r1000000]) ifTrue: [
-			"32-bit limbs: a limb times m plus the carry stays below 2^57, a SmallInteger"
-			[k + 3 <= len] whileTrue: [
+		(a isLarge and: [m < 16r40000000]) ifTrue: [
+			"32-bit limbs: a limb times m plus the carry stays below 2^62, a SmallInteger"
+			[k <= len] whileTrue: [
 				ab := (a uint32At: k) * m + carry.
 				prod uint32At: k put: (ab bitAnd: 16rFFFFFFFF).
 				carry := ab bitShift: -32.
@@ -484,7 +497,7 @@ digitMultiply: arg neg: ng
 			ab := (a digitAt: i) * m + carry.
 			prod digitAt: i put: (ab bitAnd: 255).
 			carry := ab bitShift: -8].
-		k := len.
+		k := k - 1 max: len.
 		[carry > 0] whileTrue: [
 			k := k + 1.
 			prod digitAt: k put: (carry bitAnd: 255).
@@ -514,44 +527,57 @@ digitDiv: arg neg: ng
 !
 digitShortDivide: divisor neg: ng
 	"divisor is a positive SmallInteger below 2^48. Answer {quotient with sign ng. non-negative remainder}."
-	| len quo r acc |
+	| len quo r acc k |
 	len := self digitLength.
-	quo := Integer new: len neg: ng.
+	quo := Integer new: len + 3 neg: ng.
 	r := 0.
-	len to: 1 by: -1 do: [:i |
-		acc := (r bitShift: 8) + (self digitAt: i).
-		quo digitAt: i put: acc // divisor.
-		r := acc \\ divisor].
+	(self isLarge and: [divisor < 16r40000000])
+		ifTrue: [
+			"32-bit limbs: the remainder shifted in front of a limb stays below 2^62"
+			k := len + 3 // 4 * 4 - 3.
+			[k >= 1] whileTrue: [
+				acc := (r bitShift: 32) + (self uint32At: k).
+				quo uint32At: k put: acc // divisor.
+				r := acc \\ divisor.
+				k := k - 4]]
+		ifFalse: [
+			len to: 1 by: -1 do: [:i |
+				acc := (r bitShift: 8) + (self digitAt: i).
+				quo digitAt: i put: acc // divisor.
+				r := acc \\ divisor]].
 	^Array with: quo normalize with: r
 !
 digitLshift: shift
 	"Shift the (non-negative) receiver left by shift bits."
-	| len byteShift bitShift result carry v |
+	| len byteShift bitShift result carry v k |
 	len := self digitLength.
 	byteShift := shift // 8.
 	bitShift := shift \\ 8.
-	result := Integer new: len + byteShift + 1 neg: false.
+	result := Integer new: len + byteShift + 4 neg: false.
 	carry := 0.
-	1 to: len do: [:i |
-		v := ((self digitAt: i) bitShift: bitShift) + carry.
-		result digitAt: i + byteShift put: (v bitAnd: 255).
-		carry := v bitShift: -8].
-	result digitAt: len + byteShift + 1 put: carry.
+	k := 1.
+	[k <= len] whileTrue: [
+		v := ((self uint32At: k) bitShift: bitShift) + carry.
+		result uint32At: k + byteShift put: (v bitAnd: 16rFFFFFFFF).
+		carry := v bitShift: -32.
+		k := k + 4].
+	result digitAt: k + byteShift put: carry.
 	^result normalize
 !
 digitRshift: shift
 	"Shift the (non-negative) receiver right by shift bits."
-	| len byteShift bitShift newLen result v |
+	| len byteShift bitShift newLen result k |
 	len := self digitLength.
 	byteShift := shift // 8.
 	bitShift := shift \\ 8.
 	byteShift >= len ifTrue: [^0].
 	newLen := len - byteShift.
-	result := Integer new: newLen neg: false.
-	1 to: newLen do: [:i |
-		v := ((self digitAt: i + byteShift) bitShift: bitShift negated)
-			+ (((self digitAt: i + byteShift + 1) bitShift: 8 - bitShift) bitAnd: 255).
-		result digitAt: i put: v].
+	result := Integer new: newLen + 3 neg: false.
+	k := 1.
+	[k <= newLen] whileTrue: [
+		result uint32At: k put: ((self uint32At: k + byteShift) bitShift: bitShift negated)
+			+ (((self digitAt: k + byteShift + 4) bitShift: 32 - bitShift) bitAnd: 16rFFFFFFFF).
+		k := k + 4].
 	^result normalize
 !
 bitLogic: arg op: op
@@ -587,15 +613,10 @@ twosComplementBytes: len
 !
 magnitudeLimbs
 	"Answer the magnitude as an Array of base-2^24 limbs, least significant first, without leading zero limbs."
-	| n limbs b count |
-	n := self digitLength.
-	count := n + 2 // 3.
+	| limbs count |
+	count := self digitLength + 2 // 3.
 	limbs := Array new: count.
-	1 to: count do: [:i |
-		b := i - 1 * 3.
-		limbs at: i put: (self digitAt: b + 1)
-			+ ((self digitAt: b + 2) bitShift: 8)
-			+ ((self digitAt: b + 3) bitShift: 16)].
+	1 to: count do: [:i | limbs at: i put: ((self uint32At: i * 3 - 2) bitAnd: 16rFFFFFF)].
 	[count > 1 and: [(limbs at: count) = 0]] whileTrue: [count := count - 1].
 	count < limbs size ifTrue: [^limbs copyFrom: 1 to: count].
 	^limbs
@@ -614,14 +635,9 @@ readFrom: aString base: base
 !
 fromLimbs: limbs neg: ng
 	"Answer the integer whose magnitude has the base-2^24 limbs."
-	| result l b |
-	result := Integer new: limbs size * 3 neg: ng.
-	1 to: limbs size do: [:i |
-		l := limbs at: i.
-		b := i - 1 * 3.
-		result digitAt: b + 1 put: (l bitAnd: 255).
-		result digitAt: b + 2 put: ((l bitShift: -8) bitAnd: 255).
-		result digitAt: b + 3 put: (l bitShift: -16)].
+	| result |
+	result := Integer new: limbs size * 3 + 1 neg: ng.
+	1 to: limbs size do: [:i | result uint32At: i * 3 - 2 put: (limbs at: i)].
 	^result normalize
 !
 fromTwosComplementBytes: r
@@ -641,30 +657,108 @@ fromTwosComplementBytes: r
 
 !Integer class methodsFor: 'limb arithmetic'!
 productFrom: low to: high
-	"Answer low * (low + 1) * ... * high by binary splitting, so that big products multiply numbers of similar size."
-	| result mid |
+	"Answer low * (low + 1) * ... * high by binary splitting, so that big products multiply numbers of similar size. Short ranges collect factors in a SmallInteger below 2^30 before multiplying it in, as a large integer times such a SmallInteger takes one pass over its 32-bit limbs."
+	| result factor mid |
 	high - low < 16 ifTrue: [
 		result := 1.
-		low to: high do: [:i | result := result * i].
-		^result].
+		factor := 1.
+		low to: high do: [:i |
+			factor * i < 16r40000000
+				ifTrue: [factor := factor * i]
+				ifFalse: [result := result * factor. factor := i]].
+		^result * factor].
 	mid := low + high // 2.
 	^(self productFrom: low to: mid) * (self productFrom: mid + 1 to: high)
 !
 multiplyLimbs: a by: b
-	"Schoolbook multiplication of base-2^24 limb Arrays."
-	| prod ai carry t k |
+	"Karatsuba multiplication of base-2^24 limb Arrays: with B = 2^24 and both split as x1 * B^h + x0, a * b = hi * B^2h + (mid - hi - lo) * B^h + lo, where lo = a0 * b0, hi = a1 * b1, mid = (a0 + a1) * (b0 + b1). A short operand is multiplied with each half of the long one; low zero limbs only shift the product."
+	| short long h prod lo hi mid i j |
+	(a first = 0 or: [b first = 0]) ifTrue: [
+		prod := Array new: a size + b size withAll: 0.
+		i := a findFirst: [:limb | limb ~= 0].
+		j := b findFirst: [:limb | limb ~= 0].
+		(i = 0 or: [j = 0]) ifTrue: [^prod].
+		lo := self multiplyLimbs: (a copyFrom: i to: a size) by: (b copyFrom: j to: b size).
+		^prod replaceFrom: i + j - 1 to: prod size with: lo startingAt: 1].
+	short := a.
+	long := b.
+	a size > b size ifTrue: [short := b. long := a].
+	short size < 60 ifTrue: [^self schoolbookMultiplyLimbs: a by: b].
+	h := long size + 1 // 2.
 	prod := Array new: a size + b size withAll: 0.
-	1 to: a size do: [:i |
+	short size <= h ifTrue: [
+		lo := self multiplyLimbs: (long copyFrom: 1 to: h) by: short.
+		prod replaceFrom: 1 to: lo size with: lo startingAt: 1.
+		^self addLimbs: (self multiplyLimbs: (long copyFrom: h + 1 to: long size) by: short) into: prod at: h].
+	lo := self multiplyLimbs: (a copyFrom: 1 to: h) by: (b copyFrom: 1 to: h).
+	hi := self multiplyLimbs: (a copyFrom: h + 1 to: a size) by: (b copyFrom: h + 1 to: b size).
+	mid := self multiplyLimbs: (self foldLimbs: a at: h) by: (self foldLimbs: b at: h).
+	self subtractLimbs: lo from: mid; subtractLimbs: hi from: mid.
+	prod
+		replaceFrom: 1 to: lo size with: lo startingAt: 1;
+		replaceFrom: h * 2 + 1 to: prod size with: hi startingAt: 1.
+	^self addLimbs: mid into: prod at: h
+!
+foldLimbs: limbs at: h
+	"Answer the limbs of x0 + x1 where limbs = x1 * B^h + x0."
+	| sum carry t |
+	sum := Array new: h + 1.
+	carry := 0.
+	1 to: h do: [:i |
+		t := (limbs at: i) + carry.
+		i + h <= limbs size ifTrue: [t := t + (limbs at: i + h)].
+		sum at: i put: (t bitAnd: 16rFFFFFF).
+		carry := t bitShift: -24].
+	sum at: h + 1 put: carry.
+	^sum
+!
+addLimbs: x into: acc at: offset
+	"Add x * B^offset to acc in place; the sum must fit, so limbs of x beyond acc are zero. Answer acc."
+	| carry t i |
+	carry := 0.
+	i := 1.
+	[(i <= x size and: [offset + i <= acc size]) or: [carry > 0]] whileTrue: [
+		t := (acc at: offset + i) + carry.
+		i <= x size ifTrue: [t := t + (x at: i)].
+		acc at: offset + i put: (t bitAnd: 16rFFFFFF).
+		carry := t bitShift: -24.
+		i := i + 1].
+	^acc
+!
+subtractLimbs: x from: acc
+	"Subtract x from acc in place; acc must not be smaller."
+	| borrow t i |
+	borrow := 0.
+	i := 1.
+	[i <= x size or: [borrow > 0]] whileTrue: [
+		t := (acc at: i) - borrow.
+		i <= x size ifTrue: [t := t - (x at: i)].
+		acc at: i put: (t bitAnd: 16rFFFFFF).
+		borrow := 0 - (t bitShift: -24).
+		i := i + 1].
+	^acc
+!
+schoolbookMultiplyLimbs: a by: b
+	"Schoolbook multiplication of limb Arrays, two rows of a per pass over b. Columns add up products (below 2^48) uncarried until the end, which keeps them SmallIntegers while the shorter operand has fewer than 2^14 limbs."
+	| prod ai aNext k bj bPrev carry t |
+	prod := Array new: a size + b size withAll: 0.
+	1 to: a size by: 2 do: [:i |
 		ai := a at: i.
-		ai = 0 ifFalse: [
-			carry := 0.
+		aNext := i < a size ifTrue: [a at: i + 1] ifFalse: [0].
+		(ai = 0 and: [aNext = 0]) ifFalse: [
 			k := i.
+			bPrev := 0.
 			1 to: b size do: [:j |
-				t := (prod at: k) + (ai * (b at: j)) + carry.
-				prod at: k put: (t bitAnd: 16rFFFFFF).
-				carry := t bitShift: -24.
+				bj := b at: j.
+				prod at: k put: (prod at: k) + (ai * bj) + (aNext * bPrev).
+				bPrev := bj.
 				k := k + 1].
-			prod at: k put: carry]].
+			prod at: k put: (prod at: k) + (aNext * bPrev)]].
+	carry := 0.
+	1 to: prod size do: [:i |
+		t := (prod at: i) + carry.
+		prod at: i put: (t bitAnd: 16rFFFFFF).
+		carry := t bitShift: -24].
 	^prod
 !
 divideLimbs: u by: v

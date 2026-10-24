@@ -15,10 +15,7 @@ sign
 
 !LargeNegativeInteger methodsFor: 'arithmetic'!
 negated
-	| result |
-	result := LargePositiveInteger basicNew: self basicSize.
-	1 to: self basicSize do: [:i | result basicAt: i put: (self basicAt: i)].
-	^result normalize
+	^((LargePositiveInteger basicNew: self basicSize) replaceFrom: 1 to: self basicSize with: self startingAt: 1) normalize
 !
 abs
 	^self negated

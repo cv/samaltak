@@ -19,7 +19,7 @@ digitLength
 uint32At: byteIndex
 	"Bytes byteIndex .. byteIndex + 3 of the magnitude as one little-endian 32-bit limb."
 	<primitive: 'bytesUint32At'>
-	^(self digitAt: byteIndex) + ((self digitAt: byteIndex + 1) bitShift: 8) + ((self digitAt: byteIndex + 2) bitShift: 16) + ((self digitAt: byteIndex + 3) bitShift: 24)
+	^super uint32At: byteIndex
 !
 uint32At: byteIndex put: anInteger
 	<primitive: 'bytesUint32AtPut'>
@@ -45,10 +45,11 @@ normalize
 	^self
 !
 copyDigits: len
-	| result |
-	result := self class basicNew: len.
-	1 to: len do: [:i | result basicAt: i put: (self basicAt: i)].
-	^result
+	^(self class basicNew: len) replaceFrom: 1 to: len with: self startingAt: 1
+!
+replaceFrom: start to: stop with: anInteger startingAt: repStart
+	<primitive: 'replaceFromToWithStartingAt'>
+	start to: stop do: [:i | self digitAt: i put: (anInteger digitAt: i - start + repStart)]
 ! !
 
 !LargePositiveInteger methodsFor: 'testing'!
@@ -67,10 +68,7 @@ isZero
 
 !LargePositiveInteger methodsFor: 'arithmetic'!
 negated
-	| result |
-	result := LargeNegativeInteger basicNew: self basicSize.
-	1 to: self basicSize do: [:i | result basicAt: i put: (self basicAt: i)].
-	^result normalize
+	^((LargeNegativeInteger basicNew: self basicSize) replaceFrom: 1 to: self basicSize with: self startingAt: 1) normalize
 !
 abs
 	^self
@@ -78,11 +76,11 @@ abs
 
 !LargePositiveInteger methodsFor: 'printing'!
 printString: base
-	"Divide by the largest power of base below 2^48 repeatedly; each division yields a chunk of digits."
+	"Divide by the largest power of base below 2^30 repeatedly (one 32-bit limb at a time); each division yields a chunk of digits."
 	| power k n qr chunks s |
 	power := base.
 	k := 1.
-	[power * base < 16r1000000000000] whileTrue: [power := power * base. k := k + 1].
+	[power * base < 16r40000000] whileTrue: [power := power * base. k := k + 1].
 	chunks := OrderedCollection new.
 	n := self abs.
 	[n isLarge] whileTrue: [

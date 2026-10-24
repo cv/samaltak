@@ -12,7 +12,7 @@ setUp
 
 !ProfilerTest methodsFor: 'workloads'!
 factorialLoop
-	[true] whileTrue: [1000 factorial]
+	[true] whileTrue: [(1 to: 1000) inject: 1 into: [:product :each | product * each]]
 !
 floatLoop
 	| x |
