@@ -136,7 +136,7 @@ const beats = [
     // invert the colours: white becomes black, ultramarine becomes amber
     await edit('^palette at: index + 1', '^(palette at: index + 1) bitXor: 16rFFFFFF', 70);
     S.busy = true;
-    act('click', `${W.mandel}.view`); await sleep(1100);   // a render starts
+    act('click', '1249,707'); await sleep(1100);   // a render starts
     act('key', 'Meta+s', `${W.browser}.code`); await sleep(3500);
     S.busy = false;
   }],
@@ -220,9 +220,16 @@ const beats = [
     act('click', `${insp}.close`); await sleep(500);
   }],
 
-  // 10. Infinite recursion. TODO (feature): a debugger instead of the VM's out-of-memory exit.
+  // 10. Infinite recursion: a method that calls itself forever; past a million frames the Process gets a
+  // StackOverflow: a Notifier, then the Debugger on the recursing frame. Closing it ends the Process.
   ['recursion', async () => {
-    await sleep(3000);
+    await evaluate("Object compile: 'recurse: n ^self recurse: n + 1'. nil recurse: 1", 'Meta+d', 60);
+    const note = await S.win(/StackOverflow|Stack overflow/, 30000);
+    await sleep(1500);
+    act('click', `${note}.debug`);
+    const dbg = await S.win(/Debugger/);
+    await sleep(2800);
+    act('click', `${dbg}.close`); await sleep(800);
   }],
 
   // 13. Snapshot mid-debugging: a do-it halted in a loop, stepped in its debugger; World menu › Save image, › Quit;
