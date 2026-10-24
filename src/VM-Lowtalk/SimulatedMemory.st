@@ -19,7 +19,7 @@ Object subclass: #SimulatedSegment
 	classVariableNames: ''
 	package: 'VM-Lowtalk'!
 
-SimulatedSegment comment: 'A mapped range of a SimulatedMemory: pages of 8192 words, allocated when first written (untouched memory reads as zero), so mmap can reserve gigabytes.'!
+SimulatedSegment comment: 'A mapped range of a SimulatedMemory: 64 KB pages (ByteArrays), allocated when first written (untouched memory reads as zero), so mmap can reserve gigabytes.'!
 
 !SimulatedSegment class methodsFor: 'instance creation'!
 base: anAddress size: aSize
@@ -31,6 +31,14 @@ setBase: anAddress size: aSize
 	base := anAddress.
 	limit := anAddress + aSize.
 	pages := Array new: aSize + 65535 // 65536
+!
+pageAt: anOffset
+	"The page holding byte offset anOffset, allocated."
+	| index page |
+	index := anOffset // 65536 + 1.
+	page := pages at: index.
+	page isNil ifTrue: [page := pages at: index put: (ByteArray new: 65536)].
+	^page
 ! !
 
 !SimulatedSegment methodsFor: 'accessing'!
@@ -47,30 +55,68 @@ includes: anAddress
 	^anAddress >= base and: [anAddress < limit]
 !
 wordAt: anOffset
-	"The word at byte offset anOffset (a multiple of 8) from my base."
+	"The 64-bit word at byte offset anOffset (a multiple of 8) from my base."
+	| page o |
+	page := pages at: anOffset // 65536 + 1.
+	page isNil ifTrue: [^0].
+	o := anOffset \\ 65536 + 1.
+	^(page uint32At: o) + ((page uint32At: o + 4) bitShift: 32)
+!
+wordAt: anOffset put: anInteger
+	| page o |
+	page := pages at: anOffset // 65536 + 1.
+	(page isNil and: [anInteger = 0]) ifTrue: [^0].
+	page := self pageAt: anOffset.
+	o := anOffset \\ 65536 + 1.
+	page uint32At: o put: (anInteger bitAnd: 16rFFFFFFFF).
+	page uint32At: o + 4 put: (anInteger bitShift: -32).
+	^anInteger
+!
+byteAt: anOffset
 	| page |
 	page := pages at: anOffset // 65536 + 1.
 	page isNil ifTrue: [^0].
-	^page at: (anOffset \\ 65536) // 8 + 1
+	^page at: anOffset \\ 65536 + 1
 !
-wordAt: anOffset put: anInteger
-	| index page |
-	index := anOffset // 65536 + 1.
-	page := pages at: index.
-	page isNil ifTrue: [
-		anInteger = 0 ifTrue: [^0].
-		page := pages at: index put: (Array new: 8192 withAll: 0)].
-	^page at: (anOffset \\ 65536) // 8 + 1 put: anInteger
+byteAt: anOffset put: aByte
+	(self pageAt: anOffset) at: anOffset \\ 65536 + 1 put: aByte.
+	^aByte
+!
+bytesAt: anOffset count: n into: aByteArray startingAt: start
+	"Copy n bytes from offset anOffset into aByteArray, page by page."
+	| o done chunk page |
+	o := anOffset.
+	done := 0.
+	[done < n] whileTrue: [
+		chunk := (65536 - (o \\ 65536)) min: n - done.
+		page := pages at: o // 65536 + 1.
+		page isNil
+			ifTrue: [start + done to: start + done + chunk - 1 do: [:i | aByteArray at: i put: 0]]
+			ifFalse: [aByteArray replaceFrom: start + done to: start + done + chunk - 1 with: page startingAt: o \\ 65536 + 1].
+		o := o + chunk.
+		done := done + chunk]
+!
+bytesAt: anOffset put: aByteArray from: start count: n
+	| o done chunk |
+	o := anOffset.
+	done := 0.
+	[done < n] whileTrue: [
+		chunk := (65536 - (o \\ 65536)) min: n - done.
+		(self pageAt: o) replaceFrom: o \\ 65536 + 1 to: o \\ 65536 + chunk with: aByteArray startingAt: start + done.
+		o := o + chunk.
+		done := done + chunk]
 !
 zeroFrom: anOffset size: aSize
-	"Discard whole pages in the range (mmap MAP_FIXED over it), zero the rest word by word."
+	"Discard whole pages in the range (mmap MAP_FIXED over it), zero the rest."
 	| o end |
 	o := anOffset.
 	end := anOffset + aSize min: self size.
 	[o < end] whileTrue: [
 		((o \\ 65536) = 0 and: [o + 65536 <= end])
 			ifTrue: [pages at: o // 65536 + 1 put: nil. o := o + 65536]
-			ifFalse: [self wordAt: o put: 0. o := o + 8]]
+			ifFalse: [
+				(pages at: o // 65536 + 1) notNil ifTrue: [self byteAt: o put: 0].
+				o := o + 1]]
 ! !
 
 !SimulatedMemory methodsFor: 'initialization'!
@@ -165,32 +211,24 @@ uint64At: anAddress put: anInteger
 !
 unsignedAt: anAddress size: n
 	"Answer the n-byte unsigned little-endian integer at anAddress."
-	| s offset word shift v |
+	| s offset v |
 	s := self segmentAt: anAddress.
 	anAddress + n > s limit ifTrue: [^self simulationError: 'load past the end of a segment'].
 	offset := anAddress - s base.
-	shift := (offset bitAnd: 7) * 8.
-	shift + (n * 8) <= 64 ifTrue: [
-		word := s wordAt: offset - (offset bitAnd: 7).
-		n = 8 ifTrue: [^word].
-		^(word bitShift: shift negated) bitAnd: (1 bitShift: n * 8) - 1].
+	n = 1 ifTrue: [^s byteAt: offset].
+	(n = 8 and: [(offset bitAnd: 7) = 0]) ifTrue: [^s wordAt: offset].
 	v := 0.
-	n to: 1 by: -1 do: [:i | v := (v bitShift: 8) + (self unsignedAt: anAddress + i - 1 size: 1)].
+	n - 1 to: 0 by: -1 do: [:i | v := (v bitShift: 8) + (s byteAt: offset + i)].
 	^v
 !
 unsignedAt: anAddress size: n put: anInteger
-	| s offset word shift mask |
+	| s offset |
 	s := self segmentAt: anAddress.
 	anAddress + n > s limit ifTrue: [^self simulationError: 'store past the end of a segment'].
 	offset := anAddress - s base.
-	shift := (offset bitAnd: 7) * 8.
-	shift + (n * 8) <= 64 ifTrue: [
-		n = 8 ifTrue: [^s wordAt: offset put: anInteger].
-		word := s wordAt: offset - (offset bitAnd: 7).
-		mask := ((1 bitShift: n * 8) - 1) bitShift: shift.
-		word := (word bitOr: mask) - mask + (anInteger bitShift: shift).
-		^s wordAt: offset - (offset bitAnd: 7) put: word].
-	1 to: n do: [:i | self unsignedAt: anAddress + i - 1 size: 1 put: ((anInteger bitShift: (i - 1) * -8) bitAnd: 255)].
+	n = 1 ifTrue: [^s byteAt: offset put: anInteger].
+	(n = 8 and: [(offset bitAnd: 7) = 0]) ifTrue: [^s wordAt: offset put: anInteger].
+	0 to: n - 1 do: [:i | s byteAt: offset + i put: ((anInteger bitShift: i * -8) bitAnd: 255)].
 	^anInteger
 ! !
 
@@ -269,35 +307,13 @@ checked: v bits: n signed: aBoolean do: aBlock
 
 !SimulatedMemory methodsFor: 'blocks'!
 copy: n from: src to: dst
-	"memmove: whole words where both sides are aligned."
-	| i step |
+	"memmove (the bytes are read first, so overlapping ranges work)."
 	n = 0 ifTrue: [^self].
-	(dst < src or: [dst >= (src + n)])
-		ifTrue: [
-			i := 0.
-			[i < n] whileTrue: [
-				step := self copyAt: i from: src to: dst limit: n.
-				i := i + step]]
-		ifFalse: [
-			i := n.
-			[i > 0] whileTrue: [
-				((((src + i) bitAnd: 7) = 0 and: [((dst + i) bitAnd: 7) = 0]) and: [i >= 8])
-					ifTrue: [
-						i := i - 8.
-						self uint64At: dst + i put: (self uint64At: src + i)]
-					ifFalse: [
-						i := i - 1.
-						self uint8At: dst + i put: (self uint8At: src + i)]]]
-!
-copyAt: i from: src to: dst limit: n
-	(((src + i) bitAnd: 7) = 0 and: [((dst + i) bitAnd: 7) = 0 and: [n - i >= 8]]) ifTrue: [
-		self uint64At: dst + i put: (self uint64At: src + i).
-		^8].
-	self uint8At: dst + i put: (self uint8At: src + i).
-	^1
+	self bytesAt: dst put: (self bytesAt: src count: n)
 !
 fill: dst with: aByte count: n
-	0 to: n - 1 do: [:i | self unsignedAt: dst + i size: 1 put: aByte]
+	n = 0 ifTrue: [^self].
+	self bytesAt: dst put: (ByteArray new: n withAll: aByte)
 !
 compare: a with: b count: n
 	"memcmp"
@@ -311,13 +327,21 @@ compare: a with: b count: n
 
 !SimulatedMemory methodsFor: 'strings'!
 bytesAt: anAddress count: n
-	| b |
+	| b s |
 	b := ByteArray new: n.
-	1 to: n do: [:i | b at: i put: (self uint8At: anAddress + i - 1)].
+	n = 0 ifTrue: [^b].
+	s := self segmentAt: anAddress.
+	anAddress + n > s limit ifTrue: [^self simulationError: 'load past the end of a segment'].
+	s bytesAt: anAddress - s base count: n into: b startingAt: 1.
 	^b
 !
 bytesAt: anAddress put: aByteArray
-	1 to: aByteArray size do: [:i | self uint8At: anAddress + i - 1 put: (aByteArray at: i)]
+	| s |
+	aByteArray isEmpty ifTrue: [^aByteArray].
+	s := self segmentAt: anAddress.
+	anAddress + aByteArray size > s limit ifTrue: [^self simulationError: 'store past the end of a segment'].
+	s bytesAt: anAddress - s base put: aByteArray from: 1 count: aByteArray size.
+	^aByteArray
 !
 cStringLengthAt: anAddress
 	| n |

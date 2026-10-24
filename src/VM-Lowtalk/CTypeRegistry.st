@@ -1,5 +1,5 @@
 Object subclass: #CTypeRegistry
-	instanceVariableNames: 'types constants tokens position'
+	instanceVariableNames: 'types constants tokens position parsed'
 	classVariableNames: 'Default'
 	package: 'VM-Lowtalk'!
 
@@ -107,6 +107,11 @@ structTypes
 !CTypeRegistry methodsFor: 'parsing'!
 parse: aStringOrSymbol
 	"Answer the CType named by a C abstract declarator."
+	| decl |
+	parsed isNil ifTrue: [parsed := Dictionary new].
+	^parsed at: aStringOrSymbol asString ifAbsent: [parsed at: aStringOrSymbol asString put: (self parseUncached: aStringOrSymbol)]
+!
+parseUncached: aStringOrSymbol
 	| decl |
 	self tokenize: aStringOrSymbol asString.
 	decl := self parseDeclaratorOn: self parseSpecifiers.

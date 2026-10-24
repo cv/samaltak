@@ -1,14 +1,19 @@
-"Build a seed image with the current ImageBuilder: boot/build-image.sh runs this in boot/seed.image with @SRC@ (the source tree) and @OUT@ (the image to write) filled in. It files in the builder's current sources first, so a seed that predates them still builds with them."
-| builderSources say |
+"Build a seed image with the current ImageBuilder: boot/build-image.sh runs this in boot/seed.image with @SRC@ (the source tree) and @OUT@ (the image to write) filled in. It files in the builder's current sources first, so a seed that predates them still builds with them. A file whose superclasses are in a later file is filed in again on the next pass."
+| packages files pending failed say |
 say := [:aString | Smalltalk vm stderrWrite: aString , (String with: Character lf)].
-[builderSources := #('src/Kernel-Objects/VMConstants.st' 'src/VM-Lowtalk' 'src/VM-Core' 'src/VM-Platform' 'src/VM-Translator' 'src/VM-ImageBuilder').
- (builderSources select: [:each | File exists: each]) do: [:each |
+[packages := #('src/Kernel-Objects/VMConstants.st' 'src/VM-Lowtalk' 'src/VM-Core' 'src/VM-Platform' 'src/VM-Translator' 'src/VM-ImageBuilder').
+ files := OrderedCollection new.
+ (packages select: [:each | File exists: each]) do: [:each |
 	(File isDirectory: each)
 		ifTrue: [
-			| files |
-			files := (Directory fileNames: each) select: [:f | f endsWith: '.st'].
-			(files reject: [:f | f endsWith: '.extension.st']) , (files select: [:f | f endsWith: '.extension.st']) do: [:f | Compiler fileIn: each , '/' , f]]
-		ifFalse: [Compiler fileIn: each]].
+			| names |
+			names := (Directory fileNames: each) select: [:f | f endsWith: '.st'].
+			(names reject: [:f | f endsWith: '.extension.st']) , (names select: [:f | f endsWith: '.extension.st']) do: [:f | files add: each , '/' , f]]
+		ifFalse: [files add: each]].
+ pending := files.
+ [failed := pending select: [:f | [Compiler fileIn: f. false] on: Error do: [:e | e return: true]].
+  failed notEmpty and: [failed size < pending size]] whileTrue: [pending := failed].
+ failed do: [:f | Compiler fileIn: f].
  VMConstants initialize.
  (Smalltalk allClasses select: [:c | (#('VM-Lowtalk' 'VM-Core' 'VM-Platform' 'VM-Translator' 'VM-ImageBuilder') includes: c packageName) and: [c class includesSelector: #initialize]])
 	do: [:c | c initialize].

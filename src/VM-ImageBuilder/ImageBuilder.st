@@ -170,18 +170,7 @@ hashOf: anOop
 	^((sim memory uint64At: anOop) >> H_HASH_SHIFT) bitAnd: H_HASH_MASK
 !
 writeBytes: aByteArray at: anAddress
-	"Word by word: the simulated memory is quickest that way."
-	| n i w |
-	n := aByteArray size.
-	i := 0.
-	[i + 8 <= n] whileTrue: [
-		w := 0.
-		8 to: 1 by: -1 do: [:k | w := (w bitShift: 8) + (aByteArray at: i + k)].
-		sim memory uint64At: anAddress + i put: w.
-		i := i + 8].
-	[i < n] whileTrue: [
-		sim memory uint8At: anAddress + i put: (aByteArray at: i + 1).
-		i := i + 1]
+	sim memory bytesAt: anAddress put: aByteArray
 !
 intOop: anInteger
 	^((anInteger bitShift: 1) bitOr: 1) asUInt64
@@ -615,7 +604,7 @@ copyHashedSlotsOf: aDictionaryOop into: aSystemDictionaryOop
 !ImageBuilder methodsFor: 'writing'!
 writeTo: aPath
 	"The image file: a 64-byte header (ImageHeader) and old space as it is in the simulated memory."
-	| gcm lo top n bytes header w |
+	| gcm lo top n bytes header |
 	gcm := sim module: GarbageCollector.
 	lo := gcm oldLo.
 	top := gcm oldTop.
@@ -630,9 +619,7 @@ writeTo: aPath
 	self put64: memory specialsOop in: bytes at: 41.
 	self put64: memory hashSeed in: bytes at: 49.
 	self put64: 0 in: bytes at: 57.
-	0 to: n - 8 by: 8 do: [:off |
-		w := sim memory uint64At: lo + off.
-		self put64: w in: bytes at: 65 + off].
+	bytes replaceFrom: 65 to: 64 + n with: (sim memory bytesAt: lo count: n) startingAt: 1.
 	File writeBytes: bytes to: aPath.
 	^n
 !
