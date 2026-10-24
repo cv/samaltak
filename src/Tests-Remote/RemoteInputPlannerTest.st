@@ -36,16 +36,17 @@ testTravel
 	planner pointer: 0 @ 0; windowId: 7.
 	plan := planner click: 160 @ 80.
 	moves := plan events select: [:e | e first = 1].
-	self assert: moves size equals: 16.
+	"100 ms of travel, a move every 16 ms (the prototype's pointer glides 0.1 s)"
+	self assert: moves size equals: 6.
 	self assert: ((moves last at: 3) @ (moves last at: 4)) equals: 160.0 @ 80.0.
 	self assert: ((moves collect: [:e | e at: 3]) asArray isSortedBy: [:a :b | a <= b]).
 	self assert: (moves first at: 3) < 20.
-	self assert: plan duration >= 250.
+	self assert: plan duration >= 80.
 	self assert: (plan events allSatisfy: [:e | (e at: 8) = 7])
 !
 testDrag
 	| plan types down up heldMoves |
-	planner pointer: 0 @ 0; travelMilliseconds: 64.
+	planner pointer: 0 @ 0; travelMilliseconds: 64; dragMilliseconds: 64.
 	plan := planner drag: 10 @ 10 to: 110 @ 60 modifiers: 0.
 	types := plan types.
 	down := types indexOf: 2.

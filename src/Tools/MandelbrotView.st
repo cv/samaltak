@@ -64,8 +64,11 @@ span
 
 !MandelbrotView methodsFor: 'rendering'!
 pixelScale
-	"Pixels per point of the picture: 1.5, as the prototype's (on a Retina display)."
-	^1.5
+	"Pixels per point of the picture: the display's, at most 2, as the prototype's (Retina: 2)."
+	| w |
+	w := self window.
+	(w isNil or: [w world isNil]) ifTrue: [^1].
+	^w world displayScale min: 2
 !
 prepareForm
 	| s w h |

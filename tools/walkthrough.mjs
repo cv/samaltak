@@ -42,10 +42,10 @@ function find(role, label) {
   if (!line) throw new Error(`no ${role} ${label}`);
   return line.split(' ')[1];
 }
-// Type like a person: one command, the image types one character every (ms + 80) ms — the pace of the prototype's
-// video, whose script slept ms after each character and spent about 80 ms per samaltak-ctl call (125 ms a character).
+// Type like a person: one command, the image types one character every (ms + 95) ms — the pace of the prototype's
+// video (measured there: 140 ms a character for ms = 45; its script slept ms after each samaltak-ctl call).
 async function typeSlowly(ref, text, ms = 45) {
-  act('type', ref, text, '--delay', String(ms + 80));
+  act('type', ref, text, '--delay', String(ms + 95));
 }
 
 // Each step lasts at least as long as its narration clip.

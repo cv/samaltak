@@ -1,15 +1,16 @@
 Object subclass: #RemoteInputPlanner
-	instanceVariableNames: 'pointer windowId travelMilliseconds stepMilliseconds typeDelayMilliseconds pressMilliseconds'
+	instanceVariableNames: 'pointer windowId travelMilliseconds dragMilliseconds stepMilliseconds typeDelayMilliseconds pressMilliseconds'
 	classVariableNames: 'KeyNames'
 	package: 'System-Remote'!
 
-RemoteInputPlanner comment: 'I turn high-level input (click at a point, drag, key combo, typing, wheel) into RemoteInputPlans of platform events (vm/platform/README.md, "Events"). Pointer travel is a series of mouseMove events over travelMilliseconds (default 250, every stepMilliseconds = 16, eased), so the UI can animate the pointer; pointer is where the previous plan left it (nil: jump straight to the target). Typing is one textInput event per character, typeDelayMilliseconds apart (newline and tab are Return and Tab keys).
+RemoteInputPlanner comment: 'I turn high-level input (click at a point, drag, key combo, typing, wheel) into RemoteInputPlans of platform events (vm/platform/README.md, "Events"). Pointer travel is a series of mouseMove events over travelMilliseconds (default 100, every stepMilliseconds = 16, eased; a drag''s move with the button held takes dragMilliseconds, default 250), so the UI can animate the pointer; pointer is where the previous plan left it (nil: jump straight to the target). Typing is one textInput event per character, typeDelayMilliseconds apart (newline and tab are Return and Tab keys).
 
 Key combos: ''Meta+p'', ''Shift+Meta+z'', ''Escape'', ''Meta+.'', ''Ctrl++''. Modifiers: Meta/Cmd/Command/Mod (cmd 8), Ctrl/Control (ctrl 2), Alt/Option/Opt (alt 4), Shift (shift 1). Keys: one character, or a name (Enter Return Escape Esc Tab Backspace Delete Space Up Down Left Right Home End PageUp PageDown Insert F1-F12 Plus). A combo sends keyDown for each modifier key, keyDown of the key (with textInput when it types a character: no Meta/Ctrl/Alt), keyUp, and the modifier keyUps in reverse.'!
 
 !RemoteInputPlanner methodsFor: 'initialization'!
 initialize
-	travelMilliseconds := 250.
+	travelMilliseconds := 100.
+	dragMilliseconds := 250.
 	stepMilliseconds := 16.
 	typeDelayMilliseconds := 8.
 	pressMilliseconds := 30
@@ -27,6 +28,9 @@ windowId: anIntegerOrNil
 !
 travelMilliseconds: anInteger
 	travelMilliseconds := anInteger
+!
+dragMilliseconds: anInteger
+	dragMilliseconds := anInteger
 !
 stepMilliseconds: anInteger
 	stepMilliseconds := anInteger max: 1
@@ -84,12 +88,14 @@ click: aPoint button: button count: clicks modifiers: mods
 	^plan
 !
 drag: fromPoint to: toPoint modifiers: mods
-	"Travel to fromPoint, press the left button, move to toPoint over travelMilliseconds with the button held, release."
-	| plan |
+	"Travel to fromPoint, press the left button, move to toPoint over dragMilliseconds with the button held, release."
+	| plan travel |
 	plan := self moveTo: fromPoint.
 	plan add: (self event: 2 at: fromPoint key: 1 modifiers: mods extra: 1) after: (plan isEmpty ifTrue: [0] ifFalse: [stepMilliseconds]).
-	(self moveTo: toPoint buttons: 1 modifiers: mods) steps do: [:step |
-		plan add: step last after: (step first max: stepMilliseconds)].
+	travel := travelMilliseconds.
+	travelMilliseconds := dragMilliseconds.
+	[(self moveTo: toPoint buttons: 1 modifiers: mods) steps do: [:step |
+		plan add: step last after: (step first max: stepMilliseconds)]] ensure: [travelMilliseconds := travel].
 	plan add: (self event: 3 at: toPoint key: 1 modifiers: mods extra: 1) after: stepMilliseconds.
 	^plan
 !
