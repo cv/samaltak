@@ -298,7 +298,7 @@ power: base to: exponent
 !
 floatFrom: mantissa radix: radix exponent: exponent
 	exponent >= 0 ifTrue: [^(mantissa * (self power: radix to: exponent)) asFloat].
-	^mantissa asFloat / (self power: radix to: exponent negated) asFloat
+	^(Fraction numerator: mantissa denominator: (self power: radix to: exponent negated)) asFloat
 !
 setToken: aSymbol value: anObject
 	tokenType := aSymbol.
