@@ -22,6 +22,17 @@ fileNames: aPath
 !
 directoryNames: aPath
 	^(self entries: aPath) select: [:n | File isDirectory: (File join: aPath with: n)]
+!
+allFilesUnder: aPath
+	"Answer the paths of all files in aPath and its subdirectories, in order."
+	| paths |
+	paths := OrderedCollection new.
+	(self entries: aPath) do: [:n | | path |
+		path := File join: aPath with: n.
+		(File isDirectory: path)
+			ifTrue: [paths addAll: (self allFilesUnder: path)]
+			ifFalse: [paths add: path]].
+	^paths asArray
 ! !
 
 !Directory class methodsFor: 'testing'!

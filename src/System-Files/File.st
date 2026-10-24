@@ -53,6 +53,10 @@ writeBytes: aByteArray to: aPath
 writeText: aString to: aPath
 	"Replace the file's contents with aString, UTF-8 encoded."
 	FileStream forceNewFileNamed: aPath do: [:s | s nextPutAll: aString]
+!
+lineCountOf: aPath
+	"Answer the number of line feeds in the file, as wc -l counts lines."
+	^(self readBytes: aPath) occurrencesOf: 10
 ! !
 
 !File class methodsFor: 'file operations'!
@@ -170,5 +174,15 @@ primCwd
 !
 primLastError
 	<primitive: 'platformLastError'>
+	^nil
+!
+primSpawn: argv
+	"Start argv first (looked up in PATH) with the other Strings as arguments, sharing the VM's standard streams. Answer its pid or nil."
+	<primitive: 'spawnProcess'>
+	^nil
+!
+primWait: pid blocking: aBoolean
+	"Answer the exit status of the child pid (128 + signal number if killed), nil while it runs (aBoolean false); fail: nil."
+	<primitive: 'processWait'>
 	^nil
 ! !
