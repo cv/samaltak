@@ -1,0 +1,574 @@
+VMCoreModule subclass: #ObjectMemory
+	instanceVariableNames: 'nilOop trueOop falseOop specialsOop clsSmallint clsChar clsSmallfloat clsBoxedfloat clsArray clsContext clsBlock clsPoint clsBytestring clsBytearray clsMessage hashSeed rootStack rootCount largeObjectBytes sampleMark'
+	classVariableNames: 'MAX_ROOTS'
+	package: 'VM-Core'!
+
+ObjectMemory comment: 'Object memory: special objects, allocation (bump allocation in eden, large objects directly in old space, allocation sampling at the limit check), object access, floats, integers and strings. The spaces and the collector are the GarbageCollector''s.'!
+
+!ObjectMemory class methodsFor: 'declaring'!
+declarations
+	^#((nilOop oop) (trueOop oop) (falseOop oop) (specialsOop oop)
+		(clsSmallint oop) (clsChar oop) (clsSmallfloat oop) (clsBoxedfloat oop) (clsArray oop) (clsContext oop)
+		(clsBlock oop) (clsPoint oop) (clsBytestring oop) (clsBytearray oop) (clsMessage oop)
+		(hashSeed uint64_t 16r5A4D414C54414B)
+		(rootStack 'oop *[MAX_ROOTS]') (rootCount int32_t)
+		(largeObjectBytes size_t 262144)
+		(sampleMark uint64_t))
+!
+initialize
+	MAX_ROOTS := 1024
+! !
+
+!ObjectMemory methodsFor: 'accessing'!
+nilOop
+	^nilOop
+!
+nilOop: o
+	nilOop := o
+!
+trueOop
+	^trueOop
+!
+falseOop
+	^falseOop
+!
+specialsOop
+	^specialsOop
+!
+specialsOop: o
+	specialsOop := o
+!
+clsSmallint
+	^clsSmallint
+!
+clsChar
+	^clsChar
+!
+clsSmallfloat
+	^clsSmallfloat
+!
+clsBoxedfloat
+	^clsBoxedfloat
+!
+clsArray
+	^clsArray
+!
+clsContext
+	^clsContext
+!
+clsBlock
+	^clsBlock
+!
+clsPoint
+	^clsPoint
+!
+clsBytestring
+	^clsBytestring
+!
+clsBytearray
+	^clsBytearray
+!
+clsMessage
+	^clsMessage
+!
+hashSeed
+	^hashSeed
+!
+hashSeed: anInteger
+	hashSeed := anInteger
+!
+rootCount
+	^rootCount
+!
+rootAt: i
+	^rootStack at: i
+! !
+
+!ObjectMemory methodsFor: 'special objects'!
+refreshSpecials
+	<c: 'void refresh_specials(void)'>
+	| s |
+	s := self slotsOf: specialsOop.
+	nilOop := s at: SO_NIL.
+	falseOop := s at: SO_FALSE.
+	trueOop := s at: SO_TRUE.
+	clsSmallint := s at: SO_SMALLINTEGER.
+	clsChar := s at: SO_CHARACTER.
+	clsSmallfloat := s at: SO_SMALLFLOAT.
+	clsBoxedfloat := s at: SO_BOXEDFLOAT.
+	clsArray := s at: SO_ARRAY.
+	clsContext := s at: SO_CONTEXT.
+	clsBlock := s at: SO_BLOCKCLOSURE.
+	clsPoint := s at: SO_POINT.
+	clsBytestring := s at: SO_BYTESTRING.
+	clsBytearray := s at: SO_BYTEARRAY.
+	clsMessage := s at: SO_MESSAGE
+!
+special: index
+	"The special objects array, 0-based."
+	<c: 'oop special(int index)'>
+	(index < 0 or: [index asUInt32 >= (self numSlots: specialsOop)]) ifTrue: [^nilOop].
+	^self loadRef: specialsOop at: index
+!
+pushRoot: p
+	<c: 'void push_root(oop *p)'>
+	rootCount >= MAX_ROOTS ifTrue: [self fatal: 'root stack overflow'].
+	rootStack at: rootCount put: p.
+	rootCount := rootCount + 1
+!
+popRoot
+	<c: 'void pop_root(void)'>
+	rootCount := rootCount - 1
+! !
+
+!ObjectMemory methodsFor: 'floats'!
+rotl1: x
+	^(x << 1) asUInt64 bitOr: x >> 63
+!
+rotr1: x
+	^(x >> 1) bitOr: (x << 63) asUInt64
+!
+isFloat: o
+	<c: 'bool is_float(oop o)'>
+	^(o bitAnd: 7) = 4 or: [(self isPtr: o) and: [(self rawClass: o) = clsBoxedfloat]]
+!
+floatVal: o
+	"o must be a Float."
+	<c: 'double float_val(oop o)'>
+	| b r |
+	(o bitAnd: 7) = 4
+		ifTrue: [
+			r := o >> 3.
+			b := r <= 1 ifTrue: [r << 63] ifFalse: [self rotr1: r + (896 << 53)]]
+		ifFalse: [b := (self slotsOf: o) at: 0].
+	^self doubleFromBits: b
+!
+floatOop: d
+	"A SmallFloat64 if d has one, else a new BoxedFloat64 (may allocate)."
+	<c: 'oop float_oop(double d)'>
+	| b e f |
+	b := self bitsOfDouble: d.
+	(b << 1) asUInt64 = 0 ifTrue: [^((b >> 63) << 3) bitOr: 4].
+	e := ((b >> 52) bitAnd: 16r7FF) asUInt32.
+	(e > 896 and: [e < 1151]) ifTrue: [^(((self rotl1: b) - (896 << 53)) << 3) bitOr: 4].
+	f := self allocObj: clsBoxedfloat format: F_W64 slots: 1.
+	(self slotsOf: f) at: 0 put: b.
+	^f
+! !
+
+!ObjectMemory methodsFor: 'object access'!
+classOf: o
+	<c: 'oop class_of(oop o)'>
+	(o bitAnd: 1) ~= 0 ifTrue: [^clsSmallint].
+	^(o bitAnd: 7) caseOf: {
+		[0] -> [self rawClass: o].
+		[2] -> [clsChar].
+		[4] -> [clsSmallfloat]}
+		otherwise: [nilOop]
+!
+byteSize: o
+	"Element count of a byte object (formats 16-23); body bytes otherwise."
+	<c: 'size_t byte_size(oop o)'>
+	| f |
+	f := self formatOf: o.
+	f >= F_BYTES ifTrue: [^((self numSlots: o) * 8) - (f - F_BYTES)].
+	(f >= F_W32 and: [f < F_BYTES]) ifTrue: [^(self word32Size: o) * 4].
+	^(self numSlots: o) * 8
+!
+word32Size: o
+	"Element count of a 32-bit object (formats 10-11)."
+	<c: 'size_t word32_size(oop o)'>
+	| f |
+	f := self formatOf: o.
+	(f = 10 or: [f = 11]) ifTrue: [^((self numSlots: o) * 2) - (f - F_W32)].
+	^0
+!
+fixedFields: o
+	"Fixed (non-indexable) pointer fields."
+	<c: 'uint32_t fixed_fields(oop o)'>
+	| f |
+	f := self formatOf: o.
+	f = F_FIXED ifTrue: [^self numSlots: o].
+	(f = F_FIXVAR or: [f = F_WEAK]) ifTrue: [
+		^((self intVal: (self loadRef: (self rawClass: o) at: BEH_FORMAT)) bitAnd: CLS_INSTSIZE_MASK) asUInt32].
+	^0
+!
+indexableSize: o
+	<c: 'size_t indexable_size(oop o)'>
+	| f |
+	(self isPtr: o) ifFalse: [^0].
+	f := self formatOf: o.
+	f = F_VAR ifTrue: [^self numSlots: o].
+	(f = F_FIXVAR or: [f = F_WEAK]) ifTrue: [^(self numSlots: o) - (self fixedFields: o)].
+	f = F_W64 ifTrue: [^self numSlots: o].
+	(f = 10 or: [f = 11]) ifTrue: [^self word32Size: o].
+	f >= F_BYTES ifTrue: [^self byteSize: o].
+	^0
+! !
+
+!ObjectMemory methodsFor: 'allocation'!
+nextHash
+	<c: 'uint32_t next_hash(void)'>
+	| h |
+	hashSeed := ((hashSeed * 6364136223846793005) + 1442695040888963407) asUInt64.
+	h := ((hashSeed >> 40) bitAnd: H_HASH_MASK) asUInt32.
+	^h = 0 ifTrue: [1] ifFalse: [h]
+!
+initObjectAt: p class: cls format: fmt slots: n
+	| s nl |
+	self uint64At: p put: ((n asUInt64 bitOr: fmt asUInt64 << H_FMT_SHIFT) bitOr: self nextHash asUInt64 << H_HASH_SHIFT).
+	self uint64At: p + 8 put: cls.
+	(self fmtHasPointers: fmt)
+		ifTrue: [
+			s := self cCoerce: p + 16 to: 'oop *'.
+			nl := nilOop.
+			0 to: n asInt64 - 1 do: [:i | s at: i put: nl]]
+		ifFalse: [libc memset: (self ptr: p + 16) value: 0 size: n asUInt64 * 8]
+!
+oldOverBudget
+	^gc oldTop - gc oldLo > gc oldBudget
+!
+resetAllocLimit
+	"Fast-path limit: eden's end or the next allocation sample; eden_top while old space is over its budget (after the scavenge primitive), so that the next allocation collects."
+	<c: 'void reset_alloc_limit(void)'>
+	gc allocLimit: gc edenHi.
+	sampleMark := gc edenTop.
+	(scheduler allocSampleInterval > 0 and: [gc edenTop + scheduler allocSampleCountdown < gc edenHi]) ifTrue: [
+		gc allocLimit: gc edenTop + scheduler allocSampleCountdown].
+	self oldOverBudget ifTrue: [gc allocLimit: gc edenTop]
+!
+allocSlow: cls bytes: bytes
+	"Slow path: account allocation sampling, collect if eden is full."
+	<c: 'uint64_t alloc_slow(oop *cls, size_t bytes)'>
+	| p |
+	scheduler allocSampleInterval > 0 ifTrue: [
+		scheduler allocSampleCountdown: scheduler allocSampleCountdown - (gc edenTop - sampleMark) asInt64.
+		sampleMark := gc edenTop.
+		scheduler allocSampleCountdown <= bytes asInt64 ifTrue: [
+			scheduler allocSampleCountdown: scheduler allocSampleInterval + bytes asInt64.
+			scheduler allocSampleHit: cls value bytes: bytes]].
+	(gc edenTop + bytes > gc edenHi or: [self oldOverBudget]) ifTrue: [
+		self pushRoot: cls.
+		gc collectGarbage: bytes.
+		self popRoot].
+	p := gc edenTop.
+	gc edenTop: p + bytes.
+	scheduler allocSampleInterval > 0 ifTrue: [scheduler allocSampleCountdown: scheduler allocSampleCountdown - bytes asInt64].
+	self resetAllocLimit.
+	^p
+!
+allocOldTry: cls format: fmt slots: n
+	<c: 'oop alloc_old_try(oop cls, int fmt, uint32_t n)'>
+	| p clsRoot |
+	clsRoot := self local: 'oop'.
+	clsRoot value: cls.
+	self pushRoot: clsRoot.
+	p := gc oldAllocTry: 16 + (8 * n asUInt64).
+	self popRoot.
+	p = 0 ifTrue: [^0].
+	self initObjectAt: p class: clsRoot value format: fmt slots: n.
+	gc statAllocated: gc statAllocated + 16 + (8 * n asUInt64).
+	((self isPtr: clsRoot value) and: [self isYoung: clsRoot value]) ifTrue: [gc remember: p].
+	^p
+!
+allocOld: cls format: fmt slots: n
+	"Directly in old space."
+	<c: 'oop alloc_old(oop cls, int fmt, uint32_t n)'>
+	| o |
+	o := self allocOldTry: cls format: fmt slots: n.
+	o = 0 ifTrue: [self fatal: 'out of memory allocating %llu bytes' with: 16 + (8 * n asUInt64)].
+	^o
+!
+allocObj: cls format: fmt slots: n
+	"Pointer formats nil-filled, others zeroed. May GC."
+	<c: 'oop alloc_obj(oop cls, int fmt, uint32_t n)'>
+	| bytes p clsRoot |
+	bytes := 16 + (8 * n asUInt64).
+	bytes > largeObjectBytes ifTrue: [
+		scheduler allocSampleInterval > 0 ifTrue: [scheduler allocSampleHit: cls bytes: bytes].
+		^self allocOld: cls format: fmt slots: n].
+	p := gc edenTop.
+	p + bytes > gc allocLimit
+		ifTrue: [
+			clsRoot := self local: 'oop'.
+			clsRoot value: cls.
+			p := self allocSlow: clsRoot bytes: bytes.
+			self initObjectAt: p class: clsRoot value format: fmt slots: n]
+		ifFalse: [
+			gc edenTop: p + bytes.
+			self initObjectAt: p class: cls format: fmt slots: n].
+	^p
+!
+allocObjTry: cls format: fmt slots: n
+	"alloc_obj, 0 if it can never fit in the heap."
+	<c: 'oop alloc_obj_try(oop cls, int fmt, size_t n)'>
+	| bytes |
+	n > 16rFFFFFFFF ifTrue: [^0].
+	bytes := 16 + (8 * n).
+	bytes <= largeObjectBytes ifTrue: [^self allocObj: cls format: fmt slots: n asUInt32].
+	scheduler allocSampleInterval > 0 ifTrue: [scheduler allocSampleHit: cls bytes: bytes].
+	^self allocOldTry: cls format: fmt slots: n asUInt32
+!
+allocContext: n
+	"Indexable slots; may GC."
+	<c: 'oop alloc_context(uint32_t n)'>
+	^self allocObj: clsContext format: F_FIXVAR slots: CTX_FIXED + n
+!
+allocSlots: cls count: n
+	"n = indexable slot count (0 for non-indexable classes); fields nil."
+	<c: 'oop alloc_slots(oop cls, uint32_t n)'>
+	<export>
+	| err o |
+	err := self local: 'int'.
+	o := self instantiate: cls size: n asUInt64 error: err.
+	^err value ~= 0 ifTrue: [nilOop] ifFalse: [o]
+!
+allocBytes: cls count: n
+	"n bytes, zeroed."
+	<c: 'oop alloc_bytes(oop cls, size_t n)'>
+	^self allocObj: cls format: F_BYTES + ((8 - (n rem: 8)) rem: 8) asInt32 slots: (n + 7 quo: 8) asUInt32
+!
+allocWords32: cls count: n
+	"n 32-bit units, zeroed."
+	<c: 'oop alloc_words32(oop cls, size_t n)'>
+	^self allocObj: cls format: F_W32 + (n bitAnd: 1) asInt32 slots: (n + 1 quo: 2) asUInt32
+!
+instantiate: cls size: n error: err
+	"basicNew: semantics; *err 0, PRIM_ERR_NO_MEMORY or -1."
+	<c: 'oop instantiate(oop cls, size_t n, int *err)'>
+	| fo spec isize fmt nslots o |
+	err value: -1.
+	((self isPtr: cls) not or: [(self numSlots: cls) <= BEH_FORMAT]) ifTrue: [^nilOop].
+	fo := self loadRef: cls at: BEH_FORMAT.
+	(self isInt: fo) ifFalse: [^nilOop].
+	spec := (self intVal: fo) >> CLS_SPEC_SHIFT.
+	isize := (self intVal: fo) bitAnd: CLS_INSTSIZE_MASK.
+	spec <= 1
+		ifTrue: [
+			n ~= 0 ifTrue: [^nilOop].
+			fmt := isize ~= 0 ifTrue: [F_FIXED] ifFalse: [F_EMPTY].
+			nslots := isize asUInt64]
+		ifFalse: [
+			(spec >= 2 and: [spec <= 4])
+				ifTrue: [
+					fmt := (isize ~= 0 and: [spec = 2]) ifTrue: [F_FIXVAR] ifFalse: [spec asInt32].
+					nslots := isize asUInt64 + n]
+				ifFalse: [
+					spec = 9
+						ifTrue: [fmt := F_W64. nslots := n]
+						ifFalse: [
+							spec = 10
+								ifTrue: [
+									fmt := F_W32 + (n bitAnd: 1) asInt32.
+									nslots := (n quo: 2) + (n bitAnd: 1)]
+								ifFalse: [
+									spec = 16 ifFalse: [^nilOop].
+									fmt := F_BYTES + ((8 - (n rem: 8)) rem: 8) asInt32.
+									nslots := (n quo: 8) + ((n rem: 8) ~= 0 ifTrue: [1] ifFalse: [0])]]]].
+	o := n > 16r7FFFFFF0 ifTrue: [0] ifFalse: [self allocObjTry: cls format: fmt slots: nslots].
+	err value: (o ~= 0 ifTrue: [0] ifFalse: [PRIM_ERR_NO_MEMORY]).
+	^o ~= 0 ifTrue: [o] ifFalse: [nilOop]
+! !
+
+!ObjectMemory methodsFor: 'integers'!
+largeIntFrom: v negative: negative
+	<c: 'oop large_int_from_u64(uint64_t v, bool negative)'>
+	| n t o |
+	n := 0.
+	t := v.
+	[t ~= 0] whileTrue: [
+		n := n + 1.
+		t := t >> 8].
+	n = 0 ifTrue: [n := 1].
+	o := self allocBytes: (self special: (negative ifTrue: [SO_LARGENEG] ifFalse: [SO_LARGEPOS])) count: n asUInt64.
+	0 to: n - 1 do: [:i | (self bytesOf: o) at: i put: ((v >> (8 * i)) bitAnd: 255) asUInt8].
+	^o
+!
+int64Oop: v
+	"SmallInteger or LargeInteger (may allocate)."
+	<c: 'oop int64_oop(int64_t v)'>
+	<export>
+	(self intFits: v) ifTrue: [^self intOop: v].
+	^v < 0
+		ifTrue: [self largeIntFrom: (0 - v) asUInt64 negative: true]
+		ifFalse: [self largeIntFrom: v asUInt64 negative: false]
+!
+largeMagnitude: o into: mag negative: neg
+	<c: 'bool large_magnitude(oop o, uint64_t *mag, bool *neg)'>
+	| c n b m |
+	((self isPtr: o) not or: [(self formatOf: o) < F_BYTES]) ifTrue: [^false].
+	c := self rawClass: o.
+	c = (self special: SO_LARGEPOS)
+		ifTrue: [neg value: false]
+		ifFalse: [
+			c = (self special: SO_LARGENEG) ifFalse: [^false].
+			neg value: true].
+	n := self byteSize: o.
+	b := self bytesOf: o.
+	[n > 0 and: [(b at: n - 1) = 0]] whileTrue: [n := n - 1].
+	n > 8 ifTrue: [^false].
+	m := 0 asUInt64.
+	0 to: n asInt64 - 1 do: [:i | m := m bitOr: (b at: i) asUInt64 << (8 * i)].
+	mag value: m.
+	^true
+!
+u64Of: o into: out
+	"Non-negative Integer fitting 64 bits."
+	<c: 'bool u64_of(oop o, uint64_t *out)'>
+	| neg |
+	(self isInt: o) ifTrue: [
+		(self intVal: o) < 0 ifTrue: [^false].
+		out value: (self intVal: o) asUInt64.
+		^true].
+	neg := self local: 'bool'.
+	^(self largeMagnitude: o into: out negative: neg) and: [neg value not]
+!
+int64Of: o into: out
+	"SmallInteger or LargeInteger fitting int64."
+	<c: 'bool int64_of(oop o, int64_t *out)'>
+	<export>
+	| m neg |
+	(self isInt: o) ifTrue: [
+		out value: (self intVal: o).
+		^true].
+	m := self local: 'uint64_t'.
+	neg := self local: 'bool'.
+	(self largeMagnitude: o into: m negative: neg) ifFalse: [^false].
+	(neg value not and: [m value > 16r7FFFFFFFFFFFFFFF]) ifTrue: [^false].
+	(neg value and: [m value > 16r8000000000000000]) ifTrue: [^false].
+	out value: (neg value ifTrue: [(0 - m value) asUInt64 asInt64] ifFalse: [m value asInt64]).
+	^true
+! !
+
+!ObjectMemory methodsFor: 'strings'!
+isKindOfString: o
+	<c: 'bool is_kind_of_string(oop o)'>
+	| c |
+	(self isPtr: o) ifFalse: [^false].
+	c := self rawClass: o.
+	^c = clsBytestring or: [c = (self special: SO_BYTESYMBOL) or: [c = (self special: SO_WIDESTRING) or: [c = (self special: SO_WIDESYMBOL)]]]
+!
+stringSize: s
+	<c: 'size_t string_size(oop s)'>
+	| f |
+	f := self formatOf: s.
+	f >= F_BYTES ifTrue: [^self byteSize: s].
+	(f = 10 or: [f = 11]) ifTrue: [^self word32Size: s].
+	^0
+!
+stringCharAt: s index: i
+	"0-based code point."
+	<c: 'uint32_t string_char_at(oop s, size_t i)'>
+	(self formatOf: s) >= F_BYTES ifTrue: [^(self bytesOf: s) at: i].
+	^(self words32Of: s) at: i
+!
+stringHash: s
+	<c: 'uint32_t string_hash(oop s)'>
+	| h n |
+	h := 2166136261 asUInt32.
+	n := self stringSize: s.
+	0 to: n asInt64 - 1 do: [:i | h := ((h bitXor: (self stringCharAt: s index: i asUInt64)) * 16777619) asUInt32].
+	^h bitAnd: 16r3FFFFFFF
+!
+utf8Decode: s size: n at: index
+	"Decode the code point at *index, advancing it; malformed bytes stand for themselves."
+	<c: 'size_t utf8_decode(uint8_t *s, size_t n, size_t *index)'>
+	| i c len cp d |
+	i := index value.
+	c := (s at: i) asUInt32.
+	len := c < 16r80 ifTrue: [1] ifFalse: [
+		(c >> 5) = 6 ifTrue: [2] ifFalse: [
+			(c >> 4) = 14 ifTrue: [3] ifFalse: [
+				(c >> 3) = 30 ifTrue: [4] ifFalse: [0]]]].
+	(len <= 1 or: [i + len asUInt64 > n]) ifTrue: [
+		index value: i + 1.
+		^c].
+	cp := c bitAnd: (16r7F >> len).
+	1 to: len - 1 do: [:k |
+		d := (s at: i + k asUInt64) asUInt32.
+		(d bitAnd: 16rC0) ~= 16r80 ifTrue: [
+			index value: i + 1.
+			^c].
+		cp := (cp << 6) bitOr: (d bitAnd: 16r3F)].
+	index value: i + len asUInt64.
+	^cp
+!
+stringFromUtf8: str size: n
+	"ByteString or WideString."
+	<c: 'oop string_from_utf8(const char *str, size_t n)'>
+	| s count i max cp r b w |
+	s := self cCoerce: str to: 'uint8_t *'.
+	count := 0 asUInt64.
+	max := 0 asUInt64.
+	i := self local: 'size_t'.
+	i value: 0.
+	[i value < n] whileTrue: [
+		cp := self utf8Decode: s size: n at: i.
+		cp > max ifTrue: [max := cp].
+		count := count + 1].
+	max < 256 ifTrue: [
+		r := self allocBytes: clsBytestring count: count.
+		b := self bytesOf: r.
+		i value: 0.
+		[i value < n] whileTrue: [
+			b value: (self utf8Decode: s size: n at: i) asUInt8.
+			b := b + 1].
+		^r].
+	r := self allocWords32: (self special: SO_WIDESTRING) count: count.
+	w := self words32Of: r.
+	i value: 0.
+	[i value < n] whileTrue: [
+		w value: (self utf8Decode: s size: n at: i) asUInt32.
+		w := w + 1].
+	^r
+!
+utf8Of: s
+	"malloc'd, NUL-terminated (NULL if out of memory); ByteString/Symbol/WideString/ByteArray."
+	<c: 'char *utf8_of(oop s)'>
+	| n r p c |
+	(self isPtr: s) ifFalse: [^libc strdup: ''].
+	(self rawClass: s) = clsBytearray ifTrue: [
+		n := self byteSize: s.
+		r := self cCoerce: (libc malloc: n + 1) to: 'uint8_t *'.
+		r isNull ifTrue: [^self null].
+		libc memcpy: r from: (self bytesOf: s) size: n.
+		r at: n put: 0.
+		^self cCoerce: r to: 'char *'].
+	n := self stringSize: s.
+	r := self cCoerce: (libc malloc: (n * 4) + 1) to: 'uint8_t *'.
+	r isNull ifTrue: [^self null].
+	p := r.
+	0 to: n asInt64 - 1 do: [:i |
+		c := self stringCharAt: s index: i asUInt64.
+		c < 16r80
+			ifTrue: [p value: c asUInt8. p := p + 1]
+			ifFalse: [
+				c < 16r800
+					ifTrue: [
+						p value: (16rC0 bitOr: c >> 6) asUInt8.
+						(p + 1) value: (16r80 bitOr: (c bitAnd: 16r3F)) asUInt8.
+						p := p + 2]
+					ifFalse: [
+						c < 16r10000
+							ifTrue: [
+								p value: (16rE0 bitOr: c >> 12) asUInt8.
+								(p + 1) value: (16r80 bitOr: ((c >> 6) bitAnd: 16r3F)) asUInt8.
+								(p + 2) value: (16r80 bitOr: (c bitAnd: 16r3F)) asUInt8.
+								p := p + 3]
+							ifFalse: [
+								p value: (16rF0 bitOr: c >> 18) asUInt8.
+								(p + 1) value: (16r80 bitOr: ((c >> 12) bitAnd: 16r3F)) asUInt8.
+								(p + 2) value: (16r80 bitOr: ((c >> 6) bitAnd: 16r3F)) asUInt8.
+								(p + 3) value: (16r80 bitOr: (c bitAnd: 16r3F)) asUInt8.
+								p := p + 4]]]].
+	p value: 0.
+	^self cCoerce: r to: 'char *'
+! !
+
+!ObjectMemory methodsFor: 'initialization'!
+memoryInit: edenBytes maxHeap: maxHeap
+	<c: 'void memory_init(size_t eden_bytes, size_t max_heap)'>
+	gc init: edenBytes maxHeap: maxHeap.
+	largeObjectBytes := (edenBytes quo: 8) > (64 * 1024) ifTrue: [edenBytes quo: 8] ifFalse: [64 * 1024].
+	self resetAllocLimit
+! !

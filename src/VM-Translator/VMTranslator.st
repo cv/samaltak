@@ -113,7 +113,7 @@ translate
 	files add: headerName , '.h' -> (self header: cFunctions).
 	self translatedModules do: [:m |
 		files add: m cFileName , '.c' -> (self cFileFor: m functions: (cFunctions select: [:f | f function module == m]))].
-	(self primitives notEmpty) ifTrue: [files add: 'primitive_table.c' -> self primitiveTableFile].
+	(self primitives notEmpty) ifTrue: [files add: 'primitive_entries.c' -> self primitiveTableFile].
 	^files
 !
 writeTo: aDirectory
@@ -170,14 +170,21 @@ constants
 	"Every class variable of VMConstants and the modules, name -> value, sorted by name."
 	| all |
 	all := Dictionary new.
-	(Array with: VMConstants) , moduleClasses , self structClasses asArray do: [:c |
+	(Array with: VMConstants) , self moduleClassesWithSuperclasses , self structClasses asArray do: [:c |
 		c classPool keysAndValuesDo: [:k :v | (v isInteger or: [v isFloat]) ifTrue: [all at: k asString put: v]]].
 	^(all associations asSortedCollection: [:a :b | a key <= b key]) asArray
+!
+moduleClassesWithSuperclasses
+	| all |
+	all := OrderedCollection new.
+	moduleClasses do: [:c |
+		c withAllSuperclasses do: [:each | ((each inheritsFrom: VMModule) and: [(all includes: each) not]) ifTrue: [all add: each]]].
+	^all asArray
 !
 typedefs
 	| all |
 	all := OrderedCollection new.
-	moduleClasses do: [:c | (c respondsTo: #typedefs) ifTrue: [all addAll: c typedefs]].
+	self moduleClassesWithSuperclasses do: [:c | (c class includesSelector: #typedefs) ifTrue: [all addAll: c typedefs]].
 	^all
 !
 header: cFunctions
@@ -197,7 +204,7 @@ header: cFunctions
 	self constants do: [:c |
 		s nextPutAll: '#define '; nextPutAll: c key; space.
 		c value isInteger
-			ifTrue: [s nextPutAll: (CConst value: c value type: (registry at: ((c value between: -16r80000000 and: 16r7FFFFFFF) ifTrue: ['int'] ifFalse: ['int64_t']))) cString]
+			ifTrue: [s nextPutAll: (CConst value: c value type: (registry at: ((c value between: -16r80000000 and: 16r7FFFFFFF) ifTrue: ['int'] ifFalse: [c value > 16r7FFFFFFFFFFFFFFF ifTrue: ['uint64_t'] ifFalse: ['int64_t']]))) cString]
 			ifFalse: [s print: c value].
 		s lf].
 	s lf.
@@ -205,7 +212,7 @@ header: cFunctions
 	s lf.
 	self structClasses do: [:c | self printStruct: c on: s].
 	(self primitives notEmpty) ifTrue: [
-		s nextPutAll: 'extern const '; nextPutAll: (registry at: 'PrimitiveEntry') name; nextPutAll: ' vm_primitive_table[];'; lf.
+		s nextPutAll: 'extern '; nextPutAll: (registry at: 'PrimitiveEntry') name; nextPutAll: ' vm_primitive_table[];'; lf.
 		s nextPutAll: '#define VM_PRIMITIVE_COUNT '; print: self primitives size; lf; lf].
 	self translatedModules do: [:m |
 		(m globals values asSortedCollection: [:a :b | a name <= b name]) do: [:g |
@@ -214,6 +221,10 @@ header: cFunctions
 	s lf.
 	cFunctions do: [:f |
 		f function isStatic ifFalse: [s nextPutAll: f declaration; nextPut: $;; lf]].
+	(modules values select: [:m | m moduleClass isInterface]) do: [:m |
+		(m functions values asSortedCollection: [:a :b | a selector <= b selector]) do: [:f |
+			(f isFunction and: [(cFunctions anySatisfy: [:g | g function cName = f cName]) not]) ifTrue: [
+				s nextPutAll: (f functionType prototypeNamed: f cName); nextPut: $;; lf]]].
 	s lf; nextPutAll: self helpers.
 	s lf; nextPutAll: '#endif'; lf.
 	^s contents
@@ -237,6 +248,9 @@ static inline double lt_double_from_bits(uint64_t b)
 printStruct: aStructClass on: s
 	| ctype |
 	ctype := aStructClass ctype.
+	ctype fields do: [:f |
+		((VMStruct canUnderstand: f name asSymbol) or: [VMStruct canUnderstand: (f name , ':') asSymbol]) ifTrue: [
+			self error: aStructClass name , ': the field ' , f name , ' would hide a method of VMStruct in the simulator']].
 	s nextPutAll: 'struct '; nextPutAll: ctype name; nextPutAll: ' {'; lf.
 	aStructClass fields do: [:spec |
 		(spec at: 1) == #union
@@ -301,7 +315,7 @@ primitiveTableFile
 	s := WriteStream on: String new.
 	s nextPutAll: self banner; lf.
 	s nextPutAll: '#include "'; nextPutAll: headerName; nextPutAll: '.h"'; lf; lf.
-	s nextPutAll: 'const '; nextPutAll: (registry at: 'PrimitiveEntry') name; nextPutAll: ' vm_primitive_table[] = {'; lf.
+	s nextPutAll: (registry at: 'PrimitiveEntry') name; nextPutAll: ' vm_primitive_table[] = {'; lf.
 	self primitives do: [:f |
 		| p |
 		p := f primitive.

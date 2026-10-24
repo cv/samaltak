@@ -17,7 +17,7 @@ BASE = 0x100000
 
 def load_vm_constants():
     """The VM's exported constants: the #defines and enums between the BEGIN/END EXPORTED CONSTANTS markers of
-    vm/src/vm.h (the single source of truth; the image's VMConstants class is generated from the same dict)."""
+    vm/src/vm.h (the C side of the definition; the image's is the VMConstants class)."""
     path = os.path.join(ROOT, 'vm/src/vm.h')
     text = open(path, encoding='utf-8').read()
     m = re.search(r'/\* BEGIN EXPORTED CONSTANTS \*/(.*?)/\* END EXPORTED CONSTANTS \*/', text, re.S)
@@ -1636,27 +1636,9 @@ class Image:
                 raise CompileError(f'{name} is a class', file, line)
             self.globals[name] = self.association(self.intern(name), self.to_obj(value))
 
-    def vm_constant_chunks(self):
-        """Class-side methods of VMConstants (if the sources define it), one per exported constant of vm/src/vm.h."""
-        cd = self.classes.get('VMConstants')
-        if cd is None:
-            return []
-        chunks = []
-        for name, v in VMC.items():
-            sel = ''.join(w.capitalize() for w in name.lower().split('_'))
-            sel = sel[0].lower() + sel[1:]
-            if name.startswith('SO_') and name != 'SO_COUNT':
-                v, note = v + 1, f'{name} (1-based)'
-            else:
-                note = name
-            chunks.append(('VMConstants', True, 'constants', f'{sel}\n\t"Generated from vm/src/vm.h: {note}."\n\t^{v}',
-                           'vm/src/vm.h', 0, cd.package))
-        return chunks
-
     # -- methods
     def compile_methods(self):
         errors = []
-        self.method_chunks += self.vm_constant_chunks()
         for cname, meta, cat, body, file, line, pkg in self.method_chunks:
             try:
                 cd = self.class_named(cname, file, line)

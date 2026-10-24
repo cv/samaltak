@@ -1,0 +1,81 @@
+VMCoreModule subclass: #PrimitiveTable
+	instanceVariableNames: 'byNumber names flags initialized'
+	classVariableNames: 'MAX_PRIM PRIM_LEAF PRIM_TRYABLE'
+	package: 'VM-Core'!
+
+PrimitiveTable comment: 'The primitives by number: the translator (or the simulation) builds the table of every <vmPrimitive:name:> method (number, flags, name, function); I index it. Leaf primitives never allocate, switch processes or inspect Contexts, so the interpreter calls them without writing back its registers; tryable ones may run for the debugger (tryPrimitive).'!
+
+!PrimitiveTable class methodsFor: 'declaring'!
+declarations
+	^#((byNumber 'prim_fn[MAX_PRIM]') (names 'const char *[MAX_PRIM]') (flags 'int32_t[MAX_PRIM]') (initialized bool))
+!
+initialize
+	MAX_PRIM := 1024.
+	PRIM_LEAF := 1.
+	PRIM_TRYABLE := 2
+! !
+
+!PrimitiveTable methodsFor: 'table'!
+initTable
+	<c: 'void init_prim_table(void)'>
+	| t e |
+	initialized ifTrue: [^self].
+	initialized := true.
+	t := self primitiveTable.
+	0 to: self primitiveCount - 1 do: [:i |
+		e := t + i.
+		(e number <= 0 or: [e number >= MAX_PRIM or: [(byNumber at: e number) notNull]]) ifTrue: [
+			self fatal: 'bad or duplicate primitive number %d (%s)' with: e number with: e name].
+		byNumber at: e number put: e function.
+		names at: e number put: e name.
+		flags at: e number put: e flags]
+!
+lookup: n
+	<c: 'prim_fn prim_lookup(int64_t n)'>
+	self initTable.
+	^(n > 0 and: [n < MAX_PRIM]) ifTrue: [byNumber at: n] ifFalse: [self null]
+!
+flagsOf: fn
+	| t |
+	t := self primitiveTable.
+	0 to: self primitiveCount - 1 do: [:i | (t + i) function = fn ifTrue: [^(t + i) flags]].
+	^0
+!
+isLeaf: fn
+	<c: 'bool prim_is_leaf(prim_fn f)'>
+	^((self flagsOf: fn) bitAnd: PRIM_LEAF) ~= 0
+!
+isTryable: fn
+	<c: 'bool prim_tryable(prim_fn f)'>
+	^((self flagsOf: fn) bitAnd: PRIM_TRYABLE) ~= 0
+!
+namesArray
+	"Array: element n is the name of primitive n (nil for gaps)."
+	<c: 'oop primitive_names_array(void)'>
+	| t max a root s e |
+	t := self primitiveTable.
+	max := 0.
+	0 to: self primitiveCount - 1 do: [:i | (t + i) number > max ifTrue: [max := (t + i) number]].
+	a := memory allocObj: memory clsArray format: F_VAR slots: max asUInt32.
+	root := self local: 'oop'.
+	root value: a.
+	memory pushRoot: root.
+	0 to: self primitiveCount - 1 do: [:i |
+		e := t + i.
+		s := memory stringFromUtf8: e name size: (libc strlen: e name).
+		self storeRef: root value at: e number - 1 put: s].
+	memory popRoot.
+	^root value
+! !
+
+VMStruct subclass: #PrimitiveEntry
+	instanceVariableNames: ''
+	classVariableNames: ''
+	package: 'VM-Core'!
+
+PrimitiveEntry comment: 'A row of the primitive table the translator writes: number, flags (1 leaf, 2 tryable), name, function.'!
+
+!PrimitiveEntry class methodsFor: 'declaring'!
+fields
+	^#((number int32_t) (flags int32_t) (name 'const char *') (function prim_fn))
+! !

@@ -54,13 +54,17 @@ addBuiltins
 	add value: 'time_t' value: 8 value: true.
 	add value: 'pid_t' value: 4 value: true.
 	add value: 'oop' value: 8 value: false.
+	add value: 'atomic_int' value: 4 value: true.
+	types at: 'atomic_bool' put: (CBoolType named: 'atomic_bool').
 	types at: 'float' put: (CFloatType named: 'float' size: 4).
 	types at: 'double' put: (CFloatType named: 'double' size: 8)
 !
 initializeFromImage
 	"Add the constants, structs and library typedefs of the image's VM classes."
 	self addConstantsOf: (Smalltalk at: #VMConstants).
-	(Smalltalk at: #VMModule ifAbsent: [nil]) ifNotNil: [:c | c withAllSubclasses do: [:each | self addConstantsOf: each]].
+	(Smalltalk at: #VMModule ifAbsent: [nil]) ifNotNil: [:c | c withAllSubclasses do: [:each |
+		self addConstantsOf: each.
+		(each class includesSelector: #typedefs) ifTrue: [self addTypedefsOf: each]]].
 	(Smalltalk at: #CLibrary ifAbsent: [nil]) ifNotNil: [:c |
 		c allSubclasses do: [:each | self addConstantsOf: each. self addTypedefsOf: each]].
 	(Smalltalk at: #VMStruct ifAbsent: [nil]) ifNotNil: [:c |

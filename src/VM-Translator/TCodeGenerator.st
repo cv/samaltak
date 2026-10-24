@@ -97,7 +97,8 @@ declareTemporary: aString function: aTFunction in: aTEnv
 
 !TCodeGenerator methodsFor: 'errors'!
 error: aString node: aNodeOrNil
-	^translator error: aString in: frame function node: aNodeOrNil
+	frame function == function ifTrue: [^translator error: aString in: function node: aNodeOrNil].
+	^translator error: aString , ' (inlined into ' , function printString , ')' in: frame function node: aNodeOrNil
 ! !
 
 !TCodeGenerator methodsFor: 'statements'!
@@ -148,9 +149,13 @@ functionReturn: aNode
 	| e |
 	frame returnType isVoid ifTrue: [
 		(aNode isVariable and: [aNode isSelf]) ifFalse: [
-			e := self expression: aNode.
-			e isPure ifFalse: [block add: (CExprStatement expression: e)]].
-		^block add: (CReturn expression: nil)].
+			aNode isMessage
+				ifTrue: [self statement: aNode]
+				ifFalse: [
+					e := self expression: aNode.
+					e isPure ifFalse: [block add: (CExprStatement expression: e)]]].
+		block endsControlFlow ifFalse: [block add: (CReturn expression: nil)].
+		^self].
 	(aNode isVariable and: [aNode isSelf]) ifTrue: [^self error: 'a function returning ' , frame returnType name , ' answers self' node: aNode].
 	e := self coerce: (self expressionOrInline: aNode type: frame returnType) to: frame returnType node: aNode.
 	block add: (CReturn expression: e)
@@ -158,6 +163,7 @@ functionReturn: aNode
 inlineReturn: aNode frame: aTFrame
 	| e |
 	aTFrame noteReturn.
+	aTFrame exitDispatches ifTrue: [^self dispatchingReturn: aNode].
 	aTFrame valueWanted
 		ifTrue: [
 			(aNode isVariable and: [aNode isSelf]) ifTrue: [^self error: 'an inline method used for its value answers self' node: aNode].
@@ -185,6 +191,23 @@ assignResult: aCExpr to: aTFrame node: aNode
 		ifFalse: [self checkAssignable: aCExpr to: var type node: aNode].
 	block add: (CExprStatement expression: (CBinary operator: '=' left: var right: (self coerce: aCExpr to: var type node: aNode) type: var type))
 !
+dispatchingReturn: aNode
+	"A return from an inline method whose caller's handler ends with it: its effect, then the dispatch."
+	(aNode isVariable and: [aNode isSelf]) ifTrue: [^self emitNext].
+	(self inlineTailCall: aNode) ifTrue: [^self].
+	self statement: aNode.
+	block endsControlFlow ifFalse: [self emitNext]
+!
+inlineTailCall: aNode
+	"If aNode is a send of an inline method to self, expand it so that its returns dispatch; answer whether it was."
+	| f |
+	(aNode isMessage and: [aNode receiver isVariable and: [aNode receiver isSelf]]) ifFalse: [^false].
+	f := translator lookup: aNode selector in: frame module.
+	(f notNil and: [f kind == #inline]) ifFalse: [^false].
+	self inline: f module: (translator moduleFor: f module moduleClass) arguments: aNode arguments node: aNode valueWanted: false dispatching: true.
+	block endsControlFlow ifFalse: [self emitNext].
+	^true
+!
 interpreterReturn: aNode
 	"In a handler or label: ^self dispatches the next bytecode, ^self aLabel jumps, ^self dispatch: b re-dispatches."
 	| f |
@@ -196,8 +219,9 @@ interpreterReturn: aNode
 	(f kind == #label or: [f kind == #handler]) ifTrue: [^self jumpTo: f arguments: aNode arguments node: aNode].
 	f kind == #dispatch ifTrue: [
 		^block add: (CGoto computed: (CIndex base: opsTable index: (self expression: aNode arguments first) type: self voidPointer))].
+	(self inlineTailCall: aNode) ifTrue: [^self].
 	self statement: aNode.
-	self emitNext
+	block endsControlFlow ifFalse: [self emitNext]
 !
 emitNext
 	block add: (CGoto computed: (CIndex base: opsTable index: (self expression: nextExpression) type: self voidPointer))
@@ -214,6 +238,10 @@ assignment: anAssignmentNode valueWanted: aBoolean
 			binding type isNil
 				ifTrue: [
 					value := self expression: anAssignmentNode value.
+					(value isConstant and: [(frame function assignmentCountOf: name) = 1 and: [aBoolean not]]) ifTrue: [
+						"assigned once, a constant: no variable (so a specialized handler's case analysis folds)"
+						env rebind: name to: (TBinding expression: value).
+						^nil].
 					self declareLocal: binding type: (self inferredType: value)]
 				ifFalse: [value := self expressionOrInline: anAssignmentNode value type: binding type].
 			target := binding reference]
@@ -329,6 +357,8 @@ send: aMessageNode valueWanted: aBoolean
 	| sel rcv binding |
 	sel := aMessageNode selector.
 	rcv := aMessageNode receiver.
+	(rcv isLiteral and: [rcv value isCharacter and: [sel == #value]]) ifTrue: [
+		^CConst value: rcv value value type: (translator registry at: 'int')].
 	(self class controlSelectors includes: sel) ifTrue: [^self control: aMessageNode valueWanted: aBoolean].
 	rcv isVariable ifTrue: [
 		(rcv isSelf or: [rcv isSuper]) ifTrue: [^self send: sel to: frame module arguments: aMessageNode arguments node: aMessageNode valueWanted: aBoolean].
@@ -398,10 +428,14 @@ externSend: aSelector library: aLibraryClass arguments: argNodes node: aNode
 
 !TCodeGenerator methodsFor: 'inlining'!
 inline: aTFunction module: aTModule arguments: argNodes node: aNode valueWanted: aBoolean
-	"Expand aTFunction here. Arguments that are pure expressions are substituted, blocks are inlined where they are evaluated, other arguments go through a local."
+	^self inline: aTFunction module: aTModule arguments: argNodes node: aNode valueWanted: aBoolean dispatching: false
+!
+inline: aTFunction module: aTModule arguments: argNodes node: aNode valueWanted: aBoolean dispatching: isDispatching
+	"Expand aTFunction here. Arguments that are pure expressions are substituted, blocks are inlined where they are evaluated, other arguments go through a local. If isDispatching, the expansion ends a handler: its returns dispatch."
 	| f stmts result body |
 	f := TFrame kind: #inline function: aTFunction module: aTModule parent: frame.
 	f valueWanted: aBoolean.
+	f exitDispatches: isDispatching.
 	aTFunction arguments with: argNodes do: [:name :arg |
 		arg isBlock
 			ifTrue: [f env at: name put: (TBinding block: arg frame: frame env: env)]
@@ -445,6 +479,7 @@ finalInlineReturn: aNode frame: aTFrame
 	"The last statement: no jump needed."
 	| e |
 	aTFrame noteReturn.
+	aTFrame exitDispatches ifTrue: [^self dispatchingReturn: aNode].
 	aTFrame valueWanted ifFalse: [
 		(aNode isVariable and: [aNode isSelf]) ifTrue: [^self].
 		^self statement: aNode].
@@ -630,6 +665,8 @@ toDo: aMessageNode
 			step := self integerConstant: 1 hex: false.
 			loopBlock := aMessageNode arguments at: 2].
 	self requireBlock: loopBlock arguments: 1.
+	((self valueType: stop) isInteger and: [(self valueType: stop) isSigned not and: [(stop isKindOf: CBinary) and: [stop operator = '-']]]) ifTrue: [
+		^self error: 'an unsigned loop limit computed by a subtraction wraps in C when it would go negative: use asInt64' node: aMessageNode arguments first].
 	type := self arithmeticType: start and: stop node: aMessageNode.
 	var := self newLocal: (LowtalkNames snake: loopBlock arguments first name) type: type.
 	stopExpr := stop isPure
@@ -721,7 +758,8 @@ valueSend: aMessageNode valueWanted: aBoolean
 	type := self valueType: rcv.
 	(sel == #ifNoOverflowAdd:do: or: [sel == #ifNoOverflowSub:do: or: [sel == #ifNoOverflowMul:do:]])
 		ifTrue: [self overflowCheck: aMessageNode receiver: rcv. ^nil].
-	(type isPointer and: [type target isFunction]) ifTrue: [^self callPointer: rcv arguments: aMessageNode arguments node: aMessageNode].
+	((type isPointer and: [type target isFunction]) and: [#(#call #call: #call:with: #call:with:with: #call:with:with:with:) includes: sel])
+		ifTrue: [^self callPointer: rcv arguments: aMessageNode arguments node: aMessageNode].
 	((type isPointerLike and: [type target isStruct]) or: [type isStruct]) ifTrue: [
 		(self isFieldSelector: sel of: type) ifTrue: [^self field: aMessageNode receiver: rcv]].
 	type isPointerLike ifTrue: [^self pointerSend: aMessageNode receiver: rcv].
@@ -851,7 +889,9 @@ pointerSend: aMessageNode receiver: rcv
 	sel := aMessageNode selector.
 	type := self valueType: rcv.
 	target := type target.
-	args := aMessageNode arguments collect: [:a | self expression: a].
+	args := sel == #fieldAddress:
+		ifTrue: [#()]
+		ifFalse: [aMessageNode arguments collect: [:a | self expression: a]].
 	sel == #isNull ifTrue: [^CBinary operator: '==' left: rcv right: (CConst value: nil type: self voidPointer) type: self boolType].
 	sel == #notNull ifTrue: [^CBinary operator: '!!=' left: rcv right: (CConst value: nil type: self voidPointer) type: self boolType].
 	sel == #at: ifTrue: [
@@ -870,6 +910,12 @@ pointerSend: aMessageNode receiver: rcv
 			^CBinary operator: '=' left: (CUnary operator: '*' operand: rcv type: target) right: (CUnary operator: '*' operand: args first type: target) type: target].
 		self checkStore: args first to: target node: aMessageNode.
 		^CBinary operator: '=' left: (CUnary operator: '*' operand: rcv type: target) right: (self coerce: args first to: target node: aMessageNode) type: target].
+	sel == #fieldAddress: ifTrue: [
+		| f |
+		(target isStruct and: [aMessageNode arguments first isLiteral and: [aMessageNode arguments first value isSymbol]]) ifFalse: [
+			^self error: 'fieldAddress: takes a field name of a struct pointer' node: aMessageNode].
+		f := target fieldNamed: aMessageNode arguments first value asString ifAbsent: [^self error: 'no field ' , aMessageNode arguments first value node: aMessageNode].
+		^CUnary operator: '&' operand: (CMember base: rcv field: f cName arrow: true type: f type) type: f type pointer].
 	sel == #copyStructFrom: ifTrue: [
 		^CBinary operator: '=' left: (CUnary operator: '*' operand: rcv type: target) right: (CUnary operator: '*' operand: args first type: target) type: target].
 	sel == #+ ifTrue: [
@@ -907,7 +953,7 @@ arithmetic: sel left: a right: b node: aNode
 		(ta isFloat or: [tb isFloat]) ifFalse: [^self error: '/ on integers: use quo: (truncating)' node: aNode]].
 	(sel == #quo: or: [sel == #rem:]) ifTrue: [
 		(ta isInteger and: [tb isInteger]) ifFalse: [^self error: sel , ' on non-integers' node: aNode]].
-	type := self arithmeticType: a and: b node: aNode.
+	type := self arithmeticType: a and: b node: aNode modular: (#(#+ #- #*) includes: sel).
 	^self fold: (CBinary operator: (self cOperatorFor: sel) left: a right: b type: type)
 !
 comparison: sel left: a right: b node: aNode
@@ -926,7 +972,7 @@ comparison: sel left: a right: b node: aNode
 bitwise: sel left: a right: b node: aNode
 	self requireInteger: a node: aNode.
 	self requireInteger: b node: aNode.
-	^self fold: (CBinary operator: (self cOperatorFor: sel) left: a right: b type: (self arithmeticType: a and: b node: aNode))
+	^self fold: (CBinary operator: (self cOperatorFor: sel) left: a right: b type: (self arithmeticType: a and: b node: aNode modular: true))
 !
 shift: sel left: a right: b node: aNode
 	| left |
@@ -935,6 +981,8 @@ shift: sel left: a right: b node: aNode
 	left := a.
 	(a isConstant and: [b isConstant not]) ifTrue: [
 		left := CConst value: a value type: (translator registry at: (a value > 16r7FFFFFFFFFFFFFFF ifTrue: ['uint64_t'] ifFalse: ['int64_t']))].
+	(sel == #<< and: [left isConstant not and: [(self promote: (self valueType: left)) size < 8]]) ifTrue: [
+		^self error: 'a left shift of a ' , (self valueType: left) name , ' overflows at 32 bits in C but not in the simulator: widen it first (asInt64, asUInt64)' node: aNode].
 	^self fold: (CBinary operator: (self cOperatorFor: sel) left: left right: b type: (self promote: (self valueType: left)))
 !
 promote: aCType
@@ -945,6 +993,10 @@ promote: aCType
 !
 arithmeticType: a and: b node: aNode
 	"The type of a op b under C's usual arithmetic conversions. Converting a signed operand that may be negative to unsigned is an error: the simulator would compute with the negative value."
+	^self arithmeticType: a and: b node: aNode modular: false
+!
+arithmeticType: a and: b node: aNode modular: isModular
+	"With isModular (+ - * and bitwise operations), converting a signed operand to unsigned is fine: the result is the same modulo 2^64, and the simulator checks the value where it is stored."
 	| ta tb pa pb signed unsigned |
 	ta := self valueType: a.
 	tb := self valueType: b.
@@ -964,8 +1016,12 @@ arithmeticType: a and: b node: aNode
 	(self promote: (self valueType: signed)) size > (self promote: (self valueType: unsigned)) size
 		ifTrue: [^self promote: (self valueType: signed)].
 	(signed isConstant and: [signed value >= 0]) ifTrue: [^self promote: (self valueType: unsigned)].
+	(((self valueType: signed) isInteger and: [(self valueType: signed) isSigned not]) or: [(self valueType: signed) isBool]) ifTrue: [
+		"a small unsigned type promoted to int is never negative"
+		^self promote: (self valueType: unsigned)].
 	(signed isConstant not and: [unsigned isConstant and: [unsigned value <= 16r7FFFFFFF]]) ifTrue: [
 		^self promote: (self valueType: signed)].
+	isModular ifTrue: [^self promote: (self valueType: unsigned)].
 	^self error: 'mixing signed ' , (self valueType: signed) name , ' and unsigned ' , (self valueType: unsigned) name , ' (C would convert the signed one): cast one' node: aNode
 !
 commonType: a and: b node: aNode
@@ -981,6 +1037,7 @@ commonType: a and: b node: aNode
 inferredType: aCExpr
 	"The type of a local first assigned aCExpr: an integer constant gives a 64-bit integer (the simulator computes exactly, so a narrower local could differ from it)."
 	(aCExpr isConstant and: [aCExpr value isInteger]) ifTrue: [
+		(aCExpr type isInteger and: [aCExpr type size = 8]) ifTrue: [^aCExpr type].
 		^translator registry at: (aCExpr value > 16r7FFFFFFFFFFFFFFF ifTrue: ['uint64_t'] ifFalse: ['int64_t'])].
 	^self valueType: aCExpr
 !
@@ -1211,10 +1268,11 @@ dispatchLoop: aTFunction
 	labels := (cModule functions values select: [:f | f kind == #label]) asSortedCollection: [:a :b | a selector <= b selector].
 	table := Array new: 256.
 	bad := handlers detect: [:h | h bytecodes isEmpty] ifNone: [^self error: 'the interpreter needs a handler for unknown bytecodes (<bytecodes: #()>)' node: nil].
-	handlers do: [:h |
+	(handlers asArray reject: [:h | h isRange]) , (handlers asArray select: [:h | h isRange]) do: [:h |
 		h bytecodes do: [:b |
-			(table at: b + 1) notNil ifTrue: [^self error: 'two handlers for bytecode ' , b printString node: nil].
-			table at: b + 1 put: (self labelOf: h bytecode: b)]].
+			(table at: b + 1) notNil
+				ifTrue: [h isRange ifFalse: [^self error: 'two handlers for bytecode ' , b printString node: nil]]
+				ifFalse: [table at: b + 1 put: (self labelOf: h bytecode: b)]]].
 	entries := WriteStream on: String new.
 	entries nextPutAll: '{'.
 	0 to: 255 do: [:b |
@@ -1225,7 +1283,7 @@ dispatchLoop: aTFunction
 	self emitNext.
 	handlers do: [:h |
 		(h isSpecialized and: [h bytecodes notEmpty])
-			ifTrue: [h bytecodes do: [:b | self handler: h bytecode: b]]
+			ifTrue: [h bytecodes do: [:b | (table at: b + 1) = (self labelOf: h bytecode: b) ifTrue: [self handler: h bytecode: b]]]
 			ifFalse: [self handler: h bytecode: nil]].
 	labels do: [:l | self label: l]
 !

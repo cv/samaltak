@@ -1,0 +1,438 @@
+VMPrimitiveModule subclass: #ObjectPrimitives
+	instanceVariableNames: 'instancesClass instancesResult instancesCount'
+	classVariableNames: ''
+	package: 'VM-Core'!
+
+ObjectPrimitives comment: 'Object, string and byte-access primitives. Indices are 1-based over indexable fields; byte offsets 1-based, little-endian unless BigEndian.'!
+
+!ObjectPrimitives class methodsFor: 'declaring'!
+declarations
+	^#((instancesClass oop) (instancesResult oop) (instancesCount size_t))
+! !
+
+!ObjectPrimitives methodsFor: 'object'!
+primClass
+	<vmPrimitive: 78 name: 'class'>
+	<leaf>
+	self answer: (memory classOf: (self argCount > 0 ifTrue: [self arg: 0] ifFalse: [self receiver]))
+!
+primIdentical
+	<vmPrimitive: 79 name: 'identical'>
+	<leaf>
+	self answerBool: self receiver = self arg0
+!
+primIdentityHash
+	<vmPrimitive: 77 name: 'identityHash'>
+	<leaf>
+	| r |
+	r := self receiver.
+	(self isPtr: r) ifTrue: [^self answer: (self intOop: (self hashOf: r))].
+	(self isInt: r) ifTrue: [^self answer: r].
+	(self isChar: r) ifTrue: [^self answer: (self intOop: (self charVal: r))].
+	self answer: (self intOop: ((r >> 3) bitAnd: 16r3FFFFFFF))
+!
+primBasicNew
+	<vmPrimitive: 70 name: 'basicNew'>
+	| err o |
+	err := self local: 'int'.
+	o := memory instantiate: self receiver size: 0 error: err.
+	err value ~= 0 ifTrue: [^err value > 0 ifTrue: [self failCode: err value] ifFalse: [self fail]].
+	self answer: o
+!
+primBasicNewSize
+	"A size no object can have (a LargePositiveInteger too) fails with PRIM_ERR_NO_MEMORY."
+	<vmPrimitive: 71 name: 'basicNew:'>
+	| n u err o |
+	n := self arg0.
+	u := self local: 'uint64_t'.
+	(memory u64Of: n into: u) ifFalse: [
+		((self isPtr: n) and: [(self rawClass: n) = (memory special: SO_LARGEPOS)]) ifFalse: [^self fail].
+		u value: 16rFFFFFFFFFFFFFFFF].
+	err := self local: 'int'.
+	o := memory instantiate: self receiver size: u value error: err.
+	err value ~= 0 ifTrue: [^err value > 0 ifTrue: [self failCode: err value] ifFalse: [self fail]].
+	self answer: o
+!
+primBasicSize
+	<vmPrimitive: 72 name: 'basicSize'>
+	<leaf>
+	self answer: (self intOop: (memory indexableSize: self receiver) asInt64)
+!
+primAt
+	<vmPrimitive: 73 name: 'at'>
+	| r k f v |
+	r := self receiver.
+	(self isPtr: r) ifFalse: [^self fail].
+	k := self indexOf: self arg0 limit: (memory indexableSize: r).
+	k < 0 ifTrue: [^self fail].
+	f := self formatOf: r.
+	(self fmtHasPointers: f) ifTrue: [^self answer: (self loadRef: r at: (memory fixedFields: r) + k asUInt32)].
+	f = F_W64 ifTrue: [
+		v := (self slotsOf: r) at: k.
+		^self answer: (v <= VM_INT_MAX asUInt64 ifTrue: [self intOop: v asInt64] ifFalse: [memory largeIntFrom: v negative: false])].
+	(f = 10 or: [f = 11]) ifTrue: [^self answer: (self intOop: ((self words32Of: r) at: k))].
+	f >= F_BYTES ifTrue: [^self answer: (self intOop: ((self bytesOf: r) at: k))].
+	self fail
+!
+primAtPut
+	<vmPrimitive: 74 name: 'atPut'>
+	| r k v f u |
+	r := self receiver.
+	(self argCount < 2 or: [(self isPtr: r) not or: [self isImmutable: r]]) ifTrue: [^self fail].
+	k := self indexOf: (self arg: 0) limit: (memory indexableSize: r).
+	k < 0 ifTrue: [^self fail].
+	v := self arg: 1.
+	f := self formatOf: r.
+	(self fmtHasPointers: f)
+		ifTrue: [self storeRef: r at: (memory fixedFields: r) + k asUInt32 put: v]
+		ifFalse: [
+			f = F_W64
+				ifTrue: [
+					u := self local: 'uint64_t'.
+					(memory u64Of: v into: u) ifFalse: [^self fail].
+					(self slotsOf: r) at: k put: u value]
+				ifFalse: [
+					(f = 10 or: [f = 11])
+						ifTrue: [
+							((self isInt: v) and: [(self intVal: v) >= 0 and: [(self intVal: v) <= 16rFFFFFFFF]]) ifFalse: [^self fail].
+							(self words32Of: r) at: k put: (self intVal: v) asUInt32]
+						ifFalse: [
+							f >= F_BYTES ifFalse: [^self fail].
+							((self isInt: v) and: [(self intVal: v) >= 0 and: [(self intVal: v) <= 255]]) ifFalse: [^self fail].
+							(self bytesOf: r) at: k put: (self intVal: v) asUInt8]]].
+	self answer: v
+!
+primInstVarAt
+	<vmPrimitive: 75 name: 'instVarAt'>
+	| r k |
+	r := self receiver.
+	((self isPtr: r) and: [self fmtHasPointers: (self formatOf: r)]) ifFalse: [^self fail].
+	k := self indexOf: self arg0 limit: (self numSlots: r).
+	k < 0 ifTrue: [^self fail].
+	self answer: (self loadRef: r at: k)
+!
+primInstVarAtPut
+	<vmPrimitive: 76 name: 'instVarAtPut'>
+	| r k v |
+	r := self receiver.
+	(self argCount < 2 or: [(self isPtr: r) not or: [(self isImmutable: r) or: [(self fmtHasPointers: (self formatOf: r)) not]]]) ifTrue: [^self fail].
+	k := self indexOf: (self arg: 0) limit: (self numSlots: r).
+	k < 0 ifTrue: [^self fail].
+	v := self arg: 1.
+	self storeRef: r at: k put: v.
+	self answer: v
+!
+primShallowCopy
+	<vmPrimitive: 80 name: 'shallowCopy'>
+	| r c |
+	r := self receiver.
+	(self isPtr: r) ifFalse: [^self answer: r].
+	c := memory allocObjTry: (self rawClass: r) format: (self formatOf: r) slots: (self numSlots: r) asUInt64.
+	c = 0 ifTrue: [^self failCode: PRIM_ERR_NO_MEMORY].
+	r := self receiver.
+	libc memcpy: (self slotsOf: c) from: (self slotsOf: r) size: (self numSlots: r) asUInt64 * 8.
+	(self fmtHasPointers: (self formatOf: r)) ifTrue: [gc rememberIfOld: c].
+	self answer: c
+!
+primIsImmutable
+	<vmPrimitive: 83 name: 'isImmutable'>
+	| r |
+	r := self receiver.
+	self answerBool: ((self isPtr: r) not or: [self isImmutable: r])
+!
+primSetImmutable
+	<vmPrimitive: 84 name: 'setImmutable:'>
+	| r v old |
+	r := self receiver.
+	v := self arg0.
+	(v ~= memory trueOop and: [v ~= memory falseOop]) ifTrue: [^self fail].
+	(self isPtr: r) ifFalse: [
+		v = memory trueOop ifTrue: [^self answer: memory trueOop].
+		^self fail].
+	old := self isImmutable: r.
+	v = memory trueOop
+		ifTrue: [self header: r put: ((self header: r) bitOr: H_IMMUTABLE)]
+		ifFalse: [self header: r put: ((self header: r) bitClear: H_IMMUTABLE)].
+	self answerBool: old
+!
+primChangeClassTo
+	<vmPrimitive: 85 name: 'changeClassTo:'>
+	| r c spec isize f nf |
+	r := self receiver.
+	c := self arg0.
+	((self isPtr: r) and: [(self isPtr: c) and: [(self numSlots: c) > BEH_FORMAT and: [self isInt: (self loadRef: c at: BEH_FORMAT)]]]) ifFalse: [^self fail].
+	spec := (self intVal: (self loadRef: c at: BEH_FORMAT)) >> CLS_SPEC_SHIFT.
+	isize := (self intVal: (self loadRef: c at: BEH_FORMAT)) bitAnd: CLS_INSTSIZE_MASK.
+	f := self formatOf: r.
+	nf := f.
+	spec <= 1
+		ifTrue: [
+			(f > 1 or: [(self numSlots: r) asInt64 ~= isize]) ifTrue: [^self fail].
+			nf := isize ~= 0 ifTrue: [1] ifFalse: [0]]
+		ifFalse: [
+			spec <= 4
+				ifTrue: [
+					(f < 2 or: [f > 4 or: [(memory fixedFields: r) asInt64 ~= isize]]) ifTrue: [^self fail].
+					nf := (spec = 2 and: [isize ~= 0]) ifTrue: [3] ifFalse: [spec asInt32]]
+				ifFalse: [
+					spec = 9
+						ifTrue: [f ~= 9 ifTrue: [^self fail]]
+						ifFalse: [
+							spec = 10
+								ifTrue: [(f ~= 10 and: [f ~= 11]) ifTrue: [^self fail]]
+								ifFalse: [
+									spec = 16 ifFalse: [^self fail].
+									f < 16 ifTrue: [^self fail]]]]].
+	self header: r put: (((self header: r) bitClear: 16r1F asUInt64 << H_FMT_SHIFT) bitOr: nf asUInt64 << H_FMT_SHIFT).
+	self rawClass: r put: c.
+	(self isYoung: c) ifTrue: [gc rememberIfOld: r].
+	self answer: r
+!
+countInstance: o data: d
+	<c: 'void count_instance(oop o, void *d)'>
+	((self rawClass: o) = instancesClass and: [o ~= instancesResult]) ifTrue: [
+		(instancesResult ~= 0 and: [instancesCount >= (self numSlots: instancesResult)]) ifTrue: [^self].
+		instancesResult ~= 0 ifTrue: [self storeRef: instancesResult at: instancesCount put: o].
+		instancesCount := instancesCount + 1]
+!
+primAllInstances
+	<vmPrimitive: 86 name: 'allInstances'>
+	| a |
+	gc fullGC.
+	instancesClass := self receiver.
+	instancesResult := 0.
+	instancesCount := 0.
+	gc walkOldSpace: (self functionPointer: #countInstance:data:) data: self null.
+	a := memory allocOld: memory clsArray format: F_VAR slots: instancesCount asUInt32.
+	instancesClass := self receiver.
+	instancesResult := a.
+	instancesCount := 0.
+	gc walkOldSpace: (self functionPointer: #countInstance:data:) data: self null.
+	instancesResult := 0.
+	self answer: a
+!
+primBecomeForward
+	<vmPrimitive: 88 name: 'becomeForward'>
+	((self isPtr: self receiver) and: [(self isPtr: self arg0) and: [self receiver ~= memory nilOop]]) ifFalse: [^self fail].
+	gc fullGC.
+	gc becomeForward: self receiver to: self arg0.
+	self answer: self receiver
+!
+primSpecialObjectsArray
+	<vmPrimitive: 89 name: 'specialObjectsArray'>
+	self answer: memory specialsOop
+! !
+
+!ObjectPrimitives methodsFor: 'strings'!
+isStringLike: o
+	| f |
+	(self isPtr: o) ifFalse: [^false].
+	f := self formatOf: o.
+	^f >= F_BYTES or: [f = 10 or: [f = 11]]
+!
+primStringAt
+	<vmPrimitive: 100 name: 'stringAt'>
+	<leaf>
+	| r k |
+	r := self receiver.
+	(self isStringLike: r) ifFalse: [^self fail].
+	k := self indexOf: self arg0 limit: (memory stringSize: r).
+	k < 0 ifTrue: [^self fail].
+	self answer: (self charOop: (memory stringCharAt: r index: k asUInt64))
+!
+primStringAtPut
+	<vmPrimitive: 101 name: 'stringAtPut'>
+	<leaf>
+	| r k c |
+	r := self receiver.
+	(self argCount < 2 or: [(self isStringLike: r) not or: [self isImmutable: r]]) ifTrue: [^self fail].
+	k := self indexOf: (self arg: 0) limit: (memory stringSize: r).
+	k < 0 ifTrue: [^self fail].
+	c := self arg: 1.
+	(self isChar: c) ifFalse: [^self fail].
+	(self formatOf: r) >= F_BYTES
+		ifTrue: [
+			(self charVal: c) > 255 ifTrue: [^self fail].
+			(self bytesOf: r) at: k put: (self charVal: c) asUInt8]
+		ifFalse: [(self words32Of: r) at: k put: (self charVal: c)].
+	self answer: c
+!
+primStringHash
+	<vmPrimitive: 102 name: 'stringHash'>
+	| s |
+	s := self argCount > 0 ifTrue: [self arg: 0] ifFalse: [self receiver].
+	(self isStringLike: s) ifFalse: [^self fail].
+	self answer: (self intOop: (memory stringHash: s))
+!
+primStringCompare
+	<vmPrimitive: 103 name: 'stringCompare'>
+	| a b na nb n x y |
+	a := self receiver.
+	b := self arg0.
+	((self isStringLike: a) and: [self isStringLike: b]) ifFalse: [^self fail].
+	na := memory stringSize: a.
+	nb := memory stringSize: b.
+	n := na < nb ifTrue: [na] ifFalse: [nb].
+	0 to: n asInt64 - 1 do: [:i |
+		x := memory stringCharAt: a index: i asUInt64.
+		y := memory stringCharAt: b index: i asUInt64.
+		x ~= y ifTrue: [^self answer: (self intOop: (x < y ifTrue: [-1] ifFalse: [1]))]].
+	self answer: (self intOop: (na < nb ifTrue: [-1] ifFalse: [na > nb ifTrue: [1] ifFalse: [0]]))
+!
+elementKindOf: o
+	| f |
+	f := self formatOf: o.
+	(self fmtHasPointers: f) ifTrue: [^1].
+	f = F_W64 ifTrue: [^2].
+	(f = 10 or: [f = 11]) ifTrue: [^3].
+	f >= F_BYTES ifTrue: [^4].
+	^0
+!
+primReplaceFromTo
+	<vmPrimitive: 104 name: 'replaceFromToWithStartingAt'>
+	<leaf>
+	| r src so eo ro kind start stop rstart n fr fs |
+	self argCount < 4 ifTrue: [^self fail].
+	r := self receiver.
+	src := self arg: 2.
+	so := self arg: 0.
+	eo := self arg: 1.
+	ro := self arg: 3.
+	((self isPtr: r) and: [(self isPtr: src) and: [(self isImmutable: r) not and: [(self isInt: so) and: [(self isInt: eo) and: [self isInt: ro]]]]]) ifFalse: [^self fail].
+	kind := self elementKindOf: r.
+	(kind = 0 or: [kind ~= (self elementKindOf: src)]) ifTrue: [^self fail].
+	start := self intVal: so.
+	stop := self intVal: eo.
+	rstart := self intVal: ro.
+	n := stop - start + 1.
+	(n = 0 and: [start >= 1]) ifTrue: [^self answer: r].
+	(start < 1 or: [n < 0 or: [stop > (memory indexableSize: r) asInt64 or: [rstart < 1 or: [rstart + n - 1 > (memory indexableSize: src) asInt64]]]]) ifTrue: [^self fail].
+	kind = 1 ifTrue: [
+		fr := memory fixedFields: r.
+		fs := memory fixedFields: src.
+		libc memmove: (self slotsOf: r) + fr + start - 1 from: (self slotsOf: src) + fs + rstart - 1 size: n asUInt64 * 8.
+		gc rememberIfOld: r].
+	kind = 2 ifTrue: [libc memmove: (self slotsOf: r) + start - 1 from: (self slotsOf: src) + rstart - 1 size: n asUInt64 * 8].
+	kind = 3 ifTrue: [libc memmove: (self words32Of: r) + start - 1 from: (self words32Of: src) + rstart - 1 size: n asUInt64 * 4].
+	kind = 4 ifTrue: [libc memmove: (self bytesOf: r) + start - 1 from: (self bytesOf: src) + rstart - 1 size: n asUInt64].
+	self answer: r
+! !
+
+!ObjectPrimitives methodsFor: 'bytes'!
+rawByteSize: o
+	| f |
+	f := self formatOf: o.
+	f >= F_BYTES ifTrue: [^memory byteSize: o].
+	(f = 10 or: [f = 11]) ifTrue: [^(memory word32Size: o) * 4].
+	f = F_W64 ifTrue: [^(self numSlots: o) asUInt64 * 8].
+	^0 asUInt64
+!
+byteAt: width put: isPut
+	"The address of width bytes of the receiver at the 1-based offset argument, or 0."
+	| r n i |
+	r := self receiver.
+	((self isPtr: r) not or: [isPut and: [self isImmutable: r]]) ifTrue: [^0 asUInt64].
+	n := self rawByteSize: r.
+	i := self arg0.
+	((self isInt: i) and: [(self intVal: i) >= 1 and: [((self intVal: i) - 1) asUInt64 + width <= n]]) ifFalse: [^0 asUInt64].
+	^r + 16 + ((self intVal: i) - 1) asUInt64
+!
+storedFloat: v
+	"The Float or SmallInteger v as a double; the caller checked it."
+	^(self isInt: v) ifTrue: [(self intVal: v) asFloat] ifFalse: [memory floatVal: v]
+!
+primBytesUint16At
+	<vmPrimitive: 105 name: 'bytesUint16At'>
+	<leaf>
+	| p |
+	p := self byteAt: 2 put: false.
+	p = 0 ifTrue: [^self fail].
+	self answer: (self intOop: (self uint16At: p))
+!
+primBytesUint32At
+	<vmPrimitive: 106 name: 'bytesUint32At'>
+	<leaf>
+	| p |
+	p := self byteAt: 4 put: false.
+	p = 0 ifTrue: [^self fail].
+	self answer: (self intOop: (self uint32At: p))
+!
+primBytesInt16At
+	<vmPrimitive: 107 name: 'bytesInt16At'>
+	<leaf>
+	| p |
+	p := self byteAt: 2 put: false.
+	p = 0 ifTrue: [^self fail].
+	self answer: (self intOop: (self int16At: p))
+!
+primBytesFloat32At
+	<vmPrimitive: 108 name: 'bytesFloat32At'>
+	| p |
+	p := self byteAt: 4 put: false.
+	p = 0 ifTrue: [^self fail].
+	self answerFloat: (self float32At: p)
+!
+primBytesFloat32AtPut
+	<vmPrimitive: 109 name: 'bytesFloat32AtPut'>
+	<leaf>
+	| p v |
+	p := self byteAt: 4 put: true.
+	(p = 0 or: [self argCount < 2]) ifTrue: [^self fail].
+	v := self arg: 1.
+	((memory isFloat: v) or: [self isInt: v]) ifFalse: [^self fail].
+	self float32At: p put: (self storedFloat: v).
+	self answer: v
+!
+primBytesUint32AtPut
+	<vmPrimitive: 110 name: 'bytesUint32AtPut'>
+	<leaf>
+	| p v |
+	p := self byteAt: 4 put: true.
+	(p = 0 or: [self argCount < 2]) ifTrue: [^self fail].
+	v := self arg: 1.
+	((self isInt: v) and: [(self intVal: v) >= 0 and: [(self intVal: v) <= 16rFFFFFFFF]]) ifFalse: [^self fail].
+	self uint32At: p put: (self intVal: v) asUInt32.
+	self answer: v
+!
+primBytesFloat64At
+	<vmPrimitive: 111 name: 'bytesFloat64At'>
+	| p |
+	p := self byteAt: 8 put: false.
+	p = 0 ifTrue: [^self fail].
+	self answerFloat: (self float64At: p)
+!
+primBytesFloat64AtPut
+	<vmPrimitive: 112 name: 'bytesFloat64AtPut'>
+	<leaf>
+	| p v |
+	p := self byteAt: 8 put: true.
+	(p = 0 or: [self argCount < 2]) ifTrue: [^self fail].
+	v := self arg: 1.
+	((memory isFloat: v) or: [self isInt: v]) ifFalse: [^self fail].
+	self float64At: p put: (self storedFloat: v).
+	self answer: v
+!
+primBytesUint16BigEndianAt
+	<vmPrimitive: 113 name: 'bytesUint16BigEndianAt'>
+	<leaf>
+	| p |
+	p := self byteAt: 2 put: false.
+	p = 0 ifTrue: [^self fail].
+	self answer: (self intOop: ((self uint8At: p) asInt64 << 8 bitOr: (self uint8At: p + 1)))
+!
+primBytesInt16BigEndianAt
+	<vmPrimitive: 114 name: 'bytesInt16BigEndianAt'>
+	<leaf>
+	| p |
+	p := self byteAt: 2 put: false.
+	p = 0 ifTrue: [^self fail].
+	self answer: (self intOop: ((self uint8At: p) asInt64 << 8 bitOr: (self uint8At: p + 1)) asInt16)
+!
+primBytesUint32BigEndianAt
+	<vmPrimitive: 115 name: 'bytesUint32BigEndianAt'>
+	<leaf>
+	| p |
+	p := self byteAt: 4 put: false.
+	p = 0 ifTrue: [^self fail].
+	self answer: (self intOop: ((((self uint8At: p) asUInt64 << 24 bitOr: (self uint8At: p + 1) asUInt64 << 16) bitOr: (self uint8At: p + 2) asUInt64 << 8) bitOr: (self uint8At: p + 3)))
+! !

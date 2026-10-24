@@ -138,6 +138,9 @@ CType subclass: #CBoolType
 !CBoolType class methodsFor: 'instance creation'!
 new
 	^self basicNew setName: 'bool'
+!
+named: aString
+	^self basicNew setName: aString
 ! !
 
 !CBoolType methodsFor: 'private'!

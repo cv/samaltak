@@ -109,6 +109,47 @@ fflush: f
 	^0
 ! !
 
+!LibC methodsFor: 'files'!
+fopen: path mode: mode
+	<c: 'FILE *fopen(const char *path, const char *mode)'>
+	| p m f |
+	p := self memory stringAt: path.
+	m := self memory stringAt: mode.
+	f := [(m includes: $w)
+		ifTrue: [FileStream newFileNamed: p]
+		ifFalse: [FileStream readOnlyFileNamed: p]] on: Error do: [:e | e return: nil].
+	f isNil ifTrue: [^CPointer null].
+	f binary.
+	^self memory pointerTo: (CTypeRegistry default at: 'FILE') at: (self memory registerObject: (SimulatedFile name: p stream: f))
+!
+fread: buf size: size count: n file: f
+	<c: 'size_t fread(void *buf, size_t size, size_t n, FILE *f)'>
+	| bytes |
+	bytes := (self streamFor: f) next: size * n.
+	self memory bytesAt: (self memory addressOf: buf) put: bytes asByteArray.
+	^bytes size // size
+!
+fwrite: buf size: size count: n file: f
+	<c: 'size_t fwrite(const void *buf, size_t size, size_t n, FILE *f)'>
+	(self streamFor: f) nextPutAll: (self memory bytesAt: (self memory addressOf: buf) count: size * n).
+	^n
+!
+fseek: f offset: offset whence: whence
+	<c: 'int fseek(FILE *f, long offset, int whence)'>
+	(self streamFor: f) position: offset.
+	^0
+!
+fclose: f
+	<c: 'int fclose(FILE *f)'>
+	(self streamFor: f) close.
+	self memory forgetObject: (self fileFor: f).
+	^0
+!
+SEEK_SET
+	<cMacro: 'int SEEK_SET'>
+	^0
+! !
+
 !LibC methodsFor: 'memory'!
 malloc: n
 	<c: 'void *malloc(size_t n)'>
@@ -158,6 +199,14 @@ strcmp: a with: b
 	1 to: (x size min: y size) do: [:i | (x at: i) = (y at: i) ifFalse: [^(x at: i) - (y at: i)]].
 	^x size - y size
 !
+atol: s
+	<c: 'long atol(const char *s)'>
+	^Integer readFrom: (self memory stringAt: s) ifFail: [0]
+!
+atoi: s
+	<c: 'int atoi(const char *s)'>
+	^Integer readFrom: (self memory stringAt: s) ifFail: [0]
+!
 strdup: s
 	<c: 'char *strdup(const char *s)'>
 	^self memory pointerTo: (CTypeRegistry default at: 'char') at: (self memory newCString: (self memory stringAt: s))
@@ -166,10 +215,12 @@ strdup: s
 !LibC methodsFor: 'process'!
 exit: status
 	<c: 'void exit(int status)'>
+	<noreturn>
 	^sim exit: status
 !
 abort
 	<c: 'void abort(void)'>
+	<noreturn>
 	^sim exit: 134
 !
 getenv: name

@@ -1,5 +1,5 @@
 Object subclass: #TFrame
-	instanceVariableNames: 'kind function module parent env resultVar exitLabel valueWanted returnType bytecode returnCount'
+	instanceVariableNames: 'kind function module parent env resultVar exitLabel valueWanted returnType bytecode returnCount exitDispatches'
 	classVariableNames: ''
 	package: 'VM-Translator'!
 
@@ -24,6 +24,13 @@ setKind: aSymbol function: aTFunction module: aTModule parent: aTFrame
 !TFrame methodsFor: 'accessing'!
 kind
 	^kind
+!
+exitDispatches
+	"Whether leaving me ends a bytecode handler (an inline method in tail position of a handler): then each return dispatches the next bytecode itself, as the hand-written interpreter's macros did, so every path gets its own indirect branch."
+	^exitDispatches == true
+!
+exitDispatches: aBoolean
+	exitDispatches := aBoolean
 !
 function
 	^function
@@ -101,6 +108,11 @@ at: aString put: aTBinding
 !
 lookup: aString
 	^bindings at: aString ifAbsent: [parent isNil ifTrue: [nil] ifFalse: [parent lookup: aString]]
+!
+rebind: aString to: aTBinding
+	"Replace the binding of aString where it is defined."
+	(bindings includesKey: aString) ifTrue: [^bindings at: aString put: aTBinding].
+	parent isNil ifFalse: [parent rebind: aString to: aTBinding]
 !
 child
 	^TEnv parent: self

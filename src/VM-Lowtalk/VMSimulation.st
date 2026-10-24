@@ -45,6 +45,7 @@ setModules: aCollectionOfClasses
 	arguments := #().
 	aCollectionOfClasses do: [:c |
 		| m |
+		(c class includesSelector: #resetSimulationCaches) ifTrue: [c resetSimulationCaches].
 		m := c basicNew.
 		m setSimulation: self.
 		modules at: c put: m].
@@ -70,7 +71,8 @@ moduleOrLibrary: aTypeName
 	| c |
 	c := Smalltalk at: aTypeName asSymbol.
 	(c inheritsFrom: CLibrary) ifTrue: [^self library: c].
-	^modules at: c ifAbsent: [self error: 'the simulation has no module ' , aTypeName]
+	^modules at: c ifAbsent: [
+		modules detect: [:m | m class includesBehavior: c] ifNone: [self error: 'the simulation has no module ' , aTypeName]]
 !
 library: aLibraryClass
 	^libraries at: aLibraryClass ifAbsent: [

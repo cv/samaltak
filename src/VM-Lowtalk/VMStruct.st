@@ -69,6 +69,12 @@ respondsTo: aSymbol
 address
 	^address
 !
+fieldAddress: aSymbol
+	"&p->field"
+	| field |
+	field := self ctype fieldNamed: aSymbol asString ifAbsent: [^self error: 'no field ' , aSymbol].
+	^memory pointerTo: field type at: address + field offset
+!
 memory
 	^memory
 !

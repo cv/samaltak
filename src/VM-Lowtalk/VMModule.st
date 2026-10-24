@@ -21,6 +21,10 @@ cFileName
 !
 isAbstractModule
 	^self == VMModule
+!
+isInterface
+	"Whether I only declare functions that another module implements (with the same C names)."
+	^false
 ! !
 
 !VMModule methodsFor: 'simulation'!
@@ -198,9 +202,7 @@ coerce: aValue to: aCType
 		^aCType wrap: v].
 	aCType isFloat ifTrue: [^aValue asFloat].
 	aCType isBool ifTrue: [^aValue isInteger ifTrue: [aValue ~= 0] ifFalse: [aValue]].
-	aCType isPointer ifTrue: [
-		(aValue isString and: [aCType target isInteger and: [aCType target size = 1]]) ifTrue: [^aValue].
-		^sim memory pointerTo: aCType target at: (sim memory addressOf: aValue)].
+	aCType isPointer ifTrue: [^sim memory pointerTo: aCType target at: (sim memory addressOf: aValue)].
 	^self error: 'cannot cast to ' , aCType name
 !
 functionPointer: aSelector
