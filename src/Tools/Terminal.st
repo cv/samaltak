@@ -177,10 +177,11 @@ showExit: status
 	pty close
 !
 showMessage: aString
-	| crlf |
+	| crlf bytes |
 	crlf := String with: Character cr with: Character lf.
 	view screen col > 1 ifTrue: [view feed: crlf asByteArray from: 1 to: 2].
-	view feed: (crlf, aString, crlf) utf8Encoded from: 1 to: aString size + 4.
+	bytes := (crlf, aString, crlf) utf8Encoded.
+	view feed: bytes from: 1 to: bytes size.
 	view afterOutput
 !
 windowClosed
