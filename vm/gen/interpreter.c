@@ -2318,6 +2318,7 @@ void interpret(void)
     oop o_571;
     uint64_t o_572;
     oop o_573;
+    uint8_t r_next_bytecode_236;
     oop *s_147;
     oop m_150;
     uint64_t o_574;
@@ -2330,7 +2331,7 @@ void interpret(void)
     oop o_577;
     uint64_t o_578;
     oop o_579;
-    uint8_t r_next_bytecode_236;
+    uint8_t r_next_bytecode_237;
     oop bl_2;
     oop *s_149;
     oop m_152;
@@ -2350,6 +2351,7 @@ void interpret(void)
     oop o_584;
     uint64_t o_585;
     oop o_586;
+    uint8_t r_next_bytecode_238;
     oop *s_152;
     oop m_155;
     uint64_t o_587;
@@ -2362,7 +2364,7 @@ void interpret(void)
     oop o_590;
     uint64_t o_591;
     oop o_592;
-    uint8_t r_next_bytecode_237;
+    uint8_t r_next_bytecode_239;
     oop bl_3;
     oop *s_154;
     oop m_157;
@@ -2382,6 +2384,7 @@ void interpret(void)
     oop o_597;
     uint64_t o_598;
     oop o_599;
+    uint8_t r_next_bytecode_240;
     oop *s_157;
     oop m_160;
     uint64_t o_600;
@@ -2394,13 +2397,13 @@ void interpret(void)
     oop o_603;
     uint64_t o_604;
     oop o_605;
-    uint8_t r_next_bytecode_238;
-    oop b_64;
-    uint8_t r_next_bytecode_239;
-    oop b_65;
-    uint8_t r_next_bytecode_240;
-    oop r_36;
     uint8_t r_next_bytecode_241;
+    oop b_64;
+    uint8_t r_next_bytecode_242;
+    oop b_65;
+    uint8_t r_next_bytecode_243;
+    oop r_36;
+    uint8_t r_next_bytecode_244;
     oop *s_159;
     oop m_162;
     uint64_t o_606;
@@ -2440,7 +2443,7 @@ void interpret(void)
     oop o_619;
     uint64_t o_620;
     oop o_621;
-    uint8_t r_next_bytecode_242;
+    uint8_t r_next_bytecode_245;
     oop *s_163;
     oop sender;
     oop o_622;
@@ -2451,7 +2454,7 @@ void interpret(void)
     oop o_625;
     uint64_t o_626;
     oop o_627;
-    uint8_t r_next_bytecode_243;
+    uint8_t r_next_bytecode_246;
     cache_entry *e_5;
     cache_entry *e_6;
     oop r_37;
@@ -2473,6 +2476,7 @@ void interpret(void)
     oop o_631;
     uint64_t o_632;
     oop o_633;
+    uint8_t r_next_bytecode_247;
     oop *s_168;
     oop m_170;
     uint64_t o_634;
@@ -2485,8 +2489,8 @@ void interpret(void)
     oop o_637;
     uint64_t o_638;
     oop o_639;
-    uint8_t r_next_bytecode_244;
-    uint8_t r_next_bytecode_245;
+    uint8_t r_next_bytecode_248;
+    uint8_t r_next_bytecode_249;
     int64_t r_method_prim_6;
     uint64_t p_34;
     oop o_640;
@@ -2504,7 +2508,7 @@ void interpret(void)
     oop o_645;
     uint64_t o_646;
     oop o_647;
-    uint8_t r_next_bytecode_246;
+    uint8_t r_next_bytecode_250;
     oop r_39;
     uint32_t ns;
     bool ok;
@@ -2524,7 +2528,7 @@ void interpret(void)
     oop o_651;
     uint64_t o_652;
     oop o_653;
-    uint8_t r_next_bytecode_247;
+    uint8_t r_next_bytecode_251;
     int8_t i_7;
     oop *s_174;
     oop m_176;
@@ -2538,7 +2542,7 @@ void interpret(void)
     oop o_657;
     uint64_t o_658;
     oop o_659;
-    uint8_t r_next_bytecode_248;
+    uint8_t r_next_bytecode_252;
     oop *s_176;
     oop m_178;
     uint64_t o_660;
@@ -2551,7 +2555,7 @@ void interpret(void)
     oop o_663;
     uint64_t o_664;
     oop o_665;
-    uint8_t r_next_bytecode_249;
+    uint8_t r_next_bytecode_253;
     oop *s_178;
     oop m_180;
     oop o_666;
@@ -2572,7 +2576,7 @@ void interpret(void)
     oop o_674;
     uint64_t o_675;
     oop o_676;
-    uint8_t r_next_bytecode_250;
+    uint8_t r_next_bytecode_254;
     oop *s_181;
     oop m_183;
     oop o_677;
@@ -8997,9 +9001,8 @@ op_bc_value_b5:;
         fp = fr->fp;
         sp = fp + fr->sp - 1;
         ip = fr->ip;
-        if (__builtin_expect((fr != NULL) && ({
-    c_36 = fr->code;
-    c_36 > JIT_MAX_COUNT; }), 0)) {
+        c_36 = fr->code;
+        if (__builtin_expect(c_36 > JIT_MAX_COUNT, 0)) {
             if (fr != NULL) {
                 nframes = (int32_t)(fr - frames) + 1;
                 fr->ip = ip;
@@ -9040,6 +9043,10 @@ op_bc_value_b5:;
                 ip = (uint8_t *)(o_572 + 16) + (((int64_t)o_573) >> 1);
                 fr = (frame *)NULL;
             }
+            goto *ops[({
+    ip = ip + 1;
+    r_next_bytecode_236 = *(ip - 1);
+    r_next_bytecode_236; })];
         }
         if (__builtin_expect(atomic_load_explicit(&interrupt_pending, memory_order_relaxed) != 0, 0)) {
             if (fr != NULL) {
@@ -9085,8 +9092,8 @@ op_bc_value_b5:;
         }
         goto *ops[({
     ip = ip + 1;
-    r_next_bytecode_236 = *(ip - 1);
-    r_next_bytecode_236; })];
+    r_next_bytecode_237 = *(ip - 1);
+    r_next_bytecode_237; })];
     }
     goto op_special_send;
 op_bc_value_b6:;
@@ -9112,9 +9119,8 @@ op_bc_value_b6:;
         fp = fr->fp;
         sp = fp + fr->sp - 1;
         ip = fr->ip;
-        if (__builtin_expect((fr != NULL) && ({
-    c_37 = fr->code;
-    c_37 > JIT_MAX_COUNT; }), 0)) {
+        c_37 = fr->code;
+        if (__builtin_expect(c_37 > JIT_MAX_COUNT, 0)) {
             if (fr != NULL) {
                 nframes = (int32_t)(fr - frames) + 1;
                 fr->ip = ip;
@@ -9155,6 +9161,10 @@ op_bc_value_b6:;
                 ip = (uint8_t *)(o_585 + 16) + (((int64_t)o_586) >> 1);
                 fr = (frame *)NULL;
             }
+            goto *ops[({
+    ip = ip + 1;
+    r_next_bytecode_238 = *(ip - 1);
+    r_next_bytecode_238; })];
         }
         if (__builtin_expect(atomic_load_explicit(&interrupt_pending, memory_order_relaxed) != 0, 0)) {
             if (fr != NULL) {
@@ -9200,8 +9210,8 @@ op_bc_value_b6:;
         }
         goto *ops[({
     ip = ip + 1;
-    r_next_bytecode_237 = *(ip - 1);
-    r_next_bytecode_237; })];
+    r_next_bytecode_239 = *(ip - 1);
+    r_next_bytecode_239; })];
     }
     goto op_special_send;
 op_bc_value_be:;
@@ -9227,9 +9237,8 @@ op_bc_value_be:;
         fp = fr->fp;
         sp = fp + fr->sp - 1;
         ip = fr->ip;
-        if (__builtin_expect((fr != NULL) && ({
-    c_38 = fr->code;
-    c_38 > JIT_MAX_COUNT; }), 0)) {
+        c_38 = fr->code;
+        if (__builtin_expect(c_38 > JIT_MAX_COUNT, 0)) {
             if (fr != NULL) {
                 nframes = (int32_t)(fr - frames) + 1;
                 fr->ip = ip;
@@ -9270,6 +9279,10 @@ op_bc_value_be:;
                 ip = (uint8_t *)(o_598 + 16) + (((int64_t)o_599) >> 1);
                 fr = (frame *)NULL;
             }
+            goto *ops[({
+    ip = ip + 1;
+    r_next_bytecode_240 = *(ip - 1);
+    r_next_bytecode_240; })];
         }
         if (__builtin_expect(atomic_load_explicit(&interrupt_pending, memory_order_relaxed) != 0, 0)) {
             if (fr != NULL) {
@@ -9315,8 +9328,8 @@ op_bc_value_be:;
         }
         goto *ops[({
     ip = ip + 1;
-    r_next_bytecode_238 = *(ip - 1);
-    r_next_bytecode_238; })];
+    r_next_bytecode_241 = *(ip - 1);
+    r_next_bytecode_241; })];
     }
     goto op_special_send;
 op_bc_point_bb:;
@@ -9325,8 +9338,8 @@ op_bc_point_bb:;
         *sp = ((oop *)(b_64 + 16))[0];
         goto *ops[({
     ip = ip + 1;
-    r_next_bytecode_239 = *(ip - 1);
-    r_next_bytecode_239; })];
+    r_next_bytecode_242 = *(ip - 1);
+    r_next_bytecode_242; })];
     }
     goto op_special_send;
 op_bc_point_bc:;
@@ -9335,8 +9348,8 @@ op_bc_point_bc:;
         *sp = ((oop *)(b_65 + 16))[1];
         goto *ops[({
     ip = ip + 1;
-    r_next_bytecode_240 = *(ip - 1);
-    r_next_bytecode_240; })];
+    r_next_bytecode_243 = *(ip - 1);
+    r_next_bytecode_243; })];
     }
     goto op_special_send;
 op_bc_class:;
@@ -9344,8 +9357,8 @@ op_bc_class:;
     *sp = (r_36 & 7) == 0 ? *(uint64_t *)(r_36 + 8) : (r_36 & 1) != 0 ? cls_smallint : class_of(r_36);
     goto *ops[({
     ip = ip + 1;
-    r_next_bytecode_241 = *(ip - 1);
-    r_next_bytecode_241; })];
+    r_next_bytecode_244 = *(ip - 1);
+    r_next_bytecode_244; })];
 op_send_short:;
     sel = lits[ip[-1] & 15];
     argc = (ip[-1] - 0xC0) >> 4;
@@ -9510,8 +9523,8 @@ context_non_local_return:;
     *sp = result;
     goto *ops[({
     ip = ip + 1;
-    r_next_bytecode_242 = *(ip - 1);
-    r_next_bytecode_242; })];
+    r_next_bytecode_245 = *(ip - 1);
+    r_next_bytecode_245; })];
 context_return:;
     s_163 = (oop *)(active_ctx + 16);
     sender = s_163[CTX_SENDER];
@@ -9547,8 +9560,8 @@ context_return:;
     *sp = result;
     goto *ops[({
     ip = ip + 1;
-    r_next_bytecode_243 = *(ip - 1);
-    r_next_bytecode_243; })];
+    r_next_bytecode_246 = *(ip - 1);
+    r_next_bytecode_246; })];
 do_lookup:;
     e_5 = cache + (((cls >> 3) ^ (sel >> 3) ^ (sel >> 12)) & 4095);
     if (__builtin_expect((e_5->cls != cls) || (e_5->sel != sel), 0)) {
@@ -9644,6 +9657,10 @@ enter_frame:;
             ip = (uint8_t *)(o_632 + 16) + (((int64_t)o_633) >> 1);
             fr = (frame *)NULL;
         }
+        goto *ops[({
+    ip = ip + 1;
+    r_next_bytecode_247 = *(ip - 1);
+    r_next_bytecode_247; })];
     }
     if (__builtin_expect(atomic_load_explicit(&interrupt_pending, memory_order_relaxed) != 0, 0)) {
         if (fr != NULL) {
@@ -9689,8 +9706,8 @@ enter_frame:;
     }
     goto *ops[({
     ip = ip + 1;
-    r_next_bytecode_244 = *(ip - 1);
-    r_next_bytecode_244; })];
+    r_next_bytecode_248 = *(ip - 1);
+    r_next_bytecode_248; })];
 have_entry:;
     new_method = e_6->method;
     new_bcs = e_6->bcs;
@@ -9717,8 +9734,8 @@ have_entry:;
             prim_result = nil_oop;
             goto *ops[({
     ip = ip + 1;
-    r_next_bytecode_245 = *(ip - 1);
-    r_next_bytecode_245; })];
+    r_next_bytecode_249 = *(ip - 1);
+    r_next_bytecode_249; })];
         }
         if ((prim_error_code >= 0) && ((new_temps > 0) && ((({
     p_34 = *(uint64_t *)(new_method + 16 + 56);
@@ -9782,8 +9799,8 @@ have_entry:;
         }
         goto *ops[({
     ip = ip + 1;
-    r_next_bytecode_246 = *(ip - 1);
-    r_next_bytecode_246; })];
+    r_next_bytecode_250 = *(ip - 1);
+    r_next_bytecode_250; })];
     }
     if ((e_6->nset == argc) && (argc != 0)) {
         r_39 = sp[-argc];
@@ -9848,8 +9865,8 @@ have_entry:;
                 }
                 goto *ops[({
     ip = ip + 1;
-    r_next_bytecode_247 = *(ip - 1);
-    r_next_bytecode_247; })];
+    r_next_bytecode_251 = *(ip - 1);
+    r_next_bytecode_251; })];
             }
         }
     }
@@ -9902,8 +9919,8 @@ have_entry:;
             }
             goto *ops[({
     ip = ip + 1;
-    r_next_bytecode_248 = *(ip - 1);
-    r_next_bytecode_248; })];
+    r_next_bytecode_252 = *(ip - 1);
+    r_next_bytecode_252; })];
         }
     }
     prim_status = PS_NONE;
@@ -9963,8 +9980,8 @@ have_entry:;
             tmp_roots[0] = nil_oop;
             goto *ops[({
     ip = ip + 1;
-    r_next_bytecode_249 = *(ip - 1);
-    r_next_bytecode_249; })];
+    r_next_bytecode_253 = *(ip - 1);
+    r_next_bytecode_253; })];
         case PS_SWITCHED:
             tmp_roots[0] = nil_oop;
             if (nframes != 0) {
@@ -10038,8 +10055,8 @@ have_entry:;
             }
             goto *ops[({
     ip = ip + 1;
-    r_next_bytecode_250 = *(ip - 1);
-    r_next_bytecode_250; })];
+    r_next_bytecode_254 = *(ip - 1);
+    r_next_bytecode_254; })];
         case PS_RESEND:
             tmp_roots[0] = nil_oop;
             if (nframes != 0) {

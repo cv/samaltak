@@ -1540,7 +1540,9 @@ bcValue
 		self externalize.
 		self blockActivate: n fromArray: false.
 		self loadFrame.
-		self jitResumeTop.
+		(self unlikely: (jit isCode: fr code)) ifTrue: [
+			self jitResume.
+			^self].
 		self checkInterrupts.
 		^self].
 	^self specialSend
@@ -1764,9 +1766,11 @@ enterFrame
 	1 to: newTemps do: [:k | self push: memory nilOop].
 	(self unlikely: newEcode >= 0) ifTrue: [newFp at: argc put: (self intOop: newEcode)].
 	(self unlikely: newCode ~= 0) ifTrue: [
+		"machine code checks interrupts itself"
 		self externalize.
 		jit activated: fr.
-		self reload].
+		self reload.
+		^self].
 	self checkInterrupts
 !
 sendToMarried
