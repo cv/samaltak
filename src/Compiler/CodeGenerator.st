@@ -468,9 +468,12 @@ emitWhile: aMessageNode forValue: forValue
 	forValue ifTrue: [encoder pushNil]
 !
 emitUnaryWhile: aMessageNode forValue: forValue
-	| loop |
+	"A loop without sends ([true] whileTrue) maps its jump to the loop: the debugger shows it where an interrupt stops it."
+	| loop mapped |
 	loop := encoder pc.
+	mapped := encoder sourceMapSize.
 	self emitInlinedBlock: aMessageNode receiver forValue: true.
+	encoder sourceMapSize = mapped ifTrue: [encoder noteNode: aMessageNode].
 	encoder jumpBackTo: loop if: aMessageNode selector == #whileTrue.
 	forValue ifTrue: [encoder pushNil]
 !

@@ -695,6 +695,12 @@ testSourceMapImplicitReturn
 	m := self compile: 'tMapSelf a foo'.
 	self assert: m sourceMap equals: #(1 10 14 3 14 14)
 !
+testSourceMapLoopWithoutSends
+	"An interrupt stops [true] whileTrue at its jump: it maps to the loop."
+	| m |
+	m := self compile: 'tMapLoop [true] whileTrue. ^3'.
+	self assert: (m sourceIntervalAt: 0) asArray equals: (10 to: 25) asArray
+!
 testTempNames
 	| m |
 	m := self compile: 'tTemps: a | b | ^[:c | | d | d := c. b := d. [a] value] value: 1'.

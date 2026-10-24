@@ -319,9 +319,10 @@ rasterizingClasses
 !
 regenerateGlyphs
 	"The rasterizer or the outlines changed: forget every rasterized glyph of every Font (atlas included). Glyphs are rasterized again on first use; DisplayLists made before keep the old atlas pages."
-	GlyphAtlas reset.
-	self allInstances do: [:each | each resetGlyphs].
-	Canvas glyphsChanged
+	self rasterizing: [
+		GlyphAtlas reset.
+		self allInstances do: [:each | each resetGlyphs].
+		Canvas glyphsChanged]
 !
 resetGlyphs
 	"Drop all rasterized glyphs (atlas included)."

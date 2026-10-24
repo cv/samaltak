@@ -42,6 +42,9 @@ literals
 sourceMap
 	^sourceMap asArray
 !
+sourceMapSize
+	^sourceMap size
+!
 depth
 	^depth
 !
