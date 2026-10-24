@@ -50,6 +50,7 @@ Only features with no significant memory, performance or complexity cost.
 6. **Breakpoints, logpoints, conditional and per-object breakpoints are image-side**: recompiled methods or a per-object anonymous subclass. No VM support.
 7. **Frame timeline**: per frame, a small record of which Processes ran, draw/raster times, GPU timestamp queries and GC phases.
 8. **The debugger never runs in the debugged Process.** Any window's Process can be stopped while the rest stays live.
+   By default breakpoints and watchpoints stop only user Processes; scoped ones (`inProcess:`, `inAllProcesses`, `scope: #all`) also stop a window's, a debugger's or the window system's own. While a debugger holds the input dispatcher or the compositor, a stand-in Process runs the same object's loop (breakpoints ignored there), so input, remote control and drawing go on; it retires when the original resumes and takes over if it is abandoned.
 9. Profile data are ordinary objects behind a Kernel-level API; tools never call raw primitives.
 
 Rejected as too costly: record/replay and time-travel debugging, always-on send/allocation tracing, read watchpoints, remote debugging.

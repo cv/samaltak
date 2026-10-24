@@ -1,6 +1,6 @@
 Object subclass: #DebugSession
 	instanceVariableNames: 'process exception kind label interruptedContext listeners knownExceptions state stopReason statementMaps statementContext statement pendingStore'
-	classVariableNames: 'OpenerBlock OpenerProcesses Shown'
+	classVariableNames: 'OpenerBlock OpenerProcesses Shown ProcessListeners'
 	package: 'System-Debugging'!
 
 DebugSession comment: 'I am the model of a debugger on one suspended Process: its stack, the source and current interval of each frame, receiver fields and temporaries, evaluation in a frame, stepping (with the Simulator, in the debugger''s own process), stepping Over by statements and the pc highlight that goes with it, edit-and-continue, creating a missing method for a doesNotUnderstand:, proceeding and abandoning. The debugger window (UI) is built on me; I notify it through blocks registered with when:.
@@ -435,13 +435,15 @@ proceed
 	self dnuContext notNil ifTrue: [self resend: false].
 	state := #running.
 	self announce: #proceeded.
+	self class process: process changed: #released.
 	process resume
 !
 abandon
 	"Terminate the process (its unwind blocks run)."
 	state := #terminated.
 	process terminate.
-	self announce: #terminated
+	self announce: #terminated.
+	self class process: process changed: #released
 !
 terminate
 	self abandon
@@ -821,6 +823,7 @@ debugProcess: aProcess
 !
 noteShown: aSession
 	(Shown ifNil: [Shown := IdentitySet new]) add: aSession.
+	self process: aSession process changed: #held.
 	^aSession
 !
 isDebugging: aProcess
@@ -834,4 +837,21 @@ isDebugging: aProcess
 process: aProcess exception: anException
 	"A session on suspended aProcess stopped by anException."
 	^self basicNew setProcess: aProcess exception: anException
+! !
+
+!DebugSession class methodsFor: 'process listeners'!
+subscribe: aKey do: aBlock
+	"aBlock value: aProcess value: #held (a session holds it suspended, before a debugger shows it) or #released (proceeded: it runs again; abandoned: it is terminated). The window system starts stand-ins for its own Processes this way. Subscribing again under aKey replaces the block."
+	ProcessListeners isNil ifTrue: [ProcessListeners := Dictionary new].
+	ProcessListeners at: aKey put: aBlock
+!
+unsubscribe: aKey
+	ProcessListeners isNil ifFalse: [ProcessListeners removeKey: aKey ifAbsent: [nil]]
+!
+process: aProcess changed: aSymbol
+	ProcessListeners isNil ifTrue: [^self].
+	ProcessListeners values do: [:each |
+		[each value: aProcess value: aSymbol] on: Error do: [:e |
+			Transcript show: 'DebugSession process listener: ', e messageText asString; cr.
+			e return: nil]]
 ! !

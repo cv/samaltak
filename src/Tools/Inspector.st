@@ -3,7 +3,7 @@ ToolPane subclass: #Inspector
 	classVariableNames: ''
 	package: 'Tools'!
 
-Inspector comment: 'I am an Inspector (prototypes/1-classic/tools.js openInspector): the fields of an object on the left (self, class, instance variables, indexed slots or dictionary keys), the selected field''s printString on the right, and below an evaluator with self bound to the object (⌘D ⌘P ⌘I, in a Process of its own). Double-click a field to inspect its value in a new Inspector. Right-click a field: Halt on write (a real Watchpoint on that instance variable; the field then shows a "halt on write" tag), Break when this object receives… (a per-object Breakpoint), Breakpoints…. I re-read the values twice a second, so a changing object shows its current state. A Form also shows its pixels magnified (PixelView, remote name pixels); the pixel under the pointer and its value are in the status line below.
+Inspector comment: 'I am an Inspector (prototypes/1-classic/tools.js openInspector): the fields of an object on the left (self, class, instance variables, indexed slots or dictionary keys), the selected field''s printString on the right, and below an evaluator with self bound to the object (⌘D ⌘P ⌘I, in a Process of its own). Double-click a field to inspect its value in a new Inspector. Right-click a field: Halt on write (a real Watchpoint on that instance variable; the field then shows a "halt on write" tag; "all processes" also halts the window system''s Processes, e.g. the window manager storing a Window''s bounds), Break when this object receives… (a per-object Breakpoint), Breakpoints…. I re-read the values twice a second, so a changing object shows its current state. A Form also shows its pixels magnified (PixelView, remote name pixels); the pixel under the pointer and its value are in the status line below.
 
 	Inspector openOn: 3 @ 4 near: nil'!
 
@@ -163,12 +163,16 @@ isWatched: aField
 	^(self watchpointFor: aField) notNil
 !
 toggleHaltOnWrite: aField
+	self toggleHaltOnWrite: aField scope: nil
+!
+toggleHaltOnWrite: aField scope: aScope
+	"aScope nil: stores from user Processes halt; #all: also the window system's (e.g. the window manager moving a window)."
 	| wp |
 	wp := self watchpointFor: aField.
 	wp isNil
 		ifTrue: [
-			Watchpoint on: object instVarNamed: aField name.
-			Tools toast: 'Watchpoint: ', (self shortPrintOf: object limit: 20), ' is read-only now; a store into ', aField name, ' halts']
+			(Watchpoint on: object instVarNamed: aField name) scope: aScope.
+			Tools toast: 'Watchpoint: ', (self shortPrintOf: object limit: 20), ' is read-only now; a store into ', aField name, (aScope isNil ifTrue: [''] ifFalse: [' from any process']), ' halts']
 		ifFalse: [
 			wp unwatch.
 			Tools toast: 'No longer watching ', aField name].
@@ -194,7 +198,9 @@ menuFor: aField
 	aField isInstVar ifTrue: [
 		(self isWatched: aField)
 			ifTrue: [(m add: 'Remove halt on write' action: [self toggleHaltOnWrite: aField]) name: 'remove-halt-on-write']
-			ifFalse: [(m add: 'Halt on write' description: 'watchpoint' action: [self toggleHaltOnWrite: aField]) name: 'halt-on-write']].
+			ifFalse: [
+				(m add: 'Halt on write' description: 'watchpoint' action: [self toggleHaltOnWrite: aField]) name: 'halt-on-write'.
+				(m add: 'Halt on write, all processes' description: 'window system too' action: [self toggleHaltOnWrite: aField scope: #all]) name: 'halt-on-write-everywhere']].
 	(m add: 'Break when this object receives…' action: [self breakOnReceive: aField]) name: 'break-on-receive'.
 	(m add: 'Breakpoints…' action: [Tools open: #breakpoints]) name: 'breakpoints'.
 	m addSeparator.

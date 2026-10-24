@@ -485,7 +485,7 @@ updateStatus
 	status add: left style: #mono.
 	source isDirty ifTrue: [^status addRight: 'unaccepted · ⌘S recompiles & restarts' style: #pillDirty].
 	(self isReturning: selected) ifTrue: [
-		right := '↩ returning ', (DebuggerTools short: selected top).
+		right := '↩ returning ', (DebuggerTools short: selected returnValue).
 		^status addRight: right style: #pillOk].
 	note isNil ifFalse: [status addRight: note style: #pillOk]
 !
@@ -515,7 +515,7 @@ updateInspectors
 			cfields add: (DebuggerField name: assoc key asString value: assoc value
 				kind: (i <= nargs ifTrue: [#arg] ifFalse: [i <= own ifTrue: [#temp] ifFalse: [#outer]]))]].
 	(self isReturning: ctx) ifTrue: [
-		cfields add: (DebuggerField name: '↩' value: ctx top kind: #return)].
+		cfields add: (DebuggerField name: '↩' value: ctx returnValue kind: #return)].
 	contextInspector fieldItems: cfields.
 	contextInspector subtitle: (self labelOfFrame: ctx)
 !

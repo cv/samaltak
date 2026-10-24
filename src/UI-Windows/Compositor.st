@@ -1,5 +1,5 @@
 Object subclass: #Compositor
-	instanceVariableNames: 'world displayWindow renderer process running vsync vsyncIndex wake sleeping skip idleFrames frameCount presenting requests recorder gpuTimer clock knownProcesses lastCpu lastScan lastRecord lastError lastErrorTime pipelineVersion'
+	instanceVariableNames: 'world displayWindow renderer process running vsync vsyncIndex wake sleeping skip idleFrames frameCount presenting requests recorder gpuTimer clock knownProcesses lastCpu lastScan lastRecord lastError lastErrorTime pipelineVersion standIn'
 	classVariableNames: ''
 	package: 'UI-Windows'!
 
@@ -82,24 +82,63 @@ stop
 	recorder isNil ifFalse: [recorder stop. recorder := nil].
 	gpuTimer isNil ifFalse: [gpuTimer stop].
 	(process notNil and: [process ~~ Processor activeProcess]) ifTrue: [process terminate].
-	process := nil
+	process := nil.
+	self dropStandIn
 !
 abandon
 	running := false.
 	Smalltalk vm unregisterExternalSemaphore: vsyncIndex.
 	gpuTimer isNil ifFalse: [gpuTimer abandon].
 	process isNil ifFalse: [process terminate].
-	process := nil
+	process := nil.
+	self dropStandIn
 !
 wake
 	sleeping ifTrue: [wake signal]
 ! !
 
+!Compositor methodsFor: 'stand-in'!
+processName
+	^'compositor (vsync)'
+!
+process: aProcess
+	process := aProcess
+!
+standIn
+	^standIn
+!
+standIn: aStandInOrNil
+	standIn := aStandInOrNil
+!
+debugged: aProcess changed: aSymbol
+	"A debugger holds my Process (#held) or let it go (#released): a stand-in keeps the screen going meanwhile."
+	(aProcess == process and: [running]) ifFalse: [^self].
+	aSymbol == #held ifTrue: [
+		standIn isNil ifTrue: [standIn := StandIn for: self].
+		^self].
+	standIn isNil ifTrue: [^self].
+	aProcess isTerminated ifTrue: [^standIn adopt].
+	standIn retire.
+	self wake
+!
+runStandIn
+	self run
+!
+isLoopProcess
+	"Whether the active Process is the one that should run my loop: mine, or my stand-in's while my Process is held."
+	| active |
+	active := Processor activeProcess.
+	^active == process or: [standIn notNil and: [standIn process == active]]
+!
+dropStandIn
+	standIn isNil ifFalse: [standIn terminate. standIn := nil]
+! !
+
 !Compositor methodsFor: 'running'!
 run
-	[running] whileTrue: [
+	[running and: [self isLoopProcess]] whileTrue: [
 		self waitForTick.
-		running ifTrue: [
+		(running and: [self isLoopProcess]) ifTrue: [
 			[gpuTimer poll.
 			 self frame] on: Error do: [:e |
 				self reportError: e.

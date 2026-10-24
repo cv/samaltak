@@ -1,5 +1,5 @@
 Object subclass: #InputDispatcher
-	instanceVariableNames: 'world displayWindow process running semaphore semaphoreIndex buffer pointer modifiers gesture pressed captureWindow hoverWindow cursor idle lastMove tooltipAsked services'
+	instanceVariableNames: 'world displayWindow process running semaphore semaphoreIndex buffer pointer modifiers gesture pressed captureWindow hoverWindow cursor idle lastMove tooltipAsked services standIn'
 	classVariableNames: ''
 	package: 'UI-Windows'!
 
@@ -72,22 +72,66 @@ stop
 	Smalltalk vm unregisterExternalSemaphore: semaphoreIndex.
 	semaphoreIndex := nil.
 	(process notNil and: [process ~~ Processor activeProcess]) ifTrue: [process terminate].
-	process := nil
+	process := nil.
+	self dropStandIn
 !
 abandon
 	running := false.
 	services := #().
 	Smalltalk vm unregisterExternalSemaphore: semaphoreIndex.
 	process isNil ifFalse: [process terminate].
-	process := nil
+	process := nil.
+	self dropStandIn
+! !
+
+!InputDispatcher methodsFor: 'stand-in'!
+processName
+	^'input dispatcher'
+!
+process: aProcess
+	process := aProcess
+!
+standIn
+	^standIn
+!
+standIn: aStandInOrNil
+	standIn := aStandInOrNil
+!
+debugged: aProcess changed: aSymbol
+	"A debugger holds my Process (#held) or let it go (#released): a stand-in keeps the input going meanwhile."
+	(aProcess == process and: [running]) ifFalse: [^self].
+	aSymbol == #held ifTrue: [
+		standIn isNil ifTrue: [standIn := StandIn for: self].
+		^self].
+	standIn isNil ifTrue: [^self].
+	aProcess isTerminated ifTrue: [^standIn adopt].
+	standIn retire.
+	semaphore signal
+!
+runStandIn
+	"Retired: pass on a wakeup my loop may have taken from the original."
+	self runWith: (Array new: 8).
+	semaphore isNil ifFalse: [semaphore signal]
+!
+isLoopProcess
+	"Whether the active Process is the one that should run my loop: mine, or my stand-in's while my Process is held."
+	| active |
+	active := Processor activeProcess.
+	^active == process or: [standIn notNil and: [standIn process == active]]
+!
+dropStandIn
+	standIn isNil ifFalse: [standIn terminate. standIn := nil]
 ! !
 
 !InputDispatcher methodsFor: 'running'!
 run
-	[running] whileTrue: [
+	self runWith: buffer
+!
+runWith: anArray
+	[running and: [self isLoopProcess]] whileTrue: [
 		idle := false.
-		[(DisplayWindow nextEventInto: buffer) notNil] whileTrue: [
-			[self handle: buffer] on: Error do: [:e |
+		[(DisplayWindow nextEventInto: anArray) notNil] whileTrue: [
+			[self handle: anArray] on: Error do: [:e |
 				Transcript show: 'InputDispatcher error: ', (Smalltalk errorReportFor: e); cr.
 				e return: nil]].
 		"The platform's events are delivered: input services (remote control) may wait for the image to settle."

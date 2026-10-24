@@ -14,7 +14,9 @@ initialize
 	Smalltalk addToStartUpList: self.
 	SystemChanges subscribe: #UIWindows do: [:change |
 		(self isDrawingChange: change) ifTrue: [World current ifNotNil: [:world | world restyle]]].
-	Renderer shaderErrorHandler: [:error | self reportShaderError: error]
+	Renderer shaderErrorHandler: [:error | self reportShaderError: error].
+	DebugSession subscribe: #UIWindows do: [:process :event |
+		World current ifNotNil: [:world | world debugged: process changed: event]]
 !
 isDrawingChange: aSystemChange
 	"Answer whether aSystemChange may change what is on the screen: views and the drawing packages."

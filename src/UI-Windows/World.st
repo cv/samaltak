@@ -276,6 +276,11 @@ hostResized: aPoint
 			w moveTo: ((b left min: extent x - 60) max: 60 - b width) @ ((b top min: extent y - 26) max: topBar height)]].
 	self changed
 !
+debugged: aProcess changed: aSymbol
+	"DebugSession process listener: a debugger holds aProcess (#held) or let it go (#released). If it is my compositor's or input dispatcher's, a stand-in runs meanwhile (StandIn)."
+	dispatcher isNil ifFalse: [dispatcher debugged: aProcess changed: aSymbol].
+	compositor isNil ifFalse: [compositor debugged: aProcess changed: aSymbol]
+!
 restyle
 	"Drawing code or the look changed (SystemChanges): every window and overlay draws its content and chrome anew."
 	(windows, overlays) do: [:w | w restyle].

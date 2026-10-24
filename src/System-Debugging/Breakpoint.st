@@ -1,6 +1,6 @@
 Object subclass: #Breakpoint
-	instanceVariableNames: 'id mode expression enabled hits evaluator evaluatorNames'
-	classVariableNames: 'Registry NextId Ignored Listeners ProcessFilter'
+	instanceVariableNames: 'id mode expression enabled hits evaluator evaluatorNames scope'
+	classVariableNames: 'Registry NextId Ignored Listeners ProcessFilter Suppressed'
 	package: 'System-Debugging'!
 
 Breakpoint comment: 'I am an image-side breakpoint; the VM knows nothing about me. A MethodBreakpoint replaces its method by a copy whose bytecodes start with a prologue sending Breakpoint hit: id in: thisContext; an ObjectBreakpoint moves one object into an anonymous subclass of its class whose methods carry that prologue. Removing me restores the original method or class.
@@ -15,11 +15,45 @@ mode is #break, #once (removed at the first hit), #log (evaluate expression in t
 	Breakpoint onObject: aPoint.	"any message"
 	Breakpoint all; allHits; removeAll
 
-Breakpoints and watchpoints only act in processes accepted by processFilter (a one-argument block; nil, the default, accepts all) and not ignored (ignoreProcess:, ignoreDuring:). In other processes they neither stop, log, count hits nor consume a #once breakpoint; debugger tools use that for the window system and their own evaluations.'!
+A condition block may take the method''s arguments, or the receiver followed by them: ''[:window | window title = ''''Transcript'''']'' on Window>>redraw.
+
+Breakpoints and watchpoints only act in processes accepted by processFilter (a one-argument block; nil, the default, accepts all) and not ignored (ignoreProcess:, ignoreDuring:). In other processes they neither stop, log, count hits nor consume a #once breakpoint; debugger tools use that for the window system and their own evaluations. A breakpoint can target processes deliberately instead (its scope): inProcess: aProcess acts only in aProcess, inAllProcesses in every process, the window system''s and the debuggers'' included; both ignore processFilter and ignoreProcess:, never ignoreDuring:.
+
+	Breakpoint on: Window selector: #redraw condition: ''[:window | window title = ''''Transcript'''']'' scope: #all.
+	Breakpoint on: Debugger selector: #stepOver inProcess: aDebuggerWindow process.
+	aBreakpoint inAllProcesses; inProcess: aProcess; inUserProcesses'!
 
 !Breakpoint methodsFor: 'accessing'!
 id
 	^id
+!
+scope
+	"nil: user processes (see the class comment); #all: every process; a Process: only that one."
+	^scope
+!
+isTargeted
+	"Whether I deliberately act in the processes the debugging tools otherwise shield (window system, debuggers)."
+	^scope notNil
+!
+scope: aScope
+	"nil (user processes), #all or a Process."
+	scope := aScope.
+	self class changed: self
+!
+inProcess: aProcess
+	"Act only in aProcess (also a window's or a debugger's)."
+	self scope: aProcess
+!
+inAllProcesses
+	"Act in every process, the window system's and the debuggers' included."
+	self scope: #all
+!
+inUserProcesses
+	"The default: act in the processes the filter accepts and that are not ignored."
+	self scope: nil
+!
+actsIn: aProcess
+	^self class scope: scope accepts: aProcess
 !
 mode
 	^mode
@@ -51,8 +85,13 @@ isObjectBreakpoint
 	^false
 !
 description
-	"Answer a short description such as 'Integer>>gcd: (break once)'."
-	^self locationDescription, ' (', self modeDescription, ')'
+	"Answer a short description such as 'Integer>>gcd: (break once)' or 'Window>>redraw (break in all processes)'."
+	^self locationDescription, ' (', self modeDescription, self scopeDescription, ')'
+!
+scopeDescription
+	scope isNil ifTrue: [^''].
+	scope == #all ifTrue: [^' in all processes'].
+	^' in ', scope name printString
 !
 locationDescription
 	^self subclassResponsibility
@@ -74,17 +113,17 @@ remove
 
 !Breakpoint methodsFor: 'hitting'!
 hitIn: aContext
-	"aContext reached me. Count the hit, log, check the condition, and stop by signaling BreakpointHalt."
+	"aContext reached me. Check the condition (only hits where it holds count), count the hit, log, or stop by signaling BreakpointHalt."
 	| process |
 	process := Processor activeProcess.
-	(enabled and: [(self class isIgnoring: process) not]) ifFalse: [^nil].
+	(enabled and: [self actsIn: process]) ifFalse: [^nil].
+	mode == #condition ifTrue: [
+		(self class ignoreDuring: [self conditionHoldsIn: aContext]) ifFalse: [^nil]].
 	hits := hits + 1.
 	self class changed: self.
 	mode == #log ifTrue: [
 		self class ignoreDuring: [self log: aContext].
 		^nil].
-	mode == #condition ifTrue: [
-		(self class ignoreDuring: [self conditionHoldsIn: aContext]) ifFalse: [^nil]].
 	mode == #once ifTrue: [self remove].
 	^BreakpointHalt new
 		breakpoint: self;
@@ -106,7 +145,11 @@ conditionHoldsIn: aContext
 		Transcript show: 'breakpoint condition error: ', e messageText asString; cr.
 		e return: true].
 	(value isKindOf: BlockClosure) ifTrue: [
-		value := [value numArgs = 0 ifTrue: [value value] ifFalse: [value valueWithArguments: aContext arguments]]
+		value := [value numArgs = 0
+				ifTrue: [value value]
+				ifFalse: [value valueWithArguments: (value numArgs = (aContext arguments size + 1)
+					ifTrue: [(Array with: aContext receiver), aContext arguments]
+					ifFalse: [aContext arguments])]]
 			on: Error do: [:e | e return: true]].
 	^value == true
 !
@@ -130,6 +173,9 @@ evaluateIn: aContext
 ! !
 
 !Breakpoint methodsFor: 'private'!
+setScope: aScope
+	scope := aScope
+!
 setId: anInteger mode: aSymbol expression: aStringOrNil
 	id := anInteger.
 	mode := aSymbol.
@@ -154,6 +200,7 @@ initialize
 	Registry isNil ifTrue: [Registry := Dictionary new].
 	NextId isNil ifTrue: [NextId := 0].
 	Ignored isNil ifTrue: [Ignored := IdentitySet new].
+	Suppressed isNil ifTrue: [Suppressed := IdentitySet new].
 	Listeners isNil ifTrue: [Listeners := OrderedCollection new]
 ! !
 
@@ -174,13 +221,25 @@ on: aClass selector: aSelector condition: aString
 	"Stop when aClass>>aSelector runs and aString (an expression or block source, evaluated in the frame) answers true."
 	^self on: aClass selector: aSelector mode: #condition expression: aString
 !
+on: aClass selector: aSelector inProcess: aProcess
+	"Stop whenever aClass>>aSelector runs in aProcess (also a window's or a debugger's), and nowhere else."
+	^self on: aClass selector: aSelector mode: #break expression: nil scope: aProcess
+!
+on: aClass selector: aSelector condition: aString scope: aScope
+	"A conditional breakpoint acting in aScope: #all (every process, the window system's included) or a Process."
+	^self on: aClass selector: aSelector mode: #condition expression: aString scope: aScope
+!
 on: aClass selector: aSelector mode: aSymbol expression: aStringOrNil
+	^self on: aClass selector: aSelector mode: aSymbol expression: aStringOrNil scope: nil
+!
+on: aClass selector: aSelector mode: aSymbol expression: aStringOrNil scope: aScope
 	| method bp |
 	method := aClass compiledMethodAt: aSelector ifAbsent: [^self error: aClass name, '>>', aSelector, ' does not exist'].
 	(self forClass: aClass selector: aSelector) ifNotNil: [:old | old remove].
 	bp := MethodBreakpoint basicNew
 		setId: self nextId mode: aSymbol expression: aStringOrNil;
 		setClass: aClass selector: aSelector;
+		setScope: aScope;
 		yourself.
 	^self register: bp
 ! !
@@ -244,7 +303,8 @@ unignoreProcess: aProcess
 	Ignored remove: aProcess ifAbsent: [nil]
 !
 isIgnoring: aProcess
-	"Breakpoints and watchpoints do nothing in aProcess (checked before a hit is counted)."
+	"Breakpoints and watchpoints in user scope do nothing in aProcess (checked before a hit is counted)."
+	(Suppressed notNil and: [Suppressed includes: aProcess]) ifTrue: [^true].
 	(Ignored notNil and: [Ignored includes: aProcess]) ifTrue: [^true].
 	ProcessFilter isNil ifTrue: [^false].
 	^([ProcessFilter value: aProcess] on: Error do: [:e | e return: true]) ~~ true
@@ -261,13 +321,19 @@ ignoreProcessesSatisfying: aBlock
 	self processFilter: [:process | (aBlock value: process) ~~ true]
 !
 ignoreDuring: aBlock
-	"Evaluate aBlock with breakpoints ignored in the active process."
-	| process wasIgnored |
+	"Evaluate aBlock with all breakpoints and watchpoints ignored in the active process, targeted ones included."
+	| process |
 	process := Processor activeProcess.
-	wasIgnored := self isIgnoring: process.
-	wasIgnored ifTrue: [^aBlock value].
-	Ignored add: process.
-	^aBlock ensure: [Ignored remove: process ifAbsent: [nil]]
+	(Suppressed includes: process) ifTrue: [^aBlock value].
+	Suppressed add: process.
+	^aBlock ensure: [Suppressed remove: process ifAbsent: [nil]]
+!
+scope: aScope accepts: aProcess
+	"Whether a breakpoint or watchpoint with aScope (nil: user processes, #all, or a Process) acts in aProcess."
+	(Suppressed notNil and: [Suppressed includes: aProcess]) ifTrue: [^false].
+	aScope isNil ifTrue: [^(self isIgnoring: aProcess) not].
+	aScope == #all ifTrue: [^true].
+	^aScope == aProcess
 ! !
 
 !Breakpoint class methodsFor: 'change notification'!

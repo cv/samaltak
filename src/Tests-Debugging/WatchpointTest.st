@@ -24,6 +24,25 @@ testProcessFilter
 	self assert: p isReadOnlyObject.
 	self assert: sessions isEmpty
 !
+testScopedWatchpointHaltsFilteredProcesses
+	| p wp mover session |
+	p := 3 @ 4.
+	wp := (Watchpoint on: p instVarNamed: #x) inAllProcesses; yourself.
+	self assert: wp isTargeted.
+	self assert: (wp label endsWith: ' in all processes').
+	Breakpoint processFilter: [:process | false].
+	mover := self fork: [p x: 5].
+	session := self waitForSession.
+	self assert: session watchpoint == wp.
+	session proceed.
+	self waitUntilTerminated: mover.
+	self assert: p x equals: 5.
+	wp inProcess: Processor activeProcess.
+	mover := self fork: [p x: 6].
+	self waitUntilTerminated: mover.
+	self assert: p x equals: 6.
+	self assert: sessions isEmpty
+!
 testWatchpointUnwatchProceed
 	| session p wp mover |
 	p := 3 @ 4.

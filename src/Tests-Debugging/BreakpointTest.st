@@ -80,7 +80,7 @@ testConditionalBreakpoint
 	session := self waitForSession.
 	self assert: (self temp: 'anInteger' of: session) equals: 24.
 	self assert: session interruptedContext receiver equals: 36.
-	self assert: bp hits equals: 2.
+	self assert: bp hits equals: 1.
 	session proceed.
 	self waitUntilTerminated: process.
 	self assert: result equals: 16
@@ -168,6 +168,62 @@ testProcessFilter
 	Breakpoint processFilter: [:p | p == logger].
 	self deny: (Breakpoint isIgnoring: (logger := Processor activeProcess)) .
 	self assert: (Breakpoint isIgnoring: process)
+!
+testScopeTargetsIgnoredProcesses
+	"A breakpoint in user scope skips ignored and filtered-out processes; scoped to a process it acts there (and only there), scoped to all processes everywhere, never inside ignoreDuring:."
+	| bp ignored other session result |
+	bp := Breakpoint on: Integer selector: #gcd:.
+	ignored := self fork: [(Delay forMilliseconds: 50) wait. result := 48 gcd: 18].
+	Breakpoint ignoreProcess: ignored.
+	self waitUntilTerminated: ignored.
+	self assert: result equals: 6.
+	self assert: sessions isEmpty.
+	ignored := self fork: [(Delay forMilliseconds: 50) wait. result := 48 gcd: 18].
+	Breakpoint ignoreProcess: ignored.
+	bp inProcess: ignored.
+	self assert: bp isTargeted.
+	self assert: (bp description includesSubstring: ' in ').
+	session := self waitForSession.
+	self assert: session process == ignored.
+	other := self fork: [result := 12 gcd: 8].
+	self waitUntilTerminated: other.
+	self assert: result equals: 4.
+	session proceed.
+	self waitUntilTerminated: ignored.
+	Breakpoint unignoreProcess: ignored.
+	Breakpoint processFilter: [:p | false].
+	bp inAllProcesses.
+	self assert: bp description equals: 'Integer>>gcd: (break in all processes)'.
+	other := self fork: [result := 12 gcd: 8].
+	session := self waitForSession.
+	self assert: session process == other.
+	session proceed.
+	self waitUntilTerminated: other.
+	self assert: (Breakpoint ignoreDuring: [9 gcd: 6]) equals: 3.
+	self assert: sessions isEmpty.
+	bp inUserProcesses.
+	self deny: bp isTargeted
+!
+testConditionBlockTakesTheReceiver
+	| session process |
+	Breakpoint on: Integer selector: #gcd: condition: '[:receiver :n | receiver = 36 and: [n = 24]]'.
+	process := self fork: [(12 gcd: 8) + (36 gcd: 24)].
+	session := self waitForSession.
+	self assert: session interruptedContext receiver equals: 36.
+	session proceed.
+	self waitUntilTerminated: process
+!
+testScopedConditionalBreakpoint
+	| bp session process |
+	bp := Breakpoint on: Integer selector: #gcd: condition: '[anInteger > 10]' scope: #all.
+	self assert: bp scope equals: #all.
+	Breakpoint processFilter: [:p | false].
+	process := self fork: [(12 gcd: 8) + (36 gcd: 24)].
+	session := self waitForSession.
+	self assert: session interruptedContext receiver equals: 36.
+	self assert: bp hits equals: 1.
+	session proceed.
+	self waitUntilTerminated: process
 !
 testAllHits
 	| a b |

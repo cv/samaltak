@@ -1,5 +1,5 @@
 Object subclass: #Watchpoint
-	instanceVariableNames: 'object fieldName fieldIndex hits enabled'
+	instanceVariableNames: 'object fieldName fieldIndex hits enabled scope'
 	classVariableNames: 'Watches ReadOnlyBefore Listeners'
 	package: 'System-Debugging'!
 
@@ -7,7 +7,11 @@ Watchpoint comment: 'I halt the process that stores into a field of a watched ob
 
 	w := Watchpoint on: aPoint instVarNamed: #x.
 	w := Watchpoint on: anArray.	"any write"
-	w unwatch'!
+	w unwatch
+
+Like breakpoints, I act in user processes unless targeted (see Breakpoint): inAllProcesses also halts the window system''s processes (the input dispatcher moving a window), inProcess: only that one.
+
+	(Watchpoint on: aWindow instVarNamed: #bounds) inAllProcesses'!
 
 !Watchpoint methodsFor: 'accessing'!
 object
@@ -35,9 +39,10 @@ disable
 	self class changed: self
 !
 label
-	^fieldName isNil
+	^(fieldName isNil
 		ifTrue: ['watchpoint on any write']
-		ifFalse: ['watchpoint on #', fieldName]
+		ifFalse: ['watchpoint on #', fieldName]),
+	(scope isNil ifTrue: [''] ifFalse: [scope == #all ifTrue: [' in all processes'] ifFalse: [' in ', scope name printString]])
 !
 description
 	| text |
@@ -47,6 +52,26 @@ description
 !
 isWatchpoint
 	^true
+!
+scope
+	"nil: user processes; #all: every process; a Process: only that one (see Breakpoint)."
+	^scope
+!
+scope: aScope
+	scope := aScope.
+	self class changed: self
+!
+inAllProcesses
+	self scope: #all
+!
+inProcess: aProcess
+	self scope: aProcess
+!
+inUserProcesses
+	self scope: nil
+!
+isTargeted
+	^scope notNil
 ! !
 
 !Watchpoint methodsFor: 'testing'!
@@ -176,7 +201,7 @@ changed: aWatchpoint
 !Watchpoint class methodsFor: 'private'!
 handleModification: aModificationForbidden watchpoint: aWatchpointOrNil
 	"A store into a watched object failed. Halt for a matching watchpoint, then perform the store (temporarily lifting the read-only bit if the object is still watched) and answer the stored value."
-	(aWatchpointOrNil notNil and: [(Breakpoint isIgnoring: Processor activeProcess) not]) ifTrue: [
+	(aWatchpointOrNil notNil and: [Breakpoint scope: aWatchpointOrNil scope accepts: Processor activeProcess]) ifTrue: [
 		aWatchpointOrNil hit.
 		WatchpointHit new
 			watchpoint: aWatchpointOrNil;

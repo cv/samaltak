@@ -337,7 +337,7 @@ acceptMethod: aString
 	bp isNil ifFalse: [bp remove].
 	b addSelector: sel withMethod: method.
 	bp isNil ifFalse: [
-		[Breakpoint on: b selector: sel mode: bp mode expression: bp expression] on: Error do: [:e | e return: nil]].
+		[Breakpoint on: b selector: sel mode: bp mode expression: bp expression scope: bp scope] on: Error do: [:e | e return: nil]].
 	written := self writeMethod: method replacing: old.
 	Transcript show: b name, '>>', sel, ' accepted', (written isNil ifTrue: [''] ifFalse: [' → ', (self shortPath: written)]); cr.
 	selector := sel.
@@ -436,11 +436,15 @@ toggleBreakpoint: aSelector
 	^bp
 !
 setBreakpoint: aSelector mode: aSymbol expression: aStringOrNil
+	self setBreakpoint: aSelector mode: aSymbol expression: aStringOrNil scope: nil
+!
+setBreakpoint: aSelector mode: aSymbol expression: aStringOrNil scope: aScope
+	"aScope: nil (user processes), #all, or a Process (see Breakpoint)."
 	| b old |
 	b := self selectedBehavior.
 	old := Breakpoint forClass: b selector: aSelector.
 	old isNil ifFalse: [old remove].
-	Breakpoint on: b selector: aSelector mode: aSymbol expression: aStringOrNil.
+	Breakpoint on: b selector: aSelector mode: aSymbol expression: aStringOrNil scope: aScope.
 	methods invalidate
 !
 removeBreakpoint: aSelector
@@ -477,11 +481,23 @@ methodMenuFor: aSelector
 	(m add: 'break once' action: [self setBreakpoint: aSelector mode: #once expression: nil]) name: 'break-once'.
 	(m add: 'logpoint…' description: 'log, don''t stop' action: [self requestLogpoint: aSelector]) name: 'logpoint'.
 	(m add: 'conditional…' description: 'stop if true' action: [self requestCondition: aSelector]) name: 'conditional'.
+	(m add: 'break in window' submenu: (self windowProcessMenuFor: aSelector)) name: 'break-in-window'.
+	(m add: 'break in all processes' description: 'window system too' action: [self setBreakpoint: aSelector mode: #break expression: nil scope: #all]) name: 'break-everywhere'.
 	(m add: 'breakpoints…' action: [Tools open: #breakpoints]) name: 'breakpoints'.
 	m addSeparator.
 	(m add: 'senders' action: [Tools sendersOf: aSelector]) name: 'senders'.
 	(m add: 'implementors' action: [Tools implementorsOf: aSelector]) name: 'implementors'.
 	(m add: 'inspect method' action: [Tools inspect: (b compiledMethodAt: aSelector) near: self window]) name: 'inspect-method'.
+	^m
+!
+windowProcessMenuFor: aSelector
+	"One item per window: break in that window's Process only (debuggers and the window system included)."
+	| m |
+	m := Menu title: 'Break in the Process of'.
+	Desktop current isNil ifTrue: [^m].
+	Desktop current windows do: [:w |
+		w process isNil ifFalse: [
+			m add: w title action: [self setBreakpoint: aSelector mode: #break expression: nil scope: w process]]].
 	^m
 !
 classMenuFor: aClass

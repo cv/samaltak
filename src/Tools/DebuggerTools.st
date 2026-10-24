@@ -49,13 +49,19 @@ registerWithTools
 open: aSession
 	"The DebugSession opener: show aSession (its Process is suspended). Breakpoints and watchpoints never stop the UI's own Processes (see shieldUIProcesses): such a Process is ignored from now on and resumed."
 	self hasWorld ifFalse: [^self reportHeadless: aSession].
-	((#(#breakpoint #watchpoint) includes: aSession kind) and: [self isUIProcess: aSession process]) ifTrue: [
+	((#(#breakpoint #watchpoint) includes: aSession kind) and: [(self isUIProcess: aSession process) and: [(self isTargeted: aSession) not]]) ifTrue: [
 		Breakpoint ignoreProcess: aSession process.
 		^aSession proceed].
 	^Breakpoint ignoreDuring: [
 		(self opensDebuggerDirectly: aSession)
 			ifTrue: [Debugger openOn: aSession]
 			ifFalse: [Notifier openOn: aSession]]
+!
+isTargeted: aSession
+	"Whether the breakpoint or watchpoint that stopped aSession's process deliberately acts in the window system's processes (its scope)."
+	| point |
+	point := aSession breakpoint ifNil: [aSession watchpoint].
+	^point notNil and: [point isTargeted]
 !
 opensDebuggerDirectly: aSession
 	^#(#breakpoint #watchpoint #suspended) includes: aSession kind
@@ -73,14 +79,20 @@ reportHeadless: aSession
 	aSession abandon
 !
 handleError: anException in: aWindow
-	"Window errorHandler: an error in aWindow's Process. A breakpoint or watchpoint hit is ignored (window Processes are never stopped by them, see shieldUIProcesses). The debugging tools' own windows report errors and restart their event loop; any other window's Process is suspended and debugged."
+	"Window errorHandler: an error in aWindow's Process. A breakpoint or watchpoint hit is ignored (window Processes are never stopped by them, see shieldUIProcesses) unless it targets them (its scope): then aWindow's Process is debugged, also a debugger's. The debugging tools' own windows report errors and restart their event loop; any other window's Process is suspended and debugged."
 	((anException isKindOf: BreakpointHalt) or: [anException isKindOf: WatchpointHit]) ifTrue: [
+		(self isTargetedHit: anException) ifTrue: [^DebugSession handleUnhandledError: anException].
 		Breakpoint ignoreProcess: Processor activeProcess.
 		^nil].
 	(self isDebuggerWindow: aWindow) ifTrue: [
 		aWindow reportError: anException.
 		^aWindow restartProcess].
 	^DebugSession handleUnhandledError: anException
+!
+isTargetedHit: aHalt
+	| point |
+	point := (aHalt isKindOf: BreakpointHalt) ifTrue: [aHalt breakpoint] ifFalse: [aHalt watchpoint].
+	^point notNil and: [point isTargeted]
 !
 isDebuggerWindow: aWindow
 	| content |

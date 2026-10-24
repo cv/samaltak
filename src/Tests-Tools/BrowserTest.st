@@ -112,6 +112,23 @@ testAcceptWritesTheMethodAndRevertRestoresTheFile
 	^42' in: ToolsTestFixture classified: 'accessing'.
 			File deleteIfExists: path]
 !
+testMethodMenuBreaksInAWindowsProcess
+	| menu sub item bp |
+	self browseTo: ToolsTestFixture selector: #answer.
+	menu := self in: window do: [browser methodMenuFor: #answer].
+	sub := (menu itemLabeled: 'break in window') submenu.
+	item := sub itemLabeled: window title.
+	self assert: item notNil.
+	[self in: window do: [item action value].
+	 bp := Breakpoint forClass: ToolsTestFixture selector: #answer.
+	 self assert: bp scope == window process.
+	 self in: window do: [(menu itemLabeled: 'break in all processes') action value].
+	 self assert: (Breakpoint forClass: ToolsTestFixture selector: #answer) scope equals: #all.
+	 "accepting keeps the scope"
+	 self in: window do: [browser code accept].
+	 self assert: (Breakpoint forClass: ToolsTestFixture selector: #answer) scope equals: #all]
+		ensure: [Breakpoint removeAll]
+!
 testAcceptKeepsABreakpoint
 	self browseTo: ToolsTestFixture selector: #answer.
 	Breakpoint on: ToolsTestFixture selector: #answer.

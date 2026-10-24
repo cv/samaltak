@@ -133,6 +133,116 @@ openDebuggerOnGcd
 	^Array with: ws with: dw
 ! !
 
+!DebuggerUITest methodsFor: 'tests: system processes'!
+testBreakpointHaltsOnlyOneWindowsProcess
+	"A conditional breakpoint in Window>>redraw scoped to all processes, true for one window: only that window's Process stops (in a Debugger); the other windows keep working; removing the breakpoint and Proceed let it redraw again."
+	| ws target dw d bp |
+	ws := self openWorkspace: '3 + 4'.
+	target := self openWorkspace: 'target'.
+	target title: 'Breakpoint target'.
+	world waitUntilSettled: 3000.
+	bp := Breakpoint on: Window selector: #redraw condition: '[:window | window title = ''Breakpoint target'']' scope: #all.
+	cleanups add: [bp remove].
+	target invalidate.
+	dw := self waitForWindowOf: Debugger.
+	d := dw content.
+	self assert: d session process == target process.
+	self assert: target process isSuspended.
+	self assert: d stackList selection printString equals: 'Window>>redraw'.
+	self remote: 'type' with: {'target' -> (self ref: ws at: '.text'). 'text' -> ' 5'. 'at' -> 'end'}.
+	self waitFor: [(self textOf: ws) includesSubstring: '3 + 4 5'] description: 'the other workspace to take the typing'.
+	self deny: ws process isSuspended.
+	self click: (self ref: dw at: '.remove-breakpoint').
+	self waitUntilReady: dw.
+	self click: (self ref: dw at: '.proceed').
+	self waitFor: [dw isClosed] description: 'the Debugger to close'.
+	self deny: target process isSuspended.
+	target invalidate.
+	self waitFor: [target hasPendingWork not] description: 'the target window to redraw'
+!
+testBreakpointInADebuggersOwnProcess
+	"Debug the debugger: a breakpoint in Debugger>>stepOver scoped to debugger A's Process; Over in A opens debugger B on A's Process; B steps; after B's Proceed, A steps as before."
+	| a b bp |
+	a := self openDebuggerOnGcd last.
+	bp := Breakpoint on: Debugger selector: #stepOver inProcess: a process.
+	cleanups add: [bp remove].
+	self click: (self ref: a at: '.over').
+	self waitFor: [(world windows select: [:w | w isOpen and: [w content isKindOf: Debugger]]) size = 2] description: 'a second Debugger'.
+	b := world windows detect: [:w | w isOpen and: [(w content isKindOf: Debugger) and: [w ~~ a]]].
+	world waitUntilSettled: 3000.
+	self assert: b content session process == a process.
+	self assert: a process isSuspended.
+	self assert: b content stackList selection printString equals: 'Debugger>>stepOver'.
+	self click: (self ref: b at: '.into').
+	self waitUntilReady: b.
+	self assert: a process isSuspended.
+	self deny: b content session process isTerminated.
+	bp remove.
+	self click: (self ref: b at: '.proceed').
+	self waitFor: [b isClosed] description: 'the second Debugger to close'.
+	self waitFor: [a process isSuspended not] description: 'debugger A to run again'.
+	self waitUntilReady: a.
+	"A's interrupted Over completed"
+	self waitFor: [(self pcTextOf: a content) = 'b := anInteger abs'] description: 'A''s Over to finish'.
+	self click: (self ref: a at: '.over').
+	self waitUntilReady: a.
+	self assert: ((self pcTextOf: a content) beginsWith: '[b = 0] whileFalse: [')
+!
+testWatchpointStopsTheWindowManagerWithAStandIn
+	"Halt on write on a window's bounds in all processes; dragging the window stops the input dispatcher at the store, in a Debugger. A stand-in dispatcher keeps input and remote control going; Proceed retires it."
+	| ws dispatcher wp dw d stack |
+	ws := self openWorkspace: 'drag me'.
+	dispatcher := world dispatcher process.
+	wp := (Watchpoint on: ws instVarNamed: 'bounds') inAllProcesses; yourself.
+	cleanups add: [wp unwatch].
+	self remote: 'drag' with: {'target' -> (self ref: ws at: '').  'dx' -> 60. 'dy' -> 30}.
+	dw := self waitForWindowOf: Debugger.
+	d := dw content.
+	self assert: d session process == dispatcher.
+	self assert: dispatcher isSuspended.
+	self assert: world dispatcher standIn notNil.
+	stack := d stackList items collect: [:each | each printString].
+	self assert: (stack includes: 'Window>>moveTo:').
+	self assert: (stack includes: 'DragGesture>>pointerMoved:').
+	"input and remote control go on through the stand-in"
+	self assert: ((self remote: 'snapshot' with: #()) at: 'text') notEmpty.
+	self remote: 'type' with: {'target' -> (self ref: ws at: '.text'). 'text' -> ' 1'. 'at' -> 'end'}.
+	self waitFor: [(self textOf: ws) includesSubstring: 'drag me 1'] description: 'typing through the stand-in'.
+	self click: (self ref: dw at: '.unwatch').
+	self waitUntilReady: dw.
+	self assert: (Watchpoint forObject: ws) isEmpty.
+	self click: (self ref: dw at: '.proceed').
+	self waitFor: [dw isClosed] description: 'the Debugger to close'.
+	self waitFor: [world dispatcher standIn isNil] description: 'the stand-in to retire'.
+	self assert: world dispatcher process == dispatcher.
+	self deny: dispatcher isSuspended.
+	self waitFor: [(Processor allProcesses anySatisfy: [:p | p name = 'input dispatcher (stand-in)']) not] description: 'the stand-in Process to end'.
+	self remote: 'type' with: {'target' -> (self ref: ws at: '.text'). 'text' -> ' 2'. 'at' -> 'end'}.
+	self waitFor: [(self textOf: ws) includesSubstring: 'drag me 1 2'] description: 'typing through the original dispatcher'
+!
+testBreakpointInTheCompositorWithAStandIn
+	"A breakpoint in the compositor's Process: the screen keeps being composited by a stand-in while the Debugger shows the stopped compositor; Proceed retires it."
+	| compositor bp dw frames |
+	compositor := world compositor process.
+	bp := Breakpoint on: Compositor selector: #present:now: inProcess: compositor.
+	cleanups add: [bp remove].
+	world changed.
+	dw := self waitForWindowOf: Debugger.
+	self assert: dw content session process == compositor.
+	self assert: compositor isSuspended.
+	self assert: world compositor standIn notNil.
+	frames := world compositor frameCount.
+	world changed.
+	self waitFor: [world compositor frameCount > frames] description: 'the stand-in to present frames'.
+	self click: (self ref: dw at: '.remove-breakpoint').
+	self waitUntilReady: dw.
+	self click: (self ref: dw at: '.proceed').
+	self waitFor: [dw isClosed] description: 'the Debugger to close'.
+	self waitFor: [world compositor standIn isNil] description: 'the stand-in to retire'.
+	self deny: compositor isSuspended.
+	self assert: world compositor process == compositor
+! !
+
 !DebuggerUITest methodsFor: 'tests'!
 testBreakpointStepOverEvaluateProceed
 	| pair ws dw d steps |

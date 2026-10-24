@@ -21,6 +21,10 @@ willSend
 willReturn
 	^self instructionStream willReturn
 !
+returnValue
+	"The value my next instruction returns (when I willReturn): the receiver for a return of self, else the top of my stack."
+	^self instructionStream nextOpcode = 16r7A ifTrue: [self receiver] ifFalse: [self top]
+!
 willStore
 	^self instructionStream willStore
 !

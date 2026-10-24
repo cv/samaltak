@@ -448,6 +448,23 @@ testDebugProcess
 	session proceed.
 	self assert: (self waitFor: [subject count > (count + 1)])
 !
+testProcessListenersHearHeldAndReleased
+	| events process session |
+	events := OrderedCollection new.
+	DebugSession subscribe: #DebugSessionTest do: [:p :event | events add: p -> event].
+	[Breakpoint on: Integer selector: #gcd:.
+	 process := self fork: [(48 gcd: 18) + (12 gcd: 8)].
+	 session := self waitForSession.
+	 self assert: (events collect: [:each | each value]) asArray equals: #(#held).
+	 self assert: events first key == process.
+	 session proceed.
+	 self assert: events last equals: process -> #released.
+	 session := self waitForSession.
+	 session abandon.
+	 self assert: (events collect: [:each | each value]) asArray equals: #(#held #released #held #released).
+	 self assert: events last key isTerminated]
+		ensure: [DebugSession unsubscribe: #DebugSessionTest]
+!
 testAnnouncementsAndAbandon
 	| session events ensured |
 	ensured := false.
