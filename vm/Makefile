@@ -1,8 +1,10 @@
 # Samaltak VM. `make` → build/samaltak. NO_PLATFORM=1 builds a headless-only VM.
+# The sources are gen/: C translated from the Lowtalk modules in src/VM-Core and src/VM-Platform (make translate at
+# the top level regenerates them); gen/sources.mk says which files make the core and which the platform layer.
 # Profile-guided: pgo.profdata (if present) steers optimization; `make pgo IMAGE=...` retrains it. NO_PGO=1 skips it.
 CC ?= cc
 CFLAGS ?= -O2 -g -flto
-CFLAGS += -std=gnu11 -Wall -Wextra -Wno-unused-parameter -MMD -MP
+CFLAGS += -std=gnu11 -Wall -Wextra -Wno-unused-parameter -MMD -MP -Igen -D_DARWIN_C_SOURCE
 LDLIBS += -lm -lpthread
 
 BUILD := build
@@ -15,8 +17,10 @@ else ifeq ($(and $(wildcard $(PGO_PROFILE)),$(if $(NO_PGO),,yes)),yes)
   CFLAGS += -fprofile-instr-use=$(PGO_PROFILE) -Wno-profile-instr-out-of-date -Wno-profile-instr-unprofiled
   PGO_DEP := $(PGO_PROFILE)
 endif
-CORE_SRCS := $(wildcard src/*.c)
-PLATFORM_SRCS := $(wildcard platform/*.c)
+include gen/sources.mk
+CORE_SRCS := $(addprefix gen/,$(VM_CORE_SOURCES))
+HEADLESS_SRCS := $(addprefix gen/,$(VM_HEADLESS_SOURCES))
+PLATFORM_SRCS := $(addprefix gen/,$(VM_PLATFORM_SOURCES))
 
 SDL_CFLAGS := $(shell pkg-config --cflags sdl3 2>/dev/null)
 SDL_LIBS := $(shell pkg-config --libs sdl3 2>/dev/null)
@@ -31,10 +35,10 @@ ifneq ($(and $(PLATFORM_SRCS),$(SDL_LIBS),$(if $(NO_PLATFORM),,yes)),)
   VARIANT := platform
   SRCS := $(CORE_SRCS) $(PLATFORM_SRCS)
   CFLAGS += $(SDL_CFLAGS)
-  LDLIBS += $(SDL_LIBS)
+  LDLIBS += $(SDL_LIBS) -framework CoreVideo
 else
   VARIANT := headless
-  SRCS := $(CORE_SRCS)
+  SRCS := $(CORE_SRCS) $(HEADLESS_SRCS)
   CFLAGS += -DSAMALTAK_NO_PLATFORM
 endif
 

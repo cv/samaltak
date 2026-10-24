@@ -1,6 +1,6 @@
 /* Standalone platform test (no VM): files, processes, sockets, events,
  * offscreen GPU rendering + readback, and presenting to a visible window. */
-#include "../platform.h"
+#include "samaltak.h"
 
 #include <SDL3/SDL.h>
 #include <pthread.h>
@@ -52,7 +52,7 @@ static int64_t recv_within(int s, void *buf, size_t n)
     return r;
 }
 
-static double now_ms(void)
+static double wall_ms(void)
 {
     struct timespec ts;
     clock_gettime(CLOCK_MONOTONIC, &ts);
@@ -88,7 +88,7 @@ static void test_files(void)
     CHECK(pf_file_write(f, "!", 1) == 1, "append");
     pf_file_close(f);
     pf_stat st;
-    CHECK(pf_file_stat(a, &st) && st.exists && !st.is_dir && st.size == 12 && st.mtime_us > 0, "stat file");
+    CHECK(pf_file_stat(a, &st) && st.exists && !st.is_dir && st.file_size == 12 && st.mtime_us > 0, "stat file");
     CHECK(pf_file_stat(dir, &st) && st.exists && st.is_dir, "stat dir");
     CHECK(pf_file_stat(b, &st) && !st.exists, "stat missing");
     CHECK(pf_file_open(b, PF_FILE_READ) == 0, "open missing fails");
@@ -111,12 +111,12 @@ static void test_files(void)
     free(cwd);
 
     /* spawn + wait */
-    char *const sh3[] = {"sh", "-c", "exit 3", NULL};
+    char *sh3[] = {"sh", "-c", "exit 3", NULL};
     int64_t pid = pf_spawn(sh3);
     int status = -1;
     bool done = false;
     CHECK(pid > 0 && pf_process_wait(pid, true, &status, &done) && done && status == 3, "spawn exit %d", status);
-    char *const sleeper[] = {"sleep", "0.2", NULL};
+    char *sleeper[] = {"sleep", "0.2", NULL};
     pid = pf_spawn(sleeper);
     CHECK(pf_process_wait(pid, false, &status, &done) && !done, "nohang wait");
     pf_process_wait(pid, true, &status, &done);
@@ -125,7 +125,7 @@ static void test_files(void)
     CHECK(pf_mkfifo(fifo), "mkfifo");
     char cmd[600];
     snprintf(cmd, sizeof cmd, "cat '%s' > '%s'", fifo, out);
-    char *const catter[] = {"sh", "-c", cmd, NULL};
+    char *catter[] = {"sh", "-c", cmd, NULL};
     pid = pf_spawn(catter);
     f = pf_file_open(fifo, PF_FILE_APPEND); /* blocks until the reader opens */
     CHECK(f > 0, "open fifo");
@@ -134,7 +134,7 @@ static void test_files(void)
     CHECK(pf_file_write(f, frame, sizeof frame) == (int64_t)sizeof frame, "fifo write");
     pf_file_close(f);
     pf_process_wait(pid, true, &status, &done);
-    CHECK(pf_file_stat(out, &st) && st.size == (int64_t)sizeof frame, "fifo output size %lld", (long long)st.size);
+    CHECK(pf_file_stat(out, &st) && st.file_size == (int64_t)sizeof frame, "fifo output size %lld", (long long)st.file_size);
 
     CHECK(pf_file_delete(b) && pf_file_delete(fifo) && pf_file_delete(out) && pf_file_delete(sub) && pf_file_delete(dir),
           "cleanup");
@@ -158,9 +158,9 @@ static void test_wake(const char *mode, int server_side, int client)
     late_client = client;
     pthread_t t;
     pthread_create(&t, NULL, late_send, NULL);
-    double t0 = now_ms();
+    double t0 = wall_ms();
     for (int i = 0; i < 40 && !signaled(7); i++) platform_wait(2000000);
-    double dt = now_ms() - t0;
+    double dt = wall_ms() - t0;
     pthread_join(t, NULL);
     CHECK(signaled(7) && dt < 1000, "%s idle wait woke on socket after %.1f ms", mode, dt);
     printf("  %s: platform_wait woke on socket data after %.1f ms (sent at 50 ms)\n", mode, dt);
@@ -291,7 +291,7 @@ static int quad(vtx *v, float x0, float y0, float x1, float y1, float u, float v
     return 6;
 }
 
-static const pf_vattr layout[] = {{PF_VA_FLOAT2, 0}, {PF_VA_FLOAT2, 8}, {PF_VA_UBYTE4_NORM, 16}};
+static pf_vattr layout[] = {{PF_VA_FLOAT2, 0}, {PF_VA_FLOAT2, 8}, {PF_VA_UBYTE4_NORM, 16}};
 
 static bool near(const uint8_t *p, int r, int g, int b, int a)
 {
@@ -393,12 +393,12 @@ static void test_gpu(void)
     uint8_t *img = malloc(bytes), *img2 = malloc(bytes);
     double t_render = 1e9, t_down = 1e9, t_up = 1e9;
     for (int iter = 0; iter < 5; iter++) {
-        double t0 = now_ms();
+        double t0 = wall_ms();
         pf_gpu_upload_buffer(vbuf, v, nv * sizeof(vtx), 0);
         render(target, FW, FH, nv);
-        double t1 = now_ms();
+        double t1 = wall_ms();
         CHECK(pf_gpu_download(target, 0, 0, FW, FH, img, bytes), "download");
-        double t2 = now_ms();
+        double t2 = wall_ms();
         if (t1 - t0 < t_render) t_render = t1 - t0;
         if (t2 - t1 < t_down) t_down = t2 - t1;
     }
@@ -430,10 +430,10 @@ static void test_gpu(void)
     int up = pf_gpu_create_texture(dev, FW, FH, PF_TEX_RGBA8, PF_TEXUSE_SAMPLER);
     for (size_t i = 0; i < bytes; i++) img[i] = (uint8_t)(i * 31 + (i >> 12));
     for (int iter = 0; iter < 5; iter++) {
-        double t0 = now_ms();
+        double t0 = wall_ms();
         pf_gpu_upload_texture(up, img, bytes, 0, 0, FW, FH, FW * 4);
         pf_gpu_wait_idle(dev);
-        double dt = now_ms() - t0;
+        double dt = wall_ms() - t0;
         if (dt < t_up) t_up = dt;
     }
     memset(img2, 0, bytes);
@@ -476,22 +476,22 @@ static void test_present(void)
     double hz = pf_window_refresh_rate(win);
     int divisor = getenv("PF_VSYNC_DIV") ? atoi(getenv("PF_VSYNC_DIV")) : hz > 90 ? 2 : 1;
     int presented = 0, skipped = 0, slow_acq = 0;
-    double worst = 0, worst_acq = 0, t_start = now_ms();
-    while (now_ms() - t_start < 1500) {
-        double t0 = now_ms();
+    double worst = 0, worst_acq = 0, t_start = wall_ms();
+    while (wall_ms() - t_start < 1500) {
+        double t0 = wall_ms();
         platform_poll();
         pf_event e;
         while (pf_event_next(&e)) free(e.text);
         int cmd = pf_gpu_acquire_cmd(dev);
         int w, h;
-        double ta = now_ms();
+        double ta = wall_ms();
         int sc = pf_gpu_acquire_swapchain(cmd, win, &w, &h);
-        ta = now_ms() - ta;
+        ta = wall_ms() - ta;
         if (ta > worst_acq && presented > 3) worst_acq = ta;
         if (ta > 1) slow_acq++;
         CHECK(sc || !*pf_last_error(), "acquire swapchain");
         if (sc) {
-            float t = (float)(now_ms() - t_start) / 1500.0f;
+            float t = (float)(wall_ms() - t_start) / 1500.0f;
             float clear[4] = {t, 0.2f, 1 - t, 1};
             int pass = pf_gpu_begin_pass(cmd, sc, clear);
             vtx v[6];
@@ -510,7 +510,7 @@ static void test_present(void)
         bool ok;
         pf_gpu_submit(cmd, false, &ok);
         CHECK(ok, "submit present");
-        double dt = now_ms() - t0;
+        double dt = wall_ms() - t0;
         if (dt > worst && presented > 3) worst = dt;
         /* pace by the vsync semaphore, as the compositor will */
         for (int k = 0; k < divisor; k++) {
@@ -528,7 +528,7 @@ static void test_present(void)
     CHECK(pf_window_close(win), "close window");
 }
 
-int main(void)
+int main(int argc, char **argv)
 {
     platform_init();
     printf("files\n");

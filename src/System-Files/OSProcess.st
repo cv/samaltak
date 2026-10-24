@@ -5,7 +5,7 @@ Object subclass: #OSProcess
 
 OSProcess comment: 'I run an external program through /bin/sh and capture its exit code, standard output and standard error (redirected into temporary files, read and deleted when it ends). Waiting polls with a Delay, so only the waiting Process blocks.
 
-	(OSProcess run: ''wc -l vm/src/*.c'') output.
+	(OSProcess run: ''wc -l vm/gen/*.c'') output.
 	OSProcess outputOf: ''gst vm/tests/bench/suite-gst.st''.
 	(OSProcess run: ''make -s'' in: ''vm'') exitCode.
 	OSProcess run: (OSProcess commandFor: #(''ls'' ''-l'' ''a file''))	"arguments quoted for the shell"

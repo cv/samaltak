@@ -52,7 +52,7 @@ printOn: aStream
 
 !UIEvent class methodsFor: 'platform event types'!
 evMouseMove
-	"The platform's event types: the PF_EV_* enum in vm/platform/platform.h."
+	"The platform's event types: the PF_EV_* constants of VMPlatformModule (VM-Platform)."
 	^1
 !
 evMouseDown

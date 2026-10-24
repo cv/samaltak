@@ -35,19 +35,17 @@ lookup: n
 	self initTable.
 	^(n > 0 and: [n < MAX_PRIM]) ifTrue: [byNumber at: n] ifFalse: [self null]
 !
-flagsOf: fn
-	| t |
-	t := self primitiveTable.
-	0 to: self primitiveCount - 1 do: [:i | (t + i) function = fn ifTrue: [^(t + i) flags]].
-	^0
+flagsOf: n
+	self initTable.
+	^(n > 0 and: [n < MAX_PRIM]) ifTrue: [flags at: n] ifFalse: [0]
 !
-isLeaf: fn
-	<c: 'bool prim_is_leaf(prim_fn f)'>
-	^((self flagsOf: fn) bitAnd: PRIM_LEAF) ~= 0
+isLeaf: n
+	<c: 'bool prim_is_leaf(int64_t n)'>
+	^((self flagsOf: n) bitAnd: PRIM_LEAF) ~= 0
 !
-isTryable: fn
-	<c: 'bool prim_tryable(prim_fn f)'>
-	^((self flagsOf: fn) bitAnd: PRIM_TRYABLE) ~= 0
+isTryable: n
+	<c: 'bool prim_tryable(int64_t n)'>
+	^((self flagsOf: n) bitAnd: PRIM_TRYABLE) ~= 0
 !
 namesArray
 	"Array: element n is the name of primitive n (nil for gaps)."

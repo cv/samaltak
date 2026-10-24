@@ -265,7 +265,7 @@ primTryPrimitive
 	fn := primitives lookup: (self intVal: idx).
 	bi := interpreter activeStackp - 1 - 3.
 	n := self numSlots: arr.
-	(fn isNull or: [(primitives isTryable: fn) not or: [bi + 1 + n asInt64 > interpreter activeCapacity]]) ifTrue: [^self answer: failed].
+	(fn isNull or: [(primitives isTryable: (self intVal: idx)) not or: [bi + 1 + n asInt64 > interpreter activeCapacity]]) ifTrue: [^self answer: failed].
 	b := interpreter activeSlots + bi.
 	b at: 0 put: (b at: 2).
 	0 to: n asInt64 - 1 do: [:i | b at: 1 + i put: ((self slotsOf: arr) at: i)].

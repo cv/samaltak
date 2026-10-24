@@ -1,21 +1,19 @@
-# Standalone build of the platform internals + test (the VM build compiles *.c itself).
+# Tests of the platform layer (src/VM-Platform, translated into ../gen): gpu_test links the generated platform
+# internals without the VM; st-test runs Smalltalk through the real VM.
 SDL_CFLAGS ?= $(shell pkg-config --cflags sdl3 2>/dev/null || echo -I/opt/homebrew/include)
 SDL_LIBS ?= $(shell pkg-config --libs sdl3 2>/dev/null || echo -L/opt/homebrew/lib -lSDL3)
-CFLAGS ?= -std=c11 -O2 -g -Wall -Wextra -Wno-unused-parameter
+CFLAGS ?= -std=gnu11 -O2 -g -Wall -Wextra -Wno-unused-parameter
 BUILD := ../build/platform-test
-SRCS := pf_common.c pf_events.c pf_window.c pf_gpu.c pf_file.c pf_socket.c pf_pty.c pf_vsync.c
+GEN := ../gen
+include $(GEN)/sources.mk
+INTERNALS := $(addprefix $(GEN)/,$(filter-out platform_primitives.c,$(VM_PLATFORM_SOURCES)))
 
-test: $(BUILD)/gpu_test $(BUILD)/prims_test
+test: $(BUILD)/gpu_test
 	$(BUILD)/gpu_test
-	$(BUILD)/prims_test
 
-$(BUILD)/gpu_test: tests/gpu_test.c $(SRCS) platform.h
+$(BUILD)/gpu_test: tests/gpu_test.c $(INTERNALS) $(GEN)/samaltak.h
 	@mkdir -p $(BUILD)
-	$(CC) $(CFLAGS) -D_DARWIN_C_SOURCE $(SDL_CFLAGS) -o $@ tests/gpu_test.c $(SRCS) $(SDL_LIBS) -lpthread
-
-$(BUILD)/prims_test: tests/prims_test.c prims_platform.c prims_platform.def $(SRCS) platform.h
-	@mkdir -p $(BUILD)
-	$(CC) $(CFLAGS) -D_DARWIN_C_SOURCE $(SDL_CFLAGS) -o $@ tests/prims_test.c prims_platform.c $(SRCS) $(SDL_LIBS) -lpthread
+	$(CC) $(CFLAGS) -D_DARWIN_C_SOURCE -I$(GEN) $(SDL_CFLAGS) -o $@ tests/gpu_test.c $(INTERNALS) $(SDL_LIBS) -framework CoreVideo -lpthread
 
 # Through the real VM (built into its own directory so it never clobbers vm/build/samaltak).
 st-test:

@@ -1,16 +1,19 @@
 # Samaltak implementation spec
 
-The contract between the C core, the Python seed bootstrapper, and the Smalltalk image. `docs/design.md` says *why*; this says *exactly what*. Change this file first, then code.
+The contract between the VM (written in Lowtalk, docs/lowtalk.md, and translated to C), the image builder and the Smalltalk image. `docs/design.md` says *why*; this says *exactly what*. Change this file first, then code.
 
 ## Layout
 
 ```
-vm/                 C core (≈5k lines). Makefile → vm/build/samaltak
-  src/              object memory, GC, interpreter, scheduler, image I/O, core primitives
-  src/prims.def     X-macro primitive table: PRIM(number, "name", c_function)
-  platform/         SDL3 window/input, SDL_GPU, files, sockets, ptys, clipboard; prims_platform.def
-boot/bootstrap.py   seed compiler: src/**/*.st → build/seed.image (Python 3, no deps)
 src/                Smalltalk sources, one directory per package; src/packages.txt = load order + layer
+  VM-Core/          the VM in Lowtalk: object memory, GC, interpreter, scheduler, primitives, image I/O, main
+  VM-Platform/      the platform layer in Lowtalk: SDL3 window/input, SDL_GPU, files, sockets, ptys, clipboard
+  VM-Lowtalk/       Lowtalk's runtime: C types, simulated memory, modules, structs, C library bindings, VMSimulation
+  VM-Translator/    VMTranslator: Lowtalk → C
+  VM-ImageBuilder/  ImageBuilder: a source tree → a seed image
+vm/gen/             the C translated from VM-Core and VM-Platform (checked in; make translate regenerates it)
+vm/Makefile         → vm/build/samaltak (profile-guided with vm/pgo.profdata)
+boot/seed.image     the checked-in seed image that runs ImageBuilder (boot/build-image.sh)
 fonts/              TTF files (OFL)
 tests/              integration tests (headless Smalltalk runs, samaltak-ctl UI scenarios)
 tools/              samaltak-ctl (Node ≥18, no deps), video scripts
@@ -19,9 +22,10 @@ build/              generated, git-ignored
 
 `make` (top level) builds the VM, the seed image, then the full image:
 
-1. `python3 boot/bootstrap.py src build/seed.image` — the only non-Smalltalk compiler; just good enough to bootstrap.
+1. `boot/build-image.sh src build/seed.image` — the checked-in `boot/seed.image` files in the current sources of the image builder (VM-Lowtalk, VM-Core, VM-Platform, VM-Translator, VM-ImageBuilder, VMConstants) and runs `ImageBuilder buildFrom: 'src' to: …`, which compiles every method with the Smalltalk compiler and creates the objects with the VM's ObjectMemory, simulated. Builds are reproducible byte for byte.
 2. `vm/build/samaltak build/seed.image --headless --stage2 build/samaltak.image` — the image initializes its classes, **recompiles every method with the Smalltalk compiler**, rasterizes font atlases, builds the World, and snapshots.
-3. `make test` — everything, from a fresh image: `test-vm` (mini kernel, also under the GC verifier), the bootstrapper's layering check (`tests/boot/layering_test.sh`), the full Smalltalk suite (`tests/st_suite.sh`, incl. the compiler fixpoint: recompiling the stage-2 image yields identical methods), Tests-Kernel and Tests-Compiler again with a 1 MB eden under the heap verifier (`SAMALTAK_VERIFY_GC=1 --eden 1`), the platform tests (`vm/platform`: C and Smalltalk), and the samaltak-ctl scenarios (`tests/remote/cli_test.sh` headless, `tests/tools/desktop_test.sh` in a hidden window, `tests/tools/snapshot_test.sh`: save with a Debugger mid-step, relaunch, step on). It fails on any failure, on a skipped test, and on a VM built without the platform layer.
+3. `make translate` — after changing VM-Core or VM-Platform: the image translates them into `vm/gen` (`VMTranslator generateVM`); then `make` rebuilds the VM.
+4. `make test` — everything, from a fresh image: `test-vm` (mini kernel, also under the GC verifier), the check that `vm/gen` is what the sources translate to (`tests/vm/gen_test.sh`), the image builder's layering check (`tests/boot/layering_test.sh`), the full Smalltalk suite (`tests/st_suite.sh`, incl. the compiler fixpoint: recompiling the stage-2 image yields identical methods), Tests-Kernel and Tests-Compiler again with a 1 MB eden under the heap verifier (`SAMALTAK_VERIFY_GC=1 --eden 1`), the platform tests (`vm/platform`: C and Smalltalk), and the samaltak-ctl scenarios (`tests/remote/cli_test.sh` headless, `tests/tools/desktop_test.sh` in a hidden window, `tests/tools/snapshot_test.sh`: save with a Debugger mid-step, relaunch, step on). It fails on any failure, on a skipped test, and on a VM built without the platform layer.
 
 Tests (`TestCase`, System-Support) must pass on a loaded machine and with several runs at once: each runs in its own Process with a time limit; they wait for asynchronous effects with `waitFor:timeout:` (polls, answers false at the timeout; asserted) instead of fixed sleeps, start Processes with `fork:` / `fork:named:at:` (or register them with `track:`), which are terminated after `tearDown`, and write files only into `scratchDirectory` (a fresh `/tmp/samaltak-<class>-<UTC µs>-<n>`, made with mkdir so concurrent runs never share it, deleted after the test).
 
@@ -71,7 +75,7 @@ Element count: bytes = `numSlots*8 - (format-16)`; 32-bit units = `numSlots*2 - 
 
 **Class format** (a Behavior's `format` slot, SmallInteger): `(instSpec << 16) | instSize` where `instSpec ∈ {0,1,2,3,4,7,9,10,16}` and `instSize` = fixed field count. `basicNew:` derives the object format (adding unused-unit counts).
 
-**Pointer discipline** (keeps a pauseless, moving GC possible — see design.md): every heap pointer load goes through `load_ref`, every pointer store through `store_ref`; C code never holds a raw oop across an allocation or safepoint unless it is registered as a root; identity hash lives in the header.
+**Pointer discipline** (keeps a pauseless, moving GC possible — see design.md): every heap pointer load goes through `loadRef:at:`, every pointer store through `storeRef:at:put:` (VMCoreModule); VM code never holds a raw oop across an allocation or safepoint unless it is registered as a root; identity hash lives in the header.
 
 **GC**: generational. Eden (bump allocation) + survivor semispaces, scavenged by copying with a remembered set maintained by `store_ref`; tenured objects in old space; full GC when old space exceeds its budget (implementation's choice: copying or mark-compact). Objects larger than an eighth of eden are allocated directly in old space. Contexts (flushed frames) are ordinary objects allocated in eden; most die there. A context's slots above `stackp` are not roots: the collector sets them to nil, so code that builds or grows a context must raise `stackp` before storing into the new slots.
 
@@ -92,7 +96,7 @@ offset  size  field
 64      N     objects, contiguous, each: 2 header words + numSlots words
 ```
 
-The loader places the heap in old space and adds `(newBase - B)` to every pointer oop (class words and pointer-format slots). The Python bootstrapper writes with `B = 0x100000`.
+The loader places the heap in old space and adds `(newBase - B)` to every pointer oop (class words and pointer-format slots). The image builder writes with B = where the simulated old space was.
 
 ## Special objects array
 
@@ -121,7 +125,7 @@ An Array (format 2). Indices (0-based) the VM relies on:
 | | | 35 | finalization Semaphore (signaled after a GC cleared weak slots) |
 | | | 36 | #stackOverflow: |
 
-**Constants, defined once.** The special-object indices, object formats, header bits, the class format word's shift and mask, the CompiledMethod primitive mask and error flag, the marker primitive numbers and `CTX_SLACK` live in the `BEGIN/END EXPORTED CONSTANTS` block of `vm/src/vm.h` (plain `#define`s and `enum`s). `boot/bootstrap.py` parses that block for the seed image (and resolves `prims.def` entries that use a constant name), and generates the class-side methods of `VMConstants` (Kernel-Objects) from it: one per constant, the C name in lower camel case (`SO_EXTERNAL_OBJECTS` → `VMConstants soExternalObjects`, `F_W32` → `fW32`); `so…` indices are 1-based for `at:`. Smalltalk code uses those instead of numbers.
+**Constants, defined once.** The special-object indices, object formats, header bits, the class format word's shift and mask, the VM-known instance variable indices, the CompiledMethod primitive mask and error flag, the marker primitive numbers and `CTX_SLACK` are class variables of `VMConstants` (Kernel-Objects), set in its `initialize`, in their C spelling (`SO_EXTERNAL_OBJECTS`, `F_W32`). The VM's Lowtalk modules inherit them, the translator writes them into `vm/gen/samaltak.h` as `#define`s, the image builder uses them, and the image reads the ones it needs through `VMConstants`' class-side accessors (`VMConstants fW32`; `so…` indices are 1-based for `at:`).
 
 `specialSelectors` is an Array of 32 selectors, in bytecode order (`0xA0 + i`):
 `+ - < > <= >= = ~= * / \\ @ bitShift: // bitAnd: bitOr: at: at:put: size == ~~ value value: isNil notNil new new: x y class value:value: max:` (the VM knows each one's arg count from the selector). `==` and `~~` never send. Others have VM fast paths (SmallInteger/Float arithmetic and comparisons, `at:`/`at:put:`/`size` on Arrays, ByteArrays and Strings, `value`/`value:` on BlockClosures, `x`/`y` on Points, `class`) and otherwise do a normal send.
@@ -238,37 +242,13 @@ In the image only `InstructionStream` (System-Debugging) decodes bytecodes: it t
 - **Interrupts**: an atomic "check" flag, set when something is due: by a ticker thread (a kqueue timer) at the timer's and the CPU sampler's next deadline and, if the platform asked for it (`request_periodic_poll`: windows exist or sockets have semaphores), every 1 ms; by allocation when the allocation-sample threshold is crossed; by GCs that cleared weak slots; by external semaphore signals and injected events. The ticker is disarmed while the VM waits in `platform_wait` (the wait's timeout covers the timer and the sampler; events and sockets end the wait), so an idle VM gets no ticks. At the next safepoint the VM: signals the timer semaphore if its time has come; signals the sampler semaphore at the configured interval; polls platform events and sockets and signals their registered semaphores; signals the allocation-sample semaphore (recording the allocated object's class and size). Signaling may preempt.
 - **Idle**: Smalltalk's idle process (priority 1) calls `relinquishProcessorForMicroseconds:`, which blocks in the platform's event wait until an event, socket activity, the next timer or the next sampler tick (the always-on profiler samples idle time too, so an idle image still wakes once per sampler interval).
 
-## Primitive interface (C)
+## Primitive interface
 
-`vm/src/vm.h` is the only header primitives include:
+A primitive is a method `<vmPrimitive: n name: 'intAdd'>` of a `VMPrimitiveModule` subclass (VM-Core, VM-Platform), a `void` function in C. Its inline helpers (`receiver`, `arg: i`, `argCount`, `answer:`, `answerInt:`, `answerBool:`, `fail`, `failCode:`) use the interpreter's primitive plumbing; allocation (`memory allocSlots:count:`, `allocBytes:count:`, `stringFromUtf8:size:`), conversions (`memory floatOop:`, `int64Oop:`, `utf8Of:`) and slot access (`self loadRef:at:`, `storeRef:at:put:` — the barriers) are ObjectMemory's and VMCoreModule's. Any allocation may move objects: oops held across one must be pushed as roots (`memory pushRoot:` with a pointer from `self local: 'oop'`). `<leaf>` primitives never allocate, switch processes or look at Contexts: the interpreter calls them without saving its registers. `<notTryable>` ones are not offered to the debugger's `tryPrimitiveWithArgs`.
 
-```c
-typedef uint64_t oop;
-bool is_int(oop); int64_t int_val(oop); oop int_oop(int64_t); bool int_fits(int64_t);
-bool is_char(oop); uint32_t char_val(oop); oop char_oop(uint32_t);
-bool is_float(oop);            /* SmallFloat64 or BoxedFloat64 */
-double float_val(oop); oop float_oop(double);   /* may allocate */
-bool is_ptr(oop); oop class_of(oop);
-uint32_t num_slots(oop); int format_of(oop);
-oop load_ref(oop obj, uint32_t i); void store_ref(oop obj, uint32_t i, oop v);
-uint8_t *bytes_of(oop); size_t byte_size(oop);
-uint32_t *words32_of(oop); size_t word32_size(oop);
-oop alloc_slots(oop cls, uint32_t n); oop alloc_bytes(oop cls, size_t n); oop alloc_words32(oop cls, size_t n);
-oop special(int index); extern oop nil_oop, true_oop, false_oop;
-oop string_from_utf8(const char *s, size_t n);   /* ByteString or WideString */
-char *utf8_of(oop string);                        /* malloc'd, NUL-terminated; NULL if out of memory */
-void push_root(oop *p); void pop_root(void);     /* protect C locals across allocation */
-/* inside a primitive */
-int prim_argc(void); oop prim_receiver(void); oop prim_arg(int i);   /* i = 0..argc-1 */
-void prim_return(oop v); void prim_fail(void); void prim_fail_code(int code);
-void signal_external_semaphore(int index);       /* VM thread only */
-void request_interrupt_check(void);              /* any thread */
-void request_periodic_poll(int64_t interval_us); /* VM thread: platform_poll at least every interval_us while Smalltalk runs; 0 = none */
-```
+Error codes for `failCode:` are `VMConstants` class variables (`PRIM_ERR_NO_MEMORY` = 1: the object can never fit in the heap, even after a full GC — size beyond the heap limit or the object size limit, or a LargePositiveInteger size). `basicNew:` and `shallowCopy` fail with it and their Smalltalk fallbacks signal `OutOfMemory` (Kernel-Exceptions; `requestedClass`, `requestedSize`). Other allocations that cannot be satisfied (contexts, small objects when the heap is full) are fatal; runaway recursion is stopped before that by the stack depth limit (Method execution, Stack overflow).
 
-Error codes for `prim_fail_code` are in the EXPORTED CONSTANTS block of vm.h (Smalltalk: `VMConstants primErr…`). `PRIM_ERR_NO_MEMORY` (1): the object can never fit in the heap, even after a full GC (size beyond the heap limit or the object size limit, or a LargePositiveInteger size). `basicNew:` and `shallowCopy` fail with it and their Smalltalk fallbacks signal `OutOfMemory` (Kernel-Exceptions; `requestedClass`, `requestedSize`). Other allocations that cannot be satisfied (contexts, small objects when the heap is full) are fatal; runaway recursion is stopped before that by the stack depth limit (Method execution, Stack overflow).
-
-Primitive functions are `void fn(void)`. `prims.def` (core, numbers 1–399) and `platform/prims_platform.def` (400–699) are X-macro lists `PRIM(n, "name", fn)`, the single source of truth: the Python bootstrapper parses them, and `Smalltalk vm primitiveNames` returns them to the Smalltalk compiler. Source refers to primitives by name: `<primitive: 'basicNew'>` (a bare number also works).
+The `vmPrimitive:name:` pragmas are the single source of truth: the translator emits the table (`vm/gen/primitive_entries.c`; the platform layer's rows are left out of a headless build), the image builder numbers `<primitive: 'name'>` from them, and `Smalltalk vm primitiveNames` returns them to the Smalltalk compiler. Core primitives are numbered 1–399, the platform layer's 400–699. Source refers to primitives by name: `<primitive: 'basicNew'>` (a bare number also works).
 
 ## Core primitives (names are fixed; numbers are the VM's choice)
 
@@ -282,9 +262,9 @@ A primitive fails (method body runs) on wrong argument types or ranges. Indices 
 | Character | `charValue` `charFromValue` (class side) |
 | strings & bytes | `stringAt` `stringAtPut` (Characters; ByteString/WideString/Symbols) `stringHash` `stringCompare` (answers -1/0/1 by code point) `replaceFromToWithStartingAt` (same-format bulk copy) `bytesUint16At` `bytesUint32At` `bytesInt16At` `bytesFloat32At` `bytesFloat32AtPut` `bytesUint32AtPut` `bytesFloat64At` `bytesFloat64AtPut` (byte offset 1-based, little-endian) `bytesUint16BigEndianAt` `bytesInt16BigEndianAt` `bytesUint32BigEndianAt` (for TrueType) |
 | blocks | `closureValue` (0–4 args) `closureValueWithArguments` — markers `ensureMarker` (`ensure:`/`ifCurtailed:`), `onDoMarker` (`on:do:`) |
-| processes | `processResume` `processSuspend` `processorYield` `semaphoreSignal` `semaphoreWait` `processorLastPreempted` `processorRelinquish` (µs) `signalAtMilliseconds` (timer semaphore) `samplerInterval` (µs, external semaphore index; 0 stops) `allocationSampling` (byte interval, external semaphore index) `allocationSampleInfo` (Array: class, size) `processCpuTime` (cpuTime including the running slice) `processStackInto` (profiler: a non-running process's frames as method, pc pairs into an Array; see prims_control.c) `stackLimit` (optional new limit, 0 = none; answers the previous one; see Stack overflow) |
+| processes | `processResume` `processSuspend` `processorYield` `semaphoreSignal` `semaphoreWait` `processorLastPreempted` `processorRelinquish` (µs) `signalAtMilliseconds` (timer semaphore) `samplerInterval` (µs, external semaphore index; 0 stops) `allocationSampling` (byte interval, external semaphore index) `allocationSampleInfo` (Array: class, size) `processCpuTime` (cpuTime including the running slice) `processStackInto` (profiler: a non-running process's frames as method, pc pairs into an Array; see ControlPrimitives) `stackLimit` (optional new limit, 0 = none; answers the previous one; see Stack overflow) |
 | time | `millisecondClock` `microsecondClock` (monotonic) `utcMicroseconds` |
-| system | `quit` `snapshot` (path; answers true when resumed from the snapshot, false right after writing) `gc` (full GC) `scavenge` (young generation only; a full GC, if old space then exceeds its budget, happens at the next allocation) `vmStats` (Array of counters, documented in prims.def; `Smalltalk vm statistics` wraps it in a VMStatistics with named accessors) `flushMethodCache` `flushCacheForSelector` `vmArguments` `imagePath` `stdoutWrite` `stderrWrite` `primitiveNames` `getenv` |
+| system | `quit` `snapshot` (path; answers true when resumed from the snapshot, false right after writing) `gc` (full GC) `scavenge` (young generation only; a full GC, if old space then exceeds its budget, happens at the next allocation) `vmStats` (Array of counters, documented in SystemPrimitives; `Smalltalk vm statistics` wraps it in a VMStatistics with named accessors) `flushMethodCache` `flushCacheForSelector` `vmArguments` `imagePath` `stdoutWrite` `stderrWrite` `primitiveNames` `getenv` |
 
 ## Sources
 
@@ -318,12 +298,12 @@ Definition variants: `subclass:`, `variableSubclass:`, `variableByteSubclass:`, 
 
 ## Seed startup
 
-The bootstrapper builds the class graph (classes, metaclasses, method dictionaries, globals in `Smalltalk`, class pools, interned symbols), compiles every method, creates `Processor` with 80 empty LinkedLists, and one Process at priority 40 whose context runs `Smalltalk bootstrapStartUp` (with receiver `Smalltalk`). `bootstrapStartUp` (Smalltalk) runs class-side `initialize` in load order, rehashes hashed collections, and continues with stage 2 (when `--stage2` is given) or the normal startup.
+The image builder builds the class graph (classes, metaclasses, method dictionaries, globals in `Smalltalk`, class pools, interned symbols), compiles every method, creates `Processor` with 80 empty LinkedLists, and one Process at priority 40 whose context runs `Smalltalk bootstrapStartUp` (with receiver `Smalltalk`). `bootstrapStartUp` (Smalltalk) runs class-side `initialize` in load order, rehashes hashed collections, and continues with stage 2 (when `--stage2` is given) or the normal startup.
 
 ## Graphics (platform layer, Smalltalk-facing)
 
-SDL3 windows and events; SDL_GPU (Metal) for rendering. Shaders are MSL source strings owned by Smalltalk (Graphics-Canvas); the C side only wraps SDL_GPU calls with integer handles. Events reach Smalltalk as 8-slot Arrays `[type, timeMs, x, y, buttonOrKey, modifiers, textOrDelta, windowId]`; `injectEvent:` pushes an Array in the same format into the same queue (the virtual input device used by remote control). Frame readback (`gpuDownload…`) feeds screenshots (PNG encoded in Smalltalk) and video recording (raw frames written to a FIFO read by ffmpeg).
+SDL3 windows and events; SDL_GPU (Metal) for rendering. Shaders are MSL source strings owned by Smalltalk (Graphics-Canvas); the platform layer only wraps SDL_GPU calls with integer handles. Events reach Smalltalk as 8-slot Arrays `[type, timeMs, x, y, buttonOrKey, modifiers, textOrDelta, windowId]`; `injectEvent:` pushes an Array in the same format into the same queue (the virtual input device used by remote control). Frame readback (`gpuDownload…`) feeds screenshots (PNG encoded in Smalltalk) and video recording (raw frames written to a FIFO read by ffmpeg).
 
 ## Layers in the image
 
-`Kernel-*`/`System-*`/`Compiler` (layer 0) → `Graphics-GPU` (thin wrapper over GPU primitives) → `Graphics-Canvas` (fonts, glyph atlases, display lists, the 2D renderer) → `UI-Windows` (World, Compositor, Window with its own Process, animation), `Demos` → `UI-Widgets` (incl. the `Desktop` facade) → `Tools`. A package uses its own layer, the one directly below and layer 0, plus the exceptions declared in `src/packages.txt` (`export` lines: Graphics-Canvas' Canvas/Color/Font/Form from layer 3 up; `uses`: test fixtures). The bootstrapper checks every global a method or class definition references and fails listing each violation as file:line (docs/ui.md).
+`Kernel-*`/`System-*`/`Compiler` (layer 0) → `Graphics-GPU` (thin wrapper over GPU primitives) → `Graphics-Canvas` (fonts, glyph atlases, display lists, the 2D renderer) → `UI-Windows` (World, Compositor, Window with its own Process, animation), `Demos` → `UI-Widgets` (incl. the `Desktop` facade) → `Tools`. A package uses its own layer, the one directly below and layer 0, plus the exceptions declared in `src/packages.txt` (`export` lines: Graphics-Canvas' Canvas/Color/Font/Form from layer 3 up; `uses`: test fixtures). The image builder checks every global a method or class definition references and fails listing each violation as file:line (docs/ui.md).

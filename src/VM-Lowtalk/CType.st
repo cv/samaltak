@@ -27,6 +27,9 @@ isArray
 isBool
 	^false
 !
+isConst
+	^false
+!
 isFloat
 	^false
 !
@@ -97,6 +100,7 @@ hash
 !
 sameAs: aCType
 	"Answer whether values of aCType need no conversion to become mine."
+	aCType isConst ifTrue: [^self sameAs: aCType base].
 	^self = aCType
 ! !
 

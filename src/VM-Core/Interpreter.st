@@ -252,7 +252,7 @@ flushMethodCacheSelector: aSelector
 !
 lookupMethod: aClass selector: aSelector
 	<c: 'oop lookup_method(oop cls, oop sel)'>
-	| h c md keys vals cap mask i k |
+	| h c md keys vals cap mask i k n |
 	h := self hashOf: aSelector.
 	c := aClass.
 	[(self isPtr: c) and: [c ~= memory nilOop]] whileTrue: [
@@ -264,13 +264,15 @@ lookupMethod: aClass selector: aSelector
 			(cap ~= 0 and: [(self isPtr: vals) and: [(self numSlots: vals) >= cap]]) ifTrue: [
 				mask := cap - 1.
 				i := h bitAnd: mask.
-				1 to: cap do: [:n |
+				n := 0.
+				[n < cap] whileTrue: [
 					k := self loadRef: keys at: i.
 					k = aSelector ifTrue: [^self loadRef: vals at: i].
 					k = memory nilOop
-						ifTrue: [i := cap]
-						ifFalse: [i := (i + 1) bitAnd: mask]].
-				i := 0]].
+						ifTrue: [n := cap]
+						ifFalse: [
+							i := (i + 1) bitAnd: mask.
+							n := n + 1]]]].
 		c := self loadRef: c at: BEH_SUPERCLASS].
 	^0
 !
@@ -345,7 +347,7 @@ fillCache: aClass selector: aSelector
 									qc := true]]]]].
 	qc ifTrue: [e qconst: qv] ifFalse: [e prim: pf].
 	e kind: ((((pf notNull ifTrue: [K_PRIM] ifFalse: [0])
-		bitOr: ((pf notNull and: [primitives isLeaf: pf]) ifTrue: [K_LEAF] ifFalse: [0]))
+		bitOr: ((pf notNull and: [primitives isLeaf: p]) ifTrue: [K_LEAF] ifFalse: [0]))
 		bitOr: (e quick >= 0 ifTrue: [K_QUICK] ifFalse: [0]))
 		bitOr: ((e nset ~= 0 ifTrue: [K_SETTER] ifFalse: [0]) bitOr: (qc ifTrue: [K_CONST] ifFalse: [0]))) asUInt8.
 	^e
@@ -1677,6 +1679,7 @@ nonLocalReturn
 		(c = memory nilOop or: [((self methodPrim: (self loadRef: c at: CTX_METHOD)) bitAnd: CM_PRIM_MASK) = PRIM_ENSURE_MARKER])
 			ifTrue: [fast := false]
 			ifFalse: [c := self loadRef: c at: CTX_SENDER]].
+	(fast and: [((self methodPrim: (self loadRef: home at: CTX_METHOD)) bitAnd: CM_PRIM_MASK) = PRIM_ENSURE_MARKER]) ifTrue: [fast := false].
 	hs := fast ifTrue: [self loadRef: home at: CTX_SENDER] ifFalse: [memory nilOop].
 	(fast not or: [hs = memory nilOop or: [(self isInt: (self loadRef: hs at: CTX_PC)) not]]) ifTrue: [
 		self saveFrame.

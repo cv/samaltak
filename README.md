@@ -1,13 +1,14 @@
 # Samaltak
 
-A Smalltalk-80 system with a tiny C core, green threads, and a GPU-composited UI (SDL3 + SDL_GPU on Metal). Everything above the core — compiler, class library, fonts, renderer, window system, browser, debugger, profiler, remote control — is Smalltalk, built from the text sources in `src/`.
+A Smalltalk-80 system with green threads and a GPU-composited UI (SDL3 + SDL_GPU on Metal), written entirely in Smalltalk and built from the text sources in `src/`: the compiler, class library, fonts, renderer, window system, browser, debugger, profiler and remote control, and the VM itself. The VM and its platform layer are written in Lowtalk, a subset of Smalltalk (docs/lowtalk.md): run as Smalltalk it is a simulator you can debug in the image; translated to C (`vm/gen/`) it is the VM.
 
 ![Walkthrough](docs/media/walkthrough.mp4)
 
 ## Build and run (macOS, Homebrew `sdl3`)
 
-    make            # VM, seed image (boot/bootstrap.py), stage 2 → build/samaltak.image
+    make            # VM (from vm/gen), seed image (ImageBuilder in boot/seed.image), stage 2 → build/samaltak.image
     vm/build/samaltak build/samaltak.image
+    make translate  # after changing the VM's Lowtalk sources (src/VM-Core, src/VM-Platform): regenerate vm/gen
 
 ## Test
 
@@ -21,5 +22,7 @@ A Smalltalk-80 system with a tiny C core, green threads, and a GPU-composited UI
 
 - `docs/design.md` — decisions and why
 - `docs/implementation.md` — object format, bytecodes, image format, primitives
+- `docs/lowtalk.md` — the Smalltalk subset the VM is written in, its translation to C and its simulation
 - `docs/ui.md` — the layers from GPU to tools
+- `docs/platform.md` — the platform layer and its primitives
 - `prototypes/` — the HTML prototypes the UI started from

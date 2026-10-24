@@ -18,9 +18,15 @@ image: vm seed
 test-vm: vm
 	vm/tests/run.sh
 
+# After changing the VM's Lowtalk sources (src/VM-Core, src/VM-Platform): translate them into vm/gen (checked in).
+translate: image
+	$(VM) $(OUT)/samaltak.image --headless --eval "[VMTranslator generateVM. 'ok'] on: Error do: [:e | e messageText]"
+	$(MAKE) -C vm
+
 # Everything; any failure, skipped test or headless-only VM fails it. The UI scripts use a hidden window.
 test: image test-vm
 	@[ -f vm/build/.variant-platform ] || { echo "make test: FAILED: the VM was built without the platform layer (SDL3), UI tests would not run"; exit 1; }
+	tests/vm/gen_test.sh $(OUT)/samaltak.image
 	tests/boot/layering_test.sh
 	tests/st_suite.sh $(OUT)/samaltak.image
 	SAMALTAK_VERIFY_GC=1 tests/st_suite.sh $(OUT)/samaltak.image --eden 1 -- Tests-Kernel Tests-Compiler
@@ -54,4 +60,4 @@ clean:
 	$(MAKE) -C vm clean
 	rm -rf build
 
-.PHONY: all vm seed image test-vm test video mindblown-video clean
+.PHONY: all vm seed image translate test-vm test video mindblown-video clean

@@ -3,7 +3,7 @@ Object subclass: #VMStatistics
 	classVariableNames: ''
 	package: 'System-Support'!
 
-VMStatistics comment: 'I am a snapshot of the VM''s counters (Smalltalk vm statistics), over the Array the vmStats primitive answers (vm/src/prims.def), with a named accessor per counter. A - b answers the differences. Counters the VM does not report answer 0; ones I have no accessor for are kept.'!
+VMStatistics comment: 'I am a snapshot of the VM''s counters (Smalltalk vm statistics), over the Array the vmStats primitive answers (SystemPrimitives>>primVMStats), with a named accessor per counter. A - b answers the differences. Counters the VM does not report answer 0; ones I have no accessor for are kept.'!
 
 !VMStatistics methodsFor: 'accessing'!
 counters

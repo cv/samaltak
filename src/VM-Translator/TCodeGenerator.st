@@ -1042,10 +1042,11 @@ inferredType: aCExpr
 	^self valueType: aCExpr
 !
 valueType: aCExpr
-	"The type of aCExpr as a value: arrays decay to pointers."
+	"The type of aCExpr as a value: arrays decay to pointers, a const qualifier goes."
 	| t |
 	t := aCExpr type.
 	t isNil ifTrue: [^self error: 'expression without a type' node: nil].
+	t isConst ifTrue: [t := t base].
 	t isArray ifTrue: [^t decayed].
 	^t
 !

@@ -197,20 +197,27 @@ isTypeWord: aString
 		or: [types includesKey: aString]
 !
 parseSpecifiers
-	"Answer the base type of a declaration's specifiers."
-	| words t |
+	"Answer the base type of a declaration's specifiers (const-qualified if they say so)."
+	| words t const |
 	words := OrderedCollection new.
+	const := false.
 	[(t := self peek) notNil and: [self isTypeWord: t]] whileTrue: [
 		self next.
+		t = 'const' ifTrue: [const := true].
 		t = 'struct'
 			ifTrue: [words add: 'struct ' , self next]
 			ifFalse: [(#('const' 'volatile' 'static' 'extern') includes: t) ifFalse: [words add: t]].
 		"a typedef name or struct ends the specifiers unless signedness or size words follow"
 		((types includesKey: t) and: [(#('unsigned' 'signed' 'long' 'short' 'int' 'char') includes: t) not]) ifTrue: [
-			[(t := self peek) = 'const' or: [t = 'volatile']] whileTrue: [self next].
-			^self baseTypeFor: words]].
+			[(t := self peek) = 'const' or: [t = 'volatile']] whileTrue: [
+				t = 'const' ifTrue: [const := true].
+				self next].
+			^self qualified: (self baseTypeFor: words) const: const]].
 	words isEmpty ifTrue: [self error: 'C type expected at ' , self peek printString].
-	^self baseTypeFor: words
+	^self qualified: (self baseTypeFor: words) const: const
+!
+qualified: aCType const: aBoolean
+	^aBoolean ifTrue: [CConstType on: aCType] ifFalse: [aCType]
 !
 baseTypeFor: words
 	| key |

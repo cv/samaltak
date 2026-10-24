@@ -27,6 +27,7 @@ Compiler 0
 VM-Lowtalk 0
 VM-Translator 0
 VM-Core 0
+VM-Platform 0
 VM-ImageBuilder 0
 Tests-Kernel 0
 Tests-Compiler 0

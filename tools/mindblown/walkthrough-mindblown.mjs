@@ -271,7 +271,7 @@ const beats = [
       act('type', t, text, '--delay', '55'); await sleep(text.length * 55 + 300);
       act('key', 'Return', t); await sleep(wait);
     };
-    await command('wc -l vm/src/*.[ch] vm/platform/*.[ch] | tail -1', 1800);
+    await command('wc -l vm/gen/*.[ch] | tail -1', 1800);
     await command("cat $(find src -name '*.st') | wc -l", 2000);
     await command('gst -g vm/tests/bench/suite-gst.st', 400);
     await evaluate("Compiler evaluate: (File readText: 'vm/tests/bench/suite-samaltak.st')", 'Meta+p', 50);

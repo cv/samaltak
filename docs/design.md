@@ -4,14 +4,15 @@ Working decisions. Open questions marked **?**.
 
 ## Core
 
-- Freestanding C11 VM: object memory, bytecode interpreter, GC, ~100 primitives, image loader. Target ≈5k lines.
-- C is the bootstrap language because it is the simplest target for a Smalltalk-written translator (Slang-style) to emit later; Stage 1 replaces hand-written C with generated C, Stage 2 with Smalltalk-emitted native code.
-- Platform layer (SDL3 windows and input, SDL_GPU on Metal, files, sockets) is a separate C module behind a small primitive interface, not part of the core.
+- The VM (object memory, GC, interpreter, scheduler, primitives, image I/O) and the platform layer (SDL3 windows and input, SDL_GPU on Metal, files, sockets, ptys) are written in **Lowtalk** (docs/lowtalk.md): a subset of Smalltalk that is also plain Smalltalk. Running it directly is the simulator (debuggable and profilable with the image's own tools, the VM Simulator window); `VMTranslator` turns it into C. There is no hand-written C.
+- The generated C (`vm/gen/`) is checked in, so a fresh checkout builds without a working VM; `make test` checks that it is what the sources translate to. Built with PGO it is as fast as the hand-written C VM it replaced.
+- Images are built from the sources by `ImageBuilder` (Smalltalk), which allocates the new image's objects with the VM's own object memory, simulated, so the object format has one definition (`VMConstants`). It runs in a checked-in seed image (`boot/seed.image`), after filing in its current sources; the seed only needs updating when the builder needs something the seed's kernel lacks.
+- Next: a native-code backend for the translator's typed tree, and a JIT in the image.
 
 ## Language
 
 - Smalltalk-80 semantics and syntax.
-- Source of truth: text files in git; image built from source by a bootstrapper.
+- Source of truth: text files in git; images built from source by ImageBuilder.
 - Immutable literals; per-object immutability bit.
 - **?** Modules/namespaces vs. single global namespace.
 
@@ -26,11 +27,11 @@ Working decisions. Open questions marked **?**.
 
 The collector is simple and stop-the-world: copying scavenges of eden and survivor spaces, full GC of old space (see implementation.md). The design must not preclude a concurrent, compacting, never-stop-the-world GC, so these are constraints on all VM and primitive code:
 
-1. **Single choke point for heap reference loads.** Every load of an object pointer from the heap goes through one VM macro/function (`load_ref`). Initially a no-op; later it becomes C4's loaded-value barrier (check, then self-heal on stale/unmarked refs). The future JIT emits the same barrier.
-2. **Single choke point for stores** (`store_ref`), for generational/remembered-set and SATB needs.
+1. **Single choke point for heap reference loads.** Every load of an object pointer from the heap goes through one VM function (`loadRef:at:`, `load_ref` in C). Initially a no-op; later it becomes C4's loaded-value barrier (check, then self-heal on stale/unmarked refs). The future JIT emits the same barrier.
+2. **Single choke point for stores** (`storeRef:at:put:`, `store_ref` in C), for generational/remembered-set and SATB needs.
 3. **Spare pointer bits.** Tagged 64-bit words reserve metadata bits (e.g. NMT/color) that the barrier can test; immediates use the low tag bits.
 4. **Identity hash in the header**, never derived from the address.
-5. **No raw heap pointers held across safepoints** in C code. Primitives and the platform layer use handles or re-load after any allocation/safepoint.
+5. **No raw heap pointers held across safepoints** in VM code. Primitives and the platform layer use handles or re-load after any allocation/safepoint.
 6. **Precise roots.** Contexts are heap objects (or precisely mapped stack frames); no conservative scanning.
 7. **Region (page) based heap** with bump allocation, so pages can be evacuated and relocated concurrently.
 8. **Mutator checkpoints instead of global stops.** The mutator polls at safepoints; GC phase changes use per-thread handshakes, not a world stop. With one mutator thread this is cheap.
@@ -75,7 +76,7 @@ The whole UI must be drivable by an agent (Claude) without a human, at no cost w
 
 ## Graphics and UI layering
 
-A package may use packages of its own layer, the layer directly below, and layer 0 (Kernel, System, Compiler). One exception: from layer 3 up, Graphics-Canvas' drawing vocabulary (`Canvas`, `Color`, `Font`, `Form`; `Point` and `Rectangle` are Kernel) may be used directly, since every widget and tool draws. Tools reach the window system through UI-Widgets' `Desktop` facade, never through `Window`/`World`. Lower layers reach higher ones only late-bound (`Smalltalk at: #Name ifAbsent:`). `boot/bootstrap.py` enforces this; `src/packages.txt` holds the layers and the allow-list (`export` lines for the vocabulary, `uses` for test fixtures).
+A package may use packages of its own layer, the layer directly below, and layer 0 (Kernel, System, Compiler). One exception: from layer 3 up, Graphics-Canvas' drawing vocabulary (`Canvas`, `Color`, `Font`, `Form`; `Point` and `Rectangle` are Kernel) may be used directly, since every widget and tool draws. Tools reach the window system through UI-Widgets' `Desktop` facade, never through `Window`/`World`. Lower layers reach higher ones only late-bound (`Smalltalk at: #Name ifAbsent:`). The image builder enforces this; `src/packages.txt` holds the layers and the allow-list (`export` lines for the vocabulary, `uses` for test fixtures).
 
 | Layer | Package | Responsibility |
 |---|---|---|

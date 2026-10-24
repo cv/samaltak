@@ -253,3 +253,20 @@ store: aValue in: aMemory at: anAddress
 load: aMemory zeroAt: anAddress
 	^base load: aMemory zeroAt: anAddress
 ! !
+
+CTypedefType subclass: #CConstType
+	instanceVariableNames: ''
+	classVariableNames: ''
+	package: 'VM-Lowtalk'!
+
+CConstType comment: 'I am a const-qualified type (the target of const char *): I behave like my base type but print the qualifier, so that declarations match the C library''s (a local holding what strerror answers, a callback''s parameters). A value of mine is one of my base type: the translator does not check const-correctness, the C compiler does.'!
+
+!CConstType class methodsFor: 'instance creation'!
+on: aCType
+	^self named: 'const ' , aCType name for: aCType
+! !
+
+!CConstType methodsFor: 'testing'!
+isConst
+	^true
+! !

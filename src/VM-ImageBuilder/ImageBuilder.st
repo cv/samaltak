@@ -144,7 +144,7 @@ computeLayouts
 startObjectSpace
 	"The VM's object memory, simulated: every object is allocated in old space, in order."
 	| mods |
-	mods := VMTranslator vmModules select: [:c | c packageName = 'VM-Core'].
+	mods := VMModule vmModules select: [:c | c packageName = 'VM-Core'].
 	sim := VMSimulation modules: mods.
 	memory := sim module: ObjectMemory.
 	memory memoryInit: 1024 * 1024 maxHeap: 4096 * 1024 * 1024.
@@ -336,15 +336,11 @@ global: aName value: anOop
 primitiveNumberOf: aName ifAbsent: aBlock
 	primitiveNumbers isNil ifTrue: [
 		primitiveNumbers := Dictionary new.
-		(VMTranslator vmModules collect: [:c | c]) do: [:c |
+		VMModule vmModules do: [:c |
 			c selectors do: [:sel |
 				((c compiledMethodAt: sel) pragmas ifNil: [#()]) do: [:p |
 					p selector == #vmPrimitive:name: ifTrue: [primitiveNumbers at: (p arguments at: 2) put: (p arguments at: 1)]]]]].
-	^primitiveNumbers at: aName ifAbsent: [
-		"until the platform layer is Lowtalk too: the running VM's numbering"
-		| names |
-		names := Smalltalk vm primitiveNames.
-		(1 to: names size) detect: [:i | (names at: i) notNil and: [(names at: i) asString = aName]] ifNone: [aBlock value]]
+	^primitiveNumbers at: aName ifAbsent: aBlock
 !
 bindingOf: aString from: aBuilderClass
 	"Class variables of aBuilderClass and its superclasses, then globals."

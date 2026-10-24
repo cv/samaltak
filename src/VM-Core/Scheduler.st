@@ -321,7 +321,7 @@ suspendActive
 	self transferToHighest
 !
 semaphoreSignal: sem
-	<c: 'void semaphore_signal(oop sem)'>
+	<c: 'void signal_semaphore(oop sem)'>
 	| ex |
 	(self loadRef: sem at: LL_FIRST) = memory nilOop
 		ifTrue: [
@@ -330,7 +330,7 @@ semaphoreSignal: sem
 		ifFalse: [self resumeProcess: (self removeFirstLink: sem)]
 !
 semaphoreWait: sem
-	<c: 'void semaphore_wait(oop sem)'>
+	<c: 'void wait_semaphore(oop sem)'>
 	| ex |
 	ex := self loadRef: sem at: SEM_EXCESS.
 	((self isInt: ex) and: [(self intVal: ex) > 0]) ifTrue: [
