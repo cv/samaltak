@@ -34,6 +34,24 @@ static bool signaled(int index)
     return false;
 }
 
+/* poll until semaphore index is signaled, at most 2 s (socket readiness is not immediate) */
+static bool poll_until_signaled(int index)
+{
+    for (int i = 0; i < 2000 && !signaled(index); i++) {
+        platform_poll();
+        if (!signaled(index)) usleep(1000);
+    }
+    return signaled(index);
+}
+
+/* recv, retrying while it would block, at most 2 s */
+static int64_t recv_within(int s, void *buf, size_t n)
+{
+    int64_t r = -1;
+    for (int i = 0; i < 2000 && (r = pf_socket_recv(s, buf, n)) == -1; i++) usleep(1000);
+    return r;
+}
+
 static double now_ms(void)
 {
     struct timespec ts;
@@ -163,8 +181,7 @@ static void test_sockets(void)
     cli = pf_socket_connect("127.0.0.1", port);
     CHECK(cli > 0, "connect");
     nsignals = 0;
-    platform_poll();
-    CHECK(signaled(3), "listen semaphore signaled");
+    CHECK(poll_until_signaled(3), "listen semaphore signaled");
     conn = pf_socket_accept(srv, &wb);
     CHECK(conn > 0, "accept");
     char buf[64];
@@ -174,16 +191,13 @@ static void test_sockets(void)
     platform_poll();
     CHECK(!signaled(7), "no data, no signal");
     CHECK(pf_socket_send(cli, "ping", 4) == 4, "send");
-    usleep(2000);
-    platform_poll();
-    CHECK(signaled(7), "read semaphore signaled");
+    CHECK(poll_until_signaled(7), "read semaphore signaled");
     nsignals = 0;
     platform_poll();
     CHECK(!signaled(7), "signaled once until re-armed");
     CHECK(pf_socket_recv(conn, buf, sizeof buf) == 4 && !memcmp(buf, "ping", 4), "recv");
     CHECK(pf_socket_send(conn, "pong!", 5) == 5, "send back");
-    usleep(1000);
-    CHECK(pf_socket_recv(cli, buf, sizeof buf) == 5 && !memcmp(buf, "pong!", 5), "recv back");
+    CHECK(recv_within(cli, buf, sizeof buf) == 5 && !memcmp(buf, "pong!", 5), "recv back");
     test_wake("headless", conn, cli);
 }
 
@@ -191,8 +205,7 @@ static void test_sockets_close(void)
 {
     char buf[8];
     pf_socket_close(cli);
-    usleep(1000);
-    CHECK(pf_socket_recv(conn, buf, sizeof buf) == 0, "EOF after peer close");
+    CHECK(recv_within(conn, buf, sizeof buf) == 0, "EOF after peer close");
     CHECK(pf_socket_close(conn) && pf_socket_close(srv), "close");
 }
 

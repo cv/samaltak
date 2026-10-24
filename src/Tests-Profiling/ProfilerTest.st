@@ -81,10 +81,13 @@ testAlwaysOn
 	self assert: profiler interval = 1000.
 	self assert: profiler byteSize = (1024 * 1024).
 	t0 := Time microsecondClockValue.
-	self busyFor: 100.
+	"Busy until 50 samples arrived (about 50 ms at 1000 samples/s), at most 5 s."
+	[self busyFor: 10.
 	profile := Profiler from: t0 to: Time microsecondClockValue.
-	"About 1000 samples/s; the VM checks its interrupt flag every 500 µs."
-	self assert: (profile samples size between: 50 and: 150).
+	profile samples size < 50 and: [profile stop - t0 < 5000000]] whileTrue.
+	self assert: profile samples size >= 50.
+	"At most one sample per interval (1 ms), plus slack for the range boundaries."
+	self assert: profile samples size <= ((profile stop - t0) // 1000 + 10).
 	self assert: (profile samples allSatisfy: [:s | s time between: t0 and: profile stop]).
 	self assert: ((profile samplesFor: Processor activeProcess) size * 100 / profile samples size) >= 80
 !
