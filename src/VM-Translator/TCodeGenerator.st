@@ -1176,7 +1176,7 @@ intrinsic: aSelector arguments: argNodes node: aNode valueWanted: aBoolean
 		(argNodes first isLiteral and: [argNodes first value isString]) ifFalse: [^self error: 'cString: takes a string literal' node: aNode].
 		^CConst value: argNodes first value type: (registry parse: 'char *')].
 	aSelector == #primitiveTable ifTrue: [^CVarRef name: 'vm_primitive_table' type: (registry parse: 'PrimitiveEntry *')].
-	aSelector == #primitiveCount ifTrue: [^CRaw pureText: 'VM_PRIMITIVE_COUNT' type: (registry at: 'int')].
+	aSelector == #primitiveCount ifTrue: [^CVarRef name: 'vm_primitive_count' type: (registry at: 'int')].
 	aSelector == #sizeof: ifTrue: [
 		^CRaw pureText: 'sizeof(' , ((self typeArgument: argNodes first) declarator: '') , ')' type: (registry at: 'size_t')].
 	aSelector == #cCoerce:to: ifTrue: [

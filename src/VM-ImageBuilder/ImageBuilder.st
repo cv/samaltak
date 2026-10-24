@@ -397,9 +397,9 @@ compileMethods
 		errors size < 50 ifTrue: [
 			[self compileChunk: chunk]
 				on: SyntaxError, ImageBuildError
-				do: [:e | errors add: (e isKindOf: SyntaxError)
-					ifTrue: [(chunk at: 5) , ':' , ((chunk at: 6) + ((e messageText isString and: [e position notNil]) ifTrue: [((chunk at: 4) first: ((e position - 1) max: 0)) occurrencesOf: Character lf] ifFalse: [0])) printString , ': ' , e messageText]
-					ifFalse: [e messageText]]]].
+				do: [:e | errors add: ((e isKindOf: SyntaxError)
+					ifTrue: [(chunk at: 5) , ':' , ((chunk at: 6) + (e position notNil ifTrue: [((chunk at: 4) first: ((e position - 1) max: 0)) occurrencesOf: Character lf] ifFalse: [0])) printString , ': ' , e messageText]
+					ifFalse: [e messageText])]]].
 	errors notEmpty ifTrue: [^self fail: (errors inject: '' into: [:all :e | all , 'image builder: error: ' , e , (String with: Character lf)])].
 	layerErrors notEmpty ifTrue: [
 		^self fail: (layerErrors inject: '' into: [:all :e | all , 'image builder: error: ' , e , (String with: Character lf)]) ,

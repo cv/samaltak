@@ -478,7 +478,7 @@ fullGC
 	self rememberIfOld: interpreter activeCtx.
 	self afterGC.
 	statFullUs := statFullUs + (scheduler nowUs - t0) asUInt64.
-	live > maxHeapBytes ifTrue: [self fatal: 'out of memory (%zu MB live, limit %zu MB)' with: live >> 20 with: maxHeapBytes >> 20]
+	live > maxHeapBytes ifTrue: [self fatal: 'out of memory (%llu MB live, limit %zu MB)' with: live >> 20 with: maxHeapBytes >> 20]
 !
 collectGarbage: need
 	"Scavenge or full GC so that need bytes fit in eden."

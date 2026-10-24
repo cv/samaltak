@@ -22,4 +22,5 @@ say := [:aString | Smalltalk vm stderrWrite: aString , (String with: Character l
 	on: Error
 	do: [:e |
 		say value: (e messageText isString ifTrue: [e messageText] ifFalse: [e printString]).
+		say value: (e signalerContext stack first: 10) printString.
 		Smalltalk quit: 1]
