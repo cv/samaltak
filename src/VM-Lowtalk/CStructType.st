@@ -1,5 +1,5 @@
 CType subclass: #CStructType
-	instanceVariableNames: 'structClass fields size alignment'
+	instanceVariableNames: 'structClass fields size alignment bySelector'
 	classVariableNames: ''
 	package: 'VM-Lowtalk'!
 
@@ -67,6 +67,15 @@ fields
 !
 fieldNamed: aString ifAbsent: aBlock
 	^self fields detect: [:f | f name = aString] ifNone: aBlock
+!
+fieldForSelector: aSymbol
+	"The field a getter (fr method) or setter (fr method: m) selector names, or nil (identity-cached for the simulator)."
+	bySelector isNil ifTrue: [
+		bySelector := IdentityDictionary new.
+		self fields do: [:f |
+			bySelector at: f name asSymbol put: f.
+			bySelector at: (f name , ':') asSymbol put: f]].
+	^bySelector at: aSymbol ifAbsent: [nil]
 !
 size
 	self ensureLayout.

@@ -3,6 +3,8 @@ VMConstants subclass: #VMStruct
 	classVariableNames: ''
 	package: 'VM-Lowtalk'!
 
+VMStruct class instanceVariableNames: 'ctype ctypeRegistry'!
+
 VMStruct comment: 'I am the abstract class of the VM''s C structs. A subclass declares its fields on the class side:
 
 	fields
@@ -25,7 +27,12 @@ isExtern
 	^false
 !
 ctype
-	^CTypeRegistry default at: self name asString
+	"Cached per class until the registry is rebuilt."
+	| registry |
+	registry := CTypeRegistry default.
+	(ctypeRegistry == registry and: [ctype notNil]) ifTrue: [^ctype].
+	ctypeRegistry := registry.
+	^ctype := registry at: self name asString
 ! !
 
 !VMStruct class methodsFor: 'instance creation'!
@@ -42,10 +49,7 @@ ctype
 	^self class ctype
 !
 fieldFor: aSelector
-	| sel |
-	sel := aSelector asString.
-	(sel endsWith: ':') ifTrue: [sel := sel allButLast].
-	^self ctype fieldNamed: sel ifAbsent: [nil]
+	^self ctype fieldForSelector: aSelector asSymbol
 ! !
 
 !VMStruct methodsFor: 'fields'!

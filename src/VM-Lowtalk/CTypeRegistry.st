@@ -1,5 +1,5 @@
 Object subclass: #CTypeRegistry
-	instanceVariableNames: 'types constants tokens position parsed'
+	instanceVariableNames: 'types constants tokens position parsed parsedLiterals'
 	classVariableNames: 'Default'
 	package: 'VM-Lowtalk'!
 
@@ -106,10 +106,11 @@ structTypes
 
 !CTypeRegistry methodsFor: 'parsing'!
 parse: aStringOrSymbol
-	"Answer the CType named by a C abstract declarator."
-	| decl |
-	parsed isNil ifTrue: [parsed := Dictionary new].
-	^parsed at: aStringOrSymbol asString ifAbsent: [parsed at: aStringOrSymbol asString put: (self parseUncached: aStringOrSymbol)]
+	"Answer the CType named by a C abstract declarator. Cached by the string object first (the simulation passes the same literals again and again), then by its contents."
+	parsedLiterals isNil ifTrue: [parsedLiterals := IdentityDictionary new. parsed := Dictionary new].
+	^parsedLiterals at: aStringOrSymbol ifAbsent: [
+		parsedLiterals at: aStringOrSymbol put: (parsed at: aStringOrSymbol asString ifAbsent: [
+			parsed at: aStringOrSymbol asString put: (self parseUncached: aStringOrSymbol)])]
 !
 parseUncached: aStringOrSymbol
 	| decl |
