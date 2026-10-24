@@ -71,6 +71,14 @@ simulationStoreInitial: anArray type: aCType at: anAddress
 		aCType element store: (self initialValue: v type: aCType element) in: sim memory at: anAddress + ((i - 1) * aCType element size)]
 ! !
 
+!VMModule class methodsFor: 'the VM'!
+vmModules
+	"The concrete modules of the VM packages, in a stable order."
+	^((self allSubclasses select: [:c |
+		(#('VM-Core' 'VM-Platform') includes: c packageName) and: [c isAbstractModule not]])
+		asSortedCollection: [:a :b | a name <= b name]) asArray
+! !
+
 !VMModule class methodsFor: 'declaring'!
 allDeclarations
 	"My declarations and my superclasses' (up to VMModule)."

@@ -1,5 +1,5 @@
 Object subclass: #VMSimulation
-	instanceVariableNames: 'memory modules libraries functionPointers primitiveTable primitiveCount stdout stderr stdoutFile stderrFile exitCode environment arguments'
+	instanceVariableNames: 'memory modules libraries functionPointers primitiveTable primitiveCount stdout stderr stdoutFile stderrFile exitCode environment arguments outputListener'
 	classVariableNames: ''
 	package: 'VM-Lowtalk'!
 
@@ -105,6 +105,13 @@ stdoutFile
 !
 stderrFile
 	^stderrFile
+!
+onOutput: aBlock
+	"aBlock is evaluated with everything the simulated program writes to stdout or stderr (in the simulation's Process)."
+	outputListener := aBlock
+!
+noteOutput: aString
+	outputListener isNil ifFalse: [outputListener value: aString]
 !
 stdoutContents
 	^stdout contents

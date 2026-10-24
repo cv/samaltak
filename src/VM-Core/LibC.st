@@ -92,6 +92,7 @@ store: aString in: buf size: n
 !
 write: aString to: f
 	(self streamFor: f) nextPutAll: aString.
+	((self fileFor: f) == sim stdoutFile or: [(self fileFor: f) == sim stderrFile]) ifTrue: [sim noteOutput: aString].
 	^aString utf8Encoded size
 !
 fputs: s to: f
@@ -101,7 +102,7 @@ fputs: s to: f
 !
 fputc: c to: f
 	<c: 'int fputc(int c, FILE *f)'>
-	(self streamFor: f) nextPut: (Character value: c).
+	self write: (String with: (Character value: c)) to: f.
 	^c
 !
 fflush: f

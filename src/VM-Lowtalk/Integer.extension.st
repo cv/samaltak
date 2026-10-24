@@ -26,7 +26,7 @@ asUInt64
 !
 wrapBits: n signed: aBoolean
 	| v |
-	(self >= 0 and: [self highBit < (aBoolean ifTrue: [n] ifFalse: [n + 1])]) ifTrue: [^self].
+	(self class == SmallInteger and: [self >= 0 and: [n >= 63 or: [self < (1 bitShift: (aBoolean ifTrue: [n - 1] ifFalse: [n]))]]]) ifTrue: [^self].
 	v := self bitAnd: (1 bitShift: n) - 1.
 	(aBoolean and: [v >= (1 bitShift: n - 1)]) ifTrue: [v := v - (1 bitShift: n)].
 	^v
