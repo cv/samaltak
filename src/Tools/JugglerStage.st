@@ -3,7 +3,7 @@ ShaderView subclass: #JugglerStage
 	classVariableNames: ''
 	package: 'Tools'!
 
-JugglerStage comment: 'I show a ShannonJuggler in 3D: a scene raymarched on the GPU (shaderSource, MSL) on a little stage, a curtain behind, a gilded proscenium at the walls and the ceiling: the W. C. Fields figure (top hat, nose, glowing cigar) behind its box, the arms posed to reach the cups, the balls blurred along their way since the previous frame, the drum whose head gives under a bounce. My uniforms are the model''s state in its stage''s points, read at each drawing; the camera drifts on the act''s clock (frame), so a halted act shows a still picture. A click restarts the act.'!
+JugglerStage comment: 'I show a ShannonJuggler in 3D: a scene raymarched on the GPU (shaderSource, MSL) on a little stage, a curtain behind, a gilded proscenium at the walls and the ceiling: the W. C. Fields figure (top hat, nose, glowing cigar) behind its box, the arms posed to reach the cups, the balls blurred along their way since the previous frame, the drum whose head gives under a bounce; lit like a photograph of the real machine (painted papier-mâché, wool, felt, turned brass, old wood, haze in the spotlight, film grain). My uniforms are the model''s state in its stage''s points, read at each drawing; the camera drifts on the act''s clock (frame), so a halted act shows a still picture. A click restarts the act.'!
 
 !JugglerStage methodsFor: 'accessing'!
 juggler: aShannonJuggler
@@ -116,8 +116,18 @@ float3 hatSpace(float3 q) {
 	return float3(c * h.x - s * h.y, s * h.x + c * h.y, h.z);
 }
 
+// the head''s frame: turned a little towards the cigar, cocked a little
+float3 headSpace(float3 p) {
+	float3 q = p - float3(0.0, 2.8, figureZ);
+	const float cy = 0.9975, sy = 0.07, cr = 0.9992, sr = 0.04;
+	q.xz = float2(cy * q.x + sy * q.z, -sy * q.x + cy * q.z);
+	q.xy = float2(cr * q.x - sr * q.y, sr * q.x + cr * q.y);
+	return q + float3(0.0, 2.8, 0.0);
+}
+
 float2 mapHead(float3 p) {
-	float3 q = p - float3(0.0, 0.0, figureZ);
+	float3 w = p - float3(0.0, 0.0, figureZ);
+	float3 q = headSpace(p);
 	float3 e = float3(abs(q.x), q.y, q.z);
 	float d = length(q - float3(0.0, 2.88, 0.0)) - 0.265;
 	d = smin(d, sdEllipsoid(q - float3(0.0, 2.74, 0.05), float3(0.25, 0.17, 0.22)), 0.1);
@@ -131,11 +141,12 @@ float2 mapHead(float3 p) {
 	// the eyes under heavy lids, the brows, the mouth
 	float3 eye = e - float3(0.098, 2.935, 0.214);
 	r = opU(r, float2(length(eye) - 0.036, M_EYE));
-	float lids = min(max(length(eye) - 0.042, 0.004 - eye.y - 0.006 * eye.x / 0.04), max(length(eye) - 0.04, eye.y + 0.014));
+	float lids = min(max(length(eye) - 0.042, 0.014 - eye.y - 0.006 * eye.x / 0.04), max(length(eye) - 0.04, eye.y + 0.022));
 	r = opU(r, float2(lids, M_SKIN));
-	r = opU(r, float2(sdCapsule(e, float3(0.05, 2.995, 0.248), float3(0.16, 2.985, 0.212), 0.017), M_BAND));
+	float brow = q.x < 0.0 ? 0.008 : 0.0;
+	r = opU(r, float2(sdCapsule(e, float3(0.05, 2.995 + brow * 0.5, 0.248), float3(0.16, 2.985 + brow, 0.212), 0.017), M_BAND));
 	r = opU(r, float2(sdCapsule(q, float3(-0.095, 2.708, 0.236), float3(0.045, 2.698, 0.255), 0.01), M_LIP));
-	r = opU(r, float2(sdCapsule(q, cigarA - float3(0.0, 0.0, figureZ), cigarB - float3(0.0, 0.0, figureZ), 0.03), M_CIGAR));
+	r = opU(r, float2(sdCapsule(w, cigarA - float3(0.0, 0.0, figureZ), cigarB - float3(0.0, 0.0, figureZ), 0.03), M_CIGAR));
 	float3 h = hatSpace(q);
 	float crownR = 0.215 + 0.035 * clamp(h.y / 0.5, 0.0, 1.0) - 0.014 * sin(3.1416 * clamp(h.y / 0.5, 0.0, 1.0)) - 0.012;
 	float2 cd = float2(length(h.xz * float2(1.0, 1.08)) - crownR, abs(h.y - 0.26) - 0.238);
@@ -145,6 +156,7 @@ float2 mapHead(float3 p) {
 	float2 bd = float2((length(b.xz / float2(0.37, 0.33)) - 1.0) * 0.33, abs(b.y) - 0.008);
 	float brim = min(max(bd.x, bd.y), 0.0) + length(max(bd, 0.0)) - 0.007;
 	r = opU(r, float2(smin(crown, brim, 0.03), (h.y > 0.035 && h.y < 0.14 && cd.x > -0.02) ? M_BAND : M_HAT));
+	r = opU(r, float2(sdEllipsoid(h - float3(-0.21, 0.085, 0.07), float3(0.022, 0.035, 0.03)), M_BAND));
 	return r;
 }
 
@@ -156,7 +168,8 @@ float2 mapBody(float3 p) {
 	if (bound > 0.3) return float2(bound, M_JACKET);
 	float3 t = float3(q.x, q.y, q.z * 1.35);
 	float d = sdRoundCone(t, float3(0.0, 1.05, 0.0), float3(0.0, 2.2, 0.0), 0.5, 0.34) / 1.35;
-	d = smin(d, sdCapsule(t, float3(-0.36, 2.36, 0.0), float3(0.36, 2.36, 0.0), 0.14) / 1.35, 0.13);
+	d = smin(d, sdCapsule(t, float3(-0.39, 2.34, 0.0), float3(0.39, 2.34, 0.0), 0.15) / 1.35, 0.12);
+	d = smin(d, sdEllipsoid(q - float3(0.01, 1.5, 0.08), float3(0.43, 0.42, 0.31)), 0.12);
 	float2 r = float2(d, M_JACKET);
 	// satin lapels along the V, a pocket square
 	float edge = abs(q.x) - (q.y - 1.72) * 0.24;
@@ -177,14 +190,23 @@ float2 mapBody(float3 p) {
 }
 
 float2 mapArm(float3 p, thread const Pose &P, int i) {
-	float d = sdCapsule(p, P.shoulder[i], P.elbow[i], 0.09);
-	d = smin(d, sdCapsule(p, P.elbow[i], P.wrist[i], 0.072), 0.05);
+	float d = sdRoundCone(p, P.shoulder[i], P.elbow[i], 0.11, 0.078);
+	d = smin(d, length(p - P.shoulder[i] - float3(0.0, 0.02, 0.0)) - 0.13, 0.06);
+	d = smin(d, sdRoundCone(p, P.elbow[i], P.wrist[i] - P.forearm[i] * 0.05, 0.08, 0.07), 0.04);
 	float2 r = float2(d, M_JACKET);
 	float near = length(p - P.cup[i]) - 0.32;
 	if (near > 0.05) return opU(r, float2(near, M_BRASS));
 	float3 fa = P.forearm[i];
-	r = opU(r, float2(sdCapsule(p, P.wrist[i] - fa * 0.08, P.wrist[i] - fa * 0.035, 0.083), M_SHIRT));
-	r = opU(r, float2(sdEllipsoid(p - P.wrist[i] - float3(0.0, 0.035, 0.02), float3(0.085, 0.07, 0.085)), M_GLOVE));
+	r = opU(r, float2(sdCapsule(p, P.wrist[i] - fa * 0.06, P.wrist[i] - fa * 0.025, 0.074), M_SHIRT));
+	float3 c0 = P.cup[i];
+	float glove = sdEllipsoid(p - P.wrist[i] - float3(0.0, 0.035, 0.03), float3(0.07, 0.055, 0.075));
+	for (int k = 0; k < 4; k++) {
+		float x = (float(k) - 1.5) * 0.034;
+		glove = smin(glove, sdCapsule(p, c0 + float3(x, -0.075, 0.035), c0 + float3(x * 1.15, -0.03 - 0.004 * float(k & 1), 0.118), 0.0165), 0.012);
+	}
+	float side = i == 0 ? 1.0 : -1.0;
+	glove = smin(glove, sdCapsule(p, c0 + float3(side * 0.07, -0.075, 0.0), c0 + float3(side * 0.12, -0.02, 0.03), 0.018), 0.015);
+	r = opU(r, float2(glove, M_GLOVE));
 	// the cup on the hand, open at the top
 	float3 c = p - P.cup[i];
 	float cup = sdCylinder(c, 0.118, -0.045, 0.045);
@@ -352,91 +374,136 @@ float floorOcclusion(float3 p, thread const Pose &P) {
 	return clamp(1.0 - 1.6 * o, 0.0, 1.0);
 }
 
-constant float3 keyPos = float3(-2.3, 7.6, 7.6);
-constant float3 keyColor = float3(1.0, 0.86, 0.68) * 2.6;
+constant float3 keyPos = float3(-4.6, 7.2, 6.2);
+constant float3 keyColor = float3(1.0, 0.84, 0.67) * 2.2;
 constant float3 fillDir = float3(0.66, 0.3, 0.69);
-constant float3 fillColor = float3(0.42, 0.52, 0.75) * 0.3;
+constant float3 fillColor = float3(0.5, 0.55, 0.65) * 0.2;
 constant float3 rimDir = float3(0.45, 0.5, -0.74);
-constant float3 rimColor = float3(0.85, 0.92, 1.0) * 1.5;
+constant float3 rimColor = float3(0.95, 0.93, 0.9) * 1.0;
 constant float3 footDir = float3(0.0, -0.41, 0.91);
-constant float3 footColor = float3(1.0, 0.72, 0.42) * 0.4;
+constant float3 footColor = float3(1.0, 0.74, 0.5) * 0.22;
 
 float spot(float3 p) {
-	float3 axis = normalize(float3(0.0, 1.9, -1.3) - keyPos);
+	float3 axis = normalize(float3(0.2, 1.9, -1.3) - keyPos);
 	float c = dot(normalize(p - keyPos), axis);
 	return 0.06 + 0.94 * smoothstep(0.925, 0.983, c);
 }
 
-struct Surface { float3 albedo; float rough; float spec; float3 emit; float metal; };
+// sheen: cloth and felt fuzz; aniso: brushed round a vertical axis (turned brass, hoops); wrap: light through paint and skin
+struct Surface { float3 albedo; float rough; float spec; float3 emit; float metal; float sheen; float aniso; float wrap; float3 normal; };
 
 float flickerAt(float time) { return 0.75 + 0.25 * sin(time * 7.0) * sin(time * 2.3 + 1.0); }
 
+// a lumpy, creased normal for cloth
+float3 creased(float3 n, float3 p, float amount) {
+	float2 k = float2(noise(p.xy * 6.0 + p.z * 3.0), noise(p.zy * 6.0 + p.x * 3.0 + 7.0)) - 0.5;
+	float fold = sin(p.y * 14.0 + 5.0 * noise(p.xz * 2.0)) * 0.6 * noise(p.xy * 3.0 + 1.0);
+	return normalize(n + amount * float3(k.x, k.y * 0.6 + fold, k.y - k.x));
+}
+
 Surface materialAt(float m, float3 p, float3 n, thread const Pose &P) {
-	Surface o = { float3(0.6), 0.5, 0.04, float3(0.0), 0.0 };
+	Surface o = { float3(0.5), 0.5, 0.04, float3(0.0), 0.0, 0.0, 0.0, 0.0, n };
 	float3 q = p - float3(0.0, 0.0, figureZ);
+	float speck = noise(p.xy * 140.0 + p.z * 60.0);
 	if (m == M_JACKET) {
-		// the shirt front, a V between the lapels
+		// ivory wool; the shirt front in the V between the lapels
 		float edge = abs(q.x) - (q.y - 1.72) * 0.24;
 		float front = step(0.0, q.z) * step(1.72, q.y);
-		o.albedo = lin(mix(float3(0.88, 0.85, 0.79), float3(0.97, 0.97, 0.98), smoothstep(0.004, -0.004, edge) * front));
-		o.albedo *= 1.0 - 0.35 * smoothstep(0.012, 0.0, abs(edge)) * front;
-		o.rough = 0.65;
-	} else if (m == M_SHIRT) { o.albedo = lin(float3(0.97, 0.97, 0.98)); o.rough = 0.5; }
-	else if (m == M_GLOVE) { o.albedo = lin(float3(0.95, 0.95, 0.93)); o.rough = 0.55; }
-	else if (m == M_ACCENT) { o.albedo = lin(float3(0.106, 0.227, 0.549)); o.rough = 0.3; o.spec = 0.06; }
-	else if (m == M_SKIN) {
-		float2 c = float2(abs(q.x) - 0.15, q.y - 2.79);
-		o.albedo = lin(mix(float3(0.96, 0.9, 0.85), float3(0.95, 0.66, 0.64), 0.6 * exp(-dot(c, c) * 160.0) * step(0.0, q.z)));
-		o.rough = 0.45;
-	} else if (m == M_LIP) { o.albedo = lin(float3(0.55, 0.25, 0.24)); o.rough = 0.4; }
-	else if (m == M_SATIN) { o.albedo = lin(float3(0.92, 0.9, 0.86)); o.rough = 0.28; o.spec = 0.05; }
-	else if (m == M_NOSE) { o.albedo = lin(float3(0.93, 0.62, 0.6)); o.rough = 0.32; }
-	else if (m == M_EYE) {
-		float3 d = normalize(float3(abs(q.x) - 0.098, q.y - 2.935, q.z - 0.214));
-		o.albedo = d.z > 0.88 ? float3(0.004) : (d.z > 0.8 ? lin(float3(0.25, 0.17, 0.1)) : lin(float3(0.9, 0.88, 0.84)));
-		o.rough = 0.1; o.spec = 0.08;
+		float shirt = smoothstep(0.004, -0.004, edge) * front;
+		o.albedo = lin(mix(float3(0.72, 0.69, 0.62), float3(0.8, 0.79, 0.76), shirt)) * (0.94 + 0.06 * speck);
+		o.albedo *= 1.0 - 0.3 * smoothstep(0.022, 0.0, abs(edge)) * front;
+		o.rough = 0.85; o.spec = 0.03; o.sheen = 0.4;
+		o.normal = creased(n, p, shirt > 0.5 ? 0.12 : 0.3);
+		// the sleeves ruck up at the elbows
+		for (int i = 0; i < 2; i++) {
+			float3 e = p - P.elbow[i];
+			float near = exp(-dot(e, e) * 40.0);
+			float3 along = normalize(P.wrist[i] - P.shoulder[i]);
+			o.normal = normalize(o.normal + near * 0.5 * along * sin(dot(e, along) * 70.0 + noise(e.xy * 20.0) * 2.0));
+		}
+	} else if (m == M_SATIN) {
+		o.albedo = lin(float3(0.76, 0.74, 0.68)); o.rough = 0.4; o.spec = 0.05; o.sheen = 0.25;
+		o.normal = creased(n, p, 0.12);
+	} else if (m == M_SHIRT) { o.albedo = lin(float3(0.82, 0.81, 0.78)); o.rough = 0.7; o.sheen = 0.2; o.normal = creased(n, p, 0.15); }
+	else if (m == M_GLOVE) { o.albedo = lin(float3(0.8, 0.79, 0.76)) * (0.94 + 0.06 * speck); o.rough = 0.9; o.sheen = 0.45; o.normal = creased(n, p * 2.0, 0.2); }
+	else if (m == M_ACCENT) { o.albedo = lin(float3(0.12, 0.2, 0.42)); o.rough = 0.45; o.spec = 0.05; o.sheen = 0.3; }
+	else if (m == M_SKIN || m == M_NOSE || m == M_LIP) {
+		// painted papier-mâché: matte, mottled, the paint worn here and there
+		float3 h = headSpace(p);
+		float2 c = float2(abs(h.x) - 0.15, h.y - 2.79);
+		float3 paint = m == M_NOSE ? float3(0.8, 0.52, 0.48) : (m == M_LIP ? float3(0.5, 0.26, 0.24) : float3(0.84, 0.77, 0.69));
+		paint = mix(paint, float3(0.82, 0.58, 0.54), m == M_SKIN ? 0.55 * exp(-dot(c, c) * 150.0) * step(0.0, h.z) : 0.0);
+		float mottle = noise(h.xy * 18.0) * 0.6 + noise(h.zy * 45.0) * 0.4;
+		o.albedo = lin(paint) * (0.9 + 0.12 * mottle) * (1.0 - 0.12 * smoothstep(0.84, 0.92, speck));
+		// painted lashes along the lids
+		float3 eye = float3(abs(h.x), h.y, h.z) - float3(0.098, 2.935, 0.214);
+		float lash = smoothstep(0.05, 0.043, length(eye)) * smoothstep(0.004, 0.012, eye.y) * smoothstep(0.03, 0.018, eye.y);
+		o.albedo = mix(o.albedo, float3(0.02, 0.015, 0.012), lash * 0.85 * (m == M_SKIN ? 1.0 : 0.0));
+		o.rough = 0.55; o.spec = 0.035; o.wrap = 0.35;
+	} else if (m == M_EYE) {
+		float3 d = normalize(headSpace(p) - float3(sign(headSpace(p).x) * 0.098, 2.935, 0.214));
+		o.albedo = d.z > 0.9 ? float3(0.004) : (d.z > 0.72 ? lin(float3(0.22, 0.15, 0.09)) : lin(float3(0.8, 0.78, 0.72)));
+		o.rough = 0.15; o.spec = 0.06;
 	}
-	else if (m == M_HAT) { o.albedo = lin(float3(0.6, 0.6, 0.62)) * (0.9 + 0.1 * noise(p.xy * 90.0)); o.rough = 0.85; o.spec = 0.02; }
-	else if (m == M_BAND) { o.albedo = float3(0.006); o.rough = 0.25; o.spec = 0.05; }
+	else if (m == M_HAT) {
+		// grey felt: fuzz, a little uneven
+		o.albedo = lin(float3(0.47, 0.46, 0.45)) * (0.85 + 0.15 * noise(p.xy * 60.0 + p.z * 30.0)) * (0.95 + 0.05 * speck);
+		o.rough = 0.95; o.spec = 0.02; o.sheen = 0.7;
+		o.normal = normalize(n + 0.08 * (float3(noise(p.xy * 90.0), noise(p.yz * 90.0), noise(p.zx * 90.0)) - 0.5));
+	}
+	else if (m == M_BAND) { o.albedo = float3(0.008); o.rough = 0.3; o.spec = 0.05; o.sheen = 0.3; }
 	else if (m == M_CIGAR) {
 		float h = dot(p - cigarA, cigarB - cigarA) / dot(cigarB - cigarA, cigarB - cigarA);
-		o.albedo = lin(mix(float3(0.42, 0.25, 0.13), float3(0.62, 0.6, 0.57), smoothstep(0.87, 0.9, h))) * (0.8 + 0.2 * noise(float2(h * 60.0, 0.0)));
-		o.rough = 0.7;
+		o.albedo = lin(mix(float3(0.36, 0.22, 0.12), float3(0.55, 0.53, 0.5), smoothstep(0.87, 0.9, h))) * (0.75 + 0.25 * noise(float2(h * 60.0, atan2(n.z, n.x) * 3.0)));
+		o.rough = 0.8;
 		o.emit = float3(1.0, 0.3, 0.04) * 8.0 * flickerAt(P.time) * smoothstep(0.955, 0.99, h + 0.02 * noise(n.xy * 20.0));
-	} else if (m == M_BRASS) { o.albedo = float3(0.95, 0.7, 0.32); o.rough = 0.25; o.metal = 1.0; }
-	else if (m == M_CHROME) { o.albedo = float3(0.9, 0.91, 0.93); o.rough = 0.1; o.metal = 1.0; }
+	} else if (m == M_BRASS) {
+		// turned brass, a patina in patches
+		float patina = smoothstep(0.45, 0.8, noise(p.xy * 12.0 + p.z * 7.0) * 0.75 + noise(p.zy * 30.0) * 0.25);
+		o.albedo = mix(float3(0.85, 0.64, 0.36), float3(0.3, 0.28, 0.2), patina * 0.7);
+		o.rough = mix(0.3, 0.6, patina); o.metal = 1.0 - 0.5 * patina; o.aniso = 1.0;
+	} else if (m == M_CHROME) { o.albedo = float3(0.8, 0.8, 0.8); o.rough = 0.2; o.metal = 1.0; o.aniso = 1.0; }
 	else if (m == M_SHELL) {
+		// old lacquer, rubbed thin in places
 		float a = atan2(p.z, p.x - P.drum.x);
-		o.albedo = lin(float3(0.55, 0.06, 0.08)) * (0.85 + 0.15 * noise(float2(a * 30.0, p.y * 4.0)));
-		o.rough = 0.1; o.spec = 0.06;
+		float wear = smoothstep(0.55, 0.85, noise(float2(a * 9.0, p.y * 6.0)));
+		o.albedo = lin(mix(float3(0.44, 0.09, 0.09), float3(0.36, 0.16, 0.12), wear)) * (0.9 + 0.1 * noise(float2(a * 40.0, p.y * 30.0)));
+		o.rough = mix(0.18, 0.45, wear); o.spec = 0.05;
 	} else if (m == M_HEAD) {
-		// a coated head: a darker ring near the hoop, a dot in the middle
+		// calfskin: mottled, a little translucent, darker in the middle where the balls land
 		float r = length(p.xz - float2(P.drum.x, 0.0)) / P.drum.z;
-		o.albedo = lin(float3(0.86, 0.84, 0.79)) * (0.92 + 0.08 * noise(p.xz * 60.0));
-		o.albedo *= 1.0 - 0.12 * smoothstep(0.86, 0.9, r) - 0.2 * smoothstep(0.13, 0.12, r);
-		o.rough = 0.6;
+		float mottle = noise(p.xz * 7.0) * 0.6 + noise(p.xz * 23.0) * 0.4;
+		o.albedo = lin(float3(0.8, 0.75, 0.64)) * (0.82 + 0.22 * mottle);
+		o.albedo *= 1.0 - 0.1 * smoothstep(0.86, 0.92, r) - 0.12 * exp(-r * r * 30.0);
+		o.rough = 0.75; o.wrap = 0.4;
 	} else if (m == M_WOOD) {
+		// old mahogany: the grain, worn paler and duller on the edges, scratches
+		float3 b = abs(p - float3(0.0, 0.58, -1.36)) - float3(1.32, 0.58, 0.5);
+		float edge = -max(max(min(b.x, b.y), min(b.y, b.z)), min(b.x, b.z));
+		float wear = smoothstep(0.03, 0.0, edge) * (0.5 + 0.5 * noise(p.xy * 30.0 + p.z * 20.0));
 		float v = p.y + p.z + 0.05 * sin(p.x * 2.0);
 		float g = noise(float2(p.x * 1.2, v * 11.0 + noise(float2(p.x, v) * 2.0) * 2.0));
-		g = 0.75 * g + 0.25 * noise(float2(p.x * 3.0, v * 24.0));
-		o.albedo = lin(mix(float3(0.13, 0.045, 0.025), float3(0.27, 0.1, 0.05), g)) * (n.y > 0.5 ? 0.6 : 1.0);
-		o.rough = 0.35; o.spec = 0.04;
+		g = 0.7 * g + 0.3 * noise(float2(p.x * 3.0, v * 24.0)) * (0.7 + 0.3 * noise(p.xz * 4.0));
+		float scratch = smoothstep(0.97, 1.0, noise(float2(p.x * 3.0 - v * 2.0, (v + p.x * 0.3) * 160.0)));
+		o.albedo = lin(mix(float3(0.17, 0.07, 0.04), float3(0.3, 0.13, 0.07), g)) * (n.y > 0.5 ? 0.7 : 1.0);
+		o.albedo = mix(o.albedo, lin(float3(0.36, 0.22, 0.14)), wear * 0.7 + scratch * 0.4);
+		o.rough = mix(0.3, 0.7, max(wear, scratch)); o.spec = 0.04;
 	}
 	return o;
 }
 
-float3 floorAlbedo(float3 p) {
+// blur: out of focus, the boards'' texture fades
+float3 floorAlbedo(float3 p, float blur) {
 	float plank = floor(p.x / 0.24);
 	float along = p.z + hash(float2(plank, 3.0)) * 7.0;
 	float seam = floor(along / 2.4);
 	float h = hash(float2(plank, seam));
 	float g = noise(float2(p.x * 16.0 + noise(float2(p.x, along) * 3.0), along * 1.1)) * 0.7 + noise(float2(p.x * 36.0, along * 2.6)) * 0.3;
-	float3 c = lin(mix(float3(0.27, 0.15, 0.08), float3(0.34, 0.19, 0.1), h)) * (0.85 + 0.25 * g);
+	float3 c = lin(mix(float3(0.27, 0.15, 0.08), float3(0.34, 0.19, 0.1), mix(h, 0.5, blur * 0.6))) * (0.85 + 0.25 * mix(g, 0.5, blur));
 	float lines = min(smoothstep(0.0, 0.01, abs(fract(p.x / 0.24) - 0.5) * 0.24 - 0.112), smoothstep(0.0, 0.015, abs(fract(along / 2.4) - 0.5) * 2.4 - 1.185));
-	return c * (0.6 + 0.4 * lines);
+	return c * (0.6 + 0.4 * mix(lines, 0.85, blur));
 }
 
-// the curtain: velvet in folds
 // the curtain: velvet in soft folds, darker in the cores, lighter where the folds turn away (the sheen)
 float3 curtainColor(float3 p, float3 rd, float shadow) {
 	float x = p.x;
@@ -459,6 +526,11 @@ float3 curtainColor(float3 p, float3 rd, float shadow) {
 	return c * smoothstep(5.5, 1.2, p.y);
 }
 
+// the light bounced off the floor, the curtain and the rest of the stage
+float3 bounce(float3 n) {
+	return float3(0.1, 0.06, 0.035) * max(-n.y, 0.0) + float3(0.055, 0.014, 0.016) * max(-n.z, 0.0) + float3(0.03, 0.028, 0.028) * (0.6 + 0.4 * n.y);
+}
+
 float3 lightSurface(float3 p, float3 n, float3 rd, Surface m, float shadow, float ao) {
 	float3 l = normalize(keyPos - p);
 	float3 h = normalize(l - rd);
@@ -469,14 +541,26 @@ float3 lightSurface(float3 p, float3 n, float3 rd, Surface m, float shadow, floa
 	float3 f0 = mix(float3(m.spec), m.albedo, m.metal);
 	float3 fres = f0 + (1.0 - f0) * pow(1.0 - nv, 5.0);
 	float specK = pow(max(dot(n, h), 0.0), shininess) * (shininess + 8.0) / 25.0;
+	if (m.aniso > 0.0) {
+		// stretched along the axis, narrow round it
+		float3 t = normalize(cross(float3(0.0, 1.0, 0.0), n) + 1e-4);
+		float3 b = cross(n, t);
+		float ht = dot(h, t) / (0.06 + r2 * 0.3), hb = dot(h, b) / (0.3 + r2), hn = max(dot(h, n), 0.05);
+		specK = mix(specK, exp(-(ht * ht + hb * hb) / (hn * hn)) * 2.0, m.aniso * smoothstep(0.95, 0.7, abs(n.y)));
+	}
 	float3 diffuse = m.albedo * (1.0 - m.metal);
-	float3 c = (diffuse + fres * specK) * keyColor * (nl * shadow * spot(p));
+	float wrapped = max((dot(n, l) + m.wrap) / (1.0 + m.wrap), 0.0);
+	float key = shadow * spot(p);
+	float3 c = (diffuse * wrapped + fres * specK * nl) * keyColor * key;
+	c += diffuse * m.wrap * 0.12 * float3(1.0, 0.45, 0.3) * keyColor * key * smoothstep(0.2, -0.2, dot(n, l));
 	c += diffuse * fillColor * max(dot(n, fillDir), 0.0) * ao;
 	c += fres * pow(max(dot(n, normalize(fillDir - rd)), 0.0), shininess * 0.5) * fillColor * ao;
 	c += (diffuse + fres * pow(max(dot(n, normalize(footDir - rd)), 0.0), shininess)) * footColor * max(dot(n, footDir), 0.0) * ao;
 	float rim = max(dot(n, rimDir), 0.0) * pow(1.0 - nv, 2.5);
 	c += (diffuse + f0) * rimColor * rim * ao;
-	c += (diffuse * mix(float3(0.05, 0.025, 0.025), float3(0.09, 0.085, 0.095), 0.5 + 0.5 * n.y) + f0 * 0.04) * ao;
+	// fuzz: cloth and felt catch the light where they turn away
+	c += m.sheen * sqrt(m.albedo) * pow(1.0 - nv, 3.0) * (keyColor * key * wrapped * 0.5 + bounce(n) * 2.0) ;
+	c += (diffuse * bounce(n) * 2.2 + f0 * 0.04) * ao;
 	return c + m.emit;
 }
 
@@ -536,7 +620,7 @@ float3 reflected(float3 ro, float3 rd, thread const Pose &P, constant Scene &s, 
 	}
 	if (tFloor < tCurtain) {
 		float3 p = ro + rd * tFloor;
-		return floorAlbedo(p) * keyColor * 0.3 * spot(p);
+		return floorAlbedo(p, 1.0) * keyColor * 0.3 * spot(p);
 	}
 	if (tCurtain < 1e4) return curtainColor(ro + rd * tCurtain, rd, 1.0);
 	// the house, dark, a glimmer of the footlights low down
@@ -576,7 +660,7 @@ Pose pose(constant Scene &s) {
 	for (int i = 0; i < 2; i++) {
 		float side = i == 0 ? -1.0 : 1.0;
 		float3 cup = world(i == 0 ? s.hands.xy : s.hands.zw, s);
-		float3 sh = float3(side * 0.47, 2.36, figureZ);
+		float3 sh = float3(side * 0.5, 2.33, figureZ);
 		float3 w = cup + float3(-side * 0.02, -0.11, -0.1);
 		const float L1 = 1.08, L2 = 1.02;
 		float3 v = w - sh;
@@ -651,7 +735,7 @@ fragment float4 fmain(ShaderIn in [[stage_in]], constant Scene &s [[buffer(0)]])
 		float3 p = ro + rd * h.x;
 		float3 n = normalAt(p, P);
 		Surface m = materialAt(h.y, p, n, P);
-		col = lightSurface(p, n, rd, m, softShadow(p + n * 0.003, normalize(keyPos - p), P), occlusion(p, n, P));
+		col = lightSurface(p, m.normal, rd, m, softShadow(p + n * 0.003, normalize(keyPos - p), P), occlusion(p, n, P));
 		if (m.metal > 0.5 || h.y == M_SHELL) {
 			float3 f0 = mix(float3(m.spec), m.albedo, m.metal);
 			float3 fres = f0 + (1.0 - f0) * pow(1.0 - max(dot(n, -rd), 0.0), 5.0);
@@ -661,7 +745,7 @@ fragment float4 fmain(ShaderIn in [[stage_in]], constant Scene &s [[buffer(0)]])
 		// the stage floor, lacquered boards
 		float3 p = ro + rd * tFloor;
 		float ao = floorOcclusion(p, P);
-		Surface m = { floorAlbedo(p), 0.35, 0.04, float3(0.0), 0.0 };
+		Surface m = { floorAlbedo(p, clamp(abs(tFloor - 8.4) * 0.12, 0.0, 1.0)), 0.35, 0.04, float3(0.0), 0.0 };
 		col = lightSurface(p, float3(0, 1, 0), rd, m, softShadow(p + float3(0, 0.002, 0), normalize(keyPos - p), P), ao);
 		float fres = 0.04 + 0.96 * pow(1.0 - max(-rd.y, 0.0), 5.0);
 		col += reflected(p + float3(0, 0.002, 0), reflect(rd, float3(0, 1, 0)), P, s, -1, false) * mix(0.05, 0.45, fres) * ao;
@@ -670,20 +754,31 @@ fragment float4 fmain(ShaderIn in [[stage_in]], constant Scene &s [[buffer(0)]])
 		col = curtainColor(p, rd, spot(p) < 0.1 ? 1.0 : softShadow(p + float3(0, 0, 0.01), normalize(keyPos - p), P));
 	}
 	col = mix(col, ball, cover);
+	// haze in the spotlight, thicker up in the beam; jittered samples along the view ray
+	uint2 q = uint2(in.pos.xy);
+	uint k = q.x * 1973u + q.y * 9277u + uint(s.stage.z) * 26699u + 1u;
+	k = (k ^ (k >> 15)) * 2246822519u;
+	k ^= k >> 13;
+	float j1 = float(k & 0xFFFFu) / 65535.0, j2 = float(k >> 16) / 65535.0;
+	float tHit = min(cover > 0.0 ? tb : h.x, min(tFloor, tCurtain));
+	float haze = 0.0;
+	for (int i = 0; i < 8; i++) {
+		float3 hp = ro + rd * (tHit * (float(i) + j1) / 8.0);
+		haze += spot(hp) * (0.6 + 0.4 * smoothstep(0.0, 4.5, hp.y));
+	}
+	col += keyColor * float3(1.0, 0.93, 0.85) * 0.0018 * haze * tHit / 8.0;
 	// the glow around the cigar''s tip
 	float tt = max(dot(cigarB - ro, rd), 0.0);
 	float glow = length(ro + rd * tt - cigarB);
 	col += float3(1.0, 0.35, 0.08) * 0.08 * flickerAt(P.time) * exp(-glow * 35.0);
 
-	float2 v = in.uv - 0.5;
-	col *= 1.0 - 0.8 * dot(v, v);
-	col = pow(aces(col * 1.05), float3(1.0 / 2.2));
-	// triangular dither of one 8-bit step
-	uint2 q = uint2(in.pos.xy);
-	uint k = q.x * 1973u + q.y * 9277u + 26699u;
-	k = (k ^ (k >> 15)) * 2246822519u;
-	k ^= k >> 13;
-	col += (float(k & 0xFFFFu) / 65535.0 + float(k >> 16) / 65535.0 - 1.0) / 255.0;
+	// the lens: falloff to the corners; film: a fine grain, strongest in the mid-tones; then a dither of one 8-bit step
+	float2 v = (in.uv - 0.5) * float2(aspect, 1.0);
+	float falloff = 1.0 / (1.0 + 0.55 * dot(v, v));
+	col *= falloff * falloff;
+	col = pow(aces(col * 0.95), float3(1.0 / 2.2));
+	float grain = (j1 + j2 - 1.0);
+	col += grain * (0.018 * col * (1.0 - col) * 4.0 * 0.5 + 1.0 / 255.0);
 	return float4(col, 1.0);
 }
 '
