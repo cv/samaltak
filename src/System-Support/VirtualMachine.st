@@ -33,12 +33,12 @@ specialObjectsArray
 	^self primitiveFailed
 !
 platformHandleCounts
-	"Answer a Dictionary of live platform handles by kind (#files #sockets #windows #gpuDevices #shaders #pipelines #textures #samplers #buffers #fences); empty without the platform layer."
+	"Answer a Dictionary of live platform handles by kind (#files #sockets #windows #gpuDevices #shaders #pipelines #textures #samplers #buffers #fences #ptys); empty without the platform layer."
 	| counts names result |
 	result := Dictionary new.
 	counts := self primPlatformHandleCounts.
 	counts isNil ifTrue: [^result].
-	names := #(#files #sockets #windows #gpuDevices #shaders #pipelines #textures #samplers #buffers #fences).
+	names := #(#files #sockets #windows #gpuDevices #shaders #pipelines #textures #samplers #buffers #fences #ptys).
 	1 to: (names size min: counts size) do: [:i | result at: (names at: i) put: (counts at: i)].
 	^result
 !

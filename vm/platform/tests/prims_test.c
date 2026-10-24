@@ -241,6 +241,39 @@ int main(void)
     CHECK(ival(call(prim_socketRecv, 4, con, b, I(1), I(10))) == 0, "recv EOF");
     CHECK(call(prim_socketClose, 1, con) && call(prim_socketClose, 1, srv), "close");
 
+    /* pseudo-terminals */
+    oop spawned = call(prim_ptySpawn, 5, array(3, str("sh"), str("-c"), str("stty size; printf \"$TERM\"; pwd")), nil_oop, str("/"), I(7), I(33));
+    CHECK(spawned && num_slots(spawned) == 2 && ival(load_ref(spawned, 1)) > 0, "ptySpawn");
+    oop pty = load_ref(spawned, 0);
+    CHECK(call(prim_ptySemaphore, 2, pty, I(9)), "ptySemaphore");
+    nsignals = 0;
+    for (int i = 0; i < 2000 && !nsignals; i++) {
+        usleep(1000);
+        platform_poll();
+    }
+    CHECK(nsignals >= 1 && signals[0] == 9, "pty semaphore");
+    char out[256] = {0};
+    size_t got = 0;
+    for (int i = 0; i < 3000 && got < sizeof out - 11; i++) {
+        oop r = call(prim_ptyRead, 4, pty, b, I(1), I(10));
+        if (r == nil_oop) {
+            usleep(1000);
+            continue;
+        }
+        if (!r || ival(r) == 0) break;
+        memcpy(out + got, bytes_of(b), (size_t)ival(r));
+        got += (size_t)ival(r);
+    }
+    CHECK(strstr(out, "7 33") && strstr(out, "xterm-256color/\r\n"), "pty output (rows cols, TERM, cwd)");
+    CHECK(ival(call(prim_ptyWait, 2, pty, true_oop)) == 0, "ptyWait");
+    CHECK(call(prim_ptyClose, 1, pty) && !call(prim_ptyClose, 1, pty) && !call(prim_socketRecv, 4, pty, b, I(1), I(10)), "ptyClose");
+    spawned = call(prim_ptySpawn, 5, array(1, str("cat")), array(1, str("PATH=/bin:/usr/bin")), nil_oop, I(24), I(80));
+    pty = spawned ? load_ref(spawned, 0) : nil_oop;
+    CHECK(spawned && call(prim_ptyResize, 3, pty, I(30), I(100)), "ptyResize");
+    CHECK(call(prim_ptyWait, 2, pty, false_oop) == nil_oop, "ptyWait running");
+    CHECK(ival(call(prim_ptyWrite, 4, pty, str("abc\r"), I(1), I(4))) == 4, "ptyWrite");
+    CHECK(call(prim_ptyClose, 1, pty), "ptyClose hangs up cat");
+
     /* GPU */
     oop dev = call(prim_gpuCreateDevice, 1, false_oop);
     CHECK(dev, "device");

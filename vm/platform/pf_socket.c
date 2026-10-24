@@ -1,7 +1,8 @@
 /* Non-blocking TCP sockets. A socket with a read (write) semaphore is "armed"
  * until it becomes readable/acceptable (writable); then the semaphore is
  * signaled once. Read is re-armed by every recv/accept; write is armed by a
- * send that would block or was partial. */
+ * send that would block or was partial. Pseudo-terminal masters (pf_pty.c)
+ * live in the same table as kind PF_FD_PTY, so they are polled the same way. */
 #include "platform.h"
 
 #include <arpa/inet.h>
@@ -16,7 +17,7 @@
 #include <sys/socket.h>
 #include <unistd.h>
 
-enum { K_SOCK = 1 };
+enum { K_SOCK = PF_FD_SOCKET, K_PTY = PF_FD_PTY };
 typedef struct {
     int read_sem, write_sem;
     bool read_armed, write_armed;
@@ -31,30 +32,41 @@ static int err(const char *what)
     return 0;
 }
 
-static int fd_of(int s)
+pf_obj *pf_fd_get(int h, int kind)
 {
-    pf_obj *o = pf_table_get(&socks, s, K_SOCK);
-    if (!o) {
-        pf_set_error("bad socket handle %d", s);
-        return -1;
+    pf_obj *o = pf_table_get(&socks, h, kind);
+    if (!o) pf_set_error("bad %s handle %d", kind == K_PTY ? "pty" : "socket", h);
+    return o;
+}
+
+static int fd_of_kind(int s, int kind)
+{
+    pf_obj *o = pf_fd_get(s, kind);
+    return o ? (int)o->i : -1;
+}
+
+static int fd_of(int s) { return fd_of_kind(s, K_SOCK); }
+
+int pf_fd_add(int fd, int kind, void *ptr)
+{
+    fcntl(fd, F_SETFL, fcntl(fd, F_GETFL) | O_NONBLOCK);
+    fcntl(fd, F_SETFD, FD_CLOEXEC);
+    int h = pf_table_add(&socks, kind, ptr);
+    if (h >= (int)(sizeof sems / sizeof sems[0])) {
+        pf_table_remove(&socks, h);
+        return pf_set_error("too many sockets and ptys"), 0;
     }
-    return (int)o->i;
+    socks.v[h].i = fd;
+    sems[h] = (sock_sems){0};
+    return h;
 }
 
 static int wrap(int fd)
 {
     int one = 1;
-    fcntl(fd, F_SETFL, fcntl(fd, F_GETFL) | O_NONBLOCK);
-    fcntl(fd, F_SETFD, FD_CLOEXEC);
     setsockopt(fd, SOL_SOCKET, SO_NOSIGPIPE, &one, sizeof one);
-    int h = pf_table_add(&socks, K_SOCK, NULL);
-    if (h >= (int)(sizeof sems / sizeof sems[0])) {
-        pf_table_remove(&socks, h);
-        close(fd);
-        return pf_set_error("too many sockets"), 0;
-    }
-    socks.v[h].i = fd;
-    sems[h] = (sock_sems){0};
+    int h = pf_fd_add(fd, K_SOCK, NULL);
+    if (!h) close(fd);
     return h;
 }
 
@@ -130,37 +142,44 @@ int pf_socket_accept(int s, bool *would_block)
     return wrap(c);
 }
 
-int64_t pf_socket_recv(int s, void *buf, size_t n)
+static int64_t fd_read(int s, int kind, void *buf, size_t n)
 {
-    int fd = fd_of(s);
+    int fd = fd_of_kind(s, kind);
     if (fd < 0) return -2;
     sems[s].read_armed = true;
     ssize_t r;
-    do r = recv(fd, buf, n, 0);
+    do r = kind == K_PTY ? read(fd, buf, n) : recv(fd, buf, n, 0);
     while (r < 0 && errno == EINTR);
     if (r >= 0) return r;
     if (errno == EAGAIN || errno == EWOULDBLOCK) return -1;
-    err("recv");
+    if (kind == K_PTY && errno == EIO) return 0; /* the slave side is closed */
+    err(kind == K_PTY ? "read" : "recv");
     return -2;
 }
 
-int64_t pf_socket_send(int s, const void *buf, size_t n)
+int64_t pf_socket_recv(int s, void *buf, size_t n) { return fd_read(s, K_SOCK, buf, n); }
+int64_t pf_pty_read(int p, void *buf, size_t n) { return fd_read(p, K_PTY, buf, n); }
+
+static int64_t fd_write(int s, int kind, const void *buf, size_t n)
 {
-    int fd = fd_of(s);
+    int fd = fd_of_kind(s, kind);
     if (fd < 0) return -2;
     ssize_t r;
-    do r = send(fd, buf, n, 0);
+    do r = kind == K_PTY ? write(fd, buf, n) : send(fd, buf, n, 0);
     while (r < 0 && errno == EINTR);
     sems[s].write_armed = (r >= 0 && (size_t)r < n) || (r < 0 && (errno == EAGAIN || errno == EWOULDBLOCK));
     if (r >= 0) return r;
     if (errno == EAGAIN || errno == EWOULDBLOCK) return -1;
-    err("send");
+    err(kind == K_PTY ? "write" : "send");
     return -2;
 }
 
-bool pf_socket_semaphores(int s, int read_index, int write_index)
+int64_t pf_socket_send(int s, const void *buf, size_t n) { return fd_write(s, K_SOCK, buf, n); }
+int64_t pf_pty_write(int p, const void *buf, size_t n) { return fd_write(p, K_PTY, buf, n); }
+
+static bool fd_semaphores(int s, int kind, int read_index, int write_index)
 {
-    if (fd_of(s) < 0) return false;
+    if (fd_of_kind(s, kind) < 0) return false;
     bool had = sems[s].read_sem || sems[s].write_sem;
     sems[s] = (sock_sems){read_index, write_index, true, false};
     armed_count += (read_index || write_index) - had;
@@ -168,14 +187,19 @@ bool pf_socket_semaphores(int s, int read_index, int write_index)
     return true;
 }
 
-bool pf_socket_close(int s)
+bool pf_socket_semaphores(int s, int read_index, int write_index) { return fd_semaphores(s, K_SOCK, read_index, write_index); }
+bool pf_pty_semaphores(int p, int read_index, int write_index) { return fd_semaphores(p, K_PTY, read_index, write_index); }
+
+bool pf_fd_close(int s, int kind)
 {
-    int fd = fd_of(s);
+    int fd = fd_of_kind(s, kind);
     if (fd < 0) return false;
-    pf_socket_semaphores(s, 0, 0);
+    fd_semaphores(s, kind, 0, 0);
     pf_table_remove(&socks, s);
     return close(fd) == 0 || err("close");
 }
+
+bool pf_socket_close(int s) { return pf_fd_close(s, K_SOCK); }
 
 int pf_socket_local_port(int s)
 {
@@ -200,7 +224,7 @@ int pf_socket_poll_fds(void *pollfds, int max)
     struct pollfd *p = pollfds;
     int n = 0;
     for (int h = 1; h < socks.n && n < max; h++) {
-        if (socks.v[h].kind != K_SOCK) continue;
+        if (!socks.v[h].kind) continue;
         short ev = events_of(h);
         if (ev) p[n++] = (struct pollfd){.fd = (int)socks.v[h].i, .events = ev};
     }
@@ -212,7 +236,7 @@ void pf_socket_poll(int timeout_ms)
     struct pollfd p[256];
     int hs[256], n = 0;
     for (int h = 1; h < socks.n && n < 256; h++) {
-        if (socks.v[h].kind != K_SOCK) continue;
+        if (!socks.v[h].kind) continue;
         short ev = events_of(h);
         if (!ev) continue;
         p[n] = (struct pollfd){.fd = (int)socks.v[h].i, .events = ev};
@@ -238,4 +262,5 @@ void pf_socket_poll(int timeout_ms)
     }
 }
 
-int pf_socket_handle_count(void) { return pf_table_count(&socks, -1); }
+int pf_socket_handle_count(void) { return pf_table_count(&socks, K_SOCK); }
+int pf_pty_handle_count(void) { return pf_table_count(&socks, K_PTY); }

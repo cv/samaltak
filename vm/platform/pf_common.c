@@ -84,4 +84,5 @@ void pf_handle_counts(int64_t out[PF_HANDLE_COUNTS])
     out[1] = pf_socket_handle_count();
     out[2] = pf_window_handle_count();
     pf_gpu_handle_counts(out + 3);
+    out[10] = pf_pty_handle_count();
 }

@@ -785,28 +785,40 @@ void prim_dirEntries(void)
 
 void prim_cwd(void) { ARGS(0); ret_string(pf_cwd()); }
 
+/* malloc'd NULL-terminated C strings of an Array of Strings (NULL: not one, or empty when nonEmpty) */
+static char **string_vector(oop a, bool nonEmpty)
+{
+    if (!is_ptr(a) || format_of(a) != 2 || (nonEmpty && num_slots(a) == 0)) return NULL;
+    uint32_t n = num_slots(a);
+    char **v = calloc(n + 1, sizeof *v);
+    if (!v) return NULL;
+    for (uint32_t i = 0; i < n; i++) {
+        oop s = load_ref(a, i);
+        if (!is_text(s) || !(v[i] = utf8_of(s))) {
+            for (uint32_t k = 0; k < i; k++) free(v[k]);
+            free(v);
+            return NULL;
+        }
+    }
+    return v;
+}
+
+static void free_vector(char **v)
+{
+    for (char **p = v; v && *p; p++) free(*p);
+    free(v);
+}
+
 void prim_spawnProcess(void)
 {
     ARGS(1);
-    oop a = prim_arg(0);
-    if (!is_ptr(a) || format_of(a) != 2 || num_slots(a) == 0) {
-        prim_fail();
-        return;
-    }
-    uint32_t n = num_slots(a);
-    char **argv = calloc(n + 1, sizeof *argv);
+    char **argv = string_vector(prim_arg(0), true);
     if (!argv) {
         prim_fail();
         return;
     }
-    bool ok = true;
-    for (uint32_t i = 0; i < n && ok; i++) {
-        oop s = load_ref(a, i);
-        ok = is_text(s) && (argv[i] = utf8_of(s));
-    }
-    int64_t pid = ok ? pf_spawn(argv) : -1;
-    for (uint32_t i = 0; i < n; i++) free(argv[i]);
-    free(argv);
+    int64_t pid = pf_spawn(argv);
+    free_vector(argv);
     pid < 0 ? prim_fail() : prim_return(int_oop(pid));
 }
 
@@ -890,6 +902,78 @@ void prim_socketSemaphore(void)
 }
 
 void prim_socketLocalPort(void) { ARGS(1); int64_t s = I(0); CHECK(); ret_handle(pf_socket_local_port((int)s)); }
+
+/* ---- pseudo-terminals ------------------------------------------------------- */
+
+void prim_ptySpawn(void)
+{
+    ARGS(5);
+    char **argv = string_vector(prim_arg(0), true);
+    char **envp = prim_arg(1) == nil_oop ? NULL : string_vector(prim_arg(1), false);
+    char *cwd = prim_arg(2) == nil_oop ? NULL : S(2);
+    int64_t rows = I(3), cols = I(4), pid = 0;
+    int h = 0;
+    if (!bad && argv && (envp || prim_arg(1) == nil_oop) && rows > 0 && cols > 0 && rows < 65536 && cols < 65536)
+        h = pf_pty_spawn(argv, envp, cwd, (int)rows, (int)cols, &pid);
+    free_vector(argv);
+    free_vector(envp);
+    free(cwd);
+    int64_t v[2] = {h, pid};
+    h > 0 ? prim_return(array_of_ints(2, v)) : prim_fail();
+}
+
+void prim_ptyRead(void)
+{
+    int64_t h, n;
+    uint8_t *p = range_args(true, &h, &n);
+    int64_t r = p ? pf_pty_read((int)h, p, (size_t)n) : -2;
+    if (r == -1) prim_return(nil_oop);
+    else r < 0 ? prim_fail() : prim_return(int_oop(r));
+}
+
+void prim_ptyWrite(void)
+{
+    int64_t h, n;
+    uint8_t *p = range_args(false, &h, &n);
+    int64_t r = p ? pf_pty_write((int)h, p, (size_t)n) : -2;
+    if (r == -1) prim_return(nil_oop);
+    else r < 0 ? prim_fail() : prim_return(int_oop(r));
+}
+
+void prim_ptyResize(void)
+{
+    ARGS(3);
+    int64_t h = I(0), rows = I(1), cols = I(2);
+    CHECK();
+    ret_bool(rows > 0 && cols > 0 && rows < 65536 && cols < 65536 && pf_pty_resize((int)h, (int)rows, (int)cols));
+}
+
+void prim_ptySemaphore(void)
+{
+    bad = false;
+    int argc = prim_argc();
+    if (argc != 2 && argc != 3) {
+        prim_fail();
+        return;
+    }
+    int64_t h = I(0), r = I(1), w = argc == 3 ? I(2) : 0;
+    CHECK();
+    ret_bool(pf_pty_semaphores((int)h, (int)r, (int)w));
+}
+
+void prim_ptyWait(void)
+{
+    ARGS(2);
+    int64_t h = I(0);
+    bool block = B(1);
+    CHECK();
+    int st = 0;
+    bool done = false;
+    if (!pf_pty_wait((int)h, block, &st, &done)) prim_fail();
+    else prim_return(done ? int_oop(st) : nil_oop);
+}
+
+void prim_ptyClose(void) { ARGS(1); int64_t h = I(0); CHECK(); ret_bool(pf_pty_close((int)h)); }
 
 void prim_platformHandleCounts(void)
 {

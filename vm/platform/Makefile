@@ -3,7 +3,7 @@ SDL_CFLAGS ?= $(shell pkg-config --cflags sdl3 2>/dev/null || echo -I/opt/homebr
 SDL_LIBS ?= $(shell pkg-config --libs sdl3 2>/dev/null || echo -L/opt/homebrew/lib -lSDL3)
 CFLAGS ?= -std=c11 -O2 -g -Wall -Wextra -Wno-unused-parameter
 BUILD := ../build/platform-test
-SRCS := pf_common.c pf_events.c pf_window.c pf_gpu.c pf_file.c pf_socket.c pf_vsync.c
+SRCS := pf_common.c pf_events.c pf_window.c pf_gpu.c pf_file.c pf_socket.c pf_pty.c pf_vsync.c
 
 test: $(BUILD)/gpu_test $(BUILD)/prims_test
 	$(BUILD)/gpu_test

@@ -248,6 +248,9 @@ openProcessBrowserSelecting: aProcess
 !
 openMandelbrot
 	^MandelbrotView openIn: (self placeAt: nil extent: 330 @ 300) delay: 50
+!
+openTerminal
+	^Terminal open
 ! !
 
 !Tools class methodsFor: 'processes'!

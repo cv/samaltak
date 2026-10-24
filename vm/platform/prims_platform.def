@@ -85,3 +85,12 @@ PRIM(544, "socketSend", prim_socketSend)                 /* socket bytes start c
 PRIM(545, "socketClose", prim_socketClose)               /* socket */
 PRIM(546, "socketSemaphore", prim_socketSemaphore)       /* socket readIndex [writeIndex] */
 PRIM(547, "socketLocalPort", prim_socketLocalPort)       /* socket -> port */
+
+/* pseudo-terminals */
+PRIM(560, "ptySpawn", prim_ptySpawn)                     /* argv(Array of Strings, PATH lookup) env(Array of 'K=V' or nil = inherit) cwd(or nil) rows cols -> {pty. pid} */
+PRIM(561, "ptyRead", prim_ptyRead)                       /* pty bytes start count -> count, 0 at EOF, nil would block */
+PRIM(562, "ptyWrite", prim_ptyWrite)                     /* pty bytes start count -> count or nil */
+PRIM(563, "ptyResize", prim_ptyResize)                   /* pty rows cols */
+PRIM(564, "ptySemaphore", prim_ptySemaphore)             /* pty readIndex [writeIndex] */
+PRIM(565, "ptyWait", prim_ptyWait)                       /* pty block(Boolean) -> child's exit status or nil (running) */
+PRIM(566, "ptyClose", prim_ptyClose)                     /* pty (hangs up the child unless it ended) */

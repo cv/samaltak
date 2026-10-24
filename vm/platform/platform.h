@@ -38,11 +38,12 @@ int pf_table_add(pf_table *t, int kind, void *ptr);
 pf_obj *pf_table_get(pf_table *t, int h, int kind); /* kind < 0: any */
 void pf_table_remove(pf_table *t, int h);
 int pf_table_count(const pf_table *t, int kind); /* live handles; kind < 0: any */
-/* live handles: files sockets windows gpuDevices shaders pipelines textures samplers buffers fences */
-#define PF_HANDLE_COUNTS 10
+/* live handles: files sockets windows gpuDevices shaders pipelines textures samplers buffers fences ptys */
+#define PF_HANDLE_COUNTS 11
 void pf_handle_counts(int64_t out[PF_HANDLE_COUNTS]);
 int pf_file_handle_count(void);
 int pf_socket_handle_count(void);
+int pf_pty_handle_count(void);
 int pf_window_handle_count(void);
 void pf_gpu_handle_counts(int64_t out[7]); /* devices shaders pipelines textures samplers buffers fences */
 
@@ -171,6 +172,22 @@ int pf_socket_local_port(int s);
 int pf_socket_poll_fds(void *pollfds, int max); /* internal: armed fds for platform_wait */
 void pf_socket_poll(int timeout_ms);            /* internal: signal ready sockets */
 bool pf_socket_any_armed(void);
+
+/* ---- pseudo-terminals (master side non-blocking, polled like sockets) -- */
+/* argv[0] is looked up in PATH; envp NULL = inherit (TERM=xterm-256color is set either way unless envp has TERM); cwd NULL = inherit */
+int pf_pty_spawn(char *const argv[], char *const envp[], const char *cwd, int rows, int cols, int64_t *pid);
+int64_t pf_pty_read(int p, void *buf, size_t n);         /* 0 EOF (child side closed), -1 would block, -2 error */
+int64_t pf_pty_write(int p, const void *buf, size_t n);  /* -1 would block, -2 error */
+bool pf_pty_resize(int p, int rows, int cols);
+bool pf_pty_semaphores(int p, int read_index, int write_index);
+bool pf_pty_wait(int p, bool block, int *status, bool *done); /* status as pf_process_wait */
+bool pf_pty_close(int p);                                     /* hangs up the child (SIGHUP) unless it has ended */
+
+/* internal: sockets and pty masters share one handle table and its polling */
+enum { PF_FD_SOCKET = 1, PF_FD_PTY = 2 };
+int pf_fd_add(int fd, int kind, void *ptr); /* 0 when full (fd left open) */
+pf_obj *pf_fd_get(int h, int kind);
+bool pf_fd_close(int h, int kind);
 
 /* ---- cross-module internals -------------------------------------------- */
 #define PF_POLL_US 1000           /* platform_poll cadence while Smalltalk runs and OS events or sockets may arrive */
