@@ -135,7 +135,8 @@ extraFontSpecs
 		#(#code12 'JetBrainsMono-Regular' 12.5 18)
 		#(#code12Bold 'JetBrainsMono-Bold' 12.5 18)
 		#(#toast 'IosevkaEtoile-Italic' 13 17)
-		#(#chip 'JetBrainsMono-Bold' 10 12))
+		#(#chip 'JetBrainsMono-Bold' 10 12)
+		#(#readout 'IosevkaEtoile-Bold' 17 20))
 !
 reset
 	"Forget the fonts (after Font deviceScale: changed)."

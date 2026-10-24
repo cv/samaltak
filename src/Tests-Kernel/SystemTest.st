@@ -81,6 +81,9 @@ testStatistics
 	self assert: b oldBudget > 0.
 	self assert: (VMStatistics counters: #(1 2 3)) weakSlotsCleared equals: 0.
 	self assert: (VMStatistics counters: (1 to: 20) asArray) weakSlotsCleared equals: 12.
+	self assert: (VMStatistics counters: (1 to: 20) asArray) contextsMaterialized equals: 13.
+	self assert: (VMStatistics counters: (1 to: 20) asArray) frameFlushes equals: 14.
+	self assert: b counters size equals: VMStatistics counterNames size.
 	self assert: (b printString includesSubstring: 'scavenges: ')
 !
 testTranscript
