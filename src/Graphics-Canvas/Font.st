@@ -302,6 +302,15 @@ smallItalic
 ! !
 
 !Font class methodsFor: 'glyph cache'!
+rasterizingClasses
+	"Changing one of these may change how glyphs look."
+	^Array with: Font with: GlyphRasterizer with: TrueTypeFont
+!
+regenerateGlyphs
+	"The rasterizer or the outlines changed: forget every rasterized glyph of every Font (atlas included). Glyphs are rasterized again on first use; DisplayLists made before keep the old atlas pages."
+	GlyphAtlas reset.
+	self allInstances do: [:each | each resetGlyphs]
+!
 resetGlyphs
 	"Drop all rasterized glyphs (atlas included)."
 	GlyphAtlas reset.
@@ -329,5 +338,7 @@ buildStandardFonts
 
 !Font class methodsFor: 'class initialization'!
 initialize
-	Smalltalk addStage2Step: [self buildStandardFonts] named: 'Font atlases'
+	Smalltalk addStage2Step: [self buildStandardFonts] named: 'Font atlases'.
+	SystemChanges subscribe: #Font do: [:change |
+		(change affectsAnyOf: self rasterizingClasses) ifTrue: [self regenerateGlyphs]]
 ! !

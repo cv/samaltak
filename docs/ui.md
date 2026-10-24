@@ -32,6 +32,18 @@ Thin, WebGPU-shaped objects over the `gpu*` primitives, each holding a platform 
 - **Animation**: `Animation` tweens a property (number, point, rectangle, color: `interpolateTo:at:`; other objects jump at the end) with a duration and easing (`#easeOutCubic`, `#easeInOutQuad`, spring) on the compositor clock. Layer properties (offset, scale, opacity) are animated by the compositor itself — smooth even when the window's Process is busy. Widget animations (selection bars gliding between rows, the debugger's pc highlight moving between expressions, flame-graph zooms, tab cross-fades, toasts) re-render the window each frame while running. Durations 90–220 ms; subtle, never bouncy-cute.
 - **Scheduling rule**: Smalltalk code that touches a window's widgets runs in that window's Process (`window do: [ ... ]` enqueues a block).
 
+## Live changes
+
+Accepted code takes effect on the running screen. `SystemChanges` (Kernel-Classes) announces every method added, changed or removed (Behavior) and every class defined (ClassBuilder) to subscribers, in subscription order (= load order, lower layers first), in the changing Process: `SystemChanges subscribe: #key do: [:change | ...]`, `change affects: aClass` (aClass or a subclass, either side), `SystemChanges silentlyDuring:`. Subscribers:
+
+- `Color`: a change to Color drops the named-color palette (rebuilt on use).
+- `Renderer`: a change to Renderer (its MSL source is `Renderer class>>shaderSource`) makes every Renderer build its pipeline again before its next render; if the source does not compile the old pipeline stays and `Renderer shaderErrorHandler:` gets the error (UI-Windows: Transcript + a toast with the first Metal message). `pipelineVersion` counts rebuilds; the Compositor then renders every cached layer again.
+- `Font`: a change to Font, GlyphRasterizer or TrueTypeFont resets the GlyphAtlas and every Font's glyphs; they are rasterized again on first use (~150 ms for the default desktop). GlyphAtlas allocation is serialized (window Processes rasterize concurrently).
+- `UIWindows`: a change to a View subclass or to a class in Graphics-GPU, Graphics-Canvas, UI-Windows or UI-Widgets restyles `World current`: every window and overlay redraws its content without replays and its chrome; the top bar drops its fonts.
+- `Theme`: a change to Theme or Color makes `Theme current` run its definition again (`refresh`: colors and metrics, fonts kept), publish its colors as Color's named colors (the chrome draws with `Color ultramarine`), and restyle the World.
+
+The desk is `World>>drawDeskOn:`, drawn by the compositor every frame.
+
 ## Window ↔ content contract (UI-Windows defines, UI-Widgets implements)
 
 UI-Windows (layer 3) defines the abstract classes; `Widget` (layer 4) subclasses `View`.

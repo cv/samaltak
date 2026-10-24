@@ -1,5 +1,5 @@
 Object subclass: #Compositor
-	instanceVariableNames: 'world displayWindow renderer process running vsync vsyncIndex wake sleeping skip idleFrames frameCount presenting requests recorder gpuTimer clock knownProcesses lastCpu lastScan lastRecord lastError lastErrorTime'
+	instanceVariableNames: 'world displayWindow renderer process running vsync vsyncIndex wake sleeping skip idleFrames frameCount presenting requests recorder gpuTimer clock knownProcesses lastCpu lastScan lastRecord lastError lastErrorTime pipelineVersion'
 	classVariableNames: ''
 	package: 'UI-Windows'!
 
@@ -62,6 +62,7 @@ start
 	running ifTrue: [^self].
 	running := true.
 	renderer := Renderer default.
+	pipelineVersion := renderer pipelineVersion.
 	vsync := Semaphore new.
 	wake := Semaphore new.
 	vsyncIndex := Smalltalk vm registerExternalSemaphore: vsync.
@@ -159,6 +160,10 @@ present: t0 now: now
 	scale := world displayScale.
 	stats0 := Smalltalk vm statistics.
 	t := Time microsecondClockValue.
+	renderer updatePipeline.
+	pipelineVersion = renderer pipelineVersion ifFalse: [
+		pipelineVersion := renderer pipelineVersion.
+		(world windows, world closingWindows, world overlays) do: [:w | w layer markNeedsRender]].
 	toRender := OrderedCollection new.
 	(world windows, world closingWindows, world overlays) do: [:w |
 		| key |
@@ -200,8 +205,7 @@ compositeListScale: aNumber pointer: showPointer time: now
 	"The whole screen as a DisplayList."
 	| c |
 	c := Canvas extent: world extent scale: aNumber.
-	c fillRect: world bounds color: Color white.
-	c pattern: #halftone in: world bounds.
+	world drawDeskOn: c.
 	world windows reverseDo: [:w | self drawWindow: w on: c time: now].
 	world closingWindows do: [:w | w isOverlay ifFalse: [self drawWindow: w on: c time: now]].
 	world topBar drawOn: c.

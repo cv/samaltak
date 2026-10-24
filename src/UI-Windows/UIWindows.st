@@ -11,8 +11,35 @@ UIWindows comment: 'I start the window system. A normal start of the image (no -
 !UIWindows class methodsFor: 'class initialization'!
 initialize
 	Smalltalk mainAction: [self runMainAction].
-	Smalltalk addToStartUpList: self
+	Smalltalk addToStartUpList: self.
+	SystemChanges subscribe: #UIWindows do: [:change |
+		(self isDrawingChange: change) ifTrue: [World current ifNotNil: [:world | world restyle]]].
+	Renderer shaderErrorHandler: [:error | self reportShaderError: error]
 !
+isDrawingChange: aSystemChange
+	"Answer whether aSystemChange may change what is on the screen: views and the drawing packages."
+	^(aSystemChange affects: View)
+		or: [#('Graphics-Canvas' 'Graphics-GPU' 'UI-Windows' 'UI-Widgets') includes: aSystemChange theClass packageName]
+!
+reportShaderError: anError
+	"Changed shader source did not build (the Renderer keeps its old pipeline): tell the Transcript and the user."
+	| text |
+	text := anError messageText asString.
+	Transcript show: 'Shader not rebuilt, keeping the old one: ', text; cr.
+	World current ifNotNil: [:world |
+		world toast: 'Shader error, old shader kept: ', (self firstShaderErrorIn: text) duration: 6000]
+!
+firstShaderErrorIn: aString
+	"The first compiler message of a Metal log, as 'line:column: message' (at most 90 characters)."
+	| i rest stop |
+	i := aString indexOfSubCollection: 'program_source:'.
+	rest := i = 0 ifTrue: [aString] ifFalse: [aString copyFrom: i + 15 to: aString size].
+	stop := rest findFirst: [:c | c = $; or: [c = $" or: [c = Character lf]]].
+	stop > 0 ifTrue: [rest := rest copyFrom: 1 to: stop - 1].
+	rest := rest copyReplaceAll: ' error:' with: ''.
+	^rest size > 90 ifTrue: [(rest copyFrom: 1 to: 89), '…'] ifFalse: [rest]
+!
+
 startUp: resuming
 	"A World saved in the image lost its processes and handles."
 	resuming ifTrue: [

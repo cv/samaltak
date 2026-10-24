@@ -1,22 +1,20 @@
 Object subclass: #Renderer
-	instanceVariableNames: 'device pipeline nearestSampler linearSampler vertexBuffer bufferOffset commandBuffer white uniforms'
-	classVariableNames: 'Default'
+	instanceVariableNames: 'device pipeline nearestSampler linearSampler vertexBuffer bufferOffset commandBuffer white uniforms sourceGeneration pipelineVersion'
+	classVariableNames: 'Default SourceGeneration ShaderErrorHandler'
 	package: 'Graphics-Canvas'!
 
 Renderer comment: 'I draw DisplayLists with the GPU: one uber-shader (MSL source below) whose modes are solid, glyph (R8 coverage), image (premultiplied RGBA), halftone, stripes and antialiased lines; premultiplied-alpha blending into RGBA8 targets. Each DisplayList is uploaded into my vertex buffer at its own offset within a command buffer (uploads to one range would otherwise overwrite each other before the submit), then encoded batch by batch (texture, scissor, and the batch''s translation as a vertex uniform).
 
-	Renderer default render: aDisplayList on: aSurface clear: Color white'!
+	Renderer default render: aDisplayList on: aSurface clear: Color white
+
+My shaders are Smalltalk source: when my methods change (SystemChanges), every Renderer builds its pipeline again before its next render. If the new source does not compile, I keep the old pipeline and pass the error to the shaderErrorHandler (UI-Windows shows it as a toast). pipelineVersion counts the pipelines built, so the Compositor knows when to render its cached layers again.'!
 
 !Renderer methodsFor: 'initialization'!
 setDevice: aDevice
-	| vs fs |
 	device := aDevice.
-	vs := device shaderSource: self class shaderSource entry: 'vmain' stage: #vertex samplers: 0 uniformBuffers: 1.
-	fs := device shaderSource: self class shaderSource entry: 'fmain' stage: #fragment samplers: 1 uniformBuffers: 0.
-	pipeline := device
-		pipelineVertex: vs fragment: fs stride: 40
-		attributes: #(#(#float4 0) #(#uint 16) #(#uint 20) #(#ubyte4norm 24) #(#uint 28) #(#float2 32))
-		primitive: #triangles blend: #premultiplied format: #rgba8.
+	pipeline := self pipelineFrom: self class shaderSource.
+	sourceGeneration := self class sourceGeneration.
+	pipelineVersion := 1.
 	nearestSampler := device samplerLinear: false repeat: false.
 	linearSampler := device samplerLinear: true repeat: false.
 	vertexBuffer := device vertexBufferSize: 1024 * 1024.
@@ -32,6 +30,34 @@ device
 !
 pipeline
 	^pipeline
+!
+pipelineVersion
+	"Incremented whenever my pipeline was rebuilt from changed shader source."
+	^pipelineVersion
+! !
+
+!Renderer methodsFor: 'pipeline'!
+pipelineFrom: mslSource
+	| vs fs |
+	vs := device shaderSource: mslSource entry: 'vmain' stage: #vertex samplers: 0 uniformBuffers: 1.
+	fs := device shaderSource: mslSource entry: 'fmain' stage: #fragment samplers: 1 uniformBuffers: 0.
+	^device
+		pipelineVertex: vs fragment: fs stride: 40
+		attributes: #(#(#float4 0) #(#uint 16) #(#uint 20) #(#ubyte4norm 24) #(#uint 28) #(#float2 32))
+		primitive: #triangles blend: #premultiplied format: #rgba8
+!
+updatePipeline
+	"If my shader source changed since my pipeline was built, build it from the new source (compiling it now); keep the old one if that fails. Answer whether the pipeline changed."
+	| new |
+	sourceGeneration = self class sourceGeneration ifTrue: [^false].
+	sourceGeneration := self class sourceGeneration.
+	new := [(self pipelineFrom: self class shaderSource) handle; yourself]
+		on: Error
+		do: [:e | self class reportShaderError: e. e return: nil].
+	new isNil ifTrue: [^false].
+	pipeline := new.
+	pipelineVersion := pipelineVersion + 1.
+	^true
 ! !
 
 !Renderer methodsFor: 'rendering'!
@@ -45,6 +71,7 @@ render: aDisplayList on: aSurface clear: aColorOrNil
 render: aDisplayList into: aTexture clear: aColorOrNil commandBuffer: aCommandBuffer
 	"Encode a render pass drawing aDisplayList into aTexture (a GPUTexture of format rgba8). aColorOrNil clears first; nil keeps the contents."
 	| byteCount offset textures pass w h tx ty |
+	sourceGeneration = SourceGeneration ifFalse: [self updatePipeline].
 	aCommandBuffer == commandBuffer ifFalse: [
 		commandBuffer := aCommandBuffer.
 		bufferOffset := 0].
@@ -115,6 +142,31 @@ on: aDevice
 default
 	(Default isNil or: [Default device ~~ GPUDevice default]) ifTrue: [Default := self on: GPUDevice default].
 	^Default
+! !
+
+!Renderer class methodsFor: 'class initialization'!
+initialize
+	SystemChanges subscribe: #Renderer do: [:change |
+		(change affects: Renderer) ifTrue: [self shaderSourceChanged]]
+! !
+
+!Renderer class methodsFor: 'shader changes'!
+sourceGeneration
+	^SourceGeneration ifNil: [SourceGeneration := 0]
+!
+shaderSourceChanged
+	"My shader source may have changed: every Renderer rebuilds its pipeline before its next render."
+	SourceGeneration := self sourceGeneration + 1
+!
+shaderErrorHandler: aBlockOrNil
+	"aBlockOrNil receives the error (a GPUError with the Metal log, or any Error) when changed shader source does not build; nil: the Transcript."
+	ShaderErrorHandler := aBlockOrNil
+!
+reportShaderError: anError
+	| text |
+	text := 'Shader not rebuilt (keeping the old pipeline): ', anError messageText asString.
+	ShaderErrorHandler isNil ifFalse: [^ShaderErrorHandler value: anError].
+	Transcript show: text; cr
 ! !
 
 !Renderer class methodsFor: 'shaders'!

@@ -276,6 +276,12 @@ hostResized: aPoint
 			w moveTo: ((b left min: extent x - 60) max: 60 - b width) @ ((b top min: extent y - 26) max: topBar height)]].
 	self changed
 !
+restyle
+	"Drawing code or the look changed (SystemChanges): every window and overlay draws its content and chrome anew."
+	(windows, overlays) do: [:w | w restyle].
+	topBar resetFonts.
+	self changed
+!
 displayScaleChanged: aNumber
 	(aNumber isNil or: [aNumber = scale]) ifTrue: [^self].
 	scale := aNumber.
@@ -296,6 +302,13 @@ cursor: aSymbol
 	name := #(#arrow #arrow #ibeam #ibeam #hand #hand #resizeEW #ew #resizeNS #ns #resizeNWSE #nwse #resizeNESW #nesw #move #move #crosshair #crosshair #wait #wait #notAllowed #notAllowed).
 	1 to: name size by: 2 do: [:i | (name at: i) == aSymbol ifTrue: [^DisplayWindow cursor: (name at: i + 1)]].
 	^DisplayWindow cursor: #arrow
+! !
+
+!World methodsFor: 'drawing'!
+drawDeskOn: aCanvas
+	"The desk behind the windows, drawn by the compositor every frame: the Blue Book halftone, one black dot in every 2×2-point cell."
+	aCanvas fillRect: self bounds color: Color white.
+	aCanvas pattern: #halftone in: self bounds color: Color black
 ! !
 
 !World methodsFor: 'frames'!

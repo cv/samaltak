@@ -372,6 +372,11 @@ invalidate
 	Processor activeProcess == process ifTrue: [^self].
 	redrawQueued ifFalse: [self queueRedraw]
 !
+restyle
+	"Drawing code or the look changed: draw my content anew (no replays of retained drawing) and my chrome (any Process)."
+	layer isNil ifFalse: [layer chromeKey: nil; markNeedsRender].
+	self invalidate
+!
 redrawChanged
 	"A view of mine invalidated itself: redraw, replaying the views that did not change. From another Process redraw everything (mine may be recording that view right now)."
 	Processor activeProcess == process ifFalse: [^self invalidate].

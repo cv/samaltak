@@ -20,6 +20,7 @@ superclass: aClass subclass: aSymbol instanceVariableNames: ivarString classVari
 		ifFalse: [self redefine: existing superclass: aClass instanceVariables: ivars type: aType].
 	self setClassVariables: cvars of: existing.
 	existing package: aString.
+	SystemChanges classDefined: existing.
 	^existing
 !
 newClassNamed: aSymbol superclass: aClass instanceVariables: ivars type: aType

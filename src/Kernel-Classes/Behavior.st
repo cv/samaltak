@@ -197,9 +197,12 @@ whichSelectorsReferTo: aLiteral
 
 !Behavior methodsFor: 'adding/removing methods'!
 addSelector: aSelector withMethod: aCompiledMethod
-	"Install aCompiledMethod under aSelector and make the VM forget stale lookups."
+	"Install aCompiledMethod under aSelector, make the VM forget stale lookups and announce the change (SystemChanges)."
+	| old |
+	old := methodDict at: aSelector ifAbsent: [nil].
 	self addSelectorSilently: aSelector withMethod: aCompiledMethod.
-	self organizationChanged
+	self organizationChanged.
+	SystemChanges methodAdded: aCompiledMethod in: self replacing: old
 !
 addSelectorSilently: aSelector withMethod: aCompiledMethod
 	methodDict at: aSelector put: aCompiledMethod.
@@ -212,6 +215,7 @@ removeSelector: aSelector
 	methodDict removeKey: aSelector.
 	self flushCacheFor: aSelector.
 	self organizationChanged.
+	SystemChanges method: method removedFrom: self.
 	^method
 !
 organizationChanged

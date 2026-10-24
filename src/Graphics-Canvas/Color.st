@@ -113,6 +113,10 @@ gray: brightness
 named: aSymbol
 	^self namedColors at: aSymbol
 !
+named: aSymbol put: aColor
+	"Redefine a named color (a theme publishes its palette this way; drawing code that asks by name follows)."
+	self namedColors at: aSymbol put: aColor
+!
 namedColors
 	"The palette of the Blue Book theme (docs/ui.md, themes/blue-book.css)."
 	^Named ifNil: [
@@ -132,6 +136,12 @@ namedColors
 			at: #blue put: (self r: 0 g: 0 b: 1);
 			at: #gray put: (self gray: 0.5);
 			yourself]
+! !
+
+!Color class methodsFor: 'class initialization'!
+initialize
+	SystemChanges subscribe: #Color do: [:change |
+		(change affects: Color) ifTrue: [Named := nil]]
 ! !
 
 !Color class methodsFor: 'named colors'!

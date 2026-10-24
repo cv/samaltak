@@ -9,7 +9,9 @@ Theme comment: 'I am the look of the widgets: named colors, fonts and metrics. "
 	Theme current font: #code.
 	Theme current metric: #rowHeight.
 
-Widgets ask me instead of hard-coding values, so a theme switch is "Theme current: aTheme" followed by a redraw. Fonts are created lazily (Font deviceScale: drops them via Theme reset).'!
+Widgets ask me instead of hard-coding values, so a theme switch is "Theme current: aTheme" followed by a redraw. Fonts are created lazily (Font deviceScale: drops them via Theme reset). The current theme publishes its accent and inks as Color''s named colors, which the window system''s chrome draws with.
+
+Change me while the system runs: when a method of mine (or Color''s) is accepted, the current theme defines its colors and metrics again (refresh) and every window redraws (SystemChanges).'!
 
 !Theme methodsFor: 'initialization'!
 setName: aString
@@ -77,6 +79,21 @@ initializeBlueBook
 		at: #glideMs put: 100;
 		at: #fadeMs put: 120;
 		at: #flashMs put: 90
+! !
+
+!Theme methodsFor: 'refreshing'!
+refresh
+	"My definition changed: define my colors and metrics again (fonts are kept), forget the syntax styles and publish the palette."
+	self initializeBlueBook.
+	syntax := nil.
+	self publishPalette
+!
+publishPalette
+	"Make my colors Color's named colors where both have the name (the window system's chrome draws with those)."
+	| named |
+	named := Color namedColors.
+	colors keysAndValuesDo: [:key :color |
+		(named includesKey: key) ifTrue: [Color named: key put: color]]
 ! !
 
 !Theme methodsFor: 'accessing'!
@@ -184,7 +201,9 @@ blueBook
 initialize
 	Smalltalk addStage2Step: [
 		Current := nil.
-		self current prepareFonts] named: 'Widget fonts'
+		self current prepareFonts] named: 'Widget fonts'.
+	SystemChanges subscribe: #Theme do: [:change |
+		((change affects: Theme) or: [change affects: Color]) ifTrue: [self themeChanged]]
 ! !
 
 !Theme class methodsFor: 'current'!
@@ -193,6 +212,11 @@ current
 !
 current: aTheme
 	Current := aTheme
+!
+themeChanged
+	"My methods or Color's changed: the current theme defines itself again and everything redraws."
+	Current isNil ifFalse: [Current refresh].
+	World current ifNotNil: [:world | world restyle]
 !
 reset
 	Current isNil ifFalse: [Current reset]

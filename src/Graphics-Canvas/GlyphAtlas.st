@@ -1,5 +1,5 @@
 Object subclass: #GlyphAtlas
-	instanceVariableNames: 'pages pageSize'
+	instanceVariableNames: 'pages pageSize lock'
 	classVariableNames: 'Default'
 	package: 'Graphics-Canvas'!
 
@@ -8,7 +8,8 @@ GlyphAtlas comment: 'I store rasterized glyphs (8-bit coverage at device resolut
 !GlyphAtlas methodsFor: 'initialization'!
 setPageSize: anInteger
 	pageSize := anInteger.
-	pages := OrderedCollection new
+	pages := OrderedCollection new.
+	lock := Mutex new
 ! !
 
 !GlyphAtlas methodsFor: 'accessing'!
@@ -21,9 +22,12 @@ pageSize
 
 !GlyphAtlas methodsFor: 'adding'!
 add: coverage width: w height: h
-	"Store a w×h coverage ByteArray; answer {page. x. y} (0-based pixel position)."
-	| position page |
+	"Store a w×h coverage ByteArray; answer {page. x. y} (0-based pixel position). Window Processes rasterize concurrently: one at a time allocates and stores."
 	(w > pageSize or: [h > pageSize]) ifTrue: [^self error: 'Glyph larger than an atlas page'].
+	^lock critical: [self primAdd: coverage width: w height: h]
+!
+primAdd: coverage width: w height: h
+	| position page |
 	pages isEmpty ifFalse: [
 		page := pages last.
 		position := page allocateWidth: w height: h].
