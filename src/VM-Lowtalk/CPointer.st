@@ -1,0 +1,172 @@
+Object subclass: #CPointer
+	instanceVariableNames: 'memory address type'
+	classVariableNames: ''
+	package: 'VM-Lowtalk'!
+
+CPointer comment: 'I am a C pointer in the simulator: an address in a SimulatedMemory and the type I point to. Lowtalk code uses me as it uses pointers in C (p at: i, p + 1, p - q, p value: x); the translator turns the same messages into C. Pointers to structs are VMStruct views instead, pointers to functions FunctionPointers.'!
+
+!CPointer class methodsFor: 'instance creation'!
+memory: aMemory address: anAddress type: aCType
+	^self new setMemory: aMemory address: anAddress type: aCType
+!
+null
+	^self new setMemory: nil address: 0 type: CVoidType new
+! !
+
+!CPointer methodsFor: 'private'!
+setMemory: aMemory address: anAddress type: aCType
+	memory := aMemory.
+	address := anAddress.
+	type := aCType
+!
+elementSize
+	^type isVoid ifTrue: [1] ifFalse: [type size]
+! !
+
+!CPointer methodsFor: 'accessing'!
+address
+	^address
+!
+type
+	^type
+!
+memory
+	^memory
+!
+simulatedAddressIn: aMemory
+	^address
+! !
+
+!CPointer methodsFor: 'dereferencing'!
+at: anInteger
+	^type load: memory at: address + (anInteger * self elementSize)
+!
+at: anInteger put: aValue
+	type store: aValue in: memory at: address + (anInteger * self elementSize).
+	^aValue
+!
+value
+	^self at: 0
+!
+value: aValue
+	^self at: 0 put: aValue
+! !
+
+!CPointer methodsFor: 'arithmetic'!
++ anInteger
+	^CPointer memory: memory address: address + (anInteger * self elementSize) type: type
+!
+- aPointerOrInteger
+	aPointerOrInteger isInteger ifTrue: [^self + aPointerOrInteger negated].
+	^address - (aPointerOrInteger simulatedAddressIn: memory) // self elementSize
+! !
+
+!CPointer methodsFor: 'comparing'!
+< aPointer
+	^address < (aPointer simulatedAddressIn: memory)
+!
+<= aPointer
+	^address <= (aPointer simulatedAddressIn: memory)
+!
+> aPointer
+	^address > (aPointer simulatedAddressIn: memory)
+!
+>= aPointer
+	^address >= (aPointer simulatedAddressIn: memory)
+!
+= anObject
+	^(anObject respondsTo: #simulatedAddressIn:) and: [address = (anObject simulatedAddressIn: memory)]
+!
+~= anObject
+	^(self = anObject) not
+!
+hash
+	^address hash
+! !
+
+!CPointer methodsFor: 'testing'!
+isNull
+	^address = 0
+!
+notNull
+	^address ~= 0
+! !
+
+!CPointer methodsFor: 'printing'!
+printOn: aStream
+	aStream nextPutAll: '('; nextPutAll: type name; nextPutAll: ' *)16r'; nextPutAll: (address printStringBase: 16)
+! !
+
+Object subclass: #FunctionPointer
+	instanceVariableNames: 'receiver selector'
+	classVariableNames: ''
+	package: 'VM-Lowtalk'!
+
+FunctionPointer comment: 'I am a pointer to a Lowtalk function in the simulator: a module (or library) and a selector. In memory I am a fake address (SimulatedMemory>>registerObject:).'!
+
+!FunctionPointer class methodsFor: 'instance creation'!
+receiver: aModule selector: aSymbol
+	^self new setReceiver: aModule selector: aSymbol
+!
+null
+	^self new setReceiver: nil selector: nil
+! !
+
+!FunctionPointer methodsFor: 'private'!
+setReceiver: aModule selector: aSymbol
+	receiver := aModule.
+	selector := aSymbol
+! !
+
+!FunctionPointer methodsFor: 'accessing'!
+receiver
+	^receiver
+!
+selector
+	^selector
+!
+simulatedAddressIn: aMemory
+	selector isNil ifTrue: [^0].
+	^aMemory registerObject: self
+! !
+
+!FunctionPointer methodsFor: 'calling'!
+call
+	^receiver perform: selector
+!
+call: a
+	^receiver perform: selector with: a
+!
+call: a with: b
+	^receiver perform: selector with: a with: b
+!
+call: a with: b with: c
+	^receiver perform: selector with: a with: b with: c
+!
+call: a with: b with: c with: d
+	^receiver perform: selector with: a with: b with: c with: d
+!
+callWithArguments: anArray
+	^receiver perform: selector withArguments: anArray
+! !
+
+!FunctionPointer methodsFor: 'comparing'!
+= anObject
+	^self class == anObject class and: [receiver == anObject receiver and: [selector == anObject selector]]
+!
+hash
+	^selector hash
+! !
+
+!FunctionPointer methodsFor: 'testing'!
+isNull
+	^selector isNil
+!
+notNull
+	^selector notNil
+! !
+
+!FunctionPointer methodsFor: 'printing'!
+printOn: aStream
+	aStream nextPutAll: '&'; print: receiver class; nextPutAll: '>>'; nextPutAll: (selector ifNil: ['NULL'])
+! !
