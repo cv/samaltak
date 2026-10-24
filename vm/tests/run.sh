@@ -1,14 +1,14 @@
 #!/bin/sh
-# VM + bootstrapper end-to-end tests: bootstrap the mini kernel (vm/tests/mini), run each
+# VM + image builder end-to-end tests: build the mini kernel image (vm/tests/mini), run each
 # Smalltalk test headless and compare stdout with vm/tests/expected/<Test>.txt.
 # Every test also runs with a 1 MB eden under the heap verifier (GC stress).
 set -u
 ROOT=$(cd "$(dirname "$0")/../.." && pwd)
-VM="$ROOT/vm/build/samaltak"
+VM=${VM:-"$ROOT/vm/build/samaltak"}
 OUT="$ROOT/build/test-vm"
 EXP="$ROOT/vm/tests/expected"
 mkdir -p "$OUT"
-python3 "$ROOT/boot/bootstrap.py" "$ROOT/vm/tests/mini" "$OUT/mini.image" >/dev/null || exit 1
+"$ROOT/boot/build-image.sh" "$ROOT/vm/tests/mini" "$OUT/mini.image" "$VM" >/dev/null 2>&1 || exit 1
 IMG="$OUT/mini.image"
 pass=0
 fail=0

@@ -1,6 +1,6 @@
 !SystemDictionary methodsFor: 'startup'!
 bootstrapStartUp
-	"The seed image starts here, in the bootstrap process (priority 40): finish what the bootstrapper could not do in Python, then handle the command line. Never returns."
+	"The seed image starts here, in the bootstrap process (priority 40): finish what the image builder leaves to the image, then handle the command line. Never returns."
 	MainProcess := Processor activeProcess.
 	MainProcess name: 'main'.
 	Symbol rebuildSymbolTable.

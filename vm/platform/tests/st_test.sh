@@ -6,7 +6,7 @@ ROOT=$(cd "$HERE/../../.." && pwd)
 VM=${1:-"$ROOT/vm/build/samaltak"}
 OUT="$ROOT/vm/build/platform-test"
 mkdir -p "$OUT"
-python3 "$ROOT/boot/bootstrap.py" "$HERE/st" "$OUT/st.image" >/dev/null || exit 1
+"$ROOT/boot/build-image.sh" "$HERE/st" "$OUT/st.image" "$VM" >/dev/null 2>&1 || exit 1
 perl -e 'alarm 30; exec @ARGV' "$VM" "$OUT/st.image" --headless Platform >"$OUT/Platform.out" 2>&1
 if cmp -s "$HERE/st/Platform.expected" "$OUT/Platform.out"; then
     echo "st-test: Platform passed"

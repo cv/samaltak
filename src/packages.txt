@@ -1,10 +1,10 @@
 # Samaltak packages in load order.
 # Each line: <package name> <layer> [uses <package>...]. Sources live in src/<package name>/.
-# Lines starting with '#' and blank lines are comments; every other line is loaded by the bootstrapper.
+# Lines starting with '#' and blank lines are comments; every other line is loaded by the image builder (src/VM-ImageBuilder).
 # Order matters: a class's superclass must be defined by the same or an earlier package,
 # and class-side initialize methods run in this order.
 #
-# Layering (boot/bootstrap.py rejects violations, listing file:line): a package's methods and class definitions may
+# Layering (the image builder rejects violations, listing file:line): a package's methods and class definitions may
 # reference globals of packages on its own layer, the layer directly below, and layer 0. Higher layers are reached only
 # late-bound (Smalltalk at: #Name ifAbsent:). The allow-list:
 #   export <package> <layer> <global>...   these globals may be used from <layer> up
@@ -27,6 +27,7 @@ Compiler 0
 VM-Lowtalk 0
 VM-Translator 0
 VM-Core 0
+VM-ImageBuilder 0
 Tests-Kernel 0
 Tests-Compiler 0
 Tests-Profiling 0

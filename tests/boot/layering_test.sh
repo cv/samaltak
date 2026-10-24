@@ -1,5 +1,5 @@
 #!/bin/sh
-# The bootstrapper's layering check: the mini kernel plus three small packages on layers 1-3.
+# The image builder's layering check: the mini kernel plus three small packages on layers 1-3.
 set -u
 cd "$(dirname "$0")/../.."
 TMP=$(mktemp -d)
@@ -16,7 +16,7 @@ printf "Object subclass: #UpThing\n\tinstanceVariableNames: ''\n\tclassVariableN
 
 run() { # packages.txt tail -> bootstrap output in $TMP/out, exit code in $code
   printf "Mini-Kernel 0\nMini-Tests 0\nLower 1\nMiddle 2\n%s\n" "$1" >"$TMP/packages.txt"
-  python3 boot/bootstrap.py "$TMP" "$TMP/out.image" >"$TMP/out" 2>&1
+  boot/build-image.sh "$TMP" "$TMP/out.image" >"$TMP/out" 2>&1
   code=$?
 }
 

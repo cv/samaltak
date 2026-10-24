@@ -1,8 +1,7 @@
-# Samaltak: VM, seed image (Python bootstrapper), full image (stage 2 in Smalltalk), tests.
+# Samaltak: VM, seed image (the Smalltalk ImageBuilder, run in boot/seed.image), full image (stage 2), tests.
 # OUT selects the build directory, so concurrent builds do not collide: make image OUT=build/me
 OUT ?= build
 
-PYTHON ?= python3
 VM := vm/build/samaltak
 
 all: vm seed image
@@ -10,9 +9,8 @@ all: vm seed image
 vm:
 	$(MAKE) -C vm
 
-seed:
-	@mkdir -p $(OUT)
-	$(PYTHON) boot/bootstrap.py src $(OUT)/seed.image
+seed: vm
+	boot/build-image.sh src $(OUT)/seed.image
 
 image: vm seed
 	$(VM) $(OUT)/seed.image --headless --stage2 $(OUT)/samaltak.image
