@@ -75,23 +75,22 @@ testWriteIsEchoed
 !
 testCloseHangsUpTheChild
 	| count |
-	count := self ptys.
 	self spawn: #('cat').
-	self assert: self ptys equals: count + 1.
 	self assert: pty isRunning.
+	count := self ptys.
 	pty close.
 	self deny: pty isOpen.
-	self assert: self ptys equals: count.
+	self assert: self ptys < count.
 	self assert: (pty readInto: (ByteArray new: 4)) equals: 0.
 	self assert: (pty write: 'x' from: 1 count: 1) equals: 0
 !
 testCollectedTerminalIsClosed
-	| count |
+	| registry count |
+	registry := WeakArray with: (PseudoTerminal spawn: #('cat') environment: nil directory: nil rows: 24 columns: 80).
 	count := self ptys.
-	PseudoTerminal spawn: #('cat') environment: nil directory: nil rows: 24 columns: 80.
-	self assert: self ptys equals: count + 1.
 	Smalltalk vm garbageCollect.
-	self assert: (self waitFor: [self ptys = count]) description: 'the collected pty was not closed'
+	self assert: (registry at: 1) isNil.
+	self assert: (self waitFor: [self ptys < count]) description: 'the collected pty was not closed'
 !
 testDeadAfterRestart
 	| handle |

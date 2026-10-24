@@ -77,7 +77,7 @@ runIO
 		self flushOutbox.
 		n := pty readInto: buffer.
 		n isNil
-			ifTrue: [pty semaphore wait]
+			ifTrue: [pty semaphore waitTimeoutMSecs: 1000]
 			ifFalse: [
 				n = 0 ifTrue: [^self programEnded].
 				self received: (buffer copyFrom: 1 to: n).

@@ -8,7 +8,7 @@ The contract between the C core, the Python seed bootstrapper, and the Smalltalk
 vm/                 C core (≈5k lines). Makefile → vm/build/samaltak
   src/              object memory, GC, interpreter, scheduler, image I/O, core primitives
   src/prims.def     X-macro primitive table: PRIM(number, "name", c_function)
-  platform/         SDL3 window/input, SDL_GPU, files, sockets, clipboard; prims_platform.def
+  platform/         SDL3 window/input, SDL_GPU, files, sockets, ptys, clipboard; prims_platform.def
 boot/bootstrap.py   seed compiler: src/**/*.st → build/seed.image (Python 3, no deps)
 src/                Smalltalk sources, one directory per package; src/packages.txt = load order + layer
 fonts/              TTF files (OFL)
@@ -75,7 +75,7 @@ Element count: bytes = `numSlots*8 - (format-16)`; 32-bit units = `numSlots*2 - 
 
 **GC**: generational. Eden (bump allocation) + survivor semispaces, scavenged by copying with a remembered set maintained by `store_ref`; tenured objects in old space; full GC when old space exceeds its budget (implementation's choice: copying or mark-compact). Objects larger than an eighth of eden are allocated directly in old space. Contexts (flushed frames) are ordinary objects allocated in eden; most die there. A context's slots above `stackp` are not roots: the collector sets them to nil, so code that builds or grows a context must raise `stackp` before storing into the new slots.
 
-**Weak references**: the indexable slots of a format-4 object do not keep their referents alive (its fixed fields do). After tracing, a scavenge sets to nil every weak slot whose young referent was not reached (old referents survive a scavenge), and a full GC every weak slot whose referent was not reached; weak objects stay in the remembered set while they refer to young objects. If any slot was cleared, the VM signals the finalization Semaphore (special object 35) at the next safepoint. Smalltalk: `WeakArray` (Kernel-Collections); `WeakRegistry` (System-Support) maps objects to executors, run (`finalize`, or `value` for a Block) by the 'finalization' Process at priority 50; an executor must not reference its object. GPU resources and fences, FileStreams and RemoteSockets register themselves and release their platform handle when collected unreleased.
+**Weak references**: the indexable slots of a format-4 object do not keep their referents alive (its fixed fields do). After tracing, a scavenge sets to nil every weak slot whose young referent was not reached (old referents survive a scavenge), and a full GC every weak slot whose referent was not reached; weak objects stay in the remembered set while they refer to young objects. If any slot was cleared, the VM signals the finalization Semaphore (special object 35) at the next safepoint. Smalltalk: `WeakArray` (Kernel-Collections); `WeakRegistry` (System-Support) maps objects to executors, run (`finalize`, or `value` for a Block) by the 'finalization' Process at priority 50; an executor must not reference its object. GPU resources and fences, FileStreams, RemoteSockets and PseudoTerminals register themselves and release their platform handle when collected unreleased.
 
 ## Image file
 

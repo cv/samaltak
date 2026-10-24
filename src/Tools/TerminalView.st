@@ -465,7 +465,9 @@ wheel: anEvent
 textInput: anEvent
 	| s |
 	swallowText ifTrue: [swallowText := false. ^true].
-	s := anEvent string select: [:c | c value >= 32 and: [c value ~= 127]].
+	"Line ends in typed text are returns; other controls come as keys."
+	s := (anEvent string collect: [:c | c = Character lf ifTrue: [Character cr] ifFalse: [c]])
+		select: [:c | (c value >= 32 and: [c value ~= 127]) or: [c = Character cr or: [c = Character tab]]].
 	s isEmpty ifTrue: [^true].
 	self typed.
 	self send: s.
@@ -591,6 +593,10 @@ remoteLabel
 	^screen title isEmpty ifTrue: [nil] ifFalse: [screen title]
 !
 remoteState
+	"Read in my window's Process: output changes the screen there."
+	^(self inWindowWait: [self remoteStateNow]) ifNil: [#()]
+!
+remoteStateNow
 	| s |
 	s := OrderedCollection new.
 	s add: 'rows=', screen rows printString; add: 'cols=', screen cols printString.
@@ -605,7 +611,10 @@ remoteState
 	^s asArray
 !
 shownLines
-	"The text of my rows, as shown (scrollback included when scrolled back)."
+	"The text of my rows, as shown (scrollback included when scrolled back); read in my window's Process."
+	^(self inWindowWait: [self shownLinesNow]) ifNil: [#()]
+!
+shownLinesNow
 	| first |
 	first := self topLineIndex.
 	^(1 to: screen rows) collect: [:r | (screen lineAtIndex: first + r - 1) ifNil: [''] ifNotNil: [:line | line string]]

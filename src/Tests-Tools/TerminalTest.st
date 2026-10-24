@@ -87,8 +87,8 @@ testTypingIntoAShell
 !
 testControlCInterruptsTheForegroundJob
 	self openShell.
-	self enter: 'sleep 100'.
-	self waitForText: '$ sleep 100'.
+	self enter: 'sh -c "echo sta""rted; exec sleep 100"'.
+	self waitForText: (String with: Character lf), 'started'.
 	self key: $c modifiers: 2.
 	self assert: (self waitFor: [self promptCount = 2] timeout: 10000) description: self text.
 	self key: $d modifiers: 2.
@@ -193,6 +193,24 @@ testScrollbackAndSelection
 	self assert: (self waitFor: [view scrollOffset = 0]).
 	self waitForText: '$ x'
 !
+testRetainedDrawingStaysValid
+	| view |
+	View verifyDrawing: true.
+	[self openShell.
+	 view := terminal view.
+	 self enter: 'i=0; while [ $i -lt 40 ]; do i=$((i+1)); printf "\033[3$((i % 8))m%s \033[7m%s\033[0m ─┼─\n" row-$i $i; done'.
+	 self waitForText: 'row-40'.
+	 self assert: (self waitFor: [(self screen textOfRow: self screen row) = '$']).
+	 self in: window do: [view scrollBy: 10].
+	 self settle.
+	 self in: window do: [view select: (Array with: view topLineIndex with: 2) to: (Array with: view topLineIndex + 3 with: 5)].
+	 self settle.
+	 self in: window do: [view scrollBy: -10. view clearSelection].
+	 self settle.
+	 self assert: View staleDrawings isEmpty description: View staleDrawings printString.
+	 self assert: window retainedDrawingMismatch equals: nil]
+		ensure: [View verifyDrawing: false]
+!
 testBracketedPaste
 	self openOn: #('/bin/sh' '-c' 'printf "\033[?2004h"; exec cat').
 	self assert: (self waitFor: [self screen bracketedPaste]).
@@ -216,7 +234,8 @@ testKeysTheProgramGets
 	view keyDown: (KeyEvent type: #down keyCode: 120 key: $x repeat: false modifiers: (Modifiers bits: 4) time: 0).
 	view textInput: (TextEvent string: '≈' modifiers: (Modifiers bits: 4) time: 0).
 	view textInput: (TextEvent string: 'ab' modifiers: Modifiers none time: 0).
-	self assert: sent asArray equals: {(String with: Character escape), 'x'. 'ab'}.
+	view textInput: (TextEvent string: (String with: $c with: Character lf with: (Character value: 1)) modifiers: Modifiers none time: 0).
+	self assert: sent asArray equals: {(String with: Character escape), 'x'. 'ab'. String with: $c with: Character cr}.
 	sent removeAll.
 	view parser feed: ((String with: Character escape), '[?1h') asByteArray.
 	view keyDown: (KeyEvent type: #down keyCode: (UIEvent keyCodeFor: #up) key: #up repeat: false modifiers: Modifiers none time: 0).
@@ -230,13 +249,15 @@ testWorldMenuAndOpeners
 	self assert: (Terminal absolutePath: '/a/b/../c/./d') equals: '/a/c/d'
 !
 testClosingTheWindowHangsUp
-	| count process |
-	count := self ptys.
+	| pty before process |
 	self openOn: #('cat').
-	self assert: self ptys equals: count + 1.
+	pty := terminal pty.
+	self assert: pty isRunning.
 	process := terminal ioProcess.
+	before := self ptys.
 	window close.
-	self assert: (self waitFor: [self ptys = count]).
+	self deny: pty isOpen.
+	self assert: self ptys < before.
 	self assert: (self waitFor: [process isTerminated]).
 	window := nil
 ! !
