@@ -335,6 +335,31 @@ void prim_dropped_events(void)
     prim_status = PS_OK;
 }
 
+/* PlatformPrimitives>>primExecProcess */
+void prim_exec_process(void)
+{
+    bool r_args;
+    char **argv;
+    if (!({
+    bad = false;
+    r_args = prim_nargs == 1;
+    r_args; })) {
+        prim_status = PS_FAIL;
+        prim_error_code = -1;
+        return;
+    }
+    argv = string_vector(prim_base[1], true);
+    if (argv == NULL) {
+        prim_status = PS_FAIL;
+        prim_error_code = -1;
+        return;
+    }
+    pf_exec(argv);
+    free_vector(argv);
+    prim_status = PS_FAIL;
+    prim_error_code = -1;
+}
+
 /* PlatformPrimitives>>primFileClose */
 void prim_file_close(void)
 {

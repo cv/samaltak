@@ -241,6 +241,17 @@ void prim_vm_arguments(void)
     prim_status = PS_OK;
 }
 
+/* SystemPrimitives>>primVMBanner */
+void prim_vm_banner(void)
+{
+    const char *b;
+    oop v;
+    b = vm_banner();
+    v = string_from_utf8(b, strlen(b));
+    prim_result = v;
+    prim_status = PS_OK;
+}
+
 /* SystemPrimitives>>primVMStats */
 void prim_vm_stats(void)
 {

@@ -26,7 +26,10 @@ vmModules
 !
 generateVM
 	"Translate the VM into vm/gen (the C the build compiles)."
-	^(self modules: self vmModules header: 'samaltak') writeTo: 'vm/gen'
+	^self generateVMInto: 'vm/gen'
+!
+generateVMInto: aDirectory
+	^(self modules: self vmModules header: 'samaltak') writeTo: aDirectory
 ! !
 
 !VMTranslator methodsFor: 'initialization'!

@@ -86,10 +86,14 @@ async function call(req, timeout) {
   if (!s) die(`no Samaltak in session ${session} (run: samaltak-ctl open)`);
   if (flags.settle != null && /^(click|hover|type|key|drag|select|scroll|resize)$/.test(req.cmd)) req = { ...req, settle: +flags.settle };
   let r;
-  try { r = await request(s.port, req, timeout); }
-  catch (e) {
-    if (e.code === 'ECONNREFUSED' || e.code === 'ECONNRESET') die(`no Samaltak in session ${session} (run: samaltak-ctl open)`);
-    die(e.message);
+  for (const t0 = Date.now(); ;) {
+    try { r = await request(s.port, req, timeout); break; }
+    catch (e) {
+      // Rebuild & reboot: the VM exec'd a new one (same pid), which listens on the same port within seconds.
+      if (e.code === 'ECONNREFUSED' && alive(s.pid) && Date.now() - t0 < 60000) { await sleep(100); continue; }
+      if (e.code === 'ECONNREFUSED' || e.code === 'ECONNRESET') die(`no Samaltak in session ${session} (run: samaltak-ctl open)`);
+      die(e.message);
+    }
   }
   if (!r.ok) {
     if (r.code === 3) { delete r.id; console.log(JSON.stringify(r)); process.exit(3); }

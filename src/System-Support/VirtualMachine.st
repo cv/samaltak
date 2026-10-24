@@ -15,6 +15,11 @@ imagePath
 	<primitive: 'imagePath'>
 	^''
 !
+banner
+	"What the VM calls itself (VMMain>>banner); nil if it does not say."
+	<primitive: 'vmBanner'>
+	^nil
+!
 primitiveNames
 	"Answer an Array whose element n is the name of primitive n (nil for gaps)."
 	<primitive: 'primitiveNames'>

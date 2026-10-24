@@ -121,6 +121,30 @@ char **pf_dir_entries(const char *path, int *n)
     return v;
 }
 
+/* PlatformFiles>>exec: */
+void pf_exec(char **argv)
+{
+    int max_fd;
+    int fd;
+    int flags;
+    char *path;
+    fflush(stdout);
+    fflush(stderr);
+    max_fd = getdtablesize();
+    if (max_fd > 65536) {
+        max_fd = 65536;
+    }
+    for (fd = 3; fd <= max_fd - 1; fd++) {
+        flags = fcntl(fd, F_GETFD);
+        if (flags >= 0) {
+            fcntl(fd, F_SETFD, flags | FD_CLOEXEC);
+        }
+    }
+    execvp(argv[0], argv);
+    path = argv[0];
+    pf_os_error_path("execvp", path, errno);
+}
+
 /* PlatformFiles>>fdOf: */
 static int file_fd(int f)
 {

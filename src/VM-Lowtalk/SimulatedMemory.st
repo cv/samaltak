@@ -1,5 +1,5 @@
 Object subclass: #SimulatedMemory
-	instanceVariableNames: 'segments last nextAddress objectsByAddress addressesByObject nextObjectAddress cStrings stackBase stackTop stackLimit machineCodeRunner'
+	instanceVariableNames: 'segments recent nextAddress objectsByAddress addressesByObject nextObjectAddress cStrings stackBase stackTop stackLimit machineCodeRunner'
 	classVariableNames: ''
 	package: 'VM-Lowtalk'!
 
@@ -124,6 +124,7 @@ zeroFrom: anOffset size: aSize
 !SimulatedMemory methodsFor: 'initialization'!
 initialize
 	segments := OrderedCollection new.
+	recent := Array new: 64.
 	nextAddress := 16r100000.
 	objectsByAddress := Dictionary new.
 	addressesByObject := IdentityDictionary new.
@@ -138,7 +139,6 @@ allocate: aSize
 	segment := SimulatedSegment base: nextAddress size: (aSize max: 1).
 	nextAddress := nextAddress + (aSize max: 1) + 16r1FFFF // 16r10000 * 16r10000.
 	segments add: segment.
-	last := segment.
 	^segment base
 !
 zero: anAddress size: aSize
@@ -151,7 +151,7 @@ free: anAddress
 	"Unmap the segment starting at anAddress (addresses are never reused)."
 	anAddress = 0 ifTrue: [^self].
 	segments removeAllSuchThat: [:s | s base = anAddress].
-	last := nil
+	recent := Array new: 64
 !
 reallocate: anAddress size: aSize
 	| new old |
@@ -163,9 +163,11 @@ reallocate: anAddress size: aSize
 	^new
 !
 segmentAt: anAddress
-	"Binary search: segments are sorted by address."
-	| lo hi mid s |
-	(last notNil and: [last includes: anAddress]) ifTrue: [^last].
+	"Binary search (segments are sorted by address), cached per 64 KB of address space (segments never share one)."
+	| i lo hi mid s |
+	i := (anAddress bitShift: -16) \\ 64 + 1.
+	s := recent at: i.
+	(s notNil and: [anAddress >= s base and: [anAddress < s limit]]) ifTrue: [^s].
 	lo := 1.
 	hi := segments size.
 	[lo <= hi] whileTrue: [
@@ -174,7 +176,7 @@ segmentAt: anAddress
 		anAddress < s base
 			ifTrue: [hi := mid - 1]
 			ifFalse: [
-				anAddress < s limit ifTrue: [^last := s].
+				anAddress < s limit ifTrue: [^recent at: i put: s].
 				lo := mid + 1]].
 	^self simulationError: 'bad address 16r' , (anAddress printStringBase: 16)
 !

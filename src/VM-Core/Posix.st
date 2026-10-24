@@ -50,7 +50,7 @@ MAP_FAILED
 clockGettime: clock into: ts
 	<c: 'int clock_gettime(clockid_t clock, struct timespec *ts)'>
 	| us |
-	us := Time microsecondClockValue.
+	us := sim microsecondClock.
 	ts tv_sec: us // 1000000.
 	ts tv_nsec: us \\ 1000000 * 1000.
 	^0
@@ -90,7 +90,7 @@ pthreadDetach: thread
 kqueue
 	<c: 'int kqueue(void)'>
 	kqueues isNil ifTrue: [kqueues := OrderedCollection new].
-	kqueues add: (SimulatedKQueue new).
+	kqueues add: (SimulatedKQueue simulation: sim).
 	^kqueues size + 2
 !
 kevent: kq changes: changes count: nchanges events: events count: nevents timeout: timeout
@@ -137,14 +137,20 @@ realpath: path into: resolved
 ! !
 
 Object subclass: #SimulatedKQueue
-	instanceVariableNames: 'timers changed'
+	instanceVariableNames: 'timers changed simulation'
 	classVariableNames: ''
 	package: 'VM-Core'!
 
 SimulatedKQueue comment: 'A kqueue of the simulated VM: its timers (ident -> {deadline µs. interval µs or nil}).'!
 
+!SimulatedKQueue class methodsFor: 'instance creation'!
+simulation: aVMSimulation
+	^self new setSimulation: aVMSimulation
+! !
+
 !SimulatedKQueue methodsFor: 'initialization'!
-initialize
+setSimulation: aVMSimulation
+	simulation := aVMSimulation.
 	timers := Dictionary new.
 	changed := Semaphore new
 ! !
@@ -156,7 +162,7 @@ apply: aKEvent posix: aPosix
 		^changed signal].
 	(aKEvent flags bitAnd: aPosix EV_ADD) ~= 0 ifTrue: [
 		timers at: aKEvent ident put: (Array
-			with: Time microsecondClockValue + aKEvent data
+			with: simulation microsecondClock + aKEvent data
 			with: ((aKEvent flags bitAnd: aPosix EV_ONESHOT) ~= 0 ifTrue: [nil] ifFalse: [aKEvent data])).
 		changed signal]
 !
@@ -169,7 +175,7 @@ waitInto: events timeout: aTimespec
 			changed wait]
 		ifFalse: [
 			next := timers associations inject: nil into: [:a :b | (a isNil or: [(b value at: 1) < (a value at: 1)]) ifTrue: [b] ifFalse: [a]].
-			now := Time microsecondClockValue.
+			now := simulation microsecondClock.
 			(next value at: 1) <= now
 				ifTrue: [
 					(events at: 0) ident: next key.

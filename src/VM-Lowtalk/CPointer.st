@@ -1,5 +1,5 @@
 Object subclass: #CPointer
-	instanceVariableNames: 'memory address type'
+	instanceVariableNames: 'memory address type elementSize'
 	classVariableNames: ''
 	package: 'VM-Lowtalk'!
 
@@ -20,7 +20,10 @@ setMemory: aMemory address: anAddress type: aCType
 	type := aCType
 !
 elementSize
-	^type isVoid ifTrue: [1] ifFalse: [type size]
+	^elementSize ifNil: [elementSize := type isVoid ifTrue: [1] ifFalse: [type size]]
+!
+setAddress: anAddress
+	address := anAddress
 ! !
 
 !CPointer methodsFor: 'accessing'!
@@ -54,7 +57,7 @@ value: aValue
 
 !CPointer methodsFor: 'arithmetic'!
 + anInteger
-	^CPointer memory: memory address: address + (anInteger * self elementSize) type: type
+	^self shallowCopy setAddress: address + (anInteger * self elementSize)
 !
 - aPointerOrInteger
 	aPointerOrInteger isInteger ifTrue: [^self + aPointerOrInteger negated].

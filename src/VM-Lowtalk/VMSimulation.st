@@ -1,5 +1,5 @@
 Object subclass: #VMSimulation
-	instanceVariableNames: 'memory modules libraries functionPointers primitiveTable primitiveCount stdout stderr stdoutFile stderrFile exitCode environment arguments outputListener'
+	instanceVariableNames: 'memory modules libraries functionPointers primitiveTable primitiveCount stdout stderr stdoutFile stderrFile exitCode environment arguments outputListener bytecodes clock clockOffset variableIndexes'
 	classVariableNames: ''
 	package: 'VM-Lowtalk'!
 
@@ -43,6 +43,8 @@ setModules: aCollectionOfClasses
 	stderrFile := SimulatedFile name: 'stderr' stream: stderr.
 	environment := Dictionary new.
 	arguments := #().
+	bytecodes := clock := clockOffset := 0.
+	variableIndexes := IdentityDictionary new.
 	aCollectionOfClasses do: [:c |
 		| m |
 		(c class includesSelector: #resetSimulationCaches) ifTrue: [c resetSimulationCaches].
@@ -61,6 +63,11 @@ module: aClass
 !
 modules
 	^modules
+!
+indexOfVariable: aSymbol in: aModuleClass
+	"The instance variable index of a module's variable (atomic access by name)."
+	^(variableIndexes at: aModuleClass ifAbsentPut: [IdentityDictionary new])
+		at: aSymbol ifAbsentPut: [aModuleClass instVarIndexFor: aSymbol]
 !
 isModuleType: aTypeName
 	| c |
@@ -91,6 +98,22 @@ arguments
 !
 arguments: anArrayOfStrings
 	arguments := anArrayOfStrings
+!
+bytecodes
+	"How many bytecodes the simulated interpreter has dispatched."
+	^bytecodes
+!
+noteBytecode
+	bytecodes := bytecodes + 1
+!
+microsecondClock
+	"The simulated monotonic clock: the host's, but never going back (a host restarted from a snapshot taken while I ran restarts its clock)."
+	| now |
+	now := Time microsecondClockValue + clockOffset.
+	now < clock ifTrue: [
+		clockOffset := clockOffset + clock - now.
+		now := clock].
+	^clock := now
 ! !
 
 !VMSimulation methodsFor: 'output'!

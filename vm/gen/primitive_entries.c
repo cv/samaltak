@@ -117,6 +117,7 @@ primitive_entry vm_primitive_table[] = {
     {170, 2, "stderrWrite", prim_stderr_write},
     {171, 2, "primitiveNames", prim_primitive_names},
     {172, 2, "getenv", prim_getenv},
+    {173, 2, "vmBanner", prim_vm_banner},
     {198, 2, "ensureMarker", prim_ensure_marker},
     {199, 2, "onDoMarker", prim_on_do_marker},
 #ifndef SAMALTAK_NO_PLATFORM
@@ -319,6 +320,9 @@ primitive_entry vm_primitive_table[] = {
 #endif
 #ifndef SAMALTAK_NO_PLATFORM
     {517, 2, "fileWriteBehind", prim_file_write_behind},
+#endif
+#ifndef SAMALTAK_NO_PLATFORM
+    {518, 0, "execProcess", prim_exec_process},
 #endif
 #ifndef SAMALTAK_NO_PLATFORM
     {540, 2, "socketListen", prim_socket_listen},

@@ -3,7 +3,7 @@ VMPrimitiveModule subclass: #SystemPrimitives
 	classVariableNames: ''
 	package: 'VM-Core'!
 
-SystemPrimitives comment: 'Time and system primitives: clocks, quit, snapshot, GC, statistics, the method cache, the command line, standard output, the environment.
+SystemPrimitives comment: 'Time and system primitives: clocks, quit, snapshot, GC, statistics, the method cache, the command line, standard output, the environment, the VM''s banner.
 
 vmStats answers an Array of SmallIntegers: 1 scavenges, 2 full GCs, 3 scavenge µs, 4 full GC µs, 5 old bytes used, 6 old budget, 7 eden bytes, 8 bytes allocated, 9 remembered set size, 10 process switches, 11 bytes tenured, 12 weak slots cleared, 13 frames flushed into Contexts, 14 flushes.'!
 
@@ -148,4 +148,10 @@ primGetenv
 	v := libc getenv: k.
 	libc free: k.
 	self answer: (v notNull ifTrue: [memory stringFromUtf8: v size: (libc strlen: v)] ifFalse: [memory nilOop])
+!
+primVMBanner
+	<vmPrimitive: 173 name: 'vmBanner'>
+	| b |
+	b := vmMain banner.
+	self answer: (memory stringFromUtf8: b size: (libc strlen: b))
 ! !

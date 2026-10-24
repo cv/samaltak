@@ -3,7 +3,7 @@ CLibrary subclass: #PosixProcesses
 	classVariableNames: ''
 	package: 'VM-Platform'!
 
-PosixProcesses comment: 'Child processes and pseudo-terminals: posix_spawnp, waitpid, kill, forkpty and what the forked child calls before execve. Not simulated.'!
+PosixProcesses comment: 'Child processes and pseudo-terminals: posix_spawnp, waitpid, kill, forkpty and what the forked child calls before execve; execvp. Not simulated.'!
 
 !PosixProcesses class methodsFor: 'declaring'!
 headers
@@ -94,6 +94,10 @@ chdir: path
 !
 execve: path argv: argv envp: envp
 	<c: 'int execve(const char *path, char **argv, char **envp)'>
+	^self notSimulated
+!
+execvp: file argv: argv
+	<c: 'int execvp(const char *file, char **argv)'>
 	^self notSimulated
 !
 exit: status

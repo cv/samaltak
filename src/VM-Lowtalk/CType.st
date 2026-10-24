@@ -175,7 +175,7 @@ load: aMemory zeroAt: anAddress
 ! !
 
 CType subclass: #CIntegerType
-	instanceVariableNames: 'size signed'
+	instanceVariableNames: 'size signed minimum maximum'
 	classVariableNames: ''
 	package: 'VM-Lowtalk'!
 
@@ -190,7 +190,9 @@ named: aString size: anInteger signed: aBoolean
 setName: aString size: anInteger signed: aBoolean
 	name := aString.
 	size := anInteger.
-	signed := aBoolean
+	signed := aBoolean.
+	minimum := signed ifTrue: [(1 bitShift: size * 8 - 1) negated] ifFalse: [0].
+	maximum := signed ifTrue: [(1 bitShift: size * 8 - 1) - 1] ifFalse: [(1 bitShift: size * 8) - 1]
 ! !
 
 !CIntegerType methodsFor: 'accessing'!
@@ -205,17 +207,18 @@ rank
 	^size
 !
 minimum
-	^signed ifTrue: [(1 bitShift: size * 8 - 1) negated] ifFalse: [0]
+	^minimum
 !
 maximum
-	^signed ifTrue: [(1 bitShift: size * 8 - 1) - 1] ifFalse: [(1 bitShift: size * 8) - 1]
+	^maximum
 !
 includes: anInteger
-	^anInteger isInteger and: [anInteger >= self minimum and: [anInteger <= self maximum]]
+	^anInteger isInteger and: [anInteger >= minimum and: [anInteger <= maximum]]
 !
 wrap: anInteger
 	"Answer anInteger reduced to my range (two's complement), as a C cast does."
 	| bits v |
+	(anInteger >= minimum and: [anInteger <= maximum]) ifTrue: [^anInteger].
 	bits := size * 8.
 	v := anInteger bitAnd: (1 bitShift: bits) - 1.
 	(signed and: [v >= (1 bitShift: bits - 1)]) ifTrue: [v := v - (1 bitShift: bits)].
@@ -234,13 +237,13 @@ sameAs: aCType
 load: aMemory at: anAddress
 	| v |
 	v := aMemory unsignedAt: anAddress size: size.
-	(signed and: [v >= (1 bitShift: size * 8 - 1)]) ifTrue: [v := v - (1 bitShift: size * 8)].
+	(signed and: [v > maximum]) ifTrue: [v := v - (maximum - minimum + 1)].
 	^v
 !
 store: aValue in: aMemory at: anAddress
 	(self includes: aValue) ifFalse: [
 		^aMemory simulationError: aValue printString , ' does not fit ' , name].
-	aMemory unsignedAt: anAddress size: size put: (aValue < 0 ifTrue: [aValue + (1 bitShift: size * 8)] ifFalse: [aValue])
+	aMemory unsignedAt: anAddress size: size put: (aValue < 0 ifTrue: [aValue + (maximum - minimum + 1)] ifFalse: [aValue])
 ! !
 
 CType subclass: #CFloatType

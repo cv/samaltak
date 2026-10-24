@@ -255,6 +255,9 @@ vmArguments
 imagePath
 	<primitive: 'imagePath'>
 !
+vmBanner
+	<primitive: 'vmBanner'>
+!
 getenv: name
 	<primitive: 'getenv'>
 !
