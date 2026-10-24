@@ -5,7 +5,7 @@
 // Usage: node walkthrough-mindblown.mjs <out-dir> [--only id,id,...]   →  <out-dir>/raw.mp4, captions.json
 // The browser writes accepted methods into a scratch copy of the sources (<out-dir>/src, --source-dir), not the repo.
 import { execFileSync } from 'node:child_process';
-import { rmSync } from 'node:fs';
+import { rmSync, writeFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { VideoSession, sleep } from '../video-lib.mjs';
@@ -27,6 +27,12 @@ const srcDir = join(out, 'src');
 rmSync(srcDir, { recursive: true, force: true });
 execFileSync('cp', ['-R', join(root, 'src'), srcDir]);
 const openArgs = ['--source-dir', srcDir];
+// The Terminal runs the user's login shell: give it a plain environment (a scratch HOME with a short prompt), so the
+// video shows no personal shell configuration.
+const home = join(out, 'home');
+execFileSync('mkdir', ['-p', home]);
+writeFileSync(join(home, '.zshrc'), "PS1='%F{blue}nuuk%f %# '\n");
+Object.assign(S.env, { HOME: home, SHELL: '/bin/zsh' });
 const ctl = (...a) => S.ctl(...a), act = (...a) => S.act(...a);
 const DESK = '1431,250';   // the desk at the right edge, never covered
 const W = { workspace: '@w1', transcript: '@w2', procs: '@w3', mandel: '@w4', inspector: '@w5', browser: '@w6' };
@@ -46,10 +52,10 @@ async function edit(old, text, ms = 110) {
   act('type', `${W.browser}.code`, text, '--delay', String(ms)); await sleep(text.length * ms + 400);
 }
 // Append an expression to the Workspace on its own line and evaluate it (Meta+d or Meta+p).
-async function evaluate(text, key = 'Meta+d') {
+async function evaluate(text, key = 'Meta+d', ms = 140) {
   act('type', `${W.workspace}.text`, '\n', '--end', '--delay', '0');
-  S.type(`${W.workspace}.text`, text);
-  await sleep(text.length * 140 + 300);
+  act('type', `${W.workspace}.text`, text, '--delay', String(ms));
+  await sleep(text.length * ms + 300);
   act('select', `${W.workspace}.text`, text); await sleep(300);
   act('key', key, `${W.workspace}.text`);
 }
@@ -245,9 +251,24 @@ const beats = [
     act('click', `${dbg}.proceed`); await sleep(2500);
   }],
 
-  // 14. The tiny core. TODO (feature): the Terminal tool: wc -l, Smalltalk line count, gst vs the Workspace's suite.
+  // 14. The tiny core: the Terminal tool (Smalltalk: pty primitives, VT100 parser, view) counts the C lines of the
+  // VM (core and platform layer) and the Smalltalk lines of the image's sources, and runs the benchmark suite in GNU
+  // Smalltalk; the Workspace evaluates the same suite in Samaltak.
   ['core', async () => {
-    await sleep(5000);
+    act('click', DESK); await sleep(700);
+    act('click', '@menu.terminal');
+    const term = await S.win(/Terminal/);
+    await sleep(1500);
+    const t = `${term}.terminal`;
+    const command = async (text, wait) => {
+      act('type', t, text, '--delay', '55'); await sleep(text.length * 55 + 300);
+      act('key', 'Return', t); await sleep(wait);
+    };
+    await command('wc -l vm/src/*.[ch] vm/platform/*.[ch] | tail -1', 1800);
+    await command("cat $(find src -name '*.st') | wc -l", 2000);
+    await command('gst -g vm/tests/bench/suite-gst.st', 400);
+    await evaluate("Compiler evaluate: (File readText: 'vm/tests/bench/suite-samaltak.st')", 'Meta+p', 50);
+    await sleep(4500);
   }],
 
   ['outro', async () => {
