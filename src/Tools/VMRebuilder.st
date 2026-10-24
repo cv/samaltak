@@ -137,10 +137,10 @@ buildDirectory
 	^(File directoryOf: src), '/build/vm'
 !
 makeCommandIn: aDirectory
-	"vm/Makefile of the current directory, run in aDirectory (with gen/ there), terse."
+	"vm/Makefile of the current directory, run in aDirectory (with gen/ there), terse, niced: the compilers must not take the CPU from the VM's vsync and UI."
 	| vm |
 	vm := Directory current, '/vm/'.
-	^'make -C ', (OSProcess quote: aDirectory), ' -f ', (OSProcess quote: vm, 'Makefile'), ' PGO_PROFILE=', (OSProcess quote: vm, 'pgo.profdata'), ' BRIEF=1 -j8 2>&1'
+	^'nice -n 10 make -C ', (OSProcess quote: aDirectory), ' -f ', (OSProcess quote: vm, 'Makefile'), ' PGO_PROFILE=', (OSProcess quote: vm, 'pgo.profdata'), ' BRIEF=1 -j8 2>&1'
 !
 restartArguments
 	"The image's arguments, with the control server's port pinned (--control-port 0 picks any): its clients find the image again."

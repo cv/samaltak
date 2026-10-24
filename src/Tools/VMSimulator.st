@@ -55,27 +55,31 @@ commandLine
 	^arguments text substrings
 !
 run
-	"Start the simulated VM in its own Process (stopping one still running)."
-	| argv image |
+	"Start the simulated VM in its own Process (stopping one still running), below the windows' priority."
+	| argv |
 	self stop.
 	argv := self commandLine.
-	image := argv detect: [:a | a endsWith: '.image'] ifNone: [nil].
-	image = self class miniImagePath ifTrue: [ImageBuilder buildFrom: 'vm/tests/mini' to: image].
 	output text: ''.
-	simulation := VMSimulation modules: (VMModule vmModules select: [:c | c packageName = 'VM-Core']).
-	simulation onOutput: [:text | lock critical: [pending nextPutAll: text]].
-	started := simulation microsecondClock.
-	status text: 'running'.
+	simulation := nil.
+	status text: 'starting'.
 	process := [self runSimulation: argv] newProcess.
 	process priority: Processor userBackgroundPriority; name: 'Simulated VM'.
 	process resume.
 	timer isNil ifTrue: [timer := self every: 100 do: [self update]]
 !
 runSimulation: argv
-	| code |
-	code := [simulation runMain: VMMain arguments: (Array with: 'samaltak') , argv asArray]
-		on: Error
-		do: [:e | e return: e messageText].
+	| image sim code |
+	code := [
+		image := argv detect: [:a | a endsWith: '.image'] ifNone: [nil].
+		image = self class miniImagePath ifTrue: [ImageBuilder buildFrom: 'vm/tests/mini' to: image].
+		sim := VMSimulation modules: (VMModule vmModules select: [:c | c packageName = 'VM-Core']).
+		sim onOutput: [:text | lock critical: [pending nextPutAll: text]].
+		started := sim microsecondClock.
+		simulation := sim.
+		sim runMain: VMMain arguments: (Array with: 'samaltak') , argv asArray]
+			on: Error
+			do: [:e | e return: e messageText].
+	simulation isNil ifTrue: [^lock critical: [pending nextPutAll: '[' , code asString , ']']].
 	lock critical: [pending nextPutAll: (String with: Character lf) , '[' , (code isInteger ifTrue: ['exit ' , code printString] ifFalse: [code asString]) , ' after ' , ((simulation microsecondClock - started) / 1000000.0 printShowingDecimalPlaces: 1) , ' s]']
 !
 update
@@ -83,7 +87,7 @@ update
 	| text |
 	text := lock critical: [| t | t := pending contents. pending := WriteStream on: String new. t].
 	text isEmpty ifFalse: [output appendText: text].
-	process isNil ifTrue: [^self].
+	(process isNil or: [simulation isNil]) ifTrue: [^self].
 	status text: (process isTerminated
 		ifTrue: ['done']
 		ifFalse: [(process isSuspended ifTrue: ['stopped'] ifFalse: ['running']) , ', ' , ((simulation microsecondClock - started) // 1000000) printString , ' s']) , ', ' , self speed
