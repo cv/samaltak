@@ -3,7 +3,7 @@ RemoteFakeWidget subclass: #RemoteFakeEditor
 	classVariableNames: ''
 	package: 'Tests-Remote'!
 
-RemoteFakeEditor comment: 'I am a fake editor that records remoteSelect: specs.'!
+RemoteFakeEditor comment: 'I am a fake editor that records remoteSelect: specs and answers remotePointAt: ''x,y'' as that offset from my top-left.'!
 
 !RemoteFakeEditor methodsFor: 'remote protocol'!
 remoteSelect: aSpec
@@ -13,4 +13,10 @@ remoteSelect: aSpec
 !
 selectSpecs
 	^selectSpecs ifNil: [#()]
+!
+remotePointAt: aSpec
+	| parts |
+	parts := aSpec substrings: ','.
+	parts size = 2 ifFalse: [^nil].
+	^self remoteBounds origin + (parts first asNumber @ parts last asNumber)
 ! !

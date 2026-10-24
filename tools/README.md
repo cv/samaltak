@@ -4,7 +4,7 @@ Drives a running Samaltak image through its control service (`ControlServer`, `s
 
     open [--headless] [--hidden] [--image path] [--theme t] [--port n] [--window-size WxH] [--source-dir d]
     snapshot [ref] [--depth n] [--bounds]       find <text>
-    click|dblclick|rightclick <ref|x,y> [--mods Shift+Meta]
+    click|dblclick|rightclick <ref|x,y> [--mods Shift+Meta]      hover <ref|x,y> [--at spec]   (--at: e.g. a PixelView pixel 4,7)
     type <ref> <text> [--end|--start|--replace] [--delay ms]   (the image types one character every ms, default 45)
     key <combo> [ref]   (Meta+p, Escape, Meta+.; Meta = platform modifier)
     drag <ref> <dx> <dy> | drag <ref> <ref>      resize <ref> <w> <h>      scroll <ref> [dy]
@@ -13,7 +13,7 @@ Drives a running Samaltak image through its control service (`ControlServer`, `s
     screenshot [ref] <path> [--scale 1|2] [--pointer]     close
     record start <out.mp4> [--size WxH] [--fps n]    record stop
 
-Input commands (click, type, key, drag, select, scroll, resize) wait until the image has settled — no user Process runnable, the UI idle — for at most 2 s; `--settle ms` changes that limit (`--settle 0`: return at once; useful while a window computes for a long time, as nothing settles then). A target in an inactive window gets focus through a click on that window's title bar, so the caret and the selection stay where they are.
+Input commands (click, hover, type, key, drag, select, scroll, resize) wait until the image has settled — no user Process runnable, the UI idle — for at most 2 s; `--settle ms` changes that limit (`--settle 0`: return at once; useful while a window computes for a long time, as nothing settles then). A target in an inactive window gets focus through a click on that window's title bar, so the caret and the selection stay where they are.
 
 `open` starts `vm/build/samaltak <image> --control --control-port <n> --control-port-file <tmp>` (default image `build/samaltak.image`, default port: a free one) and waits until it listens. Commands the image has not registered (without a UI only ping, commands, eval, wait, state and quit exist) fail with a clear message. Exit codes: 1 error, 2 not found / wait timed out, 3 Smalltalk error (the error JSON, with stack, on stdout).
 
@@ -38,6 +38,7 @@ JSON lines over TCP on 127.0.0.1. Request `{"id": 1, "cmd": "eval", "source": "3
 | `snapshot` | `ref`, `depth`, `bounds`, `maxItems` | `text` |
 | `find` | `text` | `matches` [{ref, role, label}] |
 | `click` | `target`, `button` (left/middle/right), `count`, `mods`, `settle` (ms, all input commands) | `at`, `settled` |
+| `hover` | `target`, `at` (a spec the widget turns into a point: `remotePointAt:`) | `at` |
 | `type` | `target`, `text`, `at` (end/start), `replace`, `delay` (ms between characters) | `typed` |
 | `key` | `combo` (String or Array), `target` | |
 | `drag` | `target`, `to` or `dx`/`dy`, `mods` | `from`, `to` |

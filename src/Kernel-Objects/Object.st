@@ -299,7 +299,10 @@ instVarNamed: aString put: value
 	^self instVarAt: (self class allInstVarNames indexOf: aString asString) put: value
 !
 inspect
-	"Tools override me to open an Inspector; headless I print the fields."
+	"Open an Inspector when the Tools run in a World; else print my fields."
+	| tools |
+	tools := Smalltalk at: #Tools ifAbsent: [nil].
+	(tools notNil and: [tools isRunning]) ifTrue: [^tools inspect: self].
 	Transcript show: self printString; cr.
 	self class allInstVarNames doWithIndex: [:name :i |
 		Transcript tab; show: name; show: ': '; show: (self instVarAt: i) printString; cr]

@@ -3,13 +3,13 @@ Object subclass: #RemoteUICommands
 	classVariableNames: ''
 	package: 'System-Remote'!
 
-RemoteUICommands comment: 'I am the generic implementation of the UI commands, written against the remote protocol (see RemoteControl): snapshot, find and bounds read a RemoteSnapshot; click, type, key, drag, select, scroll and resize answer a RemoteInputJob that resolves the target to a screen point, plays a RemoteInputPlan through RemoteInputDevice default and waits for the image to settle, all without blocking (the input dispatcher runs them when it hosts remote control). RemoteControl root: registers me; a UI replaces any command by registering its own.
+RemoteUICommands comment: 'I am the generic implementation of the UI commands, written against the remote protocol (see RemoteControl): snapshot, find and bounds read a RemoteSnapshot; click, hover, type, key, drag, select, scroll and resize answer a RemoteInputJob that resolves the target to a screen point, plays a RemoteInputPlan through RemoteInputDevice default and waits for the image to settle, all without blocking (the input dispatcher runs them when it hosts remote control). RemoteControl root: registers me; a UI replaces any command by registering its own.
 
-Targets are refs (@w1.ok, @w1.list#3) or points ({"x":…,"y":…}). Input commands wait until the image settles (RemoteInputDevice settle, at most 2 s); a request''s "settle" (ms, 0: do not wait) overrides that, e.g. for typing into a system whose user Processes are busy and never settle. A widget is hit at RemoteControl pointResolver''s point, else its remoteClickPoint, else the center of its remoteBounds.'!
+Targets are refs (@w1.ok, @w1.list#3) or points ({"x":…,"y":…}). Input commands wait until the image settles (RemoteInputDevice settle, at most 2 s); a request''s "settle" (ms, 0: do not wait) overrides that, e.g. for typing into a system whose user Processes are busy and never settle. A widget is hit at RemoteControl pointResolver''s point, else its remoteClickPoint, else the center of its remoteBounds; hover''s "at" spec asks the widget instead (remotePointAt:, e.g. a pixel ''4,7'' of a PixelView).'!
 
 !RemoteUICommands class methodsFor: 'registering'!
 registerIn: aRemoteControl
-	#(#snapshot #find #bounds #click #type #key #drag #select #scroll #resize) do: [:name |
+	#(#snapshot #find #bounds #click #hover #type #key #drag #select #scroll #resize) do: [:name |
 		aRemoteControl
 			registerGenericCommand: name asString
 			handler: [:request | self perform: (name, ':') asSymbol with: request]]
@@ -52,6 +52,16 @@ click: aRequest
 		click: point button: button count: count
 		modifiers: (RemoteInputPlanner modifiersFrom: (aRequest at: 'mods')).
 	^self job: aRequest play: plan answer: (Dictionary new at: 'at' put: (self pair: point); yourself)
+!
+hover: aRequest
+	"Move the pointer to the target (no button), or to the point its widget answers for the request's at (remotePointAt:)."
+	| target spec point |
+	target := aRequest target ifNil: [^RemoteError signal: 'hover: missing target'].
+	spec := aRequest at: 'at'.
+	point := spec isNil
+		ifTrue: [self pointFor: target]
+		ifFalse: [self pointFor: target at: spec].
+	^self job: aRequest play: (self device planner moveTo: point) answer: (Dictionary new at: 'at' put: (self pair: point); yourself)
 !
 type: aRequest
 	"Focus the target, position the caret (at: end/start, replace), then type the text: one textInput event per character, delay ms apart (default the planner's)."
@@ -215,6 +225,15 @@ select: aSpec in: aWidget job: aJob then: aBlock
 pointFor: aTarget
 	aTarget isPoint ifTrue: [^aTarget].
 	^self pointForNode: (RemoteControl snapshot resolveOrFail: aTarget)
+!
+pointFor: aTarget at: aSpec
+	| node point |
+	aTarget isPoint ifTrue: [^RemoteError signal: 'at: needs a ref, not a point'].
+	node := RemoteControl snapshot resolveOrFail: aTarget.
+	(node widget respondsTo: #remotePointAt:) ifFalse: [^RemoteError signal: node atRef, ' does not answer points for at'].
+	point := node widget remotePointAt: aSpec.
+	point isNil ifTrue: [^RemoteError notFound: node atRef, ' has no ', (JSON quote: aSpec)].
+	^point
 !
 pointForNode: aNode
 	| point |

@@ -68,6 +68,15 @@ colorFromPixelValue: v
 		b: ((v bitShift: -16) bitAnd: 255) / a
 		a: a / 255.0
 !
+pixelComponentNames
+	^#('r' 'g' 'b' 'a')
+!
+pixelComponentsAt: aPoint
+	"The bytes of the pixel at aPoint (0-based) as stored: premultiplied r g b a."
+	| v |
+	v := self pixelValueAt: aPoint.
+	^(0 to: 3) collect: [:i | (v bitShift: i * -8) bitAnd: 255]
+!
 asByteArray
 	"Answer my pixels as RGBA bytes."
 	| bytes |

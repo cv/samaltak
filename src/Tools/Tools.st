@@ -108,6 +108,9 @@ p := 3 @ 4
 world
 	^Desktop current
 !
+isRunning
+	^Desktop isRunning
+!
 layoutRect: aSymbol
 	"The prototype's window frame for aSymbol (main.js layoutFor), scaled to the World."
 	| r ext top sx sy |

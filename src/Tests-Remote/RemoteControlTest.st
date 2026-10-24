@@ -226,6 +226,22 @@ testClickAndSelect
 	r := self send: ((self cmd: 'select' with: 'target' with: '@w1.packages') at: 'spec' put: 'Nope'; yourself).
 	self assert: (r at: 'code') equals: 2
 !
+testHover
+	| r |
+	self installFakeUI.
+	r := self send: (self cmd: 'hover' with: 'target' with: '@w1.packages.kernel-objects').
+	self assert: (r at: 'at') equals: #(50 50).
+	self assert: (events collect: [:e | e first]) asArray equals: #(1).
+	r := self send: ((self cmd: 'hover' with: 'target' with: '@w1.text') at: 'at' put: '4,7'; yourself).
+	self assert: (r at: 'at') equals: #(104 27).
+	self assert: (events collect: [:e | e first]) asSet asArray equals: #(1).
+	self assert: (events last at: 3) equals: 104.0.
+	self assert: (events last at: 4) equals: 27.0.
+	r := self send: ((self cmd: 'hover' with: 'target' with: '@w1.packages') at: 'at' put: '4,7'; yourself).
+	self deny: (r at: 'ok').
+	r := self send: ((self cmd: 'hover' with: 'target' with: '@w1.text') at: 'at' put: 'nope'; yourself).
+	self assert: (r at: 'code') equals: 2
+!
 testTypeKeyDragScrollResize
 	| r editor |
 	self installFakeUI.

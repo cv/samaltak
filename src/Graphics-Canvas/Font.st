@@ -181,6 +181,12 @@ prerasterize: aString
 		0 to: phases - 1 do: [:phase | self glyphForCodePoint: ch value phase: phase]]
 ! !
 
+!Font methodsFor: 'inspecting'!
+glyphFor: aCharacter
+	"Answer aCharacter's glyph as Canvas draws it: a GlyphForm of its coverage."
+	^GlyphForm font: self character: aCharacter
+! !
+
 !Font methodsFor: 'printing'!
 printOn: aStream
 	aStream nextPutAll: 'a Font('; nextPutAll: face name; space; print: size; nextPutAll: 'px @'; print: scale; nextPut: $)

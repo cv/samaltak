@@ -16,6 +16,7 @@ const USAGE = `usage: samaltak-ctl [--session name] <command> [args]
   find <text>                              refs whose label/ref contains text
   click <ref|x,y> [--right] [--mods Shift+Meta]
   dblclick <ref|x,y>    rightclick <ref|x,y>
+  hover <ref|x,y> [--at spec]              move the pointer there (--at: a point the widget answers, e.g. a pixel 4,7)
   type <ref> <text> [--end|--start|--replace] [--delay ms]   one command; the image types the characters ms apart (default 45)
   key <combo> [ref]                        e.g. Meta+p, Escape, Meta+.  (Meta = platform modifier)
   drag <ref> <dx> <dy> | drag <ref> <ref>  move windows by their title bar, splitters, handles
@@ -41,7 +42,7 @@ const pos = [];
 for (let i = 0; i < argv.length; i++) {
   const a = argv[i];
   if (a === '--session') session = argv[++i];
-  else if (/^--(theme|type|depth|mods|timeout|image|port|scale|size|fps|window-size|settle|delay|source-dir)$/.test(a)) flags[a.slice(2)] = argv[++i];
+  else if (/^--(theme|type|depth|mods|timeout|image|port|scale|size|fps|window-size|settle|delay|source-dir|at)$/.test(a)) flags[a.slice(2)] = argv[++i];
   else if (/^--(headless|hidden|headed|bounds|right|end|start|replace|json|pointer)$/.test(a)) flags[a.slice(2)] = true;
   else if (a === '-h' || a === '--help') { console.log(USAGE); process.exit(0); }
   else pos.push(a);
@@ -83,7 +84,7 @@ function request(port, req, timeout = 60000) {
 async function call(req, timeout) {
   const s = readSession();
   if (!s) die(`no Samaltak in session ${session} (run: samaltak-ctl open)`);
-  if (flags.settle != null && /^(click|type|key|drag|select|scroll|resize)$/.test(req.cmd)) req = { ...req, settle: +flags.settle };
+  if (flags.settle != null && /^(click|hover|type|key|drag|select|scroll|resize)$/.test(req.cmd)) req = { ...req, settle: +flags.settle };
   let r;
   try { r = await request(s.port, req, timeout); }
   catch (e) {
@@ -238,6 +239,7 @@ async function main() {
     case 'click': need(1, 'click <ref|x,y>'); return print(await call({ cmd: 'click', target: target(args[0]), button: flags.right ? 'right' : 'left', mods: flags.mods }));
     case 'rightclick': need(1, 'rightclick <ref|x,y>'); return print(await call({ cmd: 'click', target: target(args[0]), button: 'right', mods: flags.mods }));
     case 'dblclick': need(1, 'dblclick <ref|x,y>'); return print(await call({ cmd: 'click', target: target(args[0]), count: 2, mods: flags.mods }));
+    case 'hover': need(1, 'hover <ref|x,y> [--at spec]'); return print(await call({ cmd: 'hover', target: target(args[0]), at: flags.at }));
     case 'type': need(2, 'type <ref> <text>'); return print(await call({ cmd: 'type', target: target(args[0]), text: args.slice(1).join(' '), at: flags.end ? 'end' : flags.start ? 'start' : undefined, replace: !!flags.replace, delay: +(flags.delay ?? 45) }));
     case 'key': need(1, 'key <combo> [ref]'); return print(await call({ cmd: 'key', combo: args[0], target: args[1] ? target(args[1]) : undefined }));
     case 'drag':

@@ -78,7 +78,7 @@ handlerFor: aString
 !
 uiCommandNames
 	"Commands a UI provides; without one the image answers a clear error for them."
-	^#('snapshot' 'find' 'click' 'type' 'key' 'drag' 'select' 'scroll' 'resize' 'bounds' 'screenshot' 'record')
+	^#('snapshot' 'find' 'click' 'hover' 'type' 'key' 'drag' 'select' 'scroll' 'resize' 'bounds' 'screenshot' 'record')
 ! !
 
 !RemoteControl class methodsFor: 'snapshot root'!

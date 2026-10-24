@@ -1,9 +1,9 @@
 ToolPane subclass: #Inspector
-	instanceVariableNames: 'object fields valueView valueHeader evalHeader evalEditor evaluator lastValueText'
+	instanceVariableNames: 'object fields valueView valueHeader evalHeader evalEditor evaluator lastValueText pixelView pixelHeader pixelStatus'
 	classVariableNames: ''
 	package: 'Tools'!
 
-Inspector comment: 'I am an Inspector (prototypes/1-classic/tools.js openInspector): the fields of an object on the left (self, class, instance variables, indexed slots or dictionary keys), the selected field''s printString on the right, and below an evaluator with self bound to the object (⌘D ⌘P ⌘I, in a Process of its own). Double-click a field to inspect its value in a new Inspector. Right-click a field: Halt on write (a real Watchpoint on that instance variable; the field then shows a "halt on write" tag), Break when this object receives… (a per-object Breakpoint), Breakpoints…. I re-read the values twice a second, so a changing object shows its current state.
+Inspector comment: 'I am an Inspector (prototypes/1-classic/tools.js openInspector): the fields of an object on the left (self, class, instance variables, indexed slots or dictionary keys), the selected field''s printString on the right, and below an evaluator with self bound to the object (⌘D ⌘P ⌘I, in a Process of its own). Double-click a field to inspect its value in a new Inspector. Right-click a field: Halt on write (a real Watchpoint on that instance variable; the field then shows a "halt on write" tag), Break when this object receives… (a per-object Breakpoint), Breakpoints…. I re-read the values twice a second, so a changing object shows its current state. A Form also shows its pixels magnified (PixelView, remote name pixels); the pixel under the pointer and its value are in the status line below.
 
 	Inspector openOn: 3 @ 4 near: nil'!
 
@@ -25,10 +25,13 @@ setObject: anObject bindings: aDictionaryOrNil
 	fields items: (InspectorField fieldsOf: anObject).
 	valueView := ToolTextEditor new name: 'value'; title: 'value'; readOnly: true; highlighting: false; yourself.
 	valueHeader := PaneHeader title: 'Value' right: (self className: anObject).
-	top := Row with: (Array
-		with: ((self pane: fields title: 'Fields') flex: 0.8)
-		with: ((Column with: (Array with: valueHeader with: valueView)) flex: 1.2)).
-	top separators: true; percent: 64.
+	top := (anObject isKindOf: Form)
+		ifTrue: [self pixelRowOn: anObject]
+		ifFalse: [
+			(Row with: (Array
+				with: ((self pane: fields title: 'Fields') flex: 0.8)
+				with: ((Column with: (Array with: valueHeader with: valueView)) flex: 1.2))) percent: 64].
+	top separators: true.
 	evalEditor := ToolTextEditor new name: 'evaluate'; title: 'evaluate'; yourself.
 	evalEditor text: (self sampleExpressionFor: anObject).
 	evaluator := CodeEvaluator new receiverBlock: [object]; processName: 'Inspector doIt'; yourself.
@@ -42,6 +45,32 @@ setObject: anObject bindings: aDictionaryOrNil
 !
 minimumWindowExtent
 	^300 @ 200
+! !
+
+!Inspector methodsFor: 'pixels'!
+pixelRowOn: aForm
+	"Fields over the value on the left, the pixels on the right."
+	pixelView := PixelView new name: 'pixels'; form: aForm; yourself.
+	pixelView onChange: [:view | self pixelsChanged].
+	pixelHeader := PaneHeader title: 'Pixels'.
+	pixelHeader name: 'pixels-header'.
+	pixelStatus := StatusBar new name: 'pixel-status'; yourself.
+	self pixelsChanged.
+	^(Row with: (Array
+		with: ((Column with: (Array
+			with: ((self pane: fields title: 'Fields') flex: 1)
+			with: ((Column with: (Array with: valueHeader with: valueView)) flex: 0.5))) separators: true; flex: 0.7)
+		with: ((Column with: (Array with: pixelHeader with: pixelView with: pixelStatus)) flex: 1.3))) percent: 78
+!
+pixelsChanged
+	pixelHeader rightText: pixelView summary.
+	pixelStatus clear.
+	pixelView hover isNil
+		ifTrue: [pixelStatus add: 'hover a pixel · wheel or + − 0 zoom']
+		ifFalse: [pixelStatus add: pixelView hoverText style: #mono]
+!
+pixelView
+	^pixelView
 ! !
 
 !Inspector methodsFor: 'accessing'!
@@ -119,7 +148,8 @@ showField: aField
 refresh
 	"Re-read the selected field's value and the tags (my window's Process, twice a second)."
 	fields selection isNil ifFalse: [self showField: fields selection].
-	fields invalidate
+	fields invalidate.
+	pixelView isNil ifFalse: [pixelView refresh]
 !
 dive: aField
 	aField isNil ifTrue: [^nil].
@@ -187,7 +217,7 @@ openOn: anObject near: aWindowOrNil
 	^self openOn: anObject near: aWindowOrNil bindings: nil
 !
 openOn: anObject near: aWindowOrNil bindings: aDictionaryOrNil
-	^self openOn: anObject in: (Tools placeNear: aWindowOrNil extent: 450 @ 290) bindings: aDictionaryOrNil
+	^self openOn: anObject in: (Tools placeNear: aWindowOrNil extent: ((anObject isKindOf: Form) ifTrue: [720 @ 540] ifFalse: [450 @ 290])) bindings: aDictionaryOrNil
 !
 article: aString
 	^((aString notEmpty and: ['AEIOU' includes: aString first]) ifTrue: ['an '] ifFalse: ['a ']), aString
