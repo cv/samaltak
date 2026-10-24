@@ -99,10 +99,10 @@ printStringOf: anObject
 		e return: 'a ', anObject class name, ' (printString failed: ', e messageText asString, ')']
 !
 finished: aProcess value: anObject text: aStringOrNil mode: aSymbol at: anInterval before: aSet
-	"Runs in the do-it Process: note forked Processes, then show the result in the editor's window (opening an Inspector is tool code: breakpoints do not stop it)."
+	"Runs in the do-it Process: note forked Processes (not the window system's, which may have started meanwhile, e.g. when the image was resumed), then show the result in the editor's window (opening an Inspector is tool code: breakpoints do not stop it)."
 	| forked |
 	forked := Processor allProcesses reject: [:p |
-		(aSet includes: p) or: [p == aProcess or: [p isTerminated or: [(p name ifNil: ['']) beginsWith: 'debugger']]]].
+		(aSet includes: p) or: [p == aProcess or: [p isTerminated or: [((p name ifNil: ['']) beginsWith: 'debugger') or: [DebuggerTools isUIProcess: p]]]]].
 	children addAll: forked.
 	forked do: [:p | self class note: p source: (self class sourceOf: aProcess)].
 	aSymbol == #inspect ifTrue: [Breakpoint ignoreDuring: [Tools inspect: anObject near: editor window]].

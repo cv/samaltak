@@ -348,6 +348,14 @@ expand
 !
 toggleCollapse
 	collapsed ifTrue: [self expand] ifFalse: [self collapse]
+!
+resumed
+	"My World resumed after an image restart (World>>resumeHidden:): my layer is rendered again; animations started on the old clock jump to their end."
+	layer finishAnimations; markNeedsRender.
+	handlingSince isNil ifFalse: [handlingSince := Time microsecondClockValue].
+	self do: [
+		animations do: [:each | each isFrameAnimation ifFalse: [each finish]].
+		self invalidate]
 ! !
 
 !Window methodsFor: 'scheduling'!

@@ -3,7 +3,7 @@ Object subclass: #UIWindows
 	classVariableNames: 'StartupAction'
 	package: 'UI-Windows'!
 
-UIWindows comment: 'I start the window system. A normal start of the image (no --stage2, --test or --eval) runs my main action: unless --headless, open the host window (1440×900 points, or --window-size WxH; --hidden keeps it offscreen), start the World with its Compositor and InputDispatcher, register the World with remote control when the control server runs (--control), and run the startup action (set by the Demos or the Tools package: UIWindows startupAction: [...]).
+UIWindows comment: 'I start the window system. A normal start of the image (no --stage2, --test or --eval) runs my main action: unless --headless, open the host window (1440×900 points, or --window-size WxH; --hidden keeps it offscreen), start the World with its Compositor and InputDispatcher, register the World with remote control when the control server runs (--control), and run the startup action (set by the Demos or the Tools package: UIWindows startupAction: [...]). An image saved while its World ran resumes that World (World>>resumeHidden:): every window as it was, with its Process.
 
 	UIWindows startUp          "open the World now (answers it)"
 	UIWindows startupAction: [World current ...]'!
@@ -41,9 +41,11 @@ firstShaderErrorIn: aString
 !
 
 startUp: resuming
-	"A World saved in the image lost its processes and handles."
-	resuming ifTrue: [
-		World current isNil ifFalse: [World current abandon]]
+	"A World saved in the image lost its host window, GPU objects, compositor and input dispatcher; its windows and their Processes did not. With a display it resumes as it was saved, else it is abandoned."
+	(resuming and: [World current notNil]) ifFalse: [^self].
+	Smalltalk isHeadless ifTrue: [^World current abandon].
+	World current resumeHidden: self isHidden.
+	ControlServer current isNil ifFalse: [UIRemote installOn: World current]
 ! !
 
 !UIWindows class methodsFor: 'starting'!

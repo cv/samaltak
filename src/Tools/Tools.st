@@ -319,20 +319,21 @@ imageName
 	^path copyAfterLast: $/
 !
 saveImage
-	"Snapshot the image in place (in a Process of its own; when the snapshot is resumed later, reopen the desktop)."
+	"Snapshot the image in place (in a Process of its own). When the saved image is started later, its desktop resumes as it was (UIWindows startUp:) and this Process continues here; without a display it starts like a fresh image."
 	| path t0 resumed ms size |
 	path := Smalltalk vm imagePath.
 	path isNil ifTrue: [^self toast: 'No image path'].
 	t0 := Time millisecondClockValue.
 	resumed := Smalltalk snapshot: path.
 	resumed == true ifTrue: [
-		"Started from the saved image: the World saved in it was abandoned (UIWindows startUp:); open a fresh one."
-		Desktop startUp.
-		^Desktop runStartupAction].
+		Desktop isRunning ifFalse: [^Smalltalk processCommandLine].
+		^self toast: self imageName, ' resumed'].
 	ms := Time millisecondClockValue - t0.
 	size := [File sizeOf: path] on: Error do: [:e | e return: nil].
-	self toast: self imageName, ' saved', (size isNil ifTrue: [''] ifFalse: [' — ', (size / 1048576.0 printShowingDecimalPlaces: 1), ' MB']),
-		', ', (ms / 1000.0 printShowingDecimalPlaces: 2), ' s'
+	"Breakpoints (e.g. on Integer>>gcd:) must not stop the toast's arithmetic."
+	Breakpoint ignoreDuring: [
+		self toast: self imageName, ' saved', (size isNil ifTrue: [''] ifFalse: [' — ', (size / 1048576.0 printShowingDecimalPlaces: 1), ' MB']),
+			', ', (ms / 1000.0 printShowingDecimalPlaces: 2), ' s']
 !
 quit
 	Smalltalk quit: 0

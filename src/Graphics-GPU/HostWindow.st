@@ -49,6 +49,10 @@ title
 title: aString
 	title := aString.
 	self isOpen ifTrue: [GPUPlatform window: handle title: aString]
+!
+hidden: aBoolean
+	"Open hidden (offscreen) or shown when my handle is created next (first use, new session)."
+	flags := (flags bitAnd: -2) + (aBoolean ifTrue: [1] ifFalse: [0])
 ! !
 
 !HostWindow methodsFor: 'showing'!

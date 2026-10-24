@@ -358,6 +358,23 @@ abandon
 	compositor isNil ifFalse: [compositor abandon].
 	running := false.
 	Current == self ifTrue: [Current := nil]
+!
+resumeHidden: aBoolean
+	"After an image restart from a snapshot taken while I ran: my host window, GPU objects, compositor and input dispatcher died with the old VM; my windows and their Processes did not. Re-open the host window (same size; hidden if aBoolean), start a new compositor and input dispatcher, and composite every window again. Animations and toasts ran on the old clock: animations jump to their end, toasts go."
+	dispatcher isNil ifFalse: [dispatcher abandon].
+	compositor isNil ifFalse: [compositor abandon].
+	running := false.
+	hidden := aBoolean.
+	imageName := self class imageName.
+	displayWindow hidden: aBoolean.
+	toasts := #().
+	tooltip := nil.
+	closingWindows := #().
+	(windows, overlays) do: [:w | w resumed].
+	extent = displayWindow extent ifFalse: [self hostResized: displayWindow extent].
+	self displayScaleChanged: displayWindow scale.
+	self start.
+	self changed
 ! !
 
 !World methodsFor: 'waiting'!
