@@ -34,6 +34,8 @@ The interpreter's frames are the canonical state. Machine code runs on the same 
 
 **Triggering.** Counters on activation and on backward jumps; thresholds are flags (`--jit-threshold`), so warm-up can be compared.
 
+**Disassembly.** The machine code of any method can be shown from the image, for any variant (compiling it if needed): every instruction, grouped under the bytecode it implements (with the source), and commented with what it does (inline-cache check, tag check, overflow branch, spill, call into the runtime...). Compilers record these comments as they emit; a primitive answers code, bytecode map and comments; the image's disassembler prints them.
+
 **Statistics** (vmStats): methods and bytecodes compiled, microseconds compiling, code bytes, cache flushes, per tier.
 
 ## Benchmarks
