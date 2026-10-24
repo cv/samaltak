@@ -101,6 +101,8 @@ testFloatLiterals
 	self assert: (self eval: '2.5e-3') equals: 25 / 10000.0.
 	self assert: (self eval: '-0.5') equals: -1 / 2.0.
 	self assert: (self eval: '1.0e10') equals: 10000000000.0.
+	self assert: (self eval: '0.00166007664274403694') asIEEEBits equals: 16r3F5B32DDB8EC9209.
+	self assert: (self eval: '12.894369562139131') asIEEEBits equals: 16r4029C9EACEA7D9CF.
 	self assert: (self eval: '2.5') isFloat
 !
 testCharacterAndStringLiterals
