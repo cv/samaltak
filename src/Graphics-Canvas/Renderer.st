@@ -158,6 +158,9 @@ shaderSourceChanged
 	"My shader source may have changed: every Renderer rebuilds its pipeline before its next render."
 	SourceGeneration := self sourceGeneration + 1
 !
+shaderErrorHandler
+	^ShaderErrorHandler
+!
 shaderErrorHandler: aBlockOrNil
 	"aBlockOrNil receives the error (a GPUError with the Metal log, or any Error) when changed shader source does not build; nil: the Transcript."
 	ShaderErrorHandler := aBlockOrNil

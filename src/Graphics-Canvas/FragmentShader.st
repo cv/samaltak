@@ -1,0 +1,115 @@
+Object subclass: #FragmentShader
+	instanceVariableNames: 'device source pipeline failedSource texture rendered renderedGeneration size'
+	classVariableNames: ''
+	package: 'Graphics-Canvas'!
+
+FragmentShader comment: 'I render an MSL fragment shader over the whole of a texture of mine: pictures computed on the GPU, drawn with Canvas>>image:in: like a Form. imageExtent:source:uniforms: answers a ShaderImage, one frame: what it shows is rendered when the Renderer first draws it, and again only when my texture lost its contents (a new session).
+
+The source is a fragment function named fmain after my prelude (metal_stdlib, and the struct ShaderIn: pos, uv 0..1 from the top-left, size in pixels); its uniforms are [[buffer(0)]]:
+
+	fragment float4 fmain(ShaderIn in [[stage_in]], constant float4 &tint [[buffer(0)]]) { return tint; }
+
+Its output is premultiplied RGBA. A new source builds a new pipeline before the next frame; if it does not compile the old one stays and Renderer reportShaderError: gets the error.'!
+
+!FragmentShader methodsFor: 'initialization'!
+setDevice: aDevice
+	device := aDevice.
+	size := ByteArray new: 16
+! !
+
+!FragmentShader methodsFor: 'accessing'!
+device
+	^device
+!
+texture
+	^texture
+! !
+
+!FragmentShader methodsFor: 'images'!
+imageExtent: aPoint source: mslString uniforms: aByteArray
+	"A frame of aPoint pixels, rendered from mslString with aByteArray (16-byte padded) as its uniforms."
+	^ShaderImage new setShader: self extent: aPoint source: mslString uniforms: aByteArray
+! !
+
+!FragmentShader methodsFor: 'rendering'!
+textureFor: aShaderImage
+	"My texture showing aShaderImage, rendered unless it already does."
+	(texture isNil or: [texture extent ~= aShaderImage extent]) ifTrue: [
+		texture isNil ifFalse: [texture release].
+		texture := device textureWidth: aShaderImage width height: aShaderImage height format: #rgba8 usage: #(#sampler #colorTarget).
+		rendered := nil].
+	(rendered == aShaderImage and: [renderedGeneration = texture generation]) ifTrue: [^texture].
+	self updatePipeline: aShaderImage source.
+	pipeline isNil ifFalse: [self render: aShaderImage].
+	rendered := aShaderImage.
+	renderedGeneration := texture generation.
+	^texture
+!
+render: aShaderImage
+	"In a command buffer of my own: it is submitted before the one drawing the frame."
+	| cmd pass |
+	cmd := device commandBuffer.
+	size float32At: 1 put: aShaderImage width asFloat.
+	size float32At: 5 put: aShaderImage height asFloat.
+	cmd pushVertexUniforms: size slot: 0.
+	cmd pushFragmentUniforms: aShaderImage uniforms slot: 0.
+	pass := cmd beginPassOn: texture clear: #(0.0 0.0 0.0 0.0).
+	pass pipeline: pipeline.
+	pass draw: 3 from: 0.
+	pass end.
+	cmd submit
+! !
+
+!FragmentShader methodsFor: 'pipeline'!
+updatePipeline: mslString
+	| new |
+	(mslString == source or: [mslString == failedSource]) ifTrue: [^self].
+	new := [(self pipelineFrom: mslString) handle; yourself]
+		on: Error
+		do: [:e | Renderer reportShaderError: e. e return: nil].
+	new isNil ifTrue: [^failedSource := mslString].
+	pipeline isNil ifFalse: [pipeline release].
+	pipeline := new.
+	source := mslString
+!
+pipelineFrom: mslString
+	| vs fs |
+	vs := device shaderSource: self class prelude, self class vertexSource entry: 'vmain' stage: #vertex samplers: 0 uniformBuffers: 1.
+	fs := device shaderSource: self class prelude, mslString entry: 'fmain' stage: #fragment samplers: 0 uniformBuffers: 1.
+	^device pipelineVertex: vs fragment: fs stride: 0 attributes: #() primitive: #triangles blend: #none format: #rgba8
+! !
+
+!FragmentShader methodsFor: 'releasing'!
+release
+	pipeline isNil ifFalse: [pipeline release].
+	texture isNil ifFalse: [texture release].
+	pipeline := texture := source := rendered := nil
+! !
+
+!FragmentShader class methodsFor: 'instance creation'!
+new
+	^self on: GPUDevice default
+!
+on: aDevice
+	^self basicNew setDevice: aDevice
+! !
+
+!FragmentShader class methodsFor: 'shaders'!
+prelude
+	^'#include <metal_stdlib>
+using namespace metal;
+struct ShaderIn { float4 pos [[position]]; float2 uv; float2 size [[flat]]; };
+'
+!
+vertexSource
+	"One triangle covering the target."
+	^'vertex ShaderIn vmain(uint vid [[vertex_id]], constant float2 &size [[buffer(0)]]) {
+	ShaderIn o;
+	float2 k = float2((vid << 1) & 2u, vid & 2u);
+	o.pos = float4(k.x * 2.0 - 1.0, 1.0 - k.y * 2.0, 0.0, 1.0);
+	o.uv = k;
+	o.size = size;
+	return o;
+}
+'
+! !
