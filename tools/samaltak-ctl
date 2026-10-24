@@ -11,7 +11,7 @@ const os = require('os');
 
 const ROOT = path.resolve(__dirname, '..');
 const USAGE = `usage: samaltak-ctl [--session name] <command> [args]
-  open [--headless] [--hidden] [--image path] [--theme t] [--port n] [--window-size WxH]   start an image with --control
+  open [--headless] [--hidden] [--image path] [--theme t] [--port n] [--window-size WxH] [--source-dir d]   start an image with --control
   snapshot [ref] [--depth n] [--bounds]    widget tree with stable @refs
   find <text>                              refs whose label/ref contains text
   click <ref|x,y> [--right] [--mods Shift+Meta]
@@ -41,7 +41,7 @@ const pos = [];
 for (let i = 0; i < argv.length; i++) {
   const a = argv[i];
   if (a === '--session') session = argv[++i];
-  else if (/^--(theme|type|depth|mods|timeout|image|port|scale|size|fps|window-size|settle|delay)$/.test(a)) flags[a.slice(2)] = argv[++i];
+  else if (/^--(theme|type|depth|mods|timeout|image|port|scale|size|fps|window-size|settle|delay|source-dir)$/.test(a)) flags[a.slice(2)] = argv[++i];
   else if (/^--(headless|hidden|headed|bounds|right|end|start|replace|json|pointer)$/.test(a)) flags[a.slice(2)] = true;
   else if (a === '-h' || a === '--help') { console.log(USAGE); process.exit(0); }
   else pos.push(a);
@@ -129,6 +129,7 @@ async function open() {
   if (flags.hidden) vmArgs.push('--hidden');
   if (flags.theme) vmArgs.push('--theme', flags.theme);
   if (flags['window-size']) vmArgs.push('--window-size', flags['window-size']);
+  if (flags['source-dir']) vmArgs.push('--source-dir', path.resolve(flags['source-dir']));
   const log = fs.openSync(logFile, 'w');
   const child = spawn(vm, vmArgs, { cwd: ROOT, detached: true, stdio: ['ignore', log, log] });
   child.unref();
@@ -166,7 +167,9 @@ async function record() {
   const s = readSession();
   if (!s) die(`no Samaltak in session ${session} (run: samaltak-ctl open)`);
   if (action === 'stop') {
-    const r = await call({ cmd: 'record', action: 'stop' });
+    // If the image already quit (it ends the recording itself: ffmpeg sees the end of the FIFO), finish ffmpeg anyway.
+    let r = { frames: '?' };
+    if (alive(s.pid)) r = await call({ cmd: 'record', action: 'stop' });
     const rec = s.recording;
     if (rec) {
       const t0 = Date.now();

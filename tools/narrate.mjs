@@ -1,6 +1,6 @@
 #!/usr/bin/env node
-// Generates one ElevenLabs narration clip per step in narration.json.
-// Usage: node narrate.mjs <out-dir>   →  <out-dir>/narration/<id>.mp3, durations.json
+// Generates one ElevenLabs narration clip per step of a narration file (default: tools/narration.json).
+// Usage: node narrate.mjs <out-dir> [steps.json]   →  <out-dir>/narration/<id>.mp3, durations.json
 // Needs ELEVENLABS_API_KEY (environment or the repo's .env). Clips are cached by text and voice.
 import { execFileSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
@@ -23,7 +23,7 @@ if (!key) { console.error('narrate: ELEVENLABS_API_KEY is not set'); process.exi
 
 const VOICE = process.env.ELEVENLABS_VOICE || 'CwhRBWXzGAHq8TQ4Fs17'; // "Roger": laid-back, casual, conversational
 const MODEL = 'eleven_v4'; // delivery via inline audio tags such as [warm], [pause]
-const steps = JSON.parse(readFileSync(join(here, 'narration.json'), 'utf8'));
+const steps = JSON.parse(readFileSync(resolve(process.argv[3] || join(here, 'narration.json')), 'utf8'));
 const durations = {};
 
 for (const step of steps) {

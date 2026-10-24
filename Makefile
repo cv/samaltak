@@ -41,8 +41,18 @@ video: vm image
 	python3 tools/compose-video.py $(VIDEO)
 	cp $(VIDEO)/walkthrough.mp4 docs/media/walkthrough.mp4
 
+# The "mind blown" video (.context/mindblown.md): the same pipeline, steps in tools/mindblown/narration.json. Beat 13
+# saves the image and relaunches it, so it runs on its own copy of the image.
+MINDBLOWN ?= .context/video-mindblown
+mindblown-video: vm image
+	cp $(OUT)/samaltak.image $(OUT)/nuuk.image
+	node tools/narrate.mjs $(MINDBLOWN) tools/mindblown/narration.json
+	WALKTHROUGH_IMAGE=$(OUT)/nuuk.image node tools/mindblown/walkthrough-mindblown.mjs $(MINDBLOWN)
+	python3 tools/compose-video.py $(MINDBLOWN) mindblown.mp4
+	cp $(MINDBLOWN)/mindblown.mp4 docs/media/mindblown.mp4
+
 clean:
 	$(MAKE) -C vm clean
 	rm -rf build
 
-.PHONY: all vm seed image test-vm test video clean
+.PHONY: all vm seed image test-vm test video mindblown-video clean

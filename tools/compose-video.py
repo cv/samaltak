@@ -1,11 +1,13 @@
 #!/usr/bin/env python3
 """Adds a caption band and the narration (if <dir>/narration exists) to the walkthrough recording.
-Usage: compose-video.py <dir>   (expects <dir>/raw.mp4 and <dir>/captions.json from walkthrough.mjs)"""
+Usage: compose-video.py <dir> [out-name]   (expects <dir>/raw.mp4 and <dir>/captions.json; writes <dir>/<out-name>,
+default walkthrough.mp4)"""
 import html, json, os, subprocess, sys
 
 d = os.path.abspath(sys.argv[1] if len(sys.argv) > 1 else os.path.join(os.path.dirname(__file__), '../.context/video-real'))
 fonts = os.path.abspath(os.path.join(os.path.dirname(__file__), '../prototypes/shared/pi-orb-fonts.css'))
 caps = json.load(open(os.path.join(d, 'captions.json')))
+name = sys.argv[2] if len(sys.argv) > 2 else 'walkthrough.mp4'
 
 page = f'''<!doctype html><meta charset="utf-8"><link rel="stylesheet" href="file://{fonts}">
 <style>body{{margin:0;background:#fff}}
@@ -41,6 +43,6 @@ if clips:
     graph.append(''.join(f'[a{k}]' for k in range(len(clips))) + f'amix=inputs={len(clips)}:normalize=0[aout]')
     maps += ['-map', '[aout]', '-c:a', 'aac', '-b:a', '160k']
 args += ['-filter_complex', ';'.join(graph), *maps, '-c:v', 'libx264', '-pix_fmt', 'yuv420p',
-         '-crf', '20', '-preset', 'slow', '-movflags', '+faststart', os.path.join(d, 'walkthrough.mp4')]
+         '-crf', '20', '-preset', 'slow', '-movflags', '+faststart', os.path.join(d, name)]
 subprocess.run(args, check=True)
-print(os.path.join(d, 'walkthrough.mp4'))
+print(os.path.join(d, name))

@@ -1,0 +1,72 @@
+[
+  {
+    "id": "intro",
+    "caption": "Samaltak · Live. Everything in this video changes a running system, driven through samaltak-ctl.",
+    "spoken": "[warm] Okay, this one's fun. Everything you're about to see changes a running system. No restarts, no tricks."
+  },
+  {
+    "id": "restyle",
+    "caption": "The theme is a Smalltalk class: change the accent in the System Browser, ⌘S, and every window restyles at once.",
+    "spoken": "Let's start with the look. The theme is just a class. Change the accent colour, save, and [pause] every window picks it up, while the Mandelbrot keeps rendering."
+  },
+  {
+    "id": "shader",
+    "caption": "The GPU shader is Smalltalk source too: edit the Renderer's MSL, ⌘S, and the pipeline is rebuilt.",
+    "spoken": "Even the GPU shader is a Smalltalk method. Edit it, save, and the whole screen changes. [pause] Okay, let's put that back."
+  },
+  {
+    "id": "glyphs",
+    "caption": "Glyphs are rasterized in Smalltalk from the .ttf on disk: change the coverage and every text re-rasterizes.",
+    "spoken": "The fonts are rasterized in Smalltalk, straight from the TrueType file. Make the coverage a little heavier, and all the text gets bolder. These are the actual pixels."
+  },
+  {
+    "id": "slowmo",
+    "caption": "One setting slows the animation clock tenfold: window open, menu, selection glide, the debugger's pc highlight.",
+    "spoken": "Now let's slow time down. Ten times slower, so you can see every little animation. [pause] And back to normal speed."
+  },
+  {
+    "id": "palette",
+    "caption": "Edit and continue mid-computation: change the Mandelbrot's colouring while it renders; the rows still to come use it.",
+    "spoken": "Here's the Mandelbrot, halfway through a render. Change its colour function, save, and [pause] the rows it hasn't drawn yet come out in the new colours."
+  },
+  {
+    "id": "loop",
+    "caption": "[true] whileTrue: that Process is busy, everything else stays smooth. ⌘. opens a debugger inside the loop.",
+    "spoken": "Act two: you can't break it. An infinite loop. That process is stuck, but everything else stays smooth. Command-period, and we're in a debugger, right inside the loop."
+  },
+  {
+    "id": "halt-ui",
+    "caption": "A conditional breakpoint in Window>>redraw for the Transcript only: it freezes in the debugger, every other window keeps working.",
+    "spoken": "Let's stop the window system itself. A breakpoint in redraw, only for the Transcript. It freezes, everything else keeps going. Fix it right there in the debugger, and proceed."
+  },
+  {
+    "id": "debug-debugger",
+    "caption": "Debugging the debugger: a breakpoint in its own Step Over, and a second debugger opens on the first.",
+    "spoken": "Can we debug the debugger? Sure. A breakpoint in its own step over, step, [pause] and a second debugger opens on the first one."
+  },
+  {
+    "id": "watch-wm",
+    "caption": "Halt on write on a window's bounds: drag it, and the debugger shows the window-manager code that moved it.",
+    "spoken": "Watch a window's bounds, then drag it. We land right in the window manager code that moved it, and the mouse still works."
+  },
+  {
+    "id": "recursion",
+    "caption": "Infinite recursion: a debugger on the stack, not a crash.",
+    "spoken": "And infinite recursion? [pause] Just a debugger. No crash."
+  },
+  {
+    "id": "snapshot",
+    "caption": "Save the image with a debugger stopped mid-step, quit, relaunch: every window is back, the process still suspended. Step on.",
+    "spoken": "Act three. Save the image with a debugger open, mid-step, and quit. [pause] Relaunch, and everything's back, the process still waiting where we left it. Step, and it just continues."
+  },
+  {
+    "id": "core",
+    "caption": "The core is small: in the Terminal (Smalltalk too) count C and Smalltalk lines, then race GNU Smalltalk on the same benchmarks.",
+    "spoken": "Last thing. How much of this is C? Let's ask a terminal, which, yes, is Smalltalk too. Count the lines, [pause] and race the same benchmarks against GNU Smalltalk."
+  },
+  {
+    "id": "outro",
+    "caption": "All of it live, in one running image, driven through samaltak-ctl.",
+    "spoken": "[warm] All of that, live, in one running image. Thanks for watching!"
+  }
+]

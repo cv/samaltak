@@ -2,7 +2,7 @@
 
 Drives a running Samaltak image through its control service (`ControlServer`, `src/System-Remote/`). Node ≥ 18, no deps. Session: `--session` / `$SAMALTAK_SESSION`, default `samaltak`; session info lives in `$TMPDIR/samaltak-ctl/<session>.json`, the image's output in `<session>.log`.
 
-    open [--headless] [--hidden] [--image path] [--theme t] [--port n] [--window-size WxH]
+    open [--headless] [--hidden] [--image path] [--theme t] [--port n] [--window-size WxH] [--source-dir d]
     snapshot [ref] [--depth n] [--bounds]       find <text>
     click|dblclick|rightclick <ref|x,y> [--mods Shift+Meta]
     type <ref> <text> [--end|--start|--replace] [--delay ms]   (the image types one character every ms, default 45)

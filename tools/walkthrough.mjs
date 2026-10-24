@@ -3,80 +3,29 @@
 // driven only through samaltak-ctl, recorded from the compositor (samaltak-ctl record).
 // Usage: node walkthrough.mjs <out-dir>   →  <out-dir>/raw.mp4, <out-dir>/captions.json
 // Run narrate.mjs first: each step then lasts at least as long as its narration clip (<out-dir>/narration/durations.json).
-import { execFileSync } from 'node:child_process';
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { VideoSession, sleep } from './video-lib.mjs';
 
 const here = dirname(fileURLToPath(import.meta.url));
-const out = resolve(process.argv[2] || join(here, '../.context/video-real'));
-mkdirSync(out, { recursive: true });
-const SESSION = process.env.WALKTHROUGH_SESSION || 'walkthrough';
-const env = { ...process.env, SAMALTAK_SESSION: SESSION };
-const image = process.env.WALKTHROUGH_IMAGE || join(here, '../build/samaltak.image');
+const S = new VideoSession({
+  out: resolve(process.argv[2] || join(here, '../.context/video-real')),
+  stepsFile: join(here, 'narration.json'),
+  session: process.env.WALKTHROUGH_SESSION || 'walkthrough',
+  image: process.env.WALKTHROUGH_IMAGE || join(here, '../build/samaltak.image'),
+});
+const run = args => S.run(args);
+const ctl = (...args) => S.ctl(...args);
+const act = (...args) => S.act(...args);
+const win = (re, t) => S.win(re, t);
+const find = (role, label) => S.find(role, label);
+const say = id => S.say(id);
+// Type like a person (the prototype's video: 140 ms a character).
+const typeSlowly = async (ref, text, ms = 45) => S.type(ref, text, ms);
 
-// Input commands wait at most 400 ms for the image to settle: with the Mandelbrot and crunch busy it never does, and
-// the script paces itself anyway.
-const run = args => execFileSync(join(here, 'samaltak-ctl'), args, { env, encoding: 'utf8' }).trim();
-const ctl = (...args) => run(['--settle', '400', ...args]);
-// Once 'crunch' runs nothing settles: from there on input commands return at once, and the pauses pace the steps.
-let busy = false;
-const act = (...args) => busy ? run(['--settle', '0', ...args]) : ctl(...args);
-const sleep = ms => new Promise(r => setTimeout(r, ms));
-
-// Window ref by title, from a shallow snapshot; waits until the window exists.
-async function win(re, timeout = 15000) {
-  const t = Date.now();
-  for (;;) {
-    let snap = '';
-    try { snap = ctl('snapshot', '--depth', '1'); } catch {} // the UI registers a moment after the image listens
-    const line = snap.split('\n').find(l => l.startsWith('window ') && re.test(l));
-    if (line) return line.match(/@w\d+/)[0];
-    if (Date.now() - t > timeout) throw new Error(`no window matching ${re}`);
-    await sleep(100);
-  }
-}
-// The ref of the first widget of a role whose label begins with label (samaltak-ctl find).
-function find(role, label) {
-  const line = ctl('find', label).split('\n').find(l => l.startsWith(role + ' ') && l.includes(`"${label}`));
-  if (!line) throw new Error(`no ${role} ${label}`);
-  return line.split(' ')[1];
-}
-// Type like a person: one command, the image types one character every (ms + 95) ms — the pace of the prototype's
-// video (measured there: 140 ms a character for ms = 45; its script slept ms after each samaltak-ctl call).
-async function typeSlowly(ref, text, ms = 45) {
-  act('type', ref, text, '--delay', String(ms + 95));
-}
-
-// Each step lasts at least as long as its narration clip.
-const steps = JSON.parse(readFileSync(join(here, 'narration.json'), 'utf8'));
-const durationsFile = join(out, 'narration', 'durations.json');
-const durations = existsSync(durationsFile) ? JSON.parse(readFileSync(durationsFile, 'utf8')) : {};
-const captions = [];
-let t0 = 0;
-async function say(id) {
-  const step = steps.find(s => s.id === id);
-  if (!step) throw new Error(`no narration step ${id}`);
-  const prev = captions[captions.length - 1];
-  if (prev && durations[prev.id]) {
-    const wait = t0 + (prev.start + durations[prev.id] + 0.4) * 1000 - Date.now();
-    if (wait > 0) await sleep(wait);
-  }
-  const t = (Date.now() - t0) / 1000;
-  if (prev) prev.end = t;
-  captions.push({ id, start: t, end: null, text: step.caption });
-  console.log(`${t.toFixed(1).padStart(6)}s  ${step.caption}`);
-}
-
-try { ctl('close'); } catch {}
-ctl('open', '--image', image, '--window-size', '1440x900');
-await win(/System Browser/);
-ctl('wait', 'idle', '15000');
+await S.open();
 await sleep(1500);
-ctl('record', 'start', join(out, 'raw.mp4'), '--size', '1440x900', '--fps', '30');
-t0 = Date.now();
-let recording = true;
-process.on('exit', () => { if (recording) try { ctl('record', 'stop'); } catch {} });
+S.startSegment();
 await sleep(300);
 
 // The same actions and pauses as the prototype's walkthrough (prototypes/tools/walkthrough.mjs), with real refs.
@@ -94,13 +43,13 @@ ctl('click', '@w6.methods.gcd.breakpoint-toggle'); await sleep(1800);
 await say('run');
 // The click starts a render: the image will not settle until it is done, so the commands of this step do not wait for
 // that (the pauses pace them, as in the prototype's script).
-busy = true;
+S.busy = true;
 act('click', '@w4.view'); await sleep(800);
 act('type', '@w1.text', '\n', '--end');
 await typeSlowly('@w1.text', '48 gcd: 18');
 act('select', '@w1.text', '48 gcd: 18'); await sleep(600);
 act('key', 'Meta+p', '@w1.text'); await sleep(2500);
-busy = false;
+S.busy = false;
 
 const dbg = await win(/Breakpoint: Integer>>gcd:/);
 await say('hit');
@@ -157,7 +106,7 @@ const DESK = '723,555'; // where the prototype's @desktop click landed (desk bet
 await say('profiler');
 // (each input command here costs ~0.3 s more than the prototype's, mostly the pointer's glide: the pauses are shorter by that)
 act('click', DESK); await sleep(600);
-ctl('click', '@menu.run-long-computation'); busy = true; await sleep(700);
+ctl('click', '@menu.run-long-computation'); S.busy = true; await sleep(700);
 for (let i = 0; i < 3; i++) { act('click', '@w4.view'); await sleep(100); }
 await sleep(800);
 act('click', DESK); await sleep(600);
@@ -205,14 +154,4 @@ act('click', `${prof}.tabs.flame-graph`); await sleep(3500);
 await say('outro');
 await sleep(3500);
 
-const last = captions[captions.length - 1];
-const rest = t0 + (last.start + (durations[last.id] || 0) + 1.2) * 1000 - Date.now();
-if (rest > 0) await sleep(rest);
-last.end = (Date.now() - t0) / 1000;
-const stopped = (Date.now() - t0) / 1000;
-console.log(ctl('record', 'stop'));
-recording = false;
-ctl('close');
-writeFileSync(join(out, 'captions.json'), JSON.stringify(captions, null, 2));
-const video = +execFileSync('ffprobe', ['-v', 'error', '-show_entries', 'format=duration', '-of', 'csv=p=0', join(out, 'raw.mp4')], { encoding: 'utf8' }).trim();
-console.log(`wrote ${join(out, 'raw.mp4')} (${video.toFixed(2)} s of video for ${stopped.toFixed(2)} s of wall time) and captions.json`);
+await S.finish();
