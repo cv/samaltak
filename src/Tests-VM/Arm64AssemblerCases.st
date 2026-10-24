@@ -1,28 +1,42 @@
 Arm64Module subclass: #Arm64AssemblerCases
-	instanceVariableNames: 'asm cases'
+	instanceVariableNames: 'asm libc posix buffer'
 	classVariableNames: ''
 	package: 'Tests-VM'!
 
-Arm64AssemblerCases comment: 'The instruction forms Arm64AssemblerTest checks, each with the source the system assembler gets (instructions separated by |): tools/arm64-reference.sh assembles these into Arm64Reference. A simulated module, so that the register names are in scope.'!
+Arm64AssemblerCases comment: 'The instruction forms Arm64AssemblerTest checks, each with the source the system assembler gets (instructions separated by |; tools/arm64-reference.py assembles them into Arm64Reference). A Lowtalk program: it prints each case''s source and the words the assembler emits for it, simulated and as C.'!
 
 !Arm64AssemblerCases class methodsFor: 'declaring'!
 declarations
-	^#((asm Arm64Assembler))
+	^#((asm Arm64Assembler) (libc LibC) (posix Posix) (buffer uint64_t))
 ! !
 
 !Arm64AssemblerCases methodsFor: 'running'!
-cases
-	"{source. block} for every case."
-	cases := OrderedCollection new.
+main: argc argv: argv
+	<c: 'int main(int argc, char **argv)'>
+	"a page-aligned buffer, for adrp"
+	buffer := self cCoerce: (posix mmap: self null length: 65536 protection: (posix PROT_READ bitOr: posix PROT_WRITE) flags: (posix MAP_PRIVATE bitOr: posix MAP_ANON) file: -1 offset: 0) to: 'uint64_t'.
 	self addSub; logical; moves; shifts; multiply; conditional; bitfield; loadStore; pairs; pcRelative; branches; system; floatingPoint.
-	^cases
+	^0
 !
 case: aString emit: aBlock
-	cases add: (Array with: aString with: aBlock)
+	asm beginAt: buffer limit: buffer + 65536.
+	aBlock value.
+	self print: aString error: asm finish
+!
+print: source error: error
+	"source: the words emitted, or source: error n"
+	<c: 'void print_case(const char *source, int32_t error)'>
+	libc printf: '%s:' with: source.
+	error = ASM_OK
+		ifTrue: [0 to: (asm codeSize asInt64 quo: 4) - 1 do: [:i | libc printf: ' %08x' with: (self uint32At: buffer + (4 * i))]]
+		ifFalse: [libc printf: ' error %d' with: error].
+	libc printf: '
+'
 ! !
 
 !Arm64AssemblerCases methodsFor: 'cases'!
 addSub
+	<c: 'void cases_add_sub(void)'>
 	self case: 'add x0, x1, #12' emit: [asm add: X0 with: X1 imm: 12].
 	self case: 'add w3, w4, #4095' emit: [asm add: W3 with: W4 imm: 4095].
 	self case: 'add x0, x1, #1, lsl #12' emit: [asm add: X0 with: X1 imm: 4096].
@@ -83,6 +97,7 @@ addSub
 	self case: 'cmn x0, w1, uxtb #1' emit: [asm cmn: X0 with: W1 extend: EXT_UXTB amount: 1]
 !
 logical
+	<c: 'void cases_logical(void)'>
 	self case: 'and x0, x1, #0xff' emit: [asm and: X0 with: X1 imm: 255].
 	self case: 'and w0, w1, #0xff' emit: [asm and: W0 with: W1 imm: 255].
 	self case: 'and x0, x1, #0xfffffffffffffff0' emit: [asm and: X0 with: X1 imm: -16].
@@ -119,6 +134,7 @@ logical
 	self case: 'tst w0, w1, lsr #2' emit: [asm tst: W0 with: W1 shift: SHIFT_LSR amount: 2]
 !
 moves
+	<c: 'void cases_moves(void)'>
 	self case: 'mov x0, x1' emit: [asm mov: X0 with: X1].
 	self case: 'mov w0, w1' emit: [asm mov: W0 with: W1].
 	self case: 'mov x0, sp' emit: [asm mov: X0 with: SP].
@@ -140,7 +156,8 @@ moves
 	self case: 'movn w1, #0x1233' emit: [asm mov: W1 imm: 16rFFFFEDCC].
 	self case: 'movz x0, #0x5678|movk x0, #0x1234, lsl #16' emit: [asm mov: X0 imm: 16r12345678].
 	self case: 'movz x0, #0xdef0|movk x0, #0x9abc, lsl #16|movk x0, #0x5678, lsl #32|movk x0, #0x1234, lsl #48' emit: [asm mov: X0 imm: 16r123456789ABCDEF0].
-	self case: 'movz x3, #0x1, lsl #16|movk x3, #0x1, lsl #48' emit: [asm mov: X3 imm: 16r0001000000010000].
+	self case: 'movz x3, #0x2, lsl #16|movk x3, #0x1, lsl #48' emit: [asm mov: X3 imm: 16r0001000000020000].
+	self case: 'orr x3, xzr, #0x1000000010000' emit: [asm mov: X3 imm: 16r0001000000010000].
 	self case: 'movn x0, #0x1234|movk x0, #0x5678, lsl #32' emit: [asm mov: X0 imm: 16rFFFF5678FFFFEDCB].
 	self case: 'movz w2, #0x5678|movk w2, #0x1234, lsl #16' emit: [asm mov: W2 imm: 16r12345678].
 	self case: 'orr x0, xzr, #0x5555555555555555' emit: [asm mov: X0 imm: 16r5555555555555555].
@@ -157,6 +174,7 @@ moves
 	self case: 'movz x16, #0x0|movk x16, #0x0, lsl #16|movk x16, #0x0, lsl #32|movk x16, #0x0, lsl #48' emit: [asm mov: X16 imm64: 0]
 !
 shifts
+	<c: 'void cases_shifts(void)'>
 	self case: 'lsl x0, x1, #3' emit: [asm lsl: X0 with: X1 imm: 3].
 	self case: 'lsl x0, x1, #63' emit: [asm lsl: X0 with: X1 imm: 63].
 	self case: 'lsl w0, w1, #1' emit: [asm lsl: W0 with: W1 imm: 1].
@@ -174,6 +192,7 @@ shifts
 	self case: 'ror x0, x1, x2' emit: [asm ror: X0 with: X1 with: X2]
 !
 multiply
+	<c: 'void cases_multiply(void)'>
 	self case: 'mul x0, x1, x2' emit: [asm mul: X0 with: X1 with: X2].
 	self case: 'mul w0, w1, w2' emit: [asm mul: W0 with: W1 with: W2].
 	self case: 'madd x0, x1, x2, x3' emit: [asm madd: X0 with: X1 with: X2 add: X3].
@@ -190,6 +209,7 @@ multiply
 	self case: 'clz w0, w1' emit: [asm clz: W0 with: W1]
 !
 conditional
+	<c: 'void cases_conditional(void)'>
 	self case: 'csel x0, x1, x2, eq' emit: [asm csel: X0 with: X1 with: X2 cond: COND_EQ].
 	self case: 'csel w0, w1, w2, lt' emit: [asm csel: W0 with: W1 with: W2 cond: COND_LT].
 	self case: 'csinc x0, x1, x2, ne' emit: [asm csinc: X0 with: X1 with: X2 cond: COND_NE].
@@ -209,6 +229,7 @@ conditional
 	self case: 'cinv x0, x1, hi' emit: [asm cinv: X0 with: X1 cond: COND_HI]
 !
 bitfield
+	<c: 'void cases_bitfield(void)'>
 	self case: 'ubfx x0, x1, #3, #5' emit: [asm ubfx: X0 with: X1 lsb: 3 width: 5].
 	self case: 'ubfx w0, w1, #1, #30' emit: [asm ubfx: W0 with: W1 lsb: 1 width: 30].
 	self case: 'ubfx x0, x1, #0, #32' emit: [asm ubfx: X0 with: X1 lsb: 0 width: 32].
@@ -232,6 +253,7 @@ bitfield
 	self case: 'uxth w0, w1' emit: [asm uxth: W0 with: W1]
 !
 loadStore
+	<c: 'void cases_load_store(void)'>
 	self case: 'ldr x0, [x1]' emit: [asm ldr: X0 base: X1 offset: 0].
 	self case: 'ldr x0, [x1, #8]' emit: [asm ldr: X0 base: X1 offset: 8].
 	self case: 'ldr x0, [sp, #32760]' emit: [asm ldr: X0 base: SP offset: 32760].
@@ -323,6 +345,7 @@ loadStore
 	self case: 'ldur d8, [x0, #4]' emit: [asm ldur: D8 base: X0 offset: 4]
 !
 pairs
+	<c: 'void cases_pairs(void)'>
 	self case: 'ldp x0, x1, [x2]' emit: [asm ldp: X0 with: X1 base: X2 offset: 0].
 	self case: 'ldp x0, x1, [x2, #16]' emit: [asm ldp: X0 with: X1 base: X2 offset: 16].
 	self case: 'ldp x0, x1, [x2, #504]' emit: [asm ldp: X0 with: X1 base: X2 offset: 504].
@@ -348,6 +371,7 @@ pairs
 	self case: 'stp d0, d1, [x3], #-16' emit: [asm stp: D0 with: D1 base: X3 postIndex: -16]
 !
 pcRelative
+	<c: 'void cases_pc_relative(void)'>
 	self case: 'ldr x0, .+8' emit: [asm ldr: X0 label: (asm labelAt: asm pc + 8)].
 	self case: 'ldr x1, .-4' emit: [asm ldr: X1 label: (asm labelAt: asm pc - 4)].
 	self case: 'ldr w1, .+1048572' emit: [asm ldr: W1 label: (asm labelAt: asm pc + 1048572)].
@@ -361,9 +385,10 @@ pcRelative
 	self case: 'adrp x1, #-0x1000' emit: [asm adrp: X1 label: (asm labelAt: asm pc - 16r1000)].
 	self case: 'adrp x2, #0' emit: [asm adrp: X2 label: (asm labelAt: asm pc + 16rFFF)].
 	self case: 'adrp x0, #0xfffff000' emit: [asm adrp: X0 label: (asm labelAt: asm pc + 16rFFFFF000)].
-	self case: 'adrp x0, #-0x100000000' emit: [asm adrp: X0 label: (asm labelAt: asm pc - 16r100000000)]
+	self case: 'adrp x0, #-0x100000000' emit: [asm adrp: X0 label: (asm labelAt: (asm pc - 16r100000000) asUInt64)]
 !
 branches
+	<c: 'void cases_branches(void)'>
 	self case: 'b .+8' emit: [asm b: (asm labelAt: asm pc + 8)].
 	self case: 'b .-4' emit: [asm b: (asm labelAt: asm pc - 4)].
 	self case: 'b .+0' emit: [asm b: (asm labelAt: asm pc)].
@@ -402,6 +427,7 @@ branches
 	self case: 'ret x1' emit: [asm ret: X1]
 !
 system
+	<c: 'void cases_system(void)'>
 	self case: 'nop' emit: [asm nop].
 	self case: 'brk #0' emit: [asm brk: 0].
 	self case: 'brk #0xffff' emit: [asm brk: 16rFFFF].
@@ -415,6 +441,7 @@ system
 	self case: 'isb' emit: [asm isb]
 !
 floatingPoint
+	<c: 'void cases_floating_point(void)'>
 	self case: 'fmov d0, d1' emit: [asm fmov: D0 with: D1].
 	self case: 'fmov d31, d30' emit: [asm fmov: D31 with: D30].
 	self case: 'fmov d0, x1' emit: [asm fmov: D0 with: X1].
