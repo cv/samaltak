@@ -2,7 +2,7 @@
 
 Status: plan. Every JIT variant is written in Smalltalk: Lowtalk for code in the VM (translated to C like the rest of it), ordinary Smalltalk for code in the image. No LLVM at run time. Target: Apple Silicon (M2 Max, arm64, macOS).
 
-The goal is a comparison of JIT designs and optimizations on the same VM, the same image and the same benchmarks: speed of the generated code (warm-up and steady state) and speed of the JIT itself.
+The goal is a comparison of JIT designs and optimizations on the same VM, the same image and the same benchmarks: speed of the generated code (warm-up and steady state) and speed of the JIT itself. The best variant must beat Pharo 12's Cog JIT on every Are We Fast Yet benchmark (docs/benchmarks.md).
 
 ## Variants
 
