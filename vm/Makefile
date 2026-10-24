@@ -2,6 +2,7 @@
 # The sources are gen/: C translated from the Lowtalk modules in src/VM-Core and src/VM-Platform (make translate at
 # the top level regenerates them); gen/sources.mk says which files make the core and which the platform layer.
 # Profile-guided: pgo.profdata (if present) steers optimization; `make pgo IMAGE=...` retrains it. NO_PGO=1 skips it.
+# BRIEF=1 prints one line per file instead of the commands.
 CC ?= cc
 CFLAGS ?= -O2 -g -flto
 CFLAGS += -std=gnu11 -Wall -Wextra -Wno-unused-parameter -MMD -MP -Igen -D_DARWIN_C_SOURCE
@@ -47,7 +48,7 @@ OBJS := $(patsubst %.c,$(OBJDIR)/%.o,$(SRCS))
 STAMP := $(BUILD)/.variant-$(VARIANT)
 
 $(BUILD)/samaltak: $(OBJS) $(STAMP)
-	$(CC) $(CFLAGS) -o $@ $(OBJS) $(LDFLAGS) $(LDLIBS)
+	$(if $(BRIEF),@echo "link $@";) $(CC) $(CFLAGS) -o $@ $(OBJS) $(LDFLAGS) $(LDLIBS)
 
 $(STAMP):
 	@mkdir -p $(BUILD)
@@ -56,7 +57,7 @@ $(STAMP):
 
 $(OBJDIR)/%.o: %.c $(PGO_DEP)
 	@mkdir -p $(dir $@)
-	$(CC) $(CFLAGS) -c -o $@ $<
+	$(if $(BRIEF),@echo "cc   $<";) $(CC) $(CFLAGS) -c -o $@ $<
 
 # Retrain the profile: an instrumented VM runs the benchmarks and the kernel/compiler tests on IMAGE.
 pgo:

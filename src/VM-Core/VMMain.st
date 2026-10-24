@@ -25,6 +25,11 @@ argsStart
 ! !
 
 !VMMain methodsFor: 'running'!
+banner
+	"What the VM calls itself (primitive vmBanner)."
+	<c: 'const char *vm_banner(void)'>
+	^'Samaltak VM'
+!
 usage
 	<c: 'void usage(void)'>
 	<noreturn>

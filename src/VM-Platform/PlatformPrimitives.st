@@ -1034,6 +1034,18 @@ primSpawnProcess
 	pid < 0 ifTrue: [^self fail].
 	self answer: (self intOop: pid)
 !
+primExecProcess
+	"argv (Array of Strings, PATH lookup): the VM's process runs argv instead; fails if it cannot"
+	<vmPrimitive: 518 name: 'execProcess'>
+	<notTryable>
+	| argv |
+	(self args: 1) ifFalse: [^self fail].
+	argv := self stringVector: (self arg: 0) nonEmpty: true.
+	argv isNull ifTrue: [^self fail].
+	files exec: argv.
+	self freeVector: argv.
+	self fail
+!
 primProcessWait
 	"pid block (Boolean) -> exit status or nil (running)"
 	<vmPrimitive: 516 name: 'processWait'>

@@ -9,6 +9,12 @@ static bool headless;
 
 static _Noreturn void usage(void);
 
+/* VMMain>>banner */
+const char *vm_banner(void)
+{
+    return "Samaltak VM";
+}
+
 /* VMMain>>main:argv: */
 int main(int n, char **v)
 {

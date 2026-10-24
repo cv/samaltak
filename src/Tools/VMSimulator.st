@@ -1,11 +1,11 @@
 ToolPane subclass: #VMSimulator
-	instanceVariableNames: 'arguments output runButton debugButton status simulation process lock pending started'
+	instanceVariableNames: 'arguments output runButton debugButton rebuildButton status simulation process lock pending started timer'
 	classVariableNames: ''
 	package: 'Tools'!
 
 VMSimulator comment: 'I run the VM itself as Smalltalk: the Lowtalk sources of VM-Core (the same code the C build is translated from) in a VMSimulation, on an image, with a command line. Output appears as the simulated VM writes it; Debug stops the simulated VM''s Process in a debugger, showing the interpreter''s own methods (Interpreter>>interpret, the bytecode handlers, the GC) as they run.
 
-The default command line runs the VM tests'' mini kernel image (built from vm/tests/mini with ImageBuilder the first time) on its Arith test.'!
+The default command line boots the VM tests'' mini kernel image (built from vm/tests/mini with ImageBuilder at each run) as a guest that prints a line a second with what the VM calls itself (VMMain>>banner): edit that method in the System Browser and the next line shows it. The status shows how many bytecodes the simulated interpreter ran, and how fast. Rebuild & reboot does the same to the image itself (VMRebuilder).'!
 
 !VMSimulator methodsFor: 'initialization'!
 initialize
@@ -19,11 +19,14 @@ initialize
 	runButton name: 'run'; tooltip: 'run the simulated VM with this command line'.
 	debugButton := Button label: 'Debug' action: [self debug].
 	debugButton name: 'debug'; tooltip: 'stop the simulated VM in a debugger'.
+	rebuildButton := Button label: 'Rebuild & reboot' action: [VMRebuilder openAndRebuild].
+	rebuildButton name: 'rebuild'; tooltip: 'translate the VM to C, compile it and restart this image on it'.
 	status := Label text: 'not running' font: #smallItalic.
 	status color: #ink3; align: #right.
 	toolbar := Row with: (Array
 		with: (runButton sizeToContent; yourself)
 		with: (debugButton sizeToContent; yourself)
+		with: (rebuildButton sizeToContent; yourself)
 		with: (status flex: 1; yourself)).
 	toolbar spacing: 6; padding: (6 @ 4 corner: 8 @ 4); fixed: 29.
 	output := ToolTextEditor new name: 'output'; title: 'output'; readOnly: true; highlighting: false; yourself.
@@ -57,25 +60,23 @@ run
 	self stop.
 	argv := self commandLine.
 	image := argv detect: [:a | a endsWith: '.image'] ifNone: [nil].
-	(image notNil and: [(File exists: image) not and: [image = self class miniImagePath]]) ifTrue: [
-		status text: 'building the mini kernel image…'.
-		ImageBuilder buildFrom: 'vm/tests/mini' to: image].
+	image = self class miniImagePath ifTrue: [ImageBuilder buildFrom: 'vm/tests/mini' to: image].
 	output text: ''.
 	simulation := VMSimulation modules: (VMModule vmModules select: [:c | c packageName = 'VM-Core']).
 	simulation onOutput: [:text | lock critical: [pending nextPutAll: text]].
-	started := Time millisecondClockValue.
+	started := simulation microsecondClock.
 	status text: 'running'.
 	process := [self runSimulation: argv] newProcess.
 	process priority: Processor userBackgroundPriority; name: 'Simulated VM'.
 	process resume.
-	self every: 100 do: [self update]
+	timer isNil ifTrue: [timer := self every: 100 do: [self update]]
 !
 runSimulation: argv
 	| code |
 	code := [simulation runMain: VMMain arguments: (Array with: 'samaltak') , argv asArray]
 		on: Error
 		do: [:e | e return: e messageText].
-	lock critical: [pending nextPutAll: (String with: Character lf) , '[' , (code isInteger ifTrue: ['exit ' , code printString] ifFalse: [code asString]) , ' after ' , ((Time millisecondClockValue - started) / 1000.0 printShowingDecimalPlaces: 1) , ' s]']
+	lock critical: [pending nextPutAll: (String with: Character lf) , '[' , (code isInteger ifTrue: ['exit ' , code printString] ifFalse: [code asString]) , ' after ' , ((simulation microsecondClock - started) / 1000000.0 printShowingDecimalPlaces: 1) , ' s]']
 !
 update
 	"My window's Process: append what the simulation wrote, show its state."
@@ -85,7 +86,14 @@ update
 	process isNil ifTrue: [^self].
 	status text: (process isTerminated
 		ifTrue: ['done']
-		ifFalse: [(process isSuspended ifTrue: ['stopped'] ifFalse: ['running']) , ', ' , ((Time millisecondClockValue - started) // 1000) printString , ' s'])
+		ifFalse: [(process isSuspended ifTrue: ['stopped'] ifFalse: ['running']) , ', ' , ((simulation microsecondClock - started) // 1000000) printString , ' s']) , ', ' , self speed
+!
+speed
+	"How many bytecodes the simulated interpreter ran, and how many per second of its Process's time."
+	| n us |
+	n := simulation bytecodes.
+	us := process cpuTime.
+	^(self class abbreviate: n) , ' bytecodes' , (us < 100000 ifTrue: [''] ifFalse: [' at ' , (self class abbreviate: n * 1000000 // us) , '/s'])
 !
 debug
 	self isRunning ifFalse: [^Tools toast: 'The simulated VM is not running'].
@@ -104,14 +112,19 @@ miniImagePath
 	^'/tmp/samaltak-simulator-mini.image'
 !
 defaultArguments
-	^'--eden 1 --max-heap 64 ' , self miniImagePath , ' --headless Arith'
+	^'--eden 1 --max-heap 64 ' , self miniImagePath , ' --headless Guest'
+!
+abbreviate: anInteger
+	anInteger < 10000 ifTrue: [^anInteger printString].
+	anInteger < 10000000 ifTrue: [^(anInteger // 1000) printString , 'k'].
+	^(anInteger // 1000000) printString , 'M'
 ! !
 
 !VMSimulator class methodsFor: 'opening'!
 openAt: aPointOrNil
 	| tool |
 	tool := self new.
-	^tool openIn: (Tools placeAt: aPointOrNil extent: 560 @ 380) title: 'VM Simulator'
+	^tool openIn: (Tools placeAt: aPointOrNil extent: 640 @ 400) title: 'VM Simulator'
 !
 open
 	^self openAt: nil

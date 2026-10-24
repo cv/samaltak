@@ -185,4 +185,9 @@ primWait: pid blocking: aBoolean
 	"Answer the exit status of the child pid (128 + signal number if killed), nil while it runs (aBoolean false); fail: nil."
 	<primitive: 'processWait'>
 	^nil
+!
+primExec: argv
+	"Replace the VM's process by argv first (looked up in PATH) with the other Strings as arguments: same pid and standard streams, all other descriptors closed. Answers nil only if that failed."
+	<primitive: 'execProcess'>
+	^nil
 ! !

@@ -745,3 +745,13 @@ testWeak
 	((Smalltalk vmStats at: 12) > 5000) printNl.
 	keep size printNl
 ! !
+
+!MiniTests methodsFor: 'guest'!
+testGuest
+	"The VM Simulator's guest: a line a second, forever, saying what the VM calls itself."
+	| n |
+	n := 0.
+	[n := n + 1.
+	 (Smalltalk vmBanner , ' | tick ' , n printString , ' | ' , n printString , ' squared = ' , (n * n) printString) displayNl.
+	 Processor sleep: 1000] repeat
+! !

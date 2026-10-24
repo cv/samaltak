@@ -34,6 +34,7 @@ test: image test-vm
 	tests/remote/cli_test.sh $(OUT)/samaltak.image
 	tests/tools/desktop_test.sh $(OUT)/samaltak.image
 	tests/tools/snapshot_test.sh $(OUT)/samaltak.image
+	tests/tools/reboot_test.sh $(OUT)/samaltak.image
 	@echo "make test: all passed"
 
 # The narrated walkthrough on the real system, from a copy of the image named nuuk.image like the prototype's (a visible window; needs ffmpeg, agent-browser for the captions and

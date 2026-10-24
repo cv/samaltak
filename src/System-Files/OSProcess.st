@@ -34,6 +34,12 @@ errorOutput
 	"Answer what the program wrote to standard error (nil while running)."
 	^errorOutput
 !
+outputSoFar
+	"Answer what the program has written to standard output up to now."
+	output isNil ifFalse: [^output].
+	(outputPath isNil or: [(File exists: outputPath) not]) ifTrue: [^''].
+	^File readText: outputPath
+!
 succeeded
 	^exitCode = 0
 !

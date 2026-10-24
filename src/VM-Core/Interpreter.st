@@ -878,6 +878,7 @@ nextBytecode
 !
 dispatch: aByte
 	<dispatch>
+	sim noteBytecode.
 	^self perform: (self class handlerTable at: aByte + 1)
 !
 currentBytecode

@@ -371,6 +371,21 @@ spawn: argv
 		^-1].
 	^pid value
 !
+exec: argv
+	"Replace the VM's process by argv first (looked up in PATH): same pid, standard streams; every other descriptor closes. Returns only on failure."
+	<c: 'void pf_exec(char **argv)'>
+	<export>
+	| maxFd flags |
+	libc fflush: libc stdout.
+	libc fflush: libc stderr.
+	maxFd := posixProcesses getdtablesize.
+	maxFd > 65536 ifTrue: [maxFd := 65536].
+	3 to: maxFd - 1 do: [:fd |
+		flags := posixIO fcntl: fd command: posixIO F_GETFD.
+		flags >= 0 ifTrue: [posixIO fcntl: fd command: posixIO F_SETFD value: (flags bitOr: posixIO FD_CLOEXEC)]].
+	posixProcesses execvp: (argv at: 0) argv: argv.
+	self failOS: 'execvp' path: (argv at: 0)
+!
 processWait: pid block: block status: status done: done
 	"status: the exit code, or 128 + the signal number."
 	<c: 'bool pf_process_wait(int64_t pid, bool block, int *status, bool *done)'>

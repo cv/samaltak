@@ -222,6 +222,10 @@ F_SETFD
 	<cMacro: 'int F_SETFD'>
 	^2
 !
+F_GETFD
+	<cMacro: 'int F_GETFD'>
+	^1
+!
 FD_CLOEXEC
 	<cMacro: 'int FD_CLOEXEC'>
 	^1

@@ -3,7 +3,7 @@ Object subclass: #TopBar
 	classVariableNames: ''
 	package: 'UI-Windows'!
 
-TopBar comment: 'I am the menu bar at the top of the World (Blue Book: white, a 1-point rule): the brand, the image name, the hint "Click the desktop for the World menu", at the right the ? button (World helpHandler) and the REMOTE tag once a remote session acted on the image (it flashes at each command), the SLOW tag while animations run slowed down (Animation timeScale), and the compositor''s statistics — a sparkline of the last 64 frame times (ms between presented frames, the 16.7 ms budget as a hairline: a stutter shows as a spike), the mean frame time of the last 32 frames, the frames presented in the last second and the number of Processes. The Compositor feeds me FrameRecords-worth of numbers (noteFrame:end:) and draws me every frame.'!
+TopBar comment: 'I am the menu bar at the top of the World (Blue Book: white, a 1-point rule): the brand, the image name, the VM''s banner (Smalltalk vm banner), the hint "Click the desktop for the World menu", at the right the ? button (World helpHandler) and the REMOTE tag once a remote session acted on the image (it flashes at each command), the SLOW tag while animations run slowed down (Animation timeScale), and the compositor''s statistics — a sparkline of the last 64 frame times (ms between presented frames, the 16.7 ms budget as a hairline: a stutter shows as a spike), the mean frame time of the last 32 frames, the frames presented in the last second and the number of Processes. The Compositor feeds me FrameRecords-worth of numbers (noteFrame:end:) and draws me every frame.'!
 
 !TopBar methodsFor: 'initialization'!
 setWorld: aWorld
@@ -81,7 +81,7 @@ updateAt: nowMicros
 
 !TopBar methodsFor: 'drawing'!
 drawOn: c
-	| w x right y font bold mono monoBold label hintLeft |
+	| w x right y font bold mono monoBold label hintLeft banner |
 	w := world extent x.
 	c fillRect: (0 @ 0 extent: w @ 26) color: Color white.
 	c fillRect: (0 @ 26 extent: w @ 1) color: Color black.
@@ -96,6 +96,10 @@ drawOn: c
 	font := self font: #regular.
 	c drawString: world imageName at: x @ (26 - font lineHeight / 2) rounded font: font color: Color black.
 	hintLeft := x + (font widthOf: world imageName) + 14.
+	(banner := Smalltalk vm banner) isNil ifFalse: [
+		c fillRect: (hintLeft @ 7 extent: 1 @ 13) color: Color black.
+		c drawString: banner at: (hintLeft + 15) @ (26 - font lineHeight / 2) rounded font: font color: Color black.
+		hintLeft := hintLeft + 15 + (font widthOf: banner) + 14].
 	"right to left"
 	mono := self font: #mono.
 	monoBold := self font: #monoBold.
@@ -193,7 +197,7 @@ remoteRole
 	^#topbar
 !
 remoteLabel
-	^world imageName
+	^Smalltalk vm banner ifNil: [world imageName] ifNotNil: [:b | world imageName, ' | ', b]
 !
 remoteName
 	^'top'

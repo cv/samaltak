@@ -248,18 +248,19 @@ primitiveCount
 atomicLoad: aSymbol
 	"Load my atomic variable named aSymbol (relaxed)."
 	<intrinsic>
-	^self instVarNamed: aSymbol
+	^self instVarAt: (sim indexOfVariable: aSymbol in: self class)
 !
 atomicStore: aSymbol value: aValue
 	"Store into my atomic variable named aSymbol (relaxed)."
 	<intrinsic>
-	^self instVarNamed: aSymbol put: aValue
+	^self instVarAt: (sim indexOfVariable: aSymbol in: self class) put: aValue
 !
 atomicExchange: aSymbol value: aValue
 	"Store into my atomic variable and answer its previous value (sequentially consistent)."
 	<intrinsic>
-	| old |
-	old := self instVarNamed: aSymbol.
-	self instVarNamed: aSymbol put: aValue.
+	| i old |
+	i := sim indexOfVariable: aSymbol in: self class.
+	old := self instVarAt: i.
+	self instVarAt: i put: aValue.
 	^old
 ! !
