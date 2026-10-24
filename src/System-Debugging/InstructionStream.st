@@ -103,15 +103,20 @@ nextInstruction
 	op = 16r92 ifTrue: [^Message selector: #jump:if: arguments: (Array with: self nextInt16 with: false)].
 	op = 16r93 ifTrue: [^Message selector: #pushConstant: argument: self nextInt16].
 	op = 16r94 ifTrue: [^Message selector: #pushNewArrayOfSize: argument: self nextByte].
-	(op between: 16r97 and: 16r99) ifTrue: [| a b special second |
+	((op between: 16r97 and: 16r9F) or: [op between: 16rF0 and: 16rFB]) ifTrue: [| a b kind special second |
 		"superinstruction: push temp a, push temp | literal | int8 b, send the special selector (doAll: performs them in order)"
 		a := self nextByte.
 		b := self nextByte.
-		special := self nextByte - 16rA0 + 1.
-		second := op = 16r97
+		op <= 16r99
+			ifTrue: [kind := op - 16r97. special := self nextByte - 16rA0 + 1]
+			ifFalse: [
+				op <= 16r9F
+					ifTrue: [kind := 0. special := op - 16r9A + 1]
+					ifFalse: [kind := op - 16rF0 // 6 + 1. special := op - 16rF0 \\ 6 + 1]].
+		second := kind = 0
 			ifTrue: [Message selector: #pushTemporaryVariable: argument: b]
 			ifFalse: [
-				Message selector: #pushConstant: argument: (op = 16r98
+				Message selector: #pushConstant: argument: (kind = 1
 					ifTrue: [self literalAt: b]
 					ifFalse: [b > 127 ifTrue: [b - 256] ifFalse: [b]])].
 		^Message selector: #doAll: argument: (Array
@@ -143,7 +148,7 @@ willSend
 	"Answer whether the next instruction is a message send (including the special selectors == ~~ class, which the VM never sends)."
 	| op |
 	op := self nextOpcode.
-	^op = 16r8D or: [op = 16r8E or: [(op between: 16rA0 and: 16rEF) or: [op between: 16r97 and: 16r99]]]
+	^op = 16r8D or: [op = 16r8E or: [(op between: 16rA0 and: 16rEF) or: [(op between: 16r97 and: 16r9F) or: [op between: 16rF0 and: 16rFB]]]]
 !
 willReallySend
 	"Like willSend, but not for == ~~ class."

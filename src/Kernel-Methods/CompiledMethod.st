@@ -207,7 +207,9 @@ sendsDo: aBlock
 		(op = 16r8D or: [op = 16r8E]) ifTrue: [aBlock value: (literals at: (bytecodes at: pc + 2) + 1)].
 		(op between: 16rA0 and: 16rBF) ifTrue: [aBlock value: (self class specialSelectorAt: op - 16rA0 + 1)].
 		(op between: 16rC0 and: 16rEF) ifTrue: [aBlock value: (literals at: (op bitAnd: 16r0F) + 1)].
-		(op between: 16r97 and: 16r99) ifTrue: [aBlock value: (self class specialSelectorAt: (bytecodes at: pc + 4) - 16rA0 + 1)]]
+		(op between: 16r97 and: 16r99) ifTrue: [aBlock value: (self class specialSelectorAt: (bytecodes at: pc + 4) - 16rA0 + 1)].
+		(op between: 16r9A and: 16r9F) ifTrue: [aBlock value: (self class specialSelectorAt: op - 16r9A + 1)].
+		(op between: 16rF0 and: 16rFB) ifTrue: [aBlock value: (self class specialSelectorAt: op - 16rF0 \\ 6 + 1)]]
 !
 instructionsDo: aBlock
 	"Evaluate aBlock with the 0-based pc and the opcode of each instruction, including those in block bodies."
@@ -248,6 +250,7 @@ instructionLengthAt: opcode
 	opcode <= 16r93 ifTrue: [^3].
 	opcode = 16r94 ifTrue: [^2].
 	(opcode between: 16r97 and: 16r99) ifTrue: [^4].
+	((opcode between: 16r9A and: 16r9F) or: [opcode between: 16rF0 and: 16rFB]) ifTrue: [^3].
 	^1
 !
 specialSelectors

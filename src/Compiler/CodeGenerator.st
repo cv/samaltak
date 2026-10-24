@@ -468,14 +468,10 @@ emitWhile: aMessageNode forValue: forValue
 	forValue ifTrue: [encoder pushNil]
 !
 emitUnaryWhile: aMessageNode forValue: forValue
-	| loop exit |
+	| loop |
 	loop := encoder pc.
 	self emitInlinedBlock: aMessageNode receiver forValue: true.
-	exit := aMessageNode selector == #whileTrue
-		ifTrue: [encoder jumpFalse]
-		ifFalse: [encoder jumpTrue].
-	encoder jumpBackTo: loop.
-	encoder patchJump: exit.
+	encoder jumpBackTo: loop if: aMessageNode selector == #whileTrue.
 	forValue ifTrue: [encoder pushNil]
 !
 emitRepeat: aMessageNode forValue: forValue
@@ -486,7 +482,7 @@ emitRepeat: aMessageNode forValue: forValue
 	forValue ifTrue: [encoder pushNil]
 !
 emitToDo: aMessageNode forValue: forValue
-	"start to: limit [by: step] do: [:i | ...] with a literal step. The limit is evaluated once, into a hidden temporary unless it is a literal."
+	"start to: limit [by: step] do: [:i | ...] with a literal step. The limit is evaluated once, into a hidden temporary unless it is a literal. The test comes before the loop and again at its bottom: one jump per iteration."
 	| arguments limit step block limitIndex blockScope index loop exit |
 	arguments := aMessageNode arguments.
 	limit := arguments first.
@@ -503,23 +499,27 @@ emitToDo: aMessageNode forValue: forValue
 	blockScope := self newInlinedScopeFor: block.
 	index := blockScope indexOf: block arguments first name.
 	encoder noteNode: aMessageNode; popStoreTemp: index.
-	loop := encoder pc.
-	encoder pushTemp: index.
-	limitIndex isNil
-		ifTrue: [encoder pushLiteral: limit value]
-		ifFalse: [encoder pushTemp: limitIndex].
-	encoder noteNode: aMessageNode.
-	encoder send: (step > 0 ifTrue: [#<=] ifFalse: [#>=]) numArgs: 1 super: false.
+	self emitToDoTest: aMessageNode index: index limit: limit limitIndex: limitIndex step: step.
 	exit := encoder jumpFalse.
+	loop := encoder pc.
 	self emitStatementsOf: block in: blockScope forValue: false.
 	encoder pushTemp: index.
 	encoder pushLiteral: step.
 	encoder noteNode: aMessageNode.
 	encoder send: #+ numArgs: 1 super: false.
 	encoder noteNode: aMessageNode; popStoreTemp: index.
-	encoder jumpBackTo: loop.
+	self emitToDoTest: aMessageNode index: index limit: limit limitIndex: limitIndex step: step.
+	encoder jumpBackTo: loop if: true.
 	encoder patchJump: exit.
 	forValue ifTrue: [encoder pushNil]
+!
+emitToDoTest: aMessageNode index: index limit: limit limitIndex: limitIndex step: step
+	encoder pushTemp: index.
+	limitIndex isNil
+		ifTrue: [encoder pushLiteral: limit value]
+		ifFalse: [encoder pushTemp: limitIndex].
+	encoder noteNode: aMessageNode.
+	encoder send: (step > 0 ifTrue: [#<=] ifFalse: [#>=]) numArgs: 1 super: false
 !
 emitNilTest: aMessageNode
 	"Compare the top of stack with nil (consumes it, pushes a Boolean)."

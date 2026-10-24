@@ -694,7 +694,8 @@ class MethodCompiler:
         self.pushes = (self.pushes + [(start, len(self.code), kind, operand)])[-2:]
 
     def fuse_send(self, special):
-        """push temp; push temp | literal | int8; binary special send -> 16r97 / 16r98 / 16r99 temp operand op."""
+        """push temp; push temp | literal | int8; binary special send -> 16r97 / 16r98 / 16r99 temp operand op,
+        for + - < > <= >= 16r9A / 16rF0 / 16rF6 + selector index, temp operand."""
         if not (0 <= special <= 16) or special == 11 or len(self.pushes) < 2:
             return False
         (s1, e1, k1, a), (s2, e2, k2, b) = self.pushes
@@ -705,7 +706,10 @@ class MethodCompiler:
         if b > 255:
             return False
         del self.code[s1:]
-        self.code.extend((0x97 if k2 == 'temp' else 0x98 if k2 == 'lit' else 0x99, a, b, 0xA0 + special))
+        if special <= 5:
+            self.code.extend(((0x9A if k2 == 'temp' else 0xF0 if k2 == 'lit' else 0xF6) + special, a, b))
+        else:
+            self.code.extend((0x97 if k2 == 'temp' else 0x98 if k2 == 'lit' else 0x99, a, b, 0xA0 + special))
         self.pushes = []
         return True
 
@@ -720,8 +724,8 @@ class MethodCompiler:
             raise CompileError('jump too far', self.file, self.line0)
         self.code[p + 1], self.code[p + 2] = off & 255, (off >> 8) & 255
 
-    def jump_back(self, target):
-        p = self.jump(0x90)
+    def jump_back(self, target, op=0x90):
+        p = self.jump(op)
         self.patch(p, target)
 
     def literal(self, key, value):
@@ -1053,10 +1057,13 @@ def inline_while(c, node):
         return False
     top = c.here()
     c.inlined(node.rcv)
+    if not node.args:
+        c.jump_back(top, 0x91 if node.sel == 'whileTrue' else 0x92)
+        c.push_lit(NIL)
+        return True
     j = c.jump(0x92 if node.sel.startswith('whileTrue') else 0x91)
-    if node.args:
-        c.inlined(node.args[0])
-        c.emit(0x78, delta=-1)
+    c.inlined(node.args[0])
+    c.emit(0x78, delta=-1)
     c.jump_back(top)
     c.patch(j)
     c.push_lit(NIL)
@@ -1095,21 +1102,24 @@ def inline_to_do(c, node):
         c.value(limit)
         lim = c.real.alloc()
         c.emit(0x60 + lim if lim < 8 else 0x87, *([] if lim < 8 else [lim]), delta=-1)
-    top = c.here()
-    push_t(c, var)
-    if lim_lit:
-        c.push_lit(limit.value)
-    else:
-        push_t(c, lim)
-    c.send('<=' if step > 0 else '>=', 1)
+    def test():  # before the loop and again at its bottom: one jump per iteration
+        push_t(c, var)
+        if lim_lit:
+            c.push_lit(limit.value)
+        else:
+            push_t(c, lim)
+        c.send('<=' if step > 0 else '>=', 1)
+    test()
     j = c.jump(0x92)
+    top = c.here()
     c.inlined(block, [var])
     c.emit(0x78, delta=-1)
     push_t(c, var)
     c.push_lit(step)
     c.send('+', 1)
     c.emit(0x60 + var if var < 8 else 0x87, *([] if var < 8 else [var]), delta=-1)
-    c.jump_back(top)
+    test()
+    c.jump_back(top, 0x91)
     c.patch(j)
     c.push_lit(NIL)
     return True

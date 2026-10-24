@@ -689,6 +689,13 @@ void interpret(void)
         ops[0x97] = &&op_push2_send_tt;
         ops[0x98] = &&op_push2_send_tl;
         ops[0x99] = &&op_push2_send_ti;
+        {
+            static void *const fused[18] = {&&op_tt_add, &&op_tt_sub, &&op_tt_lt, &&op_tt_gt, &&op_tt_le, &&op_tt_ge,
+                                            &&op_tl_add, &&op_tl_sub, &&op_tl_lt, &&op_tl_gt, &&op_tl_le, &&op_tl_ge,
+                                            &&op_ti_add, &&op_ti_sub, &&op_ti_lt, &&op_ti_gt, &&op_ti_le, &&op_ti_ge};
+            for (int i = 0; i < 6; i++) ops[0x9A + i] = fused[i];
+            for (int i = 6; i < 18; i++) ops[0xF0 + i - 6] = fused[i];
+        }
         for (int i = 0xA0; i <= 0xBF; i++) ops[i] = &&op_special_send;
         ops[0xA0] = &&op_add;
         ops[0xA1] = &&op_sub;
@@ -1317,6 +1324,71 @@ push2_send:
     sp += 2;
     ip += 3;
     goto *ops[ip[-1]];
+    /* the same for + - < > <= >= with the selector in the opcode (0x9A-0x9F temp temp, 0xF0-0xF5 temp literal,
+       0xF6-0xFB temp int8): two SmallIntegers finish here, together with a following pop-store temp or conditional
+       jump; anything else continues in the selector's handler */
+#define FUSED_ARITH(B, OVF, SLOW)                                                                                      \
+    do {                                                                                                               \
+        oop a_ = fp[ip[0]], b_ = (B);                                                                                  \
+        int64_t r_;                                                                                                    \
+        if (is_int(a_ & b_) && !OVF((int64_t)a_, (int64_t)b_ - 1, &r_)) {                                              \
+            int n_ = ip[2];                                                                                            \
+            if ((n_ & 0xF8) == 0x60) {                                                                                 \
+                fp[n_ & 7] = (oop)r_;                                                                                  \
+                ip += 3;                                                                                               \
+                NEXT;                                                                                                  \
+            }                                                                                                          \
+            *++sp = (oop)r_;                                                                                           \
+            ip += 2;                                                                                                   \
+            NEXT;                                                                                                      \
+        }                                                                                                              \
+        sp[1] = a_;                                                                                                    \
+        sp[2] = b_;                                                                                                    \
+        sp += 2;                                                                                                       \
+        ip += 2;                                                                                                       \
+        goto SLOW;                                                                                                     \
+    } while (0)
+#define FUSED_CMP(B, OP, SLOW)                                                                                         \
+    do {                                                                                                               \
+        oop a_ = fp[ip[0]], b_ = (B);                                                                                  \
+        if (is_int(a_ & b_)) {                                                                                         \
+            bool c_ = (int64_t)a_ OP (int64_t)b_;                                                                      \
+            int j_ = ip[2];                                                                                            \
+            if (j_ == 0x92 || j_ == 0x91) {                                                                            \
+                int16_t o_ = read_int16(ip + 3);                                                                       \
+                ip += 5;                                                                                               \
+                if (c_ == (j_ == 0x91)) {                                                                              \
+                    ip += o_;                                                                                          \
+                    if (o_ < 0) CHECK_INTERRUPTS();                                                                    \
+                }                                                                                                      \
+                NEXT;                                                                                                  \
+            }                                                                                                          \
+            *++sp = c_ ? true_oop : false_oop;                                                                         \
+            ip += 2;                                                                                                   \
+            NEXT;                                                                                                      \
+        }                                                                                                              \
+        sp[1] = a_;                                                                                                    \
+        sp[2] = b_;                                                                                                    \
+        sp += 2;                                                                                                       \
+        ip += 2;                                                                                                       \
+        goto SLOW;                                                                                                     \
+    } while (0)
+#define FUSED_FAMILY(K, B)                                                                                             \
+    op_##K##_add:                                                                                                      \
+    FUSED_ARITH(B, __builtin_add_overflow, op_add);                                                                    \
+    op_##K##_sub:                                                                                                      \
+    FUSED_ARITH(B, __builtin_sub_overflow, op_sub);                                                                    \
+    op_##K##_lt:                                                                                                       \
+    FUSED_CMP(B, <, op_lt);                                                                                            \
+    op_##K##_gt:                                                                                                       \
+    FUSED_CMP(B, >, op_gt);                                                                                            \
+    op_##K##_le:                                                                                                       \
+    FUSED_CMP(B, <=, op_le);                                                                                           \
+    op_##K##_ge:                                                                                                       \
+    FUSED_CMP(B, >=, op_ge)
+    FUSED_FAMILY(tt, fp[ip[1]]);
+    FUSED_FAMILY(tl, lits[ip[1]]);
+    FUSED_FAMILY(ti, int_oop((int8_t)ip[1]));
 op_make_array: {
     int n = *ip++;
     EXTERNALIZE();
@@ -1366,7 +1438,13 @@ op_super_send:
     goto do_site_lookup;
 
     /* ---- special selectors: fast paths, else a normal send ---- */
+#define SEND_SPECIAL(K)                                                                                                \
+    do {                                                                                                               \
+        six = (K);                                                                                                     \
+        goto send_special;                                                                                             \
+    } while (0)
     {
+        int six;
         oop a, b, f;
         int64_t r;
         double x, y;
@@ -1374,12 +1452,12 @@ op_super_send:
         a = sp[-1], b = *sp;
         if (is_int(a & b) && !__builtin_add_overflow((int64_t)a, (int64_t)b - 1, &r)) RET1((oop)r);
         if (num_pair(a, b, &x, &y) && float_imm(x + y, &f)) RET1(f);
-        goto op_special_send;
+        SEND_SPECIAL(0);
     op_sub:
         a = sp[-1], b = *sp;
         if (is_int(a & b) && !__builtin_sub_overflow((int64_t)a, (int64_t)b - 1, &r)) RET1((oop)r);
         if (num_pair(a, b, &x, &y) && float_imm(x - y, &f)) RET1(f);
-        goto op_special_send;
+        SEND_SPECIAL(1);
     op_mul:
         a = sp[-1], b = *sp;
         if (is_int(a & b) && !__builtin_mul_overflow(int_val(a), int_val(b), &r) && int_fits(r)) RET1(int_oop(r));
@@ -1391,23 +1469,23 @@ op_super_send:
             RET1(int_oop(int_val(a) / int_val(b)));
         if (num_pair(a, b, &x, &y) && y != 0.0 && float_imm(x / y, &f)) RET1(f);
         goto op_special_send;
-#define COMPARE(OP)                                                                                                    \
+#define COMPARE(OP, K)                                                                                                 \
     a = sp[-1], b = *sp;                                                                                               \
     if (is_int(a & b)) BOOL_RESULT((int64_t)a OP(int64_t) b);                                                 \
     if (num_pair(a, b, &x, &y)) BOOL_RESULT(x OP y);                                                                   \
-    goto op_special_send
+    SEND_SPECIAL(K)
     op_lt:
-        COMPARE(<);
+        COMPARE(<, 2);
     op_gt:
-        COMPARE(>);
+        COMPARE(>, 3);
     op_le:
-        COMPARE(<=);
+        COMPARE(<=, 4);
     op_ge:
-        COMPARE(>=);
+        COMPARE(>=, 5);
     op_eq:
-        COMPARE(==);
+        COMPARE(==, 6);
     op_ne:
-        COMPARE(!=);
+        COMPARE(!=, 7);
     op_mod:
         a = sp[-1], b = *sp;
         if (is_int(a & b) && int_val(b) != 0) RET1(int_oop(floor_mod(int_val(a), int_val(b))));
@@ -1520,8 +1598,10 @@ op_super_send:
         NEXT;
     }
     op_special_send:
-        sel = load_ref(special(SO_SPECIAL_SELECTORS), (uint32_t)(ip[-1] - 0xA0));
-        argc = special_argc[ip[-1] - 0xA0];
+        six = ip[-1] - 0xA0;
+    send_special:
+        sel = load_ref(special(SO_SPECIAL_SELECTORS), (uint32_t)six);
+        argc = special_argc[six];
         goto do_send;
     }
 

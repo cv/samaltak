@@ -5,7 +5,7 @@ Object subclass: #BytecodeEncoder
 
 BytecodeEncoder comment: 'I emit the bytecodes of docs/implementation.md, choosing the short forms when possible. I collect literals, track the operand stack depth (depth, maxDepth of the frame being generated) and record the sourceMap (pc start stop triples).
 
-Superinstructions: "push temp; push temp | literal | small integer; send a binary special selector" becomes one instruction (16r97-16r99) when nothing can jump between its parts. pushes remembers the last two pushes ({start. end. kind. operand}); barrier is the last pc something may jump to or record (jump targets and every pc asked for), so a fusion needs barrier <= the first push.'!
+Superinstructions: "push temp; push temp | literal | small integer; send a binary special selector" becomes one instruction (16r97-16r99; for + - < > <= >= 16r9A-16r9F, 16rF0-16rFB) when nothing can jump between its parts. pushes remembers the last two pushes ({start. end. kind. operand}); barrier is the last pc something may jump to or record (jump targets and every pc asked for), so a fusion needs barrier <= the first push.'!
 
 !BytecodeEncoder class methodsFor: 'instance creation'!
 new
@@ -280,7 +280,7 @@ notePush: kind operand: anInteger from: start
 	pushes size > 2 ifTrue: [pushes removeFirst]
 !
 fuseSend: special
-	"If the last two instructions are a push temp and a push temp, literal or small integer that only this send consumes, replace all three by one superinstruction (16r97 temp temp op, 16r98 temp literal op, 16r99 temp int8 op, op = the special send bytecode). Answer whether done."
+	"If the last two instructions are a push temp and a push temp, literal or small integer that only this send consumes, replace all three by one superinstruction (16r97 temp temp op, 16r98 temp literal op, 16r99 temp int8 op, op = the special send bytecode; for + - < > <= >= the selector is in the opcode: 16r9A-16r9F temp temp, 16rF0-16rF5 temp literal, 16rF6-16rFB temp int8). Answer whether done."
 	| first second operand interval |
 	(special between: 1 and: 17) ifFalse: [^false].
 	special = 12 ifTrue: [^false].
@@ -299,10 +299,16 @@ fuseSend: special
 		sourceMap removeLast; removeLast; removeLast].
 	count := first at: 1.
 	interval isNil ifFalse: [sourceMap add: count; add: interval first; add: interval last].
-	self emit: ((second at: 3) == #temp ifTrue: [16r97] ifFalse: [(second at: 3) == #lit ifTrue: [16r98] ifFalse: [16r99]]).
-	self emit: (first at: 4).
-	self emit: operand.
-	self emit: 16rA0 + special - 1.
+	special <= 6
+		ifTrue: [
+			self emit: ((second at: 3) == #temp ifTrue: [16r9A] ifFalse: [(second at: 3) == #lit ifTrue: [16rF0] ifFalse: [16rF6]]) + special - 1.
+			self emit: (first at: 4).
+			self emit: operand]
+		ifFalse: [
+			self emit: ((second at: 3) == #temp ifTrue: [16r97] ifFalse: [(second at: 3) == #lit ifTrue: [16r98] ifFalse: [16r99]]).
+			self emit: (first at: 4).
+			self emit: operand.
+			self emit: 16rA0 + special - 1].
 	pushes := OrderedCollection new.
 	^true
 ! !
@@ -341,6 +347,12 @@ patchJump: position
 !
 jumpBackTo: aPc
 	self emit: 16r90.
+	self emitInt16: aPc - (count + 2)
+!
+jumpBackTo: aPc if: aBoolean
+	"Pop; jump back to aPc if it was aBoolean."
+	self pop: 1.
+	self emit: (aBoolean ifTrue: [16r91] ifFalse: [16r92]).
 	self emitInt16: aPc - (count + 2)
 ! !
 
