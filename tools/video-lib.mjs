@@ -67,10 +67,10 @@ export class VideoSession {
   type(ref, text, ms = 45, ...flags) { return this.act('type', ref, text, '--delay', String(ms + 95), ...flags); }
 
   // Start the image (fresh: close any old session first) and wait for its desktop.
-  async open({ fresh = true, image = this.image, args = [] } = {}) {
+  async open({ fresh = true, image = this.image, args = [], wait = /System Browser|Workspace/ } = {}) {
     if (fresh) { try { this.ctl('close'); } catch {} }
     this.ctl('open', '--image', image, '--window-size', '1440x900', ...args);
-    await this.win(/System Browser|Workspace/);
+    await this.win(wait);
     try { this.ctl('wait', 'idle', '15000'); } catch {}
   }
   startSegment() {

@@ -28,14 +28,22 @@ rmSync(srcDir, { recursive: true, force: true });
 execFileSync('cp', ['-R', join(root, 'src'), srcDir]);
 const openArgs = ['--source-dir', srcDir];
 const ctl = (...a) => S.ctl(...a), act = (...a) => S.act(...a);
+const DESK = '1431,250';   // the desk at the right edge, never covered
 const W = { workspace: '@w1', transcript: '@w2', procs: '@w3', mandel: '@w4', inspector: '@w5', browser: '@w6' };
 
-// Browse a method in the default System Browser (@w6).
-async function browse(pkg, cls, selector) {
+// Browse a method in the default System Browser (@w6), on the instance or class side.
+async function browse(pkg, cls, selector, side) {
   act('select', `${W.browser}.packages`, pkg); await sleep(500);
   act('select', `${W.browser}.classes`, cls); await sleep(500);
+  if (side) { act('click', `${W.browser}.side.${side}`); await sleep(400); }
   act('select', `${W.browser}.protocols`, 'all'); await sleep(500);
   act('select', `${W.browser}.methods`, selector); await sleep(800);
+}
+// Select old in the browser's code pane and type new over it, ms per character ('' deletes the selection).
+async function edit(old, text, ms = 110) {
+  act('select', `${W.browser}.code`, old); await sleep(500);
+  if (text === '') { act('key', 'Backspace', `${W.browser}.code`); await sleep(300); return; }
+  act('type', `${W.browser}.code`, text, '--delay', String(ms)); await sleep(text.length * ms + 400);
 }
 // Append an expression to the Workspace on its own line and evaluate it (Meta+d or Meta+p).
 async function evaluate(text, key = 'Meta+d') {
@@ -52,24 +60,67 @@ const beats = [
     await sleep(3500);
   }],
 
-  // 1. Restyle from inside. TODO (feature): the Theme accent as an editable method; revert at the end of the act.
+  // 1. Restyle from inside: the Theme's accent (UI-Widgets › Theme › initializeBlueBook) becomes red, every window
+  // follows at once; then the desk's halftone (UI-Windows › World › drawDeskOn:) is drawn in the accent.
   ['restyle', async () => {
-    await sleep(4000);
+    await browse('UI-Widgets', 'Theme', 'initializeBlueBook');
+    await edit('16r1B3A8C', '16rC8102E', 140);
+    act('key', 'Meta+s', `${W.browser}.code`); await sleep(2200);
+    await browse('UI-Windows', 'World', 'drawDeskOn:');
+    await edit('Color black', 'Color ultramarine', 110);
+    act('key', 'Meta+s', `${W.browser}.code`); await sleep(3000);
+    // and back, for the rest of the video
+    await edit('Color ultramarine', 'Color black', 50);
+    act('key', 'Meta+s', `${W.browser}.code`); await sleep(500);
+    await browse('UI-Widgets', 'Theme', 'initializeBlueBook');
+    await edit('16rC8102E', '16r1B3A8C', 50);
+    act('key', 'Meta+s', `${W.browser}.code`); await sleep(1200);
   }],
 
-  // 2. Live shader edit. TODO (feature): Renderer's MSL source method; edit, accept, revert.
+  // 2. Live shader edit: Graphics-Canvas › Renderer class › shaderSource, the MSL uber-shader. Layer images (every
+  // window) get scan lines; accepting rebuilds the GPU pipeline before the next frame. Then put it back.
   ['shader', async () => {
-    await sleep(4000);
+    await browse('Graphics-Canvas', 'Renderer', 'shaderSource', 'class');
+    await edit('return tex.sample(s, in.uv / size) * in.color.a;',
+      'return tex.sample(s, in.uv / size) * in.color.a * (((uint(in.pos.y) / 4u) & 1u) == 0u ? 1.0 : 0.88);', 35);
+    act('key', 'Meta+s', `${W.browser}.code`); await sleep(3500);
+    await edit(' * (((uint(in.pos.y) / 4u) & 1u) == 0u ? 1.0 : 0.88)', '', 0);
+    act('key', 'Meta+s', `${W.browser}.code`); await sleep(1500);
   }],
 
-  // 3. Live glyph rasterizer. TODO (feature): coverage tweak + glyph pixel inspector.
+  // 3. Live glyph rasterizer: Graphics-Canvas › GlyphRasterizer › coverage gets a gamma (square root): every glyph
+  // re-rasterizes bolder. Then the coverage pixels of 'g' in an Inspector; then put the rasterizer back.
   ['glyphs', async () => {
-    await sleep(4000);
+    await browse('Graphics-Canvas', 'GlyphRasterizer', 'coverage', 'instance');
+    await edit('v := sum < 0.0', 'v := (sum < 0.0', 70);
+    await edit('ifFalse: [sum].', 'ifFalse: [sum]) sqrt.', 70);
+    act('key', 'Meta+s', `${W.browser}.code`); await sleep(2500);
+    await evaluate('(Font code glyphFor: $g) inspect');
+    const insp = await S.win(/Inspector: a GlyphForm|Inspector.*Glyph/);
+    await sleep(800);
+    for (const at of ['3,8', '6,12', '9,15']) { try { act('hover', `${insp}.pixels`, '--at', at); } catch {} await sleep(700); }
+    await sleep(800);
+    act('click', `${insp}.close`); await sleep(600);
+    await edit('v := (sum < 0.0', 'v := sum < 0.0', 0);
+    await edit('ifFalse: [sum]) sqrt.', 'ifFalse: [sum].', 0);
+    act('key', 'Meta+s', `${W.browser}.code`); await sleep(1200);
   }],
 
-  // 4. Slow motion. TODO (feature): the animation clock rate.
+  // 4. Slow motion: World menu › Slow motion (the animation clock 10× slower): the menu, a window opening, the
+  // selection glide, closing; then back to 1×.
   ['slowmo', async () => {
-    await sleep(4000);
+    act('click', DESK); await sleep(600);
+    act('click', '@menu.slow-motion'); await sleep(2500);
+    act('click', DESK); await sleep(2500);
+    act('click', '@menu.workspace');
+    const ws = await S.win(/Workspace/ , 15000).catch(() => null);
+    await sleep(3000);
+    act('select', `${W.browser}.packages`, 'Graphics-GPU'); await sleep(2500);   // the selection glides
+    act('select', `${W.browser}.packages`, 'Graphics-Canvas'); await sleep(2500);
+    const fresh = ctl('snapshot', '--depth', '1').split('\n').filter(l => l.startsWith('window ') && /"Workspace"/.test(l)).map(l => l.match(/@w\d+/)[0]).find(r => r !== W.workspace);
+    if (fresh) { act('click', `${fresh}.close`); await sleep(2500); }
+    act('click', DESK); await sleep(1500);
+    act('click', '@menu.slow-motion'); await sleep(1200);
   }],
 
   // 5. Edit and continue mid-computation: the Mandelbrot's colour function is edited while a render runs; the rows it
@@ -77,8 +128,7 @@ const beats = [
   ['palette', async () => {
     await browse('Tools', 'MandelbrotView', 'pixelFor:');
     // invert the colours: white becomes black, ultramarine becomes amber
-    act('select', `${W.browser}.code`, '^palette at: index + 1'); await sleep(500);
-    S.type(`${W.browser}.code`, '^(palette at: index + 1) bitXor: 16rFFFFFF'); await sleep(6000);
+    await edit('^palette at: index + 1', '^(palette at: index + 1) bitXor: 16rFFFFFF', 70);
     S.busy = true;
     act('click', `${W.mandel}.view`); await sleep(1100);   // a render starts
     act('key', 'Meta+s', `${W.browser}.code`); await sleep(3500);
@@ -122,16 +172,30 @@ const beats = [
     await sleep(3000);
   }],
 
-  // 13. Snapshot mid-debugging: a debugger stopped mid-step, Save image, Quit; relaunch; step on.
+  // 13. Snapshot mid-debugging: a do-it halted in a loop, stepped in its debugger; World menu › Save image, › Quit;
+  // the image is started again and the debugger steps on and proceeds: the do-it prints its result.
   ['snapshot', async () => {
-    // TODO (feature): set up the debugger mid-step, World menu › Save image, World menu › Quit.
-    await sleep(3000);
-    S.stopSegment();
-    // TODO (feature): quit the image here (World menu › Quit) instead of closing it.
-    ctl('close');
-    await S.open({ fresh: false, args: openArgs });
+    const line = '| sum | sum := 0. 1 to: 5 do: [:i | i = 3 ifTrue: [self halt]. sum := sum + (i * i)]. sum';
+    act('select', `${W.workspace}.text`, line); await sleep(600);
+    act('key', 'Meta+p', `${W.workspace}.text`);
+    const note = await S.win(/Halt/);
+    await sleep(900);
+    act('click', `${note}.debug`);
+    let dbg = await S.win(/Debugger/);
+    await sleep(900);
+    for (let k = 0; k < 2; k++) { act('click', `${dbg}.over`); await sleep(900); }
+    act('click', DESK); await sleep(700);
+    act('click', '@menu.save-image'); await sleep(2500);
+    act('click', DESK); await sleep(700);
+    try { act('click', '@menu.quit'); } catch {}          // the image quits while the command waits for it to settle
+    await sleep(1500);
+    S.stopSegment();                                   // the image quit: its recording ended with it
+    await S.open({ fresh: false, args: openArgs, wait: /Debugger/ });
     S.startSegment();
-    await sleep(3000);
+    await sleep(1500);
+    dbg = await S.win(/Debugger/);
+    act('click', `${dbg}.over`); await sleep(1200);
+    act('click', `${dbg}.proceed`); await sleep(2500);
   }],
 
   // 14. The tiny core. TODO (feature): the Terminal tool: wc -l, Smalltalk line count, gst vs the Workspace's suite.
