@@ -201,11 +201,22 @@ strcmp: a with: b
 !
 atol: s
 	<c: 'long atol(const char *s)'>
-	^Integer readFrom: (self memory stringAt: s) ifFail: [0]
+	^self parseInteger: (self memory stringAt: s)
 !
 atoi: s
 	<c: 'int atoi(const char *s)'>
-	^Integer readFrom: (self memory stringAt: s) ifFail: [0]
+	^(self parseInteger: (self memory stringAt: s)) asInt32
+!
+parseInteger: aString
+	"As atol: leading white space, an optional sign, then digits up to the first non-digit."
+	| in negative v |
+	in := ReadStream on: aString.
+	[in atEnd not and: [in peek isSeparator]] whileTrue: [in next].
+	negative := false.
+	(in atEnd not and: [in peek = $- or: [in peek = $+]]) ifTrue: [negative := in next = $-].
+	v := 0.
+	[in atEnd not and: [in peek isDigit]] whileTrue: [v := v * 10 + in next digitValue].
+	^negative ifTrue: [v negated] ifFalse: [v]
 !
 strdup: s
 	<c: 'char *strdup(const char *s)'>

@@ -289,9 +289,33 @@ ldexp: x exponent: e
 !
 strtod: s end: endp
 	<c: 'double strtod(const char *s, char **endp)'>
-	| str v |
+	"Simulated: decimal floating point (sign, digits, point, exponent), converted exactly and rounded once."
+	| str in negative mantissa scale exp expNegative consumed v |
 	str := self memory stringAt: s.
-	v := (Number readFrom: str ifFail: [0]) asFloat.
-	endp notNull ifTrue: [endp value: s + str size].
+	in := ReadStream on: str.
+	[in atEnd not and: [in peek isSeparator]] whileTrue: [in next].
+	negative := false.
+	(in atEnd not and: [in peek = $- or: [in peek = $+]]) ifTrue: [negative := in next = $-].
+	(str copyFrom: in position + 1 to: (in position + 3 min: str size)) asLowercase = 'inf' ifTrue: [
+		in skip: 3.
+		v := negative ifTrue: [Float infinity negated] ifFalse: [Float infinity]]
+		ifFalse: [
+			mantissa := 0.
+			scale := 0.
+			[in atEnd not and: [in peek isDigit]] whileTrue: [mantissa := mantissa * 10 + in next digitValue].
+			(in atEnd not and: [in peek = $.]) ifTrue: [
+				in next.
+				[in atEnd not and: [in peek isDigit]] whileTrue: [mantissa := mantissa * 10 + in next digitValue. scale := scale - 1]].
+			exp := 0.
+			(in atEnd not and: [in peek = $e or: [in peek = $E]]) ifTrue: [
+				in next.
+				expNegative := false.
+				(in atEnd not and: [in peek = $- or: [in peek = $+]]) ifTrue: [expNegative := in next = $-].
+				[in atEnd not and: [in peek isDigit]] whileTrue: [exp := exp * 10 + in next digitValue].
+				expNegative ifTrue: [exp := exp negated]].
+			v := (mantissa * (10 raisedTo: scale + exp)) asFloat.
+			negative ifTrue: [v := v negated]].
+	consumed := in position.
+	endp notNull ifTrue: [endp value: s + consumed].
 	^v
 ! !
