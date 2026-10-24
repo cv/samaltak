@@ -66,6 +66,9 @@ testCopying
 	self assert: ('abc' collect: [:c | c asUppercase]) = 'ABC'.
 	self assert: ('a1b2' select: [:c | c isDigit]) = '12'.
 	self assert: ('7' padLeftTo: 3 with: $0) = '007'.
+	self assert: ('7' padLeftTo: 3) = '  7'.
+	self assert: ('7' padRightTo: 3) = '7  '.
+	self assert: ('7' padRightTo: 3 with: $.) = '7..'.
 	self assert: 'hello' asSymbol == #hello.
 	self assert: 'cba' sorted = 'abc'
 !

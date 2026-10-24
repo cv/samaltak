@@ -414,10 +414,10 @@ padRightTo: width with: aCharacter
 	^self, (String new: width - self size withAll: aCharacter)
 !
 padLeftTo: width
-	^self padLeftTo: width with: $
+	^self padLeftTo: width with: Character space
 !
 padRightTo: width
-	^self padRightTo: width with: $
+	^self padRightTo: width with: Character space
 !
 format: arguments
 	"Replace {1}, {2}... by the corresponding elements of arguments (or {key} by dictionary values), using asString. \{ escapes a brace."

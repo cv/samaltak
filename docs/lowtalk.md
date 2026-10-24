@@ -5,7 +5,7 @@ The VM (object memory, GC, interpreter, scheduler, primitives, image I/O) and th
 - **Running it directly is the simulator.** Lowtalk classes are ordinary classes in the image. A `VMSimulation` instantiates the modules over a `SimulatedMemory` and runs them, so the VM can be stepped in the debugger, profiled and tested without a C compiler.
 - **`VMTranslator` turns it into C** (`vm/gen/`, checked in). The C build compiles only generated code.
 
-Packages (all layer 0): `VM-Lowtalk` (the language's runtime: `VMModule`, `VMStruct`, `CLibrary`, `CPointer`, `SimulatedMemory`, `VMSimulation`), `VM-Translator`, `VM-Core` and `VM-Platform` (the VM), `Tests-VM`.
+Packages (all layer 0): `VM-Lowtalk` (the language's runtime: `VMModule`, `VMStruct`, `CLibrary`, `CPointer`, `SimulatedMemory`, `VMSimulation`), `VM-Translator`, `VM-Core` and `VM-Platform` (the VM), `VM-Jit` (machine code, see docs/jit.md), `Tests-VM`.
 
 ## Rules
 
@@ -30,7 +30,7 @@ Everything below means the same in Smalltalk and in C; anything else is rejected
 
 **Control flow:** `ifTrue:ifFalse:` (conditions must be `bool`), `and:`/`or:`, `whileTrue:`/`whileFalse:`, `to:do:`/`to:by:do:`, `timesRepeat:`, `repeat`, `caseOf:otherwise:` (a C `switch` for constant keys), `^`. Blocks only as arguments of these or of inline methods.
 
-**Pointers** (`T *`): `p at: i`, `p at: i put: v`, `p value`, `p value: v`, `p + n`, `p - n`, `p - q`, comparisons, `p isNull`, `p notNull`, `self null`. A struct pointer answers its fields (`fr method`, `fr method: m`), `p fieldAddress: #method` (`&p->method`), `p copyStructFrom: q` (`*p = *q`); `p at: i` of a struct pointer is `p + i`. Casts: `self cCoerce: e to: 'T'`. Raw memory: `self uint64At: a`, `self uint64At: a put: v` (also `uint32`, `uint16`, `uint8`, `int*`, `float64`, `float32`). `self sizeof: 'T'`. Function pointers: `self functionPointer: #ticker:`, called with `fp call`, `fp call: x`, ...
+**Pointers** (`T *`): `p at: i`, `p at: i put: v`, `p value`, `p value: v`, `p + n`, `p - n`, `p - q`, comparisons, `p isNull`, `p notNull`, `self null`. A struct pointer answers its fields (`fr method`, `fr method: m`), `p fieldAddress: #method` (`&p->method`), `p copyStructFrom: q` (`*p = *q`); `p at: i` of a struct pointer is `p + i`. Casts: `self cCoerce: e to: 'T'`. Raw memory: `self uint64At: a`, `self uint64At: a put: v` (also `uint32`, `uint16`, `uint8`, `int*`, `float64`, `float32`). `self sizeof: 'T'`. Function pointers: `self functionPointer: #ticker:`, called with `fp call`, `fp call: x`, ... An address cast to a function pointer type (`(self cCoerce: entry to: 'int64_t (*)(int64_t)') call: 42`) calls machine code; simulated, the memory's `machineCodeRunner` runs it (VM-Jit's `Arm64Emulator`).
 
 **Locals in memory.** `p := self local: 'T'` answers a pointer to fresh zeroed storage for a `T` (a struct, a scalar out-parameter, an array `'char[256]'`), living until the function returns.
 
