@@ -807,7 +807,7 @@ drawCaretOn: aCanvas
 restartBlink
 	blinkTimer isNil ifFalse: [blinkTimer cancel. blinkTimer := nil].
 	self hasKeyboardFocus ifFalse: [^self].
-	blinkTimer := self after: (self theme metric: #caretBlinkMs) do: [self blink]
+	blinkTimer := self afterAnimationTime: (self theme metric: #caretBlinkMs) do: [self blink]
 !
 blink
 	blinkTimer := nil.
@@ -815,7 +815,7 @@ blink
 	self isFocused
 		ifTrue: [caretOn := caretOn not. self invalidate]
 		ifFalse: [caretOn := true].
-	blinkTimer := self after: (self theme metric: #caretBlinkMs) do: [self blink]
+	blinkTimer := self afterAnimationTime: (self theme metric: #caretBlinkMs) do: [self blink]
 !
 isCaretOn
 	^caretOn

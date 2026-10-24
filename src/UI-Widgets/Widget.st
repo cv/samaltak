@@ -364,6 +364,10 @@ after: milliseconds do: aBlock
 	w isNil ifTrue: [^nil].
 	^w after: milliseconds do: aBlock
 !
+afterAnimationTime: milliseconds do: aBlock
+	"Like after:do:, milliseconds of the animation clock (Animation timeScale times longer in slow motion)."
+	^self after: (Animation realMilliseconds: milliseconds) do: aBlock
+!
 animate: anAnimation
 	"Run anAnimation on the compositor clock (or finish it at once without a window)."
 	| w |

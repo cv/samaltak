@@ -545,7 +545,7 @@ updateStatus
 showPill: aString style: aSymbol
 	pill := Array with: aString with: aSymbol.
 	pillTimer isNil ifFalse: [pillTimer cancel].
-	pillTimer := self after: 1600 do: [pill := nil. pillTimer := nil. self updateStatus].
+	pillTimer := self afterAnimationTime: 1600 do: [pill := nil. pillTimer := nil. self updateStatus].
 	self updateStatus
 !
 clearPill

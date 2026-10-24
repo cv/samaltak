@@ -25,7 +25,7 @@ installOn: aWorld
 	RemoteControl registerWaitCondition: 'frames' with: [:n :r | self frames: n for: r].
 	"Remote control is an input device: the input dispatcher serves its sockets."
 	(ControlServer current notNil and: [aWorld dispatcher notNil]) ifTrue: [aWorld dispatcher addService: ControlServer current].
-	RemoteInputDevice default windowId: aWorld displayWindow windowId.
+	RemoteInputDevice default windowId: aWorld displayWindow windowId; timeScaleBlock: [Animation timeScale].
 	RemoteInputDevice default pointer isNil ifTrue: [RemoteInputDevice default pointer: aWorld extent / 2].
 	aWorld remotePointer ignore: RemoteInputDevice default pointer
 !
@@ -40,6 +40,7 @@ uninstall
 	RemoteControl unregisterCommand: 'screenshot'.
 	RemoteControl unregisterCommand: 'record'.
 	RemoteControl pointResolver: nil.
+	RemoteInputDevice default timeScaleBlock: nil.
 	RemoteControl root: nil
 ! !
 

@@ -159,7 +159,7 @@ pointerDown: anEvent
 pointerMoved: anEvent
 	| p w zone |
 	p := anEvent globalPosition.
-	lastMove := Time millisecondClockValue.
+	lastMove := Animation now.
 	tooltipAsked := false.
 	world tooltip isNil ifFalse: [world hideTooltip].
 	gesture isNil ifFalse: [^self continueGesture: p].
@@ -265,7 +265,7 @@ checkTooltipAt: ms
 	"Called by the compositor: after the pointer rested 600 ms over a window's content, ask it for a tooltip."
 	| w |
 	tooltipAsked ifTrue: [^self].
-	(Time millisecondClockValue - lastMove) < 600 ifTrue: [^self].
+	ms - lastMove < 600 ifTrue: [^self].
 	tooltipAsked := true.
 	(gesture notNil or: [captureWindow notNil]) ifTrue: [^self].
 	w := world overlayAt: pointer.

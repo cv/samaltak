@@ -3,7 +3,7 @@ Object subclass: #Desktop
 	classVariableNames: ''
 	package: 'UI-Widgets'!
 
-Desktop comment: 'I am the window system as the layer above (Tools) sees it: a class-side facade over UI-Windows'' World, Window and UIWindows, so code above UI-Widgets never names them. I only forward: "Desktop current" answers the running World and "Desktop newWindow" a new Window, and their own protocol does the rest.'!
+Desktop comment: 'I am the window system as the layer above (Tools) sees it: a class-side facade over UI-Windows'' World, Window and UIWindows, so code above UI-Widgets never names them. I only forward: "Desktop current" answers the running World and "Desktop newWindow" a new Window, and their own protocol does the rest. animationTimeScale: is Animation timeScale: (slow motion).'!
 
 !Desktop class methodsFor: 'accessing'!
 current
@@ -36,6 +36,15 @@ userInterruptHandler: aBlock
 !
 worldMenuBuilder: aBlock
 	World worldMenuBuilder: aBlock
+! !
+
+!Desktop class methodsFor: 'animation'!
+animationTimeScale
+	^Animation timeScale
+!
+animationTimeScale: aNumber
+	"Run every animation aNumber times slower (10: slow motion, 1: normal)."
+	Animation timeScale: aNumber
 ! !
 
 !Desktop class methodsFor: 'starting'!

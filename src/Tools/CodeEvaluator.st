@@ -118,7 +118,7 @@ insertResult: aString after: anInterval
 flash: anInterval
 	| mark |
 	mark := editor addMark: anInterval style: #search.
-	editor after: 600 do: [editor removeMark: mark]
+	editor afterAnimationTime: 600 do: [editor removeMark: mark]
 !
 markSyntaxError: aSyntaxError at: anInterval
 	"Insert the message at the error's position (Squeak style), selected and marked #error."

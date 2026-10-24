@@ -1,9 +1,9 @@
 Object subclass: #RemoteInputPlanner
-	instanceVariableNames: 'pointer windowId travelMilliseconds dragMilliseconds stepMilliseconds typeDelayMilliseconds pressMilliseconds'
+	instanceVariableNames: 'pointer windowId travelMilliseconds dragMilliseconds stepMilliseconds typeDelayMilliseconds pressMilliseconds timeScale'
 	classVariableNames: 'KeyNames'
 	package: 'System-Remote'!
 
-RemoteInputPlanner comment: 'I turn high-level input (click at a point, drag, key combo, typing, wheel) into RemoteInputPlans of platform events (vm/platform/README.md, "Events"). Pointer travel is a series of mouseMove events over travelMilliseconds (default 100, every stepMilliseconds = 16, eased; a drag''s move with the button held takes dragMilliseconds, default 250), so the UI can animate the pointer; pointer is where the previous plan left it (nil: jump straight to the target). Typing is one textInput event per character, typeDelayMilliseconds apart (newline and tab are Return and Tab keys).
+RemoteInputPlanner comment: 'I turn high-level input (click at a point, drag, key combo, typing, wheel) into RemoteInputPlans of platform events (vm/platform/README.md, "Events"). Pointer travel is a series of mouseMove events over travelMilliseconds (default 100, every stepMilliseconds = 16, eased; a drag''s move with the button held takes dragMilliseconds, default 250), so the UI can animate the pointer (timeScale times slower: the UI''s slow motion); pointer is where the previous plan left it (nil: jump straight to the target). Typing is one textInput event per character, typeDelayMilliseconds apart (newline and tab are Return and Tab keys).
 
 Key combos: ''Meta+p'', ''Shift+Meta+z'', ''Escape'', ''Meta+.'', ''Ctrl++''. Modifiers: Meta/Cmd/Command/Mod (cmd 8), Ctrl/Control (ctrl 2), Alt/Option/Opt (alt 4), Shift (shift 1). Keys: one character, or a name (Enter Return Escape Esc Tab Backspace Delete Space Up Down Left Right Home End PageUp PageDown Insert F1-F12 Plus). A combo sends keyDown for each modifier key, keyDown of the key (with textInput when it types a character: no Meta/Ctrl/Alt), keyUp, and the modifier keyUps in reverse.'!
 
@@ -13,7 +13,8 @@ initialize
 	dragMilliseconds := 250.
 	stepMilliseconds := 16.
 	typeDelayMilliseconds := 8.
-	pressMilliseconds := 30
+	pressMilliseconds := 30.
+	timeScale := 1
 ! !
 
 !RemoteInputPlanner methodsFor: 'accessing'!
@@ -40,6 +41,10 @@ typeDelayMilliseconds: anInteger
 !
 pressMilliseconds: anInteger
 	pressMilliseconds := anInteger
+!
+timeScale: aNumber
+	"Travel aNumber times slower."
+	timeScale := aNumber
 ! !
 
 !RemoteInputPlanner methodsFor: 'events'!
@@ -55,7 +60,7 @@ moveTo: aPoint
 	^self moveTo: aPoint buttons: 0 modifiers: 0
 !
 moveTo: aPoint buttons: buttonMask modifiers: mods
-	"Plan mouseMoves from pointer to aPoint over travelMilliseconds (one move if pointer is unknown, none if it is already there)."
+	"Plan mouseMoves from pointer to aPoint over travelMilliseconds times timeScale (one move if pointer is unknown, none if it is already there)."
 	| plan start n t eased |
 	plan := RemoteInputPlan new.
 	start := pointer.
@@ -63,7 +68,7 @@ moveTo: aPoint buttons: buttonMask modifiers: mods
 	(start isNil or: [travelMilliseconds <= 0])
 		ifTrue: [plan add: (self event: 1 at: aPoint key: buttonMask modifiers: mods extra: nil) after: 0]
 		ifFalse: [
-			n := (travelMilliseconds / stepMilliseconds) rounded max: 1.
+			n := (travelMilliseconds * timeScale / stepMilliseconds) rounded max: 1.
 			1 to: n do: [:i |
 				t := i / n.
 				eased := t < (1/2) ifTrue: [2 * t * t] ifFalse: [1 - ((-2 * t + 2) squared / 2)].
@@ -75,6 +80,10 @@ moveTo: aPoint buttons: buttonMask modifiers: mods
 	pointer := aPoint.
 	^plan
 !
+arrivalMilliseconds
+	"The pause between the end of a travel and the press there, so the UI's pointer arrives first."
+	^(stepMilliseconds * timeScale) rounded
+!
 click: aPoint
 	^self click: aPoint button: 1 count: 1 modifiers: 0
 !
@@ -83,7 +92,7 @@ click: aPoint button: button count: clicks modifiers: mods
 	| plan |
 	plan := self moveTo: aPoint.
 	1 to: clicks do: [:k |
-		plan add: (self event: 2 at: aPoint key: button modifiers: mods extra: k) after: (k = 1 ifTrue: [plan isEmpty ifTrue: [0] ifFalse: [stepMilliseconds]] ifFalse: [pressMilliseconds]).
+		plan add: (self event: 2 at: aPoint key: button modifiers: mods extra: k) after: (k = 1 ifTrue: [plan isEmpty ifTrue: [0] ifFalse: [self arrivalMilliseconds]] ifFalse: [pressMilliseconds]).
 		plan add: (self event: 3 at: aPoint key: button modifiers: mods extra: k) after: pressMilliseconds].
 	^plan
 !
@@ -91,19 +100,19 @@ drag: fromPoint to: toPoint modifiers: mods
 	"Travel to fromPoint, press the left button, move to toPoint over dragMilliseconds with the button held, release."
 	| plan travel |
 	plan := self moveTo: fromPoint.
-	plan add: (self event: 2 at: fromPoint key: 1 modifiers: mods extra: 1) after: (plan isEmpty ifTrue: [0] ifFalse: [stepMilliseconds]).
+	plan add: (self event: 2 at: fromPoint key: 1 modifiers: mods extra: 1) after: (plan isEmpty ifTrue: [0] ifFalse: [self arrivalMilliseconds]).
 	travel := travelMilliseconds.
 	travelMilliseconds := dragMilliseconds.
 	[(self moveTo: toPoint buttons: 1 modifiers: mods) steps do: [:step |
 		plan add: step last after: (step first max: stepMilliseconds)]] ensure: [travelMilliseconds := travel].
-	plan add: (self event: 3 at: toPoint key: 1 modifiers: mods extra: 1) after: stepMilliseconds.
+	plan add: (self event: 3 at: toPoint key: 1 modifiers: mods extra: 1) after: self arrivalMilliseconds.
 	^plan
 !
 scroll: aPoint delta: aDelta modifiers: mods
 	"Travel to aPoint and send one wheel event; aDelta is in wheel units (+y = away from the user, i.e. scroll up)."
 	| plan |
 	plan := self moveTo: aPoint.
-	plan add: (self event: 4 at: aPoint key: 0 modifiers: mods extra: aDelta x asFloat @ aDelta y asFloat) after: (plan isEmpty ifTrue: [0] ifFalse: [stepMilliseconds]).
+	plan add: (self event: 4 at: aPoint key: 0 modifiers: mods extra: aDelta x asFloat @ aDelta y asFloat) after: (plan isEmpty ifTrue: [0] ifFalse: [self arrivalMilliseconds]).
 	^plan
 ! !
 

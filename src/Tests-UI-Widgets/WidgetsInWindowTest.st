@@ -18,6 +18,10 @@ setUp
 	editor text: 'foo'.
 	window := self open: (Column with: {header. list fixed: 100. editor}) title: 'Widgets' at: (100 @ 100 extent: 400 @ 300)
 !
+tearDown
+	Animation timeScale: 1.
+	super tearDown
+!
 screenPoint: aLocalPoint of: aWidget
 	^aWidget screenPointFrom: aLocalPoint
 ! !
@@ -64,6 +68,19 @@ testCaretBlinksOnWindowTimer
 	| before |
 	self click: (self screenPoint: 30 @ 10 of: editor).
 	before := editor isCaretOn.
+	self assert: (self waitFor: [editor isCaretOn ~= before] timeout: 2000) description: 'the caret did not blink'
+!
+testCaretBlinkSlowsDownInSlowMotion
+	| before |
+	self click: (self screenPoint: 30 @ 10 of: editor).
+	Animation timeScale: 10.
+	window sync: [editor restartBlink].
+	before := editor isCaretOn.
+	"530 ms between blinks, 5.3 s in slow motion"
+	(Delay forMilliseconds: 1500) wait.
+	self assert: editor isCaretOn equals: before.
+	Animation timeScale: 1.
+	window sync: [editor restartBlink].
 	self assert: (self waitFor: [editor isCaretOn ~= before] timeout: 2000) description: 'the caret did not blink'
 !
 testRemoteSnapshot

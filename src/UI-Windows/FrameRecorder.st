@@ -43,7 +43,7 @@ isRunning
 start
 	stream := FileStream appendingFileNamed: path.
 	stream binary.
-	startTime := Animation now.
+	startTime := Time microsecondClockValue / 1000.0.
 	running := true
 !
 stop
@@ -56,7 +56,7 @@ captureFrom: aSurface compositor: aCompositor
 	"Compositor Process: if video slots came due since the last write, downsample the presented frame and write it once per due slot."
 	| due |
 	running ifFalse: [^self].
-	due := ((Animation now - startTime) * fps / 1000.0) floor + 1 - written.
+	due := ((Time microsecondClockValue / 1000.0 - startTime) * fps / 1000.0) floor + 1 - written.
 	due <= 0 ifTrue: [^self].
 	surface isNil ifTrue: [surface := Surface width: width height: height scale: 1].
 	buffer isNil ifTrue: [buffer := ByteArray new: width * height * 4].

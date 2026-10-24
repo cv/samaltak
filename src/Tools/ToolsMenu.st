@@ -3,7 +3,7 @@ Object subclass: #ToolsMenu
 	classVariableNames: 'Entries'
 	package: 'Tools'!
 
-ToolsMenu comment: 'I build the World menu (a click on the desk). Tools register what they open in its "open…" section, sorted by order; the rest of the menu (long computation, user interrupt, arrange, save, help, quit) is mine.
+ToolsMenu comment: 'I build the World menu (a click on the desk). Tools register what they open in its "open…" section, sorted by order; the rest of the menu (long computation, user interrupt, arrange, slow motion (every animation 10× slower), save, help, quit) is mine.
 
 	ToolsMenu register: ''Profiler'' description: ''samples · frames'' order: 60 action: [:aPoint | ...]
 	ToolsMenu unregister: ''Profiler''
@@ -49,6 +49,7 @@ worldMenuAt: aPoint
 	menu add: 'User interrupt' key: '⌘.' action: [self run: [Tools userInterrupt]].
 	menu addSeparator.
 	menu add: 'Arrange windows' action: [self run: [Tools arrangeWindows]].
+	menu add: 'Slow motion' checked: Desktop animationTimeScale > 1 action: [Desktop animationTimeScale: (Desktop animationTimeScale > 1 ifTrue: [1] ifFalse: [10])].
 	menu add: 'Save image' description: Tools imageName action: [self run: [Tools saveImage]].
 	menu add: 'Help…' key: '?' action: [self run: [Tools showHelp]].
 	menu add: 'Quit' action: [self run: [Tools quit]].

@@ -1,5 +1,5 @@
 Object subclass: #RemoteInputDevice
-	instanceVariableNames: 'pointer windowId injector settleMilliseconds'
+	instanceVariableNames: 'pointer windowId injector settleMilliseconds timeScaleBlock'
 	classVariableNames: 'Default'
 	package: 'System-Remote'!
 
@@ -33,9 +33,17 @@ settleMilliseconds
 settleMilliseconds: anInteger
 	settleMilliseconds := anInteger
 !
+timeScale
+	"How many times slower than normal the pointer travels (the UI's slow motion)."
+	^timeScaleBlock isNil ifTrue: [1] ifFalse: [timeScaleBlock value]
+!
+timeScaleBlock: aBlockOrNil
+	"aBlock answers the timeScale (nil: 1)."
+	timeScaleBlock := aBlockOrNil
+!
 planner
 	"Answer a RemoteInputPlanner starting at my pointer."
-	^RemoteInputPlanner new pointer: pointer; windowId: windowId; yourself
+	^RemoteInputPlanner new pointer: pointer; windowId: windowId; timeScale: self timeScale; yourself
 ! !
 
 !RemoteInputDevice methodsFor: 'playing'!

@@ -1,6 +1,6 @@
 Object subclass: #Animation
 	instanceVariableNames: 'from to duration easing action startTime delay value finished doneBlocks frameBlock'
-	classVariableNames: ''
+	classVariableNames: 'Clock'
 	package: 'UI-Windows'!
 
 Animation comment: 'I tween a value (Number, Point, Rectangle or Color: interpolateTo:at:) from from to to over duration milliseconds with an easing, on the compositor clock (milliseconds, Float), calling action with each value:
@@ -8,6 +8,8 @@ Animation comment: 'I tween a value (Number, Point, Rectangle or Color: interpol
 	Animation from: 0 to: 100 duration: 140 easing: #easeOutCubic do: [:x | ...]
 
 Run me with aWindow animate: (stepped in the window''s Process, the window redraws after each step) or aLayer animate: (stepped by the Compositor: smooth even when the window''s Process is busy). A frame animation (Animation everyFrame: [:ms | ... true to continue]) runs until its block answers false. I start at the first frame after I am added (or at startAt:). whenDone: blocks run once when I reach my end (not when stopped).
+
+The clock is real time slowed down by timeScale (Animation timeScale: 10 is slow motion for every animation, the compositor''s included; 1 is normal speed); changing the scale never makes the clock jump.
 
 Easings: #linear #easeInQuad #easeOutQuad #easeInOutQuad #easeInCubic #easeOutCubic #easeInOutCubic #spring (critically damped, no overshoot).'!
 
@@ -150,6 +152,29 @@ interpolate: a to: b at: e
 	^a interpolateTo: b at: e
 !
 now
-	"The clock animations run on (milliseconds, Float)."
-	^Time microsecondClockValue / 1000.0
+	"The clock animations run on (milliseconds, Float): real time, timeScale times slower since the scale was set."
+	^self nowAt: Time microsecondClockValue / 1000.0
+!
+nowAt: realMilliseconds
+	| c |
+	c := Clock.
+	c isNil ifTrue: [^realMilliseconds].
+	^(c at: 2) + ((realMilliseconds - (c at: 1)) / (c at: 3))
+!
+timeScale
+	"How many times slower than real time animations run (1: normal)."
+	| c |
+	c := Clock.
+	^c isNil ifTrue: [1] ifFalse: [c at: 3]
+!
+timeScale: aNumber
+	"Run every animation aNumber times slower (10: slow motion, 1: normal), running ones included, without a jump."
+	| real |
+	aNumber > 0 ifFalse: [^self error: 'The time scale must be positive'].
+	real := Time microsecondClockValue / 1000.0.
+	Clock := Array with: real with: (self nowAt: real) with: aNumber
+!
+realMilliseconds: milliseconds
+	"The real milliseconds that milliseconds of the animation clock take now (for timers: Delays run on real time)."
+	^(milliseconds * self timeScale) rounded
 ! !

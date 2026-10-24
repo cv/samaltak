@@ -273,7 +273,7 @@ where
 	interval := session pcIntervalOf: ctx.
 	interval isNil ifTrue: [^self].
 	source pcMark: interval style: #search.
-	self after: 260 do: [
+	self afterAnimationTime: 260 do: [
 		(done not and: [selected == ctx]) ifTrue: [self updatePcMark]]
 !
 toggleFullStack

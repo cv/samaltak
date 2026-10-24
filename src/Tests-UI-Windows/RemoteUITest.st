@@ -14,6 +14,7 @@ setUp
 	UIRemote installOn: world
 !
 tearDown
+	Animation timeScale: 1.
 	UIRemote uninstall.
 	RemoteControl registryState: savedRegistry.
 	RemoteInputDevice default pointer: savedPointer; windowId: savedWindowId.
@@ -49,6 +50,23 @@ testClickOnRefGoesThroughInjectedInput
 	self settle.
 	self assert: (v eventsOfType: #down) size equals: 1.
 	self assert: (v eventsOfType: #down) first position equals: v extent / 2
+!
+testClickInSlowMotion
+	| v r start |
+	v := RecordingTestView new.
+	self open: v title: 'Remote' at: (100 @ 100 extent: 300 @ 200).
+	RemoteInputDevice default pointer: 600 @ 500.
+	Animation timeScale: 10.
+	start := Time millisecondClockValue.
+	r := self send: ((self cmd: 'click') at: 'target' put: '@w1.view'; yourself).
+	self assert: (r at: 'ok').
+	"100 ms of pointer travel take a second"
+	self assert: Time millisecondClockValue - start >= 800.
+	self settle.
+	self assert: (v eventsOfType: #down) size equals: 1.
+	self assert: (v eventsOfType: #down) first position equals: v extent / 2.
+	"the on-screen pointer glides there (on the slowed clock)"
+	self assert: (self waitFor: [world remotePointer position = RemoteInputDevice default pointer] timeout: 10000)
 !
 testClickRaisesCoveredWindow
 	| a b wa |

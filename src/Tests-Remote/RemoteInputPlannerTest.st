@@ -44,6 +44,17 @@ testTravel
 	self assert: plan duration >= 80.
 	self assert: (plan events allSatisfy: [:e | (e at: 8) = 7])
 !
+testTimeScaleSlowsTheTravel
+	| plan moves |
+	planner pointer: 0 @ 0; timeScale: 10.
+	plan := planner click: 160 @ 80.
+	moves := plan events select: [:e | e first = 1].
+	self assert: moves size > 50.
+	self assert: plan duration >= 800.
+	"the press waits for the slowed pointer too; the click itself is not slowed"
+	self assert: ((plan steps detect: [:s | s last first = 2]) first) equals: 160.
+	self assert: ((plan steps detect: [:s | s last first = 3]) first) equals: 30
+!
 testDrag
 	| plan types down up heldMoves |
 	planner pointer: 0 @ 0; travelMilliseconds: 64; dragMilliseconds: 64.

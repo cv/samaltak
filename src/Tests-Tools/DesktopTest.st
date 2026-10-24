@@ -49,6 +49,18 @@ testWorldMenu
 	self assert: overlay content menu title equals: 'World'.
 	overlay close
 !
+testSlowMotionMenuItem
+	| item |
+	item := [((ToolsMenu worldMenuAt: nil) items select: [:i | i isItem]) detect: [:i | i label = 'Slow motion']].
+	self deny: item value isChecked.
+	[item value run.
+	 self assert: Desktop animationTimeScale equals: 10.
+	 self assert: item value isChecked.
+	 item value run.
+	 self assert: Desktop animationTimeScale equals: 1.
+	 self deny: item value isChecked]
+		ensure: [Desktop animationTimeScale: 1]
+!
 testRunLongComputation
 	| before crunch |
 	before := Processor allProcesses asIdentitySet.

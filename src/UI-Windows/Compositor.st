@@ -36,7 +36,7 @@ frameCount
 	^frameCount
 !
 clock
-	"The time of the current frame (ms, Float)."
+	"The animation clock at the current frame (ms, Float)."
 	^clock ifNil: [Animation now]
 !
 isPresenting
@@ -125,13 +125,13 @@ sleep
 frame
 	| t0 now animating needs |
 	t0 := Time microsecondClockValue.
-	now := t0 / 1000.0.
+	now := Animation nowAt: t0 / 1000.0.
 	clock := now.
 	animating := self stepAt: now.
 	t0 - lastScan > 1000000 ifTrue: [self scanProcesses: t0].
 	needs := world consumeNeedsFrame.
 	needs := (world topBar updateAt: t0) | needs | animating | requests isEmpty not | world isHidden not
-		| (recorder notNil and: [recorder wantsFrameAt: now]).
+		| (recorder notNil and: [recorder wantsFrameAt: t0 / 1000.0]).
 	needs ifFalse: [
 		idleFrames := idleFrames + 1.
 		^self].

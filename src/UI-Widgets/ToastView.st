@@ -27,7 +27,7 @@ show: aString for: milliseconds
 	self visible: true.
 	hideTimer isNil ifFalse: [hideTimer cancel].
 	self tweenFrom: opacity to: 1 duration: (self theme metric: #fadeMs) do: [:v | opacity := v. self invalidate].
-	hideTimer := self after: milliseconds do: [self hide].
+	hideTimer := self afterAnimationTime: milliseconds do: [self hide].
 	self invalidate
 !
 hide

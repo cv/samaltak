@@ -3,7 +3,7 @@ Object subclass: #TopBar
 	classVariableNames: ''
 	package: 'UI-Windows'!
 
-TopBar comment: 'I am the menu bar at the top of the World (Blue Book: white, a 1-point rule): the brand, the image name, the hint "Click the desktop for the World menu", at the right the ? button (World helpHandler) and the REMOTE tag once a remote session acted on the image (it flashes at each command), and the compositor''s statistics — a sparkline of the last 64 frame times (ms between presented frames, the 16.7 ms budget as a hairline: a stutter shows as a spike), the mean frame time of the last 32 frames, the frames presented in the last second and the number of Processes. The Compositor feeds me FrameRecords-worth of numbers (noteFrame:end:) and draws me every frame.'!
+TopBar comment: 'I am the menu bar at the top of the World (Blue Book: white, a 1-point rule): the brand, the image name, the hint "Click the desktop for the World menu", at the right the ? button (World helpHandler) and the REMOTE tag once a remote session acted on the image (it flashes at each command), the SLOW tag while animations run slowed down (Animation timeScale), and the compositor''s statistics — a sparkline of the last 64 frame times (ms between presented frames, the 16.7 ms budget as a hairline: a stutter shows as a spike), the mean frame time of the last 32 frames, the frames presented in the last second and the number of Processes. The Compositor feeds me FrameRecords-worth of numbers (noteFrame:end:) and draws me every frame.'!
 
 !TopBar methodsFor: 'initialization'!
 setWorld: aWorld
@@ -63,7 +63,7 @@ processCount: anInteger
 updateAt: nowMicros
 	"Refresh the texts at most twice a second; answer whether they changed."
 	| n sum fps old recent tag |
-	tag := self remoteSince: nowMicros // 1000.
+	tag := Array with: (self remoteSince: nowMicros // 1000) with: Animation timeScale.
 	tag = tagState ifFalse: [tagState := tag. ^true].
 	nowMicros - lastUpdate < 500000 ifTrue: [^false].
 	lastUpdate := nowMicros.
@@ -106,6 +106,9 @@ drawOn: c
 		right := right - 8].
 	(self remoteSince: (Time millisecondClockValue)) ifNotNil: [:flash |
 		right := self drawRemoteTagOn: c right: right flash: flash.
+		right := right - 10].
+	Animation timeScale = 1 ifFalse: [
+		right := self drawSlowTagOn: c right: right.
 		right := right - 10].
 	right := right - (mono widthOf: procText).
 	c drawString: procText at: right @ y font: mono color: Color black.
@@ -160,6 +163,17 @@ drawRemoteTagOn: c right: right flash: aBoolean
 	c strokeRect: r color: Color ultramarine width: 1.
 	c fillRect: ((r left + 6) @ (r top + 6) extent: 6 @ 6) color: ink.
 	c drawString: label at: (r left + 17) @ (r top + (18 - font lineHeight / 2) rounded) font: font color: ink.
+	^r left
+!
+drawSlowTagOn: c right: right
+	"While animations run slowed down: an ultramarine tag with the factor, e.g. 10× SLOW."
+	| font label w r |
+	font := Font header.
+	label := Animation timeScale printString, '× SLOW'.
+	w := 6 + (font widthOf: label) + 6.
+	r := (right - w) @ 4 extent: w @ 18.
+	c fillRect: r color: Color ultramarine.
+	c drawString: label at: (r left + 6) @ (r top + (18 - font lineHeight / 2) rounded) font: font color: Color white.
 	^r left
 !
 drawHelpOn: c right: right

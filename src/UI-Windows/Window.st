@@ -393,7 +393,7 @@ queueResize
 !
 enqueueEvent: anEvent
 	"Called by the InputDispatcher."
-	lastInputTime := Time millisecondClockValue.
+	lastInputTime := Animation now.
 	queue nextPut: anEvent
 !
 busy: aBoolean

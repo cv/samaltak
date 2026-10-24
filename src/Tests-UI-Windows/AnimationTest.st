@@ -3,7 +3,7 @@ TestCase subclass: #AnimationTest
 	classVariableNames: ''
 	package: 'Tests-UI-Windows'!
 
-AnimationTest comment: 'Tests Animation: easings, interpolation of numbers, points, rectangles and colors, stepping on a clock, whenDone:, stop, frame animations.'!
+AnimationTest comment: 'Tests Animation: easings, interpolation of numbers, points, rectangles and colors, stepping on a clock, whenDone:, stop, frame animations, the slowed-down clock (timeScale:).'!
 
 !AnimationTest methodsFor: 'tests'!
 testEasingsMapEndpoints
@@ -79,4 +79,60 @@ testDelay
 	self assert: v isNil.
 	anim stepAt: 100.
 	self assert: v equals: 5
+! !
+
+!AnimationTest methodsFor: 'running'!
+tearDown
+	Animation timeScale: 1
+! !
+
+!AnimationTest methodsFor: 'time scale'!
+testTimeScaleSlowsTheClock
+	| real0 clock0 clock real |
+	self assert: Animation timeScale equals: 1.
+	Animation timeScale: 10.
+	self assert: Animation timeScale equals: 10.
+	real0 := Time microsecondClockValue / 1000.0.
+	clock0 := Animation now.
+	(Delay forMilliseconds: 150) wait.
+	clock := Animation now - clock0.
+	real := Time microsecondClockValue / 1000.0 - real0.
+	self assert: clock > (real / 20).
+	self assert: clock < (real / 5).
+	self should: [Animation timeScale: 0] raise: Error
+!
+testAnimationRunsTenTimesSlower
+	| v anim real0 real |
+	Animation timeScale: 10.
+	anim := Animation from: 0 to: 100 duration: 100 easing: #linear do: [:x | v := x].
+	real0 := Time microsecondClockValue / 1000.0.
+	anim stepAt: Animation now.
+	(Delay forMilliseconds: 150) wait.
+	real := Time microsecondClockValue / 1000.0 - real0.
+	self assert: (anim stepAt: Animation now) description: 'finished after ', real printString, ' ms'.
+	"about a tenth of the real time passed"
+	self assert: (v - (real / 10)) abs < 5 description: v printString, ' after ', real printString, ' ms'
+!
+testScaleChangesDoNotJump
+	| v anim before |
+	anim := Animation from: 0 to: 100 duration: 1000 easing: #linear do: [:x | v := x].
+	Animation timeScale: 10.
+	anim stepAt: Animation now.
+	(Delay forMilliseconds: 100) wait.
+	anim stepAt: Animation now.
+	before := v.
+	Animation timeScale: 1.
+	anim stepAt: Animation now.
+	self assert: v >= before.
+	self assert: v - before < 5.
+	"back at normal speed"
+	before := v.
+	(Delay forMilliseconds: 100) wait.
+	anim stepAt: Animation now.
+	self assert: v - before >= 9.
+	before := v.
+	Animation timeScale: 10.
+	anim stepAt: Animation now.
+	self assert: v >= before.
+	self assert: v - before < 5
 ! !
