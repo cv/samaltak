@@ -73,6 +73,15 @@ cannotReturn: value
 	('cannotReturn: ' , value printString) displayNl.
 	^self return: value
 !
+stackOverflow: depth
+	"Sent by the VM at a safepoint of mine: my process is depth activations deep. Tell my receiver, then continue me where I was (pop my top value here, the return pushes it back)."
+	| top |
+	receiver stackOverflow: depth in: self.
+	top := self basicAt: stackp.
+	stackp := stackp - 1.
+	thisContext privSender: self.
+	^top
+!
 aboutToReturn: result through: firstUnwind
 	| home |
 	home := self home.

@@ -198,6 +198,20 @@ void p_process_stack_into(void)
     prim_return(int_oop(k | n << 8 | truncated << 16 | fresh << 17));
 }
 
+/* stackLimit [n]: the activations a process may have before the VM sends stackOverflow:; with n (0 = no limit), set
+   it. Answers the previous limit. */
+void p_stack_limit(void)
+{
+    oop n = arg0();
+    if (prim_argc() > 0 && (!is_int(n) || int_val(n) < 0)) return prim_fail();
+    int64_t old = stack_limit;
+    if (prim_argc() > 0) {
+        stack_limit = int_val(n);
+        stack_check_at = 0;
+    }
+    prim_return(int_oop(old));
+}
+
 void p_allocation_sample_info(void)
 {
     oop a = alloc_obj(cls_array, F_VAR, 2);

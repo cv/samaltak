@@ -5,7 +5,7 @@ Object variableSubclass: #Context
 
 Context comment: 'I am an activation of a method or block: an ordinary heap object, so every frame can be inspected, changed and restarted from Smalltalk. My indexable fields hold arguments, then temporaries, then the operand stack; stackp counts the used ones; the garbage collector clears the slots above stackp, so raise stackp before storing into a new slot. pc is the 0-based index of the next bytecode, nil once I have returned. My field order is fixed by the VM.
 
-I implement exception handling and unwinding: handler contexts are activations of BlockClosure>>on:do: (marker primitive onDoMarker), unwind contexts those of ensure:/ifCurtailed: (ensureMarker). Their arguments and temporaries are read by position (tempAt:). The VM sends me aboutToReturn:through: for a non-local return that passes an unwind context, and cannotReturn: when the home context is already dead.'!
+I implement exception handling and unwinding: handler contexts are activations of BlockClosure>>on:do: (marker primitive onDoMarker), unwind contexts those of ensure:/ifCurtailed: (ensureMarker). Their arguments and temporaries are read by position (tempAt:). The VM sends me aboutToReturn:through: for a non-local return that passes an unwind context, cannotReturn: when the home context is already dead, and stackOverflow: when my process''s stack is too deep.'!
 
 !Context methodsFor: 'accessing'!
 sender
@@ -313,6 +313,12 @@ cannotReturn: result to: aContext
 		result: result;
 		deadHome: aContext;
 		signal: 'Block cannot return'
+!
+stackOverflow: depth
+	"Sent by the VM at a safepoint of mine (between two instructions) when my process is depth activations deep, beyond Process maxStackDepth. Let the process signal StackOverflow, then continue me where I was: a return would push a value onto my stack."
+	Processor activeProcess stackOverflowIn: self depth: depth.
+	stackp > 0 ifTrue: [^self jump].
+	Processor activeProcess continueAt: self
 !
 terminate
 	"Make me unresumable."

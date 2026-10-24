@@ -98,6 +98,16 @@ bool interp_frames_valid(bool (*valid)(oop))
     return true;
 }
 
+/* ---- stack depth limit ----
+ * Only flushed activations make a stack deep (the C stack holds a bounded number of frames), so after an eighth of
+ * the depth that can be reached first (stack_limit, or the smallest Contexts filling a quarter of the heap limit) in
+ * flushed frames, the flushing process's next interrupt check counts its activations. A process switch flushes the
+ * outgoing process: its check waits until it runs again. */
+int64_t stack_limit = 1000000; /* activations per process; 0 = no limit */
+uint64_t stack_check_at;       /* stat_materialized at which the next check is due */
+static bool stack_check_due;
+static uint32_t stack_check_hash; /* identity hash of the process to check */
+
 /* Flushes every frame into a Context (bottom up, so senders exist first); afterwards active_ctx is the top one.
  * The caller has externalized the top frame. */
 uint64_t stat_materialized, stat_flushes;
@@ -126,6 +136,28 @@ void materialize_all(void)
     cstack_used = 0;
     refresh_prim_base();
     gc_epoch++; /* tells the interpreter to reload its registers */
+    if (stat_materialized >= stack_check_at && stack_limit > 0) {
+        int64_t by_heap = (int64_t)(max_heap_bytes / 4 / (8 * (2 + CTX_FIXED + CTX_SLACK)));
+        stack_check_at = stat_materialized + (uint64_t)(stack_limit < by_heap ? stack_limit : by_heap) / 8 + 1;
+        stack_check_due = true;
+        stack_check_hash = hash_of(active_process());
+        request_interrupt_check();
+    }
+}
+
+/* The active process's depth (frames + Contexts) if it is too deep: beyond stack_limit, or its Contexts take more
+   than a quarter of the heap limit. Else 0. */
+static int64_t stack_overflow_depth(void)
+{
+    stack_check_due = false;
+    if (stack_limit <= 0) return 0;
+    int64_t depth = nframes;
+    size_t bytes = 0;
+    for (oop c = active_ctx; is_ptr(c) && c != nil_oop; c = load_ref(c, CTX_SENDER)) {
+        depth++;
+        bytes += obj_bytes(c);
+    }
+    return depth > stack_limit || bytes > max_heap_bytes / 4 ? depth : 0;
 }
 
 /* ---- method cache ---- */
@@ -270,6 +302,31 @@ int selector_argc(oop sel)
     int c = 0;
     for (size_t i = 0; i < n; i++) c += b[i] == ':';
     return c;
+}
+
+/* At an interrupt check (registers externalized), before handle_interrupts can switch processes: if a depth check of
+ * the active process is due and it is too deep, its frames are flushed and the top Context sends stackOverflow: depth,
+ * as if its next instruction did (an activation above it; its own stack unchanged). The pending interrupts are then
+ * handled at the next safepoint. */
+void interrupt_safepoint(void)
+{
+    int64_t depth = stack_check_due && hash_of(active_process()) == stack_check_hash ? stack_overflow_depth() : 0;
+    if (!depth) return handle_interrupts();
+    materialize_all();
+    oop sel = special(SO_SEL_STACKOVERFLOW), m = lookup_method(raw_class(active_ctx), sel);
+    if (!m || !is_ptr(m) || method_prim(m) || load_ref(m, CM_NUMARGS) != int_oop(1)) return handle_interrupts();
+    int64_t ntemps = int_val(load_ref(m, CM_NUMTEMPS)), fsize = int_val(load_ref(m, CM_FRAMESIZE));
+    if (fsize < 1 + ntemps) fsize = 1 + ntemps;
+    vm_tmp_root[0] = m;
+    oop ctx = alloc_context((uint32_t)(fsize + CTX_SLACK));
+    oop *s = slots(ctx);
+    s[CTX_SENDER] = s[CTX_RECEIVER] = active_ctx;
+    s[CTX_PC] = int_oop(0);
+    s[CTX_STACKP] = int_oop(1 + ntemps);
+    s[CTX_METHOD] = vm_tmp_root[0];
+    s[CTX_FIXED] = int_oop(depth);
+    vm_tmp_root[0] = nil_oop;
+    active_ctx = ctx;
 }
 
 /* ---- the active activation (frame or Context), externalized ---- */
@@ -831,7 +888,7 @@ void interpret(void)
     do {                                                                                                               \
         if (__builtin_expect(atomic_load_explicit(&interrupt_pending, memory_order_relaxed), 0)) {                     \
             EXTERNALIZE();                                                                                             \
-            handle_interrupts();                                                                                       \
+            interrupt_safepoint();                                                                                     \
             RELOAD();                                                                                                  \
         }                                                                                                              \
     } while (0)

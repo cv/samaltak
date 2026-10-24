@@ -1,9 +1,9 @@
 Link subclass: #Process
-	instanceVariableNames: 'suspendedContext priority myList name cpuTime window errorHandler terminated'
+	instanceVariableNames: 'suspendedContext priority myList name cpuTime window errorHandler terminated overflowContext overflowLimit'
 	classVariableNames: 'Registry RegistryMutex'
 	package: 'Kernel-Processes'!
 
-Process comment: 'I am a green thread: a chain of Contexts (suspendedContext, while I am not running) scheduled by the ProcessorScheduler at my priority (1..80). myList is the LinkedList I wait in: a run queue of the scheduler or a Semaphore; nil while I am running or suspended. cpuTime counts the microseconds I ran (maintained by the VM). The first six fields are fixed by the VM; window and errorHandler belong to the UI (a window''s process, a per-process unhandled error handler).'!
+Process comment: 'I am a green thread: a chain of Contexts (suspendedContext, while I am not running) scheduled by the ProcessorScheduler at my priority (1..80). myList is the LinkedList I wait in: a run queue of the scheduler or a Semaphore; nil while I am running or suspended. cpuTime counts the microseconds I ran (maintained by the VM). The first six fields are fixed by the VM; window and errorHandler belong to the UI (a window''s process, a per-process unhandled error handler). overflowContext and overflowLimit: the headroom a resumed StackOverflow left (see stackOverflowIn:depth:).'!
 
 !Process methodsFor: 'accessing'!
 suspendedContext
@@ -70,8 +70,8 @@ suspend
 	^self primSuspend
 !
 terminate
-	"Stop me for good after running my pending unwind blocks (ensure:, ifCurtailed:)."
-	| ctx unwindBlock |
+	"Stop me for good after running my pending unwind blocks (ensure:, ifCurtailed:). My contexts end dead, so whoever still holds one of them (an exception's signal context) keeps only that one alive, not my stack."
+	| ctx next unwindBlock |
 	self isActiveProcess ifTrue: [
 		ctx := thisContext.
 		[(ctx := ctx findNextUnwindContextUpTo: nil) isNil] whileFalse: [
@@ -87,13 +87,16 @@ terminate
 	self isTerminated ifTrue: [^self].
 	myList isNil ifFalse: [self primSuspend].
 	terminated := true.
+	overflowContext := nil.
 	ctx := suspendedContext.
 	suspendedContext := nil.
 	[ctx isNil] whileFalse: [
 		(ctx isUnwindContext and: [(ctx tempAt: 2) isNil]) ifTrue: [
 			ctx tempAt: 2 put: true.
 			(ctx tempAt: 1) value].
-		ctx := ctx sender]
+		next := ctx sender.
+		ctx terminate.
+		ctx := next]
 !
 signalException: anException
 	"Signal anException in me. If I am waiting on a Semaphore I wake up to handle it and, if it is resumed, wait again."
@@ -166,6 +169,16 @@ pvtSignal: anException list: aList
 	interrupted stackp > 0 ifTrue: [^interrupted jump].
 	self continueAt: interrupted
 !
+stackOverflowIn: aContext depth: anInteger
+	"Sent by Context>>stackOverflow: (the VM checks every few thousand activations): my stack is anInteger activations deep, aContext on top. Signal StackOverflow, unless an earlier one was resumed and I am still within the headroom that gave: maxStackDepth more activations, until the stack unwinds below the frame 100 under where it was signaled."
+	| mark |
+	(overflowContext notNil and: [overflowContext isDead not and: [anInteger <= overflowLimit]]) ifTrue: [^self].
+	mark := aContext.
+	100 timesRepeat: [mark sender isNil ifFalse: [mark := mark sender]].
+	overflowContext := mark.
+	overflowLimit := anInteger + Process maxStackDepth.
+	^StackOverflow new context: aContext depth: anInteger; signal
+!
 continueAt: aContext
 	"Abandon my current stack and continue aContext exactly as it is. A return (or jump) would push a value onto aContext, so a process switch does it: a helper sets my suspendedContext once I am suspended and resumes me."
 	[[self isSuspended or: [self isTerminated]] whileFalse: [Processor yield].
@@ -186,6 +199,22 @@ forContext: aContext priority: anInteger
 		suspendedContext: aContext;
 		setPriority: anInteger;
 		yourself)
+! !
+
+!Process class methodsFor: 'stack depth'!
+maxStackDepth
+	"Answer how many activations (frames) a process may have before it signals StackOverflow; 0: no limit. The VM counts them every maxStackDepth / 8 activations it turns into Contexts, so the signal comes somewhat later; it also comes once a stack takes a quarter of the heap limit."
+	<primitive: 'stackLimit'>
+	^0
+!
+maxStackDepth: anInteger
+	"Set the limit for every process, until the VM quits (it starts with 1000000); 0 turns it off. Answer the previous limit. Below 1000 the window system's own processes would overflow."
+	(anInteger = 0 or: [anInteger >= 1000]) ifFalse: [^self error: 'maxStackDepth must be 0 or at least 1000'].
+	^self primStackLimit: anInteger
+!
+primStackLimit: anInteger
+	<primitive: 'stackLimit'>
+	^self primitiveFailed
 ! !
 
 !Process class methodsFor: 'registry'!

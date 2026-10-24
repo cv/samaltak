@@ -23,7 +23,7 @@ check() { # name expected-file actual-file
     fi
 }
 
-for t in Arith Float Strings Closures Unwind Errors Processes Context Perform Instances Sampling GC Misc Weak; do
+for t in Arith Float Strings Closures Unwind Errors Processes Context Perform Instances Sampling GC Misc Weak StackOverflow; do
     "$VM" "$IMG" --headless "$t" >"$OUT/$t.out" 2>&1
     check "$t" "$EXP/$t.txt" "$OUT/$t.out"
     SAMALTAK_VERIFY_GC=1 "$VM" --eden 1 "$IMG" --headless "$t" >"$OUT/$t.stress.out" 2>&1
@@ -34,6 +34,12 @@ done
 check OutOfMemory "$EXP/OutOfMemory.txt" "$OUT/OutOfMemory.out"
 SAMALTAK_VERIFY_GC=1 "$VM" --max-heap 64 --eden 1 "$IMG" --headless OutOfMemory >"$OUT/OutOfMemory.stress.out" 2>&1
 check "OutOfMemory (eden 1 MB, verified)" "$EXP/OutOfMemory.txt" "$OUT/OutOfMemory.stress.out"
+
+for opts in "" "--eden 1"; do
+    # shellcheck disable=SC2086
+    SAMALTAK_VERIFY_GC=$([ -n "$opts" ] && echo 1) "$VM" --max-heap 64 $opts "$IMG" --headless StackOverflowHeap >"$OUT/StackOverflowHeap.out" 2>&1
+    check "StackOverflowHeap $opts" "$EXP/StackOverflowHeap.txt" "$OUT/StackOverflowHeap.out"
+done
 
 rm -f "$OUT/snap.image"
 {

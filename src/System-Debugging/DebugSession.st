@@ -62,6 +62,18 @@ fullStack
 	"All frames of the process, including the signaling machinery above the interrupted context."
 	^process suspendedContext isNil ifTrue: [#()] ifFalse: [process suspendedContext stack]
 !
+fullStackOfSize: anInteger
+	"The top anInteger frames of fullStack."
+	^process suspendedContext isNil ifTrue: [#()] ifFalse: [process suspendedContext stackOfSize: anInteger]
+!
+fullStackDepth
+	"fullStack size, without collecting the frames (a runaway recursion has a million)."
+	^process suspendedContext isNil ifTrue: [0] ifFalse: [process suspendedContext depthBelow: nil]
+!
+hasFrame: aContext
+	"Whether aContext is one of the process's frames."
+	^process suspendedContext notNil and: [process suspendedContext hasContext: aContext]
+!
 isTop: aContext
 	^process suspendedContext == aContext
 ! !

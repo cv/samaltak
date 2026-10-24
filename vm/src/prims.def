@@ -119,6 +119,7 @@ PRIM(141, "processCpuTime", p_process_cpu_time)
 PRIM(142, "processStackInto", p_process_stack_into)
 PRIM(143, "allocationSampleTake", p_allocation_sample_take)
 PRIM(144, "samplerTickTake", p_sampler_tick_take)
+PRIM(145, "stackLimit", p_stack_limit)
 
 /* time */
 PRIM(150, "millisecondClock", p_millisecond_clock)

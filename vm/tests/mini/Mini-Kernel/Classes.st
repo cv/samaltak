@@ -267,6 +267,9 @@ scavenge
 vmStats
 	<primitive: 'vmStats'>
 !
+stackLimit: n
+	<primitive: 'stackLimit'>
+!
 flushMethodCache
 	<primitive: 'flushMethodCache'>
 !

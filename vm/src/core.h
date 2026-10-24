@@ -84,6 +84,9 @@ extern oop active_ctx;                                  /* the Context below the
 extern int nframes;                                     /* frames on the C stack above active_ctx */
 extern uint64_t stat_materialized, stat_flushes;        /* frames flushed into Contexts; flushes */
 void materialize_all(void);                             /* flush all frames into Contexts (may GC); caller externalized */
+extern int64_t stack_limit;                             /* activations per process before stackOverflow:; 0 = none */
+extern uint64_t stack_check_at;                         /* stat_materialized at which the next depth check is due */
+void interrupt_safepoint(void);                         /* at interrupt checks: stack depth check, handle_interrupts */
 void interp_roots(void (*fn)(oop *));                   /* frames and their stack slots */
 void interp_before_gc(void);                            /* frames: raw bytecode pointers to offsets */
 void interp_after_gc(void);

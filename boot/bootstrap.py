@@ -1823,7 +1823,8 @@ class Image:
         self.globals['Undeclared'].slots[1] = self.dictionary(C['Dictionary'], list(self.undeclared_map.values()))
         primfailed = self.intern('primitiveFailed')
         specials_syms = [self.intern(s) for s in ('doesNotUnderstand:', 'mustBeBoolean', 'cannotReturn:',
-                                                  'aboutToReturn:through:', 'attemptToAssign:withIndex:')]
+                                                  'aboutToReturn:through:', 'attemptToAssign:withIndex:',
+                                                  'stackOverflow:')]
         special_selectors = self.array([self.intern(s) for s in SPECIAL_SELECTORS])
         self.fill_classes()
         if sysdict_cd.all_ivars[:2] != ['tally', 'array']:
@@ -1846,7 +1847,7 @@ class Image:
               'SO_SPECIAL_SELECTORS': special_selectors, 'SO_TIMER_SEMAPHORE': self.nil,
               'SO_EXTERNAL_OBJECTS': self.array([self.nil] * VMC['EXTERNAL_OBJECTS_SIZE']),
               'SO_WIDESYMBOL': g('WideSymbol'), 'SO_SEL_PRIMITIVEFAILED': primfailed,
-              'SO_FINALIZATION_SEMAPHORE': self.nil}
+              'SO_FINALIZATION_SEMAPHORE': self.nil, 'SO_SEL_STACKOVERFLOW': specials_syms[5]}
         specials = [self.nil] * VMC['SO_COUNT']
         for name, v in so.items():
             specials[VMC[name]] = v

@@ -243,6 +243,54 @@ testBreakpointInTheCompositorWithAStandIn
 	self assert: world compositor process == compositor
 ! !
 
+!DebuggerUITest methodsFor: 'stack overflow'!
+recurse: n
+	^self recurse: n + 1
+!
+oldBytesAfterGC
+	Smalltalk vm garbageCollect.
+	^Smalltalk vm statistics oldBytesUsed
+!
+testStackOverflowDebugProceedAbandon
+	"Runaway recursion in a do-it: a StackOverflow Notifier, the Debugger on the recursing frame with a paged Full stack, Proceed recurses on until the next StackOverflow, Abandon terminates the Process and frees its stack."
+	| old before ws nw dw d process deep |
+	old := Process maxStackDepth: 50000.
+	cleanups add: [Process maxStackDepth: old].
+	before := self oldBytesAfterGC.
+	ws := self openWorkspace: 'DebuggerUITest new recurse: 1'.
+	self evaluateLine: 1 in: ws with: 'Meta+p'.
+	nw := self waitForWindowOf: Notifier.
+	self assert: nw title equals: 'StackOverflow'.
+	process := nw content session process.
+	self assert: process isSuspended.
+	self assert: (nw content stackList items anySatisfy: [:ctx | ctx selector == #recurse:]).
+	deep := nw content session exception depth.
+	self assert: deep > 50000.
+	self click: (self ref: nw at: '.debug').
+	dw := self waitForWindowOf: Debugger.
+	d := dw content.
+	self waitUntilReady: dw.
+	self assert: d stackList selection printString equals: 'DebuggerUITest>>recurse:'.
+	self assert: d stackList items last == #more.
+	self click: (self ref: dw at: '.full-stack').
+	self waitUntilReady: dw.
+	self assert: d stackList items size equals: Debugger fullStackPage + 1.
+	self assert: d stackList items last == #more.
+	self click: (self ref: dw at: '.stack.more').
+	self waitUntilReady: dw.
+	self assert: d stackList items size equals: 2 * Debugger fullStackPage + 1.
+	self click: (self ref: dw at: '.proceed').
+	self waitFor: [dw isClosed] description: 'the Debugger to close'.
+	nw := self waitForWindowOf: Notifier.
+	self assert: nw title equals: 'StackOverflow'.
+	self assert: nw content session process == process.
+	self assert: nw content session exception depth > (deep + 50000).
+	self click: (self ref: nw at: '.abandon').
+	self waitFor: [nw isClosed] description: 'the notifier to close'.
+	self assert: process isTerminated.
+	self assert: self oldBytesAfterGC - before < (4 * 1024 * 1024)
+! !
+
 !DebuggerUITest methodsFor: 'tests'!
 testBreakpointStepOverEvaluateProceed
 	| pair ws dw d steps |

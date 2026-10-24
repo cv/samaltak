@@ -448,11 +448,45 @@ testSampling
 	(Processor activeProcess cpuMicroseconds - a >= 15000) printNl
 ! !
 
+!MiniTests methodsFor: 'stack overflow'!
+depth: n
+	^n = 0 ifTrue: [0] ifFalse: [(self depth: n - 1) + 1]
+!
+stackOverflow: depth in: aContext
+	"escaper: {count. first depth. first context}"
+	escaper isNil ifTrue: [escaper := Array with: 0 with: depth with: aContext].
+	escaper at: 1 put: (escaper at: 1) + 1
+!
+testStackOverflow
+	"Beyond the limit the VM sends stackOverflow: depth to the top Context (every limit / 8 flushed activations); continuing it leaves the computation intact. 0 turns the limit off."
+	| old |
+	old := Smalltalk stackLimit: 20000.
+	(self depth: 200000) printNl.
+	(Smalltalk stackLimit: old) printNl.
+	((escaper at: 1) between: 1 and: 100) printNl.
+	((escaper at: 2) > 20000 and: [(escaper at: 2) < 100000]) printNl.
+	((escaper at: 3) method selector == #depth:) printNl.
+	escaper := nil.
+	Smalltalk stackLimit: 0.
+	(self depth: 200000) printNl.
+	escaper printNl.
+	Smalltalk stackLimit: old
+!
+testStackOverflowHeap
+	"Run with --max-heap 64: a stack whose Contexts take a quarter of the heap limit overflows below any depth limit."
+	| old |
+	old := Smalltalk stackLimit: 100000000.
+	(self depth: 400000) printNl.
+	((escaper at: 2) between: 100000 and: 300000) printNl.
+	Smalltalk stackLimit: old
+! !
+
 !MiniTests methodsFor: 'fatal'!
 recurse: n
 	^(self recurse: n + 1) + 1
 !
 testRecurse
+	Smalltalk stackLimit: 0.
 	(self recurse: 0) printNl
 !
 testFatalDNU

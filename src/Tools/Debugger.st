@@ -1,11 +1,11 @@
 Column subclass: #Debugger
-	instanceVariableNames: 'session header link bar buttons stackHeader stack sourceHeader source status receiverInspector contextInspector selected hiddenCount mutedFrames fullStack shownMethod note done headerException timer listener'
+	instanceVariableNames: 'session header link bar buttons stackHeader stack sourceHeader source status receiverInspector contextInspector selected hiddenCount mutedFrames fullStack fullStackSize shownMethod note done headerException timer listener'
 	classVariableNames: ''
 	package: 'Tools'!
 
 Debugger comment: 'I am the Debugger window''s content (docs/design.md, "Debugging and profiling"; look and behavior: prototypes/1-classic/debugger.js). I show one DebugSession: the reason (DebuggerHeader, with the debugged Process and its state as a link to the Process Browser), the buttons, the stack, the source of the selected frame with the pc highlight (TextEditor pcMark:, gliding as you step), and two inspectors: the receiver (evaluator with self bound) and the context (thisContext, arguments and temporaries with live values; its evaluator runs in the frame, so a + b ⌘P prints the sum of two temporaries).
 
-I run in my window''s own Process, which breakpoints ignore; the debugged Process stays suspended, every other window stays live. Stepping and the pc highlight are the session''s: Over steps the selected frame by statements (DebugSession>>stepOverStatement:); Into, Through and Run to here stop at the next send, store or return and highlight exactly that. ⌘S in the source recompiles the method and restarts the frame (edit and continue). Proceed resumes the Process and closes me; closing me abandons it.
+I run in my window''s own Process, which breakpoints ignore; the debugged Process stays suspended, every other window stays live. Stepping and the pc highlight are the session''s: Over steps the selected frame by statements (DebugSession>>stepOverStatement:); Into, Through and Run to here stop at the next send, store or return and highlight exactly that. ⌘S in the source recompiles the method and restarts the frame (edit and continue). Proceed resumes the Process and closes me; closing me abandons it. The stack shows a few frames; Full stack pages through all of them, fullStackPage at a time (a runaway recursion''s StackOverflow has a million).
 
 	Debugger openOn: aDebugSession
 
@@ -16,6 +16,7 @@ setSession: aSession
 	session := aSession.
 	buttons := Dictionary new.
 	fullStack := false.
+	fullStackSize := self class fullStackPage.
 	done := false.
 	hiddenCount := 0.
 	mutedFrames := IdentitySet new.
@@ -80,7 +81,7 @@ buildStack
 	stack labelBlock: [:ctx | self labelOfFrame: ctx].
 	stack styleBlock: [:ctx | (mutedFrames includes: ctx) ifTrue: [#muted] ifFalse: [nil]].
 	stack cellBlock: [:canvas :rect :ctx :inverted | self drawMarkOf: ctx in: rect on: canvas inverted: inverted].
-	stack onSelect: [:item | item == #more ifTrue: [self toggleFullStack] ifFalse: [self selectFrame: item]]
+	stack onSelect: [:item | item == #more ifTrue: [self showMoreFrames] ifFalse: [self selectFrame: item]]
 !
 buildSource
 	sourceHeader := DebuggerPaneHeader new.
@@ -278,7 +279,14 @@ where
 !
 toggleFullStack
 	fullStack := fullStack not.
+	fullStackSize := self class fullStackPage.
 	(buttons at: 'full-stack') on: fullStack.
+	self update
+!
+showMoreFrames
+	"The more row: the full stack, or its next page."
+	fullStack ifFalse: [^self toggleFullStack].
+	fullStackSize := fullStackSize + self class fullStackPage.
 	self update
 !
 removeBreakpoint
@@ -361,7 +369,7 @@ checkLive
 !
 liveSelection
 	"The selected frame if it is still on the stack, else the top one."
-	(selected notNil and: [selected ~~ #more and: [selected isDead not and: [session fullStack includes: selected]]])
+	(selected notNil and: [selected ~~ #more and: [selected isDead not and: [session hasFrame: selected]]])
 		ifTrue: [^selected].
 	^session interruptedContext
 ! !
@@ -405,36 +413,40 @@ updateHeader
 	self window isNil ifFalse: [self window title: self windowTitle]
 !
 updateStack
-	| full ic icIndex start rest cut base items |
-	full := session fullStack.
+	"Only the frames shown are fetched: a runaway recursion's stack has a million."
+	| depth full ic icIndex start rest cut base items |
+	depth := session fullStackDepth.
+	full := session fullStackOfSize: (fullStack ifTrue: [fullStackSize] ifFalse: [256]).
 	ic := session interruptedContext.
 	icIndex := full indexOf: ic.
 	mutedFrames := IdentitySet new.
 	1 to: icIndex - 1 do: [:i | mutedFrames add: (full at: i)].
 	full do: [:each | each selector == #doesNotUnderstand: ifTrue: [mutedFrames add: each]].
+	(session exception isKindOf: StackOverflow) ifTrue: [
+		1 to: (full indexOf: session exception signalerContext) - 1 do: [:i | mutedFrames add: (full at: i)]].
 	base := 0.
 	(icIndex max: 1) to: full size do: [:i | (base = 0 and: [(full at: i) selector == #DoIt]) ifTrue: [base := i]].
 	base > 0 ifTrue: [base + 1 to: full size do: [:i | mutedFrames add: (full at: i)]].
 	fullStack
 		ifTrue: [
 			items := full asOrderedCollection.
-			hiddenCount := 0]
+			hiddenCount := depth - full size]
 		ifFalse: [
 			"A watchpoint shows the refused store above the writing frame."
 			start := (icIndex > 1 and: [session kind == #watchpoint]) ifTrue: [icIndex - 1] ifFalse: [icIndex max: 1].
 			rest := full copyFrom: start to: full size.
 			cut := base = 0 ifTrue: [rest size min: 8] ifFalse: [(base - start + 2 min: rest size) min: 8].
 			items := (rest copyFrom: 1 to: cut) asOrderedCollection.
-			hiddenCount := rest size - cut].
+			hiddenCount := depth - start + 1 - cut].
 	hiddenCount > 0 ifTrue: [
-		stack moreText: '… ', hiddenCount printString, ' more frame', (hiddenCount = 1 ifTrue: [''] ifFalse: ['s']), ' — Full stack'.
+		stack moreText: '… ', hiddenCount printString, ' more frame', (hiddenCount = 1 ifTrue: [''] ifFalse: ['s']), (fullStack ifTrue: [' — show ', (hiddenCount min: self class fullStackPage) printString, ' more'] ifFalse: [' — Full stack']).
 		items add: #more].
 	(selected isNil or: [(items includes: selected) not]) ifTrue: [
 		selected := self defaultFrame.
 		(items includes: selected) ifFalse: [selected := items isEmpty ifTrue: [nil] ifFalse: [items first]]].
 	stack items: items asArray.
 	stack selection: selected.
-	stackHeader rightText: full size printString, (full size = 1 ifTrue: [' frame'] ifFalse: [' frames'])
+	stackHeader rightText: depth printString, (depth = 1 ifTrue: [' frame'] ifFalse: [' frames'])
 !
 noteStopReason
 	"Why the last step ended early, unless it was an error (the header shows that)."
@@ -596,11 +608,12 @@ drawMarkOf: aContext in: aRectangle on: aCanvas inverted: inverted
 		at: (aRectangle left + 4.5) @ aRectangle center y inverted: inverted on: aCanvas
 !
 defaultFrame
-	"The frame of interest: for a doesNotUnderstand: its sender, for a watchpoint the first frame below the refused store's signal not running in the watched object, else the interrupted context."
+	"The frame of interest: for a doesNotUnderstand: its sender, for a stack overflow the recursing frame it interrupted, for a watchpoint the first frame below the refused store's signal not running in the watched object, else the interrupted context."
 	| ic ctx obj |
 	ic := session interruptedContext.
 	ic isNil ifTrue: [^nil].
 	(session kind == #dnu and: [ic selector == #doesNotUnderstand: and: [ic sender notNil]]) ifTrue: [^ic sender].
+	(session exception isKindOf: StackOverflow) ifTrue: [^session exception signalerContext].
 	session kind == #watchpoint ifTrue: [
 		obj := session exception modification object.
 		ctx := ic.
@@ -647,6 +660,10 @@ openOn: aSession bounds: aRectangle
 !
 defaultExtent
 	^820 @ 700
+!
+fullStackPage
+	"Frames Full stack shows at first and adds per click on its more row."
+	^500
 !
 createMenuFor: aSession action: aBlock
 	"The Create menu of a doesNotUnderstand: session: the receiver's class and its superclasses."
