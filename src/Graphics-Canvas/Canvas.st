@@ -1,6 +1,6 @@
 Object subclass: #Canvas
 	instanceVariableNames: 'bytes next extent scale originX originY clipLeft clipTop clipRight clipBottom scissor opacity batches batch texture building fresh'
-	classVariableNames: 'ReplaysSegments'
+	classVariableNames: 'GlyphGeneration ReplaysSegments'
 	package: 'Graphics-Canvas'!
 
 Canvas comment: 'I am the drawing API widgets see. Coordinates are points (Numbers, Floats welcome); I convert them to device pixels (scale per point), snap rectangles and text baselines to whole device pixels (so a 1-point hairline is exactly 2 device pixels at scale 2) and record quads into vertex bytes. "displayList" freezes what was drawn into a DisplayList for a Renderer.
@@ -269,6 +269,7 @@ record: aBlock
 	self closeRun.
 	segment := DisplaySegment scale: scale opacity: opacity deviceX: originX * scale deviceY: originY * scale
 		clipLeft: clipLeft top: clipTop right: clipRight bottom: clipBottom.
+	segment glyphGeneration: GlyphGeneration.
 	segment runStart: next - 1 // 40.
 	building addLast: segment.
 	aBlock ensure: [
@@ -281,7 +282,7 @@ record: aBlock
 replay: aSegment
 	"Draw aSegment again and answer true if it is valid here: recorded at my scale and opacity, in my clip relative to the origin, at an origin whole device pixels away from mine. Answer false (drawing nothing) otherwise, inside drawFresh:, for a volatile segment, or when replaying is off."
 	| x y |
-	(fresh or: [aSegment isVolatile or: [ReplaysSegments == false]]) ifTrue: [^false].
+	(fresh or: [aSegment isVolatile or: [ReplaysSegments == false or: [aSegment glyphGeneration ~~ GlyphGeneration]]]) ifTrue: [^false].
 	(aSegment scale = scale and: [aSegment opacity = opacity]) ifFalse: [^false].
 	x := originX * scale - aSegment deviceX.
 	y := originY * scale - aSegment deviceY.
@@ -498,6 +499,10 @@ closeBatchAt: vertexIndex
 ! !
 
 !Canvas class methodsFor: 'retained drawing'!
+glyphsChanged
+	"The glyphs are rasterized anew (Font class>>regenerateGlyphs): segments recorded before refer to atlas entries the fonts no longer use, so they are not replayed."
+	GlyphGeneration := (GlyphGeneration ifNil: [0]) + 1
+!
 replaysSegments
 	^ReplaysSegments ~~ false
 !

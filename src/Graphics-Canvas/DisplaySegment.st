@@ -1,5 +1,5 @@
 Object subclass: #DisplaySegment
-	instanceVariableNames: 'vertices byteOffset vertexCount batches parts runStart scale opacity deviceX deviceY clipLeft clipTop clipRight clipBottom volatile'
+	instanceVariableNames: 'vertices byteOffset vertexCount batches parts runStart scale opacity deviceX deviceY clipLeft clipTop clipRight clipBottom volatile glyphGeneration'
 	classVariableNames: ''
 	package: 'Graphics-Canvas'!
 
@@ -65,6 +65,9 @@ finish
 beVolatile
 	volatile := true
 !
+glyphGeneration: anObject
+	glyphGeneration := anObject
+!
 vertices: aByteArray offset: byteIndex
 	"A leaf was replayed: its vertices are also there now (frozen once that Canvas is done), so the older bytes can go."
 	vertices := aByteArray.
@@ -101,6 +104,10 @@ isEmpty
 !
 isVolatile
 	^volatile
+!
+glyphGeneration
+	"The Canvas glyphsChanged count when I was recorded."
+	^glyphGeneration
 !
 scale
 	^scale

@@ -57,6 +57,27 @@ testReplayRefusesAnotherState
 	c translateBy: 10 @ 10 during: [c clip: (0 @ 0 extent: 60 @ 40) during: [self deny: (c replay: segment)]].
 	self assert: c displayList isEmpty
 !
+testGlyphsRasterizedAnewAreNotReplayed
+	"After the glyphs are rasterized anew (a rasterizer or font change), segments refer to atlas entries the fonts no longer use."
+	| segment |
+	segment := self record.
+	Canvas glyphsChanged.
+	self drawAt: 10 @ 10 with: [:c | self deny: (c replay: segment)].
+	segment := self record.
+	self drawAt: 10 @ 10 with: [:c | self assert: (c replay: segment)]
+!
+testOneAtlasEntryPerGlyph
+	"Processes drawing concurrently rasterize a glyph once: they all get the same atlas entry."
+	| font results done |
+	font := Font faceNamed: 'IosevkaEtoile-Regular' size: 17.
+	results := Array new: 4.
+	done := Semaphore new.
+	#(1 2 3 4) do: [:i |
+		[results at: i put: ((33 to: 126) collect: [:cp | Processor yield. font glyphForCodePoint: cp phase: 1]).
+		 done signal] forkAt: Processor activePriority].
+	4 timesRepeat: [self deny: (done waitTimeoutMSecs: 10000)].
+	2 to: 4 do: [:i | self assert: ((results at: i) with: results first collect: [:a :b | a == b]) asSet equals: (Set with: true)]
+!
 testReplayingCanBeTurnedOff
 	| segment |
 	segment := self record.

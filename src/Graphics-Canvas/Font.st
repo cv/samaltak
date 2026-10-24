@@ -1,6 +1,6 @@
 Object subclass: #Font
 	instanceVariableNames: 'face size scale letterSpacing lineHeight baselineOffset uppercase pixelsPerUnit phases glyphTable wideGlyphs deviceAdvances wideAdvances atlas'
-	classVariableNames: 'DeviceScale Faces FontsDirectory Standard SubpixelPhases'
+	classVariableNames: 'DeviceScale Faces FontsDirectory RasterizeLock Standard SubpixelPhases'
 	package: 'Graphics-Canvas'!
 
 Font comment: 'I am a TrueTypeFont at a pixel size (CSS px = points) for a device scale (2 on Retina), with optional letter spacing and capitals (for tracked-caps headers). I answer metrics in points (ascent, descent, lineHeight, widthOf:) and supply Canvas with rasterized glyphs: each glyph is rasterized lazily at device resolution for one of SubpixelPhases horizontal subpixel offsets and kept in the shared GlyphAtlas.
@@ -142,13 +142,14 @@ indexAt: x in: aString
 
 !Font methodsFor: 'glyphs'!
 glyphForCodePoint: codePoint phase: phase
-	"Answer the GlyphInfo, rasterizing it on first use."
-	| key |
-	codePoint < 256 ifTrue: [
-		key := codePoint * phases + phase + 1.
-		^(glyphTable at: key) ifNil: [glyphTable at: key put: (self rasterizeCodePoint: codePoint phase: phase)]].
-	key := codePoint * phases + phase.
-	^wideGlyphs at: key ifAbsent: [wideGlyphs at: key put: (self rasterizeCodePoint: codePoint phase: phase)]
+	"Answer the GlyphInfo, rasterizing it on first use. Window Processes draw concurrently: one at a time rasterizes, and a glyph another one rasterized meanwhile is used, so every drawing of a glyph refers to the same atlas entry (retained drawing compares them)."
+	| key table |
+	codePoint < 256
+		ifTrue: [key := codePoint * phases + phase + 1. table := glyphTable]
+		ifFalse: [key := codePoint * phases + phase. table := wideGlyphs].
+	(table at: key ifAbsent: [nil]) ifNotNil: [:info | ^info].
+	^self class rasterizing: [
+		(table at: key ifAbsent: [nil]) ifNil: [table at: key put: (self rasterizeCodePoint: codePoint phase: phase)]]
 !
 rasterizeCodePoint: codePoint phase: phase
 	"Rasterize the glyph with its origin phase / phases device pixels right of a pixel boundary; answer a GlyphInfo."
@@ -308,6 +309,10 @@ smallItalic
 ! !
 
 !Font class methodsFor: 'glyph cache'!
+rasterizing: aBlock
+	"Evaluate aBlock alone among the Processes rasterizing glyphs."
+	^RasterizeLock critical: aBlock
+!
 rasterizingClasses
 	"Changing one of these may change how glyphs look."
 	^Array with: Font with: GlyphRasterizer with: TrueTypeFont
@@ -315,12 +320,14 @@ rasterizingClasses
 regenerateGlyphs
 	"The rasterizer or the outlines changed: forget every rasterized glyph of every Font (atlas included). Glyphs are rasterized again on first use; DisplayLists made before keep the old atlas pages."
 	GlyphAtlas reset.
-	self allInstances do: [:each | each resetGlyphs]
+	self allInstances do: [:each | each resetGlyphs].
+	Canvas glyphsChanged
 !
 resetGlyphs
 	"Drop all rasterized glyphs (atlas included)."
 	GlyphAtlas reset.
-	Standard isNil ifFalse: [Standard do: [:each | each resetGlyphs]]
+	Standard isNil ifFalse: [Standard do: [:each | each resetGlyphs]].
+	Canvas glyphsChanged
 !
 prerasterizedCharacters
 	"ASCII and the symbols the UI uses."
@@ -344,6 +351,7 @@ buildStandardFonts
 
 !Font class methodsFor: 'class initialization'!
 initialize
+	RasterizeLock := Mutex new.
 	Smalltalk addStage2Step: [self buildStandardFonts] named: 'Font atlases'.
 	SystemChanges subscribe: #Font do: [:change |
 		(change affectsAnyOf: self rasterizingClasses) ifTrue: [self regenerateGlyphs]]
