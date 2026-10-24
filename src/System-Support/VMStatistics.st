@@ -49,6 +49,14 @@ bytesTenured
 weakSlotsCleared
 	^self counterAt: 12
 !
+contextsMaterialized
+	"Frames flushed into Contexts."
+	^self counterAt: 13
+!
+frameFlushes
+	"Flushes of the frame stack (each materializes every frame on it)."
+	^self counterAt: 14
+!
 gcCount
 	"Answer the scavenges plus the full GCs."
 	^self scavenges + self fullGCs
@@ -84,5 +92,5 @@ counters: anArray
 !VMStatistics class methodsFor: 'accessing'!
 counterNames
 	"Answer my counter accessors in vmStats order."
-	^#(#scavenges #fullGCs #scavengeMicroseconds #fullGCMicroseconds #oldBytesUsed #oldBudget #edenBytes #bytesAllocated #rememberedSetSize #processSwitches #bytesTenured #weakSlotsCleared)
+	^#(#scavenges #fullGCs #scavengeMicroseconds #fullGCMicroseconds #oldBytesUsed #oldBudget #edenBytes #bytesAllocated #rememberedSetSize #processSwitches #bytesTenured #weakSlotsCleared #contextsMaterialized #frameFlushes)
 ! !
