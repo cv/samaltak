@@ -379,6 +379,7 @@ void request_interrupt_check(void)
 {
     atomic_store_explicit(&interrupt_pending, 1, memory_order_relaxed);
     state_block->interrupt = 1;
+    state_block->stack_limit = 0;
 }
 
 /* Scheduler>>requestPeriodicPoll: */

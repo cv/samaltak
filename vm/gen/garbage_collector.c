@@ -4,7 +4,7 @@
 
 static oop become_from;
 static oop become_to;
-uint64_t eden_alloc[2];
+uint64_t eden_box[2];
 uint64_t eden_hi;
 uint64_t eden_lo;
 bool finalization_pending;
@@ -155,7 +155,7 @@ void collect_garbage(size_t need)
 {
     uint64_t young_used;
     uint64_t old_used;
-    young_used = eden_alloc[0] - eden_lo + (surv_top - surv_lo);
+    young_used = eden_box[0] - eden_lo + (surv_top - surv_lo);
     old_used = old_top - old_lo;
     if (old_used + young_used > old_budget) {
         full_gc();
@@ -282,7 +282,7 @@ void full_gc(void)
     interp_before_gc();
     t0 = now_us();
     stat_full_gcs = stat_full_gcs + 1;
-    stat_allocated = stat_allocated + (eden_alloc[0] - eden_lo);
+    stat_allocated = stat_allocated + (eden_box[0] - eden_lo);
     old_used = old_top - old_lo;
     ft_top = old_alt_lo;
     weak_count = 0;
@@ -314,7 +314,7 @@ void full_gc(void)
     old_top = ft_top;
     old_alt_lo = lo;
     old_alt_hi = hi;
-    eden_alloc[0] = eden_lo;
+    eden_box[0] = eden_lo;
     surv_top = surv_lo;
     remset_count = 0;
     live = old_top - old_lo;
@@ -356,9 +356,9 @@ void gc_init(size_t eden_bytes, size_t max_heap)
     young_lo = reserve(young);
     young_hi = young_lo + young;
     eden_lo = young_lo;
-    eden_alloc[0] = young_lo;
+    eden_box[0] = young_lo;
     eden_hi = eden_lo + eden_bytes;
-    eden_alloc[1] = eden_hi;
+    eden_box[1] = eden_hi;
     surv_lo = surv_top = eden_hi;
     surv_hi = surv_lo + surv;
     surv_other_lo = surv_hi;
@@ -579,7 +579,7 @@ void scavenge(void)
     interp_before_gc();
     t0 = now_us();
     stat_scavenges = stat_scavenges + 1;
-    stat_allocated = stat_allocated + (eden_alloc[0] - eden_lo);
+    stat_allocated = stat_allocated + (eden_box[0] - eden_lo);
     to_lo = to_top = surv_other_lo;
     to_hi = surv_other_hi;
     tenure_scan = old_top;
@@ -624,7 +624,7 @@ void scavenge(void)
     surv_lo = to_lo;
     surv_top = to_top;
     surv_hi = to_hi;
-    eden_alloc[0] = eden_lo;
+    eden_box[0] = eden_lo;
     if (((active_ctx & 7) == 0) && ((!((uint64_t)(active_ctx - young_lo) < young_hi - young_lo)) && (((*(uint64_t *)active_ctx) & H_REMEMBERED) == 0))) {
         vm_remember(active_ctx);
     }
@@ -685,7 +685,7 @@ static bool valid_ref(oop v)
     }
     in_old = (v >= old_lo) && (v < old_top);
     in_surv = (v >= surv_lo) && (v < surv_top);
-    in_eden = (v >= eden_lo) && (v < eden_alloc[0]);
+    in_eden = (v >= eden_lo) && (v < eden_box[0]);
     if (in_eden) {
         return true;
     }
@@ -800,6 +800,22 @@ void walk_old_space(void (*fn)(oop, void *), void *data)
     end = old_top;
     p = old_lo;
     while (p < end) {
+        fn(p, data);
+        p = p + (16 + 8 * (uint64_t)(uint32_t)*(uint64_t *)p);
+    }
+}
+
+/* GarbageCollector>>walkYoungSpace:data: */
+void walk_young_space(void (*fn)(oop, void *), void *data)
+{
+    uint64_t p;
+    p = surv_lo;
+    while (p < surv_top) {
+        fn(p, data);
+        p = p + (16 + 8 * (uint64_t)(uint32_t)*(uint64_t *)p);
+    }
+    p = eden_lo;
+    while (p < eden_box[0]) {
         fn(p, data);
         p = p + (16 + 8 * (uint64_t)(uint32_t)*(uint64_t *)p);
     }

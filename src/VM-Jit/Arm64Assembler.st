@@ -16,8 +16,8 @@ declarations
 	^#((asmStart uint64_t) (asmPc uint64_t) (asmLimit uint64_t) (asmError int32_t) (asmLabelCount int32_t) (asmLabels 'uint64_t[ASM_MAX_LABELS]') (asmLabelFixups 'int32_t[ASM_MAX_LABELS]') (asmFixupCount int32_t) (asmFixupSites 'uint64_t[ASM_MAX_FIXUPS]') (asmFixupNext 'int32_t[ASM_MAX_FIXUPS]') (asmUnresolved int32_t) (asmNoting bool) (asmNoteCount int32_t) (asmNoteOffsets 'uint32_t[ASM_MAX_NOTES]') (asmNoteTexts 'const char *[ASM_MAX_NOTES]') (asmNoteArgs 'int64_t[ASM_MAX_NOTES]'))
 !
 initialize
-	ASM_MAX_LABELS := 4096.
-	ASM_MAX_FIXUPS := 16384.
+	ASM_MAX_LABELS := 16384.
+	ASM_MAX_FIXUPS := 65536.
 	ASM_MAX_NOTES := 8192
 ! !
 

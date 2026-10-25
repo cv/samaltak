@@ -64,7 +64,7 @@ primScavenge
 primVMStats
 	<vmPrimitive: 164 name: 'vmStats'>
 	| v a |
-	v := self local: 'int64_t[32]'.
+	v := self local: 'int64_t[40]'.
 	v at: 0 put: gc statScavenges asInt64.
 	v at: 1 put: gc statFullGcs asInt64.
 	v at: 2 put: gc statScavengeUs asInt64.
@@ -89,28 +89,24 @@ primVMStats
 	v at: 21 put: jit statResumes asInt64.
 	v at: 22 put: jit statOsr asInt64.
 	v at: 23 put: jit statFailed asInt64.
-	v at: 24 put: (jit optStat: 0).
-	v at: 25 put: (jit optStat: 1).
-	v at: 26 put: (jit optStat: 2).
-	v at: 27 put: (jit optStat: 3).
-	v at: 28 put: (jit optStat: 4).
-	v at: 29 put: (jit optStat: 5).
-	v at: 30 put: (jit optStat: 6).
-	v at: 31 put: (jit optStat: 7).
-	a := memory allocObj: memory clsArray format: F_VAR slots: 32.
-	0 to: 31 do: [:i | (self slotsOf: a) at: i put: (self intOop: (v at: i))].
+	0 to: 7 do: [:i | v at: 24 + i put: (jit baselineStat: i asInt32) asInt64].
+	0 to: 7 do: [:i | v at: 32 + i put: (jit optStat: i asInt32)].
+	a := memory allocObj: memory clsArray format: F_VAR slots: 40.
+	0 to: 39 do: [:i | (self slotsOf: a) at: i put: (self intOop: (v at: i))].
 	self answer: a
 !
 primFlushMethodCache
 	<vmPrimitive: 165 name: 'flushMethodCache'>
 	interpreter flushMethodCache.
-	jit methodsChanged: memory nilOop.
+	jit methodsChanged.
+	jit optMethodsChanged: memory nilOop.
 	self answer: self receiver
 !
 primFlushCacheForSelector
 	<vmPrimitive: 166 name: 'flushCacheForSelector'>
 	interpreter flushMethodCacheSelector: (self argCount > 0 ifTrue: [self arg: 0] ifFalse: [self receiver]).
-	jit methodsChanged: (self argCount > 0 ifTrue: [self arg: 0] ifFalse: [self receiver]).
+	jit methodsChangedFor: (self argCount > 0 ifTrue: [self arg: 0] ifFalse: [self receiver]).
+	jit optMethodsChanged: (self argCount > 0 ifTrue: [self arg: 0] ifFalse: [self receiver]).
 	self answer: self receiver
 !
 stringsArray: v count: n

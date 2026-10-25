@@ -74,7 +74,7 @@ void load_image(const char *path)
     o_3 = h->specials + delta;
     specials_oop = o_3;
     an_integer = h->hash_seed;
-    hash_seed = an_integer;
+    hash_box[0] = an_integer;
     budget = 2 * h->heap_bytes;
     if (budget > old_budget) {
         n = budget < max_heap_bytes ? budget : max_heap_bytes;
@@ -108,7 +108,7 @@ bool write_snapshot(const char *path)
     h->heap_bytes = old_top - old_lo;
     h->base = old_lo;
     h->specials = specials_oop;
-    h->hash_seed = hash_seed;
+    h->hash_seed = hash_box[0];
     f = fopen(path, "wb");
     if (f == NULL) {
         return false;

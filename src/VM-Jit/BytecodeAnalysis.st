@@ -1,5 +1,5 @@
 VMCoreModule subclass: #BytecodeAnalysis
-	instanceVariableNames: 'anaBcs anaLits bcSize numArgs numTemps numLits anaDepths anaFlags anaWork workCount maxDepth'
+	instanceVariableNames: 'anaBcs anaLits bcSize numArgs numTemps numLits anaFrameSize primIndex primError hasClosures anaDepths anaFlags anaWork workCount maxDepth'
 	classVariableNames: 'ANA_BLOCK ANA_INTERIOR ANA_LOOP ANA_MAX ANA_MAX_DEPTH ANA_RESUME ANA_START ANA_TARGET'
 	package: 'VM-Jit'!
 
@@ -7,7 +7,7 @@ BytecodeAnalysis comment: 'What every compiler needs to know about a method befo
 
 !BytecodeAnalysis class methodsFor: 'declaring'!
 declarations
-	^#((anaBcs 'uint8_t *') (anaLits 'oop *') (bcSize int32_t) (numArgs int32_t) (numTemps int32_t) (numLits int32_t)
+	^#((anaBcs 'uint8_t *') (anaLits 'oop *') (bcSize int32_t) (numArgs int32_t) (numTemps int32_t) (numLits int32_t) (anaFrameSize int32_t) (primIndex int32_t) (primError bool) (hasClosures bool)
 		(anaDepths 'int16_t[ANA_MAX]') (anaFlags 'uint8_t[ANA_MAX]') (anaWork 'int32_t[ANA_MAX]') (workCount int32_t) (maxDepth int32_t))
 !
 initialize
@@ -40,11 +40,30 @@ numTemps
 numLiterals
 	^numLits
 !
+frameSize
+	"The method's frameSize, at least its arguments and temps."
+	^anaFrameSize
+!
+primitive
+	"The method's primitive (0: none)."
+	^primIndex
+!
+primitiveHasErrorCode
+	"A failing primitive leaves its error code in the first temp."
+	^primError
+!
+hasClosures
+	^hasClosures
+!
 literalAt: i
 	^anaLits at: i
 !
 maxDepth
 	^maxDepth
+!
+maxDepthLimit
+	"No method or block uses more slots."
+	^ANA_MAX_DEPTH
 !
 depthAt: pc
 	"Slots in use before the instruction at pc."
@@ -145,6 +164,11 @@ analyze: m
 	numArgs := (self intVal: (self loadRef: m at: CM_NUMARGS)) asInt32.
 	numTemps := (self intVal: (self loadRef: m at: CM_NUMTEMPS)) asInt32.
 	(numArgs < 0 or: [numTemps < 0 or: [numArgs + numTemps > ANA_MAX_DEPTH]]) ifTrue: [^false].
+	anaFrameSize := (self isInt: (self loadRef: m at: CM_FRAMESIZE)) ifTrue: [(self intVal: (self loadRef: m at: CM_FRAMESIZE)) asInt32] ifFalse: [0].
+	anaFrameSize < (numArgs + numTemps) ifTrue: [anaFrameSize := numArgs + numTemps].
+	primIndex := ((interpreter methodPrim: m) bitAnd: CM_PRIM_MASK) asInt32.
+	primError := ((interpreter methodPrim: m) bitAnd: CM_PRIM_ERROR_FLAG) ~= 0 and: [numTemps > 0].
+	hasClosures := false.
 	0 to: bcSize - 1 do: [:i |
 		anaDepths at: i put: -1.
 		anaFlags at: i put: 0].
@@ -171,6 +195,7 @@ analyze: m
 			ifFalse: [
 				op = 16r8F
 					ifTrue: [
+						hasClosures := true.
 						t := next + (((anaBcs at: pc + 4) asInt64 << 8) bitOr: (anaBcs at: pc + 5)).
 						t > bcSize ifTrue: [^false].
 						(self flowTo: next depth: (anaBcs at: pc + 1) asInt32 + (anaBcs at: pc + 2) asInt32) ifFalse: [^false].

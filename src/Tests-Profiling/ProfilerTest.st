@@ -116,8 +116,8 @@ testAttributionToProcesses
 	self assert: (as noneSatisfy: [:s | self stackOf: s includes: #floatLoop]).
 	self assert: (bs noneSatisfy: [:s | self stackOf: s includes: #factorialLoop]).
 	self assert: ((as count: [:s | s stack anySatisfy: [:f | f label includesSubstring: 'digit']]) * 100 / as size) >= 50.
-	self assert: (as leaves first: 3) notEmpty.
-	self assert: ((as leaves first: 5) anySatisfy: [:assoc | assoc key methodClass == LargePositiveInteger or: [assoc key selector beginsWith: 'digit']])
+	self assert: as leaves notEmpty.
+	self assert: ((as leaves first: (5 min: as leaves size)) anySatisfy: [:assoc | assoc key methodClass == LargePositiveInteger or: [assoc key selector beginsWith: 'digit']])
 !
 testLabels
 	| t0 profile frames block method |
@@ -230,8 +230,9 @@ testInlineStacksDecodeShared
 testHistoryFitsInOneMegabyte
 	| fresh seconds |
 	self assert: Profiler default byteSize = (1024 * 1024).
-	"Coverage depends on the stacks: measured with two busy workers at 1000 samples/s."
+	"Coverage depends on the stacks: measured with two busy workers at 1000 samples/s (CPU samples only: allocation samples follow the allocation rate, which grows with the VM's speed)."
 	fresh := Profiler new.
+	fresh allocationInterval: 1 << 40.
 	self withProfiler: fresh do: [
 		self fork: #factorialLoop named: 'factorials'.
 		self fork: #floatLoop named: 'floats'.

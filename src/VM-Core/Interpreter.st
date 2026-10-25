@@ -100,6 +100,9 @@ nframes
 frames
 	^frames
 !
+cstackEnd
+	^self cCoerce: cstack + CSTACK_SLOTS to: 'uint64_t'
+!
 specialArgcAt: k
 	^specialArgc at: k
 !
@@ -750,6 +753,14 @@ cstackUsed: n
 !
 primBaseIndex: i
 	primBaseIndex := i
+!
+entryFor: aClass selector: aSelector
+	"The global method cache's entry for aClass and aSelector, filled if need be; null if aClass does not understand it."
+	<c: 'CacheEntry *entry_for(oop cls, oop sel)'>
+	| g |
+	g := cache + (self cacheIndexOf: aClass selector: aSelector).
+	(g cls = aClass and: [g sel = aSelector]) ifTrue: [^g].
+	^self fillCache: aClass selector: aSelector
 !
 setCacheCode: c forMethod: m
 	"m got machine code c: method cache entries that count its activations switch to it."
@@ -2062,11 +2073,11 @@ VMStruct subclass: #Frame
 	classVariableNames: ''
 	package: 'VM-Core'!
 
-Frame comment: 'An activation on the interpreter''s C stack: method and closure (GC roots; closure is nil for method activations), fp (first argument/temp in cstack; fp[-1] holds the receiver, as in a Context), ip (saved when not executing; a pc offset during GC), lits (refreshed after every GC), sp (used slots from fp, saved when the frame is not executing), ctx (its married Context, a GC root; nil if none), code (the JitMethod of its method''s machine code; 0 if none; up to JIT_MAX_COUNT while the JIT counts its backward jumps, 1 + count; machine code running the frame keeps pc and sp current at safepoints instead of ip). 64 bytes.'!
+Frame comment: 'An activation on the interpreter''s C stack: method and closure (GC roots; closure is nil for method activations), fp (first argument/temp in cstack; fp[-1] holds the receiver, as in a Context), ip (saved when not executing; a pc offset during GC), lits (refreshed after every GC), sp (used slots from fp, saved when the frame is not executing), ctx (its married Context, a GC root; nil if none), code (the JitMethod of its method''s machine code; 0 if none; up to JIT_MAX_COUNT while the JIT counts its backward jumps, 1 + count; machine code running the frame keeps pc and sp current at safepoints instead of ip; baseline code sets only code, closure, ctx, fp and a zero pc and sp when it pushes a frame: the runtime derives method, pc, sp, ip and lits of a frame suspended in machine code when it needs them, JitBaselineRuntime). 64 bytes; fields in pairs for stp.'!
 
 !Frame class methodsFor: 'declaring'!
 fields
-	^#((method oop) (closure oop) (fp 'oop *') (ip 'uint8_t *') (lits 'oop *') (pc int32_t) (sp int32_t) (ctx oop) (code uint64_t))
+	^#((method oop) (code uint64_t) (closure oop) (ctx oop) (fp 'oop *') (pc int32_t) (sp int32_t) (ip 'uint8_t *') (lits 'oop *'))
 ! !
 
 VMStruct subclass: #CacheEntry

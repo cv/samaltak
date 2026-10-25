@@ -4,11 +4,11 @@
 
 int32_t asm_error;
 static int32_t asm_fixup_count;
-static int32_t asm_fixup_next[16384];
-static uint64_t asm_fixup_sites[16384];
+static int32_t asm_fixup_next[65536];
+static uint64_t asm_fixup_sites[65536];
 static int32_t asm_label_count;
-static int32_t asm_label_fixups[4096];
-uint64_t asm_labels[4096];
+static int32_t asm_label_fixups[16384];
+uint64_t asm_labels[16384];
 uint64_t asm_limit;
 int64_t asm_note_args[8192];
 int32_t asm_note_count;

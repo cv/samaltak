@@ -91,29 +91,59 @@ jitOsrEntries
 jitCompileFailures
 	^self counterAt: 24
 !
-optMethodsCompiled
+jitInlineCacheMisses
+	"Baseline: sends that found no target in machine code (unlinked, a failed class check, a cache without the class)."
 	^self counterAt: 25
 !
-optBytecodesCompiled
+jitInlineCacheLinks
+	"Baseline: sites linked monomorphically."
 	^self counterAt: 26
 !
-optCompileMicroseconds
+jitPolymorphicCaches
 	^self counterAt: 27
 !
-optCodeBytes
+jitMegamorphicSites
 	^self counterAt: 28
 !
-optDeoptimizations
+jitBlockCacheMisses
+	"Baseline: closure evaluations whose block entry was not in the block cache."
 	^self counterAt: 29
 !
-optOsrEntries
+jitPrimitiveCalls
+	"Baseline: primitives called through their C function."
 	^self counterAt: 30
 !
-optInvalidations
+jitNonLocalReturns
+	"Baseline: non-local returns the runtime handled (in machine code or left to the interpreter)."
 	^self counterAt: 31
 !
-optCompileFailures
+jitFrameWalks
+	"Baseline: lazily canonicalized frame stacks (calls into the runtime that are safepoints)."
 	^self counterAt: 32
+!
+optMethodsCompiled
+	^self counterAt: 33
+!
+optBytecodesCompiled
+	^self counterAt: 34
+!
+optCompileMicroseconds
+	^self counterAt: 35
+!
+optCodeBytes
+	^self counterAt: 36
+!
+optDeoptimizations
+	^self counterAt: 37
+!
+optOsrEntries
+	^self counterAt: 38
+!
+optInvalidations
+	^self counterAt: 39
+!
+optCompileFailures
+	^self counterAt: 40
 !
 gcCount
 	"Answer the scavenges plus the full GCs."
@@ -150,5 +180,5 @@ counters: anArray
 !VMStatistics class methodsFor: 'accessing'!
 counterNames
 	"Answer my counter accessors in vmStats order."
-	^#(#scavenges #fullGCs #scavengeMicroseconds #fullGCMicroseconds #oldBytesUsed #oldBudget #edenBytes #bytesAllocated #rememberedSetSize #processSwitches #bytesTenured #weakSlotsCleared #contextsMaterialized #frameFlushes #jitMethodsCompiled #jitBytecodesCompiled #jitCompileMicroseconds #jitCodeBytes #jitCacheFlushes #jitEntries #jitExits #jitResumes #jitOsrEntries #jitCompileFailures #optMethodsCompiled #optBytecodesCompiled #optCompileMicroseconds #optCodeBytes #optDeoptimizations #optOsrEntries #optInvalidations #optCompileFailures)
+	^#(#scavenges #fullGCs #scavengeMicroseconds #fullGCMicroseconds #oldBytesUsed #oldBudget #edenBytes #bytesAllocated #rememberedSetSize #processSwitches #bytesTenured #weakSlotsCleared #contextsMaterialized #frameFlushes #jitMethodsCompiled #jitBytecodesCompiled #jitCompileMicroseconds #jitCodeBytes #jitCacheFlushes #jitEntries #jitExits #jitResumes #jitOsrEntries #jitCompileFailures #jitInlineCacheMisses #jitInlineCacheLinks #jitPolymorphicCaches #jitMegamorphicSites #jitBlockCacheMisses #jitPrimitiveCalls #jitNonLocalReturns #jitFrameWalks #optMethodsCompiled #optBytecodesCompiled #optCompileMicroseconds #optCodeBytes #optDeoptimizations #optOsrEntries #optInvalidations #optCompileFailures)
 ! !

@@ -232,8 +232,8 @@ cstackLimitOffset
 dumpOffset
 	^self cCoerce: ((self cCoerce: 0 to: 'JitState *') fieldAddress: #dump) to: 'int64_t'
 !
-hashSeedOffset
-	^self cCoerce: ((self cCoerce: 0 to: 'JitState *') fieldAddress: #hashSeed) to: 'int64_t'
+hashBoxOffset
+	^self cCoerce: ((self cCoerce: 0 to: 'JitState *') fieldAddress: #hashBox) to: 'int64_t'
 !
 stressOffset
 	^self cCoerce: ((self cCoerce: 0 to: 'JitState *') fieldAddress: #stress) to: 'int64_t'
@@ -908,31 +908,34 @@ emitAllocate: n slow: slow done: done
 					asm b: slow if: COND_HI.
 					isize > 0 ifTrue: [asm add: X15 with: X15 imm: isize]]].
 	k >= 0 ifTrue: [asm mov: X15 imm: k].
-	asm lsl: X14 with: X15 imm: 3.
-	asm add: X14 with: X14 imm: 16.
-	asm adrp: X17 label: (asm labelAt: gc edenAllocAddress).
-	asm add: X17 with: X17 imm: (gc edenAllocAddress bitAnd: 16rFFF) asInt64.
-	asm ldr: X16 base: X17 offset: 0.
-	asm add: X14 with: X16 with: X14.
-	asm ldr: X17 base: X17 offset: 8.
-	asm cmp: X14 with: X17.
-	asm b: slow if: COND_HI.
-	asm adrp: X17 label: (asm labelAt: gc edenAllocAddress).
-	asm add: X17 with: X17 imm: (gc edenAllocAddress bitAnd: 16rFFF) asInt64.
-	asm str: X14 base: X17 offset: 0.
-	asm comment: 'header: slots, format, hash'.
+	asm comment: 'header: slots, format, a hash (the VM''s generator)'.
 	fmt ~= 0 ifTrue: [asm orr: X15 with: X15 imm: fmt asUInt64 << H_FMT_SHIFT].
-	asm ldr: X17 base: X22 offset: self hashSeedOffset.
+	asm ldr: X16 base: X22 offset: self hashBoxOffset.
+	asm ldr: X17 base: X16 offset: 0.
 	asm mov: X14 imm: 6364136223846793005.
 	asm mul: X17 with: X17 with: X14.
 	asm mov: X14 imm: 1442695040888963407.
 	asm add: X17 with: X17 with: X14.
-	asm str: X17 base: X22 offset: self hashSeedOffset.
+	asm str: X17 base: X16 offset: 0.
 	asm lsr: X17 with: X17 imm: 40.
 	asm and: X17 with: X17 imm: H_HASH_MASK.
 	asm cmp: X17 imm: 0.
 	asm csinc: X17 with: X17 with: XZR cond: COND_NE.
 	asm orr: X15 with: X15 with: X17 shift: SHIFT_LSL amount: H_HASH_SHIFT.
+	asm comment: 'room in eden'.
+	asm ubfx: X14 with: X15 lsb: 0 width: 32.
+	asm lsl: X14 with: X14 imm: 3.
+	asm add: X14 with: X14 imm: 16.
+	asm adrp: X17 label: (asm labelAt: gc edenBoxAddress).
+	asm add: X17 with: X17 imm: (gc edenBoxAddress bitAnd: 16rFFF) asInt64.
+	asm ldr: X16 base: X17 offset: 0.
+	asm add: X14 with: X16 with: X14.
+	asm ldr: X17 base: X17 offset: 8.
+	asm cmp: X14 with: X17.
+	asm b: slow if: COND_HI.
+	asm adrp: X17 label: (asm labelAt: gc edenBoxAddress).
+	asm add: X17 with: X17 imm: (gc edenBoxAddress bitAnd: 16rFFF) asInt64.
+	asm str: X14 base: X17 offset: 0.
 	self loadConstant: nd tcls into: X17.
 	asm stp: X15 with: X17 base: X16 offset: 0.
 	asm comment: 'fields nil'.

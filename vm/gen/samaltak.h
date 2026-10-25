@@ -58,8 +58,8 @@ typedef void (*prim_fn)(void);
 #define ASM_ERR_LABEL 4
 #define ASM_ERR_OPERAND 5
 #define ASM_ERR_RANGE 3
-#define ASM_MAX_FIXUPS 16384
-#define ASM_MAX_LABELS 4096
+#define ASM_MAX_FIXUPS 65536
+#define ASM_MAX_LABELS 16384
 #define ASM_MAX_NOTES 8192
 #define ASM_OK 0
 #define ASSOC_KEY 0
@@ -87,6 +87,22 @@ typedef void (*prim_fn)(void);
 #define BF_DEOPT 4
 #define BF_LOOP 2
 #define BF_SEALED 1
+#define BL_BLOCK_CACHE 1024
+#define BL_BLOCK_WORDS 4096
+#define BL_MAX_BLOCKS 1024
+#define BL_MAX_LOOPS 4096
+#define BL_MAX_OOP_SLOTS 262144
+#define BL_MAX_REGIONS 256
+#define BL_MAX_RETS 8192
+#define BL_MAX_SAVED 65536
+#define BL_MAX_SITES 8192
+#define BL_MAX_SLOW 8192
+#define BL_MAX_YOUNG_SLOTS 16384
+#define BL_MEGA_CACHE 4096
+#define BL_MEGA_WORDS 16384
+#define BL_PIC_CASES 6
+#define BL_SITE_MEGA 1073741824
+#define BL_UENTRY 20
 #define CACHE_SIZE 4096
 #define CACHE_SPACE 134234112
 #define CD_INSTVARS 3
@@ -229,31 +245,37 @@ typedef void (*prim_fn)(void);
 #define H_IMMUTABLE 576460752303423488LL
 #define H_REMEMBERED 1152921504606846976LL
 #define ICACHE_SIZE 4096
-#define JIT_FLAG_ALLOC 32768
+#define JIT_BASELINE 4
+#define JIT_FLAG_ACCESS 1024
+#define JIT_FLAG_ALLOC 2048
 #define JIT_FLAG_ARITH 1
 #define JIT_FLAG_BARRIER 4
-#define JIT_FLAG_BCE 2048
-#define JIT_FLAG_BLOCKS 64
-#define JIT_FLAG_CALLS 16384
-#define JIT_FLAG_DEOPT 131072
-#define JIT_FLAG_EAGER 65536
+#define JIT_FLAG_BLOCKS 8192
+#define JIT_FLAG_CALLS 524288
+#define JIT_FLAG_DEOPT 4194304
+#define JIT_FLAG_EAGER 2097152
 #define JIT_FLAG_EMBED 16
-#define JIT_FLAG_ESCAPE 8192
+#define JIT_FLAG_FLOAT 4096
 #define JIT_FLAG_FUSE 2
-#define JIT_FLAG_GVN 256
-#define JIT_FLAG_INLINE 32
-#define JIT_FLAG_LAST 131072
-#define JIT_FLAG_LICM 512
+#define JIT_FLAG_GVN 1048576
+#define JIT_FLAG_IC 32
+#define JIT_FLAG_INLINE 131072
+#define JIT_FLAG_LAST 4194304
+#define JIT_FLAG_MEGA 128
+#define JIT_FLAG_NLR 16384
 #define JIT_FLAG_NOTES 8
-#define JIT_FLAG_PRIMS 128
-#define JIT_FLAG_RANGE 1024
-#define JIT_FLAG_UNBOX 4096
+#define JIT_FLAG_PIC 64
+#define JIT_FLAG_PRIMS 512
+#define JIT_FLAG_QUICK 32768
+#define JIT_FLAG_REGS 256
+#define JIT_FLAG_TEMPS 65536
+#define JIT_FLAG_UNBOX 262144
 #define JIT_MAX_COUNT 65535
 #define JIT_MAX_MAP 32768
 #define JIT_MAX_REFS 4096
 #define JIT_MAX_YOUNG 4096
 #define JIT_NONE 0
-#define JIT_OPT 4
+#define JIT_OPT 5
 #define JIT_PROLOGUE_BYTES 20
 #define JIT_STENCIL 3
 #define JIT_TABLE_SIZE 65536
@@ -315,6 +337,19 @@ typedef void (*prim_fn)(void);
 #define OA_LOOP 4
 #define OA_START 1
 #define OA_TARGET 2
+#define OPK_AT 1
+#define OPK_ATPUT 2
+#define OPK_CLASS 6
+#define OPK_CLOSURE 11
+#define OPK_FLOAT 64
+#define OPK_FSQRT 8
+#define OPK_IDENTICAL 7
+#define OPK_INT 32
+#define OPK_NEW 9
+#define OPK_NEWSIZE 10
+#define OPK_SIZE 3
+#define OPK_STRINGAT 4
+#define OPK_STRINGATPUT 5
 #define OPT_ANA_MAX 65536
 #define OPT_BLOCK_CALLS 16384
 #define OPT_DEF_SIZE 131072
@@ -454,19 +489,25 @@ typedef void (*prim_fn)(void);
 #define PF_X_NIL 0
 #define PF_X_POINT 4
 #define PF_X_TEXT 3
-#define PK_AT 1
-#define PK_ATPUT 2
+#define PK_AT 13
+#define PK_AT_PUT 14
+#define PK_BASICNEW 3
+#define PK_BASICNEW_SIZE 4
+#define PK_BASIC_SIZE 15
+#define PK_CHAR_FROM_VALUE 12
+#define PK_CHAR_VALUE 10
 #define PK_CLASS 6
-#define PK_CLOSURE 11
-#define PK_FLOAT 64
-#define PK_FSQRT 8
-#define PK_IDENTICAL 7
-#define PK_INT 32
-#define PK_NEW 9
-#define PK_NEWSIZE 10
-#define PK_SIZE 3
-#define PK_STRINGAT 4
-#define PK_STRINGATPUT 5
+#define PK_CLOSURE_VALUE 7
+#define PK_FLOAT_OP 9
+#define PK_HASH 11
+#define PK_IDENTICAL 5
+#define PK_INT_OP 8
+#define PK_MARKER 2
+#define PK_NONE 0
+#define PK_PERFORM 1
+#define PK_STRING_COMPARE 18
+#define PK_UINT32_AT 16
+#define PK_UINT32_AT_PUT 17
 #define POLL_FDS 129
 #define PRIM_ENSURE_MARKER 198
 #define PRIM_ERR_NO_MEMORY 1
@@ -517,6 +558,22 @@ typedef void (*prim_fn)(void);
 #define SLOW_SPECIAL 2
 #define SLOW_TIERUP 6
 #define SLOW_WIDOW 4
+#define SL_ACCESS 17179869184LL
+#define SL_ALLOC_FLOAT 11
+#define SL_BARRIER 5
+#define SL_BOX 12
+#define SL_CLASS 6
+#define SL_DOUBLES 34359738368LL
+#define SL_ENTRY_IMM 7
+#define SL_ENTRY_SLOW 8
+#define SL_FLOAT 8589934592LL
+#define SL_FUSED 4294967296LL
+#define SL_INTERRUPT 1
+#define SL_MUSTBEBOOLEAN 3
+#define SL_RESUME 10
+#define SL_RETURN 4
+#define SL_SEND 2
+#define SL_START 9
 #define SO_ARRAY 9
 #define SO_ASSOCIATION 23
 #define SO_BITMAP 24
@@ -560,12 +617,21 @@ typedef void (*prim_fn)(void);
 #define SP_ENTRY 4
 #define SP_GUARD 1
 #define SP_LOOP 3
+#define SS_CONST 2
+#define SS_DREG 7
+#define SS_LIT 6
+#define SS_MAX 1100
+#define SS_PINNED 3
+#define SS_REG 1
+#define SS_SELF 4
+#define SS_SLOT 0
+#define SS_TEMP 5
 #define STC_MAX_PATCHES 8192
 #define STC_MAX_SLOTS 4096
 #define STC_MAX_SLOW 16384
 #define STC_MAX_SLOW_VALUES 131072
 #define STC_MAX_SYMBOLS 256
-#define STUB_MAX_SYMBOLS 32
+#define STUB_MAX_SYMBOLS 48
 #define ST_ADD 0
 #define ST_ADD_OPERANDS 1
 #define ST_ADD_OPERANDS_INTO 4
@@ -714,6 +780,8 @@ typedef void (*prim_fn)(void);
 #define X9 9
 #define XZR 31
 
+typedef struct baseline_pic baseline_pic;
+typedef struct baseline_site baseline_site;
 typedef struct cache_entry cache_entry;
 typedef struct feedback_site feedback_site;
 typedef struct frame frame;
@@ -739,6 +807,26 @@ typedef struct pty_child pty_child;
 typedef struct sock_sems sock_sems;
 typedef struct wb_job wb_job;
 #endif
+
+struct baseline_pic {
+    uint64_t site;
+    uint32_t count;
+    uint32_t pad;
+    oop classes[6];
+    uint64_t targets[6];
+};
+_Static_assert(sizeof(baseline_pic) == 112, "the simulator lays out BaselinePic as C does");
+
+struct baseline_site {
+    uint32_t bl;
+    uint32_t lit;
+    uint32_t info;
+    uint16_t pc;
+    uint16_t depth;
+    uint64_t target;
+    uint64_t pic;
+};
+_Static_assert(sizeof(baseline_site) == 32, "the simulator lays out BaselineSite as C does");
 
 struct cache_entry {
     oop cls;
@@ -773,14 +861,14 @@ _Static_assert(sizeof(feedback_site) == 72, "the simulator lays out FeedbackSite
 
 struct frame {
     oop method;
+    uint64_t code;
     oop closure;
+    oop ctx;
     oop *fp;
-    uint8_t *ip;
-    oop *lits;
     int32_t pc;
     int32_t sp;
-    oop ctx;
-    uint64_t code;
+    uint8_t *ip;
+    oop *lits;
 };
 _Static_assert(sizeof(frame) == 64, "the simulator lays out Frame as C does");
 
@@ -813,6 +901,15 @@ struct jit_method {
     uint32_t *note_offsets;
     uint64_t *note_texts;
     int64_t *note_values;
+    uint64_t entry;
+    uint64_t uentry;
+    baseline_site *sites;
+    uint32_t *rets;
+    uint32_t *blocks;
+    uint32_t site_count;
+    uint32_t ret_count;
+    uint32_t block_count;
+    uint32_t pad2;
     uint64_t opt;
     uint64_t lower;
     uint32_t slots;
@@ -831,7 +928,7 @@ struct jit_method {
     uint32_t stamp;
     uint32_t pad3;
 };
-_Static_assert(sizeof(jit_method) == 184, "the simulator lays out JitMethod as C does");
+_Static_assert(sizeof(jit_method) == 240, "the simulator lays out JitMethod as C does");
 
 struct jit_state {
     oop nil_oop;
@@ -845,12 +942,34 @@ struct jit_state {
     uint64_t young_hi;
     oop array_class;
     oop point_class;
+    uint64_t stack_limit;
+    uint64_t stack_limit_normal;
+    uint64_t base_frame;
+    uint64_t base_record;
+    uint64_t eden_box;
+    uint64_t hash_box;
+    uint64_t lcg_mul;
+    uint64_t lcg_add;
+    oop tag_classes[8];
+    oop block_class;
+    oop byte_string_class;
+    oop byte_array_class;
+    oop context_class;
+    oop boxed_float_class;
+    oop word_array_class;
+    oop byte_symbol_class;
+    uint64_t mega_cache;
+    uint64_t block_cache;
+    uint64_t nlr_frame;
+    uint64_t nlr_fp;
+    oop result;
+    int64_t ecode;
+    uint64_t prim_ret;
     uint64_t cstack_limit;
     int64_t stress;
     uint64_t dump[64];
-    uint64_t hash_seed;
 };
-_Static_assert(sizeof(jit_state) == 616, "the simulator lays out JitState as C does");
+_Static_assert(sizeof(jit_state) == 848, "the simulator lays out JitState as C does");
 
 struct opt_act {
     oop method;
@@ -1064,7 +1183,7 @@ extern primitive_entry vm_primitive_table[];
 extern int vm_primitive_count;
 
 extern int32_t asm_error;
-extern uint64_t asm_labels[4096];
+extern uint64_t asm_labels[16384];
 extern uint64_t asm_limit;
 extern int64_t asm_note_args[8192];
 extern int32_t asm_note_count;
@@ -1076,14 +1195,19 @@ extern uint64_t asm_start;
 extern uint8_t *ana_bcs;
 extern int16_t ana_depths[32768];
 extern uint8_t ana_flags[32768];
+extern int32_t ana_frame_size;
 extern oop *ana_lits;
 extern int32_t bc_size;
+extern int32_t num_args;
 extern int32_t num_lits;
+extern int32_t num_temps;
+extern bool prim_error;
+extern int32_t prim_index;
 extern uint64_t cache_base;
 extern uint64_t cache_limit;
 extern uint64_t cache_start;
 extern uint64_t cache_top;
-extern uint64_t eden_alloc[2];
+extern uint64_t eden_box[2];
 extern uint64_t eden_hi;
 extern uint64_t eden_lo;
 extern bool finalization_pending;
@@ -1124,8 +1248,24 @@ extern uint64_t stat_flushes;
 extern uint64_t stat_materialized;
 extern oop tag_class[8];
 extern oop tmp_roots[4];
+extern int32_t block_count;
+extern int32_t pool_labels[256];
+extern int32_t ret_count;
+extern int32_t site_count;
+extern uint64_t block_table[4096];
+extern uint64_t mega_table[16384];
+extern int64_t oop_slot_count;
+extern uint64_t stat_block_misses;
+extern uint64_t stat_links;
+extern uint64_t stat_megas;
+extern uint64_t stat_misses;
+extern uint64_t stat_nlrs;
+extern uint64_t stat_pics;
+extern uint64_t stat_prim_calls;
+extern uint64_t stat_walks;
 extern uint64_t entry_cells[131072];
 extern bool flush_pending;
+extern uint64_t invalidations;
 extern int64_t jit_cache_mb;
 extern uint32_t jit_flags;
 extern int32_t jit_mode;
@@ -1135,6 +1275,7 @@ extern int64_t jit_threshold;
 extern int32_t map_count;
 extern uint32_t map_offsets[32768];
 extern uint32_t map_pcs[32768];
+extern jit_method *method_table[65536];
 extern int32_t opt_counts[65536];
 extern prim_fn perform_args_fn;
 extern prim_fn perform_fn;
@@ -1152,7 +1293,19 @@ extern uint64_t stat_failed;
 extern uint64_t stat_osr;
 extern uint64_t stat_resumes;
 extern jit_state state_block[1];
+extern int64_t table_count;
 extern uint64_t barrier_stub;
+extern uint64_t bl_block;
+extern uint64_t bl_box;
+extern uint64_t bl_enter;
+extern uint64_t bl_entry_slow;
+extern uint64_t bl_exit_sync;
+extern uint64_t bl_mega;
+extern uint64_t bl_miss;
+extern uint64_t bl_nlr;
+extern uint64_t bl_prim;
+extern uint64_t bl_remember;
+extern uint64_t bl_return_slow;
 extern uint64_t closure_stub;
 extern uint64_t enter_addr;
 extern uint64_t exit_plain_addr;
@@ -1167,9 +1320,9 @@ extern uint64_t opt_stack_full_stub;
 extern uint64_t outer_temp_stub;
 extern uint64_t send_stub;
 extern uint64_t special_stub;
-extern uint64_t symbol_addrs[32];
+extern uint64_t symbol_addrs[48];
 extern int32_t symbol_count;
-extern const char *symbol_names[32];
+extern const char *symbol_names[48];
 extern uint64_t tier_up_stub;
 extern uint64_t widow_stub;
 extern oop cls_array;
@@ -1184,7 +1337,7 @@ extern oop cls_point;
 extern oop cls_smallfloat;
 extern oop cls_smallint;
 extern oop false_oop;
-extern uint64_t hash_seed;
+extern uint64_t hash_box[1];
 extern oop nil_oop;
 extern int32_t root_count;
 extern oop *root_stack[1024];
@@ -1304,6 +1457,7 @@ uint64_t old_alloc_try(size_t bytes);
 void vm_remember(oop o);
 void scavenge(void);
 void walk_old_space(void (*fn)(oop, void *), void *data);
+void walk_young_space(void (*fn)(oop, void *), void *data);
 void platform_init(void);
 void platform_poll(void);
 void platform_shutdown(void);
@@ -1319,7 +1473,9 @@ int64_t active_stackp(void);
 void interp_after_gc(void);
 void interp_before_gc(void);
 int32_t interp_call_primitive(prim_fn fn, oop *b, int32_t n);
+oop ctx_home(oop ctx);
 int64_t ctx_stackp(oop ctx);
+cache_entry *entry_for(oop cls, oop sel);
 void fatal_begin(void);
 _Noreturn void fatal_end(void);
 void flush_if_married(oop o);
@@ -1346,6 +1502,37 @@ cache_entry *site_entry(uint8_t *site, oop cls, oop sel);
 void interp_sync_frame(frame *f);
 frame *interp_thaw(uint64_t code);
 void widow(frame *f);
+void widow_from(int k);
+bool bl_compile(oop m);
+bool bl_emit_pic(uint64_t pic);
+uint64_t bl_write_tables(jit_method *h, uint64_t p);
+void bl_after_gc(void);
+void bl_all_roots(void (*fn)(oop *));
+uint64_t jit_bl_block(frame *f, oop c, uint64_t ret);
+oop jit_bl_box(frame *f, uint64_t b);
+void bl_canonicalize_below(frame *f);
+uint64_t jit_bl_entry_slow(frame *f, uint64_t ret);
+int64_t bl_feedback_cases(oop m, int64_t i);
+oop bl_feedback_class(oop m, int64_t i, int64_t j);
+int64_t bl_feedback_pc(oop m, int64_t i);
+oop bl_feedback_selector(oop m, int64_t i);
+int64_t bl_feedback_sites(oop m);
+int64_t bl_feedback_state(oop m, int64_t i);
+oop bl_feedback_target(oop m, int64_t i, int64_t j);
+void bl_flushed(void);
+void bl_forget_slots_from(uint64_t address);
+uint64_t jit_bl_miss(frame *f, oop rcv, uint64_t ret);
+void bl_nil_tests_changed(oop sel);
+bool bl_nil_tests_inlinable(void);
+uint64_t jit_bl_nlr(frame *f);
+uint64_t jit_bl_prim(frame *f, uint64_t fp, uint64_t fn, uint64_t info);
+int32_t bl_prim_kind(int32_t p);
+int32_t bl_prim_op(int32_t p);
+void bl_register_slot(uint64_t a);
+uint64_t jit_bl_return_slow(frame *f);
+void bl_unlink_all(void);
+void bl_unlink_selector(oop sel);
+void bl_young_roots(void (*fn)(oop *));
 void fb_all_roots(void (*fn)(oop *));
 uint32_t fb_flags_at(oop m, int64_t pc);
 void jit_note_flags(oop m, int64_t pc, uint32_t f);
@@ -1354,22 +1541,27 @@ feedback_site *fb_site_at(oop m, int64_t pc);
 void fb_young_roots(void (*fn)(oop *));
 void prim_jit_code(void);
 void prim_jit_parameters(void);
+void prim_jit_send_sites(void);
 void jit_activated(frame *f);
 uint64_t jit_address_for(frame *f);
 void jit_after_gc(void);
 void jit_all_roots(void (*fn)(oop *));
 void jit_back_jump(frame *f);
+uint64_t jit_baseline_stat(int32_t i);
 void jit_become(oop from);
 uint64_t jit_block_code(oop m);
 uint64_t jit_cache_code(oop m);
 uint64_t jit_closure(frame *f);
 bool jit_has_code(oop m);
 void jit_code_changed(oop m);
+jit_method *jit_code_of(oop m, bool counting);
 jit_method *jit_compile(oop m, int32_t md, bool notes);
+jit_method *jit_compile_install(oop m);
 void jit_defaults(void);
 uint64_t jit_dispatch(cache_entry *e, frame *f, int32_t n);
 bool jit_ensure_open(void);
 uint64_t jit_entry_of_top(void);
+uint64_t jit_exit_sync(frame *f);
 const char *jit_flag_name(uint32_t bit);
 bool jit_headers_valid(bool (*valid)(oop));
 uint64_t jit_interrupt(frame *f);
@@ -1378,9 +1570,11 @@ jit_method *jit_lookup(oop m);
 uint64_t jit_make_array(frame *f);
 int64_t jit_map_offset(jit_method *h, int64_t pc);
 void jit_materialize_opt(frame *f);
-void jit_methods_changed(oop sel);
+void jit_methods_changed(void);
+void jit_methods_changed_for(oop sel);
 const char *jit_mode_name(int32_t m);
 int32_t jit_mode_named(const char *name);
+void jit_opt_methods_changed(oop sel);
 int64_t jit_opt_stat(int32_t i);
 uint64_t jit_outer_temp(frame *f);
 bool jit_parse_flags(const char *s);

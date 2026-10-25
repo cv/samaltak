@@ -4131,7 +4131,7 @@ exit_prim_kind_of:;
     }
     var = (opt_acts + a)->var_base + r;
     rcv = opt_read(var, ob_cur_block);
-    if ((kind == PK_CLASS) && (argc == 0)) {
+    if ((kind == OPK_CLASS) && (argc == 0)) {
         n = ({
     n_2 = opt_new_node(O_CLASSOF, R_OOP);
     opt_append(n_2, ob_cur_block);
@@ -4142,7 +4142,7 @@ exit_prim_kind_of:;
         opt_write(var_2, n, ob_cur_block);
         return true;
     }
-    if ((kind == PK_IDENTICAL) && (argc == 1)) {
+    if ((kind == OPK_IDENTICAL) && (argc == 1)) {
         i = r + 1;
         var_3 = (opt_acts + a)->var_base + i;
         y = opt_read(var_3, ob_cur_block);
@@ -4160,14 +4160,14 @@ exit_prim_kind_of:;
         opt_write(var_4, v, ob_cur_block);
         return true;
     }
-    if ((kind >= PK_FLOAT) || (kind == PK_FSQRT)) {
+    if ((kind >= OPK_FLOAT) || (kind == OPK_FSQRT)) {
         if (!((jit_flags & JIT_FLAG_UNBOX) != 0)) {
             return false;
         }
         if (!((cls == cls_smallfloat) && ((fb_flags_at((opt_acts + a)->method, pc) & 132) == 0))) {
             return false;
         }
-        if ((kind == PK_FSQRT) && (argc == 0)) {
+        if ((kind == OPK_FSQRT) && (argc == 0)) {
             s = opt_make_state(a, pc, (int32_t)ob_ana_depth[(opt_acts + a)->ana + pc]);
             idx = ({
     nd = opt_nodes + rcv;
@@ -4213,24 +4213,24 @@ exit_unbox_float:;
         }
         i_2 = r + 1;
         var_6 = (opt_acts + a)->var_base + i_2;
-        opt_float_arith((int32_t)(kind - PK_FLOAT), rcv, opt_read(var_6, ob_cur_block), pc, a, r);
+        opt_float_arith((int32_t)(kind - OPK_FLOAT), rcv, opt_read(var_6, ob_cur_block), pc, a, r);
         return true;
     }
-    if ((kind >= PK_INT) && (argc == 1)) {
+    if ((kind >= OPK_INT) && (argc == 1)) {
         if (!(cls == cls_smallint)) {
             return false;
         }
         fl = fb_flags_at((opt_acts + a)->method, pc);
         if ((fl & 46) != 0) {
-            if (!((kind - PK_INT <= 9) && (((jit_flags & JIT_FLAG_UNBOX) != 0) && (((fl & FB_FLOAT) != 0) && ((fl & 132) == 0))))) {
+            if (!((kind - OPK_INT <= 9) && (((jit_flags & JIT_FLAG_UNBOX) != 0) && (((fl & FB_FLOAT) != 0) && ((fl & 132) == 0))))) {
                 return false;
             }
             i_3 = r + 1;
             var_7 = (opt_acts + a)->var_base + i_3;
-            opt_float_arith((int32_t)(kind - PK_INT), rcv, opt_read(var_7, ob_cur_block), pc, a, r);
+            opt_float_arith((int32_t)(kind - OPK_INT), rcv, opt_read(var_7, ob_cur_block), pc, a, r);
             return true;
         }
-        k = kind - PK_INT;
+        k = kind - OPK_INT;
         i_4 = r + 1;
         var_8 = (opt_acts + a)->var_base + i_4;
         y_2 = opt_read(var_8, ob_cur_block);
@@ -4346,7 +4346,7 @@ exit_guard_int_2:;
         ek = E_BYTE;
         fixed = 0;
     }
-    if ((kind == PK_STRINGAT) || (kind == PK_STRINGATPUT)) {
+    if ((kind == OPK_STRINGAT) || (kind == OPK_STRINGATPUT)) {
         if (!(spec >= F_BYTES)) {
             return false;
         }
@@ -4359,7 +4359,7 @@ exit_guard_int_2:;
         return false;
     }
     s = opt_make_state(a, pc, (int32_t)ob_ana_depth[(opt_acts + a)->ana + pc]);
-    if ((kind == PK_SIZE) && (argc == 0)) {
+    if ((kind == OPK_SIZE) && (argc == 0)) {
         n = ({
     n_19 = opt_new_node(O_SIZE, R_OOP);
     opt_append(n_19, ob_cur_block);
@@ -4373,7 +4373,7 @@ exit_guard_int_2:;
         opt_write(var_11, n, ob_cur_block);
         return true;
     }
-    if (((kind == PK_AT) || (kind == PK_STRINGAT)) && (argc == 1)) {
+    if (((kind == OPK_AT) || (kind == OPK_STRINGAT)) && (argc == 1)) {
         i_5 = r + 1;
         var_12 = (opt_acts + a)->var_base + i_5;
         v_4 = opt_read(var_12, ob_cur_block);
@@ -4414,7 +4414,7 @@ exit_guard_int_3:;
         opt_write(var_13, n, ob_cur_block);
         return true;
     }
-    if (((kind == PK_ATPUT) || (kind == PK_STRINGATPUT)) && (argc == 2)) {
+    if (((kind == OPK_ATPUT) || (kind == OPK_STRINGATPUT)) && (argc == 2)) {
         i_6 = r + 1;
         var_14 = (opt_acts + a)->var_base + i_6;
         v_5 = opt_read(var_14, ob_cur_block);
@@ -5414,7 +5414,7 @@ exit_note_dependency:;
     r_prim_kind_of = (int32_t)ob_prim_kinds[p_2];
 exit_prim_kind_of:;
     r_prim_kind_of; });
-    if (!(((kind_2 == PK_NEW) && (argc == 0)) || ((kind_2 == PK_NEWSIZE) && (argc == 1)))) {
+    if (!(((kind_2 == OPK_NEW) && (argc == 0)) || ((kind_2 == OPK_NEWSIZE) && (argc == 1)))) {
         r_allocate = false;
         goto exit_allocate;
     }
@@ -5449,7 +5449,7 @@ exit_class_of:;
     }
     spec = ((int64_t)fo) >> 1 >> CLS_SPEC_SHIFT;
     isize = (((int64_t)fo) >> 1) & CLS_INSTSIZE_MASK;
-    if (kind_2 == PK_NEW) {
+    if (kind_2 == OPK_NEW) {
         if (!(spec <= 1)) {
             r_allocate = false;
             goto exit_allocate;
@@ -5731,7 +5731,7 @@ exit_allocate:;
     }
     r_prim_kind_of_2 = (int32_t)ob_prim_kinds[p_40];
 exit_prim_kind_of_2:;
-    r_prim_kind_of_2; }) == PK_CLOSURE; }))) {
+    r_prim_kind_of_2; }) == OPK_CLOSURE; }))) {
         r_send = ({
     k_2 = -1;
     o_4 = special(SO_SPECIAL_SELECTORS);
@@ -6418,7 +6418,7 @@ exit_note_dependency_2:;
     r_prim_kind_of_3 = (int32_t)ob_prim_kinds[p_80];
 exit_prim_kind_of_3:;
     r_prim_kind_of_3; });
-    if (!(((kind_4 == PK_NEW) && (argc == 0)) || ((kind_4 == PK_NEWSIZE) && (argc == 1)))) {
+    if (!(((kind_4 == OPK_NEW) && (argc == 0)) || ((kind_4 == OPK_NEWSIZE) && (argc == 1)))) {
         r_allocate_2 = false;
         goto exit_allocate_2;
     }
@@ -6453,7 +6453,7 @@ exit_class_of_4:;
     }
     spec_2 = ((int64_t)fo_2) >> 1 >> CLS_SPEC_SHIFT;
     isize_2 = (((int64_t)fo_2) >> 1) & CLS_INSTSIZE_MASK;
-    if (kind_4 == PK_NEW) {
+    if (kind_4 == OPK_NEW) {
         if (!(spec_2 <= 1)) {
             r_allocate_2 = false;
             goto exit_allocate_2;
@@ -6735,7 +6735,7 @@ exit_allocate_2:;
     }
     r_prim_kind_of_4 = (int32_t)ob_prim_kinds[p_118];
 exit_prim_kind_of_4:;
-    r_prim_kind_of_4; }) == PK_CLOSURE; }))) {
+    r_prim_kind_of_4; }) == OPK_CLOSURE; }))) {
         r_send_2 = ({
     k_3 = -1;
     o_13 = special(SO_SPECIAL_SELECTORS);
@@ -7427,7 +7427,7 @@ exit_note_dependency_3:;
     r_prim_kind_of_5 = (int32_t)ob_prim_kinds[p_158];
 exit_prim_kind_of_5:;
     r_prim_kind_of_5; });
-    if (!(((kind_6 == PK_NEW) && (argc == 0)) || ((kind_6 == PK_NEWSIZE) && (argc == 1)))) {
+    if (!(((kind_6 == OPK_NEW) && (argc == 0)) || ((kind_6 == OPK_NEWSIZE) && (argc == 1)))) {
         r_allocate_3 = false;
         goto exit_allocate_3;
     }
@@ -7462,7 +7462,7 @@ exit_class_of_5:;
     }
     spec_3 = ((int64_t)fo_3) >> 1 >> CLS_SPEC_SHIFT;
     isize_3 = (((int64_t)fo_3) >> 1) & CLS_INSTSIZE_MASK;
-    if (kind_6 == PK_NEW) {
+    if (kind_6 == OPK_NEW) {
         if (!(spec_3 <= 1)) {
             r_allocate_3 = false;
             goto exit_allocate_3;
@@ -7744,7 +7744,7 @@ exit_allocate_3:;
     }
     r_prim_kind_of_6 = (int32_t)ob_prim_kinds[p_196];
 exit_prim_kind_of_6:;
-    r_prim_kind_of_6; }) == PK_CLOSURE; }))) {
+    r_prim_kind_of_6; }) == OPK_CLOSURE; }))) {
         r_send_3 = ({
     k_4 = -1;
     o_21 = special(SO_SPECIAL_SELECTORS);
@@ -8418,7 +8418,7 @@ exit_note_dependency_4:;
     r_prim_kind_of_7 = (int32_t)ob_prim_kinds[p_236];
 exit_prim_kind_of_7:;
     r_prim_kind_of_7; });
-    if (!(((kind_8 == PK_NEW) && (argc == 0)) || ((kind_8 == PK_NEWSIZE) && (argc == 1)))) {
+    if (!(((kind_8 == OPK_NEW) && (argc == 0)) || ((kind_8 == OPK_NEWSIZE) && (argc == 1)))) {
         r_allocate_4 = false;
         goto exit_allocate_4;
     }
@@ -8453,7 +8453,7 @@ exit_class_of_6:;
     }
     spec_4 = ((int64_t)fo_4) >> 1 >> CLS_SPEC_SHIFT;
     isize_4 = (((int64_t)fo_4) >> 1) & CLS_INSTSIZE_MASK;
-    if (kind_8 == PK_NEW) {
+    if (kind_8 == OPK_NEW) {
         if (!(spec_4 <= 1)) {
             r_allocate_4 = false;
             goto exit_allocate_4;
@@ -8735,7 +8735,7 @@ exit_allocate_4:;
     }
     r_prim_kind_of_8 = (int32_t)ob_prim_kinds[p_274];
 exit_prim_kind_of_8:;
-    r_prim_kind_of_8; }) == PK_CLOSURE; }))) {
+    r_prim_kind_of_8; }) == OPK_CLOSURE; }))) {
         r_send_4 = ({
     k_5 = -1;
     o_29 = special(SO_SPECIAL_SELECTORS);

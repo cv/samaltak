@@ -1,5 +1,5 @@
 Arm64Module subclass: #JitCompiler
-	instanceVariableNames: 'asm runtime analysis stubs cache'
+	instanceVariableNames: 'asm runtime analysis stubs cache brt'
 	classVariableNames: ''
 	package: 'VM-Jit'!
 
@@ -9,7 +9,7 @@ x19 the Frame, x20 its slots (fp: slot k at [x20, #8k], the receiver at [x20, #-
 
 !JitCompiler class methodsFor: 'declaring'!
 declarations
-	^#((asm Arm64Assembler) (runtime JitRuntime) (analysis BytecodeAnalysis) (stubs JitStubs) (cache CodeCache))
+	^#((asm Arm64Assembler) (runtime JitRuntime) (analysis BytecodeAnalysis) (stubs JitStubs) (cache CodeCache) (brt JitBaselineRuntime))
 !
 isAbstractModule
 	^self == JitCompiler

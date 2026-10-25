@@ -14,7 +14,7 @@ oop cls_point;
 oop cls_smallfloat;
 oop cls_smallint;
 oop false_oop;
-uint64_t hash_seed = 25417690752762187ULL;
+uint64_t hash_box[1] = {25417690752762187ULL};
 static size_t large_object_bytes = 262144ULL;
 oop nil_oop;
 int32_t root_count;
@@ -66,8 +66,8 @@ oop alloc_obj(oop cls, int fmt, uint32_t n)
         }
         return alloc_old(cls, fmt, n);
     }
-    p = eden_alloc[0];
-    if (p + bytes > eden_alloc[1]) {
+    p = eden_box[0];
+    if (p + bytes > eden_box[1]) {
         memset(&local, 0, sizeof local);
         cls_root = &local;
         *cls_root = cls;
@@ -87,7 +87,7 @@ oop alloc_obj(oop cls, int fmt, uint32_t n)
         }
     } else {
         a = p + bytes;
-        eden_alloc[0] = a;
+        eden_box[0] = a;
         *(uint64_t *)p = ((uint64_t)n) | (((uint64_t)fmt) << H_FMT_SHIFT) | (((uint64_t)next_hash()) << H_HASH_SHIFT);
         *(uint64_t *)(p + 8) = cls;
         if ((fmt >= 1) && (fmt <= 4)) {
@@ -204,23 +204,23 @@ static uint64_t alloc_slow(oop *cls, size_t bytes)
     uint64_t a;
     int64_t n_3;
     if (alloc_sample_interval > 0) {
-        n = alloc_sample_countdown - (int64_t)(eden_alloc[0] - sample_mark);
+        n = alloc_sample_countdown - (int64_t)(eden_box[0] - sample_mark);
         alloc_sample_countdown = n;
-        sample_mark = eden_alloc[0];
+        sample_mark = eden_box[0];
         if (alloc_sample_countdown <= (int64_t)bytes) {
             n_2 = alloc_sample_interval + (int64_t)bytes;
             alloc_sample_countdown = n_2;
             alloc_sample_hit(*cls, bytes);
         }
     }
-    if ((eden_alloc[0] + bytes > eden_hi) || (old_top - old_lo > old_budget)) {
+    if ((eden_box[0] + bytes > eden_hi) || (old_top - old_lo > old_budget)) {
         push_root(cls);
         collect_garbage(bytes);
         pop_root();
     }
-    p = eden_alloc[0];
+    p = eden_box[0];
     a = p + bytes;
-    eden_alloc[0] = a;
+    eden_box[0] = a;
     if (alloc_sample_interval > 0) {
         n_3 = alloc_sample_countdown - (int64_t)bytes;
         alloc_sample_countdown = n_3;
@@ -529,9 +529,11 @@ void memory_init(size_t eden_bytes, size_t max_heap)
 /* ObjectMemory>>nextHash */
 static uint32_t next_hash(void)
 {
+    uint64_t s;
     uint32_t h;
-    hash_seed = hash_seed * 6364136223846793005LL + 1442695040888963407LL;
-    h = (uint32_t)((hash_seed >> 40) & H_HASH_MASK);
+    s = hash_box[0] * 6364136223846793005LL + 1442695040888963407LL;
+    hash_box[0] = s;
+    h = (uint32_t)((s >> 40) & H_HASH_MASK);
     return h == 0 ? 1 : h;
 }
 
@@ -579,15 +581,15 @@ void reset_alloc_limit(void)
 {
     uint64_t a;
     uint64_t a_2;
-    eden_alloc[1] = eden_hi;
-    sample_mark = eden_alloc[0];
-    if ((alloc_sample_interval > 0) && (eden_alloc[0] + alloc_sample_countdown < eden_hi)) {
-        a = eden_alloc[0] + alloc_sample_countdown;
-        eden_alloc[1] = a;
+    eden_box[1] = eden_hi;
+    sample_mark = eden_box[0];
+    if ((alloc_sample_interval > 0) && (eden_box[0] + alloc_sample_countdown < eden_hi)) {
+        a = eden_box[0] + alloc_sample_countdown;
+        eden_box[1] = a;
     }
     if (old_top - old_lo > old_budget) {
-        a_2 = eden_alloc[0];
-        eden_alloc[1] = a_2;
+        a_2 = eden_box[0];
+        eden_box[1] = a_2;
     }
 }
 

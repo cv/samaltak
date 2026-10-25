@@ -69,8 +69,8 @@ primitive_entry vm_primitive_table[] = {
     {91, 2, "charFromValue", prim_char_from_value},
     {100, 3, "stringAt", prim_string_at},
     {101, 3, "stringAtPut", prim_string_at_put},
-    {102, 2, "stringHash", prim_string_hash},
-    {103, 2, "stringCompare", prim_string_compare},
+    {102, 3, "stringHash", prim_string_hash},
+    {103, 3, "stringCompare", prim_string_compare},
     {104, 3, "replaceFromToWithStartingAt", prim_replace_from_to},
     {105, 3, "bytesUint16At", prim_bytes_uint16_at},
     {106, 3, "bytesUint32At", prim_bytes_uint32_at},
@@ -120,6 +120,7 @@ primitive_entry vm_primitive_table[] = {
     {173, 2, "vmBanner", prim_vm_banner},
     {180, 2, "jitParameters", prim_jit_parameters},
     {181, 2, "jitCode", prim_jit_code},
+    {182, 2, "jitSendSites", prim_jit_send_sites},
     {198, 2, "ensureMarker", prim_ensure_marker},
     {199, 2, "onDoMarker", prim_on_do_marker},
 #ifndef SAMALTAK_NO_PLATFORM

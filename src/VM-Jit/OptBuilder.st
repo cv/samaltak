@@ -1,6 +1,6 @@
 OptModule subclass: #OptBuilder
 	instanceVariableNames: 'ir obCurBlock obBailed obVarTop obDefKeys obDefVals obDefCount obIncPhis obIncVars obIncCount obAnaMethods obAnaBases obAnaCount obAnaTop obAnaDepth obAnaFlag obAnaBack obPcBlocks obPcbTop obEntryBlock obRootMethod obInlined obDeps obDepCount obPrimKinds obPrimsKnown obNoInline obNoInlineCount obArgVals obArgFlags obUnitStart obOsrPc obParamSlots obValidSlots obSafeEpoch obAnaFloat'
-	classVariableNames: 'OA_BLOCK OA_LOOP OA_START OA_TARGET OPT_MAX_VARS OPT_MAX_NOINLINE OPT_MAX_PRIM PK_AT PK_FLOAT PK_FSQRT PK_NEW PK_NEWSIZE PK_CLOSURE PK_ATPUT PK_CLASS PK_IDENTICAL PK_INT PK_SIZE PK_STRINGAT PK_STRINGATPUT OPT_INLINE_BUDGET OPT_INLINE_DEPTH OPT_INLINE_SIZE OPT_MAX_ANA OPT_MAX_DEPS OPT_MAX_INC'
+	classVariableNames: 'OA_BLOCK OA_LOOP OA_START OA_TARGET OPT_MAX_VARS OPT_MAX_NOINLINE OPT_MAX_PRIM OPK_AT OPK_FLOAT OPK_FSQRT OPK_NEW OPK_NEWSIZE OPK_CLOSURE OPK_ATPUT OPK_CLASS OPK_IDENTICAL OPK_INT OPK_SIZE OPK_STRINGAT OPK_STRINGATPUT OPT_INLINE_BUDGET OPT_INLINE_DEPTH OPT_INLINE_SIZE OPT_MAX_ANA OPT_MAX_DEPS OPT_MAX_INC'
 	package: 'VM-Jit'!
 
 OptBuilder comment: 'Builds the IR (OptIR) of a method from its bytecodes: an abstract interpretation of each activation''s bytecodes in pc order, its slots (arguments, temps, operand stack: the depths BytecodeAnalysis computed) SSA variables, phis made on demand (Braun et al., Simple and Efficient Construction of Static Single Assignment Form, CC 2013: a block is sealed once all its predecessors are known; jump targets when the scan reaches them, loop heads after their last backward jump). Sends, guards and interrupt checks get frame states (OptState) for deoptimization. bail abandons the method (a bytecode the tier does not compile).'!
@@ -23,19 +23,19 @@ initialize
 	OPT_MAX_PRIM := 1024.
 	OPT_MAX_NOINLINE := 8.
 	OPT_MAX_VARS := 65536.
-	PK_AT := 1.
-	PK_ATPUT := 2.
-	PK_SIZE := 3.
-	PK_STRINGAT := 4.
-	PK_STRINGATPUT := 5.
-	PK_CLASS := 6.
-	PK_IDENTICAL := 7.
-	PK_INT := 32.
-	PK_FLOAT := 64.
-	PK_FSQRT := 8.
-	PK_NEW := 9.
-	PK_NEWSIZE := 10.
-	PK_CLOSURE := 11.
+	OPK_AT := 1.
+	OPK_ATPUT := 2.
+	OPK_SIZE := 3.
+	OPK_STRINGAT := 4.
+	OPK_STRINGATPUT := 5.
+	OPK_CLASS := 6.
+	OPK_IDENTICAL := 7.
+	OPK_INT := 32.
+	OPK_FLOAT := 64.
+	OPK_FSQRT := 8.
+	OPK_NEW := 9.
+	OPK_NEWSIZE := 10.
+	OPK_CLOSURE := 11.
 	OPT_INLINE_SIZE := 80.
 	OPT_INLINE_BUDGET := 1500.
 	OPT_INLINE_DEPTH := 8.
@@ -1109,7 +1109,7 @@ send: sel to: rcv class: cls argc: argc kind: kind pc: pc act: a rcvSlot: r
 	self noteDependency: sel.
 	self write: (self var: a slot: r) value: rcv.
 	((runtime flag: runtime allocFlag) and: [self allocate: m selector: sel class: cls argc: argc pc: pc act: a rcvSlot: r]) ifTrue: [^true].
-	(cls = memory clsBlock and: [(runtime flag: runtime callsFlag) and: [(self primKindOf: (self methodPrimitive: m)) = PK_CLOSURE]]) ifTrue: [
+	(cls = memory clsBlock and: [(runtime flag: runtime callsFlag) and: [(self primKindOf: (self methodPrimitive: m)) = OPK_CLOSURE]]) ifTrue: [
 		^self blockCall: sel argc: argc pc: pc act: a rcvSlot: r].
 	((self methodPrimitive: m) ~= 0 and: [(runtime flag: runtime primsFlag) and: [
 		self inlinePrimitive: (self methodPrimitive: m) class: cls argc: argc pc: pc act: a rcvSlot: r]]) ifTrue: [^true].
@@ -1144,14 +1144,14 @@ allocate: m selector: sel class: cls argc: argc pc: pc act: a rcvSlot: r
 	"m is basicNew or basicNew: and the receiver (of metaclass cls) a class whose instances have pointer slots: the send with a fast path that allocates in eden (NF_ALLOC; c: format and fixed fields); answer whether it is one."
 	| kind inst fo spec isize fmt n |
 	kind := self primKindOf: (self methodPrimitive: m).
-	((kind = PK_NEW and: [argc = 0]) or: [kind = PK_NEWSIZE and: [argc = 1]]) ifFalse: [^false].
+	((kind = OPK_NEW and: [argc = 0]) or: [kind = OPK_NEWSIZE and: [argc = 1]]) ifFalse: [^false].
 	inst := self loadRef: cls at: META_THISCLASS.
 	((self isPtr: inst) and: [(self classOf: inst) = cls]) ifFalse: [^false].
 	fo := self loadRef: inst at: BEH_FORMAT.
 	(self isInt: fo) ifFalse: [^false].
 	spec := (self intVal: fo) >> CLS_SPEC_SHIFT.
 	isize := (self intVal: fo) bitAnd: CLS_INSTSIZE_MASK.
-	kind = PK_NEW
+	kind = OPK_NEW
 		ifTrue: [
 			spec <= 1 ifFalse: [^false].
 			fmt := isize ~= 0 ifTrue: [F_FIXED] ifFalse: [F_EMPTY]]
@@ -1170,42 +1170,42 @@ primKindOf: p
 	obPrimsKnown ifFalse: [
 		obPrimsKnown := true.
 		libc memset: obPrimKinds value: 0 size: OPT_MAX_PRIM.
-		self primNamed: 'at' kind: PK_AT.
-		self primNamed: 'atPut' kind: PK_ATPUT.
-		self primNamed: 'basicSize' kind: PK_SIZE.
-		self primNamed: 'stringAt' kind: PK_STRINGAT.
-		self primNamed: 'stringAtPut' kind: PK_STRINGATPUT.
-		self primNamed: 'class' kind: PK_CLASS.
-		self primNamed: 'identical' kind: PK_IDENTICAL.
-		self primNamed: 'intAdd' kind: PK_INT + 0.
-		self primNamed: 'intSub' kind: PK_INT + 1.
-		self primNamed: 'intLess' kind: PK_INT + 2.
-		self primNamed: 'intGreater' kind: PK_INT + 3.
-		self primNamed: 'intLessEq' kind: PK_INT + 4.
-		self primNamed: 'intGreaterEq' kind: PK_INT + 5.
-		self primNamed: 'intEq' kind: PK_INT + 6.
-		self primNamed: 'intNotEq' kind: PK_INT + 7.
-		self primNamed: 'intMul' kind: PK_INT + 8.
-		self primNamed: 'intBitAnd' kind: PK_INT + 14.
-		self primNamed: 'intBitOr' kind: PK_INT + 15.
-		self primNamed: 'intMod' kind: PK_INT + 10.
-		self primNamed: 'intBitXor' kind: PK_INT + 11.
-		self primNamed: 'intBitShift' kind: PK_INT + 12.
-		self primNamed: 'intFloorDiv' kind: PK_INT + 13.
-		self primNamed: 'floatAdd' kind: PK_FLOAT + 0.
-		self primNamed: 'floatSub' kind: PK_FLOAT + 1.
-		self primNamed: 'floatLess' kind: PK_FLOAT + 2.
-		self primNamed: 'floatGreater' kind: PK_FLOAT + 3.
-		self primNamed: 'floatLessEq' kind: PK_FLOAT + 4.
-		self primNamed: 'floatGreaterEq' kind: PK_FLOAT + 5.
-		self primNamed: 'floatEq' kind: PK_FLOAT + 6.
-		self primNamed: 'floatNotEq' kind: PK_FLOAT + 7.
-		self primNamed: 'floatMul' kind: PK_FLOAT + 8.
-		self primNamed: 'floatDiv' kind: PK_FLOAT + 9.
-		self primNamed: 'floatSqrt' kind: PK_FSQRT.
-		self primNamed: 'basicNew' kind: PK_NEW.
-		self primNamed: 'basicNew:' kind: PK_NEWSIZE.
-		self primNamed: 'closureValue' kind: PK_CLOSURE].
+		self primNamed: 'at' kind: OPK_AT.
+		self primNamed: 'atPut' kind: OPK_ATPUT.
+		self primNamed: 'basicSize' kind: OPK_SIZE.
+		self primNamed: 'stringAt' kind: OPK_STRINGAT.
+		self primNamed: 'stringAtPut' kind: OPK_STRINGATPUT.
+		self primNamed: 'class' kind: OPK_CLASS.
+		self primNamed: 'identical' kind: OPK_IDENTICAL.
+		self primNamed: 'intAdd' kind: OPK_INT + 0.
+		self primNamed: 'intSub' kind: OPK_INT + 1.
+		self primNamed: 'intLess' kind: OPK_INT + 2.
+		self primNamed: 'intGreater' kind: OPK_INT + 3.
+		self primNamed: 'intLessEq' kind: OPK_INT + 4.
+		self primNamed: 'intGreaterEq' kind: OPK_INT + 5.
+		self primNamed: 'intEq' kind: OPK_INT + 6.
+		self primNamed: 'intNotEq' kind: OPK_INT + 7.
+		self primNamed: 'intMul' kind: OPK_INT + 8.
+		self primNamed: 'intBitAnd' kind: OPK_INT + 14.
+		self primNamed: 'intBitOr' kind: OPK_INT + 15.
+		self primNamed: 'intMod' kind: OPK_INT + 10.
+		self primNamed: 'intBitXor' kind: OPK_INT + 11.
+		self primNamed: 'intBitShift' kind: OPK_INT + 12.
+		self primNamed: 'intFloorDiv' kind: OPK_INT + 13.
+		self primNamed: 'floatAdd' kind: OPK_FLOAT + 0.
+		self primNamed: 'floatSub' kind: OPK_FLOAT + 1.
+		self primNamed: 'floatLess' kind: OPK_FLOAT + 2.
+		self primNamed: 'floatGreater' kind: OPK_FLOAT + 3.
+		self primNamed: 'floatLessEq' kind: OPK_FLOAT + 4.
+		self primNamed: 'floatGreaterEq' kind: OPK_FLOAT + 5.
+		self primNamed: 'floatEq' kind: OPK_FLOAT + 6.
+		self primNamed: 'floatNotEq' kind: OPK_FLOAT + 7.
+		self primNamed: 'floatMul' kind: OPK_FLOAT + 8.
+		self primNamed: 'floatDiv' kind: OPK_FLOAT + 9.
+		self primNamed: 'floatSqrt' kind: OPK_FSQRT.
+		self primNamed: 'basicNew' kind: OPK_NEW.
+		self primNamed: 'basicNew:' kind: OPK_NEWSIZE.
+		self primNamed: 'closureValue' kind: OPK_CLOSURE].
 	(p <= 0 or: [p >= OPT_MAX_PRIM]) ifTrue: [^0].
 	^(obPrimKinds at: p) asInt32
 !
@@ -1221,18 +1221,18 @@ inlinePrimitive: p class: cls argc: argc pc: pc act: a rcvSlot: r
 	kind := self primKindOf: p.
 	kind = 0 ifTrue: [^false].
 	rcv := self read: (self var: a slot: r).
-	(kind = PK_CLASS and: [argc = 0]) ifTrue: [
+	(kind = OPK_CLASS and: [argc = 0]) ifTrue: [
 		n := self add: O_CLASSOF rep: R_OOP.
 		(ir node: n) a: rcv.
 		self push: n act: a depth: r.
 		^true].
-	(kind = PK_IDENTICAL and: [argc = 1]) ifTrue: [
+	(kind = OPK_IDENTICAL and: [argc = 1]) ifTrue: [
 		self push: (self binary: O_EQ a: rcv b: (self read: (self var: a slot: r + 1))) act: a depth: r.
 		^true].
-	(kind >= PK_FLOAT or: [kind = PK_FSQRT]) ifTrue: [
+	(kind >= OPK_FLOAT or: [kind = OPK_FSQRT]) ifTrue: [
 		(runtime flag: runtime unboxFlag) ifFalse: [^false].
 		(cls = memory clsSmallfloat and: [((feedback flagsAt: (ir act: a) method pc: pc) bitAnd: (feedback sawNonInt bitOr: feedback deoptOther)) = 0]) ifFalse: [^false].
-		(kind = PK_FSQRT and: [argc = 0]) ifTrue: [
+		(kind = OPK_FSQRT and: [argc = 0]) ifTrue: [
 			s := self stateAct: a pc: pc depth: (self depthAt: pc act: a).
 			idx := self unboxFloat: rcv state: s.
 			n := self add: O_FSQRT rep: R_DBL.
@@ -1240,17 +1240,17 @@ inlinePrimitive: p class: cls argc: argc pc: pc act: a rcvSlot: r
 			self push: (self boxFloat: n state: s) act: a depth: r.
 			^true].
 		argc = 1 ifFalse: [^false].
-		self floatArith: (kind - PK_FLOAT) asInt32 x: rcv y: (self read: (self var: a slot: r + 1)) pc: pc act: a rcvSlot: r.
+		self floatArith: (kind - OPK_FLOAT) asInt32 x: rcv y: (self read: (self var: a slot: r + 1)) pc: pc act: a rcvSlot: r.
 		^true].
-	(kind >= PK_INT and: [argc = 1]) ifTrue: [
+	(kind >= OPK_INT and: [argc = 1]) ifTrue: [
 		cls = memory clsSmallint ifFalse: [^false].
 		fl := feedback flagsAt: (ir act: a) method pc: pc.
 		"the argument was not always a SmallInteger: Floats as doubles, else the send"
 		(fl bitAnd: ((feedback sawFloat bitOr: feedback sawNonInt) bitOr: (feedback deoptArith bitOr: feedback overflowed))) ~= 0 ifTrue: [
-			(kind - PK_INT <= 9 and: [(runtime flag: runtime unboxFlag) and: [(fl bitAnd: feedback sawFloat) ~= 0 and: [(fl bitAnd: (feedback sawNonInt bitOr: feedback deoptOther)) = 0]]]) ifFalse: [^false].
-			self floatArith: (kind - PK_INT) asInt32 x: rcv y: (self read: (self var: a slot: r + 1)) pc: pc act: a rcvSlot: r.
+			(kind - OPK_INT <= 9 and: [(runtime flag: runtime unboxFlag) and: [(fl bitAnd: feedback sawFloat) ~= 0 and: [(fl bitAnd: (feedback sawNonInt bitOr: feedback deoptOther)) = 0]]]) ifFalse: [^false].
+			self floatArith: (kind - OPK_INT) asInt32 x: rcv y: (self read: (self var: a slot: r + 1)) pc: pc act: a rcvSlot: r.
 			^true].
-		self intArith: kind - PK_INT x: rcv y: (self read: (self var: a slot: r + 1)) pc: pc act: a rcvSlot: r.
+		self intArith: kind - OPK_INT x: rcv y: (self read: (self var: a slot: r + 1)) pc: pc act: a rcvSlot: r.
 		^true].
 	fmt := self intVal: (self loadRef: cls at: BEH_FORMAT).
 	spec := fmt >> 16.
@@ -1260,13 +1260,13 @@ inlinePrimitive: p class: cls argc: argc pc: pc act: a rcvSlot: r
 	spec >= F_BYTES ifTrue: [
 		ek := E_BYTE.
 		fixed := 0].
-	(kind = PK_STRINGAT or: [kind = PK_STRINGATPUT]) ifTrue: [
+	(kind = OPK_STRINGAT or: [kind = OPK_STRINGATPUT]) ifTrue: [
 		spec >= F_BYTES ifFalse: [^false].
 		ek := E_CHAR].
 	ek < 0 ifTrue: [^false].
 	((feedback flagsAt: (ir act: a) method pc: pc) bitAnd: feedback deoptOther) ~= 0 ifTrue: [^false].
 	s := self stateAct: a pc: pc depth: (self depthAt: pc act: a).
-	(kind = PK_SIZE and: [argc = 0]) ifTrue: [
+	(kind = OPK_SIZE and: [argc = 0]) ifTrue: [
 		n := self add: O_SIZE rep: R_OOP.
 		(ir node: n) a: rcv.
 		(ir node: n) aux: ek.
@@ -1274,7 +1274,7 @@ inlinePrimitive: p class: cls argc: argc pc: pc act: a rcvSlot: r
 		(ir node: n) tkind: T_SMI.
 		self push: n act: a depth: r.
 		^true].
-	((kind = PK_AT or: [kind = PK_STRINGAT]) and: [argc = 1]) ifTrue: [
+	((kind = OPK_AT or: [kind = OPK_STRINGAT]) and: [argc = 1]) ifTrue: [
 		idx := self guardInt: (self read: (self var: a slot: r + 1)) state: s.
 		n := self add: O_INDEXLOAD rep: R_OOP.
 		(ir node: n) a: rcv.
@@ -1286,7 +1286,7 @@ inlinePrimitive: p class: cls argc: argc pc: pc act: a rcvSlot: r
 		ek = E_CHAR ifTrue: [(ir node: n) tkind: T_CHAR].
 		self push: n act: a depth: r.
 		^true].
-	((kind = PK_ATPUT or: [kind = PK_STRINGATPUT]) and: [argc = 2]) ifTrue: [
+	((kind = OPK_ATPUT or: [kind = OPK_STRINGATPUT]) and: [argc = 2]) ifTrue: [
 		idx := self guardInt: (self read: (self var: a slot: r + 1)) state: s.
 		val := self read: (self var: a slot: r + 2).
 		n := self add: O_INDEXSTORE rep: R_NONE.

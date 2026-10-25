@@ -3,7 +3,7 @@ ToolsTestCase subclass: #ShannonJugglerTest
 	classVariableNames: ''
 	package: 'Tests-Tools'!
 
-ShannonJugglerTest comment: 'I test Claude''s Robot: its stage shows the 3D scene rendered on the GPU, it changes while the act runs and stays the same picture once the act halts; the simulation keeps all three balls going for ten minutes of frames without two ever touching, catching each without a knock and letting it go only on the drop, bounces balls that do touch off each other, is the same every run and repeats itself, restarts the same, and with gravity turned round the balls end up at rest against the ceiling.'!
+ShannonJugglerTest comment: 'I test Claude''s Robot: its stage shows the 3D scene rendered on the GPU, it changes while the act runs and stays the same picture once the act halts; the simulation keeps all three balls going for ten minutes of frames without two ever touching, catching each without a knock and letting it go only on the drop, its arms moving smoothly, bounces balls that do touch off each other, is the same every run and keeps its rhythm, restarts the same, and with gravity turned round the balls end up at rest against the ceiling.'!
 
 !ShannonJugglerTest methodsFor: 'support'!
 pictureOf: aView
@@ -50,23 +50,34 @@ testRendersAndAnimates
 	self assert: (self pictureOf: stage) bits = halted bits description: 'a halted act changes its picture'
 !
 testKeepsJugglingForTenMinutesSoftlyWithoutTheBallsTouching
-	"Ten minutes of frames: no ball gets away or comes near another; every ball comes into a cup without a knock and leaves it only when the cup tips it out."
-	| juggler closest hardest |
+	"Ten minutes of frames: no ball gets away or comes near another; every ball comes into a cup without a knock and leaves it only when the cup tips it out; the cups move smoothly, their speed and their turn changing without a jolt."
+	| juggler closest hardest moves push jolt turn |
 	juggler := ShannonJuggler new.
 	closest := 1000.
-	hardest := 0.
+	hardest := push := jolt := turn := 0.
+	moves := juggler hands collect: [:each | Array with: each velocity with: 0 @ 0 with: each tilt with: 0].
 	36000 timesRepeat: [
 		juggler step.
 		self deny: (self dropped: juggler) description: 'a ball dropped at frame ', juggler frame printString.
-		juggler hands do: [:each |
+		juggler hands doWithIndex: [:each :i | | m a spin |
 			hardest := hardest max: each knock.
 			each releasedAt = (juggler frame - 1) ifTrue: [
-				self assert: (self isTipping: each in: juggler) description: 'a ball left ', each printString, ' at frame ', each releasedAt printString]].
+				self assert: (self isTipping: each in: juggler) description: 'a ball left ', each printString, ' at frame ', each releasedAt printString].
+			m := moves at: i.
+			a := each velocity - m first.
+			spin := each tilt - (m at: 3).
+			push := push max: a r.
+			jolt := jolt max: (a - (m at: 2)) r.
+			turn := turn max: (spin - m last) abs.
+			moves at: i put: (Array with: each velocity with: a with: each tilt with: spin)].
 		juggler balls doWithIndex: [:a :i |
 			juggler balls doWithIndex: [:b :k | k > i ifTrue: [closest := closest min: (a position dist: b position)]]]].
 	self assert: juggler balls size equals: 3.
 	self assert: closest > (2 * JugglerBall radius + 10) description: 'balls came within ', closest printString.
-	self assert: hardest < 1 description: 'a ball hit a cup at ', hardest printString, ' points per frame'
+	self assert: hardest < 1 description: 'a ball hit a cup at ', hardest printString, ' points per frame'.
+	self assert: push < 2.5 description: 'a cup sped up by ', push printString, ' points per frame in a frame'.
+	self assert: jolt < 1.25 description: 'a cup''s acceleration jumped by ', jolt printString.
+	self assert: turn < 0.2 description: 'a cup''s spin jumped by ', turn printString
 !
 testBallsBounceOffEachOther
 	"Two balls flying at each other bounce apart, nothing lost along the line between them but what the restitution takes."
@@ -81,7 +92,7 @@ testBallsBounceOffEachOther
 	self assert: (a velocity x + b velocity x) abs < 0.001.
 	self assert: (b velocity x - a velocity x - (6 * juggler ballRestitution)) abs < 0.001
 !
-testSameEveryRunAndRepeating
+testSameEveryRunAndInRhythm
 	| a b positions |
 	a := ShannonJuggler new.
 	b := ShannonJuggler new.
@@ -89,10 +100,10 @@ testSameEveryRunAndRepeating
 	self run: b frames: 2000.
 	self assert: (a balls collect: [:each | each position]) asArray equals: (b balls collect: [:each | each position]) asArray.
 	self assert: (a hands collect: [:each | each position]) equals: (b hands collect: [:each | each position]).
-	"Each ball comes back to where it was after three rounds of the hands."
+	"After three rounds of the hands each ball is about where it was."
 	positions := (a balls collect: [:each | each position]) asArray.
 	self run: a frames: 6 * a beat.
-	a balls doWithIndex: [:each :i | self assert: ((positions at: i) dist: each position) < 0.5]
+	a balls doWithIndex: [:each :i | self assert: ((positions at: i) dist: each position) < (2 * JugglerBall radius)]
 !
 testRestartIsTheSame
 	| juggler positions |

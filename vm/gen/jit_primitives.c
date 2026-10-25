@@ -216,6 +216,7 @@ void prim_jit_code(void)
         prim_status = PS_OK;
     }
     if (scratch) {
+        bl_forget_slots_from(top);
         cache_top = top;
     }
 }
@@ -371,6 +372,141 @@ void prim_jit_parameters(void)
     }
     v_7 = *r;
     prim_result = v_7;
+    prim_status = PS_OK;
+}
+
+/* JitPrimitives>>primJitSendSites */
+void prim_jit_send_sites(void)
+{
+    oop m;
+    int64_t n;
+    oop local;
+    oop *r;
+    oop local_2;
+    oop *e;
+    oop local_3;
+    oop *a;
+    int64_t i;
+    oop o;
+    oop v;
+    oop o_2;
+    oop m_2;
+    int64_t v_2;
+    uint64_t v_3;
+    oop o_3;
+    oop m_3;
+    int64_t v_4;
+    uint64_t v_5;
+    oop m_4;
+    int64_t count;
+    oop k;
+    oop o_4;
+    oop o_5;
+    int64_t j;
+    oop o_6;
+    uint64_t o_7;
+    oop m_5;
+    oop v_6;
+    oop o_8;
+    uint64_t o_9;
+    oop m_6;
+    oop v_7;
+    oop o_10;
+    oop m_7;
+    oop v_8;
+    oop v_9;
+    m = prim_base[0];
+    if (!(((m & 7) == 0) && (*(uint64_t *)(m + 8) == special(SO_COMPILEDMETHOD)))) {
+        prim_status = PS_FAIL;
+        prim_error_code = -1;
+        return;
+    }
+    n = bl_feedback_sites(m);
+    if (n < 0) {
+        prim_result = nil_oop;
+        prim_status = PS_OK;
+        return;
+    }
+    memset(&local, 0, sizeof local);
+    r = &local;
+    memset(&local_2, 0, sizeof local_2);
+    e = &local_2;
+    memset(&local_3, 0, sizeof local_3);
+    a = &local_3;
+    *a = m;
+    push_root(a);
+    *r = alloc_obj(cls_array, F_VAR, (uint32_t)n);
+    push_root(r);
+    push_root(e);
+    for (i = 0; i <= n - 1; i++) {
+        *e = alloc_obj(cls_array, F_VAR, 5);
+        o = *r;
+        v = *e;
+        *(uint64_t *)(o + 16 + 8 * i) = v;
+        if (((v & 7) == 0) && (((uint64_t)(v - young_lo) < young_hi - young_lo) && ((!((uint64_t)(o - young_lo) < young_hi - young_lo)) && (((*(uint64_t *)o) & H_REMEMBERED) == 0)))) {
+            vm_remember(o);
+        }
+        o_2 = *e;
+        m_2 = *a;
+        v_2 = bl_feedback_pc(m_2, i);
+        v_3 = (uint64_t)((v_2 << 1) | 1);
+        *(uint64_t *)(o_2 + 16 + 0) = v_3;
+        if (((v_3 & 7) == 0) && ((v_3 - young_lo < young_hi - young_lo) && ((!((uint64_t)(o_2 - young_lo) < young_hi - young_lo)) && (((*(uint64_t *)o_2) & H_REMEMBERED) == 0)))) {
+            vm_remember(o_2);
+        }
+        o_3 = *e;
+        m_3 = *a;
+        v_4 = bl_feedback_state(m_3, i);
+        v_5 = (uint64_t)((v_4 << 1) | 1);
+        *(uint64_t *)(o_3 + 16 + 8) = v_5;
+        if (((v_5 & 7) == 0) && ((v_5 - young_lo < young_hi - young_lo) && ((!((uint64_t)(o_3 - young_lo) < young_hi - young_lo)) && (((*(uint64_t *)o_3) & H_REMEMBERED) == 0)))) {
+            vm_remember(o_3);
+        }
+        m_4 = *a;
+        count = bl_feedback_cases(m_4, i);
+        k = alloc_obj(cls_array, F_VAR, (uint32_t)count);
+        o_4 = *e;
+        *(uint64_t *)(o_4 + 16 + 16) = k;
+        if (((k & 7) == 0) && (((uint64_t)(k - young_lo) < young_hi - young_lo) && ((!((uint64_t)(o_4 - young_lo) < young_hi - young_lo)) && (((*(uint64_t *)o_4) & H_REMEMBERED) == 0)))) {
+            vm_remember(o_4);
+        }
+        k = alloc_obj(cls_array, F_VAR, (uint32_t)count);
+        o_5 = *e;
+        *(uint64_t *)(o_5 + 16 + 24) = k;
+        if (((k & 7) == 0) && (((uint64_t)(k - young_lo) < young_hi - young_lo) && ((!((uint64_t)(o_5 - young_lo) < young_hi - young_lo)) && (((*(uint64_t *)o_5) & H_REMEMBERED) == 0)))) {
+            vm_remember(o_5);
+        }
+        for (j = 0; j <= count - 1; j++) {
+            o_6 = *e;
+            o_7 = *(uint64_t *)(o_6 + 16 + 16);
+            m_5 = *a;
+            v_6 = bl_feedback_class(m_5, i, j);
+            *(uint64_t *)(o_7 + 16 + 8 * j) = v_6;
+            if (((v_6 & 7) == 0) && (((uint64_t)(v_6 - young_lo) < young_hi - young_lo) && ((!(o_7 - young_lo < young_hi - young_lo)) && (((*(uint64_t *)o_7) & H_REMEMBERED) == 0)))) {
+                vm_remember(o_7);
+            }
+            o_8 = *e;
+            o_9 = *(uint64_t *)(o_8 + 16 + 24);
+            m_6 = *a;
+            v_7 = bl_feedback_target(m_6, i, j);
+            *(uint64_t *)(o_9 + 16 + 8 * j) = v_7;
+            if (((v_7 & 7) == 0) && (((uint64_t)(v_7 - young_lo) < young_hi - young_lo) && ((!(o_9 - young_lo < young_hi - young_lo)) && (((*(uint64_t *)o_9) & H_REMEMBERED) == 0)))) {
+                vm_remember(o_9);
+            }
+        }
+        o_10 = *e;
+        m_7 = *a;
+        v_8 = bl_feedback_selector(m_7, i);
+        *(uint64_t *)(o_10 + 16 + 32) = v_8;
+        if (((v_8 & 7) == 0) && (((uint64_t)(v_8 - young_lo) < young_hi - young_lo) && ((!((uint64_t)(o_10 - young_lo) < young_hi - young_lo)) && (((*(uint64_t *)o_10) & H_REMEMBERED) == 0)))) {
+            vm_remember(o_10);
+        }
+    }
+    pop_root();
+    pop_root();
+    pop_root();
+    v_9 = *r;
+    prim_result = v_9;
     prim_status = PS_OK;
 }
 

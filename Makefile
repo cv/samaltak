@@ -29,6 +29,8 @@ translate: image
 test-jit: image
 	tests/st_suite.sh $(OUT)/samaltak.image --jit template --jit-threshold 0
 	tests/st_suite.sh $(OUT)/samaltak.image --jit template --jit-threshold 0 --jit-cache 1 --jit-flags notes -- Tests-Kernel
+	tests/st_suite.sh $(OUT)/samaltak.image --jit baseline --jit-threshold 0
+	tests/st_suite.sh $(OUT)/samaltak.image --jit baseline --jit-threshold 0 --jit-cache 1 --jit-flags notes -- Tests-Kernel
 	tests/st_suite.sh $(OUT)/samaltak.image --jit threaded --jit-threshold 0
 	tests/st_suite.sh $(OUT)/samaltak.image --jit stencil --jit-threshold 0
 	tests/st_suite.sh $(OUT)/samaltak.image --jit stencil --jit-threshold 0 --jit-cache 1 --jit-flags notes -- Tests-Kernel

@@ -1170,6 +1170,8 @@ uint64_t opt_send(frame *f, int64_t k, uint64_t key)
     oop sel;
     oop *base;
     oop r;
+    oop o;
+    uint64_t o_2;
     uint64_t v;
     frame *g;
     uint64_t start;
@@ -1180,8 +1182,8 @@ uint64_t opt_send(frame *f, int64_t k, uint64_t key)
     oop m;
     int32_t j;
     int32_t i_2;
-    oop o;
-    uint64_t o_2;
+    oop o_3;
+    uint64_t o_4;
     uint64_t v_2;
     uint64_t cls;
     uint8_t *site;
@@ -1189,6 +1191,8 @@ uint64_t opt_send(frame *f, int64_t k, uint64_t key)
     uint64_t s;
     cache_entry *e;
     uint64_t r_leave_before;
+    oop o_5;
+    uint64_t o_6;
     uint64_t r_sent;
     int8_t i_3;
     uint64_t r_sent_2;
@@ -1199,9 +1203,15 @@ uint64_t opt_send(frame *f, int64_t k, uint64_t key)
     uint8_t i_4;
     oop v_3;
     uint64_t r_sent_3;
-    uint64_t o_3;
+    oop o_7;
+    uint64_t o_8;
+    uint64_t o_9;
     uint64_t r_leave_before_2;
+    oop o_10;
+    uint64_t o_11;
     uint64_t r_leave_before_3;
+    oop o_12;
+    uint64_t o_13;
     uint64_t r_sent_4;
     h = (jit_method *)f->code;
     rec = h->meta + h->sp_table[k];
@@ -1226,7 +1236,14 @@ uint64_t opt_send(frame *f, int64_t k, uint64_t key)
         }
         r = base[0];
         if (((sp == 21) || ((sp == 22) || (sp == 30))) && (((r & 7) == 0) && ((*(uint64_t *)(r + 8) == cls_block) && (*(uint64_t *)(r + 16 + 16) == (uint64_t)((((int64_t)n) << 1) | 1))))) {
+            if (jit_mode == JIT_BASELINE) {
+                f->method = ((jit_method *)f->code)->method;
+                bl_canonicalize_below(f);
+            }
             interp_sync_frame(f);
+            o = f->method;
+            o_2 = *(uint64_t *)(o + 16 + 16);
+            f->lits = (oop *)(o_2 + 16);
             activate_block(n);
             v = jit_entry_of_top();
             if (v <= 1) {
@@ -1245,7 +1262,7 @@ uint64_t opt_send(frame *f, int64_t k, uint64_t key)
     }
     cls = ({
     if (kind == 1) {
-        o = ({
+        o_3 = ({
     nacts = rec[4];
     p_2 = 5;
     m = nil_oop;
@@ -1256,8 +1273,8 @@ uint64_t opt_send(frame *f, int64_t k, uint64_t key)
     }
     r_innermost_method_of = m;
     r_innermost_method_of; });
-        o_2 = *(uint64_t *)(o + 16 + 8);
-        v_2 = *(uint64_t *)(o_2 + 16 + 0);
+        o_4 = *(uint64_t *)(o_3 + 16 + 8);
+        v_2 = *(uint64_t *)(o_4 + 16 + 0);
     } else {
         v_2 = (r & 7) != 0 ? tag_class[r & 7] : *(uint64_t *)(r + 8);
     }
@@ -1271,7 +1288,14 @@ uint64_t opt_send(frame *f, int64_t k, uint64_t key)
         e = site_entry((uint8_t *)key, cls, sel);
         if (e == NULL) {
             return ({
+    if (jit_mode == JIT_BASELINE) {
+        f->method = ((jit_method *)f->code)->method;
+        bl_canonicalize_below(f);
+    }
     interp_sync_frame(f);
+    o_5 = f->method;
+    o_6 = *(uint64_t *)(o_5 + 16 + 16);
+    f->lits = (oop *)(o_6 + 16);
     r_leave_before = opt_deopt_frame(f, k, (uint64_t *)NULL, 1);
     r_leave_before; });
         }
@@ -1329,18 +1353,39 @@ exit_sent_3:;
     r_sent_3; });
         }
     }
+    if (jit_mode == JIT_BASELINE) {
+        f->method = ((jit_method *)f->code)->method;
+        bl_canonicalize_below(f);
+    }
     interp_sync_frame(f);
+    o_7 = f->method;
+    o_8 = *(uint64_t *)(o_7 + 16 + 16);
+    f->lits = (oop *)(o_8 + 16);
     if (((e->kind & K_CTX) != 0) && ({
-    o_3 = *(uint64_t *)(r + 16 + 0);
-    (o_3 & 1) != 0; })) {
+    o_9 = *(uint64_t *)(r + 16 + 0);
+    (o_9 & 1) != 0; })) {
         return ({
+    if (jit_mode == JIT_BASELINE) {
+        f->method = ((jit_method *)f->code)->method;
+        bl_canonicalize_below(f);
+    }
     interp_sync_frame(f);
+    o_10 = f->method;
+    o_11 = *(uint64_t *)(o_10 + 16 + 16);
+    f->lits = (oop *)(o_11 + 16);
     r_leave_before_2 = opt_deopt_frame(f, k, (uint64_t *)NULL, 1);
     r_leave_before_2; });
     }
     if (((e->kind & K_PRIM) != 0) && ((e->prim == perform_fn) || (e->prim == perform_args_fn))) {
         return ({
+    if (jit_mode == JIT_BASELINE) {
+        f->method = ((jit_method *)f->code)->method;
+        bl_canonicalize_below(f);
+    }
     interp_sync_frame(f);
+    o_12 = f->method;
+    o_13 = *(uint64_t *)(o_12 + 16 + 16);
+    f->lits = (oop *)(o_13 + 16);
     r_leave_before_3 = opt_deopt_frame(f, k, (uint64_t *)NULL, 1);
     r_leave_before_3; });
     }

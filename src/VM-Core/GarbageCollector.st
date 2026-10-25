@@ -1,5 +1,5 @@
 VMCoreModule subclass: #GarbageCollector
-	instanceVariableNames: 'youngLo youngHi edenLo edenHi edenAlloc survLo survTop survHi survOtherLo survOtherHi oldLo oldTop oldHi oldAltLo oldAltHi oldBudget maxHeapBytes oldReserve gcEpoch statScavenges statFullGcs statScavengeUs statFullUs statAllocated statTenured remset remsetCount remsetCap startBits vlo verify toLo toTop toHi weakList weakCount weakCap finalizationPending statWeakCleared ftTop becomeFrom becomeTo'
+	instanceVariableNames: 'youngLo youngHi edenLo edenHi edenBox survLo survTop survHi survOtherLo survOtherHi oldLo oldTop oldHi oldAltLo oldAltHi oldBudget maxHeapBytes oldReserve gcEpoch statScavenges statFullGcs statScavengeUs statFullUs statAllocated statTenured remset remsetCount remsetCap startBits vlo verify toLo toTop toHi weakList weakCount weakCap finalizationPending statWeakCleared ftTop becomeFrom becomeTo'
 	classVariableNames: 'MIN_BUDGET TENURE_AGE'
 	package: 'VM-Core'!
 
@@ -7,7 +7,7 @@ GarbageCollector comment: 'Generational GC: eden and two survivor spaces scaveng
 
 !GarbageCollector class methodsFor: 'declaring'!
 declarations
-	^#((youngLo uint64_t) (youngHi uint64_t) (edenLo uint64_t) (edenHi uint64_t) (edenAlloc 'uint64_t[2]')
+	^#((youngLo uint64_t) (youngHi uint64_t) (edenLo uint64_t) (edenHi uint64_t) (edenBox 'uint64_t[2]')
 		(survLo uint64_t) (survTop uint64_t) (survHi uint64_t) (survOtherLo uint64_t) (survOtherHi uint64_t)
 		(oldLo uint64_t) (oldTop uint64_t) (oldHi uint64_t) (oldAltLo uint64_t) (oldAltHi uint64_t)
 		(oldBudget size_t) (maxHeapBytes size_t) (oldReserve size_t) (gcEpoch uint64_t)
@@ -37,20 +37,20 @@ edenHi
 	^edenHi
 !
 edenTop
-	^edenAlloc at: 0
+	^edenBox at: 0
 !
 edenTop: a
-	edenAlloc at: 0 put: a
+	edenBox at: 0 put: a
 !
 allocLimit
-	^edenAlloc at: 1
+	^edenBox at: 1
 !
 allocLimit: a
-	edenAlloc at: 1 put: a
+	edenBox at: 1 put: a
 !
-edenAllocAddress
-	"Where machine code allocates: eden's top, then the limit of the fast path."
-	^self cCoerce: edenAlloc to: 'uint64_t'
+edenBoxAddress
+	"Where eden's top and the allocation limit are (machine code allocates there)."
+	^self cCoerce: edenBox to: 'uint64_t'
 !
 survLo
 	^survLo
@@ -540,6 +540,19 @@ becomeForward: from to: to
 			0 to: (self numSlots: p) asInt64 - 1 do: [:i | (s at: i) = from ifTrue: [s at: i put: to]]].
 		p := p + (self objBytes: p)].
 	self afterGC
+!
+walkYoungSpace: fn data: data
+	"fn on every object of the survivor space and of eden."
+	<c: 'void walk_young_space(void (*fn)(oop, void *), void *data)'>
+	| p |
+	p := survLo.
+	[p < survTop] whileTrue: [
+		fn call: p with: data.
+		p := p + (self objBytes: p)].
+	p := edenLo.
+	[p < self edenTop] whileTrue: [
+		fn call: p with: data.
+		p := p + (self objBytes: p)]
 !
 walkOldSpace: fn data: data
 	<c: 'void walk_old_space(void (*fn)(oop, void *), void *data)'>
