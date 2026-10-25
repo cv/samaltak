@@ -1,9 +1,9 @@
 Object subclass: #JugglerBall
-	instanceVariableNames: 'position velocity bounced lane'
+	instanceVariableNames: 'position velocity bounced'
 	classVariableNames: ''
 	package: 'Tools'!
 
-JugglerBall comment: 'A ball of the ShannonJuggler: position (its centre, in the stage''s points), velocity (points per frame), whether it bounced off the drumhead since it was last in a cup, and its lane.'!
+JugglerBall comment: 'A ball of the ShannonJuggler: position (its centre, in the stage''s points), velocity (points per frame), and whether it bounced off the drumhead since it was last in a cup.'!
 
 !JugglerBall methodsFor: 'accessing'!
 position
@@ -23,13 +23,6 @@ bounced
 !
 bounced: aBoolean
 	bounced := aBoolean
-!
-lane
-	"In front of the figure's plane (1, from the left hand) or behind it (-1, from the right one): balls on their way from different hands pass each other."
-	^lane ifNil: [0]
-!
-lane: anInteger
-	lane := anInteger
 ! !
 
 !JugglerBall methodsFor: 'printing'!

@@ -3,7 +3,7 @@ ToolsTestCase subclass: #ShannonJugglerTest
 	classVariableNames: ''
 	package: 'Tests-Tools'!
 
-ShannonJugglerTest comment: 'I test Claude''s Robot: its stage shows the 3D scene rendered on the GPU, it changes while the act runs and stays the same picture once the act halts; the simulation keeps all three balls going for ten minutes of frames, is the same every run and repeats itself, restarts the same, and with gravity turned round the balls end up at rest against the ceiling.'!
+ShannonJugglerTest comment: 'I test Claude''s Robot: its stage shows the 3D scene rendered on the GPU, it changes while the act runs and stays the same picture once the act halts; the simulation keeps all three balls going for ten minutes of frames without two ever touching, bounces balls that do touch off each other, is the same every run and repeats itself, restarts the same, and with gravity turned round the balls end up at rest against the ceiling.'!
 
 !ShannonJugglerTest methodsFor: 'support'!
 pictureOf: aView
@@ -43,13 +43,30 @@ testRendersAndAnimates
 	self assert: juggler frame equals: frame.
 	self assert: (self pictureOf: stage) bits = halted bits description: 'a halted act changes its picture'
 !
-testKeepsJugglingForTenMinutes
-	| juggler |
+testKeepsJugglingForTenMinutesWithoutTheBallsTouching
+	| juggler closest |
 	juggler := ShannonJuggler new.
+	closest := 1000.
 	36000 timesRepeat: [
 		juggler step.
-		self deny: (self dropped: juggler) description: 'a ball dropped at frame ', juggler frame printString].
-	self assert: juggler balls size equals: 3
+		self deny: (self dropped: juggler) description: 'a ball dropped at frame ', juggler frame printString.
+		juggler balls doWithIndex: [:a :i |
+			juggler balls doWithIndex: [:b :k | k > i ifTrue: [closest := closest min: (a position dist: b position)]]]].
+	self assert: juggler balls size equals: 3.
+	self assert: closest > (2 * JugglerBall radius + 10) description: 'balls came within ', closest printString
+!
+testBallsBounceOffEachOther
+	"Two balls flying at each other bounce apart, nothing lost along the line between them but what the restitution takes."
+	| juggler a b |
+	juggler := ShannonJuggler new.
+	a := JugglerBall new position: 100 @ 100; velocity: 3 @ 0; yourself.
+	b := JugglerBall new position: 119 @ 100; velocity: -3 @ 0; yourself.
+	juggler collide: a with: b.
+	self assert: (a position dist: b position) >= (2 * JugglerBall radius - 0.001).
+	self assert: a velocity x < 0.
+	self assert: b velocity x > 0.
+	self assert: (a velocity x + b velocity x) abs < 0.001.
+	self assert: (b velocity x - a velocity x - (6 * juggler ballRestitution)) abs < 0.001
 !
 testSameEveryRunAndRepeating
 	| a b positions |

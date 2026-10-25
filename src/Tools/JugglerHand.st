@@ -1,5 +1,5 @@
 Object subclass: #JugglerHand
-	instanceVariableNames: 'left offset position velocity tilt spin lastPosition lastTilt holding caughtAt caughtPosition caughtPhase caughtSpeed dropping releasedAt depth'
+	instanceVariableNames: 'left offset position velocity tilt spin lastPosition lastTilt holding caughtAt caughtPosition caughtPhase caughtSpeed dropping releasedAt'
 	classVariableNames: ''
 	package: 'Tools'!
 
@@ -8,10 +8,6 @@ JugglerHand comment: 'A hand of the ShannonJuggler, holding a cup: a bowl (bowlR
 !JugglerHand methodsFor: 'accessing'!
 isLeft
 	^left
-!
-lane
-	"The lane of the balls this hand throws: in front of the figure's plane (left hand) or behind it."
-	^left ifTrue: [1] ifFalse: [-1]
 !
 left: aBoolean offset: anInteger
 	left := aBoolean.
@@ -28,10 +24,6 @@ velocity
 !
 tilt
 	^tilt
-!
-depth
-	"How far in front of the figure's plane the cup is (points), for the picture: it moves to the lane of the ball it will throw or catch."
-	^depth ifNil: [0]
 !
 place: aPoint
 	"Put the cup at aPoint, level and still."
@@ -59,8 +51,6 @@ driveTo: aPoint velocity: aVelocity tilt: anAngle
 	spin := ((spin + ((anAngle - tilt) * 0.25) - (spin * 0.7)) max: -0.15) min: 0.15.
 	tilt := tilt + spin
 !
-drift: aDepth
-	depth := self depth + (aDepth - self depth * 0.12)
 ! !
 
 !JugglerHand methodsFor: 'the cup'!

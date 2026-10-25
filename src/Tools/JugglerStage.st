@@ -12,24 +12,22 @@ juggler: aShannonJuggler
 
 !JugglerStage methodsFor: 'shader'!
 uniforms
-	"The rows of the shader's Scene: the stage, the drum, the ball colour, the bowls, the sizes, the bowls' tilts and depths, five balls, their depths."
-	| balls left right depths |
+	"The rows of the shader's Scene: the stage, the drum, the ball colour, the bowls, the sizes, the bowls' tilts, five balls."
+	| balls left right |
 	balls := juggler balls.
 	left := juggler hands detect: [:each | each isLeft].
 	right := juggler hands detect: [:each | each isLeft not].
-	depths := (1 to: 8) collect: [:i | i > balls size ifTrue: [0] ifFalse: [juggler depthOf: (balls at: i)]].
 	^(Array
 		with: (Array with: juggler stageExtent with: juggler frame with: (balls size min: 5))
 		with: (Array with: juggler drum origin with: juggler drum corner)
 		with: juggler ballColor
 		with: (Array with: left position with: right position)
 		with: (Array with: JugglerBall radius with: JugglerHand bowlRadius with: JugglerHand rimAngle)
-		with: (Array with: left tilt with: right tilt with: left depth with: right depth)),
+		with: (Array with: left tilt with: right tilt)),
 	((1 to: 5) collect: [:i |
 		i > balls size
 			ifTrue: [0]
-			ifFalse: [Array with: (balls at: i) position with: (balls at: i) velocity]]),
-	(Array with: (depths copyFrom: 1 to: 4) with: (depths copyFrom: 5 to: 8))
+			ifFalse: [Array with: (balls at: i) position with: (balls at: i) velocity]])
 !
 renderScale
 	"Three quarters of the device pixels, for the frame budget."
@@ -42,9 +40,8 @@ shaderSource
 	float4 ballColor;
 	float4 hands;		// the bowls'' centres: left x, y, right x, y
 	float4 sizes;		// ball radius, bowl radius, rim angle
-	float4 handPose;	// tilt left, right (radians, + turns the opening to +x), depth left, right (points in front of the plane)
+	float4 handPose;	// tilt left, right (radians, + turns the opening to +x)
 	float4 balls[5];	// centre x, y, velocity x, y (points per frame)
-	float4 depths[2];	// the balls'' depths (points in front of the plane)
 };
 
 // The model placed in the scene: 100 stage points a unit, y up, the floor at 0, the balls in the plane z = 0, the figure behind at figureZ.
@@ -747,7 +744,7 @@ Pose pose(constant Scene &s) {
 	P.bowl = s.sizes.y * 0.01;
 	for (int i = 0; i < P.balls; i++) {
 		float4 b = s.balls[i];
-		float3 c = world(b.xy, s) + float3(0.0, 0.0, s.depths[i / 4][i % 4] * 0.01);
+		float3 c = world(b.xy, s);
 		float3 v = float3(b.z, -b.w, 0.0) * 0.01;
 		// the drumhead gives where a ball comes down on it: fully in a frame with a bounce
 		float onHead = step(abs(c.x - P.drum.x), P.drum.z - 0.05);
@@ -759,7 +756,7 @@ Pose pose(constant Scene &s) {
 	// each arm reaches under its bowl, the hand turned with it: two bones, the elbow down and out
 	for (int i = 0; i < 2; i++) {
 		float side = i == 0 ? -1.0 : 1.0;
-		float3 cup = world(i == 0 ? s.hands.xy : s.hands.zw, s) + float3(0.0, 0.0, (i == 0 ? s.handPose.z : s.handPose.w) * 0.01);
+		float3 cup = world(i == 0 ? s.hands.xy : s.hands.zw, s);
 		float t = i == 0 ? s.handPose.x : s.handPose.y;
 		P.tilt[i] = float2(cos(t), sin(t));
 		float3 sh = float3(side * 0.5, 2.33, figureZ);

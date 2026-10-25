@@ -5,7 +5,7 @@ ToolPane subclass: #ShannonJuggler
 
 ShannonJuggler comment: 'I am Claude''s Robot, modelled on Claude Shannon''s bounce-juggling machine (the W. C. Fields figure, top hat and cigar): two arms carry three balls in cups, tip them out onto a drum, and catch them as they bounce up on the other side. A simulation, per frame (step, in my window''s Process): the arms drive the cups (moveHand:, a PD controller on each cup''s position and tilt following the act''s cycle, with each catch aimed where the ball will come down), then every ball moves (move:): gravity, then in substeps its contacts with the cups, the other balls, the drumhead and the walls. Fixed steps and no randomness, so the act is the same every run. A click restarts it.
 
-My JugglerStage draws what it reads from me: stageExtent, drum, hands (each: position (the centre of its bowl), tilt, depth, isLeft), balls (each: position, velocity; depthOf:), JugglerBall radius, JugglerHand bowlRadius and rimAngle, ballColor, frame.'!
+My JugglerStage draws what it reads from me: stageExtent, drum, hands (each: position (the centre of its bowl), tilt, isLeft), balls (each: position, velocity), JugglerBall radius, JugglerHand bowlRadius and rimAngle, ballColor, frame.'!
 
 !ShannonJuggler methodsFor: 'initialization'!
 initialize
@@ -62,21 +62,21 @@ drum
 !
 beat
 	"Frames from one drop to the next (they alternate between the hands)."
-	^46
+	^44
 !
 releasePoint
 	"Where the left hand tips its ball out towards the drum (the right one mirrored), gliding inwards at releaseSpeed."
-	^60 @ 200
+	^70 @ 200
 !
 releaseSpeed
-	^4
+	^3
 !
 releaseTilt
 	^1.75
 !
 catchHeight
 	"Where a ball is caught on its way down, after the top of its bounce."
-	^255
+	^270
 !
 substeps
 	^4
@@ -101,16 +101,6 @@ bottom
 place: aPoint for: aHand
 	"aPoint of the left hand, mirrored for the right one."
 	^aHand isLeft ifTrue: [aPoint] ifFalse: [self stageExtent x - aPoint x @ aPoint y]
-!
-laneDepth
-	"How far in front of or behind the figure's plane the balls fly, by lane."
-	^12
-!
-depthOf: aBall
-	"How far in front of the figure's plane aBall is (points): in a cup, where the cup is; in the air, its lane's."
-	^(hands detect: [:each | each holds: aBall] ifNone: [nil])
-		ifNil: [aBall lane * self laneDepth]
-		ifNotNil: [:hand | hand depth]
 !
 restingPlaceIn: aHand
 	"Where a ball lies at rest in aHand's level cup."
@@ -160,8 +150,7 @@ moveHand: aHand
 			ball isNil
 				ifTrue: [self catchGoalFor: aHand at: phase]
 				ifFalse: [self carryGoalFor: aHand at: phase]].
-	aHand driveTo: goal first velocity: (goal at: 2) tilt: goal last.
-	aHand drift: (ball isNil ifTrue: [aHand lane negated] ifFalse: [aHand lane]) * self laneDepth
+	aHand driveTo: goal first velocity: (goal at: 2) tilt: goal last
 !
 releaseGoalFor: aHand at: s
 	"s frames from the drop: the cup starts gliding inwards, through the release point at releaseSpeed, tipping over towards the drum; the ball rolls out over the rim. A ball caught too late to have settled stays in the cup for another round."
@@ -190,7 +179,7 @@ catchGoalFor: aHand at: phase
 !
 catchPointFor: aHand
 	"Where the cup usually waits for a ball."
-	^self place: 100 @ (self catchHeight + (JugglerHand bowlRadius - JugglerBall radius)) for: aHand
+	^self place: 110 @ (self catchHeight + (JugglerHand bowlRadius - JugglerBall radius)) for: aHand
 !
 carryGoalFor: aHand at: phase
 	"Just caught: give with the ball; then carry it to where the cup starts its glide to the drop: up quickly, then slowing gently (well below the pull of gravity), so it stays in the cup."
@@ -312,22 +301,27 @@ push: aBall to: aPoint normal: n hand: aHand restitution: e
 	vt := rel - (n * vn).
 	vt := vt * ((1 - (0.6 * (1 + e) * vn negated / (vt r max: 0.001))) max: 0) * 0.97.
 	aBall velocity: wall + vt - (n * (vn * e)).
-	aBall bounced: false; lane: aHand lane
+	aBall bounced: false
 !
 collide: aBall with: other
-	"Two balls on the same path bounce off each other; on their ways from one hand to the other they pass in front of or behind each other (lane)."
-	| d dist n vn |
-	aBall lane = other lane ifFalse: [^self].
+	"Two balls that touch are pushed apart and bounce off each other: an impulse along the line between their centres (restitution), friction across it."
+	| d dist n rel vn vt j |
 	d := aBall position - other position.
 	dist := d r.
 	(dist < (2 * JugglerBall radius) and: [dist > 0]) ifFalse: [^self].
 	n := d / dist.
 	aBall position: aBall position + (n * (2 * JugglerBall radius - dist / 2)).
 	other position: other position - (n * (2 * JugglerBall radius - dist / 2)).
-	vn := (aBall velocity - other velocity) dotProduct: n.
+	rel := aBall velocity - other velocity.
+	vn := rel dotProduct: n.
 	vn < 0 ifFalse: [^self].
-	aBall velocity: aBall velocity - (n * (vn * 0.9)).
-	other velocity: other velocity + (n * (vn * 0.9))
+	vt := rel - (n * vn).
+	j := n * (vn * (1 + self ballRestitution) / 2) + (vt * ((0.3 * (1 + self ballRestitution) * vn negated / (vt r max: 0.001) min: 1) / 2)).
+	aBall velocity: aBall velocity - j.
+	other velocity: other velocity + j
+!
+ballRestitution
+	^0.8
 !
 bounce: aBall offDrumFrom: last
 	"The drumhead throws a ball that comes down on it back up, giving a little."
