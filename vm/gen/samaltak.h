@@ -86,9 +86,11 @@ typedef void (*prim_fn)(void);
 #define BL_BLOCK_CACHE 1024
 #define BL_BLOCK_WORDS 4096
 #define BL_MAX_BLOCKS 1024
+#define BL_MAX_LOOPS 4096
 #define BL_MAX_OOP_SLOTS 262144
 #define BL_MAX_REGIONS 256
 #define BL_MAX_RETS 8192
+#define BL_MAX_SAVED 65536
 #define BL_MAX_SITES 8192
 #define BL_MAX_SLOW 8192
 #define BL_MAX_YOUNG_SLOTS 16384
@@ -381,7 +383,9 @@ typedef void (*prim_fn)(void);
 #define SL_ACCESS 17179869184LL
 #define SL_ALLOC_FLOAT 11
 #define SL_BARRIER 5
+#define SL_BOX 12
 #define SL_CLASS 6
+#define SL_DOUBLES 34359738368LL
 #define SL_ENTRY_IMM 7
 #define SL_ENTRY_SLOW 8
 #define SL_FLOAT 8589934592LL
@@ -432,6 +436,7 @@ typedef void (*prim_fn)(void);
 #define SO_WIDESYMBOL 33
 #define SP 63
 #define SS_CONST 2
+#define SS_DREG 7
 #define SS_LIT 6
 #define SS_MAX 1100
 #define SS_PINNED 3
@@ -876,6 +881,7 @@ extern jit_state state_block[1];
 extern int64_t table_count;
 extern uint64_t barrier_stub;
 extern uint64_t bl_block;
+extern uint64_t bl_box;
 extern uint64_t bl_entry_slow;
 extern uint64_t bl_mega;
 extern uint64_t bl_miss;
@@ -1030,6 +1036,7 @@ uint64_t bl_write_tables(jit_method *h, uint64_t p);
 void bl_after_gc(void);
 void bl_all_roots(void (*fn)(oop *));
 uint64_t jit_bl_block(frame *f, oop c, uint64_t ret);
+oop jit_bl_box(frame *f, uint64_t b);
 void bl_canonicalize_below(frame *f);
 uint64_t jit_bl_entry_slow(frame *f, uint64_t ret);
 void bl_flushed(void);

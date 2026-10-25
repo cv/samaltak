@@ -853,7 +853,9 @@ run: frame at: address
 !JitRuntime methodsFor: 'called by machine code'!
 sync: f
 	"Machine code stored f's pc and sp: f is the top frame (baseline frames suspended below it become canonical too)."
-	jitMode = JIT_BASELINE ifTrue: [brt canonicalizeBelow: f].
+	jitMode = JIT_BASELINE ifTrue: [
+		f method: (self cCoerce: f code to: 'JitMethod *') method.
+		brt canonicalizeBelow: f].
 	interpreter syncFrame: f.
 	f lits: (self slotsOf: (self loadRef: f method at: CM_LITERALS))
 !

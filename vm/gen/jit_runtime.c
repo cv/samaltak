@@ -409,6 +409,7 @@ uint64_t jit_closure(frame *f)
     oop b;
     oop *s;
     if (jit_mode == JIT_BASELINE) {
+        f->method = ((jit_method *)f->code)->method;
         bl_canonicalize_below(f);
     }
     interp_sync_frame(f);
@@ -790,6 +791,7 @@ uint64_t jit_exit_sync(frame *f)
     oop o;
     uint64_t o_2;
     if (jit_mode == JIT_BASELINE) {
+        f->method = ((jit_method *)f->code)->method;
         bl_canonicalize_below(f);
     }
     interp_sync_frame(f);
@@ -1007,6 +1009,7 @@ uint64_t jit_interrupt(frame *f)
     uint64_t flushes;
     uint64_t inv;
     if (jit_mode == JIT_BASELINE) {
+        f->method = ((jit_method *)f->code)->method;
         bl_canonicalize_below(f);
     }
     interp_sync_frame(f);
@@ -1059,6 +1062,7 @@ uint64_t jit_make_array(frame *f)
     uint8_t n;
     oop a;
     if (jit_mode == JIT_BASELINE) {
+        f->method = ((jit_method *)f->code)->method;
         bl_canonicalize_below(f);
     }
     interp_sync_frame(f);
@@ -1578,6 +1582,7 @@ uint64_t jit_send(frame *f, uint64_t info, uint64_t key)
         }
     }
     if (jit_mode == JIT_BASELINE) {
+        f->method = ((jit_method *)f->code)->method;
         bl_canonicalize_below(f);
     }
     interp_sync_frame(f);
@@ -1660,6 +1665,7 @@ uint64_t jit_special(frame *f, uint64_t info, uint64_t key)
     o_3 = base[0];
     *(uint64_t *)(o_3 + 16 + 16) == (uint64_t)((((int64_t)n) << 1) | 1); }); }); })) {
         if (jit_mode == JIT_BASELINE) {
+            f->method = ((jit_method *)f->code)->method;
             bl_canonicalize_below(f);
         }
         interp_sync_frame(f);

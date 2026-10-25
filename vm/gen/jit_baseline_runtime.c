@@ -89,6 +89,7 @@ uint64_t jit_bl_block(frame *f, oop c, uint64_t ret)
     stat_block_misses = stat_block_misses + 1;
     bl_set_top(f, ret, 0);
     if (jit_mode == JIT_BASELINE) {
+        f->method = ((jit_method *)f->code)->method;
         bl_canonicalize_below(f);
     }
     interp_sync_frame(f);
@@ -125,6 +126,22 @@ uint64_t jit_bl_block(frame *f, oop c, uint64_t ret)
         block_table[i + 2] = entry;
     }
     return entry;
+}
+
+/* JitBaselineRuntime>>box:bits: */
+oop jit_bl_box(frame *f, uint64_t b)
+{
+    oop o;
+    uint64_t o_2;
+    if (jit_mode == JIT_BASELINE) {
+        f->method = ((jit_method *)f->code)->method;
+        bl_canonicalize_below(f);
+    }
+    interp_sync_frame(f);
+    o = f->method;
+    o_2 = *(uint64_t *)(o + 16 + 16);
+    f->lits = (oop *)(o_2 + 16);
+    return float_oop(lt_double_from_bits(b));
 }
 
 /* JitBaselineRuntime>>canonicalizeBelow: */
@@ -176,6 +193,7 @@ void bl_canonicalize_below(frame *f)
         if ((g->pc == pc) && (g->sp == sp)) {
             return;
         }
+        g->method = ((jit_method *)g->code)->method;
         g->pc = pc;
         g->sp = sp;
         m = g->method;
@@ -202,6 +220,7 @@ uint64_t jit_bl_entry_slow(frame *f, uint64_t ret)
     oop *nfp;
     bl_set_top(f, ret, 0);
     if (jit_mode == JIT_BASELINE) {
+        f->method = ((jit_method *)f->code)->method;
         bl_canonicalize_below(f);
     }
     interp_sync_frame(f);
@@ -294,6 +313,7 @@ uint64_t jit_bl_miss(frame *f, oop rcv, uint64_t ret)
     h = (jit_method *)f->code;
     bl_set_top(f, ret, 0);
     if (jit_mode == JIT_BASELINE) {
+        f->method = ((jit_method *)f->code)->method;
         bl_canonicalize_below(f);
     }
     interp_sync_frame(f);
@@ -510,6 +530,7 @@ uint64_t jit_bl_nlr(frame *f)
     int64_t r_method_prim;
     uint64_t p;
     if (jit_mode == JIT_BASELINE) {
+        f->method = ((jit_method *)f->code)->method;
         bl_canonicalize_below(f);
     }
     interp_sync_frame(f);
@@ -569,6 +590,7 @@ uint64_t jit_bl_prim(frame *f, uint64_t ret, uint64_t fn, uint64_t info, uint64_
     if (!leaf) {
         bl_set_top(f, ret, 1);
         if (jit_mode == JIT_BASELINE) {
+            f->method = ((jit_method *)f->code)->method;
             bl_canonicalize_below(f);
         }
         interp_sync_frame(f);
@@ -590,6 +612,7 @@ uint64_t jit_bl_prim(frame *f, uint64_t ret, uint64_t fn, uint64_t info, uint64_
             base[0] = v;
             f->sp = f->sp - n;
             if (jit_mode == JIT_BASELINE) {
+                f->method = ((jit_method *)f->code)->method;
                 bl_canonicalize_below(f);
             }
             interp_sync_frame(f);
@@ -924,6 +947,7 @@ uint64_t jit_bl_return_slow(frame *f)
     oop o;
     uint64_t o_2;
     if (jit_mode == JIT_BASELINE) {
+        f->method = ((jit_method *)f->code)->method;
         bl_canonicalize_below(f);
     }
     interp_sync_frame(f);

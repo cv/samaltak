@@ -1,5 +1,5 @@
 JitCompiler subclass: #JitStubs
-	instanceVariableNames: 'enterAddr exitSyncAddr exitPlainAddr sendStub specialStub interruptStub closureStub makeArrayStub outerTempStub widowStub barrierStub blMiss blBlock blMega blEntrySlow blPrim blRemember blNlr blReturnSlow symbolAddrs symbolNames symbolCount'
+	instanceVariableNames: 'enterAddr exitSyncAddr exitPlainAddr sendStub specialStub interruptStub closureStub makeArrayStub outerTempStub widowStub barrierStub blMiss blBlock blMega blEntrySlow blPrim blRemember blNlr blReturnSlow blBox symbolAddrs symbolNames symbolCount'
 	classVariableNames: 'STUB_MAX_SYMBOLS'
 	package: 'VM-Jit'!
 
@@ -14,7 +14,7 @@ declarations
 	^#((enterAddr uint64_t) (exitSyncAddr uint64_t) (exitPlainAddr uint64_t)
 		(sendStub uint64_t) (specialStub uint64_t) (interruptStub uint64_t) (closureStub uint64_t) (makeArrayStub uint64_t)
 		(outerTempStub uint64_t) (widowStub uint64_t) (barrierStub uint64_t)
-		(blMiss uint64_t) (blBlock uint64_t) (blMega uint64_t) (blEntrySlow uint64_t) (blPrim uint64_t) (blRemember uint64_t) (blNlr uint64_t) (blReturnSlow uint64_t)
+		(blMiss uint64_t) (blBlock uint64_t) (blMega uint64_t) (blEntrySlow uint64_t) (blPrim uint64_t) (blRemember uint64_t) (blNlr uint64_t) (blReturnSlow uint64_t) (blBox uint64_t)
 		(symbolAddrs 'uint64_t[STUB_MAX_SYMBOLS]') (symbolNames 'const char *[STUB_MAX_SYMBOLS]') (symbolCount int32_t))
 !
 initialize
@@ -78,6 +78,9 @@ blNlrStub
 !
 blReturnSlowStub
 	^blReturnSlow
+!
+blBoxStub
+	^blBox
 !
 symbolCount
 	^symbolCount
@@ -339,7 +342,8 @@ generateBaseline
 	asm ldr: X0 base: X22 offset: self resultOffset.
 	asm ldp: X29 with: X30 base: SP postIndex: 16.
 	asm ret.
-	blReturnSlow := self stub: brt returnSlowFunction named: 'baseline return slow path'
+	blReturnSlow := self stub: brt returnSlowFunction named: 'baseline return slow path'.
+	blBox := self stub: brt boxFunction named: 'baseline box Float'
 !
 emitContinueOrExit: exit
 	"x0: 1 leave, else the code to continue at with the receiver in x0 again (x30 back to the send)."

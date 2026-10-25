@@ -116,6 +116,9 @@ nlrFunction
 !
 returnSlowFunction
 	^self cCoerce: (self functionPointer: #returnSlow:) to: 'uint64_t'
+!
+boxFunction
+	^self cCoerce: (self functionPointer: #box:bits:) to: 'uint64_t'
 ! !
 
 !JitBaselineRuntime methodsFor: 'primitives'!
@@ -246,6 +249,7 @@ canonicalizeBelow: f
 		pc := ((e at: 1) bitAnd: 16rFFFF) asInt32 + ((info >> 8) bitAnd: 255) asInt32.
 		sp := ((e at: 1) >> 16) asInt32 + ((info >> 26) bitAnd: 3) asInt32 - (info bitAnd: 255) asInt32 - 1.
 		(g pc = pc and: [g sp = sp]) ifTrue: [^self].
+		g method: (self cCoerce: g code to: 'JitMethod *') method.
 		g pc: pc.
 		g sp: sp.
 		g ip: (interpreter methodBcs: g method) + pc.
@@ -487,6 +491,12 @@ prim: f ret: ret fn: fn info: info fp: fp
 		^2].
 	status = PS_RESEND ifTrue: [self fatal: 'a resending primitive called from baseline code'].
 	^1
+!
+box: f bits: b
+	"A Float (IEEE bits b) machine code could not box in eden (f's pc and sp stored): it may collect."
+	<c: 'oop jit_bl_box(Frame *f, uint64_t b)'>
+	jit sync: f.
+	^memory floatOop: (self doubleFromBits: b)
 !
 returnSlow: f
 	"f returns but is married or frame 0 (pc and sp stored): widow it, or leave for the interpreter to return into the Context below."

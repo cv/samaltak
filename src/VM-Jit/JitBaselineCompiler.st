@@ -1,6 +1,6 @@
 JitCompiler subclass: #JitBaselineCompiler
-	instanceVariableNames: 'codeStart pcLabels pcMerge ssKind ssVal ssReg ssInSlot ssTop ssBase regOwner selfValid curArgs curTemps curFrameSize regionEnds regionArgs regionTemps regionSizes regionCount slKind slPc slDepth slLabel slCont slTarget slA slB slC slR slX slY slInfo slCount siteBl siteLit siteInfo sitePc siteDepth siteCount retOff retPc retDepth retInfo retCount poolLabels blockPcs blockLabels blockCount headerLabel missLabel blockLabel megaLabel exitSyncLabel exitPlainLabel interruptLabel closureLabel makeArrayLabel entrySlowLabel primLabel rememberLabel nlrLabel returnSlowLabel fusedTarget uentryOffset dead'
-	classVariableNames: 'BL_MAX_BLOCKS BL_MAX_REGIONS BL_MAX_RETS BL_MAX_SITES BL_MAX_SLOW BL_UENTRY SL_ACCESS SL_BARRIER SL_CLASS SL_ENTRY_IMM SL_ENTRY_SLOW SL_FLOAT SL_FUSED SL_INTERRUPT SL_MUSTBEBOOLEAN SL_RESUME SL_RETURN SL_SEND SL_START SL_ALLOC_FLOAT SS_CONST SS_LIT SS_MAX SS_PINNED SS_REG SS_SELF SS_SLOT SS_TEMP'
+	instanceVariableNames: 'codeStart pcLabels pcMerge ssKind ssVal ssReg ssInSlot ssTop ssBase regOwner selfValid curArgs curTemps curFrameSize regionEnds regionArgs regionTemps regionSizes regionCount slKind slPc slDepth slLabel slCont slTarget slA slB slC slR slX slY slInfo slCount siteBl siteLit siteInfo sitePc siteDepth siteCount retOff retPc retDepth retInfo retCount poolLabels blockPcs blockLabels blockCount headerLabel missLabel blockLabel megaLabel exitSyncLabel exitPlainLabel interruptLabel closureLabel makeArrayLabel entrySlowLabel primLabel rememberLabel nlrLabel returnSlowLabel boxLabel fusedTarget uentryOffset dead curPc dregRefs tempD slDA slDB slSavedStart slSavedCount saved savedCount loopActive loopEnd loopId loopTable slLoop'
+	classVariableNames: 'BL_MAX_BLOCKS BL_MAX_REGIONS BL_MAX_RETS BL_MAX_SITES BL_MAX_SLOW BL_UENTRY SL_ACCESS SL_BARRIER SL_CLASS SL_ENTRY_IMM SL_ENTRY_SLOW SL_FLOAT SL_FUSED SL_INTERRUPT SL_MUSTBEBOOLEAN SL_RESUME SL_RETURN SL_SEND SL_START SL_ALLOC_FLOAT SL_BOX SL_DOUBLES BL_MAX_SAVED BL_MAX_LOOPS SS_DREG SS_CONST SS_LIT SS_MAX SS_PINNED SS_REG SS_SELF SS_SLOT SS_TEMP'
 	package: 'VM-Jit'!
 
 JitBaselineCompiler comment: 'The baseline compiler (--jit baseline), after Cog''s StackToRegisterMappingCogit: one pass over the bytecodes with a simulated operand stack (ssKind: in its slot, in a register, a constant, nil/true/false, self, a temp or a literal not loaded yet), so values go from producer to consumer in registers (x0-x8, x12-x15) and constants become immediates; the stack is written to its slots only at sends, calls into the runtime and merge points (jump targets, which start with everything in its slot). Before an instruction that may send or call the runtime everything below its operands is written back (as Cog), so its slow path only stores the operands.
@@ -25,7 +25,10 @@ declarations
 		(poolLabels 'int32_t[256]') (blockPcs 'int32_t[BL_MAX_BLOCKS]') (blockLabels 'int32_t[BL_MAX_BLOCKS]') (blockCount int32_t)
 		(headerLabel int32_t) (missLabel int32_t) (blockLabel int32_t) (megaLabel int32_t) (exitSyncLabel int32_t) (exitPlainLabel int32_t) (interruptLabel int32_t)
 		(closureLabel int32_t) (makeArrayLabel int32_t) (entrySlowLabel int32_t) (primLabel int32_t) (rememberLabel int32_t) (nlrLabel int32_t) (returnSlowLabel int32_t) (fusedTarget int32_t)
-		(uentryOffset int32_t) (dead bool))
+		(boxLabel int32_t) (uentryOffset int32_t) (dead bool) (curPc int32_t)
+		(dregRefs 'int8_t[16]') (tempD 'int8_t[SS_MAX]') (slDA 'int8_t[BL_MAX_SLOW]') (slDB 'int8_t[BL_MAX_SLOW]')
+		(slSavedStart 'int32_t[BL_MAX_SLOW]') (slSavedCount 'int16_t[BL_MAX_SLOW]') (saved 'int16_t[BL_MAX_SAVED]') (savedCount int32_t)
+		(loopActive bool) (loopEnd int32_t) (loopId int32_t) (loopTable 'int32_t[BL_MAX_LOOPS]') (slLoop 'int16_t[BL_MAX_SLOW]'))
 !
 initialize
 	SS_MAX := 1100.
@@ -44,6 +47,11 @@ initialize
 	SS_SELF := 4.
 	SS_TEMP := 5.
 	SS_LIT := 6.
+	"an unboxed Float in d8-d15 (C calls preserve them; sends do not: everything is boxed before one)"
+	SS_DREG := 7.
+	BL_MAX_SAVED := 65536.
+	"loops with temps in x26-x28: 4 words each (count, temps)"
+	BL_MAX_LOOPS := 4096.
 	"slow paths"
 	SL_INTERRUPT := 1.
 	SL_SEND := 2.
@@ -56,10 +64,13 @@ initialize
 	SL_START := 9.
 	SL_RESUME := 10.
 	SL_ALLOC_FLOAT := 11.
+	SL_BOX := 12.
 	"SL_SEND flags (slInfo bits 32-)"
 	SL_FUSED := 16r100000000.
 	SL_FLOAT := 16r200000000.
-	SL_ACCESS := 16r400000000
+	SL_ACCESS := 16r400000000.
+	"the operation was compiled Float first: its result is unboxed (a send's result is unboxed or leaves)"
+	SL_DOUBLES := 16r800000000
 ! !
 
 !JitBaselineCompiler methodsFor: 'accessing'!
@@ -111,6 +122,10 @@ compile: m
 	rememberLabel := asm labelAt: stubs blRememberStub.
 	nlrLabel := asm labelAt: stubs blNlrStub.
 	returnSlowLabel := asm labelAt: stubs blReturnSlowStub.
+	boxLabel := asm labelAt: stubs blBoxStub.
+	savedCount := 0.
+	loopActive := false.
+	loopId := -1.
 	curArgs := analysis numArgs.
 	curTemps := analysis numTemps.
 	curFrameSize := analysis frameSize.
@@ -141,6 +156,8 @@ emitAt: pc
 	| op d |
 	op := analysis byteAt: pc.
 	d := analysis depthAt: pc.
+	curPc := pc.
+	(loopActive and: [pc > loopEnd]) ifTrue: [loopActive := false].
 	"a conditional jump fused with the comparison before it"
 	(pcMerge at: pc) = 2 ifTrue: [^true].
 	(analysis isBlockStart: pc)
@@ -155,11 +172,13 @@ emitAt: pc
 				ifFalse: [
 					((analysis isTarget: pc) or: [(pcMerge at: pc) = 1]) ifTrue: [
 						dead ifFalse: [self ssFlushAll].
+						(analysis isLoopHead: pc) ifTrue: [
+							(dead not and: [loopActive not and: [runtime temps]]) ifTrue: [self beginLoopAt: pc]].
 						asm bind: (self labelFor: pc).
 						self ssReset: d.
 						selfValid := false.
 						dead := false.
-						(analysis isLoopHead: pc) ifTrue: [runtime noteResume: pc at: asm pc - codeStart]]]].
+						(analysis isLoopHead: pc) ifTrue: [self noteLoopResume: pc]]]].
 	dead ifTrue: [^true].
 	ssTop = d ifFalse: [^false].
 	asm bytecode: pc.
@@ -231,6 +250,110 @@ popRegion
 	curFrameSize := regionSizes at: regionCount
 ! !
 
+!JitBaselineCompiler methodsFor: 'loop temps'!
+beginLoopAt: head
+	"An innermost loop from head that sends nothing (inline operations' slow paths aside), entered only by falling in and by its back jumps: its most used temps (up to 3) live in x26-x28 too, stored through to their slots. Loaded here, on the way in."
+	<c: 'void bl_begin_loop(int32_t head)'>
+	| end n p op t k best bestCount counts c i |
+	n := analysis size.
+	end := -1 asInt32.
+	p := head.
+	[p < n] whileTrue: [
+		(analysis isStart: p) ifTrue: [
+			op := analysis byteAt: p.
+			((op >= 16r90 and: [op <= 16r92]) and: [(analysis jumpTargetAt: p) = head]) ifTrue: [end := p].
+			p := (p + (analysis lengthAt: p)) asInt32]
+			ifFalse: [p := (p + 1) asInt32]].
+	end < 0 ifTrue: [^self].
+	"what the loop does, and who jumps into it"
+	p := 0 asInt32.
+	[p < n] whileTrue: [
+		(analysis isStart: p) ifTrue: [
+			op := analysis byteAt: p.
+			(p >= head and: [p <= end])
+				ifTrue: [
+					(p ~= head and: [analysis isLoopHead: p]) ifTrue: [^self].
+					(op = 16r8D or: [op = 16r8E or: [(op >= 16rC0 and: [op < 16rF0]) or: [op = 16r8F or: [op = 16r76 or: [op = 16r94]]]]]) ifTrue: [^self].
+					(op >= 16rA0 and: [op < 16rC0]) ifTrue: [
+						k := op - 16rA0.
+						(k = 11 or: [k = 21 or: [k = 22 or: [k = 23 or: [k = 24 or: [k = 25 or: [k = 26 or: [k = 30 or: [k = 31 or: [k = 27 or: [k = 28]]]]]]]]]]) ifTrue: [^self]]]
+				ifFalse: [
+					((op >= 16r90 and: [op <= 16r92]) and: [(analysis jumpTargetAt: p) >= head and: [(analysis jumpTargetAt: p) <= end]]) ifTrue: [^self]].
+			p := (p + (analysis lengthAt: p)) asInt32]
+			ifFalse: [p := (p + 1) asInt32]].
+	loopId + 1 >= (BL_MAX_LOOPS quo: 4) ifTrue: [^self].
+	"the most used temps"
+	c := 0.
+	1 to: 3 do: [:round |
+		best := -1.
+		bestCount := 1.
+		0 to: curArgs + curTemps - 1 do: [:tt |
+			(self isLoopTemp: tt among: c) ifFalse: [
+				t := self uses: tt from: head to: end.
+				t > bestCount ifTrue: [
+					best := tt.
+					bestCount := t]]].
+		best >= 0 ifTrue: [
+			loopTable at: 4 * (loopId + 1) + 1 + c put: best.
+			c := c + 1]].
+	c = 0 ifTrue: [^self].
+	loopId := loopId + 1.
+	loopTable at: 4 * loopId put: c.
+	loopActive := true.
+	loopEnd := end asInt32.
+	asm comment: 'the loop''s temps into x26-x28'.
+	self emitLoadLoopTemps: loopId
+!
+isLoopTemp: t among: c
+	0 to: c - 1 do: [:i | (loopTable at: 4 * (loopId + 1) + 1 + i) = t ifTrue: [^true]].
+	^false
+!
+uses: t from: head to: end
+	"Pushes of and stores into temp t in [head, end]."
+	| p op c n |
+	c := 0.
+	p := head.
+	[p <= end] whileTrue: [
+		(analysis isStart: p) ifTrue: [
+			op := analysis byteAt: p.
+			n := -1.
+			op < 16r10 ifTrue: [n := op].
+			(op >= 16r60 and: [op < 16r68]) ifTrue: [n := op - 16r60].
+			(op = 16r80 or: [op = 16r84 or: [op = 16r87]]) ifTrue: [n := analysis byteAt: p + 1].
+			n = t ifTrue: [c := c + 1].
+			((op >= 16r97 and: [op < 16rA0]) or: [op >= 16rF0 and: [op < 16rFC]]) ifTrue: [
+				(analysis byteAt: p + 1) = t ifTrue: [c := c + 1].
+				((op = 16r97 or: [op >= 16r9A and: [op < 16rA0]]) and: [(analysis byteAt: p + 2) = t]) ifTrue: [c := c + 1]].
+			p := (p + (analysis lengthAt: p)) asInt32]
+			ifFalse: [p := (p + 1) asInt32]].
+	^c
+!
+loopRegOf: t
+	"The register holding temp t in the current loop, -1 if none."
+	| c |
+	loopActive ifFalse: [^-1 asInt32].
+	c := loopTable at: 4 * loopId.
+	0 to: c - 1 do: [:i | (loopTable at: 4 * loopId + 1 + i) = t ifTrue: [^(X26 + i) asInt32]].
+	^-1 asInt32
+!
+emitLoadLoopTemps: id
+	"Loop id's temps from their slots into x26-x28 (entering, or after a call)."
+	<c: 'void bl_emit_load_loop_temps(int32_t id)'>
+	id < 0 ifTrue: [^self].
+	0 to: (loopTable at: 4 * id) - 1 do: [:i |
+		asm comment: 'x%d := temp %d' with: 26 + i.
+		asm ldr: X26 + i base: X20 offset: (self slot: (loopTable at: 4 * id + 1 + i))]
+!
+noteLoopResume: pc
+	"The interpreter may continue at a loop head: through a stub that loads the loop's temps if it has some."
+	| s |
+	loopActive ifFalse: [^runtime noteResume: pc at: asm pc - codeStart].
+	s := self slow: SL_RESUME pc: pc depth: (analysis depthAt: pc).
+	s < 0 ifTrue: [^self].
+	slR at: s put: -1.
+	slCont at: s put: (self labelFor: pc)
+! !
+
 !JitBaselineCompiler methodsFor: 'simulated stack'!
 ssReset: d
 	"Control merges at a label: every entry is in its slot, no register holds anything."
@@ -238,7 +361,59 @@ ssReset: d
 	0 to: d - 1 do: [:i | ssKind at: i put: SS_SLOT].
 	ssTop := d.
 	ssBase := d.
-	0 to: 31 do: [:r | regOwner at: r put: -1]
+	0 to: 31 do: [:r | regOwner at: r put: -1].
+	self dropDoubles
+!
+dropDoubles
+	"No d register holds anything (a merge, a call)."
+	<c: 'void bl_drop_doubles(void)'>
+	0 to: 15 do: [:r | dregRefs at: r put: 0].
+	0 to: SS_MAX - 1 do: [:t | tempD at: t put: -1]
+!
+dAlloc
+	"A free d register of d8-d15 (owned once by the caller); temps' cached values are evicted first, then the deepest unboxed entry is boxed."
+	<c: 'int32_t bl_dalloc(void)'>
+	8 to: 15 do: [:r | (dregRefs at: r) = 0 ifTrue: [
+		dregRefs at: r put: 1.
+		^r]].
+	0 to: curArgs + curTemps - 1 do: [:t | (tempD at: t) >= 0 ifTrue: [
+		self dRelease: (tempD at: t).
+		tempD at: t put: -1]].
+	8 to: 15 do: [:r | (dregRefs at: r) = 0 ifTrue: [
+		dregRefs at: r put: 1.
+		^r]].
+	ssBase to: ssTop - 1 do: [:i | (ssKind at: i) = SS_DREG ifTrue: [
+		self ssSpill: i.
+		^self dAlloc]].
+	asm fail: ASM_ERR_OPERAND.
+	^8
+!
+hasDoubles
+	0 to: ssTop - 1 do: [:i | (ssKind at: i) = SS_DREG ifTrue: [^true]].
+	0 to: curArgs + curTemps - 1 do: [:t | (tempD at: t) >= 0 ifTrue: [^true]].
+	^false
+!
+dRelease: r
+	r >= 8 ifTrue: [dregRefs at: r put: ((dregRefs at: r) - 1) asInt8]
+!
+dRetain: r
+	dregRefs at: r put: ((dregRefs at: r) + 1) asInt8
+!
+dreg: r
+	"The D register code of d register r."
+	^D0 + r
+!
+tempDouble: t
+	"The d register caching temp t's value unboxed, -1 if none."
+	(t < 0 or: [t >= (curArgs + curTemps)]) ifTrue: [^-1].
+	^(tempD at: t) asInt32
+!
+setTemp: t double: r
+	"Temp t's value is now (also) unboxed in d register r (-1: not)."
+	(t < 0 or: [t >= (curArgs + curTemps)]) ifTrue: [^self].
+	(tempD at: t) >= 0 ifTrue: [self dRelease: (tempD at: t)].
+	tempD at: t put: r asInt8.
+	r >= 0 ifTrue: [self dRetain: r]
 !
 ssPush: kind val: v reg: r
 	<c: 'bool bl_ss_push(int32_t kind, int64_t v, int32_t r)'>
@@ -247,7 +422,7 @@ ssPush: kind val: v reg: r
 	ssVal at: ssTop put: v.
 	ssReg at: ssTop put: r asInt8.
 	ssInSlot at: ssTop put: 0.
-	r >= 0 ifTrue: [regOwner at: r put: ssTop].
+	(kind = SS_REG and: [r >= 0]) ifTrue: [regOwner at: r put: ssTop].
 	ssTop := ssTop + 1.
 	^true
 !
@@ -261,7 +436,8 @@ ssPop: n
 	1 to: n do: [:k |
 		ssTop := ssTop - 1.
 		i := ssTop.
-		(ssKind at: i) = SS_REG ifTrue: [regOwner at: (ssReg at: i) put: -1]].
+		(ssKind at: i) = SS_REG ifTrue: [regOwner at: (ssReg at: i) put: -1].
+		(ssKind at: i) = SS_DREG ifTrue: [self dRelease: (ssReg at: i)]].
 	ssBase > ssTop ifTrue: [ssBase := ssTop]
 !
 isPoolReg: r
@@ -304,12 +480,21 @@ ssSpill: i
 		asm str: self selfReg base: X20 offset: (self slot: i)].
 	k = SS_TEMP ifTrue: [
 		asm comment: 'spill temp %d' with: (ssVal at: i).
-		asm ldr: X16 base: X20 offset: (self slot: (ssVal at: i)).
-		asm str: X16 base: X20 offset: (self slot: i)].
+		(self loopRegOf: (ssVal at: i) asInt32) >= 0
+			ifTrue: [asm str: (self loopRegOf: (ssVal at: i) asInt32) base: X20 offset: (self slot: i)]
+			ifFalse: [
+				asm ldr: X16 base: X20 offset: (self slot: (ssVal at: i)).
+				asm str: X16 base: X20 offset: (self slot: i)]].
 	k = SS_LIT ifTrue: [
 		asm comment: 'spill literal %d' with: (ssVal at: i).
 		self loadLiteral: (ssVal at: i) into: X16.
 		asm str: X16 base: X20 offset: (self slot: i)].
+	k = SS_DREG ifTrue: [
+		asm comment: 'spill an unboxed Float: box it into stack slot %d' with: i.
+		ssKind at: i put: SS_SLOT.
+		self emitBox: (ssReg at: i) into: X17.
+		asm str: X17 base: X20 offset: (self slot: i).
+		self dRelease: (ssReg at: i)].
 	ssKind at: i put: SS_SLOT
 !
 ssFlushTo: n
@@ -335,6 +520,19 @@ ssFlushTo: n
 ssFlushAll
 	self ssFlushTo: ssTop
 !
+ssFlushKeepingDoublesTo: n
+	"As ssFlushTo:, but unboxed Floats stay in their d registers (the slow path that follows boxes and reloads them around its send)."
+	<c: 'void bl_ss_flush_keeping_doubles(int32_t n)'>
+	<var: #low type: 'int32_t'>
+	| low |
+	low := -1.
+	ssBase to: n - 1 do: [:i |
+		(ssKind at: i) = SS_DREG
+			ifTrue: [low < 0 ifTrue: [low := i]]
+			ifFalse: [self ssSpill: i]].
+	low < 0 ifTrue: [low := n].
+	n > ssBase ifTrue: [ssBase := low]
+!
 selfReg
 	"x21, the receiver (loaded after a call)."
 	selfValid ifFalse: [
@@ -351,7 +549,13 @@ ssMaterialize: i
 	k = SS_REG ifTrue: [^ssReg at: i].
 	k = SS_PINNED ifTrue: [^(ssVal at: i) asInt32].
 	k = SS_SELF ifTrue: [^self selfReg].
+	(k = SS_TEMP and: [(self loopRegOf: (ssVal at: i) asInt32) >= 0]) ifTrue: [^self loopRegOf: (ssVal at: i) asInt32].
 	r := self allocReg.
+	k = SS_DREG ifTrue: [
+		asm comment: 'box an unboxed Float'.
+		self emitBox: (ssReg at: i) into: r.
+		self dRelease: (ssReg at: i).
+		ssInSlot at: i put: 0].
 	k = SS_SLOT ifTrue: [
 		asm comment: 'load stack slot %d' with: i.
 		asm ldr: r base: X20 offset: (self slot: i).
@@ -402,9 +606,15 @@ ssMaterialize: i into: r
 		asm comment: 'the constant'.
 		^asm mov: r imm: (ssVal at: i)].
 	k = SS_TEMP ifTrue: [
+		(self loopRegOf: (ssVal at: i) asInt32) >= 0 ifTrue: [
+			asm comment: 'temp %d (its loop register)' with: (ssVal at: i).
+			^asm mov: r with: (self loopRegOf: (ssVal at: i) asInt32)].
 		asm comment: 'load temp %d' with: (ssVal at: i).
 		^asm ldr: r base: X20 offset: (self slot: (ssVal at: i))].
-	k = SS_LIT ifTrue: [^self loadLiteral: (ssVal at: i) into: r]
+	k = SS_LIT ifTrue: [^self loadLiteral: (ssVal at: i) into: r].
+	k = SS_DREG ifTrue: [
+		asm comment: 'box an unboxed Float'.
+		self emitBox: (ssReg at: i) into: r]
 !
 ssIsSmallInt: i
 	"Entry i is a SmallInteger constant."
@@ -413,12 +623,25 @@ ssIsSmallInt: i
 ssTempChanging: t
 	"Temp t is about to change: entries that read it lazily load it now."
 	<c: 'void bl_ss_temp_changing(int32_t t)'>
+	| r |
 	ssBase to: ssTop - 1 do: [:i |
-		((ssKind at: i) = SS_TEMP and: [(ssVal at: i) = t]) ifTrue: [self ssMaterialize: i]]
+		((ssKind at: i) = SS_TEMP and: [(ssVal at: i) = t]) ifTrue: [
+			(self loopRegOf: t) >= 0
+				ifTrue: [
+					"its loop register changes too: a copy"
+					r := self allocReg.
+					asm mov: r with: (self loopRegOf: t).
+					ssKind at: i put: SS_REG.
+					ssReg at: i put: r asInt8.
+					ssInSlot at: i put: 0.
+					regOwner at: r put: i.
+					i < ssBase ifTrue: [ssBase := i]]
+				ifFalse: [self ssMaterialize: i]]]
 !
 ssDropRegsAfterCall
-	"A call clobbered the scratch registers and x21 (every entry is in its slot)."
+	"A call clobbered the scratch registers, x21 and the d registers (every entry is in its slot)."
 	0 to: 31 do: [:r | regOwner at: r put: -1].
+	self dropDoubles.
 	selfValid := false
 ! !
 
@@ -452,6 +675,9 @@ emitLiterals
 !JitBaselineCompiler methodsFor: 'layout'!
 methodOffset
 	^self cCoerce: ((self cCoerce: 0 to: 'Frame *') fieldAddress: #method) to: 'int64_t'
+!
+codeOffset
+	^self cCoerce: ((self cCoerce: 0 to: 'Frame *') fieldAddress: #code) to: 'int64_t'
 !
 stackLimitOffset
 	^self cCoerce: ((self cCoerce: 0 to: 'JitState *') fieldAddress: #stackLimit) to: 'int64_t'
@@ -551,14 +777,12 @@ emitFrameFor: isBlock args: na temps: nt
 	"Push the Frame and the native frame record: x0 the receiver (a block: the closure), x20 the fp."
 	<c: 'void bl_emit_frame(bool is_block, int32_t na, int32_t nt)'>
 	| i |
-	asm comment: 'native frame record (x29, x30)'.
+	asm comment: 'native frame record (x29, x30; x29 stays the C frame of jit_enter)'.
 	asm stp: X29 with: X30 base: SP preIndex: -16.
-	asm mov: X29 with: SP.
-	asm comment: 'x19 := our Frame: method and code (the header after the code), closure, ctx nil, fp, pc and sp 0 (lazy: derived from return addresses)'.
+	asm comment: 'x19 := our Frame: code (the header after the code; the runtime sets method from it), closure, ctx nil, fp, pc and sp 0 (lazy: derived from return addresses)'.
 	asm add: X19 with: X19 imm: self frameBytes.
 	asm adr: X17 label: headerLabel.
-	asm ldr: X16 base: X17 offset: 0.
-	asm stp: X16 with: X17 base: X19 offset: self methodOffset.
+	asm str: X17 base: X19 offset: self codeOffset.
 	isBlock
 		ifTrue: [asm stp: X0 with: X23 base: X19 offset: self closureOffset]
 		ifFalse: [asm stp: X23 with: X23 base: X19 offset: self closureOffset].
@@ -1014,7 +1238,7 @@ pushLiteralVariable: i
 dup
 	| i r |
 	i := ssTop - 1.
-	(ssKind at: i) = SS_SLOT ifTrue: [self ssMaterialize: i].
+	((ssKind at: i) = SS_SLOT or: [(ssKind at: i) = SS_DREG]) ifTrue: [self ssMaterialize: i].
 	(ssKind at: i) = SS_REG ifTrue: [
 		r := self allocReg.
 		asm comment: 'dup'.
@@ -1031,6 +1255,15 @@ storeTemp: t pop: pop
 		pop ifTrue: [self ssPop: 1].
 		^true].
 	self ssTempChanging: t.
+	(self loopRegOf: t) >= 0 ifTrue: [^self storeLoopTemp: t pop: pop].
+	k = SS_DREG ifTrue: [
+		asm comment: 'temp %d := an unboxed Float, boxed (it stays unboxed in its d register too)' with: t.
+		self emitBox: (ssReg at: i) into: X17.
+		asm str: X17 base: X20 offset: (self slot: t).
+		self setTemp: t double: (ssReg at: i).
+		pop ifTrue: [self ssPop: 1].
+		^true].
+	self setTemp: t double: (k = SS_TEMP ifTrue: [self tempDouble: (ssVal at: i) asInt32] ifFalse: [-1]).
 	asm comment: 'temp %d := top' with: t.
 	k = SS_REG ifTrue: [asm str: (ssReg at: i) base: X20 offset: (self slot: t)].
 	k = SS_PINNED ifTrue: [asm str: (ssVal at: i) base: X20 offset: (self slot: t)].
@@ -1046,6 +1279,27 @@ storeTemp: t pop: pop
 !
 popStoreTemp: t
 	^self storeTemp: t pop: true
+!
+storeLoopTemp: t pop: pop
+	"temp t (in loop register r) := the top: into r and its slot."
+	| i k r |
+	i := ssTop - 1.
+	k := ssKind at: i.
+	r := (self loopRegOf: t) asInt32.
+	asm comment: 'temp %d := top (its loop register and its slot)' with: t.
+	k = SS_DREG
+		ifTrue: [
+			"boxing may call the runtime, which reloads the loop registers: r after it"
+			self emitBox: (ssReg at: i) into: X17.
+			asm str: X17 base: X20 offset: (self slot: t).
+			asm mov: r with: X17.
+			self setTemp: t double: (ssReg at: i)]
+		ifFalse: [
+			self setTemp: t double: (k = SS_TEMP ifTrue: [self tempDouble: (ssVal at: i) asInt32] ifFalse: [-1]).
+			self ssMaterialize: i into: r.
+			asm str: r base: X20 offset: (self slot: t)].
+	pop ifTrue: [self ssPop: 1].
+	^true
 !
 needsBarrier: i
 	"A store of entry i may need the generational barrier (not for immediates nor nil, true, false)."
@@ -1197,8 +1451,19 @@ loadReceiver: ri kind: k reg: r val: v
 !
 prepareSend: ri
 	"Every entry to its slot, the receiver (entry ri) also in x0."
-	| k r v |
+	| k r v owner |
 	k := ssKind at: ri.
+	(k = SS_TEMP or: [k = SS_LIT or: [k = SS_SLOT or: [k = SS_CONST]]]) ifTrue: [
+		"load it into x0 right away (then it is stored from there)"
+		owner := regOwner at: X0.
+		(owner >= 0 and: [owner < SS_MAX]) ifTrue: [self ssSpill: owner].
+		self ssMaterialize: ri into: X0.
+		ssInSlot at: ri put: (k = SS_SLOT ifTrue: [1] ifFalse: [0]).
+		ssKind at: ri put: SS_REG.
+		ssReg at: ri put: X0 asInt8.
+		regOwner at: X0 put: ri.
+		ri < ssBase ifTrue: [ssBase := ri].
+		k := SS_REG].
 	r := ssReg at: ri.
 	v := ssVal at: ri.
 	self ssFlushAll.
@@ -1438,7 +1703,8 @@ emitInlineClosure: pc
 	asm orr: X16 with: X16 imm: 1.
 	asm stp: X16 with: X23 base: X12 offset: (self fieldOffset: CTX_SENDER).
 	asm mov: X16 imm: (self intOop: 0).
-	asm ldr: X17 base: X19 offset: self methodOffset.
+	asm adr: X17 label: headerLabel.
+	asm ldr: X17 base: X17 offset: 0.
 	asm stp: X16 with: X17 base: X12 offset: (self fieldOffset: CTX_STACKP).
 	asm ldr: X16 base: X19 offset: self closureOffset.
 	asm stp: X16 with: rcv base: X12 offset: (self fieldOffset: CTX_CLOSURE).
@@ -1578,7 +1844,7 @@ special: k pc: pc pushes: pushes
 	k = 29 ifTrue: [^self classOf: pc].
 	(runtime arith and: [(k <= 8 or: [k = 10 or: [(k >= 12 and: [k <= 15])]]) and: [k ~= 11]]) ifTrue: [^self arith: k pc: pc pushes: pushes].
 	(runtime float and: [k = 9]) ifTrue: [^self arith: k pc: pc pushes: pushes].
-	(runtime access and: [k = 16 or: [k = 17 or: [k = 18 or: [k = 27 or: [k = 28]]]]]) ifTrue: [^self access: k pc: pc pushes: pushes].
+	(runtime access and: [k = 16 or: [k = 17 or: [k = 18]]]) ifTrue: [^self access: k pc: pc pushes: pushes].
 	(runtime blocks and: [k = 21 or: [k = 22 or: [k = 30]]]) ifTrue: [^self value: k pc: pc pushes: pushes].
 	^self sendSpecial: k pc: pc pushes: pushes
 !
@@ -1671,6 +1937,208 @@ classOf: pc
 	self ssPop: 1.
 	^self ssPushReg: rr
 !
+isCertainFloat: i
+	"Entry i is a Float for sure: unboxed, a temp with its unboxed value, a Float constant."
+	| k |
+	k := ssKind at: i.
+	k = SS_DREG ifTrue: [^true].
+	(k = SS_TEMP and: [(self tempDouble: (ssVal at: i) asInt32) >= 0]) ifTrue: [^true].
+	^k = SS_CONST and: [((ssVal at: i) bitAnd: 7) = 4]
+!
+constantDouble: v
+	"The IEEE bits of the SmallInteger or SmallFloat64 constant v."
+	| r b |
+	(v bitAnd: 1) ~= 0 ifTrue: [^self bitsOfDouble: (v asInt64 >> 1) asFloat].
+	r := v asUInt64 >> 3.
+	r <= 1 ifTrue: [^r << 63].
+	b := r + (896 asUInt64 << 53).
+	^(b >> 1) bitOr: (b << 63)
+!
+loadDouble: bits into: d
+	asm comment: 'a Float constant'.
+	asm mov: X16 imm: bits.
+	asm fmov: d with: X16
+!
+doubleOf: i scratch: d fail: fail
+	"The D register holding entry i's value as a double (d if it has to be decoded or loaded); fail if it is not a number."
+	<c: 'int32_t bl_double_of(int32_t i, int32_t d, int32_t fail)'>
+	| k t r |
+	k := ssKind at: i.
+	k = SS_DREG ifTrue: [^self dreg: (ssReg at: i)].
+	k = SS_TEMP ifTrue: [
+		t := self tempDouble: (ssVal at: i) asInt32.
+		t >= 0 ifTrue: [^self dreg: t]].
+	(k = SS_CONST and: [((ssVal at: i) bitAnd: 1) ~= 0 or: [((ssVal at: i) bitAnd: 7) = 4]]) ifTrue: [
+		self loadDouble: (self constantDouble: (ssVal at: i)) into: d.
+		^d].
+	r := self ssMaterialize: i.
+	asm comment: 'as a double'.
+	self emitToDouble: r into: d fail: fail.
+	^d
+!
+operand: i for: s a: isA
+	"How the slow path s finds operand i: a register, a constant (-2, its value in slX or slY), an unboxed Float (-3, in slDA or slDB), or in its slot (-1)."
+	| k |
+	k := ssKind at: i.
+	k = SS_DREG ifTrue: [
+		isA
+			ifTrue: [
+				slA at: s put: -3.
+				slDA at: s put: (ssReg at: i)]
+			ifFalse: [
+				slB at: s put: -3.
+				slDB at: s put: (ssReg at: i)].
+		^self].
+	(k = SS_TEMP and: [(self tempDouble: (ssVal at: i) asInt32) >= 0]) ifTrue: [
+		isA
+			ifTrue: [
+				slA at: s put: -4.
+				slX at: s put: (ssVal at: i)]
+			ifFalse: [
+				slB at: s put: -4.
+				slY at: s put: (ssVal at: i)].
+		^self].
+	(k = SS_PINNED or: [k = SS_SELF]) ifTrue: [
+		isA
+			ifTrue: [slA at: s put: (k = SS_SELF ifTrue: [X21] ifFalse: [(ssVal at: i) asInt32])]
+			ifFalse: [slB at: s put: (k = SS_SELF ifTrue: [X21] ifFalse: [(ssVal at: i) asInt32])].
+		^self].
+	k = SS_CONST ifTrue: [
+		isA
+			ifTrue: [
+				slA at: s put: -2.
+				slX at: s put: (ssVal at: i)]
+			ifFalse: [
+				slB at: s put: -2.
+				slY at: s put: (ssVal at: i)].
+		^self].
+	isA
+		ifTrue: [slA at: s put: ((ssKind at: i) = SS_REG ifTrue: [ssReg at: i] ifFalse: [-1 asInt8])]
+		ifFalse: [slB at: s put: ((ssKind at: i) = SS_REG ifTrue: [ssReg at: i] ifFalse: [-1 asInt8])]
+!
+noteDoublesBelow: a for: s
+	"The unboxed Floats below the operands: slow path s boxes them into their slots before its send and unboxes them after."
+	<c: 'void bl_note_doubles_below(int32_t a, int32_t s)'>
+	slSavedStart at: s put: savedCount.
+	slSavedCount at: s put: 0.
+	ssBase to: a - 1 do: [:i | (ssKind at: i) = SS_DREG ifTrue: [
+		savedCount + 2 > BL_MAX_SAVED ifTrue: [^asm fail: ASM_ERR_LABEL].
+		saved at: savedCount put: i asInt16.
+		saved at: savedCount + 1 put: (ssReg at: i) asInt16.
+		savedCount := savedCount + 2.
+		slSavedCount at: s put: ((slSavedCount at: s) + 1) asInt16]].
+	0 to: curArgs + curTemps - 1 do: [:t | (tempD at: t) >= 0 ifTrue: [
+		savedCount + 2 > BL_MAX_SAVED ifTrue: [^asm fail: ASM_ERR_LABEL].
+		saved at: savedCount put: (-1 - t) asInt16.
+		saved at: savedCount + 1 put: (tempD at: t) asInt16.
+		savedCount := savedCount + 2.
+		slSavedCount at: s put: ((slSavedCount at: s) + 1) asInt16]]
+!
+noteLiveRegsFor: s except: r
+	"The registers holding stack entries now: slow path s (a call that may collect) stores and reloads them."
+	<c: 'void bl_note_live_regs(int32_t s, int32_t r)'>
+	slSavedStart at: s put: savedCount.
+	slSavedCount at: s put: 0.
+	ssBase to: ssTop - 1 do: [:i | ((ssKind at: i) = SS_REG and: [(ssReg at: i) ~= r]) ifTrue: [
+		savedCount + 2 > BL_MAX_SAVED ifTrue: [^asm fail: ASM_ERR_LABEL].
+		saved at: savedCount put: i asInt16.
+		saved at: savedCount + 1 put: ((ssReg at: i) asInt64 bitOr: ((ssInSlot at: i) asInt64 << 8)) asInt16.
+		savedCount := savedCount + 2.
+		slSavedCount at: s put: ((slSavedCount at: s) + 1) asInt16]]
+!
+emitBox: d into: r
+	"r := the Float in d register d, boxed: a SmallFloat64 if its exponent fits, else (out of line) a BoxedFloat64 allocated inline, or by the runtime with the stack's registers saved around the call. Uses x9-x11, x16, x17."
+	<c: 'void bl_emit_box(int32_t d, int32_t r)'>
+	| s |
+	s := self slow: SL_BOX pc: curPc depth: ssTop.
+	s < 0 ifTrue: [^asm fail: ASM_ERR_LABEL].
+	slA at: s put: d asInt8.
+	slR at: s put: r asInt8.
+	slCont at: s put: asm newLabel.
+	self noteLiveRegsFor: s except: r.
+	self emitBoxFast: s
+!
+emitBoxFast: s
+	| d r |
+	d := self dreg: (slA at: s).
+	r := slR at: s.
+	asm comment: 'box: a SmallFloat64 if its exponent fits (zero, other exponents out of line)'.
+	asm fmov: X16 with: d.
+	asm lsl: X17 with: X16 imm: 1.
+	asm cbz: X17 to: (slLabel at: s).
+	asm ubfx: X9 with: X16 lsb: 52 width: 11.
+	asm sub: X9 with: X9 imm: 897.
+	asm cmp: X9 imm: 253.
+	asm b: (slLabel at: s) if: COND_HI.
+	asm ror: X17 with: X16 imm: 63.
+	asm mov: X9 imm: 16r7000000000000000.
+	asm sub: X17 with: X17 with: X9.
+	asm lsl: r with: X17 imm: 3.
+	asm orr: r with: r imm: 4.
+	asm bind: (slCont at: s)
+!
+emitBoxInSlowPath: d into: r pc: pc depth: depth
+	"emitBox:into: where no stack entry is in a register (a slow path)."
+	<c: 'void bl_emit_box_slow(int32_t d, int32_t r, int32_t pc, int32_t depth)'>
+	| s |
+	s := self slow: SL_BOX pc: pc depth: depth.
+	s < 0 ifTrue: [^asm fail: ASM_ERR_LABEL].
+	slA at: s put: d asInt8.
+	slR at: s put: r asInt8.
+	slCont at: s put: asm newLabel.
+	slSavedStart at: s put: savedCount.
+	slSavedCount at: s put: 0.
+	self emitBoxFast: s
+!
+floatArith: k pc: pc pushes: pushes
+	"An operand is a Float for sure: decode the other (SmallFloat64, BoxedFloat64, SmallInteger), compute in d registers; the result stays unboxed (comparisons branch or answer a Boolean). Not a number: the slow path sends."
+	<c: 'bool bl_float_arith(int32_t k, int32_t pc, int32_t pushes)'>
+	| a b s da db dr rr j compare |
+	a := ssTop - 2.
+	b := ssTop - 1.
+	compare := k >= 2 and: [k <= 7].
+	self ssFlushKeepingDoublesTo: a.
+	s := self slow: SL_SEND pc: pc depth: ssTop.
+	s < 0 ifTrue: [^false].
+	slInfo at: s put: ((self sendInfo: pc argc: 1 selector: k kind: 2 pushes: pushes) asInt64 bitOr: SL_DOUBLES).
+	self noteDoublesBelow: a for: s.
+	asm comment: 'Floats (an operand is one for sure): both as doubles'.
+	da := self doubleOf: a scratch: D0 fail: (slLabel at: s).
+	db := self doubleOf: b scratch: D1 fail: (slLabel at: s).
+	self operand: a for: s a: true.
+	self operand: b for: s a: false.
+	compare ifTrue: [
+		asm fcmp: da with: db.
+		rr := self allocReg.
+		slR at: s put: rr asInt8.
+		self ssPop: 2.
+		j := self emitCompareResult: (self floatConditionOf: k) pc: pc into: rr.
+		slCont at: s put: asm newLabel.
+		j >= 0 ifTrue: [
+			slInfo at: s put: (((slInfo at: s) bitOr: SL_FUSED) bitClear: SL_DOUBLES).
+			slX at: s put: j.
+			slTarget at: s put: fusedTarget.
+			asm bind: (slCont at: s).
+			self freeReg: rr.
+			^true].
+		slInfo at: s put: ((slInfo at: s) bitClear: SL_DOUBLES).
+		asm bind: (slCont at: s).
+		^self ssPushReg: rr].
+	k = 9 ifTrue: [
+		asm fcmpZero: db.
+		asm b: (slLabel at: s) if: COND_EQ].
+	self ssPop: 2.
+	dr := self dAlloc.
+	slR at: s put: dr asInt8.
+	asm comment: (k = 0 ifTrue: ['+'] ifFalse: [k = 1 ifTrue: ['-'] ifFalse: [k = 8 ifTrue: ['*'] ifFalse: ['/']]]).
+	k = 0 ifTrue: [asm fadd: (self dreg: dr) with: da with: db].
+	k = 1 ifTrue: [asm fsub: (self dreg: dr) with: da with: db].
+	k = 8 ifTrue: [asm fmul: (self dreg: dr) with: da with: db].
+	k = 9 ifTrue: [asm fdiv: (self dreg: dr) with: da with: db].
+	slCont at: s put: asm newLabel.
+	asm bind: (slCont at: s).
+	^self ssPush: SS_DREG val: 0 reg: dr
+!
 foldable: k a: a b: b
 	"Both operands are SmallInteger constants and k folds without overflow."
 	| x y r |
@@ -1706,10 +2174,11 @@ arith: k pc: pc pushes: pushes
 	b := ssTop - 1.
 	(self foldable: k a: a b: b) ifTrue: [^self fold: k a: a b: b].
 	compare := k >= 2 and: [k <= 7].
+	(runtime float and: [k <= 9 and: [(self isCertainFloat: a) or: [self isCertainFloat: b]]]) ifTrue: [^self floatArith: k pc: pc pushes: pushes].
 	aKnown := self ssIsSmallInt: a.
 	bKnown := self ssIsSmallInt: b.
 	bv := ssVal at: b.
-	self ssFlushTo: a.
+	self ssFlushKeepingDoublesTo: a.
 	ra := self ssMaterialize: a.
 	c := bKnown ifTrue: [bv >> 1] ifFalse: [0].
 	"an immediate second operand where the instruction takes one"
@@ -1726,6 +2195,7 @@ arith: k pc: pc pushes: pushes
 	slY at: s put: bv.
 	slR at: s put: rr asInt8.
 	slInfo at: s put: ((self sendInfo: pc argc: 1 selector: k kind: 2 pushes: pushes) asInt64 bitOr: ((runtime float and: [k <= 9]) ifTrue: [SL_FLOAT] ifFalse: [0])).
+	self noteDoublesBelow: a for: s.
 	k = 9
 		ifTrue: [
 			asm comment: '/: Floats inline (out of line), anything else sends'.
@@ -1979,6 +2449,9 @@ slow: kind pc: pc depth: d
 	slX at: s put: 0.
 	slY at: s put: 0.
 	slInfo at: s put: 0.
+	slSavedStart at: s put: savedCount.
+	slSavedCount at: s put: 0.
+	slLoop at: s put: (loopActive ifTrue: [loopId] ifFalse: [-1]) asInt16.
 	^s
 !
 noteContinuation: pc result: r
@@ -1987,6 +2460,8 @@ noteContinuation: pc result: r
 	| next s |
 	next := (pc + (analysis lengthAt: pc)) asInt32.
 	(next < analysis size and: [analysis isResume: next]) ifFalse: [^self].
+	"unboxed values (on the stack, in temps' d registers) would not be what the interpreter left"
+	self hasDoubles ifTrue: [^self].
 	s := self slow: SL_RESUME pc: next depth: (analysis depthAt: next).
 	s < 0 ifTrue: [^self].
 	slR at: s put: r asInt8.
@@ -1994,13 +2469,34 @@ noteContinuation: pc result: r
 	asm bind: (slCont at: s)
 !
 storeOperand: r const: v at: i
-	"An operand of a slow path's send into its slot: register r, or the constant v (r = -2); r = -1: it is there."
-	r = -1 ifTrue: [^self].
+	"An operand of a slow path's send into its slot: register r, the constant v (r = -2), temp v (r = -4); r = -1: it is there; r = -3 (unboxed) is boxed by the caller."
+	(r = -1 or: [r = -3]) ifTrue: [^self].
+	r = -4 ifTrue: [
+		asm ldr: X16 base: X20 offset: (self slot: v).
+		^asm str: X16 base: X20 offset: (self slot: i)].
 	r = -2
 		ifTrue: [
 			asm mov: X16 imm: v.
 			asm str: X16 base: X20 offset: (self slot: i)]
 		ifFalse: [asm str: r base: X20 offset: (self slot: i)]
+!
+boxOperand: r double: d at: i pc: pc depth: depth
+	"An unboxed operand (r = -3, in d register d) of a slow path's send, boxed into its slot."
+	r = -3 ifFalse: [^self].
+	self emitBoxInSlowPath: d into: X17 pc: pc depth: depth.
+	asm str: X17 base: X20 offset: (self slot: i)
+!
+boxSavedDoubles: i
+	"Slow path i's unboxed entries below its operands into their slots (around its send)."
+	| k slot d |
+	k := slSavedStart at: i.
+	1 to: (slSavedCount at: i) do: [:n |
+		slot := (saved at: k) asInt32.
+		d := (saved at: k + 1) asInt32.
+		slot >= 0 ifTrue: [
+			self emitBoxInSlowPath: d into: X17 pc: (slPc at: i) depth: (slDepth at: i).
+			asm str: X17 base: X20 offset: (self slot: slot)].
+		k := k + 2]
 !
 emitSlowPaths
 	<c: 'bool bl_emit_slow_paths(void)'>
@@ -2014,6 +2510,7 @@ emitSlowPaths
 		kind = SL_INTERRUPT ifTrue: [
 			asm comment: 'interrupt: the runtime handles it'.
 			self emitRuntimeCall: interruptLabel pc: (slPc at: i) depth: (slDepth at: i).
+			self emitLoadLoopTemps: (slLoop at: i).
 			asm b: (slCont at: i)].
 		kind = SL_START ifTrue: [self emitStart: i].
 		kind = SL_SEND ifTrue: [self emitSlowSend: i].
@@ -2068,13 +2565,62 @@ emitSlowPaths
 				asm ldr: (slR at: i) base: X20 offset: (self slot: (slDepth at: i) - (slX at: i))].
 			asm ldr: X21 base: X20 offset: -8.
 			asm b: (slCont at: i)].
+		kind = SL_BOX ifTrue: [self emitBoxSlow: i].
 		kind = SL_RESUME ifTrue: [
 			runtime noteResume: (slPc at: i) at: asm pc - codeStart.
-			asm comment: 'resumption after an interpreted send: its result from its slot'.
-			asm ldr: (slR at: i) base: X20 offset: (self slot: (slDepth at: i) - 1).
+			self emitLoadLoopTemps: (slLoop at: i).
+			(slR at: i) >= 0 ifTrue: [
+				asm comment: 'resumption after an interpreted send: its result from its slot'.
+				asm ldr: (slR at: i) base: X20 offset: (self slot: (slDepth at: i) - 1)].
 			asm b: (slCont at: i)].
 		i := i + 1].
 	^asm failed not
+!
+emitBoxSlow: i
+	"Zero, or an exponent a SmallFloat64 does not have: a BoxedFloat64 inline, or from the runtime (eden full) with the stack's registers stored around the call."
+	| d r big call k slot reg |
+	d := self dreg: (slA at: i).
+	r := slR at: i.
+	big := asm newLabel.
+	call := asm newLabel.
+	asm comment: 'box: zero keeps its sign'.
+	asm fmov: X16 with: d.
+	asm lsl: X17 with: X16 imm: 1.
+	asm cbnz: X17 to: big.
+	asm lsr: X17 with: X16 imm: 63.
+	asm lsl: r with: X17 imm: 3.
+	asm orr: r with: r imm: 4.
+	asm b: (slCont at: i).
+	asm bind: big.
+	runtime alloc ifTrue: [
+		asm comment: 'a BoxedFloat64'.
+		self emitAllocFixed: 1 format: F_W64 classOffset: self boxedFloatClassOffset into: X10 fail: call.
+		asm str: d base: X10 offset: 16.
+		asm mov: r with: X10.
+		asm b: (slCont at: i)].
+	asm bind: call.
+	asm comment: 'eden is full: the runtime boxes it (the stack''s registers into their slots around the call)'.
+	k := slSavedStart at: i.
+	1 to: (slSavedCount at: i) do: [:n |
+		slot := (saved at: k) asInt32.
+		reg := (saved at: k + 1) asInt32.
+		(reg >> 8) = 0 ifTrue: [asm str: (reg bitAnd: 255) base: X20 offset: (self slot: slot)].
+		k := k + 2].
+	self emitSync: (slPc at: i) depth: (slDepth at: i).
+	asm mov: X0 with: X19.
+	asm fmov: X1 with: d.
+	asm bl: boxLabel.
+	r ~= X0 ifTrue: [asm mov: r with: X0].
+	self emitReloadPinned.
+	self emitLoadLoopTemps: (slLoop at: i).
+	k := slSavedStart at: i.
+	1 to: (slSavedCount at: i) do: [:n |
+		slot := (saved at: k) asInt32.
+		reg := (saved at: k + 1) asInt32.
+		asm ldr: (reg bitAnd: 255) base: X20 offset: (self slot: slot).
+		k := k + 2].
+	asm ldr: X21 base: X20 offset: -8.
+	asm b: (slCont at: i)
 !
 emitStart: i
 	"Resumption at the start of a method or block (the interpreter pushed the frame): an interrupt check, then the body."
@@ -2093,22 +2639,29 @@ emitStart: i
 emitSlowSend: i
 	"Floats or other formats inline if flagged, then the send through its own inline cache; the result into the main line's register (or, fused, the branch)."
 	<c: 'void bl_emit_slow_send(int32_t i)'>
-	| info n ri send j dj ifTrue r |
+	| info n ri send j dj ifTrue r leave |
 	info := slInfo at: i.
 	n := (info bitAnd: 255) asInt32.
 	ri := (slDepth at: i) - n - 1.
 	send := asm newLabel.
+	leave := asm newLabel.
 	(info bitAnd: SL_FLOAT) ~= 0 ifTrue: [self emitFloatPath: i send: send].
 	(info bitAnd: SL_ACCESS) ~= 0 ifTrue: [self emitAccessPath: i send: send].
 	asm bind: send.
 	asm comment: 'send: the operands into their slots, the receiver into x0'.
-	self storeOperand: (slA at: i) const: 0 at: ri.
+	self storeOperand: (slA at: i) const: (slX at: i) at: ri.
 	self storeOperand: (slB at: i) const: (slY at: i) at: ri + 1.
 	self storeOperand: (slC at: i) const: 0 at: ri + 2.
+	self boxOperand: (slA at: i) double: (slDA at: i) at: ri pc: (slPc at: i) depth: (slDepth at: i).
+	self boxOperand: (slB at: i) double: (slDB at: i) at: ri + 1 pc: (slPc at: i) depth: (slDepth at: i).
+	self boxSavedDoubles: i.
 	asm ldr: X0 base: X20 offset: (self slot: ri).
 	self emitSiteCall: (slPc at: i) info: (info bitAnd: 16rFFFFFFFF) asUInt32 receiver: ri.
 	asm comment: 'x21 again (the callee changed it)'.
 	asm ldr: X21 base: X20 offset: -8.
+	self emitLoadLoopTemps: (slLoop at: i).
+	(info bitAnd: SL_DOUBLES) ~= 0 ifTrue: [^self emitUnboxResult: i].
+	self unboxSavedDoubles: i leave: leave.
 	(info bitAnd: SL_FUSED) ~= 0 ifTrue: [
 		j := (slX at: i) asInt32.
 		dj := analysis depthAt: j.
@@ -2122,10 +2675,57 @@ emitSlowSend: i
 		asm str: X0 base: X20 offset: (self slot: dj - 1).
 		self emitSync: j depth: dj.
 		asm b: exitSyncLabel.
+		(slSavedCount at: i) > 0 ifTrue: [self emitLeaveAfter: i at: leave].
 		^self].
 	r := slR at: i.
 	r ~= X0 ifTrue: [asm mov: r with: X0].
-	asm b: (slCont at: i)
+	asm b: (slCont at: i).
+	(slSavedCount at: i) > 0 ifTrue: [self emitLeaveAfter: i at: leave]
+!
+emitLeaveAfter: i at: leave
+	"Leave after slow path i's instruction: its result (x0) in its slot."
+	| next dn |
+	next := ((slPc at: i) + (analysis lengthAt: (slPc at: i))) asInt32.
+	dn := (slDepth at: i) - ((slInfo at: i) bitAnd: 255) asInt32.
+	asm bind: leave.
+	asm comment: 'a temp is not a Float any more: the interpreter continues'.
+	asm str: X0 base: X20 offset: (self slot: dn - 1).
+	self emitSync: next depth: dn.
+	asm b: exitSyncLabel
+!
+emitUnboxResult: i
+	"A Float-first operation's send answered x0: unboxed into its d register; not a Float: leave after the instruction (its result in its slot)."
+	| leave next n dn |
+	leave := asm newLabel.
+	n := ((slInfo at: i) bitAnd: 255) asInt32.
+	next := ((slPc at: i) + (analysis lengthAt: (slPc at: i))) asInt32.
+	dn := (slDepth at: i) - n.
+	asm str: X0 base: X20 offset: (self slot: dn - 1).
+	self unboxSavedDoubles: i leave: leave.
+	asm ldr: X0 base: X20 offset: (self slot: dn - 1).
+	asm comment: 'the result unboxed (not a Float: the interpreter continues)'.
+	self emitToDouble: X0 into: (self dreg: (slR at: i)) fail: leave.
+	asm b: (slCont at: i).
+	asm bind: leave.
+	self emitSync: next depth: dn.
+	asm b: exitSyncLabel
+!
+unboxSavedDoubles: i leave: leave
+	"After slow path i's send: the unboxed stack entries and temps again from their slots (a block may have stored into a temp: not a Float, leave)."
+	| k slot d |
+	k := slSavedStart at: i.
+	1 to: (slSavedCount at: i) do: [:n |
+		slot := (saved at: k) asInt32.
+		d := (saved at: k + 1) asInt32.
+		slot >= 0
+			ifTrue: [
+				asm comment: 'unbox stack slot %d again' with: slot.
+				asm ldr: X10 base: X20 offset: (self slot: slot)]
+			ifFalse: [
+				asm comment: 'unbox temp %d again' with: -1 - slot.
+				asm ldr: X10 base: X20 offset: (self slot: -1 - slot)].
+		self emitToDouble: X10 into: (self dreg: d) fail: leave.
+		k := k + 2]
 !
 emitToDouble: r into: d fail: fail
 	"d := the SmallInteger, SmallFloat64 or BoxedFloat64 in r; else branch to fail. Uses x16, x17."
