@@ -153,5 +153,5 @@ FeedbackSite comment: 'What the lower tiers saw at one bytecode of one method (J
 
 !FeedbackSite class methodsFor: 'declaring'!
 fields
-	^#((method oop) (pc int32_t) (flags uint32_t) (classes 'oop[4]') (counts 'uint32_t[4]'))
+	^#((method oop) (pc int32_t) (flags uint32_t) (classes 'oop[4]') (counts 'uint32_t[4]') (stamp uint32_t) (pad uint32_t))
 ! !

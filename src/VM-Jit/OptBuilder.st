@@ -882,8 +882,8 @@ special: k pc: pc act: a rcvSlot: r
 		self write: (self var: a slot: r) value: (self guard: x class: memory clsArray state: (self stateAct: a pc: pc depth: (self depthAt: pc act: a)))].
 	(k <= 9 or: [k = 14 or: [k = 15]]) ifTrue: [
 		fl := feedback flagsAt: (ir act: a) method pc: pc.
-		(k <= 9 and: [(fl bitAnd: (feedback sawNonInt bitOr: feedback deoptOther)) = 0 and: [
-			(fl bitAnd: feedback sawFloat) ~= 0 or: [(self isFloat: x) or: [(self isFloat: y) or: [self sawFloatIn: (ir act: a) method]]]]]) ifTrue: [
+		(k <= 9 and: [(runtime flag: runtime unboxFlag) and: [(fl bitAnd: (feedback sawNonInt bitOr: feedback deoptOther)) = 0 and: [
+			(fl bitAnd: feedback sawFloat) ~= 0 or: [(self isFloat: x) or: [(self isFloat: y) or: [self sawFloatIn: (ir act: a) method]]]]]]) ifTrue: [
 				^self floatArith: k x: x y: y pc: pc act: a rcvSlot: r].
 		(k ~= 9 and: [(fl bitAnd: ((feedback sawFloat bitOr: feedback sawNonInt) bitOr: (feedback deoptArith bitOr: feedback overflowed))) = 0 and: [
 			(self sawOnlyIntsAt: pc act: a)]]) ifTrue: [
@@ -1026,7 +1026,7 @@ inlineSend: sel argc: argc kind: kind special: k pc: pc act: a rcvSlot: r
 		libc fputc: 10 to: libc stderr].
 	site isNull ifTrue: [^false].
 	fl := site flags.
-	(fl bitAnd: ((feedback mega bitOr: feedback deoptClass) bitOr: feedback deoptOther)) ~= 0 ifTrue: [^false].
+	(fl bitAnd: (feedback mega bitOr: feedback deoptOther)) ~= 0 ifTrue: [^false].
 	n := 0.
 	0 to: feedback classSlots - 1 do: [:i | (site classes at: i) ~= 0 ifTrue: [n := n + 1]].
 	n = 0 ifTrue: [^false].
@@ -1187,6 +1187,7 @@ inlinePrimitive: p class: cls argc: argc pc: pc act: a rcvSlot: r
 		self push: (self binary: O_EQ a: rcv b: (self read: (self var: a slot: r + 1))) act: a depth: r.
 		^true].
 	(kind >= PK_FLOAT or: [kind = PK_FSQRT]) ifTrue: [
+		(runtime flag: runtime unboxFlag) ifFalse: [^false].
 		(cls = memory clsSmallfloat and: [((feedback flagsAt: (ir act: a) method pc: pc) bitAnd: (feedback sawNonInt bitOr: feedback deoptOther)) = 0]) ifFalse: [^false].
 		(kind = PK_FSQRT and: [argc = 0]) ifTrue: [
 			s := self stateAct: a pc: pc depth: (self depthAt: pc act: a).
@@ -1203,7 +1204,7 @@ inlinePrimitive: p class: cls argc: argc pc: pc act: a rcvSlot: r
 		fl := feedback flagsAt: (ir act: a) method pc: pc.
 		"the argument was not always a SmallInteger: Floats as doubles, else the send"
 		(fl bitAnd: ((feedback sawFloat bitOr: feedback sawNonInt) bitOr: (feedback deoptArith bitOr: feedback overflowed))) ~= 0 ifTrue: [
-			(kind - PK_INT <= 9 and: [(fl bitAnd: feedback sawFloat) ~= 0 and: [(fl bitAnd: (feedback sawNonInt bitOr: feedback deoptOther)) = 0]]) ifFalse: [^false].
+			(kind - PK_INT <= 9 and: [(runtime flag: runtime unboxFlag) and: [(fl bitAnd: feedback sawFloat) ~= 0 and: [(fl bitAnd: (feedback sawNonInt bitOr: feedback deoptOther)) = 0]]]) ifFalse: [^false].
 			self floatArith: (kind - PK_INT) asInt32 x: rcv y: (self read: (self var: a slot: r + 1)) pc: pc act: a rcvSlot: r.
 			^true].
 		self intArith: kind - PK_INT x: rcv y: (self read: (self var: a slot: r + 1)) pc: pc act: a rcvSlot: r.

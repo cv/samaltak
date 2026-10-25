@@ -1,5 +1,5 @@
 OptModule subclass: #OptPasses
-	instanceVariableNames: 'ir psOrder psOrderCount psVisitMark psWorkList'
+	instanceVariableNames: 'ir psOrder psOrderCount psVisitMark psWorkList psIdom psPre psPost psChild psSibling psHeads psChain'
 	classVariableNames: ''
 	package: 'VM-Jit'!
 
@@ -7,7 +7,9 @@ OptPasses comment: 'Passes over the IR (OptIR) after it is built: operands resol
 
 !OptPasses class methodsFor: 'declaring'!
 declarations
-	^#((ir OptIR) (psOrder 'int32_t[OPT_MAX_BLOCKS]') (psOrderCount int32_t) (psVisitMark 'uint8_t[OPT_MAX_BLOCKS]') (psWorkList 'int32_t[OPT_MAX_NODES]'))
+	^#((ir OptIR) (psOrder 'int32_t[OPT_MAX_BLOCKS]') (psOrderCount int32_t) (psVisitMark 'uint8_t[OPT_MAX_BLOCKS]') (psWorkList 'int32_t[OPT_MAX_NODES]')
+		(psIdom 'int32_t[OPT_MAX_BLOCKS]') (psPre 'int32_t[OPT_MAX_BLOCKS]') (psPost 'int32_t[OPT_MAX_BLOCKS]') (psChild 'int32_t[OPT_MAX_BLOCKS]') (psSibling 'int32_t[OPT_MAX_BLOCKS]')
+		(psHeads 'int32_t[4096]') (psChain 'int32_t[OPT_MAX_NODES]'))
 ! !
 
 !OptPasses methodsFor: 'accessing'!
@@ -26,6 +28,10 @@ cleanup: entry
 	self removeUnreachable.
 	self simplifyPhis.
 	self resolveOperands.
+	(runtime flag: runtime gvnFlag) ifTrue: [
+		self dominators: entry.
+		self valueNumbers.
+		self resolveOperands].
 	self splitCriticalEdges.
 	self computeOrder: entry.
 	self countUses.
@@ -69,6 +75,126 @@ resolveOperands
 	0 to: ir actCount - 1 do: [:a |
 		(ir act: a) receiver: (ir resolve: (ir act: a) receiver).
 		(ir act: a) closure: (ir resolve: (ir act: a) closure)]
+!
+dominators: entry
+	"Immediate dominators (Cooper, Harvey and Kennedy, A Simple, Fast Dominance Algorithm), then the dominator tree's preorder and postorder numbers."
+	<c: 'void opt_dominators(int32_t entry)'>
+	| changed b new e p n sp k |
+	0 to: ir blockCount - 1 do: [:i |
+		psIdom at: i put: -1.
+		psChild at: i put: -1.
+		psSibling at: i put: -1].
+	psIdom at: entry put: entry.
+	changed := true.
+	[changed] whileTrue: [
+		changed := false.
+		1 to: psOrderCount - 1 do: [:i |
+			b := psOrder at: i.
+			new := -1.
+			e := (ir block: b) preds.
+			[e >= 0] whileTrue: [
+				p := (ir edge: e) from.
+				((ir block: p) rpo >= 0 and: [(psIdom at: p) >= 0]) ifTrue: [
+					new := new < 0 ifTrue: [p] ifFalse: [self intersect: p with: new]].
+				e := (ir edge: e) next].
+			(new >= 0 and: [(psIdom at: b) ~= new]) ifTrue: [
+				psIdom at: b put: new.
+				changed := true]]].
+	1 to: psOrderCount - 1 do: [:i |
+		b := psOrder at: i.
+		(psIdom at: b) >= 0 ifTrue: [
+			psSibling at: b put: (psChild at: (psIdom at: b)).
+			psChild at: (psIdom at: b) put: b]].
+	"preorder and postorder of the tree (iterative: workList holds (block, child to visit next))"
+	n := 0.
+	sp := 2.
+	psWorkList at: 0 put: entry.
+	psWorkList at: 1 put: (psChild at: entry).
+	psPre at: entry put: n.
+	n := n + 1.
+	[sp > 0] whileTrue: [
+		k := psWorkList at: sp - 1.
+		k >= 0
+			ifTrue: [
+				psWorkList at: sp - 1 put: (psSibling at: k).
+				psPre at: k put: n.
+				n := n + 1.
+				psWorkList at: sp put: k.
+				psWorkList at: sp + 1 put: (psChild at: k).
+				sp := sp + 2]
+			ifFalse: [
+				psPost at: (psWorkList at: sp - 2) put: n.
+				n := n + 1.
+				sp := sp - 2]]
+!
+intersect: b1 with: b2
+	| x y |
+	x := b1.
+	y := b2.
+	[x ~= y] whileTrue: [
+		[(ir block: x) rpo > (ir block: y) rpo] whileTrue: [x := psIdom at: x].
+		[(ir block: y) rpo > (ir block: x) rpo] whileTrue: [y := psIdom at: y]].
+	^x
+!
+dominates: x block: y
+	^(psPre at: x) <= (psPre at: y) and: [(psPost at: y) <= (psPost at: x)]
+!
+valueNumbers
+	"Global value numbering over the dominator tree: a deterministic node (arithmetic, comparisons, guards, conversions, constants) with the same operation and operands as one in a dominating position is that one; a field load only within its block with no store or safepoint between."
+	<c: 'void opt_value_numbers(void)'>
+	| b n nd h m md mem found |
+	0 to: 4095 do: [:i | psHeads at: i put: -1].
+	mem := 0.
+	0 to: psOrderCount - 1 do: [:i |
+		b := psOrder at: i.
+		mem := mem + 1.
+		n := (ir block: b) first.
+		[n >= 0] whileTrue: [
+			nd := ir node: n.
+			nd a >= 0 ifTrue: [nd a: (ir resolve: nd a)].
+			nd b >= 0 ifTrue: [nd b: (ir resolve: nd b)].
+			(self changesMemory: nd) ifTrue: [mem := mem + 1].
+			(self isNumbered: nd) ifTrue: [
+				"loads, and doubles (they cannot live across a safepoint): only since the last store or safepoint"
+				(nd op asInt32 = O_LOADFIELD or: [nd rep asInt32 = R_DBL]) ifTrue: [nd aux2: mem].
+				h := self hashOf: nd.
+				found := -1.
+				m := psHeads at: h.
+				[m >= 0 and: [found < 0]] whileTrue: [
+					md := ir node: m.
+					((self same: nd as: md) and: [md block >= 0 and: [self dominates: md block block: b]]) ifTrue: [found := m].
+					m := psChain at: m].
+				found >= 0
+					ifTrue: [
+						m := nd next.
+						nd fwd: found.
+						ir unlink: n.
+						n := m]
+					ifFalse: [
+						psChain at: n put: (psHeads at: h).
+						psHeads at: h put: n.
+						n := nd next]]
+				ifFalse: [n := nd next]]]
+!
+isNumbered: nd
+	| op |
+	op := nd op asInt32.
+	nd nargs asInt32 = 0 ifFalse: [^false].
+	^op = O_CONST or: [op = O_IADD or: [op = O_ISUB or: [op = O_IMUL or: [op = O_ICMP or: [op = O_IAND or: [op = O_IOR or: [op = O_EQ or: [op = O_NE
+		or: [op = O_CLASSOF or: [op = O_CLASSIS or: [op = O_BOTHINT or: [op = O_FARITH or: [op = O_FCMP or: [op = O_FSQRT or: [op = O_BOXF or: [op = O_UNBOXF
+		or: [op = O_GUARDINT or: [op = O_GUARDCLASS or: [op = O_CAST or: [op = O_SIZE or: [op = O_LOADFIELD]]]]]]]]]]]]]]]]]]]]]
+!
+changesMemory: nd
+	"A store, or a safepoint (anything may run there)."
+	| op |
+	op := nd op asInt32.
+	^op = O_STOREFIELD or: [op = O_INDEXSTORE or: [op = O_OUTERSTORE or: [op = O_SEND or: [op = O_CALL or: [op = O_CHECKINT]]]]]
+!
+hashOf: nd
+	^(((((nd op asInt64 * 31 + nd a) * 31 + nd b) * 31 + nd aux) * 31 + nd aux2) * 31 + nd tcls asInt64) asUInt64 >> 3 bitAnd: 4095
+!
+same: x as: y
+	^x op = y op and: [x a = y a and: [x b = y b and: [x aux = y aux and: [x aux2 = y aux2 and: [x tcls = y tcls and: [x tkind = y tkind]]]]]]
 !
 computeOrder: entry
 	"Reverse postorder from entry (iterative depth-first search); block rpo numbers, -1 if unreachable."

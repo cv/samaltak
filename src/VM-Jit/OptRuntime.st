@@ -1,5 +1,5 @@
 OptModule subclass: #OptRuntime
-	instanceVariableNames: 'ir builder passes regalloc codegen rtDeoptVals rtDeoptCount rtActMethod rtActClosure rtActRcv rtActPc rtActDepth rtActVals rtActCount rtOptYoung rtOptYoungCount rtOptYoungOverflow rtStatOptCompiled rtStatOptFailed rtStatOptBytecodes rtStatOptUs rtStatOptBytes rtStatDeopts rtStatOptOsr rtStatInvalidations rtAll rtAllCount rtSunkAct rtSunkStart rtSunkInfo rtSunkOrder rtSunkCount rtSunkUseVal rtSunkUseId rtSunkUseCount rtWritten rtUnitStart rtUnitOsr rtUnitDepth rtUnits rtUnitCount rtFailed rtBlockCalls'
+	instanceVariableNames: 'ir builder passes regalloc codegen rtDeoptVals rtDeoptCount rtActMethod rtActClosure rtActRcv rtActPc rtActDepth rtActVals rtActCount rtOptYoung rtOptYoungCount rtOptYoungOverflow rtStatOptCompiled rtStatOptFailed rtStatOptBytecodes rtStatOptUs rtStatOptBytes rtStatDeopts rtStatOptOsr rtStatInvalidations rtAll rtAllCount rtSunkAct rtSunkStart rtSunkInfo rtSunkOrder rtSunkCount rtSunkUseVal rtSunkUseId rtSunkUseCount rtWritten rtUnitStart rtUnitOsr rtUnitDepth rtUnits rtUnitCount rtFailed rtBlockCalls rtTraceSends rtStamp'
 	classVariableNames: 'OPT_BLOCK_CALLS OPT_MAX_UNITS OPT_MAX_GENERATIONS OPT_MAX_DEOPTS OPT_MAX_DEOPT_ACTS OPT_MAX_DEOPT_VALS OPT_MAX_HEADERS OPT_MAX_YOUNG'
 	package: 'VM-Jit'!
 
@@ -19,7 +19,7 @@ declarations
 		(rtAll 'JitMethod *[OPT_MAX_HEADERS]') (rtAllCount int32_t)
 		(rtSunkAct 'int32_t[64]') (rtSunkStart 'int32_t[64]') (rtSunkInfo 'int32_t[64]') (rtSunkOrder 'int32_t[64]') (rtSunkCount int32_t)
 		(rtSunkUseVal 'int32_t[OPT_MAX_DEOPT_VALS]') (rtSunkUseId 'int32_t[OPT_MAX_DEOPT_VALS]') (rtSunkUseCount int32_t) (rtWritten int32_t)
-		(rtUnitStart int32_t) (rtUnitOsr int32_t) (rtUnitDepth int32_t) (rtUnits 'JitMethod *[OPT_MAX_UNITS]') (rtUnitCount int32_t) (rtFailed 'uint64_t[OPT_MAX_UNITS]') (rtBlockCalls 'uint64_t[OPT_BLOCK_CALLS]'))
+		(rtUnitStart int32_t) (rtUnitOsr int32_t) (rtUnitDepth int32_t) (rtUnits 'JitMethod *[OPT_MAX_UNITS]') (rtUnitCount int32_t) (rtFailed 'uint64_t[OPT_MAX_UNITS]') (rtBlockCalls 'uint64_t[OPT_BLOCK_CALLS]') (rtTraceSends bool) (rtStamp uint32_t))
 !
 initialize
 	OPT_MAX_DEOPT_VALS := 8192.
@@ -250,6 +250,7 @@ optimizeUnit: m start: s osr: t depth: d lower: h previous: p
 	o lower: (self cCoerce: h to: 'uint64_t').
 	o blockStart: s asUInt32.
 	o osrPc: t asUInt32.
+	o stamp: rtStamp.
 	p notNull ifTrue: [o generation: p generation + 1].
 	o methodHash: (self hashOf: m) asUInt32.
 	cache endWriting.
@@ -281,6 +282,7 @@ optimize: m lower: h
 	cache beginWriting.
 	h opt: (self cCoerce: o to: 'uint64_t').
 	o lower: (self cCoerce: h to: 'uint64_t').
+	o stamp: rtStamp.
 	cache endWriting.
 	self noteYoung: o.
 	(runtime hasCode: o) ifFalse: [^self null].
@@ -293,6 +295,7 @@ compile: m
 	<c: 'bool opt_compile(oop m)'>
 	| ok trace limit |
 	trace := (libc getenv: 'SAMALTAK_OPT_TRACE') notNull.
+	rtTraceSends := (libc getenv: 'SAMALTAK_OPT_SENDS') notNull.
 	limit := libc getenv: 'SAMALTAK_OPT_LIMIT'.
 	(limit notNull and: [rtStatOptCompiled >= (libc atol: limit) asUInt64]) ifTrue: [^false].
 	trace ifTrue: [
@@ -365,6 +368,10 @@ send: f index: k site: key
 	kind := (info >> 8) bitAnd: 255.
 	sp := (info >> 16) bitAnd: 255.
 	sel := self poolAt: (rec at: 3) of: h.
+	rtTraceSends ifTrue: [
+		interpreter printSymbol: sel on: libc stderr.
+		libc fputs: ' in ' to: libc stderr.
+		interpreter printActivation: h method receiver: memory nilOop closure: memory nilOop on: libc stderr].
 	base := f fp + h slots asInt64.
 	r := base at: 0.
 	kind = 2 ifTrue: [
@@ -448,7 +455,7 @@ stackFull: f
 deoptGuard: f index: k
 	"A guard of f's code failed at safepoint k; the registers are in the JitState's dump. Rebuild f's activations as frames; the interpreter continues the top one."
 	<c: 'uint64_t opt_deopt_guard(Frame *f, int64_t k)'>
-	| h why r m pc fresh stressed |
+	| h why r m pc fresh stressed sig |
 	h := self cCoerce: f code to: 'JitMethod *'.
 	why := ((self recordOf: h index: k) at: 0) >> 8.
 	"--jit-flags deopt: no feedback from the stress"
@@ -461,12 +468,18 @@ deoptGuard: f index: k
 	why ~= 0 ifTrue: [
 		m := rtActMethod at: rtActCount - 1.
 		pc := rtActPc at: rtActCount - 1.
-		fresh := ((feedback flagsAt: m pc: pc) bitAnd: why asUInt32) ~= why asUInt32.
-		"again in live code, though the feedback said so: speculate no more here"
-		(fresh not and: [self isAlive: h]) ifTrue: [
-			why := why bitOr: feedback deoptOther asInt32.
-			fresh := ((feedback flagsAt: m pc: pc) bitAnd: feedback deoptOther) = 0].
+		sig := self signatureAt: m pc: pc.
 		feedback noteFlags: m pc: pc flags: why asUInt32.
+		(why bitAnd: feedback deoptClass) ~= 0 ifTrue: [self noteReceiverAt: m pc: pc].
+		fresh := (self signatureAt: m pc: pc) ~= sig.
+		fresh ifTrue: [
+			rtStamp := rtStamp + 1.
+			(feedback siteAt: m pc: pc) stamp: rtStamp].
+		"again in code compiled with what the feedback says now: speculate no more here"
+		(fresh not and: [(self isAlive: h) and: [(feedback siteAt: m pc: pc) stamp <= h stamp]]) ifTrue: [
+			why := why bitOr: feedback deoptOther asInt32.
+			fresh := ((feedback flagsAt: m pc: pc) bitAnd: feedback deoptOther) = 0.
+			feedback noteFlags: m pc: pc flags: why asUInt32].
 		(libc getenv: 'SAMALTAK_OPT_TRACE') notNull ifTrue: [
 			libc fprintf: libc stderr format: 'deopt why %d fresh %d flags now %d at pc %d of ' with: why with: (fresh ifTrue: [1] ifFalse: [0]) with: (feedback flagsAt: m pc: pc) with: pc.
 			interpreter printActivation: m receiver: memory nilOop closure: memory nilOop on: libc stderr]].
@@ -476,6 +489,31 @@ deoptGuard: f index: k
 	cache endWriting.
 	(fresh or: [h deopts > OPT_MAX_DEOPTS]) ifTrue: [self invalidate: h].
 	^r
+!
+signatureAt: m pc: pc
+	"What the site at m's pc reports: its flags and how many classes."
+	| s n |
+	s := feedback siteAt: m pc: pc.
+	s isNull ifTrue: [^-1].
+	n := 0.
+	0 to: feedback classSlots - 1 do: [:i | (s classes at: i) ~= 0 ifTrue: [n := n + 1]].
+	^s flags asInt64 + (n << 32)
+!
+noteReceiverAt: m pc: pc
+	"A class guard of the send at m's pc failed: its receiver (on the rebuilt top frame) is feedback, the next type switch takes its class too."
+	| p g i |
+	p := (self methodBytecodes: m) + pc.
+	(analysis pushesOf: p) > 0 ifTrue: [^self].
+	g := interpreter frames + (interpreter nframes - 1).
+	i := g sp - (analysis sendArgcOf: p) - 1.
+	i >= 0 ifTrue: [
+		feedback noteSend: m pc: pc class: (interpreter receiverClass: (g fp at: i)).
+		(libc getenv: 'SAMALTAK_OPT_TRACE') notNull ifTrue: [
+			libc fprintf: libc stderr format: 'deopt receiver %lld (Array %lld): ' with: (interpreter receiverClass: (g fp at: i)) with: memory clsArray.
+			interpreter printClassName: (interpreter receiverClass: (g fp at: i)) on: libc stderr.
+			libc fputc: 10 to: libc stderr]].
+	"at: at:put: size: the lower tier takes Arrays inline, without feedback"
+	((p at: 0) >= 16rB0 and: [(p at: 0) <= 16rB2]) ifTrue: [feedback noteSend: m pc: pc class: memory clsArray]
 !
 operandFlags
 	"An arithmetic guard failed: the operands on top of the rebuilt top frame were Floats, or something neither a Float nor a SmallInteger (feedback)."
@@ -643,7 +681,7 @@ decode: h index: k frame: f regs: regs mode: mode
 !
 traceDeopt: h index: k mode: mode
 	<c: 'void opt_trace_deopt(JitMethod *h, int64_t k, int32_t mode)'>
-	libc fprintf: libc stderr format: 'deopt mode %d at %lld, %d activations, ' with: mode with: k with: rtActCount.
+	libc fprintf: libc stderr format: 'deopt mode %d at %lld (unit loop %d), %d activations, ' with: mode with: k with: h osrPc with: rtActCount.
 	libc fprintf: libc stderr format: 'innermost pc %d depth %d: ' with: (rtActPc at: rtActCount - 1) with: (rtActDepth at: rtActCount - 1).
 	interpreter printActivation: h method receiver: memory nilOop closure: memory nilOop on: libc stderr
 !

@@ -2169,7 +2169,7 @@ exit_guard:;
         }
         if ((k_2 <= 9) || ((k_2 == 14) || (k_2 == 15))) {
             fl = fb_flags_at((opt_acts + a)->method, pc);
-            if ((k_2 <= 9) && (((fl & 132) == 0) && (((fl & FB_FLOAT) != 0) || ({
+            if ((k_2 <= 9) && (((jit_flags & JIT_FLAG_UNBOX) != 0) && (((fl & 132) == 0) && (((fl & FB_FLOAT) != 0) || ({
     n_44 = opt_resolve(x_2);
     ((int32_t)(opt_nodes + n_44)->tkind == T_FLOAT) || ({
     n_45 = opt_resolve(y_2);
@@ -2184,7 +2184,7 @@ exit_guard:;
     }
     r_saw_float_in = false;
 exit_saw_float_in:;
-    r_saw_float_in; }); }); }); })))) {
+    r_saw_float_in; }); }); }); }))))) {
                 opt_float_arith(k_2, x_2, y_2, pc, a, d_9);
                 goto exit_special;
             }
@@ -2597,7 +2597,7 @@ exit_guard_2:;
         }
         if ((k_3 <= 9) || ((k_3 == 14) || (k_3 == 15))) {
             fl_2 = fb_flags_at((opt_acts + a)->method, pc);
-            if ((k_3 <= 9) && (((fl_2 & 132) == 0) && (((fl_2 & FB_FLOAT) != 0) || ({
+            if ((k_3 <= 9) && (((jit_flags & JIT_FLAG_UNBOX) != 0) && (((fl_2 & 132) == 0) && (((fl_2 & FB_FLOAT) != 0) || ({
     n_68 = opt_resolve(x_3);
     ((int32_t)(opt_nodes + n_68)->tkind == T_FLOAT) || ({
     n_69 = opt_resolve(y_3);
@@ -2612,7 +2612,7 @@ exit_guard_2:;
     }
     r_saw_float_in_2 = false;
 exit_saw_float_in_2:;
-    r_saw_float_in_2; }); }); }); })))) {
+    r_saw_float_in_2; }); }); }); }))))) {
                 opt_float_arith(k_3, x_3, y_3, pc, a, r_2);
                 goto exit_special_2;
             }
@@ -4107,6 +4107,9 @@ exit_prim_kind_of:;
         return true;
     }
     if ((kind >= PK_FLOAT) || (kind == PK_FSQRT)) {
+        if (!((jit_flags & JIT_FLAG_UNBOX) != 0)) {
+            return false;
+        }
         if (!((cls == cls_smallfloat) && ((fb_flags_at((opt_acts + a)->method, pc) & 132) == 0))) {
             return false;
         }
@@ -4165,7 +4168,7 @@ exit_unbox_float:;
         }
         fl = fb_flags_at((opt_acts + a)->method, pc);
         if ((fl & 46) != 0) {
-            if (!((kind - PK_INT <= 9) && (((fl & FB_FLOAT) != 0) && ((fl & 132) == 0)))) {
+            if (!((kind - PK_INT <= 9) && (((jit_flags & JIT_FLAG_UNBOX) != 0) && (((fl & FB_FLOAT) != 0) && ((fl & 132) == 0))))) {
                 return false;
             }
             i_3 = r + 1;
@@ -7023,7 +7026,7 @@ exit_send_2:;
         return false;
     }
     fl = site->flags;
-    if ((fl & 145) != 0) {
+    if ((fl & 129) != 0) {
         return false;
     }
     n = 0;

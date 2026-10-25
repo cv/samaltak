@@ -18,6 +18,7 @@ static uint64_t rt_failed[4096];
 static jit_method *rt_opt_young[1024];
 static int32_t rt_opt_young_count;
 static bool rt_opt_young_overflow;
+static uint32_t rt_stamp;
 uint64_t rt_stat_deopts;
 uint64_t rt_stat_invalidations;
 uint64_t rt_stat_opt_bytecodes;
@@ -34,6 +35,7 @@ static int32_t rt_sunk_start[64];
 static int32_t rt_sunk_use_count;
 static int32_t rt_sunk_use_id[8192];
 static int32_t rt_sunk_use_val[8192];
+static bool rt_trace_sends;
 static int32_t rt_unit_count;
 static int32_t rt_unit_depth;
 int32_t rt_unit_osr;
@@ -110,6 +112,7 @@ bool opt_compile(oop m)
     char *limit;
     bool ok;
     trace = getenv("SAMALTAK_OPT_TRACE") != NULL;
+    rt_trace_sends = getenv("SAMALTAK_OPT_SENDS") != NULL;
     limit = getenv("SAMALTAK_OPT_LIMIT");
     if ((limit != NULL) && (rt_stat_opt_compiled >= (uint64_t)atol(limit))) {
         return false;
@@ -474,8 +477,30 @@ uint64_t opt_deopt_guard(frame *f, int64_t k)
     bool fresh;
     oop m;
     int32_t pc;
+    int64_t r_signature_at;
+    feedback_site *s;
+    int64_t n;
+    int i_2;
+    int64_t sig;
+    uint64_t o;
+    uint8_t *p;
+    int r_pushes_of;
+    uint8_t op;
+    frame *g_2;
+    int32_t r_send_argc_of;
+    uint8_t op_2;
+    int k_2;
+    int k_3;
+    int32_t i_3;
+    oop r_2;
+    oop r_3;
+    oop r_4;
+    int64_t r_signature_at_2;
+    feedback_site *s_2;
+    int64_t n_2;
+    int i_4;
     oop m_2;
-    int32_t n;
+    int32_t n_3;
     jit_method *h_2;
     h = (jit_method *)f->code;
     why = (h->meta + h->sp_table[k])[0] >> 8;
@@ -505,12 +530,99 @@ uint64_t opt_deopt_guard(frame *f, int64_t k)
     if (why != 0) {
         m = rt_act_method[rt_act_count - 1];
         pc = rt_act_pc[rt_act_count - 1];
-        fresh = (fb_flags_at(m, pc) & ((uint32_t)why)) != (uint32_t)why;
-        if ((!fresh) && ((h != NULL) && ((h->flags & JM_FAILED) == 0) && ((h->flags & 2) == 0))) {
+        sig = ({
+    s = fb_site_at(m, pc);
+    if (s == NULL) {
+        r_signature_at = -1;
+        goto exit_signature_at;
+    }
+    n = 0;
+    for (i_2 = 0; i_2 <= 3; i_2++) {
+        if (s->classes[i_2] != 0) {
+            n = n + 1;
+        }
+    }
+    r_signature_at = (int64_t)s->flags + (n << 32);
+exit_signature_at:;
+    r_signature_at; });
+        jit_note_flags(m, pc, (uint32_t)why);
+        if ((why & FB_DEOPT_CLASS) != 0) {
+            o = *(uint64_t *)(m + 16 + 24);
+            p = (uint8_t *)(o + 16) + pc;
+            if (({
+    op = p[0];
+    r_pushes_of = ((op >= 0x97) && (op <= 0x9F)) || ((op >= 0xF0) && (op < 0xFC)) ? 2 : 0;
+    r_pushes_of; }) > 0) {
+                goto exit_note_receiver_at;
+            }
+            g_2 = frames + (nframes - 1);
+            i_3 = g_2->sp - ({
+    op_2 = p[0];
+    if ((op_2 == 0x8D) || (op_2 == 0x8E)) {
+        r_send_argc_of = (int32_t)p[2];
+        goto exit_send_argc_of;
+    }
+    if (op_2 >= 0xC0) {
+        r_send_argc_of = op_2 < 0xF0 ? (int32_t)((op_2 - 0xC0) >> 4) : 1;
+        goto exit_send_argc_of;
+    }
+    if (op_2 >= 0xA0) {
+        k_2 = op_2 - 0xA0;
+        r_send_argc_of = (k_2 == 19) || (k_2 == 20) ? 1 : special_argc[k_2];
+        goto exit_send_argc_of;
+    }
+    if (op_2 >= 0x9A) {
+        r_send_argc_of = 1;
+        goto exit_send_argc_of;
+    }
+    if ((op_2 >= 0x97) && (op_2 <= 0x99)) {
+        k_3 = p[3] - 0xA0;
+        r_send_argc_of = (k_3 == 19) || (k_3 == 20) ? 1 : special_argc[k_3];
+        goto exit_send_argc_of;
+    }
+    r_send_argc_of = 0;
+exit_send_argc_of:;
+    r_send_argc_of; }) - 1;
+            if (i_3 >= 0) {
+                r_2 = g_2->fp[i_3];
+                jit_note_send(m, pc, (r_2 & 7) != 0 ? tag_class[r_2 & 7] : *(uint64_t *)(r_2 + 8));
+                if (getenv("SAMALTAK_OPT_TRACE") != NULL) {
+                    r_3 = g_2->fp[i_3];
+                    fprintf(stderr, "deopt receiver %lld (Array %lld): ", (r_3 & 7) != 0 ? tag_class[r_3 & 7] : *(uint64_t *)(r_3 + 8), cls_array);
+                    r_4 = g_2->fp[i_3];
+                    print_class_name((r_4 & 7) != 0 ? tag_class[r_4 & 7] : *(uint64_t *)(r_4 + 8), stderr);
+                    fputc(10, stderr);
+                }
+            }
+            if ((p[0] >= 0xB0) && (p[0] <= 0xB2)) {
+                jit_note_send(m, pc, cls_array);
+            }
+        exit_note_receiver_at:;
+        }
+        fresh = ({
+    s_2 = fb_site_at(m, pc);
+    if (s_2 == NULL) {
+        r_signature_at_2 = -1;
+        goto exit_signature_at_2;
+    }
+    n_2 = 0;
+    for (i_4 = 0; i_4 <= 3; i_4++) {
+        if (s_2->classes[i_4] != 0) {
+            n_2 = n_2 + 1;
+        }
+    }
+    r_signature_at_2 = (int64_t)s_2->flags + (n_2 << 32);
+exit_signature_at_2:;
+    r_signature_at_2; }) != sig;
+        if (fresh) {
+            rt_stamp = rt_stamp + 1;
+            fb_site_at(m, pc)->stamp = rt_stamp;
+        }
+        if ((!fresh) && ((h != NULL) && ((h->flags & JM_FAILED) == 0) && ((h->flags & 2) == 0) && (fb_site_at(m, pc)->stamp <= h->stamp))) {
             why = why | 128;
             fresh = (fb_flags_at(m, pc) & FB_DEOPT_OTHER) == 0;
+            jit_note_flags(m, pc, (uint32_t)why);
         }
-        jit_note_flags(m, pc, (uint32_t)why);
         if (getenv("SAMALTAK_OPT_TRACE") != NULL) {
             fprintf(stderr, "deopt why %d fresh %d flags now %d at pc %d of ", why, fresh ? 1 : 0, fb_flags_at(m, pc), pc);
             print_activation(m, nil_oop, nil_oop, stderr);
@@ -529,8 +641,8 @@ uint64_t opt_deopt_guard(frame *f, int64_t k)
         rt_stat_invalidations = rt_stat_invalidations + 1;
         if ((h->block_start == 0) && (h->osr_pc == 0)) {
             m_2 = h->method;
-            n = opt_initial_count(h->method);
-            opt_counts[((uint32_t)(((*(uint64_t *)m_2) >> H_HASH_SHIFT) & H_HASH_MASK)) & 65535] = n;
+            n_3 = opt_initial_count(h->method);
+            opt_counts[((uint32_t)(((*(uint64_t *)m_2) >> H_HASH_SHIFT) & H_HASH_MASK)) & 65535] = n_3;
             h_2 = (jit_method *)h->lower;
             pthread_jit_write_protect_np(0);
             h_2->opt = 0;
@@ -878,6 +990,7 @@ static jit_method *opt_optimize(oop m, jit_method *h)
     pthread_jit_write_protect_np(0);
     h->opt = (uint64_t)o;
     o->lower = (uint64_t)h;
+    o->stamp = rt_stamp;
     pthread_jit_write_protect_np(1);
     o_2 = o->method;
     young = (uint64_t)(o_2 - young_lo) < young_hi - young_lo;
@@ -942,6 +1055,7 @@ static jit_method *opt_optimize_unit(oop m, int32_t s, int32_t t, int32_t d, jit
     o->lower = (uint64_t)h;
     o->block_start = (uint32_t)s;
     o->osr_pc = (uint32_t)t;
+    o->stamp = rt_stamp;
     if (p != NULL) {
         o->generation = p->generation + 1;
     }
@@ -1097,6 +1211,11 @@ uint64_t opt_send(frame *f, int64_t k, uint64_t key)
     sp = (info >> 16) & 255;
     i = rec[3];
     sel = ((oop *)(h->code_start + h->pool_offset))[i];
+    if (rt_trace_sends) {
+        print_symbol(sel, stderr);
+        fputs(" in ", stderr);
+        print_activation(h->method, nil_oop, nil_oop, stderr);
+    }
     base = f->fp + (int64_t)h->slots;
     r = base[0];
     if (kind == 2) {
@@ -1480,7 +1599,7 @@ exit_failed_2:;
 /* OptRuntime>>traceDeopt:index:mode: */
 static void opt_trace_deopt(jit_method *h, int64_t k, int32_t mode)
 {
-    fprintf(stderr, "deopt mode %d at %lld, %d activations, ", mode, k, rt_act_count);
+    fprintf(stderr, "deopt mode %d at %lld (unit loop %d), %d activations, ", mode, k, h->osr_pc, rt_act_count);
     fprintf(stderr, "innermost pc %d depth %d: ", rt_act_pc[rt_act_count - 1], rt_act_depth[rt_act_count - 1]);
     print_activation(h->method, nil_oop, nil_oop, stderr);
 }

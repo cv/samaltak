@@ -32,7 +32,6 @@ static void ctx_set_stackp(oop ctx, int64_t sp);
 static oop ctx_home(oop ctx);
 static cache_entry *fill_cache(oop cls, oop sel);
 static int64_t frame_size(frame *f);
-static void print_class_name(oop cls, FILE *f);
 static void print_stack(oop ctx, FILE *f);
 static void refresh_prim_base(void);
 static void refresh_tag_classes(void);
@@ -12285,7 +12284,7 @@ void print_activation(oop m, oop r, oop closure, FILE *f)
 }
 
 /* Interpreter>>printClassName:on: */
-static void print_class_name(oop a_class, FILE *f)
+void print_class_name(oop a_class, FILE *f)
 {
     uint64_t cc;
     uint64_t o;

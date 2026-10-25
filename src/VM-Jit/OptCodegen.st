@@ -1,5 +1,5 @@
 OptModule subclass: #OptCodegen
-	instanceVariableNames: 'ir passes regalloc cgCodeStart cgBcSize cgValidSlots cgEntryPc cgSlotTop cgMaxOut cgExitPlainLabel cgExitSyncLabel cgDeoptLabel cgReturnLabel cgHeaderLabel cgSendLabel cgInterruptLabel cgBarrierLabel cgDeoptReturnLabel cgStackFullLabel cgOuts cgOutCount cgPoolOops cgPoolLabels cgPoolCount cgMetaWords cgMetaCount cgSpOffsets cgSpCount cgMoveSrc cgMoveDst cgMoveLoc cgMoveCount cgRootAct cgLastPc builder cgDeps cgDepCount cgSunk cgSunkCount cgChainActs cgChainCount cgDoubles'
+	instanceVariableNames: 'ir passes regalloc cgCodeStart cgBcSize cgValidSlots cgEntryPc cgSlotTop cgMaxOut cgExitPlainLabel cgExitSyncLabel cgDeoptLabel cgReturnLabel cgHeaderLabel cgSendLabel cgInterruptLabel cgBarrierLabel cgDeoptReturnLabel cgStackFullLabel cgOuts cgOutCount cgPoolOops cgPoolLabels cgPoolCount cgMetaWords cgMetaCount cgSpOffsets cgSpCount cgMoveSrc cgMoveDst cgMoveLoc cgMoveCount cgRootAct cgLastPc cgLastAct builder cgDeps cgDepCount cgSunk cgSunkCount cgChainActs cgChainCount cgDoubles'
 	classVariableNames: 'CG_MAX_META CG_MAX_MOVES CG_MAX_OUT CG_MAX_POOL CG_MAX_SP OUT_BARRIER OUT_BOTTOM OUT_DEOPT OUT_INTERRUPT OUT_LAZY OUT_SEND OUT_STACK OUT_WIDOW'
 	package: 'VM-Jit'!
 
@@ -16,7 +16,7 @@ declarations
 		(cgOuts 'OptOut[CG_MAX_OUT]') (cgOutCount int32_t)
 		(cgPoolOops 'oop[CG_MAX_POOL]') (cgPoolLabels 'int32_t[CG_MAX_POOL]') (cgPoolCount int32_t)
 		(cgMetaWords 'int32_t[CG_MAX_META]') (cgMetaCount int32_t) (cgSpOffsets 'int32_t[CG_MAX_SP]') (cgSpCount int32_t)
-		(cgMoveSrc 'int32_t[CG_MAX_MOVES]') (cgMoveDst 'int32_t[CG_MAX_MOVES]') (cgMoveLoc 'int32_t[CG_MAX_MOVES]') (cgMoveCount int32_t) (cgRootAct int32_t) (cgLastPc int32_t)
+		(cgMoveSrc 'int32_t[CG_MAX_MOVES]') (cgMoveDst 'int32_t[CG_MAX_MOVES]') (cgMoveLoc 'int32_t[CG_MAX_MOVES]') (cgMoveCount int32_t) (cgRootAct int32_t) (cgLastPc int32_t) (cgLastAct int32_t)
 		(builder OptBuilder) (cgDeps 'int32_t[256]') (cgDepCount int32_t)
 		(cgSunk 'int32_t[64]') (cgSunkCount int32_t) (cgDoubles bool) (cgChainActs 'int32_t[512]') (cgChainCount int32_t))
 !
@@ -72,6 +72,7 @@ generate: m act: a
 	cgCodeStart := asm pc.
 	cgRootAct := a.
 	cgLastPc := -1.
+	cgLastAct := -1.
 	cgBcSize := self methodSize: m.
 	cgValidSlots := builder validSlots.
 	cgEntryPc := builder entryPc.
@@ -154,9 +155,14 @@ emitBlock: b next: nextBlock
 	n := (ir block: b) first.
 	[n >= 0] whileTrue: [
 		nd := ir node: n.
-		(nd bcact = cgRootAct and: [nd bcpc ~= cgLastPc and: [nd op asInt32 ~= O_PHI and: [nd op asInt32 ~= O_CONST]]]) ifTrue: [
-			cgLastPc := nd bcpc.
-			asm bytecode: nd bcpc].
+		((nd bcact ~= cgLastAct or: [nd bcpc ~= cgLastPc]) and: [nd op asInt32 ~= O_PHI and: [nd op asInt32 ~= O_CONST]]) ifTrue: [
+			nd bcact = cgRootAct
+				ifTrue: [asm bytecode: nd bcpc]
+				ifFalse: [
+					nd bcact ~= cgLastAct ifTrue: [asm comment: 'inlined activation %d' with: nd bcact].
+					asm comment: 'its pc %d' with: nd bcpc].
+			cgLastAct := nd bcact.
+			cgLastPc := nd bcpc].
 		self emitNode: n block: b next: nextBlock.
 		n := nd next]
 ! !
@@ -1242,6 +1248,8 @@ recordGuard: n
 	why := (op = O_GUARDCLASS or: [op = O_DEOPT])
 		ifTrue: [feedback deoptClass]
 		ifFalse: [(op = O_GUARDINT or: [op = O_IADD or: [op = O_ISUB or: [op = O_IMUL]]]) ifTrue: [feedback deoptArith] ifFalse: [feedback deoptOther]].
+	(libc getenv: 'SAMALTAK_OPT_TRACE') notNull ifTrue: [libc fprintf: libc stderr format: 'guard safepoint %d: v%d
+' with: cgSpCount with: n].
 	^self recordState: (ir node: n) state kind: (SP_GUARD bitOr: why asInt64 << 8) asInt32 node: n inSlots: false
 !
 recordSafepoint: n kind: k

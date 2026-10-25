@@ -17,6 +17,7 @@ static int32_t cg_exit_plain_label;
 static int32_t cg_exit_sync_label;
 static int32_t cg_header_label;
 static int32_t cg_interrupt_label;
+static int32_t cg_last_act;
 static int32_t cg_last_pc;
 static int32_t cg_max_out;
 int32_t cg_meta_count;
@@ -3289,6 +3290,9 @@ exit_dst_2:;
     k = ({
     op_2 = (int32_t)(opt_nodes + n)->op;
     why = (op_2 == O_GUARDCLASS) || (op_2 == O_DEOPT) ? FB_DEOPT_CLASS : (op_2 == O_GUARDINT) || ((op_2 == O_IADD) || ((op_2 == O_ISUB) || (op_2 == O_IMUL))) ? FB_DEOPT_ARITH : FB_DEOPT_OTHER;
+    if (getenv("SAMALTAK_OPT_TRACE") != NULL) {
+        fprintf(stderr, "guard safepoint %d: v%d\n", cg_sp_count, n);
+    }
     r_record_guard = opt_record_state((opt_nodes + n)->state, (int32_t)(SP_GUARD | (((int64_t)why) << 8)), n, false);
     r_record_guard; });
     l = ({
@@ -5428,6 +5432,9 @@ exit_offset_to_22:;
     k_3 = ({
     op_3 = (int32_t)(opt_nodes + n)->op;
     why_2 = (op_3 == O_GUARDCLASS) || (op_3 == O_DEOPT) ? FB_DEOPT_CLASS : (op_3 == O_GUARDINT) || ((op_3 == O_IADD) || ((op_3 == O_ISUB) || (op_3 == O_IMUL))) ? FB_DEOPT_ARITH : FB_DEOPT_OTHER;
+    if (getenv("SAMALTAK_OPT_TRACE") != NULL) {
+        fprintf(stderr, "guard safepoint %d: v%d\n", cg_sp_count, n);
+    }
     r_record_guard_2 = opt_record_state((opt_nodes + n)->state, (int32_t)(SP_GUARD | (((int64_t)why_2) << 8)), n, false);
     r_record_guard_2; });
     l_2 = ({
@@ -6374,6 +6381,9 @@ exit_dst_4:;
     k_4 = ({
     op_4 = (int32_t)(opt_nodes + n)->op;
     why_3 = (op_4 == O_GUARDCLASS) || (op_4 == O_DEOPT) ? FB_DEOPT_CLASS : (op_4 == O_GUARDINT) || ((op_4 == O_IADD) || ((op_4 == O_ISUB) || (op_4 == O_IMUL))) ? FB_DEOPT_ARITH : FB_DEOPT_OTHER;
+    if (getenv("SAMALTAK_OPT_TRACE") != NULL) {
+        fprintf(stderr, "guard safepoint %d: v%d\n", cg_sp_count, n);
+    }
     r_record_guard_3 = opt_record_state((opt_nodes + n)->state, (int32_t)(SP_GUARD | (((int64_t)why_3) << 8)), n, false);
     r_record_guard_3; });
     l_3 = ({
@@ -6490,6 +6500,9 @@ exit_emit_stress_at_3:;
     k_5 = ({
     op_5 = (int32_t)(opt_nodes + n)->op;
     why_4 = (op_5 == O_GUARDCLASS) || (op_5 == O_DEOPT) ? FB_DEOPT_CLASS : (op_5 == O_GUARDINT) || ((op_5 == O_IADD) || ((op_5 == O_ISUB) || (op_5 == O_IMUL))) ? FB_DEOPT_ARITH : FB_DEOPT_OTHER;
+    if (getenv("SAMALTAK_OPT_TRACE") != NULL) {
+        fprintf(stderr, "guard safepoint %d: v%d\n", cg_sp_count, n);
+    }
     r_record_guard_4 = opt_record_state((opt_nodes + n)->state, (int32_t)(SP_GUARD | (((int64_t)why_4) << 8)), n, false);
     r_record_guard_4; });
     l_4 = ({
@@ -9600,6 +9613,9 @@ exit_dsrc:;
     k_7 = ({
     op_7 = (int32_t)(opt_nodes + n)->op;
     why_5 = (op_7 == O_GUARDCLASS) || (op_7 == O_DEOPT) ? FB_DEOPT_CLASS : (op_7 == O_GUARDINT) || ((op_7 == O_IADD) || ((op_7 == O_ISUB) || (op_7 == O_IMUL))) ? FB_DEOPT_ARITH : FB_DEOPT_OTHER;
+    if (getenv("SAMALTAK_OPT_TRACE") != NULL) {
+        fprintf(stderr, "guard safepoint %d: v%d\n", cg_sp_count, n);
+    }
     r_record_guard_5 = opt_record_state((opt_nodes + n)->state, (int32_t)(SP_GUARD | (((int64_t)why_5) << 8)), n, false);
     r_record_guard_5; });
     l_5 = ({
@@ -9879,6 +9895,9 @@ exit_offset_to_56:;
     k_8 = ({
     op_8 = (int32_t)(opt_nodes + n)->op;
     why_6 = (op_8 == O_GUARDCLASS) || (op_8 == O_DEOPT) ? FB_DEOPT_CLASS : (op_8 == O_GUARDINT) || ((op_8 == O_IADD) || ((op_8 == O_ISUB) || (op_8 == O_IMUL))) ? FB_DEOPT_ARITH : FB_DEOPT_OTHER;
+    if (getenv("SAMALTAK_OPT_TRACE") != NULL) {
+        fprintf(stderr, "guard safepoint %d: v%d\n", cg_sp_count, n);
+    }
     r_record_guard_6 = opt_record_state((opt_nodes + n)->state, (int32_t)(SP_GUARD | (((int64_t)why_6) << 8)), n, false);
     r_record_guard_6; });
     l_6 = ({
@@ -10290,6 +10309,9 @@ exit_dsrc_4:;
     k_9 = ({
     op_9 = (int32_t)(opt_nodes + n)->op;
     why_7 = (op_9 == O_GUARDCLASS) || (op_9 == O_DEOPT) ? FB_DEOPT_CLASS : (op_9 == O_GUARDINT) || ((op_9 == O_IADD) || ((op_9 == O_ISUB) || (op_9 == O_IMUL))) ? FB_DEOPT_ARITH : FB_DEOPT_OTHER;
+    if (getenv("SAMALTAK_OPT_TRACE") != NULL) {
+        fprintf(stderr, "guard safepoint %d: v%d\n", cg_sp_count, n);
+    }
     r_record_guard_7 = opt_record_state((opt_nodes + n)->state, (int32_t)(SP_GUARD | (((int64_t)why_7) << 8)), n, false);
     r_record_guard_7; });
     l_7 = ({
@@ -11970,6 +11992,9 @@ exit_condition_of:;
     k_11 = ({
     op_10 = (int32_t)(opt_nodes + n)->op;
     why_8 = (op_10 == O_GUARDCLASS) || (op_10 == O_DEOPT) ? FB_DEOPT_CLASS : (op_10 == O_GUARDINT) || ((op_10 == O_IADD) || ((op_10 == O_ISUB) || (op_10 == O_IMUL))) ? FB_DEOPT_ARITH : FB_DEOPT_OTHER;
+    if (getenv("SAMALTAK_OPT_TRACE") != NULL) {
+        fprintf(stderr, "guard safepoint %d: v%d\n", cg_sp_count, n);
+    }
     r_record_guard_8 = opt_record_state((opt_nodes + n)->state, (int32_t)(SP_GUARD | (((int64_t)why_8) << 8)), n, false);
     r_record_guard_8; });
     l_8 = ({
@@ -12989,6 +13014,9 @@ exit_src_18:;
     k_12 = ({
     op_11 = (int32_t)(opt_nodes + n)->op;
     why_9 = (op_11 == O_GUARDCLASS) || (op_11 == O_DEOPT) ? FB_DEOPT_CLASS : (op_11 == O_GUARDINT) || ((op_11 == O_IADD) || ((op_11 == O_ISUB) || (op_11 == O_IMUL))) ? FB_DEOPT_ARITH : FB_DEOPT_OTHER;
+    if (getenv("SAMALTAK_OPT_TRACE") != NULL) {
+        fprintf(stderr, "guard safepoint %d: v%d\n", cg_sp_count, n);
+    }
     r_record_guard_9 = opt_record_state((opt_nodes + n)->state, (int32_t)(SP_GUARD | (((int64_t)why_9) << 8)), n, false);
     r_record_guard_9; });
     l_9 = ({
@@ -13437,6 +13465,9 @@ exit_offset_to_74:;
     k_13 = ({
     op_12 = (int32_t)(opt_nodes + n)->op;
     why_10 = (op_12 == O_GUARDCLASS) || (op_12 == O_DEOPT) ? FB_DEOPT_CLASS : (op_12 == O_GUARDINT) || ((op_12 == O_IADD) || ((op_12 == O_ISUB) || (op_12 == O_IMUL))) ? FB_DEOPT_ARITH : FB_DEOPT_OTHER;
+    if (getenv("SAMALTAK_OPT_TRACE") != NULL) {
+        fprintf(stderr, "guard safepoint %d: v%d\n", cg_sp_count, n);
+    }
     r_record_guard_10 = opt_record_state((opt_nodes + n)->state, (int32_t)(SP_GUARD | (((int64_t)why_10) << 8)), n, false);
     r_record_guard_10; });
     l_10 = ({
@@ -14198,6 +14229,9 @@ exit_offset_to_78:;
     k_14 = ({
     op_13 = (int32_t)(opt_nodes + n)->op;
     why_11 = (op_13 == O_GUARDCLASS) || (op_13 == O_DEOPT) ? FB_DEOPT_CLASS : (op_13 == O_GUARDINT) || ((op_13 == O_IADD) || ((op_13 == O_ISUB) || (op_13 == O_IMUL))) ? FB_DEOPT_ARITH : FB_DEOPT_OTHER;
+    if (getenv("SAMALTAK_OPT_TRACE") != NULL) {
+        fprintf(stderr, "guard safepoint %d: v%d\n", cg_sp_count, n);
+    }
     r_record_guard_11 = opt_record_state((opt_nodes + n)->state, (int32_t)(SP_GUARD | (((int64_t)why_11) << 8)), n, false);
     r_record_guard_11; });
     l_11 = ({
@@ -20026,6 +20060,9 @@ exit_is_fused_2:;
     k_19 = ({
     op_14 = (int32_t)(opt_nodes + n)->op;
     why_12 = (op_14 == O_GUARDCLASS) || (op_14 == O_DEOPT) ? FB_DEOPT_CLASS : (op_14 == O_GUARDINT) || ((op_14 == O_IADD) || ((op_14 == O_ISUB) || (op_14 == O_IMUL))) ? FB_DEOPT_ARITH : FB_DEOPT_OTHER;
+    if (getenv("SAMALTAK_OPT_TRACE") != NULL) {
+        fprintf(stderr, "guard safepoint %d: v%d\n", cg_sp_count, n);
+    }
     r_record_guard_12 = opt_record_state((opt_nodes + n)->state, (int32_t)(SP_GUARD | (((int64_t)why_12) << 8)), n, false);
     r_record_guard_12; });
     l_13 = ({
@@ -22305,6 +22342,9 @@ exit_offset_to_129:;
     k_22 = ({
     op_15 = (int32_t)(opt_nodes + n)->op;
     why_13 = (op_15 == O_GUARDCLASS) || (op_15 == O_DEOPT) ? FB_DEOPT_CLASS : (op_15 == O_GUARDINT) || ((op_15 == O_IADD) || ((op_15 == O_ISUB) || (op_15 == O_IMUL))) ? FB_DEOPT_ARITH : FB_DEOPT_OTHER;
+    if (getenv("SAMALTAK_OPT_TRACE") != NULL) {
+        fprintf(stderr, "guard safepoint %d: v%d\n", cg_sp_count, n);
+    }
     r_record_guard_13 = opt_record_state((opt_nodes + n)->state, (int32_t)(SP_GUARD | (((int64_t)why_13) << 8)), n, false);
     r_record_guard_13; });
     l_14 = ({
@@ -22500,6 +22540,8 @@ bool opt_generate(oop m, int32_t a)
     int32_t n_2;
     opt_node *nd;
     int32_t a_pc;
+    int32_t an_integer;
+    int32_t an_integer_2;
     bool r_emit_outs;
     int32_t i_7;
     opt_out *o_4;
@@ -22692,6 +22734,7 @@ bool opt_generate(oop m, int32_t a)
     cg_code_start = asm_pc;
     cg_root_act = a;
     cg_last_pc = -1;
+    cg_last_act = -1;
     cg_bc_size = (int32_t)byte_size(*(uint64_t *)(m + 16 + 24));
     cg_valid_slots = ob_valid_slots;
     cg_entry_pc = ({
@@ -23077,12 +23120,26 @@ exit_offset_to_2:;
         n_2 = (opt_blocks + b)->first;
         while (n_2 >= 0) {
             nd = opt_nodes + n_2;
-            if ((nd->bcact == cg_root_act) && ((nd->bcpc != cg_last_pc) && (((int32_t)nd->op != O_PHI) && ((int32_t)nd->op != O_CONST)))) {
-                cg_last_pc = nd->bcpc;
-                a_pc = nd->bcpc;
-                if (asm_noting) {
-                    asm_note((const char *)NULL, a_pc);
+            if (((nd->bcact != cg_last_act) || (nd->bcpc != cg_last_pc)) && (((int32_t)nd->op != O_PHI) && ((int32_t)nd->op != O_CONST))) {
+                if (nd->bcact == cg_root_act) {
+                    a_pc = nd->bcpc;
+                    if (asm_noting) {
+                        asm_note((const char *)NULL, a_pc);
+                    }
+                } else {
+                    if (nd->bcact != cg_last_act) {
+                        an_integer = nd->bcact;
+                        if (asm_noting) {
+                            asm_note("inlined activation %d", an_integer);
+                        }
+                    }
+                    an_integer_2 = nd->bcpc;
+                    if (asm_noting) {
+                        asm_note("its pc %d", an_integer_2);
+                    }
                 }
+                cg_last_act = nd->bcact;
+                cg_last_pc = nd->bcpc;
             }
             opt_emit_node(n_2, b, next_block);
             n_2 = nd->next;
@@ -24029,6 +24086,9 @@ exit_offset_to_18:;
             value_8 = ({
     op = (int32_t)(opt_nodes + n_8)->op;
     why = (op == O_GUARDCLASS) || (op == O_DEOPT) ? FB_DEOPT_CLASS : (op == O_GUARDINT) || ((op == O_IADD) || ((op == O_ISUB) || (op == O_IMUL))) ? FB_DEOPT_ARITH : FB_DEOPT_OTHER;
+    if (getenv("SAMALTAK_OPT_TRACE") != NULL) {
+        fprintf(stderr, "guard safepoint %d: v%d\n", cg_sp_count, n_8);
+    }
     r_record_guard = opt_record_state((opt_nodes + n_8)->state, (int32_t)(SP_GUARD | (((int64_t)why) << 8)), n_8, false);
     r_record_guard; });
             if ((value_8 >= 0) && (value_8 <= 0xFFFF)) {

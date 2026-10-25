@@ -2,18 +2,27 @@
 /* OptPasses (VM-Jit) */
 #include "samaltak.h"
 
+static int32_t ps_chain[16384];
+static int32_t ps_child[2048];
+static int32_t ps_heads[4096];
+static int32_t ps_idom[2048];
 int32_t ps_order[2048];
 int32_t ps_order_count;
+static int32_t ps_post[2048];
+static int32_t ps_pre[2048];
+static int32_t ps_sibling[2048];
 static uint8_t ps_visit_mark[2048];
 static int32_t ps_work_list[16384];
 
 static void opt_compute_order(int32_t entry);
 static void opt_count_uses(void);
+static void opt_dominators(int32_t entry);
 static void opt_remove_dead(void);
 static void opt_remove_unreachable(void);
 static void opt_resolve_operands(void);
 static void opt_simplify_phis(void);
 static void opt_split_critical_edges(void);
+static void opt_value_numbers(void);
 
 /* OptPasses>>cleanup: */
 void opt_cleanup(int32_t entry)
@@ -22,6 +31,11 @@ void opt_cleanup(int32_t entry)
     opt_remove_unreachable();
     opt_simplify_phis();
     opt_resolve_operands();
+    if ((jit_flags & JIT_FLAG_GVN) != 0) {
+        opt_dominators(entry);
+        opt_value_numbers();
+        opt_resolve_operands();
+    }
     opt_split_critical_edges();
     opt_compute_order(entry);
     opt_count_uses();
@@ -157,6 +171,91 @@ static void opt_count_uses(void)
             if (v_6 >= 0) {
                 (opt_nodes + v_6)->uses = (opt_nodes + v_6)->uses + 1;
             }
+        }
+    }
+}
+
+/* OptPasses>>dominators: */
+static void opt_dominators(int32_t entry)
+{
+    int32_t i;
+    bool changed;
+    int32_t i_2;
+    int32_t b;
+    int64_t new;
+    int32_t e;
+    int32_t p;
+    int32_t r_intersect;
+    int32_t x;
+    int64_t y;
+    int32_t i_3;
+    int64_t n;
+    int64_t sp;
+    int32_t k;
+    for (i = 0; i <= opt_block_count - 1; i++) {
+        ps_idom[i] = -1;
+        ps_child[i] = -1;
+        ps_sibling[i] = -1;
+    }
+    ps_idom[entry] = entry;
+    changed = true;
+    while (changed) {
+        changed = false;
+        for (i_2 = 1; i_2 <= ps_order_count - 1; i_2++) {
+            b = ps_order[i_2];
+            new = -1;
+            e = (opt_blocks + b)->preds;
+            while (e >= 0) {
+                p = (opt_edges + e)->from;
+                if (((opt_blocks + p)->rpo >= 0) && (ps_idom[p] >= 0)) {
+                    new = new < 0 ? p : ({
+    x = p;
+    y = new;
+    while (x != y) {
+        while ((opt_blocks + x)->rpo > (opt_blocks + y)->rpo) {
+            x = ps_idom[x];
+        }
+        while ((opt_blocks + y)->rpo > (opt_blocks + x)->rpo) {
+            y = ps_idom[y];
+        }
+    }
+    r_intersect = x;
+    r_intersect; });
+                }
+                e = (opt_edges + e)->next;
+            }
+            if ((new >= 0) && (ps_idom[b] != new)) {
+                ps_idom[b] = new;
+                changed = true;
+            }
+        }
+    }
+    for (i_3 = 1; i_3 <= ps_order_count - 1; i_3++) {
+        b = ps_order[i_3];
+        if (ps_idom[b] >= 0) {
+            ps_sibling[b] = ps_child[ps_idom[b]];
+            ps_child[ps_idom[b]] = b;
+        }
+    }
+    n = 0;
+    sp = 2;
+    ps_work_list[0] = entry;
+    ps_work_list[1] = ps_child[entry];
+    ps_pre[entry] = n;
+    n = n + 1;
+    while (sp > 0) {
+        k = ps_work_list[sp - 1];
+        if (k >= 0) {
+            ps_work_list[sp - 1] = ps_sibling[k];
+            ps_pre[k] = n;
+            n = n + 1;
+            ps_work_list[sp] = k;
+            ps_work_list[sp + 1] = ps_child[k];
+            sp = sp + 2;
+        } else {
+            ps_post[ps_work_list[sp - 2]] = n;
+            n = n + 1;
+            sp = sp - 2;
         }
     }
 }
@@ -406,6 +505,87 @@ static void opt_split_critical_edges(void)
                         (opt_blocks + b)->succ1 = n;
                     }
                 }
+            }
+        }
+    }
+}
+
+/* OptPasses>>valueNumbers */
+static void opt_value_numbers(void)
+{
+    int i;
+    int64_t mem;
+    int32_t i_2;
+    int32_t b;
+    int32_t n;
+    opt_node *nd;
+    bool r_changes_memory;
+    int32_t op;
+    bool r_is_numbered;
+    int32_t op_2;
+    uint64_t h;
+    int64_t found;
+    int32_t m;
+    opt_node *md;
+    int32_t x;
+    for (i = 0; i <= 4095; i++) {
+        ps_heads[i] = -1;
+    }
+    mem = 0;
+    for (i_2 = 0; i_2 <= ps_order_count - 1; i_2++) {
+        b = ps_order[i_2];
+        mem = mem + 1;
+        n = (opt_blocks + b)->first;
+        while (n >= 0) {
+            nd = opt_nodes + n;
+            if (nd->a >= 0) {
+                nd->a = opt_resolve(nd->a);
+            }
+            if (nd->b >= 0) {
+                nd->b = opt_resolve(nd->b);
+            }
+            if (({
+    op = (int32_t)nd->op;
+    r_changes_memory = (op == O_STOREFIELD) || ((op == O_INDEXSTORE) || ((op == O_OUTERSTORE) || ((op == O_SEND) || ((op == O_CALL) || (op == O_CHECKINT)))));
+    r_changes_memory; })) {
+                mem = mem + 1;
+            }
+            if (({
+    op_2 = (int32_t)nd->op;
+    if (!((int32_t)nd->nargs == 0)) {
+        r_is_numbered = false;
+        goto exit_is_numbered;
+    }
+    r_is_numbered = (op_2 == O_CONST) || ((op_2 == O_IADD) || ((op_2 == O_ISUB) || ((op_2 == O_IMUL) || ((op_2 == O_ICMP) || ((op_2 == O_IAND) || ((op_2 == O_IOR) || ((op_2 == O_EQ) || ((op_2 == O_NE) || ((op_2 == O_CLASSOF) || ((op_2 == O_CLASSIS) || ((op_2 == O_BOTHINT) || ((op_2 == O_FARITH) || ((op_2 == O_FCMP) || ((op_2 == O_FSQRT) || ((op_2 == O_BOXF) || ((op_2 == O_UNBOXF) || ((op_2 == O_GUARDINT) || ((op_2 == O_GUARDCLASS) || ((op_2 == O_CAST) || ((op_2 == O_SIZE) || (op_2 == O_LOADFIELD)))))))))))))))))))));
+exit_is_numbered:;
+    r_is_numbered; })) {
+                if (((int32_t)nd->op == O_LOADFIELD) || ((int32_t)nd->rep == R_DBL)) {
+                    nd->aux2 = mem;
+                }
+                h = (((uint64_t)((((((int64_t)nd->op * 31 + nd->a) * 31 + nd->b) * 31 + nd->aux) * 31 + nd->aux2) * 31 + (int64_t)nd->tcls)) >> 3) & 4095;
+                found = -1;
+                m = ps_heads[h];
+                while ((m >= 0) && (found < 0)) {
+                    md = opt_nodes + m;
+                    if ((nd->op == md->op) && ((nd->a == md->a) && ((nd->b == md->b) && ((nd->aux == md->aux) && ((nd->aux2 == md->aux2) && ((nd->tcls == md->tcls) && (nd->tkind == md->tkind)))))) && ((md->block >= 0) && ({
+    x = md->block;
+    (ps_pre[x] <= ps_pre[b]) && (ps_post[b] <= ps_post[x]); }))) {
+                        found = m;
+                    }
+                    m = ps_chain[m];
+                }
+                if (found >= 0) {
+                    m = nd->next;
+                    nd->fwd = found;
+                    opt_unlink(n);
+                    n = m;
+                } else {
+                    ps_chain[n] = ps_heads[h];
+                    ps_heads[h] = n;
+                    n = nd->next;
+                }
+            } else {
+                n = nd->next;
             }
         }
     }

@@ -762,8 +762,10 @@ struct feedback_site {
     uint32_t flags;
     oop classes[4];
     uint32_t counts[4];
+    uint32_t stamp;
+    uint32_t pad;
 };
-_Static_assert(sizeof(feedback_site) == 64, "the simulator lays out FeedbackSite as C does");
+_Static_assert(sizeof(feedback_site) == 72, "the simulator lays out FeedbackSite as C does");
 
 struct frame {
     oop method;
@@ -822,8 +824,10 @@ struct jit_method {
     uint32_t block_start;
     uint32_t osr_pc;
     uint32_t generation;
+    uint32_t stamp;
+    uint32_t pad3;
 };
-_Static_assert(sizeof(jit_method) == 176, "the simulator lays out JitMethod as C does");
+_Static_assert(sizeof(jit_method) == 184, "the simulator lays out JitMethod as C does");
 
 struct jit_state {
     oop nil_oop;
@@ -1326,6 +1330,7 @@ oop marry(frame *f);
 void materialize_all(void);
 void prim_commit(oop result);
 void print_activation(oop m, oop r, oop closure, FILE *f);
+void print_class_name(oop cls, FILE *f);
 void print_symbol(oop s, FILE *f);
 frame *interp_push_frame(oop m, int32_t n, uint64_t c, int32_t ecode);
 frame *interp_push_frame_entry(cache_entry *e, int32_t n);
