@@ -1,5 +1,5 @@
 OptModule subclass: #OptCodegen
-	instanceVariableNames: 'ir passes regalloc cgCodeStart cgBcSize cgNumArgs cgNumTemps cgSlotTop cgMaxOut cgExitPlainLabel cgExitSyncLabel cgDeoptLabel cgReturnLabel cgHeaderLabel cgSendLabel cgInterruptLabel cgBarrierLabel cgDeoptReturnLabel cgStackFullLabel cgOuts cgOutCount cgPoolOops cgPoolLabels cgPoolCount cgMetaWords cgMetaCount cgSpOffsets cgSpCount cgMoveSrc cgMoveDst cgMoveLoc cgMoveCount cgRootAct cgLastPc builder cgDeps cgDepCount cgSunk cgSunkCount cgChainActs cgChainCount'
+	instanceVariableNames: 'ir passes regalloc cgCodeStart cgBcSize cgValidSlots cgEntryPc cgSlotTop cgMaxOut cgExitPlainLabel cgExitSyncLabel cgDeoptLabel cgReturnLabel cgHeaderLabel cgSendLabel cgInterruptLabel cgBarrierLabel cgDeoptReturnLabel cgStackFullLabel cgOuts cgOutCount cgPoolOops cgPoolLabels cgPoolCount cgMetaWords cgMetaCount cgSpOffsets cgSpCount cgMoveSrc cgMoveDst cgMoveLoc cgMoveCount cgRootAct cgLastPc builder cgDeps cgDepCount cgSunk cgSunkCount cgChainActs cgChainCount'
 	classVariableNames: 'CG_MAX_META CG_MAX_MOVES CG_MAX_OUT CG_MAX_POOL CG_MAX_SP OUT_BARRIER OUT_BOTTOM OUT_DEOPT OUT_INTERRUPT OUT_LAZY OUT_SEND OUT_STACK'
 	package: 'VM-Jit'!
 
@@ -10,7 +10,7 @@ Frame layout: slots 0..numArgs-1 the arguments, then home slots (OptRegalloc), s
 !OptCodegen class methodsFor: 'declaring'!
 declarations
 	^#((ir OptIR) (passes OptPasses) (regalloc OptRegalloc)
-		(cgCodeStart uint64_t) (cgBcSize int32_t) (cgNumArgs int32_t) (cgNumTemps int32_t) (cgSlotTop int32_t) (cgMaxOut int32_t)
+		(cgCodeStart uint64_t) (cgBcSize int32_t) (cgValidSlots int32_t) (cgEntryPc int32_t) (cgSlotTop int32_t) (cgMaxOut int32_t)
 		(cgExitPlainLabel int32_t) (cgExitSyncLabel int32_t) (cgDeoptLabel int32_t) (cgReturnLabel int32_t) (cgHeaderLabel int32_t) (cgSendLabel int32_t) (cgInterruptLabel int32_t)
 		(cgBarrierLabel int32_t) (cgDeoptReturnLabel int32_t) (cgStackFullLabel int32_t)
 		(cgOuts 'OptOut[CG_MAX_OUT]') (cgOutCount int32_t)
@@ -72,10 +72,10 @@ generate: m act: a
 	cgRootAct := a.
 	cgLastPc := -1.
 	cgBcSize := self methodSize: m.
-	cgNumArgs := (ir act: a) numArgs.
-	cgNumTemps := (ir act: a) numTemps.
+	cgValidSlots := builder validSlots.
+	cgEntryPc := builder entryPc.
 	cgSlotTop := regalloc slotCount.
-	cgSlotTop < (cgNumArgs + cgNumTemps) ifTrue: [cgSlotTop := cgNumArgs + cgNumTemps].
+	cgSlotTop < cgValidSlots ifTrue: [cgSlotTop := cgValidSlots].
 	cgMaxOut := self maxOutgoing asInt32.
 	cgOutCount := 0.
 	cgPoolCount := 0.
@@ -128,7 +128,7 @@ emitEntry
 	"The prologue from compiled callers, then start: room for the frame, home slots nil, the arguments."
 	| s |
 	self emitPrologue.
-	runtime noteResume: 0 at: asm pc - cgCodeStart.
+	runtime noteResume: cgEntryPc at: asm pc - cgCodeStart.
 	asm comment: 'room for the frame''s slots (else the interpreter runs it)'.
 	s := self out: OUT_STACK node: -1 index: 0.
 	asm mov: X16 imm: 8 * (cgSlotTop + cgMaxOut + 1).
@@ -141,10 +141,10 @@ emitEntry
 	asm ldr: W16 base: X16 offset: self headerFlagsOffset.
 	asm tst: W16 imm: 2.
 	asm b: s if: COND_NE.
-	cgSlotTop > (cgNumArgs + cgNumTemps) ifTrue: [
+	cgSlotTop > cgValidSlots ifTrue: [
 		asm comment: 'home slots nil'.
 		asm ldr: X16 base: X22 offset: self nilOffset.
-		cgNumArgs + cgNumTemps to: cgSlotTop - 1 do: [:i | asm str: X16 base: X20 offset: 8 * i]]
+		cgValidSlots to: cgSlotTop - 1 do: [:i | asm str: X16 base: X20 offset: 8 * i]]
 !
 emitBlock: b next: nextBlock
 	| n nd |
@@ -248,7 +248,9 @@ emitNode: n block: b next: nextBlock
 	op = O_PARAM ifTrue: [
 		(nd reg < 0 and: [nd slot < 0]) ifTrue: [^self].
 		r := self dst: n.
-		asm ldr: r base: X20 offset: 8 * nd aux.
+		nd aux = -2
+			ifTrue: [asm ldr: r base: X19 offset: self closureOffset]
+			ifFalse: [asm ldr: r base: X20 offset: 8 * nd aux].
 		^self def: n from: r].
 	op = O_LOADFIELD ifTrue: [
 		x := self src: nd a into: X15.
@@ -256,6 +258,7 @@ emitNode: n block: b next: nextBlock
 		asm ldr: r base: x offset: (self fieldOffset: nd aux).
 		^self def: n from: r].
 	op = O_STOREFIELD ifTrue: [^self emitStore: n].
+	(op = O_OUTERLOAD or: [op = O_OUTERSTORE]) ifTrue: [^self emitOuterTemp: n].
 	op = O_INDEXLOAD ifTrue: [^self emitIndexLoad: n].
 	op = O_INDEXSTORE ifTrue: [^self emitIndexStore: n].
 	op = O_SIZE ifTrue: [
@@ -554,7 +557,7 @@ emitClassOf: n
 !
 emitStore: n
 	"Store b into a's field; the generational barrier's tests inline, the remembering out of line. A frame state: deoptimize if a is immutable."
-	| nd o v done slow check s |
+	| nd o v s |
 	nd := ir node: n.
 	nd state >= 0 ifTrue: [s := self deoptLabelFor: n].
 	o := self src: nd a into: X14.
@@ -565,6 +568,12 @@ emitStore: n
 		asm tst: X16 imm: H_IMMUTABLE.
 		asm b: s if: COND_NE].
 	asm str: v base: o offset: (self fieldOffset: nd aux).
+	self emitBarrier: n object: o value: v
+!
+emitBarrier: n object: o value: v
+	"After storing n's value v into object o: the generational barrier (o and v not in X16, X17)."
+	| done slow check nd |
+	nd := ir node: n.
 	(ir node: nd b) op asInt32 = O_CONST ifTrue: [
 		(((ir node: nd b) aux bitAnd: 7) ~= 0 or: [(self isYoung: (ir node: nd b) aux asUInt64) not]) ifTrue: [^self]].
 	done := asm newLabel.
@@ -588,6 +597,45 @@ emitStore: n
 	asm ldr: X16 base: o offset: 0.
 	asm tst: X16 imm: H_REMEMBERED.
 	asm b: slow if: COND_EQ.
+	asm bind: done
+!
+emitOuterTemp: n
+	"A temp of the Context lv levels out of the unit's closure (the template's outerTemp:): in the frame it is married to (sender: the frame's index), else in it."
+	| nd v x married done r |
+	nd := ir node: n.
+	nd op asInt32 = O_OUTERSTORE ifTrue: [v := self src: nd b into: X14].
+	x := self src: nd a into: X15.
+	asm comment: 'outer temp %d' with: nd aux2.
+	asm ldr: X15 base: x offset: (self fieldOffset: BC_OUTER).
+	2 to: nd aux asInt32 do: [:k |
+		asm ldr: X17 base: X15 offset: (self fieldOffset: CTX_CLOSURE).
+		asm ldr: X15 base: X17 offset: (self fieldOffset: BC_OUTER)].
+	asm ldr: X17 base: X15 offset: (self fieldOffset: CTX_SENDER).
+	married := asm newLabel.
+	done := asm newLabel.
+	asm tbnz: X17 bit: 0 to: married.
+	nd op asInt32 = O_OUTERLOAD
+		ifTrue: [
+			r := self dst: n.
+			asm ldr: r base: X15 offset: (self fieldOffset: CTX_FIXED + nd aux2).
+			asm b: done.
+			asm bind: married.
+			asm ldr: X16 base: X22 offset: self framesOffset.
+			asm asr: X17 with: X17 imm: 1.
+			asm add: X16 with: X16 with: X17 shift: SHIFT_LSL amount: 6.
+			asm ldr: X16 base: X16 offset: self fpOffset.
+			asm ldr: r base: X16 offset: 8 * nd aux2.
+			asm bind: done.
+			^self def: n from: r].
+	asm str: v base: X15 offset: (self fieldOffset: CTX_FIXED + nd aux2).
+	self emitBarrier: n object: X15 value: v.
+	asm b: done.
+	asm bind: married.
+	asm ldr: X16 base: X22 offset: self framesOffset.
+	asm asr: X17 with: X17 imm: 1.
+	asm add: X16 with: X16 with: X17 shift: SHIFT_LSL amount: 6.
+	asm ldr: X16 base: X16 offset: self fpOffset.
+	asm str: v base: X16 offset: 8 * nd aux2.
 	asm bind: done
 !
 emitReturn: n
@@ -889,7 +937,7 @@ emitOuts
 			asm b: o resume].
 		o kind = OUT_STACK ifTrue: [
 			asm comment: 'no room for the frame: the interpreter runs it'.
-			self emitFramePc: 0 sp: cgNumArgs + cgNumTemps.
+			self emitFramePc: cgEntryPc sp: cgValidSlots.
 			asm mov: X0 with: X19.
 			asm bl: cgStackFullLabel.
 			asm b: cgExitSyncLabel].
@@ -973,7 +1021,7 @@ recordState: s kind: kind node: n inSlots: inSlots
 		st := ir state: t.
 		cgChainActs at: nchain - 1 - i put: st act.
 		self meta: (self poolIndexOf: (ir act: st act) method).
-		self meta: ((ir act: st act) closure >= 0 ifTrue: [self locOf: (ir act: st act) closure inSlots: inSlots] ifFalse: [-1]).
+		self meta: ((ir act: st act) closure >= 0 ifTrue: [self closureLocOf: (ir act: st act) closure inSlots: inSlots] ifFalse: [-1]).
 		self meta: (self locOf: (ir operand: st vals) inSlots: inSlots).
 		self meta: st pc.
 		self meta: st depth.
@@ -989,6 +1037,11 @@ recordState: s kind: kind node: n inSlots: inSlots
 		self meta: nd aux asInt32.
 		self meta: (nd aux2 bitAnd: 16rFFFFFF) asInt32].
 	^k
+!
+closureLocOf: v inSlots: inSlots
+	"A block unit's closure is its frame's (-2)."
+	(ir node: v) op asInt32 = O_PARAM ifTrue: [^-2].
+	^self locOf: v inSlots: inSlots
 !
 sunkIndexOf: v
 	"v's entry in this record's closures that were never made."

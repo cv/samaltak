@@ -32,6 +32,11 @@ static int32_t rt_sunk_start[64];
 static int32_t rt_sunk_use_count;
 static int32_t rt_sunk_use_id[8192];
 static int32_t rt_sunk_use_val[8192];
+static int32_t rt_unit_count;
+static int32_t rt_unit_depth;
+int32_t rt_unit_osr;
+int32_t rt_unit_start;
+static jit_method *rt_units[4096];
 static int32_t rt_written;
 
 static void opt_decode(jit_method *h, int64_t k, frame *f, uint64_t *regs, int32_t mode);
@@ -39,7 +44,9 @@ static uint64_t opt_deopt_frame(frame *f, int64_t k, uint64_t *regs, int32_t mod
 static int64_t opt_frame_size_of(oop m, oop c);
 static void opt_make_sunk(int32_t s, oop ctx);
 static jit_method *opt_optimize(oop m, jit_method *h);
+static jit_method *opt_optimize_unit(oop m, int32_t s, int32_t t, int32_t d, jit_method *h);
 static void opt_trace_deopt(jit_method *h, int64_t k, int32_t mode);
+static jit_method *opt_unit_of(oop m, int32_t s, int32_t t);
 
 /* OptRuntime>>allRoots: */
 void opt_all_roots(void (*fn)(oop *))
@@ -76,6 +83,17 @@ exit_decoded_roots:;
     pthread_jit_write_protect_np(1);
 }
 
+/* OptRuntime>>blockCodeFor:start: */
+uint64_t opt_block_code(oop m, int32_t s)
+{
+    jit_method *o;
+    o = opt_unit_of(m, s, 0);
+    if ((o != NULL) && ((o != NULL) && ((o->flags & JM_FAILED) == 0) && ((o->flags & 2) == 0))) {
+        return (uint64_t)o;
+    }
+    return jit_block_code(m);
+}
+
 /* OptRuntime>>compile: */
 bool opt_compile(oop m)
 {
@@ -88,15 +106,15 @@ bool opt_compile(oop m)
         return false;
     }
     if (trace) {
-        fputs("opt: ", stderr);
+        fprintf(stderr, "opt: (block %d, loop %d) ", rt_unit_start, rt_unit_osr);
         print_activation(m, nil_oop, nil_oop, stderr);
     }
-    ok = opt_build(m) && ({
+    ok = opt_build(m, rt_unit_start, rt_unit_osr - 1, rt_unit_depth) && ({
     opt_cleanup(ob_entry_block);
     if (trace) {
         opt_ir_print();
     }
-    opt_allocate((opt_acts + 0)->num_args) && ({
+    opt_allocate(ob_param_slots) && ({
     if (trace) {
         fputs("allocated:\n", stderr);
         opt_ir_print();
@@ -128,29 +146,30 @@ static void opt_decode(jit_method *h, int64_t k, frame *f, uint64_t *regs, int32
     int64_t payload;
     oop v;
     int32_t v_2;
+    oop v_3;
     int32_t loc_2;
     int32_t r_value_2;
     int32_t kind_2;
     int64_t payload_2;
-    oop v_3;
+    oop v_4;
     int32_t d;
     int32_t i_2;
     int32_t loc_3;
     int32_t kind_3;
     int64_t payload_3;
-    oop v_4;
+    oop v_5;
     int32_t ns;
     int32_t j_2;
     int32_t j_3;
     int32_t t;
     oop *base;
-    oop v_5;
+    oop v_6;
     oop m;
     uint64_t o;
     uint8_t *bcs;
     uint8_t op;
     int32_t i_3;
-    oop v_6;
+    oop v_7;
     rec = h->meta + h->sp_table[k];
     send_pc = rec[1];
     argc = rec[2] & 255;
@@ -197,22 +216,30 @@ static void opt_decode(jit_method *h, int64_t k, frame *f, uint64_t *regs, int32
     r_value; });
     }
     v_2; });
+        if (rec[p + 1] == -2) {
+            v_3 = f->closure;
+            if (rt_deopt_count < OPT_MAX_DEOPT_VALS) {
+                rt_deopt_vals[rt_deopt_count] = v_3;
+                rt_deopt_count = rt_deopt_count + 1;
+            }
+            rt_act_closure[j] = rt_deopt_count - 1;
+        }
         loc_2 = rec[p + 2];
         rt_act_rcv[j] = ({
     kind_2 = loc_2 & 7;
     payload_2 = ((int64_t)loc_2) >> 3;
-    v_3 = nil_oop;
+    v_4 = nil_oop;
     if (kind_2 == LOC_SLOT) {
-        v_3 = f->fp[payload_2];
+        v_4 = f->fp[payload_2];
     }
     if (kind_2 == LOC_REG) {
-        v_3 = regs[payload_2];
+        v_4 = regs[payload_2];
     }
     if (kind_2 == LOC_CONST) {
-        v_3 = ((oop *)(h->code_start + h->pool_offset))[payload_2];
+        v_4 = ((oop *)(h->code_start + h->pool_offset))[payload_2];
     }
     if (kind_2 == LOC_SMI) {
-        v_3 = (uint64_t)((payload_2 << 1) | 1);
+        v_4 = (uint64_t)((payload_2 << 1) | 1);
     }
     if ((kind_2 == LOC_SUNK) && (rt_sunk_use_count < OPT_MAX_DEOPT_VALS)) {
         rt_sunk_use_val[rt_sunk_use_count] = rt_deopt_count;
@@ -220,7 +247,7 @@ static void opt_decode(jit_method *h, int64_t k, frame *f, uint64_t *regs, int32
         rt_sunk_use_count = rt_sunk_use_count + 1;
     }
     if (rt_deopt_count < OPT_MAX_DEOPT_VALS) {
-        rt_deopt_vals[rt_deopt_count] = v_3;
+        rt_deopt_vals[rt_deopt_count] = v_4;
         rt_deopt_count = rt_deopt_count + 1;
     }
     r_value_2 = rt_deopt_count - 1;
@@ -233,18 +260,18 @@ static void opt_decode(jit_method *h, int64_t k, frame *f, uint64_t *regs, int32
             loc_3 = rec[p + 5 + i_2];
             kind_3 = loc_3 & 7;
             payload_3 = ((int64_t)loc_3) >> 3;
-            v_4 = nil_oop;
+            v_5 = nil_oop;
             if (kind_3 == LOC_SLOT) {
-                v_4 = f->fp[payload_3];
+                v_5 = f->fp[payload_3];
             }
             if (kind_3 == LOC_REG) {
-                v_4 = regs[payload_3];
+                v_5 = regs[payload_3];
             }
             if (kind_3 == LOC_CONST) {
-                v_4 = ((oop *)(h->code_start + h->pool_offset))[payload_3];
+                v_5 = ((oop *)(h->code_start + h->pool_offset))[payload_3];
             }
             if (kind_3 == LOC_SMI) {
-                v_4 = (uint64_t)((payload_3 << 1) | 1);
+                v_5 = (uint64_t)((payload_3 << 1) | 1);
             }
             if ((kind_3 == LOC_SUNK) && (rt_sunk_use_count < OPT_MAX_DEOPT_VALS)) {
                 rt_sunk_use_val[rt_sunk_use_count] = rt_deopt_count;
@@ -252,7 +279,7 @@ static void opt_decode(jit_method *h, int64_t k, frame *f, uint64_t *regs, int32
                 rt_sunk_use_count = rt_sunk_use_count + 1;
             }
             if (rt_deopt_count < OPT_MAX_DEOPT_VALS) {
-                rt_deopt_vals[rt_deopt_count] = v_4;
+                rt_deopt_vals[rt_deopt_count] = v_5;
                 rt_deopt_count = rt_deopt_count + 1;
             }
         }
@@ -279,9 +306,9 @@ static void opt_decode(jit_method *h, int64_t k, frame *f, uint64_t *regs, int32
     }
     base = f->fp + (int64_t)h->slots;
     if (mode == 2) {
-        v_5 = base[0];
+        v_6 = base[0];
         if (rt_deopt_count < OPT_MAX_DEOPT_VALS) {
-            rt_deopt_vals[rt_deopt_count] = v_5;
+            rt_deopt_vals[rt_deopt_count] = v_6;
             rt_deopt_count = rt_deopt_count + 1;
         }
         rt_act_depth[nacts - 1] = rt_act_depth[nacts - 1] + 1;
@@ -293,9 +320,9 @@ static void opt_decode(jit_method *h, int64_t k, frame *f, uint64_t *regs, int32
         op = bcs[send_pc];
         if (!(((op >= 0x97) && (op < 0xA0)) || ((op >= 0xF0) && (op < 0xFC)))) {
             for (i_3 = 0; i_3 <= argc; i_3++) {
-                v_6 = base[i_3];
+                v_7 = base[i_3];
                 if (rt_deopt_count < OPT_MAX_DEOPT_VALS) {
-                    rt_deopt_vals[rt_deopt_count] = v_6;
+                    rt_deopt_vals[rt_deopt_count] = v_7;
                     rt_deopt_count = rt_deopt_count + 1;
                 }
             }
@@ -446,14 +473,16 @@ uint64_t opt_deopt_guard(frame *f, int64_t k)
             goto exit_invalidate;
         }
         rt_stat_invalidations = rt_stat_invalidations + 1;
-        m = h->method;
-        n = opt_initial_count(h->method);
-        opt_counts[((uint32_t)(((*(uint64_t *)m) >> H_HASH_SHIFT) & H_HASH_MASK)) & 65535] = n;
-        h_2 = (jit_method *)h->lower;
-        pthread_jit_write_protect_np(0);
-        h_2->opt = 0;
-        pthread_jit_write_protect_np(1);
-        jit_code_changed(h->method);
+        if ((h->block_start == 0) && (h->osr_pc == 0)) {
+            m = h->method;
+            n = opt_initial_count(h->method);
+            opt_counts[((uint32_t)(((*(uint64_t *)m) >> H_HASH_SHIFT) & H_HASH_MASK)) & 65535] = n;
+            h_2 = (jit_method *)h->lower;
+            pthread_jit_write_protect_np(0);
+            h_2->opt = 0;
+            pthread_jit_write_protect_np(1);
+            jit_code_changed(h->method);
+        }
         jit_kill(h);
     exit_invalidate:;
     }
@@ -472,6 +501,8 @@ void opt_flushed(void)
     rt_opt_young_count = 0;
     rt_opt_young_overflow = false;
     rt_all_count = 0;
+    memset(rt_units, 0, 32768);
+    rt_unit_count = 0;
 }
 
 /* OptRuntime>>frameSizeOf:closure: */
@@ -551,14 +582,16 @@ void opt_invalidate_all(void)
             goto exit_invalidate;
         }
         rt_stat_invalidations = rt_stat_invalidations + 1;
-        m = o->method;
-        n = opt_initial_count(o->method);
-        opt_counts[((uint32_t)(((*(uint64_t *)m) >> H_HASH_SHIFT) & H_HASH_MASK)) & 65535] = n;
-        h = (jit_method *)o->lower;
-        pthread_jit_write_protect_np(0);
-        h->opt = 0;
-        pthread_jit_write_protect_np(1);
-        jit_code_changed(o->method);
+        if ((o->block_start == 0) && (o->osr_pc == 0)) {
+            m = o->method;
+            n = opt_initial_count(o->method);
+            opt_counts[((uint32_t)(((*(uint64_t *)m) >> H_HASH_SHIFT) & H_HASH_MASK)) & 65535] = n;
+            h = (jit_method *)o->lower;
+            pthread_jit_write_protect_np(0);
+            h->opt = 0;
+            pthread_jit_write_protect_np(1);
+            jit_code_changed(o->method);
+        }
         jit_kill(o);
     exit_invalidate:;
     }
@@ -583,14 +616,16 @@ void opt_invalidate_selector(oop sel)
                     goto exit_invalidate;
                 }
                 rt_stat_invalidations = rt_stat_invalidations + 1;
-                m = o->method;
-                n = opt_initial_count(o->method);
-                opt_counts[((uint32_t)(((*(uint64_t *)m) >> H_HASH_SHIFT) & H_HASH_MASK)) & 65535] = n;
-                h = (jit_method *)o->lower;
-                pthread_jit_write_protect_np(0);
-                h->opt = 0;
-                pthread_jit_write_protect_np(1);
-                jit_code_changed(o->method);
+                if ((o->block_start == 0) && (o->osr_pc == 0)) {
+                    m = o->method;
+                    n = opt_initial_count(o->method);
+                    opt_counts[((uint32_t)(((*(uint64_t *)m) >> H_HASH_SHIFT) & H_HASH_MASK)) & 65535] = n;
+                    h = (jit_method *)o->lower;
+                    pthread_jit_write_protect_np(0);
+                    h->opt = 0;
+                    pthread_jit_write_protect_np(1);
+                    jit_code_changed(o->method);
+                }
                 jit_kill(o);
             exit_invalidate:;
             }
@@ -809,6 +844,71 @@ exit_note_young:;
     return o;
 }
 
+/* OptRuntime>>optimizeUnit:start:osr:depth:lower: */
+static jit_method *opt_optimize_unit(oop m, int32_t s, int32_t t, int32_t d, jit_method *h)
+{
+    int64_t t0;
+    jit_method *o;
+    oop o_2;
+    bool young;
+    int64_t i_2;
+    oop o_3;
+    oop o_4;
+    uint64_t i;
+    if (rt_unit_count >= 3072) {
+        return (jit_method *)NULL;
+    }
+    rt_unit_start = s;
+    rt_unit_osr = t;
+    rt_unit_depth = d;
+    t0 = now_us();
+    o = jit_compile(m, JIT_OPT, (jit_flags & JIT_FLAG_NOTES) != 0);
+    rt_stat_opt_us = rt_stat_opt_us + (uint64_t)(now_us() - t0);
+    rt_unit_start = 0;
+    rt_unit_osr = 0;
+    if (o == NULL) {
+        return (jit_method *)NULL;
+    }
+    if (rt_all_count < OPT_MAX_HEADERS) {
+        rt_all[rt_all_count] = o;
+        rt_all_count = rt_all_count + 1;
+    } else {
+        flush_pending = true;
+    }
+    pthread_jit_write_protect_np(0);
+    o->lower = (uint64_t)h;
+    o->block_start = (uint32_t)s;
+    o->osr_pc = (uint32_t)t;
+    pthread_jit_write_protect_np(1);
+    o_2 = o->method;
+    young = (uint64_t)(o_2 - young_lo) < young_hi - young_lo;
+    for (i_2 = 0; i_2 <= (int64_t)o->pool_count - 1; i_2++) {
+        o_3 = ((oop *)(o->code_start + o->pool_offset))[i_2];
+        if (((o_3 & 7) == 0) && ({
+    o_4 = ((oop *)(o->code_start + o->pool_offset))[i_2];
+    (uint64_t)(o_4 - young_lo) < young_hi - young_lo; })) {
+            young = true;
+        }
+    }
+    if (!young) {
+        goto exit_note_young;
+    }
+    if (rt_opt_young_count < OPT_MAX_YOUNG) {
+        rt_opt_young[rt_opt_young_count] = o;
+        rt_opt_young_count = rt_opt_young_count + 1;
+    } else {
+        rt_opt_young_overflow = true;
+    }
+exit_note_young:;
+    i = (((uint64_t)(uint32_t)(((*(uint64_t *)m) >> H_HASH_SHIFT) & H_HASH_MASK) * 31 + (uint64_t)s) * 31 + (uint64_t)t) & 4095;
+    while (rt_units[i] != NULL) {
+        i = (i + 1) & 4095;
+    }
+    rt_units[i] = o;
+    rt_unit_count = rt_unit_count + 1;
+    return o;
+}
+
 /* OptRuntime>>resume: */
 uint64_t opt_resume(frame *f)
 {
@@ -818,6 +918,10 @@ uint64_t opt_resume(frame *f)
     h = (jit_method *)f->code;
     k = f->pc - (int32_t)h->bc_size;
     off = (h != NULL) && ((h->flags & JM_FAILED) == 0) && ((h->flags & 2) == 0) ? jit_map_offset(h, f->pc) : -1;
+    if ((off < 0) && (k < 0)) {
+        f->code = h->lower;
+        return jit_address_for(f);
+    }
     if (off < 0) {
         opt_deopt_frame(f, k, (uint64_t *)NULL, 2);
         return 0;
@@ -1044,21 +1148,44 @@ uint64_t opt_stack_full(frame *f)
     return 0;
 }
 
-/* OptRuntime>>tierUp: */
-uint64_t opt_tier_up(frame *f)
+/* OptRuntime>>tierUp:loop: */
+uint64_t opt_tier_up(frame *f, int64_t loop)
 {
     jit_method *o;
     oop m;
     jit_method *h;
+    oop o_2;
+    uint64_t o_3;
+    int32_t v;
+    int32_t s;
+    int32_t k;
     void *r_opt_of;
-    jit_method *o_2;
+    jit_method *o_4;
+    int32_t n;
     m = f->method;
     opt_counts[((uint32_t)(((*(uint64_t *)m) >> H_HASH_SHIFT) & H_HASH_MASK)) & 65535] = 1073741823;
     h = jit_lookup(m);
     if (!((h != NULL) && ((h->flags & JM_FAILED) == 0))) {
         return 0;
     }
-    o = (jit_method *)({
+    if (!(f->code == (uint64_t)h)) {
+        return 0;
+    }
+    s = ({
+    if (f->closure == nil_oop) {
+        v = 0;
+    } else {
+        o_2 = f->closure;
+        o_3 = *(uint64_t *)(o_2 + 16 + 8);
+        v = (int32_t)(((int64_t)o_3) >> 1);
+    }
+    v; });
+    if ((s == 0) && (h->opt == 0)) {
+        opt_optimize(m, h);
+    }
+    k = loop == 0 ? 0 : f->pc + 1;
+    if ((s == 0) && (k == 0)) {
+        o = (jit_method *)({
     if (h == NULL) {
         r_opt_of = NULL;
         goto exit_opt_of;
@@ -1067,25 +1194,30 @@ uint64_t opt_tier_up(frame *f)
         r_opt_of = NULL;
         goto exit_opt_of;
     }
-    o_2 = (jit_method *)h->opt;
-    if (!((o_2 != NULL) && ((o_2->flags & JM_FAILED) == 0) && ((o_2->flags & 2) == 0))) {
+    o_4 = (jit_method *)h->opt;
+    if (!((o_4 != NULL) && ((o_4->flags & JM_FAILED) == 0) && ((o_4->flags & 2) == 0))) {
         r_opt_of = NULL;
         goto exit_opt_of;
     }
-    r_opt_of = o_2;
+    r_opt_of = o_4;
 exit_opt_of:;
     r_opt_of; });
-    if ((o == NULL) && (h->opt == 0)) {
-        o = opt_optimize(m, h);
+    } else {
+        o = opt_unit_of(m, s, k);
+        if (o == NULL) {
+            o = opt_optimize_unit(m, s, k, f->sp, h);
+        }
     }
-    if (o == NULL) {
+    if ((o == NULL) || (!((o != NULL) && ((o->flags & JM_FAILED) == 0) && ((o->flags & 2) == 0)))) {
         return 0;
     }
-    if ((f->pc == 0) && ((f->closure == nil_oop) && (f->code == (uint64_t)h))) {
-        f->code = (uint64_t)o;
-        return o->start;
+    n = opt_initial_count(m);
+    opt_counts[((uint32_t)(((*(uint64_t *)m) >> H_HASH_SHIFT) & H_HASH_MASK)) & 65535] = n;
+    if (k != 0) {
+        rt_stat_opt_osr = rt_stat_opt_osr + 1;
     }
-    return 0;
+    f->code = (uint64_t)o;
+    return o->start;
 }
 
 /* OptRuntime>>traceDeopt:index:mode: */
@@ -1094,6 +1226,21 @@ static void opt_trace_deopt(jit_method *h, int64_t k, int32_t mode)
     fprintf(stderr, "deopt mode %d at %lld, %d activations, ", mode, k, rt_act_count);
     fprintf(stderr, "innermost pc %d depth %d: ", rt_act_pc[rt_act_count - 1], rt_act_depth[rt_act_count - 1]);
     print_activation(h->method, nil_oop, nil_oop, stderr);
+}
+
+/* OptRuntime>>unitOf:start:osr: */
+static jit_method *opt_unit_of(oop m, int32_t s, int32_t t)
+{
+    uint64_t i;
+    jit_method *h;
+    i = (((uint64_t)(uint32_t)(((*(uint64_t *)m) >> H_HASH_SHIFT) & H_HASH_MASK) * 31 + (uint64_t)s) * 31 + (uint64_t)t) & 4095;
+    while ((h = rt_units[i]) != NULL) {
+        if ((h->method == m) && ((h->block_start == (uint32_t)s) && (h->osr_pc == (uint32_t)t))) {
+            return h;
+        }
+        i = (i + 1) & 4095;
+    }
+    return (jit_method *)NULL;
 }
 
 /* OptRuntime>>youngRoots: */

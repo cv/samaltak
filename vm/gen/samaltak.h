@@ -333,6 +333,7 @@ typedef void (*prim_fn)(void);
 #define OPT_MAX_OPERANDS 131072
 #define OPT_MAX_PRIM 1024
 #define OPT_MAX_STATES 4096
+#define OPT_MAX_UNITS 4096
 #define OPT_MAX_VARS 65536
 #define OPT_MAX_YOUNG 1024
 #define OPT_PCB_MAX 131072
@@ -368,6 +369,8 @@ typedef void (*prim_fn)(void);
 #define O_LOADFIELD 4
 #define O_NE 8
 #define O_NOP 0
+#define O_OUTERLOAD 26
+#define O_OUTERSTORE 27
 #define O_PARAM 2
 #define O_PHI 3
 #define O_RETURN 32
@@ -800,9 +803,11 @@ struct jit_method {
     int32_t *meta;
     int32_t *deps;
     uint32_t deopts;
-    uint32_t pad2;
+    uint32_t block_start;
+    uint32_t osr_pc;
+    uint32_t pad3;
 };
-_Static_assert(sizeof(jit_method) == 168, "the simulator lays out JitMethod as C does");
+_Static_assert(sizeof(jit_method) == 176, "the simulator lays out JitMethod as C does");
 
 struct jit_state {
     oop nil_oop;
@@ -1164,6 +1169,10 @@ extern oop true_oop;
 extern int32_t ob_dep_count;
 extern oop ob_deps[256];
 extern int32_t ob_entry_block;
+extern int32_t ob_osr_pc;
+extern int32_t ob_param_slots;
+extern int32_t ob_unit_start;
+extern int32_t ob_valid_slots;
 extern uint64_t cg_code_start;
 extern int32_t cg_dep_count;
 extern int32_t cg_deps[256];
@@ -1198,6 +1207,8 @@ extern uint64_t rt_stat_opt_compiled;
 extern uint64_t rt_stat_opt_failed;
 extern uint64_t rt_stat_opt_osr;
 extern uint64_t rt_stat_opt_us;
+extern int32_t rt_unit_osr;
+extern int32_t rt_unit_start;
 extern oop alloc_sample_class;
 extern int64_t alloc_sample_countdown;
 extern int64_t alloc_sample_interval;
@@ -1318,6 +1329,7 @@ void fb_young_roots(void (*fn)(oop *));
 void prim_jit_code(void);
 void prim_jit_parameters(void);
 void jit_activated(frame *f);
+uint64_t jit_address_for(frame *f);
 void jit_after_gc(void);
 void jit_all_roots(void (*fn)(oop *));
 void jit_back_jump(frame *f);
@@ -1356,7 +1368,7 @@ int64_t jit_slot_of(oop m);
 uint64_t jit_special(frame *f, uint64_t info, uint64_t key);
 oop jit_special_fast(int32_t k, oop *base);
 void jit_start(void);
-uint64_t jit_tier_up(frame *f);
+uint64_t jit_tier_up(frame *f, int64_t loop);
 uint64_t jit_widow(frame *f);
 uint64_t jit_write_barrier(oop o, oop v);
 void jit_young_roots(void (*fn)(oop *));
@@ -1473,7 +1485,7 @@ void prim_string_at(void);
 void prim_string_at_put(void);
 void prim_string_compare(void);
 void prim_string_hash(void);
-bool opt_build(oop m);
+bool opt_build(oop m, int32_t s, int32_t t, int32_t d);
 bool opt_generate(oop m, int32_t a);
 int32_t opt_add_pred(int32_t from, int32_t to);
 int32_t opt_alloc_operands(int32_t n);
@@ -1493,6 +1505,7 @@ void opt_unlink(int32_t n);
 void opt_cleanup(int32_t entry);
 bool opt_allocate(int32_t numArgs);
 void opt_all_roots(void (*fn)(oop *));
+uint64_t opt_block_code(oop m, int32_t s);
 bool opt_compile(oop m);
 uint64_t opt_deopt_guard(frame *f, int64_t k);
 uint64_t opt_deopt_return(frame *f, int64_t k);
@@ -1507,7 +1520,7 @@ uint64_t opt_resume(frame *f);
 uint64_t opt_return_bottom(frame *f, int64_t k);
 uint64_t opt_send(frame *f, int64_t k, uint64_t key);
 uint64_t opt_stack_full(frame *f);
-uint64_t opt_tier_up(frame *f);
+uint64_t opt_tier_up(frame *f, int64_t loop);
 void opt_young_roots(void (*fn)(oop *));
 bool prim_is_leaf(int64_t n);
 bool prim_tryable(int64_t n);

@@ -604,8 +604,9 @@ blockActivate: n fromArray: fromArray
 	f method: m.
 	f closure: cl.
 	f ctx: memory nilOop.
-	f code: (jit frameCodeFor: m).
+	f code: (jit frameCodeFor: m block: (self intVal: (self loadRef: cl at: BC_STARTPC)) asInt32).
 	f fp: nfp.
+	f pc: (self intVal: (self loadRef: cl at: BC_STARTPC)) asInt32.
 	f ip: (self methodBcs: m) + (self intVal: (self loadRef: cl at: BC_STARTPC)).
 	f lits: (self slotsOf: (self loadRef: m at: CM_LITERALS)).
 	f sp: (count + ntemps) asInt32.

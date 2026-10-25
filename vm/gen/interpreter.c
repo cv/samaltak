@@ -143,10 +143,13 @@ static void block_activate(int n, bool from_array)
     uint64_t outer;
     uint64_t m;
     frame *f;
-    uint64_t r_frame_code_for;
     uint64_t o_5;
+    int32_t startpc;
+    uint64_t r_frame_code_for;
     uint64_t o_6;
     uint64_t o_7;
+    uint64_t o_8;
+    uint64_t o_9;
     int64_t i_3;
     count = n;
     base = active_stackp() - 1 - (from_array ? 1 : count);
@@ -194,20 +197,28 @@ static void block_activate(int n, bool from_array)
     f->method = m;
     f->closure = cl;
     f->ctx = nil_oop;
+    o_5 = *(uint64_t *)(cl + 16 + 8);
+    startpc = (int32_t)(((int64_t)o_5) >> 1);
     f->code = ({
     if (jit_mode == JIT_NONE) {
         r_frame_code_for = 0ULL;
+        goto exit_frame_code_for;
+    }
+    if (jit_mode == JIT_OPT) {
+        r_frame_code_for = opt_block_code(m, startpc);
         goto exit_frame_code_for;
     }
     r_frame_code_for = jit_block_code(m);
 exit_frame_code_for:;
     r_frame_code_for; });
     f->fp = nfp;
-    o_5 = *(uint64_t *)(m + 16 + 24);
     o_6 = *(uint64_t *)(cl + 16 + 8);
-    f->ip = (uint8_t *)(o_5 + 16) + (((int64_t)o_6) >> 1);
-    o_7 = *(uint64_t *)(m + 16 + 16);
-    f->lits = (oop *)(o_7 + 16);
+    f->pc = (int32_t)(((int64_t)o_6) >> 1);
+    o_7 = *(uint64_t *)(m + 16 + 24);
+    o_8 = *(uint64_t *)(cl + 16 + 8);
+    f->ip = (uint8_t *)(o_7 + 16) + (((int64_t)o_8) >> 1);
+    o_9 = *(uint64_t *)(m + 16 + 16);
+    f->lits = (oop *)(o_9 + 16);
     f->sp = (int32_t)(count + ntemps);
     for (i_3 = count; i_3 <= count + ntemps - 1; i_3++) {
         nfp[i_3] = nil_oop;

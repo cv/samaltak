@@ -396,7 +396,7 @@ writeBarrierFunction
 	^self cCoerce: (self functionPointer: #writeBarrier:value:) to: 'uint64_t'
 !
 tierUpFunction
-	^self cCoerce: (self functionPointer: #tierUp:) to: 'uint64_t'
+	^self cCoerce: (self functionPointer: #tierUp:loop:) to: 'uint64_t'
 ! !
 
 !JitRuntime methodsFor: 'compiled methods'!
@@ -550,6 +550,12 @@ frameCodeFor: m
 	jitMode = JIT_NONE ifTrue: [^0 asUInt64].
 	^self blockCodeFor: m
 !
+frameCodeFor: m block: startpc
+	"Frame code of a new activation of m's block at startpc: its optimized code if it has some, else its home method's."
+	jitMode = JIT_NONE ifTrue: [^0 asUInt64].
+	jitMode = JIT_OPT ifTrue: [^optimizer blockCodeFor: m start: startpc].
+	^self blockCodeFor: m
+!
 blockCodeFor: m
 	<c: 'uint64_t jit_block_code(oop m)'>
 	| h |
@@ -651,7 +657,7 @@ finish: m code: start mode: md
 		p := p + (20 * n)].
 	md = JIT_OPT ifTrue: [p := optimizer writeExtra: h at: p].
 	self sortMap: h.
-	h start: start + (self mapOffsetOf: h pc: 0).
+	h start: start + (self mapOffsetOf: h pc: (md = JIT_OPT ifTrue: [optimizer unitEntry] ifFalse: [0])).
 	cache allocate: p - start.
 	^h
 !
@@ -1287,11 +1293,11 @@ outerTemp: f
 		ifFalse: [self storeRef: c at: CTX_FIXED + i put: (slot at: -1)].
 	^0
 !
-tierUp: f
-	"The lower tier's counter for f's method ran out at f's pc (a method entry or a backward jump; f's pc and sp stored): answer 0 to go on, 1 to leave, or where f continues in optimized code."
-	<c: 'uint64_t jit_tier_up(Frame *f)'>
+tierUp: f loop: loop
+	"The lower tier's counter for f's method ran out at f's pc (a method entry, or a backward jump if loop ~= 0; f's pc and sp stored): answer 0 to go on, 1 to leave, or where f continues in optimized code."
+	<c: 'uint64_t jit_tier_up(Frame *f, int64_t loop)'>
 	self sync: f.
-	^optimizer tierUp: f
+	^optimizer tierUp: f loop: loop
 !
 widow: f
 	"f returns and is married: its Context keeps its slots."
@@ -1370,5 +1376,5 @@ fields
 		(mapCount uint32_t) (refCount uint32_t) (map 'uint32_t *') (refs 'uint32_t *')
 		(noteCount uint32_t) (pad uint32_t) (noteOffsets 'uint32_t *') (noteTexts 'uint64_t *') (noteValues 'int64_t *')
 		(opt uint64_t) (lower uint64_t) (slots uint32_t) (bcSize uint32_t) (poolOffset uint32_t) (poolCount uint32_t)
-		(spCount uint32_t) (depCount uint32_t) (spTable 'int32_t *') (meta 'int32_t *') (deps 'int32_t *') (deopts uint32_t) (pad2 uint32_t))
+		(spCount uint32_t) (depCount uint32_t) (spTable 'int32_t *') (meta 'int32_t *') (deps 'int32_t *') (deopts uint32_t) (blockStart uint32_t) (osrPc uint32_t) (pad3 uint32_t))
 ! !

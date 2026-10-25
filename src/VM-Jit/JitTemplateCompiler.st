@@ -193,7 +193,7 @@ emitEntry: pc depth: d
 	s < 0 ifTrue: [^false].
 	self emitInterruptCheck: s.
 	asm bind: after.
-	(pc = 0 and: [counterAddr ~= 0]) ifTrue: [^self emitTierUpCheck: pc depth: d].
+	counterAddr ~= 0 ifTrue: [^self emitTierUpCheck: pc depth: d].
 	^true
 !
 emitTierUpCheck: pc depth: d
@@ -373,7 +373,7 @@ jumpTo: t
 	asm comment: 'jump back'.
 	self emitInterruptCheck: s.
 	counterAddr ~= 0 ifTrue: [
-		s := self slow: SLOW_TIERUP pc: t depth: (analysis depthAt: t) resume: (self labelFor: t) reg: 0.
+		s := self slow: SLOW_TIERUP pc: t depth: (analysis depthAt: t) resume: (self labelFor: t) reg: 1.
 		s < 0 ifTrue: [^false].
 		self emitCountDown: counterAddr to: s].
 	asm b: (self labelFor: t).
@@ -391,7 +391,7 @@ branch: cond to: t
 	s < 0 ifTrue: [^false].
 	self emitInterruptCheck: s.
 	counterAddr ~= 0 ifTrue: [
-		s := self slow: SLOW_TIERUP pc: t depth: (analysis depthAt: t) resume: (self labelFor: t) reg: 0.
+		s := self slow: SLOW_TIERUP pc: t depth: (analysis depthAt: t) resume: (self labelFor: t) reg: 1.
 		s < 0 ifTrue: [^false].
 		self emitCountDown: counterAddr to: s].
 	asm b: (self labelFor: t).
@@ -822,6 +822,7 @@ emitSlowPaths
 			asm comment: 'tier up: the runtime answers 0 (go on), 1 (leave) or where the frame continues'.
 			self emitSync: (slowPcs at: i) depth: (slowDepths at: i).
 			asm mov: X0 with: X19.
+			asm mov: X1 imm: (slowRegs at: i).
 			asm bl: tierUpLabel.
 			l := asm newLabel.
 			asm cbz: X0 to: l.

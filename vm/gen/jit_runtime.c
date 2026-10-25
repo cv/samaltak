@@ -40,7 +40,6 @@ static jit_method *young_methods[4096];
 static bool young_overflow;
 
 static uint64_t jit_activate(oop m, frame *f, int32_t n, int32_t ecode, uint64_t hint);
-static uint64_t jit_address_for(frame *f);
 static jit_method *jit_code_of(oop m, bool counting);
 static jit_method *jit_compile_install(oop m);
 static jit_method *jit_failed_header(oop m);
@@ -133,7 +132,7 @@ exit_run:;
 }
 
 /* JitRuntime>>addressFor: */
-static uint64_t jit_address_for(frame *f)
+uint64_t jit_address_for(frame *f)
 {
     uint64_t c;
     jit_method *h;
@@ -874,6 +873,7 @@ static jit_method *jit_finish(oop m, uint64_t start, int32_t md)
     uint32_t pc;
     uint32_t off;
     int64_t i_7;
+    int32_t r_unit_entry;
     hdr = (asm_pc + 7) & 18446744073709551608ULL;
     n = asm_note_count;
     size = hdr - start + sizeof(jit_method) + 8 * map_count + 4 * ref_count + 20 * n + 8;
@@ -966,7 +966,14 @@ exit_pool_offset:;
         h->map[2 * i_7 + 2] = pc;
         h->map[2 * i_7 + 3] = off;
     }
-    h->start = start + jit_map_offset(h, 0);
+    h->start = start + jit_map_offset(h, md == JIT_OPT ? ({
+    if (rt_unit_osr > 0) {
+        r_unit_entry = rt_unit_osr - 1;
+        goto exit_unit_entry;
+    }
+    r_unit_entry = rt_unit_start;
+exit_unit_entry:;
+    r_unit_entry; }) : 0);
     code_cache_allocate(p - start);
     return h;
 }
@@ -2191,11 +2198,11 @@ void jit_start(void)
     }
 }
 
-/* JitRuntime>>tierUp: */
-uint64_t jit_tier_up(frame *f)
+/* JitRuntime>>tierUp:loop: */
+uint64_t jit_tier_up(frame *f, int64_t loop)
 {
     interp_sync_frame(f);
-    return opt_tier_up(f);
+    return opt_tier_up(f, loop);
 }
 
 /* JitRuntime>>widow: */

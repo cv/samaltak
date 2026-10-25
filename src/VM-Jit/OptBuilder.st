@@ -1,5 +1,5 @@
 OptModule subclass: #OptBuilder
-	instanceVariableNames: 'ir obCurBlock obBailed obVarTop obDefKeys obDefVals obDefCount obIncPhis obIncVars obIncCount obAnaMethods obAnaBases obAnaCount obAnaTop obAnaDepth obAnaFlag obAnaBack obPcBlocks obPcbTop obEntryBlock obRootMethod obInlined obDeps obDepCount obPrimKinds obPrimsKnown obNoInline obNoInlineCount obArgVals obArgFlags'
+	instanceVariableNames: 'ir obCurBlock obBailed obVarTop obDefKeys obDefVals obDefCount obIncPhis obIncVars obIncCount obAnaMethods obAnaBases obAnaCount obAnaTop obAnaDepth obAnaFlag obAnaBack obPcBlocks obPcbTop obEntryBlock obRootMethod obInlined obDeps obDepCount obPrimKinds obPrimsKnown obNoInline obNoInlineCount obArgVals obArgFlags obUnitStart obOsrPc obParamSlots obValidSlots'
 	classVariableNames: 'OA_BLOCK OA_LOOP OA_START OA_TARGET OPT_MAX_VARS OPT_MAX_NOINLINE OPT_MAX_PRIM PK_AT PK_ATPUT PK_CLASS PK_IDENTICAL PK_INT PK_SIZE PK_STRINGAT PK_STRINGATPUT OPT_INLINE_BUDGET OPT_INLINE_DEPTH OPT_INLINE_SIZE OPT_MAX_ANA OPT_MAX_DEPS OPT_MAX_INC'
 	package: 'VM-Jit'!
 
@@ -14,7 +14,7 @@ declarations
 		(obAnaDepth 'int16_t[OPT_ANA_MAX]') (obAnaFlag 'uint8_t[OPT_ANA_MAX]') (obAnaBack 'int32_t[OPT_ANA_MAX]')
 		(obPcBlocks 'int32_t[OPT_PCB_MAX]') (obPcbTop int32_t) (obEntryBlock int32_t) (obRootMethod oop)
 		(obInlined int32_t) (obDeps 'oop[OPT_MAX_DEPS]') (obDepCount int32_t) (obPrimKinds 'uint8_t[OPT_MAX_PRIM]') (obPrimsKnown bool)
-		(obNoInline 'oop[OPT_MAX_NOINLINE]') (obNoInlineCount int32_t) (obArgVals 'int32_t[OPT_MAX_VARS]') (obArgFlags 'uint8_t[OPT_MAX_VARS]'))
+		(obNoInline 'oop[OPT_MAX_NOINLINE]') (obNoInlineCount int32_t) (obArgVals 'int32_t[OPT_MAX_VARS]') (obArgFlags 'uint8_t[OPT_MAX_VARS]') (obUnitStart int32_t) (obOsrPc int32_t) (obParamSlots int32_t) (obValidSlots int32_t))
 !
 initialize
 	OPT_MAX_INC := 16384.
@@ -55,11 +55,14 @@ bail
 ! !
 
 !OptBuilder methodsFor: 'building'!
-build: m
-	"The IR of m; answer whether it could be built. A closure an inlined method makes that escapes would have to be made: build again without inlining that method."
-	<c: 'bool opt_build(oop m)'>
+build: m start: s osr: t depth: d
+	"The IR of m (s 0), or of its block at startpc s, entered at its start (t -1) or at loop head t with d slots; answer whether it could be built. A closure an inlined method makes that escapes would have to be made: build again without inlining that method."
+	<c: 'bool opt_build(oop m, int32_t s, int32_t t, int32_t d)'>
 	| e |
 	obNoInlineCount := 0.
+	obUnitStart := s.
+	obOsrPc := t.
+	obValidSlots := d.
 	[(self buildOnce: m) ifFalse: [^false].
 	 e := self escapingClosure.
 	 e < 0 ifTrue: [^true].
@@ -85,19 +88,23 @@ buildOnce: m
 	obRootMethod := m.
 	obInlined := 0.
 	obDepCount := 0.
-	a := self newActFor: m.
+	a := obUnitStart > 0 ifTrue: [self newBlockActFor: m start: obUnitStart] ifFalse: [self newActFor: m].
 	a < 0 ifTrue: [^false].
 	obEntryBlock := ir newBlock.
 	(ir block: obEntryBlock) flags: BF_SEALED.
 	(ir block: obEntryBlock) act: a.
 	obCurBlock := obEntryBlock.
 	(ir act: a) receiver: (self param: -1).
+	obUnitStart > 0 ifTrue: [(ir act: a) closure: (self param: -2)].
+	obParamSlots := (ir act: a) numArgs.
+	obOsrPc >= 0 ifTrue: [^self buildOsr: a].
+	obValidSlots := (ir act: a) numArgs + (ir act: a) numTemps.
 	0 to: (ir act: a) numArgs - 1 do: [:i | self writeArg: (self var: a slot: i) value: (self param: i)].
 	(ir act: a) numArgs to: (ir act: a) numArgs + (ir act: a) numTemps - 1 do: [:i | self write: (self var: a slot: i) value: (self constant: memory nilOop)].
 	"a failed primitive's error code is in the first temp"
-	((ir act: a) numTemps > 0 and: [(self isInt: (self loadRef: m at: CM_PRIMITIVE)) and: [((self intVal: (self loadRef: m at: CM_PRIMITIVE)) bitAnd: CM_PRIM_ERROR_FLAG) ~= 0]]) ifTrue: [
+	((ir act: a) numTemps > 0 and: [obUnitStart = 0 and: [(self isInt: (self loadRef: m at: CM_PRIMITIVE)) and: [((self intVal: (self loadRef: m at: CM_PRIMITIVE)) bitAnd: CM_PRIM_ERROR_FLAG) ~= 0]]]) ifTrue: [
 		self write: (self var: a slot: (ir act: a) numArgs) value: (self param: (ir act: a) numArgs)].
-	self checkInterruptAct: a pc: 0 depth: (ir act: a) numArgs + (ir act: a) numTemps kind: SP_ENTRY.
+	self checkInterruptAct: a pc: obUnitStart depth: (ir act: a) numArgs + (ir act: a) numTemps kind: SP_ENTRY.
 	b := ir newBlock.
 	self goto: b.
 	obCurBlock := b.
@@ -106,6 +113,35 @@ buildOnce: m
 	self bailed ifTrue: [^false].
 	0 to: ir blockCount - 1 do: [:k | ((ir block: k) flags bitAnd: BF_SEALED) = 0 ifTrue: [self seal: k]].
 	^self bailed not
+!
+buildOsr: a
+	"Enter at loop head obOsrPc: the frame's slots there are the parameters."
+	| b |
+	obValidSlots = (self depthAt: obOsrPc act: a) ifFalse: [^false].
+	obParamSlots := obValidSlots.
+	0 to: obValidSlots - 1 do: [:i |
+		i < (ir act: a) numArgs
+			ifTrue: [self writeArg: (self var: a slot: i) value: (self param: i)]
+			ifFalse: [self write: (self var: a slot: i) value: (self param: i)]].
+	b := self blockAt: obOsrPc act: a.
+	self goto: b.
+	self buildAct: a.
+	self bailed ifTrue: [^false].
+	0 to: ir blockCount - 1 do: [:k | ((ir block: k) flags bitAnd: BF_SEALED) = 0 ifTrue: [self seal: k]].
+	^self bailed not
+!
+entryPc
+	"Where the unit is entered: its start, or the loop head."
+	obOsrPc >= 0 ifTrue: [^obOsrPc].
+	^obUnitStart
+!
+paramSlots
+	"The frame's slots the code reads at its entry and keeps (home slots follow)."
+	^obParamSlots
+!
+validSlots
+	"The frame's slots that hold values at its entry (the others are made nil)."
+	^obValidSlots
 !
 newActFor: m
 	"An activation of method m (not yet linked to a caller), its analysis and pc map; -1 if m cannot be compiled."
@@ -129,6 +165,26 @@ newActFor: m
 	ac varBase: obVarTop.
 	ac retVar: obVarTop + ac nslots.
 	obVarTop := obVarTop + ac nslots + 1.
+	^a
+!
+newBlockActFor: m start: s
+	"The activation of m's block at startpc s, compiled as a unit: its closure the frame's, its outer temps through it (no outer activation), ^ deoptimizes; -1 if m cannot be compiled."
+	<c: 'int32_t opt_new_block_act_for(oop m, int32_t s)'>
+	| a ac fs |
+	a := self newActFor: m.
+	a < 0 ifTrue: [^-1].
+	ac := ir act: a.
+	ac numArgs: (self byteAt: s - 5 act: a) asInt32.
+	ac numTemps: (self byteAt: s - 4 act: a) asInt32.
+	fs := (self byteAt: s - 3 act: a) asInt32.
+	fs < (ac numArgs + ac numTemps) ifTrue: [fs := ac numArgs + ac numTemps].
+	ac startpc: s.
+	ac endpc: s + (((self byteAt: s - 2 act: a) asInt64 << 8 bitOr: (self byteAt: s - 1 act: a)) asInt32).
+	ac home: -1.
+	fs + 4 > ac nslots ifTrue: [
+		ac nslots: fs + 4.
+		ac retVar: ac varBase + ac nslots.
+		obVarTop := ac varBase + ac nslots + 1].
 	^a
 !
 allocPcBlocks: a
@@ -550,19 +606,35 @@ closureAt: pc act: a
 !
 outerTemp: pc act: a depth: d
 	"push (8A), store (8B), pop and store (8C) a temp of an enclosing block or method: inlined, it is that activation's variable."
-	| op t v |
+	| op t v lv |
 	op := self byteAt: pc act: a.
 	t := a.
-	(self byteAt: pc + 1 act: a) timesRepeat: [t >= 0 ifTrue: [t := (ir act: t) outer]].
-	t < 0 ifTrue: [^self bail].
+	lv := (self byteAt: pc + 1 act: a) asInt32.
+	[lv > 0 and: [(ir act: t) outer >= 0]] whileTrue: [
+		t := (ir act: t) outer.
+		lv := lv - 1].
+	lv > 0 ifTrue: [
+		(t = 0 and: [obUnitStart > 0]) ifFalse: [^self bail].
+		^self outerTemp: op levels: lv index: (self byteAt: pc + 2 act: a) act: a depth: d].
 	op = 16r8A ifTrue: [^self push: (self read: (self var: t slot: (self byteAt: pc + 2 act: a))) act: a depth: d].
 	v := self read: (self var: a slot: d - 1).
 	self write: (self var: t slot: (self byteAt: pc + 2 act: a)) value: v
 !
+outerTemp: op levels: lv index: i act: a depth: d
+	"An outer temp of the block unit's closure, lv levels out: in its outerContext chain (or the frame it is married to)."
+	| n |
+	n := self add: (op = 16r8A ifTrue: [O_OUTERLOAD] ifFalse: [O_OUTERSTORE]) rep: (op = 16r8A ifTrue: [R_OOP] ifFalse: [R_NONE]).
+	(ir node: n) a: (ir act: 0) closure.
+	(ir node: n) aux: lv.
+	(ir node: n) aux2: i.
+	op = 16r8A ifTrue: [^self push: n act: a depth: d].
+	(ir node: n) b: (self read: (self var: a slot: d - 1))
+!
 nonLocalReturn: v act: a pc: pc depth: d
-	"^ in a block: return from its home method, inlined here (or the method compiled)."
+	"^ in a block: return from its home method, inlined here (or the method compiled); in a block unit the interpreter does it."
 	| h n |
 	h := (ir act: a) home.
+	(h < 0 and: [obUnitStart > 0]) ifTrue: [^self deoptAct: a state: (self stateAct: a pc: pc depth: d)].
 	(h < 0 or: [(ir act: h) closure >= 0]) ifTrue: [^self bail].
 	(ir act: h) parent >= 0 ifTrue: [
 		self write: (ir act: h) retVar value: v.

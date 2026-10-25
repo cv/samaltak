@@ -1,6 +1,6 @@
 OptModule subclass: #OptRuntime
-	instanceVariableNames: 'ir builder passes regalloc codegen rtDeoptVals rtDeoptCount rtActMethod rtActClosure rtActRcv rtActPc rtActDepth rtActVals rtActCount rtOptYoung rtOptYoungCount rtOptYoungOverflow rtStatOptCompiled rtStatOptFailed rtStatOptBytecodes rtStatOptUs rtStatOptBytes rtStatDeopts rtStatOptOsr rtStatInvalidations rtAll rtAllCount rtSunkAct rtSunkStart rtSunkInfo rtSunkOrder rtSunkCount rtSunkUseVal rtSunkUseId rtSunkUseCount rtWritten'
-	classVariableNames: 'OPT_MAX_DEOPTS OPT_MAX_DEOPT_ACTS OPT_MAX_DEOPT_VALS OPT_MAX_HEADERS OPT_MAX_YOUNG'
+	instanceVariableNames: 'ir builder passes regalloc codegen rtDeoptVals rtDeoptCount rtActMethod rtActClosure rtActRcv rtActPc rtActDepth rtActVals rtActCount rtOptYoung rtOptYoungCount rtOptYoungOverflow rtStatOptCompiled rtStatOptFailed rtStatOptBytecodes rtStatOptUs rtStatOptBytes rtStatDeopts rtStatOptOsr rtStatInvalidations rtAll rtAllCount rtSunkAct rtSunkStart rtSunkInfo rtSunkOrder rtSunkCount rtSunkUseVal rtSunkUseId rtSunkUseCount rtWritten rtUnitStart rtUnitOsr rtUnitDepth rtUnits rtUnitCount'
+	classVariableNames: 'OPT_MAX_UNITS OPT_MAX_DEOPTS OPT_MAX_DEOPT_ACTS OPT_MAX_DEOPT_VALS OPT_MAX_HEADERS OPT_MAX_YOUNG'
 	package: 'VM-Jit'!
 
 OptRuntime comment: 'The optimizing tier''s side of the runtime (docs/jit.md, Optimizing tier): when to optimize (tierUp:), compiling (OptBuilder, OptPasses, OptRegalloc, OptCodegen), sends from optimized code, deoptimization (a guard failed: the registers are in the JitState; after a send: everything is in slots), rebuilding an optimized frame''s activations as frames (deoptimization) or Contexts (materializeAll), resuming an optimized frame the interpreter returns into, the GC roots of optimized code (its method and oop pool).
@@ -18,14 +18,16 @@ declarations
 		(rtStatDeopts uint64_t) (rtStatOptOsr uint64_t) (rtStatInvalidations uint64_t)
 		(rtAll 'JitMethod *[OPT_MAX_HEADERS]') (rtAllCount int32_t)
 		(rtSunkAct 'int32_t[64]') (rtSunkStart 'int32_t[64]') (rtSunkInfo 'int32_t[64]') (rtSunkOrder 'int32_t[64]') (rtSunkCount int32_t)
-		(rtSunkUseVal 'int32_t[OPT_MAX_DEOPT_VALS]') (rtSunkUseId 'int32_t[OPT_MAX_DEOPT_VALS]') (rtSunkUseCount int32_t) (rtWritten int32_t))
+		(rtSunkUseVal 'int32_t[OPT_MAX_DEOPT_VALS]') (rtSunkUseId 'int32_t[OPT_MAX_DEOPT_VALS]') (rtSunkUseCount int32_t) (rtWritten int32_t)
+		(rtUnitStart int32_t) (rtUnitOsr int32_t) (rtUnitDepth int32_t) (rtUnits 'JitMethod *[OPT_MAX_UNITS]') (rtUnitCount int32_t))
 !
 initialize
 	OPT_MAX_DEOPT_VALS := 8192.
 	OPT_MAX_DEOPT_ACTS := 256.
 	OPT_MAX_YOUNG := 1024.
 	OPT_MAX_HEADERS := 16384.
-	OPT_MAX_DEOPTS := 8
+	OPT_MAX_DEOPTS := 8.
+	OPT_MAX_UNITS := 4096
 ! !
 
 !OptRuntime methodsFor: 'statistics'!
@@ -113,22 +115,87 @@ initialCount: m
 	(runtime flag: runtime eagerFlag) ifTrue: [^1].
 	^(runtime optThreshold max: 1) asInt32
 !
-tierUp: f
-	"f's method ran out of its count at f's pc (synced): answer 0 to go on in the lower tier, 1 to leave, or where f continues in optimized code."
-	<c: 'uint64_t opt_tier_up(Frame *f)'>
+tierUp: f loop: loop
+	"f's method ran out of its count at f's pc (synced), its entry or (loop ~= 0) a loop head: answer 0 to go on in the lower tier, 1 to leave, or where f continues in optimized code (at a loop head: on-stack replacement)."
+	<c: 'uint64_t opt_tier_up(Frame *f, int64_t loop)'>
 	<var: #o type: 'JitMethod *'>
-	| m h o |
+	| m h o s k |
 	m := f method.
 	runtime counterFor: m put: 16r3FFFFFFF.
 	h := runtime lookup: m.
 	(runtime hasCode: h) ifFalse: [^0].
-	o := self optOf: h.
-	(o isNull and: [h opt = 0]) ifTrue: [o := self optimize: m lower: h].
-	o isNull ifTrue: [^0].
-	(f pc = 0 and: [f closure = memory nilOop and: [f code = (self cCoerce: h to: 'uint64_t')]]) ifTrue: [
-		f code: (self cCoerce: o to: 'uint64_t').
-		^o start].
-	^0
+	f code = (self cCoerce: h to: 'uint64_t') ifFalse: [^0].
+	s := f closure = memory nilOop ifTrue: [0] ifFalse: [(self intVal: (self loadRef: f closure at: BC_STARTPC)) asInt32].
+	(s = 0 and: [h opt = 0]) ifTrue: [self optimize: m lower: h].
+	k := loop = 0 ifTrue: [0] ifFalse: [f pc + 1].
+	(s = 0 and: [k = 0])
+		ifTrue: [o := self optOf: h]
+		ifFalse: [
+			o := self unitOf: m start: s osr: k.
+			o isNull ifTrue: [o := self optimizeUnit: m start: s osr: k depth: f sp lower: h]].
+	(o isNull or: [(self isAlive: o) not]) ifTrue: [^0].
+	"more units of m may follow (its blocks, its loops, frames resumed in the lower tier)"
+	runtime counterFor: m put: (self initialCount: m).
+	k ~= 0 ifTrue: [rtStatOptOsr := rtStatOptOsr + 1].
+	f code: (self cCoerce: o to: 'uint64_t').
+	^o start
+!
+unitOf: m start: s osr: t
+	"The optimized code of m's block at startpc s (0: m) entered at its start (t 0) or at loop head t - 1, alive or not; null if there is none."
+	<c: 'JitMethod *opt_unit_of(oop m, int32_t s, int32_t t)'>
+	| i h |
+	i := self unitHash: m start: s osr: t.
+	[(h := rtUnits at: i) notNull] whileTrue: [
+		(h method = m and: [h blockStart = s asUInt32 and: [h osrPc = t asUInt32]]) ifTrue: [^h].
+		i := (i + 1) bitAnd: OPT_MAX_UNITS - 1].
+	^self null
+!
+unitHash: m start: s osr: t
+	^(((self hashOf: m) asUInt64 * 31 + s asUInt64) * 31 + t asUInt64) bitAnd: OPT_MAX_UNITS - 1
+!
+blockCodeFor: m start: s
+	"Frame code of a new activation of m's block at s: its optimized code if it may run, else m's (lower tier, or counting)."
+	<c: 'uint64_t opt_block_code(oop m, int32_t s)'>
+	| o |
+	o := self unitOf: m start: s osr: 0.
+	(o notNull and: [self isAlive: o]) ifTrue: [^self cCoerce: o to: 'uint64_t'].
+	^runtime blockCodeFor: m
+!
+optimizeUnit: m start: s osr: t depth: d lower: h
+	"Compile m's block at startpc s (0: m) entered at its start (t 0) or at loop head t - 1 with d slots as a unit of its own; null if it could not."
+	<c: 'JitMethod *opt_optimize_unit(oop m, int32_t s, int32_t t, int32_t d, JitMethod *h)'>
+	| o t0 i |
+	rtUnitCount >= ((OPT_MAX_UNITS quo: 4) * 3) ifTrue: [^self null].
+	rtUnitStart := s.
+	rtUnitOsr := t.
+	rtUnitDepth := d.
+	t0 := runtime nowUs.
+	o := runtime compile: m mode: runtime optMode notes: runtime notes.
+	rtStatOptUs := rtStatOptUs + (runtime nowUs - t0) asUInt64.
+	rtUnitStart := 0.
+	rtUnitOsr := 0.
+	o isNull ifTrue: [^self null].
+	rtAllCount < OPT_MAX_HEADERS
+		ifTrue: [
+			rtAll at: rtAllCount put: o.
+			rtAllCount := rtAllCount + 1]
+		ifFalse: [runtime requestFlush].
+	cache beginWriting.
+	o lower: (self cCoerce: h to: 'uint64_t').
+	o blockStart: s asUInt32.
+	o osrPc: t asUInt32.
+	cache endWriting.
+	self noteYoung: o.
+	i := self unitHash: m start: s osr: t.
+	[(rtUnits at: i) notNull] whileTrue: [i := (i + 1) bitAnd: OPT_MAX_UNITS - 1].
+	rtUnits at: i put: o.
+	rtUnitCount := rtUnitCount + 1.
+	^o
+!
+unitEntry
+	"The pc the unit being compiled is entered at: 0 for a method, a block's startpc, a loop head."
+	rtUnitOsr > 0 ifTrue: [^rtUnitOsr - 1].
+	^rtUnitStart
 !
 optimize: m lower: h
 	"Compile m with the optimizer, link it to its lower-tier header h and install it; null if it could not."
@@ -161,12 +228,12 @@ compile: m
 	limit := libc getenv: 'SAMALTAK_OPT_LIMIT'.
 	(limit notNull and: [rtStatOptCompiled >= (libc atol: limit) asUInt64]) ifTrue: [^false].
 	trace ifTrue: [
-		libc fputs: 'opt: ' to: libc stderr.
+		libc fprintf: libc stderr format: 'opt: (block %d, loop %d) ' with: rtUnitStart with: rtUnitOsr.
 		interpreter printActivation: m receiver: memory nilOop closure: memory nilOop on: libc stderr].
-	ok := (builder build: m) and: [
+	ok := (builder build: m start: rtUnitStart osr: rtUnitOsr - 1 depth: rtUnitDepth) and: [
 		passes cleanup: builder entryBlock.
 		trace ifTrue: [ir print].
-		(regalloc allocate: (ir act: 0) numArgs) and: [
+		(regalloc allocate: builder paramSlots) and: [
 			trace ifTrue: [
 				libc fputs: 'allocated:
 ' to: libc stderr.
@@ -428,6 +495,10 @@ decode: h index: k frame: f regs: regs mode: mode
 	0 to: nacts - 1 do: [:j |
 		rtActMethod at: j put: (self poolAt: (rec at: p) of: h).
 		rtActClosure at: j put: ((rec at: p + 1) < 0 ifTrue: [-1] ifFalse: [self value: (rec at: p + 1) h: h frame: f regs: regs]).
+		(rec at: p + 1) = -2 ifTrue: [
+			"a block unit's closure: its frame's"
+			self push: f closure.
+			rtActClosure at: j put: rtDeoptCount - 1].
 		rtActRcv at: j put: (self value: (rec at: p + 2) h: h frame: f regs: regs).
 		rtActPc at: j put: (rec at: p + 3).
 		d := rec at: p + 4.
@@ -566,6 +637,10 @@ resume: f
 	h := self cCoerce: f code to: 'JitMethod *'.
 	k := f pc - h bcSize asInt32.
 	off := (self isAlive: h) ifTrue: [runtime mapOffsetOf: h pc: f pc] ifFalse: [-1].
+	(off < 0 and: [k < 0]) ifTrue: [
+		"not entered yet: the lower tier runs it"
+		f code: h lower.
+		^runtime addressFor: f].
 	off < 0 ifTrue: [
 		self deoptFrame: f index: k regs: self null mode: 2.
 		^0].
@@ -639,21 +714,24 @@ flushed
 	<c: 'void opt_flushed(void)'>
 	rtOptYoungCount := 0.
 	rtOptYoungOverflow := false.
-	rtAllCount := 0
+	rtAllCount := 0.
+	libc memset: rtUnits value: 0 size: 8 * OPT_MAX_UNITS.
+	rtUnitCount := 0
 ! !
 
 !OptRuntime methodsFor: 'invalidation'!
 invalidate: o
-	"o's assumptions no longer hold: its code must not run again (frames running it deoptimize when they continue); its method is optimized again later."
+	"o's assumptions no longer hold: its code must not run again (frames running it deoptimize when they continue); its method is optimized again later (a block's or loop's unit: not again)."
 	| h |
 	(self isAlive: o) ifFalse: [^self].
 	rtStatInvalidations := rtStatInvalidations + 1.
-	runtime counterFor: o method put: (self initialCount: o method).
-	h := self cCoerce: o lower to: 'JitMethod *'.
-	cache beginWriting.
-	h opt: 0.
-	cache endWriting.
-	runtime codeChanged: o method.
+	(o blockStart = 0 and: [o osrPc = 0]) ifTrue: [
+		runtime counterFor: o method put: (self initialCount: o method).
+		h := self cCoerce: o lower to: 'JitMethod *'.
+		cache beginWriting.
+		h opt: 0.
+		cache endWriting.
+		runtime codeChanged: o method].
 	runtime kill: o
 !
 invalidateSelector: sel
