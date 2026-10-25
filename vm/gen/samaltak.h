@@ -326,6 +326,7 @@ typedef void (*prim_fn)(void);
 #define OPT_MAX_DEOPT_VALS 8192
 #define OPT_MAX_DEPS 256
 #define OPT_MAX_EDGES 8192
+#define OPT_MAX_GENERATIONS 8
 #define OPT_MAX_HEADERS 16384
 #define OPT_MAX_INC 16384
 #define OPT_MAX_NODES 16384
@@ -344,7 +345,9 @@ typedef void (*prim_fn)(void);
 #define OUT_LAZY 4
 #define OUT_SEND 7
 #define OUT_STACK 5
-#define O_BRANCH 31
+#define O_BOTHINT 32
+#define O_BOXF 29
+#define O_BRANCH 41
 #define O_CALL 18
 #define O_CAST 21
 #define O_CHECKINT 19
@@ -352,9 +355,12 @@ typedef void (*prim_fn)(void);
 #define O_CLASSOF 6
 #define O_CLOSURE 25
 #define O_CONST 1
-#define O_DEOPT 33
+#define O_DEOPT 43
 #define O_EQ 7
-#define O_GOTO 30
+#define O_FARITH 30
+#define O_FCMP 31
+#define O_FSQRT 33
+#define O_GOTO 40
 #define O_GUARDCLASS 15
 #define O_GUARDINT 16
 #define O_IADD 9
@@ -365,7 +371,7 @@ typedef void (*prim_fn)(void);
 #define O_INDEXSTORE 23
 #define O_IOR 14
 #define O_ISUB 10
-#define O_LAST 33
+#define O_LAST 43
 #define O_LOADFIELD 4
 #define O_NE 8
 #define O_NOP 0
@@ -373,10 +379,11 @@ typedef void (*prim_fn)(void);
 #define O_OUTERSTORE 27
 #define O_PARAM 2
 #define O_PHI 3
-#define O_RETURN 32
+#define O_RETURN 42
 #define O_SEND 17
 #define O_SIZE 24
 #define O_STOREFIELD 5
+#define O_UNBOXF 28
 #define PF_BLEND_ALPHA 1
 #define PF_BLEND_NONE 0
 #define PF_BLEND_PREMULTIPLIED 2
@@ -442,6 +449,8 @@ typedef void (*prim_fn)(void);
 #define PK_AT 1
 #define PK_ATPUT 2
 #define PK_CLASS 6
+#define PK_FLOAT 64
+#define PK_FSQRT 8
 #define PK_IDENTICAL 7
 #define PK_INT 32
 #define PK_SIZE 3
@@ -469,7 +478,7 @@ typedef void (*prim_fn)(void);
 #define RA_MAX_SAFE 4096
 #define RA_MAX_SAFELIST 262144
 #define RA_MAX_SLOTS 1024
-#define RA_NREGS 20
+#define RA_NREGS 36
 #define REG_D 128
 #define REG_SP 32
 #define REG_W 64
@@ -805,7 +814,7 @@ struct jit_method {
     uint32_t deopts;
     uint32_t block_start;
     uint32_t osr_pc;
-    uint32_t pad3;
+    uint32_t generation;
 };
 _Static_assert(sizeof(jit_method) == 176, "the simulator lays out JitMethod as C does");
 

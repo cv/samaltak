@@ -205,11 +205,17 @@ removeDead
 		changed := false.
 		0 to: ir nodeCount - 1 do: [:n |
 			nd := ir node: n.
-			(nd block >= 0 and: [nd uses = 0 and: [(nd flags bitAnd: NF_PURE) ~= 0 or: [nd op asInt32 = O_PHI or: [nd op asInt32 = O_LOADFIELD or: [nd op asInt32 = O_CLASSOF or: [nd op asInt32 = O_EQ or: [nd op asInt32 = O_NE or: [nd op asInt32 = O_CAST or: [nd op asInt32 = O_CLASSIS or: [nd op asInt32 = O_SIZE or: [nd op asInt32 = O_PARAM and: [nd aux >= 0]]]]]]]]]]]]) ifTrue: [
+			(nd block >= 0 and: [nd uses = 0 and: [(nd flags bitAnd: NF_PURE) ~= 0 or: [nd op asInt32 = O_PHI or: [nd op asInt32 = O_LOADFIELD or: [nd op asInt32 = O_CLASSOF or: [nd op asInt32 = O_EQ or: [nd op asInt32 = O_NE or: [nd op asInt32 = O_CAST or: [nd op asInt32 = O_CLASSIS or: [nd op asInt32 = O_SIZE or: [(nd op asInt32 = O_PARAM and: [nd aux >= 0]) or: [self isFloatPure: nd]]]]]]]]]]]]) ifTrue: [
 				nd a >= 0 ifTrue: [(ir node: nd a) uses: (ir node: nd a) uses - 1].
 				nd b >= 0 ifTrue: [(ir node: nd b) uses: (ir node: nd b) uses - 1].
 				0 to: nd nargs asInt32 - 1 do: [:i | (ir node: (ir operand: nd args + i)) uses: (ir node: (ir operand: nd args + i)) uses - 1].
 				nd flags: (nd flags bitOr: NF_DEAD).
 				ir unlink: n.
 				changed := true]]]
+!
+isFloatPure: nd
+	"A float operation whose result alone it is for (an unused box deoptimizes only where the interpreter would box)."
+	| op |
+	op := nd op asInt32.
+	^op = O_BOXF or: [op = O_FCMP or: [op = O_BOTHINT or: [op = O_FSQRT or: [op = O_FARITH and: [nd aux ~= 9]]]]]
 ! !

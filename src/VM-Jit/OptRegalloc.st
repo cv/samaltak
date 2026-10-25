@@ -19,7 +19,7 @@ initialize
 	RA_MAX_SAFE := 4096.
 	RA_MAX_SAFELIST := 262144.
 	RA_MAX_SLOTS := 1024.
-	RA_NREGS := 20
+	RA_NREGS := 36
 ! !
 
 !OptRegalloc methodsFor: 'accessing'!
@@ -28,7 +28,8 @@ slotCount
 	^raSlotTop
 !
 regAt: i
-	"Allocatable register i: x0-x13, x23-x28."
+	"Allocatable register i: x0-x13, x23-x28, then d16-d31 for doubles."
+	i >= 20 ifTrue: [^D16 + (i - 20)].
 	^i < 14 ifTrue: [i] ifFalse: [i + 9]
 !
 isValue: n
@@ -260,7 +261,7 @@ buildIntervals
 linearScan
 	"Registers in order of interval start; spill the interval that ends last when none is free."
 	<c: 'bool opt_linear_scan(void)'>
-	| v nd j r victim far |
+	| v nd j r victim far lo hi dbl |
 	self sortIntervals.
 	raActiveCount := 0.
 	0 to: RA_NREGS - 1 do: [:i | raFreeRegs at: i put: 1].
@@ -276,8 +277,13 @@ linearScan
 					raActiveCount := raActiveCount - 1.
 					raActive at: j put: (raActive at: raActiveCount)]
 				ifFalse: [j := j + 1]].
+		"doubles: d16-d31, never spilled (a slot must hold an oop)"
+		dbl := nd rep asInt32 = R_DBL.
+		lo := dbl ifTrue: [20] ifFalse: [0].
+		hi := dbl ifTrue: [RA_NREGS - 1] ifFalse: [19].
 		r := -1.
-		0 to: RA_NREGS - 1 do: [:k | (r < 0 and: [(raFreeRegs at: k) = 1]) ifTrue: [r := k]].
+		lo to: hi do: [:k | (r < 0 and: [(raFreeRegs at: k) = 1]) ifTrue: [r := k]].
+		(r < 0 and: [dbl]) ifTrue: [^self fail: 'no register for double v%d' node: v].
 		r >= 0
 			ifTrue: [
 				raFreeRegs at: r put: 0.
@@ -289,7 +295,7 @@ linearScan
 				victim := -1.
 				far := nd lend.
 				0 to: raActiveCount - 1 do: [:k |
-					(ir node: (raActive at: k)) lend > far ifTrue: [
+					((ir node: (raActive at: k)) lend > far and: [(ir node: (raActive at: k)) rep asInt32 ~= R_DBL]) ifTrue: [
 						far := (ir node: (raActive at: k)) lend.
 						victim := k]].
 				victim >= 0
@@ -300,7 +306,14 @@ linearScan
 					ifFalse: [nd reg: -1]]].
 	^true
 !
+fail: why node: v
+	(libc getenv: 'SAMALTAK_OPT_TRACE') notNull ifTrue: [
+		libc fprintf: libc stderr format: why with: v.
+		libc fputc: 10 to: libc stderr].
+	^false
+!
 regIndexOf: reg
+	reg >= D0 ifTrue: [^reg - D16 + 20].
 	^reg < 14 ifTrue: [reg] ifFalse: [reg - 9]
 !
 sortIntervals
@@ -337,6 +350,7 @@ assignSlots
 	0 to: raSortCount - 1 do: [:i |
 		v := raSorted at: i.
 		nd := ir node: v.
+		(nd rep asInt32 = R_DBL and: [self crossesSafepoint: v]) ifTrue: [^self fail: 'double v%d lives across a safepoint' node: v].
 		(nd reg < 0 or: [self crossesSafepoint: v]) ifTrue: [
 			j := 0.
 			[j < raActiveCount] whileTrue: [

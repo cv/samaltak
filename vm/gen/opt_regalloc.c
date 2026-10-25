@@ -6,7 +6,7 @@ static int32_t ra_active[1024];
 static int32_t ra_active_count;
 static int32_t ra_bucket[16384];
 static int32_t ra_bucket_next[16384];
-static int32_t ra_free_regs[20];
+static int32_t ra_free_regs[36];
 static uint64_t ra_live_arena[1048576];
 static int32_t ra_live_in;
 static int32_t ra_live_out;
@@ -58,6 +58,10 @@ static bool opt_assign_slots(void)
     bool r_crosses_safepoint;
     opt_node *nd_2;
     int32_t i_2;
+    bool r_fail;
+    bool r_crosses_safepoint_2;
+    opt_node *nd_3;
+    int32_t i_3;
     int64_t j;
     int32_t n;
     int32_t n_2;
@@ -67,7 +71,7 @@ static bool opt_assign_slots(void)
     for (i = 0; i <= ra_sort_count - 1; i++) {
         v = ra_sorted[i];
         nd = opt_nodes + v;
-        if ((nd->reg < 0) || ({
+        if (((int32_t)nd->rep == R_DBL) && ({
     nd_2 = opt_nodes + v;
     for (i_2 = 0; i_2 <= ra_safe_count - 1; i_2++) {
         if ((ra_safe_pos[i_2] >= nd_2->lstart) && (ra_safe_pos[i_2] < nd_2->lend)) {
@@ -78,6 +82,25 @@ static bool opt_assign_slots(void)
     r_crosses_safepoint = false;
 exit_crosses_safepoint:;
     r_crosses_safepoint; })) {
+            return ({
+    if (getenv("SAMALTAK_OPT_TRACE") != NULL) {
+        fprintf(stderr, "double v%d lives across a safepoint", v);
+        fputc(10, stderr);
+    }
+    r_fail = false;
+    r_fail; });
+        }
+        if ((nd->reg < 0) || ({
+    nd_3 = opt_nodes + v;
+    for (i_3 = 0; i_3 <= ra_safe_count - 1; i_3++) {
+        if ((ra_safe_pos[i_3] >= nd_3->lstart) && (ra_safe_pos[i_3] < nd_3->lend)) {
+            r_crosses_safepoint_2 = true;
+            goto exit_crosses_safepoint_2;
+        }
+    }
+    r_crosses_safepoint_2 = false;
+exit_crosses_safepoint_2:;
+    r_crosses_safepoint_2; })) {
             j = 0;
             while (j < ra_active_count) {
                 n = ra_active[j];
@@ -406,8 +429,14 @@ static bool opt_linear_scan(void)
     int32_t n_2;
     int32_t n_3;
     int32_t reg;
+    int32_t r_reg_index_of;
+    bool dbl;
+    int lo;
+    int hi;
     int64_t r;
     int k;
+    bool r_fail;
+    int64_t r_reg_at;
     int64_t victim;
     int32_t far;
     int32_t k_2;
@@ -415,6 +444,7 @@ static bool opt_linear_scan(void)
     int32_t n_5;
     int32_t n_6;
     int32_t n_7;
+    int32_t n_8;
     for (i = 0; i <= ra_max_pos; i++) {
         ra_bucket[i] = -1;
     }
@@ -438,7 +468,7 @@ static bool opt_linear_scan(void)
         }
     }
     ra_active_count = 0;
-    for (i_3 = 0; i_3 <= 19; i_3++) {
+    for (i_3 = 0; i_3 <= 35; i_3++) {
         ra_free_regs[i_3] = 1;
     }
     for (i_4 = 0; i_4 <= ra_sort_count - 1; i_4++) {
@@ -450,22 +480,48 @@ static bool opt_linear_scan(void)
             if ((opt_nodes + n_2)->lend < nd->lstart) {
                 n_3 = ra_active[j];
                 reg = (int32_t)(opt_nodes + n_3)->reg;
-                ra_free_regs[reg < 14 ? reg : reg - 9] = 1;
+                ra_free_regs[({
+    if (reg >= D0) {
+        r_reg_index_of = reg - D16 + 20;
+        goto exit_reg_index_of;
+    }
+    r_reg_index_of = reg < 14 ? reg : reg - 9;
+exit_reg_index_of:;
+    r_reg_index_of; })] = 1;
                 ra_active_count = ra_active_count - 1;
                 ra_active[j] = ra_active[ra_active_count];
             } else {
                 j = j + 1;
             }
         }
+        dbl = (int32_t)nd->rep == R_DBL;
+        lo = dbl ? 20 : 0;
+        hi = dbl ? 35 : 19;
         r = -1;
-        for (k = 0; k <= 19; k++) {
+        for (k = lo; k <= hi; k++) {
             if ((r < 0) && (ra_free_regs[k] == 1)) {
                 r = k;
             }
         }
+        if ((r < 0) && dbl) {
+            return ({
+    if (getenv("SAMALTAK_OPT_TRACE") != NULL) {
+        fprintf(stderr, "no register for double v%d", v);
+        fputc(10, stderr);
+    }
+    r_fail = false;
+    r_fail; });
+        }
         if (r >= 0) {
             ra_free_regs[r] = 0;
-            nd->reg = (int16_t)(r < 14 ? r : r + 9);
+            nd->reg = (int16_t)({
+    if (r >= 20) {
+        r_reg_at = D16 + (r - 20);
+        goto exit_reg_at;
+    }
+    r_reg_at = r < 14 ? r : r + 9;
+exit_reg_at:;
+    r_reg_at; });
             if (ra_active_count >= RA_MAX_ACTIVE) {
                 return false;
             }
@@ -476,17 +532,19 @@ static bool opt_linear_scan(void)
             far = nd->lend;
             for (k_2 = 0; k_2 <= ra_active_count - 1; k_2++) {
                 n_4 = ra_active[k_2];
-                if ((opt_nodes + n_4)->lend > far) {
-                    n_5 = ra_active[k_2];
-                    far = (opt_nodes + n_5)->lend;
+                if (((opt_nodes + n_4)->lend > far) && ({
+    n_5 = ra_active[k_2];
+    (int32_t)(opt_nodes + n_5)->rep != R_DBL; })) {
+                    n_6 = ra_active[k_2];
+                    far = (opt_nodes + n_6)->lend;
                     victim = k_2;
                 }
             }
             if (victim >= 0) {
-                n_6 = ra_active[victim];
-                nd->reg = (opt_nodes + n_6)->reg;
                 n_7 = ra_active[victim];
-                (opt_nodes + n_7)->reg = -1;
+                nd->reg = (opt_nodes + n_7)->reg;
+                n_8 = ra_active[victim];
+                (opt_nodes + n_8)->reg = -1;
                 ra_active[victim] = v;
             } else {
                 nd->reg = -1;

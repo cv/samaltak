@@ -44,7 +44,7 @@ static uint64_t opt_deopt_frame(frame *f, int64_t k, uint64_t *regs, int32_t mod
 static int64_t opt_frame_size_of(oop m, oop c);
 static void opt_make_sunk(int32_t s, oop ctx);
 static jit_method *opt_optimize(oop m, jit_method *h);
-static jit_method *opt_optimize_unit(oop m, int32_t s, int32_t t, int32_t d, jit_method *h);
+static jit_method *opt_optimize_unit(oop m, int32_t s, int32_t t, int32_t d, jit_method *h, jit_method *p);
 static void opt_trace_deopt(jit_method *h, int64_t k, int32_t mode);
 static jit_method *opt_unit_of(oop m, int32_t s, int32_t t);
 
@@ -456,27 +456,59 @@ uint64_t opt_deopt_guard(frame *f, int64_t k)
     jit_method *h;
     int32_t why;
     uint64_t r;
+    int64_t r_operand_flags;
+    frame *g;
+    int64_t fl;
+    int32_t i;
+    oop v;
+    bool fresh;
     oop m;
+    int32_t pc;
+    oop m_2;
     int32_t n;
     jit_method *h_2;
     h = (jit_method *)f->code;
     why = (h->meta + h->sp_table[k])[0] >> 8;
+    if (((jit_flags & JIT_FLAG_DEOPT) != 0) && (state_block->stress <= 0)) {
+        why = 0;
+    }
     r = opt_deopt_frame(f, k, state_block->dump, 0);
+    if (why == FB_DEOPT_ARITH) {
+        why = why | ((int32_t)({
+    g = frames + (nframes - 1);
+    fl = 0;
+    for (i = g->sp - 2; i <= g->sp - 1; i++) {
+        if (i >= 0) {
+            v = g->fp[i];
+            if (((v & 7) == 4) || (((v & 7) == 0) && (*(uint64_t *)(v + 8) == cls_boxedfloat))) {
+                fl = fl | FB_FLOAT;
+            } else if (!((v & 1) != 0)) {
+                fl = fl | FB_NONINT;
+            }
+        }
+    }
+    r_operand_flags = fl;
+    r_operand_flags; }));
+    }
+    fresh = false;
     if (why != 0) {
-        jit_note_flags(rt_act_method[rt_act_count - 1], rt_act_pc[rt_act_count - 1], (uint32_t)why);
+        m = rt_act_method[rt_act_count - 1];
+        pc = rt_act_pc[rt_act_count - 1];
+        fresh = (fb_flags_at(m, pc) & ((uint32_t)why)) != (uint32_t)why;
+        jit_note_flags(m, pc, (uint32_t)why);
     }
     pthread_jit_write_protect_np(0);
     h->deopts = h->deopts + 1;
     pthread_jit_write_protect_np(1);
-    if (h->deopts > OPT_MAX_DEOPTS) {
+    if (fresh || (h->deopts > OPT_MAX_DEOPTS)) {
         if (!((h != NULL) && ((h->flags & JM_FAILED) == 0) && ((h->flags & 2) == 0))) {
             goto exit_invalidate;
         }
         rt_stat_invalidations = rt_stat_invalidations + 1;
         if ((h->block_start == 0) && (h->osr_pc == 0)) {
-            m = h->method;
+            m_2 = h->method;
             n = opt_initial_count(h->method);
-            opt_counts[((uint32_t)(((*(uint64_t *)m) >> H_HASH_SHIFT) & H_HASH_MASK)) & 65535] = n;
+            opt_counts[((uint32_t)(((*(uint64_t *)m_2) >> H_HASH_SHIFT) & H_HASH_MASK)) & 65535] = n;
             h_2 = (jit_method *)h->lower;
             pthread_jit_write_protect_np(0);
             h_2->opt = 0;
@@ -844,8 +876,8 @@ exit_note_young:;
     return o;
 }
 
-/* OptRuntime>>optimizeUnit:start:osr:depth:lower: */
-static jit_method *opt_optimize_unit(oop m, int32_t s, int32_t t, int32_t d, jit_method *h)
+/* OptRuntime>>optimizeUnit:start:osr:depth:lower:previous: */
+static jit_method *opt_optimize_unit(oop m, int32_t s, int32_t t, int32_t d, jit_method *h, jit_method *p)
 {
     int64_t t0;
     jit_method *o;
@@ -879,6 +911,9 @@ static jit_method *opt_optimize_unit(oop m, int32_t s, int32_t t, int32_t d, jit
     o->lower = (uint64_t)h;
     o->block_start = (uint32_t)s;
     o->osr_pc = (uint32_t)t;
+    if (p != NULL) {
+        o->generation = p->generation + 1;
+    }
     pthread_jit_write_protect_np(1);
     o_2 = o->method;
     young = (uint64_t)(o_2 - young_lo) < young_hi - young_lo;
@@ -901,11 +936,13 @@ static jit_method *opt_optimize_unit(oop m, int32_t s, int32_t t, int32_t d, jit
     }
 exit_note_young:;
     i = (((uint64_t)(uint32_t)(((*(uint64_t *)m) >> H_HASH_SHIFT) & H_HASH_MASK) * 31 + (uint64_t)s) * 31 + (uint64_t)t) & 4095;
-    while (rt_units[i] != NULL) {
+    while ((rt_units[i] != NULL) && (rt_units[i] != p)) {
         i = (i + 1) & 4095;
     }
+    if (rt_units[i] == NULL) {
+        rt_unit_count = rt_unit_count + 1;
+    }
     rt_units[i] = o;
-    rt_unit_count = rt_unit_count + 1;
     return o;
 }
 
@@ -1204,8 +1241,8 @@ exit_opt_of:;
     r_opt_of; });
     } else {
         o = opt_unit_of(m, s, k);
-        if (o == NULL) {
-            o = opt_optimize_unit(m, s, k, f->sp, h);
+        if ((o == NULL) || ((!((o != NULL) && ((o->flags & JM_FAILED) == 0) && ((o->flags & 2) == 0))) && (o->generation < OPT_MAX_GENERATIONS))) {
+            o = opt_optimize_unit(m, s, k, f->sp, h, o);
         }
     }
     if ((o == NULL) || (!((o != NULL) && ((o->flags & JM_FAILED) == 0) && ((o->flags & 2) == 0)))) {

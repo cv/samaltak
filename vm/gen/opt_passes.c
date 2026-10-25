@@ -167,6 +167,8 @@ static void opt_remove_dead(void)
     bool changed;
     int32_t n;
     opt_node *nd;
+    bool r_is_float_pure;
+    int32_t op;
     int32_t n_2;
     int32_t n_3;
     int32_t n_4;
@@ -181,7 +183,10 @@ static void opt_remove_dead(void)
         changed = false;
         for (n = 0; n <= opt_node_count - 1; n++) {
             nd = opt_nodes + n;
-            if ((nd->block >= 0) && ((nd->uses == 0) && (((nd->flags & NF_PURE) != 0) || (((int32_t)nd->op == O_PHI) || (((int32_t)nd->op == O_LOADFIELD) || (((int32_t)nd->op == O_CLASSOF) || (((int32_t)nd->op == O_EQ) || (((int32_t)nd->op == O_NE) || (((int32_t)nd->op == O_CAST) || (((int32_t)nd->op == O_CLASSIS) || (((int32_t)nd->op == O_SIZE) || (((int32_t)nd->op == O_PARAM) && (nd->aux >= 0))))))))))))) {
+            if ((nd->block >= 0) && ((nd->uses == 0) && (((nd->flags & NF_PURE) != 0) || (((int32_t)nd->op == O_PHI) || (((int32_t)nd->op == O_LOADFIELD) || (((int32_t)nd->op == O_CLASSOF) || (((int32_t)nd->op == O_EQ) || (((int32_t)nd->op == O_NE) || (((int32_t)nd->op == O_CAST) || (((int32_t)nd->op == O_CLASSIS) || (((int32_t)nd->op == O_SIZE) || ((((int32_t)nd->op == O_PARAM) && (nd->aux >= 0)) || ({
+    op = (int32_t)nd->op;
+    r_is_float_pure = (op == O_BOXF) || ((op == O_FCMP) || ((op == O_BOTHINT) || ((op == O_FSQRT) || ((op == O_FARITH) && (nd->aux != 9)))));
+    r_is_float_pure; }))))))))))))) {
                 if (nd->a >= 0) {
                     n_2 = nd->a;
                     n_3 = nd->a;

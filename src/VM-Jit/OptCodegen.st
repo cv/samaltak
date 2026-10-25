@@ -1,5 +1,5 @@
 OptModule subclass: #OptCodegen
-	instanceVariableNames: 'ir passes regalloc cgCodeStart cgBcSize cgValidSlots cgEntryPc cgSlotTop cgMaxOut cgExitPlainLabel cgExitSyncLabel cgDeoptLabel cgReturnLabel cgHeaderLabel cgSendLabel cgInterruptLabel cgBarrierLabel cgDeoptReturnLabel cgStackFullLabel cgOuts cgOutCount cgPoolOops cgPoolLabels cgPoolCount cgMetaWords cgMetaCount cgSpOffsets cgSpCount cgMoveSrc cgMoveDst cgMoveLoc cgMoveCount cgRootAct cgLastPc builder cgDeps cgDepCount cgSunk cgSunkCount cgChainActs cgChainCount'
+	instanceVariableNames: 'ir passes regalloc cgCodeStart cgBcSize cgValidSlots cgEntryPc cgSlotTop cgMaxOut cgExitPlainLabel cgExitSyncLabel cgDeoptLabel cgReturnLabel cgHeaderLabel cgSendLabel cgInterruptLabel cgBarrierLabel cgDeoptReturnLabel cgStackFullLabel cgOuts cgOutCount cgPoolOops cgPoolLabels cgPoolCount cgMetaWords cgMetaCount cgSpOffsets cgSpCount cgMoveSrc cgMoveDst cgMoveLoc cgMoveCount cgRootAct cgLastPc builder cgDeps cgDepCount cgSunk cgSunkCount cgChainActs cgChainCount cgDoubles'
 	classVariableNames: 'CG_MAX_META CG_MAX_MOVES CG_MAX_OUT CG_MAX_POOL CG_MAX_SP OUT_BARRIER OUT_BOTTOM OUT_DEOPT OUT_INTERRUPT OUT_LAZY OUT_SEND OUT_STACK'
 	package: 'VM-Jit'!
 
@@ -18,7 +18,7 @@ declarations
 		(cgMetaWords 'int32_t[CG_MAX_META]') (cgMetaCount int32_t) (cgSpOffsets 'int32_t[CG_MAX_SP]') (cgSpCount int32_t)
 		(cgMoveSrc 'int32_t[CG_MAX_MOVES]') (cgMoveDst 'int32_t[CG_MAX_MOVES]') (cgMoveLoc 'int32_t[CG_MAX_MOVES]') (cgMoveCount int32_t) (cgRootAct int32_t) (cgLastPc int32_t)
 		(builder OptBuilder) (cgDeps 'int32_t[256]') (cgDepCount int32_t)
-		(cgSunk 'int32_t[64]') (cgSunkCount int32_t) (cgChainActs 'int32_t[512]') (cgChainCount int32_t))
+		(cgSunk 'int32_t[64]') (cgSunkCount int32_t) (cgDoubles bool) (cgChainActs 'int32_t[512]') (cgChainCount int32_t))
 !
 initialize
 	CG_MAX_OUT := 4096.
@@ -77,6 +77,8 @@ generate: m act: a
 	cgSlotTop := regalloc slotCount.
 	cgSlotTop < cgValidSlots ifTrue: [cgSlotTop := cgValidSlots].
 	cgMaxOut := self maxOutgoing asInt32.
+	cgDoubles := false.
+	0 to: ir nodeCount - 1 do: [:i | ((ir node: i) block >= 0 and: [(ir node: i) rep asInt32 = R_DBL]) ifTrue: [cgDoubles := true]].
 	cgOutCount := 0.
 	cgPoolCount := 0.
 	cgMetaCount := 0.
@@ -269,7 +271,8 @@ emitNode: n block: b next: nextBlock
 		asm orr: r with: X16 imm: 1.
 		^self def: n from: r].
 	op = O_CLASSOF ifTrue: [^self emitClassOf: n].
-	(op = O_EQ or: [op = O_NE or: [op = O_ICMP or: [op = O_CLASSIS]]]) ifTrue: [
+	(op = O_UNBOXF or: [op = O_BOXF or: [op = O_FARITH or: [op = O_FSQRT]]]) ifTrue: [^self emitFloat: n].
+	(op = O_EQ or: [op = O_NE or: [op = O_ICMP or: [op = O_CLASSIS or: [op = O_FCMP or: [op = O_BOTHINT]]]]]) ifTrue: [
 		(self isFused: n) ifTrue: [^self].
 		self emitCompare: n.
 		r := self dst: n.
@@ -328,14 +331,23 @@ conditionOf: n
 	nd op asInt32 = O_EQ ifTrue: [^COND_EQ].
 	nd op asInt32 = O_CLASSIS ifTrue: [^COND_EQ].
 	nd op asInt32 = O_NE ifTrue: [^COND_NE].
+	nd op asInt32 = O_BOTHINT ifTrue: [^COND_EQ].
 	k := nd aux asInt32.
+	"floats: unordered (NaN) compares false, except ~="
+	nd op asInt32 = O_FCMP ifTrue: [^k caseOf: {[2] -> [COND_MI]. [3] -> [COND_GT]. [4] -> [COND_LS]. [5] -> [COND_GE]. [6] -> [COND_EQ]} otherwise: [COND_NE]].
 	^k caseOf: {[2] -> [COND_LT]. [3] -> [COND_GT]. [4] -> [COND_LE]. [5] -> [COND_GE]. [6] -> [COND_EQ]} otherwise: [COND_NE]
 !
 emitCompare: n
 	| nd x y |
 	nd := ir node: n.
+	nd op asInt32 = O_FCMP ifTrue: [^asm fcmp: (self dsrc: nd a) with: (self dsrc: nd b)].
 	x := self src: nd a into: X14.
 	nd op asInt32 = O_CLASSIS ifTrue: [^self emitClassTest: x class: nd aux asUInt64].
+	nd op asInt32 = O_BOTHINT ifTrue: [
+		y := self src: nd b into: X15.
+		asm and: X16 with: x with: y.
+		asm and: X16 with: X16 imm: 1.
+		^asm cmp: X16 imm: 1].
 	((ir node: nd b) op asInt32 = O_CONST and: [(self isInt: (ir node: nd b) aux asUInt64) and: [(ir node: nd b) aux between: -4095 and: 4095]])
 		ifTrue: [
 			(ir node: nd b) aux >= 0
@@ -373,6 +385,78 @@ emitBranch: n block: b next: nextBlock
 		asm cmp: rv with: X16.
 		asm b: s if: COND_NE].
 	f ~= nextBlock ifTrue: [asm b: fl]
+!
+dsrc: v
+	"v's D register (doubles always have one)."
+	(ir node: v) reg >= D0 ifTrue: [^(ir node: v) reg asInt32].
+	asm fail: ASM_ERR_OPERAND.
+	^D0
+!
+emitFloat: n
+	"Unboxing (a SmallFloat64 decoded, a SmallInteger converted), boxing (as a SmallFloat64), arithmetic and sqrt on doubles; what does not fit deoptimizes."
+	| nd op s x r int done zero store k |
+	nd := ir node: n.
+	op := nd op asInt32.
+	op = O_UNBOXF ifTrue: [
+		x := self src: nd a into: X15.
+		r := self dsrc: n.
+		(ir node: nd a) tkind asInt32 ~= T_FLOAT ifTrue: [
+			s := self deoptLabelFor: n.
+			int := asm newLabel.
+			done := asm newLabel.
+			asm tbnz: x bit: 0 to: int.
+			asm and: X16 with: x imm: 7.
+			asm cmp: X16 imm: 4.
+			asm b: s if: COND_NE].
+		asm comment: 'a SmallFloat64''s double'.
+		asm lsr: X16 with: x imm: 3.
+		asm mov: X17 imm: 16r7000000000000000.
+		asm add: X17 with: X16 with: X17.
+		asm cmp: X16 imm: 1.
+		asm csel: X16 with: X16 with: X17 cond: COND_LS.
+		asm ror: X16 with: X16 imm: 1.
+		asm fmov: r with: X16.
+		(ir node: nd a) tkind asInt32 ~= T_FLOAT ifTrue: [
+			asm b: done.
+			asm bind: int.
+			asm asr: X16 with: x imm: 1.
+			asm scvtf: r with: X16.
+			asm bind: done].
+		^self].
+	op = O_BOXF ifTrue: [
+		s := self deoptLabelFor: n.
+		zero := asm newLabel.
+		store := asm newLabel.
+		asm comment: 'as a SmallFloat64 (out of its exponent range: deoptimize)'.
+		asm fmov: X16 with: (self dsrc: nd a).
+		asm lsl: X17 with: X16 imm: 1.
+		asm cbz: X17 to: zero.
+		asm ubfx: X15 with: X16 lsb: 52 width: 11.
+		asm sub: X15 with: X15 imm: 897.
+		asm cmp: X15 imm: 253.
+		asm b: s if: COND_HI.
+		asm ror: X17 with: X16 imm: 63.
+		asm mov: X15 imm: 16r7000000000000000.
+		asm sub: X17 with: X17 with: X15.
+		asm b: store.
+		asm bind: zero.
+		asm lsr: X17 with: X16 imm: 63.
+		asm bind: store.
+		r := self dst: n.
+		asm lsl: r with: X17 imm: 3.
+		asm orr: r with: r imm: 4.
+		^self def: n from: r].
+	op = O_FSQRT ifTrue: [^asm fsqrt: (self dsrc: n) with: (self dsrc: nd a)].
+	k := nd aux asInt32.
+	k = 9 ifTrue: [
+		s := self deoptLabelFor: n.
+		asm comment: 'division by zero: deoptimize'.
+		asm fcmpZero: (self dsrc: nd b).
+		asm b: s if: COND_EQ].
+	k = 0 ifTrue: [^asm fadd: (self dsrc: n) with: (self dsrc: nd a) with: (self dsrc: nd b)].
+	k = 1 ifTrue: [^asm fsub: (self dsrc: n) with: (self dsrc: nd a) with: (self dsrc: nd b)].
+	k = 8 ifTrue: [^asm fmul: (self dsrc: n) with: (self dsrc: nd a) with: (self dsrc: nd b)].
+	asm fdiv: (self dsrc: n) with: (self dsrc: nd a) with: (self dsrc: nd b)
 !
 emitSizeOf: x kind: ek fixed: fixed
 	"X16 := the number of indexable elements of x (pointer slots after fixed fields, or bytes); uses X17."
@@ -953,11 +1037,13 @@ emitBarrierCall: o
 	obj := o index bitAnd: 255.
 	v := o index >> 8.
 	0 to: 7 do: [:i | asm stp: 2 * i with: 2 * i + 1 base: SP preIndex: -16].
+	cgDoubles ifTrue: [0 to: 7 do: [:i | asm stp: D16 + (2 * i) with: D16 + (2 * i) + 1 base: SP preIndex: -16]].
 	asm mov: X16 with: obj.
 	asm mov: X17 with: v.
 	asm mov: X0 with: X16.
 	asm mov: X1 with: X17.
 	asm bl: cgBarrierLabel.
+	cgDoubles ifTrue: [7 to: 0 by: -1 do: [:i | asm ldp: D16 + (2 * i) with: D16 + (2 * i) + 1 base: SP postIndex: 16]].
 	7 to: 0 by: -1 do: [:i | asm ldp: 2 * i with: 2 * i + 1 base: SP postIndex: 16].
 	asm b: o resume
 ! !

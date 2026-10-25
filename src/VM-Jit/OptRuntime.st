@@ -1,6 +1,6 @@
 OptModule subclass: #OptRuntime
 	instanceVariableNames: 'ir builder passes regalloc codegen rtDeoptVals rtDeoptCount rtActMethod rtActClosure rtActRcv rtActPc rtActDepth rtActVals rtActCount rtOptYoung rtOptYoungCount rtOptYoungOverflow rtStatOptCompiled rtStatOptFailed rtStatOptBytecodes rtStatOptUs rtStatOptBytes rtStatDeopts rtStatOptOsr rtStatInvalidations rtAll rtAllCount rtSunkAct rtSunkStart rtSunkInfo rtSunkOrder rtSunkCount rtSunkUseVal rtSunkUseId rtSunkUseCount rtWritten rtUnitStart rtUnitOsr rtUnitDepth rtUnits rtUnitCount'
-	classVariableNames: 'OPT_MAX_UNITS OPT_MAX_DEOPTS OPT_MAX_DEOPT_ACTS OPT_MAX_DEOPT_VALS OPT_MAX_HEADERS OPT_MAX_YOUNG'
+	classVariableNames: 'OPT_MAX_UNITS OPT_MAX_GENERATIONS OPT_MAX_DEOPTS OPT_MAX_DEOPT_ACTS OPT_MAX_DEOPT_VALS OPT_MAX_HEADERS OPT_MAX_YOUNG'
 	package: 'VM-Jit'!
 
 OptRuntime comment: 'The optimizing tier''s side of the runtime (docs/jit.md, Optimizing tier): when to optimize (tierUp:), compiling (OptBuilder, OptPasses, OptRegalloc, OptCodegen), sends from optimized code, deoptimization (a guard failed: the registers are in the JitState; after a send: everything is in slots), rebuilding an optimized frame''s activations as frames (deoptimization) or Contexts (materializeAll), resuming an optimized frame the interpreter returns into, the GC roots of optimized code (its method and oop pool).
@@ -27,6 +27,7 @@ initialize
 	OPT_MAX_YOUNG := 1024.
 	OPT_MAX_HEADERS := 16384.
 	OPT_MAX_DEOPTS := 8.
+	OPT_MAX_GENERATIONS := 8.
 	OPT_MAX_UNITS := 4096
 ! !
 
@@ -132,7 +133,8 @@ tierUp: f loop: loop
 		ifTrue: [o := self optOf: h]
 		ifFalse: [
 			o := self unitOf: m start: s osr: k.
-			o isNull ifTrue: [o := self optimizeUnit: m start: s osr: k depth: f sp lower: h]].
+			(o isNull or: [(self isAlive: o) not and: [o generation < OPT_MAX_GENERATIONS]]) ifTrue: [
+				o := self optimizeUnit: m start: s osr: k depth: f sp lower: h previous: o]].
 	(o isNull or: [(self isAlive: o) not]) ifTrue: [^0].
 	"more units of m may follow (its blocks, its loops, frames resumed in the lower tier)"
 	runtime counterFor: m put: (self initialCount: m).
@@ -161,9 +163,9 @@ blockCodeFor: m start: s
 	(o notNull and: [self isAlive: o]) ifTrue: [^self cCoerce: o to: 'uint64_t'].
 	^runtime blockCodeFor: m
 !
-optimizeUnit: m start: s osr: t depth: d lower: h
-	"Compile m's block at startpc s (0: m) entered at its start (t 0) or at loop head t - 1 with d slots as a unit of its own; null if it could not."
-	<c: 'JitMethod *opt_optimize_unit(oop m, int32_t s, int32_t t, int32_t d, JitMethod *h)'>
+optimizeUnit: m start: s osr: t depth: d lower: h previous: p
+	"Compile m's block at startpc s (0: m) entered at its start (t 0) or at loop head t - 1 with d slots as a unit of its own, in place of p (invalidated) if not null; null if it could not."
+	<c: 'JitMethod *opt_optimize_unit(oop m, int32_t s, int32_t t, int32_t d, JitMethod *h, JitMethod *p)'>
 	| o t0 i |
 	rtUnitCount >= ((OPT_MAX_UNITS quo: 4) * 3) ifTrue: [^self null].
 	rtUnitStart := s.
@@ -184,12 +186,13 @@ optimizeUnit: m start: s osr: t depth: d lower: h
 	o lower: (self cCoerce: h to: 'uint64_t').
 	o blockStart: s asUInt32.
 	o osrPc: t asUInt32.
+	p notNull ifTrue: [o generation: p generation + 1].
 	cache endWriting.
 	self noteYoung: o.
 	i := self unitHash: m start: s osr: t.
-	[(rtUnits at: i) notNull] whileTrue: [i := (i + 1) bitAnd: OPT_MAX_UNITS - 1].
+	[(rtUnits at: i) notNull and: [(rtUnits at: i) ~= p]] whileTrue: [i := (i + 1) bitAnd: OPT_MAX_UNITS - 1].
+	(rtUnits at: i) isNull ifTrue: [rtUnitCount := rtUnitCount + 1].
 	rtUnits at: i put: o.
-	rtUnitCount := rtUnitCount + 1.
 	^o
 !
 unitEntry
@@ -375,17 +378,38 @@ stackFull: f
 deoptGuard: f index: k
 	"A guard of f's code failed at safepoint k; the registers are in the JitState's dump. Rebuild f's activations as frames; the interpreter continues the top one."
 	<c: 'uint64_t opt_deopt_guard(Frame *f, int64_t k)'>
-	| h why r |
+	| h why r m pc fresh |
 	h := self cCoerce: f code to: 'JitMethod *'.
 	why := ((self recordOf: h index: k) at: 0) >> 8.
+	"--jit-flags deopt: no feedback from the stress"
+	((runtime flag: runtime deoptFlag) and: [runtime state stress <= 0]) ifTrue: [why := 0].
 	r := self deoptFrame: f index: k regs: runtime state dump mode: 0.
-	"the innermost activation's method and pc: where the guard's bytecode is"
-	why ~= 0 ifTrue: [feedback noteFlags: (rtActMethod at: rtActCount - 1) pc: (rtActPc at: rtActCount - 1) flags: why asUInt32].
+	"the innermost activation's method and pc: where the guard's bytecode is; feedback it had not given: compile again now"
+	why = feedback deoptArith ifTrue: [why := why bitOr: self operandFlags asInt32].
+	fresh := false.
+	why ~= 0 ifTrue: [
+		m := rtActMethod at: rtActCount - 1.
+		pc := rtActPc at: rtActCount - 1.
+		fresh := ((feedback flagsAt: m pc: pc) bitAnd: why asUInt32) ~= why asUInt32.
+		feedback noteFlags: m pc: pc flags: why asUInt32].
 	cache beginWriting.
 	h deopts: h deopts + 1.
 	cache endWriting.
-	h deopts > OPT_MAX_DEOPTS ifTrue: [self invalidate: h].
+	(fresh or: [h deopts > OPT_MAX_DEOPTS]) ifTrue: [self invalidate: h].
 	^r
+!
+operandFlags
+	"An arithmetic guard failed: the operands on top of the rebuilt top frame were Floats, or something neither a Float nor a SmallInteger (feedback)."
+	| g v fl |
+	g := interpreter frames + (interpreter nframes - 1).
+	fl := 0.
+	g sp - 2 to: g sp - 1 do: [:i |
+		i >= 0 ifTrue: [
+			v := g fp at: i.
+			((v bitAnd: 7) = 4 or: [(self isPtr: v) and: [(self rawClass: v) = memory clsBoxedfloat]])
+				ifTrue: [fl := fl bitOr: feedback sawFloat]
+				ifFalse: [(self isInt: v) ifFalse: [fl := fl bitOr: feedback sawNonInt]]]].
+	^fl
 !
 returnBottom: f index: k
 	"Frame f (the bottom frame) returns into activeCtx at safepoint k (its state: the return bytecode, the result on top; the registers in the JitState's dump), as the interpreter's returnTop does; if activeCtx is dead the interpreter does it (deoptimize)."
@@ -721,7 +745,7 @@ flushed
 
 !OptRuntime methodsFor: 'invalidation'!
 invalidate: o
-	"o's assumptions no longer hold: its code must not run again (frames running it deoptimize when they continue); its method is optimized again later (a block's or loop's unit: not again)."
+	"o's assumptions no longer hold: its code must not run again (frames running it deoptimize when they continue); its method or unit is optimized again later."
 	| h |
 	(self isAlive: o) ifFalse: [^self].
 	rtStatInvalidations := rtStatInvalidations + 1.

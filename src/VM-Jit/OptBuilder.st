@@ -1,6 +1,6 @@
 OptModule subclass: #OptBuilder
-	instanceVariableNames: 'ir obCurBlock obBailed obVarTop obDefKeys obDefVals obDefCount obIncPhis obIncVars obIncCount obAnaMethods obAnaBases obAnaCount obAnaTop obAnaDepth obAnaFlag obAnaBack obPcBlocks obPcbTop obEntryBlock obRootMethod obInlined obDeps obDepCount obPrimKinds obPrimsKnown obNoInline obNoInlineCount obArgVals obArgFlags obUnitStart obOsrPc obParamSlots obValidSlots'
-	classVariableNames: 'OA_BLOCK OA_LOOP OA_START OA_TARGET OPT_MAX_VARS OPT_MAX_NOINLINE OPT_MAX_PRIM PK_AT PK_ATPUT PK_CLASS PK_IDENTICAL PK_INT PK_SIZE PK_STRINGAT PK_STRINGATPUT OPT_INLINE_BUDGET OPT_INLINE_DEPTH OPT_INLINE_SIZE OPT_MAX_ANA OPT_MAX_DEPS OPT_MAX_INC'
+	instanceVariableNames: 'ir obCurBlock obBailed obVarTop obDefKeys obDefVals obDefCount obIncPhis obIncVars obIncCount obAnaMethods obAnaBases obAnaCount obAnaTop obAnaDepth obAnaFlag obAnaBack obPcBlocks obPcbTop obEntryBlock obRootMethod obInlined obDeps obDepCount obPrimKinds obPrimsKnown obNoInline obNoInlineCount obArgVals obArgFlags obUnitStart obOsrPc obParamSlots obValidSlots obSafeEpoch obAnaFloat'
+	classVariableNames: 'OA_BLOCK OA_LOOP OA_START OA_TARGET OPT_MAX_VARS OPT_MAX_NOINLINE OPT_MAX_PRIM PK_AT PK_FLOAT PK_FSQRT PK_ATPUT PK_CLASS PK_IDENTICAL PK_INT PK_SIZE PK_STRINGAT PK_STRINGATPUT OPT_INLINE_BUDGET OPT_INLINE_DEPTH OPT_INLINE_SIZE OPT_MAX_ANA OPT_MAX_DEPS OPT_MAX_INC'
 	package: 'VM-Jit'!
 
 OptBuilder comment: 'Builds the IR (OptIR) of a method from its bytecodes: an abstract interpretation of each activation''s bytecodes in pc order, its slots (arguments, temps, operand stack: the depths BytecodeAnalysis computed) SSA variables, phis made on demand (Braun et al., Simple and Efficient Construction of Static Single Assignment Form, CC 2013: a block is sealed once all its predecessors are known; jump targets when the scan reaches them, loop heads after their last backward jump). Sends, guards and interrupt checks get frame states (OptState) for deoptimization. bail abandons the method (a bytecode the tier does not compile).'!
@@ -14,7 +14,7 @@ declarations
 		(obAnaDepth 'int16_t[OPT_ANA_MAX]') (obAnaFlag 'uint8_t[OPT_ANA_MAX]') (obAnaBack 'int32_t[OPT_ANA_MAX]')
 		(obPcBlocks 'int32_t[OPT_PCB_MAX]') (obPcbTop int32_t) (obEntryBlock int32_t) (obRootMethod oop)
 		(obInlined int32_t) (obDeps 'oop[OPT_MAX_DEPS]') (obDepCount int32_t) (obPrimKinds 'uint8_t[OPT_MAX_PRIM]') (obPrimsKnown bool)
-		(obNoInline 'oop[OPT_MAX_NOINLINE]') (obNoInlineCount int32_t) (obArgVals 'int32_t[OPT_MAX_VARS]') (obArgFlags 'uint8_t[OPT_MAX_VARS]') (obUnitStart int32_t) (obOsrPc int32_t) (obParamSlots int32_t) (obValidSlots int32_t))
+		(obNoInline 'oop[OPT_MAX_NOINLINE]') (obNoInlineCount int32_t) (obArgVals 'int32_t[OPT_MAX_VARS]') (obArgFlags 'uint8_t[OPT_MAX_VARS]') (obUnitStart int32_t) (obOsrPc int32_t) (obParamSlots int32_t) (obValidSlots int32_t) (obSafeEpoch int32_t) (obAnaFloat 'bool[OPT_MAX_ANA]'))
 !
 initialize
 	OPT_MAX_INC := 16384.
@@ -31,6 +31,8 @@ initialize
 	PK_CLASS := 6.
 	PK_IDENTICAL := 7.
 	PK_INT := 32.
+	PK_FLOAT := 64.
+	PK_FSQRT := 8.
 	OPT_INLINE_SIZE := 80.
 	OPT_INLINE_BUDGET := 1500.
 	OPT_INLINE_DEPTH := 8.
@@ -88,6 +90,7 @@ buildOnce: m
 	obRootMethod := m.
 	obInlined := 0.
 	obDepCount := 0.
+	obSafeEpoch := 0.
 	a := obUnitStart > 0 ifTrue: [self newBlockActFor: m start: obUnitStart] ifFalse: [self newActFor: m].
 	a < 0 ifTrue: [^false].
 	obEntryBlock := ir newBlock.
@@ -225,6 +228,8 @@ analysisOf: m
 				(t <= pc and: [(obAnaBack at: base + t) < pc]) ifTrue: [obAnaBack at: base + t put: pc]]]].
 	obAnaMethods at: obAnaCount put: m.
 	obAnaBases at: obAnaCount put: base.
+	obAnaFloat at: obAnaCount put: false.
+	0 to: n - 1 do: [:pc | ((feedback flagsAt: m pc: pc) bitAnd: feedback sawFloat) ~= 0 ifTrue: [obAnaFloat at: obAnaCount put: true]].
 	obAnaCount := obAnaCount + 1.
 	obAnaTop := obAnaTop + n.
 	^base
@@ -410,6 +415,7 @@ constant: v
 		nd hi: (self intVal: v)].
 	v = memory nilOop ifTrue: [nd tkind: T_NIL].
 	(v = memory trueOop or: [v = memory falseOop]) ifTrue: [nd tkind: T_BOOL].
+	(v bitAnd: 7) = 4 ifTrue: [nd tkind: T_FLOAT].
 	(ir block: obEntryBlock) last >= 0
 		ifTrue: [
 			((ir node: (ir block: obEntryBlock) last) op asInt32 >= O_GOTO)
@@ -476,6 +482,7 @@ receiverSlotAt: pc act: a
 checkInterruptAct: a pc: pc depth: d kind: k
 	| n |
 	n := self add: O_CHECKINT rep: R_NONE.
+	obSafeEpoch := obSafeEpoch + 1.
 	(ir node: n) state: (self stateAct: a pc: pc depth: d).
 	(ir node: n) aux: k.
 	^n
@@ -866,10 +873,13 @@ special: k pc: pc act: a rcvSlot: r
 	(k >= 16 and: [k <= 18 and: [(self knownClassOf: x) = 0 and: [(runtime flag: runtime primsFlag) and: [(feedback siteAt: (ir act: a) method pc: pc) isNull]]]]) ifTrue: [
 		"no feedback: the lower tier's Array fast path took them all"
 		self write: (self var: a slot: r) value: (self guard: x class: memory clsArray state: (self stateAct: a pc: pc depth: (self depthAt: pc act: a)))].
-	((k <= 8 and: [k ~= 9]) or: [k = 14 or: [k = 15]]) ifTrue: [
+	(k <= 9 or: [k = 14 or: [k = 15]]) ifTrue: [
 		fl := feedback flagsAt: (ir act: a) method pc: pc.
-		((fl bitAnd: ((feedback sawFloat bitOr: feedback sawNonInt) bitOr: (feedback deoptArith bitOr: feedback overflowed))) = 0 and: [
-			(self sawOnlyIntsAt: pc act: a)]) ifTrue: [
+		(k <= 9 and: [(fl bitAnd: (feedback sawNonInt bitOr: feedback deoptOther)) = 0 and: [
+			(fl bitAnd: feedback sawFloat) ~= 0 or: [(self isFloat: x) or: [(self isFloat: y) or: [self sawFloatIn: (ir act: a) method]]]]]) ifTrue: [
+				^self floatArith: k x: x y: y pc: pc act: a rcvSlot: r].
+		(k ~= 9 and: [(fl bitAnd: ((feedback sawFloat bitOr: feedback sawNonInt) bitOr: (feedback deoptArith bitOr: feedback overflowed))) = 0 and: [
+			(self sawOnlyIntsAt: pc act: a)]]) ifTrue: [
 				^self intArith: k x: x y: y pc: pc act: a rcvSlot: r]].
 	self sendSelector: (self loadRef: (memory special: SO_SPECIAL_SELECTORS) at: k) argc: argc kind: 2 special: k pc: pc act: a rcvSlot: r
 !
@@ -898,6 +908,81 @@ intArith: k x: x y: y pc: pc act: a rcvSlot: r
 	(ir node: n) tkind: T_SMI.
 	(k <= 1 or: [k = 8]) ifTrue: [(ir node: n) state: s].
 	self push: n act: a depth: r
+!
+floatArith: k x: x y: y pc: pc act: a rcvSlot: r
+	"Float arithmetic or comparison k, speculated: SmallFloat64 or SmallInteger operands as doubles (two SmallIntegers: the SmallInteger operation), the result a SmallFloat64; anything else deoptimizes to the send."
+	<c: 'void opt_float_arith(int32_t k, int32_t x, int32_t y, int32_t pc, int32_t a, int32_t r)'>
+	<var: #merge type: 'int32_t'>
+	| s fx fy n merge t f test fl |
+	fl := feedback flagsAt: (ir act: a) method pc: pc.
+	s := self stateAct: a pc: pc depth: (self depthAt: pc act: a).
+	merge := -1.
+	((self isFloat: x) or: [self isFloat: y]) ifFalse: [
+		test := self binary: O_BOTHINT a: x b: y.
+		(ir node: test) tkind: T_BOOL.
+		t := ir newBlock.
+		(ir block: t) act: a.
+		f := ir newBlock.
+		(ir block: f) act: a.
+		merge := ir newBlock.
+		(ir block: merge) act: a.
+		self branch: test true: t false: f.
+		self seal: t.
+		self seal: f.
+		obCurBlock := t.
+		(k = 9 or: [(fl bitAnd: (feedback deoptArith bitOr: feedback overflowed)) ~= 0])
+			ifTrue: [self callSelector: (self loadRef: (memory special: SO_SPECIAL_SELECTORS) at: k) argc: 1 kind: 2 special: k pc: pc act: a rcvSlot: r]
+			ifFalse: [self intArith: k x: (self cast: x class: memory clsSmallint) y: (self cast: y class: memory clsSmallint) pc: pc act: a rcvSlot: r].
+		self goto: merge.
+		obCurBlock := f].
+	fx := self unboxFloat: x state: s.
+	fy := self unboxFloat: y state: s.
+	(k >= 2 and: [k <= 7])
+		ifTrue: [
+			n := self binary: O_FCMP a: fx b: fy.
+			(ir node: n) aux: k.
+			(ir node: n) tkind: T_BOOL.
+			self push: n act: a depth: r]
+		ifFalse: [
+			n := self add: O_FARITH rep: R_DBL.
+			(ir node: n) a: fx.
+			(ir node: n) b: fy.
+			(ir node: n) aux: k.
+			k = 9 ifTrue: [(ir node: n) state: s].
+			self push: (self boxFloat: n state: s) act: a depth: r].
+	merge >= 0 ifTrue: [
+		self goto: merge.
+		self seal: merge.
+		obCurBlock := merge]
+!
+sawFloatIn: m
+	"Some arithmetic of m saw a Float (its other arithmetic may well too)."
+	0 to: obAnaCount - 1 do: [:i | (obAnaMethods at: i) = m ifTrue: [^obAnaFloat at: i]].
+	^false
+!
+isFloat: v
+	^(ir node: (ir resolve: v)) tkind asInt32 = T_FLOAT
+!
+unboxFloat: v state: s
+	"v as a double: a SmallFloat64 decoded, a SmallInteger converted, else deoptimize; a value this block boxed since the last safepoint is used directly."
+	| nd n |
+	nd := ir node: v.
+	(nd op asInt32 = O_BOXF and: [nd block = obCurBlock and: [nd aux2 = obSafeEpoch]]) ifTrue: [^nd a].
+	n := self add: O_UNBOXF rep: R_DBL.
+	(ir node: n) a: v.
+	(ir node: n) state: s.
+	(ir node: n) flags: NF_GUARD.
+	^n
+!
+boxFloat: d state: s
+	"Double d as a SmallFloat64; out of its range: deoptimize (the interpreter makes a boxed Float)."
+	| n |
+	n := self add: O_BOXF rep: R_OOP.
+	(ir node: n) a: d.
+	(ir node: n) state: s.
+	(ir node: n) tkind: T_FLOAT.
+	(ir node: n) aux2: obSafeEpoch.
+	^n
 !
 guardInt: v state: s
 	| n |
@@ -1014,7 +1099,18 @@ primKindOf: p
 		self primNamed: 'intNotEq' kind: PK_INT + 7.
 		self primNamed: 'intMul' kind: PK_INT + 8.
 		self primNamed: 'intBitAnd' kind: PK_INT + 14.
-		self primNamed: 'intBitOr' kind: PK_INT + 15].
+		self primNamed: 'intBitOr' kind: PK_INT + 15.
+		self primNamed: 'floatAdd' kind: PK_FLOAT + 0.
+		self primNamed: 'floatSub' kind: PK_FLOAT + 1.
+		self primNamed: 'floatLess' kind: PK_FLOAT + 2.
+		self primNamed: 'floatGreater' kind: PK_FLOAT + 3.
+		self primNamed: 'floatLessEq' kind: PK_FLOAT + 4.
+		self primNamed: 'floatGreaterEq' kind: PK_FLOAT + 5.
+		self primNamed: 'floatEq' kind: PK_FLOAT + 6.
+		self primNamed: 'floatNotEq' kind: PK_FLOAT + 7.
+		self primNamed: 'floatMul' kind: PK_FLOAT + 8.
+		self primNamed: 'floatDiv' kind: PK_FLOAT + 9.
+		self primNamed: 'floatSqrt' kind: PK_FSQRT].
 	(p <= 0 or: [p >= OPT_MAX_PRIM]) ifTrue: [^0].
 	^(obPrimKinds at: p) asInt32
 !
@@ -1037,6 +1133,18 @@ inlinePrimitive: p class: cls argc: argc pc: pc act: a rcvSlot: r
 		^true].
 	(kind = PK_IDENTICAL and: [argc = 1]) ifTrue: [
 		self push: (self binary: O_EQ a: rcv b: (self read: (self var: a slot: r + 1))) act: a depth: r.
+		^true].
+	(kind >= PK_FLOAT or: [kind = PK_FSQRT]) ifTrue: [
+		(cls = memory clsSmallfloat and: [((feedback flagsAt: (ir act: a) method pc: pc) bitAnd: (feedback sawNonInt bitOr: feedback deoptOther)) = 0]) ifFalse: [^false].
+		(kind = PK_FSQRT and: [argc = 0]) ifTrue: [
+			s := self stateAct: a pc: pc depth: (self depthAt: pc act: a).
+			idx := self unboxFloat: rcv state: s.
+			n := self add: O_FSQRT rep: R_DBL.
+			(ir node: n) a: idx.
+			self push: (self boxFloat: n state: s) act: a depth: r.
+			^true].
+		argc = 1 ifFalse: [^false].
+		self floatArith: (kind - PK_FLOAT) asInt32 x: rcv y: (self read: (self var: a slot: r + 1)) pc: pc act: a rcvSlot: r.
 		^true].
 	(kind >= PK_INT and: [argc = 1]) ifTrue: [
 		cls = memory clsSmallint ifFalse: [^false].
@@ -1095,6 +1203,7 @@ knownClassOf: v
 	nd := ir node: v.
 	nd op asInt32 = O_CONST ifTrue: [^self classOf: nd aux asUInt64].
 	nd tkind asInt32 = T_SMI ifTrue: [^memory clsSmallint].
+	nd tkind asInt32 = T_FLOAT ifTrue: [^memory clsSmallfloat].
 	nd tkind asInt32 = T_NIL ifTrue: [^self classOf: memory nilOop].
 	(nd tkind asInt32 = T_OBJ and: [nd tcls ~= 0]) ifTrue: [^nd tcls].
 	^0
@@ -1178,6 +1287,7 @@ cast: v class: cls
 	^n
 !
 type: n class: cls
+	cls = memory clsSmallfloat ifTrue: [^(ir node: n) tkind: T_FLOAT].
 	cls = memory clsSmallint
 		ifTrue: [(ir node: n) tkind: T_SMI]
 		ifFalse: [
@@ -1219,6 +1329,7 @@ callSelector: sel argc: argc kind: kind special: k pc: pc act: a rcvSlot: r
 	"A send through the runtime: the result replaces the receiver."
 	| n args |
 	n := self add: O_SEND rep: R_OOP.
+	obSafeEpoch := obSafeEpoch + 1.
 	args := ir allocOperands: argc + 1.
 	0 to: argc do: [:i | ir operand: args + i put: (self read: (self var: a slot: r + i))].
 	(ir node: n) args: args.
