@@ -7,7 +7,7 @@ JitBaselineCompiler comment: 'The baseline compiler (--jit baseline), after Cog'
 
 Sends: the receiver in x0, receiver and arguments in their slots, x20 advanced to the callee''s fp, x9 the inline cache''s class (a literal next to the code), bl to the site''s target: the miss stub while unlinked, a compiled method''s checked entry (its class check against x9, then its unchecked entry 20 bytes on) while monomorphic, a polymorphic inline cache (up to 6 classes) or the megamorphic stub (x9 then holds the selector). JitBaselineRuntime links and relinks. The callee pushes its frame in machine code (x19, the Frame''s method, code, closure, ctx, fp and a zero pc and sp, the native frame record x29/x30, nil temps, one compare against the stack limit that is also the interrupt check) and answers its result in x0; the caller restores x20 with one sub. Frames are canonical lazily: pc and sp of a frame suspended in a send are derived from its return address when the runtime needs them (JitBaselineRuntime>>canonicalizeBelow:, the return map). Quick methods (^ivar, ^constant, ^self, setters) run without a frame; primitives run before the frame is built, inline (basicNew, closure value...) or through their C function.
 
-Inline: SmallInteger + - * // \\ bitAnd: bitOr: bitShift: and comparisons (tag checks, overflow branches, immediates, folding, compare and branch), Floats (SmallFloat64 and boxed operands, results boxed inline), == ~~ class, at: at:put: size on Arrays, Strings, Symbols, ByteArrays, x y of Points, value value: value:value: of closures (class and argument count checked, then the block''s entry through a cache in the block stub), non-local returns to a home frame in machine code. The ablation flags (JitRuntime) switch each off.
+Inline: SmallInteger + - * // \\ bitAnd: bitOr: bitShift: and comparisons (tag checks, overflow branches, immediates, folding, compare and branch), Floats (SmallFloat64 and boxed operands, results boxed inline), == ~~ class, at: at:put: on Arrays, Strings, Symbols, ByteArrays (size is sent: user classes define it too), value value: value:value: of closures (class and argument count checked, then the block''s entry through a cache in the block stub), non-local returns to a home frame in machine code. The ablation flags (JitRuntime) switch each off.
 
 Layout: checked entry, unchecked entry, the method''s frame code, its bytecodes in pc order (block bodies inside, each with its entry), then the slow paths, the resumption stubs, the literals (the method''s literals as the runtime registers them for the collector, the inline caches'' classes) and the JitMethod header right after (adr reaches it: method and code for the frame).'!
 
@@ -337,7 +337,7 @@ specialSends: k
 	(k = 23 or: [k = 24]) ifTrue: [^(runtime prims and: [brt nilTestsInlinable]) not].
 	(k <= 8 or: [k = 10 or: [k >= 12 and: [k <= 15]]]) ifTrue: [^runtime arith not].
 	k = 9 ifTrue: [^runtime float not].
-	(k >= 16 and: [k <= 18]) ifTrue: [^runtime access not].
+	(k = 16 or: [k = 17]) ifTrue: [^runtime access not].
 	^true
 !
 loopRegOf: t
@@ -2098,7 +2098,7 @@ special: k pc: pc pushes: pushes
 	((k = 23 or: [k = 24]) and: [runtime prims and: [brt nilTestsInlinable]]) ifTrue: [^self nilTest: k - 22 pc: pc].
 	(runtime arith and: [(k <= 8 or: [k = 10 or: [(k >= 12 and: [k <= 15])]]) and: [k ~= 11]]) ifTrue: [^self arith: k pc: pc pushes: pushes].
 	(runtime float and: [k = 9]) ifTrue: [^self arith: k pc: pc pushes: pushes].
-	(runtime access and: [k = 16 or: [k = 17 or: [k = 18]]]) ifTrue: [^self access: k pc: pc pushes: pushes].
+	(runtime access and: [k = 16 or: [k = 17]]) ifTrue: [^self access: k pc: pc pushes: pushes].
 	(runtime blocks and: [k = 21 or: [k = 22 or: [k = 30]]]) ifTrue: [^self value: k pc: pc pushes: pushes].
 	^self sendSpecial: k pc: pc pushes: pushes
 !
@@ -2599,7 +2599,7 @@ emitShift: ra by: rb constant: c immediate: imm into: rr slow: slow
 	asm orr: rr with: rr imm: 1
 !
 access: k pc: pc pushes: pushes
-	"at: at:put: size on Arrays inline, Strings, Symbols and ByteArrays out of line; x y of Points; anything else sends."
+	"at: at:put: on Arrays inline, Strings, Symbols and ByteArrays out of line; anything else sends."
 	<c: 'bool bl_access(int32_t k, int32_t pc, int32_t pushes)'>
 	<var: #rb type: 'int32_t'>
 	<var: #rc type: 'int32_t'>

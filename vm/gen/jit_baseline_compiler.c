@@ -2940,7 +2940,7 @@ exit_length_of:;
         r_special_sends = !((jit_flags & JIT_FLAG_FLOAT) != 0);
         goto exit_special_sends;
     }
-    if ((k_2 >= 16) && (k_2 <= 18)) {
+    if ((k_2 == 16) || (k_2 == 17)) {
         r_special_sends = !((jit_flags & JIT_FLAG_ACCESS) != 0);
         goto exit_special_sends;
     }
@@ -2990,7 +2990,7 @@ exit_special_index_of:;
         r_special_sends_2 = !((jit_flags & JIT_FLAG_FLOAT) != 0);
         goto exit_special_sends_2;
     }
-    if ((k >= 16) && (k <= 18)) {
+    if ((k == 16) || (k == 17)) {
         r_special_sends_2 = !((jit_flags & JIT_FLAG_ACCESS) != 0);
         goto exit_special_sends_2;
     }
@@ -25060,7 +25060,7 @@ exit_nil_test:;
     if (((jit_flags & JIT_FLAG_FLOAT) != 0) && (k == 9)) {
         return bl_arith(k, pc, pushes);
     }
-    if (((jit_flags & JIT_FLAG_ACCESS) != 0) && ((k == 16) || ((k == 17) || (k == 18)))) {
+    if (((jit_flags & JIT_FLAG_ACCESS) != 0) && ((k == 16) || (k == 17))) {
         return bl_access(k, pc, pushes);
     }
     if (((jit_flags & JIT_FLAG_BLOCKS) != 0) && ((k == 21) || ((k == 22) || (k == 30)))) {
