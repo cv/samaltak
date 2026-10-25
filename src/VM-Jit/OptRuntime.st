@@ -1,5 +1,5 @@
 OptModule subclass: #OptRuntime
-	instanceVariableNames: 'ir builder passes regalloc codegen rtDeoptVals rtDeoptCount rtActMethod rtActClosure rtActRcv rtActPc rtActDepth rtActVals rtActCount rtOptYoung rtOptYoungCount rtOptYoungOverflow rtStatOptCompiled rtStatOptFailed rtStatOptBytecodes rtStatOptUs rtStatOptBytes rtStatDeopts rtStatOptOsr rtStatInvalidations rtAll rtAllCount rtSunkAct rtSunkStart rtSunkInfo rtSunkOrder rtSunkCount rtSunkUseVal rtSunkUseId rtSunkUseCount rtWritten rtUnitStart rtUnitOsr rtUnitDepth rtUnits rtUnitCount'
+	instanceVariableNames: 'ir builder passes regalloc codegen rtDeoptVals rtDeoptCount rtActMethod rtActClosure rtActRcv rtActPc rtActDepth rtActVals rtActCount rtOptYoung rtOptYoungCount rtOptYoungOverflow rtStatOptCompiled rtStatOptFailed rtStatOptBytecodes rtStatOptUs rtStatOptBytes rtStatDeopts rtStatOptOsr rtStatInvalidations rtAll rtAllCount rtSunkAct rtSunkStart rtSunkInfo rtSunkOrder rtSunkCount rtSunkUseVal rtSunkUseId rtSunkUseCount rtWritten rtUnitStart rtUnitOsr rtUnitDepth rtUnits rtUnitCount rtFailed'
 	classVariableNames: 'OPT_MAX_UNITS OPT_MAX_GENERATIONS OPT_MAX_DEOPTS OPT_MAX_DEOPT_ACTS OPT_MAX_DEOPT_VALS OPT_MAX_HEADERS OPT_MAX_YOUNG'
 	package: 'VM-Jit'!
 
@@ -19,7 +19,7 @@ declarations
 		(rtAll 'JitMethod *[OPT_MAX_HEADERS]') (rtAllCount int32_t)
 		(rtSunkAct 'int32_t[64]') (rtSunkStart 'int32_t[64]') (rtSunkInfo 'int32_t[64]') (rtSunkOrder 'int32_t[64]') (rtSunkCount int32_t)
 		(rtSunkUseVal 'int32_t[OPT_MAX_DEOPT_VALS]') (rtSunkUseId 'int32_t[OPT_MAX_DEOPT_VALS]') (rtSunkUseCount int32_t) (rtWritten int32_t)
-		(rtUnitStart int32_t) (rtUnitOsr int32_t) (rtUnitDepth int32_t) (rtUnits 'JitMethod *[OPT_MAX_UNITS]') (rtUnitCount int32_t))
+		(rtUnitStart int32_t) (rtUnitOsr int32_t) (rtUnitDepth int32_t) (rtUnits 'JitMethod *[OPT_MAX_UNITS]') (rtUnitCount int32_t) (rtFailed 'uint64_t[OPT_MAX_UNITS]'))
 !
 initialize
 	OPT_MAX_DEOPT_VALS := 8192.
@@ -127,14 +127,18 @@ tierUp: f loop: loop
 	(runtime hasCode: h) ifFalse: [^0].
 	f code = (self cCoerce: h to: 'uint64_t') ifFalse: [^0].
 	s := f closure = memory nilOop ifTrue: [0] ifFalse: [(self intVal: (self loadRef: f closure at: BC_STARTPC)) asInt32].
-	(s = 0 and: [h opt = 0]) ifTrue: [self optimize: m lower: h].
+	(s = 0 and: [h opt = 0 and: [(self failed: m start: 0 osr: 0) not]]) ifTrue: [
+		(self optimize: m lower: h) isNull ifTrue: [self noteFailed: m start: 0 osr: 0]].
 	k := loop = 0 ifTrue: [0] ifFalse: [f pc + 1].
+	"a married frame's temps may change through its Context (blocks it made): optimized code keeps them in registers"
+	(k ~= 0 and: [f ctx ~= memory nilOop and: [self makesClosures: m start: s]]) ifTrue: [^0].
 	(s = 0 and: [k = 0])
 		ifTrue: [o := self optOf: h]
 		ifFalse: [
 			o := self unitOf: m start: s osr: k.
-			(o isNull or: [(self isAlive: o) not and: [o generation < OPT_MAX_GENERATIONS]]) ifTrue: [
-				o := self optimizeUnit: m start: s osr: k depth: f sp lower: h previous: o]].
+			((o isNull or: [(self isAlive: o) not and: [o generation < OPT_MAX_GENERATIONS]]) and: [(self failed: m start: s osr: k) not]) ifTrue: [
+				o := self optimizeUnit: m start: s osr: k depth: f sp lower: h previous: o.
+				o isNull ifTrue: [self noteFailed: m start: s osr: k]]].
 	(o isNull or: [(self isAlive: o) not]) ifTrue: [^0].
 	"more units of m may follow (its blocks, its loops, frames resumed in the lower tier)"
 	runtime counterFor: m put: (self initialCount: m).
@@ -142,15 +146,51 @@ tierUp: f loop: loop
 	f code: (self cCoerce: o to: 'uint64_t').
 	^o start
 !
+makesClosures: m start: s
+	"The code of m (s 0) or of its block at startpc s makes BlockClosures."
+	| bcs pc end op |
+	bcs := self methodBytecodes: m.
+	end := s = 0 ifTrue: [self methodSize: m] ifFalse: [s + (((bcs at: s - 2) asInt64 << 8) bitOr: (bcs at: s - 1)) asInt32].
+	pc := s.
+	[pc < end] whileTrue: [
+		op := bcs at: pc.
+		op = 16r8F ifTrue: [^true].
+		pc := (pc + (analysis lengthOf: op)) asInt32].
+	^false
+!
 unitOf: m start: s osr: t
 	"The optimized code of m's block at startpc s (0: m) entered at its start (t 0) or at loop head t - 1, alive or not; null if there is none."
 	<c: 'JitMethod *opt_unit_of(oop m, int32_t s, int32_t t)'>
 	| i h |
 	i := self unitHash: m start: s osr: t.
 	[(h := rtUnits at: i) notNull] whileTrue: [
-		(h method = m and: [h blockStart = s asUInt32 and: [h osrPc = t asUInt32]]) ifTrue: [^h].
+		(h methodHash = (self hashOf: m) asUInt32 and: [h blockStart = s asUInt32 and: [h osrPc = t asUInt32 and: [h method = m or: [(self isAlive: h) not]]]]) ifTrue: [^h].
 		i := (i + 1) bitAnd: OPT_MAX_UNITS - 1].
 	^self null
+!
+failedKey: m start: s osr: t
+	^(((self hashOf: m) asUInt64 << 32) bitOr: ((s asUInt64 bitAnd: 16rFFFF) << 16)) bitOr: (t asUInt64 bitAnd: 16rFFFF)
+!
+failed: m start: s osr: t
+	"Compiling this unit failed before (a hash table of keys; a collision only means it is not tried)."
+	| key i |
+	key := (self failedKey: m start: s osr: t) bitOr: 1 << 63.
+	i := ((key bitXor: key >> 29) bitAnd: OPT_MAX_UNITS - 1) asInt32.
+	[(rtFailed at: i) ~= 0] whileTrue: [
+		(rtFailed at: i) = key ifTrue: [^true].
+		i := (i + 1) bitAnd: OPT_MAX_UNITS - 1].
+	^false
+!
+noteFailed: m start: s osr: t
+	| key i n |
+	key := (self failedKey: m start: s osr: t) bitOr: 1 << 63.
+	i := ((key bitXor: key >> 29) bitAnd: OPT_MAX_UNITS - 1) asInt32.
+	n := 0.
+	[(rtFailed at: i) ~= 0] whileTrue: [
+		n := n + 1.
+		n >= (OPT_MAX_UNITS quo: 2) ifTrue: [^self].
+		i := (i + 1) bitAnd: OPT_MAX_UNITS - 1].
+	rtFailed at: i put: key
 !
 unitHash: m start: s osr: t
 	^(((self hashOf: m) asUInt64 * 31 + s asUInt64) * 31 + t asUInt64) bitAnd: OPT_MAX_UNITS - 1
@@ -187,6 +227,7 @@ optimizeUnit: m start: s osr: t depth: d lower: h previous: p
 	o blockStart: s asUInt32.
 	o osrPc: t asUInt32.
 	p notNull ifTrue: [o generation: p generation + 1].
+	o methodHash: (self hashOf: m) asUInt32.
 	cache endWriting.
 	self noteYoung: o.
 	i := self unitHash: m start: s osr: t.
@@ -336,7 +377,10 @@ send: f index: k site: key
 	((e kind bitAnd: runtime kCtx) ~= 0 and: [self isInt: (self loadRef: r at: CTX_SENDER)]) ifTrue: [^self leaveBefore: f index: k].
 	(runtime isPerform: e) ifTrue: [^self leaveBefore: f index: k].
 	runtime sendPushed: 0.
-	^runtime dispatch: e frame: f argc: n
+	r := runtime dispatch: e frame: f argc: n.
+	"a primitive answered: a safepoint (the profiler samples an allocation there)"
+	r = 0 ifTrue: [^self sent: f].
+	^r
 !
 sent: f
 	"A send completed without a frame: a safepoint, as in the interpreter."
@@ -378,11 +422,12 @@ stackFull: f
 deoptGuard: f index: k
 	"A guard of f's code failed at safepoint k; the registers are in the JitState's dump. Rebuild f's activations as frames; the interpreter continues the top one."
 	<c: 'uint64_t opt_deopt_guard(Frame *f, int64_t k)'>
-	| h why r m pc fresh |
+	| h why r m pc fresh stressed |
 	h := self cCoerce: f code to: 'JitMethod *'.
 	why := ((self recordOf: h index: k) at: 0) >> 8.
 	"--jit-flags deopt: no feedback from the stress"
-	((runtime flag: runtime deoptFlag) and: [runtime state stress <= 0]) ifTrue: [why := 0].
+	stressed := (runtime flag: runtime deoptFlag) and: [runtime state stress <= 0].
+	stressed ifTrue: [why := 0].
 	r := self deoptFrame: f index: k regs: runtime state dump mode: 0.
 	"the innermost activation's method and pc: where the guard's bytecode is; feedback it had not given: compile again now"
 	why = feedback deoptArith ifTrue: [why := why bitOr: self operandFlags asInt32].
@@ -392,6 +437,7 @@ deoptGuard: f index: k
 		pc := rtActPc at: rtActCount - 1.
 		fresh := ((feedback flagsAt: m pc: pc) bitAnd: why asUInt32) ~= why asUInt32.
 		feedback noteFlags: m pc: pc flags: why asUInt32].
+	stressed ifTrue: [^r].
 	cache beginWriting.
 	h deopts: h deopts + 1.
 	cache endWriting.
@@ -424,6 +470,9 @@ returnBottom: f index: k
 		ifTrue: [rtDeoptVals at: (rtActRcv at: 0)]
 		ifFalse: [rtDeoptVals at: rtDeoptCount - 1].
 	rtDeoptCount := 0.
+	f ctx ~= memory nilOop ifTrue: [
+		f sp: 0.
+		interpreter widow: f].
 	interpreter nframes: 0.
 	interpreter cstackUsed: 0.
 	sp := self intVal: (self loadRef: ctx at: CTX_STACKP).
@@ -469,7 +518,7 @@ writeFrames: fi from: fp0
 		fp at: -1 put: (rtDeoptVals at: (rtActRcv at: i)).
 		0 to: d - 1 do: [:s | fp at: s put: (rtDeoptVals at: (rtActVals at: i) + s)].
 		cl := (rtActClosure at: i) >= 0 ifTrue: [rtDeoptVals at: (rtActClosure at: i)] ifFalse: [memory nilOop].
-		i >= rtWritten ifTrue: [g ctx: memory nilOop].
+		(i >= rtWritten and: [i > 0]) ifTrue: [g ctx: memory nilOop].
 		g method: m.
 		g closure: cl.
 		g code: (runtime blockCodeFor: m).
@@ -612,7 +661,10 @@ materialize: f
 	0 to: rtActCount - 1 do: [:i |
 		n := (self frameSizeOfAct: i) + CTX_SLACK.
 		n < (rtActDepth at: i) ifTrue: [n := rtActDepth at: i].
-		ctx := memory allocContext: n asUInt32.
+		"a married frame (a loop's unit) keeps its Context"
+		(i = 0 and: [f ctx ~= memory nilOop and: [(self numSlots: f ctx) >= (CTX_FIXED + n) asUInt32]])
+			ifTrue: [ctx := f ctx]
+			ifFalse: [ctx := memory allocContext: n asUInt32].
 		self push: ctx].
 	0 to: rtSunkCount - 1 do: [:j |
 		sunk := rtSunkOrder at: j.
@@ -740,6 +792,7 @@ flushed
 	rtOptYoungOverflow := false.
 	rtAllCount := 0.
 	libc memset: rtUnits value: 0 size: 8 * OPT_MAX_UNITS.
+	libc memset: rtFailed value: 0 size: 8 * OPT_MAX_UNITS.
 	rtUnitCount := 0
 ! !
 

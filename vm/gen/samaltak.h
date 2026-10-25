@@ -345,6 +345,7 @@ typedef void (*prim_fn)(void);
 #define OUT_LAZY 4
 #define OUT_SEND 7
 #define OUT_STACK 5
+#define OUT_WIDOW 8
 #define O_BOTHINT 32
 #define O_BOXF 29
 #define O_BRANCH 41
@@ -796,7 +797,7 @@ struct jit_method {
     uint32_t *map;
     uint32_t *refs;
     uint32_t note_count;
-    uint32_t pad;
+    uint32_t method_hash;
     uint32_t *note_offsets;
     uint64_t *note_texts;
     int64_t *note_values;

@@ -13,6 +13,7 @@ static jit_method *rt_all[16384];
 static int32_t rt_all_count;
 static int32_t rt_deopt_count;
 static oop rt_deopt_vals[8192];
+static uint64_t rt_failed[4096];
 static jit_method *rt_opt_young[1024];
 static int32_t rt_opt_young_count;
 static bool rt_opt_young_overflow;
@@ -388,7 +389,7 @@ static uint64_t opt_deopt_frame(frame *f, int64_t k, uint64_t *regs, int32_t mod
             fp[s] = rt_deopt_vals[rt_act_vals[i] + s];
         }
         cl = rt_act_closure[i] >= 0 ? rt_deopt_vals[rt_act_closure[i]] : nil_oop;
-        if (i >= rt_written) {
+        if ((i >= rt_written) && (i > 0)) {
             g_2->ctx = nil_oop;
         }
         g_2->method = m;
@@ -426,7 +427,7 @@ static uint64_t opt_deopt_frame(frame *f, int64_t k, uint64_t *regs, int32_t mod
                 fp_2[s_2] = rt_deopt_vals[rt_act_vals[i_2] + s_2];
             }
             cl_2 = rt_act_closure[i_2] >= 0 ? rt_deopt_vals[rt_act_closure[i_2]] : nil_oop;
-            if (i_2 >= rt_written) {
+            if ((i_2 >= rt_written) && (i_2 > 0)) {
                 g_3->ctx = nil_oop;
             }
             g_3->method = m_2;
@@ -455,6 +456,7 @@ uint64_t opt_deopt_guard(frame *f, int64_t k)
 {
     jit_method *h;
     int32_t why;
+    bool stressed;
     uint64_t r;
     int64_t r_operand_flags;
     frame *g;
@@ -469,7 +471,8 @@ uint64_t opt_deopt_guard(frame *f, int64_t k)
     jit_method *h_2;
     h = (jit_method *)f->code;
     why = (h->meta + h->sp_table[k])[0] >> 8;
-    if (((jit_flags & JIT_FLAG_DEOPT) != 0) && (state_block->stress <= 0)) {
+    stressed = ((jit_flags & JIT_FLAG_DEOPT) != 0) && (state_block->stress <= 0);
+    if (stressed) {
         why = 0;
     }
     r = opt_deopt_frame(f, k, state_block->dump, 0);
@@ -496,6 +499,9 @@ uint64_t opt_deopt_guard(frame *f, int64_t k)
         pc = rt_act_pc[rt_act_count - 1];
         fresh = (fb_flags_at(m, pc) & ((uint32_t)why)) != (uint32_t)why;
         jit_note_flags(m, pc, (uint32_t)why);
+    }
+    if (stressed) {
+        return r;
     }
     pthread_jit_write_protect_np(0);
     h->deopts = h->deopts + 1;
@@ -534,6 +540,7 @@ void opt_flushed(void)
     rt_opt_young_overflow = false;
     rt_all_count = 0;
     memset(rt_units, 0, 32768);
+    memset(rt_failed, 0, 32768);
     rt_unit_count = 0;
 }
 
@@ -736,6 +743,7 @@ void opt_materialize(frame *f)
     int32_t info;
     oop c_2;
     int64_t n;
+    oop o;
     oop ctx;
     int32_t j;
     int32_t sunk;
@@ -790,7 +798,13 @@ exit_frame_size_of_act:;
         if (n < rt_act_depth[i_3]) {
             n = rt_act_depth[i_3];
         }
-        ctx = alloc_context((uint32_t)n);
+        if ((i_3 == 0) && ((f->ctx != nil_oop) && ({
+    o = f->ctx;
+    (uint32_t)*(uint64_t *)o >= (uint32_t)(CTX_FIXED + n); }))) {
+            ctx = f->ctx;
+        } else {
+            ctx = alloc_context((uint32_t)n);
+        }
         if (rt_deopt_count < OPT_MAX_DEOPT_VALS) {
             rt_deopt_vals[rt_deopt_count] = ctx;
             rt_deopt_count = rt_deopt_count + 1;
@@ -914,6 +928,7 @@ static jit_method *opt_optimize_unit(oop m, int32_t s, int32_t t, int32_t d, jit
     if (p != NULL) {
         o->generation = p->generation + 1;
     }
+    o->method_hash = (uint32_t)(((*(uint64_t *)m) >> H_HASH_SHIFT) & H_HASH_MASK);
     pthread_jit_write_protect_np(1);
     o_2 = o->method;
     young = (uint64_t)(o_2 - young_lo) < young_hi - young_lo;
@@ -990,6 +1005,10 @@ uint64_t opt_return_bottom(frame *f, int64_t k)
     o_2 = *(uint64_t *)(m + 16 + 24);
     v = ((uint8_t *)(o_2 + 16))[rt_act_pc[0]] == 0x7A ? rt_deopt_vals[rt_act_rcv[0]] : rt_deopt_vals[rt_deopt_count - 1];
     rt_deopt_count = 0;
+    if (f->ctx != nil_oop) {
+        f->sp = 0;
+        widow(f);
+    }
     nframes = 0;
     cstack_used = 0;
     o_3 = *(uint64_t *)(ctx + 16 + 16);
@@ -1048,6 +1067,7 @@ uint64_t opt_send(frame *f, int64_t k, uint64_t key)
     uint64_t o_3;
     uint64_t r_leave_before_2;
     uint64_t r_leave_before_3;
+    uint64_t r_sent_4;
     h = (jit_method *)f->code;
     rec = h->meta + h->sp_table[k];
     info = rec[2];
@@ -1173,7 +1193,19 @@ exit_sent_3:;
     r_leave_before_3; });
     }
     send_pushed = 0;
-    return jit_dispatch(e, f, n);
+    r = jit_dispatch(e, f, n);
+    if (r == 0) {
+        return ({
+    if (state_block->interrupt == 0) {
+        r_sent_4 = 0ULL;
+        goto exit_sent_4;
+    }
+    f->sp = (int32_t)(((jit_method *)f->code)->slots + 1);
+    r_sent_4 = jit_interrupt(f);
+exit_sent_4:;
+    r_sent_4; });
+    }
+    return r;
 }
 
 /* OptRuntime>>stackFull: */
@@ -1195,10 +1227,29 @@ uint64_t opt_tier_up(frame *f, int64_t loop)
     uint64_t o_3;
     int32_t v;
     int32_t s;
+    bool r_failed;
+    uint64_t key;
+    int32_t i;
+    uint64_t key_2;
+    int32_t i_2;
+    int64_t n;
     int32_t k;
+    bool r_makes_closures;
+    uint64_t o_4;
+    uint8_t *bcs;
+    int32_t end;
+    int32_t pc;
+    uint8_t op;
+    int64_t r_length_of;
     void *r_opt_of;
-    jit_method *o_4;
-    int32_t n;
+    jit_method *o_5;
+    bool r_failed_2;
+    uint64_t key_3;
+    int32_t i_3;
+    uint64_t key_4;
+    int32_t i_4;
+    int64_t n_2;
+    int32_t n_3;
     m = f->method;
     opt_counts[((uint32_t)(((*(uint64_t *)m) >> H_HASH_SHIFT) & H_HASH_MASK)) & 65535] = 1073741823;
     h = jit_lookup(m);
@@ -1217,10 +1268,120 @@ uint64_t opt_tier_up(frame *f, int64_t loop)
         v = (int32_t)(((int64_t)o_3) >> 1);
     }
     v; });
-    if ((s == 0) && (h->opt == 0)) {
-        opt_optimize(m, h);
+    if ((s == 0) && ((h->opt == 0) && (!({
+    key = (((uint64_t)(uint32_t)(((*(uint64_t *)m) >> H_HASH_SHIFT) & H_HASH_MASK)) << 32) | 0ULL | 0ULL | 9223372036854775808ULL;
+    i = (int32_t)((key ^ (key >> 29)) & 4095);
+    while (rt_failed[i] != 0) {
+        if (rt_failed[i] == key) {
+            r_failed = true;
+            goto exit_failed;
+        }
+        i = (i + 1) & 4095;
+    }
+    r_failed = false;
+exit_failed:;
+    r_failed; })))) {
+        if (opt_optimize(m, h) == NULL) {
+            key_2 = (((uint64_t)(uint32_t)(((*(uint64_t *)m) >> H_HASH_SHIFT) & H_HASH_MASK)) << 32) | 0ULL | 0ULL | 9223372036854775808ULL;
+            i_2 = (int32_t)((key_2 ^ (key_2 >> 29)) & 4095);
+            n = 0;
+            while (rt_failed[i_2] != 0) {
+                n = n + 1;
+                if (n >= 2048) {
+                    goto exit_note_failed;
+                }
+                i_2 = (i_2 + 1) & 4095;
+            }
+            rt_failed[i_2] = key_2;
+        exit_note_failed:;
+        }
     }
     k = loop == 0 ? 0 : f->pc + 1;
+    if ((k != 0) && ((f->ctx != nil_oop) && ({
+    o_4 = *(uint64_t *)(m + 16 + 24);
+    bcs = (uint8_t *)(o_4 + 16);
+    end = s == 0 ? (int32_t)byte_size(*(uint64_t *)(m + 16 + 24)) : s + (int32_t)((((int64_t)bcs[s - 2]) << 8) | bcs[s - 1]);
+    pc = s;
+    while (pc < end) {
+        op = bcs[pc];
+        if (op == 0x8F) {
+            r_makes_closures = true;
+            goto exit_makes_closures;
+        }
+        pc = (int32_t)(pc + ({
+    if (op < 0x68) {
+        r_length_of = 1;
+        goto exit_length_of;
+    }
+    if (op < 0x70) {
+        r_length_of = 0;
+        goto exit_length_of;
+    }
+    if (op < 0x7D) {
+        r_length_of = 1;
+        goto exit_length_of;
+    }
+    if (op < 0x80) {
+        r_length_of = 0;
+        goto exit_length_of;
+    }
+    if (op < 0x88) {
+        r_length_of = 2;
+        goto exit_length_of;
+    }
+    if (op == 0x88) {
+        r_length_of = 0;
+        goto exit_length_of;
+    }
+    if (op == 0x89) {
+        r_length_of = 2;
+        goto exit_length_of;
+    }
+    if (op < 0x8F) {
+        r_length_of = 3;
+        goto exit_length_of;
+    }
+    if (op == 0x8F) {
+        r_length_of = 6;
+        goto exit_length_of;
+    }
+    if (op < 0x94) {
+        r_length_of = 3;
+        goto exit_length_of;
+    }
+    if (op == 0x94) {
+        r_length_of = 2;
+        goto exit_length_of;
+    }
+    if (op < 0x97) {
+        r_length_of = 0;
+        goto exit_length_of;
+    }
+    if (op < 0x9A) {
+        r_length_of = 4;
+        goto exit_length_of;
+    }
+    if (op < 0xA0) {
+        r_length_of = 3;
+        goto exit_length_of;
+    }
+    if (op < 0xF0) {
+        r_length_of = 1;
+        goto exit_length_of;
+    }
+    if (op < 0xFC) {
+        r_length_of = 3;
+        goto exit_length_of;
+    }
+    r_length_of = 0;
+exit_length_of:;
+    r_length_of; }));
+    }
+    r_makes_closures = false;
+exit_makes_closures:;
+    r_makes_closures; }))) {
+        return 0;
+    }
     if ((s == 0) && (k == 0)) {
         o = (jit_method *)({
     if (h == NULL) {
@@ -1231,25 +1392,51 @@ uint64_t opt_tier_up(frame *f, int64_t loop)
         r_opt_of = NULL;
         goto exit_opt_of;
     }
-    o_4 = (jit_method *)h->opt;
-    if (!((o_4 != NULL) && ((o_4->flags & JM_FAILED) == 0) && ((o_4->flags & 2) == 0))) {
+    o_5 = (jit_method *)h->opt;
+    if (!((o_5 != NULL) && ((o_5->flags & JM_FAILED) == 0) && ((o_5->flags & 2) == 0))) {
         r_opt_of = NULL;
         goto exit_opt_of;
     }
-    r_opt_of = o_4;
+    r_opt_of = o_5;
 exit_opt_of:;
     r_opt_of; });
     } else {
         o = opt_unit_of(m, s, k);
-        if ((o == NULL) || ((!((o != NULL) && ((o->flags & JM_FAILED) == 0) && ((o->flags & 2) == 0))) && (o->generation < OPT_MAX_GENERATIONS))) {
+        if (((o == NULL) || ((!((o != NULL) && ((o->flags & JM_FAILED) == 0) && ((o->flags & 2) == 0))) && (o->generation < OPT_MAX_GENERATIONS))) && (!({
+    key_3 = (((uint64_t)(uint32_t)(((*(uint64_t *)m) >> H_HASH_SHIFT) & H_HASH_MASK)) << 32) | ((((uint64_t)s) & 0xFFFF) << 16) | (((uint64_t)k) & 0xFFFF) | 9223372036854775808ULL;
+    i_3 = (int32_t)((key_3 ^ (key_3 >> 29)) & 4095);
+    while (rt_failed[i_3] != 0) {
+        if (rt_failed[i_3] == key_3) {
+            r_failed_2 = true;
+            goto exit_failed_2;
+        }
+        i_3 = (i_3 + 1) & 4095;
+    }
+    r_failed_2 = false;
+exit_failed_2:;
+    r_failed_2; }))) {
             o = opt_optimize_unit(m, s, k, f->sp, h, o);
+            if (o == NULL) {
+                key_4 = (((uint64_t)(uint32_t)(((*(uint64_t *)m) >> H_HASH_SHIFT) & H_HASH_MASK)) << 32) | ((((uint64_t)s) & 0xFFFF) << 16) | (((uint64_t)k) & 0xFFFF) | 9223372036854775808ULL;
+                i_4 = (int32_t)((key_4 ^ (key_4 >> 29)) & 4095);
+                n_2 = 0;
+                while (rt_failed[i_4] != 0) {
+                    n_2 = n_2 + 1;
+                    if (n_2 >= 2048) {
+                        goto exit_note_failed_2;
+                    }
+                    i_4 = (i_4 + 1) & 4095;
+                }
+                rt_failed[i_4] = key_4;
+            exit_note_failed_2:;
+            }
         }
     }
     if ((o == NULL) || (!((o != NULL) && ((o->flags & JM_FAILED) == 0) && ((o->flags & 2) == 0)))) {
         return 0;
     }
-    n = opt_initial_count(m);
-    opt_counts[((uint32_t)(((*(uint64_t *)m) >> H_HASH_SHIFT) & H_HASH_MASK)) & 65535] = n;
+    n_3 = opt_initial_count(m);
+    opt_counts[((uint32_t)(((*(uint64_t *)m) >> H_HASH_SHIFT) & H_HASH_MASK)) & 65535] = n_3;
     if (k != 0) {
         rt_stat_opt_osr = rt_stat_opt_osr + 1;
     }
@@ -1272,7 +1459,7 @@ static jit_method *opt_unit_of(oop m, int32_t s, int32_t t)
     jit_method *h;
     i = (((uint64_t)(uint32_t)(((*(uint64_t *)m) >> H_HASH_SHIFT) & H_HASH_MASK) * 31 + (uint64_t)s) * 31 + (uint64_t)t) & 4095;
     while ((h = rt_units[i]) != NULL) {
-        if ((h->method == m) && ((h->block_start == (uint32_t)s) && (h->osr_pc == (uint32_t)t))) {
+        if ((h->method_hash == (uint32_t)(((*(uint64_t *)m) >> H_HASH_SHIFT) & H_HASH_MASK)) && ((h->block_start == (uint32_t)s) && ((h->osr_pc == (uint32_t)t) && ((h->method == m) || (!((h != NULL) && ((h->flags & JM_FAILED) == 0) && ((h->flags & 2) == 0))))))) {
             return h;
         }
         i = (i + 1) & 4095;

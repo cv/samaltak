@@ -1607,14 +1607,14 @@ exit_length_of:;
     r_int16_at; });
         b = opt_block_at(t, a);
         if (t <= pc) {
-            d_2 = (int32_t)ob_ana_depth[(opt_acts + a)->ana + t];
+            d_2 = (int32_t)ob_ana_depth[(opt_acts + a)->ana + pc];
             n_17 = ({
     n_18 = opt_new_node(O_CHECKINT, R_NONE);
     opt_append(n_18, ob_cur_block);
     r_add_9 = n_18;
     r_add_9; });
             ob_safe_epoch = ob_safe_epoch + 1;
-            (opt_nodes + n_17)->state = opt_make_state(a, t, d_2);
+            (opt_nodes + n_17)->state = opt_make_state(a, pc, d_2);
             (opt_nodes + n_17)->aux = SP_LOOP;
         }
         opt_goto(b);
@@ -1648,14 +1648,14 @@ exit_length_of:;
                 if (c == true_oop == (op_2 == 0x91)) {
                     b_2 = opt_block_at(t_2, a);
                     if (t_2 <= pc) {
-                        d_4 = (int32_t)ob_ana_depth[(opt_acts + a)->ana + t_2];
+                        d_4 = (int32_t)ob_ana_depth[(opt_acts + a)->ana + pc];
                         n_20 = ({
     n_21 = opt_new_node(O_CHECKINT, R_NONE);
     opt_append(n_21, ob_cur_block);
     r_add_10 = n_21;
     r_add_10; });
                         ob_safe_epoch = ob_safe_epoch + 1;
-                        (opt_nodes + n_20)->state = opt_make_state(a, t_2, d_4);
+                        (opt_nodes + n_20)->state = opt_make_state(a, pc, d_4);
                         (opt_nodes + n_20)->aux = SP_LOOP;
                     }
                     opt_goto(b_2);
@@ -1692,14 +1692,14 @@ exit_length_of:;
             ob_cur_block = taken;
             b_3 = opt_block_at(t_2, a);
             if (t_2 <= pc) {
-                d_5 = (int32_t)ob_ana_depth[(opt_acts + a)->ana + t_2];
+                d_5 = (int32_t)ob_ana_depth[(opt_acts + a)->ana + pc];
                 n_23 = ({
     n_24 = opt_new_node(O_CHECKINT, R_NONE);
     opt_append(n_24, ob_cur_block);
     r_add_12 = n_24;
     r_add_12; });
                 ob_safe_epoch = ob_safe_epoch + 1;
-                (opt_nodes + n_23)->state = opt_make_state(a, t_2, d_5);
+                (opt_nodes + n_23)->state = opt_make_state(a, pc, d_5);
                 (opt_nodes + n_23)->aux = SP_LOOP;
             }
             opt_goto(b_3);

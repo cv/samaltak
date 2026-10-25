@@ -1,6 +1,6 @@
 OptModule subclass: #OptCodegen
 	instanceVariableNames: 'ir passes regalloc cgCodeStart cgBcSize cgValidSlots cgEntryPc cgSlotTop cgMaxOut cgExitPlainLabel cgExitSyncLabel cgDeoptLabel cgReturnLabel cgHeaderLabel cgSendLabel cgInterruptLabel cgBarrierLabel cgDeoptReturnLabel cgStackFullLabel cgOuts cgOutCount cgPoolOops cgPoolLabels cgPoolCount cgMetaWords cgMetaCount cgSpOffsets cgSpCount cgMoveSrc cgMoveDst cgMoveLoc cgMoveCount cgRootAct cgLastPc builder cgDeps cgDepCount cgSunk cgSunkCount cgChainActs cgChainCount cgDoubles'
-	classVariableNames: 'CG_MAX_META CG_MAX_MOVES CG_MAX_OUT CG_MAX_POOL CG_MAX_SP OUT_BARRIER OUT_BOTTOM OUT_DEOPT OUT_INTERRUPT OUT_LAZY OUT_SEND OUT_STACK'
+	classVariableNames: 'CG_MAX_META CG_MAX_MOVES CG_MAX_OUT CG_MAX_POOL CG_MAX_SP OUT_BARRIER OUT_BOTTOM OUT_DEOPT OUT_INTERRUPT OUT_LAZY OUT_SEND OUT_STACK OUT_WIDOW'
 	package: 'VM-Jit'!
 
 OptCodegen comment: 'Emits arm64 code for the allocated IR (OptRegalloc) in block order, then the out-of-line paths (guard failures, interrupt checks, store barriers, deoptimization after a call, the stack check), then the oop pool the code loads constants from (pc-relative; GC roots). Records for every safepoint and guard the deoptimization metadata (OptRuntime decodes it): kind, continuation, the send, and for each activation its method, closure, receiver, pc and where each slot''s value is (LOC_*).
@@ -32,7 +32,8 @@ initialize
 	OUT_LAZY := 4.
 	OUT_STACK := 5.
 	OUT_BOTTOM := 6.
-	OUT_SEND := 7
+	OUT_SEND := 7.
+	OUT_WIDOW := 8
 ! !
 
 !OptCodegen methodsFor: 'accessing'!
@@ -723,7 +724,7 @@ emitOuterTemp: n
 	asm bind: done
 !
 emitReturn: n
-	| nd x s |
+	| nd x s back w |
 	nd := ir node: n.
 	x := self src: nd a into: X14.
 	asm comment: 'the bottom frame returns into a Context: the interpreter does it'.
@@ -733,6 +734,16 @@ emitReturn: n
 	asm b: s if: COND_EQ.
 	asm comment: 'result into the receiver''s slot, pop the frame, return'.
 	asm stur: x base: X20 offset: -8.
+	builder entryPc > (ir act: cgRootAct) startpc ifTrue: [
+		"a loop's unit: the frame may be married (no block refers to its Context)"
+		back := asm newLabel.
+		w := self out: OUT_WIDOW node: n index: 0.
+		(cgOuts + (cgOutCount - 1)) resume: back.
+		asm ldr: X16 base: X19 offset: self ctxOffset.
+		asm ldr: X17 base: X22 offset: self nilOffset.
+		asm cmp: X16 with: X17.
+		asm b: w if: COND_NE.
+		asm bind: back].
 	asm sub: X19 with: X19 imm: self frameBytes.
 	asm ldp: X29 with: X30 base: SP postIndex: 16.
 	asm ret
@@ -1025,6 +1036,12 @@ emitOuts
 			asm mov: X0 with: X19.
 			asm bl: cgStackFullLabel.
 			asm b: cgExitSyncLabel].
+		o kind = OUT_WIDOW ifTrue: [
+			asm comment: 'married: its Context becomes a dead one'.
+			self emitFramePc: 0 sp: 0.
+			asm mov: X0 with: X19.
+			asm bl: (asm labelAt: stubs widowStub).
+			asm b: o resume].
 		o kind = OUT_BOTTOM ifTrue: [
 			asm comment: 'the bottom frame returns into a Context: the runtime does it'.
 			asm mov: W17 imm: (self recordGuard: o node).

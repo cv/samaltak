@@ -778,7 +778,8 @@ localReturn: v act: a pc: pc depth: d
 jumpTo: t from: pc act: a
 	| b |
 	b := self blockAt: t act: a.
-	t <= pc ifTrue: [self checkInterruptAct: a pc: t depth: (self depthAt: t act: a) kind: SP_LOOP].
+	"a backward jump checks for interrupts before it is taken (at its pc, its condition still on the stack)"
+	t <= pc ifTrue: [self checkInterruptAct: a pc: pc depth: (self depthAt: pc act: a) kind: SP_LOOP].
 	self goto: b.
 	(t <= pc and: [(self lastBackJumpTo: t act: a) = pc]) ifTrue: [self seal: b]
 !
