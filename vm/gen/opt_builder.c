@@ -1791,6 +1791,11 @@ exit_is_value_selector:;
         if (((jit_flags & JIT_FLAG_INLINE) != 0) && opt_inline_send(sel, argc, kind, 0, pc, a, r)) {
             goto exit_send_selector;
         }
+        if (getenv("SAMALTAK_OPT_TRACE") != NULL) {
+            fprintf(stderr, "opt: runtime send at pc %d of act %d: ", pc, a);
+            print_symbol(sel, stderr);
+            fputc(10, stderr);
+        }
         n_27 = ({
     n_28 = opt_new_node(O_SEND, R_OOP);
     opt_append(n_28, ob_cur_block);
@@ -2271,6 +2276,11 @@ exit_is_value_selector_2:;
         if (((jit_flags & JIT_FLAG_INLINE) != 0) && opt_inline_send(sel_2, argc_2, 2, k_2, pc, a, d_6)) {
             goto exit_send_selector_2;
         }
+        if (getenv("SAMALTAK_OPT_TRACE") != NULL) {
+            fprintf(stderr, "opt: runtime send at pc %d of act %d: ", pc, a);
+            print_symbol(sel_2, stderr);
+            fputc(10, stderr);
+        }
         n_51 = ({
     n_52 = opt_new_node(O_SEND, R_OOP);
     opt_append(n_52, ob_cur_block);
@@ -2693,6 +2703,11 @@ exit_is_value_selector_3:;
         }
         if (((jit_flags & JIT_FLAG_INLINE) != 0) && opt_inline_send(sel_3, argc_3, 2, k_3, pc, a, r_2)) {
             goto exit_send_selector_3;
+        }
+        if (getenv("SAMALTAK_OPT_TRACE") != NULL) {
+            fprintf(stderr, "opt: runtime send at pc %d of act %d: ", pc, a);
+            print_symbol(sel_3, stderr);
+            fputc(10, stderr);
         }
         n_75 = ({
     n_76 = opt_new_node(O_SEND, R_OOP);
@@ -3201,6 +3216,11 @@ static void opt_float_arith(int32_t k, int32_t x, int32_t y, int32_t pc, int32_t
         if ((k == 9) || ((fl & 40) != 0)) {
             o = special(SO_SPECIAL_SELECTORS);
             sel = *(uint64_t *)(o + 16 + 8 * k);
+            if (getenv("SAMALTAK_OPT_TRACE") != NULL) {
+                fprintf(stderr, "opt: runtime send at pc %d of act %d: ", pc, a);
+                print_symbol(sel, stderr);
+                fputc(10, stderr);
+            }
             n_8 = ({
     n_9 = opt_new_node(O_SEND, R_OOP);
     opt_append(n_9, ob_cur_block);
@@ -3790,9 +3810,12 @@ static bool opt_inline_primitive(int64_t p, uint64_t cls, int32_t argc, int32_t 
     int32_t var_5;
     int32_t i_2;
     int32_t var_6;
-    int64_t k;
+    uint32_t fl;
     int32_t i_3;
     int32_t var_7;
+    int64_t k;
+    int32_t i_4;
+    int32_t var_8;
     int32_t y_2;
     int32_t s_2;
     int32_t r_guard_int;
@@ -3810,13 +3833,13 @@ static bool opt_inline_primitive(int64_t p, uint64_t cls, int32_t argc, int32_t 
     int32_t n_16;
     int32_t n_15;
     int32_t n_10;
-    int32_t var_8;
+    int32_t var_9;
     int v_3;
     int32_t r_binary_3;
     int32_t r_add_9;
     int32_t n_18;
     int32_t n_17;
-    int32_t var_9;
+    int32_t var_10;
     uint64_t o;
     int64_t fmt;
     int64_t spec;
@@ -3824,9 +3847,9 @@ static bool opt_inline_primitive(int64_t p, uint64_t cls, int32_t argc, int32_t 
     int64_t ek;
     int32_t r_add_10;
     int32_t n_19;
-    int32_t var_10;
-    int32_t i_4;
     int32_t var_11;
+    int32_t i_5;
+    int32_t var_12;
     int32_t v_4;
     int32_t r_guard_int_3;
     int32_t r_add_11;
@@ -3834,20 +3857,20 @@ static bool opt_inline_primitive(int64_t p, uint64_t cls, int32_t argc, int32_t 
     int32_t n_20;
     int32_t r_add_12;
     int32_t n_22;
-    int32_t var_12;
-    int32_t i_5;
     int32_t var_13;
+    int32_t i_6;
+    int32_t var_14;
     int32_t v_5;
     int32_t r_guard_int_4;
     int32_t r_add_13;
     int32_t n_24;
     int32_t n_23;
-    int32_t i_6;
-    int32_t var_14;
+    int32_t i_7;
+    int32_t var_15;
     int32_t val;
     int32_t r_add_14;
     int32_t n_25;
-    int32_t var_15;
+    int32_t var_16;
     kind = ({
     if (!ob_prims_known) {
         ob_prims_known = true;
@@ -4075,10 +4098,20 @@ exit_unbox_float:;
         if (!(cls == cls_smallint)) {
             return false;
         }
+        fl = fb_flags_at((opt_acts + a)->method, pc);
+        if ((fl & 46) != 0) {
+            if (!((kind - PK_INT <= 9) && (((fl & FB_FLOAT) != 0) && ((fl & 132) == 0)))) {
+                return false;
+            }
+            i_3 = r + 1;
+            var_7 = (opt_acts + a)->var_base + i_3;
+            opt_float_arith((int32_t)(kind - PK_INT), rcv, opt_read(var_7, ob_cur_block), pc, a, r);
+            return true;
+        }
         k = kind - PK_INT;
-        i_3 = r + 1;
-        var_7 = (opt_acts + a)->var_base + i_3;
-        y_2 = opt_read(var_7, ob_cur_block);
+        i_4 = r + 1;
+        var_8 = (opt_acts + a)->var_base + i_4;
+        y_2 = opt_read(var_8, ob_cur_block);
         s_2 = opt_make_state(a, pc, (int32_t)ob_ana_depth[(opt_acts + a)->ana + pc]);
         gx = ({
     if ((int32_t)(opt_nodes + rcv)->tkind == T_SMI) {
@@ -4127,8 +4160,8 @@ exit_guard_int_2:;
     r_binary_2; });
             (opt_nodes + n_10)->aux = k;
             (opt_nodes + n_10)->tkind = T_BOOL;
-            var_8 = (opt_acts + a)->var_base + r;
-            opt_write(var_8, n_10, ob_cur_block);
+            var_9 = (opt_acts + a)->var_base + r;
+            opt_write(var_9, n_10, ob_cur_block);
             goto exit_int_arith;
         }
         switch (k) {
@@ -4162,8 +4195,8 @@ exit_guard_int_2:;
         if ((k <= 1) || (k == 8)) {
             (opt_nodes + n_10)->state = s_2;
         }
-        var_9 = (opt_acts + a)->var_base + r;
-        opt_write(var_9, n_10, ob_cur_block);
+        var_10 = (opt_acts + a)->var_base + r;
+        opt_write(var_10, n_10, ob_cur_block);
     exit_int_arith:;
         return true;
     }
@@ -4188,6 +4221,9 @@ exit_guard_int_2:;
     if (ek < 0) {
         return false;
     }
+    if ((fb_flags_at((opt_acts + a)->method, pc) & FB_DEOPT_OTHER) != 0) {
+        return false;
+    }
     s = opt_make_state(a, pc, (int32_t)ob_ana_depth[(opt_acts + a)->ana + pc]);
     if ((kind == PK_SIZE) && (argc == 0)) {
         n = ({
@@ -4199,14 +4235,14 @@ exit_guard_int_2:;
         (opt_nodes + n)->aux = ek;
         (opt_nodes + n)->aux2 = fixed;
         (opt_nodes + n)->tkind = T_SMI;
-        var_10 = (opt_acts + a)->var_base + r;
-        opt_write(var_10, n, ob_cur_block);
+        var_11 = (opt_acts + a)->var_base + r;
+        opt_write(var_11, n, ob_cur_block);
         return true;
     }
     if (((kind == PK_AT) || (kind == PK_STRINGAT)) && (argc == 1)) {
-        i_4 = r + 1;
-        var_11 = (opt_acts + a)->var_base + i_4;
-        v_4 = opt_read(var_11, ob_cur_block);
+        i_5 = r + 1;
+        var_12 = (opt_acts + a)->var_base + i_5;
+        v_4 = opt_read(var_12, ob_cur_block);
         idx = ({
     if ((int32_t)(opt_nodes + v_4)->tkind == T_SMI) {
         r_guard_int_3 = v_4;
@@ -4240,14 +4276,14 @@ exit_guard_int_3:;
         if (ek == E_CHAR) {
             (opt_nodes + n)->tkind = T_CHAR;
         }
-        var_12 = (opt_acts + a)->var_base + r;
-        opt_write(var_12, n, ob_cur_block);
+        var_13 = (opt_acts + a)->var_base + r;
+        opt_write(var_13, n, ob_cur_block);
         return true;
     }
     if (((kind == PK_ATPUT) || (kind == PK_STRINGATPUT)) && (argc == 2)) {
-        i_5 = r + 1;
-        var_13 = (opt_acts + a)->var_base + i_5;
-        v_5 = opt_read(var_13, ob_cur_block);
+        i_6 = r + 1;
+        var_14 = (opt_acts + a)->var_base + i_6;
+        v_5 = opt_read(var_14, ob_cur_block);
         idx = ({
     if ((int32_t)(opt_nodes + v_5)->tkind == T_SMI) {
         r_guard_int_4 = v_5;
@@ -4265,9 +4301,9 @@ exit_guard_int_3:;
     r_guard_int_4 = n_23;
 exit_guard_int_4:;
     r_guard_int_4; });
-        i_6 = r + 2;
-        var_14 = (opt_acts + a)->var_base + i_6;
-        val = opt_read(var_14, ob_cur_block);
+        i_7 = r + 2;
+        var_15 = (opt_acts + a)->var_base + i_7;
+        val = opt_read(var_15, ob_cur_block);
         n = ({
     n_25 = opt_new_node(O_INDEXSTORE, R_NONE);
     opt_append(n_25, ob_cur_block);
@@ -4279,8 +4315,8 @@ exit_guard_int_4:;
         (opt_nodes + n)->aux = ek;
         (opt_nodes + n)->aux2 = fixed;
         (opt_nodes + n)->state = s;
-        var_15 = (opt_acts + a)->var_base + r;
-        opt_write(var_15, val, ob_cur_block);
+        var_16 = (opt_acts + a)->var_base + r;
+        opt_write(var_16, val, ob_cur_block);
         return true;
     }
     return false;
@@ -4953,6 +4989,11 @@ exit_class_of:;
         fmt = (isize != 0) || (spec == 3) ? F_FIXVAR : F_VAR;
     }
     n_3 = ({
+    if (getenv("SAMALTAK_OPT_TRACE") != NULL) {
+        fprintf(stderr, "opt: runtime send at pc %d of act %d: ", pc, a);
+        print_symbol(sel, stderr);
+        fputc(10, stderr);
+    }
     n_4 = ({
     n_5 = opt_new_node(O_SEND, R_OOP);
     opt_append(n_5, ob_cur_block);
@@ -5074,6 +5115,11 @@ exit_allocate:;
     if (*(uint64_t *)(m + 16 + 56) == 1ULL) {
         if (((jit_flags & JIT_FLAG_CALLS) != 0) && jit_has_code(m)) {
             n_2 = ({
+    if (getenv("SAMALTAK_OPT_TRACE") != NULL) {
+        fprintf(stderr, "opt: runtime send at pc %d of act %d: ", pc, a);
+        print_symbol(sel, stderr);
+        fputc(10, stderr);
+    }
     n_6 = ({
     n_7 = opt_new_node(O_SEND, R_OOP);
     opt_append(n_7, ob_cur_block);
@@ -5174,6 +5220,11 @@ exit_length_of_2:;
         }
     }
     kind_3 = kind == 1 ? 1 : 0;
+    if (getenv("SAMALTAK_OPT_TRACE") != NULL) {
+        fprintf(stderr, "opt: runtime send at pc %d of act %d: ", pc, a);
+        print_symbol(sel, stderr);
+        fputc(10, stderr);
+    }
     n_8 = ({
     n_9 = opt_new_node(O_SEND, R_OOP);
     opt_append(n_9, ob_cur_block);
@@ -5542,6 +5593,11 @@ exit_class_of_4:;
         fmt_2 = (isize_2 != 0) || (spec_2 == 3) ? F_FIXVAR : F_VAR;
     }
     n_11 = ({
+    if (getenv("SAMALTAK_OPT_TRACE") != NULL) {
+        fprintf(stderr, "opt: runtime send at pc %d of act %d: ", pc, a);
+        print_symbol(sel, stderr);
+        fputc(10, stderr);
+    }
     n_12 = ({
     n_13 = opt_new_node(O_SEND, R_OOP);
     opt_append(n_13, ob_cur_block);
@@ -5663,6 +5719,11 @@ exit_allocate_2:;
     if (*(uint64_t *)(m_5 + 16 + 56) == 1ULL) {
         if (((jit_flags & JIT_FLAG_CALLS) != 0) && jit_has_code(m_5)) {
             n_10 = ({
+    if (getenv("SAMALTAK_OPT_TRACE") != NULL) {
+        fprintf(stderr, "opt: runtime send at pc %d of act %d: ", pc, a);
+        print_symbol(sel, stderr);
+        fputc(10, stderr);
+    }
     n_14 = ({
     n_15 = opt_new_node(O_SEND, R_OOP);
     opt_append(n_15, ob_cur_block);
@@ -5763,6 +5824,11 @@ exit_length_of_5:;
         }
     }
     kind_5 = kind == 1 ? 1 : 0;
+    if (getenv("SAMALTAK_OPT_TRACE") != NULL) {
+        fprintf(stderr, "opt: runtime send at pc %d of act %d: ", pc, a);
+        print_symbol(sel, stderr);
+        fputc(10, stderr);
+    }
     n_16 = ({
     n_17 = opt_new_node(O_SEND, R_OOP);
     opt_append(n_17, ob_cur_block);
@@ -5868,7 +5934,7 @@ exit_send_2:;
         return false;
     }
     fl = site->flags;
-    if ((fl & 17) != 0) {
+    if ((fl & 145) != 0) {
         return false;
     }
     n = 0;
@@ -6136,6 +6202,11 @@ exit_class_of_5:;
         fmt_3 = (isize_3 != 0) || (spec_3 == 3) ? F_FIXVAR : F_VAR;
     }
     n_23 = ({
+    if (getenv("SAMALTAK_OPT_TRACE") != NULL) {
+        fprintf(stderr, "opt: runtime send at pc %d of act %d: ", pc, a);
+        print_symbol(sel, stderr);
+        fputc(10, stderr);
+    }
     n_24 = ({
     n_25 = opt_new_node(O_SEND, R_OOP);
     opt_append(n_25, ob_cur_block);
@@ -6257,6 +6328,11 @@ exit_allocate_3:;
     if (*(uint64_t *)(m_9 + 16 + 56) == 1ULL) {
         if (((jit_flags & JIT_FLAG_CALLS) != 0) && jit_has_code(m_9)) {
             n_22 = ({
+    if (getenv("SAMALTAK_OPT_TRACE") != NULL) {
+        fprintf(stderr, "opt: runtime send at pc %d of act %d: ", pc, a);
+        print_symbol(sel, stderr);
+        fputc(10, stderr);
+    }
     n_26 = ({
     n_27 = opt_new_node(O_SEND, R_OOP);
     opt_append(n_27, ob_cur_block);
@@ -6357,6 +6433,11 @@ exit_length_of_8:;
         }
     }
     kind_7 = kind == 1 ? 1 : 0;
+    if (getenv("SAMALTAK_OPT_TRACE") != NULL) {
+        fprintf(stderr, "opt: runtime send at pc %d of act %d: ", pc, a);
+        print_symbol(sel, stderr);
+        fputc(10, stderr);
+    }
     n_28 = ({
     n_29 = opt_new_node(O_SEND, R_OOP);
     opt_append(n_29, ob_cur_block);
@@ -6712,6 +6793,11 @@ exit_class_of_6:;
         fmt_4 = (isize_4 != 0) || (spec_4 == 3) ? F_FIXVAR : F_VAR;
     }
     n_36 = ({
+    if (getenv("SAMALTAK_OPT_TRACE") != NULL) {
+        fprintf(stderr, "opt: runtime send at pc %d of act %d: ", pc, a);
+        print_symbol(sel, stderr);
+        fputc(10, stderr);
+    }
     n_37 = ({
     n_38 = opt_new_node(O_SEND, R_OOP);
     opt_append(n_38, ob_cur_block);
@@ -6833,6 +6919,11 @@ exit_allocate_4:;
     if (*(uint64_t *)(m_13 + 16 + 56) == 1ULL) {
         if (((jit_flags & JIT_FLAG_CALLS) != 0) && jit_has_code(m_13)) {
             n_35 = ({
+    if (getenv("SAMALTAK_OPT_TRACE") != NULL) {
+        fprintf(stderr, "opt: runtime send at pc %d of act %d: ", pc, a);
+        print_symbol(sel, stderr);
+        fputc(10, stderr);
+    }
     n_39 = ({
     n_40 = opt_new_node(O_SEND, R_OOP);
     opt_append(n_40, ob_cur_block);
@@ -6933,6 +7024,11 @@ exit_length_of_11:;
         }
     }
     kind_9 = kind == 1 ? 1 : 0;
+    if (getenv("SAMALTAK_OPT_TRACE") != NULL) {
+        fprintf(stderr, "opt: runtime send at pc %d of act %d: ", pc, a);
+        print_symbol(sel, stderr);
+        fputc(10, stderr);
+    }
     n_41 = ({
     n_42 = opt_new_node(O_SEND, R_OOP);
     opt_append(n_42, ob_cur_block);
@@ -7027,6 +7123,11 @@ exit_length_of_12:;
     r_send_4 = true;
 exit_send_4:;
     r_send_4; })) {
+            if (getenv("SAMALTAK_OPT_TRACE") != NULL) {
+                fprintf(stderr, "opt: runtime send at pc %d of act %d: ", pc, a);
+                print_symbol(sel, stderr);
+                fputc(10, stderr);
+            }
             n_43 = ({
     n_44 = opt_new_node(O_SEND, R_OOP);
     opt_append(n_44, ob_cur_block);

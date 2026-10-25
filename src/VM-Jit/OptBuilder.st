@@ -1022,7 +1022,7 @@ inlineSend: sel argc: argc kind: kind special: k pc: pc act: a rcvSlot: r
 		libc fputc: 10 to: libc stderr].
 	site isNull ifTrue: [^false].
 	fl := site flags.
-	(fl bitAnd: (feedback mega bitOr: feedback deoptClass)) ~= 0 ifTrue: [^false].
+	(fl bitAnd: ((feedback mega bitOr: feedback deoptClass) bitOr: feedback deoptOther)) ~= 0 ifTrue: [^false].
 	n := 0.
 	0 to: feedback classSlots - 1 do: [:i | (site classes at: i) ~= 0 ifTrue: [n := n + 1]].
 	n = 0 ifTrue: [^false].
@@ -1153,7 +1153,7 @@ primNamed: name kind: k
 inlinePrimitive: p class: cls argc: argc pc: pc act: a rcvSlot: r
 	"The receiver (of class cls) is in a's slot r: inline primitive p if the optimizer knows it for cls (a failure deoptimizes to the send); answer whether it did."
 	<c: 'bool opt_inline_primitive(int64_t p, uint64_t cls, int32_t argc, int32_t pc, int32_t a, int32_t r)'>
-	| kind fmt spec fixed ek rcv s n idx val |
+	| kind fmt spec fixed ek rcv s n idx val fl |
 	kind := self primKindOf: p.
 	kind = 0 ifTrue: [^false].
 	rcv := self read: (self var: a slot: r).
@@ -1179,6 +1179,12 @@ inlinePrimitive: p class: cls argc: argc pc: pc act: a rcvSlot: r
 		^true].
 	(kind >= PK_INT and: [argc = 1]) ifTrue: [
 		cls = memory clsSmallint ifFalse: [^false].
+		fl := feedback flagsAt: (ir act: a) method pc: pc.
+		"the argument was not always a SmallInteger: Floats as doubles, else the send"
+		(fl bitAnd: ((feedback sawFloat bitOr: feedback sawNonInt) bitOr: (feedback deoptArith bitOr: feedback overflowed))) ~= 0 ifTrue: [
+			(kind - PK_INT <= 9 and: [(fl bitAnd: feedback sawFloat) ~= 0 and: [(fl bitAnd: (feedback sawNonInt bitOr: feedback deoptOther)) = 0]]) ifFalse: [^false].
+			self floatArith: (kind - PK_INT) asInt32 x: rcv y: (self read: (self var: a slot: r + 1)) pc: pc act: a rcvSlot: r.
+			^true].
 		self intArith: kind - PK_INT x: rcv y: (self read: (self var: a slot: r + 1)) pc: pc act: a rcvSlot: r.
 		^true].
 	fmt := self intVal: (self loadRef: cls at: BEH_FORMAT).
@@ -1193,6 +1199,7 @@ inlinePrimitive: p class: cls argc: argc pc: pc act: a rcvSlot: r
 		spec >= F_BYTES ifFalse: [^false].
 		ek := E_CHAR].
 	ek < 0 ifTrue: [^false].
+	((feedback flagsAt: (ir act: a) method pc: pc) bitAnd: feedback deoptOther) ~= 0 ifTrue: [^false].
 	s := self stateAct: a pc: pc depth: (self depthAt: pc act: a).
 	(kind = PK_SIZE and: [argc = 0]) ifTrue: [
 		n := self add: O_SIZE rep: R_OOP.
@@ -1359,6 +1366,10 @@ depAt: i
 callSelector: sel argc: argc kind: kind special: k pc: pc act: a rcvSlot: r
 	"A send through the runtime: the result replaces the receiver."
 	| n args |
+	(libc getenv: 'SAMALTAK_OPT_TRACE') notNull ifTrue: [
+		libc fprintf: libc stderr format: 'opt: runtime send at pc %d of act %d: ' with: pc with: a.
+		interpreter printSymbol: sel on: libc stderr.
+		libc fputc: 10 to: libc stderr].
 	n := self add: O_SEND rep: R_OOP.
 	obSafeEpoch := obSafeEpoch + 1.
 	args := ir allocOperands: argc + 1.

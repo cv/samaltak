@@ -498,7 +498,15 @@ uint64_t opt_deopt_guard(frame *f, int64_t k)
         m = rt_act_method[rt_act_count - 1];
         pc = rt_act_pc[rt_act_count - 1];
         fresh = (fb_flags_at(m, pc) & ((uint32_t)why)) != (uint32_t)why;
+        if ((!fresh) && ((h != NULL) && ((h->flags & JM_FAILED) == 0) && ((h->flags & 2) == 0))) {
+            why = why | 128;
+            fresh = (fb_flags_at(m, pc) & FB_DEOPT_OTHER) == 0;
+        }
         jit_note_flags(m, pc, (uint32_t)why);
+        if (getenv("SAMALTAK_OPT_TRACE") != NULL) {
+            fprintf(stderr, "deopt why %d fresh %d flags now %d at pc %d of ", why, fresh ? 1 : 0, fb_flags_at(m, pc), pc);
+            print_activation(m, nil_oop, nil_oop, stderr);
+        }
     }
     if (stressed) {
         return r;

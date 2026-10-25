@@ -436,7 +436,14 @@ deoptGuard: f index: k
 		m := rtActMethod at: rtActCount - 1.
 		pc := rtActPc at: rtActCount - 1.
 		fresh := ((feedback flagsAt: m pc: pc) bitAnd: why asUInt32) ~= why asUInt32.
-		feedback noteFlags: m pc: pc flags: why asUInt32].
+		"again in live code, though the feedback said so: speculate no more here"
+		(fresh not and: [self isAlive: h]) ifTrue: [
+			why := why bitOr: feedback deoptOther asInt32.
+			fresh := ((feedback flagsAt: m pc: pc) bitAnd: feedback deoptOther) = 0].
+		feedback noteFlags: m pc: pc flags: why asUInt32.
+		(libc getenv: 'SAMALTAK_OPT_TRACE') notNull ifTrue: [
+			libc fprintf: libc stderr format: 'deopt why %d fresh %d flags now %d at pc %d of ' with: why with: (fresh ifTrue: [1] ifFalse: [0]) with: (feedback flagsAt: m pc: pc) with: pc.
+			interpreter printActivation: m receiver: memory nilOop closure: memory nilOop on: libc stderr]].
 	stressed ifTrue: [^r].
 	cache beginWriting.
 	h deopts: h deopts + 1.
