@@ -1,6 +1,6 @@
 VMCoreModule subclass: #JitRuntime
-	instanceVariableNames: 'stubs template cache asm analysis jitMode jitFlags jitThreshold jitOsrThreshold jitCacheMB cacheOpened flushPending invalidations stateBlock methodTable tableCount methodCounts youngMethods youngCount youngOverflow mapPcs mapOffsets mapCount refSites refCount sendPushed performFn performArgsFn statCompiled statFailed statBytecodes statCompileUs statCodeBytes statCacheFlushes statEntries statExits statResumes statOsr'
-	classVariableNames: 'JIT_FLAG_ARITH JIT_FLAG_BARRIER JIT_FLAG_EMBED JIT_FLAG_FUSE JIT_FLAG_NOTES JIT_MAX_COUNT JIT_MAX_MAP JIT_MAX_REFS JIT_MAX_YOUNG JIT_NONE JIT_PROLOGUE_BYTES JIT_TABLE_SIZE JIT_TEMPLATE JM_DEAD JM_FAILED JM_NOTES'
+	instanceVariableNames: 'stubs template baseline brt cache asm analysis jitMode jitFlags jitThreshold jitOsrThreshold jitCacheMB cacheOpened flushPending invalidations stateBlock methodTable tableCount methodCounts youngMethods youngCount youngOverflow mapPcs mapOffsets mapCount refSites refCount sendPushed performFn performArgsFn statCompiled statFailed statBytecodes statCompileUs statCodeBytes statCacheFlushes statEntries statExits statResumes statOsr'
+	classVariableNames: 'JIT_BASELINE JIT_FLAG_ACCESS JIT_FLAG_ALLOC JIT_FLAG_ARITH JIT_FLAG_BARRIER JIT_FLAG_BLOCKS JIT_FLAG_EMBED JIT_FLAG_FLOAT JIT_FLAG_FUSE JIT_FLAG_IC JIT_FLAG_LAST JIT_FLAG_MEGA JIT_FLAG_NLR JIT_FLAG_NOTES JIT_FLAG_PIC JIT_FLAG_PRIMS JIT_FLAG_QUICK JIT_FLAG_REGS JIT_FLAG_TEMPS JIT_MAX_COUNT JIT_MAX_MAP JIT_MAX_REFS JIT_MAX_YOUNG JIT_NONE JIT_PROLOGUE_BYTES JIT_TABLE_SIZE JIT_TEMPLATE JM_DEAD JM_FAILED JM_NOTES'
 	package: 'VM-Jit'!
 
 JitRuntime comment: 'The runtime every compiler''s machine code runs on (docs/jit.md, Shared runtime): configuration (--jit, --jit-threshold, --jit-osr, --jit-flags, --jit-cache), the compiled methods (JitMethod headers in the code cache, found by the method''s identity hash; their methods are GC roots, young ones listed for scavenges; embedded object references patched by full GCs and become), the interpreter''s hooks (activated:, resume:, backJump:), the functions machine code calls (send:info:site:, special:info:site:, interrupt:, closure:, makeArray:, outerTemp:, widow:, writeBarrier:value:), code cache flushes, statistics.
@@ -9,7 +9,7 @@ Machine code runs the interpreter''s frames: x19 the Frame, x20 its slots, x21 t
 
 !JitRuntime class methodsFor: 'declaring'!
 declarations
-	^#((stubs JitStubs) (template JitTemplateCompiler) (cache CodeCache) (asm Arm64Assembler) (analysis BytecodeAnalysis)
+	^#((stubs JitStubs) (template JitTemplateCompiler) (baseline JitBaselineCompiler) (brt JitBaselineRuntime) (cache CodeCache) (asm Arm64Assembler) (analysis BytecodeAnalysis)
 		(jitMode int32_t) (jitFlags uint32_t) (jitThreshold int64_t 2) (jitOsrThreshold int64_t 50) (jitCacheMB int64_t 64)
 		(cacheOpened bool) (flushPending bool) (invalidations uint64_t)
 		(stateBlock 'JitState[1]')
@@ -24,11 +24,25 @@ declarations
 initialize
 	JIT_NONE := 0.
 	JIT_TEMPLATE := 1.
+	JIT_BASELINE := 2.
 	JIT_FLAG_ARITH := 1.
 	JIT_FLAG_FUSE := 2.
 	JIT_FLAG_BARRIER := 4.
 	JIT_FLAG_NOTES := 8.
 	JIT_FLAG_EMBED := 16.
+	JIT_FLAG_IC := 32.
+	JIT_FLAG_PIC := 64.
+	JIT_FLAG_MEGA := 128.
+	JIT_FLAG_REGS := 256.
+	JIT_FLAG_PRIMS := 512.
+	JIT_FLAG_ACCESS := 1024.
+	JIT_FLAG_ALLOC := 2048.
+	JIT_FLAG_FLOAT := 4096.
+	JIT_FLAG_BLOCKS := 8192.
+	JIT_FLAG_NLR := 16384.
+	JIT_FLAG_QUICK := 32768.
+	JIT_FLAG_TEMPS := 65536.
+	JIT_FLAG_LAST := JIT_FLAG_TEMPS.
 	JIT_TABLE_SIZE := 65536.
 	JIT_MAX_YOUNG := 4096.
 	JIT_MAX_MAP := 32768.
@@ -91,6 +105,60 @@ embed
 	"Embed old literal constants in the code instead of loading them through the frame's lits."
 	^(jitFlags bitAnd: JIT_FLAG_EMBED) ~= 0
 !
+ic
+	"Baseline: machine-code inline caches (else every send looks up in the runtime)."
+	^(jitFlags bitAnd: JIT_FLAG_IC) ~= 0
+!
+pic
+	"Baseline: polymorphic inline caches (else a monomorphic miss goes megamorphic)."
+	^(jitFlags bitAnd: JIT_FLAG_PIC) ~= 0
+!
+mega
+	"Baseline: megamorphic sends probe a cache in machine code (else they call the runtime)."
+	^(jitFlags bitAnd: JIT_FLAG_MEGA) ~= 0
+!
+regs
+	"Baseline: operands stay in registers between bytecodes (else every push goes to its slot)."
+	^(jitFlags bitAnd: JIT_FLAG_REGS) ~= 0
+!
+prims
+	"Baseline: primitives of compiled methods in machine code (else they call the primitive's C function)."
+	^(jitFlags bitAnd: JIT_FLAG_PRIMS) ~= 0
+!
+access
+	"Baseline: at: at:put: size class x y inline at send sites."
+	^(jitFlags bitAnd: JIT_FLAG_ACCESS) ~= 0
+!
+alloc
+	"Baseline: allocation in machine code (eden bump pointer): basicNew, closures, Contexts, Arrays, Floats."
+	^(jitFlags bitAnd: JIT_FLAG_ALLOC) ~= 0
+!
+float
+	"Baseline: Float arithmetic and comparisons inline."
+	^(jitFlags bitAnd: JIT_FLAG_FLOAT) ~= 0
+!
+blocks
+	"Baseline: value sends enter the block's code directly (a cache in machine code)."
+	^(jitFlags bitAnd: JIT_FLAG_BLOCKS) ~= 0
+!
+nlr
+	"Baseline: non-local returns to a home frame in machine code return there directly."
+	^(jitFlags bitAnd: JIT_FLAG_NLR) ~= 0
+!
+quick
+	"Baseline: methods that only answer an instance variable, a constant or self, or set instance variables, run without a frame."
+	^(jitFlags bitAnd: JIT_FLAG_QUICK) ~= 0
+!
+temps
+	"Baseline: temporaries cached in registers within a basic block."
+	^(jitFlags bitAnd: JIT_FLAG_TEMPS) ~= 0
+!
+baselineMode
+	^JIT_BASELINE
+!
+isBaseline
+	^jitMode = JIT_BASELINE
+!
 templateMode
 	^JIT_TEMPLATE
 !
@@ -102,11 +170,13 @@ modeNamed: name
 	<c: 'int32_t jit_mode_named(const char *name)'>
 	(libc strcmp: name with: 'none') = 0 ifTrue: [^JIT_NONE].
 	(libc strcmp: name with: 'template') = 0 ifTrue: [^JIT_TEMPLATE].
+	(libc strcmp: name with: 'baseline') = 0 ifTrue: [^JIT_BASELINE].
 	^-1
 !
 modeName: m
 	<c: 'const char *jit_mode_name(int32_t m)'>
 	m = JIT_TEMPLATE ifTrue: [^'template'].
+	m = JIT_BASELINE ifTrue: [^'baseline'].
 	^'none'
 !
 flagNamed: name length: n
@@ -116,6 +186,18 @@ flagNamed: name length: n
 	(self is: name length: n named: 'barrier') ifTrue: [^JIT_FLAG_BARRIER].
 	(self is: name length: n named: 'notes') ifTrue: [^JIT_FLAG_NOTES].
 	(self is: name length: n named: 'embed') ifTrue: [^JIT_FLAG_EMBED].
+	(self is: name length: n named: 'ic') ifTrue: [^JIT_FLAG_IC].
+	(self is: name length: n named: 'pic') ifTrue: [^JIT_FLAG_PIC].
+	(self is: name length: n named: 'mega') ifTrue: [^JIT_FLAG_MEGA].
+	(self is: name length: n named: 'regs') ifTrue: [^JIT_FLAG_REGS].
+	(self is: name length: n named: 'prims') ifTrue: [^JIT_FLAG_PRIMS].
+	(self is: name length: n named: 'access') ifTrue: [^JIT_FLAG_ACCESS].
+	(self is: name length: n named: 'alloc') ifTrue: [^JIT_FLAG_ALLOC].
+	(self is: name length: n named: 'float') ifTrue: [^JIT_FLAG_FLOAT].
+	(self is: name length: n named: 'blocks') ifTrue: [^JIT_FLAG_BLOCKS].
+	(self is: name length: n named: 'nlr') ifTrue: [^JIT_FLAG_NLR].
+	(self is: name length: n named: 'quick') ifTrue: [^JIT_FLAG_QUICK].
+	(self is: name length: n named: 'temps') ifTrue: [^JIT_FLAG_TEMPS].
 	^0
 !
 is: s length: n named: name
@@ -127,7 +209,22 @@ flagName: bit
 	bit = JIT_FLAG_FUSE ifTrue: [^'fuse'].
 	bit = JIT_FLAG_BARRIER ifTrue: [^'barrier'].
 	bit = JIT_FLAG_NOTES ifTrue: [^'notes'].
-	^'embed'
+	bit = JIT_FLAG_EMBED ifTrue: [^'embed'].
+	bit = JIT_FLAG_IC ifTrue: [^'ic'].
+	bit = JIT_FLAG_PIC ifTrue: [^'pic'].
+	bit = JIT_FLAG_MEGA ifTrue: [^'mega'].
+	bit = JIT_FLAG_REGS ifTrue: [^'regs'].
+	bit = JIT_FLAG_PRIMS ifTrue: [^'prims'].
+	bit = JIT_FLAG_ACCESS ifTrue: [^'access'].
+	bit = JIT_FLAG_ALLOC ifTrue: [^'alloc'].
+	bit = JIT_FLAG_FLOAT ifTrue: [^'float'].
+	bit = JIT_FLAG_BLOCKS ifTrue: [^'blocks'].
+	bit = JIT_FLAG_NLR ifTrue: [^'nlr'].
+	bit = JIT_FLAG_QUICK ifTrue: [^'quick'].
+	^'temps'
+!
+lastFlag
+	^JIT_FLAG_LAST
 !
 parseFlags: s
 	"a,b,-c: set a and b, clear c. Answer whether every name is a flag."
@@ -162,10 +259,10 @@ setFlags: f
 	invalidations := invalidations + 1
 !
 defaults
-	"Before the command line: --jit none, threshold 2, OSR after 50 backward jumps, 64 MB, flags arith fuse barrier."
+	"Before the command line: --jit none, threshold 2, OSR after 50 backward jumps, 64 MB, every flag but notes and embed."
 	<c: 'void jit_defaults(void)'>
 	jitMode := JIT_NONE.
-	jitFlags := (JIT_FLAG_ARITH bitOr: JIT_FLAG_FUSE) bitOr: JIT_FLAG_BARRIER
+	jitFlags := ((JIT_FLAG_LAST << 1) - 1 bitClear: (JIT_FLAG_NOTES bitOr: JIT_FLAG_EMBED)) asUInt32
 !
 start
 	"After the image is loaded."
@@ -205,11 +302,35 @@ refreshState
 	stateBlock youngLo: gc youngLo.
 	stateBlock youngHi: gc youngHi.
 	stateBlock arrayClass: memory clsArray.
-	stateBlock pointClass: memory clsPoint
+	stateBlock pointClass: memory clsPoint.
+	stateBlock stackLimitNormal: interpreter cstackEnd - (8 * (analysis maxDepthLimit + CTX_SLACK + 1)) asUInt64.
+	stateBlock interrupt = 0 ifTrue: [stateBlock stackLimit: stateBlock stackLimitNormal].
+	stateBlock edenBox: gc edenBoxAddress.
+	stateBlock hashBox: memory hashBoxAddress.
+	stateBlock lcgMul: 6364136223846793005.
+	stateBlock lcgAdd: 1442695040888963407.
+	0 to: 7 do: [:t | stateBlock tagClasses at: t put: ((t bitAnd: 1) ~= 0
+		ifTrue: [memory clsSmallint]
+		ifFalse: [t = 2 ifTrue: [memory clsChar] ifFalse: [t = 4 ifTrue: [memory clsSmallfloat] ifFalse: [memory nilOop]]])].
+	stateBlock blockClass: memory clsBlock.
+	stateBlock byteStringClass: memory clsBytestring.
+	stateBlock byteArrayClass: memory clsBytearray.
+	stateBlock contextClass: memory clsContext.
+	stateBlock boxedFloatClass: memory clsBoxedfloat.
+	stateBlock wordArrayClass: (memory special: SO_BITMAP).
+	stateBlock byteSymbolClass: (memory special: SO_BYTESYMBOL).
+	brt refresh
 !
 requestInterrupt
-	"Any thread: machine code checks state interrupt at method entries and backward jumps."
-	stateBlock interrupt: 1
+	"Any thread: machine code checks state interrupt at backward jumps and, through stackLimit, at method entries."
+	stateBlock interrupt: 1.
+	stateBlock stackLimit: 0
+!
+clearInterrupt
+	"The runtime handles the interrupt: entries stop taking the slow path (unless another is requested meanwhile)."
+	stateBlock interrupt: 0.
+	stateBlock stackLimit: stateBlock stackLimitNormal.
+	stateBlock interrupt ~= 0 ifTrue: [stateBlock stackLimit: 0]
 !
 stateAddress
 	^self cCoerce: stateBlock to: 'uint64_t'
@@ -243,6 +364,9 @@ widowFunction
 !
 writeBarrierFunction
 	^self cCoerce: (self functionPointer: #writeBarrier:value:) to: 'uint64_t'
+!
+exitSyncFunction
+	^self cCoerce: (self functionPointer: #exitSync:) to: 'uint64_t'
 ! !
 
 !JitRuntime methodsFor: 'compiled methods'!
@@ -285,6 +409,22 @@ hasNotes: h
 !
 codeTop
 	^cache top
+!
+invalidations
+	^invalidations
+!
+tableCount
+	^tableCount
+!
+tableSize
+	^JIT_TABLE_SIZE
+!
+headerAt: i
+	^methodTable at: i
+!
+requestFlush
+	"The code cache is full: flush it at the next interpreter hook."
+	flushPending := true
 !
 codeResetTo: address
 	"Drop code compiled from address on (for a disassembly only)."
@@ -359,7 +499,8 @@ compile: m mode: md notes: wantNotes
 	asm recordNotes: wantNotes.
 	ok := (analysis analyze: m) and: [
 		md caseOf: {
-			[JIT_TEMPLATE] -> [template compile: m]}
+			[JIT_TEMPLATE] -> [template compile: m].
+			[JIT_BASELINE] -> [baseline compile: m]}
 			otherwise: [false]].
 	err := asm finish.
 	(asm isFull: err) ifTrue: [
@@ -391,6 +532,9 @@ finish: m code: start mode: md
 	hdr := (asm pc + 7) bitClear: 7.
 	n := asm noteCount.
 	size := (hdr - start) + (self sizeof: 'JitMethod') + (8 * mapCount) + (4 * refCount) + (20 * n) + 8.
+	md = JIT_BASELINE ifTrue: [
+		size := size + baseline tablesBytes asUInt64.
+		(brt canRegister: baseline oopSlotCount) ifFalse: [^self null]].
 	cache limit - start < size ifTrue: [^self null].
 	h := self cCoerce: hdr to: 'JitMethod *'.
 	libc memset: h value: 0 size: (self sizeof: 'JitMethod').
@@ -421,6 +565,7 @@ finish: m code: start mode: md
 			h noteTexts at: i put: (self cCoerce: (asm noteTextAt: i) to: 'uint64_t').
 			h noteOffsets at: i put: (asm noteOffsetAt: i)].
 		p := p + (20 * n)].
+	md = JIT_BASELINE ifTrue: [p := baseline writeTables: h at: p].
 	self sortMap: h.
 	h start: start + (self mapOffsetOf: h pc: 0).
 	cache allocate: p - start.
@@ -501,7 +646,17 @@ kill: h
 		f := interpreter frames + i.
 		f code = (self cCoerce: h to: 'uint64_t') ifTrue: [f code: 0]].
 	invalidations := invalidations + 1.
-	interpreter flushMethodCache
+	interpreter flushMethodCache.
+	jitMode = JIT_BASELINE ifTrue: [brt unlinkAll]
+!
+methodsChanged
+	"Smalltalk changed method dictionaries (flushMethodCache): inline caches relink."
+	<c: 'void jit_methods_changed(void)'>
+	(jitMode = JIT_BASELINE and: [cacheOpened]) ifTrue: [brt unlinkAll]
+!
+methodsChangedFor: sel
+	<c: 'void jit_methods_changed_for(oop sel)'>
+	(jitMode = JIT_BASELINE and: [cacheOpened]) ifTrue: [brt unlinkSelector: sel]
 !
 flushCode
 	"Drop all machine code (none is on the native stack): frames continue in the interpreter."
@@ -513,6 +668,7 @@ flushCode
 	youngCount := 0.
 	youngOverflow := false.
 	cacheOpened ifTrue: [cache flush].
+	brt flushed.
 	interpreter flushMethodCache.
 	flushPending := false.
 	statCacheFlushes := statCacheFlushes + 1
@@ -524,15 +680,14 @@ prepare
 
 !JitRuntime methodsFor: 'garbage collection'!
 youngRoots: fn
-	"Scavenges: the methods of headers compiled while their method was young."
+	"Scavenges: the methods of headers compiled while their method was young, the young objects baseline code refers to."
 	<c: 'void jit_young_roots(void (*fn)(oop *))'>
-	youngOverflow ifTrue: [
-		cache beginWriting.
-		self methodRoots: fn.
-		^cache endWriting].
-	youngCount = 0 ifTrue: [^self].
+	cacheOpened ifFalse: [^self].
 	cache beginWriting.
-	0 to: youngCount - 1 do: [:i | fn call: ((youngMethods at: i) fieldAddress: #method)].
+	youngOverflow
+		ifTrue: [self methodRoots: fn]
+		ifFalse: [0 to: youngCount - 1 do: [:i | fn call: ((youngMethods at: i) fieldAddress: #method)]].
+	brt youngRoots: fn.
 	cache endWriting
 !
 methodRoots: fn
@@ -545,8 +700,10 @@ allRoots: fn
 	"Full GCs and become: every header's method and every embedded reference."
 	<c: 'void jit_all_roots(void (*fn)(oop *))'>
 	| h r v site |
-	tableCount = 0 ifTrue: [^self].
+	cacheOpened ifFalse: [^self].
 	cache beginWriting.
+	brt allRoots: fn.
+	tableCount = 0 ifTrue: [^cache endWriting].
 	self methodRoots: fn.
 	r := self local: 'oop'.
 	0 to: JIT_TABLE_SIZE - 1 do: [:i |
@@ -567,6 +724,7 @@ afterGC
 	<c: 'void jit_after_gc(void)'>
 	| n |
 	self refreshState.
+	brt afterGC.
 	n := 0.
 	youngOverflow ifFalse: [
 		0 to: youngCount - 1 do: [:i |
@@ -581,7 +739,8 @@ becomeMethod: from
 	| h |
 	jitMode = JIT_NONE ifTrue: [^self].
 	h := self lookup: from.
-	h notNull ifTrue: [self kill: h]
+	h notNull ifTrue: [self kill: h].
+	(jitMode = JIT_BASELINE and: [cacheOpened]) ifTrue: [brt unlinkAll]
 !
 headersValid: valid
 	<c: 'bool jit_headers_valid(bool (*valid)(oop))'>
@@ -669,6 +828,11 @@ run: frame at: address
 	f := frame.
 	a := address.
 	[statEntries := statEntries + 1.
+	 jitMode = JIT_BASELINE ifTrue: [
+		"baseline returns from frame 0 (into a Context) take the married frame's slow path; machine code keeps pc and sp"
+		(f = interpreter frames and: [f ctx = memory nilOop]) ifTrue: [interpreter marry: f].
+		f pc: 0.
+		f sp: 0].
 	 r := (self cCoerce: stubs enterAddress to: 'int64_t (*)(Frame *, uint64_t)') call: f with: a.
 	 r = 0 ifTrue: [
 		statExits := statExits + 1.
@@ -688,8 +852,16 @@ run: frame at: address
 
 !JitRuntime methodsFor: 'called by machine code'!
 sync: f
-	"Machine code stored f's pc and sp: f is the top frame."
-	interpreter syncFrame: f
+	"Machine code stored f's pc and sp: f is the top frame (baseline frames suspended below it become canonical too)."
+	jitMode = JIT_BASELINE ifTrue: [brt canonicalizeBelow: f].
+	interpreter syncFrame: f.
+	f lits: (self slotsOf: (self loadRef: f method at: CM_LITERALS))
+!
+exitSync: f
+	"The exit stub: f stored its pc and sp and leaves to the interpreter."
+	<c: 'uint64_t jit_exit_sync(Frame *f)'>
+	self sync: f.
+	^0
 !
 leave: f pc: pc sp: n
 	"Leave to the interpreter, which continues f at pc with n slots."
@@ -947,7 +1119,7 @@ interrupt: f
 	<c: 'uint64_t jit_interrupt(Frame *f)'>
 	| flushes inv |
 	self sync: f.
-	stateBlock interrupt: 0.
+	self clearInterrupt.
 	flushes := interpreter statFlushes.
 	inv := invalidations.
 	interpreter interruptSafepoint.
@@ -1056,6 +1228,14 @@ statResumes
 !
 statOsr
 	^statOsr
+!
+baselineStat: i
+	"Counters of baseline code (JitBaselineRuntime): misses, links, polymorphic caches, megamorphic sites, block cache misses, C primitive calls, non-local returns, frame walks."
+	<c: 'uint64_t jit_baseline_stat(int32_t i)'>
+	^i caseOf: {
+		[0] -> [brt statMisses]. [1] -> [brt statLinks]. [2] -> [brt statPics]. [3] -> [brt statMegas].
+		[4] -> [brt statBlockMisses]. [5] -> [brt statPrimCalls]. [6] -> [brt statNlrs]}
+		otherwise: [brt statWalks]
 ! !
 
 VMStruct subclass: #JitState
@@ -1063,12 +1243,16 @@ VMStruct subclass: #JitState
 	classVariableNames: ''
 	package: 'VM-Jit'!
 
-JitState comment: 'What machine code reads through x22: nil, true and false and the classes inline paths check (refreshed after every GC), the interrupt flag (set with the scheduler''s, cleared by the runtime''s interrupt check), the frames array, the native stack pointer jit_enter left (exits reset it), the young space''s bounds (the store barrier).'!
+JitState comment: 'What machine code reads through x22: nil, true and false and the classes inline paths check (refreshed after every GC; tagClasses by the low 3 bits of an immediate), the interrupt flag (set with the scheduler''s, cleared by the runtime''s interrupt check), the frames array, the native stack pointer jit_enter left (exits reset it), the young space''s bounds (the store barrier). Baseline code also uses: stackLimit (a callee''s fp at or above it takes the entry''s slow path: the C stack is nearly full, or an interrupt is pending, which sets it to 0; stackLimitNormal is its value otherwise), baseFrame and baseRecord (the first Frame and native frame record of the activations since jit_enter: frame f''s record is baseRecord - (f - baseFrame) / 4), the addresses of eden''s top and limit (edenBox) and of the identity hash generator (hashBox, with its multiplier and increment), the megamorphic and block caches (JitBaselineRuntime), and words the runtime answers through (nlrFrame, nlrFp, result, ecode).'!
 
 !JitState class methodsFor: 'declaring'!
 fields
 	^#((nilOop oop) (trueOop oop) (falseOop oop) (interrupt int32_t) (pad int32_t) (frames uint64_t) (exitSp uint64_t) (youngLo uint64_t) (youngHi uint64_t)
-		(arrayClass oop) (pointClass oop))
+		(arrayClass oop) (pointClass oop)
+		(stackLimit uint64_t) (stackLimitNormal uint64_t) (baseFrame uint64_t) (baseRecord uint64_t)
+		(edenBox uint64_t) (hashBox uint64_t) (lcgMul uint64_t) (lcgAdd uint64_t)
+		(tagClasses 'oop[8]') (blockClass oop) (byteStringClass oop) (byteArrayClass oop) (contextClass oop) (boxedFloatClass oop) (wordArrayClass oop) (byteSymbolClass oop)
+		(megaCache uint64_t) (blockCache uint64_t) (nlrFrame uint64_t) (nlrFp uint64_t) (result oop) (ecode int64_t))
 ! !
 
 VMStruct subclass: #JitMethod
@@ -1076,11 +1260,12 @@ VMStruct subclass: #JitMethod
 	classVariableNames: ''
 	package: 'VM-Jit'!
 
-JitMethod comment: 'The header of a compiled method, in the code cache after its code: the method (a GC root), the compiler (mode), where the code starts and how long it is, start (the method''s first bytecode, after the prologue; its entry from a compiled caller is JIT_PROLOGUE_BYTES before), the bytecode map (pc, offset pairs of the resumption points, in pc order), the offsets of embedded object references (mov:imm64:), and, if recorded, the notes for disassembly. flags: JM_FAILED (no code: the method is not compiled again), JM_DEAD (its code must not run), JM_NOTES.'!
+JitMethod comment: 'The header of a compiled method, in the code cache after its code: the method (a GC root), the compiler (mode), where the code starts and how long it is, start (the method''s first bytecode, after the prologue; its entry from a compiled caller is JIT_PROLOGUE_BYTES before), the bytecode map (pc, offset pairs of the resumption points, in pc order), the offsets of embedded object references (mov:imm64:), and, if recorded, the notes for disassembly. Baseline code also has its checked and unchecked entries, its send sites (BaselineSite), its return map (return offset, pc | depth << 16, argc | length << 8 | pushes << 26) and its blocks (startpc, entry offset). flags: JM_FAILED (no code: the method is not compiled again), JM_DEAD (its code must not run), JM_NOTES.'!
 
 !JitMethod class methodsFor: 'declaring'!
 fields
 	^#((method oop) (start uint64_t) (codeStart uint64_t) (codeSize uint32_t) (bytecodes uint32_t) (mode int32_t) (flags uint32_t)
 		(mapCount uint32_t) (refCount uint32_t) (map 'uint32_t *') (refs 'uint32_t *')
-		(noteCount uint32_t) (pad uint32_t) (noteOffsets 'uint32_t *') (noteTexts 'uint64_t *') (noteValues 'int64_t *'))
+		(noteCount uint32_t) (pad uint32_t) (noteOffsets 'uint32_t *') (noteTexts 'uint64_t *') (noteValues 'int64_t *')
+		(entry uint64_t) (uentry uint64_t) (sites 'BaselineSite *') (rets 'uint32_t *') (blocks 'uint32_t *') (siteCount uint32_t) (retCount uint32_t) (blockCount uint32_t) (pad2 uint32_t))
 ! !

@@ -91,6 +91,36 @@ jitOsrEntries
 jitCompileFailures
 	^self counterAt: 24
 !
+jitInlineCacheMisses
+	"Baseline: sends that found no target in machine code (unlinked, a failed class check, a cache without the class)."
+	^self counterAt: 25
+!
+jitInlineCacheLinks
+	"Baseline: sites linked monomorphically."
+	^self counterAt: 26
+!
+jitPolymorphicCaches
+	^self counterAt: 27
+!
+jitMegamorphicSites
+	^self counterAt: 28
+!
+jitBlockCacheMisses
+	"Baseline: closure evaluations whose block entry was not in the block cache."
+	^self counterAt: 29
+!
+jitPrimitiveCalls
+	"Baseline: primitives called through their C function."
+	^self counterAt: 30
+!
+jitNonLocalReturns
+	"Baseline: non-local returns the runtime handled (in machine code or left to the interpreter)."
+	^self counterAt: 31
+!
+jitFrameWalks
+	"Baseline: lazily canonicalized frame stacks (calls into the runtime that are safepoints)."
+	^self counterAt: 32
+!
 gcCount
 	"Answer the scavenges plus the full GCs."
 	^self scavenges + self fullGCs
@@ -126,5 +156,5 @@ counters: anArray
 !VMStatistics class methodsFor: 'accessing'!
 counterNames
 	"Answer my counter accessors in vmStats order."
-	^#(#scavenges #fullGCs #scavengeMicroseconds #fullGCMicroseconds #oldBytesUsed #oldBudget #edenBytes #bytesAllocated #rememberedSetSize #processSwitches #bytesTenured #weakSlotsCleared #contextsMaterialized #frameFlushes #jitMethodsCompiled #jitBytecodesCompiled #jitCompileMicroseconds #jitCodeBytes #jitCacheFlushes #jitEntries #jitExits #jitResumes #jitOsrEntries #jitCompileFailures)
+	^#(#scavenges #fullGCs #scavengeMicroseconds #fullGCMicroseconds #oldBytesUsed #oldBudget #edenBytes #bytesAllocated #rememberedSetSize #processSwitches #bytesTenured #weakSlotsCleared #contextsMaterialized #frameFlushes #jitMethodsCompiled #jitBytecodesCompiled #jitCompileMicroseconds #jitCodeBytes #jitCacheFlushes #jitEntries #jitExits #jitResumes #jitOsrEntries #jitCompileFailures #jitInlineCacheMisses #jitInlineCacheLinks #jitPolymorphicCaches #jitMegamorphicSites #jitBlockCacheMisses #jitPrimitiveCalls #jitNonLocalReturns #jitFrameWalks)
 ! !

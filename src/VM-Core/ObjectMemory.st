@@ -1,5 +1,5 @@
 VMCoreModule subclass: #ObjectMemory
-	instanceVariableNames: 'nilOop trueOop falseOop specialsOop clsSmallint clsChar clsSmallfloat clsBoxedfloat clsArray clsContext clsBlock clsPoint clsBytestring clsBytearray clsMessage hashSeed rootStack rootCount largeObjectBytes sampleMark'
+	instanceVariableNames: 'nilOop trueOop falseOop specialsOop clsSmallint clsChar clsSmallfloat clsBoxedfloat clsArray clsContext clsBlock clsPoint clsBytestring clsBytearray clsMessage hashBox rootStack rootCount largeObjectBytes sampleMark'
 	classVariableNames: 'MAX_ROOTS'
 	package: 'VM-Core'!
 
@@ -10,7 +10,7 @@ declarations
 	^#((nilOop oop) (trueOop oop) (falseOop oop) (specialsOop oop)
 		(clsSmallint oop) (clsChar oop) (clsSmallfloat oop) (clsBoxedfloat oop) (clsArray oop) (clsContext oop)
 		(clsBlock oop) (clsPoint oop) (clsBytestring oop) (clsBytearray oop) (clsMessage oop)
-		(hashSeed uint64_t 16r5A4D414C54414B)
+		(hashBox 'uint64_t[1]' #(16r5A4D414C54414B))
 		(rootStack 'oop *[MAX_ROOTS]') (rootCount int32_t)
 		(largeObjectBytes size_t 262144)
 		(sampleMark uint64_t))
@@ -72,10 +72,14 @@ clsMessage
 	^clsMessage
 !
 hashSeed
-	^hashSeed
+	^hashBox at: 0
 !
 hashSeed: anInteger
-	hashSeed := anInteger
+	hashBox at: 0 put: anInteger
+!
+hashBoxAddress
+	"Where the identity hash generator's state is (machine code allocates too)."
+	^self cCoerce: hashBox to: 'uint64_t'
 !
 rootCount
 	^rootCount
@@ -209,9 +213,10 @@ indexableSize: o
 !ObjectMemory methodsFor: 'allocation'!
 nextHash
 	<c: 'uint32_t next_hash(void)'>
-	| h |
-	hashSeed := ((hashSeed * 6364136223846793005) + 1442695040888963407) asUInt64.
-	h := ((hashSeed >> 40) bitAnd: H_HASH_MASK) asUInt32.
+	| h s |
+	s := ((self hashSeed * 6364136223846793005) + 1442695040888963407) asUInt64.
+	self hashSeed: s.
+	h := ((s >> 40) bitAnd: H_HASH_MASK) asUInt32.
 	^h = 0 ifTrue: [1] ifFalse: [h]
 !
 initObjectAt: p class: cls format: fmt slots: n

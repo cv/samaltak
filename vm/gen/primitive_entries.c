@@ -120,6 +120,7 @@ primitive_entry vm_primitive_table[] = {
     {173, 2, "vmBanner", prim_vm_banner},
     {180, 2, "jitParameters", prim_jit_parameters},
     {181, 2, "jitCode", prim_jit_code},
+    {182, 2, "jitSendSites", prim_jit_send_sites},
     {198, 2, "ensureMarker", prim_ensure_marker},
     {199, 2, "onDoMarker", prim_on_do_marker},
 #ifndef SAMALTAK_NO_PLATFORM

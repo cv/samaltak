@@ -2,12 +2,11 @@
 /* GarbageCollector (VM-Core) */
 #include "samaltak.h"
 
-uint64_t alloc_limit;
 static oop become_from;
 static oop become_to;
+uint64_t eden_box[2];
 uint64_t eden_hi;
 uint64_t eden_lo;
-uint64_t eden_top;
 bool finalization_pending;
 static uint64_t ft_top;
 uint64_t gc_epoch;
@@ -156,7 +155,7 @@ void collect_garbage(size_t need)
 {
     uint64_t young_used;
     uint64_t old_used;
-    young_used = eden_top - eden_lo + (surv_top - surv_lo);
+    young_used = eden_box[0] - eden_lo + (surv_top - surv_lo);
     old_used = old_top - old_lo;
     if (old_used + young_used > old_budget) {
         full_gc();
@@ -283,7 +282,7 @@ void full_gc(void)
     interp_before_gc();
     t0 = now_us();
     stat_full_gcs = stat_full_gcs + 1;
-    stat_allocated = stat_allocated + (eden_top - eden_lo);
+    stat_allocated = stat_allocated + (eden_box[0] - eden_lo);
     old_used = old_top - old_lo;
     ft_top = old_alt_lo;
     weak_count = 0;
@@ -315,7 +314,7 @@ void full_gc(void)
     old_top = ft_top;
     old_alt_lo = lo;
     old_alt_hi = hi;
-    eden_top = eden_lo;
+    eden_box[0] = eden_lo;
     surv_top = surv_lo;
     remset_count = 0;
     live = old_top - old_lo;
@@ -356,8 +355,10 @@ void gc_init(size_t eden_bytes, size_t max_heap)
     young = eden_bytes + 2 * surv;
     young_lo = reserve(young);
     young_hi = young_lo + young;
-    eden_lo = eden_top = young_lo;
-    eden_hi = alloc_limit = eden_lo + eden_bytes;
+    eden_lo = young_lo;
+    eden_box[0] = young_lo;
+    eden_hi = eden_lo + eden_bytes;
+    eden_box[1] = eden_hi;
     surv_lo = surv_top = eden_hi;
     surv_hi = surv_lo + surv;
     surv_other_lo = surv_hi;
@@ -578,7 +579,7 @@ void scavenge(void)
     interp_before_gc();
     t0 = now_us();
     stat_scavenges = stat_scavenges + 1;
-    stat_allocated = stat_allocated + (eden_top - eden_lo);
+    stat_allocated = stat_allocated + (eden_box[0] - eden_lo);
     to_lo = to_top = surv_other_lo;
     to_hi = surv_other_hi;
     tenure_scan = old_top;
@@ -623,7 +624,7 @@ void scavenge(void)
     surv_lo = to_lo;
     surv_top = to_top;
     surv_hi = to_hi;
-    eden_top = eden_lo;
+    eden_box[0] = eden_lo;
     if (((active_ctx & 7) == 0) && ((!((uint64_t)(active_ctx - young_lo) < young_hi - young_lo)) && (((*(uint64_t *)active_ctx) & H_REMEMBERED) == 0))) {
         vm_remember(active_ctx);
     }
@@ -684,7 +685,7 @@ static bool valid_ref(oop v)
     }
     in_old = (v >= old_lo) && (v < old_top);
     in_surv = (v >= surv_lo) && (v < surv_top);
-    in_eden = (v >= eden_lo) && (v < eden_top);
+    in_eden = (v >= eden_lo) && (v < eden_box[0]);
     if (in_eden) {
         return true;
     }

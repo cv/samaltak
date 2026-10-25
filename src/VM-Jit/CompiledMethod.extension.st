@@ -14,6 +14,11 @@ machineCodeFor: aModeOrNil
 	^self printString , '  ' , (code at: 6) , ', ' , (code at: 2) size printString , ' bytes at 16r' , ((code at: 1) printStringBase: 16)
 		, (String with: Character lf) , (String with: Character lf) , text
 !
+jitSendSites
+	"What the inline caches of my baseline machine code saw: {pc. state. classes. methods} per send site (state 0 unlinked, 1 monomorphic, 2 polymorphic, 3 megamorphic); nil if I have no baseline code."
+	<primitive: 'jitSendSites'>
+	^self primitiveFailed
+!
 jitCode: aModeOrNil
 	"{address. code. map. notes. symbols. mode} (JitPrimitives>>primJitCode), nil if the compiler does not compile me."
 	<primitive: 'jitCode'>

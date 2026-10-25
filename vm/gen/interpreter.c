@@ -4,7 +4,7 @@
 
 oop active_ctx;
 static cache_entry cache[4096];
-static oop cstack[65536];
+oop cstack[65536];
 static size_t cstack_used;
 frame frames[65536];
 cache_entry icache[4096];
@@ -29,7 +29,6 @@ oop tmp_roots[4];
 
 static void block_activate(int argc, bool from_array);
 static void ctx_set_stackp(oop ctx, int64_t sp);
-static oop ctx_home(oop ctx);
 static cache_entry *fill_cache(oop cls, oop sel);
 static int64_t frame_size(frame *f);
 static oop lookup_method(oop cls, oop sel);
@@ -40,7 +39,6 @@ static void print_symbol(oop s, FILE *f);
 static void refresh_prim_base(void);
 static void refresh_tag_classes(void);
 static int64_t stack_overflow_depth(void);
-static void widow_from(int k);
 
 /* Interpreter>>activateBlock: */
 void activate_block(int n)
@@ -232,7 +230,7 @@ static void ctx_set_stackp(oop ctx, int64_t n)
 }
 
 /* Interpreter>>ctxHome: */
-static oop ctx_home(oop a_context)
+oop ctx_home(oop a_context)
 {
     oop c;
     uint64_t cl;
@@ -249,6 +247,17 @@ int64_t ctx_stackp(oop ctx)
     uint64_t o;
     o = *(uint64_t *)(ctx + 16 + 16);
     return ((int64_t)o) >> 1;
+}
+
+/* Interpreter>>entryFor:selector: */
+cache_entry *entry_for(oop a_class, oop a_selector)
+{
+    cache_entry *g;
+    g = cache + (((a_class >> 3) ^ (a_selector >> 3) ^ (a_selector >> 12)) & 4095);
+    if ((g->cls == a_class) && (g->sel == a_selector)) {
+        return g;
+    }
+    return fill_cache(a_class, a_selector);
 }
 
 /* Interpreter>>fatalBegin */
@@ -12635,7 +12644,7 @@ void widow(frame *f)
 }
 
 /* Interpreter>>widowFrom: */
-static void widow_from(int k)
+void widow_from(int k)
 {
     int i;
     for (i = k; i <= nframes - 1; i++) {

@@ -100,6 +100,9 @@ nframes
 frames
 	^frames
 !
+cstackEnd
+	^self cCoerce: cstack + CSTACK_SLOTS to: 'uint64_t'
+!
 specialArgcAt: k
 	^specialArgc at: k
 !
@@ -724,6 +727,14 @@ thawFor: code
 	nframes := 1.
 	cstackUsed := (n + 1) asUInt64.
 	^f
+!
+entryFor: aClass selector: aSelector
+	"The global method cache's entry for aClass and aSelector, filled if need be; null if aClass does not understand it."
+	<c: 'CacheEntry *entry_for(oop cls, oop sel)'>
+	| g |
+	g := cache + (self cacheIndexOf: aClass selector: aSelector).
+	(g cls = aClass and: [g sel = aSelector]) ifTrue: [^g].
+	^self fillCache: aClass selector: aSelector
 !
 setCacheCode: c forMethod: m
 	"m got machine code c: method cache entries that count its activations switch to it."
@@ -2040,7 +2051,7 @@ Frame comment: 'An activation on the interpreter''s C stack: method and closure 
 
 !Frame class methodsFor: 'declaring'!
 fields
-	^#((method oop) (closure oop) (fp 'oop *') (ip 'uint8_t *') (lits 'oop *') (pc int32_t) (sp int32_t) (ctx oop) (code uint64_t))
+	^#((method oop) (code uint64_t) (closure oop) (ctx oop) (fp 'oop *') (pc int32_t) (sp int32_t) (ip 'uint8_t *') (lits 'oop *'))
 ! !
 
 VMStruct subclass: #CacheEntry

@@ -5,13 +5,17 @@
 uint8_t *ana_bcs;
 int16_t ana_depths[32768];
 uint8_t ana_flags[32768];
+int32_t ana_frame_size;
 oop *ana_lits;
 static int32_t ana_work[32768];
 int32_t bc_size;
+static bool has_closures;
 static int32_t max_depth;
-static int32_t num_args;
+int32_t num_args;
 int32_t num_lits;
-static int32_t num_temps;
+int32_t num_temps;
+bool prim_error;
+int32_t prim_index;
 static int32_t work_count;
 
 /* BytecodeAnalysis>>analyze: */
@@ -23,6 +27,13 @@ bool jit_analyze(oop m)
     uint64_t o_2;
     uint64_t o_3;
     uint64_t o_4;
+    uint64_t o_5;
+    uint64_t o_6;
+    int32_t v;
+    int64_t r_method_prim;
+    uint64_t p;
+    int64_t r_method_prim_2;
+    uint64_t p_2;
     int32_t i;
     int32_t d_2;
     bool r_flow_to;
@@ -48,12 +59,12 @@ bool jit_analyze(oop m)
     int64_t r_effect_of;
     uint8_t op_2;
     int32_t n;
-    uint8_t *p;
+    uint8_t *p_3;
     int32_t r_send_argc_of;
     uint8_t op_3;
     int k_2;
     int k_3;
-    uint8_t *p_2;
+    uint8_t *p_4;
     int32_t r_send_argc_of_2;
     uint8_t op_4;
     int k_4;
@@ -85,6 +96,27 @@ bool jit_analyze(oop m)
     if ((num_args < 0) || ((num_temps < 0) || (num_args + num_temps > ANA_MAX_DEPTH))) {
         return false;
     }
+    o_5 = *(uint64_t *)(m + 16 + 48);
+    ana_frame_size = ({
+    if ((o_5 & 1) != 0) {
+        o_6 = *(uint64_t *)(m + 16 + 48);
+        v = (int32_t)(((int64_t)o_6) >> 1);
+    } else {
+        v = 0;
+    }
+    v; });
+    if (ana_frame_size < num_args + num_temps) {
+        ana_frame_size = num_args + num_temps;
+    }
+    prim_index = (int32_t)(({
+    p = *(uint64_t *)(m + 16 + 56);
+    r_method_prim = (p & 1) != 0 ? ((int64_t)p) >> 1 : 0;
+    r_method_prim; }) & CM_PRIM_MASK);
+    prim_error = ((({
+    p_2 = *(uint64_t *)(m + 16 + 56);
+    r_method_prim_2 = (p_2 & 1) != 0 ? ((int64_t)p_2) >> 1 : 0;
+    r_method_prim_2; }) & CM_PRIM_ERROR_FLAG) != 0) && (num_temps > 0);
+    has_closures = false;
     for (i = 0; i <= bc_size - 1; i++) {
         ana_depths[i] = -1;
         ana_flags[i] = 0;
@@ -206,6 +238,7 @@ exit_length_of:;
                 return false;
             }
         } else if (op == 0x8F) {
+            has_closures = true;
             t = next + ((((int64_t)ana_bcs[pc + 4]) << 8) | ana_bcs[pc + 5]);
             if (t > bc_size) {
                 return false;
@@ -331,11 +364,11 @@ exit_flow_to_5:;
     }
     if (((op_2 >= 0x97) && (op_2 <= 0x9F)) || (op_2 >= 0xF0)) {
         if ((op_2 <= 0x99) && ((ana_bcs[pc + 3] < 0xA0) || ((ana_bcs[pc + 3] >= 0xC0) || ({
-    p = ana_bcs + pc;
+    p_3 = ana_bcs + pc;
     ({
-    op_3 = p[0];
+    op_3 = p_3[0];
     if ((op_3 == 0x8D) || (op_3 == 0x8E)) {
-        r_send_argc_of = (int32_t)p[2];
+        r_send_argc_of = (int32_t)p_3[2];
         goto exit_send_argc_of;
     }
     if (op_3 >= 0xC0) {
@@ -352,7 +385,7 @@ exit_flow_to_5:;
         goto exit_send_argc_of;
     }
     if ((op_3 >= 0x97) && (op_3 <= 0x99)) {
-        k_3 = p[3] - 0xA0;
+        k_3 = p_3[3] - 0xA0;
         r_send_argc_of = (k_3 == 19) || (k_3 == 20) ? 1 : special_argc[k_3];
         goto exit_send_argc_of;
     }
@@ -365,11 +398,11 @@ exit_send_argc_of:;
         r_effect_of = 1;
         goto exit_effect_of;
     }
-    p_2 = ana_bcs + pc;
+    p_4 = ana_bcs + pc;
     n = ({
-    op_4 = p_2[0];
+    op_4 = p_4[0];
     if ((op_4 == 0x8D) || (op_4 == 0x8E)) {
-        r_send_argc_of_2 = (int32_t)p_2[2];
+        r_send_argc_of_2 = (int32_t)p_4[2];
         goto exit_send_argc_of_2;
     }
     if (op_4 >= 0xC0) {
@@ -386,7 +419,7 @@ exit_send_argc_of:;
         goto exit_send_argc_of_2;
     }
     if ((op_4 >= 0x97) && (op_4 <= 0x99)) {
-        k_5 = p_2[3] - 0xA0;
+        k_5 = p_4[3] - 0xA0;
         r_send_argc_of_2 = (k_5 == 19) || (k_5 == 20) ? 1 : special_argc[k_5];
         goto exit_send_argc_of_2;
     }

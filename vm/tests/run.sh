@@ -2,8 +2,8 @@
 # VM + image builder end-to-end tests: build the mini kernel image (vm/tests/mini), run each
 # Smalltalk test headless and compare stdout with vm/tests/expected/<Test>.txt.
 # Every test also runs with a 1 MB eden under the heap verifier (GC stress), and all of it again under the
-# template JIT with every method compiled on its first activation; the tests also run under the JIT's
-# default thresholds (counting activations, on-stack replacement).
+# template and the baseline JIT with every method compiled on its first activation; the tests also run under
+# the JITs' default thresholds (counting activations, on-stack replacement).
 set -u
 ROOT=$(cd "$(dirname "$0")/../.." && pwd)
 VM=${VM:-"$ROOT/vm/build/samaltak"}
@@ -73,15 +73,18 @@ suite() { # label vm-options...
 }
 
 suite ""
-suite " (jit)" --jit template --jit-threshold 0
-for t in $TESTS; do
-    "$VM" --jit template "$IMG" --headless "$t" >"$OUT/$t.out" 2>&1
-    check "$t (jit, default thresholds)" "$EXP/$t.txt" "$OUT/$t.out"
+for mode in template baseline; do
+    suite " (jit $mode)" --jit $mode --jit-threshold 0
+    for t in $TESTS; do
+        "$VM" --jit $mode "$IMG" --headless "$t" >"$OUT/$t.out" 2>&1
+        check "$t (jit $mode, default thresholds)" "$EXP/$t.txt" "$OUT/$t.out"
+    done
 done
 
 if [ "${BENCH:-1}" = 1 ]; then
     "$VM" "$IMG" --headless Bench 2>&1 >/dev/null | sed 's/^/bench: /'
-    "$VM" --jit template "$IMG" --headless Bench 2>&1 >/dev/null | sed 's/^/bench (jit): /'
+    "$VM" --jit template "$IMG" --headless Bench 2>&1 >/dev/null | sed 's/^/bench (jit template): /'
+    "$VM" --jit baseline "$IMG" --headless Bench 2>&1 >/dev/null | sed 's/^/bench (jit baseline): /'
 fi
 echo "test-vm: $pass passed, $fail failed"
 [ $fail -eq 0 ]

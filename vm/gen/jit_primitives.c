@@ -9,7 +9,7 @@ static oop jit_string_from(const char *s);
 /* JitPrimitives>>flagsString */
 static oop jit_flags_string(void)
 {
-    char local[128];
+    char local[256];
     char *buf;
     int64_t n;
     int64_t bit;
@@ -19,7 +19,7 @@ static oop jit_flags_string(void)
     buf = local;
     n = 0;
     bit = 1;
-    while (bit <= 16) {
+    while (bit <= JIT_FLAG_LAST) {
         if ((jit_flags & bit) != 0) {
             name = jit_flag_name((uint32_t)bit);
             len = strlen(name);
@@ -371,6 +371,150 @@ void prim_jit_parameters(void)
     }
     v_7 = *r;
     prim_result = v_7;
+    prim_status = PS_OK;
+}
+
+/* JitPrimitives>>primJitSendSites */
+void prim_jit_send_sites(void)
+{
+    oop m;
+    jit_method *h;
+    int64_t n;
+    oop local;
+    oop *r;
+    oop local_2;
+    oop *e;
+    int64_t i;
+    oop o;
+    oop v;
+    baseline_site *site;
+    oop o_2;
+    int64_t v_2;
+    uint64_t v_3;
+    uint64_t pic;
+    int k;
+    oop o_3;
+    uint64_t v_4;
+    int64_t count;
+    oop o_4;
+    oop v_5;
+    oop o_5;
+    oop v_6;
+    baseline_pic *p;
+    int64_t j;
+    oop o_6;
+    uint64_t o_7;
+    uint64_t v_7;
+    oop o_8;
+    uint64_t o_9;
+    oop v_8;
+    oop o_10;
+    uint64_t o_11;
+    uint64_t v_9;
+    oop o_12;
+    uint64_t o_13;
+    oop v_10;
+    oop v_11;
+    m = prim_base[0];
+    if (!(((m & 7) == 0) && (*(uint64_t *)(m + 8) == special(SO_COMPILEDMETHOD)))) {
+        prim_status = PS_FAIL;
+        prim_error_code = -1;
+        return;
+    }
+    h = jit_lookup(m);
+    if (!((h != NULL) && ((h->flags & JM_FAILED) == 0) && (h->mode == JIT_BASELINE))) {
+        prim_result = nil_oop;
+        prim_status = PS_OK;
+        return;
+    }
+    n = (int64_t)h->site_count;
+    memset(&local, 0, sizeof local);
+    r = &local;
+    memset(&local_2, 0, sizeof local_2);
+    e = &local_2;
+    *r = alloc_obj(cls_array, F_VAR, (uint32_t)n);
+    push_root(r);
+    push_root(e);
+    for (i = 0; i <= n - 1; i++) {
+        *e = alloc_obj(cls_array, F_VAR, 4);
+        o = *r;
+        v = *e;
+        *(uint64_t *)(o + 16 + 8 * i) = v;
+        if (((v & 7) == 0) && (((uint64_t)(v - young_lo) < young_hi - young_lo) && ((!((uint64_t)(o - young_lo) < young_hi - young_lo)) && (((*(uint64_t *)o) & H_REMEMBERED) == 0)))) {
+            vm_remember(o);
+        }
+        site = h->sites + i;
+        o_2 = *e;
+        v_2 = (int64_t)site->pc;
+        v_3 = (uint64_t)((v_2 << 1) | 1);
+        *(uint64_t *)(o_2 + 16 + 0) = v_3;
+        if (((v_3 & 7) == 0) && ((v_3 - young_lo < young_hi - young_lo) && ((!((uint64_t)(o_2 - young_lo) < young_hi - young_lo)) && (((*(uint64_t *)o_2) & H_REMEMBERED) == 0)))) {
+            vm_remember(o_2);
+        }
+        pic = site->pic;
+        k = (site->info & 0x40000000) != 0 ? 3 : pic != 0 ? 2 : site->target != 0 ? 1 : 0;
+        o_3 = *e;
+        v_4 = (uint64_t)((((int64_t)k) << 1) | 1);
+        *(uint64_t *)(o_3 + 16 + 8) = v_4;
+        if (((v_4 & 7) == 0) && ((v_4 - young_lo < young_hi - young_lo) && ((!((uint64_t)(o_3 - young_lo) < young_hi - young_lo)) && (((*(uint64_t *)o_3) & H_REMEMBERED) == 0)))) {
+            vm_remember(o_3);
+        }
+        count = pic != 0 ? (int64_t)((baseline_pic *)pic)->count : (k == 1) && (((site->info >> 24) & 3) != 1) ? 1 : 0;
+        o_4 = *e;
+        v_5 = alloc_obj(cls_array, F_VAR, (uint32_t)count);
+        *(uint64_t *)(o_4 + 16 + 16) = v_5;
+        if (((v_5 & 7) == 0) && (((uint64_t)(v_5 - young_lo) < young_hi - young_lo) && ((!((uint64_t)(o_4 - young_lo) < young_hi - young_lo)) && (((*(uint64_t *)o_4) & H_REMEMBERED) == 0)))) {
+            vm_remember(o_4);
+        }
+        o_5 = *e;
+        v_6 = alloc_obj(cls_array, F_VAR, (uint32_t)((k == 1) && (count == 0) ? 1 : count));
+        *(uint64_t *)(o_5 + 16 + 24) = v_6;
+        if (((v_6 & 7) == 0) && (((uint64_t)(v_6 - young_lo) < young_hi - young_lo) && ((!((uint64_t)(o_5 - young_lo) < young_hi - young_lo)) && (((*(uint64_t *)o_5) & H_REMEMBERED) == 0)))) {
+            vm_remember(o_5);
+        }
+        site = h->sites + i;
+        pic = site->pic;
+        if (pic != 0) {
+            p = (baseline_pic *)pic;
+            for (j = 0; j <= count - 1; j++) {
+                o_6 = *e;
+                o_7 = *(uint64_t *)(o_6 + 16 + 16);
+                v_7 = *(uint64_t *)((uint64_t)&p->classes + (uint64_t)(8 * j));
+                *(uint64_t *)(o_7 + 16 + 8 * j) = v_7;
+                if (((v_7 & 7) == 0) && ((v_7 - young_lo < young_hi - young_lo) && ((!(o_7 - young_lo < young_hi - young_lo)) && (((*(uint64_t *)o_7) & H_REMEMBERED) == 0)))) {
+                    vm_remember(o_7);
+                }
+                o_8 = *e;
+                o_9 = *(uint64_t *)(o_8 + 16 + 24);
+                v_8 = ((jit_method *)*(uint64_t *)((uint64_t)&p->targets + (uint64_t)(8 * j)))->method;
+                *(uint64_t *)(o_9 + 16 + 8 * j) = v_8;
+                if (((v_8 & 7) == 0) && (((uint64_t)(v_8 - young_lo) < young_hi - young_lo) && ((!(o_9 - young_lo < young_hi - young_lo)) && (((*(uint64_t *)o_9) & H_REMEMBERED) == 0)))) {
+                    vm_remember(o_9);
+                }
+            }
+        } else if (k == 1) {
+            if (count == 1) {
+                o_10 = *e;
+                o_11 = *(uint64_t *)(o_10 + 16 + 16);
+                v_9 = *(uint64_t *)(h->code_start + site->lit);
+                *(uint64_t *)(o_11 + 16 + 0) = v_9;
+                if (((v_9 & 7) == 0) && ((v_9 - young_lo < young_hi - young_lo) && ((!(o_11 - young_lo < young_hi - young_lo)) && (((*(uint64_t *)o_11) & H_REMEMBERED) == 0)))) {
+                    vm_remember(o_11);
+                }
+            }
+            o_12 = *e;
+            o_13 = *(uint64_t *)(o_12 + 16 + 24);
+            v_10 = ((jit_method *)site->target)->method;
+            *(uint64_t *)(o_13 + 16 + 0) = v_10;
+            if (((v_10 & 7) == 0) && (((uint64_t)(v_10 - young_lo) < young_hi - young_lo) && ((!(o_13 - young_lo < young_hi - young_lo)) && (((*(uint64_t *)o_13) & H_REMEMBERED) == 0)))) {
+                vm_remember(o_13);
+            }
+        }
+    }
+    pop_root();
+    pop_root();
+    v_11 = *r;
+    prim_result = v_11;
     prim_status = PS_OK;
 }
 
