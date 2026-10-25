@@ -57,8 +57,8 @@ typedef void (*prim_fn)(void);
 #define ASM_ERR_LABEL 4
 #define ASM_ERR_OPERAND 5
 #define ASM_ERR_RANGE 3
-#define ASM_MAX_FIXUPS 16384
-#define ASM_MAX_LABELS 4096
+#define ASM_MAX_FIXUPS 65536
+#define ASM_MAX_LABELS 16384
 #define ASM_MAX_NOTES 8192
 #define ASM_OK 0
 #define ASSOC_KEY 0
@@ -336,9 +336,13 @@ typedef void (*prim_fn)(void);
 #define PF_X_TEXT 3
 #define PK_BASICNEW 3
 #define PK_BASICNEW_SIZE 4
+#define PK_CHAR_VALUE 10
 #define PK_CLASS 6
 #define PK_CLOSURE_VALUE 7
+#define PK_FLOAT_OP 9
+#define PK_HASH 11
 #define PK_IDENTICAL 5
+#define PK_INT_OP 8
 #define PK_MARKER 2
 #define PK_NONE 0
 #define PK_PERFORM 1
@@ -768,7 +772,7 @@ extern primitive_entry vm_primitive_table[];
 extern int vm_primitive_count;
 
 extern int32_t asm_error;
-extern uint64_t asm_labels[4096];
+extern uint64_t asm_labels[16384];
 extern uint64_t asm_limit;
 extern int64_t asm_note_args[8192];
 extern int32_t asm_note_count;
@@ -1033,6 +1037,7 @@ uint64_t jit_bl_miss(frame *f, oop rcv, uint64_t ret);
 uint64_t jit_bl_nlr(frame *f);
 uint64_t jit_bl_prim(frame *f, uint64_t ret, uint64_t fn, uint64_t info, uint64_t fp);
 int32_t bl_prim_kind(int32_t p);
+int32_t bl_prim_op(int32_t p);
 void bl_register_slot(uint64_t a);
 uint64_t jit_bl_return_slow(frame *f);
 void bl_unlink_all(void);

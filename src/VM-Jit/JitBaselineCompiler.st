@@ -699,7 +699,11 @@ emitPrimitive
 		k = brt pkBasicNewSize ifTrue: [self emitBasicNewSizeFail: fail].
 		k = brt pkIdentical ifTrue: [self emitIdenticalPrimitive].
 		k = brt pkClass ifTrue: [self emitClassPrimitive].
-		k = brt pkClosureValue ifTrue: [self emitClosureValuePrimitive: fail]].
+		k = brt pkClosureValue ifTrue: [self emitClosureValuePrimitive: fail].
+		k = brt pkIntOp ifTrue: [self emitIntPrimitive: (brt primOpOf: analysis primitive) fail: fail].
+		k = brt pkFloatOp ifTrue: [self emitFloatPrimitive: (brt primOpOf: analysis primitive) fail: fail].
+		k = brt pkCharValue ifTrue: [self emitCharValuePrimitive: fail].
+		k = brt pkHash ifTrue: [self emitHashPrimitive: fail]].
 	k = brt pkMarker ifTrue: [^true].
 	asm bind: fail.
 	asm comment: 'the primitive''s C function: success returns to the sender, failure continues here'.
@@ -710,6 +714,120 @@ emitPrimitive
 	asm b: primLabel.
 	asm bind: info.
 	^true
+!
+emitIntPrimitive: op fail: fail
+	"SmallInteger arithmetic, bit operations and comparisons of the receiver (x0) and the argument (slot 0); anything else (overflow, other classes) the C function."
+	<c: 'void bl_emit_int_primitive(int32_t op, int32_t fail)'>
+	| right |
+	asm comment: 'SmallInteger primitive: receiver and argument SmallIntegers'.
+	asm tbz: X0 bit: 0 to: fail.
+	asm ldr: X1 base: X20 offset: (self slot: 0).
+	asm tbz: X1 bit: 0 to: fail.
+	op = 0 ifTrue: [
+		asm sub: X16 with: X1 imm: 1.
+		asm adds: X16 with: X0 with: X16.
+		asm b: fail if: COND_VS.
+		asm mov: X0 with: X16].
+	op = 1 ifTrue: [
+		asm sub: X16 with: X1 imm: 1.
+		asm subs: X16 with: X0 with: X16.
+		asm b: fail if: COND_VS.
+		asm mov: X0 with: X16].
+	op = 2 ifTrue: [
+		asm asr: X16 with: X0 imm: 1.
+		asm sub: X17 with: X1 imm: 1.
+		asm mul: X9 with: X16 with: X17.
+		asm smulh: X10 with: X16 with: X17.
+		asm cmp: X10 with: X9 shift: SHIFT_ASR amount: 63.
+		asm b: fail if: COND_NE.
+		asm orr: X0 with: X9 imm: 1].
+	op = 4 ifTrue: [asm and: X0 with: X0 with: X1].
+	op = 5 ifTrue: [asm orr: X0 with: X0 with: X1].
+	op = 6 ifTrue: [
+		asm eor: X0 with: X0 with: X1.
+		asm orr: X0 with: X0 imm: 1].
+	op = 7 ifTrue: [
+		right := asm newLabel.
+		asm comment: 'bitShift: left if the count is not negative (nothing may be lost), else right'.
+		asm asr: X16 with: X1 imm: 1.
+		asm tbnz: X16 bit: 63 to: right.
+		asm cmp: X16 imm: 62.
+		asm b: fail if: COND_HS.
+		asm sub: X17 with: X0 imm: 1.
+		asm lsl: X9 with: X17 with: X16.
+		asm asr: X10 with: X9 with: X16.
+		asm cmp: X10 with: X17.
+		asm b: fail if: COND_NE.
+		asm orr: X0 with: X9 imm: 1.
+		asm ret.
+		asm bind: right.
+		asm neg: X16 with: X16.
+		asm mov: X17 imm: 63.
+		asm cmp: X16 with: X17.
+		asm csel: X16 with: X16 with: X17 cond: COND_LO.
+		asm asr: X0 with: X0 with: X16.
+		asm orr: X0 with: X0 imm: 1].
+	op >= 8 ifTrue: [
+		asm cmp: X0 with: X1.
+		asm csel: X0 with: X24 with: X25 cond: (self conditionOf: op - 6)].
+	asm ret
+!
+emitFloatPrimitive: op fail: fail
+	"Float arithmetic, comparisons, sqrt and truncated of the receiver (x0) and the argument (slot 0), SmallFloat64 or boxed; results boxed inline. Anything else: the C function."
+	<c: 'void bl_emit_float_primitive(int32_t op, int32_t fail)'>
+	| done |
+	asm comment: 'Float primitive: the receiver (and the argument) as doubles'.
+	self emitToDouble: X0 into: D0 fail: fail.
+	op < 14 ifTrue: [
+		asm ldr: X1 base: X20 offset: (self slot: 0).
+		self emitToDouble: X1 into: D1 fail: fail].
+	op >= 8 ifTrue: [
+		op = 15 ifTrue: [
+			asm comment: 'truncated: a SmallInteger (else the C function)'.
+			asm fcmp: D0 with: D0.
+			asm b: fail if: COND_VS.
+			asm fcvtzs: X16 with: D0.
+			asm add: X17 with: X16 with: X16.
+			asm cmp: X16 with: X17 shift: SHIFT_ASR amount: 1.
+			asm b: fail if: COND_NE.
+			asm orr: X0 with: X17 imm: 1.
+			^asm ret].
+		op <= 13 ifTrue: [
+			asm fcmp: D0 with: D1.
+			asm csel: X0 with: X24 with: X25 cond: (self floatConditionOf: op - 6).
+			^asm ret]].
+	op = 0 ifTrue: [asm fadd: D0 with: D0 with: D1].
+	op = 1 ifTrue: [asm fsub: D0 with: D0 with: D1].
+	op = 2 ifTrue: [asm fmul: D0 with: D0 with: D1].
+	op = 3 ifTrue: [
+		asm fcmpZero: D1.
+		asm b: fail if: COND_EQ.
+		asm fdiv: D0 with: D0 with: D1].
+	op = 14 ifTrue: [asm fsqrt: D0 with: D0].
+	done := asm newLabel.
+	self emitBox: D0 into: X0 cont: done fail: fail.
+	asm bind: done.
+	asm ret
+!
+emitCharValuePrimitive: fail
+	asm comment: 'primitive charValue: a Character''s code'.
+	asm and: X16 with: X0 imm: 7.
+	asm cmp: X16 imm: 2.
+	asm b: fail if: COND_NE.
+	asm lsr: X16 with: X0 imm: 3.
+	asm lsl: X0 with: X16 imm: 1.
+	asm orr: X0 with: X0 imm: 1.
+	asm ret
+!
+emitHashPrimitive: fail
+	asm comment: 'primitive identityHash: an object''s header hash'.
+	asm tst: X0 imm: 7.
+	asm b: fail if: COND_NE.
+	asm ldr: X16 base: X0 offset: 0.
+	asm ubfx: X16 with: X16 lsb: H_HASH_SHIFT width: 22.
+	asm lsl: X0 with: X16 imm: 1.
+	asm orr: X0 with: X0 imm: 1.
+	asm ret
 !
 emitIdenticalPrimitive
 	asm comment: 'primitive ==: the receiver and the argument'.
@@ -824,7 +942,8 @@ emitBasicNewSizeFail: fail
 	asm ldr: X16 base: X20 offset: (self slot: 0).
 	asm tbz: X16 bit: 0 to: fail.
 	asm asr: X16 with: X16 imm: 1.
-	asm cmp: X16 imm: 8191.
+	asm mov: X17 imm: 8191.
+	asm cmp: X16 with: X17.
 	asm b: fail if: COND_HI.
 	asm ldr: X10 base: X0 offset: (self fieldOffset: BEH_FORMAT).
 	asm comment: 'indexable pointers without fixed fields (spec 2, inst size 0)'.
@@ -945,7 +1064,7 @@ storeInstVar: i pc: pc
 	s := self slow: SL_MUSTBEBOOLEAN pc: pc depth: ssTop.
 	s < 0 ifTrue: [^false].
 	slA at: s put: v asInt8.
-	asm tbnz: X11 bit: 59 to: (slLabel at: s).
+	self ifBitSet: X11 bit: 59 to: (slLabel at: s).
 	asm str: v base: X21 offset: (self fieldOffset: i).
 	(self needsBarrier: top) ifTrue: [self barrier: X21 header: X11 value: v].
 	^true
@@ -998,6 +1117,17 @@ barrier: obj header: hdr value: v
 	asm tst: hdr imm: H_REMEMBERED.
 	asm b: (slLabel at: s) if: COND_EQ.
 	asm bind: done
+! !
+
+!JitBaselineCompiler methodsFor: 'branches'!
+ifBitClear: r bit: b to: label
+	"tbz reaches 32 KB only: slow paths after a large method need b.cond's 1 MB."
+	asm tst: r imm: (1 asUInt64 << b).
+	asm b: label if: COND_EQ
+!
+ifBitSet: r bit: b to: label
+	asm tst: r imm: (1 asUInt64 << b).
+	asm b: label if: COND_NE
 ! !
 
 !JitBaselineCompiler methodsFor: 'sends'!
@@ -1603,13 +1733,13 @@ arith: k pc: pc pushes: pushes
 		ifFalse: [
 			asm comment: 'SmallInteger tag checks (else Floats out of line, else a send)'.
 			aKnown
-				ifTrue: [bKnown ifFalse: [asm tbz: rb bit: 0 to: (slLabel at: s)]]
+				ifTrue: [bKnown ifFalse: [self ifBitClear: rb bit: 0 to: (slLabel at: s)]]
 				ifFalse: [
 					bKnown
-						ifTrue: [asm tbz: ra bit: 0 to: (slLabel at: s)]
+						ifTrue: [self ifBitClear: ra bit: 0 to: (slLabel at: s)]
 						ifFalse: [
 							asm and: X16 with: ra with: rb.
-							asm tbz: X16 bit: 0 to: (slLabel at: s)]]].
+							self ifBitClear: X16 bit: 0 to: (slLabel at: s)]]].
 	compare ifTrue: [
 		imm
 			ifTrue: [asm cmp: ra imm: bv]
@@ -1774,7 +1904,7 @@ access: k pc: pc pushes: pushes
 				asm orr: rr with: rr imm: 1].
 			k ~= 18 ifTrue: [
 				asm comment: 'a SmallInteger index within its slots'.
-				asm tbz: rb bit: 0 to: (slLabel at: s).
+				self ifBitClear: rb bit: 0 to: (slLabel at: s).
 				asm asr: X16 with: rb imm: 1.
 				asm sub: X16 with: X16 imm: 1.
 				asm ubfx: X17 with: X11 lsb: 0 width: 32.
@@ -1785,7 +1915,7 @@ access: k pc: pc pushes: pushes
 					ifTrue: [asm ldr: rr base: X17 index: X16 extend: EXT_LSL shift: 3]
 					ifFalse: [
 						asm comment: 'not immutable; store, answer the value'.
-						asm tbnz: X11 bit: 59 to: (slLabel at: s).
+						self ifBitSet: X11 bit: 59 to: (slLabel at: s).
 						asm str: rc base: X17 index: X16 extend: EXT_LSL shift: 3.
 						barrier ifTrue: [self barrier: ra header: X11 value: rc].
 						asm mov: rr with: rc]]].

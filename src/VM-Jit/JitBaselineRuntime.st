@@ -1,6 +1,6 @@
 VMCoreModule subclass: #JitBaselineRuntime
-	instanceVariableNames: 'compiler stubs cache asm analysis oopSlots oopSlotCount youngSlots youngSlotCount youngSlotsOverflow megaTable blockTable primKinds primKindsReady statMisses statLinks statPics statMegas statBlockMisses statPrimCalls statNlrs statWalks'
-	classVariableNames: 'BL_BLOCK_CACHE BL_BLOCK_WORDS BL_MAX_OOP_SLOTS BL_MAX_YOUNG_SLOTS BL_MEGA_CACHE BL_MEGA_WORDS BL_PIC_CASES BL_SITE_MEGA PK_BASICNEW PK_BASICNEW_SIZE PK_CLASS PK_CLOSURE_VALUE PK_IDENTICAL PK_MARKER PK_NONE PK_PERFORM'
+	instanceVariableNames: 'compiler stubs cache asm analysis oopSlots oopSlotCount youngSlots youngSlotCount youngSlotsOverflow megaTable blockTable primKinds primOps primKindsReady statMisses statLinks statPics statMegas statBlockMisses statPrimCalls statNlrs statWalks'
+	classVariableNames: 'BL_BLOCK_CACHE BL_BLOCK_WORDS BL_MAX_OOP_SLOTS BL_MAX_YOUNG_SLOTS BL_MEGA_CACHE BL_MEGA_WORDS BL_PIC_CASES BL_SITE_MEGA PK_BASICNEW PK_BASICNEW_SIZE PK_CHAR_VALUE PK_CLASS PK_CLOSURE_VALUE PK_FLOAT_OP PK_HASH PK_IDENTICAL PK_INT_OP PK_MARKER PK_NONE PK_PERFORM'
 	package: 'VM-Jit'!
 
 JitBaselineRuntime comment: 'What baseline code (JitBaselineCompiler) needs of the runtime beyond JitRuntime:
@@ -18,7 +18,7 @@ declarations
 	^#((compiler JitBaselineCompiler) (stubs JitStubs) (cache CodeCache) (asm Arm64Assembler) (analysis BytecodeAnalysis)
 		(oopSlots 'uint64_t[BL_MAX_OOP_SLOTS]') (oopSlotCount int64_t) (youngSlots 'uint64_t[BL_MAX_YOUNG_SLOTS]') (youngSlotCount int64_t) (youngSlotsOverflow bool)
 		(megaTable 'uint64_t[BL_MEGA_WORDS]') (blockTable 'uint64_t[BL_BLOCK_WORDS]')
-		(primKinds 'uint8_t[1024]') (primKindsReady bool)
+		(primKinds 'uint8_t[1024]') (primOps 'uint8_t[1024]') (primKindsReady bool)
 		(statMisses uint64_t) (statLinks uint64_t) (statPics uint64_t) (statMegas uint64_t) (statBlockMisses uint64_t) (statPrimCalls uint64_t) (statNlrs uint64_t) (statWalks uint64_t))
 !
 initialize
@@ -37,7 +37,12 @@ initialize
 	PK_BASICNEW_SIZE := 4.
 	PK_IDENTICAL := 5.
 	PK_CLASS := 6.
-	PK_CLOSURE_VALUE := 7
+	PK_CLOSURE_VALUE := 7.
+	"SmallInteger and Float primitives in machine code; primOps: 0 + 1 - 2 * 3 / 4 bitAnd: 5 bitOr: 6 bitXor: 7 bitShift: 8 < 9 > 10 <= 11 >= 12 = 13 ~= 14 sqrt 15 truncated"
+	PK_INT_OP := 8.
+	PK_FLOAT_OP := 9.
+	PK_CHAR_VALUE := 10.
+	PK_HASH := 11
 ! !
 
 !JitBaselineRuntime methodsFor: 'accessing'!
@@ -71,6 +76,18 @@ pkClass
 pkClosureValue
 	^PK_CLOSURE_VALUE
 !
+pkIntOp
+	^PK_INT_OP
+!
+pkFloatOp
+	^PK_FLOAT_OP
+!
+pkCharValue
+	^PK_CHAR_VALUE
+!
+pkHash
+	^PK_HASH
+!
 blockInstSize
 	"Slots of a BlockClosure."
 	^(self intVal: (self loadRef: memory clsBlock at: BEH_FORMAT)) bitAnd: CLS_INSTSIZE_MASK
@@ -103,14 +120,17 @@ returnSlowFunction
 
 !JitBaselineRuntime methodsFor: 'primitives'!
 initPrimKinds
-	| t e k |
+	| t e k op |
 	primKindsReady := true.
-	0 to: 1023 do: [:i | primKinds at: i put: PK_MARKER].
+	0 to: 1023 do: [:i |
+		primKinds at: i put: PK_MARKER.
+		primOps at: i put: 0].
 	t := self primitiveTable.
 	0 to: self primitiveCount - 1 do: [:i |
 		e := t + i.
 		(e number > 0 and: [e number < 1024]) ifTrue: [
 			k := PK_NONE.
+			op := 0.
 			(self named: e name is: 'perform') ifTrue: [k := PK_PERFORM].
 			(self named: e name is: 'performWithArguments') ifTrue: [k := PK_PERFORM].
 			(self named: e name is: 'basicNew') ifTrue: [k := PK_BASICNEW].
@@ -118,8 +138,36 @@ initPrimKinds
 			(self named: e name is: 'identical') ifTrue: [k := PK_IDENTICAL].
 			(self named: e name is: 'class') ifTrue: [k := PK_CLASS].
 			(self named: e name is: 'closureValue') ifTrue: [k := PK_CLOSURE_VALUE].
+			(self named: e name is: 'charValue') ifTrue: [k := PK_CHAR_VALUE].
+			(self named: e name is: 'identityHash') ifTrue: [k := PK_HASH].
+			(self named: e name is: 'intAdd') ifTrue: [k := PK_INT_OP. op := 0].
+			(self named: e name is: 'intSub') ifTrue: [k := PK_INT_OP. op := 1].
+			(self named: e name is: 'intMul') ifTrue: [k := PK_INT_OP. op := 2].
+			(self named: e name is: 'intBitAnd') ifTrue: [k := PK_INT_OP. op := 4].
+			(self named: e name is: 'intBitOr') ifTrue: [k := PK_INT_OP. op := 5].
+			(self named: e name is: 'intBitXor') ifTrue: [k := PK_INT_OP. op := 6].
+			(self named: e name is: 'intBitShift') ifTrue: [k := PK_INT_OP. op := 7].
+			(self named: e name is: 'intLess') ifTrue: [k := PK_INT_OP. op := 8].
+			(self named: e name is: 'intGreater') ifTrue: [k := PK_INT_OP. op := 9].
+			(self named: e name is: 'intLessEq') ifTrue: [k := PK_INT_OP. op := 10].
+			(self named: e name is: 'intGreaterEq') ifTrue: [k := PK_INT_OP. op := 11].
+			(self named: e name is: 'intEq') ifTrue: [k := PK_INT_OP. op := 12].
+			(self named: e name is: 'intNotEq') ifTrue: [k := PK_INT_OP. op := 13].
+			(self named: e name is: 'floatAdd') ifTrue: [k := PK_FLOAT_OP. op := 0].
+			(self named: e name is: 'floatSub') ifTrue: [k := PK_FLOAT_OP. op := 1].
+			(self named: e name is: 'floatMul') ifTrue: [k := PK_FLOAT_OP. op := 2].
+			(self named: e name is: 'floatDiv') ifTrue: [k := PK_FLOAT_OP. op := 3].
+			(self named: e name is: 'floatLess') ifTrue: [k := PK_FLOAT_OP. op := 8].
+			(self named: e name is: 'floatGreater') ifTrue: [k := PK_FLOAT_OP. op := 9].
+			(self named: e name is: 'floatLessEq') ifTrue: [k := PK_FLOAT_OP. op := 10].
+			(self named: e name is: 'floatGreaterEq') ifTrue: [k := PK_FLOAT_OP. op := 11].
+			(self named: e name is: 'floatEq') ifTrue: [k := PK_FLOAT_OP. op := 12].
+			(self named: e name is: 'floatNotEq') ifTrue: [k := PK_FLOAT_OP. op := 13].
+			(self named: e name is: 'floatSqrt') ifTrue: [k := PK_FLOAT_OP. op := 14].
+			(self named: e name is: 'floatTruncated') ifTrue: [k := PK_FLOAT_OP. op := 15].
 			(e number = PRIM_ENSURE_MARKER or: [e number = PRIM_ONDO_MARKER]) ifTrue: [k := PK_MARKER].
-			primKinds at: e number put: k asUInt8]]
+			primKinds at: e number put: k asUInt8.
+			primOps at: e number put: op asUInt8]]
 !
 named: s is: name
 	^(libc strcmp: s with: name) = 0
@@ -130,6 +178,12 @@ primKindOf: p
 	primKindsReady ifFalse: [self initPrimKinds].
 	(p <= 0 or: [p >= 1024]) ifTrue: [^PK_MARKER].
 	^(primKinds at: p) asInt32
+!
+primOpOf: p
+	"The operation of a PK_INT_OP or PK_FLOAT_OP primitive (see initialize)."
+	<c: 'int32_t bl_prim_op(int32_t p)'>
+	(p <= 0 or: [p >= 1024]) ifTrue: [^0].
+	^(primOps at: p) asInt32
 !
 primFunctionOf: p
 	^self cCoerce: (primitives lookup: p) to: 'uint64_t'

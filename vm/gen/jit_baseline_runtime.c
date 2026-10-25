@@ -8,6 +8,7 @@ int64_t oop_slot_count;
 static uint64_t oop_slots[262144];
 static uint8_t prim_kinds[1024];
 static bool prim_kinds_ready;
+static uint8_t prim_ops[1024];
 uint64_t stat_block_misses;
 uint64_t stat_links;
 uint64_t stat_megas;
@@ -628,6 +629,7 @@ int32_t bl_prim_kind(int32_t p)
     int i_2;
     primitive_entry *e;
     int64_t k;
+    int64_t op;
     const char *s;
     const char *s_2;
     const char *s_3;
@@ -635,16 +637,45 @@ int32_t bl_prim_kind(int32_t p)
     const char *s_5;
     const char *s_6;
     const char *s_7;
+    const char *s_8;
+    const char *s_9;
+    const char *s_10;
+    const char *s_11;
+    const char *s_12;
+    const char *s_13;
+    const char *s_14;
+    const char *s_15;
+    const char *s_16;
+    const char *s_17;
+    const char *s_18;
+    const char *s_19;
+    const char *s_20;
+    const char *s_21;
+    const char *s_22;
+    const char *s_23;
+    const char *s_24;
+    const char *s_25;
+    const char *s_26;
+    const char *s_27;
+    const char *s_28;
+    const char *s_29;
+    const char *s_30;
+    const char *s_31;
+    const char *s_32;
+    const char *s_33;
+    const char *s_34;
     if (!prim_kinds_ready) {
         prim_kinds_ready = true;
         for (i = 0; i <= 1023; i++) {
             prim_kinds[i] = PK_MARKER;
+            prim_ops[i] = 0;
         }
         t = vm_primitive_table;
         for (i_2 = 0; i_2 <= vm_primitive_count - 1; i_2++) {
             e = t + i_2;
             if ((e->number > 0) && (e->number < 1024)) {
                 k = PK_NONE;
+                op = 0;
                 s = e->name;
                 if (strcmp(s, "perform") == 0) {
                     k = PK_PERFORM;
@@ -673,10 +704,144 @@ int32_t bl_prim_kind(int32_t p)
                 if (strcmp(s_7, "closureValue") == 0) {
                     k = PK_CLOSURE_VALUE;
                 }
+                s_8 = e->name;
+                if (strcmp(s_8, "charValue") == 0) {
+                    k = PK_CHAR_VALUE;
+                }
+                s_9 = e->name;
+                if (strcmp(s_9, "identityHash") == 0) {
+                    k = PK_HASH;
+                }
+                s_10 = e->name;
+                if (strcmp(s_10, "intAdd") == 0) {
+                    k = PK_INT_OP;
+                    op = 0;
+                }
+                s_11 = e->name;
+                if (strcmp(s_11, "intSub") == 0) {
+                    k = PK_INT_OP;
+                    op = 1;
+                }
+                s_12 = e->name;
+                if (strcmp(s_12, "intMul") == 0) {
+                    k = PK_INT_OP;
+                    op = 2;
+                }
+                s_13 = e->name;
+                if (strcmp(s_13, "intBitAnd") == 0) {
+                    k = PK_INT_OP;
+                    op = 4;
+                }
+                s_14 = e->name;
+                if (strcmp(s_14, "intBitOr") == 0) {
+                    k = PK_INT_OP;
+                    op = 5;
+                }
+                s_15 = e->name;
+                if (strcmp(s_15, "intBitXor") == 0) {
+                    k = PK_INT_OP;
+                    op = 6;
+                }
+                s_16 = e->name;
+                if (strcmp(s_16, "intBitShift") == 0) {
+                    k = PK_INT_OP;
+                    op = 7;
+                }
+                s_17 = e->name;
+                if (strcmp(s_17, "intLess") == 0) {
+                    k = PK_INT_OP;
+                    op = 8;
+                }
+                s_18 = e->name;
+                if (strcmp(s_18, "intGreater") == 0) {
+                    k = PK_INT_OP;
+                    op = 9;
+                }
+                s_19 = e->name;
+                if (strcmp(s_19, "intLessEq") == 0) {
+                    k = PK_INT_OP;
+                    op = 10;
+                }
+                s_20 = e->name;
+                if (strcmp(s_20, "intGreaterEq") == 0) {
+                    k = PK_INT_OP;
+                    op = 11;
+                }
+                s_21 = e->name;
+                if (strcmp(s_21, "intEq") == 0) {
+                    k = PK_INT_OP;
+                    op = 12;
+                }
+                s_22 = e->name;
+                if (strcmp(s_22, "intNotEq") == 0) {
+                    k = PK_INT_OP;
+                    op = 13;
+                }
+                s_23 = e->name;
+                if (strcmp(s_23, "floatAdd") == 0) {
+                    k = PK_FLOAT_OP;
+                    op = 0;
+                }
+                s_24 = e->name;
+                if (strcmp(s_24, "floatSub") == 0) {
+                    k = PK_FLOAT_OP;
+                    op = 1;
+                }
+                s_25 = e->name;
+                if (strcmp(s_25, "floatMul") == 0) {
+                    k = PK_FLOAT_OP;
+                    op = 2;
+                }
+                s_26 = e->name;
+                if (strcmp(s_26, "floatDiv") == 0) {
+                    k = PK_FLOAT_OP;
+                    op = 3;
+                }
+                s_27 = e->name;
+                if (strcmp(s_27, "floatLess") == 0) {
+                    k = PK_FLOAT_OP;
+                    op = 8;
+                }
+                s_28 = e->name;
+                if (strcmp(s_28, "floatGreater") == 0) {
+                    k = PK_FLOAT_OP;
+                    op = 9;
+                }
+                s_29 = e->name;
+                if (strcmp(s_29, "floatLessEq") == 0) {
+                    k = PK_FLOAT_OP;
+                    op = 10;
+                }
+                s_30 = e->name;
+                if (strcmp(s_30, "floatGreaterEq") == 0) {
+                    k = PK_FLOAT_OP;
+                    op = 11;
+                }
+                s_31 = e->name;
+                if (strcmp(s_31, "floatEq") == 0) {
+                    k = PK_FLOAT_OP;
+                    op = 12;
+                }
+                s_32 = e->name;
+                if (strcmp(s_32, "floatNotEq") == 0) {
+                    k = PK_FLOAT_OP;
+                    op = 13;
+                }
+                s_33 = e->name;
+                if (strcmp(s_33, "floatSqrt") == 0) {
+                    k = PK_FLOAT_OP;
+                    op = 14;
+                }
+                s_34 = e->name;
+                if (strcmp(s_34, "floatTruncated") == 0) {
+                    k = PK_FLOAT_OP;
+                    op = 15;
+                }
                 if ((e->number == PRIM_ENSURE_MARKER) || (e->number == PRIM_ONDO_MARKER)) {
                     k = PK_MARKER;
                 }
                 prim_kinds[e->number] = (uint8_t)k;
+                prim_ops[e->number] = (uint8_t)op;
             }
         }
     }
@@ -684,6 +849,15 @@ int32_t bl_prim_kind(int32_t p)
         return PK_MARKER;
     }
     return (int32_t)prim_kinds[p];
+}
+
+/* JitBaselineRuntime>>primOpOf: */
+int32_t bl_prim_op(int32_t p)
+{
+    if ((p <= 0) || (p >= 1024)) {
+        return 0;
+    }
+    return (int32_t)prim_ops[p];
 }
 
 /* JitBaselineRuntime>>registerSlot: */
