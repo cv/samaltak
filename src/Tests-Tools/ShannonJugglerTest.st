@@ -3,12 +3,19 @@ ToolsTestCase subclass: #ShannonJugglerTest
 	classVariableNames: ''
 	package: 'Tests-Tools'!
 
-ShannonJugglerTest comment: 'I test the juggler''s window: its stage shows the 3D scene rendered on the GPU, it changes while the act runs and stays the same picture once the act halts.'!
+ShannonJugglerTest comment: 'I test Claude''s Robot: its stage shows the 3D scene rendered on the GPU, it changes while the act runs and stays the same picture once the act halts; the simulation keeps all three balls going for ten minutes of frames, is the same every run and repeats itself, restarts the same, and with gravity turned round the balls end up at rest against the ceiling.'!
 
 !ShannonJugglerTest methodsFor: 'support'!
 pictureOf: aView
 	self settle.
 	^world compositor sync: [:c | c screenshotOf: aView scale: 1]
+!
+run: aJuggler frames: anInteger
+	anInteger timesRepeat: [aJuggler step]
+!
+dropped: aJuggler
+	"Whether a ball got away: down on the floor, or against a wall."
+	^aJuggler balls anySatisfy: [:each | each position y > 400 or: [each position x < 15 or: [each position x > (aJuggler stageExtent x - 15)]]]
 !
 colorsIn: aForm
 	"The distinct pixel values in a coarse grid over aForm."
@@ -35,4 +42,46 @@ testRendersAndAnimates
 	(Delay forMilliseconds: 300) wait.
 	self assert: juggler frame equals: frame.
 	self assert: (self pictureOf: stage) bits = halted bits description: 'a halted act changes its picture'
+!
+testKeepsJugglingForTenMinutes
+	| juggler |
+	juggler := ShannonJuggler new.
+	36000 timesRepeat: [
+		juggler step.
+		self deny: (self dropped: juggler) description: 'a ball dropped at frame ', juggler frame printString].
+	self assert: juggler balls size equals: 3
+!
+testSameEveryRunAndRepeating
+	| a b positions |
+	a := ShannonJuggler new.
+	b := ShannonJuggler new.
+	self run: a frames: 2000.
+	self run: b frames: 2000.
+	self assert: (a balls collect: [:each | each position]) asArray equals: (b balls collect: [:each | each position]) asArray.
+	self assert: (a hands collect: [:each | each position]) equals: (b hands collect: [:each | each position]).
+	"Each ball comes back to where it was after three rounds of the hands."
+	positions := (a balls collect: [:each | each position]) asArray.
+	self run: a frames: 6 * a beat.
+	a balls doWithIndex: [:each :i | self assert: ((positions at: i) dist: each position) < 0.5]
+!
+testRestartIsTheSame
+	| juggler positions |
+	juggler := ShannonJuggler new.
+	positions := (juggler balls collect: [:each | each position]) asArray.
+	self run: juggler frames: 500.
+	juggler restart.
+	self assert: (juggler balls collect: [:each | each position]) asArray equals: positions.
+	self assert: juggler balls size equals: 3
+!
+testGravityTurnedRoundSettlesTheBallsAtTheCeiling
+	| source juggler |
+	source := (ShannonJuggler sourceCodeAt: #move:) asString.
+	self assert: (source includesSubstring: 'velocity + (0 @ 0.4).').
+	[ShannonJuggler compile: (source copyReplaceAll: '0 @ 0.4' with: '0 @ -0.4') classified: 'animation'.
+	 juggler := ShannonJuggler new.
+	 self run: juggler frames: 900]
+		ensure: [ShannonJuggler compile: source classified: 'animation'].
+	juggler balls do: [:each |
+		self assert: each position y < (juggler top + 1).
+		self assert: each velocity r < 0.5]
 ! !

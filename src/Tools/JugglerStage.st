@@ -12,23 +12,24 @@ juggler: aShannonJuggler
 
 !JugglerStage methodsFor: 'shader'!
 uniforms
-	"The rows of the shader's Scene: the stage, the drum, the ball colour, the cups, the ball radius, five balls (in a hand: no velocity)."
-	| balls left right |
+	"The rows of the shader's Scene: the stage, the drum, the ball colour, the bowls, the sizes, the bowls' tilts and depths, five balls, their depths."
+	| balls left right depths |
 	balls := juggler balls.
-	left := (juggler hands detect: [:each | each isLeft]) position.
-	right := (juggler hands detect: [:each | each isLeft not]) position.
+	left := juggler hands detect: [:each | each isLeft].
+	right := juggler hands detect: [:each | each isLeft not].
+	depths := (1 to: 8) collect: [:i | i > balls size ifTrue: [0] ifFalse: [juggler depthOf: (balls at: i)]].
 	^(Array
 		with: (Array with: juggler stageExtent with: juggler frame with: (balls size min: 5))
 		with: (Array with: juggler drum origin with: juggler drum corner)
 		with: juggler ballColor
-		with: (Array with: left with: right)
-		with: JugglerBall radius),
+		with: (Array with: left position with: right position)
+		with: (Array with: JugglerBall radius with: JugglerHand bowlRadius with: JugglerHand rimAngle)
+		with: (Array with: left tilt with: right tilt with: left depth with: right depth)),
 	((1 to: 5) collect: [:i |
 		i > balls size
 			ifTrue: [0]
-			ifFalse: [Array
-				with: (balls at: i) position
-				with: ((juggler flying includes: (balls at: i)) ifTrue: [(balls at: i) velocity] ifFalse: [0 @ 0])]])
+			ifFalse: [Array with: (balls at: i) position with: (balls at: i) velocity]]),
+	(Array with: (depths copyFrom: 1 to: 4) with: (depths copyFrom: 5 to: 8))
 !
 renderScale
 	"Three quarters of the device pixels, for the frame budget."
@@ -39,14 +40,18 @@ shaderSource
 	float4 stage;		// stage width, height (points), frame, ball count
 	float4 drum;		// left, top (the drumhead), right, bottom
 	float4 ballColor;
-	float4 hands;		// cups: left x, y, right x, y
-	float4 ballRadius;
-	float4 balls[5];	// centre x, y, velocity x, y (points per frame; 0 in a hand)
+	float4 hands;		// the bowls'' centres: left x, y, right x, y
+	float4 sizes;		// ball radius, bowl radius, rim angle
+	float4 handPose;	// tilt left, right (radians, + turns the opening to +x), depth left, right (points in front of the plane)
+	float4 balls[5];	// centre x, y, velocity x, y (points per frame)
+	float4 depths[2];	// the balls'' depths (points in front of the plane)
 };
 
 // The model placed in the scene: 100 stage points a unit, y up, the floor at 0, the balls in the plane z = 0, the figure behind at figureZ.
 struct Pose {
 	float3 shoulder[2], elbow[2], wrist[2], cup[2], forearm[2];
+	float2 tilt[2];		// the bowl''s tilt as cos, sin
+	float bowl;
 	float4 ball[5];
 	float3 velocity[5];	// per frame
 	float dent[5];
@@ -107,8 +112,8 @@ float noise(float2 p) {
 #define M_BUTTON 18.0
 
 constant float3 headC = float3(0.0, 2.86, figureZ);
-constant float3 cigarA = float3(0.06, 2.7, 0.2 + figureZ);
-constant float3 cigarB = float3(0.34, 2.6, 0.47 + figureZ);
+constant float3 cigarA = float3(0.03, 2.704, 0.17 + figureZ);
+constant float3 cigarB = float3(0.3, 2.585, 0.46 + figureZ);
 
 // the top hat''s frame: tilted a little to the side
 float3 hatSpace(float3 q) {
@@ -170,6 +175,8 @@ float2 mapHead(float3 p) {
 	// lips, the cigar in the corner of the mouth
 	float lips = sdEllipsoid(q - float3(-0.01, 2.715, 0.21), float3(0.075, 0.022, 0.035));
 	lips = smin(lips, sdEllipsoid(q - float3(-0.01, 2.687, 0.2), float3(0.062, 0.02, 0.032)), 0.012);
+	// pursed round the cigar in the corner of the mouth
+	lips = smin(lips, sdEllipsoid(w - float3(0.058, 2.699, 0.212), float3(0.034, 0.032, 0.024)), 0.015);
 	r = opU(r, float2(lips, M_LIP));
 	r = opU(r, float2(length(e - eyeC) - 0.04, M_EYE));
 	float3 eye = e - eyeC;
@@ -238,23 +245,24 @@ float2 mapArm(float3 p, thread const Pose &P, int i) {
 	float near = length(p - P.cup[i]) - 0.32;
 	if (near > 0.05) return opU(r, float2(near, M_BRASS));
 	r = opU(r, float2(sdCapsule(p, cuff - fa * 0.01, P.wrist[i] - fa * 0.02, 0.07), M_SHIRT));
-	float3 c0 = P.cup[i];
+	// in the bowl''s frame: its axis up, the opening at y = 0
+	float3 c = p - P.cup[i];
+	float2 cs = P.tilt[i];
+	c.xy = float2(cs.x * c.x - cs.y * c.y, cs.y * c.x + cs.x * c.y);
+	float R = P.bowl;
 	float glove = sdRoundCone(p, P.wrist[i] - fa * 0.03, P.wrist[i] + fa * 0.01, 0.068, 0.062);
-	glove = smin(glove, sdEllipsoid(p - P.wrist[i] - float3(0.0, 0.035, 0.03), float3(0.07, 0.055, 0.075)), 0.02);
+	glove = smin(glove, sdEllipsoid(c - float3(0.0, -R - 0.05, -0.03), float3(0.075, 0.05, 0.075)), 0.025);
+	float side = i == 0 ? 1.0 : -1.0;
 	for (int k = 0; k < 4; k++) {
 		float x = (float(k) - 1.5) * 0.034;
-		glove = smin(glove, sdCapsule(p, c0 + float3(x, -0.075, 0.035), c0 + float3(x * 1.15, -0.03 - 0.004 * float(k & 1), 0.118), 0.0165), 0.012);
+		glove = smin(glove, sdCapsule(c, float3(x, -R - 0.05, 0.03), float3(x * 1.15, -R * 0.55 - 0.004 * float(k & 1), R * 0.86 + 0.012), 0.0165), 0.012);
 	}
-	float side = i == 0 ? 1.0 : -1.0;
-	glove = smin(glove, sdCapsule(p, c0 + float3(side * 0.07, -0.075, 0.0), c0 + float3(side * 0.12, -0.02, 0.03), 0.018), 0.015);
+	glove = smin(glove, sdCapsule(c, float3(side * 0.06, -R - 0.04, -0.01), float3(side * (R * 0.9 + 0.015), -R * 0.45, 0.02), 0.018), 0.015);
 	r = opU(r, float2(glove, M_GLOVE));
-	// the cup on the hand, open at the top
-	float3 c = p - P.cup[i];
-	float cup = sdCylinder(c, 0.118, -0.045, 0.045);
-	cup = max(cup, -sdCylinder(c, 0.1, -0.025, 0.2));
-	cup = min(cup, sdTorus(c - float3(0.0, 0.045, 0.0), 0.109, 0.011));
-	cup = min(cup, sdCapsule(p, P.wrist[i] + float3(0.0, 0.05, 0.03), P.cup[i] - float3(0.0, 0.04, 0.0), 0.026));
-	return opU(r, float2(cup, M_BRASS));
+	// the bowl: a brass hemisphere, a rolled rim
+	float bowl = max(abs(length(c) - R - 0.007) - 0.007, c.y);
+	bowl = min(bowl, sdTorus(c, R + 0.007, 0.01));
+	return opU(r, float2(bowl, M_BRASS));
 }
 
 float dentAt(float2 xz, thread const Pose &P) {
@@ -325,7 +333,10 @@ float proxy(float3 p, thread const Pose &P) {
 	for (int i = 0; i < 2; i++) {
 		d = min(d, sdCapsule(p, P.shoulder[i], P.elbow[i], 0.088));
 		d = min(d, sdCapsule(p, P.elbow[i], P.wrist[i], 0.07));
-		d = min(d, sdCylinder(p - P.cup[i], 0.118, -0.045, 0.045));
+		float3 c = p - P.cup[i];
+		float2 cs = P.tilt[i];
+		c.xy = float2(cs.x * c.x - cs.y * c.y, cs.y * c.x + cs.x * c.y);
+		d = min(d, max(length(c) - P.bowl - 0.012, c.y + 0.03));
 	}
 	float3 q = p - float3(0.0, 0.0, figureZ);
 	float fig = sdRoundBox(q - float3(0.0, 2.35, 0.0), float3(0.6, 1.3, 0.45), 0.1);
@@ -732,10 +743,11 @@ Pose pose(constant Scene &s) {
 	P.drum = float3((left + right) * 0.5 - s.stage.x * 0.5, s.drum.w - s.drum.y, (right - left) * 0.5) * 0.01;
 	P.balls = int(min(s.stage.w, 5.0));
 	P.stage = float2(s.stage.x * 0.005, s.drum.w * 0.01);
-	float r = s.ballRadius.x * 0.01;
+	float r = s.sizes.x * 0.01;
+	P.bowl = s.sizes.y * 0.01;
 	for (int i = 0; i < P.balls; i++) {
 		float4 b = s.balls[i];
-		float3 c = world(b.xy, s);
+		float3 c = world(b.xy, s) + float3(0.0, 0.0, s.depths[i / 4][i % 4] * 0.01);
 		float3 v = float3(b.z, -b.w, 0.0) * 0.01;
 		// the drumhead gives where a ball comes down on it: fully in a frame with a bounce
 		float onHead = step(abs(c.x - P.drum.x), P.drum.z - 0.05);
@@ -744,12 +756,14 @@ Pose pose(constant Scene &s) {
 		P.ball[i] = float4(c, r);
 		P.velocity[i] = v;
 	}
-	// each arm reaches its cup: two bones, the elbow down and out
+	// each arm reaches under its bowl, the hand turned with it: two bones, the elbow down and out
 	for (int i = 0; i < 2; i++) {
 		float side = i == 0 ? -1.0 : 1.0;
-		float3 cup = world(i == 0 ? s.hands.xy : s.hands.zw, s);
+		float3 cup = world(i == 0 ? s.hands.xy : s.hands.zw, s) + float3(0.0, 0.0, (i == 0 ? s.handPose.z : s.handPose.w) * 0.01);
+		float t = i == 0 ? s.handPose.x : s.handPose.y;
+		P.tilt[i] = float2(cos(t), sin(t));
 		float3 sh = float3(side * 0.5, 2.33, figureZ);
-		float3 w = cup + float3(-side * 0.02, -0.11, -0.1);
+		float3 w = cup + float3(-sin(t), -cos(t), 0.0) * (P.bowl + 0.075) + float3(0.0, 0.0, -0.05);
 		const float L1 = 1.08, L2 = 1.02;
 		float3 v = w - sh;
 		float d = clamp(length(v), 0.1, L1 + L2 - 0.001);
