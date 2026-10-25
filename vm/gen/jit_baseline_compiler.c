@@ -99,6 +99,7 @@ static void bl_emit_box(int32_t d, int32_t r);
 static void bl_emit_box_slow(int32_t d, int32_t r, int32_t pc, int32_t depth);
 static void bl_emit_float_primitive(int32_t op, int32_t fail);
 static void bl_emit_frame(bool is_block, int32_t na, int32_t nt);
+static void bl_emit_indexed_primitive(int32_t k, int32_t fail);
 static int32_t bl_emit_inline_closure(int32_t pc);
 static void bl_emit_int_primitive(int32_t op, int32_t fail);
 static void bl_emit_literals(void);
@@ -111,6 +112,7 @@ static void bl_emit_site_call(int32_t pc, uint32_t info, int32_t ri);
 static bool bl_emit_slow_paths(void);
 static void bl_emit_slow_send(int32_t i);
 static bool bl_emit_stack_check(int32_t pc);
+static void bl_emit_uint32_primitive(bool isPut, int32_t fail);
 static bool bl_float_arith(int32_t k, int32_t pc, int32_t pushes);
 static int32_t bl_interrupt_check(int32_t t);
 static void bl_load_literal(int64_t i, int32_t r);
@@ -10237,6 +10239,813 @@ exit_pair_3:;
     }
 }
 
+/* JitBaselineCompiler>>emitIndexedPrimitive:fail: */
+static void bl_emit_indexed_primitive(int32_t k, int32_t fail)
+{
+    int32_t bytes;
+    int32_t words;
+    char *a_string;
+    int32_t enc;
+    uint64_t a_word;
+    uint64_t target;
+    int64_t r_offset_to;
+    int64_t off;
+    uint64_t a_word_2;
+    uint64_t target_2;
+    int64_t r_offset_to_2;
+    int64_t off_2;
+    uint64_t a_word_3;
+    uint64_t target_3;
+    int64_t r_offset_to_3;
+    int64_t off_3;
+    uint64_t a_word_4;
+    uint64_t target_4;
+    int64_t r_offset_to_4;
+    int64_t off_4;
+    uint64_t a_word_5;
+    int32_t enc_2;
+    uint64_t a_word_6;
+    uint64_t target_5;
+    int64_t r_offset_to_5;
+    int64_t off_5;
+    uint64_t a_word_7;
+    uint64_t target_6;
+    int64_t r_offset_to_6;
+    int64_t off_6;
+    uint64_t a_word_8;
+    int32_t enc_3;
+    uint64_t a_word_9;
+    uint64_t target_7;
+    int64_t r_offset_to_7;
+    int64_t off_7;
+    uint64_t a_word_10;
+    uint64_t target_8;
+    int64_t r_offset_to_8;
+    int64_t off_8;
+    uint64_t a_word_11;
+    uint64_t target_9;
+    int64_t r_offset_to_9;
+    int64_t off_9;
+    uint64_t a_word_12;
+    int32_t enc_4;
+    uint64_t a_word_13;
+    uint64_t target_10;
+    int64_t r_offset_to_10;
+    int64_t off_10;
+    uint64_t a_word_14;
+    uint64_t target_11;
+    int64_t r_offset_to_11;
+    int64_t off_11;
+    uint64_t a_word_15;
+    int32_t enc_5;
+    uint64_t a_word_16;
+    uint64_t target_12;
+    int64_t r_offset_to_12;
+    int64_t off_12;
+    uint64_t a_word_17;
+    uint64_t target_13;
+    int64_t r_offset_to_13;
+    int64_t off_13;
+    uint64_t a_word_18;
+    uint64_t target_14;
+    int64_t r_offset_to_14;
+    int64_t off_14;
+    uint64_t a_word_19;
+    int32_t enc_6;
+    uint64_t a_word_20;
+    bytes = asm_new_label();
+    words = asm_new_label();
+    a_string = k == PK_AT ? "primitive at:" : k == PK_AT_PUT ? "primitive at:put:" : "primitive basicSize";
+    if (asm_noting) {
+        asm_note(a_string, 0);
+    }
+    enc = asm_logical_immediate(7ULL, 64);
+    if (enc < 0) {
+        if (asm_error == ASM_OK) {
+            asm_error = ASM_ERR_IMMEDIATE;
+        }
+        goto exit_logical;
+    }
+    a_word = 4060086272LL | ((((uint64_t)enc) << 10) | 31ULL);
+    if (asm_pc < asm_limit) {
+        *(uint32_t *)asm_pc = a_word;
+        asm_pc = asm_pc + 4;
+    } else if (asm_error == ASM_OK) {
+        asm_error = ASM_ERR_FULL;
+    }
+exit_logical:;
+    target = asm_target_of(fail);
+    a_word_2 = 0x54000000 | ((((uint64_t)({
+    off = ((int64_t)(target - asm_pc)) >> 2;
+    if (!((off >= -262144) && (off <= 262143))) {
+        if (asm_error == ASM_OK) {
+            asm_error = ASM_ERR_RANGE;
+        }
+        r_offset_to = 0;
+        goto exit_offset_to;
+    }
+    r_offset_to = off & 524287;
+exit_offset_to:;
+    r_offset_to; })) << 5) | 1);
+    if (asm_pc < asm_limit) {
+        *(uint32_t *)asm_pc = a_word_2;
+        asm_pc = asm_pc + 4;
+    } else if (asm_error == ASM_OK) {
+        asm_error = ASM_ERR_FULL;
+    }
+    if (asm_pc < asm_limit) {
+        *(uint32_t *)asm_pc = 4181721099ULL;
+        asm_pc = asm_pc + 4;
+    } else if (asm_error == ASM_OK) {
+        asm_error = ASM_ERR_FULL;
+    }
+    if (asm_pc < asm_limit) {
+        *(uint32_t *)asm_pc = 3546321257ULL;
+        asm_pc = asm_pc + 4;
+    } else if (asm_error == ASM_OK) {
+        asm_error = ASM_ERR_FULL;
+    }
+    if (asm_pc < asm_limit) {
+        *(uint32_t *)asm_pc = 3544218986ULL;
+        asm_pc = asm_pc + 4;
+    } else if (asm_error == ASM_OK) {
+        asm_error = ASM_ERR_FULL;
+    }
+    if (k != PK_BASIC_SIZE) {
+        if (asm_noting) {
+            asm_note("the index: a SmallInteger, zero-based in x16", 0);
+        }
+        if (asm_pc < asm_limit) {
+            *(uint32_t *)asm_pc = 4181721729ULL;
+            asm_pc = asm_pc + 4;
+        } else if (asm_error == ASM_OK) {
+            asm_error = ASM_ERR_FULL;
+        }
+        target_2 = asm_target_of(fail);
+        a_word_3 = 905969664ULL | ((((uint64_t)({
+    off_2 = ((int64_t)(target_2 - asm_pc)) >> 2;
+    if (!((off_2 >= -8192) && (off_2 <= 8191))) {
+        if (asm_error == ASM_OK) {
+            asm_error = ASM_ERR_RANGE;
+        }
+        r_offset_to_2 = 0;
+        goto exit_offset_to_2;
+    }
+    r_offset_to_2 = off_2 & 16383;
+exit_offset_to_2:;
+    r_offset_to_2; })) << 5) | 1);
+        if (asm_pc < asm_limit) {
+            *(uint32_t *)asm_pc = a_word_3;
+            asm_pc = asm_pc + 4;
+        } else if (asm_error == ASM_OK) {
+            asm_error = ASM_ERR_FULL;
+        }
+        if (asm_pc < asm_limit) {
+            *(uint32_t *)asm_pc = 2470575152ULL;
+            asm_pc = asm_pc + 4;
+        } else if (asm_error == ASM_OK) {
+            asm_error = ASM_ERR_FULL;
+        }
+        if (asm_pc < asm_limit) {
+            *(uint32_t *)asm_pc = 3506439696ULL;
+            asm_pc = asm_pc + 4;
+        } else if (asm_error == ASM_OK) {
+            asm_error = ASM_ERR_FULL;
+        }
+        goto exit_add_sub;
+        if (asm_error == ASM_OK) {
+            asm_error = ASM_ERR_IMMEDIATE;
+        }
+    exit_add_sub:;
+    }
+    if (k == PK_AT_PUT) {
+        if (asm_noting) {
+            asm_note("not immutable", 0);
+        }
+        target_3 = asm_target_of(fail);
+        a_word_4 = 3084386304ULL | ((((uint64_t)({
+    off_3 = ((int64_t)(target_3 - asm_pc)) >> 2;
+    if (!((off_3 >= -8192) && (off_3 <= 8191))) {
+        if (asm_error == ASM_OK) {
+            asm_error = ASM_ERR_RANGE;
+        }
+        r_offset_to_3 = 0;
+        goto exit_offset_to_3;
+    }
+    r_offset_to_3 = off_3 & 16383;
+exit_offset_to_3:;
+    r_offset_to_3; })) << 5) | 11);
+        if (asm_pc < asm_limit) {
+            *(uint32_t *)asm_pc = a_word_4;
+            asm_pc = asm_pc + 4;
+        } else if (asm_error == ASM_OK) {
+            asm_error = ASM_ERR_FULL;
+        }
+        if (asm_pc < asm_limit) {
+            *(uint32_t *)asm_pc = 4181722754ULL;
+            asm_pc = asm_pc + 4;
+        } else if (asm_error == ASM_OK) {
+            asm_error = ASM_ERR_FULL;
+        }
+    }
+    if (asm_pc < asm_limit) {
+        *(uint32_t *)asm_pc = 2432712721ULL;
+        asm_pc = asm_pc + 4;
+    } else if (asm_error == ASM_OK) {
+        asm_error = ASM_ERR_FULL;
+    }
+    goto exit_add_sub_2;
+    if (asm_error == ASM_OK) {
+        asm_error = ASM_ERR_IMMEDIATE;
+    }
+exit_add_sub_2:;
+    if (asm_pc < asm_limit) {
+        *(uint32_t *)asm_pc = 4043311423ULL;
+        asm_pc = asm_pc + 4;
+    } else if (asm_error == ASM_OK) {
+        asm_error = ASM_ERR_FULL;
+    }
+    goto exit_add_sub_3;
+    if (asm_error == ASM_OK) {
+        asm_error = ASM_ERR_IMMEDIATE;
+    }
+exit_add_sub_3:;
+    target_4 = asm_target_of(bytes);
+    a_word_5 = 0x54000000 | ((((uint64_t)({
+    off_4 = ((int64_t)(target_4 - asm_pc)) >> 2;
+    if (!((off_4 >= -262144) && (off_4 <= 262143))) {
+        if (asm_error == ASM_OK) {
+            asm_error = ASM_ERR_RANGE;
+        }
+        r_offset_to_4 = 0;
+        goto exit_offset_to_4;
+    }
+    r_offset_to_4 = off_4 & 524287;
+exit_offset_to_4:;
+    r_offset_to_4; })) << 5) | 1);
+    if (asm_pc < asm_limit) {
+        *(uint32_t *)asm_pc = a_word_5;
+        asm_pc = asm_pc + 4;
+    } else if (asm_error == ASM_OK) {
+        asm_error = ASM_ERR_FULL;
+    }
+    if (asm_noting) {
+        asm_note("pointers: the slot count", 0);
+    }
+    if (k == PK_BASIC_SIZE) {
+        if (asm_pc < asm_limit) {
+            *(uint32_t *)asm_pc = 2332688704ULL;
+            asm_pc = asm_pc + 4;
+        } else if (asm_error == ASM_OK) {
+            asm_error = ASM_ERR_FULL;
+        }
+        enc_2 = asm_logical_immediate(1ULL, 64);
+        if (enc_2 < 0) {
+            if (asm_error == ASM_OK) {
+                asm_error = ASM_ERR_IMMEDIATE;
+            }
+            goto exit_logical_2;
+        }
+        a_word_6 = 2986344448LL | ((((uint64_t)enc_2) << 10) | 0ULL);
+        if (asm_pc < asm_limit) {
+            *(uint32_t *)asm_pc = a_word_6;
+            asm_pc = asm_pc + 4;
+        } else if (asm_error == ASM_OK) {
+            asm_error = ASM_ERR_FULL;
+        }
+    exit_logical_2:;
+        if (asm_pc < asm_limit) {
+            *(uint32_t *)asm_pc = 0xD65F03C0LL;
+            asm_pc = asm_pc + 4;
+        } else if (asm_error == ASM_OK) {
+            asm_error = ASM_ERR_FULL;
+        }
+        goto exit_emit_indexed;
+    }
+    if (asm_pc < asm_limit) {
+        *(uint32_t *)asm_pc = 3943301663ULL;
+        asm_pc = asm_pc + 4;
+    } else if (asm_error == ASM_OK) {
+        asm_error = ASM_ERR_FULL;
+    }
+    target_5 = asm_target_of(fail);
+    a_word_7 = 0x54000000 | ((((uint64_t)({
+    off_5 = ((int64_t)(target_5 - asm_pc)) >> 2;
+    if (!((off_5 >= -262144) && (off_5 <= 262143))) {
+        if (asm_error == ASM_OK) {
+            asm_error = ASM_ERR_RANGE;
+        }
+        r_offset_to_5 = 0;
+        goto exit_offset_to_5;
+    }
+    r_offset_to_5 = off_5 & 524287;
+exit_offset_to_5:;
+    r_offset_to_5; })) << 5) | 2);
+    if (asm_pc < asm_limit) {
+        *(uint32_t *)asm_pc = a_word_7;
+        asm_pc = asm_pc + 4;
+    } else if (asm_error == ASM_OK) {
+        asm_error = ASM_ERR_FULL;
+    }
+exit_emit_indexed:;
+    if (k == PK_AT) {
+        if (asm_pc < asm_limit) {
+            *(uint32_t *)asm_pc = 4168120864ULL;
+            asm_pc = asm_pc + 4;
+        } else if (asm_error == ASM_OK) {
+            asm_error = ASM_ERR_FULL;
+        }
+    }
+    if (k == PK_AT_PUT) {
+        if (asm_pc < asm_limit) {
+            *(uint32_t *)asm_pc = 4163926562ULL;
+            asm_pc = asm_pc + 4;
+        } else if (asm_error == ASM_OK) {
+            asm_error = ASM_ERR_FULL;
+        }
+        bl_barrier(X0, X11, X2);
+        if (asm_pc < asm_limit) {
+            *(uint32_t *)asm_pc = 2852258784ULL;
+            asm_pc = asm_pc + 4;
+        } else if (asm_error == ASM_OK) {
+            asm_error = ASM_ERR_FULL;
+        }
+    }
+    if (asm_pc < asm_limit) {
+        *(uint32_t *)asm_pc = 0xD65F03C0LL;
+        asm_pc = asm_pc + 4;
+    } else if (asm_error == ASM_OK) {
+        asm_error = ASM_ERR_FULL;
+    }
+    asm_bind(bytes);
+    if (asm_pc < asm_limit) {
+        *(uint32_t *)asm_pc = 4043325759ULL;
+        asm_pc = asm_pc + 4;
+    } else if (asm_error == ASM_OK) {
+        asm_error = ASM_ERR_FULL;
+    }
+    goto exit_add_sub_4;
+    if (asm_error == ASM_OK) {
+        asm_error = ASM_ERR_IMMEDIATE;
+    }
+exit_add_sub_4:;
+    target_6 = asm_target_of(words);
+    a_word_8 = 0x54000000 | ((((uint64_t)({
+    off_6 = ((int64_t)(target_6 - asm_pc)) >> 2;
+    if (!((off_6 >= -262144) && (off_6 <= 262143))) {
+        if (asm_error == ASM_OK) {
+            asm_error = ASM_ERR_RANGE;
+        }
+        r_offset_to_6 = 0;
+        goto exit_offset_to_6;
+    }
+    r_offset_to_6 = off_6 & 524287;
+exit_offset_to_6:;
+    r_offset_to_6; })) << 5) | 3);
+    if (asm_pc < asm_limit) {
+        *(uint32_t *)asm_pc = a_word_8;
+        asm_pc = asm_pc + 4;
+    } else if (asm_error == ASM_OK) {
+        asm_error = ASM_ERR_FULL;
+    }
+    if (asm_noting) {
+        asm_note("bytes: slots * 8 - (format - 16)", 0);
+    }
+    if (asm_pc < asm_limit) {
+        *(uint32_t *)asm_pc = 3548246346ULL;
+        asm_pc = asm_pc + 4;
+    } else if (asm_error == ASM_OK) {
+        asm_error = ASM_ERR_FULL;
+    }
+    if (asm_pc < asm_limit) {
+        *(uint32_t *)asm_pc = 3406365002ULL;
+        asm_pc = asm_pc + 4;
+    } else if (asm_error == ASM_OK) {
+        asm_error = ASM_ERR_FULL;
+    }
+    if (asm_pc < asm_limit) {
+        *(uint32_t *)asm_pc = 2432713034ULL;
+        asm_pc = asm_pc + 4;
+    } else if (asm_error == ASM_OK) {
+        asm_error = ASM_ERR_FULL;
+    }
+    goto exit_add_sub_5;
+    if (asm_error == ASM_OK) {
+        asm_error = ASM_ERR_IMMEDIATE;
+    }
+exit_add_sub_5:;
+    if (k == PK_BASIC_SIZE) {
+        if (asm_pc < asm_limit) {
+            *(uint32_t *)asm_pc = 2332688704ULL;
+            asm_pc = asm_pc + 4;
+        } else if (asm_error == ASM_OK) {
+            asm_error = ASM_ERR_FULL;
+        }
+        enc_3 = asm_logical_immediate(1ULL, 64);
+        if (enc_3 < 0) {
+            if (asm_error == ASM_OK) {
+                asm_error = ASM_ERR_IMMEDIATE;
+            }
+            goto exit_logical_3;
+        }
+        a_word_9 = 2986344448LL | ((((uint64_t)enc_3) << 10) | 0ULL);
+        if (asm_pc < asm_limit) {
+            *(uint32_t *)asm_pc = a_word_9;
+            asm_pc = asm_pc + 4;
+        } else if (asm_error == ASM_OK) {
+            asm_error = ASM_ERR_FULL;
+        }
+    exit_logical_3:;
+        if (asm_pc < asm_limit) {
+            *(uint32_t *)asm_pc = 0xD65F03C0LL;
+            asm_pc = asm_pc + 4;
+        } else if (asm_error == ASM_OK) {
+            asm_error = ASM_ERR_FULL;
+        }
+        goto exit_emit_indexed_2;
+    }
+    if (asm_pc < asm_limit) {
+        *(uint32_t *)asm_pc = 3943301663ULL;
+        asm_pc = asm_pc + 4;
+    } else if (asm_error == ASM_OK) {
+        asm_error = ASM_ERR_FULL;
+    }
+    target_7 = asm_target_of(fail);
+    a_word_10 = 0x54000000 | ((((uint64_t)({
+    off_7 = ((int64_t)(target_7 - asm_pc)) >> 2;
+    if (!((off_7 >= -262144) && (off_7 <= 262143))) {
+        if (asm_error == ASM_OK) {
+            asm_error = ASM_ERR_RANGE;
+        }
+        r_offset_to_7 = 0;
+        goto exit_offset_to_7;
+    }
+    r_offset_to_7 = off_7 & 524287;
+exit_offset_to_7:;
+    r_offset_to_7; })) << 5) | 2);
+    if (asm_pc < asm_limit) {
+        *(uint32_t *)asm_pc = a_word_10;
+        asm_pc = asm_pc + 4;
+    } else if (asm_error == ASM_OK) {
+        asm_error = ASM_ERR_FULL;
+    }
+exit_emit_indexed_2:;
+    if (k == PK_AT) {
+        if (asm_pc < asm_limit) {
+            *(uint32_t *)asm_pc = 946891296ULL;
+            asm_pc = asm_pc + 4;
+        } else if (asm_error == ASM_OK) {
+            asm_error = ASM_ERR_FULL;
+        }
+    }
+    if (k == PK_AT_PUT) {
+        target_8 = asm_target_of(fail);
+        a_word_11 = 905969664ULL | ((((uint64_t)({
+    off_8 = ((int64_t)(target_8 - asm_pc)) >> 2;
+    if (!((off_8 >= -8192) && (off_8 <= 8191))) {
+        if (asm_error == ASM_OK) {
+            asm_error = ASM_ERR_RANGE;
+        }
+        r_offset_to_8 = 0;
+        goto exit_offset_to_8;
+    }
+    r_offset_to_8 = off_8 & 16383;
+exit_offset_to_8:;
+    r_offset_to_8; })) << 5) | 2);
+        if (asm_pc < asm_limit) {
+            *(uint32_t *)asm_pc = a_word_11;
+            asm_pc = asm_pc + 4;
+        } else if (asm_error == ASM_OK) {
+            asm_error = ASM_ERR_FULL;
+        }
+        if (asm_pc < asm_limit) {
+            *(uint32_t *)asm_pc = 2470575177ULL;
+            asm_pc = asm_pc + 4;
+        } else if (asm_error == ASM_OK) {
+            asm_error = ASM_ERR_FULL;
+        }
+        if (asm_pc < asm_limit) {
+            *(uint32_t *)asm_pc = 4043570495ULL;
+            asm_pc = asm_pc + 4;
+        } else if (asm_error == ASM_OK) {
+            asm_error = ASM_ERR_FULL;
+        }
+        goto exit_add_sub_6;
+        if (asm_error == ASM_OK) {
+            asm_error = ASM_ERR_IMMEDIATE;
+        }
+    exit_add_sub_6:;
+        target_9 = asm_target_of(fail);
+        a_word_12 = 0x54000000 | ((((uint64_t)({
+    off_9 = ((int64_t)(target_9 - asm_pc)) >> 2;
+    if (!((off_9 >= -262144) && (off_9 <= 262143))) {
+        if (asm_error == ASM_OK) {
+            asm_error = ASM_ERR_RANGE;
+        }
+        r_offset_to_9 = 0;
+        goto exit_offset_to_9;
+    }
+    r_offset_to_9 = off_9 & 524287;
+exit_offset_to_9:;
+    r_offset_to_9; })) << 5) | 8);
+        if (asm_pc < asm_limit) {
+            *(uint32_t *)asm_pc = a_word_12;
+            asm_pc = asm_pc + 4;
+        } else if (asm_error == ASM_OK) {
+            asm_error = ASM_ERR_FULL;
+        }
+        if (asm_pc < asm_limit) {
+            *(uint32_t *)asm_pc = 942697001ULL;
+            asm_pc = asm_pc + 4;
+        } else if (asm_error == ASM_OK) {
+            asm_error = ASM_ERR_FULL;
+        }
+    }
+    if (k == PK_AT) {
+        if (asm_pc < asm_limit) {
+            *(uint32_t *)asm_pc = 3548379136ULL;
+            asm_pc = asm_pc + 4;
+        } else if (asm_error == ASM_OK) {
+            asm_error = ASM_ERR_FULL;
+        }
+        enc_4 = asm_logical_immediate(1ULL, 64);
+        if (enc_4 < 0) {
+            if (asm_error == ASM_OK) {
+                asm_error = ASM_ERR_IMMEDIATE;
+            }
+            goto exit_logical_4;
+        }
+        a_word_13 = 2986344448LL | ((((uint64_t)enc_4) << 10) | 0ULL);
+        if (asm_pc < asm_limit) {
+            *(uint32_t *)asm_pc = a_word_13;
+            asm_pc = asm_pc + 4;
+        } else if (asm_error == ASM_OK) {
+            asm_error = ASM_ERR_FULL;
+        }
+    exit_logical_4:;
+    }
+    if (k == PK_AT_PUT) {
+        if (asm_pc < asm_limit) {
+            *(uint32_t *)asm_pc = 2852258784ULL;
+            asm_pc = asm_pc + 4;
+        } else if (asm_error == ASM_OK) {
+            asm_error = ASM_ERR_FULL;
+        }
+    }
+    if (asm_pc < asm_limit) {
+        *(uint32_t *)asm_pc = 0xD65F03C0LL;
+        asm_pc = asm_pc + 4;
+    } else if (asm_error == ASM_OK) {
+        asm_error = ASM_ERR_FULL;
+    }
+    asm_bind(words);
+    if (asm_pc < asm_limit) {
+        *(uint32_t *)asm_pc = 4043319615ULL;
+        asm_pc = asm_pc + 4;
+    } else if (asm_error == ASM_OK) {
+        asm_error = ASM_ERR_FULL;
+    }
+    goto exit_add_sub_7;
+    if (asm_error == ASM_OK) {
+        asm_error = ASM_ERR_IMMEDIATE;
+    }
+exit_add_sub_7:;
+    target_10 = asm_target_of(fail);
+    a_word_14 = 0x54000000 | ((((uint64_t)({
+    off_10 = ((int64_t)(target_10 - asm_pc)) >> 2;
+    if (!((off_10 >= -262144) && (off_10 <= 262143))) {
+        if (asm_error == ASM_OK) {
+            asm_error = ASM_ERR_RANGE;
+        }
+        r_offset_to_10 = 0;
+        goto exit_offset_to_10;
+    }
+    r_offset_to_10 = off_10 & 524287;
+exit_offset_to_10:;
+    r_offset_to_10; })) << 5) | 3);
+    if (asm_pc < asm_limit) {
+        *(uint32_t *)asm_pc = a_word_14;
+        asm_pc = asm_pc + 4;
+    } else if (asm_error == ASM_OK) {
+        asm_error = ASM_ERR_FULL;
+    }
+    if (asm_pc < asm_limit) {
+        *(uint32_t *)asm_pc = 4043320639ULL;
+        asm_pc = asm_pc + 4;
+    } else if (asm_error == ASM_OK) {
+        asm_error = ASM_ERR_FULL;
+    }
+    goto exit_add_sub_8;
+    if (asm_error == ASM_OK) {
+        asm_error = ASM_ERR_IMMEDIATE;
+    }
+exit_add_sub_8:;
+    target_11 = asm_target_of(fail);
+    a_word_15 = 0x54000000 | ((((uint64_t)({
+    off_11 = ((int64_t)(target_11 - asm_pc)) >> 2;
+    if (!((off_11 >= -262144) && (off_11 <= 262143))) {
+        if (asm_error == ASM_OK) {
+            asm_error = ASM_ERR_RANGE;
+        }
+        r_offset_to_11 = 0;
+        goto exit_offset_to_11;
+    }
+    r_offset_to_11 = off_11 & 524287;
+exit_offset_to_11:;
+    r_offset_to_11; })) << 5) | 8);
+    if (asm_pc < asm_limit) {
+        *(uint32_t *)asm_pc = a_word_15;
+        asm_pc = asm_pc + 4;
+    } else if (asm_error == ASM_OK) {
+        asm_error = ASM_ERR_FULL;
+    }
+    if (asm_noting) {
+        asm_note("32-bit words: slots * 2 - (format - 10)", 0);
+    }
+    if (asm_pc < asm_limit) {
+        *(uint32_t *)asm_pc = 3548379466ULL;
+        asm_pc = asm_pc + 4;
+    } else if (asm_error == ASM_OK) {
+        asm_error = ASM_ERR_FULL;
+    }
+    if (asm_pc < asm_limit) {
+        *(uint32_t *)asm_pc = 3406365002ULL;
+        asm_pc = asm_pc + 4;
+    } else if (asm_error == ASM_OK) {
+        asm_error = ASM_ERR_FULL;
+    }
+    if (asm_pc < asm_limit) {
+        *(uint32_t *)asm_pc = 2432706890ULL;
+        asm_pc = asm_pc + 4;
+    } else if (asm_error == ASM_OK) {
+        asm_error = ASM_ERR_FULL;
+    }
+    goto exit_add_sub_9;
+    if (asm_error == ASM_OK) {
+        asm_error = ASM_ERR_IMMEDIATE;
+    }
+exit_add_sub_9:;
+    if (k == PK_BASIC_SIZE) {
+        if (asm_pc < asm_limit) {
+            *(uint32_t *)asm_pc = 2332688704ULL;
+            asm_pc = asm_pc + 4;
+        } else if (asm_error == ASM_OK) {
+            asm_error = ASM_ERR_FULL;
+        }
+        enc_5 = asm_logical_immediate(1ULL, 64);
+        if (enc_5 < 0) {
+            if (asm_error == ASM_OK) {
+                asm_error = ASM_ERR_IMMEDIATE;
+            }
+            goto exit_logical_5;
+        }
+        a_word_16 = 2986344448LL | ((((uint64_t)enc_5) << 10) | 0ULL);
+        if (asm_pc < asm_limit) {
+            *(uint32_t *)asm_pc = a_word_16;
+            asm_pc = asm_pc + 4;
+        } else if (asm_error == ASM_OK) {
+            asm_error = ASM_ERR_FULL;
+        }
+    exit_logical_5:;
+        if (asm_pc < asm_limit) {
+            *(uint32_t *)asm_pc = 0xD65F03C0LL;
+            asm_pc = asm_pc + 4;
+        } else if (asm_error == ASM_OK) {
+            asm_error = ASM_ERR_FULL;
+        }
+        goto exit_emit_indexed_3;
+    }
+    if (asm_pc < asm_limit) {
+        *(uint32_t *)asm_pc = 3943301663ULL;
+        asm_pc = asm_pc + 4;
+    } else if (asm_error == ASM_OK) {
+        asm_error = ASM_ERR_FULL;
+    }
+    target_12 = asm_target_of(fail);
+    a_word_17 = 0x54000000 | ((((uint64_t)({
+    off_12 = ((int64_t)(target_12 - asm_pc)) >> 2;
+    if (!((off_12 >= -262144) && (off_12 <= 262143))) {
+        if (asm_error == ASM_OK) {
+            asm_error = ASM_ERR_RANGE;
+        }
+        r_offset_to_12 = 0;
+        goto exit_offset_to_12;
+    }
+    r_offset_to_12 = off_12 & 524287;
+exit_offset_to_12:;
+    r_offset_to_12; })) << 5) | 2);
+    if (asm_pc < asm_limit) {
+        *(uint32_t *)asm_pc = a_word_17;
+        asm_pc = asm_pc + 4;
+    } else if (asm_error == ASM_OK) {
+        asm_error = ASM_ERR_FULL;
+    }
+exit_emit_indexed_3:;
+    if (k == PK_AT) {
+        if (asm_pc < asm_limit) {
+            *(uint32_t *)asm_pc = 3094379040ULL;
+            asm_pc = asm_pc + 4;
+        } else if (asm_error == ASM_OK) {
+            asm_error = ASM_ERR_FULL;
+        }
+    }
+    if (k == PK_AT_PUT) {
+        target_13 = asm_target_of(fail);
+        a_word_18 = 905969664ULL | ((((uint64_t)({
+    off_13 = ((int64_t)(target_13 - asm_pc)) >> 2;
+    if (!((off_13 >= -8192) && (off_13 <= 8191))) {
+        if (asm_error == ASM_OK) {
+            asm_error = ASM_ERR_RANGE;
+        }
+        r_offset_to_13 = 0;
+        goto exit_offset_to_13;
+    }
+    r_offset_to_13 = off_13 & 16383;
+exit_offset_to_13:;
+    r_offset_to_13; })) << 5) | 2);
+        if (asm_pc < asm_limit) {
+            *(uint32_t *)asm_pc = a_word_18;
+            asm_pc = asm_pc + 4;
+        } else if (asm_error == ASM_OK) {
+            asm_error = ASM_ERR_FULL;
+        }
+        if (asm_pc < asm_limit) {
+            *(uint32_t *)asm_pc = 2470575177ULL;
+            asm_pc = asm_pc + 4;
+        } else if (asm_error == ASM_OK) {
+            asm_error = ASM_ERR_FULL;
+        }
+        if (asm_pc < asm_limit) {
+            *(uint32_t *)asm_pc = 3546348843ULL;
+            asm_pc = asm_pc + 4;
+        } else if (asm_error == ASM_OK) {
+            asm_error = ASM_ERR_FULL;
+        }
+        target_14 = asm_target_of(fail);
+        a_word_19 = 3036676096LL | ((((uint64_t)({
+    off_14 = ((int64_t)(target_14 - asm_pc)) >> 2;
+    if (!((off_14 >= -262144) && (off_14 <= 262143))) {
+        if (asm_error == ASM_OK) {
+            asm_error = ASM_ERR_RANGE;
+        }
+        r_offset_to_14 = 0;
+        goto exit_offset_to_14;
+    }
+    r_offset_to_14 = off_14 & 524287;
+exit_offset_to_14:;
+    r_offset_to_14; })) << 5) | 11);
+        if (asm_pc < asm_limit) {
+            *(uint32_t *)asm_pc = a_word_19;
+            asm_pc = asm_pc + 4;
+        } else if (asm_error == ASM_OK) {
+            asm_error = ASM_ERR_FULL;
+        }
+        if (asm_pc < asm_limit) {
+            *(uint32_t *)asm_pc = 3090184745ULL;
+            asm_pc = asm_pc + 4;
+        } else if (asm_error == ASM_OK) {
+            asm_error = ASM_ERR_FULL;
+        }
+    }
+    if (k == PK_AT) {
+        if (asm_pc < asm_limit) {
+            *(uint32_t *)asm_pc = 3548379136ULL;
+            asm_pc = asm_pc + 4;
+        } else if (asm_error == ASM_OK) {
+            asm_error = ASM_ERR_FULL;
+        }
+        enc_6 = asm_logical_immediate(1ULL, 64);
+        if (enc_6 < 0) {
+            if (asm_error == ASM_OK) {
+                asm_error = ASM_ERR_IMMEDIATE;
+            }
+            goto exit_logical_6;
+        }
+        a_word_20 = 2986344448LL | ((((uint64_t)enc_6) << 10) | 0ULL);
+        if (asm_pc < asm_limit) {
+            *(uint32_t *)asm_pc = a_word_20;
+            asm_pc = asm_pc + 4;
+        } else if (asm_error == ASM_OK) {
+            asm_error = ASM_ERR_FULL;
+        }
+    exit_logical_6:;
+    }
+    if (k == PK_AT_PUT) {
+        if (asm_pc < asm_limit) {
+            *(uint32_t *)asm_pc = 2852258784ULL;
+            asm_pc = asm_pc + 4;
+        } else if (asm_error == ASM_OK) {
+            asm_error = ASM_ERR_FULL;
+        }
+    }
+    if (asm_pc < asm_limit) {
+        *(uint32_t *)asm_pc = 0xD65F03C0LL;
+        asm_pc = asm_pc + 4;
+    } else if (asm_error == ASM_OK) {
+        asm_error = ASM_ERR_FULL;
+    }
+}
+
 /* JitBaselineCompiler>>emitInlineClosure: */
 static int32_t bl_emit_inline_closure(int32_t pc)
 {
@@ -10890,6 +11699,26 @@ static void bl_emit_int_primitive(int32_t op, int32_t fail)
     int32_t k;
     int v_6;
     uint64_t a_word_13;
+    char *a_string;
+    uint64_t target_9;
+    int64_t r_offset_to_9;
+    int64_t off_9;
+    uint64_t a_word_14;
+    int32_t exact;
+    uint64_t target_10;
+    int64_t r_offset_to_10;
+    int64_t off_10;
+    uint64_t a_word_15;
+    uint64_t target_11;
+    int64_t r_offset_to_11;
+    int64_t off_11;
+    uint64_t a_word_16;
+    uint64_t target_12;
+    int64_t r_offset_to_12;
+    int64_t off_12;
+    uint64_t a_word_17;
+    int32_t enc_5;
+    uint64_t a_word_18;
     if (asm_noting) {
         asm_note("SmallInteger primitive: receiver and argument SmallIntegers", 0);
     }
@@ -11311,7 +12140,7 @@ exit_offset_to_8:;
         }
     exit_logical_4:;
     }
-    if (op >= 8) {
+    if ((op >= 8) && (op <= 13)) {
         if (asm_pc < asm_limit) {
             *(uint32_t *)asm_pc = 3942711327ULL;
             asm_pc = asm_pc + 4;
@@ -11352,6 +12181,182 @@ exit_offset_to_8:;
         } else if (asm_error == ASM_OK) {
             asm_error = ASM_ERR_FULL;
         }
+    }
+    if (op >= 16) {
+        a_string = op == 16 ? "quo:" : op == 17 ? "rem:" : op == 18 ? "//" : "\\\\";
+        if (asm_noting) {
+            asm_note(a_string, 0);
+        }
+        if (asm_pc < asm_limit) {
+            *(uint32_t *)asm_pc = 2470575120ULL;
+            asm_pc = asm_pc + 4;
+        } else if (asm_error == ASM_OK) {
+            asm_error = ASM_ERR_FULL;
+        }
+        if (asm_pc < asm_limit) {
+            *(uint32_t *)asm_pc = 2470575153ULL;
+            asm_pc = asm_pc + 4;
+        } else if (asm_error == ASM_OK) {
+            asm_error = ASM_ERR_FULL;
+        }
+        target_9 = asm_target_of(fail);
+        a_word_14 = 3019898880LL | ((((uint64_t)({
+    off_9 = ((int64_t)(target_9 - asm_pc)) >> 2;
+    if (!((off_9 >= -262144) && (off_9 <= 262143))) {
+        if (asm_error == ASM_OK) {
+            asm_error = ASM_ERR_RANGE;
+        }
+        r_offset_to_9 = 0;
+        goto exit_offset_to_9;
+    }
+    r_offset_to_9 = off_9 & 524287;
+exit_offset_to_9:;
+    r_offset_to_9; })) << 5) | 17);
+        if (asm_pc < asm_limit) {
+            *(uint32_t *)asm_pc = a_word_14;
+            asm_pc = asm_pc + 4;
+        } else if (asm_error == ASM_OK) {
+            asm_error = ASM_ERR_FULL;
+        }
+        if (asm_pc < asm_limit) {
+            *(uint32_t *)asm_pc = 2597391881ULL;
+            asm_pc = asm_pc + 4;
+        } else if (asm_error == ASM_OK) {
+            asm_error = ASM_ERR_FULL;
+        }
+        if (op != 16) {
+            if (asm_pc < asm_limit) {
+                *(uint32_t *)asm_pc = 2601632042ULL;
+                asm_pc = asm_pc + 4;
+            } else if (asm_error == ASM_OK) {
+                asm_error = ASM_ERR_FULL;
+            }
+        }
+        if (op >= 18) {
+            if (asm_noting) {
+                asm_note("floored: a remainder whose sign differs from the divisor's corrects quotient and remainder", 0);
+            }
+            exact = asm_new_label();
+            target_10 = asm_target_of(exact);
+            a_word_15 = 3019898880LL | ((((uint64_t)({
+    off_10 = ((int64_t)(target_10 - asm_pc)) >> 2;
+    if (!((off_10 >= -262144) && (off_10 <= 262143))) {
+        if (asm_error == ASM_OK) {
+            asm_error = ASM_ERR_RANGE;
+        }
+        r_offset_to_10 = 0;
+        goto exit_offset_to_10;
+    }
+    r_offset_to_10 = off_10 & 524287;
+exit_offset_to_10:;
+    r_offset_to_10; })) << 5) | 10);
+            if (asm_pc < asm_limit) {
+                *(uint32_t *)asm_pc = a_word_15;
+                asm_pc = asm_pc + 4;
+            } else if (asm_error == ASM_OK) {
+                asm_error = ASM_ERR_FULL;
+            }
+            if (asm_pc < asm_limit) {
+                *(uint32_t *)asm_pc = 3390112075ULL;
+                asm_pc = asm_pc + 4;
+            } else if (asm_error == ASM_OK) {
+                asm_error = ASM_ERR_FULL;
+            }
+            target_11 = asm_target_of(exact);
+            a_word_16 = 3069706240ULL | ((((uint64_t)({
+    off_11 = ((int64_t)(target_11 - asm_pc)) >> 2;
+    if (!((off_11 >= -8192) && (off_11 <= 8191))) {
+        if (asm_error == ASM_OK) {
+            asm_error = ASM_ERR_RANGE;
+        }
+        r_offset_to_11 = 0;
+        goto exit_offset_to_11;
+    }
+    r_offset_to_11 = off_11 & 16383;
+exit_offset_to_11:;
+    r_offset_to_11; })) << 5) | 11);
+            if (asm_pc < asm_limit) {
+                *(uint32_t *)asm_pc = a_word_16;
+                asm_pc = asm_pc + 4;
+            } else if (asm_error == ASM_OK) {
+                asm_error = ASM_ERR_FULL;
+            }
+            if (asm_pc < asm_limit) {
+                *(uint32_t *)asm_pc = 3506439465ULL;
+                asm_pc = asm_pc + 4;
+            } else if (asm_error == ASM_OK) {
+                asm_error = ASM_ERR_FULL;
+            }
+            goto exit_add_sub_6;
+            if (asm_error == ASM_OK) {
+                asm_error = ASM_ERR_IMMEDIATE;
+            }
+        exit_add_sub_6:;
+            if (asm_pc < asm_limit) {
+                *(uint32_t *)asm_pc = 2333147466ULL;
+                asm_pc = asm_pc + 4;
+            } else if (asm_error == ASM_OK) {
+                asm_error = ASM_ERR_FULL;
+            }
+            asm_bind(exact);
+        }
+        if ((op == 17) || (op == 19)) {
+            if (asm_pc < asm_limit) {
+                *(uint32_t *)asm_pc = 2852783081ULL;
+                asm_pc = asm_pc + 4;
+            } else if (asm_error == ASM_OK) {
+                asm_error = ASM_ERR_FULL;
+            }
+        }
+        if (asm_noting) {
+            asm_note("a SmallInteger (minVal // -1 is not)", 0);
+        }
+        if (asm_pc < asm_limit) {
+            *(uint32_t *)asm_pc = 2332623146ULL;
+            asm_pc = asm_pc + 4;
+        } else if (asm_error == ASM_OK) {
+            asm_error = ASM_ERR_FULL;
+        }
+        if (asm_pc < asm_limit) {
+            *(uint32_t *)asm_pc = 3951691071ULL;
+            asm_pc = asm_pc + 4;
+        } else if (asm_error == ASM_OK) {
+            asm_error = ASM_ERR_FULL;
+        }
+        target_12 = asm_target_of(fail);
+        a_word_17 = 0x54000000 | ((((uint64_t)({
+    off_12 = ((int64_t)(target_12 - asm_pc)) >> 2;
+    if (!((off_12 >= -262144) && (off_12 <= 262143))) {
+        if (asm_error == ASM_OK) {
+            asm_error = ASM_ERR_RANGE;
+        }
+        r_offset_to_12 = 0;
+        goto exit_offset_to_12;
+    }
+    r_offset_to_12 = off_12 & 524287;
+exit_offset_to_12:;
+    r_offset_to_12; })) << 5) | 1);
+        if (asm_pc < asm_limit) {
+            *(uint32_t *)asm_pc = a_word_17;
+            asm_pc = asm_pc + 4;
+        } else if (asm_error == ASM_OK) {
+            asm_error = ASM_ERR_FULL;
+        }
+        enc_5 = asm_logical_immediate(1ULL, 64);
+        if (enc_5 < 0) {
+            if (asm_error == ASM_OK) {
+                asm_error = ASM_ERR_IMMEDIATE;
+            }
+            goto exit_logical_5;
+        }
+        a_word_18 = 2986344448LL | ((((uint64_t)enc_5) << 10) | 320ULL);
+        if (asm_pc < asm_limit) {
+            *(uint32_t *)asm_pc = a_word_18;
+            asm_pc = asm_pc + 4;
+        } else if (asm_error == ASM_OK) {
+            asm_error = ASM_ERR_FULL;
+        }
+    exit_logical_5:;
     }
     if (asm_pc < asm_limit) {
         *(uint32_t *)asm_pc = 0xD65F03C0LL;
@@ -12088,33 +13093,43 @@ static bool bl_emit_primitive(void)
     uint64_t a_word_53;
     int32_t enc_5;
     uint64_t a_word_54;
-    int32_t enc_6;
-    uint64_t a_word_55;
     uint64_t target_29;
     int64_t r_offset_to_29;
     int64_t off_39;
-    uint64_t a_word_56;
-    int32_t enc_7;
-    uint64_t a_word_57;
-    int32_t info;
+    uint64_t a_word_55;
+    uint64_t target_30;
+    int64_t r_offset_to_30;
     int64_t off_40;
+    uint64_t a_word_56;
+    int32_t enc_6;
+    uint64_t a_word_57;
+    int32_t enc_7;
     uint64_t a_word_58;
+    uint64_t target_31;
+    int64_t r_offset_to_31;
+    int64_t off_41;
+    uint64_t a_word_59;
+    int32_t enc_8;
+    uint64_t a_word_60;
+    int32_t info;
+    int64_t off_42;
+    uint64_t a_word_61;
     uint64_t value;
     uint64_t v_22;
     uint64_t imm_4;
-    uint64_t a_word_59;
-    uint64_t imm_5;
-    uint64_t a_word_60;
-    uint64_t imm_6;
-    uint64_t a_word_61;
-    uint64_t imm_7;
     uint64_t a_word_62;
-    int32_t value_2;
+    uint64_t imm_5;
     uint64_t a_word_63;
-    uint64_t target_30;
-    int64_t r_offset_to_30;
-    int64_t off_41;
-    int64_t a_word_64;
+    uint64_t imm_6;
+    uint64_t a_word_64;
+    uint64_t imm_7;
+    uint64_t a_word_65;
+    int32_t value_2;
+    uint64_t a_word_66;
+    uint64_t target_32;
+    int64_t r_offset_to_32;
+    int64_t off_43;
+    int64_t a_word_67;
     k = bl_prim_kind(prim_index);
     if (k == PK_PERFORM) {
         return false;
@@ -13894,40 +14909,135 @@ exit_offset_to_28:;
                 asm_error = ASM_ERR_FULL;
             }
         }
-        if (k == PK_HASH) {
+        if (k == PK_CHAR_FROM_VALUE) {
             if (asm_noting) {
-                asm_note("primitive identityHash: an object's header hash", 0);
+                asm_note("primitive charFromValue: the Character of a code (0 to 16r3FFFFFFF)", 0);
             }
-            enc_6 = asm_logical_immediate(7ULL, 64);
-            if (enc_6 < 0) {
-                if (asm_error == ASM_OK) {
-                    asm_error = ASM_ERR_IMMEDIATE;
-                }
-                goto exit_logical_6;
-            }
-            a_word_55 = 4060086272LL | ((((uint64_t)enc_6) << 10) | 31ULL);
             if (asm_pc < asm_limit) {
-                *(uint32_t *)asm_pc = a_word_55;
+                *(uint32_t *)asm_pc = 4181721729ULL;
                 asm_pc = asm_pc + 4;
             } else if (asm_error == ASM_OK) {
                 asm_error = ASM_ERR_FULL;
             }
-        exit_logical_6:;
             target_29 = asm_target_of(fail);
-            a_word_56 = 0x54000000 | ((((uint64_t)({
+            a_word_55 = 905969664ULL | ((((uint64_t)({
     off_39 = ((int64_t)(target_29 - asm_pc)) >> 2;
-    if (!((off_39 >= -262144) && (off_39 <= 262143))) {
+    if (!((off_39 >= -8192) && (off_39 <= 8191))) {
         if (asm_error == ASM_OK) {
             asm_error = ASM_ERR_RANGE;
         }
         r_offset_to_29 = 0;
         goto exit_offset_to_29;
     }
-    r_offset_to_29 = off_39 & 524287;
+    r_offset_to_29 = off_39 & 16383;
 exit_offset_to_29:;
     r_offset_to_29; })) << 5) | 1);
             if (asm_pc < asm_limit) {
+                *(uint32_t *)asm_pc = a_word_55;
+                asm_pc = asm_pc + 4;
+            } else if (asm_error == ASM_OK) {
+                asm_error = ASM_ERR_FULL;
+            }
+            if (asm_pc < asm_limit) {
+                *(uint32_t *)asm_pc = 2470575152ULL;
+                asm_pc = asm_pc + 4;
+            } else if (asm_error == ASM_OK) {
+                asm_error = ASM_ERR_FULL;
+            }
+            asm_mov_imm(X17, 1073741823ULL);
+            if (asm_pc < asm_limit) {
+                *(uint32_t *)asm_pc = 3943760415ULL;
+                asm_pc = asm_pc + 4;
+            } else if (asm_error == ASM_OK) {
+                asm_error = ASM_ERR_FULL;
+            }
+            target_30 = asm_target_of(fail);
+            a_word_56 = 0x54000000 | ((((uint64_t)({
+    off_40 = ((int64_t)(target_30 - asm_pc)) >> 2;
+    if (!((off_40 >= -262144) && (off_40 <= 262143))) {
+        if (asm_error == ASM_OK) {
+            asm_error = ASM_ERR_RANGE;
+        }
+        r_offset_to_30 = 0;
+        goto exit_offset_to_30;
+    }
+    r_offset_to_30 = off_40 & 524287;
+exit_offset_to_30:;
+    r_offset_to_30; })) << 5) | 8);
+            if (asm_pc < asm_limit) {
                 *(uint32_t *)asm_pc = a_word_56;
+                asm_pc = asm_pc + 4;
+            } else if (asm_error == ASM_OK) {
+                asm_error = ASM_ERR_FULL;
+            }
+            if (asm_pc < asm_limit) {
+                *(uint32_t *)asm_pc = 3548246528ULL;
+                asm_pc = asm_pc + 4;
+            } else if (asm_error == ASM_OK) {
+                asm_error = ASM_ERR_FULL;
+            }
+            enc_6 = asm_logical_immediate(2ULL, 64);
+            if (enc_6 < 0) {
+                if (asm_error == ASM_OK) {
+                    asm_error = ASM_ERR_IMMEDIATE;
+                }
+                goto exit_logical_6;
+            }
+            a_word_57 = 2986344448LL | ((((uint64_t)enc_6) << 10) | 0ULL);
+            if (asm_pc < asm_limit) {
+                *(uint32_t *)asm_pc = a_word_57;
+                asm_pc = asm_pc + 4;
+            } else if (asm_error == ASM_OK) {
+                asm_error = ASM_ERR_FULL;
+            }
+        exit_logical_6:;
+            if (asm_pc < asm_limit) {
+                *(uint32_t *)asm_pc = 0xD65F03C0LL;
+                asm_pc = asm_pc + 4;
+            } else if (asm_error == ASM_OK) {
+                asm_error = ASM_ERR_FULL;
+            }
+        }
+        if ((k == PK_AT) || ((k == PK_AT_PUT) || (k == PK_BASIC_SIZE))) {
+            bl_emit_indexed_primitive(k, fail);
+        }
+        if ((k == PK_UINT32_AT) || (k == PK_UINT32_AT_PUT)) {
+            bl_emit_uint32_primitive(k == PK_UINT32_AT_PUT, fail);
+        }
+        if (k == PK_HASH) {
+            if (asm_noting) {
+                asm_note("primitive identityHash: an object's header hash", 0);
+            }
+            enc_7 = asm_logical_immediate(7ULL, 64);
+            if (enc_7 < 0) {
+                if (asm_error == ASM_OK) {
+                    asm_error = ASM_ERR_IMMEDIATE;
+                }
+                goto exit_logical_7;
+            }
+            a_word_58 = 4060086272LL | ((((uint64_t)enc_7) << 10) | 31ULL);
+            if (asm_pc < asm_limit) {
+                *(uint32_t *)asm_pc = a_word_58;
+                asm_pc = asm_pc + 4;
+            } else if (asm_error == ASM_OK) {
+                asm_error = ASM_ERR_FULL;
+            }
+        exit_logical_7:;
+            target_31 = asm_target_of(fail);
+            a_word_59 = 0x54000000 | ((((uint64_t)({
+    off_41 = ((int64_t)(target_31 - asm_pc)) >> 2;
+    if (!((off_41 >= -262144) && (off_41 <= 262143))) {
+        if (asm_error == ASM_OK) {
+            asm_error = ASM_ERR_RANGE;
+        }
+        r_offset_to_31 = 0;
+        goto exit_offset_to_31;
+    }
+    r_offset_to_31 = off_41 & 524287;
+exit_offset_to_31:;
+    r_offset_to_31; })) << 5) | 1);
+            if (asm_pc < asm_limit) {
+                *(uint32_t *)asm_pc = a_word_59;
                 asm_pc = asm_pc + 4;
             } else if (asm_error == ASM_OK) {
                 asm_error = ASM_ERR_FULL;
@@ -13950,21 +15060,21 @@ exit_offset_to_29:;
             } else if (asm_error == ASM_OK) {
                 asm_error = ASM_ERR_FULL;
             }
-            enc_7 = asm_logical_immediate(1ULL, 64);
-            if (enc_7 < 0) {
+            enc_8 = asm_logical_immediate(1ULL, 64);
+            if (enc_8 < 0) {
                 if (asm_error == ASM_OK) {
                     asm_error = ASM_ERR_IMMEDIATE;
                 }
-                goto exit_logical_7;
+                goto exit_logical_8;
             }
-            a_word_57 = 2986344448LL | ((((uint64_t)enc_7) << 10) | 0ULL);
+            a_word_60 = 2986344448LL | ((((uint64_t)enc_8) << 10) | 0ULL);
             if (asm_pc < asm_limit) {
-                *(uint32_t *)asm_pc = a_word_57;
+                *(uint32_t *)asm_pc = a_word_60;
                 asm_pc = asm_pc + 4;
             } else if (asm_error == ASM_OK) {
                 asm_error = ASM_ERR_FULL;
             }
-        exit_logical_7:;
+        exit_logical_8:;
             if (asm_pc < asm_limit) {
                 *(uint32_t *)asm_pc = 0xD65F03C0LL;
                 asm_pc = asm_pc + 4;
@@ -13981,16 +15091,16 @@ exit_offset_to_29:;
         asm_note("the primitive's C function: success returns to the sender, failure continues here", 0);
     }
     info = asm_new_label();
-    off_40 = (int64_t)(asm_target_of(info) - asm_pc);
-    if (!((off_40 >= -1048576) && (off_40 <= 0xFFFFF))) {
+    off_42 = (int64_t)(asm_target_of(info) - asm_pc);
+    if (!((off_42 >= -1048576) && (off_42 <= 0xFFFFF))) {
         if (asm_error == ASM_OK) {
             asm_error = ASM_ERR_RANGE;
         }
         goto exit_adr;
     }
-    a_word_58 = 0x10000000 | (((uint64_t)(off_40 & 3)) << 29) | ((((uint64_t)((off_40 >> 2) & 0x7FFFF)) << 5) | 10);
+    a_word_61 = 0x10000000 | (((uint64_t)(off_42 & 3)) << 29) | ((((uint64_t)((off_42 >> 2) & 0x7FFFF)) << 5) | 10);
     if (asm_pc < asm_limit) {
-        *(uint32_t *)asm_pc = a_word_58;
+        *(uint32_t *)asm_pc = a_word_61;
         asm_pc = asm_pc + 4;
     } else if (asm_error == ASM_OK) {
         asm_error = ASM_ERR_FULL;
@@ -14005,9 +15115,9 @@ exit_adr:;
         }
         goto exit_move_wide;
     }
-    a_word_59 = 3531603968LL | (0ULL | (imm_4 << 5) | 2);
+    a_word_62 = 3531603968LL | (0ULL | (imm_4 << 5) | 2);
     if (asm_pc < asm_limit) {
-        *(uint32_t *)asm_pc = a_word_59;
+        *(uint32_t *)asm_pc = a_word_62;
         asm_pc = asm_pc + 4;
     } else if (asm_error == ASM_OK) {
         asm_error = ASM_ERR_FULL;
@@ -14020,9 +15130,9 @@ exit_move_wide:;
         }
         goto exit_move_wide_2;
     }
-    a_word_60 = 4068474880LL | (2097152ULL | (imm_5 << 5) | 2);
+    a_word_63 = 4068474880LL | (2097152ULL | (imm_5 << 5) | 2);
     if (asm_pc < asm_limit) {
-        *(uint32_t *)asm_pc = a_word_60;
+        *(uint32_t *)asm_pc = a_word_63;
         asm_pc = asm_pc + 4;
     } else if (asm_error == ASM_OK) {
         asm_error = ASM_ERR_FULL;
@@ -14035,9 +15145,9 @@ exit_move_wide_2:;
         }
         goto exit_move_wide_3;
     }
-    a_word_61 = 4068474880LL | (4194304ULL | (imm_6 << 5) | 2);
+    a_word_64 = 4068474880LL | (4194304ULL | (imm_6 << 5) | 2);
     if (asm_pc < asm_limit) {
-        *(uint32_t *)asm_pc = a_word_61;
+        *(uint32_t *)asm_pc = a_word_64;
         asm_pc = asm_pc + 4;
     } else if (asm_error == ASM_OK) {
         asm_error = ASM_ERR_FULL;
@@ -14050,9 +15160,9 @@ exit_move_wide_3:;
         }
         goto exit_move_wide_4;
     }
-    a_word_62 = 4068474880LL | (6291456ULL | (imm_7 << 5) | 2);
+    a_word_65 = 4068474880LL | (6291456ULL | (imm_7 << 5) | 2);
     if (asm_pc < asm_limit) {
-        *(uint32_t *)asm_pc = a_word_62;
+        *(uint32_t *)asm_pc = a_word_65;
         asm_pc = asm_pc + 4;
     } else if (asm_error == ASM_OK) {
         asm_error = ASM_ERR_FULL;
@@ -14066,9 +15176,9 @@ exit_move_wide_4:;
             }
             goto exit_move_wide_5;
         }
-        a_word_63 = 3531603968LL | (0ULL | (((uint64_t)value_2) << 5) | 3);
+        a_word_66 = 3531603968LL | (0ULL | (((uint64_t)value_2) << 5) | 3);
         if (asm_pc < asm_limit) {
-            *(uint32_t *)asm_pc = a_word_63;
+            *(uint32_t *)asm_pc = a_word_66;
             asm_pc = asm_pc + 4;
         } else if (asm_error == ASM_OK) {
             asm_error = ASM_ERR_FULL;
@@ -14077,21 +15187,21 @@ exit_move_wide_4:;
     } else {
         asm_mov_imm(X3, (uint64_t)value_2);
     }
-    target_30 = asm_target_of(prim_label);
-    a_word_64 = 0x14000000 | ({
-    off_41 = ((int64_t)(target_30 - asm_pc)) >> 2;
-    if (!((off_41 >= -33554432) && (off_41 <= 33554431))) {
+    target_32 = asm_target_of(prim_label);
+    a_word_67 = 0x14000000 | ({
+    off_43 = ((int64_t)(target_32 - asm_pc)) >> 2;
+    if (!((off_43 >= -33554432) && (off_43 <= 33554431))) {
         if (asm_error == ASM_OK) {
             asm_error = ASM_ERR_RANGE;
         }
-        r_offset_to_30 = 0;
-        goto exit_offset_to_30;
+        r_offset_to_32 = 0;
+        goto exit_offset_to_32;
     }
-    r_offset_to_30 = off_41 & 67108863;
-exit_offset_to_30:;
-    r_offset_to_30; });
+    r_offset_to_32 = off_43 & 67108863;
+exit_offset_to_32:;
+    r_offset_to_32; });
     if (asm_pc < asm_limit) {
-        *(uint32_t *)asm_pc = a_word_64;
+        *(uint32_t *)asm_pc = a_word_67;
         asm_pc = asm_pc + 4;
     } else if (asm_error == ASM_OK) {
         asm_error = ASM_ERR_FULL;
@@ -21543,6 +22653,399 @@ exit_offset_to:;
         asm_error = ASM_ERR_FULL;
     }
     return true;
+}
+
+/* JitBaselineCompiler>>emitUint32Primitive:fail: */
+static void bl_emit_uint32_primitive(bool is_put, int32_t fail)
+{
+    char *a_string;
+    int32_t enc;
+    uint64_t a_word;
+    uint64_t target;
+    int64_t r_offset_to;
+    int64_t off;
+    uint64_t a_word_2;
+    uint64_t target_2;
+    int64_t r_offset_to_2;
+    int64_t off_2;
+    uint64_t a_word_3;
+    uint64_t target_3;
+    int64_t r_offset_to_3;
+    int64_t off_3;
+    uint64_t a_word_4;
+    uint64_t target_4;
+    int64_t r_offset_to_4;
+    int64_t off_4;
+    uint64_t a_word_5;
+    uint64_t target_5;
+    int64_t r_offset_to_5;
+    int64_t off_5;
+    uint64_t a_word_6;
+    uint64_t target_6;
+    int64_t r_offset_to_6;
+    int64_t off_6;
+    uint64_t a_word_7;
+    int32_t enc_2;
+    uint64_t a_word_8;
+    uint64_t target_7;
+    int64_t r_offset_to_7;
+    int64_t off_7;
+    uint64_t a_word_9;
+    uint64_t target_8;
+    int64_t r_offset_to_8;
+    int64_t off_8;
+    uint64_t a_word_10;
+    a_string = is_put ? "primitive uint32At:put: of bytes" : "primitive uint32At: of bytes";
+    if (asm_noting) {
+        asm_note(a_string, 0);
+    }
+    enc = asm_logical_immediate(7ULL, 64);
+    if (enc < 0) {
+        if (asm_error == ASM_OK) {
+            asm_error = ASM_ERR_IMMEDIATE;
+        }
+        goto exit_logical;
+    }
+    a_word = 4060086272LL | ((((uint64_t)enc) << 10) | 31ULL);
+    if (asm_pc < asm_limit) {
+        *(uint32_t *)asm_pc = a_word;
+        asm_pc = asm_pc + 4;
+    } else if (asm_error == ASM_OK) {
+        asm_error = ASM_ERR_FULL;
+    }
+exit_logical:;
+    target = asm_target_of(fail);
+    a_word_2 = 0x54000000 | ((((uint64_t)({
+    off = ((int64_t)(target - asm_pc)) >> 2;
+    if (!((off >= -262144) && (off <= 262143))) {
+        if (asm_error == ASM_OK) {
+            asm_error = ASM_ERR_RANGE;
+        }
+        r_offset_to = 0;
+        goto exit_offset_to;
+    }
+    r_offset_to = off & 524287;
+exit_offset_to:;
+    r_offset_to; })) << 5) | 1);
+    if (asm_pc < asm_limit) {
+        *(uint32_t *)asm_pc = a_word_2;
+        asm_pc = asm_pc + 4;
+    } else if (asm_error == ASM_OK) {
+        asm_error = ASM_ERR_FULL;
+    }
+    if (asm_pc < asm_limit) {
+        *(uint32_t *)asm_pc = 4181721099ULL;
+        asm_pc = asm_pc + 4;
+    } else if (asm_error == ASM_OK) {
+        asm_error = ASM_ERR_FULL;
+    }
+    if (asm_pc < asm_limit) {
+        *(uint32_t *)asm_pc = 3546321257ULL;
+        asm_pc = asm_pc + 4;
+    } else if (asm_error == ASM_OK) {
+        asm_error = ASM_ERR_FULL;
+    }
+    if (asm_pc < asm_limit) {
+        *(uint32_t *)asm_pc = 4043325759ULL;
+        asm_pc = asm_pc + 4;
+    } else if (asm_error == ASM_OK) {
+        asm_error = ASM_ERR_FULL;
+    }
+    goto exit_add_sub;
+    if (asm_error == ASM_OK) {
+        asm_error = ASM_ERR_IMMEDIATE;
+    }
+exit_add_sub:;
+    target_2 = asm_target_of(fail);
+    a_word_3 = 0x54000000 | ((((uint64_t)({
+    off_2 = ((int64_t)(target_2 - asm_pc)) >> 2;
+    if (!((off_2 >= -262144) && (off_2 <= 262143))) {
+        if (asm_error == ASM_OK) {
+            asm_error = ASM_ERR_RANGE;
+        }
+        r_offset_to_2 = 0;
+        goto exit_offset_to_2;
+    }
+    r_offset_to_2 = off_2 & 524287;
+exit_offset_to_2:;
+    r_offset_to_2; })) << 5) | 3);
+    if (asm_pc < asm_limit) {
+        *(uint32_t *)asm_pc = a_word_3;
+        asm_pc = asm_pc + 4;
+    } else if (asm_error == ASM_OK) {
+        asm_error = ASM_ERR_FULL;
+    }
+    if (is_put) {
+        target_3 = asm_target_of(fail);
+        a_word_4 = 3084386304ULL | ((((uint64_t)({
+    off_3 = ((int64_t)(target_3 - asm_pc)) >> 2;
+    if (!((off_3 >= -8192) && (off_3 <= 8191))) {
+        if (asm_error == ASM_OK) {
+            asm_error = ASM_ERR_RANGE;
+        }
+        r_offset_to_3 = 0;
+        goto exit_offset_to_3;
+    }
+    r_offset_to_3 = off_3 & 16383;
+exit_offset_to_3:;
+    r_offset_to_3; })) << 5) | 11);
+        if (asm_pc < asm_limit) {
+            *(uint32_t *)asm_pc = a_word_4;
+            asm_pc = asm_pc + 4;
+        } else if (asm_error == ASM_OK) {
+            asm_error = ASM_ERR_FULL;
+        }
+    }
+    if (asm_pc < asm_limit) {
+        *(uint32_t *)asm_pc = 3544218986ULL;
+        asm_pc = asm_pc + 4;
+    } else if (asm_error == ASM_OK) {
+        asm_error = ASM_ERR_FULL;
+    }
+    if (asm_pc < asm_limit) {
+        *(uint32_t *)asm_pc = 3548246346ULL;
+        asm_pc = asm_pc + 4;
+    } else if (asm_error == ASM_OK) {
+        asm_error = ASM_ERR_FULL;
+    }
+    if (asm_pc < asm_limit) {
+        *(uint32_t *)asm_pc = 3406365002ULL;
+        asm_pc = asm_pc + 4;
+    } else if (asm_error == ASM_OK) {
+        asm_error = ASM_ERR_FULL;
+    }
+    if (asm_pc < asm_limit) {
+        *(uint32_t *)asm_pc = 2432713034ULL;
+        asm_pc = asm_pc + 4;
+    } else if (asm_error == ASM_OK) {
+        asm_error = ASM_ERR_FULL;
+    }
+    goto exit_add_sub_2;
+    if (asm_error == ASM_OK) {
+        asm_error = ASM_ERR_IMMEDIATE;
+    }
+exit_add_sub_2:;
+    if (asm_noting) {
+        asm_note("offset - 1 + 4 within the bytes", 0);
+    }
+    if (asm_pc < asm_limit) {
+        *(uint32_t *)asm_pc = 4181721729ULL;
+        asm_pc = asm_pc + 4;
+    } else if (asm_error == ASM_OK) {
+        asm_error = ASM_ERR_FULL;
+    }
+    target_4 = asm_target_of(fail);
+    a_word_5 = 905969664ULL | ((((uint64_t)({
+    off_4 = ((int64_t)(target_4 - asm_pc)) >> 2;
+    if (!((off_4 >= -8192) && (off_4 <= 8191))) {
+        if (asm_error == ASM_OK) {
+            asm_error = ASM_ERR_RANGE;
+        }
+        r_offset_to_4 = 0;
+        goto exit_offset_to_4;
+    }
+    r_offset_to_4 = off_4 & 16383;
+exit_offset_to_4:;
+    r_offset_to_4; })) << 5) | 1);
+    if (asm_pc < asm_limit) {
+        *(uint32_t *)asm_pc = a_word_5;
+        asm_pc = asm_pc + 4;
+    } else if (asm_error == ASM_OK) {
+        asm_error = ASM_ERR_FULL;
+    }
+    if (asm_pc < asm_limit) {
+        *(uint32_t *)asm_pc = 2470575152ULL;
+        asm_pc = asm_pc + 4;
+    } else if (asm_error == ASM_OK) {
+        asm_error = ASM_ERR_FULL;
+    }
+    if (asm_pc < asm_limit) {
+        *(uint32_t *)asm_pc = 3506439696ULL;
+        asm_pc = asm_pc + 4;
+    } else if (asm_error == ASM_OK) {
+        asm_error = ASM_ERR_FULL;
+    }
+    goto exit_add_sub_3;
+    if (asm_error == ASM_OK) {
+        asm_error = ASM_ERR_IMMEDIATE;
+    }
+exit_add_sub_3:;
+    target_5 = asm_target_of(fail);
+    a_word_6 = 3086483456ULL | ((((uint64_t)({
+    off_5 = ((int64_t)(target_5 - asm_pc)) >> 2;
+    if (!((off_5 >= -8192) && (off_5 <= 8191))) {
+        if (asm_error == ASM_OK) {
+            asm_error = ASM_ERR_RANGE;
+        }
+        r_offset_to_5 = 0;
+        goto exit_offset_to_5;
+    }
+    r_offset_to_5 = off_5 & 16383;
+exit_offset_to_5:;
+    r_offset_to_5; })) << 5) | 16);
+    if (asm_pc < asm_limit) {
+        *(uint32_t *)asm_pc = a_word_6;
+        asm_pc = asm_pc + 4;
+    } else if (asm_error == ASM_OK) {
+        asm_error = ASM_ERR_FULL;
+    }
+    if (asm_pc < asm_limit) {
+        *(uint32_t *)asm_pc = 2432700937ULL;
+        asm_pc = asm_pc + 4;
+    } else if (asm_error == ASM_OK) {
+        asm_error = ASM_ERR_FULL;
+    }
+    goto exit_add_sub_4;
+    if (asm_error == ASM_OK) {
+        asm_error = ASM_ERR_IMMEDIATE;
+    }
+exit_add_sub_4:;
+    if (asm_pc < asm_limit) {
+        *(uint32_t *)asm_pc = 3943301439ULL;
+        asm_pc = asm_pc + 4;
+    } else if (asm_error == ASM_OK) {
+        asm_error = ASM_ERR_FULL;
+    }
+    target_6 = asm_target_of(fail);
+    a_word_7 = 0x54000000 | ((((uint64_t)({
+    off_6 = ((int64_t)(target_6 - asm_pc)) >> 2;
+    if (!((off_6 >= -262144) && (off_6 <= 262143))) {
+        if (asm_error == ASM_OK) {
+            asm_error = ASM_ERR_RANGE;
+        }
+        r_offset_to_6 = 0;
+        goto exit_offset_to_6;
+    }
+    r_offset_to_6 = off_6 & 524287;
+exit_offset_to_6:;
+    r_offset_to_6; })) << 5) | 8);
+    if (asm_pc < asm_limit) {
+        *(uint32_t *)asm_pc = a_word_7;
+        asm_pc = asm_pc + 4;
+    } else if (asm_error == ASM_OK) {
+        asm_error = ASM_ERR_FULL;
+    }
+    if (asm_pc < asm_limit) {
+        *(uint32_t *)asm_pc = 2432712721ULL;
+        asm_pc = asm_pc + 4;
+    } else if (asm_error == ASM_OK) {
+        asm_error = ASM_ERR_FULL;
+    }
+    goto exit_add_sub_5;
+    if (asm_error == ASM_OK) {
+        asm_error = ASM_ERR_IMMEDIATE;
+    }
+exit_add_sub_5:;
+    if (!is_put) {
+        if (asm_pc < asm_limit) {
+            *(uint32_t *)asm_pc = 3094374944ULL;
+            asm_pc = asm_pc + 4;
+        } else if (asm_error == ASM_OK) {
+            asm_error = ASM_ERR_FULL;
+        }
+        if (asm_pc < asm_limit) {
+            *(uint32_t *)asm_pc = 3548379136ULL;
+            asm_pc = asm_pc + 4;
+        } else if (asm_error == ASM_OK) {
+            asm_error = ASM_ERR_FULL;
+        }
+        enc_2 = asm_logical_immediate(1ULL, 64);
+        if (enc_2 < 0) {
+            if (asm_error == ASM_OK) {
+                asm_error = ASM_ERR_IMMEDIATE;
+            }
+            goto exit_logical_2;
+        }
+        a_word_8 = 2986344448LL | ((((uint64_t)enc_2) << 10) | 0ULL);
+        if (asm_pc < asm_limit) {
+            *(uint32_t *)asm_pc = a_word_8;
+            asm_pc = asm_pc + 4;
+        } else if (asm_error == ASM_OK) {
+            asm_error = ASM_ERR_FULL;
+        }
+    exit_logical_2:;
+        if (asm_pc < asm_limit) {
+            *(uint32_t *)asm_pc = 0xD65F03C0LL;
+            asm_pc = asm_pc + 4;
+        } else if (asm_error == ASM_OK) {
+            asm_error = ASM_ERR_FULL;
+        }
+        return;
+    }
+    if (asm_pc < asm_limit) {
+        *(uint32_t *)asm_pc = 4181722754ULL;
+        asm_pc = asm_pc + 4;
+    } else if (asm_error == ASM_OK) {
+        asm_error = ASM_ERR_FULL;
+    }
+    target_7 = asm_target_of(fail);
+    a_word_9 = 905969664ULL | ((((uint64_t)({
+    off_7 = ((int64_t)(target_7 - asm_pc)) >> 2;
+    if (!((off_7 >= -8192) && (off_7 <= 8191))) {
+        if (asm_error == ASM_OK) {
+            asm_error = ASM_ERR_RANGE;
+        }
+        r_offset_to_7 = 0;
+        goto exit_offset_to_7;
+    }
+    r_offset_to_7 = off_7 & 16383;
+exit_offset_to_7:;
+    r_offset_to_7; })) << 5) | 2);
+    if (asm_pc < asm_limit) {
+        *(uint32_t *)asm_pc = a_word_9;
+        asm_pc = asm_pc + 4;
+    } else if (asm_error == ASM_OK) {
+        asm_error = ASM_ERR_FULL;
+    }
+    if (asm_pc < asm_limit) {
+        *(uint32_t *)asm_pc = 2470575177ULL;
+        asm_pc = asm_pc + 4;
+    } else if (asm_error == ASM_OK) {
+        asm_error = ASM_ERR_FULL;
+    }
+    if (asm_pc < asm_limit) {
+        *(uint32_t *)asm_pc = 3546348843ULL;
+        asm_pc = asm_pc + 4;
+    } else if (asm_error == ASM_OK) {
+        asm_error = ASM_ERR_FULL;
+    }
+    target_8 = asm_target_of(fail);
+    a_word_10 = 3036676096LL | ((((uint64_t)({
+    off_8 = ((int64_t)(target_8 - asm_pc)) >> 2;
+    if (!((off_8 >= -262144) && (off_8 <= 262143))) {
+        if (asm_error == ASM_OK) {
+            asm_error = ASM_ERR_RANGE;
+        }
+        r_offset_to_8 = 0;
+        goto exit_offset_to_8;
+    }
+    r_offset_to_8 = off_8 & 524287;
+exit_offset_to_8:;
+    r_offset_to_8; })) << 5) | 11);
+    if (asm_pc < asm_limit) {
+        *(uint32_t *)asm_pc = a_word_10;
+        asm_pc = asm_pc + 4;
+    } else if (asm_error == ASM_OK) {
+        asm_error = ASM_ERR_FULL;
+    }
+    if (asm_pc < asm_limit) {
+        *(uint32_t *)asm_pc = 3090180649ULL;
+        asm_pc = asm_pc + 4;
+    } else if (asm_error == ASM_OK) {
+        asm_error = ASM_ERR_FULL;
+    }
+    if (asm_pc < asm_limit) {
+        *(uint32_t *)asm_pc = 2852258784ULL;
+        asm_pc = asm_pc + 4;
+    } else if (asm_error == ASM_OK) {
+        asm_error = ASM_ERR_FULL;
+    }
+    if (asm_pc < asm_limit) {
+        *(uint32_t *)asm_pc = 0xD65F03C0LL;
+        asm_pc = asm_pc + 4;
+    } else if (asm_error == ASM_OK) {
+        asm_error = ASM_ERR_FULL;
+    }
 }
 
 /* JitBaselineCompiler>>floatArith:pc:pushes: */

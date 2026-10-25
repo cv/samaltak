@@ -1,6 +1,6 @@
 VMCoreModule subclass: #JitBaselineRuntime
 	instanceVariableNames: 'compiler stubs cache asm analysis oopSlots oopSlotCount youngSlots youngSlotCount youngSlotsOverflow megaTable blockTable primKinds primOps primKindsReady statMisses statLinks statPics statMegas statBlockMisses statPrimCalls statNlrs statWalks'
-	classVariableNames: 'BL_BLOCK_CACHE BL_BLOCK_WORDS BL_MAX_OOP_SLOTS BL_MAX_YOUNG_SLOTS BL_MEGA_CACHE BL_MEGA_WORDS BL_PIC_CASES BL_SITE_MEGA PK_BASICNEW PK_BASICNEW_SIZE PK_CHAR_VALUE PK_CLASS PK_CLOSURE_VALUE PK_FLOAT_OP PK_HASH PK_IDENTICAL PK_INT_OP PK_MARKER PK_NONE PK_PERFORM'
+	classVariableNames: 'BL_BLOCK_CACHE BL_BLOCK_WORDS BL_MAX_OOP_SLOTS BL_MAX_YOUNG_SLOTS BL_MEGA_CACHE BL_MEGA_WORDS BL_PIC_CASES BL_SITE_MEGA PK_AT PK_AT_PUT PK_BASIC_SIZE PK_BASICNEW PK_BASICNEW_SIZE PK_CHAR_FROM_VALUE PK_CHAR_VALUE PK_CLASS PK_CLOSURE_VALUE PK_FLOAT_OP PK_HASH PK_IDENTICAL PK_INT_OP PK_MARKER PK_NONE PK_PERFORM PK_UINT32_AT PK_UINT32_AT_PUT'
 	package: 'VM-Jit'!
 
 JitBaselineRuntime comment: 'What baseline code (JitBaselineCompiler) needs of the runtime beyond JitRuntime:
@@ -40,11 +40,18 @@ initialize
 	PK_IDENTICAL := 5.
 	PK_CLASS := 6.
 	PK_CLOSURE_VALUE := 7.
-	"SmallInteger and Float primitives in machine code; primOps: 0 + 1 - 2 * 3 / 4 bitAnd: 5 bitOr: 6 bitXor: 7 bitShift: 8 < 9 > 10 <= 11 >= 12 = 13 ~= 14 sqrt 15 truncated"
+	"SmallInteger and Float primitives in machine code; primOps: 0 + 1 - 2 * 3 / 4 bitAnd: 5 bitOr: 6 bitXor: 7 bitShift: 8 < 9 > 10 <= 11 >= 12 = 13 ~= 14 sqrt 15 truncated 16 quo: 17 rem: 18 // 19 \\"
 	PK_INT_OP := 8.
 	PK_FLOAT_OP := 9.
 	PK_CHAR_VALUE := 10.
-	PK_HASH := 11
+	PK_HASH := 11.
+	PK_CHAR_FROM_VALUE := 12.
+	"at:, at:put:, basicSize, uint32At:, uint32At:put: of indexable pointers without fixed fields, 32-bit words, bytes"
+	PK_AT := 13.
+	PK_AT_PUT := 14.
+	PK_BASIC_SIZE := 15.
+	PK_UINT32_AT := 16.
+	PK_UINT32_AT_PUT := 17
 ! !
 
 !JitBaselineRuntime methodsFor: 'accessing'!
@@ -86,6 +93,24 @@ pkFloatOp
 !
 pkCharValue
 	^PK_CHAR_VALUE
+!
+pkCharFromValue
+	^PK_CHAR_FROM_VALUE
+!
+pkAt
+	^PK_AT
+!
+pkAtPut
+	^PK_AT_PUT
+!
+pkBasicSize
+	^PK_BASIC_SIZE
+!
+pkUint32At
+	^PK_UINT32_AT
+!
+pkUint32AtPut
+	^PK_UINT32_AT_PUT
 !
 pkHash
 	^PK_HASH
@@ -144,6 +169,12 @@ initPrimKinds
 			(self named: e name is: 'class') ifTrue: [k := PK_CLASS].
 			(self named: e name is: 'closureValue') ifTrue: [k := PK_CLOSURE_VALUE].
 			(self named: e name is: 'charValue') ifTrue: [k := PK_CHAR_VALUE].
+			(self named: e name is: 'charFromValue') ifTrue: [k := PK_CHAR_FROM_VALUE].
+			(self named: e name is: 'at') ifTrue: [k := PK_AT].
+			(self named: e name is: 'atPut') ifTrue: [k := PK_AT_PUT].
+			(self named: e name is: 'basicSize') ifTrue: [k := PK_BASIC_SIZE].
+			(self named: e name is: 'bytesUint32At') ifTrue: [k := PK_UINT32_AT].
+			(self named: e name is: 'bytesUint32AtPut') ifTrue: [k := PK_UINT32_AT_PUT].
 			(self named: e name is: 'identityHash') ifTrue: [k := PK_HASH].
 			(self named: e name is: 'intAdd') ifTrue: [k := PK_INT_OP. op := 0].
 			(self named: e name is: 'intSub') ifTrue: [k := PK_INT_OP. op := 1].
@@ -152,6 +183,10 @@ initPrimKinds
 			(self named: e name is: 'intBitOr') ifTrue: [k := PK_INT_OP. op := 5].
 			(self named: e name is: 'intBitXor') ifTrue: [k := PK_INT_OP. op := 6].
 			(self named: e name is: 'intBitShift') ifTrue: [k := PK_INT_OP. op := 7].
+			(self named: e name is: 'intQuo') ifTrue: [k := PK_INT_OP. op := 16].
+			(self named: e name is: 'intRem') ifTrue: [k := PK_INT_OP. op := 17].
+			(self named: e name is: 'intFloorDiv') ifTrue: [k := PK_INT_OP. op := 18].
+			(self named: e name is: 'intMod') ifTrue: [k := PK_INT_OP. op := 19].
 			(self named: e name is: 'intLess') ifTrue: [k := PK_INT_OP. op := 8].
 			(self named: e name is: 'intGreater') ifTrue: [k := PK_INT_OP. op := 9].
 			(self named: e name is: 'intLessEq') ifTrue: [k := PK_INT_OP. op := 10].

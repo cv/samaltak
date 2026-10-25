@@ -354,8 +354,12 @@ typedef void (*prim_fn)(void);
 #define PF_X_NIL 0
 #define PF_X_POINT 4
 #define PF_X_TEXT 3
+#define PK_AT 13
+#define PK_AT_PUT 14
 #define PK_BASICNEW 3
 #define PK_BASICNEW_SIZE 4
+#define PK_BASIC_SIZE 15
+#define PK_CHAR_FROM_VALUE 12
 #define PK_CHAR_VALUE 10
 #define PK_CLASS 6
 #define PK_CLOSURE_VALUE 7
@@ -366,6 +370,8 @@ typedef void (*prim_fn)(void);
 #define PK_MARKER 2
 #define PK_NONE 0
 #define PK_PERFORM 1
+#define PK_UINT32_AT 16
+#define PK_UINT32_AT_PUT 17
 #define POLL_FDS 129
 #define PRIM_ENSURE_MARKER 198
 #define PRIM_ERR_NO_MEMORY 1

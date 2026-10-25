@@ -928,6 +928,9 @@ emitPrimitive
 		k = brt pkIntOp ifTrue: [self emitIntPrimitive: (brt primOpOf: analysis primitive) fail: fail].
 		k = brt pkFloatOp ifTrue: [self emitFloatPrimitive: (brt primOpOf: analysis primitive) fail: fail].
 		k = brt pkCharValue ifTrue: [self emitCharValuePrimitive: fail].
+		k = brt pkCharFromValue ifTrue: [self emitCharFromValuePrimitive: fail].
+		(k = brt pkAt or: [k = brt pkAtPut or: [k = brt pkBasicSize]]) ifTrue: [self emitIndexedPrimitive: k fail: fail].
+		(k = brt pkUint32At or: [k = brt pkUint32AtPut]) ifTrue: [self emitUint32Primitive: k = brt pkUint32AtPut fail: fail].
 		k = brt pkHash ifTrue: [self emitHashPrimitive: fail]].
 	k = brt pkMarker ifTrue: [^true].
 	asm bind: fail.
@@ -941,9 +944,9 @@ emitPrimitive
 	^true
 !
 emitIntPrimitive: op fail: fail
-	"SmallInteger arithmetic, bit operations and comparisons of the receiver (x0) and the argument (slot 0); anything else (overflow, other classes) the C function."
+	"SmallInteger arithmetic, bit operations, comparisons and divisions of the receiver (x0) and the argument (slot 0); anything else (overflow, other classes, division by zero) the C function."
 	<c: 'void bl_emit_int_primitive(int32_t op, int32_t fail)'>
-	| right |
+	| right exact |
 	asm comment: 'SmallInteger primitive: receiver and argument SmallIntegers'.
 	asm tbz: X0 bit: 0 to: fail.
 	asm ldr: X1 base: X20 offset: (self slot: 0).
@@ -992,9 +995,31 @@ emitIntPrimitive: op fail: fail
 		asm csel: X16 with: X16 with: X17 cond: COND_LO.
 		asm asr: X0 with: X0 with: X16.
 		asm orr: X0 with: X0 imm: 1].
-	op >= 8 ifTrue: [
+	(op >= 8 and: [op <= 13]) ifTrue: [
 		asm cmp: X0 with: X1.
 		asm csel: X0 with: X24 with: X25 cond: (self conditionOf: op - 6)].
+	op >= 16 ifTrue: [
+		asm comment: (op = 16 ifTrue: ['quo:'] ifFalse: [op = 17 ifTrue: ['rem:'] ifFalse: [op = 18 ifTrue: ['//'] ifFalse: ['\\']]]).
+		asm asr: X16 with: X0 imm: 1.
+		asm asr: X17 with: X1 imm: 1.
+		asm cbz: X17 to: fail.
+		asm sdiv: X9 with: X16 with: X17.
+		op ~= 16 ifTrue: [asm msub: X10 with: X9 with: X17 sub: X16].
+		op >= 18 ifTrue: [
+			asm comment: 'floored: a remainder whose sign differs from the divisor''s corrects quotient and remainder'.
+			exact := asm newLabel.
+			asm cbz: X10 to: exact.
+			asm eor: X11 with: X10 with: X17.
+			asm tbz: X11 bit: 63 to: exact.
+			asm sub: X9 with: X9 imm: 1.
+			asm add: X10 with: X10 with: X17.
+			asm bind: exact].
+		(op = 17 or: [op = 19]) ifTrue: [asm mov: X9 with: X10].
+		asm comment: 'a SmallInteger (minVal // -1 is not)'.
+		asm add: X10 with: X9 with: X9.
+		asm cmp: X9 with: X10 shift: SHIFT_ASR amount: 1.
+		asm b: fail if: COND_NE.
+		asm orr: X0 with: X10 imm: 1].
 	asm ret
 !
 emitFloatPrimitive: op fail: fail
@@ -1042,6 +1067,142 @@ emitCharValuePrimitive: fail
 	asm lsr: X16 with: X0 imm: 3.
 	asm lsl: X0 with: X16 imm: 1.
 	asm orr: X0 with: X0 imm: 1.
+	asm ret
+!
+emitIndexedPrimitive: k fail: fail
+	"at:, at:put: and basicSize of indexable pointers without fixed fields, 32-bit words and bytes: a SmallInteger index (slot 0) within the size, a word or byte value in range, a receiver not immutable; anything else the C function."
+	<c: 'void bl_emit_indexed_primitive(int32_t k, int32_t fail)'>
+	| bytes words |
+	bytes := asm newLabel.
+	words := asm newLabel.
+	asm comment: (k = brt pkAt ifTrue: ['primitive at:'] ifFalse: [k = brt pkAtPut ifTrue: ['primitive at:put:'] ifFalse: ['primitive basicSize']]).
+	asm tst: X0 imm: 7.
+	asm b: fail if: COND_NE.
+	asm ldr: X11 base: X0 offset: 0.
+	asm ubfx: X9 with: X11 lsb: H_FMT_SHIFT width: 5.
+	asm ubfx: X10 with: X11 lsb: 0 width: 32.
+	k ~= brt pkBasicSize ifTrue: [
+		asm comment: 'the index: a SmallInteger, zero-based in x16'.
+		asm ldr: X1 base: X20 offset: (self slot: 0).
+		asm tbz: X1 bit: 0 to: fail.
+		asm asr: X16 with: X1 imm: 1.
+		asm sub: X16 with: X16 imm: 1].
+	k = brt pkAtPut ifTrue: [
+		asm comment: 'not immutable'.
+		asm tbnz: X11 bit: 59 to: fail.
+		asm ldr: X2 base: X20 offset: (self slot: 1)].
+	asm add: X17 with: X0 imm: 16.
+	asm cmp: X9 imm: F_VAR.
+	asm b: bytes if: COND_NE.
+	asm comment: 'pointers: the slot count'.
+	self emitIndexed: k size: X10 fail: fail.
+	k = brt pkAt ifTrue: [asm ldr: X0 base: X17 index: X16 extend: EXT_LSL shift: 3].
+	k = brt pkAtPut ifTrue: [
+		asm str: X2 base: X17 index: X16 extend: EXT_LSL shift: 3.
+		self barrier: X0 header: X11 value: X2.
+		asm mov: X0 with: X2].
+	asm ret.
+	asm bind: bytes.
+	asm cmp: X9 imm: F_BYTES.
+	asm b: words if: COND_LO.
+	asm comment: 'bytes: slots * 8 - (format - 16)'.
+	asm lsl: X10 with: X10 imm: 3.
+	asm sub: X10 with: X10 with: X9.
+	asm add: X10 with: X10 imm: F_BYTES.
+	self emitIndexed: k size: X10 fail: fail.
+	k = brt pkAt ifTrue: [asm ldrb: W0 base: X17 index: X16].
+	k = brt pkAtPut ifTrue: [
+		asm tbz: X2 bit: 0 to: fail.
+		asm asr: X9 with: X2 imm: 1.
+		asm cmp: X9 imm: 255.
+		asm b: fail if: COND_HI.
+		asm strb: W9 base: X17 index: X16].
+	self emitIndexedResult: k.
+	asm bind: words.
+	asm cmp: X9 imm: F_W32.
+	asm b: fail if: COND_LO.
+	asm cmp: X9 imm: F_W32 + 1.
+	asm b: fail if: COND_HI.
+	asm comment: '32-bit words: slots * 2 - (format - 10)'.
+	asm lsl: X10 with: X10 imm: 1.
+	asm sub: X10 with: X10 with: X9.
+	asm add: X10 with: X10 imm: F_W32.
+	self emitIndexed: k size: X10 fail: fail.
+	k = brt pkAt ifTrue: [asm ldr: W0 base: X17 index: X16 extend: EXT_LSL shift: 2].
+	k = brt pkAtPut ifTrue: [
+		asm tbz: X2 bit: 0 to: fail.
+		asm asr: X9 with: X2 imm: 1.
+		asm lsr: X11 with: X9 imm: 32.
+		asm cbnz: X11 to: fail.
+		asm str: W9 base: X17 index: X16 extend: EXT_LSL shift: 2].
+	self emitIndexedResult: k
+!
+emitIndexed: k size: r fail: fail
+	"basicSize answers r; at: and at:put: check the index in x16 against it."
+	k = brt pkBasicSize ifTrue: [
+		asm add: X0 with: r with: r.
+		asm orr: X0 with: X0 imm: 1.
+		^asm ret].
+	asm cmp: X16 with: r.
+	asm b: fail if: COND_HS
+!
+emitIndexedResult: k
+	"at: answers the element loaded into x0 as a SmallInteger, at:put: the value."
+	k = brt pkAt ifTrue: [
+		asm lsl: X0 with: X0 imm: 1.
+		asm orr: X0 with: X0 imm: 1].
+	k = brt pkAtPut ifTrue: [asm mov: X0 with: X2].
+	asm ret
+!
+emitUint32Primitive: isPut fail: fail
+	"uint32At: and uint32At:put: of bytes at a 1-based byte offset (slot 0), unaligned; anything else the C function."
+	<c: 'void bl_emit_uint32_primitive(bool isPut, int32_t fail)'>
+	asm comment: (isPut ifTrue: ['primitive uint32At:put: of bytes'] ifFalse: ['primitive uint32At: of bytes']).
+	asm tst: X0 imm: 7.
+	asm b: fail if: COND_NE.
+	asm ldr: X11 base: X0 offset: 0.
+	asm ubfx: X9 with: X11 lsb: H_FMT_SHIFT width: 5.
+	asm cmp: X9 imm: F_BYTES.
+	asm b: fail if: COND_LO.
+	isPut ifTrue: [asm tbnz: X11 bit: 59 to: fail].
+	asm ubfx: X10 with: X11 lsb: 0 width: 32.
+	asm lsl: X10 with: X10 imm: 3.
+	asm sub: X10 with: X10 with: X9.
+	asm add: X10 with: X10 imm: F_BYTES.
+	asm comment: 'offset - 1 + 4 within the bytes'.
+	asm ldr: X1 base: X20 offset: (self slot: 0).
+	asm tbz: X1 bit: 0 to: fail.
+	asm asr: X16 with: X1 imm: 1.
+	asm sub: X16 with: X16 imm: 1.
+	asm tbnz: X16 bit: 63 to: fail.
+	asm add: X9 with: X16 imm: 4.
+	asm cmp: X9 with: X10.
+	asm b: fail if: COND_HI.
+	asm add: X17 with: X0 imm: 16.
+	isPut ifFalse: [
+		asm ldr: W0 base: X17 index: X16 extend: EXT_LSL shift: 0.
+		asm lsl: X0 with: X0 imm: 1.
+		asm orr: X0 with: X0 imm: 1.
+		^asm ret].
+	asm ldr: X2 base: X20 offset: (self slot: 1).
+	asm tbz: X2 bit: 0 to: fail.
+	asm asr: X9 with: X2 imm: 1.
+	asm lsr: X11 with: X9 imm: 32.
+	asm cbnz: X11 to: fail.
+	asm str: W9 base: X17 index: X16 extend: EXT_LSL shift: 0.
+	asm mov: X0 with: X2.
+	asm ret
+!
+emitCharFromValuePrimitive: fail
+	asm comment: 'primitive charFromValue: the Character of a code (0 to 16r3FFFFFFF)'.
+	asm ldr: X1 base: X20 offset: (self slot: 0).
+	asm tbz: X1 bit: 0 to: fail.
+	asm asr: X16 with: X1 imm: 1.
+	asm mov: X17 imm: 16r3FFFFFFF.
+	asm cmp: X16 with: X17.
+	asm b: fail if: COND_HI.
+	asm lsl: X0 with: X16 imm: 3.
+	asm orr: X0 with: X0 imm: 2.
 	asm ret
 !
 emitHashPrimitive: fail

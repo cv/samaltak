@@ -230,8 +230,9 @@ testInlineStacksDecodeShared
 testHistoryFitsInOneMegabyte
 	| fresh seconds |
 	self assert: Profiler default byteSize = (1024 * 1024).
-	"Coverage depends on the stacks: measured with two busy workers at 1000 samples/s."
+	"Coverage depends on the stacks: measured with two busy workers at 1000 samples/s (CPU samples only: allocation samples follow the allocation rate, which grows with the VM's speed)."
 	fresh := Profiler new.
+	fresh allocationInterval: 1 << 40.
 	self withProfiler: fresh do: [
 		self fork: #factorialLoop named: 'factorials'.
 		self fork: #floatLoop named: 'floats'.

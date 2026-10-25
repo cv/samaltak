@@ -175,6 +175,17 @@ testAllocation
 	self assert: (objects allSatisfy: [:each | each identityHash > 0]).
 	self assert: self subject bytes size equals: 8
 !
+testPrimitives
+	"The primitives in machine code answer what their C functions answer, failures included."
+	| on off |
+	self define: 'prims: objs | r try ints | r := OrderedCollection new. try := [:b | r add: (b on: Error do: [:e | e class name])]. ints := {17. -17. 5. -5. 0. 1. -1. SmallInteger maxVal. SmallInteger minVal}. ints do: [:a | ints do: [:b | try value: [a quo: b]. try value: [a rem: b]. try value: [a // b]. try value: [a \\ b]]]. #(65 0 16r3FFFFFFF -1 16r40000000) do: [:v | try value: [(Character value: v) value]]. objs do: [:o | try value: [o basicSize]. 0 to: 10 do: [:i | try value: [o basicAt: i]. try value: [o basicAt: i put: i * 37]. try value: [o basicAt: i put: 300]. try value: [o basicAt: i put: nil]. try value: [o uint32At: i]. try value: [o uint32At: i put: 16rDEADBEEF]. try value: [o uint32At: i put: -1]]. r add: o printString]. ^r asArray'.
+	on := self subject prims: {Array new: 5. ByteArray new: 9. Bitmap new: 3. 2 raisedTo: 100. 'abc' copy. #sym. 3. nil. Object new}.
+	Smalltalk vm jitParameters: #(nil '-prims' nil nil).
+	off := self subject prims: {Array new: 5. ByteArray new: 9. Bitmap new: 3. 2 raisedTo: 100. 'abc' copy. #sym. 3. nil. Object new}.
+	Smalltalk vm jitParameters: #(nil 'prims' nil nil).
+	self assert: on equals: off.
+	self assert: (on first: 4) equals: #(1 0 1 0)
+!
 testEveryFlagOff
 	"Each optimization switched off alone: the same answers."
 	self define: 'fib: n ^n < 2 ifTrue: [n] ifFalse: [(self fib: n - 1) + (self fib: n - 2)]'.
