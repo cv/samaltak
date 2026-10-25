@@ -121,7 +121,7 @@ bool opt_compile(oop m)
         fprintf(stderr, "opt: (block %d, loop %d) ", rt_unit_start, rt_unit_osr);
         print_activation(m, nil_oop, nil_oop, stderr);
     }
-    ok = opt_build(m, rt_unit_start, rt_unit_osr - 1, rt_unit_depth) && ({
+    ok = opt_build(m, rt_unit_start, (rt_unit_osr & 0xFFFF) - 1, rt_unit_depth, rt_unit_osr >= 0x10000) && ({
     opt_cleanup(ob_entry_block);
     if (trace) {
         opt_ir_print();
@@ -1642,7 +1642,7 @@ exit_length_of:;
     }
     r_makes_closures = closures && reach;
     r_makes_closures; }))) {
-        return 0;
+        k = k + 0x10000;
     }
     if ((s == 0) && (k == 0)) {
         o = (jit_method *)({

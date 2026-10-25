@@ -1,5 +1,5 @@
 OptModule subclass: #OptBuilder
-	instanceVariableNames: 'ir obCurBlock obBailed obVarTop obDefKeys obDefVals obDefCount obIncPhis obIncVars obIncCount obAnaMethods obAnaBases obAnaCount obAnaTop obAnaDepth obAnaFlag obAnaBack obPcBlocks obPcbTop obEntryBlock obRootMethod obInlined obDeps obDepCount obPrimKinds obPrimsKnown obNoInline obNoInlineCount obArgVals obArgFlags obUnitStart obOsrPc obParamSlots obValidSlots obSafeEpoch obAnaFloat'
+	instanceVariableNames: 'ir obCurBlock obBailed obVarTop obDefKeys obDefVals obDefCount obIncPhis obIncVars obIncCount obAnaMethods obAnaBases obAnaCount obAnaTop obAnaDepth obAnaFlag obAnaBack obPcBlocks obPcbTop obEntryBlock obRootMethod obInlined obDeps obDepCount obPrimKinds obPrimsKnown obNoInline obNoInlineCount obArgVals obArgFlags obUnitStart obOsrPc obParamSlots obValidSlots obSafeEpoch obAnaFloat obResident obChecked obCheckedCount obCheckedBlock obCheckedEpoch'
 	classVariableNames: 'OA_BLOCK OA_LOOP OA_START OA_TARGET OPT_MAX_VARS OPT_MAX_NOINLINE OPT_MAX_PRIM OPK_AT OPK_FLOAT OPK_FSQRT OPK_NEW OPK_NEWSIZE OPK_CLOSURE OPK_ATPUT OPK_CLASS OPK_IDENTICAL OPK_INT OPK_SIZE OPK_STRINGAT OPK_STRINGATPUT OPT_INLINE_BUDGET OPT_INLINE_DEPTH OPT_INLINE_SIZE OPT_MAX_ANA OPT_MAX_DEPS OPT_MAX_INC'
 	package: 'VM-Jit'!
 
@@ -14,7 +14,7 @@ declarations
 		(obAnaDepth 'int16_t[OPT_ANA_MAX]') (obAnaFlag 'uint8_t[OPT_ANA_MAX]') (obAnaBack 'int32_t[OPT_ANA_MAX]')
 		(obPcBlocks 'int32_t[OPT_PCB_MAX]') (obPcbTop int32_t) (obEntryBlock int32_t) (obRootMethod oop)
 		(obInlined int32_t) (obDeps 'oop[OPT_MAX_DEPS]') (obDepCount int32_t) (obPrimKinds 'uint8_t[OPT_MAX_PRIM]') (obPrimsKnown bool)
-		(obNoInline 'oop[OPT_MAX_NOINLINE]') (obNoInlineCount int32_t) (obArgVals 'int32_t[OPT_MAX_VARS]') (obArgFlags 'uint8_t[OPT_MAX_VARS]') (obUnitStart int32_t) (obOsrPc int32_t) (obParamSlots int32_t) (obValidSlots int32_t) (obSafeEpoch int32_t) (obAnaFloat 'bool[OPT_MAX_ANA]'))
+		(obNoInline 'oop[OPT_MAX_NOINLINE]') (obNoInlineCount int32_t) (obArgVals 'int32_t[OPT_MAX_VARS]') (obArgFlags 'uint8_t[OPT_MAX_VARS]') (obUnitStart int32_t) (obOsrPc int32_t) (obParamSlots int32_t) (obValidSlots int32_t) (obSafeEpoch int32_t) (obAnaFloat 'bool[OPT_MAX_ANA]') (obResident bool) (obChecked 'int32_t[8]') (obCheckedCount int32_t) (obCheckedBlock int32_t) (obCheckedEpoch int32_t))
 !
 initialize
 	OPT_MAX_INC := 16384.
@@ -36,8 +36,8 @@ initialize
 	OPK_NEW := 9.
 	OPK_NEWSIZE := 10.
 	OPK_CLOSURE := 11.
-	OPT_INLINE_SIZE := 80.
-	OPT_INLINE_BUDGET := 1500.
+	OPT_INLINE_SIZE := 200.
+	OPT_INLINE_BUDGET := 3000.
 	OPT_INLINE_DEPTH := 8.
 	OA_START := 1.
 	OA_TARGET := 2.
@@ -60,10 +60,11 @@ bail
 ! !
 
 !OptBuilder methodsFor: 'building'!
-build: m start: s osr: t depth: d
-	"The IR of m (s 0), or of its block at startpc s, entered at its start (t -1) or at loop head t with d slots; answer whether it could be built. A closure an inlined method makes that escapes would have to be made: build again without inlining that method."
-	<c: 'bool opt_build(oop m, int32_t s, int32_t t, int32_t d)'>
+build: m start: s osr: t depth: d resident: res
+	"The IR of m (s 0), or of its block at startpc s, entered at its start (t -1) or at loop head t with d slots (res: in a married frame, the temps its closures reach stay in the frame); answer whether it could be built. A closure an inlined method makes that escapes would have to be made: build again without inlining that method."
+	<c: 'bool opt_build(oop m, int32_t s, int32_t t, int32_t d, bool res)'>
 	| e |
+	obResident := res.
 	obNoInlineCount := 0.
 	obUnitStart := s.
 	obOsrPc := t.
@@ -94,6 +95,7 @@ buildOnce: m
 	obInlined := 0.
 	obDepCount := 0.
 	obSafeEpoch := 0.
+	obCheckedBlock := -1.
 	a := obUnitStart > 0 ifTrue: [self newBlockActFor: m start: obUnitStart] ifFalse: [self newActFor: m].
 	a < 0 ifTrue: [^false].
 	obEntryBlock := ir newBlock.
@@ -125,16 +127,46 @@ buildOsr: a
 	| b |
 	obValidSlots = (self depthAt: obOsrPc act: a) ifFalse: [^false].
 	obParamSlots := obValidSlots.
+	obResident ifTrue: [self markResident: a].
 	0 to: obValidSlots - 1 do: [:i |
 		i < (ir act: a) numArgs
 			ifTrue: [self writeArg: (self var: a slot: i) value: (self param: i)]
-			ifFalse: [self write: (self var: a slot: i) value: (self param: i)]].
+			ifFalse: [(obArgFlags at: (self var: a slot: i)) = 2 ifFalse: [self write: (self var: a slot: i) value: (self param: i)]]].
 	b := self blockAt: obOsrPc act: a.
 	self goto: b.
 	self buildAct: a.
 	self bailed ifTrue: [^false].
 	0 to: ir blockCount - 1 do: [:k | ((ir block: k) flags bitAnd: BF_SEALED) = 0 ifTrue: [self seal: k]].
 	^self bailed not
+!
+markResident: a
+	"The temps of a that its closures reach (outer temps at a block depth that is a): read from and written to the frame."
+	| bcs pc end op lvl ends n i |
+	bcs := self methodBytecodes: (ir act: a) method.
+	pc := (ir act: a) startpc.
+	end := (ir act: a) endpc.
+	ends := self local: 'int32_t[64]'.
+	n := 0.
+	[pc < end] whileTrue: [
+		[n > 0 and: [pc >= (ends at: n - 1)]] whileTrue: [n := n - 1].
+		op := bcs at: pc.
+		((op >= 16r8A and: [op <= 16r8C]) and: [(bcs at: pc + 1) = n and: [n > 0]]) ifTrue: [
+			i := (bcs at: pc + 2) asInt32.
+			(i >= (ir act: a) numArgs and: [i < ((ir act: a) numArgs + (ir act: a) numTemps)]) ifTrue: [
+				obArgFlags at: (self var: a slot: i) put: 2.
+				obArgVals at: (self var: a slot: i) put: (self homeSlot: i)]].
+		(op = 16r8F and: [n < 64]) ifTrue: [
+			ends at: n put: pc + 6 + (((bcs at: pc + 4) asInt64 << 8) bitOr: (bcs at: pc + 5)) asInt32.
+			n := n + 1].
+		pc := (pc + (analysis lengthOf: op)) asInt32]
+!
+homeSlot: i
+	"Slot i of the root activation's frame, as frame states see it (where it is, no value of its own)."
+	| n |
+	n := ir newNode: O_HOMESLOT rep: R_OOP.
+	(ir node: n) aux: i.
+	ir append: n to: obEntryBlock.
+	^n
 !
 entryPc
 	"Where the unit is entered: its start, or the loop head."
@@ -303,6 +335,12 @@ defIndex: var block: b
 	^i
 !
 write: var value: v
+	| n |
+	(var < OPT_MAX_VARS and: [(obArgFlags at: var) = 2]) ifTrue: [
+		n := self add: O_STORESLOT rep: R_NONE.
+		(ir node: n) a: v.
+		(ir node: n) aux: (ir node: (obArgVals at: var)) aux.
+		^self].
 	self write: var value: v in: obCurBlock
 !
 write: var value: v in: b
@@ -328,6 +366,10 @@ writeArg: var value: v
 read: var in: b
 	<c: 'int32_t opt_read(int32_t var, int32_t b)'>
 	| i v bl phi |
+	(var < OPT_MAX_VARS and: [(obArgFlags at: var) = 2]) ifTrue: [
+		v := self add: O_LOADSLOT rep: R_OOP.
+		(ir node: v) aux: (ir node: (obArgVals at: var)) aux.
+		^v].
 	(var < OPT_MAX_VARS and: [(obArgFlags at: var) ~= 0]) ifTrue: [^ir resolve: (obArgVals at: var)].
 	i := self defIndex: var block: b.
 	(obDefKeys at: i) ~= 0 ifTrue: [^ir resolve: (obDefVals at: i)].
@@ -502,7 +544,10 @@ stateAct: a pc: pc depth: d
 	vals := ir allocOperands: d + 1.
 	st vals: vals.
 	ir operand: vals put: ac receiver.
-	0 to: d - 1 do: [:i | ir operand: vals + 1 + i put: (self read: (self var: a slot: i))].
+	0 to: d - 1 do: [:i |
+		((self var: a slot: i) < OPT_MAX_VARS and: [(obArgFlags at: (self var: a slot: i)) = 2])
+			ifTrue: [ir operand: vals + 1 + i put: (obArgVals at: (self var: a slot: i))]
+			ifFalse: [ir operand: vals + 1 + i put: (self read: (self var: a slot: i))]].
 	p := ac parent.
 	p >= 0 ifTrue: [(ir state: s) parent: (self stateAct: p pc: (ac sendPc + (analysis lengthOf: (self byteAt: ac sendPc act: p))) asInt32 depth: (self receiverSlotAt: ac sendPc act: p))].
 	^s
@@ -807,12 +852,23 @@ loadField: i of: o
 !
 storeField: i of: o value: v checked: s
 	"Store v into o's field i; s >= 0: the state if o is immutable (the interpreter sends attemptToAssign:withIndex:)."
-	| n |
+	| n st r |
+	"o was checked in this block since the last safepoint: it is still mutable"
+	(obCheckedBlock ~= obCurBlock or: [obCheckedEpoch ~= obSafeEpoch]) ifTrue: [
+		obCheckedCount := 0.
+		obCheckedBlock := obCurBlock.
+		obCheckedEpoch := obSafeEpoch].
+	r := ir resolve: o.
+	st := s.
+	0 to: obCheckedCount - 1 do: [:k | (obChecked at: k) = r ifTrue: [st := -1]].
+	(st >= 0 and: [obCheckedCount < 8]) ifTrue: [
+		obChecked at: obCheckedCount put: r.
+		obCheckedCount := obCheckedCount + 1].
 	n := self add: O_STOREFIELD rep: R_NONE.
 	(ir node: n) a: o.
 	(ir node: n) b: v.
 	(ir node: n) aux: i.
-	(ir node: n) state: s.
+	(ir node: n) state: st.
 	^n
 !
 localReturn: v act: a pc: pc depth: d
@@ -865,7 +921,8 @@ conditionalJump: pc act: a
 	onFalse := op = 16r91 ifTrue: [fall] ifFalse: [taken].
 	n := self add: O_BRANCH rep: R_NONE.
 	(ir node: n) a: v.
-	(ir node: n) state: (self stateAct: a pc: pc depth: d).
+	"a Boolean branches; anything else may be sent mustBeBoolean"
+	(ir node: (ir resolve: v)) tkind asInt32 ~= T_BOOL ifTrue: [(ir node: n) state: (self stateAct: a pc: pc depth: d)].
 	(ir block: obCurBlock) succ0: onTrue.
 	(ir block: obCurBlock) succ1: onFalse.
 	self edgeTo: onTrue.

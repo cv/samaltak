@@ -131,8 +131,8 @@ tierUp: f loop: loop
 	(s = 0 and: [h opt = 0 and: [(self failed: m start: 0 osr: 0) not]]) ifTrue: [
 		(self optimize: m lower: h) isNull ifTrue: [self noteFailed: m start: 0 osr: 0]].
 	k := loop = 0 ifTrue: [0] ifFalse: [f pc + 1].
-	"a married frame's temps may change through its Context (blocks it made): optimized code keeps them in registers"
-	(k ~= 0 and: [f ctx ~= memory nilOop and: [self makesClosures: m start: s]]) ifTrue: [^0].
+	"a married frame's temps may change through its Context (blocks it made): a unit of its own keeps those in the frame"
+	(k ~= 0 and: [f ctx ~= memory nilOop and: [self makesClosures: m start: s]]) ifTrue: [k := k + 16r10000].
 	(s = 0 and: [k = 0])
 		ifTrue: [o := self optOf: h]
 		ifFalse: [
@@ -266,7 +266,7 @@ optimizeUnit: m start: s osr: t depth: d lower: h previous: p
 !
 unitEntry
 	"The pc the unit being compiled is entered at: 0 for a method, a block's startpc, a loop head."
-	rtUnitOsr > 0 ifTrue: [^rtUnitOsr - 1].
+	rtUnitOsr > 0 ifTrue: [^(rtUnitOsr bitAnd: 16rFFFF) - 1].
 	^rtUnitStart
 !
 optimize: m lower: h
@@ -304,7 +304,7 @@ compile: m
 	trace ifTrue: [
 		libc fprintf: libc stderr format: 'opt: (block %d, loop %d) ' with: rtUnitStart with: rtUnitOsr.
 		interpreter printActivation: m receiver: memory nilOop closure: memory nilOop on: libc stderr].
-	ok := (builder build: m start: rtUnitStart osr: rtUnitOsr - 1 depth: rtUnitDepth) and: [
+	ok := (builder build: m start: rtUnitStart osr: (rtUnitOsr bitAnd: 16rFFFF) - 1 depth: rtUnitDepth resident: rtUnitOsr >= 16r10000) and: [
 		passes cleanup: builder entryBlock.
 		trace ifTrue: [ir print].
 		(regalloc allocate: builder paramSlots) and: [

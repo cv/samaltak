@@ -1072,7 +1072,7 @@ exit_pool_offset:;
     }
     h->start = start + jit_map_offset(h, md == JIT_OPT ? ({
     if (rt_unit_osr > 0) {
-        r_unit_entry = rt_unit_osr - 1;
+        r_unit_entry = (rt_unit_osr & 0xFFFF) - 1;
         goto exit_unit_entry;
     }
     r_unit_entry = rt_unit_start;

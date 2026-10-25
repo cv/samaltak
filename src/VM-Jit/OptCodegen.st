@@ -257,6 +257,14 @@ emitNode: n block: b next: nextBlock
 	op = O_PHI ifTrue: [^self].
 	op = O_CONST ifTrue: [^self].
 	op = O_CLOSURE ifTrue: [^self].
+	op = O_HOMESLOT ifTrue: [^self].
+	op = O_LOADSLOT ifTrue: [
+		r := self dst: n.
+		asm ldr: r base: X20 offset: 8 * nd aux.
+		^self def: n from: r].
+	op = O_STORESLOT ifTrue: [
+		asm str: (self src: nd a into: X14) base: X20 offset: 8 * nd aux.
+		^self].
 	op = O_PARAM ifTrue: [
 		(nd reg < 0 and: [nd slot < 0]) ifTrue: [^self].
 		r := self dst: n.
@@ -314,7 +322,8 @@ emitNode: n block: b next: nextBlock
 		x := self src: nd a into: X14.
 		y := self src: nd b into: X15.
 		asm and: X16 with: x with: y.
-		asm tbnz: X16 bit: 0 to: s.
+		asm tst: X16 imm: 1.
+		asm b: s if: COND_NE.
 		^self].
 	(op = O_IAND or: [op = O_IOR or: [op = O_IXOR]]) ifTrue: [
 		x := self src: nd a into: X14.
@@ -735,6 +744,9 @@ emitBarrier: n object: o value: v
 	nd := ir node: n.
 	(ir node: nd b) op asInt32 = O_CONST ifTrue: [
 		(((ir node: nd b) aux bitAnd: 7) ~= 0 or: [(self isYoung: (ir node: nd b) aux asUInt64) not]) ifTrue: [^self]].
+	"immediates, Booleans, nil: never young"
+	((ir node: nd b) tkind asInt32 between: T_SMI and: T_NIL) ifTrue: [^self].
+	(ir node: nd b) tkind asInt32 = T_CHAR ifTrue: [^self].
 	done := asm newLabel.
 	check := asm newLabel.
 	slow := self out: OUT_BARRIER node: n index: (o bitOr: v << 8).
@@ -1396,6 +1408,7 @@ locOf: v inSlots: inSlots
 	| nd c |
 	nd := ir node: v.
 	nd op asInt32 = O_CLOSURE ifTrue: [^((self sunkIndexOf: v) asInt64 << 3) bitOr: LOC_SUNK].
+	nd op asInt32 = O_HOMESLOT ifTrue: [^(nd aux << 3) bitOr: LOC_SLOT].
 	nd op asInt32 = O_CONST ifTrue: [
 		c := nd aux asUInt64.
 		((self isInt: c) and: [(self intVal: c) between: -16r8000000 and: 16r7FFFFFF]) ifTrue: [^((self intVal: c) << 3) bitOr: LOC_SMI].

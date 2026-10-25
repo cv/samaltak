@@ -355,9 +355,9 @@ typedef void (*prim_fn)(void);
 #define OPT_ANA_MAX 65536
 #define OPT_BLOCK_CALLS 16384
 #define OPT_DEF_SIZE 131072
-#define OPT_INLINE_BUDGET 1500
+#define OPT_INLINE_BUDGET 3000
 #define OPT_INLINE_DEPTH 8
-#define OPT_INLINE_SIZE 80
+#define OPT_INLINE_SIZE 200
 #define OPT_MAX_ACTS 512
 #define OPT_MAX_ANA 256
 #define OPT_MAX_BLOCKS 2048
@@ -388,7 +388,7 @@ typedef void (*prim_fn)(void);
 #define OUT_WIDOW 8
 #define O_BOTHINT 32
 #define O_BOXF 29
-#define O_BRANCH 41
+#define O_BRANCH 51
 #define O_CALL 18
 #define O_CAST 21
 #define O_CHECKINT 19
@@ -396,14 +396,15 @@ typedef void (*prim_fn)(void);
 #define O_CLASSOF 6
 #define O_CLOSURE 25
 #define O_CONST 1
-#define O_DEOPT 43
+#define O_DEOPT 53
 #define O_EQ 7
 #define O_FARITH 30
 #define O_FCMP 31
 #define O_FSQRT 33
-#define O_GOTO 40
+#define O_GOTO 50
 #define O_GUARDCLASS 15
 #define O_GUARDINT 16
+#define O_HOMESLOT 39
 #define O_IADD 9
 #define O_IAND 13
 #define O_ICMP 12
@@ -416,8 +417,9 @@ typedef void (*prim_fn)(void);
 #define O_ISHIFT 36
 #define O_ISUB 10
 #define O_IXOR 37
-#define O_LAST 43
+#define O_LAST 53
 #define O_LOADFIELD 4
+#define O_LOADSLOT 40
 #define O_NE 8
 #define O_NOP 0
 #define O_NOTINTS 38
@@ -425,10 +427,11 @@ typedef void (*prim_fn)(void);
 #define O_OUTERSTORE 27
 #define O_PARAM 2
 #define O_PHI 3
-#define O_RETURN 42
+#define O_RETURN 52
 #define O_SEND 17
 #define O_SIZE 24
 #define O_STOREFIELD 5
+#define O_STORESLOT 41
 #define O_UNBOXF 28
 #define PF_BLEND_ALPHA 1
 #define PF_BLEND_NONE 0
@@ -1708,7 +1711,7 @@ void prim_string_at(void);
 void prim_string_at_put(void);
 void prim_string_compare(void);
 void prim_string_hash(void);
-bool opt_build(oop m, int32_t s, int32_t t, int32_t d);
+bool opt_build(oop m, int32_t s, int32_t t, int32_t d, bool res);
 bool opt_generate(oop m, int32_t a);
 int32_t opt_add_pred(int32_t from, int32_t to);
 int32_t opt_alloc_operands(int32_t n);

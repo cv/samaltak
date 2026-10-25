@@ -36,7 +36,7 @@ isValue: n
 	"n has a result that lives in a register or slot (constants are rematerialized)."
 	| nd |
 	nd := ir node: n.
-	^nd block >= 0 and: [nd rep asInt32 ~= R_NONE and: [nd op asInt32 ~= O_CONST and: [nd op asInt32 ~= O_CLOSURE and: [(nd flags bitAnd: NF_DEAD) = 0]]]]
+	^nd block >= 0 and: [nd rep asInt32 ~= R_NONE and: [nd op asInt32 ~= O_CONST and: [nd op asInt32 ~= O_CLOSURE and: [nd op asInt32 ~= O_HOMESLOT and: [(nd flags bitAnd: NF_DEAD) = 0]]]]]
 !
 isSafepoint: n
 	| op |

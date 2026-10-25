@@ -344,5 +344,5 @@ isFloatPure: nd
 	"A float operation whose result alone it is for (an unused box deoptimizes only where the interpreter would box)."
 	| op |
 	op := nd op asInt32.
-	^op = O_BOXF or: [op = O_FCMP or: [op = O_BOTHINT or: [op = O_FSQRT or: [op = O_FARITH and: [nd aux ~= 9]]]]]
+	^op = O_BOXF or: [op = O_FCMP or: [op = O_BOTHINT or: [op = O_FSQRT or: [op = O_LOADSLOT or: [op = O_FARITH and: [nd aux ~= 9]]]]]]
 ! !
