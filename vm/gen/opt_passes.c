@@ -556,7 +556,7 @@ static void opt_value_numbers(void)
         r_is_numbered = false;
         goto exit_is_numbered;
     }
-    r_is_numbered = (op_2 == O_CONST) || ((op_2 == O_IADD) || ((op_2 == O_ISUB) || ((op_2 == O_IMUL) || ((op_2 == O_ICMP) || ((op_2 == O_IAND) || ((op_2 == O_IOR) || ((op_2 == O_EQ) || ((op_2 == O_NE) || ((op_2 == O_CLASSOF) || ((op_2 == O_CLASSIS) || ((op_2 == O_BOTHINT) || ((op_2 == O_FARITH) || ((op_2 == O_FCMP) || ((op_2 == O_FSQRT) || ((op_2 == O_BOXF) || ((op_2 == O_UNBOXF) || ((op_2 == O_GUARDINT) || ((op_2 == O_GUARDCLASS) || ((op_2 == O_CAST) || ((op_2 == O_SIZE) || ((op_2 == O_LOADFIELD) || ((op_2 == O_IMOD) || ((op_2 == O_IDIV) || ((op_2 == O_ISHIFT) || (op_2 == O_IXOR)))))))))))))))))))))))));
+    r_is_numbered = (op_2 == O_CONST) || ((op_2 == O_IADD) || ((op_2 == O_ISUB) || ((op_2 == O_IMUL) || ((op_2 == O_ICMP) || ((op_2 == O_IAND) || ((op_2 == O_IOR) || ((op_2 == O_EQ) || ((op_2 == O_NE) || ((op_2 == O_CLASSOF) || ((op_2 == O_CLASSIS) || ((op_2 == O_BOTHINT) || ((op_2 == O_FARITH) || ((op_2 == O_FCMP) || ((op_2 == O_FSQRT) || ((op_2 == O_BOXF) || ((op_2 == O_UNBOXF) || ((op_2 == O_GUARDINT) || ((op_2 == O_GUARDCLASS) || ((op_2 == O_CAST) || ((op_2 == O_SIZE) || ((op_2 == O_LOADFIELD) || ((op_2 == O_IMOD) || ((op_2 == O_IDIV) || ((op_2 == O_ISHIFT) || ((op_2 == O_IXOR) || (op_2 == O_NOTINTS))))))))))))))))))))))))));
 exit_is_numbered:;
     r_is_numbered; })) {
                 if (((int32_t)nd->op == O_LOADFIELD) || ((int32_t)nd->rep == R_DBL)) {

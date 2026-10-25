@@ -469,11 +469,23 @@ uint64_t opt_deopt_guard(frame *f, int64_t k)
     int32_t why;
     bool stressed;
     uint64_t r;
-    int64_t r_operand_flags;
+    oop m_2;
+    int32_t pc_2;
+    int64_t r_operand_flags_at;
     frame *g;
-    int64_t fl;
-    int32_t i;
+    uint64_t o;
+    uint8_t *p;
+    uint8_t op;
+    int r_pushes_of;
+    uint8_t op_2;
     oop v;
+    int64_t r_flags_of;
+    int64_t fl;
+    oop v_2;
+    int64_t r_flags_of_2;
+    int32_t i;
+    oop v_3;
+    int64_t r_flags_of_3;
     bool fresh;
     oop m;
     int32_t pc;
@@ -482,13 +494,13 @@ uint64_t opt_deopt_guard(frame *f, int64_t k)
     int64_t n;
     int i_2;
     int64_t sig;
-    uint64_t o;
-    uint8_t *p;
-    int r_pushes_of;
-    uint8_t op;
+    uint64_t o_2;
+    uint8_t *p_2;
+    int r_pushes_of_2;
+    uint8_t op_3;
     frame *g_2;
     int32_t r_send_argc_of;
-    uint8_t op_2;
+    uint8_t op_4;
     int k_2;
     int k_3;
     int32_t i_3;
@@ -499,7 +511,7 @@ uint64_t opt_deopt_guard(frame *f, int64_t k)
     feedback_site *s_2;
     int64_t n_2;
     int i_4;
-    oop m_2;
+    oop m_3;
     int32_t n_3;
     jit_method *h_2;
     h = (jit_method *)f->code;
@@ -510,21 +522,69 @@ uint64_t opt_deopt_guard(frame *f, int64_t k)
     }
     r = opt_deopt_frame(f, k, state_block->dump, 0);
     if (why == FB_DEOPT_ARITH) {
+        m_2 = rt_act_method[rt_act_count - 1];
+        pc_2 = rt_act_pc[rt_act_count - 1];
         why = why | ((int32_t)({
     g = frames + (nframes - 1);
+    o = *(uint64_t *)(m_2 + 16 + 24);
+    p = (uint8_t *)(o + 16) + pc_2;
+    op = p[0];
+    if (({
+    op_2 = p[0];
+    r_pushes_of = ((op_2 >= 0x97) && (op_2 <= 0x9F)) || ((op_2 >= 0xF0) && (op_2 < 0xFC)) ? 2 : 0;
+    r_pushes_of; }) > 0) {
+        v = g->fp[p[1]];
+        fl = ({
+    if (((v & 7) == 4) || (((v & 7) == 0) && (*(uint64_t *)(v + 8) == cls_boxedfloat))) {
+        r_flags_of = FB_FLOAT;
+        goto exit_flags_of;
+    }
+    if (!((v & 1) != 0)) {
+        r_flags_of = FB_NONINT;
+        goto exit_flags_of;
+    }
+    r_flags_of = 0;
+exit_flags_of:;
+    r_flags_of; });
+        if ((op == 0x97) || ((op >= 0x9A) && (op < 0xA0))) {
+            v_2 = g->fp[p[2]];
+            fl = fl | ({
+    if (((v_2 & 7) == 4) || (((v_2 & 7) == 0) && (*(uint64_t *)(v_2 + 8) == cls_boxedfloat))) {
+        r_flags_of_2 = FB_FLOAT;
+        goto exit_flags_of_2;
+    }
+    if (!((v_2 & 1) != 0)) {
+        r_flags_of_2 = FB_NONINT;
+        goto exit_flags_of_2;
+    }
+    r_flags_of_2 = 0;
+exit_flags_of_2:;
+    r_flags_of_2; });
+        }
+        r_operand_flags_at = fl;
+        goto exit_operand_flags_at;
+    }
     fl = 0;
     for (i = g->sp - 2; i <= g->sp - 1; i++) {
         if (i >= 0) {
-            v = g->fp[i];
-            if (((v & 7) == 4) || (((v & 7) == 0) && (*(uint64_t *)(v + 8) == cls_boxedfloat))) {
-                fl = fl | FB_FLOAT;
-            } else if (!((v & 1) != 0)) {
-                fl = fl | FB_NONINT;
-            }
+            v_3 = g->fp[i];
+            fl = fl | ({
+    if (((v_3 & 7) == 4) || (((v_3 & 7) == 0) && (*(uint64_t *)(v_3 + 8) == cls_boxedfloat))) {
+        r_flags_of_3 = FB_FLOAT;
+        goto exit_flags_of_3;
+    }
+    if (!((v_3 & 1) != 0)) {
+        r_flags_of_3 = FB_NONINT;
+        goto exit_flags_of_3;
+    }
+    r_flags_of_3 = 0;
+exit_flags_of_3:;
+    r_flags_of_3; });
         }
     }
-    r_operand_flags = fl;
-    r_operand_flags; }));
+    r_operand_flags_at = fl;
+exit_operand_flags_at:;
+    r_operand_flags_at; }));
     }
     fresh = false;
     if (why != 0) {
@@ -547,36 +607,36 @@ exit_signature_at:;
     r_signature_at; });
         jit_note_flags(m, pc, (uint32_t)why);
         if ((why & FB_DEOPT_CLASS) != 0) {
-            o = *(uint64_t *)(m + 16 + 24);
-            p = (uint8_t *)(o + 16) + pc;
+            o_2 = *(uint64_t *)(m + 16 + 24);
+            p_2 = (uint8_t *)(o_2 + 16) + pc;
             if (({
-    op = p[0];
-    r_pushes_of = ((op >= 0x97) && (op <= 0x9F)) || ((op >= 0xF0) && (op < 0xFC)) ? 2 : 0;
-    r_pushes_of; }) > 0) {
+    op_3 = p_2[0];
+    r_pushes_of_2 = ((op_3 >= 0x97) && (op_3 <= 0x9F)) || ((op_3 >= 0xF0) && (op_3 < 0xFC)) ? 2 : 0;
+    r_pushes_of_2; }) > 0) {
                 goto exit_note_receiver_at;
             }
             g_2 = frames + (nframes - 1);
             i_3 = g_2->sp - ({
-    op_2 = p[0];
-    if ((op_2 == 0x8D) || (op_2 == 0x8E)) {
-        r_send_argc_of = (int32_t)p[2];
+    op_4 = p_2[0];
+    if ((op_4 == 0x8D) || (op_4 == 0x8E)) {
+        r_send_argc_of = (int32_t)p_2[2];
         goto exit_send_argc_of;
     }
-    if (op_2 >= 0xC0) {
-        r_send_argc_of = op_2 < 0xF0 ? (int32_t)((op_2 - 0xC0) >> 4) : 1;
+    if (op_4 >= 0xC0) {
+        r_send_argc_of = op_4 < 0xF0 ? (int32_t)((op_4 - 0xC0) >> 4) : 1;
         goto exit_send_argc_of;
     }
-    if (op_2 >= 0xA0) {
-        k_2 = op_2 - 0xA0;
+    if (op_4 >= 0xA0) {
+        k_2 = op_4 - 0xA0;
         r_send_argc_of = (k_2 == 19) || (k_2 == 20) ? 1 : special_argc[k_2];
         goto exit_send_argc_of;
     }
-    if (op_2 >= 0x9A) {
+    if (op_4 >= 0x9A) {
         r_send_argc_of = 1;
         goto exit_send_argc_of;
     }
-    if ((op_2 >= 0x97) && (op_2 <= 0x99)) {
-        k_3 = p[3] - 0xA0;
+    if ((op_4 >= 0x97) && (op_4 <= 0x99)) {
+        k_3 = p_2[3] - 0xA0;
         r_send_argc_of = (k_3 == 19) || (k_3 == 20) ? 1 : special_argc[k_3];
         goto exit_send_argc_of;
     }
@@ -594,7 +654,7 @@ exit_send_argc_of:;
                     fputc(10, stderr);
                 }
             }
-            if ((p[0] >= 0xB0) && (p[0] <= 0xB2)) {
+            if ((p_2[0] >= 0xB0) && (p_2[0] <= 0xB2)) {
                 jit_note_send(m, pc, cls_array);
             }
         exit_note_receiver_at:;
@@ -640,9 +700,9 @@ exit_signature_at_2:;
         }
         rt_stat_invalidations = rt_stat_invalidations + 1;
         if ((h->block_start == 0) && (h->osr_pc == 0)) {
-            m_2 = h->method;
+            m_3 = h->method;
             n_3 = opt_initial_count(h->method);
-            opt_counts[((uint32_t)(((*(uint64_t *)m_2) >> H_HASH_SHIFT) & H_HASH_MASK)) & 65535] = n_3;
+            opt_counts[((uint32_t)(((*(uint64_t *)m_3) >> H_HASH_SHIFT) & H_HASH_MASK)) & 65535] = n_3;
             h_2 = (jit_method *)h->lower;
             pthread_jit_write_protect_np(0);
             h_2->opt = 0;

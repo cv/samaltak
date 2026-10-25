@@ -308,6 +308,14 @@ emitNode: n block: b next: nextBlock
 	(op = O_IADD or: [op = O_ISUB]) ifTrue: [^self emitAddSub: n].
 	op = O_IMUL ifTrue: [^self emitMul: n].
 	(op = O_IMOD or: [op = O_IDIV or: [op = O_ISHIFT]]) ifTrue: [^self emitDivShift: n].
+	op = O_NOTINTS ifTrue: [
+		s := self deoptLabelFor: n.
+		asm comment: 'guard: not two SmallIntegers'.
+		x := self src: nd a into: X14.
+		y := self src: nd b into: X15.
+		asm and: X16 with: x with: y.
+		asm tbnz: X16 bit: 0 to: s.
+		^self].
 	(op = O_IAND or: [op = O_IOR or: [op = O_IXOR]]) ifTrue: [
 		x := self src: nd a into: X14.
 		y := self src: nd b into: X15.
@@ -1307,7 +1315,8 @@ recordGuard: n
 	op := (ir node: n) op asInt32.
 	why := (op = O_GUARDCLASS or: [op = O_DEOPT])
 		ifTrue: [feedback deoptClass]
-		ifFalse: [(op = O_GUARDINT or: [op = O_IADD or: [op = O_ISUB or: [op = O_IMUL or: [op = O_IMOD or: [op = O_IDIV or: [op = O_ISHIFT]]]]]]) ifTrue: [feedback deoptArith] ifFalse: [feedback deoptOther]].
+		ifFalse: [op = O_NOTINTS ifTrue: [feedback sawInts] ifFalse: [
+			(op = O_GUARDINT or: [op = O_IADD or: [op = O_ISUB or: [op = O_IMUL or: [op = O_IMOD or: [op = O_IDIV or: [op = O_ISHIFT]]]]]]) ifTrue: [feedback deoptArith] ifFalse: [feedback deoptOther]]].
 	(libc getenv: 'SAMALTAK_OPT_TRACE') notNull ifTrue: [libc fprintf: libc stderr format: 'guard safepoint %d: v%d
 ' with: cgSpCount with: n].
 	^self recordState: (ir node: n) state kind: (SP_GUARD bitOr: why asInt64 << 8) asInt32 node: n inSlots: false

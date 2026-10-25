@@ -183,7 +183,7 @@ isNumbered: nd
 	^op = O_CONST or: [op = O_IADD or: [op = O_ISUB or: [op = O_IMUL or: [op = O_ICMP or: [op = O_IAND or: [op = O_IOR or: [op = O_EQ or: [op = O_NE
 		or: [op = O_CLASSOF or: [op = O_CLASSIS or: [op = O_BOTHINT or: [op = O_FARITH or: [op = O_FCMP or: [op = O_FSQRT or: [op = O_BOXF or: [op = O_UNBOXF
 		or: [op = O_GUARDINT or: [op = O_GUARDCLASS or: [op = O_CAST or: [op = O_SIZE or: [op = O_LOADFIELD
-		or: [op = O_IMOD or: [op = O_IDIV or: [op = O_ISHIFT or: [op = O_IXOR]]]]]]]]]]]]]]]]]]]]]]]]]
+		or: [op = O_IMOD or: [op = O_IDIV or: [op = O_ISHIFT or: [op = O_IXOR or: [op = O_NOTINTS]]]]]]]]]]]]]]]]]]]]]]]]]]
 !
 changesMemory: nd
 	"A store, or a safepoint (anything may run there)."

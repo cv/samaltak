@@ -972,7 +972,14 @@ floatArith: k x: x y: y pc: pc act: a rcvSlot: r
 	fl := feedback flagsAt: (ir act: a) method pc: pc.
 	s := self stateAct: a pc: pc depth: (self depthAt: pc act: a).
 	merge := -1.
-	((self isFloat: x) or: [self isFloat: y]) ifFalse: [
+	(((self isFloat: x) or: [self isFloat: y]) not and: [(self speculatesFloats: fl in: (ir act: a) method)]) ifTrue: [
+		"Floats here (or in the method) and no SmallInteger operation: two SmallIntegers deoptimize"
+		test := self add: O_NOTINTS rep: R_NONE.
+		(ir node: test) a: x.
+		(ir node: test) b: y.
+		(ir node: test) state: s.
+		(ir node: test) flags: NF_GUARD].
+	((self isFloat: x) or: [(self isFloat: y) or: [self speculatesFloats: fl in: (ir act: a) method]]) ifFalse: [
 		test := self binary: O_BOTHINT a: x b: y.
 		(ir node: test) tkind: T_BOOL.
 		t := ir newBlock.
@@ -1009,6 +1016,10 @@ floatArith: k x: x y: y pc: pc act: a rcvSlot: r
 		self goto: merge.
 		self seal: merge.
 		obCurBlock := merge]
+!
+speculatesFloats: fl in: m
+	"An arithmetic site with flags fl (in m, whose arithmetic saw Floats) takes Floats only: it never saw two SmallIntegers."
+	^(fl bitAnd: feedback sawInts) = 0
 !
 sawFloatIn: m
 	"Some arithmetic of m saw a Float (its other arithmetic may well too)."

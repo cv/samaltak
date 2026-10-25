@@ -27,7 +27,7 @@ initialize
 	OPT_MAX_YOUNG := 1024.
 	OPT_MAX_HEADERS := 16384.
 	OPT_MAX_DEOPTS := 8.
-	OPT_MAX_GENERATIONS := 8.
+	OPT_MAX_GENERATIONS := 32.
 	OPT_BLOCK_CALLS := 16384.
 	OPT_MAX_UNITS := 4096
 ! !
@@ -466,7 +466,7 @@ deoptGuard: f index: k
 	stressed ifTrue: [why := 0].
 	r := self deoptFrame: f index: k regs: runtime state dump mode: 0.
 	"the innermost activation's method and pc: where the guard's bytecode is; feedback it had not given: compile again now"
-	why = feedback deoptArith ifTrue: [why := why bitOr: self operandFlags asInt32].
+	why = feedback deoptArith ifTrue: [why := why bitOr: (self operandFlagsAt: (rtActMethod at: rtActCount - 1) pc: (rtActPc at: rtActCount - 1)) asInt32].
 	fresh := false.
 	why ~= 0 ifTrue: [
 		m := rtActMethod at: rtActCount - 1.
@@ -518,18 +518,24 @@ noteReceiverAt: m pc: pc
 	"at: at:put: size: the lower tier takes Arrays inline, without feedback"
 	((p at: 0) >= 16rB0 and: [(p at: 0) <= 16rB2]) ifTrue: [feedback noteSend: m pc: pc class: memory clsArray]
 !
-operandFlags
-	"An arithmetic guard failed: the operands on top of the rebuilt top frame were Floats, or something neither a Float nor a SmallInteger (feedback)."
-	| g v fl |
+operandFlagsAt: m pc: pc
+	"An arithmetic guard of the instruction at m's pc failed: its operands (on top of the rebuilt top frame, or the temps a superinstruction pushes) were Floats, or something neither a Float nor a SmallInteger (feedback)."
+	| g p op fl |
 	g := interpreter frames + (interpreter nframes - 1).
+	p := (self methodBytecodes: m) + pc.
+	op := p at: 0.
+	(analysis pushesOf: p) > 0 ifTrue: [
+		fl := self flagsOf: (g fp at: (p at: 1)).
+		(op = 16r97 or: [op >= 16r9A and: [op < 16rA0]]) ifTrue: [fl := fl bitOr: (self flagsOf: (g fp at: (p at: 2)))].
+		^fl].
 	fl := 0.
-	g sp - 2 to: g sp - 1 do: [:i |
-		i >= 0 ifTrue: [
-			v := g fp at: i.
-			((v bitAnd: 7) = 4 or: [(self isPtr: v) and: [(self rawClass: v) = memory clsBoxedfloat]])
-				ifTrue: [fl := fl bitOr: feedback sawFloat]
-				ifFalse: [(self isInt: v) ifFalse: [fl := fl bitOr: feedback sawNonInt]]]].
+	g sp - 2 to: g sp - 1 do: [:i | i >= 0 ifTrue: [fl := fl bitOr: (self flagsOf: (g fp at: i))]].
 	^fl
+!
+flagsOf: v
+	((v bitAnd: 7) = 4 or: [(self isPtr: v) and: [(self rawClass: v) = memory clsBoxedfloat]]) ifTrue: [^feedback sawFloat].
+	(self isInt: v) ifFalse: [^feedback sawNonInt].
+	^0
 !
 returnBottom: f index: k
 	"Frame f (the bottom frame) returns into activeCtx at safepoint k (its state: the return bytecode, the result on top; the registers in the JitState's dump), as the interpreter's returnTop does; if activeCtx is dead the interpreter does it (deoptimize)."

@@ -1,6 +1,6 @@
 VMCoreModule subclass: #JitFeedback
 	instanceVariableNames: 'fbSites fbCount fbYoung'
-	classVariableNames: 'FB_CLASSES FB_DEOPT_ARITH FB_DEOPT_BOUNDS FB_DEOPT_CLASS FB_DEOPT_OTHER FB_FLOAT FB_MAX FB_MEGA FB_NONINT FB_OVERFLOW'
+	classVariableNames: 'FB_CLASSES FB_INTS FB_DEOPT_ARITH FB_DEOPT_BOUNDS FB_DEOPT_CLASS FB_DEOPT_OTHER FB_FLOAT FB_MAX FB_MEGA FB_NONINT FB_OVERFLOW'
 	package: 'VM-Jit'!
 
 JitFeedback comment: 'Type feedback for the optimizing tier, independent of the compiler that collects it: one FeedbackSite per (method, bytecode pc), in an open-addressed table keyed by the method''s identity hash and the pc. A site holds up to FB_CLASSES receiver classes with counts (FB_MEGA once more were seen) and profile bits: FB_FLOAT (an arithmetic or comparison saw a Float operand), FB_NONINT (one that was neither SmallInteger nor Float), FB_OVERFLOW (SmallInteger arithmetic overflowed), FB_DEOPT_* (optimized code deoptimized here: a class guard, an arithmetic guard, a bounds check, anything else).
@@ -21,7 +21,8 @@ initialize
 	FB_DEOPT_CLASS := 16.
 	FB_DEOPT_ARITH := 32.
 	FB_DEOPT_BOUNDS := 64.
-	FB_DEOPT_OTHER := 128
+	FB_DEOPT_OTHER := 128.
+	FB_INTS := 256
 ! !
 
 !JitFeedback methodsFor: 'constants'!
@@ -33,6 +34,10 @@ mega
 !
 sawFloat
 	^FB_FLOAT
+!
+sawInts
+	"Two SmallIntegers where optimized code speculated on a Float."
+	^FB_INTS
 !
 sawNonInt
 	^FB_NONINT

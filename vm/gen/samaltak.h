@@ -213,6 +213,7 @@ typedef void (*prim_fn)(void);
 #define FB_DEOPT_CLASS 16
 #define FB_DEOPT_OTHER 128
 #define FB_FLOAT 2
+#define FB_INTS 256
 #define FB_MAX 16384
 #define FB_MEGA 1
 #define FB_NONINT 4
@@ -365,7 +366,7 @@ typedef void (*prim_fn)(void);
 #define OPT_MAX_DEOPT_VALS 8192
 #define OPT_MAX_DEPS 256
 #define OPT_MAX_EDGES 8192
-#define OPT_MAX_GENERATIONS 8
+#define OPT_MAX_GENERATIONS 32
 #define OPT_MAX_HEADERS 16384
 #define OPT_MAX_INC 16384
 #define OPT_MAX_NODES 16384
@@ -419,6 +420,7 @@ typedef void (*prim_fn)(void);
 #define O_LOADFIELD 4
 #define O_NE 8
 #define O_NOP 0
+#define O_NOTINTS 38
 #define O_OUTERLOAD 26
 #define O_OUTERSTORE 27
 #define O_PARAM 2
