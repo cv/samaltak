@@ -3,11 +3,15 @@ TestCase subclass: #JitRuntimeTest
 	classVariableNames: ''
 	package: 'Tests-VM'!
 
-JitRuntimeTest comment: 'The JIT runtime under the template compiler, switched on for each test (Smalltalk vm jitParameters:, every method compiled on its first activation): on-stack replacement, methods redefined and become while their machine code runs, process switches in compiled loops, deep recursion, code cache flushes (a VM with a 1 MB cache), the annotated disassembly. JitTest runs the JIT inside the simulator.'!
+JitRuntimeTest comment: 'The JIT runtime under the template compiler (subclasses: the others), switched on for each test (Smalltalk vm jitParameters:, every method compiled on its first activation): on-stack replacement, methods redefined and become while their machine code runs, process switches in compiled loops, deep recursion, code cache flushes (a VM with a 1 MB cache), the annotated disassembly. JitTest runs the JIT inside the simulator.'!
 
 !JitRuntimeTest methodsFor: 'running'!
+mode
+	"The compiler under test."
+	^'template'
+!
 setUp
-	saved := Smalltalk vm jitParameters: #('template' nil 0 5)
+	saved := Smalltalk vm jitParameters: {self mode. nil. 0. 5}
 !
 tearDown
 	| on flags |
@@ -22,6 +26,10 @@ timeLimitMilliseconds
 ! !
 
 !JitRuntimeTest methodsFor: 'helpers'!
+disassemblyNotes
+	"What the listing of sum: says, besides the bytecodes and the entry."
+	^#('interrupt check' 'SmallInteger tag check' '<special send>' 'return top')
+!
 define: aString
 	JitRuntimeTestSubject compile: aString
 !
@@ -33,13 +41,13 @@ statistics
 testParameters
 	| now |
 	now := Smalltalk vm jitParameters.
-	self assert: (now at: 1) equals: 'template'.
+	self assert: (now at: 1) equals: self mode.
 	self assert: (now at: 3) equals: 0.
 	self assert: (now at: 4) equals: 5.
 	self assert: ((now at: 2) substrings: ',') asSet equals: ((saved at: 2) substrings: ',') asSet.
 	self should: [Smalltalk vm jitParameters: #('nonsense' nil nil nil)] raise: Error.
 	self should: [Smalltalk vm jitParameters: #(nil 'nonsense' nil nil)] raise: Error.
-	self assert: Smalltalk vm jitMode equals: #template
+	self assert: Smalltalk vm jitMode equals: self mode asSymbol
 !
 testCompiledCodeRuns
 	| before |
@@ -113,7 +121,7 @@ testDeepRecursion
 testCodeCacheFlush
 	"A VM with a 1 MB code cache that keeps notes fills it often: all code is dropped and compiled again, the results stay right."
 	| run |
-	run := OSProcess run: (OSProcess commandFor: {'vm/build/samaltak'. '--jit'. 'template'. '--jit-threshold'. '0'. '--jit-cache'. '1'. '--jit-flags'. 'notes'. Smalltalk vm imagePath. '--headless'. '--eval'.
+	run := OSProcess run: (OSProcess commandFor: {'vm/build/samaltak'. '--jit'. self mode. '--jit-threshold'. '0'. '--jit-cache'. '1'. '--jit-flags'. 'notes'. Smalltalk vm imagePath. '--headless'. '--eval'.
 		'| r | r := 0. 10 timesRepeat: [r := r + (Compiler evaluate: ''(1 to: 10) inject: 0 into: [:a :b | a + b]'')]. String selectors do: [:s | Compiler compileMethod: (String >> s) source in: String classified: nil]. {r. Smalltalk vm statistics jitCacheFlushes > 0}'}).
 	self assert: run output trimBoth equals: '#(550 true)'
 !
@@ -121,14 +129,11 @@ testDisassembly
 	| listing |
 	self define: 'sum: n | s | s := 0. 1 to: n do: [:i | s := s + (i * 2)]. ^s'.
 	listing := (JitRuntimeTestSubject >> #sum:) machineCode.
-	self assert: (listing beginsWith: 'JitRuntimeTestSubject>>sum:  template').
+	self assert: (listing beginsWith: 'JitRuntimeTestSubject>>sum:  ' , self mode).
 	self assert: (listing includesSubstring: 'pc 0: ').
 	self assert: (listing includesSubstring: '-- sum: n').
 	self assert: (listing includesSubstring: 'entry: x19').
-	self assert: (listing includesSubstring: 'interrupt check').
-	self assert: (listing includesSubstring: 'SmallInteger tag check').
-	self assert: (listing includesSubstring: '<special send>').
-	self assert: (listing includesSubstring: 'return top').
-	self assert: (((JitRuntimeTestSubject >> #sum:) machineCodeFor: #template) beginsWith: 'JitRuntimeTestSubject>>sum:  template').
+	self disassemblyNotes do: [:each | self assert: (listing includesSubstring: each)].
+	self assert: (((JitRuntimeTestSubject >> #sum:) machineCodeFor: self mode asSymbol) beginsWith: 'JitRuntimeTestSubject>>sum:  ' , self mode).
 	self should: [(JitRuntimeTestSubject >> #sum:) machineCodeFor: #nonsense] raise: Error
 ! !

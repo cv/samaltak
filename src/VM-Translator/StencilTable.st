@@ -5,7 +5,7 @@ Object subclass: #StencilTable
 
 StencilTable comment: 'I make the copy-and-patch stencil table (C, compiled into the VM) of the object file cc made of the stencils (a MachObjectFile): per stencil its code and its holes, the relocations JitStencilCompiler patches when it copies the code (kind, offset, target, addend); the VM''s functions and data the stencils use (their addresses); the object''s data sections, copied once into the code cache.
 
-Relocations (constants of the compiler class, JitStencilCompiler): RELOC_BRANCH (b, bl: a continuation, _JIT_NEXT ..., or a VM function), RELOC_GOT_PAIR (adrp and ldr of a GOT load, at offset and offset2: a hole _JIT_A ... or the address of a VM symbol; JitStencilCompiler relaxes them to movz, movk, adr, adrp and add as the value allows), RELOC_GOT_PAGE and RELOC_GOT_PAGEOFF (a GOT load that is not one adrp with one ldr), RELOC_PAGE and RELOC_PAGEOFF (adrp and add or a load: an address in the data; offset2 the load''s scale). Targets: TARGET_HOLE, TARGET_CONT, TARGET_SYMBOL (an index into the symbols), TARGET_DATA (the addend is the offset in the data).
+Relocations (constants of the compiler class, JitStencilCompiler): RELOC_BRANCH (b, bl: a continuation, _JIT_NEXT ..., or a VM function), RELOC_GOT_PAIR (adrp and ldr of a GOT load the compiler''s linker optimization hints pair, at offset and offset2: a hole _JIT_A ... or the address of a VM symbol; JitStencilCompiler relaxes them to movz, movk, adr, adrp and add as the value allows), RELOC_GOT_PAGE and RELOC_GOT_PAGEOFF (a GOT load without a hint), RELOC_PAGE and RELOC_PAGEOFF (adrp and add or a load: an address in the data; offset2 the load''s scale). Targets: TARGET_HOLE, TARGET_CONT, TARGET_SYMBOL (an index into the symbols), TARGET_DATA (the addend is the offset in the data).
 
 	(StencilTable object: aMachObjectFile compiler: JitStencilCompiler stencils: #(''stencil_add'' ...) names: #(''add'' ...)) cSource'!
 
@@ -119,19 +119,18 @@ readStencil: aName from: start to: end in: text
 	(entries last) at: 4 put: relocs size - first
 !
 convert: raw text: text start: start
-	"Pair adrp and ldr of each GOT load where they are one of each for a symbol and register."
-	| gotPages gotOffs done |
-	gotPages := raw select: [:e | (e at: 1) type = 5].
+	"Pair the adrp and the ldr of each GOT load the compiler marked as relaxable (a linker optimization hint)."
+	| pairs gotOffs done |
+	pairs := object gotLoadPairs.
 	gotOffs := raw select: [:e | (e at: 1) type = 6].
 	done := IdentitySet new.
-	gotPages do: [:p |
-		| rd mine adrps |
-		rd := (text wordAt: (p at: 1) address) bitAnd: 31.
-		adrps := gotPages select: [:q | (q at: 1) symbol == (p at: 1) symbol and: [((text wordAt: (q at: 1) address) bitAnd: 31) = rd]].
-		mine := gotOffs select: [:o | (o at: 1) symbol == (p at: 1) symbol and: [(((text wordAt: (o at: 1) address) bitShift: -5) bitAnd: 31) = rd]].
-		(adrps size = 1 and: [mine size = 1 and: [((text wordAt: (mine first at: 1) address) bitAnd: 16rFFC00000) = 16rF9400000]]) ifTrue: [
-			done add: p; add: mine first.
-			self add: 'RELOC_GOT_PAIR' at: (p at: 2) and: (mine first at: 2) for: (p at: 1) symbol addend: (p at: 3)]].
+	(raw select: [:e | (e at: 1) type = 5]) do: [:p |
+		| ldr mine |
+		ldr := pairs at: text address + (p at: 1) address ifAbsent: [nil].
+		mine := gotOffs detect: [:o | text address + (o at: 1) address = ldr and: [(o at: 1) symbol == (p at: 1) symbol]] ifNone: [nil].
+		(mine notNil and: [((text wordAt: (mine at: 1) address) bitAnd: 16rFFC00000) = 16rF9400000]) ifTrue: [
+			done add: p; add: mine.
+			self add: 'RELOC_GOT_PAIR' at: (p at: 2) and: (mine at: 2) for: (p at: 1) symbol addend: (p at: 3)]].
 	(raw asSortedCollection: [:a :b | (a at: 2) <= (b at: 2)]) do: [:e |
 		(done includes: e) ifFalse: [self convert: e text: text]].
 	self sortLast
@@ -183,6 +182,16 @@ sortLast
 	mine := (relocs copyFrom: first + 1 to: relocs size) asSortedCollection: [:a :b | (a at: 1) <= (b at: 1)].
 	relocs removeLast: relocs size - first.
 	relocs addAll: mine
+! !
+
+!StencilTable methodsFor: 'accessing'!
+relocations
+	"{offset. kind | target << 8 | id << 16. offset2. addend} of all stencils, in table order"
+	^relocs
+!
+dataRelocations
+	"{offset in the data. target. id. addend}"
+	^dataRelocs
 ! !
 
 !StencilTable methodsFor: 'printing'!

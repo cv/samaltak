@@ -55,6 +55,9 @@ $(STAMP):
 	@rm -f $(BUILD)/.variant-* $(BUILD)/samaltak
 	@touch $@
 
+# The threaded stencils keep the JIT's state in fixed registers.
+$(patsubst %.c,$(OBJDIR)/gen/%.o,$(VM_FIXED_REGISTER_SOURCES)): CFLAGS += $(VM_FIXED_REGISTER_CFLAGS)
+
 $(OBJDIR)/%.o: %.c $(PGO_DEP)
 	@mkdir -p $(dir $@)
 	$(if $(BRIEF),@echo "cc   $<";) $(CC) $(CFLAGS) -c -o $@ $<

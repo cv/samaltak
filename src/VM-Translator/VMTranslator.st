@@ -385,15 +385,18 @@ isPlatformModule: aTModule
 !
 sourcesMakefile
 	"Which generated files make which VM: the core, then one platform implementation (headless, or the platform layer)."
-	| s core headless platform |
+	| s core headless platform fixed |
 	core := OrderedCollection new.
 	headless := OrderedCollection new.
 	platform := OrderedCollection new.
+	fixed := OrderedCollection new.
 	self translatedModules do: [:m |
 		| name |
 		name := m cFileName , '.c'.
 		m moduleClass stencilCompiler notNil
-			ifTrue: [core add: m cFileName , '_table.c'; add: m cFileName , '_threaded.c']
+			ifTrue: [
+				core add: m cFileName , '_table.c'; add: m cFileName , '_threaded.c'.
+				fixed add: m]
 			ifFalse: [
 				(self isPlatformModule: m)
 					ifTrue: [platform add: name]
@@ -404,6 +407,12 @@ sourcesMakefile
 	#('VM_CORE_SOURCES' 'VM_HEADLESS_SOURCES' 'VM_PLATFORM_SOURCES') with: (Array with: core with: headless with: platform) do: [:var :list |
 		s nextPutAll: var; nextPutAll: ' :='.
 		(list asSortedCollection: [:a :b | a <= b]) do: [:f | s nextPutAll: ' '; nextPutAll: f].
+		s lf].
+	fixed do: [:m |
+		s nextPutAll: '# the threaded stencils keep the JIT''s state in fixed registers'; lf.
+		s nextPutAll: 'VM_FIXED_REGISTER_SOURCES := '; nextPutAll: m cFileName; nextPutAll: '_threaded.c'; lf.
+		s nextPutAll: 'VM_FIXED_REGISTER_CFLAGS :='.
+		(self stencilRegistersOf: m) do: [:r | s nextPutAll: ' -ffixed-'; nextPutAll: r].
 		s lf].
 	^s contents
 ! !
@@ -428,15 +437,8 @@ stencilsOf: aTModule
 			index := index + 1]].
 	^result
 !
-threadedHoleParametersOf: aTModule
-	"The holes a threaded stencil takes as parameters, after the state (x25 on): the compiler's first HOLE_PARAMETERS. SITE is the call's return address, VALUE goes where A does."
-	| compiler |
-	compiler := aTModule moduleClass stencilCompiler.
-	^(((compiler classPool keys select: [:k | (k beginsWith: 'HOLE_') and: [(compiler classPool at: k) < (compiler classPool at: #HOLE_PARAMETERS)]])
-		asSortedCollection: [:a :b | (compiler classPool at: a) <= (compiler classPool at: b)]) collect: [:k | k copyFrom: 6 to: k size]) asArray
-!
 stencilRegistersOf: aTModule
-	"The machine registers of the stencils' registers, in order: preserve_none passes its first arguments in x20-x28."
+	"The machine registers of the stencils' registers, in order: preserve_none passes its first arguments in x20-x28; threaded stencils fix the same registers."
 	^(1 to: aTModule registers size) collect: [:i | 'x' , (19 + i) printString]
 !
 stencilFilesFor: aTModule stencils: aCollection header: headerText
@@ -471,8 +473,8 @@ stencilState: aTModule
 	^aTModule registers collect: [:r | (aTModule globalNamed: r) cName -> (aTModule globalNamed: r) type]
 !
 stencilSourceFor: aTModule stencils: aCollection threaded: aBoolean
-	"The stencils as C: for copy-and-patch, holes are the addresses of extern symbols and continuations musttail calls of extern functions (what the compiler patches); threaded, holes are parameters and continuations musttail calls of a return (ret) that leaves the state in the stencils' registers and the continuation in the next one."
-	| s state regs compiler names params |
+	"The stencils as C. For copy-and-patch preserve_none functions, the state their arguments: holes are the addresses of extern symbols, continuations musttail calls of extern functions (what the compiler patches). Threaded, functions of the VM, the state in fixed registers (written by JIT_SET, a move the compiler keeps where it is): holes are parameters (SITE the return address), continuations the codes they return."
+	| s state regs compiler names |
 	s := WriteStream on: String new.
 	state := self stencilState: aTModule.
 	regs := self stencilRegistersOf: aTModule.
@@ -481,49 +483,42 @@ stencilSourceFor: aTModule stencils: aCollection threaded: aBoolean
 	aBoolean
 		ifTrue: [
 			s nextPutAll: '/* '; nextPutAll: aTModule name; nextPutAll: ' ('; nextPutAll: aTModule moduleClass packageName;
-				nextPutAll: '): the threaded stencils, called by machine code (--jit threaded). */'; lf]
+				nextPutAll: '): the threaded stencils, called by machine code (--jit threaded); compiled with VM_FIXED_REGISTER_CFLAGS (sources.mk). */'; lf]
 		ifFalse: [
 			s nextPutAll: '/* '; nextPutAll: aTModule name; nextPutAll: ' ('; nextPutAll: aTModule moduleClass packageName;
 				nextPutAll: '): the copy-and-patch stencils. cc compiles them when the VM is translated; '; nextPutAll: aTModule cFileName; nextPutAll: '_table.c is what it made of them. Not part of the VM. */'; lf].
 	s nextPutAll: '#include "'; nextPutAll: headerName; nextPutAll: '.h"'; lf; lf.
-	params := self threadedHoleParametersOf: aTModule.
-	s nextPutAll: '#define JIT_STENCIL_FN __attribute__((preserve_none))'; lf.
-	s nextPutAll: '#define JIT_ARGS '.
-	state do: [:a | s nextPutAll: (a value declare: a key)] separatedBy: [s nextPutAll: ', '].
-	aBoolean ifTrue: [params do: [:h | s nextPutAll: ', uint64_t hole_'; nextPutAll: h]].
-	s lf.
 	aBoolean
 		ifTrue: [
-			s nextPutAll: '#define JIT_HOLE(name) JIT_HOLE_##name'; lf.
-			params do: [:h | s nextPutAll: '#define JIT_HOLE_'; nextPutAll: h; nextPutAll: ' hole_'; nextPutAll: h; lf].
-			s nextPutAll: '#define JIT_HOLE_SITE ((uint64_t)(uintptr_t)__builtin_return_address(0))'; lf.
-			s nextPutAll: '#define JIT_HOLE_VALUE hole_A'; lf.
-			s nextPutAll: '#define JIT_TAIL(name) __attribute__((musttail)) return jit_threaded_return('.
-			state do: [:a | s nextPutAll: a key. s nextPutAll: ', '].
-			s nextPutAll: 'CONT_##name'.
-			params allButFirst do: [:h | s nextPutAll: ', hole_'; nextPutAll: h].
-			s nextPut: $); lf]
+			state with: regs do: [:a :r | s nextPutAll: 'register '; nextPutAll: (a value declare: a key); nextPutAll: ' __asm__("'; nextPutAll: r; nextPutAll: '");'; lf].
+			s nextPutAll: '#define JIT_SET(reg, value) JIT_SET_##reg(value)'; lf.
+			state with: regs do: [:a :r |
+				s nextPutAll: '#define JIT_SET_'; nextPutAll: a key; nextPutAll: '(value) do { '; nextPutAll: (a value declare: 'jit_value'); nextPutAll: ' = (value); __asm__ volatile("mov ';
+					nextPutAll: r; nextPutAll: ', %0" : : "r"(jit_value) : "memory"); } while (0)'; lf].
+			s nextPutAll: '#define JIT_HOLE(name) hole_##name'; lf.
+			s nextPutAll: '#define hole_SITE ((uint64_t)(uintptr_t)__builtin_return_address(0))'; lf.
+			s nextPutAll: '#define JIT_TAIL(name) return CONT_##name'; lf]
 		ifFalse: [
+			s nextPutAll: '#define JIT_STENCIL_FN __attribute__((preserve_none))'; lf.
+			s nextPutAll: '#define JIT_ARGS '.
+			state do: [:a | s nextPutAll: (a value declare: a key)] separatedBy: [s nextPutAll: ', '].
+			s lf.
+			s nextPutAll: '#define JIT_SET(reg, value) ((reg) = (value))'; lf.
 			s nextPutAll: '#define JIT_HOLE(name) ((uint64_t)(uintptr_t)_JIT_##name)'; lf.
 			s nextPutAll: '#define JIT_TAIL(name) __attribute__((musttail)) return _JIT_##name('.
 			state do: [:a | s nextPutAll: a key] separatedBy: [s nextPutAll: ', '].
 			s nextPut: $); lf].
-	s nextPutAll: (self stencilCallMacro: aTModule); lf.
-	aBoolean
-		ifTrue: [
-			s nextPutAll: '/* the continuation: back to the machine code, the state in '; nextPutAll: regs first; nextPut: $-; nextPutAll: regs last;
-				nextPutAll: ', the continuation (CONT_...) in x'; print: 20 + state size; nextPutAll: ' */'; lf.
-			s nextPutAll: '__attribute__((preserve_none, naked)) static void jit_threaded_return(JIT_ARGS)'; lf; nextPutAll: '{'; lf.
-			s nextPutAll: '    __asm__ volatile("ret");'; lf; nextPutAll: '}'; lf; lf]
-		ifFalse: [
-			names := ((compiler classPool keys select: [:k | k beginsWith: 'HOLE_']) reject: [:k | k = #HOLE_COUNT]) asSortedCollection asArray.
-			s nextPutAll: 'extern char '.
-			names do: [:k | s nextPutAll: '_JIT_'; nextPutAll: (k copyFrom: 6 to: k size); nextPutAll: '[]'] separatedBy: [s nextPutAll: ', '].
-			s nextPut: $;; lf.
-			names := (compiler classPool keys select: [:k | k beginsWith: 'CONT_']) asSortedCollection asArray.
-			s nextPutAll: 'extern JIT_STENCIL_FN void '.
-			names do: [:k | s nextPutAll: '_JIT_'; nextPutAll: (k copyFrom: 6 to: k size); nextPutAll: '(JIT_ARGS)'] separatedBy: [s nextPutAll: ', '].
-			s nextPut: $;; lf; lf].
+	s nextPutAll: (self stencilCallMacro: aTModule threaded: aBoolean); lf.
+	aBoolean ifFalse: [
+		names := ((compiler classPool keys select: [:k | k beginsWith: 'HOLE_']) reject: [:k | k = #HOLE_COUNT]) asSortedCollection asArray.
+		s nextPutAll: 'extern char '.
+		names do: [:k | s nextPutAll: '_JIT_'; nextPutAll: (k copyFrom: 6 to: k size); nextPutAll: '[]'] separatedBy: [s nextPutAll: ', '].
+		s nextPut: $;; lf.
+		names := (compiler classPool keys select: [:k | k beginsWith: 'CONT_']) asSortedCollection asArray.
+		s nextPutAll: 'extern JIT_STENCIL_FN void '.
+		names do: [:k | s nextPutAll: '_JIT_'; nextPutAll: (k copyFrom: 6 to: k size); nextPutAll: '(JIT_ARGS)'] separatedBy: [s nextPutAll: ', '].
+		s nextPut: $;; lf].
+	s lf.
 	aCollection do: [:st | st threaded: aBoolean. st printOn: s. s lf].
 	aCollection do: [:st | st threaded: false].
 	aBoolean ifFalse: [^s contents].
@@ -539,29 +534,35 @@ stencilSourceFor: aTModule stencils: aCollection threaded: aBoolean
 	s lf; nextPutAll: '};'; lf.
 	^s contents
 !
-stencilCallMacro: aTModule
-	"JIT_CALL(entry): call compiled code with the frame in x19 and the state in its register, keeping sp and fr (the fourth and fifth registers) on the native stack meanwhile, then reload fp from the frame. The callee clobbers every other register."
+stencilCallMacro: aTModule threaded: aBoolean
+	"JIT_CALL(entry): call compiled code with the frame in x19, keeping sp and fr (the fourth and fifth registers) on the native stack meanwhile, then reload fp from the frame. The state is in its register (copy-and-patch: an input); the callee clobbers every other register of a copy-and-patch stencil, the caller-saved ones of a threaded one."
 	| state regs s clobbers |
 	state := self stencilState: aTModule.
 	regs := self stencilRegistersOf: aTModule.
 	s := WriteStream on: String new.
 	clobbers := OrderedCollection new.
 	(0 to: 15) do: [:i | clobbers add: 'x' , i printString].
-	clobbers add: 'x17'; add: 'x19'; add: (regs at: 1); add: (regs at: 2); add: 'x25'; add: 'x26'; add: 'x27'; add: 'x28'; add: 'x30'.
-	(0 to: 31) do: [:i | clobbers add: 'v' , i printString].
+	clobbers add: 'x17'; add: 'x19'.
+	aBoolean ifFalse: [clobbers add: (regs at: 1); add: (regs at: 2); add: 'x25'; add: 'x26'; add: 'x27'; add: 'x28'].
+	clobbers add: 'x30'.
+	(aBoolean ifTrue: [(0 to: 7) asArray , (16 to: 31) asArray] ifFalse: [(0 to: 31) asArray]) do: [:i | clobbers add: 'v' , i printString].
 	clobbers add: 'cc'; add: 'memory'.
 	s nextPutAll: '#define JIT_CALL(entry) do { \'; lf.
-	#(3 4 5) do: [:i |
-		s tab; nextPutAll: 'register '; nextPutAll: ((state at: i) value declare: 'call_' , (state at: i) key); nextPutAll: ' __asm__("'; nextPutAll: (regs at: i);
-			nextPutAll: '") = '; nextPutAll: (state at: i) key; nextPutAll: '; \'; lf].
+	aBoolean ifFalse: [
+		#(3 4 5) do: [:i |
+			s tab; nextPutAll: 'register '; nextPutAll: ((state at: i) value declare: 'call_' , (state at: i) key); nextPutAll: ' __asm__("'; nextPutAll: (regs at: i);
+				nextPutAll: '") = '; nextPutAll: (state at: i) key; nextPutAll: '; \'; lf]].
 	s tab; nextPutAll: 'register uint64_t call_entry __asm__("x16") = (entry); \'; lf.
 	s tab; nextPutAll: '__asm__ volatile("mov x19, '; nextPutAll: (regs at: 5); nextPutAll: '\n\tstp '; nextPutAll: (regs at: 4); nextPutAll: ', '; nextPutAll: (regs at: 5);
 		nextPutAll: ', [sp, #-16]!!\n\tblr x16\n\tldp '; nextPutAll: (regs at: 4); nextPutAll: ', '; nextPutAll: (regs at: 5); nextPutAll: ', [sp], #16" \'; lf.
-	s tab; tab; nextPutAll: ': "+r"(call_' , (state at: 4) key , '), "+r"(call_' , (state at: 5) key , '), "+r"(call_entry) : "r"(call_' , (state at: 3) key , ') : '.
+	s tab; tab; nextPutAll: (aBoolean
+		ifTrue: [': "+r"(call_entry) : : ']
+		ifFalse: [': "+r"(call_' , (state at: 4) key , '), "+r"(call_' , (state at: 5) key , '), "+r"(call_entry) : "r"(call_' , (state at: 3) key , ') : ']).
 	clobbers do: [:c | s nextPut: $"; nextPutAll: c; nextPut: $"] separatedBy: [s nextPutAll: ', '].
 	s nextPutAll: '); \'; lf.
-	#(4 5) do: [:i | s tab; nextPutAll: (state at: i) key; nextPutAll: ' = call_'; nextPutAll: (state at: i) key; nextPutAll: '; \'; lf].
-	s tab; nextPutAll: (state at: 1) key; nextPutAll: ' = '; nextPutAll: (state at: 5) key; nextPutAll: '->fp; \'; lf.
+	aBoolean ifFalse: [
+		#(4 5) do: [:i | s tab; nextPutAll: (state at: i) key; nextPutAll: ' = call_'; nextPutAll: (state at: i) key; nextPutAll: '; \'; lf]].
+	s tab; nextPutAll: 'JIT_SET('; nextPutAll: (state at: 1) key; nextPutAll: ', '; nextPutAll: (state at: 5) key; nextPutAll: '->fp); \'; lf.
 	s nextPutAll: '} while (0)'.
 	^s contents
 !

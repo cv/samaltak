@@ -4,6 +4,7 @@
 
 #define JIT_STENCIL_FN __attribute__((preserve_none))
 #define JIT_ARGS oop *fp, oop rcv, jit_state *st, oop *sp, frame *fr
+#define JIT_SET(reg, value) ((reg) = (value))
 #define JIT_HOLE(name) ((uint64_t)(uintptr_t)_JIT_##name)
 #define JIT_TAIL(name) __attribute__((musttail)) return _JIT_##name(fp, rcv, st, sp, fr)
 #define JIT_CALL(entry) do { \
@@ -15,9 +16,9 @@
 		: "+r"(call_sp), "+r"(call_fr), "+r"(call_entry) : "r"(call_st) : "x0", "x1", "x2", "x3", "x4", "x5", "x6", "x7", "x8", "x9", "x10", "x11", "x12", "x13", "x14", "x15", "x17", "x19", "x20", "x21", "x25", "x26", "x27", "x28", "x30", "v0", "v1", "v2", "v3", "v4", "v5", "v6", "v7", "v8", "v9", "v10", "v11", "v12", "v13", "v14", "v15", "v16", "v17", "v18", "v19", "v20", "v21", "v22", "v23", "v24", "v25", "v26", "v27", "v28", "v29", "v30", "v31", "cc", "memory"); \
 	sp = call_sp; \
 	fr = call_fr; \
-	fp = fr->fp; \
+	JIT_SET(fp, fr->fp); \
 } while (0)
-extern char _JIT_A[], _JIT_B[], _JIT_INFO[], _JIT_PARAMETERS[], _JIT_PC[], _JIT_SITE[], _JIT_VALUE[];
+extern char _JIT_A[], _JIT_B[], _JIT_C[], _JIT_INFO[], _JIT_PC[], _JIT_SITE[], _JIT_VALUE[];
 extern JIT_STENCIL_FN void _JIT_EXIT(JIT_ARGS), _JIT_EXIT_SYNC(JIT_ARGS), _JIT_JUMP(JIT_ARGS), _JIT_NEXT(JIT_ARGS), _JIT_RETURN(JIT_ARGS), _JIT_SLOW(JIT_ARGS);
 
 /* JitStencils>>add */
@@ -34,7 +35,7 @@ JIT_STENCIL_FN void stencil_add(JIT_ARGS)
     if ((o & 1) != 0) {
         if (!__builtin_add_overflow((int64_t)a, (int64_t)b - 1, &r)) {
             v = (uint64_t)r;
-            sp = sp - 1;
+            JIT_SET(sp, sp - 1);
             *sp = v;
             JIT_TAIL(NEXT);
         }
@@ -42,61 +43,287 @@ JIT_STENCIL_FN void stencil_add(JIT_ARGS)
     JIT_TAIL(SLOW);
 }
 
-/* JitStencils>>arrayAt */
-JIT_STENCIL_FN void stencil_array_at(JIT_ARGS)
+/* JitStencils>>addOperands case 0 */
+JIT_STENCIL_FN void stencil_add_operands_0(JIT_ARGS)
+{
+    oop a;
+    oop r_operand;
+    oop b;
+    oop o;
+    int64_t r;
+    uint64_t v;
+    a = fp[JIT_HOLE(A)];
+    b = ({
+    r_operand = fp[JIT_HOLE(B)];
+    goto exit_operand;
+    r_operand = JIT_HOLE(VALUE);
+exit_operand:;
+    r_operand; });
+    o = a & b;
+    if ((o & 1) != 0) {
+        if (!__builtin_add_overflow((int64_t)a, (int64_t)b - 1, &r)) {
+            v = (uint64_t)r;
+            JIT_SET(sp, sp + 1);
+            *sp = v;
+            JIT_TAIL(NEXT);
+        }
+    }
+    sp[1] = a;
+    sp[2] = b;
+    JIT_SET(sp, sp + 2);
+    JIT_TAIL(SLOW);
+}
+
+/* JitStencils>>addOperands case 1 */
+JIT_STENCIL_FN void stencil_add_operands_1(JIT_ARGS)
+{
+    oop a;
+    oop r_operand;
+    oop b;
+    oop o;
+    int64_t r;
+    uint64_t v;
+    a = fp[JIT_HOLE(A)];
+    b = ({
+    r_operand = fr->lits[JIT_HOLE(B)];
+    goto exit_operand;
+    r_operand = JIT_HOLE(VALUE);
+exit_operand:;
+    r_operand; });
+    o = a & b;
+    if ((o & 1) != 0) {
+        if (!__builtin_add_overflow((int64_t)a, (int64_t)b - 1, &r)) {
+            v = (uint64_t)r;
+            JIT_SET(sp, sp + 1);
+            *sp = v;
+            JIT_TAIL(NEXT);
+        }
+    }
+    sp[1] = a;
+    sp[2] = b;
+    JIT_SET(sp, sp + 2);
+    JIT_TAIL(SLOW);
+}
+
+/* JitStencils>>addOperands case 2 */
+JIT_STENCIL_FN void stencil_add_operands_2(JIT_ARGS)
+{
+    oop a;
+    uint64_t r_operand;
+    uint64_t b;
+    oop o;
+    int64_t r;
+    uint64_t v;
+    a = fp[JIT_HOLE(A)];
+    b = ({
+    r_operand = JIT_HOLE(VALUE);
+    r_operand; });
+    o = a & b;
+    if ((o & 1) != 0) {
+        if (!__builtin_add_overflow((int64_t)a, (int64_t)b - 1, &r)) {
+            v = (uint64_t)r;
+            JIT_SET(sp, sp + 1);
+            *sp = v;
+            JIT_TAIL(NEXT);
+        }
+    }
+    sp[1] = a;
+    sp[2] = b;
+    JIT_SET(sp, sp + 2);
+    JIT_TAIL(SLOW);
+}
+
+/* JitStencils>>addOperandsInto case 0 */
+JIT_STENCIL_FN void stencil_add_operands_into_0(JIT_ARGS)
+{
+    oop a;
+    oop r_operand;
+    oop b;
+    oop o;
+    int64_t r;
+    uint64_t v;
+    a = fp[JIT_HOLE(A)];
+    b = ({
+    r_operand = fp[JIT_HOLE(B)];
+    goto exit_operand;
+    r_operand = JIT_HOLE(VALUE);
+exit_operand:;
+    r_operand; });
+    o = a & b;
+    if ((o & 1) != 0) {
+        if (!__builtin_add_overflow((int64_t)a, (int64_t)b - 1, &r)) {
+            v = (uint64_t)r;
+            fp[JIT_HOLE(C)] = v;
+            JIT_TAIL(NEXT);
+        }
+    }
+    sp[1] = a;
+    sp[2] = b;
+    JIT_SET(sp, sp + 2);
+    JIT_TAIL(SLOW);
+}
+
+/* JitStencils>>addOperandsInto case 1 */
+JIT_STENCIL_FN void stencil_add_operands_into_1(JIT_ARGS)
+{
+    oop a;
+    oop r_operand;
+    oop b;
+    oop o;
+    int64_t r;
+    uint64_t v;
+    a = fp[JIT_HOLE(A)];
+    b = ({
+    r_operand = fr->lits[JIT_HOLE(B)];
+    goto exit_operand;
+    r_operand = JIT_HOLE(VALUE);
+exit_operand:;
+    r_operand; });
+    o = a & b;
+    if ((o & 1) != 0) {
+        if (!__builtin_add_overflow((int64_t)a, (int64_t)b - 1, &r)) {
+            v = (uint64_t)r;
+            fp[JIT_HOLE(C)] = v;
+            JIT_TAIL(NEXT);
+        }
+    }
+    sp[1] = a;
+    sp[2] = b;
+    JIT_SET(sp, sp + 2);
+    JIT_TAIL(SLOW);
+}
+
+/* JitStencils>>addOperandsInto case 2 */
+JIT_STENCIL_FN void stencil_add_operands_into_2(JIT_ARGS)
+{
+    oop a;
+    uint64_t r_operand;
+    uint64_t b;
+    oop o;
+    int64_t r;
+    uint64_t v;
+    a = fp[JIT_HOLE(A)];
+    b = ({
+    r_operand = JIT_HOLE(VALUE);
+    r_operand; });
+    o = a & b;
+    if ((o & 1) != 0) {
+        if (!__builtin_add_overflow((int64_t)a, (int64_t)b - 1, &r)) {
+            v = (uint64_t)r;
+            fp[JIT_HOLE(C)] = v;
+            JIT_TAIL(NEXT);
+        }
+    }
+    sp[1] = a;
+    sp[2] = b;
+    JIT_SET(sp, sp + 2);
+    JIT_TAIL(SLOW);
+}
+
+/* JitStencils>>basicAt */
+JIT_STENCIL_FN void stencil_basic_at(JIT_ARGS)
 {
     oop a;
     oop b;
     uint64_t i;
+    uint64_t c;
     oop v;
+    uint8_t code_point;
+    uint64_t v_2;
+    uint8_t v_3;
+    uint64_t v_4;
     a = sp[-1];
     b = *sp;
+    if (!(((b & 1) != 0) && ((a & 7) == 0))) {
+        JIT_TAIL(SLOW);
+    }
     i = (uint64_t)((((int64_t)b) >> 1) - 1);
-    if (((b & 1) != 0) && (((a & 7) == 0) && ((*(uint64_t *)(a + 8) == st->array_class) && (i < (uint32_t)*(uint64_t *)a)))) {
-        v = ((oop *)(a + 16))[i];
-        sp = sp - 1;
-        *sp = v;
+    c = *(uint64_t *)(a + 8);
+    if (c == st->array_class) {
+        if (i < (uint32_t)*(uint64_t *)a) {
+            v = ((oop *)(a + 16))[i];
+            JIT_SET(sp, sp - 1);
+            *sp = v;
+            JIT_TAIL(NEXT);
+        }
+        JIT_TAIL(SLOW);
+    }
+    if ((i < (uint64_t)(uint32_t)*(uint64_t *)a * 8 - (uint64_t)((int32_t)(((*(uint64_t *)a) >> H_FMT_SHIFT) & H_FMT_MASK) - F_BYTES)) && (c == cls_bytestring)) {
+        code_point = ((uint8_t *)(a + 16))[i];
+        v_2 = (((uint64_t)code_point) << 3) | 2;
+        JIT_SET(sp, sp - 1);
+        *sp = v_2;
+        JIT_TAIL(NEXT);
+    }
+    if ((i < (uint64_t)(uint32_t)*(uint64_t *)a * 8 - (uint64_t)((int32_t)(((*(uint64_t *)a) >> H_FMT_SHIFT) & H_FMT_MASK) - F_BYTES)) && (c == cls_bytearray)) {
+        v_3 = ((uint8_t *)(a + 16))[i];
+        v_4 = (uint64_t)((((int64_t)v_3) << 1) | 1);
+        JIT_SET(sp, sp - 1);
+        *sp = v_4;
         JIT_TAIL(NEXT);
     }
     JIT_TAIL(SLOW);
 }
 
-/* JitStencils>>arrayAtPut */
-JIT_STENCIL_FN void stencil_array_at_put(JIT_ARGS)
+/* JitStencils>>basicAtPut */
+JIT_STENCIL_FN void stencil_basic_at_put(JIT_ARGS)
 {
     oop a;
     oop b;
     oop v;
     uint64_t i;
+    uint64_t c;
     uint64_t lo;
     uint64_t span;
     a = sp[-2];
     b = sp[-1];
     v = *sp;
+    if (!(((b & 1) != 0) && (((a & 7) == 0) && (!(((*(uint64_t *)a) & H_IMMUTABLE) != 0))))) {
+        JIT_TAIL(SLOW);
+    }
     i = (uint64_t)((((int64_t)b) >> 1) - 1);
-    if (((b & 1) != 0) && (((a & 7) == 0) && ((*(uint64_t *)(a + 8) == st->array_class) && ((i < (uint32_t)*(uint64_t *)a) && (!(((*(uint64_t *)a) & H_IMMUTABLE) != 0)))))) {
+    c = *(uint64_t *)(a + 8);
+    if (c == st->array_class) {
+        if (!(i < (uint32_t)*(uint64_t *)a)) {
+            JIT_TAIL(SLOW);
+        }
         *(uint64_t *)(a + 16 + 8 * i) = v;
         lo = st->young_lo;
         span = st->young_hi - lo;
         if (((v & 7) == 0) && ((v - lo < span) && ((a - lo >= span) && (((*(uint64_t *)a) & H_REMEMBERED) == 0)))) {
             jit_write_barrier(a, v);
         }
-        sp = sp - 2;
-        *sp = v;
-        JIT_TAIL(NEXT);
+    } else {
+        if (!((i < (uint64_t)(uint32_t)*(uint64_t *)a * 8 - (uint64_t)((int32_t)(((*(uint64_t *)a) >> H_FMT_SHIFT) & H_FMT_MASK) - F_BYTES)) && (((c == cls_bytestring) && (((v & 7) == 2) && ((uint32_t)(v >> 3) < 256))) || ((c == cls_bytearray) && (((v & 1) != 0) && ((uint64_t)(((int64_t)v) >> 1) < 256)))))) {
+            JIT_TAIL(SLOW);
+        }
+        ((uint8_t *)(a + 16))[i] = c == cls_bytestring ? (uint8_t)(uint32_t)(v >> 3) : (uint8_t)(((int64_t)v) >> 1);
     }
-    JIT_TAIL(SLOW);
+    JIT_SET(sp, sp - 2);
+    *sp = v;
+    JIT_TAIL(NEXT);
 }
 
-/* JitStencils>>arraySize */
-JIT_STENCIL_FN void stencil_array_size(JIT_ARGS)
+/* JitStencils>>basicSize */
+JIT_STENCIL_FN void stencil_basic_size(JIT_ARGS)
 {
     oop a;
+    uint64_t c;
     uint32_t v;
+    int64_t v_2;
     a = *sp;
-    if (((a & 7) == 0) && (*(uint64_t *)(a + 8) == st->array_class)) {
+    if (!((a & 7) == 0)) {
+        JIT_TAIL(SLOW);
+    }
+    c = *(uint64_t *)(a + 8);
+    if (c == st->array_class) {
         v = (uint32_t)*(uint64_t *)a;
         *sp = (uint64_t)((((int64_t)v) << 1) | 1);
+        JIT_TAIL(NEXT);
+    }
+    if ((c == cls_bytestring) || (c == cls_bytearray)) {
+        v_2 = (int64_t)((uint64_t)(uint32_t)*(uint64_t *)a * 8 - (uint64_t)((int32_t)(((*(uint64_t *)a) >> H_FMT_SHIFT) & H_FMT_MASK) - F_BYTES));
+        *sp = (uint64_t)((v_2 << 1) | 1);
         JIT_TAIL(NEXT);
     }
     JIT_TAIL(SLOW);
@@ -114,7 +341,7 @@ JIT_STENCIL_FN void stencil_bit_and(JIT_ARGS)
     o = a & b;
     if ((o & 1) != 0) {
         v = a & b;
-        sp = sp - 1;
+        JIT_SET(sp, sp - 1);
         *sp = v;
         JIT_TAIL(NEXT);
     }
@@ -133,7 +360,7 @@ JIT_STENCIL_FN void stencil_bit_or(JIT_ARGS)
     o = a & b;
     if ((o & 1) != 0) {
         v = a | b;
-        sp = sp - 1;
+        JIT_SET(sp, sp - 1);
         *sp = v;
         JIT_TAIL(NEXT);
     }
@@ -161,7 +388,7 @@ JIT_STENCIL_FN void stencil_branch_back(JIT_ARGS)
         r_leave_after_interrupt = true;
         goto exit_leave_after_interrupt;
     }
-    rcv = fp[-1];
+    JIT_SET(rcv, fp[-1]);
     r_leave_after_interrupt = false;
 exit_leave_after_interrupt:;
     r_leave_after_interrupt; })) {
@@ -176,16 +403,16 @@ JIT_STENCIL_FN void stencil_branch_if_0(JIT_ARGS)
     oop v;
     v = *sp;
     if (v == st->true_oop) {
-        sp = sp - 1;
+        JIT_SET(sp, sp - 1);
         JIT_TAIL(JUMP);
     }
-    if (v == st->false_oop) {
-        sp = sp - 1;
-        JIT_TAIL(NEXT);
+    if (v != st->false_oop) {
+        fr->pc = (int32_t)JIT_HOLE(PC);
+        fr->sp = (int32_t)(sp - fp + 1);
+        JIT_TAIL(EXIT_SYNC);
     }
-    fr->pc = (int32_t)JIT_HOLE(PC);
-    fr->sp = (int32_t)(sp - fp + 1);
-    JIT_TAIL(EXIT_SYNC);
+    JIT_SET(sp, sp - 1);
+    JIT_TAIL(NEXT);
 }
 
 /* JitStencils>>branchIf case 1 */
@@ -194,16 +421,16 @@ JIT_STENCIL_FN void stencil_branch_if_1(JIT_ARGS)
     oop v;
     v = *sp;
     if (v == st->false_oop) {
-        sp = sp - 1;
+        JIT_SET(sp, sp - 1);
         JIT_TAIL(JUMP);
     }
-    if (v == st->true_oop) {
-        sp = sp - 1;
-        JIT_TAIL(NEXT);
+    if (v != st->true_oop) {
+        fr->pc = (int32_t)JIT_HOLE(PC);
+        fr->sp = (int32_t)(sp - fp + 1);
+        JIT_TAIL(EXIT_SYNC);
     }
-    fr->pc = (int32_t)JIT_HOLE(PC);
-    fr->sp = (int32_t)(sp - fp + 1);
-    JIT_TAIL(EXIT_SYNC);
+    JIT_SET(sp, sp - 1);
+    JIT_TAIL(NEXT);
 }
 
 /* JitStencils>>classOf */
@@ -226,8 +453,8 @@ JIT_STENCIL_FN void stencil_closure(JIT_ARGS)
     if (jit_closure(fr) != 0) {
         JIT_TAIL(EXIT);
     }
-    sp = sp + 1;
-    rcv = fp[-1];
+    JIT_SET(sp, sp + 1);
+    JIT_SET(rcv, fp[-1]);
     JIT_TAIL(JUMP);
 }
 
@@ -253,7 +480,7 @@ JIT_STENCIL_FN void stencil_compare_2(JIT_ARGS)
 exit_compare:;
     r_compare; });
     v = c ? st->true_oop : st->false_oop;
-    sp = sp - 1;
+    JIT_SET(sp, sp - 1);
     *sp = v;
     JIT_TAIL(NEXT);
 }
@@ -280,7 +507,7 @@ JIT_STENCIL_FN void stencil_compare_3(JIT_ARGS)
 exit_compare:;
     r_compare; });
     v = c ? st->true_oop : st->false_oop;
-    sp = sp - 1;
+    JIT_SET(sp, sp - 1);
     *sp = v;
     JIT_TAIL(NEXT);
 }
@@ -307,7 +534,7 @@ JIT_STENCIL_FN void stencil_compare_4(JIT_ARGS)
 exit_compare:;
     r_compare; });
     v = c ? st->true_oop : st->false_oop;
-    sp = sp - 1;
+    JIT_SET(sp, sp - 1);
     *sp = v;
     JIT_TAIL(NEXT);
 }
@@ -334,7 +561,7 @@ JIT_STENCIL_FN void stencil_compare_5(JIT_ARGS)
 exit_compare:;
     r_compare; });
     v = c ? st->true_oop : st->false_oop;
-    sp = sp - 1;
+    JIT_SET(sp, sp - 1);
     *sp = v;
     JIT_TAIL(NEXT);
 }
@@ -361,7 +588,7 @@ JIT_STENCIL_FN void stencil_compare_6(JIT_ARGS)
 exit_compare:;
     r_compare; });
     v = c ? st->true_oop : st->false_oop;
-    sp = sp - 1;
+    JIT_SET(sp, sp - 1);
     *sp = v;
     JIT_TAIL(NEXT);
 }
@@ -385,7 +612,7 @@ JIT_STENCIL_FN void stencil_compare_7(JIT_ARGS)
     r_compare = a != b;
     r_compare; });
     v = c ? st->true_oop : st->false_oop;
-    sp = sp - 1;
+    JIT_SET(sp, sp - 1);
     *sp = v;
     JIT_TAIL(NEXT);
 }
@@ -404,7 +631,7 @@ JIT_STENCIL_FN void stencil_compare_jump_false_2(JIT_ARGS)
     !((o & 1) != 0); })) {
         JIT_TAIL(SLOW);
     }
-    sp = sp - 2;
+    JIT_SET(sp, sp - 2);
     if (({
     r_compare = (int64_t)a < (int64_t)b;
     goto exit_compare;
@@ -430,7 +657,7 @@ JIT_STENCIL_FN void stencil_compare_jump_false_3(JIT_ARGS)
     !((o & 1) != 0); })) {
         JIT_TAIL(SLOW);
     }
-    sp = sp - 2;
+    JIT_SET(sp, sp - 2);
     if (({
     r_compare = (int64_t)a > (int64_t)b;
     goto exit_compare;
@@ -456,7 +683,7 @@ JIT_STENCIL_FN void stencil_compare_jump_false_4(JIT_ARGS)
     !((o & 1) != 0); })) {
         JIT_TAIL(SLOW);
     }
-    sp = sp - 2;
+    JIT_SET(sp, sp - 2);
     if (({
     r_compare = (int64_t)a <= (int64_t)b;
     goto exit_compare;
@@ -482,7 +709,7 @@ JIT_STENCIL_FN void stencil_compare_jump_false_5(JIT_ARGS)
     !((o & 1) != 0); })) {
         JIT_TAIL(SLOW);
     }
-    sp = sp - 2;
+    JIT_SET(sp, sp - 2);
     if (({
     r_compare = (int64_t)a >= (int64_t)b;
     goto exit_compare;
@@ -508,7 +735,7 @@ JIT_STENCIL_FN void stencil_compare_jump_false_6(JIT_ARGS)
     !((o & 1) != 0); })) {
         JIT_TAIL(SLOW);
     }
-    sp = sp - 2;
+    JIT_SET(sp, sp - 2);
     if (({
     r_compare = a == b;
     goto exit_compare;
@@ -534,7 +761,7 @@ JIT_STENCIL_FN void stencil_compare_jump_false_7(JIT_ARGS)
     !((o & 1) != 0); })) {
         JIT_TAIL(SLOW);
     }
-    sp = sp - 2;
+    JIT_SET(sp, sp - 2);
     if (({
     r_compare = a != b;
     r_compare; }) == false) {
@@ -557,7 +784,7 @@ JIT_STENCIL_FN void stencil_compare_jump_true_2(JIT_ARGS)
     !((o & 1) != 0); })) {
         JIT_TAIL(SLOW);
     }
-    sp = sp - 2;
+    JIT_SET(sp, sp - 2);
     if (({
     r_compare = (int64_t)a < (int64_t)b;
     goto exit_compare;
@@ -583,7 +810,7 @@ JIT_STENCIL_FN void stencil_compare_jump_true_3(JIT_ARGS)
     !((o & 1) != 0); })) {
         JIT_TAIL(SLOW);
     }
-    sp = sp - 2;
+    JIT_SET(sp, sp - 2);
     if (({
     r_compare = (int64_t)a > (int64_t)b;
     goto exit_compare;
@@ -609,7 +836,7 @@ JIT_STENCIL_FN void stencil_compare_jump_true_4(JIT_ARGS)
     !((o & 1) != 0); })) {
         JIT_TAIL(SLOW);
     }
-    sp = sp - 2;
+    JIT_SET(sp, sp - 2);
     if (({
     r_compare = (int64_t)a <= (int64_t)b;
     goto exit_compare;
@@ -635,7 +862,7 @@ JIT_STENCIL_FN void stencil_compare_jump_true_5(JIT_ARGS)
     !((o & 1) != 0); })) {
         JIT_TAIL(SLOW);
     }
-    sp = sp - 2;
+    JIT_SET(sp, sp - 2);
     if (({
     r_compare = (int64_t)a >= (int64_t)b;
     goto exit_compare;
@@ -661,7 +888,7 @@ JIT_STENCIL_FN void stencil_compare_jump_true_6(JIT_ARGS)
     !((o & 1) != 0); })) {
         JIT_TAIL(SLOW);
     }
-    sp = sp - 2;
+    JIT_SET(sp, sp - 2);
     if (({
     r_compare = a == b;
     goto exit_compare;
@@ -687,9 +914,1197 @@ JIT_STENCIL_FN void stencil_compare_jump_true_7(JIT_ARGS)
     !((o & 1) != 0); })) {
         JIT_TAIL(SLOW);
     }
-    sp = sp - 2;
+    JIT_SET(sp, sp - 2);
     if (({
     r_compare = a != b;
+    r_compare; }) == true) {
+        JIT_TAIL(JUMP);
+    }
+    JIT_TAIL(NEXT);
+}
+
+/* JitStencils>>compareOperands case 0 */
+JIT_STENCIL_FN void stencil_compare_operands_0(JIT_ARGS)
+{
+    oop a;
+    oop r_operand;
+    oop b;
+    oop o;
+    bool r_compare;
+    bool c;
+    oop v;
+    a = fp[JIT_HOLE(A)];
+    b = ({
+    r_operand = fp[JIT_HOLE(B)];
+    goto exit_operand;
+    r_operand = JIT_HOLE(VALUE);
+exit_operand:;
+    r_operand; });
+    o = a & b;
+    if (!((o & 1) != 0)) {
+        sp[1] = a;
+        sp[2] = b;
+        JIT_SET(sp, sp + 2);
+        JIT_TAIL(SLOW);
+    }
+    c = ({
+    r_compare = (int64_t)a < (int64_t)b;
+    goto exit_compare;
+    r_compare = a != b;
+exit_compare:;
+    r_compare; });
+    v = c ? st->true_oop : st->false_oop;
+    JIT_SET(sp, sp + 1);
+    *sp = v;
+    JIT_TAIL(NEXT);
+}
+
+/* JitStencils>>compareOperands case 1 */
+JIT_STENCIL_FN void stencil_compare_operands_1(JIT_ARGS)
+{
+    oop a;
+    oop r_operand;
+    oop b;
+    oop o;
+    bool r_compare;
+    bool c;
+    oop v;
+    a = fp[JIT_HOLE(A)];
+    b = ({
+    r_operand = fr->lits[JIT_HOLE(B)];
+    goto exit_operand;
+    r_operand = JIT_HOLE(VALUE);
+exit_operand:;
+    r_operand; });
+    o = a & b;
+    if (!((o & 1) != 0)) {
+        sp[1] = a;
+        sp[2] = b;
+        JIT_SET(sp, sp + 2);
+        JIT_TAIL(SLOW);
+    }
+    c = ({
+    r_compare = (int64_t)a < (int64_t)b;
+    goto exit_compare;
+    r_compare = a != b;
+exit_compare:;
+    r_compare; });
+    v = c ? st->true_oop : st->false_oop;
+    JIT_SET(sp, sp + 1);
+    *sp = v;
+    JIT_TAIL(NEXT);
+}
+
+/* JitStencils>>compareOperands case 2 */
+JIT_STENCIL_FN void stencil_compare_operands_2(JIT_ARGS)
+{
+    oop a;
+    uint64_t r_operand;
+    uint64_t b;
+    oop o;
+    bool r_compare;
+    bool c;
+    oop v;
+    a = fp[JIT_HOLE(A)];
+    b = ({
+    r_operand = JIT_HOLE(VALUE);
+    r_operand; });
+    o = a & b;
+    if (!((o & 1) != 0)) {
+        sp[1] = a;
+        sp[2] = b;
+        JIT_SET(sp, sp + 2);
+        JIT_TAIL(SLOW);
+    }
+    c = ({
+    r_compare = (int64_t)a < (int64_t)b;
+    goto exit_compare;
+    r_compare = a != b;
+exit_compare:;
+    r_compare; });
+    v = c ? st->true_oop : st->false_oop;
+    JIT_SET(sp, sp + 1);
+    *sp = v;
+    JIT_TAIL(NEXT);
+}
+
+/* JitStencils>>compareOperands case 3 */
+JIT_STENCIL_FN void stencil_compare_operands_3(JIT_ARGS)
+{
+    oop a;
+    oop r_operand;
+    oop b;
+    oop o;
+    bool r_compare;
+    bool c;
+    oop v;
+    a = fp[JIT_HOLE(A)];
+    b = ({
+    r_operand = fp[JIT_HOLE(B)];
+    goto exit_operand;
+    r_operand = JIT_HOLE(VALUE);
+exit_operand:;
+    r_operand; });
+    o = a & b;
+    if (!((o & 1) != 0)) {
+        sp[1] = a;
+        sp[2] = b;
+        JIT_SET(sp, sp + 2);
+        JIT_TAIL(SLOW);
+    }
+    c = ({
+    r_compare = (int64_t)a > (int64_t)b;
+    goto exit_compare;
+    r_compare = a != b;
+exit_compare:;
+    r_compare; });
+    v = c ? st->true_oop : st->false_oop;
+    JIT_SET(sp, sp + 1);
+    *sp = v;
+    JIT_TAIL(NEXT);
+}
+
+/* JitStencils>>compareOperands case 4 */
+JIT_STENCIL_FN void stencil_compare_operands_4(JIT_ARGS)
+{
+    oop a;
+    oop r_operand;
+    oop b;
+    oop o;
+    bool r_compare;
+    bool c;
+    oop v;
+    a = fp[JIT_HOLE(A)];
+    b = ({
+    r_operand = fr->lits[JIT_HOLE(B)];
+    goto exit_operand;
+    r_operand = JIT_HOLE(VALUE);
+exit_operand:;
+    r_operand; });
+    o = a & b;
+    if (!((o & 1) != 0)) {
+        sp[1] = a;
+        sp[2] = b;
+        JIT_SET(sp, sp + 2);
+        JIT_TAIL(SLOW);
+    }
+    c = ({
+    r_compare = (int64_t)a > (int64_t)b;
+    goto exit_compare;
+    r_compare = a != b;
+exit_compare:;
+    r_compare; });
+    v = c ? st->true_oop : st->false_oop;
+    JIT_SET(sp, sp + 1);
+    *sp = v;
+    JIT_TAIL(NEXT);
+}
+
+/* JitStencils>>compareOperands case 5 */
+JIT_STENCIL_FN void stencil_compare_operands_5(JIT_ARGS)
+{
+    oop a;
+    uint64_t r_operand;
+    uint64_t b;
+    oop o;
+    bool r_compare;
+    bool c;
+    oop v;
+    a = fp[JIT_HOLE(A)];
+    b = ({
+    r_operand = JIT_HOLE(VALUE);
+    r_operand; });
+    o = a & b;
+    if (!((o & 1) != 0)) {
+        sp[1] = a;
+        sp[2] = b;
+        JIT_SET(sp, sp + 2);
+        JIT_TAIL(SLOW);
+    }
+    c = ({
+    r_compare = (int64_t)a > (int64_t)b;
+    goto exit_compare;
+    r_compare = a != b;
+exit_compare:;
+    r_compare; });
+    v = c ? st->true_oop : st->false_oop;
+    JIT_SET(sp, sp + 1);
+    *sp = v;
+    JIT_TAIL(NEXT);
+}
+
+/* JitStencils>>compareOperands case 6 */
+JIT_STENCIL_FN void stencil_compare_operands_6(JIT_ARGS)
+{
+    oop a;
+    oop r_operand;
+    oop b;
+    oop o;
+    bool r_compare;
+    bool c;
+    oop v;
+    a = fp[JIT_HOLE(A)];
+    b = ({
+    r_operand = fp[JIT_HOLE(B)];
+    goto exit_operand;
+    r_operand = JIT_HOLE(VALUE);
+exit_operand:;
+    r_operand; });
+    o = a & b;
+    if (!((o & 1) != 0)) {
+        sp[1] = a;
+        sp[2] = b;
+        JIT_SET(sp, sp + 2);
+        JIT_TAIL(SLOW);
+    }
+    c = ({
+    r_compare = (int64_t)a <= (int64_t)b;
+    goto exit_compare;
+    r_compare = a != b;
+exit_compare:;
+    r_compare; });
+    v = c ? st->true_oop : st->false_oop;
+    JIT_SET(sp, sp + 1);
+    *sp = v;
+    JIT_TAIL(NEXT);
+}
+
+/* JitStencils>>compareOperands case 7 */
+JIT_STENCIL_FN void stencil_compare_operands_7(JIT_ARGS)
+{
+    oop a;
+    oop r_operand;
+    oop b;
+    oop o;
+    bool r_compare;
+    bool c;
+    oop v;
+    a = fp[JIT_HOLE(A)];
+    b = ({
+    r_operand = fr->lits[JIT_HOLE(B)];
+    goto exit_operand;
+    r_operand = JIT_HOLE(VALUE);
+exit_operand:;
+    r_operand; });
+    o = a & b;
+    if (!((o & 1) != 0)) {
+        sp[1] = a;
+        sp[2] = b;
+        JIT_SET(sp, sp + 2);
+        JIT_TAIL(SLOW);
+    }
+    c = ({
+    r_compare = (int64_t)a <= (int64_t)b;
+    goto exit_compare;
+    r_compare = a != b;
+exit_compare:;
+    r_compare; });
+    v = c ? st->true_oop : st->false_oop;
+    JIT_SET(sp, sp + 1);
+    *sp = v;
+    JIT_TAIL(NEXT);
+}
+
+/* JitStencils>>compareOperands case 8 */
+JIT_STENCIL_FN void stencil_compare_operands_8(JIT_ARGS)
+{
+    oop a;
+    uint64_t r_operand;
+    uint64_t b;
+    oop o;
+    bool r_compare;
+    bool c;
+    oop v;
+    a = fp[JIT_HOLE(A)];
+    b = ({
+    r_operand = JIT_HOLE(VALUE);
+    r_operand; });
+    o = a & b;
+    if (!((o & 1) != 0)) {
+        sp[1] = a;
+        sp[2] = b;
+        JIT_SET(sp, sp + 2);
+        JIT_TAIL(SLOW);
+    }
+    c = ({
+    r_compare = (int64_t)a <= (int64_t)b;
+    goto exit_compare;
+    r_compare = a != b;
+exit_compare:;
+    r_compare; });
+    v = c ? st->true_oop : st->false_oop;
+    JIT_SET(sp, sp + 1);
+    *sp = v;
+    JIT_TAIL(NEXT);
+}
+
+/* JitStencils>>compareOperands case 9 */
+JIT_STENCIL_FN void stencil_compare_operands_9(JIT_ARGS)
+{
+    oop a;
+    oop r_operand;
+    oop b;
+    oop o;
+    bool r_compare;
+    bool c;
+    oop v;
+    a = fp[JIT_HOLE(A)];
+    b = ({
+    r_operand = fp[JIT_HOLE(B)];
+    goto exit_operand;
+    r_operand = JIT_HOLE(VALUE);
+exit_operand:;
+    r_operand; });
+    o = a & b;
+    if (!((o & 1) != 0)) {
+        sp[1] = a;
+        sp[2] = b;
+        JIT_SET(sp, sp + 2);
+        JIT_TAIL(SLOW);
+    }
+    c = ({
+    r_compare = (int64_t)a >= (int64_t)b;
+    goto exit_compare;
+    r_compare = a != b;
+exit_compare:;
+    r_compare; });
+    v = c ? st->true_oop : st->false_oop;
+    JIT_SET(sp, sp + 1);
+    *sp = v;
+    JIT_TAIL(NEXT);
+}
+
+/* JitStencils>>compareOperands case 10 */
+JIT_STENCIL_FN void stencil_compare_operands_10(JIT_ARGS)
+{
+    oop a;
+    oop r_operand;
+    oop b;
+    oop o;
+    bool r_compare;
+    bool c;
+    oop v;
+    a = fp[JIT_HOLE(A)];
+    b = ({
+    r_operand = fr->lits[JIT_HOLE(B)];
+    goto exit_operand;
+    r_operand = JIT_HOLE(VALUE);
+exit_operand:;
+    r_operand; });
+    o = a & b;
+    if (!((o & 1) != 0)) {
+        sp[1] = a;
+        sp[2] = b;
+        JIT_SET(sp, sp + 2);
+        JIT_TAIL(SLOW);
+    }
+    c = ({
+    r_compare = (int64_t)a >= (int64_t)b;
+    goto exit_compare;
+    r_compare = a != b;
+exit_compare:;
+    r_compare; });
+    v = c ? st->true_oop : st->false_oop;
+    JIT_SET(sp, sp + 1);
+    *sp = v;
+    JIT_TAIL(NEXT);
+}
+
+/* JitStencils>>compareOperands case 11 */
+JIT_STENCIL_FN void stencil_compare_operands_11(JIT_ARGS)
+{
+    oop a;
+    uint64_t r_operand;
+    uint64_t b;
+    oop o;
+    bool r_compare;
+    bool c;
+    oop v;
+    a = fp[JIT_HOLE(A)];
+    b = ({
+    r_operand = JIT_HOLE(VALUE);
+    r_operand; });
+    o = a & b;
+    if (!((o & 1) != 0)) {
+        sp[1] = a;
+        sp[2] = b;
+        JIT_SET(sp, sp + 2);
+        JIT_TAIL(SLOW);
+    }
+    c = ({
+    r_compare = (int64_t)a >= (int64_t)b;
+    goto exit_compare;
+    r_compare = a != b;
+exit_compare:;
+    r_compare; });
+    v = c ? st->true_oop : st->false_oop;
+    JIT_SET(sp, sp + 1);
+    *sp = v;
+    JIT_TAIL(NEXT);
+}
+
+/* JitStencils>>compareOperandsJumpFalse case 0 */
+JIT_STENCIL_FN void stencil_compare_operands_jump_false_0(JIT_ARGS)
+{
+    oop a;
+    oop r_operand;
+    oop b;
+    oop o;
+    bool r_compare;
+    a = fp[JIT_HOLE(A)];
+    b = ({
+    r_operand = fp[JIT_HOLE(B)];
+    goto exit_operand;
+    r_operand = JIT_HOLE(VALUE);
+exit_operand:;
+    r_operand; });
+    o = a & b;
+    if (!((o & 1) != 0)) {
+        sp[1] = a;
+        sp[2] = b;
+        JIT_SET(sp, sp + 2);
+        JIT_TAIL(SLOW);
+    }
+    if (({
+    r_compare = (int64_t)a < (int64_t)b;
+    goto exit_compare;
+    r_compare = a != b;
+exit_compare:;
+    r_compare; }) == false) {
+        JIT_TAIL(JUMP);
+    }
+    JIT_TAIL(NEXT);
+}
+
+/* JitStencils>>compareOperandsJumpFalse case 1 */
+JIT_STENCIL_FN void stencil_compare_operands_jump_false_1(JIT_ARGS)
+{
+    oop a;
+    oop r_operand;
+    oop b;
+    oop o;
+    bool r_compare;
+    a = fp[JIT_HOLE(A)];
+    b = ({
+    r_operand = fr->lits[JIT_HOLE(B)];
+    goto exit_operand;
+    r_operand = JIT_HOLE(VALUE);
+exit_operand:;
+    r_operand; });
+    o = a & b;
+    if (!((o & 1) != 0)) {
+        sp[1] = a;
+        sp[2] = b;
+        JIT_SET(sp, sp + 2);
+        JIT_TAIL(SLOW);
+    }
+    if (({
+    r_compare = (int64_t)a < (int64_t)b;
+    goto exit_compare;
+    r_compare = a != b;
+exit_compare:;
+    r_compare; }) == false) {
+        JIT_TAIL(JUMP);
+    }
+    JIT_TAIL(NEXT);
+}
+
+/* JitStencils>>compareOperandsJumpFalse case 2 */
+JIT_STENCIL_FN void stencil_compare_operands_jump_false_2(JIT_ARGS)
+{
+    oop a;
+    uint64_t r_operand;
+    uint64_t b;
+    oop o;
+    bool r_compare;
+    a = fp[JIT_HOLE(A)];
+    b = ({
+    r_operand = JIT_HOLE(VALUE);
+    r_operand; });
+    o = a & b;
+    if (!((o & 1) != 0)) {
+        sp[1] = a;
+        sp[2] = b;
+        JIT_SET(sp, sp + 2);
+        JIT_TAIL(SLOW);
+    }
+    if (({
+    r_compare = (int64_t)a < (int64_t)b;
+    goto exit_compare;
+    r_compare = a != b;
+exit_compare:;
+    r_compare; }) == false) {
+        JIT_TAIL(JUMP);
+    }
+    JIT_TAIL(NEXT);
+}
+
+/* JitStencils>>compareOperandsJumpFalse case 3 */
+JIT_STENCIL_FN void stencil_compare_operands_jump_false_3(JIT_ARGS)
+{
+    oop a;
+    oop r_operand;
+    oop b;
+    oop o;
+    bool r_compare;
+    a = fp[JIT_HOLE(A)];
+    b = ({
+    r_operand = fp[JIT_HOLE(B)];
+    goto exit_operand;
+    r_operand = JIT_HOLE(VALUE);
+exit_operand:;
+    r_operand; });
+    o = a & b;
+    if (!((o & 1) != 0)) {
+        sp[1] = a;
+        sp[2] = b;
+        JIT_SET(sp, sp + 2);
+        JIT_TAIL(SLOW);
+    }
+    if (({
+    r_compare = (int64_t)a > (int64_t)b;
+    goto exit_compare;
+    r_compare = a != b;
+exit_compare:;
+    r_compare; }) == false) {
+        JIT_TAIL(JUMP);
+    }
+    JIT_TAIL(NEXT);
+}
+
+/* JitStencils>>compareOperandsJumpFalse case 4 */
+JIT_STENCIL_FN void stencil_compare_operands_jump_false_4(JIT_ARGS)
+{
+    oop a;
+    oop r_operand;
+    oop b;
+    oop o;
+    bool r_compare;
+    a = fp[JIT_HOLE(A)];
+    b = ({
+    r_operand = fr->lits[JIT_HOLE(B)];
+    goto exit_operand;
+    r_operand = JIT_HOLE(VALUE);
+exit_operand:;
+    r_operand; });
+    o = a & b;
+    if (!((o & 1) != 0)) {
+        sp[1] = a;
+        sp[2] = b;
+        JIT_SET(sp, sp + 2);
+        JIT_TAIL(SLOW);
+    }
+    if (({
+    r_compare = (int64_t)a > (int64_t)b;
+    goto exit_compare;
+    r_compare = a != b;
+exit_compare:;
+    r_compare; }) == false) {
+        JIT_TAIL(JUMP);
+    }
+    JIT_TAIL(NEXT);
+}
+
+/* JitStencils>>compareOperandsJumpFalse case 5 */
+JIT_STENCIL_FN void stencil_compare_operands_jump_false_5(JIT_ARGS)
+{
+    oop a;
+    uint64_t r_operand;
+    uint64_t b;
+    oop o;
+    bool r_compare;
+    a = fp[JIT_HOLE(A)];
+    b = ({
+    r_operand = JIT_HOLE(VALUE);
+    r_operand; });
+    o = a & b;
+    if (!((o & 1) != 0)) {
+        sp[1] = a;
+        sp[2] = b;
+        JIT_SET(sp, sp + 2);
+        JIT_TAIL(SLOW);
+    }
+    if (({
+    r_compare = (int64_t)a > (int64_t)b;
+    goto exit_compare;
+    r_compare = a != b;
+exit_compare:;
+    r_compare; }) == false) {
+        JIT_TAIL(JUMP);
+    }
+    JIT_TAIL(NEXT);
+}
+
+/* JitStencils>>compareOperandsJumpFalse case 6 */
+JIT_STENCIL_FN void stencil_compare_operands_jump_false_6(JIT_ARGS)
+{
+    oop a;
+    oop r_operand;
+    oop b;
+    oop o;
+    bool r_compare;
+    a = fp[JIT_HOLE(A)];
+    b = ({
+    r_operand = fp[JIT_HOLE(B)];
+    goto exit_operand;
+    r_operand = JIT_HOLE(VALUE);
+exit_operand:;
+    r_operand; });
+    o = a & b;
+    if (!((o & 1) != 0)) {
+        sp[1] = a;
+        sp[2] = b;
+        JIT_SET(sp, sp + 2);
+        JIT_TAIL(SLOW);
+    }
+    if (({
+    r_compare = (int64_t)a <= (int64_t)b;
+    goto exit_compare;
+    r_compare = a != b;
+exit_compare:;
+    r_compare; }) == false) {
+        JIT_TAIL(JUMP);
+    }
+    JIT_TAIL(NEXT);
+}
+
+/* JitStencils>>compareOperandsJumpFalse case 7 */
+JIT_STENCIL_FN void stencil_compare_operands_jump_false_7(JIT_ARGS)
+{
+    oop a;
+    oop r_operand;
+    oop b;
+    oop o;
+    bool r_compare;
+    a = fp[JIT_HOLE(A)];
+    b = ({
+    r_operand = fr->lits[JIT_HOLE(B)];
+    goto exit_operand;
+    r_operand = JIT_HOLE(VALUE);
+exit_operand:;
+    r_operand; });
+    o = a & b;
+    if (!((o & 1) != 0)) {
+        sp[1] = a;
+        sp[2] = b;
+        JIT_SET(sp, sp + 2);
+        JIT_TAIL(SLOW);
+    }
+    if (({
+    r_compare = (int64_t)a <= (int64_t)b;
+    goto exit_compare;
+    r_compare = a != b;
+exit_compare:;
+    r_compare; }) == false) {
+        JIT_TAIL(JUMP);
+    }
+    JIT_TAIL(NEXT);
+}
+
+/* JitStencils>>compareOperandsJumpFalse case 8 */
+JIT_STENCIL_FN void stencil_compare_operands_jump_false_8(JIT_ARGS)
+{
+    oop a;
+    uint64_t r_operand;
+    uint64_t b;
+    oop o;
+    bool r_compare;
+    a = fp[JIT_HOLE(A)];
+    b = ({
+    r_operand = JIT_HOLE(VALUE);
+    r_operand; });
+    o = a & b;
+    if (!((o & 1) != 0)) {
+        sp[1] = a;
+        sp[2] = b;
+        JIT_SET(sp, sp + 2);
+        JIT_TAIL(SLOW);
+    }
+    if (({
+    r_compare = (int64_t)a <= (int64_t)b;
+    goto exit_compare;
+    r_compare = a != b;
+exit_compare:;
+    r_compare; }) == false) {
+        JIT_TAIL(JUMP);
+    }
+    JIT_TAIL(NEXT);
+}
+
+/* JitStencils>>compareOperandsJumpFalse case 9 */
+JIT_STENCIL_FN void stencil_compare_operands_jump_false_9(JIT_ARGS)
+{
+    oop a;
+    oop r_operand;
+    oop b;
+    oop o;
+    bool r_compare;
+    a = fp[JIT_HOLE(A)];
+    b = ({
+    r_operand = fp[JIT_HOLE(B)];
+    goto exit_operand;
+    r_operand = JIT_HOLE(VALUE);
+exit_operand:;
+    r_operand; });
+    o = a & b;
+    if (!((o & 1) != 0)) {
+        sp[1] = a;
+        sp[2] = b;
+        JIT_SET(sp, sp + 2);
+        JIT_TAIL(SLOW);
+    }
+    if (({
+    r_compare = (int64_t)a >= (int64_t)b;
+    goto exit_compare;
+    r_compare = a != b;
+exit_compare:;
+    r_compare; }) == false) {
+        JIT_TAIL(JUMP);
+    }
+    JIT_TAIL(NEXT);
+}
+
+/* JitStencils>>compareOperandsJumpFalse case 10 */
+JIT_STENCIL_FN void stencil_compare_operands_jump_false_10(JIT_ARGS)
+{
+    oop a;
+    oop r_operand;
+    oop b;
+    oop o;
+    bool r_compare;
+    a = fp[JIT_HOLE(A)];
+    b = ({
+    r_operand = fr->lits[JIT_HOLE(B)];
+    goto exit_operand;
+    r_operand = JIT_HOLE(VALUE);
+exit_operand:;
+    r_operand; });
+    o = a & b;
+    if (!((o & 1) != 0)) {
+        sp[1] = a;
+        sp[2] = b;
+        JIT_SET(sp, sp + 2);
+        JIT_TAIL(SLOW);
+    }
+    if (({
+    r_compare = (int64_t)a >= (int64_t)b;
+    goto exit_compare;
+    r_compare = a != b;
+exit_compare:;
+    r_compare; }) == false) {
+        JIT_TAIL(JUMP);
+    }
+    JIT_TAIL(NEXT);
+}
+
+/* JitStencils>>compareOperandsJumpFalse case 11 */
+JIT_STENCIL_FN void stencil_compare_operands_jump_false_11(JIT_ARGS)
+{
+    oop a;
+    uint64_t r_operand;
+    uint64_t b;
+    oop o;
+    bool r_compare;
+    a = fp[JIT_HOLE(A)];
+    b = ({
+    r_operand = JIT_HOLE(VALUE);
+    r_operand; });
+    o = a & b;
+    if (!((o & 1) != 0)) {
+        sp[1] = a;
+        sp[2] = b;
+        JIT_SET(sp, sp + 2);
+        JIT_TAIL(SLOW);
+    }
+    if (({
+    r_compare = (int64_t)a >= (int64_t)b;
+    goto exit_compare;
+    r_compare = a != b;
+exit_compare:;
+    r_compare; }) == false) {
+        JIT_TAIL(JUMP);
+    }
+    JIT_TAIL(NEXT);
+}
+
+/* JitStencils>>compareOperandsJumpTrue case 0 */
+JIT_STENCIL_FN void stencil_compare_operands_jump_true_0(JIT_ARGS)
+{
+    oop a;
+    oop r_operand;
+    oop b;
+    oop o;
+    bool r_compare;
+    a = fp[JIT_HOLE(A)];
+    b = ({
+    r_operand = fp[JIT_HOLE(B)];
+    goto exit_operand;
+    r_operand = JIT_HOLE(VALUE);
+exit_operand:;
+    r_operand; });
+    o = a & b;
+    if (!((o & 1) != 0)) {
+        sp[1] = a;
+        sp[2] = b;
+        JIT_SET(sp, sp + 2);
+        JIT_TAIL(SLOW);
+    }
+    if (({
+    r_compare = (int64_t)a < (int64_t)b;
+    goto exit_compare;
+    r_compare = a != b;
+exit_compare:;
+    r_compare; }) == true) {
+        JIT_TAIL(JUMP);
+    }
+    JIT_TAIL(NEXT);
+}
+
+/* JitStencils>>compareOperandsJumpTrue case 1 */
+JIT_STENCIL_FN void stencil_compare_operands_jump_true_1(JIT_ARGS)
+{
+    oop a;
+    oop r_operand;
+    oop b;
+    oop o;
+    bool r_compare;
+    a = fp[JIT_HOLE(A)];
+    b = ({
+    r_operand = fr->lits[JIT_HOLE(B)];
+    goto exit_operand;
+    r_operand = JIT_HOLE(VALUE);
+exit_operand:;
+    r_operand; });
+    o = a & b;
+    if (!((o & 1) != 0)) {
+        sp[1] = a;
+        sp[2] = b;
+        JIT_SET(sp, sp + 2);
+        JIT_TAIL(SLOW);
+    }
+    if (({
+    r_compare = (int64_t)a < (int64_t)b;
+    goto exit_compare;
+    r_compare = a != b;
+exit_compare:;
+    r_compare; }) == true) {
+        JIT_TAIL(JUMP);
+    }
+    JIT_TAIL(NEXT);
+}
+
+/* JitStencils>>compareOperandsJumpTrue case 2 */
+JIT_STENCIL_FN void stencil_compare_operands_jump_true_2(JIT_ARGS)
+{
+    oop a;
+    uint64_t r_operand;
+    uint64_t b;
+    oop o;
+    bool r_compare;
+    a = fp[JIT_HOLE(A)];
+    b = ({
+    r_operand = JIT_HOLE(VALUE);
+    r_operand; });
+    o = a & b;
+    if (!((o & 1) != 0)) {
+        sp[1] = a;
+        sp[2] = b;
+        JIT_SET(sp, sp + 2);
+        JIT_TAIL(SLOW);
+    }
+    if (({
+    r_compare = (int64_t)a < (int64_t)b;
+    goto exit_compare;
+    r_compare = a != b;
+exit_compare:;
+    r_compare; }) == true) {
+        JIT_TAIL(JUMP);
+    }
+    JIT_TAIL(NEXT);
+}
+
+/* JitStencils>>compareOperandsJumpTrue case 3 */
+JIT_STENCIL_FN void stencil_compare_operands_jump_true_3(JIT_ARGS)
+{
+    oop a;
+    oop r_operand;
+    oop b;
+    oop o;
+    bool r_compare;
+    a = fp[JIT_HOLE(A)];
+    b = ({
+    r_operand = fp[JIT_HOLE(B)];
+    goto exit_operand;
+    r_operand = JIT_HOLE(VALUE);
+exit_operand:;
+    r_operand; });
+    o = a & b;
+    if (!((o & 1) != 0)) {
+        sp[1] = a;
+        sp[2] = b;
+        JIT_SET(sp, sp + 2);
+        JIT_TAIL(SLOW);
+    }
+    if (({
+    r_compare = (int64_t)a > (int64_t)b;
+    goto exit_compare;
+    r_compare = a != b;
+exit_compare:;
+    r_compare; }) == true) {
+        JIT_TAIL(JUMP);
+    }
+    JIT_TAIL(NEXT);
+}
+
+/* JitStencils>>compareOperandsJumpTrue case 4 */
+JIT_STENCIL_FN void stencil_compare_operands_jump_true_4(JIT_ARGS)
+{
+    oop a;
+    oop r_operand;
+    oop b;
+    oop o;
+    bool r_compare;
+    a = fp[JIT_HOLE(A)];
+    b = ({
+    r_operand = fr->lits[JIT_HOLE(B)];
+    goto exit_operand;
+    r_operand = JIT_HOLE(VALUE);
+exit_operand:;
+    r_operand; });
+    o = a & b;
+    if (!((o & 1) != 0)) {
+        sp[1] = a;
+        sp[2] = b;
+        JIT_SET(sp, sp + 2);
+        JIT_TAIL(SLOW);
+    }
+    if (({
+    r_compare = (int64_t)a > (int64_t)b;
+    goto exit_compare;
+    r_compare = a != b;
+exit_compare:;
+    r_compare; }) == true) {
+        JIT_TAIL(JUMP);
+    }
+    JIT_TAIL(NEXT);
+}
+
+/* JitStencils>>compareOperandsJumpTrue case 5 */
+JIT_STENCIL_FN void stencil_compare_operands_jump_true_5(JIT_ARGS)
+{
+    oop a;
+    uint64_t r_operand;
+    uint64_t b;
+    oop o;
+    bool r_compare;
+    a = fp[JIT_HOLE(A)];
+    b = ({
+    r_operand = JIT_HOLE(VALUE);
+    r_operand; });
+    o = a & b;
+    if (!((o & 1) != 0)) {
+        sp[1] = a;
+        sp[2] = b;
+        JIT_SET(sp, sp + 2);
+        JIT_TAIL(SLOW);
+    }
+    if (({
+    r_compare = (int64_t)a > (int64_t)b;
+    goto exit_compare;
+    r_compare = a != b;
+exit_compare:;
+    r_compare; }) == true) {
+        JIT_TAIL(JUMP);
+    }
+    JIT_TAIL(NEXT);
+}
+
+/* JitStencils>>compareOperandsJumpTrue case 6 */
+JIT_STENCIL_FN void stencil_compare_operands_jump_true_6(JIT_ARGS)
+{
+    oop a;
+    oop r_operand;
+    oop b;
+    oop o;
+    bool r_compare;
+    a = fp[JIT_HOLE(A)];
+    b = ({
+    r_operand = fp[JIT_HOLE(B)];
+    goto exit_operand;
+    r_operand = JIT_HOLE(VALUE);
+exit_operand:;
+    r_operand; });
+    o = a & b;
+    if (!((o & 1) != 0)) {
+        sp[1] = a;
+        sp[2] = b;
+        JIT_SET(sp, sp + 2);
+        JIT_TAIL(SLOW);
+    }
+    if (({
+    r_compare = (int64_t)a <= (int64_t)b;
+    goto exit_compare;
+    r_compare = a != b;
+exit_compare:;
+    r_compare; }) == true) {
+        JIT_TAIL(JUMP);
+    }
+    JIT_TAIL(NEXT);
+}
+
+/* JitStencils>>compareOperandsJumpTrue case 7 */
+JIT_STENCIL_FN void stencil_compare_operands_jump_true_7(JIT_ARGS)
+{
+    oop a;
+    oop r_operand;
+    oop b;
+    oop o;
+    bool r_compare;
+    a = fp[JIT_HOLE(A)];
+    b = ({
+    r_operand = fr->lits[JIT_HOLE(B)];
+    goto exit_operand;
+    r_operand = JIT_HOLE(VALUE);
+exit_operand:;
+    r_operand; });
+    o = a & b;
+    if (!((o & 1) != 0)) {
+        sp[1] = a;
+        sp[2] = b;
+        JIT_SET(sp, sp + 2);
+        JIT_TAIL(SLOW);
+    }
+    if (({
+    r_compare = (int64_t)a <= (int64_t)b;
+    goto exit_compare;
+    r_compare = a != b;
+exit_compare:;
+    r_compare; }) == true) {
+        JIT_TAIL(JUMP);
+    }
+    JIT_TAIL(NEXT);
+}
+
+/* JitStencils>>compareOperandsJumpTrue case 8 */
+JIT_STENCIL_FN void stencil_compare_operands_jump_true_8(JIT_ARGS)
+{
+    oop a;
+    uint64_t r_operand;
+    uint64_t b;
+    oop o;
+    bool r_compare;
+    a = fp[JIT_HOLE(A)];
+    b = ({
+    r_operand = JIT_HOLE(VALUE);
+    r_operand; });
+    o = a & b;
+    if (!((o & 1) != 0)) {
+        sp[1] = a;
+        sp[2] = b;
+        JIT_SET(sp, sp + 2);
+        JIT_TAIL(SLOW);
+    }
+    if (({
+    r_compare = (int64_t)a <= (int64_t)b;
+    goto exit_compare;
+    r_compare = a != b;
+exit_compare:;
+    r_compare; }) == true) {
+        JIT_TAIL(JUMP);
+    }
+    JIT_TAIL(NEXT);
+}
+
+/* JitStencils>>compareOperandsJumpTrue case 9 */
+JIT_STENCIL_FN void stencil_compare_operands_jump_true_9(JIT_ARGS)
+{
+    oop a;
+    oop r_operand;
+    oop b;
+    oop o;
+    bool r_compare;
+    a = fp[JIT_HOLE(A)];
+    b = ({
+    r_operand = fp[JIT_HOLE(B)];
+    goto exit_operand;
+    r_operand = JIT_HOLE(VALUE);
+exit_operand:;
+    r_operand; });
+    o = a & b;
+    if (!((o & 1) != 0)) {
+        sp[1] = a;
+        sp[2] = b;
+        JIT_SET(sp, sp + 2);
+        JIT_TAIL(SLOW);
+    }
+    if (({
+    r_compare = (int64_t)a >= (int64_t)b;
+    goto exit_compare;
+    r_compare = a != b;
+exit_compare:;
+    r_compare; }) == true) {
+        JIT_TAIL(JUMP);
+    }
+    JIT_TAIL(NEXT);
+}
+
+/* JitStencils>>compareOperandsJumpTrue case 10 */
+JIT_STENCIL_FN void stencil_compare_operands_jump_true_10(JIT_ARGS)
+{
+    oop a;
+    oop r_operand;
+    oop b;
+    oop o;
+    bool r_compare;
+    a = fp[JIT_HOLE(A)];
+    b = ({
+    r_operand = fr->lits[JIT_HOLE(B)];
+    goto exit_operand;
+    r_operand = JIT_HOLE(VALUE);
+exit_operand:;
+    r_operand; });
+    o = a & b;
+    if (!((o & 1) != 0)) {
+        sp[1] = a;
+        sp[2] = b;
+        JIT_SET(sp, sp + 2);
+        JIT_TAIL(SLOW);
+    }
+    if (({
+    r_compare = (int64_t)a >= (int64_t)b;
+    goto exit_compare;
+    r_compare = a != b;
+exit_compare:;
+    r_compare; }) == true) {
+        JIT_TAIL(JUMP);
+    }
+    JIT_TAIL(NEXT);
+}
+
+/* JitStencils>>compareOperandsJumpTrue case 11 */
+JIT_STENCIL_FN void stencil_compare_operands_jump_true_11(JIT_ARGS)
+{
+    oop a;
+    uint64_t r_operand;
+    uint64_t b;
+    oop o;
+    bool r_compare;
+    a = fp[JIT_HOLE(A)];
+    b = ({
+    r_operand = JIT_HOLE(VALUE);
+    r_operand; });
+    o = a & b;
+    if (!((o & 1) != 0)) {
+        sp[1] = a;
+        sp[2] = b;
+        JIT_SET(sp, sp + 2);
+        JIT_TAIL(SLOW);
+    }
+    if (({
+    r_compare = (int64_t)a >= (int64_t)b;
+    goto exit_compare;
+    r_compare = a != b;
+exit_compare:;
     r_compare; }) == true) {
         JIT_TAIL(JUMP);
     }
@@ -718,7 +2133,7 @@ JIT_STENCIL_FN void stencil_divide(JIT_ARGS)
     (v >= VM_INT_MIN) && (v <= VM_INT_MAX); }))) {
             v_2 = x / y;
             v_3 = (uint64_t)((v_2 << 1) | 1);
-            sp = sp - 1;
+            JIT_SET(sp, sp - 1);
             *sp = v_3;
             JIT_TAIL(NEXT);
         }
@@ -730,7 +2145,7 @@ JIT_STENCIL_FN void stencil_divide(JIT_ARGS)
 JIT_STENCIL_FN void stencil_dup(JIT_ARGS)
 {
     sp[1] = *sp;
-    sp = sp + 1;
+    JIT_SET(sp, sp + 1);
     JIT_TAIL(NEXT);
 }
 
@@ -749,7 +2164,7 @@ JIT_STENCIL_FN void stencil_entry(JIT_ARGS)
         r_leave_after_interrupt = true;
         goto exit_leave_after_interrupt;
     }
-    rcv = fp[-1];
+    JIT_SET(rcv, fp[-1]);
     r_leave_after_interrupt = false;
 exit_leave_after_interrupt:;
     r_leave_after_interrupt; })) {
@@ -824,7 +2239,7 @@ exit_num_val_2:;
 exit_float_imm:;
     r_float_imm; });
         if (f != 0) {
-            sp = sp - 1;
+            JIT_SET(sp, sp - 1);
             *sp = f;
             JIT_TAIL(NEXT);
         }
@@ -835,11 +2250,11 @@ exit_float_imm:;
     if (r_3 == 1) {
         JIT_TAIL(EXIT);
     }
-    sp = sp - (JIT_HOLE(INFO) & 255);
+    JIT_SET(sp, sp - (JIT_HOLE(INFO) & 255));
     if (r_3 != 0) {
         JIT_CALL(r_3);
     }
-    rcv = fp[-1];
+    JIT_SET(rcv, fp[-1]);
     JIT_TAIL(NEXT);
 }
 
@@ -909,7 +2324,7 @@ exit_num_val_2:;
 exit_float_imm:;
     r_float_imm; });
         if (f != 0) {
-            sp = sp - 1;
+            JIT_SET(sp, sp - 1);
             *sp = f;
             JIT_TAIL(NEXT);
         }
@@ -920,11 +2335,11 @@ exit_float_imm:;
     if (r_3 == 1) {
         JIT_TAIL(EXIT);
     }
-    sp = sp - (JIT_HOLE(INFO) & 255);
+    JIT_SET(sp, sp - (JIT_HOLE(INFO) & 255));
     if (r_3 != 0) {
         JIT_CALL(r_3);
     }
-    rcv = fp[-1];
+    JIT_SET(rcv, fp[-1]);
     JIT_TAIL(NEXT);
 }
 
@@ -988,7 +2403,7 @@ exit_num_val_2:;
 exit_compare_float:;
     r_compare_float; });
         v = c ? st->true_oop : st->false_oop;
-        sp = sp - 1;
+        JIT_SET(sp, sp - 1);
         *sp = v;
         JIT_TAIL(NEXT);
         d = x / y;
@@ -1007,7 +2422,7 @@ exit_compare_float:;
 exit_float_imm:;
     r_float_imm; });
         if (f != 0) {
-            sp = sp - 1;
+            JIT_SET(sp, sp - 1);
             *sp = f;
             JIT_TAIL(NEXT);
         }
@@ -1018,11 +2433,11 @@ exit_float_imm:;
     if (r_3 == 1) {
         JIT_TAIL(EXIT);
     }
-    sp = sp - (JIT_HOLE(INFO) & 255);
+    JIT_SET(sp, sp - (JIT_HOLE(INFO) & 255));
     if (r_3 != 0) {
         JIT_CALL(r_3);
     }
-    rcv = fp[-1];
+    JIT_SET(rcv, fp[-1]);
     JIT_TAIL(NEXT);
 }
 
@@ -1086,7 +2501,7 @@ exit_num_val_2:;
 exit_compare_float:;
     r_compare_float; });
         v = c ? st->true_oop : st->false_oop;
-        sp = sp - 1;
+        JIT_SET(sp, sp - 1);
         *sp = v;
         JIT_TAIL(NEXT);
         d = x / y;
@@ -1105,7 +2520,7 @@ exit_compare_float:;
 exit_float_imm:;
     r_float_imm; });
         if (f != 0) {
-            sp = sp - 1;
+            JIT_SET(sp, sp - 1);
             *sp = f;
             JIT_TAIL(NEXT);
         }
@@ -1116,11 +2531,11 @@ exit_float_imm:;
     if (r_3 == 1) {
         JIT_TAIL(EXIT);
     }
-    sp = sp - (JIT_HOLE(INFO) & 255);
+    JIT_SET(sp, sp - (JIT_HOLE(INFO) & 255));
     if (r_3 != 0) {
         JIT_CALL(r_3);
     }
-    rcv = fp[-1];
+    JIT_SET(rcv, fp[-1]);
     JIT_TAIL(NEXT);
 }
 
@@ -1184,7 +2599,7 @@ exit_num_val_2:;
 exit_compare_float:;
     r_compare_float; });
         v = c ? st->true_oop : st->false_oop;
-        sp = sp - 1;
+        JIT_SET(sp, sp - 1);
         *sp = v;
         JIT_TAIL(NEXT);
         d = x / y;
@@ -1203,7 +2618,7 @@ exit_compare_float:;
 exit_float_imm:;
     r_float_imm; });
         if (f != 0) {
-            sp = sp - 1;
+            JIT_SET(sp, sp - 1);
             *sp = f;
             JIT_TAIL(NEXT);
         }
@@ -1214,11 +2629,11 @@ exit_float_imm:;
     if (r_3 == 1) {
         JIT_TAIL(EXIT);
     }
-    sp = sp - (JIT_HOLE(INFO) & 255);
+    JIT_SET(sp, sp - (JIT_HOLE(INFO) & 255));
     if (r_3 != 0) {
         JIT_CALL(r_3);
     }
-    rcv = fp[-1];
+    JIT_SET(rcv, fp[-1]);
     JIT_TAIL(NEXT);
 }
 
@@ -1282,7 +2697,7 @@ exit_num_val_2:;
 exit_compare_float:;
     r_compare_float; });
         v = c ? st->true_oop : st->false_oop;
-        sp = sp - 1;
+        JIT_SET(sp, sp - 1);
         *sp = v;
         JIT_TAIL(NEXT);
         d = x / y;
@@ -1301,7 +2716,7 @@ exit_compare_float:;
 exit_float_imm:;
     r_float_imm; });
         if (f != 0) {
-            sp = sp - 1;
+            JIT_SET(sp, sp - 1);
             *sp = f;
             JIT_TAIL(NEXT);
         }
@@ -1312,11 +2727,11 @@ exit_float_imm:;
     if (r_3 == 1) {
         JIT_TAIL(EXIT);
     }
-    sp = sp - (JIT_HOLE(INFO) & 255);
+    JIT_SET(sp, sp - (JIT_HOLE(INFO) & 255));
     if (r_3 != 0) {
         JIT_CALL(r_3);
     }
-    rcv = fp[-1];
+    JIT_SET(rcv, fp[-1]);
     JIT_TAIL(NEXT);
 }
 
@@ -1380,7 +2795,7 @@ exit_num_val_2:;
 exit_compare_float:;
     r_compare_float; });
         v = c ? st->true_oop : st->false_oop;
-        sp = sp - 1;
+        JIT_SET(sp, sp - 1);
         *sp = v;
         JIT_TAIL(NEXT);
         d = x / y;
@@ -1399,7 +2814,7 @@ exit_compare_float:;
 exit_float_imm:;
     r_float_imm; });
         if (f != 0) {
-            sp = sp - 1;
+            JIT_SET(sp, sp - 1);
             *sp = f;
             JIT_TAIL(NEXT);
         }
@@ -1410,11 +2825,11 @@ exit_float_imm:;
     if (r_3 == 1) {
         JIT_TAIL(EXIT);
     }
-    sp = sp - (JIT_HOLE(INFO) & 255);
+    JIT_SET(sp, sp - (JIT_HOLE(INFO) & 255));
     if (r_3 != 0) {
         JIT_CALL(r_3);
     }
-    rcv = fp[-1];
+    JIT_SET(rcv, fp[-1]);
     JIT_TAIL(NEXT);
 }
 
@@ -1475,7 +2890,7 @@ exit_num_val_2:;
     r_compare_float = x != y;
     r_compare_float; });
         v = c ? st->true_oop : st->false_oop;
-        sp = sp - 1;
+        JIT_SET(sp, sp - 1);
         *sp = v;
         JIT_TAIL(NEXT);
         d = x / y;
@@ -1494,7 +2909,7 @@ exit_num_val_2:;
 exit_float_imm:;
     r_float_imm; });
         if (f != 0) {
-            sp = sp - 1;
+            JIT_SET(sp, sp - 1);
             *sp = f;
             JIT_TAIL(NEXT);
         }
@@ -1505,11 +2920,11 @@ exit_float_imm:;
     if (r_3 == 1) {
         JIT_TAIL(EXIT);
     }
-    sp = sp - (JIT_HOLE(INFO) & 255);
+    JIT_SET(sp, sp - (JIT_HOLE(INFO) & 255));
     if (r_3 != 0) {
         JIT_CALL(r_3);
     }
-    rcv = fp[-1];
+    JIT_SET(rcv, fp[-1]);
     JIT_TAIL(NEXT);
 }
 
@@ -1579,7 +2994,7 @@ exit_num_val_2:;
 exit_float_imm:;
     r_float_imm; });
         if (f != 0) {
-            sp = sp - 1;
+            JIT_SET(sp, sp - 1);
             *sp = f;
             JIT_TAIL(NEXT);
         }
@@ -1590,11 +3005,11 @@ exit_float_imm:;
     if (r_3 == 1) {
         JIT_TAIL(EXIT);
     }
-    sp = sp - (JIT_HOLE(INFO) & 255);
+    JIT_SET(sp, sp - (JIT_HOLE(INFO) & 255));
     if (r_3 != 0) {
         JIT_CALL(r_3);
     }
-    rcv = fp[-1];
+    JIT_SET(rcv, fp[-1]);
     JIT_TAIL(NEXT);
 }
 
@@ -1665,7 +3080,7 @@ exit_num_val_2:;
 exit_float_imm:;
     r_float_imm; });
             if (f != 0) {
-                sp = sp - 1;
+                JIT_SET(sp, sp - 1);
                 *sp = f;
                 JIT_TAIL(NEXT);
             }
@@ -1677,11 +3092,11 @@ exit_float_imm:;
     if (r_3 == 1) {
         JIT_TAIL(EXIT);
     }
-    sp = sp - (JIT_HOLE(INFO) & 255);
+    JIT_SET(sp, sp - (JIT_HOLE(INFO) & 255));
     if (r_3 != 0) {
         JIT_CALL(r_3);
     }
-    rcv = fp[-1];
+    JIT_SET(rcv, fp[-1]);
     JIT_TAIL(NEXT);
 }
 
@@ -1712,7 +3127,7 @@ JIT_STENCIL_FN void stencil_floor_divide(JIT_ARGS)
     r_floor_div; });
         if ((q >= VM_INT_MIN) && (q <= VM_INT_MAX)) {
             v = (uint64_t)((q << 1) | 1);
-            sp = sp - 1;
+            JIT_SET(sp, sp - 1);
             *sp = v;
             JIT_TAIL(NEXT);
         }
@@ -1737,7 +3152,7 @@ JIT_STENCIL_FN void stencil_identical_19(JIT_ARGS)
 exit_compare:;
     r_compare; });
     v = c ? st->true_oop : st->false_oop;
-    sp = sp - 1;
+    JIT_SET(sp, sp - 1);
     *sp = v;
     JIT_TAIL(NEXT);
 }
@@ -1756,7 +3171,7 @@ JIT_STENCIL_FN void stencil_identical_20(JIT_ARGS)
     r_compare = a != b;
     r_compare; });
     v = c ? st->true_oop : st->false_oop;
-    sp = sp - 1;
+    JIT_SET(sp, sp - 1);
     *sp = v;
     JIT_TAIL(NEXT);
 }
@@ -1769,7 +3184,7 @@ JIT_STENCIL_FN void stencil_identical_jump_false_19(JIT_ARGS)
     bool r_compare;
     a = sp[-1];
     b = *sp;
-    sp = sp - 2;
+    JIT_SET(sp, sp - 2);
     if (({
     r_compare = a == b;
     goto exit_compare;
@@ -1789,7 +3204,7 @@ JIT_STENCIL_FN void stencil_identical_jump_false_20(JIT_ARGS)
     bool r_compare;
     a = sp[-1];
     b = *sp;
-    sp = sp - 2;
+    JIT_SET(sp, sp - 2);
     if (({
     r_compare = a != b;
     r_compare; }) == false) {
@@ -1806,7 +3221,7 @@ JIT_STENCIL_FN void stencil_identical_jump_true_19(JIT_ARGS)
     bool r_compare;
     a = sp[-1];
     b = *sp;
-    sp = sp - 2;
+    JIT_SET(sp, sp - 2);
     if (({
     r_compare = a == b;
     goto exit_compare;
@@ -1826,7 +3241,7 @@ JIT_STENCIL_FN void stencil_identical_jump_true_20(JIT_ARGS)
     bool r_compare;
     a = sp[-1];
     b = *sp;
-    sp = sp - 2;
+    JIT_SET(sp, sp - 2);
     if (({
     r_compare = a != b;
     r_compare; }) == true) {
@@ -1843,8 +3258,8 @@ JIT_STENCIL_FN void stencil_make_array(JIT_ARGS)
     if (jit_make_array(fr) != 0) {
         JIT_TAIL(EXIT);
     }
-    sp = sp - JIT_HOLE(A) + 1;
-    rcv = fp[-1];
+    JIT_SET(sp, sp - JIT_HOLE(A) + 1);
+    JIT_SET(rcv, fp[-1]);
     JIT_TAIL(NEXT);
 }
 
@@ -1874,7 +3289,7 @@ JIT_STENCIL_FN void stencil_modulo(JIT_ARGS)
     r_floor_mod = r;
     r_floor_mod; });
         v_2 = (uint64_t)((v << 1) | 1);
-        sp = sp - 1;
+        JIT_SET(sp, sp - 1);
         *sp = v_2;
         JIT_TAIL(NEXT);
     }
@@ -1896,7 +3311,7 @@ JIT_STENCIL_FN void stencil_multiply(JIT_ARGS)
         if (!__builtin_mul_overflow(((int64_t)a) >> 1, ((int64_t)b) >> 1, &r)) {
             if ((r >= VM_INT_MIN) && (r <= VM_INT_MAX)) {
                 v = (uint64_t)((r << 1) | 1);
-                sp = sp - 1;
+                JIT_SET(sp, sp - 1);
                 *sp = v;
                 JIT_TAIL(NEXT);
             }
@@ -1927,12 +3342,12 @@ JIT_STENCIL_FN void stencil_outer_temp_0(JIT_ARGS)
     if ((k & 1) != 0) {
         f = (frame *)st->frames + (((int64_t)k) >> 1);
         v = f->fp[JIT_HOLE(B)];
-        sp = sp + 1;
+        JIT_SET(sp, sp + 1);
         *sp = v;
     } else {
         i_2 = CTX_FIXED + JIT_HOLE(B);
         v_2 = *(uint64_t *)(c + 16 + 8 * i_2);
-        sp = sp + 1;
+        JIT_SET(sp, sp + 1);
         *sp = v_2;
     }
     JIT_TAIL(NEXT);
@@ -2007,7 +3422,7 @@ JIT_STENCIL_FN void stencil_outer_temp_2(JIT_ARGS)
             jit_write_barrier(c, v);
         }
     }
-    sp = sp - 1;
+    JIT_SET(sp, sp - 1);
     JIT_TAIL(NEXT);
 }
 
@@ -2038,7 +3453,7 @@ JIT_STENCIL_FN void stencil_point_coordinate_28(JIT_ARGS)
 /* JitStencils>>pop */
 JIT_STENCIL_FN void stencil_pop(JIT_ARGS)
 {
-    sp = sp - 1;
+    JIT_SET(sp, sp - 1);
     JIT_TAIL(NEXT);
 }
 
@@ -2057,7 +3472,7 @@ JIT_STENCIL_FN void stencil_pop_store_literal_variable_x(JIT_ARGS)
     if (((v & 7) == 0) && ((v - lo < span) && ((o - lo >= span) && (((*(uint64_t *)o) & H_REMEMBERED) == 0)))) {
         jit_write_barrier(o, v);
     }
-    sp = sp - 1;
+    JIT_SET(sp, sp - 1);
     JIT_TAIL(NEXT);
 }
 
@@ -2065,7 +3480,7 @@ JIT_STENCIL_FN void stencil_pop_store_literal_variable_x(JIT_ARGS)
 JIT_STENCIL_FN void stencil_pop_store_temp_0(JIT_ARGS)
 {
     fp[0] = *sp;
-    sp = sp - 1;
+    JIT_SET(sp, sp - 1);
     JIT_TAIL(NEXT);
 }
 
@@ -2073,7 +3488,7 @@ JIT_STENCIL_FN void stencil_pop_store_temp_0(JIT_ARGS)
 JIT_STENCIL_FN void stencil_pop_store_temp_1(JIT_ARGS)
 {
     fp[1] = *sp;
-    sp = sp - 1;
+    JIT_SET(sp, sp - 1);
     JIT_TAIL(NEXT);
 }
 
@@ -2081,7 +3496,7 @@ JIT_STENCIL_FN void stencil_pop_store_temp_1(JIT_ARGS)
 JIT_STENCIL_FN void stencil_pop_store_temp_2(JIT_ARGS)
 {
     fp[2] = *sp;
-    sp = sp - 1;
+    JIT_SET(sp, sp - 1);
     JIT_TAIL(NEXT);
 }
 
@@ -2089,7 +3504,7 @@ JIT_STENCIL_FN void stencil_pop_store_temp_2(JIT_ARGS)
 JIT_STENCIL_FN void stencil_pop_store_temp_3(JIT_ARGS)
 {
     fp[3] = *sp;
-    sp = sp - 1;
+    JIT_SET(sp, sp - 1);
     JIT_TAIL(NEXT);
 }
 
@@ -2097,7 +3512,7 @@ JIT_STENCIL_FN void stencil_pop_store_temp_3(JIT_ARGS)
 JIT_STENCIL_FN void stencil_pop_store_temp_4(JIT_ARGS)
 {
     fp[4] = *sp;
-    sp = sp - 1;
+    JIT_SET(sp, sp - 1);
     JIT_TAIL(NEXT);
 }
 
@@ -2105,7 +3520,7 @@ JIT_STENCIL_FN void stencil_pop_store_temp_4(JIT_ARGS)
 JIT_STENCIL_FN void stencil_pop_store_temp_5(JIT_ARGS)
 {
     fp[5] = *sp;
-    sp = sp - 1;
+    JIT_SET(sp, sp - 1);
     JIT_TAIL(NEXT);
 }
 
@@ -2113,7 +3528,7 @@ JIT_STENCIL_FN void stencil_pop_store_temp_5(JIT_ARGS)
 JIT_STENCIL_FN void stencil_pop_store_temp_6(JIT_ARGS)
 {
     fp[6] = *sp;
-    sp = sp - 1;
+    JIT_SET(sp, sp - 1);
     JIT_TAIL(NEXT);
 }
 
@@ -2121,7 +3536,7 @@ JIT_STENCIL_FN void stencil_pop_store_temp_6(JIT_ARGS)
 JIT_STENCIL_FN void stencil_pop_store_temp_7(JIT_ARGS)
 {
     fp[7] = *sp;
-    sp = sp - 1;
+    JIT_SET(sp, sp - 1);
     JIT_TAIL(NEXT);
 }
 
@@ -2129,7 +3544,7 @@ JIT_STENCIL_FN void stencil_pop_store_temp_7(JIT_ARGS)
 JIT_STENCIL_FN void stencil_pop_store_temp_x(JIT_ARGS)
 {
     fp[JIT_HOLE(A)] = *sp;
-    sp = sp - 1;
+    JIT_SET(sp, sp - 1);
     JIT_TAIL(NEXT);
 }
 
@@ -2138,7 +3553,7 @@ JIT_STENCIL_FN void stencil_push_constant(JIT_ARGS)
 {
     uint64_t v;
     v = JIT_HOLE(VALUE);
-    sp = sp + 1;
+    JIT_SET(sp, sp + 1);
     *sp = v;
     JIT_TAIL(NEXT);
 }
@@ -2148,7 +3563,7 @@ JIT_STENCIL_FN void stencil_push_false(JIT_ARGS)
 {
     oop v;
     v = st->false_oop;
-    sp = sp + 1;
+    JIT_SET(sp, sp + 1);
     *sp = v;
     JIT_TAIL(NEXT);
 }
@@ -2158,7 +3573,7 @@ JIT_STENCIL_FN void stencil_push_inst_var_0(JIT_ARGS)
 {
     oop v;
     v = ((oop *)(rcv + 16))[0];
-    sp = sp + 1;
+    JIT_SET(sp, sp + 1);
     *sp = v;
     JIT_TAIL(NEXT);
 }
@@ -2168,7 +3583,7 @@ JIT_STENCIL_FN void stencil_push_inst_var_1(JIT_ARGS)
 {
     oop v;
     v = ((oop *)(rcv + 16))[1];
-    sp = sp + 1;
+    JIT_SET(sp, sp + 1);
     *sp = v;
     JIT_TAIL(NEXT);
 }
@@ -2178,7 +3593,7 @@ JIT_STENCIL_FN void stencil_push_inst_var_2(JIT_ARGS)
 {
     oop v;
     v = ((oop *)(rcv + 16))[2];
-    sp = sp + 1;
+    JIT_SET(sp, sp + 1);
     *sp = v;
     JIT_TAIL(NEXT);
 }
@@ -2188,7 +3603,7 @@ JIT_STENCIL_FN void stencil_push_inst_var_3(JIT_ARGS)
 {
     oop v;
     v = ((oop *)(rcv + 16))[3];
-    sp = sp + 1;
+    JIT_SET(sp, sp + 1);
     *sp = v;
     JIT_TAIL(NEXT);
 }
@@ -2198,7 +3613,7 @@ JIT_STENCIL_FN void stencil_push_inst_var_4(JIT_ARGS)
 {
     oop v;
     v = ((oop *)(rcv + 16))[4];
-    sp = sp + 1;
+    JIT_SET(sp, sp + 1);
     *sp = v;
     JIT_TAIL(NEXT);
 }
@@ -2208,7 +3623,7 @@ JIT_STENCIL_FN void stencil_push_inst_var_5(JIT_ARGS)
 {
     oop v;
     v = ((oop *)(rcv + 16))[5];
-    sp = sp + 1;
+    JIT_SET(sp, sp + 1);
     *sp = v;
     JIT_TAIL(NEXT);
 }
@@ -2218,7 +3633,7 @@ JIT_STENCIL_FN void stencil_push_inst_var_6(JIT_ARGS)
 {
     oop v;
     v = ((oop *)(rcv + 16))[6];
-    sp = sp + 1;
+    JIT_SET(sp, sp + 1);
     *sp = v;
     JIT_TAIL(NEXT);
 }
@@ -2228,7 +3643,7 @@ JIT_STENCIL_FN void stencil_push_inst_var_7(JIT_ARGS)
 {
     oop v;
     v = ((oop *)(rcv + 16))[7];
-    sp = sp + 1;
+    JIT_SET(sp, sp + 1);
     *sp = v;
     JIT_TAIL(NEXT);
 }
@@ -2238,7 +3653,7 @@ JIT_STENCIL_FN void stencil_push_inst_var_8(JIT_ARGS)
 {
     oop v;
     v = ((oop *)(rcv + 16))[8];
-    sp = sp + 1;
+    JIT_SET(sp, sp + 1);
     *sp = v;
     JIT_TAIL(NEXT);
 }
@@ -2248,7 +3663,7 @@ JIT_STENCIL_FN void stencil_push_inst_var_9(JIT_ARGS)
 {
     oop v;
     v = ((oop *)(rcv + 16))[9];
-    sp = sp + 1;
+    JIT_SET(sp, sp + 1);
     *sp = v;
     JIT_TAIL(NEXT);
 }
@@ -2258,7 +3673,7 @@ JIT_STENCIL_FN void stencil_push_inst_var_10(JIT_ARGS)
 {
     oop v;
     v = ((oop *)(rcv + 16))[10];
-    sp = sp + 1;
+    JIT_SET(sp, sp + 1);
     *sp = v;
     JIT_TAIL(NEXT);
 }
@@ -2268,7 +3683,7 @@ JIT_STENCIL_FN void stencil_push_inst_var_11(JIT_ARGS)
 {
     oop v;
     v = ((oop *)(rcv + 16))[11];
-    sp = sp + 1;
+    JIT_SET(sp, sp + 1);
     *sp = v;
     JIT_TAIL(NEXT);
 }
@@ -2278,7 +3693,7 @@ JIT_STENCIL_FN void stencil_push_inst_var_12(JIT_ARGS)
 {
     oop v;
     v = ((oop *)(rcv + 16))[12];
-    sp = sp + 1;
+    JIT_SET(sp, sp + 1);
     *sp = v;
     JIT_TAIL(NEXT);
 }
@@ -2288,7 +3703,7 @@ JIT_STENCIL_FN void stencil_push_inst_var_13(JIT_ARGS)
 {
     oop v;
     v = ((oop *)(rcv + 16))[13];
-    sp = sp + 1;
+    JIT_SET(sp, sp + 1);
     *sp = v;
     JIT_TAIL(NEXT);
 }
@@ -2298,7 +3713,7 @@ JIT_STENCIL_FN void stencil_push_inst_var_14(JIT_ARGS)
 {
     oop v;
     v = ((oop *)(rcv + 16))[14];
-    sp = sp + 1;
+    JIT_SET(sp, sp + 1);
     *sp = v;
     JIT_TAIL(NEXT);
 }
@@ -2308,7 +3723,7 @@ JIT_STENCIL_FN void stencil_push_inst_var_15(JIT_ARGS)
 {
     oop v;
     v = ((oop *)(rcv + 16))[15];
-    sp = sp + 1;
+    JIT_SET(sp, sp + 1);
     *sp = v;
     JIT_TAIL(NEXT);
 }
@@ -2318,7 +3733,7 @@ JIT_STENCIL_FN void stencil_push_inst_var_x(JIT_ARGS)
 {
     oop v;
     v = ((oop *)(rcv + 16))[JIT_HOLE(A)];
-    sp = sp + 1;
+    JIT_SET(sp, sp + 1);
     *sp = v;
     JIT_TAIL(NEXT);
 }
@@ -2328,7 +3743,7 @@ JIT_STENCIL_FN void stencil_push_literal_0(JIT_ARGS)
 {
     oop v;
     v = fr->lits[0];
-    sp = sp + 1;
+    JIT_SET(sp, sp + 1);
     *sp = v;
     JIT_TAIL(NEXT);
 }
@@ -2338,7 +3753,7 @@ JIT_STENCIL_FN void stencil_push_literal_1(JIT_ARGS)
 {
     oop v;
     v = fr->lits[1];
-    sp = sp + 1;
+    JIT_SET(sp, sp + 1);
     *sp = v;
     JIT_TAIL(NEXT);
 }
@@ -2348,7 +3763,7 @@ JIT_STENCIL_FN void stencil_push_literal_2(JIT_ARGS)
 {
     oop v;
     v = fr->lits[2];
-    sp = sp + 1;
+    JIT_SET(sp, sp + 1);
     *sp = v;
     JIT_TAIL(NEXT);
 }
@@ -2358,7 +3773,7 @@ JIT_STENCIL_FN void stencil_push_literal_3(JIT_ARGS)
 {
     oop v;
     v = fr->lits[3];
-    sp = sp + 1;
+    JIT_SET(sp, sp + 1);
     *sp = v;
     JIT_TAIL(NEXT);
 }
@@ -2368,7 +3783,7 @@ JIT_STENCIL_FN void stencil_push_literal_4(JIT_ARGS)
 {
     oop v;
     v = fr->lits[4];
-    sp = sp + 1;
+    JIT_SET(sp, sp + 1);
     *sp = v;
     JIT_TAIL(NEXT);
 }
@@ -2378,7 +3793,7 @@ JIT_STENCIL_FN void stencil_push_literal_5(JIT_ARGS)
 {
     oop v;
     v = fr->lits[5];
-    sp = sp + 1;
+    JIT_SET(sp, sp + 1);
     *sp = v;
     JIT_TAIL(NEXT);
 }
@@ -2388,7 +3803,7 @@ JIT_STENCIL_FN void stencil_push_literal_6(JIT_ARGS)
 {
     oop v;
     v = fr->lits[6];
-    sp = sp + 1;
+    JIT_SET(sp, sp + 1);
     *sp = v;
     JIT_TAIL(NEXT);
 }
@@ -2398,7 +3813,7 @@ JIT_STENCIL_FN void stencil_push_literal_7(JIT_ARGS)
 {
     oop v;
     v = fr->lits[7];
-    sp = sp + 1;
+    JIT_SET(sp, sp + 1);
     *sp = v;
     JIT_TAIL(NEXT);
 }
@@ -2408,7 +3823,7 @@ JIT_STENCIL_FN void stencil_push_literal_8(JIT_ARGS)
 {
     oop v;
     v = fr->lits[8];
-    sp = sp + 1;
+    JIT_SET(sp, sp + 1);
     *sp = v;
     JIT_TAIL(NEXT);
 }
@@ -2418,7 +3833,7 @@ JIT_STENCIL_FN void stencil_push_literal_9(JIT_ARGS)
 {
     oop v;
     v = fr->lits[9];
-    sp = sp + 1;
+    JIT_SET(sp, sp + 1);
     *sp = v;
     JIT_TAIL(NEXT);
 }
@@ -2428,7 +3843,7 @@ JIT_STENCIL_FN void stencil_push_literal_10(JIT_ARGS)
 {
     oop v;
     v = fr->lits[10];
-    sp = sp + 1;
+    JIT_SET(sp, sp + 1);
     *sp = v;
     JIT_TAIL(NEXT);
 }
@@ -2438,7 +3853,7 @@ JIT_STENCIL_FN void stencil_push_literal_11(JIT_ARGS)
 {
     oop v;
     v = fr->lits[11];
-    sp = sp + 1;
+    JIT_SET(sp, sp + 1);
     *sp = v;
     JIT_TAIL(NEXT);
 }
@@ -2448,7 +3863,7 @@ JIT_STENCIL_FN void stencil_push_literal_12(JIT_ARGS)
 {
     oop v;
     v = fr->lits[12];
-    sp = sp + 1;
+    JIT_SET(sp, sp + 1);
     *sp = v;
     JIT_TAIL(NEXT);
 }
@@ -2458,7 +3873,7 @@ JIT_STENCIL_FN void stencil_push_literal_13(JIT_ARGS)
 {
     oop v;
     v = fr->lits[13];
-    sp = sp + 1;
+    JIT_SET(sp, sp + 1);
     *sp = v;
     JIT_TAIL(NEXT);
 }
@@ -2468,7 +3883,7 @@ JIT_STENCIL_FN void stencil_push_literal_14(JIT_ARGS)
 {
     oop v;
     v = fr->lits[14];
-    sp = sp + 1;
+    JIT_SET(sp, sp + 1);
     *sp = v;
     JIT_TAIL(NEXT);
 }
@@ -2478,7 +3893,7 @@ JIT_STENCIL_FN void stencil_push_literal_15(JIT_ARGS)
 {
     oop v;
     v = fr->lits[15];
-    sp = sp + 1;
+    JIT_SET(sp, sp + 1);
     *sp = v;
     JIT_TAIL(NEXT);
 }
@@ -2488,7 +3903,7 @@ JIT_STENCIL_FN void stencil_push_literal_16(JIT_ARGS)
 {
     oop v;
     v = fr->lits[16];
-    sp = sp + 1;
+    JIT_SET(sp, sp + 1);
     *sp = v;
     JIT_TAIL(NEXT);
 }
@@ -2498,7 +3913,7 @@ JIT_STENCIL_FN void stencil_push_literal_17(JIT_ARGS)
 {
     oop v;
     v = fr->lits[17];
-    sp = sp + 1;
+    JIT_SET(sp, sp + 1);
     *sp = v;
     JIT_TAIL(NEXT);
 }
@@ -2508,7 +3923,7 @@ JIT_STENCIL_FN void stencil_push_literal_18(JIT_ARGS)
 {
     oop v;
     v = fr->lits[18];
-    sp = sp + 1;
+    JIT_SET(sp, sp + 1);
     *sp = v;
     JIT_TAIL(NEXT);
 }
@@ -2518,7 +3933,7 @@ JIT_STENCIL_FN void stencil_push_literal_19(JIT_ARGS)
 {
     oop v;
     v = fr->lits[19];
-    sp = sp + 1;
+    JIT_SET(sp, sp + 1);
     *sp = v;
     JIT_TAIL(NEXT);
 }
@@ -2528,7 +3943,7 @@ JIT_STENCIL_FN void stencil_push_literal_20(JIT_ARGS)
 {
     oop v;
     v = fr->lits[20];
-    sp = sp + 1;
+    JIT_SET(sp, sp + 1);
     *sp = v;
     JIT_TAIL(NEXT);
 }
@@ -2538,7 +3953,7 @@ JIT_STENCIL_FN void stencil_push_literal_21(JIT_ARGS)
 {
     oop v;
     v = fr->lits[21];
-    sp = sp + 1;
+    JIT_SET(sp, sp + 1);
     *sp = v;
     JIT_TAIL(NEXT);
 }
@@ -2548,7 +3963,7 @@ JIT_STENCIL_FN void stencil_push_literal_22(JIT_ARGS)
 {
     oop v;
     v = fr->lits[22];
-    sp = sp + 1;
+    JIT_SET(sp, sp + 1);
     *sp = v;
     JIT_TAIL(NEXT);
 }
@@ -2558,7 +3973,7 @@ JIT_STENCIL_FN void stencil_push_literal_23(JIT_ARGS)
 {
     oop v;
     v = fr->lits[23];
-    sp = sp + 1;
+    JIT_SET(sp, sp + 1);
     *sp = v;
     JIT_TAIL(NEXT);
 }
@@ -2568,7 +3983,7 @@ JIT_STENCIL_FN void stencil_push_literal_24(JIT_ARGS)
 {
     oop v;
     v = fr->lits[24];
-    sp = sp + 1;
+    JIT_SET(sp, sp + 1);
     *sp = v;
     JIT_TAIL(NEXT);
 }
@@ -2578,7 +3993,7 @@ JIT_STENCIL_FN void stencil_push_literal_25(JIT_ARGS)
 {
     oop v;
     v = fr->lits[25];
-    sp = sp + 1;
+    JIT_SET(sp, sp + 1);
     *sp = v;
     JIT_TAIL(NEXT);
 }
@@ -2588,7 +4003,7 @@ JIT_STENCIL_FN void stencil_push_literal_26(JIT_ARGS)
 {
     oop v;
     v = fr->lits[26];
-    sp = sp + 1;
+    JIT_SET(sp, sp + 1);
     *sp = v;
     JIT_TAIL(NEXT);
 }
@@ -2598,7 +4013,7 @@ JIT_STENCIL_FN void stencil_push_literal_27(JIT_ARGS)
 {
     oop v;
     v = fr->lits[27];
-    sp = sp + 1;
+    JIT_SET(sp, sp + 1);
     *sp = v;
     JIT_TAIL(NEXT);
 }
@@ -2608,7 +4023,7 @@ JIT_STENCIL_FN void stencil_push_literal_28(JIT_ARGS)
 {
     oop v;
     v = fr->lits[28];
-    sp = sp + 1;
+    JIT_SET(sp, sp + 1);
     *sp = v;
     JIT_TAIL(NEXT);
 }
@@ -2618,7 +4033,7 @@ JIT_STENCIL_FN void stencil_push_literal_29(JIT_ARGS)
 {
     oop v;
     v = fr->lits[29];
-    sp = sp + 1;
+    JIT_SET(sp, sp + 1);
     *sp = v;
     JIT_TAIL(NEXT);
 }
@@ -2628,7 +4043,7 @@ JIT_STENCIL_FN void stencil_push_literal_30(JIT_ARGS)
 {
     oop v;
     v = fr->lits[30];
-    sp = sp + 1;
+    JIT_SET(sp, sp + 1);
     *sp = v;
     JIT_TAIL(NEXT);
 }
@@ -2638,7 +4053,7 @@ JIT_STENCIL_FN void stencil_push_literal_31(JIT_ARGS)
 {
     oop v;
     v = fr->lits[31];
-    sp = sp + 1;
+    JIT_SET(sp, sp + 1);
     *sp = v;
     JIT_TAIL(NEXT);
 }
@@ -2650,7 +4065,7 @@ JIT_STENCIL_FN void stencil_push_literal_variable_0(JIT_ARGS)
     oop v;
     o = fr->lits[0];
     v = ((oop *)(o + 16))[ASSOC_VALUE];
-    sp = sp + 1;
+    JIT_SET(sp, sp + 1);
     *sp = v;
     JIT_TAIL(NEXT);
 }
@@ -2662,7 +4077,7 @@ JIT_STENCIL_FN void stencil_push_literal_variable_1(JIT_ARGS)
     oop v;
     o = fr->lits[1];
     v = ((oop *)(o + 16))[ASSOC_VALUE];
-    sp = sp + 1;
+    JIT_SET(sp, sp + 1);
     *sp = v;
     JIT_TAIL(NEXT);
 }
@@ -2674,7 +4089,7 @@ JIT_STENCIL_FN void stencil_push_literal_variable_2(JIT_ARGS)
     oop v;
     o = fr->lits[2];
     v = ((oop *)(o + 16))[ASSOC_VALUE];
-    sp = sp + 1;
+    JIT_SET(sp, sp + 1);
     *sp = v;
     JIT_TAIL(NEXT);
 }
@@ -2686,7 +4101,7 @@ JIT_STENCIL_FN void stencil_push_literal_variable_3(JIT_ARGS)
     oop v;
     o = fr->lits[3];
     v = ((oop *)(o + 16))[ASSOC_VALUE];
-    sp = sp + 1;
+    JIT_SET(sp, sp + 1);
     *sp = v;
     JIT_TAIL(NEXT);
 }
@@ -2698,7 +4113,7 @@ JIT_STENCIL_FN void stencil_push_literal_variable_4(JIT_ARGS)
     oop v;
     o = fr->lits[4];
     v = ((oop *)(o + 16))[ASSOC_VALUE];
-    sp = sp + 1;
+    JIT_SET(sp, sp + 1);
     *sp = v;
     JIT_TAIL(NEXT);
 }
@@ -2710,7 +4125,7 @@ JIT_STENCIL_FN void stencil_push_literal_variable_5(JIT_ARGS)
     oop v;
     o = fr->lits[5];
     v = ((oop *)(o + 16))[ASSOC_VALUE];
-    sp = sp + 1;
+    JIT_SET(sp, sp + 1);
     *sp = v;
     JIT_TAIL(NEXT);
 }
@@ -2722,7 +4137,7 @@ JIT_STENCIL_FN void stencil_push_literal_variable_6(JIT_ARGS)
     oop v;
     o = fr->lits[6];
     v = ((oop *)(o + 16))[ASSOC_VALUE];
-    sp = sp + 1;
+    JIT_SET(sp, sp + 1);
     *sp = v;
     JIT_TAIL(NEXT);
 }
@@ -2734,7 +4149,7 @@ JIT_STENCIL_FN void stencil_push_literal_variable_7(JIT_ARGS)
     oop v;
     o = fr->lits[7];
     v = ((oop *)(o + 16))[ASSOC_VALUE];
-    sp = sp + 1;
+    JIT_SET(sp, sp + 1);
     *sp = v;
     JIT_TAIL(NEXT);
 }
@@ -2746,7 +4161,7 @@ JIT_STENCIL_FN void stencil_push_literal_variable_8(JIT_ARGS)
     oop v;
     o = fr->lits[8];
     v = ((oop *)(o + 16))[ASSOC_VALUE];
-    sp = sp + 1;
+    JIT_SET(sp, sp + 1);
     *sp = v;
     JIT_TAIL(NEXT);
 }
@@ -2758,7 +4173,7 @@ JIT_STENCIL_FN void stencil_push_literal_variable_9(JIT_ARGS)
     oop v;
     o = fr->lits[9];
     v = ((oop *)(o + 16))[ASSOC_VALUE];
-    sp = sp + 1;
+    JIT_SET(sp, sp + 1);
     *sp = v;
     JIT_TAIL(NEXT);
 }
@@ -2770,7 +4185,7 @@ JIT_STENCIL_FN void stencil_push_literal_variable_10(JIT_ARGS)
     oop v;
     o = fr->lits[10];
     v = ((oop *)(o + 16))[ASSOC_VALUE];
-    sp = sp + 1;
+    JIT_SET(sp, sp + 1);
     *sp = v;
     JIT_TAIL(NEXT);
 }
@@ -2782,7 +4197,7 @@ JIT_STENCIL_FN void stencil_push_literal_variable_11(JIT_ARGS)
     oop v;
     o = fr->lits[11];
     v = ((oop *)(o + 16))[ASSOC_VALUE];
-    sp = sp + 1;
+    JIT_SET(sp, sp + 1);
     *sp = v;
     JIT_TAIL(NEXT);
 }
@@ -2794,7 +4209,7 @@ JIT_STENCIL_FN void stencil_push_literal_variable_12(JIT_ARGS)
     oop v;
     o = fr->lits[12];
     v = ((oop *)(o + 16))[ASSOC_VALUE];
-    sp = sp + 1;
+    JIT_SET(sp, sp + 1);
     *sp = v;
     JIT_TAIL(NEXT);
 }
@@ -2806,7 +4221,7 @@ JIT_STENCIL_FN void stencil_push_literal_variable_13(JIT_ARGS)
     oop v;
     o = fr->lits[13];
     v = ((oop *)(o + 16))[ASSOC_VALUE];
-    sp = sp + 1;
+    JIT_SET(sp, sp + 1);
     *sp = v;
     JIT_TAIL(NEXT);
 }
@@ -2818,7 +4233,7 @@ JIT_STENCIL_FN void stencil_push_literal_variable_14(JIT_ARGS)
     oop v;
     o = fr->lits[14];
     v = ((oop *)(o + 16))[ASSOC_VALUE];
-    sp = sp + 1;
+    JIT_SET(sp, sp + 1);
     *sp = v;
     JIT_TAIL(NEXT);
 }
@@ -2830,7 +4245,7 @@ JIT_STENCIL_FN void stencil_push_literal_variable_15(JIT_ARGS)
     oop v;
     o = fr->lits[15];
     v = ((oop *)(o + 16))[ASSOC_VALUE];
-    sp = sp + 1;
+    JIT_SET(sp, sp + 1);
     *sp = v;
     JIT_TAIL(NEXT);
 }
@@ -2842,7 +4257,7 @@ JIT_STENCIL_FN void stencil_push_literal_variable_16(JIT_ARGS)
     oop v;
     o = fr->lits[16];
     v = ((oop *)(o + 16))[ASSOC_VALUE];
-    sp = sp + 1;
+    JIT_SET(sp, sp + 1);
     *sp = v;
     JIT_TAIL(NEXT);
 }
@@ -2854,7 +4269,7 @@ JIT_STENCIL_FN void stencil_push_literal_variable_17(JIT_ARGS)
     oop v;
     o = fr->lits[17];
     v = ((oop *)(o + 16))[ASSOC_VALUE];
-    sp = sp + 1;
+    JIT_SET(sp, sp + 1);
     *sp = v;
     JIT_TAIL(NEXT);
 }
@@ -2866,7 +4281,7 @@ JIT_STENCIL_FN void stencil_push_literal_variable_18(JIT_ARGS)
     oop v;
     o = fr->lits[18];
     v = ((oop *)(o + 16))[ASSOC_VALUE];
-    sp = sp + 1;
+    JIT_SET(sp, sp + 1);
     *sp = v;
     JIT_TAIL(NEXT);
 }
@@ -2878,7 +4293,7 @@ JIT_STENCIL_FN void stencil_push_literal_variable_19(JIT_ARGS)
     oop v;
     o = fr->lits[19];
     v = ((oop *)(o + 16))[ASSOC_VALUE];
-    sp = sp + 1;
+    JIT_SET(sp, sp + 1);
     *sp = v;
     JIT_TAIL(NEXT);
 }
@@ -2890,7 +4305,7 @@ JIT_STENCIL_FN void stencil_push_literal_variable_20(JIT_ARGS)
     oop v;
     o = fr->lits[20];
     v = ((oop *)(o + 16))[ASSOC_VALUE];
-    sp = sp + 1;
+    JIT_SET(sp, sp + 1);
     *sp = v;
     JIT_TAIL(NEXT);
 }
@@ -2902,7 +4317,7 @@ JIT_STENCIL_FN void stencil_push_literal_variable_21(JIT_ARGS)
     oop v;
     o = fr->lits[21];
     v = ((oop *)(o + 16))[ASSOC_VALUE];
-    sp = sp + 1;
+    JIT_SET(sp, sp + 1);
     *sp = v;
     JIT_TAIL(NEXT);
 }
@@ -2914,7 +4329,7 @@ JIT_STENCIL_FN void stencil_push_literal_variable_22(JIT_ARGS)
     oop v;
     o = fr->lits[22];
     v = ((oop *)(o + 16))[ASSOC_VALUE];
-    sp = sp + 1;
+    JIT_SET(sp, sp + 1);
     *sp = v;
     JIT_TAIL(NEXT);
 }
@@ -2926,7 +4341,7 @@ JIT_STENCIL_FN void stencil_push_literal_variable_23(JIT_ARGS)
     oop v;
     o = fr->lits[23];
     v = ((oop *)(o + 16))[ASSOC_VALUE];
-    sp = sp + 1;
+    JIT_SET(sp, sp + 1);
     *sp = v;
     JIT_TAIL(NEXT);
 }
@@ -2938,7 +4353,7 @@ JIT_STENCIL_FN void stencil_push_literal_variable_24(JIT_ARGS)
     oop v;
     o = fr->lits[24];
     v = ((oop *)(o + 16))[ASSOC_VALUE];
-    sp = sp + 1;
+    JIT_SET(sp, sp + 1);
     *sp = v;
     JIT_TAIL(NEXT);
 }
@@ -2950,7 +4365,7 @@ JIT_STENCIL_FN void stencil_push_literal_variable_25(JIT_ARGS)
     oop v;
     o = fr->lits[25];
     v = ((oop *)(o + 16))[ASSOC_VALUE];
-    sp = sp + 1;
+    JIT_SET(sp, sp + 1);
     *sp = v;
     JIT_TAIL(NEXT);
 }
@@ -2962,7 +4377,7 @@ JIT_STENCIL_FN void stencil_push_literal_variable_26(JIT_ARGS)
     oop v;
     o = fr->lits[26];
     v = ((oop *)(o + 16))[ASSOC_VALUE];
-    sp = sp + 1;
+    JIT_SET(sp, sp + 1);
     *sp = v;
     JIT_TAIL(NEXT);
 }
@@ -2974,7 +4389,7 @@ JIT_STENCIL_FN void stencil_push_literal_variable_27(JIT_ARGS)
     oop v;
     o = fr->lits[27];
     v = ((oop *)(o + 16))[ASSOC_VALUE];
-    sp = sp + 1;
+    JIT_SET(sp, sp + 1);
     *sp = v;
     JIT_TAIL(NEXT);
 }
@@ -2986,7 +4401,7 @@ JIT_STENCIL_FN void stencil_push_literal_variable_28(JIT_ARGS)
     oop v;
     o = fr->lits[28];
     v = ((oop *)(o + 16))[ASSOC_VALUE];
-    sp = sp + 1;
+    JIT_SET(sp, sp + 1);
     *sp = v;
     JIT_TAIL(NEXT);
 }
@@ -2998,7 +4413,7 @@ JIT_STENCIL_FN void stencil_push_literal_variable_29(JIT_ARGS)
     oop v;
     o = fr->lits[29];
     v = ((oop *)(o + 16))[ASSOC_VALUE];
-    sp = sp + 1;
+    JIT_SET(sp, sp + 1);
     *sp = v;
     JIT_TAIL(NEXT);
 }
@@ -3010,7 +4425,7 @@ JIT_STENCIL_FN void stencil_push_literal_variable_30(JIT_ARGS)
     oop v;
     o = fr->lits[30];
     v = ((oop *)(o + 16))[ASSOC_VALUE];
-    sp = sp + 1;
+    JIT_SET(sp, sp + 1);
     *sp = v;
     JIT_TAIL(NEXT);
 }
@@ -3022,7 +4437,7 @@ JIT_STENCIL_FN void stencil_push_literal_variable_31(JIT_ARGS)
     oop v;
     o = fr->lits[31];
     v = ((oop *)(o + 16))[ASSOC_VALUE];
-    sp = sp + 1;
+    JIT_SET(sp, sp + 1);
     *sp = v;
     JIT_TAIL(NEXT);
 }
@@ -3034,7 +4449,7 @@ JIT_STENCIL_FN void stencil_push_literal_variable_x(JIT_ARGS)
     oop v;
     o = fr->lits[JIT_HOLE(A)];
     v = ((oop *)(o + 16))[ASSOC_VALUE];
-    sp = sp + 1;
+    JIT_SET(sp, sp + 1);
     *sp = v;
     JIT_TAIL(NEXT);
 }
@@ -3044,7 +4459,7 @@ JIT_STENCIL_FN void stencil_push_literal_x(JIT_ARGS)
 {
     oop v;
     v = fr->lits[JIT_HOLE(A)];
-    sp = sp + 1;
+    JIT_SET(sp, sp + 1);
     *sp = v;
     JIT_TAIL(NEXT);
 }
@@ -3054,7 +4469,7 @@ JIT_STENCIL_FN void stencil_push_nil(JIT_ARGS)
 {
     oop v;
     v = st->nil_oop;
-    sp = sp + 1;
+    JIT_SET(sp, sp + 1);
     *sp = v;
     JIT_TAIL(NEXT);
 }
@@ -3062,7 +4477,7 @@ JIT_STENCIL_FN void stencil_push_nil(JIT_ARGS)
 /* JitStencils>>pushOne */
 JIT_STENCIL_FN void stencil_push_one(JIT_ARGS)
 {
-    sp = sp + 1;
+    JIT_SET(sp, sp + 1);
     *sp = 3ULL;
     JIT_TAIL(NEXT);
 }
@@ -3070,7 +4485,7 @@ JIT_STENCIL_FN void stencil_push_one(JIT_ARGS)
 /* JitStencils>>pushSelf */
 JIT_STENCIL_FN void stencil_push_self(JIT_ARGS)
 {
-    sp = sp + 1;
+    JIT_SET(sp, sp + 1);
     *sp = rcv;
     JIT_TAIL(NEXT);
 }
@@ -3080,7 +4495,7 @@ JIT_STENCIL_FN void stencil_push_temp_0(JIT_ARGS)
 {
     oop v;
     v = fp[0];
-    sp = sp + 1;
+    JIT_SET(sp, sp + 1);
     *sp = v;
     JIT_TAIL(NEXT);
 }
@@ -3090,7 +4505,7 @@ JIT_STENCIL_FN void stencil_push_temp_1(JIT_ARGS)
 {
     oop v;
     v = fp[1];
-    sp = sp + 1;
+    JIT_SET(sp, sp + 1);
     *sp = v;
     JIT_TAIL(NEXT);
 }
@@ -3100,7 +4515,7 @@ JIT_STENCIL_FN void stencil_push_temp_2(JIT_ARGS)
 {
     oop v;
     v = fp[2];
-    sp = sp + 1;
+    JIT_SET(sp, sp + 1);
     *sp = v;
     JIT_TAIL(NEXT);
 }
@@ -3110,7 +4525,7 @@ JIT_STENCIL_FN void stencil_push_temp_3(JIT_ARGS)
 {
     oop v;
     v = fp[3];
-    sp = sp + 1;
+    JIT_SET(sp, sp + 1);
     *sp = v;
     JIT_TAIL(NEXT);
 }
@@ -3120,7 +4535,7 @@ JIT_STENCIL_FN void stencil_push_temp_4(JIT_ARGS)
 {
     oop v;
     v = fp[4];
-    sp = sp + 1;
+    JIT_SET(sp, sp + 1);
     *sp = v;
     JIT_TAIL(NEXT);
 }
@@ -3130,7 +4545,7 @@ JIT_STENCIL_FN void stencil_push_temp_5(JIT_ARGS)
 {
     oop v;
     v = fp[5];
-    sp = sp + 1;
+    JIT_SET(sp, sp + 1);
     *sp = v;
     JIT_TAIL(NEXT);
 }
@@ -3140,7 +4555,7 @@ JIT_STENCIL_FN void stencil_push_temp_6(JIT_ARGS)
 {
     oop v;
     v = fp[6];
-    sp = sp + 1;
+    JIT_SET(sp, sp + 1);
     *sp = v;
     JIT_TAIL(NEXT);
 }
@@ -3150,7 +4565,7 @@ JIT_STENCIL_FN void stencil_push_temp_7(JIT_ARGS)
 {
     oop v;
     v = fp[7];
-    sp = sp + 1;
+    JIT_SET(sp, sp + 1);
     *sp = v;
     JIT_TAIL(NEXT);
 }
@@ -3160,7 +4575,7 @@ JIT_STENCIL_FN void stencil_push_temp_8(JIT_ARGS)
 {
     oop v;
     v = fp[8];
-    sp = sp + 1;
+    JIT_SET(sp, sp + 1);
     *sp = v;
     JIT_TAIL(NEXT);
 }
@@ -3170,7 +4585,7 @@ JIT_STENCIL_FN void stencil_push_temp_9(JIT_ARGS)
 {
     oop v;
     v = fp[9];
-    sp = sp + 1;
+    JIT_SET(sp, sp + 1);
     *sp = v;
     JIT_TAIL(NEXT);
 }
@@ -3180,7 +4595,7 @@ JIT_STENCIL_FN void stencil_push_temp_10(JIT_ARGS)
 {
     oop v;
     v = fp[10];
-    sp = sp + 1;
+    JIT_SET(sp, sp + 1);
     *sp = v;
     JIT_TAIL(NEXT);
 }
@@ -3190,7 +4605,7 @@ JIT_STENCIL_FN void stencil_push_temp_11(JIT_ARGS)
 {
     oop v;
     v = fp[11];
-    sp = sp + 1;
+    JIT_SET(sp, sp + 1);
     *sp = v;
     JIT_TAIL(NEXT);
 }
@@ -3200,7 +4615,7 @@ JIT_STENCIL_FN void stencil_push_temp_12(JIT_ARGS)
 {
     oop v;
     v = fp[12];
-    sp = sp + 1;
+    JIT_SET(sp, sp + 1);
     *sp = v;
     JIT_TAIL(NEXT);
 }
@@ -3210,7 +4625,7 @@ JIT_STENCIL_FN void stencil_push_temp_13(JIT_ARGS)
 {
     oop v;
     v = fp[13];
-    sp = sp + 1;
+    JIT_SET(sp, sp + 1);
     *sp = v;
     JIT_TAIL(NEXT);
 }
@@ -3220,7 +4635,7 @@ JIT_STENCIL_FN void stencil_push_temp_14(JIT_ARGS)
 {
     oop v;
     v = fp[14];
-    sp = sp + 1;
+    JIT_SET(sp, sp + 1);
     *sp = v;
     JIT_TAIL(NEXT);
 }
@@ -3230,7 +4645,7 @@ JIT_STENCIL_FN void stencil_push_temp_15(JIT_ARGS)
 {
     oop v;
     v = fp[15];
-    sp = sp + 1;
+    JIT_SET(sp, sp + 1);
     *sp = v;
     JIT_TAIL(NEXT);
 }
@@ -3240,7 +4655,7 @@ JIT_STENCIL_FN void stencil_push_temp_x(JIT_ARGS)
 {
     oop v;
     v = fp[JIT_HOLE(A)];
-    sp = sp + 1;
+    JIT_SET(sp, sp + 1);
     *sp = v;
     JIT_TAIL(NEXT);
 }
@@ -3250,7 +4665,7 @@ JIT_STENCIL_FN void stencil_push_true(JIT_ARGS)
 {
     oop v;
     v = st->true_oop;
-    sp = sp + 1;
+    JIT_SET(sp, sp + 1);
     *sp = v;
     JIT_TAIL(NEXT);
 }
@@ -3258,7 +4673,7 @@ JIT_STENCIL_FN void stencil_push_true(JIT_ARGS)
 /* JitStencils>>pushZero */
 JIT_STENCIL_FN void stencil_push_zero(JIT_ARGS)
 {
-    sp = sp + 1;
+    JIT_SET(sp, sp + 1);
     *sp = 1ULL;
     JIT_TAIL(NEXT);
 }
@@ -3309,11 +4724,11 @@ JIT_STENCIL_FN void stencil_send(JIT_ARGS)
     if (r == 1) {
         JIT_TAIL(EXIT);
     }
-    sp = sp - (JIT_HOLE(INFO) & 255);
+    JIT_SET(sp, sp - (JIT_HOLE(INFO) & 255));
     if (r != 0) {
         JIT_CALL(r);
     }
-    rcv = fp[-1];
+    JIT_SET(rcv, fp[-1]);
     JIT_TAIL(NEXT);
 }
 
@@ -3327,11 +4742,11 @@ JIT_STENCIL_FN void stencil_special_send(JIT_ARGS)
     if (r == 1) {
         JIT_TAIL(EXIT);
     }
-    sp = sp - (JIT_HOLE(INFO) & 255);
+    JIT_SET(sp, sp - (JIT_HOLE(INFO) & 255));
     if (r != 0) {
         JIT_CALL(r);
     }
-    rcv = fp[-1];
+    JIT_SET(rcv, fp[-1]);
     JIT_TAIL(NEXT);
 }
 
@@ -3397,11 +4812,188 @@ JIT_STENCIL_FN void stencil_subtract(JIT_ARGS)
     if ((o & 1) != 0) {
         if (!__builtin_sub_overflow((int64_t)a, (int64_t)b - 1, &r)) {
             v = (uint64_t)r;
-            sp = sp - 1;
+            JIT_SET(sp, sp - 1);
             *sp = v;
             JIT_TAIL(NEXT);
         }
     }
+    JIT_TAIL(SLOW);
+}
+
+/* JitStencils>>subtractOperands case 0 */
+JIT_STENCIL_FN void stencil_subtract_operands_0(JIT_ARGS)
+{
+    oop a;
+    oop r_operand;
+    oop b;
+    oop o;
+    int64_t r;
+    uint64_t v;
+    a = fp[JIT_HOLE(A)];
+    b = ({
+    r_operand = fp[JIT_HOLE(B)];
+    goto exit_operand;
+    r_operand = JIT_HOLE(VALUE);
+exit_operand:;
+    r_operand; });
+    o = a & b;
+    if ((o & 1) != 0) {
+        if (!__builtin_sub_overflow((int64_t)a, (int64_t)b - 1, &r)) {
+            v = (uint64_t)r;
+            JIT_SET(sp, sp + 1);
+            *sp = v;
+            JIT_TAIL(NEXT);
+        }
+    }
+    sp[1] = a;
+    sp[2] = b;
+    JIT_SET(sp, sp + 2);
+    JIT_TAIL(SLOW);
+}
+
+/* JitStencils>>subtractOperands case 1 */
+JIT_STENCIL_FN void stencil_subtract_operands_1(JIT_ARGS)
+{
+    oop a;
+    oop r_operand;
+    oop b;
+    oop o;
+    int64_t r;
+    uint64_t v;
+    a = fp[JIT_HOLE(A)];
+    b = ({
+    r_operand = fr->lits[JIT_HOLE(B)];
+    goto exit_operand;
+    r_operand = JIT_HOLE(VALUE);
+exit_operand:;
+    r_operand; });
+    o = a & b;
+    if ((o & 1) != 0) {
+        if (!__builtin_sub_overflow((int64_t)a, (int64_t)b - 1, &r)) {
+            v = (uint64_t)r;
+            JIT_SET(sp, sp + 1);
+            *sp = v;
+            JIT_TAIL(NEXT);
+        }
+    }
+    sp[1] = a;
+    sp[2] = b;
+    JIT_SET(sp, sp + 2);
+    JIT_TAIL(SLOW);
+}
+
+/* JitStencils>>subtractOperands case 2 */
+JIT_STENCIL_FN void stencil_subtract_operands_2(JIT_ARGS)
+{
+    oop a;
+    uint64_t r_operand;
+    uint64_t b;
+    oop o;
+    int64_t r;
+    uint64_t v;
+    a = fp[JIT_HOLE(A)];
+    b = ({
+    r_operand = JIT_HOLE(VALUE);
+    r_operand; });
+    o = a & b;
+    if ((o & 1) != 0) {
+        if (!__builtin_sub_overflow((int64_t)a, (int64_t)b - 1, &r)) {
+            v = (uint64_t)r;
+            JIT_SET(sp, sp + 1);
+            *sp = v;
+            JIT_TAIL(NEXT);
+        }
+    }
+    sp[1] = a;
+    sp[2] = b;
+    JIT_SET(sp, sp + 2);
+    JIT_TAIL(SLOW);
+}
+
+/* JitStencils>>subtractOperandsInto case 0 */
+JIT_STENCIL_FN void stencil_subtract_operands_into_0(JIT_ARGS)
+{
+    oop a;
+    oop r_operand;
+    oop b;
+    oop o;
+    int64_t r;
+    uint64_t v;
+    a = fp[JIT_HOLE(A)];
+    b = ({
+    r_operand = fp[JIT_HOLE(B)];
+    goto exit_operand;
+    r_operand = JIT_HOLE(VALUE);
+exit_operand:;
+    r_operand; });
+    o = a & b;
+    if ((o & 1) != 0) {
+        if (!__builtin_sub_overflow((int64_t)a, (int64_t)b - 1, &r)) {
+            v = (uint64_t)r;
+            fp[JIT_HOLE(C)] = v;
+            JIT_TAIL(NEXT);
+        }
+    }
+    sp[1] = a;
+    sp[2] = b;
+    JIT_SET(sp, sp + 2);
+    JIT_TAIL(SLOW);
+}
+
+/* JitStencils>>subtractOperandsInto case 1 */
+JIT_STENCIL_FN void stencil_subtract_operands_into_1(JIT_ARGS)
+{
+    oop a;
+    oop r_operand;
+    oop b;
+    oop o;
+    int64_t r;
+    uint64_t v;
+    a = fp[JIT_HOLE(A)];
+    b = ({
+    r_operand = fr->lits[JIT_HOLE(B)];
+    goto exit_operand;
+    r_operand = JIT_HOLE(VALUE);
+exit_operand:;
+    r_operand; });
+    o = a & b;
+    if ((o & 1) != 0) {
+        if (!__builtin_sub_overflow((int64_t)a, (int64_t)b - 1, &r)) {
+            v = (uint64_t)r;
+            fp[JIT_HOLE(C)] = v;
+            JIT_TAIL(NEXT);
+        }
+    }
+    sp[1] = a;
+    sp[2] = b;
+    JIT_SET(sp, sp + 2);
+    JIT_TAIL(SLOW);
+}
+
+/* JitStencils>>subtractOperandsInto case 2 */
+JIT_STENCIL_FN void stencil_subtract_operands_into_2(JIT_ARGS)
+{
+    oop a;
+    uint64_t r_operand;
+    uint64_t b;
+    oop o;
+    int64_t r;
+    uint64_t v;
+    a = fp[JIT_HOLE(A)];
+    b = ({
+    r_operand = JIT_HOLE(VALUE);
+    r_operand; });
+    o = a & b;
+    if ((o & 1) != 0) {
+        if (!__builtin_sub_overflow((int64_t)a, (int64_t)b - 1, &r)) {
+            v = (uint64_t)r;
+            fp[JIT_HOLE(C)] = v;
+            JIT_TAIL(NEXT);
+        }
+    }
+    sp[1] = a;
+    sp[2] = b;
+    JIT_SET(sp, sp + 2);
     JIT_TAIL(SLOW);
 }
 

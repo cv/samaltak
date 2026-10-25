@@ -250,7 +250,8 @@ assignment: anAssignmentNode valueWanted: aBoolean
 		ifFalse: [
 			g := self globalNamed: name node: anAssignmentNode.
 			value := self expressionOrInline: anAssignmentNode value type: g type.
-			target := self globalReference: g].
+			target := self globalReference: g.
+			(stencil notNil and: [g isRegister]) ifTrue: [^self stencilRegister: target set: value node: anAssignmentNode valueWanted: aBoolean]].
 	self checkAssignable: value to: target type node: anAssignmentNode.
 	value := CBinary operator: '=' left: target right: (self coerce: value to: target type node: anAssignmentNode) type: target type.
 	aBoolean ifTrue: [^value].

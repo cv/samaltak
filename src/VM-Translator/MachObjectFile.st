@@ -170,11 +170,11 @@ printOn: aStream
 ! !
 
 Object subclass: #MachObjectFile
-	instanceVariableNames: 'bytes sections symbols'
+	instanceVariableNames: 'bytes sections symbols hints'
 	classVariableNames: ''
 	package: 'VM-Translator'!
 
-MachObjectFile comment: 'I read a 64-bit Mach-O object file (MH_OBJECT, arm64), as cc writes it: its sections, each with its bytes and relocations, and its symbol table. StencilTable makes the copy-and-patch stencil table of what I read.
+MachObjectFile comment: 'I read a 64-bit Mach-O object file (MH_OBJECT, arm64), as cc writes it: its sections, each with its bytes and relocations, its symbol table and the compiler''s linker optimization hints (which adrp and ldr make one GOT load the linker may relax). StencilTable makes the copy-and-patch stencil table of what I read.
 
 	(MachObjectFile fromBytes: (File readBytes: ''jit_stencils.o'')) sections'!
 
@@ -192,12 +192,14 @@ setBytes: aByteArray
 	(self u32: 12) = 1 ifFalse: [^self error: 'not an object file (MH_OBJECT)'].
 	sections := OrderedCollection new.
 	symbols := #().
+	hints := OrderedCollection new.
 	ncmds := self u32: 16.
 	off := 32.
 	ncmds timesRepeat: [
 		cmd := self u32: off.
 		cmd = 16r19 ifTrue: [self readSegmentAt: off].
 		cmd = 2 ifTrue: [self readSymbolTableAt: off].
+		cmd = 16r2E ifTrue: [self readHintsAt: off].
 		off := off + (self u32: off + 4)].
 	sections do: [:s | s relocations do: [:r | r isExtern ifTrue: [r symbol: (symbols at: r index + 1)]]]
 !
@@ -219,6 +221,28 @@ readSegmentAt: off
 		sections add: section.
 		s := s + 80]
 !
+readHintsAt: off
+	"LC_LINKER_OPTIMIZATION_HINT: ULEB128 kind, count, addresses; a kind 0 ends it."
+	| p end kind n args |
+	p := Array with: (self u32: off + 8).
+	end := (p at: 1) + (self u32: off + 12).
+	[(p at: 1) < end and: [(kind := self uleb: p) ~= 0]] whileTrue: [
+		n := self uleb: p.
+		args := (1 to: n) collect: [:i | self uleb: p].
+		hints add: kind -> args]
+!
+uleb: aCursor
+	"The ULEB128 at aCursor's offset (its first element), which moves past it."
+	| v shift b |
+	v := 0.
+	shift := 0.
+	[b := bytes at: (aCursor at: 1) + 1.
+	 aCursor at: 1 put: (aCursor at: 1) + 1.
+	 v := v + ((b bitAnd: 127) bitShift: shift).
+	 shift := shift + 7.
+	 b >= 128] whileTrue.
+	^v
+!
 readSymbolTableAt: off
 	"LC_SYMTAB: the nlist_64 records and their names."
 	| symoff nsyms stroff |
@@ -237,6 +261,17 @@ sections
 !
 symbols
 	^symbols
+!
+hints
+	"kind -> addresses: LOH_ARM64_ADRP_LDR_GOT 8 (adrp, ldr), ADRP_LDR_GOT_LDR 4 and ADRP_LDR_GOT_STR 6 (adrp, ldr, the access) ..."
+	^hints
+!
+gotLoadPairs
+	"adrp address -> ldr address of the GOT loads the compiler marked as relaxable."
+	| d |
+	d := Dictionary new.
+	hints do: [:h | (#(4 6 8) includes: h key) ifTrue: [d at: (h value at: 1) put: (h value at: 2)]].
+	^d
 !
 section: aSegmentName named: aSectionName
 	^sections detect: [:s | s segment = aSegmentName and: [s name = aSectionName]] ifNone: [nil]

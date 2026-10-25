@@ -53,7 +53,7 @@ TCFunction subclass: #TCStencil
 	classVariableNames: ''
 	package: 'VM-Translator'!
 
-TCStencil comment: 'I am a translated stencil: copy case of a JitStencils method, a preserve_none function. Printed for copy-and-patch (threaded: false) its holes are extern symbols and its continuations musttail calls of extern functions; printed for call threading its holes are parameters after the state and its continuations musttail calls of a return that hands the continuation to the machine code. The body is the same: the macros JIT_ARGS, JIT_HOLE and JIT_TAIL differ.'!
+TCStencil comment: 'I am a translated stencil: copy case of a JitStencils method. Printed for copy-and-patch (threaded: false) a preserve_none function of the state: its holes are extern symbols, its continuations musttail calls of extern functions; printed for call threading a function of its holes that returns its continuation, the state in fixed registers. The body is the same: the macros JIT_SET, JIT_HOLE, JIT_TAIL and JIT_CALL differ.'!
 
 !TCStencil methodsFor: 'initialization'!
 setFunction: aTFunction case: anInteger context: aTStencilContext locals: aCollection body: aCBlock
@@ -84,7 +84,15 @@ cName
 	^(threaded ifTrue: ['thr_'] ifFalse: ['stencil_']) , function cName , (function hasCases ifTrue: ['_' , case printString] ifFalse: [''])
 !
 prototype
-	^(threaded ifTrue: ['static '] ifFalse: ['']) , 'JIT_STENCIL_FN void ' , self cName , '(JIT_ARGS)'
+	"A threaded stencil takes its holes but SITE (the return address), in the order of their ids, and returns its continuation."
+	threaded ifFalse: [^'JIT_STENCIL_FN void ' , self cName , '(JIT_ARGS)'].
+	^String new: 100 streamContents: [:s |
+		| holes |
+		holes := context holes reject: [:h | h = 'SITE'].
+		s nextPutAll: 'static uint64_t '; nextPutAll: self cName; nextPut: $(.
+		holes isEmpty ifTrue: [s nextPutAll: 'void'].
+		holes do: [:h | s nextPutAll: 'uint64_t hole_'; nextPutAll: h] separatedBy: [s nextPutAll: ', '].
+		s nextPut: $)]
 ! !
 
 !TCStencil methodsFor: 'printing'!
@@ -151,5 +159,12 @@ stencilLanguage: aTFunction arguments: argNodes node: aNode
 	name := (aTFunction pragmaAt: #continuation:) first asString.
 	(stencil noteContinuation: name) ifFalse: [^self error: 'no continuation CONT_' , name , ' in ' , stencil compiler name node: aNode].
 	block add: (CExprStatement expression: ((CCall function: 'JIT_TAIL' arguments: (Array with: (CRaw pureText: name type: uint64)) type: (translator registry at: 'void')) noReturn: true; yourself)).
+	^nil
+!
+stencilRegister: target set: value node: aNode valueWanted: aBoolean
+	"A stencil's register is written by JIT_SET (threaded: a move the compiler keeps where it is)."
+	aBoolean ifTrue: [^self error: 'a stencil''s register is assigned in a statement' node: aNode].
+	self checkAssignable: value to: target type node: aNode.
+	block add: (CExprStatement expression: (CCall function: 'JIT_SET' arguments: (Array with: target with: (self coerce: value to: target type node: aNode)) type: (translator registry at: 'void'))).
 	^nil
 ! !

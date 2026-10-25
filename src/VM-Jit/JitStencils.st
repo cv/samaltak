@@ -134,10 +134,12 @@ answer: v
 boolean: c
 	^c ifTrue: [st trueOop] ifFalse: [st falseOop]
 !
-compare: a with: b
-	"Comparison self case (< > <= >= = ~= on SmallIntegers, == ~~)."
-	| k |
-	k := self case.
+byteCount: o
+	"The elements of byte object o (a ByteString or ByteArray)."
+	^((self numSlots: o) asUInt64 * 8) - ((self formatOf: o) - F_BYTES) asUInt64
+!
+compare: k of: a with: b
+	"Special selector k: < > <= >= = ~= on SmallIntegers, == ~~."
 	k = 2 ifTrue: [^a asInt64 < b asInt64].
 	k = 3 ifTrue: [^a asInt64 > b asInt64].
 	k = 4 ifTrue: [^a asInt64 <= b asInt64].
@@ -162,7 +164,44 @@ compareJumpIf: sense
 	b := sp value.
 	(self case < 19 and: [(self isInt: (a bitAnd: b)) not]) ifTrue: [^self slow].
 	sp := sp - 2.
-	(self compare: a with: b) = sense ifTrue: [^self jump].
+	(self compare: self case of: a with: b) = sense ifTrue: [^self jump].
+	^self continue
+!
+operand
+	"The second operand of a superinstruction (case rem: 3): temp B (0), literal B (1), the SmallInteger VALUE (2)."
+	(self case rem: 3) = 0 ifTrue: [^fp at: (self hole: #B)].
+	(self case rem: 3) = 1 ifTrue: [^fr lits at: (self hole: #B)].
+	^self hole: #VALUE
+!
+pushOperands: a and: b
+	"Out of line with the operands on the stack, as the superinstruction pushes them."
+	sp at: 1 put: a.
+	sp at: 2 put: b.
+	sp := sp + 2.
+	^self slow
+!
+operate: k into: toTemp
+	"+ (k 0) or - (1) of temp A and the operand, SmallIntegers: the result pushed, or into temp C (a following pop into a temp)."
+	| a b |
+	a := fp at: (self hole: #A).
+	b := self operand.
+	(self isInt: (a bitAnd: b)) ifTrue: [
+		k = 0
+			ifTrue: [a asInt64 ifNoOverflowAdd: b asInt64 - 1 do: [:r | ^self result: r asUInt64 into: toTemp]]
+			ifFalse: [a asInt64 ifNoOverflowSub: b asInt64 - 1 do: [:r | ^self result: r asUInt64 into: toTemp]]].
+	^self pushOperands: a and: b
+!
+result: v into: toTemp
+	toTemp ifTrue: [fp at: (self hole: #C) put: v] ifFalse: [self push: v].
+	^self continue
+!
+compareOperandsJumpIf: sense
+	"< > <= >= ((case quo: 3) + 2) of temp A and the operand, SmallIntegers, then a conditional jump."
+	| a b |
+	a := fp at: (self hole: #A).
+	b := self operand.
+	(self isInt: (a bitAnd: b)) ifFalse: [^self pushOperands: a and: b].
+	(self compare: (self case quo: 3) + 2 of: a with: b) = sense ifTrue: [^self jump].
 	^self continue
 !
 returnValue: v
@@ -362,10 +401,9 @@ branchIf
 	v = (self case = 0 ifTrue: [st trueOop] ifFalse: [st falseOop]) ifTrue: [
 		sp := sp - 1.
 		^self jump].
-	v = (self case = 0 ifTrue: [st falseOop] ifFalse: [st trueOop]) ifTrue: [
-		sp := sp - 1.
-		^self continue].
-	^self exit
+	v ~= (self case = 0 ifTrue: [st falseOop] ifFalse: [st trueOop]) ifTrue: [^self exit].
+	sp := sp - 1.
+	^self continue
 !
 returnTop
 	<stencil>
@@ -411,6 +449,44 @@ floatOperation
 			f ~= 0 ifTrue: [^self answer: f]]].
 	self sync.
 	^self finishSend: (jit special: fr info: (self hole: #INFO) site: (self hole: #SITE))
+! !
+
+!JitStencils methodsFor: 'stencils: superinstructions'!
+addOperands
+	"Superinstructions: push temp A, push the operand (case: temp, literal, SmallInteger), +."
+	<stencil: 3>
+	^self operate: 0 into: false
+!
+addOperandsInto
+	"The same, followed by a pop into temp C."
+	<stencil: 3>
+	^self operate: 0 into: true
+!
+subtractOperands
+	<stencil: 3>
+	^self operate: 1 into: false
+!
+subtractOperandsInto
+	<stencil: 3>
+	^self operate: 1 into: true
+!
+compareOperands
+	"push temp A, push the operand (case rem: 3), < > <= >= ((case quo: 3) + 2): the Boolean pushed."
+	<stencil: 12>
+	| a b |
+	a := fp at: (self hole: #A).
+	b := self operand.
+	(self isInt: (a bitAnd: b)) ifFalse: [^self pushOperands: a and: b].
+	self push: (self boolean: (self compare: (self case quo: 3) + 2 of: a with: b)).
+	^self continue
+!
+compareOperandsJumpTrue
+	<stencil: 12>
+	^self compareOperandsJumpIf: true
+!
+compareOperandsJumpFalse
+	<stencil: 12>
+	^self compareOperandsJumpIf: false
 ! !
 
 !JitStencils methodsFor: 'stencils: special selectors'!
@@ -493,7 +569,7 @@ compare
 	a := sp at: -1.
 	b := sp value.
 	(self isInt: (a bitAnd: b)) ifFalse: [^self slow].
-	^self answer: (self boolean: (self compare: a with: b))
+	^self answer: (self boolean: (self compare: self case of: a with: b))
 !
 compareJumpTrue
 	<stencil: #(2 7)>
@@ -509,7 +585,7 @@ identical
 	| a b |
 	a := sp at: -1.
 	b := sp value.
-	^self answer: (self boolean: (self compare: a with: b))
+	^self answer: (self boolean: (self compare: self case of: a with: b))
 !
 identicalJumpTrue
 	<stencil: #(19 20)>
@@ -519,39 +595,56 @@ identicalJumpFalse
 	<stencil: #(19 20)>
 	^self compareJumpIf: false
 !
-arrayAt
-	"at: on an Array; else out of line."
+basicAt
+	"at: on an Array, a ByteString or a ByteArray; else out of line."
 	<stencil>
-	| a b i |
+	| a b c i |
 	a := sp at: -1.
 	b := sp value.
+	((self isInt: b) and: [self isPtr: a]) ifFalse: [^self slow].
 	i := ((self intVal: b) - 1) asUInt64.
-	((self isInt: b) and: [(self isPtr: a) and: [(self rawClass: a) = st arrayClass and: [i < (self numSlots: a)]]]) ifTrue: [
-		^self answer: ((self slotsOf: a) at: i)].
+	c := self rawClass: a.
+	c = st arrayClass ifTrue: [
+		i < (self numSlots: a) ifTrue: [^self answer: ((self slotsOf: a) at: i)].
+		^self slow].
+	(i < (self byteCount: a) and: [c = memory clsBytestring]) ifTrue: [^self answer: (self charOop: ((self bytesOf: a) at: i))].
+	(i < (self byteCount: a) and: [c = memory clsBytearray]) ifTrue: [^self answer: (self intOop: ((self bytesOf: a) at: i))].
 	^self slow
 !
-arrayAtPut
-	"at:put: on a mutable Array; else out of line."
+basicAtPut
+	"at:put: on a mutable Array, ByteString (a Character below 256) or ByteArray (a SmallInteger 0-255); else out of line."
 	<stencil>
-	| a b v i |
+	| a b v c i |
 	a := sp at: -2.
 	b := sp at: -1.
 	v := sp value.
+	((self isInt: b) and: [(self isPtr: a) and: [(self isImmutable: a) not]]) ifFalse: [^self slow].
 	i := ((self intVal: b) - 1) asUInt64.
-	((self isInt: b) and: [(self isPtr: a) and: [(self rawClass: a) = st arrayClass and: [i < (self numSlots: a) and: [(self isImmutable: a) not]]]]) ifTrue: [
-		self store: v into: a at: i.
-		sp := sp - 2.
-		sp value: v.
-		^self continue].
-	^self slow
+	c := self rawClass: a.
+	c = st arrayClass
+		ifTrue: [
+			i < (self numSlots: a) ifFalse: [^self slow].
+			self store: v into: a at: i]
+		ifFalse: [
+			(i < (self byteCount: a) and: [(c = memory clsBytestring and: [(self isChar: v) and: [(self charVal: v) < 256]])
+				or: [c = memory clsBytearray and: [(self isInt: v) and: [(self intVal: v) asUInt64 < 256]]]]) ifFalse: [^self slow].
+			(self bytesOf: a) at: i put: (c = memory clsBytestring ifTrue: [(self charVal: v) asUInt8] ifFalse: [(self intVal: v) asUInt8])].
+	sp := sp - 2.
+	sp value: v.
+	^self continue
 !
-arraySize
-	"size of an Array; else out of line."
+basicSize
+	"size of an Array, a ByteString or a ByteArray; else out of line."
 	<stencil>
-	| a |
+	| a c |
 	a := sp value.
-	((self isPtr: a) and: [(self rawClass: a) = st arrayClass]) ifTrue: [
+	(self isPtr: a) ifFalse: [^self slow].
+	c := self rawClass: a.
+	c = st arrayClass ifTrue: [
 		sp value: (self intOop: (self numSlots: a)).
+		^self continue].
+	(c = memory clsBytestring or: [c = memory clsBytearray]) ifTrue: [
+		sp value: (self intOop: (self byteCount: a) asInt64).
 		^self continue].
 	^self slow
 !

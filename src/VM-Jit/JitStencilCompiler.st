@@ -1,6 +1,6 @@
 JitCompiler subclass: #JitStencilCompiler
-	instanceVariableNames: 'table libc threaded opened codeStart pcLabels deferred deferredPcs deferredCount slowStencils slowLabels slowNext slowJumps slowValues slowCount resumePcs resumeDepths resumeCount values copySlots slotValues slotCount patchSites patchSlots patchKinds patchCount exitSyncLabel exitPlainLabel returnLabel failed gotBase symbolTargets dataBase threadedTargets exitSyncGlue returnGlue'
-	classVariableNames: 'CONT_EXIT CONT_EXIT_SYNC CONT_JUMP CONT_NEXT CONT_RETURN CONT_SLOW HOLE_A HOLE_B HOLE_COUNT HOLE_INFO HOLE_PARAMETERS HOLE_PC HOLE_SITE HOLE_VALUE RELOC_BRANCH RELOC_GOT_PAGE RELOC_GOT_PAGEOFF RELOC_GOT_PAIR RELOC_PAGE RELOC_PAGEOFF STC_MAX_PATCHES STC_MAX_SLOTS STC_MAX_SLOW STC_MAX_SLOW_VALUES STC_MAX_SYMBOLS ST_ADD ST_ARRAY_AT ST_ARRAY_AT_PUT ST_ARRAY_SIZE ST_BIT_AND ST_BIT_OR ST_BRANCH ST_BRANCH_BACK ST_BRANCH_IF ST_CLASS_OF ST_CLOSURE ST_COMPARE ST_COMPARE_JUMP_FALSE ST_COMPARE_JUMP_TRUE ST_COUNT ST_DIVIDE ST_DUP ST_ENTRY ST_FLOAT_OPERATION ST_FLOOR_DIVIDE ST_IDENTICAL ST_IDENTICAL_JUMP_FALSE ST_IDENTICAL_JUMP_TRUE ST_MAKE_ARRAY ST_MODULO ST_MULTIPLY ST_OUTER_TEMP ST_POINT_COORDINATE ST_POP ST_POP_STORE_LITERAL_VARIABLE_X ST_POP_STORE_TEMP ST_POP_STORE_TEMP_X ST_PUSH_CONSTANT ST_PUSH_FALSE ST_PUSH_INST_VAR ST_PUSH_INST_VAR_X ST_PUSH_LITERAL ST_PUSH_LITERAL_VARIABLE ST_PUSH_LITERAL_VARIABLE_X ST_PUSH_LITERAL_X ST_PUSH_NIL ST_PUSH_ONE ST_PUSH_SELF ST_PUSH_TEMP ST_PUSH_TEMP_X ST_PUSH_TRUE ST_PUSH_ZERO ST_RETURN_SELF ST_RETURN_TOP ST_SEND ST_SPECIAL_SEND ST_STORE_INST_VAR_X ST_STORE_LITERAL_VARIABLE_X ST_STORE_TEMP_X ST_SUBTRACT ST_TO_INTERPRETER TARGET_CONT TARGET_DATA TARGET_HOLE TARGET_SYMBOL'
+	instanceVariableNames: 'table libc threaded opened codeStart pcLabels deferred deferredPcs deferredCount slowStencils slowLabels slowNext slowJumps slowValues slowCount resumePcs resumeDepths resumeCount values copySlots slotValues slotCount patchSites patchSlots patchKinds patchCount exitSyncLabel exitPlainLabel returnLabel failed gotBase symbolTargets dataBase exitSyncGlue returnGlue'
+	classVariableNames: 'CONT_EXIT CONT_EXIT_SYNC CONT_JUMP CONT_NEXT CONT_RETURN CONT_SLOW HOLE_A HOLE_B HOLE_C HOLE_COUNT HOLE_INFO HOLE_PC HOLE_SITE HOLE_VALUE RELOC_BRANCH RELOC_GOT_PAGE RELOC_GOT_PAGEOFF RELOC_GOT_PAIR RELOC_PAGE RELOC_PAGEOFF STC_MAX_PATCHES STC_MAX_SLOTS STC_MAX_SLOW STC_MAX_SLOW_VALUES STC_MAX_SYMBOLS ST_ADD ST_ADD_OPERANDS ST_ADD_OPERANDS_INTO ST_BASIC_AT ST_BASIC_AT_PUT ST_BASIC_SIZE ST_BIT_AND ST_BIT_OR ST_BRANCH ST_BRANCH_BACK ST_BRANCH_IF ST_CLASS_OF ST_CLOSURE ST_COMPARE ST_COMPARE_JUMP_FALSE ST_COMPARE_JUMP_TRUE ST_COMPARE_OPERANDS ST_COMPARE_OPERANDS_JUMP_FALSE ST_COMPARE_OPERANDS_JUMP_TRUE ST_COUNT ST_DIVIDE ST_DUP ST_ENTRY ST_FLOAT_OPERATION ST_FLOOR_DIVIDE ST_IDENTICAL ST_IDENTICAL_JUMP_FALSE ST_IDENTICAL_JUMP_TRUE ST_MAKE_ARRAY ST_MODULO ST_MULTIPLY ST_OUTER_TEMP ST_POINT_COORDINATE ST_POP ST_POP_STORE_LITERAL_VARIABLE_X ST_POP_STORE_TEMP ST_POP_STORE_TEMP_X ST_PUSH_CONSTANT ST_PUSH_FALSE ST_PUSH_INST_VAR ST_PUSH_INST_VAR_X ST_PUSH_LITERAL ST_PUSH_LITERAL_VARIABLE ST_PUSH_LITERAL_VARIABLE_X ST_PUSH_LITERAL_X ST_PUSH_NIL ST_PUSH_ONE ST_PUSH_SELF ST_PUSH_TEMP ST_PUSH_TEMP_X ST_PUSH_TRUE ST_PUSH_ZERO ST_RETURN_SELF ST_RETURN_TOP ST_SEND ST_SPECIAL_SEND ST_STORE_INST_VAR_X ST_STORE_LITERAL_VARIABLE_X ST_STORE_TEMP_X ST_SUBTRACT ST_SUBTRACT_OPERANDS ST_SUBTRACT_OPERANDS_INTO ST_TO_INTERPRETER TARGET_CONT TARGET_DATA TARGET_HOLE TARGET_SYMBOL'
 	package: 'VM-Jit'!
 
 JitStencilCompiler comment: 'The copy-and-patch compiler (--jit stencil) and the call-threading compiler (--jit threaded): the same choice of stencils (JitStencils) for every instruction, emitted two ways. Copy-and-patch copies each stencil''s code (JitStencilTable, what cc made of it when the VM was translated) and patches its holes: operands relaxed from GOT loads to movz, movk, adr or adrp and add (or loaded from a literal slot after the method), continuations to the next instruction (a trailing branch to it elided, a trailing return replaced by the epilogue), the jump target or the out-of-line code, calls of the VM directly or through veneers. Call threading emits a bl of each stencil''s function in the VM, its holes in x0-x7, then branches on the continuation it answers. Dispatch is gone in both; only copy-and-patch also has the code inline.
@@ -18,19 +18,19 @@ declarations
 		(slotValues 'uint64_t[STC_MAX_SLOTS]') (slotCount int32_t)
 		(patchSites 'uint64_t[STC_MAX_PATCHES]') (patchSlots 'int32_t[STC_MAX_PATCHES]') (patchKinds 'uint8_t[STC_MAX_PATCHES]') (patchCount int32_t)
 		(exitSyncLabel int32_t) (exitPlainLabel int32_t) (returnLabel int32_t) (failed bool)
-		(gotBase uint64_t) (symbolTargets 'uint64_t[STC_MAX_SYMBOLS]') (dataBase uint64_t) (threadedTargets 'uint64_t[ST_COUNT]')
+		(gotBase uint64_t) (symbolTargets 'uint64_t[STC_MAX_SYMBOLS]') (dataBase uint64_t)
 		(exitSyncGlue uint64_t) (returnGlue uint64_t))
 !
 initialize
-	"Holes and continuations (JitStencils' hole: and continuations; HOLE_COUNT at most 8), the stencil table's relocations, the stencils' indices (initializeStencils)."
+	"Holes and continuations (JitStencils' hole: and continuations; HOLE_COUNT at most 8; a threaded stencil's SITE is its return address), the stencil table's relocations, the stencils' indices (initializeStencils)."
 	HOLE_PC := 0.
 	HOLE_A := 1.
 	HOLE_B := 2.
 	HOLE_INFO := 3.
-	HOLE_SITE := 4.
-	HOLE_VALUE := 5.
-	HOLE_COUNT := 6.
-	HOLE_PARAMETERS := 4.
+	HOLE_VALUE := 4.
+	HOLE_C := 5.
+	HOLE_SITE := 6.
+	HOLE_COUNT := 7.
 	CONT_NEXT := 0.
 	CONT_JUMP := 1.
 	CONT_SLOW := 2.
@@ -69,9 +69,9 @@ initializeStencils
 
 !JitStencilCompiler methodsFor: 'opening'!
 open
-	"What all stencil code shares, generated into the code cache when it is opened (it survives flushes): a GOT and veneers for the VM's functions and variables the stencils use, the stencils' data, veneers for the threaded stencils bl does not reach, the exit and return glue. Answer whether it fit. Without the stencils (simulated) nothing is compiled."
+	"What all stencil code shares, generated into the code cache when it is opened (it survives flushes): a GOT and veneers for the VM's functions and variables the stencils use, the stencils' data, the exit and return glue. Answer whether it fit. Without the stencils (simulated) nothing is compiled."
 	<c: 'bool jit_stencils_open(void)'>
-	| start ns nd a off lit |
+	| start ns nd a off |
 	opened := false.
 	(table counts at: 0) = ST_COUNT ifFalse: [^true].
 	ns := table counts at: 2.
@@ -96,17 +96,6 @@ open
 			off := table dataRelocations at: 3 * i.
 			a := self target: (((table dataRelocations at: 3 * i + 1) >> 8) bitAnd: 255) id: (table dataRelocations at: 3 * i + 1) >> 16 addend: (table dataRelocations at: 3 * i + 2) asInt32.
 			self uint64At: dataBase + off put: a]].
-	0 to: ST_COUNT - 1 do: [:s |
-		a := table threadedFunctions at: s.
-		(self reaches: a)
-			ifTrue: [threadedTargets at: s put: a]
-			ifFalse: [
-				threadedTargets at: s put: asm pc.
-				lit := asm newLabel.
-				asm ldr: X16 label: lit.
-				asm br: X16.
-				asm bind: lit.
-				asm emit64: a]].
 	exitSyncGlue := asm pc.
 	asm mov: X19 with: X24.
 	asm b: (asm labelAt: stubs exitSyncAddress).
@@ -366,11 +355,21 @@ branchLabelFor: t
 	^l
 !
 superinstruction: pc depth: d
-	"push temp a, push temp / literal / SmallInteger b, then a special selector (at depth d + 2, synced at this pc)."
-	| op a b |
+	"push temp a, push temp / literal / SmallInteger b, then a special selector (at depth d + 2, synced at this pc). With arith + - < > <= >= read the operands where they are (fused, as for special:at:, with a following pop into a temp or conditional jump); else the pushes, then the special selector."
+	| op a b source k |
 	op := analysis byteAt: pc.
 	a := analysis byteAt: pc + 1.
 	b := analysis byteAt: pc + 2.
+	k := analysis specialIndexOf: analysis bytecodes + pc.
+	source := (op = 16r97 or: [op >= 16r9A and: [op < 16rA0]])
+		ifTrue: [0]
+		ifFalse: [(op = 16r98 or: [op >= 16rF0 and: [op < 16rF6]]) ifTrue: [1] ifFalse: [2]].
+	(runtime arith and: [k <= 5 and: [source ~= 1 or: [b < analysis numLiterals]]]) ifTrue: [
+		values at: HOLE_A put: a.
+		source = 2
+			ifTrue: [values at: HOLE_VALUE put: (self tagged: b asInt8)]
+			ifFalse: [values at: HOLE_B put: b].
+		^self operands: k source: source at: pc].
 	(self pushTemp: a) ifFalse: [^false].
 	(op = 16r97 or: [op >= 16r9A and: [op < 16rA0]])
 		ifTrue: [(self pushTemp: b) ifFalse: [^false]]
@@ -379,6 +378,29 @@ superinstruction: pc depth: d
 				ifTrue: [(self pushLiteral: b) ifFalse: [^false]]
 				ifFalse: [(self pushConstant: (self tagged: b asInt8)) ifFalse: [^false]]].
 	^self special: (analysis specialIndexOf: analysis bytecodes + pc) at: pc
+!
+operands: k source: source at: pc
+	"A superinstruction's + - < > <= >= (k) of temp A and its operand (source: temp, literal, SmallInteger) where they are; a following pop into a temp or conditional jump is fused."
+	| next j s fs t |
+	next := pc + (analysis lengthAt: pc).
+	values at: HOLE_INFO put: (self specialInfo: pc).
+	fs := ST_FLOAT_OPERATION + k.
+	(runtime fuse and: [analysis isStart: next]) ifTrue: [
+		j := analysis byteAt: next.
+		(k >= 2 and: [j = 16r91 or: [j = 16r92]]) ifTrue: [
+			(self defer: next) ifFalse: [^false].
+			s := (j = 16r91 ifTrue: [ST_COMPARE_OPERANDS_JUMP_TRUE] ifFalse: [ST_COMPARE_OPERANDS_JUMP_FALSE]) + ((k - 2) * 3) + source.
+			^self use: s next: -1 jump: (self branchLabelFor: (analysis jumpTargetAt: next)) slow: (self slow: fs next: (self labelFor: next) jump: -1)].
+		(k < 2 and: [(j >= 16r60 and: [j < 16r68]) or: [j = 16r87]]) ifTrue: [
+			t := j = 16r87 ifTrue: [analysis byteAt: next + 1] ifFalse: [j - 16r60].
+			(self defer: next) ifFalse: [^false].
+			values at: HOLE_C put: t.
+			s := (k = 0 ifTrue: [ST_ADD_OPERANDS_INTO] ifFalse: [ST_SUBTRACT_OPERANDS_INTO]) + source.
+			^self use: s next: -1 jump: -1 slow: (self slow: fs next: (self labelFor: next) jump: -1)]].
+	s := k >= 2
+		ifTrue: [ST_COMPARE_OPERANDS + ((k - 2) * 3) + source]
+		ifFalse: [(k = 0 ifTrue: [ST_ADD_OPERANDS] ifFalse: [ST_SUBTRACT_OPERANDS]) + source].
+	^self use: s next: -1 jump: -1 slow: (self slow: fs next: (self labelFor: next) jump: -1)
 !
 specialInfo: pc
 	"send:info:site:'s info for the special selector the instruction at pc sends."
@@ -414,9 +436,9 @@ special: k at: pc
 	k = 13 ifTrue: [s := ST_FLOOR_DIVIDE].
 	k = 14 ifTrue: [s := ST_BIT_AND].
 	k = 15 ifTrue: [s := ST_BIT_OR].
-	k = 16 ifTrue: [s := ST_ARRAY_AT].
-	k = 17 ifTrue: [s := ST_ARRAY_AT_PUT].
-	k = 18 ifTrue: [s := ST_ARRAY_SIZE].
+	k = 16 ifTrue: [s := ST_BASIC_AT].
+	k = 17 ifTrue: [s := ST_BASIC_AT_PUT].
+	k = 18 ifTrue: [s := ST_BASIC_SIZE].
 	(k = 27 or: [k = 28]) ifTrue: [s := ST_POINT_COORDINATE + (k - 27)].
 	k = 29 ifTrue: [s := ST_CLASS_OF].
 	s < 0 ifTrue: [^self use: ST_SPECIAL_SEND].
@@ -500,6 +522,7 @@ noteRelocation: r
 		id = HOLE_B ifTrue: [^asm comment: 'hole B: %d' with: (values at: id) asInt64].
 		id = HOLE_INFO ifTrue: [^asm comment: 'hole INFO: %d' with: (values at: id) asInt64].
 		id = HOLE_SITE ifTrue: [^asm comment: 'hole SITE: this code''s address'].
+		id = HOLE_C ifTrue: [^asm comment: 'hole C: %d' with: (values at: id) asInt64].
 		^asm comment: 'hole VALUE: %d' with: (values at: id) asInt64].
 	id = CONT_NEXT ifTrue: [^asm comment: 'continue: the next instruction'].
 	id = CONT_JUMP ifTrue: [^asm comment: 'continue: the jump target'].
@@ -616,19 +639,28 @@ emitSlots
 			ifFalse: [(self pageOffsetAt: (patchSites at: i) to: a scale: 3) ifFalse: [failed := true]]]
 !
 call: s next: nextLabel jump: jumpLabel slow: slowLabel
-	"A bl of stencil s's threaded function, its holes after the state (x25 + id; VALUE in A's register, SITE the return address), then a branch on the continuation it answers in x25."
-	| holes conts others first |
+	"A bl of stencil s's threaded function, its holes in x0-x7 in the order of their ids (SITE is the return address), then a branch on the continuation it answers in x0."
+	| holes conts others first fn r |
 	holes := table threadedHoles at: s.
+	r := 0.
 	0 to: HOLE_COUNT - 1 do: [:h |
 		(((holes >> h) bitAnd: 1) ~= 0 and: [h ~= HOLE_SITE]) ifTrue: [
-			asm mov: (h = HOLE_VALUE ifTrue: [X25 + HOLE_A] ifFalse: [X25 + h]) imm: (values at: h)]].
-	asm bl: (asm labelAt: (threadedTargets at: s)).
+			asm mov: X0 + r imm: (values at: h).
+			r := r + 1]].
+	fn := table threadedFunctions at: s.
+	(self reaches: fn)
+		ifTrue: [asm bl: (asm labelAt: fn)]
+		ifFalse: [
+			asm comment: 'out of bl''s reach: the address pc-relative'.
+			asm adrp: X16 label: (asm labelAt: fn).
+			asm add: X16 with: X16 imm: (fn bitAnd: 16rFFF).
+			asm blr: X16].
 	conts := table threadedContinuations at: s.
 	others := conts bitClear: 1 << CONT_NEXT.
 	(others ~= 0 and: [(others bitAnd: others - 1) = 0 and: [(conts bitAnd: 1 << CONT_NEXT) ~= 0]])
 		ifTrue: [
 			asm comment: 'not 0: where the stencil continues'.
-			0 to: 7 do: [:c | (others >> c bitAnd: 1) ~= 0 ifTrue: [asm cbnz: X25 to: (self labelOfContinuation: c jump: jumpLabel slow: slowLabel)]]]
+			0 to: 7 do: [:c | (others >> c bitAnd: 1) ~= 0 ifTrue: [asm cbnz: X0 to: (self labelOfContinuation: c jump: jumpLabel slow: slowLabel)]]]
 		ifFalse: [
 			first := true.
 			0 to: 7 do: [:c |
@@ -638,7 +670,7 @@ call: s next: nextLabel jump: jumpLabel slow: slowLabel
 						ifFalse: [
 							first ifTrue: [asm comment: 'the continuation the stencil answers'].
 							first := false.
-							asm cmp: X25 imm: c.
+							asm cmp: X0 imm: c.
 							asm b: (self labelOfContinuation: c jump: jumpLabel slow: slowLabel) if: COND_EQ]]]].
 	((conts bitAnd: 1 << CONT_NEXT) ~= 0 and: [nextLabel >= 0]) ifTrue: [asm b: nextLabel].
 	^true
