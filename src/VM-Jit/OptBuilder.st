@@ -880,7 +880,7 @@ special: k pc: pc act: a rcvSlot: r
 	(k >= 16 and: [k <= 18 and: [(self knownClassOf: x) = 0 and: [(runtime flag: runtime primsFlag) and: [(feedback siteAt: (ir act: a) method pc: pc) isNull]]]]) ifTrue: [
 		"no feedback: the lower tier's Array fast path took them all"
 		self write: (self var: a slot: r) value: (self guard: x class: memory clsArray state: (self stateAct: a pc: pc depth: (self depthAt: pc act: a)))].
-	(k <= 9 or: [k = 14 or: [k = 15]]) ifTrue: [
+	(k <= 10 or: [k = 12 or: [k = 13 or: [k = 14 or: [k = 15]]]]) ifTrue: [
 		fl := feedback flagsAt: (ir act: a) method pc: pc.
 		(k <= 9 and: [(runtime flag: runtime unboxFlag) and: [(fl bitAnd: (feedback sawNonInt bitOr: feedback deoptOther)) = 0 and: [
 			(fl bitAnd: feedback sawFloat) ~= 0 or: [(self isFloat: x) or: [(self isFloat: y) or: [self sawFloatIn: (ir act: a) method]]]]]]) ifTrue: [
@@ -911,9 +911,9 @@ intArith: k x: x y: y pc: pc act: a rcvSlot: r
 		(ir node: n) tkind: T_BOOL.
 		self push: n act: a depth: r.
 		^self].
-	n := self binary: (k caseOf: {[0] -> [O_IADD]. [1] -> [O_ISUB]. [8] -> [O_IMUL]. [14] -> [O_IAND]} otherwise: [O_IOR]) a: gx b: gy.
+	n := self binary: (k caseOf: {[0] -> [O_IADD]. [1] -> [O_ISUB]. [8] -> [O_IMUL]. [10] -> [O_IMOD]. [11] -> [O_IXOR]. [12] -> [O_ISHIFT]. [13] -> [O_IDIV]. [14] -> [O_IAND]} otherwise: [O_IOR]) a: gx b: gy.
 	(ir node: n) tkind: T_SMI.
-	(k <= 1 or: [k = 8]) ifTrue: [(ir node: n) state: s].
+	(k <= 1 or: [k = 8 or: [k = 10 or: [k = 12 or: [k = 13]]]]) ifTrue: [(ir node: n) state: s].
 	self push: n act: a depth: r
 !
 floatArith: k x: x y: y pc: pc act: a rcvSlot: r
@@ -1149,6 +1149,10 @@ primKindOf: p
 		self primNamed: 'intMul' kind: PK_INT + 8.
 		self primNamed: 'intBitAnd' kind: PK_INT + 14.
 		self primNamed: 'intBitOr' kind: PK_INT + 15.
+		self primNamed: 'intMod' kind: PK_INT + 10.
+		self primNamed: 'intBitXor' kind: PK_INT + 11.
+		self primNamed: 'intBitShift' kind: PK_INT + 12.
+		self primNamed: 'intFloorDiv' kind: PK_INT + 13.
 		self primNamed: 'floatAdd' kind: PK_FLOAT + 0.
 		self primNamed: 'floatSub' kind: PK_FLOAT + 1.
 		self primNamed: 'floatLess' kind: PK_FLOAT + 2.

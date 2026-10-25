@@ -307,11 +307,16 @@ emitNode: n block: b next: nextBlock
 		^self def: n from: x].
 	(op = O_IADD or: [op = O_ISUB]) ifTrue: [^self emitAddSub: n].
 	op = O_IMUL ifTrue: [^self emitMul: n].
-	(op = O_IAND or: [op = O_IOR]) ifTrue: [
+	(op = O_IMOD or: [op = O_IDIV or: [op = O_ISHIFT]]) ifTrue: [^self emitDivShift: n].
+	(op = O_IAND or: [op = O_IOR or: [op = O_IXOR]]) ifTrue: [
 		x := self src: nd a into: X14.
 		y := self src: nd b into: X15.
 		r := self dst: n.
-		op = O_IAND ifTrue: [asm and: r with: x with: y] ifFalse: [asm orr: r with: x with: y].
+		op = O_IAND ifTrue: [asm and: r with: x with: y].
+		op = O_IOR ifTrue: [asm orr: r with: x with: y].
+		op = O_IXOR ifTrue: [
+			asm eor: r with: x with: y.
+			asm orr: r with: r imm: 1].
 		^self def: n from: r].
 	op = O_CHECKINT ifTrue: [^self emitCheckInterrupt: n].
 	(op = O_SEND or: [op = O_CALL]) ifTrue: [^self emitSend: n].
@@ -608,6 +613,58 @@ emitAddSub: n
 				ifFalse: [asm subs: X16 with: x with: X17]].
 	asm b: s if: COND_VS.
 	self def: n from: X16
+!
+emitDivShift: n
+	"SmallInteger modulo and division (floored; a zero divisor deoptimizes) and bitShift: (a result that does not fit deoptimizes)."
+	| nd s op neg done |
+	nd := ir node: n.
+	op := nd op asInt32.
+	s := self deoptLabelFor: n.
+	asm asr: X16 with: (self src: nd a into: X14) imm: 1.
+	asm asr: X17 with: (self src: nd b into: X15) imm: 1.
+	done := asm newLabel.
+	op = O_ISHIFT ifTrue: [
+		neg := asm newLabel.
+		asm tbnz: X17 bit: 63 to: neg.
+		asm comment: 'left: back again or deoptimize'.
+		asm cmp: X17 imm: 62.
+		asm b: s if: COND_HI.
+		asm lsl: X15 with: X16 with: X17.
+		asm asr: X14 with: X15 with: X17.
+		asm cmp: X14 with: X16.
+		asm b: s if: COND_NE.
+		asm b: done.
+		asm bind: neg.
+		asm neg: X17 with: X17.
+		asm mov: X14 imm: 63.
+		asm cmp: X17 with: X14.
+		asm csel: X17 with: X17 with: X14 cond: COND_LS.
+		asm asr: X15 with: X16 with: X17.
+		asm bind: done.
+		asm adds: X15 with: X15 with: X15.
+		asm b: s if: COND_VS.
+		asm orr: X15 with: X15 imm: 1.
+		^self def: n from: X15].
+	asm cbz: X17 to: s.
+	asm sdiv: X15 with: X16 with: X17.
+	asm msub: X14 with: X15 with: X17 sub: X16.
+	asm comment: 'floored: a remainder of the divisor''s other sign moves'.
+	asm cbz: X14 to: done.
+	asm eor: X16 with: X14 with: X17.
+	asm tbz: X16 bit: 63 to: done.
+	op = O_IMOD
+		ifTrue: [asm add: X14 with: X14 with: X17]
+		ifFalse: [asm sub: X15 with: X15 imm: 1].
+	asm bind: done.
+	op = O_IMOD
+		ifTrue: [
+			asm add: X14 with: X14 with: X14.
+			asm orr: X15 with: X14 imm: 1]
+		ifFalse: [
+			asm adds: X15 with: X15 with: X15.
+			asm b: s if: COND_VS.
+			asm orr: X15 with: X15 imm: 1].
+	self def: n from: X15
 !
 emitMul: n
 	| nd x y s |
@@ -1247,7 +1304,7 @@ recordGuard: n
 	op := (ir node: n) op asInt32.
 	why := (op = O_GUARDCLASS or: [op = O_DEOPT])
 		ifTrue: [feedback deoptClass]
-		ifFalse: [(op = O_GUARDINT or: [op = O_IADD or: [op = O_ISUB or: [op = O_IMUL]]]) ifTrue: [feedback deoptArith] ifFalse: [feedback deoptOther]].
+		ifFalse: [(op = O_GUARDINT or: [op = O_IADD or: [op = O_ISUB or: [op = O_IMUL or: [op = O_IMOD or: [op = O_IDIV or: [op = O_ISHIFT]]]]]]) ifTrue: [feedback deoptArith] ifFalse: [feedback deoptOther]].
 	(libc getenv: 'SAMALTAK_OPT_TRACE') notNull ifTrue: [libc fprintf: libc stderr format: 'guard safepoint %d: v%d
 ' with: cgSpCount with: n].
 	^self recordState: (ir node: n) state kind: (SP_GUARD bitOr: why asInt64 << 8) asInt32 node: n inSlots: false

@@ -370,11 +370,15 @@ typedef void (*prim_fn)(void);
 #define O_IADD 9
 #define O_IAND 13
 #define O_ICMP 12
+#define O_IDIV 35
+#define O_IMOD 34
 #define O_IMUL 11
 #define O_INDEXLOAD 22
 #define O_INDEXSTORE 23
 #define O_IOR 14
+#define O_ISHIFT 36
 #define O_ISUB 10
+#define O_IXOR 37
 #define O_LAST 43
 #define O_LOADFIELD 4
 #define O_NE 8
