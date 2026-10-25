@@ -1080,9 +1080,9 @@ emitReloadPinned
 	asm ldr: X25 base: X22 offset: self falseOffset
 !
 emitBlockCall: n index: k slow: slow
-	"The closure at slotTop (its argument count n) runs the code this site called last: its frame pushed as the interpreter's blockActivate:fromArray: does, then a call of the entry; else, or no room on the stack: slow. Live values are in their home slots: x0-x13 are free."
+	"The closure at slotTop (its argument count n) runs the code a block call last found for its home method and startpc: its frame pushed as the interpreter's blockActivate:fromArray: does, then a call of the entry; else, or no room on the stack: slow. Live values are in their home slots: x0-x13 are free."
 	| e fb loop fill |
-	e := runtime blockCallEntryFor: cgCodeStart index: k.
+	e := runtime blockCalls.
 	fb := self frameBytes asInt64.
 	asm comment: 'block call: the closure this site called last?'.
 	asm ldr: X14 base: X20 offset: 8 * cgSlotTop.
@@ -1095,14 +1095,19 @@ emitBlockCall: n index: k slow: slow
 	self loadConstant: memory clsBlock into: X16.
 	asm cmp: X15 with: X16.
 	asm b: slow if: COND_NE.
+	asm comment: 'its code by home method and startpc'.
 	asm adrp: X16 label: (asm labelAt: e).
 	asm add: X16 with: X16 imm: (e bitAnd: 16rFFF) asInt64.
 	asm ldr: X15 base: X14 offset: (self fieldOffset: BC_OUTER).
 	asm ldr: X17 base: X15 offset: (self fieldOffset: CTX_METHOD).
+	asm ldr: X2 base: X14 offset: (self fieldOffset: BC_STARTPC).
+	asm lsr: X3 with: X17 imm: 3.
+	asm eor: X3 with: X3 with: X2 shift: SHIFT_LSR amount: 1.
+	asm and: X3 with: X3 imm: runtime blockCallsMask asUInt64.
+	asm add: X16 with: X16 with: X3 shift: SHIFT_LSL amount: 5.
 	asm ldp: X0 with: X1 base: X16 offset: 0.
 	asm cmp: X17 with: X0.
 	asm b: slow if: COND_NE.
-	asm ldr: X2 base: X14 offset: (self fieldOffset: BC_STARTPC).
 	asm cmp: X2 with: X1.
 	asm b: slow if: COND_NE.
 	asm ldp: X0 with: X1 base: X16 offset: 16.

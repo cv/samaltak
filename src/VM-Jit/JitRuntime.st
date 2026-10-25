@@ -1467,9 +1467,12 @@ outerTemp: f
 		ifFalse: [self storeRef: c at: CTX_FIXED + i put: (slot at: -1)].
 	^0
 !
-blockCallEntryFor: start index: k
-	"The address of the optimizer's block call cache entry of safepoint k of the code at start."
-	^optimizer blockCallsAddress + (32 * (optimizer blockCallSlot: start index: k))
+blockCalls
+	"The optimizer's block call cache (OptRuntime>>blockCallsAddress)."
+	^optimizer blockCallsAddress
+!
+blockCallsMask
+	^optimizer blockCallsMask
 !
 tierUp: f loop: loop
 	"The lower tier's counter for f's method ran out at f's pc (a method entry, or a backward jump if loop ~= 0; f's pc and sp stored): answer 0 to go on, 1 to leave, or where f continues in optimized code."

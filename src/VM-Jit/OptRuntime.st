@@ -163,19 +163,22 @@ makesClosures: m start: s
 	^closures and: [reach]
 !
 blockCallsAddress
-	"Where block call sites of optimized code (OptCodegen>>emitBlockCall:index:slow:) find the code of the closures they called: 4 words per site (method, startpc, frame code, entry), cleared at every GC."
+	"Where block call sites of optimized code (OptCodegen>>emitBlockCall:index:slow:) find the code of the closures they call: 4 words per entry (home method, startpc, frame code, entry) by home method and startpc, cleared at every GC."
 	^self cCoerce: rtBlockCalls to: 'uint64_t'
 !
-blockCallSlot: start index: k
-	"The cache entry of safepoint k of the code at start."
-	^((start >> 4) + (k * 7)) asInt64 bitAnd: (OPT_BLOCK_CALLS quo: 4) - 1
+blockCallsMask
+	^(OPT_BLOCK_CALLS quo: 4) - 1
+!
+blockCallSlotOf: m start: s
+	"The cache entry of home method m's block at startpc s (a SmallInteger)."
+	^((m >> 3) bitXor: (s >> 1)) asInt64 bitAnd: (OPT_BLOCK_CALLS quo: 4) - 1
 !
 noteBlockCall: h index: k closure: c entry: e
 	"A block call site sent value to c: its frame code and entry e, for the next time."
 	| p g |
 	e <= 1 ifTrue: [^self].
 	g := interpreter frames + (interpreter nframes - 1).
-	p := rtBlockCalls + (4 * (self blockCallSlot: h codeStart index: k)).
+	p := rtBlockCalls + (4 * (self blockCallSlotOf: g method start: (self loadRef: c at: BC_STARTPC))).
 	p at: 0 put: g method.
 	p at: 1 put: (self loadRef: c at: BC_STARTPC).
 	p at: 2 put: g code.

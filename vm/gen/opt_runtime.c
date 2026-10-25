@@ -1240,12 +1240,13 @@ uint64_t opt_send(frame *f, int64_t k, uint64_t key)
     uint64_t o_2;
     uint64_t v;
     frame *g;
-    uint64_t start;
+    oop m;
+    uint64_t s;
     uint64_t *p;
     oop r_innermost_method_of;
     int32_t nacts;
     int64_t p_2;
-    oop m;
+    oop m_2;
     int32_t j;
     int32_t i_2;
     oop o_3;
@@ -1254,7 +1255,7 @@ uint64_t opt_send(frame *f, int64_t k, uint64_t key)
     uint64_t cls;
     uint8_t *site;
     uint64_t r_icache_index_of;
-    uint64_t s;
+    uint64_t s_2;
     cache_entry *e;
     uint64_t r_leave_before;
     oop o_5;
@@ -1318,8 +1319,9 @@ uint64_t opt_send(frame *f, int64_t k, uint64_t key)
                 goto exit_note_block_call;
             }
             g = frames + (nframes - 1);
-            start = h->code_start;
-            p = rt_block_calls + 4 * (((int64_t)((start >> 4) + k * 7)) & 4095);
+            m = g->method;
+            s = *(uint64_t *)(r + 16 + 8);
+            p = rt_block_calls + 4 * (((int64_t)((m >> 3) ^ (s >> 1))) & 4095);
             p[0] = g->method;
             p[1] = *(uint64_t *)(r + 16 + 8);
             p[2] = g->code;
@@ -1333,13 +1335,13 @@ uint64_t opt_send(frame *f, int64_t k, uint64_t key)
         o_3 = ({
     nacts = rec[4];
     p_2 = 5;
-    m = nil_oop;
+    m_2 = nil_oop;
     for (j = 0; j <= nacts - 1; j++) {
         i_2 = rec[p_2];
-        m = ((oop *)(h->code_start + h->pool_offset))[i_2];
+        m_2 = ((oop *)(h->code_start + h->pool_offset))[i_2];
         p_2 = p_2 + 5 + rec[p_2 + 4];
     }
-    r_innermost_method_of = m;
+    r_innermost_method_of = m_2;
     r_innermost_method_of; });
         o_4 = *(uint64_t *)(o_3 + 16 + 8);
         v_2 = *(uint64_t *)(o_4 + 16 + 0);
@@ -1349,8 +1351,8 @@ uint64_t opt_send(frame *f, int64_t k, uint64_t key)
     v_2; });
     site = (uint8_t *)key;
     e = icache + ({
-    s = (uint64_t)site;
-    r_icache_index_of = (s ^ (s >> 12)) & 4095;
+    s_2 = (uint64_t)site;
+    r_icache_index_of = (s_2 ^ (s_2 >> 12)) & 4095;
     r_icache_index_of; });
     if (!((e->cls == cls) && (e->sel == key))) {
         e = site_entry((uint8_t *)key, cls, sel);
