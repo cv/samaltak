@@ -72,7 +72,7 @@ runSimulation: argv
 	code := [
 		image := argv detect: [:a | a endsWith: '.image'] ifNone: [nil].
 		image = self class miniImagePath ifTrue: [ImageBuilder buildFrom: 'vm/tests/mini' to: image].
-		sim := VMSimulation modules: (VMModule vmModules select: [:c | c packageName = 'VM-Core']).
+		sim := VMSimulation modules: (VMModule vmModules select: [:c | c packageName ~= 'VM-Platform']).
 		sim onOutput: [:text | lock critical: [pending nextPutAll: text]].
 		started := sim microsecondClock.
 		simulation := sim.

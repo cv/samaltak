@@ -1,6 +1,6 @@
 VMCoreModule subclass: #Interpreter
-	instanceVariableNames: 'activeCtx tmpRoots primStatus primErrorCode primNargs primBase primBaseIndex primResult resendSelector resendArgc cstack frames nframes cstackUsed tagClass stackLimit stackCheckAt stackCheckDue stackCheckHash statMaterialized statFlushes cache icache specialArgc ip sp fp lits fr sel cls argc result epoch newMethod newBcs newLits newTemps newFsize newEcode newFp'
-	classVariableNames: 'CACHE_SIZE CSTACK_SLOTS ICACHE_SIZE K_CONST K_CTX K_LEAF K_PRIM K_QUICK K_SETTER MAX_FRAMES'
+	instanceVariableNames: 'activeCtx tmpRoots primStatus primErrorCode primNargs primBase primBaseIndex primResult resendSelector resendArgc cstack frames nframes cstackUsed tagClass stackLimit stackCheckAt stackCheckDue stackCheckHash statMaterialized statFlushes cache icache specialArgc ip sp fp lits fr sel cls argc result epoch newMethod newBcs newLits newTemps newFsize newEcode newFp newCode'
+	classVariableNames: 'CACHE_SIZE CSTACK_SLOTS ICACHE_SIZE MAX_FRAMES'
 	package: 'VM-Core'!
 
 Interpreter class instanceVariableNames: 'handlers'!
@@ -23,10 +23,10 @@ declarations
 		(cache 'CacheEntry[CACHE_SIZE]') (icache 'CacheEntry[ICACHE_SIZE]')
 		(specialArgc 'int32_t[32]')
 		(ip 'uint8_t *') (sp 'oop *') (fp 'oop *') (lits 'oop *') (fr 'Frame *') (sel oop) (cls oop) (argc int32_t) (result oop) (epoch uint64_t)
-		(newMethod oop) (newBcs 'uint8_t *') (newLits 'oop *') (newTemps int32_t) (newFsize int32_t) (newEcode int32_t) (newFp 'oop *'))
+		(newMethod oop) (newBcs 'uint8_t *') (newLits 'oop *') (newTemps int32_t) (newFsize int32_t) (newEcode int32_t) (newFp 'oop *') (newCode uint64_t))
 !
 registers
-	^#(ip sp fp lits fr sel cls argc result epoch newMethod newBcs newLits newTemps newFsize newEcode newFp)
+	^#(ip sp fp lits fr sel cls argc result epoch newMethod newBcs newLits newTemps newFsize newEcode newFp newCode)
 !
 typedefs
 	^#((prim_fn 'void (*)(void)'))
@@ -35,13 +35,7 @@ initialize
 	CSTACK_SLOTS := 64 * 1024.
 	MAX_FRAMES := CSTACK_SLOTS.
 	CACHE_SIZE := 4096.
-	ICACHE_SIZE := 4096.
-	K_PRIM := 1.
-	K_QUICK := 2.
-	K_SETTER := 4.
-	K_CONST := 8.
-	K_LEAF := 16.
-	K_CTX := 32
+	ICACHE_SIZE := 4096
 !
 handlerTable
 	"Simulation: the handler selector of each bytecode."
@@ -102,6 +96,12 @@ primErrorCode
 !
 nframes
 	^nframes
+!
+frames
+	^frames
+!
+specialArgcAt: k
+	^specialArgc at: k
 !
 stackLimit
 	^stackLimit
@@ -402,6 +402,10 @@ fillCache: aClass selector: aSelector
 		bitOr: ((e nset ~= 0 ifTrue: [K_SETTER] ifFalse: [0]) bitOr: (qc ifTrue: [K_CONST] ifFalse: [0]))) asUInt8.
 	"A receiver Context may be married: haveEntry checks it first."
 	aClass = memory clsContext ifTrue: [e kind: ((e kind bitClear: K_LEAF) bitOr: K_CTX) asUInt8].
+	"An ordinary method under a JIT: its code, or 1 while its activations are counted."
+	(e kind = 0 and: [jit enabled]) ifTrue: [
+		e code: (jit cacheCodeFor: m).
+		e code ~= 0 ifTrue: [e kind: K_JIT]].
 	^e
 !
 selectorArgc: aSelector
@@ -426,6 +430,8 @@ interruptSafepoint
 	depth := (stackCheckDue and: [(self hashOf: scheduler activeProcess) = stackCheckHash]) ifTrue: [self stackOverflowDepth] ifFalse: [0].
 	depth = 0 ifTrue: [^scheduler handleInterrupts].
 	self materializeAll.
+	"these flushed frames must not trigger a check of the stack being handled"
+	stackCheckDue := false.
 	sel := memory special: SO_SEL_STACKOVERFLOW.
 	m := self lookupMethod: (self rawClass: activeCtx) selector: sel.
 	(m = 0 or: [(self isPtr: m) not or: [(self methodPrim: m) ~= 0 or: [(self loadRef: m at: CM_NUMARGS) ~= (self intOop: 1)]]]) ifTrue: [
@@ -589,6 +595,7 @@ blockActivate: n fromArray: fromArray
 	f method: m.
 	f closure: cl.
 	f ctx: memory nilOop.
+	f code: (jit frameCodeFor: m).
 	f fp: nfp.
 	f ip: (self methodBcs: m) + (self intVal: (self loadRef: cl at: BC_STARTPC)).
 	f lits: (self slotsOf: (self loadRef: m at: CM_LITERALS)).
@@ -603,6 +610,128 @@ activateBlock: n
 activateBlockWithArray
 	<c: 'void activate_block_with_array(void)'>
 	self blockActivate: 0 fromArray: true
+! !
+
+!Interpreter methodsFor: 'machine code'!
+syncFrame: f
+	"Machine code ran f and stored its pc and sp: f is the top frame."
+	<c: 'void interp_sync_frame(Frame *f)'>
+	nframes := (f - frames) asInt32 + 1.
+	f ip: (self methodBcs: f method) + f pc.
+	cstackUsed := (f fp + f sp - cstack) asUInt64
+!
+icacheAt: site
+	"The inline cache entry of the send site site."
+	^icache + (self icacheIndexOf: site)
+!
+siteEntry: site class: aClass selector: aSelector
+	"As doSiteLookup: the inline cache entry of the send whose continuation is site; null if aClass does not understand aSelector."
+	<c: 'CacheEntry *site_entry(uint8_t *site, oop cls, oop sel)'>
+	| e g |
+	e := icache + (self icacheIndexOf: site).
+	(e cls = aClass and: [e sel = (self cCoerce: site to: 'oop')]) ifTrue: [^e].
+	g := cache + (self cacheIndexOf: aClass selector: aSelector).
+	(g cls ~= aClass or: [g sel ~= aSelector]) ifTrue: [
+		g := self fillCache: aClass selector: aSelector.
+		g isNull ifTrue: [^self null]].
+	e copyStructFrom: g.
+	e sel: (self cCoerce: site to: 'oop').
+	^e
+!
+callPrimitive: fn base: b argc: n
+	"Run primitive fn on the receiver and n arguments at b, the top of the top frame (externalized); answer primStatus."
+	<c: 'int32_t interp_call_primitive(prim_fn fn, oop *b, int32_t n)'>
+	primNargs := n.
+	primBase := b.
+	primBaseIndex := b - self activeSlots.
+	primStatus := PS_NONE.
+	fn call.
+	^primStatus
+!
+pushFrame: m argc: n code: c ecode: ecode
+	"Activate m as activate does: its receiver and n arguments are the top of the top frame, whose ip the caller set. Answer the new frame, null if the stack is full."
+	<c: 'Frame *interp_push_frame(oop m, int32_t n, uint64_t c, int32_t ecode)'>
+	| f g nfp ntemps fsize |
+	f := frames + (nframes - 1).
+	ntemps := self intVal: (self loadRef: m at: CM_NUMTEMPS).
+	fsize := self intVal: (self loadRef: m at: CM_FRAMESIZE).
+	fsize < (n + ntemps) ifTrue: [fsize := n + ntemps].
+	nfp := f fp + f sp - n.
+	nfp + fsize > (cstack + (CSTACK_SLOTS - CTX_SLACK)) ifTrue: [^self null].
+	f sp: (f sp - n - 1) asInt32.
+	g := f + 1.
+	g method: m.
+	g closure: memory nilOop.
+	g ctx: memory nilOop.
+	g code: c.
+	g fp: nfp.
+	g ip: (self methodBcs: m).
+	g lits: (self slotsOf: (self loadRef: m at: CM_LITERALS)).
+	g sp: (n + ntemps) asInt32.
+	n to: n + ntemps - 1 do: [:i | nfp at: i put: memory nilOop].
+	ecode >= 0 ifTrue: [nfp at: n put: (self intOop: ecode)].
+	nframes := nframes + 1.
+	cstackUsed := (nfp + n + ntemps - cstack) asUInt64.
+	^g
+!
+pushFrameEntry: e argc: n
+	"pushFrame:argc:code:ecode: for e's method and code, its shape from the cache entry."
+	<c: 'Frame *interp_push_frame_entry(CacheEntry *e, int32_t n)'>
+	| f g nfp ntemps |
+	f := frames + (nframes - 1).
+	ntemps := e ntemps.
+	nfp := f fp + f sp - n.
+	nfp + e fsize > (cstack + (CSTACK_SLOTS - CTX_SLACK)) ifTrue: [^self null].
+	f sp: (f sp - n - 1) asInt32.
+	g := f + 1.
+	g method: e method.
+	g closure: memory nilOop.
+	g ctx: memory nilOop.
+	g code: e code.
+	g fp: nfp.
+	g ip: e bcs.
+	g lits: e lits.
+	g sp: n + ntemps.
+	n to: n + ntemps - 1 do: [:i | nfp at: i put: memory nilOop].
+	nframes := nframes + 1.
+	cstackUsed := (nfp + n + ntemps - cstack) asUInt64.
+	^g
+!
+thawFor: code
+	"Under a JIT: activeCtx (no frames, registers saved) is married to frame 0, its sender the new base Context, so that its machine code (code) continues it. Answer the frame, null if activeCtx's sender is not a live Context."
+	<c: 'Frame *interp_thaw(uint64_t code)'>
+	| c s sender n m f |
+	c := activeCtx.
+	s := self slotsOf: c.
+	sender := s at: CTX_SENDER.
+	(nframes = 0 and: [(self isPtr: sender) and: [sender ~= memory nilOop and: [(self rawClass: sender) = memory clsContext and: [self isInt: ((self slotsOf: sender) at: CTX_PC)]]]]) ifFalse: [^self null].
+	n := self intVal: (s at: CTX_STACKP).
+	m := s at: CTX_METHOD.
+	f := frames + 0.
+	cstack at: 0 put: (s at: CTX_RECEIVER).
+	libc memcpy: cstack + 1 from: s + CTX_FIXED size: n asUInt64 * 8.
+	f method: m.
+	f closure: (s at: CTX_CLOSURE).
+	f ctx: c.
+	f code: code.
+	f fp: cstack + 1.
+	f ip: (self methodBcs: m) + (self intVal: (s at: CTX_PC)).
+	f lits: (self slotsOf: (self loadRef: m at: CM_LITERALS)).
+	f sp: n asInt32.
+	s at: CTX_SENDER put: (self intOop: 0).
+	s at: CTX_STACKP put: (self intOop: 0).
+	activeCtx := sender.
+	nframes := 1.
+	cstackUsed := (n + 1) asUInt64.
+	^f
+!
+setCacheCode: c forMethod: m
+	"m got machine code c: method cache entries that count its activations switch to it."
+	<c: 'void set_cache_code(uint64_t c, oop m)'>
+	0 to: CACHE_SIZE - 1 do: [:i |
+		((cache + i) method = m and: [(cache + i) kind = K_JIT]) ifTrue: [(cache + i) code: c]].
+	0 to: ICACHE_SIZE - 1 do: [:i |
+		((icache + i) method = m and: [(icache + i) kind = K_JIT]) ifTrue: [(icache + i) code: c]]
 ! !
 
 !Interpreter methodsFor: 'diagnostics'!
@@ -786,6 +915,37 @@ checkInterrupts
 		self interruptSafepoint.
 		self reload]
 !
+jumpedBack
+	"A backward jump: interrupts, then on-stack replacement if the frame's method has code or counts toward it; under a JIT a looping Context may continue in machine code."
+	self checkInterrupts.
+	fr notNull
+		ifTrue: [
+			(self unlikely: fr code ~= 0) ifTrue: [
+				self externalize.
+				jit backJump: fr.
+				self reload]]
+		ifFalse: [
+			(self unlikely: jit enabled) ifTrue: [
+				self saveCtx.
+				jit resumeContext: true.
+				self reload]]
+!
+jitResumeContext
+	"Returned into activeCtx (no frames): under a JIT it may continue in machine code."
+	(self unlikely: (fr isNull and: [jit enabled])) ifTrue: [
+		self saveCtx.
+		jit resumeContext: false.
+		self reload]
+!
+jitResume
+	"The top frame (fr) has machine code: continue it there."
+	self externalize.
+	jit resume: fr.
+	self reload
+!
+jitResumeTop
+	(self unlikely: (fr notNull and: [jit isCode: fr code])) ifTrue: [self jitResume]
+!
 pushFused: b
 	"Superinstructions decided at dispatch time (methods keep their bytecodes): a push followed by + - < > <= >= on two SmallIntegers computes right away, and its result goes straight into a following pop-store temp or conditional jump."
 	| a nx c j o |
@@ -809,7 +969,7 @@ pushFused: b
 					ip := ip + 3.
 					c = (j = 16r91) ifTrue: [
 						ip := ip + o.
-						o < 0 ifTrue: [self checkInterrupts]].
+						o < 0 ifTrue: [self jumpedBack]].
 					^self].
 				sp value: (self bool: c).
 				^self]].
@@ -837,7 +997,7 @@ boolResult: c
 		ip := ip + 3.
 		c = (nx = 16r91) ifTrue: [
 			ip := ip + o.
-			o < 0 ifTrue: [self checkInterrupts]].
+			o < 0 ifTrue: [self jumpedBack]].
 		^self].
 	sp := sp - 1.
 	sp value: (self bool: c)
@@ -1091,7 +1251,7 @@ jump
 	| o |
 	o := self readInt16: ip.
 	ip := ip + 2 + o.
-	o < 0 ifTrue: [self checkInterrupts]
+	o < 0 ifTrue: [self jumpedBack]
 !
 conditionalJump
 	"jump if true (91), jump if false (92)"
@@ -1106,7 +1266,7 @@ conditionalJump
 	v = (op = 16r91 ifTrue: [memory trueOop] ifFalse: [memory falseOop])
 		ifTrue: [
 			ip := ip + o.
-			o < 0 ifTrue: [self checkInterrupts]]
+			o < 0 ifTrue: [self jumpedBack]]
 		ifFalse: [
 			v ~= (op = 16r91 ifTrue: [memory falseOop] ifFalse: [memory trueOop]) ifTrue: [
 				ip := ip - 3.
@@ -1190,7 +1350,7 @@ fusedCompareResult: c
 		ip := ip + 5.
 		c = (j = 16r91) ifTrue: [
 			ip := ip + o.
-			o < 0 ifTrue: [self checkInterrupts]].
+			o < 0 ifTrue: [self jumpedBack]].
 		^self].
 	self push: (self bool: c).
 	ip := ip + 2
@@ -1425,6 +1585,9 @@ bcValue
 		self externalize.
 		self blockActivate: n fromArray: false.
 		self loadFrame.
+		(self unlikely: (jit isCode: fr code)) ifTrue: [
+			self jitResume.
+			^self].
 		self checkInterrupts.
 		^self].
 	^self specialSend
@@ -1519,7 +1682,11 @@ haveEntry: e
 	newTemps := e ntemps.
 	newFsize := e fsize.
 	newEcode := -1.
+	newCode := 0.
 	(self likely: e kind = 0) ifTrue: [^self activate].
+	e kind = K_JIT ifTrue: [
+		newCode := e code.
+		^self activate].
 	(e kind bitAnd: K_LEAF) ~= 0 ifTrue: [
 		"no allocation, no GC: the registers stay valid"
 		primNargs := argc.
@@ -1579,6 +1746,7 @@ haveEntry: e
 			[PS_SWITCHED] -> [
 				tmpRoots at: 0 put: memory nilOop.
 				self reload.
+				self jitResumeTop.
 				^self].
 			[PS_RESEND] -> [
 				tmpRoots at: 0 put: memory nilOop.
@@ -1633,6 +1801,7 @@ enterFrame
 	fr method: newMethod.
 	fr closure: memory nilOop.
 	fr ctx: memory nilOop.
+	fr code: newCode.
 	fp := newFp.
 	fr fp: newFp.
 	ip := newBcs.
@@ -1641,6 +1810,12 @@ enterFrame
 	sp := newFp + argc - 1.
 	1 to: newTemps do: [:k | self push: memory nilOop].
 	(self unlikely: newEcode >= 0) ifTrue: [newFp at: argc put: (self intOop: newEcode)].
+	(self unlikely: newCode ~= 0) ifTrue: [
+		"machine code checks interrupts itself"
+		self externalize.
+		jit activated: fr.
+		self reload.
+		^self].
 	self checkInterrupts
 !
 sendToMarried
@@ -1719,6 +1894,7 @@ returnTop
 			lits := fr lits.
 			fp := fr fp.
 			ip := fr ip.
+			(self unlikely: (jit isCode: fr code)) ifTrue: [self jitResume].
 			^self].
 		(self isInt: ((self slotsOf: activeCtx) at: CTX_PC)) ifFalse: [
 			"returning into a dead Context: let the Context path send cannotReturn:"
@@ -1732,6 +1908,7 @@ returnTop
 		gc rememberIfOld: activeCtx.
 		self loadCtx.
 		self push: result.
+		self jitResumeContext.
 		^self].
 	^self contextReturn
 !
@@ -1746,7 +1923,8 @@ contextReturn
 	activeCtx := sender.
 	gc rememberIfOld: sender.
 	self loadCtx.
-	self push: result
+	self push: result.
+	self jitResumeContext
 !
 nonLocalReturn
 	<bytecode: 16r7C>
@@ -1770,6 +1948,7 @@ nonLocalReturn
 				gc rememberIfOld: activeCtx.
 				self loadCtx.
 				self push: result.
+				self jitResumeContext.
 				^self].
 			nframes := h.
 			fr := frames + h.
@@ -1779,6 +1958,7 @@ nonLocalReturn
 			lits := fr lits.
 			fp := fr fp.
 			ip := fr ip.
+			(self unlikely: (jit isCode: fr code)) ifTrue: [self jitResume].
 			^self].
 		self materializeAll.
 		self loadCtx.
@@ -1809,7 +1989,8 @@ nonLocalReturn
 	activeCtx := hs.
 	gc rememberIfOld: hs.
 	self loadCtx.
-	self push: result
+	self push: result.
+	self jitResumeContext
 !
 contextNonLocalReturn
 	<label>
@@ -1838,7 +2019,8 @@ contextNonLocalReturn
 	activeCtx := hs.
 	gc rememberIfOld: hs.
 	self loadCtx.
-	self push: result
+	self push: result.
+	self jitResumeContext
 !
 cannotReturn
 	<label>
@@ -1854,11 +2036,11 @@ VMStruct subclass: #Frame
 	classVariableNames: ''
 	package: 'VM-Core'!
 
-Frame comment: 'An activation on the interpreter''s C stack: method and closure (GC roots; closure is nil for method activations), fp (first argument/temp in cstack; fp[-1] holds the receiver, as in a Context), ip (saved when not executing; a pc offset during GC), lits (refreshed after every GC), sp (used slots from fp, saved when the frame is not executing), ctx (its married Context, a GC root; nil if none). 64 bytes.'!
+Frame comment: 'An activation on the interpreter''s C stack: method and closure (GC roots; closure is nil for method activations), fp (first argument/temp in cstack; fp[-1] holds the receiver, as in a Context), ip (saved when not executing; a pc offset during GC), lits (refreshed after every GC), sp (used slots from fp, saved when the frame is not executing), ctx (its married Context, a GC root; nil if none), code (the JitMethod of its method''s machine code; 0 if none; up to JIT_MAX_COUNT while the JIT counts its backward jumps, 1 + count; machine code running the frame keeps pc and sp current at safepoints instead of ip). 64 bytes.'!
 
 !Frame class methodsFor: 'declaring'!
 fields
-	^#((method oop) (closure oop) (fp 'oop *') (ip 'uint8_t *') (lits 'oop *') (pc int32_t) (sp int32_t) (ctx oop) (pad oop))
+	^#((method oop) (closure oop) (fp 'oop *') (ip 'uint8_t *') (lits 'oop *') (pc int32_t) (sp int32_t) (ctx oop) (code uint64_t))
 ! !
 
 VMStruct subclass: #CacheEntry
@@ -1866,10 +2048,10 @@ VMStruct subclass: #CacheEntry
 	classVariableNames: ''
 	package: 'VM-Core'!
 
-CacheEntry comment: 'A method cache entry. Key cls and sel (in the inline cache, sel holds the send site: ip after the send bytecode). kind 0: activate a frame; else K_PRIM, K_QUICK, K_SETTER, K_CONST, K_LEAF bits. qconst: the method only answers this constant (or self if 0): no frame (Squeak''s quick returns). quick >= 0: the method is ^instVar quick. nset > 0: a setter storing its arguments into setIvar. bcs and lits are raw pointers into the method, valid until the next GC (which flushes the caches). 64 bytes.'!
+CacheEntry comment: 'A method cache entry. Key cls and sel (in the inline cache, sel holds the send site: ip after the send bytecode). kind 0: activate a frame; else K_PRIM, K_QUICK, K_SETTER, K_CONST, K_LEAF, K_CTX bits, or K_JIT: activate a frame for a method with machine code (code: its JitMethod) or whose activations the JIT counts (code 1). qconst: the method only answers this constant (or self if 0): no frame (Squeak''s quick returns). quick >= 0: the method is ^instVar quick. nset > 0: a setter storing its arguments into setIvar. bcs and lits are raw pointers into the method, valid until the next GC (which flushes the caches). 64 bytes.'!
 
 !CacheEntry class methodsFor: 'declaring'!
 fields
-	^#((cls oop) (sel oop) (method oop) (union (prim prim_fn) (qconst oop)) (bcs 'uint8_t *') (lits 'oop *')
+	^#((cls oop) (sel oop) (method oop) (union (prim prim_fn) (qconst oop) (code uint64_t)) (bcs 'uint8_t *') (lits 'oop *')
 		(ntemps int32_t) (fsize int32_t) (kind uint8_t) (quick int8_t) (nset uint8_t) (setIvar 'uint8_t[4]'))
 ! !

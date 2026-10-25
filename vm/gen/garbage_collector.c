@@ -80,6 +80,7 @@ static void after_gc(void)
     refresh_specials();
     flush_method_cache();
     interp_after_gc();
+    jit_after_gc();
     reset_alloc_limit();
 }
 
@@ -93,7 +94,9 @@ void become_forward(oop from, oop to)
     interp_before_gc();
     become_from = from;
     become_to = to;
+    jit_become(from);
     for_each_root(become_root);
+    jit_all_roots(become_root);
     p = old_lo;
     while (p < old_top) {
         become_root((oop *)(p + 8));
@@ -291,6 +294,7 @@ void full_gc(void)
     o = *nl;
     nil_oop = o;
     for_each_root(full_root);
+    jit_all_roots(full_root);
     scan = old_alt_lo;
     while (scan < ft_top) {
         class_slot = (oop *)(scan + 8);
@@ -580,6 +584,7 @@ void scavenge(void)
     tenure_scan = old_top;
     weak_count = 0;
     for_each_root(scav_root);
+    jit_young_roots(scav_root);
     kept = 0;
     for (i = 0; i <= (int64_t)remset_count - 1; i++) {
         o = remset[i];
@@ -718,6 +723,11 @@ static void verify_heap(void)
     if (!interp_frames_valid(valid_ref)) {
         fatal_begin();
         fprintf(stderr, "verify: bad frame slot");
+        fatal_end();
+    }
+    if (!jit_headers_valid(valid_ref)) {
+        fatal_begin();
+        fprintf(stderr, "verify: bad compiled method");
         fatal_end();
     }
     free(start_bits);

@@ -635,6 +635,77 @@ beta
 	^2
 ! !
 
+!MiniTests methodsFor: 'jit'!
+jitLoop: n
+	"Long enough for on-stack replacement when it is not compiled before it runs."
+	| s |
+	s := 0.
+	1 to: n do: [:i | s := s + (i \\ 7) - (i // 5) + (i bitAnd: 3) + (i bitOr: 1)].
+	^s
+!
+jitFloats: n
+	| x |
+	x := 0.0.
+	1 to: n do: [:i | x := x + (i * 0.5) - (i / 4)].
+	^x
+!
+jitSwap: v
+	"Sends alpha in a loop; in the middle alpha becomes beta's method: the running code must see it."
+	| r |
+	r := 0.
+	1 to: 10 do: [:i |
+		i = 6 ifTrue: [
+			Vec methodDict at: #alpha put: (Vec lookup: #beta).
+			#alpha flushCache].
+		r := r * 10 + v alpha].
+	^r
+!
+jitYield: counters
+	"A loop that switches processes in the middle of each iteration."
+	1 to: 5 do: [:i |
+		counters at: 1 put: (counters at: 1) + i.
+		Processor yield.
+		counters at: 1 put: (counters at: 1) * 2].
+	^counters at: 1
+!
+jitBlocks: n
+	| sum |
+	sum := 0.
+	#(1 2 3) do: [:a | 1 to: n do: [:b | sum := sum + (a * b)]].
+	^sum
+!
+testJitSmall
+	"testJit's kinds of code, small enough for the simulator."
+	(self jitLoop: 60) printNl.
+	(self jitFloats: 10) printNl.
+	(self fib: 8) printNl.
+	(self jitBlocks: 5) printNl.
+	(self findFirstEven: #(1 3 6 7)) printNl
+!
+testJit
+	| v alpha counters other |
+	(self jitLoop: 100000) printNl.
+	(self jitFloats: 1000) printNl.
+	(self fib: 20) printNl.
+	(self jitBlocks: 1000) printNl.
+	(self findFirstEven: #(1 3 6 7)) printNl.
+	(self depth: 50000) printNl.
+	thisContext method selector printNl.
+	v := Vec new.
+	alpha := Vec lookup: #alpha.
+	(self jitSwap: v) printNl.
+	Vec methodDict at: #alpha put: alpha.
+	#alpha flushCache.
+	v alpha printNl.
+	alpha becomeForward: (Vec lookup: #beta).
+	v alpha printNl.
+	counters := Array with: 0.
+	other := Array with: 0.
+	[1 to: 5 do: [:i | other at: 1 put: (other at: 1) + (counters at: 1)]] fork.
+	(self jitYield: counters) printNl.
+	(other at: 1) printNl
+! !
+
 !MiniTests methodsFor: 'misc'!
 testMisc
 	| b v |

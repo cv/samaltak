@@ -23,6 +23,12 @@ translate: image
 	$(VM) $(OUT)/samaltak.image --headless --eval "[VMTranslator generateVM. 'ok'] on: Error do: [:e | e messageText]"
 	$(MAKE) -C vm
 
+# The image's tests under the template JIT, every method compiled on its first activation; Tests-Kernel also with a
+# code cache small enough to be flushed again and again.
+test-jit: image
+	tests/st_suite.sh $(OUT)/samaltak.image --jit template --jit-threshold 0
+	tests/st_suite.sh $(OUT)/samaltak.image --jit template --jit-threshold 0 --jit-cache 1 --jit-flags notes -- Tests-Kernel
+
 # Everything; any failure, skipped test or headless-only VM fails it. The UI scripts use a hidden window.
 test: image test-vm
 	@[ -f vm/build/.variant-platform ] || { echo "make test: FAILED: the VM was built without the platform layer (SDL3), UI tests would not run"; exit 1; }
@@ -30,6 +36,7 @@ test: image test-vm
 	tests/boot/layering_test.sh
 	tests/st_suite.sh $(OUT)/samaltak.image
 	SAMALTAK_VERIFY_GC=1 tests/st_suite.sh $(OUT)/samaltak.image --eden 1 -- Tests-Kernel Tests-Compiler
+	$(MAKE) test-jit
 	$(MAKE) -C vm/platform test st-test
 	tests/remote/cli_test.sh $(OUT)/samaltak.image
 	tests/tools/desktop_test.sh $(OUT)/samaltak.image
@@ -61,4 +68,4 @@ clean:
 	$(MAKE) -C vm clean
 	rm -rf build
 
-.PHONY: all vm seed image translate test-vm test video mindblown-video clean
+.PHONY: all vm seed image translate test-vm test-jit test video mindblown-video clean

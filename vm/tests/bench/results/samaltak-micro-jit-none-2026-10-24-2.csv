@@ -1,0 +1,128 @@
+# awfy 2026-10-24 17:34 vm=/Users/schani/Work/samaltak/.claude/worktrees/agent-afab220acdcdbc417/vm/build/samaltak image=/Users/schani/Work/samaltak/.claude/worktrees/agent-afab220acdcdbc417/build/samaltak.image vm-args='' iterations=10
+# run MicroFib inner=1
+MicroFib,1,24258
+MicroFib,2,24497
+MicroFib,3,24477
+MicroFib,4,24374
+MicroFib,5,24732
+MicroFib,6,24894
+MicroFib,7,24687
+MicroFib,8,24787
+MicroFib,9,24647
+MicroFib,10,24573
+# stats MicroFib scavenges=0 fullGCs=0 scavengeMicroseconds=0 fullGCMicroseconds=0 oldBytesUsed=0 oldBudget=0 edenBytes=0 bytesAllocated=683928 rememberedSetSize=0 processSwitches=542 bytesTenured=0 weakSlotsCleared=0 contextsMaterialized=4536 frameFlushes=271 jitMethodsCompiled=0 jitBytecodesCompiled=0 jitCompileMicroseconds=0 jitCodeBytes=0 jitCacheFlushes=0 jitEntries=0 jitExits=0 jitResumes=0 jitOsrEntries=0 jitCompileFailures=0
+# total MicroFib 245926 us
+# run MicroLoop inner=1
+MicroLoop,1,111356
+MicroLoop,2,112008
+MicroLoop,3,110920
+MicroLoop,4,111008
+MicroLoop,5,109400
+MicroLoop,6,112324
+MicroLoop,7,113162
+MicroLoop,8,111128
+MicroLoop,9,110726
+MicroLoop,10,110599
+# stats MicroLoop scavenges=0 fullGCs=0 scavengeMicroseconds=0 fullGCMicroseconds=0 oldBytesUsed=0 oldBudget=0 edenBytes=0 bytesAllocated=495352 rememberedSetSize=0 processSwitches=2448 bytesTenured=0 weakSlotsCleared=0 contextsMaterialized=32 frameFlushes=10 jitMethodsCompiled=0 jitBytecodesCompiled=0 jitCompileMicroseconds=0 jitCodeBytes=0 jitCacheFlushes=0 jitEntries=0 jitExits=0 jitResumes=0 jitOsrEntries=0 jitCompileFailures=0
+# total MicroLoop 1112631 us
+# run MicroFloats inner=1
+MicroFloats,1,29604
+MicroFloats,2,29687
+MicroFloats,3,29184
+MicroFloats,4,29622
+MicroFloats,5,29561
+MicroFloats,6,29544
+MicroFloats,7,29746
+MicroFloats,8,29347
+MicroFloats,9,29351
+MicroFloats,10,29178
+# stats MicroFloats scavenges=0 fullGCs=0 scavengeMicroseconds=0 fullGCMicroseconds=0 oldBytesUsed=0 oldBudget=0 edenBytes=0 bytesAllocated=163312 rememberedSetSize=0 processSwitches=648 bytesTenured=0 weakSlotsCleared=0 contextsMaterialized=33 frameFlushes=10 jitMethodsCompiled=0 jitBytecodesCompiled=0 jitCompileMicroseconds=0 jitCodeBytes=0 jitCacheFlushes=0 jitEntries=0 jitExits=0 jitResumes=0 jitOsrEntries=0 jitCompileFailures=0
+# total MicroFloats 294824 us
+# run MicroSends inner=1
+MicroSends,1,102116
+MicroSends,2,100531
+MicroSends,3,99858
+MicroSends,4,101859
+MicroSends,5,100592
+MicroSends,6,100240
+MicroSends,7,100660
+MicroSends,8,100654
+MicroSends,9,101412
+MicroSends,10,101409
+# stats MicroSends scavenges=0 fullGCs=0 scavengeMicroseconds=0 fullGCMicroseconds=0 oldBytesUsed=0 oldBudget=0 edenBytes=0 bytesAllocated=512976 rememberedSetSize=0 processSwitches=2222 bytesTenured=0 weakSlotsCleared=0 contextsMaterialized=603 frameFlushes=564 jitMethodsCompiled=0 jitBytecodesCompiled=0 jitCompileMicroseconds=0 jitCodeBytes=0 jitCacheFlushes=0 jitEntries=0 jitExits=0 jitResumes=0 jitOsrEntries=0 jitCompileFailures=0
+# total MicroSends 1009331 us
+# run MicroBlocks inner=1
+MicroBlocks,1,118387
+MicroBlocks,2,119891
+MicroBlocks,3,118081
+MicroBlocks,4,118284
+MicroBlocks,5,119244
+MicroBlocks,6,118602
+MicroBlocks,7,117275
+MicroBlocks,8,118315
+MicroBlocks,9,118775
+MicroBlocks,10,117129
+# stats MicroBlocks scavenges=0 fullGCs=0 scavengeMicroseconds=0 fullGCMicroseconds=0 oldBytesUsed=0 oldBudget=0 edenBytes=0 bytesAllocated=622800 rememberedSetSize=0 processSwitches=2606 bytesTenured=0 weakSlotsCleared=0 contextsMaterialized=970 frameFlushes=932 jitMethodsCompiled=0 jitBytecodesCompiled=0 jitCompileMicroseconds=0 jitCodeBytes=0 jitCacheFlushes=0 jitEntries=0 jitExits=0 jitResumes=0 jitOsrEntries=0 jitCompileFailures=0
+# total MicroBlocks 1183983 us
+# run MicroDict inner=1
+MicroDict,1,103717
+MicroDict,2,96945
+MicroDict,3,101184
+MicroDict,4,98215
+MicroDict,5,99219
+MicroDict,6,96909
+MicroDict,7,100319
+MicroDict,8,98523
+MicroDict,9,96723
+MicroDict,10,101029
+# stats MicroDict scavenges=31 fullGCs=6 scavengeMicroseconds=35768 fullGCMicroseconds=55113 oldBytesUsed=19180424 oldBudget=22617440 edenBytes=0 bytesAllocated=769304896 rememberedSetSize=-8 processSwitches=6048 bytesTenured=48228696 weakSlotsCleared=0 contextsMaterialized=5622 frameFlushes=2779 jitMethodsCompiled=0 jitBytecodesCompiled=0 jitCompileMicroseconds=0 jitCodeBytes=0 jitCacheFlushes=0 jitEntries=0 jitExits=0 jitResumes=0 jitOsrEntries=0 jitCompileFailures=0
+# total MicroDict 992783 us
+# run MicroStrings inner=1
+MicroStrings,1,150820
+MicroStrings,2,150504
+MicroStrings,3,150171
+MicroStrings,4,149876
+MicroStrings,5,149073
+MicroStrings,6,150030
+MicroStrings,7,148890
+MicroStrings,8,148380
+MicroStrings,9,149446
+MicroStrings,10,151761
+# stats MicroStrings scavenges=22 fullGCs=0 scavengeMicroseconds=929 fullGCMicroseconds=0 oldBytesUsed=22171048 oldBudget=0 edenBytes=0 bytesAllocated=396747712 rememberedSetSize=-7 processSwitches=5310 bytesTenured=1199368 weakSlotsCleared=0 contextsMaterialized=5953 frameFlushes=2535 jitMethodsCompiled=0 jitBytecodesCompiled=0 jitCompileMicroseconds=0 jitCodeBytes=0 jitCacheFlushes=0 jitEntries=0 jitExits=0 jitResumes=0 jitOsrEntries=0 jitCompileFailures=0
+# total MicroStrings 1498951 us
+# run MicroAlloc inner=1
+MicroAlloc,1,79958
+MicroAlloc,2,82183
+MicroAlloc,3,81952
+MicroAlloc,4,81957
+MicroAlloc,5,81997
+MicroAlloc,6,82152
+MicroAlloc,7,82361
+MicroAlloc,8,81765
+MicroAlloc,9,82826
+MicroAlloc,10,82703
+# stats MicroAlloc scavenges=86 fullGCs=0 scavengeMicroseconds=825 fullGCMicroseconds=0 oldBytesUsed=1197232 oldBudget=0 edenBytes=0 bytesAllocated=1443241608 rememberedSetSize=-8 processSwitches=11070 bytesTenured=1197232 weakSlotsCleared=0 contextsMaterialized=5563 frameFlushes=5530 jitMethodsCompiled=0 jitBytecodesCompiled=0 jitCompileMicroseconds=0 jitCodeBytes=0 jitCacheFlushes=0 jitEntries=0 jitExits=0 jitResumes=0 jitOsrEntries=0 jitCompileFailures=0
+# total MicroAlloc 819854 us
+# run MicroFactorial inner=1
+MicroFactorial,1,25021
+MicroFactorial,2,25334
+MicroFactorial,3,25184
+MicroFactorial,4,25170
+MicroFactorial,5,24467
+MicroFactorial,6,24859
+MicroFactorial,7,24950
+MicroFactorial,8,24989
+MicroFactorial,9,24727
+MicroFactorial,10,24391
+# stats MicroFactorial scavenges=2 fullGCs=0 scavengeMicroseconds=437 fullGCMicroseconds=0 oldBytesUsed=1190488 oldBudget=0 edenBytes=0 bytesAllocated=39225040 rememberedSetSize=-10 processSwitches=772 bytesTenured=1190488 weakSlotsCleared=0 contextsMaterialized=3731 frameFlushes=385 jitMethodsCompiled=0 jitBytecodesCompiled=0 jitCompileMicroseconds=0 jitCodeBytes=0 jitCacheFlushes=0 jitEntries=0 jitExits=0 jitResumes=0 jitOsrEntries=0 jitCompileFailures=0
+# total MicroFactorial 249092 us
+# benchmark          runs   first_ms  steady_ms   total_ms
+# MicroFib              1       24.3       24.7      245.9
+# MicroLoop             1      111.4      111.1     1112.6
+# MicroFloats           1       29.6       29.4      294.8
+# MicroSends            1      102.1      100.7     1009.3
+# MicroBlocks           1      118.4      118.3     1184.0
+# MicroDict             1      103.7       98.5      992.8
+# MicroStrings          1      150.8      149.4     1499.0
+# MicroAlloc            1       80.0       82.4      819.9
+# MicroFactorial        1       25.0       24.9      249.1

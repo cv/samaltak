@@ -7,14 +7,15 @@
 #include <stddef.h>
 #include <stdint.h>
 #include <string.h>
+#include <pthread.h>
+#include <sys/mman.h>
+#include <libkern/OSCacheControl.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <math.h>
-#include <sys/mman.h>
 #include <sys/event.h>
 #include <sys/time.h>
 #include <time.h>
-#include <pthread.h>
 #include <unistd.h>
 #include <limits.h>
 #ifndef SAMALTAK_NO_PLATFORM
@@ -43,8 +44,37 @@ typedef void (*prim_fn)(void);
 #ifndef SAMALTAK_NO_PLATFORM
 #endif
 
+#define ANA_BLOCK 32
+#define ANA_INTERIOR 2
+#define ANA_LOOP 8
+#define ANA_MAX 32768
+#define ANA_MAX_DEPTH 1024
+#define ANA_RESUME 16
+#define ANA_START 1
+#define ANA_TARGET 4
+#define ASM_ERR_FULL 1
+#define ASM_ERR_IMMEDIATE 2
+#define ASM_ERR_LABEL 4
+#define ASM_ERR_OPERAND 5
+#define ASM_ERR_RANGE 3
+#define ASM_MAX_FIXUPS 16384
+#define ASM_MAX_LABELS 4096
+#define ASM_MAX_NOTES 8192
+#define ASM_OK 0
 #define ASSOC_KEY 0
 #define ASSOC_VALUE 1
+#define BARRIER_ISH 11
+#define BARRIER_ISHLD 9
+#define BARRIER_ISHST 10
+#define BARRIER_LD 13
+#define BARRIER_NSH 7
+#define BARRIER_NSHLD 5
+#define BARRIER_NSHST 6
+#define BARRIER_OSH 3
+#define BARRIER_OSHLD 1
+#define BARRIER_OSHST 2
+#define BARRIER_ST 14
+#define BARRIER_SY 15
 #define BC_FRAMESIZE 4
 #define BC_NUMARGS 2
 #define BC_NUMTEMPS 3
@@ -71,6 +101,24 @@ typedef void (*prim_fn)(void);
 #define CM_PRIM_ERROR_FLAG 65536
 #define CM_PRIM_MASK 65535
 #define CM_SELECTOR 0
+#define COND_AL 14
+#define COND_CC 3
+#define COND_CS 2
+#define COND_EQ 0
+#define COND_GE 10
+#define COND_GT 12
+#define COND_HI 8
+#define COND_HS 2
+#define COND_LE 13
+#define COND_LO 3
+#define COND_LS 9
+#define COND_LT 11
+#define COND_MI 4
+#define COND_NE 1
+#define COND_NV 15
+#define COND_PL 5
+#define COND_VC 7
+#define COND_VS 6
 #define CSTACK_SLOTS 65536
 #define CTX_CLOSURE 4
 #define CTX_FIXED 6
@@ -81,7 +129,48 @@ typedef void (*prim_fn)(void);
 #define CTX_SLACK 2
 #define CTX_STACKP 2
 #define CURSOR_KINDS 11
+#define D0 128
+#define D1 129
+#define D10 138
+#define D11 139
+#define D12 140
+#define D13 141
+#define D14 142
+#define D15 143
+#define D16 144
+#define D17 145
+#define D18 146
+#define D19 147
+#define D2 130
+#define D20 148
+#define D21 149
+#define D22 150
+#define D23 151
+#define D24 152
+#define D25 153
+#define D26 154
+#define D27 155
+#define D28 156
+#define D29 157
+#define D3 131
+#define D30 158
+#define D31 159
+#define D4 132
+#define D5 133
+#define D6 134
+#define D7 135
+#define D8 136
+#define D9 137
 #define EXTERNAL_OBJECTS_SIZE 64
+#define EXT_LSL 3
+#define EXT_SXTB 4
+#define EXT_SXTH 5
+#define EXT_SXTW 6
+#define EXT_SXTX 7
+#define EXT_UXTB 0
+#define EXT_UXTH 1
+#define EXT_UXTW 2
+#define EXT_UXTX 3
 #define F_BYTES 16
 #define F_EMPTY 0
 #define F_FIXED 1
@@ -103,6 +192,22 @@ typedef void (*prim_fn)(void);
 #define H_IMMUTABLE 576460752303423488LL
 #define H_REMEMBERED 1152921504606846976LL
 #define ICACHE_SIZE 4096
+#define JIT_FLAG_ARITH 1
+#define JIT_FLAG_BARRIER 4
+#define JIT_FLAG_EMBED 16
+#define JIT_FLAG_FUSE 2
+#define JIT_FLAG_NOTES 8
+#define JIT_MAX_COUNT 65535
+#define JIT_MAX_MAP 32768
+#define JIT_MAX_REFS 4096
+#define JIT_MAX_YOUNG 4096
+#define JIT_NONE 0
+#define JIT_PROLOGUE_BYTES 20
+#define JIT_TABLE_SIZE 65536
+#define JIT_TEMPLATE 1
+#define JM_DEAD 2
+#define JM_FAILED 1
+#define JM_NOTES 4
 #define K_BUF 6
 #define K_CMD 7
 #define K_CONST 8
@@ -110,6 +215,7 @@ typedef void (*prim_fn)(void);
 #define K_DEV 1
 #define K_FENCE 9
 #define K_FILE 1
+#define K_JIT 64
 #define K_LEAF 16
 #define K_PASS 8
 #define K_PIPE 3
@@ -217,9 +323,21 @@ typedef void (*prim_fn)(void);
 #define PS_OK 1
 #define PS_RESEND 4
 #define PS_SWITCHED 3
+#define REG_D 128
+#define REG_SP 32
+#define REG_W 64
 #define SCHED_ACTIVE 1
 #define SCHED_LISTS 0
 #define SEM_EXCESS 2
+#define SHIFT_ASR 2
+#define SHIFT_LSL 0
+#define SHIFT_LSR 1
+#define SHIFT_ROR 3
+#define SLOW_BARRIER 5
+#define SLOW_EXIT 1
+#define SLOW_INTERRUPT 3
+#define SLOW_SPECIAL 2
+#define SLOW_WIDOW 4
 #define SO_ARRAY 9
 #define SO_ASSOCIATION 23
 #define SO_BITMAP 24
@@ -258,16 +376,86 @@ typedef void (*prim_fn)(void);
 #define SO_TRUE 2
 #define SO_WIDESTRING 13
 #define SO_WIDESYMBOL 33
+#define SP 63
+#define STUB_MAX_SYMBOLS 16
 #define TENURE_AGE 2
 #define TICK_DEADLINE 1
 #define TICK_POLL 2
+#define TPL_MAX_SLOW 16384
 #define VM_INT_MAX 4611686018427387903LL
 #define VM_INT_MIN -4611686018427387904LL
+#define W0 64
+#define W1 65
+#define W10 74
+#define W11 75
+#define W12 76
+#define W13 77
+#define W14 78
+#define W15 79
+#define W16 80
+#define W17 81
+#define W18 82
+#define W19 83
+#define W2 66
+#define W20 84
+#define W21 85
+#define W22 86
+#define W23 87
+#define W24 88
+#define W25 89
+#define W26 90
+#define W27 91
+#define W28 92
+#define W29 93
+#define W3 67
+#define W30 94
+#define W4 68
+#define W5 69
+#define W6 70
+#define W7 71
+#define W8 72
+#define W9 73
 #define WB_MAX 3
+#define WSP 127
+#define WZR 95
+#define X0 0
+#define X1 1
+#define X10 10
+#define X11 11
+#define X12 12
+#define X13 13
+#define X14 14
+#define X15 15
+#define X16 16
+#define X17 17
+#define X18 18
+#define X19 19
+#define X2 2
+#define X20 20
+#define X21 21
+#define X22 22
+#define X23 23
+#define X24 24
+#define X25 25
+#define X26 26
+#define X27 27
+#define X28 28
+#define X29 29
+#define X3 3
+#define X30 30
+#define X4 4
+#define X5 5
+#define X6 6
+#define X7 7
+#define X8 8
+#define X9 9
+#define XZR 31
 
 typedef struct cache_entry cache_entry;
 typedef struct frame frame;
 typedef struct image_header image_header;
+typedef struct jit_method jit_method;
+typedef struct jit_state jit_state;
 typedef struct primitive_entry primitive_entry;
 #ifndef SAMALTAK_NO_PLATFORM
 typedef struct fence_watch fence_watch;
@@ -289,6 +477,7 @@ struct cache_entry {
     union {
         prim_fn prim;
         oop qconst;
+        uint64_t code;
     };
     uint8_t *bcs;
     oop *lits;
@@ -310,7 +499,7 @@ struct frame {
     int32_t pc;
     int32_t sp;
     oop ctx;
-    oop pad;
+    uint64_t code;
 };
 _Static_assert(sizeof(frame) == 64, "the simulator lays out Frame as C does");
 
@@ -325,6 +514,41 @@ struct image_header {
     uint64_t reserved;
 };
 _Static_assert(sizeof(image_header) == 64, "the simulator lays out ImageHeader as C does");
+
+struct jit_method {
+    oop method;
+    uint64_t start;
+    uint64_t code_start;
+    uint32_t code_size;
+    uint32_t bytecodes;
+    int32_t mode;
+    uint32_t flags;
+    uint32_t map_count;
+    uint32_t ref_count;
+    uint32_t *map;
+    uint32_t *refs;
+    uint32_t note_count;
+    uint32_t pad;
+    uint32_t *note_offsets;
+    uint64_t *note_texts;
+    int64_t *note_values;
+};
+_Static_assert(sizeof(jit_method) == 96, "the simulator lays out JitMethod as C does");
+
+struct jit_state {
+    oop nil_oop;
+    oop true_oop;
+    oop false_oop;
+    int32_t interrupt;
+    int32_t pad;
+    uint64_t frames;
+    uint64_t exit_sp;
+    uint64_t young_lo;
+    uint64_t young_hi;
+    oop array_class;
+    oop point_class;
+};
+_Static_assert(sizeof(jit_state) == 80, "the simulator lays out JitState as C does");
 
 struct primitive_entry {
     int32_t number;
@@ -432,6 +656,24 @@ _Static_assert(sizeof(wb_job) == 32, "the simulator lays out WbJob as C does");
 extern primitive_entry vm_primitive_table[];
 extern int vm_primitive_count;
 
+extern int32_t asm_error;
+extern uint64_t asm_limit;
+extern int64_t asm_note_args[8192];
+extern int32_t asm_note_count;
+extern uint32_t asm_note_offsets[8192];
+extern const char *asm_note_texts[8192];
+extern bool asm_noting;
+extern uint64_t asm_pc;
+extern uint64_t asm_start;
+extern uint8_t *ana_bcs;
+extern int16_t ana_depths[32768];
+extern uint8_t ana_flags[32768];
+extern oop *ana_lits;
+extern int32_t bc_size;
+extern int32_t num_lits;
+extern uint64_t cache_base;
+extern uint64_t cache_limit;
+extern uint64_t cache_top;
 extern uint64_t alloc_limit;
 extern uint64_t eden_hi;
 extern uint64_t eden_lo;
@@ -454,6 +696,9 @@ extern uint64_t young_hi;
 extern uint64_t young_lo;
 extern char *image_path;
 extern oop active_ctx;
+extern frame frames[65536];
+extern cache_entry icache[4096];
+extern int32_t nframes;
 extern oop *prim_base;
 extern int32_t prim_error_code;
 extern int32_t prim_nargs;
@@ -461,11 +706,48 @@ extern oop prim_result;
 extern int32_t prim_status;
 extern int32_t resend_argc;
 extern oop resend_selector;
+extern int32_t special_argc[32];
 extern uint64_t stack_check_at;
 extern int64_t stack_limit;
 extern uint64_t stat_flushes;
 extern uint64_t stat_materialized;
+extern oop tag_class[8];
 extern oop tmp_roots[4];
+extern int64_t jit_cache_mb;
+extern uint32_t jit_flags;
+extern int32_t jit_mode;
+extern int64_t jit_osr_threshold;
+extern int64_t jit_threshold;
+extern int32_t map_count;
+extern uint32_t map_offsets[32768];
+extern uint32_t map_pcs[32768];
+extern int32_t ref_count;
+extern uint32_t ref_sites[4096];
+extern uint64_t stat_bytecodes;
+extern uint64_t stat_cache_flushes;
+extern uint64_t stat_code_bytes;
+extern uint64_t stat_compile_us;
+extern uint64_t stat_compiled;
+extern uint64_t stat_entries;
+extern uint64_t stat_exits;
+extern uint64_t stat_failed;
+extern uint64_t stat_osr;
+extern uint64_t stat_resumes;
+extern jit_state state_block[1];
+extern uint64_t barrier_stub;
+extern uint64_t closure_stub;
+extern uint64_t enter_addr;
+extern uint64_t exit_plain_addr;
+extern uint64_t exit_sync_addr;
+extern uint64_t interrupt_stub;
+extern uint64_t make_array_stub;
+extern uint64_t outer_temp_stub;
+extern uint64_t send_stub;
+extern uint64_t special_stub;
+extern uint64_t symbol_addrs[16];
+extern int32_t symbol_count;
+extern const char *symbol_names[16];
+extern uint64_t widow_stub;
 extern oop cls_array;
 extern oop cls_block;
 extern oop cls_boxedfloat;
@@ -503,6 +785,25 @@ extern uint64_t last_pump_ns;
 extern int32_t q_len;
 #endif
 
+void asm_begin(uint64_t start, uint64_t limit);
+void asm_bind(int32_t label);
+uint64_t asm_branch_target(uint64_t site);
+int32_t asm_finish(void);
+int32_t asm_fmov_immediate(double d);
+int32_t asm_label_at(uint64_t address);
+int32_t asm_logical_immediate(uint64_t value, int32_t width);
+uint64_t asm_mov64(uint64_t site);
+void asm_mov_imm(int64_t rd, uint64_t value);
+int32_t asm_new_label(void);
+void asm_note(const char *text, int64_t value);
+bool asm_patch_branch(uint64_t site, uint64_t target);
+void asm_patch_mov64(uint64_t site, uint64_t value);
+void asm_record_notes(bool on);
+uint64_t asm_target_of(int32_t label);
+bool jit_analyze(oop m);
+uint64_t code_cache_allocate(uint64_t size);
+void code_cache_flush(void);
+bool code_cache_open(uint64_t size);
 void prim_allocation_sample_info(void);
 void prim_allocation_sample_take(void);
 void prim_allocation_sampling(void);
@@ -548,6 +849,7 @@ oop *active_slots(void);
 int64_t active_stackp(void);
 void interp_after_gc(void);
 void interp_before_gc(void);
+int32_t interp_call_primitive(prim_fn fn, oop *b, int32_t n);
 int64_t ctx_stackp(oop ctx);
 void fatal_begin(void);
 _Noreturn void fatal_end(void);
@@ -556,12 +858,55 @@ void flush_method_cache(void);
 void flush_method_cache_selector(oop sel);
 bool interp_frames_valid(bool (*valid)(oop));
 void interpret(void);
+void interrupt_safepoint(void);
 bool is_married(oop o);
+oop marry(frame *f);
 void materialize_all(void);
 void prim_commit(oop result);
+frame *interp_push_frame(oop m, int32_t n, uint64_t c, int32_t ecode);
+frame *interp_push_frame_entry(cache_entry *e, int32_t n);
 void interp_roots(void (*fn)(oop *));
 int selector_argc(oop sel);
+void set_cache_code(uint64_t c, oop m);
 void set_prim_base(int argc);
+cache_entry *site_entry(uint8_t *site, oop cls, oop sel);
+void interp_sync_frame(frame *f);
+frame *interp_thaw(uint64_t code);
+void widow(frame *f);
+void prim_jit_code(void);
+void prim_jit_parameters(void);
+void jit_activated(frame *f);
+void jit_after_gc(void);
+void jit_all_roots(void (*fn)(oop *));
+void jit_back_jump(frame *f);
+void jit_become(oop from);
+uint64_t jit_block_code(oop m);
+uint64_t jit_cache_code(oop m);
+uint64_t jit_closure(frame *f);
+jit_method *jit_compile(oop m, int32_t md, bool notes);
+void jit_defaults(void);
+bool jit_ensure_open(void);
+const char *jit_flag_name(uint32_t bit);
+bool jit_headers_valid(bool (*valid)(oop));
+uint64_t jit_interrupt(frame *f);
+jit_method *jit_lookup(oop m);
+uint64_t jit_make_array(frame *f);
+const char *jit_mode_name(int32_t m);
+int32_t jit_mode_named(const char *name);
+uint64_t jit_outer_temp(frame *f);
+bool jit_parse_flags(const char *s);
+void jit_resume(frame *f);
+void jit_resume_context(bool looping);
+uint64_t jit_send(frame *f, uint64_t info, uint64_t key);
+void jit_set_flags(uint32_t f);
+bool jit_set_mode(int32_t m);
+uint64_t jit_special(frame *f, uint64_t info, uint64_t key);
+void jit_start(void);
+uint64_t jit_widow(frame *f);
+uint64_t jit_write_barrier(oop o, oop v);
+void jit_young_roots(void (*fn)(oop *));
+bool jit_generate_stubs(void);
+bool jit_template_compile(oop m);
 void prim_char_from_value(void);
 void prim_char_value(void);
 void prim_float_abs(void);
@@ -607,6 +952,7 @@ void prim_int_not_eq(void);
 void prim_int_quo(void);
 void prim_int_rem(void);
 void prim_int_sub(void);
+oop alloc_bytes(oop cls, size_t n);
 oop alloc_context(uint32_t n);
 oop alloc_obj(oop cls, int fmt, uint32_t n);
 oop alloc_obj_try(oop cls, int fmt, size_t n);

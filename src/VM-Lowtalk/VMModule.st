@@ -75,7 +75,7 @@ simulationStoreInitial: anArray type: aCType at: anAddress
 vmModules
 	"The concrete modules of the VM packages, in a stable order."
 	^((self allSubclasses select: [:c |
-		(#('VM-Core' 'VM-Platform') includes: c packageName) and: [c isAbstractModule not]])
+		(#('VM-Core' 'VM-Jit' 'VM-Platform') includes: c packageName) and: [c isAbstractModule not]])
 		asSortedCollection: [:a :b | a name <= b name]) asArray
 ! !
 

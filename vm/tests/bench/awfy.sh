@@ -142,7 +142,7 @@ for spec in "$@"; do
         (cd "$WORK" && "$VM" --headless $VMARGS "$IMAGE" eval "$expr") >"$LOG" 2>&1
     else
         expr="[#('Samaltak' $files) do: [:n | Compiler fileIn: '$DIR/', n, '.st']. $run. ''] on: Error do: [:e | 'ERROR ', e class name, ': ', e messageText]"
-        "$VM" "$IMAGE" --headless $VMARGS --eval "$expr" >"$LOG" 2>&1
+        "$VM" $VMARGS "$IMAGE" --headless --eval "$expr" >"$LOG" 2>&1
     fi
     tr '\r' '\n' <"$LOG" | grep -E '^[A-Za-z0-9]+,[0-9]+,-?[0-9]+$|^# ' | tee -a "$ALL"
     if grep -q "ERROR" "$LOG" || ! grep -q "^$b,$N," "$LOG"; then

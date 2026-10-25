@@ -82,6 +82,19 @@ testMethodMenuSetsLogpointMode
 	self assert: (Breakpoint forClass: ToolsTestFixture selector: #answer) mode equals: #log.
 	self assert: (browser breakpointModeOf: #answer) equals: #log
 !
+testMethodMenuShowsMachineCode
+	| menu item listing |
+	self browseTo: ToolsTestFixture selector: #answer.
+	menu := self in: window do: [browser methodMenuFor: #answer].
+	item := menu itemLabeled: 'machine code'.
+	self assert: item name equals: 'machine-code'.
+	self in: window do: [item action value].
+	self assert: (self waitFor: [(self windowTitled: 'Machine code: ToolsTestFixture>>answer') notNil]) description: 'no machine code window'.
+	listing := self windowTitled: 'Machine code: ToolsTestFixture>>answer'.
+	self assert: (self waitFor: [listing isOpen and: [listing queue isEmpty]]) description: 'the window did not settle'.
+	self assert: (listing content text includesSubstring: 'pc 0: ').
+	self assert: (listing content text includesSubstring: 'entry:')
+!
 testAcceptWritesTheMethodAndRevertRestoresTheFile
 	| real scratch original path |
 	real := SourceFiler findSourceDirectory.
