@@ -1,18 +1,19 @@
 VMCoreModule subclass: #JitFeedback
-	instanceVariableNames: 'fbSites fbCount fbYoung'
-	classVariableNames: 'FB_CLASSES FB_INTS FB_DEOPT_ARITH FB_DEOPT_BOUNDS FB_DEOPT_CLASS FB_DEOPT_OTHER FB_FLOAT FB_MAX FB_MEGA FB_NONINT FB_OVERFLOW'
+	instanceVariableNames: 'fbSites fbCount fbYoung fbFloats'
+	classVariableNames: 'FB_CLASSES FB_FLOAT_BITS FB_INTS FB_DEOPT_ARITH FB_DEOPT_BOUNDS FB_DEOPT_CLASS FB_DEOPT_OTHER FB_FLOAT FB_MAX FB_MEGA FB_NONINT FB_OVERFLOW'
 	package: 'VM-Jit'!
 
 JitFeedback comment: 'Type feedback for the optimizing tier, independent of the compiler that collects it: one FeedbackSite per (method, bytecode pc), in an open-addressed table keyed by the method''s identity hash and the pc. A site holds up to FB_CLASSES receiver classes with counts (FB_MEGA once more were seen) and profile bits: FB_FLOAT (an arithmetic or comparison saw a Float operand), FB_NONINT (one that was neither SmallInteger nor Float), FB_OVERFLOW (SmallInteger arithmetic overflowed), FB_DEOPT_* (optimized code deoptimized here: a class guard, an arithmetic guard, a bounds check, anything else).
 
-Lower tiers report into it (docs/jit.md, Optimizing tier): noteSend:pc:class: when a send site sees a class (the template on a miss of the interpreter''s inline cache, the baseline compiler when one of its inline caches links a class), noteFlags:pc:flags: for profile bits; the optimizer reads sites with siteAt:pc:. Methods and classes are GC roots (all of them for full GCs and become, for scavenges only while one is young). A full table is cleared.'!
+Lower tiers report into it (docs/jit.md, Optimizing tier): noteSend:pc:class: when a send site sees a class (the template on a miss of the interpreter''s inline cache, baseline code on a miss of its own), noteFlags:pc:flags: for profile bits; machine code sets FB_FLOAT without a call, in a byte of fbFloats (floatBitAddressFor:pc:, shared by hash). The optimizer reads sites with siteAt:pc: and flagsAt:pc:. Methods and classes are GC roots (all of them for full GCs and become, for scavenges only while one is young). A full table is cleared.'!
 
 !JitFeedback class methodsFor: 'declaring'!
 declarations
-	^#((fbSites 'FeedbackSite[FB_MAX]') (fbCount int64_t) (fbYoung bool))
+	^#((fbSites 'FeedbackSite[FB_MAX]') (fbCount int64_t) (fbYoung bool) (fbFloats 'uint8_t[FB_FLOAT_BITS]'))
 !
 initialize
 	FB_MAX := 16384.
+	FB_FLOAT_BITS := 65536.
 	FB_CLASSES := 4.
 	FB_MEGA := 1.
 	FB_FLOAT := 2.
@@ -104,6 +105,10 @@ noteSend: m pc: pc class: cls
 			^self]].
 	s flags: (s flags bitOr: FB_MEGA)
 !
+floatBitAddressFor: m pc: pc
+	"A byte machine code sets to 1 when the arithmetic at m's pc sees a Float (no call, no site: flagsAt:pc: answers it as FB_FLOAT; bytes are shared by hash)."
+	^self cCoerce: fbFloats + (((self hashOf: m) asUInt64 * 31 + pc asUInt64) bitAnd: FB_FLOAT_BITS - 1) to: 'uint64_t'
+!
 noteFlags: m pc: pc flags: f
 	"Profile bits for the instruction at m's pc."
 	<c: 'void jit_note_flags(oop m, int64_t pc, uint32_t f)'>
@@ -114,10 +119,11 @@ noteFlags: m pc: pc flags: f
 !
 flagsAt: m pc: pc
 	<c: 'uint32_t fb_flags_at(oop m, int64_t pc)'>
-	| s |
+	| s f |
 	s := self siteAt: m pc: pc.
-	s isNull ifTrue: [^0 asUInt32].
-	^s flags
+	f := s isNull ifTrue: [0 asUInt32] ifFalse: [s flags].
+	(self uint8At: (self floatBitAddressFor: m pc: pc)) ~= 0 ifTrue: [f := f bitOr: FB_FLOAT].
+	^f
 !
 clear
 	<c: 'void fb_clear(void)'>

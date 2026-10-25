@@ -5,7 +5,7 @@ OptModule subclass: #OptRuntime
 
 OptRuntime comment: 'The optimizing tier''s side of the runtime (docs/jit.md, Optimizing tier): when to optimize (tierUp:), compiling (OptBuilder, OptPasses, OptRegalloc, OptCodegen), sends from optimized code, deoptimization (a guard failed: the registers are in the JitState; after a send: everything is in slots), rebuilding an optimized frame''s activations as frames (deoptimization) or Contexts (materializeAll), resuming an optimized frame the interpreter returns into, the GC roots of optimized code (its method and oop pool).
 
-An optimized method''s header (JitMethod, mode opt) is linked from its method''s lower-tier header (opt; lower back); frames of the method run the optimized code, frames of its blocks the lower tier''s. The header carries the safepoint table (spTable: offset of each safepoint''s record in meta) and the records (OptCodegen>>recordState:kind:node:inSlots:).'!
+An optimized method''s header (JitMethod, mode opt) is linked from its method''s lower-tier (baseline) header (opt; lower back); new frames of the method run the optimized code: the interpreter''s and optimized callers through the method''s cell, baseline callers through its unchecked entry (JitBaselineRuntime>>redirect:to:). Blocks and loops have units of their own (unitOf:start:osr:). The header carries the safepoint table (spTable: offset of each safepoint''s record in meta) and the records (OptCodegen>>recordState:kind:node:inSlots:).'!
 
 !OptRuntime class methodsFor: 'declaring'!
 declarations
@@ -364,6 +364,7 @@ send: f index: k site: key
 	"Optimized code sends at safepoint k of f (its pc and sp stored, receiver and arguments at slot slots): answer 0 (the result is in that slot), 1 (leave) or the callee's entry (frame pushed)."
 	<c: 'uint64_t opt_send(Frame *f, int64_t k, uint64_t key)'>
 	| h rec info n kind sp sel base r cls e ns ok v |
+	runtime canonicalizeBelow: f.
 	h := self cCoerce: f code to: 'JitMethod *'.
 	rec := self recordOf: h index: k.
 	info := rec at: 2.
@@ -459,6 +460,7 @@ deoptGuard: f index: k
 	"A guard of f's code failed at safepoint k; the registers are in the JitState's dump. Rebuild f's activations as frames; the interpreter continues the top one."
 	<c: 'uint64_t opt_deopt_guard(Frame *f, int64_t k)'>
 	| h why r m pc fresh stressed sig |
+	runtime canonicalizeBelow: f.
 	h := self cCoerce: f code to: 'JitMethod *'.
 	why := ((self recordOf: h index: k) at: 0) >> 8.
 	"--jit-flags deopt: no feedback from the stress"
@@ -564,6 +566,7 @@ returnBottom: f index: k
 deoptReturn: f index: k
 	"After the send of safepoint k (the result in slot slots): f's code was invalidated (or stress): rebuild its activations."
 	<c: 'uint64_t opt_deopt_return(Frame *f, int64_t k)'>
+	runtime canonicalizeBelow: f.
 	^self deoptFrame: f index: k regs: self null mode: 2
 !
 deoptFrame: f index: k regs: regs mode: mode

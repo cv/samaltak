@@ -422,7 +422,8 @@ static bool opt_linear_scan(void)
     int32_t i_2;
     int32_t v_2;
     int i_3;
-    int32_t i_4;
+    int i_4;
+    int32_t i_5;
     int32_t v;
     opt_node *nd;
     int64_t j;
@@ -471,8 +472,11 @@ static bool opt_linear_scan(void)
     for (i_3 = 0; i_3 <= 35; i_3++) {
         ra_free_regs[i_3] = 1;
     }
-    for (i_4 = 0; i_4 <= ra_sort_count - 1; i_4++) {
-        v = ra_sorted[i_4];
+    for (i_4 = 14; i_4 <= 16; i_4++) {
+        ra_free_regs[i_4] = 0;
+    }
+    for (i_5 = 0; i_5 <= ra_sort_count - 1; i_5++) {
+        v = ra_sorted[i_5];
         nd = opt_nodes + v;
         j = 0;
         while (j < ra_active_count) {

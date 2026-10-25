@@ -1,23 +1,23 @@
 VMCoreModule subclass: #JitBaselineRuntime
-	instanceVariableNames: 'compiler stubs cache asm analysis oopSlots oopSlotCount youngSlots youngSlotCount youngSlotsOverflow megaTable blockTable primKinds primOps primKindsReady nilScanned nilInline nilFound statMisses statLinks statPics statMegas statBlockMisses statPrimCalls statNlrs statWalks'
+	instanceVariableNames: 'compiler stubs cache asm analysis feedback oopSlots oopSlotCount youngSlots youngSlotCount youngSlotsOverflow megaTable blockTable primKinds primOps primKindsReady nilScanned nilInline nilFound statMisses statLinks statPics statMegas statBlockMisses statPrimCalls statNlrs statWalks'
 	classVariableNames: 'BL_BLOCK_CACHE BL_BLOCK_WORDS BL_MAX_OOP_SLOTS BL_MAX_YOUNG_SLOTS BL_MEGA_CACHE BL_MEGA_WORDS BL_PIC_CASES BL_SITE_MEGA PK_AT PK_AT_PUT PK_BASIC_SIZE PK_BASICNEW PK_BASICNEW_SIZE PK_CHAR_FROM_VALUE PK_CHAR_VALUE PK_CLASS PK_CLOSURE_VALUE PK_FLOAT_OP PK_HASH PK_IDENTICAL PK_INT_OP PK_MARKER PK_NONE PK_PERFORM PK_STRING_COMPARE PK_UINT32_AT PK_UINT32_AT_PUT'
 	package: 'VM-Jit'!
 
 JitBaselineRuntime comment: 'What baseline code (JitBaselineCompiler) needs of the runtime beyond JitRuntime:
 
-Lazy frames: a frame suspended in a send has a stale pc and sp; the return address in its callee''s native frame record (the record of frame f is at baseRecord - 16 (f - baseFrame) / 64) says where it is (the return map: return offset, pc, depth, argc, length, pushes). canonicalizeBelow: makes them canonical, from the top down, stopping at a frame that already is (the prologue zeroes pc and sp; a suspended frame''s pc is never 0).
+Lazy frames: a frame suspended in a send has a stale pc and sp; the return address in its callee''s native frame record (the record of frame f is at baseRecord - 16 (f - baseFrame) / 64) says where it is (the return map: return offset, pc, depth, argc, length, pushes). canonicalizeBelow: makes them canonical, from the top down, stopping at a frame that already is (the prologue zeroes pc and sp; a suspended frame''s pc is never 0). Under --jit opt optimized frames, always canonical, are skipped; one a walk passed is marked (its lits odd) and stops the next.
 
 Inline caches: miss:receiver:ret: (the miss stub: unlinked sites, a callee''s failed class check, polymorphic and megamorphic misses) looks the send up, compiles the target when its activations reach the threshold, links the site (monomorphic: the class in the site''s literal, bl to the target''s checked entry; then a BaselinePic of up to BL_PIC_CASES classes; then megamorphic: the selector in the literal, bl to the megamorphic stub, which probes megaTable) and answers the target''s unchecked entry. Young classes and methods are cached too: a young object written into the code makes its word a young root. unlinkAll (method dictionaries changed, become) and unlinkSelector: reset sites. A site''s state is its type feedback: unlinked, monomorphic (class, target), polymorphic (the BaselinePic''s classes and targets), megamorphic.
 
 The collector: the words in the code that hold objects (the method''s literals, the caches'' classes) are registered (oopSlots, the young ones also in youngSlots) and updated as roots; megaTable and blockTable (home method, startpc -> block entry) are cleared by every GC and become.
 
-Type feedback for the optimizing tiers: feedbackSitesOf: and friends enumerate a method''s send sites (pc, selector, state, cases with receiver class and target method); jitSendSites answers the same to the image.
+Type feedback for the optimizing tiers: feedbackSitesOf: and friends enumerate a method''s send sites (pc, selector, state, cases with receiver class and target method); jitSendSites answers the same to the image. Under --jit opt every miss reports its receiver class to JitFeedback, and redirect:to: makes a method''s unchecked entry branch to its optimized code.
 
 Also: block:closure:ret: (the block stub''s miss), entrySlow:ret: (a callee''s stack check: interrupts, a full C stack), prim:ret:fn:info:fp: (a compiled method''s C primitive), returnSlow: (a married frame or frame 0 returns), nlr: (non-local return to a home frame in machine code).'!
 
 !JitBaselineRuntime class methodsFor: 'declaring'!
 declarations
-	^#((compiler JitBaselineCompiler) (stubs JitStubs) (cache CodeCache) (asm Arm64Assembler) (analysis BytecodeAnalysis)
+	^#((compiler JitBaselineCompiler) (stubs JitStubs) (cache CodeCache) (asm Arm64Assembler) (analysis BytecodeAnalysis) (feedback JitFeedback)
 		(oopSlots 'uint64_t[BL_MAX_OOP_SLOTS]') (oopSlotCount int64_t) (youngSlots 'uint64_t[BL_MAX_YOUNG_SLOTS]') (youngSlotCount int64_t) (youngSlotsOverflow bool)
 		(megaTable 'uint64_t[BL_MEGA_WORDS]') (blockTable 'uint64_t[BL_BLOCK_WORDS]')
 		(primKinds 'uint8_t[1024]') (primOps 'uint8_t[1024]') (primKindsReady bool) (nilScanned bool) (nilInline bool) (nilFound int32_t)
@@ -346,18 +346,22 @@ canonicalizeBelow: f
 	g := f - 1.
 	statWalks := statWalks + 1.
 	[g >= base] whileTrue: [
-		rec := jit state baseRecord - (16 * ((g + 1) - base)) asUInt64.
-		ret := self uint64At: rec + 8.
-		e := self retEntry: ret of: g.
-		info := e at: 2.
-		pc := ((e at: 1) bitAnd: 16rFFFF) asInt32 + ((info >> 8) bitAnd: 255) asInt32.
-		sp := ((e at: 1) >> 16) asInt32 + ((info >> 26) bitAnd: 3) asInt32 - (info bitAnd: 255) asInt32 - 1.
-		(g pc = pc and: [g sp = sp]) ifTrue: [^self].
-		g method: (self cCoerce: g code to: 'JitMethod *') method.
-		g pc: pc.
-		g sp: sp.
-		g ip: (interpreter methodBcs: g method) + pc.
-		g lits: (self slotsOf: (self loadRef: g method at: CM_LITERALS)).
+		"optimized frames always are; below one a walk passed (its lits odd until it is pushed again or a GC) all are"
+		(jit isOptFrame: g) ifTrue: [
+			((self cCoerce: g lits to: 'uint64_t') bitAnd: 1) ~= 0 ifTrue: [^self].
+			g lits: (self cCoerce: ((self cCoerce: g lits to: 'uint64_t') bitOr: 1) to: 'oop *')] ifFalse: [
+			rec := jit state baseRecord - (16 * ((g + 1) - base)) asUInt64.
+			ret := self uint64At: rec + 8.
+			e := self retEntry: ret of: g.
+			info := e at: 2.
+			pc := ((e at: 1) bitAnd: 16rFFFF) asInt32 + ((info >> 8) bitAnd: 255) asInt32.
+			sp := ((e at: 1) >> 16) asInt32 + ((info >> 26) bitAnd: 3) asInt32 - (info bitAnd: 255) asInt32 - 1.
+			(g pc = pc and: [g sp = sp]) ifTrue: [^self].
+			g method: (self cCoerce: g code to: 'JitMethod *') method.
+			g pc: pc.
+			g sp: sp.
+			g ip: (interpreter methodBcs: g method) + pc.
+			g lits: (self slotsOf: (self loadRef: g method at: CM_LITERALS))].
 		g := g - 1]
 ! !
 
@@ -397,6 +401,8 @@ miss: f receiver: rcv ret: ret
 	cls := kind = 1
 		ifTrue: [self loadRef: (self loadRef: h method at: CM_CLASS) at: BEH_SUPERCLASS]
 		ifFalse: [interpreter receiverClass: rcv].
+	"--jit opt: what the site saw is type feedback"
+	(jit tiering and: [kind ~= 1]) ifTrue: [feedback noteSend: h method pc: s pc asInt64 class: cls].
 	e := interpreter entryFor: cls selector: sel.
 	e isNull ifTrue: [^1].
 	(e kind bitAnd: K_CTX) ~= 0 ifTrue: [^1].
@@ -404,6 +410,7 @@ miss: f receiver: rcv ret: ret
 	(self primKindOf: ((interpreter methodPrim: m) bitAnd: CM_PRIM_MASK) asInt32) = PK_PERFORM ifTrue: [^1].
 	t := jit codeOf: m counting: true.
 	(jit hasCode: t) ifFalse: [^1].
+	t mode = jit optMode ifTrue: [t := self cCoerce: t lower to: 'JitMethod *'].
 	t mode = jit baselineMode ifFalse: [^1].
 	jit ic ifTrue: [self link: s in: h class: cls selector: sel target: t super: kind = 1].
 	^t uentry
@@ -411,6 +418,25 @@ miss: f receiver: rcv ret: ret
 patchCall: site to: target
 	compiler patchBranchAt: site to: target.
 	cache invalidate: site size: 4
+!
+redirect: h to: o
+	"--jit opt: the callers of h's unchecked entry go to o, its method's optimized code (a b to the frame code at its start), or (o = h) to h's own code again."
+	<c: 'void bl_redirect(JitMethod *h, JitMethod *o)'>
+	| a |
+	(jit tiering and: [h mode = jit baselineMode and: [(h flags bitAnd: jit entryFlag) ~= 0]]) ifFalse: [^self].
+	(o ~= h and: [o blockStart ~= 0 or: [o osrPc ~= 0]]) ifTrue: [^self].
+	a := h uentry.
+	cache beginWriting.
+	o = h
+		ifTrue: [
+			h entryWord ~= 0 ifTrue: [
+				self uint32At: a put: h entryWord.
+				h entryWord: 0]]
+		ifFalse: [
+			h entryWord = 0 ifTrue: [h entryWord: (self uint32At: a)].
+			self uint32At: a put: (16r14000000 bitOr: ((o codeStart asInt64 - a asInt64) >> 2 bitAnd: 16r3FFFFFF)) asUInt32].
+	cache invalidate: a size: 4.
+	cache endWriting
 !
 link: s in: h class: cls selector: sel target: t super: isSuper
 	"Link site s for cls: unlinked -> monomorphic -> polymorphic -> megamorphic."

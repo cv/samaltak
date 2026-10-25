@@ -1,6 +1,6 @@
 VMCoreModule subclass: #JitRuntime
 	instanceVariableNames: 'stubs template stencil baseline brt cache asm analysis jitMode jitFlags jitThreshold jitOsrThreshold jitCacheMB cacheOpened flushPending invalidations stateBlock methodTable tableCount methodCounts youngMethods youngCount youngOverflow mapPcs mapOffsets mapCount refSites refCount sendPushed performFn performArgsFn statCompiled statFailed statBytecodes statCompileUs statCodeBytes statCacheFlushes statEntries statExits statResumes statOsr feedback optimizer jitOptThreshold optCounts entryCells'
-	classVariableNames: 'JIT_BASELINE JIT_FLAG_ACCESS JIT_FLAG_ALLOC JIT_FLAG_ARITH JIT_FLAG_BARRIER JIT_FLAG_BLOCKS JIT_FLAG_CALLS JIT_FLAG_DEOPT JIT_FLAG_EAGER JIT_FLAG_EMBED JIT_FLAG_FLOAT JIT_FLAG_FUSE JIT_FLAG_GVN JIT_FLAG_IC JIT_FLAG_INLINE JIT_FLAG_LAST JIT_FLAG_MEGA JIT_FLAG_NLR JIT_FLAG_NOTES JIT_FLAG_PIC JIT_FLAG_PRIMS JIT_FLAG_QUICK JIT_FLAG_REGS JIT_FLAG_TEMPS JIT_FLAG_UNBOX JIT_MAX_COUNT JIT_MAX_MAP JIT_MAX_REFS JIT_MAX_YOUNG JIT_NONE JIT_OPT JIT_PROLOGUE_BYTES JIT_STENCIL JIT_TABLE_SIZE JIT_TEMPLATE JIT_THREADED JM_DEAD JM_FAILED JM_NOTES JM_OSR'
+	classVariableNames: 'JIT_BASELINE JIT_FLAG_ACCESS JIT_FLAG_ALLOC JIT_FLAG_ARITH JIT_FLAG_BARRIER JIT_FLAG_BLOCKS JIT_FLAG_CALLS JIT_FLAG_DEOPT JIT_FLAG_EAGER JIT_FLAG_EMBED JIT_FLAG_FLOAT JIT_FLAG_FUSE JIT_FLAG_GVN JIT_FLAG_IC JIT_FLAG_INLINE JIT_FLAG_LAST JIT_FLAG_MEGA JIT_FLAG_NLR JIT_FLAG_NOTES JIT_FLAG_PIC JIT_FLAG_PRIMS JIT_FLAG_QUICK JIT_FLAG_REGS JIT_FLAG_TEMPS JIT_FLAG_UNBOX JIT_MAX_COUNT JIT_MAX_MAP JIT_MAX_REFS JIT_MAX_YOUNG JIT_NONE JIT_OPT JIT_PROLOGUE_BYTES JIT_STENCIL JIT_TABLE_SIZE JIT_TEMPLATE JIT_THREADED JM_DEAD JM_ENTRY JM_FAILED JM_NOTES JM_OSR'
 	package: 'VM-Jit'!
 
 JitRuntime comment: 'The runtime every compiler''s machine code runs on (docs/jit.md, Shared runtime): configuration (--jit, --jit-threshold, --jit-osr, --jit-flags, --jit-cache), the compiled methods (JitMethod headers in the code cache, found by the method''s identity hash; their methods are GC roots, young ones listed for scavenges; embedded object references patched by full GCs and become), the interpreter''s hooks (activated:, resume:, backJump:), the functions machine code calls (send:info:site:, special:info:site:, interrupt:, closure:, makeArray:, outerTemp:, widow:, writeBarrier:value:), code cache flushes, statistics.
@@ -63,7 +63,9 @@ initialize
 	JM_FAILED := 1.
 	JM_DEAD := 2.
 	JM_NOTES := 4.
-	JM_OSR := 8
+	JM_OSR := 8.
+	"baseline: its unchecked entry builds the frame (no quick method or primitive first), optimized code may take it over"
+	JM_ENTRY := 16
 ! !
 
 !JitRuntime methodsFor: 'configuration'!
@@ -162,7 +164,7 @@ optMode
 !
 lowerMode
 	"The compiler of a method's first machine code."
-	^jitMode = JIT_OPT ifTrue: [JIT_TEMPLATE] ifFalse: [jitMode]
+	^jitMode = JIT_OPT ifTrue: [JIT_BASELINE] ifFalse: [jitMode]
 !
 ic
 	"Baseline: machine-code inline caches (else every send looks up in the runtime)."
@@ -215,8 +217,18 @@ temps
 baselineMode
 	^JIT_BASELINE
 !
-isBaseline
-	^jitMode = JIT_BASELINE
+entryFlag
+	^JM_ENTRY
+!
+nilTestsInlinable
+	^brt nilTestsInlinable
+!
+floatBitAddressFor: m pc: pc
+	^feedback floatBitAddressFor: m pc: pc
+!
+baselineCode
+	"Baseline code runs: --jit baseline, and --jit opt's lower tier."
+	^jitMode = JIT_BASELINE or: [jitMode = JIT_OPT]
 !
 templateMode
 	^JIT_TEMPLATE
@@ -516,7 +528,9 @@ codeChanged: m
 	<c: 'void jit_code_changed(oop m)'>
 	| i |
 	i := self slotOf: m.
-	i >= 0 ifTrue: [self setCell: i code: (self best: (methodTable at: i))]
+	i < 0 ifTrue: [^self].
+	self setCell: i code: (self best: (methodTable at: i)).
+	brt redirect: (methodTable at: i) to: (self best: (methodTable at: i))
 !
 lookup: m
 	"m's header, null if m has none."
@@ -760,7 +774,9 @@ finish: m code: start mode: md
 			h noteOffsets at: i put: (asm noteOffsetAt: i)].
 		p := p + (20 * n)].
 	md = JIT_OPT ifTrue: [p := optimizer writeExtra: h at: p].
-	md = JIT_BASELINE ifTrue: [p := baseline writeTables: h at: p].
+	md = JIT_BASELINE ifTrue: [
+		p := baseline writeTables: h at: p.
+		baseline plainEntry ifTrue: [h flags: (h flags bitOr: JM_ENTRY)]].
 	self sortMap: h.
 	h start: start + (self mapOffsetOf: h pc: (md = JIT_OPT ifTrue: [optimizer unitEntry] ifFalse: [0])).
 	cache allocate: p - start.
@@ -854,18 +870,18 @@ kill: h
 	(h opt ~= 0 and: [h mode ~= JIT_OPT]) ifTrue: [self kill: (self cCoerce: h opt to: 'JitMethod *')].
 	invalidations := invalidations + 1.
 	interpreter flushMethodCache.
-	jitMode = JIT_BASELINE ifTrue: [brt unlinkAll]
+	self baselineCode ifTrue: [brt unlinkAll]
 !
 methodsChanged
 	"Smalltalk changed method dictionaries (flushMethodCache): inline caches relink."
 	<c: 'void jit_methods_changed(void)'>
-	(jitMode = JIT_BASELINE and: [cacheOpened]) ifTrue: [
+	(self baselineCode and: [cacheOpened]) ifTrue: [
 		brt unlinkAll.
 		brt nilTestsChanged: 0]
 !
 methodsChangedFor: sel
 	<c: 'void jit_methods_changed_for(oop sel)'>
-	(jitMode = JIT_BASELINE and: [cacheOpened]) ifTrue: [
+	(self baselineCode and: [cacheOpened]) ifTrue: [
 		brt unlinkSelector: sel.
 		brt nilTestsChanged: sel]
 !
@@ -981,7 +997,7 @@ becomeMethod: from
 	jitMode = JIT_OPT ifTrue: [optimizer invalidateAll].
 	h := self lookup: from.
 	h notNull ifTrue: [self kill: h].
-	(jitMode = JIT_BASELINE and: [cacheOpened]) ifTrue: [brt unlinkAll]
+	(self baselineCode and: [cacheOpened]) ifTrue: [brt unlinkAll]
 !
 headersValid: valid
 	<c: 'bool jit_headers_valid(bool (*valid)(oop))'>
@@ -1070,12 +1086,12 @@ run: frame at: address
 	f := frame.
 	a := address.
 	[statEntries := statEntries + 1.
-	 jitMode = JIT_BASELINE ifTrue: [
+	 (self baselineCode and: [(self isOptFrame: f) not]) ifTrue: [
 		"baseline returns from frame 0 (into a Context) take the married frame's slow path; machine code keeps pc and sp"
 		(f = interpreter frames and: [f ctx = memory nilOop]) ifTrue: [interpreter marry: f].
 		f pc: 0.
 		f sp: 0].
-	 r := (self cCoerce: (jitMode = JIT_BASELINE ifTrue: [stubs blEnterAddress] ifFalse: [stubs enterAddress]) to: 'int64_t (*)(Frame *, uint64_t)') call: f with: a.
+	 r := (self cCoerce: (self baselineCode ifTrue: [stubs blEnterAddress] ifFalse: [stubs enterAddress]) to: 'int64_t (*)(Frame *, uint64_t)') call: f with: a.
 	 r = 0 ifTrue: [
 		statExits := statExits + 1.
 		^self].
@@ -1095,11 +1111,15 @@ run: frame at: address
 !JitRuntime methodsFor: 'called by machine code'!
 sync: f
 	"Machine code stored f's pc and sp: f is the top frame (baseline frames suspended below it become canonical too)."
-	jitMode = JIT_BASELINE ifTrue: [
+	self baselineCode ifTrue: [
 		f method: (self cCoerce: f code to: 'JitMethod *') method.
 		brt canonicalizeBelow: f].
 	interpreter syncFrame: f.
 	f lits: (self slotsOf: (self loadRef: f method at: CM_LITERALS))
+!
+canonicalizeBelow: f
+	"Baseline frames suspended below f (top, its pc and sp stored) become canonical: the runtime may collect, flush or leave."
+	self baselineCode ifTrue: [brt canonicalizeBelow: f]
 !
 exitSync: f
 	"The exit stub: f stored its pc and sp and leaves to the interpreter."
@@ -1551,14 +1571,14 @@ VMStruct subclass: #JitMethod
 	classVariableNames: ''
 	package: 'VM-Jit'!
 
-JitMethod comment: 'The header of a compiled method, in the code cache after its code: the method (a GC root), the compiler (mode), where the code starts and how long it is, start (the method''s first bytecode, after the prologue; its entry from a compiled caller is JIT_PROLOGUE_BYTES before), the bytecode map (pc, offset pairs of the resumption points, in pc order), the offsets of embedded object references (mov:imm64:), and, if recorded, the notes for disassembly. Baseline code also has its checked and unchecked entries, its send sites (BaselineSite), its return map (return offset, pc | depth << 16, argc | length << 8 | pushes << 26) and its blocks (startpc, entry offset). flags: JM_FAILED (no code: the method is not compiled again), JM_DEAD (its code must not run), JM_NOTES A lower tier''s header links its method''s optimized code (opt); optimized code (mode opt, OptRuntime) has: lower, its frame''s slots, the method''s bytecode size, its oop pool (in the code, GC roots), the safepoint table and records, its dependencies, deoptimizations, the unit (blockStart, osrPc) and when it was compiled (generation, stamp).'!
+JitMethod comment: 'The header of a compiled method, in the code cache after its code: the method (a GC root), the compiler (mode), where the code starts and how long it is, start (the method''s first bytecode, after the prologue; its entry from a compiled caller is JIT_PROLOGUE_BYTES before), the bytecode map (pc, offset pairs of the resumption points, in pc order), the offsets of embedded object references (mov:imm64:), and, if recorded, the notes for disassembly. Baseline code also has its checked and unchecked entries, its send sites (BaselineSite), its return map (return offset, pc | depth << 16, argc | length << 8 | pushes << 26) and its blocks (startpc, entry offset). flags: JM_FAILED (no code: the method is not compiled again), JM_DEAD (its code must not run), JM_NOTES, JM_ENTRY (baseline: the unchecked entry builds the frame; entryWord: its first instruction while optimized code has taken it over). A lower tier''s header links its method''s optimized code (opt); optimized code (mode opt, OptRuntime) has: lower, its frame''s slots, the method''s bytecode size, its oop pool (in the code, GC roots), the safepoint table and records, its dependencies, deoptimizations, the unit (blockStart, osrPc) and when it was compiled (generation, stamp).'!
 
 !JitMethod class methodsFor: 'declaring'!
 fields
 	^#((method oop) (start uint64_t) (codeStart uint64_t) (codeSize uint32_t) (bytecodes uint32_t) (mode int32_t) (flags uint32_t)
 		(mapCount uint32_t) (refCount uint32_t) (map 'uint32_t *') (refs 'uint32_t *')
 		(noteCount uint32_t) (methodHash uint32_t) (noteOffsets 'uint32_t *') (noteTexts 'uint64_t *') (noteValues 'int64_t *')
-		(entry uint64_t) (uentry uint64_t) (sites 'BaselineSite *') (rets 'uint32_t *') (blocks 'uint32_t *') (siteCount uint32_t) (retCount uint32_t) (blockCount uint32_t) (pad2 uint32_t)
+		(entry uint64_t) (uentry uint64_t) (sites 'BaselineSite *') (rets 'uint32_t *') (blocks 'uint32_t *') (siteCount uint32_t) (retCount uint32_t) (blockCount uint32_t) (entryWord uint32_t)
 		(opt uint64_t) (lower uint64_t) (slots uint32_t) (bcSize uint32_t) (poolOffset uint32_t) (poolCount uint32_t)
 		(spCount uint32_t) (depCount uint32_t) (spTable 'int32_t *') (meta 'int32_t *') (deps 'int32_t *') (deopts uint32_t) (blockStart uint32_t) (osrPc uint32_t) (generation uint32_t) (stamp uint32_t) (pad3 uint32_t))
 ! !

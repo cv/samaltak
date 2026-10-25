@@ -3,7 +3,7 @@ OptModule subclass: #OptRegalloc
 	classVariableNames: 'RA_ARENA RA_MAX_ACTIVE RA_MAX_SAFE RA_MAX_SAFELIST RA_MAX_SLOTS RA_NREGS'
 	package: 'VM-Jit'!
 
-OptRegalloc comment: 'Register allocation for the optimizing tier (Poletto and Sarkar''s linear scan over one live interval per value). Blocks in OptPasses'' order get positions (two per node; a block''s phis at its start); block-level liveness (iterative, bit sets) gives each value the interval from its first to its last live position (a phi''s covers the ends of its predecessors, where the moves into it are; a frame state''s values at a safepoint stay live after it). Values get one of the 20 allocatable registers (x0-x13, x23-x28; x14-x17 are the code generator''s scratch) for their whole interval, or a frame slot if none is free (the interval ending last is spilled). Values live across a safepoint (a send, an interrupt check: everything there may run Smalltalk and move objects) also get a home slot: their registers are stored there before it and reloaded after. Constants get neither: the code generator materializes them where they are used.'!
+OptRegalloc comment: 'Register allocation for the optimizing tier (Poletto and Sarkar''s linear scan over one live interval per value). Blocks in OptPasses'' order get positions (two per node; a block''s phis at its start); block-level liveness (iterative, bit sets) gives each value the interval from its first to its last live position (a phi''s covers the ends of its predecessors, where the moves into it are; a frame state''s values at a safepoint stay live after it). Values get one of the 17 allocatable registers (x0-x13, x26-x28; x14-x17 are the code generator''s scratch, x23-x25 hold nil, true and false for baseline code) for their whole interval, or a frame slot if none is free (the interval ending last is spilled). Values live across a safepoint (a send, an interrupt check: everything there may run Smalltalk and move objects) also get a home slot: their registers are stored there before it and reloaded after. Constants get neither: the code generator materializes them where they are used.'!
 
 !OptRegalloc class methodsFor: 'declaring'!
 declarations
@@ -265,6 +265,8 @@ linearScan
 	self sortIntervals.
 	raActiveCount := 0.
 	0 to: RA_NREGS - 1 do: [:i | raFreeRegs at: i put: 1].
+	"x23-x25: nil, true and false, for the baseline code it calls and returns to"
+	14 to: 16 do: [:i | raFreeRegs at: i put: 0].
 	0 to: raSortCount - 1 do: [:i |
 		v := raSorted at: i.
 		nd := ir node: v.

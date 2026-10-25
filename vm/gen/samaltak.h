@@ -213,6 +213,7 @@ typedef void (*prim_fn)(void);
 #define FB_DEOPT_CLASS 16
 #define FB_DEOPT_OTHER 128
 #define FB_FLOAT 2
+#define FB_FLOAT_BITS 65536
 #define FB_INTS 256
 #define FB_MAX 16384
 #define FB_MEGA 1
@@ -284,6 +285,7 @@ typedef void (*prim_fn)(void);
 #define JIT_TEMPLATE 1
 #define JIT_THREADED 2
 #define JM_DEAD 2
+#define JM_ENTRY 16
 #define JM_FAILED 1
 #define JM_NOTES 4
 #define JM_OSR 8
@@ -580,6 +582,7 @@ typedef void (*prim_fn)(void);
 #define SL_RETURN 4
 #define SL_SEND 2
 #define SL_START 9
+#define SL_TIERUP 13
 #define SO_ARRAY 9
 #define SO_ASSOCIATION 23
 #define SO_BITMAP 24
@@ -915,7 +918,7 @@ struct jit_method {
     uint32_t site_count;
     uint32_t ret_count;
     uint32_t block_count;
-    uint32_t pad2;
+    uint32_t entry_word;
     uint64_t opt;
     uint64_t lower;
     uint32_t slots;
@@ -1255,6 +1258,7 @@ extern uint64_t stat_materialized;
 extern oop tag_class[8];
 extern oop tmp_roots[4];
 extern int32_t block_count;
+extern bool plain_entry;
 extern int32_t pool_labels[256];
 extern int32_t ret_count;
 extern int32_t site_count;
@@ -1269,6 +1273,7 @@ extern uint64_t stat_nlrs;
 extern uint64_t stat_pics;
 extern uint64_t stat_prim_calls;
 extern uint64_t stat_walks;
+extern uint8_t fb_floats[65536];
 extern uint64_t entry_cells[131072];
 extern bool flush_pending;
 extern uint64_t invalidations;
@@ -1534,6 +1539,7 @@ uint64_t jit_bl_nlr(frame *f);
 uint64_t jit_bl_prim(frame *f, uint64_t fp, uint64_t fn, uint64_t info);
 int32_t bl_prim_kind(int32_t p);
 int32_t bl_prim_op(int32_t p);
+void bl_redirect(jit_method *h, jit_method *o);
 void bl_register_slot(uint64_t a);
 uint64_t jit_bl_return_slow(frame *f);
 void bl_unlink_all(void);

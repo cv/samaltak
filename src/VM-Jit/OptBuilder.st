@@ -175,6 +175,9 @@ entryPc
 	obOsrPc >= 0 ifTrue: [^obOsrPc].
 	^obUnitStart
 !
+isMethodUnit
+	^obOsrPc < 0 and: [obUnitStart = 0]
+!
 paramSlots
 	"The frame's slots the code reads at its entry and keeps (home slots follow)."
 	^obParamSlots
@@ -987,6 +990,13 @@ special: k pc: pc act: a rcvSlot: r
 	(k >= 16 and: [k <= 18 and: [(self knownClassOf: x) = 0 and: [(runtime flag: runtime primsFlag) and: [(feedback siteAt: (ir act: a) method pc: pc) isNull]]]]) ifTrue: [
 		"no feedback: the lower tier's Array fast path took them all"
 		self write: (self var: a slot: r) value: (self guard: x class: memory clsArray state: (self stateAct: a pc: pc depth: (self depthAt: pc act: a)))].
+	((k = 21 or: [k = 22 or: [k = 30]]) and: [(self knownClassOf: x) = 0 and: [(runtime flag: runtime callsFlag) and: [(feedback siteAt: (ir act: a) method pc: pc) isNull]]]) ifTrue: [
+		"no feedback: the lower tier's closure fast path took them all"
+		self write: (self var: a slot: r) value: (self guard: x class: memory clsBlock state: (self stateAct: a pc: pc depth: (self depthAt: pc act: a)))].
+	((k = 23 or: [k = 24]) and: [(runtime flag: runtime primsFlag) and: [runtime nilTestsInlinable]]) ifTrue: [
+		"isNil, notNil: no class but UndefinedObject and ProtoObject defines them (new definitions drop all code)"
+		self push: (self binary: (k = 23 ifTrue: [O_EQ] ifFalse: [O_NE]) a: x b: (self constant: memory nilOop)) act: a depth: r.
+		^self].
 	(k <= 10 or: [k = 12 or: [k = 13 or: [k = 14 or: [k = 15]]]]) ifTrue: [
 		fl := feedback flagsAt: (ir act: a) method pc: pc.
 		(k <= 9 and: [(runtime flag: runtime unboxFlag) and: [(fl bitAnd: (feedback sawNonInt bitOr: feedback deoptOther)) = 0 and: [

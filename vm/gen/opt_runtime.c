@@ -514,6 +514,9 @@ uint64_t opt_deopt_guard(frame *f, int64_t k)
     oop m_3;
     int32_t n_3;
     jit_method *h_2;
+    if ((jit_mode == JIT_BASELINE) || (jit_mode == JIT_OPT)) {
+        bl_canonicalize_below(f);
+    }
     h = (jit_method *)f->code;
     why = (h->meta + h->sp_table[k])[0] >> 8;
     stressed = ((jit_flags & JIT_FLAG_DEOPT) != 0) && (state_block->stress <= 0);
@@ -718,6 +721,9 @@ exit_signature_at_2:;
 /* OptRuntime>>deoptReturn:index: */
 uint64_t opt_deopt_return(frame *f, int64_t k)
 {
+    if ((jit_mode == JIT_BASELINE) || (jit_mode == JIT_OPT)) {
+        bl_canonicalize_below(f);
+    }
     return opt_deopt_frame(f, k, (uint64_t *)NULL, 2);
 }
 
@@ -1273,6 +1279,9 @@ uint64_t opt_send(frame *f, int64_t k, uint64_t key)
     oop o_12;
     uint64_t o_13;
     uint64_t r_sent_4;
+    if ((jit_mode == JIT_BASELINE) || (jit_mode == JIT_OPT)) {
+        bl_canonicalize_below(f);
+    }
     h = (jit_method *)f->code;
     rec = h->meta + h->sp_table[k];
     info = rec[2];
@@ -1296,7 +1305,7 @@ uint64_t opt_send(frame *f, int64_t k, uint64_t key)
         }
         r = base[0];
         if (((sp == 21) || ((sp == 22) || (sp == 30))) && (((r & 7) == 0) && ((*(uint64_t *)(r + 8) == cls_block) && (*(uint64_t *)(r + 16 + 16) == (uint64_t)((((int64_t)n) << 1) | 1))))) {
-            if (jit_mode == JIT_BASELINE) {
+            if ((jit_mode == JIT_BASELINE) || (jit_mode == JIT_OPT)) {
                 f->method = ((jit_method *)f->code)->method;
                 bl_canonicalize_below(f);
             }
@@ -1348,7 +1357,7 @@ uint64_t opt_send(frame *f, int64_t k, uint64_t key)
         e = site_entry((uint8_t *)key, cls, sel);
         if (e == NULL) {
             return ({
-    if (jit_mode == JIT_BASELINE) {
+    if ((jit_mode == JIT_BASELINE) || (jit_mode == JIT_OPT)) {
         f->method = ((jit_method *)f->code)->method;
         bl_canonicalize_below(f);
     }
@@ -1413,7 +1422,7 @@ exit_sent_3:;
     r_sent_3; });
         }
     }
-    if (jit_mode == JIT_BASELINE) {
+    if ((jit_mode == JIT_BASELINE) || (jit_mode == JIT_OPT)) {
         f->method = ((jit_method *)f->code)->method;
         bl_canonicalize_below(f);
     }
@@ -1425,7 +1434,7 @@ exit_sent_3:;
     o_9 = *(uint64_t *)(r + 16 + 0);
     (o_9 & 1) != 0; })) {
         return ({
-    if (jit_mode == JIT_BASELINE) {
+    if ((jit_mode == JIT_BASELINE) || (jit_mode == JIT_OPT)) {
         f->method = ((jit_method *)f->code)->method;
         bl_canonicalize_below(f);
     }
@@ -1438,7 +1447,7 @@ exit_sent_3:;
     }
     if (((e->kind & K_PRIM) != 0) && ((e->prim == perform_fn) || (e->prim == perform_args_fn))) {
         return ({
-    if (jit_mode == JIT_BASELINE) {
+    if ((jit_mode == JIT_BASELINE) || (jit_mode == JIT_OPT)) {
         f->method = ((jit_method *)f->code)->method;
         bl_canonicalize_below(f);
     }

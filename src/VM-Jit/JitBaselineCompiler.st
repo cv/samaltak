@@ -1,6 +1,6 @@
 JitCompiler subclass: #JitBaselineCompiler
-	instanceVariableNames: 'codeStart pcLabels pcMerge ssKind ssVal ssReg ssInSlot ssTop ssBase regOwner selfValid curArgs curTemps curFrameSize regionEnds regionArgs regionTemps regionSizes regionCount slKind slPc slDepth slLabel slCont slTarget slA slB slC slR slX slY slInfo slCount siteBl siteLit siteInfo sitePc siteDepth siteCount retOff retPc retDepth retInfo retCount poolLabels blockPcs blockLabels blockCount headerLabel missLabel blockLabel megaLabel exitSyncLabel exitPlainLabel interruptLabel closureLabel makeArrayLabel entrySlowLabel primLabel rememberLabel nlrLabel returnSlowLabel boxLabel fusedTarget uentryOffset dead curPc dregRefs tempD slDA slDB slSavedStart slSavedCount saved savedCount loopActive loopEnd loopId loopTable slLoop'
-	classVariableNames: 'BL_MAX_BLOCKS BL_MAX_REGIONS BL_MAX_RETS BL_MAX_SITES BL_MAX_SLOW BL_UENTRY SL_ACCESS SL_BARRIER SL_CLASS SL_ENTRY_IMM SL_ENTRY_SLOW SL_FLOAT SL_FUSED SL_INTERRUPT SL_MUSTBEBOOLEAN SL_RESUME SL_RETURN SL_SEND SL_START SL_ALLOC_FLOAT SL_BOX SL_DOUBLES BL_MAX_SAVED BL_MAX_LOOPS SS_DREG SS_CONST SS_LIT SS_MAX SS_PINNED SS_REG SS_SELF SS_SLOT SS_TEMP'
+	instanceVariableNames: 'codeStart pcLabels pcMerge ssKind ssVal ssReg ssInSlot ssTop ssBase regOwner selfValid curArgs curTemps curFrameSize regionEnds regionArgs regionTemps regionSizes regionCount slKind slPc slDepth slLabel slCont slTarget slA slB slC slR slX slY slInfo slCount siteBl siteLit siteInfo sitePc siteDepth siteCount retOff retPc retDepth retInfo retCount poolLabels blockPcs blockLabels blockCount headerLabel missLabel blockLabel megaLabel exitSyncLabel exitPlainLabel interruptLabel closureLabel makeArrayLabel entrySlowLabel primLabel rememberLabel nlrLabel returnSlowLabel boxLabel fusedTarget uentryOffset dead curPc dregRefs tempD slDA slDB slSavedStart slSavedCount saved savedCount loopActive loopEnd loopId loopTable slLoop plainEntry tierUpLabel counterAddr curMethod'
+	classVariableNames: 'BL_MAX_BLOCKS BL_MAX_REGIONS BL_MAX_RETS BL_MAX_SITES BL_MAX_SLOW BL_UENTRY SL_ACCESS SL_BARRIER SL_CLASS SL_ENTRY_IMM SL_ENTRY_SLOW SL_FLOAT SL_FUSED SL_INTERRUPT SL_MUSTBEBOOLEAN SL_RESUME SL_RETURN SL_SEND SL_START SL_TIERUP SL_ALLOC_FLOAT SL_BOX SL_DOUBLES BL_MAX_SAVED BL_MAX_LOOPS SS_DREG SS_CONST SS_LIT SS_MAX SS_PINNED SS_REG SS_SELF SS_SLOT SS_TEMP'
 	package: 'VM-Jit'!
 
 JitBaselineCompiler comment: 'The baseline compiler (--jit baseline), after Cog''s StackToRegisterMappingCogit: one pass over the bytecodes with a simulated operand stack (ssKind: in its slot, in a register, a constant, nil/true/false, self, a temp or a literal not loaded yet), so values go from producer to consumer in registers (x0-x8, x12-x15) and constants become immediates; the stack is written to its slots only at sends, calls into the runtime and merge points (jump targets, which start with everything in its slot). Before an instruction that may send or call the runtime everything below its operands is written back (as Cog), so its slow path only stores the operands.
@@ -9,7 +9,9 @@ Sends: the receiver in x0, receiver and arguments in their slots, x20 advanced t
 
 Inline: SmallInteger + - * // \\ bitAnd: bitOr: bitShift: and comparisons (tag checks, overflow branches, immediates, folding, compare and branch), Floats (SmallFloat64 and boxed operands, results boxed inline), == ~~ class, at: at:put: on Arrays, Strings, Symbols, ByteArrays (size is sent: user classes define it too), value value: value:value: of closures (class and argument count checked, then the block''s entry through a cache in the block stub), non-local returns to a home frame in machine code. The ablation flags (JitRuntime) switch each off.
 
-Layout: checked entry, unchecked entry, the method''s frame code, its bytecodes in pc order (block bodies inside, each with its entry), then the slow paths, the resumption stubs, the literals (the method''s literals as the runtime registers them for the collector, the inline caches'' classes) and the JitMethod header right after (adr reaches it: method and code for the frame).'!
+Layout: checked entry, unchecked entry, the method''s frame code, its bytecodes in pc order (block bodies inside, each with its entry), then the slow paths, the resumption stubs, the literals (the method''s literals as the runtime registers them for the collector, the inline caches'' classes) and the JitMethod header right after (adr reaches it: method and code for the frame).
+
+Under --jit opt (the optimizing tier''s lower tier) the code also counts method and block entries and backward jumps toward optimization (emitTierUp:depth:loop:, the tier-up stub), marks a Float seen by an inline Float path (emitFloatFeedback:), and has the template''s prologue before each start''s resumption point: optimized code calls it with the frame pushed.'!
 
 !JitBaselineCompiler class methodsFor: 'declaring'!
 declarations
@@ -28,7 +30,7 @@ declarations
 		(boxLabel int32_t) (uentryOffset int32_t) (dead bool) (curPc int32_t)
 		(dregRefs 'int8_t[16]') (tempD 'int8_t[SS_MAX]') (slDA 'int8_t[BL_MAX_SLOW]') (slDB 'int8_t[BL_MAX_SLOW]')
 		(slSavedStart 'int32_t[BL_MAX_SLOW]') (slSavedCount 'int16_t[BL_MAX_SLOW]') (saved 'int16_t[BL_MAX_SAVED]') (savedCount int32_t)
-		(loopActive bool) (loopEnd int32_t) (loopId int32_t) (loopTable 'int32_t[BL_MAX_LOOPS]') (slLoop 'int16_t[BL_MAX_SLOW]'))
+		(loopActive bool) (loopEnd int32_t) (loopId int32_t) (loopTable 'int32_t[BL_MAX_LOOPS]') (slLoop 'int16_t[BL_MAX_SLOW]') (plainEntry bool) (tierUpLabel int32_t) (counterAddr uint64_t) (curMethod oop))
 !
 initialize
 	SS_MAX := 1100.
@@ -65,6 +67,7 @@ initialize
 	SL_RESUME := 10.
 	SL_ALLOC_FLOAT := 11.
 	SL_BOX := 12.
+	SL_TIERUP := 13.
 	"SL_SEND flags (slInfo bits 32-)"
 	SL_FUSED := 16r100000000.
 	SL_FLOAT := 16r200000000.
@@ -89,6 +92,10 @@ retCount
 !
 blockCount
 	^blockCount
+!
+plainEntry
+	"The unchecked entry starts with the frame's code (no quick method or primitive first)."
+	^plainEntry
 ! !
 
 !JitBaselineCompiler methodsFor: 'compiling'!
@@ -123,6 +130,9 @@ compile: m
 	nlrLabel := asm labelAt: stubs blNlrStub.
 	returnSlowLabel := asm labelAt: stubs blReturnSlowStub.
 	boxLabel := asm labelAt: stubs blBoxStub.
+	tierUpLabel := asm labelAt: stubs tierUpStub.
+	counterAddr := runtime tiering ifTrue: [runtime counterAddressFor: m] ifFalse: [0].
+	curMethod := m.
 	savedCount := 0.
 	loopActive := false.
 	loopId := -1.
@@ -735,7 +745,7 @@ intOop: v
 emitMethodEntry
 	"Checked entry, unchecked entry, the quick method or primitive, the stack check, the frame; then the bytecodes from pc 0. Resumption at pc 0 (a frame the interpreter pushed) checks for interrupts out of line."
 	<c: 'bool bl_emit_method_entry(void)'>
-	| imm s uentry |
+	| imm s uentry p |
 	asm comment: 'checked entry: x0 the receiver, x9 the class the inline cache expects, x20 our fp, x30 back to the send'.
 	imm := asm newLabel.
 	uentry := asm newLabel.
@@ -755,14 +765,17 @@ emitMethodEntry
 	uentryOffset := (asm pc - codeStart) asInt32.
 	asm bind: uentry.
 	asm comment: 'unchecked entry (polymorphic caches, the megamorphic stub, super sends)'.
+	p := asm pc.
 	(runtime quick and: [analysis primitive = 0]) ifTrue: [self emitQuickMethod].
 	analysis primitive ~= 0 ifTrue: [(self emitPrimitive) ifFalse: [^false]].
+	plainEntry := asm pc = p.
 	(self emitStackCheck: 0) ifFalse: [^false].
 	self emitFrameFor: false args: curArgs temps: curTemps.
 	analysis primitiveHasErrorCode ifTrue: [
 		asm comment: 'the primitive''s error code (or nil) into the first temp'.
 		asm ldr: X16 base: X22 offset: self ecodeOffset.
 		asm str: X16 base: X20 offset: (self slot: curArgs)].
+	(self emitTierUp: 0 depth: curArgs + curTemps loop: 0) ifFalse: [^false].
 	self ssReset: curArgs + curTemps.
 	selfValid := true.
 	s := self slow: SL_START pc: 0 depth: curArgs + curTemps.
@@ -839,6 +852,7 @@ emitBlockEntry: pc
 	asm comment: 'block entry: x0 the closure, x20 our fp, x30 back to the value send'.
 	(self emitStackCheck: pc) ifFalse: [^false].
 	self emitFrameFor: true args: na temps: nt.
+	(self emitTierUp: pc depth: na + nt loop: 0) ifFalse: [^false].
 	self ssReset: na + nt.
 	selfValid := true.
 	dead := false.
@@ -1734,6 +1748,7 @@ interruptCheck: t
 	asm comment: 'jump back: interrupt check'.
 	asm ldr: W16 base: X22 offset: self interruptOffset.
 	asm cbnz: W16 to: (slLabel at: s).
+	(self emitTierUp: t depth: (analysis depthAt: t) loop: 1) ifFalse: [asm fail: ASM_ERR_LABEL].
 	asm b: (self labelFor: t).
 	^check
 !
@@ -2783,6 +2798,7 @@ emitSlowPaths
 			self emitLoadLoopTemps: (slLoop at: i).
 			asm b: (slCont at: i)].
 		kind = SL_START ifTrue: [self emitStart: i].
+		kind = SL_TIERUP ifTrue: [self emitTierUpSlow: i].
 		kind = SL_SEND ifTrue: [self emitSlowSend: i].
 		kind = SL_MUSTBEBOOLEAN ifTrue: [
 			asm comment: 'leave to the interpreter at this instruction (mustBeBoolean, attemptToAssign:withIndex:)'.
@@ -2893,16 +2909,53 @@ emitBoxSlow: i
 	asm b: (slCont at: i)
 !
 emitStart: i
-	"Resumption at the start of a method or block (the interpreter pushed the frame): an interrupt check, then the body."
+	"Resumption at the start of a method or block (the interpreter or optimized code pushed the frame; the latter calls the prologue before it): an interrupt check, then the body."
 	| intr |
+	counterAddr ~= 0 ifTrue: [self emitPrologue].
 	runtime noteResume: (slPc at: i) at: asm pc - codeStart.
+	counterAddr ~= 0 ifTrue: [
+		asm comment: 'pc and sp 0: the frame is lazy from here (a pushed frame''s pc may be stale)'.
+		asm str: XZR base: X19 offset: self pcOffset].
 	intr := asm newLabel.
 	asm comment: 'resumption at the start: interrupt check'.
 	asm ldr: W16 base: X22 offset: self interruptOffset.
 	asm cbnz: W16 to: intr.
+	(self emitTierUp: (slPc at: i) depth: (slDepth at: i) loop: 0) ifFalse: [^asm fail: ASM_ERR_LABEL].
 	asm b: (slCont at: i).
 	asm bind: intr.
 	self emitRuntimeCall: interruptLabel pc: (slPc at: i) depth: (slDepth at: i).
+	asm ldr: X21 base: X20 offset: -8.
+	asm b: (slCont at: i)
+!
+emitTierUp: pc depth: d loop: loop
+	"--jit opt: count down toward optimization (everything is in its slot); at zero the runtime may continue the frame in optimized code."
+	| s after |
+	counterAddr = 0 ifTrue: [^true].
+	s := self slow: SL_TIERUP pc: pc depth: d.
+	s < 0 ifTrue: [^false].
+	after := asm newLabel.
+	slCont at: s put: after.
+	slInfo at: s put: loop.
+	loop = 0 ifTrue: [slLoop at: s put: -1].
+	self emitCountDown: counterAddr to: (slLabel at: s).
+	asm bind: after.
+	^true
+!
+emitTierUpSlow: i
+	| l |
+	asm comment: 'tier up: the runtime answers 0 (go on), 1 (leave) or where the frame continues'.
+	self emitSync: (slPc at: i) depth: (slDepth at: i).
+	asm mov: X0 with: X19.
+	asm mov: X1 imm: (slInfo at: i).
+	asm bl: tierUpLabel.
+	l := asm newLabel.
+	asm cbz: X0 to: l.
+	asm cmp: X0 imm: 1.
+	asm b: exitPlainLabel if: COND_EQ.
+	asm br: X0.
+	asm bind: l.
+	self emitReloadPinned.
+	self emitLoadLoopTemps: (slLoop at: i).
 	asm ldr: X21 base: X20 offset: -8.
 	asm b: (slCont at: i)
 !
@@ -3081,6 +3134,7 @@ emitFloatPath: i send: send
 			asm mov: X16 imm: (slY at: i) >> 1.
 			asm scvtf: D1 with: X16]
 		ifFalse: [self emitToDouble: rb into: D1 fail: send].
+	counterAddr ~= 0 ifTrue: [self emitFloatFeedback: (slPc at: i)].
 	(k >= 2 and: [k <= 7]) ifTrue: [
 		asm fcmp: D0 with: D1.
 		cond := self floatConditionOf: k.
@@ -3098,6 +3152,15 @@ emitFloatPath: i send: send
 		asm fdiv: D0 with: D0 with: D1].
 	(k = 0 or: [k = 1 or: [k = 8 or: [k = 9]]]) ifFalse: [^asm b: send].
 	self emitBox: D0 into: (slR at: i) cont: (slCont at: i) fail: send
+!
+emitFloatFeedback: pc
+	"--jit opt: type feedback, a Float at pc."
+	| a |
+	a := runtime floatBitAddressFor: curMethod pc: pc.
+	asm comment: 'type feedback: a Float here'.
+	asm mov: X17 imm: 1.
+	asm adrp: X16 label: (asm labelAt: a).
+	asm strb: W17 base: X16 offset: (a bitAnd: 16rFFF) asInt64
 !
 emitAccessPath: i send: send
 	"at: at:put: size of ByteStrings (and Symbols, read only) and ByteArrays; anything else sends."

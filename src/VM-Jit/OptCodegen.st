@@ -5,7 +5,7 @@ OptModule subclass: #OptCodegen
 
 OptCodegen comment: 'Emits arm64 code for the allocated IR (OptRegalloc) in block order, then the out-of-line paths (guard failures, interrupt checks, store barriers, deoptimization after a call, the stack check), then the oop pool the code loads constants from (pc-relative; GC roots). Records for every safepoint and guard the deoptimization metadata (OptRuntime decodes it): kind, continuation, the send, and for each activation its method, closure, receiver, pc and where each slot''s value is (LOC_*).
 
-Frame layout: slots 0..numArgs-1 the arguments, then home slots (OptRegalloc), slotTop of them; a send''s receiver and arguments go at slotTop..., the callee''s frame starts after them; the result comes back in slot slotTop. At a safepoint the frame''s pc is bcSize + the safepoint''s index and its sp counts the slots in use, so GCs see every value saved there; the bytecode map has the continuation of each send under that pc.'!
+Frame layout: slots 0..numArgs-1 the arguments, then home slots (OptRegalloc), slotTop of them; a send''s receiver and arguments go at slotTop..., the callee''s frame starts after them; the result comes back in x0 (baseline callees answer only there) and is stored into slot slotTop; a return answers in x0 and the receiver''s slot. A method''s code starts with the entry from baseline code (emitBaselineEntry:); x23-x25 stay baseline code''s nil, true and false. At a safepoint the frame''s pc is bcSize + the safepoint''s index and its sp counts the slots in use, so GCs see every value saved there; the bytecode map has the continuation of each send under that pc.'!
 
 !OptCodegen class methodsFor: 'declaring'!
 declarations
@@ -96,6 +96,7 @@ generate: m act: a
 	cgStackFullLabel := asm labelAt: stubs optStackFullStub.
 	cgHeaderLabel := asm newLabel.
 	0 to: passes orderCount - 1 do: [:i | (ir block: (passes orderAt: i)) label: asm newLabel].
+	builder isMethodUnit ifTrue: [self emitBaselineEntry: m].
 	self emitEntry.
 	0 to: passes orderCount - 1 do: [:i |
 		b := passes orderAt: i.
@@ -110,7 +111,7 @@ generate: m act: a
 	asm b: (asm labelAt: stubs exitPlainAddress).
 	asm bind: cgExitSyncLabel.
 	asm comment: 'leave to the interpreter at the stored pc'.
-	asm b: (asm labelAt: stubs exitSyncAddress).
+	asm b: (asm labelAt: stubs blExitSyncAddress).
 	self emitPool.
 	"the header follows, 8-byte aligned (JitRuntime>>finish:code:mode:)"
 	[(asm pc bitAnd: 7) ~= 0] whileTrue: [asm emit: 16rD503201F].
@@ -127,6 +128,29 @@ maxOutgoing
 		((ir node: i) block >= 0 and: [((ir node: i) op asInt32 = O_SEND or: [(ir node: i) op asInt32 = O_CALL])]) ifTrue: [
 			n := n max: (ir node: i) nargs asInt32]].
 	^n
+!
+emitBaselineEntry: m
+	"The entry from baseline code (its unchecked entry branches here once this code is installed, JitBaselineRuntime>>redirect:to:): x0 the receiver, x20 our fp, x23 nil. Our frame as a direct call pushes it, then the prologue."
+	| n ntemps fb |
+	n := (ir act: cgRootAct) numArgs.
+	ntemps := (self intVal: (self loadRef: m at: CM_NUMTEMPS)) asInt32.
+	fb := self frameBytes asInt64.
+	asm comment: 'entry from baseline code: our frame'.
+	asm str: X20 base: X19 offset: fb + self fpOffset.
+	self loadConstant: m into: X17.
+	asm str: X17 base: X19 offset: fb.
+	asm stp: X23 with: X23 base: X19 offset: fb + self closureOffset.
+	0 to: ntemps - 1 do: [:i | asm str: X23 base: X20 offset: 8 * (n + i)].
+	asm ldr: X14 base: X17 offset: (self fieldOffset: CM_BYTECODES).
+	asm add: X14 with: X14 imm: 16.
+	asm str: X14 base: X19 offset: fb + self ipOffset.
+	asm ldr: X14 base: X17 offset: (self fieldOffset: CM_LITERALS).
+	asm add: X14 with: X14 imm: 16.
+	asm str: X14 base: X19 offset: fb + self litsOffset.
+	asm mov: X14 imm: (n + ntemps) asInt64 << 32.
+	asm str: X14 base: X19 offset: fb + self pcOffset.
+	asm adr: X16 label: cgHeaderLabel.
+	asm str: X16 base: X19 offset: fb + self codeOffset
 !
 emitEntry
 	"The prologue from compiled callers, then start: room for the frame, home slots nil, the arguments."
@@ -816,8 +840,9 @@ emitReturn: n
 	asm ldr: X16 base: X22 offset: self framesOffset.
 	asm cmp: X19 with: X16.
 	asm b: s if: COND_EQ.
-	asm comment: 'result into the receiver''s slot, pop the frame, return'.
+	asm comment: 'result into the receiver''s slot and x0, pop the frame, return'.
 	asm stur: x base: X20 offset: -8.
+	x ~= X0 ifTrue: [asm mov: X0 with: x].
 	builder entryPc > (ir act: cgRootAct) startpc ifTrue: [
 		"a loop's unit: the frame may be married (no block refers to its Context)"
 		back := asm newLabel.
@@ -983,11 +1008,13 @@ emitRuntimeSend: k site: here exit: cont
 	asm mov: X1 imm: k.
 	asm adr: X2 label: here.
 	asm bl: cgSendLabel.
+	self emitReloadPinned.
 	asm comment: '0: done, 1: leave, else the callee''s entry'.
 	asm cbz: X0 to: cont.
 	asm cmp: X0 imm: 1.
 	asm b: cgExitPlainLabel if: COND_EQ.
-	asm blr: X0
+	asm blr: X0.
+	self emitStoreResult
 !
 emitPushFrameFor: m argc: n slow: slow
 	"A direct call of m (it has machine code): its frame pushed here as the interpreter would (pushFrame:argc:code:ecode:), then a call of its entry; no room on the stack: the runtime's send."
@@ -1026,7 +1053,18 @@ emitPushFrameFor: m argc: n slow: slow
 	asm ldr: X14 base: X15 offset: 8.
 	asm str: X14 base: X19 offset: fb + self codeOffset.
 	asm ldr: X16 base: X15 offset: 0.
-	asm blr: X16
+	asm blr: X16.
+	self emitStoreResult
+!
+emitStoreResult
+	"Back from a callee (x20 its fp): baseline code answers in x0 only."
+	asm comment: 'the result (in x0) into its slot'.
+	asm stur: X0 base: X20 offset: -8
+!
+emitReloadPinned
+	asm comment: 'nil, true, false again (a GC may have moved them)'.
+	asm ldp: X23 with: X24 base: X22 offset: self nilOffset.
+	asm ldr: X25 base: X22 offset: self falseOffset
 !
 emitBlockCall: n index: k slow: slow
 	"The closure at slotTop (its argument count n) runs the code this site called last: its frame pushed as the interpreter's blockActivate:fromArray: does, then a call of the entry; else, or no room on the stack: slow. Live values are in their home slots: x0-x13 are free."
@@ -1100,7 +1138,8 @@ emitBlockCall: n index: k slow: slow
 	asm sub: X2 with: X2 imm: 1.
 	asm bind: fill.
 	asm cbnz: X2 to: loop.
-	asm blr: X1
+	asm blr: X1.
+	self emitStoreResult
 !
 emitFramePc: pc sp: sp
 	asm comment: 'frame pc and sp'.
@@ -1247,6 +1286,7 @@ emitOuts
 			asm mov: X0 with: X19.
 			asm bl: cgInterruptLabel.
 			asm cbnz: X0 to: cgExitPlainLabel.
+			self emitReloadPinned.
 			self reloadAcross: o node.
 			asm b: o resume].
 		o kind = OUT_BARRIER ifTrue: [
@@ -1277,6 +1317,7 @@ emitOuts
 			self emitFramePc: 0 sp: 0.
 			asm mov: X0 with: X19.
 			asm bl: (asm labelAt: stubs widowStub).
+			asm ldur: X0 base: X20 offset: -8.
 			asm b: o resume].
 		o kind = OUT_BOTTOM ifTrue: [
 			asm comment: 'the bottom frame returns into a Context: the runtime does it'.
