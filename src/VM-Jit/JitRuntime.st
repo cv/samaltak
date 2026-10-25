@@ -428,6 +428,7 @@ requestFlush
 !
 codeResetTo: address
 	"Drop code compiled from address on (for a disassembly only)."
+	brt forgetSlotsFrom: address.
 	cache resetTo: address
 !
 symbolCount
@@ -1245,7 +1246,7 @@ VMStruct subclass: #JitState
 	classVariableNames: ''
 	package: 'VM-Jit'!
 
-JitState comment: 'What machine code reads through x22: nil, true and false and the classes inline paths check (refreshed after every GC; tagClasses by the low 3 bits of an immediate), the interrupt flag (set with the scheduler''s, cleared by the runtime''s interrupt check), the frames array, the native stack pointer jit_enter left (exits reset it), the young space''s bounds (the store barrier). Baseline code also uses: stackLimit (a callee''s fp at or above it takes the entry''s slow path: the C stack is nearly full, or an interrupt is pending, which sets it to 0; stackLimitNormal is its value otherwise), baseFrame and baseRecord (the first Frame and native frame record of the activations since jit_enter: frame f''s record is baseRecord - (f - baseFrame) / 4), the addresses of eden''s top and limit (edenBox) and of the identity hash generator (hashBox, with its multiplier and increment), the megamorphic and block caches (JitBaselineRuntime), and words the runtime answers through (nlrFrame, nlrFp, result, ecode).'!
+JitState comment: 'What machine code reads through x22: nil, true and false and the classes inline paths check (refreshed after every GC; tagClasses by the low 3 bits of an immediate), the interrupt flag (set with the scheduler''s, cleared by the runtime''s interrupt check), the frames array, the native stack pointer jit_enter left (exits reset it), the young space''s bounds (the store barrier). Baseline code also uses: stackLimit (a callee''s fp at or above it takes the entry''s slow path: the C stack is nearly full, or an interrupt is pending, which sets it to 0; stackLimitNormal is its value otherwise), baseFrame and baseRecord (the first Frame and native frame record of the activations since jit_enter: frame f''s record is baseRecord - (f - baseFrame) / 4), the addresses of eden''s top and limit (edenBox) and of the identity hash generator (hashBox, with its multiplier and increment), the megamorphic and block caches (JitBaselineRuntime), and words the runtime answers through (nlrFrame, nlrFp, result, ecode) or reads (primRet: where a C primitive returns to).'!
 
 !JitState class methodsFor: 'declaring'!
 fields
@@ -1254,7 +1255,7 @@ fields
 		(stackLimit uint64_t) (stackLimitNormal uint64_t) (baseFrame uint64_t) (baseRecord uint64_t)
 		(edenBox uint64_t) (hashBox uint64_t) (lcgMul uint64_t) (lcgAdd uint64_t)
 		(tagClasses 'oop[8]') (blockClass oop) (byteStringClass oop) (byteArrayClass oop) (contextClass oop) (boxedFloatClass oop) (wordArrayClass oop) (byteSymbolClass oop)
-		(megaCache uint64_t) (blockCache uint64_t) (nlrFrame uint64_t) (nlrFp uint64_t) (result oop) (ecode int64_t))
+		(megaCache uint64_t) (blockCache uint64_t) (nlrFrame uint64_t) (nlrFp uint64_t) (result oop) (ecode int64_t) (primRet uint64_t))
 ! !
 
 VMStruct subclass: #JitMethod

@@ -117,6 +117,9 @@ nlrFpOffset
 resultOffset
 	^self cCoerce: ((self cCoerce: 0 to: 'JitState *') fieldAddress: #result) to: 'int64_t'
 !
+primRetOffset
+	^self cCoerce: ((self cCoerce: 0 to: 'JitState *') fieldAddress: #primRet) to: 'int64_t'
+!
 emitReloadPinned
 	"Baseline code keeps nil, true and false in x23, x24, x25."
 	asm ldp: X23 with: X24 base: X22 offset: self nilOffset.
@@ -289,9 +292,9 @@ generateBaseline
 	"x2 the primitive's function, x3 its argument count | leaf << 8, x10 where a failure continues, x30 back to the send"
 	lnot := asm newLabel.
 	asm stp: X10 with: X30 base: SP preIndex: -16.
-	asm mov: X1 with: X30.
+	asm str: X30 base: X22 offset: self primRetOffset.
+	asm mov: X1 with: X20.
 	asm mov: X0 with: X19.
-	asm mov: X4 with: X20.
 	asm mov: X16 imm64: brt primFunction.
 	asm blr: X16.
 	asm ldp: X10 with: X30 base: SP postIndex: 16.

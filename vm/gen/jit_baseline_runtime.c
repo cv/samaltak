@@ -262,6 +262,30 @@ void bl_flushed(void)
     memset(block_table, 0, 32768);
 }
 
+/* JitBaselineRuntime>>forgetSlotsFrom: */
+void bl_forget_slots_from(uint64_t address)
+{
+    int64_t n;
+    int64_t i;
+    int64_t i_2;
+    n = 0;
+    for (i = 0; i <= oop_slot_count - 1; i++) {
+        if (oop_slots[i] < address) {
+            oop_slots[n] = oop_slots[i];
+            n = n + 1;
+        }
+    }
+    oop_slot_count = n;
+    n = 0;
+    for (i_2 = 0; i_2 <= young_slot_count - 1; i_2++) {
+        if (young_slots[i_2] < address) {
+            young_slots[n] = young_slots[i_2];
+            n = n + 1;
+        }
+    }
+    young_slot_count = n;
+}
+
 /* JitBaselineRuntime>>miss:receiver:ret: */
 uint64_t jit_bl_miss(frame *f, oop rcv, uint64_t ret)
 {
@@ -566,8 +590,8 @@ uint64_t jit_bl_nlr(frame *f)
     return state_block->base_record - (uint64_t)(16 * (h - base));
 }
 
-/* JitBaselineRuntime>>prim:ret:fn:info:fp: */
-uint64_t jit_bl_prim(frame *f, uint64_t ret, uint64_t fn, uint64_t info, uint64_t fp)
+/* JitBaselineRuntime>>prim:fp:fn:info: */
+uint64_t jit_bl_prim(frame *f, uint64_t fp, uint64_t fn, uint64_t info)
 {
     int32_t n;
     bool leaf;
@@ -588,7 +612,7 @@ uint64_t jit_bl_prim(frame *f, uint64_t ret, uint64_t fn, uint64_t info, uint64_
     leaf = (info & 256) != 0;
     base = (oop *)fp - 1;
     if (!leaf) {
-        bl_set_top(f, ret, 1);
+        bl_set_top(f, state_block->prim_ret, 1);
         if (jit_mode == JIT_BASELINE) {
             f->method = ((jit_method *)f->code)->method;
             bl_canonicalize_below(f);

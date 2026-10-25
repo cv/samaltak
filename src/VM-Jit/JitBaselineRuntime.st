@@ -109,7 +109,7 @@ entrySlowFunction
 	^self cCoerce: (self functionPointer: #entrySlow:ret:) to: 'uint64_t'
 !
 primFunction
-	^self cCoerce: (self functionPointer: #prim:ret:fn:info:fp:) to: 'uint64_t'
+	^self cCoerce: (self functionPointer: #prim:fp:fn:info:) to: 'uint64_t'
 !
 nlrFunction
 	^self cCoerce: (self functionPointer: #nlr:) to: 'uint64_t'
@@ -458,16 +458,16 @@ entrySlow: f ret: ret
 		^1].
 	^jit interrupt: f
 !
-prim: f ret: ret fn: fn info: info fp: fp
-	"A compiled method's C primitive (f the sender, at the send; the receiver below fp): 0 success (the result in the state), 1 leave, 2 failure (the error code in the state)."
-	<c: 'uint64_t jit_bl_prim(Frame *f, uint64_t ret, uint64_t fn, uint64_t info, uint64_t fp)'>
+prim: f fp: fp fn: fn info: info
+	"A compiled method's C primitive (f the sender, at the send whose return address is the state's primRet; the receiver below fp): 0 success (the result in the state), 1 leave, 2 failure (the error code in the state)."
+	<c: 'uint64_t jit_bl_prim(Frame *f, uint64_t fp, uint64_t fn, uint64_t info)'>
 	| n leaf base flushes inv status v code |
 	statPrimCalls := statPrimCalls + 1.
 	n := (info bitAnd: 255) asInt32.
 	leaf := (info bitAnd: 256) ~= 0.
 	base := (self cCoerce: fp to: 'oop *') - 1.
 	leaf ifFalse: [
-		self setTop: f ret: ret mode: 1.
+		self setTop: f ret: jit state primRet mode: 1.
 		jit sync: f].
 	flushes := interpreter statFlushes.
 	inv := jit invalidations.
@@ -592,6 +592,21 @@ afterGC
 		((self isPtr: v) and: [v ~= 0 and: [self isYoung: v]]) ifTrue: [
 			youngSlots at: n put: (youngSlots at: i).
 			n := n + 1]].
+	youngSlotCount := n
+!
+forgetSlotsFrom: address
+	"The code from address on is dropped: its words are not the collector's business any more."
+	<c: 'void bl_forget_slots_from(uint64_t address)'>
+	| n |
+	n := 0.
+	0 to: oopSlotCount - 1 do: [:i | (oopSlots at: i) < address ifTrue: [
+		oopSlots at: n put: (oopSlots at: i).
+		n := n + 1]].
+	oopSlotCount := n.
+	n := 0.
+	0 to: youngSlotCount - 1 do: [:i | (youngSlots at: i) < address ifTrue: [
+		youngSlots at: n put: (youngSlots at: i).
+		n := n + 1]].
 	youngSlotCount := n
 !
 flushed

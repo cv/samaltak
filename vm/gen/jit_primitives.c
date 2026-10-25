@@ -216,6 +216,7 @@ void prim_jit_code(void)
         prim_status = PS_OK;
     }
     if (scratch) {
+        bl_forget_slots_from(top);
         cache_top = top;
     }
 }

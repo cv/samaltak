@@ -2047,7 +2047,7 @@ VMStruct subclass: #Frame
 	classVariableNames: ''
 	package: 'VM-Core'!
 
-Frame comment: 'An activation on the interpreter''s C stack: method and closure (GC roots; closure is nil for method activations), fp (first argument/temp in cstack; fp[-1] holds the receiver, as in a Context), ip (saved when not executing; a pc offset during GC), lits (refreshed after every GC), sp (used slots from fp, saved when the frame is not executing), ctx (its married Context, a GC root; nil if none), code (the JitMethod of its method''s machine code; 0 if none; up to JIT_MAX_COUNT while the JIT counts its backward jumps, 1 + count; machine code running the frame keeps pc and sp current at safepoints instead of ip). 64 bytes.'!
+Frame comment: 'An activation on the interpreter''s C stack: method and closure (GC roots; closure is nil for method activations), fp (first argument/temp in cstack; fp[-1] holds the receiver, as in a Context), ip (saved when not executing; a pc offset during GC), lits (refreshed after every GC), sp (used slots from fp, saved when the frame is not executing), ctx (its married Context, a GC root; nil if none), code (the JitMethod of its method''s machine code; 0 if none; up to JIT_MAX_COUNT while the JIT counts its backward jumps, 1 + count; machine code running the frame keeps pc and sp current at safepoints instead of ip; baseline code sets only code, closure, ctx, fp and a zero pc and sp when it pushes a frame: the runtime derives method, pc, sp, ip and lits of a frame suspended in machine code when it needs them, JitBaselineRuntime). 64 bytes; fields in pairs for stp.'!
 
 !Frame class methodsFor: 'declaring'!
 fields

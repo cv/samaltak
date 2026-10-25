@@ -667,8 +667,9 @@ struct jit_state {
     uint64_t nlr_fp;
     oop result;
     int64_t ecode;
+    uint64_t prim_ret;
 };
-_Static_assert(sizeof(jit_state) == 312, "the simulator lays out JitState as C does");
+_Static_assert(sizeof(jit_state) == 320, "the simulator lays out JitState as C does");
 
 struct primitive_entry {
     int32_t number;
@@ -1040,9 +1041,10 @@ oop jit_bl_box(frame *f, uint64_t b);
 void bl_canonicalize_below(frame *f);
 uint64_t jit_bl_entry_slow(frame *f, uint64_t ret);
 void bl_flushed(void);
+void bl_forget_slots_from(uint64_t address);
 uint64_t jit_bl_miss(frame *f, oop rcv, uint64_t ret);
 uint64_t jit_bl_nlr(frame *f);
-uint64_t jit_bl_prim(frame *f, uint64_t ret, uint64_t fn, uint64_t info, uint64_t fp);
+uint64_t jit_bl_prim(frame *f, uint64_t fp, uint64_t fn, uint64_t info);
 int32_t bl_prim_kind(int32_t p);
 int32_t bl_prim_op(int32_t p);
 void bl_register_slot(uint64_t a);
