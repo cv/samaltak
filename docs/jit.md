@@ -1,6 +1,6 @@
 # JIT
 
-Status: the shared runtime and the template, threaded, stencil and baseline compilers run; the other variants are planned. Every JIT variant is written in Smalltalk: Lowtalk for code in the VM (translated to C like the rest of it), ordinary Smalltalk for code in the image. No LLVM at run time. Target: Apple Silicon (M2 Max, arm64, macOS).
+Status: the shared runtime, the template, threaded, stencil and baseline compilers and the optimizing tier run; `sista` is planned. Every JIT variant is written in Smalltalk: Lowtalk for code in the VM (translated to C like the rest of it), ordinary Smalltalk for code in the image. No LLVM at run time. Target: Apple Silicon (M2 Max, arm64, macOS).
 
 The goal is a comparison of JIT designs and optimizations on the same VM, the same image and the same benchmarks: speed of the generated code (warm-up and steady state) and speed of the JIT itself. The best variant must beat Pharo 12's Cog JIT on every Are We Fast Yet benchmark (docs/benchmarks.md).
 
@@ -15,7 +15,7 @@ The goal is a comparison of JIT designs and optimizations on the same VM, the sa
 | S | `stencil` | copy-and-patch: handler stencils compiled by the C compiler at build time, read by Smalltalk from the object file, copied and patched at run time |
 | B | `baseline` | Cog-style: own arm64 assembler, simulated operand stack in registers, machine-code inline caches (monomorphic, polymorphic, megamorphic), inline SmallInteger/Float arithmetic and common primitives |
 | Y | `sista` | B plus a speculative optimizer in the image (Smalltalk, as Sista/Scorch): type feedback from B's inline caches, inlining with guards, unsafe bytecodes, deoptimization in Smalltalk |
-| O | `opt` | B plus an optimizing tier in the VM (Lowtalk): SSA IR, inlining from type feedback, escape analysis, unboxed floats, bounds-check elimination, linear-scan register allocation, deoptimization to frames |
+| O | `opt` | B plus an optimizing tier in the VM (Lowtalk): SSA IR, inlining from type feedback, closures not made, unboxed Floats, linear-scan register allocation, deoptimization to frames |
 
 Each variant has ablation flags (`--jit-flags -ic,-arith,...`) so that the effect of each optimization is measured separately.
 
@@ -79,6 +79,36 @@ The interpreter's frames are the canonical state. Machine code runs on the same 
 - *Non-local returns* to a home frame in this machine-code session, above frame 0, without an unwind marker in between, widow the frames and return from the home through its native record (`nlr:`); others leave to the interpreter.
 - Resumption points: method and block starts (an interrupt check out of line), loop heads, send continuations (a stub loads the result from its slot) unless unboxed values are live there. Exits as the template's, through the runtime so that the frames below become canonical.
 - Flags (each switches one optimization off, for the ablations): `ic` (inline caches: every send looks up in the runtime), `pic`, `mega`, `regs` (every push to its slot), `arith`, `fuse` (compare and branch, jump threading), `float`, `access`, `prims`, `alloc`, `blocks`, `nlr`, `quick`, `temps` (loop temps in registers), `barrier`, and `notes`.
+
+## Optimizing tier
+
+`--jit opt` (`OptBuilder`, `OptPasses`, `OptRegalloc`, `OptCodegen`, `OptRuntime`, `JitFeedback`; Lowtalk in `VM-Jit`). Baseline code is the lower tier; hot methods, blocks and loops are compiled again from their bytecodes with type feedback, inlining and speculation, and deoptimize to frames when a speculation fails.
+
+**Tiering.** In this mode baseline code counts, per method (identity hash), method and block entries and backward jumps (`emitTierUp:depth:loop:`, a decrement of a word in the VM's data). At zero it stores pc and sp and calls the tier-up stub (x0 the frame, x1 whether at a backward jump); `OptRuntime>>tierUp:loop:` answers where the frame continues: the method's optimized code at its start, a block's unit, or a loop's unit (on-stack replacement at the loop head). Units are compiled once per method, per block (method, startpc) and per loop (method, block, loop head); a failed compilation is remembered. A method's optimized code is installed in the method caches, in its cell (direct calls from optimized code read entry and header there) and over its baseline code's unchecked entry: a `b` to an entry that builds the frame as baseline callers expect it (`JitBaselineRuntime>>redirect:to:`, undone on invalidation; not for quick methods and primitives). `--jit-opt N` sets the count (default 1000), `--jit-flags eager` makes it 1. Frames resumed after a process switch (Contexts married to new frames) enter loop units too; if their code makes closures, the temps the closures reach stay in the frame (a closure may change them through the Context).
+
+**Calls between the tiers.** Optimized code calls baseline code with the frame pushed, through the template's prologue that baseline code has in this mode before each method and block start, and takes the result from x0 (baseline callees answer only there). It answers in x0 and the receiver's slot, so either tier may call it, and keeps x23–x25 (baseline code's nil, true, false; reloaded after runtime calls). Baseline frames below an optimized one are lazy: `canonicalizeBelow:` skips optimized frames (their pc and sp are stored at every call) and marks the ones it passed (lits odd until the frame is pushed again or a GC), so the next walk stops there; leaf primitives sent from optimized code run without the walk.
+
+**Type feedback** (`JitFeedback`): per (method, bytecode pc) up to 4 receiver classes with counts, `FB_MEGA` beyond, and profile bits: Float operand, non-number operand, overflow, and why optimized code deoptimized there (class guard, arithmetic guard, bounds check, other). It does not depend on the compiler that collects it: baseline code reports every receiver class its inline caches miss on (`noteSend:pc:class:`) and, without a call, sets a byte per site when an inline Float path runs (`floatBitAddressFor:pc:`); deoptimization reports what failed (an arithmetic guard looks at the operands). What baseline code takes inline without a send gives no feedback; the optimizer reads that as the inline case: `at: at:put: size` as Arrays, `value value: value:value:` as BlockClosures (both guarded), arithmetic as SmallIntegers; `isNil notNil` are comparisons with nil while no class but UndefinedObject and ProtoObject defines them.
+
+**IR** (`OptIR`): nodes in fixed arrays (operation, representation oop or double, type: SmallInteger with a range, Float, Boolean, nil, Character, a class), blocks with predecessor edges, frame states (per activation: method, closure, receiver, pc, slot values, chained to the caller's) for every guard and safepoint, inlined activations. `OptBuilder` builds SSA directly from the bytecodes (Braun et al., Simple and Efficient Construction of Static Single Assignment Form, CC 2013), one variable per frame slot of every activation; arguments are never phis, temps a loop does not store are not either.
+
+**Inlining.** A send is inlined for the class the receiver is known to have, or speculated from feedback: one class behind a guard, up to four behind a type switch (anything else deoptimizes); a mega site, one that deoptimized for a class, and sends without feedback go through the runtime (`OptRuntime>>send:index:site:`, the interpreter's inline caches) or, for a method with machine code, as a direct call: the frame pushed inline, the entry from the method's cell (it follows tier changes). Methods up to 200 bytecodes, 3000 in all, 8 deep, a recursive one once. Blocks evaluated by an inlined `value…` send are inlined into the activation that made them; their closures are never made: frame states describe them (sunk), deoptimization makes them, marrying the frames they refer to. A closure that escapes (stored, passed, answered) makes the compilation start over without inlining the method that made it. `^` in an inlined block is a jump to the home activation's return; in a block's unit it deoptimizes.
+
+**Primitives and speculation.** SmallInteger `+ - * < > <= >= = ~= // \\ quo: rem: bitAnd: bitOr: bitXor: bitShift:` with tag guards and overflow checks (Boolean results branch directly, no frame state); Float `+ - * / < > <= >= = ~= sqrt` on doubles (SmallFloat64 or SmallInteger operands decoded, the result encoded; out of SmallFloat64's range, a zero divisor: deoptimize; a box used again in its block is not decoded; a site whose feedback shows Floats and never two SmallIntegers has no SmallInteger path, two SmallIntegers deoptimize); `at: at:put: size basicSize` with bounds checks for pointer, byte and string objects; `basicNew basicNew:` of pointer objects in eden (header, class, nil fields inline; the send when eden or the allocation sample's limit is reached); `== ~~ class`, `Character value`, `Character value:`; `value value: value:value:` of a closure the IR does not know: the frame pushed inline for the code the site called last (a 4-word cache per site, cleared at every GC and kill). Interrupt checks at method entries and backward jumps; the write barrier inline, left out for stores of immediates, nil, true and false; immutability checked once per object and block.
+
+**Passes** (`OptPasses`): unreachable blocks, trivial phis, global value numbering over the dominator tree (guards, arithmetic, comparisons, Float conversions, constants; field loads within a block with no store or safepoint between), unused pure nodes, critical edges split, reverse postorder.
+
+**Registers** (`OptRegalloc`): linear scan (Poletto and Sarkar) over one interval per value: x0–x13, x26–x28, doubles d16–d31 (never spilled, never live across a safepoint); a value live across a safepoint also has a home slot in the frame, stored at its definition and reloaded after the safepoint; constants are rematerialized. Phi moves are sequentialized (cycles through a scratch register).
+
+**Code and frames** (`OptCodegen`). An optimized frame is a frame: x19–x22 as in the lower tier, the root activation's arguments in their slots, then home slots and the outgoing receiver and arguments; its `pc` is the bytecode size plus a safepoint number. Out-of-line paths after the code: guard failures, interrupt checks, store barriers, deoptimization after a call, the stack check, the bottom frame's return. The header holds the safepoint table, the deoptimization records (kind, the send, per activation method, closure, receiver, pc and the location of every slot: register, slot, constant, sunk closure) and the dependencies; an oop pool after the code (pc-relative loads, GC roots). The listing (`machineCodeFor: #opt`) shows the root method's bytecodes and the inlined activations' pcs.
+
+**Deoptimization** (`OptRuntime`). A failed guard jumps to a stub that saves the registers; the record rebuilds the activations as frames (the closures never made are made), the interpreter continues the innermost one, and the site's feedback learns what failed. A failure the feedback had not reported invalidates the code at once (it compiles differently next time), so does the ninth deoptimization; a site that fails again in code compiled with what it reports now is marked: no speculation there next time; a unit is compiled at most 32 times. `materializeAll` (process switches, `thisContext`, the debugger) turns an optimized frame into a Context per activation; the interpreter returning into an optimized frame resumes it at its safepoint. Invalidation (lazy): a method added or removed for a selector the code inlined or speculated on (`flushCacheForSelector:`), become of a method: the code is marked dead, frames running it deoptimize when control comes back to them (a check after every call), calls into it go to the lower tier. Switching the mode away from `opt` makes every optimized frame Contexts first.
+
+**Stress.** `--jit-flags eager` optimizes at the first count; `deopt` makes optimized code take every 37th slow path it passes (guards, interrupt checks, returns from calls) and deoptimize there, without feedback. `make test-jit` runs the image's tests under `--jit opt` with eager and with eager,deopt; `vm/tests/run.sh` the mini kernel's under both (with the GC stress) and the default thresholds; `JitOptRuntimeTest` covers deoptimization of a failed speculation, invalidation of inlined code while it runs, the stress, the listing.
+
+**Flags** (`--jit-flags`, all on by default): `inline` (methods), `blocks` (closures), `prims`, `unbox` (Floats on doubles), `calls` (direct and block calls), `alloc`, `gvn`; `eager` and `deopt` are off.
+
+Not done: loop-invariant code motion, range analysis and bounds-check elimination, escape analysis beyond closures, unboxed Floats across safepoints, inlining of closures the code did not make (a loop unit entered with a closure in a temp calls it).
 
 ## Machine code
 
@@ -214,3 +244,53 @@ Baseline against Pharo 12 (`vm/tests/bench/results/samaltak-jit-{none,template,b
 
 - Inline caches matter most (every send through the runtime: 5.6×), then inline arithmetic, register mapping, the store barrier's fast path (Towers and Permute store into Arrays), the megamorphic cache (CD, Havlak), machine-code primitives and blocks. Polymorphic caches, fusion, inline allocation, loop temps in registers and the non-local return fast path gain little on AWFY (loop temps: 2× on MicroLoop); most of what they do the other paths also cover. Values under 1.00 are within the noise (±5 %).
 - Where the remaining time goes (native pc samples mapped onto the listings, `--jit-flags notes`): NBody spends 72 % in `advance:` and 20 % in Body's accessors; most of `advance:` is out-of-line Float code: an operation on two send results tries SmallIntegers first, then decodes both operands and boxes the result for the join (an operand known to be a Float keeps the result unboxed, but every accessor send boxes and decodes again). Towers is send-bound: its four small methods take 70 %, the accessors most of the rest; MicroSends and MicroBlocks are a frame, a check and a return per send or block; List is pointer chasing. For the next tiers: inlining guided by the inline caches (accessors, small methods, blocks), Floats unboxed across what was inlined, frames only for real calls. Smaller: a C primitive is a runtime call (frames made canonical unless it is a leaf; the frequent ones run in machine code), LargeInteger arithmetic is Smalltalk over 32-bit limbs (MicroFactorial), the always-on profiler's samples flush the frames about 1000 times a second (about 1 %).
+
+Optimizing tier against the other modes and Pharo 12 (`vm/tests/bench/results/samaltak-{none,template,baseline,opt}-2026-10-25d-*.csv`, `pharo12-cog-2026-10-25d-*.csv`): the four modes and Pharo 12 interleaved, default thresholds (`--jit-opt 1000`), 30 iterations, best of 3 invocations of the steady state (median of the last half) and of the first iteration, ms.
+
+| benchmark | `none` | `template` | `baseline` | `opt` | first `opt` | Pharo 12 | first Pharo | opt / Pharo | opt / baseline |
+|---|---|---|---|---|---|---|---|---|---|
+| Bounce | 101.7 | 85.6 | 22.4 | 11.6 | 12.9 | 31.9 | 32.0 | 0.36 | 0.52 |
+| CD | 352.9 | 400.6 | 87.9 | 66.6 | 67.1 | 196.9 | 200.9 | 0.34 | 0.76 |
+| DeltaBlue | 105.0 | 125.2 | 26.7 | 14.8 | 66.1 | 39.7 | 78.2 | 0.37 | 0.55 |
+| Havlak | 708.1 | 765.3 | 196.5 | 95.6 | 121.8 | 334.5 | 388.9 | 0.29 | 0.49 |
+| Json | 92.4 | 106.1 | 31.2 | 17.7 | 44.7 | 54.1 | 56.6 | 0.33 | 0.57 |
+| List | 128.6 | 115.6 | 17.2 | 12.6 | 13.2 | 23.2 | 23.5 | 0.54 | 0.73 |
+| Mandelbrot | 513.0 | 545.7 | 195.9 | 120.2 | 124.4 | 359.9 | 353.8 | 0.33 | 0.61 |
+| NBody | 756.2 | 724.2 | 337.3 | 143.9 | 148.1 | 328.0 | 349.6 | 0.44 | 0.43 |
+| Permute | 109.4 | 77.5 | 21.3 | 17.0 | 17.2 | 32.5 | 32.0 | 0.52 | 0.80 |
+| Queens | 106.7 | 78.4 | 20.8 | 12.8 | 13.7 | 42.5 | 41.2 | 0.30 | 0.61 |
+| Richards | 102.8 | 89.6 | 17.4 | 14.2 | 16.3 | 21.9 | 22.9 | 0.65 | 0.81 |
+| Sieve | 95.1 | 38.0 | 32.3 | 22.2 | 28.4 | 51.8 | 57.1 | 0.43 | 0.69 |
+| Storage | 111.4 | 134.0 | 35.6 | 23.0 | 28.2 | 52.8 | 52.4 | 0.44 | 0.65 |
+| Towers | 92.4 | 73.1 | 13.5 | 9.1 | 9.7 | 16.4 | 16.3 | 0.55 | 0.67 |
+
+Micro suite (`samaltak-{baseline,opt}-micro-2026-10-25d.csv`, `pharo12-cog-micro-2026-10-25d.csv`, one invocation each, 20 iterations):
+
+| benchmark | `baseline` | `opt` | first `opt` | Pharo 12 | opt / Pharo | opt / baseline |
+|---|---|---|---|---|---|---|
+| MicroFib | 5.1 | 6.4 | 6.4 | 10.2 | 0.63 | 1.24 |
+| MicroLoop | 32.4 | 29.7 | 30.9 | 64.2 | 0.46 | 0.92 |
+| MicroFloats | 20.6 | 20.0 | 22.0 | 38.6 | 0.52 | 0.97 |
+| MicroSends | 22.4 | 12.1 | 13.6 | 22.5 | 0.54 | 0.54 |
+| MicroBlocks | 29.5 | 45.3 | 47.9 | 30.7 | 1.47 | 1.53 |
+| MicroDict | 31.0 | 17.4 | 16.6 | 138.2 | 0.13 | 0.56 |
+| MicroStrings | 34.6 | 31.4 | 37.6 | 82.8 | 0.38 | 0.91 |
+| MicroAlloc | 20.8 | 12.8 | 15.9 | 34.8 | 0.37 | 0.62 |
+| MicroFactorial | 6.7 | 8.0 | 27.9 | 8.4 | 0.95 | 1.20 |
+
+- `opt` beats Pharo 12 on every AWFY benchmark: geometric mean 0.41 of Pharo's time (first iterations 0.49), 0.62× `baseline` (first iterations 0.79), 0.17× `template`, 0.15× `none`. Closest to Pharo: Richards 0.65, Towers 0.55, List 0.54; closest to `baseline`: Richards 0.81, Permute 0.80. First iterations beat Pharo's too, DeltaBlue closest (0.85): its 120 units take 55 ms to compile.
+- Gains over `baseline`: NBody 0.43 (Body's accessors inlined, the arithmetic on doubles), Havlak 0.49, Bounce 0.52, DeltaBlue 0.55, MicroSends 0.54 (the callee inlined: no frame, class check or return). MicroBlocks and MicroFib are slower than `baseline`: a loop unit entered with a closure already made calls it (a block call pushes a whole frame), and recursion beyond the one inlined level is a direct call with a heavier frame than baseline code's; MicroFactorial is LargeInteger arithmetic through the runtime.
+- Compiling (3 runs of the AWFY suite, 566 units, 48540 bytecodes each, inlined ones included): 307 µs per unit, 3.6 µs per bytecode, 75 bytes of code per bytecode; liveness and intervals over the inlined IR dominate. With template code as the lower tier (`samaltak-{opt,baseline}-2026-10-25c-*.csv`, `pharo12-cog-2026-10-25c-*.csv`) the steady state was 0.44× Pharo; baseline code as the lower tier gained most where the code optimized code does not cover runs (Havlak 0.82 → 0.49 of `baseline`) and in first iterations.
+- Ablations (`samaltak-opt-no-FLAG-2026-10-25d.csv`, one invocation, 10 iterations, one flag off; geometric mean of the steady state relative to all on):
+
+| flag off | AWFY | most affected |
+|---|---|---|
+| `inline` | 6.48 | Queens 10.96, Towers 10.85 (min Mandelbrot 1.04) |
+| `blocks` | 1.27 | NBody 2.26, Bounce 2.06 (min List 1.00) |
+| `prims` | 2.52 | Sieve 11.44, Queens 6.18 (min Mandelbrot 1.02) |
+| `unbox` | 1.41 | Mandelbrot 5.35, NBody 4.77 (min Bounce 0.97) |
+| `calls` | 1.37 | DeltaBlue 2.59, Permute 2.04 (min Mandelbrot 1.01) |
+| `alloc` | 1.23 | Storage 2.23, Havlak 1.92 (min Mandelbrot 1.01) |
+| `gvn` | 1.08 | Sieve 1.20, Permute 1.16 (min Storage 0.99) |
+
+- Without inlining every send goes through the runtime or a direct call (6.5×; Queens and Towers are small methods); without primitives `at:`, `at:put:` and arithmetic are sends (Sieve 11×); Floats on doubles matter for Mandelbrot and NBody, direct and block calls for DeltaBlue and Permute, eden allocation for Storage and Havlak. Value numbering gains up to 20 %.

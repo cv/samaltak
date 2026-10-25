@@ -1,0 +1,478 @@
+# awfy 2026-10-25 10:50 vm=/tmp/pharo-dl/vm/Pharo.app/Contents/MacOS/Pharo image=/tmp/pharo-dl/bench.image vm-args='' iterations=30
+# run Bounce inner=400
+Bounce,1,32651
+Bounce,2,32351
+Bounce,3,37929
+Bounce,4,32081
+Bounce,5,31631
+Bounce,6,31898
+Bounce,7,31533
+Bounce,8,44754
+Bounce,9,31486
+Bounce,10,31485
+Bounce,11,34648
+Bounce,12,31439
+Bounce,13,31931
+Bounce,14,31632
+Bounce,15,31681
+Bounce,16,35756
+Bounce,17,31477
+Bounce,18,31445
+Bounce,19,31480
+Bounce,20,31473
+Bounce,21,31472
+Bounce,22,35916
+Bounce,23,32301
+Bounce,24,31885
+Bounce,25,31902
+Bounce,26,31950
+Bounce,27,36394
+Bounce,28,31527
+Bounce,29,31819
+Bounce,30,31803
+# stats Bounce fullGCs=0 fullGCMilliseconds=0 scavenges=6 scavengeMilliseconds=25 bytesAllocated=96116776
+# total Bounce 987730 us
+# run CD inner=100
+CD,1,198785
+CD,2,195575
+CD,3,192492
+CD,4,195896
+CD,5,195670
+CD,6,215226
+CD,7,196495
+CD,8,198993
+CD,9,194736
+CD,10,196935
+CD,11,196953
+CD,12,194030
+CD,13,197446
+CD,14,197195
+CD,15,195755
+CD,16,201681
+CD,17,197299
+CD,18,194387
+CD,19,199762
+CD,20,197730
+CD,21,194899
+CD,22,211202
+CD,23,208060
+CD,24,200481
+CD,25,198589
+CD,26,206786
+CD,27,201264
+CD,28,194956
+CD,29,198195
+CD,30,199684
+# stats CD fullGCs=0 fullGCMilliseconds=0 scavenges=82 scavengeMilliseconds=278 bytesAllocated=1259650792
+# total CD 5967157 us
+# run DeltaBlue inner=8000
+DeltaBlue,1,78573
+DeltaBlue,2,82114
+DeltaBlue,3,116894
+DeltaBlue,4,33307
+DeltaBlue,5,39736
+DeltaBlue,6,38915
+DeltaBlue,7,43476
+DeltaBlue,8,41657
+DeltaBlue,9,40198
+DeltaBlue,10,77289
+DeltaBlue,11,39642
+DeltaBlue,12,39003
+DeltaBlue,13,42153
+DeltaBlue,14,40082
+DeltaBlue,15,84717
+DeltaBlue,16,34989
+DeltaBlue,17,37357
+DeltaBlue,18,39572
+DeltaBlue,19,40545
+DeltaBlue,20,41746
+DeltaBlue,21,63270
+DeltaBlue,22,75654
+DeltaBlue,23,40442
+DeltaBlue,24,39276
+DeltaBlue,25,42622
+DeltaBlue,26,43880
+DeltaBlue,27,81120
+DeltaBlue,28,33860
+DeltaBlue,29,35011
+DeltaBlue,30,37785
+# stats DeltaBlue fullGCs=5 fullGCMilliseconds=208 scavenges=109 scavengeMilliseconds=220 bytesAllocated=1691714640
+# total DeltaBlue 1524885 us
+# run Havlak inner=1
+Havlak,1,393139
+Havlak,2,399038
+Havlak,3,352194
+Havlak,4,381081
+Havlak,5,333139
+Havlak,6,329952
+Havlak,7,383309
+Havlak,8,330619
+Havlak,9,326719
+Havlak,10,338058
+Havlak,11,340849
+Havlak,12,368597
+Havlak,13,327687
+Havlak,14,332912
+Havlak,15,335053
+Havlak,16,334614
+Havlak,17,328011
+Havlak,18,372620
+Havlak,19,329690
+Havlak,20,332348
+Havlak,21,329797
+Havlak,22,328873
+Havlak,23,374518
+Havlak,24,331294
+Havlak,25,333154
+Havlak,26,329497
+Havlak,27,376437
+Havlak,28,327634
+Havlak,29,330329
+Havlak,30,330316
+# stats Havlak fullGCs=7 fullGCMilliseconds=293 scavenges=1388 scavengeMilliseconds=1054 bytesAllocated=21459133624
+# total Havlak 10361478 us
+# run Json inner=7
+Json,1,58548
+Json,2,55298
+Json,3,54476
+Json,4,58971
+Json,5,54357
+Json,6,58871
+Json,7,54896
+Json,8,55493
+Json,9,60397
+Json,10,57286
+Json,11,55836
+Json,12,60574
+Json,13,56123
+Json,14,55383
+Json,15,60275
+Json,16,56494
+Json,17,60321
+Json,18,54662
+Json,19,66070
+Json,20,53976
+Json,21,53948
+Json,22,58563
+Json,23,53982
+Json,24,53973
+Json,25,58411
+Json,26,53628
+Json,27,57816
+Json,28,53664
+Json,29,53733
+Json,30,57463
+# stats Json fullGCs=0 fullGCMilliseconds=0 scavenges=12 scavengeMilliseconds=53 bytesAllocated=175404344
+# total Json 1703488 us
+# run List inner=300
+List,1,23800
+List,2,23442
+List,3,23244
+List,4,23214
+List,5,23262
+List,6,23250
+List,7,23246
+List,8,23252
+List,9,23214
+List,10,23424
+List,11,23635
+List,12,23728
+List,13,23558
+List,14,23387
+List,15,23472
+List,16,23332
+List,17,23221
+List,18,23593
+List,19,23574
+List,20,23613
+List,21,23571
+List,22,23573
+List,23,23561
+List,24,23551
+List,25,23428
+List,26,26822
+List,27,24161
+List,28,23269
+List,29,23265
+List,30,23220
+# stats List fullGCs=0 fullGCMilliseconds=0 scavenges=0 scavengeMilliseconds=0 bytesAllocated=6720568
+# total List 706882 us
+# run Mandelbrot inner=500
+Mandelbrot,1,364728
+Mandelbrot,2,364444
+Mandelbrot,3,364560
+Mandelbrot,4,374769
+Mandelbrot,5,363557
+Mandelbrot,6,363660
+Mandelbrot,7,364440
+Mandelbrot,8,363253
+Mandelbrot,9,363887
+Mandelbrot,10,366669
+Mandelbrot,11,363326
+Mandelbrot,12,364339
+Mandelbrot,13,364750
+Mandelbrot,14,382732
+Mandelbrot,15,381523
+Mandelbrot,16,375279
+Mandelbrot,17,363578
+Mandelbrot,18,366320
+Mandelbrot,19,364072
+Mandelbrot,20,364239
+Mandelbrot,21,363881
+Mandelbrot,22,366094
+Mandelbrot,23,363615
+Mandelbrot,24,363625
+Mandelbrot,25,363463
+Mandelbrot,26,364285
+Mandelbrot,27,364535
+Mandelbrot,28,363418
+Mandelbrot,29,363265
+Mandelbrot,30,368315
+# stats Mandelbrot fullGCs=0 fullGCMilliseconds=0 scavenges=0 scavengeMilliseconds=0 bytesAllocated=6603432
+# total Mandelbrot 10988621 us
+# run NBody inner=250000
+NBody,1,349047
+NBody,2,343469
+NBody,3,349117
+NBody,4,358142
+NBody,5,339738
+NBody,6,343489
+NBody,7,366840
+NBody,8,355899
+NBody,9,369097
+NBody,10,346317
+NBody,11,358670
+NBody,12,347588
+NBody,13,346523
+NBody,14,341962
+NBody,15,341730
+NBody,16,341546
+NBody,17,341949
+NBody,18,342910
+NBody,19,341701
+NBody,20,341934
+NBody,21,339745
+NBody,22,350139
+NBody,23,342352
+NBody,24,341644
+NBody,25,344606
+NBody,26,362392
+NBody,27,353192
+NBody,28,341978
+NBody,29,344164
+NBody,30,370003
+# stats NBody fullGCs=0 fullGCMilliseconds=0 scavenges=269 scavengeMilliseconds=825 bytesAllocated=4148525504
+# total NBody 10457883 us
+# run Permute inner=300
+Permute,1,32887
+Permute,2,32793
+Permute,3,32720
+Permute,4,32816
+Permute,5,33514
+Permute,6,32635
+Permute,7,32751
+Permute,8,32713
+Permute,9,32694
+Permute,10,32915
+Permute,11,32713
+Permute,12,32704
+Permute,13,32709
+Permute,14,32766
+Permute,15,33640
+Permute,16,33242
+Permute,17,32720
+Permute,18,32776
+Permute,19,32699
+Permute,20,32791
+Permute,21,32664
+Permute,22,32636
+Permute,23,32672
+Permute,24,32728
+Permute,25,32703
+Permute,26,32738
+Permute,27,32995
+Permute,28,32695
+Permute,29,32770
+Permute,30,32652
+# stats Permute fullGCs=0 fullGCMilliseconds=0 scavenges=0 scavengeMilliseconds=0 bytesAllocated=528864
+# total Permute 984451 us
+# run Queens inner=400
+Queens,1,42045
+Queens,2,41793
+Queens,3,41888
+Queens,4,41978
+Queens,5,46531
+Queens,6,41883
+Queens,7,41902
+Queens,8,41993
+Queens,9,41999
+Queens,10,42041
+Queens,11,54129
+Queens,12,41944
+Queens,13,41820
+Queens,14,41957
+Queens,15,41848
+Queens,16,41937
+Queens,17,42678
+Queens,18,41984
+Queens,19,42039
+Queens,20,42899
+Queens,21,46274
+Queens,22,41984
+Queens,23,41768
+Queens,24,41980
+Queens,25,41872
+Queens,26,42034
+Queens,27,41950
+Queens,28,41840
+Queens,29,41817
+Queens,30,46227
+# stats Queens fullGCs=0 fullGCMilliseconds=0 scavenges=4 scavengeMilliseconds=16 bytesAllocated=55402968
+# total Queens 1285034 us
+# run Richards inner=7
+Richards,1,23792
+Richards,2,22688
+Richards,3,22637
+Richards,4,22612
+Richards,5,22687
+Richards,6,22568
+Richards,7,22598
+Richards,8,23023
+Richards,9,22696
+Richards,10,22588
+Richards,11,22651
+Richards,12,22603
+Richards,13,22603
+Richards,14,22655
+Richards,15,23054
+Richards,16,22985
+Richards,17,22708
+Richards,18,22606
+Richards,19,22586
+Richards,20,22634
+Richards,21,22663
+Richards,22,22606
+Richards,23,22576
+Richards,24,22570
+Richards,25,23646
+Richards,26,23888
+Richards,27,22644
+Richards,28,22743
+Richards,29,22793
+Richards,30,22610
+# stats Richards fullGCs=0 fullGCMilliseconds=0 scavenges=0 scavengeMilliseconds=0 bytesAllocated=662176
+# total Richards 683713 us
+# run Sieve inner=700
+Sieve,1,55283
+Sieve,2,54776
+Sieve,3,51737
+Sieve,4,54421
+Sieve,5,55839
+Sieve,6,56480
+Sieve,7,55784
+Sieve,8,52783
+Sieve,9,55645
+Sieve,10,55649
+Sieve,11,55398
+Sieve,12,55572
+Sieve,13,52486
+Sieve,14,55389
+Sieve,15,55314
+Sieve,16,55369
+Sieve,17,55363
+Sieve,18,52477
+Sieve,19,55276
+Sieve,20,56155
+Sieve,21,62118
+Sieve,22,57636
+Sieve,23,56272
+Sieve,24,56340
+Sieve,25,52496
+Sieve,26,55474
+Sieve,27,55508
+Sieve,28,55313
+Sieve,29,55382
+Sieve,30,52353
+# stats Sieve fullGCs=0 fullGCMilliseconds=0 scavenges=54 scavengeMilliseconds=162 bytesAllocated=843785520
+# total Sieve 1656088 us
+# run Storage inner=300
+Storage,1,56715
+Storage,2,54749
+Storage,3,52991
+Storage,4,55560
+Storage,5,52776
+Storage,6,52897
+Storage,7,52971
+Storage,8,53050
+Storage,9,55906
+Storage,10,57049
+Storage,11,55608
+Storage,12,53453
+Storage,13,53320
+Storage,14,53115
+Storage,15,55800
+Storage,16,53246
+Storage,17,52845
+Storage,18,52795
+Storage,19,53516
+Storage,20,53731
+Storage,21,67864
+Storage,22,56110
+Storage,23,55375
+Storage,24,60833
+Storage,25,54619
+Storage,26,52847
+Storage,27,53042
+Storage,28,53150
+Storage,29,55911
+Storage,30,52864
+# stats Storage fullGCs=0 fullGCMilliseconds=0 scavenges=156 scavengeMilliseconds=449 bytesAllocated=2407460432
+# total Storage 1644708 us
+# run Towers inner=100
+Towers,1,16790
+Towers,2,16797
+Towers,3,16715
+Towers,4,16798
+Towers,5,16663
+Towers,6,16685
+Towers,7,17029
+Towers,8,16834
+Towers,9,16652
+Towers,10,16716
+Towers,11,16711
+Towers,12,16841
+Towers,13,16971
+Towers,14,17144
+Towers,15,17083
+Towers,16,16661
+Towers,17,16660
+Towers,18,16790
+Towers,19,16899
+Towers,20,16653
+Towers,21,16671
+Towers,22,16645
+Towers,23,16621
+Towers,24,16684
+Towers,25,16651
+Towers,26,16867
+Towers,27,16727
+Towers,28,16669
+Towers,29,16623
+Towers,30,16710
+# stats Towers fullGCs=0 fullGCMilliseconds=0 scavenges=0 scavengeMilliseconds=0 bytesAllocated=1128792
+# total Towers 502960 us
+# benchmark          runs   first_ms  steady_ms   total_ms
+# Bounce                1       32.7       31.8      987.7
+# CD                    1      198.8      199.7     5967.2
+# DeltaBlue             1       78.6       40.4     1524.9
+# Havlak                1      393.1      330.3    10361.5
+# Json                  1       58.5       54.7     1703.5
+# List                  1       23.8       23.6      706.9
+# Mandelbrot            1      364.7      364.1    10988.6
+# NBody                 1      349.0      342.4    10457.9
+# Permute               1       32.9       32.7      984.5
+# Queens                1       42.0       42.0     1285.0
+# Richards              1       23.8       22.6      683.7
+# Sieve                 1       55.3       55.4     1656.1
+# Storage               1       56.7       53.5     1644.7
+# Towers                1       16.8       16.7      503.0
