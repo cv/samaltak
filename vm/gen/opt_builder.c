@@ -398,7 +398,7 @@ static bool opt_build_once(oop m)
         return false;
     }
     ob_entry_block = opt_new_block();
-    (opt_blocks + ob_entry_block)->flags = BF_SEALED;
+    (opt_blocks + ob_entry_block)->flags = 9;
     (opt_blocks + ob_entry_block)->act = a;
     ob_cur_block = ob_entry_block;
     (opt_acts + a)->receiver = ({
@@ -1765,7 +1765,13 @@ exit_length_of:;
         (opt_blocks + ob_cur_block)->succ0 = on_true;
         (opt_blocks + ob_cur_block)->succ1 = on_false;
         opt_add_pred(ob_cur_block, on_true);
+        if (((opt_blocks + ob_cur_block)->flags & BF_LIVE) != 0) {
+            (opt_blocks + on_true)->flags = (opt_blocks + on_true)->flags | BF_LIVE;
+        }
         opt_add_pred(ob_cur_block, on_false);
+        if (((opt_blocks + ob_cur_block)->flags & BF_LIVE) != 0) {
+            (opt_blocks + on_false)->flags = (opt_blocks + on_false)->flags | BF_LIVE;
+        }
         ob_cur_block = -1;
         if (back) {
             ob_cur_block = taken;
@@ -3290,7 +3296,13 @@ static void opt_float_arith(int32_t k, int32_t x, int32_t y, int32_t pc, int32_t
         (opt_blocks + ob_cur_block)->succ0 = t;
         (opt_blocks + ob_cur_block)->succ1 = f;
         opt_add_pred(ob_cur_block, t);
+        if (((opt_blocks + ob_cur_block)->flags & BF_LIVE) != 0) {
+            (opt_blocks + t)->flags = (opt_blocks + t)->flags | BF_LIVE;
+        }
         opt_add_pred(ob_cur_block, f);
+        if (((opt_blocks + ob_cur_block)->flags & BF_LIVE) != 0) {
+            (opt_blocks + f)->flags = (opt_blocks + f)->flags | BF_LIVE;
+        }
         ob_cur_block = -1;
         opt_seal(t);
         opt_seal(f);
@@ -3628,6 +3640,9 @@ static void opt_goto(int32_t b)
     opt_append(n, ob_cur_block);
     (opt_blocks + ob_cur_block)->succ0 = b;
     opt_add_pred(ob_cur_block, b);
+    if (((opt_blocks + ob_cur_block)->flags & BF_LIVE) != 0) {
+        (opt_blocks + b)->flags = (opt_blocks + b)->flags | BF_LIVE;
+    }
     ob_cur_block = -1;
 }
 
@@ -8212,7 +8227,13 @@ exit_send_3:;
         (opt_blocks + ob_cur_block)->succ0 = t;
         (opt_blocks + ob_cur_block)->succ1 = next;
         opt_add_pred(ob_cur_block, t);
+        if (((opt_blocks + ob_cur_block)->flags & BF_LIVE) != 0) {
+            (opt_blocks + t)->flags = (opt_blocks + t)->flags | BF_LIVE;
+        }
         opt_add_pred(ob_cur_block, next);
+        if (((opt_blocks + ob_cur_block)->flags & BF_LIVE) != 0) {
+            (opt_blocks + next)->flags = (opt_blocks + next)->flags | BF_LIVE;
+        }
         ob_cur_block = -1;
         opt_seal(t);
         opt_seal(next);
@@ -9438,6 +9459,7 @@ static int32_t opt_read(int32_t var, int32_t b)
     oop m_2;
     uint64_t o_2;
     int64_t r_length_of;
+    int64_t r_length_of_2;
     int32_t v;
     int32_t r_new_phi;
     int32_t n;
@@ -9460,8 +9482,12 @@ static int32_t opt_read(int32_t var, int32_t b)
     }
     bl = opt_blocks + b;
     if (((bl->flags & BF_SEALED) == 0) && ({
+    if (getenv("SAMALTAK_NOKEEP") != NULL) {
+        r_loop_keeps = false;
+        goto exit_loop_keeps;
+    }
     bl_2 = opt_blocks + b;
-    if (!(((bl_2->flags & BF_LOOP) != 0) && ((bl_2->npreds == 1) && (bl_2->act >= 0)))) {
+    if (!(((bl_2->flags & BF_LOOP) != 0) && ((bl_2->npreds == 1) && ((bl_2->act >= 0) && ((bl_2->flags & BF_LIVE) != 0))))) {
         r_loop_keeps = false;
         goto exit_loop_keeps;
     }
@@ -9501,7 +9527,7 @@ static int32_t opt_read(int32_t var, int32_t b)
             r_loop_keeps = false;
             goto exit_loop_keeps;
         }
-        pc = (int32_t)(pc + ({
+        if (({
     if (op < 0x68) {
         r_length_of = 1;
         goto exit_length_of;
@@ -9568,7 +9594,81 @@ static int32_t opt_read(int32_t var, int32_t b)
     }
     r_length_of = 0;
 exit_length_of:;
-    r_length_of; }));
+    r_length_of; }) == 0) {
+            r_loop_keeps = false;
+            goto exit_loop_keeps;
+        }
+        pc = (int32_t)(pc + ({
+    if (op < 0x68) {
+        r_length_of_2 = 1;
+        goto exit_length_of_2;
+    }
+    if (op < 0x70) {
+        r_length_of_2 = 0;
+        goto exit_length_of_2;
+    }
+    if (op < 0x7D) {
+        r_length_of_2 = 1;
+        goto exit_length_of_2;
+    }
+    if (op < 0x80) {
+        r_length_of_2 = 0;
+        goto exit_length_of_2;
+    }
+    if (op < 0x88) {
+        r_length_of_2 = 2;
+        goto exit_length_of_2;
+    }
+    if (op == 0x88) {
+        r_length_of_2 = 0;
+        goto exit_length_of_2;
+    }
+    if (op == 0x89) {
+        r_length_of_2 = 2;
+        goto exit_length_of_2;
+    }
+    if (op < 0x8F) {
+        r_length_of_2 = 3;
+        goto exit_length_of_2;
+    }
+    if (op == 0x8F) {
+        r_length_of_2 = 6;
+        goto exit_length_of_2;
+    }
+    if (op < 0x94) {
+        r_length_of_2 = 3;
+        goto exit_length_of_2;
+    }
+    if (op == 0x94) {
+        r_length_of_2 = 2;
+        goto exit_length_of_2;
+    }
+    if (op < 0x97) {
+        r_length_of_2 = 0;
+        goto exit_length_of_2;
+    }
+    if (op < 0x9A) {
+        r_length_of_2 = 4;
+        goto exit_length_of_2;
+    }
+    if (op < 0xA0) {
+        r_length_of_2 = 3;
+        goto exit_length_of_2;
+    }
+    if (op < 0xF0) {
+        r_length_of_2 = 1;
+        goto exit_length_of_2;
+    }
+    if (op < 0xFC) {
+        r_length_of_2 = 3;
+        goto exit_length_of_2;
+    }
+    r_length_of_2 = 0;
+exit_length_of_2:;
+    r_length_of_2; }));
+    }
+    if (getenv("SAMALTAK_OPT_TRACE") != NULL) {
+        fprintf(stderr, "opt: loop at pc %d keeps slot %d\n", bl_2->pc, slot);
     }
     r_loop_keeps = true;
 exit_loop_keeps:;

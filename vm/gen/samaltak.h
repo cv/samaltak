@@ -85,6 +85,7 @@ typedef void (*prim_fn)(void);
 #define BEH_METHODDICT 1
 #define BEH_SUPERCLASS 0
 #define BF_DEOPT 4
+#define BF_LIVE 8
 #define BF_LOOP 2
 #define BF_SEALED 1
 #define BL_BLOCK_CACHE 1024

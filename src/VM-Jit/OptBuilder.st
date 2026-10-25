@@ -97,7 +97,7 @@ buildOnce: m
 	a := obUnitStart > 0 ifTrue: [self newBlockActFor: m start: obUnitStart] ifFalse: [self newActFor: m].
 	a < 0 ifTrue: [^false].
 	obEntryBlock := ir newBlock.
-	(ir block: obEntryBlock) flags: BF_SEALED.
+	(ir block: obEntryBlock) flags: (BF_SEALED bitOr: BF_LIVE).
 	(ir block: obEntryBlock) act: a.
 	obCurBlock := obEntryBlock.
 	(ir act: a) receiver: (self param: -1).
@@ -363,8 +363,9 @@ read: var in: b
 loopKeeps: var block: b
 	"b heads a loop not closed yet, var is a temp of its activation that no instruction of the loop stores: its value on entry, no phi."
 	| bl ac slot pc end op |
+	(libc getenv: 'SAMALTAK_NOKEEP') notNull ifTrue: [^false].
 	bl := ir block: b.
-	((bl flags bitAnd: BF_LOOP) ~= 0 and: [bl npreds = 1 and: [bl act >= 0]]) ifFalse: [^false].
+	((bl flags bitAnd: BF_LOOP) ~= 0 and: [bl npreds = 1 and: [bl act >= 0 and: [(bl flags bitAnd: BF_LIVE) ~= 0]]]) ifFalse: [^false].
 	ac := ir act: bl act.
 	slot := var - ac varBase.
 	(slot >= 0 and: [slot < (ac numArgs + ac numTemps)]) ifFalse: [^false].
@@ -376,7 +377,10 @@ loopKeeps: var block: b
 		((op >= 16r60 and: [op < 16r68]) and: [op - 16r60 = slot]) ifTrue: [^false].
 		((op = 16r84 or: [op = 16r87]) and: [(self byteAt: pc + 1 act: bl act) = slot]) ifTrue: [^false].
 		(op = 16r8B or: [op = 16r8C]) ifTrue: [^false].
+		(analysis lengthOf: op) = 0 ifTrue: [^false].
 		pc := (pc + (analysis lengthOf: op)) asInt32].
+	(libc getenv: 'SAMALTAK_OPT_TRACE') notNull ifTrue: [libc fprintf: libc stderr format: 'opt: loop at pc %d keeps slot %d
+' with: bl pc with: slot].
 	^true
 !
 newPhi: b var: var
@@ -462,8 +466,13 @@ goto: b
 	<c: 'void opt_goto(int32_t b)'>
 	self add: O_GOTO rep: R_NONE.
 	(ir block: obCurBlock) succ0: b.
-	ir addPred: obCurBlock to: b.
+	self edgeTo: b.
 	obCurBlock := -1
+!
+edgeTo: b
+	"An edge from the current block to b: b is reachable if the current block is (the scan also builds code no edge reaches yet)."
+	ir addPred: obCurBlock to: b.
+	((ir block: obCurBlock) flags bitAnd: BF_LIVE) ~= 0 ifTrue: [(ir block: b) flags: ((ir block: b) flags bitOr: BF_LIVE)]
 !
 blockAt: pc act: a
 	"The block that starts at a's pc."
@@ -859,8 +868,8 @@ conditionalJump: pc act: a
 	(ir node: n) state: (self stateAct: a pc: pc depth: d).
 	(ir block: obCurBlock) succ0: onTrue.
 	(ir block: obCurBlock) succ1: onFalse.
-	ir addPred: obCurBlock to: onTrue.
-	ir addPred: obCurBlock to: onFalse.
+	self edgeTo: onTrue.
+	self edgeTo: onFalse.
 	obCurBlock := -1.
 	back ifTrue: [
 		obCurBlock := taken.
@@ -1404,8 +1413,8 @@ branch: v true: t false: f
 	(ir node: n) a: v.
 	(ir block: obCurBlock) succ0: t.
 	(ir block: obCurBlock) succ1: f.
-	ir addPred: obCurBlock to: t.
-	ir addPred: obCurBlock to: f.
+	self edgeTo: t.
+	self edgeTo: f.
 	obCurBlock := -1
 !
 deoptAct: a state: s
