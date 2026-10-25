@@ -76,3 +76,31 @@ Tests (`Tests-VM`): encodings against the system assembler's (`Arm64Reference`, 
 - **Are We Fast Yet** (Marr et al., DLS 2016): Bounce, CD, DeltaBlue, Havlak, Json, List, Mandelbrot, NBody, Permute, Queens, Richards, Sieve, Storage, Towers. The same sources also run on Pharo 12 (Cog), the reference ceiling.
 - The micro suite (`vm/tests/bench`), and real workloads: recompiling the image's sources, text rendering.
 - Per benchmark: every iteration's time (warm-up curve), steady state (median of the last half), JIT time and code size.
+
+## Results
+
+Template JIT against the interpreter, M2 Max shared with other jobs: the base commit's VM, this VM with `--jit none` and with `--jit template` (default thresholds 2 and 50), interleaved, 10 iterations, best of 3 invocations of the steady state (median of the last half) and of the first iteration, ms (`vm/tests/bench/results/samaltak-{base,jit-none,jit-template}-2026-10-24-*.csv`, `samaltak-micro-*`). Pharo 12 (Cog) from docs/benchmarks.md for scale.
+
+| benchmark | base | `none` | `template` | first | template / none | Cog |
+|---|---|---|---|---|---|---|
+| Bounce | 101.7 | 104.3 | 76.2 | 76.8 | 0.73 | 33 |
+| CD | 364.4 | 363.1 | 325.6 | 329.1 | 0.90 | 214 |
+| DeltaBlue | 106.5 | 107.3 | 100.2 | 102.8 | 0.93 | 45 |
+| Havlak | 695.1 | 710.3 | 625.9 | 632.1 | 0.88 | 367 |
+| Json | 90.9 | 91.1 | 82.2 | 83.5 | 0.90 | 56 |
+| List | 125.4 | 124.9 | 101.3 | 101.7 | 0.81 | 24 |
+| Mandelbrot | 516.0 | 501.8 | 522.3 | 553.5 | 1.04 | 377 |
+| NBody | 745.4 | 746.3 | 676.6 | 665.0 | 0.91 | 374 |
+| Permute | 107.8 | 111.6 | 62.9 | 63.7 | 0.56 | 34 |
+| Queens | 104.4 | 107.6 | 57.0 | 57.0 | 0.53 | 44 |
+| Richards | 98.3 | 101.4 | 74.7 | 78.3 | 0.74 | 23 |
+| Sieve | 95.8 | 96.2 | 37.8 | 38.8 | 0.39 | 60 |
+| Storage | 107.9 | 112.5 | 104.6 | 106.0 | 0.93 | 62 |
+| Towers | 92.9 | 95.4 | 58.1 | 59.3 | 0.61 | 17 |
+
+Micro suite (same runs): Fib 24.5 → 20.1, Loop 110.7 → 66.3, Floats 29.4 → 30.6, Sends 100.7 → 78.9, Blocks 118.3 → 105.5, Dict 98.5 → 79.8, Strings 149.4 → 141.5, Alloc 67.9 → 74.2, Factorial 24.9 → 15.7 (`none` → `template`).
+
+- The template removes dispatch: loops, inline arithmetic and comparisons, Array access gain most (Sieve 2.5×, Queens, Permute, Towers). Sends still go through C (`send:info:site:`) and every value lives in memory; Float operations take an out-of-line path that decodes and encodes SmallFloat64s (Mandelbrot, MicroFloats), allocation goes through C (MicroAlloc). First iterations are within a few percent of steady state: compiling costs 5 µs per method, 0.19 µs per bytecode, 37 bytes of code per bytecode (2190 methods, 63084 bytecodes over the AWFY runs).
+- `--jit none` against the base VM: 0–4 % on AWFY, MicroBlocks 4–7 %; removing the block path's JIT checks made MicroBlocks slower still, so the difference is code layout under the retrained profile rather than the checks.
+- Process switches (the sampler) flush all frames ~1500 times per second; before Contexts could continue in machine code, returns into flushed loops left machine code 5.7 million times per Havlak iteration.
+
