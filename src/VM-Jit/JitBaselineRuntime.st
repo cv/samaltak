@@ -1,6 +1,6 @@
 VMCoreModule subclass: #JitBaselineRuntime
 	instanceVariableNames: 'compiler stubs cache asm analysis oopSlots oopSlotCount youngSlots youngSlotCount youngSlotsOverflow megaTable blockTable primKinds primOps primKindsReady statMisses statLinks statPics statMegas statBlockMisses statPrimCalls statNlrs statWalks'
-	classVariableNames: 'BL_BLOCK_CACHE BL_BLOCK_WORDS BL_MAX_OOP_SLOTS BL_MAX_YOUNG_SLOTS BL_MEGA_CACHE BL_MEGA_WORDS BL_PIC_CASES BL_SITE_MEGA PK_AT PK_AT_PUT PK_BASIC_SIZE PK_BASICNEW PK_BASICNEW_SIZE PK_CHAR_FROM_VALUE PK_CHAR_VALUE PK_CLASS PK_CLOSURE_VALUE PK_FLOAT_OP PK_HASH PK_IDENTICAL PK_INT_OP PK_MARKER PK_NONE PK_PERFORM PK_UINT32_AT PK_UINT32_AT_PUT'
+	classVariableNames: 'BL_BLOCK_CACHE BL_BLOCK_WORDS BL_MAX_OOP_SLOTS BL_MAX_YOUNG_SLOTS BL_MEGA_CACHE BL_MEGA_WORDS BL_PIC_CASES BL_SITE_MEGA PK_AT PK_AT_PUT PK_BASIC_SIZE PK_BASICNEW PK_BASICNEW_SIZE PK_CHAR_FROM_VALUE PK_CHAR_VALUE PK_CLASS PK_CLOSURE_VALUE PK_FLOAT_OP PK_HASH PK_IDENTICAL PK_INT_OP PK_MARKER PK_NONE PK_PERFORM PK_STRING_COMPARE PK_UINT32_AT PK_UINT32_AT_PUT'
 	package: 'VM-Jit'!
 
 JitBaselineRuntime comment: 'What baseline code (JitBaselineCompiler) needs of the runtime beyond JitRuntime:
@@ -51,7 +51,8 @@ initialize
 	PK_AT_PUT := 14.
 	PK_BASIC_SIZE := 15.
 	PK_UINT32_AT := 16.
-	PK_UINT32_AT_PUT := 17
+	PK_UINT32_AT_PUT := 17.
+	PK_STRING_COMPARE := 18
 ! !
 
 !JitBaselineRuntime methodsFor: 'accessing'!
@@ -111,6 +112,9 @@ pkUint32At
 !
 pkUint32AtPut
 	^PK_UINT32_AT_PUT
+!
+pkStringCompare
+	^PK_STRING_COMPARE
 !
 pkHash
 	^PK_HASH
@@ -175,6 +179,7 @@ initPrimKinds
 			(self named: e name is: 'basicSize') ifTrue: [k := PK_BASIC_SIZE].
 			(self named: e name is: 'bytesUint32At') ifTrue: [k := PK_UINT32_AT].
 			(self named: e name is: 'bytesUint32AtPut') ifTrue: [k := PK_UINT32_AT_PUT].
+			(self named: e name is: 'stringCompare') ifTrue: [k := PK_STRING_COMPARE].
 			(self named: e name is: 'identityHash') ifTrue: [k := PK_HASH].
 			(self named: e name is: 'intAdd') ifTrue: [k := PK_INT_OP. op := 0].
 			(self named: e name is: 'intSub') ifTrue: [k := PK_INT_OP. op := 1].

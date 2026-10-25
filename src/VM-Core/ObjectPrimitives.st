@@ -260,6 +260,7 @@ primStringAtPut
 !
 primStringHash
 	<vmPrimitive: 102 name: 'stringHash'>
+	<leaf>
 	| s |
 	s := self argCount > 0 ifTrue: [self arg: 0] ifFalse: [self receiver].
 	(self isStringLike: s) ifFalse: [^self fail].
@@ -267,6 +268,7 @@ primStringHash
 !
 primStringCompare
 	<vmPrimitive: 103 name: 'stringCompare'>
+	<leaf>
 	| a b na nb n x y |
 	a := self receiver.
 	b := self arg0.

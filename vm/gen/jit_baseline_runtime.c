@@ -833,6 +833,7 @@ int32_t bl_prim_kind(int32_t p)
     const char *s_42;
     const char *s_43;
     const char *s_44;
+    const char *s_45;
     if (!prim_kinds_ready) {
         prim_kinds_ready = true;
         for (i = 0; i <= 1023; i++) {
@@ -902,151 +903,155 @@ int32_t bl_prim_kind(int32_t p)
                     k = PK_UINT32_AT_PUT;
                 }
                 s_15 = e->name;
-                if (strcmp(s_15, "identityHash") == 0) {
-                    k = PK_HASH;
+                if (strcmp(s_15, "stringCompare") == 0) {
+                    k = PK_STRING_COMPARE;
                 }
                 s_16 = e->name;
-                if (strcmp(s_16, "intAdd") == 0) {
+                if (strcmp(s_16, "identityHash") == 0) {
+                    k = PK_HASH;
+                }
+                s_17 = e->name;
+                if (strcmp(s_17, "intAdd") == 0) {
                     k = PK_INT_OP;
                     op = 0;
                 }
-                s_17 = e->name;
-                if (strcmp(s_17, "intSub") == 0) {
+                s_18 = e->name;
+                if (strcmp(s_18, "intSub") == 0) {
                     k = PK_INT_OP;
                     op = 1;
                 }
-                s_18 = e->name;
-                if (strcmp(s_18, "intMul") == 0) {
+                s_19 = e->name;
+                if (strcmp(s_19, "intMul") == 0) {
                     k = PK_INT_OP;
                     op = 2;
                 }
-                s_19 = e->name;
-                if (strcmp(s_19, "intBitAnd") == 0) {
+                s_20 = e->name;
+                if (strcmp(s_20, "intBitAnd") == 0) {
                     k = PK_INT_OP;
                     op = 4;
                 }
-                s_20 = e->name;
-                if (strcmp(s_20, "intBitOr") == 0) {
+                s_21 = e->name;
+                if (strcmp(s_21, "intBitOr") == 0) {
                     k = PK_INT_OP;
                     op = 5;
                 }
-                s_21 = e->name;
-                if (strcmp(s_21, "intBitXor") == 0) {
+                s_22 = e->name;
+                if (strcmp(s_22, "intBitXor") == 0) {
                     k = PK_INT_OP;
                     op = 6;
                 }
-                s_22 = e->name;
-                if (strcmp(s_22, "intBitShift") == 0) {
+                s_23 = e->name;
+                if (strcmp(s_23, "intBitShift") == 0) {
                     k = PK_INT_OP;
                     op = 7;
                 }
-                s_23 = e->name;
-                if (strcmp(s_23, "intQuo") == 0) {
+                s_24 = e->name;
+                if (strcmp(s_24, "intQuo") == 0) {
                     k = PK_INT_OP;
                     op = 16;
                 }
-                s_24 = e->name;
-                if (strcmp(s_24, "intRem") == 0) {
+                s_25 = e->name;
+                if (strcmp(s_25, "intRem") == 0) {
                     k = PK_INT_OP;
                     op = 17;
                 }
-                s_25 = e->name;
-                if (strcmp(s_25, "intFloorDiv") == 0) {
+                s_26 = e->name;
+                if (strcmp(s_26, "intFloorDiv") == 0) {
                     k = PK_INT_OP;
                     op = 18;
                 }
-                s_26 = e->name;
-                if (strcmp(s_26, "intMod") == 0) {
+                s_27 = e->name;
+                if (strcmp(s_27, "intMod") == 0) {
                     k = PK_INT_OP;
                     op = 19;
                 }
-                s_27 = e->name;
-                if (strcmp(s_27, "intLess") == 0) {
+                s_28 = e->name;
+                if (strcmp(s_28, "intLess") == 0) {
                     k = PK_INT_OP;
                     op = 8;
                 }
-                s_28 = e->name;
-                if (strcmp(s_28, "intGreater") == 0) {
+                s_29 = e->name;
+                if (strcmp(s_29, "intGreater") == 0) {
                     k = PK_INT_OP;
                     op = 9;
                 }
-                s_29 = e->name;
-                if (strcmp(s_29, "intLessEq") == 0) {
+                s_30 = e->name;
+                if (strcmp(s_30, "intLessEq") == 0) {
                     k = PK_INT_OP;
                     op = 10;
                 }
-                s_30 = e->name;
-                if (strcmp(s_30, "intGreaterEq") == 0) {
+                s_31 = e->name;
+                if (strcmp(s_31, "intGreaterEq") == 0) {
                     k = PK_INT_OP;
                     op = 11;
                 }
-                s_31 = e->name;
-                if (strcmp(s_31, "intEq") == 0) {
+                s_32 = e->name;
+                if (strcmp(s_32, "intEq") == 0) {
                     k = PK_INT_OP;
                     op = 12;
                 }
-                s_32 = e->name;
-                if (strcmp(s_32, "intNotEq") == 0) {
+                s_33 = e->name;
+                if (strcmp(s_33, "intNotEq") == 0) {
                     k = PK_INT_OP;
                     op = 13;
                 }
-                s_33 = e->name;
-                if (strcmp(s_33, "floatAdd") == 0) {
+                s_34 = e->name;
+                if (strcmp(s_34, "floatAdd") == 0) {
                     k = PK_FLOAT_OP;
                     op = 0;
                 }
-                s_34 = e->name;
-                if (strcmp(s_34, "floatSub") == 0) {
+                s_35 = e->name;
+                if (strcmp(s_35, "floatSub") == 0) {
                     k = PK_FLOAT_OP;
                     op = 1;
                 }
-                s_35 = e->name;
-                if (strcmp(s_35, "floatMul") == 0) {
+                s_36 = e->name;
+                if (strcmp(s_36, "floatMul") == 0) {
                     k = PK_FLOAT_OP;
                     op = 2;
                 }
-                s_36 = e->name;
-                if (strcmp(s_36, "floatDiv") == 0) {
+                s_37 = e->name;
+                if (strcmp(s_37, "floatDiv") == 0) {
                     k = PK_FLOAT_OP;
                     op = 3;
                 }
-                s_37 = e->name;
-                if (strcmp(s_37, "floatLess") == 0) {
+                s_38 = e->name;
+                if (strcmp(s_38, "floatLess") == 0) {
                     k = PK_FLOAT_OP;
                     op = 8;
                 }
-                s_38 = e->name;
-                if (strcmp(s_38, "floatGreater") == 0) {
+                s_39 = e->name;
+                if (strcmp(s_39, "floatGreater") == 0) {
                     k = PK_FLOAT_OP;
                     op = 9;
                 }
-                s_39 = e->name;
-                if (strcmp(s_39, "floatLessEq") == 0) {
+                s_40 = e->name;
+                if (strcmp(s_40, "floatLessEq") == 0) {
                     k = PK_FLOAT_OP;
                     op = 10;
                 }
-                s_40 = e->name;
-                if (strcmp(s_40, "floatGreaterEq") == 0) {
+                s_41 = e->name;
+                if (strcmp(s_41, "floatGreaterEq") == 0) {
                     k = PK_FLOAT_OP;
                     op = 11;
                 }
-                s_41 = e->name;
-                if (strcmp(s_41, "floatEq") == 0) {
+                s_42 = e->name;
+                if (strcmp(s_42, "floatEq") == 0) {
                     k = PK_FLOAT_OP;
                     op = 12;
                 }
-                s_42 = e->name;
-                if (strcmp(s_42, "floatNotEq") == 0) {
+                s_43 = e->name;
+                if (strcmp(s_43, "floatNotEq") == 0) {
                     k = PK_FLOAT_OP;
                     op = 13;
                 }
-                s_43 = e->name;
-                if (strcmp(s_43, "floatSqrt") == 0) {
+                s_44 = e->name;
+                if (strcmp(s_44, "floatSqrt") == 0) {
                     k = PK_FLOAT_OP;
                     op = 14;
                 }
-                s_44 = e->name;
-                if (strcmp(s_44, "floatTruncated") == 0) {
+                s_45 = e->name;
+                if (strcmp(s_45, "floatTruncated") == 0) {
                     k = PK_FLOAT_OP;
                     op = 15;
                 }

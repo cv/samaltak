@@ -931,6 +931,7 @@ emitPrimitive
 		k = brt pkCharFromValue ifTrue: [self emitCharFromValuePrimitive: fail].
 		(k = brt pkAt or: [k = brt pkAtPut or: [k = brt pkBasicSize]]) ifTrue: [self emitIndexedPrimitive: k fail: fail].
 		(k = brt pkUint32At or: [k = brt pkUint32AtPut]) ifTrue: [self emitUint32Primitive: k = brt pkUint32AtPut fail: fail].
+		k = brt pkStringCompare ifTrue: [self emitStringComparePrimitive: fail].
 		k = brt pkHash ifTrue: [self emitHashPrimitive: fail]].
 	k = brt pkMarker ifTrue: [^true].
 	asm bind: fail.
@@ -1191,6 +1192,59 @@ emitUint32Primitive: isPut fail: fail
 	asm cbnz: X11 to: fail.
 	asm str: W9 base: X17 index: X16 extend: EXT_LSL shift: 0.
 	asm mov: X0 with: X2.
+	asm ret
+!
+emitStringComparePrimitive: fail
+	"compare: of two byte strings: -1, 0 or 1 by bytes, then by size; anything else (wide strings) the C function."
+	<c: 'void bl_emit_string_compare_primitive(int32_t fail)'>
+	| loop differ sizes |
+	loop := asm newLabel.
+	differ := asm newLabel.
+	sizes := asm newLabel.
+	asm comment: 'primitive stringCompare: two byte objects, their sizes in x10 and x14'.
+	asm ldr: X1 base: X20 offset: (self slot: 0).
+	asm orr: X16 with: X0 with: X1.
+	asm tst: X16 imm: 7.
+	asm b: fail if: COND_NE.
+	asm ldr: X11 base: X0 offset: 0.
+	asm ubfx: X9 with: X11 lsb: H_FMT_SHIFT width: 5.
+	asm cmp: X9 imm: F_BYTES.
+	asm b: fail if: COND_LO.
+	asm ldr: X12 base: X1 offset: 0.
+	asm ubfx: X13 with: X12 lsb: H_FMT_SHIFT width: 5.
+	asm cmp: X13 imm: F_BYTES.
+	asm b: fail if: COND_LO.
+	asm ubfx: X10 with: X11 lsb: 0 width: 32.
+	asm lsl: X10 with: X10 imm: 3.
+	asm sub: X10 with: X10 with: X9.
+	asm add: X10 with: X10 imm: F_BYTES.
+	asm ubfx: X14 with: X12 lsb: 0 width: 32.
+	asm lsl: X14 with: X14 imm: 3.
+	asm sub: X14 with: X14 with: X13.
+	asm add: X14 with: X14 imm: F_BYTES.
+	asm cmp: X10 with: X14.
+	asm csel: X15 with: X10 with: X14 cond: COND_LO.
+	asm add: X16 with: X0 imm: 16.
+	asm add: X17 with: X1 imm: 16.
+	asm comment: 'the common bytes'.
+	asm bind: loop.
+	asm cbz: X15 to: sizes.
+	asm ldrb: W9 base: X16 postIndex: 1.
+	asm ldrb: W13 base: X17 postIndex: 1.
+	asm sub: X15 with: X15 imm: 1.
+	asm cmp: X9 with: X13.
+	asm b: loop if: COND_EQ.
+	asm bind: differ.
+	asm comment: '-1 or 1 by the first different byte'.
+	asm mov: X0 imm: (self intOop: 1).
+	asm mov: X9 imm: (self intOop: -1).
+	asm csel: X0 with: X9 with: X0 cond: COND_LO.
+	asm ret.
+	asm bind: sizes.
+	asm comment: 'equal so far: -1, 0 or 1 by the sizes'.
+	asm mov: X0 imm: (self intOop: 0).
+	asm cmp: X10 with: X14.
+	asm b: differ if: COND_NE.
 	asm ret
 !
 emitCharFromValuePrimitive: fail

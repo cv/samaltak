@@ -370,6 +370,7 @@ typedef void (*prim_fn)(void);
 #define PK_MARKER 2
 #define PK_NONE 0
 #define PK_PERFORM 1
+#define PK_STRING_COMPARE 18
 #define PK_UINT32_AT 16
 #define PK_UINT32_AT_PUT 17
 #define POLL_FDS 129
