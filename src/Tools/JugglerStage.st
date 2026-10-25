@@ -132,7 +132,7 @@ float smax(float a, float b, float k) { return -smin(-a, -b, k); }
 
 constant float3 eyeC = float3(0.088, 2.93, 0.2);
 
-// a caricature head, sculpted: cranium, brow ridge, cheekbones, jowls, chin, the nose, lips round the cigar, ears, eyes in their sockets under heavy lids
+// a caricature head, sculpted: cranium, brow ridge, round cheeks, soft jowls, chin, the nose, lips smiling round the cigar, ears, eyes wide open in their sockets
 float2 mapHead(float3 p) {
 	float3 w = p - float3(0.0, 0.0, figureZ);
 	float3 q = headSpace(p);
@@ -156,13 +156,13 @@ float2 mapHead(float3 p) {
 	if (faceBound > 0.06) return opU(r, float2(faceBound, M_SKIN));
 	float d = sdEllipsoid(q - float3(0.0, 2.93, -0.02), float3(0.235, 0.255, 0.245));
 	d = smin(d, sdEllipsoid(q - float3(0.0, 2.8, 0.06), float3(0.22, 0.2, 0.19)), 0.08);
-	d = smin(d, sdEllipsoid(q - float3(0.0, 2.995, 0.19), float3(0.165, 0.038, 0.06)), 0.04);
-	d = smin(d, sdEllipsoid(e - float3(0.115, 2.865, 0.165), float3(0.075, 0.05, 0.065)), 0.05);
-	d = smin(d, sdEllipsoid(e - float3(0.13, 2.7, 0.1), float3(0.1, 0.105, 0.1)), 0.07);
+	d = smin(d, sdEllipsoid(q - float3(0.0, 3.005, 0.185), float3(0.16, 0.03, 0.055)), 0.04);
+	d = smin(d, sdEllipsoid(e - float3(0.118, 2.8, 0.165), float3(0.07, 0.058, 0.065)), 0.05);
+	d = smin(d, sdEllipsoid(e - float3(0.12, 2.71, 0.1), float3(0.088, 0.09, 0.09)), 0.08);
 	d = smin(d, sdEllipsoid(q - float3(0.0, 2.635, 0.13), float3(0.085, 0.06, 0.07)), 0.05);
 	d = smin(d, sdEllipsoid(e - float3(0.232, 2.88, -0.03), float3(0.03, 0.075, 0.055)), 0.025);
 	d = smin(d, sdCapsule(q, float3(0.0, 2.35, -0.03), float3(0.0, 2.68, -0.04), 0.115), 0.06);
-	d = smax(d, -(length(e - eyeC - float3(0.0, 0.0, 0.03)) - 0.045), 0.02);
+	d = smax(d, -(length(e - eyeC - float3(0.0, 0.0, 0.032)) - 0.046), 0.02);
 	r = opU(r, float2(d, M_SKIN));
 	// W. C. Fields'' nose: a bulb, the wings of the nostrils, the bridge
 	float nose = length(q - float3(0.008, 2.83, 0.285)) - 0.078;
@@ -170,14 +170,18 @@ float2 mapHead(float3 p) {
 	nose = smin(nose, sdCapsule(q, float3(0.0, 2.97, 0.225), float3(0.004, 2.86, 0.29), 0.032), 0.04);
 	r = opU(r, float2(nose, M_NOSE));
 	// lips, the cigar in the corner of the mouth
-	float lips = sdEllipsoid(q - float3(-0.01, 2.715, 0.21), float3(0.075, 0.022, 0.035));
-	lips = smin(lips, sdEllipsoid(q - float3(-0.01, 2.687, 0.2), float3(0.062, 0.02, 0.032)), 0.012);
+	float3 sm = q - float3(-0.01, 0.0, 0.0);
+	sm.y -= (sm.x < 0.0 ? 6.0 : 1.5) * sm.x * sm.x;
+	float lips = sdEllipsoid(sm - float3(0.0, 2.712, 0.21), float3(0.077, 0.02, 0.035));
+	lips = smin(lips, sdEllipsoid(sm - float3(0.0, 2.687, 0.2), float3(0.06, 0.019, 0.032)), 0.012);
+	// the corners dimpled up into the cheeks
+	lips = smin(lips, sdEllipsoid(q - float3(-0.09, 2.748, 0.18), float3(0.012, 0.012, 0.012)), 0.01);
 	// pursed round the cigar in the corner of the mouth
 	lips = smin(lips, sdEllipsoid(w - float3(0.058, 2.699, 0.212), float3(0.034, 0.032, 0.024)), 0.015);
 	r = opU(r, float2(lips, M_LIP));
 	r = opU(r, float2(length(e - eyeC) - 0.04, M_EYE));
 	float3 eye = e - eyeC;
-	float lids = min(max(length(eye) - 0.046, 0.019 - eye.y - 0.006 * eye.x / 0.04), max(length(eye) - 0.044, eye.y + 0.027));
+	float lids = min(max(length(eye) - 0.046, 0.028 - eye.y + 0.25 * eye.x * eye.x / 0.04), max(length(eye) - 0.044, eye.y + 0.028 - 0.2 * eye.x * eye.x / 0.04));
 	return opU(r, float2(lids, M_SKIN));
 }
 
@@ -512,9 +516,9 @@ Surface materialAt(float m, float3 p, float3 n, thread const Pose &P) {
 	else if (m == M_SKIN || m == M_NOSE || m == M_LIP) {
 		// painted papier-mâché: matte, mottled, the paint worn here and there
 		float3 h = headSpace(p);
-		float2 c = float2(abs(h.x) - 0.15, h.y - 2.79);
-		float3 paint = m == M_NOSE ? float3(0.8, 0.52, 0.48) : (m == M_LIP ? float3(0.5, 0.26, 0.24) : float3(0.84, 0.77, 0.69));
-		paint = mix(paint, float3(0.8, 0.5, 0.46), m == M_SKIN ? 0.65 * exp(-dot(c, c) * 110.0) * step(0.0, h.z) : 0.0);
+		float2 c = float2(abs(h.x) - 0.13, h.y - 2.78);
+		float3 paint = m == M_NOSE ? float3(0.85, 0.5, 0.45) : (m == M_LIP ? float3(0.62, 0.3, 0.27) : float3(0.95, 0.72, 0.6));
+		paint = mix(paint, float3(0.88, 0.52, 0.46), m == M_SKIN ? 0.8 * exp(-dot(c, c) * 70.0) * step(0.0, h.z) : 0.0);
 		paint *= m == M_SKIN ? 1.0 - 0.12 * smoothstep(2.78, 2.62, h.y) : 1.0;
 		float mottle = noise(h.xy * 18.0) * 0.6 + noise(h.zy * 45.0) * 0.4;
 		o.albedo = lin(paint) * (0.9 + 0.12 * mottle) * (1.0 - 0.12 * smoothstep(0.84, 0.92, speck));
@@ -523,14 +527,18 @@ Surface materialAt(float m, float3 p, float3 n, thread const Pose &P) {
 		float lash = smoothstep(0.054, 0.047, length(eye)) * smoothstep(0.006, 0.014, eye.y) * smoothstep(0.034, 0.02, eye.y);
 		// painted brows, the left one raised
 		float bx = abs(h.x);
-		float brow = smoothstep(0.014, 0.007, abs(h.y - (2.997 + (h.x < 0.0 ? 0.012 : 0.0) - 1.2 * (bx - 0.09) * (bx - 0.09)))) * smoothstep(0.17, 0.15, bx) * smoothstep(0.025, 0.04, bx) * step(0.1, h.z);
+		float brow = smoothstep(0.015, 0.008, abs(h.y - (3.0 + (h.x < 0.0 ? 0.006 : 0.0) - 2.8 * (bx - 0.085) * (bx - 0.085)))) * smoothstep(0.16, 0.14, bx) * smoothstep(0.03, 0.045, bx) * step(0.1, h.z);
 		o.albedo = mix(o.albedo, float3(0.025, 0.018, 0.014), max(lash * 0.85, brow * 0.9) * (m == M_SKIN ? 1.0 : 0.0));
-		o.rough = 0.55; o.spec = 0.035; o.wrap = 0.35;
+		o.rough = 0.55; o.spec = 0.035; o.wrap = 0.45;
 	} else if (m == M_EYE) {
 		float3 hp = headSpace(p);
 		float3 d = normalize(hp - float3(sign(hp.x) * eyeC.x, eyeC.y, eyeC.z));
-		o.albedo = d.z > 0.9 ? float3(0.004) : (d.z > 0.72 ? lin(float3(0.22, 0.15, 0.09)) : lin(float3(0.8, 0.78, 0.72)));
-		o.rough = 0.15; o.spec = 0.06;
+		float3 look = normalize(float3(-0.08 * sign(hp.x), 0.02, 1.0));
+		float ld = dot(d, look);
+		o.albedo = ld > 0.92 ? float3(0.004) : (ld > 0.74 ? lin(float3(0.26, 0.15, 0.08)) * (0.75 + 0.4 * smoothstep(0.74, 0.9, ld)) : lin(float3(0.84, 0.82, 0.78)));
+		// the twinkle: a highlight up and to the side in each eye
+		o.emit = float3(1.0, 0.97, 0.92) * 3.0 * smoothstep(0.978, 0.99, dot(d, normalize(look + float3(-0.28, 0.32, 0.0))));
+		o.rough = 0.12; o.spec = 0.08;
 	}
 	else if (m == M_HAT) {
 		// grey felt: fuzz, a little uneven
@@ -753,7 +761,7 @@ Pose pose(constant Scene &s) {
 		P.ball[i] = float4(c, r);
 		P.velocity[i] = v;
 	}
-	// each arm reaches under its bowl, the hand turned with it: two bones, the elbow down and out
+	// each arm reaches under its bowl, the hand turned with it: two bones, the elbow down, out and back (a pole far from where the arm points, so the elbow never flips), the reach easing off softly before the arm is straight
 	for (int i = 0; i < 2; i++) {
 		float side = i == 0 ? -1.0 : 1.0;
 		float3 cup = world(i == 0 ? s.hands.xy : s.hands.zw, s);
@@ -763,11 +771,13 @@ Pose pose(constant Scene &s) {
 		float3 w = cup + float3(-sin(t), -cos(t), 0.0) * (P.bowl + 0.075) + float3(0.0, 0.0, -0.05);
 		const float L1 = 1.08, L2 = 1.02;
 		float3 v = w - sh;
-		float d = clamp(length(v), 0.1, L1 + L2 - 0.001);
+		float d = max(length(v), 0.1);
+		float soft = (L1 + L2) * 0.88, room = (L1 + L2) * 0.999 - soft;
+		if (d > soft) d = soft + room * (1.0 - exp(-(d - soft) / room));
 		float3 dir = normalize(v);
 		w = sh + dir * d;
 		float a = (L1 * L1 - L2 * L2 + d * d) / (2.0 * d);
-		float3 pole = normalize(float3(side * 0.9, -1.0, -0.35));
+		float3 pole = normalize(float3(side * 0.8, -0.9, -1.1));
 		float3 perp = normalize(pole - dir * dot(pole, dir));
 		P.shoulder[i] = sh;
 		P.elbow[i] = sh + dir * a + perp * sqrt(max(L1 * L1 - a * a, 0.0));
