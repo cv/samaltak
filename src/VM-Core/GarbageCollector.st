@@ -1,5 +1,5 @@
 VMCoreModule subclass: #GarbageCollector
-	instanceVariableNames: 'youngLo youngHi edenLo edenHi edenTop allocLimit survLo survTop survHi survOtherLo survOtherHi oldLo oldTop oldHi oldAltLo oldAltHi oldBudget maxHeapBytes oldReserve gcEpoch statScavenges statFullGcs statScavengeUs statFullUs statAllocated statTenured remset remsetCount remsetCap startBits vlo verify toLo toTop toHi weakList weakCount weakCap finalizationPending statWeakCleared ftTop becomeFrom becomeTo'
+	instanceVariableNames: 'youngLo youngHi edenLo edenHi edenAlloc survLo survTop survHi survOtherLo survOtherHi oldLo oldTop oldHi oldAltLo oldAltHi oldBudget maxHeapBytes oldReserve gcEpoch statScavenges statFullGcs statScavengeUs statFullUs statAllocated statTenured remset remsetCount remsetCap startBits vlo verify toLo toTop toHi weakList weakCount weakCap finalizationPending statWeakCleared ftTop becomeFrom becomeTo'
 	classVariableNames: 'MIN_BUDGET TENURE_AGE'
 	package: 'VM-Core'!
 
@@ -7,7 +7,7 @@ GarbageCollector comment: 'Generational GC: eden and two survivor spaces scaveng
 
 !GarbageCollector class methodsFor: 'declaring'!
 declarations
-	^#((youngLo uint64_t) (youngHi uint64_t) (edenLo uint64_t) (edenHi uint64_t) (edenTop uint64_t) (allocLimit uint64_t)
+	^#((youngLo uint64_t) (youngHi uint64_t) (edenLo uint64_t) (edenHi uint64_t) (edenAlloc 'uint64_t[2]')
 		(survLo uint64_t) (survTop uint64_t) (survHi uint64_t) (survOtherLo uint64_t) (survOtherHi uint64_t)
 		(oldLo uint64_t) (oldTop uint64_t) (oldHi uint64_t) (oldAltLo uint64_t) (oldAltHi uint64_t)
 		(oldBudget size_t) (maxHeapBytes size_t) (oldReserve size_t) (gcEpoch uint64_t)
@@ -37,16 +37,20 @@ edenHi
 	^edenHi
 !
 edenTop
-	^edenTop
+	^edenAlloc at: 0
 !
 edenTop: a
-	edenTop := a
+	edenAlloc at: 0 put: a
 !
 allocLimit
-	^allocLimit
+	^edenAlloc at: 1
 !
 allocLimit: a
-	allocLimit := a
+	edenAlloc at: 1 put: a
+!
+edenAllocAddress
+	"Where machine code allocates: eden's top, then the limit of the fast path."
+	^self cCoerce: edenAlloc to: 'uint64_t'
 !
 survLo
 	^survLo
@@ -136,8 +140,10 @@ init: edenBytes maxHeap: maxHeap
 	young := edenBytes + (2 * surv).
 	youngLo := self reserve: young.
 	youngHi := youngLo + young.
-	edenLo := edenTop := youngLo.
-	edenHi := allocLimit := edenLo + edenBytes.
+	edenLo := youngLo.
+	self edenTop: youngLo.
+	edenHi := edenLo + edenBytes.
+	self allocLimit: edenHi.
 	survLo := survTop := edenHi.
 	survHi := survLo + surv.
 	survOtherLo := survHi.
@@ -206,7 +212,7 @@ validRef: v
 	(self isPtr: v) ifFalse: [^true].
 	inOld := v >= oldLo and: [v < oldTop].
 	inSurv := v >= survLo and: [v < survTop].
-	inEden := v >= edenLo and: [v < edenTop].
+	inEden := v >= edenLo and: [v < self edenTop].
 	inEden ifTrue: [^true].
 	(inOld or: [inSurv]) ifFalse: [^false].
 	k := (v - vlo) quo: 8.
@@ -375,7 +381,7 @@ scavenge
 	interpreter beforeGC.
 	t0 := scheduler nowUs.
 	statScavenges := statScavenges + 1.
-	statAllocated := statAllocated + (edenTop - edenLo).
+	statAllocated := statAllocated + (self edenTop - edenLo).
 	toLo := toTop := survOtherLo.
 	toHi := survOtherHi.
 	tenureScan := oldTop.
@@ -408,7 +414,7 @@ scavenge
 	survLo := toLo.
 	survTop := toTop.
 	survHi := toHi.
-	edenTop := edenLo.
+	self edenTop: edenLo.
 	self rememberIfOld: interpreter activeCtx.
 	self afterGC.
 	statScavengeUs := statScavengeUs + (scheduler nowUs - t0) asUInt64
@@ -447,7 +453,7 @@ fullGC
 	interpreter beforeGC.
 	t0 := scheduler nowUs.
 	statFullGcs := statFullGcs + 1.
-	statAllocated := statAllocated + (edenTop - edenLo).
+	statAllocated := statAllocated + (self edenTop - edenLo).
 	oldUsed := oldTop - oldLo.
 	ftTop := oldAltLo.
 	weakCount := 0.
@@ -473,7 +479,7 @@ fullGC
 	oldTop := ftTop.
 	oldAltLo := lo.
 	oldAltHi := hi.
-	edenTop := edenLo.
+	self edenTop: edenLo.
 	survTop := survLo.
 	remsetCount := 0.
 	live := oldTop - oldLo.
@@ -488,7 +494,7 @@ collectGarbage: need
 	"Scavenge or full GC so that need bytes fit in eden."
 	<c: 'void collect_garbage(size_t need)'>
 	| youngUsed oldUsed |
-	youngUsed := (edenTop - edenLo) + (survTop - survLo).
+	youngUsed := (self edenTop - edenLo) + (survTop - survLo).
 	oldUsed := oldTop - oldLo.
 	oldUsed + youngUsed > oldBudget
 		ifTrue: [self fullGC]

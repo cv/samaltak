@@ -226,6 +226,9 @@ cstackLimitOffset
 dumpOffset
 	^self cCoerce: ((self cCoerce: 0 to: 'JitState *') fieldAddress: #dump) to: 'int64_t'
 !
+hashSeedOffset
+	^self cCoerce: ((self cCoerce: 0 to: 'JitState *') fieldAddress: #hashSeed) to: 'int64_t'
+!
 stressOffset
 	^self cCoerce: ((self cCoerce: 0 to: 'JitState *') fieldAddress: #stress) to: 'int64_t'
 !
@@ -770,10 +773,15 @@ emitStressAt: n label: l
 !
 emitSend: n
 	"Through the runtime (OptRuntime>>send:index:site:): receiver and arguments at slotTop, the result comes back there."
-	| nd argc k here cont r lazy slow |
+	| nd argc k here cont r lazy slow done |
 	nd := ir node: n.
 	argc := nd nargs asInt32 - 1.
 	k := self recordCall: n.
+	done := asm newLabel.
+	(nd flags bitAnd: NF_ALLOC) ~= 0 ifTrue: [
+		slow := asm newLabel.
+		self emitAllocate: n slow: slow done: done.
+		asm bind: slow].
 	self saveAcross: n.
 	asm comment: 'receiver and arguments'.
 	0 to: argc do: [:i |
@@ -806,7 +814,77 @@ emitSend: n
 	r := self dst: n.
 	asm ldr: r base: X20 offset: 8 * cgSlotTop.
 	self def: n from: r.
-	self reloadAcross: n
+	self reloadAcross: n.
+	asm bind: done
+!
+emitAllocate: n slow: slow done: done
+	"basicNew(:) in eden: header (slots, format, a hash from the JitState's seed), class, nil fields; no room, the sample's limit or an odd size: the send (slow)."
+	| nd fmt isize k sz r loop fill |
+	nd := ir node: n.
+	fmt := (nd c bitAnd: 255) asInt32.
+	isize := (nd c >> 8) asInt32.
+	k := -1.
+	asm comment: 'allocate in eden'.
+	nd nargs asInt32 = 1
+		ifTrue: [k := isize]
+		ifFalse: [
+			sz := ir node: (ir operand: nd args + 1).
+			(sz op asInt32 = O_CONST and: [(self isInt: sz aux asUInt64) and: [(self intVal: sz aux asUInt64) between: 0 and: 4096]])
+				ifTrue: [k := isize + (self intVal: sz aux asUInt64) asInt32]
+				ifFalse: [
+					r := self src: (ir operand: nd args + 1) into: X15.
+					asm tbz: r bit: 0 to: slow.
+					asm asr: X15 with: r imm: 1.
+					asm cmp: X15 imm: 4096.
+					asm b: slow if: COND_HI.
+					isize > 0 ifTrue: [asm add: X15 with: X15 imm: isize]]].
+	k >= 0 ifTrue: [asm mov: X15 imm: k].
+	asm lsl: X14 with: X15 imm: 3.
+	asm add: X14 with: X14 imm: 16.
+	asm adrp: X17 label: (asm labelAt: gc edenAllocAddress).
+	asm add: X17 with: X17 imm: (gc edenAllocAddress bitAnd: 16rFFF) asInt64.
+	asm ldr: X16 base: X17 offset: 0.
+	asm add: X14 with: X16 with: X14.
+	asm ldr: X17 base: X17 offset: 8.
+	asm cmp: X14 with: X17.
+	asm b: slow if: COND_HI.
+	asm adrp: X17 label: (asm labelAt: gc edenAllocAddress).
+	asm add: X17 with: X17 imm: (gc edenAllocAddress bitAnd: 16rFFF) asInt64.
+	asm str: X14 base: X17 offset: 0.
+	asm comment: 'header: slots, format, hash'.
+	fmt ~= 0 ifTrue: [asm orr: X15 with: X15 imm: fmt asUInt64 << H_FMT_SHIFT].
+	asm ldr: X17 base: X22 offset: self hashSeedOffset.
+	asm mov: X14 imm: 6364136223846793005.
+	asm mul: X17 with: X17 with: X14.
+	asm mov: X14 imm: 1442695040888963407.
+	asm add: X17 with: X17 with: X14.
+	asm str: X17 base: X22 offset: self hashSeedOffset.
+	asm lsr: X17 with: X17 imm: 40.
+	asm and: X17 with: X17 imm: H_HASH_MASK.
+	asm cmp: X17 imm: 0.
+	asm csinc: X17 with: X17 with: XZR cond: COND_NE.
+	asm orr: X15 with: X15 with: X17 shift: SHIFT_LSL amount: H_HASH_SHIFT.
+	self loadConstant: nd tcls into: X17.
+	asm stp: X15 with: X17 base: X16 offset: 0.
+	asm comment: 'fields nil'.
+	asm ldr: X17 base: X22 offset: self nilOffset.
+	(k >= 0 and: [k <= 16])
+		ifTrue: [0 to: k - 1 do: [:i | asm str: X17 base: X16 offset: 16 + (8 * i)]]
+		ifFalse: [
+			loop := asm newLabel.
+			fill := asm newLabel.
+			asm ldr: W15 base: X16 offset: 0.
+			asm add: X14 with: X16 imm: 16.
+			asm b: fill.
+			asm bind: loop.
+			asm str: X17 base: X14 postIndex: 8.
+			asm sub: W15 with: W15 imm: 1.
+			asm bind: fill.
+			asm cbnz: W15 to: loop].
+	r := self dst: n.
+	asm mov: r with: X16.
+	self def: n from: r.
+	asm b: done
 !
 emitRuntimeSend: k site: here exit: cont
 	"Call the runtime's send (the site's key: here, bound at the adr); it answers 0 (done), 1 (leave) or the callee's entry."

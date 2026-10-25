@@ -1,6 +1,6 @@
 OptModule subclass: #OptBuilder
 	instanceVariableNames: 'ir obCurBlock obBailed obVarTop obDefKeys obDefVals obDefCount obIncPhis obIncVars obIncCount obAnaMethods obAnaBases obAnaCount obAnaTop obAnaDepth obAnaFlag obAnaBack obPcBlocks obPcbTop obEntryBlock obRootMethod obInlined obDeps obDepCount obPrimKinds obPrimsKnown obNoInline obNoInlineCount obArgVals obArgFlags obUnitStart obOsrPc obParamSlots obValidSlots obSafeEpoch obAnaFloat'
-	classVariableNames: 'OA_BLOCK OA_LOOP OA_START OA_TARGET OPT_MAX_VARS OPT_MAX_NOINLINE OPT_MAX_PRIM PK_AT PK_FLOAT PK_FSQRT PK_ATPUT PK_CLASS PK_IDENTICAL PK_INT PK_SIZE PK_STRINGAT PK_STRINGATPUT OPT_INLINE_BUDGET OPT_INLINE_DEPTH OPT_INLINE_SIZE OPT_MAX_ANA OPT_MAX_DEPS OPT_MAX_INC'
+	classVariableNames: 'OA_BLOCK OA_LOOP OA_START OA_TARGET OPT_MAX_VARS OPT_MAX_NOINLINE OPT_MAX_PRIM PK_AT PK_FLOAT PK_FSQRT PK_NEW PK_NEWSIZE PK_ATPUT PK_CLASS PK_IDENTICAL PK_INT PK_SIZE PK_STRINGAT PK_STRINGATPUT OPT_INLINE_BUDGET OPT_INLINE_DEPTH OPT_INLINE_SIZE OPT_MAX_ANA OPT_MAX_DEPS OPT_MAX_INC'
 	package: 'VM-Jit'!
 
 OptBuilder comment: 'Builds the IR (OptIR) of a method from its bytecodes: an abstract interpretation of each activation''s bytecodes in pc order, its slots (arguments, temps, operand stack: the depths BytecodeAnalysis computed) SSA variables, phis made on demand (Braun et al., Simple and Efficient Construction of Static Single Assignment Form, CC 2013: a block is sealed once all its predecessors are known; jump targets when the scan reaches them, loop heads after their last backward jump). Sends, guards and interrupt checks get frame states (OptState) for deoptimization. bail abandons the method (a bytecode the tier does not compile).'!
@@ -33,6 +33,8 @@ initialize
 	PK_INT := 32.
 	PK_FLOAT := 64.
 	PK_FSQRT := 8.
+	PK_NEW := 9.
+	PK_NEWSIZE := 10.
 	OPT_INLINE_SIZE := 80.
 	OPT_INLINE_BUDGET := 1500.
 	OPT_INLINE_DEPTH := 8.
@@ -1063,6 +1065,7 @@ send: sel to: rcv class: cls argc: argc kind: kind pc: pc act: a rcvSlot: r
 	m = 0 ifTrue: [^false].
 	self noteDependency: sel.
 	self write: (self var: a slot: r) value: rcv.
+	((runtime flag: runtime allocFlag) and: [self allocate: m selector: sel class: cls argc: argc pc: pc act: a rcvSlot: r]) ifTrue: [^true].
 	((self methodPrimitive: m) ~= 0 and: [(runtime flag: runtime primsFlag) and: [
 		self inlinePrimitive: (self methodPrimitive: m) class: cls argc: argc pc: pc act: a rcvSlot: r]]) ifTrue: [^true].
 	(self canInline: m act: a) ifTrue: [
@@ -1076,6 +1079,31 @@ send: sel to: rcv class: cls argc: argc kind: kind pc: pc act: a rcvSlot: r
 			(ir node: n) tcls: m.
 			^true]].
 	self callSelector: sel argc: argc kind: (kind = 1 ifTrue: [1] ifFalse: [0]) special: 0 pc: pc act: a rcvSlot: r.
+	^true
+!
+allocate: m selector: sel class: cls argc: argc pc: pc act: a rcvSlot: r
+	"m is basicNew or basicNew: and the receiver (of metaclass cls) a class whose instances have pointer slots: the send with a fast path that allocates in eden (NF_ALLOC; c: format and fixed fields); answer whether it is one."
+	| kind inst fo spec isize fmt n |
+	kind := self primKindOf: (self methodPrimitive: m).
+	((kind = PK_NEW and: [argc = 0]) or: [kind = PK_NEWSIZE and: [argc = 1]]) ifFalse: [^false].
+	inst := self loadRef: cls at: META_THISCLASS.
+	((self isPtr: inst) and: [(self classOf: inst) = cls]) ifFalse: [^false].
+	fo := self loadRef: inst at: BEH_FORMAT.
+	(self isInt: fo) ifFalse: [^false].
+	spec := (self intVal: fo) >> CLS_SPEC_SHIFT.
+	isize := (self intVal: fo) bitAnd: CLS_INSTSIZE_MASK.
+	kind = PK_NEW
+		ifTrue: [
+			spec <= 1 ifFalse: [^false].
+			fmt := isize ~= 0 ifTrue: [F_FIXED] ifFalse: [F_EMPTY]]
+		ifFalse: [
+			(spec = 2 or: [spec = 3]) ifFalse: [^false].
+			fmt := (isize ~= 0 or: [spec = 3]) ifTrue: [F_FIXVAR] ifFalse: [F_VAR]].
+	n := self callSelector: sel argc: argc kind: 0 special: 0 pc: pc act: a rcvSlot: r.
+	(ir node: n) flags: ((ir node: n) flags bitOr: NF_ALLOC).
+	(ir node: n) c: (fmt bitOr: isize << 8) asInt32.
+	(ir node: n) tkind: T_OBJ.
+	(ir node: n) tcls: inst.
 	^true
 !
 primKindOf: p
@@ -1111,7 +1139,9 @@ primKindOf: p
 		self primNamed: 'floatNotEq' kind: PK_FLOAT + 7.
 		self primNamed: 'floatMul' kind: PK_FLOAT + 8.
 		self primNamed: 'floatDiv' kind: PK_FLOAT + 9.
-		self primNamed: 'floatSqrt' kind: PK_FSQRT].
+		self primNamed: 'floatSqrt' kind: PK_FSQRT.
+		self primNamed: 'basicNew' kind: PK_NEW.
+		self primNamed: 'basicNew:' kind: PK_NEWSIZE].
 	(p <= 0 or: [p >= OPT_MAX_PRIM]) ifTrue: [^0].
 	^(obPrimKinds at: p) asInt32
 !

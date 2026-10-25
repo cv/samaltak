@@ -1489,6 +1489,9 @@ static void jit_refresh_state(void)
     state_block->array_class = cls_array;
     state_block->point_class = cls_point;
     state_block->cstack_limit = (uint64_t)(cstack + 65534);
+    if (state_block->hash_seed == 0) {
+        state_block->hash_seed = hash_seed ^ 0x9E3779B97F4A7C15ULL;
+    }
     if (state_block->stress <= 0) {
         state_block->stress = 37;
     }

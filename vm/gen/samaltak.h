@@ -306,6 +306,7 @@ typedef void (*prim_fn)(void);
 #define MIN_BUDGET 67108864
 #define MSG_ARGS 1
 #define MSG_SELECTOR 0
+#define NF_ALLOC 8
 #define NF_DEAD 2
 #define NF_GUARD 4
 #define NF_PURE 1
@@ -454,6 +455,8 @@ typedef void (*prim_fn)(void);
 #define PK_FSQRT 8
 #define PK_IDENTICAL 7
 #define PK_INT 32
+#define PK_NEW 9
+#define PK_NEWSIZE 10
 #define PK_SIZE 3
 #define PK_STRINGAT 4
 #define PK_STRINGATPUT 5
@@ -834,8 +837,9 @@ struct jit_state {
     uint64_t cstack_limit;
     int64_t stress;
     uint64_t dump[64];
+    uint64_t hash_seed;
 };
-_Static_assert(sizeof(jit_state) == 608, "the simulator lays out JitState as C does");
+_Static_assert(sizeof(jit_state) == 616, "the simulator lays out JitState as C does");
 
 struct opt_act {
     oop method;
@@ -1068,10 +1072,9 @@ extern uint64_t cache_base;
 extern uint64_t cache_limit;
 extern uint64_t cache_start;
 extern uint64_t cache_top;
-extern uint64_t alloc_limit;
+extern uint64_t eden_alloc[2];
 extern uint64_t eden_hi;
 extern uint64_t eden_lo;
-extern uint64_t eden_top;
 extern bool finalization_pending;
 extern uint64_t gc_epoch;
 extern size_t max_heap_bytes;

@@ -121,7 +121,7 @@ void prim_scavenge(void)
     int64_t v;
     uint64_t v_2;
     scavenge();
-    v = (int64_t)(eden_hi - eden_top);
+    v = (int64_t)(eden_hi - eden_alloc[0]);
     v_2 = (uint64_t)((v << 1) | 1);
     prim_result = v_2;
     prim_status = PS_OK;
@@ -271,7 +271,7 @@ void prim_vm_stats(void)
     v[4] = (int64_t)(old_top - old_lo);
     v[5] = (int64_t)old_budget;
     v[6] = (int64_t)(eden_hi - eden_lo);
-    v[7] = (int64_t)(stat_allocated + (eden_top - eden_lo));
+    v[7] = (int64_t)(stat_allocated + (eden_alloc[0] - eden_lo));
     v[8] = (int64_t)remset_count;
     v[9] = (int64_t)stat_process_switches;
     v[10] = (int64_t)stat_tenured;

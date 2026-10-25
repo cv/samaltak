@@ -322,6 +322,8 @@ refreshState
 	stateBlock arrayClass: memory clsArray.
 	stateBlock pointClass: memory clsPoint.
 	stateBlock cstackLimit: interpreter cstackLimit.
+	"identity hashes of objects machine code allocates"
+	stateBlock hashSeed = 0 ifTrue: [stateBlock hashSeed: (memory hashSeed bitXor: 16r9E3779B97F4A7C15)].
 	self resetStress
 !
 resetStress
@@ -1360,7 +1362,7 @@ JitState comment: 'What machine code reads through x22: nil, true and false and 
 !JitState class methodsFor: 'declaring'!
 fields
 	^#((nilOop oop) (trueOop oop) (falseOop oop) (interrupt int32_t) (pad int32_t) (frames uint64_t) (exitSp uint64_t) (youngLo uint64_t) (youngHi uint64_t)
-		(arrayClass oop) (pointClass oop) (cstackLimit uint64_t) (stress int64_t) (dump 'uint64_t[64]'))
+		(arrayClass oop) (pointClass oop) (cstackLimit uint64_t) (stress int64_t) (dump 'uint64_t[64]') (hashSeed uint64_t))
 ! !
 
 VMStruct subclass: #JitMethod

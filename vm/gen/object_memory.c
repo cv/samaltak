@@ -66,8 +66,8 @@ oop alloc_obj(oop cls, int fmt, uint32_t n)
         }
         return alloc_old(cls, fmt, n);
     }
-    p = eden_top;
-    if (p + bytes > alloc_limit) {
+    p = eden_alloc[0];
+    if (p + bytes > eden_alloc[1]) {
         memset(&local, 0, sizeof local);
         cls_root = &local;
         *cls_root = cls;
@@ -87,7 +87,7 @@ oop alloc_obj(oop cls, int fmt, uint32_t n)
         }
     } else {
         a = p + bytes;
-        eden_top = a;
+        eden_alloc[0] = a;
         *(uint64_t *)p = ((uint64_t)n) | (((uint64_t)fmt) << H_FMT_SHIFT) | (((uint64_t)next_hash()) << H_HASH_SHIFT);
         *(uint64_t *)(p + 8) = cls;
         if ((fmt >= 1) && (fmt <= 4)) {
@@ -204,23 +204,23 @@ static uint64_t alloc_slow(oop *cls, size_t bytes)
     uint64_t a;
     int64_t n_3;
     if (alloc_sample_interval > 0) {
-        n = alloc_sample_countdown - (int64_t)(eden_top - sample_mark);
+        n = alloc_sample_countdown - (int64_t)(eden_alloc[0] - sample_mark);
         alloc_sample_countdown = n;
-        sample_mark = eden_top;
+        sample_mark = eden_alloc[0];
         if (alloc_sample_countdown <= (int64_t)bytes) {
             n_2 = alloc_sample_interval + (int64_t)bytes;
             alloc_sample_countdown = n_2;
             alloc_sample_hit(*cls, bytes);
         }
     }
-    if ((eden_top + bytes > eden_hi) || (old_top - old_lo > old_budget)) {
+    if ((eden_alloc[0] + bytes > eden_hi) || (old_top - old_lo > old_budget)) {
         push_root(cls);
         collect_garbage(bytes);
         pop_root();
     }
-    p = eden_top;
+    p = eden_alloc[0];
     a = p + bytes;
-    eden_top = a;
+    eden_alloc[0] = a;
     if (alloc_sample_interval > 0) {
         n_3 = alloc_sample_countdown - (int64_t)bytes;
         alloc_sample_countdown = n_3;
@@ -578,14 +578,16 @@ void refresh_specials(void)
 void reset_alloc_limit(void)
 {
     uint64_t a;
-    alloc_limit = eden_hi;
-    sample_mark = eden_top;
-    if ((alloc_sample_interval > 0) && (eden_top + alloc_sample_countdown < eden_hi)) {
-        a = eden_top + alloc_sample_countdown;
-        alloc_limit = a;
+    uint64_t a_2;
+    eden_alloc[1] = eden_hi;
+    sample_mark = eden_alloc[0];
+    if ((alloc_sample_interval > 0) && (eden_alloc[0] + alloc_sample_countdown < eden_hi)) {
+        a = eden_alloc[0] + alloc_sample_countdown;
+        eden_alloc[1] = a;
     }
     if (old_top - old_lo > old_budget) {
-        alloc_limit = eden_top;
+        a_2 = eden_alloc[0];
+        eden_alloc[1] = a_2;
     }
 }
 
