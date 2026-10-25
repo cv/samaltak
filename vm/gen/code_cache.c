@@ -4,7 +4,8 @@
 
 uint64_t cache_base;
 uint64_t cache_limit;
-static uint64_t cache_start;
+static uint8_t cache_space[134234112];
+uint64_t cache_start;
 uint64_t cache_top;
 
 /* CodeCache>>allocate: */
@@ -28,8 +29,11 @@ void code_cache_flush(void)
 /* CodeCache>>openWithSize: */
 bool code_cache_open(uint64_t size)
 {
+    uint64_t near;
     void *p;
-    p = mmap(NULL, size, PROT_READ | PROT_WRITE | PROT_EXEC, MAP_PRIVATE | MAP_ANON | MAP_JIT, -1, 0);
+    near = ((uint64_t)cache_space + 16383) & 18446744073709535232ULL;
+    munmap((void *)near, size);
+    p = mmap((void *)near, size, PROT_READ | PROT_WRITE | PROT_EXEC, MAP_PRIVATE | MAP_ANON | MAP_JIT, -1, 0);
     if (p == MAP_FAILED) {
         return false;
     }

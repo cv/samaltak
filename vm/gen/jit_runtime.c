@@ -425,6 +425,12 @@ jit_method *jit_compile(oop m, int32_t md, bool want_notes)
     case JIT_TEMPLATE:
         v = jit_template_compile(m);
         break;
+    case JIT_THREADED:
+        v = jit_stencil_compile(m, true);
+        break;
+    case JIT_STENCIL:
+        v = jit_stencil_compile(m, false);
+        break;
     default:
         v = false;
         break;
@@ -698,6 +704,9 @@ bool jit_ensure_open(void)
     if (!jit_generate_stubs()) {
         return false;
     }
+    if (!jit_stencils_open()) {
+        return false;
+    }
     cache_base = cache_top;
     cache_opened = true;
     return true;
@@ -943,6 +952,12 @@ const char *jit_mode_name(int32_t m)
     if (m == JIT_TEMPLATE) {
         return "template";
     }
+    if (m == JIT_THREADED) {
+        return "threaded";
+    }
+    if (m == JIT_STENCIL) {
+        return "stencil";
+    }
     return "none";
 }
 
@@ -954,6 +969,12 @@ int32_t jit_mode_named(const char *name)
     }
     if (strcmp(name, "template") == 0) {
         return JIT_TEMPLATE;
+    }
+    if (strcmp(name, "threaded") == 0) {
+        return JIT_THREADED;
+    }
+    if (strcmp(name, "stencil") == 0) {
+        return JIT_STENCIL;
     }
     return -1;
 }
