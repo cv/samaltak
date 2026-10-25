@@ -3,7 +3,7 @@ ToolPane subclass: #ShannonJuggler
 	classVariableNames: ''
 	package: 'Tools'!
 
-ShannonJuggler comment: 'I am Claude''s Robot, modelled on Claude Shannon''s bounce-juggling machine (the W. C. Fields figure, top hat and cigar): two arms carry three balls in cups, tip them out onto a drum, and catch them as they bounce up on the other side. A simulation, per frame (step, in my window''s Process): the arms drive the cups (moveHand:, a PD controller on each cup''s position and tilt following the act''s cycle, with each catch aimed where the ball will come down), then every ball moves (move:): gravity, then in substeps its contacts with the cups, the other balls, the drumhead and the walls. Fixed steps and no randomness, so the act is the same every run. A click restarts it.
+ShannonJuggler comment: 'I am Claude''s Robot, modelled on Claude Shannon''s bounce-juggling machine (the W. C. Fields figure, top hat and cigar): two arms carry three balls in cups, tip them out onto a drum, and catch them as they bounce up on the other side. A simulation, per frame (step, in my window''s Process): the arms drive the cups (moveHand:, following the act''s cycle; for a catch the cup meets the ball on its way down moving with it, then slows down with it: intercept:), then every ball moves (move:): gravity, then in substeps its contacts with the cups (lined bowls: little bounce, much friction), the other balls, the drumhead and the walls. Fixed steps and no randomness, so the act is the same every run. A click restarts it.
 
 My JugglerStage draws what it reads from me: stageExtent, drum, hands (each: position (the centre of its bowl), tilt, isLeft), balls (each: position, velocity), JugglerBall radius, JugglerHand bowlRadius and rimAngle, ballColor, frame.'!
 
@@ -24,10 +24,13 @@ restart
 	hands first place: self releasePoint - ((4 * self releaseSpeed) @ 0).
 	hands last place: (self catchPointFor: hands last).
 	first := JugglerBall new position: (self restingPlaceIn: hands first); velocity: 0 @ 0; yourself.
-	hands first noteHolding: first at: -1000 phase: 0.
+	hands first noteHolding: first at: frame; catchAt: -1000 position: hands first position velocity: 0 @ 0 tilt: 0.
+	hands last catchAt: frame position: hands last position velocity: 0 @ 0 tilt: 0.
 	balls := OrderedCollection with: first with: (JugglerBall new position: (self restingPlaceIn: hands last); velocity: 0 @ 0; yourself).
 	[frame < 48] whileTrue: [
-		frame = 32 ifTrue: [balls add: (JugglerBall new position: (self restingPlaceIn: hands first); velocity: hands first velocity; yourself)].
+		frame = 32 ifTrue: [
+			balls add: (JugglerBall new position: (self restingPlaceIn: hands first); velocity: hands first velocity; yourself).
+			hands first catchAt: frame position: hands first position velocity: 0 @ 0 tilt: 0].
 		self step]
 !
 minimumWindowExtent
@@ -72,11 +75,11 @@ releaseSpeed
 	^3
 !
 releaseTilt
-	^1.75
+	^2.2
 !
 catchHeight
 	"Where a ball is caught on its way down, after the top of its bounce."
-	^270
+	^290
 !
 substeps
 	^4
@@ -138,15 +141,17 @@ windowClosed
 
 !ShannonJuggler methodsFor: 'arms'!
 moveHand: aHand
-	"The arm drives the cup towards where it should be now: tip the ball out on the beat, catch where the next one comes down, give with it, carry it up to the next drop."
+	"The arm drives the cup towards where it should be now: tip the ball out on the beat, meet the next one where it comes down, slow down with it, carry it up to the next drop."
 	| phase ball goal |
 	phase := frame - aHand offset \\ (2 * self beat).
 	ball := balls detect: [:each | aHand holds: each] ifNone: [nil].
-	aHand noteHolding: ball at: frame phase: phase.
-	phase = (2 * self beat - 8) ifTrue: [aHand dropping: (ball notNil and: [frame - aHand caughtAt >= (8 + (self carryTimeFor: aHand) - 1)])].
+	aHand noteHolding: ball at: frame.
+	ball isNil ifTrue: [self planCatchFor: aHand].
+	phase = (2 * self beat - 8) ifTrue: [aHand dropping: (ball notNil and: [frame - aHand caughtAt >= (self cushionFrames + (self carryTimeFor: aHand) - 1)])].
 	goal := (aHand isDropping and: [phase >= (2 * self beat - 8) or: [phase < 10 or: [phase < 24 and: [ball notNil]]]])
 		ifTrue: [self releaseGoalFor: aHand at: (phase < 24 ifTrue: [phase] ifFalse: [phase - (2 * self beat)])]
 		ifFalse: [
+			(self intercepting: aHand) ifTrue: [^self intercept: aHand].
 			ball isNil
 				ifTrue: [self catchGoalFor: aHand at: phase]
 				ifFalse: [self carryGoalFor: aHand at: phase]].
@@ -162,63 +167,128 @@ releaseGoalFor: aHand at: s
 	^Array
 		with: (self place: self releasePoint for: aHand) + ((dx * inward) @ 0)
 		with: ((x < 0 ifTrue: [v * (x + 8) / 8] ifFalse: [s < 10 ifTrue: [v] ifFalse: [0]]) * inward) @ 0
-		with: (aHand isDropping ifTrue: [(self ease: ((s + 8 / 12 min: 1) max: 0)) * self releaseTilt * inward] ifFalse: [0])
+		with: (aHand isDropping ifTrue: [(self ease: ((s + 8 / 6 min: 1) max: 0)) * self releaseTilt * inward] ifFalse: [0])
 !
 catchGoalFor: aHand at: phase
-	"After a drop: wait outside and below the place where the next ball will come down on this side (as predicted, near the usual one), clear of the ball just dropped; come in under it in time, tipped a little towards it."
-	| aim place outward stage u |
+	"After a drop: stay up a moment, out of the way of the ball just dropped; then, until the next ball to catch is known, wait below the place where it usually comes down on this side."
+	frame - aHand releasedAt < self clearFrames ifTrue: [
+		^Array with: (self place: self releasePoint + ((10 * self releaseSpeed) @ 0) for: aHand) with: 0 @ 0 with: 0].
+	^Array
+		with: (self catchPointFor: aHand) + (((aHand isLeft ifTrue: [-30] ifFalse: [30])) @ 25)
+		with: 0 @ 0
+		with: 0
+!
+planCatchFor: aHand
+	"Once the next ball to come down on aHand's side is known, plan to meet it (intercept:)."
+	| aim |
+	aHand caughtAt + self cushionFrames < frame ifFalse: [^self].
 	aim := self catchFor: aHand.
-	place := self catchPointFor: aHand.
-	aim isNil ifFalse: [place := (place x + (((aim first x - place x) max: -50) min: 50)) @ place y].
-	outward := aHand isLeft ifTrue: [-1] ifFalse: [1].
-	stage := place + ((30 * outward) @ 25).
-	(aim isNil or: [frame - aHand releasedAt < 12]) ifTrue: [^Array with: stage with: 0 @ 0 with: 0].
-	u := (1 - ((aim at: 3) - 4 / 10) min: 1) max: 0.
-	u := 3 * u * u - (2 * u * u * u).
-	^Array with: stage + ((place - stage) * u) with: 0 @ 0 with: (aim at: 2) * u
+	aim isNil ifFalse: [self plan: aHand toMeet: aim last in: aim first]
+!
+intercepting: aHand
+	"Whether aHand is on its way to meet the ball it will catch next."
+	^frame <= aHand caughtAt and: [frame - aHand releasedAt >= self clearFrames]
+!
+intercept: aHand
+	"Steer the cup to where the catch begins, a little up the ball's way, to arrive there at rest (meetStartFrom:velocity:); from there to the catch, speeding up with the ball until it moves as fast. Each frame the arm takes the path from where the cup is now, and how fast it goes, on which it speeds up evenly more or less."
+	| s n target speed dv dx b |
+	s := self meetFrames.
+	n := aHand caughtAt - frame + 1.
+	n > s
+		ifTrue: [
+			n := n - s.
+			target := self meetStartFrom: aHand caughtPosition velocity: aHand caughtVelocity.
+			speed := 0 @ 0]
+		ifFalse: [
+			target := aHand caughtPosition.
+			speed := aHand caughtVelocity].
+	dv := speed - aHand velocity.
+	n <= 1 ifTrue: [^aHand accelerate: dv tilt: aHand caughtTilt].
+	dx := target - aHand position - (aHand velocity * n).
+	b := (dv * ((n + 1) / 2) - dx) * (12 / (n * (n * n - 1))).
+	aHand accelerate: dv / n - (b * ((n - 1) / 2)) tilt: aHand caughtTilt
+!
+plan: aHand toMeet: aBall in: frames
+	"aBall comes down through the catch height in frames; the cup will meet it there (or further down, if it could not be up its way in time), moving with it, its opening turned towards where it comes from in the cup's view."
+	| wait k at speed approach tilt |
+	wait := self clearFrames - (frame - aHand releasedAt) max: 0.
+	k := frames ceiling max: 1.
+	[at := aBall position + (aBall velocity * k) + (0 @ (0.2 * k * (k + 1))).
+	 speed := aBall velocity + (0 @ (0.4 * k)).
+	 approach := speed - (0 @ (0.4 * self meetFrames)).
+	 tilt := ((approach x negated arcTan: approach y) max: -0.9) min: 0.9.
+	 at := at - ((tilt sin negated @ tilt cos) * (JugglerHand bowlRadius - JugglerBall radius)).
+	 k < (frames + 24) and: [k - self meetFrames - wait < ((((self meetStartFrom: at velocity: speed) dist: aHand position) / 2.5) sqrt * 2)]]
+		whileTrue: [k := k + 1].
+	aHand catchAt: frame + k - 1 position: at velocity: speed tilt: tilt
+!
+meetStartFrom: aPoint velocity: aVelocity
+	"Where the cup waits, at rest, to catch a ball at aPoint meetFrames later, moving at aVelocity: from there it speeds up evenly less, at the end as the ball does, so that the ball comes to lie in the bowl without a knock."
+	| s |
+	s := self meetFrames.
+	^aPoint - (0 @ (0.2 * s * (s + 1))) - ((aVelocity - (0 @ (0.4 * s))) * (2 * (s + 1) / 3))
+!
+cushionGoalFor: aHand
+	"Just caught: the cup slows down with the ball, the bowl coming level."
+	| t d |
+	d := self cushionFrames.
+	t := frame - aHand caughtAt min: d.
+	^Array
+		with: aHand caughtPosition + (aHand caughtVelocity * (t - (t * t / (2 * d))))
+		with: aHand caughtVelocity * (1 - (t / d))
+		with: aHand caughtTilt * (1 - (t / d))
+!
+meetFrames
+	"For how many frames before a catch the cup speeds up with the ball."
+	^8
+!
+cushionFrames
+	"For how many frames after a catch the cup slows down with the ball."
+	^6
+!
+clearFrames
+	"For how many frames after a ball has left it the cup stays out of its way."
+	^4
 !
 catchPointFor: aHand
 	"Where the cup usually waits for a ball."
 	^self place: 110 @ (self catchHeight + (JugglerHand bowlRadius - JugglerBall radius)) for: aHand
 !
 carryGoalFor: aHand at: phase
-	"Just caught: give with the ball; then carry it to where the cup starts its glide to the drop: up quickly, then slowing gently (well below the pull of gravity), so it stays in the cup."
-	| since give u start end glide duration t a |
+	"Just caught: slow down with the ball (cushionGoalFor:); then carry it to where the cup starts its glide to the drop: up quickly, then slowing gently (well below the pull of gravity), so it stays in the cup."
+	| since d u start end duration t a |
 	since := frame - aHand caughtAt.
-	give := self giveFor: aHand.
-	since < 8 ifTrue: [
-		u := since / 8.
-		^Array with: aHand caughtPosition + (0 @ (give * (1 - (1 - u) squared))) with: 0 @ (give * 2 * (1 - u) / 8) with: 0].
-	start := aHand caughtPosition + (0 @ give).
-	glide := 0 @ 0.
+	d := self cushionFrames.
+	since <= d ifTrue: [^self cushionGoalFor: aHand].
+	start := self cushionEndFor: aHand.
 	end := (self place: self releasePoint - ((4 * self releaseSpeed) @ 0) for: aHand).
 	duration := self carryTimeFor: aHand.
-	t := since - 8 min: duration.
+	t := since - d min: duration.
 	u := t / duration.
 	a := self lift: start y - end y in: duration at: t.
 	^Array
-		with: ((start x * (2 * u * u * u - (3 * u * u) + 1)) + (end x * (3 * u * u - (2 * u * u * u))) + (glide x * duration * (u * u * u - (u * u)))) @ (start y - a first)
-		with: ((start x - end x * (6 * u * u - (6 * u)) / duration) + (glide x * (3 * u * u - (2 * u)))) @ a last negated
+		with: ((start x * (2 * u * u * u - (3 * u * u) + 1)) + (end x * (3 * u * u - (2 * u * u * u)))) @ (start y - a first)
+		with: (start x - end x * (6 * u * u - (6 * u)) / duration) @ a last negated
 		with: 0
 !
-carryTimeFor: aHand
-	"Frames from the end of the give to the start of the glide; a ball caught too late to be lifted gently in time is carried on to the drop after."
-	| d h |
-	d := 2 * self beat - 8 - (aHand caughtPhase + 8).
-	h := aHand caughtPosition y + (self giveFor: aHand) - self releasePoint y max: 0.
-	d * d < (2 * h / 0.24) ifTrue: [d := d + (2 * self beat)].
-	^d
+cushionEndFor: aHand
+	"Where the cup comes to rest after a catch."
+	^aHand caughtPosition + (aHand caughtVelocity * (self cushionFrames / 2))
 !
-giveFor: aHand
-	"How far the cup gives with a ball it catches."
-	^aHand caughtSpeed * 4 min: 16
+carryTimeFor: aHand
+	"Frames from the end of the cushioning to the start of the glide; a ball caught too late to be lifted gently in time is carried on to the drop after."
+	| d h |
+	d := 2 * self beat - 8 - ((aHand caughtAt - aHand offset \\ (2 * self beat)) + self cushionFrames).
+	h := (self cushionEndFor: aHand) y - self releasePoint y max: 0.
+	d * d < (2 * h / 0.2) ifTrue: [d := d + (2 * self beat)].
+	^d
 !
 lift: height in: duration at: t
 	"Rising by height in duration frames, from rest to rest: speeding up quickly, slowing down gently (well below the pull of gravity, so the ball stays down in the cup): {how far up at t. how fast}."
 	| v t1 fast slow |
 	height <= 0 ifTrue: [^Array with: 0 with: 0].
 	v := 2 * height / duration.
-	t1 := duration - (v / 0.28) max: duration / 6.
+	t1 := duration - (v / 0.25) max: duration / 6.
 	fast := v / t1.
 	slow := v / (duration - t1).
 	t < t1 ifTrue: [^Array with: fast * t * t / 2 with: fast * t].
@@ -227,19 +297,14 @@ lift: height in: duration at: t
 		with: v - (slow * (t - t1))
 !
 catchFor: aHand
-	"The first ball that bounced off the drum and will come down on aHand's side: {where the cup should be. its tilt. frames until then. the ball}, or nil."
+	"The first ball that bounced off the drum and will come down on aHand's side: {frames until it comes down through the catch height. the ball}, or nil."
 	| best |
 	balls do: [:each |
 		(each bounced and: [(hands anySatisfy: [:h | h holds: each]) not]) ifTrue: [
 			(self descentOf: each to: self catchHeight) ifNotNil: [:hit |
 				(hit first < (self stageExtent x / 2)) = aHand isLeft ifTrue: [
-					(best isNil or: [(hit at: 3) < (best at: 3)]) ifTrue: [best := hit copyWith: each]]]]].
-	best isNil ifTrue: [^nil].
-	^Array
-		with: ((best first max: self left + 20) min: self right - 20) @ (self catchHeight + (JugglerHand bowlRadius - JugglerBall radius))
-		with: (((best at: 2) negated / 30 max: -0.3) min: 0.3)
-		with: (best at: 3)
-		with: best last
+					(best isNil or: [(hit at: 3) < best first]) ifTrue: [best := Array with: (hit at: 3) with: each]]]]].
+	^best
 !
 descentOf: aBall to: height
 	"Where and when aBall, flying freely, will come down through height after its bounce off the drumhead: {x. x velocity. frames}, or nil."
@@ -279,7 +344,7 @@ collide: aBall withCupOf: aHand at: s
 	(dist < JugglerHand bowlRadius and: [(d dotProduct: down) > (dist * rimCos)])
 		ifTrue: [
 			dist > (JugglerHand bowlRadius - JugglerBall radius) ifTrue: [
-				self push: aBall to: c + (d * ((JugglerHand bowlRadius - JugglerBall radius) / dist)) normal: d negated / dist hand: aHand restitution: 0.1]]
+				self push: aBall to: c + (d * ((JugglerHand bowlRadius - JugglerBall radius) / dist)) normal: d negated / dist hand: aHand restitution: 0.3]]
 		ifFalse: [
 			(dist >= JugglerHand bowlRadius and: [(d dotProduct: down) > (dist * rimCos) and: [dist < (JugglerHand bowlRadius + 2 + JugglerBall radius)]]) ifTrue: [
 				self push: aBall to: c + (d * ((JugglerHand bowlRadius + 2 + JugglerBall radius) / dist)) normal: d / dist hand: aHand restitution: 0.4]].
@@ -298,6 +363,7 @@ push: aBall to: aPoint normal: n hand: aHand restitution: e
 	rel := aBall velocity - wall.
 	vn := rel dotProduct: n.
 	vn < 0 ifFalse: [^self].
+	aHand knock: vn negated + ((0 @ 0.4) - aHand acceleration dotProduct: n).
 	vt := rel - (n * vn).
 	vt := vt * ((1 - (0.6 * (1 + e) * vn negated / (vt r max: 0.001))) max: 0) * 0.97.
 	aBall velocity: wall + vt - (n * (vn * e)).

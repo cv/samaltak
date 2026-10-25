@@ -3,7 +3,7 @@ ToolsTestCase subclass: #ShannonJugglerTest
 	classVariableNames: ''
 	package: 'Tests-Tools'!
 
-ShannonJugglerTest comment: 'I test Claude''s Robot: its stage shows the 3D scene rendered on the GPU, it changes while the act runs and stays the same picture once the act halts; the simulation keeps all three balls going for ten minutes of frames without two ever touching, bounces balls that do touch off each other, is the same every run and repeats itself, restarts the same, and with gravity turned round the balls end up at rest against the ceiling.'!
+ShannonJugglerTest comment: 'I test Claude''s Robot: its stage shows the 3D scene rendered on the GPU, it changes while the act runs and stays the same picture once the act halts; the simulation keeps all three balls going for ten minutes of frames without two ever touching, catching each without a knock and letting it go only on the drop, bounces balls that do touch off each other, is the same every run and repeats itself, restarts the same, and with gravity turned round the balls end up at rest against the ceiling.'!
 
 !ShannonJugglerTest methodsFor: 'support'!
 pictureOf: aView
@@ -16,6 +16,12 @@ run: aJuggler frames: anInteger
 dropped: aJuggler
 	"Whether a ball got away: down on the floor, or against a wall."
 	^aJuggler balls anySatisfy: [:each | each position y > 400 or: [each position x < 15 or: [each position x > (aJuggler stageExtent x - 15)]]]
+!
+isTipping: aHand in: aJuggler
+	"Whether aHand tips its ball out in the frame just gone: from its glide towards the release point until the ball has rolled out."
+	| phase |
+	phase := aJuggler frame - 1 - aHand offset \\ (2 * aJuggler beat).
+	^aHand isDropping and: [phase >= (2 * aJuggler beat - 8) or: [phase < 24]]
 !
 colorsIn: aForm
 	"The distinct pixel values in a coarse grid over aForm."
@@ -43,17 +49,24 @@ testRendersAndAnimates
 	self assert: juggler frame equals: frame.
 	self assert: (self pictureOf: stage) bits = halted bits description: 'a halted act changes its picture'
 !
-testKeepsJugglingForTenMinutesWithoutTheBallsTouching
-	| juggler closest |
+testKeepsJugglingForTenMinutesSoftlyWithoutTheBallsTouching
+	"Ten minutes of frames: no ball gets away or comes near another; every ball comes into a cup without a knock and leaves it only when the cup tips it out."
+	| juggler closest hardest |
 	juggler := ShannonJuggler new.
 	closest := 1000.
+	hardest := 0.
 	36000 timesRepeat: [
 		juggler step.
 		self deny: (self dropped: juggler) description: 'a ball dropped at frame ', juggler frame printString.
+		juggler hands do: [:each |
+			hardest := hardest max: each knock.
+			each releasedAt = (juggler frame - 1) ifTrue: [
+				self assert: (self isTipping: each in: juggler) description: 'a ball left ', each printString, ' at frame ', each releasedAt printString]].
 		juggler balls doWithIndex: [:a :i |
 			juggler balls doWithIndex: [:b :k | k > i ifTrue: [closest := closest min: (a position dist: b position)]]]].
 	self assert: juggler balls size equals: 3.
-	self assert: closest > (2 * JugglerBall radius + 10) description: 'balls came within ', closest printString
+	self assert: closest > (2 * JugglerBall radius + 10) description: 'balls came within ', closest printString.
+	self assert: hardest < 1 description: 'a ball hit a cup at ', hardest printString, ' points per frame'
 !
 testBallsBounceOffEachOther
 	"Two balls flying at each other bounce apart, nothing lost along the line between them but what the restitution takes."
