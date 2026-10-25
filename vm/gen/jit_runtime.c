@@ -392,7 +392,7 @@ uint64_t jit_cache_code(oop m)
         return 1;
     }
     return (h != NULL) && ((h->flags & JM_FAILED) == 0) ? (uint64_t)({
-    if (h->opt == 0) {
+    if ((h->opt == 0) || (jit_mode != JIT_OPT)) {
         r_best = h;
         goto exit_best;
     }
@@ -475,7 +475,7 @@ void jit_code_changed(oop m)
     if (i >= 0) {
         h = method_table[i];
         h_2 = ({
-    if (h->opt == 0) {
+    if ((h->opt == 0) || (jit_mode != JIT_OPT)) {
         r_best = h;
         goto exit_best;
     }
@@ -506,7 +506,7 @@ jit_method *jit_code_of(oop m, bool counting)
     h = jit_lookup(m);
     if (h != NULL) {
         return (h != NULL) && ((h->flags & JM_FAILED) == 0) ? ({
-    if (h->opt == 0) {
+    if ((h->opt == 0) || (jit_mode != JIT_OPT)) {
         r_best = h;
         goto exit_best;
     }
@@ -1990,6 +1990,9 @@ static uint64_t jit_sent(frame *f, int32_t n, int32_t len)
 /* JitRuntime>>setFlags: */
 void jit_set_flags(uint32_t f)
 {
+    if (!jit_no_opt_frames()) {
+        materialize_all();
+    }
     jit_flags = f;
     flush_pending = true;
     invalidations = invalidations + 1;
@@ -2000,6 +2003,9 @@ bool jit_set_mode(int32_t m)
 {
     if ((m != JIT_NONE) && (!jit_ensure_open())) {
         return false;
+    }
+    if (!jit_no_opt_frames()) {
+        materialize_all();
     }
     jit_mode = m;
     flush_pending = true;

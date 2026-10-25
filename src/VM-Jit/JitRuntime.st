@@ -323,6 +323,8 @@ setMode: m
 	"Switch compilers: all code is dropped at the next point without machine code on the native stack."
 	<c: 'bool jit_set_mode(int32_t m)'>
 	(m ~= JIT_NONE and: [self ensureOpen not]) ifTrue: [^false].
+	"optimized frames keep the cache from being flushed: they become Contexts"
+	self noOptFrames ifFalse: [interpreter materializeAll].
 	jitMode := m.
 	flushPending := true.
 	invalidations := invalidations + 1.
@@ -331,6 +333,7 @@ setMode: m
 !
 setFlags: f
 	<c: 'void jit_set_flags(uint32_t f)'>
+	self noOptFrames ifFalse: [interpreter materializeAll].
 	jitFlags := f.
 	flushPending := true.
 	invalidations := invalidations + 1
@@ -612,7 +615,7 @@ cacheCodeFor: m
 best: h
 	"h's method's optimized code if it has some that may run, else h."
 	| o |
-	h opt = 0 ifTrue: [^h].
+	(h opt = 0 or: [jitMode ~= JIT_OPT]) ifTrue: [^h].
 	o := self cCoerce: h opt to: 'JitMethod *'.
 	((self hasCode: o) and: [(o flags bitAnd: JM_DEAD) = 0]) ifTrue: [^o].
 	^h
