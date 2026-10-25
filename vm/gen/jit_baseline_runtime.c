@@ -4,6 +4,9 @@
 
 uint64_t block_table[4096];
 uint64_t mega_table[16384];
+static int32_t nil_found;
+static bool nil_inline;
+static bool nil_scanned;
 int64_t oop_slot_count;
 static uint64_t oop_slots[262144];
 static uint8_t prim_kinds[1024];
@@ -23,6 +26,8 @@ static bool young_slots_overflow;
 
 static jit_method *bl_header_of(oop m);
 static uint64_t bl_new_pic(uint64_t site, oop c0, jit_method *t0);
+static int32_t bl_nil_test_of(oop sel);
+static void bl_note_nil_test(oop m, void *d);
 static int64_t bl_ret_index(jit_method *h, uint64_t ret);
 static void bl_set_slot(uint64_t a, oop v);
 static void bl_set_top(frame *f, uint64_t ret, int32_t mode);
@@ -650,6 +655,66 @@ exit_add_case_to:;
     return p;
 }
 
+/* JitBaselineRuntime>>nilTestOf: */
+static int32_t bl_nil_test_of(oop sel)
+{
+    size_t n;
+    if (!(((sel & 7) == 0) && (*(uint64_t *)(sel + 8) == state_block->byte_symbol_class))) {
+        return 0;
+    }
+    n = byte_size(sel);
+    if ((n == 5) && (memcmp((uint8_t *)(sel + 16), "isNil", 5) == 0)) {
+        return 1;
+    }
+    if ((n == 6) && (memcmp((uint8_t *)(sel + 16), "notNil", 6) == 0)) {
+        return 2;
+    }
+    return 0;
+}
+
+/* JitBaselineRuntime>>nilTestsChanged: */
+void bl_nil_tests_changed(oop sel)
+{
+    bool was;
+    was = nil_scanned && nil_inline;
+    if (sel == 0) {
+        if (!was) {
+            return;
+        }
+        nil_scanned = false;
+        if (bl_nil_tests_inlinable()) {
+            return;
+        }
+    } else {
+        if (bl_nil_test_of(sel) == 0) {
+            return;
+        }
+        nil_scanned = true;
+        nil_inline = false;
+        if (!was) {
+            return;
+        }
+    }
+    flush_pending = true;
+    invalidations = invalidations + 1;
+}
+
+/* JitBaselineRuntime>>nilTestsInlinable */
+bool bl_nil_tests_inlinable(void)
+{
+    if (!nil_scanned) {
+        nil_scanned = true;
+        nil_inline = true;
+        nil_found = 0;
+        walk_old_space(bl_note_nil_test, NULL);
+        walk_young_space(bl_note_nil_test, NULL);
+        if (!(nil_found == 15)) {
+            nil_inline = false;
+        }
+    }
+    return nil_inline;
+}
+
 /* JitBaselineRuntime>>nlr: */
 uint64_t jit_bl_nlr(frame *f)
 {
@@ -700,6 +765,39 @@ uint64_t jit_bl_nlr(frame *f)
     state_block->nlr_fp = (uint64_t)h->fp;
     state_block->result = v;
     return state_block->base_record - (uint64_t)(16 * (h - base));
+}
+
+/* JitBaselineRuntime>>noteNilTest:data: */
+static void bl_note_nil_test(oop m, void *d)
+{
+    int32_t k;
+    uint64_t cls;
+    uint64_t root;
+    int quick;
+    uint64_t bc;
+    if (!(nil_inline && (*(uint64_t *)(m + 8) == special(SO_COMPILEDMETHOD)))) {
+        return;
+    }
+    k = bl_nil_test_of(*(uint64_t *)(m + 16 + 0));
+    if (k == 0) {
+        return;
+    }
+    cls = *(uint64_t *)(m + 16 + 8);
+    root = *(uint64_t *)(nil_oop + 8);
+    while (*(uint64_t *)(root + 16 + 0) != nil_oop) {
+        root = *(uint64_t *)(root + 16 + 0);
+    }
+    if (!((cls == *(uint64_t *)(nil_oop + 8)) || (cls == root))) {
+        nil_inline = false;
+        return;
+    }
+    quick = k == 1 == (cls != root) ? 0x71 : 0x72;
+    bc = *(uint64_t *)(m + 16 + 24);
+    if (!(((bc & 7) == 0) && (((int32_t)(((*(uint64_t *)bc) >> H_FMT_SHIFT) & H_FMT_MASK) >= F_BYTES) && ((byte_size(bc) == 2) && ((((uint8_t *)(bc + 16))[0] == quick) && (((uint8_t *)(bc + 16))[1] == 0x79)))))) {
+        nil_inline = false;
+        return;
+    }
+    nil_found = (int32_t)(nil_found | (1LL << ((k - 1) * 2 + (cls == root ? 1 : 0))));
 }
 
 /* JitBaselineRuntime>>prim:fp:fn:info: */

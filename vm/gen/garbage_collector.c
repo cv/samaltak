@@ -805,3 +805,19 @@ void walk_old_space(void (*fn)(oop, void *), void *data)
     }
 }
 
+/* GarbageCollector>>walkYoungSpace:data: */
+void walk_young_space(void (*fn)(oop, void *), void *data)
+{
+    uint64_t p;
+    p = surv_lo;
+    while (p < surv_top) {
+        fn(p, data);
+        p = p + (16 + 8 * (uint64_t)(uint32_t)*(uint64_t *)p);
+    }
+    p = eden_lo;
+    while (p < eden_box[0]) {
+        fn(p, data);
+        p = p + (16 + 8 * (uint64_t)(uint32_t)*(uint64_t *)p);
+    }
+}
+

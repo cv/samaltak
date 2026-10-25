@@ -1117,6 +1117,7 @@ void jit_methods_changed(void)
 {
     if ((jit_mode == JIT_BASELINE) && cache_opened) {
         bl_unlink_all();
+        bl_nil_tests_changed(0);
     }
 }
 
@@ -1125,6 +1126,7 @@ void jit_methods_changed_for(oop sel)
 {
     if ((jit_mode == JIT_BASELINE) && cache_opened) {
         bl_unlink_selector(sel);
+        bl_nil_tests_changed(sel);
     }
 }
 

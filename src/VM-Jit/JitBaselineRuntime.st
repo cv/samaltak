@@ -1,5 +1,5 @@
 VMCoreModule subclass: #JitBaselineRuntime
-	instanceVariableNames: 'compiler stubs cache asm analysis oopSlots oopSlotCount youngSlots youngSlotCount youngSlotsOverflow megaTable blockTable primKinds primOps primKindsReady statMisses statLinks statPics statMegas statBlockMisses statPrimCalls statNlrs statWalks'
+	instanceVariableNames: 'compiler stubs cache asm analysis oopSlots oopSlotCount youngSlots youngSlotCount youngSlotsOverflow megaTable blockTable primKinds primOps primKindsReady nilScanned nilInline nilFound statMisses statLinks statPics statMegas statBlockMisses statPrimCalls statNlrs statWalks'
 	classVariableNames: 'BL_BLOCK_CACHE BL_BLOCK_WORDS BL_MAX_OOP_SLOTS BL_MAX_YOUNG_SLOTS BL_MEGA_CACHE BL_MEGA_WORDS BL_PIC_CASES BL_SITE_MEGA PK_AT PK_AT_PUT PK_BASIC_SIZE PK_BASICNEW PK_BASICNEW_SIZE PK_CHAR_FROM_VALUE PK_CHAR_VALUE PK_CLASS PK_CLOSURE_VALUE PK_FLOAT_OP PK_HASH PK_IDENTICAL PK_INT_OP PK_MARKER PK_NONE PK_PERFORM PK_STRING_COMPARE PK_UINT32_AT PK_UINT32_AT_PUT'
 	package: 'VM-Jit'!
 
@@ -20,7 +20,7 @@ declarations
 	^#((compiler JitBaselineCompiler) (stubs JitStubs) (cache CodeCache) (asm Arm64Assembler) (analysis BytecodeAnalysis)
 		(oopSlots 'uint64_t[BL_MAX_OOP_SLOTS]') (oopSlotCount int64_t) (youngSlots 'uint64_t[BL_MAX_YOUNG_SLOTS]') (youngSlotCount int64_t) (youngSlotsOverflow bool)
 		(megaTable 'uint64_t[BL_MEGA_WORDS]') (blockTable 'uint64_t[BL_BLOCK_WORDS]')
-		(primKinds 'uint8_t[1024]') (primOps 'uint8_t[1024]') (primKindsReady bool)
+		(primKinds 'uint8_t[1024]') (primOps 'uint8_t[1024]') (primKindsReady bool) (nilScanned bool) (nilInline bool) (nilFound int32_t)
 		(statMisses uint64_t) (statLinks uint64_t) (statPics uint64_t) (statMegas uint64_t) (statBlockMisses uint64_t) (statPrimCalls uint64_t) (statNlrs uint64_t) (statWalks uint64_t))
 !
 initialize
@@ -235,6 +235,68 @@ primFunctionOf: p
 !
 isLeafPrimitive: p
 	^primitives isLeaf: p
+! !
+
+!JitBaselineRuntime methodsFor: 'nil tests'!
+nilTestOf: sel
+	"1 if sel is #isNil, 2 if #notNil, else 0."
+	<c: 'int32_t bl_nil_test_of(oop sel)'>
+	| n |
+	((self isPtr: sel) and: [(self rawClass: sel) = jit state byteSymbolClass]) ifFalse: [^0].
+	n := memory byteSize: sel.
+	(n = 5 and: [(libc memcmp: (self bytesOf: sel) with: 'isNil' size: 5) = 0]) ifTrue: [^1].
+	(n = 6 and: [(libc memcmp: (self bytesOf: sel) with: 'notNil' size: 6) = 0]) ifTrue: [^2].
+	^0
+!
+nilTestsInlinable
+	"isNil and notNil may be compiled as comparisons with nil: on the heap, the only methods so named are UndefinedObject's and ProtoObject's quick ones (checked once, again after flushMethodCache; a new definition drops all code)."
+	<c: 'bool bl_nil_tests_inlinable(void)'>
+	nilScanned ifFalse: [
+		nilScanned := true.
+		nilInline := true.
+		nilFound := 0.
+		gc walkOldSpace: (self functionPointer: #noteNilTest:data:) data: self null.
+		gc walkYoungSpace: (self functionPointer: #noteNilTest:data:) data: self null.
+		nilFound = 15 ifFalse: [nilInline := false]].
+	^nilInline
+!
+noteNilTest: m data: d
+	"m, if a method isNil or notNil, keeps nil tests inlinable only if it is UndefinedObject's or ProtoObject's quick one (nilFound: which of the four were seen)."
+	<c: 'void bl_note_nil_test(oop m, void *d)'>
+	| k cls bc root quick |
+	(nilInline and: [(self rawClass: m) = (memory special: SO_COMPILEDMETHOD)]) ifFalse: [^self].
+	k := self nilTestOf: (self loadRef: m at: CM_SELECTOR).
+	k = 0 ifTrue: [^self].
+	cls := self loadRef: m at: CM_CLASS.
+	root := self rawClass: memory nilOop.
+	[(self loadRef: root at: BEH_SUPERCLASS) ~= memory nilOop] whileTrue: [root := self loadRef: root at: BEH_SUPERCLASS].
+	(cls = (self rawClass: memory nilOop) or: [cls = root]) ifFalse: [
+		nilInline := false.
+		^self].
+	"^true (16r71) or ^false (16r72), then returnTop"
+	quick := ((k = 1) = (cls ~= root)) ifTrue: [16r71] ifFalse: [16r72].
+	bc := self loadRef: m at: CM_BYTECODES.
+	((self isPtr: bc) and: [(memory formatOf: bc) >= F_BYTES and: [(memory byteSize: bc) = 2 and: [((self bytesOf: bc) at: 0) = quick and: [((self bytesOf: bc) at: 1) = 16r79]]]]) ifFalse: [
+		nilInline := false.
+		^self].
+	nilFound := (nilFound bitOr: 1 << ((k - 1) * 2 + (cls = root ifTrue: [1] ifFalse: [0]))) asInt32
+!
+nilTestsChanged: sel
+	"Method dictionaries changed (sel 0: all of them, scanned again): a definition of isNil or notNil ends their inlining; if code inlined them, it all goes."
+	<c: 'void bl_nil_tests_changed(oop sel)'>
+	| was |
+	was := nilScanned and: [nilInline].
+	sel = 0
+		ifTrue: [
+			was ifFalse: [^self].
+			nilScanned := false.
+			self nilTestsInlinable ifTrue: [^self]]
+		ifFalse: [
+			(self nilTestOf: sel) = 0 ifTrue: [^self].
+			nilScanned := true.
+			nilInline := false.
+			was ifFalse: [^self]].
+	jit dropAllCode
 ! !
 
 !JitBaselineRuntime methodsFor: 'lazy frames'!

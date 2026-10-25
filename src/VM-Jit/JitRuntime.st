@@ -662,11 +662,20 @@ kill: h
 methodsChanged
 	"Smalltalk changed method dictionaries (flushMethodCache): inline caches relink."
 	<c: 'void jit_methods_changed(void)'>
-	(jitMode = JIT_BASELINE and: [cacheOpened]) ifTrue: [brt unlinkAll]
+	(jitMode = JIT_BASELINE and: [cacheOpened]) ifTrue: [
+		brt unlinkAll.
+		brt nilTestsChanged: 0]
 !
 methodsChangedFor: sel
 	<c: 'void jit_methods_changed_for(oop sel)'>
-	(jitMode = JIT_BASELINE and: [cacheOpened]) ifTrue: [brt unlinkSelector: sel]
+	(jitMode = JIT_BASELINE and: [cacheOpened]) ifTrue: [
+		brt unlinkSelector: sel.
+		brt nilTestsChanged: sel]
+!
+dropAllCode
+	"Code that may be wrong now: running code leaves at its next runtime call, all code is dropped before Smalltalk goes on."
+	flushPending := true.
+	invalidations := invalidations + 1
 !
 flushCode
 	"Drop all machine code (none is on the native stack): frames continue in the interpreter."

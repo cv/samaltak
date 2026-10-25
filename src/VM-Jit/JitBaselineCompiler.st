@@ -2084,6 +2084,7 @@ special: k pc: pc pushes: pushes
 	<c: 'bool bl_special(int32_t k, int32_t pc, int32_t pushes)'>
 	(k = 19 or: [k = 20]) ifTrue: [^self identical: k pc: pc].
 	k = 29 ifTrue: [^self classOf: pc].
+	((k = 23 or: [k = 24]) and: [runtime prims and: [brt nilTestsInlinable]]) ifTrue: [^self nilTest: k - 22 pc: pc].
 	(runtime arith and: [(k <= 8 or: [k = 10 or: [(k >= 12 and: [k <= 15])]]) and: [k ~= 11]]) ifTrue: [^self arith: k pc: pc pushes: pushes].
 	(runtime float and: [k = 9]) ifTrue: [^self arith: k pc: pc pushes: pushes].
 	(runtime access and: [k = 16 or: [k = 17 or: [k = 18]]]) ifTrue: [^self access: k pc: pc pushes: pushes].
@@ -2154,6 +2155,22 @@ identical: k pc: pc
 	rr := self allocReg.
 	self ssPop: 2.
 	j := self emitCompareResult: (self conditionOf: k) pc: pc into: rr.
+	j >= 0 ifTrue: [
+		self freeReg: rr.
+		^true].
+	^self ssPushReg: rr
+!
+nilTest: t pc: pc
+	"isNil (t 1) and notNil (t 2) when only UndefinedObject and ProtoObject define them: a comparison with nil."
+	| a ra rr j |
+	a := ssTop - 1.
+	self ssFlushTo: a.
+	ra := self ssMaterialize: a.
+	asm comment: (t = 1 ifTrue: ['isNil: == nil'] ifFalse: ['notNil: ~~ nil']).
+	asm cmp: ra with: X23.
+	rr := self allocReg.
+	self ssPop: 1.
+	j := self emitCompareResult: (t = 1 ifTrue: [COND_EQ] ifFalse: [COND_NE]) pc: pc into: rr.
 	j >= 0 ifTrue: [
 		self freeReg: rr.
 		^true].

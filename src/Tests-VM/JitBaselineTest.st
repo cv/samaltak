@@ -186,6 +186,24 @@ testPrimitives
 	self assert: on equals: off.
 	self assert: (on first: 4) equals: #(1 0 1 0)
 !
+testNilTests
+	"isNil and notNil compare with nil until a class defines them; then all code is dropped and they are sent."
+	| other |
+	self define: 'nilTests: x ^{x isNil. x notNil. x isNil ifTrue: [1] ifFalse: [2]}'.
+	other := JitBaselineTestOther new.
+	self assert: (self subject nilTests: nil) equals: #(true false 1).
+	self assert: (self subject nilTests: other) equals: #(false true 2).
+	self define: 'isNil ^true' in: JitBaselineTestOther.
+	self assert: (self subject nilTests: other) equals: #(true true 1).
+	self assert: (self subject nilTests: nil) equals: #(true false 1)
+!
+testNilTestsInline
+	"In a fresh VM nothing but UndefinedObject and ProtoObject defines isNil: it compiles to a comparison."
+	| run |
+	run := OSProcess run: (OSProcess commandFor: {'vm/build/samaltak'. '--jit'. 'baseline'. Smalltalk vm imagePath. '--headless'. '--eval'.
+		'((Dictionary >> #at:ifAbsent:) machineCodeFor: #baseline) includesSubstring: ''isNil: == nil'''}).
+	self assert: run output trimBoth equals: 'true'
+!
 testEveryFlagOff
 	"Each optimization switched off alone: the same answers."
 	self define: 'fib: n ^n < 2 ifTrue: [n] ifFalse: [(self fib: n - 1) + (self fib: n - 2)]'.

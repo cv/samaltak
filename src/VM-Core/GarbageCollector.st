@@ -541,6 +541,19 @@ becomeForward: from to: to
 		p := p + (self objBytes: p)].
 	self afterGC
 !
+walkYoungSpace: fn data: data
+	"fn on every object of the survivor space and of eden."
+	<c: 'void walk_young_space(void (*fn)(oop, void *), void *data)'>
+	| p |
+	p := survLo.
+	[p < survTop] whileTrue: [
+		fn call: p with: data.
+		p := p + (self objBytes: p)].
+	p := edenLo.
+	[p < self edenTop] whileTrue: [
+		fn call: p with: data.
+		p := p + (self objBytes: p)]
+!
 walkOldSpace: fn data: data
 	<c: 'void walk_old_space(void (*fn)(oop, void *), void *data)'>
 	| end p |

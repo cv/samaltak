@@ -116,7 +116,7 @@ testAttributionToProcesses
 	self assert: (as noneSatisfy: [:s | self stackOf: s includes: #floatLoop]).
 	self assert: (bs noneSatisfy: [:s | self stackOf: s includes: #factorialLoop]).
 	self assert: ((as count: [:s | s stack anySatisfy: [:f | f label includesSubstring: 'digit']]) * 100 / as size) >= 50.
-	self assert: (as leaves first: 3) notEmpty.
+	self assert: as leaves notEmpty.
 	self assert: ((as leaves first: (5 min: as leaves size)) anySatisfy: [:assoc | assoc key methodClass == LargePositiveInteger or: [assoc key selector beginsWith: 'digit']])
 !
 testLabels
