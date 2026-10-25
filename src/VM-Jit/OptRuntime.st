@@ -148,16 +148,19 @@ tierUp: f loop: loop
 	^o start
 !
 makesClosures: m start: s
-	"The code of m (s 0) or of its block at startpc s makes BlockClosures."
-	| bcs pc end op |
+	"The code of m (s 0) or of its block at startpc s makes BlockClosures that may reach its frame (through outer temps, ^, thisContext)."
+	| bcs pc end op closures reach |
 	bcs := self methodBytecodes: m.
 	end := s = 0 ifTrue: [self methodSize: m] ifFalse: [s + (((bcs at: s - 2) asInt64 << 8) bitOr: (bcs at: s - 1)) asInt32].
 	pc := s.
+	closures := false.
+	reach := false.
 	[pc < end] whileTrue: [
 		op := bcs at: pc.
-		op = 16r8F ifTrue: [^true].
+		op = 16r8F ifTrue: [closures := true].
+		((op >= 16r8A and: [op <= 16r8C]) or: [op = 16r7C or: [op = 16r76]]) ifTrue: [reach := true].
 		pc := (pc + (analysis lengthOf: op)) asInt32].
-	^false
+	^closures and: [reach]
 !
 blockCallsAddress
 	"Where block call sites of optimized code (OptCodegen>>emitBlockCall:index:slow:) find the code of the closures they called: 4 words per site (method, startpc, frame code, entry), cleared at every GC."

@@ -332,6 +332,10 @@ read: var in: b
 	i := self defIndex: var block: b.
 	(obDefKeys at: i) ~= 0 ifTrue: [^ir resolve: (obDefVals at: i)].
 	bl := ir block: b.
+	((bl flags bitAnd: BF_SEALED) = 0 and: [self loopKeeps: var block: b]) ifTrue: [
+		v := self read: var in: (ir pred: 0 of: b).
+		self write: var value: v in: b.
+		^v].
 	(bl flags bitAnd: BF_SEALED) = 0
 		ifTrue: [
 			phi := self newPhi: b var: var.
@@ -355,6 +359,25 @@ read: var in: b
 							v := phi]]].
 	self write: var value: v in: b.
 	^v
+!
+loopKeeps: var block: b
+	"b heads a loop not closed yet, var is a temp of its activation that no instruction of the loop stores: its value on entry, no phi."
+	| bl ac slot pc end op |
+	bl := ir block: b.
+	((bl flags bitAnd: BF_LOOP) ~= 0 and: [bl npreds = 1 and: [bl act >= 0]]) ifFalse: [^false].
+	ac := ir act: bl act.
+	slot := var - ac varBase.
+	(slot >= 0 and: [slot < (ac numArgs + ac numTemps)]) ifFalse: [^false].
+	pc := bl pc.
+	end := self lastBackJumpTo: pc act: bl act.
+	end < pc ifTrue: [^false].
+	[pc <= end] whileTrue: [
+		op := self byteAt: pc act: bl act.
+		((op >= 16r60 and: [op < 16r68]) and: [op - 16r60 = slot]) ifTrue: [^false].
+		((op = 16r84 or: [op = 16r87]) and: [(self byteAt: pc + 1 act: bl act) = slot]) ifTrue: [^false].
+		(op = 16r8B or: [op = 16r8C]) ifTrue: [^false].
+		pc := (pc + (analysis lengthOf: op)) asInt32].
+	^true
 !
 newPhi: b var: var
 	| n |
@@ -733,19 +756,35 @@ escapingClosure
 		(nd block >= 0 and: [(nd flags bitAnd: NF_DEAD) = 0]) ifTrue: [
 			(self usesClosure: nd a) ifTrue: [^self definingActOf: nd a].
 			(self usesClosure: nd b) ifTrue: [^self definingActOf: nd b].
-			(self usesClosure: nd c) ifTrue: [^self definingActOf: nd c].
-			nd op asInt32 ~= O_PHI ifTrue: [
-				0 to: nd nargs asInt32 - 1 do: [:i | (self usesClosure: (ir operand: nd args + i)) ifTrue: [^self definingActOf: (ir operand: nd args + i)]]].
-			nd op asInt32 = O_PHI ifTrue: [
+			(nd op asInt32 ~= O_SEND and: [self usesClosure: nd c]) ifTrue: [^self definingActOf: nd c].
+			"a phi that is one closure is that closure"
+			(nd op asInt32 ~= O_PHI or: [(self closureOf: n depth: 0) < 0]) ifTrue: [
 				0 to: nd nargs asInt32 - 1 do: [:i | (self usesClosure: (ir operand: nd args + i)) ifTrue: [^self definingActOf: (ir operand: nd args + i)]]]]].
 	^-1
 !
 usesClosure: v
 	v < 0 ifTrue: [^false].
-	^(ir node: (ir resolve: v)) op asInt32 = O_CLOSURE
+	^(self closureOf: v depth: 0) >= 0
+!
+closureOf: v depth: d
+	"The closure v is (through phis of it and themselves), -1 if none."
+	<c: 'int32_t opt_closure_of(int32_t v, int32_t d)'>
+	| n nd c x |
+	n := ir resolve: v.
+	nd := ir node: n.
+	nd op asInt32 = O_CLOSURE ifTrue: [^n].
+	(nd op asInt32 = O_PHI and: [d < 8 and: [nd nargs > 0]]) ifFalse: [^-1].
+	c := -1.
+	0 to: nd nargs asInt32 - 1 do: [:i |
+		x := ir resolve: (ir operand: nd args + i).
+		x ~= n ifTrue: [
+			x := self closureOf: x depth: d + 1.
+			(x < 0 or: [c >= 0 and: [c ~= x]]) ifTrue: [^-1].
+			c := x]].
+	^c
 !
 definingActOf: v
-	^((ir node: (ir resolve: v)) aux2 >> 32) asInt32
+	^((ir node: (self closureOf: v depth: 0)) aux2 >> 32) asInt32
 !
 push: v act: a depth: d
 	self write: (self var: a slot: d) value: v

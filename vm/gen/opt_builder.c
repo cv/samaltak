@@ -44,6 +44,7 @@ static int32_t opt_block_at(int32_t pc, int32_t a);
 static void opt_build_act(int32_t a);
 static bool opt_build_once(oop m);
 static bool opt_can_inline(oop m, int32_t a);
+static int32_t opt_closure_of(int32_t v, int32_t d);
 static int32_t opt_constant(uint64_t v);
 static int32_t opt_emit(int32_t pc, int32_t a);
 static int32_t opt_escaping_closure(void);
@@ -664,6 +665,38 @@ exit_length_of:;
     r_length_of; });
     }
     return true;
+}
+
+/* OptBuilder>>closureOf:depth: */
+static int32_t opt_closure_of(int32_t v, int32_t d)
+{
+    int32_t n;
+    opt_node *nd;
+    int64_t c;
+    int32_t i;
+    int32_t i_2;
+    int32_t x;
+    n = opt_resolve(v);
+    nd = opt_nodes + n;
+    if ((int32_t)nd->op == O_CLOSURE) {
+        return n;
+    }
+    if (!(((int32_t)nd->op == O_PHI) && ((d < 8) && (nd->nargs > 0)))) {
+        return -1;
+    }
+    c = -1;
+    for (i = 0; i <= (int32_t)nd->nargs - 1; i++) {
+        i_2 = nd->args + i;
+        x = opt_resolve(opt_operands[i_2]);
+        if (x != n) {
+            x = opt_closure_of(x, d + 1);
+            if ((x < 0) || ((c >= 0) && (c != x))) {
+                return -1;
+            }
+            c = x;
+        }
+    }
+    return c;
 }
 
 /* OptBuilder>>constant: */
@@ -3047,35 +3080,23 @@ static int32_t opt_escaping_closure(void)
     opt_node *nd;
     int32_t v;
     bool r_uses_closure;
-    int32_t n_2;
     int32_t v_2;
-    int32_t n_3;
+    int32_t n_2;
     int32_t v_3;
     bool r_uses_closure_2;
-    int32_t n_4;
     int32_t v_4;
-    int32_t n_5;
+    int32_t n_3;
     int32_t v_5;
     bool r_uses_closure_3;
-    int32_t n_6;
     int32_t v_6;
-    int32_t n_7;
+    int32_t n_4;
     int32_t i;
     int32_t i_2;
     int32_t v_7;
     bool r_uses_closure_4;
-    int32_t n_8;
     int32_t i_3;
     int32_t v_8;
-    int32_t n_9;
-    int32_t i_4;
-    int32_t i_5;
-    int32_t v_9;
-    bool r_uses_closure_5;
-    int32_t n_10;
-    int32_t i_6;
-    int32_t v_10;
-    int32_t n_11;
+    int32_t n_5;
     for (n = 0; n <= opt_node_count - 1; n++) {
         nd = opt_nodes + n;
         if ((nd->block >= 0) && ((nd->flags & NF_DEAD) == 0)) {
@@ -3085,13 +3106,12 @@ static int32_t opt_escaping_closure(void)
         r_uses_closure = false;
         goto exit_uses_closure;
     }
-    n_2 = opt_resolve(v);
-    r_uses_closure = (int32_t)(opt_nodes + n_2)->op == O_CLOSURE;
+    r_uses_closure = opt_closure_of(v, 0) >= 0;
 exit_uses_closure:;
     r_uses_closure; })) {
                 v_2 = nd->a;
-                n_3 = opt_resolve(v_2);
-                return (int32_t)((opt_nodes + n_3)->aux2 >> 32);
+                n_2 = opt_closure_of(v_2, 0);
+                return (int32_t)((opt_nodes + n_2)->aux2 >> 32);
             }
             v_3 = nd->b;
             if (({
@@ -3099,29 +3119,28 @@ exit_uses_closure:;
         r_uses_closure_2 = false;
         goto exit_uses_closure_2;
     }
-    n_4 = opt_resolve(v_3);
-    r_uses_closure_2 = (int32_t)(opt_nodes + n_4)->op == O_CLOSURE;
+    r_uses_closure_2 = opt_closure_of(v_3, 0) >= 0;
 exit_uses_closure_2:;
     r_uses_closure_2; })) {
                 v_4 = nd->b;
-                n_5 = opt_resolve(v_4);
-                return (int32_t)((opt_nodes + n_5)->aux2 >> 32);
+                n_3 = opt_closure_of(v_4, 0);
+                return (int32_t)((opt_nodes + n_3)->aux2 >> 32);
             }
-            v_5 = nd->c;
-            if (({
+            if (((int32_t)nd->op != O_SEND) && ({
+    v_5 = nd->c;
+    ({
     if (v_5 < 0) {
         r_uses_closure_3 = false;
         goto exit_uses_closure_3;
     }
-    n_6 = opt_resolve(v_5);
-    r_uses_closure_3 = (int32_t)(opt_nodes + n_6)->op == O_CLOSURE;
+    r_uses_closure_3 = opt_closure_of(v_5, 0) >= 0;
 exit_uses_closure_3:;
-    r_uses_closure_3; })) {
+    r_uses_closure_3; }); })) {
                 v_6 = nd->c;
-                n_7 = opt_resolve(v_6);
-                return (int32_t)((opt_nodes + n_7)->aux2 >> 32);
+                n_4 = opt_closure_of(v_6, 0);
+                return (int32_t)((opt_nodes + n_4)->aux2 >> 32);
             }
-            if ((int32_t)nd->op != O_PHI) {
+            if (((int32_t)nd->op != O_PHI) || (opt_closure_of(n, 0) < 0)) {
                 for (i = 0; i <= (int32_t)nd->nargs - 1; i++) {
                     i_2 = nd->args + i;
                     v_7 = opt_operands[i_2];
@@ -3130,34 +3149,13 @@ exit_uses_closure_3:;
         r_uses_closure_4 = false;
         goto exit_uses_closure_4;
     }
-    n_8 = opt_resolve(v_7);
-    r_uses_closure_4 = (int32_t)(opt_nodes + n_8)->op == O_CLOSURE;
+    r_uses_closure_4 = opt_closure_of(v_7, 0) >= 0;
 exit_uses_closure_4:;
     r_uses_closure_4; })) {
                         i_3 = nd->args + i;
                         v_8 = opt_operands[i_3];
-                        n_9 = opt_resolve(v_8);
-                        return (int32_t)((opt_nodes + n_9)->aux2 >> 32);
-                    }
-                }
-            }
-            if ((int32_t)nd->op == O_PHI) {
-                for (i_4 = 0; i_4 <= (int32_t)nd->nargs - 1; i_4++) {
-                    i_5 = nd->args + i_4;
-                    v_9 = opt_operands[i_5];
-                    if (({
-    if (v_9 < 0) {
-        r_uses_closure_5 = false;
-        goto exit_uses_closure_5;
-    }
-    n_10 = opt_resolve(v_9);
-    r_uses_closure_5 = (int32_t)(opt_nodes + n_10)->op == O_CLOSURE;
-exit_uses_closure_5:;
-    r_uses_closure_5; })) {
-                        i_6 = nd->args + i_4;
-                        v_10 = opt_operands[i_6];
-                        n_11 = opt_resolve(v_10);
-                        return (int32_t)((opt_nodes + n_11)->aux2 >> 32);
+                        n_5 = opt_closure_of(v_8, 0);
+                        return (int32_t)((opt_nodes + n_5)->aux2 >> 32);
                     }
                 }
             }
@@ -9423,10 +9421,27 @@ static int32_t opt_read(int32_t var, int32_t b)
     uint32_t i_2;
     uint32_t i;
     opt_block *bl;
+    bool r_loop_keeps;
+    opt_block *bl_2;
+    int32_t a;
+    opt_act *ac;
+    int32_t slot;
+    int32_t pc;
+    int32_t a_2;
+    int32_t end;
+    int32_t a_3;
+    oop m;
+    uint64_t o;
+    uint8_t op;
+    int32_t pc_2;
+    int32_t a_4;
+    oop m_2;
+    uint64_t o_2;
+    int64_t r_length_of;
+    int32_t v;
     int32_t r_new_phi;
     int32_t n;
     int32_t phi;
-    int32_t v;
     int32_t r_new_phi_2;
     int32_t n_2;
     if ((var < OPT_MAX_VARS) && (ob_arg_flags[var] != 0)) {
@@ -9444,6 +9459,124 @@ static int32_t opt_read(int32_t var, int32_t b)
         return opt_resolve(ob_def_vals[i]);
     }
     bl = opt_blocks + b;
+    if (((bl->flags & BF_SEALED) == 0) && ({
+    bl_2 = opt_blocks + b;
+    if (!(((bl_2->flags & BF_LOOP) != 0) && ((bl_2->npreds == 1) && (bl_2->act >= 0)))) {
+        r_loop_keeps = false;
+        goto exit_loop_keeps;
+    }
+    a = bl_2->act;
+    ac = opt_acts + a;
+    slot = var - ac->var_base;
+    if (!((slot >= 0) && (slot < ac->num_args + ac->num_temps))) {
+        r_loop_keeps = false;
+        goto exit_loop_keeps;
+    }
+    pc = bl_2->pc;
+    a_2 = bl_2->act;
+    end = ob_ana_back[(opt_acts + a_2)->ana + pc];
+    if (end < pc) {
+        r_loop_keeps = false;
+        goto exit_loop_keeps;
+    }
+    while (pc <= end) {
+        a_3 = bl_2->act;
+        m = (opt_acts + a_3)->method;
+        o = *(uint64_t *)(m + 16 + 24);
+        op = ((uint8_t *)(o + 16))[pc];
+        if ((op >= 0x60) && (op < 0x68) && (op - 0x60 == slot)) {
+            r_loop_keeps = false;
+            goto exit_loop_keeps;
+        }
+        if (((op == 0x84) || (op == 0x87)) && ({
+    pc_2 = pc + 1;
+    a_4 = bl_2->act;
+    m_2 = (opt_acts + a_4)->method;
+    o_2 = *(uint64_t *)(m_2 + 16 + 24);
+    ((uint8_t *)(o_2 + 16))[pc_2] == slot; })) {
+            r_loop_keeps = false;
+            goto exit_loop_keeps;
+        }
+        if ((op == 0x8B) || (op == 0x8C)) {
+            r_loop_keeps = false;
+            goto exit_loop_keeps;
+        }
+        pc = (int32_t)(pc + ({
+    if (op < 0x68) {
+        r_length_of = 1;
+        goto exit_length_of;
+    }
+    if (op < 0x70) {
+        r_length_of = 0;
+        goto exit_length_of;
+    }
+    if (op < 0x7D) {
+        r_length_of = 1;
+        goto exit_length_of;
+    }
+    if (op < 0x80) {
+        r_length_of = 0;
+        goto exit_length_of;
+    }
+    if (op < 0x88) {
+        r_length_of = 2;
+        goto exit_length_of;
+    }
+    if (op == 0x88) {
+        r_length_of = 0;
+        goto exit_length_of;
+    }
+    if (op == 0x89) {
+        r_length_of = 2;
+        goto exit_length_of;
+    }
+    if (op < 0x8F) {
+        r_length_of = 3;
+        goto exit_length_of;
+    }
+    if (op == 0x8F) {
+        r_length_of = 6;
+        goto exit_length_of;
+    }
+    if (op < 0x94) {
+        r_length_of = 3;
+        goto exit_length_of;
+    }
+    if (op == 0x94) {
+        r_length_of = 2;
+        goto exit_length_of;
+    }
+    if (op < 0x97) {
+        r_length_of = 0;
+        goto exit_length_of;
+    }
+    if (op < 0x9A) {
+        r_length_of = 4;
+        goto exit_length_of;
+    }
+    if (op < 0xA0) {
+        r_length_of = 3;
+        goto exit_length_of;
+    }
+    if (op < 0xF0) {
+        r_length_of = 1;
+        goto exit_length_of;
+    }
+    if (op < 0xFC) {
+        r_length_of = 3;
+        goto exit_length_of;
+    }
+    r_length_of = 0;
+exit_length_of:;
+    r_length_of; }));
+    }
+    r_loop_keeps = true;
+exit_loop_keeps:;
+    r_loop_keeps; })) {
+        v = opt_read(var, opt_pred(0, b));
+        opt_write(var, v, b);
+        return v;
+    }
     if ((bl->flags & BF_SEALED) == 0) {
         phi = ({
     n = opt_new_node(O_PHI, R_OOP);

@@ -1391,6 +1391,8 @@ uint64_t opt_tier_up(frame *f, int64_t loop)
     uint8_t *bcs;
     int32_t end;
     int32_t pc;
+    bool closures;
+    bool reach;
     uint8_t op;
     int64_t r_length_of;
     void *r_opt_of;
@@ -1454,11 +1456,15 @@ exit_failed:;
     bcs = (uint8_t *)(o_4 + 16);
     end = s == 0 ? (int32_t)byte_size(*(uint64_t *)(m + 16 + 24)) : s + (int32_t)((((int64_t)bcs[s - 2]) << 8) | bcs[s - 1]);
     pc = s;
+    closures = false;
+    reach = false;
     while (pc < end) {
         op = bcs[pc];
         if (op == 0x8F) {
-            r_makes_closures = true;
-            goto exit_makes_closures;
+            closures = true;
+        }
+        if (((op >= 0x8A) && (op <= 0x8C)) || ((op == 0x7C) || (op == 0x76))) {
+            reach = true;
         }
         pc = (int32_t)(pc + ({
     if (op < 0x68) {
@@ -1529,8 +1535,7 @@ exit_failed:;
 exit_length_of:;
     r_length_of; }));
     }
-    r_makes_closures = false;
-exit_makes_closures:;
+    r_makes_closures = closures && reach;
     r_makes_closures; }))) {
         return 0;
     }
