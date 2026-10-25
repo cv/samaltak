@@ -739,6 +739,7 @@ kill: h
 	"h's code must not run again: frames using it go back to the interpreter for good."
 	<c: 'void jit_kill(JitMethod *h)'>
 	| f |
+	optimizer clearBlockCalls.
 	cache beginWriting.
 	h method: memory nilOop.
 	h flags: (h flags bitOr: JM_DEAD).
@@ -1294,6 +1295,10 @@ outerTemp: f
 		ifTrue: [slot at: 0 put: (self loadRef: c at: CTX_FIXED + i)]
 		ifFalse: [self storeRef: c at: CTX_FIXED + i put: (slot at: -1)].
 	^0
+!
+blockCallEntryFor: start index: k
+	"The address of the optimizer's block call cache entry of safepoint k of the code at start."
+	^optimizer blockCallsAddress + (32 * (optimizer blockCallSlot: start index: k))
 !
 tierUp: f loop: loop
 	"The lower tier's counter for f's method ran out at f's pc (a method entry, or a backward jump if loop ~= 0; f's pc and sp stored): answer 0 to go on, 1 to leave, or where f continues in optimized code."

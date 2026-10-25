@@ -1,6 +1,6 @@
 OptModule subclass: #OptBuilder
 	instanceVariableNames: 'ir obCurBlock obBailed obVarTop obDefKeys obDefVals obDefCount obIncPhis obIncVars obIncCount obAnaMethods obAnaBases obAnaCount obAnaTop obAnaDepth obAnaFlag obAnaBack obPcBlocks obPcbTop obEntryBlock obRootMethod obInlined obDeps obDepCount obPrimKinds obPrimsKnown obNoInline obNoInlineCount obArgVals obArgFlags obUnitStart obOsrPc obParamSlots obValidSlots obSafeEpoch obAnaFloat'
-	classVariableNames: 'OA_BLOCK OA_LOOP OA_START OA_TARGET OPT_MAX_VARS OPT_MAX_NOINLINE OPT_MAX_PRIM PK_AT PK_FLOAT PK_FSQRT PK_NEW PK_NEWSIZE PK_ATPUT PK_CLASS PK_IDENTICAL PK_INT PK_SIZE PK_STRINGAT PK_STRINGATPUT OPT_INLINE_BUDGET OPT_INLINE_DEPTH OPT_INLINE_SIZE OPT_MAX_ANA OPT_MAX_DEPS OPT_MAX_INC'
+	classVariableNames: 'OA_BLOCK OA_LOOP OA_START OA_TARGET OPT_MAX_VARS OPT_MAX_NOINLINE OPT_MAX_PRIM PK_AT PK_FLOAT PK_FSQRT PK_NEW PK_NEWSIZE PK_CLOSURE PK_ATPUT PK_CLASS PK_IDENTICAL PK_INT PK_SIZE PK_STRINGAT PK_STRINGATPUT OPT_INLINE_BUDGET OPT_INLINE_DEPTH OPT_INLINE_SIZE OPT_MAX_ANA OPT_MAX_DEPS OPT_MAX_INC'
 	package: 'VM-Jit'!
 
 OptBuilder comment: 'Builds the IR (OptIR) of a method from its bytecodes: an abstract interpretation of each activation''s bytecodes in pc order, its slots (arguments, temps, operand stack: the depths BytecodeAnalysis computed) SSA variables, phis made on demand (Braun et al., Simple and Efficient Construction of Static Single Assignment Form, CC 2013: a block is sealed once all its predecessors are known; jump targets when the scan reaches them, loop heads after their last backward jump). Sends, guards and interrupt checks get frame states (OptState) for deoptimization. bail abandons the method (a bytecode the tier does not compile).'!
@@ -35,6 +35,7 @@ initialize
 	PK_FSQRT := 8.
 	PK_NEW := 9.
 	PK_NEWSIZE := 10.
+	PK_CLOSURE := 11.
 	OPT_INLINE_SIZE := 80.
 	OPT_INLINE_BUDGET := 1500.
 	OPT_INLINE_DEPTH := 8.
@@ -1069,6 +1070,8 @@ send: sel to: rcv class: cls argc: argc kind: kind pc: pc act: a rcvSlot: r
 	self noteDependency: sel.
 	self write: (self var: a slot: r) value: rcv.
 	((runtime flag: runtime allocFlag) and: [self allocate: m selector: sel class: cls argc: argc pc: pc act: a rcvSlot: r]) ifTrue: [^true].
+	(cls = memory clsBlock and: [(runtime flag: runtime callsFlag) and: [(self primKindOf: (self methodPrimitive: m)) = PK_CLOSURE]]) ifTrue: [
+		^self blockCall: sel argc: argc pc: pc act: a rcvSlot: r].
 	((self methodPrimitive: m) ~= 0 and: [(runtime flag: runtime primsFlag) and: [
 		self inlinePrimitive: (self methodPrimitive: m) class: cls argc: argc pc: pc act: a rcvSlot: r]]) ifTrue: [^true].
 	(self canInline: m act: a) ifTrue: [
@@ -1082,6 +1085,20 @@ send: sel to: rcv class: cls argc: argc kind: kind pc: pc act: a rcvSlot: r
 			(ir node: n) tcls: m.
 			^true]].
 	self callSelector: sel argc: argc kind: (kind = 1 ifTrue: [1] ifFalse: [0]) special: 0 pc: pc act: a rcvSlot: r.
+	^true
+!
+blockCall: sel argc: argc pc: pc act: a rcvSlot: r
+	"value, value: or value:value: of a BlockClosure: the send, with a fast path that calls the code the site called last (NF_BLOCKCALL)."
+	| k n |
+	k := -1.
+	(self loadRef: (memory special: SO_SPECIAL_SELECTORS) at: 21) = sel ifTrue: [k := 21].
+	(self loadRef: (memory special: SO_SPECIAL_SELECTORS) at: 22) = sel ifTrue: [k := 22].
+	(self loadRef: (memory special: SO_SPECIAL_SELECTORS) at: 30) = sel ifTrue: [k := 30].
+	k < 0 ifTrue: [
+		self callSelector: sel argc: argc kind: 0 special: 0 pc: pc act: a rcvSlot: r.
+		^true].
+	n := self callSelector: sel argc: argc kind: 2 special: k pc: pc act: a rcvSlot: r.
+	(ir node: n) flags: ((ir node: n) flags bitOr: NF_BLOCKCALL).
 	^true
 !
 allocate: m selector: sel class: cls argc: argc pc: pc act: a rcvSlot: r
@@ -1144,7 +1161,8 @@ primKindOf: p
 		self primNamed: 'floatDiv' kind: PK_FLOAT + 9.
 		self primNamed: 'floatSqrt' kind: PK_FSQRT.
 		self primNamed: 'basicNew' kind: PK_NEW.
-		self primNamed: 'basicNew:' kind: PK_NEWSIZE].
+		self primNamed: 'basicNew:' kind: PK_NEWSIZE.
+		self primNamed: 'closureValue' kind: PK_CLOSURE].
 	(p <= 0 or: [p >= OPT_MAX_PRIM]) ifTrue: [^0].
 	^(obPrimKinds at: p) asInt32
 !

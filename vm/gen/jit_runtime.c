@@ -1097,6 +1097,7 @@ void jit_kill(jit_method *h)
 {
     int32_t i;
     frame *f;
+    opt_clear_block_calls();
     pthread_jit_write_protect_np(0);
     h->method = nil_oop;
     h->flags = h->flags | JM_DEAD;

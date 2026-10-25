@@ -796,6 +796,12 @@ emitSend: n
 			(cgOuts + (cgOutCount - 1)) resume: cont.
 			self emitPushFrameFor: nd tcls argc: argc slow: slow]
 		ifFalse: [
+			(nd flags bitAnd: NF_BLOCKCALL) ~= 0 ifTrue: [
+				slow := asm newLabel.
+				self emitFramePc: cgBcSize + k sp: cgSlotTop.
+				self emitBlockCall: argc index: k slow: slow.
+				asm b: cont.
+				asm bind: slow].
 			self emitFramePc: cgBcSize + k sp: cgSlotTop + argc + 1.
 			asm bind: here.
 			self emitRuntimeSend: k site: here exit: cont].
@@ -937,6 +943,80 @@ emitPushFrameFor: m argc: n slow: slow
 	asm str: X14 base: X19 offset: fb + self codeOffset.
 	asm ldr: X16 base: X15 offset: 0.
 	asm blr: X16
+!
+emitBlockCall: n index: k slow: slow
+	"The closure at slotTop (its argument count n) runs the code this site called last: its frame pushed as the interpreter's blockActivate:fromArray: does, then a call of the entry; else, or no room on the stack: slow. Live values are in their home slots: x0-x13 are free."
+	| e fb loop fill |
+	e := runtime blockCallEntryFor: cgCodeStart index: k.
+	fb := self frameBytes asInt64.
+	asm comment: 'block call: the closure this site called last?'.
+	asm ldr: X14 base: X20 offset: 8 * cgSlotTop.
+	asm tst: X14 imm: 7.
+	asm b: slow if: COND_NE.
+	asm ldr: X15 base: X14 offset: (self fieldOffset: BC_NUMARGS).
+	asm cmp: X15 imm: 2 * n + 1.
+	asm b: slow if: COND_NE.
+	asm ldr: X15 base: X14 offset: 8.
+	self loadConstant: memory clsBlock into: X16.
+	asm cmp: X15 with: X16.
+	asm b: slow if: COND_NE.
+	asm adrp: X16 label: (asm labelAt: e).
+	asm add: X16 with: X16 imm: (e bitAnd: 16rFFF) asInt64.
+	asm ldr: X15 base: X14 offset: (self fieldOffset: BC_OUTER).
+	asm ldr: X17 base: X15 offset: (self fieldOffset: CTX_METHOD).
+	asm ldp: X0 with: X1 base: X16 offset: 0.
+	asm cmp: X17 with: X0.
+	asm b: slow if: COND_NE.
+	asm ldr: X2 base: X14 offset: (self fieldOffset: BC_STARTPC).
+	asm cmp: X2 with: X1.
+	asm b: slow if: COND_NE.
+	asm ldp: X0 with: X1 base: X16 offset: 16.
+	asm comment: 'its frame: temps, frame size, room on the stack'.
+	asm ldr: X2 base: X14 offset: (self fieldOffset: BC_NUMTEMPS).
+	asm asr: X2 with: X2 imm: 1.
+	asm ldr: X3 base: X14 offset: (self fieldOffset: BC_FRAMESIZE).
+	asm asr: X3 with: X3 imm: 1.
+	asm add: X4 with: X2 imm: n.
+	asm cmp: X3 with: X4.
+	asm csel: X3 with: X3 with: X4 cond: COND_GT.
+	asm add: X16 with: X20 imm: 8 * (cgSlotTop + 1).
+	asm add: X4 with: X16 with: X3 shift: SHIFT_LSL amount: 3.
+	asm add: X4 with: X4 imm: 8 * CTX_SLACK.
+	asm ldr: X5 base: X22 offset: self cstackLimitOffset.
+	asm cmp: X4 with: X5.
+	asm b: slow if: COND_HI.
+	asm comment: 'the receiver: the outer context''s'.
+	asm ldr: X5 base: X15 offset: (self fieldOffset: CTX_RECEIVER).
+	asm str: X5 base: X20 offset: 8 * cgSlotTop.
+	asm str: X17 base: X19 offset: fb.
+	asm str: X14 base: X19 offset: fb + self closureOffset.
+	asm ldr: X5 base: X22 offset: self nilOffset.
+	asm str: X5 base: X19 offset: fb + self ctxOffset.
+	asm str: X0 base: X19 offset: fb + self codeOffset.
+	asm str: X16 base: X19 offset: fb + self fpOffset.
+	asm ldr: X6 base: X14 offset: (self fieldOffset: BC_STARTPC).
+	asm asr: X6 with: X6 imm: 1.
+	asm ldr: X7 base: X17 offset: (self fieldOffset: CM_BYTECODES).
+	asm add: X7 with: X7 imm: 16.
+	asm add: X7 with: X7 with: X6.
+	asm str: X7 base: X19 offset: fb + self ipOffset.
+	asm ldr: X7 base: X17 offset: (self fieldOffset: CM_LITERALS).
+	asm add: X7 with: X7 imm: 16.
+	asm str: X7 base: X19 offset: fb + self litsOffset.
+	asm add: X8 with: X2 imm: n.
+	asm orr: X6 with: X6 with: X8 shift: SHIFT_LSL amount: 32.
+	asm str: X6 base: X19 offset: fb + self pcOffset.
+	asm comment: 'temps nil'.
+	loop := asm newLabel.
+	fill := asm newLabel.
+	asm add: X9 with: X16 imm: 8 * n.
+	asm b: fill.
+	asm bind: loop.
+	asm str: X5 base: X9 postIndex: 8.
+	asm sub: X2 with: X2 imm: 1.
+	asm bind: fill.
+	asm cbnz: X2 to: loop.
+	asm blr: X1
 !
 emitFramePc: pc sp: sp
 	asm comment: 'frame pc and sp'.

@@ -307,6 +307,7 @@ typedef void (*prim_fn)(void);
 #define MSG_ARGS 1
 #define MSG_SELECTOR 0
 #define NF_ALLOC 8
+#define NF_BLOCKCALL 16
 #define NF_DEAD 2
 #define NF_GUARD 4
 #define NF_PURE 1
@@ -315,6 +316,7 @@ typedef void (*prim_fn)(void);
 #define OA_START 1
 #define OA_TARGET 2
 #define OPT_ANA_MAX 65536
+#define OPT_BLOCK_CALLS 16384
 #define OPT_DEF_SIZE 131072
 #define OPT_INLINE_BUDGET 1500
 #define OPT_INLINE_DEPTH 8
@@ -451,6 +453,7 @@ typedef void (*prim_fn)(void);
 #define PK_AT 1
 #define PK_ATPUT 2
 #define PK_CLASS 6
+#define PK_CLOSURE 11
 #define PK_FLOAT 64
 #define PK_FSQRT 8
 #define PK_IDENTICAL 7
@@ -1212,6 +1215,7 @@ extern int32_t ps_order[2048];
 extern int32_t ps_order_count;
 extern int32_t ra_safe_list[262144];
 extern int32_t ra_slot_top;
+extern uint64_t rt_block_calls[16384];
 extern uint64_t rt_stat_deopts;
 extern uint64_t rt_stat_invalidations;
 extern uint64_t rt_stat_opt_bytecodes;
@@ -1519,6 +1523,7 @@ void opt_cleanup(int32_t entry);
 bool opt_allocate(int32_t numArgs);
 void opt_all_roots(void (*fn)(oop *));
 uint64_t opt_block_code(oop m, int32_t s);
+void opt_clear_block_calls(void);
 bool opt_compile(oop m);
 uint64_t opt_deopt_guard(frame *f, int64_t k);
 uint64_t opt_deopt_return(frame *f, int64_t k);

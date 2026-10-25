@@ -11,6 +11,7 @@ static int32_t rt_act_rcv[256];
 static int32_t rt_act_vals[256];
 static jit_method *rt_all[16384];
 static int32_t rt_all_count;
+uint64_t rt_block_calls[16384];
 static int32_t rt_deopt_count;
 static oop rt_deopt_vals[8192];
 static uint64_t rt_failed[4096];
@@ -59,6 +60,7 @@ void opt_all_roots(void (*fn)(oop *))
     oop *pool;
     int64_t i_4;
     oop o_2;
+    opt_clear_block_calls();
     if (rt_deopt_count == 0) {
         goto exit_decoded_roots;
     }
@@ -93,6 +95,12 @@ uint64_t opt_block_code(oop m, int32_t s)
         return (uint64_t)o;
     }
     return jit_block_code(m);
+}
+
+/* OptRuntime>>clearBlockCalls */
+void opt_clear_block_calls(void)
+{
+    memset(rt_block_calls, 0, 131072);
 }
 
 /* OptRuntime>>compile: */
@@ -544,6 +552,7 @@ uint64_t opt_deopt_return(frame *f, int64_t k)
 /* OptRuntime>>flushed */
 void opt_flushed(void)
 {
+    opt_clear_block_calls();
     rt_opt_young_count = 0;
     rt_opt_young_overflow = false;
     rt_all_count = 0;
@@ -1047,15 +1056,19 @@ uint64_t opt_send(frame *f, int64_t k, uint64_t key)
     oop sel;
     oop *base;
     oop r;
+    uint64_t v;
+    frame *g;
+    uint64_t start;
+    uint64_t *p;
     oop r_innermost_method_of;
     int32_t nacts;
-    int64_t p;
+    int64_t p_2;
     oop m;
     int32_t j;
     int32_t i_2;
     oop o;
     uint64_t o_2;
-    uint64_t v;
+    uint64_t v_2;
     uint64_t cls;
     uint8_t *site;
     uint64_t r_icache_index_of;
@@ -1070,7 +1083,7 @@ uint64_t opt_send(frame *f, int64_t k, uint64_t key)
     int32_t j_2;
     int32_t j_3;
     uint8_t i_4;
-    oop v_2;
+    oop v_3;
     uint64_t r_sent_3;
     uint64_t o_3;
     uint64_t r_leave_before_2;
@@ -1096,28 +1109,40 @@ uint64_t opt_send(frame *f, int64_t k, uint64_t key)
         if (((sp == 21) || ((sp == 22) || (sp == 30))) && (((r & 7) == 0) && ((*(uint64_t *)(r + 8) == cls_block) && (*(uint64_t *)(r + 16 + 16) == (uint64_t)((((int64_t)n) << 1) | 1))))) {
             interp_sync_frame(f);
             activate_block(n);
-            return jit_entry_of_top();
+            v = jit_entry_of_top();
+            if (v <= 1) {
+                goto exit_note_block_call;
+            }
+            g = frames + (nframes - 1);
+            start = h->code_start;
+            p = rt_block_calls + 4 * (((int64_t)((start >> 4) + k * 7)) & 4095);
+            p[0] = g->method;
+            p[1] = *(uint64_t *)(r + 16 + 8);
+            p[2] = g->code;
+            p[3] = v;
+        exit_note_block_call:;
+            return v;
         }
     }
     cls = ({
     if (kind == 1) {
         o = ({
     nacts = rec[4];
-    p = 5;
+    p_2 = 5;
     m = nil_oop;
     for (j = 0; j <= nacts - 1; j++) {
-        i_2 = rec[p];
+        i_2 = rec[p_2];
         m = ((oop *)(h->code_start + h->pool_offset))[i_2];
-        p = p + 5 + rec[p + 4];
+        p_2 = p_2 + 5 + rec[p_2 + 4];
     }
     r_innermost_method_of = m;
     r_innermost_method_of; });
         o_2 = *(uint64_t *)(o + 16 + 8);
-        v = *(uint64_t *)(o_2 + 16 + 0);
+        v_2 = *(uint64_t *)(o_2 + 16 + 0);
     } else {
-        v = (r & 7) != 0 ? tag_class[r & 7] : *(uint64_t *)(r + 8);
+        v_2 = (r & 7) != 0 ? tag_class[r & 7] : *(uint64_t *)(r + 8);
     }
-    v; });
+    v_2; });
     site = (uint8_t *)key;
     e = icache + ({
     s = (uint64_t)site;
@@ -1168,9 +1193,9 @@ exit_sent_2:;
         if (ok) {
             for (j_3 = 0; j_3 <= n - 1; j_3++) {
                 i_4 = e->set_ivar[j_3];
-                v_2 = base[1 + j_3];
-                *(uint64_t *)(r + 16 + 8 * i_4) = v_2;
-                if (((v_2 & 7) == 0) && (((uint64_t)(v_2 - young_lo) < young_hi - young_lo) && ((!((uint64_t)(r - young_lo) < young_hi - young_lo)) && (((*(uint64_t *)r) & H_REMEMBERED) == 0)))) {
+                v_3 = base[1 + j_3];
+                *(uint64_t *)(r + 16 + 8 * i_4) = v_3;
+                if (((v_3 & 7) == 0) && (((uint64_t)(v_3 - young_lo) < young_hi - young_lo) && ((!((uint64_t)(r - young_lo) < young_hi - young_lo)) && (((*(uint64_t *)r) & H_REMEMBERED) == 0)))) {
                     vm_remember(r);
                 }
             }
@@ -1498,6 +1523,7 @@ void opt_young_roots(void (*fn)(oop *))
     int64_t i_8;
     oop o_7;
     oop o_8;
+    opt_clear_block_calls();
     if (rt_deopt_count == 0) {
         goto exit_decoded_roots;
     }
