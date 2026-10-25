@@ -4,13 +4,13 @@
 
 oop active_ctx;
 static cache_entry cache[4096];
-static oop cstack[65536];
-static size_t cstack_used;
+oop cstack[65536];
+size_t cstack_used;
 frame frames[65536];
 cache_entry icache[4096];
 int32_t nframes;
 oop *prim_base;
-static int64_t prim_base_index;
+int64_t prim_base_index;
 int32_t prim_error_code;
 int32_t prim_nargs;
 oop prim_result;
@@ -32,8 +32,6 @@ static void ctx_set_stackp(oop ctx, int64_t sp);
 static oop ctx_home(oop ctx);
 static cache_entry *fill_cache(oop cls, oop sel);
 static int64_t frame_size(frame *f);
-static oop lookup_method(oop cls, oop sel);
-static void print_activation(oop m, oop r, oop closure, FILE *f);
 static void print_class_name(oop cls, FILE *f);
 static void print_stack(oop ctx, FILE *f);
 static void print_symbol(oop s, FILE *f);
@@ -112,13 +110,17 @@ void interp_before_gc(void)
 {
     int32_t i;
     frame *f;
+    uint64_t c;
     oop m;
     uint64_t o;
     for (i = 0; i <= nframes - 1; i++) {
         f = frames + i;
-        m = f->method;
-        o = *(uint64_t *)(m + 16 + 24);
-        f->pc = (int32_t)(f->ip - (uint8_t *)(o + 16));
+        c = f->code;
+        if (!((c > JIT_MAX_COUNT) && (((jit_method *)f->code)->mode == JIT_OPT))) {
+            m = f->method;
+            o = *(uint64_t *)(m + 16 + 24);
+            f->pc = (int32_t)(f->ip - (uint8_t *)(o + 16));
+        }
     }
 }
 
@@ -457,6 +459,7 @@ bool interp_frames_valid(bool (*valid)(oop))
 {
     int32_t i;
     int64_t i_2;
+    int32_t k;
     for (i = 0; i <= nframes - 1; i++) {
         if (!(valid((frames + i)->method) && (valid((frames + i)->closure) && valid((frames + i)->ctx)))) {
             return false;
@@ -464,6 +467,11 @@ bool interp_frames_valid(bool (*valid)(oop))
     }
     for (i_2 = 0; i_2 <= (int64_t)cstack_used - 1; i_2++) {
         if (!valid(cstack[i_2])) {
+            fprintf(stderr, "slot %lld of %lld: %llx\n", i_2, (int64_t)cstack_used, cstack[i_2]);
+            for (k = 0; k <= nframes - 1; k++) {
+                fprintf(stderr, "frame %d fp %ld sp %d pc %d ", k, (frames + k)->fp - cstack, (frames + k)->sp, (frames + k)->pc);
+                print_activation((frames + k)->method, (frames + k)->fp[-1], (frames + k)->closure, stderr);
+            }
             return false;
         }
     }
@@ -12097,7 +12105,7 @@ bool is_married(oop o)
 }
 
 /* Interpreter>>lookupMethod:selector: */
-static oop lookup_method(oop a_class, oop a_selector)
+oop lookup_method(oop a_class, oop a_selector)
 {
     uint32_t h;
     oop c;
@@ -12174,6 +12182,7 @@ void materialize_all(void)
 {
     int32_t i;
     frame *f;
+    uint64_t c;
     oop ctx;
     int64_t n;
     oop *s;
@@ -12190,30 +12199,35 @@ void materialize_all(void)
     stat_materialized = stat_materialized + (uint64_t)nframes;
     for (i = 0; i <= nframes - 1; i++) {
         f = frames + i;
-        ctx = f->ctx;
-        if (ctx == nil_oop) {
-            n = frame_size(f) + CTX_SLACK;
-            if (n < f->sp) {
-                n = f->sp;
+        c = f->code;
+        if ((c > JIT_MAX_COUNT) && (((jit_method *)f->code)->mode == JIT_OPT)) {
+            jit_materialize_opt(f);
+        } else {
+            ctx = f->ctx;
+            if (ctx == nil_oop) {
+                n = frame_size(f) + CTX_SLACK;
+                if (n < f->sp) {
+                    n = f->sp;
+                }
+                ctx = alloc_context((uint32_t)n);
             }
-            ctx = alloc_context((uint32_t)n);
+            s = (oop *)(ctx + 16);
+            s[CTX_SENDER] = active_ctx;
+            m = f->method;
+            o = *(uint64_t *)(m + 16 + 24);
+            v = f->ip - (uint8_t *)(o + 16);
+            s[CTX_PC] = (uint64_t)((v << 1) | 1);
+            v_2 = f->sp;
+            s[CTX_STACKP] = (uint64_t)((((int64_t)v_2) << 1) | 1);
+            s[CTX_METHOD] = f->method;
+            s[CTX_CLOSURE] = f->closure;
+            s[CTX_RECEIVER] = f->fp[-1];
+            memcpy(s + CTX_FIXED, f->fp, (uint64_t)f->sp * 8);
+            if (((ctx & 7) == 0) && ((!((uint64_t)(ctx - young_lo) < young_hi - young_lo)) && (((*(uint64_t *)ctx) & H_REMEMBERED) == 0))) {
+                vm_remember(ctx);
+            }
+            active_ctx = ctx;
         }
-        s = (oop *)(ctx + 16);
-        s[CTX_SENDER] = active_ctx;
-        m = f->method;
-        o = *(uint64_t *)(m + 16 + 24);
-        v = f->ip - (uint8_t *)(o + 16);
-        s[CTX_PC] = (uint64_t)((v << 1) | 1);
-        v_2 = f->sp;
-        s[CTX_STACKP] = (uint64_t)((((int64_t)v_2) << 1) | 1);
-        s[CTX_METHOD] = f->method;
-        s[CTX_CLOSURE] = f->closure;
-        s[CTX_RECEIVER] = f->fp[-1];
-        memcpy(s + CTX_FIXED, f->fp, (uint64_t)f->sp * 8);
-        if (((ctx & 7) == 0) && ((!((uint64_t)(ctx - young_lo) < young_hi - young_lo)) && (((*(uint64_t *)ctx) & H_REMEMBERED) == 0))) {
-            vm_remember(ctx);
-        }
-        active_ctx = ctx;
     }
     nframes = 0;
     cstack_used = 0;
@@ -12240,7 +12254,7 @@ void prim_commit(oop a_result)
 }
 
 /* Interpreter>>printActivation:receiver:closure:on: */
-static void print_activation(oop m, oop r, oop closure, FILE *f)
+void print_activation(oop m, oop r, oop closure, FILE *f)
 {
     oop rc;
     uint64_t mc;

@@ -9,6 +9,7 @@ void prim_flush_cache_for_selector(void)
 {
     oop v;
     flush_method_cache_selector(prim_nargs > 0 ? prim_base[1] : prim_base[0]);
+    jit_methods_changed(prim_nargs > 0 ? prim_base[1] : prim_base[0]);
     v = prim_base[0];
     prim_result = v;
     prim_status = PS_OK;
@@ -19,6 +20,7 @@ void prim_flush_method_cache(void)
 {
     oop v;
     flush_method_cache();
+    jit_methods_changed(nil_oop);
     v = prim_base[0];
     prim_result = v;
     prim_status = PS_OK;
@@ -255,7 +257,7 @@ void prim_vm_banner(void)
 /* SystemPrimitives>>primVMStats */
 void prim_vm_stats(void)
 {
-    int64_t local[24];
+    int64_t local[32];
     int64_t *v;
     oop a;
     int i;
@@ -286,8 +288,16 @@ void prim_vm_stats(void)
     v[21] = (int64_t)stat_resumes;
     v[22] = (int64_t)stat_osr;
     v[23] = (int64_t)stat_failed;
-    a = alloc_obj(cls_array, F_VAR, 24);
-    for (i = 0; i <= 23; i++) {
+    v[24] = jit_opt_stat(0);
+    v[25] = jit_opt_stat(1);
+    v[26] = jit_opt_stat(2);
+    v[27] = jit_opt_stat(3);
+    v[28] = jit_opt_stat(4);
+    v[29] = jit_opt_stat(5);
+    v[30] = jit_opt_stat(6);
+    v[31] = jit_opt_stat(7);
+    a = alloc_obj(cls_array, F_VAR, 32);
+    for (i = 0; i <= 31; i++) {
         v_2 = v[i];
         ((oop *)(a + 16))[i] = (uint64_t)((v_2 << 1) | 1);
     }

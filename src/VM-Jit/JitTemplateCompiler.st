@@ -1,6 +1,6 @@
 JitCompiler subclass: #JitTemplateCompiler
-	instanceVariableNames: 'codeStart pcLabels deferred deferredPcs deferredCount slowKinds slowPcs slowDepths slowLabels slowResumes slowRegs slowCount exitSyncLabel exitPlainLabel sendLabel specialLabel interruptLabel closureLabel makeArrayLabel outerTempLabel widowLabel barrierLabel'
-	classVariableNames: 'SLOW_BARRIER SLOW_EXIT SLOW_INTERRUPT SLOW_SPECIAL SLOW_WIDOW TPL_MAX_SLOW'
+	instanceVariableNames: 'codeStart pcLabels deferred deferredPcs deferredCount slowKinds slowPcs slowDepths slowLabels slowResumes slowRegs slowCount exitSyncLabel exitPlainLabel sendLabel specialLabel interruptLabel closureLabel makeArrayLabel outerTempLabel widowLabel barrierLabel tierUpLabel counterAddr'
+	classVariableNames: 'SLOW_BARRIER SLOW_EXIT SLOW_INTERRUPT SLOW_SPECIAL SLOW_TIERUP SLOW_WIDOW TPL_MAX_SLOW'
 	package: 'VM-Jit'!
 
 JitTemplateCompiler comment: 'The template compiler (--jit template): every bytecode becomes a fixed piece of machine code that works on the frame''s slots at their static offsets (BytecodeAnalysis), with no values kept in registers between bytecodes. Inline: pushes, stores (the store barrier''s fast path with --jit-flags barrier), jumps with interrupt checks on backward ones, SmallInteger + - * // \\ bitAnd: bitOr: and comparisons with tag checks and overflow branches (arith), and as in the interpreter (fuse) an arithmetic result followed by a pop into a temp stored right there and a comparison followed by a conditional jump branching directly (the consumed instruction''s own code, for slow paths and resumption, goes out of line), == and ~~, returns. Sends and everything else call the runtime (JitRuntime). thisContext, non-local returns, mustBeBoolean, stores into immutable objects and returns from the bottom frame leave to the interpreter at their pc. Slow paths are out of line, after the method''s code. It removes the interpreter''s dispatch and nothing else: the baseline of the comparison.'!
@@ -11,7 +11,8 @@ declarations
 		(slowKinds 'uint8_t[TPL_MAX_SLOW]') (slowPcs 'int32_t[TPL_MAX_SLOW]') (slowDepths 'int32_t[TPL_MAX_SLOW]') (slowLabels 'int32_t[TPL_MAX_SLOW]')
 		(slowResumes 'int32_t[TPL_MAX_SLOW]') (slowRegs 'int32_t[TPL_MAX_SLOW]') (slowCount int32_t)
 		(exitSyncLabel int32_t) (exitPlainLabel int32_t) (sendLabel int32_t) (specialLabel int32_t) (interruptLabel int32_t)
-		(closureLabel int32_t) (makeArrayLabel int32_t) (outerTempLabel int32_t) (widowLabel int32_t) (barrierLabel int32_t))
+		(closureLabel int32_t) (makeArrayLabel int32_t) (outerTempLabel int32_t) (widowLabel int32_t) (barrierLabel int32_t)
+		(tierUpLabel int32_t) (counterAddr uint64_t))
 !
 initialize
 	TPL_MAX_SLOW := 16384.
@@ -19,7 +20,8 @@ initialize
 	SLOW_SPECIAL := 2.
 	SLOW_INTERRUPT := 3.
 	SLOW_WIDOW := 4.
-	SLOW_BARRIER := 5
+	SLOW_BARRIER := 5.
+	SLOW_TIERUP := 6
 ! !
 
 !JitTemplateCompiler methodsFor: 'compiling'!
@@ -44,6 +46,8 @@ compile: m
 	outerTempLabel := asm labelAt: stubs outerTempStub.
 	widowLabel := asm labelAt: stubs widowStub.
 	barrierLabel := asm labelAt: stubs barrierStub.
+	tierUpLabel := asm labelAt: stubs tierUpStub.
+	counterAddr := runtime tiering ifTrue: [runtime counterAddressFor: m] ifFalse: [0].
 	pc := 0.
 	[pc < n] whileTrue: [
 		(analysis isStart: pc)
@@ -188,6 +192,17 @@ emitEntry: pc depth: d
 	s := self slow: SLOW_INTERRUPT pc: pc depth: d resume: after reg: 0.
 	s < 0 ifTrue: [^false].
 	self emitInterruptCheck: s.
+	asm bind: after.
+	(pc = 0 and: [counterAddr ~= 0]) ifTrue: [^self emitTierUpCheck: pc depth: d].
+	^true
+!
+emitTierUpCheck: pc depth: d
+	"--jit opt: count down toward optimization; at zero the runtime may continue the frame in optimized code."
+	| s after |
+	after := asm newLabel.
+	s := self slow: SLOW_TIERUP pc: pc depth: d resume: after reg: 0.
+	s < 0 ifTrue: [^false].
+	self emitCountDown: counterAddr to: s.
 	asm bind: after.
 	^true
 !
@@ -357,6 +372,10 @@ jumpTo: t
 	s < 0 ifTrue: [^false].
 	asm comment: 'jump back'.
 	self emitInterruptCheck: s.
+	counterAddr ~= 0 ifTrue: [
+		s := self slow: SLOW_TIERUP pc: t depth: (analysis depthAt: t) resume: (self labelFor: t) reg: 0.
+		s < 0 ifTrue: [^false].
+		self emitCountDown: counterAddr to: s].
 	asm b: (self labelFor: t).
 	^true
 !
@@ -371,6 +390,10 @@ branch: cond to: t
 	s := self slow: SLOW_INTERRUPT pc: t depth: (analysis depthAt: t) resume: (self labelFor: t) reg: 0.
 	s < 0 ifTrue: [^false].
 	self emitInterruptCheck: s.
+	counterAddr ~= 0 ifTrue: [
+		s := self slow: SLOW_TIERUP pc: t depth: (analysis depthAt: t) resume: (self labelFor: t) reg: 0.
+		s < 0 ifTrue: [^false].
+		self emitCountDown: counterAddr to: s].
 	asm b: (self labelFor: t).
 	asm bind: skip.
 	^true
@@ -794,6 +817,19 @@ emitSlowPaths
 			self emitSync: (slowPcs at: i) depth: (slowDepths at: i).
 			self emitCall: specialLabel info: (self specialInfo: (slowPcs at: i)).
 			self emitCallResult.
+			asm b: (slowResumes at: i)].
+		kind = SLOW_TIERUP ifTrue: [
+			asm comment: 'tier up: the runtime answers 0 (go on), 1 (leave) or where the frame continues'.
+			self emitSync: (slowPcs at: i) depth: (slowDepths at: i).
+			asm mov: X0 with: X19.
+			asm bl: tierUpLabel.
+			l := asm newLabel.
+			asm cbz: X0 to: l.
+			asm cmp: X0 imm: 1.
+			asm b: exitPlainLabel if: COND_EQ.
+			asm br: X0.
+			asm bind: l.
+			self emitReloadReceiver.
 			asm b: (slowResumes at: i)].
 		kind = SLOW_WIDOW ifTrue: [
 			asm comment: 'married: call the runtime'.

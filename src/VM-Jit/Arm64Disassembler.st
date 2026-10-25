@@ -57,7 +57,7 @@ textFor: aWord at: anAddress
 	decoders := self class decoders.
 	1 to: decoders size by: 3 do: [:i |
 		(word bitAnd: (decoders at: i)) = (decoders at: i + 1) ifTrue: [
-			^(self perform: (decoders at: i + 2)) ifNil: [self dataWord]]].
+			^([self perform: (decoders at: i + 2)] on: Error do: [:e | e return: nil]) ifNil: [self dataWord]]].
 	^self dataWord
 !
 target

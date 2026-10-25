@@ -93,4 +93,13 @@ emitSync: pc depth: d
 emitReloadReceiver
 	asm comment: 'reload the receiver (a GC may have moved it)'.
 	asm ldr: X21 base: X20 offset: -8
+!
+emitCountDown: address to: slowLabel
+	"Decrement the int32 counter at address (in the VM's data, within adrp's range of the code), branch to slowLabel when it is no longer positive (--jit opt: the lower tier counts method entries and backward jumps; the slow path calls the tier-up stub)."
+	asm comment: 'count toward optimization'.
+	asm adrp: X16 label: (asm labelAt: address).
+	asm ldr: W17 base: X16 offset: (address bitAnd: 16rFFF) asInt64.
+	asm subs: W17 with: W17 imm: 1.
+	asm str: W17 base: X16 offset: (address bitAnd: 16rFFF) asInt64.
+	asm b: slowLabel if: COND_LE
 ! !

@@ -138,7 +138,7 @@ beforeGC
 	| f |
 	0 to: nframes - 1 do: [:i |
 		f := frames + i.
-		f pc: (f ip - (self methodBcs: f method)) asInt32]
+		(jit isOptFrame: f) ifFalse: [f pc: (f ip - (self methodBcs: f method)) asInt32]]
 !
 refreshTagClasses
 	"Classes of immediates by tag (low 3 bits); 0 = object pointer."
@@ -177,7 +177,13 @@ framesValid: valid
 	<c: 'bool interp_frames_valid(bool (*valid)(oop))'>
 	0 to: nframes - 1 do: [:i |
 		((valid call: (frames + i) method) and: [(valid call: (frames + i) closure) and: [valid call: (frames + i) ctx]]) ifFalse: [^false]].
-	0 to: cstackUsed asInt64 - 1 do: [:i | (valid call: (cstack at: i)) ifFalse: [^false]].
+	0 to: cstackUsed asInt64 - 1 do: [:i | (valid call: (cstack at: i)) ifFalse: [
+		libc fprintf: libc stderr format: 'slot %lld of %lld: %llx
+' with: i with: cstackUsed asInt64 with: (cstack at: i).
+		0 to: nframes - 1 do: [:k |
+			libc fprintf: libc stderr format: 'frame %d fp %ld sp %d pc %d ' with: k with: ((frames + k) fp - cstack) asInt64 with: (frames + k) sp with: (frames + k) pc.
+			self printActivation: (frames + k) method receiver: ((frames + k) fp at: -1) closure: (frames + k) closure on: libc stderr].
+		^false]].
 	^true
 !
 materializeAll
@@ -188,21 +194,24 @@ materializeAll
 	statMaterialized := statMaterialized + nframes asUInt64.
 	0 to: nframes - 1 do: [:i |
 		f := frames + i.
-		ctx := f ctx.
-		ctx = memory nilOop ifTrue: [
-			n := (self frameSize: f) + CTX_SLACK.
-			n < f sp ifTrue: [n := f sp].
-			ctx := memory allocContext: n asUInt32].
-		s := self slotsOf: ctx.
-		s at: CTX_SENDER put: activeCtx.
-		s at: CTX_PC put: (self intOop: f ip - (self methodBcs: f method)).
-		s at: CTX_STACKP put: (self intOop: f sp).
-		s at: CTX_METHOD put: f method.
-		s at: CTX_CLOSURE put: f closure.
-		s at: CTX_RECEIVER put: (f fp at: -1).
-		libc memcpy: s + CTX_FIXED from: f fp size: f sp asUInt64 * 8.
-		gc rememberIfOld: ctx.
-		activeCtx := ctx].
+		(jit isOptFrame: f)
+			ifTrue: [jit materializeOpt: f]
+			ifFalse: [
+				ctx := f ctx.
+				ctx = memory nilOop ifTrue: [
+					n := (self frameSize: f) + CTX_SLACK.
+					n < f sp ifTrue: [n := f sp].
+					ctx := memory allocContext: n asUInt32].
+				s := self slotsOf: ctx.
+				s at: CTX_SENDER put: activeCtx.
+				s at: CTX_PC put: (self intOop: f ip - (self methodBcs: f method)).
+				s at: CTX_STACKP put: (self intOop: f sp).
+				s at: CTX_METHOD put: f method.
+				s at: CTX_CLOSURE put: f closure.
+				s at: CTX_RECEIVER put: (f fp at: -1).
+				libc memcpy: s + CTX_FIXED from: f fp size: f sp asUInt64 * 8.
+				gc rememberIfOld: ctx.
+				activeCtx := ctx]].
 	nframes := 0.
 	cstackUsed := 0.
 	self refreshPrimBase.
@@ -724,6 +733,22 @@ thawFor: code
 	nframes := 1.
 	cstackUsed := (n + 1) asUInt64.
 	^f
+!
+cstackLimit
+	"The end of the slots a frame may use (frames need CTX_SLACK more)."
+	^self cCoerce: cstack + (CSTACK_SLOTS - CTX_SLACK) to: 'uint64_t'
+!
+cstackBase
+	^cstack
+!
+nframes: n
+	nframes := n
+!
+cstackUsed: n
+	cstackUsed := n
+!
+primBaseIndex: i
+	primBaseIndex := i
 !
 setCacheCode: c forMethod: m
 	"m got machine code c: method cache entries that count its activations switch to it."

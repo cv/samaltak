@@ -84,10 +84,18 @@ typedef void (*prim_fn)(void);
 #define BEH_FORMAT 2
 #define BEH_METHODDICT 1
 #define BEH_SUPERCLASS 0
+#define BF_DEOPT 4
+#define BF_LOOP 2
+#define BF_SEALED 1
 #define CACHE_SIZE 4096
 #define CACHE_SPACE 134234112
 #define CD_INSTVARS 3
 #define CD_ORGANIZATION 4
+#define CG_MAX_META 262144
+#define CG_MAX_MOVES 256
+#define CG_MAX_OUT 4096
+#define CG_MAX_POOL 1024
+#define CG_MAX_SP 4096
 #define CLS_CLASSPOOL 7
 #define CLS_INSTSIZE_MASK 65535
 #define CLS_NAME 6
@@ -179,6 +187,19 @@ typedef void (*prim_fn)(void);
 #define EXT_UXTH 1
 #define EXT_UXTW 2
 #define EXT_UXTX 3
+#define E_BYTE 1
+#define E_CHAR 2
+#define E_PTR 0
+#define FB_CLASSES 4
+#define FB_DEOPT_ARITH 32
+#define FB_DEOPT_BOUNDS 64
+#define FB_DEOPT_CLASS 16
+#define FB_DEOPT_OTHER 128
+#define FB_FLOAT 2
+#define FB_MAX 16384
+#define FB_MEGA 1
+#define FB_NONINT 4
+#define FB_OVERFLOW 8
 #define F_BYTES 16
 #define F_EMPTY 0
 #define F_FIXED 1
@@ -208,16 +229,31 @@ typedef void (*prim_fn)(void);
 #define H_IMMUTABLE 576460752303423488LL
 #define H_REMEMBERED 1152921504606846976LL
 #define ICACHE_SIZE 4096
+#define JIT_FLAG_ALLOC 32768
 #define JIT_FLAG_ARITH 1
 #define JIT_FLAG_BARRIER 4
+#define JIT_FLAG_BCE 2048
+#define JIT_FLAG_BLOCKS 64
+#define JIT_FLAG_CALLS 16384
+#define JIT_FLAG_DEOPT 131072
+#define JIT_FLAG_EAGER 65536
 #define JIT_FLAG_EMBED 16
+#define JIT_FLAG_ESCAPE 8192
 #define JIT_FLAG_FUSE 2
+#define JIT_FLAG_GVN 256
+#define JIT_FLAG_INLINE 32
+#define JIT_FLAG_LAST 131072
+#define JIT_FLAG_LICM 512
 #define JIT_FLAG_NOTES 8
+#define JIT_FLAG_PRIMS 128
+#define JIT_FLAG_RANGE 1024
+#define JIT_FLAG_UNBOX 4096
 #define JIT_MAX_COUNT 65535
 #define JIT_MAX_MAP 32768
 #define JIT_MAX_REFS 4096
 #define JIT_MAX_YOUNG 4096
 #define JIT_NONE 0
+#define JIT_OPT 4
 #define JIT_PROLOGUE_BYTES 20
 #define JIT_STENCIL 3
 #define JIT_TABLE_SIZE 65536
@@ -226,6 +262,7 @@ typedef void (*prim_fn)(void);
 #define JM_DEAD 2
 #define JM_FAILED 1
 #define JM_NOTES 4
+#define JM_OSR 8
 #define K_BUF 6
 #define K_CMD 7
 #define K_CONST 8
@@ -248,6 +285,13 @@ typedef void (*prim_fn)(void);
 #define LAST_ERROR_SIZE 1024
 #define LL_FIRST 0
 #define LL_LAST 1
+#define LOC_CONST 2
+#define LOC_DREG 5
+#define LOC_INT 4
+#define LOC_REG 1
+#define LOC_SLOT 0
+#define LOC_SMI 3
+#define LOC_SUNK 6
 #define LOG_ERROR_SIZE 2048
 #define MAX_CLAIMS 16
 #define MAX_FDS 1024
@@ -262,6 +306,70 @@ typedef void (*prim_fn)(void);
 #define MIN_BUDGET 67108864
 #define MSG_ARGS 1
 #define MSG_SELECTOR 0
+#define NF_DEAD 2
+#define NF_GUARD 4
+#define NF_PURE 1
+#define OA_BLOCK 8
+#define OA_LOOP 4
+#define OA_START 1
+#define OA_TARGET 2
+#define OPT_ANA_MAX 65536
+#define OPT_DEF_SIZE 131072
+#define OPT_INLINE_BUDGET 1500
+#define OPT_INLINE_DEPTH 8
+#define OPT_INLINE_SIZE 80
+#define OPT_MAX_ACTS 512
+#define OPT_MAX_ANA 256
+#define OPT_MAX_BLOCKS 2048
+#define OPT_MAX_DEOPTS 8
+#define OPT_MAX_DEOPT_ACTS 256
+#define OPT_MAX_DEOPT_VALS 8192
+#define OPT_MAX_DEPS 256
+#define OPT_MAX_EDGES 8192
+#define OPT_MAX_HEADERS 16384
+#define OPT_MAX_INC 16384
+#define OPT_MAX_NODES 16384
+#define OPT_MAX_OPERANDS 131072
+#define OPT_MAX_PRIM 1024
+#define OPT_MAX_STATES 4096
+#define OPT_MAX_YOUNG 1024
+#define OPT_PCB_MAX 131072
+#define OUT_BARRIER 3
+#define OUT_BOTTOM 6
+#define OUT_DEOPT 1
+#define OUT_INTERRUPT 2
+#define OUT_LAZY 4
+#define OUT_STACK 5
+#define O_BRANCH 31
+#define O_CALL 18
+#define O_CAST 21
+#define O_CHECKINT 19
+#define O_CLASSIS 20
+#define O_CLASSOF 6
+#define O_CONST 1
+#define O_DEOPT 33
+#define O_EQ 7
+#define O_GOTO 30
+#define O_GUARDCLASS 15
+#define O_GUARDINT 16
+#define O_IADD 9
+#define O_IAND 13
+#define O_ICMP 12
+#define O_IMUL 11
+#define O_INDEXLOAD 22
+#define O_INDEXSTORE 23
+#define O_IOR 14
+#define O_ISUB 10
+#define O_LAST 33
+#define O_LOADFIELD 4
+#define O_NE 8
+#define O_NOP 0
+#define O_PARAM 2
+#define O_PHI 3
+#define O_RETURN 32
+#define O_SEND 17
+#define O_SIZE 24
+#define O_STOREFIELD 5
 #define PF_BLEND_ALPHA 1
 #define PF_BLEND_NONE 0
 #define PF_BLEND_PREMULTIPLIED 2
@@ -324,6 +432,14 @@ typedef void (*prim_fn)(void);
 #define PF_X_NIL 0
 #define PF_X_POINT 4
 #define PF_X_TEXT 3
+#define PK_AT 1
+#define PK_ATPUT 2
+#define PK_CLASS 6
+#define PK_IDENTICAL 7
+#define PK_INT 32
+#define PK_SIZE 3
+#define PK_STRINGAT 4
+#define PK_STRINGATPUT 5
 #define POLL_FDS 129
 #define PRIM_ENSURE_MARKER 198
 #define PRIM_ERR_NO_MEMORY 1
@@ -341,6 +457,12 @@ typedef void (*prim_fn)(void);
 #define PS_OK 1
 #define PS_RESEND 4
 #define PS_SWITCHED 3
+#define RA_ARENA 1048576
+#define RA_MAX_ACTIVE 1024
+#define RA_MAX_SAFE 4096
+#define RA_MAX_SAFELIST 262144
+#define RA_MAX_SLOTS 1024
+#define RA_NREGS 20
 #define REG_D 128
 #define REG_SP 32
 #define REG_W 64
@@ -351,6 +473,10 @@ typedef void (*prim_fn)(void);
 #define RELOC_PAGE 5
 #define RELOC_PAGEOFF 6
 #define RELOC_THREAD 7
+#define R_DBL 3
+#define R_INT 2
+#define R_NONE 0
+#define R_OOP 1
 #define SCHED_ACTIVE 1
 #define SCHED_LISTS 0
 #define SEM_EXCESS 2
@@ -362,6 +488,7 @@ typedef void (*prim_fn)(void);
 #define SLOW_EXIT 1
 #define SLOW_INTERRUPT 3
 #define SLOW_SPECIAL 2
+#define SLOW_TIERUP 6
 #define SLOW_WIDOW 4
 #define SO_ARRAY 9
 #define SO_ASSOCIATION 23
@@ -402,12 +529,16 @@ typedef void (*prim_fn)(void);
 #define SO_WIDESTRING 13
 #define SO_WIDESYMBOL 33
 #define SP 63
+#define SP_CALL 2
+#define SP_ENTRY 4
+#define SP_GUARD 1
+#define SP_LOOP 3
 #define STC_MAX_PATCHES 8192
 #define STC_MAX_SLOTS 4096
 #define STC_MAX_SLOW 16384
 #define STC_MAX_SLOW_VALUES 131072
 #define STC_MAX_SYMBOLS 256
-#define STUB_MAX_SYMBOLS 16
+#define STUB_MAX_SYMBOLS 32
 #define ST_ADD 0
 #define ST_ADD_OPERANDS 1
 #define ST_ADD_OPERANDS_INTO 4
@@ -480,6 +611,13 @@ typedef void (*prim_fn)(void);
 #define TICK_DEADLINE 1
 #define TICK_POLL 2
 #define TPL_MAX_SLOW 16384
+#define T_ANY 0
+#define T_BOOL 3
+#define T_CHAR 6
+#define T_FLOAT 2
+#define T_NIL 4
+#define T_OBJ 5
+#define T_SMI 1
 #define VM_INT_MAX 4611686018427387903LL
 #define VM_INT_MIN -4611686018427387904LL
 #define W0 64
@@ -550,10 +688,17 @@ typedef void (*prim_fn)(void);
 #define XZR 31
 
 typedef struct cache_entry cache_entry;
+typedef struct feedback_site feedback_site;
 typedef struct frame frame;
 typedef struct image_header image_header;
 typedef struct jit_method jit_method;
 typedef struct jit_state jit_state;
+typedef struct opt_act opt_act;
+typedef struct opt_block opt_block;
+typedef struct opt_edge opt_edge;
+typedef struct opt_node opt_node;
+typedef struct opt_out opt_out;
+typedef struct opt_state opt_state;
 typedef struct primitive_entry primitive_entry;
 #ifndef SAMALTAK_NO_PLATFORM
 typedef struct fence_watch fence_watch;
@@ -587,6 +732,15 @@ struct cache_entry {
     uint8_t set_ivar[4];
 };
 _Static_assert(sizeof(cache_entry) == 64, "the simulator lays out CacheEntry as C does");
+
+struct feedback_site {
+    oop method;
+    int32_t pc;
+    uint32_t flags;
+    oop classes[4];
+    uint32_t counts[4];
+};
+_Static_assert(sizeof(feedback_site) == 64, "the simulator lays out FeedbackSite as C does");
 
 struct frame {
     oop method;
@@ -630,8 +784,21 @@ struct jit_method {
     uint32_t *note_offsets;
     uint64_t *note_texts;
     int64_t *note_values;
+    uint64_t opt;
+    uint64_t lower;
+    uint32_t slots;
+    uint32_t bc_size;
+    uint32_t pool_offset;
+    uint32_t pool_count;
+    uint32_t sp_count;
+    uint32_t dep_count;
+    int32_t *sp_table;
+    int32_t *meta;
+    int32_t *deps;
+    uint32_t deopts;
+    uint32_t pad2;
 };
-_Static_assert(sizeof(jit_method) == 96, "the simulator lays out JitMethod as C does");
+_Static_assert(sizeof(jit_method) == 168, "the simulator lays out JitMethod as C does");
 
 struct jit_state {
     oop nil_oop;
@@ -645,8 +812,116 @@ struct jit_state {
     uint64_t young_hi;
     oop array_class;
     oop point_class;
+    uint64_t cstack_limit;
+    int64_t stress;
+    uint64_t dump[64];
 };
-_Static_assert(sizeof(jit_state) == 80, "the simulator lays out JitState as C does");
+_Static_assert(sizeof(jit_state) == 608, "the simulator lays out JitState as C does");
+
+struct opt_act {
+    oop method;
+    int32_t parent;
+    int32_t outer;
+    int32_t home;
+    int32_t closure;
+    int32_t receiver;
+    int32_t var_base;
+    int32_t nslots;
+    int32_t num_args;
+    int32_t num_temps;
+    int32_t startpc;
+    int32_t endpc;
+    int32_t ana;
+    int32_t pcb;
+    int32_t ret_block;
+    int32_t ret_var;
+    int32_t send_pc;
+    int32_t send_argc;
+    int32_t depth;
+    uint64_t rcv_class;
+};
+_Static_assert(sizeof(opt_act) == 88, "the simulator lays out OptAct as C does");
+
+struct opt_block {
+    int32_t first;
+    int32_t last;
+    int32_t preds;
+    int32_t npreds;
+    int32_t succ0;
+    int32_t succ1;
+    int32_t flags;
+    int32_t act;
+    int32_t pc;
+    int32_t rpo;
+    int32_t idom;
+    int32_t loop;
+    int32_t depth;
+    int32_t from;
+    int32_t to;
+    int32_t label;
+    int32_t live;
+    int32_t loop_end;
+};
+_Static_assert(sizeof(opt_block) == 72, "the simulator lays out OptBlock as C does");
+
+struct opt_edge {
+    int32_t from;
+    int32_t next;
+};
+_Static_assert(sizeof(opt_edge) == 8, "the simulator lays out OptEdge as C does");
+
+struct opt_node {
+    uint16_t op;
+    uint8_t rep;
+    uint8_t tkind;
+    uint16_t flags;
+    uint16_t nargs;
+    int32_t block;
+    int32_t next;
+    int32_t prev;
+    int32_t a;
+    int32_t b;
+    int32_t c;
+    int32_t args;
+    int32_t state;
+    int32_t fwd;
+    int32_t uses;
+    int64_t aux;
+    int64_t aux2;
+    uint64_t tcls;
+    int64_t lo;
+    int64_t hi;
+    int16_t reg;
+    int16_t slot;
+    int32_t pos;
+    int32_t lstart;
+    int32_t lend;
+    int32_t live;
+    int32_t nlive;
+    int32_t bcact;
+    int32_t bcpc;
+};
+_Static_assert(sizeof(opt_node) == 120, "the simulator lays out OptNode as C does");
+
+struct opt_out {
+    int32_t kind;
+    int32_t node;
+    int32_t index;
+    int32_t label;
+    int32_t resume;
+    int32_t pos;
+};
+_Static_assert(sizeof(opt_out) == 24, "the simulator lays out OptOut as C does");
+
+struct opt_state {
+    int32_t parent;
+    int32_t act;
+    int32_t pc;
+    int32_t depth;
+    int32_t vals;
+    int32_t flags;
+};
+_Static_assert(sizeof(opt_state) == 24, "the simulator lays out OptState as C does");
 
 struct primitive_entry {
     int32_t number;
@@ -796,10 +1071,13 @@ extern uint64_t young_hi;
 extern uint64_t young_lo;
 extern char *image_path;
 extern oop active_ctx;
+extern oop cstack[65536];
+extern size_t cstack_used;
 extern frame frames[65536];
 extern cache_entry icache[4096];
 extern int32_t nframes;
 extern oop *prim_base;
+extern int64_t prim_base_index;
 extern int32_t prim_error_code;
 extern int32_t prim_nargs;
 extern oop prim_result;
@@ -813,16 +1091,22 @@ extern uint64_t stat_flushes;
 extern uint64_t stat_materialized;
 extern oop tag_class[8];
 extern oop tmp_roots[4];
+extern bool flush_pending;
 extern int64_t jit_cache_mb;
 extern uint32_t jit_flags;
 extern int32_t jit_mode;
+extern int64_t jit_opt_threshold;
 extern int64_t jit_osr_threshold;
 extern int64_t jit_threshold;
 extern int32_t map_count;
 extern uint32_t map_offsets[32768];
 extern uint32_t map_pcs[32768];
+extern int32_t opt_counts[65536];
+extern prim_fn perform_args_fn;
+extern prim_fn perform_fn;
 extern int32_t ref_count;
 extern uint32_t ref_sites[4096];
+extern int32_t send_pushed;
 extern uint64_t stat_bytecodes;
 extern uint64_t stat_cache_flushes;
 extern uint64_t stat_code_bytes;
@@ -841,12 +1125,17 @@ extern uint64_t exit_plain_addr;
 extern uint64_t exit_sync_addr;
 extern uint64_t interrupt_stub;
 extern uint64_t make_array_stub;
+extern uint64_t opt_deopt_return_stub;
+extern uint64_t opt_deopt_stub;
+extern uint64_t opt_send_stub;
+extern uint64_t opt_stack_full_stub;
 extern uint64_t outer_temp_stub;
 extern uint64_t send_stub;
 extern uint64_t special_stub;
-extern uint64_t symbol_addrs[16];
+extern uint64_t symbol_addrs[32];
 extern int32_t symbol_count;
-extern const char *symbol_names[16];
+extern const char *symbol_names[32];
+extern uint64_t tier_up_stub;
 extern uint64_t widow_stub;
 extern oop cls_array;
 extern oop cls_block;
@@ -866,6 +1155,43 @@ extern int32_t root_count;
 extern oop *root_stack[1024];
 extern oop specials_oop;
 extern oop true_oop;
+extern int32_t ob_dep_count;
+extern oop ob_deps[256];
+extern int32_t ob_entry_block;
+extern uint64_t cg_code_start;
+extern int32_t cg_dep_count;
+extern int32_t cg_deps[256];
+extern int32_t cg_meta_count;
+extern int32_t cg_meta_words[262144];
+extern int32_t cg_pool_count;
+extern int32_t cg_pool_labels[1024];
+extern int32_t cg_slot_top;
+extern int32_t cg_sp_count;
+extern int32_t opt_act_count;
+extern opt_act opt_acts[512];
+extern int32_t opt_block_count;
+extern opt_block opt_blocks[2048];
+extern int32_t opt_cur_act;
+extern int32_t opt_cur_pc;
+extern opt_edge opt_edges[8192];
+extern bool opt_full;
+extern int32_t opt_node_count;
+extern opt_node opt_nodes[16384];
+extern int32_t opt_operands[131072];
+extern int32_t opt_state_count;
+extern opt_state opt_states[4096];
+extern int32_t ps_order[2048];
+extern int32_t ps_order_count;
+extern int32_t ra_safe_list[262144];
+extern int32_t ra_slot_top;
+extern uint64_t rt_stat_deopts;
+extern uint64_t rt_stat_invalidations;
+extern uint64_t rt_stat_opt_bytecodes;
+extern uint64_t rt_stat_opt_bytes;
+extern uint64_t rt_stat_opt_compiled;
+extern uint64_t rt_stat_opt_failed;
+extern uint64_t rt_stat_opt_osr;
+extern uint64_t rt_stat_opt_us;
 extern oop alloc_sample_class;
 extern int64_t alloc_sample_countdown;
 extern int64_t alloc_sample_interval;
@@ -961,9 +1287,11 @@ bool interp_frames_valid(bool (*valid)(oop));
 void interpret(void);
 void interrupt_safepoint(void);
 bool is_married(oop o);
+oop lookup_method(oop cls, oop sel);
 oop marry(frame *f);
 void materialize_all(void);
 void prim_commit(oop result);
+void print_activation(oop m, oop r, oop closure, FILE *f);
 frame *interp_push_frame(oop m, int32_t n, uint64_t c, int32_t ecode);
 frame *interp_push_frame_entry(cache_entry *e, int32_t n);
 void interp_roots(void (*fn)(oop *));
@@ -974,6 +1302,12 @@ cache_entry *site_entry(uint8_t *site, oop cls, oop sel);
 void interp_sync_frame(frame *f);
 frame *interp_thaw(uint64_t code);
 void widow(frame *f);
+void fb_all_roots(void (*fn)(oop *));
+uint32_t fb_flags_at(oop m, int64_t pc);
+void jit_note_flags(oop m, int64_t pc, uint32_t f);
+void jit_note_send(oop m, int64_t pc, oop cls);
+feedback_site *fb_site_at(oop m, int64_t pc);
+void fb_young_roots(void (*fn)(oop *));
 void prim_jit_code(void);
 void prim_jit_parameters(void);
 void jit_activated(frame *f);
@@ -986,23 +1320,33 @@ uint64_t jit_cache_code(oop m);
 uint64_t jit_closure(frame *f);
 jit_method *jit_compile(oop m, int32_t md, bool notes);
 void jit_defaults(void);
+uint64_t jit_dispatch(cache_entry *e, frame *f, int32_t n);
 bool jit_ensure_open(void);
+uint64_t jit_entry_of_top(void);
 const char *jit_flag_name(uint32_t bit);
 bool jit_headers_valid(bool (*valid)(oop));
 uint64_t jit_interrupt(frame *f);
+void jit_kill(jit_method *h);
 jit_method *jit_lookup(oop m);
 uint64_t jit_make_array(frame *f);
+int64_t jit_map_offset(jit_method *h, int64_t pc);
+void jit_materialize_opt(frame *f);
+void jit_methods_changed(oop sel);
 const char *jit_mode_name(int32_t m);
 int32_t jit_mode_named(const char *name);
+int64_t jit_opt_stat(int32_t i);
 uint64_t jit_outer_temp(frame *f);
 bool jit_parse_flags(const char *s);
+int64_t jit_primitive_number(const char *name);
 void jit_resume(frame *f);
 void jit_resume_context(bool looping);
 uint64_t jit_send(frame *f, uint64_t info, uint64_t key);
 void jit_set_flags(uint32_t f);
 bool jit_set_mode(int32_t m);
 uint64_t jit_special(frame *f, uint64_t info, uint64_t key);
+oop jit_special_fast(int32_t k, oop *base);
 void jit_start(void);
+uint64_t jit_tier_up(frame *f);
 uint64_t jit_widow(frame *f);
 uint64_t jit_write_barrier(oop o, oop v);
 void jit_young_roots(void (*fn)(oop *));
@@ -1119,6 +1463,41 @@ void prim_string_at(void);
 void prim_string_at_put(void);
 void prim_string_compare(void);
 void prim_string_hash(void);
+bool opt_build(oop m);
+bool opt_generate(oop m, int32_t a);
+int32_t opt_add_pred(int32_t from, int32_t to);
+int32_t opt_alloc_operands(int32_t n);
+void opt_append(int32_t n, int32_t b);
+void opt_insert_before(int32_t n, int32_t m);
+int32_t opt_new_act(void);
+int32_t opt_new_block(void);
+int32_t opt_new_node(int32_t op, int32_t rep);
+int32_t opt_new_state(void);
+int32_t opt_pred(int32_t i, int32_t b);
+void opt_prepend(int32_t n, int32_t b);
+void opt_ir_print(void);
+void opt_replace_pred(int32_t old, int32_t new, int32_t b);
+void opt_ir_reset(void);
+int32_t opt_resolve(int32_t n);
+void opt_unlink(int32_t n);
+void opt_cleanup(int32_t entry);
+bool opt_allocate(int32_t numArgs);
+void opt_all_roots(void (*fn)(oop *));
+bool opt_compile(oop m);
+uint64_t opt_deopt_guard(frame *f, int64_t k);
+uint64_t opt_deopt_return(frame *f, int64_t k);
+void opt_flushed(void);
+bool opt_header_valid(jit_method *o, bool (*valid)(oop));
+int32_t opt_initial_count(oop m);
+void opt_invalidate_all(void);
+void opt_invalidate_selector(oop sel);
+uint64_t opt_leave(frame *f, bool after);
+void opt_materialize(frame *f);
+uint64_t opt_resume(frame *f);
+uint64_t opt_send(frame *f, int64_t k, uint64_t key);
+uint64_t opt_stack_full(frame *f);
+uint64_t opt_tier_up(frame *f);
+void opt_young_roots(void (*fn)(oop *));
 bool prim_is_leaf(int64_t n);
 bool prim_tryable(int64_t n);
 prim_fn prim_lookup(int64_t n);

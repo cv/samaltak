@@ -1,5 +1,5 @@
 JitCompiler subclass: #JitStubs
-	instanceVariableNames: 'enterAddr exitSyncAddr exitPlainAddr sendStub specialStub interruptStub closureStub makeArrayStub outerTempStub widowStub barrierStub symbolAddrs symbolNames symbolCount'
+	instanceVariableNames: 'enterAddr exitSyncAddr exitPlainAddr sendStub specialStub interruptStub closureStub makeArrayStub outerTempStub widowStub barrierStub tierUpStub optSendStub optDeoptStub optDeoptReturnStub optStackFullStub symbolAddrs symbolNames symbolCount'
 	classVariableNames: 'STUB_MAX_SYMBOLS'
 	package: 'VM-Jit'!
 
@@ -13,11 +13,11 @@ One stub per runtime function (ldr x16, =function; br x16), so that compiled cod
 declarations
 	^#((enterAddr uint64_t) (exitSyncAddr uint64_t) (exitPlainAddr uint64_t)
 		(sendStub uint64_t) (specialStub uint64_t) (interruptStub uint64_t) (closureStub uint64_t) (makeArrayStub uint64_t)
-		(outerTempStub uint64_t) (widowStub uint64_t) (barrierStub uint64_t)
+		(outerTempStub uint64_t) (widowStub uint64_t) (barrierStub uint64_t) (tierUpStub uint64_t) (optSendStub uint64_t) (optDeoptStub uint64_t) (optDeoptReturnStub uint64_t) (optStackFullStub uint64_t)
 		(symbolAddrs 'uint64_t[STUB_MAX_SYMBOLS]') (symbolNames 'const char *[STUB_MAX_SYMBOLS]') (symbolCount int32_t))
 !
 initialize
-	STUB_MAX_SYMBOLS := 16
+	STUB_MAX_SYMBOLS := 32
 ! !
 
 !JitStubs methodsFor: 'accessing'!
@@ -53,6 +53,21 @@ widowStub
 !
 barrierStub
 	^barrierStub
+!
+tierUpStub
+	^tierUpStub
+!
+optSendStub
+	^optSendStub
+!
+optDeoptStub
+	^optDeoptStub
+!
+optDeoptReturnStub
+	^optDeoptReturnStub
+!
+optStackFullStub
+	^optStackFullStub
 !
 symbolCount
 	^symbolCount
@@ -131,10 +146,33 @@ generate
 	outerTempStub := self stub: runtime outerTempFunction named: 'outer temp'.
 	widowStub := self stub: runtime widowFunction named: 'widow'.
 	barrierStub := self stub: runtime writeBarrierFunction named: 'write barrier'.
+	tierUpStub := self stub: runtime tierUpFunction named: 'tier up'.
+	optSendStub := self stub: runtime optSendFunction named: 'optimized send'.
+	optDeoptReturnStub := self stub: runtime optDeoptReturnFunction named: 'deoptimize after a send'.
+	optStackFullStub := self stub: runtime optStackFullFunction named: 'no room for the frame'.
+	optDeoptStub := self deoptStub.
 	asm finish = ASM_OK ifFalse: [^false].
 	cache allocate: asm codeSize.
 	cache endWritingFrom: start size: asm codeSize.
 	^true
+!
+deoptStub
+	"Optimized code's guards branch here with the safepoint in w17: the registers into the JitState's dump, then the runtime rebuilds the frames, and the interpreter continues."
+	| a dump lit |
+	a := self symbol: 'deoptimize'.
+	dump := self cCoerce: ((self cCoerce: 0 to: 'JitState *') fieldAddress: #dump) to: 'int64_t'.
+	asm add: X16 with: X22 imm: dump.
+	0 to: 14 do: [:i | asm stp: 2 * i with: 2 * i + 1 base: X16 offset: 16 * i].
+	0 to: 15 do: [:i | asm stp: D0 + (2 * i) with: D0 + (2 * i) + 1 base: X16 offset: 256 + (16 * i)].
+	asm mov: X0 with: X19.
+	asm mov: W1 with: W17.
+	lit := asm newLabel.
+	asm ldr: X16 label: lit.
+	asm blr: X16.
+	asm b: (asm labelAt: exitPlainAddr).
+	asm bind: lit.
+	asm emit64: runtime optDeoptFunction.
+	^a
 !
 symbol: name
 	"The address of the next instruction, named name in disassemblies."

@@ -5,7 +5,7 @@ VMPrimitiveModule subclass: #SystemPrimitives
 
 SystemPrimitives comment: 'Time and system primitives: clocks, quit, snapshot, GC, statistics, the method cache, the command line, standard output, the environment, the VM''s banner.
 
-vmStats answers an Array of SmallIntegers: 1 scavenges, 2 full GCs, 3 scavenge µs, 4 full GC µs, 5 old bytes used, 6 old budget, 7 eden bytes, 8 bytes allocated, 9 remembered set size, 10 process switches, 11 bytes tenured, 12 weak slots cleared, 13 frames flushed into Contexts, 14 flushes; the JIT''s: 15 methods compiled, 16 bytecodes compiled, 17 compile µs, 18 code bytes, 19 code cache flushes, 20 entries into machine code, 21 exits to the interpreter, 22 resumptions (machine code continued after a return or a send the interpreter made), 23 on-stack replacements, 24 methods the JIT could not compile.'!
+vmStats answers an Array of SmallIntegers: 1 scavenges, 2 full GCs, 3 scavenge µs, 4 full GC µs, 5 old bytes used, 6 old budget, 7 eden bytes, 8 bytes allocated, 9 remembered set size, 10 process switches, 11 bytes tenured, 12 weak slots cleared, 13 frames flushed into Contexts, 14 flushes; the JIT''s: 15 methods compiled, 16 bytecodes compiled, 17 compile µs, 18 code bytes, 19 code cache flushes, 20 entries into machine code, 21 exits to the interpreter, 22 resumptions (machine code continued after a return or a send the interpreter made), 23 on-stack replacements, 24 methods the JIT could not compile; the optimizing tier''s: 25 methods optimized, 26 their bytecodes, 27 µs optimizing, 28 optimized code bytes, 29 deoptimizations, 30 on-stack replacements into optimized code, 31 optimized methods invalidated, 32 methods it could not optimize.'!
 
 !SystemPrimitives methodsFor: 'time'!
 primMillisecondClock
@@ -64,7 +64,7 @@ primScavenge
 primVMStats
 	<vmPrimitive: 164 name: 'vmStats'>
 	| v a |
-	v := self local: 'int64_t[24]'.
+	v := self local: 'int64_t[32]'.
 	v at: 0 put: gc statScavenges asInt64.
 	v at: 1 put: gc statFullGcs asInt64.
 	v at: 2 put: gc statScavengeUs asInt64.
@@ -89,18 +89,28 @@ primVMStats
 	v at: 21 put: jit statResumes asInt64.
 	v at: 22 put: jit statOsr asInt64.
 	v at: 23 put: jit statFailed asInt64.
-	a := memory allocObj: memory clsArray format: F_VAR slots: 24.
-	0 to: 23 do: [:i | (self slotsOf: a) at: i put: (self intOop: (v at: i))].
+	v at: 24 put: (jit optStat: 0).
+	v at: 25 put: (jit optStat: 1).
+	v at: 26 put: (jit optStat: 2).
+	v at: 27 put: (jit optStat: 3).
+	v at: 28 put: (jit optStat: 4).
+	v at: 29 put: (jit optStat: 5).
+	v at: 30 put: (jit optStat: 6).
+	v at: 31 put: (jit optStat: 7).
+	a := memory allocObj: memory clsArray format: F_VAR slots: 32.
+	0 to: 31 do: [:i | (self slotsOf: a) at: i put: (self intOop: (v at: i))].
 	self answer: a
 !
 primFlushMethodCache
 	<vmPrimitive: 165 name: 'flushMethodCache'>
 	interpreter flushMethodCache.
+	jit methodsChanged: memory nilOop.
 	self answer: self receiver
 !
 primFlushCacheForSelector
 	<vmPrimitive: 166 name: 'flushCacheForSelector'>
 	interpreter flushMethodCacheSelector: (self argCount > 0 ifTrue: [self arg: 0] ifFalse: [self receiver]).
+	jit methodsChanged: (self argCount > 0 ifTrue: [self arg: 0] ifFalse: [self receiver]).
 	self answer: self receiver
 !
 stringsArray: v count: n

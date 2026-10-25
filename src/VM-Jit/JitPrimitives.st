@@ -56,10 +56,10 @@ flagsString
 	"The flags that are on, comma-separated."
 	<c: 'oop jit_flags_string(void)'>
 	| buf n bit name len |
-	buf := self local: 'char[128]'.
+	buf := self local: 'char[256]'.
 	n := 0.
 	bit := 1.
-	[bit <= 16] whileTrue: [
+	[bit <= jit lastFlag] whileTrue: [
 		(jit flags bitAnd: bit) ~= 0 ifTrue: [
 			name := jit flagName: bit asUInt32.
 			len := libc strlen: name.

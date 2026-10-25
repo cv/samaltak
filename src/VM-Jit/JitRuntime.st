@@ -1,6 +1,6 @@
 VMCoreModule subclass: #JitRuntime
-	instanceVariableNames: 'stubs template stencil cache asm analysis jitMode jitFlags jitThreshold jitOsrThreshold jitCacheMB cacheOpened flushPending invalidations stateBlock methodTable tableCount methodCounts youngMethods youngCount youngOverflow mapPcs mapOffsets mapCount refSites refCount sendPushed performFn performArgsFn statCompiled statFailed statBytecodes statCompileUs statCodeBytes statCacheFlushes statEntries statExits statResumes statOsr'
-	classVariableNames: 'JIT_FLAG_ARITH JIT_FLAG_BARRIER JIT_FLAG_EMBED JIT_FLAG_FUSE JIT_FLAG_NOTES JIT_MAX_COUNT JIT_MAX_MAP JIT_MAX_REFS JIT_MAX_YOUNG JIT_NONE JIT_PROLOGUE_BYTES JIT_STENCIL JIT_TABLE_SIZE JIT_TEMPLATE JIT_THREADED JM_DEAD JM_FAILED JM_NOTES'
+	instanceVariableNames: 'stubs template stencil cache asm analysis feedback optimizer jitMode jitFlags jitThreshold jitOsrThreshold jitOptThreshold jitCacheMB cacheOpened flushPending invalidations stateBlock methodTable tableCount methodCounts youngMethods youngCount youngOverflow optCounts mapPcs mapOffsets mapCount refSites refCount sendPushed performFn performArgsFn statCompiled statFailed statBytecodes statCompileUs statCodeBytes statCacheFlushes statEntries statExits statResumes statOsr'
+	classVariableNames: 'JIT_FLAG_ALLOC JIT_FLAG_ARITH JIT_FLAG_BARRIER JIT_FLAG_BCE JIT_FLAG_BLOCKS JIT_FLAG_CALLS JIT_FLAG_DEOPT JIT_FLAG_EAGER JIT_FLAG_EMBED JIT_FLAG_ESCAPE JIT_FLAG_FUSE JIT_FLAG_GVN JIT_FLAG_INLINE JIT_FLAG_LAST JIT_FLAG_LICM JIT_FLAG_NOTES JIT_FLAG_PRIMS JIT_FLAG_RANGE JIT_FLAG_UNBOX JIT_MAX_COUNT JIT_MAX_MAP JIT_MAX_REFS JIT_MAX_YOUNG JIT_NONE JIT_OPT JIT_PROLOGUE_BYTES JIT_STENCIL JIT_TABLE_SIZE JIT_TEMPLATE JIT_THREADED JM_DEAD JM_FAILED JM_NOTES JM_OSR'
 	package: 'VM-Jit'!
 
 JitRuntime comment: 'The runtime every compiler''s machine code runs on (docs/jit.md, Shared runtime): configuration (--jit, --jit-threshold, --jit-osr, --jit-flags, --jit-cache), the compiled methods (JitMethod headers in the code cache, found by the method''s identity hash; their methods are GC roots, young ones listed for scavenges; embedded object references patched by full GCs and become), the interpreter''s hooks (activated:, resume:, backJump:), the functions machine code calls (send:info:site:, special:info:site:, interrupt:, closure:, makeArray:, outerTemp:, widow:, writeBarrier:value:), code cache flushes, statistics.
@@ -10,11 +10,12 @@ Machine code runs the interpreter''s frames: x19 the Frame, x20 its slots, x21 t
 !JitRuntime class methodsFor: 'declaring'!
 declarations
 	^#((stubs JitStubs) (template JitTemplateCompiler) (stencil JitStencilCompiler) (cache CodeCache) (asm Arm64Assembler) (analysis BytecodeAnalysis)
-		(jitMode int32_t) (jitFlags uint32_t) (jitThreshold int64_t 2) (jitOsrThreshold int64_t 50) (jitCacheMB int64_t 64)
+		(feedback JitFeedback) (optimizer OptRuntime)
+		(jitMode int32_t) (jitFlags uint32_t) (jitThreshold int64_t 2) (jitOsrThreshold int64_t 50) (jitOptThreshold int64_t 1000) (jitCacheMB int64_t 64)
 		(cacheOpened bool) (flushPending bool) (invalidations uint64_t)
 		(stateBlock 'JitState[1]')
 		(methodTable 'JitMethod *[JIT_TABLE_SIZE]') (tableCount int64_t) (methodCounts 'uint16_t[JIT_TABLE_SIZE]')
-		(youngMethods 'JitMethod *[JIT_MAX_YOUNG]') (youngCount int32_t) (youngOverflow bool)
+		(youngMethods 'JitMethod *[JIT_MAX_YOUNG]') (youngCount int32_t) (youngOverflow bool) (optCounts 'int32_t[JIT_TABLE_SIZE]')
 		(mapPcs 'uint32_t[JIT_MAX_MAP]') (mapOffsets 'uint32_t[JIT_MAX_MAP]') (mapCount int32_t)
 		(refSites 'uint32_t[JIT_MAX_REFS]') (refCount int32_t) (sendPushed int32_t)
 		(performFn prim_fn) (performArgsFn prim_fn)
@@ -26,11 +27,27 @@ initialize
 	JIT_TEMPLATE := 1.
 	JIT_THREADED := 2.
 	JIT_STENCIL := 3.
+	JIT_OPT := 4.
 	JIT_FLAG_ARITH := 1.
 	JIT_FLAG_FUSE := 2.
 	JIT_FLAG_BARRIER := 4.
 	JIT_FLAG_NOTES := 8.
 	JIT_FLAG_EMBED := 16.
+	"the optimizing tier's (ablations, then stress)"
+	JIT_FLAG_INLINE := 32.
+	JIT_FLAG_BLOCKS := 64.
+	JIT_FLAG_PRIMS := 128.
+	JIT_FLAG_GVN := 256.
+	JIT_FLAG_LICM := 512.
+	JIT_FLAG_RANGE := 1024.
+	JIT_FLAG_BCE := 2048.
+	JIT_FLAG_UNBOX := 4096.
+	JIT_FLAG_ESCAPE := 8192.
+	JIT_FLAG_CALLS := 16384.
+	JIT_FLAG_ALLOC := 32768.
+	JIT_FLAG_EAGER := 65536.
+	JIT_FLAG_DEOPT := 131072.
+	JIT_FLAG_LAST := JIT_FLAG_DEOPT.
 	JIT_TABLE_SIZE := 65536.
 	JIT_MAX_YOUNG := 4096.
 	JIT_MAX_MAP := 32768.
@@ -39,7 +56,8 @@ initialize
 	JIT_MAX_COUNT := 16rFFFF.
 	JM_FAILED := 1.
 	JM_DEAD := 2.
-	JM_NOTES := 4
+	JM_NOTES := 4.
+	JM_OSR := 8
 ! !
 
 !JitRuntime methodsFor: 'configuration'!
@@ -93,6 +111,68 @@ embed
 	"Embed old literal constants in the code instead of loading them through the frame's lits."
 	^(jitFlags bitAnd: JIT_FLAG_EMBED) ~= 0
 !
+flag: bit
+	^(jitFlags bitAnd: bit) ~= 0
+!
+lastFlag
+	^JIT_FLAG_LAST
+!
+inlineFlag
+	^JIT_FLAG_INLINE
+!
+blocksFlag
+	^JIT_FLAG_BLOCKS
+!
+primsFlag
+	^JIT_FLAG_PRIMS
+!
+gvnFlag
+	^JIT_FLAG_GVN
+!
+licmFlag
+	^JIT_FLAG_LICM
+!
+rangeFlag
+	^JIT_FLAG_RANGE
+!
+bceFlag
+	^JIT_FLAG_BCE
+!
+unboxFlag
+	^JIT_FLAG_UNBOX
+!
+escapeFlag
+	^JIT_FLAG_ESCAPE
+!
+callsFlag
+	^JIT_FLAG_CALLS
+!
+allocFlag
+	^JIT_FLAG_ALLOC
+!
+eagerFlag
+	^JIT_FLAG_EAGER
+!
+deoptFlag
+	^JIT_FLAG_DEOPT
+!
+optThreshold
+	^jitOptThreshold
+!
+optThreshold: n
+	jitOptThreshold := n
+!
+tiering
+	"--jit opt: the lower tier counts entries and backward jumps toward optimization."
+	^jitMode = JIT_OPT
+!
+optMode
+	^JIT_OPT
+!
+lowerMode
+	"The compiler of a method's first machine code."
+	^jitMode = JIT_OPT ifTrue: [JIT_TEMPLATE] ifFalse: [jitMode]
+!
 templateMode
 	^JIT_TEMPLATE
 !
@@ -106,6 +186,7 @@ modeNamed: name
 	(libc strcmp: name with: 'template') = 0 ifTrue: [^JIT_TEMPLATE].
 	(libc strcmp: name with: 'threaded') = 0 ifTrue: [^JIT_THREADED].
 	(libc strcmp: name with: 'stencil') = 0 ifTrue: [^JIT_STENCIL].
+	(libc strcmp: name with: 'opt') = 0 ifTrue: [^JIT_OPT].
 	^-1
 !
 modeName: m
@@ -113,6 +194,7 @@ modeName: m
 	m = JIT_TEMPLATE ifTrue: [^'template'].
 	m = JIT_THREADED ifTrue: [^'threaded'].
 	m = JIT_STENCIL ifTrue: [^'stencil'].
+	m = JIT_OPT ifTrue: [^'opt'].
 	^'none'
 !
 flagNamed: name length: n
@@ -122,6 +204,19 @@ flagNamed: name length: n
 	(self is: name length: n named: 'barrier') ifTrue: [^JIT_FLAG_BARRIER].
 	(self is: name length: n named: 'notes') ifTrue: [^JIT_FLAG_NOTES].
 	(self is: name length: n named: 'embed') ifTrue: [^JIT_FLAG_EMBED].
+	(self is: name length: n named: 'inline') ifTrue: [^JIT_FLAG_INLINE].
+	(self is: name length: n named: 'blocks') ifTrue: [^JIT_FLAG_BLOCKS].
+	(self is: name length: n named: 'prims') ifTrue: [^JIT_FLAG_PRIMS].
+	(self is: name length: n named: 'gvn') ifTrue: [^JIT_FLAG_GVN].
+	(self is: name length: n named: 'licm') ifTrue: [^JIT_FLAG_LICM].
+	(self is: name length: n named: 'range') ifTrue: [^JIT_FLAG_RANGE].
+	(self is: name length: n named: 'bce') ifTrue: [^JIT_FLAG_BCE].
+	(self is: name length: n named: 'unbox') ifTrue: [^JIT_FLAG_UNBOX].
+	(self is: name length: n named: 'escape') ifTrue: [^JIT_FLAG_ESCAPE].
+	(self is: name length: n named: 'calls') ifTrue: [^JIT_FLAG_CALLS].
+	(self is: name length: n named: 'alloc') ifTrue: [^JIT_FLAG_ALLOC].
+	(self is: name length: n named: 'eager') ifTrue: [^JIT_FLAG_EAGER].
+	(self is: name length: n named: 'deopt') ifTrue: [^JIT_FLAG_DEOPT].
 	^0
 !
 is: s length: n named: name
@@ -133,7 +228,20 @@ flagName: bit
 	bit = JIT_FLAG_FUSE ifTrue: [^'fuse'].
 	bit = JIT_FLAG_BARRIER ifTrue: [^'barrier'].
 	bit = JIT_FLAG_NOTES ifTrue: [^'notes'].
-	^'embed'
+	bit = JIT_FLAG_EMBED ifTrue: [^'embed'].
+	bit = JIT_FLAG_INLINE ifTrue: [^'inline'].
+	bit = JIT_FLAG_BLOCKS ifTrue: [^'blocks'].
+	bit = JIT_FLAG_PRIMS ifTrue: [^'prims'].
+	bit = JIT_FLAG_GVN ifTrue: [^'gvn'].
+	bit = JIT_FLAG_LICM ifTrue: [^'licm'].
+	bit = JIT_FLAG_RANGE ifTrue: [^'range'].
+	bit = JIT_FLAG_BCE ifTrue: [^'bce'].
+	bit = JIT_FLAG_UNBOX ifTrue: [^'unbox'].
+	bit = JIT_FLAG_ESCAPE ifTrue: [^'escape'].
+	bit = JIT_FLAG_CALLS ifTrue: [^'calls'].
+	bit = JIT_FLAG_ALLOC ifTrue: [^'alloc'].
+	bit = JIT_FLAG_EAGER ifTrue: [^'eager'].
+	^'deopt'
 !
 parseFlags: s
 	"a,b,-c: set a and b, clear c. Answer whether every name is a flag."
@@ -168,10 +276,10 @@ setFlags: f
 	invalidations := invalidations + 1
 !
 defaults
-	"Before the command line: --jit none, threshold 2, OSR after 50 backward jumps, 64 MB, flags arith fuse barrier."
+	"Before the command line: --jit none, threshold 2, OSR after 50 backward jumps, optimization after 1000 entries and backward jumps, 64 MB, flags arith fuse barrier and the optimizing tier's (not the stress flags eager, deopt)."
 	<c: 'void jit_defaults(void)'>
 	jitMode := JIT_NONE.
-	jitFlags := (JIT_FLAG_ARITH bitOr: JIT_FLAG_FUSE) bitOr: JIT_FLAG_BARRIER
+	jitFlags := ((JIT_FLAG_ARITH bitOr: JIT_FLAG_FUSE) bitOr: JIT_FLAG_BARRIER) bitOr: (((JIT_FLAG_EAGER - 1) bitClear: JIT_FLAG_INLINE - 1) asUInt32)
 !
 start
 	"After the image is loaded."
@@ -212,7 +320,13 @@ refreshState
 	stateBlock youngLo: gc youngLo.
 	stateBlock youngHi: gc youngHi.
 	stateBlock arrayClass: memory clsArray.
-	stateBlock pointClass: memory clsPoint
+	stateBlock pointClass: memory clsPoint.
+	stateBlock cstackLimit: interpreter cstackLimit.
+	self resetStress
+!
+resetStress
+	"--jit-flags deopt: optimized code takes its slow paths every 37th time it passes one of them."
+	stateBlock stress <= 0 ifTrue: [stateBlock stress: 37]
 !
 requestInterrupt
 	"Any thread: machine code checks state interrupt at method entries and backward jumps."
@@ -229,6 +343,33 @@ isOldObject: v
 !JitRuntime methodsFor: 'functions for the stubs'!
 sendFunction
 	^self cCoerce: (self functionPointer: #send:info:site:) to: 'uint64_t'
+!
+primitiveNumberNamed: name
+	"The number of the primitive called name, -1 if there is none."
+	<c: 'int64_t jit_primitive_number(const char *name)'>
+	| t |
+	t := self primitiveTable.
+	0 to: self primitiveCount - 1 do: [:i | (libc strcmp: (t + i) name with: name) = 0 ifTrue: [^(t + i) number asInt64]].
+	^-1
+!
+nowUs
+	^scheduler nowUs
+!
+requestFlush
+	"Drop all code at the next point without machine code on the native stack."
+	flushPending := true
+!
+optSendFunction
+	^optimizer sendFunction
+!
+optDeoptFunction
+	^optimizer deoptFunction
+!
+optDeoptReturnFunction
+	^optimizer deoptReturnFunction
+!
+optStackFullFunction
+	^optimizer stackFullFunction
 !
 specialFunction
 	^self cCoerce: (self functionPointer: #special:info:site:) to: 'uint64_t'
@@ -250,6 +391,9 @@ widowFunction
 !
 writeBarrierFunction
 	^self cCoerce: (self functionPointer: #writeBarrier:value:) to: 'uint64_t'
+!
+tierUpFunction
+	^self cCoerce: (self functionPointer: #tierUp:) to: 'uint64_t'
 ! !
 
 !JitRuntime methodsFor: 'compiled methods'!
@@ -312,7 +456,7 @@ codeOf: m counting: counting
 	| h i c |
 	jitMode = JIT_NONE ifTrue: [^self null].
 	h := self lookup: m.
-	h notNull ifTrue: [^(self hasCode: h) ifTrue: [h] ifFalse: [self null]].
+	h notNull ifTrue: [^(self hasCode: h) ifTrue: [self best: h] ifFalse: [self null]].
 	counting ifFalse: [^self null].
 	i := (self hashOf: m) bitAnd: JIT_TABLE_SIZE - 1.
 	c := (methodCounts at: i) asInt64.
@@ -327,7 +471,43 @@ cacheCodeFor: m
 	jitMode = JIT_NONE ifTrue: [^0].
 	h := self lookup: m.
 	h isNull ifTrue: [^1].
-	^(self hasCode: h) ifTrue: [self cCoerce: h to: 'uint64_t'] ifFalse: [0]
+	^(self hasCode: h) ifTrue: [self cCoerce: (self best: h) to: 'uint64_t'] ifFalse: [0]
+!
+best: h
+	"h's method's optimized code if it has some that may run, else h."
+	| o |
+	h opt = 0 ifTrue: [^h].
+	o := self cCoerce: h opt to: 'JitMethod *'.
+	((self hasCode: o) and: [(o flags bitAnd: JM_DEAD) = 0]) ifTrue: [^o].
+	^h
+!
+isOptFrame: f
+	"f runs optimized code (its pc is a safepoint, its slots are the optimizer's)."
+	^(self isCode: f code) and: [(self cCoerce: f code to: 'JitMethod *') mode = JIT_OPT]
+!
+tableSize
+	^JIT_TABLE_SIZE
+!
+tableAt: i
+	^methodTable at: i
+!
+isPerform: e
+	^(e kind bitAnd: K_PRIM) ~= 0 and: [e prim = performFn or: [e prim = performArgsFn]]
+!
+sendPushed: n
+	sendPushed := n
+!
+kConst
+	^K_CONST
+!
+kQuick
+	^K_QUICK
+!
+kSetter
+	^K_SETTER
+!
+kCtx
+	^K_CTX
 !
 frameCodeFor: m
 	"Frame code of a new activation of m (a block's frame: its home method)."
@@ -344,10 +524,11 @@ blockCodeFor: m
 compileAndInstall: m
 	<c: 'JitMethod *jit_compile_install(oop m)'>
 	| h |
-	h := self compile: m mode: jitMode notes: self notes.
+	h := self compile: m mode: self lowerMode notes: self notes.
 	h isNull ifTrue: [^self null].
 	(self insert: h) ifFalse: [^self null].
 	(self hasCode: h) ifFalse: [^self null].
+	self tiering ifTrue: [optCounts at: ((self hashOf: m) bitAnd: JIT_TABLE_SIZE - 1) put: (optimizer initialCount: m)].
 	interpreter setCacheCode: (self cCoerce: h to: 'uint64_t') forMethod: m.
 	^h
 !
@@ -368,7 +549,8 @@ compile: m mode: md notes: wantNotes
 		md caseOf: {
 			[JIT_TEMPLATE] -> [template compile: m].
 			[JIT_THREADED] -> [stencil compile: m threaded: true].
-			[JIT_STENCIL] -> [stencil compile: m threaded: false]}
+			[JIT_STENCIL] -> [stencil compile: m threaded: false].
+			[JIT_OPT] -> [optimizer compile: m]}
 			otherwise: [false]].
 	err := asm finish.
 	(asm isFull: err) ifTrue: [
@@ -400,6 +582,7 @@ finish: m code: start mode: md
 	hdr := (asm pc + 7) bitClear: 7.
 	n := asm noteCount.
 	size := (hdr - start) + (self sizeof: 'JitMethod') + (8 * mapCount) + (4 * refCount) + (20 * n) + 8.
+	md = JIT_OPT ifTrue: [size := size + optimizer extraBytes].
 	cache limit - start < size ifTrue: [^self null].
 	h := self cCoerce: hdr to: 'JitMethod *'.
 	libc memset: h value: 0 size: (self sizeof: 'JitMethod').
@@ -430,6 +613,7 @@ finish: m code: start mode: md
 			h noteTexts at: i put: (self cCoerce: (asm noteTextAt: i) to: 'uint64_t').
 			h noteOffsets at: i put: (asm noteOffsetAt: i)].
 		p := p + (20 * n)].
+	md = JIT_OPT ifTrue: [p := optimizer writeExtra: h at: p].
 	self sortMap: h.
 	h start: start + (self mapOffsetOf: h pc: 0).
 	cache allocate: p - start.
@@ -461,6 +645,13 @@ failedHeaderFor: m
 	h flags: JM_FAILED.
 	cache allocate: hdr + (self sizeof: 'JitMethod') - cache top.
 	^h
+!
+counterAddressFor: m
+	"Where the lower tier counts m's entries and backward jumps toward optimization (--jit opt)."
+	^self cCoerce: optCounts + ((self hashOf: m) bitAnd: JIT_TABLE_SIZE - 1) to: 'uint64_t'
+!
+counterFor: m put: n
+	optCounts at: ((self hashOf: m) bitAnd: JIT_TABLE_SIZE - 1) put: n asInt32
 !
 noteResume: pc at: offset
 	"The compiler: the interpreter may continue the frame at pc in the code at offset."
@@ -495,20 +686,24 @@ addressFor: f
 	| h off |
 	(self isCode: f code) ifFalse: [^0].
 	h := self cCoerce: f code to: 'JitMethod *'.
+	h mode = JIT_OPT ifTrue: [^optimizer resume: f].
 	off := self mapOffsetOf: h pc: f ip - (interpreter methodBcs: f method).
 	off < 0 ifTrue: [^0].
 	^h codeStart + off asUInt64
 !
 kill: h
 	"h's code must not run again: frames using it go back to the interpreter for good."
+	<c: 'void jit_kill(JitMethod *h)'>
 	| f |
 	cache beginWriting.
 	h method: memory nilOop.
 	h flags: (h flags bitOr: JM_DEAD).
 	cache endWriting.
-	0 to: interpreter nframes - 1 do: [:i |
-		f := interpreter frames + i.
-		f code = (self cCoerce: h to: 'uint64_t') ifTrue: [f code: 0]].
+	h mode ~= JIT_OPT ifTrue: [
+		0 to: interpreter nframes - 1 do: [:i |
+			f := interpreter frames + i.
+			f code = (self cCoerce: h to: 'uint64_t') ifTrue: [f code: 0]]].
+	(h opt ~= 0 and: [h mode ~= JIT_OPT]) ifTrue: [self kill: (self cCoerce: h opt to: 'JitMethod *')].
 	invalidations := invalidations + 1.
 	interpreter flushMethodCache
 !
@@ -522,19 +717,27 @@ flushCode
 	youngCount := 0.
 	youngOverflow := false.
 	cacheOpened ifTrue: [cache flush].
+	optimizer flushed.
 	interpreter flushMethodCache.
 	flushPending := false.
 	statCacheFlushes := statCacheFlushes + 1
 !
 prepare
-	"Interpreter side, no machine code on the native stack: apply a pending flush."
-	flushPending ifTrue: [self flushCode]
+	"Interpreter side, no machine code on the native stack: apply a pending flush (not while optimized frames wait for callees: their metadata is in the cache)."
+	(flushPending and: [self noOptFrames]) ifTrue: [self flushCode]
+!
+noOptFrames
+	<c: 'bool jit_no_opt_frames(void)'>
+	0 to: interpreter nframes - 1 do: [:i | (self isOptFrame: interpreter frames + i) ifTrue: [^false]].
+	^true
 ! !
 
 !JitRuntime methodsFor: 'garbage collection'!
 youngRoots: fn
 	"Scavenges: the methods of headers compiled while their method was young."
 	<c: 'void jit_young_roots(void (*fn)(oop *))'>
+	feedback youngRoots: fn.
+	optimizer youngRoots: fn.
 	youngOverflow ifTrue: [
 		cache beginWriting.
 		self methodRoots: fn.
@@ -554,6 +757,8 @@ allRoots: fn
 	"Full GCs and become: every header's method and every embedded reference."
 	<c: 'void jit_all_roots(void (*fn)(oop *))'>
 	| h r v site |
+	feedback allRoots: fn.
+	optimizer allRoots: fn.
 	tableCount = 0 ifTrue: [^self].
 	cache beginWriting.
 	self methodRoots: fn.
@@ -584,11 +789,26 @@ afterGC
 				n := n + 1]].
 		youngCount := n asInt32]
 !
+methodsChanged: sel
+	"Smalltalk changed a method dictionary (for selector sel; nil: any): optimized code relying on it is invalidated."
+	<c: 'void jit_methods_changed(oop sel)'>
+	jitMode = JIT_OPT ifFalse: [^self].
+	sel = memory nilOop
+		ifTrue: [optimizer invalidateAll]
+		ifFalse: [optimizer invalidateSelector: sel]
+!
+materializeOpt: f
+	"materializeAll meets optimized frame f."
+	<c: 'void jit_materialize_opt(Frame *f)'>
+	optimizer materialize: f
+!
 becomeMethod: from
 	"from is about to be replaced: if it is a compiled method, its code must not run for its successor."
 	<c: 'void jit_become(oop from)'>
 	| h |
 	jitMode = JIT_NONE ifTrue: [^self].
+	"optimized code embeds classes and methods it speculated on"
+	jitMode = JIT_OPT ifTrue: [optimizer invalidateAll].
 	h := self lookup: from.
 	h notNull ifTrue: [self kill: h]
 !
@@ -597,7 +817,8 @@ headersValid: valid
 	| h |
 	0 to: JIT_TABLE_SIZE - 1 do: [:i |
 		h := methodTable at: i.
-		(h notNull and: [(valid call: h method) not]) ifTrue: [^false]].
+		(h notNull and: [(valid call: h method) not]) ifTrue: [^false].
+		(h notNull and: [h opt ~= 0 and: [(optimizer headerValid: (self cCoerce: h opt to: 'JitMethod *') with: valid) not]]) ifTrue: [^false]].
 	^true
 ! !
 
@@ -687,7 +908,7 @@ run: frame at: address
 		statExits := statExits + 1.
 		^interpreter syncFrame: g].
 	 g sp: g sp + 1.
-	 g pc: (g ip - (interpreter methodBcs: g method)) asInt32.
+	 (self isOptFrame: g) ifFalse: [g pc: (g ip - (interpreter methodBcs: g method)) asInt32].
 	 interpreter syncFrame: g.
 	 a := self addressFor: g.
 	 a = 0 ifTrue: [^self].
@@ -703,6 +924,7 @@ sync: f
 leave: f pc: pc sp: n
 	"Leave to the interpreter, which continues f at pc with n slots."
 	<c: 'uint64_t jit_leave(Frame *f, int64_t pc, int64_t n)'>
+	(self isOptFrame: f) ifTrue: [^optimizer leave: f after: false].
 	f pc: pc asInt32.
 	f sp: n asInt32.
 	interpreter syncFrame: f.
@@ -725,6 +947,7 @@ send: f info: info site: key
 		sel := kind = 2
 			ifTrue: [self loadRef: (memory special: SO_SPECIAL_SELECTORS) at: ((info >> 16) bitAnd: 255)]
 			ifFalse: [f lits at: ((info >> 16) bitAnd: 255)].
+		jitMode = JIT_OPT ifTrue: [feedback noteSend: f method pc: f pc class: cls].
 		e := interpreter siteEntry: (self cCoerce: key to: 'uint8_t *') class: cls selector: sel.
 		e isNull ifTrue: [^self leave: f pc: f pc sp: f sp - (((info >> 26) bitAnd: 1) * 2) asInt32]].
 	(e kind bitAnd: (K_CONST bitOr: K_CTX)) = K_CONST ifTrue: [
@@ -749,6 +972,11 @@ send: f info: info site: key
 	f ip: f ip + len.
 	^self dispatch: e frame: f argc: n
 !
+leaveAfter: f pc: pc sp: n
+	"Leave to the interpreter after a send completed (its result pushed)."
+	(self isOptFrame: f) ifTrue: [^optimizer leave: f after: true].
+	^self leave: f pc: pc sp: n
+!
 sent: f argc: n length: len
 	"A send completed without a frame: a safepoint, as in the interpreter."
 	<c: 'uint64_t jit_sent(Frame *f, int32_t n, int32_t len)'>
@@ -765,6 +993,7 @@ special: f info: info site: key
 	len := ((info >> 8) bitAnd: 255) asInt32.
 	k := ((info >> 16) bitAnd: 255) asInt32.
 	base := f fp + (f sp - n - 1).
+	jitMode = JIT_OPT ifTrue: [feedback noteSend: f method pc: f pc class: (interpreter receiverClass: (base at: 0))].
 	r := self specialFast: k base: base.
 	r ~= 0 ifTrue: [
 		base at: 0 put: r.
@@ -916,12 +1145,12 @@ dispatch: e frame: f argc: n
 			interpreter primCommit: v.
 			^1].
 		base at: 0 put: v.
-		inv ~= invalidations ifTrue: [^self leave: f pc: (f ip - (interpreter methodBcs: f method)) sp: f sp - n].
+		inv ~= invalidations ifTrue: [^self leaveAfter: f pc: (f ip - (interpreter methodBcs: f method)) sp: f sp - n].
 		^0].
 	status = PS_SWITCHED ifTrue: [
 		interpreter statFlushes ~= flushes ifTrue: [^1].
 		interpreter nframes > ((f - interpreter frames) + 1) ifTrue: [^self entryOfTop].
-		inv ~= invalidations ifTrue: [^self leave: f pc: (f ip - (interpreter methodBcs: f method)) sp: f sp].
+		inv ~= invalidations ifTrue: [^self leaveAfter: f pc: (f ip - (interpreter methodBcs: f method)) sp: f sp].
 		^0].
 	status = PS_RESEND ifTrue: [self fatal: 'a resending primitive called from machine code'].
 	interpreter statFlushes ~= flushes ifTrue: [self fatal: 'a failing primitive flushed the frames'].
@@ -956,6 +1185,7 @@ interrupt: f
 	<c: 'uint64_t jit_interrupt(Frame *f)'>
 	| flushes inv |
 	self sync: f.
+	self resetStress.
 	stateBlock interrupt: 0.
 	flushes := interpreter statFlushes.
 	inv := invalidations.
@@ -1021,6 +1251,12 @@ outerTemp: f
 		ifFalse: [self storeRef: c at: CTX_FIXED + i put: (slot at: -1)].
 	^0
 !
+tierUp: f
+	"The lower tier's counter for f's method ran out at f's pc (a method entry or a backward jump; f's pc and sp stored): answer 0 to go on, 1 to leave, or where f continues in optimized code."
+	<c: 'uint64_t jit_tier_up(Frame *f)'>
+	self sync: f.
+	^optimizer tierUp: f
+!
 widow: f
 	"f returns and is married: its Context keeps its slots."
 	<c: 'uint64_t jit_widow(Frame *f)'>
@@ -1065,6 +1301,11 @@ statResumes
 !
 statOsr
 	^statOsr
+!
+optStat: i
+	"The optimizing tier's counters (OptRuntime>>stat:)."
+	<c: 'int64_t jit_opt_stat(int32_t i)'>
+	^optimizer stat: i
 ! !
 
 VMStruct subclass: #JitState
@@ -1072,12 +1313,12 @@ VMStruct subclass: #JitState
 	classVariableNames: ''
 	package: 'VM-Jit'!
 
-JitState comment: 'What machine code reads through x22: nil, true and false and the classes inline paths check (refreshed after every GC), the interrupt flag (set with the scheduler''s, cleared by the runtime''s interrupt check), the frames array, the native stack pointer jit_enter left (exits reset it), the young space''s bounds (the store barrier).'!
+JitState comment: 'What machine code reads through x22: nil, true and false and the classes inline paths check (refreshed after every GC), the interrupt flag (set with the scheduler''s, cleared by the runtime''s interrupt check), the frames array, the native stack pointer jit_enter left (exits reset it), the young space''s bounds (the store barrier); for optimized code: the highest slot address a frame may use, the deoptimization stress counter, and where a guard that fails saves the registers (x0-x31, then d0-d31).'!
 
 !JitState class methodsFor: 'declaring'!
 fields
 	^#((nilOop oop) (trueOop oop) (falseOop oop) (interrupt int32_t) (pad int32_t) (frames uint64_t) (exitSp uint64_t) (youngLo uint64_t) (youngHi uint64_t)
-		(arrayClass oop) (pointClass oop))
+		(arrayClass oop) (pointClass oop) (cstackLimit uint64_t) (stress int64_t) (dump 'uint64_t[64]'))
 ! !
 
 VMStruct subclass: #JitMethod
@@ -1085,11 +1326,13 @@ VMStruct subclass: #JitMethod
 	classVariableNames: ''
 	package: 'VM-Jit'!
 
-JitMethod comment: 'The header of a compiled method, in the code cache after its code: the method (a GC root), the compiler (mode), where the code starts and how long it is, start (the method''s first bytecode, after the prologue; its entry from a compiled caller is JIT_PROLOGUE_BYTES before), the bytecode map (pc, offset pairs of the resumption points, in pc order), the offsets of embedded object references (mov:imm64:), and, if recorded, the notes for disassembly. flags: JM_FAILED (no code: the method is not compiled again), JM_DEAD (its code must not run), JM_NOTES.'!
+JitMethod comment: 'The header of a compiled method, in the code cache after its code: the method (a GC root), the compiler (mode), where the code starts and how long it is, start (the method''s first bytecode, after the prologue; its entry from a compiled caller is JIT_PROLOGUE_BYTES before), the bytecode map (pc, offset pairs of the resumption points, in pc order), the offsets of embedded object references (mov:imm64:), and, if recorded, the notes for disassembly. flags: JM_FAILED (no code: the method is not compiled again), JM_DEAD (its code must not run), JM_NOTES. A lower tier''s header links its method''s optimized code (opt); optimized code (mode opt, OptRuntime) has: lower, its frame''s slots, the method''s bytecode size, its oop pool (in the code, GC roots), the safepoint table and records.'!
 
 !JitMethod class methodsFor: 'declaring'!
 fields
 	^#((method oop) (start uint64_t) (codeStart uint64_t) (codeSize uint32_t) (bytecodes uint32_t) (mode int32_t) (flags uint32_t)
 		(mapCount uint32_t) (refCount uint32_t) (map 'uint32_t *') (refs 'uint32_t *')
-		(noteCount uint32_t) (pad uint32_t) (noteOffsets 'uint32_t *') (noteTexts 'uint64_t *') (noteValues 'int64_t *'))
+		(noteCount uint32_t) (pad uint32_t) (noteOffsets 'uint32_t *') (noteTexts 'uint64_t *') (noteValues 'int64_t *')
+		(opt uint64_t) (lower uint64_t) (slots uint32_t) (bcSize uint32_t) (poolOffset uint32_t) (poolCount uint32_t)
+		(spCount uint32_t) (depCount uint32_t) (spTable 'int32_t *') (meta 'int32_t *') (deps 'int32_t *') (deopts uint32_t) (pad2 uint32_t))
 ! !

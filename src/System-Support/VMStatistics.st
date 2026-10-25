@@ -91,6 +91,30 @@ jitOsrEntries
 jitCompileFailures
 	^self counterAt: 24
 !
+optMethodsCompiled
+	^self counterAt: 25
+!
+optBytecodesCompiled
+	^self counterAt: 26
+!
+optCompileMicroseconds
+	^self counterAt: 27
+!
+optCodeBytes
+	^self counterAt: 28
+!
+optDeoptimizations
+	^self counterAt: 29
+!
+optOsrEntries
+	^self counterAt: 30
+!
+optInvalidations
+	^self counterAt: 31
+!
+optCompileFailures
+	^self counterAt: 32
+!
 gcCount
 	"Answer the scavenges plus the full GCs."
 	^self scavenges + self fullGCs
@@ -126,5 +150,5 @@ counters: anArray
 !VMStatistics class methodsFor: 'accessing'!
 counterNames
 	"Answer my counter accessors in vmStats order."
-	^#(#scavenges #fullGCs #scavengeMicroseconds #fullGCMicroseconds #oldBytesUsed #oldBudget #edenBytes #bytesAllocated #rememberedSetSize #processSwitches #bytesTenured #weakSlotsCleared #contextsMaterialized #frameFlushes #jitMethodsCompiled #jitBytecodesCompiled #jitCompileMicroseconds #jitCodeBytes #jitCacheFlushes #jitEntries #jitExits #jitResumes #jitOsrEntries #jitCompileFailures)
+	^#(#scavenges #fullGCs #scavengeMicroseconds #fullGCMicroseconds #oldBytesUsed #oldBudget #edenBytes #bytesAllocated #rememberedSetSize #processSwitches #bytesTenured #weakSlotsCleared #contextsMaterialized #frameFlushes #jitMethodsCompiled #jitBytecodesCompiled #jitCompileMicroseconds #jitCodeBytes #jitCacheFlushes #jitEntries #jitExits #jitResumes #jitOsrEntries #jitCompileFailures #optMethodsCompiled #optBytecodesCompiled #optCompileMicroseconds #optCodeBytes #optDeoptimizations #optOsrEntries #optInvalidations #optCompileFailures)
 ! !

@@ -9,7 +9,7 @@ static oop jit_string_from(const char *s);
 /* JitPrimitives>>flagsString */
 static oop jit_flags_string(void)
 {
-    char local[128];
+    char local[256];
     char *buf;
     int64_t n;
     int64_t bit;
@@ -19,7 +19,7 @@ static oop jit_flags_string(void)
     buf = local;
     n = 0;
     bit = 1;
-    while (bit <= 16) {
+    while (bit <= JIT_FLAG_LAST) {
         if ((jit_flags & bit) != 0) {
             name = jit_flag_name((uint32_t)bit);
             len = strlen(name);

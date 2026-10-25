@@ -3,7 +3,7 @@ VMCoreModule subclass: #VMMain
 	classVariableNames: ''
 	package: 'VM-Core'!
 
-VMMain comment: 'The entry point: samaltak [--max-heap MB] [--eden MB] [--jit MODE] [--jit-threshold N] [--jit-osr N] [--jit-flags a,b,-c] [--jit-cache MB] image [--headless] [image arguments...].'!
+VMMain comment: 'The entry point: samaltak [--max-heap MB] [--eden MB] [--jit MODE] [--jit-threshold N] [--jit-osr N] [--jit-opt N] [--jit-flags a,b,-c] [--jit-cache MB] image [--headless] [image arguments...].'!
 
 !VMMain class methodsFor: 'declaring'!
 declarations
@@ -33,11 +33,13 @@ banner
 usage
 	<c: 'void usage(void)'>
 	<noreturn>
-	libc fputs: 'usage: samaltak [--max-heap MB] [--eden MB] [--jit none|template|threaded|stencil] [--jit-threshold N] [--jit-osr N]
-	[--jit-flags [-]flag,...] [--jit-cache MB] image [--headless] [arguments...]
+	libc fputs: 'usage: samaltak [--max-heap MB] [--eden MB] [--jit none|template|threaded|stencil|opt] [--jit-threshold N] [--jit-osr N]
+	[--jit-opt N] [--jit-flags [-]flag,...] [--jit-cache MB] image [--headless] [arguments...]
   --jit-threshold N  activations before a method is compiled (0: the first one)
   --jit-osr N        backward jumps before a running method is compiled and entered
-  --jit-flags        ablations: arith fuse barrier notes embed (-name turns one off)
+  --jit-opt N        with --jit opt: entries and backward jumps in compiled code before a method is optimized
+  --jit-flags        ablations: arith fuse barrier notes embed, the optimizer''s inline blocks prims gvn licm
+                     range bce unbox escape calls alloc; stress: eager deopt (-name turns one off)
 ' to: libc stderr.
 	libc exit: 64
 !
@@ -87,7 +89,7 @@ main: n argv: v
 	^0
 !
 jitOption: v at: i count: n
-	"--jit MODE, --jit-threshold N, --jit-osr N, --jit-flags a,b,-c or --jit-cache MB at v[i]: answer whether it is one (its value is v[i + 1])."
+	"--jit MODE, --jit-threshold N, --jit-osr N, --jit-opt N, --jit-flags a,b,-c or --jit-cache MB at v[i]: answer whether it is one (its value is v[i + 1])."
 	<c: 'bool jit_option(char **v, int32_t i, int32_t n)'>
 	| a m |
 	i + 1 < n ifFalse: [^false].
@@ -102,6 +104,9 @@ jitOption: v at: i count: n
 		^true].
 	(libc strcmp: (v at: i) with: '--jit-osr') = 0 ifTrue: [
 		jit osrThreshold: (libc atol: a).
+		^true].
+	(libc strcmp: (v at: i) with: '--jit-opt') = 0 ifTrue: [
+		jit optThreshold: (libc atol: a).
 		^true].
 	(libc strcmp: (v at: i) with: '--jit-flags') = 0 ifTrue: [
 		(jit parseFlags: a) ifFalse: [self usage].

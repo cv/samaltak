@@ -2,8 +2,9 @@
 # VM + image builder end-to-end tests: build the mini kernel image (vm/tests/mini), run each
 # Smalltalk test headless and compare stdout with vm/tests/expected/<Test>.txt.
 # Every test also runs with a 1 MB eden under the heap verifier (GC stress), and all of it again under each
-# JIT (template, threaded, stencil) with every method compiled on its first activation; the tests also run under
-# the JITs' default thresholds (counting activations, on-stack replacement).
+# JIT (template, threaded, stencil) with every method compiled on its first activation, and under the optimizing
+# tier (opt) optimizing after one activation, also with deoptimization stress; the tests also run under the JITs'
+# default thresholds (counting activations, on-stack replacement). MODES selects (default: none template threaded stencil opt).
 set -u
 ROOT=$(cd "$(dirname "$0")/../.." && pwd)
 VM=${VM:-"$ROOT/vm/build/samaltak"}
@@ -72,9 +73,17 @@ suite() { # label vm-options...
     expect_fatal "FatalDNU$label" 'not understood (ProtoThing>>foo)' "$@" "$IMG" --headless FatalDNU
 }
 
-suite ""
-for mode in template threaded stencil; do
-    suite " (jit $mode)" --jit $mode --jit-threshold 0
+MODES=${MODES:-"none template threaded stencil opt"}
+for mode in $MODES; do
+    case $mode in
+    none) suite "" ;;
+    opt)
+        # optimized after one activation of compiled code, then again with deoptimization stress
+        suite " (jit opt, eager)" --jit opt --jit-threshold 0 --jit-flags eager
+        suite " (jit opt, eager, deopt stress)" --jit opt --jit-threshold 0 --jit-flags eager,deopt ;;
+    *) suite " (jit $mode)" --jit $mode --jit-threshold 0 ;;
+    esac
+    [ $mode = none ] && continue
     for t in $TESTS; do
         "$VM" --jit $mode "$IMG" --headless "$t" >"$OUT/$t.out" 2>&1
         check "$t (jit $mode, default thresholds)" "$EXP/$t.txt" "$OUT/$t.out"
