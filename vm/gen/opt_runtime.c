@@ -1269,6 +1269,8 @@ uint64_t opt_send(frame *f, int64_t k, uint64_t key)
     uint8_t i_4;
     oop v_3;
     uint64_t r_sent_3;
+    bool r_call_leaf;
+    uint64_t r_sent_4;
     oop o_7;
     uint64_t o_8;
     uint64_t o_9;
@@ -1278,10 +1280,7 @@ uint64_t opt_send(frame *f, int64_t k, uint64_t key)
     uint64_t r_leave_before_3;
     oop o_12;
     uint64_t o_13;
-    uint64_t r_sent_4;
-    if ((jit_mode == JIT_BASELINE) || (jit_mode == JIT_OPT)) {
-        bl_canonicalize_below(f);
-    }
+    uint64_t r_sent_5;
     h = (jit_method *)f->code;
     rec = h->meta + h->sp_table[k];
     info = rec[2];
@@ -1422,6 +1421,26 @@ exit_sent_3:;
     r_sent_3; });
         }
     }
+    if (((e->kind & 48) == K_LEAF) && ({
+    if (!(interp_call_primitive(e->prim, base, n) == PS_OK)) {
+        r_call_leaf = false;
+        goto exit_call_leaf;
+    }
+    base[0] = prim_result;
+    prim_result = nil_oop;
+    r_call_leaf = true;
+exit_call_leaf:;
+    r_call_leaf; })) {
+        return ({
+    if (state_block->interrupt == 0) {
+        r_sent_4 = 0ULL;
+        goto exit_sent_4;
+    }
+    f->sp = (int32_t)(((jit_method *)f->code)->slots + 1);
+    r_sent_4 = jit_interrupt(f);
+exit_sent_4:;
+    r_sent_4; });
+    }
     if ((jit_mode == JIT_BASELINE) || (jit_mode == JIT_OPT)) {
         f->method = ((jit_method *)f->code)->method;
         bl_canonicalize_below(f);
@@ -1463,13 +1482,13 @@ exit_sent_3:;
     if (r == 0) {
         return ({
     if (state_block->interrupt == 0) {
-        r_sent_4 = 0ULL;
-        goto exit_sent_4;
+        r_sent_5 = 0ULL;
+        goto exit_sent_5;
     }
     f->sp = (int32_t)(((jit_method *)f->code)->slots + 1);
-    r_sent_4 = jit_interrupt(f);
-exit_sent_4:;
-    r_sent_4; });
+    r_sent_5 = jit_interrupt(f);
+exit_sent_5:;
+    r_sent_5; });
     }
     return r;
 }

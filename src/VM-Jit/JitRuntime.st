@@ -659,6 +659,16 @@ kSetter
 kCtx
 	^K_CTX
 !
+kLeaf
+	^K_LEAF
+!
+callLeaf: e base: base argc: n
+	"Call e's leaf primitive on the n arguments and receiver at base; answer whether it succeeded (its result at base)."
+	(interpreter callPrimitive: e prim base: base argc: n) = PS_OK ifFalse: [^false].
+	base at: 0 put: interpreter primResult.
+	interpreter primResult: memory nilOop.
+	^true
+!
 frameCodeFor: m
 	"Frame code of a new activation of m (a block's frame: its home method)."
 	jitMode = JIT_NONE ifTrue: [^0 asUInt64].

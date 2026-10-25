@@ -364,7 +364,6 @@ send: f index: k site: key
 	"Optimized code sends at safepoint k of f (its pc and sp stored, receiver and arguments at slot slots): answer 0 (the result is in that slot), 1 (leave) or the callee's entry (frame pushed)."
 	<c: 'uint64_t opt_send(Frame *f, int64_t k, uint64_t key)'>
 	| h rec info n kind sp sel base r cls e ns ok v |
-	runtime canonicalizeBelow: f.
 	h := self cCoerce: f code to: 'JitMethod *'.
 	rec := self recordOf: h index: k.
 	info := rec at: 2.
@@ -410,6 +409,8 @@ send: f index: k site: key
 		ok ifTrue: [
 			0 to: n - 1 do: [:j | self storeRef: r at: (e setIvar at: j) put: (base at: 1 + j)].
 			^self sent: f]].
+	"a leaf primitive neither collects nor leaves: the frames below need not be canonical"
+	((e kind bitAnd: (runtime kLeaf bitOr: runtime kCtx)) = runtime kLeaf and: [runtime callLeaf: e base: base argc: n]) ifTrue: [^self sent: f].
 	runtime sync: f.
 	((e kind bitAnd: runtime kCtx) ~= 0 and: [self isInt: (self loadRef: r at: CTX_SENDER)]) ifTrue: [^self leaveBefore: f index: k].
 	(runtime isPerform: e) ifTrue: [^self leaveBefore: f index: k].

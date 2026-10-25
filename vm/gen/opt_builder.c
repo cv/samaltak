@@ -3279,6 +3279,12 @@ exit_guard_int_4:;
                 case 14:
                     v_34 = O_IAND;
                     break;
+                case 16:
+                    v_34 = O_IDIV;
+                    break;
+                case 17:
+                    v_34 = O_IMOD;
+                    break;
                 default:
                     v_34 = O_IOR;
                     break;
@@ -3294,7 +3300,10 @@ exit_guard_int_4:;
     r_binary_4 = n_150;
     r_binary_4; });
                 (opt_nodes + n_140)->tkind = T_SMI;
-                if ((k_4 <= 1) || ((k_4 == 8) || ((k_4 == 10) || ((k_4 == 12) || (k_4 == 13))))) {
+                if (k_4 >= 16) {
+                    (opt_nodes + n_140)->aux = 1;
+                }
+                if ((k_4 <= 1) || ((k_4 == 8) || ((k_4 == 10) || ((k_4 == 12) || ((k_4 == 13) || (k_4 >= 16)))))) {
                     (opt_nodes + n_140)->state = s_4;
                 }
                 var_48 = (opt_acts + a)->var_base + d_9;
@@ -3944,6 +3953,12 @@ exit_guard_int_8:;
                 case 14:
                     v_41 = O_IAND;
                     break;
+                case 16:
+                    v_41 = O_IDIV;
+                    break;
+                case 17:
+                    v_41 = O_IMOD;
+                    break;
                 default:
                     v_41 = O_IOR;
                     break;
@@ -3959,7 +3974,10 @@ exit_guard_int_8:;
     r_binary_8 = n_204;
     r_binary_8; });
                 (opt_nodes + n_194)->tkind = T_SMI;
-                if ((k_5 <= 1) || ((k_5 == 8) || ((k_5 == 10) || ((k_5 == 12) || (k_5 == 13))))) {
+                if (k_5 >= 16) {
+                    (opt_nodes + n_194)->aux = 1;
+                }
+                if ((k_5 <= 1) || ((k_5 == 8) || ((k_5 == 10) || ((k_5 == 12) || ((k_5 == 13) || (k_5 >= 16)))))) {
                     (opt_nodes + n_194)->state = s_7;
                 }
                 var_61 = (opt_acts + a)->var_base + r_4;
@@ -4861,6 +4879,12 @@ exit_guard_int_2:;
             case 14:
                 v_2 = O_IAND;
                 break;
+            case 16:
+                v_2 = O_IDIV;
+                break;
+            case 17:
+                v_2 = O_IMOD;
+                break;
             default:
                 v_2 = O_IOR;
                 break;
@@ -4876,7 +4900,10 @@ exit_guard_int_2:;
     r_binary_3 = n_30;
     r_binary_3; });
             (opt_nodes + n_20)->tkind = T_SMI;
-            if ((k <= 1) || ((k == 8) || ((k == 10) || ((k == 12) || (k == 13))))) {
+            if (k >= 16) {
+                (opt_nodes + n_20)->aux = 1;
+            }
+            if ((k <= 1) || ((k == 8) || ((k == 10) || ((k == 12) || ((k == 13) || (k >= 16)))))) {
                 (opt_nodes + n_20)->state = s_2;
             }
             var_4 = (opt_acts + a)->var_base + r;
@@ -5360,6 +5387,10 @@ static bool opt_inline_primitive(int64_t p, uint64_t cls, int32_t argc, int32_t 
     int64_t p_35;
     int64_t p_36;
     int64_t p_37;
+    int64_t p_38;
+    int64_t p_39;
+    int64_t p_40;
+    int64_t p_41;
     int64_t kind;
     int32_t var;
     int32_t rcv;
@@ -5384,108 +5415,129 @@ static bool opt_inline_primitive(int64_t p, uint64_t cls, int32_t argc, int32_t 
     int32_t n_9;
     int32_t n_8;
     int32_t n_10;
-    int32_t s;
-    int32_t r_unbox_float;
-    opt_node *nd;
     int32_t r_add_5;
-    int32_t n_12;
     int32_t n_11;
-    int32_t idx;
+    int32_t var_5;
     int32_t r_add_6;
     int32_t n_13;
-    int32_t r_box_float;
+    int32_t n_12;
+    int32_t n_14;
+    int32_t s;
     int32_t r_add_7;
     int32_t n_15;
-    int32_t n_14;
+    int32_t i_2;
+    int32_t var_6;
     int32_t v_2;
-    int32_t var_5;
+    int32_t r_guard_int;
     int32_t r_add_8;
     int32_t n_17;
     int32_t n_16;
-    int32_t n_18;
-    int32_t i_2;
-    int32_t var_6;
-    uint32_t fl;
-    int32_t i_3;
     int32_t var_7;
-    int64_t k;
-    int32_t i_4;
-    int32_t var_8;
-    int32_t y_2;
-    int32_t s_2;
-    int32_t r_guard_int;
     int32_t r_add_9;
-    int32_t n_21;
+    int32_t n_19;
+    int32_t n_18;
     int32_t n_20;
-    int32_t gx;
-    int32_t r_guard_int_2;
+    int32_t r_unbox_float;
+    opt_node *nd;
     int32_t r_add_10;
-    int32_t n_23;
     int32_t n_22;
-    int32_t gy;
-    int32_t r_binary_2;
+    int32_t n_21;
+    int32_t idx;
     int32_t r_add_11;
+    int32_t n_23;
+    int32_t r_box_float;
+    int32_t r_add_12;
     int32_t n_25;
     int32_t n_24;
-    int32_t n_19;
-    int32_t var_9;
-    int32_t r_add_12;
+    int32_t v_3;
+    int32_t var_8;
+    int32_t r_add_13;
     int32_t n_27;
     int32_t n_26;
     int32_t n_28;
-    int v_3;
-    int32_t r_binary_3;
-    int32_t r_add_13;
-    int32_t n_30;
-    int32_t n_29;
+    int32_t i_3;
+    int32_t var_9;
+    uint32_t fl;
+    int32_t i_4;
     int32_t var_10;
-    int32_t r_add_14;
-    int32_t n_32;
-    int32_t n_31;
-    int32_t n_33;
-    uint64_t o;
-    int64_t fmt;
-    int64_t spec;
-    int64_t fixed;
-    int64_t ek;
-    int32_t r_add_15;
-    int32_t n_34;
-    int32_t var_11;
-    int32_t r_add_16;
-    int32_t n_36;
-    int32_t n_35;
-    int32_t n_37;
+    int64_t k;
     int32_t i_5;
-    int32_t var_12;
-    int32_t v_4;
+    int32_t var_11;
+    int32_t y_2;
+    int32_t s_2;
+    int32_t r_guard_int_2;
+    int32_t r_add_14;
+    int32_t n_31;
+    int32_t n_30;
+    int32_t gx;
     int32_t r_guard_int_3;
+    int32_t r_add_15;
+    int32_t n_33;
+    int32_t n_32;
+    int32_t gy;
+    int32_t r_binary_2;
+    int32_t r_add_16;
+    int32_t n_35;
+    int32_t n_34;
+    int32_t n_29;
+    int32_t var_12;
     int32_t r_add_17;
-    int32_t n_39;
+    int32_t n_37;
+    int32_t n_36;
     int32_t n_38;
+    int v_4;
+    int32_t r_binary_3;
     int32_t r_add_18;
     int32_t n_40;
+    int32_t n_39;
     int32_t var_13;
     int32_t r_add_19;
     int32_t n_42;
     int32_t n_41;
     int32_t n_43;
-    int32_t i_6;
-    int32_t var_14;
-    int32_t v_5;
-    int32_t r_guard_int_4;
+    uint64_t o;
+    int64_t fmt;
+    int64_t spec;
+    int64_t fixed;
+    int64_t ek;
     int32_t r_add_20;
-    int32_t n_45;
     int32_t n_44;
-    int32_t i_7;
-    int32_t var_15;
-    int32_t val;
+    int32_t var_14;
     int32_t r_add_21;
     int32_t n_46;
-    int32_t var_16;
-    int32_t r_add_22;
-    int32_t n_48;
+    int32_t n_45;
     int32_t n_47;
+    int32_t i_6;
+    int32_t var_15;
+    int32_t v_5;
+    int32_t r_guard_int_4;
+    int32_t r_add_22;
     int32_t n_49;
+    int32_t n_48;
+    int32_t r_add_23;
+    int32_t n_50;
+    int32_t var_16;
+    int32_t r_add_24;
+    int32_t n_52;
+    int32_t n_51;
+    int32_t n_53;
+    int32_t i_7;
+    int32_t var_17;
+    int32_t v_6;
+    int32_t r_guard_int_5;
+    int32_t r_add_25;
+    int32_t n_55;
+    int32_t n_54;
+    int32_t i_8;
+    int32_t var_18;
+    int32_t val;
+    int32_t r_add_26;
+    int32_t n_56;
+    int32_t var_19;
+    int32_t r_add_27;
+    int32_t n_58;
+    int32_t n_57;
+    int32_t n_59;
     kind = ({
     if (!ob_prims_known) {
         ob_prims_known = true;
@@ -5578,61 +5630,77 @@ static bool opt_inline_primitive(int64_t p, uint64_t cls, int32_t argc, int32_t 
         if ((p_23 > 0) && (p_23 < OPT_MAX_PRIM)) {
             ob_prim_kinds[p_23] = 45U;
         }
-        p_24 = jit_primitive_number("floatAdd");
+        p_24 = jit_primitive_number("intQuo");
         if ((p_24 > 0) && (p_24 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_24] = 64U;
+            ob_prim_kinds[p_24] = 48U;
         }
-        p_25 = jit_primitive_number("floatSub");
+        p_25 = jit_primitive_number("intRem");
         if ((p_25 > 0) && (p_25 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_25] = 65U;
+            ob_prim_kinds[p_25] = 49U;
         }
-        p_26 = jit_primitive_number("floatLess");
+        p_26 = jit_primitive_number("charValue");
         if ((p_26 > 0) && (p_26 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_26] = 66U;
+            ob_prim_kinds[p_26] = 12U;
         }
-        p_27 = jit_primitive_number("floatGreater");
+        p_27 = jit_primitive_number("charFromValue");
         if ((p_27 > 0) && (p_27 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_27] = 67U;
+            ob_prim_kinds[p_27] = 13U;
         }
-        p_28 = jit_primitive_number("floatLessEq");
+        p_28 = jit_primitive_number("floatAdd");
         if ((p_28 > 0) && (p_28 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_28] = 68U;
+            ob_prim_kinds[p_28] = 64U;
         }
-        p_29 = jit_primitive_number("floatGreaterEq");
+        p_29 = jit_primitive_number("floatSub");
         if ((p_29 > 0) && (p_29 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_29] = 69U;
+            ob_prim_kinds[p_29] = 65U;
         }
-        p_30 = jit_primitive_number("floatEq");
+        p_30 = jit_primitive_number("floatLess");
         if ((p_30 > 0) && (p_30 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_30] = 70U;
+            ob_prim_kinds[p_30] = 66U;
         }
-        p_31 = jit_primitive_number("floatNotEq");
+        p_31 = jit_primitive_number("floatGreater");
         if ((p_31 > 0) && (p_31 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_31] = 71U;
+            ob_prim_kinds[p_31] = 67U;
         }
-        p_32 = jit_primitive_number("floatMul");
+        p_32 = jit_primitive_number("floatLessEq");
         if ((p_32 > 0) && (p_32 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_32] = 72U;
+            ob_prim_kinds[p_32] = 68U;
         }
-        p_33 = jit_primitive_number("floatDiv");
+        p_33 = jit_primitive_number("floatGreaterEq");
         if ((p_33 > 0) && (p_33 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_33] = 73U;
+            ob_prim_kinds[p_33] = 69U;
         }
-        p_34 = jit_primitive_number("floatSqrt");
+        p_34 = jit_primitive_number("floatEq");
         if ((p_34 > 0) && (p_34 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_34] = 8U;
+            ob_prim_kinds[p_34] = 70U;
         }
-        p_35 = jit_primitive_number("basicNew");
+        p_35 = jit_primitive_number("floatNotEq");
         if ((p_35 > 0) && (p_35 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_35] = 9U;
+            ob_prim_kinds[p_35] = 71U;
         }
-        p_36 = jit_primitive_number("basicNew:");
+        p_36 = jit_primitive_number("floatMul");
         if ((p_36 > 0) && (p_36 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_36] = 10U;
+            ob_prim_kinds[p_36] = 72U;
         }
-        p_37 = jit_primitive_number("closureValue");
+        p_37 = jit_primitive_number("floatDiv");
         if ((p_37 > 0) && (p_37 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_37] = 11U;
+            ob_prim_kinds[p_37] = 73U;
+        }
+        p_38 = jit_primitive_number("floatSqrt");
+        if ((p_38 > 0) && (p_38 < OPT_MAX_PRIM)) {
+            ob_prim_kinds[p_38] = 8U;
+        }
+        p_39 = jit_primitive_number("basicNew");
+        if ((p_39 > 0) && (p_39 < OPT_MAX_PRIM)) {
+            ob_prim_kinds[p_39] = 9U;
+        }
+        p_40 = jit_primitive_number("basicNew:");
+        if ((p_40 > 0) && (p_40 < OPT_MAX_PRIM)) {
+            ob_prim_kinds[p_40] = 10U;
+        }
+        p_41 = jit_primitive_number("closureValue");
+        if ((p_41 > 0) && (p_41 < OPT_MAX_PRIM)) {
+            ob_prim_kinds[p_41] = 11U;
         }
     }
     if ((p <= 0) || (p >= OPT_MAX_PRIM)) {
@@ -5700,6 +5768,77 @@ exit_prim_kind_of:;
     exit_write_2:;
         return true;
     }
+    if ((kind == OPK_CHARVALUE) && ((argc == 0) && (cls == cls_char))) {
+        n = ({
+    n_11 = opt_new_node(O_CHARCONV, R_OOP);
+    opt_append(n_11, ob_cur_block);
+    r_add_5 = n_11;
+    r_add_5; });
+        (opt_nodes + n)->a = rcv;
+        (opt_nodes + n)->tkind = T_SMI;
+        var_5 = (opt_acts + a)->var_base + r;
+        if ((var_5 < OPT_MAX_VARS) && (ob_arg_flags[var_5] == 2)) {
+            n_12 = ({
+    n_13 = opt_new_node(O_STORESLOT, R_NONE);
+    opt_append(n_13, ob_cur_block);
+    r_add_6 = n_13;
+    r_add_6; });
+            (opt_nodes + n_12)->a = n;
+            n_14 = ob_arg_vals[var_5];
+            (opt_nodes + n_12)->aux = (opt_nodes + n_14)->aux;
+            goto exit_write_3;
+        }
+        opt_write(var_5, n, ob_cur_block);
+    exit_write_3:;
+        return true;
+    }
+    if ((kind == OPK_CHARFROM) && (argc == 1)) {
+        s = opt_make_state(a, pc, (int32_t)ob_ana_depth[(opt_acts + a)->ana + pc]);
+        n = ({
+    n_15 = opt_new_node(O_CHARCONV, R_OOP);
+    opt_append(n_15, ob_cur_block);
+    r_add_7 = n_15;
+    r_add_7; });
+        i_2 = r + 1;
+        var_6 = (opt_acts + a)->var_base + i_2;
+        v_2 = opt_read(var_6, ob_cur_block);
+        (opt_nodes + n)->a = ({
+    if ((int32_t)(opt_nodes + v_2)->tkind == T_SMI) {
+        r_guard_int = v_2;
+        goto exit_guard_int;
+    }
+    n_16 = ({
+    n_17 = opt_new_node(O_GUARDINT, R_OOP);
+    opt_append(n_17, ob_cur_block);
+    r_add_8 = n_17;
+    r_add_8; });
+    (opt_nodes + n_16)->a = v_2;
+    (opt_nodes + n_16)->state = s;
+    (opt_nodes + n_16)->tkind = T_SMI;
+    (opt_nodes + n_16)->flags = NF_GUARD;
+    r_guard_int = n_16;
+exit_guard_int:;
+    r_guard_int; });
+        (opt_nodes + n)->aux = 1;
+        (opt_nodes + n)->state = s;
+        (opt_nodes + n)->flags = NF_GUARD;
+        (opt_nodes + n)->tkind = T_CHAR;
+        var_7 = (opt_acts + a)->var_base + r;
+        if ((var_7 < OPT_MAX_VARS) && (ob_arg_flags[var_7] == 2)) {
+            n_18 = ({
+    n_19 = opt_new_node(O_STORESLOT, R_NONE);
+    opt_append(n_19, ob_cur_block);
+    r_add_9 = n_19;
+    r_add_9; });
+            (opt_nodes + n_18)->a = n;
+            n_20 = ob_arg_vals[var_7];
+            (opt_nodes + n_18)->aux = (opt_nodes + n_20)->aux;
+            goto exit_write_4;
+        }
+        opt_write(var_7, n, ob_cur_block);
+    exit_write_4:;
+        return true;
+    }
     if ((kind >= OPK_FLOAT) || (kind == OPK_FSQRT)) {
         if (!((jit_flags & JIT_FLAG_UNBOX) != 0)) {
             return false;
@@ -5715,57 +5854,57 @@ exit_prim_kind_of:;
         r_unbox_float = nd->a;
         goto exit_unbox_float;
     }
-    n_11 = ({
-    n_12 = opt_new_node(O_UNBOXF, R_DBL);
-    opt_append(n_12, ob_cur_block);
-    r_add_5 = n_12;
-    r_add_5; });
-    (opt_nodes + n_11)->a = rcv;
-    (opt_nodes + n_11)->state = s;
-    (opt_nodes + n_11)->flags = NF_GUARD;
-    r_unbox_float = n_11;
+    n_21 = ({
+    n_22 = opt_new_node(O_UNBOXF, R_DBL);
+    opt_append(n_22, ob_cur_block);
+    r_add_10 = n_22;
+    r_add_10; });
+    (opt_nodes + n_21)->a = rcv;
+    (opt_nodes + n_21)->state = s;
+    (opt_nodes + n_21)->flags = NF_GUARD;
+    r_unbox_float = n_21;
 exit_unbox_float:;
     r_unbox_float; });
             n = ({
-    n_13 = opt_new_node(O_FSQRT, R_DBL);
-    opt_append(n_13, ob_cur_block);
-    r_add_6 = n_13;
-    r_add_6; });
+    n_23 = opt_new_node(O_FSQRT, R_DBL);
+    opt_append(n_23, ob_cur_block);
+    r_add_11 = n_23;
+    r_add_11; });
             (opt_nodes + n)->a = idx;
-            v_2 = ({
-    n_14 = ({
-    n_15 = opt_new_node(O_BOXF, R_OOP);
-    opt_append(n_15, ob_cur_block);
-    r_add_7 = n_15;
-    r_add_7; });
-    (opt_nodes + n_14)->a = n;
-    (opt_nodes + n_14)->state = s;
-    (opt_nodes + n_14)->tkind = T_FLOAT;
-    (opt_nodes + n_14)->aux2 = ob_safe_epoch;
-    r_box_float = n_14;
+            v_3 = ({
+    n_24 = ({
+    n_25 = opt_new_node(O_BOXF, R_OOP);
+    opt_append(n_25, ob_cur_block);
+    r_add_12 = n_25;
+    r_add_12; });
+    (opt_nodes + n_24)->a = n;
+    (opt_nodes + n_24)->state = s;
+    (opt_nodes + n_24)->tkind = T_FLOAT;
+    (opt_nodes + n_24)->aux2 = ob_safe_epoch;
+    r_box_float = n_24;
     r_box_float; });
-            var_5 = (opt_acts + a)->var_base + r;
-            if ((var_5 < OPT_MAX_VARS) && (ob_arg_flags[var_5] == 2)) {
-                n_16 = ({
-    n_17 = opt_new_node(O_STORESLOT, R_NONE);
-    opt_append(n_17, ob_cur_block);
-    r_add_8 = n_17;
-    r_add_8; });
-                (opt_nodes + n_16)->a = v_2;
-                n_18 = ob_arg_vals[var_5];
-                (opt_nodes + n_16)->aux = (opt_nodes + n_18)->aux;
-                goto exit_write_3;
+            var_8 = (opt_acts + a)->var_base + r;
+            if ((var_8 < OPT_MAX_VARS) && (ob_arg_flags[var_8] == 2)) {
+                n_26 = ({
+    n_27 = opt_new_node(O_STORESLOT, R_NONE);
+    opt_append(n_27, ob_cur_block);
+    r_add_13 = n_27;
+    r_add_13; });
+                (opt_nodes + n_26)->a = v_3;
+                n_28 = ob_arg_vals[var_8];
+                (opt_nodes + n_26)->aux = (opt_nodes + n_28)->aux;
+                goto exit_write_5;
             }
-            opt_write(var_5, v_2, ob_cur_block);
-        exit_write_3:;
+            opt_write(var_8, v_3, ob_cur_block);
+        exit_write_5:;
             return true;
         }
         if (!(argc == 1)) {
             return false;
         }
-        i_2 = r + 1;
-        var_6 = (opt_acts + a)->var_base + i_2;
-        opt_float_arith((int32_t)(kind - OPK_FLOAT), rcv, opt_read(var_6, ob_cur_block), pc, a, r);
+        i_3 = r + 1;
+        var_9 = (opt_acts + a)->var_base + i_3;
+        opt_float_arith((int32_t)(kind - OPK_FLOAT), rcv, opt_read(var_9, ob_cur_block), pc, a, r);
         return true;
     }
     if ((kind >= OPK_INT) && (argc == 1)) {
@@ -5777,136 +5916,145 @@ exit_unbox_float:;
             if (!((kind - OPK_INT <= 9) && (((jit_flags & JIT_FLAG_UNBOX) != 0) && (((fl & FB_FLOAT) != 0) && ((fl & 132) == 0))))) {
                 return false;
             }
-            i_3 = r + 1;
-            var_7 = (opt_acts + a)->var_base + i_3;
-            opt_float_arith((int32_t)(kind - OPK_INT), rcv, opt_read(var_7, ob_cur_block), pc, a, r);
+            i_4 = r + 1;
+            var_10 = (opt_acts + a)->var_base + i_4;
+            opt_float_arith((int32_t)(kind - OPK_INT), rcv, opt_read(var_10, ob_cur_block), pc, a, r);
             return true;
         }
         k = kind - OPK_INT;
-        i_4 = r + 1;
-        var_8 = (opt_acts + a)->var_base + i_4;
-        y_2 = opt_read(var_8, ob_cur_block);
+        i_5 = r + 1;
+        var_11 = (opt_acts + a)->var_base + i_5;
+        y_2 = opt_read(var_11, ob_cur_block);
         s_2 = opt_make_state(a, pc, (int32_t)ob_ana_depth[(opt_acts + a)->ana + pc]);
         gx = ({
     if ((int32_t)(opt_nodes + rcv)->tkind == T_SMI) {
-        r_guard_int = rcv;
-        goto exit_guard_int;
-    }
-    n_20 = ({
-    n_21 = opt_new_node(O_GUARDINT, R_OOP);
-    opt_append(n_21, ob_cur_block);
-    r_add_9 = n_21;
-    r_add_9; });
-    (opt_nodes + n_20)->a = rcv;
-    (opt_nodes + n_20)->state = s_2;
-    (opt_nodes + n_20)->tkind = T_SMI;
-    (opt_nodes + n_20)->flags = NF_GUARD;
-    r_guard_int = n_20;
-exit_guard_int:;
-    r_guard_int; });
-        gy = ({
-    if ((int32_t)(opt_nodes + y_2)->tkind == T_SMI) {
-        r_guard_int_2 = y_2;
+        r_guard_int_2 = rcv;
         goto exit_guard_int_2;
     }
-    n_22 = ({
-    n_23 = opt_new_node(O_GUARDINT, R_OOP);
-    opt_append(n_23, ob_cur_block);
-    r_add_10 = n_23;
-    r_add_10; });
-    (opt_nodes + n_22)->a = y_2;
-    (opt_nodes + n_22)->state = s_2;
-    (opt_nodes + n_22)->tkind = T_SMI;
-    (opt_nodes + n_22)->flags = NF_GUARD;
-    r_guard_int_2 = n_22;
+    n_30 = ({
+    n_31 = opt_new_node(O_GUARDINT, R_OOP);
+    opt_append(n_31, ob_cur_block);
+    r_add_14 = n_31;
+    r_add_14; });
+    (opt_nodes + n_30)->a = rcv;
+    (opt_nodes + n_30)->state = s_2;
+    (opt_nodes + n_30)->tkind = T_SMI;
+    (opt_nodes + n_30)->flags = NF_GUARD;
+    r_guard_int_2 = n_30;
 exit_guard_int_2:;
     r_guard_int_2; });
+        gy = ({
+    if ((int32_t)(opt_nodes + y_2)->tkind == T_SMI) {
+        r_guard_int_3 = y_2;
+        goto exit_guard_int_3;
+    }
+    n_32 = ({
+    n_33 = opt_new_node(O_GUARDINT, R_OOP);
+    opt_append(n_33, ob_cur_block);
+    r_add_15 = n_33;
+    r_add_15; });
+    (opt_nodes + n_32)->a = y_2;
+    (opt_nodes + n_32)->state = s_2;
+    (opt_nodes + n_32)->tkind = T_SMI;
+    (opt_nodes + n_32)->flags = NF_GUARD;
+    r_guard_int_3 = n_32;
+exit_guard_int_3:;
+    r_guard_int_3; });
         if ((k >= 2) && (k <= 7)) {
-            n_19 = ({
-    n_24 = ({
-    n_25 = opt_new_node(O_ICMP, R_OOP);
-    opt_append(n_25, ob_cur_block);
-    r_add_11 = n_25;
-    r_add_11; });
-    (opt_nodes + n_24)->a = gx;
-    (opt_nodes + n_24)->b = gy;
-    r_binary_2 = n_24;
+            n_29 = ({
+    n_34 = ({
+    n_35 = opt_new_node(O_ICMP, R_OOP);
+    opt_append(n_35, ob_cur_block);
+    r_add_16 = n_35;
+    r_add_16; });
+    (opt_nodes + n_34)->a = gx;
+    (opt_nodes + n_34)->b = gy;
+    r_binary_2 = n_34;
     r_binary_2; });
-            (opt_nodes + n_19)->aux = k;
-            (opt_nodes + n_19)->tkind = T_BOOL;
-            var_9 = (opt_acts + a)->var_base + r;
-            if ((var_9 < OPT_MAX_VARS) && (ob_arg_flags[var_9] == 2)) {
-                n_26 = ({
-    n_27 = opt_new_node(O_STORESLOT, R_NONE);
-    opt_append(n_27, ob_cur_block);
-    r_add_12 = n_27;
-    r_add_12; });
-                (opt_nodes + n_26)->a = n_19;
-                n_28 = ob_arg_vals[var_9];
-                (opt_nodes + n_26)->aux = (opt_nodes + n_28)->aux;
-                goto exit_write_4;
+            (opt_nodes + n_29)->aux = k;
+            (opt_nodes + n_29)->tkind = T_BOOL;
+            var_12 = (opt_acts + a)->var_base + r;
+            if ((var_12 < OPT_MAX_VARS) && (ob_arg_flags[var_12] == 2)) {
+                n_36 = ({
+    n_37 = opt_new_node(O_STORESLOT, R_NONE);
+    opt_append(n_37, ob_cur_block);
+    r_add_17 = n_37;
+    r_add_17; });
+                (opt_nodes + n_36)->a = n_29;
+                n_38 = ob_arg_vals[var_12];
+                (opt_nodes + n_36)->aux = (opt_nodes + n_38)->aux;
+                goto exit_write_6;
             }
-            opt_write(var_9, n_19, ob_cur_block);
-        exit_write_4:;
+            opt_write(var_12, n_29, ob_cur_block);
+        exit_write_6:;
             goto exit_int_arith;
         }
         switch (k) {
         case 0:
-            v_3 = O_IADD;
+            v_4 = O_IADD;
             break;
         case 1:
-            v_3 = O_ISUB;
+            v_4 = O_ISUB;
             break;
         case 8:
-            v_3 = O_IMUL;
+            v_4 = O_IMUL;
             break;
         case 10:
-            v_3 = O_IMOD;
+            v_4 = O_IMOD;
             break;
         case 11:
-            v_3 = O_IXOR;
+            v_4 = O_IXOR;
             break;
         case 12:
-            v_3 = O_ISHIFT;
+            v_4 = O_ISHIFT;
             break;
         case 13:
-            v_3 = O_IDIV;
+            v_4 = O_IDIV;
             break;
         case 14:
-            v_3 = O_IAND;
+            v_4 = O_IAND;
+            break;
+        case 16:
+            v_4 = O_IDIV;
+            break;
+        case 17:
+            v_4 = O_IMOD;
             break;
         default:
-            v_3 = O_IOR;
+            v_4 = O_IOR;
             break;
         }
-        n_19 = ({
-    n_29 = ({
-    n_30 = opt_new_node(v_3, R_OOP);
-    opt_append(n_30, ob_cur_block);
-    r_add_13 = n_30;
-    r_add_13; });
-    (opt_nodes + n_29)->a = gx;
-    (opt_nodes + n_29)->b = gy;
-    r_binary_3 = n_29;
+        n_29 = ({
+    n_39 = ({
+    n_40 = opt_new_node(v_4, R_OOP);
+    opt_append(n_40, ob_cur_block);
+    r_add_18 = n_40;
+    r_add_18; });
+    (opt_nodes + n_39)->a = gx;
+    (opt_nodes + n_39)->b = gy;
+    r_binary_3 = n_39;
     r_binary_3; });
-        (opt_nodes + n_19)->tkind = T_SMI;
-        if ((k <= 1) || ((k == 8) || ((k == 10) || ((k == 12) || (k == 13))))) {
-            (opt_nodes + n_19)->state = s_2;
+        (opt_nodes + n_29)->tkind = T_SMI;
+        if (k >= 16) {
+            (opt_nodes + n_29)->aux = 1;
         }
-        var_10 = (opt_acts + a)->var_base + r;
-        if ((var_10 < OPT_MAX_VARS) && (ob_arg_flags[var_10] == 2)) {
-            n_31 = ({
-    n_32 = opt_new_node(O_STORESLOT, R_NONE);
-    opt_append(n_32, ob_cur_block);
-    r_add_14 = n_32;
-    r_add_14; });
-            (opt_nodes + n_31)->a = n_19;
-            n_33 = ob_arg_vals[var_10];
-            (opt_nodes + n_31)->aux = (opt_nodes + n_33)->aux;
-            goto exit_write_5;
+        if ((k <= 1) || ((k == 8) || ((k == 10) || ((k == 12) || ((k == 13) || (k >= 16)))))) {
+            (opt_nodes + n_29)->state = s_2;
         }
-        opt_write(var_10, n_19, ob_cur_block);
-    exit_write_5:;
+        var_13 = (opt_acts + a)->var_base + r;
+        if ((var_13 < OPT_MAX_VARS) && (ob_arg_flags[var_13] == 2)) {
+            n_41 = ({
+    n_42 = opt_new_node(O_STORESLOT, R_NONE);
+    opt_append(n_42, ob_cur_block);
+    r_add_19 = n_42;
+    r_add_19; });
+            (opt_nodes + n_41)->a = n_29;
+            n_43 = ob_arg_vals[var_13];
+            (opt_nodes + n_41)->aux = (opt_nodes + n_43)->aux;
+            goto exit_write_7;
+        }
+        opt_write(var_13, n_29, ob_cur_block);
+    exit_write_7:;
     exit_int_arith:;
         return true;
     }
@@ -5937,56 +6085,56 @@ exit_guard_int_2:;
     s = opt_make_state(a, pc, (int32_t)ob_ana_depth[(opt_acts + a)->ana + pc]);
     if ((kind == OPK_SIZE) && (argc == 0)) {
         n = ({
-    n_34 = opt_new_node(O_SIZE, R_OOP);
-    opt_append(n_34, ob_cur_block);
-    r_add_15 = n_34;
-    r_add_15; });
+    n_44 = opt_new_node(O_SIZE, R_OOP);
+    opt_append(n_44, ob_cur_block);
+    r_add_20 = n_44;
+    r_add_20; });
         (opt_nodes + n)->a = rcv;
         (opt_nodes + n)->aux = ek;
         (opt_nodes + n)->aux2 = fixed;
         (opt_nodes + n)->tkind = T_SMI;
-        var_11 = (opt_acts + a)->var_base + r;
-        if ((var_11 < OPT_MAX_VARS) && (ob_arg_flags[var_11] == 2)) {
-            n_35 = ({
-    n_36 = opt_new_node(O_STORESLOT, R_NONE);
-    opt_append(n_36, ob_cur_block);
-    r_add_16 = n_36;
-    r_add_16; });
-            (opt_nodes + n_35)->a = n;
-            n_37 = ob_arg_vals[var_11];
-            (opt_nodes + n_35)->aux = (opt_nodes + n_37)->aux;
-            goto exit_write_6;
+        var_14 = (opt_acts + a)->var_base + r;
+        if ((var_14 < OPT_MAX_VARS) && (ob_arg_flags[var_14] == 2)) {
+            n_45 = ({
+    n_46 = opt_new_node(O_STORESLOT, R_NONE);
+    opt_append(n_46, ob_cur_block);
+    r_add_21 = n_46;
+    r_add_21; });
+            (opt_nodes + n_45)->a = n;
+            n_47 = ob_arg_vals[var_14];
+            (opt_nodes + n_45)->aux = (opt_nodes + n_47)->aux;
+            goto exit_write_8;
         }
-        opt_write(var_11, n, ob_cur_block);
-    exit_write_6:;
+        opt_write(var_14, n, ob_cur_block);
+    exit_write_8:;
         return true;
     }
     if (((kind == OPK_AT) || (kind == OPK_STRINGAT)) && (argc == 1)) {
-        i_5 = r + 1;
-        var_12 = (opt_acts + a)->var_base + i_5;
-        v_4 = opt_read(var_12, ob_cur_block);
+        i_6 = r + 1;
+        var_15 = (opt_acts + a)->var_base + i_6;
+        v_5 = opt_read(var_15, ob_cur_block);
         idx = ({
-    if ((int32_t)(opt_nodes + v_4)->tkind == T_SMI) {
-        r_guard_int_3 = v_4;
-        goto exit_guard_int_3;
+    if ((int32_t)(opt_nodes + v_5)->tkind == T_SMI) {
+        r_guard_int_4 = v_5;
+        goto exit_guard_int_4;
     }
-    n_38 = ({
-    n_39 = opt_new_node(O_GUARDINT, R_OOP);
-    opt_append(n_39, ob_cur_block);
-    r_add_17 = n_39;
-    r_add_17; });
-    (opt_nodes + n_38)->a = v_4;
-    (opt_nodes + n_38)->state = s;
-    (opt_nodes + n_38)->tkind = T_SMI;
-    (opt_nodes + n_38)->flags = NF_GUARD;
-    r_guard_int_3 = n_38;
-exit_guard_int_3:;
-    r_guard_int_3; });
+    n_48 = ({
+    n_49 = opt_new_node(O_GUARDINT, R_OOP);
+    opt_append(n_49, ob_cur_block);
+    r_add_22 = n_49;
+    r_add_22; });
+    (opt_nodes + n_48)->a = v_5;
+    (opt_nodes + n_48)->state = s;
+    (opt_nodes + n_48)->tkind = T_SMI;
+    (opt_nodes + n_48)->flags = NF_GUARD;
+    r_guard_int_4 = n_48;
+exit_guard_int_4:;
+    r_guard_int_4; });
         n = ({
-    n_40 = opt_new_node(O_INDEXLOAD, R_OOP);
-    opt_append(n_40, ob_cur_block);
-    r_add_18 = n_40;
-    r_add_18; });
+    n_50 = opt_new_node(O_INDEXLOAD, R_OOP);
+    opt_append(n_50, ob_cur_block);
+    r_add_23 = n_50;
+    r_add_23; });
         (opt_nodes + n)->a = rcv;
         (opt_nodes + n)->b = idx;
         (opt_nodes + n)->aux = ek;
@@ -5998,71 +6146,71 @@ exit_guard_int_3:;
         if (ek == E_CHAR) {
             (opt_nodes + n)->tkind = T_CHAR;
         }
-        var_13 = (opt_acts + a)->var_base + r;
-        if ((var_13 < OPT_MAX_VARS) && (ob_arg_flags[var_13] == 2)) {
-            n_41 = ({
-    n_42 = opt_new_node(O_STORESLOT, R_NONE);
-    opt_append(n_42, ob_cur_block);
-    r_add_19 = n_42;
-    r_add_19; });
-            (opt_nodes + n_41)->a = n;
-            n_43 = ob_arg_vals[var_13];
-            (opt_nodes + n_41)->aux = (opt_nodes + n_43)->aux;
-            goto exit_write_7;
+        var_16 = (opt_acts + a)->var_base + r;
+        if ((var_16 < OPT_MAX_VARS) && (ob_arg_flags[var_16] == 2)) {
+            n_51 = ({
+    n_52 = opt_new_node(O_STORESLOT, R_NONE);
+    opt_append(n_52, ob_cur_block);
+    r_add_24 = n_52;
+    r_add_24; });
+            (opt_nodes + n_51)->a = n;
+            n_53 = ob_arg_vals[var_16];
+            (opt_nodes + n_51)->aux = (opt_nodes + n_53)->aux;
+            goto exit_write_9;
         }
-        opt_write(var_13, n, ob_cur_block);
-    exit_write_7:;
+        opt_write(var_16, n, ob_cur_block);
+    exit_write_9:;
         return true;
     }
     if (((kind == OPK_ATPUT) || (kind == OPK_STRINGATPUT)) && (argc == 2)) {
-        i_6 = r + 1;
-        var_14 = (opt_acts + a)->var_base + i_6;
-        v_5 = opt_read(var_14, ob_cur_block);
+        i_7 = r + 1;
+        var_17 = (opt_acts + a)->var_base + i_7;
+        v_6 = opt_read(var_17, ob_cur_block);
         idx = ({
-    if ((int32_t)(opt_nodes + v_5)->tkind == T_SMI) {
-        r_guard_int_4 = v_5;
-        goto exit_guard_int_4;
+    if ((int32_t)(opt_nodes + v_6)->tkind == T_SMI) {
+        r_guard_int_5 = v_6;
+        goto exit_guard_int_5;
     }
-    n_44 = ({
-    n_45 = opt_new_node(O_GUARDINT, R_OOP);
-    opt_append(n_45, ob_cur_block);
-    r_add_20 = n_45;
-    r_add_20; });
-    (opt_nodes + n_44)->a = v_5;
-    (opt_nodes + n_44)->state = s;
-    (opt_nodes + n_44)->tkind = T_SMI;
-    (opt_nodes + n_44)->flags = NF_GUARD;
-    r_guard_int_4 = n_44;
-exit_guard_int_4:;
-    r_guard_int_4; });
-        i_7 = r + 2;
-        var_15 = (opt_acts + a)->var_base + i_7;
-        val = opt_read(var_15, ob_cur_block);
+    n_54 = ({
+    n_55 = opt_new_node(O_GUARDINT, R_OOP);
+    opt_append(n_55, ob_cur_block);
+    r_add_25 = n_55;
+    r_add_25; });
+    (opt_nodes + n_54)->a = v_6;
+    (opt_nodes + n_54)->state = s;
+    (opt_nodes + n_54)->tkind = T_SMI;
+    (opt_nodes + n_54)->flags = NF_GUARD;
+    r_guard_int_5 = n_54;
+exit_guard_int_5:;
+    r_guard_int_5; });
+        i_8 = r + 2;
+        var_18 = (opt_acts + a)->var_base + i_8;
+        val = opt_read(var_18, ob_cur_block);
         n = ({
-    n_46 = opt_new_node(O_INDEXSTORE, R_NONE);
-    opt_append(n_46, ob_cur_block);
-    r_add_21 = n_46;
-    r_add_21; });
+    n_56 = opt_new_node(O_INDEXSTORE, R_NONE);
+    opt_append(n_56, ob_cur_block);
+    r_add_26 = n_56;
+    r_add_26; });
         (opt_nodes + n)->a = rcv;
         (opt_nodes + n)->b = idx;
         (opt_nodes + n)->c = val;
         (opt_nodes + n)->aux = ek;
         (opt_nodes + n)->aux2 = fixed;
         (opt_nodes + n)->state = s;
-        var_16 = (opt_acts + a)->var_base + r;
-        if ((var_16 < OPT_MAX_VARS) && (ob_arg_flags[var_16] == 2)) {
-            n_47 = ({
-    n_48 = opt_new_node(O_STORESLOT, R_NONE);
-    opt_append(n_48, ob_cur_block);
-    r_add_22 = n_48;
-    r_add_22; });
-            (opt_nodes + n_47)->a = val;
-            n_49 = ob_arg_vals[var_16];
-            (opt_nodes + n_47)->aux = (opt_nodes + n_49)->aux;
-            goto exit_write_8;
+        var_19 = (opt_acts + a)->var_base + r;
+        if ((var_19 < OPT_MAX_VARS) && (ob_arg_flags[var_19] == 2)) {
+            n_57 = ({
+    n_58 = opt_new_node(O_STORESLOT, R_NONE);
+    opt_append(n_58, ob_cur_block);
+    r_add_27 = n_58;
+    r_add_27; });
+            (opt_nodes + n_57)->a = val;
+            n_59 = ob_arg_vals[var_19];
+            (opt_nodes + n_57)->aux = (opt_nodes + n_59)->aux;
+            goto exit_write_10;
         }
-        opt_write(var_16, val, ob_cur_block);
-    exit_write_8:;
+        opt_write(var_19, val, ob_cur_block);
+    exit_write_10:;
         return true;
     }
     return false;
@@ -6125,6 +6273,10 @@ static bool opt_inline_send(uint64_t sel, int32_t argc, int32_t kind, int32_t k,
     int64_t p_36;
     int64_t p_37;
     int64_t p_38;
+    int64_t p_39;
+    int64_t p_40;
+    int64_t p_41;
+    int64_t p_42;
     int64_t kind_2;
     uint64_t inst;
     oop r_class_of;
@@ -6153,13 +6305,9 @@ static bool opt_inline_send(uint64_t sel, int32_t argc, int32_t kind, int32_t k,
     int32_t n_11;
     int32_t n_6;
     int32_t r_method_primitive_2;
-    uint64_t p_39;
-    int32_t p_40;
+    uint64_t p_43;
+    int32_t p_44;
     int64_t r_prim_kind_of_2;
-    int64_t p_41;
-    int64_t p_42;
-    int64_t p_43;
-    int64_t p_44;
     int64_t p_45;
     int64_t p_46;
     int64_t p_47;
@@ -6192,6 +6340,14 @@ static bool opt_inline_send(uint64_t sel, int32_t argc, int32_t kind, int32_t k,
     int64_t p_74;
     int64_t p_75;
     int64_t p_76;
+    int64_t p_77;
+    int64_t p_78;
+    int64_t p_79;
+    int64_t p_80;
+    int64_t p_81;
+    int64_t p_82;
+    int64_t p_83;
+    int64_t p_84;
     bool r_block_call;
     int64_t k_2;
     oop o_4;
@@ -6236,9 +6392,9 @@ static bool opt_inline_send(uint64_t sel, int32_t argc, int32_t kind, int32_t k,
     int32_t n_22;
     int32_t n_12;
     int32_t r_method_primitive_3;
-    uint64_t p_77;
+    uint64_t p_85;
     int32_t r_method_primitive_4;
-    uint64_t p_78;
+    uint64_t p_86;
     int32_t r_call_selector_3;
     int32_t r_add_8;
     int32_t n_24;
@@ -6293,17 +6449,9 @@ static bool opt_inline_send(uint64_t sel, int32_t argc, int32_t kind, int32_t k,
     int32_t n_36;
     bool r_allocate_2;
     int32_t r_method_primitive_5;
-    uint64_t p_79;
-    int32_t p_80;
+    uint64_t p_87;
+    int32_t p_88;
     int64_t r_prim_kind_of_3;
-    int64_t p_81;
-    int64_t p_82;
-    int64_t p_83;
-    int64_t p_84;
-    int64_t p_85;
-    int64_t p_86;
-    int64_t p_87;
-    int64_t p_88;
     int64_t p_89;
     int64_t p_90;
     int64_t p_91;
@@ -6332,6 +6480,18 @@ static bool opt_inline_send(uint64_t sel, int32_t argc, int32_t kind, int32_t k,
     int64_t p_114;
     int64_t p_115;
     int64_t p_116;
+    int64_t p_117;
+    int64_t p_118;
+    int64_t p_119;
+    int64_t p_120;
+    int64_t p_121;
+    int64_t p_122;
+    int64_t p_123;
+    int64_t p_124;
+    int64_t p_125;
+    int64_t p_126;
+    int64_t p_127;
+    int64_t p_128;
     int64_t kind_4;
     uint64_t inst_2;
     oop r_class_of_4;
@@ -6360,21 +6520,9 @@ static bool opt_inline_send(uint64_t sel, int32_t argc, int32_t kind, int32_t k,
     int32_t n_42;
     int32_t n_37;
     int32_t r_method_primitive_6;
-    uint64_t p_117;
-    int32_t p_118;
+    uint64_t p_129;
+    int32_t p_130;
     int64_t r_prim_kind_of_4;
-    int64_t p_119;
-    int64_t p_120;
-    int64_t p_121;
-    int64_t p_122;
-    int64_t p_123;
-    int64_t p_124;
-    int64_t p_125;
-    int64_t p_126;
-    int64_t p_127;
-    int64_t p_128;
-    int64_t p_129;
-    int64_t p_130;
     int64_t p_131;
     int64_t p_132;
     int64_t p_133;
@@ -6399,6 +6547,22 @@ static bool opt_inline_send(uint64_t sel, int32_t argc, int32_t kind, int32_t k,
     int64_t p_152;
     int64_t p_153;
     int64_t p_154;
+    int64_t p_155;
+    int64_t p_156;
+    int64_t p_157;
+    int64_t p_158;
+    int64_t p_159;
+    int64_t p_160;
+    int64_t p_161;
+    int64_t p_162;
+    int64_t p_163;
+    int64_t p_164;
+    int64_t p_165;
+    int64_t p_166;
+    int64_t p_167;
+    int64_t p_168;
+    int64_t p_169;
+    int64_t p_170;
     bool r_block_call_2;
     int64_t k_3;
     oop o_13;
@@ -6443,9 +6607,9 @@ static bool opt_inline_send(uint64_t sel, int32_t argc, int32_t kind, int32_t k,
     int32_t n_53;
     int32_t n_43;
     int32_t r_method_primitive_7;
-    uint64_t p_155;
+    uint64_t p_171;
     int32_t r_method_primitive_8;
-    uint64_t p_156;
+    uint64_t p_172;
     int32_t r_call_selector_6;
     int32_t r_add_19;
     int32_t n_55;
@@ -6511,25 +6675,9 @@ static bool opt_inline_send(uint64_t sel, int32_t argc, int32_t kind, int32_t k,
     int32_t n_71;
     bool r_allocate_3;
     int32_t r_method_primitive_9;
-    uint64_t p_157;
-    int32_t p_158;
+    uint64_t p_173;
+    int32_t p_174;
     int64_t r_prim_kind_of_5;
-    int64_t p_159;
-    int64_t p_160;
-    int64_t p_161;
-    int64_t p_162;
-    int64_t p_163;
-    int64_t p_164;
-    int64_t p_165;
-    int64_t p_166;
-    int64_t p_167;
-    int64_t p_168;
-    int64_t p_169;
-    int64_t p_170;
-    int64_t p_171;
-    int64_t p_172;
-    int64_t p_173;
-    int64_t p_174;
     int64_t p_175;
     int64_t p_176;
     int64_t p_177;
@@ -6550,6 +6698,26 @@ static bool opt_inline_send(uint64_t sel, int32_t argc, int32_t kind, int32_t k,
     int64_t p_192;
     int64_t p_193;
     int64_t p_194;
+    int64_t p_195;
+    int64_t p_196;
+    int64_t p_197;
+    int64_t p_198;
+    int64_t p_199;
+    int64_t p_200;
+    int64_t p_201;
+    int64_t p_202;
+    int64_t p_203;
+    int64_t p_204;
+    int64_t p_205;
+    int64_t p_206;
+    int64_t p_207;
+    int64_t p_208;
+    int64_t p_209;
+    int64_t p_210;
+    int64_t p_211;
+    int64_t p_212;
+    int64_t p_213;
+    int64_t p_214;
     int64_t kind_6;
     uint64_t inst_3;
     oop r_class_of_5;
@@ -6578,29 +6746,9 @@ static bool opt_inline_send(uint64_t sel, int32_t argc, int32_t kind, int32_t k,
     int32_t n_77;
     int32_t n_72;
     int32_t r_method_primitive_10;
-    uint64_t p_195;
-    int32_t p_196;
+    uint64_t p_215;
+    int32_t p_216;
     int64_t r_prim_kind_of_6;
-    int64_t p_197;
-    int64_t p_198;
-    int64_t p_199;
-    int64_t p_200;
-    int64_t p_201;
-    int64_t p_202;
-    int64_t p_203;
-    int64_t p_204;
-    int64_t p_205;
-    int64_t p_206;
-    int64_t p_207;
-    int64_t p_208;
-    int64_t p_209;
-    int64_t p_210;
-    int64_t p_211;
-    int64_t p_212;
-    int64_t p_213;
-    int64_t p_214;
-    int64_t p_215;
-    int64_t p_216;
     int64_t p_217;
     int64_t p_218;
     int64_t p_219;
@@ -6617,6 +6765,30 @@ static bool opt_inline_send(uint64_t sel, int32_t argc, int32_t kind, int32_t k,
     int64_t p_230;
     int64_t p_231;
     int64_t p_232;
+    int64_t p_233;
+    int64_t p_234;
+    int64_t p_235;
+    int64_t p_236;
+    int64_t p_237;
+    int64_t p_238;
+    int64_t p_239;
+    int64_t p_240;
+    int64_t p_241;
+    int64_t p_242;
+    int64_t p_243;
+    int64_t p_244;
+    int64_t p_245;
+    int64_t p_246;
+    int64_t p_247;
+    int64_t p_248;
+    int64_t p_249;
+    int64_t p_250;
+    int64_t p_251;
+    int64_t p_252;
+    int64_t p_253;
+    int64_t p_254;
+    int64_t p_255;
+    int64_t p_256;
     bool r_block_call_3;
     int64_t k_4;
     oop o_21;
@@ -6661,9 +6833,9 @@ static bool opt_inline_send(uint64_t sel, int32_t argc, int32_t kind, int32_t k,
     int32_t n_88;
     int32_t n_78;
     int32_t r_method_primitive_11;
-    uint64_t p_233;
+    uint64_t p_257;
     int32_t r_method_primitive_12;
-    uint64_t p_234;
+    uint64_t p_258;
     int32_t r_call_selector_9;
     int32_t r_add_32;
     int32_t n_90;
@@ -6732,33 +6904,9 @@ static bool opt_inline_send(uint64_t sel, int32_t argc, int32_t kind, int32_t k,
     int32_t n_110;
     bool r_allocate_4;
     int32_t r_method_primitive_13;
-    uint64_t p_235;
-    int32_t p_236;
+    uint64_t p_259;
+    int32_t p_260;
     int64_t r_prim_kind_of_7;
-    int64_t p_237;
-    int64_t p_238;
-    int64_t p_239;
-    int64_t p_240;
-    int64_t p_241;
-    int64_t p_242;
-    int64_t p_243;
-    int64_t p_244;
-    int64_t p_245;
-    int64_t p_246;
-    int64_t p_247;
-    int64_t p_248;
-    int64_t p_249;
-    int64_t p_250;
-    int64_t p_251;
-    int64_t p_252;
-    int64_t p_253;
-    int64_t p_254;
-    int64_t p_255;
-    int64_t p_256;
-    int64_t p_257;
-    int64_t p_258;
-    int64_t p_259;
-    int64_t p_260;
     int64_t p_261;
     int64_t p_262;
     int64_t p_263;
@@ -6771,6 +6919,34 @@ static bool opt_inline_send(uint64_t sel, int32_t argc, int32_t kind, int32_t k,
     int64_t p_270;
     int64_t p_271;
     int64_t p_272;
+    int64_t p_273;
+    int64_t p_274;
+    int64_t p_275;
+    int64_t p_276;
+    int64_t p_277;
+    int64_t p_278;
+    int64_t p_279;
+    int64_t p_280;
+    int64_t p_281;
+    int64_t p_282;
+    int64_t p_283;
+    int64_t p_284;
+    int64_t p_285;
+    int64_t p_286;
+    int64_t p_287;
+    int64_t p_288;
+    int64_t p_289;
+    int64_t p_290;
+    int64_t p_291;
+    int64_t p_292;
+    int64_t p_293;
+    int64_t p_294;
+    int64_t p_295;
+    int64_t p_296;
+    int64_t p_297;
+    int64_t p_298;
+    int64_t p_299;
+    int64_t p_300;
     int64_t kind_8;
     uint64_t inst_4;
     oop r_class_of_6;
@@ -6799,37 +6975,9 @@ static bool opt_inline_send(uint64_t sel, int32_t argc, int32_t kind, int32_t k,
     int32_t n_116;
     int32_t n_111;
     int32_t r_method_primitive_14;
-    uint64_t p_273;
-    int32_t p_274;
+    uint64_t p_301;
+    int32_t p_302;
     int64_t r_prim_kind_of_8;
-    int64_t p_275;
-    int64_t p_276;
-    int64_t p_277;
-    int64_t p_278;
-    int64_t p_279;
-    int64_t p_280;
-    int64_t p_281;
-    int64_t p_282;
-    int64_t p_283;
-    int64_t p_284;
-    int64_t p_285;
-    int64_t p_286;
-    int64_t p_287;
-    int64_t p_288;
-    int64_t p_289;
-    int64_t p_290;
-    int64_t p_291;
-    int64_t p_292;
-    int64_t p_293;
-    int64_t p_294;
-    int64_t p_295;
-    int64_t p_296;
-    int64_t p_297;
-    int64_t p_298;
-    int64_t p_299;
-    int64_t p_300;
-    int64_t p_301;
-    int64_t p_302;
     int64_t p_303;
     int64_t p_304;
     int64_t p_305;
@@ -6838,6 +6986,38 @@ static bool opt_inline_send(uint64_t sel, int32_t argc, int32_t kind, int32_t k,
     int64_t p_308;
     int64_t p_309;
     int64_t p_310;
+    int64_t p_311;
+    int64_t p_312;
+    int64_t p_313;
+    int64_t p_314;
+    int64_t p_315;
+    int64_t p_316;
+    int64_t p_317;
+    int64_t p_318;
+    int64_t p_319;
+    int64_t p_320;
+    int64_t p_321;
+    int64_t p_322;
+    int64_t p_323;
+    int64_t p_324;
+    int64_t p_325;
+    int64_t p_326;
+    int64_t p_327;
+    int64_t p_328;
+    int64_t p_329;
+    int64_t p_330;
+    int64_t p_331;
+    int64_t p_332;
+    int64_t p_333;
+    int64_t p_334;
+    int64_t p_335;
+    int64_t p_336;
+    int64_t p_337;
+    int64_t p_338;
+    int64_t p_339;
+    int64_t p_340;
+    int64_t p_341;
+    int64_t p_342;
     bool r_block_call_4;
     int64_t k_5;
     oop o_29;
@@ -6882,9 +7062,9 @@ static bool opt_inline_send(uint64_t sel, int32_t argc, int32_t kind, int32_t k,
     int32_t n_127;
     int32_t n_117;
     int32_t r_method_primitive_15;
-    uint64_t p_311;
+    uint64_t p_343;
     int32_t r_method_primitive_16;
-    uint64_t p_312;
+    uint64_t p_344;
     int32_t r_call_selector_12;
     int32_t r_add_47;
     int32_t n_129;
@@ -7078,61 +7258,77 @@ exit_write:;
         if ((p_24 > 0) && (p_24 < OPT_MAX_PRIM)) {
             ob_prim_kinds[p_24] = 45U;
         }
-        p_25 = jit_primitive_number("floatAdd");
+        p_25 = jit_primitive_number("intQuo");
         if ((p_25 > 0) && (p_25 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_25] = 64U;
+            ob_prim_kinds[p_25] = 48U;
         }
-        p_26 = jit_primitive_number("floatSub");
+        p_26 = jit_primitive_number("intRem");
         if ((p_26 > 0) && (p_26 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_26] = 65U;
+            ob_prim_kinds[p_26] = 49U;
         }
-        p_27 = jit_primitive_number("floatLess");
+        p_27 = jit_primitive_number("charValue");
         if ((p_27 > 0) && (p_27 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_27] = 66U;
+            ob_prim_kinds[p_27] = 12U;
         }
-        p_28 = jit_primitive_number("floatGreater");
+        p_28 = jit_primitive_number("charFromValue");
         if ((p_28 > 0) && (p_28 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_28] = 67U;
+            ob_prim_kinds[p_28] = 13U;
         }
-        p_29 = jit_primitive_number("floatLessEq");
+        p_29 = jit_primitive_number("floatAdd");
         if ((p_29 > 0) && (p_29 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_29] = 68U;
+            ob_prim_kinds[p_29] = 64U;
         }
-        p_30 = jit_primitive_number("floatGreaterEq");
+        p_30 = jit_primitive_number("floatSub");
         if ((p_30 > 0) && (p_30 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_30] = 69U;
+            ob_prim_kinds[p_30] = 65U;
         }
-        p_31 = jit_primitive_number("floatEq");
+        p_31 = jit_primitive_number("floatLess");
         if ((p_31 > 0) && (p_31 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_31] = 70U;
+            ob_prim_kinds[p_31] = 66U;
         }
-        p_32 = jit_primitive_number("floatNotEq");
+        p_32 = jit_primitive_number("floatGreater");
         if ((p_32 > 0) && (p_32 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_32] = 71U;
+            ob_prim_kinds[p_32] = 67U;
         }
-        p_33 = jit_primitive_number("floatMul");
+        p_33 = jit_primitive_number("floatLessEq");
         if ((p_33 > 0) && (p_33 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_33] = 72U;
+            ob_prim_kinds[p_33] = 68U;
         }
-        p_34 = jit_primitive_number("floatDiv");
+        p_34 = jit_primitive_number("floatGreaterEq");
         if ((p_34 > 0) && (p_34 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_34] = 73U;
+            ob_prim_kinds[p_34] = 69U;
         }
-        p_35 = jit_primitive_number("floatSqrt");
+        p_35 = jit_primitive_number("floatEq");
         if ((p_35 > 0) && (p_35 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_35] = 8U;
+            ob_prim_kinds[p_35] = 70U;
         }
-        p_36 = jit_primitive_number("basicNew");
+        p_36 = jit_primitive_number("floatNotEq");
         if ((p_36 > 0) && (p_36 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_36] = 9U;
+            ob_prim_kinds[p_36] = 71U;
         }
-        p_37 = jit_primitive_number("basicNew:");
+        p_37 = jit_primitive_number("floatMul");
         if ((p_37 > 0) && (p_37 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_37] = 10U;
+            ob_prim_kinds[p_37] = 72U;
         }
-        p_38 = jit_primitive_number("closureValue");
+        p_38 = jit_primitive_number("floatDiv");
         if ((p_38 > 0) && (p_38 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_38] = 11U;
+            ob_prim_kinds[p_38] = 73U;
+        }
+        p_39 = jit_primitive_number("floatSqrt");
+        if ((p_39 > 0) && (p_39 < OPT_MAX_PRIM)) {
+            ob_prim_kinds[p_39] = 8U;
+        }
+        p_40 = jit_primitive_number("basicNew");
+        if ((p_40 > 0) && (p_40 < OPT_MAX_PRIM)) {
+            ob_prim_kinds[p_40] = 9U;
+        }
+        p_41 = jit_primitive_number("basicNew:");
+        if ((p_41 > 0) && (p_41 < OPT_MAX_PRIM)) {
+            ob_prim_kinds[p_41] = 10U;
+        }
+        p_42 = jit_primitive_number("closureValue");
+        if ((p_42 > 0) && (p_42 < OPT_MAX_PRIM)) {
+            ob_prim_kinds[p_42] = 11U;
         }
     }
     if ((p_2 <= 0) || (p_2 >= OPT_MAX_PRIM)) {
@@ -7312,164 +7508,180 @@ exit_allocate:;
         goto exit_send;
     }
     if ((cls == cls_block) && (((jit_flags & JIT_FLAG_CALLS) != 0) && ({
-    p_40 = ({
-    p_39 = *(uint64_t *)(m + 16 + 56);
-    r_method_primitive_2 = (p_39 & 1) != 0 ? (int32_t)((((int64_t)p_39) >> 1) & CM_PRIM_MASK) : 0;
+    p_44 = ({
+    p_43 = *(uint64_t *)(m + 16 + 56);
+    r_method_primitive_2 = (p_43 & 1) != 0 ? (int32_t)((((int64_t)p_43) >> 1) & CM_PRIM_MASK) : 0;
     r_method_primitive_2; });
     ({
     if (!ob_prims_known) {
         ob_prims_known = true;
         memset(ob_prim_kinds, 0, OPT_MAX_PRIM);
-        p_41 = jit_primitive_number("at");
-        if ((p_41 > 0) && (p_41 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_41] = 1U;
-        }
-        p_42 = jit_primitive_number("atPut");
-        if ((p_42 > 0) && (p_42 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_42] = 2U;
-        }
-        p_43 = jit_primitive_number("basicSize");
-        if ((p_43 > 0) && (p_43 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_43] = 3U;
-        }
-        p_44 = jit_primitive_number("stringAt");
-        if ((p_44 > 0) && (p_44 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_44] = 4U;
-        }
-        p_45 = jit_primitive_number("stringAtPut");
+        p_45 = jit_primitive_number("at");
         if ((p_45 > 0) && (p_45 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_45] = 5U;
+            ob_prim_kinds[p_45] = 1U;
         }
-        p_46 = jit_primitive_number("class");
+        p_46 = jit_primitive_number("atPut");
         if ((p_46 > 0) && (p_46 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_46] = 6U;
+            ob_prim_kinds[p_46] = 2U;
         }
-        p_47 = jit_primitive_number("identical");
+        p_47 = jit_primitive_number("basicSize");
         if ((p_47 > 0) && (p_47 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_47] = 7U;
+            ob_prim_kinds[p_47] = 3U;
         }
-        p_48 = jit_primitive_number("intAdd");
+        p_48 = jit_primitive_number("stringAt");
         if ((p_48 > 0) && (p_48 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_48] = 32U;
+            ob_prim_kinds[p_48] = 4U;
         }
-        p_49 = jit_primitive_number("intSub");
+        p_49 = jit_primitive_number("stringAtPut");
         if ((p_49 > 0) && (p_49 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_49] = 33U;
+            ob_prim_kinds[p_49] = 5U;
         }
-        p_50 = jit_primitive_number("intLess");
+        p_50 = jit_primitive_number("class");
         if ((p_50 > 0) && (p_50 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_50] = 34U;
+            ob_prim_kinds[p_50] = 6U;
         }
-        p_51 = jit_primitive_number("intGreater");
+        p_51 = jit_primitive_number("identical");
         if ((p_51 > 0) && (p_51 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_51] = 35U;
+            ob_prim_kinds[p_51] = 7U;
         }
-        p_52 = jit_primitive_number("intLessEq");
+        p_52 = jit_primitive_number("intAdd");
         if ((p_52 > 0) && (p_52 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_52] = 36U;
+            ob_prim_kinds[p_52] = 32U;
         }
-        p_53 = jit_primitive_number("intGreaterEq");
+        p_53 = jit_primitive_number("intSub");
         if ((p_53 > 0) && (p_53 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_53] = 37U;
+            ob_prim_kinds[p_53] = 33U;
         }
-        p_54 = jit_primitive_number("intEq");
+        p_54 = jit_primitive_number("intLess");
         if ((p_54 > 0) && (p_54 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_54] = 38U;
+            ob_prim_kinds[p_54] = 34U;
         }
-        p_55 = jit_primitive_number("intNotEq");
+        p_55 = jit_primitive_number("intGreater");
         if ((p_55 > 0) && (p_55 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_55] = 39U;
+            ob_prim_kinds[p_55] = 35U;
         }
-        p_56 = jit_primitive_number("intMul");
+        p_56 = jit_primitive_number("intLessEq");
         if ((p_56 > 0) && (p_56 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_56] = 40U;
+            ob_prim_kinds[p_56] = 36U;
         }
-        p_57 = jit_primitive_number("intBitAnd");
+        p_57 = jit_primitive_number("intGreaterEq");
         if ((p_57 > 0) && (p_57 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_57] = 46U;
+            ob_prim_kinds[p_57] = 37U;
         }
-        p_58 = jit_primitive_number("intBitOr");
+        p_58 = jit_primitive_number("intEq");
         if ((p_58 > 0) && (p_58 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_58] = 47U;
+            ob_prim_kinds[p_58] = 38U;
         }
-        p_59 = jit_primitive_number("intMod");
+        p_59 = jit_primitive_number("intNotEq");
         if ((p_59 > 0) && (p_59 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_59] = 42U;
+            ob_prim_kinds[p_59] = 39U;
         }
-        p_60 = jit_primitive_number("intBitXor");
+        p_60 = jit_primitive_number("intMul");
         if ((p_60 > 0) && (p_60 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_60] = 43U;
+            ob_prim_kinds[p_60] = 40U;
         }
-        p_61 = jit_primitive_number("intBitShift");
+        p_61 = jit_primitive_number("intBitAnd");
         if ((p_61 > 0) && (p_61 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_61] = 44U;
+            ob_prim_kinds[p_61] = 46U;
         }
-        p_62 = jit_primitive_number("intFloorDiv");
+        p_62 = jit_primitive_number("intBitOr");
         if ((p_62 > 0) && (p_62 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_62] = 45U;
+            ob_prim_kinds[p_62] = 47U;
         }
-        p_63 = jit_primitive_number("floatAdd");
+        p_63 = jit_primitive_number("intMod");
         if ((p_63 > 0) && (p_63 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_63] = 64U;
+            ob_prim_kinds[p_63] = 42U;
         }
-        p_64 = jit_primitive_number("floatSub");
+        p_64 = jit_primitive_number("intBitXor");
         if ((p_64 > 0) && (p_64 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_64] = 65U;
+            ob_prim_kinds[p_64] = 43U;
         }
-        p_65 = jit_primitive_number("floatLess");
+        p_65 = jit_primitive_number("intBitShift");
         if ((p_65 > 0) && (p_65 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_65] = 66U;
+            ob_prim_kinds[p_65] = 44U;
         }
-        p_66 = jit_primitive_number("floatGreater");
+        p_66 = jit_primitive_number("intFloorDiv");
         if ((p_66 > 0) && (p_66 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_66] = 67U;
+            ob_prim_kinds[p_66] = 45U;
         }
-        p_67 = jit_primitive_number("floatLessEq");
+        p_67 = jit_primitive_number("intQuo");
         if ((p_67 > 0) && (p_67 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_67] = 68U;
+            ob_prim_kinds[p_67] = 48U;
         }
-        p_68 = jit_primitive_number("floatGreaterEq");
+        p_68 = jit_primitive_number("intRem");
         if ((p_68 > 0) && (p_68 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_68] = 69U;
+            ob_prim_kinds[p_68] = 49U;
         }
-        p_69 = jit_primitive_number("floatEq");
+        p_69 = jit_primitive_number("charValue");
         if ((p_69 > 0) && (p_69 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_69] = 70U;
+            ob_prim_kinds[p_69] = 12U;
         }
-        p_70 = jit_primitive_number("floatNotEq");
+        p_70 = jit_primitive_number("charFromValue");
         if ((p_70 > 0) && (p_70 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_70] = 71U;
+            ob_prim_kinds[p_70] = 13U;
         }
-        p_71 = jit_primitive_number("floatMul");
+        p_71 = jit_primitive_number("floatAdd");
         if ((p_71 > 0) && (p_71 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_71] = 72U;
+            ob_prim_kinds[p_71] = 64U;
         }
-        p_72 = jit_primitive_number("floatDiv");
+        p_72 = jit_primitive_number("floatSub");
         if ((p_72 > 0) && (p_72 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_72] = 73U;
+            ob_prim_kinds[p_72] = 65U;
         }
-        p_73 = jit_primitive_number("floatSqrt");
+        p_73 = jit_primitive_number("floatLess");
         if ((p_73 > 0) && (p_73 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_73] = 8U;
+            ob_prim_kinds[p_73] = 66U;
         }
-        p_74 = jit_primitive_number("basicNew");
+        p_74 = jit_primitive_number("floatGreater");
         if ((p_74 > 0) && (p_74 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_74] = 9U;
+            ob_prim_kinds[p_74] = 67U;
         }
-        p_75 = jit_primitive_number("basicNew:");
+        p_75 = jit_primitive_number("floatLessEq");
         if ((p_75 > 0) && (p_75 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_75] = 10U;
+            ob_prim_kinds[p_75] = 68U;
         }
-        p_76 = jit_primitive_number("closureValue");
+        p_76 = jit_primitive_number("floatGreaterEq");
         if ((p_76 > 0) && (p_76 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_76] = 11U;
+            ob_prim_kinds[p_76] = 69U;
+        }
+        p_77 = jit_primitive_number("floatEq");
+        if ((p_77 > 0) && (p_77 < OPT_MAX_PRIM)) {
+            ob_prim_kinds[p_77] = 70U;
+        }
+        p_78 = jit_primitive_number("floatNotEq");
+        if ((p_78 > 0) && (p_78 < OPT_MAX_PRIM)) {
+            ob_prim_kinds[p_78] = 71U;
+        }
+        p_79 = jit_primitive_number("floatMul");
+        if ((p_79 > 0) && (p_79 < OPT_MAX_PRIM)) {
+            ob_prim_kinds[p_79] = 72U;
+        }
+        p_80 = jit_primitive_number("floatDiv");
+        if ((p_80 > 0) && (p_80 < OPT_MAX_PRIM)) {
+            ob_prim_kinds[p_80] = 73U;
+        }
+        p_81 = jit_primitive_number("floatSqrt");
+        if ((p_81 > 0) && (p_81 < OPT_MAX_PRIM)) {
+            ob_prim_kinds[p_81] = 8U;
+        }
+        p_82 = jit_primitive_number("basicNew");
+        if ((p_82 > 0) && (p_82 < OPT_MAX_PRIM)) {
+            ob_prim_kinds[p_82] = 9U;
+        }
+        p_83 = jit_primitive_number("basicNew:");
+        if ((p_83 > 0) && (p_83 < OPT_MAX_PRIM)) {
+            ob_prim_kinds[p_83] = 10U;
+        }
+        p_84 = jit_primitive_number("closureValue");
+        if ((p_84 > 0) && (p_84 < OPT_MAX_PRIM)) {
+            ob_prim_kinds[p_84] = 11U;
         }
     }
-    if ((p_40 <= 0) || (p_40 >= OPT_MAX_PRIM)) {
+    if ((p_44 <= 0) || (p_44 >= OPT_MAX_PRIM)) {
         r_prim_kind_of_2 = 0;
         goto exit_prim_kind_of_2;
     }
-    r_prim_kind_of_2 = (int32_t)ob_prim_kinds[p_40];
+    r_prim_kind_of_2 = (int32_t)ob_prim_kinds[p_44];
 exit_prim_kind_of_2:;
     r_prim_kind_of_2; }) == OPK_CLOSURE; }))) {
         r_send = ({
@@ -7716,11 +7928,11 @@ exit_block_call:;
         goto exit_send;
     }
     if ((({
-    p_77 = *(uint64_t *)(m + 16 + 56);
-    r_method_primitive_3 = (p_77 & 1) != 0 ? (int32_t)((((int64_t)p_77) >> 1) & CM_PRIM_MASK) : 0;
+    p_85 = *(uint64_t *)(m + 16 + 56);
+    r_method_primitive_3 = (p_85 & 1) != 0 ? (int32_t)((((int64_t)p_85) >> 1) & CM_PRIM_MASK) : 0;
     r_method_primitive_3; }) != 0) && (((jit_flags & JIT_FLAG_PRIMS) != 0) && opt_inline_primitive(({
-    p_78 = *(uint64_t *)(m + 16 + 56);
-    r_method_primitive_4 = (p_78 & 1) != 0 ? (int32_t)((((int64_t)p_78) >> 1) & CM_PRIM_MASK) : 0;
+    p_86 = *(uint64_t *)(m + 16 + 56);
+    r_method_primitive_4 = (p_86 & 1) != 0 ? (int32_t)((((int64_t)p_86) >> 1) & CM_PRIM_MASK) : 0;
     r_method_primitive_4; }), cls, argc, pc, a, r))) {
         r_send = true;
         goto exit_send;
@@ -8058,164 +8270,180 @@ exit_note_dependency_2:;
     opt_write(var_13, rcv, ob_cur_block);
 exit_write_7:;
     if (((jit_flags & JIT_FLAG_ALLOC) != 0) && ({
-    p_80 = ({
-    p_79 = *(uint64_t *)(m_7 + 16 + 56);
-    r_method_primitive_5 = (p_79 & 1) != 0 ? (int32_t)((((int64_t)p_79) >> 1) & CM_PRIM_MASK) : 0;
+    p_88 = ({
+    p_87 = *(uint64_t *)(m_7 + 16 + 56);
+    r_method_primitive_5 = (p_87 & 1) != 0 ? (int32_t)((((int64_t)p_87) >> 1) & CM_PRIM_MASK) : 0;
     r_method_primitive_5; });
     kind_4 = ({
     if (!ob_prims_known) {
         ob_prims_known = true;
         memset(ob_prim_kinds, 0, OPT_MAX_PRIM);
-        p_81 = jit_primitive_number("at");
-        if ((p_81 > 0) && (p_81 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_81] = 1U;
-        }
-        p_82 = jit_primitive_number("atPut");
-        if ((p_82 > 0) && (p_82 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_82] = 2U;
-        }
-        p_83 = jit_primitive_number("basicSize");
-        if ((p_83 > 0) && (p_83 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_83] = 3U;
-        }
-        p_84 = jit_primitive_number("stringAt");
-        if ((p_84 > 0) && (p_84 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_84] = 4U;
-        }
-        p_85 = jit_primitive_number("stringAtPut");
-        if ((p_85 > 0) && (p_85 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_85] = 5U;
-        }
-        p_86 = jit_primitive_number("class");
-        if ((p_86 > 0) && (p_86 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_86] = 6U;
-        }
-        p_87 = jit_primitive_number("identical");
-        if ((p_87 > 0) && (p_87 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_87] = 7U;
-        }
-        p_88 = jit_primitive_number("intAdd");
-        if ((p_88 > 0) && (p_88 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_88] = 32U;
-        }
-        p_89 = jit_primitive_number("intSub");
+        p_89 = jit_primitive_number("at");
         if ((p_89 > 0) && (p_89 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_89] = 33U;
+            ob_prim_kinds[p_89] = 1U;
         }
-        p_90 = jit_primitive_number("intLess");
+        p_90 = jit_primitive_number("atPut");
         if ((p_90 > 0) && (p_90 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_90] = 34U;
+            ob_prim_kinds[p_90] = 2U;
         }
-        p_91 = jit_primitive_number("intGreater");
+        p_91 = jit_primitive_number("basicSize");
         if ((p_91 > 0) && (p_91 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_91] = 35U;
+            ob_prim_kinds[p_91] = 3U;
         }
-        p_92 = jit_primitive_number("intLessEq");
+        p_92 = jit_primitive_number("stringAt");
         if ((p_92 > 0) && (p_92 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_92] = 36U;
+            ob_prim_kinds[p_92] = 4U;
         }
-        p_93 = jit_primitive_number("intGreaterEq");
+        p_93 = jit_primitive_number("stringAtPut");
         if ((p_93 > 0) && (p_93 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_93] = 37U;
+            ob_prim_kinds[p_93] = 5U;
         }
-        p_94 = jit_primitive_number("intEq");
+        p_94 = jit_primitive_number("class");
         if ((p_94 > 0) && (p_94 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_94] = 38U;
+            ob_prim_kinds[p_94] = 6U;
         }
-        p_95 = jit_primitive_number("intNotEq");
+        p_95 = jit_primitive_number("identical");
         if ((p_95 > 0) && (p_95 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_95] = 39U;
+            ob_prim_kinds[p_95] = 7U;
         }
-        p_96 = jit_primitive_number("intMul");
+        p_96 = jit_primitive_number("intAdd");
         if ((p_96 > 0) && (p_96 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_96] = 40U;
+            ob_prim_kinds[p_96] = 32U;
         }
-        p_97 = jit_primitive_number("intBitAnd");
+        p_97 = jit_primitive_number("intSub");
         if ((p_97 > 0) && (p_97 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_97] = 46U;
+            ob_prim_kinds[p_97] = 33U;
         }
-        p_98 = jit_primitive_number("intBitOr");
+        p_98 = jit_primitive_number("intLess");
         if ((p_98 > 0) && (p_98 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_98] = 47U;
+            ob_prim_kinds[p_98] = 34U;
         }
-        p_99 = jit_primitive_number("intMod");
+        p_99 = jit_primitive_number("intGreater");
         if ((p_99 > 0) && (p_99 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_99] = 42U;
+            ob_prim_kinds[p_99] = 35U;
         }
-        p_100 = jit_primitive_number("intBitXor");
+        p_100 = jit_primitive_number("intLessEq");
         if ((p_100 > 0) && (p_100 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_100] = 43U;
+            ob_prim_kinds[p_100] = 36U;
         }
-        p_101 = jit_primitive_number("intBitShift");
+        p_101 = jit_primitive_number("intGreaterEq");
         if ((p_101 > 0) && (p_101 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_101] = 44U;
+            ob_prim_kinds[p_101] = 37U;
         }
-        p_102 = jit_primitive_number("intFloorDiv");
+        p_102 = jit_primitive_number("intEq");
         if ((p_102 > 0) && (p_102 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_102] = 45U;
+            ob_prim_kinds[p_102] = 38U;
         }
-        p_103 = jit_primitive_number("floatAdd");
+        p_103 = jit_primitive_number("intNotEq");
         if ((p_103 > 0) && (p_103 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_103] = 64U;
+            ob_prim_kinds[p_103] = 39U;
         }
-        p_104 = jit_primitive_number("floatSub");
+        p_104 = jit_primitive_number("intMul");
         if ((p_104 > 0) && (p_104 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_104] = 65U;
+            ob_prim_kinds[p_104] = 40U;
         }
-        p_105 = jit_primitive_number("floatLess");
+        p_105 = jit_primitive_number("intBitAnd");
         if ((p_105 > 0) && (p_105 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_105] = 66U;
+            ob_prim_kinds[p_105] = 46U;
         }
-        p_106 = jit_primitive_number("floatGreater");
+        p_106 = jit_primitive_number("intBitOr");
         if ((p_106 > 0) && (p_106 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_106] = 67U;
+            ob_prim_kinds[p_106] = 47U;
         }
-        p_107 = jit_primitive_number("floatLessEq");
+        p_107 = jit_primitive_number("intMod");
         if ((p_107 > 0) && (p_107 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_107] = 68U;
+            ob_prim_kinds[p_107] = 42U;
         }
-        p_108 = jit_primitive_number("floatGreaterEq");
+        p_108 = jit_primitive_number("intBitXor");
         if ((p_108 > 0) && (p_108 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_108] = 69U;
+            ob_prim_kinds[p_108] = 43U;
         }
-        p_109 = jit_primitive_number("floatEq");
+        p_109 = jit_primitive_number("intBitShift");
         if ((p_109 > 0) && (p_109 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_109] = 70U;
+            ob_prim_kinds[p_109] = 44U;
         }
-        p_110 = jit_primitive_number("floatNotEq");
+        p_110 = jit_primitive_number("intFloorDiv");
         if ((p_110 > 0) && (p_110 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_110] = 71U;
+            ob_prim_kinds[p_110] = 45U;
         }
-        p_111 = jit_primitive_number("floatMul");
+        p_111 = jit_primitive_number("intQuo");
         if ((p_111 > 0) && (p_111 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_111] = 72U;
+            ob_prim_kinds[p_111] = 48U;
         }
-        p_112 = jit_primitive_number("floatDiv");
+        p_112 = jit_primitive_number("intRem");
         if ((p_112 > 0) && (p_112 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_112] = 73U;
+            ob_prim_kinds[p_112] = 49U;
         }
-        p_113 = jit_primitive_number("floatSqrt");
+        p_113 = jit_primitive_number("charValue");
         if ((p_113 > 0) && (p_113 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_113] = 8U;
+            ob_prim_kinds[p_113] = 12U;
         }
-        p_114 = jit_primitive_number("basicNew");
+        p_114 = jit_primitive_number("charFromValue");
         if ((p_114 > 0) && (p_114 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_114] = 9U;
+            ob_prim_kinds[p_114] = 13U;
         }
-        p_115 = jit_primitive_number("basicNew:");
+        p_115 = jit_primitive_number("floatAdd");
         if ((p_115 > 0) && (p_115 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_115] = 10U;
+            ob_prim_kinds[p_115] = 64U;
         }
-        p_116 = jit_primitive_number("closureValue");
+        p_116 = jit_primitive_number("floatSub");
         if ((p_116 > 0) && (p_116 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_116] = 11U;
+            ob_prim_kinds[p_116] = 65U;
+        }
+        p_117 = jit_primitive_number("floatLess");
+        if ((p_117 > 0) && (p_117 < OPT_MAX_PRIM)) {
+            ob_prim_kinds[p_117] = 66U;
+        }
+        p_118 = jit_primitive_number("floatGreater");
+        if ((p_118 > 0) && (p_118 < OPT_MAX_PRIM)) {
+            ob_prim_kinds[p_118] = 67U;
+        }
+        p_119 = jit_primitive_number("floatLessEq");
+        if ((p_119 > 0) && (p_119 < OPT_MAX_PRIM)) {
+            ob_prim_kinds[p_119] = 68U;
+        }
+        p_120 = jit_primitive_number("floatGreaterEq");
+        if ((p_120 > 0) && (p_120 < OPT_MAX_PRIM)) {
+            ob_prim_kinds[p_120] = 69U;
+        }
+        p_121 = jit_primitive_number("floatEq");
+        if ((p_121 > 0) && (p_121 < OPT_MAX_PRIM)) {
+            ob_prim_kinds[p_121] = 70U;
+        }
+        p_122 = jit_primitive_number("floatNotEq");
+        if ((p_122 > 0) && (p_122 < OPT_MAX_PRIM)) {
+            ob_prim_kinds[p_122] = 71U;
+        }
+        p_123 = jit_primitive_number("floatMul");
+        if ((p_123 > 0) && (p_123 < OPT_MAX_PRIM)) {
+            ob_prim_kinds[p_123] = 72U;
+        }
+        p_124 = jit_primitive_number("floatDiv");
+        if ((p_124 > 0) && (p_124 < OPT_MAX_PRIM)) {
+            ob_prim_kinds[p_124] = 73U;
+        }
+        p_125 = jit_primitive_number("floatSqrt");
+        if ((p_125 > 0) && (p_125 < OPT_MAX_PRIM)) {
+            ob_prim_kinds[p_125] = 8U;
+        }
+        p_126 = jit_primitive_number("basicNew");
+        if ((p_126 > 0) && (p_126 < OPT_MAX_PRIM)) {
+            ob_prim_kinds[p_126] = 9U;
+        }
+        p_127 = jit_primitive_number("basicNew:");
+        if ((p_127 > 0) && (p_127 < OPT_MAX_PRIM)) {
+            ob_prim_kinds[p_127] = 10U;
+        }
+        p_128 = jit_primitive_number("closureValue");
+        if ((p_128 > 0) && (p_128 < OPT_MAX_PRIM)) {
+            ob_prim_kinds[p_128] = 11U;
         }
     }
-    if ((p_80 <= 0) || (p_80 >= OPT_MAX_PRIM)) {
+    if ((p_88 <= 0) || (p_88 >= OPT_MAX_PRIM)) {
         r_prim_kind_of_3 = 0;
         goto exit_prim_kind_of_3;
     }
-    r_prim_kind_of_3 = (int32_t)ob_prim_kinds[p_80];
+    r_prim_kind_of_3 = (int32_t)ob_prim_kinds[p_88];
 exit_prim_kind_of_3:;
     r_prim_kind_of_3; });
     if (!(((kind_4 == OPK_NEW) && (argc == 0)) || ((kind_4 == OPK_NEWSIZE) && (argc == 1)))) {
@@ -8388,164 +8616,180 @@ exit_allocate_2:;
         goto exit_send_2;
     }
     if ((cls == cls_block) && (((jit_flags & JIT_FLAG_CALLS) != 0) && ({
-    p_118 = ({
-    p_117 = *(uint64_t *)(m_7 + 16 + 56);
-    r_method_primitive_6 = (p_117 & 1) != 0 ? (int32_t)((((int64_t)p_117) >> 1) & CM_PRIM_MASK) : 0;
+    p_130 = ({
+    p_129 = *(uint64_t *)(m_7 + 16 + 56);
+    r_method_primitive_6 = (p_129 & 1) != 0 ? (int32_t)((((int64_t)p_129) >> 1) & CM_PRIM_MASK) : 0;
     r_method_primitive_6; });
     ({
     if (!ob_prims_known) {
         ob_prims_known = true;
         memset(ob_prim_kinds, 0, OPT_MAX_PRIM);
-        p_119 = jit_primitive_number("at");
-        if ((p_119 > 0) && (p_119 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_119] = 1U;
-        }
-        p_120 = jit_primitive_number("atPut");
-        if ((p_120 > 0) && (p_120 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_120] = 2U;
-        }
-        p_121 = jit_primitive_number("basicSize");
-        if ((p_121 > 0) && (p_121 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_121] = 3U;
-        }
-        p_122 = jit_primitive_number("stringAt");
-        if ((p_122 > 0) && (p_122 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_122] = 4U;
-        }
-        p_123 = jit_primitive_number("stringAtPut");
-        if ((p_123 > 0) && (p_123 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_123] = 5U;
-        }
-        p_124 = jit_primitive_number("class");
-        if ((p_124 > 0) && (p_124 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_124] = 6U;
-        }
-        p_125 = jit_primitive_number("identical");
-        if ((p_125 > 0) && (p_125 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_125] = 7U;
-        }
-        p_126 = jit_primitive_number("intAdd");
-        if ((p_126 > 0) && (p_126 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_126] = 32U;
-        }
-        p_127 = jit_primitive_number("intSub");
-        if ((p_127 > 0) && (p_127 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_127] = 33U;
-        }
-        p_128 = jit_primitive_number("intLess");
-        if ((p_128 > 0) && (p_128 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_128] = 34U;
-        }
-        p_129 = jit_primitive_number("intGreater");
-        if ((p_129 > 0) && (p_129 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_129] = 35U;
-        }
-        p_130 = jit_primitive_number("intLessEq");
-        if ((p_130 > 0) && (p_130 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_130] = 36U;
-        }
-        p_131 = jit_primitive_number("intGreaterEq");
+        p_131 = jit_primitive_number("at");
         if ((p_131 > 0) && (p_131 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_131] = 37U;
+            ob_prim_kinds[p_131] = 1U;
         }
-        p_132 = jit_primitive_number("intEq");
+        p_132 = jit_primitive_number("atPut");
         if ((p_132 > 0) && (p_132 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_132] = 38U;
+            ob_prim_kinds[p_132] = 2U;
         }
-        p_133 = jit_primitive_number("intNotEq");
+        p_133 = jit_primitive_number("basicSize");
         if ((p_133 > 0) && (p_133 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_133] = 39U;
+            ob_prim_kinds[p_133] = 3U;
         }
-        p_134 = jit_primitive_number("intMul");
+        p_134 = jit_primitive_number("stringAt");
         if ((p_134 > 0) && (p_134 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_134] = 40U;
+            ob_prim_kinds[p_134] = 4U;
         }
-        p_135 = jit_primitive_number("intBitAnd");
+        p_135 = jit_primitive_number("stringAtPut");
         if ((p_135 > 0) && (p_135 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_135] = 46U;
+            ob_prim_kinds[p_135] = 5U;
         }
-        p_136 = jit_primitive_number("intBitOr");
+        p_136 = jit_primitive_number("class");
         if ((p_136 > 0) && (p_136 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_136] = 47U;
+            ob_prim_kinds[p_136] = 6U;
         }
-        p_137 = jit_primitive_number("intMod");
+        p_137 = jit_primitive_number("identical");
         if ((p_137 > 0) && (p_137 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_137] = 42U;
+            ob_prim_kinds[p_137] = 7U;
         }
-        p_138 = jit_primitive_number("intBitXor");
+        p_138 = jit_primitive_number("intAdd");
         if ((p_138 > 0) && (p_138 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_138] = 43U;
+            ob_prim_kinds[p_138] = 32U;
         }
-        p_139 = jit_primitive_number("intBitShift");
+        p_139 = jit_primitive_number("intSub");
         if ((p_139 > 0) && (p_139 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_139] = 44U;
+            ob_prim_kinds[p_139] = 33U;
         }
-        p_140 = jit_primitive_number("intFloorDiv");
+        p_140 = jit_primitive_number("intLess");
         if ((p_140 > 0) && (p_140 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_140] = 45U;
+            ob_prim_kinds[p_140] = 34U;
         }
-        p_141 = jit_primitive_number("floatAdd");
+        p_141 = jit_primitive_number("intGreater");
         if ((p_141 > 0) && (p_141 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_141] = 64U;
+            ob_prim_kinds[p_141] = 35U;
         }
-        p_142 = jit_primitive_number("floatSub");
+        p_142 = jit_primitive_number("intLessEq");
         if ((p_142 > 0) && (p_142 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_142] = 65U;
+            ob_prim_kinds[p_142] = 36U;
         }
-        p_143 = jit_primitive_number("floatLess");
+        p_143 = jit_primitive_number("intGreaterEq");
         if ((p_143 > 0) && (p_143 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_143] = 66U;
+            ob_prim_kinds[p_143] = 37U;
         }
-        p_144 = jit_primitive_number("floatGreater");
+        p_144 = jit_primitive_number("intEq");
         if ((p_144 > 0) && (p_144 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_144] = 67U;
+            ob_prim_kinds[p_144] = 38U;
         }
-        p_145 = jit_primitive_number("floatLessEq");
+        p_145 = jit_primitive_number("intNotEq");
         if ((p_145 > 0) && (p_145 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_145] = 68U;
+            ob_prim_kinds[p_145] = 39U;
         }
-        p_146 = jit_primitive_number("floatGreaterEq");
+        p_146 = jit_primitive_number("intMul");
         if ((p_146 > 0) && (p_146 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_146] = 69U;
+            ob_prim_kinds[p_146] = 40U;
         }
-        p_147 = jit_primitive_number("floatEq");
+        p_147 = jit_primitive_number("intBitAnd");
         if ((p_147 > 0) && (p_147 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_147] = 70U;
+            ob_prim_kinds[p_147] = 46U;
         }
-        p_148 = jit_primitive_number("floatNotEq");
+        p_148 = jit_primitive_number("intBitOr");
         if ((p_148 > 0) && (p_148 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_148] = 71U;
+            ob_prim_kinds[p_148] = 47U;
         }
-        p_149 = jit_primitive_number("floatMul");
+        p_149 = jit_primitive_number("intMod");
         if ((p_149 > 0) && (p_149 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_149] = 72U;
+            ob_prim_kinds[p_149] = 42U;
         }
-        p_150 = jit_primitive_number("floatDiv");
+        p_150 = jit_primitive_number("intBitXor");
         if ((p_150 > 0) && (p_150 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_150] = 73U;
+            ob_prim_kinds[p_150] = 43U;
         }
-        p_151 = jit_primitive_number("floatSqrt");
+        p_151 = jit_primitive_number("intBitShift");
         if ((p_151 > 0) && (p_151 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_151] = 8U;
+            ob_prim_kinds[p_151] = 44U;
         }
-        p_152 = jit_primitive_number("basicNew");
+        p_152 = jit_primitive_number("intFloorDiv");
         if ((p_152 > 0) && (p_152 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_152] = 9U;
+            ob_prim_kinds[p_152] = 45U;
         }
-        p_153 = jit_primitive_number("basicNew:");
+        p_153 = jit_primitive_number("intQuo");
         if ((p_153 > 0) && (p_153 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_153] = 10U;
+            ob_prim_kinds[p_153] = 48U;
         }
-        p_154 = jit_primitive_number("closureValue");
+        p_154 = jit_primitive_number("intRem");
         if ((p_154 > 0) && (p_154 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_154] = 11U;
+            ob_prim_kinds[p_154] = 49U;
+        }
+        p_155 = jit_primitive_number("charValue");
+        if ((p_155 > 0) && (p_155 < OPT_MAX_PRIM)) {
+            ob_prim_kinds[p_155] = 12U;
+        }
+        p_156 = jit_primitive_number("charFromValue");
+        if ((p_156 > 0) && (p_156 < OPT_MAX_PRIM)) {
+            ob_prim_kinds[p_156] = 13U;
+        }
+        p_157 = jit_primitive_number("floatAdd");
+        if ((p_157 > 0) && (p_157 < OPT_MAX_PRIM)) {
+            ob_prim_kinds[p_157] = 64U;
+        }
+        p_158 = jit_primitive_number("floatSub");
+        if ((p_158 > 0) && (p_158 < OPT_MAX_PRIM)) {
+            ob_prim_kinds[p_158] = 65U;
+        }
+        p_159 = jit_primitive_number("floatLess");
+        if ((p_159 > 0) && (p_159 < OPT_MAX_PRIM)) {
+            ob_prim_kinds[p_159] = 66U;
+        }
+        p_160 = jit_primitive_number("floatGreater");
+        if ((p_160 > 0) && (p_160 < OPT_MAX_PRIM)) {
+            ob_prim_kinds[p_160] = 67U;
+        }
+        p_161 = jit_primitive_number("floatLessEq");
+        if ((p_161 > 0) && (p_161 < OPT_MAX_PRIM)) {
+            ob_prim_kinds[p_161] = 68U;
+        }
+        p_162 = jit_primitive_number("floatGreaterEq");
+        if ((p_162 > 0) && (p_162 < OPT_MAX_PRIM)) {
+            ob_prim_kinds[p_162] = 69U;
+        }
+        p_163 = jit_primitive_number("floatEq");
+        if ((p_163 > 0) && (p_163 < OPT_MAX_PRIM)) {
+            ob_prim_kinds[p_163] = 70U;
+        }
+        p_164 = jit_primitive_number("floatNotEq");
+        if ((p_164 > 0) && (p_164 < OPT_MAX_PRIM)) {
+            ob_prim_kinds[p_164] = 71U;
+        }
+        p_165 = jit_primitive_number("floatMul");
+        if ((p_165 > 0) && (p_165 < OPT_MAX_PRIM)) {
+            ob_prim_kinds[p_165] = 72U;
+        }
+        p_166 = jit_primitive_number("floatDiv");
+        if ((p_166 > 0) && (p_166 < OPT_MAX_PRIM)) {
+            ob_prim_kinds[p_166] = 73U;
+        }
+        p_167 = jit_primitive_number("floatSqrt");
+        if ((p_167 > 0) && (p_167 < OPT_MAX_PRIM)) {
+            ob_prim_kinds[p_167] = 8U;
+        }
+        p_168 = jit_primitive_number("basicNew");
+        if ((p_168 > 0) && (p_168 < OPT_MAX_PRIM)) {
+            ob_prim_kinds[p_168] = 9U;
+        }
+        p_169 = jit_primitive_number("basicNew:");
+        if ((p_169 > 0) && (p_169 < OPT_MAX_PRIM)) {
+            ob_prim_kinds[p_169] = 10U;
+        }
+        p_170 = jit_primitive_number("closureValue");
+        if ((p_170 > 0) && (p_170 < OPT_MAX_PRIM)) {
+            ob_prim_kinds[p_170] = 11U;
         }
     }
-    if ((p_118 <= 0) || (p_118 >= OPT_MAX_PRIM)) {
+    if ((p_130 <= 0) || (p_130 >= OPT_MAX_PRIM)) {
         r_prim_kind_of_4 = 0;
         goto exit_prim_kind_of_4;
     }
-    r_prim_kind_of_4 = (int32_t)ob_prim_kinds[p_118];
+    r_prim_kind_of_4 = (int32_t)ob_prim_kinds[p_130];
 exit_prim_kind_of_4:;
     r_prim_kind_of_4; }) == OPK_CLOSURE; }))) {
         r_send_2 = ({
@@ -8792,11 +9036,11 @@ exit_block_call_2:;
         goto exit_send_2;
     }
     if ((({
-    p_155 = *(uint64_t *)(m_7 + 16 + 56);
-    r_method_primitive_7 = (p_155 & 1) != 0 ? (int32_t)((((int64_t)p_155) >> 1) & CM_PRIM_MASK) : 0;
+    p_171 = *(uint64_t *)(m_7 + 16 + 56);
+    r_method_primitive_7 = (p_171 & 1) != 0 ? (int32_t)((((int64_t)p_171) >> 1) & CM_PRIM_MASK) : 0;
     r_method_primitive_7; }) != 0) && (((jit_flags & JIT_FLAG_PRIMS) != 0) && opt_inline_primitive(({
-    p_156 = *(uint64_t *)(m_7 + 16 + 56);
-    r_method_primitive_8 = (p_156 & 1) != 0 ? (int32_t)((((int64_t)p_156) >> 1) & CM_PRIM_MASK) : 0;
+    p_172 = *(uint64_t *)(m_7 + 16 + 56);
+    r_method_primitive_8 = (p_172 & 1) != 0 ? (int32_t)((((int64_t)p_172) >> 1) & CM_PRIM_MASK) : 0;
     r_method_primitive_8; }), cls, argc, pc, a, r))) {
         r_send_2 = true;
         goto exit_send_2;
@@ -9139,164 +9383,180 @@ exit_note_dependency_3:;
     opt_write(var_24, g, ob_cur_block);
 exit_write_13:;
     if (((jit_flags & JIT_FLAG_ALLOC) != 0) && ({
-    p_158 = ({
-    p_157 = *(uint64_t *)(m_13 + 16 + 56);
-    r_method_primitive_9 = (p_157 & 1) != 0 ? (int32_t)((((int64_t)p_157) >> 1) & CM_PRIM_MASK) : 0;
+    p_174 = ({
+    p_173 = *(uint64_t *)(m_13 + 16 + 56);
+    r_method_primitive_9 = (p_173 & 1) != 0 ? (int32_t)((((int64_t)p_173) >> 1) & CM_PRIM_MASK) : 0;
     r_method_primitive_9; });
     kind_6 = ({
     if (!ob_prims_known) {
         ob_prims_known = true;
         memset(ob_prim_kinds, 0, OPT_MAX_PRIM);
-        p_159 = jit_primitive_number("at");
-        if ((p_159 > 0) && (p_159 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_159] = 1U;
-        }
-        p_160 = jit_primitive_number("atPut");
-        if ((p_160 > 0) && (p_160 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_160] = 2U;
-        }
-        p_161 = jit_primitive_number("basicSize");
-        if ((p_161 > 0) && (p_161 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_161] = 3U;
-        }
-        p_162 = jit_primitive_number("stringAt");
-        if ((p_162 > 0) && (p_162 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_162] = 4U;
-        }
-        p_163 = jit_primitive_number("stringAtPut");
-        if ((p_163 > 0) && (p_163 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_163] = 5U;
-        }
-        p_164 = jit_primitive_number("class");
-        if ((p_164 > 0) && (p_164 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_164] = 6U;
-        }
-        p_165 = jit_primitive_number("identical");
-        if ((p_165 > 0) && (p_165 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_165] = 7U;
-        }
-        p_166 = jit_primitive_number("intAdd");
-        if ((p_166 > 0) && (p_166 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_166] = 32U;
-        }
-        p_167 = jit_primitive_number("intSub");
-        if ((p_167 > 0) && (p_167 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_167] = 33U;
-        }
-        p_168 = jit_primitive_number("intLess");
-        if ((p_168 > 0) && (p_168 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_168] = 34U;
-        }
-        p_169 = jit_primitive_number("intGreater");
-        if ((p_169 > 0) && (p_169 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_169] = 35U;
-        }
-        p_170 = jit_primitive_number("intLessEq");
-        if ((p_170 > 0) && (p_170 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_170] = 36U;
-        }
-        p_171 = jit_primitive_number("intGreaterEq");
-        if ((p_171 > 0) && (p_171 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_171] = 37U;
-        }
-        p_172 = jit_primitive_number("intEq");
-        if ((p_172 > 0) && (p_172 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_172] = 38U;
-        }
-        p_173 = jit_primitive_number("intNotEq");
-        if ((p_173 > 0) && (p_173 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_173] = 39U;
-        }
-        p_174 = jit_primitive_number("intMul");
-        if ((p_174 > 0) && (p_174 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_174] = 40U;
-        }
-        p_175 = jit_primitive_number("intBitAnd");
+        p_175 = jit_primitive_number("at");
         if ((p_175 > 0) && (p_175 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_175] = 46U;
+            ob_prim_kinds[p_175] = 1U;
         }
-        p_176 = jit_primitive_number("intBitOr");
+        p_176 = jit_primitive_number("atPut");
         if ((p_176 > 0) && (p_176 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_176] = 47U;
+            ob_prim_kinds[p_176] = 2U;
         }
-        p_177 = jit_primitive_number("intMod");
+        p_177 = jit_primitive_number("basicSize");
         if ((p_177 > 0) && (p_177 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_177] = 42U;
+            ob_prim_kinds[p_177] = 3U;
         }
-        p_178 = jit_primitive_number("intBitXor");
+        p_178 = jit_primitive_number("stringAt");
         if ((p_178 > 0) && (p_178 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_178] = 43U;
+            ob_prim_kinds[p_178] = 4U;
         }
-        p_179 = jit_primitive_number("intBitShift");
+        p_179 = jit_primitive_number("stringAtPut");
         if ((p_179 > 0) && (p_179 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_179] = 44U;
+            ob_prim_kinds[p_179] = 5U;
         }
-        p_180 = jit_primitive_number("intFloorDiv");
+        p_180 = jit_primitive_number("class");
         if ((p_180 > 0) && (p_180 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_180] = 45U;
+            ob_prim_kinds[p_180] = 6U;
         }
-        p_181 = jit_primitive_number("floatAdd");
+        p_181 = jit_primitive_number("identical");
         if ((p_181 > 0) && (p_181 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_181] = 64U;
+            ob_prim_kinds[p_181] = 7U;
         }
-        p_182 = jit_primitive_number("floatSub");
+        p_182 = jit_primitive_number("intAdd");
         if ((p_182 > 0) && (p_182 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_182] = 65U;
+            ob_prim_kinds[p_182] = 32U;
         }
-        p_183 = jit_primitive_number("floatLess");
+        p_183 = jit_primitive_number("intSub");
         if ((p_183 > 0) && (p_183 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_183] = 66U;
+            ob_prim_kinds[p_183] = 33U;
         }
-        p_184 = jit_primitive_number("floatGreater");
+        p_184 = jit_primitive_number("intLess");
         if ((p_184 > 0) && (p_184 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_184] = 67U;
+            ob_prim_kinds[p_184] = 34U;
         }
-        p_185 = jit_primitive_number("floatLessEq");
+        p_185 = jit_primitive_number("intGreater");
         if ((p_185 > 0) && (p_185 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_185] = 68U;
+            ob_prim_kinds[p_185] = 35U;
         }
-        p_186 = jit_primitive_number("floatGreaterEq");
+        p_186 = jit_primitive_number("intLessEq");
         if ((p_186 > 0) && (p_186 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_186] = 69U;
+            ob_prim_kinds[p_186] = 36U;
         }
-        p_187 = jit_primitive_number("floatEq");
+        p_187 = jit_primitive_number("intGreaterEq");
         if ((p_187 > 0) && (p_187 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_187] = 70U;
+            ob_prim_kinds[p_187] = 37U;
         }
-        p_188 = jit_primitive_number("floatNotEq");
+        p_188 = jit_primitive_number("intEq");
         if ((p_188 > 0) && (p_188 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_188] = 71U;
+            ob_prim_kinds[p_188] = 38U;
         }
-        p_189 = jit_primitive_number("floatMul");
+        p_189 = jit_primitive_number("intNotEq");
         if ((p_189 > 0) && (p_189 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_189] = 72U;
+            ob_prim_kinds[p_189] = 39U;
         }
-        p_190 = jit_primitive_number("floatDiv");
+        p_190 = jit_primitive_number("intMul");
         if ((p_190 > 0) && (p_190 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_190] = 73U;
+            ob_prim_kinds[p_190] = 40U;
         }
-        p_191 = jit_primitive_number("floatSqrt");
+        p_191 = jit_primitive_number("intBitAnd");
         if ((p_191 > 0) && (p_191 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_191] = 8U;
+            ob_prim_kinds[p_191] = 46U;
         }
-        p_192 = jit_primitive_number("basicNew");
+        p_192 = jit_primitive_number("intBitOr");
         if ((p_192 > 0) && (p_192 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_192] = 9U;
+            ob_prim_kinds[p_192] = 47U;
         }
-        p_193 = jit_primitive_number("basicNew:");
+        p_193 = jit_primitive_number("intMod");
         if ((p_193 > 0) && (p_193 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_193] = 10U;
+            ob_prim_kinds[p_193] = 42U;
         }
-        p_194 = jit_primitive_number("closureValue");
+        p_194 = jit_primitive_number("intBitXor");
         if ((p_194 > 0) && (p_194 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_194] = 11U;
+            ob_prim_kinds[p_194] = 43U;
+        }
+        p_195 = jit_primitive_number("intBitShift");
+        if ((p_195 > 0) && (p_195 < OPT_MAX_PRIM)) {
+            ob_prim_kinds[p_195] = 44U;
+        }
+        p_196 = jit_primitive_number("intFloorDiv");
+        if ((p_196 > 0) && (p_196 < OPT_MAX_PRIM)) {
+            ob_prim_kinds[p_196] = 45U;
+        }
+        p_197 = jit_primitive_number("intQuo");
+        if ((p_197 > 0) && (p_197 < OPT_MAX_PRIM)) {
+            ob_prim_kinds[p_197] = 48U;
+        }
+        p_198 = jit_primitive_number("intRem");
+        if ((p_198 > 0) && (p_198 < OPT_MAX_PRIM)) {
+            ob_prim_kinds[p_198] = 49U;
+        }
+        p_199 = jit_primitive_number("charValue");
+        if ((p_199 > 0) && (p_199 < OPT_MAX_PRIM)) {
+            ob_prim_kinds[p_199] = 12U;
+        }
+        p_200 = jit_primitive_number("charFromValue");
+        if ((p_200 > 0) && (p_200 < OPT_MAX_PRIM)) {
+            ob_prim_kinds[p_200] = 13U;
+        }
+        p_201 = jit_primitive_number("floatAdd");
+        if ((p_201 > 0) && (p_201 < OPT_MAX_PRIM)) {
+            ob_prim_kinds[p_201] = 64U;
+        }
+        p_202 = jit_primitive_number("floatSub");
+        if ((p_202 > 0) && (p_202 < OPT_MAX_PRIM)) {
+            ob_prim_kinds[p_202] = 65U;
+        }
+        p_203 = jit_primitive_number("floatLess");
+        if ((p_203 > 0) && (p_203 < OPT_MAX_PRIM)) {
+            ob_prim_kinds[p_203] = 66U;
+        }
+        p_204 = jit_primitive_number("floatGreater");
+        if ((p_204 > 0) && (p_204 < OPT_MAX_PRIM)) {
+            ob_prim_kinds[p_204] = 67U;
+        }
+        p_205 = jit_primitive_number("floatLessEq");
+        if ((p_205 > 0) && (p_205 < OPT_MAX_PRIM)) {
+            ob_prim_kinds[p_205] = 68U;
+        }
+        p_206 = jit_primitive_number("floatGreaterEq");
+        if ((p_206 > 0) && (p_206 < OPT_MAX_PRIM)) {
+            ob_prim_kinds[p_206] = 69U;
+        }
+        p_207 = jit_primitive_number("floatEq");
+        if ((p_207 > 0) && (p_207 < OPT_MAX_PRIM)) {
+            ob_prim_kinds[p_207] = 70U;
+        }
+        p_208 = jit_primitive_number("floatNotEq");
+        if ((p_208 > 0) && (p_208 < OPT_MAX_PRIM)) {
+            ob_prim_kinds[p_208] = 71U;
+        }
+        p_209 = jit_primitive_number("floatMul");
+        if ((p_209 > 0) && (p_209 < OPT_MAX_PRIM)) {
+            ob_prim_kinds[p_209] = 72U;
+        }
+        p_210 = jit_primitive_number("floatDiv");
+        if ((p_210 > 0) && (p_210 < OPT_MAX_PRIM)) {
+            ob_prim_kinds[p_210] = 73U;
+        }
+        p_211 = jit_primitive_number("floatSqrt");
+        if ((p_211 > 0) && (p_211 < OPT_MAX_PRIM)) {
+            ob_prim_kinds[p_211] = 8U;
+        }
+        p_212 = jit_primitive_number("basicNew");
+        if ((p_212 > 0) && (p_212 < OPT_MAX_PRIM)) {
+            ob_prim_kinds[p_212] = 9U;
+        }
+        p_213 = jit_primitive_number("basicNew:");
+        if ((p_213 > 0) && (p_213 < OPT_MAX_PRIM)) {
+            ob_prim_kinds[p_213] = 10U;
+        }
+        p_214 = jit_primitive_number("closureValue");
+        if ((p_214 > 0) && (p_214 < OPT_MAX_PRIM)) {
+            ob_prim_kinds[p_214] = 11U;
         }
     }
-    if ((p_158 <= 0) || (p_158 >= OPT_MAX_PRIM)) {
+    if ((p_174 <= 0) || (p_174 >= OPT_MAX_PRIM)) {
         r_prim_kind_of_5 = 0;
         goto exit_prim_kind_of_5;
     }
-    r_prim_kind_of_5 = (int32_t)ob_prim_kinds[p_158];
+    r_prim_kind_of_5 = (int32_t)ob_prim_kinds[p_174];
 exit_prim_kind_of_5:;
     r_prim_kind_of_5; });
     if (!(((kind_6 == OPK_NEW) && (argc == 0)) || ((kind_6 == OPK_NEWSIZE) && (argc == 1)))) {
@@ -9469,164 +9729,180 @@ exit_allocate_3:;
         goto exit_send_3;
     }
     if ((cls_3 == cls_block) && (((jit_flags & JIT_FLAG_CALLS) != 0) && ({
-    p_196 = ({
-    p_195 = *(uint64_t *)(m_13 + 16 + 56);
-    r_method_primitive_10 = (p_195 & 1) != 0 ? (int32_t)((((int64_t)p_195) >> 1) & CM_PRIM_MASK) : 0;
+    p_216 = ({
+    p_215 = *(uint64_t *)(m_13 + 16 + 56);
+    r_method_primitive_10 = (p_215 & 1) != 0 ? (int32_t)((((int64_t)p_215) >> 1) & CM_PRIM_MASK) : 0;
     r_method_primitive_10; });
     ({
     if (!ob_prims_known) {
         ob_prims_known = true;
         memset(ob_prim_kinds, 0, OPT_MAX_PRIM);
-        p_197 = jit_primitive_number("at");
-        if ((p_197 > 0) && (p_197 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_197] = 1U;
-        }
-        p_198 = jit_primitive_number("atPut");
-        if ((p_198 > 0) && (p_198 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_198] = 2U;
-        }
-        p_199 = jit_primitive_number("basicSize");
-        if ((p_199 > 0) && (p_199 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_199] = 3U;
-        }
-        p_200 = jit_primitive_number("stringAt");
-        if ((p_200 > 0) && (p_200 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_200] = 4U;
-        }
-        p_201 = jit_primitive_number("stringAtPut");
-        if ((p_201 > 0) && (p_201 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_201] = 5U;
-        }
-        p_202 = jit_primitive_number("class");
-        if ((p_202 > 0) && (p_202 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_202] = 6U;
-        }
-        p_203 = jit_primitive_number("identical");
-        if ((p_203 > 0) && (p_203 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_203] = 7U;
-        }
-        p_204 = jit_primitive_number("intAdd");
-        if ((p_204 > 0) && (p_204 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_204] = 32U;
-        }
-        p_205 = jit_primitive_number("intSub");
-        if ((p_205 > 0) && (p_205 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_205] = 33U;
-        }
-        p_206 = jit_primitive_number("intLess");
-        if ((p_206 > 0) && (p_206 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_206] = 34U;
-        }
-        p_207 = jit_primitive_number("intGreater");
-        if ((p_207 > 0) && (p_207 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_207] = 35U;
-        }
-        p_208 = jit_primitive_number("intLessEq");
-        if ((p_208 > 0) && (p_208 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_208] = 36U;
-        }
-        p_209 = jit_primitive_number("intGreaterEq");
-        if ((p_209 > 0) && (p_209 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_209] = 37U;
-        }
-        p_210 = jit_primitive_number("intEq");
-        if ((p_210 > 0) && (p_210 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_210] = 38U;
-        }
-        p_211 = jit_primitive_number("intNotEq");
-        if ((p_211 > 0) && (p_211 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_211] = 39U;
-        }
-        p_212 = jit_primitive_number("intMul");
-        if ((p_212 > 0) && (p_212 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_212] = 40U;
-        }
-        p_213 = jit_primitive_number("intBitAnd");
-        if ((p_213 > 0) && (p_213 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_213] = 46U;
-        }
-        p_214 = jit_primitive_number("intBitOr");
-        if ((p_214 > 0) && (p_214 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_214] = 47U;
-        }
-        p_215 = jit_primitive_number("intMod");
-        if ((p_215 > 0) && (p_215 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_215] = 42U;
-        }
-        p_216 = jit_primitive_number("intBitXor");
-        if ((p_216 > 0) && (p_216 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_216] = 43U;
-        }
-        p_217 = jit_primitive_number("intBitShift");
+        p_217 = jit_primitive_number("at");
         if ((p_217 > 0) && (p_217 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_217] = 44U;
+            ob_prim_kinds[p_217] = 1U;
         }
-        p_218 = jit_primitive_number("intFloorDiv");
+        p_218 = jit_primitive_number("atPut");
         if ((p_218 > 0) && (p_218 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_218] = 45U;
+            ob_prim_kinds[p_218] = 2U;
         }
-        p_219 = jit_primitive_number("floatAdd");
+        p_219 = jit_primitive_number("basicSize");
         if ((p_219 > 0) && (p_219 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_219] = 64U;
+            ob_prim_kinds[p_219] = 3U;
         }
-        p_220 = jit_primitive_number("floatSub");
+        p_220 = jit_primitive_number("stringAt");
         if ((p_220 > 0) && (p_220 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_220] = 65U;
+            ob_prim_kinds[p_220] = 4U;
         }
-        p_221 = jit_primitive_number("floatLess");
+        p_221 = jit_primitive_number("stringAtPut");
         if ((p_221 > 0) && (p_221 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_221] = 66U;
+            ob_prim_kinds[p_221] = 5U;
         }
-        p_222 = jit_primitive_number("floatGreater");
+        p_222 = jit_primitive_number("class");
         if ((p_222 > 0) && (p_222 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_222] = 67U;
+            ob_prim_kinds[p_222] = 6U;
         }
-        p_223 = jit_primitive_number("floatLessEq");
+        p_223 = jit_primitive_number("identical");
         if ((p_223 > 0) && (p_223 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_223] = 68U;
+            ob_prim_kinds[p_223] = 7U;
         }
-        p_224 = jit_primitive_number("floatGreaterEq");
+        p_224 = jit_primitive_number("intAdd");
         if ((p_224 > 0) && (p_224 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_224] = 69U;
+            ob_prim_kinds[p_224] = 32U;
         }
-        p_225 = jit_primitive_number("floatEq");
+        p_225 = jit_primitive_number("intSub");
         if ((p_225 > 0) && (p_225 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_225] = 70U;
+            ob_prim_kinds[p_225] = 33U;
         }
-        p_226 = jit_primitive_number("floatNotEq");
+        p_226 = jit_primitive_number("intLess");
         if ((p_226 > 0) && (p_226 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_226] = 71U;
+            ob_prim_kinds[p_226] = 34U;
         }
-        p_227 = jit_primitive_number("floatMul");
+        p_227 = jit_primitive_number("intGreater");
         if ((p_227 > 0) && (p_227 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_227] = 72U;
+            ob_prim_kinds[p_227] = 35U;
         }
-        p_228 = jit_primitive_number("floatDiv");
+        p_228 = jit_primitive_number("intLessEq");
         if ((p_228 > 0) && (p_228 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_228] = 73U;
+            ob_prim_kinds[p_228] = 36U;
         }
-        p_229 = jit_primitive_number("floatSqrt");
+        p_229 = jit_primitive_number("intGreaterEq");
         if ((p_229 > 0) && (p_229 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_229] = 8U;
+            ob_prim_kinds[p_229] = 37U;
         }
-        p_230 = jit_primitive_number("basicNew");
+        p_230 = jit_primitive_number("intEq");
         if ((p_230 > 0) && (p_230 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_230] = 9U;
+            ob_prim_kinds[p_230] = 38U;
         }
-        p_231 = jit_primitive_number("basicNew:");
+        p_231 = jit_primitive_number("intNotEq");
         if ((p_231 > 0) && (p_231 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_231] = 10U;
+            ob_prim_kinds[p_231] = 39U;
         }
-        p_232 = jit_primitive_number("closureValue");
+        p_232 = jit_primitive_number("intMul");
         if ((p_232 > 0) && (p_232 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_232] = 11U;
+            ob_prim_kinds[p_232] = 40U;
+        }
+        p_233 = jit_primitive_number("intBitAnd");
+        if ((p_233 > 0) && (p_233 < OPT_MAX_PRIM)) {
+            ob_prim_kinds[p_233] = 46U;
+        }
+        p_234 = jit_primitive_number("intBitOr");
+        if ((p_234 > 0) && (p_234 < OPT_MAX_PRIM)) {
+            ob_prim_kinds[p_234] = 47U;
+        }
+        p_235 = jit_primitive_number("intMod");
+        if ((p_235 > 0) && (p_235 < OPT_MAX_PRIM)) {
+            ob_prim_kinds[p_235] = 42U;
+        }
+        p_236 = jit_primitive_number("intBitXor");
+        if ((p_236 > 0) && (p_236 < OPT_MAX_PRIM)) {
+            ob_prim_kinds[p_236] = 43U;
+        }
+        p_237 = jit_primitive_number("intBitShift");
+        if ((p_237 > 0) && (p_237 < OPT_MAX_PRIM)) {
+            ob_prim_kinds[p_237] = 44U;
+        }
+        p_238 = jit_primitive_number("intFloorDiv");
+        if ((p_238 > 0) && (p_238 < OPT_MAX_PRIM)) {
+            ob_prim_kinds[p_238] = 45U;
+        }
+        p_239 = jit_primitive_number("intQuo");
+        if ((p_239 > 0) && (p_239 < OPT_MAX_PRIM)) {
+            ob_prim_kinds[p_239] = 48U;
+        }
+        p_240 = jit_primitive_number("intRem");
+        if ((p_240 > 0) && (p_240 < OPT_MAX_PRIM)) {
+            ob_prim_kinds[p_240] = 49U;
+        }
+        p_241 = jit_primitive_number("charValue");
+        if ((p_241 > 0) && (p_241 < OPT_MAX_PRIM)) {
+            ob_prim_kinds[p_241] = 12U;
+        }
+        p_242 = jit_primitive_number("charFromValue");
+        if ((p_242 > 0) && (p_242 < OPT_MAX_PRIM)) {
+            ob_prim_kinds[p_242] = 13U;
+        }
+        p_243 = jit_primitive_number("floatAdd");
+        if ((p_243 > 0) && (p_243 < OPT_MAX_PRIM)) {
+            ob_prim_kinds[p_243] = 64U;
+        }
+        p_244 = jit_primitive_number("floatSub");
+        if ((p_244 > 0) && (p_244 < OPT_MAX_PRIM)) {
+            ob_prim_kinds[p_244] = 65U;
+        }
+        p_245 = jit_primitive_number("floatLess");
+        if ((p_245 > 0) && (p_245 < OPT_MAX_PRIM)) {
+            ob_prim_kinds[p_245] = 66U;
+        }
+        p_246 = jit_primitive_number("floatGreater");
+        if ((p_246 > 0) && (p_246 < OPT_MAX_PRIM)) {
+            ob_prim_kinds[p_246] = 67U;
+        }
+        p_247 = jit_primitive_number("floatLessEq");
+        if ((p_247 > 0) && (p_247 < OPT_MAX_PRIM)) {
+            ob_prim_kinds[p_247] = 68U;
+        }
+        p_248 = jit_primitive_number("floatGreaterEq");
+        if ((p_248 > 0) && (p_248 < OPT_MAX_PRIM)) {
+            ob_prim_kinds[p_248] = 69U;
+        }
+        p_249 = jit_primitive_number("floatEq");
+        if ((p_249 > 0) && (p_249 < OPT_MAX_PRIM)) {
+            ob_prim_kinds[p_249] = 70U;
+        }
+        p_250 = jit_primitive_number("floatNotEq");
+        if ((p_250 > 0) && (p_250 < OPT_MAX_PRIM)) {
+            ob_prim_kinds[p_250] = 71U;
+        }
+        p_251 = jit_primitive_number("floatMul");
+        if ((p_251 > 0) && (p_251 < OPT_MAX_PRIM)) {
+            ob_prim_kinds[p_251] = 72U;
+        }
+        p_252 = jit_primitive_number("floatDiv");
+        if ((p_252 > 0) && (p_252 < OPT_MAX_PRIM)) {
+            ob_prim_kinds[p_252] = 73U;
+        }
+        p_253 = jit_primitive_number("floatSqrt");
+        if ((p_253 > 0) && (p_253 < OPT_MAX_PRIM)) {
+            ob_prim_kinds[p_253] = 8U;
+        }
+        p_254 = jit_primitive_number("basicNew");
+        if ((p_254 > 0) && (p_254 < OPT_MAX_PRIM)) {
+            ob_prim_kinds[p_254] = 9U;
+        }
+        p_255 = jit_primitive_number("basicNew:");
+        if ((p_255 > 0) && (p_255 < OPT_MAX_PRIM)) {
+            ob_prim_kinds[p_255] = 10U;
+        }
+        p_256 = jit_primitive_number("closureValue");
+        if ((p_256 > 0) && (p_256 < OPT_MAX_PRIM)) {
+            ob_prim_kinds[p_256] = 11U;
         }
     }
-    if ((p_196 <= 0) || (p_196 >= OPT_MAX_PRIM)) {
+    if ((p_216 <= 0) || (p_216 >= OPT_MAX_PRIM)) {
         r_prim_kind_of_6 = 0;
         goto exit_prim_kind_of_6;
     }
-    r_prim_kind_of_6 = (int32_t)ob_prim_kinds[p_196];
+    r_prim_kind_of_6 = (int32_t)ob_prim_kinds[p_216];
 exit_prim_kind_of_6:;
     r_prim_kind_of_6; }) == OPK_CLOSURE; }))) {
         r_send_3 = ({
@@ -9873,11 +10149,11 @@ exit_block_call_3:;
         goto exit_send_3;
     }
     if ((({
-    p_233 = *(uint64_t *)(m_13 + 16 + 56);
-    r_method_primitive_11 = (p_233 & 1) != 0 ? (int32_t)((((int64_t)p_233) >> 1) & CM_PRIM_MASK) : 0;
+    p_257 = *(uint64_t *)(m_13 + 16 + 56);
+    r_method_primitive_11 = (p_257 & 1) != 0 ? (int32_t)((((int64_t)p_257) >> 1) & CM_PRIM_MASK) : 0;
     r_method_primitive_11; }) != 0) && (((jit_flags & JIT_FLAG_PRIMS) != 0) && opt_inline_primitive(({
-    p_234 = *(uint64_t *)(m_13 + 16 + 56);
-    r_method_primitive_12 = (p_234 & 1) != 0 ? (int32_t)((((int64_t)p_234) >> 1) & CM_PRIM_MASK) : 0;
+    p_258 = *(uint64_t *)(m_13 + 16 + 56);
+    r_method_primitive_12 = (p_258 & 1) != 0 ? (int32_t)((((int64_t)p_258) >> 1) & CM_PRIM_MASK) : 0;
     r_method_primitive_12; }), cls_3, argc, pc, a, r))) {
         r_send_3 = true;
         goto exit_send_3;
@@ -10220,164 +10496,180 @@ exit_note_dependency_4:;
     opt_write(var_36, g, ob_cur_block);
 exit_write_20:;
     if (((jit_flags & JIT_FLAG_ALLOC) != 0) && ({
-    p_236 = ({
-    p_235 = *(uint64_t *)(m_19 + 16 + 56);
-    r_method_primitive_13 = (p_235 & 1) != 0 ? (int32_t)((((int64_t)p_235) >> 1) & CM_PRIM_MASK) : 0;
+    p_260 = ({
+    p_259 = *(uint64_t *)(m_19 + 16 + 56);
+    r_method_primitive_13 = (p_259 & 1) != 0 ? (int32_t)((((int64_t)p_259) >> 1) & CM_PRIM_MASK) : 0;
     r_method_primitive_13; });
     kind_8 = ({
     if (!ob_prims_known) {
         ob_prims_known = true;
         memset(ob_prim_kinds, 0, OPT_MAX_PRIM);
-        p_237 = jit_primitive_number("at");
-        if ((p_237 > 0) && (p_237 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_237] = 1U;
-        }
-        p_238 = jit_primitive_number("atPut");
-        if ((p_238 > 0) && (p_238 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_238] = 2U;
-        }
-        p_239 = jit_primitive_number("basicSize");
-        if ((p_239 > 0) && (p_239 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_239] = 3U;
-        }
-        p_240 = jit_primitive_number("stringAt");
-        if ((p_240 > 0) && (p_240 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_240] = 4U;
-        }
-        p_241 = jit_primitive_number("stringAtPut");
-        if ((p_241 > 0) && (p_241 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_241] = 5U;
-        }
-        p_242 = jit_primitive_number("class");
-        if ((p_242 > 0) && (p_242 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_242] = 6U;
-        }
-        p_243 = jit_primitive_number("identical");
-        if ((p_243 > 0) && (p_243 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_243] = 7U;
-        }
-        p_244 = jit_primitive_number("intAdd");
-        if ((p_244 > 0) && (p_244 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_244] = 32U;
-        }
-        p_245 = jit_primitive_number("intSub");
-        if ((p_245 > 0) && (p_245 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_245] = 33U;
-        }
-        p_246 = jit_primitive_number("intLess");
-        if ((p_246 > 0) && (p_246 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_246] = 34U;
-        }
-        p_247 = jit_primitive_number("intGreater");
-        if ((p_247 > 0) && (p_247 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_247] = 35U;
-        }
-        p_248 = jit_primitive_number("intLessEq");
-        if ((p_248 > 0) && (p_248 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_248] = 36U;
-        }
-        p_249 = jit_primitive_number("intGreaterEq");
-        if ((p_249 > 0) && (p_249 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_249] = 37U;
-        }
-        p_250 = jit_primitive_number("intEq");
-        if ((p_250 > 0) && (p_250 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_250] = 38U;
-        }
-        p_251 = jit_primitive_number("intNotEq");
-        if ((p_251 > 0) && (p_251 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_251] = 39U;
-        }
-        p_252 = jit_primitive_number("intMul");
-        if ((p_252 > 0) && (p_252 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_252] = 40U;
-        }
-        p_253 = jit_primitive_number("intBitAnd");
-        if ((p_253 > 0) && (p_253 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_253] = 46U;
-        }
-        p_254 = jit_primitive_number("intBitOr");
-        if ((p_254 > 0) && (p_254 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_254] = 47U;
-        }
-        p_255 = jit_primitive_number("intMod");
-        if ((p_255 > 0) && (p_255 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_255] = 42U;
-        }
-        p_256 = jit_primitive_number("intBitXor");
-        if ((p_256 > 0) && (p_256 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_256] = 43U;
-        }
-        p_257 = jit_primitive_number("intBitShift");
-        if ((p_257 > 0) && (p_257 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_257] = 44U;
-        }
-        p_258 = jit_primitive_number("intFloorDiv");
-        if ((p_258 > 0) && (p_258 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_258] = 45U;
-        }
-        p_259 = jit_primitive_number("floatAdd");
-        if ((p_259 > 0) && (p_259 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_259] = 64U;
-        }
-        p_260 = jit_primitive_number("floatSub");
-        if ((p_260 > 0) && (p_260 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_260] = 65U;
-        }
-        p_261 = jit_primitive_number("floatLess");
+        p_261 = jit_primitive_number("at");
         if ((p_261 > 0) && (p_261 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_261] = 66U;
+            ob_prim_kinds[p_261] = 1U;
         }
-        p_262 = jit_primitive_number("floatGreater");
+        p_262 = jit_primitive_number("atPut");
         if ((p_262 > 0) && (p_262 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_262] = 67U;
+            ob_prim_kinds[p_262] = 2U;
         }
-        p_263 = jit_primitive_number("floatLessEq");
+        p_263 = jit_primitive_number("basicSize");
         if ((p_263 > 0) && (p_263 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_263] = 68U;
+            ob_prim_kinds[p_263] = 3U;
         }
-        p_264 = jit_primitive_number("floatGreaterEq");
+        p_264 = jit_primitive_number("stringAt");
         if ((p_264 > 0) && (p_264 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_264] = 69U;
+            ob_prim_kinds[p_264] = 4U;
         }
-        p_265 = jit_primitive_number("floatEq");
+        p_265 = jit_primitive_number("stringAtPut");
         if ((p_265 > 0) && (p_265 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_265] = 70U;
+            ob_prim_kinds[p_265] = 5U;
         }
-        p_266 = jit_primitive_number("floatNotEq");
+        p_266 = jit_primitive_number("class");
         if ((p_266 > 0) && (p_266 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_266] = 71U;
+            ob_prim_kinds[p_266] = 6U;
         }
-        p_267 = jit_primitive_number("floatMul");
+        p_267 = jit_primitive_number("identical");
         if ((p_267 > 0) && (p_267 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_267] = 72U;
+            ob_prim_kinds[p_267] = 7U;
         }
-        p_268 = jit_primitive_number("floatDiv");
+        p_268 = jit_primitive_number("intAdd");
         if ((p_268 > 0) && (p_268 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_268] = 73U;
+            ob_prim_kinds[p_268] = 32U;
         }
-        p_269 = jit_primitive_number("floatSqrt");
+        p_269 = jit_primitive_number("intSub");
         if ((p_269 > 0) && (p_269 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_269] = 8U;
+            ob_prim_kinds[p_269] = 33U;
         }
-        p_270 = jit_primitive_number("basicNew");
+        p_270 = jit_primitive_number("intLess");
         if ((p_270 > 0) && (p_270 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_270] = 9U;
+            ob_prim_kinds[p_270] = 34U;
         }
-        p_271 = jit_primitive_number("basicNew:");
+        p_271 = jit_primitive_number("intGreater");
         if ((p_271 > 0) && (p_271 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_271] = 10U;
+            ob_prim_kinds[p_271] = 35U;
         }
-        p_272 = jit_primitive_number("closureValue");
+        p_272 = jit_primitive_number("intLessEq");
         if ((p_272 > 0) && (p_272 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_272] = 11U;
+            ob_prim_kinds[p_272] = 36U;
+        }
+        p_273 = jit_primitive_number("intGreaterEq");
+        if ((p_273 > 0) && (p_273 < OPT_MAX_PRIM)) {
+            ob_prim_kinds[p_273] = 37U;
+        }
+        p_274 = jit_primitive_number("intEq");
+        if ((p_274 > 0) && (p_274 < OPT_MAX_PRIM)) {
+            ob_prim_kinds[p_274] = 38U;
+        }
+        p_275 = jit_primitive_number("intNotEq");
+        if ((p_275 > 0) && (p_275 < OPT_MAX_PRIM)) {
+            ob_prim_kinds[p_275] = 39U;
+        }
+        p_276 = jit_primitive_number("intMul");
+        if ((p_276 > 0) && (p_276 < OPT_MAX_PRIM)) {
+            ob_prim_kinds[p_276] = 40U;
+        }
+        p_277 = jit_primitive_number("intBitAnd");
+        if ((p_277 > 0) && (p_277 < OPT_MAX_PRIM)) {
+            ob_prim_kinds[p_277] = 46U;
+        }
+        p_278 = jit_primitive_number("intBitOr");
+        if ((p_278 > 0) && (p_278 < OPT_MAX_PRIM)) {
+            ob_prim_kinds[p_278] = 47U;
+        }
+        p_279 = jit_primitive_number("intMod");
+        if ((p_279 > 0) && (p_279 < OPT_MAX_PRIM)) {
+            ob_prim_kinds[p_279] = 42U;
+        }
+        p_280 = jit_primitive_number("intBitXor");
+        if ((p_280 > 0) && (p_280 < OPT_MAX_PRIM)) {
+            ob_prim_kinds[p_280] = 43U;
+        }
+        p_281 = jit_primitive_number("intBitShift");
+        if ((p_281 > 0) && (p_281 < OPT_MAX_PRIM)) {
+            ob_prim_kinds[p_281] = 44U;
+        }
+        p_282 = jit_primitive_number("intFloorDiv");
+        if ((p_282 > 0) && (p_282 < OPT_MAX_PRIM)) {
+            ob_prim_kinds[p_282] = 45U;
+        }
+        p_283 = jit_primitive_number("intQuo");
+        if ((p_283 > 0) && (p_283 < OPT_MAX_PRIM)) {
+            ob_prim_kinds[p_283] = 48U;
+        }
+        p_284 = jit_primitive_number("intRem");
+        if ((p_284 > 0) && (p_284 < OPT_MAX_PRIM)) {
+            ob_prim_kinds[p_284] = 49U;
+        }
+        p_285 = jit_primitive_number("charValue");
+        if ((p_285 > 0) && (p_285 < OPT_MAX_PRIM)) {
+            ob_prim_kinds[p_285] = 12U;
+        }
+        p_286 = jit_primitive_number("charFromValue");
+        if ((p_286 > 0) && (p_286 < OPT_MAX_PRIM)) {
+            ob_prim_kinds[p_286] = 13U;
+        }
+        p_287 = jit_primitive_number("floatAdd");
+        if ((p_287 > 0) && (p_287 < OPT_MAX_PRIM)) {
+            ob_prim_kinds[p_287] = 64U;
+        }
+        p_288 = jit_primitive_number("floatSub");
+        if ((p_288 > 0) && (p_288 < OPT_MAX_PRIM)) {
+            ob_prim_kinds[p_288] = 65U;
+        }
+        p_289 = jit_primitive_number("floatLess");
+        if ((p_289 > 0) && (p_289 < OPT_MAX_PRIM)) {
+            ob_prim_kinds[p_289] = 66U;
+        }
+        p_290 = jit_primitive_number("floatGreater");
+        if ((p_290 > 0) && (p_290 < OPT_MAX_PRIM)) {
+            ob_prim_kinds[p_290] = 67U;
+        }
+        p_291 = jit_primitive_number("floatLessEq");
+        if ((p_291 > 0) && (p_291 < OPT_MAX_PRIM)) {
+            ob_prim_kinds[p_291] = 68U;
+        }
+        p_292 = jit_primitive_number("floatGreaterEq");
+        if ((p_292 > 0) && (p_292 < OPT_MAX_PRIM)) {
+            ob_prim_kinds[p_292] = 69U;
+        }
+        p_293 = jit_primitive_number("floatEq");
+        if ((p_293 > 0) && (p_293 < OPT_MAX_PRIM)) {
+            ob_prim_kinds[p_293] = 70U;
+        }
+        p_294 = jit_primitive_number("floatNotEq");
+        if ((p_294 > 0) && (p_294 < OPT_MAX_PRIM)) {
+            ob_prim_kinds[p_294] = 71U;
+        }
+        p_295 = jit_primitive_number("floatMul");
+        if ((p_295 > 0) && (p_295 < OPT_MAX_PRIM)) {
+            ob_prim_kinds[p_295] = 72U;
+        }
+        p_296 = jit_primitive_number("floatDiv");
+        if ((p_296 > 0) && (p_296 < OPT_MAX_PRIM)) {
+            ob_prim_kinds[p_296] = 73U;
+        }
+        p_297 = jit_primitive_number("floatSqrt");
+        if ((p_297 > 0) && (p_297 < OPT_MAX_PRIM)) {
+            ob_prim_kinds[p_297] = 8U;
+        }
+        p_298 = jit_primitive_number("basicNew");
+        if ((p_298 > 0) && (p_298 < OPT_MAX_PRIM)) {
+            ob_prim_kinds[p_298] = 9U;
+        }
+        p_299 = jit_primitive_number("basicNew:");
+        if ((p_299 > 0) && (p_299 < OPT_MAX_PRIM)) {
+            ob_prim_kinds[p_299] = 10U;
+        }
+        p_300 = jit_primitive_number("closureValue");
+        if ((p_300 > 0) && (p_300 < OPT_MAX_PRIM)) {
+            ob_prim_kinds[p_300] = 11U;
         }
     }
-    if ((p_236 <= 0) || (p_236 >= OPT_MAX_PRIM)) {
+    if ((p_260 <= 0) || (p_260 >= OPT_MAX_PRIM)) {
         r_prim_kind_of_7 = 0;
         goto exit_prim_kind_of_7;
     }
-    r_prim_kind_of_7 = (int32_t)ob_prim_kinds[p_236];
+    r_prim_kind_of_7 = (int32_t)ob_prim_kinds[p_260];
 exit_prim_kind_of_7:;
     r_prim_kind_of_7; });
     if (!(((kind_8 == OPK_NEW) && (argc == 0)) || ((kind_8 == OPK_NEWSIZE) && (argc == 1)))) {
@@ -10550,164 +10842,180 @@ exit_allocate_4:;
         goto exit_send_4;
     }
     if ((cls == cls_block) && (((jit_flags & JIT_FLAG_CALLS) != 0) && ({
-    p_274 = ({
-    p_273 = *(uint64_t *)(m_19 + 16 + 56);
-    r_method_primitive_14 = (p_273 & 1) != 0 ? (int32_t)((((int64_t)p_273) >> 1) & CM_PRIM_MASK) : 0;
+    p_302 = ({
+    p_301 = *(uint64_t *)(m_19 + 16 + 56);
+    r_method_primitive_14 = (p_301 & 1) != 0 ? (int32_t)((((int64_t)p_301) >> 1) & CM_PRIM_MASK) : 0;
     r_method_primitive_14; });
     ({
     if (!ob_prims_known) {
         ob_prims_known = true;
         memset(ob_prim_kinds, 0, OPT_MAX_PRIM);
-        p_275 = jit_primitive_number("at");
-        if ((p_275 > 0) && (p_275 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_275] = 1U;
-        }
-        p_276 = jit_primitive_number("atPut");
-        if ((p_276 > 0) && (p_276 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_276] = 2U;
-        }
-        p_277 = jit_primitive_number("basicSize");
-        if ((p_277 > 0) && (p_277 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_277] = 3U;
-        }
-        p_278 = jit_primitive_number("stringAt");
-        if ((p_278 > 0) && (p_278 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_278] = 4U;
-        }
-        p_279 = jit_primitive_number("stringAtPut");
-        if ((p_279 > 0) && (p_279 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_279] = 5U;
-        }
-        p_280 = jit_primitive_number("class");
-        if ((p_280 > 0) && (p_280 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_280] = 6U;
-        }
-        p_281 = jit_primitive_number("identical");
-        if ((p_281 > 0) && (p_281 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_281] = 7U;
-        }
-        p_282 = jit_primitive_number("intAdd");
-        if ((p_282 > 0) && (p_282 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_282] = 32U;
-        }
-        p_283 = jit_primitive_number("intSub");
-        if ((p_283 > 0) && (p_283 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_283] = 33U;
-        }
-        p_284 = jit_primitive_number("intLess");
-        if ((p_284 > 0) && (p_284 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_284] = 34U;
-        }
-        p_285 = jit_primitive_number("intGreater");
-        if ((p_285 > 0) && (p_285 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_285] = 35U;
-        }
-        p_286 = jit_primitive_number("intLessEq");
-        if ((p_286 > 0) && (p_286 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_286] = 36U;
-        }
-        p_287 = jit_primitive_number("intGreaterEq");
-        if ((p_287 > 0) && (p_287 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_287] = 37U;
-        }
-        p_288 = jit_primitive_number("intEq");
-        if ((p_288 > 0) && (p_288 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_288] = 38U;
-        }
-        p_289 = jit_primitive_number("intNotEq");
-        if ((p_289 > 0) && (p_289 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_289] = 39U;
-        }
-        p_290 = jit_primitive_number("intMul");
-        if ((p_290 > 0) && (p_290 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_290] = 40U;
-        }
-        p_291 = jit_primitive_number("intBitAnd");
-        if ((p_291 > 0) && (p_291 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_291] = 46U;
-        }
-        p_292 = jit_primitive_number("intBitOr");
-        if ((p_292 > 0) && (p_292 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_292] = 47U;
-        }
-        p_293 = jit_primitive_number("intMod");
-        if ((p_293 > 0) && (p_293 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_293] = 42U;
-        }
-        p_294 = jit_primitive_number("intBitXor");
-        if ((p_294 > 0) && (p_294 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_294] = 43U;
-        }
-        p_295 = jit_primitive_number("intBitShift");
-        if ((p_295 > 0) && (p_295 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_295] = 44U;
-        }
-        p_296 = jit_primitive_number("intFloorDiv");
-        if ((p_296 > 0) && (p_296 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_296] = 45U;
-        }
-        p_297 = jit_primitive_number("floatAdd");
-        if ((p_297 > 0) && (p_297 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_297] = 64U;
-        }
-        p_298 = jit_primitive_number("floatSub");
-        if ((p_298 > 0) && (p_298 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_298] = 65U;
-        }
-        p_299 = jit_primitive_number("floatLess");
-        if ((p_299 > 0) && (p_299 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_299] = 66U;
-        }
-        p_300 = jit_primitive_number("floatGreater");
-        if ((p_300 > 0) && (p_300 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_300] = 67U;
-        }
-        p_301 = jit_primitive_number("floatLessEq");
-        if ((p_301 > 0) && (p_301 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_301] = 68U;
-        }
-        p_302 = jit_primitive_number("floatGreaterEq");
-        if ((p_302 > 0) && (p_302 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_302] = 69U;
-        }
-        p_303 = jit_primitive_number("floatEq");
+        p_303 = jit_primitive_number("at");
         if ((p_303 > 0) && (p_303 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_303] = 70U;
+            ob_prim_kinds[p_303] = 1U;
         }
-        p_304 = jit_primitive_number("floatNotEq");
+        p_304 = jit_primitive_number("atPut");
         if ((p_304 > 0) && (p_304 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_304] = 71U;
+            ob_prim_kinds[p_304] = 2U;
         }
-        p_305 = jit_primitive_number("floatMul");
+        p_305 = jit_primitive_number("basicSize");
         if ((p_305 > 0) && (p_305 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_305] = 72U;
+            ob_prim_kinds[p_305] = 3U;
         }
-        p_306 = jit_primitive_number("floatDiv");
+        p_306 = jit_primitive_number("stringAt");
         if ((p_306 > 0) && (p_306 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_306] = 73U;
+            ob_prim_kinds[p_306] = 4U;
         }
-        p_307 = jit_primitive_number("floatSqrt");
+        p_307 = jit_primitive_number("stringAtPut");
         if ((p_307 > 0) && (p_307 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_307] = 8U;
+            ob_prim_kinds[p_307] = 5U;
         }
-        p_308 = jit_primitive_number("basicNew");
+        p_308 = jit_primitive_number("class");
         if ((p_308 > 0) && (p_308 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_308] = 9U;
+            ob_prim_kinds[p_308] = 6U;
         }
-        p_309 = jit_primitive_number("basicNew:");
+        p_309 = jit_primitive_number("identical");
         if ((p_309 > 0) && (p_309 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_309] = 10U;
+            ob_prim_kinds[p_309] = 7U;
         }
-        p_310 = jit_primitive_number("closureValue");
+        p_310 = jit_primitive_number("intAdd");
         if ((p_310 > 0) && (p_310 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_310] = 11U;
+            ob_prim_kinds[p_310] = 32U;
+        }
+        p_311 = jit_primitive_number("intSub");
+        if ((p_311 > 0) && (p_311 < OPT_MAX_PRIM)) {
+            ob_prim_kinds[p_311] = 33U;
+        }
+        p_312 = jit_primitive_number("intLess");
+        if ((p_312 > 0) && (p_312 < OPT_MAX_PRIM)) {
+            ob_prim_kinds[p_312] = 34U;
+        }
+        p_313 = jit_primitive_number("intGreater");
+        if ((p_313 > 0) && (p_313 < OPT_MAX_PRIM)) {
+            ob_prim_kinds[p_313] = 35U;
+        }
+        p_314 = jit_primitive_number("intLessEq");
+        if ((p_314 > 0) && (p_314 < OPT_MAX_PRIM)) {
+            ob_prim_kinds[p_314] = 36U;
+        }
+        p_315 = jit_primitive_number("intGreaterEq");
+        if ((p_315 > 0) && (p_315 < OPT_MAX_PRIM)) {
+            ob_prim_kinds[p_315] = 37U;
+        }
+        p_316 = jit_primitive_number("intEq");
+        if ((p_316 > 0) && (p_316 < OPT_MAX_PRIM)) {
+            ob_prim_kinds[p_316] = 38U;
+        }
+        p_317 = jit_primitive_number("intNotEq");
+        if ((p_317 > 0) && (p_317 < OPT_MAX_PRIM)) {
+            ob_prim_kinds[p_317] = 39U;
+        }
+        p_318 = jit_primitive_number("intMul");
+        if ((p_318 > 0) && (p_318 < OPT_MAX_PRIM)) {
+            ob_prim_kinds[p_318] = 40U;
+        }
+        p_319 = jit_primitive_number("intBitAnd");
+        if ((p_319 > 0) && (p_319 < OPT_MAX_PRIM)) {
+            ob_prim_kinds[p_319] = 46U;
+        }
+        p_320 = jit_primitive_number("intBitOr");
+        if ((p_320 > 0) && (p_320 < OPT_MAX_PRIM)) {
+            ob_prim_kinds[p_320] = 47U;
+        }
+        p_321 = jit_primitive_number("intMod");
+        if ((p_321 > 0) && (p_321 < OPT_MAX_PRIM)) {
+            ob_prim_kinds[p_321] = 42U;
+        }
+        p_322 = jit_primitive_number("intBitXor");
+        if ((p_322 > 0) && (p_322 < OPT_MAX_PRIM)) {
+            ob_prim_kinds[p_322] = 43U;
+        }
+        p_323 = jit_primitive_number("intBitShift");
+        if ((p_323 > 0) && (p_323 < OPT_MAX_PRIM)) {
+            ob_prim_kinds[p_323] = 44U;
+        }
+        p_324 = jit_primitive_number("intFloorDiv");
+        if ((p_324 > 0) && (p_324 < OPT_MAX_PRIM)) {
+            ob_prim_kinds[p_324] = 45U;
+        }
+        p_325 = jit_primitive_number("intQuo");
+        if ((p_325 > 0) && (p_325 < OPT_MAX_PRIM)) {
+            ob_prim_kinds[p_325] = 48U;
+        }
+        p_326 = jit_primitive_number("intRem");
+        if ((p_326 > 0) && (p_326 < OPT_MAX_PRIM)) {
+            ob_prim_kinds[p_326] = 49U;
+        }
+        p_327 = jit_primitive_number("charValue");
+        if ((p_327 > 0) && (p_327 < OPT_MAX_PRIM)) {
+            ob_prim_kinds[p_327] = 12U;
+        }
+        p_328 = jit_primitive_number("charFromValue");
+        if ((p_328 > 0) && (p_328 < OPT_MAX_PRIM)) {
+            ob_prim_kinds[p_328] = 13U;
+        }
+        p_329 = jit_primitive_number("floatAdd");
+        if ((p_329 > 0) && (p_329 < OPT_MAX_PRIM)) {
+            ob_prim_kinds[p_329] = 64U;
+        }
+        p_330 = jit_primitive_number("floatSub");
+        if ((p_330 > 0) && (p_330 < OPT_MAX_PRIM)) {
+            ob_prim_kinds[p_330] = 65U;
+        }
+        p_331 = jit_primitive_number("floatLess");
+        if ((p_331 > 0) && (p_331 < OPT_MAX_PRIM)) {
+            ob_prim_kinds[p_331] = 66U;
+        }
+        p_332 = jit_primitive_number("floatGreater");
+        if ((p_332 > 0) && (p_332 < OPT_MAX_PRIM)) {
+            ob_prim_kinds[p_332] = 67U;
+        }
+        p_333 = jit_primitive_number("floatLessEq");
+        if ((p_333 > 0) && (p_333 < OPT_MAX_PRIM)) {
+            ob_prim_kinds[p_333] = 68U;
+        }
+        p_334 = jit_primitive_number("floatGreaterEq");
+        if ((p_334 > 0) && (p_334 < OPT_MAX_PRIM)) {
+            ob_prim_kinds[p_334] = 69U;
+        }
+        p_335 = jit_primitive_number("floatEq");
+        if ((p_335 > 0) && (p_335 < OPT_MAX_PRIM)) {
+            ob_prim_kinds[p_335] = 70U;
+        }
+        p_336 = jit_primitive_number("floatNotEq");
+        if ((p_336 > 0) && (p_336 < OPT_MAX_PRIM)) {
+            ob_prim_kinds[p_336] = 71U;
+        }
+        p_337 = jit_primitive_number("floatMul");
+        if ((p_337 > 0) && (p_337 < OPT_MAX_PRIM)) {
+            ob_prim_kinds[p_337] = 72U;
+        }
+        p_338 = jit_primitive_number("floatDiv");
+        if ((p_338 > 0) && (p_338 < OPT_MAX_PRIM)) {
+            ob_prim_kinds[p_338] = 73U;
+        }
+        p_339 = jit_primitive_number("floatSqrt");
+        if ((p_339 > 0) && (p_339 < OPT_MAX_PRIM)) {
+            ob_prim_kinds[p_339] = 8U;
+        }
+        p_340 = jit_primitive_number("basicNew");
+        if ((p_340 > 0) && (p_340 < OPT_MAX_PRIM)) {
+            ob_prim_kinds[p_340] = 9U;
+        }
+        p_341 = jit_primitive_number("basicNew:");
+        if ((p_341 > 0) && (p_341 < OPT_MAX_PRIM)) {
+            ob_prim_kinds[p_341] = 10U;
+        }
+        p_342 = jit_primitive_number("closureValue");
+        if ((p_342 > 0) && (p_342 < OPT_MAX_PRIM)) {
+            ob_prim_kinds[p_342] = 11U;
         }
     }
-    if ((p_274 <= 0) || (p_274 >= OPT_MAX_PRIM)) {
+    if ((p_302 <= 0) || (p_302 >= OPT_MAX_PRIM)) {
         r_prim_kind_of_8 = 0;
         goto exit_prim_kind_of_8;
     }
-    r_prim_kind_of_8 = (int32_t)ob_prim_kinds[p_274];
+    r_prim_kind_of_8 = (int32_t)ob_prim_kinds[p_302];
 exit_prim_kind_of_8:;
     r_prim_kind_of_8; }) == OPK_CLOSURE; }))) {
         r_send_4 = ({
@@ -10954,11 +11262,11 @@ exit_block_call_4:;
         goto exit_send_4;
     }
     if ((({
-    p_311 = *(uint64_t *)(m_19 + 16 + 56);
-    r_method_primitive_15 = (p_311 & 1) != 0 ? (int32_t)((((int64_t)p_311) >> 1) & CM_PRIM_MASK) : 0;
+    p_343 = *(uint64_t *)(m_19 + 16 + 56);
+    r_method_primitive_15 = (p_343 & 1) != 0 ? (int32_t)((((int64_t)p_343) >> 1) & CM_PRIM_MASK) : 0;
     r_method_primitive_15; }) != 0) && (((jit_flags & JIT_FLAG_PRIMS) != 0) && opt_inline_primitive(({
-    p_312 = *(uint64_t *)(m_19 + 16 + 56);
-    r_method_primitive_16 = (p_312 & 1) != 0 ? (int32_t)((((int64_t)p_312) >> 1) & CM_PRIM_MASK) : 0;
+    p_344 = *(uint64_t *)(m_19 + 16 + 56);
+    r_method_primitive_16 = (p_344 & 1) != 0 ? (int32_t)((((int64_t)p_344) >> 1) & CM_PRIM_MASK) : 0;
     r_method_primitive_16; }), cls, argc, pc, a, r))) {
         r_send_4 = true;
         goto exit_send_4;

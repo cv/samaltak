@@ -4,7 +4,7 @@
 
 static int64_t fb_count;
 uint8_t fb_floats[65536];
-static feedback_site fb_sites[16384];
+static feedback_site fb_sites[65536];
 static bool fb_young;
 
 static void fb_clear(void);
@@ -19,7 +19,7 @@ void fb_all_roots(void (*fn)(oop *))
     if (fb_count == 0) {
         return;
     }
-    for (i = 0; i <= 16383; i++) {
+    for (i = 0; i <= 65535; i++) {
         s = fb_sites + i;
         if (s->method != 0) {
             fn(&s->method);
@@ -91,12 +91,12 @@ feedback_site *fb_site_at(oop m, int64_t pc)
 {
     uint64_t i;
     feedback_site *s;
-    i = ((uint64_t)(uint32_t)(((*(uint64_t *)m) >> H_HASH_SHIFT) & H_HASH_MASK) * 31 + (uint64_t)pc) & 16383;
+    i = ((uint64_t)(uint32_t)(((*(uint64_t *)m) >> H_HASH_SHIFT) & H_HASH_MASK) * 31 + (uint64_t)pc) & 65535;
     while ((s = fb_sites + i)->method != 0) {
         if ((s->method == m) && (s->pc == (int32_t)pc)) {
             return s;
         }
-        i = (i + 1) & 16383;
+        i = (i + 1) & 65535;
     }
     return (feedback_site *)NULL;
 }
@@ -106,14 +106,14 @@ static feedback_site *fb_site_for(oop m, int64_t pc)
 {
     uint64_t i;
     feedback_site *s;
-    i = ((uint64_t)(uint32_t)(((*(uint64_t *)m) >> H_HASH_SHIFT) & H_HASH_MASK) * 31 + (uint64_t)pc) & 16383;
+    i = ((uint64_t)(uint32_t)(((*(uint64_t *)m) >> H_HASH_SHIFT) & H_HASH_MASK) * 31 + (uint64_t)pc) & 65535;
     while ((s = fb_sites + i)->method != 0) {
         if ((s->method == m) && (s->pc == (int32_t)pc)) {
             return s;
         }
-        i = (i + 1) & 16383;
+        i = (i + 1) & 65535;
     }
-    if (fb_count >= 12288) {
+    if (fb_count >= 49152) {
         fb_clear();
         return fb_site_for(m, pc);
     }
@@ -139,7 +139,7 @@ void fb_young_roots(void (*fn)(oop *))
     }
     fb_all_roots(fn);
     fb_young = false;
-    for (i = 0; i <= 16383; i++) {
+    for (i = 0; i <= 65535; i++) {
         if ((fb_sites + i)->method != 0) {
             o = (fb_sites + i)->method;
             if ((uint64_t)(o - young_lo) < young_hi - young_lo) {

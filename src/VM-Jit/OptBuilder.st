@@ -1,6 +1,6 @@
 OptModule subclass: #OptBuilder
 	instanceVariableNames: 'ir obCurBlock obBailed obVarTop obDefKeys obDefVals obDefCount obIncPhis obIncVars obIncCount obAnaMethods obAnaBases obAnaCount obAnaTop obAnaDepth obAnaFlag obAnaBack obPcBlocks obPcbTop obEntryBlock obRootMethod obInlined obDeps obDepCount obPrimKinds obPrimsKnown obNoInline obNoInlineCount obArgVals obArgFlags obUnitStart obOsrPc obParamSlots obValidSlots obSafeEpoch obAnaFloat obResident obChecked obCheckedCount obCheckedBlock obCheckedEpoch'
-	classVariableNames: 'OA_BLOCK OA_LOOP OA_START OA_TARGET OPT_MAX_VARS OPT_MAX_NOINLINE OPT_MAX_PRIM OPK_AT OPK_FLOAT OPK_FSQRT OPK_NEW OPK_NEWSIZE OPK_CLOSURE OPK_ATPUT OPK_CLASS OPK_IDENTICAL OPK_INT OPK_SIZE OPK_STRINGAT OPK_STRINGATPUT OPT_INLINE_BUDGET OPT_INLINE_DEPTH OPT_INLINE_SIZE OPT_MAX_ANA OPT_MAX_DEPS OPT_MAX_INC'
+	classVariableNames: 'OA_BLOCK OA_LOOP OA_START OA_TARGET OPT_MAX_VARS OPT_MAX_NOINLINE OPT_MAX_PRIM OPK_AT OPK_FLOAT OPK_FSQRT OPK_NEW OPK_NEWSIZE OPK_CLOSURE OPK_ATPUT OPK_CLASS OPK_IDENTICAL OPK_INT OPK_SIZE OPK_STRINGAT OPK_STRINGATPUT OPT_INLINE_BUDGET OPT_INLINE_DEPTH OPT_INLINE_SIZE OPT_MAX_ANA OPT_MAX_DEPS OPT_MAX_INC OPK_CHARVALUE OPK_CHARFROM'
 	package: 'VM-Jit'!
 
 OptBuilder comment: 'Builds the IR (OptIR) of a method from its bytecodes: an abstract interpretation of each activation''s bytecodes in pc order, its slots (arguments, temps, operand stack: the depths BytecodeAnalysis computed) SSA variables, phis made on demand (Braun et al., Simple and Efficient Construction of Static Single Assignment Form, CC 2013: a block is sealed once all its predecessors are known; jump targets when the scan reaches them, loop heads after their last backward jump). Sends, guards and interrupt checks get frame states (OptState) for deoptimization. bail abandons the method (a bytecode the tier does not compile).'!
@@ -36,6 +36,8 @@ initialize
 	OPK_NEW := 9.
 	OPK_NEWSIZE := 10.
 	OPK_CLOSURE := 11.
+	OPK_CHARVALUE := 12.
+	OPK_CHARFROM := 13.
 	OPT_INLINE_SIZE := 200.
 	OPT_INLINE_BUDGET := 3000.
 	OPT_INLINE_DEPTH := 8.
@@ -1028,9 +1030,11 @@ intArith: k x: x y: y pc: pc act: a rcvSlot: r
 		(ir node: n) tkind: T_BOOL.
 		self push: n act: a depth: r.
 		^self].
-	n := self binary: (k caseOf: {[0] -> [O_IADD]. [1] -> [O_ISUB]. [8] -> [O_IMUL]. [10] -> [O_IMOD]. [11] -> [O_IXOR]. [12] -> [O_ISHIFT]. [13] -> [O_IDIV]. [14] -> [O_IAND]} otherwise: [O_IOR]) a: gx b: gy.
+	n := self binary: (k caseOf: {[0] -> [O_IADD]. [1] -> [O_ISUB]. [8] -> [O_IMUL]. [10] -> [O_IMOD]. [11] -> [O_IXOR]. [12] -> [O_ISHIFT]. [13] -> [O_IDIV]. [14] -> [O_IAND]. [16] -> [O_IDIV]. [17] -> [O_IMOD]} otherwise: [O_IOR]) a: gx b: gy.
 	(ir node: n) tkind: T_SMI.
-	(k <= 1 or: [k = 8 or: [k = 10 or: [k = 12 or: [k = 13]]]]) ifTrue: [(ir node: n) state: s].
+	"quo: rem: truncate"
+	k >= 16 ifTrue: [(ir node: n) aux: 1].
+	(k <= 1 or: [k = 8 or: [k = 10 or: [k = 12 or: [k = 13 or: [k >= 16]]]]]) ifTrue: [(ir node: n) state: s].
 	self push: n act: a depth: r
 !
 floatArith: k x: x y: y pc: pc act: a rcvSlot: r
@@ -1281,6 +1285,10 @@ primKindOf: p
 		self primNamed: 'intBitXor' kind: OPK_INT + 11.
 		self primNamed: 'intBitShift' kind: OPK_INT + 12.
 		self primNamed: 'intFloorDiv' kind: OPK_INT + 13.
+		self primNamed: 'intQuo' kind: OPK_INT + 16.
+		self primNamed: 'intRem' kind: OPK_INT + 17.
+		self primNamed: 'charValue' kind: OPK_CHARVALUE.
+		self primNamed: 'charFromValue' kind: OPK_CHARFROM.
 		self primNamed: 'floatAdd' kind: OPK_FLOAT + 0.
 		self primNamed: 'floatSub' kind: OPK_FLOAT + 1.
 		self primNamed: 'floatLess' kind: OPK_FLOAT + 2.
@@ -1317,6 +1325,22 @@ inlinePrimitive: p class: cls argc: argc pc: pc act: a rcvSlot: r
 		^true].
 	(kind = OPK_IDENTICAL and: [argc = 1]) ifTrue: [
 		self push: (self binary: O_EQ a: rcv b: (self read: (self var: a slot: r + 1))) act: a depth: r.
+		^true].
+	(kind = OPK_CHARVALUE and: [argc = 0 and: [cls = memory clsChar]]) ifTrue: [
+		n := self add: O_CHARCONV rep: R_OOP.
+		(ir node: n) a: rcv.
+		(ir node: n) tkind: T_SMI.
+		self push: n act: a depth: r.
+		^true].
+	(kind = OPK_CHARFROM and: [argc = 1]) ifTrue: [
+		s := self stateAct: a pc: pc depth: (self depthAt: pc act: a).
+		n := self add: O_CHARCONV rep: R_OOP.
+		(ir node: n) a: (self guardInt: (self read: (self var: a slot: r + 1)) state: s).
+		(ir node: n) aux: 1.
+		(ir node: n) state: s.
+		(ir node: n) flags: NF_GUARD.
+		(ir node: n) tkind: T_CHAR.
+		self push: n act: a depth: r.
 		^true].
 	(kind >= OPK_FLOAT or: [kind = OPK_FSQRT]) ifTrue: [
 		(runtime flag: runtime unboxFlag) ifFalse: [^false].

@@ -338,6 +338,23 @@ emitNode: n block: b next: nextBlock
 	(op = O_IADD or: [op = O_ISUB]) ifTrue: [^self emitAddSub: n].
 	op = O_IMUL ifTrue: [^self emitMul: n].
 	(op = O_IMOD or: [op = O_IDIV or: [op = O_ISHIFT]]) ifTrue: [^self emitDivShift: n].
+	op = O_CHARCONV ifTrue: [
+		x := self src: nd a into: X14.
+		r := self dst: n.
+		nd aux = 0 ifTrue: [
+			asm comment: 'a Character''s value'.
+			asm lsr: r with: x imm: 2.
+			asm orr: r with: r imm: 1.
+			^self def: n from: r].
+		s := self deoptLabelFor: n.
+		asm comment: 'the Character of a SmallInteger (0 to 16r3FFFFFFF)'.
+		asm asr: X16 with: x imm: 1.
+		asm mov: X17 imm: 16r3FFFFFFF.
+		asm cmp: X16 with: X17.
+		asm b: s if: COND_HI.
+		asm lsl: r with: X16 imm: 3.
+		asm orr: r with: r imm: 2.
+		^self def: n from: r].
 	op = O_NOTINTS ifTrue: [
 		s := self deoptLabelFor: n.
 		asm comment: 'guard: not two SmallIntegers'.
@@ -654,7 +671,7 @@ emitAddSub: n
 	self def: n from: X16
 !
 emitDivShift: n
-	"SmallInteger modulo and division (floored; a zero divisor deoptimizes) and bitShift: (a result that does not fit deoptimizes)."
+	"SmallInteger modulo and division (floored, aux 1 truncated: rem: quo:; a zero divisor deoptimizes) and bitShift: (a result that does not fit deoptimizes)."
 	| nd s op neg done |
 	nd := ir node: n.
 	op := nd op asInt32.
@@ -687,6 +704,7 @@ emitDivShift: n
 	asm cbz: X17 to: s.
 	asm sdiv: X15 with: X16 with: X17.
 	asm msub: X14 with: X15 with: X17 sub: X16.
+	nd aux = 1 ifTrue: [asm b: done].
 	asm comment: 'floored: a remainder of the divisor''s other sign moves'.
 	asm cbz: X14 to: done.
 	asm eor: X16 with: X14 with: X17.
@@ -1017,7 +1035,7 @@ emitRuntimeSend: k site: here exit: cont
 	self emitStoreResult
 !
 emitPushFrameFor: m argc: n slow: slow
-	"A direct call of m (it has machine code): its frame pushed here as the interpreter would (pushFrame:argc:code:ecode:), then a call of its entry; no room on the stack: the runtime's send."
+	"A direct call of m (it has machine code): its frame pushed here as the interpreter would (pushFrame:argc:code:ecode:; ip and lits are set when the runtime needs them, as for baseline frames: lits 0 is no mark, JitBaselineRuntime>>canonicalizeBelow:), then a call of its entry; no room on the stack: the runtime's send."
 	| ntemps fs fb cell |
 	ntemps := (self intVal: (self loadRef: m at: CM_NUMTEMPS)) asInt32.
 	fs := (self intVal: (self loadRef: m at: CM_FRAMESIZE)) asInt32.
@@ -1038,12 +1056,7 @@ emitPushFrameFor: m argc: n slow: slow
 	asm str: X15 base: X19 offset: fb + self closureOffset.
 	asm str: X15 base: X19 offset: fb + self ctxOffset.
 	0 to: ntemps - 1 do: [:i | asm str: X15 base: X16 offset: 8 * (n + i)].
-	asm ldr: X14 base: X17 offset: (self fieldOffset: CM_BYTECODES).
-	asm add: X14 with: X14 imm: 16.
-	asm str: X14 base: X19 offset: fb + self ipOffset.
-	asm ldr: X14 base: X17 offset: (self fieldOffset: CM_LITERALS).
-	asm add: X14 with: X14 imm: 16.
-	asm str: X14 base: X19 offset: fb + self litsOffset.
+	asm str: XZR base: X19 offset: fb + self litsOffset.
 	asm mov: X14 imm: (n + ntemps) asInt64 << 32.
 	asm str: X14 base: X19 offset: fb + self pcOffset.
 	asm comment: 'its code and entry: the method''s cell (it follows the method''s tier)'.

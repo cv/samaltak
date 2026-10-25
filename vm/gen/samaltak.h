@@ -215,7 +215,7 @@ typedef void (*prim_fn)(void);
 #define FB_FLOAT 2
 #define FB_FLOAT_BITS 65536
 #define FB_INTS 256
-#define FB_MAX 16384
+#define FB_MAX 65536
 #define FB_MEGA 1
 #define FB_NONINT 4
 #define FB_OVERFLOW 8
@@ -343,6 +343,8 @@ typedef void (*prim_fn)(void);
 #define OA_TARGET 2
 #define OPK_AT 1
 #define OPK_ATPUT 2
+#define OPK_CHARFROM 13
+#define OPK_CHARVALUE 12
 #define OPK_CLASS 6
 #define OPK_CLOSURE 11
 #define OPK_FLOAT 64
@@ -393,6 +395,7 @@ typedef void (*prim_fn)(void);
 #define O_BRANCH 51
 #define O_CALL 18
 #define O_CAST 21
+#define O_CHARCONV 42
 #define O_CHECKINT 19
 #define O_CLASSIS 20
 #define O_CLASSOF 6

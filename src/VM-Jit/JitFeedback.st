@@ -12,7 +12,7 @@ declarations
 	^#((fbSites 'FeedbackSite[FB_MAX]') (fbCount int64_t) (fbYoung bool) (fbFloats 'uint8_t[FB_FLOAT_BITS]'))
 !
 initialize
-	FB_MAX := 16384.
+	FB_MAX := 65536.
 	FB_FLOAT_BITS := 65536.
 	FB_CLASSES := 4.
 	FB_MEGA := 1.
