@@ -205,13 +205,15 @@ testNilTestsInline
 	self assert: run output trimBoth equals: 'true'
 !
 testEveryFlagOff
-	"Each optimization switched off alone: the same answers."
+	"Each optimization switched off alone: the same answers (loop temps stay in registers only across inline code)."
 	self define: 'fib: n ^n < 2 ifTrue: [n] ifFalse: [(self fib: n - 1) + (self fib: n - 2)]'.
+	self define: 'pow: n | r b k | r := 1. b := 10. k := n. [k > 0] whileTrue: [(k bitAnd: 1) = 1 ifTrue: [r := r * b]. k := k bitShift: -1. k > 0 ifTrue: [b := b * b]]. ^r'.
 	self define: 'mix: n | x a | x := 0.0. a := Array new: n. 1 to: n do: [:i | a at: i put: i * 2. x := x + (i / 2.0)]. ^{x. (a inject: 0 into: [:s :e | s + e]). a printString size}'.
 	#('arith' 'fuse' 'barrier' 'ic' 'pic' 'mega' 'regs' 'prims' 'access' 'alloc' 'float' 'blocks' 'nlr' 'quick' 'temps') do: [:flag |
 		Smalltalk vm jitParameters: {nil. '-' , flag. nil. nil}.
 		self assert: (self subject fib: 15) equals: 610.
 		self assert: (self subject mix: 20) equals: #(105.0 420 58).
+		self assert: (self subject pow: 22) equals: 10000000000000000000000.
 		Smalltalk vm jitParameters: {nil. flag. nil. nil}]
 !
 testCodeCacheFlush

@@ -276,8 +276,10 @@ beginLoopAt: head
 					(p ~= head and: [analysis isLoopHead: p]) ifTrue: [^self].
 					(op = 16r8D or: [op = 16r8E or: [(op >= 16rC0 and: [op < 16rF0]) or: [op = 16r8F or: [op = 16r76 or: [op = 16r94]]]]]) ifTrue: [^self].
 					(op >= 16rA0 and: [op < 16rC0]) ifTrue: [
-						k := op - 16rA0.
-						(k = 11 or: [k = 21 or: [k = 22 or: [k = 23 or: [k = 24 or: [k = 25 or: [k = 26 or: [k = 30 or: [k = 31 or: [k = 27 or: [k = 28]]]]]]]]]]) ifTrue: [^self]]]
+						(self specialSends: op - 16rA0) ifTrue: [^self]].
+					((op >= 16r97 and: [op < 16rA0]) or: [op >= 16rF0 and: [op < 16rFC]]) ifTrue: [
+						k := analysis specialIndexOf: analysis bytecodes + p.
+						(self specialSends: k) ifTrue: [^self]]]
 				ifFalse: [
 					((op >= 16r90 and: [op <= 16r92]) and: [(analysis jumpTargetAt: p) >= head and: [(analysis jumpTargetAt: p) <= end]]) ifTrue: [^self]].
 			p := (p + (analysis lengthAt: p)) asInt32]
@@ -328,6 +330,15 @@ uses: t from: head to: end
 			p := (p + (analysis lengthAt: p)) asInt32]
 			ifFalse: [p := (p + 1) asInt32]].
 	^c
+!
+specialSends: k
+	"Special selector k compiles to a send (with the flags as they are), not to inline code whose slow paths reload the loop temps."
+	(k = 19 or: [k = 20 or: [k = 29]]) ifTrue: [^false].
+	(k = 23 or: [k = 24]) ifTrue: [^(runtime prims and: [brt nilTestsInlinable]) not].
+	(k <= 8 or: [k = 10 or: [k >= 12 and: [k <= 15]]]) ifTrue: [^runtime arith not].
+	k = 9 ifTrue: [^runtime float not].
+	(k >= 16 and: [k <= 18]) ifTrue: [^runtime access not].
+	^true
 !
 loopRegOf: t
 	"The register holding temp t in the current loop, -1 if none."
