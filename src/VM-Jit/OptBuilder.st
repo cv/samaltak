@@ -111,7 +111,9 @@ buildOnce: m
 	(ir act: a) numArgs to: (ir act: a) numArgs + (ir act: a) numTemps - 1 do: [:i | self write: (self var: a slot: i) value: (self constant: memory nilOop)].
 	"a failed primitive's error code is in the first temp"
 	((ir act: a) numTemps > 0 and: [obUnitStart = 0 and: [(self isInt: (self loadRef: m at: CM_PRIMITIVE)) and: [((self intVal: (self loadRef: m at: CM_PRIMITIVE)) bitAnd: CM_PRIM_ERROR_FLAG) ~= 0]]]) ifTrue: [
-		self write: (self var: a slot: (ir act: a) numArgs) value: (self param: (ir act: a) numArgs)].
+		self write: (self var: a slot: (ir act: a) numArgs) value: (self param: (ir act: a) numArgs).
+		"home slots after it: values are stored where they are defined"
+		obParamSlots := (ir act: a) numArgs + 1].
 	self checkInterruptAct: a pc: obUnitStart depth: (ir act: a) numArgs + (ir act: a) numTemps kind: SP_ENTRY.
 	b := ir newBlock.
 	self goto: b.

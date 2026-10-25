@@ -717,6 +717,7 @@ exit_build_osr:;
         }
         opt_write(var_5, v_5, ob_cur_block);
     exit_write_5:;
+        ob_param_slots = (opt_acts + a)->num_args + 1;
     }
     d = (opt_acts + a)->num_args + (opt_acts + a)->num_temps;
     n_30 = ({

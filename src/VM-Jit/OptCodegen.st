@@ -190,12 +190,10 @@ dst: n
 	^X14
 !
 def: n from: r
-	"n's result is in r: into its slot if it has no register."
+	"n's result is in r: into its register, and into its home slot if it has one (a value lives in its slot across safepoints: stored once, where it is defined)."
 	| nd |
 	nd := ir node: n.
-	nd reg >= 0 ifTrue: [
-		nd reg asInt32 ~= r ifTrue: [asm mov: nd reg asInt32 with: r].
-		^self].
+	(nd reg >= 0 and: [nd reg asInt32 ~= r]) ifTrue: [asm mov: nd reg asInt32 with: r].
 	nd slot >= 0 ifTrue: [asm str: r base: X20 offset: 8 * nd slot asInt32]
 !
 loadConstant: v into: r
@@ -1110,12 +1108,7 @@ emitFramePc: pc sp: sp
 	asm str: X16 base: X19 offset: self pcOffset
 !
 saveAcross: n
-	"Values live after safepoint n into their home slots."
-	| v nd |
-	(ir node: n) live to: (ir node: n) live + (ir node: n) nlive - 1 do: [:i |
-		v := regalloc safeLiveAt: i.
-		nd := ir node: v.
-		(nd reg >= 0 and: [nd slot >= 0]) ifTrue: [asm str: nd reg asInt32 base: X20 offset: 8 * nd slot asInt32]]
+	"Values live after safepoint n are in their home slots already (def:from:)."
 !
 reloadAcross: n
 	| v nd |
@@ -1209,9 +1202,8 @@ moveLoc: l toReg: r
 moveRegTo: phi from: r
 	| nd |
 	nd := ir node: phi.
-	nd reg >= 0
-		ifTrue: [nd reg asInt32 ~= r ifTrue: [asm mov: nd reg asInt32 with: r]]
-		ifFalse: [asm str: r base: X20 offset: 8 * nd slot asInt32]
+	(nd reg >= 0 and: [nd reg asInt32 ~= r]) ifTrue: [asm mov: nd reg asInt32 with: r].
+	nd slot >= 0 ifTrue: [asm str: r base: X20 offset: 8 * nd slot asInt32]
 ! !
 
 !OptCodegen methodsFor: 'out of line'!
