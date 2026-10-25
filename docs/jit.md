@@ -74,7 +74,7 @@ The interpreter's frames are the canonical state. Machine code runs on the same 
 - *Sends*: the receiver in x0, receiver and arguments in their slots, `add x20` to the callee's fp, `ldr x9` the site's class from the pool, `bl` the site's target, `sub x20` after; the result comes back in x0. The target is the miss stub while unlinked; a compiled method's checked entry when monomorphic (its class check against x9: tag test, class word, compare; immediates by tag out of line); a `BaselinePic` of up to 6 classes, each branching to its target's unchecked entry; or, megamorphic, the megamorphic stub (x9 then holds the selector; a 4096-entry table probed in machine code). The miss stub calls `JitBaselineRuntime>>miss:receiver:ret:`, which looks the send up (the interpreter's global cache), compiles the target at the threshold, links or relinks the site (code patched under the W^X toggle) and jumps to the target; it leaves to the interpreter for `doesNotUnderstand:`, married Contexts, `perform:` and uncompiled targets. Young classes are cached too (their words become young roots). Method dictionary changes (`flushMethodCache`, `flushCacheFor:`), become and dead code unlink every (or every such) site. Super sends link once to the unchecked entry. Each site's state is its type feedback: `JitBaselineRuntime>>feedbackSitesOf:` and friends (pc, selector, state, receiver class and target per case) for the optimizing tiers, `CompiledMethod>>jitSendSites` in the image.
 - *Frames*: the callee compares its fp against the JitState's stack limit (0 while an interrupt is pending: the one compare is also the interrupt check), pushes the native record (x29, x30) and its Frame with two `stp`s and a `str` (code, closure and ctx nil, fp, pc and sp 0), x21 := the receiver, nil into its temps; a return pops both after one check (a married frame, or frame 0, which `run:at:` marries, takes the slow path). A Frame's method, pc, sp, ip and lits are lazy: the runtime makes a suspended frame canonical from the return address in its callee's native record (`canonicalizeBelow:`, the method's return map: return offset, pc, depth, argc, length, pushes; frame f's record is at `baseRecord − 16·(f − baseFrame)`), top down, stopping at the first frame that already is (a zero pc marks a frame pushed since). Every runtime entry that may collect, flush or leave does that first (`JitRuntime>>sync:`, the exit stub).
 - *Quick methods* (^ivar, ^self, ^constant, ^literal, setters) run without a frame; with an interrupt pending they take the frame's path (sends are safepoints). *Primitives* run before the frame: in machine code for `basicNew`, `basicNew:` (eden bump allocation with the identity hash generator inline), `==`, `class`, closure `value`, SmallInteger and Float arithmetic and comparisons, SmallInteger `quo: rem: // \\`, `sqrt`, `truncated`, `charValue`, `Character value:`, `identityHash`, `at: at:put: basicSize` (pointers without fixed fields, 32-bit words, bytes), `uint32At:` and `uint32At:put:` of bytes; the others through their C function (`prim:fp:fn:info:`; leaf ones without canonicalizing). Failure continues into the frame and the body.
-- *Inline at send sites*: SmallInteger `+ - * // \\ bitAnd: bitOr: bitShift:` and comparisons (tag checks only for operands not known, immediates, overflow branches), compare and branch fused with the conditional jump, jumps threaded into a conditional jump on the value just pushed (`and:`, `or:`). Floats: an operation with an operand that surely is a Float (an unboxed value, a Float constant, a temp whose unboxed value is known in the basic block) decodes the other (SmallFloat64, BoxedFloat64, SmallInteger) and leaves its result unboxed in a d register for the next one; other operations try SmallIntegers first, Floats out of line; boxing (a SmallFloat64, else a BoxedFloat64 allocated inline, else by the runtime) happens when a value goes to memory or a send. `== ~~ class` never send, nor do `isNil notNil` while only UndefinedObject and ProtoObject define them (a heap scan; another definition drops all code); `at: at:put: size` inline for Arrays, out of line for Strings, Symbols and ByteArrays; `value value: value:value:` check the closure's class and argument count and call the block stub, which finds the block's entry in a (home method, startpc) cache. Closures (with the marriage's Context), Arrays (`0x94`) and Floats are allocated inline; outer temps inline; the store barrier's fast path inline (the remember stub saves the registers).
+- *Inline at send sites*: SmallInteger `+ - * // \\ bitAnd: bitOr: bitShift:` and comparisons (tag checks only for operands not known, immediates, overflow branches), compare and branch fused with the conditional jump, jumps threaded into a conditional jump on the value just pushed (`and:`, `or:`). Floats: an operation with an operand that surely is a Float (an unboxed value, a Float constant, a temp whose unboxed value is known in the basic block) decodes the other (SmallFloat64, BoxedFloat64, SmallInteger) and leaves its result unboxed in a d register for the next one; other operations try SmallIntegers first, Floats out of line; boxing (a SmallFloat64, else a BoxedFloat64 allocated inline, else by the runtime) happens when a value goes to memory or a send. `== ~~ class` never send, nor do `isNil notNil` while only UndefinedObject and ProtoObject define them (a heap scan; another definition drops all code); `at: at:put:` inline for Arrays, out of line for Strings, Symbols and ByteArrays (`size` is sent: classes define their own, and Arrays answer it from the primitive in machine code); `value value: value:value:` check the closure's class and argument count and call the block stub, which finds the block's entry in a (home method, startpc) cache. Closures (with the marriage's Context), Arrays (`0x94`) and Floats are allocated inline; outer temps inline; the store barrier's fast path inline (the remember stub saves the registers).
 - *Loops*: innermost loops that send nothing (inline operations' slow paths aside) keep their three most used temps in x26–x28, stored through to their slots; slow paths that call reload them, a stub loads them at the loop head for on-stack replacement.
 - *Non-local returns* to a home frame in this machine-code session, above frame 0, without an unwind marker in between, widow the frames and return from the home through its native record (`nlr:`); others leave to the interpreter.
 - Resumption points: method and block starts (an interrupt check out of line), loop heads, send continuations (a stub loads the result from its slot) unless unboxed values are live there. Exits as the template's, through the runtime so that the frames below become canonical.
@@ -159,3 +159,58 @@ Threaded and stencil (`vm/tests/bench/results/samaltak-cp-{none,template,threade
 - `stencil` is 0.92–1.38× `template` (geometric mean 1.15 on AWFY), 0.86× `none`. The stencils keep the operand stack's top in a register (`add x23` per push and pop) where the template knows every slot's offset; sends and returns are larger (124 bytes for a send: the state saved around calls, GOT values materialized; a hole relaxed to one instruction leaves a `nop`); clang lays slow paths out after the fast path, so a stencil that falls through to the next one through a cold block still takes a branch. On Float code (Mandelbrot, MicroFloats) it is as fast as the interpreter, the template slower.
 - `threaded` is 0.89–1.54× `none` (geometric mean 1.21): a `bl`, a `ret` and a test of the answered continuation per bytecode cost more than the interpreter's dispatch (computed goto, PGO); it gains only on Recompile and Mandelbrot.
 
+
+Baseline against Pharo 12 (`vm/tests/bench/results/samaltak-jit-{none,template,baseline}-2026-10-25-*.csv`, `pharo12-cog-2026-10-25-*.csv`): the three modes and Pharo 12 (Cog, the same sources) interleaved, default thresholds, 10 iterations, best of 3 invocations of the steady state and of the first iteration, ms.
+
+| benchmark | `none` | `template` | `baseline` | first | Pharo 12 | first | baseline / Pharo |
+|---|---|---|---|---|---|---|---|
+| Bounce | 104.8 | 77.1 | 22.6 | 22.8 | 32.5 | 32.6 | 0.69 |
+| CD | 369.1 | 345.8 | 87.9 | 91.6 | 205.2 | 203.7 | 0.43 |
+| DeltaBlue | 108.2 | 105.1 | 27.7 | 29.4 | 42.3 | 83.4 | 0.65 |
+| Havlak | 720.0 | 635.3 | 200.2 | 204.0 | 348.6 | 402.3 | 0.57 |
+| Json | 91.3 | 88.0 | 32.1 | 33.4 | 55.3 | 59.0 | 0.58 |
+| List | 127.2 | 102.2 | 17.5 | 17.4 | 23.6 | 23.7 | 0.74 |
+| Mandelbrot | 525.6 | 569.4 | 202.8 | 205.6 | 372.7 | 370.5 | 0.54 |
+| NBody | 772.2 | 716.5 | 344.6 | 344.8 | 379.6 | 364.2 | 0.91 |
+| Permute | 113.4 | 66.9 | 21.6 | 21.5 | 33.5 | 33.6 | 0.64 |
+| Queens | 109.7 | 68.6 | 21.4 | 21.7 | 43.2 | 43.4 | 0.50 |
+| Richards | 101.2 | 81.7 | 17.4 | 18.3 | 22.4 | 23.2 | 0.77 |
+| Sieve | 93.7 | 38.0 | 32.5 | 34.1 | 58.2 | 59.8 | 0.56 |
+| Storage | 111.4 | 113.8 | 35.6 | 37.6 | 55.3 | 57.5 | 0.64 |
+| Towers | 94.8 | 62.3 | 13.8 | 14.0 | 16.5 | 16.8 | 0.83 |
+| MicroFib | 24.3 | 21.9 | 5.0 | 5.1 | 10.0 | 10.2 | 0.50 |
+| MicroLoop | 110.2 | 67.3 | 31.8 | 31.9 | 63.6 | 63.3 | 0.50 |
+| MicroFloats | 28.8 | 31.4 | 20.4 | 20.5 | 38.9 | 39.1 | 0.52 |
+| MicroSends | 102.3 | 82.6 | 22.0 | 22.1 | 22.3 | 22.5 | 0.99 |
+| MicroBlocks | 117.7 | 119.0 | 29.1 | 29.0 | 30.1 | 30.5 | 0.97 |
+| MicroDict | 101.5 | 89.3 | 31.3 | 36.3 | 126.0 | 219.2 | 0.25 |
+| MicroStrings | 145.7 | 149.7 | 34.1 | 35.8 | 61.3 | 72.9 | 0.56 |
+| MicroAlloc | 66.5 | 82.7 | 19.8 | 21.7 | 33.1 | 39.7 | 0.60 |
+| MicroFactorial | 24.9 | 15.9 | 6.5 | 7.4 | 7.9 | 9.2 | 0.82 |
+| Recompile | 102.0 | 69.1 | 18.6 | 20.6 | - | - | - |
+| TextRendering | 104.6 | 99.7 | 58.1 | 60.3 | - | - | - |
+
+- `baseline` beats Pharo 12 on every AWFY benchmark, in the steady state and in the first iteration: geometric mean 0.64 of Pharo's time (first iterations 0.61), 0.31× `template`, 0.25× `none`. Closest: NBody 0.91, Towers 0.83; of the micro benchmarks MicroSends 0.99 and MicroBlocks 0.97.
+- Compiling (AWFY, 2988 methods, 69210 bytecodes): 4.7 µs per method, 0.20 µs per bytecode, 43 bytes of code and literal pool per bytecode (`template` 4.6 µs, 0.16 µs, 37 bytes). It compiles quick methods and primitives too. First iterations are within 8 % of the steady state, MicroDict's within 16 %.
+- Ablations (`samaltak-jit-baseline-no-FLAG-2026-10-25-*.csv`, one flag off, otherwise the same; geometric mean of the steady state relative to all on):
+
+| flag off | AWFY | micro | most affected |
+|---|---|---|---|
+| `ic` | 5.56 | 3.59 | Richards 13.95, List 12.45 (min Sieve 1.00) |
+| `pic` | 1.06 | 1.05 | CD 1.14, MicroAlloc 1.14 (min Permute 1.00) |
+| `mega` | 1.25 | 1.01 | CD 3.09, Havlak 2.77 (min MicroBlocks 0.98) |
+| `regs` | 1.34 | 1.23 | Mandelbrot 2.20, MicroSends 1.71 (min MicroAlloc 1.03) |
+| `arith` | 1.44 | 2.82 | MicroFloats 22.15, MicroLoop 4.37 (min List 0.99) |
+| `fuse` | 1.05 | 1.03 | Bounce 1.29, CD 1.17 (min Queens 0.96) |
+| `float` | 1.08 | 1.35 | MicroFloats 17.34, Mandelbrot 2.29 (min DeltaBlue 0.95) |
+| `access` | 1.07 | 1.07 | MicroStrings 1.43, Sieve 1.29 (min CD 0.98) |
+| `prims` | 1.22 | 1.41 | MicroStrings 2.94, MicroAlloc 2.79 (min MicroBlocks 0.99) |
+| `alloc` | 1.02 | 1.02 | Json 1.15, Havlak 1.13 (min Queens 0.98) |
+| `blocks` | 1.13 | 1.16 | MicroBlocks 3.65, Bounce 1.98 (min MicroStrings 0.97) |
+| `nlr` | 0.99 | 1.05 | MicroLoop 1.13, MicroStrings 1.11 (min NBody 0.97) |
+| `quick` | 1.07 | 1.01 | CD 1.26, Richards 1.22 (min MicroFactorial 0.97) |
+| `temps` | 0.99 | 1.10 | MicroLoop 2.15, Sieve 1.09 (min DeltaBlue 0.95) |
+| `barrier` | 1.26 | 1.07 | Towers 1.80, Permute 1.74 (min List 0.99) |
+
+- Inline caches matter most (every send through the runtime: 5.6×), then inline arithmetic, register mapping, the store barrier's fast path (Towers and Permute store into Arrays), the megamorphic cache (CD, Havlak), machine-code primitives and blocks. Polymorphic caches, fusion, inline allocation, loop temps in registers and the non-local return fast path gain little on AWFY (loop temps: 2× on MicroLoop); most of what they do the other paths also cover. Values under 1.00 are within the noise (±5 %).
+- Where the remaining time goes (native pc samples mapped onto the listings, `--jit-flags notes`): NBody spends 72 % in `advance:` and 20 % in Body's accessors; most of `advance:` is out-of-line Float code: an operation on two send results tries SmallIntegers first, then decodes both operands and boxes the result for the join (an operand known to be a Float keeps the result unboxed, but every accessor send boxes and decodes again). Towers is send-bound: its four small methods take 70 %, the accessors most of the rest; MicroSends and MicroBlocks are a frame, a check and a return per send or block; List is pointer chasing. For the next tiers: inlining guided by the inline caches (accessors, small methods, blocks), Floats unboxed across what was inlined, frames only for real calls. Smaller: a C primitive is a runtime call (frames made canonical unless it is a leaf; the frequent ones run in machine code), LargeInteger arithmetic is Smalltalk over 32-bit limbs (MicroFactorial), the always-on profiler's samples flush the frames about 1000 times a second (about 1 %).
