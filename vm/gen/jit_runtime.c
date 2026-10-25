@@ -3,6 +3,7 @@
 #include "samaltak.h"
 
 static bool cache_opened;
+uint64_t entry_cells[131072];
 bool flush_pending;
 static uint64_t invalidations;
 int64_t jit_cache_mb = 64LL;
@@ -389,6 +390,46 @@ uint64_t jit_closure(frame *f)
     return 0;
 }
 
+/* JitRuntime>>codeAddressOf: */
+bool jit_has_code(oop m)
+{
+    jit_method *h;
+    if (jit_mode == JIT_NONE) {
+        return false;
+    }
+    h = jit_lookup(m);
+    return (h != NULL) && ((h->flags & JM_FAILED) == 0);
+}
+
+/* JitRuntime>>codeChanged: */
+void jit_code_changed(oop m)
+{
+    int64_t i;
+    jit_method *h;
+    jit_method *r_best;
+    jit_method *o;
+    jit_method *h_2;
+    i = jit_slot_of(m);
+    if (i >= 0) {
+        h = method_table[i];
+        h_2 = ({
+    if (h->opt == 0) {
+        r_best = h;
+        goto exit_best;
+    }
+    o = (jit_method *)h->opt;
+    if ((o != NULL) && ((o->flags & JM_FAILED) == 0) && ((o->flags & JM_DEAD) == 0)) {
+        r_best = o;
+        goto exit_best;
+    }
+    r_best = h;
+exit_best:;
+    r_best; });
+        entry_cells[2 * i] = h_2->start - JIT_PROLOGUE_BYTES;
+        entry_cells[2 * i + 1] = (uint64_t)h_2;
+    }
+}
+
 /* JitRuntime>>codeOf:counting: */
 static jit_method *jit_code_of(oop m, bool counting)
 {
@@ -525,6 +566,10 @@ static jit_method *jit_compile_install(oop m)
     }
     method_table[i] = h;
     table_count = table_count + 1;
+    if ((h != NULL) && ((h->flags & JM_FAILED) == 0)) {
+        entry_cells[2 * i] = h->start - JIT_PROLOGUE_BYTES;
+        entry_cells[2 * i + 1] = (uint64_t)h;
+    }
     o_2 = h->method;
     if ((uint64_t)(o_2 - young_lo) < young_hi - young_lo) {
         if (young_count < JIT_MAX_YOUNG) {
@@ -1720,6 +1765,21 @@ bool jit_set_mode(int32_t m)
     invalidations = invalidations + 1;
     flush_method_cache();
     return true;
+}
+
+/* JitRuntime>>slotOf: */
+int64_t jit_slot_of(oop m)
+{
+    uint32_t i;
+    jit_method *h;
+    i = ((uint32_t)(((*(uint64_t *)m) >> H_HASH_SHIFT) & H_HASH_MASK)) & 65535;
+    while ((h = method_table[i]) != NULL) {
+        if (h->method == m) {
+            return i;
+        }
+        i = (i + 1) & 65535;
+    }
+    return -1;
 }
 
 /* JitRuntime>>special:info:site: */

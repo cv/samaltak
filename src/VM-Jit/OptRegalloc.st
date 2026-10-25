@@ -35,12 +35,12 @@ isValue: n
 	"n has a result that lives in a register or slot (constants are rematerialized)."
 	| nd |
 	nd := ir node: n.
-	^nd block >= 0 and: [nd rep asInt32 ~= R_NONE and: [nd op asInt32 ~= O_CONST and: [(nd flags bitAnd: NF_DEAD) = 0]]]
+	^nd block >= 0 and: [nd rep asInt32 ~= R_NONE and: [nd op asInt32 ~= O_CONST and: [nd op asInt32 ~= O_CLOSURE and: [(nd flags bitAnd: NF_DEAD) = 0]]]]
 !
 isSafepoint: n
 	| op |
 	op := (ir node: n) op asInt32.
-	^op = O_SEND or: [op = O_CHECKINT]
+	^op = O_SEND or: [op = O_CALL or: [op = O_CHECKINT]]
 ! !
 
 !OptRegalloc methodsFor: 'allocation'!

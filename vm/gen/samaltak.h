@@ -329,9 +329,11 @@ typedef void (*prim_fn)(void);
 #define OPT_MAX_HEADERS 16384
 #define OPT_MAX_INC 16384
 #define OPT_MAX_NODES 16384
+#define OPT_MAX_NOINLINE 8
 #define OPT_MAX_OPERANDS 131072
 #define OPT_MAX_PRIM 1024
 #define OPT_MAX_STATES 4096
+#define OPT_MAX_VARS 65536
 #define OPT_MAX_YOUNG 1024
 #define OPT_PCB_MAX 131072
 #define OUT_BARRIER 3
@@ -339,6 +341,7 @@ typedef void (*prim_fn)(void);
 #define OUT_DEOPT 1
 #define OUT_INTERRUPT 2
 #define OUT_LAZY 4
+#define OUT_SEND 7
 #define OUT_STACK 5
 #define O_BRANCH 31
 #define O_CALL 18
@@ -346,6 +349,7 @@ typedef void (*prim_fn)(void);
 #define O_CHECKINT 19
 #define O_CLASSIS 20
 #define O_CLASSOF 6
+#define O_CLOSURE 25
 #define O_CONST 1
 #define O_DEOPT 33
 #define O_EQ 7
@@ -1091,6 +1095,7 @@ extern uint64_t stat_flushes;
 extern uint64_t stat_materialized;
 extern oop tag_class[8];
 extern oop tmp_roots[4];
+extern uint64_t entry_cells[131072];
 extern bool flush_pending;
 extern int64_t jit_cache_mb;
 extern uint32_t jit_flags;
@@ -1127,6 +1132,7 @@ extern uint64_t interrupt_stub;
 extern uint64_t make_array_stub;
 extern uint64_t opt_deopt_return_stub;
 extern uint64_t opt_deopt_stub;
+extern uint64_t opt_return_stub;
 extern uint64_t opt_send_stub;
 extern uint64_t opt_stack_full_stub;
 extern uint64_t outer_temp_stub;
@@ -1292,6 +1298,7 @@ oop marry(frame *f);
 void materialize_all(void);
 void prim_commit(oop result);
 void print_activation(oop m, oop r, oop closure, FILE *f);
+void print_symbol(oop s, FILE *f);
 frame *interp_push_frame(oop m, int32_t n, uint64_t c, int32_t ecode);
 frame *interp_push_frame_entry(cache_entry *e, int32_t n);
 void interp_roots(void (*fn)(oop *));
@@ -1318,6 +1325,8 @@ void jit_become(oop from);
 uint64_t jit_block_code(oop m);
 uint64_t jit_cache_code(oop m);
 uint64_t jit_closure(frame *f);
+bool jit_has_code(oop m);
+void jit_code_changed(oop m);
 jit_method *jit_compile(oop m, int32_t md, bool notes);
 void jit_defaults(void);
 uint64_t jit_dispatch(cache_entry *e, frame *f, int32_t n);
@@ -1343,6 +1352,7 @@ void jit_resume_context(bool looping);
 uint64_t jit_send(frame *f, uint64_t info, uint64_t key);
 void jit_set_flags(uint32_t f);
 bool jit_set_mode(int32_t m);
+int64_t jit_slot_of(oop m);
 uint64_t jit_special(frame *f, uint64_t info, uint64_t key);
 oop jit_special_fast(int32_t k, oop *base);
 void jit_start(void);
@@ -1494,6 +1504,7 @@ void opt_invalidate_selector(oop sel);
 uint64_t opt_leave(frame *f, bool after);
 void opt_materialize(frame *f);
 uint64_t opt_resume(frame *f);
+uint64_t opt_return_bottom(frame *f, int64_t k);
 uint64_t opt_send(frame *f, int64_t k, uint64_t key);
 uint64_t opt_stack_full(frame *f);
 uint64_t opt_tier_up(frame *f);

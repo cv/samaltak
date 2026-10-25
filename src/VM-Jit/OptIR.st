@@ -59,6 +59,12 @@ full
 fail
 	optFull := true
 !
+originPc
+	^optCurPc
+!
+originAct
+	^optCurAct
+!
 origin: a pc: pc
 	"New nodes come from the instruction at a's pc."
 	optCurAct := a.

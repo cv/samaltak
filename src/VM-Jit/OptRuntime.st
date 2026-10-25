@@ -1,5 +1,5 @@
 OptModule subclass: #OptRuntime
-	instanceVariableNames: 'ir builder passes regalloc codegen rtDeoptVals rtDeoptCount rtActMethod rtActClosure rtActRcv rtActPc rtActDepth rtActVals rtActCount rtOptYoung rtOptYoungCount rtOptYoungOverflow rtStatOptCompiled rtStatOptFailed rtStatOptBytecodes rtStatOptUs rtStatOptBytes rtStatDeopts rtStatOptOsr rtStatInvalidations rtAll rtAllCount'
+	instanceVariableNames: 'ir builder passes regalloc codegen rtDeoptVals rtDeoptCount rtActMethod rtActClosure rtActRcv rtActPc rtActDepth rtActVals rtActCount rtOptYoung rtOptYoungCount rtOptYoungOverflow rtStatOptCompiled rtStatOptFailed rtStatOptBytecodes rtStatOptUs rtStatOptBytes rtStatDeopts rtStatOptOsr rtStatInvalidations rtAll rtAllCount rtSunkAct rtSunkStart rtSunkInfo rtSunkOrder rtSunkCount rtSunkUseVal rtSunkUseId rtSunkUseCount rtWritten'
 	classVariableNames: 'OPT_MAX_DEOPTS OPT_MAX_DEOPT_ACTS OPT_MAX_DEOPT_VALS OPT_MAX_HEADERS OPT_MAX_YOUNG'
 	package: 'VM-Jit'!
 
@@ -16,7 +16,9 @@ declarations
 		(rtOptYoung 'JitMethod *[OPT_MAX_YOUNG]') (rtOptYoungCount int32_t) (rtOptYoungOverflow bool)
 		(rtStatOptCompiled uint64_t) (rtStatOptFailed uint64_t) (rtStatOptBytecodes uint64_t) (rtStatOptUs uint64_t) (rtStatOptBytes uint64_t)
 		(rtStatDeopts uint64_t) (rtStatOptOsr uint64_t) (rtStatInvalidations uint64_t)
-		(rtAll 'JitMethod *[OPT_MAX_HEADERS]') (rtAllCount int32_t))
+		(rtAll 'JitMethod *[OPT_MAX_HEADERS]') (rtAllCount int32_t)
+		(rtSunkAct 'int32_t[64]') (rtSunkStart 'int32_t[64]') (rtSunkInfo 'int32_t[64]') (rtSunkOrder 'int32_t[64]') (rtSunkCount int32_t)
+		(rtSunkUseVal 'int32_t[OPT_MAX_DEOPT_VALS]') (rtSunkUseId 'int32_t[OPT_MAX_DEOPT_VALS]') (rtSunkUseCount int32_t) (rtWritten int32_t))
 !
 initialize
 	OPT_MAX_DEOPT_VALS := 8192.
@@ -75,6 +77,9 @@ deoptReturnFunction
 !
 stackFullFunction
 	^self cCoerce: (self functionPointer: #stackFull:) to: 'uint64_t'
+!
+returnFunction
+	^self cCoerce: (self functionPointer: #returnBottom:index:) to: 'uint64_t'
 ! !
 
 !OptRuntime methodsFor: 'headers'!
@@ -145,6 +150,7 @@ optimize: m lower: h
 	self noteYoung: o.
 	(runtime hasCode: o) ifFalse: [^self null].
 	interpreter setCacheCode: (self cCoerce: o to: 'uint64_t') forMethod: m.
+	runtime codeChanged: m.
 	^o
 !
 compile: m
@@ -314,55 +320,110 @@ deoptGuard: f index: k
 	h deopts > OPT_MAX_DEOPTS ifTrue: [self invalidate: h].
 	^r
 !
+returnBottom: f index: k
+	"Frame f (the bottom frame) returns into activeCtx at safepoint k (its state: the return bytecode, the result on top; the registers in the JitState's dump), as the interpreter's returnTop does; if activeCtx is dead the interpreter does it (deoptimize)."
+	<c: 'uint64_t opt_return_bottom(Frame *f, int64_t k)'>
+	| h ctx sp v |
+	h := self cCoerce: f code to: 'JitMethod *'.
+	ctx := interpreter activeCtx.
+	(self isInt: (self loadRef: ctx at: CTX_PC)) ifFalse: [^self deoptFrame: f index: k regs: runtime state dump mode: 0].
+	self decode: h index: k frame: f regs: runtime state dump mode: 0.
+	"return top: the stack's top; return self: the receiver"
+	v := ((self methodBytecodes: (rtActMethod at: 0)) at: (rtActPc at: 0)) = 16r7A
+		ifTrue: [rtDeoptVals at: (rtActRcv at: 0)]
+		ifFalse: [rtDeoptVals at: rtDeoptCount - 1].
+	rtDeoptCount := 0.
+	interpreter nframes: 0.
+	interpreter cstackUsed: 0.
+	sp := self intVal: (self loadRef: ctx at: CTX_STACKP).
+	self storeRef: ctx at: CTX_FIXED + sp put: v.
+	(self slotsOf: ctx) at: CTX_STACKP put: (self intOop: sp + 1).
+	gc rememberIfOld: ctx.
+	^1
+!
 deoptReturn: f index: k
 	"After the send of safepoint k (the result in slot slots): f's code was invalidated (or stress): rebuild its activations."
 	<c: 'uint64_t opt_deopt_return(Frame *f, int64_t k)'>
 	^self deoptFrame: f index: k regs: self null mode: 2
 !
 deoptFrame: f index: k regs: regs mode: mode
-	"Rebuild optimized frame f (the top frame) as the frames of its activations at safepoint k. mode 0: as recorded (a guard, an interrupt check), 1: before the send (it is executed again), 2: after it (its result pushed). Answer 1 (leave: the interpreter continues the top frame)."
+	"Rebuild optimized frame f (the top frame) as the frames of its activations at safepoint k. mode 0: as recorded (a guard, an interrupt check), 1: before the send (it is executed again), 2: after it (its result pushed). Closures the code never made are made now, their outer activations' frames married. Answer 1 (leave: the interpreter continues the top frame)."
 	<c: 'uint64_t opt_deopt_frame(Frame *f, int64_t k, uint64_t *regs, int32_t mode)'>
-	| h fi fp g j m d cl |
+	| h fi g sunk |
 	h := self cCoerce: f code to: 'JitMethod *'.
 	rtStatDeopts := rtStatDeopts + 1.
 	runtime resetStress.
 	self decode: h index: k frame: f regs: regs mode: mode.
 	(libc getenv: 'SAMALTAK_OPT_TRACE') notNull ifTrue: [self traceDeopt: h index: k mode: mode].
 	fi := (f - interpreter frames) asInt32.
-	fp := f fp.
+	self writeFrames: fi from: f fp.
+	0 to: rtSunkCount - 1 do: [:j |
+		sunk := rtSunkOrder at: j.
+		g := interpreter frames + fi + (rtSunkAct at: sunk).
+		interpreter marry: g.
+		self makeSunk: sunk outer: g ctx.
+		self writeFrames: fi from: (interpreter frames + fi) fp].
+	rtDeoptCount := 0.
+	^1
+!
+writeFrames: fi from: fp0
+	"The activations' frames from frame fi on, the first one's slots at fp0, their values from deoptVals (married frames stay married)."
+	| fp g m d cl |
+	fp := fp0.
 	0 to: rtActCount - 1 do: [:i |
-		j := fi + i.
-		g := interpreter frames + j.
+		g := interpreter frames + (fi + i).
 		m := rtActMethod at: i.
 		d := rtActDepth at: i.
 		i > 0 ifTrue: [fp := fp + (rtActDepth at: i - 1) + 1].
 		fp at: -1 put: (rtDeoptVals at: (rtActRcv at: i)).
 		0 to: d - 1 do: [:s | fp at: s put: (rtDeoptVals at: (rtActVals at: i) + s)].
 		cl := (rtActClosure at: i) >= 0 ifTrue: [rtDeoptVals at: (rtActClosure at: i)] ifFalse: [memory nilOop].
+		i >= rtWritten ifTrue: [g ctx: memory nilOop].
 		g method: m.
 		g closure: cl.
-		g ctx: memory nilOop.
 		g code: (runtime blockCodeFor: m).
 		g fp: fp.
 		g ip: (self methodBytecodes: m) + (rtActPc at: i).
 		g pc: (rtActPc at: i).
 		g lits: (self slotsOf: (self loadRef: m at: CM_LITERALS)).
 		g sp: d].
+	rtWritten := rtActCount.
 	interpreter nframes: fi + rtActCount.
-	interpreter cstackUsed: (fp + (rtActDepth at: rtActCount - 1) - interpreter cstackBase) asUInt64.
-	rtDeoptCount := 0.
-	^1
+	interpreter cstackUsed: (fp + (rtActDepth at: rtActCount - 1) - interpreter cstackBase) asUInt64
+!
+makeSunk: s outer: ctx
+	"Make the closure of sunk entry s, its outerContext ctx; every value that was it becomes it."
+	<c: 'void opt_make_sunk(int32_t s, oop ctx)'>
+	| r b bc isize info o |
+	r := self local: 'oop'.
+	r value: ctx.
+	memory pushRoot: r.
+	bc := memory clsBlock.
+	isize := (self intVal: (self loadRef: bc at: BEH_FORMAT)) bitAnd: CLS_INSTSIZE_MASK.
+	b := memory allocObj: bc format: F_FIXED slots: (isize < 5 ifTrue: [5] ifFalse: [isize]) asUInt32.
+	memory popRoot.
+	info := rtSunkInfo at: s.
+	o := self slotsOf: b.
+	o at: BC_OUTER put: r value.
+	o at: BC_STARTPC put: (self intOop: (rtSunkStart at: s)).
+	o at: BC_NUMARGS put: (self intOop: (info bitAnd: 255)).
+	o at: BC_NUMTEMPS put: (self intOop: ((info >> 8) bitAnd: 255)).
+	o at: BC_FRAMESIZE put: (self intOop: ((info >> 16) bitAnd: 255)).
+	gc rememberIfOld: b.
+	0 to: rtSunkUseCount - 1 do: [:i | (rtSunkUseId at: i) = s ifTrue: [rtDeoptVals at: (rtSunkUseVal at: i) put: b]]
 !
 decode: h index: k frame: f regs: regs mode: mode
-	"Read safepoint k's record into the activation arrays, the values into deoptVals (GC roots). mode 1 pushes the send's receiver and arguments (and goes back to the send), 2 its result."
+	"Read safepoint k's record into the activation arrays, the values into deoptVals (GC roots), the closures never made into the sunk arrays (in the order of the activations that make them). mode 1 pushes the send's receiver and arguments (and goes back to the send), 2 its result."
 	<c: 'void opt_decode(JitMethod *h, int64_t k, Frame *f, uint64_t *regs, int32_t mode)'>
-	| rec p nacts d base sendPc argc op bcs |
+	| rec p nacts d base sendPc argc op bcs ns t |
 	rec := self recordOf: h index: k.
 	sendPc := rec at: 1.
 	argc := ((rec at: 2) bitAnd: 255) asInt32.
 	nacts := rec at: 4.
 	p := 5.
 	rtDeoptCount := 0.
+	rtSunkUseCount := 0.
+	rtWritten := 0.
 	rtActCount := nacts.
 	0 to: nacts - 1 do: [:j |
 		rtActMethod at: j put: (self poolAt: (rec at: p) of: h).
@@ -374,6 +435,23 @@ decode: h index: k frame: f regs: regs mode: mode
 		rtActVals at: j put: rtDeoptCount.
 		0 to: d - 1 do: [:i | self value: (rec at: p + 5 + i) h: h frame: f regs: regs].
 		p := p + 5 + d].
+	ns := rec at: p.
+	p := p + 1.
+	rtSunkCount := ns.
+	0 to: ns - 1 do: [:j |
+		rtSunkAct at: j put: (rec at: p).
+		rtSunkStart at: j put: (rec at: p + 1).
+		rtSunkInfo at: j put: (rec at: p + 2).
+		rtSunkOrder at: j put: j.
+		p := p + 3].
+	"outer activations' closures first"
+	1 to: ns - 1 do: [:j |
+		t := rtSunkOrder at: j.
+		d := j - 1.
+		[d >= 0 and: [(rtSunkAct at: (rtSunkOrder at: d)) > (rtSunkAct at: t)]] whileTrue: [
+			rtSunkOrder at: d + 1 put: (rtSunkOrder at: d).
+			d := d - 1].
+		rtSunkOrder at: d + 1 put: t].
 	base := f fp + h slots asInt64.
 	mode = 2 ifTrue: [
 		self push: (base at: 0).
@@ -408,14 +486,18 @@ value: loc h: h frame: f regs: regs
 	kind = LOC_REG ifTrue: [v := regs at: payload].
 	kind = LOC_CONST ifTrue: [v := self poolAt: payload of: h].
 	kind = LOC_SMI ifTrue: [v := self intOop: payload].
+	(kind = LOC_SUNK and: [rtSunkUseCount < OPT_MAX_DEOPT_VALS]) ifTrue: [
+		rtSunkUseVal at: rtSunkUseCount put: rtDeoptCount.
+		rtSunkUseId at: rtSunkUseCount put: payload asInt32.
+		rtSunkUseCount := rtSunkUseCount + 1].
 	self push: v.
 	^rtDeoptCount - 1
 !
 materialize: f
-	"materializeAll meets optimized frame f: a Context for each of its activations (their senders chained from activeCtx), the last one activeCtx."
+	"materializeAll meets optimized frame f: a Context for each of its activations (their senders chained from activeCtx), the last one activeCtx; and the closures never made."
 	<c: 'void opt_materialize(Frame *f)'>
 	<var: #mode type: 'int32_t'>
-	| h k mode top ctx n s |
+	| h k mode top ctx n s first sunk c |
 	h := self cCoerce: f code to: 'JitMethod *'.
 	k := f pc - h bcSize asInt32.
 	top := f = (interpreter frames + (interpreter nframes - 1)).
@@ -430,11 +512,19 @@ materialize: f
 		interpreter primBaseIndex: (rtActDepth at: rtActCount - 1).
 		0 to: (((self recordOf: h index: k) at: 2) bitAnd: 255) do: [:i | self push: ((f fp + h slots asInt64) at: i)].
 		rtActDepth at: rtActCount - 1 put: rtDeoptCount - (rtActVals at: rtActCount - 1)].
+	"the Contexts (kept in deoptVals), then the closures, then the Contexts' contents"
+	first := rtDeoptCount.
 	0 to: rtActCount - 1 do: [:i |
-		n := (self frameSizeOf: (rtActMethod at: i) closure: ((rtActClosure at: i) >= 0 ifTrue: [rtDeoptVals at: (rtActClosure at: i)] ifFalse: [memory nilOop])) + CTX_SLACK.
+		n := (self frameSizeOfAct: i) + CTX_SLACK.
 		n < (rtActDepth at: i) ifTrue: [n := rtActDepth at: i].
 		ctx := memory allocContext: n asUInt32.
-		s := self slotsOf: ctx.
+		self push: ctx].
+	0 to: rtSunkCount - 1 do: [:j |
+		sunk := rtSunkOrder at: j.
+		self makeSunk: sunk outer: (rtDeoptVals at: first + (rtSunkAct at: sunk))].
+	0 to: rtActCount - 1 do: [:i |
+		c := rtDeoptVals at: first + i.
+		s := self slotsOf: c.
 		s at: CTX_SENDER put: interpreter activeCtx.
 		s at: CTX_PC put: (self intOop: (rtActPc at: i)).
 		s at: CTX_STACKP put: (self intOop: (rtActDepth at: i)).
@@ -442,12 +532,24 @@ materialize: f
 		s at: CTX_CLOSURE put: ((rtActClosure at: i) >= 0 ifTrue: [rtDeoptVals at: (rtActClosure at: i)] ifFalse: [memory nilOop]).
 		s at: CTX_RECEIVER put: (rtDeoptVals at: (rtActRcv at: i)).
 		0 to: (rtActDepth at: i) - 1 do: [:j | s at: CTX_FIXED + j put: (rtDeoptVals at: (rtActVals at: i) + j)].
-		gc rememberIfOld: ctx.
-		interpreter activeCtx: ctx].
+		gc rememberIfOld: c.
+		interpreter activeCtx: c].
 	rtDeoptCount := 0
+!
+frameSizeOfAct: i
+	"The frame size of decoded activation i: its closure's (made or not), else its method's."
+	| c info |
+	(rtActClosure at: i) < 0 ifTrue: [^self frameSizeOf: (rtActMethod at: i) closure: memory nilOop].
+	0 to: rtSunkUseCount - 1 do: [:u |
+		(rtSunkUseVal at: u) = (rtActClosure at: i) ifTrue: [
+			info := rtSunkInfo at: (rtSunkUseId at: u).
+			^((info >> 16) bitAnd: 255) max: (info bitAnd: 255) + ((info >> 8) bitAnd: 255)]].
+	c := rtDeoptVals at: (rtActClosure at: i).
+	^self frameSizeOf: (rtActMethod at: i) closure: c
 !
 frameSizeOf: m closure: c
 	"frameSize of an activation of m or of block c (at least its arguments and temps), as Interpreter>>frameSize:."
+	<c: 'int64_t opt_frame_size_of(oop m, oop c)'>
 	| src fs min blk |
 	blk := c ~= memory nilOop.
 	src := blk ifTrue: [c] ifFalse: [m].
@@ -551,6 +653,7 @@ invalidate: o
 	cache beginWriting.
 	h opt: 0.
 	cache endWriting.
+	runtime codeChanged: o method.
 	runtime kill: o
 !
 invalidateSelector: sel

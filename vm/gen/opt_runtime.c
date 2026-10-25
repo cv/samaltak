@@ -24,9 +24,20 @@ uint64_t rt_stat_opt_compiled;
 uint64_t rt_stat_opt_failed;
 uint64_t rt_stat_opt_osr;
 uint64_t rt_stat_opt_us;
+static int32_t rt_sunk_act[64];
+static int32_t rt_sunk_count;
+static int32_t rt_sunk_info[64];
+static int32_t rt_sunk_order[64];
+static int32_t rt_sunk_start[64];
+static int32_t rt_sunk_use_count;
+static int32_t rt_sunk_use_id[8192];
+static int32_t rt_sunk_use_val[8192];
+static int32_t rt_written;
 
 static void opt_decode(jit_method *h, int64_t k, frame *f, uint64_t *regs, int32_t mode);
 static uint64_t opt_deopt_frame(frame *f, int64_t k, uint64_t *regs, int32_t mode);
+static int64_t opt_frame_size_of(oop m, oop c);
+static void opt_make_sunk(int32_t s, oop ctx);
 static jit_method *opt_optimize(oop m, jit_method *h);
 static void opt_trace_deopt(jit_method *h, int64_t k, int32_t mode);
 
@@ -128,6 +139,10 @@ static void opt_decode(jit_method *h, int64_t k, frame *f, uint64_t *regs, int32
     int32_t kind_3;
     int64_t payload_3;
     oop v_4;
+    int32_t ns;
+    int32_t j_2;
+    int32_t j_3;
+    int32_t t;
     oop *base;
     oop v_5;
     oop m;
@@ -142,6 +157,8 @@ static void opt_decode(jit_method *h, int64_t k, frame *f, uint64_t *regs, int32
     nacts = rec[4];
     p = 5;
     rt_deopt_count = 0;
+    rt_sunk_use_count = 0;
+    rt_written = 0;
     rt_act_count = nacts;
     for (j = 0; j <= nacts - 1; j++) {
         i = rec[p];
@@ -167,6 +184,11 @@ static void opt_decode(jit_method *h, int64_t k, frame *f, uint64_t *regs, int32
     if (kind == LOC_SMI) {
         v = (uint64_t)((payload << 1) | 1);
     }
+    if ((kind == LOC_SUNK) && (rt_sunk_use_count < OPT_MAX_DEOPT_VALS)) {
+        rt_sunk_use_val[rt_sunk_use_count] = rt_deopt_count;
+        rt_sunk_use_id[rt_sunk_use_count] = (int32_t)payload;
+        rt_sunk_use_count = rt_sunk_use_count + 1;
+    }
     if (rt_deopt_count < OPT_MAX_DEOPT_VALS) {
         rt_deopt_vals[rt_deopt_count] = v;
         rt_deopt_count = rt_deopt_count + 1;
@@ -191,6 +213,11 @@ static void opt_decode(jit_method *h, int64_t k, frame *f, uint64_t *regs, int32
     }
     if (kind_2 == LOC_SMI) {
         v_3 = (uint64_t)((payload_2 << 1) | 1);
+    }
+    if ((kind_2 == LOC_SUNK) && (rt_sunk_use_count < OPT_MAX_DEOPT_VALS)) {
+        rt_sunk_use_val[rt_sunk_use_count] = rt_deopt_count;
+        rt_sunk_use_id[rt_sunk_use_count] = (int32_t)payload_2;
+        rt_sunk_use_count = rt_sunk_use_count + 1;
     }
     if (rt_deopt_count < OPT_MAX_DEOPT_VALS) {
         rt_deopt_vals[rt_deopt_count] = v_3;
@@ -219,12 +246,36 @@ static void opt_decode(jit_method *h, int64_t k, frame *f, uint64_t *regs, int32
             if (kind_3 == LOC_SMI) {
                 v_4 = (uint64_t)((payload_3 << 1) | 1);
             }
+            if ((kind_3 == LOC_SUNK) && (rt_sunk_use_count < OPT_MAX_DEOPT_VALS)) {
+                rt_sunk_use_val[rt_sunk_use_count] = rt_deopt_count;
+                rt_sunk_use_id[rt_sunk_use_count] = (int32_t)payload_3;
+                rt_sunk_use_count = rt_sunk_use_count + 1;
+            }
             if (rt_deopt_count < OPT_MAX_DEOPT_VALS) {
                 rt_deopt_vals[rt_deopt_count] = v_4;
                 rt_deopt_count = rt_deopt_count + 1;
             }
         }
         p = p + 5 + d;
+    }
+    ns = rec[p];
+    p = p + 1;
+    rt_sunk_count = ns;
+    for (j_2 = 0; j_2 <= ns - 1; j_2++) {
+        rt_sunk_act[j_2] = rec[p];
+        rt_sunk_start[j_2] = rec[p + 1];
+        rt_sunk_info[j_2] = rec[p + 2];
+        rt_sunk_order[j_2] = j_2;
+        p = p + 3;
+    }
+    for (j_3 = 1; j_3 <= ns - 1; j_3++) {
+        t = rt_sunk_order[j_3];
+        d = j_3 - 1;
+        while ((d >= 0) && (rt_sunk_act[rt_sunk_order[d]] > rt_sunk_act[t])) {
+            rt_sunk_order[d + 1] = rt_sunk_order[d];
+            d = d - 1;
+        }
+        rt_sunk_order[d + 1] = t;
     }
     base = f->fp + (int64_t)h->slots;
     if (mode == 2) {
@@ -259,10 +310,10 @@ static uint64_t opt_deopt_frame(frame *f, int64_t k, uint64_t *regs, int32_t mod
 {
     jit_method *h;
     int32_t fi;
+    oop *fp0;
     oop *fp;
     int32_t i;
-    int32_t j;
-    frame *g;
+    frame *g_2;
     oop m;
     int32_t d;
     int32_t s;
@@ -271,6 +322,21 @@ static uint64_t opt_deopt_frame(frame *f, int64_t k, uint64_t *regs, int32_t mod
     uint64_t o_2;
     int32_t n;
     uint64_t n_2;
+    int32_t j;
+    int32_t sunk;
+    frame *g;
+    oop *fp0_2;
+    oop *fp_2;
+    int32_t i_2;
+    frame *g_3;
+    oop m_2;
+    int32_t d_2;
+    int32_t s_2;
+    oop cl_2;
+    uint64_t o_3;
+    uint64_t o_4;
+    int32_t n_3;
+    uint64_t n_4;
     h = (jit_method *)f->code;
     rt_stat_deopts = rt_stat_deopts + 1;
     if (state_block->stress <= 0) {
@@ -281,10 +347,10 @@ static uint64_t opt_deopt_frame(frame *f, int64_t k, uint64_t *regs, int32_t mod
         opt_trace_deopt(h, k, mode);
     }
     fi = (int32_t)(f - frames);
-    fp = f->fp;
+    fp0 = f->fp;
+    fp = fp0;
     for (i = 0; i <= rt_act_count - 1; i++) {
-        j = fi + i;
-        g = frames + j;
+        g_2 = frames + (fi + i);
         m = rt_act_method[i];
         d = rt_act_depth[i];
         if (i > 0) {
@@ -295,22 +361,64 @@ static uint64_t opt_deopt_frame(frame *f, int64_t k, uint64_t *regs, int32_t mod
             fp[s] = rt_deopt_vals[rt_act_vals[i] + s];
         }
         cl = rt_act_closure[i] >= 0 ? rt_deopt_vals[rt_act_closure[i]] : nil_oop;
-        g->method = m;
-        g->closure = cl;
-        g->ctx = nil_oop;
-        g->code = jit_block_code(m);
-        g->fp = fp;
+        if (i >= rt_written) {
+            g_2->ctx = nil_oop;
+        }
+        g_2->method = m;
+        g_2->closure = cl;
+        g_2->code = jit_block_code(m);
+        g_2->fp = fp;
         o = *(uint64_t *)(m + 16 + 24);
-        g->ip = (uint8_t *)(o + 16) + rt_act_pc[i];
-        g->pc = rt_act_pc[i];
+        g_2->ip = (uint8_t *)(o + 16) + rt_act_pc[i];
+        g_2->pc = rt_act_pc[i];
         o_2 = *(uint64_t *)(m + 16 + 16);
-        g->lits = (oop *)(o_2 + 16);
-        g->sp = d;
+        g_2->lits = (oop *)(o_2 + 16);
+        g_2->sp = d;
     }
+    rt_written = rt_act_count;
     n = fi + rt_act_count;
     nframes = n;
     n_2 = (uint64_t)(fp + rt_act_depth[rt_act_count - 1] - cstack);
     cstack_used = n_2;
+    for (j = 0; j <= rt_sunk_count - 1; j++) {
+        sunk = rt_sunk_order[j];
+        g = frames + fi + rt_sunk_act[sunk];
+        marry(g);
+        opt_make_sunk(sunk, g->ctx);
+        fp0_2 = (frames + fi)->fp;
+        fp_2 = fp0_2;
+        for (i_2 = 0; i_2 <= rt_act_count - 1; i_2++) {
+            g_3 = frames + (fi + i_2);
+            m_2 = rt_act_method[i_2];
+            d_2 = rt_act_depth[i_2];
+            if (i_2 > 0) {
+                fp_2 = fp_2 + rt_act_depth[i_2 - 1] + 1;
+            }
+            fp_2[-1] = rt_deopt_vals[rt_act_rcv[i_2]];
+            for (s_2 = 0; s_2 <= d_2 - 1; s_2++) {
+                fp_2[s_2] = rt_deopt_vals[rt_act_vals[i_2] + s_2];
+            }
+            cl_2 = rt_act_closure[i_2] >= 0 ? rt_deopt_vals[rt_act_closure[i_2]] : nil_oop;
+            if (i_2 >= rt_written) {
+                g_3->ctx = nil_oop;
+            }
+            g_3->method = m_2;
+            g_3->closure = cl_2;
+            g_3->code = jit_block_code(m_2);
+            g_3->fp = fp_2;
+            o_3 = *(uint64_t *)(m_2 + 16 + 24);
+            g_3->ip = (uint8_t *)(o_3 + 16) + rt_act_pc[i_2];
+            g_3->pc = rt_act_pc[i_2];
+            o_4 = *(uint64_t *)(m_2 + 16 + 16);
+            g_3->lits = (oop *)(o_4 + 16);
+            g_3->sp = d_2;
+        }
+        rt_written = rt_act_count;
+        n_3 = fi + rt_act_count;
+        nframes = n_3;
+        n_4 = (uint64_t)(fp_2 + rt_act_depth[rt_act_count - 1] - cstack);
+        cstack_used = n_4;
+    }
     rt_deopt_count = 0;
     return 1;
 }
@@ -345,6 +453,7 @@ uint64_t opt_deopt_guard(frame *f, int64_t k)
         pthread_jit_write_protect_np(0);
         h_2->opt = 0;
         pthread_jit_write_protect_np(1);
+        jit_code_changed(h->method);
         jit_kill(h);
     exit_invalidate:;
     }
@@ -363,6 +472,39 @@ void opt_flushed(void)
     rt_opt_young_count = 0;
     rt_opt_young_overflow = false;
     rt_all_count = 0;
+}
+
+/* OptRuntime>>frameSizeOf:closure: */
+static int64_t opt_frame_size_of(oop m, oop c)
+{
+    bool blk;
+    oop src;
+    int i;
+    uint64_t o;
+    int64_t fs;
+    uint64_t o_2;
+    uint64_t o_3;
+    uint64_t o_4;
+    uint64_t o_5;
+    int64_t v;
+    int64_t min;
+    blk = c != nil_oop;
+    src = blk ? c : m;
+    i = blk ? BC_FRAMESIZE : CM_FRAMESIZE;
+    o = *(uint64_t *)(src + 16 + 8 * i);
+    fs = ((int64_t)o) >> 1;
+    min = ({
+    if (blk) {
+        o_2 = *(uint64_t *)(src + 16 + 16);
+        o_3 = *(uint64_t *)(src + 16 + 24);
+        v = (((int64_t)o_2) >> 1) + (((int64_t)o_3) >> 1);
+    } else {
+        o_4 = *(uint64_t *)(src + 16 + 32);
+        o_5 = *(uint64_t *)(src + 16 + 40);
+        v = (((int64_t)o_4) >> 1) + (((int64_t)o_5) >> 1);
+    }
+    v; });
+    return fs > min ? fs : min;
 }
 
 /* OptRuntime>>headerValid:with: */
@@ -416,6 +558,7 @@ void opt_invalidate_all(void)
         pthread_jit_write_protect_np(0);
         h->opt = 0;
         pthread_jit_write_protect_np(1);
+        jit_code_changed(o->method);
         jit_kill(o);
     exit_invalidate:;
     }
@@ -447,6 +590,7 @@ void opt_invalidate_selector(oop sel)
                 pthread_jit_write_protect_np(0);
                 h->opt = 0;
                 pthread_jit_write_protect_np(1);
+                jit_code_changed(o->method);
                 jit_kill(o);
             exit_invalidate:;
             }
@@ -462,6 +606,52 @@ uint64_t opt_leave(frame *f, bool after)
     return opt_deopt_frame(f, f->pc - (int32_t)h->bc_size, (uint64_t *)NULL, after ? 2 : 1);
 }
 
+/* OptRuntime>>makeSunk:outer: */
+static void opt_make_sunk(int32_t s, oop ctx)
+{
+    oop local;
+    oop *r;
+    oop bc;
+    uint64_t o_2;
+    int64_t isize;
+    oop b;
+    int32_t info;
+    oop *o;
+    int32_t v;
+    int32_t v_2;
+    int32_t v_3;
+    int32_t v_4;
+    int32_t i;
+    memset(&local, 0, sizeof local);
+    r = &local;
+    *r = ctx;
+    push_root(r);
+    bc = cls_block;
+    o_2 = *(uint64_t *)(bc + 16 + 16);
+    isize = (((int64_t)o_2) >> 1) & CLS_INSTSIZE_MASK;
+    b = alloc_obj(bc, F_FIXED, (uint32_t)(isize < 5 ? 5 : isize));
+    pop_root();
+    info = rt_sunk_info[s];
+    o = (oop *)(b + 16);
+    o[BC_OUTER] = *r;
+    v = rt_sunk_start[s];
+    o[BC_STARTPC] = (uint64_t)((((int64_t)v) << 1) | 1);
+    v_2 = info & 255;
+    o[BC_NUMARGS] = (uint64_t)((((int64_t)v_2) << 1) | 1);
+    v_3 = (info >> 8) & 255;
+    o[BC_NUMTEMPS] = (uint64_t)((((int64_t)v_3) << 1) | 1);
+    v_4 = (info >> 16) & 255;
+    o[BC_FRAMESIZE] = (uint64_t)((((int64_t)v_4) << 1) | 1);
+    if (((b & 7) == 0) && ((!((uint64_t)(b - young_lo) < young_hi - young_lo)) && (((*(uint64_t *)b) & H_REMEMBERED) == 0))) {
+        vm_remember(b);
+    }
+    for (i = 0; i <= rt_sunk_use_count - 1; i++) {
+        if (rt_sunk_use_id[i] == s) {
+            rt_deopt_vals[rt_sunk_use_val[i]] = b;
+        }
+    }
+}
+
 /* OptRuntime>>materialize: */
 void opt_materialize(frame *f)
 {
@@ -472,27 +662,22 @@ void opt_materialize(frame *f)
     int32_t i;
     int32_t i_2;
     oop v;
+    int32_t first;
     int32_t i_3;
-    oop m;
-    oop c;
-    int64_t r_frame_size_of;
-    bool blk;
-    oop src;
-    int i_4;
-    uint64_t o;
-    int64_t fs;
-    uint64_t o_2;
-    uint64_t o_3;
-    uint64_t o_4;
-    uint64_t o_5;
-    int64_t v_2;
-    int64_t min;
+    int64_t r_frame_size_of_act;
+    int32_t u;
+    int32_t info;
+    oop c_2;
     int64_t n;
     oop ctx;
-    oop *s;
-    int32_t v_3;
-    int32_t v_4;
     int32_t j;
+    int32_t sunk;
+    int32_t i_4;
+    oop c;
+    oop *s;
+    int32_t v_2;
+    int32_t v_3;
+    int32_t j_2;
     h = (jit_method *)f->code;
     k = f->pc - (int32_t)h->bc_size;
     top = f == frames + (nframes - 1);
@@ -517,48 +702,55 @@ void opt_materialize(frame *f)
         }
         rt_act_depth[rt_act_count - 1] = rt_deopt_count - rt_act_vals[rt_act_count - 1];
     }
+    first = rt_deopt_count;
     for (i_3 = 0; i_3 <= rt_act_count - 1; i_3++) {
-        m = rt_act_method[i_3];
-        c = rt_act_closure[i_3] >= 0 ? rt_deopt_vals[rt_act_closure[i_3]] : nil_oop;
         n = ({
-    blk = c != nil_oop;
-    src = blk ? c : m;
-    i_4 = blk ? BC_FRAMESIZE : CM_FRAMESIZE;
-    o = *(uint64_t *)(src + 16 + 8 * i_4);
-    fs = ((int64_t)o) >> 1;
-    min = ({
-    if (blk) {
-        o_2 = *(uint64_t *)(src + 16 + 16);
-        o_3 = *(uint64_t *)(src + 16 + 24);
-        v_2 = (((int64_t)o_2) >> 1) + (((int64_t)o_3) >> 1);
-    } else {
-        o_4 = *(uint64_t *)(src + 16 + 32);
-        o_5 = *(uint64_t *)(src + 16 + 40);
-        v_2 = (((int64_t)o_4) >> 1) + (((int64_t)o_5) >> 1);
+    if (rt_act_closure[i_3] < 0) {
+        r_frame_size_of_act = opt_frame_size_of(rt_act_method[i_3], nil_oop);
+        goto exit_frame_size_of_act;
     }
-    v_2; });
-    r_frame_size_of = fs > min ? fs : min;
-    r_frame_size_of; }) + CTX_SLACK;
+    for (u = 0; u <= rt_sunk_use_count - 1; u++) {
+        if (rt_sunk_use_val[u] == rt_act_closure[i_3]) {
+            info = rt_sunk_info[rt_sunk_use_id[u]];
+            r_frame_size_of_act = ((info >> 16) & 255) > (info & 255) + ((info >> 8) & 255) ? (info >> 16) & 255 : (info & 255) + ((info >> 8) & 255);
+            goto exit_frame_size_of_act;
+        }
+    }
+    c_2 = rt_deopt_vals[rt_act_closure[i_3]];
+    r_frame_size_of_act = opt_frame_size_of(rt_act_method[i_3], c_2);
+exit_frame_size_of_act:;
+    r_frame_size_of_act; }) + CTX_SLACK;
         if (n < rt_act_depth[i_3]) {
             n = rt_act_depth[i_3];
         }
         ctx = alloc_context((uint32_t)n);
-        s = (oop *)(ctx + 16);
+        if (rt_deopt_count < OPT_MAX_DEOPT_VALS) {
+            rt_deopt_vals[rt_deopt_count] = ctx;
+            rt_deopt_count = rt_deopt_count + 1;
+        }
+    }
+    for (j = 0; j <= rt_sunk_count - 1; j++) {
+        sunk = rt_sunk_order[j];
+        opt_make_sunk(sunk, rt_deopt_vals[first + rt_sunk_act[sunk]]);
+    }
+    for (i_4 = 0; i_4 <= rt_act_count - 1; i_4++) {
+        c = rt_deopt_vals[first + i_4];
+        s = (oop *)(c + 16);
         s[CTX_SENDER] = active_ctx;
-        v_3 = rt_act_pc[i_3];
-        s[CTX_PC] = (uint64_t)((((int64_t)v_3) << 1) | 1);
-        v_4 = rt_act_depth[i_3];
-        s[CTX_STACKP] = (uint64_t)((((int64_t)v_4) << 1) | 1);
-        s[CTX_METHOD] = rt_act_method[i_3];
-        s[CTX_CLOSURE] = rt_act_closure[i_3] >= 0 ? rt_deopt_vals[rt_act_closure[i_3]] : nil_oop;
-        s[CTX_RECEIVER] = rt_deopt_vals[rt_act_rcv[i_3]];
-        for (j = 0; j <= rt_act_depth[i_3] - 1; j++) {
-            s[CTX_FIXED + j] = rt_deopt_vals[rt_act_vals[i_3] + j];
+        v_2 = rt_act_pc[i_4];
+        s[CTX_PC] = (uint64_t)((((int64_t)v_2) << 1) | 1);
+        v_3 = rt_act_depth[i_4];
+        s[CTX_STACKP] = (uint64_t)((((int64_t)v_3) << 1) | 1);
+        s[CTX_METHOD] = rt_act_method[i_4];
+        s[CTX_CLOSURE] = rt_act_closure[i_4] >= 0 ? rt_deopt_vals[rt_act_closure[i_4]] : nil_oop;
+        s[CTX_RECEIVER] = rt_deopt_vals[rt_act_rcv[i_4]];
+        for (j_2 = 0; j_2 <= rt_act_depth[i_4] - 1; j_2++) {
+            s[CTX_FIXED + j_2] = rt_deopt_vals[rt_act_vals[i_4] + j_2];
         }
-        if (((ctx & 7) == 0) && ((!((uint64_t)(ctx - young_lo) < young_hi - young_lo)) && (((*(uint64_t *)ctx) & H_REMEMBERED) == 0))) {
-            vm_remember(ctx);
+        if (((c & 7) == 0) && ((!((uint64_t)(c - young_lo) < young_hi - young_lo)) && (((*(uint64_t *)c) & H_REMEMBERED) == 0))) {
+            vm_remember(c);
         }
-        active_ctx = ctx;
+        active_ctx = c;
     }
     rt_deopt_count = 0;
 }
@@ -613,6 +805,7 @@ exit_note_young:;
         return (jit_method *)NULL;
     }
     set_cache_code((uint64_t)o, m);
+    jit_code_changed(m);
     return o;
 }
 
@@ -630,6 +823,47 @@ uint64_t opt_resume(frame *f)
         return 0;
     }
     return h->code_start + (uint64_t)off;
+}
+
+/* OptRuntime>>returnBottom:index: */
+uint64_t opt_return_bottom(frame *f, int64_t k)
+{
+    jit_method *h;
+    oop ctx;
+    uint64_t o;
+    oop m;
+    uint64_t o_2;
+    oop v;
+    uint64_t o_3;
+    int64_t sp;
+    int64_t i;
+    int64_t v_2;
+    h = (jit_method *)f->code;
+    ctx = active_ctx;
+    o = *(uint64_t *)(ctx + 16 + 8);
+    if (!((o & 1) != 0)) {
+        return opt_deopt_frame(f, k, state_block->dump, 0);
+    }
+    opt_decode(h, k, f, state_block->dump, 0);
+    m = rt_act_method[0];
+    o_2 = *(uint64_t *)(m + 16 + 24);
+    v = ((uint8_t *)(o_2 + 16))[rt_act_pc[0]] == 0x7A ? rt_deopt_vals[rt_act_rcv[0]] : rt_deopt_vals[rt_deopt_count - 1];
+    rt_deopt_count = 0;
+    nframes = 0;
+    cstack_used = 0;
+    o_3 = *(uint64_t *)(ctx + 16 + 16);
+    sp = ((int64_t)o_3) >> 1;
+    i = CTX_FIXED + sp;
+    *(uint64_t *)(ctx + 16 + 8 * i) = v;
+    if (((v & 7) == 0) && (((uint64_t)(v - young_lo) < young_hi - young_lo) && ((!((uint64_t)(ctx - young_lo) < young_hi - young_lo)) && (((*(uint64_t *)ctx) & H_REMEMBERED) == 0)))) {
+        vm_remember(ctx);
+    }
+    v_2 = sp + 1;
+    ((oop *)(ctx + 16))[CTX_STACKP] = (uint64_t)((v_2 << 1) | 1);
+    if (((ctx & 7) == 0) && ((!((uint64_t)(ctx - young_lo) < young_hi - young_lo)) && (((*(uint64_t *)ctx) & H_REMEMBERED) == 0))) {
+        vm_remember(ctx);
+    }
+    return 1;
 }
 
 /* OptRuntime>>send:index:site: */

@@ -1,6 +1,6 @@
 OptModule subclass: #OptCodegen
-	instanceVariableNames: 'ir passes regalloc cgCodeStart cgBcSize cgNumArgs cgNumTemps cgSlotTop cgMaxOut cgExitPlainLabel cgExitSyncLabel cgDeoptLabel cgHeaderLabel cgSendLabel cgInterruptLabel cgBarrierLabel cgDeoptReturnLabel cgStackFullLabel cgOuts cgOutCount cgPoolOops cgPoolLabels cgPoolCount cgMetaWords cgMetaCount cgSpOffsets cgSpCount cgMoveSrc cgMoveDst cgMoveLoc cgMoveCount cgRootAct cgLastPc builder cgDeps cgDepCount'
-	classVariableNames: 'CG_MAX_META CG_MAX_MOVES CG_MAX_OUT CG_MAX_POOL CG_MAX_SP OUT_BARRIER OUT_BOTTOM OUT_DEOPT OUT_INTERRUPT OUT_LAZY OUT_STACK'
+	instanceVariableNames: 'ir passes regalloc cgCodeStart cgBcSize cgNumArgs cgNumTemps cgSlotTop cgMaxOut cgExitPlainLabel cgExitSyncLabel cgDeoptLabel cgReturnLabel cgHeaderLabel cgSendLabel cgInterruptLabel cgBarrierLabel cgDeoptReturnLabel cgStackFullLabel cgOuts cgOutCount cgPoolOops cgPoolLabels cgPoolCount cgMetaWords cgMetaCount cgSpOffsets cgSpCount cgMoveSrc cgMoveDst cgMoveLoc cgMoveCount cgRootAct cgLastPc builder cgDeps cgDepCount cgSunk cgSunkCount cgChainActs cgChainCount'
+	classVariableNames: 'CG_MAX_META CG_MAX_MOVES CG_MAX_OUT CG_MAX_POOL CG_MAX_SP OUT_BARRIER OUT_BOTTOM OUT_DEOPT OUT_INTERRUPT OUT_LAZY OUT_SEND OUT_STACK'
 	package: 'VM-Jit'!
 
 OptCodegen comment: 'Emits arm64 code for the allocated IR (OptRegalloc) in block order, then the out-of-line paths (guard failures, interrupt checks, store barriers, deoptimization after a call, the stack check), then the oop pool the code loads constants from (pc-relative; GC roots). Records for every safepoint and guard the deoptimization metadata (OptRuntime decodes it): kind, continuation, the send, and for each activation its method, closure, receiver, pc and where each slot''s value is (LOC_*).
@@ -11,13 +11,14 @@ Frame layout: slots 0..numArgs-1 the arguments, then home slots (OptRegalloc), s
 declarations
 	^#((ir OptIR) (passes OptPasses) (regalloc OptRegalloc)
 		(cgCodeStart uint64_t) (cgBcSize int32_t) (cgNumArgs int32_t) (cgNumTemps int32_t) (cgSlotTop int32_t) (cgMaxOut int32_t)
-		(cgExitPlainLabel int32_t) (cgExitSyncLabel int32_t) (cgDeoptLabel int32_t) (cgHeaderLabel int32_t) (cgSendLabel int32_t) (cgInterruptLabel int32_t)
+		(cgExitPlainLabel int32_t) (cgExitSyncLabel int32_t) (cgDeoptLabel int32_t) (cgReturnLabel int32_t) (cgHeaderLabel int32_t) (cgSendLabel int32_t) (cgInterruptLabel int32_t)
 		(cgBarrierLabel int32_t) (cgDeoptReturnLabel int32_t) (cgStackFullLabel int32_t)
 		(cgOuts 'OptOut[CG_MAX_OUT]') (cgOutCount int32_t)
 		(cgPoolOops 'oop[CG_MAX_POOL]') (cgPoolLabels 'int32_t[CG_MAX_POOL]') (cgPoolCount int32_t)
 		(cgMetaWords 'int32_t[CG_MAX_META]') (cgMetaCount int32_t) (cgSpOffsets 'int32_t[CG_MAX_SP]') (cgSpCount int32_t)
 		(cgMoveSrc 'int32_t[CG_MAX_MOVES]') (cgMoveDst 'int32_t[CG_MAX_MOVES]') (cgMoveLoc 'int32_t[CG_MAX_MOVES]') (cgMoveCount int32_t) (cgRootAct int32_t) (cgLastPc int32_t)
-		(builder OptBuilder) (cgDeps 'int32_t[256]') (cgDepCount int32_t))
+		(builder OptBuilder) (cgDeps 'int32_t[256]') (cgDepCount int32_t)
+		(cgSunk 'int32_t[64]') (cgSunkCount int32_t) (cgChainActs 'int32_t[512]') (cgChainCount int32_t))
 !
 initialize
 	CG_MAX_OUT := 4096.
@@ -30,7 +31,8 @@ initialize
 	OUT_BARRIER := 3.
 	OUT_LAZY := 4.
 	OUT_STACK := 5.
-	OUT_BOTTOM := 6
+	OUT_BOTTOM := 6.
+	OUT_SEND := 7
 ! !
 
 !OptCodegen methodsFor: 'accessing'!
@@ -82,6 +84,7 @@ generate: m act: a
 	cgExitPlainLabel := asm newLabel.
 	cgExitSyncLabel := asm newLabel.
 	cgDeoptLabel := asm labelAt: stubs optDeoptStub.
+	cgReturnLabel := asm labelAt: stubs optReturnStub.
 	cgSendLabel := asm labelAt: stubs optSendStub.
 	cgInterruptLabel := asm labelAt: stubs interruptStub.
 	cgBarrierLabel := asm labelAt: stubs barrierStub.
@@ -117,7 +120,7 @@ maxOutgoing
 	| n |
 	n := 0.
 	0 to: ir nodeCount - 1 do: [:i |
-		((ir node: i) block >= 0 and: [(ir node: i) op asInt32 = O_SEND]) ifTrue: [
+		((ir node: i) block >= 0 and: [((ir node: i) op asInt32 = O_SEND or: [(ir node: i) op asInt32 = O_CALL])]) ifTrue: [
 			n := n max: (ir node: i) nargs asInt32]].
 	^n
 !
@@ -133,6 +136,11 @@ emitEntry
 	asm ldr: X17 base: X22 offset: self cstackLimitOffset.
 	asm cmp: X16 with: X17.
 	asm b: s if: COND_HI.
+	asm comment: 'invalidated (a direct call from older code): the interpreter runs it'.
+	asm adr: X16 label: cgHeaderLabel.
+	asm ldr: W16 base: X16 offset: self headerFlagsOffset.
+	asm tst: W16 imm: 2.
+	asm b: s if: COND_NE.
 	cgSlotTop > (cgNumArgs + cgNumTemps) ifTrue: [
 		asm comment: 'home slots nil'.
 		asm ldr: X16 base: X22 offset: self nilOffset.
@@ -221,6 +229,9 @@ stressOffset
 codeOffset
 	^self cCoerce: ((self cCoerce: 0 to: 'Frame *') fieldAddress: #code) to: 'int64_t'
 !
+ipOffset
+	^self cCoerce: ((self cCoerce: 0 to: 'Frame *') fieldAddress: #ip) to: 'int64_t'
+!
 headerFlagsOffset
 	^self cCoerce: ((self cCoerce: 0 to: 'JitMethod *') fieldAddress: #flags) to: 'int64_t'
 ! !
@@ -233,6 +244,7 @@ emitNode: n block: b next: nextBlock
 	op := nd op asInt32.
 	op = O_PHI ifTrue: [^self].
 	op = O_CONST ifTrue: [^self].
+	op = O_CLOSURE ifTrue: [^self].
 	op = O_PARAM ifTrue: [
 		(nd reg < 0 and: [nd slot < 0]) ifTrue: [^self].
 		r := self dst: n.
@@ -286,7 +298,7 @@ emitNode: n block: b next: nextBlock
 		op = O_IAND ifTrue: [asm and: r with: x with: y] ifFalse: [asm orr: r with: x with: y].
 		^self def: n from: r].
 	op = O_CHECKINT ifTrue: [^self emitCheckInterrupt: n].
-	op = O_SEND ifTrue: [^self emitSend: n].
+	(op = O_SEND or: [op = O_CALL]) ifTrue: [^self emitSend: n].
 	op = O_GOTO ifTrue: [
 		self emitMovesFrom: b to: (ir block: b) succ0.
 		(ir block: b) succ0 ~= nextBlock ifTrue: [asm b: (ir block: (ir block: b) succ0) label].
@@ -615,7 +627,7 @@ emitStressAt: n label: l
 !
 emitSend: n
 	"Through the runtime (OptRuntime>>send:index:site:): receiver and arguments at slotTop, the result comes back there."
-	| nd argc k here cont r lazy |
+	| nd argc k here cont r lazy slow |
 	nd := ir node: n.
 	argc := nd nargs asInt32 - 1.
 	k := self recordCall: n.
@@ -624,20 +636,18 @@ emitSend: n
 	0 to: argc do: [:i |
 		r := self src: (ir operand: nd args + i) into: X14.
 		asm str: r base: X20 offset: 8 * (cgSlotTop + i)].
-	self emitFramePc: cgBcSize + k sp: cgSlotTop + argc + 1.
-	asm comment: 'send: call the runtime'.
-	asm mov: X0 with: X19.
-	asm mov: X1 imm: k.
-	here := asm newLabel.
-	asm bind: here.
-	asm adr: X2 label: here.
-	asm bl: cgSendLabel.
 	cont := asm newLabel.
-	asm comment: '0: done, 1: leave, else the callee''s entry'.
-	asm cbz: X0 to: cont.
-	asm cmp: X0 imm: 1.
-	asm b: cgExitPlainLabel if: COND_EQ.
-	asm blr: X0.
+	here := asm newLabel.
+	nd op asInt32 = O_CALL
+		ifTrue: [
+			self emitFramePc: cgBcSize + k sp: cgSlotTop.
+			slow := self out: OUT_SEND node: n index: k.
+			(cgOuts + (cgOutCount - 1)) resume: cont.
+			self emitPushFrameFor: nd tcls argc: argc slow: slow]
+		ifFalse: [
+			self emitFramePc: cgBcSize + k sp: cgSlotTop + argc + 1.
+			asm bind: here.
+			self emitRuntimeSend: k site: here exit: cont].
 	asm bind: cont.
 	runtime noteResume: cgBcSize + k at: asm pc - cgCodeStart.
 	cgSpOffsets at: k put: asm pc - cgCodeStart.
@@ -646,13 +656,66 @@ emitSend: n
 	asm comment: 'invalidated meanwhile: deoptimize'.
 	asm adr: X16 label: cgHeaderLabel.
 	asm ldr: W16 base: X16 offset: self headerFlagsOffset.
-	asm tbnz: W16 bit: 1 to: lazy.
+	asm tst: W16 imm: 2.
+	asm b: lazy if: COND_NE.
 	self emitStressAt: n label: lazy.
 	asm comment: 'the result'.
 	r := self dst: n.
 	asm ldr: r base: X20 offset: 8 * cgSlotTop.
 	self def: n from: r.
 	self reloadAcross: n
+!
+emitRuntimeSend: k site: here exit: cont
+	"Call the runtime's send (the site's key: here, bound at the adr); it answers 0 (done), 1 (leave) or the callee's entry."
+	asm comment: 'send: call the runtime'.
+	asm mov: X0 with: X19.
+	asm mov: X1 imm: k.
+	asm adr: X2 label: here.
+	asm bl: cgSendLabel.
+	asm comment: '0: done, 1: leave, else the callee''s entry'.
+	asm cbz: X0 to: cont.
+	asm cmp: X0 imm: 1.
+	asm b: cgExitPlainLabel if: COND_EQ.
+	asm blr: X0
+!
+emitPushFrameFor: m argc: n slow: slow
+	"A direct call of m (it has machine code): its frame pushed here as the interpreter would (pushFrame:argc:code:ecode:), then a call of its entry; no room on the stack: the runtime's send."
+	| ntemps fs fb cell |
+	ntemps := (self intVal: (self loadRef: m at: CM_NUMTEMPS)) asInt32.
+	fs := (self intVal: (self loadRef: m at: CM_FRAMESIZE)) asInt32.
+	fs < (n + ntemps) ifTrue: [fs := n + ntemps].
+	fb := self frameBytes asInt64.
+	asm comment: 'direct call: push the callee''s frame'.
+	asm mov: X16 imm: 8 * (cgSlotTop + 1).
+	asm add: X16 with: X20 with: X16.
+	asm mov: X17 imm: 8 * (fs + CTX_SLACK).
+	asm add: X17 with: X16 with: X17.
+	asm ldr: X15 base: X22 offset: self cstackLimitOffset.
+	asm cmp: X17 with: X15.
+	asm b: slow if: COND_HI.
+	asm str: X16 base: X19 offset: fb + self fpOffset.
+	self loadConstant: m into: X17.
+	asm str: X17 base: X19 offset: fb.
+	asm ldr: X15 base: X22 offset: self nilOffset.
+	asm str: X15 base: X19 offset: fb + self closureOffset.
+	asm str: X15 base: X19 offset: fb + self ctxOffset.
+	0 to: ntemps - 1 do: [:i | asm str: X15 base: X16 offset: 8 * (n + i)].
+	asm ldr: X14 base: X17 offset: (self fieldOffset: CM_BYTECODES).
+	asm add: X14 with: X14 imm: 16.
+	asm str: X14 base: X19 offset: fb + self ipOffset.
+	asm ldr: X14 base: X17 offset: (self fieldOffset: CM_LITERALS).
+	asm add: X14 with: X14 imm: 16.
+	asm str: X14 base: X19 offset: fb + self litsOffset.
+	asm mov: X14 imm: (n + ntemps) asInt64 << 32.
+	asm str: X14 base: X19 offset: fb + self pcOffset.
+	asm comment: 'its code and entry: the method''s cell (it follows the method''s tier)'.
+	cell := runtime cellAddressOf: m.
+	asm adrp: X15 label: (asm labelAt: cell).
+	asm add: X15 with: X15 imm: (cell bitAnd: 16rFFF) asInt64.
+	asm ldr: X14 base: X15 offset: 8.
+	asm str: X14 base: X19 offset: fb + self codeOffset.
+	asm ldr: X16 base: X15 offset: 0.
+	asm blr: X16
 !
 emitFramePc: pc sp: sp
 	asm comment: 'frame pc and sp'.
@@ -790,7 +853,7 @@ deoptLabelFor: n
 	^l
 !
 emitOuts
-	| o |
+	| o l |
 	0 to: cgOutCount - 1 do: [:i |
 		o := cgOuts + i.
 		asm bind: o label.
@@ -817,6 +880,13 @@ emitOuts
 			asm mov: X1 imm: o index.
 			asm bl: cgDeoptReturnLabel.
 			asm b: cgExitPlainLabel].
+		o kind = OUT_SEND ifTrue: [
+			asm comment: 'no room for the callee''s frame: the runtime sends'.
+			self emitFramePc: cgBcSize + o index sp: cgSlotTop + (ir node: o node) nargs asInt32.
+			l := asm newLabel.
+			asm bind: l.
+			self emitRuntimeSend: o index site: l exit: o resume.
+			asm b: o resume].
 		o kind = OUT_STACK ifTrue: [
 			asm comment: 'no room for the frame: the interpreter runs it'.
 			self emitFramePc: 0 sp: cgNumArgs + cgNumTemps.
@@ -824,9 +894,9 @@ emitOuts
 			asm bl: cgStackFullLabel.
 			asm b: cgExitSyncLabel].
 		o kind = OUT_BOTTOM ifTrue: [
-			asm comment: 'the interpreter returns from the bottom frame'.
+			asm comment: 'the bottom frame returns into a Context: the runtime does it'.
 			asm mov: W17 imm: (self recordGuard: o node).
-			asm b: cgDeoptLabel]].
+			asm b: cgReturnLabel]].
 	^true
 !
 emitBarrierCall: o
@@ -895,22 +965,46 @@ recordState: s kind: kind node: n inSlots: inSlots
 		nchain := nchain + 1.
 		t := (ir state: t) parent].
 	self meta: nchain.
+	cgSunkCount := 0.
+	cgChainCount := nchain asInt32.
 	nchain - 1 to: 0 by: -1 do: [:i |
 		t := s.
 		i timesRepeat: [t := (ir state: t) parent].
 		st := ir state: t.
+		cgChainActs at: nchain - 1 - i put: st act.
 		self meta: (self poolIndexOf: (ir act: st act) method).
 		self meta: ((ir act: st act) closure >= 0 ifTrue: [self locOf: (ir act: st act) closure inSlots: inSlots] ifFalse: [-1]).
 		self meta: (self locOf: (ir operand: st vals) inSlots: inSlots).
 		self meta: st pc.
 		self meta: st depth.
 		0 to: st depth - 1 do: [:j | self meta: (self locOf: (ir operand: st vals + 1 + j) inSlots: inSlots)]].
+	"closures that were never made: the activation that makes them (its index above), startpc, arguments, temps, frame size"
+	self meta: cgSunkCount.
+	0 to: cgSunkCount - 1 do: [:j |
+		nd := ir node: (cgSunk at: j).
+		t := -1.
+		0 to: nchain - 1 do: [:i | (cgChainActs at: i) = (nd aux2 >> 32) asInt32 ifTrue: [t := i asInt32]].
+		t < 0 ifTrue: [asm fail: ASM_ERR_OPERAND].
+		self meta: t.
+		self meta: nd aux asInt32.
+		self meta: (nd aux2 bitAnd: 16rFFFFFF) asInt32].
 	^k
+!
+sunkIndexOf: v
+	"v's entry in this record's closures that were never made."
+	0 to: cgSunkCount - 1 do: [:j | (cgSunk at: j) = v ifTrue: [^j]].
+	cgSunkCount >= 64 ifTrue: [
+		asm fail: ASM_ERR_FULL.
+		^0].
+	cgSunk at: cgSunkCount put: v.
+	cgSunkCount := cgSunkCount + 1.
+	^cgSunkCount - 1
 !
 locOf: v inSlots: inSlots
 	"Where deoptimization finds v: a constant, its register (not at a safepoint), its slot."
 	| nd c |
 	nd := ir node: v.
+	nd op asInt32 = O_CLOSURE ifTrue: [^((self sunkIndexOf: v) asInt64 << 3) bitOr: LOC_SUNK].
 	nd op asInt32 = O_CONST ifTrue: [
 		c := nd aux asUInt64.
 		((self isInt: c) and: [(self intVal: c) between: -16r8000000 and: 16r7FFFFFF]) ifTrue: [^((self intVal: c) << 3) bitOr: LOC_SMI].

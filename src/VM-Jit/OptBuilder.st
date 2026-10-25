@@ -1,6 +1,6 @@
 OptModule subclass: #OptBuilder
-	instanceVariableNames: 'ir obCurBlock obBailed obVarTop obDefKeys obDefVals obDefCount obIncPhis obIncVars obIncCount obAnaMethods obAnaBases obAnaCount obAnaTop obAnaDepth obAnaFlag obAnaBack obPcBlocks obPcbTop obEntryBlock obRootMethod obInlined obDeps obDepCount obPrimKinds obPrimsKnown'
-	classVariableNames: 'OA_BLOCK OA_LOOP OA_START OA_TARGET OPT_MAX_PRIM PK_AT PK_ATPUT PK_CLASS PK_IDENTICAL PK_INT PK_SIZE PK_STRINGAT PK_STRINGATPUT OPT_INLINE_BUDGET OPT_INLINE_DEPTH OPT_INLINE_SIZE OPT_MAX_ANA OPT_MAX_DEPS OPT_MAX_INC'
+	instanceVariableNames: 'ir obCurBlock obBailed obVarTop obDefKeys obDefVals obDefCount obIncPhis obIncVars obIncCount obAnaMethods obAnaBases obAnaCount obAnaTop obAnaDepth obAnaFlag obAnaBack obPcBlocks obPcbTop obEntryBlock obRootMethod obInlined obDeps obDepCount obPrimKinds obPrimsKnown obNoInline obNoInlineCount obArgVals obArgFlags'
+	classVariableNames: 'OA_BLOCK OA_LOOP OA_START OA_TARGET OPT_MAX_VARS OPT_MAX_NOINLINE OPT_MAX_PRIM PK_AT PK_ATPUT PK_CLASS PK_IDENTICAL PK_INT PK_SIZE PK_STRINGAT PK_STRINGATPUT OPT_INLINE_BUDGET OPT_INLINE_DEPTH OPT_INLINE_SIZE OPT_MAX_ANA OPT_MAX_DEPS OPT_MAX_INC'
 	package: 'VM-Jit'!
 
 OptBuilder comment: 'Builds the IR (OptIR) of a method from its bytecodes: an abstract interpretation of each activation''s bytecodes in pc order, its slots (arguments, temps, operand stack: the depths BytecodeAnalysis computed) SSA variables, phis made on demand (Braun et al., Simple and Efficient Construction of Static Single Assignment Form, CC 2013: a block is sealed once all its predecessors are known; jump targets when the scan reaches them, loop heads after their last backward jump). Sends, guards and interrupt checks get frame states (OptState) for deoptimization. bail abandons the method (a bytecode the tier does not compile).'!
@@ -13,13 +13,16 @@ declarations
 		(obAnaMethods 'oop[OPT_MAX_ANA]') (obAnaBases 'int32_t[OPT_MAX_ANA]') (obAnaCount int32_t) (obAnaTop int32_t)
 		(obAnaDepth 'int16_t[OPT_ANA_MAX]') (obAnaFlag 'uint8_t[OPT_ANA_MAX]') (obAnaBack 'int32_t[OPT_ANA_MAX]')
 		(obPcBlocks 'int32_t[OPT_PCB_MAX]') (obPcbTop int32_t) (obEntryBlock int32_t) (obRootMethod oop)
-		(obInlined int32_t) (obDeps 'oop[OPT_MAX_DEPS]') (obDepCount int32_t) (obPrimKinds 'uint8_t[OPT_MAX_PRIM]') (obPrimsKnown bool))
+		(obInlined int32_t) (obDeps 'oop[OPT_MAX_DEPS]') (obDepCount int32_t) (obPrimKinds 'uint8_t[OPT_MAX_PRIM]') (obPrimsKnown bool)
+		(obNoInline 'oop[OPT_MAX_NOINLINE]') (obNoInlineCount int32_t) (obArgVals 'int32_t[OPT_MAX_VARS]') (obArgFlags 'uint8_t[OPT_MAX_VARS]'))
 !
 initialize
 	OPT_MAX_INC := 16384.
 	OPT_MAX_ANA := 256.
 	OPT_MAX_DEPS := 256.
 	OPT_MAX_PRIM := 1024.
+	OPT_MAX_NOINLINE := 8.
+	OPT_MAX_VARS := 65536.
 	PK_AT := 1.
 	PK_ATPUT := 2.
 	PK_SIZE := 3.
@@ -45,17 +48,34 @@ bailed
 	^obBailed or: [ir full]
 !
 bail
+	(obBailed not and: [(libc getenv: 'SAMALTAK_OPT_TRACE') notNull]) ifTrue: [
+		libc fprintf: libc stderr format: 'opt: bail at pc %d of act %d
+' with: ir originPc with: ir originAct].
 	obBailed := true
 ! !
 
 !OptBuilder methodsFor: 'building'!
 build: m
-	"The IR of m; answer whether it could be built."
+	"The IR of m; answer whether it could be built. A closure an inlined method makes that escapes would have to be made: build again without inlining that method."
 	<c: 'bool opt_build(oop m)'>
+	| e |
+	obNoInlineCount := 0.
+	[(self buildOnce: m) ifFalse: [^false].
+	 e := self escapingClosure.
+	 e < 0 ifTrue: [^true].
+	 (libc getenv: 'SAMALTAK_OPT_TRACE') notNull ifTrue: [libc fprintf: libc stderr format: 'opt: a closure of act %d escapes
+' with: e].
+	 (e = 0 or: [obNoInlineCount >= OPT_MAX_NOINLINE]) ifTrue: [^false].
+	 obNoInline at: obNoInlineCount put: (ir act: e) method.
+	 obNoInlineCount := obNoInlineCount + 1] repeat
+!
+buildOnce: m
+	<c: 'bool opt_build_once(oop m)'>
 	| a b |
 	ir reset.
 	obBailed := false.
 	obVarTop := 0.
+	libc memset: obArgFlags value: 0 size: OPT_MAX_VARS.
 	obDefCount := 0.
 	libc memset: obDefKeys value: 0 size: 4 * OPT_DEF_SIZE.
 	obIncCount := 0.
@@ -72,7 +92,7 @@ build: m
 	(ir block: obEntryBlock) act: a.
 	obCurBlock := obEntryBlock.
 	(ir act: a) receiver: (self param: -1).
-	0 to: (ir act: a) numArgs - 1 do: [:i | self write: (self var: a slot: i) value: (self param: i)].
+	0 to: (ir act: a) numArgs - 1 do: [:i | self writeArg: (self var: a slot: i) value: (self param: i)].
 	(ir act: a) numArgs to: (ir act: a) numArgs + (ir act: a) numTemps - 1 do: [:i | self write: (self var: a slot: i) value: (self constant: memory nilOop)].
 	"a failed primitive's error code is in the first temp"
 	((ir act: a) numTemps > 0 and: [(self isInt: (self loadRef: m at: CM_PRIMITIVE)) and: [((self intVal: (self loadRef: m at: CM_PRIMITIVE)) bitAnd: CM_PRIM_ERROR_FLAG) ~= 0]]) ifTrue: [
@@ -234,9 +254,17 @@ write: var value: v in: b
 read: var
 	^self read: var in: obCurBlock
 !
+writeArg: var value: v
+	"An argument: Smalltalk never assigns it, so every read is v (no phis, even in loops not yet closed)."
+	var < OPT_MAX_VARS ifTrue: [
+		obArgVals at: var put: v.
+		obArgFlags at: var put: 1].
+	self write: var value: v
+!
 read: var in: b
 	<c: 'int32_t opt_read(int32_t var, int32_t b)'>
 	| i v bl phi |
+	(var < OPT_MAX_VARS and: [(obArgFlags at: var) ~= 0]) ifTrue: [^ir resolve: (obArgVals at: var)].
 	i := self defIndex: var block: b.
 	(obDefKeys at: i) ~= 0 ifTrue: [^ir resolve: (obDefVals at: i)].
 	bl := ir block: b.
@@ -492,9 +520,150 @@ emit: pc act: a
 	(op >= 16rA0 and: [op < 16rC0]) ifTrue: [
 		self special: op - 16rA0 pc: pc act: a rcvSlot: d - (analysis specialArgc: op - 16rA0) - 1.
 		^next].
-	"thisContext, non-local returns, outer temps, closures, Arrays: not yet"
+	op = 16r8F ifTrue: [
+		v := self closureAt: pc act: a.
+		self push: v act: a depth: d.
+		^(pc + 6 + (((self byteAt: pc + 4 act: a) asInt64 << 8) bitOr: (self byteAt: pc + 5 act: a))) asInt32].
+	(op >= 16r8A and: [op <= 16r8C]) ifTrue: [
+		self outerTemp: pc act: a depth: d.
+		^next].
+	op = 16r7C ifTrue: [
+		self nonLocalReturn: (self read: (self var: a slot: d - 1)) act: a pc: pc depth: d.
+		^next].
+	"thisContext, Arrays: not yet"
 	self bail.
 	^next
+!
+closureAt: pc act: a
+	"0x8F: a BlockClosure for the body after pc; as long as it is only evaluated by inlined value sends it is never made (its frame states describe it)."
+	| n na nt fs |
+	na := self byteAt: pc + 1 act: a.
+	nt := self byteAt: pc + 2 act: a.
+	fs := self byteAt: pc + 3 act: a.
+	n := self add: O_CLOSURE rep: R_OOP.
+	(ir node: n) aux: pc + 6.
+	(ir node: n) aux2: (((na asInt64 bitOr: nt asInt64 << 8) bitOr: fs asInt64 << 16) bitOr: a asInt64 << 32).
+	(ir node: n) tkind: T_OBJ.
+	(ir node: n) tcls: memory clsBlock.
+	(ir node: n) flags: NF_PURE.
+	^n
+!
+outerTemp: pc act: a depth: d
+	"push (8A), store (8B), pop and store (8C) a temp of an enclosing block or method: inlined, it is that activation's variable."
+	| op t v |
+	op := self byteAt: pc act: a.
+	t := a.
+	(self byteAt: pc + 1 act: a) timesRepeat: [t >= 0 ifTrue: [t := (ir act: t) outer]].
+	t < 0 ifTrue: [^self bail].
+	op = 16r8A ifTrue: [^self push: (self read: (self var: t slot: (self byteAt: pc + 2 act: a))) act: a depth: d].
+	v := self read: (self var: a slot: d - 1).
+	self write: (self var: t slot: (self byteAt: pc + 2 act: a)) value: v
+!
+nonLocalReturn: v act: a pc: pc depth: d
+	"^ in a block: return from its home method, inlined here (or the method compiled)."
+	| h n |
+	h := (ir act: a) home.
+	(h < 0 or: [(ir act: h) closure >= 0]) ifTrue: [^self bail].
+	(ir act: h) parent >= 0 ifTrue: [
+		self write: (ir act: h) retVar value: v.
+		^self goto: (ir act: h) retBlock].
+	n := self add: O_RETURN rep: R_NONE.
+	(ir node: n) a: v.
+	(ir node: n) state: (self stateAct: a pc: pc depth: d).
+	obCurBlock := -1
+!
+isValueSelector: sel
+	"sel is value or value: repeated."
+	| b n |
+	((self isPtr: sel) and: [(self formatOf: sel) >= F_BYTES]) ifFalse: [^false].
+	n := (memory byteSize: sel) asInt64.
+	b := self bytesOf: sel.
+	(n >= 5 and: [(b at: 0) = $v value and: [(b at: 1) = $a value and: [(b at: 2) = $l value and: [(b at: 3) = $u value and: [(b at: 4) = $e value]]]]]) ifFalse: [^false].
+	n = 5 ifTrue: [^true].
+	(n rem: 6) = 0 ifFalse: [^false].
+	0 to: (n quo: 6) - 1 do: [:i |
+		((b at: 6 * i) = $v value and: [(b at: 6 * i + 5) = $: value]) ifFalse: [^false]].
+	^true
+!
+isClosure: v numArgs: n
+	"v is a closure this compilation made, taking n arguments."
+	| nd |
+	nd := ir node: (ir resolve: v).
+	^nd op asInt32 = O_CLOSURE and: [(nd aux2 bitAnd: 255) = n]
+!
+inlineBlock: c pc: pc act: a rcvSlot: r argc: argc
+	"Evaluate closure c (made in this compilation) here: its body as an activation whose outer activation is the one that made it."
+	<c: 'void opt_inline_block(int32_t c, int32_t pc, int32_t a, int32_t r, int32_t argc)'>
+	| b ac def nd entry ret na nt fs size |
+	nd := ir node: c.
+	def := (nd aux2 >> 32) asInt32.
+	na := (nd aux2 bitAnd: 255) asInt32.
+	nt := ((nd aux2 >> 8) bitAnd: 255) asInt32.
+	fs := ((nd aux2 >> 16) bitAnd: 255) asInt32.
+	b := ir newAct.
+	ac := ir act: b.
+	ac method: (ir act: def) method.
+	ac ana: (ir act: def) ana.
+	ac numArgs: na.
+	ac numTemps: nt.
+	fs < (na + nt) ifTrue: [fs := na + nt].
+	ac nslots: fs + 4.
+	ac startpc: nd aux asInt32.
+	size := ((self byteAt: nd aux asInt32 - 2 act: def) asInt64 << 8 bitOr: (self byteAt: nd aux asInt32 - 1 act: def)) asInt32.
+	ac endpc: nd aux asInt32 + size.
+	ac closure: c.
+	ac outer: def.
+	ac home: (ir act: def) home.
+	ac receiver: (ir act: def) receiver.
+	ac parent: a.
+	ac sendPc: pc.
+	ac sendArgc: argc.
+	(self allocPcBlocks: b) ifFalse: [^self].
+	ac varBase: obVarTop.
+	ac retVar: obVarTop + ac nslots.
+	obVarTop := obVarTop + ac nslots + 1.
+	obInlined := obInlined + size.
+	0 to: argc - 1 do: [:i | self writeArg: (self var: b slot: i) value: (self read: (self var: a slot: r + 1 + i))].
+	argc to: argc + nt - 1 do: [:i | self write: (self var: b slot: i) value: (self constant: memory nilOop)].
+	entry := ir newBlock.
+	(ir block: entry) act: b.
+	ret := ir newBlock.
+	(ir block: ret) act: a.
+	ac retBlock: ret.
+	self goto: entry.
+	obCurBlock := entry.
+	self seal: entry.
+	self buildAct: b.
+	ir origin: a pc: pc.
+	self seal: ret.
+	(ir block: ret) npreds = 0 ifTrue: [
+		obCurBlock := -1.
+		^self].
+	obCurBlock := ret.
+	self write: (self var: a slot: r) value: (self read: (ir act: b) retVar)
+!
+escapingClosure
+	"A closure that something other than a frame state uses (it would have to be made): the activation that made it, -1 if there is none."
+	<c: 'int32_t opt_escaping_closure(void)'>
+	| nd |
+	0 to: ir nodeCount - 1 do: [:n |
+		nd := ir node: n.
+		(nd block >= 0 and: [(nd flags bitAnd: NF_DEAD) = 0]) ifTrue: [
+			(self usesClosure: nd a) ifTrue: [^self definingActOf: nd a].
+			(self usesClosure: nd b) ifTrue: [^self definingActOf: nd b].
+			(self usesClosure: nd c) ifTrue: [^self definingActOf: nd c].
+			nd op asInt32 ~= O_PHI ifTrue: [
+				0 to: nd nargs asInt32 - 1 do: [:i | (self usesClosure: (ir operand: nd args + i)) ifTrue: [^self definingActOf: (ir operand: nd args + i)]]].
+			nd op asInt32 = O_PHI ifTrue: [
+				0 to: nd nargs asInt32 - 1 do: [:i | (self usesClosure: (ir operand: nd args + i)) ifTrue: [^self definingActOf: (ir operand: nd args + i)]]]]].
+	^-1
+!
+usesClosure: v
+	v < 0 ifTrue: [^false].
+	^(ir node: (ir resolve: v)) op asInt32 = O_CLOSURE
+!
+definingActOf: v
+	^((ir node: (ir resolve: v)) aux2 >> 32) asInt32
 !
 push: v act: a depth: d
 	self write: (self var: a slot: d) value: v
@@ -615,6 +784,8 @@ special: k pc: pc act: a rcvSlot: r
 	(k = 19 or: [k = 20]) ifTrue: [
 		self push: (self binary: (k = 19 ifTrue: [O_EQ] ifFalse: [O_NE]) a: x b: y) act: a depth: r.
 		^self].
+	((k = 21 or: [k = 22 or: [k = 30]]) and: [(runtime flag: runtime blocksFlag) and: [self isClosure: x numArgs: argc]]) ifTrue: [
+		^self inlineBlock: (ir resolve: x) pc: pc act: a rcvSlot: r argc: argc].
 	k = 29 ifTrue: [
 		n := self add: O_CLASSOF rep: R_OOP.
 		(ir node: n) a: x.
@@ -668,6 +839,9 @@ guardInt: v state: s
 !
 sendSelector: sel argc: argc kind: kind special: k pc: pc act: a rcvSlot: r
 	"A send: inlined (or called) for the receiver's class if it is known, for each class feedback saw (guarded), else through the runtime."
+	((runtime flag: runtime blocksFlag) and: [(self isValueSelector: sel) and: [self isClosure: (self read: (self var: a slot: r)) numArgs: argc]]) ifTrue: [
+		self inlineBlock: (ir resolve: (self read: (self var: a slot: r))) pc: pc act: a rcvSlot: r argc: argc.
+		^-1].
 	((runtime flag: runtime inlineFlag) and: [self inlineSend: sel argc: argc kind: kind special: k pc: pc act: a rcvSlot: r]) ifTrue: [^-1].
 	^self callSelector: sel argc: argc kind: kind special: k pc: pc act: a rcvSlot: r
 !
@@ -682,6 +856,10 @@ inlineSend: sel argc: argc kind: kind special: k pc: pc act: a rcvSlot: r
 	cls := self knownClassOf: rcv.
 	cls ~= 0 ifTrue: [^self send: sel to: rcv class: cls argc: argc kind: kind pc: pc act: a rcvSlot: r].
 	site := feedback siteAt: (ir act: a) method pc: pc.
+	(libc getenv: 'SAMALTAK_OPT_TRACE') notNull ifTrue: [
+		libc fprintf: libc stderr format: 'opt: send at pc %d of act %d: feedback %s ' with: pc with: a with: (site isNull ifTrue: ['none'] ifFalse: ['some']).
+		interpreter printSymbol: sel on: libc stderr.
+		libc fputc: 10 to: libc stderr].
 	site isNull ifTrue: [^false].
 	fl := site flags.
 	(fl bitAnd: (feedback mega bitOr: feedback deoptClass)) ~= 0 ifTrue: [^false].
@@ -722,7 +900,7 @@ inlineSend: sel argc: argc kind: kind special: k pc: pc act: a rcvSlot: r
 !
 send: sel to: rcv class: cls argc: argc kind: kind pc: pc act: a rcvSlot: r
 	"The receiver's class is cls: inline the method it finds, else send. Answer false only if nothing was emitted."
-	| m |
+	| m n |
 	m := interpreter lookupMethod: cls selector: sel.
 	m = 0 ifTrue: [^false].
 	self noteDependency: sel.
@@ -732,6 +910,13 @@ send: sel to: rcv class: cls argc: argc kind: kind pc: pc act: a rcvSlot: r
 	(self canInline: m act: a) ifTrue: [
 		self inlineMethod: m receiverClass: cls pc: pc act: a rcvSlot: r argc: argc.
 		^true].
+	(self loadRef: m at: CM_PRIMITIVE) = (self intOop: 0) ifTrue: [
+		((runtime flag: runtime callsFlag) and: [runtime codeAddressOf: m]) ifTrue: [
+			"a direct call: the frame pushed inline, no lookup"
+			n := self callSelector: sel argc: argc kind: 0 special: 0 pc: pc act: a rcvSlot: r.
+			(ir node: n) op: O_CALL.
+			(ir node: n) tcls: m.
+			^true]].
 	self callSelector: sel argc: argc kind: (kind = 1 ifTrue: [1] ifFalse: [0]) special: 0 pc: pc act: a rcvSlot: r.
 	^true
 !
@@ -847,6 +1032,7 @@ canInline: m act: a
 	<c: 'bool opt_can_inline(oop m, int32_t a)'>
 	| size bcs pc op depth p same |
 	(self loadRef: m at: CM_PRIMITIVE) ~= (self intOop: 0) ifTrue: [^false].
+	0 to: obNoInlineCount - 1 do: [:i | (obNoInline at: i) = m ifTrue: [^false]].
 	size := self methodSize: m.
 	size > OPT_INLINE_SIZE ifTrue: [^false].
 	obInlined + size > OPT_INLINE_BUDGET ifTrue: [^false].
@@ -863,7 +1049,7 @@ canInline: m act: a
 	pc := 0.
 	[pc < size] whileTrue: [
 		op := bcs at: pc.
-		(op = 16r76 or: [op = 16r7C or: [op = 16r8F or: [op = 16r94 or: [op >= 16r8A and: [op <= 16r8C]]]]]) ifTrue: [^false].
+		(op = 16r76 or: [op = 16r94 or: [((runtime flag: runtime blocksFlag) not and: [op = 16r7C or: [op = 16r8F or: [op >= 16r8A and: [op <= 16r8C]]]])]]) ifTrue: [^false].
 		pc := pc + (analysis lengthOf: op)].
 	^true
 !
@@ -880,7 +1066,7 @@ inlineMethod: m receiverClass: cls pc: pc act: a rcvSlot: r argc: argc
 	ac sendArgc: argc.
 	ac receiver: (self read: (self var: a slot: r)).
 	ac rcvClass: cls.
-	0 to: argc - 1 do: [:i | self write: (self var: b slot: i) value: (self read: (self var: a slot: r + 1 + i))].
+	0 to: argc - 1 do: [:i | self writeArg: (self var: b slot: i) value: (self read: (self var: a slot: r + 1 + i))].
 	argc to: argc + ac numTemps - 1 do: [:i | self write: (self var: b slot: i) value: (self constant: memory nilOop)].
 	entry := ir newBlock.
 	(ir block: entry) act: b.

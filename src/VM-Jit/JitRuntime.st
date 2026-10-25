@@ -1,5 +1,5 @@
 VMCoreModule subclass: #JitRuntime
-	instanceVariableNames: 'stubs template stencil cache asm analysis feedback optimizer jitMode jitFlags jitThreshold jitOsrThreshold jitOptThreshold jitCacheMB cacheOpened flushPending invalidations stateBlock methodTable tableCount methodCounts youngMethods youngCount youngOverflow optCounts mapPcs mapOffsets mapCount refSites refCount sendPushed performFn performArgsFn statCompiled statFailed statBytecodes statCompileUs statCodeBytes statCacheFlushes statEntries statExits statResumes statOsr'
+	instanceVariableNames: 'stubs template stencil cache asm analysis feedback optimizer jitMode jitFlags jitThreshold jitOsrThreshold jitOptThreshold jitCacheMB cacheOpened flushPending invalidations stateBlock methodTable tableCount methodCounts youngMethods youngCount youngOverflow optCounts entryCells mapPcs mapOffsets mapCount refSites refCount sendPushed performFn performArgsFn statCompiled statFailed statBytecodes statCompileUs statCodeBytes statCacheFlushes statEntries statExits statResumes statOsr'
 	classVariableNames: 'JIT_FLAG_ALLOC JIT_FLAG_ARITH JIT_FLAG_BARRIER JIT_FLAG_BCE JIT_FLAG_BLOCKS JIT_FLAG_CALLS JIT_FLAG_DEOPT JIT_FLAG_EAGER JIT_FLAG_EMBED JIT_FLAG_ESCAPE JIT_FLAG_FUSE JIT_FLAG_GVN JIT_FLAG_INLINE JIT_FLAG_LAST JIT_FLAG_LICM JIT_FLAG_NOTES JIT_FLAG_PRIMS JIT_FLAG_RANGE JIT_FLAG_UNBOX JIT_MAX_COUNT JIT_MAX_MAP JIT_MAX_REFS JIT_MAX_YOUNG JIT_NONE JIT_OPT JIT_PROLOGUE_BYTES JIT_STENCIL JIT_TABLE_SIZE JIT_TEMPLATE JIT_THREADED JM_DEAD JM_FAILED JM_NOTES JM_OSR'
 	package: 'VM-Jit'!
 
@@ -15,7 +15,7 @@ declarations
 		(cacheOpened bool) (flushPending bool) (invalidations uint64_t)
 		(stateBlock 'JitState[1]')
 		(methodTable 'JitMethod *[JIT_TABLE_SIZE]') (tableCount int64_t) (methodCounts 'uint16_t[JIT_TABLE_SIZE]')
-		(youngMethods 'JitMethod *[JIT_MAX_YOUNG]') (youngCount int32_t) (youngOverflow bool) (optCounts 'int32_t[JIT_TABLE_SIZE]')
+		(youngMethods 'JitMethod *[JIT_MAX_YOUNG]') (youngCount int32_t) (youngOverflow bool) (optCounts 'int32_t[JIT_TABLE_SIZE]') (entryCells 'uint64_t[131072]')
 		(mapPcs 'uint32_t[JIT_MAX_MAP]') (mapOffsets 'uint32_t[JIT_MAX_MAP]') (mapCount int32_t)
 		(refSites 'uint32_t[JIT_MAX_REFS]') (refCount int32_t) (sendPushed int32_t)
 		(performFn prim_fn) (performArgsFn prim_fn)
@@ -371,6 +371,9 @@ optDeoptReturnFunction
 optStackFullFunction
 	^optimizer stackFullFunction
 !
+optReturnFunction
+	^optimizer returnFunction
+!
 specialFunction
 	^self cCoerce: (self functionPointer: #special:info:site:) to: 'uint64_t'
 !
@@ -397,6 +400,38 @@ tierUpFunction
 ! !
 
 !JitRuntime methodsFor: 'compiled methods'!
+codeAddressOf: m
+	"m has machine code compiled code may call directly (pushing its frame itself)."
+	<c: 'bool jit_has_code(oop m)'>
+	jitMode = JIT_NONE ifTrue: [^false].
+	^self hasCode: (self lookup: m)
+!
+slotOf: m
+	"The index of m's header in the method table, -1 if it has none."
+	<c: 'int64_t jit_slot_of(oop m)'>
+	| i h |
+	i := (self hashOf: m) bitAnd: JIT_TABLE_SIZE - 1.
+	[(h := methodTable at: i) notNull] whileTrue: [
+		h method = m ifTrue: [^i].
+		i := (i + 1) bitAnd: JIT_TABLE_SIZE - 1].
+	^-1
+!
+cellAddressOf: m
+	"Where direct calls of m (codeAddressOf: m) find the entry and the header of its best code: a call follows m's tier."
+	^self cCoerce: entryCells + (2 * (self slotOf: m)) to: 'uint64_t'
+!
+setCell: i code: h
+	"Direct calls of the method at table index i enter h."
+	entryCells at: 2 * i put: h start - JIT_PROLOGUE_BYTES.
+	entryCells at: 2 * i + 1 put: (self cCoerce: h to: 'uint64_t')
+!
+codeChanged: m
+	"m's best code changed (optimized, invalidated): its direct callers follow."
+	<c: 'void jit_code_changed(oop m)'>
+	| i |
+	i := self slotOf: m.
+	i >= 0 ifTrue: [self setCell: i code: (self best: (methodTable at: i))]
+!
 lookup: m
 	"m's header, null if m has none."
 	<c: 'JitMethod *jit_lookup(oop m)'>
@@ -416,6 +451,7 @@ insert: h
 	[(methodTable at: i) notNull] whileTrue: [i := (i + 1) bitAnd: JIT_TABLE_SIZE - 1].
 	methodTable at: i put: h.
 	tableCount := tableCount + 1.
+	(self hasCode: h) ifTrue: [self setCell: i code: h].
 	(self isYoung: h method) ifTrue: [
 		youngCount < JIT_MAX_YOUNG
 			ifTrue: [

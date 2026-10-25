@@ -34,7 +34,6 @@ static cache_entry *fill_cache(oop cls, oop sel);
 static int64_t frame_size(frame *f);
 static void print_class_name(oop cls, FILE *f);
 static void print_stack(oop ctx, FILE *f);
-static void print_symbol(oop s, FILE *f);
 static void refresh_prim_base(void);
 static void refresh_tag_classes(void);
 static int64_t stack_overflow_depth(void);
@@ -12352,7 +12351,7 @@ static void print_stack(oop a_context, FILE *f)
 }
 
 /* Interpreter>>printSymbol:on: */
-static void print_symbol(oop s, FILE *f)
+void print_symbol(oop s, FILE *f)
 {
     if (((s & 7) == 0) && ((int32_t)(((*(uint64_t *)s) >> H_FMT_SHIFT) & H_FMT_MASK) >= F_BYTES)) {
         fprintf(f, "%.*s", (int32_t)byte_size(s), (char *)(uint8_t *)(s + 16));
