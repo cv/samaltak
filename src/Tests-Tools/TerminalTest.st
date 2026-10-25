@@ -18,7 +18,7 @@ timeLimitMilliseconds
 openOn: argv
 	window := self open: [Terminal openOn: argv in: '/' at: 100 @ 80].
 	terminal := window content.
-	self assert: (self waitFor: [terminal ioProcess notNil or: [terminal pty isNil]]) description: 'the terminal did not start'.
+	self assert: (self waitFor: [terminal ioProcess notNil]) description: 'the terminal did not start'.
 	^window
 !
 openShell
