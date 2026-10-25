@@ -378,7 +378,13 @@ closure
 
 !JitStencils methodsFor: 'stencils: control'!
 entry
-	"A method's or block's start (after the prologue): an interrupt check."
+	"A method's or block's start (after the prologue): an interrupt check; one pending is handled out of line."
+	<stencil>
+	st interrupt ~= 0 ifTrue: [^self slow].
+	^self continue
+!
+pollInterrupt
+	"The pending interrupt of an entry or a backward jump (PC: where the interpreter would continue): a safepoint."
 	<stencil>
 	self leaveAfterInterrupt ifTrue: [^self exitPlain].
 	^self continue
@@ -388,9 +394,9 @@ branch
 	^self jump
 !
 branchBack
-	"A backward jump (PC: its target, a loop head): an interrupt check."
+	"A backward jump (PC: its target, a loop head): an interrupt check; one pending is handled out of line."
 	<stencil>
-	self leaveAfterInterrupt ifTrue: [^self exitPlain].
+	st interrupt ~= 0 ifTrue: [^self slow].
 	^self jump
 !
 branchIf

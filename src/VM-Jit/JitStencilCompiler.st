@@ -1,6 +1,6 @@
 JitCompiler subclass: #JitStencilCompiler
-	instanceVariableNames: 'table libc threaded opened codeStart pcLabels deferred deferredPcs deferredCount slowStencils slowLabels slowNext slowJumps slowValues slowCount resumePcs resumeDepths resumeCount values copySlots slotValues slotCount patchSites patchSlots patchKinds patchCount exitSyncLabel exitPlainLabel returnLabel failed gotBase symbolTargets dataBase exitSyncGlue returnGlue'
-	classVariableNames: 'CONT_EXIT CONT_EXIT_SYNC CONT_JUMP CONT_NEXT CONT_RETURN CONT_SLOW HOLE_A HOLE_B HOLE_C HOLE_COUNT HOLE_INFO HOLE_PC HOLE_SITE HOLE_VALUE RELOC_BRANCH RELOC_GOT_PAGE RELOC_GOT_PAGEOFF RELOC_GOT_PAIR RELOC_PAGE RELOC_PAGEOFF STC_MAX_PATCHES STC_MAX_SLOTS STC_MAX_SLOW STC_MAX_SLOW_VALUES STC_MAX_SYMBOLS ST_ADD ST_ADD_OPERANDS ST_ADD_OPERANDS_INTO ST_BASIC_AT ST_BASIC_AT_PUT ST_BASIC_SIZE ST_BIT_AND ST_BIT_OR ST_BRANCH ST_BRANCH_BACK ST_BRANCH_IF ST_CLASS_OF ST_CLOSURE ST_COMPARE ST_COMPARE_JUMP_FALSE ST_COMPARE_JUMP_TRUE ST_COMPARE_OPERANDS ST_COMPARE_OPERANDS_JUMP_FALSE ST_COMPARE_OPERANDS_JUMP_TRUE ST_COUNT ST_DIVIDE ST_DUP ST_ENTRY ST_FLOAT_OPERATION ST_FLOOR_DIVIDE ST_IDENTICAL ST_IDENTICAL_JUMP_FALSE ST_IDENTICAL_JUMP_TRUE ST_MAKE_ARRAY ST_MODULO ST_MULTIPLY ST_OUTER_TEMP ST_POINT_COORDINATE ST_POP ST_POP_STORE_LITERAL_VARIABLE_X ST_POP_STORE_TEMP ST_POP_STORE_TEMP_X ST_PUSH_CONSTANT ST_PUSH_FALSE ST_PUSH_INST_VAR ST_PUSH_INST_VAR_X ST_PUSH_LITERAL ST_PUSH_LITERAL_VARIABLE ST_PUSH_LITERAL_VARIABLE_X ST_PUSH_LITERAL_X ST_PUSH_NIL ST_PUSH_ONE ST_PUSH_SELF ST_PUSH_TEMP ST_PUSH_TEMP_X ST_PUSH_TRUE ST_PUSH_ZERO ST_RETURN_SELF ST_RETURN_TOP ST_SEND ST_SPECIAL_SEND ST_STORE_INST_VAR_X ST_STORE_LITERAL_VARIABLE_X ST_STORE_TEMP_X ST_SUBTRACT ST_SUBTRACT_OPERANDS ST_SUBTRACT_OPERANDS_INTO ST_TO_INTERPRETER TARGET_CONT TARGET_DATA TARGET_HOLE TARGET_SYMBOL'
+	instanceVariableNames: 'table libc threaded opened codeStart pcLabels deferred deferredPcs deferredCount slowStencils slowLabels slowNext slowJumps slowSlows slowValues slowCount resumePcs resumeDepths resumeCount values copySlots slotValues slotCount patchSites patchSlots patchKinds patchCount exitSyncLabel exitPlainLabel returnLabel failed gotBase symbolTargets dataBase exitSyncGlue returnGlue'
+	classVariableNames: 'CONT_EXIT CONT_EXIT_SYNC CONT_JUMP CONT_NEXT CONT_RETURN CONT_SLOW HOLE_A HOLE_B HOLE_C HOLE_COUNT HOLE_INFO HOLE_PC HOLE_SITE HOLE_VALUE RELOC_BRANCH RELOC_GOT_PAGE RELOC_GOT_PAGEOFF RELOC_GOT_PAIR RELOC_PAGE RELOC_PAGEOFF RELOC_THREAD STC_MAX_PATCHES STC_MAX_SLOTS STC_MAX_SLOW STC_MAX_SLOW_VALUES STC_MAX_SYMBOLS ST_ADD ST_ADD_OPERANDS ST_ADD_OPERANDS_INTO ST_BASIC_AT ST_BASIC_AT_PUT ST_BASIC_SIZE ST_BIT_AND ST_BIT_OR ST_BRANCH ST_BRANCH_BACK ST_BRANCH_IF ST_CLASS_OF ST_CLOSURE ST_COMPARE ST_COMPARE_JUMP_FALSE ST_COMPARE_JUMP_TRUE ST_COMPARE_OPERANDS ST_COMPARE_OPERANDS_JUMP_FALSE ST_COMPARE_OPERANDS_JUMP_TRUE ST_COUNT ST_DIVIDE ST_DUP ST_ENTRY ST_FLOAT_OPERATION ST_FLOOR_DIVIDE ST_IDENTICAL ST_IDENTICAL_JUMP_FALSE ST_IDENTICAL_JUMP_TRUE ST_MAKE_ARRAY ST_MODULO ST_MULTIPLY ST_OUTER_TEMP ST_POINT_COORDINATE ST_POP ST_POP_STORE_LITERAL_VARIABLE_X ST_POP_STORE_TEMP ST_POP_STORE_TEMP_X ST_PUSH_CONSTANT ST_PUSH_FALSE ST_PUSH_INST_VAR ST_PUSH_INST_VAR_X ST_PUSH_LITERAL ST_PUSH_LITERAL_VARIABLE ST_PUSH_LITERAL_VARIABLE_X ST_PUSH_LITERAL_X ST_PUSH_NIL ST_PUSH_ONE ST_PUSH_SELF ST_PUSH_TEMP ST_PUSH_TEMP_X ST_PUSH_TRUE ST_PUSH_ZERO ST_POLL_INTERRUPT ST_RETURN_SELF ST_RETURN_TOP ST_SEND ST_SPECIAL_SEND ST_STORE_INST_VAR_X ST_STORE_LITERAL_VARIABLE_X ST_STORE_TEMP_X ST_SUBTRACT ST_SUBTRACT_OPERANDS ST_SUBTRACT_OPERANDS_INTO ST_TO_INTERPRETER TARGET_CONT TARGET_DATA TARGET_HOLE TARGET_SYMBOL'
 	package: 'VM-Jit'!
 
 JitStencilCompiler comment: 'The copy-and-patch compiler (--jit stencil) and the call-threading compiler (--jit threaded): the same choice of stencils (JitStencils) for every instruction, emitted two ways. Copy-and-patch copies each stencil''s code (JitStencilTable, what cc made of it when the VM was translated) and patches its holes: operands relaxed from GOT loads to movz, movk, adr or adrp and add (or loaded from a literal slot after the method), continuations to the next instruction (a trailing branch to it elided, a trailing return replaced by the epilogue), the jump target or the out-of-line code, calls of the VM directly or through veneers. Call threading emits a bl of each stencil''s function in the VM, its holes in x0-x7, then branches on the continuation it answers. Dispatch is gone in both; only copy-and-patch also has the code inline.
@@ -11,7 +11,7 @@ The conventions of both (docs/jit.md): x20-x22 as for every compiler, x23 the to
 declarations
 	^#((table JitStencilTable) (libc LibC) (threaded bool) (opened bool) (codeStart uint64_t)
 		(pcLabels 'int32_t[ANA_MAX]') (deferred 'uint8_t[ANA_MAX]') (deferredPcs 'int32_t[STC_MAX_SLOW]') (deferredCount int32_t)
-		(slowStencils 'int32_t[STC_MAX_SLOW]') (slowLabels 'int32_t[STC_MAX_SLOW]') (slowNext 'int32_t[STC_MAX_SLOW]') (slowJumps 'int32_t[STC_MAX_SLOW]')
+		(slowStencils 'int32_t[STC_MAX_SLOW]') (slowLabels 'int32_t[STC_MAX_SLOW]') (slowNext 'int32_t[STC_MAX_SLOW]') (slowJumps 'int32_t[STC_MAX_SLOW]') (slowSlows 'int32_t[STC_MAX_SLOW]')
 		(slowValues 'uint64_t[STC_MAX_SLOW_VALUES]') (slowCount int32_t)
 		(resumePcs 'int32_t[STC_MAX_SLOW]') (resumeDepths 'int32_t[STC_MAX_SLOW]') (resumeCount int32_t)
 		(values 'uint64_t[8]') (copySlots 'int32_t[8]')
@@ -43,6 +43,7 @@ initialize
 	RELOC_GOT_PAGEOFF := 4.
 	RELOC_PAGE := 5.
 	RELOC_PAGEOFF := 6.
+	RELOC_THREAD := 7.
 	TARGET_HOLE := 1.
 	TARGET_CONT := 2.
 	TARGET_SYMBOL := 3.
@@ -129,7 +130,7 @@ emitReturnFrom: aRegister
 compile: m threaded: aBoolean
 	"Emit m's code at the assembler's pc (BytecodeAnalysis has analyzed it): copies of the stencils, or calls of the threaded ones. Answer whether every reachable instruction got its code."
 	<c: 'bool jit_stencil_compile(oop m, bool threaded)'>
-	| n pc |
+	| n pc k |
 	opened ifFalse: [^false].
 	threaded := aBoolean.
 	failed := false.
@@ -157,7 +158,10 @@ compile: m threaded: aBoolean
 		pc := deferredPcs at: i.
 		(self emitAt: pc asInt32) ifFalse: [^false].
 		asm b: (self labelFor: pc + (analysis lengthAt: pc))].
-	0 to: slowCount - 1 do: [:i | self emitSlowPath: i].
+	k := 0.
+	[k < slowCount] whileTrue: [
+		self emitSlowPath: k.
+		k := k + 1].
 	0 to: resumeCount - 1 do: [:i | self emitResumption: i].
 	threaded ifTrue: [
 		asm bind: exitSyncLabel.
@@ -210,7 +214,7 @@ emitEntry: pc depth: d
 	asm pc - entry = runtime prologueBytes asUInt64 ifFalse: [^false].
 	runtime noteResume: pc at: asm pc - codeStart.
 	self emitState: d.
-	(self use: ST_ENTRY) ifFalse: [^false].
+	(self use: ST_ENTRY next: -1 jump: -1 slow: (self slow: ST_POLL_INTERRUPT next: (self labelFor: pc) jump: -1)) ifFalse: [^false].
 	asm bind: (self labelFor: pc).
 	^true
 !
@@ -239,8 +243,11 @@ emitResumption: i
 	asm b: (self labelFor: (resumePcs at: i))
 !
 slow: s next: nextLabel jump: jumpLabel
+	^self slow: s next: nextLabel jump: jumpLabel slow: -1
+!
+slow: s next: nextLabel jump: jumpLabel slow: slowLabel
 	"Out of line, after the method: stencil s with the current holes, continuing at nextLabel. Answer its label (-1 if there are too many)."
-	<c: 'int32_t stc_slow(int32_t s, int32_t next, int32_t jump)'>
+	<c: 'int32_t stc_slow(int32_t s, int32_t next, int32_t jump, int32_t slow)'>
 	| l |
 	slowCount >= STC_MAX_SLOW ifTrue: [^-1].
 	l := asm newLabel.
@@ -248,6 +255,7 @@ slow: s next: nextLabel jump: jumpLabel
 	slowLabels at: slowCount put: l.
 	slowNext at: slowCount put: nextLabel.
 	slowJumps at: slowCount put: jumpLabel.
+	slowSlows at: slowCount put: slowLabel.
 	0 to: HOLE_COUNT - 1 do: [:h | slowValues at: 8 * slowCount + h put: (values at: h)].
 	slowCount := slowCount + 1.
 	^l
@@ -256,7 +264,7 @@ emitSlowPath: i
 	asm bind: (slowLabels at: i).
 	0 to: HOLE_COUNT - 1 do: [:h | values at: h put: (slowValues at: 8 * i + h)].
 	asm bytecode: (values at: HOLE_PC) asInt64.
-	(self use: (slowStencils at: i) next: (slowNext at: i) jump: (slowJumps at: i) slow: -1) ifFalse: [failed := true]
+	(self use: (slowStencils at: i) next: (slowNext at: i) jump: (slowJumps at: i) slow: (slowSlows at: i)) ifFalse: [failed := true]
 ! !
 
 !JitStencilCompiler methodsFor: 'instructions'!
@@ -339,7 +347,7 @@ jumpTo: t next: next
 	"An unconditional jump; a backward one checks for interrupts (synced at its target)."
 	(analysis isLoopHead: t) ifTrue: [
 		values at: HOLE_PC put: t asUInt64.
-		^self use: ST_BRANCH_BACK jump: (self labelFor: t)].
+		^self use: ST_BRANCH_BACK next: -1 jump: (self labelFor: t) slow: (self slow: ST_POLL_INTERRUPT next: (self labelFor: t) jump: -1)].
 	t = next ifTrue: [^true].
 	^self use: ST_BRANCH jump: (self labelFor: t)
 !
@@ -349,7 +357,7 @@ branchLabelFor: t
 	(analysis isLoopHead: t) ifFalse: [^self labelFor: t].
 	saved := values at: HOLE_PC.
 	values at: HOLE_PC put: t asUInt64.
-	l := self slow: ST_BRANCH_BACK next: -1 jump: (self labelFor: t).
+	l := self slow: ST_BRANCH_BACK next: -1 jump: (self labelFor: t) slow: (self slow: ST_POLL_INTERRUPT next: (self labelFor: t) jump: -1).
 	values at: HOLE_PC put: saved.
 	l < 0 ifTrue: [failed := true].
 	^l
@@ -468,22 +476,30 @@ use: s next: nextLabel jump: jumpLabel slow: slowLabel
 	^self copy: s next: nextLabel jump: jumpLabel slow: slowLabel
 !
 copy: s next: nextLabel jump: jumpLabel slow: slowLabel
-	"Copy stencil s's code and patch it. A trailing branch to the next instruction is left out, a trailing branch to the return replaced by the epilogue."
-	| off size first n r last trailing start end k continues |
-	off := table stencils at: 4 * s.
-	size := (table stencils at: 4 * s + 1) asInt64.
-	first := (table stencils at: 4 * s + 2) asInt64.
-	n := (table stencils at: 4 * s + 3) asInt64.
-	trailing := -1.
-	continues := false.
-	0 to: n - 1 do: [:i |
-		r := table relocations + (4 * (first + i)).
-		((r at: 1) bitAnd: 16rFFFF) = (RELOC_BRANCH bitOr: TARGET_CONT << 8) ifTrue: [
-			(r at: 1) >> 16 = CONT_NEXT ifTrue: [continues := true].
-			((r at: 0) = (size - 4) and: [(r at: 1) >> 16 = CONT_NEXT or: [(r at: 1) >> 16 = CONT_RETURN]]) ifTrue: [trailing := ((r at: 1) >> 16) asInt32]]].
-	last := trailing >= 0 ifTrue: [first + n - 1] ifFalse: [first + n].
+	"Copy stencil s's code and patch it. Branches to a trampoline go where it goes if they reach; when that frees the stencil's trailing trampolines they are not copied. A trailing branch to the next instruction is left out, a trailing branch to the return replaced by the epilogue."
+	| off size first n keep length r last trailing start end k continues |
+	off := table stencils at: 5 * s.
+	size := (table stencils at: 5 * s + 1) asInt64.
+	first := (table stencils at: 5 * s + 2) asInt64.
+	n := (table stencils at: 5 * s + 3) asInt64.
+	keep := (table stencils at: 5 * s + 4) asInt64.
 	start := asm pc.
-	(self emitCode: table code + off size: (trailing >= 0 ifTrue: [size - 4] ifFalse: [size]) relocations: first to: last) ifFalse: [^false].
+	length := size.
+	(keep > 0 and: [self canCut: first + n from: first keep: keep at: start jump: jumpLabel slow: slowLabel]) ifTrue: [length := keep].
+	last := first.
+	continues := false.
+	[last < (first + n) and: [(table relocations at: 4 * last) < length]] whileTrue: [
+		r := table relocations + (4 * last).
+		((((r at: 1) >> 8) bitAnd: 255) = TARGET_CONT and: [(r at: 1) >> 16 = CONT_NEXT]) ifTrue: [continues := true].
+		last := last + 1].
+	trailing := -1.
+	last > first ifTrue: [
+		r := table relocations + (4 * (last - 1)).
+		((r at: 0) = (length - 4) and: [((r at: 1) bitAnd: 16rFFFF) = (RELOC_BRANCH bitOr: TARGET_CONT << 8) and: [(r at: 1) >> 16 = CONT_NEXT or: [(r at: 1) >> 16 = CONT_RETURN]]]) ifTrue: [
+			trailing := ((r at: 1) >> 16) asInt32.
+			last := last - 1.
+			length := length - 4]].
+	(self emitCode: table code + off size: length relocations: first to: last) ifFalse: [^false].
 	end := asm pc.
 	values at: HOLE_SITE put: start.
 	0 to: 7 do: [:i | copySlots at: i put: -1].
@@ -494,6 +510,53 @@ copy: s next: nextLabel jump: jumpLabel slow: slowLabel
 	trailing = CONT_RETURN ifTrue: [self emitReturnFrom: X24].
 	(continues and: [nextLabel >= 0]) ifTrue: [asm b: nextLabel].
 	^true
+!
+canCut: limit from: first keep: keep at: start jump: jumpLabel slow: slowLabel
+	"Every branch to a trampoline at keep or after goes where the trampoline goes."
+	| r |
+	first to: limit - 1 do: [:k |
+		r := table relocations + (4 * k).
+		(((r at: 1) bitAnd: 255) = RELOC_THREAD and: [(r at: 3) >= keep]) ifTrue: [
+			(self canThread: r at: start + (r at: 0) jump: jumpLabel slow: slowLabel) ifFalse: [^false]]].
+	^true
+!
+canThread: r at: site jump: jumpLabel slow: slowLabel
+	"Whether the branch at site (RELOC_THREAD r: offset bits r at: 2) reaches where its trampoline goes. A label not bound yet is in reach for b.cond, cbz and b of a method of fewer than 4096 bytecodes."
+	| target id label |
+	target := ((r at: 1) >> 8) bitAnd: 255.
+	id := ((r at: 1) >> 16) asInt32.
+	target = TARGET_SYMBOL ifTrue: [^self branch: (r at: 2) asInt32 at: site reaches: (symbolTargets at: id)].
+	target ~= TARGET_CONT ifTrue: [^false].
+	id = CONT_NEXT ifTrue: [^true].
+	(id = CONT_JUMP or: [id = CONT_SLOW]) ifTrue: [
+		label := id = CONT_JUMP ifTrue: [jumpLabel] ifFalse: [slowLabel].
+		label < 0 ifTrue: [^false].
+		(asm addressOf: label) ~= 0 ifTrue: [^self branch: (r at: 2) asInt32 at: site reaches: (asm addressOf: label)].
+		^(r at: 2) >= 19 and: [analysis size < 4096]].
+	^self branch: (r at: 2) asInt32 at: site reaches: (self addressOfContinuation: id)
+!
+branch: bits at: site reaches: address
+	| d |
+	d := (address - site) asInt64 >> 2.
+	^d between: (1 << (bits - 1)) negated and: (1 << (bits - 1)) - 1
+!
+addressOfContinuation: id
+	"EXIT_SYNC, EXIT, RETURN: the glue's address."
+	id = CONT_EXIT_SYNC ifTrue: [^exitSyncGlue].
+	id = CONT_EXIT ifTrue: [^stubs exitPlainAddress].
+	^returnGlue
+!
+thread: r at: site next: end jump: jumpLabel slow: slowLabel
+	"Point the branch at site where its trampoline goes, if it reaches."
+	| target id |
+	target := ((r at: 1) >> 8) bitAnd: 255.
+	id := ((r at: 1) >> 16) asInt32.
+	(self canThread: r at: site jump: jumpLabel slow: slowLabel) ifFalse: [^true].
+	target = TARGET_SYMBOL ifTrue: [^asm patchBranchAt: site to: (symbolTargets at: id)].
+	id = CONT_NEXT ifTrue: [^asm patchBranchAt: site to: end].
+	id = CONT_JUMP ifTrue: [^asm branchAt: site to: jumpLabel].
+	id = CONT_SLOW ifTrue: [^asm branchAt: site to: slowLabel].
+	^asm patchBranchAt: site to: (self addressOfContinuation: id)
 !
 emitCode: src size: n relocations: first to: last
 	"The stencil's code at pc; with notes word by word, each hole and continuation commented."
@@ -539,15 +602,14 @@ patch: r at: start next: end jump: jumpLabel slow: slowLabel
 	id := ((r at: 1) >> 16) asInt32.
 	addend := (r at: 3) asInt32.
 	site := start + (r at: 0).
+	kind = RELOC_THREAD ifTrue: [^self thread: r at: site next: end jump: jumpLabel slow: slowLabel].
 	kind = RELOC_BRANCH ifTrue: [
 		target = TARGET_SYMBOL ifTrue: [^asm patchBranchAt: site to: (symbolTargets at: id) + addend].
 		target ~= TARGET_CONT ifTrue: [^false].
 		id = CONT_NEXT ifTrue: [^asm patchBranchAt: site to: end].
 		id = CONT_JUMP ifTrue: [^jumpLabel >= 0 and: [asm branchAt: site to: jumpLabel]].
 		id = CONT_SLOW ifTrue: [^slowLabel >= 0 and: [asm branchAt: site to: slowLabel]].
-		id = CONT_EXIT_SYNC ifTrue: [^asm patchBranchAt: site to: exitSyncGlue].
-		id = CONT_EXIT ifTrue: [^asm patchBranchAt: site to: stubs exitPlainAddress].
-		^asm patchBranchAt: site to: returnGlue].
+		^asm patchBranchAt: site to: (self addressOfContinuation: id)].
 	target = TARGET_SYMBOL ifTrue: [
 		v := gotBase + (8 * id).
 		kind = RELOC_GOT_PAIR ifTrue: [^(asm patchBranchAt: site to: v) and: [self pageOffsetAt: start + (r at: 2) to: v scale: 3]].

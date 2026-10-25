@@ -21,7 +21,7 @@ code
 	^self error: 'the stencil table is not simulated'
 !
 stencils
-	"per stencil: offset in code, size, first relocation, relocations"
+	"per stencil: offset in code, size, first relocation, relocations, keep"
 	<cVariable: 'const uint32_t *jit_stencils'>
 	^self error: 'the stencil table is not simulated'
 !

@@ -5,7 +5,7 @@ Object subclass: #StencilTable
 
 StencilTable comment: 'I make the copy-and-patch stencil table (C, compiled into the VM) of the object file cc made of the stencils (a MachObjectFile): per stencil its code and its holes, the relocations JitStencilCompiler patches when it copies the code (kind, offset, target, addend); the VM''s functions and data the stencils use (their addresses); the object''s data sections, copied once into the code cache.
 
-Relocations (constants of the compiler class, JitStencilCompiler): RELOC_BRANCH (b, bl: a continuation, _JIT_NEXT ..., or a VM function), RELOC_GOT_PAIR (adrp and ldr of a GOT load the compiler''s linker optimization hints pair, at offset and offset2: a hole _JIT_A ... or the address of a VM symbol; JitStencilCompiler relaxes them to movz, movk, adr, adrp and add as the value allows), RELOC_GOT_PAGE and RELOC_GOT_PAGEOFF (a GOT load without a hint), RELOC_PAGE and RELOC_PAGEOFF (adrp and add or a load: an address in the data; offset2 the load''s scale). Targets: TARGET_HOLE, TARGET_CONT, TARGET_SYMBOL (an index into the symbols), TARGET_DATA (the addend is the offset in the data).
+Relocations (constants of the compiler class, JitStencilCompiler): RELOC_BRANCH (b, bl: a continuation, _JIT_NEXT ..., or a VM function), RELOC_GOT_PAIR (adrp and ldr of a GOT load the compiler''s linker optimization hints pair, at offset and offset2: a hole _JIT_A ... or the address of a VM symbol; JitStencilCompiler relaxes them to movz, movk, adr, adrp and add as the value allows), RELOC_GOT_PAGE and RELOC_GOT_PAGEOFF (a GOT load without a hint), RELOC_PAGE and RELOC_PAGEOFF (adrp and add or a load: an address in the data; offset2 the load''s scale), RELOC_THREAD (an internal b, b.cond, cbz or tbz to a trampoline at addend: where the trampoline goes; offset2 the bits of its offset). Targets: TARGET_HOLE, TARGET_CONT, TARGET_SYMBOL (an index into the symbols), TARGET_DATA (the addend is the offset in the data).
 
 	(StencilTable object: aMachObjectFile compiler: JitStencilCompiler stencils: #(''stencil_add'' ...) names: #(''add'' ...)) cSource'!
 
@@ -104,7 +104,7 @@ readStencils
 readStencil: aName from: start to: end in: text
 	| first raw pending |
 	first := relocs size.
-	entries add: (Array with: code position with: end - start with: first with: 0 with: aName).
+	entries add: (Array with: code position with: end - start with: first with: 0 with: aName with: 0).
 	start to: end - 1 do: [:i | code nextPut: (text bytes at: i + 1)].
 	raw := OrderedCollection new.
 	pending := 0.
@@ -116,7 +116,39 @@ readStencil: aName from: start to: end in: text
 					raw add: (Array with: r with: r address - start with: pending).
 					pending := 0]]].
 	self convert: raw text: text start: start.
+	self threadBranchesIn: text from: start to: end.
 	(entries last) at: 4 put: relocs size - first
+!
+threadBranchesIn: text from: start to: end
+	"Internal branches to a trampoline (b to a continuation or a VM function): RELOC_THREAD relocations, so that the compiler can point them where the trampoline goes. If the stencil ends with trampolines only those branches reach, all but the first need not be copied: its keep (else 0)."
+	| first trampolines word disp kind c |
+	first := (entries last) at: 3.
+	trampolines := Dictionary new.
+	(relocs copyFrom: first + 1 to: relocs size) do: [:r |
+		(((r at: 2) bitAnd: 255) = (self constant: 'RELOC_BRANCH') and: [(r at: 4) = 0 and: [((text wordAt: start + (r at: 1)) bitAnd: 16rFC000000) = 16r14000000]]) ifTrue: [
+			trampolines at: (r at: 1) put: r]].
+	0 to: end - start - 4 by: 4 do: [:o |
+		(trampolines includesKey: o) ifFalse: [
+			word := text wordAt: start + o.
+			disp := nil.
+			(word bitAnd: 16rFC000000) = 16r14000000 ifTrue: [disp := self signed: (word bitAnd: 16r3FFFFFF) bits: 26. kind := 26].
+			((word bitAnd: 16rFF000010) = 16r54000000 or: [(word bitAnd: 16r7E000000) = 16r34000000]) ifTrue: [
+				disp := self signed: ((word bitShift: -5) bitAnd: 16r7FFFF) bits: 19. kind := 19].
+			(word bitAnd: 16r7E000000) = 16r36000000 ifTrue: [disp := self signed: ((word bitShift: -5) bitAnd: 16r3FFF) bits: 14. kind := 14].
+			(disp notNil and: [(relocs copyFrom: first + 1 to: relocs size) noneSatisfy: [:r | (r at: 1) = o]]) ifTrue: [
+				(trampolines at: o + (4 * disp) ifAbsent: [nil]) ifNotNil: [:t |
+					relocs add: (Array
+						with: o
+						with: (((t at: 2) bitClear: 255) bitOr: (self constant: 'RELOC_THREAD'))
+						with: kind
+						with: o + (4 * disp))]]]].
+	self sortLast.
+	c := end - start.
+	[c > 0 and: [trampolines includesKey: c - 4]] whileTrue: [c := c - 4].
+	(c + 4 < (end - start) and: [trampolines includesKey: c]) ifTrue: [(entries last) at: 6 put: c + 4]
+!
+signed: v bits: n
+	^v >= (1 bitShift: n - 1) ifTrue: [v - (1 bitShift: n)] ifFalse: [v]
 !
 convert: raw text: text start: start
 	"Pair the adrp and the ldr of each GOT load the compiler marked as relaxable (a linker optimization hint)."
@@ -204,11 +236,11 @@ cSource
 		nextPutAll: ', '; print: data size; nextPutAll: ', '; print: dataRelocs size; nextPutAll: '};'; lf; lf.
 	s nextPutAll: '/* the stencils'' code */'; lf.
 	self printBytes: code contents named: 'jit_stencil_code' on: s.
-	s nextPutAll: '/* per stencil: offset, size, first relocation, relocations */'; lf.
+	s nextPutAll: '/* per stencil: offset, size, first relocation, relocations, keep (the bytes to copy when the threaded branches avoid its trailing trampolines, else 0) */'; lf.
 	s nextPutAll: 'const uint32_t jit_stencils[] = {'; lf.
 	entries do: [:e |
 		s nextPutAll: '    '; print: (e at: 1); nextPutAll: ', '; print: (e at: 2); nextPutAll: ', '; print: (e at: 3); nextPutAll: ', '; print: (e at: 4);
-			nextPutAll: ', /* '; nextPutAll: (e at: 5); nextPutAll: ' */'; lf].
+			nextPutAll: ', '; print: (e at: 6); nextPutAll: ', /* '; nextPutAll: (e at: 5); nextPutAll: ' */'; lf].
 	s nextPutAll: '};'; lf; lf.
 	s nextPutAll: '/* per relocation: offset, kind | target << 8 | id << 16, offset2, addend */'; lf.
 	s nextPutAll: 'const uint32_t jit_stencil_relocs[] = {'; lf.

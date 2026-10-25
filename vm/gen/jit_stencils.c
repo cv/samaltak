@@ -376,23 +376,8 @@ JIT_STENCIL_FN void stencil_branch(JIT_ARGS)
 /* JitStencils>>branchBack */
 JIT_STENCIL_FN void stencil_branch_back(JIT_ARGS)
 {
-    bool r_leave_after_interrupt;
-    if (({
-    if (st->interrupt == 0) {
-        r_leave_after_interrupt = false;
-        goto exit_leave_after_interrupt;
-    }
-    fr->pc = (int32_t)JIT_HOLE(PC);
-    fr->sp = (int32_t)(sp - fp + 1);
-    if (jit_interrupt(fr) != 0) {
-        r_leave_after_interrupt = true;
-        goto exit_leave_after_interrupt;
-    }
-    JIT_SET(rcv, fp[-1]);
-    r_leave_after_interrupt = false;
-exit_leave_after_interrupt:;
-    r_leave_after_interrupt; })) {
-        JIT_TAIL(EXIT);
+    if (st->interrupt != 0) {
+        JIT_TAIL(SLOW);
     }
     JIT_TAIL(JUMP);
 }
@@ -2152,23 +2137,8 @@ JIT_STENCIL_FN void stencil_dup(JIT_ARGS)
 /* JitStencils>>entry */
 JIT_STENCIL_FN void stencil_entry(JIT_ARGS)
 {
-    bool r_leave_after_interrupt;
-    if (({
-    if (st->interrupt == 0) {
-        r_leave_after_interrupt = false;
-        goto exit_leave_after_interrupt;
-    }
-    fr->pc = (int32_t)JIT_HOLE(PC);
-    fr->sp = (int32_t)(sp - fp + 1);
-    if (jit_interrupt(fr) != 0) {
-        r_leave_after_interrupt = true;
-        goto exit_leave_after_interrupt;
-    }
-    JIT_SET(rcv, fp[-1]);
-    r_leave_after_interrupt = false;
-exit_leave_after_interrupt:;
-    r_leave_after_interrupt; })) {
-        JIT_TAIL(EXIT);
+    if (st->interrupt != 0) {
+        JIT_TAIL(SLOW);
     }
     JIT_TAIL(NEXT);
 }
@@ -3448,6 +3418,30 @@ JIT_STENCIL_FN void stencil_point_coordinate_28(JIT_ARGS)
         JIT_TAIL(NEXT);
     }
     JIT_TAIL(SLOW);
+}
+
+/* JitStencils>>pollInterrupt */
+JIT_STENCIL_FN void stencil_poll_interrupt(JIT_ARGS)
+{
+    bool r_leave_after_interrupt;
+    if (({
+    if (st->interrupt == 0) {
+        r_leave_after_interrupt = false;
+        goto exit_leave_after_interrupt;
+    }
+    fr->pc = (int32_t)JIT_HOLE(PC);
+    fr->sp = (int32_t)(sp - fp + 1);
+    if (jit_interrupt(fr) != 0) {
+        r_leave_after_interrupt = true;
+        goto exit_leave_after_interrupt;
+    }
+    JIT_SET(rcv, fp[-1]);
+    r_leave_after_interrupt = false;
+exit_leave_after_interrupt:;
+    r_leave_after_interrupt; })) {
+        JIT_TAIL(EXIT);
+    }
+    JIT_TAIL(NEXT);
 }
 
 /* JitStencils>>pop */

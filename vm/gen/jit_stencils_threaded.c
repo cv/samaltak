@@ -376,25 +376,10 @@ static uint64_t thr_branch(void)
 }
 
 /* JitStencils>>branchBack */
-static uint64_t thr_branch_back(uint64_t hole_PC)
+static uint64_t thr_branch_back(void)
 {
-    bool r_leave_after_interrupt;
-    if (({
-    if (st->interrupt == 0) {
-        r_leave_after_interrupt = false;
-        goto exit_leave_after_interrupt;
-    }
-    fr->pc = (int32_t)JIT_HOLE(PC);
-    fr->sp = (int32_t)(sp - fp + 1);
-    if (jit_interrupt(fr) != 0) {
-        r_leave_after_interrupt = true;
-        goto exit_leave_after_interrupt;
-    }
-    JIT_SET(rcv, fp[-1]);
-    r_leave_after_interrupt = false;
-exit_leave_after_interrupt:;
-    r_leave_after_interrupt; })) {
-        JIT_TAIL(EXIT);
+    if (st->interrupt != 0) {
+        JIT_TAIL(SLOW);
     }
     JIT_TAIL(JUMP);
 }
@@ -2152,25 +2137,10 @@ static uint64_t thr_dup(void)
 }
 
 /* JitStencils>>entry */
-static uint64_t thr_entry(uint64_t hole_PC)
+static uint64_t thr_entry(void)
 {
-    bool r_leave_after_interrupt;
-    if (({
-    if (st->interrupt == 0) {
-        r_leave_after_interrupt = false;
-        goto exit_leave_after_interrupt;
-    }
-    fr->pc = (int32_t)JIT_HOLE(PC);
-    fr->sp = (int32_t)(sp - fp + 1);
-    if (jit_interrupt(fr) != 0) {
-        r_leave_after_interrupt = true;
-        goto exit_leave_after_interrupt;
-    }
-    JIT_SET(rcv, fp[-1]);
-    r_leave_after_interrupt = false;
-exit_leave_after_interrupt:;
-    r_leave_after_interrupt; })) {
-        JIT_TAIL(EXIT);
+    if (st->interrupt != 0) {
+        JIT_TAIL(SLOW);
     }
     JIT_TAIL(NEXT);
 }
@@ -3450,6 +3420,30 @@ static uint64_t thr_point_coordinate_28(void)
         JIT_TAIL(NEXT);
     }
     JIT_TAIL(SLOW);
+}
+
+/* JitStencils>>pollInterrupt */
+static uint64_t thr_poll_interrupt(uint64_t hole_PC)
+{
+    bool r_leave_after_interrupt;
+    if (({
+    if (st->interrupt == 0) {
+        r_leave_after_interrupt = false;
+        goto exit_leave_after_interrupt;
+    }
+    fr->pc = (int32_t)JIT_HOLE(PC);
+    fr->sp = (int32_t)(sp - fp + 1);
+    if (jit_interrupt(fr) != 0) {
+        r_leave_after_interrupt = true;
+        goto exit_leave_after_interrupt;
+    }
+    JIT_SET(rcv, fp[-1]);
+    r_leave_after_interrupt = false;
+exit_leave_after_interrupt:;
+    r_leave_after_interrupt; })) {
+        JIT_TAIL(EXIT);
+    }
+    JIT_TAIL(NEXT);
 }
 
 /* JitStencils>>pop */
@@ -5108,6 +5102,7 @@ const uint64_t jit_threaded_fns[] = {
     (uint64_t)(uintptr_t)&thr_outer_temp_2,
     (uint64_t)(uintptr_t)&thr_point_coordinate_27,
     (uint64_t)(uintptr_t)&thr_point_coordinate_28,
+    (uint64_t)(uintptr_t)&thr_poll_interrupt,
     (uint64_t)(uintptr_t)&thr_pop,
     (uint64_t)(uintptr_t)&thr_pop_store_literal_variable_x,
     (uint64_t)(uintptr_t)&thr_pop_store_temp_0,
@@ -5245,37 +5240,37 @@ const uint64_t jit_threaded_fns[] = {
 
 /* the holes each takes (bits HOLE_...), the continuations it answers (bits CONT_...) */
 const uint32_t jit_threaded_holes[] = {
-    0, 22, 22, 18, 54, 54, 50, 0, 0, 0, 0, 0, 0, 1, 1, 1,
+    0, 22, 22, 18, 54, 54, 50, 0, 0, 0, 0, 0, 0, 0, 1, 1,
     0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
     0, 0, 0, 0, 22, 22, 18, 22, 22, 18, 22, 22, 18, 22, 22, 18,
     22, 22, 18, 22, 22, 18, 22, 22, 18, 22, 22, 18, 22, 22, 18, 22,
-    22, 18, 22, 22, 18, 22, 22, 18, 0, 0, 1, 73, 73, 73, 73, 73,
+    22, 18, 22, 22, 18, 22, 22, 18, 0, 0, 0, 73, 73, 73, 73, 73,
     73, 73, 73, 73, 73, 0, 0, 0, 0, 0, 0, 0, 3, 0, 0, 6,
-    6, 6, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 0, 2, 16,
+    6, 6, 0, 0, 1, 0, 2, 0, 0, 0, 0, 0, 0, 0, 0, 2,
+    16, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+    0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
     0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-    0, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
     0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
     0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-    0, 0, 2, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-    0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 1, 1, 73, 73, 3, 2,
-    2, 0, 22, 22, 18, 54, 54, 50, 1,
+    0, 0, 0, 2, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+    0, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 1, 1, 73, 73, 3,
+    2, 2, 0, 22, 22, 18, 54, 54, 50, 1,
 };
 
 const uint32_t jit_threaded_conts[] = {
-    5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 2, 18, 11, 11,
+    5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 2, 6, 11, 11,
     5, 18, 5, 5, 5, 5, 5, 5, 7, 7, 7, 7, 7, 7, 7, 7,
     7, 7, 7, 7, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5,
     7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7,
-    7, 7, 7, 7, 7, 7, 7, 7, 5, 1, 17, 17, 17, 17, 17, 17,
+    7, 7, 7, 7, 7, 7, 7, 7, 5, 1, 5, 17, 17, 17, 17, 17,
     17, 17, 17, 17, 17, 5, 1, 1, 3, 3, 3, 3, 17, 5, 5, 1,
-    1, 1, 5, 5, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
+    1, 1, 5, 5, 17, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
     1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
     1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
     1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
     1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
     1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
     1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
-    1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 40, 40, 17, 17, 9, 1,
-    1, 5, 5, 5, 5, 5, 5, 5, 8,
+    1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 40, 40, 17, 17, 9,
+    1, 1, 5, 5, 5, 5, 5, 5, 5, 8,
 };
