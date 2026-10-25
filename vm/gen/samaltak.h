@@ -10,6 +10,7 @@
 #include <pthread.h>
 #include <sys/mman.h>
 #include <libkern/OSCacheControl.h>
+#include "jit_stencils.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <math.h>
@@ -119,6 +120,12 @@ typedef void (*prim_fn)(void);
 #define COND_PL 5
 #define COND_VC 7
 #define COND_VS 6
+#define CONT_EXIT 4
+#define CONT_EXIT_SYNC 3
+#define CONT_JUMP 1
+#define CONT_NEXT 0
+#define CONT_RETURN 5
+#define CONT_SLOW 2
 #define CSTACK_SLOTS 65536
 #define CTX_CLOSURE 4
 #define CTX_FIXED 6
@@ -180,6 +187,14 @@ typedef void (*prim_fn)(void);
 #define F_W32 10
 #define F_W64 9
 #define F_WEAK 4
+#define HOLE_A 1
+#define HOLE_B 2
+#define HOLE_COUNT 6
+#define HOLE_INFO 3
+#define HOLE_PARAMETERS 4
+#define HOLE_PC 0
+#define HOLE_SITE 4
+#define HOLE_VALUE 5
 #define HUNG_UP_MAX 64
 #define H_AGE_MASK 6917529027641081856LL
 #define H_AGE_SHIFT 61
@@ -203,8 +218,10 @@ typedef void (*prim_fn)(void);
 #define JIT_MAX_YOUNG 4096
 #define JIT_NONE 0
 #define JIT_PROLOGUE_BYTES 20
+#define JIT_STENCIL 3
 #define JIT_TABLE_SIZE 65536
 #define JIT_TEMPLATE 1
+#define JIT_THREADED 2
 #define JM_DEAD 2
 #define JM_FAILED 1
 #define JM_NOTES 4
@@ -326,6 +343,12 @@ typedef void (*prim_fn)(void);
 #define REG_D 128
 #define REG_SP 32
 #define REG_W 64
+#define RELOC_BRANCH 1
+#define RELOC_GOT_PAGE 3
+#define RELOC_GOT_PAGEOFF 4
+#define RELOC_GOT_PAIR 2
+#define RELOC_PAGE 5
+#define RELOC_PAGEOFF 6
 #define SCHED_ACTIVE 1
 #define SCHED_LISTS 0
 #define SEM_EXCESS 2
@@ -377,7 +400,72 @@ typedef void (*prim_fn)(void);
 #define SO_WIDESTRING 13
 #define SO_WIDESYMBOL 33
 #define SP 63
+#define STC_MAX_PATCHES 8192
+#define STC_MAX_SLOTS 4096
+#define STC_MAX_SLOW 16384
+#define STC_MAX_SLOW_VALUES 131072
+#define STC_MAX_SYMBOLS 256
 #define STUB_MAX_SYMBOLS 16
+#define ST_ADD 0
+#define ST_ARRAY_AT 1
+#define ST_ARRAY_AT_PUT 2
+#define ST_ARRAY_SIZE 3
+#define ST_BIT_AND 4
+#define ST_BIT_OR 5
+#define ST_BRANCH 6
+#define ST_BRANCH_BACK 7
+#define ST_BRANCH_IF 8
+#define ST_CLASS_OF 10
+#define ST_CLOSURE 11
+#define ST_COMPARE 12
+#define ST_COMPARE_JUMP_FALSE 18
+#define ST_COMPARE_JUMP_TRUE 24
+#define ST_COUNT 185
+#define ST_DIVIDE 30
+#define ST_DUP 31
+#define ST_ENTRY 32
+#define ST_FLOAT_OPERATION 33
+#define ST_FLOOR_DIVIDE 43
+#define ST_IDENTICAL 44
+#define ST_IDENTICAL_JUMP_FALSE 46
+#define ST_IDENTICAL_JUMP_TRUE 48
+#define ST_MAKE_ARRAY 50
+#define ST_MODULO 51
+#define ST_MULTIPLY 52
+#define ST_OUTER_TEMP 53
+#define ST_POINT_COORDINATE 56
+#define ST_POP 58
+#define ST_POP_STORE_LITERAL_VARIABLE_X 59
+#define ST_POP_STORE_TEMP 60
+#define ST_POP_STORE_TEMP_X 68
+#define ST_PUSH_CONSTANT 69
+#define ST_PUSH_FALSE 70
+#define ST_PUSH_INST_VAR 71
+#define ST_PUSH_INST_VAR_X 87
+#define ST_PUSH_LITERAL 88
+#define ST_PUSH_LITERAL_VARIABLE 120
+#define ST_PUSH_LITERAL_VARIABLE_X 152
+#define ST_PUSH_LITERAL_X 153
+#define ST_PUSH_NIL 154
+#define ST_PUSH_ONE 155
+#define ST_PUSH_SELF 156
+#define ST_PUSH_TEMP 157
+#define ST_PUSH_TEMP_X 173
+#define ST_PUSH_TRUE 174
+#define ST_PUSH_ZERO 175
+#define ST_RETURN_SELF 176
+#define ST_RETURN_TOP 177
+#define ST_SEND 178
+#define ST_SPECIAL_SEND 179
+#define ST_STORE_INST_VAR_X 180
+#define ST_STORE_LITERAL_VARIABLE_X 181
+#define ST_STORE_TEMP_X 182
+#define ST_SUBTRACT 183
+#define ST_TO_INTERPRETER 184
+#define TARGET_CONT 2
+#define TARGET_DATA 4
+#define TARGET_HOLE 1
+#define TARGET_SYMBOL 3
 #define TENURE_AGE 2
 #define TICK_DEADLINE 1
 #define TICK_POLL 2
@@ -673,6 +761,7 @@ extern int32_t bc_size;
 extern int32_t num_lits;
 extern uint64_t cache_base;
 extern uint64_t cache_limit;
+extern uint64_t cache_start;
 extern uint64_t cache_top;
 extern uint64_t alloc_limit;
 extern uint64_t eden_hi;
@@ -787,6 +876,7 @@ extern int32_t q_len;
 
 void asm_begin(uint64_t start, uint64_t limit);
 void asm_bind(int32_t label);
+bool asm_branch_at(uint64_t site, int32_t label);
 uint64_t asm_branch_target(uint64_t site);
 int32_t asm_finish(void);
 int32_t asm_fmov_immediate(double d);
@@ -905,6 +995,8 @@ void jit_start(void);
 uint64_t jit_widow(frame *f);
 uint64_t jit_write_barrier(oop o, oop v);
 void jit_young_roots(void (*fn)(oop *));
+bool jit_stencil_compile(oop m, bool threaded);
+bool jit_stencils_open(void);
 bool jit_generate_stubs(void);
 bool jit_template_compile(oop m);
 void prim_char_from_value(void);
