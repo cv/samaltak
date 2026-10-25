@@ -1,8 +1,8 @@
 #!/bin/sh
 # VM + image builder end-to-end tests: build the mini kernel image (vm/tests/mini), run each
 # Smalltalk test headless and compare stdout with vm/tests/expected/<Test>.txt.
-# Every test also runs with a 1 MB eden under the heap verifier (GC stress), and all of it again under the
-# template and the baseline JIT with every method compiled on its first activation; the tests also run under
+# Every test also runs with a 1 MB eden under the heap verifier (GC stress), and all of it again under each
+# JIT (template, threaded, stencil, baseline) with every method compiled on its first activation; the tests also run under
 # the JITs' default thresholds (counting activations, on-stack replacement).
 set -u
 ROOT=$(cd "$(dirname "$0")/../.." && pwd)
@@ -73,7 +73,7 @@ suite() { # label vm-options...
 }
 
 suite ""
-for mode in template baseline; do
+for mode in template threaded stencil baseline; do
     suite " (jit $mode)" --jit $mode --jit-threshold 0
     for t in $TESTS; do
         "$VM" --jit $mode "$IMG" --headless "$t" >"$OUT/$t.out" 2>&1

@@ -21,6 +21,7 @@ static int64_t young_slot_count;
 static uint64_t young_slots[16384];
 static bool young_slots_overflow;
 
+static jit_method *bl_header_of(oop m);
 static uint64_t bl_new_pic(uint64_t site, oop c0, jit_method *t0);
 static int64_t bl_ret_index(jit_method *h, uint64_t ret);
 static void bl_set_slot(uint64_t a, oop v);
@@ -252,6 +253,106 @@ uint64_t jit_bl_entry_slow(frame *f, uint64_t ret)
     return jit_interrupt(f);
 }
 
+/* JitBaselineRuntime>>feedbackCasesOf:site: */
+int64_t bl_feedback_cases(oop m, int64_t i)
+{
+    baseline_site *s;
+    s = bl_header_of(m)->sites + i;
+    if (s->pic != 0) {
+        return (int64_t)((baseline_pic *)s->pic)->count;
+    }
+    if ((s->target != 0) && ((s->info & BL_SITE_MEGA) == 0)) {
+        return 1;
+    }
+    return 0;
+}
+
+/* JitBaselineRuntime>>feedbackClassOf:site:case: */
+oop bl_feedback_class(oop m, int64_t i, int64_t j)
+{
+    jit_method *h;
+    baseline_site *s;
+    h = bl_header_of(m);
+    s = h->sites + i;
+    if (s->pic != 0) {
+        return *(uint64_t *)((uint64_t)&((baseline_pic *)s->pic)->classes + (uint64_t)(8 * j));
+    }
+    if (((s->info >> 24) & 3) == 1) {
+        return nil_oop;
+    }
+    return *(uint64_t *)(h->code_start + s->lit);
+}
+
+/* JitBaselineRuntime>>feedbackPcOf:site: */
+int64_t bl_feedback_pc(oop m, int64_t i)
+{
+    return (int64_t)(bl_header_of(m)->sites + i)->pc;
+}
+
+/* JitBaselineRuntime>>feedbackSelectorOf:site: */
+oop bl_feedback_selector(oop m, int64_t i)
+{
+    jit_method *h;
+    baseline_site *s;
+    uint64_t r_selector_of;
+    uint32_t info;
+    uint32_t i_2;
+    oop o;
+    oop o_2;
+    uint64_t o_3;
+    h = bl_header_of(m);
+    s = h->sites + i;
+    return ({
+    info = s->info;
+    i_2 = (info >> 16) & 255;
+    if (((info >> 24) & 3) == 2) {
+        o = special(SO_SPECIAL_SELECTORS);
+        r_selector_of = *(uint64_t *)(o + 16 + 8 * i_2);
+        goto exit_selector_of;
+    }
+    o_2 = h->method;
+    o_3 = *(uint64_t *)(o_2 + 16 + 16);
+    r_selector_of = *(uint64_t *)(o_3 + 16 + 8 * i_2);
+exit_selector_of:;
+    r_selector_of; });
+}
+
+/* JitBaselineRuntime>>feedbackSitesOf: */
+int64_t bl_feedback_sites(oop m)
+{
+    jit_method *h;
+    h = bl_header_of(m);
+    if (h == NULL) {
+        return -1;
+    }
+    return (int64_t)h->site_count;
+}
+
+/* JitBaselineRuntime>>feedbackStateOf:site: */
+int64_t bl_feedback_state(oop m, int64_t i)
+{
+    baseline_site *s;
+    s = bl_header_of(m)->sites + i;
+    if ((s->info & BL_SITE_MEGA) != 0) {
+        return 3;
+    }
+    if (s->pic != 0) {
+        return 2;
+    }
+    return s->target != 0 ? 1 : 0;
+}
+
+/* JitBaselineRuntime>>feedbackTargetOf:site:case: */
+oop bl_feedback_target(oop m, int64_t i, int64_t j)
+{
+    baseline_site *s;
+    s = bl_header_of(m)->sites + i;
+    if (s->pic != 0) {
+        return ((jit_method *)*(uint64_t *)((uint64_t)&((baseline_pic *)s->pic)->targets + (uint64_t)(8 * j)))->method;
+    }
+    return ((jit_method *)s->target)->method;
+}
+
 /* JitBaselineRuntime>>flushed */
 void bl_flushed(void)
 {
@@ -284,6 +385,17 @@ void bl_forget_slots_from(uint64_t address)
         }
     }
     young_slot_count = n;
+}
+
+/* JitBaselineRuntime>>headerOf: */
+static jit_method *bl_header_of(oop m)
+{
+    jit_method *h;
+    h = jit_lookup(m);
+    if (!((h != NULL) && ((h->flags & JM_FAILED) == 0) && (h->mode == JIT_BASELINE))) {
+        return (jit_method *)NULL;
+    }
+    return h;
 }
 
 /* JitBaselineRuntime>>miss:receiver:ret: */

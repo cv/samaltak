@@ -1,6 +1,6 @@
 VMCoreModule subclass: #JitRuntime
-	instanceVariableNames: 'stubs template baseline brt cache asm analysis jitMode jitFlags jitThreshold jitOsrThreshold jitCacheMB cacheOpened flushPending invalidations stateBlock methodTable tableCount methodCounts youngMethods youngCount youngOverflow mapPcs mapOffsets mapCount refSites refCount sendPushed performFn performArgsFn statCompiled statFailed statBytecodes statCompileUs statCodeBytes statCacheFlushes statEntries statExits statResumes statOsr'
-	classVariableNames: 'JIT_BASELINE JIT_FLAG_ACCESS JIT_FLAG_ALLOC JIT_FLAG_ARITH JIT_FLAG_BARRIER JIT_FLAG_BLOCKS JIT_FLAG_EMBED JIT_FLAG_FLOAT JIT_FLAG_FUSE JIT_FLAG_IC JIT_FLAG_LAST JIT_FLAG_MEGA JIT_FLAG_NLR JIT_FLAG_NOTES JIT_FLAG_PIC JIT_FLAG_PRIMS JIT_FLAG_QUICK JIT_FLAG_REGS JIT_FLAG_TEMPS JIT_MAX_COUNT JIT_MAX_MAP JIT_MAX_REFS JIT_MAX_YOUNG JIT_NONE JIT_PROLOGUE_BYTES JIT_TABLE_SIZE JIT_TEMPLATE JM_DEAD JM_FAILED JM_NOTES'
+	instanceVariableNames: 'stubs template stencil baseline brt cache asm analysis jitMode jitFlags jitThreshold jitOsrThreshold jitCacheMB cacheOpened flushPending invalidations stateBlock methodTable tableCount methodCounts youngMethods youngCount youngOverflow mapPcs mapOffsets mapCount refSites refCount sendPushed performFn performArgsFn statCompiled statFailed statBytecodes statCompileUs statCodeBytes statCacheFlushes statEntries statExits statResumes statOsr'
+	classVariableNames: 'JIT_BASELINE JIT_FLAG_ACCESS JIT_FLAG_ALLOC JIT_FLAG_ARITH JIT_FLAG_BARRIER JIT_FLAG_BLOCKS JIT_FLAG_EMBED JIT_FLAG_FLOAT JIT_FLAG_FUSE JIT_FLAG_IC JIT_FLAG_LAST JIT_FLAG_MEGA JIT_FLAG_NLR JIT_FLAG_NOTES JIT_FLAG_PIC JIT_FLAG_PRIMS JIT_FLAG_QUICK JIT_FLAG_REGS JIT_FLAG_TEMPS JIT_MAX_COUNT JIT_MAX_MAP JIT_MAX_REFS JIT_MAX_YOUNG JIT_NONE JIT_PROLOGUE_BYTES JIT_STENCIL JIT_TABLE_SIZE JIT_TEMPLATE JIT_THREADED JM_DEAD JM_FAILED JM_NOTES'
 	package: 'VM-Jit'!
 
 JitRuntime comment: 'The runtime every compiler''s machine code runs on (docs/jit.md, Shared runtime): configuration (--jit, --jit-threshold, --jit-osr, --jit-flags, --jit-cache), the compiled methods (JitMethod headers in the code cache, found by the method''s identity hash; their methods are GC roots, young ones listed for scavenges; embedded object references patched by full GCs and become), the interpreter''s hooks (activated:, resume:, backJump:), the functions machine code calls (send:info:site:, special:info:site:, interrupt:, closure:, makeArray:, outerTemp:, widow:, writeBarrier:value:), code cache flushes, statistics.
@@ -9,7 +9,7 @@ Machine code runs the interpreter''s frames: x19 the Frame, x20 its slots, x21 t
 
 !JitRuntime class methodsFor: 'declaring'!
 declarations
-	^#((stubs JitStubs) (template JitTemplateCompiler) (baseline JitBaselineCompiler) (brt JitBaselineRuntime) (cache CodeCache) (asm Arm64Assembler) (analysis BytecodeAnalysis)
+	^#((stubs JitStubs) (template JitTemplateCompiler) (stencil JitStencilCompiler) (baseline JitBaselineCompiler) (brt JitBaselineRuntime) (cache CodeCache) (asm Arm64Assembler) (analysis BytecodeAnalysis)
 		(jitMode int32_t) (jitFlags uint32_t) (jitThreshold int64_t 2) (jitOsrThreshold int64_t 50) (jitCacheMB int64_t 64)
 		(cacheOpened bool) (flushPending bool) (invalidations uint64_t)
 		(stateBlock 'JitState[1]')
@@ -24,7 +24,9 @@ declarations
 initialize
 	JIT_NONE := 0.
 	JIT_TEMPLATE := 1.
-	JIT_BASELINE := 2.
+	JIT_THREADED := 2.
+	JIT_STENCIL := 3.
+	JIT_BASELINE := 4.
 	JIT_FLAG_ARITH := 1.
 	JIT_FLAG_FUSE := 2.
 	JIT_FLAG_BARRIER := 4.
@@ -170,12 +172,16 @@ modeNamed: name
 	<c: 'int32_t jit_mode_named(const char *name)'>
 	(libc strcmp: name with: 'none') = 0 ifTrue: [^JIT_NONE].
 	(libc strcmp: name with: 'template') = 0 ifTrue: [^JIT_TEMPLATE].
+	(libc strcmp: name with: 'threaded') = 0 ifTrue: [^JIT_THREADED].
+	(libc strcmp: name with: 'stencil') = 0 ifTrue: [^JIT_STENCIL].
 	(libc strcmp: name with: 'baseline') = 0 ifTrue: [^JIT_BASELINE].
 	^-1
 !
 modeName: m
 	<c: 'const char *jit_mode_name(int32_t m)'>
 	m = JIT_TEMPLATE ifTrue: [^'template'].
+	m = JIT_THREADED ifTrue: [^'threaded'].
+	m = JIT_STENCIL ifTrue: [^'stencil'].
 	m = JIT_BASELINE ifTrue: [^'baseline'].
 	^'none'
 !
@@ -283,6 +289,7 @@ ensureOpen
 	(cache openWithSize: (jitCacheMB << 20) asUInt64) ifFalse: [^false].
 	self refreshState.
 	stubs generate ifFalse: [^false].
+	stencil open ifFalse: [^false].
 	cache keep.
 	cacheOpened := true.
 	^true
@@ -501,6 +508,8 @@ compile: m mode: md notes: wantNotes
 	ok := (analysis analyze: m) and: [
 		md caseOf: {
 			[JIT_TEMPLATE] -> [template compile: m].
+			[JIT_THREADED] -> [stencil compile: m threaded: true].
+			[JIT_STENCIL] -> [stencil compile: m threaded: false].
 			[JIT_BASELINE] -> [baseline compile: m]}
 			otherwise: [false]].
 	err := asm finish.
@@ -834,7 +843,7 @@ run: frame at: address
 		(f = interpreter frames and: [f ctx = memory nilOop]) ifTrue: [interpreter marry: f].
 		f pc: 0.
 		f sp: 0].
-	 r := (self cCoerce: stubs enterAddress to: 'int64_t (*)(Frame *, uint64_t)') call: f with: a.
+	 r := (self cCoerce: (jitMode = JIT_BASELINE ifTrue: [stubs blEnterAddress] ifFalse: [stubs enterAddress]) to: 'int64_t (*)(Frame *, uint64_t)') call: f with: a.
 	 r = 0 ifTrue: [
 		statExits := statExits + 1.
 		^self].
@@ -1231,6 +1240,28 @@ statResumes
 !
 statOsr
 	^statOsr
+!
+brtFeedbackSitesOf: m
+	"Baseline type feedback (JitBaselineRuntime>>feedbackSitesOf: and friends) for other modules."
+	^brt feedbackSitesOf: m
+!
+brtFeedbackPcOf: m site: i
+	^brt feedbackPcOf: m site: i
+!
+brtFeedbackSelectorOf: m site: i
+	^brt feedbackSelectorOf: m site: i
+!
+brtFeedbackStateOf: m site: i
+	^brt feedbackStateOf: m site: i
+!
+brtFeedbackCasesOf: m site: i
+	^brt feedbackCasesOf: m site: i
+!
+brtFeedbackClassOf: m site: i case: j
+	^brt feedbackClassOf: m site: i case: j
+!
+brtFeedbackTargetOf: m site: i case: j
+	^brt feedbackTargetOf: m site: i case: j
 !
 baselineStat: i
 	"Counters of baseline code (JitBaselineRuntime): misses, links, polymorphic caches, megamorphic sites, block cache misses, C primitive calls, non-local returns, frame walks."

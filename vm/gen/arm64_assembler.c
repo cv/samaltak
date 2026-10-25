@@ -48,6 +48,33 @@ void asm_bind(int32_t a_label)
     asm_label_fixups[a_label] = -1;
 }
 
+/* Arm64Assembler>>branchAt:to: */
+bool asm_branch_at(uint64_t site, int32_t a_label)
+{
+    uint64_t a;
+    bool r_fixup;
+    a = asm_labels[a_label];
+    if (a != 0) {
+        return asm_patch_branch(site, a);
+    }
+    return ({
+    if (asm_fixup_count >= ASM_MAX_FIXUPS) {
+        if (asm_error == ASM_OK) {
+            asm_error = ASM_ERR_LABEL;
+        }
+        r_fixup = false;
+        goto exit_fixup;
+    }
+    asm_fixup_sites[asm_fixup_count] = site;
+    asm_fixup_next[asm_fixup_count] = asm_label_fixups[a_label];
+    asm_label_fixups[a_label] = asm_fixup_count;
+    asm_fixup_count = asm_fixup_count + 1;
+    asm_unresolved = asm_unresolved + 1;
+    r_fixup = true;
+exit_fixup:;
+    r_fixup; });
+}
+
 /* Arm64Assembler>>branchTargetAt: */
 uint64_t asm_branch_target(uint64_t site)
 {

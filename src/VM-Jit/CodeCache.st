@@ -1,6 +1,6 @@
 VMModule subclass: #CodeCache
-	instanceVariableNames: 'posix jit cacheStart cacheBase cacheTop cacheLimit'
-	classVariableNames: ''
+	instanceVariableNames: 'posix jit cacheStart cacheBase cacheTop cacheLimit cacheSpace'
+	classVariableNames: 'CACHE_SPACE'
 	package: 'VM-Jit'!
 
 CodeCache comment: 'I am the region generated code lives in: one MAP_JIT mapping, bump allocated, flushed as a whole. On macOS a thread either writes the region or executes it: beginWriting before writing code, endWritingFrom:size: after it (write protection back on, instruction cache invalidated).
@@ -16,16 +16,22 @@ Simulated, the region is simulated memory, and calls of a pointer into it run th
 
 !CodeCache class methodsFor: 'declaring'!
 declarations
-	^#((posix Posix) (jit DarwinJit) (cacheStart uint64_t) (cacheBase uint64_t) (cacheTop uint64_t) (cacheLimit uint64_t))
+	^#((posix Posix) (jit DarwinJit) (cacheStart uint64_t) (cacheBase uint64_t) (cacheTop uint64_t) (cacheLimit uint64_t) (cacheSpace 'uint8_t[CACHE_SPACE]'))
+!
+initialize
+	"Room for the largest cache (128 MB) and a page."
+	CACHE_SPACE := (128 << 20) + 16384
 ! !
 
 !CodeCache methodsFor: 'region'!
 openWithSize: size
-	"Map the region; answer whether it worked."
+	"Map the region; answer whether it worked. It takes the place of cacheSpace (zero-fill, in the VM's own image): near the VM's code, so that a bl from it reaches the VM's functions."
 	<c: 'bool code_cache_open(uint64_t size)'>
 	<export>
-	| p |
-	p := posix mmap: self null length: size protection: ((posix PROT_READ bitOr: posix PROT_WRITE) bitOr: jit PROT_EXEC) flags: ((posix MAP_PRIVATE bitOr: posix MAP_ANON) bitOr: jit MAP_JIT) file: -1 offset: 0.
+	| p near |
+	near := ((self cCoerce: cacheSpace to: 'uint64_t') + 16383) bitClear: 16383.
+	jit munmap: (self cCoerce: near to: 'void *') length: size.
+	p := posix mmap: (self cCoerce: near to: 'void *') length: size protection: ((posix PROT_READ bitOr: posix PROT_WRITE) bitOr: jit PROT_EXEC) flags: ((posix MAP_PRIVATE bitOr: posix MAP_ANON) bitOr: jit MAP_JIT) file: -1 offset: 0.
 	p = posix MAP_FAILED ifTrue: [^false].
 	cacheStart := self cCoerce: p to: 'uint64_t'.
 	cacheBase := cacheStart.

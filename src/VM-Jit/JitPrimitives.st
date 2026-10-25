@@ -74,42 +74,36 @@ flagsString
 
 !JitPrimitives methodsFor: 'type feedback'!
 primJitSendSites
-	"aCompiledMethod jitSendSites: what the inline caches of its baseline code saw, {pc. state. classes. methods} per send site in code order (state 0 unlinked, 1 monomorphic, 2 polymorphic, 3 megamorphic; a megamorphic site keeps the classes of the polymorphic cache it had), nil if it has no baseline code."
+	"aCompiledMethod jitSendSites: what the inline caches of its baseline code saw, {pc. state. classes. methods. selector} per send site in code order (state 0 unlinked, 1 monomorphic, 2 polymorphic, 3 megamorphic; a megamorphic site keeps the classes of the polymorphic cache it had; a super send has a method but no class), nil if it has no baseline code."
 	<vmPrimitive: 182 name: 'jitSendSites'>
-	| m h n r e site k p pic count |
+	| m n r e k count a |
 	m := self receiver.
 	((self isPtr: m) and: [(self rawClass: m) = (memory special: SO_COMPILEDMETHOD)]) ifFalse: [^self fail].
-	h := jit lookup: m.
-	((jit hasCode: h) and: [h mode = jit baselineMode]) ifFalse: [^self answer: memory nilOop].
-	n := h siteCount asInt64.
+	n := jit brtFeedbackSitesOf: m.
+	n < 0 ifTrue: [^self answer: memory nilOop].
 	r := self local: 'oop'.
 	e := self local: 'oop'.
+	a := self local: 'oop'.
+	a value: m.
+	memory pushRoot: a.
 	r value: (memory allocObj: memory clsArray format: F_VAR slots: n asUInt32).
 	memory pushRoot: r.
 	memory pushRoot: e.
 	0 to: n - 1 do: [:i |
-		e value: (memory allocObj: memory clsArray format: F_VAR slots: 4).
+		e value: (memory allocObj: memory clsArray format: F_VAR slots: 5).
 		self storeRef: r value at: i put: e value.
-		site := h sites + i.
-		self storeRef: e value at: 0 put: (self intOop: site pc asInt64).
-		pic := site pic.
-		k := (site info bitAnd: 16r40000000) ~= 0 ifTrue: [3] ifFalse: [pic ~= 0 ifTrue: [2] ifFalse: [site target ~= 0 ifTrue: [1] ifFalse: [0]]].
-		self storeRef: e value at: 1 put: (self intOop: k).
-		count := pic ~= 0 ifTrue: [(self cCoerce: pic to: 'BaselinePic *') count asInt64] ifFalse: [(k = 1 and: [((site info >> 24) bitAnd: 3) ~= 1]) ifTrue: [1] ifFalse: [0]].
-		self storeRef: e value at: 2 put: (memory allocObj: memory clsArray format: F_VAR slots: count asUInt32).
-		self storeRef: e value at: 3 put: (memory allocObj: memory clsArray format: F_VAR slots: ((k = 1 and: [count = 0]) ifTrue: [1] ifFalse: [count]) asUInt32).
-		site := h sites + i.
-		pic := site pic.
-		pic ~= 0
-			ifTrue: [
-				p := self cCoerce: pic to: 'BaselinePic *'.
-				0 to: count - 1 do: [:j |
-					self storeRef: (self loadRef: e value at: 2) at: j put: (self uint64At: (self cCoerce: (p fieldAddress: #classes) to: 'uint64_t') + (8 * j) asUInt64).
-					self storeRef: (self loadRef: e value at: 3) at: j put: (self cCoerce: (self uint64At: (self cCoerce: (p fieldAddress: #targets) to: 'uint64_t') + (8 * j) asUInt64) to: 'JitMethod *') method]]
-			ifFalse: [
-				k = 1 ifTrue: [
-					count = 1 ifTrue: [self storeRef: (self loadRef: e value at: 2) at: 0 put: (self uint64At: h codeStart + site lit)].
-					self storeRef: (self loadRef: e value at: 3) at: 0 put: (self cCoerce: site target to: 'JitMethod *') method]]].
+		self storeRef: e value at: 0 put: (self intOop: (jit brtFeedbackPcOf: a value site: i)).
+		self storeRef: e value at: 1 put: (self intOop: (jit brtFeedbackStateOf: a value site: i)).
+		count := jit brtFeedbackCasesOf: a value site: i.
+		k := memory allocObj: memory clsArray format: F_VAR slots: count asUInt32.
+		self storeRef: e value at: 2 put: k.
+		k := memory allocObj: memory clsArray format: F_VAR slots: count asUInt32.
+		self storeRef: e value at: 3 put: k.
+		0 to: count - 1 do: [:j |
+			self storeRef: (self loadRef: e value at: 2) at: j put: (jit brtFeedbackClassOf: a value site: i case: j).
+			self storeRef: (self loadRef: e value at: 3) at: j put: (jit brtFeedbackTargetOf: a value site: i case: j)].
+		self storeRef: e value at: 4 put: (jit brtFeedbackSelectorOf: a value site: i)].
+	memory popRoot.
 	memory popRoot.
 	memory popRoot.
 	self answer: r value

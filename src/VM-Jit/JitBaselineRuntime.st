@@ -11,6 +11,8 @@ Inline caches: miss:receiver:ret: (the miss stub: unlinked sites, a callee''s fa
 
 The collector: the words in the code that hold objects (the method''s literals, the caches'' classes) are registered (oopSlots, the young ones also in youngSlots) and updated as roots; megaTable and blockTable (home method, startpc -> block entry) are cleared by every GC and become.
 
+Type feedback for the optimizing tiers: feedbackSitesOf: and friends enumerate a method''s send sites (pc, selector, state, cases with receiver class and target method); jitSendSites answers the same to the image.
+
 Also: block:closure:ret: (the block stub''s miss), entrySlow:ret: (a callee''s stack check: interrupts, a full C stack), prim:ret:fn:info:fp: (a compiled method''s C primitive), returnSlow: (a married frame or frame 0 returns), nlr: (non-local return to a home frame in machine code).'!
 
 !JitBaselineRuntime class methodsFor: 'declaring'!
@@ -417,6 +419,71 @@ unlinkSelector: sel
 clearCaches
 	libc memset: megaTable value: 0 size: 8 * BL_MEGA_WORDS.
 	libc memset: blockTable value: 0 size: 8 * BL_BLOCK_WORDS
+! !
+
+!JitBaselineRuntime methodsFor: 'type feedback'!
+headerOf: m
+	"m's baseline code, null if it has none."
+	<c: 'JitMethod *bl_header_of(oop m)'>
+	| h |
+	h := jit lookup: m.
+	((jit hasCode: h) and: [h mode = jit baselineMode]) ifFalse: [^self null].
+	^h
+!
+feedbackSitesOf: m
+	"How many send sites m's baseline code has (in code order, the order of their pcs within straight-line code); -1 if it has no baseline code."
+	<c: 'int64_t bl_feedback_sites(oop m)'>
+	| h |
+	h := self headerOf: m.
+	h isNull ifTrue: [^-1].
+	^h siteCount asInt64
+!
+feedbackPcOf: m site: i
+	"The bytecode pc of send site i."
+	<c: 'int64_t bl_feedback_pc(oop m, int64_t i)'>
+	^((self headerOf: m) sites + i) pc asInt64
+!
+feedbackSelectorOf: m site: i
+	<c: 'oop bl_feedback_selector(oop m, int64_t i)'>
+	| h |
+	h := self headerOf: m.
+	^self selectorOf: h sites + i in: h
+!
+feedbackStateOf: m site: i
+	"0 unlinked, 1 monomorphic, 2 polymorphic, 3 megamorphic."
+	<c: 'int64_t bl_feedback_state(oop m, int64_t i)'>
+	| s |
+	s := (self headerOf: m) sites + i.
+	(s info bitAnd: BL_SITE_MEGA) ~= 0 ifTrue: [^3].
+	s pic ~= 0 ifTrue: [^2].
+	^s target ~= 0 ifTrue: [1] ifFalse: [0]
+!
+feedbackCasesOf: m site: i
+	"The receiver classes site i's caches hold (a megamorphic site: those of the polymorphic cache it had); a super send has one case without a class."
+	<c: 'int64_t bl_feedback_cases(oop m, int64_t i)'>
+	| s |
+	s := (self headerOf: m) sites + i.
+	s pic ~= 0 ifTrue: [^(self cCoerce: s pic to: 'BaselinePic *') count asInt64].
+	(s target ~= 0 and: [(s info bitAnd: BL_SITE_MEGA) = 0]) ifTrue: [^1].
+	^0
+!
+feedbackClassOf: m site: i case: j
+	"Case j's receiver class (nil for a super send)."
+	<c: 'oop bl_feedback_class(oop m, int64_t i, int64_t j)'>
+	| h s |
+	h := self headerOf: m.
+	s := h sites + i.
+	s pic ~= 0 ifTrue: [^self uint64At: (self cCoerce: ((self cCoerce: s pic to: 'BaselinePic *') fieldAddress: #classes) to: 'uint64_t') + (8 * j) asUInt64].
+	((s info >> 24) bitAnd: 3) = 1 ifTrue: [^memory nilOop].
+	^self uint64At: h codeStart + s lit
+!
+feedbackTargetOf: m site: i case: j
+	"Case j's method."
+	<c: 'oop bl_feedback_target(oop m, int64_t i, int64_t j)'>
+	| s |
+	s := (self headerOf: m) sites + i.
+	s pic ~= 0 ifTrue: [^(self cCoerce: (self uint64At: (self cCoerce: ((self cCoerce: s pic to: 'BaselinePic *') fieldAddress: #targets) to: 'uint64_t') + (8 * j) asUInt64) to: 'JitMethod *') method].
+	^(self cCoerce: s target to: 'JitMethod *') method
 ! !
 
 !JitBaselineRuntime methodsFor: 'called by machine code'!

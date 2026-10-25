@@ -23,13 +23,16 @@ translate: image
 	$(VM) $(OUT)/samaltak.image --headless --eval "[VMTranslator generateVM. 'ok'] on: Error do: [:e | e messageText]"
 	$(MAKE) -C vm
 
-# The image's tests under the template and the baseline JIT, every method compiled on its first activation;
-# Tests-Kernel also with a code cache small enough to be flushed again and again.
+# The image's tests under each JIT, every method compiled on its first activation; Tests-Kernel also with a
+# code cache small enough to be flushed again and again.
 test-jit: image
 	tests/st_suite.sh $(OUT)/samaltak.image --jit template --jit-threshold 0
 	tests/st_suite.sh $(OUT)/samaltak.image --jit template --jit-threshold 0 --jit-cache 1 --jit-flags notes -- Tests-Kernel
 	tests/st_suite.sh $(OUT)/samaltak.image --jit baseline --jit-threshold 0
 	tests/st_suite.sh $(OUT)/samaltak.image --jit baseline --jit-threshold 0 --jit-cache 1 --jit-flags notes -- Tests-Kernel
+	tests/st_suite.sh $(OUT)/samaltak.image --jit threaded --jit-threshold 0
+	tests/st_suite.sh $(OUT)/samaltak.image --jit stencil --jit-threshold 0
+	tests/st_suite.sh $(OUT)/samaltak.image --jit stencil --jit-threshold 0 --jit-cache 1 --jit-flags notes -- Tests-Kernel
 
 # Everything; any failure, skipped test or headless-only VM fails it. The UI scripts use a hidden window.
 test: image test-vm

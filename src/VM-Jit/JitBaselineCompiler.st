@@ -143,7 +143,7 @@ compile: m
 	(self emitSlowPaths) ifFalse: [^false].
 	asm comment: 'leave to the interpreter at the stored pc'.
 	asm bind: exitSyncLabel.
-	asm b: (asm labelAt: stubs exitSyncAddress).
+	asm b: (asm labelAt: stubs blExitSyncAddress).
 	asm comment: 'leave to the interpreter (the runtime made the frames canonical)'.
 	asm bind: exitPlainLabel.
 	asm b: (asm labelAt: stubs exitPlainAddress).
@@ -171,6 +171,7 @@ emitAt: pc
 					(analysis isTarget: 0) ifTrue: [selfValid := false]]
 				ifFalse: [
 					((analysis isTarget: pc) or: [(pcMerge at: pc) = 1]) ifTrue: [
+						(dead not and: [self canThreadInto: pc]) ifTrue: [self threadInto: pc].
 						dead ifFalse: [self ssFlushAll].
 						(analysis isLoopHead: pc) ifTrue: [
 							(dead not and: [loopActive not and: [runtime temps]]) ifTrue: [self beginLoopAt: pc]].
@@ -1513,12 +1514,38 @@ interruptCheck: t
 jump: pc
 	| t |
 	t := analysis jumpTargetAt: pc.
+	(self canThreadInto: t) ifTrue: [^self threadInto: t].
 	self ssFlushAll.
 	(analysis isLoopHead: t)
 		ifTrue: [self interruptCheck: t]
 		ifFalse: [
 			asm comment: 'jump'.
 			asm b: (self labelFor: t)].
+	dead := true.
+	^true
+!
+canThreadInto: j
+	"Control goes to the conditional jump at j with its condition on top: it can branch right here (as and: or: ifTrue: values do)."
+	| op |
+	(runtime fuse and: [runtime regs]) ifFalse: [^false].
+	(j < curPc or: [j + 3 >= analysis size]) ifTrue: [^false].
+	op := analysis byteAt: j.
+	(op = 16r91 or: [op = 16r92]) ifFalse: [^false].
+	(analysis isLoopHead: j) ifTrue: [^false].
+	ssTop >= 1 ifFalse: [^false].
+	ssTop = (analysis depthAt: j) ifFalse: [^false].
+	^(ssKind at: ssTop - 1) = SS_PINNED or: [(ssKind at: ssTop - 1) = SS_REG]
+!
+threadInto: j
+	"The conditional jump at j, here; then on to the instruction after it."
+	| after |
+	asm comment: 'jump threading: the conditional jump at pc %d, here' with: j.
+	after := (j + 3) asInt32.
+	(self conditionalJump: j) ifFalse: [^false].
+	dead ifFalse: [
+		self ssFlushAll.
+		asm b: (self labelFor: after).
+		pcMerge at: after put: 1].
 	dead := true.
 	^true
 !

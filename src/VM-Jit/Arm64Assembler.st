@@ -80,6 +80,16 @@ emit64: aValue
 	"Append a 64-bit data word (little-endian), e.g. a literal for ldr:label:."
 	self emit: (aValue bitAnd: 16rFFFFFFFF).
 	self emit: aValue asUInt64 >> 32
+!
+skip: n
+	"The next n bytes (a multiple of 4) are code or data the caller writes: answer their address, 0 if there is no room."
+	| a |
+	a := asmPc.
+	asmLimit - asmPc < n asUInt64 ifTrue: [
+		self fail: ASM_ERR_FULL.
+		^0 asUInt64].
+	asmPc := asmPc + n.
+	^a
 ! !
 
 !Arm64Assembler methodsFor: 'labels'!
@@ -136,9 +146,34 @@ targetOf: aLabel
 	asmFixupCount := asmFixupCount + 1.
 	asmUnresolved := asmUnresolved + 1.
 	^asmPc
+!
+fixup: site to: aLabel
+	"The branch at site goes to aLabel, patched when it is bound."
+	asmFixupCount >= ASM_MAX_FIXUPS ifTrue: [
+		self fail: ASM_ERR_LABEL.
+		^false].
+	asmFixupSites at: asmFixupCount put: site.
+	asmFixupNext at: asmFixupCount put: (asmLabelFixups at: aLabel).
+	asmLabelFixups at: aLabel put: asmFixupCount.
+	asmFixupCount := asmFixupCount + 1.
+	asmUnresolved := asmUnresolved + 1.
+	^true
+!
+branchAt: site to: aLabel
+	"Point the branch at site (before pc, written by the caller) to aLabel: now if it is bound, else when it is. Answer whether it reaches."
+	<c: 'bool asm_branch_at(uint64_t site, int32_t label)'>
+	<export>
+	| a |
+	a := asmLabels at: aLabel.
+	a ~= 0 ifTrue: [^self patchBranchAt: site to: a].
+	^self fixup: site to: aLabel
 ! !
 
 !Arm64Assembler methodsFor: 'notes'!
+noting
+	"Whether notes are recorded."
+	^asmNoting
+!
 recordNotes: aBoolean
 	"Record comment: and bytecode: notes from now on (or not); forget those recorded."
 	<c: 'void asm_record_notes(bool on)'>

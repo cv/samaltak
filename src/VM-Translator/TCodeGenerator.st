@@ -1,5 +1,5 @@
 Object subclass: #TCodeGenerator
-	instanceVariableNames: 'translator function cModule locals usedNames block frame env labelCounter interpreterLoop opsTable nextExpression labelParameters'
+	instanceVariableNames: 'translator function cModule locals usedNames block frame env labelCounter interpreterLoop opsTable nextExpression labelParameters stencil'
 	classVariableNames: 'ControlSelectors'
 	package: 'VM-Translator'!
 
@@ -143,6 +143,7 @@ returnStatement: aReturnNode
 	home kind == #function ifTrue: [^self functionReturn: aReturnNode value].
 	home kind == #inline ifTrue: [^self inlineReturn: aReturnNode value frame: home].
 	home isInterpreterFrame ifTrue: [^self interpreterReturn: aReturnNode value].
+	home kind == #stencil ifTrue: [^self stencilReturn: aReturnNode value].
 	self error: 'return outside a method' node: aReturnNode
 !
 functionReturn: aNode
@@ -224,6 +225,7 @@ interpreterReturn: aNode
 	block endsControlFlow ifFalse: [self emitNext]
 !
 emitNext
+	stencil notNil ifTrue: [^self error: 'every path of a stencil ends with a continuation (^self continue, ...)' node: nil].
 	block add: (CGoto computed: (CIndex base: opsTable index: (self expression: nextExpression) type: self voidPointer))
 ! !
 
@@ -248,7 +250,8 @@ assignment: anAssignmentNode valueWanted: aBoolean
 		ifFalse: [
 			g := self globalNamed: name node: anAssignmentNode.
 			value := self expressionOrInline: anAssignmentNode value type: g type.
-			target := self globalReference: g].
+			target := self globalReference: g.
+			(stencil notNil and: [g isRegister]) ifTrue: [^self stencilRegister: target set: value node: anAssignmentNode valueWanted: aBoolean]].
 	self checkAssignable: value to: target type node: anAssignmentNode.
 	value := CBinary operator: '=' left: target right: (self coerce: value to: target type node: anAssignmentNode) type: target type.
 	aBoolean ifTrue: [^value].
@@ -339,7 +342,8 @@ globalNamed: aString node: aNode
 globalReference: aTGlobal
 	aTGlobal isRegister
 		ifTrue: [
-			interpreterLoop ifFalse: [^self error: aTGlobal name , ' is a register of the interpreter loop' node: nil].
+			(interpreterLoop or: [stencil notNil and: [aTGlobal module == cModule]]) ifFalse: [
+				^self error: aTGlobal name , ' is a register of the interpreter loop' node: nil].
 			^CVarRef name: aTGlobal cName type: aTGlobal type].
 	aTGlobal noteUsedFrom: cModule.
 	^CVarRef name: aTGlobal cName type: aTGlobal type
@@ -378,6 +382,7 @@ send: aSelector to: aTModule arguments: argNodes node: aNode valueWanted: aBoole
 	f := translator lookup: aSelector in: aTModule.
 	f isNil ifTrue: [^self error: aTModule name , ' has no function ' , aSelector node: aNode].
 	f kind == #intrinsic ifTrue: [^self intrinsic: aSelector arguments: argNodes node: aNode valueWanted: aBoolean].
+	(#(#continuation #hole #stencilCase #callCompiled) includes: f kind) ifTrue: [^self stencilLanguage: f arguments: argNodes node: aNode].
 	f kind == #function ifTrue: [^self call: f arguments: argNodes node: aNode].
 	f kind == #inline ifTrue: [^self inline: f module: (translator moduleFor: f module moduleClass) arguments: argNodes node: aNode valueWanted: aBoolean].
 	f kind == #currentBytecode ifTrue: [

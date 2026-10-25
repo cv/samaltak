@@ -107,7 +107,7 @@ void jit_activated(frame *f)
             f_2->pc = 0;
             f_2->sp = 0;
         }
-        r = ((int64_t (*)(frame *, uint64_t))enter_addr)(f_2, a);
+        r = ((int64_t (*)(frame *, uint64_t))(jit_mode == JIT_BASELINE ? bl_enter : enter_addr))(f_2, a);
         if (r == 0) {
             stat_exits = stat_exits + 1;
             goto exit_run;
@@ -277,7 +277,7 @@ void jit_back_jump(frame *f)
             f_2->pc = 0;
             f_2->sp = 0;
         }
-        r = ((int64_t (*)(frame *, uint64_t))enter_addr)(f_2, a_2);
+        r = ((int64_t (*)(frame *, uint64_t))(jit_mode == JIT_BASELINE ? bl_enter : enter_addr))(f_2, a_2);
         if (r == 0) {
             stat_exits = stat_exits + 1;
             goto exit_run;
@@ -490,6 +490,12 @@ jit_method *jit_compile(oop m, int32_t md, bool want_notes)
     switch (md) {
     case JIT_TEMPLATE:
         v = jit_template_compile(m);
+        break;
+    case JIT_THREADED:
+        v = jit_stencil_compile(m, true);
+        break;
+    case JIT_STENCIL:
+        v = jit_stencil_compile(m, false);
         break;
     case JIT_BASELINE:
         v = bl_compile(m);
@@ -765,6 +771,9 @@ bool jit_ensure_open(void)
     }
     jit_refresh_state();
     if (!jit_generate_stubs()) {
+        return false;
+    }
+    if (!jit_stencils_open()) {
         return false;
     }
     cache_base = cache_top;
@@ -1125,6 +1134,12 @@ const char *jit_mode_name(int32_t m)
     if (m == JIT_TEMPLATE) {
         return "template";
     }
+    if (m == JIT_THREADED) {
+        return "threaded";
+    }
+    if (m == JIT_STENCIL) {
+        return "stencil";
+    }
     if (m == JIT_BASELINE) {
         return "baseline";
     }
@@ -1139,6 +1154,12 @@ int32_t jit_mode_named(const char *name)
     }
     if (strcmp(name, "template") == 0) {
         return JIT_TEMPLATE;
+    }
+    if (strcmp(name, "threaded") == 0) {
+        return JIT_THREADED;
+    }
+    if (strcmp(name, "stencil") == 0) {
+        return JIT_STENCIL;
     }
     if (strcmp(name, "baseline") == 0) {
         return JIT_BASELINE;
@@ -1371,7 +1392,7 @@ void jit_resume(frame *f)
             f_2->pc = 0;
             f_2->sp = 0;
         }
-        r = ((int64_t (*)(frame *, uint64_t))enter_addr)(f_2, a_2);
+        r = ((int64_t (*)(frame *, uint64_t))(jit_mode == JIT_BASELINE ? bl_enter : enter_addr))(f_2, a_2);
         if (r == 0) {
             stat_exits = stat_exits + 1;
             goto exit_run;
@@ -1462,7 +1483,7 @@ void jit_resume_context(bool looping)
             f_2->pc = 0;
             f_2->sp = 0;
         }
-        r = ((int64_t (*)(frame *, uint64_t))enter_addr)(f_2, a);
+        r = ((int64_t (*)(frame *, uint64_t))(jit_mode == JIT_BASELINE ? bl_enter : enter_addr))(f_2, a);
         if (r == 0) {
             stat_exits = stat_exits + 1;
             goto exit_run;
