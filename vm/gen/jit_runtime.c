@@ -48,6 +48,7 @@ static void jit_flush(void);
 static uint64_t jit_leave(frame *f, int64_t pc, int64_t n);
 static int64_t jit_map_offset(jit_method *h, int64_t pc);
 static void jit_refresh_state(void);
+static uint64_t jit_sent(frame *f, int32_t n, int32_t len);
 static oop jit_special_fast(int32_t k, oop *base);
 
 /* JitRuntime>>activate:frame:argc:ecode:code: */
@@ -1132,6 +1133,90 @@ void jit_resume(frame *f)
 exit_run:;
 }
 
+/* JitRuntime>>resumeContext: */
+void jit_resume_context(bool looping)
+{
+    oop c;
+    uint64_t m;
+    uint64_t pc;
+    jit_method *h;
+    uint32_t i;
+    int64_t n;
+    int64_t off;
+    frame *f;
+    uint64_t address;
+    frame *f_2;
+    uint64_t a;
+    int64_t r;
+    frame *g;
+    oop m_2;
+    uint64_t o;
+    if (flush_pending) {
+        jit_flush();
+    }
+    c = active_ctx;
+    m = *(uint64_t *)(c + 16 + 24);
+    pc = *(uint64_t *)(c + 16 + 8);
+    if (!((pc & 1) != 0)) {
+        return;
+    }
+    h = jit_lookup(m);
+    if ((h == NULL) && looping) {
+        i = ((uint32_t)(((*(uint64_t *)m) >> H_HASH_SHIFT) & H_HASH_MASK)) & 65535;
+        n = (int64_t)method_counts[i];
+        if (n >= jit_osr_threshold) {
+            h = jit_compile_install(m);
+        } else {
+            method_counts[i] = (uint16_t)(n + 1);
+        }
+    }
+    if (!((h != NULL) && ((h->flags & JM_FAILED) == 0))) {
+        return;
+    }
+    off = jit_map_offset(h, ((int64_t)pc) >> 1);
+    if (off < 0) {
+        return;
+    }
+    f = interp_thaw((uint64_t)h);
+    if (f == NULL) {
+        return;
+    }
+    if (looping) {
+        stat_osr = stat_osr + 1;
+    } else {
+        stat_resumes = stat_resumes + 1;
+    }
+    address = h->code_start + (uint64_t)off;
+    f_2 = f;
+    a = address;
+    for (;;) {
+        stat_entries = stat_entries + 1;
+        r = ((int64_t (*)(frame *, uint64_t))enter_addr)(f_2, a);
+        if (r == 0) {
+            stat_exits = stat_exits + 1;
+            goto exit_run;
+        }
+        g = (frame *)(r & -8LL);
+        if ((r & 7) == 0) {
+            stat_exits = stat_exits + 1;
+            interp_sync_frame(g);
+            goto exit_run;
+        }
+        g->sp = g->sp + 1;
+        m_2 = g->method;
+        o = *(uint64_t *)(m_2 + 16 + 24);
+        g->pc = (int32_t)(g->ip - (uint8_t *)(o + 16));
+        interp_sync_frame(g);
+        a = jit_address_for(g);
+        if (a == 0) {
+            goto exit_run;
+        }
+        stat_resumes = stat_resumes + 1;
+        f_2 = g;
+    }
+exit_run:;
+}
+
 /* JitRuntime>>send:info:site: */
 uint64_t jit_send(frame *f, uint64_t info, uint64_t key)
 {
@@ -1198,12 +1283,12 @@ uint64_t jit_send(frame *f, uint64_t info, uint64_t key)
         if (e->qconst != 0) {
             base[0] = e->qconst;
         }
-        return 0;
+        return jit_sent(f, n, len);
     }
     if (((e->kind & 34) == K_QUICK) && ((n == 0) && (((r & 7) == 0) && ((r != active_ctx) && (((int32_t)(((*(uint64_t *)r) >> H_FMT_SHIFT) & H_FMT_MASK) <= F_FIXVAR) && ((uint32_t)*(uint64_t *)r > (uint32_t)e->quick)))))) {
         i_2 = e->quick;
         base[0] = *(uint64_t *)(r + 16 + 8 * i_2);
-        return 0;
+        return jit_sent(f, n, len);
     }
     if (((e->kind & 36) == K_SETTER) && ((e->nset == n) && (((r & 7) == 0) && ((r != active_ctx) && ((!(((*(uint64_t *)r) & H_IMMUTABLE) != 0)) && ((int32_t)(((*(uint64_t *)r) >> H_FMT_SHIFT) & H_FMT_MASK) <= F_FIXVAR)))))) {
         ns = (uint32_t)*(uint64_t *)r;
@@ -1220,7 +1305,7 @@ uint64_t jit_send(frame *f, uint64_t info, uint64_t key)
                     vm_remember(r);
                 }
             }
-            return 0;
+            return jit_sent(f, n, len);
         }
     }
     interp_sync_frame(f);
@@ -1235,6 +1320,17 @@ uint64_t jit_send(frame *f, uint64_t info, uint64_t key)
     send_pushed = (int32_t)(((info >> 26) & 1) * 2);
     f->ip = f->ip + len;
     return jit_dispatch(e, f, n);
+}
+
+/* JitRuntime>>sent:argc:length: */
+static uint64_t jit_sent(frame *f, int32_t n, int32_t len)
+{
+    if (state_block->interrupt == 0) {
+        return 0;
+    }
+    f->pc = f->pc + len;
+    f->sp = f->sp - n;
+    return jit_interrupt(f);
 }
 
 /* JitRuntime>>setFlags: */

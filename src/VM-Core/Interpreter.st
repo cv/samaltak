@@ -430,6 +430,8 @@ interruptSafepoint
 	depth := (stackCheckDue and: [(self hashOf: scheduler activeProcess) = stackCheckHash]) ifTrue: [self stackOverflowDepth] ifFalse: [0].
 	depth = 0 ifTrue: [^scheduler handleInterrupts].
 	self materializeAll.
+	"these flushed frames must not trigger a check of the stack being handled"
+	stackCheckDue := false.
 	sel := memory special: SO_SEL_STACKOVERFLOW.
 	m := self lookupMethod: (self rawClass: activeCtx) selector: sel.
 	(m = 0 or: [(self isPtr: m) not or: [(self methodPrim: m) ~= 0 or: [(self loadRef: m at: CM_NUMARGS) ~= (self intOop: 1)]]]) ifTrue: [
@@ -695,6 +697,34 @@ pushFrameEntry: e argc: n
 	cstackUsed := (nfp + n + ntemps - cstack) asUInt64.
 	^g
 !
+thawFor: code
+	"Under a JIT: activeCtx (no frames, registers saved) is married to frame 0, its sender the new base Context, so that its machine code (code) continues it. Answer the frame, null if activeCtx's sender is not a live Context."
+	<c: 'Frame *interp_thaw(uint64_t code)'>
+	| c s sender n m f |
+	c := activeCtx.
+	s := self slotsOf: c.
+	sender := s at: CTX_SENDER.
+	(nframes = 0 and: [(self isPtr: sender) and: [sender ~= memory nilOop and: [(self rawClass: sender) = memory clsContext and: [self isInt: ((self slotsOf: sender) at: CTX_PC)]]]]) ifFalse: [^self null].
+	n := self intVal: (s at: CTX_STACKP).
+	m := s at: CTX_METHOD.
+	f := frames + 0.
+	cstack at: 0 put: (s at: CTX_RECEIVER).
+	libc memcpy: cstack + 1 from: s + CTX_FIXED size: n asUInt64 * 8.
+	f method: m.
+	f closure: (s at: CTX_CLOSURE).
+	f ctx: c.
+	f code: code.
+	f fp: cstack + 1.
+	f ip: (self methodBcs: m) + (self intVal: (s at: CTX_PC)).
+	f lits: (self slotsOf: (self loadRef: m at: CM_LITERALS)).
+	f sp: n asInt32.
+	s at: CTX_SENDER put: (self intOop: 0).
+	s at: CTX_STACKP put: (self intOop: 0).
+	activeCtx := sender.
+	nframes := 1.
+	cstackUsed := (n + 1) asUInt64.
+	^f
+!
 setCacheCode: c forMethod: m
 	"m got machine code c: method cache entries that count its activations switch to it."
 	<c: 'void set_cache_code(uint64_t c, oop m)'>
@@ -886,11 +916,25 @@ checkInterrupts
 		self reload]
 !
 jumpedBack
-	"A backward jump: interrupts, then on-stack replacement if the frame's method has code or counts toward it."
+	"A backward jump: interrupts, then on-stack replacement if the frame's method has code or counts toward it; under a JIT a looping Context may continue in machine code."
 	self checkInterrupts.
-	(self unlikely: (fr notNull and: [fr code ~= 0])) ifTrue: [
-		self externalize.
-		jit backJump: fr.
+	fr notNull
+		ifTrue: [
+			(self unlikely: fr code ~= 0) ifTrue: [
+				self externalize.
+				jit backJump: fr.
+				self reload]]
+		ifFalse: [
+			(self unlikely: jit enabled) ifTrue: [
+				self saveCtx.
+				jit resumeContext: true.
+				self reload]]
+!
+jitResumeContext
+	"Returned into activeCtx (no frames): under a JIT it may continue in machine code."
+	(self unlikely: (fr isNull and: [jit enabled])) ifTrue: [
+		self saveCtx.
+		jit resumeContext: false.
 		self reload]
 !
 jitResume
@@ -1863,6 +1907,7 @@ returnTop
 		gc rememberIfOld: activeCtx.
 		self loadCtx.
 		self push: result.
+		self jitResumeContext.
 		^self].
 	^self contextReturn
 !
@@ -1877,7 +1922,8 @@ contextReturn
 	activeCtx := sender.
 	gc rememberIfOld: sender.
 	self loadCtx.
-	self push: result
+	self push: result.
+	self jitResumeContext
 !
 nonLocalReturn
 	<bytecode: 16r7C>
@@ -1901,6 +1947,7 @@ nonLocalReturn
 				gc rememberIfOld: activeCtx.
 				self loadCtx.
 				self push: result.
+				self jitResumeContext.
 				^self].
 			nframes := h.
 			fr := frames + h.
@@ -1941,7 +1988,8 @@ nonLocalReturn
 	activeCtx := hs.
 	gc rememberIfOld: hs.
 	self loadCtx.
-	self push: result
+	self push: result.
+	self jitResumeContext
 !
 contextNonLocalReturn
 	<label>
@@ -1970,7 +2018,8 @@ contextNonLocalReturn
 	activeCtx := hs.
 	gc rememberIfOld: hs.
 	self loadCtx.
-	self push: result
+	self push: result.
+	self jitResumeContext
 !
 cannotReturn
 	<label>

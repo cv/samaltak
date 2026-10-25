@@ -639,6 +639,30 @@ backJump: f
 	statOsr := statOsr + 1.
 	self run: f at: a
 !
+resumeContext: looping
+	"The interpreter runs activeCtx without frames, returned into it or (looping) jumping back in it: if its method has machine code for its pc, it continues there, married to frame 0 (Interpreter>>thawFor:). A looping Context's method is compiled after --jit-osr backward jumps."
+	<c: 'void jit_resume_context(bool looping)'>
+	| c m h pc off f i n |
+	self prepare.
+	c := interpreter activeCtx.
+	m := self loadRef: c at: CTX_METHOD.
+	pc := self loadRef: c at: CTX_PC.
+	(self isInt: pc) ifFalse: [^self].
+	h := self lookup: m.
+	(h isNull and: [looping]) ifTrue: [
+		i := (self hashOf: m) bitAnd: JIT_TABLE_SIZE - 1.
+		n := (methodCounts at: i) asInt64.
+		n >= jitOsrThreshold
+			ifTrue: [h := self compileAndInstall: m]
+			ifFalse: [methodCounts at: i put: (n + 1) asUInt16]].
+	(self hasCode: h) ifFalse: [^self].
+	off := self mapOffsetOf: h pc: (self intVal: pc).
+	off < 0 ifTrue: [^self].
+	f := interpreter thawFor: (self cCoerce: h to: 'uint64_t').
+	f isNull ifTrue: [^self].
+	looping ifTrue: [statOsr := statOsr + 1] ifFalse: [statResumes := statResumes + 1].
+	self run: f at: h codeStart + off asUInt64
+!
 run: frame at: address
 	"Run machine code from address in frame (top frame, state externalized) until it leaves; on return into a frame with code continue there."
 	| r f a g |
@@ -676,7 +700,7 @@ leave: f pc: pc sp: n
 	^1
 !
 send: f info: info site: key
-	"A send at f's pc, f's sp counting receiver and arguments. info: argc | instruction length << 8 | selector << 16 (literal index, or special selector) | kind << 24 (0 a literal selector, 1 super, 2 special) | 1 << 26 if a superinstruction pushed the operands; key: the site's code address, its key in the interpreter's inline caches. Answer 0 (the result is in the receiver's slot), 1 (leave), or the callee's entry. Sends that need no frame need no safepoint either."
+	"A send at f's pc, f's sp counting receiver and arguments. info: argc | instruction length << 8 | selector << 16 (literal index, or special selector) | kind << 24 (0 a literal selector, 1 super, 2 special) | 1 << 26 if a superinstruction pushed the operands; key: the site's code address, its key in the interpreter's inline caches. Answer 0 (the result is in the receiver's slot), 1 (leave), or the callee's entry. Sends that need no frame touch the frame only if an interrupt is pending."
 	<c: 'uint64_t jit_send(Frame *f, uint64_t info, uint64_t key)'>
 	| n len kind base r cls e sel ns ok |
 	n := (info bitAnd: 255) asInt32.
@@ -696,17 +720,17 @@ send: f info: info site: key
 		e isNull ifTrue: [^self leave: f pc: f pc sp: f sp - (((info >> 26) bitAnd: 1) * 2) asInt32]].
 	(e kind bitAnd: (K_CONST bitOr: K_CTX)) = K_CONST ifTrue: [
 		e qconst ~= 0 ifTrue: [base at: 0 put: e qconst].
-		^0].
+		^self sent: f argc: n length: len].
 	((e kind bitAnd: (K_QUICK bitOr: K_CTX)) = K_QUICK and: [n = 0 and: [(self isPtr: r) and: [r ~= interpreter activeCtx and: [(memory formatOf: r) <= F_FIXVAR and: [(self numSlots: r) > e quick asUInt32]]]]]) ifTrue: [
 		base at: 0 put: (self loadRef: r at: e quick).
-		^0].
+		^self sent: f argc: n length: len].
 	((e kind bitAnd: (K_SETTER bitOr: K_CTX)) = K_SETTER and: [e nset = n and: [(self isPtr: r) and: [r ~= interpreter activeCtx and: [(self isImmutable: r) not and: [(memory formatOf: r) <= F_FIXVAR]]]]]) ifTrue: [
 		ns := self numSlots: r.
 		ok := true.
 		0 to: n - 1 do: [:k | ok := ok and: [(e setIvar at: k) < ns]].
 		ok ifTrue: [
 			0 to: n - 1 do: [:k | self storeRef: r at: (e setIvar at: k) put: (base at: 1 + k)].
-			^0]].
+			^self sent: f argc: n length: len]].
 	self sync: f.
 	((e kind bitAnd: K_CTX) ~= 0 and: [self isInt: (self loadRef: r at: CTX_SENDER)]) ifTrue: [
 		^self leave: f pc: f pc sp: f sp - (((info >> 26) bitAnd: 1) * 2) asInt32].
@@ -715,6 +739,14 @@ send: f info: info site: key
 	sendPushed := (((info >> 26) bitAnd: 1) * 2) asInt32.
 	f ip: f ip + len.
 	^self dispatch: e frame: f argc: n
+!
+sent: f argc: n length: len
+	"A send completed without a frame: a safepoint, as in the interpreter."
+	<c: 'uint64_t jit_sent(Frame *f, int32_t n, int32_t len)'>
+	stateBlock interrupt = 0 ifTrue: [^0].
+	f pc: f pc + len.
+	f sp: f sp - n.
+	^self interrupt: f
 !
 special: f info: info site: key
 	"A special selector (A0-BF, or the operation of a superinstruction; info and key as for send:info:site:) whose inline path did not apply; its operands are in their slots."

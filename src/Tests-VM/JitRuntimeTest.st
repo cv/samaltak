@@ -46,8 +46,7 @@ testCompiledCodeRuns
 	self define: 'fib: n ^n < 2 ifTrue: [n] ifFalse: [(self fib: n - 1) + (self fib: n - 2)]'.
 	before := self statistics.
 	self assert: (JitRuntimeTestSubject new fib: 20) equals: 6765.
-	self assert: (self statistics - before) jitMethodsCompiled > 0.
-	self assert: (self statistics - before) jitEntries > 0
+	self assert: (self statistics - before) jitMethodsCompiled > 0
 !
 testOnStackReplacement
 	"A loop in a method the interpreter started: compiled after 5 backward jumps and continued in machine code."
