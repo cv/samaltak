@@ -1,68 +1,93 @@
 [
   {
     "id": "intro",
-    "caption": "Samaltak · Live. Everything in this video changes a running system, driven through samaltak-ctl.",
-    "spoken": "[warm] Okay, this one's fun. Everything you're about to see changes a running system. No restarts, no tricks."
+    "caption": "Samaltak · Live. Everything in this video changes a running system, driven through samaltak-ctl. Co-star: Claude's Robot.",
+    "spoken": "[excited] Okay, this one's fun! Everything here changes a running system. No restarts, no tricks. Meet our co-star: Claude's Robot, modelled on Claude Shannon's juggling machine."
   },
   {
     "id": "restyle",
     "caption": "The theme is a Smalltalk class: change the accent in the System Browser, ⌘S, and every window restyles at once.",
-    "spoken": "Let's start with the look. The theme is just a class. Change the accent colour, save, and [pause] every window picks it up, while the Mandelbrot keeps rendering."
+    "spoken": "Let's start with the look. The theme is just a class. Change the accent colour, save, and [pause] every window picks it up, while the robot keeps juggling."
   },
   {
     "id": "shader",
-    "caption": "The GPU shader is Smalltalk source too: edit the Renderer's MSL, ⌘S, and the pipeline is rebuilt.",
-    "spoken": "Even the GPU shader is a Smalltalk method. Edit it, save, and the whole screen changes. [pause] Okay, let's put that back."
+    "caption": "The GPU shader is Metal source, a string in a Smalltalk method (Renderer class>>shaderSource). ⌘S compiles it into a new GPU pipeline.",
+    "spoken": "The GPU shader isn't Smalltalk, it's Metal source, kept as a string in a Smalltalk method. Edit it, save, and Smalltalk builds a new GPU pipeline. [pause] Scan lines! Okay, putting that back."
+  },
+  {
+    "id": "compositor",
+    "caption": "The compositor, the Process that puts every window on screen each frame, is Smalltalk: deeper, ultramarine shadows, ⌘S.",
+    "spoken": "[upbeat] The compositor, the process that puts every window on screen, is Smalltalk too. So let's change it while it runs. Big blue shadows, [pause] on every window at once!"
   },
   {
     "id": "glyphs",
-    "caption": "Glyphs are rasterized in Smalltalk from the .ttf on disk: change the coverage and every text re-rasterizes.",
-    "spoken": "The fonts are rasterized in Smalltalk, straight from the TrueType file. Make the coverage a little heavier, and all the text gets bolder. These are the actual pixels."
+    "caption": "Glyphs are rasterized in Smalltalk from the .ttf on disk: flip the coverage, and every glyph turns inside out.",
+    "spoken": "Fonts are rasterized in Smalltalk, straight from the TrueType file. Flip the coverage, and [pause] every glyph on screen turns inside out! These are the actual pixels. And back."
   },
   {
     "id": "slowmo",
-    "caption": "One setting slows the animation clock tenfold: window open, menu, selection glide, the debugger's pc highlight.",
-    "spoken": "Now let's slow time down. Ten times slower, so you can see every little animation. [pause] And back to normal speed."
+    "caption": "One setting slows the animation clock tenfold: the menu, a window opening, the selection glide.",
+    "spoken": "Now let's slow time down, ten times, so you can see every little animation."
   },
   {
-    "id": "palette",
-    "caption": "Edit and continue mid-computation: change the Mandelbrot's colouring while it renders; the rows still to come use it.",
-    "spoken": "Here's the Mandelbrot, halfway through a render. Change its colour function, save, and [pause] the rows it hasn't drawn yet come out in the new colours."
+    "id": "slowmo-off",
+    "caption": "And back to normal speed.",
+    "spoken": "[cheerful] And back to normal speed."
+  },
+  {
+    "id": "juggle-edit",
+    "caption": "Edit and continue: change the robot's ball colour while it juggles. The next frame uses it.",
+    "spoken": "Edit and continue? Change the colour of the balls, mid-act, save, and [pause] the very next frame uses it."
   },
   {
     "id": "loop",
-    "caption": "[true] whileTrue: that Process is busy, everything else stays smooth. ⌘. opens a debugger inside the loop.",
-    "spoken": "Act two: you can't break it. An infinite loop. That process is stuck, but everything else stays smooth. Command-period, and we're in a debugger, right inside the loop."
+    "caption": "An infinite loop in the robot's step: its window hangs, everything else stays smooth. ⌘. and Debug: the debugger shows the loop.",
+    "spoken": "[upbeat] Now let's break things! An infinite loop, right in the robot's step. Save, and [pause] it hangs, but everything else stays smooth. Command-period, debug, and there's our loop."
   },
   {
-    "id": "halt-ui",
-    "caption": "Break in the Transcript's own Process (Window>>redraw): it freezes in a debugger, every other window keeps working.",
-    "spoken": "Let's stop the window system itself. A breakpoint in redraw, only for the Transcript's process. It freezes, everything else keeps going. Write to it from the debugger, remove the breakpoint, proceed, [pause] and it catches up."
+    "id": "loop-fix",
+    "caption": "Delete the loop in the debugger: ⌘S recompiles and restarts the frame. Proceed, and it juggles again.",
+    "spoken": "Delete it right there in the debugger, save, proceed, and [pause] it's juggling again!"
   },
   {
-    "id": "debug-debugger",
-    "caption": "Debugging the debugger: a breakpoint in its own Step Over, and a second debugger opens on the first.",
-    "spoken": "Can we debug the debugger? Sure. A breakpoint in its own step over, step, [pause] and a second debugger opens on the first one."
+    "id": "freeze",
+    "caption": "A breakpoint in move:, only for the robot's Process: the balls freeze mid-air, the rest of the system keeps running.",
+    "spoken": "Next, a breakpoint in move, just for the robot's process. The balls freeze mid-air, [pause] and everything else still works."
   },
   {
-    "id": "watch-wm",
-    "caption": "Halt on write on a window's bounds: drag it, and the debugger shows the window-manager code that moved it.",
-    "spoken": "Watch a window's bounds, then drag it. We land right in the window manager code that moved it, and the mouse still works."
+    "id": "gravity",
+    "caption": "Flip gravity in the debugger (0 @ 0.4 becomes 0 @ -0.4), ⌘S, Proceed: the balls fall upward.",
+    "spoken": "[mischievously] Now flip gravity, right in the debugger. Save, proceed, and [pause] the balls fall up!"
   },
   {
-    "id": "recursion",
-    "caption": "Infinite recursion: a debugger on the stack, not a crash.",
-    "spoken": "And infinite recursion? [pause] Just a debugger. No crash."
+    "id": "restore",
+    "caption": "Gravity back in the System Browser; a click puts the balls back into the robot's hands.",
+    "spoken": "Okay, gravity back, and a click hands the robot its balls again."
   },
   {
     "id": "snapshot",
-    "caption": "Save the image with a debugger stopped mid-step, quit, relaunch: every window is back, the process still suspended. Step on.",
-    "spoken": "Act three. Save the image with a debugger open, mid-step, and quit. [pause] Relaunch, and everything's back, the process still waiting where we left it. Step, and it just continues."
+    "caption": "Freeze the robot mid-throw, save the image with the debugger open, quit.",
+    "spoken": "Now freeze it mid-throw, save the image, debugger and all, and quit."
+  },
+  {
+    "id": "relaunch",
+    "caption": "Relaunch: the robot is back, frozen in the same spot, the debugger still open. Remove the breakpoint, Proceed: it juggles on.",
+    "spoken": "[excited] Relaunch, and everything's back, frozen right where we left it. Remove the breakpoint, proceed, and [pause] it juggles on."
+  },
+  {
+    "id": "guest",
+    "caption": "The VM is written in Smalltalk: the VM Simulator boots a guest image on those very classes. Change the VM's banner, ⌘S: the guest's next line shows it.",
+    "spoken": "[excited] The VM itself is written in Smalltalk, so here's Smalltalk running inside Smalltalk! The guest's VM is the very classes in the browser. Change its banner, save, and [pause] the guest picks it up on its next line."
+  },
+  {
+    "id": "reboot",
+    "caption": "Rebuild and reboot: translate the VM to C, compile, save the image, and the host restarts on the new VM.",
+    "spoken": "Now rebuild: translate to C, compile, reboot, and [pause] the host itself runs the new VM!"
   },
   {
     "id": "core",
-    "caption": "The core is small: in the Terminal (Smalltalk too) count C and Smalltalk lines, then race GNU Smalltalk on the same benchmarks.",
-    "spoken": "Last thing. How much of this is C? Let's ask a terminal, which, yes, is Smalltalk too. Count the lines, [pause] and race the same benchmarks against GNU Smalltalk."
+    "caption": "No hand-written C: in the Terminal (Smalltalk too), the VM's Smalltalk sources and the C generated from them.",
+    "spoken": "Last thing! How much of this is hand-written C? Let's ask a terminal, which, yes, is Smalltalk too. [pause] None of it: the VM is Smalltalk, and every line of its C is generated from it."
   },
   {
     "id": "outro",
