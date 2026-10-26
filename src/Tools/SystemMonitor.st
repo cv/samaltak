@@ -101,13 +101,13 @@ start
 	self scheduleTick
 !
 scheduleTick
-	"Keep the phase: a sample that came late delays the next one less."
+	"Keep the phase: a sample that came late delays the next one less. The millisecond clock starts again with the image (a restart): then the phase does too."
 	| w now interval |
 	w := self window.
 	w isNil ifTrue: [^self].
 	interval := SystemMonitorData interval.
 	now := Time millisecondClockValue.
-	nextTick := (nextTick isNil or: [now - nextTick > interval])
+	nextTick := (nextTick isNil or: [(now - nextTick) abs > interval])
 		ifTrue: [now + interval]
 		ifFalse: [nextTick + interval].
 	timer := w after: (nextTick - now max: 10) do: [self tick]

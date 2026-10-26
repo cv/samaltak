@@ -101,6 +101,22 @@ testRemoteNames
 	#('.span' '.sampling ' '.heap-values.old ' '.heap-values.eden ' '.heap-chart ' '.alloc-chart ' '.cpu-values.vm ' '.cpu-chart ' '.status ') do: [:s |
 		self assert: (text includesSubstring: s) description: 'snapshot lacks ', s]
 !
+testCarriesOnAfterARestart
+	"A restarted image (a resumed snapshot, a rebuilt VM) has fresh VM counters and a millisecond clock that started again: the data takes a new baseline instead of a sample with negative counts, and the monitor keeps sampling."
+	| data serial counters ticks |
+	data := monitor data.
+	serial := data serial.
+	counters := data instVarNamed: 'lastCounters'.
+	self in: window do: [
+		data instVarNamed: 'lastCounters' put: (counters collect: [:c | c + 1000000000000]).
+		self assert: data sample isNil].
+	self assert: data serial equals: serial.
+	self in: window do: [monitor instVarNamed: 'nextTick' put: Time millisecondClockValue + 100000000].
+	ticks := monitor ticks.
+	self assert: (self waitFor: [monitor ticks >= (ticks + 5)] timeout: 3000) description: 'no samples after the clock went back'.
+	self assert: data last allocated >= 0.
+	self assert: data last time > (data sampleAt: data serial - 1) time
+!
 testUsesLittleCPU
 	"With crunch running, ten samples a second (each painting the charts' new columns) cost the monitor's Process little."
 	| n0 c0 t0 cpu |
