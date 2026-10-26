@@ -12,7 +12,7 @@ CodeCache comment: 'I am the region generated code lives in: one MAP_JIT mapping
 	cache endWritingFrom: entry size: size.
 	(self cCoerce: entry to: ''int64_t (*)(int64_t)'') call: 42
 
-Simulated, the region is simulated memory, and calls of a pointer into it run the code in an Arm64Emulator (see DarwinJit).'!
+Simulated, the region is simulated memory and its code does not run (canRunCode).'!
 
 !CodeCache class methodsFor: 'declaring'!
 declarations
@@ -24,6 +24,10 @@ initialize
 ! !
 
 !CodeCache methodsFor: 'region'!
+canRunCode
+	"Whether machine code runs: on Apple Silicon, not in the simulator."
+	^jit pthreadJitWriteProtectSupported ~= 0
+!
 openWithSize: size
 	"Map the region; answer whether it worked. It takes the place of cacheSpace (zero-fill, in the VM's own image): near the VM's data, so that adrp from the code reaches it (tiering counters, type feedback, eden's top, call caches)."
 	<c: 'bool code_cache_open(uint64_t size)'>

@@ -674,14 +674,6 @@ jitBlocks: n
 	#(1 2 3) do: [:a | 1 to: n do: [:b | sum := sum + (a * b)]].
 	^sum
 !
-testJitSmall
-	"testJit's kinds of code, small enough for the simulator."
-	(self jitLoop: 60) printNl.
-	(self jitFloats: 10) printNl.
-	(self fib: 8) printNl.
-	(self jitBlocks: 5) printNl.
-	(self findFirstEven: #(1 3 6 7)) printNl
-!
 testJit
 	| v alpha counters other |
 	(self jitLoop: 100000) printNl.
