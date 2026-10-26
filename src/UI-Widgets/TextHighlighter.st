@@ -1,9 +1,9 @@
 Object subclass: #TextHighlighter
-	instanceVariableNames: 'buffer enabled methodMode types starts stops depths'
+	instanceVariableNames: 'buffer enabled methodMode types starts stops depths scanner'
 	classVariableNames: ''
 	package: 'UI-Widgets'!
 
-TextHighlighter comment: 'I highlight a TextBuffer''s Smalltalk source with the Compiler''s Scanner: tokens (type, 1-based start and stop) computed lazily, and after an edit rescanned only from the last token before it until they agree with the old ones again. styledRunsFrom:to:color:do: answers runs of neighbouring tokens with the same {font. color} (Theme syntaxStyleFor:); in methodMode the first line is styled as a method pattern.
+TextHighlighter comment: 'I highlight a TextBuffer''s Smalltalk source with the Compiler''s Scanner (or another language''s: scanner:): tokens (type, 1-based start and stop) computed lazily, and after an edit rescanned only from the last token before it until they agree with the old ones again. styledRunsFrom:to:color:do: answers runs of neighbouring tokens with the same {font. color} (Theme syntaxStyleFor:); in methodMode the first line is styled as a method pattern.
 
 	(TextHighlighter on: (TextBuffer string: ''^self'')) tokens   "#(#(#return 1 1) #(#self 2 5))"'!
 
@@ -32,6 +32,11 @@ enabled: aBoolean
 !
 methodMode: aBoolean
 	methodMode := aBoolean
+!
+scanner: aScanner
+	"What tokenizes the text: an object answering highlight:do: as Scanner does (the default), with its token types."
+	scanner := aScanner.
+	types := nil
 !
 isActive
 	"Whether I have tokens to draw (enabled and computed by ensureTokens)."
@@ -99,7 +104,7 @@ scan: aString from: base types: typeList starts: startList stops: stopList depth
 	"Highlight aString (the text after the gap position base) into the collections; depths get the literal-array depth after each token. aBlock (type start stop depth, absolute positions) may answer true to stop."
 	| depth |
 	depth := 0.
-	Scanner highlight: aString do: [:type :start :stop |
+	(scanner ifNil: [Scanner]) highlight: aString do: [:type :start :stop |
 		type == #literalArrayStart
 			ifTrue: [depth := depth + 1]
 			ifFalse: [
