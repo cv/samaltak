@@ -33,7 +33,7 @@ banner
 usage
 	<c: 'void usage(void)'>
 	<noreturn>
-	libc fputs: 'usage: samaltak [--max-heap MB] [--eden MB] [--jit none|baseline|opt] [--jit-threshold N] [--jit-osr N]
+	libc fputs: 'usage: samaltak [--max-heap MB] [--eden MB] [--jit none|baseline|opt (default)] [--jit-threshold N] [--jit-osr N]
 	[--jit-opt N] [--jit-flags [-]flag,...] [--jit-cache MB] image [--headless] [arguments...]
   --jit-threshold N  activations before a method is compiled (0: the first one)
   --jit-osr N        backward jumps before a running method is compiled and entered
