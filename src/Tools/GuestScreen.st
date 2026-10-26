@@ -41,10 +41,12 @@ frames
 !
 frameTime
 	"The mean and the longest of the last frames, in µs, or nil."
-	frameTimes isEmpty ifTrue: [^nil].
+	| times |
+	times := lock critical: [frameTimes asArray].
+	times isEmpty ifTrue: [^nil].
 	^Array
-		with: (frameTimes inject: 0 into: [:sum :t | sum + t]) // frameTimes size
-		with: (frameTimes inject: 0 into: [:m :t | m max: t])
+		with: (times inject: 0 into: [:sum :t | sum + t]) // times size
+		with: (times inject: 0 into: [:m :t | m max: t])
 !
 latency
 	"µs from the last input's arrival to the frame that answered it, or nil."
@@ -67,9 +69,8 @@ open: w height: h
 	1 to: w + 1 do: [:i | (rows at: 2) at: i put: (i odd ifTrue: [Black] ifFalse: [White])].
 	font := Font face: (Font faceNamed: 'JetBrainsMono-Regular') size: 11.67 scale: 1.
 	glyphs := Array new: 512.
-	lock critical: [events removeAll].
+	lock critical: [events removeAll. frameTimes removeAll].
 	frames := 0.
-	frameTimes removeAll.
 	frameStart := inputStart := latency := nil.
 	dirty := true.
 	self flush.
@@ -154,8 +155,9 @@ flush
 	form changed.
 	frames := frames + 1.
 	frameStart isNil ifFalse: [
-		frameTimes addLast: now - frameStart.
-		frameTimes size > 50 ifTrue: [frameTimes removeFirst]].
+		lock critical: [
+			frameTimes addLast: now - frameStart.
+			frameTimes size > 50 ifTrue: [frameTimes removeFirst]]].
 	frameStart := inputStart := nil.
 	invalid ifTrue: [^self].
 	invalid := true.

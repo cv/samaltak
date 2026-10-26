@@ -113,9 +113,9 @@ update
 	(process isNil or: [simulation isNil]) ifTrue: [^self].
 	status text: (process isTerminated
 		ifTrue: ['done']
-		ifFalse: [(process isSuspended ifTrue: ['stopped'] ifFalse: ['running']) , ', ' , ((simulation microsecondClock - started) // 1000000) printString , ' s']) , ', ' , self speed , self frames
+		ifFalse: [(process isSuspended ifTrue: ['stopped'] ifFalse: ['running']) , ', ' , ((simulation microsecondClock - started) // 1000000) printString , ' s']) , ', ' , self speed , self screenSpeed
 !
-frames
+screenSpeed
 	"The guest display's frame time (mean / longest of the last ones) and input latency, if it has frames."
 	| t |
 	t := screen frameTime.
