@@ -101,7 +101,7 @@ modsOf: m
 translate: e
 	"Queue the pf_event of an SDL event (others, the wake event among them, are ignored)."
 	<c: 'void translate(SDL_Event *e)'>
-	| ev now age t s |
+	| ev now age t |
 	ev := self local: 'pf_event'.
 	now := sdl getTicksNS.
 	age := now > e common timestamp ifTrue: [now - e common timestamp] ifFalse: [0].
@@ -131,15 +131,14 @@ translate: e
 		ev window: (windows fromSDLId: e button windowID).
 		^self push: ev].
 	t = sdl SDL_EVENT_MOUSE_WHEEL ifTrue: [
-		s := e wheel direction = sdl SDL_MOUSEWHEEL_FLIPPED ifTrue: [-1.0] ifFalse: [1.0].
 		ev type: PF_EV_WHEEL.
 		mouseX := e wheel mouse_x.
 		mouseY := e wheel mouse_y.
 		ev x: mouseX.
 		ev y: mouseY.
 		ev xkind: PF_X_POINT.
-		ev dx: s * e wheel x.
-		ev dy: s * e wheel y.
+		ev dx: e wheel x.
+		ev dy: e wheel y.
 		ev window: (windows fromSDLId: e wheel windowID).
 		^self push: ev].
 	(t = sdl SDL_EVENT_KEY_DOWN or: [t = sdl SDL_EVENT_KEY_UP]) ifTrue: [

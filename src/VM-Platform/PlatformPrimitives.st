@@ -14,7 +14,7 @@ x, y: Floats in points (mouse position; for windowResized the new size; for disp
 	1 mouseMove	buttons held (1 L 2 M 4 R)	nil
 	2 mouseDown	button (1 L, 2 M, 3 R)	click count
 	3 mouseUp	button	click count
-	4 wheel	0	Point dx@dy (Floats; +y = away from user)
+	4 wheel	0	Point dx@dy (Floats; +y = scroll up, honouring the system scroll direction)
 	5 keyDown	keycode	repeat (Boolean)
 	6 keyUp	keycode	repeat (Boolean)
 	7 textInput	0	String (UTF-8 decoded)

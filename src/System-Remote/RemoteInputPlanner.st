@@ -109,7 +109,7 @@ drag: fromPoint to: toPoint modifiers: mods
 	^plan
 !
 scroll: aPoint delta: aDelta modifiers: mods
-	"Travel to aPoint and send one wheel event; aDelta is in wheel units (+y = away from the user, i.e. scroll up)."
+	"Travel to aPoint and send one wheel event; aDelta is in wheel units (+y = scroll up)."
 	| plan |
 	plan := self moveTo: aPoint.
 	plan add: (self event: 4 at: aPoint key: 0 modifiers: mods extra: aDelta x asFloat @ aDelta y asFloat) after: (plan isEmpty ifTrue: [0] ifFalse: [self arrivalMilliseconds]).

@@ -3,7 +3,7 @@ UIEvent subclass: #PointerEvent
 	classVariableNames: ''
 	package: 'UI-Windows'!
 
-PointerEvent comment: 'I am a pointer event: type #down #up #move #wheel #enter #leave; position (a Point local to the View receiving me; the Window re-localizes me as I bubble), globalPosition (screen points), button (1 left, 2 right — also ctrl-click —, 3 middle; 0 for moves), buttons (held during a move: 1 left, 2 middle, 4 right, as the platform reports), clickCount, delta (wheel: Point, +y = away from the user), modifiers.'!
+PointerEvent comment: 'I am a pointer event: type #down #up #move #wheel #enter #leave; position (a Point local to the View receiving me; the Window re-localizes me as I bubble), globalPosition (screen points), button (1 left, 2 right — also ctrl-click —, 3 middle; 0 for moves), buttons (held during a move: 1 left, 2 middle, 4 right, as the platform reports), clickCount, delta (wheel: Point, +y = scroll up), modifiers.'!
 
 !PointerEvent methodsFor: 'accessing'!
 position

@@ -179,10 +179,6 @@ SDL_EVENT_WINDOW_EXPOSED
 	<cMacro: 'Uint32 SDL_EVENT_WINDOW_EXPOSED'>
 	^self notSimulated
 !
-SDL_MOUSEWHEEL_FLIPPED
-	<cMacro: 'SDL_MouseWheelDirection SDL_MOUSEWHEEL_FLIPPED'>
-	^self notSimulated
-!
 SDL_KMOD_SHIFT
 	<cMacro: 'SDL_Keymod SDL_KMOD_SHIFT'>
 	^self notSimulated

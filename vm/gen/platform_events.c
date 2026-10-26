@@ -124,7 +124,6 @@ static void translate(SDL_Event *e)
     Uint64 now;
     Uint64 age;
     Uint32 t;
-    double s;
     memset(&local, 0, sizeof local);
     ev = &local;
     now = SDL_GetTicksNS();
@@ -159,15 +158,14 @@ static void translate(SDL_Event *e)
         return;
     }
     if (t == SDL_EVENT_MOUSE_WHEEL) {
-        s = e->wheel.direction == SDL_MOUSEWHEEL_FLIPPED ? -1.0 : 1.0;
         ev->type = PF_EV_WHEEL;
         mouse_x = e->wheel.mouse_x;
         mouse_y = e->wheel.mouse_y;
         ev->x = mouse_x;
         ev->y = mouse_y;
         ev->xkind = PF_X_POINT;
-        ev->dx = s * e->wheel.x;
-        ev->dy = s * e->wheel.y;
+        ev->dx = e->wheel.x;
+        ev->dy = e->wheel.y;
         ev->window = pf_window_from_sdl_id(e->wheel.windowID);
         pf_event_push(ev);
         return;

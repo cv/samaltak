@@ -178,7 +178,7 @@ mouseUp: anEvent
 	^true
 !
 wheel: anEvent
-	"Zoom in (away from the user) or out, one step per wheel unit."
+	"Zoom in (scrolling up) or out, one step per wheel unit."
 	| steps |
 	wheel := wheel + anEvent delta y.
 	steps := wheel truncated.
