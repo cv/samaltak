@@ -38,6 +38,7 @@ static int64_t priority_of(oop p);
 static int64_t raw_now_us(void);
 static oop remove_first_link(oop list);
 static void signal_index(int index);
+static int64_t thread_cpu_us(void);
 static void tick_arm(int ident, int64_t us, bool periodic);
 static void tick_set_idle(bool idle);
 static void tick_update(void);
@@ -193,7 +194,7 @@ static void idle_wait(void)
         tick_set_idle(false);
     }
     handle_interrupts();
-    last_switch_us = now_us();
+    last_switch_us = thread_cpu_us();
     in_idle = false;
 }
 
@@ -203,7 +204,7 @@ void sched_init(void)
     start_us = raw_now_us();
     last_preempted = nil_oop;
     alloc_sample_class = nil_oop;
-    last_switch_us = 0;
+    last_switch_us = thread_cpu_us();
     ticker_start();
 }
 
@@ -237,7 +238,7 @@ int64_t process_cpu_time_us(oop proc)
     ct = *(uint64_t *)(proc + 16 + 40);
     t = (ct & 1) != 0 ? ((int64_t)ct) >> 1 : 0;
     if ((proc == active_process()) && (!in_idle)) {
-        t = t + now_us() - last_switch_us;
+        t = t + thread_cpu_us() - last_switch_us;
     }
     return t;
 }
@@ -529,6 +530,17 @@ void suspend_active(void)
     transfer_to_highest();
 }
 
+/* Scheduler>>threadCpuUs */
+static int64_t thread_cpu_us(void)
+{
+    struct timespec local;
+    struct timespec *ts;
+    memset(&local, 0, sizeof local);
+    ts = &local;
+    clock_gettime(CLOCK_THREAD_CPUTIME_ID, ts);
+    return ts->tv_sec * 1000000 + ts->tv_nsec / 1000;
+}
+
 /* Scheduler>>tickArm:microseconds:periodic: */
 static void tick_arm(int ident, int64_t us, bool periodic)
 {
@@ -653,7 +665,7 @@ static void transfer_to(oop a_process)
     materialize_all();
     pop_root();
     old = active_process();
-    now = now_us();
+    now = thread_cpu_us();
     ct = *(uint64_t *)(old + 16 + 40);
     v = ((ct & 1) != 0 ? ((int64_t)ct) >> 1 : 0) + now - last_switch_us;
     v_2 = (uint64_t)((v << 1) | 1);

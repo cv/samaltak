@@ -3,7 +3,7 @@ Link subclass: #Process
 	classVariableNames: 'Registry RegistryMutex'
 	package: 'Kernel-Processes'!
 
-Process comment: 'I am a green thread: a chain of Contexts (suspendedContext, while I am not running) scheduled by the ProcessorScheduler at my priority (1..80). myList is the LinkedList I wait in: a run queue of the scheduler or a Semaphore; nil while I am running or suspended. cpuTime counts the microseconds I ran (maintained by the VM). The first six fields are fixed by the VM; window and errorHandler belong to the UI (a window''s process, a per-process unhandled error handler). overflowContext and overflowLimit: the headroom a resumed StackOverflow left (see stackOverflowIn:depth:).'!
+Process comment: 'I am a green thread: a chain of Contexts (suspendedContext, while I am not running) scheduled by the ProcessorScheduler at my priority (1..80). myList is the LinkedList I wait in: a run queue of the scheduler or a Semaphore; nil while I am running or suspended. cpuTime counts the microseconds of CPU time I used (maintained by the VM). The first six fields are fixed by the VM; window and errorHandler belong to the UI (a window''s process, a per-process unhandled error handler). overflowContext and overflowLimit: the headroom a resumed StackOverflow left (see stackOverflowIn:depth:).'!
 
 !Process methodsFor: 'accessing'!
 suspendedContext
@@ -36,7 +36,7 @@ name: aString
 	name := aString
 !
 cpuTime
-	"Answer the microseconds I have run so far."
+	"Answer the microseconds of CPU time I have used so far."
 	^cpuTime ifNil: [0]
 !
 window

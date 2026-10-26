@@ -294,6 +294,10 @@ contextSamples
 	"Answer how many allocation samples hit a Context (counted, not recorded)."
 	^contextSamples
 !
+cpuSampleCount
+	"Answer how many CPU samples I have recorded."
+	^cpuSampleCount
+!
 maxDepth
 	^maxDepth
 !

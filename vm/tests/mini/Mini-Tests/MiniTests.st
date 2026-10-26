@@ -540,7 +540,8 @@ testSampling
 	[[s wait. count at: 1 put: (count at: 1) + 1] repeat] forkAt: 70.
 	Smalltalk samplerInterval: 1000 index: 1.
 	t := Smalltalk millisecondClock.
-	[Smalltalk millisecondClock < (t + 50)] whileTrue.
+	"10 ticks: 10 ms, longer on a loaded machine"
+	[(count at: 1) < 10 and: [Smalltalk millisecondClock < (t + 10000)]] whileTrue.
 	Smalltalk samplerInterval: 0 index: 1.
 	((count at: 1) >= 10) printNl.
 	a := Semaphore new.
@@ -553,9 +554,10 @@ testSampling
 	((info at: 2) > 10) printNl.
 	(((info at: 1) at: 2) > 0) printNl.
 	(#(#Array #Context) includes: ((info at: 1) at: 1) name) printNl.
+	"15 ms of CPU time (the running slice): longer on a loaded machine"
 	a := Processor activeProcess cpuMicroseconds.
 	t := Smalltalk millisecondClock.
-	[Smalltalk millisecondClock < (t + 20)] whileTrue.
+	[Processor activeProcess cpuMicroseconds - a < 15000 and: [Smalltalk millisecondClock < (t + 10000)]] whileTrue.
 	(Processor activeProcess cpuMicroseconds - a >= 15000) printNl
 ! !
 
