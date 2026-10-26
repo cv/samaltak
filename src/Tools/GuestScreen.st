@@ -283,9 +283,6 @@ textInput: anEvent
 	anEvent string do: [:c |
 		(c value between: 32 and: 255) ifTrue: [self queue: 4 at: 0 @ 0 key: c value modifiers: anEvent modifiers]].
 	^true
-!
-cursorAt: aPoint
-	^#crosshair
 ! !
 
 !GuestScreen methodsFor: 'remote control'!

@@ -9,9 +9,10 @@ TranscriptView comment: 'I am Transcript, the System Transcript''s text: show: a
 show: aString
 	| parts |
 	parts := aString lines.
-	parts isEmpty ifTrue: [^self].
-	self append: parts first.
-	parts allButFirstDo: [:each | self cr; append: each]
+	parts isEmpty ifFalse: [
+		self append: parts first.
+		parts allButFirstDo: [:each | self cr; append: each]].
+	(aString notEmpty and: [aString last = Character lf or: [aString last = Character cr]]) ifTrue: [self cr]
 !
 nextPutAll: aString
 	self show: aString
