@@ -105,4 +105,19 @@ testProfilerZoomMidAnimation
 	 self assertRetainedDrawingOf: w after: [view refresh].
 	 self assertNoStaleReplays]
 		ensure: [w close]
+!
+testProfilerProcessTerminating
+	"A Process the stopped Profiler lists terminates: the list, replayed, draws it as when its rows came."
+	| busy w view |
+	busy := self fork: [[true] whileTrue: [300 factorial]] named: 'busy' at: 30.
+	(Delay forMilliseconds: 300) wait.
+	w := ProfilerView open.
+	view := w content.
+	[self settle.
+	 self in: w do: [view refresh. view stop].
+	 self assert: (view processList items anySatisfy: [:row | row first == busy]).
+	 busy terminate.
+	 self assertRetainedDrawingOf: w after: [view flame invalidate].
+	 self assertNoStaleReplays]
+		ensure: [w close]
 ! !
