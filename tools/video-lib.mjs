@@ -5,11 +5,14 @@
 // into <out>/raw.mp4 and the captions are timed on the concatenated video.
 import { execFileSync } from 'node:child_process';
 import { existsSync, mkdirSync, readFileSync, writeFileSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const here = dirname(fileURLToPath(import.meta.url));
 export const sleep = ms => new Promise(r => setTimeout(r, ms));
+const sleepSync = ms => Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms);
+const alive = pid => { try { process.kill(pid, 0); return true; } catch { return false; } };
 const probe = file => +execFileSync('ffprobe', ['-v', 'error', '-show_entries', 'format=duration', '-of', 'csv=p=0', file], { encoding: 'utf8' }).trim();
 
 export class VideoSession {
@@ -66,19 +69,36 @@ export class VideoSession {
   // Type like a person: one command, the image types one character every (ms + 95) ms (the walkthrough's pace).
   type(ref, text, ms = 45, ...flags) { return this.act('type', ref, text, '--delay', String(ms + 95), ...flags); }
 
-  // Start the image (fresh: close any old session first) and wait for its desktop.
+  // Start the image (fresh: close any old session first) and wait for its desktop (wait: null, only until it listens).
   async open({ fresh = true, image = this.image, args = [], wait = /System Browser|Workspace/ } = {}) {
     if (fresh) { try { this.ctl('close'); } catch {} }
     this.ctl('open', '--image', image, '--window-size', '1440x900', ...args);
+    if (!wait) return;
     await this.win(wait);
     try { this.ctl('wait', 'idle', '15000'); } catch {}
   }
+  // Start recording a segment, as soon as the image's UI can (right after a start it registers record a moment later).
   startSegment() {
     const file = join(this.out, `raw-${this.segments.length + 1}.mp4`);
-    this.ctl('record', 'start', file, '--size', '1440x900', '--fps', '30');
+    for (const t = Date.now(); ; sleepSync(30)) {
+      try { this.run(['record', 'start', file, '--size', '1440x900', '--fps', '30']); break; }
+      catch (e) { if (Date.now() - t > 30000) throw e; }
+    }
     this.segments.push(file);
     this.t0 = Date.now();
     this.recording = true;
+  }
+  // Wait until the recording ended by itself: the image quit, or its VM exec'd another (ffmpeg saw the end of the FIFO).
+  async recordingEnded(timeout = 30000) {
+    const session = join(process.env.TMPDIR || tmpdir(), 'samaltak-ctl', `${this.env.SAMALTAK_SESSION}.json`);
+    const t = Date.now();
+    for (;;) {
+      let rec = null;
+      try { rec = JSON.parse(readFileSync(session, 'utf8')).recording; } catch {}
+      if (!rec || !alive(rec.pid)) return;
+      if (Date.now() - t > timeout) throw new Error('the recording did not end');
+      await sleep(50);
+    }
   }
   stopSegment() {
     console.log(this.ctl('record', 'stop'));

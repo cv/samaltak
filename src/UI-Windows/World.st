@@ -1,5 +1,5 @@
 Object subclass: #World
-	instanceVariableNames: 'displayWindow extent scale windows overlays activeWindow compositor dispatcher topBar toasts tooltip lock windowCounter closingWindows needsFrame remotePointer hidden imageName clipboardText running'
+	instanceVariableNames: 'displayWindow extent scale windows overlays activeWindow compositor dispatcher topBar toasts tooltip lock windowCounter closingWindows needsFrame remotePointer hidden imageName clipboardText running curtain'
 	classVariableNames: 'Current HelpHandler UserInterruptHandler WorldMenuBuilder QuitHandler'
 	package: 'UI-Windows'!
 
@@ -77,6 +77,10 @@ toasts
 !
 tooltip
 	^tooltip
+!
+curtain
+	"What covers the screen while the image comes and goes (a WorldCurtain), or nil."
+	^curtain
 !
 remotePointer
 	^remotePointer
@@ -378,14 +382,42 @@ resumeHidden: aBoolean
 	(windows, overlays) do: [:w | w resumed].
 	extent = displayWindow extent ifFalse: [self hostResized: displayWindow extent].
 	self displayScaleChanged: displayWindow scale.
+	aBoolean ifFalse: [self showRestartSplash].
 	self start.
 	self changed
+!
+showRestartSplash
+	"Cover the screen with the restart splash until every window is composited again."
+	curtain := WorldCurtain starting: self.
+	self changed
+!
+leave
+	"Before the VM goes away (a quit, the exec of a rebuilt VM): the screen fades to black; answer once it was shown. Not when hidden."
+	(hidden or: [running not or: [compositor isNil]]) ifTrue: [^self].
+	curtain := WorldCurtain leaving: self.
+	self changed.
+	Processor activeProcess == compositor process ifTrue: [^self].
+	[curtain isBlack or: [curtain elapsed > (WorldCurtain fadeMilliseconds + 1000)]] whileFalse: [(Delay forMilliseconds: 10) wait].
+	self waitForFrames: 2
+!
+stay
+	"The VM did not go away after all: show me again."
+	(curtain notNil and: [curtain isLeaving]) ifTrue: [curtain := nil].
+	self changed
+!
+stepCurtain
+	"Called by the compositor every frame: answer whether a curtain still needs frames."
+	(curtain notNil and: [curtain isDone]) ifTrue: [
+		curtain := nil.
+		self changed].
+	^curtain notNil
 ! !
 
 !World methodsFor: 'waiting'!
 isSettled
 	"No input pending, no window handling or queueing events, nothing left to present, no layer animation running. Windows animating every frame (requestAnimationFrames: with a block) never settle; they are ignored."
 	| all steady |
+	curtain isNil ifFalse: [^false].
 	dispatcher isNil ifFalse: [dispatcher isIdle ifFalse: [^false]].
 	closingWindows isEmpty ifFalse: [^false].
 	all := windows, overlays.

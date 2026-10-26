@@ -646,7 +646,7 @@ exit_insert:;
 /* JitRuntime>>defaults */
 void jit_defaults(void)
 {
-    jit_mode = JIT_NONE;
+    jit_mode = JIT_OPT;
     jit_flags = 262135U;
 }
 

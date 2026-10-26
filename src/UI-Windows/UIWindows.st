@@ -3,7 +3,7 @@ Object subclass: #UIWindows
 	classVariableNames: 'StartupAction'
 	package: 'UI-Windows'!
 
-UIWindows comment: 'I start the window system. A normal start of the image (no --stage2, --test or --eval) runs my main action: unless --headless, open the host window (1440×900 points, or --window-size WxH; --hidden keeps it offscreen), start the World with its Compositor and InputDispatcher, register the World with remote control when the control server runs (--control), and run the startup action (set by the Demos or the Tools package: UIWindows startupAction: [...]). An image saved while its World ran resumes that World (World>>resumeHidden:): every window as it was, with its Process.
+UIWindows comment: 'I start the window system. A normal start of the image (no --stage2, --test or --eval) runs my main action: unless --headless, open the host window (1440×900 points, or --window-size WxH; --hidden keeps it offscreen), start the World with its Compositor and InputDispatcher, register the World with remote control when the control server runs (--control), and run the startup action (set by the Demos or the Tools package: UIWindows startupAction: [...]). An image saved while its World ran resumes that World (World>>resumeHidden:): every window as it was, with its Process, behind a splash until they are composited again; before a quit the screen fades to black (WorldCurtain).
 
 	UIWindows startUp          "open the World now (answers it)"
 	UIWindows startupAction: [World current ...]'!
@@ -12,6 +12,7 @@ UIWindows comment: 'I start the window system. A normal start of the image (no -
 initialize
 	Smalltalk mainAction: [self runMainAction].
 	Smalltalk addToStartUpList: self.
+	Smalltalk addToShutDownList: self.
 	SystemChanges subscribe: #UIWindows do: [:change |
 		(self isDrawingChange: change) ifTrue: [World current ifNotNil: [:world | world restyle]]].
 	Renderer shaderErrorHandler: [:error | self reportShaderError: error].
@@ -48,6 +49,10 @@ startUp: resuming
 	Smalltalk isHeadless ifTrue: [^World current abandon].
 	World current resumeHidden: self isHidden.
 	ControlServer current isNil ifFalse: [UIRemote installOn: World current]
+!
+shutDown: quitting
+	"Before a quit the screen visibly goes away."
+	quitting ifTrue: [World current ifNotNil: [:world | world leave]]
 ! !
 
 !UIWindows class methodsFor: 'starting'!

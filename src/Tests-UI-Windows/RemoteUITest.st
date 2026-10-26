@@ -68,6 +68,22 @@ testClickInSlowMotion
 	"the on-screen pointer glides there (on the slowed clock)"
 	self assert: (self waitFor: [world remotePointer position = RemoteInputDevice default pointer] timeout: 10000)
 !
+testPressWaitsForTheDrawnPointer
+	"The press of a remote click is injected only once a frame showed the pointer where it presses: the drawn pointer glides behind the injected moves."
+	| v device shownAtPress |
+	v := RecordingTestView new.
+	self open: v title: 'Remote' at: (100 @ 100 extent: 300 @ 200).
+	device := RemoteInputDevice default.
+	self send: ((self cmd: 'hover') at: 'target' put: '950,650'; yourself).
+	self assert: (self waitFor: [world remotePointer hasShown: 950 @ 650] timeout: 5000).
+	device injector: [:event |
+		event first = 2 ifTrue: [shownAtPress := world remotePointer hasShown: (event at: 3) @ (event at: 4)].
+		device primInjectEvent: event].
+	[self send: ((self cmd: 'click') at: 'target' put: '@w1.view'; yourself)] ensure: [device injector: nil].
+	self assert: shownAtPress == true.
+	self settle.
+	self assert: (v eventsOfType: #down) size equals: 1
+!
 testClickRaisesCoveredWindow
 	| a b wa |
 	a := RecordingTestView new.

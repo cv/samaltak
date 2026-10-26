@@ -1,9 +1,9 @@
 Object subclass: #RemotePointer
-	instanceVariableNames: 'position target lastSeen lastActivity lastStep opacity rings'
+	instanceVariableNames: 'position target lastSeen lastActivity lastStep opacity rings shown'
 	classVariableNames: ''
 	package: 'UI-Windows'!
 
-RemotePointer comment: 'I am the software pointer the Compositor draws while remote input is active (RemoteInputDevice default injects events): a Blue Book arrow that follows the injected pointer positions smoothly (the device already interpolates moves; I ease between frames), a ring where an injected click lands, and a fade-out 4 s after the last remote input.'!
+RemotePointer comment: 'I am the software pointer the Compositor draws while remote input is active (RemoteInputDevice default injects events): a Blue Book arrow that follows the injected pointer positions smoothly (the device already interpolates moves; I ease between frames), a ring where an injected click lands, and a fade-out 4 s after the last remote input. Remote input presses a button only once a frame showed me where it presses (hasShown:, RemoteInputDevice arrivalBlock:).'!
 
 !RemotePointer methodsFor: 'initialization'!
 initialize
@@ -24,6 +24,10 @@ isVisible
 !
 isActiveAt: ms
 	^ms - lastActivity < 4000
+!
+hasShown: aPoint
+	"Did the last frame drawn show me at aPoint (within half a point)?"
+	^shown notNil and: [(shown dist: aPoint) <= 0.5]
 ! !
 
 !RemotePointer methodsFor: 'stepping'!
@@ -71,6 +75,7 @@ drawOn: c time: ms
 		radius := 8 * (0.3 + (1.2 * (Animation ease: #easeOutCubic at: t))).
 		c alpha: 1 - t during: [self circle: r first radius: radius on: c]].
 	self isVisible ifFalse: [^self].
+	shown := position.
 	form := UIIcons arrowPointerScale: c scale.
 	c alpha: opacity during: [
 		c image: form in: (position - (1 @ 1) extent: 13 @ 19)]

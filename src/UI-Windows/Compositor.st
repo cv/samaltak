@@ -191,6 +191,7 @@ stepAt: now
 		(t stepAt: now) ifTrue: [any := true].
 		(t needsFramesAt: now) ifTrue: [any := true]].
 	(world remotePointer pollAt: now) ifTrue: [any := true].
+	world stepCurtain ifTrue: [any := true].
 	world dispatcher isNil ifFalse: [world dispatcher checkTooltipAt: now].
 	^any
 !
@@ -252,6 +253,7 @@ compositeListScale: aNumber pointer: showPointer time: now
 	world closingWindows do: [:w | w isOverlay ifTrue: [self drawWindow: w on: c time: now]].
 	self drawToastsOn: c.
 	world tooltip isNil ifFalse: [world tooltip drawOn: c].
+	world curtain isNil ifFalse: [world curtain drawOn: c].
 	showPointer ifTrue: [world remotePointer drawOn: c time: now].
 	^c displayList
 !

@@ -1,9 +1,9 @@
 Object subclass: #RemoteInputDevice
-	instanceVariableNames: 'pointer windowId injector settleMilliseconds timeScaleBlock'
+	instanceVariableNames: 'pointer windowId injector settleMilliseconds timeScaleBlock arrivalBlock'
 	classVariableNames: 'Default'
 	package: 'System-Remote'!
 
-RemoteInputDevice comment: 'I am the virtual input device: I play RemoteInputPlans by injecting their events into the platform''s input queue (primitive injectEvent:), the same path real input takes, and then wait for the image to settle (RemoteControl waitUntilIdleFor:). I remember where the virtual pointer is, so the next plan travels from there; the UI may set pointer (e.g. to the real mouse position) and windowId (the host window events belong to). Tests replace the injector with a block that records the events.'!
+RemoteInputDevice comment: 'I am the virtual input device: I play RemoteInputPlans by injecting their events into the platform''s input queue (primitive injectEvent:), the same path real input takes, and then wait for the image to settle (RemoteControl waitUntilIdleFor:). I remember where the virtual pointer is, so the next plan travels from there; the UI may set pointer (e.g. to the real mouse position) and windowId (the host window events belong to). A UI that draws the pointer sets arrivalBlock: a press, release or wheel event is injected only once the drawn pointer is at its position (waitsForPointer:), so nothing clicks before the pointer gets there. Tests replace the injector with a block that records the events.'!
 
 !RemoteInputDevice methodsFor: 'initialization'!
 initialize
@@ -41,6 +41,19 @@ timeScaleBlock: aBlockOrNil
 	"aBlock answers the timeScale (nil: 1)."
 	timeScaleBlock := aBlockOrNil
 !
+arrivalBlock: aBlockOrNil
+	"aBlock value: aPoint answers whether the pointer the UI draws is at aPoint (nil: no drawn pointer)."
+	arrivalBlock := aBlockOrNil
+!
+waitsForPointer: anEvent
+	"Must anEvent (a press, release or wheel event) wait until the drawn pointer is at its position?"
+	(arrivalBlock isNil or: [(anEvent first between: 2 and: 4) not]) ifTrue: [^false].
+	^(arrivalBlock value: (anEvent at: 3) @ (anEvent at: 4)) ~~ true
+!
+arrivalTimeout
+	"How long (ms) an event waits for the drawn pointer at most: it glides on the UI's clock."
+	^1000 * self timeScale
+!
 planner
 	"Answer a RemoteInputPlanner starting at my pointer."
 	^RemoteInputPlanner new pointer: pointer; windowId: windowId; timeScale: self timeScale; yourself
@@ -49,18 +62,23 @@ planner
 !RemoteInputDevice methodsFor: 'playing'!
 play: aPlan
 	"Inject aPlan's events with their delays; answer whether the image settled afterwards."
-	aPlan do: [:delay :event |
-		delay > 0 ifTrue: [(Delay forMilliseconds: delay) wait].
-		self inject: event].
+	self injectAll: aPlan.
 	^self settle
 !
 play: aPlan settle: milliseconds
 	"Like play:, waiting at most milliseconds (0: not at all) for the image to settle."
-	aPlan do: [:delay :event |
-		delay > 0 ifTrue: [(Delay forMilliseconds: delay) wait].
-		self inject: event].
+	self injectAll: aPlan.
 	milliseconds <= 0 ifTrue: [^true].
 	^RemoteControl waitUntilIdleFor: milliseconds
+!
+injectAll: aPlan
+	"In the calling Process: each event after its delay, a press, release or wheel event once the drawn pointer is there."
+	aPlan do: [:delay :event | | start |
+		delay > 0 ifTrue: [(Delay forMilliseconds: delay) wait].
+		start := Time millisecondClockValue.
+		[(self waitsForPointer: event) and: [Time millisecondClockValue - start < self arrivalTimeout]]
+			whileTrue: [(Delay forMilliseconds: 10) wait].
+		self inject: event]
 !
 inject: anEvent
 	((anEvent first between: 1 and: 4)) ifTrue: [pointer := (anEvent at: 3) @ (anEvent at: 4)].

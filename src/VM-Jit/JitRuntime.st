@@ -313,9 +313,9 @@ setFlags: f
 	invalidations := invalidations + 1
 !
 defaults
-	"Before the command line: --jit none, threshold 2, OSR after 50 backward jumps, optimization after 1000 entries and backward jumps, 64 MB, every flag but notes and the stress flags eager and deopt."
+	"Before the command line: --jit opt, threshold 2, OSR after 50 backward jumps, optimization after 1000 entries and backward jumps, 64 MB, every flag but notes and the stress flags eager and deopt."
 	<c: 'void jit_defaults(void)'>
-	jitMode := JIT_NONE.
+	jitMode := JIT_OPT.
 	jitFlags := ((JIT_FLAG_LAST << 1) - 1 bitClear: ((JIT_FLAG_NOTES bitOr: JIT_FLAG_EAGER) bitOr: JIT_FLAG_DEOPT)) asUInt32
 !
 start

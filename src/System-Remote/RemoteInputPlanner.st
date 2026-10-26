@@ -74,7 +74,9 @@ moveTo: aPoint buttons: buttonMask modifiers: mods
 				eased := t < (1/2) ifTrue: [2 * t * t] ifFalse: [1 - ((-2 * t + 2) squared / 2)].
 				plan
 					add: (self event: 1
-						at: (start x + ((aPoint x - start x) * eased)) @ (start y + ((aPoint y - start y) * eased))
+						at: (i = n
+							ifTrue: [aPoint]
+							ifFalse: [(start x + ((aPoint x - start x) * eased)) @ (start y + ((aPoint y - start y) * eased))])
 						key: buttonMask modifiers: mods extra: nil)
 					after: (i = 1 ifTrue: [0] ifFalse: [stepMilliseconds])]].
 	pointer := aPoint.
