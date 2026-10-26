@@ -10,6 +10,13 @@
 #include <pthread.h>
 #include <sys/mman.h>
 #include <libkern/OSCacheControl.h>
+#define guest_display_open(w, h, cell) ((void)(w), (void)(h), (void)(cell), false)
+#define guest_display_fill(x, y, w, h, rule) ((void)(x), (void)(y), (void)(w), (void)(h), (void)(rule))
+#define guest_display_copy(x, y, w, h, to_x, to_y) ((void)(x), (void)(y), (void)(w), (void)(h), (void)(to_x), (void)(to_y))
+#define guest_display_text(bytes, n, x, y, rule) ((void)(bytes), (void)(n), (void)(x), (void)(y), (void)(rule))
+#define guest_display_bits(bytes, x, y, w, h, rule) ((void)(bytes), (void)(x), (void)(y), (void)(w), (void)(h), (void)(rule))
+#define guest_display_next_event(event) ((void)(event), false)
+#define guest_display_flush() ((void)0)
 #include <stdio.h>
 #include <stdlib.h>
 #include <math.h>
@@ -1336,6 +1343,13 @@ void prim_semaphore_wait(void);
 void prim_signal_at_milliseconds(void);
 void prim_stack_limit(void);
 void prim_try_primitive(void);
+void prim_display_bits(void);
+void prim_display_copy(void);
+void prim_display_fill(void);
+void prim_display_flush(void);
+void prim_display_next_event(void);
+void prim_display_open(void);
+void prim_display_text(void);
 void become_forward(oop from, oop to);
 void collect_garbage(size_t need);
 void full_gc(void);

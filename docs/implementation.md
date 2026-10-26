@@ -14,6 +14,7 @@ src/                Smalltalk sources, one directory per package; src/packages.t
 vm/gen/             the C translated from VM-Core, VM-Jit and VM-Platform (checked in; make translate regenerates it)
 vm/Makefile         → vm/build/samaltak (profile-guided with vm/pgo.profdata)
 boot/seed.image     the checked-in seed image that runs ImageBuilder (boot/build-image.sh)
+st80/               the VM Simulator's Smalltalk-80 guest: links to src/'s Kernel and Compiler packages, and ST80-UI
 fonts/              TTF files (OFL)
 tests/              integration tests (headless Smalltalk runs, samaltak-ctl UI scenarios)
 tools/              samaltak-ctl (Node ≥18, no deps), video scripts
@@ -268,6 +269,7 @@ A primitive fails (method body runs) on wrong argument types or ranges. Indices 
 | blocks | `closureValue` (0–4 args) `closureValueWithArguments` — markers `ensureMarker` (`ensure:`/`ifCurtailed:`), `onDoMarker` (`on:do:`) |
 | processes | `processResume` `processSuspend` `processorYield` `semaphoreSignal` `semaphoreWait` `processorLastPreempted` `processorRelinquish` (µs) `signalAtMilliseconds` (timer semaphore) `samplerInterval` (µs, external semaphore index; 0 stops) `allocationSampling` (byte interval, external semaphore index) `allocationSampleInfo` (Array: class, size) `processCpuTime` (cpuTime including the running slice) `processStackInto` (profiler: a non-running process's frames as method, pc pairs into an Array; see ControlPrimitives) `stackLimit` (optional new limit, 0 = none; answers the previous one; see Stack overflow) |
 | time | `millisecondClock` `microsecondClock` (monotonic) `utcMicroseconds` |
+| display | `displayOpen` `displayFill` `displayCopy` `displayText` `displayBits` `displayNextEvent` `displayFlush` — the guest display (DisplayPrimitives): a 1-bit screen, a fixed-width font, its input; only a simulated VM has one (GuestDisplay), in C they fail |
 | system | `quit` `snapshot` (path; answers true when resumed from the snapshot, false right after writing) `gc` (full GC) `scavenge` (young generation only; a full GC, if old space then exceeds its budget, happens at the next allocation) `vmStats` (Array of counters, documented in SystemPrimitives; `Smalltalk vm statistics` wraps it in a VMStatistics with named accessors) `flushMethodCache` `flushCacheForSelector` `vmArguments` `imagePath` `stdoutWrite` `stderrWrite` `primitiveNames` `getenv` `vmBanner` (`VMMain>>banner`, shown in the top bar) `jitParameters` (`{mode. flags. threshold. osr. cache MB}`, settable) `jitCode` (a method's machine code with its compiler's notes, JitPrimitives) |
 
 ## Sources
