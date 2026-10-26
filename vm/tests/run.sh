@@ -76,7 +76,7 @@ suite() { # label vm-options...
 MODES=${MODES:-"none baseline opt"}
 for mode in $MODES; do
     case $mode in
-    none) suite "" ;;
+    none) suite "" --jit none ;;
     opt)
         # optimized after one activation of compiled code, then again with deoptimization stress
         suite " (jit opt, eager)" --jit opt --jit-threshold 0 --jit-flags eager
@@ -91,7 +91,7 @@ for mode in $MODES; do
 done
 
 if [ "${BENCH:-1}" = 1 ]; then
-    "$VM" "$IMG" --headless Bench 2>&1 >/dev/null | sed 's/^/bench: /'
+    "$VM" --jit none "$IMG" --headless Bench 2>&1 >/dev/null | sed 's/^/bench: /'
     "$VM" --jit baseline "$IMG" --headless Bench 2>&1 >/dev/null | sed 's/^/bench (jit baseline): /'
 fi
 echo "test-vm: $pass passed, $fail failed"

@@ -96,12 +96,6 @@ function expect(ref, part) {
   if (!t.includes(part)) throw new Error(`${ref} does not contain ${JSON.stringify(part)}:\n${t}`);
 }
 let J = null;                     // the robot's window (Claude's Robot, a ShannonJuggler)
-const breakInJuggler = async () => {
-  await browse('Tools', 'ShannonJuggler', 'move:');
-  act('rightclick', `${W.browser}.methods.move`); await sleep(800);
-  act('click', '@menu.break-in-window'); await sleep(800);
-  act('click', '@menu~2.claude-s-robot');
-};
 
 // ---------------------------------------------------------------- beats
 const beats = [
@@ -177,99 +171,60 @@ const beats = [
     act('click', '@menu.slow-motion'); await sleep(1500);
   }],
 
-  // 6. Edit and continue: the robot's balls turn turquoise from the next frame on (Tools › ShannonJuggler ›
-  // ballColor, read by its stage every frame in its window's Process).
-  ['juggle-edit', async () => {
-    await browse('Tools', 'ShannonJuggler', 'ballColor');
-    // to turquoise: it reads on the dark curtain
-    const old = text(`${W.browser}.code`).match(/Color r: [\d.]+ g: [\d.]+ b: [\d.]+|Color \w+/)[0];
-    await edit(old, 'Color r: 0.1 g: 0.8 b: 0.75', 60);
-    act('key', 'Meta+s', `${W.browser}.code`); await sleep(2500);
-  }],
-
-  // 7. An infinite loop in the robot's step (Tools › ShannonJuggler › step): its window hangs (busy), everything
-  // else stays live. ⌘. on the robot: the notifier, Debug: the debugger highlights the loop.
-  ['loop', async () => {
-    await browse('Tools', 'ShannonJuggler', 'step');
-    // the first statement: after the selector line, the comment and the temporaries
-    const first = text(`${W.browser}.code`).split('\n').slice(1).map(l => l.trim()).find(l => l && !/^["|]/.test(l));
-    act('click', `${W.browser}.code`); await sleep(200);
-    act('select', `${W.browser}.code`, first); await sleep(400);
-    act('key', 'Left', `${W.browser}.code`); await sleep(300);                // the caret before it
-    act('type', `${W.browser}.code`, '[true] whileTrue.\n', '--delay', '110'); await sleep(18 * 110 + 400);
-    expect(`${W.browser}.code`, `\t[true] whileTrue.\n\t${first}`);
-    act('key', 'Meta+s', `${W.browser}.code`);
-    S.busy = true;
-    await sleep(2500);
-    act('drag', W.procs, '-60', '30'); await sleep(900);          // the window manager stays live
-    act('drag', W.procs, '60', '-30'); await sleep(900);
-    act('click', J); await sleep(500);
-    act('key', 'Meta+.');
-    const note = await S.win(/User [Ii]nterrupt/);
-    await sleep(1400);
-    act('click', `${note}.debug`);
-    await debuggerOn(/Debugger/);
-    S.busy = false;
-    await sleep(1500);
-  }],
-  // In the debugger: delete the loop, ⌘S (recompiles step, restarts the frame), Proceed: it juggles again.
-  ['loop-fix', async () => {
-    const dbg = await S.win(/Debugger/);
-    await replaceIn(`${dbg}.source`, '[true] whileTrue.\n\t', '');
-    if (text(`${dbg}.source`).includes('whileTrue.')) throw new Error('the loop is still there');
-    await sleep(500);
-    act('key', 'Meta+s', `${dbg}.source`); await sleep(1500);
-    act('click', `${dbg}.proceed`); await sleep(2500);
-  }],
-
-  // 8. System Browser › move: › break in window ▸ Claude's Robot: the robot's Process stops at its next move:,
-  // the balls freeze mid-air; the context inspector shows the ball; the rest of the system is live.
-  ['freeze', async () => {
-    await breakInJuggler();
-    const dbg = await debuggerOn(/Breakpoint: ShannonJuggler>>move:/);
-    await sleep(500);
-    act('click', `${dbg}.context.fields#1`); await sleep(1500);             // the ball, move:'s argument
-    act('drag', W.procs, '-60', '30'); await sleep(900);
-    act('drag', W.procs, '60', '-30'); await sleep(900);
-  }],
-  // Flip gravity in the debugger's source pane, ⌘S (recompiles, also without the breakpoint), Proceed.
+  // 6. Edit and continue, no debugger: Tools › ShannonJuggler › move: (run for every ball in every frame) gets gravity
+  // pointing up while the robot juggles: the balls fall up and settle at the ceiling.
   ['gravity', async () => {
-    const dbg = await S.win(/Debugger/);
-    await replaceIn(`${dbg}.source`, '0 @ 0.4', '0 @ -0.4', 160);
-    expect(`${dbg}.source`, '(0 @ -0.4)');
-    await sleep(400);
-    act('key', 'Meta+s', `${dbg}.source`); await sleep(1200);
-    act('click', `${dbg}.proceed`); await sleep(4000);
+    await browse('Tools', 'ShannonJuggler', 'move:');
+    await edit('0 @ 0.4', '0 @ -0.4', 140);
+    expect(`${W.browser}.code`, '(0 @ -0.4)');
+    act('key', 'Meta+s', `${W.browser}.code`); await sleep(4000);
   }],
-  // Gravity back in the System Browser (showing the method again, as the debugger left it); a click restarts the act.
+  // Gravity back; a click on the robot restarts the act (the balls into its hands).
   ['restore', async () => {
-    act('select', `${W.browser}.methods`, 'step'); await sleep(500);
-    act('select', `${W.browser}.methods`, 'move:'); await sleep(700);
     await edit('0 @ -0.4', '0 @ 0.4', 60);
-    act('key', 'Meta+s', `${W.browser}.code`); await sleep(1500);
+    act('key', 'Meta+s', `${W.browser}.code`); await sleep(1200);
     act('click', `${J}.stage`); await sleep(2500);
   }],
 
-  // 9. Snapshot mid-debugging: the robot stopped in move:; World menu › Save image, › Quit; the image is started
-  // again: the debugger and the frozen robot are back; Remove breakpoint, Proceed: it juggles on.
+  // 7. The one debugger stop: Tools › ShannonJuggler › ballColor (read every frame) › break in window ▸ Claude's Robot:
+  // the robot's Process stops in its next frame, the robot freezes mid-throw; the rest of the system is live.
+  ['freeze', async () => {
+    act('select', `${W.browser}.methods`, 'ballColor'); await sleep(700);
+    act('rightclick', `${W.browser}.methods.ballcolor`); await sleep(800);
+    act('click', '@menu.break-in-window'); await sleep(800);
+    act('click', '@menu~2.claude-s-robot');
+    await debuggerOn(/Breakpoint: ShannonJuggler>>ballColor/);
+    await sleep(1000);
+    act('drag', W.procs, '-60', '30'); await sleep(900);          // the window manager stays live
+    act('drag', W.procs, '60', '-30'); await sleep(900);
+  }],
+  // The colour changed in the debugger's source pane, ⌘S: recompiled (without the breakpoint), the frame restarts;
+  // the Process stays stopped.
+  ['recolour', async () => {
+    const dbg = await S.win(/Debugger/);
+    const old = text(`${dbg}.source`).match(/Color r: [\d.]+ g: [\d.]+ b: [\d.]+|Color \w+/)[0];
+    await replaceIn(`${dbg}.source`, old, 'Color r: 0.1 g: 0.8 b: 0.75', 70);
+    expect(`${dbg}.source`, 'Color r: 0.1 g: 0.8 b: 0.75');
+    await sleep(300);
+    act('key', 'Meta+s', `${dbg}.source`); await sleep(1500);
+  }],
+  // World menu › Save image, › Quit while it is stopped: the screen fades to black, the image quits. It starts again
+  // from the saved image: the recording's next segment begins with the restart splash.
   ['snapshot', async () => {
-    await breakInJuggler();
-    await debuggerOn(/Breakpoint: ShannonJuggler>>move:/);
-    await sleep(1200);
     act('click', DESK); await sleep(700);
     act('click', '@menu.save-image'); await sleep(2500);
     act('click', DESK); await sleep(700);
     try { act('click', '@menu.quit'); } catch {}          // the image quits while the command waits for it to settle
-    await sleep(1500);
-    S.stopSegment();                                   // the image quit: its recording ended with it
-    await S.open({ fresh: false, args: openArgs, wait: /Debugger/ });
+    await S.recordingEnded();                          // its recording ended with it
+    S.stopSegment();
+    await S.open({ fresh: false, args: openArgs, wait: null });
     S.startSegment();
   }],
+  // Everything is back, the robot frozen mid-throw, the debugger open; Proceed: it juggles on, in the new colour.
   ['relaunch', async () => {
+    const dbg = await S.win(/Debugger/, 30000);
     await sleep(2500);
-    const dbg = await S.win(/Debugger/);
-    act('click', `${dbg}.remove-breakpoint`); await sleep(900);
-    act('click', `${dbg}.proceed`); await sleep(2500);
+    act('click', `${dbg}.proceed`); await sleep(3000);
   }],
 
   // 10. Smalltalk in Smalltalk: World menu › VM Simulator runs a guest image on the VM's own Smalltalk classes (the
@@ -294,12 +249,13 @@ const beats = [
     const sim = await S.win(/VM Simulator/);
     act('click', `${sim}.rebuild`);
     try { const rb = await S.win(/VM Rebuild/); await sleep(300); place(rb, 18, 41, 866, 470); } catch {}
-    for (let t = Date.now(); ; await sleep(200)) {     // the image goes away for a moment while the new VM starts
+    await S.recordingEnded(180000);                    // the screen fades, the VM execs the new one: the recording ends
+    S.stopSegment();
+    S.startSegment();                                  // the new VM's World, from the restart splash on
+    for (let t = Date.now(); ; await sleep(200)) {
       try { S.run(['wait', 'rebooted in', '15000']); break; } catch (e) { if (Date.now() - t > 120000) throw e; }
     }
-    S.stopSegment();
-    S.startSegment();
-    await sleep(3500);
+    await sleep(3000);
   }],
 
   // 11. No hand-written C: the Terminal tool (Smalltalk: pty primitives, VT100 parser, view) counts the Smalltalk

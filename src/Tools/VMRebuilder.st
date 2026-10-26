@@ -7,7 +7,7 @@ VMRebuilder comment: 'I rebuild the VM from the image''s own Lowtalk (VM-Core an
 
 1. VMTranslator translates the VM into <dir>/gen; <dir> is build/vm beside the source directory (SourceFiler, --source-dir), never the checked-in vm/gen.
 2. make (vm/Makefile of the current directory) compiles it into <dir>/build/samaltak, its output streaming into my window; the binary is then renamed to <dir>/samaltak, so a VM running from there keeps its own file.
-3. The image is saved in place and the VM''s process execs <dir>/samaltak on it with the image''s arguments, the control port pinned (File primExec:): same pid, standard streams and port, so a samaltak-ctl session carries on. The image resumes as from any snapshot, this window too, and logs how long it took.
+3. The image is saved in place, the screen fades to black (World>>leave) and the VM''s process execs <dir>/samaltak on it with the image''s arguments, the control port pinned (File primExec:): same pid, standard streams and port, so a samaltak-ctl session carries on. The image resumes as from any snapshot (behind the restart splash), this window too, and logs how long it took.
 
 	VMRebuilder openAndRebuild'!
 
@@ -92,8 +92,10 @@ reboot: aVMPath
 	resumed ifTrue: [
 		phase := 'rebooted'.
 		^self line: 'rebooted in ', (self secondsSinceUtc: t0), ' s (all: ', (self secondsSinceUtc: started), ' s), the VM says: ', (Smalltalk vm banner ifNil: ['nothing'])].
-	(File primExec: (Array with: aVMPath with: path), self class restartArguments) isNil
-		ifTrue: [self fail: 'exec failed: ', File lastError]
+	Desktop current ifNotNil: [:world | world leave].
+	(File primExec: (Array with: aVMPath with: path), self class restartArguments) isNil ifTrue: [
+		Desktop current ifNotNil: [:world | world stay].
+		self fail: 'exec failed: ', File lastError]
 !
 fail: aString
 	phase := 'failed'.

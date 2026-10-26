@@ -1,9 +1,9 @@
 Object subclass: #RemoteInputJob
-	instanceVariableNames: 'steps index answer device lastInject streak started result finished pending'
+	instanceVariableNames: 'steps index answer device lastInject streak started result finished pending arriving'
 	classVariableNames: ''
 	package: 'System-Remote'!
 
-RemoteInputJob comment: 'I am one remote input command (click, type, key, drag, select, scroll, resize) as a sequence of steps that never wait: actions (blocks evaluated with me, which may add steps right after themselves), injections of input events (each a given number of ms after the previous one), and waits for a condition (polled every 20 ms, with a timeout). step runs what is due and answers how many ms to wait before calling it again (nil when I am done; the answer is then in answer).
+RemoteInputJob comment: 'I am one remote input command (click, type, key, drag, select, scroll, resize) as a sequence of steps that never wait: actions (blocks evaluated with me, which may add steps right after themselves), injections of input events (each a given number of ms after the previous one; a press, release or wheel event also waits until the UI''s drawn pointer is at its position, RemoteInputDevice>>waitsForPointer:), and waits for a condition (polled every 20 ms, with a timeout). step runs what is due and answers how many ms to wait before calling it again (nil when I am done; the answer is then in answer).
 
 The input dispatcher runs me in its own Process when it hosts remote control (ControlServer service): the events I inject come back to it through the platform queue and are delivered before I am stepped again, so waiting for the image to settle works without blocking it. runBlocking runs me in the calling Process (headless remote control, tests).'!
 
@@ -80,6 +80,7 @@ step
 			s first == #inject ifTrue: [ | due |
 				due := (lastInject ifNil: [now]) + (s at: 3).
 				due > now ifTrue: [^due - now].
+				(self waitsForPointer: (s at: 2) at: now) ifTrue: [^10].
 				device inject: (s at: 2).
 				lastInject := now.
 				index := index + 1]
@@ -101,6 +102,14 @@ poll: aBlock timeout: milliseconds at: now
 	(streak >= 2 or: [ok and: [(steps at: index + 1) first == #wait]]) ifTrue: [^self endWait: true].
 	now - started >= milliseconds ifTrue: [^self endWait: false].
 	^20
+!
+waitsForPointer: anEvent at: now
+	"Must anEvent still wait for the drawn pointer (at most the device's arrivalTimeout)?"
+	(device waitsForPointer: anEvent) ifFalse: [arriving := nil. ^false].
+	arriving isNil ifTrue: [arriving := now].
+	now - arriving < device arrivalTimeout ifTrue: [^true].
+	arriving := nil.
+	^false
 !
 endWait: aBoolean
 	result := aBoolean.

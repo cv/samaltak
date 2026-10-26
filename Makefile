@@ -27,6 +27,7 @@ translate: image
 # one more, and again with deoptimization stress); Tests-Kernel also with a code cache small enough to be flushed
 # again and again.
 test-jit: image
+	tests/st_suite.sh $(OUT)/samaltak.image --jit none
 	tests/st_suite.sh $(OUT)/samaltak.image --jit baseline --jit-threshold 0
 	tests/st_suite.sh $(OUT)/samaltak.image --jit opt --jit-threshold 0 --jit-flags eager
 	tests/st_suite.sh $(OUT)/samaltak.image --jit opt --jit-threshold 0 --jit-flags eager,deopt
@@ -58,12 +59,14 @@ video: vm image
 	cp $(VIDEO)/walkthrough.mp4 docs/media/walkthrough.mp4
 
 # The "mind blown" video (.context/mindblown.md): the same pipeline, steps in tools/mindblown/narration.json, voice
-# Matilda. The snapshot beat saves the image and relaunches it, so it runs on its own copy of the image.
+# Matilda, unperformed (no style exaggeration, lines spoken as one conversation). The snapshot beat saves the image and
+# relaunches it, so it runs on its own copy of the image.
 MINDBLOWN ?= .context/video-mindblown
 MINDBLOWN_VOICE ?= XrExE9yKIg1WjnnlVkGX
+MINDBLOWN_REQUEST ?= {"voice_settings": {"stability": 0.35, "similarity_boost": 0.7, "style": 0, "use_speaker_boost": true, "speed": 1.05}, "continuity": true}
 mindblown-video: vm image
 	cp $(OUT)/samaltak.image $(OUT)/nuuk.image
-	ELEVENLABS_VOICE=$(MINDBLOWN_VOICE) node tools/narrate.mjs $(MINDBLOWN) tools/mindblown/narration.json
+	ELEVENLABS_VOICE=$(MINDBLOWN_VOICE) ELEVENLABS_REQUEST='$(MINDBLOWN_REQUEST)' node tools/narrate.mjs $(MINDBLOWN) tools/mindblown/narration.json
 	WALKTHROUGH_IMAGE=$(OUT)/nuuk.image node tools/mindblown/walkthrough-mindblown.mjs $(MINDBLOWN)
 	python3 tools/compose-video.py $(MINDBLOWN) mindblown.mp4
 	cp $(MINDBLOWN)/mindblown.mp4 docs/media/mindblown.mp4
