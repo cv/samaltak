@@ -141,8 +141,10 @@ testLabels
 testIdleSamplesFlagged
 	| t0 profile idle |
 	t0 := Time microsecondClockValue.
-	self sleep: 150.
-	profile := Profiler from: t0 to: Time microsecondClockValue.
+	"About a sample a millisecond, fewer on a loaded machine: sleep until there are 50."
+	[self sleep: 50.
+	 profile := Profiler from: t0 to: Time microsecondClockValue.
+	 profile samples size < 50 and: [Time microsecondClockValue - t0 < 5000000]] whileTrue.
 	idle := profile samples idle.
 	self assert: profile samples size >= 50.
 	self assert: idle size * 100 / profile samples size >= 80.
