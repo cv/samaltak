@@ -3,7 +3,7 @@ TestCase subclass: #JitBaselineTest
 	classVariableNames: ''
 	package: 'Tests-VM'!
 
-JitBaselineTest comment: 'The baseline compiler, switched on for each test (Smalltalk vm jitParameters:, every method compiled on its first activation): inline caches through their states (jitSendSites), relinking after redefinition, unboxed Floats and temps in registers when Smalltalk runs in a slow path, non-local returns, closures, allocation, every ablation flag, code cache flushes, deep recursion, process switches, the listing.'!
+JitBaselineTest comment: 'The baseline compiler, switched on for each test (Smalltalk vm jitParameters:, every method compiled on its first activation): inline caches through their states (jitSendSites), relinking after redefinition, unboxed Floats when Smalltalk runs in a slow path, non-local returns, closures, allocation, every ablation flag, the listing; JitRuntimeTest runs the runtime''s tests under it.'!
 
 !JitBaselineTest methodsFor: 'running'!
 setUp
@@ -24,7 +24,7 @@ timeLimitMilliseconds
 
 !JitBaselineTest methodsFor: 'helpers'!
 flagNames
-	^#('arith' 'fuse' 'barrier' 'notes' 'embed' 'ic' 'pic' 'mega' 'regs' 'prims' 'access' 'alloc' 'float' 'blocks' 'nlr' 'quick' 'temps')
+	^#('arith' 'fuse' 'barrier' 'notes' 'ic' 'pic' 'mega' 'regs' 'prims' 'access' 'float' 'blocks' 'quick')
 !
 define: aString
 	self define: aString in: JitBaselineTestSubject
@@ -36,9 +36,6 @@ define: aString in: aClass
 !
 subject
 	^JitBaselineTestSubject new
-!
-statistics
-	^Smalltalk vm statistics
 !
 sitesOf: aSelector
 	^(JitBaselineTestSubject >> aSelector) jitSendSites
@@ -61,13 +58,6 @@ testEveryMethodCompiles
 		{c. c class} do: [:k |
 			k methodDict do: [:m | (m jitCode: 'baseline') isNil ifTrue: [failed add: m]]]].
 	self assert: (failed allSatisfy: [:m | m selector beginsWith: 'perform:']) description: [failed printString]
-!
-testCompiledCodeRuns
-	| before |
-	self define: 'fib: n ^n < 2 ifTrue: [n] ifFalse: [(self fib: n - 1) + (self fib: n - 2)]'.
-	before := self statistics.
-	self assert: (self subject fib: 20) equals: 6765.
-	self assert: (self statistics - before) jitMethodsCompiled > 0
 !
 testInlineCacheStates
 	"A send site goes monomorphic, polymorphic, megamorphic; it answers right in each state, and says which classes it saw."
@@ -134,23 +124,15 @@ testUnboxedTempChangedInASlowPath
 	w := self subject.
 	self assert: ([self subject unboxed: w] on: MessageNotUnderstood do: [:e | e return: #dnu]) equals: #dnu
 !
-testLoopTempChangedInASlowPath
-	"s lives in a register in the loop; the slow path of w + 1 runs a block that stores into it."
-	self define: 'loop: w | s | w block: [s := 1000]. s := 0. 1 to: 3 do: [:i | s := s + i. w + 1. s := s + i]. ^s'.
-	self assert: (self subject loop: self subject) equals: 1003
-!
 testNonLocalReturns
-	| before |
 	self define: 'firstAbove: n in: c c do: [:e | e > n ifTrue: [^e]]. ^nil'.
 	self define: 'guarded: c ^[self firstAbove: 2 in: c] ensure: [a := #done]'.
 	self define: 'unwinding: c [c do: [:e | e > 2 ifTrue: [^e]]] ensure: [b := #unwound]. ^nil'.
 	self define: 'aState ^{a. b}'.
-	before := self statistics.
 	self assert: (self subject firstAbove: 2 in: #(1 2 3 4)) equals: 3.
 	self assert: (self subject firstAbove: 5 in: #(1 2 3 4)) isNil.
 	self assert: (self subject guarded: #(1 5)) equals: 5.
-	self assert: (self subject unwinding: #(1 5); aState) equals: #(nil #unwound).
-	self assert: (self statistics - before) jitNonLocalReturns > 0
+	self assert: (self subject unwinding: #(1 5); aState) equals: #(nil #unwound)
 !
 testClosures
 	self define: 'adder ^[:x | [:y | x + y]]'.
@@ -205,42 +187,16 @@ testNilTestsInline
 	self assert: run output trimBoth equals: 'true'
 !
 testEveryFlagOff
-	"Each optimization switched off alone: the same answers (loop temps stay in registers only across inline code)."
+	"Each optimization switched off alone: the same answers."
 	self define: 'fib: n ^n < 2 ifTrue: [n] ifFalse: [(self fib: n - 1) + (self fib: n - 2)]'.
 	self define: 'pow: n | r b k | r := 1. b := 10. k := n. [k > 0] whileTrue: [(k bitAnd: 1) = 1 ifTrue: [r := r * b]. k := k bitShift: -1. k > 0 ifTrue: [b := b * b]]. ^r'.
 	self define: 'mix: n | x a | x := 0.0. a := Array new: n. 1 to: n do: [:i | a at: i put: i * 2. x := x + (i / 2.0)]. ^{x. (a inject: 0 into: [:s :e | s + e]). a printString size}'.
-	#('arith' 'fuse' 'barrier' 'ic' 'pic' 'mega' 'regs' 'prims' 'access' 'alloc' 'float' 'blocks' 'nlr' 'quick' 'temps') do: [:flag |
+	#('arith' 'fuse' 'barrier' 'ic' 'pic' 'mega' 'regs' 'prims' 'access' 'float' 'blocks' 'quick') do: [:flag |
 		Smalltalk vm jitParameters: {nil. '-' , flag. nil. nil}.
 		self assert: (self subject fib: 15) equals: 610.
 		self assert: (self subject mix: 20) equals: #(105.0 420 58).
 		self assert: (self subject pow: 22) equals: 10000000000000000000000.
 		Smalltalk vm jitParameters: {nil. flag. nil. nil}]
-!
-testCodeCacheFlush
-	"A VM with a 1 MB code cache that keeps notes fills it often: all code is dropped and compiled again (inline caches, polymorphic caches and all), the results stay right."
-	| run |
-	run := OSProcess run: (OSProcess commandFor: {'vm/build/samaltak'. '--jit'. 'baseline'. '--jit-threshold'. '0'. '--jit-cache'. '1'. '--jit-flags'. 'notes'. Smalltalk vm imagePath. '--headless'. '--eval'.
-		'| r | r := 0. 10 timesRepeat: [r := r + (Compiler evaluate: ''(1 to: 10) inject: 0 into: [:a :b | a + b]'')]. String selectors do: [:s | Compiler compileMethod: (String >> s) source in: String classified: nil]. {r. Smalltalk vm statistics jitCacheFlushes > 0}'}).
-	self assert: run output trimBoth equals: '#(550 true)'
-!
-testDeepRecursion
-	| before |
-	self define: 'depth: n ^n = 0 ifTrue: [0] ifFalse: [(self depth: n - 1) + 1]'.
-	before := self statistics.
-	self assert: (self subject depth: 300000) equals: 300000.
-	self assert: (self statistics - before) frameFlushes > 0
-!
-testProcessSwitchesInCompiledLoops
-	| ping pong done log |
-	self define: 'ping: s pong: t log: log | r | r := 0. 1 to: 50 do: [:i | s signal. t wait. r := r + i. log add: i]. ^r'.
-	ping := Semaphore new.
-	pong := Semaphore new.
-	log := OrderedCollection new.
-	self fork: [1 to: 50 do: [:i | ping wait. log add: i negated. pong signal]].
-	done := self subject ping: ping pong: pong log: log.
-	self assert: done equals: 1275.
-	self assert: log size equals: 100.
-	self assert: (log first: 4) asArray equals: #(-1 1 -2 2)
 !
 testDisassembly
 	| listing |

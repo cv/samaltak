@@ -29,12 +29,14 @@ oop tmp_roots[4];
 
 static void block_activate(int argc, bool from_array);
 static void ctx_set_stackp(oop ctx, int64_t sp);
+static oop ctx_home(oop ctx);
 static cache_entry *fill_cache(oop cls, oop sel);
 static int64_t frame_size(frame *f);
 static void print_stack(oop ctx, FILE *f);
 static void refresh_prim_base(void);
 static void refresh_tag_classes(void);
 static int64_t stack_overflow_depth(void);
+static void widow_from(int k);
 
 /* Interpreter>>activateBlock: */
 void activate_block(int n)
@@ -241,7 +243,7 @@ static void ctx_set_stackp(oop ctx, int64_t n)
 }
 
 /* Interpreter>>ctxHome: */
-oop ctx_home(oop a_context)
+static oop ctx_home(oop a_context)
 {
     oop c;
     uint64_t cl;
@@ -12667,7 +12669,7 @@ void widow(frame *f)
 }
 
 /* Interpreter>>widowFrom: */
-void widow_from(int k)
+static void widow_from(int k)
 {
     int i;
     for (i = k; i <= nframes - 1; i++) {

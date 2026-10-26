@@ -3,12 +3,12 @@ TestCase subclass: #JitRuntimeTest
 	classVariableNames: ''
 	package: 'Tests-VM'!
 
-JitRuntimeTest comment: 'The JIT runtime under the template compiler (subclasses: the others), switched on for each test (Smalltalk vm jitParameters:, every method compiled on its first activation): on-stack replacement, methods redefined and become while their machine code runs, process switches in compiled loops, deep recursion, code cache flushes (a VM with a 1 MB cache), the annotated disassembly. JitTest runs the JIT inside the simulator.'!
+JitRuntimeTest comment: 'The JIT runtime under the baseline compiler (JitOptRuntimeTest: under the optimizing tier), switched on for each test (Smalltalk vm jitParameters:, every method compiled on its first activation): on-stack replacement, methods redefined and become while their machine code runs, process switches in compiled loops, deep recursion, code cache flushes (a VM with a 1 MB cache), the annotated disassembly. JitTest runs the JIT inside the simulator.'!
 
 !JitRuntimeTest methodsFor: 'running'!
 mode
 	"The compiler under test."
-	^'template'
+	^'baseline'
 !
 setUp
 	saved := Smalltalk vm jitParameters: {self mode. nil. 0. 5}
@@ -16,7 +16,7 @@ setUp
 tearDown
 	| on flags |
 	on := (saved at: 2) substrings: ','.
-	flags := #('arith' 'fuse' 'barrier' 'notes' 'embed') inject: '' into: [:all :each |
+	flags := #('arith' 'fuse' 'barrier' 'notes') inject: '' into: [:all :each |
 		(all isEmpty ifTrue: [''] ifFalse: [all , ',']) , ((on includes: each) ifTrue: [each] ifFalse: ['-' , each])].
 	Smalltalk vm jitParameters: {saved at: 1. flags. saved at: 3. saved at: 4}.
 	JitRuntimeTestSubject selectors do: [:each | JitRuntimeTestSubject removeSelector: each]
@@ -28,7 +28,7 @@ timeLimitMilliseconds
 !JitRuntimeTest methodsFor: 'helpers'!
 disassemblyNotes
 	"What the listing of sum: says, besides the bytecodes and the entry."
-	^#('interrupt check' 'SmallInteger tag check' '<special send>' 'return top')
+	^#('interrupt check' 'SmallInteger tag check' 'checked entry' 'return top')
 !
 define: aString
 	JitRuntimeTestSubject compile: aString
@@ -85,9 +85,8 @@ testBecomeOfACompiledMethod
 	self assert: o callAlpha equals: 2
 !
 testBecomeOfAnEmbeddedLiteral
-	"With --jit-flags embed old literals are in the code: full GCs and become update them."
+	"Old literals are in the code: full GCs and become update them."
 	| o old |
-	Smalltalk vm jitParameters: #(nil 'embed' nil nil).
 	self define: 'literal ^#(1 2 3) , #()'.
 	Smalltalk vm garbageCollect.
 	o := JitRuntimeTestSubject new.
@@ -132,7 +131,6 @@ testDisassembly
 	self assert: (listing beginsWith: 'JitRuntimeTestSubject>>sum:  ' , self mode).
 	self assert: (listing includesSubstring: 'pc 0: ').
 	self assert: (listing includesSubstring: '-- sum: n').
-	self assert: (listing includesSubstring: 'entry: x19').
 	self disassemblyNotes do: [:each | self assert: (listing includesSubstring: each)].
 	self assert: (((JitRuntimeTestSubject >> #sum:) machineCodeFor: self mode asSymbol) beginsWith: 'JitRuntimeTestSubject>>sum:  ' , self mode).
 	self should: [(JitRuntimeTestSubject >> #sum:) machineCodeFor: #nonsense] raise: Error

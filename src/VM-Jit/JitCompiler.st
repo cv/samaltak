@@ -5,7 +5,7 @@ Arm64Module subclass: #JitCompiler
 
 JitCompiler comment: 'I am the abstract class of the code generators (JitStubs and the compilers): Arm64Modules, so they name registers; what they know of the VM they ask JitRuntime and BytecodeAnalysis (inline accessors). My helpers are the conventions every compiler''s code follows (docs/jit.md, Shared runtime):
 
-x19 the Frame, x20 its slots (fp: slot k at [x20, #8k], the receiver at [x20, #-8]), x21 the receiver, x22 the JitState, x0-x7 and x16-x17 scratch. A compiled method or block starts with the prologue (entry, from a compiled caller whose frame is x19: x19 := the next Frame, x29/x30 pushed, x20 and x21 loaded; JIT_PROLOGUE_BYTES long); start follows it. Before a call into the runtime that is a safepoint the code stores the frame''s pc and sp (sync:depth:); afterwards it reloads x21 (the receiver may have moved) and leaves to the interpreter if the runtime answered 1.'!
+x19 the Frame, x20 its slots (fp: slot k at [x20, #8k], the receiver at [x20, #-8]), x21 the receiver, x22 the JitState, x0-x7 and x16-x17 scratch. Code entered with its frame pushed (by the runtime, by optimized code) starts with the prologue (from a caller whose frame is x19: x19 := the next Frame, x29/x30 pushed, x20 and x21 loaded; JIT_PROLOGUE_BYTES long); start follows it. Before a call into the runtime that is a safepoint the code stores the frame''s pc and sp (sync:depth:); afterwards it reloads x21 (the receiver may have moved) and leaves to the interpreter if the runtime answered 1.'!
 
 !JitCompiler class methodsFor: 'declaring'!
 declarations

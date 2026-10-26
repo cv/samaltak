@@ -5,7 +5,7 @@
 uint64_t cache_base;
 uint64_t cache_limit;
 static uint8_t cache_space[134234112];
-uint64_t cache_start;
+static uint64_t cache_start;
 uint64_t cache_top;
 
 /* CodeCache>>allocate: */

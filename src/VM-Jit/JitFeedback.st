@@ -5,7 +5,7 @@ VMCoreModule subclass: #JitFeedback
 
 JitFeedback comment: 'Type feedback for the optimizing tier, independent of the compiler that collects it: one FeedbackSite per (method, bytecode pc), in an open-addressed table keyed by the method''s identity hash and the pc. A site holds up to FB_CLASSES receiver classes with counts (FB_MEGA once more were seen) and profile bits: FB_FLOAT (an arithmetic or comparison saw a Float operand), FB_NONINT (one that was neither SmallInteger nor Float), FB_OVERFLOW (SmallInteger arithmetic overflowed), FB_DEOPT_* (optimized code deoptimized here: a class guard, an arithmetic guard, a bounds check, anything else).
 
-Lower tiers report into it (docs/jit.md, Optimizing tier): noteSend:pc:class: when a send site sees a class (the template on a miss of the interpreter''s inline cache, baseline code on a miss of its own), noteFlags:pc:flags: for profile bits; machine code sets FB_FLOAT without a call, in a byte of fbFloats (floatBitAddressFor:pc:, shared by hash). The optimizer reads sites with siteAt:pc: and flagsAt:pc:. Methods and classes are GC roots (all of them for full GCs and become, for scavenges only while one is young). A full table is cleared.'!
+Lower tiers report into it (docs/jit.md, Optimizing tier): noteSend:pc:class: when a send site sees a class (baseline code on a miss of its inline cache), noteFlags:pc:flags: for profile bits; machine code sets FB_FLOAT without a call, in a byte of fbFloats (floatBitAddressFor:pc:, shared by hash). The optimizer reads sites with siteAt:pc: and flagsAt:pc:. Methods and classes are GC roots (all of them for full GCs and become, for scavenges only while one is young). A full table is cleared.'!
 
 !JitFeedback class methodsFor: 'declaring'!
 declarations

@@ -33,14 +33,14 @@ banner
 usage
 	<c: 'void usage(void)'>
 	<noreturn>
-	libc fputs: 'usage: samaltak [--max-heap MB] [--eden MB] [--jit none|template|threaded|stencil|baseline|opt] [--jit-threshold N] [--jit-osr N]
+	libc fputs: 'usage: samaltak [--max-heap MB] [--eden MB] [--jit none|baseline|opt] [--jit-threshold N] [--jit-osr N]
 	[--jit-opt N] [--jit-flags [-]flag,...] [--jit-cache MB] image [--headless] [arguments...]
   --jit-threshold N  activations before a method is compiled (0: the first one)
   --jit-osr N        backward jumps before a running method is compiled and entered
   --jit-opt N        with --jit opt: entries and backward jumps in compiled code before a method is optimized
-  --jit-flags        ablations: arith fuse barrier notes embed; baseline also: ic pic mega regs
-                     prims access alloc float blocks nlr quick temps; opt: inline blocks prims unbox calls
-                     alloc gvn; stress: eager deopt (-name turns one off)
+  --jit-flags        ablations: baseline: ic pic mega regs arith fuse float access prims blocks quick
+                     barrier; opt: inline blocks prims unbox calls alloc gvn; listings: notes;
+                     stress: eager deopt (-name turns one off)
 ' to: libc stderr.
 	libc exit: 64
 !

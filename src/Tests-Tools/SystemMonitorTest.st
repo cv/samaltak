@@ -77,7 +77,7 @@ testSpanToggle
 	| toggle |
 	toggle := monitor widgetNamed: 'span'.
 	self click: (toggle screenPointFrom: (toggle segmentRects at: 2) center) rounded.
-	self assert: monitor span equals: 300000000.
+	self assert: (self waitFor: [monitor span = 300000000]) description: 'the click did not set the span'.
 	self assert: monitor data span equals: 300000000.
 	self settle.
 	"Five minutes in the same width: each column covers five times as long."

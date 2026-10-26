@@ -822,7 +822,7 @@ emitBarrier: n object: o value: v
 	asm bind: done
 !
 emitOuterTemp: n
-	"A temp of the Context lv levels out of the unit's closure (the template's outerTemp:): in the frame it is married to (sender: the frame's index), else in it."
+	"A temp of the Context lv levels out of the unit's closure: in the frame it is married to (sender: the frame's index), else in it."
 	| nd v x married done r |
 	nd := ir node: n.
 	nd op asInt32 = O_OUTERSTORE ifTrue: [v := self src: nd b into: X14].

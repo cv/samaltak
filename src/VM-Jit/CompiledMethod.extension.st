@@ -1,10 +1,10 @@
 !CompiledMethod methodsFor: '*VM-Jit'!
 machineCode
-	"An annotated listing of my machine code from the VM's compiler (the template compiler under --jit none)."
+	"An annotated listing of my machine code from the VM's compiler (the baseline compiler under --jit none)."
 	^self machineCodeFor: nil
 !
 machineCodeFor: aModeOrNil
-	"An annotated listing of my machine code from the compiler called aModeOrNil (#template ...): each bytecode with its source line, then its instructions, commented with what they do."
+	"An annotated listing of my machine code from the compiler called aModeOrNil (#baseline, #opt): each bytecode with its source line, then its instructions, commented with what they do."
 	| code words notes text |
 	code := self jitCode: aModeOrNil.
 	code isNil ifTrue: [^self printString , ': not compiled by ' , (aModeOrNil ifNil: ['the JIT']) asString].
