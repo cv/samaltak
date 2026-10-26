@@ -255,15 +255,17 @@ flushIfMarried: o
 	(self isMarried: o) ifTrue: [self materializeAll]
 !
 widow: f
-	"Married frame f returns: its Context becomes a dead Context with the frame's slots (blocks that outlive it use them). f's sp is saved."
+	"Married frame f returns: its Context becomes a dead Context with the frame's slots (blocks that outlive it use them), as many as it holds: an optimized frame (a loop's unit entered married) may have more."
 	<c: 'void widow(Frame *f)'>
-	| ctx s |
+	| ctx s n |
 	ctx := f ctx.
 	s := self slotsOf: ctx.
-	libc memcpy: s + CTX_FIXED from: f fp size: f sp asUInt64 * 8.
+	n := (self numSlots: ctx) asInt64 - CTX_FIXED.
+	f sp < n ifTrue: [n := f sp].
+	libc memcpy: s + CTX_FIXED from: f fp size: n asUInt64 * 8.
 	s at: CTX_SENDER put: memory nilOop.
 	s at: CTX_PC put: memory nilOop.
-	s at: CTX_STACKP put: (self intOop: f sp).
+	s at: CTX_STACKP put: (self intOop: n).
 	gc rememberIfOld: ctx.
 	f ctx: memory nilOop
 !
