@@ -134,7 +134,7 @@ drawOn: c
 drawSparkOn: c in: r
 	| yOf prev n |
 	"0 … 33.4 ms (two frame budgets) bottom to top; a frame over 20 ms (a missed vsync) gets a dot"
-	yOf := [:v | r top + 15 - ((v min: 33.4) / 33.4 * 14)].
+	yOf := [:v | r top + 15 - (((v max: 0) min: 33.4) / 33.4 * 14)].
 	n := count min: 64.
 	n < 2 ifTrue: [^self].
 	prev := nil.

@@ -172,10 +172,15 @@ async function record() {
   const s = readSession();
   if (!s) die(`no Samaltak in session ${session} (run: samaltak-ctl open)`);
   if (action === 'stop') {
-    // If the image already quit (it ends the recording itself: ffmpeg sees the end of the FIFO), finish ffmpeg anyway.
+    // If the image already quit (it ends the recording itself: ffmpeg sees the end of the FIFO), finish ffmpeg anyway;
+    // likewise after Rebuild & reboot, when the new VM does not know the recording the old one ended.
     let r = { frames: '?' };
-    if (alive(s.pid)) r = await call({ cmd: 'record', action: 'stop' });
     const rec = s.recording;
+    if (alive(s.pid)) {
+      const q = await request(s.port, { cmd: 'record', action: 'stop' }).catch(() => null);
+      if (q && q.ok) r = q;
+      else if (!rec) die(`record: ${(q && q.error) || 'not recording'}`);
+    }
     if (rec) {
       const t0 = Date.now();
       while (alive(rec.pid) && Date.now() - t0 < 30000) await sleep(100);
