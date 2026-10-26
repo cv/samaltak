@@ -76,7 +76,7 @@ testKeepsJugglingForTenMinutesSoftlyWithoutTheBallsTouching
 	self assert: closest > (2 * JugglerBall radius + 10) description: 'balls came within ', closest printString.
 	self assert: hardest < 1 description: 'a ball hit a cup at ', hardest printString, ' points per frame'.
 	self assert: push < 2.5 description: 'a cup sped up by ', push printString, ' points per frame in a frame'.
-	self assert: jolt < 1.25 description: 'a cup''s acceleration jumped by ', jolt printString.
+	self assert: jolt < 1 description: 'a cup''s acceleration jumped by ', jolt printString.
 	self assert: turn < 0.2 description: 'a cup''s spin jumped by ', turn printString
 !
 testBallsBounceOffEachOther

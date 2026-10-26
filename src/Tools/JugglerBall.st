@@ -32,5 +32,5 @@ printOn: aStream
 
 !JugglerBall class methodsFor: 'accessing'!
 radius
-	^10
+	^14
 ! !

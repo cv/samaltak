@@ -178,7 +178,7 @@ smoothPathFrom: x0 velocity: v0 acceleration: a0 to: x1 velocity: v1 acceleratio
 
 !JugglerHand class methodsFor: 'the cup'!
 bowlRadius
-	^15
+	^21
 !
 rimAngle
 	"How far the rim is from the bottom of the bowl, seen from its centre."

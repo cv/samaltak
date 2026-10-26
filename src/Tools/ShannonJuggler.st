@@ -72,10 +72,10 @@ releasePoint
 	^90 @ 200
 !
 releaseSpeed
-	^2.4
+	^2.35
 !
 releaseTilt
-	^2.2
+	^2.25
 !
 catchHeight
 	"Where a ball is caught on its way down, after the top of its bounce."
@@ -150,7 +150,7 @@ moveHand: aHand
 	s := phase < 24 ifTrue: [phase] ifFalse: [phase - (2 * self beat)].
 	ball isNil ifTrue: [self planCatchFor: aHand].
 	(aHand isDropping and: [s >= -8 and: [s < 24 and: [ball notNil or: [frame - aHand releasedAt < self clearFrames]]]]) ifTrue: [
-		^self follow: aHand holding: ball notNil tilt: (self ease: ((s + 8 / 6 min: 1) max: 0)) * self releaseTilt * (aHand isLeft ifTrue: [1] ifFalse: [-1])].
+		^self follow: aHand holding: ball notNil tilt: (self ease: ((s + 8 / 5 min: 1) max: 0)) * self releaseTilt * (aHand isLeft ifTrue: [1] ifFalse: [-1])].
 	(self intercepting: aHand) ifTrue: [^self intercept: aHand].
 	ball isNil ifTrue: [^self wait: aHand].
 	self follow: aHand holding: true tilt: 0
@@ -189,7 +189,7 @@ intercept: aHand
 	| s n |
 	s := self meetFrames.
 	n := aHand caughtAt - frame + 1.
-	n > (s + 3) ifFalse: [
+	n > (s + 2) ifFalse: [
 		^aHand steerTo: aHand caughtPosition velocity: aHand caughtVelocity acceleration: 0 @ 0.4 in: n tilt: aHand caughtTilt].
 	aHand steerTo: (self meetStartFrom: aHand caughtPosition velocity: aHand caughtVelocity) velocity: 0 @ 0 acceleration: 0 @ 0.4 in: n - s tilt: aHand caughtTilt
 !
