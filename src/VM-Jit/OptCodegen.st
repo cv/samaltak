@@ -131,16 +131,19 @@ maxOutgoing
 !
 emitBaselineEntry: m
 	"The entry from baseline code (its unchecked entry branches here once this code is installed, JitBaselineRuntime>>redirect:to:): x0 the receiver, x20 our fp, x23 nil. The stack check of the entry it replaces (no room, or an interrupt pending: that entry's slow path), our frame as a direct call pushes it, then the prologue."
-	| n ntemps fb h |
+	| n ntemps fb h room |
 	n := (ir act: cgRootAct) numArgs.
 	ntemps := (self intVal: (self loadRef: m at: CM_NUMTEMPS)) asInt32.
 	fb := self frameBytes asInt64.
 	h := runtime lookup: m.
 	(h notNull and: [h mode = runtime baselineMode and: [(h flags bitAnd: runtime entryFlag) ~= 0]]) ifTrue: [
-		asm comment: 'stack check: below the limit, else the baseline entry''s'.
+		asm comment: 'stack check: below the limit, else the baseline entry''s (b: the conditional branch does not reach it)'.
+		room := asm newLabel.
 		asm ldr: X16 base: X22 offset: self stackLimitOffset.
 		asm cmp: X20 with: X16.
-		asm b: (asm labelAt: h uentry + 4) if: COND_HS].
+		asm b: room if: COND_LO.
+		asm b: (asm labelAt: h uentry + 4).
+		asm bind: room].
 	asm comment: 'entry from baseline code: our frame'.
 	asm str: X20 base: X19 offset: fb + self fpOffset.
 	self loadConstant: m into: X17.
