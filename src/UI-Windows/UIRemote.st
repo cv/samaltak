@@ -3,7 +3,7 @@ Object subclass: #UIRemote
 	classVariableNames: 'IdleCondition StateProvider FrameWaits'
 	package: 'UI-Windows'!
 
-UIRemote comment: 'I connect the window system to remote control (System-Remote): the World is the snapshot root, my pointResolver maps refs to screen points (raising a covered window), the World being settled is an idle condition, and I register the screenshot and record commands and the frames wait condition.
+UIRemote comment: 'I connect the window system to remote control (System-Remote): the World is the snapshot root, my pointResolver maps refs to screen points (raising a covered window), remote presses wait for the drawn pointer to get there (RemoteInputDevice arrivalBlock:), the World being settled is an idle condition, and I register the screenshot and record commands and the frames wait condition.
 
 	screenshot {path, target?, scale?, pointer?}   PNG of the screen (with the remote pointer only if pointer: true), a window''s layer or a widget''s part of it, at scale 1 or 2 (default: the display scale)
 	record {action: start, path: fifo, w, h, fps} / {action: stop}   raw RGBA frames, downsampled on the GPU, written to a FIFO (ffmpeg -f rawvideo -pix_fmt rgba -s WxH -r FPS -i fifo ...)
@@ -25,7 +25,10 @@ installOn: aWorld
 	RemoteControl registerWaitCondition: 'frames' with: [:n :r | self frames: n for: r].
 	"Remote control is an input device: the input dispatcher serves its sockets."
 	(ControlServer current notNil and: [aWorld dispatcher notNil]) ifTrue: [aWorld dispatcher addService: ControlServer current].
-	RemoteInputDevice default windowId: aWorld displayWindow windowId; timeScaleBlock: [Animation timeScale].
+	RemoteInputDevice default
+		windowId: aWorld displayWindow windowId;
+		timeScaleBlock: [Animation timeScale];
+		arrivalBlock: [:aPoint | aWorld remotePointer hasShown: aPoint].
 	RemoteInputDevice default pointer isNil ifTrue: [RemoteInputDevice default pointer: aWorld extent / 2].
 	aWorld remotePointer ignore: RemoteInputDevice default pointer
 !
@@ -40,7 +43,7 @@ uninstall
 	RemoteControl unregisterCommand: 'screenshot'.
 	RemoteControl unregisterCommand: 'record'.
 	RemoteControl pointResolver: nil.
-	RemoteInputDevice default timeScaleBlock: nil.
+	RemoteInputDevice default timeScaleBlock: nil; arrivalBlock: nil.
 	RemoteControl root: nil
 ! !
 
