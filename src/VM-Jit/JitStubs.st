@@ -1,20 +1,20 @@
 JitCompiler subclass: #JitStubs
-	instanceVariableNames: 'enterAddr exitSyncAddr exitPlainAddr sendStub specialStub interruptStub closureStub makeArrayStub outerTempStub widowStub barrierStub tierUpStub optSendStub optDeoptStub optDeoptReturnStub optStackFullStub optReturnStub blEnter blExitSync blMiss blBlock blMega blEntrySlow blPrim blRemember blNlr blReturnSlow blBox symbolAddrs symbolNames symbolCount'
+	instanceVariableNames: 'exitPlainAddr interruptStub closureStub makeArrayStub widowStub barrierStub tierUpStub optSendStub optDeoptStub optDeoptReturnStub optStackFullStub optReturnStub blEnter blExitSync blMiss blBlock blMega blEntrySlow blPrim blRemember blReturnSlow blBox symbolAddrs symbolNames symbolCount'
 	classVariableNames: 'STUB_MAX_SYMBOLS'
 	package: 'VM-Jit'!
 
 JitStubs comment: 'The code every compiled method shares, generated into the code cache when it is opened (it survives flushes):
 
-jit_enter(frame, address): int64_t (the interpreter''s way into machine code) saves the callee-saved registers, sets x19-x22 from frame, remembers the native stack pointer in the JitState, pushes x29/x30 as a compiled method''s prologue would and branches to address. A compiled method returning from that first activation lands back here and answers its caller''s Frame + 1. exitSync (machine code stored the frame''s pc and sp) answers the frame; exitPlain (the runtime made the state canonical) answers 0. Both reset the native stack to jit_enter''s and return to the interpreter (JitRuntime>>run:at:). Baseline code has its own of both (emitEnter:restore:; its exitSync makes the frames below canonical first).
+jit_enter(frame, address): int64_t (the interpreter''s way into machine code) saves the callee-saved registers, sets x19-x22 from frame and x23-x25 (nil, true, false), remembers the first Frame, its native record and the native stack pointer in the JitState, pushes x29/x30 as a compiled method''s prologue would and branches to address. A compiled method returning from that first activation lands back here, its result into the receiver''s slot, and answers its caller''s Frame + 1. exitSync (machine code stored the frame''s pc and sp; the frames below become canonical) answers the frame; exitPlain (the runtime made the state canonical) answers 0. Both reset the native stack to jit_enter''s and return to the interpreter (JitRuntime>>run:at:).
 
 One stub per runtime function (ldr x16, =function; br x16), so that compiled code reaches it with bl; the disassembler names them.'!
 
 !JitStubs class methodsFor: 'declaring'!
 declarations
-	^#((enterAddr uint64_t) (exitSyncAddr uint64_t) (exitPlainAddr uint64_t)
-		(sendStub uint64_t) (specialStub uint64_t) (interruptStub uint64_t) (closureStub uint64_t) (makeArrayStub uint64_t)
-		(outerTempStub uint64_t) (widowStub uint64_t) (barrierStub uint64_t) (tierUpStub uint64_t) (optSendStub uint64_t) (optDeoptStub uint64_t) (optDeoptReturnStub uint64_t) (optStackFullStub uint64_t) (optReturnStub uint64_t)
-		(blEnter uint64_t) (blExitSync uint64_t) (blMiss uint64_t) (blBlock uint64_t) (blMega uint64_t) (blEntrySlow uint64_t) (blPrim uint64_t) (blRemember uint64_t) (blNlr uint64_t) (blReturnSlow uint64_t) (blBox uint64_t)
+	^#((exitPlainAddr uint64_t)
+		(interruptStub uint64_t) (closureStub uint64_t) (makeArrayStub uint64_t)
+		(widowStub uint64_t) (barrierStub uint64_t) (tierUpStub uint64_t) (optSendStub uint64_t) (optDeoptStub uint64_t) (optDeoptReturnStub uint64_t) (optStackFullStub uint64_t) (optReturnStub uint64_t)
+		(blEnter uint64_t) (blExitSync uint64_t) (blMiss uint64_t) (blBlock uint64_t) (blMega uint64_t) (blEntrySlow uint64_t) (blPrim uint64_t) (blRemember uint64_t) (blReturnSlow uint64_t) (blBox uint64_t)
 		(symbolAddrs 'uint64_t[STUB_MAX_SYMBOLS]') (symbolNames 'const char *[STUB_MAX_SYMBOLS]') (symbolCount int32_t))
 !
 initialize
@@ -22,12 +22,6 @@ initialize
 ! !
 
 !JitStubs methodsFor: 'accessing'!
-enterAddress
-	^enterAddr
-!
-exitSyncAddress
-	^exitSyncAddr
-!
 blEnterAddress
 	^blEnter
 !
@@ -37,12 +31,6 @@ blExitSyncAddress
 exitPlainAddress
 	^exitPlainAddr
 !
-sendStub
-	^sendStub
-!
-specialStub
-	^specialStub
-!
 interruptStub
 	^interruptStub
 !
@@ -51,9 +39,6 @@ closureStub
 !
 makeArrayStub
 	^makeArrayStub
-!
-outerTempStub
-	^outerTempStub
 !
 widowStub
 	^widowStub
@@ -97,9 +82,6 @@ blPrimStub
 blRememberStub
 	^blRemember
 !
-blNlrStub
-	^blNlr
-!
 blReturnSlowStub
 	^blReturnSlow
 !
@@ -132,12 +114,6 @@ megaCacheOffset
 blockCacheOffset
 	^self cCoerce: ((self cCoerce: 0 to: 'JitState *') fieldAddress: #blockCache) to: 'int64_t'
 !
-nlrFrameOffset
-	^self cCoerce: ((self cCoerce: 0 to: 'JitState *') fieldAddress: #nlrFrame) to: 'int64_t'
-!
-nlrFpOffset
-	^self cCoerce: ((self cCoerce: 0 to: 'JitState *') fieldAddress: #nlrFp) to: 'int64_t'
-!
 resultOffset
 	^self cCoerce: ((self cCoerce: 0 to: 'JitState *') fieldAddress: #result) to: 'int64_t'
 !
@@ -162,14 +138,9 @@ generate
 	asm recordNotes: false.
 	restore := asm newLabel.
 	exit := asm newLabel.
-	enterAddr := self symbol: 'jit_enter'.
-	self emitEnter: false restore: restore.
-	blEnter := self symbol: 'jit_enter (baseline)'.
-	self emitEnter: true restore: restore.
-	exitSyncAddr := self symbol: 'exit (sync)'.
-	asm mov: X0 with: X19.
-	asm b: exit.
-	blExitSync := self symbol: 'exit (sync, baseline)'.
+	blEnter := self symbol: 'jit_enter'.
+	self emitEnter: restore.
+	blExitSync := self symbol: 'exit (sync)'.
 	"the frames below become canonical before the native stack goes"
 	asm mov: X0 with: X19.
 	asm mov: X16 imm64: runtime exitSyncFunction.
@@ -193,12 +164,9 @@ generate
 	asm ldp: X19 with: X20 base: SP offset: 16.
 	asm ldp: X29 with: X30 base: SP postIndex: 160.
 	asm ret.
-	sendStub := self stub: runtime sendFunction named: 'send'.
-	specialStub := self stub: runtime specialFunction named: 'special send'.
 	interruptStub := self stub: runtime interruptFunction named: 'interrupt check'.
 	closureStub := self stub: runtime closureFunction named: 'closure'.
 	makeArrayStub := self stub: runtime makeArrayFunction named: 'make array'.
-	outerTempStub := self stub: runtime outerTempFunction named: 'outer temp'.
 	widowStub := self stub: runtime widowFunction named: 'widow'.
 	barrierStub := self stub: runtime writeBarrierFunction named: 'write barrier'.
 	self generateBaseline.
@@ -231,8 +199,8 @@ dumpingStub: fn named: name
 	asm emit64: fn.
 	^a
 !
-emitEnter: baseline restore: restore
-	"jit_enter; baseline code also wants nil, true and false pinned, the first Frame and native record, and the first activation's result stored."
+emitEnter: restore
+	"jit_enter: nil, true and false pinned, the first Frame and native record remembered, the first activation's result stored."
 	| push |
 	asm stp: X29 with: X30 base: SP preIndex: -160.
 	asm mov: X29 with: SP.
@@ -249,23 +217,21 @@ emitEnter: baseline restore: restore
 	asm mov: X22 imm64: runtime stateAddress.
 	asm ldr: X20 base: X19 offset: self fpOffset.
 	asm ldr: X21 base: X20 offset: -8.
-	baseline ifTrue: [
-		self emitReloadPinned.
-		asm str: X19 base: X22 offset: self baseFrameOffset].
+	self emitReloadPinned.
+	asm str: X19 base: X22 offset: self baseFrameOffset.
 	asm mov: X16 with: SP.
 	asm str: X16 base: X22 offset: self exitSpOffset.
 	push := asm newLabel.
 	asm bl: push.
-	"the first activation returned: x19 is its caller's frame (baseline: x0 the result, x20 the returning frame's fp)"
-	baseline ifTrue: [asm stur: X0 base: X20 offset: -8].
+	"the first activation returned: x19 is its caller's frame, x0 the result, x20 the returning frame's fp"
+	asm stur: X0 base: X20 offset: -8.
 	asm orr: X0 with: X19 imm: 1.
 	asm b: restore.
 	asm bind: push.
 	asm stp: X29 with: X30 base: SP preIndex: -16.
 	asm mov: X29 with: SP.
-	baseline ifTrue: [
-		asm mov: X16 with: SP.
-		asm str: X16 base: X22 offset: self baseRecordOffset].
+	asm mov: X16 with: SP.
+	asm str: X16 base: X22 offset: self baseRecordOffset.
 	asm br: X1
 !
 generateBaseline
@@ -391,19 +357,6 @@ generateBaseline
 	asm ldp: X4 with: X5 base: SP offset: 32.
 	asm ldp: X2 with: X3 base: SP offset: 16.
 	asm ldp: X0 with: X1 base: SP postIndex: 144.
-	asm ret.
-	blNlr := self symbol: 'baseline non-local return'.
-	"the frame's pc and sp stored: the runtime answers the home frame's record (0: leave)"
-	lnot := asm newLabel.
-	asm mov: X0 with: X19.
-	asm mov: X16 imm64: brt nlrFunction.
-	asm blr: X16.
-	asm cbz: X0 to: exit.
-	asm mov: SP with: X0.
-	asm ldr: X19 base: X22 offset: self nlrFrameOffset.
-	asm ldr: X20 base: X22 offset: self nlrFpOffset.
-	asm ldr: X0 base: X22 offset: self resultOffset.
-	asm ldp: X29 with: X30 base: SP postIndex: 16.
 	asm ret.
 	blReturnSlow := self stub: brt returnSlowFunction named: 'baseline return slow path'.
 	blBox := self stub: brt boxFunction named: 'baseline box Float'

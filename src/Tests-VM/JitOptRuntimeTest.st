@@ -19,7 +19,7 @@ tearDown
 
 !JitOptRuntimeTest methodsFor: 'helpers'!
 disassemblyNotes
-	^#('interrupt check' 'guard: a SmallInteger' 'frame pc and sp')
+	^#('interrupt check' 'guard: a SmallInteger' 'frame pc and sp' 'entry: x19')
 ! !
 
 !JitOptRuntimeTest methodsFor: 'tests'!

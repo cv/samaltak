@@ -1,5 +1,5 @@
 VMCoreModule subclass: #JitBaselineRuntime
-	instanceVariableNames: 'compiler stubs cache asm analysis feedback oopSlots oopSlotCount youngSlots youngSlotCount youngSlotsOverflow megaTable blockTable primKinds primOps primKindsReady nilScanned nilInline nilFound statMisses statLinks statPics statMegas statBlockMisses statPrimCalls statNlrs statWalks'
+	instanceVariableNames: 'compiler stubs cache asm analysis feedback oopSlots oopSlotCount youngSlots youngSlotCount youngSlotsOverflow megaTable blockTable primKinds primOps primKindsReady nilScanned nilInline nilFound statMisses statLinks statPics statMegas statBlockMisses statPrimCalls statWalks'
 	classVariableNames: 'BL_BLOCK_CACHE BL_BLOCK_WORDS BL_MAX_OOP_SLOTS BL_MAX_YOUNG_SLOTS BL_MEGA_CACHE BL_MEGA_WORDS BL_PIC_CASES BL_SITE_MEGA PK_AT PK_AT_PUT PK_BASIC_SIZE PK_BASICNEW PK_BASICNEW_SIZE PK_CHAR_FROM_VALUE PK_CHAR_VALUE PK_CLASS PK_CLOSURE_VALUE PK_FLOAT_OP PK_HASH PK_IDENTICAL PK_INT_OP PK_MARKER PK_NONE PK_PERFORM PK_STRING_COMPARE PK_UINT32_AT PK_UINT32_AT_PUT'
 	package: 'VM-Jit'!
 
@@ -11,9 +11,9 @@ Inline caches: miss:receiver:ret: (the miss stub: unlinked sites, a callee''s fa
 
 The collector: the words in the code that hold objects (the method''s literals, the caches'' classes) are registered (oopSlots, the young ones also in youngSlots) and updated as roots; megaTable and blockTable (home method, startpc -> block entry) are cleared by every GC and become.
 
-Type feedback for the optimizing tiers: feedbackSitesOf: and friends enumerate a method''s send sites (pc, selector, state, cases with receiver class and target method); jitSendSites answers the same to the image. Under --jit opt every miss reports its receiver class to JitFeedback, and redirect:to: makes a method''s unchecked entry branch to its optimized code.
+Type feedback: feedbackSitesOf: and friends enumerate a method''s send sites (pc, selector, state, cases with receiver class and target method), which jitSendSites answers to the image. Under --jit opt every miss reports its receiver class to JitFeedback, and redirect:to: makes a method''s unchecked entry branch to its optimized code.
 
-Also: block:closure:ret: (the block stub''s miss), entrySlow:ret: (a callee''s stack check: interrupts, a full C stack), prim:ret:fn:info:fp: (a compiled method''s C primitive), returnSlow: (a married frame or frame 0 returns), nlr: (non-local return to a home frame in machine code).'!
+Also: block:closure:ret: (the block stub''s miss), entrySlow:ret: (a callee''s stack check: interrupts, a full C stack), prim:ret:fn:info:fp: (a compiled method''s C primitive), returnSlow: (a married frame or frame 0 returns).'!
 
 !JitBaselineRuntime class methodsFor: 'declaring'!
 declarations
@@ -21,7 +21,7 @@ declarations
 		(oopSlots 'uint64_t[BL_MAX_OOP_SLOTS]') (oopSlotCount int64_t) (youngSlots 'uint64_t[BL_MAX_YOUNG_SLOTS]') (youngSlotCount int64_t) (youngSlotsOverflow bool)
 		(megaTable 'uint64_t[BL_MEGA_WORDS]') (blockTable 'uint64_t[BL_BLOCK_WORDS]')
 		(primKinds 'uint8_t[1024]') (primOps 'uint8_t[1024]') (primKindsReady bool) (nilScanned bool) (nilInline bool) (nilFound int32_t)
-		(statMisses uint64_t) (statLinks uint64_t) (statPics uint64_t) (statMegas uint64_t) (statBlockMisses uint64_t) (statPrimCalls uint64_t) (statNlrs uint64_t) (statWalks uint64_t))
+		(statMisses uint64_t) (statLinks uint64_t) (statPics uint64_t) (statMegas uint64_t) (statBlockMisses uint64_t) (statPrimCalls uint64_t) (statWalks uint64_t))
 !
 initialize
 	BL_MAX_OOP_SLOTS := 262144.
@@ -141,9 +141,6 @@ entrySlowFunction
 !
 primFunction
 	^self cCoerce: (self functionPointer: #prim:fp:fn:info:) to: 'uint64_t'
-!
-nlrFunction
-	^self cCoerce: (self functionPointer: #nlr:) to: 'uint64_t'
 !
 returnSlowFunction
 	^self cCoerce: (self functionPointer: #returnSlow:) to: 'uint64_t'
@@ -688,7 +685,7 @@ prim: f fp: fp fn: fn info: info
 	^1
 !
 box: f bits: b
-	"A Float (IEEE bits b) machine code could not box in eden (f's pc and sp stored): it may collect."
+	"A Float (IEEE bits b) that is not a SmallFloat64 (f's pc and sp stored): a BoxedFloat64, which may collect."
 	<c: 'oop jit_bl_box(Frame *f, uint64_t b)'>
 	jit sync: f.
 	^memory floatOop: (self doubleFromBits: b)
@@ -700,26 +697,6 @@ returnSlow: f
 	f = interpreter frames ifTrue: [^1].
 	f ctx ~= memory nilOop ifTrue: [interpreter widow: f].
 	^0
-!
-nlr: f
-	"^ in a block (f's pc and sp stored, the value on top): if the home frame is in this machine code session, above frame 0, and no unwind marker is in between, widow the frames from it and answer its native record (the stub returns from it); else 0 (the interpreter does it)."
-	<c: 'uint64_t jit_bl_nlr(Frame *f)'>
-	| v home hk h base |
-	jit sync: f.
-	statNlrs := statNlrs + 1.
-	v := f fp at: f sp - 1.
-	home := interpreter ctxHome: (self loadRef: f closure at: BC_OUTER).
-	hk := self loadRef: home at: CTX_SENDER.
-	(self isInt: hk) ifFalse: [^0].
-	h := interpreter frames + (self intVal: hk).
-	base := self cCoerce: jit state baseFrame to: 'Frame *'.
-	(h < base or: [h = interpreter frames or: [h > f]]) ifTrue: [^0].
-	0 to: f - h do: [:k | ((interpreter methodPrim: (h + k) method) bitAnd: CM_PRIM_MASK) = PRIM_ENSURE_MARKER ifTrue: [^0]].
-	interpreter widowFrom: (h - interpreter frames) asInt32.
-	jit state nlrFrame: (self cCoerce: h - 1 to: 'uint64_t').
-	jit state nlrFp: (self cCoerce: h fp to: 'uint64_t').
-	jit state result: v.
-	^jit state baseRecord - (16 * (h - base)) asUInt64
 ! !
 
 !JitBaselineRuntime methodsFor: 'collector'!
@@ -831,9 +808,6 @@ statBlockMisses
 !
 statPrimCalls
 	^statPrimCalls
-!
-statNlrs
-	^statNlrs
 !
 statWalks
 	^statWalks

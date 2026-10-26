@@ -7,7 +7,7 @@ JitPrimitives comment: 'The JIT seen from the image: its parameters (jitParamete
 
 !JitPrimitives methodsFor: 'parameters'!
 primJitParameters
-	"Smalltalk vm jitParameters [: anArray]: {mode. flags. threshold. osr. cache MB}, mode and flags as Strings ('template', 'arith,fuse,barrier'). With anArray {mode. flags. threshold. osr} (nil keeps one; flags are changes, as --jit-flags) set them; answer the parameters before. A new mode or new flags drop all machine code."
+	"Smalltalk vm jitParameters [: anArray]: {mode. flags. threshold. osr. cache MB}, mode and flags as Strings ('baseline', 'arith,fuse,barrier'). With anArray {mode. flags. threshold. osr} (nil keeps one; flags are changes, as --jit-flags) set them; answer the parameters before. A new mode or new flags drop all machine code."
 	<vmPrimitive: 180 name: 'jitParameters'>
 	| r old p m saved |
 	r := self local: 'oop'.
@@ -111,12 +111,12 @@ primJitSendSites
 
 !JitPrimitives methodsFor: 'disassembly'!
 primJitCode
-	"aCompiledMethod jitCode: modeName (nil: the current compiler, template under --jit none): {address. code (ByteArray). map {pc. offset ...}. notes {offset. text or nil (a bytecode). value ...}. symbols {address. name ...}. mode} of its machine code with the compiler's notes. Installed code with notes is answered as it is; otherwise the method is compiled for this and the code dropped. Answers nil if the compiler does not compile it."
+	"aCompiledMethod jitCode: modeName (nil: the current compiler, baseline under --jit none): {address. code (ByteArray). map {pc. offset ...}. notes {offset. text or nil (a bytecode). value ...}. symbols {address. name ...}. mode} of its machine code with the compiler's notes. Installed code with notes is answered as it is; otherwise the method is compiled for this and the code dropped. Answers nil if the compiler does not compile it."
 	<vmPrimitive: 181 name: 'jitCode'>
 	| m md p h scratch top |
 	m := self receiver.
 	((self isPtr: m) and: [(self rawClass: m) = (memory special: SO_COMPILEDMETHOD)]) ifFalse: [^self fail].
-	md := jit mode = 0 ifTrue: [jit templateMode] ifFalse: [jit mode].
+	md := jit mode = 0 ifTrue: [jit baselineMode] ifFalse: [jit mode].
 	(self argCount > 0 and: [self arg0 ~= memory nilOop]) ifTrue: [
 		(memory isKindOfString: self arg0) ifFalse: [^self fail].
 		p := memory utf8Of: self arg0.

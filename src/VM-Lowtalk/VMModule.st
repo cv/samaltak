@@ -25,10 +25,6 @@ isAbstractModule
 isInterface
 	"Whether I only declare functions that another module implements (with the same C names)."
 	^false
-!
-stencilCompiler
-	"A module of stencils (JitStencils) answers the class whose constants its stencils use; the translator makes stencil files of it instead of a C file."
-	^nil
 ! !
 
 !VMModule methodsFor: 'simulation'!

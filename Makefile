@@ -27,13 +27,7 @@ translate: image
 # one more, and again with deoptimization stress); Tests-Kernel also with a code cache small enough to be flushed
 # again and again.
 test-jit: image
-	tests/st_suite.sh $(OUT)/samaltak.image --jit template --jit-threshold 0
-	tests/st_suite.sh $(OUT)/samaltak.image --jit template --jit-threshold 0 --jit-cache 1 --jit-flags notes -- Tests-Kernel
 	tests/st_suite.sh $(OUT)/samaltak.image --jit baseline --jit-threshold 0
-	tests/st_suite.sh $(OUT)/samaltak.image --jit baseline --jit-threshold 0 --jit-cache 1 --jit-flags notes -- Tests-Kernel
-	tests/st_suite.sh $(OUT)/samaltak.image --jit threaded --jit-threshold 0
-	tests/st_suite.sh $(OUT)/samaltak.image --jit stencil --jit-threshold 0
-	tests/st_suite.sh $(OUT)/samaltak.image --jit stencil --jit-threshold 0 --jit-cache 1 --jit-flags notes -- Tests-Kernel
 	tests/st_suite.sh $(OUT)/samaltak.image --jit opt --jit-threshold 0 --jit-flags eager
 	tests/st_suite.sh $(OUT)/samaltak.image --jit opt --jit-threshold 0 --jit-flags eager,deopt
 	tests/st_suite.sh $(OUT)/samaltak.image --jit opt --jit-threshold 0 --jit-cache 1 --jit-flags eager,notes -- Tests-Kernel

@@ -175,7 +175,7 @@ void prim_jit_code(void)
         prim_error_code = -1;
         return;
     }
-    md = jit_mode == 0 ? JIT_TEMPLATE : jit_mode;
+    md = jit_mode == 0 ? JIT_BASELINE : jit_mode;
     if ((prim_nargs > 0) && ((prim_nargs > 0 ? prim_base[1] : nil_oop) != nil_oop)) {
         if (!is_kind_of_string(prim_nargs > 0 ? prim_base[1] : nil_oop)) {
             prim_status = PS_FAIL;

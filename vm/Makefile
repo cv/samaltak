@@ -55,21 +55,18 @@ $(STAMP):
 	@rm -f $(BUILD)/.variant-* $(BUILD)/samaltak
 	@touch $@
 
-# The threaded stencils keep the JIT's state in fixed registers.
-$(patsubst %.c,$(OBJDIR)/gen/%.o,$(VM_FIXED_REGISTER_SOURCES)): CFLAGS += $(VM_FIXED_REGISTER_CFLAGS)
-
 $(OBJDIR)/%.o: %.c $(PGO_DEP)
 	@mkdir -p $(dir $@)
 	$(if $(BRIEF),@echo "cc   $<";) $(CC) $(CFLAGS) -c -o $@ $<
 
-# Retrain the profile: an instrumented VM runs the benchmarks (also under the template JIT) and the kernel/compiler tests on IMAGE.
+# Retrain the profile: an instrumented VM runs the benchmarks (also under the baseline JIT) and the kernel/compiler tests on IMAGE.
 pgo:
 	@test -n "$(IMAGE)" || { echo "usage: make pgo IMAGE=path/to/samaltak.image"; exit 1; }
 	rm -rf build/pgo-gen/prof
 	$(MAKE) BUILD=build/pgo-gen PGO_GEN=1
 	build/pgo-gen/samaltak $(IMAGE) --headless --eval "$$(cat tests/bench/suite-samaltak.st)" > /dev/null
 	build/pgo-gen/samaltak $(IMAGE) --headless --eval "$$(cat tests/bench/bench.st)" > /dev/null
-	build/pgo-gen/samaltak --jit template $(IMAGE) --headless --eval "$$(cat tests/bench/suite-samaltak.st)" > /dev/null
+	build/pgo-gen/samaltak --jit baseline $(IMAGE) --headless --eval "$$(cat tests/bench/suite-samaltak.st)" > /dev/null
 	build/pgo-gen/samaltak $(IMAGE) --headless --test KernelTestProxy CollectionTest StringTest IntegerTest CompilerTest > /dev/null
 	$(LLVM_PROFDATA) merge -o $(PGO_PROFILE) build/pgo-gen/prof/*.profraw
 

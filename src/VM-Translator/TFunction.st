@@ -8,8 +8,6 @@ TFunction comment: 'I am a method of a module as the translator sees it. kind:
 	#inline	expanded at every call (no <c:>, or an accessor)
 	#handler	a bytecode handler of the interpreter loop (<bytecode: n>, <bytecodes: #(first last)>)
 	#label	a goto target in the interpreter loop (<label>)
-	#stencil	a stencil of the copy-and-patch and threaded compilers (<stencil>, <stencil: cases>; JitStencils)
-	#continuation #hole #stencilCase #callCompiled	the stencils'' language (JitStencils)
 	#dispatchLoop	where the interpreter function starts dispatching (<dispatchLoop>)
 	#dispatch	re-dispatch on a bytecode (<dispatch>)
 	#currentBytecode	the bytecode being executed (<currentBytecode>)
@@ -40,13 +38,6 @@ classifyIn: aTranslator
 	(pragmas includesKey: #dispatchLoop) ifTrue: [^kind := #dispatchLoop].
 	(pragmas includesKey: #dispatch) ifTrue: [^kind := #dispatch].
 	(pragmas includesKey: #currentBytecode) ifTrue: [^kind := #currentBytecode].
-	(pragmas includesKey: #continuation:) ifTrue: [^kind := #continuation].
-	(pragmas includesKey: #hole) ifTrue: [^kind := #hole].
-	(pragmas includesKey: #stencilCase) ifTrue: [^kind := #stencilCase].
-	(pragmas includesKey: #callCompiled) ifTrue: [^kind := #callCompiled].
-	((pragmas includesKey: #stencil) or: [pragmas includesKey: #stencil:]) ifTrue: [
-		kind := #stencil.
-		^cName := LowtalkNames snake: selector].
 	(pragmas includesKey: #label) ifTrue: [
 		kind := #label.
 		^cName := LowtalkNames functionNameFor: selector].
@@ -147,16 +138,6 @@ isInline
 !
 isFunction
 	^kind == #function
-!
-isStencil
-	^kind == #stencil
-!
-stencilCases
-	"A stencil's cases: first, last."
-	^module moduleClass casesOf: selector
-!
-hasCases
-	^pragmas includesKey: #stencil:
 !
 isAccessor
 	"^var, or var := arg (with an optional ^self), of one of my module's variables."

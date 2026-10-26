@@ -25,7 +25,7 @@ initialize
 
 !CodeCache methodsFor: 'region'!
 openWithSize: size
-	"Map the region; answer whether it worked. It takes the place of cacheSpace (zero-fill, in the VM's own image): near the VM's code, so that a bl from it reaches the VM's functions."
+	"Map the region; answer whether it worked. It takes the place of cacheSpace (zero-fill, in the VM's own image): near the VM's data, so that adrp from the code reaches it (tiering counters, type feedback, eden's top, call caches)."
 	<c: 'bool code_cache_open(uint64_t size)'>
 	<export>
 	| p near |

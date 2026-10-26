@@ -16,7 +16,6 @@ uint64_t stat_block_misses;
 uint64_t stat_links;
 uint64_t stat_megas;
 uint64_t stat_misses;
-uint64_t stat_nlrs;
 uint64_t stat_pics;
 uint64_t stat_prim_calls;
 uint64_t stat_walks;
@@ -728,58 +727,6 @@ bool bl_nil_tests_inlinable(void)
         }
     }
     return nil_inline;
-}
-
-/* JitBaselineRuntime>>nlr: */
-uint64_t jit_bl_nlr(frame *f)
-{
-    oop o;
-    uint64_t o_2;
-    oop v;
-    oop o_3;
-    oop home;
-    uint64_t hk;
-    frame *h;
-    frame *base;
-    int64_t k;
-    oop m;
-    int64_t r_method_prim;
-    uint64_t p;
-    if ((jit_mode == JIT_BASELINE) || (jit_mode == JIT_OPT)) {
-        f->method = ((jit_method *)f->code)->method;
-        bl_canonicalize_below(f);
-    }
-    interp_sync_frame(f);
-    o = f->method;
-    o_2 = *(uint64_t *)(o + 16 + 16);
-    f->lits = (oop *)(o_2 + 16);
-    stat_nlrs = stat_nlrs + 1;
-    v = f->fp[f->sp - 1];
-    o_3 = f->closure;
-    home = ctx_home(*(uint64_t *)(o_3 + 16 + 0));
-    hk = *(uint64_t *)(home + 16 + 0);
-    if (!((hk & 1) != 0)) {
-        return 0;
-    }
-    h = frames + (((int64_t)hk) >> 1);
-    base = (frame *)state_block->base_frame;
-    if ((h < base) || ((h == frames) || (h > f))) {
-        return 0;
-    }
-    for (k = 0; k <= f - h; k++) {
-        m = (h + k)->method;
-        if ((({
-    p = *(uint64_t *)(m + 16 + 56);
-    r_method_prim = (p & 1) != 0 ? ((int64_t)p) >> 1 : 0;
-    r_method_prim; }) & CM_PRIM_MASK) == PRIM_ENSURE_MARKER) {
-            return 0;
-        }
-    }
-    widow_from((int32_t)(h - frames));
-    state_block->nlr_frame = (uint64_t)(h - 1);
-    state_block->nlr_fp = (uint64_t)h->fp;
-    state_block->result = v;
-    return state_block->base_record - (uint64_t)(16 * (h - base));
 }
 
 /* JitBaselineRuntime>>noteNilTest:data: */

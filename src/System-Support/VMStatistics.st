@@ -113,37 +113,33 @@ jitPrimitiveCalls
 	"Baseline: primitives called through their C function."
 	^self counterAt: 30
 !
-jitNonLocalReturns
-	"Baseline: non-local returns the runtime handled (in machine code or left to the interpreter)."
-	^self counterAt: 31
-!
 jitFrameWalks
 	"Baseline: lazily canonicalized frame stacks (calls into the runtime that are safepoints)."
-	^self counterAt: 32
+	^self counterAt: 31
 !
 optMethodsCompiled
-	^self counterAt: 33
+	^self counterAt: 32
 !
 optBytecodesCompiled
-	^self counterAt: 34
+	^self counterAt: 33
 !
 optCompileMicroseconds
-	^self counterAt: 35
+	^self counterAt: 34
 !
 optCodeBytes
-	^self counterAt: 36
+	^self counterAt: 35
 !
 optDeoptimizations
-	^self counterAt: 37
+	^self counterAt: 36
 !
 optOsrEntries
-	^self counterAt: 38
+	^self counterAt: 37
 !
 optInvalidations
-	^self counterAt: 39
+	^self counterAt: 38
 !
 optCompileFailures
-	^self counterAt: 40
+	^self counterAt: 39
 !
 gcCount
 	"Answer the scavenges plus the full GCs."
@@ -180,5 +176,5 @@ counters: anArray
 !VMStatistics class methodsFor: 'accessing'!
 counterNames
 	"Answer my counter accessors in vmStats order."
-	^#(#scavenges #fullGCs #scavengeMicroseconds #fullGCMicroseconds #oldBytesUsed #oldBudget #edenBytes #bytesAllocated #rememberedSetSize #processSwitches #bytesTenured #weakSlotsCleared #contextsMaterialized #frameFlushes #jitMethodsCompiled #jitBytecodesCompiled #jitCompileMicroseconds #jitCodeBytes #jitCacheFlushes #jitEntries #jitExits #jitResumes #jitOsrEntries #jitCompileFailures #jitInlineCacheMisses #jitInlineCacheLinks #jitPolymorphicCaches #jitMegamorphicSites #jitBlockCacheMisses #jitPrimitiveCalls #jitNonLocalReturns #jitFrameWalks #optMethodsCompiled #optBytecodesCompiled #optCompileMicroseconds #optCodeBytes #optDeoptimizations #optOsrEntries #optInvalidations #optCompileFailures)
+	^#(#scavenges #fullGCs #scavengeMicroseconds #fullGCMicroseconds #oldBytesUsed #oldBudget #edenBytes #bytesAllocated #rememberedSetSize #processSwitches #bytesTenured #weakSlotsCleared #contextsMaterialized #frameFlushes #jitMethodsCompiled #jitBytecodesCompiled #jitCompileMicroseconds #jitCodeBytes #jitCacheFlushes #jitEntries #jitExits #jitResumes #jitOsrEntries #jitCompileFailures #jitInlineCacheMisses #jitInlineCacheLinks #jitPolymorphicCaches #jitMegamorphicSites #jitBlockCacheMisses #jitPrimitiveCalls #jitFrameWalks #optMethodsCompiled #optBytecodesCompiled #optCompileMicroseconds #optCodeBytes #optDeoptimizations #optOsrEntries #optInvalidations #optCompileFailures)
 ! !

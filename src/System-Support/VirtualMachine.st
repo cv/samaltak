@@ -99,20 +99,24 @@ primStatistics
 
 !VirtualMachine methodsFor: 'jit'!
 jitParameters
-	"{mode. flags. threshold. osr. cache MB}: the JIT's settings (--jit, --jit-flags, --jit-threshold, --jit-osr, --jit-cache); mode and flags are Strings ('template', 'arith,fuse,barrier')."
+	"{mode. flags. threshold. osr. cache MB}: the JIT's settings (--jit, --jit-flags, --jit-threshold, --jit-osr, --jit-cache); mode and flags are Strings ('baseline', 'arith,fuse,barrier')."
 	<primitive: 'jitParameters'>
 	^self primitiveFailed
 !
 jitParameters: anArray
-	"Set {mode. flags. threshold. osr} (nil keeps one; flags change as with --jit-flags: 'embed,-fuse'); answer the settings before. A new mode or new flags drop all machine code."
+	"Set {mode. flags. threshold. osr} (nil keeps one; flags change as with --jit-flags: 'notes,-fuse'); answer the settings before. A new mode or new flags drop all machine code."
 	<primitive: 'jitParameters'>
 	^self primitiveFailed
 !
 jitMode
 	^self jitParameters first asSymbol
 !
+jitFlags
+	"The JIT's flags in effect, e.g. #('arith' 'fuse' 'barrier')."
+	^(self jitParameters at: 2) substrings: ','
+!
 jitMode: aSymbol
-	"#none or #template; answer the previous mode."
+	"#none, #baseline or #opt; answer the previous mode."
 	^(self jitParameters: {aSymbol asString. nil. nil. nil}) first asSymbol
 ! !
 
