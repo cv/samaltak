@@ -57,7 +57,7 @@ stageExtent
 	^480 @ 440
 !
 ballColor
-	^Color r: 1.0 g: 0.75 b: 0.1
+	^Color r: 0.8 g: 0.3 b: 0.4
 !
 drum
 	"The drumhead is the top edge."
