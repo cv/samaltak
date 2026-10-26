@@ -122,7 +122,8 @@ flagsAt: m pc: pc
 	| s f |
 	s := self siteAt: m pc: pc.
 	f := s isNull ifTrue: [0 asUInt32] ifFalse: [s flags].
-	(self uint8At: (self floatBitAddressFor: m pc: pc)) ~= 0 ifTrue: [f := f bitOr: FB_FLOAT].
+	"the byte is m's only while m has the code that sets it (compiling that code clears it)"
+	((self uint8At: (self floatBitAddressFor: m pc: pc)) ~= 0 and: [jit hasCode: (jit lookup: m)]) ifTrue: [f := f bitOr: FB_FLOAT].
 	^f
 !
 clear

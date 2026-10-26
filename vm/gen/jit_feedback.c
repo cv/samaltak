@@ -45,9 +45,12 @@ uint32_t fb_flags_at(oop m, int64_t pc)
 {
     feedback_site *s;
     uint32_t f;
+    jit_method *h;
     s = fb_site_at(m, pc);
     f = s == NULL ? 0U : s->flags;
-    if (*(uint8_t *)(uint64_t)(fb_floats + (((uint64_t)(uint32_t)(((*(uint64_t *)m) >> H_HASH_SHIFT) & H_HASH_MASK) * 31 + (uint64_t)pc) & 65535)) != 0) {
+    if ((*(uint8_t *)(uint64_t)(fb_floats + (((uint64_t)(uint32_t)(((*(uint64_t *)m) >> H_HASH_SHIFT) & H_HASH_MASK) * 31 + (uint64_t)pc) & 65535)) != 0) && ({
+    h = jit_lookup(m);
+    (h != NULL) && ((h->flags & JM_FAILED) == 0); })) {
         f = f | FB_FLOAT;
     }
     return f;

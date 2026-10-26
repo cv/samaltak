@@ -1238,6 +1238,7 @@ uint64_t opt_send(frame *f, int64_t k, uint64_t key)
     oop r;
     oop o;
     uint64_t o_2;
+    uint64_t flushes;
     uint64_t v;
     frame *g;
     oop m;
@@ -1313,7 +1314,11 @@ uint64_t opt_send(frame *f, int64_t k, uint64_t key)
             o = f->method;
             o_2 = *(uint64_t *)(o + 16 + 16);
             f->lits = (oop *)(o_2 + 16);
+            flushes = stat_flushes;
             activate_block(n);
+            if (stat_flushes != flushes) {
+                return 1;
+            }
             v = jit_entry_of_top();
             if (v <= 1) {
                 goto exit_note_block_call;

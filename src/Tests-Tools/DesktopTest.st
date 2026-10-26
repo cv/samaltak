@@ -109,7 +109,9 @@ testUserInterruptStopsTheBusyProcess
 	busy := self fork: [[true] whileTrue: [100 factorial]] named: 'tools test busy' at: 40.
 	self assert: (self waitFor: [busy cpuMicroseconds > 0]) description: 'the busy process did not start'.
 	self assert: Tools userInterrupt == busy.
-	self assert: (self waitFor: [busy isSuspended]) description: 'the busy process was not stopped'
+	self assert: (self waitFor: [busy isSuspended]) description: 'the busy process was not stopped'.
+	"its notifier opens from another Process: before the World goes"
+	self assert: (self waitFor: [(self windowsOf: Notifier) notEmpty]) description: 'no notifier opened'
 !
 testHelpOverlay
 	Tools showHelp.

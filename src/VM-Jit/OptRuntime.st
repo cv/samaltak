@@ -366,7 +366,7 @@ noteYoung: o
 send: f index: k site: key
 	"Optimized code sends at safepoint k of f (its pc and sp stored, receiver and arguments at slot slots): answer 0 (the result is in that slot), 1 (leave) or the callee's entry (frame pushed)."
 	<c: 'uint64_t opt_send(Frame *f, int64_t k, uint64_t key)'>
-	| h rec info n kind sp sel base r cls e ns ok v |
+	| h rec info n kind sp sel base r cls e ns ok v flushes |
 	h := self cCoerce: f code to: 'JitMethod *'.
 	rec := self recordOf: h index: k.
 	info := rec at: 2.
@@ -388,7 +388,10 @@ send: f index: k site: key
 		r := base at: 0.
 		((sp = 21 or: [sp = 22 or: [sp = 30]]) and: [(self isPtr: r) and: [(self rawClass: r) = memory clsBlock and: [(self loadRef: r at: BC_NUMARGS) = (self intOop: n)]]]) ifTrue: [
 			runtime sync: f.
+			flushes := interpreter statFlushes.
 			interpreter activateBlock: n.
+			"no room for its frame: the frames became Contexts, the interpreter goes on"
+			interpreter statFlushes ~= flushes ifTrue: [^1].
 			v := runtime entryOfTop.
 			self noteBlockCall: h index: k closure: r entry: v.
 			^v]].

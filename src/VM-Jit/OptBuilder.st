@@ -1197,6 +1197,8 @@ inlineSend: sel argc: argc kind: kind special: k pc: pc act: a rcvSlot: r
 send: sel to: rcv class: cls argc: argc kind: kind pc: pc act: a rcvSlot: r
 	"The receiver's class is cls: inline the method it finds, else send. Answer false only if nothing was emitted."
 	| m n |
+	"a married Context's state is in its frame: only the runtime's send makes it a Context first"
+	cls = memory clsContext ifTrue: [^false].
 	m := interpreter lookupMethod: cls selector: sel.
 	m = 0 ifTrue: [^false].
 	self noteDependency: sel.

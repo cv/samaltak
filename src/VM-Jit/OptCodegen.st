@@ -130,11 +130,17 @@ maxOutgoing
 	^n
 !
 emitBaselineEntry: m
-	"The entry from baseline code (its unchecked entry branches here once this code is installed, JitBaselineRuntime>>redirect:to:): x0 the receiver, x20 our fp, x23 nil. Our frame as a direct call pushes it, then the prologue."
-	| n ntemps fb |
+	"The entry from baseline code (its unchecked entry branches here once this code is installed, JitBaselineRuntime>>redirect:to:): x0 the receiver, x20 our fp, x23 nil. The stack check of the entry it replaces (no room, or an interrupt pending: that entry's slow path), our frame as a direct call pushes it, then the prologue."
+	| n ntemps fb h |
 	n := (ir act: cgRootAct) numArgs.
 	ntemps := (self intVal: (self loadRef: m at: CM_NUMTEMPS)) asInt32.
 	fb := self frameBytes asInt64.
+	h := runtime lookup: m.
+	(h notNull and: [h mode = runtime baselineMode and: [(h flags bitAnd: runtime entryFlag) ~= 0]]) ifTrue: [
+		asm comment: 'stack check: below the limit, else the baseline entry''s'.
+		asm ldr: X16 base: X22 offset: self stackLimitOffset.
+		asm cmp: X20 with: X16.
+		asm b: (asm labelAt: h uentry + 4) if: COND_HS].
 	asm comment: 'entry from baseline code: our frame'.
 	asm str: X20 base: X19 offset: fb + self fpOffset.
 	self loadConstant: m into: X17.
@@ -153,13 +159,15 @@ emitBaselineEntry: m
 	asm str: X16 base: X19 offset: fb + self codeOffset
 !
 emitEntry
-	"The prologue from compiled callers, then start: room for the frame, home slots nil, the arguments."
-	| s |
+	"The prologue from compiled callers, then start: room for the frame and for its activations' frames should it deoptimize, home slots nil, the arguments."
+	| s need |
 	self emitPrologue.
 	runtime noteResume: cgEntryPc at: asm pc - cgCodeStart.
-	asm comment: 'room for the frame''s slots (else the interpreter runs it)'.
+	asm comment: 'room for the frame''s slots and its activations'' frames (else the interpreter runs it)'.
 	s := self out: OUT_STACK node: -1 index: 0.
-	asm mov: X16 imm: 8 * (cgSlotTop + cgMaxOut + 1).
+	need := 0.
+	0 to: ir actCount - 1 do: [:i | need := need + (ir act: i) nslots + 1].
+	asm mov: X16 imm: 8 * ((cgSlotTop + cgMaxOut + 1) max: need).
 	asm add: X16 with: X20 with: X16.
 	asm ldr: X17 base: X22 offset: self cstackLimitOffset.
 	asm cmp: X16 with: X17.
@@ -250,6 +258,9 @@ emitPool
 !
 cstackLimitOffset
 	^self cCoerce: ((self cCoerce: 0 to: 'JitState *') fieldAddress: #cstackLimit) to: 'int64_t'
+!
+stackLimitOffset
+	^self cCoerce: ((self cCoerce: 0 to: 'JitState *') fieldAddress: #stackLimit) to: 'int64_t'
 !
 dumpOffset
 	^self cCoerce: ((self cCoerce: 0 to: 'JitState *') fieldAddress: #dump) to: 'int64_t'

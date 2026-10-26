@@ -19699,6 +19699,7 @@ exit_offset_to_14:;
         if (counter_addr != 0) {
             pc = sl_pc[i];
             a = (uint64_t)(fb_floats + (((uint64_t)(uint32_t)(((*(uint64_t *)cur_method) >> H_HASH_SHIFT) & H_HASH_MASK) * 31 + (uint64_t)pc) & 65535));
+            *(uint8_t *)a = 0;
             if (asm_noting) {
                 asm_note("type feedback: a Float here", 0);
             }

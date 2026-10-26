@@ -111,6 +111,10 @@ jitParameters: anArray
 jitMode
 	^self jitParameters first asSymbol
 !
+jitFlags
+	"The names of the JIT's flags that are on."
+	^(self jitParameters at: 2) substrings: ','
+!
 jitMode: aSymbol
 	"#none or #template; answer the previous mode."
 	^(self jitParameters: {aSymbol asString. nil. nil. nil}) first asSymbol

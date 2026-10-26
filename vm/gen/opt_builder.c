@@ -7132,6 +7132,10 @@ static bool opt_inline_send(uint64_t sel, int32_t argc, int32_t kind, int32_t k,
         o_2 = *(uint64_t *)(o + 16 + 8);
         cls = *(uint64_t *)(o_2 + 16 + 0);
         return ({
+    if (cls == cls_context) {
+        r_send = false;
+        goto exit_send;
+    }
     m = lookup_method(cls, sel);
     if (m == 0) {
         r_send = false;
@@ -8240,6 +8244,10 @@ exit_known_class_of:;
     r_known_class_of; });
     if (cls != 0) {
         return ({
+    if (cls == cls_context) {
+        r_send_2 = false;
+        goto exit_send_2;
+    }
     m_7 = lookup_method(cls, sel);
     if (m_7 == 0) {
         r_send_2 = false;
@@ -9353,6 +9361,10 @@ exit_guard:;
     r_guard; });
         cls_3 = site->classes[0];
         return ({
+    if (cls_3 == cls_context) {
+        r_send_3 = false;
+        goto exit_send_3;
+    }
     m_13 = lookup_method(cls_3, sel);
     if (m_13 == 0) {
         r_send_3 = false;
@@ -10466,6 +10478,10 @@ exit_type_2:;
         opt_write(var_35, g, ob_cur_block);
     exit_write_19:;
         if (!({
+    if (cls == cls_context) {
+        r_send_4 = false;
+        goto exit_send_4;
+    }
     m_19 = lookup_method(cls, sel);
     if (m_19 == 0) {
         r_send_4 = false;

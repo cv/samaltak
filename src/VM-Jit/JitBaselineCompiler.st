@@ -3154,9 +3154,10 @@ emitFloatPath: i send: send
 	self emitBox: D0 into: (slR at: i) cont: (slCont at: i) fail: send
 !
 emitFloatFeedback: pc
-	"--jit opt: type feedback, a Float at pc."
+	"--jit opt: type feedback, a Float at pc (the byte starts clear: another method's)."
 	| a |
 	a := runtime floatBitAddressFor: curMethod pc: pc.
+	self uint8At: a put: 0.
 	asm comment: 'type feedback: a Float here'.
 	asm mov: X17 imm: 1.
 	asm adrp: X16 label: (asm labelAt: a).
