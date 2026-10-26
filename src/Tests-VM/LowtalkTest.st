@@ -48,6 +48,19 @@ testSampleInSimulation
 	self assert: sim stdoutContents equals: self sampleOutput , 'argc=1 sample
 '
 !
+testAnEditedClassInitializeIsTranslated
+	"The constants come from the class-side initialize: a translation runs it again, so an edited one counts without running it by hand."
+	| original dir |
+	original := LowtalkSample class compiledMethodAt: #initialize.
+	dir := self scratchDirectory.
+	[LowtalkSample class compile: 'initialize TABLE_SIZE := 9' classified: 'declaring'.
+	 (VMTranslator modules: {LowtalkSample} header: 'sample') writeTo: dir.
+	 self assert: ((File readText: dir , '/sample.h') includesSubstring: '#define TABLE_SIZE 9')]
+		ensure: [
+			LowtalkSample class addSelector: #initialize withMethod: original.
+			LowtalkSample initialize].
+	self assert: (LowtalkSample classPool at: #TABLE_SIZE) equals: 8
+!
 testSampleInC
 	| run |
 	run := self compileAndRun: {LowtalkSample} header: 'sample' arguments: #().
