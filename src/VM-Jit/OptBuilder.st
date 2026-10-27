@@ -414,7 +414,7 @@ read: var in: b
 	^v
 !
 loopKeeps: var block: b
-	"b heads a loop not closed yet, var is a temp of its activation that no instruction of the loop stores: its value on entry, no phi."
+	"b heads a loop not closed yet, var is a temp of its activation that no instruction of the loop stores, nor any closure of the activation (one made before the loop may be inlined into it): its value on entry, no phi."
 	| bl ac slot pc end op |
 	(libc getenv: 'SAMALTAK_NOKEEP') notNull ifTrue: [^false].
 	bl := ir block: b.
@@ -422,6 +422,7 @@ loopKeeps: var block: b
 	ac := ir act: bl act.
 	slot := var - ac varBase.
 	(slot >= 0 and: [slot < (ac numArgs + ac numTemps)]) ifFalse: [^false].
+	(self closuresOf: bl act store: slot) ifTrue: [^false].
 	pc := bl pc.
 	end := self lastBackJumpTo: pc act: bl act.
 	end < pc ifTrue: [^false].
@@ -429,12 +430,29 @@ loopKeeps: var block: b
 		op := self byteAt: pc act: bl act.
 		((op >= 16r60 and: [op < 16r68]) and: [op - 16r60 = slot]) ifTrue: [^false].
 		((op = 16r84 or: [op = 16r87]) and: [(self byteAt: pc + 1 act: bl act) = slot]) ifTrue: [^false].
-		(op = 16r8B or: [op = 16r8C]) ifTrue: [^false].
 		(analysis lengthOf: op) = 0 ifTrue: [^false].
 		pc := (pc + (analysis lengthOf: op)) asInt32].
 	(libc getenv: 'SAMALTAK_OPT_TRACE') notNull ifTrue: [libc fprintf: libc stderr format: 'opt: loop at pc %d keeps slot %d
 ' with: bl pc with: slot].
 	^true
+!
+closuresOf: a store: slot
+	"A closure a makes (at any depth) stores a's temp slot: its outer temp at the level of a."
+	| pc op n ends |
+	ends := self local: 'int32_t[64]'.
+	n := 0.
+	pc := (ir act: a) startpc.
+	[pc < (ir act: a) endpc] whileTrue: [
+		[n > 0 and: [pc >= (ends at: n - 1)]] whileTrue: [n := n - 1].
+		op := self byteAt: pc act: a.
+		((op = 16r8B or: [op = 16r8C]) and: [n > 0 and: [(self byteAt: pc + 1 act: a) = n and: [(self byteAt: pc + 2 act: a) = slot]]]) ifTrue: [^true].
+		op = 16r8F ifTrue: [
+			n >= 64 ifTrue: [^true].
+			ends at: n put: pc + 6 + (((self byteAt: pc + 4 act: a) asInt64 << 8) bitOr: (self byteAt: pc + 5 act: a)) asInt32.
+			n := n + 1].
+		(analysis lengthOf: op) = 0 ifTrue: [^true].
+		pc := (pc + (analysis lengthOf: op)) asInt32].
+	^false
 !
 newPhi: b var: var
 	| n |

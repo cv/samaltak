@@ -225,7 +225,10 @@ const beats = [
   ['relaunch', async () => {
     const dbg = await S.win(/Debugger/, 30000);
     await sleep(2500);
-    act('click', `${dbg}.proceed`); await sleep(3000);
+    act('click', `${dbg}.proceed`); await sleep(1500);
+    // the System Browser behind still shows ballColor as it was when it was selected: show it again
+    act('select', `${W.browser}.methods`, 'move:'); await sleep(400);
+    act('select', `${W.browser}.methods`, 'ballColor'); await sleep(1500);
   }],
 
   // 8. The JIT (VM-Jit, Smalltalk too) has compiled move: (every ball, every frame): System Browser › move: › machine

@@ -123,7 +123,8 @@ tierUp: f loop: loop
 	<var: #o type: 'JitMethod *'>
 	| m h o s k |
 	m := f method.
-	runtime counterFor: m put: 16r3FFFFFFF.
+	"the count's slot is shared by methods whose hashes meet there, and more units of m may follow (its blocks, its loops, frames resumed in the lower tier): it starts over whatever happens; failures are remembered per unit"
+	runtime counterFor: m put: (self initialCount: m).
 	h := runtime lookup: m.
 	(runtime hasCode: h) ifFalse: [^0].
 	f code = (self cCoerce: h to: 'uint64_t') ifFalse: [^0].
@@ -137,12 +138,11 @@ tierUp: f loop: loop
 		ifTrue: [o := self optOf: h]
 		ifFalse: [
 			o := self unitOf: m start: s osr: k.
-			((o isNull or: [(self isAlive: o) not and: [o generation < OPT_MAX_GENERATIONS]]) and: [(self failed: m start: s osr: k) not]) ifTrue: [
+			"a failed compilation leaves a header without code: not compiled again (an invalidated one is)"
+			((o isNull or: [(runtime hasCode: o) and: [(self isAlive: o) not and: [o generation < OPT_MAX_GENERATIONS]]]) and: [(self failed: m start: s osr: k) not]) ifTrue: [
 				o := self optimizeUnit: m start: s osr: k depth: f sp lower: h previous: o.
 				o isNull ifTrue: [self noteFailed: m start: s osr: k]]].
 	(o isNull or: [(self isAlive: o) not]) ifTrue: [^0].
-	"more units of m may follow (its blocks, its loops, frames resumed in the lower tier)"
-	runtime counterFor: m put: (self initialCount: m).
 	k ~= 0 ifTrue: [rtStatOptOsr := rtStatOptOsr + 1].
 	f code: (self cCoerce: o to: 'uint64_t').
 	^o start
@@ -202,12 +202,14 @@ failedKey: m start: s osr: t
 	^(((self hashOf: m) asUInt64 << 32) bitOr: ((s asUInt64 bitAnd: 16rFFFF) << 16)) bitOr: (t asUInt64 bitAnd: 16rFFFF)
 !
 failed: m start: s osr: t
-	"Compiling this unit failed before (a hash table of keys; a collision only means it is not tried)."
-	| key i |
+	"Compiling this unit failed before (a hash table of keys; a collision only means it is not tried; noteFailed: probes as far)."
+	| key i n |
 	key := (self failedKey: m start: s osr: t) bitOr: 1 << 63.
 	i := ((key bitXor: key >> 29) bitAnd: OPT_MAX_UNITS - 1) asInt32.
-	[(rtFailed at: i) ~= 0] whileTrue: [
+	n := 0.
+	[(rtFailed at: i) ~= 0 and: [n < (OPT_MAX_UNITS quo: 2)]] whileTrue: [
 		(rtFailed at: i) = key ifTrue: [^true].
+		n := n + 1.
 		i := (i + 1) bitAnd: OPT_MAX_UNITS - 1].
 	^false
 !

@@ -11971,24 +11971,47 @@ static int32_t opt_read(int32_t var, int32_t b)
     int32_t a;
     opt_act *ac;
     int32_t slot;
-    int32_t pc;
     int32_t a_2;
-    int32_t end;
-    int32_t a_3;
+    bool r_closures_of;
+    int32_t local[64];
+    int32_t *ends;
+    int64_t n_3;
+    int32_t pc_2;
     oop m;
     uint64_t o;
-    uint8_t op;
-    int32_t pc_2;
-    int32_t a_4;
+    uint8_t op_2;
+    int32_t pc_3;
     oop m_2;
     uint64_t o_2;
+    int32_t pc_4;
+    oop m_3;
+    uint64_t o_3;
+    int32_t pc_5;
+    oop m_4;
+    uint64_t o_4;
+    int32_t pc_6;
+    oop m_5;
+    uint64_t o_5;
     int64_t r_length_of;
     int64_t r_length_of_2;
+    int32_t pc;
+    int32_t a_3;
+    int32_t end;
+    int32_t a_4;
+    oop m_6;
+    uint64_t o_6;
+    uint8_t op;
+    int32_t pc_7;
+    int32_t a_5;
+    oop m_7;
+    uint64_t o_7;
+    int64_t r_length_of_3;
+    int64_t r_length_of_4;
     int32_t r_new_phi;
-    int32_t n_3;
+    int32_t n_4;
     int32_t phi;
     int32_t r_new_phi_2;
-    int32_t n_4;
+    int32_t n_5;
     if ((var < OPT_MAX_VARS) && (ob_arg_flags[var] == 2)) {
         v = ({
     n = opt_new_node(O_LOADSLOT, R_OOP);
@@ -12031,174 +12054,355 @@ static int32_t opt_read(int32_t var, int32_t b)
         r_loop_keeps = false;
         goto exit_loop_keeps;
     }
-    pc = bl_2->pc;
     a_2 = bl_2->act;
-    end = ob_ana_back[(opt_acts + a_2)->ana + pc];
-    if (end < pc) {
-        r_loop_keeps = false;
-        goto exit_loop_keeps;
-    }
-    while (pc <= end) {
-        a_3 = bl_2->act;
-        m = (opt_acts + a_3)->method;
+    if (({
+    memset(&local, 0, sizeof local);
+    ends = local;
+    n_3 = 0;
+    pc_2 = (opt_acts + a_2)->startpc;
+    while (pc_2 < (opt_acts + a_2)->endpc) {
+        while ((n_3 > 0) && (pc_2 >= ends[n_3 - 1])) {
+            n_3 = n_3 - 1;
+        }
+        m = (opt_acts + a_2)->method;
         o = *(uint64_t *)(m + 16 + 24);
-        op = ((uint8_t *)(o + 16))[pc];
-        if ((op >= 0x60) && (op < 0x68) && (op - 0x60 == slot)) {
-            r_loop_keeps = false;
-            goto exit_loop_keeps;
-        }
-        if (((op == 0x84) || (op == 0x87)) && ({
-    pc_2 = pc + 1;
-    a_4 = bl_2->act;
-    m_2 = (opt_acts + a_4)->method;
+        op_2 = ((uint8_t *)(o + 16))[pc_2];
+        if (((op_2 == 0x8B) || (op_2 == 0x8C)) && ((n_3 > 0) && ({
+    pc_3 = pc_2 + 1;
+    m_2 = (opt_acts + a_2)->method;
     o_2 = *(uint64_t *)(m_2 + 16 + 24);
-    ((uint8_t *)(o_2 + 16))[pc_2] == slot; })) {
-            r_loop_keeps = false;
-            goto exit_loop_keeps;
+    (((uint8_t *)(o_2 + 16))[pc_3] == n_3) && ({
+    pc_4 = pc_2 + 2;
+    m_3 = (opt_acts + a_2)->method;
+    o_3 = *(uint64_t *)(m_3 + 16 + 24);
+    ((uint8_t *)(o_3 + 16))[pc_4] == slot; }); }))) {
+            r_closures_of = true;
+            goto exit_closures_of;
         }
-        if ((op == 0x8B) || (op == 0x8C)) {
-            r_loop_keeps = false;
-            goto exit_loop_keeps;
+        if (op_2 == 0x8F) {
+            if (n_3 >= 64) {
+                r_closures_of = true;
+                goto exit_closures_of;
+            }
+            pc_5 = pc_2 + 4;
+            m_4 = (opt_acts + a_2)->method;
+            o_4 = *(uint64_t *)(m_4 + 16 + 24);
+            pc_6 = pc_2 + 5;
+            m_5 = (opt_acts + a_2)->method;
+            o_5 = *(uint64_t *)(m_5 + 16 + 24);
+            ends[n_3] = pc_2 + 6 + (int32_t)((((int64_t)((uint8_t *)(o_4 + 16))[pc_5]) << 8) | ((uint8_t *)(o_5 + 16))[pc_6]);
+            n_3 = n_3 + 1;
         }
         if (({
-    if (op < 0x68) {
+    if (op_2 < 0x68) {
         r_length_of = 1;
         goto exit_length_of;
     }
-    if (op < 0x70) {
+    if (op_2 < 0x70) {
         r_length_of = 0;
         goto exit_length_of;
     }
-    if (op < 0x7D) {
+    if (op_2 < 0x7D) {
         r_length_of = 1;
         goto exit_length_of;
     }
-    if (op < 0x80) {
+    if (op_2 < 0x80) {
         r_length_of = 0;
         goto exit_length_of;
     }
-    if (op < 0x88) {
+    if (op_2 < 0x88) {
         r_length_of = 2;
         goto exit_length_of;
     }
-    if (op == 0x88) {
+    if (op_2 == 0x88) {
         r_length_of = 0;
         goto exit_length_of;
     }
-    if (op == 0x89) {
+    if (op_2 == 0x89) {
         r_length_of = 2;
         goto exit_length_of;
     }
-    if (op < 0x8F) {
+    if (op_2 < 0x8F) {
         r_length_of = 3;
         goto exit_length_of;
     }
-    if (op == 0x8F) {
+    if (op_2 == 0x8F) {
         r_length_of = 6;
         goto exit_length_of;
     }
-    if (op < 0x94) {
+    if (op_2 < 0x94) {
         r_length_of = 3;
         goto exit_length_of;
     }
-    if (op == 0x94) {
+    if (op_2 == 0x94) {
         r_length_of = 2;
         goto exit_length_of;
     }
-    if (op < 0x97) {
+    if (op_2 < 0x97) {
         r_length_of = 0;
         goto exit_length_of;
     }
-    if (op < 0x9A) {
+    if (op_2 < 0x9A) {
         r_length_of = 4;
         goto exit_length_of;
     }
-    if (op < 0xA0) {
+    if (op_2 < 0xA0) {
         r_length_of = 3;
         goto exit_length_of;
     }
-    if (op < 0xF0) {
+    if (op_2 < 0xF0) {
         r_length_of = 1;
         goto exit_length_of;
     }
-    if (op < 0xFC) {
+    if (op_2 < 0xFC) {
         r_length_of = 3;
         goto exit_length_of;
     }
     r_length_of = 0;
 exit_length_of:;
     r_length_of; }) == 0) {
-            r_loop_keeps = false;
-            goto exit_loop_keeps;
+            r_closures_of = true;
+            goto exit_closures_of;
         }
-        pc = (int32_t)(pc + ({
-    if (op < 0x68) {
+        pc_2 = (int32_t)(pc_2 + ({
+    if (op_2 < 0x68) {
         r_length_of_2 = 1;
         goto exit_length_of_2;
     }
-    if (op < 0x70) {
+    if (op_2 < 0x70) {
         r_length_of_2 = 0;
         goto exit_length_of_2;
     }
-    if (op < 0x7D) {
+    if (op_2 < 0x7D) {
         r_length_of_2 = 1;
         goto exit_length_of_2;
     }
-    if (op < 0x80) {
+    if (op_2 < 0x80) {
         r_length_of_2 = 0;
         goto exit_length_of_2;
     }
-    if (op < 0x88) {
+    if (op_2 < 0x88) {
         r_length_of_2 = 2;
         goto exit_length_of_2;
     }
-    if (op == 0x88) {
+    if (op_2 == 0x88) {
         r_length_of_2 = 0;
         goto exit_length_of_2;
     }
-    if (op == 0x89) {
+    if (op_2 == 0x89) {
         r_length_of_2 = 2;
         goto exit_length_of_2;
     }
-    if (op < 0x8F) {
+    if (op_2 < 0x8F) {
         r_length_of_2 = 3;
         goto exit_length_of_2;
     }
-    if (op == 0x8F) {
+    if (op_2 == 0x8F) {
         r_length_of_2 = 6;
         goto exit_length_of_2;
     }
-    if (op < 0x94) {
+    if (op_2 < 0x94) {
         r_length_of_2 = 3;
         goto exit_length_of_2;
     }
-    if (op == 0x94) {
+    if (op_2 == 0x94) {
         r_length_of_2 = 2;
         goto exit_length_of_2;
     }
-    if (op < 0x97) {
+    if (op_2 < 0x97) {
         r_length_of_2 = 0;
         goto exit_length_of_2;
     }
-    if (op < 0x9A) {
+    if (op_2 < 0x9A) {
         r_length_of_2 = 4;
         goto exit_length_of_2;
     }
-    if (op < 0xA0) {
+    if (op_2 < 0xA0) {
         r_length_of_2 = 3;
         goto exit_length_of_2;
     }
-    if (op < 0xF0) {
+    if (op_2 < 0xF0) {
         r_length_of_2 = 1;
         goto exit_length_of_2;
     }
-    if (op < 0xFC) {
+    if (op_2 < 0xFC) {
         r_length_of_2 = 3;
         goto exit_length_of_2;
     }
     r_length_of_2 = 0;
 exit_length_of_2:;
     r_length_of_2; }));
+    }
+    r_closures_of = false;
+exit_closures_of:;
+    r_closures_of; })) {
+        r_loop_keeps = false;
+        goto exit_loop_keeps;
+    }
+    pc = bl_2->pc;
+    a_3 = bl_2->act;
+    end = ob_ana_back[(opt_acts + a_3)->ana + pc];
+    if (end < pc) {
+        r_loop_keeps = false;
+        goto exit_loop_keeps;
+    }
+    while (pc <= end) {
+        a_4 = bl_2->act;
+        m_6 = (opt_acts + a_4)->method;
+        o_6 = *(uint64_t *)(m_6 + 16 + 24);
+        op = ((uint8_t *)(o_6 + 16))[pc];
+        if ((op >= 0x60) && (op < 0x68) && (op - 0x60 == slot)) {
+            r_loop_keeps = false;
+            goto exit_loop_keeps;
+        }
+        if (((op == 0x84) || (op == 0x87)) && ({
+    pc_7 = pc + 1;
+    a_5 = bl_2->act;
+    m_7 = (opt_acts + a_5)->method;
+    o_7 = *(uint64_t *)(m_7 + 16 + 24);
+    ((uint8_t *)(o_7 + 16))[pc_7] == slot; })) {
+            r_loop_keeps = false;
+            goto exit_loop_keeps;
+        }
+        if (({
+    if (op < 0x68) {
+        r_length_of_3 = 1;
+        goto exit_length_of_3;
+    }
+    if (op < 0x70) {
+        r_length_of_3 = 0;
+        goto exit_length_of_3;
+    }
+    if (op < 0x7D) {
+        r_length_of_3 = 1;
+        goto exit_length_of_3;
+    }
+    if (op < 0x80) {
+        r_length_of_3 = 0;
+        goto exit_length_of_3;
+    }
+    if (op < 0x88) {
+        r_length_of_3 = 2;
+        goto exit_length_of_3;
+    }
+    if (op == 0x88) {
+        r_length_of_3 = 0;
+        goto exit_length_of_3;
+    }
+    if (op == 0x89) {
+        r_length_of_3 = 2;
+        goto exit_length_of_3;
+    }
+    if (op < 0x8F) {
+        r_length_of_3 = 3;
+        goto exit_length_of_3;
+    }
+    if (op == 0x8F) {
+        r_length_of_3 = 6;
+        goto exit_length_of_3;
+    }
+    if (op < 0x94) {
+        r_length_of_3 = 3;
+        goto exit_length_of_3;
+    }
+    if (op == 0x94) {
+        r_length_of_3 = 2;
+        goto exit_length_of_3;
+    }
+    if (op < 0x97) {
+        r_length_of_3 = 0;
+        goto exit_length_of_3;
+    }
+    if (op < 0x9A) {
+        r_length_of_3 = 4;
+        goto exit_length_of_3;
+    }
+    if (op < 0xA0) {
+        r_length_of_3 = 3;
+        goto exit_length_of_3;
+    }
+    if (op < 0xF0) {
+        r_length_of_3 = 1;
+        goto exit_length_of_3;
+    }
+    if (op < 0xFC) {
+        r_length_of_3 = 3;
+        goto exit_length_of_3;
+    }
+    r_length_of_3 = 0;
+exit_length_of_3:;
+    r_length_of_3; }) == 0) {
+            r_loop_keeps = false;
+            goto exit_loop_keeps;
+        }
+        pc = (int32_t)(pc + ({
+    if (op < 0x68) {
+        r_length_of_4 = 1;
+        goto exit_length_of_4;
+    }
+    if (op < 0x70) {
+        r_length_of_4 = 0;
+        goto exit_length_of_4;
+    }
+    if (op < 0x7D) {
+        r_length_of_4 = 1;
+        goto exit_length_of_4;
+    }
+    if (op < 0x80) {
+        r_length_of_4 = 0;
+        goto exit_length_of_4;
+    }
+    if (op < 0x88) {
+        r_length_of_4 = 2;
+        goto exit_length_of_4;
+    }
+    if (op == 0x88) {
+        r_length_of_4 = 0;
+        goto exit_length_of_4;
+    }
+    if (op == 0x89) {
+        r_length_of_4 = 2;
+        goto exit_length_of_4;
+    }
+    if (op < 0x8F) {
+        r_length_of_4 = 3;
+        goto exit_length_of_4;
+    }
+    if (op == 0x8F) {
+        r_length_of_4 = 6;
+        goto exit_length_of_4;
+    }
+    if (op < 0x94) {
+        r_length_of_4 = 3;
+        goto exit_length_of_4;
+    }
+    if (op == 0x94) {
+        r_length_of_4 = 2;
+        goto exit_length_of_4;
+    }
+    if (op < 0x97) {
+        r_length_of_4 = 0;
+        goto exit_length_of_4;
+    }
+    if (op < 0x9A) {
+        r_length_of_4 = 4;
+        goto exit_length_of_4;
+    }
+    if (op < 0xA0) {
+        r_length_of_4 = 3;
+        goto exit_length_of_4;
+    }
+    if (op < 0xF0) {
+        r_length_of_4 = 1;
+        goto exit_length_of_4;
+    }
+    if (op < 0xFC) {
+        r_length_of_4 = 3;
+        goto exit_length_of_4;
+    }
+    r_length_of_4 = 0;
+exit_length_of_4:;
+    r_length_of_4; }));
     }
     if (getenv("SAMALTAK_OPT_TRACE") != NULL) {
         fprintf(stderr, "opt: loop at pc %d keeps slot %d\n", bl_2->pc, slot);
@@ -12212,10 +12416,10 @@ exit_loop_keeps:;
     }
     if ((bl->flags & BF_SEALED) == 0) {
         phi = ({
-    n_3 = opt_new_node(O_PHI, R_OOP);
-    (opt_nodes + n_3)->aux2 = var;
-    opt_prepend(n_3, b);
-    r_new_phi = n_3;
+    n_4 = opt_new_node(O_PHI, R_OOP);
+    (opt_nodes + n_4)->aux2 = var;
+    opt_prepend(n_4, b);
+    r_new_phi = n_4;
     r_new_phi; });
         if (ob_inc_count >= OPT_MAX_INC) {
             if ((!ob_bailed) && (getenv("SAMALTAK_OPT_TRACE") != NULL)) {
@@ -12234,10 +12438,10 @@ exit_loop_keeps:;
         v = opt_constant(nil_oop);
     } else {
         phi = ({
-    n_4 = opt_new_node(O_PHI, R_OOP);
-    (opt_nodes + n_4)->aux2 = var;
-    opt_prepend(n_4, b);
-    r_new_phi_2 = n_4;
+    n_5 = opt_new_node(O_PHI, R_OOP);
+    (opt_nodes + n_5)->aux2 = var;
+    opt_prepend(n_5, b);
+    r_new_phi_2 = n_5;
     r_new_phi_2; });
         opt_write(var, phi, b);
         opt_add_phi_operands(phi, var);
