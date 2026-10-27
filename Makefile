@@ -71,8 +71,18 @@ mindblown-video: vm image
 	python3 tools/compose-video.py $(MINDBLOWN) mindblown.mp4
 	cp $(MINDBLOWN)/mindblown.mp4 docs/media/mindblown.mp4
 
+# The JIT video: the same pipeline, steps in tools/jit/narration.json, the mind-blown voice. The race needs Pharo 12
+# (vm/tests/bench/awfy.sh --pharo, /tmp/pharo-dl).
+JIT_VIDEO ?= .context/video-jit
+jit-video: vm image
+	cp $(OUT)/samaltak.image $(OUT)/nuuk.image
+	ELEVENLABS_VOICE=$(MINDBLOWN_VOICE) ELEVENLABS_REQUEST='$(MINDBLOWN_REQUEST)' node tools/narrate.mjs $(JIT_VIDEO) tools/jit/narration.json
+	WALKTHROUGH_IMAGE=$(OUT)/nuuk.image node tools/jit/walkthrough-jit.mjs $(JIT_VIDEO)
+	python3 tools/compose-video.py $(JIT_VIDEO) jit.mp4
+	cp $(JIT_VIDEO)/jit.mp4 docs/media/jit.mp4
+
 clean:
 	$(MAKE) -C vm clean
 	rm -rf build
 
-.PHONY: all vm seed image translate test-vm test-jit test video mindblown-video clean
+.PHONY: all vm seed image translate test-vm test-jit test video mindblown-video jit-video clean

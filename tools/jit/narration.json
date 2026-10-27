@@ -1,0 +1,62 @@
+[
+  {
+    "id": "race",
+    "caption": "Are We Fast Yet's Mandelbrot, 25 laps, the same source on both: Pharo 12 (Cog) on the left, Samaltak on the right. Microseconds per lap.",
+    "spoken": "Same benchmark, same source code: Pharo 12 on the left, Samaltak on the right."
+  },
+  {
+    "id": "race-done",
+    "caption": "Samaltak is done: first lap, steady state (median of the second half) and total, in ms. Pharo is still running.",
+    "spoken": "Samaltak's done. Pharo takes about three times as long."
+  },
+  {
+    "id": "source",
+    "caption": "src/VM-Jit, lines per file: the baseline compiler, the optimizing compiler (Opt…), the runtime and assembler they share. Translated to C in vm/gen.",
+    "spoken": "The JIT's written in Smalltalk: a baseline compiler, an optimizing one, and the runtime they share, about fourteen thousand lines. Like Pharo's Cog, it's translated to C with the rest of the VM."
+  },
+  {
+    "id": "tiers",
+    "caption": "JitRuntime>>defaults: baseline code after 2 activations, optimized code after 1000 activations and backward jumps.",
+    "spoken": "Every method starts out interpreted. Its third call compiles it with baseline, and after a thousand calls or loop iterations, opt compiles it again."
+  },
+  {
+    "id": "tiers-demo",
+    "caption": "Complex>>- has never run: no machine code (jitSendSites is nil). Three calls later it has baseline code; each inline cache holds the class it saw.",
+    "spoken": "This one's never run, so it has no machine code. Three calls later it does, and its inline caches have recorded what they saw: Complex."
+  },
+  {
+    "id": "baseline",
+    "caption": "Complex>>+ as baseline compiled it: the inline cache's class check at the entry, a call through each send's cache, inline SmallInteger arithmetic.",
+    "spoken": "Here's baseline code for adding two complex numbers. An inline cache check on the receiver's class, a call through its own cache for each send, and inline arithmetic, with tag checks and an overflow branch."
+  },
+  {
+    "id": "opt",
+    "caption": "The same method from opt: class guards, inlined activations, Floats added in d registers, a deoptimization per guard. Per bytecode: 0.20 µs baseline, 3.6 µs opt (docs/jit.md).",
+    "spoken": "Opt compiles it again from what those caches saw. No calls left: the accessors are inlined behind a class guard, the floats are added in FP registers, and a failed guard deoptimizes. Per bytecode, opt compiles about eighteen times slower, so only hot code gets it."
+  },
+  {
+    "id": "deopt",
+    "caption": "MandelbrotView>>pixelFor:, inlined into the render loop: the inside of the set from black to red, ⌘S while it renders.",
+    "spoken": "Opt inlined pixelFor: into the render loop. I'll make the inside of the set red, and save while it's rendering."
+  },
+  {
+    "id": "deopt-after",
+    "caption": "The code that inlined it is invalidated; the running loop deoptimizes and goes on in baseline code: red from that row down. Counters before and after.",
+    "spoken": "The code that inlined it gets thrown out, the running loop carries on in baseline code, and the red shows from that row down."
+  },
+  {
+    "id": "why",
+    "caption": "Pharo 12's VM (libPharoVMCore.dylib): CoInterpreter and StackToRegisterMappingCogit, VMMaker's production Cogit: one machine-code method per method, sends through inline caches.",
+    "spoken": "Pharo 12's VM runs Cog's StackToRegisterMappingCogit. It's the same kind of compiler as our baseline: one method at a time, and it never inlines one into another."
+  },
+  {
+    "id": "why-switch",
+    "caption": "The running system on baseline only, then on opt again (jitParameters:): ms per Mandelbrot lap. All of AWFY vs Pharo 12: baseline 0.64, opt 0.40 (docs/jit.md).",
+    "spoken": "Here's the same benchmark with this system switched to baseline only, and again with opt. Across the whole suite, baseline takes sixty-four percent of Pharo's time, and opt forty."
+  },
+  {
+    "id": "outro",
+    "caption": "Two compilers, written in Smalltalk, live in one running image, driven through samaltak-ctl.",
+    "spoken": "Two compilers, both Smalltalk, in one running image."
+  }
+]
