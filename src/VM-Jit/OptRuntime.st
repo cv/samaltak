@@ -419,10 +419,32 @@ send: f index: k site: key
 	((e kind bitAnd: (runtime kLeaf bitOr: runtime kCtx)) = runtime kLeaf and: [runtime callLeaf: e base: base argc: n]) ifTrue: [^self sent: f].
 	runtime sync: f.
 	((e kind bitAnd: runtime kCtx) ~= 0 and: [self isInt: (self loadRef: r at: CTX_SENDER)]) ifTrue: [^self leaveBefore: f index: k].
-	(runtime isPerform: e) ifTrue: [^self leaveBefore: f index: k].
+	(runtime isPerform: e) ifTrue: [^self perform: e frame: f index: k argc: n].
 	runtime sendPushed: 0.
 	r := runtime dispatch: e frame: f argc: n.
 	"a primitive answered: a safepoint (the profiler samples an allocation there)"
+	r = 0 ifTrue: [^self sent: f].
+	^r
+!
+perform: e frame: f index: k argc: n
+	"Safepoint k of f sends a perform: (entry e, n arguments): send its selector as the primitive does (Interpreter>>primResend:argc:), the arguments moved down over the selector. A send that would not complete here (the primitive fails, doesNotUnderstand:, a married Context, perform: again, no room for the frame) leaves before the perform:, which the interpreter executes again."
+	| base r sel arr m g |
+	base := f fp + (f sp - n - 1).
+	r := base at: 0.
+	sel := base at: 1.
+	arr := n = 2 ifTrue: [base at: 2] ifFalse: [memory nilOop].
+	m := (runtime isPerformWithArguments: e)
+		ifTrue: [((self isPtr: arr) and: [(self rawClass: arr) = memory clsArray]) ifTrue: [(self numSlots: arr) asInt32] ifFalse: [-1]]
+		ifFalse: [n - 1].
+	g := (m >= 0 and: [(interpreter selectorArgc: sel) = m]) ifTrue: [interpreter entryFor: (interpreter receiverClass: r) selector: sel] ifFalse: [self null].
+	(g isNull or: [(runtime isPerform: g) or: [(self cCoerce: base + (1 + g fsize) to: 'uint64_t') > interpreter cstackLimit or: [
+		(g kind bitAnd: runtime kCtx) ~= 0 and: [self isInt: (self loadRef: r at: CTX_SENDER)]]]]) ifTrue: [^self leaveBefore: f index: k].
+	(runtime isPerformWithArguments: e)
+		ifTrue: [0 to: m - 1 do: [:i | base at: 1 + i put: (self loadRef: arr at: i)]]
+		ifFalse: [libc memmove: base + 1 from: base + 2 size: m asUInt64 * 8].
+	interpreter activeSetStackp: f sp - n + m.
+	runtime sendPushed: 0.
+	r := runtime dispatch: g frame: f argc: m.
 	r = 0 ifTrue: [^self sent: f].
 	^r
 !
@@ -742,9 +764,9 @@ materialize: f
 		libc fprintf: libc stderr format: 'materialize top %d sp %d: ' with: (top ifTrue: [1] ifFalse: [0]) with: f sp.
 		self traceDeopt: h index: k mode: mode].
 	(top and: [mode = 0 and: [((self recordOf: h index: k) at: 0) = SP_CALL]]) ifTrue: [
-		"a primitive is running: its receiver and arguments are on the stack, as the interpreter's"
+		"a primitive is running: its receiver and arguments (up to sp: a perform: sends fewer) are on the stack, as the interpreter's"
 		interpreter primBaseIndex: (rtActDepth at: rtActCount - 1).
-		0 to: (((self recordOf: h index: k) at: 2) bitAnd: 255) do: [:i | self push: ((f fp + h slots asInt64) at: i)].
+		0 to: f sp - h slots asInt32 - 1 do: [:i | self push: ((f fp + h slots asInt64) at: i)].
 		rtActDepth at: rtActCount - 1 put: rtDeoptCount - (rtActVals at: rtActCount - 1)].
 	"the Contexts (kept in deoptVals), then the closures, then the Contexts' contents"
 	first := rtDeoptCount.

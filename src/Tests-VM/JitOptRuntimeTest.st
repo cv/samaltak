@@ -53,6 +53,41 @@ testInvalidationWhileRunning
 	self assert: (JitRuntimeTestSubject new sum: 20000) equals: 20001.
 	self assert: (self statistics - before) optInvalidations > 0
 !
+testPerformInALoopStaysOptimized
+	"perform:, perform:with: and perform:withArguments: send their selectors from optimized code through the runtime: a loop of them does not deoptimize every time (unless --jit-flags deopt makes it)."
+	| o before |
+	self define: 'one ^1'.
+	self define: 'plus: x ^x + 1'.
+	self define: 'performs: n | s a | s := 0. a := Array new: 1. 1 to: n do: [:i | a at: 1 put: i. s := s + (self perform: #one) + (self perform: #plus: with: i) + (i perform: #+ with: 1) + (self perform: #plus: withArguments: a)]. ^s'.
+	o := JitRuntimeTestSubject new.
+	self assert: (o performs: 100) equals: 15550.
+	before := self statistics.
+	self assert: (o performs: 10000) equals: 150055000.
+	(((Smalltalk vm jitParameters at: 2) substrings: ',') includes: 'deopt') ifFalse: [
+		self assert: (self statistics - before) optDeoptimizations < 1000]
+!
+testPerformTheRuntimeDoesNotSend
+	"The interpreter does what perform: cannot send from optimized code: a selector not understood, perform: again, the wrong number of arguments; a frame without room (recursion through perform:with:)."
+	| o |
+	self define: 'doesNotUnderstand: aMessage ^aMessage arguments first'.
+	self define: 'plus: x ^x + 1'.
+	self define: 'unknown: x ^self perform: #noSuchSelector: with: x'.
+	self define: 'twice: x ^self perform: #perform:with: with: #plus: with: x'.
+	self define: 'wrong ^self perform: #plus:'.
+	self define: 'deep: n block: b ^n = 0 ifTrue: [0] ifFalse: [1 + (b perform: #value: with: n - 1)]'.
+	self define: 'deep: n | b | b := [:k | self deep: k block: b]. ^self deep: n block: b'.
+	o := JitRuntimeTestSubject new.
+	3 timesRepeat: [
+		self assert: (o unknown: 7) equals: 7.
+		self assert: (o twice: 1) equals: 2.
+		self should: [o wrong] raise: Error.
+		self assert: (o deep: 20000) equals: 20000]
+!
+testPerformedPrimitiveThatMakesFramesContexts
+	"A primitive perform: sends from optimized code makes the frames Contexts before it answers (new JIT flags): the Context has its receiver and arguments, the answer replaces them."
+	self define: 'modeVia: vm ^(vm perform: #jitParameters: with: #(nil ''eager'' nil nil)) first'.
+	3 timesRepeat: [self assert: (JitRuntimeTestSubject new modeVia: Smalltalk vm) equals: self mode]
+!
 testBlockCallWithoutRoomForItsFrame
 	"Optimized code calls a block while the stack is full: the frames become Contexts for its frame, the interpreter goes on from there."
 	self define: 'deep: n block: b ^n = 0 ifTrue: [0] ifFalse: [1 + (b value: n - 1)]'.

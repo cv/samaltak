@@ -963,7 +963,7 @@ void opt_materialize(frame *f)
     if (top && ((mode == 0) && ((h->meta + h->sp_table[k])[0] == SP_CALL))) {
         i = rt_act_depth[rt_act_count - 1];
         prim_base_index = i;
-        for (i_2 = 0; i_2 <= ((h->meta + h->sp_table[k])[2] & 255); i_2++) {
+        for (i_2 = 0; i_2 <= f->sp - (int32_t)h->slots - 1; i_2++) {
             v = (f->fp + (int64_t)h->slots)[i_2];
             if (rt_deopt_count < OPT_MAX_DEOPT_VALS) {
                 rt_deopt_vals[rt_deopt_count] = v;
@@ -1279,10 +1279,20 @@ uint64_t opt_send(frame *f, int64_t k, uint64_t key)
     uint64_t r_leave_before_2;
     oop o_10;
     uint64_t o_11;
+    uint64_t r_perform;
+    oop *base_2;
+    oop r_2;
+    oop sel_2;
+    oop arr;
+    int32_t m_3;
+    cache_entry *g_2;
+    uint64_t o_12;
     uint64_t r_leave_before_3;
-    oop o_12;
-    uint64_t o_13;
+    oop o_13;
+    uint64_t o_14;
+    int32_t i_5;
     uint64_t r_sent_5;
+    uint64_t r_sent_6;
     h = (jit_method *)f->code;
     rec = h->meta + h->sp_table[k];
     info = rec[2];
@@ -1473,21 +1483,40 @@ exit_sent_4:;
     }
     if (((e->kind & K_PRIM) != 0) && ((e->prim == perform_fn) || (e->prim == perform_args_fn))) {
         return ({
+    base_2 = f->fp + (f->sp - n - 1);
+    r_2 = base_2[0];
+    sel_2 = base_2[1];
+    arr = n == 2 ? base_2[2] : nil_oop;
+    m_3 = ((e->kind & K_PRIM) != 0) && (e->prim == perform_args_fn) ? ((arr & 7) == 0) && (*(uint64_t *)(arr + 8) == cls_array) ? (int32_t)(uint32_t)*(uint64_t *)arr : -1 : n - 1;
+    g_2 = (m_3 >= 0) && (selector_argc(sel_2) == m_3) ? entry_for((r_2 & 7) != 0 ? tag_class[r_2 & 7] : *(uint64_t *)(r_2 + 8), sel_2) : (cache_entry *)NULL;
+    if ((g_2 == NULL) || ((((g_2->kind & K_PRIM) != 0) && ((g_2->prim == perform_fn) || (g_2->prim == perform_args_fn))) || (((uint64_t)(base_2 + (1 + g_2->fsize)) > (uint64_t)(cstack + 65534)) || (((g_2->kind & K_CTX) != 0) && ({
+    o_12 = *(uint64_t *)(r_2 + 16 + 0);
+    (o_12 & 1) != 0; }))))) {
+        r_perform = ({
     if ((jit_mode == JIT_BASELINE) || (jit_mode == JIT_OPT)) {
         f->method = ((jit_method *)f->code)->method;
         bl_canonicalize_below(f);
     }
     interp_sync_frame(f);
-    o_12 = f->method;
-    o_13 = *(uint64_t *)(o_12 + 16 + 16);
-    f->lits = (oop *)(o_13 + 16);
+    o_13 = f->method;
+    o_14 = *(uint64_t *)(o_13 + 16 + 16);
+    f->lits = (oop *)(o_14 + 16);
     r_leave_before_3 = opt_deopt_frame(f, k, (uint64_t *)NULL, 1);
     r_leave_before_3; });
+        goto exit_perform;
     }
+    if (((e->kind & K_PRIM) != 0) && (e->prim == perform_args_fn)) {
+        for (i_5 = 0; i_5 <= m_3 - 1; i_5++) {
+            base_2[1 + i_5] = *(uint64_t *)(arr + 16 + 8 * i_5);
+        }
+    } else {
+        memmove(base_2 + 1, base_2 + 2, (uint64_t)m_3 * 8);
+    }
+    active_set_stackp(f->sp - n + m_3);
     send_pushed = 0;
-    r = jit_dispatch(e, f, n);
-    if (r == 0) {
-        return ({
+    r_2 = jit_dispatch(g_2, f, m_3);
+    if (r_2 == 0) {
+        r_perform = ({
     if (state_block->interrupt == 0) {
         r_sent_5 = 0ULL;
         goto exit_sent_5;
@@ -1496,6 +1525,24 @@ exit_sent_4:;
     r_sent_5 = jit_interrupt(f);
 exit_sent_5:;
     r_sent_5; });
+        goto exit_perform;
+    }
+    r_perform = r_2;
+exit_perform:;
+    r_perform; });
+    }
+    send_pushed = 0;
+    r = jit_dispatch(e, f, n);
+    if (r == 0) {
+        return ({
+    if (state_block->interrupt == 0) {
+        r_sent_6 = 0ULL;
+        goto exit_sent_6;
+    }
+    f->sp = (int32_t)(((jit_method *)f->code)->slots + 1);
+    r_sent_6 = jit_interrupt(f);
+exit_sent_6:;
+    r_sent_6; });
     }
     return r;
 }

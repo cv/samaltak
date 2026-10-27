@@ -592,6 +592,9 @@ tableAt: i
 isPerform: e
 	^(e kind bitAnd: K_PRIM) ~= 0 and: [e prim = performFn or: [e prim = performArgsFn]]
 !
+isPerformWithArguments: e
+	^(e kind bitAnd: K_PRIM) ~= 0 and: [e prim = performArgsFn]
+!
 sendPushed: n
 	sendPushed := n
 !
