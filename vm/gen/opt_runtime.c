@@ -1514,6 +1514,7 @@ uint64_t opt_tier_up(frame *f, int64_t loop)
 {
     jit_method *o;
     oop m;
+    int32_t n;
     jit_method *h;
     oop o_2;
     uint64_t o_3;
@@ -1522,9 +1523,10 @@ uint64_t opt_tier_up(frame *f, int64_t loop)
     bool r_failed;
     uint64_t key;
     int32_t i;
+    int64_t n_2;
     uint64_t key_2;
     int32_t i_2;
-    int64_t n;
+    int64_t n_3;
     int32_t k;
     bool r_makes_closures;
     uint64_t o_4;
@@ -1540,12 +1542,13 @@ uint64_t opt_tier_up(frame *f, int64_t loop)
     bool r_failed_2;
     uint64_t key_3;
     int32_t i_3;
+    int64_t n_4;
     uint64_t key_4;
     int32_t i_4;
-    int64_t n_2;
-    int32_t n_3;
+    int64_t n_5;
     m = f->method;
-    opt_counts[((uint32_t)(((*(uint64_t *)m) >> H_HASH_SHIFT) & H_HASH_MASK)) & 65535] = 1073741823;
+    n = opt_initial_count(m);
+    opt_counts[((uint32_t)(((*(uint64_t *)m) >> H_HASH_SHIFT) & H_HASH_MASK)) & 65535] = n;
     h = jit_lookup(m);
     if (!((h != NULL) && ((h->flags & JM_FAILED) == 0))) {
         return 0;
@@ -1565,11 +1568,13 @@ uint64_t opt_tier_up(frame *f, int64_t loop)
     if ((s == 0) && ((h->opt == 0) && (!({
     key = (((uint64_t)(uint32_t)(((*(uint64_t *)m) >> H_HASH_SHIFT) & H_HASH_MASK)) << 32) | 0ULL | 0ULL | 9223372036854775808ULL;
     i = (int32_t)((key ^ (key >> 29)) & 4095);
-    while (rt_failed[i] != 0) {
+    n_2 = 0;
+    while ((rt_failed[i] != 0) && (n_2 < 2048)) {
         if (rt_failed[i] == key) {
             r_failed = true;
             goto exit_failed;
         }
+        n_2 = n_2 + 1;
         i = (i + 1) & 4095;
     }
     r_failed = false;
@@ -1578,10 +1583,10 @@ exit_failed:;
         if (opt_optimize(m, h) == NULL) {
             key_2 = (((uint64_t)(uint32_t)(((*(uint64_t *)m) >> H_HASH_SHIFT) & H_HASH_MASK)) << 32) | 0ULL | 0ULL | 9223372036854775808ULL;
             i_2 = (int32_t)((key_2 ^ (key_2 >> 29)) & 4095);
-            n = 0;
+            n_3 = 0;
             while (rt_failed[i_2] != 0) {
-                n = n + 1;
-                if (n >= 2048) {
+                n_3 = n_3 + 1;
+                if (n_3 >= 2048) {
                     goto exit_note_failed;
                 }
                 i_2 = (i_2 + 1) & 4095;
@@ -1699,14 +1704,16 @@ exit_opt_of:;
     r_opt_of; });
     } else {
         o = opt_unit_of(m, s, k);
-        if (((o == NULL) || ((!((o != NULL) && ((o->flags & JM_FAILED) == 0) && ((o->flags & 2) == 0))) && (o->generation < OPT_MAX_GENERATIONS))) && (!({
+        if (((o == NULL) || ((o != NULL) && ((o->flags & JM_FAILED) == 0) && ((!((o != NULL) && ((o->flags & JM_FAILED) == 0) && ((o->flags & 2) == 0))) && (o->generation < OPT_MAX_GENERATIONS)))) && (!({
     key_3 = (((uint64_t)(uint32_t)(((*(uint64_t *)m) >> H_HASH_SHIFT) & H_HASH_MASK)) << 32) | ((((uint64_t)s) & 0xFFFF) << 16) | (((uint64_t)k) & 0xFFFF) | 9223372036854775808ULL;
     i_3 = (int32_t)((key_3 ^ (key_3 >> 29)) & 4095);
-    while (rt_failed[i_3] != 0) {
+    n_4 = 0;
+    while ((rt_failed[i_3] != 0) && (n_4 < 2048)) {
         if (rt_failed[i_3] == key_3) {
             r_failed_2 = true;
             goto exit_failed_2;
         }
+        n_4 = n_4 + 1;
         i_3 = (i_3 + 1) & 4095;
     }
     r_failed_2 = false;
@@ -1716,10 +1723,10 @@ exit_failed_2:;
             if (o == NULL) {
                 key_4 = (((uint64_t)(uint32_t)(((*(uint64_t *)m) >> H_HASH_SHIFT) & H_HASH_MASK)) << 32) | ((((uint64_t)s) & 0xFFFF) << 16) | (((uint64_t)k) & 0xFFFF) | 9223372036854775808ULL;
                 i_4 = (int32_t)((key_4 ^ (key_4 >> 29)) & 4095);
-                n_2 = 0;
+                n_5 = 0;
                 while (rt_failed[i_4] != 0) {
-                    n_2 = n_2 + 1;
-                    if (n_2 >= 2048) {
+                    n_5 = n_5 + 1;
+                    if (n_5 >= 2048) {
                         goto exit_note_failed_2;
                     }
                     i_4 = (i_4 + 1) & 4095;
@@ -1732,8 +1739,6 @@ exit_failed_2:;
     if ((o == NULL) || (!((o != NULL) && ((o->flags & JM_FAILED) == 0) && ((o->flags & 2) == 0)))) {
         return 0;
     }
-    n_3 = opt_initial_count(m);
-    opt_counts[((uint32_t)(((*(uint64_t *)m) >> H_HASH_SHIFT) & H_HASH_MASK)) & 65535] = n_3;
     if (k != 0) {
         rt_stat_opt_osr = rt_stat_opt_osr + 1;
     }
