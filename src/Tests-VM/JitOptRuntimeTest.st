@@ -68,6 +68,18 @@ testSendToAMarriedContext
 	o := JitRuntimeTestSubject new.
 	1 to: 3000 do: [:i | self assert: (o probe isKindOf: Context)]
 !
+testNonLocalReturnThroughAMarriedLoop
+	"thisContext makes the frames Contexts; each:'s Context goes on married to a frame in its loop's unit, whose frame has more slots than the Context holds. A non-local return through it fills the Context, not the object after it (the block's Context)."
+	| o r |
+	self define: 'setA: x b: y a := x. b := y'.
+	self define: 'each: aBlock 1 to: b do: [:i | aBlock value: (a at: i)]'.
+	self define: 'callerContext ^thisContext sender'.
+	self define: 'escape | c n | self each: [:x | x = 1 ifTrue: [c := self callerContext. n := c basicSize]. x = 50 ifTrue: [^{c. n}]]. ^nil'.
+	o := JitRuntimeTestSubject new setA: (1 to: 100) asArray b: 100; yourself.
+	3 timesRepeat: [
+		r := o escape.
+		self assert: r first basicSize equals: r last]
+!
 testEntryFromBaselineCodeWithoutRoom
 	"Baseline code (thisContext keeps down: from being optimized) calls optimized code with many temps while the stack is nearly full: its entry checks for room as the baseline entry it took over did."
 	self define: 'down: n ^n = 0 ifTrue: [thisContext. 0] ifFalse: [(self many: n) + 0]'.

@@ -12654,14 +12654,17 @@ void widow(frame *f)
 {
     oop ctx;
     oop *s;
-    int32_t v;
+    int64_t n;
     ctx = f->ctx;
     s = (oop *)(ctx + 16);
-    memcpy(s + CTX_FIXED, f->fp, (uint64_t)f->sp * 8);
+    n = (int64_t)(uint32_t)*(uint64_t *)ctx - CTX_FIXED;
+    if (f->sp < n) {
+        n = f->sp;
+    }
+    memcpy(s + CTX_FIXED, f->fp, (uint64_t)n * 8);
     s[CTX_SENDER] = nil_oop;
     s[CTX_PC] = nil_oop;
-    v = f->sp;
-    s[CTX_STACKP] = (uint64_t)((((int64_t)v) << 1) | 1);
+    s[CTX_STACKP] = (uint64_t)((n << 1) | 1);
     if (((ctx & 7) == 0) && ((!((uint64_t)(ctx - young_lo) < young_hi - young_lo)) && (((*(uint64_t *)ctx) & H_REMEMBERED) == 0))) {
         vm_remember(ctx);
     }
