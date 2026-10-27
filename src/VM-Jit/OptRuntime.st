@@ -401,7 +401,7 @@ send: f index: k site: key
 	e := interpreter icacheAt: (self cCoerce: key to: 'uint8_t *').
 	(e cls = cls and: [e sel = key]) ifFalse: [
 		e := interpreter siteEntry: (self cCoerce: key to: 'uint8_t *') class: cls selector: sel.
-		e isNull ifTrue: [^self leaveBefore: f index: k]].
+		e isNull ifTrue: [^self doesNotUnderstand: sel class: cls frame: f index: k argc: n]].
 	(e kind bitAnd: (runtime kConst bitOr: runtime kCtx)) = runtime kConst ifTrue: [
 		e qconst ~= 0 ifTrue: [base at: 0 put: e qconst].
 		^self sent: f].
@@ -427,24 +427,59 @@ send: f index: k site: key
 	^r
 !
 perform: e frame: f index: k argc: n
-	"Safepoint k of f sends a perform: (entry e, n arguments): send its selector as the primitive does (Interpreter>>primResend:argc:), the arguments moved down over the selector. A send that would not complete here (the primitive fails, doesNotUnderstand:, a married Context, perform: again, no room for the frame) leaves before the perform:, which the interpreter executes again."
-	| base r sel arr m g |
+	"Safepoint k of f sends a perform: (entry e, n arguments): send its selector as the primitive does (Interpreter>>primResend:argc:), the arguments moved down over the selector. A send that would not complete here (the primitive fails, cannotSend:base:) leaves before the perform:, which the interpreter executes again."
+	| base sel arr m g |
 	base := f fp + (f sp - n - 1).
-	r := base at: 0.
 	sel := base at: 1.
 	arr := n = 2 ifTrue: [base at: 2] ifFalse: [memory nilOop].
 	m := (runtime isPerformWithArguments: e)
 		ifTrue: [((self isPtr: arr) and: [(self rawClass: arr) = memory clsArray]) ifTrue: [(self numSlots: arr) asInt32] ifFalse: [-1]]
 		ifFalse: [n - 1].
-	g := (m >= 0 and: [(interpreter selectorArgc: sel) = m]) ifTrue: [interpreter entryFor: (interpreter receiverClass: r) selector: sel] ifFalse: [self null].
-	(g isNull or: [(runtime isPerform: g) or: [(self cCoerce: base + (1 + g fsize) to: 'uint64_t') > interpreter cstackLimit or: [
-		(g kind bitAnd: runtime kCtx) ~= 0 and: [self isInt: (self loadRef: r at: CTX_SENDER)]]]]) ifTrue: [^self leaveBefore: f index: k].
+	g := (m >= 0 and: [(interpreter selectorArgc: sel) = m]) ifTrue: [interpreter entryFor: (interpreter receiverClass: (base at: 0)) selector: sel] ifFalse: [self null].
+	(self cannotSend: g base: base) ifTrue: [^self leaveBefore: f index: k].
 	(runtime isPerformWithArguments: e)
 		ifTrue: [0 to: m - 1 do: [:i | base at: 1 + i put: (self loadRef: arr at: i)]]
 		ifFalse: [libc memmove: base + 1 from: base + 2 size: m asUInt64 * 8].
 	interpreter activeSetStackp: f sp - n + m.
+	^self resend: g frame: f argc: m
+!
+doesNotUnderstand: sel class: cls frame: f index: k argc: n
+	"Safepoint k of f sends sel, which cls does not understand: send doesNotUnderstand: with a Message of sel and the arguments, over them, as the interpreter does (Interpreter>>sendDoesNotUnderstand). If that would not complete here (cannotSend:base:) leave before the send."
+	| base roots msg isize |
+	base := f fp + (f sp - n - 1).
+	(self cannotSend: (interpreter entryFor: cls selector: (memory special: SO_SEL_DNU)) base: base) ifTrue: [^self leaveBefore: f index: k].
+	runtime sync: f.
+	"allocating may collect: sel, cls and the Array are roots, the arguments are in slots"
+	roots := self local: 'oop[3]'.
+	roots at: 0 put: sel.
+	roots at: 1 put: cls.
+	memory pushRoot: roots.
+	memory pushRoot: roots + 1.
+	roots at: 2 put: (memory allocObj: memory clsArray format: F_VAR slots: n asUInt32).
+	libc memcpy: (self slotsOf: (roots at: 2)) from: base + 1 size: n asUInt64 * 8.
+	gc rememberIfOld: (roots at: 2).
+	memory pushRoot: roots + 2.
+	isize := (self intVal: (self loadRef: memory clsMessage at: BEH_FORMAT)) bitAnd: CLS_INSTSIZE_MASK.
+	msg := memory allocObj: memory clsMessage format: F_FIXED slots: (isize < 2 ifTrue: [2] ifFalse: [isize]) asUInt32.
+	memory popRoot.
+	memory popRoot.
+	memory popRoot.
+	self storeRef: msg at: MSG_SELECTOR put: (roots at: 0).
+	self storeRef: msg at: MSG_ARGS put: (roots at: 2).
+	base at: 1 put: msg.
+	interpreter activeSetStackp: f sp - n + 1.
+	^self resend: (interpreter entryFor: (roots at: 1) selector: (memory special: SO_SEL_DNU)) frame: f argc: 1
+!
+cannotSend: g base: base
+	"The send of g's method to the receiver at base cannot complete here: not understood (g null), perform: again, a married Context, no room for its frame."
+	^g isNull or: [(runtime isPerform: g) or: [(self cCoerce: base + (1 + g fsize) to: 'uint64_t') > interpreter cstackLimit or: [
+		(g kind bitAnd: runtime kCtx) ~= 0 and: [self isInt: (self loadRef: (base at: 0) at: CTX_SENDER)]]]]
+!
+resend: g frame: f argc: n
+	"Send g's method to the receiver and n arguments on top of f (they replaced a perform:'s or a send's): answer as send:index:site:."
+	| r |
 	runtime sendPushed: 0.
-	r := runtime dispatch: g frame: f argc: m.
+	r := runtime dispatch: g frame: f argc: n.
 	r = 0 ifTrue: [^self sent: f].
 	^r
 !
@@ -496,8 +531,14 @@ deoptGuard: f index: k
 	stressed := (runtime flag: runtime deoptFlag) and: [runtime state stress <= 0].
 	stressed ifTrue: [why := 0].
 	r := self deoptFrame: f index: k regs: runtime state dump mode: 0.
+	"a block unit's ^ (the interpreter does it every time): the unit is not optimized again"
+	((self methodBytecodes: (rtActMethod at: rtActCount - 1)) at: (rtActPc at: rtActCount - 1)) = 16r7C ifTrue: [
+		(self isAlive: h) ifTrue: [
+			self noteFailed: h method start: h blockStart asInt32 osr: h osrPc asInt32.
+			self invalidate: h].
+		^r].
 	"the innermost activation's method and pc: where the guard's bytecode is; feedback it had not given: compile again now"
-	why = feedback deoptArith ifTrue: [why := why bitOr: (self operandFlagsAt: (rtActMethod at: rtActCount - 1) pc: (rtActPc at: rtActCount - 1)) asInt32].
+	(why = feedback deoptArith or: [why = feedback deoptOther]) ifTrue: [why := why bitOr: (self operandFlagsAt: (rtActMethod at: rtActCount - 1) pc: (rtActPc at: rtActCount - 1)) asInt32].
 	fresh := false.
 	why ~= 0 ifTrue: [
 		m := rtActMethod at: rtActCount - 1.
@@ -509,11 +550,14 @@ deoptGuard: f index: k
 		fresh ifTrue: [
 			rtStamp := rtStamp + 1.
 			(feedback siteAt: m pc: pc) stamp: rtStamp].
-		"again in code compiled with what the feedback says now: speculate no more here"
-		(fresh not and: [(self isAlive: h) and: [(feedback siteAt: m pc: pc) stamp <= h stamp]]) ifTrue: [
-			why := why bitOr: feedback deoptOther asInt32.
-			fresh := ((feedback flagsAt: m pc: pc) bitAnd: feedback deoptOther) = 0.
-			feedback noteFlags: m pc: pc flags: why asUInt32].
+		"in code compiled before the feedback said it: compile again now; again in code compiled with it: speculate no more here"
+		(fresh not and: [self isAlive: h]) ifTrue: [
+			(feedback siteAt: m pc: pc) stamp > h stamp
+				ifTrue: [fresh := true]
+				ifFalse: [
+					why := why bitOr: feedback deoptOther asInt32.
+					fresh := ((feedback flagsAt: m pc: pc) bitAnd: feedback deoptOther) = 0.
+					feedback noteFlags: m pc: pc flags: why asUInt32]].
 		(libc getenv: 'SAMALTAK_OPT_TRACE') notNull ifTrue: [
 			libc fprintf: libc stderr format: 'deopt why %d fresh %d flags now %d at pc %d of ' with: why with: (fresh ifTrue: [1] ifFalse: [0]) with: (feedback flagsAt: m pc: pc) with: pc.
 			interpreter printActivation: m receiver: memory nilOop closure: memory nilOop on: libc stderr]].

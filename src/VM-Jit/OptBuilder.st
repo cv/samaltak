@@ -1006,7 +1006,7 @@ special: k pc: pc act: a rcvSlot: r
 	(k <= 10 or: [k = 12 or: [k = 13 or: [k = 14 or: [k = 15]]]]) ifTrue: [
 		fl := feedback flagsAt: (ir act: a) method pc: pc.
 		(k <= 9 and: [(runtime flag: runtime unboxFlag) and: [(fl bitAnd: (feedback sawNonInt bitOr: feedback deoptOther)) = 0 and: [
-			(fl bitAnd: feedback sawFloat) ~= 0 or: [(self isFloat: x) or: [(self isFloat: y) or: [self sawFloatIn: (ir act: a) method]]]]]]) ifTrue: [
+			(self isFloat: x) or: [(self isFloat: y) or: [(self sawOnlyNumbersAt: pc act: a) and: [(fl bitAnd: feedback sawFloat) ~= 0 or: [self sawFloatIn: (ir act: a) method]]]]]]]) ifTrue: [
 				^self floatArith: k x: x y: y pc: pc act: a rcvSlot: r].
 		(k ~= 9 and: [(fl bitAnd: ((feedback sawFloat bitOr: feedback sawNonInt) bitOr: (feedback deoptArith bitOr: feedback overflowed))) = 0 and: [
 			(self sawOnlyIntsAt: pc act: a)]]) ifTrue: [
@@ -1020,6 +1020,16 @@ sawOnlyIntsAt: pc act: a
 	site isNull ifTrue: [^true].
 	0 to: feedback classSlots - 1 do: [:i |
 		((site classes at: i) ~= 0 and: [(site classes at: i) ~= memory clsSmallint]) ifTrue: [^false]].
+	^true
+!
+sawOnlyNumbersAt: pc act: a
+	"The send at a's pc reported no receiver class but SmallInteger and the Floats (a Point's arithmetic is a send)."
+	| site c |
+	site := feedback siteAt: (ir act: a) method pc: pc.
+	site isNull ifTrue: [^true].
+	0 to: feedback classSlots - 1 do: [:i |
+		c := site classes at: i.
+		(c ~= 0 and: [c ~= memory clsSmallint and: [c ~= memory clsSmallfloat and: [c ~= memory clsBoxedfloat]]]) ifTrue: [^false]].
 	^true
 !
 intArith: k x: x y: y pc: pc act: a rcvSlot: r
@@ -1049,14 +1059,14 @@ floatArith: k x: x y: y pc: pc act: a rcvSlot: r
 	fl := feedback flagsAt: (ir act: a) method pc: pc.
 	s := self stateAct: a pc: pc depth: (self depthAt: pc act: a).
 	merge := -1.
-	(((self isFloat: x) or: [self isFloat: y]) not and: [(self speculatesFloats: fl in: (ir act: a) method)]) ifTrue: [
-		"Floats here (or in the method) and no SmallInteger operation: two SmallIntegers deoptimize"
+	(((self isFloat: x) or: [self isFloat: y]) not and: [self speculatesFloats: fl]) ifTrue: [
+		"Floats here and no SmallInteger operation: two SmallIntegers deoptimize"
 		test := self add: O_NOTINTS rep: R_NONE.
 		(ir node: test) a: x.
 		(ir node: test) b: y.
 		(ir node: test) state: s.
 		(ir node: test) flags: NF_GUARD].
-	((self isFloat: x) or: [(self isFloat: y) or: [self speculatesFloats: fl in: (ir act: a) method]]) ifFalse: [
+	((self isFloat: x) or: [(self isFloat: y) or: [self speculatesFloats: fl]]) ifFalse: [
 		test := self binary: O_BOTHINT a: x b: y.
 		(ir node: test) tkind: T_BOOL.
 		t := ir newBlock.
@@ -1094,9 +1104,9 @@ floatArith: k x: x y: y pc: pc act: a rcvSlot: r
 		self seal: merge.
 		obCurBlock := merge]
 !
-speculatesFloats: fl in: m
-	"An arithmetic site with flags fl (in m, whose arithmetic saw Floats) takes Floats only: it never saw two SmallIntegers."
-	^(fl bitAnd: feedback sawInts) = 0
+speculatesFloats: fl
+	"An arithmetic site with flags fl takes Floats only: it saw Floats and never two SmallIntegers (one that only its method's other arithmetic saw Floats at takes both)."
+	^(fl bitAnd: feedback sawFloat) ~= 0 and: [(fl bitAnd: feedback sawInts) = 0]
 !
 sawFloatIn: m
 	"Some arithmetic of m saw a Float (its other arithmetic may well too)."
@@ -1107,7 +1117,7 @@ isFloat: v
 	^(ir node: (ir resolve: v)) tkind asInt32 = T_FLOAT
 !
 unboxFloat: v state: s
-	"v as a double: a SmallFloat64 decoded, a SmallInteger converted, else deoptimize; a value this block boxed since the last safepoint is used directly."
+	"v as a double: a SmallFloat64 or BoxedFloat64 decoded, a SmallInteger converted, else deoptimize; a value this block boxed since the last safepoint is used directly."
 	| nd n |
 	nd := ir node: v.
 	(nd op asInt32 = O_BOXF and: [nd block = obCurBlock and: [nd aux2 = obSafeEpoch]]) ifTrue: [^nd a].
@@ -1148,7 +1158,7 @@ sendSelector: sel argc: argc kind: kind special: k pc: pc act: a rcvSlot: r
 inlineSend: sel argc: argc kind: kind special: k pc: pc act: a rcvSlot: r
 	"Inline the send for the receiver classes it is known or speculated to have; answer whether it did."
 	<c: 'bool opt_inline_send(uint64_t sel, int32_t argc, int32_t kind, int32_t k, int32_t pc, int32_t a, int32_t r)'>
-	| rcv cls site n merge s test next t g fl |
+	| rcv cls site n merge s test next t g fl other |
 	rcv := self read: (self var: a slot: r).
 	kind = 1 ifTrue: [
 		cls := self loadRef: (self loadRef: (ir act: a) method at: CM_CLASS) at: BEH_SUPERCLASS.
@@ -1166,11 +1176,13 @@ inlineSend: sel argc: argc kind: kind special: k pc: pc act: a rcvSlot: r
 	n := 0.
 	0 to: feedback classSlots - 1 do: [:i | (site classes at: i) ~= 0 ifTrue: [n := n + 1]].
 	n = 0 ifTrue: [^false].
+	"the lower tier's inline Float paths report no class: an arithmetic site that saw Floats too sends what it has no class for"
+	other := kind = 2 and: [k <= 9 and: [((feedback flagsAt: (ir act: a) method pc: pc) bitAnd: feedback sawFloat) ~= 0]].
 	s := self stateAct: a pc: pc depth: (self depthAt: pc act: a).
-	n = 1 ifTrue: [
+	(n = 1 and: [other not]) ifTrue: [
 		g := self guard: rcv class: (site classes at: 0) state: s.
 		^self send: sel to: g class: (site classes at: 0) argc: argc kind: kind pc: pc act: a rcvSlot: r].
-	"a type switch; any other class deoptimizes"
+	"a type switch; any other class deoptimizes (is sent, see above)"
 	merge := ir newBlock.
 	(ir block: merge) act: a.
 	0 to: n - 1 do: [:i |
@@ -1193,7 +1205,11 @@ inlineSend: sel argc: argc kind: kind special: k pc: pc act: a rcvSlot: r
 			self callSelector: sel argc: argc kind: kind special: k pc: pc act: a rcvSlot: r].
 		obCurBlock >= 0 ifTrue: [self goto: merge].
 		obCurBlock := next].
-	self deoptAct: a state: s.
+	other
+		ifTrue: [
+			self callSelector: sel argc: argc kind: kind special: k pc: pc act: a rcvSlot: r.
+			obCurBlock >= 0 ifTrue: [self goto: merge]]
+		ifFalse: [self deoptAct: a state: s].
 	self seal: merge.
 	obCurBlock := (ir block: merge) npreds > 0 ifTrue: [merge] ifFalse: [-1].
 	^true

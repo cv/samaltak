@@ -3,7 +3,7 @@ JitRuntimeTest subclass: #JitOptRuntimeTest
 	classVariableNames: ''
 	package: 'Tests-VM'!
 
-JitOptRuntimeTest comment: 'JitRuntimeTest under the optimizing tier (--jit opt, --jit-flags eager: every method optimized at its first count), and what only it does: deoptimizing a failed speculation, invalidating inlined code while it runs, the deoptimization stress.'!
+JitOptRuntimeTest comment: 'JitRuntimeTest under the optimizing tier (--jit opt, --jit-flags eager: every method optimized at its first count), and what only it does: deoptimizing a failed speculation, and not where nothing was speculated (perform:, doesNotUnderstand:, SmallIntegers beside Floats, BoxedFloat64s), invalidating inlined code while it runs, the deoptimization stress.'!
 
 !JitOptRuntimeTest methodsFor: 'running'!
 mode
@@ -20,6 +20,10 @@ tearDown
 !JitOptRuntimeTest methodsFor: 'helpers'!
 disassemblyNotes
 	^#('interrupt check' 'guard: a SmallInteger' 'frame pc and sp' 'entry: x19')
+!
+stressed
+	"--jit-flags deopt: optimized code deoptimizes every so often anyway."
+	^((Smalltalk vm jitParameters at: 2) substrings: ',') includes: 'deopt'
 ! !
 
 !JitOptRuntimeTest methodsFor: 'tests'!
@@ -63,8 +67,18 @@ testPerformInALoopStaysOptimized
 	self assert: (o performs: 100) equals: 15550.
 	before := self statistics.
 	self assert: (o performs: 10000) equals: 150055000.
-	(((Smalltalk vm jitParameters at: 2) substrings: ',') includes: 'deopt') ifFalse: [
-		self assert: (self statistics - before) optDeoptimizations < 1000]
+	self stressed ifFalse: [self assert: (self statistics - before) optDeoptimizations < 1000]
+!
+testNotUnderstoodInALoopStaysOptimized
+	"A selector not understood in optimized code: the runtime sends doesNotUnderstand: with its Message, a loop of them does not deoptimize every time (unless --jit-flags deopt makes it)."
+	| o before |
+	self define: 'doesNotUnderstand: aMessage ^aMessage arguments isEmpty ifTrue: [1] ifFalse: [aMessage arguments first]'.
+	self define: 'unknowns: n | s | s := 0. 1 to: n do: [:i | s := s + self unknownUnary + (self unknownWith: i)]. ^s'.
+	o := JitRuntimeTestSubject new.
+	self assert: (o unknowns: 100) equals: 5150.
+	before := self statistics.
+	self assert: (o unknowns: 10000) equals: 50015000.
+	self stressed ifFalse: [self assert: (self statistics - before) optDeoptimizations < 1000]
 !
 testPerformTheRuntimeDoesNotSend
 	"The interpreter does what perform: cannot send from optimized code: a selector not understood, perform: again, the wrong number of arguments; a frame without room (recursion through perform:with:)."
@@ -87,6 +101,28 @@ testPerformedPrimitiveThatMakesFramesContexts
 	"A primitive perform: sends from optimized code makes the frames Contexts before it answers (new JIT flags): the Context has its receiver and arguments, the answer replaces them."
 	self define: 'modeVia: vm ^(vm perform: #jitParameters: with: #(nil ''eager'' nil nil)) first'.
 	3 timesRepeat: [self assert: (JitRuntimeTestSubject new modeVia: Smalltalk vm) equals: self mode]
+!
+testIntegerArithmeticBesideFloats
+	"Where only other arithmetic of the method saw Floats the optimized code also takes two SmallIntegers: it does not deoptimize and compile again, site after site (unless --jit-flags deopt makes it)."
+	| o a before |
+	Smalltalk vm jitParameters: #(nil '-eager' nil nil).
+	self define: 'mixed: a | s f | s := 0. f := 0. 1 to: a size do: [:i | f := f + (a at: i). s := s + (i \\ 7) - (i // 3)]. ^s + f'.
+	o := JitRuntimeTestSubject new.
+	a := (1 to: 100000) asArray collect: [:i | i / 2.0].
+	before := self statistics.
+	self assert: (o mixed: a) equals: 833675000.0.
+	self stressed ifFalse: [self assert: (self statistics - before) optDeoptimizations < 2]
+!
+testBoxedFloatsInFloatArithmetic
+	"BoxedFloat64s (the infinities, NaN) are decoded as SmallFloat64s are: comparing them does not deoptimize (unless --jit-flags deopt makes it); NaN compares false."
+	| o a before |
+	Smalltalk vm jitParameters: #(nil '-eager' nil nil).
+	self define: 'atMostOne: a | n | n := 0. 1 to: a size do: [:i | (a at: i) <= 1.0 ifTrue: [n := n + 1]]. ^n'.
+	o := JitRuntimeTestSubject new.
+	a := (1 to: 30000) asArray collect: [:i | i \\ 3 = 0 ifTrue: [Float infinity] ifFalse: [i \\ 5 = 0 ifTrue: [Float nan] ifFalse: [i \\ 7 = 0 ifTrue: [Float negativeInfinity] ifFalse: [i / 30000.0]]]].
+	before := self statistics.
+	5 timesRepeat: [self assert: (o atMostOne: a) equals: 16000].
+	self stressed ifFalse: [self assert: (self statistics - before) optDeoptimizations < 2]
 !
 testBlockCallWithoutRoomForItsFrame
 	"Optimized code calls a block while the stack is full: the frames become Contexts for its frame, the interpreter goes on from there."

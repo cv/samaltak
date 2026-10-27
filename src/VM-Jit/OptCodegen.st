@@ -271,6 +271,9 @@ dumpOffset
 hashBoxOffset
 	^self cCoerce: ((self cCoerce: 0 to: 'JitState *') fieldAddress: #hashBox) to: 'int64_t'
 !
+boxedFloatClassOffset
+	^self cCoerce: ((self cCoerce: 0 to: 'JitState *') fieldAddress: #boxedFloatClass) to: 'int64_t'
+!
 stressOffset
 	^self cCoerce: ((self cCoerce: 0 to: 'JitState *') fieldAddress: #stress) to: 'int64_t'
 !
@@ -478,8 +481,8 @@ dsrc: v
 	^D0
 !
 emitFloat: n
-	"Unboxing (a SmallFloat64 decoded, a SmallInteger converted), boxing (as a SmallFloat64), arithmetic and sqrt on doubles; what does not fit deoptimizes."
-	| nd op s x r int done zero store k |
+	"Unboxing (a SmallFloat64 or BoxedFloat64 decoded, a SmallInteger converted), boxing (as a SmallFloat64), arithmetic and sqrt on doubles; what does not fit deoptimizes."
+	| nd op s x r int boxed done zero store k |
 	nd := ir node: n.
 	op := nd op asInt32.
 	op = O_UNBOXF ifTrue: [
@@ -488,11 +491,12 @@ emitFloat: n
 		(ir node: nd a) tkind asInt32 ~= T_FLOAT ifTrue: [
 			s := self deoptLabelFor: n.
 			int := asm newLabel.
+			boxed := asm newLabel.
 			done := asm newLabel.
 			asm tbnz: x bit: 0 to: int.
 			asm and: X16 with: x imm: 7.
 			asm cmp: X16 imm: 4.
-			asm b: s if: COND_NE].
+			asm b: boxed if: COND_NE].
 		asm comment: 'a SmallFloat64''s double'.
 		asm lsr: X16 with: x imm: 3.
 		asm mov: X17 imm: 16r7000000000000000.
@@ -502,6 +506,15 @@ emitFloat: n
 		asm ror: X16 with: X16 imm: 1.
 		asm fmov: r with: X16.
 		(ir node: nd a) tkind asInt32 ~= T_FLOAT ifTrue: [
+			asm b: done.
+			asm bind: boxed.
+			asm comment: 'a BoxedFloat64''s double (anything else deoptimizes)'.
+			asm cbnz: X16 to: s.
+			asm ldr: X16 base: x offset: 8.
+			asm ldr: X17 base: X22 offset: self boxedFloatClassOffset.
+			asm cmp: X16 with: X17.
+			asm b: s if: COND_NE.
+			asm ldr: r base: x offset: 16.
 			asm b: done.
 			asm bind: int.
 			asm asr: X16 with: x imm: 1.
