@@ -25625,7 +25625,6 @@ bool opt_generate(oop m, int32_t a)
     int64_t a_word_50;
     int32_t n_4;
     int32_t n_5;
-    int32_t n_6;
     int32_t k;
     int32_t pc;
     int64_t value_5;
@@ -25646,7 +25645,7 @@ bool opt_generate(oop m, int32_t a)
     int64_t off_29;
     uint64_t a_word_57;
     uint64_t a_word_58;
-    int32_t n_7;
+    int32_t n_6;
     int32_t i_10;
     int32_t v_6;
     opt_node *nd_2;
@@ -25717,7 +25716,7 @@ bool opt_generate(oop m, int32_t a)
     int64_t off_36;
     int64_t a_word_79;
     int32_t pc_3;
-    int32_t n_8;
+    int32_t n_7;
     int32_t sp_2;
     int64_t value_8;
     uint64_t a_word_80;
@@ -25778,7 +25777,7 @@ bool opt_generate(oop m, int32_t a)
     int64_t r_offset_to_21;
     int64_t off_50;
     int64_t a_word_100;
-    int32_t n_9;
+    int32_t n_8;
     int32_t r_record_guard;
     int32_t op;
     int why;
@@ -26789,9 +26788,8 @@ exit_offset_to_6:;
             }
             n_4 = o_7->node;
             n_5 = o_7->node;
-            n_6 = o_7->node;
-            k = (int32_t)(opt_nodes + n_6)->aux;
-            pc = cg_bc_size + opt_record_state((opt_nodes + n_5)->state, k, n_5, true);
+            k = (int32_t)(opt_nodes + n_5)->aux;
+            pc = cg_bc_size + opt_record_state((opt_nodes + n_4)->state, k, n_4, true);
             if (asm_noting) {
                 asm_note("frame pc and sp", 0);
             }
@@ -26926,8 +26924,8 @@ exit_offset_to_8:;
                 }
             exit_load_store_18:;
             }
-            n_7 = o_7->node;
-            for (i_10 = (opt_nodes + n_7)->live; i_10 <= (opt_nodes + n_7)->live + (opt_nodes + n_7)->nlive - 1; i_10++) {
+            n_6 = o_7->node;
+            for (i_10 = (opt_nodes + n_6)->live; i_10 <= (opt_nodes + n_6)->live + (opt_nodes + n_6)->nlive - 1; i_10++) {
                 v_6 = ra_safe_list[i_10];
                 nd_2 = opt_nodes + v_6;
                 if ((nd_2->reg >= 0) && (nd_2->slot >= 0)) {
@@ -27303,8 +27301,8 @@ exit_offset_to_13:;
                 asm_note("no room for the callee's frame: the runtime sends", 0);
             }
             pc_3 = cg_bc_size + o_7->index;
-            n_8 = o_7->node;
-            sp_2 = cg_slot_top + (int32_t)(opt_nodes + n_8)->nargs;
+            n_7 = o_7->node;
+            sp_2 = cg_slot_top + (int32_t)(opt_nodes + n_7)->nargs;
             if (asm_noting) {
                 asm_note("frame pc and sp", 0);
             }
@@ -27739,14 +27737,14 @@ exit_offset_to_21:;
             if (asm_noting) {
                 asm_note("the bottom frame returns into a Context: the runtime does it", 0);
             }
-            n_9 = o_7->node;
+            n_8 = o_7->node;
             value_10 = ({
-    op = (int32_t)(opt_nodes + n_9)->op;
+    op = (int32_t)(opt_nodes + n_8)->op;
     why = (op == O_GUARDCLASS) || (op == O_DEOPT) ? FB_DEOPT_CLASS : op == O_NOTINTS ? FB_INTS : (op == O_GUARDINT) || ((op == O_IADD) || ((op == O_ISUB) || ((op == O_IMUL) || ((op == O_IMOD) || ((op == O_IDIV) || (op == O_ISHIFT)))))) ? FB_DEOPT_ARITH : FB_DEOPT_OTHER;
     if (getenv("SAMALTAK_OPT_TRACE") != NULL) {
-        fprintf(stderr, "guard safepoint %d: v%d\n", cg_sp_count, n_9);
+        fprintf(stderr, "guard safepoint %d: v%d\n", cg_sp_count, n_8);
     }
-    r_record_guard = opt_record_state((opt_nodes + n_9)->state, (int32_t)(SP_GUARD | (((int64_t)why) << 8)), n_9, false);
+    r_record_guard = opt_record_state((opt_nodes + n_8)->state, (int32_t)(SP_GUARD | (((int64_t)why) << 8)), n_8, false);
     r_record_guard; });
             if ((value_10 >= 0) && (value_10 <= 0xFFFF)) {
                 if (!((value_10 >= 0) && (value_10 <= 0xFFFF))) {
