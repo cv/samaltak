@@ -112,4 +112,64 @@ testCharacterValueGuardsItsArgumentFirst
 	listing := (JitRuntimeTestSubject >> #char:) machineCodeFor: #opt.
 	g := listing indexOfSubCollection: 'guard: a SmallInteger'.
 	self assert: (g > 0 and: [g < (listing indexOfSubCollection: 'the Character of a SmallInteger')])
+!
+testClosureMadeBeforeALoopStoresATemp
+	"The closure, inlined into the loop, stores a temp of the loop's activation: the loop does not keep the temp's value on entry."
+	self define: 'storeInLoop | n b | n := 0. b := [n := n + 1]. 1 to: 3 do: [:i | b value]. ^n'.
+	3 timesRepeat: [self assert: JitRuntimeTestSubject new storeInLoop equals: 3]
+!
+testClosureStoresATempInNestedLoops
+	self define: 'storeInNestedLoops | n b | n := 0. b := [n := n + 1]. 1 to: 3 do: [:i | 1 to: 4 do: [:j | b value]]. ^n'.
+	3 timesRepeat: [self assert: JitRuntimeTestSubject new storeInNestedLoops equals: 12]
+!
+testClosureStoresATempInAWhileLoop
+	self define: 'storeInWhileLoop | n k b | n := 0. k := 0. b := [n := n + 2]. [k < 5] whileTrue: [b value. k := k + 1]. ^n'.
+	3 timesRepeat: [self assert: JitRuntimeTestSubject new storeInWhileLoop equals: 10]
+!
+testClosureAndLoopStoreATemp
+	self define: 'storeInLoopAndClosure | n b | n := 0. b := [n := n * 2]. 1 to: 3 do: [:i | n := n + i. b value]. ^n'.
+	3 timesRepeat: [self assert: JitRuntimeTestSubject new storeInLoopAndClosure equals: 22]
+!
+testClosureMadeInALoopStoresATemp
+	self define: 'storeInLoopBlock | n | n := 0. 1 to: 3 do: [:i | [n := n + i] value]. ^n'.
+	3 timesRepeat: [self assert: JitRuntimeTestSubject new storeInLoopBlock equals: 6]
+!
+testClosureCalledConditionallyInALoop
+	self define: 'storeSometimes | n b | n := 0. b := [n := n + 1]. 1 to: 10 do: [:i | (i bitAnd: 1) = 1 ifTrue: [b value]]. ^n'.
+	3 timesRepeat: [self assert: JitRuntimeTestSubject new storeSometimes equals: 5]
+!
+testClosureStoresATempOfAnInlinedBlock
+	"The loop and the closure belong to a block inlined into the method."
+	self define: 'storeInBlockLoop ^[:k | | n b | n := 0. b := [n := n + 1]. 1 to: k do: [:i | b value]. n] value: 3'.
+	3 timesRepeat: [self assert: JitRuntimeTestSubject new storeInBlockLoop equals: 3]
+!
+testClosurePassedToAMethodInALoop
+	"The closure reaches the loop through an inlined method (from feedback: optimized after 1000 counts)."
+	Smalltalk vm jitParameters: #(nil '-eager' nil nil).
+	self define: 'call: aBlock ^aBlock value'.
+	self define: 'storeThroughCall | n b | n := 0. b := [n := n + 1]. 1 to: 3 do: [:i | self call: b]. ^n'.
+	3000 timesRepeat: [self assert: JitRuntimeTestSubject new storeThroughCall equals: 3]
+!
+testCountSharedWithAFailedMethod
+	"Methods count toward optimization in slots by identity hash (modulo 65536). One the optimizer cannot compile ({} is not compiled) leaves its slot counting: a method sharing it is still optimized."
+	| failing plain o before |
+	Smalltalk vm jitParameters: #(nil '-eager' nil nil).
+	self define: 'failing: x ^{x}'.
+	self define: 'plain: x ^x + 1'.
+	self define: 'plain: x times: n 1 to: n do: [:i | self plain: x]. ^{x}'.
+	failing := JitRuntimeTestSubject >> #failing:.
+	plain := JitRuntimeTestSubject >> #plain:.
+	"one slot, two hashes: failures are remembered by hash"
+	[(plain identityHash bitAnd: 16rFFFF) = (failing identityHash bitAnd: 16rFFFF) and: [plain identityHash ~= failing identityHash]] whileFalse: [plain := plain shallowCopy].
+	JitRuntimeTestSubject addSelectorSilently: #plain: withMethod: plain.
+	o := JitRuntimeTestSubject new.
+	"plain: counts in the slot before failing: fails (installing its code later would start the count over)"
+	o plain: 0.
+	before := self statistics.
+	3000 timesRepeat: [o failing: 0].
+	self assert: (self statistics - before) optCompileFailures > 0.
+	"plain:times: fails too ({}): what is compiled is plain:"
+	before := self statistics.
+	o plain: 0 times: 3000.
+	self assert: (self statistics - before) optMethodsCompiled > 0
 ! !
