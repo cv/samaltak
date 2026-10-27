@@ -9,6 +9,8 @@ For the CPU chart I keep each Process''s CPU over the shown span (span:), update
 
 The VM does not report eden''s fill, only its size and the bytes allocated (counting eden''s content as allocated): I estimate it from the bytes allocated since a scavenge I make when I start, taking eden as full at each GC.
 
+Samples are timed by the wall clock, which goes on across a restart of the image (a resumed snapshot, a rebuilt VM); the VM''s counters start again then, and so does my baseline (a gap in the charts).
+
 	SystemMonitorData new start; sample; yourself'!
 
 !SystemMonitorData methodsFor: 'initialization'!
@@ -29,17 +31,21 @@ start
 	lastCounters := Smalltalk vm statistics counters.
 	edenFill := ((lastCounters at: 7) - free) max: 0.
 	lastCpu := self cpuNow.
-	lastTime := Time microsecondClockValue
+	lastTime := Time utcMicroseconds
 ! !
 
 !SystemMonitorData methodsFor: 'sampling'!
 sample
-	"Take a sample of what happened since the previous one; answer it. Processes are charged CPU time: idle is the rest of the interval (the VM waiting, or the OS running other threads)."
+	"Take a sample of what happened since the previous one; answer it (nil after a restart: a new baseline). Processes are charged CPU time: idle is the rest of the interval (the VM waiting, or the OS running other threads)."
 	| cpu now counters pairs idleProcess ended sum s delta |
 	lastCounters isNil ifTrue: [self start].
 	cpu := self cpuNow.
 	counters := Smalltalk vm statistics counters.
-	now := Time microsecondClockValue.
+	(counters at: 8) < (lastCounters at: 8) ifTrue: [
+		"The VM restarted: its counters start again."
+		self start.
+		^nil].
+	now := Time utcMicroseconds.
 	idleProcess := Processor idleProcess.
 	pairs := OrderedCollection new.
 	sum := 0.

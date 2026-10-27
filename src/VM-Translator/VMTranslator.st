@@ -36,11 +36,22 @@ generateVMInto: aDirectory
 setModules: aCollection header: aString
 	moduleClasses := aCollection asArray.
 	headerName := aString.
+	self initializeConstants.
 	CTypeRegistry reset.
 	registry := CTypeRegistry default.
 	modules := IdentityDictionary new.
 	externs := Dictionary new.
 	errors := OrderedCollection new
+!
+initializeConstants
+	"The constants I write are the class variables the modules' class-side initialize methods set: run those again, superclasses first, each once, so an edited one (e.g. GarbageCollector's TENURE_AGE) is what I translate."
+	| done |
+	done := IdentitySet new.
+	moduleClasses do: [:module |
+		module withAllSuperclasses reverseDo: [:c |
+			((c == VMConstants or: [c inheritsFrom: VMConstants]) and: [(done includes: c) not]) ifTrue: [
+				done add: c.
+				(c class includesSelector: #initialize) ifTrue: [c initialize]]]]
 ! !
 
 !VMTranslator methodsFor: 'accessing'!
