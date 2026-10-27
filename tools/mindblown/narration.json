@@ -76,18 +76,18 @@
   },
   {
     "id": "gc",
-    "caption": "The GC is Smalltalk too. A loop that allocates; then GarbageCollector's TENURE_AGE 2 → 0: every survivor is promoted at once.",
-    "spoken": "The garbage collector's Smalltalk too. Here's a little loop that keeps allocating, and old space barely grows. Now I'll make it promote every survivor right away..."
+    "caption": "The GC is Smalltalk too: GarbageCollector's TENURE_AGE 2 → 0 (every survivor promoted at once), ⌘S, Rebuild VM & reboot.",
+    "spoken": "The garbage collector's Smalltalk too. Right now, survivors get promoted after two collections. I'll make that zero, save, and rebuild the VM."
   },
   {
-    "id": "reboot",
-    "caption": "Rebuild and reboot: the GC is translated to C with the rest of the VM, compiled, and the image restarts on the new VM.",
-    "spoken": "then rebuild. It gets translated to C with the rest of the VM, compiled, and then it reboots."
+    "id": "gc-churn",
+    "caption": "While the VM compiles: a loop that allocates. On the old VM, old space barely grows.",
+    "spoken": "While that compiles, here's a little loop that keeps allocating. On this VM, old space barely grows."
   },
   {
     "id": "gc-after",
-    "caption": "On the new VM every survivor is promoted: old space climbs, full GCs pile up.",
-    "spoken": "And yeah, now old space fills right up, and the full GCs just stack up."
+    "caption": "Rebooted on the new VM: every survivor is promoted, old space climbs, full GCs pile up.",
+    "spoken": "And there's the new VM. Now old space fills right up, and the full GCs just stack up."
   },
   {
     "id": "core",

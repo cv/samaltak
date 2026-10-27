@@ -94,10 +94,10 @@ function expect(ref, part) {
   if (!t.includes(part)) throw new Error(`${ref} does not contain ${JSON.stringify(part)}:\n${t}`);
 }
 let J = null;                     // the robot's window (Claude's Robot, a ShannonJuggler)
-// The GC beat's do-it: allocates 60000 arrays a second for about 100 s, keeping the last 3000 (2 MB, less than a
-// survivor space): each dies before its second scavenge.
+// The GC beat's do-it: allocates about 100000 arrays a second for a minute or two, keeping the last 3000 (2 MB, less
+// than a survivor space): each dies before its second scavenge.
 const GLYPH = '(Font code glyphFor: $g) inspect';
-const CHURN = "[| keep | keep := Array new: 3000. 1 to: 6000000 do: [:i | keep at: i \\\\ 3000 + 1 put: (Array new: 80). i \\\\ 600 = 0 ifTrue: [(Delay forMilliseconds: 10) wait]]] forkNamed: 'churn'";
+const CHURN = "[| keep | keep := Array new: 3000. 1 to: 12000000 do: [:i | keep at: i \\\\ 3000 + 1 put: (Array new: 80). i \\\\ 1200 = 0 ifTrue: [(Delay forMilliseconds: 10) wait]]] forkNamed: 'churn'";
 
 // ---------------------------------------------------------------- beats
 const beats = [
@@ -158,12 +158,12 @@ const beats = [
   // 5. Slow motion: World menu › Slow motion (the animation clock 10× slower): the menu, a window opening.
   ['slowmo', async () => {
     act('click', DESK); await sleep(600);
-    act('click', '@menu.slow-motion'); await sleep(1300);
-    act('click', GAP); await sleep(1300);              // the new Workspace opens here, below DESK
+    act('click', '@menu.slow-motion'); await sleep(1000);
+    act('click', GAP); await sleep(1100);              // the new Workspace opens here, below DESK
     act('click', '@menu.workspace');
     await S.win(/Workspace/, 15000).catch(() => null);
-    await sleep(1800);
-    act('click', DESK); await sleep(1000);
+    await sleep(1500);
+    act('click', DESK); await sleep(800);
   }],
   // Normal speed again; the new Workspace closes.
   ['slowmo-off', async () => {
@@ -259,47 +259,47 @@ const beats = [
     expect(`${W.browser}.code`, "^'Samaltak VM, edited live'");
     act('key', 'Meta+s', `${W.browser}.code`); await sleep(3500);
   }],
-  // 11. The GC is Smalltalk too (VM-Core › GarbageCollector). World menu › System Monitor shows the heap while a do-it
-  // allocates, keeping its last 3000 arrays: they die young; survivors are promoted after two scavenges
-  // (TENURE_AGE 2), so old space barely grows. TENURE_AGE := 0 promotes every survivor of a scavenge.
+  // 11. The GC is Smalltalk too (VM-Core › GarbageCollector): TENURE_AGE := 0 promotes every survivor of a scavenge
+  // (2: those that survive two). World menu › Rebuild VM & reboot: the VM is translated to C (the translation runs
+  // the class-side initialize methods again: TENURE_AGE 0), compiled, the image saved, the screen faded, the new VM
+  // exec'd (same process, same control port).
   ['gc', async () => {
     const sim = await S.win(/VM Simulator/, 1000).catch(() => null);
     if (sim) { act('click', `${sim}.close`); await sleep(600); }
+    await browse('VM-Core', 'GarbageCollector', 'initialize', 'class');
+    await edit('TENURE_AGE := 2', 'TENURE_AGE := 0', 110);
+    expect(`${W.browser}.code`, 'TENURE_AGE := 0');
+    act('key', 'Meta+s', `${W.browser}.code`); await sleep(1000);
+    act('click', DESK); await sleep(700);
+    act('click', '@menu.rebuild-vm-reboot');
+    try { const rb = await S.win(/VM Rebuild/); await sleep(300); place(rb, 18, 41, 866, 470); } catch {}
+  }],
+  // While it compiles, on the old VM: World menu › System Monitor (right column) and a do-it that allocates, keeping
+  // its last 3000 arrays: they die young, survivors are promoted after two scavenges, old space barely grows. The
+  // recording ends with the old VM; the next segment starts with the new VM's restart splash.
+  ['gc-churn', async () => {
     act('click', DESK); await sleep(700);
     act('click', '@menu.system-monitor');
     const mon = await S.win(/System Monitor/);
     await sleep(400);
     place(mon, 898, 41, 524, 843);
-    await sleep(600);
+    await sleep(500);
     await evaluate(CHURN);
     S.busy = true;                                     // the churn keeps the image busy: commands do not wait to settle
-    await sleep(3000);
-    await browse('VM-Core', 'GarbageCollector', 'initialize', 'class');
-    await edit('TENURE_AGE := 2', 'TENURE_AGE := 0', 120);
-    expect(`${W.browser}.code`, 'TENURE_AGE := 0');
-    act('key', 'Meta+s', `${W.browser}.code`); await sleep(1200);
-  }],
-  // World menu › Rebuild VM & reboot: the VM translated to C (the translation runs the class-side initialize methods
-  // again: TENURE_AGE 0), compiled, the image saved, the screen faded, the new VM exec'd (same process, same control
-  // port): the recording ends with the old VM, the next segment starts with the restart splash.
-  ['reboot', async () => {
-    act('click', DESK); await sleep(700);
-    act('click', '@menu.rebuild-vm-reboot');
-    try { const rb = await S.win(/VM Rebuild/); await sleep(300); place(rb, 18, 41, 866, 470); } catch {}
     await S.recordingEnded(240000);                    // the screen fades, the VM execs the new one: the recording ends
     S.stopSegment();
     S.startSegment();                                  // the new VM's World, from the restart splash on
     for (let t = Date.now(); ; await sleep(200)) {
       try { S.run(['wait', 'rebooted in', '15000']); break; } catch (e) { if (Date.now() - t > 120000) throw e; }
     }
-    await sleep(1000);
+    await sleep(800);
   }],
   // The System Monitor, restored with the image, samples on; widened over the screen (its charts keep their last
   // minute): old space climbs, a full GC every few seconds, the count of full GCs in its readout.
   ['gc-after', async () => {
     const mon = await S.win(/System Monitor/);
     place(mon, 18, 41, 1404, 843);
-    await sleep(8000);
+    await sleep(9000);
   }],
 
   // 12. No hand-written C: World menu › File Browser (Smalltalk too) on the left: vm › gen lists the generated C with
@@ -317,20 +317,20 @@ const beats = [
     await sleep(400);
     place(fb, 18, 41, 1404, 843);
     await sleep(600);
-    const pick = async (column, name, ms = 600) => { act('select', `${fb}.column-${column}`, name); await sleep(ms); };
+    const pick = async (column, name, ms = 500) => { act('select', `${fb}.column-${column}`, name); await sleep(ms); };
     // a line of a file, centred in the viewer: select one further down (the viewer scrolls it to its bottom), then it
     const show = async (file, text) => {
       const line = readFileSync(join(root, file), 'utf8').split('\n').findIndex(l => l.includes(text)) + 1;
       act('select', `${fb}.viewer`, `line:${line + 17}`); await sleep(300);
-      act('select', `${fb}.viewer`, text); await sleep(2000);
+      act('select', `${fb}.viewer`, text); await sleep(1800);
     };
     await pick(1, 'vm');
-    await pick(2, 'gen', 1300);
-    await pick(3, 'interpreter.c', 2200);
+    await pick(2, 'gen', 1100);
+    await pick(3, 'interpreter.c', 1900);
     await show('vm/gen/interpreter.c', 'void interpret(void)');
     await pick(1, 'src');
     await pick(2, 'VM-Core');
-    await pick(3, 'Interpreter.st', 800);
+    await pick(3, 'Interpreter.st', 700);
     await show('src/VM-Core/Interpreter.st', "<c: 'void interpret(void)'>");
     act('click', `${fb}.close`); await sleep(800);
   }],
