@@ -6,7 +6,7 @@
 // The browser writes accepted methods into a scratch copy of the sources (--source-dir), not the repo; Rebuild & reboot
 // builds the VM beside it. It lives in /tmp: the VM Rebuild window prints that directory.
 import { execFileSync } from 'node:child_process';
-import { rmSync, writeFileSync } from 'node:fs';
+import { readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { VideoSession, sleep } from '../video-lib.mjs';
@@ -38,6 +38,7 @@ writeFileSync(join(home, '.zshrc'), "PS1='%F{blue}nuuk%f %# '\n");
 Object.assign(S.env, { HOME: home, SHELL: '/bin/zsh' });
 const ctl = (...a) => S.ctl(...a), act = (...a) => S.act(...a);
 const DESK = '1431,250';   // the desk at the right edge, never covered
+const GAP = '891,300';     // the desk between the System Browser and the Process Browser
 const W = { workspace: '@w1', transcript: '@w2', procs: '@w3', mandel: '@w4', inspector: '@w5', browser: '@w6' };
 
 // Browse a method in the default System Browser (@w6), on the instance or class side.
@@ -54,12 +55,9 @@ async function edit(old, text, ms = 110) {
   if (text === '') { act('key', 'Backspace', `${W.browser}.code`); await sleep(300); return; }
   act('type', `${W.browser}.code`, text, '--delay', String(ms)); await sleep(text.length * ms + 400);
 }
-// Append an expression to the Workspace on its own line and evaluate it (Meta+d or Meta+p).
-async function evaluate(text, key = 'Meta+d', ms = 140) {
-  act('type', `${W.workspace}.text`, '\n', '--end', '--delay', '0');
-  act('type', `${W.workspace}.text`, text, '--delay', String(ms));
-  await sleep(text.length * ms + 300);
-  act('select', `${W.workspace}.text`, text); await sleep(300);
+// Select a do-it in the Workspace (typed there before the recording) and evaluate it (Meta+d or Meta+p).
+async function evaluate(text, key = 'Meta+d') {
+  act('select', `${W.workspace}.text`, text); await sleep(700);
   act('key', key, `${W.workspace}.text`);
 }
 
@@ -96,6 +94,10 @@ function expect(ref, part) {
   if (!t.includes(part)) throw new Error(`${ref} does not contain ${JSON.stringify(part)}:\n${t}`);
 }
 let J = null;                     // the robot's window (Claude's Robot, a ShannonJuggler)
+// The GC beat's do-it: allocates 60000 arrays a second for about 100 s, keeping the last 3000 (2 MB, less than a
+// survivor space): each dies before its second scavenge.
+const GLYPH = '(Font code glyphFor: $g) inspect';
+const CHURN = "[| keep | keep := Array new: 3000. 1 to: 6000000 do: [:i | keep at: i \\\\ 3000 + 1 put: (Array new: 80). i \\\\ 600 = 0 ifTrue: [(Delay forMilliseconds: 10) wait]]] forkNamed: 'churn'";
 
 // ---------------------------------------------------------------- beats
 const beats = [
@@ -109,7 +111,7 @@ const beats = [
   ['restyle', async () => {
     await browse('UI-Widgets', 'Theme', 'initializeBlueBook');
     await edit('16r1B3A8C', '16rC8102E', 140);
-    act('key', 'Meta+s', `${W.browser}.code`); await sleep(3500);
+    act('key', 'Meta+s', `${W.browser}.code`); await sleep(3000);
     await edit('16rC8102E', '16r1B3A8C', 50);
     act('key', 'Meta+s', `${W.browser}.code`); await sleep(1200);
   }],
@@ -120,7 +122,7 @@ const beats = [
     await browse('Graphics-Canvas', 'Renderer', 'shaderSource', 'class');
     await edit('return tex.sample(s, in.uv / size) * in.color.a;',
       'return tex.sample(s, in.uv / size) * in.color.a * (((uint(in.pos.y) / 4u) & 1u) == 0u ? 1.0 : 0.88);', 35);
-    act('key', 'Meta+s', `${W.browser}.code`); await sleep(3000);
+    act('key', 'Meta+s', `${W.browser}.code`); await sleep(2600);
     await edit(' * (((uint(in.pos.y) / 4u) & 1u) == 0u ? 1.0 : 0.88)', '', 0);
     act('key', 'Meta+s', `${W.browser}.code`); await sleep(1200);
   }],
@@ -131,7 +133,7 @@ const beats = [
     await browse('UI-Windows', 'Compositor', 'drawWindow:on:time:', 'instance');
     await edit('* s.', '* s * 24.', 80);
     await edit('Color black.', 'Color ultramarine.', 70);
-    act('key', 'Meta+s', `${W.browser}.code`); await sleep(3200);
+    act('key', 'Meta+s', `${W.browser}.code`); await sleep(2800);
     await edit('* s * 24.', '* s.', 0);
     await edit('Color ultramarine.', 'Color black.', 0);
     act('key', 'Meta+s', `${W.browser}.code`); await sleep(1200);
@@ -142,33 +144,32 @@ const beats = [
   ['glyphs', async () => {
     await browse('Graphics-Canvas', 'GlyphRasterizer', 'coverage', 'instance');
     await edit('put: (v', 'put: 255 - (v', 80);
-    act('key', 'Meta+s', `${W.browser}.code`); await sleep(2000);
-    await evaluate('(Font code glyphFor: $g) inspect', 'Meta+d', 60);
+    act('key', 'Meta+s', `${W.browser}.code`); await sleep(1600);
+    await evaluate(GLYPH);
     const insp = await S.win(/Inspector: a GlyphForm|Inspector.*Glyph/);
-    await sleep(800);
+    await sleep(600);
     try { act('hover', `${insp}.pixels`, '--at', '8,14'); } catch {}
-    await sleep(1500);
+    await sleep(1300);
     act('click', `${insp}.close`); await sleep(600);
     await edit('255 - (v', '(v', 0);
     act('key', 'Meta+s', `${W.browser}.code`); await sleep(1200);
   }],
 
-  // 5. Slow motion: World menu › Slow motion (the animation clock 10× slower): the menu, a window opening, the
-  // selection glide, closing.
+  // 5. Slow motion: World menu › Slow motion (the animation clock 10× slower): the menu, a window opening.
   ['slowmo', async () => {
     act('click', DESK); await sleep(600);
-    act('click', '@menu.slow-motion'); await sleep(1700);
-    act('click', DESK); await sleep(1700);
+    act('click', '@menu.slow-motion'); await sleep(1300);
+    act('click', GAP); await sleep(1300);              // the new Workspace opens here, below DESK
     act('click', '@menu.workspace');
     await S.win(/Workspace/, 15000).catch(() => null);
-    await sleep(2200);
-    act('select', `${W.browser}.packages`, 'Graphics-GPU'); await sleep(2000);   // the selection glides
-    const fresh = ctl('snapshot', '--depth', '1').split('\n').filter(l => l.startsWith('window ') && /"Workspace"/.test(l)).map(l => l.match(/@w\d+/)[0]).find(r => r !== W.workspace);
-    if (fresh) { act('click', `${fresh}.close`); await sleep(2200); }
-    act('click', DESK); await sleep(1300);
+    await sleep(1800);
+    act('click', DESK); await sleep(1000);
   }],
+  // Normal speed again; the new Workspace closes.
   ['slowmo-off', async () => {
-    act('click', '@menu.slow-motion'); await sleep(1500);
+    act('click', '@menu.slow-motion'); await sleep(900);
+    const fresh = ctl('snapshot', '--depth', '1').split('\n').filter(l => l.startsWith('window ') && /"Workspace"/.test(l)).map(l => l.match(/@w\d+/)[0]).find(r => r !== W.workspace);
+    if (fresh) { act('click', `${fresh}.close`); await sleep(700); }
   }],
 
   // 6. Edit and continue, no debugger: Tools › ShannonJuggler › move: (run for every ball in every frame) gets gravity
@@ -227,6 +228,21 @@ const beats = [
     act('click', `${dbg}.proceed`); await sleep(3000);
   }],
 
+  // 8. The JIT (VM-Jit, Smalltalk too) has compiled move: (every ball, every frame): System Browser › move: › machine
+  // code: its arm64 under each bytecode, commented; scrolled to the first statement, where sends are inlined.
+  ['jit', async () => {
+    act('select', `${W.browser}.methods`, 'move:'); await sleep(700);
+    act('rightclick', `${W.browser}.methods.move`); await sleep(800);
+    act('click', '@menu.machine-code');
+    const mc = await S.win(/Machine code: ShannonJuggler>>move:/);
+    await sleep(400);
+    place(mc, 18, 41, 866, 843);
+    await sleep(1800);
+    act('scroll', `${mc}.text`, '1240'); await sleep(3000);
+    act('scroll', `${mc}.text`, '480'); await sleep(3000);
+    act('click', `${mc}.close`); await sleep(600);
+  }],
+
   // 10. Smalltalk in Smalltalk: World menu › VM Simulator runs a guest image on the VM's own Smalltalk classes (the
   // Lowtalk sources, simulated); System Browser › VM-Core › VMMain › banner gets a new text, ⌘S: the guest's next line
   // shows it.
@@ -243,40 +259,80 @@ const beats = [
     expect(`${W.browser}.code`, "^'Samaltak VM, edited live'");
     act('key', 'Meta+s', `${W.browser}.code`); await sleep(3500);
   }],
-  // Rebuild & reboot: translate the VM to C, compile it, save the image, exec the new VM on it (same process, same
-  // control port). The recording ends with the old VM; a new segment starts on the new one: the top bar shows its banner.
+  // 11. The GC is Smalltalk too (VM-Core › GarbageCollector). World menu › System Monitor shows the heap while a do-it
+  // allocates, keeping its last 3000 arrays: they die young; survivors are promoted after two scavenges
+  // (TENURE_AGE 2), so old space barely grows. TENURE_AGE := 0 promotes every survivor of a scavenge.
+  ['gc', async () => {
+    const sim = await S.win(/VM Simulator/, 1000).catch(() => null);
+    if (sim) { act('click', `${sim}.close`); await sleep(600); }
+    act('click', DESK); await sleep(700);
+    act('click', '@menu.system-monitor');
+    const mon = await S.win(/System Monitor/);
+    await sleep(400);
+    place(mon, 898, 41, 524, 843);
+    await sleep(600);
+    await evaluate(CHURN);
+    S.busy = true;                                     // the churn keeps the image busy: commands do not wait to settle
+    await sleep(3000);
+    await browse('VM-Core', 'GarbageCollector', 'initialize', 'class');
+    await edit('TENURE_AGE := 2', 'TENURE_AGE := 0', 120);
+    expect(`${W.browser}.code`, 'TENURE_AGE := 0');
+    act('key', 'Meta+s', `${W.browser}.code`); await sleep(1200);
+  }],
+  // World menu › Rebuild VM & reboot: the VM translated to C (the translation runs the class-side initialize methods
+  // again: TENURE_AGE 0), compiled, the image saved, the screen faded, the new VM exec'd (same process, same control
+  // port): the recording ends with the old VM, the next segment starts with the restart splash.
   ['reboot', async () => {
-    const sim = await S.win(/VM Simulator/);
-    act('click', `${sim}.rebuild`);
+    act('click', DESK); await sleep(700);
+    act('click', '@menu.rebuild-vm-reboot');
     try { const rb = await S.win(/VM Rebuild/); await sleep(300); place(rb, 18, 41, 866, 470); } catch {}
-    await S.recordingEnded(180000);                    // the screen fades, the VM execs the new one: the recording ends
+    await S.recordingEnded(240000);                    // the screen fades, the VM execs the new one: the recording ends
     S.stopSegment();
     S.startSegment();                                  // the new VM's World, from the restart splash on
     for (let t = Date.now(); ; await sleep(200)) {
       try { S.run(['wait', 'rebooted in', '15000']); break; } catch (e) { if (Date.now() - t > 120000) throw e; }
     }
-    await sleep(3000);
+    await sleep(1000);
+  }],
+  // The System Monitor, restored with the image, samples on; widened over the screen (its charts keep their last
+  // minute): old space climbs, a full GC every few seconds, the count of full GCs in its readout.
+  ['gc-after', async () => {
+    const mon = await S.win(/System Monitor/);
+    place(mon, 18, 41, 1404, 843);
+    await sleep(8000);
   }],
 
-  // 11. No hand-written C: the Terminal tool (Smalltalk: pty primitives, VT100 parser, view) counts the Smalltalk
-  // lines of the VM (VM-Core, VM-Platform, VM-Jit) and the C lines generated from them, and shows a generated file's
-  // header.
+  // 12. No hand-written C: World menu › File Browser (Smalltalk too) on the left: vm › gen lists the generated C with
+  // line counts; interpreter.c begins "Generated by VMTranslator … Do not edit.", its interpret function a table of
+  // bytecode handlers; src › VM-Core › Interpreter.st is the Lowtalk it comes from (interpret, <c: 'void
+  // interpret(void)'>).
   ['core', async () => {
-    for (const re of [/VM Rebuild/, /VM Simulator/]) { act('click', `${await S.win(re)}.close`); await sleep(500); }
+    for (const re of [/VM Rebuild/, /System Monitor/]) {
+      const w = await S.win(re, 1000).catch(() => null);
+      if (w) { act('click', `${w}.close`); await sleep(500); }
+    }
     act('click', DESK); await sleep(700);
-    act('click', '@menu.terminal');
-    const term = await S.win(/Terminal/);
+    act('click', '@menu.file-browser');
+    const fb = await S.win(/File Browser/);
+    await sleep(400);
+    place(fb, 18, 41, 1404, 843);
     await sleep(600);
-    place(term, 18, 41, 866, 470);                    // over the System Browser, the robot stays in view
-    await sleep(900);
-    const t = `${term}.terminal`;
-    const command = async (text, wait) => {
-      act('type', t, text, '--delay', '35'); await sleep(text.length * 35 + 300);
-      act('key', 'Return', t); await sleep(wait);
+    const pick = async (column, name, ms = 600) => { act('select', `${fb}.column-${column}`, name); await sleep(ms); };
+    // a line of a file, centred in the viewer: select one further down (the viewer scrolls it to its bottom), then it
+    const show = async (file, text) => {
+      const line = readFileSync(join(root, file), 'utf8').split('\n').findIndex(l => l.includes(text)) + 1;
+      act('select', `${fb}.viewer`, `line:${line + 17}`); await sleep(300);
+      act('select', `${fb}.viewer`, text); await sleep(2000);
     };
-    await command('cat src/VM-{Core,Platform,Jit}/*.st | wc -l', 1200);
-    await command('wc -l vm/gen/*.[ch] | tail -1', 1200);
-    await command('head -1 vm/gen/interpreter.c', 2500);
+    await pick(1, 'vm');
+    await pick(2, 'gen', 1300);
+    await pick(3, 'interpreter.c', 2200);
+    await show('vm/gen/interpreter.c', 'void interpret(void)');
+    await pick(1, 'src');
+    await pick(2, 'VM-Core');
+    await pick(3, 'Interpreter.st', 800);
+    await show('src/VM-Core/Interpreter.st', "<c: 'void interpret(void)'>");
+    act('click', `${fb}.close`); await sleep(800);
   }],
 
   ['outro', async () => {
@@ -293,7 +349,11 @@ act('click', '@menu.claude-s-robot');
 J = await S.win(/Claude's Robot/);
 await sleep(800);
 place(J, 898, 422, 524, 462);
-await sleep(800);
+// The Workspace gets the video's two do-its now (a long text types slowly there), its caret back at the top.
+act('type', `${W.workspace}.text`, `\n${GLYPH}\n${CHURN}`, '--end', '--delay', '0');
+for (const t = Date.now(); !text(`${W.workspace}.text`).includes(CHURN); await sleep(500))
+  if (Date.now() - t > 60000) throw new Error('the do-its did not arrive in the Workspace');
+act('select', `${W.workspace}.text`, 'start');
 await sleep(1500);
 S.startSegment();
 await sleep(300);
