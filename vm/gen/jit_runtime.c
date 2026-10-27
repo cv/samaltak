@@ -2149,6 +2149,9 @@ void jit_start(void)
         }
     }
     jit_refresh_state();
+    if (!(pthread_jit_write_protect_supported_np() != 0)) {
+        jit_mode = JIT_NONE;
+    }
     if ((jit_mode != JIT_NONE) && (!jit_ensure_open())) {
         fatal_begin();
         fprintf(stderr, "cannot open a %lld MB code cache", jit_cache_mb);

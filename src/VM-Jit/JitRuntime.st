@@ -319,7 +319,7 @@ defaults
 	jitFlags := ((JIT_FLAG_LAST << 1) - 1 bitClear: ((JIT_FLAG_NOTES bitOr: JIT_FLAG_EAGER) bitOr: JIT_FLAG_DEOPT)) asUInt32
 !
 start
-	"After the image is loaded."
+	"After the image is loaded. Where machine code does not run (in the simulator) the JIT stays off, whatever --jit says."
 	<c: 'void jit_start(void)'>
 	| t |
 	t := self primitiveTable.
@@ -327,6 +327,7 @@ start
 		(libc strcmp: (t + i) name with: 'perform') = 0 ifTrue: [performFn := (t + i) function].
 		(libc strcmp: (t + i) name with: 'performWithArguments') = 0 ifTrue: [performArgsFn := (t + i) function]].
 	self refreshState.
+	cache canRunCode ifFalse: [jitMode := JIT_NONE].
 	(jitMode ~= JIT_NONE and: [self ensureOpen not]) ifTrue: [self fatal: 'cannot open a %lld MB code cache' with: jitCacheMB]
 !
 ensureOpen

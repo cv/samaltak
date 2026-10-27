@@ -1,13 +1,11 @@
 Object subclass: #SimulatedMemory
-	instanceVariableNames: 'segments recent nextAddress objectsByAddress addressesByObject nextObjectAddress cStrings stackBase stackTop stackLimit machineCodeRunner'
+	instanceVariableNames: 'segments recent nextAddress objectsByAddress addressesByObject nextObjectAddress cStrings stackBase stackTop stackLimit'
 	classVariableNames: ''
 	package: 'VM-Lowtalk'!
 
 SimulatedMemory comment: 'I am the address space of a simulated VM: separate segments (what malloc, mmap, static data and locals give the VM), each paged 64-bit words, at addresses that stay SmallIntegers. Accesses outside any segment are simulation errors, so are stores of values that do not fit their type.
 
-Objects that the simulated VM only handles by address (host-side library objects, function pointers, Smalltalk strings used as C string literals) get fake addresses: addressOf: and objectAt:.
-
-A function pointer to any other address is machine code (MachineCodeFunction): calling it asks machineCodeRunner (an emulator, installed by whoever maps code) to run it.'!
+Objects that the simulated VM only handles by address (host-side library objects, function pointers, Smalltalk strings used as C string literals) get fake addresses: addressOf: and objectAt:.'!
 
 Error subclass: #SimulationError
 	instanceVariableNames: ''
@@ -379,7 +377,7 @@ pointerTo: aCType at: anAddress
 	aCType isStruct ifTrue: [^aCType load: self at: anAddress].
 	aCType isFunction ifTrue: [
 		anAddress = 0 ifTrue: [^FunctionPointer null].
-		^self objectAt: anAddress ifAbsent: [MachineCodeFunction memory: self address: anAddress type: aCType]].
+		^self objectAt: anAddress].
 	^CPointer memory: self address: anAddress type: aCType
 !
 addressOf: aValue
@@ -408,15 +406,6 @@ forgetObject: anObject
 	| a |
 	a := addressesByObject removeKey: anObject ifAbsent: [^self].
 	objectsByAddress removeKey: a
-! !
-
-!SimulatedMemory methodsFor: 'machine code'!
-machineCodeRunner
-	"What runs machine code: answers call: anAddress type: aCFunctionType arguments: anArray."
-	^machineCodeRunner
-!
-machineCodeRunner: anObject
-	machineCodeRunner := anObject
 ! !
 
 !SimulatedMemory methodsFor: 'errors'!

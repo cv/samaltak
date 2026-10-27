@@ -3,7 +3,7 @@ Arm64Module subclass: #JitSample
 	classVariableNames: ''
 	package: 'Tests-VM'!
 
-JitSample comment: 'A small Lowtalk program for JitTest: it assembles a few functions into the code cache and calls them, as C (natively) and as Smalltalk (the code runs in an Arm64Emulator), and must print the same. With the argument bench it measures how fast the assembler emits.'!
+JitSample comment: 'A small Lowtalk program for JitTest, compiled with cc: it assembles a few functions into the code cache and calls them. With the argument bench it measures how fast the assembler emits.'!
 
 !JitSample class methodsFor: 'declaring'!
 declarations

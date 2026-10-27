@@ -3,7 +3,7 @@ CLibrary subclass: #DarwinJit
 	classVariableNames: ''
 	package: 'VM-Jit'!
 
-DarwinJit comment: 'The macOS calls of the code cache: MAP_JIT mappings (taking the place of an unmapped range), the per-thread write protection of JIT memory, instruction cache invalidation. Simulated, protection and invalidation do nothing but make sure an Arm64Emulator runs the simulated memory''s machine code.'!
+DarwinJit comment: 'The macOS calls of the code cache: MAP_JIT mappings (taking the place of an unmapped range), the per-thread write protection of JIT memory, instruction cache invalidation. Simulated, write protection is unsupported (machine code does not run in the simulator); protection and invalidation do nothing.'!
 
 !DarwinJit class methodsFor: 'declaring'!
 headers
@@ -11,13 +11,15 @@ headers
 ! !
 
 !DarwinJit methodsFor: 'functions'!
+pthreadJitWriteProtectSupported
+	<c: 'int pthread_jit_write_protect_supported_np(void)'>
+	^0
+!
 pthreadJitWriteProtect: enabled
 	<c: 'void pthread_jit_write_protect_np(int enabled)'>
-	self installEmulator
 !
 sysIcacheInvalidate: start size: n
 	<c: 'void sys_icache_invalidate(void *start, size_t n)'>
-	self installEmulator
 !
 PROT_EXEC
 	<cMacro: 'int PROT_EXEC'>
@@ -30,9 +32,4 @@ MAP_JIT
 munmap: addr length: n
 	<c: 'int munmap(void *addr, size_t n)'>
 	^0
-! !
-
-!DarwinJit methodsFor: 'simulation'!
-installEmulator
-	self memory machineCodeRunner isNil ifTrue: [self memory machineCodeRunner: (Arm64Emulator memory: self memory)]
 ! !
