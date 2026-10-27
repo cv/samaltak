@@ -62,7 +62,7 @@ testSmalltalk80GuestNeedsTheSimulator
 	self assert: run exitCode equals: 1.
 	self assert: (run output includesSubstring: 'No display').
 	sim := VMSimulation modules: (VMModule vmModules select: [:c | c packageName ~= 'VM-Platform']).
-	self assert: (sim runMain: VMMain arguments: {'samaltak'. '--jit'. 'none'. '--eden'. '4'. '--max-heap'. '64'. image. '--headless'}) equals: 1.
+	self assert: (sim runMain: VMMain arguments: {'samaltak'. '--eden'. '4'. '--max-heap'. '64'. image. '--headless'}) equals: 1.
 	self assert: (sim stdoutContents includesSubstring: 'No display')
 ! !
 
@@ -74,7 +74,7 @@ startSmalltalk80On: aDisplay
 	ImageBuilder buildFrom: 'st80' to: image.
 	sim := VMSimulation modules: (VMModule vmModules select: [:c | c packageName ~= 'VM-Platform']).
 	sim display: aDisplay.
-	self fork: [sim runMain: VMMain arguments: {'samaltak'. '--jit'. 'none'. '--eden'. '4'. '--max-heap'. '64'. image. '--headless'}] at: Processor userBackgroundPriority.
+	self fork: [sim runMain: VMMain arguments: {'samaltak'. '--eden'. '4'. '--max-heap'. '64'. image. '--headless'}] at: Processor userBackgroundPriority.
 	self assert: (self waitFor: [sim stdoutContents includesSubstring: 'Smalltalk-80 on'] timeout: 60000).
 	^sim
 ! !

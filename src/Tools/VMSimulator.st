@@ -163,11 +163,10 @@ st80ImagePath
 	^'/tmp/samaltak-simulator-st80.image'
 !
 defaultArguments
-	"The guest interprets: a simulated JIT would run its code in the Arm64Emulator, far slower."
-	^'--jit none --eden 1 --max-heap 64 ' , self miniImagePath , ' --headless Guest'
+	^'--eden 1 --max-heap 64 ' , self miniImagePath , ' --headless Guest'
 !
 st80Arguments
-	^'--jit none --eden 4 --max-heap 64 ' , self st80ImagePath , ' --headless'
+	^'--eden 4 --max-heap 64 ' , self st80ImagePath , ' --headless'
 !
 abbreviate: anInteger
 	anInteger < 10000 ifTrue: [^anInteger printString].
