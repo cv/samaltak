@@ -87,6 +87,19 @@ nowUs
 nowMs
 	<c: 'int64_t now_ms(void)'>
 	^self nowUs quo: 1000
+!
+threadCpuUs
+	"The VM thread's CPU time, which Processes are charged: wall time would charge the running one while the OS runs other threads."
+	<c: 'int64_t thread_cpu_us(void)'>
+	| ts |
+	ts := self local: 'Timespec'.
+	posix clockGettime: posix CLOCK_THREAD_CPUTIME_ID into: ts.
+	^(ts tv_sec * 1000000) + (ts tv_nsec quo: 1000)
+!
+uncharge: us
+	"The running Process is not charged us of the VM's own work (the JIT compiling)."
+	<c: 'void sched_uncharge(int64_t us)'>
+	lastSwitchUs := lastSwitchUs + us
 ! !
 
 !Scheduler methodsFor: 'interrupts'!
@@ -181,7 +194,7 @@ init
 	startUs := self rawNowUs.
 	lastPreempted := memory nilOop.
 	allocSampleClass := memory nilOop.
-	lastSwitchUs := 0.
+	lastSwitchUs := self threadCpuUs.
 	self tickerStart
 ! !
 
@@ -261,7 +274,7 @@ transferTo: aProcess
 	interpreter materializeAll.
 	memory popRoot.
 	old := self activeProcess.
-	now := self nowUs.
+	now := self threadCpuUs.
 	ct := self loadRef: old at: PROC_CPUTIME.
 	self storeRef: old at: PROC_CPUTIME put: (self intOop: ((self isInt: ct) ifTrue: [self intVal: ct] ifFalse: [0]) + now - lastSwitchUs).
 	lastSwitchUs := now.
@@ -289,7 +302,7 @@ idleWait
 			ifFalse: [wait > 0 ifTrue: [platform wait: wait]].
 		self tickSetIdle: false].
 	self handleInterrupts.
-	lastSwitchUs := self nowUs.
+	lastSwitchUs := self threadCpuUs.
 	inIdle := false
 !
 transferToHighest
@@ -402,7 +415,7 @@ processCpuTimeUs: proc
 	| ct t |
 	ct := self loadRef: proc at: PROC_CPUTIME.
 	t := (self isInt: ct) ifTrue: [self intVal: ct] ifFalse: [0].
-	(proc = self activeProcess and: [inIdle not]) ifTrue: [t := t + self nowUs - lastSwitchUs].
+	(proc = self activeProcess and: [inIdle not]) ifTrue: [t := t + self threadCpuUs - lastSwitchUs].
 	^t
 !
 setSampler: intervalUs semaphore: sema

@@ -133,6 +133,17 @@ testCollapseBoxAndDoubleClick
 	self assert: w extent equals: ext.
 	self assert: v extent equals: w contentExtent
 !
+testDoubleClickNeedsTheSameZone
+	"Presses 4 points apart, the platform counting them as one multi-click: content, title bar, content."
+	| v w content |
+	v := RecordingTestView new.
+	w := self open: v title: 'Zones' at: (100 @ 100 extent: 300 @ 200).
+	content := w bounds origin + (60 @ 25).
+	self click: content platformCount: 1; click: content - (0 @ 4) platformCount: 2.
+	self deny: w isCollapsed.
+	self click: content platformCount: 3.
+	self assert: ((v eventsOfType: #down) collect: [:e | e clickCount]) asArray equals: #(1 1)
+!
 testBusyWindowDoesNotBlockDraggingOrOtherWindows
 	| looper busy other ov origin |
 	looper := LoopingTestView new.

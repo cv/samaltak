@@ -319,7 +319,7 @@ defaults
 	jitFlags := ((JIT_FLAG_LAST << 1) - 1 bitClear: ((JIT_FLAG_NOTES bitOr: JIT_FLAG_EAGER) bitOr: JIT_FLAG_DEOPT)) asUInt32
 !
 start
-	"After the image is loaded."
+	"After the image is loaded. Where machine code does not run (in the simulator) the JIT stays off, whatever --jit says."
 	<c: 'void jit_start(void)'>
 	| t |
 	t := self primitiveTable.
@@ -327,6 +327,7 @@ start
 		(libc strcmp: (t + i) name with: 'perform') = 0 ifTrue: [performFn := (t + i) function].
 		(libc strcmp: (t + i) name with: 'performWithArguments') = 0 ifTrue: [performArgsFn := (t + i) function]].
 	self refreshState.
+	cache canRunCode ifFalse: [jitMode := JIT_NONE].
 	(jitMode ~= JIT_NONE and: [self ensureOpen not]) ifTrue: [self fatal: 'cannot open a %lld MB code cache' with: jitCacheMB]
 !
 ensureOpen
@@ -649,9 +650,9 @@ compile: m mode: md notes: wantNotes
 	"Compile m with compiler md into the code cache; answer its header (flagged JM_FAILED if md cannot compile it), null if the cache is full."
 	<c: 'JitMethod *jit_compile(oop m, int32_t md, bool notes)'>
 	<var: #h type: 'JitMethod *'>
-	| t0 start ok h err |
+	| t0 dt start ok h err |
 	self ensureOpen ifFalse: [^self null].
-	t0 := scheduler nowUs.
+	t0 := scheduler threadCpuUs.
 	start := cache top.
 	mapCount := 0.
 	cache beginWriting.
@@ -667,6 +668,7 @@ compile: m mode: md notes: wantNotes
 		asm recordNotes: false.
 		cache endWritingFrom: start size: 0.
 		flushPending := true.
+		scheduler uncharge: scheduler threadCpuUs - t0.
 		^self null].
 	(ok and: [asm isOK: err])
 		ifTrue: [h := self finish: m code: start mode: md]
@@ -677,12 +679,16 @@ compile: m mode: md notes: wantNotes
 	cache endWritingFrom: start size: cache top - start.
 	h isNull ifTrue: [
 		flushPending := true.
+		scheduler uncharge: scheduler threadCpuUs - t0.
 		^self null].
 	(self hasCode: h) ifTrue: [
 		statCompiled := statCompiled + 1.
 		statBytecodes := statBytecodes + analysis size asUInt64.
 		statCodeBytes := statCodeBytes + h codeSize].
-	statCompileUs := statCompileUs + (scheduler nowUs - t0) asUInt64.
+	"CPU time, the VM's: not charged to the running Process"
+	dt := scheduler threadCpuUs - t0.
+	statCompileUs := statCompileUs + dt asUInt64.
+	scheduler uncharge: dt.
 	^h
 !
 finish: m code: start mode: md

@@ -3,7 +3,7 @@ TestCase subclass: #JitTest
 	classVariableNames: ''
 	package: 'Tests-VM'!
 
-JitTest comment: 'Machine code end to end: JitSample assembles functions into the code cache and calls them, compiled with cc (natively) and simulated (in an Arm64Emulator); the simulated VM runs the mini kernel under the baseline JIT, its machine code in an Arm64Emulator.'!
+JitTest comment: 'Machine code end to end: JitSample, compiled with cc, assembles functions into the code cache and calls them.'!
 
 !JitTest methodsFor: 'running'!
 timeLimitMilliseconds
@@ -35,25 +35,6 @@ flushed=0
 ! !
 
 !JitTest methodsFor: 'tests'!
-testSampleInSimulation
-	| sim |
-	sim := VMSimulation modules: {JitSample. Arm64Assembler. CodeCache}.
-	self assert: (sim runMain: JitSample arguments: #('jit')) equals: 0.
-	self assert: sim stdoutContents equals: self sampleOutput
-!
-testMiniImageUnderTheBaselineJitInSimulation
-	"The baseline compiler's code in an Arm64Emulator: inline caches linked and patched, frames pushed in machine code, the runtime's lazy frames."
-	| image sim status jit |
-	image := self scratchDirectory , '/mini.image'.
-	ImageBuilder buildFrom: 'vm/tests/mini' to: image.
-	sim := VMSimulation modules: (VMModule vmModules select: [:c | c packageName ~= 'VM-Platform']).
-	status := sim runMain: VMMain arguments: {'samaltak'. '--jit'. 'baseline'. '--jit-threshold'. '0'. '--jit-cache'. '1'. '--eden'. '1'. '--max-heap'. '64'. image. '--headless'. 'JitSmall'}.
-	self assert: status equals: 0.
-	self assert: sim stdoutContents equals: (File readText: 'vm/tests/expected/JitSmall.txt').
-	jit := sim module: JitRuntime.
-	self assert: jit statCompiled > 10.
-	self assert: (sim module: JitBaselineRuntime) statLinks > 0
-!
 testSampleInC
 	| run |
 	run := self compileAndRun: {JitSample. Arm64Assembler. CodeCache} header: 'jit' arguments: #().

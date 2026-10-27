@@ -1,9 +1,9 @@
 ListView subclass: #ProfilerProcessList
-	instanceVariableNames: 'idleProcess shown from glideT glide fits style rowDrawings'
+	instanceVariableNames: 'idleProcess shown from glideT glide fits style rowDrawings ended'
 	classVariableNames: ''
 	package: 'Tools'!
 
-ProfilerProcessList comment: 'I am the Profiler window''s Processes list: rows {key. label. samples. percent} from ProfilerData>>summary — All but idle (bold, ruled off), then each sampled Process with a window icon if it belongs to a window, a small bar and its share of the samples. Terminated Processes are italic, idle is muted. Live refreshes keep the rows in place unless a Process gets busier than the one above it by more than about 6%, and when a share changes by 4 points or more the bars and percentages glide to the new values in 120 ms.'!
+ProfilerProcessList comment: 'I am the Profiler window''s Processes list: rows {key. label. samples. percent} from ProfilerData>>summary — All but idle (bold, ruled off), then each sampled Process with a window icon if it belongs to a window, a small bar and its share of the samples. Processes terminated when the rows came are italic (a replayed drawing would miss later terminations), idle is muted. Live refreshes keep the rows in place unless a Process gets busier than the one above it by more than about 6%, and when a share changes by 4 points or more the bars and percentages glide to the new values in 120 ms.'!
 
 !ProfilerProcessList methodsFor: 'accessing'!
 idleProcess: aProcess
@@ -15,6 +15,8 @@ rows: anArray selectedKey: aKey
 	rows := self stableOrderOf: anArray.
 	self forgetRowDrawingsBut: rows.
 	self glideTo: rows.
+	ended := IdentitySet new.
+	rows do: [:row | (row first ~~ #all and: [row first isTerminated]) ifTrue: [ended add: row first]].
 	self items: rows.
 	i := 0.
 	rows doWithIndex: [:row :k | row first == aKey ifTrue: [i := k]].
@@ -94,7 +96,7 @@ drawItem: aRow in: r on: aCanvas inverted: inverted
 	| key shows cached |
 	style isNil ifTrue: [^self].
 	key := aRow first.
-	shows := Array with: aRow with: (self shownPercentOf: aRow) with: r with: key == idleProcess with: (key ~~ #all and: [key isTerminated]) with: (key ~~ #all and: [key window notNil]).
+	shows := Array with: aRow with: (self shownPercentOf: aRow) with: r with: key == idleProcess with: (ended includes: key) with: (key ~~ #all and: [key window notNil]).
 	rowDrawings isNil ifTrue: [rowDrawings := Array with: IdentityDictionary new with: IdentityDictionary new].
 	cached := (rowDrawings at: (inverted ifTrue: [2] ifFalse: [1])) at: key ifAbsent: [nil].
 	(cached notNil and: [cached first = shows and: [aCanvas replay: cached last]]) ifTrue: [^self].
@@ -134,7 +136,7 @@ drawProcessRow: aRow in: r on: aCanvas inverted: inverted
 	color := inverted ifTrue: [paper] ifFalse: [ink].
 	key == #all ifTrue: [font := style at: #uiBold. lineHeight := style at: #uiBoldHeight].
 	key == idleProcess ifTrue: [inverted ifFalse: [color := style at: #muted]].
-	(key ~~ #all and: [key isTerminated]) ifTrue: [
+	(ended includes: key) ifTrue: [
 		font := style at: #uiItalic.
 		lineHeight := style at: #uiItalicHeight.
 		inverted ifFalse: [color := style at: #muted]].

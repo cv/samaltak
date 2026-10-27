@@ -1,5 +1,5 @@
 Object subclass: #Window
-	instanceVariableNames: 'title bounds content world layer process queue state invalid fullRedraw redrawQueued resizePending busy busyLabel collapsed expandedExtent keyboardFocus capture hover contentCursor remoteName focusAmount minExtent animations tickPending handlingSince lastInputTime closeActions drawError showsSuspended shownChip'
+	instanceVariableNames: 'title bounds content world layer process queue state invalid fullRedraw redrawQueued resizePending busy busyLabel collapsed expandedExtent keyboardFocus capture hover contentCursor remoteName focusAmount minExtent animations tickPending handlingSince lastInputTime closeActions drawError showsSuspended shownChip lastClick'
 	classVariableNames: 'ErrorHandler'
 	package: 'UI-Windows'!
 
@@ -7,7 +7,7 @@ Window comment: 'I am an overlapping window of the World: a Blue Book frame (tit
 
 	Window new title: ''Hello''; content: aView; bounds: (100@100 extent: 400@300); open
 
-My Process takes the next item from my queue and sends it deliverTo: self (a block runs, a WindowTimer fires, a UIEvent is dispatched to the content), delivers events to the content (hit testing with viewAt:, bubbling to owners, pointer capture between down and up, hover enter/leave, keyboard focus), steps my animations on compositor frames, and redraws when invalid: the content draws into a fresh Canvas (my size × the display scale) whose frozen DisplayList I publish to my Layer. Views that did not change since the last redraw replay what they drew then (View>>drawRetainedOn:); after invalidate everything is drawn anew. The Compositor and the InputDispatcher never wait for me: while I am busy I keep my last frame, stay draggable and resizable, and my queued events are kept.
+My Process takes the next item from my queue and sends it deliverTo: self (a block runs, a WindowTimer fires, a UIEvent is dispatched to the content), delivers events to the content (hit testing with viewAt:, bubbling to owners, pointer capture between down and up, hover enter/leave, keyboard focus, multi-clicks only on the same view and item), steps my animations on compositor frames, and redraws when invalid: the content draws into a fresh Canvas (my size × the display scale) whose frozen DisplayList I publish to my Layer. Views that did not change since the last redraw replay what they drew then (View>>drawRetainedOn:); after invalidate everything is drawn anew. The Compositor and the InputDispatcher never wait for me: while I am busy I keep my last frame, stay draggable and resizable, and my queued events are kept.
 
 Code touching my widgets runs in my Process: do: aBlock enqueues a block, sync: aBlock waits for its value. invalidate (any Process) asks for a redraw. busy: shows the busy indicator; I also show it when an event takes longer than 250 ms. Bounds are screen points of the outer frame; content coordinates start below the title bar (contentOrigin).
 
@@ -564,6 +564,7 @@ dispatchPointer: anEvent
 		contentCursor := target cursorAt: (target localPointFrom: p).
 		^self].
 	anEvent isDown ifTrue: [
+		self countClick: anEvent on: target.
 		self takeFocusFor: target.
 		handler := self deliver: anEvent from: target.
 		capture := handler.
@@ -575,6 +576,15 @@ dispatchPointer: anEvent
 		self deliver: anEvent from: target.
 		^self].
 	anEvent isWheel ifTrue: [^self deliver: anEvent from: target]
+!
+countClick: aPress on: aView
+	"A further click (InputDispatcher>>countClick:on:) stays one only on the view and item (View>>clickItemAt:) of my previous press."
+	| key |
+	key := Array with: aView with: (aView clickItemAt: (aView localPointFrom: aPress position)).
+	aPress clickCount: ((aPress clickCount > 1 and: [lastClick notNil and: [lastClick first = key]])
+		ifTrue: [lastClick last + 1]
+		ifFalse: [1]).
+	lastClick := Array with: key with: aPress clickCount
 !
 deliver: anEvent from: aView
 	"Offer anEvent to aView, then to its owners, each with position re-localized; answer the view that handled it, or nil."

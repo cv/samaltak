@@ -39,6 +39,14 @@ sleep: milliseconds
 	"Let the workers run for milliseconds (the profiled time window)."
 	(Delay forMilliseconds: milliseconds) wait
 !
+sleep: milliseconds untilSamples: n
+	"Let the workers run for milliseconds, and on a loaded machine (fewer samples a millisecond) until the running profiler has recorded n CPU samples meanwhile, at most 10 s."
+	| n0 t |
+	n0 := Profiler default cpuSampleCount.
+	t := Time millisecondClockValue.
+	self sleep: milliseconds.
+	[Profiler default cpuSampleCount - n0 < n and: [Time millisecondClockValue - t < 10000]] whileTrue: [self sleep: 10]
+!
 stopWorkers
 	workers do: [:p | p terminate].
 	workers := OrderedCollection new
@@ -96,7 +104,7 @@ testAttributionToProcesses
 	t0 := Time microsecondClockValue.
 	a := self fork: #factorialLoop named: 'factorials'.
 	b := self fork: #floatLoop named: 'floats'.
-	self sleep: 400.
+	self sleep: 400 untilSamples: 200.
 	t1 := Time microsecondClockValue.
 	self stopWorkers.
 	profile := Profiler from: t0 to: t1.
@@ -211,7 +219,7 @@ testInlineStacksDecodeShared
 	self withProfiler: fresh do: [
 		factorials := self fork: #factorialLoop named: 'factorials'.
 		compiler := self fork: #compileLoop named: 'compiler'.
-		self sleep: 400.
+		self sleep: 400 untilSamples: 201.
 		self stopWorkers].
 	profile := fresh last.
 	self assert: profile samples size > 200.
@@ -266,16 +274,19 @@ testStackPrimitiveMatchesFallback
 	sem signal
 !
 testCpuMicroseconds
-	| p before after busy |
+	| p before t ct busy |
 	p := Processor activeProcess.
 	before := p cpuMicroseconds.
-	self busyFor: 30.
-	after := p cpuMicroseconds.
+	"Processes are charged CPU time: on a loaded machine 20 ms of it take longer."
+	t := Time millisecondClockValue.
+	[p cpuMicroseconds - before < 20000 and: [Time millisecondClockValue - t < 10000]] whileTrue: [300 factorial].
 	"cpuTime only advances at process switches; cpuMicroseconds includes the running slice."
-	self assert: after - before >= 20000.
-	self assert: p cpuMicroseconds >= p cpuTime.
+	self assert: p cpuMicroseconds - before >= 20000.
+	"cpuTime first: a switch between the two reads advances it"
+	ct := p cpuTime.
+	self assert: p cpuMicroseconds >= ct.
 	busy := self fork: #floatLoop named: 'floats'.
-	self sleep: 50.
+	self assert: (self waitFor: [busy cpuMicroseconds > 20000] timeout: 10000).
 	busy suspend.
 	self assert: busy cpuMicroseconds = busy cpuTime.
 	self assert: busy cpuMicroseconds > 20000

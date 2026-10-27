@@ -49,8 +49,8 @@ $CTL close >/dev/null
 
 # relaunch the saved image
 $CTL open --hidden --image "$SAVED" >/dev/null 2>&1 || { echo "FAIL relaunch"; exit 1; }
+$CTL wait 'saved.image resumed' 10000 >/dev/null || fail "resumed toast"
 $CTL wait '@w7.over' 10000 >/dev/null
-contains "resumed toast" "$($CTL snapshot --depth 1 | grep '^toast')" 'saved.image resumed'
 $CTL wait idle 6000 >/dev/null
 check "every window back (refs, titles, bounds, focus, Processes)" "$before" "$(windows)"
 check "debugged Process still suspended" "'Workspace doIt'->true" \

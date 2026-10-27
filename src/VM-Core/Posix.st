@@ -59,6 +59,10 @@ CLOCK_MONOTONIC
 	<cMacro: 'int CLOCK_MONOTONIC'>
 	^6
 !
+CLOCK_THREAD_CPUTIME_ID
+	<cMacro: 'int CLOCK_THREAD_CPUTIME_ID'>
+	^16
+!
 gettimeofday: tv zone: tz
 	<c: 'int gettimeofday(struct timeval *tv, void *tz)'>
 	| us |

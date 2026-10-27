@@ -1,16 +1,17 @@
 Object subclass: #TextLayout
-	instanceVariableNames: 'buffer view fontSpec font lineHeight monoAdvance wrap rowStarts rowEnds layoutWidth offset'
+	instanceVariableNames: 'buffer view fontSpec font lineHeight monoAdvance wrap rowStarts rowEnds layoutWidth offset gutter'
 	classVariableNames: ''
 	package: 'UI-Widgets'!
 
-TextLayout comment: 'I lay out a TextBuffer in a view (an object answering width and height, the TextEditor): rows (lines soft-wrapped at white space to the view''s width less the padding, and less the scroll bar when the text is taller than the view), each a line high in my font; x of a gap position in its row and the position nearest to an x (tabs to the Theme''s tab stops); the vertical scroll offset; and the rectangles of the caret and of character ranges in view coordinates. Rows are computed lazily and dropped on every buffer change or when the width changes.
+TextLayout comment: 'I lay out a TextBuffer in a view (an object answering width and height, the TextEditor): rows (lines soft-wrapped at white space to the view''s width less the padding and the gutter, and less the scroll bar when the text is taller than the view), each a line high in my font; x of a gap position in its row and the position nearest to an x (tabs to the Theme''s tab stops); the vertical scroll offset; and the rectangles of the caret and of character ranges in view coordinates. Rows are computed lazily and dropped on every buffer change or when the width changes.
 
 	(TextLayout on: (TextBuffer string: ''abc'') in: (0 @ 0 extent: 200 @ 100)) xOf: 2   "the width of ab"'!
 
 !TextLayout methodsFor: 'initialization'!
 initialize
 	wrap := true.
-	offset := 0
+	offset := 0.
+	gutter := 0
 !
 buffer: aTextBuffer view: aView
 	"Lay out aTextBuffer (following its changes) in aView."
@@ -45,6 +46,12 @@ wrap: aBoolean
 	wrap := aBoolean.
 	rowStarts := nil
 !
+gutter: points
+	"Leave points of room left of the text (line numbers)."
+	gutter = points ifTrue: [^self].
+	gutter := points.
+	rowStarts := nil
+!
 invalidate
 	"Forget the rows."
 	rowStarts := nil
@@ -76,7 +83,7 @@ lineHeight
 	^lineHeight ifNil: [lineHeight := self font lineHeight]
 !
 textLeft
-	^self padX
+	^self padX + gutter
 !
 tabStopWidth
 	^(self font advanceOf: $ ) * (self theme metric: #tabWidth)
@@ -87,7 +94,7 @@ nextTabStop: x
 	^((x / w) floor + 1) * w
 !
 availableTextWidth
-	^view width - (2 * self padX)
+	^view width - (2 * self padX) - gutter
 !
 monoAdvance
 	"The advance of every character if my font is monospaced, else false."

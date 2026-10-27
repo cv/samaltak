@@ -247,7 +247,7 @@ allocPcBlocks: a
 analysisOf: m
 	"The base of m's analysis in the arena (depth and flags per pc, the last backward jump to each loop head); -1 if m cannot be analyzed."
 	<c: 'int32_t opt_analysis_of(oop m)'>
-	| n base f t |
+	| n base f t k |
 	0 to: obAnaCount - 1 do: [:i | (obAnaMethods at: i) = m ifTrue: [^obAnaBases at: i]].
 	obAnaCount >= OPT_MAX_ANA ifTrue: [^-1].
 	(analysis analyze: m) ifFalse: [^-1].
@@ -271,7 +271,11 @@ analysisOf: m
 	obAnaMethods at: obAnaCount put: m.
 	obAnaBases at: obAnaCount put: base.
 	obAnaFloat at: obAnaCount put: false.
-	0 to: n - 1 do: [:pc | ((feedback flagsAt: m pc: pc) bitAnd: feedback sawFloat) ~= 0 ifTrue: [obAnaFloat at: obAnaCount put: true]].
+	"only m's arithmetic sites: the Float bytes of other pcs are other methods' (shared by hash)"
+	0 to: n - 1 do: [:pc |
+		(((obAnaFlag at: base + pc) bitAnd: OA_START) ~= 0 and: [
+			(k := analysis specialIndexOf: analysis bytecodes + pc) >= 0 and: [
+				k <= 9 and: [((feedback flagsAt: m pc: pc) bitAnd: feedback sawFloat) ~= 0]]]) ifTrue: [obAnaFloat at: obAnaCount put: true]].
 	obAnaCount := obAnaCount + 1.
 	obAnaTop := obAnaTop + n.
 	^base

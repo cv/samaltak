@@ -9,6 +9,8 @@ For the CPU chart I keep each Process''s CPU over the shown span (span:), update
 
 The VM does not report eden''s fill, only its size and the bytes allocated (counting eden''s content as allocated): I estimate it from the bytes allocated since a scavenge I make when I start, taking eden as full at each GC.
 
+Samples are timed by the wall clock, which goes on across a restart of the image (a resumed snapshot, a rebuilt VM); the VM''s counters start again then, and so does my baseline (a gap in the charts).
+
 	SystemMonitorData new start; sample; yourself'!
 
 !SystemMonitorData methodsFor: 'initialization'!
@@ -29,34 +31,38 @@ start
 	lastCounters := Smalltalk vm statistics counters.
 	edenFill := ((lastCounters at: 7) - free) max: 0.
 	lastCpu := self cpuNow.
-	lastTime := Time microsecondClockValue
+	lastTime := Time utcMicroseconds
 ! !
 
 !SystemMonitorData methodsFor: 'sampling'!
 sample
-	"Take a sample of what happened since the previous one; answer it."
-	| cpu now counters pairs idleProcess idle sum s delta |
+	"Take a sample of what happened since the previous one; answer it (nil after a restart: a new baseline). Processes are charged CPU time: idle is the rest of the interval (the VM waiting, or the OS running other threads)."
+	| cpu now counters pairs idleProcess ended sum s delta |
 	lastCounters isNil ifTrue: [self start].
 	cpu := self cpuNow.
 	counters := Smalltalk vm statistics counters.
-	now := Time microsecondClockValue.
+	(counters at: 8) < (lastCounters at: 8) ifTrue: [
+		"The VM restarted: its counters start again."
+		self start.
+		^nil].
+	now := Time utcMicroseconds.
 	idleProcess := Processor idleProcess.
 	pairs := OrderedCollection new.
-	idle := 0.
 	sum := 0.
 	cpu keysAndValuesDo: [:p :us |
 		delta := us - (lastCpu at: p ifAbsent: [0]).
-		delta > 0 ifTrue: [
-			p == idleProcess
-				ifTrue: [idle := delta]
-				ifFalse: [pairs add: p; add: delta. sum := sum + delta]]].
+		(delta > 0 and: [p ~~ idleProcess]) ifTrue: [pairs add: p; add: delta. sum := sum + delta]].
+	ended := 0.
+	lastCpu keysAndValuesDo: [:p :us | (cpu includesKey: p) ifFalse: [ended := ended + (p cpuTime - us max: 0)]].
 	s := SystemMonitorSample new.
 	s setTime: now interval: now - lastTime.
 	delta := [:i | (counters at: i) - (lastCounters at: i)].
 	s setAllocated: (delta value: 8) scavenges: (delta value: 1) micros: (delta value: 3) fullGCs: (delta value: 2) micros: (delta value: 4).
 	edenFill := self edenFillAfter: s size: (counters at: 7).
 	s setOld: (counters at: 5) budget: (counters at: 6) edenSize: (counters at: 7) fill: edenFill.
-	s setCpu: pairs asArray idle: idle unaccounted: (now - lastTime - idle - sum max: 0).
+	"the JIT's compiling is charged to no Process"
+	ended := ended + (delta value: 17).
+	s setCpu: pairs asArray idle: (now - lastTime - sum - ended max: 0) unaccounted: ended.
 	lastCounters := counters.
 	lastCpu := cpu.
 	lastTime := now.

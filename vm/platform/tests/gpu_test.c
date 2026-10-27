@@ -143,9 +143,11 @@ static void test_files(void)
 /* ---- sockets ------------------------------------------------------------ */
 
 static int late_client;
+static double late_sent_ms;
 static void *late_send(void *arg)
 {
     usleep(50000);
+    late_sent_ms = wall_ms();
     pf_socket_send(late_client, "late", 4);
     return arg;
 }
@@ -160,10 +162,12 @@ static void test_wake(const char *mode, int server_side, int client)
     pthread_create(&t, NULL, late_send, NULL);
     double t0 = wall_ms();
     for (int i = 0; i < 40 && !signaled(7); i++) platform_wait(2000000);
-    double dt = wall_ms() - t0;
+    double woke = wall_ms();
     pthread_join(t, NULL);
-    CHECK(signaled(7) && dt < 1000, "%s idle wait woke on socket after %.1f ms", mode, dt);
-    printf("  %s: platform_wait woke on socket data after %.1f ms (sent at 50 ms)\n", mode, dt);
+    /* from the send: on a loaded machine the sender's wakeup can be late too */
+    double dt = woke - late_sent_ms;
+    CHECK(signaled(7) && dt < 1000, "%s idle wait woke %.1f ms after the socket data was sent", mode, dt);
+    printf("  %s: platform_wait woke on socket data %.1f ms after it was sent (at %.1f ms)\n", mode, dt, late_sent_ms - t0);
     CHECK(pf_socket_recv(server_side, buf, sizeof buf) == 4, "recv late");
 }
 

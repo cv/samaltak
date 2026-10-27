@@ -274,7 +274,8 @@ record: aBlock
 	building addLast: segment.
 	aBlock ensure: [
 		self closeRun.
-		building removeLast.
+		"Down to segment: an inner record:'s ensure block cut short (its Process terminated by another) leaves its segment on top."
+		[building removeLast == segment] whileFalse.
 		segment finish.
 		building isEmpty ifFalse: [building last addPart: segment dx: 0 dy: 0; runStart: next - 1 // 40]].
 	^segment

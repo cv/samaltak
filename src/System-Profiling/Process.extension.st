@@ -1,6 +1,6 @@
 !Process methodsFor: '*System-Profiling'!
 cpuMicroseconds
-	"Answer the microseconds I have run so far, including the slice I am running now if I am the active process (cpuTime only advances at process switches)."
+	"Answer the microseconds of CPU time I have used so far, including the slice I am running now if I am the active process (cpuTime only advances at process switches)."
 	<primitive: 'processCpuTime'>
 	^self cpuTime
 ! !

@@ -1,18 +1,20 @@
 UIWindowsTestCase subclass: #WidgetsInWindowTest
-	instanceVariableNames: 'list editor header window chosen'
+	instanceVariableNames: 'list editor header window chosen opened'
 	classVariableNames: ''
 	package: 'Tests-UI-Widgets'!
 
-WidgetsInWindowTest comment: 'I run widgets in a real Window of a hidden World (real Process, real input path, real compositor): clicks select list rows, injected text and keys edit a TextEditor, ⌘Z undoes, a right-click opens the editor''s menu in an overlay whose item runs in the window''s Process, the caret blinks on the window''s timer, and the remote-control snapshot shows the widget refs.'!
+WidgetsInWindowTest comment: 'I run widgets in a real Window of a hidden World (real Process, real input path, real compositor): clicks select list rows (a double click needs the same row and at most 5 points between the presses), injected text and keys edit a TextEditor, ⌘Z undoes, a right-click opens the editor''s menu in an overlay whose item runs in the window''s Process, the caret blinks on the window''s timer, and the remote-control snapshot shows the widget refs.'!
 
 !WidgetsInWindowTest methodsFor: 'running'!
 setUp
 	super setUp.
 	chosen := OrderedCollection new.
+	opened := OrderedCollection new.
 	header := PaneHeader title: 'Packages' right: 'by layer'.
 	list := ListView new title: 'Packages'; name: 'packages';
 		items: #('Tools' 'UI-Widgets' 'UI-Windows' 'Graphics-Canvas');
 		onSelect: [:item | chosen add: item];
+		onDoubleClick: [:item | opened add: item];
 		yourself.
 	editor := TextEditor new title: 'code'; name: 'code'; yourself.
 	editor text: 'foo'.
@@ -24,6 +26,9 @@ tearDown
 !
 screenPoint: aLocalPoint of: aWidget
 	^aWidget screenPointFrom: aLocalPoint
+!
+rowPoint: index
+	^self screenPoint: (list rowRect: index) center of: list
 ! !
 
 !WidgetsInWindowTest methodsFor: 'tests'!
@@ -38,6 +43,30 @@ testClickSelectsRowInWindowProcess
 	shot := self screenshot.
 	p := self screenPoint: (r left + 3) @ (r top + 3) of: list.
 	self assertColor: Color black at: p in: shot
+!
+testQuickClicksOnTwoRowsAreSingleClicks
+	"4 points apart across the border of rows 2 and 3, a press the platform counts as a further click."
+	| a b |
+	a := self screenPoint: (list rowRect: 2) bottomLeft + (40 @ -2) of: list.
+	b := a + (0 @ 4).
+	self click: a platformCount: 1; click: b platformCount: 2.
+	self assert: opened isEmpty.
+	self assert: chosen asArray equals: #('UI-Widgets' 'UI-Windows').
+	self click: b platformCount: 3.
+	self assert: opened asArray equals: #('UI-Windows')
+!
+testQuickClicksOnTheSameRowDoubleClick
+	self click: (self rowPoint: 2) platformCount: 1; click: (self rowPoint: 2) + (4 @ 0) platformCount: 2.
+	self assert: opened asArray equals: #('UI-Widgets')
+!
+testClicksMoreThan5PointsApartAreSingleClicks
+	self click: (self rowPoint: 2) platformCount: 1; click: (self rowPoint: 2) + (6 @ 0) platformCount: 2.
+	self assert: opened isEmpty
+!
+testSlowClicksAreSingleClicks
+	"After its double-click interval the platform counts a press as a new click."
+	self click: (self rowPoint: 2) platformCount: 1; click: (self rowPoint: 2) platformCount: 1.
+	self assert: opened isEmpty
 !
 testTypingAndUndo
 	self click: (self screenPoint: 30 @ 10 of: editor).
