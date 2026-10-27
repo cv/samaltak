@@ -1340,8 +1340,9 @@ inlinePrimitive: p class: cls argc: argc pc: pc act: a rcvSlot: r
 		^true].
 	(kind = OPK_CHARFROM and: [argc = 1]) ifTrue: [
 		s := self stateAct: a pc: pc depth: (self depthAt: pc act: a).
+		idx := self guardInt: (self read: (self var: a slot: r + 1)) state: s.
 		n := self add: O_CHARCONV rep: R_OOP.
-		(ir node: n) a: (self guardInt: (self read: (self var: a slot: r + 1)) state: s).
+		(ir node: n) a: idx.
 		(ir node: n) aux: 1.
 		(ir node: n) state: s.
 		(ir node: n) flags: NF_GUARD.
