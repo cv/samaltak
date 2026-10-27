@@ -136,9 +136,15 @@ shutDownList
 	^ShutDownList ifNil: [#()]
 !
 processStartUpList: resuming
-	"Tell the registered classes, in registration order, that the image started."
-	self startUpList do: [:name |
-		(self at: name ifAbsent: [nil]) ifNotNil: [:class | class startUp: resuming]]
+	"Tell the registered classes, in registration order, that the image started. Meanwhile isStartingUp."
+	StartingUp := true.
+	[self startUpList do: [:name |
+		(self at: name ifAbsent: [nil]) ifNotNil: [:class | class startUp: resuming]]]
+			ensure: [StartingUp := false]
+!
+isStartingUp
+	"Is the image running its startup list? A resumed image is half restored then: e.g. its World still has the previous VM's compositor."
+	^StartingUp == true
 !
 processShutDownList: quitting
 	"Tell the registered classes, in reverse order, that the image is about to be saved or to quit."

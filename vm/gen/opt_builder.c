@@ -4491,13 +4491,11 @@ static void opt_float_arith(int32_t k, int32_t x, int32_t y, int32_t pc, int32_t
     int32_t s;
     int32_t n_2;
     int32_t n_3;
-    oop m;
     int32_t r_add;
     int32_t n_4;
     int32_t test;
     int32_t n_5;
     int32_t n_6;
-    oop m_2;
     int32_t r_binary;
     int32_t r_add_2;
     int32_t n_8;
@@ -4518,7 +4516,7 @@ static void opt_float_arith(int32_t k, int32_t x, int32_t y, int32_t pc, int32_t
     int32_t i_3;
     int32_t var;
     int32_t v;
-    oop m_3;
+    oop m;
     uint64_t o_2;
     uint8_t op;
     int64_t r_length_of;
@@ -4608,9 +4606,7 @@ static void opt_float_arith(int32_t k, int32_t x, int32_t y, int32_t pc, int32_t
     n_2 = opt_resolve(x);
     if ((!(((int32_t)(opt_nodes + n_2)->tkind == T_FLOAT) || ({
     n_3 = opt_resolve(y);
-    (int32_t)(opt_nodes + n_3)->tkind == T_FLOAT; }))) && ({
-    m = (opt_acts + a)->method;
-    (fl & FB_INTS) == 0; })) {
+    (int32_t)(opt_nodes + n_3)->tkind == T_FLOAT; }))) && ((fl & FB_INTS) == 0)) {
         test = ({
     n_4 = opt_new_node(O_NOTINTS, R_NONE);
     opt_append(n_4, ob_cur_block);
@@ -4624,9 +4620,7 @@ static void opt_float_arith(int32_t k, int32_t x, int32_t y, int32_t pc, int32_t
     n_5 = opt_resolve(x);
     if (!(((int32_t)(opt_nodes + n_5)->tkind == T_FLOAT) || ({
     n_6 = opt_resolve(y);
-    ((int32_t)(opt_nodes + n_6)->tkind == T_FLOAT) || ({
-    m_2 = (opt_acts + a)->method;
-    (fl & FB_INTS) == 0; }); }))) {
+    ((int32_t)(opt_nodes + n_6)->tkind == T_FLOAT) || ((fl & FB_INTS) == 0); }))) {
         test = ({
     n_7 = ({
     n_8 = opt_new_node(O_BOTHINT, R_OOP);
@@ -4690,8 +4684,8 @@ static void opt_float_arith(int32_t k, int32_t x, int32_t y, int32_t pc, int32_t
             (opt_nodes + n_11)->nargs = 2U;
             (opt_nodes + n_11)->aux = (int64_t)sel;
             (opt_nodes + n_11)->aux2 = 513LL | (((int64_t)k) << 16) | (((int64_t)pc) << 32);
-            m_3 = (opt_acts + a)->method;
-            o_2 = *(uint64_t *)(m_3 + 16 + 24);
+            m = (opt_acts + a)->method;
+            o_2 = *(uint64_t *)(m + 16 + 24);
             op = ((uint8_t *)(o_2 + 16))[pc];
             (opt_nodes + n_11)->state = opt_make_state(a, (int32_t)(pc + ({
     if (op < 0x68) {
@@ -4787,12 +4781,7 @@ exit_length_of:;
         (opt_nodes + n_16)->tkind = T_FLOAT;
         goto exit_type;
     }
-    if (cls_smallint == cls_smallint) {
-        (opt_nodes + n_16)->tkind = T_SMI;
-    } else {
-        (opt_nodes + n_16)->tkind = T_OBJ;
-        (opt_nodes + n_16)->tcls = cls_smallint;
-    }
+    (opt_nodes + n_16)->tkind = T_SMI;
 exit_type:;
     r_cast = n_16;
     r_cast; });
@@ -4807,12 +4796,7 @@ exit_type:;
         (opt_nodes + n_18)->tkind = T_FLOAT;
         goto exit_type_2;
     }
-    if (cls_smallint == cls_smallint) {
-        (opt_nodes + n_18)->tkind = T_SMI;
-    } else {
-        (opt_nodes + n_18)->tkind = T_OBJ;
-        (opt_nodes + n_18)->tcls = cls_smallint;
-    }
+    (opt_nodes + n_18)->tkind = T_SMI;
 exit_type_2:;
     r_cast_2 = n_18;
     r_cast_2; });
@@ -5449,15 +5433,16 @@ static bool opt_inline_primitive(int64_t p, uint64_t cls, int32_t argc, int32_t 
     int32_t n_12;
     int32_t n_14;
     int32_t s;
-    int32_t r_add_7;
-    int32_t n_15;
     int32_t i_2;
     int32_t var_6;
     int32_t v_2;
     int32_t r_guard_int;
+    int32_t r_add_7;
+    int32_t n_16;
+    int32_t n_15;
+    int32_t idx;
     int32_t r_add_8;
     int32_t n_17;
-    int32_t n_16;
     int32_t var_7;
     int32_t r_add_9;
     int32_t n_19;
@@ -5468,7 +5453,6 @@ static bool opt_inline_primitive(int64_t p, uint64_t cls, int32_t argc, int32_t 
     int32_t r_add_10;
     int32_t n_22;
     int32_t n_21;
-    int32_t idx;
     int32_t r_add_11;
     int32_t n_23;
     int32_t r_box_float;
@@ -5820,31 +5804,32 @@ exit_prim_kind_of:;
     }
     if ((kind == OPK_CHARFROM) && (argc == 1)) {
         s = opt_make_state(a, pc, (int32_t)ob_ana_depth[(opt_acts + a)->ana + pc]);
-        n = ({
-    n_15 = opt_new_node(O_CHARCONV, R_OOP);
-    opt_append(n_15, ob_cur_block);
-    r_add_7 = n_15;
-    r_add_7; });
         i_2 = r + 1;
         var_6 = (opt_acts + a)->var_base + i_2;
         v_2 = opt_read(var_6, ob_cur_block);
-        (opt_nodes + n)->a = ({
+        idx = ({
     if ((int32_t)(opt_nodes + v_2)->tkind == T_SMI) {
         r_guard_int = v_2;
         goto exit_guard_int;
     }
-    n_16 = ({
-    n_17 = opt_new_node(O_GUARDINT, R_OOP);
+    n_15 = ({
+    n_16 = opt_new_node(O_GUARDINT, R_OOP);
+    opt_append(n_16, ob_cur_block);
+    r_add_7 = n_16;
+    r_add_7; });
+    (opt_nodes + n_15)->a = v_2;
+    (opt_nodes + n_15)->state = s;
+    (opt_nodes + n_15)->tkind = T_SMI;
+    (opt_nodes + n_15)->flags = NF_GUARD;
+    r_guard_int = n_15;
+exit_guard_int:;
+    r_guard_int; });
+        n = ({
+    n_17 = opt_new_node(O_CHARCONV, R_OOP);
     opt_append(n_17, ob_cur_block);
     r_add_8 = n_17;
     r_add_8; });
-    (opt_nodes + n_16)->a = v_2;
-    (opt_nodes + n_16)->state = s;
-    (opt_nodes + n_16)->tkind = T_SMI;
-    (opt_nodes + n_16)->flags = NF_GUARD;
-    r_guard_int = n_16;
-exit_guard_int:;
-    r_guard_int; });
+        (opt_nodes + n)->a = idx;
         (opt_nodes + n)->aux = 1;
         (opt_nodes + n)->state = s;
         (opt_nodes + n)->flags = NF_GUARD;

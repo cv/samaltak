@@ -46,6 +46,28 @@ testPortAndPing
 	self assert: (r at: 'ok').
 	self assert: (r at: 'id') equals: 'a1'
 !
+testNothingIsServedWhileTheImageStartsUp
+	"A request that arrives while the image runs its startup list is answered once the list is done."
+	| c |
+	SystemDictionary classPool at: #StartingUp put: true.
+	[c := self connect.
+	 self sendLine: (JSON render: (Dictionary new at: 'cmd' put: 'ping'; at: 'id' put: 'b1'; yourself)) on: c.
+	 self assert: (c receiveInto: (ByteArray new: 1) timeout: 300) isNil description: 'answered while starting up']
+		ensure: [SystemDictionary classPool at: #StartingUp put: false].
+	self assert: ((JSON parse: (self readLineFrom: c)) at: 'id') equals: 'b1'
+!
+testWakeupAfterAHostTakesOverIsNotLost
+	"A wakeup due on the server's own Semaphore when a host takes over its sockets: the next one goes to the host's."
+	| sem index |
+	sem := Semaphore new.
+	index := Smalltalk vm registerExternalSemaphore: sem.
+	[server wakeIn: 100.
+	 server hostOn: sem index: index by: self.
+	 self deny: (sem waitTimeoutMSecs: 1000) description: 'hosting did not signal'.
+	 server wakeIn: 300.
+	 self deny: (sem waitTimeoutMSecs: 1000) description: 'the wakeup went to the old Semaphore']
+		ensure: [server unhost. Smalltalk vm unregisterExternalSemaphore: index]
+!
 testEvalOverSocket
 	| c r |
 	c := self connect.

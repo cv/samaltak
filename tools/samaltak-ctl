@@ -81,6 +81,18 @@ function request(port, req, timeout = 60000) {
   });
 }
 
+// Like call, but answers a failure ({ok: false, error}) instead of exiting.
+async function attempt(req, timeout) {
+  const s = readSession();
+  for (const t0 = Date.now(); ;) {
+    try { return await request(s.port, req, timeout); }
+    catch (e) {
+      if (e.code === 'ECONNREFUSED' && alive(s.pid) && Date.now() - t0 < 60000) { await sleep(100); continue; }
+      return { ok: false, error: e.message };
+    }
+  }
+}
+
 async function call(req, timeout) {
   const s = readSession();
   if (!s) die(`no Samaltak in session ${session} (run: samaltak-ctl open)`);
@@ -177,9 +189,9 @@ async function record() {
     let r = { frames: '?' };
     const rec = s.recording;
     if (alive(s.pid)) {
-      const q = await request(s.port, { cmd: 'record', action: 'stop' }).catch(() => null);
-      if (q && q.ok) r = q;
-      else if (!rec) die(`record: ${(q && q.error) || 'not recording'}`);
+      const q = await attempt({ cmd: 'record', action: 'stop' });
+      if (q.ok) r = q;
+      else if (!rec) die(q.error);
     }
     if (rec) {
       const t0 = Date.now();
@@ -222,7 +234,15 @@ async function record() {
   if (exited !== null) { fs.rmSync(fifo, { force: true }); die(`ffmpeg failed to start (${exited}); see ${path.join(DIR, session + '.ffmpeg.log')}`); }
   s.recording = { pid: ff.pid, out, fifo };
   fs.writeFileSync(SESSION_FILE, JSON.stringify(s, null, 2));
-  const r = await call({ cmd: 'record', action: 'start', path: fifo, w, h, fps });
+  const r = await attempt({ cmd: 'record', action: 'start', path: fifo, w, h, fps });
+  if (!r.ok) {
+    // the image did not start recording: no ffmpeg waiting for frames, no recording in the session
+    try { process.kill(ff.pid, 'SIGKILL'); } catch (_) {}
+    fs.rmSync(fifo, { force: true });
+    delete s.recording;
+    fs.writeFileSync(SESSION_FILE, JSON.stringify(s, null, 2));
+    die(r.error || JSON.stringify(r));
+  }
   console.log(`recording ${w}x${h} at ${r.fps} fps to ${out} (samaltak-ctl record stop)`);
 }
 

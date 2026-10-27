@@ -1,5 +1,5 @@
 Object subclass: #TFunction
-	instanceVariableNames: 'module selector method ast pragmas kind cName functionType bytecodes specialize primitive callers addressTaken generated assignmentCounts'
+	instanceVariableNames: 'module selector method ast pragmas kind cName functionType bytecodes specialize primitive callers addressTaken generated assignmentCounts readNames'
 	classVariableNames: ''
 	package: 'VM-Translator'!
 
@@ -155,26 +155,36 @@ isAccessor
 !TFunction methodsFor: 'analysis'!
 assignmentCountOf: aString
 	"How often my source assigns aString (in blocks too)."
-	assignmentCounts isNil ifTrue: [
-		assignmentCounts := Dictionary new.
-		self countAssignmentsIn: ast body].
+	self analyze.
 	^assignmentCounts at: aString ifAbsent: [0]
 !
-countAssignmentsIn: aNode
+reads: aString
+	"Whether my source reads aString (in blocks too)."
+	self analyze.
+	^readNames includes: aString
+!
+analyze
+	assignmentCounts notNil ifTrue: [^self].
+	assignmentCounts := Dictionary new.
+	readNames := Set new.
+	self analyze: ast body
+!
+analyze: aNode
 	aNode isNil ifTrue: [^self].
-	(aNode isKindOf: SequenceNode) ifTrue: [^aNode statements do: [:s | self countAssignmentsIn: s]].
+	aNode isVariable ifTrue: [^readNames add: aNode name].
+	(aNode isKindOf: SequenceNode) ifTrue: [^aNode statements do: [:s | self analyze: s]].
 	aNode isAssignment ifTrue: [
 		assignmentCounts at: aNode variable name put: (assignmentCounts at: aNode variable name ifAbsent: [0]) + 1.
-		^self countAssignmentsIn: aNode value].
+		^self analyze: aNode value].
 	aNode isMessage ifTrue: [
-		self countAssignmentsIn: aNode receiver.
-		^aNode arguments do: [:a | self countAssignmentsIn: a]].
+		self analyze: aNode receiver.
+		^aNode arguments do: [:a | self analyze: a]].
 	aNode isCascade ifTrue: [
-		self countAssignmentsIn: aNode receiver.
-		^aNode messages do: [:m | m arguments do: [:a | self countAssignmentsIn: a]]].
-	aNode isBlock ifTrue: [^self countAssignmentsIn: aNode body].
-	aNode isReturn ifTrue: [^self countAssignmentsIn: aNode value].
-	(aNode isKindOf: BraceNode) ifTrue: [^aNode elements do: [:e | self countAssignmentsIn: e]]
+		self analyze: aNode receiver.
+		^aNode messages do: [:m | m arguments do: [:a | self analyze: a]]].
+	aNode isBlock ifTrue: [^self analyze: aNode body].
+	aNode isReturn ifTrue: [^self analyze: aNode value].
+	(aNode isKindOf: BraceNode) ifTrue: [^aNode elements do: [:e | self analyze: e]]
 ! !
 
 !TFunction methodsFor: 'linking'!

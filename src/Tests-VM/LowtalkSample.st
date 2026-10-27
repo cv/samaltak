@@ -43,6 +43,8 @@ main: argc argv: argv
 	self report: 'twice' value: (self cCoerce: total to: 'int64_t').
 	self report: 'hash' value: (self cCoerce: (self hashOf: (self cString: 'Samaltak')) to: 'int64_t').
 	self report: 'loop' value: self countdown.
+	self report: 'same' value: (self same: counter as: counter ignoring: (p + 1) x) + (self same: p as: p ignoring: (counter := counter + 1)).
+	self report: 'counted' value: counter.
 	libc printf: 'argc=%d %s
 ' with: argc with: (argv at: 0).
 	^0
@@ -101,6 +103,10 @@ untag: anOop
 twice: aBlock
 	aBlock value.
 	aBlock value
+!
+same: a as: b ignoring: unused
+	"unused gets no local (its effects stay); a = b of one variable folds to true."
+	^(a = b) ifTrue: [1] ifFalse: [0]
 !
 hashOf: aString
 	<c: 'uint32_t hash_of(const char *aString)'>

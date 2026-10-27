@@ -71,23 +71,23 @@
   },
   {
     "id": "guest",
-    "caption": "The VM is written in Smalltalk: the VM Simulator boots a guest image on those very classes. Change the VM's banner, ⌘S: the guest's next line shows it.",
-    "spoken": "The VM's written in Smalltalk too, so here's Smalltalk running inside Smalltalk. The guest's VM is these classes, right here. I'll change its banner, save, and the guest picks it up on the next line."
+    "caption": "Smalltalk in Smalltalk: the VM Simulator boots a Smalltalk-80 image on the VM's own Smalltalk classes. 3 + 4 → 7; 100 factorial printString size → 158.",
+    "spoken": "The VM's written in Smalltalk, so here's Smalltalk running inside Smalltalk. A tiny Smalltalk-80, black and white, booted on the VM's own classes. Three plus four... seven. Something bigger... and its windows drag around, too."
   },
   {
     "id": "gc",
-    "caption": "The GC is Smalltalk too. A loop that allocates; then GarbageCollector's TENURE_AGE 2 → 0: every survivor is promoted at once.",
-    "spoken": "The garbage collector's Smalltalk too. Here's a little loop that keeps allocating, and old space barely grows. Now I'll make it promote every survivor right away..."
+    "caption": "The GC is Smalltalk too: GarbageCollector's TENURE_AGE 2 → 0 (every survivor promoted at once), ⌘S, Rebuild VM & reboot.",
+    "spoken": "The garbage collector's Smalltalk too. Right now, survivors get promoted after two collections. I'll make that zero, save, and rebuild the VM."
   },
   {
-    "id": "reboot",
-    "caption": "Rebuild and reboot: the GC is translated to C with the rest of the VM, compiled, and the image restarts on the new VM.",
-    "spoken": "then rebuild. It gets translated to C with the rest of the VM, compiled, and then it reboots."
+    "id": "gc-churn",
+    "caption": "While the VM compiles: a loop that allocates. On the old VM, old space barely grows.",
+    "spoken": "While that compiles, here's a little loop that keeps allocating. On this VM, old space barely grows."
   },
   {
     "id": "gc-after",
-    "caption": "On the new VM every survivor is promoted: old space climbs, full GCs pile up.",
-    "spoken": "And yeah, now old space fills right up, and the full GCs just stack up."
+    "caption": "Rebooted on the new VM: every survivor is promoted, old space climbs, full GCs pile up.",
+    "spoken": "And there's the new VM. Now old space fills right up, and the full GCs just stack up."
   },
   {
     "id": "core",
