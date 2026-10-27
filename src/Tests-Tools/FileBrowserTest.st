@@ -3,7 +3,7 @@ ToolsTestCase subclass: #FileBrowserTest
 	classVariableNames: ''
 	package: 'Tests-Tools'!
 
-FileBrowserTest comment: 'I test the File Browser, a column browser, on the repository and on scratch folders: it opens from the World menu''s registry at the working directory; a column lists folders first, sorted, with line counts, dot files left out, a FIFO not opened; selecting a folder opens the next column and closes those after it, selecting a file previews it; up, down, right, left and clicks move as a user does (injected events); Interpreter.st and interpreter.c preview with the right header, line count, date and highlighting; a large file opens fast and only the rows shown are drawn; deep columns scroll sideways; a binary file shows as a hex dump; the widgets are named for remote control; drawing is retained.'!
+FileBrowserTest comment: 'I test the File Browser, a column browser, on the repository and on scratch folders: it opens from the World menu''s registry at the working directory; a column lists folders first, sorted, with line counts, dot files left out, a FIFO not opened; selecting a folder opens the next column and closes those after it, selecting a file previews it; up, down, right, left and clicks move as a user does (injected events), a double click enters a folder only if both presses are on its row; Interpreter.st and interpreter.c preview with the right header, line count, date and highlighting; a large file opens fast and only the rows shown are drawn; deep columns scroll sideways; a binary file shows as a hex dump; the widgets are named for remote control; drawing is retained.'!
 
 !FileBrowserTest methodsFor: 'running'!
 setUp
@@ -150,6 +150,25 @@ testKeysAndClicksMoveAsInFinder
 	self waitUntil: [browser lists size = 1] description: 'the path''s first segment did not go back'.
 	self assert: (browser listAt: 1) selection isNil.
 	self assert: self focused == (browser listAt: 1)
+!
+testDoubleClickEntersOnlyTheFolderOfBothPresses
+	"Presses 4 points apart across the border of the rows a and b, the platform counting them as a double click: b is selected, not entered."
+	| dir list r a b |
+	dir := self scratchDirectory.
+	Directory create: dir / 'a'; create: dir / 'b'.
+	File writeText: 'x' to: dir / 'b' / 'x.txt'.
+	self in: window do: [browser browse: dir].
+	list := browser listAt: 1.
+	r := list rowRect: 1.
+	a := list localToScreen: (r left + 60) @ (r bottom - 2).
+	b := a + (0 @ 4).
+	self click: a platformCount: 1; click: b platformCount: 2.
+	self settle.
+	self assert: list selection name equals: 'b'.
+	self assert: self focused == list.
+	self click: b platformCount: 1; click: b platformCount: 2.
+	self waitUntil: [self focused == (browser listAt: 2)] description: 'the double click did not enter b'.
+	self assert: (browser listAt: 2) selection name equals: 'x.txt'
 !
 testPreviewsASmalltalkFile
 	| path |

@@ -413,6 +413,9 @@ mouseDown: anEvent
 mouseUp: anEvent
 	^true
 !
+clickItemAt: aPoint
+	^self rowIndexAt: aPoint
+!
 wheel: anEvent
 	self scrollOffset: offset - (anEvent delta y * 40).
 	^true

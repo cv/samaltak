@@ -57,6 +57,13 @@ doubleClick: aPoint
 	self inject: UIEvent evMouseUp at: aPoint button: 1 count: 2 modifiers: 0.
 	self settle
 !
+click: aPoint platformCount: n
+	"A click the platform counted as the nth of a multi-click (within its double-click interval)."
+	self moveTo: aPoint.
+	self inject: UIEvent evMouseDown at: aPoint button: 1 count: n modifiers: 0.
+	self inject: UIEvent evMouseUp at: aPoint button: 1 count: n modifiers: 0.
+	self settle
+!
 drag: from to: to
 	self moveTo: from; down: from.
 	1 to: 8 do: [:i | self inject: UIEvent evMouseMove at: from + (to - from * i / 8.0) button: 1 count: nil modifiers: 0].

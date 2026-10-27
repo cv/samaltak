@@ -261,6 +261,9 @@ mouseDown: anEvent
 mouseUp: anEvent
 	^true
 !
+clickItemAt: aPoint
+	^self lineIndexAt: aPoint
+!
 mouseMove: anEvent
 	| i |
 	i := self lineIndexAt: (self localEventPosition: anEvent).
