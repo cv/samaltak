@@ -5449,15 +5449,16 @@ static bool opt_inline_primitive(int64_t p, uint64_t cls, int32_t argc, int32_t 
     int32_t n_12;
     int32_t n_14;
     int32_t s;
-    int32_t r_add_7;
-    int32_t n_15;
     int32_t i_2;
     int32_t var_6;
     int32_t v_2;
     int32_t r_guard_int;
+    int32_t r_add_7;
+    int32_t n_16;
+    int32_t n_15;
+    int32_t idx;
     int32_t r_add_8;
     int32_t n_17;
-    int32_t n_16;
     int32_t var_7;
     int32_t r_add_9;
     int32_t n_19;
@@ -5468,7 +5469,6 @@ static bool opt_inline_primitive(int64_t p, uint64_t cls, int32_t argc, int32_t 
     int32_t r_add_10;
     int32_t n_22;
     int32_t n_21;
-    int32_t idx;
     int32_t r_add_11;
     int32_t n_23;
     int32_t r_box_float;
@@ -5820,31 +5820,32 @@ exit_prim_kind_of:;
     }
     if ((kind == OPK_CHARFROM) && (argc == 1)) {
         s = opt_make_state(a, pc, (int32_t)ob_ana_depth[(opt_acts + a)->ana + pc]);
-        n = ({
-    n_15 = opt_new_node(O_CHARCONV, R_OOP);
-    opt_append(n_15, ob_cur_block);
-    r_add_7 = n_15;
-    r_add_7; });
         i_2 = r + 1;
         var_6 = (opt_acts + a)->var_base + i_2;
         v_2 = opt_read(var_6, ob_cur_block);
-        (opt_nodes + n)->a = ({
+        idx = ({
     if ((int32_t)(opt_nodes + v_2)->tkind == T_SMI) {
         r_guard_int = v_2;
         goto exit_guard_int;
     }
-    n_16 = ({
-    n_17 = opt_new_node(O_GUARDINT, R_OOP);
+    n_15 = ({
+    n_16 = opt_new_node(O_GUARDINT, R_OOP);
+    opt_append(n_16, ob_cur_block);
+    r_add_7 = n_16;
+    r_add_7; });
+    (opt_nodes + n_15)->a = v_2;
+    (opt_nodes + n_15)->state = s;
+    (opt_nodes + n_15)->tkind = T_SMI;
+    (opt_nodes + n_15)->flags = NF_GUARD;
+    r_guard_int = n_15;
+exit_guard_int:;
+    r_guard_int; });
+        n = ({
+    n_17 = opt_new_node(O_CHARCONV, R_OOP);
     opt_append(n_17, ob_cur_block);
     r_add_8 = n_17;
     r_add_8; });
-    (opt_nodes + n_16)->a = v_2;
-    (opt_nodes + n_16)->state = s;
-    (opt_nodes + n_16)->tkind = T_SMI;
-    (opt_nodes + n_16)->flags = NF_GUARD;
-    r_guard_int = n_16;
-exit_guard_int:;
-    r_guard_int; });
+        (opt_nodes + n)->a = idx;
         (opt_nodes + n)->aux = 1;
         (opt_nodes + n)->state = s;
         (opt_nodes + n)->flags = NF_GUARD;

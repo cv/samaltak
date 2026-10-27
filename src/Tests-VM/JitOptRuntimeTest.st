@@ -102,4 +102,14 @@ testDisassemblyShowsInlinedActivations
 	listing := (JitRuntimeTestSubject >> #sumInc:) machineCodeFor: #opt.
 	self assert: (listing beginsWith: 'JitRuntimeTestSubject>>sumInc:  opt').
 	self assert: (listing includesSubstring: 'inlined activation 1')
+!
+testCharacterValueGuardsItsArgumentFirst
+	"Character value: inlined (feedback) for a value not known to be a SmallInteger: the guard on it comes before the conversion, which reads the guard's result."
+	| listing g |
+	Smalltalk vm jitParameters: #(nil '-eager' nil nil).
+	self define: 'char: n ^Character value: n'.
+	3 timesRepeat: [self assert: (JitRuntimeTestSubject new char: 65) equals: $A].
+	listing := (JitRuntimeTestSubject >> #char:) machineCodeFor: #opt.
+	g := listing indexOfSubCollection: 'guard: a SmallInteger'.
+	self assert: (g > 0 and: [g < (listing indexOfSubCollection: 'the Character of a SmallInteger')])
 ! !
