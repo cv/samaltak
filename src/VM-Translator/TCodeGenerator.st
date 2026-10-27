@@ -431,7 +431,7 @@ inline: aTFunction module: aTModule arguments: argNodes node: aNode valueWanted:
 	^self inline: aTFunction module: aTModule arguments: argNodes node: aNode valueWanted: aBoolean dispatching: false
 !
 inline: aTFunction module: aTModule arguments: argNodes node: aNode valueWanted: aBoolean dispatching: isDispatching
-	"Expand aTFunction here. Arguments that are pure expressions are substituted, blocks are inlined where they are evaluated, other arguments go through a local. If isDispatching, the expansion ends a handler: its returns dispatch."
+	"Expand aTFunction here. Arguments that are pure expressions are substituted, blocks are inlined where they are evaluated, arguments it never reads are evaluated as statements, other arguments go through a local. If isDispatching, the expansion ends a handler: its returns dispatch."
 	| f stmts result body |
 	f := TFrame kind: #inline function: aTFunction module: aTModule parent: frame.
 	f valueWanted: aBoolean.
@@ -440,15 +440,18 @@ inline: aTFunction module: aTModule arguments: argNodes node: aNode valueWanted:
 		arg isBlock
 			ifTrue: [f env at: name put: (TBinding block: arg frame: frame env: env)]
 			ifFalse: [
-				| e |
-				e := self expression: arg.
-				(e isPure and: [e isConstant or: [e isVariable]])
-					ifTrue: [f env at: name put: (TBinding expression: e)]
-					ifFalse: [
-						| tmp |
-						tmp := self newLocal: (LowtalkNames snake: name) type: (self valueType: e).
-						block add: (CExprStatement expression: (CBinary operator: '=' left: tmp right: e type: tmp type)).
-						f env at: name put: (TBinding expression: tmp)]]].
+				(aTFunction reads: name)
+					ifFalse: [self statement: arg]
+					ifTrue: [
+						| e |
+						e := self expression: arg.
+						(e isPure and: [e isConstant or: [e isVariable]])
+							ifTrue: [f env at: name put: (TBinding expression: e)]
+							ifFalse: [
+								| tmp |
+								tmp := self newLocal: (LowtalkNames snake: name) type: (self valueType: e).
+								block add: (CExprStatement expression: (CBinary operator: '=' left: tmp right: e type: tmp type)).
+								f env at: name put: (TBinding expression: tmp)]]]].
 	stmts := aTFunction statements.
 	"^expression alone: an expression"
 	(aBoolean and: [stmts size = 1 and: [stmts first isReturn and: [aTFunction temporaries isEmpty]]]) ifTrue: [
@@ -931,7 +934,7 @@ pointerSend: aMessageNode receiver: rcv
 		other := args first.
 		((self valueType: other) isPointerLike or: [other isConstant and: [other value isNil]]) ifFalse: [
 			^self error: 'a pointer compares with a pointer' node: aMessageNode].
-		^CBinary operator: (self cOperatorFor: sel) left: rcv right: other type: self boolType].
+		^self fold: (CBinary operator: (self cOperatorFor: sel) left: rcv right: other type: self boolType)].
 	^self error: 'not a pointer operation: ' , sel node: aMessageNode
 ! !
 
@@ -1115,7 +1118,7 @@ voidPointer
 
 !TCodeGenerator methodsFor: 'folding'!
 fold: aCExpr
-	"Constant folding with C semantics for integer and boolean constants."
+	"Constant folding with C semantics for integer and boolean constants; v == v and v !!= v fold too."
 	| op l r v type |
 	(aCExpr isKindOf: CUnary) ifTrue: [
 		aCExpr operand isConstant ifFalse: [^aCExpr].
@@ -1126,6 +1129,8 @@ fold: aCExpr
 		op = '~' ifTrue: [^self constant: (aCExpr type wrap: v bitInvert) type: aCExpr type].
 		^aCExpr].
 	(aCExpr isKindOf: CBinary) ifFalse: [^aCExpr].
+	((aCExpr operator = '==' or: [aCExpr operator = '!!=']) and: [self isSameVariable: aCExpr left as: aCExpr right]) ifTrue: [
+		^CConst value: aCExpr operator = '==' type: self boolType].
 	(aCExpr left isConstant and: [aCExpr right isConstant]) ifFalse: [^aCExpr].
 	l := aCExpr left value.
 	r := aCExpr right value.
@@ -1159,6 +1164,13 @@ constant: anInteger type: aCType
 	"A folded constant: it keeps aCType if it fits, else it widens (the simulator computes exactly)."
 	(aCType isInteger and: [aCType includes: anInteger]) ifTrue: [^CConst value: anInteger type: aCType].
 	^self integerConstant: anInteger hex: false
+!
+isSameVariable: a as: b
+	"Whether a and b read one integer or pointer variable, so a == b: not a double (NaN) nor an atomic (each read is an ordered load)."
+	| t |
+	(a isVariable and: [b isVariable and: [a name = b name]]) ifFalse: [^false].
+	t := self valueType: a.
+	^(t isInteger or: [t isPointerLike]) and: [(t name beginsWith: 'atomic') not]
 ! !
 
 !TCodeGenerator methodsFor: 'intrinsics'!

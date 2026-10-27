@@ -37,6 +37,8 @@ untag=-3
 twice=42
 hash=167703939
 loop=9
+same=2
+counted=6
 '
 ! !
 
@@ -60,6 +62,14 @@ testAnEditedClassInitializeIsTranslated
 			LowtalkSample class addSelector: #initialize withMethod: original.
 			LowtalkSample initialize].
 	self assert: (LowtalkSample classPool at: #TABLE_SIZE) equals: 8
+!
+testInlineArgumentsAndSelfComparisons
+	"An argument an inline method never reads gets no local (its effects stay); v = v of an integer or a pointer is true."
+	| c |
+	c := ((VMTranslator modules: {LowtalkSample} header: 'sample') translate detect: [:each | each key = 'lowtalk_sample.c']) value.
+	self deny: (c includesSubstring: 'unused').
+	self assert: (c includesSubstring: 'counter = counter + 1;
+    report("same", 2);')
 !
 testSampleInC
 	| run |
