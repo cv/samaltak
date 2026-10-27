@@ -71,8 +71,8 @@
   },
   {
     "id": "guest",
-    "caption": "The VM is written in Smalltalk: the VM Simulator boots a guest image on those very classes. Change the VM's banner, ⌘S: the guest's next line shows it.",
-    "spoken": "The VM's written in Smalltalk too, so here's Smalltalk running inside Smalltalk. The guest's VM is these classes, right here. I'll change its banner, save, and the guest picks it up on the next line."
+    "caption": "Smalltalk in Smalltalk: the VM Simulator boots a Smalltalk-80 image on the VM's own Smalltalk classes. 3 + 4 → 7; 100 factorial printString size → 158.",
+    "spoken": "The VM's written in Smalltalk, so here's Smalltalk running inside Smalltalk. A tiny Smalltalk-80, black and white, booted on the VM's own classes. Three plus four... seven. Something bigger... and its windows drag around, too."
   },
   {
     "id": "gc",

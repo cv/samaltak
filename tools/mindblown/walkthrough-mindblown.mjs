@@ -243,21 +243,31 @@ const beats = [
     act('click', `${mc}.close`); await sleep(600);
   }],
 
-  // 10. Smalltalk in Smalltalk: World menu › VM Simulator runs a guest image on the VM's own Smalltalk classes (the
-  // Lowtalk sources, simulated); System Browser › VM-Core › VMMain › banner gets a new text, ⌘S: the guest's next line
-  // shows it.
+  // 10. Smalltalk in Smalltalk: World menu › VM Simulator › Smalltalk-80 boots a small Smalltalk-80 image on the
+  // simulated VM (the VM's own Smalltalk classes, run as Smalltalk); its 640×400 1-bit screen is the tool's guest
+  // display. In its Workspace: 3 + 4 typed and printed, 100 factorial printString size printed; its ball window
+  // dragged. Guest pixels are addressed through the display (hover --at x,y answers the screen point).
   ['guest', async () => {
     act('click', DESK); await sleep(700);
     act('click', '@menu.vm-simulator');
     const sim = await S.win(/VM Simulator/);
     await sleep(400);
-    place(sim, 18, 525, 866, 359);
-    await sleep(300);
-    act('click', `${sim}.run`); await sleep(3000);
-    await browse('VM-Core', 'VMMain', 'banner');
-    await edit('Samaltak VM', 'Samaltak VM, edited live', 70);
-    expect(`${W.browser}.code`, "^'Samaltak VM, edited live'");
-    act('key', 'Meta+s', `${W.browser}.code`); await sleep(3500);
+    place(sim, 18, 41, 1404, 843);
+    await sleep(400);
+    act('click', `${sim}.st80`);
+    // the guest display appears with the guest, its first frame a moment later
+    const shown = () => ctl('snapshot', sim, '--depth', '1').split('\n').some(l => l.includes('.screen ') && / frames=[1-9]/.test(l));
+    for (const t = Date.now(); !shown(); await sleep(100))
+      if (Date.now() - t > 15000) throw new Error('the Smalltalk-80 guest shows no frames');
+    await sleep(1800);
+    const screen = `${sim}.screen`;
+    const pixel = (x, y) => JSON.parse(ctl('hover', screen, '--at', `${x},${y}`)).at.join(',');
+    act('click', pixel(20, 195)); await sleep(300);    // the Workspace's empty last line
+    act('type', screen, '3 + 4', '--delay', '130'); await sleep(5 * 130 + 500);
+    act('key', 'Meta+p', screen); await sleep(1600);
+    act('click', pixel(200, 115)); await sleep(300);   // the line 100 factorial printString size
+    act('key', 'Meta+p', screen); await sleep(1800);
+    act('drag', pixel(390, 199), '-230', '25'); await sleep(2200);   // the ball window, by its title tab
   }],
   // 11. The GC is Smalltalk too (VM-Core › GarbageCollector): TENURE_AGE := 0 promotes every survivor of a scavenge
   // (2: those that survive two). World menu › Rebuild VM & reboot: the VM is translated to C (the translation runs
