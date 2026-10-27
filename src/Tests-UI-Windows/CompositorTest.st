@@ -77,6 +77,20 @@ testFrameRecordsAreRecorded
 	self assert: ((frames select: [:f | f gpu > 0]) allSatisfy: [:f | f gpu < 1000000]).
 	self assert: (world topBar statsText includesSubstring: 'fps')
 !
+testTopBarStatsAfterTheClockStartsAgain
+	"After a restart the microsecond clock starts again: the top bar forgets the frames before and its numbers go on (they were frozen until the new clock passed the old one)."
+	| bar now |
+	bar := TopBar world: world.
+	now := 1000000000.
+	1 to: 64 do: [:i | bar noteFrame: 2000 end: now + (i * 16667)].
+	"twice: a first update may only notice the REMOTE and SLOW tags"
+	bar updateAt: now + (64 * 16667); updateAt: now + (64 * 16667).
+	self assert: (bar statsText beginsWith: '16.7 ms 60 fps').
+	now := 1000000.
+	1 to: 64 do: [:i | bar noteFrame: 2000 end: now + (i * 33334)].
+	bar updateAt: now + (64 * 33334); updateAt: now + (64 * 33334).
+	self assert: (bar statsText beginsWith: '33.3 ms 30 fps')
+!
 testOpenAndCloseAnimations
 	| w layer |
 	w := Window new title: 'Animated'; content: RecordingTestView new; bounds: (100 @ 100 extent: 300 @ 200); yourself.

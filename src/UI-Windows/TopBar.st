@@ -49,8 +49,9 @@ resetFonts
 
 !TopBar methodsFor: 'statistics'!
 noteFrame: costMicros end: endMicros
-	"A frame was presented at endMicros: note the frame time (ms since the previous frame; costMicros is the compositor's work for it)."
+	"A frame was presented at endMicros: note the frame time (ms since the previous frame; costMicros is the compositor's work for it). The microsecond clock starts again with the image (a resumed snapshot, a rebuilt VM): the frames before are forgotten."
 	| previous |
+	(count > 0 and: [endMicros < (ends at: index)]) ifTrue: [self forgetFrames].
 	previous := count = 0 ifTrue: [endMicros - costMicros] ifFalse: [ends at: index].
 	index := index \\ 64 + 1.
 	costs at: index put: (endMicros - previous min: 1000000) / 1000.0.
@@ -59,6 +60,13 @@ noteFrame: costMicros end: endMicros
 !
 processCount: anInteger
 	processCount := anInteger
+!
+forgetFrames
+	costs := Array new: 64 withAll: 0.
+	ends := Array new: 64 withAll: 0.
+	index := 0.
+	count := 0.
+	lastUpdate := 0
 !
 updateAt: nowMicros
 	"Refresh the texts at most twice a second; answer whether they changed."
@@ -134,7 +142,7 @@ drawOn: c
 drawSparkOn: c in: r
 	| yOf prev n |
 	"0 … 33.4 ms (two frame budgets) bottom to top; a frame over 20 ms (a missed vsync) gets a dot"
-	yOf := [:v | r top + 15 - (((v max: 0) min: 33.4) / 33.4 * 14)].
+	yOf := [:v | r top + 15 - ((v min: 33.4) / 33.4 * 14)].
 	n := count min: 64.
 	n < 2 ifTrue: [^self].
 	prev := nil.
