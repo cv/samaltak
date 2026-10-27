@@ -27,8 +27,9 @@ serveLoop
 		ready wait]
 !
 service
-	"Accept pending clients and let each connection read and dispatch what arrived. Never waits."
+	"Accept pending clients and let each connection read and dispatch what arrived. Never waits. Not while the image runs its startup list (requests would see it half restored): I look again soon."
 	(socket isNil or: [socket isOpen not]) ifTrue: [^self].
+	Smalltalk isStartingUp ifTrue: [^self wakeIn: 20].
 	self acceptPending.
 	self connections do: [:each | each pump].
 	self connections do: [:each | each stepJob]
@@ -60,8 +61,10 @@ host
 	^host
 !
 useSemaphore: aSemaphore index: anIndex
+	"A wakeup due on the previous Semaphore would be lost: the next wakeIn: schedules one on aSemaphore."
 	ready := aSemaphore.
 	readyIndex := anIndex.
+	wakeAt := nil.
 	socket isNil ifFalse: [socket readSemaphore: aSemaphore index: anIndex].
 	self connections do: [:each | each socket readSemaphore: aSemaphore index: anIndex]
 !
