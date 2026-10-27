@@ -397,6 +397,10 @@ mouseDown: anEvent
 mouseUp: anEvent
 	^true
 !
+clickItemAt: aPoint
+	"The node's path of keys (it survives refreshes)."
+	^(self entryAt: aPoint) ifNotNil: [:e | ((self pathOf: e first) collect: [:each | each key]) asArray]
+!
 mouseMove: anEvent
 	self hoverAt: (self localEventPosition: anEvent).
 	^true

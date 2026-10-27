@@ -1,9 +1,9 @@
 Object subclass: #InputDispatcher
-	instanceVariableNames: 'world displayWindow process running semaphore semaphoreIndex buffer pointer modifiers gesture pressed captureWindow hoverWindow cursor idle lastMove tooltipAsked services standIn'
+	instanceVariableNames: 'world displayWindow process running semaphore semaphoreIndex buffer pointer modifiers gesture pressed captureWindow hoverWindow cursor idle lastMove tooltipAsked services standIn lastPress'
 	classVariableNames: ''
 	package: 'UI-Windows'!
 
-InputDispatcher comment: 'I am the input dispatcher: a Process at priority 60 that drains the platform''s events (real ones and those injected by remote control arrive the same way), tracks the pointer and modifiers, and routes each event: pointer events to the window under the pointer (or the one that has the pointer since a press), keys and text to the topmost overlay or the active window. I do the window manager''s work myself — raise and activate on press, drag by the title bar, resize from the edges and the corner (with resize cursors), close and collapse boxes, double-click to collapse, clicks on the desk — so it stays live while a window''s Process is busy. ⌘. is reserved: it calls World>>userInterrupt. Other input sources share my Process (addService:): remote control''s sockets signal my Semaphore and I service them after the platform''s events.'!
+InputDispatcher comment: 'I am the input dispatcher: a Process at priority 60 that drains the platform''s events (real ones and those injected by remote control arrive the same way), tracks the pointer and modifiers, counts multi-clicks (countClick:on:), and routes each event: pointer events to the window under the pointer (or the one that has the pointer since a press), keys and text to the topmost overlay or the active window. I do the window manager''s work myself — raise and activate on press, drag by the title bar, resize from the edges and the corner (with resize cursors), close and collapse boxes, double-click to collapse, clicks on the desk — so it stays live while a window''s Process is busy. ⌘. is reserved: it calls World>>userInterrupt. Other input sources share my Process (addService:): remote control''s sockets signal my Semaphore and I service them after the platform''s events.'!
 
 !InputDispatcher methodsFor: 'initialization'!
 setWorld: aWorld
@@ -182,14 +182,15 @@ pointerDown: anEvent
 	world hideTooltip.
 	tooltipAsked := true.
 	overlay := world overlayAt: p.
+	w := overlay ifNil: [world windowAt: p].
+	zone := w isNil ifFalse: [w zoneAt: p].
+	self countClick: anEvent on: (Array with: w with: zone).
 	overlay isNil ifFalse: [
 		captureWindow := overlay.
 		^self send: anEvent to: overlay].
 	world overlays isEmpty ifFalse: [world closeMenus].
-	w := world windowAt: p.
 	w isNil ifTrue: [^world desktopClickedAt: p button: anEvent button].
 	world activate: w.
-	zone := w zoneAt: p.
 	(zone == #close or: [zone == #collapse]) ifTrue: [^pressed := Array with: w with: zone].
 	zone == #title ifTrue: [
 		anEvent clickCount = 2 ifTrue: [^w toggleCollapse].
@@ -199,6 +200,17 @@ pointerDown: anEvent
 	zone == #content ifTrue: [
 		captureWindow := w.
 		^self send: anEvent to: w]
+!
+countClick: aPress on: aTarget
+	"aPress is a further click of the previous press (its clickCount + 1) if the platform counted it as one (within its double-click interval), with the same button, at most clickRadius points away and on the same target ({window. zone}); else a single click. In a window's content the Window keeps it only on the same view and item."
+	| last |
+	last := lastPress.
+	aPress clickCount: ((aPress clickCount > 1 and: [last notNil and: [last last = aTarget
+			and: [last first button = aPress button
+			and: [(last first globalPosition dist: aPress globalPosition) <= self class clickRadius]]]])
+		ifTrue: [last first clickCount + 1]
+		ifFalse: [1]).
+	lastPress := Array with: aPress with: aTarget
 !
 pointerMoved: anEvent
 	| p w zone |
@@ -336,6 +348,10 @@ handleText: anEvent
 !InputDispatcher class methodsFor: 'accessing'!
 priority
 	^60
+!
+clickRadius
+	"How far (points) a further click of a multi-click may be from the previous press; macOS: about 4–5."
+	^5
 ! !
 
 !InputDispatcher class methodsFor: 'instance creation'!

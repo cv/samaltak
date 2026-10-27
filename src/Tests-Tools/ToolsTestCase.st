@@ -69,6 +69,12 @@ click: aPoint
 	self inject: 2 at: aPoint button: 1 count: 1 modifiers: 0.
 	self inject: 3 at: aPoint button: 1 count: 1 modifiers: 0
 !
+click: aPoint platformCount: n
+	"A click the platform counted as the nth of a multi-click (within its double-click interval)."
+	self moveTo: aPoint.
+	self inject: 2 at: aPoint button: 1 count: n modifiers: 0.
+	self inject: 3 at: aPoint button: 1 count: n modifiers: 0
+!
 key: aKey modifiers: mods
 	| code |
 	code := UIEvent keyCodeFor: aKey.

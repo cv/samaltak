@@ -51,6 +51,15 @@ testClickOnRefGoesThroughInjectedInput
 	self assert: (v eventsOfType: #down) size equals: 1.
 	self assert: (v eventsOfType: #down) first position equals: v extent / 2
 !
+testDoubleClickOnRef
+	"samaltak-ctl dblclick: two presses at one point, the second a double click."
+	| v |
+	v := RecordingTestView new.
+	self open: v title: 'Remote' at: (100 @ 100 extent: 300 @ 200).
+	self send: ((self cmd: 'click') at: 'target' put: '@w1.view'; at: 'count' put: 2; yourself).
+	self settle.
+	self assert: ((v eventsOfType: #down) collect: [:e | e clickCount]) asArray equals: #(1 2)
+!
 testClickInSlowMotion
 	| v r start |
 	v := RecordingTestView new.

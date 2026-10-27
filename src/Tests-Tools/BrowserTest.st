@@ -3,7 +3,7 @@ ToolsTestCase subclass: #BrowserTest
 	classVariableNames: ''
 	package: 'Tests-Tools'!
 
-BrowserTest comment: 'I test the System Browser: navigating to a method as a user does, the breakpoint gutter (a real Breakpoint), accepting an edit (the method is recompiled, and written into a scratch copy of its source file; reverting restores the file byte for byte), syntax errors marked inline.'!
+BrowserTest comment: 'I test the System Browser: navigating to a method as a user does, the breakpoint gutter (a real Breakpoint), a double click on a method (its implementors; only on the same row), accepting an edit (the method is recompiled, and written into a scratch copy of its source file; reverting restores the file byte for byte), syntax errors marked inline.'!
 
 !BrowserTest methodsFor: 'running'!
 setUp
@@ -40,6 +40,25 @@ testBrowseToGcd
 	self assert: window title equals: 'System Browser: Integer'.
 	self assert: ((window content widgetNamed: 'status') fullText includesSubstring: 'Integer>>gcd:').
 	self assert: ((window content widgetNamed: 'status') fullText includesSubstring: 'Kernel-Numbers')
+!
+testDoubleClickBrowsesImplementorsOnlyOnTheSameRow
+	"Presses the platform counts as one multi-click: 4 points apart across the border of the rows #answer and #value, 6 points apart on #answer; then too slow."
+	| list r answer value |
+	self browseTo: ToolsTestFixture selector: #value.
+	list := browser methodList.
+	r := list rowRect: (list items indexOf: #answer).
+	self assert: (list rowRect: (list items indexOf: #value)) top equals: r bottom.
+	answer := list localToScreen: (r left + 60) @ (r bottom - 2).
+	value := answer + (0 @ 4).
+	self click: value platformCount: 1; click: answer platformCount: 2.
+	self click: answer platformCount: 1; click: answer + (6 @ 0) platformCount: 2.
+	self click: answer platformCount: 1; click: answer platformCount: 1.
+	self settle.
+	self assert: browser selectedSelector equals: #answer.
+	self assert: (self windowsOf: MethodBrowser) isEmpty description: 'a double click on another row, too far apart or too slow'.
+	self click: answer platformCount: 1; click: answer platformCount: 2.
+	self assert: (self waitFor: [(self windowsOf: MethodBrowser) notEmpty]) description: 'no implementors window'.
+	self assert: (self windowsOf: MethodBrowser) first title equals: 'Implementors of #answer'
 !
 testPackagesGroupedByLayer
 	| items layers |
