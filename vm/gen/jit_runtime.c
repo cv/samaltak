@@ -537,10 +537,11 @@ jit_method *jit_compile(oop m, int32_t md, bool want_notes)
     bool ok;
     int32_t err;
     uint64_t size;
+    int64_t dt;
     if (!jit_ensure_open()) {
         return (jit_method *)NULL;
     }
-    t0 = now_us();
+    t0 = thread_cpu_us();
     start = cache_top;
     map_count = 0;
     pthread_jit_write_protect_np(0);
@@ -565,6 +566,7 @@ jit_method *jit_compile(oop m, int32_t md, bool want_notes)
         pthread_jit_write_protect_np(1);
         sys_icache_invalidate((void *)start, 0);
         flush_pending = true;
+        sched_uncharge(thread_cpu_us() - t0);
         return (jit_method *)NULL;
     }
     if (ok && (err == ASM_OK)) {
@@ -579,6 +581,7 @@ jit_method *jit_compile(oop m, int32_t md, bool want_notes)
     sys_icache_invalidate((void *)start, size);
     if (h == NULL) {
         flush_pending = true;
+        sched_uncharge(thread_cpu_us() - t0);
         return (jit_method *)NULL;
     }
     if ((h != NULL) && ((h->flags & JM_FAILED) == 0)) {
@@ -586,7 +589,9 @@ jit_method *jit_compile(oop m, int32_t md, bool want_notes)
         stat_bytecodes = stat_bytecodes + (uint64_t)bc_size;
         stat_code_bytes = stat_code_bytes + h->code_size;
     }
-    stat_compile_us = stat_compile_us + (uint64_t)(now_us() - t0);
+    dt = thread_cpu_us() - t0;
+    stat_compile_us = stat_compile_us + (uint64_t)dt;
+    sched_uncharge(dt);
     return h;
 }
 

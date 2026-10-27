@@ -38,7 +38,6 @@ static int64_t priority_of(oop p);
 static int64_t raw_now_us(void);
 static oop remove_first_link(oop list);
 static void signal_index(int index);
-static int64_t thread_cpu_us(void);
 static void tick_arm(int ident, int64_t us, bool periodic);
 static void tick_set_idle(bool idle);
 static void tick_update(void);
@@ -531,7 +530,7 @@ void suspend_active(void)
 }
 
 /* Scheduler>>threadCpuUs */
-static int64_t thread_cpu_us(void)
+int64_t thread_cpu_us(void)
 {
     struct timespec local;
     struct timespec *ts;
@@ -722,5 +721,11 @@ static void transfer_to_highest(void)
         }
         idle_wait();
     }
+}
+
+/* Scheduler>>uncharge: */
+void sched_uncharge(int64_t us)
+{
+    last_switch_us = last_switch_us + us;
 }
 

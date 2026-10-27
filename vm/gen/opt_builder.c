@@ -99,6 +99,10 @@ static int32_t opt_analysis_of(oop m)
     int32_t pc_3;
     int32_t t;
     int32_t pc_4;
+    uint8_t *p;
+    int32_t r_special_index_of;
+    uint8_t op;
+    int32_t k;
     for (i = 0; i <= ob_ana_count - 1; i++) {
         if (ob_ana_methods[i] == m) {
             return ob_ana_bases[i];
@@ -148,7 +152,29 @@ static int32_t opt_analysis_of(oop m)
     ob_ana_bases[ob_ana_count] = base;
     ob_ana_float[ob_ana_count] = false;
     for (pc_4 = 0; pc_4 <= n - 1; pc_4++) {
-        if ((fb_flags_at(m, pc_4) & FB_FLOAT) != 0) {
+        if (((ob_ana_flag[base + pc_4] & OA_START) != 0) && ({
+    p = ana_bcs + pc_4;
+    ((k = ({
+    op = p[0];
+    if ((op >= 0xA0) && (op < 0xC0)) {
+        r_special_index_of = (int32_t)(op - 0xA0);
+        goto exit_special_index_of;
+    }
+    if ((op >= 0x97) && (op <= 0x99)) {
+        r_special_index_of = (int32_t)(p[3] - 0xA0);
+        goto exit_special_index_of;
+    }
+    if ((op >= 0x9A) && (op < 0xA0)) {
+        r_special_index_of = (int32_t)(op - 0x9A);
+        goto exit_special_index_of;
+    }
+    if ((op >= 0xF0) && (op < 0xFC)) {
+        r_special_index_of = (int32_t)((op - 0xF0) % 6);
+        goto exit_special_index_of;
+    }
+    r_special_index_of = -1;
+exit_special_index_of:;
+    r_special_index_of; })) >= 0) && ((k <= 9) && ((fb_flags_at(m, pc_4) & FB_FLOAT) != 0)); })) {
             ob_ana_float[ob_ana_count] = true;
         }
     }

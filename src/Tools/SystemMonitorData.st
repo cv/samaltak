@@ -60,6 +60,8 @@ sample
 	s setAllocated: (delta value: 8) scavenges: (delta value: 1) micros: (delta value: 3) fullGCs: (delta value: 2) micros: (delta value: 4).
 	edenFill := self edenFillAfter: s size: (counters at: 7).
 	s setOld: (counters at: 5) budget: (counters at: 6) edenSize: (counters at: 7) fill: edenFill.
+	"the JIT's compiling is charged to no Process"
+	ended := ended + (delta value: 17).
 	s setCpu: pairs asArray idle: (now - lastTime - sum - ended max: 0) unaccounted: ended.
 	lastCounters := counters.
 	lastCpu := cpu.

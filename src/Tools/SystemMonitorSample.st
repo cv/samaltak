@@ -3,7 +3,7 @@ Object subclass: #SystemMonitorSample
 	classVariableNames: ''
 	package: 'Tools'!
 
-SystemMonitorSample comment: 'I am one sample of the System Monitor: the interval (µs) ending at time, the heap gauges at time (old space in use and its budget, eden''s size and estimated fill), what happened in the interval (bytes allocated, scavenges and full GCs with their pauses) and the CPU the Processes used in it (cpu: Process, µs pairs of those that ran, the idle Process aside; unaccounted: the µs of Processes that ended; idle: the rest).'!
+SystemMonitorSample comment: 'I am one sample of the System Monitor: the interval (µs) ending at time, the heap gauges at time (old space in use and its budget, eden''s size and estimated fill), what happened in the interval (bytes allocated, scavenges and full GCs with their pauses) and the CPU the Processes used in it (cpu: Process, µs pairs of those that ran, the idle Process aside; unaccounted: the µs of Processes that ended and of the JIT compiling; idle: the rest).'!
 
 !SystemMonitorSample methodsFor: 'accessing'!
 time

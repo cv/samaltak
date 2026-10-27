@@ -274,7 +274,7 @@ testStackPrimitiveMatchesFallback
 	sem signal
 !
 testCpuMicroseconds
-	| p before t busy |
+	| p before t ct busy |
 	p := Processor activeProcess.
 	before := p cpuMicroseconds.
 	"Processes are charged CPU time: on a loaded machine 20 ms of it take longer."
@@ -282,7 +282,9 @@ testCpuMicroseconds
 	[p cpuMicroseconds - before < 20000 and: [Time millisecondClockValue - t < 10000]] whileTrue: [300 factorial].
 	"cpuTime only advances at process switches; cpuMicroseconds includes the running slice."
 	self assert: p cpuMicroseconds - before >= 20000.
-	self assert: p cpuMicroseconds >= p cpuTime.
+	"cpuTime first: a switch between the two reads advances it"
+	ct := p cpuTime.
+	self assert: p cpuMicroseconds >= ct.
 	busy := self fork: #floatLoop named: 'floats'.
 	self assert: (self waitFor: [busy cpuMicroseconds > 20000] timeout: 10000).
 	busy suspend.

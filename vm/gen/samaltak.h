@@ -1645,6 +1645,8 @@ void set_sampler(int64_t interval_us, int sema);
 void set_timer(int64_t ms);
 void signal_external_semaphore(int index);
 void suspend_active(void);
+int64_t thread_cpu_us(void);
+void sched_uncharge(int64_t us);
 void prim_flush_cache_for_selector(void);
 void prim_flush_method_cache(void);
 void prim_gc(void);

@@ -95,6 +95,11 @@ threadCpuUs
 	ts := self local: 'Timespec'.
 	posix clockGettime: posix CLOCK_THREAD_CPUTIME_ID into: ts.
 	^(ts tv_sec * 1000000) + (ts tv_nsec quo: 1000)
+!
+uncharge: us
+	"The running Process is not charged us of the VM's own work (the JIT compiling)."
+	<c: 'void sched_uncharge(int64_t us)'>
+	lastSwitchUs := lastSwitchUs + us
 ! !
 
 !Scheduler methodsFor: 'interrupts'!
