@@ -1,5 +1,5 @@
 Object subclass: #VMSimulation
-	instanceVariableNames: 'memory modules libraries functionPointers primitiveTable primitiveCount stdout stderr stdoutFile stderrFile exitCode environment arguments outputListener bytecodes clock clockOffset variableIndexes'
+	instanceVariableNames: 'memory modules libraries functionPointers primitiveTable primitiveCount stdout stderr stdoutFile stderrFile exitCode environment arguments outputListener bytecodes clock clockOffset variableIndexes display'
 	classVariableNames: ''
 	package: 'VM-Lowtalk'!
 
@@ -98,6 +98,13 @@ arguments
 !
 arguments: anArrayOfStrings
 	arguments := anArrayOfStrings
+!
+display
+	"The screen the guest display (GuestDisplay) draws on, or nil."
+	^display
+!
+display: aScreen
+	display := aScreen
 !
 bytecodes
 	"How many bytecodes the simulated interpreter has dispatched."

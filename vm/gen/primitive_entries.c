@@ -123,6 +123,13 @@ primitive_entry vm_primitive_table[] = {
     {182, 2, "jitSendSites", prim_jit_send_sites},
     {198, 2, "ensureMarker", prim_ensure_marker},
     {199, 2, "onDoMarker", prim_on_do_marker},
+    {200, 2, "displayOpen", prim_display_open},
+    {201, 3, "displayFill", prim_display_fill},
+    {202, 3, "displayCopy", prim_display_copy},
+    {203, 3, "displayText", prim_display_text},
+    {204, 3, "displayBits", prim_display_bits},
+    {205, 3, "displayNextEvent", prim_display_next_event},
+    {206, 3, "displayFlush", prim_display_flush},
 #ifndef SAMALTAK_NO_PLATFORM
     {400, 2, "windowOpen", prim_window_open},
 #endif
