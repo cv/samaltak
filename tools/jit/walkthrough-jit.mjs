@@ -113,7 +113,12 @@ async function browse(pkg, cls, selector) {
 }
 let T1 = null, T2 = null, FB = null, MC = null, MO = null;
 const pick = async (column, name, ms = 500) => { act('select', `${FB}.column-${column}`, name); await sleep(ms); };
-const lapsDone = ref => text(ref).includes('steady_ms');
+// A Terminal's race is over once awfy.sh printed its summary row; a failed run stops the recording.
+const lapsDone = ref => {
+  const t = text(ref);
+  if (/FAILED|ERROR/.test(t)) throw new Error(`the race failed:\n${t}`);
+  return /^# Mandelbrot +1 /m.test(t);
+};
 
 // ---------------------------------------------------------------- beats
 const beats = [
