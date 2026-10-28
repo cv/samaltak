@@ -1,5 +1,5 @@
 OptModule subclass: #OptBuilder
-	instanceVariableNames: 'ir obCurBlock obBailed obVarTop obDefKeys obDefVals obDefCount obIncPhis obIncVars obIncCount obAnaMethods obAnaBases obAnaCount obAnaTop obAnaDepth obAnaFlag obAnaBack obPcBlocks obPcbTop obEntryBlock obRootMethod obInlined obDeps obDepCount obPrimKinds obPrimsKnown obNoInline obNoInlineCount obArgVals obArgFlags obUnitStart obOsrPc obParamSlots obValidSlots obSafeEpoch obAnaFloat obResident obChecked obCheckedCount obCheckedBlock obCheckedEpoch'
+	instanceVariableNames: 'ir obCurBlock obBailed obVarTop obDefKeys obDefVals obDefCount obIncPhis obIncVars obIncCount obAnaMethods obAnaBases obAnaCount obAnaTop obAnaDepth obAnaFlag obAnaBack obPcBlocks obPcbTop obEntryBlock obRootMethod obInlined obDeps obDepCount obPrimKinds obPrimsKnown obNoInline obNoInlineCount obArgVals obArgFlags obUnitStart obOsrPc obParamSlots obValidSlots obSafeEpoch obAnaFloat obResident obChecked obCheckedCount obCheckedBlock obCheckedEpoch obFrame obSpecParam obSpecInfo obSpecCount'
 	classVariableNames: 'OA_BLOCK OA_LOOP OA_START OA_TARGET OPT_MAX_VARS OPT_MAX_NOINLINE OPT_MAX_PRIM OPK_AT OPK_FLOAT OPK_FSQRT OPK_NEW OPK_NEWSIZE OPK_CLOSURE OPK_ATPUT OPK_CLASS OPK_IDENTICAL OPK_INT OPK_SIZE OPK_STRINGAT OPK_STRINGATPUT OPT_INLINE_BUDGET OPT_INLINE_DEPTH OPT_INLINE_SIZE OPT_MAX_ANA OPT_MAX_DEPS OPT_MAX_INC OPK_CHARVALUE OPK_CHARFROM'
 	package: 'VM-Jit'!
 
@@ -14,7 +14,7 @@ declarations
 		(obAnaDepth 'int16_t[OPT_ANA_MAX]') (obAnaFlag 'uint8_t[OPT_ANA_MAX]') (obAnaBack 'int32_t[OPT_ANA_MAX]')
 		(obPcBlocks 'int32_t[OPT_PCB_MAX]') (obPcbTop int32_t) (obEntryBlock int32_t) (obRootMethod oop)
 		(obInlined int32_t) (obDeps 'oop[OPT_MAX_DEPS]') (obDepCount int32_t) (obPrimKinds 'uint8_t[OPT_MAX_PRIM]') (obPrimsKnown bool)
-		(obNoInline 'oop[OPT_MAX_NOINLINE]') (obNoInlineCount int32_t) (obArgVals 'int32_t[OPT_MAX_VARS]') (obArgFlags 'uint8_t[OPT_MAX_VARS]') (obUnitStart int32_t) (obOsrPc int32_t) (obParamSlots int32_t) (obValidSlots int32_t) (obSafeEpoch int32_t) (obAnaFloat 'bool[OPT_MAX_ANA]') (obResident bool) (obChecked 'int32_t[8]') (obCheckedCount int32_t) (obCheckedBlock int32_t) (obCheckedEpoch int32_t))
+		(obNoInline 'oop[OPT_MAX_NOINLINE]') (obNoInlineCount int32_t) (obArgVals 'int32_t[OPT_MAX_VARS]') (obArgFlags 'uint8_t[OPT_MAX_VARS]') (obUnitStart int32_t) (obOsrPc int32_t) (obParamSlots int32_t) (obValidSlots int32_t) (obSafeEpoch int32_t) (obAnaFloat 'bool[OPT_MAX_ANA]') (obResident bool) (obChecked 'int32_t[8]') (obCheckedCount int32_t) (obCheckedBlock int32_t) (obCheckedEpoch int32_t) (obFrame 'Frame *') (obSpecParam 'int32_t[8]') (obSpecInfo 'int32_t[8]') (obSpecCount int32_t))
 !
 initialize
 	OPT_MAX_INC := 16384.
@@ -98,6 +98,7 @@ buildOnce: m
 	obDepCount := 0.
 	obSafeEpoch := 0.
 	obCheckedBlock := -1.
+	obSpecCount := 0.
 	a := obUnitStart > 0 ifTrue: [self newBlockActFor: m start: obUnitStart] ifFalse: [self newActFor: m].
 	a < 0 ifTrue: [^false].
 	obEntryBlock := ir newBlock.
@@ -135,7 +136,8 @@ buildOsr: a
 	0 to: obValidSlots - 1 do: [:i |
 		i < (ir act: a) numArgs
 			ifTrue: [self writeArg: (self var: a slot: i) value: (self param: i)]
-			ifFalse: [(obArgFlags at: (self var: a slot: i)) = 2 ifFalse: [self write: (self var: a slot: i) value: (self param: i)]]].
+			ifFalse: [(obArgFlags at: (self var: a slot: i)) = 2 ifFalse: [self write: (self var: a slot: i) value: (self param: i)]].
+		self noteClosureIn: i act: a].
 	b := self blockAt: obOsrPc act: a.
 	self goto: b.
 	self buildAct: a.
@@ -164,6 +166,59 @@ markResident: a
 			n := n + 1].
 		pc := (pc + (analysis lengthOf: op)) asInt32]
 !
+noteClosureIn: i act: a
+	"On-stack replacement: frame slot i holds a closure this frame made (its outerContext the frame's Context): value sends to what the slot holds may inline its body (inlineFrameClosure:info:pc:act:rcvSlot:argc:). Its description is an O_CLOSURE node in no block."
+	| v d pc bcs |
+	(obFrame isNull or: [obFrame ctx = memory nilOop or: [obSpecCount >= 8]]) ifTrue: [^self].
+	(i >= (ir act: a) numArgs and: [(obArgFlags at: (self var: a slot: i)) = 2]) ifTrue: [^self].
+	v := obFrame fp at: i.
+	((self isPtr: v) and: [(self rawClass: v) = memory clsBlock and: [(self loadRef: v at: BC_OUTER) = obFrame ctx]]) ifFalse: [^self].
+	pc := (self intVal: (self loadRef: v at: BC_STARTPC)) asInt32 - 6.
+	bcs := self methodBytecodes: (ir act: a) method.
+	(pc >= 0 and: [(bcs at: pc) = 16r8F]) ifFalse: [^self].
+	d := ir newNode: O_CLOSURE rep: R_OOP.
+	(ir node: d) aux: pc + 6.
+	(ir node: d) aux2: (((((bcs at: pc + 1) asInt64 bitOr: (bcs at: pc + 2) asInt64 << 8) bitOr: (bcs at: pc + 3) asInt64 << 16)) bitOr: a asInt64 << 32).
+	obSpecParam at: obSpecCount put: (self var: a slot: i).
+	obSpecInfo at: obSpecCount put: d.
+	obSpecCount := obSpecCount + 1
+!
+frameClosureOf: v numArgs: n pc: pc act: a
+	"The description of the closure v may be: v is what a frame slot that held one the frame made holds now (noteClosureIn:act:), and it takes n arguments; -1 if none, or if a guard of such a closure failed at pc before."
+	<c: 'int32_t opt_frame_closure_of(int32_t v, int32_t n, int32_t pc, int32_t a)'>
+	| x |
+	(runtime flag: runtime blocksFlag) ifFalse: [^-1].
+	((feedback flagsAt: (ir act: a) method pc: pc) bitAnd: feedback deoptOther) ~= 0 ifTrue: [^-1].
+	x := ir resolve: v.
+	0 to: obSpecCount - 1 do: [:i |
+		(((ir node: (obSpecInfo at: i)) aux2 bitAnd: 255) = n and: [(ir resolve: (self read: (obSpecParam at: i))) = x]) ifTrue: [^obSpecInfo at: i]].
+	^-1
+!
+inlineFrameClosure: x info: d pc: pc act: a rcvSlot: r argc: argc
+	"x is a closure the frame made at d's startpc (its outerContext the frame's Context): guarded (class, startpc, outerContext; else deoptimize), its body inlined as if this code had made it."
+	<c: 'void opt_inline_frame_closure(int32_t x, int32_t d, int32_t pc, int32_t a, int32_t r, int32_t argc)'>
+	| s g |
+	s := self stateAct: a pc: pc depth: (self depthAt: pc act: a).
+	g := self guard: x class: memory clsBlock state: s.
+	self deoptUnless: (self binary: O_EQ a: (self loadField: BC_STARTPC of: g) b: (self constant: (self intOop: (ir node: d) aux))) act: a state: s.
+	self deoptUnless: (self binary: O_EQ a: (self loadField: BC_OUTER of: g) b: (self param: -3)) act: a state: s.
+	self inlineBlock: g info: d pc: pc act: a rcvSlot: r argc: argc
+!
+deoptUnless: test act: a state: s
+	"Go on if test (a comparison) is true, else deoptimize."
+	| t f |
+	(ir node: test) tkind: T_BOOL.
+	t := ir newBlock.
+	(ir block: t) act: a.
+	f := ir newBlock.
+	(ir block: f) act: a.
+	self branch: test true: t false: f.
+	self seal: t.
+	self seal: f.
+	obCurBlock := f.
+	self deoptAct: a state: s.
+	obCurBlock := t
+!
 homeSlot: i
 	"Slot i of the root activation's frame, as frame states see it (where it is, no value of its own)."
 	| n |
@@ -179,6 +234,14 @@ entryPc
 !
 isMethodUnit
 	^obOsrPc < 0 and: [obUnitStart = 0]
+!
+isEntryUnit
+	"A method's or a block's unit, entered at its start (not a loop's)."
+	^obOsrPc < 0
+!
+frame: f
+	"The frame a loop's unit is compiled for (on-stack replacement; null for others): closures it made may be inlined."
+	obFrame := f
 !
 paramSlots
 	"The frame's slots the code reads at its entry and keeps (home slots follow)."
@@ -779,11 +842,11 @@ isClosure: v numArgs: n
 	nd := ir node: (ir resolve: v).
 	^nd op asInt32 = O_CLOSURE and: [(nd aux2 bitAnd: 255) = n]
 !
-inlineBlock: c pc: pc act: a rcvSlot: r argc: argc
-	"Evaluate closure c (made in this compilation) here: its body as an activation whose outer activation is the one that made it."
-	<c: 'void opt_inline_block(int32_t c, int32_t pc, int32_t a, int32_t r, int32_t argc)'>
+inlineBlock: c info: d pc: pc act: a rcvSlot: r argc: argc
+	"Evaluate closure c here (made in this compilation, or by the frame: d describes it, an O_CLOSURE node): its body as an activation whose outer activation is the one that made it."
+	<c: 'void opt_inline_block(int32_t c, int32_t d, int32_t pc, int32_t a, int32_t r, int32_t argc)'>
 	| b ac def nd entry ret na nt fs size |
-	nd := ir node: c.
+	nd := ir node: d.
 	def := (nd aux2 >> 32) asInt32.
 	na := (nd aux2 bitAnd: 255) asInt32.
 	nt := ((nd aux2 >> 8) bitAnd: 255) asInt32.
@@ -1005,7 +1068,9 @@ special: k pc: pc act: a rcvSlot: r
 		self push: (self binary: (k = 19 ifTrue: [O_EQ] ifFalse: [O_NE]) a: x b: y) act: a depth: r.
 		^self].
 	((k = 21 or: [k = 22 or: [k = 30]]) and: [(runtime flag: runtime blocksFlag) and: [self isClosure: x numArgs: argc]]) ifTrue: [
-		^self inlineBlock: (ir resolve: x) pc: pc act: a rcvSlot: r argc: argc].
+		^self inlineBlock: (ir resolve: x) info: (ir resolve: x) pc: pc act: a rcvSlot: r argc: argc].
+	((k = 21 or: [k = 22 or: [k = 30]]) and: [(n := self frameClosureOf: x numArgs: argc pc: pc act: a) >= 0]) ifTrue: [
+		^self inlineFrameClosure: x info: n pc: pc act: a rcvSlot: r argc: argc].
 	k = 29 ifTrue: [
 		n := self add: O_CLASSOF rep: R_OOP.
 		(ir node: n) a: x.
@@ -1166,9 +1231,13 @@ guardInt: v state: s
 	^n
 !
 sendSelector: sel argc: argc kind: kind special: k pc: pc act: a rcvSlot: r
-	"A send: inlined (or called) for the receiver's class if it is known, for each class feedback saw (guarded), else through the runtime."
+	"A send: inlined (or called) for the receiver's class if it is known, for each class feedback saw (guarded), else through an inline cache."
+	| d |
 	((runtime flag: runtime blocksFlag) and: [(self isValueSelector: sel) and: [self isClosure: (self read: (self var: a slot: r)) numArgs: argc]]) ifTrue: [
-		self inlineBlock: (ir resolve: (self read: (self var: a slot: r))) pc: pc act: a rcvSlot: r argc: argc.
+		self inlineBlock: (ir resolve: (self read: (self var: a slot: r))) info: (ir resolve: (self read: (self var: a slot: r))) pc: pc act: a rcvSlot: r argc: argc.
+		^-1].
+	(((runtime flag: runtime blocksFlag) and: [self isValueSelector: sel]) and: [(d := self frameClosureOf: (self read: (self var: a slot: r)) numArgs: argc pc: pc act: a) >= 0]) ifTrue: [
+		self inlineFrameClosure: (self read: (self var: a slot: r)) info: d pc: pc act: a rcvSlot: r argc: argc.
 		^-1].
 	((runtime flag: runtime inlineFlag) and: [self inlineSend: sel argc: argc kind: kind special: k pc: pc act: a rcvSlot: r]) ifTrue: [^-1].
 	^self callSelector: sel argc: argc kind: kind special: k pc: pc act: a rcvSlot: r
@@ -1249,14 +1318,11 @@ send: sel to: rcv class: cls argc: argc kind: kind pc: pc act: a rcvSlot: r
 	(self canInline: m act: a) ifTrue: [
 		self inlineMethod: m receiverClass: cls pc: pc act: a rcvSlot: r argc: argc.
 		^true].
-	(self loadRef: m at: CM_PRIMITIVE) = (self intOop: 0) ifTrue: [
-		((runtime flag: runtime callsFlag) and: [runtime codeAddressOf: m]) ifTrue: [
-			"a direct call: the frame pushed inline, no lookup"
-			n := self callSelector: sel argc: argc kind: 0 special: 0 pc: pc act: a rcvSlot: r.
-			(ir node: n) op: O_CALL.
-			(ir node: n) tcls: m.
-			^true]].
-	self callSelector: sel argc: argc kind: (kind = 1 ifTrue: [1] ifFalse: [0]) special: 0 pc: pc act: a rcvSlot: r.
+	n := self callSelector: sel argc: argc kind: (kind = 1 ifTrue: [1] ifFalse: [0]) special: 0 pc: pc act: a rcvSlot: r.
+	((runtime flag: runtime callsFlag) and: [runtime codeAddressOf: m]) ifTrue: [
+		"a direct call of its baseline code's unchecked entry: no lookup, its primitive's machine code first"
+		(ir node: n) op: O_CALL.
+		(ir node: n) tcls: m].
 	^true
 !
 blockCall: sel argc: argc pc: pc act: a rcvSlot: r
@@ -1583,10 +1649,10 @@ depAt: i
 	^obDeps at: i
 !
 callSelector: sel argc: argc kind: kind special: k pc: pc act: a rcvSlot: r
-	"A send through the runtime: the result replaces the receiver."
+	"A send (an inline cache, OptCodegen>>emitSend:): the result replaces the receiver."
 	| n args |
 	(libc getenv: 'SAMALTAK_OPT_TRACE') notNull ifTrue: [
-		libc fprintf: libc stderr format: 'opt: runtime send at pc %d of act %d: ' with: pc with: a.
+		libc fprintf: libc stderr format: 'opt: call at pc %d of act %d: ' with: pc with: a.
 		interpreter printSymbol: sel on: libc stderr.
 		libc fputc: 10 to: libc stderr].
 	n := self add: O_SEND rep: R_OOP.

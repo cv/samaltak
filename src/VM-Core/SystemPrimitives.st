@@ -64,7 +64,7 @@ primScavenge
 primVMStats
 	<vmPrimitive: 164 name: 'vmStats'>
 	| v a |
-	v := self local: 'int64_t[39]'.
+	v := self local: 'int64_t[40]'.
 	v at: 0 put: gc statScavenges asInt64.
 	v at: 1 put: gc statFullGcs asInt64.
 	v at: 2 put: gc statScavengeUs asInt64.
@@ -90,9 +90,9 @@ primVMStats
 	v at: 22 put: jit statOsr asInt64.
 	v at: 23 put: jit statFailed asInt64.
 	0 to: 6 do: [:i | v at: 24 + i put: (jit baselineStat: i asInt32) asInt64].
-	0 to: 7 do: [:i | v at: 31 + i put: (jit optStat: i asInt32)].
-	a := memory allocObj: memory clsArray format: F_VAR slots: 39.
-	0 to: 38 do: [:i | (self slotsOf: a) at: i put: (self intOop: (v at: i))].
+	0 to: 8 do: [:i | v at: 31 + i put: (jit optStat: i asInt32)].
+	a := memory allocObj: memory clsArray format: F_VAR slots: 40.
+	0 to: 39 do: [:i | (self slotsOf: a) at: i put: (self intOop: (v at: i))].
 	self answer: a
 !
 primFlushMethodCache

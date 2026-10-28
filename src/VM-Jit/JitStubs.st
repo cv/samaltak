@@ -1,5 +1,5 @@
 JitCompiler subclass: #JitStubs
-	instanceVariableNames: 'exitPlainAddr interruptStub closureStub makeArrayStub widowStub barrierStub tierUpStub optSendStub optDeoptStub optDeoptReturnStub optStackFullStub optReturnStub blEnter blExitSync blMiss blBlock blMega blEntrySlow blPrim blRemember blReturnSlow blBox symbolAddrs symbolNames symbolCount'
+	instanceVariableNames: 'exitPlainAddr interruptStub closureStub makeArrayStub widowStub barrierStub tierUpStub optDeoptStub optDeoptReturnStub optStackFullStub optReturnStub blEnter blExitSync blMiss blBlock blMega blEntrySlow blPrim blRemember blReturnSlow blBox blSent symbolAddrs symbolNames symbolCount'
 	classVariableNames: 'STUB_MAX_SYMBOLS'
 	package: 'VM-Jit'!
 
@@ -13,8 +13,8 @@ One stub per runtime function (ldr x16, =function; br x16), so that compiled cod
 declarations
 	^#((exitPlainAddr uint64_t)
 		(interruptStub uint64_t) (closureStub uint64_t) (makeArrayStub uint64_t)
-		(widowStub uint64_t) (barrierStub uint64_t) (tierUpStub uint64_t) (optSendStub uint64_t) (optDeoptStub uint64_t) (optDeoptReturnStub uint64_t) (optStackFullStub uint64_t) (optReturnStub uint64_t)
-		(blEnter uint64_t) (blExitSync uint64_t) (blMiss uint64_t) (blBlock uint64_t) (blMega uint64_t) (blEntrySlow uint64_t) (blPrim uint64_t) (blRemember uint64_t) (blReturnSlow uint64_t) (blBox uint64_t)
+		(widowStub uint64_t) (barrierStub uint64_t) (tierUpStub uint64_t) (optDeoptStub uint64_t) (optDeoptReturnStub uint64_t) (optStackFullStub uint64_t) (optReturnStub uint64_t)
+		(blEnter uint64_t) (blExitSync uint64_t) (blMiss uint64_t) (blBlock uint64_t) (blMega uint64_t) (blEntrySlow uint64_t) (blPrim uint64_t) (blRemember uint64_t) (blReturnSlow uint64_t) (blBox uint64_t) (blSent uint64_t)
 		(symbolAddrs 'uint64_t[STUB_MAX_SYMBOLS]') (symbolNames 'const char *[STUB_MAX_SYMBOLS]') (symbolCount int32_t))
 !
 initialize
@@ -48,9 +48,6 @@ barrierStub
 !
 tierUpStub
 	^tierUpStub
-!
-optSendStub
-	^optSendStub
 !
 optDeoptStub
 	^optDeoptStub
@@ -87,6 +84,10 @@ blReturnSlowStub
 !
 blBoxStub
 	^blBox
+!
+blSentStub
+	"A ret: where a call continues whose send the runtime completed (the result in the receiver's slot, which the miss and entry stubs load into x0)."
+	^blSent
 !
 symbolCount
 	^symbolCount
@@ -171,7 +172,6 @@ generate
 	barrierStub := self stub: runtime writeBarrierFunction named: 'write barrier'.
 	self generateBaseline.
 	tierUpStub := self stub: runtime tierUpFunction named: 'tier up'.
-	optSendStub := self stub: runtime optSendFunction named: 'optimized send'.
 	optDeoptReturnStub := self stub: runtime optDeoptReturnFunction named: 'deoptimize after a send'.
 	optStackFullStub := self stub: runtime optStackFullFunction named: 'no room for the frame'.
 	optDeoptStub := self dumpingStub: runtime optDeoptFunction named: 'deoptimize'.
@@ -302,7 +302,8 @@ generateBaseline
 	asm ldp: X29 with: X30 base: SP postIndex: 16.
 	self emitContinueOrExit: exit.
 	blEntrySlow := self symbol: 'baseline entry slow path'.
-	"x10 where to retry, x30 back to the send: the stack is full or an interrupt is pending"
+	"x10 where to retry, x30 back to the send: the stack is full or an interrupt is pending; the runtime answers 0 (retry), 1 (leave) or where the call continues (a sender in optimized code)"
+	have := asm newLabel.
 	asm stp: X10 with: X30 base: SP preIndex: -16.
 	asm mov: X1 with: X30.
 	asm mov: X0 with: X19.
@@ -311,6 +312,9 @@ generateBaseline
 	asm ldp: X10 with: X30 base: SP postIndex: 16.
 	asm cmp: X0 imm: 1.
 	asm b: exit if: COND_EQ.
+	asm cbz: X0 to: have.
+	asm mov: X10 with: X0.
+	asm bind: have.
 	self emitReloadPinned.
 	asm ldur: X0 base: X20 offset: -8.
 	asm br: X10.
@@ -359,7 +363,9 @@ generateBaseline
 	asm ldp: X0 with: X1 base: SP postIndex: 144.
 	asm ret.
 	blReturnSlow := self stub: brt returnSlowFunction named: 'baseline return slow path'.
-	blBox := self stub: brt boxFunction named: 'baseline box Float'
+	blBox := self stub: brt boxFunction named: 'baseline box Float'.
+	blSent := self symbol: 'sent by the runtime'.
+	asm ret
 !
 emitContinueOrExit: exit
 	"x0: 1 leave, else the code to continue at with the receiver in x0 again (x30 back to the send)."

@@ -3,7 +3,7 @@
 #include "samaltak.h"
 
 static bool cache_opened;
-uint64_t entry_cells[131072];
+bool copying;
 bool flush_pending;
 uint64_t invalidations;
 int64_t jit_cache_mb = 64LL;
@@ -41,9 +41,9 @@ static uint64_t jit_activate(oop m, frame *f, int32_t n, int32_t ecode, uint64_t
 static jit_method *jit_failed_header(oop m);
 static jit_method *jit_finish(oop m, uint64_t start, int32_t md);
 static void jit_flush(void);
-static uint64_t jit_leave(frame *f, int64_t pc, int64_t n);
 static bool jit_no_opt_frames(void);
 static void jit_refresh_state(void);
+static int64_t jit_slot_of(oop m);
 
 /* JitRuntime>>activate:frame:argc:ecode:code: */
 static uint64_t jit_activate(oop m, frame *f, int32_t n, int32_t ecode, uint64_t hint)
@@ -446,16 +446,12 @@ void jit_code_changed(oop m)
     jit_method *h;
     jit_method *r_best;
     jit_method *o;
-    jit_method *h_2;
-    jit_method *h_3;
-    jit_method *r_best_2;
-    jit_method *o_2;
     i = jit_slot_of(m);
     if (i < 0) {
         return;
     }
     h = method_table[i];
-    h_2 = ({
+    bl_redirect(method_table[i], ({
     if ((h->opt == 0) || (jit_mode != JIT_OPT)) {
         r_best = h;
         goto exit_best;
@@ -467,23 +463,7 @@ void jit_code_changed(oop m)
     }
     r_best = h;
 exit_best:;
-    r_best; });
-    entry_cells[2 * i] = h_2->start - JIT_PROLOGUE_BYTES;
-    entry_cells[2 * i + 1] = (uint64_t)h_2;
-    h_3 = method_table[i];
-    bl_redirect(method_table[i], ({
-    if ((h_3->opt == 0) || (jit_mode != JIT_OPT)) {
-        r_best_2 = h_3;
-        goto exit_best_2;
-    }
-    o_2 = (jit_method *)h_3->opt;
-    if ((o_2 != NULL) && ((o_2->flags & JM_FAILED) == 0) && ((o_2->flags & JM_DEAD) == 0)) {
-        r_best_2 = o_2;
-        goto exit_best_2;
-    }
-    r_best_2 = h_3;
-exit_best_2:;
-    r_best_2; }));
+    r_best; }));
 }
 
 /* JitRuntime>>codeOf:counting: */
@@ -620,10 +600,6 @@ jit_method *jit_compile_install(oop m)
     }
     method_table[i] = h;
     table_count = table_count + 1;
-    if ((h != NULL) && ((h->flags & JM_FAILED) == 0)) {
-        entry_cells[2 * i] = h->start - JIT_PROLOGUE_BYTES;
-        entry_cells[2 * i + 1] = (uint64_t)h;
-    }
     o_2 = h->method;
     if ((uint64_t)(o_2 - young_lo) < young_hi - young_lo) {
         if (young_count < JIT_MAX_YOUNG) {
@@ -940,16 +916,24 @@ static jit_method *jit_finish(oop m, uint64_t start, int32_t md)
     uint64_t q;
     int32_t i_5;
     int32_t i_6;
+    int32_t i_7;
+    baseline_site *site;
+    int32_t a_label_2;
+    int32_t a_label_3;
+    int32_t i_8;
     int64_t k;
     uint32_t pc;
     uint32_t off;
-    int64_t i_7;
+    int64_t i_9;
     int32_t r_unit_entry;
     hdr = (asm_pc + 7) & 18446744073709551608ULL;
     n = asm_note_count;
     size = hdr - start + sizeof(jit_method) + 8 * map_count + 20 * n + 8;
     if (md == JIT_OPT) {
-        size = size + (4 * (cg_sp_count + cg_meta_count + cg_dep_count) + 8);
+        size = size + (4 * (cg_sp_count + cg_meta_count + cg_dep_count) + 16 + 32 * cg_site_count + 12 * cg_ret_count);
+        if (!(oop_slot_count + cg_site_count <= BL_MAX_OOP_SLOTS)) {
+            return (jit_method *)NULL;
+        }
     }
     if (md == JIT_BASELINE) {
         size = size + (uint64_t)(32 * site_count + 12 * ret_count + 8 * block_count + 8);
@@ -1028,10 +1012,34 @@ exit_pool_offset:;
     for (i_6 = 0; i_6 <= cg_dep_count - 1; i_6++) {
         h->deps[i_6] = cg_deps[i_6];
     }
+    q = (q + 4 * cg_dep_count + 7) & 18446744073709551608ULL;
+    h->sites = (baseline_site *)q;
+    h->site_count = (uint32_t)cg_site_count;
+    for (i_7 = 0; i_7 <= cg_site_count - 1; i_7++) {
+        site = h->sites + i_7;
+        site->bl = cg_site_bl[i_7];
+        a_label_2 = cg_site_lit[i_7];
+        site->lit = (uint32_t)(asm_labels[a_label_2] - h->code_start);
+        site->info = cg_site_info[i_7];
+        site->pc = (uint16_t)cg_site_index[i_7];
+        site->depth = (uint16_t)cg_site_sel[i_7];
+        site->target = 0;
+        site->pic = 0;
+        a_label_3 = cg_site_lit[i_7];
+        bl_register_slot(asm_labels[a_label_3]);
+    }
+    q = q + 32 * cg_site_count;
+    h->rets = (uint32_t *)q;
+    h->ret_count = (uint32_t)cg_ret_count;
+    for (i_8 = 0; i_8 <= cg_ret_count - 1; i_8++) {
+        h->rets[3 * i_8] = cg_ret_off[i_8];
+        h->rets[3 * i_8 + 1] = (uint32_t)cg_ret_index[i_8];
+        h->rets[3 * i_8 + 2] = (uint32_t)cg_ret_argc[i_8];
+    }
     rt_stat_opt_compiled = rt_stat_opt_compiled + 1;
     rt_stat_opt_bytecodes = rt_stat_opt_bytecodes + (uint64_t)h->bc_size;
     rt_stat_opt_bytes = rt_stat_opt_bytes + (uint64_t)h->code_size;
-    r_write_extra = q + 4 * cg_dep_count;
+    r_write_extra = q + 12 * cg_ret_count;
     r_write_extra; });
     }
     if (md == JIT_BASELINE) {
@@ -1043,14 +1051,14 @@ exit_pool_offset:;
     for (k = 1; k <= (int64_t)h->map_count - 1; k++) {
         pc = h->map[2 * k];
         off = h->map[2 * k + 1];
-        i_7 = k - 1;
-        while ((i_7 >= 0) && (h->map[2 * i_7] > pc)) {
-            h->map[2 * i_7 + 2] = h->map[2 * i_7];
-            h->map[2 * i_7 + 3] = h->map[2 * i_7 + 1];
-            i_7 = i_7 - 1;
+        i_9 = k - 1;
+        while ((i_9 >= 0) && (h->map[2 * i_9] > pc)) {
+            h->map[2 * i_9 + 2] = h->map[2 * i_9];
+            h->map[2 * i_9 + 3] = h->map[2 * i_9 + 1];
+            i_9 = i_9 - 1;
         }
-        h->map[2 * i_7 + 2] = pc;
-        h->map[2 * i_7 + 3] = off;
+        h->map[2 * i_9 + 2] = pc;
+        h->map[2 * i_9 + 3] = off;
     }
     h->start = start + jit_map_offset(h, md == JIT_OPT ? ({
     if (rt_unit_osr > 0) {
@@ -1203,7 +1211,6 @@ void jit_kill(jit_method *h)
 {
     int32_t i;
     frame *f;
-    opt_clear_block_calls();
     pthread_jit_write_protect_np(0);
     h->method = nil_oop;
     h->flags = h->flags | JM_DEAD;
@@ -1227,7 +1234,7 @@ void jit_kill(jit_method *h)
 }
 
 /* JitRuntime>>leave:pc:sp: */
-static uint64_t jit_leave(frame *f, int64_t pc, int64_t n)
+uint64_t jit_leave(frame *f, int64_t pc, int64_t n)
 {
     uint64_t c;
     c = f->code;
@@ -1389,6 +1396,10 @@ int64_t jit_opt_stat(int32_t i)
 {
     int64_t r_stat;
     return ({
+    if (i == 8) {
+        r_stat = (int64_t)rt_stat_sends;
+        goto exit_stat;
+    }
     if (i == 0) {
         r_stat = (int64_t)rt_stat_opt_compiled;
         goto exit_stat;
@@ -1778,7 +1789,7 @@ bool jit_set_mode(int32_t m)
 }
 
 /* JitRuntime>>slotOf: */
-int64_t jit_slot_of(oop m)
+static int64_t jit_slot_of(oop m)
 {
     uint32_t i;
     jit_method *h;

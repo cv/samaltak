@@ -128,7 +128,7 @@ primJitCode
 	h := jit lookup: m.
 	scratch := ((jit hasCode: h) and: [h mode = md and: [jit hasNotes: h]]) not.
 	top := jit codeTop.
-	scratch ifTrue: [h := jit compile: m mode: md notes: true].
+	scratch ifTrue: [h := jit compileCopy: m mode: md].
 	(jit hasCode: h)
 		ifTrue: [self answer: (self listingOf: h mode: md)]
 		ifFalse: [self answer: memory nilOop].

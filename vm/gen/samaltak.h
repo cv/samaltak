@@ -117,6 +117,8 @@ typedef void (*prim_fn)(void);
 #define CG_MAX_MOVES 256
 #define CG_MAX_OUT 4096
 #define CG_MAX_POOL 1024
+#define CG_MAX_RETS 8192
+#define CG_MAX_SITES 4096
 #define CG_MAX_SP 4096
 #define CLS_CLASSPOOL 7
 #define CLS_INSTSIZE_MASK 65535
@@ -341,7 +343,6 @@ typedef void (*prim_fn)(void);
 #define OPK_STRINGAT 4
 #define OPK_STRINGATPUT 5
 #define OPT_ANA_MAX 65536
-#define OPT_BLOCK_CALLS 16384
 #define OPT_DEF_SIZE 131072
 #define OPT_INLINE_BUDGET 3000
 #define OPT_INLINE_DEPTH 8
@@ -371,7 +372,9 @@ typedef void (*prim_fn)(void);
 #define OUT_DEOPT 1
 #define OUT_INTERRUPT 2
 #define OUT_LAZY 4
-#define OUT_SEND 7
+#define OUT_RESUME 9
+#define OUT_SENT 10
+#define OUT_SITE 7
 #define OUT_STACK 5
 #define OUT_WIDOW 8
 #define O_BOTHINT 32
@@ -1166,7 +1169,7 @@ extern uint64_t stat_pics;
 extern uint64_t stat_prim_calls;
 extern uint64_t stat_walks;
 extern uint8_t fb_floats[65536];
-extern uint64_t entry_cells[131072];
+extern bool copying;
 extern bool flush_pending;
 extern uint64_t invalidations;
 extern int64_t jit_cache_mb;
@@ -1206,6 +1209,7 @@ extern uint64_t bl_miss;
 extern uint64_t bl_prim;
 extern uint64_t bl_remember;
 extern uint64_t bl_return_slow;
+extern uint64_t bl_sent;
 extern uint64_t closure_stub;
 extern uint64_t exit_plain_addr;
 extern uint64_t interrupt_stub;
@@ -1213,7 +1217,6 @@ extern uint64_t make_array_stub;
 extern uint64_t opt_deopt_return_stub;
 extern uint64_t opt_deopt_stub;
 extern uint64_t opt_return_stub;
-extern uint64_t opt_send_stub;
 extern uint64_t opt_stack_full_stub;
 extern uint64_t symbol_addrs[48];
 extern int32_t symbol_count;
@@ -1241,6 +1244,7 @@ extern oop true_oop;
 extern int32_t ob_dep_count;
 extern oop ob_deps[256];
 extern int32_t ob_entry_block;
+extern frame *ob_frame;
 extern int32_t ob_osr_pc;
 extern int32_t ob_param_slots;
 extern int32_t ob_unit_start;
@@ -1252,6 +1256,16 @@ extern int32_t cg_meta_count;
 extern int32_t cg_meta_words[262144];
 extern int32_t cg_pool_count;
 extern int32_t cg_pool_labels[1024];
+extern int32_t cg_ret_argc[8192];
+extern int32_t cg_ret_count;
+extern int32_t cg_ret_index[8192];
+extern uint32_t cg_ret_off[8192];
+extern uint32_t cg_site_bl[4096];
+extern int32_t cg_site_count;
+extern int32_t cg_site_index[4096];
+extern uint32_t cg_site_info[4096];
+extern int32_t cg_site_lit[4096];
+extern int32_t cg_site_sel[4096];
 extern int32_t cg_slot_top;
 extern int32_t cg_sp_count;
 extern int32_t opt_act_count;
@@ -1271,7 +1285,8 @@ extern int32_t ps_order[2048];
 extern int32_t ps_order_count;
 extern int32_t ra_safe_list[262144];
 extern int32_t ra_slot_top;
-extern uint64_t rt_block_calls[16384];
+extern jit_method *rt_all[16384];
+extern int32_t rt_all_count;
 extern uint64_t rt_stat_deopts;
 extern uint64_t rt_stat_invalidations;
 extern uint64_t rt_stat_opt_bytecodes;
@@ -1280,6 +1295,7 @@ extern uint64_t rt_stat_opt_compiled;
 extern uint64_t rt_stat_opt_failed;
 extern uint64_t rt_stat_opt_osr;
 extern uint64_t rt_stat_opt_us;
+extern uint64_t rt_stat_sends;
 extern int32_t rt_unit_osr;
 extern int32_t rt_unit_start;
 extern oop alloc_sample_class;
@@ -1465,6 +1481,7 @@ const char *jit_flag_name(uint32_t bit);
 bool jit_headers_valid(bool (*valid)(oop));
 uint64_t jit_interrupt(frame *f);
 void jit_kill(jit_method *h);
+uint64_t jit_leave(frame *f, int64_t pc, int64_t n);
 jit_method *jit_lookup(oop m);
 uint64_t jit_make_array(frame *f);
 int64_t jit_map_offset(jit_method *h, int64_t pc);
@@ -1481,7 +1498,6 @@ void jit_resume(frame *f);
 void jit_resume_context(bool looping);
 void jit_set_flags(uint32_t f);
 bool jit_set_mode(int32_t m);
-int64_t jit_slot_of(oop m);
 oop jit_special_fast(int32_t k, oop *base);
 void jit_start(void);
 uint64_t jit_tier_up(frame *f, int64_t loop);
@@ -1619,7 +1635,6 @@ void opt_cleanup(int32_t entry);
 bool opt_allocate(int32_t numArgs);
 void opt_all_roots(void (*fn)(oop *));
 uint64_t opt_block_code(oop m, int32_t s);
-void opt_clear_block_calls(void);
 bool opt_compile(oop m);
 uint64_t opt_deopt_guard(frame *f, int64_t k);
 uint64_t opt_deopt_return(frame *f, int64_t k);
@@ -1632,9 +1647,10 @@ uint64_t opt_leave(frame *f, bool after);
 void opt_materialize(frame *f);
 uint64_t opt_resume(frame *f);
 uint64_t opt_return_bottom(frame *f, int64_t k);
-uint64_t opt_send(frame *f, int64_t k, uint64_t key);
+uint64_t opt_send_from(frame *f, uint64_t ret);
 uint64_t opt_stack_full(frame *f);
 uint64_t opt_tier_up(frame *f, int64_t loop);
+uint64_t opt_unit_entry(oop m, int64_t s);
 void opt_young_roots(void (*fn)(oop *));
 bool prim_is_leaf(int64_t n);
 bool prim_tryable(int64_t n);

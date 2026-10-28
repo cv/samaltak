@@ -168,6 +168,8 @@ void prim_jit_code(void)
     jit_method *h;
     bool scratch;
     uint64_t top;
+    jit_method *r_compile_copy;
+    jit_method *h_2;
     oop v;
     m = prim_base[0];
     if (!(((m & 7) == 0) && (*(uint64_t *)(m + 8) == special(SO_COMPILEDMETHOD)))) {
@@ -205,7 +207,12 @@ void prim_jit_code(void)
     scratch = !((h != NULL) && ((h->flags & JM_FAILED) == 0) && ((h->mode == md) && ((h->flags & JM_NOTES) != 0)));
     top = cache_top;
     if (scratch) {
-        h = jit_compile(m, md, true);
+        h = ({
+    copying = true;
+    h_2 = jit_compile(m, md, true);
+    copying = false;
+    r_compile_copy = h_2;
+    r_compile_copy; });
     }
     if ((h != NULL) && ((h->flags & JM_FAILED) == 0)) {
         v = jit_listing(h, md);

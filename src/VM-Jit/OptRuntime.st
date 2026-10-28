@@ -1,6 +1,6 @@
 OptModule subclass: #OptRuntime
-	instanceVariableNames: 'ir builder passes regalloc codegen rtDeoptVals rtDeoptCount rtActMethod rtActClosure rtActRcv rtActPc rtActDepth rtActVals rtActCount rtOptYoung rtOptYoungCount rtOptYoungOverflow rtStatOptCompiled rtStatOptFailed rtStatOptBytecodes rtStatOptUs rtStatOptBytes rtStatDeopts rtStatOptOsr rtStatInvalidations rtAll rtAllCount rtSunkAct rtSunkStart rtSunkInfo rtSunkOrder rtSunkCount rtSunkUseVal rtSunkUseId rtSunkUseCount rtWritten rtUnitStart rtUnitOsr rtUnitDepth rtUnits rtUnitCount rtFailed rtBlockCalls rtTraceSends rtStamp'
-	classVariableNames: 'OPT_BLOCK_CALLS OPT_MAX_UNITS OPT_MAX_GENERATIONS OPT_MAX_DEOPTS OPT_MAX_DEOPT_ACTS OPT_MAX_DEOPT_VALS OPT_MAX_HEADERS OPT_MAX_YOUNG'
+	instanceVariableNames: 'ir builder passes regalloc codegen rtDeoptVals rtDeoptCount rtActMethod rtActClosure rtActRcv rtActPc rtActDepth rtActVals rtActCount rtOptYoung rtOptYoungCount rtOptYoungOverflow rtStatOptCompiled rtStatOptFailed rtStatOptBytecodes rtStatOptUs rtStatOptBytes rtStatDeopts rtStatOptOsr rtStatInvalidations rtAll rtAllCount rtSunkAct rtSunkStart rtSunkInfo rtSunkOrder rtSunkCount rtSunkUseVal rtSunkUseId rtSunkUseCount rtWritten rtUnitStart rtUnitOsr rtUnitDepth rtUnits rtUnitCount rtFailed rtTraceSends rtStamp rtStatSends rtUnitFrame'
+	classVariableNames: 'OPT_MAX_UNITS OPT_MAX_GENERATIONS OPT_MAX_DEOPTS OPT_MAX_DEOPT_ACTS OPT_MAX_DEOPT_VALS OPT_MAX_HEADERS OPT_MAX_YOUNG'
 	package: 'VM-Jit'!
 
 OptRuntime comment: 'The optimizing tier''s side of the runtime (docs/jit.md, Optimizing tier): when to optimize (tierUp:), compiling (OptBuilder, OptPasses, OptRegalloc, OptCodegen), sends from optimized code, deoptimization (a guard failed: the registers are in the JitState; after a send: everything is in slots), rebuilding an optimized frame''s activations as frames (deoptimization) or Contexts (materializeAll), resuming an optimized frame the interpreter returns into, the GC roots of optimized code (its method and oop pool).
@@ -19,7 +19,7 @@ declarations
 		(rtAll 'JitMethod *[OPT_MAX_HEADERS]') (rtAllCount int32_t)
 		(rtSunkAct 'int32_t[64]') (rtSunkStart 'int32_t[64]') (rtSunkInfo 'int32_t[64]') (rtSunkOrder 'int32_t[64]') (rtSunkCount int32_t)
 		(rtSunkUseVal 'int32_t[OPT_MAX_DEOPT_VALS]') (rtSunkUseId 'int32_t[OPT_MAX_DEOPT_VALS]') (rtSunkUseCount int32_t) (rtWritten int32_t)
-		(rtUnitStart int32_t) (rtUnitOsr int32_t) (rtUnitDepth int32_t) (rtUnits 'JitMethod *[OPT_MAX_UNITS]') (rtUnitCount int32_t) (rtFailed 'uint64_t[OPT_MAX_UNITS]') (rtBlockCalls 'uint64_t[OPT_BLOCK_CALLS]') (rtTraceSends bool) (rtStamp uint32_t))
+		(rtUnitStart int32_t) (rtUnitOsr int32_t) (rtUnitDepth int32_t) (rtUnits 'JitMethod *[OPT_MAX_UNITS]') (rtUnitCount int32_t) (rtFailed 'uint64_t[OPT_MAX_UNITS]') (rtTraceSends bool) (rtStamp uint32_t) (rtStatSends uint64_t) (rtUnitFrame 'Frame *'))
 !
 initialize
 	OPT_MAX_DEOPT_VALS := 8192.
@@ -28,7 +28,6 @@ initialize
 	OPT_MAX_HEADERS := 16384.
 	OPT_MAX_DEOPTS := 8.
 	OPT_MAX_GENERATIONS := 32.
-	OPT_BLOCK_CALLS := 16384.
 	OPT_MAX_UNITS := 4096
 ! !
 
@@ -58,7 +57,8 @@ statInvalidations
 	^rtStatInvalidations
 !
 stat: i
-	"vmStats' order: optimized, bytecodes, µs, code bytes, deoptimizations, OSR entries, invalidations, failures."
+	"vmStats' order: optimized, bytecodes, µs, code bytes, deoptimizations, OSR entries, invalidations, failures, sends through the runtime."
+	i = 8 ifTrue: [^rtStatSends asInt64].
 	i = 0 ifTrue: [^rtStatOptCompiled asInt64].
 	i = 1 ifTrue: [^rtStatOptBytecodes asInt64].
 	i = 2 ifTrue: [^rtStatOptUs asInt64].
@@ -70,9 +70,6 @@ stat: i
 ! !
 
 !OptRuntime methodsFor: 'functions for the stubs'!
-sendFunction
-	^self cCoerce: (self functionPointer: #send:index:site:) to: 'uint64_t'
-!
 deoptFunction
 	^self cCoerce: (self functionPointer: #deoptGuard:index:) to: 'uint64_t'
 !
@@ -108,6 +105,13 @@ recordOf: h index: k
 !
 poolAt: i of: h
 	^(self cCoerce: h codeStart + h poolOffset to: 'oop *') at: i
+!
+headerCount
+	"Optimized headers since the last flush (live or not)."
+	^rtAllCount
+!
+headerAt: i
+	^rtAll at: i
 ! !
 
 !OptRuntime methodsFor: 'tiering'!
@@ -140,7 +144,10 @@ tierUp: f loop: loop
 			o := self unitOf: m start: s osr: k.
 			"a failed compilation leaves a header without code: not compiled again (an invalidated one is)"
 			((o isNull or: [(runtime hasCode: o) and: [(self isAlive: o) not and: [o generation < OPT_MAX_GENERATIONS]]]) and: [(self failed: m start: s osr: k) not]) ifTrue: [
+				"a loop's unit may inline closures this frame made"
+				k ~= 0 ifTrue: [rtUnitFrame := f].
 				o := self optimizeUnit: m start: s osr: k depth: f sp lower: h previous: o.
+				rtUnitFrame := self null.
 				o isNull ifTrue: [self noteFailed: m start: s osr: k]]].
 	(o isNull or: [(self isAlive: o) not]) ifTrue: [^0].
 	k ~= 0 ifTrue: [rtStatOptOsr := rtStatOptOsr + 1].
@@ -162,31 +169,13 @@ makesClosures: m start: s
 		pc := (pc + (analysis lengthOf: op)) asInt32].
 	^closures and: [reach]
 !
-blockCallsAddress
-	"Where block call sites of optimized code (OptCodegen>>emitBlockCall:index:slow:) find the code of the closures they call: 4 words per entry (home method, startpc, frame code, entry) by home method and startpc, cleared at every GC."
-	^self cCoerce: rtBlockCalls to: 'uint64_t'
-!
-blockCallsMask
-	^(OPT_BLOCK_CALLS quo: 4) - 1
-!
-blockCallSlotOf: m start: s
-	"The cache entry of home method m's block at startpc s (a SmallInteger)."
-	^((m >> 3) bitXor: (s >> 1)) asInt64 bitAnd: (OPT_BLOCK_CALLS quo: 4) - 1
-!
-noteBlockCall: h index: k closure: c entry: e
-	"A block call site sent value to c: its frame code and entry e, for the next time."
-	| p g |
-	e <= 1 ifTrue: [^self].
-	g := interpreter frames + (interpreter nframes - 1).
-	p := rtBlockCalls + (4 * (self blockCallSlotOf: g method start: (self loadRef: c at: BC_STARTPC))).
-	p at: 0 put: g method.
-	p at: 1 put: (self loadRef: c at: BC_STARTPC).
-	p at: 2 put: g code.
-	p at: 3 put: e
-!
-clearBlockCalls
-	<c: 'void opt_clear_block_calls(void)'>
-	libc memset: rtBlockCalls value: 0 size: 8 * OPT_BLOCK_CALLS
+unitEntryOf: m start: s
+	"Where the block stub enters m's block at startpc s: its unit's entry (OptCodegen>>emitBaselineEntry), 0 if it has none that may run."
+	<c: 'uint64_t opt_unit_entry(oop m, int64_t s)'>
+	| o |
+	o := self unitOf: m start: s asInt32 osr: 0.
+	(o notNull and: [self isAlive: o]) ifFalse: [^0 asUInt64].
+	^o codeStart
 !
 unitOf: m start: s osr: t
 	"The optimized code of m's block at startpc s (0: m) entered at its start (t 0) or at loop head t - 1, alive or not; null if there is none."
@@ -267,6 +256,8 @@ optimizeUnit: m start: s osr: t depth: d lower: h previous: p
 	[(rtUnits at: i) notNull and: [(rtUnits at: i) ~= p]] whileTrue: [i := (i + 1) bitAnd: OPT_MAX_UNITS - 1].
 	(rtUnits at: i) isNull ifTrue: [rtUnitCount := rtUnitCount + 1].
 	rtUnits at: i put: o.
+	"a block's unit: the block stub enters it from now on"
+	(s ~= 0 and: [t = 0]) ifTrue: [brt clearCaches].
 	^o
 !
 unitEntry
@@ -309,6 +300,7 @@ compile: m
 	trace ifTrue: [
 		libc fprintf: libc stderr format: 'opt: (block %d, loop %d) ' with: rtUnitStart with: rtUnitOsr.
 		interpreter printActivation: m receiver: memory nilOop closure: memory nilOop on: libc stderr].
+	builder frame: rtUnitFrame.
 	ok := (builder build: m start: rtUnitStart osr: (rtUnitOsr bitAnd: 16rFFFF) - 1 depth: rtUnitDepth resident: rtUnitOsr >= 16r10000) and: [
 		passes cleanup: builder entryBlock.
 		trace ifTrue: [ir print].
@@ -326,12 +318,16 @@ compile: m
 	^ok
 !
 extraBytes
-	"What the optimized code's header needs after its notes: the safepoint table and the records."
-	^4 * (codegen spCount + codegen metaCount + codegen depCount) + 8
+	"What the optimized code's header needs after its notes: the safepoint table, the records, the dependencies, the inline caches and the return map."
+	^4 * (codegen spCount + codegen metaCount + codegen depCount) + 16 + (32 * codegen siteCount) + (12 * codegen retCount)
+!
+siteCount
+	"Inline caches of the code being compiled (their literals are registered with the collector)."
+	^codegen siteCount
 !
 writeExtra: h at: p
 	"Fill the optimized header h's own fields and write its tables at p; answer the address after them."
-	| q |
+	| q site |
 	h slots: codegen slotTop asUInt32.
 	h bcSize: (self methodSize: h method) asUInt32.
 	h poolOffset: codegen poolOffset asUInt32.
@@ -346,10 +342,32 @@ writeExtra: h at: p
 	h depCount: codegen depCount asUInt32.
 	h deps: (self cCoerce: q to: 'int32_t *').
 	0 to: codegen depCount - 1 do: [:i | h deps at: i put: (codegen depAt: i)].
+	q := ((q + (4 * codegen depCount)) + 7) bitClear: 7.
+	"inline caches as baseline code's (JitBaselineRuntime links them): pc the safepoint, depth the selector's pool index"
+	h sites: (self cCoerce: q to: 'BaselineSite *').
+	h siteCount: codegen siteCount asUInt32.
+	0 to: codegen siteCount - 1 do: [:i |
+		site := h sites + i.
+		site bl: (codegen siteBlAt: i).
+		site lit: ((codegen siteLitAddressAt: i) - h codeStart) asUInt32.
+		site info: (codegen siteInfoAt: i).
+		site pc: (codegen siteIndexAt: i) asUInt16.
+		site depth: (codegen siteSelectorAt: i) asUInt16.
+		site target: 0.
+		site pic: 0.
+		brt registerSlot: (codegen siteLitAddressAt: i)].
+	q := q + (32 * codegen siteCount).
+	"the return map: return offset, safepoint, argument count"
+	h rets: (self cCoerce: q to: 'uint32_t *').
+	h retCount: codegen retCount asUInt32.
+	0 to: codegen retCount - 1 do: [:i |
+		h rets at: 3 * i put: (codegen retOffAt: i).
+		h rets at: 3 * i + 1 put: (codegen retIndexAt: i) asUInt32.
+		h rets at: 3 * i + 2 put: (codegen retArgcAt: i) asUInt32].
 	rtStatOptCompiled := rtStatOptCompiled + 1.
 	rtStatOptBytecodes := rtStatOptBytecodes + h bcSize asUInt64.
 	rtStatOptBytes := rtStatOptBytes + h codeSize asUInt64.
-	^q + (4 * codegen depCount)
+	^q + (12 * codegen retCount)
 !
 noteYoung: o
 	"o's method or a pool entry is young: scavenges visit it."
@@ -366,9 +384,10 @@ noteYoung: o
 
 !OptRuntime methodsFor: 'sends'!
 send: f index: k site: key
-	"Optimized code sends at safepoint k of f (its pc and sp stored, receiver and arguments at slot slots): answer 0 (the result is in that slot), 1 (leave) or the callee's entry (frame pushed)."
+	"Optimized code sends at safepoint k of f (its pc and sp set, receiver and arguments at slot slots; key: the site, for the interpreter's inline cache): answer 0 (the result is in that slot), 1 (leave) or the callee's entry (frame pushed)."
 	<c: 'uint64_t opt_send(Frame *f, int64_t k, uint64_t key)'>
-	| h rec info n kind sp sel base r cls e ns ok v flushes |
+	| h rec info n kind sp sel base r cls e ns ok flushes |
+	rtStatSends := rtStatSends + 1.
 	h := self cCoerce: f code to: 'JitMethod *'.
 	rec := self recordOf: h index: k.
 	info := rec at: 2.
@@ -394,9 +413,7 @@ send: f index: k site: key
 			interpreter activateBlock: n.
 			"no room for its frame: the frames became Contexts, the interpreter goes on"
 			interpreter statFlushes ~= flushes ifTrue: [^1].
-			v := runtime entryOfTop.
-			self noteBlockCall: h index: k closure: r entry: v.
-			^v]].
+			^runtime entryOfTop]].
 	cls := kind = 1
 		ifTrue: [self loadRef: (self loadRef: (self innermostMethodOf: rec h: h) at: CM_CLASS) at: BEH_SUPERCLASS]
 		ifFalse: [interpreter receiverClass: r].
@@ -426,6 +443,15 @@ send: f index: k site: key
 	r := runtime dispatch: e frame: f argc: n.
 	"a primitive answered: a safepoint (the profiler samples an allocation there)"
 	r = 0 ifTrue: [^self sent: f].
+	^r
+!
+sendFrom: f ret: ret
+	"A call of f's optimized code (at the call safepoint return address ret is in; JitBaselineRuntime>>setTop:ret:mode: set its pc and sp) found no machine code it may call (not linked: what baseline code leaves to the interpreter for; or no room on the stack, an interrupt pending at the callee's entry): the runtime sends. Answer where the call continues: the callee's entry (its frame pushed), the sent stub (the result is in the receiver's slot) or 1 (leave)."
+	<c: 'uint64_t opt_send_from(Frame *f, uint64_t ret)'>
+	| h r |
+	h := self cCoerce: f code to: 'JitMethod *'.
+	r := self send: f index: (f pc - h bcSize asInt32) asInt64 site: ret.
+	r = 0 ifTrue: [^stubs blSentStub].
 	^r
 !
 perform: e frame: f index: k argc: n
@@ -885,7 +911,6 @@ resume: f
 youngRoots: fn
 	<c: 'void opt_young_roots(void (*fn)(oop *))'>
 	| n o |
-	self clearBlockCalls.
 	self decodedRoots: fn.
 	rtOptYoungOverflow ifTrue: [^self allPools: fn].
 	rtOptYoungCount = 0 ifTrue: [^self].
@@ -913,7 +938,6 @@ stillYoung: o
 !
 allRoots: fn
 	<c: 'void opt_all_roots(void (*fn)(oop *))'>
-	self clearBlockCalls.
 	self decodedRoots: fn.
 	self allPools: fn
 !
@@ -948,7 +972,6 @@ roots: o fn: fn
 flushed
 	"The code cache was flushed."
 	<c: 'void opt_flushed(void)'>
-	self clearBlockCalls.
 	rtOptYoungCount := 0.
 	rtOptYoungOverflow := false.
 	rtAllCount := 0.

@@ -259,7 +259,7 @@ void prim_vm_banner(void)
 /* SystemPrimitives>>primVMStats */
 void prim_vm_stats(void)
 {
-    int64_t local[39];
+    int64_t local[40];
     int64_t *v;
     int i;
     int i_2;
@@ -295,11 +295,11 @@ void prim_vm_stats(void)
     for (i = 0; i <= 6; i++) {
         v[24 + i] = (int64_t)jit_baseline_stat((int32_t)i);
     }
-    for (i_2 = 0; i_2 <= 7; i_2++) {
+    for (i_2 = 0; i_2 <= 8; i_2++) {
         v[31 + i_2] = jit_opt_stat((int32_t)i_2);
     }
-    a = alloc_obj(cls_array, F_VAR, 39);
-    for (i_3 = 0; i_3 <= 38; i_3++) {
+    a = alloc_obj(cls_array, F_VAR, 40);
+    for (i_3 = 0; i_3 <= 39; i_3++) {
         v_2 = v[i_3];
         ((oop *)(a + 16))[i_3] = (uint64_t)((v_2 << 1) | 1);
     }

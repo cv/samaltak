@@ -35,6 +35,7 @@ regAt: i
 isValue: n
 	"n has a result that lives in a register or slot (constants are rematerialized)."
 	| nd |
+	n < 0 ifTrue: [^false].
 	nd := ir node: n.
 	^nd block >= 0 and: [nd rep asInt32 ~= R_NONE and: [nd op asInt32 ~= O_CONST and: [nd op asInt32 ~= O_CLOSURE and: [nd op asInt32 ~= O_HOMESLOT and: [(nd flags bitAnd: NF_DEAD) = 0]]]]]
 !
@@ -126,7 +127,6 @@ addLiveInOf: s from: b to: set
 	n := (ir block: s) first.
 	[n >= 0 and: [(ir node: n) op asInt32 = O_PHI]] whileTrue: [
 		nd := ir node: n.
-		self clear: n in: set.
 		k >= 0 ifTrue: [self set: (ir operand: nd args + k) in: set].
 		n := nd next]
 !
@@ -182,8 +182,8 @@ recordSafepointLiveness
 				s := nd state.
 				[s >= 0] whileTrue: [
 					st := ir state: s.
-					0 to: st depth do: [:j |
-						sv := ir operand: st vals + j.
+					0 to: st depth + 1 do: [:j |
+						sv := j <= st depth ifTrue: [ir operand: st vals + j] ifFalse: [self closureOfState: st].
 						((self isValue: sv) and: [(self isSet: sv in: set) not and: [raSafeListCount < RA_MAX_SAFELIST]]) ifTrue: [
 							self set: sv in: set.
 							raSafeList at: raSafeListCount put: sv.
@@ -198,6 +198,14 @@ recordSafepointLiveness
 safeLiveAt: i
 	^raSafeList at: i
 !
+closureOfState: st
+	"The closure value of st's activation that deoptimization reads (not one never made, nor a block unit's: its frame's), -1 if none."
+	| c |
+	c := (ir act: st act) closure.
+	c < 0 ifTrue: [^-1].
+	(ir node: c) op asInt32 = O_PARAM ifTrue: [^-1].
+	^c
+!
 usesOf: n into: set
 	| nd s st |
 	nd := ir node: n.
@@ -209,6 +217,7 @@ usesOf: n into: set
 	[s >= 0] whileTrue: [
 		st := ir state: s.
 		0 to: st depth do: [:i | self set: (ir operand: st vals + i) in: set].
+		self set: (self closureOfState: st) in: set.
 		s := st parent]
 !
 extend: v to: pos
@@ -255,6 +264,7 @@ buildIntervals
 					[s >= 0] whileTrue: [
 						st := ir state: s.
 						0 to: st depth do: [:j | self extend: (ir operand: st vals + j) to: after].
+						self extend: (self closureOfState: st) to: after.
 						s := st parent]].
 			n := nd next]]
 !
@@ -353,7 +363,9 @@ assignSlots
 		v := raSorted at: i.
 		nd := ir node: v.
 		(nd rep asInt32 = R_DBL and: [self crossesSafepoint: v]) ifTrue: [^self fail: 'double v%d lives across a safepoint' node: v].
-		(nd reg < 0 or: [self crossesSafepoint: v]) ifTrue: [
+		"an argument (a unit's parameter) lives in its own slot, which the code never writes"
+		((nd reg < 0 or: [self crossesSafepoint: v]) and: [nd op asInt32 = O_PARAM and: [nd aux >= 0]]) ifTrue: [nd slot: nd aux asInt16].
+		((nd reg < 0 or: [self crossesSafepoint: v]) and: [nd slot < 0]) ifTrue: [
 			j := 0.
 			[j < raActiveCount] whileTrue: [
 				(ir node: (raActive at: j)) lend < nd lstart

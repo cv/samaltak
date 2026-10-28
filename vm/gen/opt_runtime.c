@@ -9,9 +9,8 @@ static oop rt_act_method[256];
 static int32_t rt_act_pc[256];
 static int32_t rt_act_rcv[256];
 static int32_t rt_act_vals[256];
-static jit_method *rt_all[16384];
-static int32_t rt_all_count;
-uint64_t rt_block_calls[16384];
+jit_method *rt_all[16384];
+int32_t rt_all_count;
 static int32_t rt_deopt_count;
 static oop rt_deopt_vals[8192];
 static uint64_t rt_failed[4096];
@@ -27,6 +26,7 @@ uint64_t rt_stat_opt_compiled;
 uint64_t rt_stat_opt_failed;
 uint64_t rt_stat_opt_osr;
 uint64_t rt_stat_opt_us;
+uint64_t rt_stat_sends;
 static int32_t rt_sunk_act[64];
 static int32_t rt_sunk_count;
 static int32_t rt_sunk_info[64];
@@ -38,6 +38,7 @@ static int32_t rt_sunk_use_val[8192];
 static bool rt_trace_sends;
 static int32_t rt_unit_count;
 static int32_t rt_unit_depth;
+static frame *rt_unit_frame;
 int32_t rt_unit_osr;
 int32_t rt_unit_start;
 static jit_method *rt_units[4096];
@@ -49,6 +50,7 @@ static int64_t opt_frame_size_of(oop m, oop c);
 static void opt_make_sunk(int32_t s, oop ctx);
 static jit_method *opt_optimize(oop m, jit_method *h);
 static jit_method *opt_optimize_unit(oop m, int32_t s, int32_t t, int32_t d, jit_method *h, jit_method *p);
+static uint64_t opt_send(frame *f, int64_t k, uint64_t key);
 static void opt_trace_deopt(jit_method *h, int64_t k, int32_t mode);
 static jit_method *opt_unit_of(oop m, int32_t s, int32_t t);
 
@@ -62,7 +64,6 @@ void opt_all_roots(void (*fn)(oop *))
     oop *pool;
     int64_t i_4;
     oop o_2;
-    opt_clear_block_calls();
     if (rt_deopt_count == 0) {
         goto exit_decoded_roots;
     }
@@ -99,12 +100,6 @@ uint64_t opt_block_code(oop m, int32_t s)
     return jit_block_code(m);
 }
 
-/* OptRuntime>>clearBlockCalls */
-void opt_clear_block_calls(void)
-{
-    memset(rt_block_calls, 0, 131072);
-}
-
 /* OptRuntime>>compile: */
 bool opt_compile(oop m)
 {
@@ -121,6 +116,7 @@ bool opt_compile(oop m)
         fprintf(stderr, "opt: (block %d, loop %d) ", rt_unit_start, rt_unit_osr);
         print_activation(m, nil_oop, nil_oop, stderr);
     }
+    ob_frame = rt_unit_frame;
     ok = opt_build(m, rt_unit_start, (rt_unit_osr & 0xFFFF) - 1, rt_unit_depth, rt_unit_osr >= 0x10000) && ({
     opt_cleanup(ob_entry_block);
     if (trace) {
@@ -783,7 +779,6 @@ uint64_t opt_deopt_return(frame *f, int64_t k)
 /* OptRuntime>>flushed */
 void opt_flushed(void)
 {
-    opt_clear_block_calls();
     rt_opt_young_count = 0;
     rt_opt_young_overflow = false;
     rt_all_count = 0;
@@ -1208,6 +1203,10 @@ exit_note_young:;
         rt_unit_count = rt_unit_count + 1;
     }
     rt_units[i] = o;
+    if ((s != 0) && (t == 0)) {
+        memset(mega_table, 0, 131072);
+        memset(block_table, 0, 32768);
+    }
     return o;
 }
 
@@ -1277,7 +1276,7 @@ uint64_t opt_return_bottom(frame *f, int64_t k)
 }
 
 /* OptRuntime>>send:index:site: */
-uint64_t opt_send(frame *f, int64_t k, uint64_t key)
+static uint64_t opt_send(frame *f, int64_t k, uint64_t key)
 {
     jit_method *h;
     int32_t *rec;
@@ -1292,28 +1291,23 @@ uint64_t opt_send(frame *f, int64_t k, uint64_t key)
     oop o;
     uint64_t o_2;
     uint64_t flushes;
-    uint64_t v;
-    frame *g;
-    oop m;
-    uint64_t s;
-    uint64_t *p;
     oop r_innermost_method_of;
     int32_t nacts;
-    int64_t p_2;
-    oop m_2;
+    int64_t p;
+    oop m;
     int32_t j;
     int32_t i_2;
     oop o_3;
     uint64_t o_4;
-    uint64_t v_2;
+    uint64_t v;
     uint64_t cls;
     uint8_t *site;
     uint64_t r_icache_index_of;
-    uint64_t s_2;
+    uint64_t s;
     cache_entry *e;
     uint64_t r_does_not_understand;
     oop *base_2;
-    cache_entry *g_2;
+    cache_entry *g;
     oop o_5;
     uint64_t o_6;
     uint64_t r_leave_before;
@@ -1328,9 +1322,9 @@ uint64_t opt_send(frame *f, int64_t k, uint64_t key)
     uint64_t o_13;
     int64_t isize;
     oop msg;
+    oop v_2;
     oop v_3;
-    oop v_4;
-    cache_entry *g_3;
+    cache_entry *g_2;
     uint64_t r_resend;
     uint64_t r_2;
     uint64_t r_sent;
@@ -1342,7 +1336,7 @@ uint64_t opt_send(frame *f, int64_t k, uint64_t key)
     int32_t j_2;
     int32_t j_3;
     uint8_t i_4;
-    oop v_5;
+    oop v_4;
     uint64_t r_sent_4;
     bool r_call_leaf;
     uint64_t r_sent_5;
@@ -1356,10 +1350,10 @@ uint64_t opt_send(frame *f, int64_t k, uint64_t key)
     oop *base_3;
     oop sel_2;
     oop arr;
-    int32_t m_3;
+    int32_t m_2;
     oop r_3;
-    cache_entry *v_6;
-    cache_entry *g_4;
+    cache_entry *v_5;
+    cache_entry *g_3;
     oop o_19;
     uint64_t o_20;
     uint64_t r_leave_before_3;
@@ -1370,6 +1364,7 @@ uint64_t opt_send(frame *f, int64_t k, uint64_t key)
     uint64_t r_4;
     uint64_t r_sent_6;
     uint64_t r_sent_7;
+    rt_stat_sends = rt_stat_sends + 1;
     h = (jit_method *)f->code;
     rec = h->meta + h->sp_table[k];
     info = rec[2];
@@ -1406,53 +1401,40 @@ uint64_t opt_send(frame *f, int64_t k, uint64_t key)
             if (stat_flushes != flushes) {
                 return 1;
             }
-            v = jit_entry_of_top();
-            if (v <= 1) {
-                goto exit_note_block_call;
-            }
-            g = frames + (nframes - 1);
-            m = g->method;
-            s = *(uint64_t *)(r + 16 + 8);
-            p = rt_block_calls + 4 * (((int64_t)((m >> 3) ^ (s >> 1))) & 4095);
-            p[0] = g->method;
-            p[1] = *(uint64_t *)(r + 16 + 8);
-            p[2] = g->code;
-            p[3] = v;
-        exit_note_block_call:;
-            return v;
+            return jit_entry_of_top();
         }
     }
     cls = ({
     if (kind == 1) {
         o_3 = ({
     nacts = rec[4];
-    p_2 = 5;
-    m_2 = nil_oop;
+    p = 5;
+    m = nil_oop;
     for (j = 0; j <= nacts - 1; j++) {
-        i_2 = rec[p_2];
-        m_2 = ((oop *)(h->code_start + h->pool_offset))[i_2];
-        p_2 = p_2 + 5 + rec[p_2 + 4];
+        i_2 = rec[p];
+        m = ((oop *)(h->code_start + h->pool_offset))[i_2];
+        p = p + 5 + rec[p + 4];
     }
-    r_innermost_method_of = m_2;
+    r_innermost_method_of = m;
     r_innermost_method_of; });
         o_4 = *(uint64_t *)(o_3 + 16 + 8);
-        v_2 = *(uint64_t *)(o_4 + 16 + 0);
+        v = *(uint64_t *)(o_4 + 16 + 0);
     } else {
-        v_2 = (r & 7) != 0 ? tag_class[r & 7] : *(uint64_t *)(r + 8);
+        v = (r & 7) != 0 ? tag_class[r & 7] : *(uint64_t *)(r + 8);
     }
-    v_2; });
+    v; });
     site = (uint8_t *)key;
     e = icache + ({
-    s_2 = (uint64_t)site;
-    r_icache_index_of = (s_2 ^ (s_2 >> 12)) & 4095;
+    s = (uint64_t)site;
+    r_icache_index_of = (s ^ (s >> 12)) & 4095;
     r_icache_index_of; });
     if (!((e->cls == cls) && (e->sel == key))) {
         e = site_entry((uint8_t *)key, cls, sel);
         if (e == NULL) {
             return ({
     base_2 = f->fp + (f->sp - n - 1);
-    g_2 = entry_for(cls, special(SO_SEL_DNU));
-    if ((g_2 == NULL) || ((((g_2->kind & K_PRIM) != 0) && ((g_2->prim == perform_fn) || (g_2->prim == perform_args_fn))) || (((uint64_t)(base_2 + (1 + g_2->fsize)) > (uint64_t)(cstack + 65534)) || (((g_2->kind & K_CTX) != 0) && ({
+    g = entry_for(cls, special(SO_SEL_DNU));
+    if ((g == NULL) || ((((g->kind & K_PRIM) != 0) && ((g->prim == perform_fn) || (g->prim == perform_args_fn))) || (((uint64_t)(base_2 + (1 + g->fsize)) > (uint64_t)(cstack + 65534)) || (((g->kind & K_CTX) != 0) && ({
     o_5 = base_2[0];
     o_6 = *(uint64_t *)(o_5 + 16 + 0);
     (o_6 & 1) != 0; }))))) {
@@ -1497,22 +1479,22 @@ uint64_t opt_send(frame *f, int64_t k, uint64_t key)
     pop_root();
     pop_root();
     pop_root();
-    v_3 = roots[0];
-    *(uint64_t *)(msg + 16 + 0) = v_3;
-    if (((v_3 & 7) == 0) && (((uint64_t)(v_3 - young_lo) < young_hi - young_lo) && ((!((uint64_t)(msg - young_lo) < young_hi - young_lo)) && (((*(uint64_t *)msg) & H_REMEMBERED) == 0)))) {
+    v_2 = roots[0];
+    *(uint64_t *)(msg + 16 + 0) = v_2;
+    if (((v_2 & 7) == 0) && (((uint64_t)(v_2 - young_lo) < young_hi - young_lo) && ((!((uint64_t)(msg - young_lo) < young_hi - young_lo)) && (((*(uint64_t *)msg) & H_REMEMBERED) == 0)))) {
         vm_remember(msg);
     }
-    v_4 = roots[2];
-    *(uint64_t *)(msg + 16 + 8) = v_4;
-    if (((v_4 & 7) == 0) && (((uint64_t)(v_4 - young_lo) < young_hi - young_lo) && ((!((uint64_t)(msg - young_lo) < young_hi - young_lo)) && (((*(uint64_t *)msg) & H_REMEMBERED) == 0)))) {
+    v_3 = roots[2];
+    *(uint64_t *)(msg + 16 + 8) = v_3;
+    if (((v_3 & 7) == 0) && (((uint64_t)(v_3 - young_lo) < young_hi - young_lo) && ((!((uint64_t)(msg - young_lo) < young_hi - young_lo)) && (((*(uint64_t *)msg) & H_REMEMBERED) == 0)))) {
         vm_remember(msg);
     }
     base_2[1] = msg;
     active_set_stackp(f->sp - n + 1);
-    g_3 = entry_for(roots[1], special(SO_SEL_DNU));
+    g_2 = entry_for(roots[1], special(SO_SEL_DNU));
     r_does_not_understand = ({
     send_pushed = 0;
-    r_2 = jit_dispatch(g_3, f, 1);
+    r_2 = jit_dispatch(g_2, f, 1);
     if (r_2 == 0) {
         r_resend = ({
     if (state_block->interrupt == 0) {
@@ -1568,9 +1550,9 @@ exit_sent_3:;
         if (ok) {
             for (j_3 = 0; j_3 <= n - 1; j_3++) {
                 i_4 = e->set_ivar[j_3];
-                v_5 = base[1 + j_3];
-                *(uint64_t *)(r + 16 + 8 * i_4) = v_5;
-                if (((v_5 & 7) == 0) && (((uint64_t)(v_5 - young_lo) < young_hi - young_lo) && ((!((uint64_t)(r - young_lo) < young_hi - young_lo)) && (((*(uint64_t *)r) & H_REMEMBERED) == 0)))) {
+                v_4 = base[1 + j_3];
+                *(uint64_t *)(r + 16 + 8 * i_4) = v_4;
+                if (((v_4 & 7) == 0) && (((uint64_t)(v_4 - young_lo) < young_hi - young_lo) && ((!((uint64_t)(r - young_lo) < young_hi - young_lo)) && (((*(uint64_t *)r) & H_REMEMBERED) == 0)))) {
                     vm_remember(r);
                 }
             }
@@ -1633,16 +1615,16 @@ exit_sent_5:;
     base_3 = f->fp + (f->sp - n - 1);
     sel_2 = base_3[1];
     arr = n == 2 ? base_3[2] : nil_oop;
-    m_3 = ((e->kind & K_PRIM) != 0) && (e->prim == perform_args_fn) ? ((arr & 7) == 0) && (*(uint64_t *)(arr + 8) == cls_array) ? (int32_t)(uint32_t)*(uint64_t *)arr : -1 : n - 1;
-    g_4 = ({
-    if ((m_3 >= 0) && (selector_argc(sel_2) == m_3)) {
+    m_2 = ((e->kind & K_PRIM) != 0) && (e->prim == perform_args_fn) ? ((arr & 7) == 0) && (*(uint64_t *)(arr + 8) == cls_array) ? (int32_t)(uint32_t)*(uint64_t *)arr : -1 : n - 1;
+    g_3 = ({
+    if ((m_2 >= 0) && (selector_argc(sel_2) == m_2)) {
         r_3 = base_3[0];
-        v_6 = entry_for((r_3 & 7) != 0 ? tag_class[r_3 & 7] : *(uint64_t *)(r_3 + 8), sel_2);
+        v_5 = entry_for((r_3 & 7) != 0 ? tag_class[r_3 & 7] : *(uint64_t *)(r_3 + 8), sel_2);
     } else {
-        v_6 = (cache_entry *)NULL;
+        v_5 = (cache_entry *)NULL;
     }
-    v_6; });
-    if ((g_4 == NULL) || ((((g_4->kind & K_PRIM) != 0) && ((g_4->prim == perform_fn) || (g_4->prim == perform_args_fn))) || (((uint64_t)(base_3 + (1 + g_4->fsize)) > (uint64_t)(cstack + 65534)) || (((g_4->kind & K_CTX) != 0) && ({
+    v_5; });
+    if ((g_3 == NULL) || ((((g_3->kind & K_PRIM) != 0) && ((g_3->prim == perform_fn) || (g_3->prim == perform_args_fn))) || (((uint64_t)(base_3 + (1 + g_3->fsize)) > (uint64_t)(cstack + 65534)) || (((g_3->kind & K_CTX) != 0) && ({
     o_19 = base_3[0];
     o_20 = *(uint64_t *)(o_19 + 16 + 0);
     (o_20 & 1) != 0; }))))) {
@@ -1660,16 +1642,16 @@ exit_sent_5:;
         goto exit_perform;
     }
     if (((e->kind & K_PRIM) != 0) && (e->prim == perform_args_fn)) {
-        for (i_5 = 0; i_5 <= m_3 - 1; i_5++) {
+        for (i_5 = 0; i_5 <= m_2 - 1; i_5++) {
             base_3[1 + i_5] = *(uint64_t *)(arr + 16 + 8 * i_5);
         }
     } else {
-        memmove(base_3 + 1, base_3 + 2, (uint64_t)m_3 * 8);
+        memmove(base_3 + 1, base_3 + 2, (uint64_t)m_2 * 8);
     }
-    active_set_stackp(f->sp - n + m_3);
+    active_set_stackp(f->sp - n + m_2);
     r_perform = ({
     send_pushed = 0;
-    r_4 = jit_dispatch(g_4, f, m_3);
+    r_4 = jit_dispatch(g_3, f, m_2);
     if (r_4 == 0) {
         r_resend_2 = ({
     if (state_block->interrupt == 0) {
@@ -1700,6 +1682,19 @@ exit_perform:;
     r_sent_7 = jit_interrupt(f);
 exit_sent_7:;
     r_sent_7; });
+    }
+    return r;
+}
+
+/* OptRuntime>>sendFrom:ret: */
+uint64_t opt_send_from(frame *f, uint64_t ret)
+{
+    jit_method *h;
+    uint64_t r;
+    h = (jit_method *)f->code;
+    r = opt_send(f, (int64_t)(f->pc - (int32_t)h->bc_size), ret);
+    if (r == 0) {
+        return bl_sent;
     }
     return r;
 }
@@ -1923,7 +1918,11 @@ exit_opt_of:;
     r_failed_2 = false;
 exit_failed_2:;
     r_failed_2; }))) {
+            if (k != 0) {
+                rt_unit_frame = f;
+            }
             o = opt_optimize_unit(m, s, k, f->sp, h, o);
+            rt_unit_frame = (frame *)NULL;
             if (o == NULL) {
                 key_4 = (((uint64_t)(uint32_t)(((*(uint64_t *)m) >> H_HASH_SHIFT) & H_HASH_MASK)) << 32) | ((((uint64_t)s) & 0xFFFF) << 16) | (((uint64_t)k) & 0xFFFF) | 9223372036854775808ULL;
                 i_4 = (int32_t)((key_4 ^ (key_4 >> 29)) & 4095);
@@ -1956,6 +1955,17 @@ static void opt_trace_deopt(jit_method *h, int64_t k, int32_t mode)
     fprintf(stderr, "deopt mode %d at %lld (unit loop %d), %d activations, ", mode, k, h->osr_pc, rt_act_count);
     fprintf(stderr, "innermost pc %d depth %d: ", rt_act_pc[rt_act_count - 1], rt_act_depth[rt_act_count - 1]);
     print_activation(h->method, nil_oop, nil_oop, stderr);
+}
+
+/* OptRuntime>>unitEntryOf:start: */
+uint64_t opt_unit_entry(oop m, int64_t s)
+{
+    jit_method *o;
+    o = opt_unit_of(m, (int32_t)s, 0);
+    if (!((o != NULL) && ((o != NULL) && ((o->flags & JM_FAILED) == 0) && ((o->flags & 2) == 0)))) {
+        return 0ULL;
+    }
+    return o->code_start;
 }
 
 /* OptRuntime>>unitOf:start:osr: */
@@ -1996,7 +2006,6 @@ void opt_young_roots(void (*fn)(oop *))
     int64_t i_8;
     oop o_7;
     oop o_8;
-    opt_clear_block_calls();
     if (rt_deopt_count == 0) {
         goto exit_decoded_roots;
     }

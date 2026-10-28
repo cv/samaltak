@@ -30,6 +30,7 @@ static void bl_note_nil_test(oop m, void *d);
 static int64_t bl_ret_index(jit_method *h, uint64_t ret);
 static void bl_set_slot(uint64_t a, oop v);
 static void bl_set_top(frame *f, uint64_t ret, int32_t mode);
+static jit_method *bl_target_for(oop cls, oop sel);
 
 /* JitBaselineRuntime>>afterGC */
 void bl_after_gc(void)
@@ -83,13 +84,21 @@ uint64_t jit_bl_block(frame *f, oop c, uint64_t ret)
 {
     oop o;
     uint64_t o_2;
+    uint64_t r_entry_of_block;
     uint64_t ctx;
-    uint64_t m;
-    uint64_t startpc;
+    uint64_t m_2;
+    uint64_t startpc_2;
     jit_method *h;
-    uint64_t entry;
+    int64_t s;
+    uint64_t r_opt_unit_entry_of;
+    uint64_t entry_2;
     int64_t k;
     int64_t v;
+    uint64_t entry;
+    uint64_t c_2;
+    uint64_t o_3;
+    uint64_t m;
+    uint64_t startpc;
     int64_t i;
     stat_block_misses = stat_block_misses + 1;
     bl_set_top(f, ret, 0);
@@ -101,30 +110,52 @@ uint64_t jit_bl_block(frame *f, oop c, uint64_t ret)
     o = f->method;
     o_2 = *(uint64_t *)(o + 16 + 16);
     f->lits = (oop *)(o_2 + 16);
+    entry = ({
     ctx = *(uint64_t *)(c + 16 + 0);
     if (!(((ctx & 7) == 0) && (ctx != nil_oop))) {
-        return 1;
+        r_entry_of_block = 0ULL;
+        goto exit_entry_of_block;
     }
-    m = *(uint64_t *)(ctx + 16 + 24);
-    startpc = *(uint64_t *)(c + 16 + 8);
-    h = jit_lookup(m);
+    m_2 = *(uint64_t *)(ctx + 16 + 24);
+    startpc_2 = *(uint64_t *)(c + 16 + 8);
+    h = jit_lookup(m_2);
     if (h == NULL) {
-        h = jit_compile_install(m);
+        h = jit_compile_install(m_2);
     }
     if (!((h != NULL) && ((h->flags & JM_FAILED) == 0) && (h->mode == JIT_BASELINE))) {
-        return 1;
+        r_entry_of_block = 0ULL;
+        goto exit_entry_of_block;
     }
-    entry = 0ULL;
+    s = ((int64_t)startpc_2) >> 1;
+    entry_2 = ({
+    if (!(jit_mode == JIT_OPT)) {
+        r_opt_unit_entry_of = 0ULL;
+        goto exit_opt_unit_entry_of;
+    }
+    r_opt_unit_entry_of = opt_unit_entry(m_2, s);
+exit_opt_unit_entry_of:;
+    r_opt_unit_entry_of; });
+    if (entry_2 != 0) {
+        r_entry_of_block = entry_2;
+        goto exit_entry_of_block;
+    }
     for (k = 0; k <= (int64_t)h->block_count - 1; k++) {
         v = (int64_t)h->blocks[2 * k];
-        if ((uint64_t)((v << 1) | 1) == startpc) {
-            entry = h->code_start + h->blocks[2 * k + 1];
+        if ((uint64_t)((v << 1) | 1) == startpc_2) {
+            entry_2 = h->code_start + h->blocks[2 * k + 1];
         }
     }
+    r_entry_of_block = entry_2;
+exit_entry_of_block:;
+    r_entry_of_block; });
     if (entry == 0) {
-        return 1;
+        c_2 = f->code;
+        return (c_2 > JIT_MAX_COUNT) && (((jit_method *)f->code)->mode == JIT_OPT) ? opt_send_from(f, ret) : 1;
     }
     if ((jit_flags & JIT_FLAG_BLOCKS) != 0) {
+        o_3 = *(uint64_t *)(c + 16 + 0);
+        m = *(uint64_t *)(o_3 + 16 + 24);
+        startpc = *(uint64_t *)(c + 16 + 8);
         i = (int64_t)(((startpc ^ (m >> 3)) & 1023) * 4);
         block_table[i] = m;
         block_table[i + 1] = startpc;
@@ -154,18 +185,18 @@ void bl_canonicalize_below(frame *f)
 {
     frame *base;
     frame *g;
-    uint64_t c;
     uint64_t rec;
     uint64_t ret;
     uint32_t *r_ret_entry;
-    uint64_t c_2;
-    jit_method *h;
+    uint64_t c;
+    jit_method *h_2;
     int64_t i;
     void *a;
     uint32_t *e;
-    uint32_t info;
+    jit_method *h;
     int32_t pc;
     int32_t sp;
+    uint32_t info;
     oop m;
     uint64_t o;
     oop o_2;
@@ -174,48 +205,48 @@ void bl_canonicalize_below(frame *f)
     g = f - 1;
     stat_walks = stat_walks + 1;
     while (g >= base) {
-        c = g->code;
-        if ((c > JIT_MAX_COUNT) && (((jit_method *)g->code)->mode == JIT_OPT)) {
-            if ((((uint64_t)g->lits) & 1) != 0) {
-                return;
-            }
-            g->lits = (oop *)(((uint64_t)g->lits) | 1);
-        } else {
-            rec = state_block->base_record - (uint64_t)(16 * (g + 1 - base));
-            ret = *(uint64_t *)(rec + 8);
-            e = ({
-    c_2 = g->code;
-    if (!(c_2 > JIT_MAX_COUNT)) {
+        rec = state_block->base_record - (uint64_t)(16 * (g + 1 - base));
+        ret = *(uint64_t *)(rec + 8);
+        e = ({
+    c = g->code;
+    if (!(c > JIT_MAX_COUNT)) {
         fatal_begin();
         fprintf(stderr, "baseline: a frame without code in machine code");
         fatal_end();
     }
-    h = (jit_method *)g->code;
-    i = bl_ret_index(h, ret);
+    h_2 = (jit_method *)g->code;
+    i = bl_ret_index(h_2, ret);
     if (i < 0) {
         a = (void *)ret;
         fatal_begin();
         fprintf(stderr, "baseline: no return map entry for %p", a);
         fatal_end();
     }
-    r_ret_entry = h->rets + 3 * i;
+    r_ret_entry = h_2->rets + 3 * i;
     r_ret_entry; });
+        h = (jit_method *)g->code;
+        if (h->mode == JIT_OPT) {
+            pc = (int32_t)(h->bc_size + e[1]);
+            sp = (int32_t)h->slots;
+        } else {
             info = e[2];
             pc = (int32_t)(e[1] & 0xFFFF) + (int32_t)((info >> 8) & 255);
             sp = (int32_t)(e[1] >> 16) + (int32_t)((info >> 26) & 3) - (int32_t)(info & 255) - 1;
-            if ((g->pc == pc) && (g->sp == sp)) {
-                return;
-            }
-            g->method = ((jit_method *)g->code)->method;
-            g->pc = pc;
-            g->sp = sp;
-            m = g->method;
-            o = *(uint64_t *)(m + 16 + 24);
-            g->ip = (uint8_t *)(o + 16) + pc;
-            o_2 = g->method;
-            o_3 = *(uint64_t *)(o_2 + 16 + 16);
-            g->lits = (oop *)(o_3 + 16);
         }
+        if ((g->pc == pc) && (g->sp == sp)) {
+            return;
+        }
+        if (h->method != nil_oop) {
+            g->method = h->method;
+        }
+        g->pc = pc;
+        g->sp = sp;
+        m = g->method;
+        o = *(uint64_t *)(m + 16 + 24);
+        g->ip = (uint8_t *)(o + 16) + pc;
+        o_2 = g->method;
+        o_3 = *(uint64_t *)(o_2 + 16 + 16);
+        g->lits = (oop *)(o_3 + 16);
         g = g - 1;
     }
 }
@@ -225,8 +256,9 @@ uint64_t jit_bl_entry_slow(frame *f, uint64_t ret)
 {
     oop o;
     uint64_t o_2;
-    uint32_t *r_ret_entry;
     uint64_t c;
+    uint32_t *r_ret_entry;
+    uint64_t c_2;
     jit_method *h;
     int64_t i;
     void *a;
@@ -241,9 +273,13 @@ uint64_t jit_bl_entry_slow(frame *f, uint64_t ret)
     o = f->method;
     o_2 = *(uint64_t *)(o + 16 + 16);
     f->lits = (oop *)(o_2 + 16);
-    e = ({
     c = f->code;
-    if (!(c > JIT_MAX_COUNT)) {
+    if ((c > JIT_MAX_COUNT) && (((jit_method *)f->code)->mode == JIT_OPT)) {
+        return opt_send_from(f, ret);
+    }
+    e = ({
+    c_2 = f->code;
+    if (!(c_2 > JIT_MAX_COUNT)) {
         fatal_begin();
         fprintf(stderr, "baseline: a frame without code in machine code");
         fatal_end();
@@ -316,6 +352,10 @@ oop bl_feedback_selector(oop m, int64_t i)
     h = bl_header_of(m);
     s = h->sites + i;
     return ({
+    if (h->mode == JIT_OPT) {
+        r_selector_of = *(uint64_t *)(h->code_start + h->pool_offset + (uint64_t)(8 * s->depth));
+        goto exit_selector_of;
+    }
     info = s->info;
     i_2 = (info >> 16) & 255;
     if (((info >> 24) & 3) == 2) {
@@ -425,6 +465,7 @@ uint64_t jit_bl_miss(frame *f, oop rcv, uint64_t ret)
     uint32_t v;
     baseline_site *s;
     void *a;
+    bool opt;
     uint32_t kind;
     uint64_t r_selector_of;
     uint32_t info;
@@ -437,10 +478,6 @@ uint64_t jit_bl_miss(frame *f, oop rcv, uint64_t ret)
     uint64_t o_7;
     uint64_t v_2;
     uint64_t cls;
-    cache_entry *e;
-    oop m;
-    int64_t r_method_prim;
-    uint64_t p;
     jit_method *t;
     bool is_super;
     uint64_t site;
@@ -448,7 +485,7 @@ uint64_t jit_bl_miss(frame *f, oop rcv, uint64_t ret)
     uint64_t target;
     int64_t i_2;
     uint64_t target_2;
-    uint64_t p_2;
+    uint64_t p;
     uint64_t target_3;
     bool r_add_case_to;
     baseline_pic *pic;
@@ -495,8 +532,16 @@ exit_site_of:;
         fprintf(stderr, "baseline: no send site for %p", a);
         fatal_end();
     }
+    opt = h->mode == JIT_OPT;
     kind = (s->info >> 24) & 3;
+    if (opt && (kind == 1)) {
+        return opt_send_from(f, ret);
+    }
     sel = ({
+    if (h->mode == JIT_OPT) {
+        r_selector_of = *(uint64_t *)(h->code_start + h->pool_offset + (uint64_t)(8 * s->depth));
+        goto exit_selector_of;
+    }
     info = s->info;
     i = (info >> 16) & 255;
     if (((info >> 24) & 3) == 2) {
@@ -518,32 +563,12 @@ exit_selector_of:;
         v_2 = (rcv & 7) != 0 ? tag_class[rcv & 7] : *(uint64_t *)(rcv + 8);
     }
     v_2; });
-    if ((jit_mode == JIT_OPT) && (kind != 1)) {
+    if ((jit_mode == JIT_OPT) && ((kind != 1) && (!opt))) {
         jit_note_send(h->method, (int64_t)s->pc, cls);
     }
-    e = entry_for(cls, sel);
-    if (e == NULL) {
-        return 1;
-    }
-    if ((e->kind & K_CTX) != 0) {
-        return 1;
-    }
-    m = e->method;
-    if (bl_prim_kind((int32_t)(({
-    p = *(uint64_t *)(m + 16 + 56);
-    r_method_prim = (p & 1) != 0 ? ((int64_t)p) >> 1 : 0;
-    r_method_prim; }) & CM_PRIM_MASK)) == PK_PERFORM) {
-        return 1;
-    }
-    t = jit_code_of(m, true);
-    if (!((t != NULL) && ((t->flags & JM_FAILED) == 0))) {
-        return 1;
-    }
-    if (t->mode == JIT_OPT) {
-        t = (jit_method *)t->lower;
-    }
-    if (!(t->mode == JIT_BASELINE)) {
-        return 1;
+    t = bl_target_for(cls, sel);
+    if (t == NULL) {
+        return opt ? opt_send_from(f, ret) : 1;
     }
     if ((jit_flags & JIT_FLAG_IC) != 0) {
         is_super = kind == 1;
@@ -568,19 +593,19 @@ exit_selector_of:;
             asm_patch_branch(site, target_2);
             sys_icache_invalidate((void *)site, 4);
         } else {
-            p_2 = s->pic;
-            if ((p_2 == 0) && ((jit_flags & JIT_FLAG_PIC) != 0)) {
-                p_2 = bl_new_pic(site, *(uint64_t *)lit, (jit_method *)s->target);
-                if (p_2 != 0) {
+            p = s->pic;
+            if ((p == 0) && ((jit_flags & JIT_FLAG_PIC) != 0)) {
+                p = bl_new_pic(site, *(uint64_t *)lit, (jit_method *)s->target);
+                if (p != 0) {
                     stat_pics = stat_pics + 1;
-                    s->pic = p_2;
-                    target_3 = p_2 + sizeof(baseline_pic);
+                    s->pic = p;
+                    target_3 = p + sizeof(baseline_pic);
                     asm_patch_branch(site, target_3);
                     sys_icache_invalidate((void *)site, 4);
                 }
             }
-            if (!((p_2 != 0) && ({
-    pic = (baseline_pic *)p_2;
+            if (!((p != 0) && ({
+    pic = (baseline_pic *)p;
     n = pic->count;
     if (n >= BL_PIC_CASES) {
         r_add_case_to = false;
@@ -590,7 +615,7 @@ exit_selector_of:;
     *(uint64_t *)((uint64_t)&pic->targets + (uint64_t)(8 * n)) = (uint64_t)t;
     pic->count = n + 1;
     i_3 = (int32_t)n;
-    site_2 = p_2 + (sizeof(baseline_pic) + 12 + 16 * i_3 + 12);
+    site_2 = p + (sizeof(baseline_pic) + 12 + 16 * i_3 + 12);
     target_4 = t->uentry;
     asm_patch_branch(site_2, target_4);
     sys_icache_invalidate((void *)site_2, 4);
@@ -774,8 +799,18 @@ uint64_t jit_bl_prim(frame *f, uint64_t fp, uint64_t fn, uint64_t info)
     uint64_t inv;
     int32_t status;
     oop v;
+    uint64_t c;
+    int32_t pc;
+    int32_t n_2;
+    uint64_t r_leave_after;
+    uint64_t c_2;
     oop o_3;
     uint64_t o_4;
+    uint64_t c_3;
+    int32_t pc_2;
+    int32_t n_3;
+    uint64_t r_leave_after_2;
+    uint64_t c_4;
     int32_t code;
     int64_t v_2;
     uint64_t v_3;
@@ -806,6 +841,20 @@ uint64_t jit_bl_prim(frame *f, uint64_t fp, uint64_t fn, uint64_t info)
         }
         if (inv != invalidations) {
             base[0] = v;
+            c = f->code;
+            if ((c > JIT_MAX_COUNT) && (((jit_method *)f->code)->mode == JIT_OPT)) {
+                pc = f->pc;
+                n_2 = f->sp;
+                return ({
+    c_2 = f->code;
+    if ((c_2 > JIT_MAX_COUNT) && (((jit_method *)f->code)->mode == JIT_OPT)) {
+        r_leave_after = opt_leave(f, true);
+        goto exit_leave_after;
+    }
+    r_leave_after = jit_leave(f, pc, n_2);
+exit_leave_after:;
+    r_leave_after; });
+            }
             f->sp = f->sp - n;
             if ((jit_mode == JIT_BASELINE) || (jit_mode == JIT_OPT)) {
                 f->method = ((jit_method *)f->code)->method;
@@ -818,6 +867,25 @@ uint64_t jit_bl_prim(frame *f, uint64_t fp, uint64_t fn, uint64_t info)
             return 1;
         }
         state_block->result = v;
+        return 0;
+    }
+    if ((status == PS_SWITCHED) && ({
+    c_3 = f->code;
+    (c_3 > JIT_MAX_COUNT) && (((jit_method *)f->code)->mode == JIT_OPT) && ((stat_flushes == flushes) && (nframes == f - frames + 1)); })) {
+        if (inv != invalidations) {
+            pc_2 = f->pc;
+            n_3 = f->sp;
+            return ({
+    c_4 = f->code;
+    if ((c_4 > JIT_MAX_COUNT) && (((jit_method *)f->code)->mode == JIT_OPT)) {
+        r_leave_after_2 = opt_leave(f, true);
+        goto exit_leave_after_2;
+    }
+    r_leave_after_2 = jit_leave(f, pc_2, n_3);
+exit_leave_after_2:;
+    r_leave_after_2; });
+        }
+        state_block->result = base[0];
         return 0;
     }
     if (status == PS_FAIL) {
@@ -1274,10 +1342,11 @@ static void bl_set_top(frame *f, uint64_t ret, int32_t mode)
 {
     uint32_t *r_ret_entry;
     uint64_t c;
-    jit_method *h;
+    jit_method *h_2;
     int64_t i;
     void *a;
     uint32_t *e;
+    jit_method *h;
     int32_t pc;
     int32_t d;
     uint32_t info;
@@ -1288,16 +1357,22 @@ static void bl_set_top(frame *f, uint64_t ret, int32_t mode)
         fprintf(stderr, "baseline: a frame without code in machine code");
         fatal_end();
     }
-    h = (jit_method *)f->code;
-    i = bl_ret_index(h, ret);
+    h_2 = (jit_method *)f->code;
+    i = bl_ret_index(h_2, ret);
     if (i < 0) {
         a = (void *)ret;
         fatal_begin();
         fprintf(stderr, "baseline: no return map entry for %p", a);
         fatal_end();
     }
-    r_ret_entry = h->rets + 3 * i;
+    r_ret_entry = h_2->rets + 3 * i;
     r_ret_entry; });
+    h = (jit_method *)f->code;
+    if (h->mode == JIT_OPT) {
+        f->pc = (int32_t)(h->bc_size + e[1]);
+        f->sp = (int32_t)(h->slots + e[2] + 1);
+        return;
+    }
     pc = (int32_t)(e[1] & 0xFFFF);
     d = (int32_t)(e[1] >> 16);
     info = e[2];
@@ -1308,6 +1383,41 @@ static void bl_set_top(frame *f, uint64_t ret, int32_t mode)
         f->pc = pc + (int32_t)((info >> 8) & 255);
         f->sp = d + (int32_t)((info >> 26) & 3);
     }
+}
+
+/* JitBaselineRuntime>>targetFor:selector: */
+static jit_method *bl_target_for(oop cls, oop sel)
+{
+    cache_entry *e;
+    oop m;
+    int64_t r_method_prim;
+    uint64_t p;
+    jit_method *t;
+    e = entry_for(cls, sel);
+    if (e == NULL) {
+        return (jit_method *)NULL;
+    }
+    if ((e->kind & K_CTX) != 0) {
+        return (jit_method *)NULL;
+    }
+    m = e->method;
+    if (bl_prim_kind((int32_t)(({
+    p = *(uint64_t *)(m + 16 + 56);
+    r_method_prim = (p & 1) != 0 ? ((int64_t)p) >> 1 : 0;
+    r_method_prim; }) & CM_PRIM_MASK)) == PK_PERFORM) {
+        return (jit_method *)NULL;
+    }
+    t = jit_code_of(m, true);
+    if (!((t != NULL) && ((t->flags & JM_FAILED) == 0))) {
+        return (jit_method *)NULL;
+    }
+    if (t->mode == JIT_OPT) {
+        t = (jit_method *)t->lower;
+    }
+    if (!(t->mode == JIT_BASELINE)) {
+        return (jit_method *)NULL;
+    }
+    return t;
 }
 
 /* JitBaselineRuntime>>unlinkAll */
@@ -1330,6 +1440,17 @@ void bl_unlink_selector(oop sel)
     oop o_2;
     uint64_t o_3;
     uint64_t site;
+    int32_t i_3;
+    jit_method *h_2;
+    int64_t k_2;
+    baseline_site *s_2;
+    uint64_t r_selector_of_2;
+    uint32_t info_2;
+    uint32_t i_4;
+    oop o_4;
+    oop o_5;
+    uint64_t o_6;
+    uint64_t site_2;
     memset(mega_table, 0, 131072);
     memset(block_table, 0, 32768);
     if (table_count == 0) {
@@ -1338,11 +1459,18 @@ void bl_unlink_selector(oop sel)
     pthread_jit_write_protect_np(0);
     for (i = 0; i <= 65535; i++) {
         h = method_table[i];
-        if ((h != NULL) && ((h->mode == JIT_BASELINE) && ((h->flags & 3) == 0))) {
+        if ((h != NULL) && (h->mode == JIT_BASELINE)) {
+            if (!((h->flags & 3) == 0)) {
+                goto exit_unlink_sites_of;
+            }
             for (k = 0; k <= (int64_t)h->site_count - 1; k++) {
                 s = h->sites + k;
                 if ((s->target != 0) || ((s->info & BL_SITE_MEGA) != 0)) {
                     if ((sel == 0) || (({
+    if (h->mode == JIT_OPT) {
+        r_selector_of = *(uint64_t *)(h->code_start + h->pool_offset + (uint64_t)(8 * s->depth));
+        goto exit_selector_of;
+    }
     info = s->info;
     i_2 = (info >> 16) & 255;
     if (((info >> 24) & 3) == 2) {
@@ -1365,7 +1493,45 @@ exit_selector_of:;
                     }
                 }
             }
+        exit_unlink_sites_of:;
         }
+    }
+    for (i_3 = 0; i_3 <= rt_all_count - 1; i_3++) {
+        h_2 = rt_all[i_3];
+        if (!((h_2->flags & 3) == 0)) {
+            goto exit_unlink_sites_of_2;
+        }
+        for (k_2 = 0; k_2 <= (int64_t)h_2->site_count - 1; k_2++) {
+            s_2 = h_2->sites + k_2;
+            if ((s_2->target != 0) || ((s_2->info & BL_SITE_MEGA) != 0)) {
+                if ((sel == 0) || (({
+    if (h_2->mode == JIT_OPT) {
+        r_selector_of_2 = *(uint64_t *)(h_2->code_start + h_2->pool_offset + (uint64_t)(8 * s_2->depth));
+        goto exit_selector_of_2;
+    }
+    info_2 = s_2->info;
+    i_4 = (info_2 >> 16) & 255;
+    if (((info_2 >> 24) & 3) == 2) {
+        o_4 = special(SO_SPECIAL_SELECTORS);
+        r_selector_of_2 = *(uint64_t *)(o_4 + 16 + 8 * i_4);
+        goto exit_selector_of_2;
+    }
+    o_5 = h_2->method;
+    o_6 = *(uint64_t *)(o_5 + 16 + 16);
+    r_selector_of_2 = *(uint64_t *)(o_6 + 16 + 8 * i_4);
+exit_selector_of_2:;
+    r_selector_of_2; }) == sel)) {
+                    site_2 = h_2->code_start + s_2->bl;
+                    *(uint64_t *)(h_2->code_start + s_2->lit) = 0;
+                    s_2->target = 0;
+                    s_2->pic = 0;
+                    s_2->info = s_2->info & 3221225471LL;
+                    asm_patch_branch(site_2, bl_miss);
+                    sys_icache_invalidate((void *)site_2, 4);
+                }
+            }
+        }
+    exit_unlink_sites_of_2:;
     }
     pthread_jit_write_protect_np(1);
 }

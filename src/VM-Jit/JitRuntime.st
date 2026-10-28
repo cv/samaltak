@@ -1,5 +1,5 @@
 VMCoreModule subclass: #JitRuntime
-	instanceVariableNames: 'stubs baseline brt cache asm analysis jitMode jitFlags jitThreshold jitOsrThreshold jitCacheMB cacheOpened flushPending invalidations stateBlock methodTable tableCount methodCounts youngMethods youngCount youngOverflow mapPcs mapOffsets mapCount sendPushed performFn performArgsFn statCompiled statFailed statBytecodes statCompileUs statCodeBytes statCacheFlushes statEntries statExits statResumes statOsr feedback optimizer jitOptThreshold optCounts entryCells'
+	instanceVariableNames: 'stubs baseline brt cache asm analysis jitMode jitFlags jitThreshold jitOsrThreshold jitCacheMB cacheOpened flushPending invalidations stateBlock methodTable tableCount methodCounts youngMethods youngCount youngOverflow mapPcs mapOffsets mapCount sendPushed performFn performArgsFn statCompiled statFailed statBytecodes statCompileUs statCodeBytes statCacheFlushes statEntries statExits statResumes statOsr feedback optimizer jitOptThreshold optCounts copying'
 	classVariableNames: 'JIT_BASELINE JIT_FLAG_ACCESS JIT_FLAG_ALLOC JIT_FLAG_ARITH JIT_FLAG_BARRIER JIT_FLAG_BLOCKS JIT_FLAG_CALLS JIT_FLAG_DEOPT JIT_FLAG_EAGER JIT_FLAG_FLOAT JIT_FLAG_FUSE JIT_FLAG_GVN JIT_FLAG_IC JIT_FLAG_INLINE JIT_FLAG_LAST JIT_FLAG_MEGA JIT_FLAG_NOTES JIT_FLAG_PIC JIT_FLAG_PRIMS JIT_FLAG_QUICK JIT_FLAG_REGS JIT_FLAG_UNBOX JIT_MAX_COUNT JIT_MAX_MAP JIT_MAX_YOUNG JIT_NONE JIT_OPT JIT_PROLOGUE_BYTES JIT_TABLE_SIZE JM_DEAD JM_ENTRY JM_FAILED JM_NOTES JM_OSR'
 	package: 'VM-Jit'!
 
@@ -15,12 +15,12 @@ declarations
 		(cacheOpened bool) (flushPending bool) (invalidations uint64_t)
 		(stateBlock 'JitState[1]')
 		(methodTable 'JitMethod *[JIT_TABLE_SIZE]') (tableCount int64_t) (methodCounts 'uint16_t[JIT_TABLE_SIZE]')
-		(youngMethods 'JitMethod *[JIT_MAX_YOUNG]') (youngCount int32_t) (youngOverflow bool) (optCounts 'int32_t[JIT_TABLE_SIZE]') (entryCells 'uint64_t[131072]')
+		(youngMethods 'JitMethod *[JIT_MAX_YOUNG]') (youngCount int32_t) (youngOverflow bool) (optCounts 'int32_t[JIT_TABLE_SIZE]')
 		(mapPcs 'uint32_t[JIT_MAX_MAP]') (mapOffsets 'uint32_t[JIT_MAX_MAP]') (mapCount int32_t)
 		(sendPushed int32_t)
 		(performFn prim_fn) (performArgsFn prim_fn)
 		(statCompiled uint64_t) (statFailed uint64_t) (statBytecodes uint64_t) (statCompileUs uint64_t) (statCodeBytes uint64_t) (statCacheFlushes uint64_t)
-		(statEntries uint64_t) (statExits uint64_t) (statResumes uint64_t) (statOsr uint64_t))
+		(statEntries uint64_t) (statExits uint64_t) (statResumes uint64_t) (statOsr uint64_t) (copying bool))
 !
 initialize
 	JIT_NONE := 0.
@@ -408,9 +408,6 @@ primitiveNumberNamed: name
 nowUs
 	^scheduler nowUs
 !
-optSendFunction
-	^optimizer sendFunction
-!
 optDeoptFunction
 	^optimizer deoptFunction
 !
@@ -462,22 +459,12 @@ slotOf: m
 		i := (i + 1) bitAnd: JIT_TABLE_SIZE - 1].
 	^-1
 !
-cellAddressOf: m
-	"Where direct calls of m (codeAddressOf: m) find the entry and the header of its best code: a call follows m's tier."
-	^self cCoerce: entryCells + (2 * (self slotOf: m)) to: 'uint64_t'
-!
-setCell: i code: h
-	"Direct calls of the method at table index i enter h."
-	entryCells at: 2 * i put: h start - JIT_PROLOGUE_BYTES.
-	entryCells at: 2 * i + 1 put: (self cCoerce: h to: 'uint64_t')
-!
 codeChanged: m
-	"m's best code changed (optimized, invalidated): its direct callers follow."
+	"m's best code changed (optimized, invalidated): calls of its baseline code's unchecked entry follow."
 	<c: 'void jit_code_changed(oop m)'>
 	| i |
 	i := self slotOf: m.
 	i < 0 ifTrue: [^self].
-	self setCell: i code: (self best: (methodTable at: i)).
 	brt redirect: (methodTable at: i) to: (self best: (methodTable at: i))
 !
 lookup: m
@@ -499,7 +486,6 @@ insert: h
 	[(methodTable at: i) notNull] whileTrue: [i := (i + 1) bitAnd: JIT_TABLE_SIZE - 1].
 	methodTable at: i put: h.
 	tableCount := tableCount + 1.
-	(self hasCode: h) ifTrue: [self setCell: i code: h].
 	(self isYoung: h method) ifTrue: [
 		youngCount < JIT_MAX_YOUNG
 			ifTrue: [
@@ -649,6 +635,17 @@ compileAndInstall: m
 	interpreter setCacheCode: (self cCoerce: h to: 'uint64_t') forMethod: m.
 	^h
 !
+compileCopy: m mode: md
+	"Compile m with notes for a disassembly (codeResetTo: drops the code): what its installed code reports stays feedback."
+	| h |
+	copying := true.
+	h := self compile: m mode: md notes: true.
+	copying := false.
+	^h
+!
+copying
+	^copying
+!
 compile: m mode: md notes: wantNotes
 	"Compile m with compiler md into the code cache; answer its header (flagged JM_FAILED if md cannot compile it), null if the cache is full."
 	<c: 'JitMethod *jit_compile(oop m, int32_t md, bool notes)'>
@@ -701,7 +698,9 @@ finish: m code: start mode: md
 	hdr := (asm pc + 7) bitClear: 7.
 	n := asm noteCount.
 	size := (hdr - start) + (self sizeof: 'JitMethod') + (8 * mapCount) + (20 * n) + 8.
-	md = JIT_OPT ifTrue: [size := size + optimizer extraBytes].
+	md = JIT_OPT ifTrue: [
+		size := size + optimizer extraBytes.
+		(brt canRegister: optimizer siteCount) ifFalse: [^self null]].
 	md = JIT_BASELINE ifTrue: [
 		size := size + baseline tablesBytes asUInt64.
 		(brt canRegister: baseline oopSlotCount) ifFalse: [^self null]].
@@ -809,7 +808,6 @@ kill: h
 	"h's code must not run again: frames using it go back to the interpreter for good."
 	<c: 'void jit_kill(JitMethod *h)'>
 	| f |
-	optimizer clearBlockCalls.
 	cache beginWriting.
 	h method: memory nilOop.
 	h flags: (h flags bitOr: JM_DEAD).
@@ -1301,12 +1299,20 @@ makeArray: f
 	f fp at: f sp - n put: a.
 	^0
 !
-blockCalls
-	"The optimizer's block call cache (OptRuntime>>blockCallsAddress)."
-	^optimizer blockCallsAddress
+optSendFrom: f ret: ret
+	"A call of optimized code that no machine code takes (OptRuntime>>sendFrom:ret:)."
+	^optimizer sendFrom: f ret: ret
 !
-blockCallsMask
-	^optimizer blockCallsMask
+optUnitEntryOf: m start: s
+	"The block stub's entry of m's block at startpc s if it has optimized code that may run, else 0."
+	jitMode = JIT_OPT ifFalse: [^0 asUInt64].
+	^optimizer unitEntryOf: m start: s
+!
+optHeaderCount
+	^optimizer headerCount
+!
+optHeaderAt: i
+	^optimizer headerAt: i
 !
 tierUp: f loop: loop
 	"The lower tier's counter for f's method ran out at f's pc (a method entry, or a backward jump if loop ~= 0; f's pc and sp stored): answer 0 to go on, 1 to leave, or where f continues in optimized code."

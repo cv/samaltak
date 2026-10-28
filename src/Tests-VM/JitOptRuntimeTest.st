@@ -80,6 +80,42 @@ testNotUnderstoodInALoopStaysOptimized
 	self assert: (o unknowns: 10000) equals: 50015000.
 	self stressed ifFalse: [self assert: (self statistics - before) optDeoptimizations < 1000]
 !
+testCallsTakeMachineCode
+	"What optimized code does not inline it calls as baseline code does, through no runtime: primitives in machine code (uint32At:put:, uint32At:, identityHash), a method too big to inline, a megamorphic send, a block it did not make."
+	| o bytes block mixed before |
+	self define: 'big: x | a | a := x. ' , ((1 to: 150) inject: '' into: [:all :i | all , 'a := a. ']) , '^a'.
+	self define: 'callsIn: bytes block: b mixed: m n: n | s | s := 0. 1 to: n do: [:i | bytes uint32At: 1 put: i. s := s + (bytes uint32At: 1) + (bytes identityHash bitAnd: 0) + (b value: i) + (self big: 0) + ((m at: i \\ m size + 1) yourself == nil ifTrue: [1] ifFalse: [0])]. ^s'.
+	o := JitRuntimeTestSubject new.
+	bytes := ByteArray new: 8.
+	block := [:x | x * 2].
+	mixed := {1. 'a'. #b. 2.5. nil. $c. Object new}.
+	self assert: (o callsIn: bytes block: block mixed: mixed n: 700) equals: 736150.
+	before := self statistics.
+	self assert: (o callsIn: bytes block: block mixed: mixed n: 7000) equals: 73511500.
+	self stressed ifFalse: [self assert: (self statistics - before) optRuntimeSends < 50]
+!
+testClosureTheFrameMadeInALoopUnit
+	"A loop's unit (entered at on-stack replacement) inlines the closures its frame made before the loop, guarded: one that stores a temp, one that returns from the method, one the temp stops holding (another closure: the guard fails, deoptimize)."
+	| o |
+	Smalltalk vm jitParameters: #(nil '-eager' nil nil).
+	self define: 'count: n | k b | k := 0. b := [k := k + 1]. 1 to: n do: [:i | b value]. ^k'.
+	self define: 'find: n | b | b := [:x | x = n ifTrue: [^x]]. 1 to: n * 2 do: [:i | b value: i]. ^0'.
+	self define: 'other ^[:x | x + 2]'.
+	self define: 'switch: n | s b | s := 0. b := [:x | x + 1]. 1 to: n do: [:i | i = (n // 2) ifTrue: [b := self other]. s := b value: s]. ^s'.
+	o := JitRuntimeTestSubject new.
+	3 timesRepeat: [
+		self assert: (o count: 30000) equals: 30000.
+		self assert: (o find: 30000) equals: 30000.
+		self assert: (o switch: 30000) equals: 45001]
+!
+testProcessPrimitivesThatDoNotSwitch
+	"signal and wait that switch no process (their C primitives commit their results) return into the optimized code that called them."
+	| o s |
+	self define: 'signalAndWait: s n: n | k | k := 0. 1 to: n do: [:i | s signal. s wait. k := k + 1]. ^k'.
+	o := JitRuntimeTestSubject new.
+	s := Semaphore new.
+	3 timesRepeat: [self assert: (o signalAndWait: s n: 1000) equals: 1000]
+!
 testPerformTheRuntimeDoesNotSend
 	"The interpreter does what perform: cannot send from optimized code: a selector not understood, perform: again, the wrong number of arguments; a frame without room (recursion through perform:with:)."
 	| o |
@@ -173,6 +209,17 @@ testDisassemblyShowsInlinedActivations
 	listing := (JitRuntimeTestSubject >> #sumInc:) machineCodeFor: #opt.
 	self assert: (listing beginsWith: 'JitRuntimeTestSubject>>sumInc:  opt').
 	self assert: (listing includesSubstring: 'inlined activation 1')
+!
+testDisassemblyLeavesFeedback
+	"A listing of code compiled without notes compiles a copy: the Float the method's baseline code saw stays feedback, its optimized code takes Floats."
+	| m |
+	Smalltalk vm jitParameters: #(nil '-eager' nil nil).
+	self define: 'add: x to: y ^x + y'.
+	m := JitRuntimeTestSubject >> #add:to:.
+	3 timesRepeat: [self assert: (JitRuntimeTestSubject new add: 1.5 to: 2.5) equals: 4.0].
+	self assert: ((m machineCodeFor: #opt) includesSubstring: 'fadd').
+	self assert: ((m machineCodeFor: #baseline) beginsWith: 'JitRuntimeTestSubject>>add:to:  baseline').
+	self assert: ((m machineCodeFor: #opt) includesSubstring: 'fadd')
 !
 testCharacterValueGuardsItsArgumentFirst
 	"Character value: inlined (feedback) for a value not known to be a SmallInteger: the guard on it comes before the conversion, which reads the guard's result."
