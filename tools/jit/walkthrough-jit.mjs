@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // Records the JIT video on the real system, driven only through samaltak-ctl and recorded from the compositor: the race
 // against Pharo 12 in two Terminals, the JIT's sources, its tiers, baseline and optimized machine code, deoptimization
-// while the Mandelbrot renders, Pharo's Cogit and the running system switched between the tiers.
+// while the Mandelbrot renders, Pharo's Cogit, the running system switched between the tiers, the measured comparison.
 // Usage: node walkthrough-jit.mjs <out-dir>   →  <out-dir>/raw.mp4, captions.json
 // Needs Pharo 12 for the race (vm/tests/bench/awfy.sh --pharo: $PHARO_VM, $PHARO_IMAGE, default /tmp/pharo-dl).
 // The browser writes accepted methods into a scratch copy of the sources (--source-dir), not the repo.
@@ -189,27 +189,28 @@ const beats = [
   }],
 
   // MandelbrotView>>pixelFor: (escape time → colour, inlined into the render loop; in the System Browser since before
-  // the recording). The counters; the Mandelbrot, made taller, renders again (zoomed in: a few seconds); meanwhile the
-  // inside of the set becomes red, ⌘S.
+  // the recording). The Mandelbrot, made taller, renders again (zoomed in: a few seconds); meanwhile the inside of the
+  // set becomes red, the counters, ⌘S.
   ['deopt', async () => {
     act('click', `${MO}.close`); await sleep(400);
     act('click', `${MC}.close`); await sleep(400);
-    await evaluate(DO.before);
-    await printed(DO.before); await sleep(300);
     S.busy = true;                                     // the Mandelbrot's Process renders: commands do not wait to settle
     place(W.mandel, 898, 41, 524, 843);
     await until(() => /rendering/.test(ctl('snapshot', `${W.mandel}.status`)), 10000, 'the render to start');
     act('select', `${W.browser}.code`, '16rFF000000'); await sleep(400);
     act('type', `${W.browser}.code`, '16rFF0000FF', '--delay', '45'); await sleep(11 * 45 + 300);
+    await evaluate(DO.before);
+    await printed(DO.before); await sleep(200);
     act('key', 'Meta+s', `${W.browser}.code`);
   }],
-  // The render goes on, red from the row where the method changed; the counters again.
+  // The counters again; the render goes on, red from the row where the method changed.
   ['deopt-after', async () => {
+    await sleep(300);
+    await evaluate(DO.after);
+    await printed(DO.after);
     await until(() => !/rendering/.test(ctl('snapshot', `${W.mandel}.status`)), 30000, 'the render');
     S.busy = false;
-    await sleep(600);
-    await evaluate(DO.after);
-    await printed(DO.after); await sleep(2500);
+    await sleep(1200);
   }],
 
   // A Terminal (World menu): which Cogit Pharo 12's VM was generated with.
@@ -225,14 +226,29 @@ const beats = [
   ['why-switch', async () => {
     S.busy = true;
     await evaluate(DO.baselineOnly);
-    await printed(DO.baselineOnly, 60000); await sleep(1500);
+    await printed(DO.baselineOnly, 60000); await sleep(1000);
     await evaluate(DO.optAgain);
-    await printed(DO.optAgain, 60000); await sleep(2500);
+    await printed(DO.optAgain, 60000); await sleep(1500);
     S.busy = false;
   }],
+  // The measured table: World menu › File Browser › docs › jit.md, the Comparison's baseline and opt rows selected.
+  ['why-table', async () => {
+    FB = await openTool('file-browser', /File Browser/);
+    place(FB, 18, 41, 1404, 843);
+    await pick(1, 'docs');
+    await pick(2, 'jit.md', 700);
+    const doc = readFileSync(join(root, 'docs/jit.md'), 'utf8');
+    const from = doc.indexOf('| `baseline` | Cog-style: inline caches');
+    const to = doc.indexOf('\n', doc.indexOf('| `opt` | baseline code plus the optimizing tier'));
+    if (from < 0 || to < 0) throw new Error('no Comparison rows in docs/jit.md');
+    const lines = doc.split('\n').length - 1;
+    act('select', `${FB}.viewer`, `line:${Math.min(doc.slice(0, from).split('\n').length + 14, lines)}`); await sleep(250);
+    act('select', `${FB}.viewer`, `${from}-${to}`); await sleep(3000);
+  }],
 
+  // The File Browser closes: the system as the video leaves it.
   ['outro', async () => {
-    await sleep(2500);
+    act('click', `${FB}.close`); await sleep(2500);
   }],
 ];
 
