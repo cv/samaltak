@@ -139,12 +139,11 @@ for spec in "$@"; do
     run="(Smalltalk at: #Harness) new run: #('$b' '$N' '$in')"
     if [ $PHARO = 1 ]; then
         expr="[#('Pharo' $files) do: [:n | ('$DIR/', n, '.st') asFileReference fileIn]. $run. ''] on: Error do: [:e | 'ERROR ', e class name, ': ', e messageText]"
-        (cd "$WORK" && "$VM" --headless $VMARGS "$IMAGE" eval "$expr") >"$LOG" 2>&1
+        (cd "$WORK" && "$VM" --headless $VMARGS "$IMAGE" eval "$expr") 2>&1
     else
         expr="[#('Samaltak' $files) do: [:n | Compiler fileIn: '$DIR/', n, '.st']. $run. ''] on: Error do: [:e | 'ERROR ', e class name, ': ', e messageText]"
-        "$VM" $VMARGS "$IMAGE" --headless --eval "$expr" >"$LOG" 2>&1
-    fi
-    tr '\r' '\n' <"$LOG" | grep -E '^[A-Za-z0-9]+,[0-9]+,-?[0-9]+$|^# ' | tee -a "$ALL"
+        "$VM" $VMARGS "$IMAGE" --headless --eval "$expr" 2>&1
+    fi | tee "$LOG" | tr -u '\r' '\n' | grep --line-buffered -E '^[A-Za-z0-9]+,[0-9]+,-?[0-9]+$|^# ' | tee -a "$ALL"
     if grep -q "ERROR" "$LOG" || ! grep -q "^$b,$N," "$LOG"; then
         echo "# FAILED $b" | tee -a "$ALL"
         grep -v -E '^[A-Za-z0-9]+,[0-9]+,-?[0-9]+$|^# ' "$LOG" | head -20 >&2
