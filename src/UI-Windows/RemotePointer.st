@@ -1,9 +1,9 @@
 Object subclass: #RemotePointer
-	instanceVariableNames: 'position target lastSeen lastActivity lastStep opacity rings shown'
+	instanceVariableNames: 'position lastSeen lastActivity lastStep opacity rings shown'
 	classVariableNames: ''
 	package: 'UI-Windows'!
 
-RemotePointer comment: 'I am the software pointer the Compositor draws while remote input is active (RemoteInputDevice default injects events): a Blue Book arrow that follows the injected pointer positions smoothly (the device already interpolates moves; I ease between frames), a ring where an injected click lands, and a fade-out 4 s after the last remote input. Remote input presses a button only once a frame showed me where it presses (hasShown:, RemoteInputDevice arrivalBlock:).'!
+RemotePointer comment: 'I am the software pointer the Compositor draws while remote input is active (RemoteInputDevice default injects events): a Blue Book arrow exactly where the input dispatcher last saw the pointer, the position hover and clicks go to (the device injects a travel as a series of moves: they are the animation), a ring where an injected click lands, and a fade-out 4 s after the last remote input. Remote input presses a button only once a frame showed me where it presses (hasShown:, RemoteInputDevice arrivalBlock:).'!
 
 !RemotePointer methodsFor: 'initialization'!
 initialize
@@ -15,6 +15,10 @@ initialize
 !RemotePointer methodsFor: 'accessing'!
 position
 	^position
+!
+shown
+	"Where the last frame drew me (nil: not drawn)."
+	^shown
 !
 opacity
 	^opacity
@@ -35,23 +39,18 @@ ignore: aPoint
 	"Take aPoint as the device's current position without showing me (a position not set by remote input)."
 	lastSeen := aPoint
 !
-pollAt: ms
-	"Follow RemoteInputDevice default's pointer; answer whether I need another frame."
-	| p dt k animating |
+pollAt: ms pointer: aPointOrNil
+	"Show the pointer where the input dispatcher last saw it (aPointOrNil, nil: no dispatcher), while RemoteInputDevice default moves it; answer whether I need another frame."
+	| p dt animating |
 	p := RemoteInputDevice default pointer.
 	(p notNil and: [p ~= lastSeen]) ifTrue: [
 		lastSeen := p.
-		target := p.
-		position isNil ifTrue: [position := p].
 		lastActivity := ms].
 	dt := lastStep isNil ifTrue: [16] ifFalse: [(ms - lastStep) max: 0].
 	lastStep := ms.
-	animating := false.
-	(position notNil and: [target notNil and: [position ~= target]]) ifTrue: [
-		k := 1 - (dt / -30.0) exp.
-		position := (position dist: target) < 0.3 ifTrue: [target] ifFalse: [position + (target - position * k)].
-		animating := true].
-	ms - lastActivity < 4000
+	animating := aPointOrNil notNil and: [aPointOrNil ~= position and: [opacity > 0 or: [self isActiveAt: ms]]].
+	aPointOrNil isNil ifFalse: [position := aPointOrNil].
+	(self isActiveAt: ms)
 		ifTrue: [
 			opacity < 1 ifTrue: [opacity := (opacity + (dt / 120.0)) min: 1. animating := true]]
 		ifFalse: [

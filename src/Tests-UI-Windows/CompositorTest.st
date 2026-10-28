@@ -178,20 +178,22 @@ testToastAppearsAndGoes
 	self assert: toast isDone.
 	self deny: (world toasts includes: toast)
 !
-testRemotePointerFollowsInjectedPosition
+testRemotePointerIsWhereTheDispatcherSawIt
+	"Remote input shows the pointer, drawn where the input dispatcher last saw it."
 	| saved |
 	saved := RemoteInputDevice default pointer.
-	RemoteInputDevice default pointer: 400 @ 300.
-	world changed.
-	world waitForFrames: 3.
-	self settle.
-	self assert: world remotePointer isVisible.
-	self assert: world remotePointer position equals: 400 @ 300.
-	RemoteInputDevice default pointer: 450 @ 320.
-	world changed.
-	world waitForFrames: 30.
-	self assert: world remotePointer position equals: 450 @ 320.
-	RemoteInputDevice default pointer: saved
+	[RemoteInputDevice default pointer: 400 @ 300.
+	 self moveTo: 400 @ 300.
+	 self settle.
+	 world waitForFrames: 3.
+	 self assert: world remotePointer isVisible.
+	 self assert: world remotePointer shown equals: 400 @ 300.
+	 RemoteInputDevice default pointer: 450 @ 320.
+	 self moveTo: 450 @ 320.
+	 self settle.
+	 world waitForFrames: 3.
+	 self assert: world remotePointer shown equals: 450 @ 320]
+		ensure: [RemoteInputDevice default pointer: saved]
 !
 testRecordWritesRawFrames
 	| path recorder size |
