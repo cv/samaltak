@@ -110,7 +110,7 @@ Tests (`Tests-VM`): encodings against the system assembler's (`Arm64Reference`, 
 
 ## Comparison
 
-Every design measured on the same benchmarks (`vm/tests/bench/results`): AWFY geometric mean of the steady state (median of the last half of the iterations, median of 3 invocations) relative to the interpreter and to Pharo 12; compile time and code size per bytecode compiled over the AWFY runs (for `opt` its optimizing compilations, inlined bytecodes included). The ratios of each row come from one run interleaved with `none`: template, threaded and stencil from `samaltak-cp-{none,template,threaded,stencil}-2026-10-24-*.csv` (10 iterations; Pharo 12 from `pharo12-cog-2026-10-24-*.csv`), the others from `samaltak-{none,baseline,opt}-2026-10-25d-*.csv` and `pharo12-cog-2026-10-25d-*.csv` (30 iterations); default thresholds.
+Every design measured on the same benchmarks (`vm/tests/bench/results`): AWFY geometric mean of the steady state (median of the last half of the iterations, median of 3 invocations) relative to the interpreter and to Pharo 12; compile time and code size per bytecode compiled over the AWFY runs (for `opt` its optimizing compilations, inlined bytecodes included). The ratios of each row come from one run interleaved with `none`: template, threaded and stencil from `samaltak-cp-{none,template,threaded,stencil}-2026-10-24-*.csv` (10 iterations; Pharo 12 from `pharo12-cog-2026-10-24-*.csv`), the others from `samaltak-{none,baseline,opt}-2026-10-28-*.csv` and `pharo12-cog-2026-10-28-*.csv` (30 iterations); default thresholds.
 
 | design | what | AWFY / `none` | AWFY / Pharo 12 | µs / bytecode | bytes / bytecode |
 |---|---|---|---|---|---|
@@ -118,9 +118,9 @@ Every design measured on the same benchmarks (`vm/tests/bench/results`): AWFY ge
 | template | a fixed machine-code template per bytecode on the frame's slots, sends through the runtime | 0.75 | 1.93 | 0.17 | 37 |
 | threaded | call threading: a `bl` per bytecode into its handler, C compiled into the VM | 1.21 | 3.14 | 0.12 | 15 |
 | stencil | copy-and-patch: handler stencils compiled by cc, copied and patched | 0.86 | 2.24 | 0.15 | 68 |
-| `baseline` | Cog-style: inline caches, operands in registers, inline arithmetic and primitives | 0.24 | 0.64 | 0.20 | 43 |
-| `opt` | baseline code plus the optimizing tier | 0.15 | 0.40 | 3.6 | 75 |
+| `baseline` | Cog-style: inline caches, operands in registers, inline arithmetic and primitives | 0.26 | 0.67 | 0.18 | 38 |
+| `opt` | baseline code plus the optimizing tier | 0.13 | 0.34 | 4.9 | 92 |
 | Pharo 12 | Cog, the same sources | 0.38 | 1 | – | – |
 
-- Removing the interpreter's dispatch alone (template) gives 0.75×; a call per bytecode (threaded) costs more than the dispatch; the stencils (1.16× template) keep the operand stack's top in a register where the template knows every slot's offset. `baseline` beats Pharo 12 on every benchmark, in the steady state and in the first iteration (0.62); `opt` (0.63× `baseline`) more so (first iterations 0.50).
-- Ablations (one flag off, AWFY geometric mean of the steady state relative to all on; `samaltak-jit-baseline-no-FLAG-2026-10-25-*.csv`, `samaltak-opt-no-FLAG-2026-10-25d.csv`): `baseline` `ic` 5.56, `arith` 1.44, `regs` 1.34, `barrier` 1.26, `mega` 1.25, `prims` 1.22, `blocks` 1.13, `float` 1.08, `access` 1.07, `quick` 1.07, `pic` 1.06, `fuse` 1.05; `opt` `inline` 6.48, `prims` 2.52, `unbox` 1.41, `calls` 1.37, `blocks` 1.27, `alloc` 1.23, `gvn` 1.08.
+- Removing the interpreter's dispatch alone (template) gives 0.75×; a call per bytecode (threaded) costs more than the dispatch; the stencils (1.16× template) keep the operand stack's top in a register where the template knows every slot's offset. `baseline` beats Pharo 12 on every benchmark, in the steady state (NBody by 2 %) and in the first iteration (0.64); `opt` (0.51× `baseline`) more so (first iterations 0.45).
+- Ablations (one flag off, AWFY geometric mean of the steady state relative to all on; `samaltak-jit-baseline-no-FLAG-2026-10-25-*.csv`, `samaltak-opt-no-FLAG-2026-10-28-*.csv`): `baseline` `ic` 5.56, `arith` 1.44, `regs` 1.34, `barrier` 1.26, `mega` 1.25, `prims` 1.22, `blocks` 1.13, `float` 1.08, `access` 1.07, `quick` 1.07, `pic` 1.06, `fuse` 1.05; `opt` `prims` 3.94, `inline` 2.49, `blocks` 1.58, `unbox` 1.21, `gvn` 1.06, `alloc` 1.04, `calls` 1.02.
