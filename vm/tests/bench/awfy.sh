@@ -8,6 +8,7 @@ DIR=$ROOT/vm/tests/bench/awfy
 AWFY="Bounce CD DeltaBlue Havlak Json List Mandelbrot NBody Permute Queens Richards Sieve Storage Towers"
 MICRO="MicroFib MicroLoop MicroFloats MicroSends MicroBlocks MicroDict MicroStrings MicroAlloc MicroFactorial"
 WORKLOADS="Recompile TextRendering"
+REALWORLD="BinaryTrees Fasta KNucleotide ReverseComplement SpectralNorm Pidigits Strings Dictionaries OrderedCollections Sorting Enumeration PrintParse Exceptions Megamorphic DeepRecursion Perform"
 
 usage() {
     cat <<EOF
@@ -15,8 +16,8 @@ usage: $0 [options] [benchmark[:inner] ...]
   --vm PATH         VM binary (default vm/build/samaltak; with --pharo \$PHARO_VM)
   --image PATH      image (default build/samaltak.image; with --pharo \$PHARO_IMAGE)
   --vm-args ARGS    extra VM arguments, e.g. '--jit baseline'
-  --pharo           run on Pharo 12 (AWFY and micro benchmarks only)
-  --suite NAME      awfy (default), micro, workloads or all
+  --pharo           run on Pharo 12 (all but the Samaltak workloads)
+  --suite NAME      awfy (default), micro, workloads, realworld or all (all but realworld)
   -n N              iterations per benchmark (default 30)
   -i N              inner iterations for every benchmark (default: per benchmark, see inner())
   -o FILE           also write CSV and '#' lines to FILE
@@ -41,7 +42,7 @@ file_of() {
     case $1 in
     Micro*) echo Micro ;;
     Recompile|TextRendering) echo Workloads ;;
-    *) echo "$1" ;;
+    *) case " $REALWORLD " in *" $1 "*) echo RealWorld ;; *) echo "$1" ;; esac ;;
     esac
 }
 
@@ -58,7 +59,7 @@ summarize() {
         return m % 2 ? a[(m + 1) / 2] : (a[m / 2] + a[m / 2 + 1]) / 2
     }
     END {
-        printf "# %-16s %6s %10s %10s %10s\n", "benchmark", "runs", "first_ms", "steady_ms", "total_ms"
+        printf "# %-18s %6s %10s %10s %10s\n", "benchmark", "runs", "first_ms", "steady_ms", "total_ms"
         for (i = 1; i <= nb; i++) {
             b = order[i]; nr = split(substr(fl[b], 2), fs, " ")
             for (r = 1; r <= nr; r++) {
@@ -66,7 +67,7 @@ summarize() {
                 delete s; for (j = h + 1; j <= m; j++) s[++c] = t[k, j]
                 st[r] = median(s, c); fi[r] = t[k, 1]; to[r] = tot[k]
             }
-            printf "# %-16s %6d %10.1f %10.1f %10.1f\n", b, nr, median(fi, nr) / 1000, median(st, nr) / 1000, median(to, nr) / 1000
+            printf "# %-18s %6d %10.1f %10.1f %10.1f\n", b, nr, median(fi, nr) / 1000, median(st, nr) / 1000, median(to, nr) / 1000
         }
     }'
 }
@@ -102,6 +103,7 @@ if [ $# -eq 0 ]; then
     awfy) set -- $AWFY ;;
     micro) set -- $MICRO ;;
     workloads) set -- $WORKLOADS ;;
+    realworld) set -- $REALWORLD ;;
     all) set -- $AWFY $MICRO $WORKLOADS ;;
     *) usage ;;
     esac
