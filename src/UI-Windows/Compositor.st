@@ -190,7 +190,7 @@ stepAt: now
 	world toasts do: [:t |
 		(t stepAt: now) ifTrue: [any := true].
 		(t needsFramesAt: now) ifTrue: [any := true]].
-	(world remotePointer pollAt: now) ifTrue: [any := true].
+	(world remotePointer pollAt: now pointer: (world dispatcher ifNotNil: [:d | d pointer])) ifTrue: [any := true].
 	world stepCurtain ifTrue: [any := true].
 	world dispatcher isNil ifFalse: [world dispatcher checkTooltipAt: now].
 	^any

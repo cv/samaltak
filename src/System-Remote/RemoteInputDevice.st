@@ -51,8 +51,8 @@ waitsForPointer: anEvent
 	^(arrivalBlock value: (anEvent at: 3) @ (anEvent at: 4)) ~~ true
 !
 arrivalTimeout
-	"How long (ms) an event waits for the drawn pointer at most: it glides on the UI's clock."
-	^1000 * self timeScale
+	"How long (ms) an event waits for the drawn pointer at most: the next frame shows where the UI saw the pointer."
+	^1000
 !
 planner
 	"Answer a RemoteInputPlanner starting at my pointer."

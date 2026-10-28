@@ -74,11 +74,23 @@ testClickInSlowMotion
 	self settle.
 	self assert: (v eventsOfType: #down) size equals: 1.
 	self assert: (v eventsOfType: #down) first position equals: v extent / 2.
-	"the on-screen pointer glides there (on the slowed clock)"
-	self assert: (self waitFor: [world remotePointer position = RemoteInputDevice default pointer] timeout: 10000)
+	"the on-screen pointer is where the click went"
+	self assert: (self waitFor: [world remotePointer shown = RemoteInputDevice default pointer] timeout: 2000)
+!
+testDrawnPointerIsTheDispatchersInSlowMotion
+	"During a travel in slow motion every frame draws the pointer where the input dispatcher last saw it (where hover goes), not behind it."
+	| device |
+	device := RemoteInputDevice default.
+	device pointer: 200 @ 200.
+	Animation timeScale: 10.
+	(device planner moveTo: 900 @ 600) do: [:delay :event |
+		device inject: event.
+		self assert: (self waitFor: [world dispatcher pointer = ((event at: 3) @ (event at: 4))] timeout: 2000).
+		world waitForFrames: 2.
+		self assert: world remotePointer shown equals: world dispatcher pointer]
 !
 testPressWaitsForTheDrawnPointer
-	"The press of a remote click is injected only once a frame showed the pointer where it presses: the drawn pointer glides behind the injected moves."
+	"The press of a remote click is injected only once a frame showed the pointer where it presses."
 	| v device shownAtPress |
 	v := RecordingTestView new.
 	self open: v title: 'Remote' at: (100 @ 100 extent: 300 @ 200).
