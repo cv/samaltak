@@ -65,7 +65,7 @@ add: newObject beforeIndex: index
 	"Insert newObject so that it ends up at index."
 	(index between: 1 and: self size + 1) ifFalse: [^self errorSubscriptBounds: index].
 	lastIndex = array size ifTrue: [self makeRoomAtLast].
-	lastIndex to: index + firstIndex - 1 by: -1 do: [:i | array at: i + 1 put: (array at: i)].
+	array replaceFrom: index + firstIndex to: lastIndex + 1 with: array startingAt: index + firstIndex - 1.
 	array at: index + firstIndex - 1 put: newObject.
 	lastIndex := lastIndex + 1.
 	^newObject
@@ -112,7 +112,7 @@ removeIndex: index
 	| obj i |
 	obj := self at: index.
 	i := index + firstIndex - 1.
-	i to: lastIndex - 1 do: [:j | array at: j put: (array at: j + 1)].
+	array replaceFrom: i to: lastIndex - 1 with: array startingAt: i + 1.
 	array at: lastIndex put: nil.
 	lastIndex := lastIndex - 1.
 	^obj
