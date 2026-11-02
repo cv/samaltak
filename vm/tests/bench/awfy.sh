@@ -110,8 +110,8 @@ if [ $# -eq 0 ]; then
 fi
 
 if [ $PHARO = 1 ]; then
-    VM=${VM:-${PHARO_VM:-/tmp/pharo-dl/vm/Pharo.app/Contents/MacOS/Pharo}}
-    IMAGE=${IMAGE:-${PHARO_IMAGE:-/tmp/pharo-dl/bench.image}}
+    VM=${VM:-${PHARO_VM:-$HOME/.cache/pharo12/vm/Pharo.app/Contents/MacOS/Pharo}}
+    IMAGE=${IMAGE:-${PHARO_IMAGE:-$HOME/.cache/pharo12/bench.image}}
     # Filing in writes to the image's .changes and pharo-local: work on a copy.
     WORK=$(mktemp -d)
     SRCIMAGE=$IMAGE src=$(dirname "$IMAGE")

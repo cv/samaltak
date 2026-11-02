@@ -3,7 +3,7 @@
 // against Pharo 12 in two Terminals, the JIT's sources, its tiers, baseline and optimized machine code, deoptimization
 // while the Mandelbrot renders, Pharo's Cogit, the running system switched between the tiers, the measured comparison.
 // Usage: node walkthrough-jit.mjs <out-dir>   →  <out-dir>/raw.mp4, captions.json
-// Needs Pharo 12 for the race (vm/tests/bench/awfy.sh --pharo: $PHARO_VM, $PHARO_IMAGE, default /tmp/pharo-dl).
+// Needs Pharo 12 for the race (vm/tests/bench/awfy.sh --pharo: $PHARO_VM, $PHARO_IMAGE, default ~/.cache/pharo12).
 // The browser writes accepted methods into a scratch copy of the sources (--source-dir), not the repo.
 import { execFileSync } from 'node:child_process';
 import { readFileSync, rmSync, writeFileSync } from 'node:fs';
@@ -36,7 +36,7 @@ const ctl = (...a) => S.ctl(...a), act = (...a) => S.act(...a);
 const DESK = '1431,250';   // the desk at the right edge, never covered
 const W = { workspace: '@w1', transcript: '@w2', procs: '@w3', mandel: '@w4', inspector: '@w5', browser: '@w6' };
 const LAPS = 25;
-const PHARO_CORE = '/tmp/pharo-dl/vm/Pharo.app/Contents/MacOS/Plugins/libPharoVMCore.dylib';
+const PHARO_CORE = process.env.HOME + '/.cache/pharo12/vm/Pharo.app/Contents/MacOS/Plugins/libPharoVMCore.dylib';
 
 // The Workspace's do-its, typed there before the recording.
 const DO = {
