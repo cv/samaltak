@@ -699,6 +699,7 @@ typedef struct frame frame;
 typedef struct image_header image_header;
 typedef struct jit_method jit_method;
 typedef struct jit_state jit_state;
+typedef struct large_operand large_operand;
 typedef struct opt_act opt_act;
 typedef struct opt_block opt_block;
 typedef struct opt_edge opt_edge;
@@ -876,6 +877,14 @@ struct jit_state {
     uint64_t dump[64];
 };
 _Static_assert(sizeof(jit_state) == 824, "the simulator lays out JitState as C does");
+
+struct large_operand {
+    uint32_t *limbs;
+    int64_t count;
+    bool neg;
+    uint32_t small[2];
+};
+_Static_assert(sizeof(large_operand) == 32, "the simulator lays out LargeOperand as C does");
 
 struct opt_act {
     oop method;
@@ -1505,6 +1514,18 @@ uint64_t jit_widow(frame *f);
 uint64_t jit_write_barrier(oop o, oop v);
 void jit_young_roots(void (*fn)(oop *));
 bool jit_generate_stubs(void);
+void prim_large_add(void);
+void prim_large_bit_and(void);
+void prim_large_bit_or(void);
+void prim_large_bit_shift(void);
+void prim_large_bit_xor(void);
+void prim_large_compare(void);
+void prim_large_floor_div(void);
+void prim_large_mod(void);
+void prim_large_mul(void);
+void prim_large_quo(void);
+void prim_large_rem(void);
+void prim_large_sub(void);
 void prim_char_from_value(void);
 void prim_char_value(void);
 void prim_float_abs(void);

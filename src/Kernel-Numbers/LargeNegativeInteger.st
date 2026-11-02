@@ -14,9 +14,6 @@ sign
 ! !
 
 !LargeNegativeInteger methodsFor: 'arithmetic'!
-negated
-	^((LargePositiveInteger basicNew: self basicSize) replaceFrom: 1 to: self basicSize with: self startingAt: 1) normalize
-!
 abs
 	^self negated
 ! !
