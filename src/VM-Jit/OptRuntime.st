@@ -1,5 +1,5 @@
 OptModule subclass: #OptRuntime
-	instanceVariableNames: 'ir builder passes regalloc codegen rtDeoptVals rtDeoptCount rtActMethod rtActClosure rtActRcv rtActPc rtActDepth rtActVals rtActCount rtOptYoung rtOptYoungCount rtOptYoungOverflow rtStatOptCompiled rtStatOptFailed rtStatOptBytecodes rtStatOptUs rtStatOptBytes rtStatDeopts rtStatOptOsr rtStatInvalidations rtAll rtAllCount rtSunkAct rtSunkStart rtSunkInfo rtSunkOrder rtSunkCount rtSunkUseVal rtSunkUseId rtSunkUseCount rtWritten rtUnitStart rtUnitOsr rtUnitDepth rtUnits rtUnitCount rtFailed rtTraceSends rtStamp rtStatSends rtUnitFrame'
+	instanceVariableNames: 'ir builder passes regalloc codegen rtDeoptVals rtDeoptCount rtActMethod rtActClosure rtActRcv rtActPc rtActDepth rtActVals rtActCount rtOptYoung rtOptYoungCount rtOptYoungOverflow rtStatOptCompiled rtStatOptFailed rtStatOptBytecodes rtStatOptUs rtStatOptBytes rtStatDeopts rtStatOptOsr rtStatInvalidations rtAll rtAllCount rtSunkAct rtSunkStart rtSunkInfo rtSunkOrder rtSunkCount rtSunkUseVal rtSunkUseId rtSunkUseCount rtWritten rtUnitStart rtUnitOsr rtUnitDepth rtUnits rtUnitCount rtFailed rtTrace rtTraceSends rtStamp rtStatSends rtUnitFrame'
 	classVariableNames: 'OPT_MAX_UNITS OPT_MAX_GENERATIONS OPT_MAX_DEOPTS OPT_MAX_DEOPT_ACTS OPT_MAX_DEOPT_VALS OPT_MAX_HEADERS OPT_MAX_YOUNG'
 	package: 'VM-Jit'!
 
@@ -19,7 +19,7 @@ declarations
 		(rtAll 'JitMethod *[OPT_MAX_HEADERS]') (rtAllCount int32_t)
 		(rtSunkAct 'int32_t[64]') (rtSunkStart 'int32_t[64]') (rtSunkInfo 'int32_t[64]') (rtSunkOrder 'int32_t[64]') (rtSunkCount int32_t)
 		(rtSunkUseVal 'int32_t[OPT_MAX_DEOPT_VALS]') (rtSunkUseId 'int32_t[OPT_MAX_DEOPT_VALS]') (rtSunkUseCount int32_t) (rtWritten int32_t)
-		(rtUnitStart int32_t) (rtUnitOsr int32_t) (rtUnitDepth int32_t) (rtUnits 'JitMethod *[OPT_MAX_UNITS]') (rtUnitCount int32_t) (rtFailed 'uint64_t[OPT_MAX_UNITS]') (rtTraceSends bool) (rtStamp uint32_t) (rtStatSends uint64_t) (rtUnitFrame 'Frame *'))
+		(rtUnitStart int32_t) (rtUnitOsr int32_t) (rtUnitDepth int32_t) (rtUnits 'JitMethod *[OPT_MAX_UNITS]') (rtUnitCount int32_t) (rtFailed 'uint64_t[OPT_MAX_UNITS]') (rtTrace bool) (rtTraceSends bool) (rtStamp uint32_t) (rtStatSends uint64_t) (rtUnitFrame 'Frame *'))
 !
 initialize
 	OPT_MAX_DEOPT_VALS := 8192.
@@ -294,6 +294,7 @@ compile: m
 	<c: 'bool opt_compile(oop m)'>
 	| ok trace limit |
 	trace := (libc getenv: 'SAMALTAK_OPT_TRACE') notNull.
+	rtTrace := trace.
 	rtTraceSends := (libc getenv: 'SAMALTAK_OPT_SENDS') notNull.
 	limit := libc getenv: 'SAMALTAK_OPT_LIMIT'.
 	(limit notNull and: [rtStatOptCompiled >= (libc atol: limit) asUInt64]) ifTrue: [^false].
@@ -662,6 +663,7 @@ returnBottom: f index: k
 	self storeRef: ctx at: CTX_FIXED + sp put: v.
 	(self slotsOf: ctx) at: CTX_STACKP put: (self intOop: sp + 1).
 	gc rememberIfOld: ctx.
+	runtime noteBottomReturn.
 	^1
 !
 deoptReturn: f index: k
@@ -837,7 +839,7 @@ materialize: f
 	mode := 0.
 	(top and: [f sp = (h slots + 1) asInt32 and: [((self recordOf: h index: k) at: 0) = SP_CALL]]) ifTrue: [mode := 2].
 	self decode: h index: k frame: f regs: self null mode: mode.
-	(libc getenv: 'SAMALTAK_OPT_TRACE') notNull ifTrue: [
+	rtTrace ifTrue: [
 		libc fprintf: libc stderr format: 'materialize top %d sp %d: ' with: (top ifTrue: [1] ifFalse: [0]) with: f sp.
 		self traceDeopt: h index: k mode: mode].
 	(top and: [mode = 0 and: [((self recordOf: h index: k) at: 0) = SP_CALL]]) ifTrue: [

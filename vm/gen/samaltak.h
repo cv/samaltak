@@ -1179,6 +1179,7 @@ extern uint64_t stat_pics;
 extern uint64_t stat_prim_calls;
 extern uint64_t stat_walks;
 extern uint8_t fb_floats[65536];
+extern bool bottom_returned;
 extern bool copying;
 extern bool flush_pending;
 extern uint64_t invalidations;

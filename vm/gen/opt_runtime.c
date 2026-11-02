@@ -35,6 +35,7 @@ static int32_t rt_sunk_start[64];
 static int32_t rt_sunk_use_count;
 static int32_t rt_sunk_use_id[8192];
 static int32_t rt_sunk_use_val[8192];
+static bool rt_trace;
 static bool rt_trace_sends;
 static int32_t rt_unit_count;
 static int32_t rt_unit_depth;
@@ -107,6 +108,7 @@ bool opt_compile(oop m)
     char *limit;
     bool ok;
     trace = getenv("SAMALTAK_OPT_TRACE") != NULL;
+    rt_trace = trace;
     rt_trace_sends = getenv("SAMALTAK_OPT_SENDS") != NULL;
     limit = getenv("SAMALTAK_OPT_LIMIT");
     if ((limit != NULL) && (rt_stat_opt_compiled >= (uint64_t)atol(limit))) {
@@ -1041,7 +1043,7 @@ void opt_materialize(frame *f)
         mode = 2;
     }
     opt_decode(h, k, f, (uint64_t *)NULL, mode);
-    if (getenv("SAMALTAK_OPT_TRACE") != NULL) {
+    if (rt_trace) {
         fprintf(stderr, "materialize top %d sp %d: ", top ? 1 : 0, f->sp);
         opt_trace_deopt(h, k, mode);
     }
@@ -1309,6 +1311,7 @@ uint64_t opt_return_bottom(frame *f, int64_t k)
     if (((ctx & 7) == 0) && ((!((uint64_t)(ctx - young_lo) < young_hi - young_lo)) && (((*(uint64_t *)ctx) & H_REMEMBERED) == 0))) {
         vm_remember(ctx);
     }
+    bottom_returned = true;
     return 1;
 }
 
