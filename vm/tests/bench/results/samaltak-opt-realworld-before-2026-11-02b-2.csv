@@ -1,0 +1,547 @@
+# awfy 2026-11-02 06:39 vm=/tmp/samaltak-agent-a2e8/builds/fd4c945/samaltak image=/tmp/samaltak-agent-a2e8/builds/fd4c945/samaltak.image vm-args='--jit opt' iterations=30
+# run BinaryTrees inner=1
+BinaryTrees,1,278521
+BinaryTrees,2,269080
+BinaryTrees,3,268776
+BinaryTrees,4,247867
+BinaryTrees,5,253039
+BinaryTrees,6,255939
+BinaryTrees,7,265977
+BinaryTrees,8,243812
+BinaryTrees,9,250766
+BinaryTrees,10,254489
+BinaryTrees,11,266820
+BinaryTrees,12,247723
+BinaryTrees,13,254054
+BinaryTrees,14,250803
+BinaryTrees,15,250266
+BinaryTrees,16,248882
+BinaryTrees,17,247740
+BinaryTrees,18,249119
+BinaryTrees,19,268965
+BinaryTrees,20,280162
+BinaryTrees,21,275353
+BinaryTrees,22,249122
+BinaryTrees,23,267287
+BinaryTrees,24,268415
+BinaryTrees,25,244754
+BinaryTrees,26,263487
+BinaryTrees,27,269664
+BinaryTrees,28,251150
+BinaryTrees,29,268214
+BinaryTrees,30,270254
+# stats BinaryTrees scavenges=1803 fullGCs=28 scavengeMicroseconds=947838 fullGCMicroseconds=513829 oldBytesUsed=68436896 oldBudget=126407920 edenBytes=0 bytesAllocated=30717038856 rememberedSetSize=-8 processSwitches=235274 bytesTenured=1741499288 weakSlotsCleared=0 contextsMaterialized=834920 frameFlushes=235274 jitMethodsCompiled=51 jitBytecodesCompiled=2765 jitCompileMicroseconds=5186 jitCodeBytes=153056 jitCacheFlushes=0 jitEntries=1504659 jitExits=1496498 jitResumes=1379823 jitOsrEntries=3 jitCompileFailures=1 jitInlineCacheMisses=365 jitInlineCacheLinks=315 jitPolymorphicCaches=11 jitMegamorphicSites=2 jitBlockCacheMisses=2052 jitPrimitiveCalls=2047741 jitFrameWalks=3116541 optMethodsCompiled=16 optBytecodesCompiled=1956 optCompileMicroseconds=4935 optCodeBytes=110264 optDeoptimizations=4 optOsrEntries=5142 optInvalidations=4 optCompileFailures=1 optRuntimeSends=0
+# total BinaryTrees 7780500 us
+# run Fasta inner=1
+Fasta,1,403459
+Fasta,2,398427
+Fasta,3,405140
+Fasta,4,397039
+Fasta,5,397116
+Fasta,6,406734
+Fasta,7,389031
+Fasta,8,396715
+Fasta,9,392607
+Fasta,10,400689
+Fasta,11,407430
+Fasta,12,395285
+Fasta,13,403733
+Fasta,14,396058
+Fasta,15,401539
+Fasta,16,410118
+Fasta,17,396268
+Fasta,18,401953
+Fasta,19,394378
+Fasta,20,398188
+Fasta,21,405260
+Fasta,22,391206
+Fasta,23,397889
+Fasta,24,392504
+Fasta,25,399537
+Fasta,26,404357
+Fasta,27,394210
+Fasta,28,399556
+Fasta,29,392435
+Fasta,30,399377
+# stats Fasta scavenges=0 fullGCs=23 scavengeMicroseconds=0 fullGCMicroseconds=157136 oldBytesUsed=42976752 oldBudget=4826208 edenBytes=0 bytesAllocated=1314469792 rememberedSetSize=-6 processSwitches=24772 bytesTenured=0 weakSlotsCleared=0 contextsMaterialized=26377 frameFlushes=24772 jitMethodsCompiled=63 jitBytecodesCompiled=3527 jitCompileMicroseconds=6853 jitCodeBytes=219736 jitCacheFlushes=0 jitEntries=51198 jitExits=48890 jitResumes=25691 jitOsrEntries=3571 jitCompileFailures=1 jitInlineCacheMisses=563 jitInlineCacheLinks=515 jitPolymorphicCaches=13 jitMegamorphicSites=0 jitBlockCacheMisses=197 jitPrimitiveCalls=131990 jitFrameWalks=197997 optMethodsCompiled=21 optBytecodesCompiled=2443 optCompileMicroseconds=6507 optCodeBytes=163720 optDeoptimizations=6 optOsrEntries=12373 optInvalidations=6 optCompileFailures=1 optRuntimeSends=1
+# total Fasta 11968238 us
+# run KNucleotide inner=1
+KNucleotide,1,303795
+KNucleotide,2,296379
+KNucleotide,3,293676
+KNucleotide,4,303425
+KNucleotide,5,291380
+KNucleotide,6,313125
+KNucleotide,7,288549
+KNucleotide,8,303243
+KNucleotide,9,297530
+KNucleotide,10,316027
+KNucleotide,11,297861
+KNucleotide,12,308284
+KNucleotide,13,301663
+KNucleotide,14,293940
+KNucleotide,15,302563
+KNucleotide,16,291518
+KNucleotide,17,319278
+KNucleotide,18,286899
+KNucleotide,19,308354
+KNucleotide,20,293032
+KNucleotide,21,311390
+KNucleotide,22,288714
+KNucleotide,23,319739
+KNucleotide,24,310560
+KNucleotide,25,322562
+KNucleotide,26,307071
+KNucleotide,27,334207
+KNucleotide,28,322116
+KNucleotide,29,292390
+KNucleotide,30,308858
+# stats KNucleotide scavenges=173 fullGCs=30 scavengeMicroseconds=332158 fullGCMicroseconds=250424 oldBytesUsed=16742464 oldBudget=23022880 edenBytes=0 bytesAllocated=3772689312 rememberedSetSize=-4 processSwitches=34286 bytesTenured=334188752 weakSlotsCleared=0 contextsMaterialized=38251 frameFlushes=34286 jitMethodsCompiled=166 jitBytecodesCompiled=6900 jitCompileMicroseconds=17157 jitCodeBytes=453216 jitCacheFlushes=0 jitEntries=87685 jitExits=80698 jitResumes=49365 jitOsrEntries=2388 jitCompileFailures=2 jitInlineCacheMisses=2627 jitInlineCacheLinks=2428 jitPolymorphicCaches=62 jitMegamorphicSites=0 jitBlockCacheMisses=1039 jitPrimitiveCalls=252966875 jitFrameWalks=13428605 optMethodsCompiled=74 optBytecodesCompiled=4570 optCompileMicroseconds=16632 optCodeBytes=326688 optDeoptimizations=19 optOsrEntries=14359 optInvalidations=19 optCompileFailures=2 optRuntimeSends=2
+# total KNucleotide 9128128 us
+# run ReverseComplement inner=1
+ReverseComplement,1,269339
+ReverseComplement,2,259527
+ReverseComplement,3,259906
+ReverseComplement,4,260053
+ReverseComplement,5,256086
+ReverseComplement,6,255939
+ReverseComplement,7,254241
+ReverseComplement,8,254688
+ReverseComplement,9,255708
+ReverseComplement,10,255349
+ReverseComplement,11,254807
+ReverseComplement,12,253977
+ReverseComplement,13,254284
+ReverseComplement,14,254142
+ReverseComplement,15,253844
+ReverseComplement,16,252079
+ReverseComplement,17,251198
+ReverseComplement,18,251096
+ReverseComplement,19,251870
+ReverseComplement,20,254308
+ReverseComplement,21,254305
+ReverseComplement,22,254773
+ReverseComplement,23,253752
+ReverseComplement,24,255061
+ReverseComplement,25,255117
+ReverseComplement,26,258316
+ReverseComplement,27,254843
+ReverseComplement,28,253256
+ReverseComplement,29,258919
+ReverseComplement,30,254402
+# stats ReverseComplement scavenges=59 fullGCs=31 scavengeMicroseconds=5059 fullGCMicroseconds=274711 oldBytesUsed=36986360 oldBudget=53639184 edenBytes=0 bytesAllocated=4196044488 rememberedSetSize=4 processSwitches=20710 bytesTenured=14722184 weakSlotsCleared=0 contextsMaterialized=28817 frameFlushes=20710 jitMethodsCompiled=80 jitBytecodesCompiled=4650 jitCompileMicroseconds=25399 jitCodeBytes=405912 jitCacheFlushes=0 jitEntries=46932 jitExits=43679 jitResumes=29326 jitOsrEntries=1783 jitCompileFailures=2 jitInlineCacheMisses=1150 jitInlineCacheLinks=1080 jitPolymorphicCaches=30 jitMegamorphicSites=0 jitBlockCacheMisses=448 jitPrimitiveCalls=20143719 jitFrameWalks=202811 optMethodsCompiled=41 optBytecodesCompiled=3588 optCompileMicroseconds=25074 optCodeBytes=350192 optDeoptimizations=16 optOsrEntries=9589 optInvalidations=16 optCompileFailures=2 optRuntimeSends=0
+# total ReverseComplement 7665185 us
+# run SpectralNorm inner=1
+SpectralNorm,1,440264
+SpectralNorm,2,439124
+SpectralNorm,3,438178
+SpectralNorm,4,439133
+SpectralNorm,5,439563
+SpectralNorm,6,435230
+SpectralNorm,7,437199
+SpectralNorm,8,436998
+SpectralNorm,9,438365
+SpectralNorm,10,438366
+SpectralNorm,11,438570
+SpectralNorm,12,437799
+SpectralNorm,13,440531
+SpectralNorm,14,438996
+SpectralNorm,15,438034
+SpectralNorm,16,437234
+SpectralNorm,17,436932
+SpectralNorm,18,438743
+SpectralNorm,19,437322
+SpectralNorm,20,435255
+SpectralNorm,21,437501
+SpectralNorm,22,440171
+SpectralNorm,23,438083
+SpectralNorm,24,437989
+SpectralNorm,25,437258
+SpectralNorm,26,437459
+SpectralNorm,27,439529
+SpectralNorm,28,437133
+SpectralNorm,29,436614
+SpectralNorm,30,434560
+# stats SpectralNorm scavenges=1 fullGCs=0 scavengeMicroseconds=601 fullGCMicroseconds=0 oldBytesUsed=0 oldBudget=0 edenBytes=0 bytesAllocated=13073392 rememberedSetSize=-2 processSwitches=27184 bytesTenured=0 weakSlotsCleared=0 contextsMaterialized=29352 frameFlushes=27184 jitMethodsCompiled=64 jitBytecodesCompiled=3411 jitCompileMicroseconds=6842 jitCodeBytes=215032 jitCacheFlushes=0 jitEntries=60129 jitExits=57834 jitResumes=31995 jitOsrEntries=5 jitCompileFailures=1 jitInlineCacheMisses=439 jitInlineCacheLinks=395 jitPolymorphicCaches=11 jitMegamorphicSites=0 jitBlockCacheMisses=56 jitPrimitiveCalls=144204 jitFrameWalks=214730 optMethodsCompiled=22 optBytecodesCompiled=2408 optCompileMicroseconds=6505 optCodeBytes=158424 optDeoptimizations=5 optOsrEntries=13631 optInvalidations=5 optCompileFailures=1 optRuntimeSends=3
+# total SpectralNorm 13138133 us
+# run Pidigits inner=1
+Pidigits,1,493606
+Pidigits,2,489871
+Pidigits,3,490225
+Pidigits,4,486503
+Pidigits,5,487656
+Pidigits,6,484098
+Pidigits,7,487086
+Pidigits,8,486781
+Pidigits,9,489404
+Pidigits,10,491233
+Pidigits,11,484598
+Pidigits,12,488811
+Pidigits,13,491207
+Pidigits,14,486951
+Pidigits,15,486388
+Pidigits,16,488142
+Pidigits,17,487385
+Pidigits,18,485851
+Pidigits,19,518331
+Pidigits,20,556376
+Pidigits,21,488820
+Pidigits,22,490550
+Pidigits,23,489599
+Pidigits,24,489569
+Pidigits,25,493855
+Pidigits,26,488953
+Pidigits,27,490642
+Pidigits,28,490096
+Pidigits,29,491349
+Pidigits,30,485522
+# stats Pidigits scavenges=2200 fullGCs=0 scavengeMicroseconds=17368 fullGCMicroseconds=0 oldBytesUsed=3688304 oldBudget=0 edenBytes=0 bytesAllocated=36890452992 rememberedSetSize=-8 processSwitches=274726 bytesTenured=3688304 weakSlotsCleared=0 contextsMaterialized=370550 frameFlushes=274599 jitMethodsCompiled=81 jitBytecodesCompiled=3830 jitCompileMicroseconds=7908 jitCodeBytes=192296 jitCacheFlushes=0 jitEntries=560930 jitExits=543668 jitResumes=229141 jitOsrEntries=82197 jitCompileFailures=4 jitInlineCacheMisses=774 jitInlineCacheLinks=654 jitPolymorphicCaches=56 jitMegamorphicSites=0 jitBlockCacheMisses=2519 jitPrimitiveCalls=6000057 jitFrameWalks=5694408 optMethodsCompiled=23 optBytecodesCompiled=2283 optCompileMicroseconds=7569 optCodeBytes=118992 optDeoptimizations=6 optOsrEntries=159 optInvalidations=6 optCompileFailures=4 optRuntimeSends=0
+# total Pidigits 14759458 us
+# run Strings inner=1
+Strings,1,410726
+Strings,2,392965
+Strings,3,384355
+Strings,4,394375
+Strings,5,386910
+Strings,6,392663
+Strings,7,397494
+Strings,8,398871
+Strings,9,387858
+Strings,10,395673
+Strings,11,390562
+Strings,12,389149
+Strings,13,379222
+Strings,14,390616
+Strings,15,385648
+Strings,16,392265
+Strings,17,385857
+Strings,18,392135
+Strings,19,387560
+Strings,20,392250
+Strings,21,385786
+Strings,22,391718
+Strings,23,386152
+Strings,24,392221
+Strings,25,385179
+Strings,26,392334
+Strings,27,384574
+Strings,28,392588
+Strings,29,385397
+Strings,30,390247
+# stats Strings scavenges=413 fullGCs=15 scavengeMicroseconds=28138 fullGCMicroseconds=110710 oldBytesUsed=13867896 oldBudget=17269600 edenBytes=0 bytesAllocated=7477035648 rememberedSetSize=-7 processSwitches=59630 bytesTenured=77341040 weakSlotsCleared=0 contextsMaterialized=131895 frameFlushes=59630 jitMethodsCompiled=179 jitBytecodesCompiled=10008 jitCompileMicroseconds=25609 jitCodeBytes=614624 jitCacheFlushes=0 jitEntries=250183 jitExits=238075 jitResumes=192912 jitOsrEntries=3157 jitCompileFailures=8 jitInlineCacheMisses=3502 jitInlineCacheLinks=3317 jitPolymorphicCaches=59 jitMegamorphicSites=2 jitBlockCacheMisses=5171 jitPrimitiveCalls=154974179 jitFrameWalks=22947670 optMethodsCompiled=108 optBytecodesCompiled=7704 optCompileMicroseconds=25212 optCodeBytes=501080 optDeoptimizations=29 optOsrEntries=2827 optInvalidations=29 optCompileFailures=8 optRuntimeSends=1
+# total Strings 11713350 us
+# run Dictionaries inner=1
+Dictionaries,1,309453
+Dictionaries,2,280937
+Dictionaries,3,276608
+Dictionaries,4,289945
+Dictionaries,5,277272
+Dictionaries,6,293755
+Dictionaries,7,275723
+Dictionaries,8,282823
+Dictionaries,9,291268
+Dictionaries,10,272373
+Dictionaries,11,278405
+Dictionaries,12,293991
+Dictionaries,13,278420
+Dictionaries,14,275644
+Dictionaries,15,301798
+Dictionaries,16,278938
+Dictionaries,17,276029
+Dictionaries,18,288803
+Dictionaries,19,277322
+Dictionaries,20,274015
+Dictionaries,21,289909
+Dictionaries,22,274976
+Dictionaries,23,294280
+Dictionaries,24,287481
+Dictionaries,25,277108
+Dictionaries,26,274519
+Dictionaries,27,298816
+Dictionaries,28,274489
+Dictionaries,29,276935
+Dictionaries,30,298966
+# stats Dictionaries scavenges=161 fullGCs=30 scavengeMicroseconds=535648 fullGCMicroseconds=474309 oldBytesUsed=55610088 oldBudget=44643888 edenBytes=0 bytesAllocated=3953751280 rememberedSetSize=-4 processSwitches=32798 bytesTenured=544870168 weakSlotsCleared=0 contextsMaterialized=46389 frameFlushes=32798 jitMethodsCompiled=119 jitBytecodesCompiled=10624 jitCompileMicroseconds=13535 jitCodeBytes=375752 jitCacheFlushes=0 jitEntries=91002 jitExits=86173 jitResumes=60451 jitOsrEntries=7446 jitCompileFailures=4 jitInlineCacheMisses=946 jitInlineCacheLinks=824 jitPolymorphicCaches=50 jitMegamorphicSites=0 jitBlockCacheMisses=1214 jitPrimitiveCalls=143638917 jitFrameWalks=12549328 optMethodsCompiled=71 optBytecodesCompiled=9247 optCompileMicroseconds=13166 optCodeBytes=302808 optDeoptimizations=18 optOsrEntries=11336 optInvalidations=18 optCompileFailures=4 optRuntimeSends=0
+# total Dictionaries 8521001 us
+# run OrderedCollections inner=1
+OrderedCollections,1,200373
+OrderedCollections,2,187537
+OrderedCollections,3,192515
+OrderedCollections,4,194035
+OrderedCollections,5,193493
+OrderedCollections,6,191888
+OrderedCollections,7,193495
+OrderedCollections,8,194295
+OrderedCollections,9,193549
+OrderedCollections,10,195181
+OrderedCollections,11,194899
+OrderedCollections,12,193938
+OrderedCollections,13,194167
+OrderedCollections,14,191563
+OrderedCollections,15,214171
+OrderedCollections,16,196955
+OrderedCollections,17,192605
+OrderedCollections,18,193161
+OrderedCollections,19,194282
+OrderedCollections,20,193819
+OrderedCollections,21,193299
+OrderedCollections,22,192680
+OrderedCollections,23,192761
+OrderedCollections,24,192635
+OrderedCollections,25,197605
+OrderedCollections,26,191816
+OrderedCollections,27,192110
+OrderedCollections,28,192784
+OrderedCollections,29,194718
+OrderedCollections,30,193951
+# stats OrderedCollections scavenges=150 fullGCs=149 scavengeMicroseconds=37063 fullGCMicroseconds=993921 oldBytesUsed=35667608 oldBudget=24172112 edenBytes=0 bytesAllocated=10215861016 rememberedSetSize=-6 processSwitches=29948 bytesTenured=10416 weakSlotsCleared=0 contextsMaterialized=43317 frameFlushes=29948 jitMethodsCompiled=91 jitBytecodesCompiled=5167 jitCompileMicroseconds=7164 jitCodeBytes=238680 jitCacheFlushes=0 jitEntries=83914 jitExits=79003 jitResumes=63679 jitOsrEntries=738 jitCompileFailures=3 jitInlineCacheMisses=716 jitInlineCacheLinks=640 jitPolymorphicCaches=27 jitMegamorphicSites=0 jitBlockCacheMisses=932 jitPrimitiveCalls=330476 jitFrameWalks=54309083 optMethodsCompiled=39 optBytecodesCompiled=3682 optCompileMicroseconds=6807 optCodeBytes=157176 optDeoptimizations=11 optOsrEntries=3865 optInvalidations=11 optCompileFailures=3 optRuntimeSends=2
+# total OrderedCollections 5830280 us
+# run Sorting inner=1
+Sorting,1,508003
+Sorting,2,486621
+Sorting,3,487716
+Sorting,4,497063
+Sorting,5,507112
+Sorting,6,500943
+Sorting,7,483553
+Sorting,8,489245
+Sorting,9,501102
+Sorting,10,509229
+Sorting,11,505369
+Sorting,12,486655
+Sorting,13,488672
+Sorting,14,500022
+Sorting,15,504496
+Sorting,16,493898
+Sorting,17,491834
+Sorting,18,493219
+Sorting,19,497699
+Sorting,20,513124
+Sorting,21,491275
+Sorting,22,499217
+Sorting,23,493091
+Sorting,24,497432
+Sorting,25,504831
+Sorting,26,490523
+Sorting,27,492127
+Sorting,28,496171
+Sorting,29,497840
+Sorting,30,508212
+# stats Sorting scavenges=177 fullGCs=27 scavengeMicroseconds=301011 fullGCMicroseconds=215159 oldBytesUsed=27870744 oldBudget=40036528 edenBytes=0 bytesAllocated=3514736792 rememberedSetSize=-2 processSwitches=42972 bytesTenured=622028176 weakSlotsCleared=0 contextsMaterialized=84693 frameFlushes=42972 jitMethodsCompiled=136 jitBytecodesCompiled=17849 jitCompileMicroseconds=9957 jitCodeBytes=328928 jitCacheFlushes=0 jitEntries=150147 jitExits=146270 jitResumes=111754 jitOsrEntries=12226 jitCompileFailures=2 jitInlineCacheMisses=981 jitInlineCacheLinks=847 jitPolymorphicCaches=52 jitMegamorphicSites=2 jitBlockCacheMisses=1432 jitPrimitiveCalls=131087720 jitFrameWalks=437787 optMethodsCompiled=71 optBytecodesCompiled=15665 optCompileMicroseconds=9463 optCodeBytes=207992 optDeoptimizations=11 optOsrEntries=48881 optInvalidations=11 optCompileFailures=2 optRuntimeSends=0
+# total Sorting 14916294 us
+# run Enumeration inner=1
+Enumeration,1,225908
+Enumeration,2,211804
+Enumeration,3,200959
+Enumeration,4,205314
+Enumeration,5,196701
+Enumeration,6,206459
+Enumeration,7,195654
+Enumeration,8,204363
+Enumeration,9,202996
+Enumeration,10,205421
+Enumeration,11,198142
+Enumeration,12,200711
+Enumeration,13,198130
+Enumeration,14,205128
+Enumeration,15,194892
+Enumeration,16,205234
+Enumeration,17,196235
+Enumeration,18,207710
+Enumeration,19,196767
+Enumeration,20,206360
+Enumeration,21,202451
+Enumeration,22,204643
+Enumeration,23,198055
+Enumeration,24,207096
+Enumeration,25,198300
+Enumeration,26,204231
+Enumeration,27,195806
+Enumeration,28,203075
+Enumeration,29,197645
+Enumeration,30,205100
+# stats Enumeration scavenges=204 fullGCs=15 scavengeMicroseconds=152228 fullGCMicroseconds=134580 oldBytesUsed=19257192 oldBudget=20983744 edenBytes=0 bytesAllocated=3584881448 rememberedSetSize=-4 processSwitches=21396 bytesTenured=440238896 weakSlotsCleared=0 contextsMaterialized=36830 frameFlushes=21396 jitMethodsCompiled=165 jitBytecodesCompiled=16247 jitCompileMicroseconds=14896 jitCodeBytes=417536 jitCacheFlushes=0 jitEntries=65328 jitExits=62024 jitResumes=52065 jitOsrEntries=236 jitCompileFailures=2 jitInlineCacheMisses=1446 jitInlineCacheLinks=1292 jitPolymorphicCaches=67 jitMegamorphicSites=2 jitBlockCacheMisses=5751 jitPrimitiveCalls=925663 jitFrameWalks=262450 optMethodsCompiled=89 optBytecodesCompiled=14291 optCompileMicroseconds=14427 optCodeBytes=310152 optDeoptimizations=18 optOsrEntries=9817 optInvalidations=18 optCompileFailures=2 optRuntimeSends=1
+# total Enumeration 6081290 us
+# run PrintParse inner=1
+PrintParse,1,598383
+PrintParse,2,560994
+PrintParse,3,566705
+PrintParse,4,563577
+PrintParse,5,565560
+PrintParse,6,568244
+PrintParse,7,563625
+PrintParse,8,564078
+PrintParse,9,564781
+PrintParse,10,563351
+PrintParse,11,577324
+PrintParse,12,593988
+PrintParse,13,564874
+PrintParse,14,565084
+PrintParse,15,563861
+PrintParse,16,566838
+PrintParse,17,566715
+PrintParse,18,568613
+PrintParse,19,573410
+PrintParse,20,569641
+PrintParse,21,567530
+PrintParse,22,569803
+PrintParse,23,568453
+PrintParse,24,571092
+PrintParse,25,564474
+PrintParse,26,566186
+PrintParse,27,581191
+PrintParse,28,575714
+PrintParse,29,564687
+PrintParse,30,562729
+# stats PrintParse scavenges=582 fullGCs=0 scavengeMicroseconds=6536 fullGCMicroseconds=0 oldBytesUsed=1554272 oldBudget=0 edenBytes=0 bytesAllocated=9759178776 rememberedSetSize=-7 processSwitches=83046 bytesTenured=1554272 weakSlotsCleared=0 contextsMaterialized=191200 frameFlushes=83046 jitMethodsCompiled=201 jitBytecodesCompiled=9863 jitCompileMicroseconds=32732 jitCodeBytes=587056 jitCacheFlushes=0 jitEntries=342979 jitExits=326877 jitResumes=264823 jitOsrEntries=7416 jitCompileFailures=6 jitInlineCacheMisses=10024 jitInlineCacheLinks=4360 jitPolymorphicCaches=129 jitMegamorphicSites=8 jitBlockCacheMisses=2556 jitPrimitiveCalls=111341334 jitFrameWalks=93546145 optMethodsCompiled=104 optBytecodesCompiled=7413 optCompileMicroseconds=32280 optCodeBytes=472008 optDeoptimizations=24 optOsrEntries=203 optInvalidations=24 optCompileFailures=6 optRuntimeSends=0
+# total PrintParse 17081505 us
+# run Exceptions inner=1
+Exceptions,1,460012
+Exceptions,2,457746
+Exceptions,3,458980
+Exceptions,4,457810
+Exceptions,5,458899
+Exceptions,6,463679
+Exceptions,7,456566
+Exceptions,8,455428
+Exceptions,9,454795
+Exceptions,10,455682
+Exceptions,11,455371
+Exceptions,12,456132
+Exceptions,13,456052
+Exceptions,14,455138
+Exceptions,15,456061
+Exceptions,16,455500
+Exceptions,17,456202
+Exceptions,18,454538
+Exceptions,19,460583
+Exceptions,20,455912
+Exceptions,21,452049
+Exceptions,22,455747
+Exceptions,23,455682
+Exceptions,24,455604
+Exceptions,25,456347
+Exceptions,26,457278
+Exceptions,27,456497
+Exceptions,28,456313
+Exceptions,29,456961
+Exceptions,30,456501
+# stats Exceptions scavenges=1286 fullGCs=0 scavengeMicroseconds=10814 fullGCMicroseconds=0 oldBytesUsed=1528344 oldBudget=0 edenBytes=0 bytesAllocated=21578093504 rememberedSetSize=-8 processSwitches=166232 bytesTenured=1528344 weakSlotsCleared=0 contextsMaterialized=32995153 frameFlushes=4961688 jitMethodsCompiled=166 jitBytecodesCompiled=20736 jitCompileMicroseconds=6963 jitCodeBytes=263936 jitCacheFlushes=0 jitEntries=90283149 jitExits=49589441 jitResumes=86535490 jitOsrEntries=3 jitCompileFailures=27 jitInlineCacheMisses=1203211 jitInlineCacheLinks=1338 jitPolymorphicCaches=74 jitMegamorphicSites=4 jitBlockCacheMisses=52840 jitPrimitiveCalls=265444207 jitFrameWalks=475536795 optMethodsCompiled=78 optBytecodesCompiled=18596 optCompileMicroseconds=6542 optCodeBytes=160744 optDeoptimizations=7 optOsrEntries=102 optInvalidations=7 optCompileFailures=27 optRuntimeSends=1199771
+# total Exceptions 13700065 us
+# run Megamorphic inner=1
+Megamorphic,1,114457
+Megamorphic,2,109342
+Megamorphic,3,110759
+Megamorphic,4,110609
+Megamorphic,5,110567
+Megamorphic,6,109534
+Megamorphic,7,108512
+Megamorphic,8,109560
+Megamorphic,9,108268
+Megamorphic,10,108833
+Megamorphic,11,109081
+Megamorphic,12,109208
+Megamorphic,13,109546
+Megamorphic,14,108566
+Megamorphic,15,108930
+Megamorphic,16,108538
+Megamorphic,17,108829
+Megamorphic,18,109312
+Megamorphic,19,108990
+Megamorphic,20,108667
+Megamorphic,21,111121
+Megamorphic,22,110442
+Megamorphic,23,110153
+Megamorphic,24,109915
+Megamorphic,25,109647
+Megamorphic,26,110511
+Megamorphic,27,110381
+Megamorphic,28,110793
+Megamorphic,29,110590
+Megamorphic,30,111032
+# stats Megamorphic scavenges=4 fullGCs=0 scavengeMicroseconds=1879 fullGCMicroseconds=0 oldBytesUsed=1446568 oldBudget=0 edenBytes=0 bytesAllocated=66290224 rememberedSetSize=-11 processSwitches=7074 bytesTenured=1446568 weakSlotsCleared=0 contextsMaterialized=48904 frameFlushes=7074 jitMethodsCompiled=213 jitBytecodesCompiled=3308 jitCompileMicroseconds=4079 jitCodeBytes=241904 jitCacheFlushes=0 jitEntries=66132 jitExits=64596 jitResumes=59713 jitOsrEntries=2 jitCompileFailures=3 jitInlineCacheMisses=4423 jitInlineCacheLinks=800 jitPolymorphicCaches=356 jitMegamorphicSites=265 jitBlockCacheMisses=154 jitPrimitiveCalls=128618 jitFrameWalks=501097 optMethodsCompiled=88 optBytecodesCompiled=1764 optCompileMicroseconds=3749 optCodeBytes=143904 optDeoptimizations=2 optOsrEntries=186 optInvalidations=2 optCompileFailures=3 optRuntimeSends=0
+# total Megamorphic 3294693 us
+# run DeepRecursion inner=1
+DeepRecursion,1,253255
+DeepRecursion,2,250993
+DeepRecursion,3,250736
+DeepRecursion,4,258009
+DeepRecursion,5,257838
+DeepRecursion,6,248169
+DeepRecursion,7,241700
+DeepRecursion,8,254049
+DeepRecursion,9,250503
+DeepRecursion,10,255452
+DeepRecursion,11,255771
+DeepRecursion,12,240222
+DeepRecursion,13,255457
+DeepRecursion,14,249319
+DeepRecursion,15,246479
+DeepRecursion,16,244371
+DeepRecursion,17,250800
+DeepRecursion,18,236691
+DeepRecursion,19,242088
+DeepRecursion,20,251031
+DeepRecursion,21,251371
+DeepRecursion,22,256088
+DeepRecursion,23,241052
+DeepRecursion,24,250469
+DeepRecursion,25,249819
+DeepRecursion,26,242736
+DeepRecursion,27,251746
+DeepRecursion,28,253107
+DeepRecursion,29,256430
+DeepRecursion,30,251003
+# stats DeepRecursion scavenges=717 fullGCs=93 scavengeMicroseconds=868686 fullGCMicroseconds=703001 oldBytesUsed=5564560 oldBudget=667072 edenBytes=0 bytesAllocated=13592710272 rememberedSetSize=23604 processSwitches=44786 bytesTenured=1889212768 weakSlotsCleared=0 contextsMaterialized=40147935 frameFlushes=48856 jitMethodsCompiled=64 jitBytecodesCompiled=3213 jitCompileMicroseconds=5800 jitCodeBytes=174776 jitCacheFlushes=0 jitEntries=80304822 jitExits=80295909 jitResumes=80209026 jitOsrEntries=2 jitCompileFailures=1 jitInlineCacheMisses=457 jitInlineCacheLinks=384 jitPolymorphicCaches=16 jitMegamorphicSites=2 jitBlockCacheMisses=1513 jitPrimitiveCalls=877349 jitFrameWalks=81546599 optMethodsCompiled=23 optBytecodesCompiled=2271 optCompileMicroseconds=5496 optCodeBytes=124120 optDeoptimizations=6 optOsrEntries=195 optInvalidations=6 optCompileFailures=1 optRuntimeSends=448628
+# total DeepRecursion 7496754 us
+# run Perform inner=1
+Perform,1,289735
+Perform,2,290260
+Perform,3,290281
+Perform,4,290027
+Perform,5,293855
+Perform,6,289206
+Perform,7,291113
+Perform,8,291905
+Perform,9,290138
+Perform,10,289829
+Perform,11,289688
+Perform,12,291241
+Perform,13,290560
+Perform,14,291167
+Perform,15,294952
+Perform,16,289310
+Perform,17,290889
+Perform,18,290359
+Perform,19,291089
+Perform,20,290250
+Perform,21,290418
+Perform,22,291339
+Perform,23,290190
+Perform,24,290014
+Perform,25,291316
+Perform,26,292724
+Perform,27,290005
+Perform,28,290886
+Perform,29,289729
+Perform,30,290758
+# stats Perform scavenges=183 fullGCs=0 scavengeMicroseconds=3269 fullGCMicroseconds=0 oldBytesUsed=1530752 oldBudget=0 edenBytes=0 bytesAllocated=3078986328 rememberedSetSize=-8 processSwitches=36256 bytesTenured=1530752 weakSlotsCleared=0 contextsMaterialized=59481 frameFlushes=36256 jitMethodsCompiled=116 jitBytecodesCompiled=4882 jitCompileMicroseconds=6384 jitCodeBytes=210200 jitCacheFlushes=0 jitEntries=82901 jitExits=78205 jitResumes=55804 jitOsrEntries=15 jitCompileFailures=5 jitInlineCacheMisses=3030 jitInlineCacheLinks=545 jitPolymorphicCaches=32 jitMegamorphicSites=2 jitBlockCacheMisses=766 jitPrimitiveCalls=276594 jitFrameWalks=48981260 optMethodsCompiled=40 optBytecodesCompiled=3361 optCompileMicroseconds=5973 optCodeBytes=127120 optDeoptimizations=5 optOsrEntries=33 optInvalidations=5 optCompileFailures=5 optRuntimeSends=0
+# total Perform 8723233 us
+# benchmark            runs   first_ms  steady_ms   total_ms
+# BinaryTrees             1      278.5      267.3     7780.5
+# Fasta                   1      403.5      398.2    11968.2
+# KNucleotide             1      303.8      308.9     9128.1
+# ReverseComplement       1      269.3      254.3     7665.2
+# SpectralNorm            1      440.3      437.3    13138.1
+# Pidigits                1      493.6      489.6    14759.5
+# Strings                 1      410.7      390.2    11713.4
+# Dictionaries            1      309.5      277.3     8521.0
+# OrderedCollections      1      200.4      193.2     5830.3
+# Sorting                 1      508.0      496.2    14916.3
+# Enumeration             1      225.9      203.1     6081.3
+# PrintParse              1      598.4      568.5    17081.5
+# Exceptions              1      460.0      456.2    13700.1
+# Megamorphic             1      114.5      110.2     3294.7
+# DeepRecursion           1      253.3      250.8     7496.8
+# Perform                 1      289.7      290.4     8723.2
+# load 2.82 before
