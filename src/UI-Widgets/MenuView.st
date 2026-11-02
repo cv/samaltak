@@ -221,7 +221,7 @@ mouseEnter: anEvent
 	^self mouseMove: anEvent
 !
 mouseLeave: anEvent
-	submenuView isNil ifTrue: [self highlightIndex: 0].
+	self highlightIndex: (submenuView ifNil: [0] ifNotNil: [:sub | self items findFirst: [:each | each submenu == sub menu]]).
 	^true
 !
 mouseDown: anEvent

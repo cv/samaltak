@@ -93,6 +93,23 @@ testEditorMenuRunsInWindow
 	self assert: ran == window process.
 	self assert: (world overlays noneSatisfy: [:each | each content isKindOf: MenuView])
 !
+testDiagonalMoveIntoSubmenuHighlightsItsItem
+	"On its way into the submenu the pointer crosses the item below."
+	| parent sub from to highlights |
+	list menuBlock: [Menu new
+		add: 'break in window' submenu: ((Menu title: 'Break in the Process of') add: 'Widgets' action: []; yourself);
+		add: 'break in all processes' action: [];
+		yourself].
+	self rightClick: (self rowPoint: 1).
+	parent := world overlays last content.
+	from := parent screenPointFrom: (parent itemRect: 1) center.
+	self click: from.
+	sub := world overlays last content.
+	to := sub screenPointFrom: (sub itemRect: 1) origin + (8 @ 10).
+	highlights := (1 to: 8) collect: [:i | self moveTo: from + (to - from * i / 8.0); settle. parent highlightIndex].
+	self assert: (highlights includes: 2).
+	self assert: highlights last equals: 1
+!
 testCaretBlinksOnWindowTimer
 	| before |
 	self click: (self screenPoint: 30 @ 10 of: editor).
