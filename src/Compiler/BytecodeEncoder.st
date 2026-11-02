@@ -154,6 +154,11 @@ pushInstVar: index
 	index < 16 ifTrue: [self emit: 16r10 + index] ifFalse: [self emit: 16r81 operand: index].
 	self push
 !
+pushContextInstVar: index
+	"sender, pc or stackp of a receiver that may be a married Context: the long form, which the VM answers from the Context's frame."
+	self emit: 16r81 operand: index.
+	self push
+!
 pushOuterTemp: index depth: d
 	self emit: 16r8A operand: d operand: index.
 	self push
@@ -220,6 +225,10 @@ popStoreTemp: index
 !
 storeInstVar: index
 	self emit: 16r85 operand: index
+!
+storeContextInstVar: index
+	"A store into a receiver that may be a married Context: the VM flushes its frames first."
+	self emit: 16r88 operand: index
 !
 storeLiteralVariable: anAssociation
 	self emit: 16r86 operand: (self literalIndexOf: anAssociation)

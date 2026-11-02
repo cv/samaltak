@@ -3,7 +3,7 @@ Object subclass: #CodeGenerator
 	classVariableNames: ''
 	package: 'Compiler'!
 
-CodeGenerator comment: 'I translate a MethodNode into a CompiledMethod: I resolve variables (scopes, instance variables, workspace bindings, class variables, globals), inline control structures with literal block arguments, and drive a BytecodeEncoder.
+CodeGenerator comment: 'I translate a MethodNode into a CompiledMethod: I resolve variables (scopes, instance variables, workspace bindings, class variables, globals), inline control structures with literal block arguments, and drive a BytecodeEncoder. In methods of Context and its subclasses (isContextClass), sender, pc and stackp are read and every instance variable is stored with the forms the VM answers from a married Context''s frame.
 
 tempNameMap collects {startpc. endpc. slotNames} for the method (startpc 0) and every real block, for the debugger.'!
 
@@ -206,7 +206,10 @@ emitPush: binding
 			ifTrue: [encoder pushTemp: (binding at: 2)]
 			ifFalse: [encoder pushOuterTemp: (binding at: 2) depth: (binding at: 3)].
 		^self].
-	kind == #instVar ifTrue: [^encoder pushInstVar: (binding at: 2)].
+	kind == #instVar ifTrue: [
+		^(targetClass isContextClass and: [(binding at: 2) <= 2])
+			ifTrue: [encoder pushContextInstVar: (binding at: 2)]
+			ifFalse: [encoder pushInstVar: (binding at: 2)]].
 	encoder pushLiteralVariable: (binding at: 2)
 !
 emitStore: binding pop: popFlag
@@ -224,7 +227,9 @@ emitStore: binding pop: popFlag
 					ifFalse: [encoder storeOuterTemp: (binding at: 2) depth: (binding at: 3)]].
 		^self].
 	kind == #instVar ifTrue: [
-		encoder storeInstVar: (binding at: 2).
+		targetClass isContextClass
+			ifTrue: [encoder storeContextInstVar: (binding at: 2)]
+			ifFalse: [encoder storeInstVar: (binding at: 2)].
 		popFlag ifTrue: [encoder pop].
 		^self].
 	popFlag

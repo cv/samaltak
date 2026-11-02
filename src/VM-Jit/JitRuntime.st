@@ -1,5 +1,5 @@
 VMCoreModule subclass: #JitRuntime
-	instanceVariableNames: 'stubs baseline brt cache asm analysis jitMode jitFlags jitThreshold jitOsrThreshold jitCacheMB cacheOpened flushPending invalidations stateBlock methodTable tableCount methodCounts youngMethods youngCount youngOverflow mapPcs mapOffsets mapCount sendPushed performFn performArgsFn statCompiled statFailed statBytecodes statCompileUs statCodeBytes statCacheFlushes statEntries statExits statResumes statOsr feedback optimizer jitOptThreshold optCounts copying'
+	instanceVariableNames: 'stubs baseline brt cache asm analysis jitMode jitFlags jitThreshold jitOsrThreshold jitCacheMB cacheOpened flushPending invalidations stateBlock methodTable tableCount methodCounts youngMethods youngCount youngOverflow mapPcs mapOffsets mapCount sendPushed performFn performArgsFn statCompiled statFailed statBytecodes statCompileUs statCodeBytes statCacheFlushes statEntries statExits statResumes statOsr feedback optimizer jitOptThreshold optCounts copying bottomReturned'
 	classVariableNames: 'JIT_BASELINE JIT_FLAG_ACCESS JIT_FLAG_ALLOC JIT_FLAG_ARITH JIT_FLAG_BARRIER JIT_FLAG_BLOCKS JIT_FLAG_CALLS JIT_FLAG_DEOPT JIT_FLAG_EAGER JIT_FLAG_FLOAT JIT_FLAG_FUSE JIT_FLAG_GVN JIT_FLAG_IC JIT_FLAG_INLINE JIT_FLAG_LAST JIT_FLAG_MEGA JIT_FLAG_NOTES JIT_FLAG_PIC JIT_FLAG_PRIMS JIT_FLAG_QUICK JIT_FLAG_REGS JIT_FLAG_UNBOX JIT_MAX_COUNT JIT_MAX_MAP JIT_MAX_YOUNG JIT_NONE JIT_OPT JIT_PROLOGUE_BYTES JIT_TABLE_SIZE JM_DEAD JM_ENTRY JM_FAILED JM_NOTES JM_OSR'
 	package: 'VM-Jit'!
 
@@ -20,7 +20,7 @@ declarations
 		(sendPushed int32_t)
 		(performFn prim_fn) (performArgsFn prim_fn)
 		(statCompiled uint64_t) (statFailed uint64_t) (statBytecodes uint64_t) (statCompileUs uint64_t) (statCodeBytes uint64_t) (statCacheFlushes uint64_t)
-		(statEntries uint64_t) (statExits uint64_t) (statResumes uint64_t) (statOsr uint64_t) (copying bool))
+		(statEntries uint64_t) (statExits uint64_t) (statResumes uint64_t) (statOsr uint64_t) (copying bool) (bottomReturned bool))
 !
 initialize
 	JIT_NONE := 0.
@@ -426,6 +426,12 @@ interruptFunction
 closureFunction
 	^self cCoerce: (self functionPointer: #closure:) to: 'uint64_t'
 !
+contextFunction
+	^self cCoerce: (self functionPointer: #pushContext:) to: 'uint64_t'
+!
+contextFieldFunction
+	^self cCoerce: (self functionPointer: #contextField:) to: 'uint64_t'
+!
 makeArrayFunction
 	^self cCoerce: (self functionPointer: #makeArray:) to: 'uint64_t'
 !
@@ -592,9 +598,6 @@ kQuick
 !
 kSetter
 	^K_SETTER
-!
-kCtx
-	^K_CTX
 !
 kLeaf
 	^K_LEAF
@@ -993,14 +996,23 @@ backJump: f
 	self run: f at: a
 !
 resumeContext: looping
-	"The interpreter runs activeCtx without frames, returned into it or (looping) jumping back in it: if its method has machine code for its pc, it continues there, married to frame 0 (Interpreter>>thawFor:). A looping Context's method is compiled after --jit-osr backward jumps."
+	"The interpreter runs activeCtx without frames, returned into it or (looping) jumping back in it: it may continue in machine code (contextEntry:)."
 	<c: 'void jit_resume_context(bool looping)'>
-	| c m h pc off f i n |
+	| a |
 	self prepare.
+	a := self contextEntry: looping.
+	a = 0 ifTrue: [^self].
+	looping ifTrue: [statOsr := statOsr + 1] ifFalse: [statResumes := statResumes + 1].
+	self run: interpreter frames at: a
+!
+contextEntry: looping
+	"If activeCtx's method has machine code for its pc, marry activeCtx to frame 0 (Interpreter>>thawFor:) and answer where the code continues, else 0. A looping Context's method is compiled after --jit-osr backward jumps."
+	<c: 'uint64_t jit_context_entry(bool looping)'>
+	| c m h pc off i n |
 	c := interpreter activeCtx.
 	m := self loadRef: c at: CTX_METHOD.
 	pc := self loadRef: c at: CTX_PC.
-	(self isInt: pc) ifFalse: [^self].
+	(self isInt: pc) ifFalse: [^0].
 	h := self lookup: m.
 	(h isNull and: [looping]) ifTrue: [
 		i := (self hashOf: m) bitAnd: JIT_TABLE_SIZE - 1.
@@ -1008,16 +1020,14 @@ resumeContext: looping
 		n >= jitOsrThreshold
 			ifTrue: [h := self compileAndInstall: m]
 			ifFalse: [methodCounts at: i put: (n + 1) asUInt16]].
-	(self hasCode: h) ifFalse: [^self].
+	(self hasCode: h) ifFalse: [^0].
 	off := self mapOffsetOf: h pc: (self intVal: pc).
-	off < 0 ifTrue: [^self].
-	f := interpreter thawFor: (self cCoerce: h to: 'uint64_t').
-	f isNull ifTrue: [^self].
-	looping ifTrue: [statOsr := statOsr + 1] ifFalse: [statResumes := statResumes + 1].
-	self run: f at: h codeStart + off asUInt64
+	off < 0 ifTrue: [^0].
+	(interpreter thawFor: (self cCoerce: h to: 'uint64_t')) isNull ifTrue: [^0].
+	^h codeStart + off asUInt64
 !
 run: frame at: address
-	"Run machine code from address in frame (top frame, state externalized) until it leaves; on return into a frame with code continue there."
+	"Run machine code from address in frame (top frame, state externalized) until it leaves; on return into a frame with code continue there, and on optimized code's return into activeCtx (OptRuntime>>returnBottom:index:) as the interpreter's returns do (contextEntry:)."
 	| r f a g |
 	f := frame.
 	a := address.
@@ -1028,17 +1038,23 @@ run: frame at: address
 		f pc: 0.
 		f sp: 0].
 	 r := (self cCoerce: stubs blEnterAddress to: 'int64_t (*)(Frame *, uint64_t)') call: f with: a.
-	 r = 0 ifTrue: [
-		statExits := statExits + 1.
-		^self].
-	 g := self cCoerce: (r bitClear: 7) to: 'Frame *'.
-	 (r bitAnd: 7) = 0 ifTrue: [
-		statExits := statExits + 1.
-		^interpreter syncFrame: g].
-	 g sp: g sp + 1.
-	 (self isOptFrame: g) ifFalse: [g pc: (g ip - (interpreter methodBcs: g method)) asInt32].
-	 interpreter syncFrame: g.
-	 a := self addressFor: g.
+	 r = 0
+		ifTrue: [
+			statExits := statExits + 1.
+			bottomReturned ifFalse: [^self].
+			bottomReturned := false.
+			self prepare.
+			a := self contextEntry: false.
+			g := interpreter frames]
+		ifFalse: [
+			g := self cCoerce: (r bitClear: 7) to: 'Frame *'.
+			(r bitAnd: 7) = 0 ifTrue: [
+				statExits := statExits + 1.
+				^interpreter syncFrame: g].
+			g sp: g sp + 1.
+			(self isOptFrame: g) ifFalse: [g pc: (g ip - (interpreter methodBcs: g method)) asInt32].
+			interpreter syncFrame: g.
+			a := self addressFor: g].
 	 a = 0 ifTrue: [^self].
 	 statResumes := statResumes + 1.
 	 f := g] repeat
@@ -1056,6 +1072,10 @@ sync: f
 canonicalizeBelow: f
 	"Baseline frames suspended below f (top, its pc and sp stored) become canonical: the runtime may collect, flush or leave."
 	self baselineCode ifTrue: [brt canonicalizeBelow: f]
+!
+noteBottomReturn
+	"Optimized code's bottom frame returned into activeCtx and leaves (OptRuntime>>returnBottom:index:): run:at: continues activeCtx."
+	bottomReturned := true
 !
 exitSync: f
 	"The exit stub: f stored its pc and sp and leaves to the interpreter."
@@ -1167,7 +1187,7 @@ specialFast: k base: base
 dispatch: e frame: f argc: n
 	"f's ip is past the send, f's sp counts receiver and arguments."
 	<c: 'uint64_t jit_dispatch(CacheEntry *e, Frame *f, int32_t n)'>
-	| kind base m status ecode flushes inv r v ns ok g |
+	| kind base m status ecode moved inv r v ns ok g |
 	kind := e kind.
 	base := f fp + (f sp - n - 1).
 	m := e method.
@@ -1189,7 +1209,7 @@ dispatch: e frame: f argc: n
 		^0].
 	(e nset = n and: [n ~= 0]) ifTrue: [
 		r := base at: 0.
-		((self isPtr: r) and: [r ~= interpreter activeCtx and: [(self isImmutable: r) not and: [(memory formatOf: r) <= F_FIXVAR]]]) ifTrue: [
+		((self isPtr: r) and: [(self isImmutable: r) not and: [(memory formatOf: r) <= F_FIXVAR]]) ifTrue: [
 			ns := self numSlots: r.
 			ok := true.
 			0 to: n - 1 do: [:k | ok := ok and: [(e setIvar at: k) < ns]].
@@ -1198,11 +1218,11 @@ dispatch: e frame: f argc: n
 				^0]]].
 	(e quick >= 0 and: [n = 0]) ifTrue: [
 		r := base at: 0.
-		((self isPtr: r) and: [r ~= interpreter activeCtx and: [(memory formatOf: r) <= F_FIXVAR and: [(self numSlots: r) > e quick asUInt32]]]) ifTrue: [
+		((self isPtr: r) and: [(memory formatOf: r) <= F_FIXVAR and: [(self numSlots: r) > e quick asUInt32]]) ifTrue: [
 			base at: 0 put: (self loadRef: r at: e quick).
 			^0]].
 	(kind bitAnd: K_PRIM) = 0 ifTrue: [^self activate: m frame: f argc: n ecode: -1 code: 0].
-	flushes := interpreter statFlushes.
+	moved := interpreter frameEpoch.
 	inv := invalidations.
 	interpreter tmpRoots at: 0 put: m.
 	status := interpreter callPrimitive: e prim base: base argc: n.
@@ -1211,19 +1231,19 @@ dispatch: e frame: f argc: n
 	status = PS_OK ifTrue: [
 		v := interpreter primResult.
 		interpreter primResult: memory nilOop.
-		interpreter statFlushes ~= flushes ifTrue: [
+		interpreter frameEpoch ~= moved ifTrue: [
 			interpreter primCommit: v.
 			^1].
 		base at: 0 put: v.
 		inv ~= invalidations ifTrue: [^self leaveAfter: f pc: (f ip - (interpreter methodBcs: f method)) sp: f sp - n].
 		^0].
 	status = PS_SWITCHED ifTrue: [
-		interpreter statFlushes ~= flushes ifTrue: [^1].
+		interpreter frameEpoch ~= moved ifTrue: [^1].
 		interpreter nframes > ((f - interpreter frames) + 1) ifTrue: [^self entryOfTop].
 		inv ~= invalidations ifTrue: [^self leaveAfter: f pc: (f ip - (interpreter methodBcs: f method)) sp: f sp].
 		^0].
 	status = PS_RESEND ifTrue: [self fatal: 'a resending primitive called from machine code'].
-	interpreter statFlushes ~= flushes ifTrue: [self fatal: 'a failing primitive flushed the frames'].
+	interpreter frameEpoch ~= moved ifTrue: [self fatal: 'a failing primitive flushed the frames'].
 	^self activate: m frame: f argc: n ecode: (self errorCodeFor: m) code: 0
 !
 errorCodeFor: m
@@ -1253,14 +1273,14 @@ entryOfTop
 interrupt: f
 	"An interrupt check at a method or block entry or a backward jump; f's pc and sp are where the interpreter would continue."
 	<c: 'uint64_t jit_interrupt(Frame *f)'>
-	| flushes inv |
+	| moved inv |
 	self sync: f.
 	self resetStress.
 	self clearInterrupt.
-	flushes := interpreter statFlushes.
+	moved := interpreter frameEpoch.
 	inv := invalidations.
 	interpreter interruptSafepoint.
-	(interpreter statFlushes ~= flushes or: [inv ~= invalidations]) ifTrue: [^1].
+	(interpreter frameEpoch ~= moved or: [inv ~= invalidations]) ifTrue: [^1].
 	^0
 !
 closure: f
@@ -1285,6 +1305,24 @@ closure: f
 	s at: BC_FRAMESIZE put: (self intOop: fs).
 	gc rememberIfOld: b.
 	f fp at: f sp put: b.
+	^0
+!
+pushContext: f
+	"0x76 at f's pc: push f's Context, married now."
+	<c: 'uint64_t jit_push_context(Frame *f)'>
+	self sync: f.
+	interpreter marry: f.
+	f fp at: f sp put: f ctx.
+	^0
+!
+contextField: f
+	"0x81 i (i <= 2: sender, pc, stackp) at f's pc, the receiver a married Context: push the field, which its frame answers (Interpreter>>contextField:of:). 1 if the frames were flushed instead: the interpreter executes the instruction again."
+	<c: 'uint64_t jit_context_field(Frame *f)'>
+	| v |
+	self sync: f.
+	v := interpreter contextField: (f ip at: 1) asInt64 of: (f fp at: -1).
+	v = 0 ifTrue: [^1].
+	f fp at: f sp put: v.
 	^0
 !
 makeArray: f

@@ -30,6 +30,14 @@ testComparing
 	self deny: 'abc' = 3.
 	self assert: ('abc' max: 'abd') = 'abd'
 !
+testCaseInsensitiveCompare
+	"The primitive (byte strings and Symbols) and the loop (wide strings) answer what compare: answers for asLowercase copies: Latin-1 letters, × ÷ ß ÿ µ, and Ÿ (376), whose lowercase is ÿ."
+	| strings |
+	strings := #('' 'a' 'A' 'ab' 'AB' 'abc' 'ABD' 'abcd' 'Z' 'z' '[' '_' '`' '@' 'a_' 'B' 'über' 'ÜBER' 'Über' 'ü' 'Ü' 'À' 'à' 'Þ' 'þ' '×' '÷' 'ß' 'ÿ' 'µ' 'ab×' 'abÿ' #abc #ABC) asOrderedCollection.
+	strings add: 'Ÿ'; add: 'aŸ'; add: (String with: (Character value: 300)); add: 'ÜBER' , (String with: (Character value: 300)).
+	strings do: [:a | strings do: [:b |
+		self assert: (a caseInsensitiveCompare: b) equals: (a asLowercase compare: b asLowercase)]]
+!
 testCase
 	self assert: 'Hello World' asUppercase = 'HELLO WORLD'.
 	self assert: 'Hello World' asLowercase = 'hello world'.

@@ -167,15 +167,7 @@ exit_flow_to:;
         r_length_of = 0;
         goto exit_length_of;
     }
-    if (op < 0x88) {
-        r_length_of = 2;
-        goto exit_length_of;
-    }
-    if (op == 0x88) {
-        r_length_of = 0;
-        goto exit_length_of;
-    }
-    if (op == 0x89) {
+    if (op < 0x8A) {
         r_length_of = 2;
         goto exit_length_of;
     }
@@ -353,7 +345,7 @@ exit_flow_to_5:;
         r_effect_of = d < 1 ? -2000 : -1;
         goto exit_effect_of;
     }
-    if (((op_2 >= 0x84) && (op_2 <= 0x86)) || (op_2 == 0x8B)) {
+    if (((op_2 >= 0x84) && (op_2 <= 0x86)) || ((op_2 == 0x88) || (op_2 == 0x8B))) {
         r_effect_of = d < 1 ? -2000 : 0;
         goto exit_effect_of;
     }
@@ -457,7 +449,7 @@ exit_flow_to_6:;
     r_flow_to_6; });
             if (ok && ({
     op_5 = ana_bcs[pc];
-    r_sends = (op_5 == 0x8D) || ((op_5 == 0x8E) || (((op_5 >= 0x97) && (op_5 <= 0xFB)) || (op_5 == 0x85)));
+    r_sends = (op_5 == 0x8D) || ((op_5 == 0x8E) || (((op_5 >= 0x97) && (op_5 <= 0xFB)) || ((op_5 == 0x85) || (op_5 == 0x88))));
     r_sends; })) {
                 if (next < bc_size) {
                     ana_flags[next] = ana_flags[next] | ANA_RESUME;

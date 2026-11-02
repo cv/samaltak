@@ -64,9 +64,10 @@ bail
 
 !OptBuilder methodsFor: 'building'!
 build: m start: s osr: t depth: d resident: res
-	"The IR of m (s 0), or of its block at startpc s, entered at its start (t -1) or at loop head t with d slots (res: in a married frame, the temps its closures reach stay in the frame); answer whether it could be built. A closure an inlined method makes that escapes would have to be made: build again without inlining that method."
+	"The IR of m (s 0), or of its block at startpc s, entered at its start (t -1) or at loop head t with d slots (res: in a married frame, the temps its closures reach stay in the frame); answer whether it could be built. A closure an inlined method makes that escapes would have to be made: build again without inlining that method. Marker methods (on:do:, ensure:) are not optimized: their frames, which the exception code reads and writes through their Contexts, stay plain."
 	<c: 'bool opt_build(oop m, int32_t s, int32_t t, int32_t d, bool res)'>
 	| e |
+	((self methodPrimitive: m) = PRIM_ENSURE_MARKER or: [(self methodPrimitive: m) = PRIM_ONDO_MARKER]) ifTrue: [^false].
 	obResident := res.
 	obNoInlineCount := 0.
 	obUnitStart := s.
@@ -260,6 +261,7 @@ newActFor: m
 	ana := self analysisOf: m.
 	ana < 0 ifTrue: [^-1].
 	a := ir newAct.
+	a < 0 ifTrue: [^-1].
 	ac := ir act: a.
 	ac method: m.
 	ac numArgs: (self intVal: (self loadRef: m at: CM_NUMARGS)) asInt32.
@@ -720,7 +722,7 @@ emit: pc act: a
 	op = 16r80 ifTrue: [
 		self push: (self read: (self var: a slot: (self byteAt: pc + 1 act: a))) act: a depth: d.
 		^next].
-	op = 16r81 ifTrue: [
+	(op = 16r81 and: [(self byteAt: pc + 1 act: a) > CTX_STACKP]) ifTrue: [
 		self push: (self loadField: (self byteAt: pc + 1 act: a) of: (ir act: a) receiver) act: a depth: d.
 		^next].
 	op = 16r82 ifTrue: [
@@ -770,7 +772,7 @@ emit: pc act: a
 	op = 16r7C ifTrue: [
 		self nonLocalReturn: (self read: (self var: a slot: d - 1)) act: a pc: pc depth: d.
 		^next].
-	"thisContext, Arrays: not yet"
+	"thisContext, Arrays, Context's mediated fields (0x81 0-2, 0x88): not yet"
 	self bail.
 	^next
 !
@@ -857,6 +859,7 @@ inlineBlock: c info: d pc: pc act: a rcvSlot: r argc: argc
 	nt := ((nd aux2 >> 8) bitAnd: 255) asInt32.
 	fs := ((nd aux2 >> 16) bitAnd: 255) asInt32.
 	b := ir newAct.
+	b < 0 ifTrue: [^self bail].
 	ac := ir act: b.
 	ac method: (ir act: def) method.
 	ac ana: (ir act: def) ana.
@@ -1309,7 +1312,7 @@ inlineSend: sel argc: argc kind: kind special: k pc: pc act: a rcvSlot: r
 send: sel to: rcv class: cls argc: argc kind: kind pc: pc act: a rcvSlot: r
 	"The receiver's class is cls: inline the method it finds, else send. Answer false only if nothing was emitted."
 	| m n p |
-	"a married Context's state is in its frame: only the runtime's send makes it a Context first"
+	"a married Context's slots are its frame's: its primitives (at: and friends) answer them, not inlined code"
 	cls = memory clsContext ifTrue: [^false].
 	m := interpreter lookupMethod: cls selector: sel.
 	m = 0 ifTrue: [^false].
@@ -1582,7 +1585,7 @@ canInline: m act: a
 	pc := 0.
 	[pc < size] whileTrue: [
 		op := bcs at: pc.
-		(op = 16r76 or: [op = 16r94 or: [((runtime flag: runtime blocksFlag) not and: [op = 16r7C or: [op = 16r8F or: [op >= 16r8A and: [op <= 16r8C]]]])]]) ifTrue: [^false].
+		(op = 16r76 or: [op = 16r94 or: [op = 16r88 or: [(op = 16r81 and: [(bcs at: pc + 1) <= CTX_STACKP]) or: [((runtime flag: runtime blocksFlag) not and: [op = 16r7C or: [op = 16r8F or: [op >= 16r8A and: [op <= 16r8C]]]])]]]]) ifTrue: [^false].
 		pc := pc + (analysis lengthOf: op)].
 	^true
 !

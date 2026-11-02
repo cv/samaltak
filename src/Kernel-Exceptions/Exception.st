@@ -3,14 +3,15 @@ Object subclass: #Exception
 	classVariableNames: 'SignalHook'
 	package: 'Kernel-Exceptions'!
 
-Exception comment: 'I am the root of the exception hierarchy (ANSI semantics). signal searches the sender chain of the signaling context for an active handler (a BlockClosure>>on:do: context, primitive 199, whose exception class handles me) and runs its handler block; if the block falls off its end, on:do: returns its value. A handler may also return:, retry, resume: (resumable exceptions only), pass or outer. Without a handler my defaultAction runs; its value is the value of signal.'!
+Exception comment: 'I am the root of the exception hierarchy (ANSI semantics). signal searches the sender chain of the signaling context for an active handler (a BlockClosure>>on:do: context, primitive 199, whose exception class handles me) and runs its handler block; if the block falls off its end, on:do: returns its value. A handler may also return:, retry, resume: (resumable exceptions only), pass or outer. Without a handler my defaultAction runs; its value is the value of signal.
+
+handlerContext (on:do:), signalContext (signal) and outerContext (outer) each wait in a tail send (the protected block, the handler search, pass): resuming one with a value returns that value from it, and its sender, which may run optimized, is never asked for.'!
 
 !Exception methodsFor: 'signaling'!
 signal
 	"Signal the receiver; answer the resumption value (if resumed or if the default action returns). A signal hook (debugging tools) may divert me before any handler is searched: then I answer what its diversion block answers."
 	| diversion |
 	signalContext := thisContext contextTag.
-	signaler isNil ifTrue: [signaler := self receiver].
 	SignalHook isNil ifFalse: [
 		diversion := SignalHook value: self.
 		diversion isNil ifFalse: [^diversion value]].
@@ -30,7 +31,7 @@ signalIn: aContext
 return: returnValue
 	"Leave the handler: on:do: answers returnValue."
 	handlerContext isNil ifTrue: [^IllegalResumeAttempt new signal: 'return: outside of a handler'].
-	handlerContext return: returnValue
+	handlerContext resume: returnValue
 !
 return
 	self return: nil
@@ -56,11 +57,11 @@ resume
 resumeUnchecked: resumptionValue
 	| ctx |
 	outerContext isNil
-		ifTrue: [signalContext return: resumptionValue]
+		ifTrue: [signalContext resume: resumptionValue]
 		ifFalse: [
 			ctx := outerContext.
 			outerContext := ctx tempAt: 1.
-			ctx return: resumptionValue]
+			ctx resume: resumptionValue]
 !
 pass
 	"Hand the receiver to the next enclosing handler (or the default action)."
@@ -116,7 +117,8 @@ tag: anObject
 	tag := anObject
 !
 signaler
-	^signaler
+	"The object that signaled me: the receiver of my signalerContext unless set."
+	^signaler ifNil: [self receiver]
 !
 signaler: anObject
 	signaler := anObject

@@ -190,7 +190,7 @@ testBlockCallWithoutRoomForItsFrame
 	3 timesRepeat: [self assert: (JitRuntimeTestSubject new deep: 20000) equals: 20000]
 !
 testSendToAMarriedContext
-	"A Context married to a frame keeps its state in the frame: optimized code does not inline its methods (from feedback) nor call them directly; the runtime's send makes it a Context first."
+	"A Context married to a frame keeps its state in the frame: optimized code does not inline its methods (from feedback), it calls them, and they read the frame."
 	| o |
 	Smalltalk vm jitParameters: #(nil '-eager' nil nil).
 	self define: 'senderOf: x ^x sender'.
@@ -199,7 +199,7 @@ testSendToAMarriedContext
 	1 to: 3000 do: [:i | self assert: (o probe isKindOf: Context)]
 !
 testNonLocalReturnThroughAMarriedLoop
-	"thisContext makes the frames Contexts; each:'s Context goes on married to a frame in its loop's unit, whose frame has more slots than the Context holds. A non-local return through it fills the Context, not the object after it (the block's Context)."
+	"Reading the sender of callerContext's Context, an optimized frame, makes the frames Contexts; each:'s Context goes on married to a frame in its loop's unit, whose frame has more slots than the Context holds. A non-local return through it fills the Context, not the object after it (the block's Context)."
 	| o r |
 	self define: 'setA: x b: y a := x. b := y'.
 	self define: 'each: aBlock 1 to: b do: [:i | aBlock value: (a at: i)]'.

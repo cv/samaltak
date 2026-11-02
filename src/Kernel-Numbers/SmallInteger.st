@@ -195,9 +195,6 @@ digitAt: n
 	^self < 0
 		ifTrue: [(-256 - self bitShift: -8) + 1 digitAt: n - 1]
 		ifFalse: [(self bitShift: 8 - (n bitShift: 3)) bitAnd: 255]
-!
-normalize
-	^self
 ! !
 
 !SmallInteger class methodsFor: 'constants'!

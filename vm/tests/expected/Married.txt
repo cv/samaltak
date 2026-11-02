@@ -24,6 +24,9 @@ true
 42
 true
 true
+#(2 3)
+true
+true
 true
 #(5 6)
 #tryOn:

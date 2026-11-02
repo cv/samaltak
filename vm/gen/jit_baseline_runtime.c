@@ -305,7 +305,7 @@ uint64_t jit_bl_entry_slow(frame *f, uint64_t ret, uint64_t c)
     uint64_t v;
     uint64_t o_5;
     int32_t n;
-    uint64_t flushes;
+    uint64_t moved;
     uint64_t inv;
     frame *g;
     oop m;
@@ -364,7 +364,7 @@ uint64_t jit_bl_entry_slow(frame *f, uint64_t ret, uint64_t c)
     bl_set_top(f, ret, 1);
     f->sp = (int32_t)(nfp - f->fp + n);
     interp_sync_frame(f);
-    flushes = stat_flushes;
+    moved = frame_epoch;
     inv = invalidations;
     if (c == 1) {
         activate_block(n);
@@ -394,7 +394,7 @@ uint64_t jit_bl_entry_slow(frame *f, uint64_t ret, uint64_t c)
         state_block->stack_limit = 0;
     }
     interrupt_safepoint();
-    if ((stat_flushes != flushes) || (inv != invalidations)) {
+    if ((frame_epoch != moved) || (inv != invalidations)) {
         return 1;
     }
     if (c == 1) {
@@ -1015,7 +1015,7 @@ uint64_t jit_bl_prim(frame *f, uint64_t fp, uint64_t fn, uint64_t info)
     uint64_t ret;
     oop o;
     uint64_t o_2;
-    uint64_t flushes;
+    uint64_t moved;
     uint64_t inv;
     int32_t status;
     oop v;
@@ -1051,13 +1051,13 @@ uint64_t jit_bl_prim(frame *f, uint64_t fp, uint64_t fn, uint64_t info)
         o_2 = *(uint64_t *)(o + 16 + 16);
         f->lits = (oop *)(o_2 + 16);
     }
-    flushes = stat_flushes;
+    moved = frame_epoch;
     inv = invalidations;
     status = interp_call_primitive((prim_fn)fn, base, n);
     if (status == PS_OK) {
         v = prim_result;
         prim_result = nil_oop;
-        if (stat_flushes != flushes) {
+        if (frame_epoch != moved) {
             prim_commit(v);
             return 1;
         }
@@ -1093,7 +1093,7 @@ exit_leave_after:;
     }
     if ((status == PS_SWITCHED) && ({
     c_3 = f->code;
-    (c_3 > JIT_MAX_COUNT) && (((jit_method *)f->code)->mode == JIT_OPT) && ((stat_flushes == flushes) && (nframes == f - frames + 1)); })) {
+    (c_3 > JIT_MAX_COUNT) && (((jit_method *)f->code)->mode == JIT_OPT) && ((frame_epoch == moved) && (nframes == f - frames + 1)); })) {
         if (inv != invalidations) {
             pc_2 = f->pc;
             n_3 = f->sp;
@@ -1616,9 +1616,6 @@ static jit_method *bl_target_for(oop cls, oop sel)
     jit_method *t;
     e = entry_for(cls, sel);
     if (e == NULL) {
-        return (jit_method *)NULL;
-    }
-    if ((e->kind & K_CTX) != 0) {
         return (jit_method *)NULL;
     }
     m = e->method;

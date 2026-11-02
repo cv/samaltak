@@ -114,16 +114,142 @@ testLimbBoundaries
 	self assert: (10 raisedTo: 36) printString = ('1' , (String new: 36 withAll: $0)).
 	self assert: ((10 raisedTo: 36) - 1) printString = (String new: 36 withAll: $9)
 !
-testKaratsuba
-	"Karatsuba products (operands of 60 limbs of 24 bits and more) agree with schoolbook ones, also for lopsided operands and all-ones limbs."
-	#(#(59 59) #(60 60) #(61 75) #(64 300) #(300 64) #(121 120) #(250 250) #(90 400)) do: [:sizes | | a b |
-		a := (Integer productFrom: 3 to: sizes first * 9) magnitudeLimbs copyFrom: 1 to: sizes first.
-		b := (Integer productFrom: 5 to: sizes last * 9) magnitudeLimbs copyFrom: 1 to: sizes last.
-		self assert: (Integer multiplyLimbs: a by: b) = (Integer schoolbookMultiplyLimbs: a by: b).
-		a := Array new: sizes first withAll: 16rFFFFFF.
-		b := Array new: sizes last withAll: 16rFFFFFF.
-		self assert: (Integer multiplyLimbs: a by: b) = (Integer schoolbookMultiplyLimbs: a by: b)].
-	self assert: (2 raisedTo: 9000) - 1 * ((2 raisedTo: 7000) + 1) = ((2 raisedTo: 16000) + (2 raisedTo: 9000) - (2 raisedTo: 7000) - 1)
+testLargeProducts
+	"Balanced and lopsided products, all-ones limbs (the largest carries), squares."
+	#(#(1 1) #(2 1) #(59 59) #(61 75) #(64 300) #(300 64) #(250 250)) do: [:sizes | | a b |
+		a := (1 bitShift: 32 * sizes first) - 1.
+		b := (1 bitShift: 32 * sizes last) - 1.
+		self assert: a * b = ((1 bitShift: 32 * (sizes first + sizes last)) - a - b - 1).
+		self assert: a negated * b = (a * b) negated.
+		self assert: (a + 1) * (b + 1) = (1 bitShift: 32 * (sizes first + sizes last))].
+	self assert: (2 raisedTo: 9000) - 1 * ((2 raisedTo: 7000) + 1) = ((2 raisedTo: 16000) + (2 raisedTo: 9000) - (2 raisedTo: 7000) - 1).
+	self assert: (10 raisedTo: 400) * (10 raisedTo: 300) = (10 raisedTo: 700).
+	self assert: ((10 raisedTo: 300) + 1) squared printString = ('1' , (String new: 299 withAll: $0) , '2' , (String new: 299 withAll: $0) , '1')
+!
+testRandomIdentities
+	"Random operands of up to 300 bytes and both signs: both divisions' identities and remainder signs, products, sums, comparisons; results in the SmallInteger range are SmallIntegers."
+	| random |
+	random := Random seed: 7.
+	1 to: 400 do: [:i | | a b q r |
+		a := self randomInteger: (i \\ 10 = 0 ifTrue: [300] ifFalse: [40]) from: random.
+		b := self randomInteger: (i \\ 7 = 0 ifTrue: [150] ifFalse: [30]) from: random.
+		b = 0 ifTrue: [b := -1].
+		q := a // b.
+		r := a \\ b.
+		self assert: q * b + r = a.
+		self assert: r abs < b abs.
+		self assert: (r = 0 or: [r negative = b negative]).
+		self assertNormalized: q; assertNormalized: r.
+		q := a quo: b.
+		r := a rem: b.
+		self assert: q * b + r = a.
+		self assert: r abs < b abs.
+		self assert: (r = 0 or: [r negative = a negative]).
+		self assertNormalized: q; assertNormalized: r.
+		self assert: a * b // b = a.
+		self assert: a * b \\ b = 0.
+		self assert: a * b = (b * a).
+		self assert: (a + b) * (a - b) = (a * a - (b * b)).
+		self assert: a + b - b = a.
+		self assert: a - b = (b - a) negated.
+		self assert: (a < b) = (a - b) negative.
+		self assert: (a >= b) = (a - b) negative not.
+		self assert: (a = b) = (a - b = 0).
+		self assertNormalized: a + b; assertNormalized: a - b; assertNormalized: a * b]
+!
+testKnuthDivision
+	"Divisors of several limbs whose top limb has 0 to 31 leading zero bits; u = (2^32 - 1) * 2^e by v = 2^e + 1 (64 <= e < 96) takes the rare step that adds the divisor back; quotients of all-ones limbs."
+	64 to: 95 do: [:e | | u v |
+		u := 16rFFFFFFFF bitShift: e.
+		v := (1 bitShift: e) + 1.
+		self assert: u // v = 16rFFFFFFFE.
+		self assert: u \\ v = ((1 bitShift: e) - 16rFFFFFFFE).
+		self assert: u negated // v = -16rFFFFFFFF.
+		self assert: u negated \\ v = (v - (u \\ v)).
+		self assert: (u negated quo: v) = -16rFFFFFFFE.
+		self assert: (u negated rem: v) = (u \\ v) negated].
+	#(1 31 32 33 63 64 65 95 96 127 128 200) do: [:bits | | v q |
+		v := (1 bitShift: bits) + 16r123456789.
+		q := (1 bitShift: 320) - 1.
+		self assert: q * v + v - 1 // v = q.
+		self assert: q * v + v - 1 \\ v = (v - 1).
+		self assert: (q * v) negated - 1 // v = (q + 1) negated.
+		self assert: (q * v) negated - 1 \\ v = (v - 1)]
+!
+testBitShiftRoundTrips
+	"Left then right shifts give the receiver back; right shifts round toward negative infinity as // does."
+	| random |
+	random := Random seed: 11.
+	1 to: 200 do: [:i | | a k |
+		a := self randomInteger: 50 from: random.
+		k := random nextInt: 300.
+		self assert: ((a bitShift: k) bitShift: k negated) = a.
+		self assert: (a bitShift: k) = (a * (1 bitShift: k)).
+		self assert: (a bitShift: k negated) = (a // (1 bitShift: k)).
+		self assertNormalized: (a bitShift: k negated)].
+	self assert: ((1 bitShift: 100) negated bitShift: -101) = -1.
+	self assert: (-1 bitShift: -1000) = -1.
+	self assert: ((1 bitShift: 100) bitShift: (1 bitShift: 70) negated) = 0.
+	self assert: ((1 bitShift: 100) negated bitShift: (1 bitShift: 70) negated) = -1.
+	self assert: (0 bitShift: (1 bitShift: 70)) = 0.
+	self should: [1 bitShift: (1 bitShift: 40)] raise: OutOfMemory
+!
+testLargeBitOperations
+	"Two's complement semantics for operands of both signs and all sizes."
+	| random |
+	random := Random seed: 13.
+	1 to: 200 do: [:i | | a b |
+		a := self randomInteger: 30 from: random.
+		b := self randomInteger: 30 from: random.
+		self assert: (a bitAnd: b) + (a bitOr: b) = (a + b).
+		self assert: (a bitXor: b) = ((a bitOr: b) - (a bitAnd: b)).
+		self assert: (a bitAnd: b) bitInvert = (a bitInvert bitOr: b bitInvert).
+		self assert: (a bitXor: a) = 0.
+		self assert: (a bitAnd: a bitInvert) = 0.
+		self assert: (a bitOr: a bitInvert) = -1.
+		self assert: (a bitAnd: 16rFF) = (a \\ 256)].
+	self assert: ((-1 bitShift: 64) bitAnd: (1 bitShift: 70) - 1) = ((1 bitShift: 70) - (1 bitShift: 64)).
+	self assert: ((1 bitShift: 64) negated bitOr: 1) = ((1 bitShift: 64) negated + 1).
+	self assert: ((1 bitShift: 64) negated bitXor: -1) = ((1 bitShift: 64) - 1).
+	self assert: (SmallInteger minVal bitXor: (1 bitShift: 64) negated) = ((1 bitShift: 64) - (1 bitShift: 62)).
+	self should: [(1 bitShift: 70) bitAnd: 1.5] raise: Error
+!
+testPrintParseRoundTrips
+	| random |
+	random := Random seed: 17.
+	1 to: 100 do: [:i | | a |
+		a := self randomInteger: 60 from: random.
+		self assert: (Integer readFrom: a printString) = a.
+		#(2 10 16 36) do: [:base | self assert: (Number readFrom: (a printStringRadix: base)) = a]].
+	self assert: (2 raisedTo: 64) printString = '18446744073709551616'.
+	self assert: ((2 raisedTo: 64) - 1) negated printString = '-18446744073709551615'.
+	self assert: ((2 raisedTo: 128) - 1) printStringHex = 'FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF'.
+	self assert: 30 factorial = 265252859812191058636308480000000.
+	self assert: 1000 factorial \\ 1000000007 = 641419708
+!
+testSmallIntegerBounds
+	"Results just inside the SmallInteger range are SmallIntegers, just outside LargeIntegers, whatever the operation."
+	| max min |
+	max := SmallInteger maxVal.
+	min := SmallInteger minVal.
+	self assert: (min - 1 + 1) class == SmallInteger.
+	self assert: (max + 1) negated == min.
+	self assert: min negated = (max + 1).
+	self assert: min // -1 = (max + 1).
+	self assert: (min quo: -1) = (max + 1).
+	self assert: (min rem: -1) = 0.
+	self assert: min * -1 = (max + 1).
+	self assert: (max + 1) // -1 == min.
+	self assert: (max + 1) - 1 == max.
+	self assert: ((max + 1) bitShift: -1) class == SmallInteger.
+	self assert: (min bitShift: 1) class == LargeNegativeInteger.
+	self assert: ((max + 1) * 2 bitAnd: max) == 0.
+	self assert: ((max + 1) bitXor: (max + 1)) == 0.
+	self assert: (1 bitShift: 64) - 1 + 1 = (1 bitShift: 64).
+	self assert: (1 bitShift: 64) negated - 1 // (1 bitShift: 64) = -2.
+	self assert: (1 bitShift: 64) * (1 bitShift: 64) = (1 bitShift: 128).
+	self assert: (1 bitShift: 64) * 0.5 = 9223372036854775808.0.
+	self assert: (1 bitShift: 64) * (1 / 3) * 3 = (1 bitShift: 64)
 !
 testPrinting
 	self assert: 0 printString = '0'.
@@ -228,4 +354,19 @@ testComparisonWithOtherNumbers
 	self deny: 1 = 'one'.
 	self deny: 1 = nil.
 	self assert: 1 ~= 'one'
+! !
+
+!IntegerTest methodsFor: 'private'!
+randomInteger: maxBytes from: random
+	"Up to maxBytes random bytes and a random sign; bytes 0 and 255 are frequent, for long carries and borrows."
+	| n |
+	n := 0.
+	(random nextInt: maxBytes) timesRepeat: [
+		n := (n bitShift: 8) + ((random nextInt: 4) = 1 ifTrue: [#(0 255) at: (random nextInt: 2)] ifFalse: [(random nextInt: 256) - 1])].
+	^(random nextInt: 2) = 1 ifTrue: [n negated] ifFalse: [n]
+!
+assertNormalized: anInteger
+	"A SmallInteger exactly when it fits one; a LargeInteger without leading zero bytes."
+	self assert: anInteger class == SmallInteger equals: (anInteger between: SmallInteger minVal and: SmallInteger maxVal).
+	anInteger class == SmallInteger ifFalse: [self assert: (anInteger digitAt: anInteger digitLength) ~= 0]
 ! !

@@ -133,6 +133,13 @@ metaclass
 isMeta
 	^false
 !
+isContextClass
+	"As Behavior>>isContextClass."
+	| s |
+	name = 'Context' ifTrue: [^true].
+	s := builder superOf: self.
+	^s notNil and: [s isContextClass]
+!
 theNonMetaClass
 	^self
 ! !
@@ -166,6 +173,9 @@ allInstVarNames
 !
 isMeta
 	^true
+!
+isContextClass
+	^false
 !
 oop
 	^thisClass metaOop

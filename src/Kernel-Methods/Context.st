@@ -5,7 +5,9 @@ Object variableSubclass: #Context
 
 Context comment: 'I am an activation of a method or block: an ordinary heap object, so every frame can be inspected, changed and restarted from Smalltalk. My indexable fields hold arguments, then temporaries, then the operand stack; stackp counts the used ones; the garbage collector clears the slots above stackp, so raise stackp before storing into a new slot. pc is the 0-based index of the next bytecode, nil once I have returned. My field order is fixed by the VM.
 
-I implement exception handling and unwinding: handler contexts are activations of BlockClosure>>on:do: (marker primitive onDoMarker), unwind contexts those of ensure:/ifCurtailed: (ensureMarker). Their arguments and temporaries are read by position (tempAt:). The VM sends me aboutToReturn:through: for a non-local return that passes an unwind context, cannotReturn: when the home context is already dead, and stackOverflow: when my process''s stack is too deep.'!
+While my activation runs in one of the VM''s frames I may be married to it (sender holds the frame''s index): the VM answers for me from the frame. The compiler gives my methods the bytecodes the VM mediates for reading sender, pc and stackp and for storing into my fields; at:, at:put:, instVarAt: and instVarAt:put: reach the frame''s slots.
+
+I implement exception handling and unwinding: handler contexts are activations of BlockClosure>>on:do: (marker primitive onDoMarker), unwind contexts those of ensure:/ifCurtailed: (ensureMarker). Their arguments and temporaries are read by position (tempAt:). nextHandlerContext, findNextUnwindContextUpTo: and terminateTo: are primitives that walk the frames. The VM sends me aboutToReturn:through: for a non-local return that passes an unwind context, cannotReturn: when the home context is already dead, and stackOverflow: when my process''s stack is too deep.'!
 
 !Context methodsFor: 'accessing'!
 sender
@@ -85,6 +87,17 @@ size
 !
 startpc
 	^closureOrNil isNil ifTrue: [method initialPC] ifFalse: [closureOrNil startpc]
+! !
+
+!Context methodsFor: 'copying'!
+shallowCopy
+	"The primitive fails for a married Context, whose fields and slots are its frame's: copy them as Smalltalk reads them."
+	<primitive: 'shallowCopy'>
+	| copy |
+	copy := self class basicNew: self basicSize.
+	1 to: self class instSize do: [:i | copy instVarAt: i put: (self instVarAt: i)].
+	1 to: self basicSize do: [:i | copy basicAt: i put: (self basicAt: i)].
+	^copy
 ! !
 
 !Context methodsFor: 'private'!
@@ -245,6 +258,8 @@ findNextHandlerContext
 	^nil
 !
 nextHandlerContext
+	"Answer the first on:do: context among my senders, or nil."
+	<primitive: 'nextHandlerContext'>
 	^sender isNil ifTrue: [nil] ifFalse: [sender findNextHandlerContext]
 !
 handleSignal: exception
@@ -256,10 +271,12 @@ handleSignal: exception
 	self tempAt: 3 put: false.
 	value := [(self tempAt: 2) cull: exception]
 		ensure: [self tempAt: 3 put: true].
-	self return: value
+	"on:do: answers what its protected block answers: resuming me returns value from on:do:"
+	self resume: value
 !
 findNextUnwindContextUpTo: aContext
 	"Answer the next ensure:/ifCurtailed: context among my senders, stopping before aContext."
+	<primitive: 'findNextUnwindContext'>
 	| ctx |
 	ctx := sender.
 	[ctx == nil or: [ctx == aContext]] whileFalse: [
@@ -327,6 +344,7 @@ terminate
 !
 terminateTo: previousContext
 	"Terminate the contexts between me and previousContext (if it is one of my senders) and make it my sender."
+	<primitive: 'terminateTo'>
 	| ctx next |
 	(self hasSender: previousContext) ifTrue: [
 		ctx := sender.

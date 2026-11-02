@@ -1,6 +1,6 @@
 VMModule subclass: #VMCoreModule
 	instanceVariableNames: 'memory gc interpreter scheduler imageFile primitives platform vmMain jit libc libm posix'
-	classVariableNames: 'K_CONST K_CTX K_JIT K_LEAF K_PRIM K_QUICK K_SETTER PS_FAIL PS_NONE PS_OK PS_RESEND PS_SWITCHED'
+	classVariableNames: 'K_CONST K_JIT K_LEAF K_PRIM K_QUICK K_SETTER PS_FAIL PS_NONE PS_OK PS_RESEND PS_SWITCHED'
 	package: 'VM-Core'!
 
 VMCoreModule comment: 'I am the abstract class of the VM core''s modules: I connect them to each other and to the C libraries, and hold the object model''s inline helpers (tagging, headers, slot access with the GC''s load and store barriers) that every module uses.'!
@@ -25,7 +25,6 @@ initialize
 	K_SETTER := 4.
 	K_CONST := 8.
 	K_LEAF := 16.
-	K_CTX := 32.
 	K_JIT := 64
 ! !
 

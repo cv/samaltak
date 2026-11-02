@@ -260,11 +260,12 @@ newState
 	^optStateCount - 1
 !
 newAct
+	"-1 when the table is full: act 0 is the root, a parent pointing to it from below would make a cycle."
 	<c: 'int32_t opt_new_act(void)'>
 	| a |
 	optActCount >= OPT_MAX_ACTS ifTrue: [
 		optFull := true.
-		^0].
+		^-1].
 	a := optActs + optActCount.
 	libc memset: a value: 0 size: (self sizeof: 'OptAct').
 	a parent: -1.

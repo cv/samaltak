@@ -221,6 +221,24 @@ testHalt
 	self waitUntilTerminated: session process.
 	self assert: self result equals: 10
 !
+testHaltInHandlerWithUnwindBlocks
+	"Stopped in an exception handler (its process's frames were married to Contexts when the debugger took it): read and step it, return from the handler block, proceed; each unwind block runs once."
+	| session handler |
+	self fork: [Smalltalk at: #DebugTestResult put: DebuggingTestSubject new haltingHandler asArray].
+	session := self waitForSession.
+	self assert: session kind equals: #halt.
+	handler := session interruptedContext.
+	self assert: handler isBlockContext.
+	self assert: handler home selector equals: #haltingHandler.
+	self assert: (self temp: 'v' of: session) equals: 6.
+	self assert: (session stack includes: handler home).
+	session stepOver.
+	self assert: session interruptedContext == handler.
+	session return: 41 from: handler.
+	session proceed.
+	self waitUntilTerminated: session process.
+	self assert: self result equals: #(#handled #unwound 41 #ensured)
+!
 testDoesNotUnderstandCreateMethod
 	| session method |
 	self fork: [Smalltalk at: #DebugTestResult put: 3 zork].

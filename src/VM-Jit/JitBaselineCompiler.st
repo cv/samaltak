@@ -198,8 +198,10 @@ emitAt: pc
 	op = 16r74 ifTrue: [^self ssPush: SS_CONST val: 1 reg: -1].
 	op = 16r75 ifTrue: [^self ssPush: SS_CONST val: 3 reg: -1].
 	op = 16r76 ifTrue: [
-		asm comment: 'thisContext: the interpreter flushes the frames'.
-		^self exitAt: pc].
+		self ssFlushAll.
+		asm comment: 'thisContext: the runtime marries this frame'.
+		self emitRuntimeCall: (asm labelAt: stubs contextStub) pc: pc depth: ssTop.
+		^self ssPush: SS_SLOT val: 0 reg: -1].
 	op = 16r77 ifTrue: [^self dup].
 	op = 16r78 ifTrue: [
 		self ssPop: 1.
@@ -208,11 +210,13 @@ emitAt: pc
 	op = 16r7A ifTrue: [^self return: pc self: true].
 	op = 16r7C ifTrue: [^self nonLocalReturn: pc].
 	op = 16r80 ifTrue: [^self pushTemp: (analysis byteAt: pc + 1)].
-	op = 16r81 ifTrue: [^self pushInstVar: (analysis byteAt: pc + 1)].
+	op = 16r81 ifTrue: [
+		(analysis byteAt: pc + 1) <= CTX_STACKP ifTrue: [^self pushContextField: (analysis byteAt: pc + 1) pc: pc].
+		^self pushInstVar: (analysis byteAt: pc + 1)].
 	op = 16r82 ifTrue: [^self pushLiteral: (analysis byteAt: pc + 1)].
 	op = 16r83 ifTrue: [^self pushLiteralVariable: (analysis byteAt: pc + 1)].
 	op = 16r84 ifTrue: [^self storeTemp: (analysis byteAt: pc + 1) pop: false].
-	op = 16r85 ifTrue: [^self storeInstVar: (analysis byteAt: pc + 1) pc: pc].
+	(op = 16r85 or: [op = 16r88]) ifTrue: [^self storeInstVar: (analysis byteAt: pc + 1) pc: pc context: op = 16r88].
 	(op = 16r86 or: [op = 16r89]) ifTrue: [^self storeLiteralVariable: (analysis byteAt: pc + 1) pop: op = 16r89].
 	op = 16r87 ifTrue: [^self storeTemp: (analysis byteAt: pc + 1) pop: true].
 	(op >= 16r8A and: [op <= 16r8C]) ifTrue: [^self outerTemp: pc].
@@ -1405,6 +1409,24 @@ pushInstVar: i
 	asm ldr: r base: self selfReg offset: (self fieldOffset: i).
 	^self ssPushReg: r
 !
+pushContextField: i pc: pc
+	"0x81 i, i <= 2 (Context's methods read sender, pc and stackp so): the field, unless the receiver is a married Context (its sender a SmallInteger): then the runtime answers it from the frame."
+	| married done |
+	self ssFlushAll.
+	married := asm newLabel.
+	done := asm newLabel.
+	asm comment: 'push inst var %d of a Context: married?' with: i.
+	asm ldr: X9 base: self selfReg offset: (self fieldOffset: CTX_SENDER).
+	asm tbnz: X9 bit: 0 to: married.
+	asm ldr: X9 base: X21 offset: (self fieldOffset: i).
+	asm str: X9 base: X20 offset: (self slot: ssTop).
+	asm b: done.
+	asm bind: married.
+	asm comment: 'married: its frame answers'.
+	self emitRuntimeCall: (asm labelAt: stubs contextFieldStub) pc: pc depth: ssTop.
+	asm bind: done.
+	^self ssPush: SS_SLOT val: 0 reg: -1
+!
 pushLiteralVariable: i
 	| r |
 	r := self allocReg.
@@ -1463,8 +1485,8 @@ needsBarrier: i
 	k := ssKind at: i.
 	^(k = SS_CONST or: [k = SS_PINNED]) not
 !
-storeInstVar: i pc: pc
-	"inst var i := top (not popped); an immutable receiver leaves to the interpreter, which sends attemptToAssign:withIndex:."
+storeInstVar: i pc: pc context: isContext
+	"inst var i := top (not popped); an immutable receiver leaves to the interpreter, which sends attemptToAssign:withIndex:. isContext (0x88, Context's methods): so does a married Context, whose frames the interpreter flushes first."
 	| v s top |
 	top := ssTop - 1.
 	self ssFlushTo: top.
@@ -1475,6 +1497,10 @@ storeInstVar: i pc: pc
 	s < 0 ifTrue: [^false].
 	slA at: s put: v asInt8.
 	self ifBitSet: X11 bit: 59 to: (slLabel at: s).
+	isContext ifTrue: [
+		asm comment: 'a married Context (its sender a SmallInteger)?'.
+		asm ldr: X9 base: X21 offset: (self fieldOffset: CTX_SENDER).
+		asm tbnz: X9 bit: 0 to: (slLabel at: s)].
 	asm str: v base: X21 offset: (self fieldOffset: i).
 	(self needsBarrier: top) ifTrue: [self barrier: X21 header: X11 value: v].
 	^true
@@ -2576,7 +2602,7 @@ emitSlowPaths
 		kind = SL_TIERUP ifTrue: [self emitTierUpSlow: i].
 		kind = SL_SEND ifTrue: [self emitSlowSend: i].
 		kind = SL_MUSTBEBOOLEAN ifTrue: [
-			asm comment: 'leave to the interpreter at this instruction (mustBeBoolean, attemptToAssign:withIndex:)'.
+			asm comment: 'leave to the interpreter at this instruction (mustBeBoolean, attemptToAssign:withIndex:, a married Context''s field)'.
 			asm str: (slA at: i) base: X20 offset: (self slot: (slDepth at: i) - 1).
 			self emitSync: (slPc at: i) depth: (slDepth at: i).
 			asm b: exitSyncLabel].

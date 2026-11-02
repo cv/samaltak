@@ -111,7 +111,7 @@ int32_t opt_new_act(void)
     opt_act *a;
     if (opt_act_count >= OPT_MAX_ACTS) {
         opt_full = true;
-        return 0;
+        return -1;
     }
     a = opt_acts + opt_act_count;
     memset(a, 0, sizeof(opt_act));

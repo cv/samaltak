@@ -80,6 +80,7 @@ nextInstruction
 	op = 16r85 ifTrue: [^Message selector: #storeIntoReceiverVariable: argument: self nextByte].
 	op = 16r86 ifTrue: [^Message selector: #storeIntoLiteralVariable: argument: (self literalAt: self nextByte)].
 	op = 16r87 ifTrue: [^Message selector: #popIntoTemporaryVariable: argument: self nextByte].
+	op = 16r88 ifTrue: [^Message selector: #storeIntoReceiverVariable: argument: self nextByte].
 	op = 16r89 ifTrue: [^Message selector: #popIntoLiteralVariable: argument: (self literalAt: self nextByte)].
 	(op between: 16r8A and: 16r8C) ifTrue: [| depth index |
 		depth := self nextByte.
@@ -163,11 +164,11 @@ willStore
 	| op |
 	op := self nextOpcode.
 	^(op between: 16r60 and: 16r67)
-		or: [(op between: 16r84 and: 16r87)
-		or: [op = 16r89 or: [op = 16r8B or: [op = 16r8C]]]]
+		or: [(op between: 16r84 and: 16r89)
+		or: [op = 16r8B or: [op = 16r8C]]]
 !
 willStoreIntoReceiver
-	^self nextOpcode = 16r85
+	^self nextOpcode = 16r85 or: [self nextOpcode = 16r88]
 !
 willCreateBlock
 	^self nextOpcode = 16r8F
