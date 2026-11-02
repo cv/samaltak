@@ -426,6 +426,12 @@ interruptFunction
 closureFunction
 	^self cCoerce: (self functionPointer: #closure:) to: 'uint64_t'
 !
+contextFunction
+	^self cCoerce: (self functionPointer: #pushContext:) to: 'uint64_t'
+!
+contextFieldFunction
+	^self cCoerce: (self functionPointer: #contextField:) to: 'uint64_t'
+!
 makeArrayFunction
 	^self cCoerce: (self functionPointer: #makeArray:) to: 'uint64_t'
 !
@@ -592,9 +598,6 @@ kQuick
 !
 kSetter
 	^K_SETTER
-!
-kCtx
-	^K_CTX
 !
 kLeaf
 	^K_LEAF
@@ -1167,7 +1170,7 @@ specialFast: k base: base
 dispatch: e frame: f argc: n
 	"f's ip is past the send, f's sp counts receiver and arguments."
 	<c: 'uint64_t jit_dispatch(CacheEntry *e, Frame *f, int32_t n)'>
-	| kind base m status ecode flushes inv r v ns ok g |
+	| kind base m status ecode moved inv r v ns ok g |
 	kind := e kind.
 	base := f fp + (f sp - n - 1).
 	m := e method.
@@ -1189,7 +1192,7 @@ dispatch: e frame: f argc: n
 		^0].
 	(e nset = n and: [n ~= 0]) ifTrue: [
 		r := base at: 0.
-		((self isPtr: r) and: [r ~= interpreter activeCtx and: [(self isImmutable: r) not and: [(memory formatOf: r) <= F_FIXVAR]]]) ifTrue: [
+		((self isPtr: r) and: [(self isImmutable: r) not and: [(memory formatOf: r) <= F_FIXVAR]]) ifTrue: [
 			ns := self numSlots: r.
 			ok := true.
 			0 to: n - 1 do: [:k | ok := ok and: [(e setIvar at: k) < ns]].
@@ -1198,11 +1201,11 @@ dispatch: e frame: f argc: n
 				^0]]].
 	(e quick >= 0 and: [n = 0]) ifTrue: [
 		r := base at: 0.
-		((self isPtr: r) and: [r ~= interpreter activeCtx and: [(memory formatOf: r) <= F_FIXVAR and: [(self numSlots: r) > e quick asUInt32]]]) ifTrue: [
+		((self isPtr: r) and: [(memory formatOf: r) <= F_FIXVAR and: [(self numSlots: r) > e quick asUInt32]]) ifTrue: [
 			base at: 0 put: (self loadRef: r at: e quick).
 			^0]].
 	(kind bitAnd: K_PRIM) = 0 ifTrue: [^self activate: m frame: f argc: n ecode: -1 code: 0].
-	flushes := interpreter statFlushes.
+	moved := interpreter frameEpoch.
 	inv := invalidations.
 	interpreter tmpRoots at: 0 put: m.
 	status := interpreter callPrimitive: e prim base: base argc: n.
@@ -1211,19 +1214,19 @@ dispatch: e frame: f argc: n
 	status = PS_OK ifTrue: [
 		v := interpreter primResult.
 		interpreter primResult: memory nilOop.
-		interpreter statFlushes ~= flushes ifTrue: [
+		interpreter frameEpoch ~= moved ifTrue: [
 			interpreter primCommit: v.
 			^1].
 		base at: 0 put: v.
 		inv ~= invalidations ifTrue: [^self leaveAfter: f pc: (f ip - (interpreter methodBcs: f method)) sp: f sp - n].
 		^0].
 	status = PS_SWITCHED ifTrue: [
-		interpreter statFlushes ~= flushes ifTrue: [^1].
+		interpreter frameEpoch ~= moved ifTrue: [^1].
 		interpreter nframes > ((f - interpreter frames) + 1) ifTrue: [^self entryOfTop].
 		inv ~= invalidations ifTrue: [^self leaveAfter: f pc: (f ip - (interpreter methodBcs: f method)) sp: f sp].
 		^0].
 	status = PS_RESEND ifTrue: [self fatal: 'a resending primitive called from machine code'].
-	interpreter statFlushes ~= flushes ifTrue: [self fatal: 'a failing primitive flushed the frames'].
+	interpreter frameEpoch ~= moved ifTrue: [self fatal: 'a failing primitive flushed the frames'].
 	^self activate: m frame: f argc: n ecode: (self errorCodeFor: m) code: 0
 !
 errorCodeFor: m
@@ -1253,14 +1256,14 @@ entryOfTop
 interrupt: f
 	"An interrupt check at a method or block entry or a backward jump; f's pc and sp are where the interpreter would continue."
 	<c: 'uint64_t jit_interrupt(Frame *f)'>
-	| flushes inv |
+	| moved inv |
 	self sync: f.
 	self resetStress.
 	self clearInterrupt.
-	flushes := interpreter statFlushes.
+	moved := interpreter frameEpoch.
 	inv := invalidations.
 	interpreter interruptSafepoint.
-	(interpreter statFlushes ~= flushes or: [inv ~= invalidations]) ifTrue: [^1].
+	(interpreter frameEpoch ~= moved or: [inv ~= invalidations]) ifTrue: [^1].
 	^0
 !
 closure: f
@@ -1285,6 +1288,24 @@ closure: f
 	s at: BC_FRAMESIZE put: (self intOop: fs).
 	gc rememberIfOld: b.
 	f fp at: f sp put: b.
+	^0
+!
+pushContext: f
+	"0x76 at f's pc: push f's Context, married now."
+	<c: 'uint64_t jit_push_context(Frame *f)'>
+	self sync: f.
+	interpreter marry: f.
+	f fp at: f sp put: f ctx.
+	^0
+!
+contextField: f
+	"0x81 i (i <= 2: sender, pc, stackp) at f's pc, the receiver a married Context: push the field, which its frame answers (Interpreter>>contextField:of:). 1 if the frames were flushed instead: the interpreter executes the instruction again."
+	<c: 'uint64_t jit_context_field(Frame *f)'>
+	| v |
+	self sync: f.
+	v := interpreter contextField: (f ip at: 1) asInt64 of: (f fp at: -1).
+	v = 0 ifTrue: [^1].
+	f fp at: f sp put: v.
 	^0
 !
 makeArray: f

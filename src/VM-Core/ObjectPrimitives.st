@@ -65,6 +65,11 @@ primAt
 	(self isPtr: r) ifFalse: [^self fail].
 	k := self indexOf: self arg0 limit: (memory indexableSize: r).
 	k < 0 ifTrue: [^self fail].
+	"a married Context's slots are its frame's"
+	(interpreter isMarried: r) ifTrue: [
+		v := interpreter contextSlot: k asInt64 of: r.
+		v ~= 0 ifTrue: [^self answer: v].
+		r := self receiver].
 	f := self formatOf: r.
 	(self fmtHasPointers: f) ifTrue: [^self answer: (self loadRef: r at: (memory fixedFields: r) + k asUInt32)].
 	f = F_W64 ifTrue: [
@@ -82,6 +87,10 @@ primAtPut
 	k := self indexOf: (self arg: 0) limit: (memory indexableSize: r).
 	k < 0 ifTrue: [^self fail].
 	v := self arg: 1.
+	(interpreter isMarried: r) ifTrue: [
+		(interpreter context: r slot: k asInt64 put: v) ifTrue: [^self answer: v].
+		r := self receiver.
+		v := self arg: 1].
 	f := self formatOf: r.
 	(self fmtHasPointers: f)
 		ifTrue: [self storeRef: r at: (memory fixedFields: r) + k asUInt32 put: v]
@@ -104,11 +113,18 @@ primAtPut
 !
 primInstVarAt
 	<vmPrimitive: 75 name: 'instVarAt'>
-	| r k |
+	| r k v |
 	r := self receiver.
 	((self isPtr: r) and: [self fmtHasPointers: (self formatOf: r)]) ifFalse: [^self fail].
 	k := self indexOf: self arg0 limit: (self numSlots: r).
 	k < 0 ifTrue: [^self fail].
+	"a married Context's sender, pc, stackp and slots are its frame's"
+	((interpreter isMarried: r) and: [k <= CTX_STACKP or: [k >= CTX_FIXED]]) ifTrue: [
+		v := k <= CTX_STACKP
+			ifTrue: [interpreter contextField: k asInt64 of: r]
+			ifFalse: [interpreter contextSlot: k asInt64 - CTX_FIXED of: r].
+		v ~= 0 ifTrue: [^self answer: v].
+		r := self receiver].
 	self answer: (self loadRef: r at: k)
 !
 primInstVarAtPut
@@ -119,6 +135,13 @@ primInstVarAtPut
 	k := self indexOf: (self arg: 0) limit: (self numSlots: r).
 	k < 0 ifTrue: [^self fail].
 	v := self arg: 1.
+	"a married Context: a slot goes to its frame; a fixed field may change how it continues, its frames are flushed first"
+	(interpreter isMarried: r) ifTrue: [
+		k >= CTX_FIXED
+			ifTrue: [(interpreter context: r slot: k asInt64 - CTX_FIXED put: v) ifTrue: [^self answer: v]]
+			ifFalse: [interpreter materializeAll].
+		r := self receiver.
+		v := self arg: 1].
 	self storeRef: r at: k put: v.
 	self answer: v
 !
@@ -127,6 +150,8 @@ primShallowCopy
 	| r c |
 	r := self receiver.
 	(self isPtr: r) ifFalse: [^self answer: r].
+	"a married Context's state is its frame's: Context>>shallowCopy copies what Smalltalk reads"
+	(interpreter isMarried: r) ifTrue: [^self fail].
 	c := memory allocObjTry: (self rawClass: r) format: (self formatOf: r) slots: (self numSlots: r) asUInt64.
 	c = 0 ifTrue: [^self failCode: PRIM_ERR_NO_MEMORY].
 	r := self receiver.
@@ -161,6 +186,10 @@ primChangeClassTo
 	r := self receiver.
 	c := self arg0.
 	((self isPtr: r) and: [(self isPtr: c) and: [(self numSlots: c) > BEH_FORMAT and: [self isInt: (self loadRef: c at: BEH_FORMAT)]]]) ifFalse: [^self fail].
+	(interpreter isMarried: r) ifTrue: [
+		interpreter materializeAll.
+		r := self receiver.
+		c := self arg0].
 	spec := (self intVal: (self loadRef: c at: BEH_FORMAT)) >> CLS_SPEC_SHIFT.
 	isize := (self intVal: (self loadRef: c at: BEH_FORMAT)) bitAnd: CLS_INSTSIZE_MASK.
 	f := self formatOf: r.
@@ -333,8 +362,8 @@ primReplaceFromTo
 	((self isPtr: r) and: [(self isPtr: src) and: [(self isImmutable: r) not and: [(self isInt: so) and: [(self isInt: eo) and: [self isInt: ro]]]]]) ifFalse: [^self fail].
 	kind := self elementKindOf: r.
 	(kind = 0 or: [kind ~= (self elementKindOf: src)]) ifTrue: [^self fail].
-	"a married Context's slots are in its frame: the fallback's sends flush it"
-	(kind = 1 and: [interpreter isMarried: src]) ifTrue: [^self fail].
+	"a married Context's slots are in its frame: the fallback reads them"
+	(kind = 1 and: [(interpreter isMarried: src) or: [interpreter isMarried: r]]) ifTrue: [^self fail].
 	start := self intVal: so.
 	stop := self intVal: eo.
 	rstart := self intVal: ro.

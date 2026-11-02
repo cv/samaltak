@@ -433,12 +433,11 @@ miss: f receiver: rcv ret: ret
 	^t uentry
 !
 targetFor: cls selector: sel
-	"The baseline code a send of sel to an instance of cls may call, compiled when the method's activations reach the threshold; null if there is none or the interpreter sends it (doesNotUnderstand:, a married Context)."
+	"The baseline code a send of sel to an instance of cls may call, compiled when the method's activations reach the threshold; null if there is none or the interpreter sends it (doesNotUnderstand:)."
 	<c: 'JitMethod *bl_target_for(oop cls, oop sel)'>
 	| e m t |
 	e := interpreter entryFor: cls selector: sel.
 	e isNull ifTrue: [^self null].
-	(e kind bitAnd: K_CTX) ~= 0 ifTrue: [^self null].
 	m := e method.
 	t := jit codeOf: m counting: true.
 	(jit hasCode: t) ifFalse: [^self null].
@@ -696,7 +695,7 @@ entryOfBlock: c
 	^entry
 !
 performMiss: f receiver: rcv ret: ret info: info
-	"A perform method's machine code (info: its argument count n, | 256 for perform:withArguments:) found no target in megaTable for rcv's class and the selector: look it up, fill the table, move the arguments down over the selector (perform:withArguments:: the Array's elements, up to 2) and answer the target's unchecked entry; 0: the primitive fails (the method's body runs); 1: leave, the interpreter sends (not understood, a married Context, not compiled yet, perform: again, more arguments, no room; a sender in optimized code: the runtime sends, OptRuntime>>sendFrom:ret:)."
+	"A perform method's machine code (info: its argument count n, | 256 for perform:withArguments:) found no target in megaTable for rcv's class and the selector: look it up, fill the table, move the arguments down over the selector (perform:withArguments:: the Array's elements, up to 2) and answer the target's unchecked entry; 0: the primitive fails (the method's body runs); 1: leave, the interpreter sends (not understood, not compiled yet, perform: again, more arguments, no room; a sender in optimized code: the runtime sends, OptRuntime>>sendFrom:ret:)."
 	<c: 'uint64_t jit_bl_perform(Frame *f, oop rcv, uint64_t ret, uint64_t info)'>
 	| n fp sel arr k cls t |
 	statMisses := statMisses + 1.
@@ -723,7 +722,7 @@ performMiss: f receiver: rcv ret: ret info: info
 entrySlow: f ret: ret callee: c
 	"A callee's stack check failed (f is its sender, at the send; c the callee's header, 1 at a block's entry): the C stack is full (the frames become Contexts and the interpreter sends again; a sender in optimized code: the runtime sends, answer where the call continues) or an interrupt is pending: taken with the callee's frame pushed, as at its first instruction (perform: may have moved the arguments: the send cannot be executed again), the frame popped again if no frames were flushed. 0: retry, 1: leave."
 	<c: 'uint64_t jit_bl_entry_slow(Frame *f, uint64_t ret, uint64_t c)'>
-	| nfp n h g flushes inv |
+	| nfp n h g moved inv |
 	self setTop: f ret: ret mode: 0.
 	jit sync: f.
 	nfp := self calleeFp: f ret: ret.
@@ -735,7 +734,7 @@ entrySlow: f ret: ret callee: c
 	n := (self intVal: (c = 1 ifTrue: [self loadRef: (nfp at: -1) at: BC_NUMARGS] ifFalse: [self loadRef: h method at: CM_NUMARGS])) asInt32.
 	self setTop: f ret: ret fp: nfp argc: n.
 	interpreter syncFrame: f.
-	flushes := interpreter statFlushes.
+	moved := interpreter frameEpoch.
 	inv := jit invalidations.
 	c = 1
 		ifTrue: [interpreter activateBlock: n]
@@ -748,7 +747,7 @@ entrySlow: f ret: ret callee: c
 	jit resetStress.
 	jit clearInterrupt.
 	interpreter interruptSafepoint.
-	(interpreter statFlushes ~= flushes or: [inv ~= jit invalidations]) ifTrue: [^1].
+	(interpreter frameEpoch ~= moved or: [inv ~= jit invalidations]) ifTrue: [^1].
 	c = 1 ifTrue: [nfp at: -1 put: (interpreter frames + (interpreter nframes - 1)) closure].
 	interpreter nframes: (f - interpreter frames) asInt32 + 1.
 	^0
@@ -756,7 +755,7 @@ entrySlow: f ret: ret callee: c
 prim: f fp: fp fn: fn info: info
 	"A compiled method's C primitive (f the sender, at the send whose return address is the state's primRet; the receiver below fp): 0 success (the result in the state), 1 leave, 2 failure (the error code in the state)."
 	<c: 'uint64_t jit_bl_prim(Frame *f, uint64_t fp, uint64_t fn, uint64_t info)'>
-	| n leaf base flushes inv status v code |
+	| n leaf base moved inv status v code |
 	statPrimCalls := statPrimCalls + 1.
 	n := (info bitAnd: 255) asInt32.
 	leaf := (info bitAnd: 256) ~= 0.
@@ -764,13 +763,13 @@ prim: f fp: fp fn: fn info: info
 	leaf ifFalse: [
 		self setTop: f ret: jit state primRet fp: fp argc: n.
 		jit sync: f].
-	flushes := interpreter statFlushes.
+	moved := interpreter frameEpoch.
 	inv := jit invalidations.
 	status := interpreter callPrimitive: (self cCoerce: fn to: 'prim_fn') base: base argc: n.
 	status = PS_OK ifTrue: [
 		v := interpreter primResult.
 		interpreter primResult: memory nilOop.
-		interpreter statFlushes ~= flushes ifTrue: [
+		interpreter frameEpoch ~= moved ifTrue: [
 			interpreter primCommit: v.
 			^1].
 		inv ~= jit invalidations ifTrue: [
@@ -782,7 +781,7 @@ prim: f fp: fp fn: fn info: info
 		jit state result: v.
 		^0].
 	"the primitive committed its result (a process primitive that did not switch): optimized code goes on with it (the interpreter cannot continue its frame)"
-	(status = PS_SWITCHED and: [(jit isOptFrame: f) and: [interpreter statFlushes = flushes and: [interpreter nframes = ((f - interpreter frames) + 1)]]]) ifTrue: [
+	(status = PS_SWITCHED and: [(jit isOptFrame: f) and: [interpreter frameEpoch = moved and: [interpreter nframes = ((f - interpreter frames) + 1)]]]) ifTrue: [
 		inv ~= jit invalidations ifTrue: [^jit leaveAfter: f pc: f pc sp: f sp].
 		jit state result: (base at: 0).
 		^0].

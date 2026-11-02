@@ -121,6 +121,38 @@ void prim_ensure_marker(void)
     prim_error_code = -1;
 }
 
+/* ControlPrimitives>>primFindNextUnwindContext */
+void prim_find_next_unwind_context(void)
+{
+    oop c;
+    oop v;
+    c = prim_base[0];
+    if (!(((c & 7) == 0) && (*(uint64_t *)(c + 8) == cls_context))) {
+        prim_status = PS_FAIL;
+        prim_error_code = -1;
+        return;
+    }
+    v = sender_marked(prim_base[0], PRIM_ENSURE_MARKER, prim_nargs > 0 ? prim_base[1] : nil_oop);
+    prim_result = v;
+    prim_status = PS_OK;
+}
+
+/* ControlPrimitives>>primNextHandlerContext */
+void prim_next_handler_context(void)
+{
+    oop c;
+    oop v;
+    c = prim_base[0];
+    if (!(((c & 7) == 0) && (*(uint64_t *)(c + 8) == cls_context))) {
+        prim_status = PS_FAIL;
+        prim_error_code = -1;
+        return;
+    }
+    v = sender_marked(prim_base[0], PRIM_ONDO_MARKER, nil_oop);
+    prim_result = v;
+    prim_status = PS_OK;
+}
+
 /* ControlPrimitives>>primOnDoMarker */
 void prim_on_do_marker(void)
 {
@@ -540,6 +572,20 @@ void prim_stack_limit(void)
         stack_check_at = 0;
     }
     v = (uint64_t)((old << 1) | 1);
+    prim_result = v;
+    prim_status = PS_OK;
+}
+
+/* ControlPrimitives>>primTerminateTo */
+void prim_terminate_to(void)
+{
+    oop v;
+    if (!((prim_nargs == 1) && terminate_to(prim_base[0], prim_nargs > 0 ? prim_base[1] : nil_oop))) {
+        prim_status = PS_FAIL;
+        prim_error_code = -1;
+        return;
+    }
+    v = prim_base[0];
     prim_result = v;
     prim_status = PS_OK;
 }

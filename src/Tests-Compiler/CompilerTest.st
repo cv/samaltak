@@ -20,8 +20,7 @@ unmappedStopsIn: aMethod
 isStopOpcode: op
 	(op between: 16r60 and: 16r67) ifTrue: [^true].
 	(op between: 16r79 and: 16r7C) ifTrue: [^true].
-	(op between: 16r84 and: 16r87) ifTrue: [^true].
-	(op between: 16r89 and: 16r8F) ifTrue: [^op ~= 16r8A].
+	(op between: 16r84 and: 16r8F) ifTrue: [^op ~= 16r8A].
 	((op between: 16r97 and: 16r9F) or: [op between: 16rF0 and: 16rFB]) ifTrue: [^true].
 	^op between: 16rA0 and: 16rEF
 ! !

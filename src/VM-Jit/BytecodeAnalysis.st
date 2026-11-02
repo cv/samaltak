@@ -102,9 +102,7 @@ lengthOf: op
 	op < 16r70 ifTrue: [^0].
 	op < 16r7D ifTrue: [^1].
 	op < 16r80 ifTrue: [^0].
-	op < 16r88 ifTrue: [^2].
-	op = 16r88 ifTrue: [^0].
-	op = 16r89 ifTrue: [^2].
+	op < 16r8A ifTrue: [^2].
 	op < 16r8F ifTrue: [^3].
 	op = 16r8F ifTrue: [^6].
 	op < 16r94 ifTrue: [^3].
@@ -237,7 +235,7 @@ sends: pc
 	"The instruction at pc may send (its continuation is a resumption point)."
 	| op |
 	op := anaBcs at: pc.
-	^op = 16r8D or: [op = 16r8E or: [(op >= 16r97 and: [op <= 16rFB]) or: [op = 16r85]]]
+	^op = 16r8D or: [op = 16r8E or: [(op >= 16r97 and: [op <= 16rFB]) or: [op = 16r85 or: [op = 16r88]]]]
 !
 effectOf: pc depth: d
 	"The stack effect of the (non-jump, non-return, non-closure) instruction at pc; < -1000 if it is invalid at depth d."
@@ -247,7 +245,7 @@ effectOf: pc depth: d
 		(op = 16r77 and: [d < 1]) ifTrue: [^-2000].
 		^1].
 	(op < 16r68 or: [op = 16r78 or: [op = 16r87 or: [op = 16r89 or: [op = 16r8C]]]]) ifTrue: [^d < 1 ifTrue: [-2000] ifFalse: [-1]].
-	((op >= 16r84 and: [op <= 16r86]) or: [op = 16r8B]) ifTrue: [^d < 1 ifTrue: [-2000] ifFalse: [0]].
+	((op >= 16r84 and: [op <= 16r86]) or: [op = 16r88 or: [op = 16r8B]]) ifTrue: [^d < 1 ifTrue: [-2000] ifFalse: [0]].
 	op = 16r94 ifTrue: [
 		n := (anaBcs at: pc + 1) asInt32.
 		^d < n ifTrue: [-2000] ifFalse: [1 - n]].

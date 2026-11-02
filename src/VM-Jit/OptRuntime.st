@@ -386,7 +386,7 @@ noteYoung: o
 send: f index: k site: key
 	"Optimized code sends at safepoint k of f (its pc and sp set, receiver and arguments at slot slots; key: the site, for the interpreter's inline cache): answer 0 (the result is in that slot), 1 (leave) or the callee's entry (frame pushed)."
 	<c: 'uint64_t opt_send(Frame *f, int64_t k, uint64_t key)'>
-	| h rec info n kind sp sel base r cls e ns ok flushes |
+	| h rec info n kind sp sel base r cls e ns ok moved |
 	rtStatSends := rtStatSends + 1.
 	h := self cCoerce: f code to: 'JitMethod *'.
 	rec := self recordOf: h index: k.
@@ -409,10 +409,10 @@ send: f index: k site: key
 		r := base at: 0.
 		((sp = 21 or: [sp = 22 or: [sp = 30]]) and: [(self isPtr: r) and: [(self rawClass: r) = memory clsBlock and: [(self loadRef: r at: BC_NUMARGS) = (self intOop: n)]]]) ifTrue: [
 			runtime sync: f.
-			flushes := interpreter statFlushes.
+			moved := interpreter frameEpoch.
 			interpreter activateBlock: n.
 			"no room for its frame: the frames became Contexts, the interpreter goes on"
-			interpreter statFlushes ~= flushes ifTrue: [^1].
+			interpreter frameEpoch ~= moved ifTrue: [^1].
 			^runtime entryOfTop]].
 	cls := kind = 1
 		ifTrue: [self loadRef: (self loadRef: (self innermostMethodOf: rec h: h) at: CM_CLASS) at: BEH_SUPERCLASS]
@@ -421,13 +421,13 @@ send: f index: k site: key
 	(e cls = cls and: [e sel = key]) ifFalse: [
 		e := interpreter siteEntry: (self cCoerce: key to: 'uint8_t *') class: cls selector: sel.
 		e isNull ifTrue: [^self doesNotUnderstand: sel class: cls frame: f index: k argc: n]].
-	(e kind bitAnd: (runtime kConst bitOr: runtime kCtx)) = runtime kConst ifTrue: [
+	(e kind bitAnd: runtime kConst) ~= 0 ifTrue: [
 		e qconst ~= 0 ifTrue: [base at: 0 put: e qconst].
 		^self sent: f].
-	((e kind bitAnd: (runtime kQuick bitOr: runtime kCtx)) = runtime kQuick and: [n = 0 and: [(self isPtr: r) and: [r ~= interpreter activeCtx and: [(self formatOf: r) <= F_FIXVAR and: [(self numSlots: r) > e quick asUInt32]]]]]) ifTrue: [
+	((e kind bitAnd: runtime kQuick) ~= 0 and: [n = 0 and: [(self isPtr: r) and: [(self formatOf: r) <= F_FIXVAR and: [(self numSlots: r) > e quick asUInt32]]]]) ifTrue: [
 		base at: 0 put: (self loadRef: r at: e quick).
 		^self sent: f].
-	((e kind bitAnd: (runtime kSetter bitOr: runtime kCtx)) = runtime kSetter and: [e nset = n and: [(self isPtr: r) and: [r ~= interpreter activeCtx and: [((self header: r) bitAnd: H_IMMUTABLE) = 0 and: [(self formatOf: r) <= F_FIXVAR]]]]]) ifTrue: [
+	((e kind bitAnd: runtime kSetter) ~= 0 and: [e nset = n and: [(self isPtr: r) and: [((self header: r) bitAnd: H_IMMUTABLE) = 0 and: [(self formatOf: r) <= F_FIXVAR]]]]) ifTrue: [
 		ns := self numSlots: r.
 		ok := true.
 		0 to: n - 1 do: [:j | ok := ok and: [(e setIvar at: j) < ns]].
@@ -435,9 +435,8 @@ send: f index: k site: key
 			0 to: n - 1 do: [:j | self storeRef: r at: (e setIvar at: j) put: (base at: 1 + j)].
 			^self sent: f]].
 	"a leaf primitive neither collects nor leaves: the frames below need not be canonical"
-	((e kind bitAnd: (runtime kLeaf bitOr: runtime kCtx)) = runtime kLeaf and: [runtime callLeaf: e base: base argc: n]) ifTrue: [^self sent: f].
+	((e kind bitAnd: runtime kLeaf) ~= 0 and: [runtime callLeaf: e base: base argc: n]) ifTrue: [^self sent: f].
 	runtime sync: f.
-	((e kind bitAnd: runtime kCtx) ~= 0 and: [self isInt: (self loadRef: r at: CTX_SENDER)]) ifTrue: [^self leaveBefore: f index: k].
 	(runtime isPerform: e) ifTrue: [^self perform: e frame: f index: k argc: n].
 	runtime sendPushed: 0.
 	r := runtime dispatch: e frame: f argc: n.
@@ -499,9 +498,8 @@ doesNotUnderstand: sel class: cls frame: f index: k argc: n
 	^self resend: (interpreter entryFor: (roots at: 1) selector: (memory special: SO_SEL_DNU)) frame: f argc: 1
 !
 cannotSend: g base: base
-	"The send of g's method to the receiver at base cannot complete here: not understood (g null), perform: again, a married Context, no room for its frame."
-	^g isNull or: [(runtime isPerform: g) or: [(self cCoerce: base + (1 + g fsize) to: 'uint64_t') > interpreter cstackLimit or: [
-		(g kind bitAnd: runtime kCtx) ~= 0 and: [self isInt: (self loadRef: (base at: 0) at: CTX_SENDER)]]]]
+	"The send of g's method to the receiver at base cannot complete here: not understood (g null), perform: again, no room for its frame."
+	^g isNull or: [(runtime isPerform: g) or: [(self cCoerce: base + (1 + g fsize) to: 'uint64_t') > interpreter cstackLimit]]
 !
 resend: g frame: f argc: n
 	"Send g's method to the receiver and n arguments on top of f (they replaced a perform:'s or a send's): answer as send:index:site:."

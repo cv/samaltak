@@ -278,6 +278,17 @@ switchWith: s holder: h
 blockDepth: n
 	^n = 0 ifTrue: [0] ifFalse: [[:k | (self blockDepth: k) + 1] value: n - 1]
 !
+tempWrites
+	"thisContext and a sender's Context write to their frames' temps."
+	| x y |
+	x := 1.
+	thisContext tempAt: 1 put: 2.
+	self writeSenderTemp.
+	^{x. y}
+!
+writeSenderTemp
+	thisContext sender tempAt: 2 put: 3
+!
 testMarried
 	| pair s h old |
 	pair := self sharedTemp.
@@ -299,6 +310,9 @@ testMarried
 	(self withMarried: [:c | c printString]) printNl.
 	(self withMarried: [:c | c]) isDead printNl.
 	((self withMarried: [:c | c]) tempAt: 2) printNl.
+	(thisContext == thisContext) printNl.
+	(thisContext sender == thisContext sender) printNl.
+	self tempWrites printNl.
 	self identityAcrossFlush.
 	self replaceFromMarried printNl.
 	(self tryOn: thisContext) selector printNl.

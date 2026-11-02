@@ -52,10 +52,10 @@ void prim_at(void)
     size_t n;
     int64_t r_index_of;
     int64_t k;
+    oop v;
     int32_t f;
     uint32_t i;
     uint64_t v_2;
-    oop v;
     int64_t v_3;
     uint64_t v_4;
     uint64_t v_5;
@@ -83,6 +83,15 @@ exit_index_of:;
         prim_status = PS_FAIL;
         prim_error_code = -1;
         return;
+    }
+    if (is_married(r)) {
+        v = context_slot(k, r);
+        if (v != 0) {
+            prim_result = v;
+            prim_status = PS_OK;
+            return;
+        }
+        r = prim_base[0];
     }
     f = (int32_t)(((*(uint64_t *)r) >> H_FMT_SHIFT) & H_FMT_MASK);
     if ((f >= 1) && (f <= 4)) {
@@ -159,6 +168,15 @@ exit_index_of:;
         return;
     }
     v = prim_base[2];
+    if (is_married(r)) {
+        if (context_slot_put(r, k, v)) {
+            prim_result = v;
+            prim_status = PS_OK;
+            return;
+        }
+        r = prim_base[0];
+        v = prim_base[2];
+    }
     f = (int32_t)(((*(uint64_t *)r) >> H_FMT_SHIFT) & H_FMT_MASK);
     if ((f >= 1) && (f <= 4)) {
         i = fixed_fields(r) + (uint32_t)k;
@@ -924,6 +942,11 @@ void prim_change_class_to(void)
         prim_error_code = -1;
         return;
     }
+    if (is_married(r)) {
+        materialize_all();
+        r = prim_base[0];
+        c = prim_nargs > 0 ? prim_base[1] : nil_oop;
+    }
     o_2 = *(uint64_t *)(c + 16 + 16);
     spec = ((int64_t)o_2) >> 1 >> CLS_SPEC_SHIFT;
     o_3 = *(uint64_t *)(c + 16 + 16);
@@ -1045,7 +1068,8 @@ void prim_inst_var_at(void)
     uint32_t n;
     int64_t r_index_of;
     int64_t k;
-    uint64_t v;
+    oop v;
+    uint64_t v_2;
     r = prim_base[0];
     if (!(((r & 7) == 0) && ({
     f = (int32_t)(((*(uint64_t *)r) >> H_FMT_SHIFT) & H_FMT_MASK);
@@ -1069,8 +1093,17 @@ exit_index_of:;
         prim_error_code = -1;
         return;
     }
-    v = *(uint64_t *)(r + 16 + 8 * k);
-    prim_result = v;
+    if (is_married(r) && ((k <= CTX_STACKP) || (k >= CTX_FIXED))) {
+        v = k <= CTX_STACKP ? context_field(k, r) : context_slot(k - CTX_FIXED, r);
+        if (v != 0) {
+            prim_result = v;
+            prim_status = PS_OK;
+            return;
+        }
+        r = prim_base[0];
+    }
+    v_2 = *(uint64_t *)(r + 16 + 8 * k);
+    prim_result = v_2;
     prim_status = PS_OK;
 }
 
@@ -1108,6 +1141,19 @@ exit_index_of:;
         return;
     }
     v = prim_base[2];
+    if (is_married(r)) {
+        if (k >= CTX_FIXED) {
+            if (context_slot_put(r, k - CTX_FIXED, v)) {
+                prim_result = v;
+                prim_status = PS_OK;
+                return;
+            }
+        } else {
+            materialize_all();
+        }
+        r = prim_base[0];
+        v = prim_base[2];
+    }
     *(uint64_t *)(r + 16 + 8 * k) = v;
     if (((v & 7) == 0) && (((uint64_t)(v - young_lo) < young_hi - young_lo) && ((!((uint64_t)(r - young_lo) < young_hi - young_lo)) && (((*(uint64_t *)r) & H_REMEMBERED) == 0)))) {
         vm_remember(r);
@@ -1209,7 +1255,7 @@ exit_element_kind_of_2:;
         prim_error_code = -1;
         return;
     }
-    if ((kind == 1) && is_married(src)) {
+    if ((kind == 1) && (is_married(src) || is_married(r))) {
         prim_status = PS_FAIL;
         prim_error_code = -1;
         return;
@@ -1298,6 +1344,11 @@ void prim_shallow_copy(void)
     if (!((r & 7) == 0)) {
         prim_result = r;
         prim_status = PS_OK;
+        return;
+    }
+    if (is_married(r)) {
+        prim_status = PS_FAIL;
+        prim_error_code = -1;
         return;
     }
     c = alloc_obj_try(*(uint64_t *)(r + 8), (int32_t)(((*(uint64_t *)r) >> H_FMT_SHIFT) & H_FMT_MASK), (uint64_t)(uint32_t)*(uint64_t *)r);

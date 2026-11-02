@@ -624,6 +624,28 @@ exit_insert:;
     return h;
 }
 
+/* JitRuntime>>contextField: */
+uint64_t jit_context_field(frame *f)
+{
+    oop o;
+    uint64_t o_2;
+    oop v;
+    if ((jit_mode == JIT_BASELINE) || (jit_mode == JIT_OPT)) {
+        f->method = ((jit_method *)f->code)->method;
+        bl_canonicalize_below(f);
+    }
+    interp_sync_frame(f);
+    o = f->method;
+    o_2 = *(uint64_t *)(o + 16 + 16);
+    f->lits = (oop *)(o_2 + 16);
+    v = context_field((int64_t)f->ip[1], f->fp[-1]);
+    if (v == 0) {
+        return 1;
+    }
+    f->fp[f->sp] = v;
+    return 0;
+}
+
 /* JitRuntime>>defaults */
 void jit_defaults(void)
 {
@@ -652,7 +674,7 @@ uint64_t jit_dispatch(cache_entry *e, frame *f, int32_t n)
     uint8_t i;
     oop v_2;
     int8_t i_2;
-    uint64_t flushes;
+    uint64_t moved;
     uint64_t inv;
     oop v;
     oop m_2;
@@ -717,7 +739,7 @@ exit_error_code_for:;
     }
     if ((e->nset == n) && (n != 0)) {
         r = base[0];
-        if (((r & 7) == 0) && ((r != active_ctx) && ((!(((*(uint64_t *)r) & H_IMMUTABLE) != 0)) && ((int32_t)(((*(uint64_t *)r) >> H_FMT_SHIFT) & H_FMT_MASK) <= F_FIXVAR)))) {
+        if (((r & 7) == 0) && ((!(((*(uint64_t *)r) & H_IMMUTABLE) != 0)) && ((int32_t)(((*(uint64_t *)r) >> H_FMT_SHIFT) & H_FMT_MASK) <= F_FIXVAR))) {
             ns = (uint32_t)*(uint64_t *)r;
             ok = true;
             for (k = 0; k <= n - 1; k++) {
@@ -738,7 +760,7 @@ exit_error_code_for:;
     }
     if ((e->quick >= 0) && (n == 0)) {
         r = base[0];
-        if (((r & 7) == 0) && ((r != active_ctx) && (((int32_t)(((*(uint64_t *)r) >> H_FMT_SHIFT) & H_FMT_MASK) <= F_FIXVAR) && ((uint32_t)*(uint64_t *)r > (uint32_t)e->quick)))) {
+        if (((r & 7) == 0) && (((int32_t)(((*(uint64_t *)r) >> H_FMT_SHIFT) & H_FMT_MASK) <= F_FIXVAR) && ((uint32_t)*(uint64_t *)r > (uint32_t)e->quick))) {
             i_2 = e->quick;
             base[0] = *(uint64_t *)(r + 16 + 8 * i_2);
             return 0;
@@ -747,7 +769,7 @@ exit_error_code_for:;
     if ((kind & K_PRIM) == 0) {
         return jit_activate(m, f, n, -1, 0);
     }
-    flushes = stat_flushes;
+    moved = frame_epoch;
     inv = invalidations;
     tmp_roots[0] = m;
     status = interp_call_primitive(e->prim, base, n);
@@ -756,7 +778,7 @@ exit_error_code_for:;
     if (status == PS_OK) {
         v = prim_result;
         prim_result = nil_oop;
-        if (stat_flushes != flushes) {
+        if (frame_epoch != moved) {
             prim_commit(v);
             return 1;
         }
@@ -779,7 +801,7 @@ exit_leave_after:;
         return 0;
     }
     if (status == PS_SWITCHED) {
-        if (stat_flushes != flushes) {
+        if (frame_epoch != moved) {
             return 1;
         }
         if (nframes > f - frames + 1) {
@@ -807,7 +829,7 @@ exit_leave_after_2:;
         fprintf(stderr, "a resending primitive called from machine code");
         fatal_end();
     }
-    if (stat_flushes != flushes) {
+    if (frame_epoch != moved) {
         fatal_begin();
         fprintf(stderr, "a failing primitive flushed the frames");
         fatal_end();
@@ -1179,7 +1201,7 @@ uint64_t jit_interrupt(frame *f)
 {
     oop o;
     uint64_t o_2;
-    uint64_t flushes;
+    uint64_t moved;
     uint64_t inv;
     if ((jit_mode == JIT_BASELINE) || (jit_mode == JIT_OPT)) {
         f->method = ((jit_method *)f->code)->method;
@@ -1197,10 +1219,10 @@ uint64_t jit_interrupt(frame *f)
     if (state_block->interrupt != 0) {
         state_block->stack_limit = 0;
     }
-    flushes = stat_flushes;
+    moved = frame_epoch;
     inv = invalidations;
     interrupt_safepoint();
-    if ((stat_flushes != flushes) || (inv != invalidations)) {
+    if ((frame_epoch != moved) || (inv != invalidations)) {
         return 1;
     }
     return 0;
@@ -1562,6 +1584,24 @@ int64_t jit_primitive_number(const char *name)
         }
     }
     return -1;
+}
+
+/* JitRuntime>>pushContext: */
+uint64_t jit_push_context(frame *f)
+{
+    oop o;
+    uint64_t o_2;
+    if ((jit_mode == JIT_BASELINE) || (jit_mode == JIT_OPT)) {
+        f->method = ((jit_method *)f->code)->method;
+        bl_canonicalize_below(f);
+    }
+    interp_sync_frame(f);
+    o = f->method;
+    o_2 = *(uint64_t *)(o + 16 + 16);
+    f->lits = (oop *)(o_2 + 16);
+    marry(f);
+    f->fp[f->sp] = f->ctx;
+    return 0;
 }
 
 /* JitRuntime>>refreshState */

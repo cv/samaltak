@@ -50,6 +50,14 @@ doubledPlusOne
 callsHalting
 	^(self haltingAdd: 4) + 1
 !
+haltingHandler
+	"A handler that halts, between an unwind block below the signal and one around the handler."
+	| log |
+	log := OrderedCollection new.
+	[log add: ([[1 / 0] ensure: [log add: #unwound]] on: ZeroDivide do: [:e | | v | v := 6. self halt. log add: #handled. v + 1])]
+		ensure: [log add: #ensured].
+	^log
+!
 loop
 	| i |
 	i := 0.

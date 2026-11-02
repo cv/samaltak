@@ -68,6 +68,29 @@ primOnDoMarker
 	self fail
 ! !
 
+!ControlPrimitives methodsFor: 'contexts'!
+isContext: c
+	^(self isPtr: c) and: [(self rawClass: c) = memory clsContext]
+!
+primFindNextUnwindContext
+	"Context>>findNextUnwindContextUpTo: aContext: the first ensure:/ifCurtailed: activation among my senders before aContext, married if it is a frame; nil if none."
+	<vmPrimitive: 195 name: 'findNextUnwindContext'>
+	(self isContext: self receiver) ifFalse: [^self fail].
+	self answer: (interpreter senderOf: self receiver marker: PRIM_ENSURE_MARKER upTo: self arg0)
+!
+primTerminateTo
+	"Context>>terminateTo: aContext, when I am the top frame's Context and aContext is below me in a frame or a Context (Interpreter>>terminate:to:); else the method's code does it."
+	<vmPrimitive: 196 name: 'terminateTo'>
+	(self argCount = 1 and: [interpreter terminate: self receiver to: self arg0]) ifFalse: [^self fail].
+	self answer: self receiver
+!
+primNextHandlerContext
+	"Context>>nextHandlerContext: the first on:do: activation among my senders, married if it is a frame; nil if none."
+	<vmPrimitive: 197 name: 'nextHandlerContext'>
+	(self isContext: self receiver) ifFalse: [^self fail].
+	self answer: (interpreter senderOf: self receiver marker: PRIM_ONDO_MARKER upTo: memory nilOop)
+! !
+
 !ControlPrimitives methodsFor: 'processes'!
 isProcess: p
 	^(self isPtr: p) and: [(self rawClass: p) = (memory special: SO_PROCESS)]
