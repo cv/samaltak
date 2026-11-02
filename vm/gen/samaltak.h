@@ -1636,6 +1636,7 @@ void prim_shallow_copy(void);
 void prim_special_objects_array(void);
 void prim_string_at(void);
 void prim_string_at_put(void);
+void prim_string_case_insensitive_compare(void);
 void prim_string_compare(void);
 void prim_string_hash(void);
 bool opt_build(oop m, int32_t s, int32_t t, int32_t d, bool res);

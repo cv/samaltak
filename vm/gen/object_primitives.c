@@ -1432,6 +1432,54 @@ exit_index_of:;
     prim_status = PS_OK;
 }
 
+/* ObjectPrimitives>>primStringCaseInsensitiveCompare */
+void prim_string_case_insensitive_compare(void)
+{
+    oop a;
+    oop b;
+    size_t na;
+    size_t nb;
+    uint8_t *pa;
+    uint8_t *pb;
+    int64_t i;
+    int32_t x;
+    int32_t y;
+    int v;
+    uint64_t v_2;
+    int v_3;
+    uint64_t v_4;
+    a = prim_base[0];
+    b = prim_nargs > 0 ? prim_base[1] : nil_oop;
+    if (!(((a & 7) == 0) && ((*(uint64_t *)(a + 8) == cls_bytestring) || (*(uint64_t *)(a + 8) == special(SO_BYTESYMBOL))) && (((b & 7) == 0) && ((*(uint64_t *)(b + 8) == cls_bytestring) || (*(uint64_t *)(b + 8) == special(SO_BYTESYMBOL)))))) {
+        prim_status = PS_FAIL;
+        prim_error_code = -1;
+        return;
+    }
+    na = byte_size(a);
+    nb = byte_size(b);
+    pa = (uint8_t *)(a + 16);
+    pb = (uint8_t *)(b + 16);
+    for (i = 0; i <= (int64_t)(na < nb ? na : nb) - 1; i++) {
+        x = (int32_t)pa[i];
+        y = (int32_t)pb[i];
+        if (x != y) {
+            x = ((x >= 65) && (x <= 90)) || ((x >= 192) && ((x <= 222) && (x != 215))) ? x + 32 : x;
+            y = ((y >= 65) && (y <= 90)) || ((y >= 192) && ((y <= 222) && (y != 215))) ? y + 32 : y;
+            if (x != y) {
+                v = x < y ? -1 : 1;
+                v_2 = (uint64_t)((((int64_t)v) << 1) | 1);
+                prim_result = v_2;
+                prim_status = PS_OK;
+                return;
+            }
+        }
+    }
+    v_3 = na < nb ? -1 : na > nb ? 1 : 0;
+    v_4 = (uint64_t)((((int64_t)v_3) << 1) | 1);
+    prim_result = v_4;
+    prim_status = PS_OK;
+}
+
 /* ObjectPrimitives>>primStringCompare */
 void prim_string_compare(void)
 {

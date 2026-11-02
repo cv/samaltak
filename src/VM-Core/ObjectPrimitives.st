@@ -282,6 +282,35 @@ primStringCompare
 		x ~= y ifTrue: [^self answer: (self intOop: (x < y ifTrue: [-1] ifFalse: [1]))]].
 	self answer: (self intOop: (na < nb ifTrue: [-1] ifFalse: [na > nb ifTrue: [1] ifFalse: [0]]))
 !
+isByteString: o
+	"A ByteString or ByteSymbol."
+	^(self isPtr: o) and: [(self rawClass: o) = memory clsBytestring or: [(self rawClass: o) = (memory special: SO_BYTESYMBOL)]]
+!
+lowercase: c
+	"Character>>asLowercase of the byte c: A-Z and À-Þ but × go up 32."
+	^((c >= 65 and: [c <= 90]) or: [c >= 192 and: [c <= 222 and: [c ~= 215]]]) ifTrue: [c + 32] ifFalse: [c]
+!
+primStringCaseInsensitiveCompare
+	"stringCompare of the characters' asLowercase, for ByteStrings and ByteSymbols (String>>caseInsensitiveCompare: loops for wide ones)."
+	<vmPrimitive: 116 name: 'stringCaseInsensitiveCompare'>
+	<leaf>
+	| a b na nb pa pb x y |
+	a := self receiver.
+	b := self arg0.
+	((self isByteString: a) and: [self isByteString: b]) ifFalse: [^self fail].
+	na := memory byteSize: a.
+	nb := memory byteSize: b.
+	pa := self bytesOf: a.
+	pb := self bytesOf: b.
+	0 to: (na < nb ifTrue: [na] ifFalse: [nb]) asInt64 - 1 do: [:i |
+		x := (pa at: i) asInt32.
+		y := (pb at: i) asInt32.
+		x ~= y ifTrue: [
+			x := self lowercase: x.
+			y := self lowercase: y.
+			x ~= y ifTrue: [^self answer: (self intOop: (x < y ifTrue: [-1] ifFalse: [1]))]]].
+	self answer: (self intOop: (na < nb ifTrue: [-1] ifFalse: [na > nb ifTrue: [1] ifFalse: [0]]))
+!
 elementKindOf: o
 	| f |
 	f := self formatOf: o.

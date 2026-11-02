@@ -95,6 +95,7 @@ primitive_entry vm_primitive_table[] = {
     {113, 3, "bytesUint16BigEndianAt", prim_bytes_uint16_big_endian_at},
     {114, 3, "bytesInt16BigEndianAt", prim_bytes_int16_big_endian_at},
     {115, 3, "bytesUint32BigEndianAt", prim_bytes_uint32_big_endian_at},
+    {116, 3, "stringCaseInsensitiveCompare", prim_string_case_insensitive_compare},
     {120, 0, "closureValue", prim_closure_value},
     {121, 0, "closureValueWithArguments", prim_closure_value_with_arguments},
     {130, 0, "processResume", prim_process_resume},

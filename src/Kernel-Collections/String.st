@@ -91,6 +91,7 @@ min: aString
 !
 caseInsensitiveCompare: aString
 	"Answer -1, 0 or 1 comparing the code points of our lowercase characters, as compare: does those of asLowercase copies."
+	<primitive: 'stringCaseInsensitiveCompare'>
 	| n |
 	n := self size min: aString size.
 	1 to: n do: [:i |
