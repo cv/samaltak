@@ -258,6 +258,7 @@ newActFor: m
 	ana := self analysisOf: m.
 	ana < 0 ifTrue: [^-1].
 	a := ir newAct.
+	a < 0 ifTrue: [^-1].
 	ac := ir act: a.
 	ac method: m.
 	ac numArgs: (self intVal: (self loadRef: m at: CM_NUMARGS)) asInt32.
@@ -852,6 +853,7 @@ inlineBlock: c info: d pc: pc act: a rcvSlot: r argc: argc
 	nt := ((nd aux2 >> 8) bitAnd: 255) asInt32.
 	fs := ((nd aux2 >> 16) bitAnd: 255) asInt32.
 	b := ir newAct.
+	b < 0 ifTrue: [^self bail].
 	ac := ir act: b.
 	ac method: (ir act: def) method.
 	ac ana: (ir act: def) ana.

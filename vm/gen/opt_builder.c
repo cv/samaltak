@@ -5348,6 +5348,13 @@ static void opt_inline_block(int32_t c, int32_t d, int32_t pc, int32_t a, int32_
     nt = (int32_t)((nd->aux2 >> 8) & 255);
     fs = (int32_t)((nd->aux2 >> 16) & 255);
     b = opt_new_act();
+    if (b < 0) {
+        if ((!ob_bailed) && (getenv("SAMALTAK_OPT_TRACE") != NULL)) {
+            fprintf(stderr, "opt: bail at pc %d of act %d\n", opt_cur_pc, opt_cur_act);
+        }
+        ob_bailed = true;
+        return;
+    }
     ac = opt_acts + b;
     ac->method = (opt_acts + def)->method;
     ac->ana = (opt_acts + def)->ana;
@@ -11754,6 +11761,9 @@ static int32_t opt_new_act_for(oop m)
         return -1;
     }
     a = opt_new_act();
+    if (a < 0) {
+        return -1;
+    }
     ac = opt_acts + a;
     ac->method = m;
     o = *(uint64_t *)(m + 16 + 32);
