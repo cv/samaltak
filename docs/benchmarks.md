@@ -26,7 +26,7 @@ Run:
 
 The suite for comparing JIT variants ([jit.md](jit.md)): the 14 [Are We Fast Yet](https://github.com/smarr/are-we-fast-yet) benchmarks (Marr, Daloze, Mössenböck, DLS 2016; MIT, `awfy/LICENSE.md`), the micro suite above (`Micro*`) and two Samaltak workloads: `Recompile` (compile every method of Kernel-Collections without installing it; checks the bytecodes match) and `TextRendering` (40 lines of text on a 900×500 Canvas, then `displayList`). The sources in `vm/tests/bench/awfy/` are filed into a built image; each benchmark runs in its own VM process. Pharo 12 runs the same sources except the Samaltak workloads.
 
-    vm/tests/bench/awfy.sh [--suite awfy|micro|workloads|all] [-n 30] [--vm-args '--jit none|baseline|opt'] [Bench[:inner] ...]
+    vm/tests/bench/awfy.sh [--suite awfy|micro|workloads|realworld|all] [-n 30] [--vm-args '--jit none|baseline|opt'] [Bench[:inner] ...]
     vm/tests/bench/awfy.sh --pharo ...                  # $PHARO_VM, $PHARO_IMAGE (default /tmp/pharo-dl)
     vm/tests/bench/awfy.sh --summary results/*.csv      # median over invocations
 
@@ -54,3 +54,61 @@ Steady state, ms, median of 3 invocations (`vm/tests/bench/results/samaltak-{non
 | Sieve | 93.2 | 34.6 | 21.9 | 54.1 |
 | Storage | 111.4 | 35.3 | 24.1 | 52.9 |
 | Towers | 91.2 | 13.6 | 7.8 | 16.4 |
+
+## Real-world workloads
+
+AWFY brings its own collections (`Vector`, `SomDictionary`, `SomSet` in `awfy/Core.st`), so it measures the compiler and VM, not the class library, its primitives or the GC at scale. These 16 workloads (`awfy/RealWorld.st`, `--suite realworld`, not part of `all`) are written once against each system's own class library; Pharo 12 runs the same source. Each answers a checksum that `verifyResult:` compares with one constant for both systems; at small sizes all 16 also answer the same on both. Sizes give 0.45–1 s per iteration on Pharo 12; an invocation takes 7 minutes under `opt`, 8.5 under `baseline`, 6 on Pharo.
+
+| workload | what |
+|---|---|
+| BinaryTrees | CLBG binary-trees, depth 17; its long-lived tree 20 deep (2M nodes live throughout) |
+| Fasta | CLBG fasta, n = 1,000,000, into a WriteStream |
+| KNucleotide | CLBG k-nucleotide on fasta 75,000 read with `nextLine`: `copyFrom:to:` keys into Dictionaries of up to 375,000 Strings, frequencies sorted and printed with `printShowingDecimalPlaces:` |
+| ReverseComplement | CLBG reverse-complement on fasta 1,000,000 (10 MB): `nextLine`, `reversed`, `collect:` through a table, 60-character lines |
+| SpectralNorm | CLBG spectral-norm, n = 1000: Float arithmetic |
+| Pidigits | CLBG pidigits, 4000 digits: LargeInteger `+`, `*`, `//` |
+| Strings | 40,000 lines written with a WriteStream, then `lines`, `substrings:`, `asUppercase`, `asLowercase`, `sameAs:`, `<`, `beginsWith:`, `capitalized`, `join:`, `copyReplaceAll:with:`, `occurrencesOf:`, `includesSubstring:`, `indexOf:`, `,`, `format:` |
+| Dictionaries | 200,000 String keys: Dictionary and Set insertion, hits, misses, updates, removal, enumeration; their Symbols (`asSymbol`) as keys of an IdentityDictionary and a Dictionary |
+| OrderedCollections | 10 rounds of growth at both ends to 400,000, a FIFO rotated 400,000 times (`removeFirst`, `addLast:`) and a LIFO drain; breadth-first search on a 1000×1000 grid; `add:beforeIndex:`, `removeAt:` |
+| Sorting | `sort:` with sort blocks on 200,000 Integers (both orders), Floats, digit Strings, Strings case-insensitively and two-key records; `asSortedCollection:`; SortedCollection `add:`, `removeFirst` |
+| Enumeration | 200,000 order records, 5 passes of `select:`, `collect:`, `inject:into:`, `detect:ifNone:`, `reject:`, `count:`, `anySatisfy:`, `allSatisfy:`, `detectMax:`, `with:collect:`, `withIndexDo:`, a grouping into a Dictionary of OrderedCollections, `asSet`, `asBag` |
+| PrintParse | 100,000 Integers printed (decimal, hex, padded) and read back; Floats printed and read back; CSV lines built and split |
+| Exceptions | 40,000 × 14 cases: `return:`, `pass`, `retry`, `resume:` of a Warning, `outer`, `ensure:` and `ifCurtailed:` on normal and exceptional exits, a non-local return through `ensure:`, MessageNotUnderstood, ZeroDivide, a signal 20 frames deep, an ExceptionSet |
+| Megamorphic | 40 random expression trees over 22 node classes, 20 passes: `evalIn:` (all classes at each send site) and a visitor (double dispatch) |
+| DeepRecursion | linked lists built, mapped, summed and measured recursively 100, 1000, 10,000 and 100,000 deep (500,000 activations per depth and operation); a recursive flood fill 90,000 deep |
+| Perform | 800,000 runs of a stack-machine program whose 26 instructions are selectors (`perform:`, `perform:with:`, `perform:with:with:`, `perform:withArguments:`); records copied through accessor selectors, with `respondsTo:` |
+
+No shims: `RealWorld.st` runs unchanged on both, with the harness's platform files (`awfy/Samaltak.st`, `awfy/Pharo.st`) as for AWFY. Two Pharo 12 differences are avoided by selectors both have: `Character>>asInteger` (Pharo 12 has no `Character>>value`; `Object>>value` answers the Character) and `printStringBase:` (no `Integer>>printString:`). Pharo prints Floats from 10^6 on as `1.0e6`, Samaltak as `1000000.0`; PrintParse's Floats stay below 10^6. CLBG fannkuch-redux is left out: Array and SmallInteger code only, as AWFY's Permute.
+
+Steady state (median of the last half of 30 iterations) and first iteration, ms, median of 3 invocations interleaved `opt`, `baseline`, Pharo 12 (`vm/tests/bench/results/{samaltak-opt,samaltak-baseline,pharo12-cog}-realworld-2026-10-28-*.csv`; `opt`'s third and Pharo's second invocation rerun on 2026-11-01, their 1-minute load had passed 5), M2 Max. 1-minute load during the runs 2.0–4.5, median 3.2 (a run adds about 1); no other VM running.
+
+| workload | `opt` | `baseline` | Pharo 12 | `opt` / Pharo | first `opt` | first `baseline` | first Pharo | first `opt` / Pharo |
+|---|---|---|---|---|---|---|---|---|
+| BinaryTrees | 276 | 453 | 544 | 0.51 | 261 | 443 | 1225 | 0.21 |
+| Fasta | 403 | 557 | 540 | 0.75 | 406 | 551 | 556 | 0.73 |
+| KNucleotide | 300 | 406 | 711 | 0.42 | 309 | 400 | 1185 | 0.26 |
+| ReverseComplement | 260 | 482 | 670 | 0.39 | 272 | 492 | 426 | 0.64 |
+| SpectralNorm | 420 | 590 | 701 | 0.60 | 423 | 592 | 710 | 0.60 |
+| Pidigits | 4601 | 4353 | 937 | 4.91 | 4634 | 4363 | 1237 | 3.75 |
+| Strings | 470 | 1033 | 662 | 0.71 | 494 | 1030 | 731 | 0.68 |
+| Dictionaries | 283 | 386 | 866 | 0.33 | 324 | 421 | 1136 | 0.29 |
+| OrderedCollections | 210 | 245 | 636 | 0.33 | 223 | 242 | 693 | 0.32 |
+| Sorting | 1232 | 2879 | 689 | 1.79 | 1236 | 2880 | 693 | 1.78 |
+| Enumeration | 205 | 362 | 500 | 0.41 | 231 | 362 | 539 | 0.43 |
+| PrintParse | 620 | 903 | 857 | 0.72 | 685 | 905 | 864 | 0.79 |
+| Exceptions | 2199 | 1816 | 683 | 3.22 | 2204 | 1823 | 687 | 3.21 |
+| Megamorphic | 110 | 99.5 | 681 | 0.16 | 116 | 101 | 691 | 0.17 |
+| DeepRecursion | 339 | 274 | 681 | 0.50 | 337 | 284 | 870 | 0.39 |
+| Perform | 1954 | 2086 | 703 | 2.78 | 1969 | 2082 | 688 | 2.86 |
+| geometric mean | | | | 0.72 | | | | 0.66 |
+
+`opt` takes 0.72 of Pharo 12's time (first iterations 0.66), `baseline` 0.96 (0.86); on AWFY 0.34 and 0.67. `opt` wins 12 of 16. Part of the margin is GC: per iteration Pharo spends 373 ms in full GCs on ReverseComplement (its 10 MB Strings; Samaltak 13 ms), 466 ms in GC on DeepRecursion (59 ms), 221 ms on BinaryTrees (53 ms) and 259 ms scavenging on Pidigits (4 ms).
+
+Losses, from `Profiler from:to:` over 3 steady iterations under `opt` and the VM statistics per iteration. The profiles are taken with allocation sampling off (`Profiler default allocationInterval: 0`): with it on, a CPU tick due at an allocation sample is recorded at the allocating send, so allocation-heavy code shows up in `Behavior>>new:`.
+
+- **Pidigits** (4.9×). LargeInteger arithmetic is Smalltalk, Pharo's is C (LargeIntegersPlugin). `*` by a SmallInteger loops over 32-bit limbs in `digitMultiply:neg:` (30 % of the samples); `//` (53 %) converts both operands to Arrays of 24-bit limbs (`magnitudeLimbs` 13 %), shifts them into new zero-filled Arrays (`shiftLimbs:left:size:` with its `atAllPut:` 21 %, `shiftLimbs:right:` 6 %) and back (`fromLimbs:neg:` 4 %) around a division loop (`divideLimbs:by:`) of 7 %; `digitAdd:` and `digitSubtract:` 16 %. 5.7 GB allocated per iteration, Pharo 2.8 GB.
+- **Exceptions** (3.2×). `signal` takes `thisContext`, which flushes the stack's frames into Contexts (3.1M flushes, 9.4M Contexts per iteration); the handler search and the unwinding of `return:`, `retry`, `pass` and `ensure:` then walk the sender chain in Smalltalk: `findNextUnwindContextUpTo:` 20 % of the samples, `terminateTo:` 10 %, `isUnwindContext` 9 %, `tempAt:` and `tempAt:put:` 8 %, the handler search 8 %, `hasSender:` 5 %, `signalerContext` 5 %. Pharo 12 does these walks in primitives (195–197) over its stack frames. A signal and `return:` alone: 2.9 µs, Pharo 1.4 µs. `opt` deoptimizes once per loop iteration and sends 6.9M times through the runtime, so `baseline` (1.8 s) beats it.
+- **Perform** (2.8×). `perform:` is never linked: each of the 31M per iteration misses its inline cache and goes through the runtime and the interpreter (31.2M misses, 24.8M exits from machine code, 48.8M entries): 58 ns per `perform:` (`baseline` 55), Pharo 12 2 ns, as much as a send.
+- **Sorting** (1.8×). `String>>caseInsensitiveLessOrEqual:` is `self asLowercase <= aString asLowercase`: two new Strings per comparison, each built by `collect:` through a WriteStream (half the samples; 860 MB allocated per iteration, Pharo 49 MB): 234 ns per comparison, Pharo 23 ns (a primitive with a case-insensitive order table). The other half, the merge sorts, takes 0.6 s; Pharo's whole iteration 0.69 s.
+
+`opt` is also slower than `baseline` on Pidigits (6 %), DeepRecursion (24 %) and Megamorphic (11 %); not investigated.
