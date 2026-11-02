@@ -1,10 +1,11 @@
 #!/usr/bin/env node
 // Records the JIT video on the real system, driven only through samaltak-ctl and recorded from the compositor: the race
 // against Pharo 12 in two Terminals, the JIT's sources, its tiers, baseline and optimized machine code, deoptimization
-// while the Mandelbrot renders, Pharo's Cogit, the running system switched between the tiers, the measured comparison.
+// while the Mandelbrot renders, the running system switched between the tiers, Pharo's Cogit, the measured comparisons.
 // Usage: node walkthrough-jit.mjs <out-dir>   →  <out-dir>/raw.mp4, captions.json
-// Needs Pharo 12 for the race (vm/tests/bench/awfy.sh --pharo: $PHARO_VM, $PHARO_IMAGE, default ~/.cache/pharo12).
-// The browser writes accepted methods into a scratch copy of the sources (--source-dir), not the repo.
+// Needs Pharo 12 for the race (~/.cache/pharo12; the Terminals show it as /tmp/pharo12).
+// The browser writes accepted methods into a scratch copy of the sources (--source-dir), not the repo. Every cue of
+// the narration (narration.json "cues") is spoken when its effect shows (S.cue).
 import { execFileSync } from 'node:child_process';
 import { readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
@@ -27,33 +28,40 @@ rmSync(scratch, { recursive: true, force: true });
 execFileSync('mkdir', ['-p', scratch]);
 execFileSync('cp', ['-R', join(root, 'src'), srcDir]);
 const openArgs = ['--source-dir', srcDir];
-// The Terminals run the user's login shell: a scratch HOME with a short prompt, no personal shell configuration.
-const home = join(out, 'home');
-execFileSync('mkdir', ['-p', home]);
-writeFileSync(join(home, '.zshrc'), "PS1='%F{blue}nuuk%f %# '\n");
-Object.assign(S.env, { HOME: home, SHELL: '/bin/zsh' });
+// The Terminals run zsh with a scratch configuration (ZDOTDIR): a short prompt, none of the user's. HOME stays (with
+// another one Pharo 12 fails to file in the benchmark).
+const zdot = join(out, 'home');
+execFileSync('mkdir', ['-p', zdot]);
+writeFileSync(join(zdot, '.zshrc'), "PS1='%F{blue}nuuk%f %# '\n");
+Object.assign(S.env, { ZDOTDIR: zdot, SHELL: '/bin/zsh' });
 const ctl = (...a) => S.ctl(...a), act = (...a) => S.act(...a);
 const DESK = '1431,250';   // the desk at the right edge, never covered
 const W = { workspace: '@w1', transcript: '@w2', procs: '@w3', mandel: '@w4', inspector: '@w5', browser: '@w6' };
-const LAPS = 25;
-const PHARO_CORE = process.env.HOME + '/.cache/pharo12/vm/Pharo.app/Contents/MacOS/Plugins/libPharoVMCore.dylib';
+const LAPS = 30;
+const PHARO = '/tmp/pharo12';
+execFileSync('ln', ['-sfn', join(process.env.HOME, '.cache/pharo12'), PHARO]);
+Object.assign(S.env, { PHARO_VM: join(PHARO, 'vm/Pharo.app/Contents/MacOS/Pharo'), PHARO_IMAGE: join(PHARO, 'bench.image') });
+const PHARO_CORE = join(PHARO, 'vm/Pharo.app/Contents/MacOS/Plugins/libPharoVMCore.dylib');
 
 // The Workspace's do-its, typed there before the recording.
 const DO = {
   fresh: '(Complex >> #-) jitSendSites',
-  calls: '| z | z := Complex real: 0.5 imaginary: 0.25. z - z. z - z. z - z. (Complex >> #-) jitSendSites',
+  calls: "| z | z := Complex real: 0.5 imaginary: 0.25. 1 to: 10 do: [:i | z - z]. ((Complex >> #-) jitSendSites reject: [:site | (site at: 3) isEmpty]) collect: [:site | (site at: 5), ' saw ', (site at: 3) first name]",
   baseline: "TextView openOn: ((Complex >> #+) machineCodeFor: #baseline) title: 'Machine code: Complex>>+ (baseline)' near: nil",
   opt: "TextView openOn: ((Complex >> #+) machineCodeFor: #opt) title: 'Machine code: Complex>>+ (opt)' near: nil",
   before: "\"before\" | s | s := Smalltalk vm statistics. 'invalidations ', s optInvalidations printString, ', deoptimizations ', s optDeoptimizations printString",
   after: "\"after\" | s | s := Smalltalk vm statistics. 'invalidations ', s optInvalidations printString, ', deoptimizations ', s optDeoptimizations printString",
-  baselineOnly: "Smalltalk vm jitParameters: {'baseline'. nil. nil. nil}. (1 to: 6) collect: [:i | [Mandelbrot new innerBenchmarkLoop: 500] timeToRun]",
-  optAgain: "Smalltalk vm jitParameters: {'opt'. nil. nil. nil}. (1 to: 6) collect: [:i | [Mandelbrot new innerBenchmarkLoop: 500] timeToRun]",
+  baselineOnly: "| ms | Smalltalk vm jitParameters: {'baseline'. nil. nil. nil}. ms := ((1 to: 7) collect: [:i | [Mandelbrot new innerBenchmarkLoop: 500] timeToRun]) asSortedCollection asArray. 'baseline: ', (ms at: 4) printString, ' ms per Mandelbrot run (median of 7)'",
+  optAgain: "| ms | Smalltalk vm jitParameters: {'opt'. nil. nil. nil}. ms := ((1 to: 7) collect: [:i | [Mandelbrot new innerBenchmarkLoop: 500] timeToRun]) asSortedCollection asArray. 'opt: ', (ms at: 4) printString, ' ms per Mandelbrot run (median of 7)'",
 };
 // AWFY's Mandelbrot, from the sources the race runs (500: its size there), for the Workspace to time.
 const FILE_IN = "#('Samaltak' 'Harness' 'Core' 'Mandelbrot') do: [:n | Compiler fileIn: 'vm/tests/bench/awfy/', n, '.st']. Smalltalk at: #Mandelbrot";
 
-// A window's bounds; place a window (drag by the title bar, resize from the corner).
+// A window's bounds; as a region [x, y, w, h] for a cue; place a window (drag by the title bar, resize from the corner).
 const bounds = ref => JSON.parse(ctl('bounds', ref));
+const box = ref => { const b = bounds(ref); return [b.x, b.y, b.w, b.h]; };
+const VIEWER = [810, 100, 600, 760];     // the File Browser's file viewer, right of three columns
+const TYPING = { frac: 0.05, max: 6 };   // typing shows at its first change (the selection)
 function place(ref, x, y, w, h) {
   const moveTo = (tx, ty) => { const b = bounds(ref); if (b.x !== tx || b.y !== ty) act('drag', ref, String(tx - b.x), String(ty - b.y)); };
   const b = bounds(ref);
@@ -82,6 +90,12 @@ async function evaluate(source, key = 'Meta+p') {
   act('select', `${W.workspace}.text`, source); await sleep(600);
   act('key', key, `${W.workspace}.text`);
 }
+// Select a do-it in the Workspace now; answer its evaluation (Meta+p or Meta+d), for a cue (its effect: the result, a
+// window).
+async function selected(source, key = 'Meta+p') {
+  act('select', `${W.workspace}.text`, source); await sleep(400);
+  return () => act('key', key, `${W.workspace}.text`);
+}
 // The Workspace's text once a print-it of source has answered (its result follows the do-it).
 async function printed(source, timeout = 20000) {
   let after = '';
@@ -93,16 +107,15 @@ async function printed(source, timeout = 20000) {
   }, timeout, `the result of ${source}`);
   return after;
 }
-// Highlight the first what after the first after in the front listing (a TextView), about in the middle of its window
-// (select a line further down: the editor scrolls it to the bottom; then what), for ms. The snapshot holds only the
-// first lines of a long text: the image finds what.
+// Highlight the first what after the first after in the front listing (a TextView); the editor scrolls it into view
+// in the same frame (to the bottom when it was below). The snapshot holds only the first lines of a long text: the
+// image finds what.
 const quote = s => `'${s.replace(/'/g, "''")}'`;
-async function mark(win, what, ms, after = '') {
-  const [line, from, to] = S.eval(`| t i | t := (Tools windowsOf: TextView) first content text. i := t indexOfSubCollection: ${quote(what)} startingAt: ((t indexOfSubCollection: ${quote(after || what)} startingAt: 1) max: 1). {((t first: i) occurrencesOf: Character lf) + 1. i - 1. i - 1 + ${what.length}}`)
+function mark(win, what, after = '') {
+  const [from, to] = S.eval(`| t i | t := (Tools windowsOf: TextView) first content text. i := t indexOfSubCollection: ${quote(what)} startingAt: ((t indexOfSubCollection: ${quote(after || what)} startingAt: 1) max: 1). {i - 1. i - 1 + ${what.length}}`)
     .match(/-?\d+/g).map(Number);
   if (from < 0) throw new Error(`no ${what} in the listing`);
-  if (line > 10) { act('select', `${win}.text`, `line:${line + 10}`); await sleep(150); }
-  act('select', `${win}.text`, `${from}-${to}`); await sleep(ms);
+  act('select', `${win}.text`, `${from}-${to}`);
 }
 // Browse a method in the System Browser.
 async function browse(pkg, cls, selector) {
@@ -111,86 +124,109 @@ async function browse(pkg, cls, selector) {
   act('select', `${W.browser}.protocols`, 'all'); await sleep(450);
   act('select', `${W.browser}.methods`, selector); await sleep(700);
 }
-let T1 = null, T2 = null, FB = null, MC = null, MO = null;
+let T1 = null, T2 = null, T3 = null, FB = null, MC = null, MO = null;
 const pick = async (column, name, ms = 500) => { act('select', `${FB}.column-${column}`, name); await sleep(ms); };
-// A Terminal's race is over once awfy.sh printed its summary row; a failed run stops the recording.
+// A Terminal's race is over once awfy.sh printed its summary (--ms); a failed run stops the recording. The image sees
+// it in the right (Samaltak) or the left (Pharo) Terminal when SUMMARY is true.
 const lapsDone = ref => {
   const t = text(ref);
   if (/FAILED|ERROR/.test(t)) throw new Error(`the race failed:\n${t}`);
-  return /^# Mandelbrot +1 /m.test(t);
+  return /^Mandelbrot: first lap/m.test(t);
 };
+const SHOWS = (right, text) => `((Tools windowsOf: Terminal) detect: [:w | w bounds left ${right ? '>' : '<'} 700]) content view shownLines anySatisfy: [:l | l includesSubstring: ${quote(text)}]`;
+const SUMMARY = right => SHOWS(right, 'Mandelbrot: first lap');
+// The Workspace shows the result of a print-it of source (after it, on its line), as a condition for a cue.
+const PRINTED = source => `[:t | | i | i := t indexOfSubCollection: ${quote(source)} startingAt: 1. i > 0 and: [((t copyFrom: i + ${source.length} to: t size) copyUpTo: Character lf) anySatisfy: [:c | c isSeparator not]]] value: (Tools windowsOf: Workspace) first content text`;
 
 // ---------------------------------------------------------------- beats
 const beats = [
   // Two Terminals, the commands typed before the recording: Pharo 12 (left), Samaltak (right), the same AWFY sources
-  // (vm/tests/bench/awfy.sh files them in), each lap's microseconds as it ends. Pharo first, Samaltak right after.
+  // (vm/tests/bench/awfy.sh files them in), each lap in ms as it ends (--ms). Pharo first, Samaltak right after; the
+  // lines come as the narration gets to them (Samaltak's first lap about a second after Enter).
   ['race', async () => {
-    act('key', 'Enter', `${T1}.terminal`);
-    act('key', 'Enter', `${T2}.terminal`);
-    await until(() => lapsDone(`${T2}.terminal`), 30000, 'Samaltak\'s laps');
+    await S.cue('Each line is one lap', null, () => {
+      act('key', 'Enter', `${T1}.terminal`);
+      act('key', 'Enter', `${T2}.terminal`);
+    }, { lead: 0.6, when: SHOWS(true, 'Mandelbrot lap 1:'), max: 10 });
+    await S.spoken();
   }],
+  // Samaltak's summary, as its Terminal shows it: it is done; Pharo runs on.
   ['race-done', async () => {
-    await until(() => lapsDone(`${T1}.terminal`), 60000, 'Pharo\'s laps');
-    await sleep(1200);
+    await S.cue("Samaltak's done", null, null, { when: SUMMARY(true), max: 30 });
+    if (!lapsDone(`${T2}.terminal`)) throw new Error('Samaltak\'s laps are not done');
+    lapsDone(`${T1}.terminal`);                       // Pharo's laps go on, not failed
+    await S.spoken();
   }],
 
-  // The Terminals close over the File Browser (opened before the recording): src › VM-Jit with each file's lines, the
-  // baseline compiler, the optimizer's first pass; vm › gen: the C translated from them.
+  // The Terminals close over the File Browser (opened before the recording; Pharo's run with its Terminal): src ›
+  // VM-Jit with each file's lines, the baseline compiler, the optimizer's first pass; vm › gen: the C translated from them.
   ['source', async () => {
-    act('click', `${T2}.close`); await sleep(300);
-    act('click', `${T1}.close`); await sleep(1500);
-    await pick(3, 'JitBaselineCompiler.st', 1300);
-    await pick(3, 'OptBuilder.st', 1300);
+    await S.cue("The JIT's written in Smalltalk", [730, 60, 680, 800], () => act('click', `${T2}.close`));
+    act('click', `${T1}.close`); await sleep(300);
+    await S.cue('a baseline compiler', VIEWER, () => pick(3, 'JitBaselineCompiler.st', 0));
+    await S.cue('an optimizing one', VIEWER, () => pick(3, 'OptBuilder.st', 0));
+    await sleep(600);
     await pick(1, 'vm');
-    await pick(2, 'gen', 900);
-    await pick(3, 'opt_codegen.c', 1500);
+    await pick(2, 'gen', 600);
+    await S.cue('translated to C', VIEWER, () => pick(3, 'opt_codegen.c', 0));
+    await S.spoken();
   }],
 
   // JitRuntime>>defaults says when the tiers come in (its comment, highlighted); the File Browser closes.
   ['tiers', async () => {
-    await pick(1, 'src');
-    await pick(2, 'VM-Jit', 400);
-    await pick(3, 'JitRuntime.st', 700);
-    // the line centred in the viewer: select one further down (the viewer scrolls it to its bottom), then it
+    await pick(1, 'src', 300);
+    await pick(2, 'VM-Jit', 300);
+    await pick(3, 'JitRuntime.st', 400);
+    // the line selected: the viewer scrolls it into view as it highlights it
     const show = 'threshold 2, OSR after 50 backward jumps, optimization after 1000 entries and backward jumps';
-    const line = readFileSync(join(root, 'src/VM-Jit/JitRuntime.st'), 'utf8').split('\n').findIndex(l => l.includes(show)) + 1;
-    act('select', `${FB}.viewer`, `line:${line + 17}`); await sleep(250);
-    act('select', `${FB}.viewer`, show);
+    await S.cue('Its third call', VIEWER, () => act('select', `${FB}.viewer`, show));
+    await S.spoken();
   }],
-  // The File Browser closes. Complex>>- (nothing in the image sends it): no baseline code yet; three calls, and its
-  // inline caches saw Complex.
+  // The File Browser closes. Complex>>- (nothing in the image sends it): no baseline code yet; ten calls, and the
+  // inline caches its baseline code used saw Complex (it is compiled at the third; its caches link in the calls after).
   ['tiers-demo', async () => {
     act('click', `${FB}.close`); await sleep(500);
-    await evaluate(DO.fresh);
-    await printed(DO.fresh); await sleep(1800);
-    await evaluate(DO.calls);
-    await printed(DO.calls); await sleep(2500);
+    await S.cue('no machine code yet', null, await selected(DO.fresh), { when: PRINTED(DO.fresh) });
+    await S.cue('Ten calls later', null, await selected(DO.calls), { when: PRINTED(DO.calls) });
+    await S.spoken();
   }],
 
   // Complex>>+ (the Mandelbrot's escapeTimeAt: adds Complex numbers): its baseline code, as installed, commented: the
   // inline cache's class check at the checked entry, a call through each send's cache, inline SmallInteger arithmetic.
   // The listings take the top of the screen, over the System Browser; the Workspace and the Mandelbrot stay in view.
   ['baseline', async () => {
-    await evaluate(DO.baseline, 'Meta+d');
-    MC = await S.win(/Machine code: Complex>>\+ \(baseline\)/);
+    const open = await selected(DO.baseline, 'Meta+d');
+    let opened = null;
+    await S.cue("Here's baseline code", () => opened, async () => {
+      open();
+      MC = await S.win(/Machine code: Complex>>\+ \(baseline\)/);
+      opened = box(MC);
+    });
     place(MC, 18, 41, 1404, 470);
-    await sleep(700);
-    await mark(MC, 'not the cached class: the miss handler relinks', 2400);
-    await mark(MC, "call the inline cache's target", 2400, 'send: #real');
-    await mark(MC, 'SmallInteger tag checks', 2200, 'send: #real');
-    await mark(MC, '+ (overflow: the slow path)', 2200, 'send: #real');
+    const LISTING = box(`${MC}.text`);
+    await S.cue('An inline cache check', LISTING, () => mark(MC, 'not the cached class: the miss handler relinks'));
+    await S.cue('a call through its own cache', LISTING, () => mark(MC, "call the inline cache's target", 'send: #real'));
+    await S.cue('tag checks', LISTING, () => mark(MC, 'SmallInteger tag checks', 'send: #real'));
+    await S.cue('an overflow branch', LISTING, () => mark(MC, '+ (overflow: the slow path)', 'send: #real'));
+    await S.spoken();
   }],
   // The same method from opt, compiled from the feedback the image has: guards, inlined activations, Floats on d
   // registers, the deoptimization stubs. Over the baseline listing.
   ['opt', async () => {
-    await evaluate(DO.opt, 'Meta+d');
-    MO = await S.win(/Machine code: Complex>>\+ \(opt\)/);
+    const open = await selected(DO.opt, 'Meta+d');
+    let opened = null;
+    await S.cue('Opt compiles it again', () => opened, async () => {
+      open();
+      MO = await S.win(/Machine code: Complex>>\+ \(opt\)/);
+      opened = box(MO);
+    });
     place(MO, 18, 41, 1404, 470);
-    await sleep(700);
-    await mark(MO, 'guard: its class', 2400, 'send: #real');
-    await mark(MO, 'inlined activation 1', 2400, 'send: #real');
-    await mark(MO, 'fadd', 2400, 'send: #real');
-    await mark(MO, 'guard failed: deoptimize', 2400);
+    const LISTING = box(`${MO}.text`);
+    await S.cue('the accessors', LISTING, () => mark(MO, 'inlined activation 1', 'send: #real'));
+    await S.cue('a class guard', LISTING, () => mark(MO, 'guard: its class', 'send: #real'));
+    await S.cue('the floats added in FP registers', LISTING, () => mark(MO, 'fadd', 'send: #real'));
+    await S.cue('a failed guard', LISTING, () => mark(MO, 'guard failed: deoptimize'));
+    await S.spoken();
   }],
 
   // MandelbrotView>>pixelFor: (escape time → colour, inlined into the render loop; in the System Browser since before
@@ -199,14 +235,18 @@ const beats = [
   ['deopt', async () => {
     act('click', `${MO}.close`); await sleep(400);
     act('click', `${MC}.close`); await sleep(400);
+    await S.cue('make the inside of the set red', box(`${W.browser}.code`), async () => {
+      act('select', `${W.browser}.code`, '16rFF000000'); await sleep(200);
+      act('type', `${W.browser}.code`, '16rFF0000FF', '--delay', '45'); await sleep(200);
+    }, TYPING);
     S.busy = true;                                     // the Mandelbrot's Process renders: commands do not wait to settle
-    place(W.mandel, 898, 41, 524, 843);
+    place(W.mandel, 898, 41, 524, 843);                // taller: it renders again (⌘S lands about a third in)
     await until(() => /rendering/.test(ctl('snapshot', `${W.mandel}.status`)), 10000, 'the render to start');
-    act('select', `${W.browser}.code`, '16rFF000000'); await sleep(400);
-    act('type', `${W.browser}.code`, '16rFF0000FF', '--delay', '45'); await sleep(11 * 45 + 300);
     await evaluate(DO.before);
-    await printed(DO.before); await sleep(200);
-    act('key', 'Meta+s', `${W.browser}.code`);
+    await printed(DO.before);
+    // the new method is in: the next rows the render publishes (every 50 ms) are red
+    await S.cue('save', null, () => act('key', 'Meta+s', `${W.browser}.code`),
+      { when: '(MandelbrotView >> #pixelFor:) literals includes: 16rFF0000FF', max: 5 });
   }],
   // The counters again; the render goes on, red from the row where the method changed.
   ['deopt-after', async () => {
@@ -215,40 +255,54 @@ const beats = [
     await printed(DO.after);
     await until(() => !/rendering/.test(ctl('snapshot', `${W.mandel}.status`)), 30000, 'the render');
     S.busy = false;
-    await sleep(1200);
+    // while this is said: the Terminal for the why beat (World menu, top left, over the System Browser), its command typed
+    T3 = await openTool('terminal', /^window @w\d+ "Terminal"/);
+    place(T3, 18, 41, 866, 470);
+    await sleep(300);
+    act('type', `${T3}.terminal`, `strings ${PHARO_CORE} | grep VMMaker`, '--delay', '12');
   }],
 
-  // A Terminal (World menu): which Cogit Pharo 12's VM was generated with.
-  ['why', async () => {
-    const t = await openTool('terminal', /^window @w\d+ "Terminal"/);
-    place(t, 18, 41, 866, 470);
-    await sleep(500);
-    act('type', `${t}.terminal`, `strings ${PHARO_CORE} | grep VMMaker\n`, '--delay', '12');
-    await until(() => text(`${t}.terminal`).includes('StackToRegisterMappingCogit'), 15000, 'the strings');
-    await sleep(2500);
-  }],
-  // The running system on baseline only, then on opt again (all machine code dropped each time): AWFY Mandelbrot laps.
+  // The running system on baseline only, then on opt again (all machine code dropped each time): AWFY Mandelbrot runs,
+  // in the Workspace (bottom left).
   ['why-switch', async () => {
+    const baseline = await selected(DO.baselineOnly);
     S.busy = true;
-    await evaluate(DO.baselineOnly);
-    await printed(DO.baselineOnly, 60000); await sleep(1000);
-    await evaluate(DO.optAgain);
-    await printed(DO.optAgain, 60000); await sleep(1500);
+    await S.cue('switched to baseline only', null, baseline, { lead: 2, max: 15, when: PRINTED(DO.baselineOnly) });
+    S.busy = false;
+    const opt = await selected(DO.optAgain);
+    S.busy = true;
+    await S.cue('back to opt', null, opt, { lead: 1, max: 15, when: PRINTED(DO.optAgain) });
     S.busy = false;
   }],
-  // The measured table: World menu › File Browser › docs › jit.md, the Comparison's baseline and opt rows selected.
-  ['why-table', async () => {
+  // Which Cogit Pharo 12's VM was generated with (strings answers at once once the file is cached). Once that has been
+  // seen a while: the next beat's File Browser (World menu) on docs › jit.md, while this is said.
+  ['why', async () => {
+    await S.cue("Cog's StackToRegisterMappingCogit", null, () => act('key', 'Enter', `${T3}.terminal`),
+      { lead: 0.2, when: SHOWS(false, 'StackToRegisterMappingCogit') });
+    await sleep(3500);
     FB = await openTool('file-browser', /File Browser/);
     place(FB, 18, 41, 1404, 843);
-    await pick(1, 'docs');
-    await pick(2, 'jit.md', 700);
+    await pick(1, 'docs', 300);
+    await pick(2, 'jit.md', 400);
+  }],
+  // The measured table: the File Browser on docs › jit.md, the Comparison's baseline and opt rows selected.
+  ['why-table', async () => {
     const doc = readFileSync(join(root, 'docs/jit.md'), 'utf8');
     const from = doc.indexOf('| `baseline` | Cog-style: inline caches');
     const to = doc.indexOf('\n', doc.indexOf('| `opt` | baseline code plus the optimizing tier'));
     if (from < 0 || to < 0) throw new Error('no Comparison rows in docs/jit.md');
-    const lines = doc.split('\n').length - 1;
-    act('select', `${FB}.viewer`, `line:${Math.min(doc.slice(0, from).split('\n').length + 14, lines)}`); await sleep(250);
-    act('select', `${FB}.viewer`, `${from}-${to}`); await sleep(3000);
+    await S.cue('Are We Fast Yet', VIEWER, () => act('select', `${FB}.viewer`, `${from}-${to}`));
+    await S.spoken();
+  }],
+  // The real-world table: docs › benchmarks.md, its geometric mean row and the summary after it selected.
+  ['realworld', async () => {
+    await pick(2, 'benchmarks.md', 300);
+    const doc = readFileSync(join(root, 'docs/benchmarks.md'), 'utf8');
+    const from = doc.indexOf('| geometric mean |', doc.indexOf('## Real-world workloads'));
+    const to = doc.indexOf('(0.73).', from) + '(0.73).'.length;
+    if (from < 0 || to < from) throw new Error('no real-world result in docs/benchmarks.md');
+    await S.cue('On sixteen real-world programs', VIEWER, () => act('select', `${FB}.viewer`, `${from}-${to}`));
+    await S.spoken();
   }],
 
   // The File Browser closes: the system as the video leaves it.
@@ -257,16 +311,13 @@ const beats = [
   }],
 ];
 
-// Before recording: the Process Browser, the Inspector and the Transcript closed. The JIT keeps the notes of the code
-// it installs (jitParameters: notes), so the listings show the installed baseline code: listing baseline code by
-// compiling it again would clear the Float feedback bytes of its sites, which opt reads. That drops all machine code;
-// the Mandelbrot, bottom right, renders again, zoomed in twice (Complex>>+ runs hot again, with Floats). The Workspace
-// widened, its text the video's do-its; AWFY's Mandelbrot filed in; the File Browser on src › VM-Jit; two Terminals
-// over it all, the race's commands typed.
+// Before recording: the Process Browser, the Inspector and the Transcript closed; the Mandelbrot, bottom right, renders
+// again, zoomed in twice (for the deoptimization beat: a render of a few seconds). The Workspace widened, its text the
+// video's do-its; AWFY's Mandelbrot filed in; the File Browser on src › VM-Jit; two Terminals over it all, the race's
+// commands typed.
 await S.open({ args: openArgs });
 await sleep(1500);
 for (const w of [W.procs, W.inspector, W.transcript]) { act('click', `${w}.close`); await sleep(400); }
-S.eval("Smalltalk vm jitParameters: {nil. 'notes'. nil. nil}");
 const rendered = () => !/rendering/.test(ctl('snapshot', `${W.mandel}.status`));
 place(W.mandel, 898, 525, 524, 359);
 for (let i = 0; i < 2; i++) {
@@ -289,8 +340,8 @@ T1 = await openTool('terminal', /^window @w\d+ "Terminal"/);
 place(T1, 18, 41, 702, 843);
 T2 = await openTool('terminal', new RegExp(`^window @w(?!${T1.slice(2)} )\\d+ "Terminal"`));
 place(T2, 720, 41, 702, 843);
-act('type', `${T1}.terminal`, `vm/tests/bench/awfy.sh --pharo -n ${LAPS} Mandelbrot`, '--delay', '0');
-act('type', `${T2}.terminal`, `vm/tests/bench/awfy.sh -n ${LAPS} Mandelbrot`, '--delay', '0');
+act('type', `${T1}.terminal`, `vm/tests/bench/awfy.sh --ms --pharo -n ${LAPS} Mandelbrot`, '--delay', '0');
+act('type', `${T2}.terminal`, `vm/tests/bench/awfy.sh --ms -n ${LAPS} Mandelbrot`, '--delay', '0');
 await sleep(2500);
 S.startSegment();
 await sleep(300);

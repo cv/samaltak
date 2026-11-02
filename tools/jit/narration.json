@@ -1,43 +1,51 @@
 [
   {
     "id": "race",
-    "caption": "Are We Fast Yet's Mandelbrot, 25 laps, the same source on both: Pharo 12 (Cog) on the left, Samaltak on the right. Microseconds per lap.",
-    "spoken": "Same benchmark, same source code: Pharo 12 on the left, Samaltak on the right."
+    "caption": "Are We Fast Yet's Mandelbrot, 30 laps, the same source on both, run at once: Pharo 12 (Cog) on the left, Samaltak on the right. Each line: one lap, in milliseconds.",
+    "spoken": "Same benchmark, same source code: Pharo 12 on the left, Samaltak on the right. Each line is one lap, in milliseconds.",
+    "cues": ["Each line is one lap"]
   },
   {
     "id": "race-done",
-    "caption": "Samaltak is done: first lap, steady state (median of the second half) and total, in ms. Pharo is still running.",
-    "spoken": "Samaltak's done. Pharo takes about three times as long."
+    "caption": "Samaltak is done: first lap, steady state (median of the second half) and total. Pharo is still running.",
+    "spoken": "Samaltak's done. Pharo takes about three times as long.",
+    "cues": ["Samaltak's done"]
   },
   {
     "id": "source",
-    "caption": "src/VM-Jit, 13,845 lines in 22 files: the baseline compiler, the optimizing one (Opt…), the runtime and assembler they share. Translated to C in vm/gen.",
-    "spoken": "The JIT's written in Smalltalk: a baseline compiler, an optimizing one, and the runtime they share, about fourteen thousand lines. Like Pharo's Cog, it's translated to C with the rest of the VM."
+    "caption": "src/VM-Jit, 14,297 lines in 22 files: the baseline compiler, the optimizing one (Opt…), the runtime and assembler they share. Translated to C in vm/gen.",
+    "spoken": "The JIT's written in Smalltalk: a baseline compiler and an optimizing one, about fourteen thousand lines, translated to C like the rest of the VM.",
+    "cues": ["The JIT's written in Smalltalk", "a baseline compiler", "an optimizing one", "translated to C"]
   },
   {
     "id": "tiers",
     "caption": "JitRuntime>>defaults: baseline code after 2 activations, optimized code after 1000 activations and backward jumps.",
-    "spoken": "Every method starts out interpreted. Its third call compiles it with baseline, and after a thousand calls or loop iterations, opt compiles it again."
+    "spoken": "Every method starts out interpreted. Its third call compiles it with baseline, and after a thousand calls or loop iterations, opt compiles it again.",
+    "cues": ["Its third call"]
   },
   {
     "id": "tiers-demo",
-    "caption": "Complex>>- has no machine code yet (jitSendSites is nil). Three calls later it has baseline code; each inline cache holds the class it saw.",
-    "spoken": "This one has no machine code yet. Three calls later it does, and its inline caches have recorded what they saw: Complex."
+    "caption": "Complex>>- has no machine code yet (jitSendSites is nil). Ten calls later it has baseline code, and each inline cache that was used holds the class it saw.",
+    "spoken": "This one has no machine code yet. Ten calls later it does, and its inline caches have recorded what they saw: Complex.",
+    "cues": ["no machine code yet", "Ten calls later"]
   },
   {
     "id": "baseline",
     "caption": "Complex>>+ as baseline compiled it: the inline cache's class check at the entry, a call through each send's cache, inline SmallInteger arithmetic.",
-    "spoken": "Here's baseline code for adding two complex numbers. An inline cache check on the receiver's class, a call through its own cache for each send, and inline arithmetic, with tag checks and an overflow branch."
+    "spoken": "Here's baseline code for adding two complex numbers. An inline cache check on the receiver's class, a call through its own cache for each send, and inline arithmetic, with tag checks and an overflow branch.",
+    "cues": ["Here's baseline code", "An inline cache check", "a call through its own cache", "tag checks", "an overflow branch"]
   },
   {
     "id": "opt",
     "caption": "The same method from opt, compiled from that feedback: class guards, inlined activations, Floats added in d registers, a deoptimization stub per guard.",
-    "spoken": "Opt compiles it again from what those caches saw. Now the sends are inlined: the accessors behind a class guard, the floats added in FP registers, and a failed guard deoptimizes."
+    "spoken": "Opt compiles it again from what those caches saw. Now the sends are inlined: the accessors behind a class guard, the floats added in FP registers, and a failed guard deoptimizes.",
+    "cues": ["Opt compiles it again", "the accessors", "a class guard", "the floats added in FP registers", "a failed guard"]
   },
   {
     "id": "deopt",
     "caption": "MandelbrotView>>pixelFor:, inlined into the render loop: the inside of the set from black to red, ⌘S while it renders.",
-    "spoken": "Opt inlined pixelFor: into the render loop. I'll make the inside of the set red, and save while it's rendering."
+    "spoken": "Opt inlined pixelFor: into the render loop. I'll make the inside of the set red, and save while it's rendering.",
+    "cues": ["make the inside of the set red", "save"]
   },
   {
     "id": "deopt-after",
@@ -45,19 +53,28 @@
     "spoken": "The code that inlined it gets thrown out, the loop just carries on, and the red shows from that row down."
   },
   {
-    "id": "why",
-    "caption": "Pharo 12's VM (libPharoVMCore.dylib): CoInterpreter and StackToRegisterMappingCogit, VMMaker's production Cogit: one machine-code method per method, sends through inline caches.",
-    "spoken": "Pharo 12's VM runs Cog's StackToRegisterMappingCogit. It's the same kind of compiler as our baseline: one method at a time, and it never inlines one into another."
+    "id": "why-switch",
+    "caption": "Measured here, beside the UI and this recording: Mandelbrot in this system on baseline only, then on opt again (Smalltalk vm jitParameters:), the median of 7 runs each.",
+    "spoken": "Here's that benchmark in this system, switched to baseline only, and now back to opt.",
+    "cues": ["switched to baseline only", "back to opt"]
   },
   {
-    "id": "why-switch",
-    "caption": "The running system switched to baseline only, then back to opt (Smalltalk vm jitParameters:): ms per Mandelbrot lap, beside its UI and this recording.",
-    "spoken": "Here's that benchmark in this system, switched to baseline only, and now back to opt."
+    "id": "why",
+    "caption": "Pharo 12's VM (libPharoVMCore.dylib): CoInterpreter and StackToRegisterMappingCogit, VMMaker's production Cogit: one machine-code method per method, sends through inline caches.",
+    "spoken": "Pharo 12's VM runs Cog's StackToRegisterMappingCogit: like our baseline, it compiles one method at a time, and never inlines.",
+    "cues": ["Cog's StackToRegisterMappingCogit"]
   },
   {
     "id": "why-table",
-    "caption": "docs/jit.md, Comparison, all of AWFY: baseline 0.64 and opt 0.40 of Pharo 12's time; compiling takes them 0.20 and 3.6 µs per bytecode.",
-    "spoken": "Across the whole suite, baseline takes sixty-four percent of Pharo's time, and opt forty. But opt compiles about eighteen times slower per bytecode, so only hot code gets it."
+    "caption": "docs/jit.md, Comparison: Are We Fast Yet, 14 benchmarks, headless, steady state: baseline 0.67 and opt 0.34 of Pharo 12's time, both faster on all 14. Compiling: 0.17 and 4.6 µs per bytecode.",
+    "spoken": "In headless runs of Are We Fast Yet, baseline takes sixty-seven percent of Pharo's time, and opt thirty-four.",
+    "cues": ["Are We Fast Yet"]
+  },
+  {
+    "id": "realworld",
+    "caption": "docs/benchmarks.md, real-world workloads: 16 programs written against each system's own library. opt: 0.45 of Pharo 12's time, faster on all 16; baseline: 0.60, slower on Strings (1.19×) and Fasta (1.02×).",
+    "spoken": "On sixteen real-world programs using each system's own library, opt takes forty-five percent of Pharo's time, and wins all sixteen.",
+    "cues": ["On sixteen real-world programs"]
   },
   {
     "id": "outro",

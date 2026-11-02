@@ -21,6 +21,7 @@ usage: $0 [options] [benchmark[:inner] ...]
   -n N              iterations per benchmark (default 30)
   -i N              inner iterations for every benchmark (default: per benchmark, see inner())
   -o FILE           also write CSV and '#' lines to FILE
+  --ms              show each lap and the summary in words and milliseconds (FILE gets the CSV)
   --summary FILE... only summarize result files (one invocation each; steady = median over files)
 EOF
     exit 2
@@ -36,6 +37,19 @@ inner() {
     Recompile) echo 3 ;; TextRendering) echo 200 ;;
     *) echo 1 ;;
     esac
+}
+
+# What is shown: as it is, or with --ms each lap and the summary in words and milliseconds.
+show() {
+    if [ "$MS" = 1 ]; then
+        awk '/^[A-Za-z0-9]+,[0-9]+,-?[0-9]+$/ { split($0, a, ","); printf "%s lap %d: %.1f ms\n", a[1], a[2], a[3] / 1000; fflush(); next }
+            /^# (run|stats|total|benchmark) / { next }
+            /^# [A-Za-z0-9]+ +[0-9]+ +[0-9.]+ +[0-9.]+ +[0-9.]+$/ {
+                printf "%s: first lap %.1f ms, steady state %.1f ms a lap, total %.1f s\n", $2, $4, $5, $6 / 1000; fflush(); next }
+            { print; fflush() }'
+    else
+        cat
+    fi
 }
 
 file_of() {
@@ -72,7 +86,7 @@ summarize() {
     }'
 }
 
-VM= IMAGE= VMARGS= PHARO=0 SUITE=awfy N=30 INNER= OUT= SUMMARY=0
+VM= IMAGE= VMARGS= PHARO=0 SUITE=awfy N=30 INNER= OUT= SUMMARY=0 MS=0
 while [ $# -gt 0 ]; do
     case $1 in
     --vm) VM=$2; shift ;;
@@ -83,6 +97,7 @@ while [ $# -gt 0 ]; do
     -n) N=$2; shift ;;
     -i) INNER=$2; shift ;;
     -o) OUT=$2; shift ;;
+    --ms) MS=1 ;;
     --summary) SUMMARY=1 ;;
     -h|--help) usage ;;
     -*) usage ;;
@@ -128,15 +143,15 @@ LOG=$(mktemp)
 ALL=$(mktemp)
 trap 'rm -rf "$LOG" "$ALL" ${WORK:+"$WORK"}' EXIT
 status=0
-echo "# awfy $(date '+%Y-%m-%d %H:%M') vm=$VM image=${SRCIMAGE:-$IMAGE} vm-args='$VMARGS' iterations=$N" | tee -a "$ALL"
+echo "# awfy $(date '+%Y-%m-%d %H:%M') vm=$VM image=${SRCIMAGE:-$IMAGE} vm-args='$VMARGS' iterations=$N" | tee -a "$ALL" | show
 for spec in "$@"; do
     b=${spec%%:*}
     if [ "$b" != "$spec" ]; then in=${spec#*:}; else in=${INNER:-$(inner "$b")}; fi
     if [ $PHARO = 1 ] && [ "$(file_of "$b")" = Workloads ]; then
-        echo "# skipped $b (Samaltak only)" | tee -a "$ALL"
+        echo "# skipped $b (Samaltak only)" | tee -a "$ALL" | show
         continue
     fi
-    echo "# run $b inner=$in" | tee -a "$ALL"
+    echo "# run $b inner=$in" | tee -a "$ALL" | show
     files="'Harness' 'Core' '$(file_of "$b")'"
     run="(Smalltalk at: #Harness) new run: #('$b' '$N' '$in')"
     if [ $PHARO = 1 ]; then
@@ -145,13 +160,13 @@ for spec in "$@"; do
     else
         expr="[#('Samaltak' $files) do: [:n | Compiler fileIn: '$DIR/', n, '.st']. $run. ''] on: Error do: [:e | 'ERROR ', e class name, ': ', e messageText]"
         "$VM" $VMARGS "$IMAGE" --headless --eval "$expr" 2>&1
-    fi | tee "$LOG" | tr -u '\r' '\n' | grep --line-buffered -E '^[A-Za-z0-9]+,[0-9]+,-?[0-9]+$|^# ' | tee -a "$ALL"
+    fi | tee "$LOG" | tr -u '\r' '\n' | grep --line-buffered -E '^[A-Za-z0-9]+,[0-9]+,-?[0-9]+$|^# ' | tee -a "$ALL" | show
     if grep -q "ERROR" "$LOG" || ! grep -q "^$b,$N," "$LOG"; then
-        echo "# FAILED $b" | tee -a "$ALL"
+        echo "# FAILED $b" | tee -a "$ALL" | show
         grep -v -E '^[A-Za-z0-9]+,[0-9]+,-?[0-9]+$|^# ' "$LOG" | head -20 >&2
         status=1
     fi
 done
-{ echo "#file 1"; cat "$ALL"; } | summarize | tee -a "$ALL"
+{ echo "#file 1"; cat "$ALL"; } | summarize | tee -a "$ALL" | show
 [ -n "$OUT" ] && cp "$ALL" "$OUT"
 exit $status

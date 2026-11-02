@@ -143,9 +143,10 @@ export class VideoSession {
     if (!c) throw new Error(`no cue ${JSON.stringify(text)} in step ${id} (its "cues" in the narration file; narrate.mjs)`);
     return c.at;
   }
-  // When a step's narration ends at the latest: from its last cue so far, else from its start.
+  // When a step's narration ends at the latest (its speech: times.json "end", else its clip): from its last cue so far,
+  // else from its start.
   narrationEnd(step) {
-    const d = this.durations[step.id] || 0, last = step.cues[step.cues.length - 1];
+    const d = this.times[step.id]?.end ?? this.durations[step.id] ?? 0, last = step.cues[step.cues.length - 1];
     return last ? last.est + d - this.cueAt(step.id, last.text) : step.start + d;
   }
   // A cue of the current step: text, a phrase of its narration ("cues"), says that action happens or that its effect

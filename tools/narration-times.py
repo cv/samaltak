@@ -216,7 +216,8 @@ def main():
             quiet = f - 6 + int(np.argmin(energy[max(0, f - 6):f + 1])) if f >= 6 else f
             cues.append({'text': cue, 'at': round(t, 3), 'cut': round(max(0, min(quiet / 100.0, t - 0.01)), 3)})
             k += len(cue)
-        times[sid] = {'cues': cues}
+        # where its speech ends (its trailing silence after)
+        times[sid] = {'cues': cues, 'end': round((np.nonzero(energy >= voiced)[0][-1] + 1) / 100 + 0.05, 3)}
         line = f'{sid:14s} {"self" if not ref["audio"] else f"dtw {cost:.2f}"}  ' + \
                '  '.join(f'{c["text"]!r}@{c["at"]:.2f}' for c in cues)
         print(line + ('' if not notes else '\n    ' + '\n    '.join(notes)))
