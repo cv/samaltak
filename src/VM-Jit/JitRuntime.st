@@ -373,6 +373,7 @@ refreshState
 	stateBlock boxedFloatClass: memory clsBoxedfloat.
 	stateBlock wordArrayClass: (memory special: SO_BITMAP).
 	stateBlock byteSymbolClass: (memory special: SO_BYTESYMBOL).
+	stateBlock contextClass: memory clsContext.
 	brt refresh.
 	stateBlock cstackLimit: interpreter cstackLimit.
 	self resetStress
@@ -1452,7 +1453,7 @@ fields
 		(arrayClass oop) (pointClass oop)
 		(stackLimit uint64_t) (stackLimitNormal uint64_t) (baseFrame uint64_t) (baseRecord uint64_t)
 		(edenBox uint64_t) (hashBox uint64_t) (lcgMul uint64_t) (lcgAdd uint64_t)
-		(tagClasses 'oop[8]') (blockClass oop) (byteStringClass oop) (byteArrayClass oop) (boxedFloatClass oop) (wordArrayClass oop) (byteSymbolClass oop)
+		(tagClasses 'oop[8]') (blockClass oop) (byteStringClass oop) (byteArrayClass oop) (boxedFloatClass oop) (wordArrayClass oop) (byteSymbolClass oop) (contextClass oop)
 		(megaCache uint64_t) (blockCache uint64_t) (result oop) (ecode int64_t) (primRet uint64_t)
 		(cstackLimit uint64_t) (stress int64_t) (dump 'uint64_t[64]'))
 ! !

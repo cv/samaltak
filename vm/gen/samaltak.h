@@ -97,6 +97,7 @@ typedef void (*prim_fn)(void);
 #define BL_BLOCK_CACHE 1024
 #define BL_BLOCK_WORDS 4096
 #define BL_MAX_BLOCKS 1024
+#define BL_MAX_LOOPS 4096
 #define BL_MAX_OOP_SLOTS 262144
 #define BL_MAX_REGIONS 256
 #define BL_MAX_RETS 8192
@@ -867,6 +868,7 @@ struct jit_state {
     oop boxed_float_class;
     oop word_array_class;
     oop byte_symbol_class;
+    oop context_class;
     uint64_t mega_cache;
     uint64_t block_cache;
     oop result;
@@ -876,7 +878,7 @@ struct jit_state {
     int64_t stress;
     uint64_t dump[64];
 };
-_Static_assert(sizeof(jit_state) == 824, "the simulator lays out JitState as C does");
+_Static_assert(sizeof(jit_state) == 832, "the simulator lays out JitState as C does");
 
 struct large_operand {
     uint32_t *limbs;

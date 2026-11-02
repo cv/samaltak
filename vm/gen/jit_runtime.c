@@ -1692,6 +1692,7 @@ static void jit_refresh_state(void)
     state_block->boxed_float_class = cls_boxedfloat;
     state_block->word_array_class = special(SO_BITMAP);
     state_block->byte_symbol_class = special(SO_BYTESYMBOL);
+    state_block->context_class = cls_context;
     state_block->mega_cache = (uint64_t)mega_table;
     state_block->block_cache = (uint64_t)block_table;
     state_block->cstack_limit = (uint64_t)(cstack + 65534);

@@ -1,13 +1,13 @@
 JitCompiler subclass: #JitBaselineCompiler
-	instanceVariableNames: 'codeStart pcLabels pcMerge ssKind ssVal ssReg ssInSlot ssTop ssBase regOwner selfValid curArgs curTemps curFrameSize regionEnds regionArgs regionTemps regionSizes regionCount slKind slPc slDepth slLabel slCont slTarget slA slB slC slR slX slY slInfo slCount siteBl siteLit siteInfo sitePc siteDepth siteCount retOff retPc retDepth retInfo retCount poolLabels blockPcs blockLabels blockCount headerLabel missLabel blockLabel megaLabel performLabel exitSyncLabel exitPlainLabel interruptLabel closureLabel makeArrayLabel entrySlowLabel primLabel rememberLabel returnSlowLabel boxLabel fusedTarget uentryOffset dead curPc dregRefs tempD slDA slDB slSavedStart slSavedCount saved savedCount plainEntry tierUpLabel counterAddr curMethod'
-	classVariableNames: 'BL_MAX_BLOCKS BL_MAX_REGIONS BL_MAX_RETS BL_MAX_SITES BL_MAX_SLOW BL_UENTRY SL_ACCESS SL_BARRIER SL_CLASS SL_ENTRY_IMM SL_ENTRY_SLOW SL_FLOAT SL_FUSED SL_INTERRUPT SL_MUSTBEBOOLEAN SL_RESUME SL_RETURN SL_SEND SL_START SL_TIERUP SL_BOX SL_DOUBLES BL_MAX_SAVED SS_DREG SS_CONST SS_LIT SS_MAX SS_PINNED SS_REG SS_SELF SS_SLOT SS_TEMP'
+	instanceVariableNames: 'codeStart pcLabels pcMerge ssKind ssVal ssReg ssInSlot ssTop ssBase regOwner selfValid curArgs curTemps curFrameSize regionEnds regionArgs regionTemps regionSizes regionCount slKind slPc slDepth slLabel slCont slTarget slA slB slC slR slX slY slInfo slCount siteBl siteLit siteInfo sitePc siteDepth siteCount retOff retPc retDepth retInfo retCount poolLabels blockPcs blockLabels blockCount headerLabel missLabel blockLabel megaLabel performLabel exitSyncLabel exitPlainLabel interruptLabel closureLabel makeArrayLabel entrySlowLabel primLabel rememberLabel returnSlowLabel boxLabel fusedTarget uentryOffset dead curPc dregRefs tempD slDA slDB slSavedStart slSavedCount saved savedCount loopActive loopEnd loopId loopTable slLoop plainEntry tierUpLabel counterAddr curMethod'
+	classVariableNames: 'BL_MAX_BLOCKS BL_MAX_REGIONS BL_MAX_RETS BL_MAX_SITES BL_MAX_SLOW BL_UENTRY SL_ACCESS SL_BARRIER SL_CLASS SL_ENTRY_IMM SL_ENTRY_SLOW SL_FLOAT SL_FUSED SL_INTERRUPT SL_MUSTBEBOOLEAN SL_RESUME SL_RETURN SL_SEND SL_START SL_TIERUP SL_BOX SL_DOUBLES BL_MAX_SAVED BL_MAX_LOOPS SS_DREG SS_CONST SS_LIT SS_MAX SS_PINNED SS_REG SS_SELF SS_SLOT SS_TEMP'
 	package: 'VM-Jit'!
 
 JitBaselineCompiler comment: 'The baseline compiler (--jit baseline), after Cog''s StackToRegisterMappingCogit: one pass over the bytecodes with a simulated operand stack (ssKind: in its slot, in a register, a constant, nil/true/false, self, a temp or a literal not loaded yet), so values go from producer to consumer in registers (x0-x8, x12-x15) and constants become immediates; the stack is written to its slots only at sends, calls into the runtime and merge points (jump targets, which start with everything in its slot). Before an instruction that may send or call the runtime everything below its operands is written back (as Cog), so its slow path only stores the operands.
 
 Sends: the receiver in x0, receiver and arguments in their slots, x20 advanced to the callee''s fp, x9 the inline cache''s class (a literal next to the code), bl to the site''s target: the miss stub while unlinked, a compiled method''s checked entry (its class check against x9, then its unchecked entry 20 bytes on) while monomorphic, a polymorphic inline cache (up to 6 classes) or the megamorphic stub (x9 then holds the selector). JitBaselineRuntime links and relinks. The callee pushes its frame in machine code (x19, the Frame''s method, code, closure, ctx, fp and a zero pc and sp, the native frame record x29/x30, nil temps, one compare against the stack limit that is also the interrupt check) and answers its result in x0; the caller restores x20 with one sub. Frames are canonical lazily: pc and sp of a frame suspended in a send are derived from its return address when the runtime needs them (JitBaselineRuntime>>canonicalizeBelow:, the return map). Quick methods (^ivar, ^constant, ^self, setters) run without a frame; primitives run before the frame is built, inline (basicNew, closure value, perform: through the megamorphic cache...) or through their C function.
 
-Inline: SmallInteger + - * // \\ bitAnd: bitOr: bitShift: and comparisons (tag checks, overflow branches, immediates, folding, compare and branch), Floats (SmallFloat64 and boxed operands, SmallFloat64 results; others are boxed by the runtime), == ~~ class, at: at:put: on Arrays, Strings, Symbols, ByteArrays (size is sent: user classes define it too), value value: value:value: of closures (class and argument count checked, then the block''s entry through a cache in the block stub). Closures and Arrays (0x94) are made by the runtime, non-local returns by the interpreter. The ablation flags (JitRuntime) switch each off.
+Inline: SmallInteger + - * // \\ bitAnd: bitOr: bitShift: and comparisons (tag checks, overflow branches, immediates, folding, compare and branch), Floats (SmallFloat64 and boxed operands, SmallFloat64 results; others are boxed by the runtime), == ~~ class, at: at:put: on Arrays, Strings, Symbols, ByteArrays (size is sent: user classes define it too), value value: value:value: of closures (class and argument count checked, then the block''s entry through a cache in the block stub). Closures are made in eden (and the frame''s Context with the first), Arrays (0x94) by the runtime, non-local returns by the interpreter. The ablation flags (JitRuntime) switch each off.
 
 Layout: checked entry, unchecked entry, the method''s frame code, its bytecodes in pc order (block bodies inside, each with its entry), then the slow paths, the resumption stubs, the literals (the method''s literals as the runtime registers them for the collector, the inline caches'' classes) and the JitMethod header right after (adr reaches it: method and code for the frame).
 
@@ -30,7 +30,7 @@ declarations
 		(boxLabel int32_t) (uentryOffset int32_t) (dead bool) (curPc int32_t)
 		(dregRefs 'int8_t[16]') (tempD 'int8_t[SS_MAX]') (slDA 'int8_t[BL_MAX_SLOW]') (slDB 'int8_t[BL_MAX_SLOW]')
 		(slSavedStart 'int32_t[BL_MAX_SLOW]') (slSavedCount 'int16_t[BL_MAX_SLOW]') (saved 'int16_t[BL_MAX_SAVED]') (savedCount int32_t)
-		(plainEntry bool) (tierUpLabel int32_t) (counterAddr uint64_t) (curMethod oop))
+		(loopActive bool) (loopEnd int32_t) (loopId int32_t) (loopTable 'int32_t[BL_MAX_LOOPS]') (slLoop 'int16_t[BL_MAX_SLOW]') (plainEntry bool) (tierUpLabel int32_t) (counterAddr uint64_t) (curMethod oop))
 !
 initialize
 	SS_MAX := 1100.
@@ -52,6 +52,8 @@ initialize
 	"an unboxed Float in d8-d15 (C calls preserve them; sends do not: everything is boxed before one)"
 	SS_DREG := 7.
 	BL_MAX_SAVED := 65536.
+	"loops with temps in x26-x28: 4 words each (count, temps)"
+	BL_MAX_LOOPS := 4096.
 	"slow paths"
 	SL_INTERRUPT := 1.
 	SL_SEND := 2.
@@ -131,6 +133,8 @@ compile: m
 	counterAddr := runtime tiering ifTrue: [runtime counterAddressFor: m] ifFalse: [0].
 	curMethod := m.
 	savedCount := 0.
+	loopActive := false.
+	loopId := -1.
 	curArgs := analysis numArgs.
 	curTemps := analysis numTemps.
 	curFrameSize := analysis frameSize.
@@ -162,6 +166,7 @@ emitAt: pc
 	op := analysis byteAt: pc.
 	d := analysis depthAt: pc.
 	curPc := pc.
+	(loopActive and: [pc > loopEnd]) ifTrue: [loopActive := false].
 	"a conditional jump fused with the comparison before it"
 	(pcMerge at: pc) = 2 ifTrue: [^true].
 	(analysis isBlockStart: pc)
@@ -177,11 +182,12 @@ emitAt: pc
 					((analysis isTarget: pc) or: [(pcMerge at: pc) = 1]) ifTrue: [
 						(dead not and: [self canThreadInto: pc]) ifTrue: [self threadInto: pc].
 						dead ifFalse: [self ssFlushAll].
+						((analysis isLoopHead: pc) and: [dead not and: [loopActive not]]) ifTrue: [self beginLoopAt: pc].
 						asm bind: (self labelFor: pc).
 						self ssReset: d.
 						selfValid := false.
 						dead := false.
-						(analysis isLoopHead: pc) ifTrue: [runtime noteResume: pc at: asm pc - codeStart]]]].
+						(analysis isLoopHead: pc) ifTrue: [self noteLoopResume: pc]]]].
 	dead ifTrue: [^true].
 	ssTop = d ifFalse: [^false].
 	asm bytecode: pc.
@@ -255,6 +261,121 @@ popRegion
 	curArgs := regionArgs at: regionCount.
 	curTemps := regionTemps at: regionCount.
 	curFrameSize := regionSizes at: regionCount
+! !
+
+!JitBaselineCompiler methodsFor: 'loop temps'!
+beginLoopAt: head
+	"An innermost loop from head that sends nothing (inline operations' slow paths aside), entered only by falling in and by its back jumps: its most used temps (up to 3) live in x26-x28 too, stored through to their slots. Loaded here, on the way in."
+	<c: 'void bl_begin_loop(int32_t head)'>
+	| end n p op t k best bestCount c |
+	n := analysis size.
+	end := -1 asInt32.
+	p := head.
+	[p < n] whileTrue: [
+		(analysis isStart: p) ifTrue: [
+			op := analysis byteAt: p.
+			((op >= 16r90 and: [op <= 16r92]) and: [(analysis jumpTargetAt: p) = head]) ifTrue: [end := p].
+			p := (p + (analysis lengthAt: p)) asInt32]
+			ifFalse: [p := (p + 1) asInt32]].
+	end < 0 ifTrue: [^self].
+	"what the loop does, and who jumps into it"
+	p := 0 asInt32.
+	[p < n] whileTrue: [
+		(analysis isStart: p) ifTrue: [
+			op := analysis byteAt: p.
+			(p >= head and: [p <= end])
+				ifTrue: [
+					(p ~= head and: [analysis isLoopHead: p]) ifTrue: [^self].
+					(op = 16r8D or: [op = 16r8E or: [(op >= 16rC0 and: [op < 16rF0]) or: [op = 16r8F or: [op = 16r76 or: [op = 16r94]]]]]) ifTrue: [^self].
+					(op >= 16rA0 and: [op < 16rC0]) ifTrue: [
+						(self specialSends: op - 16rA0) ifTrue: [^self]].
+					((op >= 16r97 and: [op < 16rA0]) or: [op >= 16rF0 and: [op < 16rFC]]) ifTrue: [
+						k := analysis specialIndexOf: analysis bytecodes + p.
+						(self specialSends: k) ifTrue: [^self]]]
+				ifFalse: [
+					((op >= 16r90 and: [op <= 16r92]) and: [(analysis jumpTargetAt: p) >= head and: [(analysis jumpTargetAt: p) <= end]]) ifTrue: [^self]].
+			p := (p + (analysis lengthAt: p)) asInt32]
+			ifFalse: [p := (p + 1) asInt32]].
+	loopId + 1 >= (BL_MAX_LOOPS quo: 4) ifTrue: [^self].
+	"the most used temps"
+	c := 0.
+	1 to: 3 do: [:round |
+		best := -1.
+		bestCount := 1.
+		0 to: curArgs + curTemps - 1 do: [:tt |
+			(self isLoopTemp: tt among: c) ifFalse: [
+				t := self uses: tt from: head to: end.
+				t > bestCount ifTrue: [
+					best := tt.
+					bestCount := t]]].
+		best >= 0 ifTrue: [
+			loopTable at: 4 * (loopId + 1) + 1 + c put: best.
+			c := c + 1]].
+	c = 0 ifTrue: [^self].
+	loopId := loopId + 1.
+	loopTable at: 4 * loopId put: c.
+	loopActive := true.
+	loopEnd := end asInt32.
+	asm comment: 'the loop''s temps into x26-x28'.
+	self emitLoadLoopTemps: loopId
+!
+isLoopTemp: t among: c
+	0 to: c - 1 do: [:i | (loopTable at: 4 * (loopId + 1) + 1 + i) = t ifTrue: [^true]].
+	^false
+!
+uses: t from: head to: end
+	"Pushes of and stores into temp t in [head, end]."
+	| p op c n |
+	c := 0.
+	p := head.
+	[p <= end] whileTrue: [
+		(analysis isStart: p) ifTrue: [
+			op := analysis byteAt: p.
+			n := -1.
+			op < 16r10 ifTrue: [n := op].
+			(op >= 16r60 and: [op < 16r68]) ifTrue: [n := op - 16r60].
+			(op = 16r80 or: [op = 16r84 or: [op = 16r87]]) ifTrue: [n := analysis byteAt: p + 1].
+			n = t ifTrue: [c := c + 1].
+			((op >= 16r97 and: [op < 16rA0]) or: [op >= 16rF0 and: [op < 16rFC]]) ifTrue: [
+				(analysis byteAt: p + 1) = t ifTrue: [c := c + 1].
+				((op = 16r97 or: [op >= 16r9A and: [op < 16rA0]]) and: [(analysis byteAt: p + 2) = t]) ifTrue: [c := c + 1]].
+			p := (p + (analysis lengthAt: p)) asInt32]
+			ifFalse: [p := (p + 1) asInt32]].
+	^c
+!
+specialSends: k
+	"Special selector k compiles to a send (with the flags as they are), not to inline code whose slow paths reload the loop temps."
+	(k = 19 or: [k = 20 or: [k = 29]]) ifTrue: [^false].
+	(k = 23 or: [k = 24]) ifTrue: [^(runtime prims and: [brt nilTestsInlinable]) not].
+	(k <= 8 or: [k = 10 or: [k >= 12 and: [k <= 15]]]) ifTrue: [^runtime arith not].
+	k = 9 ifTrue: [^runtime float not].
+	(k = 16 or: [k = 17]) ifTrue: [^runtime access not].
+	^true
+!
+loopRegOf: t
+	"The register holding temp t in the current loop, -1 if none."
+	| c |
+	loopActive ifFalse: [^-1 asInt32].
+	c := loopTable at: 4 * loopId.
+	0 to: c - 1 do: [:i | (loopTable at: 4 * loopId + 1 + i) = t ifTrue: [^(X26 + i) asInt32]].
+	^-1 asInt32
+!
+emitLoadLoopTemps: id
+	"Loop id's temps from their slots into x26-x28 (entering, or after a call)."
+	<c: 'void bl_emit_load_loop_temps(int32_t id)'>
+	id < 0 ifTrue: [^self].
+	0 to: (loopTable at: 4 * id) - 1 do: [:i |
+		asm comment: 'x%d := temp %d' with: 26 + i.
+		asm ldr: X26 + i base: X20 offset: (self slot: (loopTable at: 4 * id + 1 + i))]
+!
+noteLoopResume: pc
+	"The interpreter may continue at a loop head: through a stub that loads the loop's temps if it has some."
+	| s |
+	loopActive ifFalse: [^runtime noteResume: pc at: asm pc - codeStart].
+	s := self slow: SL_RESUME pc: pc depth: (analysis depthAt: pc).
+	s < 0 ifTrue: [^self].
+	slR at: s put: -1.
+	slCont at: s put: (self labelFor: pc)
 ! !
 
 !JitBaselineCompiler methodsFor: 'simulated stack'!
@@ -383,8 +504,11 @@ ssSpill: i
 		asm str: self selfReg base: X20 offset: (self slot: i)].
 	k = SS_TEMP ifTrue: [
 		asm comment: 'spill temp %d' with: (ssVal at: i).
-		asm ldr: X16 base: X20 offset: (self slot: (ssVal at: i)).
-		asm str: X16 base: X20 offset: (self slot: i)].
+		(self loopRegOf: (ssVal at: i) asInt32) >= 0
+			ifTrue: [asm str: (self loopRegOf: (ssVal at: i) asInt32) base: X20 offset: (self slot: i)]
+			ifFalse: [
+				asm ldr: X16 base: X20 offset: (self slot: (ssVal at: i)).
+				asm str: X16 base: X20 offset: (self slot: i)]].
 	k = SS_LIT ifTrue: [
 		asm comment: 'spill literal %d' with: (ssVal at: i).
 		self loadLiteral: (ssVal at: i) into: X16.
@@ -449,6 +573,7 @@ ssMaterialize: i
 	k = SS_REG ifTrue: [^ssReg at: i].
 	k = SS_PINNED ifTrue: [^(ssVal at: i) asInt32].
 	k = SS_SELF ifTrue: [^self selfReg].
+	(k = SS_TEMP and: [(self loopRegOf: (ssVal at: i) asInt32) >= 0]) ifTrue: [^self loopRegOf: (ssVal at: i) asInt32].
 	r := self allocReg.
 	k = SS_DREG ifTrue: [
 		asm comment: 'box an unboxed Float'.
@@ -505,6 +630,9 @@ ssMaterialize: i into: r
 		asm comment: 'the constant'.
 		^asm mov: r imm: (ssVal at: i)].
 	k = SS_TEMP ifTrue: [
+		(self loopRegOf: (ssVal at: i) asInt32) >= 0 ifTrue: [
+			asm comment: 'temp %d (its loop register)' with: (ssVal at: i).
+			^asm mov: r with: (self loopRegOf: (ssVal at: i) asInt32)].
 		asm comment: 'load temp %d' with: (ssVal at: i).
 		^asm ldr: r base: X20 offset: (self slot: (ssVal at: i))].
 	k = SS_LIT ifTrue: [^self loadLiteral: (ssVal at: i) into: r].
@@ -519,8 +647,20 @@ ssIsSmallInt: i
 ssTempChanging: t
 	"Temp t is about to change: entries that read it lazily load it now."
 	<c: 'void bl_ss_temp_changing(int32_t t)'>
+	| r |
 	ssBase to: ssTop - 1 do: [:i |
-		((ssKind at: i) = SS_TEMP and: [(ssVal at: i) = t]) ifTrue: [self ssMaterialize: i]]
+		((ssKind at: i) = SS_TEMP and: [(ssVal at: i) = t]) ifTrue: [
+			(self loopRegOf: t) >= 0
+				ifTrue: [
+					"its loop register changes too: a copy"
+					r := self allocReg.
+					asm mov: r with: (self loopRegOf: t).
+					ssKind at: i put: SS_REG.
+					ssReg at: i put: r asInt8.
+					ssInSlot at: i put: 0.
+					regOwner at: r put: i.
+					i < ssBase ifTrue: [ssBase := i]]
+				ifFalse: [self ssMaterialize: i]]]
 !
 ssDropRegsAfterCall
 	"A call clobbered the scratch registers, x21 and the d registers (every entry is in its slot)."
@@ -589,6 +729,9 @@ byteArrayClassOffset
 !
 boxedFloatClassOffset
 	^self cCoerce: ((self cCoerce: 0 to: 'JitState *') fieldAddress: #boxedFloatClass) to: 'int64_t'
+!
+contextClassOffset
+	^self cCoerce: ((self cCoerce: 0 to: 'JitState *') fieldAddress: #contextClass) to: 'int64_t'
 !
 edenBoxOffset
 	^self cCoerce: ((self cCoerce: 0 to: 'JitState *') fieldAddress: #edenBox) to: 'int64_t'
@@ -1303,6 +1446,14 @@ emitAllocDynamic: bytesReg fail: fail
 	asm b: fail.
 	asm bind: after
 !
+emitAlloc: n format: fmt classOffset: clsOff fail: fail
+	"x9 := a new object of n slots (not initialized), format fmt, its class at clsOff in the JitState, in eden; x10 := its bytes. Uses x11, x12, x16, x17."
+	asm mov: X16 imm: (n asInt64 bitOr: fmt asInt64 << H_FMT_SHIFT).
+	asm ldr: X17 base: X22 offset: clsOff.
+	asm stp: X16 with: X17 base: SP preIndex: -16.
+	asm mov: X10 imm: 16 + (8 * n).
+	self emitAllocDynamic: X10 fail: fail
+!
 emitFill: value from: startReg to: endReg
 	"Store value into the words from startReg up to endReg (x16, x17 changed)."
 	| loop done |
@@ -1455,6 +1606,7 @@ storeTemp: t pop: pop
 		pop ifTrue: [self ssPop: 1].
 		^true].
 	self ssTempChanging: t.
+	(self loopRegOf: t) >= 0 ifTrue: [^self storeLoopTemp: t pop: pop].
 	k = SS_DREG ifTrue: [
 		asm comment: 'temp %d := an unboxed Float, boxed (it stays unboxed in its d register too)' with: t.
 		self emitBox: (ssReg at: i) into: X17.
@@ -1478,6 +1630,27 @@ storeTemp: t pop: pop
 !
 popStoreTemp: t
 	^self storeTemp: t pop: true
+!
+storeLoopTemp: t pop: pop
+	"temp t (in loop register r) := the top: into r and its slot."
+	| i k r |
+	i := ssTop - 1.
+	k := ssKind at: i.
+	r := (self loopRegOf: t) asInt32.
+	asm comment: 'temp %d := top (its loop register and its slot)' with: t.
+	k = SS_DREG
+		ifTrue: [
+			"boxing may call the runtime, which reloads the loop registers: r after it"
+			self emitBox: (ssReg at: i) into: X17.
+			asm str: X17 base: X20 offset: (self slot: t).
+			asm mov: r with: X17.
+			self setTemp: t double: (ssReg at: i)]
+		ifFalse: [
+			self setTemp: t double: (k = SS_TEMP ifTrue: [self tempDouble: (ssVal at: i) asInt32] ifFalse: [-1]).
+			self ssMaterialize: i into: r.
+			asm str: r base: X20 offset: (self slot: t)].
+	pop ifTrue: [self ssPop: 1].
+	^true
 !
 needsBarrier: i
 	"A store of entry i may need the generational barrier (not for immediates nor nil, true, false)."
@@ -1810,11 +1983,16 @@ nonLocalReturn: pc
 	^self exitAt: pc
 !
 closure: pc
-	"0x8F: a BlockClosure on this frame's (married) Context; its body is skipped."
-	| after |
+	"0x8F: a BlockClosure on this frame's (married) Context, both made in eden (eden full: by the runtime); its body is skipped."
+	| after slow |
 	after := pc + 6 + (((analysis byteAt: pc + 4) asInt64 << 8) bitOr: (analysis byteAt: pc + 5)).
 	self ssFlushAll.
-	asm comment: 'create a BlockClosure: call the runtime'.
+	slow := asm newLabel.
+	self emitInlineClosure: pc fail: slow.
+	asm str: X9 base: X20 offset: (self slot: ssTop).
+	asm b: (self labelFor: after asInt32).
+	asm bind: slow.
+	asm comment: 'eden is full: the runtime makes it (and collects)'.
 	self emitRuntimeCall: closureLabel pc: pc depth: ssTop.
 	self ssPush: SS_SLOT val: 0 reg: -1.
 	asm comment: 'skip the block''s code'.
@@ -1822,6 +2000,45 @@ closure: pc
 	pcMerge at: after put: 1.
 	dead := true.
 	^true
+!
+emitInlineClosure: pc fail: fail
+	"x9 := the BlockClosure of the 0x8F at pc, made in eden on the frame's Context; a frame without one is married to a Context made in eden (as Interpreter>>marry:). fail: eden is full. Uses x10-x17."
+	<c: 'void bl_emit_inline_closure(int32_t pc, int32_t fail)'>
+	| have n |
+	have := asm newLabel.
+	asm comment: 'the frame''s Context; none: marry the frame (sender its index, stackp 0, method, closure, receiver, the rest nil)'.
+	asm ldr: X13 base: X19 offset: self ctxOffset.
+	asm cmp: X13 with: X23.
+	asm b: have if: COND_NE.
+	n := CTX_FIXED + curFrameSize + CTX_SLACK.
+	self emitAlloc: n format: F_FIXVAR classOffset: self contextClassOffset fail: fail.
+	self emitFill: X23 from: X9 to: X10.
+	asm ldr: X16 base: X22 offset: self framesOffset.
+	asm sub: X16 with: X19 with: X16.
+	asm lsr: X16 with: X16 imm: 5.
+	asm orr: X16 with: X16 imm: 1.
+	asm str: X16 base: X9 offset: (self fieldOffset: CTX_SENDER).
+	asm mov: X16 imm: (self intOop: 0).
+	asm adr: X17 label: headerLabel.
+	asm ldr: X17 base: X17 offset: 0.
+	asm stp: X16 with: X17 base: X9 offset: (self fieldOffset: CTX_STACKP).
+	asm ldr: X16 base: X19 offset: self closureOffset.
+	asm ldur: X17 base: X20 offset: -8.
+	asm stp: X16 with: X17 base: X9 offset: (self fieldOffset: CTX_CLOSURE).
+	asm str: X9 base: X19 offset: self ctxOffset.
+	asm mov: X13 with: X9.
+	asm bind: have.
+	n := brt blockInstSize asInt32 max: BC_FRAMESIZE + 1.
+	asm comment: 'the closure: outerContext, startpc, numArgs, numTemps, frameSize, the rest nil'.
+	self emitAlloc: n format: F_FIXED classOffset: self blockClassOffset fail: fail.
+	asm mov: X16 imm: (self intOop: pc + 6).
+	asm stp: X13 with: X16 base: X9 offset: (self fieldOffset: BC_OUTER).
+	asm mov: X16 imm: (self intOop: (analysis byteAt: pc + 1) asInt64).
+	asm mov: X17 imm: (self intOop: (analysis byteAt: pc + 2) asInt64).
+	asm stp: X16 with: X17 base: X9 offset: (self fieldOffset: BC_NUMARGS).
+	asm mov: X16 imm: (self intOop: (analysis byteAt: pc + 3) asInt64).
+	asm str: X16 base: X9 offset: (self fieldOffset: BC_FRAMESIZE).
+	BC_FRAMESIZE + 1 to: n - 1 do: [:i | asm str: X23 base: X9 offset: (self fieldOffset: i)]
 !
 emitRuntimeCall: stubLabel pc: pc depth: d
 	"A call of a runtime function that may allocate or switch: pc and sp stored, every entry in its slot; it answers 0 to continue, 1 to leave."
@@ -2539,6 +2756,7 @@ slow: kind pc: pc depth: d
 	slInfo at: s put: 0.
 	slSavedStart at: s put: savedCount.
 	slSavedCount at: s put: 0.
+	slLoop at: s put: (loopActive ifTrue: [loopId] ifFalse: [-1]) asInt16.
 	^s
 !
 noteContinuation: pc result: r
@@ -2597,6 +2815,7 @@ emitSlowPaths
 		kind = SL_INTERRUPT ifTrue: [
 			asm comment: 'interrupt: the runtime handles it'.
 			self emitRuntimeCall: interruptLabel pc: (slPc at: i) depth: (slDepth at: i).
+			self emitLoadLoopTemps: (slLoop at: i).
 			asm b: (slCont at: i)].
 		kind = SL_START ifTrue: [self emitStart: i].
 		kind = SL_TIERUP ifTrue: [self emitTierUpSlow: i].
@@ -2648,6 +2867,7 @@ emitSlowPaths
 		kind = SL_BOX ifTrue: [self emitBoxSlow: i].
 		kind = SL_RESUME ifTrue: [
 			runtime noteResume: (slPc at: i) at: asm pc - codeStart.
+			self emitLoadLoopTemps: (slLoop at: i).
 			(slR at: i) >= 0 ifTrue: [
 				asm comment: 'resumption after an interpreted send: its result from its slot'.
 				asm ldr: (slR at: i) base: X20 offset: (self slot: (slDepth at: i) - 1)].
@@ -2720,6 +2940,7 @@ emitTierUp: pc depth: d loop: loop
 	after := asm newLabel.
 	slCont at: s put: after.
 	slInfo at: s put: loop.
+	loop = 0 ifTrue: [slLoop at: s put: -1].
 	self emitCountDown: counterAddr to: (slLabel at: s).
 	asm bind: after.
 	^true
@@ -2738,6 +2959,7 @@ emitTierUpSlow: i
 	asm br: X0.
 	asm bind: l.
 	self emitReloadPinned.
+	self emitLoadLoopTemps: (slLoop at: i).
 	asm ldr: X21 base: X20 offset: -8.
 	asm b: (slCont at: i)
 !
@@ -2764,6 +2986,7 @@ emitSlowSend: i
 	self emitSiteCall: (slPc at: i) info: (info bitAnd: 16rFFFFFFFF) asUInt32 receiver: ri.
 	asm comment: 'x21 again (the callee changed it)'.
 	asm ldr: X21 base: X20 offset: -8.
+	self emitLoadLoopTemps: (slLoop at: i).
 	(info bitAnd: SL_DOUBLES) ~= 0 ifTrue: [^self emitUnboxResult: i].
 	self unboxSavedDoubles: i leave: leave.
 	(info bitAnd: SL_FUSED) ~= 0 ifTrue: [

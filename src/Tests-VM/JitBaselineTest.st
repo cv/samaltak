@@ -3,7 +3,7 @@ TestCase subclass: #JitBaselineTest
 	classVariableNames: ''
 	package: 'Tests-VM'!
 
-JitBaselineTest comment: 'The baseline compiler, switched on for each test (Smalltalk vm jitParameters:, every method compiled on its first activation): inline caches through their states (jitSendSites), relinking after redefinition, unboxed Floats when Smalltalk runs in a slow path, non-local returns, closures, allocation, every ablation flag, the listing; JitRuntimeTest runs the runtime''s tests under it.'!
+JitBaselineTest comment: 'The baseline compiler, switched on for each test (Smalltalk vm jitParameters:, every method compiled on its first activation): inline caches through their states (jitSendSites), relinking after redefinition, unboxed Floats and loop temps in registers when Smalltalk runs in a slow path, non-local returns, closures, allocation, every ablation flag, the listing; JitRuntimeTest runs the runtime''s tests under it.'!
 
 !JitBaselineTest methodsFor: 'running'!
 setUp
@@ -124,6 +124,17 @@ testUnboxedTempChangedInASlowPath
 	w := self subject.
 	self assert: ([self subject unboxed: w] on: MessageNotUnderstood do: [:e | e return: #dnu]) equals: #dnu
 !
+testLoopTempsInRegisters
+	"An innermost loop that sends nothing keeps its most used temps in registers: k is not reloaded from its slot on every turn."
+	self define: 'sieve: flags size: n | count k | count := 0. 2 to: n do: [:i | (flags at: i) ifTrue: [count := count + 1. k := i + i. [k <= n] whileTrue: [flags at: k put: false. k := k + i]]]. ^count'.
+	self assert: (self subject sieve: (Array new: 1000 withAll: true) size: 1000) equals: 168.
+	self assert: (((JitBaselineTestSubject >> #sieve:size:) machineCodeFor: #baseline) includesSubstring: 'its loop register')
+!
+testLoopTempChangedInASlowPath
+	"s lives in a register in the loop; the slow path of w + 1 runs a block that stores into it."
+	self define: 'loop: w | s | w block: [s := 1000]. s := 0. 1 to: 3 do: [:i | s := s + i. w + 1. s := s + i]. ^s'.
+	self assert: (self subject loop: self subject) equals: 1003
+!
 testNonLocalReturns
 	self define: 'firstAbove: n in: c c do: [:e | e > n ifTrue: [^e]]. ^nil'.
 	self define: 'guarded: c ^[self firstAbove: 2 in: c] ensure: [a := #done]'.
@@ -143,6 +154,16 @@ testClosures
 	self assert: (self subject counter value; value; value) equals: 3.
 	self assert: (self subject sum: (1 to: 100)) equals: 5050.
 	self assert: (self subject nested: 10) equals: 165
+!
+testClosuresInMachineCode
+	"Closures, and the Context of the frame that makes the first, are allocated by the code, not by the runtime, which would make the frames below canonical (jitFrameWalks) for each."
+	| walks |
+	self define: 'closures: n | r b | r := 0. 1 to: n do: [:i | b := [i]. r := r + b value]. ^r'.
+	self subject closures: 10.
+	walks := Smalltalk vm statistics jitFrameWalks.
+	self assert: (self subject closures: 100000) equals: 5000050000.
+	walks := Smalltalk vm statistics jitFrameWalks - walks.
+	self assert: walks < 10000 description: [walks printString , ' frame walks']
 !
 testAllocation
 	| arrays objects |
