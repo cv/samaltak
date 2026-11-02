@@ -7,92 +7,174 @@
   {
     "id": "restyle",
     "caption": "The theme is a Smalltalk class: change the accent in the System Browser, ⌘S, and every window restyles at once.",
-    "spoken": "First, the theme. It's a class, so I'll change the accent to red and save... and yeah, everything updates at once."
+    "spoken": "First, the theme. It's a class, so I'll change the accent to red and save... and yeah, everything updates at once.",
+    "cues": [
+      "save"
+    ]
   },
   {
     "id": "shader",
     "caption": "The GPU shader is Metal source, a string in a Smalltalk method (Renderer class>>shaderSource). ⌘S compiles it into a new GPU pipeline.",
-    "spoken": "The GPU shader's actually Metal, not Smalltalk. But its source sits in a Smalltalk method, so I can just edit it here. Save, and it builds a new pipeline... scan lines. Okay, undo."
+    "spoken": "The GPU shader's actually Metal, not Smalltalk. But its source sits in a Smalltalk method, so I can just edit it here. Save, and it builds a new pipeline... scan lines. Okay, undo.",
+    "cues": [
+      "edit it here",
+      "Save",
+      "undo"
+    ]
   },
   {
     "id": "compositor",
     "caption": "The compositor, the Process that puts every window on screen each frame, is Smalltalk: deeper, ultramarine shadows, ⌘S.",
-    "spoken": "This is the compositor. It's the process that puts every window on the screen, and it's Smalltalk too. So, bigger shadows, in blue... and there, every window at once."
+    "spoken": "This is the compositor. It's the process that puts every window on the screen, and it's Smalltalk too. So, bigger shadows, in blue... and there, every window at once.",
+    "cues": [
+      "This is the compositor",
+      "and there"
+    ]
   },
   {
     "id": "glyphs",
     "caption": "Glyphs are rasterized in Smalltalk from the .ttf on disk: flip the coverage, and every glyph turns inside out.",
-    "spoken": "The fonts get rasterized in Smalltalk, right from the TrueType file. So if I flip the coverage... yeah, every glyph turns inside out. Those are the real pixels. Okay, back."
+    "spoken": "The fonts get rasterized in Smalltalk, right from the TrueType file. So if I flip the coverage... yeah, every glyph turns inside out. Those are the real pixels. Okay, back.",
+    "cues": [
+      "flip the coverage",
+      "yeah",
+      "Those are the real pixels",
+      "back"
+    ]
   },
   {
     "id": "slowmo",
     "caption": "One setting slows the animation clock tenfold: the menu, a window opening.",
-    "spoken": "There's a setting that slows everything down ten times, so you can actually see the animations. The menu... a window opening."
+    "spoken": "There's a setting that slows everything down ten times, so you can actually see the animations. The menu... a window opening.",
+    "cues": [
+      "a setting",
+      "The menu",
+      "a window opening"
+    ]
   },
   {
     "id": "slowmo-off",
     "caption": "And back to normal speed.",
-    "spoken": "Okay, back to normal speed."
+    "spoken": "Okay, back to normal speed.",
+    "cues": [
+      "back to normal speed"
+    ]
   },
   {
     "id": "gravity",
     "caption": "Edit and continue: flip gravity in move: (0 @ 0.4 becomes 0 @ -0.4) while it juggles, ⌘S: the balls fall up.",
-    "spoken": "Now the robot. This is move, it does the physics for every ball, every frame. I'll flip gravity, save... and the balls fall up."
+    "spoken": "Now the robot. This is move, it does the physics for every ball, every frame. I'll flip gravity, save... and the balls fall up.",
+    "cues": [
+      "This is move",
+      "flip gravity",
+      "save"
+    ]
   },
   {
     "id": "restore",
     "caption": "Gravity back; a click puts the balls back into the robot's hands.",
-    "spoken": "Let's put gravity back, and click, so it gets its balls back."
+    "spoken": "Let's put gravity back, and click, so it gets its balls back.",
+    "cues": [
+      "put gravity back",
+      "click"
+    ]
   },
   {
     "id": "freeze",
     "caption": "A breakpoint in ballColor, only for the robot's Process: it freezes mid-throw, the rest of the system keeps running.",
-    "spoken": "Next, a breakpoint in ball colour, just for the robot's process. It stops mid-throw, and everything else keeps going."
+    "spoken": "Next, a breakpoint in ball colour, just for the robot's process. It stops mid-throw, and everything else keeps going.",
+    "cues": [
+      "a breakpoint in ball colour",
+      "It stops mid-throw",
+      "keeps going"
+    ]
   },
   {
     "id": "recolour",
     "caption": "Change the colour in the debugger, ⌘S: the method is recompiled, the frame restarts; the Process stays stopped.",
-    "spoken": "I'll change the colour right here in the debugger and save. It's still stopped, though."
+    "spoken": "I'll change the colour right here in the debugger and save. It's still stopped, though.",
+    "cues": [
+      "change the colour",
+      "save"
+    ]
   },
   {
     "id": "snapshot",
     "caption": "Save the image while it's stopped, and quit.",
-    "spoken": "Now I'll save the image, debugger and all, and quit."
+    "spoken": "Now I'll save the image, debugger and all, and quit.",
+    "cues": [
+      "save the image",
+      "quit"
+    ]
   },
   {
     "id": "relaunch",
     "caption": "Relaunch: everything is back, frozen where it was, the debugger open. Proceed: it juggles on, in the new colour.",
-    "spoken": "And start it again. Everything's back, frozen right where it was. Proceed, and it just keeps juggling, in the new colour."
+    "spoken": "And start it again. Everything's back, frozen right where it was. Proceed, and it just keeps juggling, in the new colour.",
+    "cues": [
+      "start it again",
+      "Everything's back",
+      "Proceed"
+    ]
   },
   {
     "id": "jit",
     "caption": "The JIT is Smalltalk too: the arm64 it made for move:, under each bytecode and its statement, with comments.",
-    "spoken": "The VM compiles the busy methods to machine code, and the JIT's written in Smalltalk too. So here's what it made for move. That's arm64, with comments on what it's doing... and see, the sends got inlined."
+    "spoken": "The VM compiles the busy methods to machine code, and the JIT's written in Smalltalk too. So here's what it made for move. That's arm64, with comments on what it's doing... and see, the sends got inlined.",
+    "cues": [
+      "here's what it made for move",
+      "the sends got inlined"
+    ]
   },
   {
     "id": "guest",
     "caption": "Smalltalk in Smalltalk: the VM Simulator boots a Smalltalk-80 image on the VM's own Smalltalk classes. 3 + 4 → 7; 100 factorial printString size → 158.",
-    "spoken": "The VM's written in Smalltalk, so here's Smalltalk running inside Smalltalk. A tiny Smalltalk-80, black and white, booted on the VM's own classes. Three plus four... seven. Something bigger... and its windows drag around, too."
+    "spoken": "The VM's written in Smalltalk, so here's Smalltalk running inside Smalltalk. A tiny Smalltalk-80, black and white, booted on the VM's own classes. Three plus four... seven. Something bigger... and its windows drag around, too.",
+    "cues": [
+      "here's Smalltalk running inside Smalltalk",
+      "Three plus four",
+      "seven",
+      "Something bigger",
+      "drag around"
+    ]
   },
   {
     "id": "gc",
     "caption": "The GC is Smalltalk too: GarbageCollector's TENURE_AGE 2 → 0 (every survivor promoted at once), ⌘S, Rebuild VM & reboot.",
-    "spoken": "The garbage collector's Smalltalk too. Right now, survivors get promoted after two collections. I'll make that zero, save, and rebuild the VM."
+    "spoken": "The garbage collector's Smalltalk too. Right now, survivors get promoted after two collections. I'll make that zero, save, and rebuild the VM.",
+    "cues": [
+      "The garbage collector's Smalltalk too",
+      "make that zero",
+      "save",
+      "rebuild the VM"
+    ]
   },
   {
     "id": "gc-churn",
     "caption": "While the VM compiles: a loop that allocates. On the old VM, old space barely grows.",
-    "spoken": "While that compiles, here's a little loop that keeps allocating. On this VM, old space barely grows."
+    "spoken": "While that compiles, here's a little loop that keeps allocating. On this VM, old space barely grows.",
+    "cues": [
+      "here's a little loop"
+    ]
   },
   {
     "id": "gc-after",
     "caption": "Rebooted on the new VM: every survivor is promoted, old space climbs, full GCs pile up.",
-    "spoken": "And there's the new VM. Now old space fills right up, and the full GCs just stack up."
+    "spoken": "And there's the new VM. Now old space fills right up, and the full GCs just stack up.",
+    "cues": [
+      "there's the new VM",
+      "old space fills right up"
+    ]
   },
   {
     "id": "core",
     "caption": "No hand-written C: the File Browser (Smalltalk too) shows the C the translator generated, then the Smalltalk it came from.",
-    "spoken": "Last thing. How much of this is hand-written C? None. Here's the C the translator generated, the whole interpreter... and here's the Smalltalk it came from."
+    "spoken": "Last thing. How much of this is hand-written C? None. Here's the C the translator generated, the whole interpreter... and here's the Smalltalk it came from.",
+    "cues": [
+      "Here's the C",
+      "the whole interpreter",
+      "here's the Smalltalk it came from"
+    ]
   },
   {
     "id": "outro",
