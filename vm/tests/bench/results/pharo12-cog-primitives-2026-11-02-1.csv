@@ -1,0 +1,104 @@
+# awfy 2026-11-02 00:58 vm=/Users/schani/.cache/pharo12/vm/Pharo.app/Contents/MacOS/Pharo image=/Users/schani/.cache/pharo12/bench.image vm-args='' iterations=30
+# run Pidigits inner=1
+Pidigits,1,1254213
+Pidigits,2,1277020
+Pidigits,3,900221
+Pidigits,4,904198
+Pidigits,5,915206
+Pidigits,6,939238
+Pidigits,7,894168
+Pidigits,8,919193
+Pidigits,9,903206
+Pidigits,10,911884
+Pidigits,11,953536
+Pidigits,12,917484
+Pidigits,13,904384
+Pidigits,14,916607
+Pidigits,15,950503
+Pidigits,16,909814
+Pidigits,17,910618
+Pidigits,18,915484
+Pidigits,19,913385
+Pidigits,20,933125
+Pidigits,21,934309
+Pidigits,22,932455
+Pidigits,23,928273
+Pidigits,24,953456
+Pidigits,25,925566
+Pidigits,26,921599
+Pidigits,27,916892
+Pidigits,28,952864
+Pidigits,29,917735
+Pidigits,30,918502
+# stats Pidigits fullGCs=7 fullGCMilliseconds=231 scavenges=5336 scavengeMilliseconds=7623 bytesAllocated=82556656176
+# total Pidigits 28345138 us
+# run MicroFactorial inner=1
+MicroFactorial,1,8456
+MicroFactorial,2,7601
+MicroFactorial,3,7106
+MicroFactorial,4,4658
+MicroFactorial,5,7168
+MicroFactorial,6,7013
+MicroFactorial,7,7155
+MicroFactorial,8,7000
+MicroFactorial,9,4821
+MicroFactorial,10,7245
+MicroFactorial,11,7348
+MicroFactorial,12,7160
+MicroFactorial,13,7234
+MicroFactorial,14,4736
+MicroFactorial,15,7279
+MicroFactorial,16,7234
+MicroFactorial,17,7201
+MicroFactorial,18,7375
+MicroFactorial,19,4537
+MicroFactorial,20,7300
+MicroFactorial,21,7269
+MicroFactorial,22,7241
+MicroFactorial,23,7203
+MicroFactorial,24,4716
+MicroFactorial,25,7695
+MicroFactorial,26,7621
+MicroFactorial,27,7585
+MicroFactorial,28,7784
+MicroFactorial,29,7663
+MicroFactorial,30,4758
+# stats MicroFactorial fullGCs=0 fullGCMilliseconds=0 scavenges=24 scavengeMilliseconds=64 bytesAllocated=372978968
+# total MicroFactorial 205162 us
+# run Sorting inner=1
+Sorting,1,686007
+Sorting,2,709739
+Sorting,3,673818
+Sorting,4,686571
+Sorting,5,663277
+Sorting,6,717553
+Sorting,7,681118
+Sorting,8,674664
+Sorting,9,718576
+Sorting,10,681521
+Sorting,11,667482
+Sorting,12,721425
+Sorting,13,687585
+Sorting,14,666647
+Sorting,15,718114
+Sorting,16,682351
+Sorting,17,669013
+Sorting,18,751018
+Sorting,19,685896
+Sorting,20,667166
+Sorting,21,730408
+Sorting,22,683918
+Sorting,23,669446
+Sorting,24,716716
+Sorting,25,686959
+Sorting,26,668604
+Sorting,27,718069
+Sorting,28,676733
+Sorting,29,664233
+Sorting,30,718538
+# stats Sorting fullGCs=39 fullGCMilliseconds=1615 scavenges=33 scavengeMilliseconds=369 bytesAllocated=1466732696
+# total Sorting 20743165 us
+# benchmark            runs   first_ms  steady_ms   total_ms
+# Pidigits                1     1254.2      921.6    28345.1
+# MicroFactorial          1        8.5        7.3      205.2
+# Sorting                 1      686.0      683.9    20743.2

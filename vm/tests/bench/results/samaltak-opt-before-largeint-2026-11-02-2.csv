@@ -1,0 +1,30 @@
+# awfy 2026-11-02 01:01 vm=/tmp/lgint/old/vm/build/samaltak image=/tmp/lgint/old/build/samaltak.image vm-args='' iterations=10
+# run Pidigits inner=1
+Pidigits,1,4596529
+Pidigits,2,4598936
+Pidigits,3,4577857
+Pidigits,4,4631712
+Pidigits,5,4622584
+Pidigits,6,4625814
+Pidigits,7,4601268
+Pidigits,8,4576013
+Pidigits,9,4576629
+Pidigits,10,4578514
+# stats Pidigits scavenges=3375 fullGCs=0 scavengeMicroseconds=40866 fullGCMicroseconds=0 oldBytesUsed=2370464 oldBudget=0 edenBytes=0 bytesAllocated=56573943520 rememberedSetSize=-7 processSwitches=419800 bytesTenured=2370464 weakSlotsCleared=0 contextsMaterialized=703540 frameFlushes=415935 jitMethodsCompiled=140 jitBytecodesCompiled=8433 jitCompileMicroseconds=24689 jitCodeBytes=508008 jitCacheFlushes=0 jitEntries=1686240 jitExits=1639075 jitResumes=759959 jitOsrEntries=92124 jitCompileFailures=6 jitInlineCacheMisses=1530 jitInlineCacheLinks=1263 jitPolymorphicCaches=169 jitMegamorphicSites=0 jitBlockCacheMisses=3495 jitPrimitiveCalls=9298792 jitFrameWalks=6222289 optMethodsCompiled=66 optBytecodesCompiled=5670 optCompileMicroseconds=24193 optCodeBytes=373088 optDeoptimizations=9 optOsrEntries=170901 optInvalidations=9 optCompileFailures=6 optRuntimeSends=40
+# total Pidigits 45985856 us
+# run MicroFactorial inner=1
+MicroFactorial,1,26236
+MicroFactorial,2,7126
+MicroFactorial,3,5980
+MicroFactorial,4,6678
+MicroFactorial,5,5850
+MicroFactorial,6,5792
+MicroFactorial,7,5886
+MicroFactorial,8,5867
+MicroFactorial,9,6082
+MicroFactorial,10,5664
+# stats MicroFactorial scavenges=2 fullGCs=0 scavengeMicroseconds=894 fullGCMicroseconds=0 oldBytesUsed=1191592 oldBudget=0 edenBytes=0 bytesAllocated=35781560 rememberedSetSize=-11 processSwitches=320 bytesTenured=1191592 weakSlotsCleared=0 contextsMaterialized=1505 frameFlushes=320 jitMethodsCompiled=110 jitBytecodesCompiled=6844 jitCompileMicroseconds=20108 jitCodeBytes=386728 jitCacheFlushes=0 jitEntries=2875 jitExits=2180 jitResumes=2416 jitOsrEntries=55 jitCompileFailures=2 jitInlineCacheMisses=951 jitInlineCacheLinks=805 jitPolymorphicCaches=78 jitMegamorphicSites=0 jitBlockCacheMisses=54 jitPrimitiveCalls=216412 jitFrameWalks=7315 optMethodsCompiled=40 optBytecodesCompiled=4103 optCompileMicroseconds=19704 optCodeBytes=253728 optDeoptimizations=10 optOsrEntries=27 optInvalidations=5 optCompileFailures=2 optRuntimeSends=0
+# total MicroFactorial 81161 us
+# benchmark            runs   first_ms  steady_ms   total_ms
+# Pidigits                1     4596.5     4578.5    45985.9
+# MicroFactorial          1       26.2        5.9       81.2

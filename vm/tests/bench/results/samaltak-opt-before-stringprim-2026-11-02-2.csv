@@ -1,0 +1,36 @@
+# awfy 2026-11-02 01:02 vm=/tmp/lgint/prestr/samaltak image=/tmp/lgint/prestr/samaltak.image vm-args='' iterations=30
+# run Sorting inner=1
+Sorting,1,572000
+Sorting,2,531349
+Sorting,3,529706
+Sorting,4,551268
+Sorting,5,546670
+Sorting,6,546787
+Sorting,7,524430
+Sorting,8,528315
+Sorting,9,540323
+Sorting,10,551716
+Sorting,11,542405
+Sorting,12,523245
+Sorting,13,527828
+Sorting,14,545333
+Sorting,15,549685
+Sorting,16,541070
+Sorting,17,526659
+Sorting,18,528075
+Sorting,19,538725
+Sorting,20,545070
+Sorting,21,547784
+Sorting,22,523520
+Sorting,23,526224
+Sorting,24,545347
+Sorting,25,548222
+Sorting,26,544614
+Sorting,27,524019
+Sorting,28,533675
+Sorting,29,539637
+Sorting,30,544897
+# stats Sorting scavenges=180 fullGCs=24 scavengeMicroseconds=301658 fullGCMicroseconds=251982 oldBytesUsed=27880880 oldBudget=39830272 edenBytes=0 bytesAllocated=3516220888 rememberedSetSize=-2 processSwitches=45848 bytesTenured=610500112 weakSlotsCleared=0 contextsMaterialized=82632 frameFlushes=45847 jitMethodsCompiled=148 jitBytecodesCompiled=18961 jitCompileMicroseconds=12220 jitCodeBytes=361320 jitCacheFlushes=0 jitEntries=201609 jitExits=197764 jitResumes=108415 jitOsrEntries=44506 jitCompileFailures=2 jitInlineCacheMisses=1015 jitInlineCacheLinks=882 jitPolymorphicCaches=50 jitMegamorphicSites=2 jitBlockCacheMisses=1445 jitPrimitiveCalls=24663212 jitFrameWalks=462727 optMethodsCompiled=80 optBytecodesCompiled=16690 optCompileMicroseconds=11632 optCodeBytes=236744 optDeoptimizations=14 optOsrEntries=51012 optInvalidations=14 optCompileFailures=2 optRuntimeSends=0
+# total Sorting 16168598 us
+# benchmark            runs   first_ms  steady_ms   total_ms
+# Sorting                 1      572.0      539.6    16168.6
