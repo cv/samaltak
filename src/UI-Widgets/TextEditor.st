@@ -505,10 +505,12 @@ browseIt
 	^self runHook: onBrowseIt
 !
 accept
+	"The handler sees me clean (a status it shows says accepted); answering false leaves me dirty."
 	| result |
 	onAccept isNil ifTrue: [^false].
+	dirty := false.
 	result := onAccept cull: buffer string cull: self.
-	result == false ifFalse: [self beClean].
+	result == false ifTrue: [self dirty: true] ifFalse: [self beClean].
 	^true
 !
 defaultMenu

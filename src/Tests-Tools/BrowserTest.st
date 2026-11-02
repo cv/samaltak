@@ -3,7 +3,7 @@ ToolsTestCase subclass: #BrowserTest
 	classVariableNames: ''
 	package: 'Tests-Tools'!
 
-BrowserTest comment: 'I test the System Browser: navigating to a method as a user does, the breakpoint gutter (a real Breakpoint), a double click on a method (its implementors; only on the same row), accepting an edit (the method is recompiled, and written into a scratch copy of its source file; reverting restores the file byte for byte), syntax errors marked inline.'!
+BrowserTest comment: 'I test the System Browser: navigating to a method as a user does, the breakpoint gutter (a real Breakpoint), a double click on a method (its implementors; only on the same row), accepting an edit (the status says accepted at once; the method is recompiled, and written into a scratch copy of its source file; reverting restores the file byte for byte), syntax errors marked inline.'!
 
 !BrowserTest methodsFor: 'running'!
 setUp
@@ -160,6 +160,17 @@ testMethodMenuBreaksInAWindowsProcess
 	 self in: window do: [browser code accept].
 	 self assert: (Breakpoint forClass: ToolsTestFixture selector: #answer) scope equals: #all]
 		ensure: [Breakpoint removeAll]
+!
+testAcceptShowsAccepted
+	"⌘S on an edit: the status says accepted at once, not unaccepted edits."
+	| status |
+	self browseTo: ToolsTestFixture selector: #answer.
+	status := window content widgetNamed: 'status'.
+	self in: window do: [browser code dirty: true. browser updateStatus].
+	self assert: (status fullText includesSubstring: 'unaccepted edits').
+	self in: window do: [browser code accept].
+	self deny: (status fullText includesSubstring: 'unaccepted').
+	self assert: (status fullText includesSubstring: 'accepted')
 !
 testAcceptKeepsABreakpoint
 	self browseTo: ToolsTestFixture selector: #answer.
