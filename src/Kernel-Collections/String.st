@@ -89,12 +89,26 @@ max: aString
 min: aString
 	^self < aString ifTrue: [self] ifFalse: [aString]
 !
+caseInsensitiveCompare: aString
+	"Answer -1, 0 or 1 comparing the code points of our lowercase characters, as compare: does those of asLowercase copies."
+	| n |
+	n := self size min: aString size.
+	1 to: n do: [:i |
+		| a b |
+		a := self at: i.
+		b := aString at: i.
+		a == b ifFalse: [
+			a := a asLowercase value.
+			b := b asLowercase value.
+			a = b ifFalse: [^a < b ifTrue: [-1] ifFalse: [1]]]].
+	^(self size - aString size) sign
+!
 sameAs: aString
 	"Answer whether aString has the same characters, ignoring case."
-	^self asLowercase = aString asLowercase
+	^self size = aString size and: [(self caseInsensitiveCompare: aString) = 0]
 !
 caseInsensitiveLessOrEqual: aString
-	^self asLowercase <= aString asLowercase
+	^(self caseInsensitiveCompare: aString) <= 0
 !
 includesSubstring: aString
 	^(self indexOfSubCollection: aString startingAt: 1) > 0

@@ -17,6 +17,16 @@ testComparing
 	self assert: 'abc' hash = #abc hash.
 	self assert: 'abc' = #abc.
 	self assert: ('abc' sameAs: 'ABC').
+	self deny: ('abc' sameAs: 'ABCD').
+	self deny: ('abc' sameAs: 'abd').
+	self assert: ('ÜBER' sameAs: 'über').
+	self assert: ('Apple' caseInsensitiveLessOrEqual: 'apple').
+	self assert: ('apple' caseInsensitiveLessOrEqual: 'BANANA').
+	self deny: ('banana' caseInsensitiveLessOrEqual: 'APPLE').
+	self assert: ('AB' caseInsensitiveLessOrEqual: 'abc').
+	self deny: ('ABC' caseInsensitiveLessOrEqual: 'ab').
+	self assert: ('a_' caseInsensitiveLessOrEqual: 'B') = ('a_' asLowercase <= 'B' asLowercase).
+	self assert: ('Z' caseInsensitiveLessOrEqual: '[') = ('z' <= '[').
 	self deny: 'abc' = 3.
 	self assert: ('abc' max: 'abd') = 'abd'
 !
