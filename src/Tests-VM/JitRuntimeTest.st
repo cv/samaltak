@@ -3,7 +3,7 @@ TestCase subclass: #JitRuntimeTest
 	classVariableNames: ''
 	package: 'Tests-VM'!
 
-JitRuntimeTest comment: 'The JIT runtime under the baseline compiler (JitOptRuntimeTest: under the optimizing tier), switched on for each test (Smalltalk vm jitParameters:, every method compiled on its first activation): on-stack replacement, methods redefined and become while their machine code runs, process switches in compiled loops, deep recursion, code cache flushes (a VM with a 1 MB cache), the annotated disassembly. JitTest runs the JIT inside the simulator.'!
+JitRuntimeTest comment: 'The JIT runtime under the baseline compiler (JitOptRuntimeTest: under the optimizing tier), switched on for each test (Smalltalk vm jitParameters:, every method compiled on its first activation): on-stack replacement, methods redefined and become while their machine code runs, process switches in compiled loops, deep recursion, perform: (argument counts, failures, kinds of targets, many selectors at one site), code cache flushes (a VM with a 1 MB cache), the annotated disassembly. JitTest runs the JIT inside the simulator.'!
 
 !JitRuntimeTest methodsFor: 'running'!
 mode
@@ -134,4 +134,131 @@ testDisassembly
 	self disassemblyNotes do: [:each | self assert: (listing includesSubstring: each)].
 	self assert: (((JitRuntimeTestSubject >> #sum:) machineCodeFor: self mode asSymbol) beginsWith: 'JitRuntimeTestSubject>>sum:  ' , self mode).
 	self should: [(JitRuntimeTestSubject >> #sum:) machineCodeFor: #nonsense] raise: Error
+! !
+
+!JitRuntimeTest methodsFor: 'tests: perform'!
+testPerform
+	"perform: with up to four arguments and perform:withArguments: with up to two, selectors the sends do not know: once their targets are cached no lookups (inline cache misses) and no sends through the runtime; three arguments in an Array go through the interpreter."
+	| o sels arrays before |
+	self define: 'zero ^0'.
+	self define: 'one: x ^x'.
+	self define: 'two: x with: y ^x * 10 + y'.
+	self define: 'three: x with: y with: z ^(x * 10 + y) * 10 + z'.
+	self define: 'four: x with: y with: z with: w ^((x * 10 + y) * 10 + z) * 10 + w'.
+	self define: 'performs: n with: s with: a | r | r := 0. 1 to: n do: [:i | r := r + (self perform: (s at: 1)) + (self perform: (s at: 2) with: 1) + (self perform: (s at: 3) with: 1 with: 2) + (self perform: (s at: 4) with: 1 with: 2 with: 3) + (self perform: (s at: 5) with: 1 with: 2 with: 3 with: 4) + (self perform: (s at: 1) withArguments: (a at: 1)) + (self perform: (s at: 2) withArguments: (a at: 2)) + (self perform: (s at: 3) withArguments: (a at: 3))]. ^r'.
+	self define: 'call: s withArguments: a ^self perform: s withArguments: a'.
+	o := JitRuntimeTestSubject new.
+	sels := #(#zero #one: #two:with: #three:with:with: #four:with:with:with:).
+	arrays := #(#() #(1) #(1 2)).
+	self assert: (o performs: 10 with: sels with: arrays) equals: 13830.
+	before := self statistics.
+	self assert: (o performs: 3000 with: sels with: arrays) equals: 4149000.
+	self assert: (self statistics - before) jitInlineCacheMisses < 300.
+	self assert: (self statistics - before) optRuntimeSends < 300.
+	3 timesRepeat: [
+		self assert: (o call: #three:with:with: withArguments: #(1 2 3)) equals: 123.
+		self assert: (o call: #four:with:with:with: withArguments: #(1 2 3 4)) equals: 1234]
+!
+testPerformWithTheWrongArgumentCount
+	"A selector of another argument count, or arguments not in an Array: the primitive fails, as in the interpreter."
+	| o |
+	self define: 'one: x ^x'.
+	self define: 'call: s ^self perform: s'.
+	self define: 'call: s with: x with: y ^self perform: s with: x with: y'.
+	self define: 'call: s withArguments: a ^self perform: s withArguments: a'.
+	o := JitRuntimeTestSubject new.
+	3 timesRepeat: [
+		self should: [o call: #one:] raise: Error.
+		self should: [o call: #one: with: 1 with: 2] raise: Error.
+		self should: [o call: #one: withArguments: #(1 2)] raise: Error.
+		self should: [o call: #one: withArguments: (OrderedCollection with: 1)] raise: Error.
+		self assert: (o call: #one: withArguments: #(5)) equals: 5]
+!
+testPerformNotUnderstood
+	"A selector not understood: doesNotUnderstand: gets it and the arguments."
+	| o |
+	self define: 'doesNotUnderstand: aMessage ^{aMessage selector. aMessage arguments}'.
+	self define: 'call: s with: x ^self perform: s with: x'.
+	self define: 'call: s withArguments: a ^self perform: s withArguments: a'.
+	o := JitRuntimeTestSubject new.
+	3 timesRepeat: [
+		self assert: (o call: #noSuchSelector: with: 7) equals: #(#noSuchSelector: #(7)).
+		self assert: (o call: #noSuch:selector: withArguments: #(1 2)) equals: #(#noSuch:selector: #(1 2))]
+!
+testPerformOfPerform
+	| o |
+	self define: 'plus: x ^x + 1'.
+	self define: 'twice: x ^self perform: #perform:with: with: #plus: with: x'.
+	self define: 'call: p with: s with: x ^self perform: p with: s with: x'.
+	self define: 'call: p with: s withArguments: a ^self perform: p with: s with: a'.
+	o := JitRuntimeTestSubject new.
+	3 timesRepeat: [
+		self assert: (o twice: 1) equals: 2.
+		self assert: (o call: #perform:with: with: #plus: with: 2) equals: 3.
+		self assert: (o call: #perform:withArguments: with: #plus: withArguments: #(4)) equals: 5.
+		self assert: (o perform: #perform: with: #yourself) == o]
+!
+testPerformTargets
+	"Targets that are primitives in machine code, through their C function (one failing into its body), quick methods, a closure, a method not compiled yet."
+	| o block |
+	self define: 'x ^a'.
+	self define: 'x: v a := v'.
+	self define: 'call: r with: s ^r perform: s'.
+	self define: 'call: r with: s with: v ^r perform: s with: v'.
+	o := JitRuntimeTestSubject new.
+	block := [:v | v * 2].
+	3 timesRepeat: [
+		self assert: (o call: 3 with: #+ with: 4) equals: 7.
+		self assert: (o call: 3 with: #+ with: 2.5) equals: 5.5.
+		self assert: (o call: #(10 20 30) with: #at: with: 2) equals: 20.
+		self assert: (o call: 'abc' with: #size) equals: 3.
+		self assert: (o call: #(1 2) with: #shallowCopy) equals: #(1 2).
+		self assert: (o call: o with: #x: with: 5) == o.
+		self assert: (o call: o with: #x) equals: 5.
+		self assert: (o call: o with: #yourself) == o.
+		self assert: (o call: nil with: #isNil).
+		self assert: (o call: block with: #value: with: 21) equals: 42].
+	Smalltalk vm jitParameters: #(nil nil 1000 nil).
+	self define: 'fresh: v ^v + 1'.
+	3 timesRepeat: [self assert: (o call: o with: #fresh: with: 1) equals: 2]
+!
+testPerformManySelectorsAndClasses
+	"One perform: site, ten receiver classes and eleven selectors."
+	| o receivers selectors |
+	self define: 'call: r with: s ^r perform: s'.
+	o := JitRuntimeTestSubject new.
+	receivers := {3. 4.5. $a. 'str'. #sym. #(1 2). nil. Object new. 1 / 2. o}.
+	selectors := #(#yourself #isNil #notNil #isString #isSymbol #isNumber #isCharacter #printString #class #isArray #isInteger).
+	2 timesRepeat: [
+		receivers do: [:r |
+			self assert: (selectors collect: [:s | o call: r with: s]) equals: {r yourself. r isNil. r notNil. r isString. r isSymbol. r isNumber. r isCharacter. r printString. r class. r isArray. r isInteger}]]
+!
+testPerformAfterRedefinition
+	"The method perform: finds is redefined while its target is cached: the next one finds the new method."
+	self define: 'answer ^1'.
+	self define: 'sumPerforming: s | t | t := 0. 1 to: 10 do: [:i | i = 6 ifTrue: [self class compile: ''answer ^2'']. t := t * 10 + (self perform: s)]. ^t'.
+	self assert: (JitRuntimeTestSubject new sumPerforming: #answer) equals: 1111122222
+!
+testPerformDeepRecursion
+	"Recursion through perform:with: (a selector the send knows, and one it does not) deeper than the C stack: the frames become Contexts."
+	| before |
+	self define: 'depth: n ^n = 0 ifTrue: [0] ifFalse: [(self perform: #depth: with: n - 1) + 1]'.
+	self define: 'depth: n via: s ^n = 0 ifTrue: [0] ifFalse: [(self perform: s with: n - 1 with: s) + 1]'.
+	before := self statistics.
+	self assert: (JitRuntimeTestSubject new depth: 200000) equals: 200000.
+	self assert: (JitRuntimeTestSubject new depth: 200000 via: #depth:via:) equals: 200000.
+	self assert: (self statistics - before) frameFlushes > 0
+!
+testPerformWithProcessSwitches
+	"A process wakes up every millisecond while perform: enters methods (their arguments moved down over the selector): interrupts at their entries switch to it, the results stay right."
+	| o result ticks stop |
+	self define: 'sum: n via: s | t | t := 0. 1 to: n do: [:i | t := t + (self perform: s with: i with: 1)]. ^t'.
+	self define: 'add: x to: y ^x + y'.
+	o := JitRuntimeTestSubject new.
+	ticks := 0.
+	stop := false.
+	self fork: [[stop] whileFalse: [(Delay forMilliseconds: 1) wait. ticks := ticks + 1]] at: Processor activePriority + 1.
+	result := [o sum: 1000000 via: #add:to:] ensure: [stop := true].
+	self assert: result equals: 500001500000.
+	self assert: ticks > 0
 ! !

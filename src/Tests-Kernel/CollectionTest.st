@@ -184,6 +184,16 @@ testOrderedCollection
 	oc add: 10 beforeIndex: 2.
 	self assert: oc asArray = #(1 10 2 3 4).
 	self assert: (oc removeIndex: 2) = 10.
+	oc := OrderedCollection new.
+	oc add: 3 beforeIndex: 1; add: 1 beforeIndex: 1; add: 4 beforeIndex: 3; add: 2 beforeIndex: 2; addFirst: 0.
+	self assert: oc asArray = #(0 1 2 3 4).
+	self assert: (oc removeIndex: 1) = 0.
+	self assert: (oc removeIndex: 4) = 4.
+	self assert: oc asArray = #(1 2 3).
+	oc := SortedCollection sortBlock: [:a :b | a <= b].
+	1 to: 200 do: [:i | oc add: i * 7919 \\ 200].
+	self assert: oc asArray = (0 to: 199) asArray.
+	oc := OrderedCollection withAll: #(1 2 3 4).
 	oc removeAllSuchThat: [:x | x even].
 	self assert: oc asArray = #(1 3).
 	self assert: (oc collect: [:x | x * 2]) class == OrderedCollection.

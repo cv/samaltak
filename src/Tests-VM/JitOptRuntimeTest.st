@@ -58,7 +58,7 @@ testInvalidationWhileRunning
 	self assert: (self statistics - before) optInvalidations > 0
 !
 testPerformInALoopStaysOptimized
-	"perform:, perform:with: and perform:withArguments: send their selectors from optimized code through the runtime: a loop of them does not deoptimize every time (unless --jit-flags deopt makes it)."
+	"perform: and perform:with: of constant selectors are sends of them, perform:withArguments: calls its machine code: a loop of them neither deoptimizes nor sends through the runtime (unless --jit-flags deopt makes it)."
 	| o before |
 	self define: 'one ^1'.
 	self define: 'plus: x ^x + 1'.
@@ -67,7 +67,19 @@ testPerformInALoopStaysOptimized
 	self assert: (o performs: 100) equals: 15550.
 	before := self statistics.
 	self assert: (o performs: 10000) equals: 150055000.
-	self stressed ifFalse: [self assert: (self statistics - before) optDeoptimizations < 1000]
+	self stressed ifFalse: [
+		self assert: (self statistics - before) optDeoptimizations < 1000.
+		self assert: (self statistics - before) optRuntimeSends < 50]
+!
+testPerformOfAConstantIsInlined
+	"perform: of a constant selector is a send of it, inlined into a loop's unit: redefining the method invalidates the code, the loop goes on with the new one."
+	| before |
+	Smalltalk vm jitParameters: #(nil '-eager' nil nil).
+	self define: 'answer ^1'.
+	self define: 'sum: n | s | s := 0. 1 to: n do: [:i | i = n ifTrue: [self class compile: ''answer ^2'']. s := s + (self perform: #answer)]. ^s'.
+	before := self statistics.
+	self assert: (JitRuntimeTestSubject new sum: 20000) equals: 20001.
+	self assert: (self statistics - before) optInvalidations > 0
 !
 testNotUnderstoodInALoopStaysOptimized
 	"A selector not understood in optimized code: the runtime sends doesNotUnderstand: with its Message, a loop of them does not deoptimize every time (unless --jit-flags deopt makes it)."

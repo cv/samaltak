@@ -1,5 +1,5 @@
 JitCompiler subclass: #JitStubs
-	instanceVariableNames: 'exitPlainAddr interruptStub closureStub makeArrayStub widowStub barrierStub tierUpStub optDeoptStub optDeoptReturnStub optStackFullStub optReturnStub blEnter blExitSync blMiss blBlock blMega blEntrySlow blPrim blRemember blReturnSlow blBox blSent symbolAddrs symbolNames symbolCount'
+	instanceVariableNames: 'exitPlainAddr interruptStub closureStub makeArrayStub widowStub barrierStub tierUpStub optDeoptStub optDeoptReturnStub optStackFullStub optReturnStub blEnter blExitSync blMiss blBlock blMega blPerform blEntrySlow blPrim blRemember blReturnSlow blBox blSent symbolAddrs symbolNames symbolCount'
 	classVariableNames: 'STUB_MAX_SYMBOLS'
 	package: 'VM-Jit'!
 
@@ -14,7 +14,7 @@ declarations
 	^#((exitPlainAddr uint64_t)
 		(interruptStub uint64_t) (closureStub uint64_t) (makeArrayStub uint64_t)
 		(widowStub uint64_t) (barrierStub uint64_t) (tierUpStub uint64_t) (optDeoptStub uint64_t) (optDeoptReturnStub uint64_t) (optStackFullStub uint64_t) (optReturnStub uint64_t)
-		(blEnter uint64_t) (blExitSync uint64_t) (blMiss uint64_t) (blBlock uint64_t) (blMega uint64_t) (blEntrySlow uint64_t) (blPrim uint64_t) (blRemember uint64_t) (blReturnSlow uint64_t) (blBox uint64_t) (blSent uint64_t)
+		(blEnter uint64_t) (blExitSync uint64_t) (blMiss uint64_t) (blBlock uint64_t) (blMega uint64_t) (blPerform uint64_t) (blEntrySlow uint64_t) (blPrim uint64_t) (blRemember uint64_t) (blReturnSlow uint64_t) (blBox uint64_t) (blSent uint64_t)
 		(symbolAddrs 'uint64_t[STUB_MAX_SYMBOLS]') (symbolNames 'const char *[STUB_MAX_SYMBOLS]') (symbolCount int32_t))
 !
 initialize
@@ -69,6 +69,9 @@ blBlockStub
 !
 blMegaStub
 	^blMega
+!
+blPerformStub
+	^blPerform
 !
 blEntrySlowStub
 	^blEntrySlow
@@ -301,10 +304,28 @@ generateBaseline
 	asm blr: X16.
 	asm ldp: X29 with: X30 base: SP postIndex: 16.
 	self emitContinueOrExit: exit.
-	blEntrySlow := self symbol: 'baseline entry slow path'.
-	"x10 where to retry, x30 back to the send: the stack is full or an interrupt is pending; the runtime answers 0 (retry), 1 (leave) or where the call continues (a sender in optimized code)"
+	blPerform := self symbol: 'baseline perform'.
+	"x0 the receiver, x1 the perform method's argument count (| 256: perform:withArguments:), x10 where its body starts, x30 back to the send: the runtime answers 0 (the primitive failed), 1 (leave) or where the send continues (the target's unchecked entry, the arguments in place; for a sender in optimized code what the runtime's send answers)"
 	have := asm newLabel.
 	asm stp: X10 with: X30 base: SP preIndex: -16.
+	asm mov: X3 with: X1.
+	asm mov: X1 with: X0.
+	asm mov: X2 with: X30.
+	asm mov: X0 with: X19.
+	asm mov: X16 imm64: brt performFunction.
+	asm blr: X16.
+	asm ldp: X10 with: X30 base: SP postIndex: 16.
+	asm cbnz: X0 to: have.
+	self emitReloadPinned.
+	asm ldur: X0 base: X20 offset: -8.
+	asm br: X10.
+	asm bind: have.
+	self emitContinueOrExit: exit.
+	blEntrySlow := self symbol: 'baseline entry slow path'.
+	"x10 where to retry, x11 the callee's header (1: a block's entry), x30 back to the send: the stack is full or an interrupt is pending; the runtime answers 0 (retry), 1 (leave) or where the call continues (a sender in optimized code)"
+	have := asm newLabel.
+	asm stp: X10 with: X30 base: SP preIndex: -16.
+	asm mov: X2 with: X11.
 	asm mov: X1 with: X30.
 	asm mov: X0 with: X19.
 	asm mov: X16 imm64: brt entrySlowFunction.

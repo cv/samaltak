@@ -51,13 +51,13 @@ testParameters
 	self should: [Smalltalk vm jitParameters: #(nil 'nonsense' nil nil)] raise: Error
 !
 testEveryMethodCompiles
-	"Every method of the image has baseline code but those whose primitive is perform (the interpreter runs those sends)."
+	"Every method of the image has baseline code."
 	| failed |
 	failed := OrderedCollection new.
 	Smalltalk allClasses do: [:c |
 		{c. c class} do: [:k |
 			k methodDict do: [:m | (m jitCode: 'baseline') isNil ifTrue: [failed add: m]]]].
-	self assert: (failed allSatisfy: [:m | m selector beginsWith: 'perform:']) description: [failed printString]
+	self assert: failed isEmpty description: [failed printString]
 !
 testInlineCacheStates
 	"A send site goes monomorphic, polymorphic, megamorphic; it answers right in each state, and says which classes it saw."

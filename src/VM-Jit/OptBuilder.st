@@ -1,5 +1,5 @@
 OptModule subclass: #OptBuilder
-	instanceVariableNames: 'ir obCurBlock obBailed obVarTop obDefKeys obDefVals obDefCount obIncPhis obIncVars obIncCount obAnaMethods obAnaBases obAnaCount obAnaTop obAnaDepth obAnaFlag obAnaBack obPcBlocks obPcbTop obEntryBlock obRootMethod obInlined obDeps obDepCount obPrimKinds obPrimsKnown obNoInline obNoInlineCount obArgVals obArgFlags obUnitStart obOsrPc obParamSlots obValidSlots obSafeEpoch obAnaFloat obResident obChecked obCheckedCount obCheckedBlock obCheckedEpoch obFrame obSpecParam obSpecInfo obSpecCount'
+	instanceVariableNames: 'ir obCurBlock obBailed obVarTop obDefKeys obDefVals obDefCount obIncPhis obIncVars obIncCount obAnaMethods obAnaBases obAnaCount obAnaTop obAnaDepth obAnaFlag obAnaBack obPcBlocks obPcbTop obEntryBlock obRootMethod obInlined obDeps obDepCount obPrimKinds obPrimsKnown obNoInline obNoInlineCount obArgVals obArgFlags obUnitStart obOsrPc obParamSlots obValidSlots obSafeEpoch obAnaFloat obResident obChecked obCheckedCount obCheckedBlock obCheckedEpoch obFrame obSpecParam obSpecInfo obSpecCount obPerformAct obPerformPc obPerformSlot obPerformCount obPerformVals'
 	classVariableNames: 'OA_BLOCK OA_LOOP OA_START OA_TARGET OPT_MAX_VARS OPT_MAX_NOINLINE OPT_MAX_PRIM OPK_AT OPK_FLOAT OPK_FSQRT OPK_NEW OPK_NEWSIZE OPK_CLOSURE OPK_ATPUT OPK_CLASS OPK_IDENTICAL OPK_INT OPK_SIZE OPK_STRINGAT OPK_STRINGATPUT OPT_INLINE_BUDGET OPT_INLINE_DEPTH OPT_INLINE_SIZE OPT_MAX_ANA OPT_MAX_DEPS OPT_MAX_INC OPK_CHARVALUE OPK_CHARFROM'
 	package: 'VM-Jit'!
 
@@ -14,7 +14,8 @@ declarations
 		(obAnaDepth 'int16_t[OPT_ANA_MAX]') (obAnaFlag 'uint8_t[OPT_ANA_MAX]') (obAnaBack 'int32_t[OPT_ANA_MAX]')
 		(obPcBlocks 'int32_t[OPT_PCB_MAX]') (obPcbTop int32_t) (obEntryBlock int32_t) (obRootMethod oop)
 		(obInlined int32_t) (obDeps 'oop[OPT_MAX_DEPS]') (obDepCount int32_t) (obPrimKinds 'uint8_t[OPT_MAX_PRIM]') (obPrimsKnown bool)
-		(obNoInline 'oop[OPT_MAX_NOINLINE]') (obNoInlineCount int32_t) (obArgVals 'int32_t[OPT_MAX_VARS]') (obArgFlags 'uint8_t[OPT_MAX_VARS]') (obUnitStart int32_t) (obOsrPc int32_t) (obParamSlots int32_t) (obValidSlots int32_t) (obSafeEpoch int32_t) (obAnaFloat 'bool[OPT_MAX_ANA]') (obResident bool) (obChecked 'int32_t[8]') (obCheckedCount int32_t) (obCheckedBlock int32_t) (obCheckedEpoch int32_t) (obFrame 'Frame *') (obSpecParam 'int32_t[8]') (obSpecInfo 'int32_t[8]') (obSpecCount int32_t))
+		(obNoInline 'oop[OPT_MAX_NOINLINE]') (obNoInlineCount int32_t) (obArgVals 'int32_t[OPT_MAX_VARS]') (obArgFlags 'uint8_t[OPT_MAX_VARS]') (obUnitStart int32_t) (obOsrPc int32_t) (obParamSlots int32_t) (obValidSlots int32_t) (obSafeEpoch int32_t) (obAnaFloat 'bool[OPT_MAX_ANA]') (obResident bool) (obChecked 'int32_t[8]') (obCheckedCount int32_t) (obCheckedBlock int32_t) (obCheckedEpoch int32_t) (obFrame 'Frame *') (obSpecParam 'int32_t[8]') (obSpecInfo 'int32_t[8]') (obSpecCount int32_t)
+		(obPerformAct int32_t) (obPerformPc int32_t) (obPerformSlot int32_t) (obPerformCount int32_t) (obPerformVals 'int32_t[8]'))
 !
 initialize
 	OPT_MAX_INC := 16384.
@@ -99,6 +100,7 @@ buildOnce: m
 	obSafeEpoch := 0.
 	obCheckedBlock := -1.
 	obSpecCount := 0.
+	obPerformAct := -1.
 	a := obUnitStart > 0 ifTrue: [self newBlockActFor: m start: obUnitStart] ifFalse: [self newActFor: m].
 	a < 0 ifTrue: [^false].
 	obEntryBlock := ir newBlock.
@@ -640,7 +642,10 @@ stateAct: a pc: pc depth: d
 	0 to: d - 1 do: [:i |
 		((self var: a slot: i) < OPT_MAX_VARS and: [(obArgFlags at: (self var: a slot: i)) = 2])
 			ifTrue: [ir operand: vals + 1 + i put: (obArgVals at: (self var: a slot: i))]
-			ifFalse: [ir operand: vals + 1 + i put: (self read: (self var: a slot: i))]].
+			ifFalse: [
+				(a = obPerformAct and: [i >= obPerformSlot and: [i < (obPerformSlot + obPerformCount)]])
+					ifTrue: [ir operand: vals + 1 + i put: (obPerformVals at: i - obPerformSlot)]
+					ifFalse: [ir operand: vals + 1 + i put: (self read: (self var: a slot: i))]]].
 	p := ac parent.
 	p >= 0 ifTrue: [(ir state: s) parent: (self stateAct: p pc: (ac sendPc + (analysis lengthOf: (self byteAt: ac sendPc act: p))) asInt32 depth: (self receiverSlotAt: ac sendPc act: p))].
 	^s
@@ -1305,13 +1310,15 @@ inlineSend: sel argc: argc kind: kind special: k pc: pc act: a rcvSlot: r
 !
 send: sel to: rcv class: cls argc: argc kind: kind pc: pc act: a rcvSlot: r
 	"The receiver's class is cls: inline the method it finds, else send. Answer false only if nothing was emitted."
-	| m n |
+	| m n p |
 	"a married Context's state is in its frame: only the runtime's send makes it a Context first"
 	cls = memory clsContext ifTrue: [^false].
 	m := interpreter lookupMethod: cls selector: sel.
 	m = 0 ifTrue: [^false].
 	self noteDependency: sel.
 	self write: (self var: a slot: r) value: rcv.
+	(kind = 0 and: [(p := self performedAt: r + 1 act: a argc: argc - 1 class: cls method: m) ~= 0]) ifTrue: [
+		^self sendPerformed: p to: rcv class: cls argc: argc - 1 pc: pc act: a rcvSlot: r].
 	((runtime flag: runtime allocFlag) and: [self allocate: m selector: sel class: cls argc: argc pc: pc act: a rcvSlot: r]) ifTrue: [^true].
 	(cls = memory clsBlock and: [(runtime flag: runtime callsFlag) and: [(self primKindOf: (self methodPrimitive: m)) = OPK_CLOSURE]]) ifTrue: [
 		^self blockCall: sel argc: argc pc: pc act: a rcvSlot: r].
@@ -1325,6 +1332,28 @@ send: sel to: rcv class: cls argc: argc kind: kind pc: pc act: a rcvSlot: r
 		"a direct call of its baseline code's unchecked entry: no lookup, its primitive's machine code first"
 		(ir node: n) op: O_CALL.
 		(ir node: n) tcls: m].
+	^true
+!
+performedAt: i act: a argc: n class: cls method: m
+	"m is perform:, perform:with:... (its primitive's) and slot i of a holds a constant selector of n arguments that cls understands: the selector, else 0."
+	| nd |
+	(obPerformAct < 0 and: [(brt primKindOf: (self methodPrimitive: m)) = brt pkPerform and: [(brt primOpOf: (self methodPrimitive: m)) = 0 and: [n >= 0 and: [n < 8]]]]) ifFalse: [^0 asUInt64].
+	nd := ir node: (self read: (self var: a slot: i)).
+	nd op asInt32 = O_CONST ifFalse: [^0 asUInt64].
+	((interpreter selectorArgc: nd aux asUInt64) = n and: [(interpreter lookupMethod: cls selector: nd aux asUInt64) ~= 0]) ifFalse: [^0 asUInt64].
+	^nd aux asUInt64
+!
+sendPerformed: sel to: rcv class: cls argc: n pc: pc act: a rcvSlot: r
+	"The receiver (of class cls) performs constant selector sel with n arguments: a send of sel, its arguments a slot down over the selector; frame states at the perform: keep its slots (deoptimization executes it again), sends made for it say so (SI_PERFORMED: their selector goes back)."
+	<c: 'bool opt_send_performed(uint64_t sel, int32_t rcv, uint64_t cls, int32_t n, int32_t pc, int32_t a, int32_t r)'>
+	0 to: n do: [:i | obPerformVals at: i put: (self read: (self var: a slot: r + 1 + i))].
+	0 to: n - 1 do: [:i | self write: (self var: a slot: r + 1 + i) value: (obPerformVals at: i + 1)].
+	obPerformAct := a.
+	obPerformPc := pc.
+	obPerformSlot := r + 1.
+	obPerformCount := n + 1.
+	self send: sel to: rcv class: cls argc: n kind: 0 pc: pc act: a rcvSlot: r.
+	obPerformAct := -1.
 	^true
 !
 blockCall: sel argc: argc pc: pc act: a rcvSlot: r
@@ -1665,6 +1694,7 @@ callSelector: sel argc: argc kind: kind special: k pc: pc act: a rcvSlot: r
 	(ir node: n) nargs: (argc + 1) asUInt16.
 	(ir node: n) aux: sel asInt64.
 	(ir node: n) aux2: (((argc asInt64 bitOr: kind asInt64 << 8) bitOr: k asInt64 << 16) bitOr: pc asInt64 << 32).
+	(a = obPerformAct and: [pc = obPerformPc]) ifTrue: [(ir node: n) aux2: ((ir node: n) aux2 bitOr: SI_PERFORMED)].
 	(ir node: n) state: (self stateAct: a pc: (pc + (analysis lengthOf: (self byteAt: pc act: a))) asInt32 depth: r).
 	self push: n act: a depth: r.
 	^n
