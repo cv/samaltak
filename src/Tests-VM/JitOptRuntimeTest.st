@@ -71,6 +71,17 @@ testPerformInALoopStaysOptimized
 		self assert: (self statistics - before) optDeoptimizations < 1000.
 		self assert: (self statistics - before) optRuntimeSends < 50]
 !
+testAtOfAStringArgumentIsInlined
+	"at: of a String argument (push temp, push temp, at:: a superinstruction; baseline code reads Strings without a send, so they leave no feedback): the deoptimization reports the String, the code compiled again reads it inline, without calling the C primitive (unless --jit-flags deopt makes it)."
+	| o s before |
+	self define: 'count: c in: aString | n | n := 0. 1 to: aString size do: [:i | (aString at: i) == c ifTrue: [n := n + 1]]. ^n'.
+	o := JitRuntimeTestSubject new.
+	s := String new: 1000 withAll: $a.
+	3 timesRepeat: [self assert: (o count: $a in: s) equals: 1000].
+	before := self statistics.
+	self assert: (o count: $a in: s) equals: 1000.
+	self stressed ifFalse: [self assert: (self statistics - before) jitPrimitiveCalls < 100]
+!
 testPerformOfAConstantIsInlined
 	"perform: of a constant selector is a send of it, inlined into a loop's unit: redefining the method invalidates the code, the loop goes on with the new one."
 	| before |

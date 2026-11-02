@@ -520,17 +520,20 @@ uint64_t opt_deopt_guard(frame *f, int64_t k)
     int64_t sig;
     uint64_t o_3;
     uint8_t *p_2;
+    frame *g_2;
     int r_pushes_of_2;
     uint8_t op_3;
-    frame *g_2;
     int32_t r_send_argc_of;
     uint8_t op_4;
-    int k_2;
     int k_3;
-    int32_t i_4;
+    int k_4;
+    int64_t i_4;
     oop r_2;
     oop r_3;
     oop r_4;
+    int32_t r_special_index_of;
+    uint8_t op_5;
+    int32_t k_2;
     int64_t r_signature_at_2;
     feedback_site *s_3;
     int64_t n_4;
@@ -674,14 +677,11 @@ exit_signature_at:;
         if ((why & FB_DEOPT_CLASS) != 0) {
             o_3 = *(uint64_t *)(m + 16 + 24);
             p_2 = (uint8_t *)(o_3 + 16) + pc;
-            if (({
+            g_2 = frames + (nframes - 1);
+            i_4 = ({
     op_3 = p_2[0];
     r_pushes_of_2 = ((op_3 >= 0x97) && (op_3 <= 0x9F)) || ((op_3 >= 0xF0) && (op_3 < 0xFC)) ? 2 : 0;
-    r_pushes_of_2; }) > 0) {
-                goto exit_note_receiver_at;
-            }
-            g_2 = frames + (nframes - 1);
-            i_4 = g_2->sp - ({
+    r_pushes_of_2; }) > 0 ? (int64_t)p_2[1] : (int64_t)(g_2->sp - ({
     op_4 = p_2[0];
     if ((op_4 == 0x8D) || (op_4 == 0x8E)) {
         r_send_argc_of = (int32_t)p_2[2];
@@ -692,8 +692,8 @@ exit_signature_at:;
         goto exit_send_argc_of;
     }
     if (op_4 >= 0xA0) {
-        k_2 = op_4 - 0xA0;
-        r_send_argc_of = (k_2 == 19) || (k_2 == 20) ? 1 : special_argc[k_2];
+        k_3 = op_4 - 0xA0;
+        r_send_argc_of = (k_3 == 19) || (k_3 == 20) ? 1 : special_argc[k_3];
         goto exit_send_argc_of;
     }
     if (op_4 >= 0x9A) {
@@ -701,13 +701,13 @@ exit_signature_at:;
         goto exit_send_argc_of;
     }
     if ((op_4 >= 0x97) && (op_4 <= 0x99)) {
-        k_3 = p_2[3] - 0xA0;
-        r_send_argc_of = (k_3 == 19) || (k_3 == 20) ? 1 : special_argc[k_3];
+        k_4 = p_2[3] - 0xA0;
+        r_send_argc_of = (k_4 == 19) || (k_4 == 20) ? 1 : special_argc[k_4];
         goto exit_send_argc_of;
     }
     r_send_argc_of = 0;
 exit_send_argc_of:;
-    r_send_argc_of; }) - 1;
+    r_send_argc_of; }) - 1);
             if (i_4 >= 0) {
                 r_2 = g_2->fp[i_4];
                 jit_note_send(m, pc, (r_2 & 7) != 0 ? tag_class[r_2 & 7] : *(uint64_t *)(r_2 + 8));
@@ -719,10 +719,30 @@ exit_send_argc_of:;
                     fputc(10, stderr);
                 }
             }
-            if ((p_2[0] >= 0xB0) && (p_2[0] <= 0xB2)) {
+            k_2 = ({
+    op_5 = p_2[0];
+    if ((op_5 >= 0xA0) && (op_5 < 0xC0)) {
+        r_special_index_of = (int32_t)(op_5 - 0xA0);
+        goto exit_special_index_of;
+    }
+    if ((op_5 >= 0x97) && (op_5 <= 0x99)) {
+        r_special_index_of = (int32_t)(p_2[3] - 0xA0);
+        goto exit_special_index_of;
+    }
+    if ((op_5 >= 0x9A) && (op_5 < 0xA0)) {
+        r_special_index_of = (int32_t)(op_5 - 0x9A);
+        goto exit_special_index_of;
+    }
+    if ((op_5 >= 0xF0) && (op_5 < 0xFC)) {
+        r_special_index_of = (int32_t)((op_5 - 0xF0) % 6);
+        goto exit_special_index_of;
+    }
+    r_special_index_of = -1;
+exit_special_index_of:;
+    r_special_index_of; });
+            if ((k_2 >= 16) && (k_2 <= 18)) {
                 jit_note_send(m, pc, cls_array);
             }
-        exit_note_receiver_at:;
         }
         fresh = ({
     s_3 = fb_site_at(m, pc);

@@ -606,12 +606,13 @@ signatureAt: m pc: pc
 	^s flags asInt64 + (n << 32)
 !
 noteReceiverAt: m pc: pc
-	"A class guard of the send at m's pc failed: its receiver (on the rebuilt top frame) is feedback, the next type switch takes its class too."
-	| p g i |
+	"A class guard of the send at m's pc failed: its receiver (on the rebuilt top frame; a superinstruction's is the temp it pushes first) is feedback, the next type switch takes its class too."
+	| p g i k |
 	p := (self methodBytecodes: m) + pc.
-	(analysis pushesOf: p) > 0 ifTrue: [^self].
 	g := interpreter frames + (interpreter nframes - 1).
-	i := g sp - (analysis sendArgcOf: p) - 1.
+	i := (analysis pushesOf: p) > 0
+		ifTrue: [(p at: 1) asInt64]
+		ifFalse: [(g sp - (analysis sendArgcOf: p) - 1) asInt64].
 	i >= 0 ifTrue: [
 		feedback noteSend: m pc: pc class: (interpreter receiverClass: (g fp at: i)).
 		(libc getenv: 'SAMALTAK_OPT_TRACE') notNull ifTrue: [
@@ -619,7 +620,8 @@ noteReceiverAt: m pc: pc
 			interpreter printClassName: (interpreter receiverClass: (g fp at: i)) on: libc stderr.
 			libc fputc: 10 to: libc stderr]].
 	"at: at:put: size: the lower tier takes Arrays inline, without feedback"
-	((p at: 0) >= 16rB0 and: [(p at: 0) <= 16rB2]) ifTrue: [feedback noteSend: m pc: pc class: memory clsArray]
+	k := analysis specialIndexOf: p.
+	(k >= 16 and: [k <= 18]) ifTrue: [feedback noteSend: m pc: pc class: memory clsArray]
 !
 operandFlagsAt: m pc: pc
 	"An arithmetic guard of the instruction at m's pc failed: its operands (on top of the rebuilt top frame, or the temps a superinstruction pushes) were Floats, or something neither a Float nor a SmallInteger (feedback)."
