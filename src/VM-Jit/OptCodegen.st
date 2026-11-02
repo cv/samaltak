@@ -234,6 +234,9 @@ emitEntry
 	| s |
 	self emitPrologue.
 	runtime noteResume: cgEntryPc at: asm pc - cgCodeStart.
+	builder isMethodUnit ifTrue: [
+		asm comment: 'x0 := the receiver, as a call brings it'.
+		asm ldur: X0 base: X20 offset: -8].
 	asm bind: cgChecksLabel.
 	asm comment: 'room for the frame''s slots and its activations'' frames (else the interpreter runs it)'.
 	s := self out: OUT_STACK node: -1 index: 0.
@@ -375,6 +378,10 @@ emitNode: n block: b next: nextBlock
 	op = O_PARAM ifTrue: [
 		(nd reg < 0 and: [nd slot < 0 or: [nd slot asInt64 = nd aux]]) ifTrue: [^self].
 		r := self dst: n.
+		"a method's receiver: x0, as calls bring it (the prologue loads it there)"
+		(nd aux = -1 and: [builder isMethodUnit]) ifTrue: [
+			r ~= X0 ifTrue: [asm mov: r with: X0].
+			^self def: n from: r].
 		"-2 a block unit's closure, -3 the frame's Context"
 		nd aux = -2
 			ifTrue: [asm ldr: r base: X19 offset: self closureOffset]

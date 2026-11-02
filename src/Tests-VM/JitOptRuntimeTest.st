@@ -223,6 +223,22 @@ testDeoptimizationStress
 		'| r | r := TestCase runNamed: #(''Tests-Compiler''). {r failures size + r errors size. r runCount > 0. Smalltalk vm statistics optDeoptimizations > 0}'}).
 	self assert: (run output trimBoth endsWith: '#(0 true true)')
 !
+testReceiverStaysInX0
+	"An optimized method takes its receiver from x0, where calls bring it: its first instruction does not load it from its slot (on the path of every call)."
+	| o listing lines i first |
+	self define: 'setA: x b: y a := x. b := y'.
+	self define: 'sumAB ^a + b'.
+	o := JitRuntimeTestSubject new setA: 3 b: 4.
+	self assert: o sumAB equals: 7.
+	listing := (JitRuntimeTestSubject >> #sumAB) machineCodeFor: #opt.
+	self assert: (listing includesSubstring: 'x0 := the receiver, as a call brings it').
+	lines := listing lines.
+	i := (1 to: lines size) detect: [:k | (lines at: k) beginsWith: 'pc 0:'].
+	first := OrderedCollection new.
+	[(i := i + 1) <= lines size and: [((lines at: i) beginsWith: 'pc ') not]] whileTrue: [first add: (lines at: i)].
+	self assert: (first anySatisfy: [:line | line includesSubstring: 'x0']).
+	self deny: (first anySatisfy: [:line | line includesSubstring: '[x20, #-0x8]'])
+!
 testDisassemblyShowsInlinedActivations
 	| listing |
 	Smalltalk vm jitParameters: #(nil '-eager' nil nil).
