@@ -1,0 +1,104 @@
+# awfy 2026-11-01 23:19 vm=/tmp/perf-a0f4-after/samaltak image=/tmp/perf-a0f4-after/samaltak.image vm-args='--jit baseline' iterations=30
+# run Perform inner=1
+Perform,1,339220
+Perform,2,337319
+Perform,3,338270
+Perform,4,338045
+Perform,5,339217
+Perform,6,337825
+Perform,7,337953
+Perform,8,336642
+Perform,9,340419
+Perform,10,337742
+Perform,11,346202
+Perform,12,340542
+Perform,13,356534
+Perform,14,346046
+Perform,15,350588
+Perform,16,340542
+Perform,17,337449
+Perform,18,337404
+Perform,19,337863
+Perform,20,338134
+Perform,21,336877
+Perform,22,338191
+Perform,23,337712
+Perform,24,337440
+Perform,25,336452
+Perform,26,338254
+Perform,27,334879
+Perform,28,337490
+Perform,29,336092
+Perform,30,336359
+# stats Perform scavenges=448 fullGCs=0 scavengeMicroseconds=6710 fullGCMicroseconds=0 oldBytesUsed=1538024 oldBudget=0 edenBytes=0 bytesAllocated=7512335688 rememberedSetSize=-7 processSwitches=71360 bytesTenured=1538024 weakSlotsCleared=0 contextsMaterialized=169897 frameFlushes=71360 jitMethodsCompiled=75 jitBytecodesCompiled=1510 jitCompileMicroseconds=419 jitCodeBytes=65064 jitCacheFlushes=0 jitEntries=340611 jitExits=254290 jitResumes=275161 jitOsrEntries=4 jitCompileFailures=0 jitInlineCacheMisses=6611 jitInlineCacheLinks=158 jitPolymorphicCaches=6 jitMegamorphicSites=0 jitBlockCacheMisses=1732 jitPrimitiveCalls=405261 jitFrameWalks=96669157 optMethodsCompiled=0 optBytecodesCompiled=0 optCompileMicroseconds=0 optCodeBytes=0 optDeoptimizations=0 optOsrEntries=0 optInvalidations=0 optCompileFailures=0 optRuntimeSends=0
+# total Perform 10183702 us
+# run Sorting inner=1
+Sorting,1,708950
+Sorting,2,684525
+Sorting,3,682863
+Sorting,4,683907
+Sorting,5,693801
+Sorting,6,704885
+Sorting,7,690868
+Sorting,8,679228
+Sorting,9,705181
+Sorting,10,693808
+Sorting,11,702187
+Sorting,12,697894
+Sorting,13,677012
+Sorting,14,695637
+Sorting,15,681103
+Sorting,16,694915
+Sorting,17,695880
+Sorting,18,696919
+Sorting,19,726268
+Sorting,20,699690
+Sorting,21,697893
+Sorting,22,691836
+Sorting,23,688528
+Sorting,24,692780
+Sorting,25,696849
+Sorting,26,699143
+Sorting,27,691547
+Sorting,28,678428
+Sorting,29,691364
+Sorting,30,683521
+# stats Sorting scavenges=180 fullGCs=24 scavengeMicroseconds=303915 fullGCMicroseconds=273212 oldBytesUsed=55155736 oldBudget=32057328 edenBytes=0 bytesAllocated=3529277776 rememberedSetSize=-4 processSwitches=54416 bytesTenured=613207208 weakSlotsCleared=0 contextsMaterialized=178961 frameFlushes=54416 jitMethodsCompiled=66 jitBytecodesCompiled=2256 jitCompileMicroseconds=625 jitCodeBytes=102144 jitCacheFlushes=0 jitEntries=370283 jitExits=236297 jitResumes=331139 jitOsrEntries=4166 jitCompileFailures=0 jitInlineCacheMisses=1321 jitInlineCacheLinks=197 jitPolymorphicCaches=9 jitMegamorphicSites=0 jitBlockCacheMisses=1566 jitPrimitiveCalls=24761107 jitFrameWalks=618607 optMethodsCompiled=0 optBytecodesCompiled=0 optCompileMicroseconds=0 optCodeBytes=0 optDeoptimizations=0 optOsrEntries=0 optInvalidations=0 optCompileFailures=0 optRuntimeSends=0
+# total Sorting 20807410 us
+# run Strings inner=1
+Strings,1,857020
+Strings,2,858981
+Strings,3,869196
+Strings,4,851969
+Strings,5,854929
+Strings,6,853647
+Strings,7,857424
+Strings,8,853297
+Strings,9,857918
+Strings,10,854814
+Strings,11,861369
+Strings,12,848729
+Strings,13,860218
+Strings,14,847653
+Strings,15,865062
+Strings,16,850059
+Strings,17,861377
+Strings,18,852732
+Strings,19,862183
+Strings,20,852963
+Strings,21,861149
+Strings,22,854255
+Strings,23,855726
+Strings,24,850160
+Strings,25,856863
+Strings,26,852935
+Strings,27,863454
+Strings,28,874644
+Strings,29,1065567
+Strings,30,848082
+# stats Strings scavenges=828 fullGCs=15 scavengeMicroseconds=32421 fullGCMicroseconds=130542 oldBytesUsed=28501048 oldBudget=17034752 edenBytes=0 bytesAllocated=14442398456 rememberedSetSize=-6 processSwitches=119496 bytesTenured=80702512 weakSlotsCleared=0 contextsMaterialized=401864 frameFlushes=119496 jitMethodsCompiled=71 jitBytecodesCompiled=2312 jitCompileMicroseconds=442 jitCodeBytes=94488 jitCacheFlushes=0 jitEntries=853631 jitExits=585006 jitResumes=723277 jitOsrEntries=2952 jitCompileFailures=0 jitInlineCacheMisses=6360 jitInlineCacheLinks=243 jitPolymorphicCaches=6 jitMegamorphicSites=0 jitBlockCacheMisses=250430 jitPrimitiveCalls=539106538 jitFrameWalks=111381685 optMethodsCompiled=0 optBytecodesCompiled=0 optCompileMicroseconds=0 optCodeBytes=0 optDeoptimizations=0 optOsrEntries=0 optInvalidations=0 optCompileFailures=0 optRuntimeSends=0
+# total Strings 25914375 us
+# benchmark            runs   first_ms  steady_ms   total_ms
+# Perform                 1      339.2      337.4    10183.7
+# Sorting                 1      709.0      694.9    20807.4
+# Strings                 1      857.0      855.7    25914.4

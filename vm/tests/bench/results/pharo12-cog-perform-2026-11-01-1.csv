@@ -1,0 +1,104 @@
+# awfy 2026-11-01 23:06 vm=/tmp/pharo-dl/vm/Pharo.app/Contents/MacOS/Pharo image=/tmp/pharo-dl/bench.image vm-args='' iterations=30
+# run Perform inner=1
+Perform,1,700566
+Perform,2,688005
+Perform,3,674330
+Perform,4,703320
+Perform,5,698835
+Perform,6,703270
+Perform,7,696484
+Perform,8,709790
+Perform,9,695994
+Perform,10,693304
+Perform,11,698434
+Perform,12,699117
+Perform,13,707841
+Perform,14,714542
+Perform,15,688984
+Perform,16,702585
+Perform,17,696445
+Perform,18,684569
+Perform,19,695416
+Perform,20,691336
+Perform,21,696191
+Perform,22,700218
+Perform,23,691311
+Perform,24,712204
+Perform,25,771009
+Perform,26,689120
+Perform,27,691145
+Perform,28,691654
+Perform,29,691681
+Perform,30,695265
+# stats Perform fullGCs=0 fullGCMilliseconds=0 scavenges=921 scavengeMilliseconds=2684 bytesAllocated=14228795824
+# total Perform 20972965 us
+# run Sorting inner=1
+Sorting,1,681588
+Sorting,2,715637
+Sorting,3,678616
+Sorting,4,678197
+Sorting,5,666779
+Sorting,6,791411
+Sorting,7,724098
+Sorting,8,703039
+Sorting,9,743498
+Sorting,10,698459
+Sorting,11,680620
+Sorting,12,746710
+Sorting,13,704644
+Sorting,14,690963
+Sorting,15,734726
+Sorting,16,702175
+Sorting,17,690055
+Sorting,18,741497
+Sorting,19,700719
+Sorting,20,693543
+Sorting,21,741074
+Sorting,22,696431
+Sorting,23,692160
+Sorting,24,753030
+Sorting,25,706967
+Sorting,26,690187
+Sorting,27,749718
+Sorting,28,704076
+Sorting,29,692973
+Sorting,30,739188
+# stats Sorting fullGCs=39 fullGCMilliseconds=1702 scavenges=33 scavengeMilliseconds=394 bytesAllocated=1466734616
+# total Sorting 21332778 us
+# run Strings inner=1
+Strings,1,742127
+Strings,2,750357
+Strings,3,683284
+Strings,4,686437
+Strings,5,680133
+Strings,6,679762
+Strings,7,675706
+Strings,8,668994
+Strings,9,671268
+Strings,10,673495
+Strings,11,676976
+Strings,12,675542
+Strings,13,679874
+Strings,14,666542
+Strings,15,664037
+Strings,16,663611
+Strings,17,666312
+Strings,18,665778
+Strings,19,666422
+Strings,20,667256
+Strings,21,671222
+Strings,22,666135
+Strings,23,663943
+Strings,24,665495
+Strings,25,662080
+Strings,26,665643
+Strings,27,665512
+Strings,28,666854
+Strings,29,664744
+Strings,30,670114
+# stats Strings fullGCs=30 fullGCMilliseconds=1054 scavenges=856 scavengeMilliseconds=429 bytesAllocated=14015890456
+# total Strings 20265655 us
+# benchmark            runs   first_ms  steady_ms   total_ms
+# Perform                 1      700.6      695.3    20973.0
+# Sorting                 1      681.6      702.2    21332.8
+# Strings                 1      742.1      665.8    20265.7
