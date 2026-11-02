@@ -1,0 +1,70 @@
+# awfy 2026-11-02 01:02 vm=/Users/schani/.cache/pharo12/vm/Pharo.app/Contents/MacOS/Pharo image=/Users/schani/.cache/pharo12/bench.image vm-args='' iterations=30
+# run Exceptions inner=1
+Exceptions,1,1025464
+Exceptions,2,697768
+Exceptions,3,690412
+Exceptions,4,675136
+Exceptions,5,678870
+Exceptions,6,677073
+Exceptions,7,679473
+Exceptions,8,674485
+Exceptions,9,678007
+Exceptions,10,675312
+Exceptions,11,686550
+Exceptions,12,674645
+Exceptions,13,733664
+Exceptions,14,771551
+Exceptions,15,714244
+Exceptions,16,675863
+Exceptions,17,681032
+Exceptions,18,682086
+Exceptions,19,685361
+Exceptions,20,679960
+Exceptions,21,674561
+Exceptions,22,682048
+Exceptions,23,677938
+Exceptions,24,675851
+Exceptions,25,675146
+Exceptions,26,680554
+Exceptions,27,684879
+Exceptions,28,680418
+Exceptions,29,675123
+Exceptions,30,682155
+# stats Exceptions fullGCs=0 fullGCMilliseconds=0 scavenges=1906 scavengeMilliseconds=5610 bytesAllocated=29444745192
+# total Exceptions 20925629 us
+# run DeepRecursion inner=1
+DeepRecursion,1,848914
+DeepRecursion,2,679239
+DeepRecursion,3,666254
+DeepRecursion,4,716581
+DeepRecursion,5,680052
+DeepRecursion,6,702899
+DeepRecursion,7,644525
+DeepRecursion,8,670958
+DeepRecursion,9,715638
+DeepRecursion,10,695348
+DeepRecursion,11,683720
+DeepRecursion,12,706154
+DeepRecursion,13,720303
+DeepRecursion,14,614244
+DeepRecursion,15,715344
+DeepRecursion,16,769767
+DeepRecursion,17,646209
+DeepRecursion,18,687537
+DeepRecursion,19,745878
+DeepRecursion,20,649830
+DeepRecursion,21,663855
+DeepRecursion,22,734267
+DeepRecursion,23,705487
+DeepRecursion,24,682096
+DeepRecursion,25,656072
+DeepRecursion,26,711022
+DeepRecursion,27,671485
+DeepRecursion,28,670397
+DeepRecursion,29,735549
+DeepRecursion,30,690565
+# stats DeepRecursion fullGCs=191 fullGCMilliseconds=10594 scavenges=1732 scavengeMilliseconds=3189 bytesAllocated=26769355696
+# total DeepRecursion 20880189 us
+# benchmark            runs   first_ms  steady_ms   total_ms
+# Exceptions              1     1025.5      680.4    20925.6
+# DeepRecursion           1      848.9      687.5    20880.2

@@ -1,0 +1,70 @@
+# awfy 2026-11-02 00:55 vm=build/bench/samaltak image=build/bench/samaltak.image vm-args='--jit baseline' iterations=30
+# run Exceptions inner=1
+Exceptions,1,492564
+Exceptions,2,498891
+Exceptions,3,495943
+Exceptions,4,489759
+Exceptions,5,481472
+Exceptions,6,481003
+Exceptions,7,482237
+Exceptions,8,481759
+Exceptions,9,482455
+Exceptions,10,481001
+Exceptions,11,484105
+Exceptions,12,484060
+Exceptions,13,481112
+Exceptions,14,480586
+Exceptions,15,482367
+Exceptions,16,481665
+Exceptions,17,483501
+Exceptions,18,482348
+Exceptions,19,480599
+Exceptions,20,480722
+Exceptions,21,481884
+Exceptions,22,479703
+Exceptions,23,477058
+Exceptions,24,481183
+Exceptions,25,485924
+Exceptions,26,478085
+Exceptions,27,481798
+Exceptions,28,481961
+Exceptions,29,481933
+Exceptions,30,481338
+# stats Exceptions scavenges=1323 fullGCs=0 scavengeMicroseconds=11195 fullGCMicroseconds=0 oldBytesUsed=1529784 oldBudget=0 edenBytes=0 bytesAllocated=22204003960 rememberedSetSize=-7 processSwitches=171340 bytesTenured=1529784 weakSlotsCleared=0 contextsMaterialized=40477711 frameFlushes=4970161 jitMethodsCompiled=91 jitBytecodesCompiled=2177 jitCompileMicroseconds=497 jitCodeBytes=80760 jitCacheFlushes=0 jitEntries=98928572 jitExits=52072735 jitResumes=93974262 jitOsrEntries=1 jitCompileFailures=0 jitInlineCacheMisses=1219909 jitInlineCacheLinks=216 jitPolymorphicCaches=11 jitMegamorphicSites=0 jitBlockCacheMisses=2452557 jitPrimitiveCalls=266038772 jitFrameWalks=483957328 optMethodsCompiled=0 optBytecodesCompiled=0 optCompileMicroseconds=0 optCodeBytes=0 optDeoptimizations=0 optOsrEntries=0 optInvalidations=0 optCompileFailures=0 optRuntimeSends=0
+# total Exceptions 14499016 us
+# run DeepRecursion inner=1
+DeepRecursion,1,286330
+DeepRecursion,2,280568
+DeepRecursion,3,274686
+DeepRecursion,4,271175
+DeepRecursion,5,275319
+DeepRecursion,6,277523
+DeepRecursion,7,277529
+DeepRecursion,8,270804
+DeepRecursion,9,279816
+DeepRecursion,10,258365
+DeepRecursion,11,265400
+DeepRecursion,12,279216
+DeepRecursion,13,267748
+DeepRecursion,14,268755
+DeepRecursion,15,255568
+DeepRecursion,16,267257
+DeepRecursion,17,278037
+DeepRecursion,18,268722
+DeepRecursion,19,275037
+DeepRecursion,20,275666
+DeepRecursion,21,293065
+DeepRecursion,22,268991
+DeepRecursion,23,289120
+DeepRecursion,24,267246
+DeepRecursion,25,270519
+DeepRecursion,26,287566
+DeepRecursion,27,270647
+DeepRecursion,28,279310
+DeepRecursion,29,275483
+DeepRecursion,30,274282
+# stats DeepRecursion scavenges=711 fullGCs=87 scavengeMicroseconds=912609 fullGCMicroseconds=751943 oldBytesUsed=17011472 oldBudget=1843104 edenBytes=0 bytesAllocated=13383272960 rememberedSetSize=37085 processSwitches=43354 bytesTenured=1869803880 weakSlotsCleared=0 contextsMaterialized=78372577 frameFlushes=46609 jitMethodsCompiled=44 jitBytecodesCompiled=979 jitCompileMicroseconds=292 jitCodeBytes=43952 jitCacheFlushes=0 jitEntries=78503183 jitExits=78411936 jitResumes=78466762 jitOsrEntries=1 jitCompileFailures=0 jitInlineCacheMisses=3241 jitInlineCacheLinks=99 jitPolymorphicCaches=2 jitMegamorphicSites=0 jitBlockCacheMisses=2281 jitPrimitiveCalls=930403 jitFrameWalks=78786905 optMethodsCompiled=0 optBytecodesCompiled=0 optCompileMicroseconds=0 optCodeBytes=0 optDeoptimizations=0 optOsrEntries=0 optInvalidations=0 optCompileFailures=0 optRuntimeSends=0
+# total DeepRecursion 8229750 us
+# benchmark            runs   first_ms  steady_ms   total_ms
+# Exceptions              1      492.6      481.7    14499.0
+# DeepRecursion           1      286.3      275.0     8229.8
