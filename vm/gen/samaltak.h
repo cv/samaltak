@@ -543,6 +543,7 @@ typedef void (*prim_fn)(void);
 #define SHIFT_LSL 0
 #define SHIFT_LSR 1
 #define SHIFT_ROR 3
+#define SI_PERFORMED 16777216
 #define SL_ACCESS 17179869184LL
 #define SL_BARRIER 5
 #define SL_BOX 11
@@ -1206,6 +1207,7 @@ extern uint64_t bl_entry_slow;
 extern uint64_t bl_exit_sync;
 extern uint64_t bl_mega;
 extern uint64_t bl_miss;
+extern uint64_t bl_perform;
 extern uint64_t bl_prim;
 extern uint64_t bl_remember;
 extern uint64_t bl_return_slow;
@@ -1426,7 +1428,7 @@ void bl_all_roots(void (*fn)(oop *));
 uint64_t jit_bl_block(frame *f, oop c, uint64_t ret);
 oop jit_bl_box(frame *f, uint64_t b);
 void bl_canonicalize_below(frame *f);
-uint64_t jit_bl_entry_slow(frame *f, uint64_t ret);
+uint64_t jit_bl_entry_slow(frame *f, uint64_t ret, uint64_t c);
 int64_t bl_feedback_cases(oop m, int64_t i);
 oop bl_feedback_class(oop m, int64_t i, int64_t j);
 int64_t bl_feedback_pc(oop m, int64_t i);
@@ -1439,6 +1441,7 @@ void bl_forget_slots_from(uint64_t address);
 uint64_t jit_bl_miss(frame *f, oop rcv, uint64_t ret);
 void bl_nil_tests_changed(oop sel);
 bool bl_nil_tests_inlinable(void);
+uint64_t jit_bl_perform(frame *f, oop rcv, uint64_t ret, uint64_t info);
 uint64_t jit_bl_prim(frame *f, uint64_t fp, uint64_t fn, uint64_t info);
 int32_t bl_prim_kind(int32_t p);
 int32_t bl_prim_op(int32_t p);

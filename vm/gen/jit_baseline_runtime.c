@@ -95,8 +95,17 @@ uint64_t jit_bl_block(frame *f, oop c, uint64_t ret)
     int64_t k;
     int64_t v;
     uint64_t entry;
-    uint64_t c_2;
     uint64_t o_3;
+    int32_t n;
+    oop *r_callee_fp;
+    uint32_t *r_ret_entry;
+    uint64_t c_2;
+    jit_method *h_2;
+    int64_t i_2;
+    void *a;
+    uint32_t info;
+    oop *fp;
+    uint64_t o_4;
     uint64_t m;
     uint64_t startpc;
     int64_t i;
@@ -149,12 +158,37 @@ exit_opt_unit_entry_of:;
 exit_entry_of_block:;
     r_entry_of_block; });
     if (entry == 0) {
-        c_2 = f->code;
-        return (c_2 > JIT_MAX_COUNT) && (((jit_method *)f->code)->mode == JIT_OPT) ? opt_send_from(f, ret) : 1;
+        o_3 = *(uint64_t *)(c + 16 + 16);
+        n = (int32_t)(((int64_t)o_3) >> 1);
+        fp = ({
+    info = ({
+    c_2 = f->code;
+    if (!(c_2 > JIT_MAX_COUNT)) {
+        fatal_begin();
+        fprintf(stderr, "baseline: a frame without code in machine code");
+        fatal_end();
+    }
+    h_2 = (jit_method *)f->code;
+    i_2 = bl_ret_index(h_2, ret);
+    if (i_2 < 0) {
+        a = (void *)ret;
+        fatal_begin();
+        fprintf(stderr, "baseline: no return map entry for %p", a);
+        fatal_end();
+    }
+    r_ret_entry = h_2->rets + 3 * i_2;
+    r_ret_entry; })[2];
+    r_callee_fp = f->fp + (f->sp + (int32_t)((info >> 26) & 3) - (int32_t)(info & 255));
+    r_callee_fp; });
+        bl_set_top(f, ret, 1);
+        f->sp = (int32_t)(fp - f->fp + n);
+        interp_sync_frame(f);
+        activate_block(n);
+        return 1;
     }
     if ((jit_flags & JIT_FLAG_BLOCKS) != 0) {
-        o_3 = *(uint64_t *)(c + 16 + 0);
-        m = *(uint64_t *)(o_3 + 16 + 24);
+        o_4 = *(uint64_t *)(c + 16 + 0);
+        m = *(uint64_t *)(o_4 + 16 + 24);
         startpc = *(uint64_t *)(c + 16 + 8);
         i = (int64_t)(((startpc ^ (m >> 3)) & 1023) * 4);
         block_table[i] = m;
@@ -251,19 +285,34 @@ void bl_canonicalize_below(frame *f)
     }
 }
 
-/* JitBaselineRuntime>>entrySlow:ret: */
-uint64_t jit_bl_entry_slow(frame *f, uint64_t ret)
+/* JitBaselineRuntime>>entrySlow:ret:callee: */
+uint64_t jit_bl_entry_slow(frame *f, uint64_t ret, uint64_t c)
 {
     oop o;
     uint64_t o_2;
-    uint64_t c;
+    oop *r_callee_fp;
     uint32_t *r_ret_entry;
     uint64_t c_2;
-    jit_method *h;
+    jit_method *h_2;
     int64_t i;
     void *a;
-    uint32_t *e;
+    uint32_t info;
     oop *nfp;
+    uint64_t c_3;
+    jit_method *h;
+    oop o_3;
+    oop o_4;
+    uint64_t v;
+    uint64_t o_5;
+    int32_t n;
+    uint64_t flushes;
+    uint64_t inv;
+    frame *g;
+    oop m;
+    int64_t r_method_prim;
+    uint64_t p;
+    oop o_6;
+    int32_t n_2;
     bl_set_top(f, ret, 0);
     if ((jit_mode == JIT_BASELINE) || (jit_mode == JIT_OPT)) {
         f->method = ((jit_method *)f->code)->method;
@@ -273,33 +322,87 @@ uint64_t jit_bl_entry_slow(frame *f, uint64_t ret)
     o = f->method;
     o_2 = *(uint64_t *)(o + 16 + 16);
     f->lits = (oop *)(o_2 + 16);
-    c = f->code;
-    if ((c > JIT_MAX_COUNT) && (((jit_method *)f->code)->mode == JIT_OPT)) {
-        return opt_send_from(f, ret);
-    }
-    e = ({
+    nfp = ({
+    info = ({
     c_2 = f->code;
     if (!(c_2 > JIT_MAX_COUNT)) {
         fatal_begin();
         fprintf(stderr, "baseline: a frame without code in machine code");
         fatal_end();
     }
-    h = (jit_method *)f->code;
-    i = bl_ret_index(h, ret);
+    h_2 = (jit_method *)f->code;
+    i = bl_ret_index(h_2, ret);
     if (i < 0) {
         a = (void *)ret;
         fatal_begin();
         fprintf(stderr, "baseline: no return map entry for %p", a);
         fatal_end();
     }
-    r_ret_entry = h->rets + 3 * i;
-    r_ret_entry; });
-    nfp = f->fp + (f->sp - (int32_t)(e[2] & 255));
+    r_ret_entry = h_2->rets + 3 * i;
+    r_ret_entry; })[2];
+    r_callee_fp = f->fp + (f->sp + (int32_t)((info >> 26) & 3) - (int32_t)(info & 255));
+    r_callee_fp; });
     if ((uint64_t)nfp >= state_block->stack_limit_normal) {
+        c_3 = f->code;
+        if ((c_3 > JIT_MAX_COUNT) && (((jit_method *)f->code)->mode == JIT_OPT)) {
+            return opt_send_from(f, ret);
+        }
         materialize_all();
         return 1;
     }
-    return jit_interrupt(f);
+    h = (jit_method *)c;
+    o_5 = ({
+    if (c == 1) {
+        o_3 = nfp[-1];
+        v = *(uint64_t *)(o_3 + 16 + 16);
+    } else {
+        o_4 = h->method;
+        v = *(uint64_t *)(o_4 + 16 + 32);
+    }
+    v; });
+    n = (int32_t)(((int64_t)o_5) >> 1);
+    bl_set_top(f, ret, 1);
+    f->sp = (int32_t)(nfp - f->fp + n);
+    interp_sync_frame(f);
+    flushes = stat_flushes;
+    inv = invalidations;
+    if (c == 1) {
+        activate_block(n);
+    } else {
+        g = interp_push_frame(h->method, n, c, -1);
+        if (g == NULL) {
+            fatal_begin();
+            fprintf(stderr, "baseline: no room for a frame below the stack limit");
+            fatal_end();
+        }
+        m = h->method;
+        if (((({
+    p = *(uint64_t *)(m + 16 + 56);
+    r_method_prim = (p & 1) != 0 ? ((int64_t)p) >> 1 : 0;
+    r_method_prim; }) & CM_PRIM_ERROR_FLAG) != 0) && ({
+    o_6 = h->method;
+    *(uint64_t *)(o_6 + 16 + 40) != 1ULL; })) {
+            g->fp[n] = (uint64_t)state_block->ecode;
+        }
+    }
+    if (state_block->stress <= 0) {
+        state_block->stress = 37;
+    }
+    state_block->interrupt = 0;
+    state_block->stack_limit = state_block->stack_limit_normal;
+    if (state_block->interrupt != 0) {
+        state_block->stack_limit = 0;
+    }
+    interrupt_safepoint();
+    if ((stat_flushes != flushes) || (inv != invalidations)) {
+        return 1;
+    }
+    if (c == 1) {
+        nfp[-1] = (frames + (nframes - 1))->closure;
+    }
+    n_2 = (int32_t)(f - frames) + 1;
+    nframes = n_2;
+    return 0;
 }
 
 /* JitBaselineRuntime>>feedbackCasesOf:site: */
@@ -484,6 +587,9 @@ uint64_t jit_bl_miss(frame *f, oop rcv, uint64_t ret)
     uint64_t lit;
     uint64_t target;
     int64_t i_2;
+    oop m;
+    int64_t r_method_prim;
+    uint64_t p_2;
     uint64_t target_2;
     uint64_t p;
     uint64_t target_3;
@@ -495,6 +601,9 @@ uint64_t jit_bl_miss(frame *f, oop rcv, uint64_t ret)
     uint64_t target_4;
     uint64_t target_5;
     int64_t i_4;
+    oop m_2;
+    int64_t r_method_prim_2;
+    uint64_t p_3;
     stat_misses = stat_misses + 1;
     h = (jit_method *)f->code;
     bl_set_top(f, ret, 0);
@@ -585,6 +694,11 @@ exit_selector_of:;
             mega_table[i_2] = cls;
             mega_table[i_2 + 1] = sel;
             mega_table[i_2 + 2] = t->uentry;
+            m = t->method;
+            mega_table[i_2 + 3] = (uint64_t)(bl_prim_kind((int32_t)(({
+    p_2 = *(uint64_t *)(m + 16 + 56);
+    r_method_prim = (p_2 & 1) != 0 ? ((int64_t)p_2) >> 1 : 0;
+    r_method_prim; }) & CM_PRIM_MASK)) == PK_PERFORM ? -1 : (int64_t)selector_argc(sel));
         } else if (s->target == 0) {
             stat_links = stat_links + 1;
             bl_set_slot(lit, cls);
@@ -632,6 +746,11 @@ exit_add_case_to:;
                 mega_table[i_4] = cls;
                 mega_table[i_4 + 1] = sel;
                 mega_table[i_4 + 2] = t->uentry;
+                m_2 = t->method;
+                mega_table[i_4 + 3] = (uint64_t)(bl_prim_kind((int32_t)(({
+    p_3 = *(uint64_t *)(m_2 + 16 + 56);
+    r_method_prim_2 = (p_3 & 1) != 0 ? ((int64_t)p_3) >> 1 : 0;
+    r_method_prim_2; }) & CM_PRIM_MASK)) == PK_PERFORM ? -1 : (int64_t)selector_argc(sel));
             }
         }
         pthread_jit_write_protect_np(1);
@@ -787,12 +906,113 @@ static void bl_note_nil_test(oop m, void *d)
     nil_found = (int32_t)(nil_found | (1LL << ((k - 1) * 2 + (cls == root ? 1 : 0))));
 }
 
+/* JitBaselineRuntime>>performMiss:receiver:ret:info: */
+uint64_t jit_bl_perform(frame *f, oop rcv, uint64_t ret, uint64_t info)
+{
+    int32_t n;
+    oop o;
+    uint64_t o_2;
+    oop *r_callee_fp;
+    uint32_t *r_ret_entry;
+    uint64_t c;
+    jit_method *h;
+    int64_t i;
+    void *a;
+    uint32_t info_2;
+    oop *fp;
+    oop sel;
+    int32_t k;
+    oop arr;
+    oop cls;
+    jit_method *t;
+    oop m;
+    int64_t r_method_prim;
+    uint64_t p;
+    uint64_t c_2;
+    int64_t i_2;
+    oop m_2;
+    int64_t r_method_prim_2;
+    uint64_t p_2;
+    int32_t i_3;
+    stat_misses = stat_misses + 1;
+    n = (int32_t)(info & 255);
+    bl_set_top(f, ret, 0);
+    if ((jit_mode == JIT_BASELINE) || (jit_mode == JIT_OPT)) {
+        f->method = ((jit_method *)f->code)->method;
+        bl_canonicalize_below(f);
+    }
+    interp_sync_frame(f);
+    o = f->method;
+    o_2 = *(uint64_t *)(o + 16 + 16);
+    f->lits = (oop *)(o_2 + 16);
+    fp = ({
+    info_2 = ({
+    c = f->code;
+    if (!(c > JIT_MAX_COUNT)) {
+        fatal_begin();
+        fprintf(stderr, "baseline: a frame without code in machine code");
+        fatal_end();
+    }
+    h = (jit_method *)f->code;
+    i = bl_ret_index(h, ret);
+    if (i < 0) {
+        a = (void *)ret;
+        fatal_begin();
+        fprintf(stderr, "baseline: no return map entry for %p", a);
+        fatal_end();
+    }
+    r_ret_entry = h->rets + 3 * i;
+    r_ret_entry; })[2];
+    r_callee_fp = f->fp + (f->sp + (int32_t)((info_2 >> 26) & 3) - (int32_t)(info_2 & 255));
+    r_callee_fp; });
+    sel = fp[0];
+    k = n - 1;
+    if ((info & 256) != 0) {
+        arr = fp[1];
+        k = ((arr & 7) == 0) && (*(uint64_t *)(arr + 8) == cls_array) ? (int32_t)(uint32_t)*(uint64_t *)arr : -1;
+    }
+    if ((k < 0) || (selector_argc(sel) != k)) {
+        return 0;
+    }
+    cls = (rcv & 7) != 0 ? tag_class[rcv & 7] : *(uint64_t *)(rcv + 8);
+    t = bl_target_for(cls, sel);
+    if ((t == NULL) || ({
+    m = t->method;
+    (bl_prim_kind((int32_t)(({
+    p = *(uint64_t *)(m + 16 + 56);
+    r_method_prim = (p & 1) != 0 ? ((int64_t)p) >> 1 : 0;
+    r_method_prim; }) & CM_PRIM_MASK)) == PK_PERFORM) || ((k > n) || ((uint64_t)fp >= state_block->stack_limit_normal)); })) {
+        c_2 = f->code;
+        return (c_2 > JIT_MAX_COUNT) && (((jit_method *)f->code)->mode == JIT_OPT) ? opt_send_from(f, ret) : 1;
+    }
+    if ((jit_flags & JIT_FLAG_IC) != 0) {
+        i_2 = (int64_t)((((cls ^ sel) >> 3) & 4095) * 4);
+        mega_table[i_2] = cls;
+        mega_table[i_2 + 1] = sel;
+        mega_table[i_2 + 2] = t->uentry;
+        m_2 = t->method;
+        mega_table[i_2 + 3] = (uint64_t)(bl_prim_kind((int32_t)(({
+    p_2 = *(uint64_t *)(m_2 + 16 + 56);
+    r_method_prim_2 = (p_2 & 1) != 0 ? ((int64_t)p_2) >> 1 : 0;
+    r_method_prim_2; }) & CM_PRIM_MASK)) == PK_PERFORM ? -1 : (int64_t)selector_argc(sel));
+    }
+    if ((info & 256) != 0) {
+        for (i_3 = 0; i_3 <= k - 1; i_3++) {
+            fp[i_3] = *(uint64_t *)(arr + 16 + 8 * i_3);
+        }
+    } else {
+        memmove(fp, fp + 1, (uint64_t)k * 8);
+    }
+    return t->uentry;
+}
+
 /* JitBaselineRuntime>>prim:fp:fn:info: */
 uint64_t jit_bl_prim(frame *f, uint64_t fp, uint64_t fn, uint64_t info)
 {
     int32_t n;
     bool leaf;
     oop *base;
+    uint64_t ret;
     oop o;
     uint64_t o_2;
     uint64_t flushes;
@@ -819,7 +1039,9 @@ uint64_t jit_bl_prim(frame *f, uint64_t fp, uint64_t fn, uint64_t info)
     leaf = (info & 256) != 0;
     base = (oop *)fp - 1;
     if (!leaf) {
-        bl_set_top(f, state_block->prim_ret, 1);
+        ret = state_block->prim_ret;
+        bl_set_top(f, ret, 1);
+        f->sp = (int32_t)((oop *)fp - f->fp + n);
         if ((jit_mode == JIT_BASELINE) || (jit_mode == JIT_OPT)) {
             f->method = ((jit_method *)f->code)->method;
             bl_canonicalize_below(f);
@@ -981,6 +1203,7 @@ int32_t bl_prim_kind(int32_t p)
                 s_2 = e->name;
                 if (strcmp(s_2, "performWithArguments") == 0) {
                     k = PK_PERFORM;
+                    op = 1;
                 }
                 s_3 = e->name;
                 if (strcmp(s_3, "basicNew") == 0) {
@@ -1390,8 +1613,6 @@ static jit_method *bl_target_for(oop cls, oop sel)
 {
     cache_entry *e;
     oop m;
-    int64_t r_method_prim;
-    uint64_t p;
     jit_method *t;
     e = entry_for(cls, sel);
     if (e == NULL) {
@@ -1401,12 +1622,6 @@ static jit_method *bl_target_for(oop cls, oop sel)
         return (jit_method *)NULL;
     }
     m = e->method;
-    if (bl_prim_kind((int32_t)(({
-    p = *(uint64_t *)(m + 16 + 56);
-    r_method_prim = (p & 1) != 0 ? ((int64_t)p) >> 1 : 0;
-    r_method_prim; }) & CM_PRIM_MASK)) == PK_PERFORM) {
-        return (jit_method *)NULL;
-    }
     t = jit_code_of(m, true);
     if (!((t != NULL) && ((t->flags & JM_FAILED) == 0))) {
         return (jit_method *)NULL;

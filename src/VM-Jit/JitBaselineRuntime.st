@@ -7,13 +7,13 @@ JitBaselineRuntime comment: 'What baseline code (JitBaselineCompiler) needs of t
 
 Lazy frames: a frame suspended in a send has a stale pc and sp; the return address in its callee''s native frame record (the record of frame f is at baseRecord - 16 (f - baseFrame) / 64) says where it is (the return map: return offset, pc, depth, argc, length, pushes). canonicalizeBelow: makes them canonical, from the top down, stopping at a frame that already is (the prologue zeroes pc and sp; a suspended frame''s pc is never 0). Optimized frames are lazy the same way, with optimized code''s return map (return offset, safepoint, argc).
 
-Inline caches (baseline code''s, and optimized code''s, which has the same sites): miss:receiver:ret: (the miss stub: unlinked sites, a callee''s failed class check, polymorphic and megamorphic misses) looks the send up, compiles the target when its activations reach the threshold, links the site (monomorphic: the class in the site''s literal, bl to the target''s checked entry; then a BaselinePic of up to BL_PIC_CASES classes; then megamorphic: the selector in the literal, bl to the megamorphic stub, which probes megaTable) and answers the target''s unchecked entry. Young classes and methods are cached too: a young object written into the code makes its word a young root. unlinkAll (method dictionaries changed, become) and unlinkSelector: reset sites. A site''s state is its type feedback: unlinked, monomorphic (class, target), polymorphic (the BaselinePic''s classes and targets), megamorphic.
+Inline caches (baseline code''s, and optimized code''s, which has the same sites): miss:receiver:ret: (the miss stub: unlinked sites, a callee''s failed class check, polymorphic and megamorphic misses) looks the send up, compiles the target when its activations reach the threshold, links the site (monomorphic: the class in the site''s literal, bl to the target''s checked entry; then a BaselinePic of up to BL_PIC_CASES classes; then megamorphic: the selector in the literal, bl to the megamorphic stub, which probes megaTable) and answers the target''s unchecked entry. Young classes and methods are cached too: a young object written into the code makes its word a young root. unlinkAll (method dictionaries changed, become) and unlinkSelector: reset sites. A site''s state is its type feedback: unlinked, monomorphic (class, target), polymorphic (the BaselinePic''s classes and targets), megamorphic. The perform methods'' machine code probes megaTable too (class, selector; the fourth word: the selector''s argument count); performMiss:receiver:ret:info: fills it.
 
 The collector: the words in the code that hold objects (the method''s literals, the caches'' classes) are registered (oopSlots, the young ones also in youngSlots) and updated as roots; megaTable and blockTable (home method, startpc -> block entry) are cleared by every GC and become.
 
 Type feedback: feedbackSitesOf: and friends enumerate a method''s send sites (pc, selector, state, cases with receiver class and target method), which jitSendSites answers to the image. Under --jit opt every miss of baseline code reports its receiver class to JitFeedback, and redirect:to: makes a method''s unchecked entry branch to its optimized code.
 
-Also: block:closure:ret: (the block stub''s miss), entrySlow:ret: (a callee''s stack check: interrupts, a full C stack), prim:ret:fn:info:fp: (a compiled method''s C primitive), returnSlow: (a married frame or frame 0 returns).'!
+Also: block:closure:ret: (the block stub''s miss), entrySlow:ret:callee: (a callee''s stack check: interrupts, a full C stack), prim:ret:fn:info:fp: (a compiled method''s C primitive), returnSlow: (a married frame or frame 0 returns). A callee entered by perform: has its arguments one slot down, over the selector: its sender''s send cannot be executed again, so what runs before its frame exists takes the sender as past the send (setTop:ret:fp:argc:).'!
 
 !JitBaselineRuntime class methodsFor: 'declaring'!
 declarations
@@ -136,8 +136,11 @@ missFunction
 blockFunction
 	^self cCoerce: (self functionPointer: #block:closure:ret:) to: 'uint64_t'
 !
+performFunction
+	^self cCoerce: (self functionPointer: #performMiss:receiver:ret:info:) to: 'uint64_t'
+!
 entrySlowFunction
-	^self cCoerce: (self functionPointer: #entrySlow:ret:) to: 'uint64_t'
+	^self cCoerce: (self functionPointer: #entrySlow:ret:callee:) to: 'uint64_t'
 !
 primFunction
 	^self cCoerce: (self functionPointer: #prim:fp:fn:info:) to: 'uint64_t'
@@ -163,7 +166,7 @@ initPrimKinds
 			k := PK_NONE.
 			op := 0.
 			(self named: e name is: 'perform') ifTrue: [k := PK_PERFORM].
-			(self named: e name is: 'performWithArguments') ifTrue: [k := PK_PERFORM].
+			(self named: e name is: 'performWithArguments') ifTrue: [k := PK_PERFORM. op := 1].
 			(self named: e name is: 'basicNew') ifTrue: [k := PK_BASICNEW].
 			(self named: e name is: 'basicNew:') ifTrue: [k := PK_BASICNEW_SIZE].
 			(self named: e name is: 'identical') ifTrue: [k := PK_IDENTICAL].
@@ -222,7 +225,7 @@ primKindOf: p
 	^(primKinds at: p) asInt32
 !
 primOpOf: p
-	"The operation of a PK_INT_OP or PK_FLOAT_OP primitive (see initialize)."
+	"The operation of a PK_INT_OP or PK_FLOAT_OP primitive (see initialize); 1: PK_PERFORM's perform:withArguments:."
 	<c: 'int32_t bl_prim_op(int32_t p)'>
 	(p <= 0 or: [p >= 1024]) ifTrue: [^0].
 	^(primOps at: p) asInt32
@@ -340,6 +343,17 @@ setTop: f ret: ret mode: mode
 			f pc: pc + ((info >> 8) bitAnd: 255) asInt32.
 			f sp: d + ((info >> 26) bitAnd: 3) asInt32]
 !
+setTop: f ret: ret fp: fp argc: n
+	"f (the top frame) is past the send whose return address is ret: its callee's receiver below fp, n arguments from fp (perform: moved them down over its selector), as the interpreter has them while the callee's primitive runs or when its frame is pushed."
+	self setTop: f ret: ret mode: 1.
+	f sp: ((self cCoerce: fp to: 'oop *') - f fp + n) asInt32
+!
+calleeFp: f ret: ret
+	"The fp of the callee of f's send at ret (f at the send: setTop:ret:mode: 0; a superinstruction's operands are not pushed yet)."
+	| info |
+	info := (self retEntry: ret of: f) at: 2.
+	^f fp + (f sp + ((info >> 26) bitAnd: 3) asInt32 - (info bitAnd: 255) asInt32)
+!
 canonicalizeBelow: f
 	"The frames below f (the top) that machine code suspended in calls get their method, pc, sp, ip and lits from the return addresses in their callees' records: baseline code's return map, or optimized code's (the call's safepoint: pc bcSize + its index, sp its slots)."
 	<c: 'void bl_canonicalize_below(Frame *f)'>
@@ -419,14 +433,13 @@ miss: f receiver: rcv ret: ret
 	^t uentry
 !
 targetFor: cls selector: sel
-	"The baseline code a send of sel to an instance of cls may call, compiled when the method's activations reach the threshold; null if there is none or the interpreter sends it (doesNotUnderstand:, a married Context, perform:)."
+	"The baseline code a send of sel to an instance of cls may call, compiled when the method's activations reach the threshold; null if there is none or the interpreter sends it (doesNotUnderstand:, a married Context)."
 	<c: 'JitMethod *bl_target_for(oop cls, oop sel)'>
 	| e m t |
 	e := interpreter entryFor: cls selector: sel.
 	e isNull ifTrue: [^self null].
 	(e kind bitAnd: K_CTX) ~= 0 ifTrue: [^self null].
 	m := e method.
-	(self primKindOf: ((interpreter methodPrim: m) bitAnd: CM_PRIM_MASK) asInt32) = PK_PERFORM ifTrue: [^self null].
 	t := jit codeOf: m counting: true.
 	(jit hasCode: t) ifFalse: [^self null].
 	t mode = jit optMode ifTrue: [t := self cCoerce: t lower to: 'JitMethod *'].
@@ -496,11 +509,16 @@ goMega: s site: site lit: lit selector: sel
 	self patchCall: site to: (jit mega ifTrue: [stubs blMegaStub] ifFalse: [stubs blMissStub])
 !
 megaFill: cls selector: sel target: t
+	"The fourth word, for the perform methods' machine code: sel's argument count, -1 if t is a perform method (the interpreter does perform: of perform:)."
 	| i |
 	i := ((((cls bitXor: sel) >> 3) bitAnd: BL_MEGA_CACHE - 1) * 4) asInt64.
 	megaTable at: i put: cls.
 	megaTable at: i + 1 put: sel.
-	megaTable at: i + 2 put: t uentry
+	megaTable at: i + 2 put: t uentry.
+	megaTable at: i + 3 put: ((self isPerform: t) ifTrue: [-1] ifFalse: [(interpreter selectorArgc: sel) asInt64]) asUInt64
+!
+isPerform: t
+	^(self primKindOf: ((interpreter methodPrim: t method) bitAnd: CM_PRIM_MASK) asInt32) = PK_PERFORM
 !
 newPicFor: site class: c0 target: t0
 	"A polymorphic inline cache whose first case is c0 (to t0); 0 if the code cache or the slot registry is full."
@@ -639,14 +657,19 @@ feedbackTargetOf: m site: i case: j
 
 !JitBaselineRuntime methodsFor: 'called by machine code'!
 block: f closure: c ret: ret
-	"The block stub found no entry for closure c (its argument count checked): its home method's code, compiled if need be, and the block's entry, its optimized unit's if it has one (1: leave, the interpreter evaluates it; an optimized caller: the runtime sends)."
+	"The block stub found no entry for closure c (its argument count checked): its home method's code, compiled if need be, and the block's entry, its optimized unit's if it has one; none: the block's frame pushed (f past the send), 1 (leave: the interpreter runs it)."
 	<c: 'uint64_t jit_bl_block(Frame *f, oop c, uint64_t ret)'>
-	| m startpc entry i |
+	| m startpc entry i n |
 	statBlockMisses := statBlockMisses + 1.
 	self setTop: f ret: ret mode: 0.
 	jit sync: f.
 	entry := self entryOfBlock: c.
-	entry = 0 ifTrue: [^(jit isOptFrame: f) ifTrue: [jit optSendFrom: f ret: ret] ifFalse: [1]].
+	entry = 0 ifTrue: [
+		n := (self intVal: (self loadRef: c at: BC_NUMARGS)) asInt32.
+		self setTop: f ret: ret fp: (self calleeFp: f ret: ret) argc: n.
+		interpreter syncFrame: f.
+		interpreter activateBlock: n.
+		^1].
 	jit blocks ifTrue: [
 		m := self loadRef: (self loadRef: c at: BC_OUTER) at: CTX_METHOD.
 		startpc := self loadRef: c at: BC_STARTPC.
@@ -672,19 +695,63 @@ entryOfBlock: c
 		(self intOop: (h blocks at: 2 * k) asInt64) = startpc ifTrue: [entry := h codeStart + (h blocks at: 2 * k + 1)]].
 	^entry
 !
-entrySlow: f ret: ret
-	"A callee's stack check failed (f is its sender, at the send): an interrupt is pending or the C stack is full (then the frames become Contexts and the interpreter sends again). 0: retry, 1: leave. A sender in optimized code: the runtime sends (the callee's frame pushed there, its start checks for interrupts); answer where the call continues."
-	<c: 'uint64_t jit_bl_entry_slow(Frame *f, uint64_t ret)'>
-	| e nfp |
+performMiss: f receiver: rcv ret: ret info: info
+	"A perform method's machine code (info: its argument count n, | 256 for perform:withArguments:) found no target in megaTable for rcv's class and the selector: look it up, fill the table, move the arguments down over the selector (perform:withArguments:: the Array's elements, up to 2) and answer the target's unchecked entry; 0: the primitive fails (the method's body runs); 1: leave, the interpreter sends (not understood, a married Context, not compiled yet, perform: again, more arguments, no room; a sender in optimized code: the runtime sends, OptRuntime>>sendFrom:ret:)."
+	<c: 'uint64_t jit_bl_perform(Frame *f, oop rcv, uint64_t ret, uint64_t info)'>
+	| n fp sel arr k cls t |
+	statMisses := statMisses + 1.
+	n := (info bitAnd: 255) asInt32.
 	self setTop: f ret: ret mode: 0.
 	jit sync: f.
-	(jit isOptFrame: f) ifTrue: [^jit optSendFrom: f ret: ret].
-	e := self retEntry: ret of: f.
-	nfp := f fp + (f sp - ((e at: 2) bitAnd: 255) asInt32).
+	fp := self calleeFp: f ret: ret.
+	sel := fp at: 0.
+	k := n - 1.
+	(info bitAnd: 256) ~= 0 ifTrue: [
+		arr := fp at: 1.
+		k := ((self isPtr: arr) and: [(self rawClass: arr) = memory clsArray]) ifTrue: [(self numSlots: arr) asInt32] ifFalse: [-1]].
+	(k < 0 or: [(interpreter selectorArgc: sel) ~= k]) ifTrue: [^0].
+	cls := interpreter receiverClass: rcv.
+	t := self targetFor: cls selector: sel.
+	(t isNull or: [(self isPerform: t) or: [k > n or: [(self cCoerce: fp to: 'uint64_t') >= jit state stackLimitNormal]]]) ifTrue: [
+		^(jit isOptFrame: f) ifTrue: [jit optSendFrom: f ret: ret] ifFalse: [1]].
+	jit ic ifTrue: [self megaFill: cls selector: sel target: t].
+	(info bitAnd: 256) ~= 0
+		ifTrue: [0 to: k - 1 do: [:i | fp at: i put: (self loadRef: arr at: i)]]
+		ifFalse: [libc memmove: fp from: fp + 1 size: k asUInt64 * 8].
+	^t uentry
+!
+entrySlow: f ret: ret callee: c
+	"A callee's stack check failed (f is its sender, at the send; c the callee's header, 1 at a block's entry): the C stack is full (the frames become Contexts and the interpreter sends again; a sender in optimized code: the runtime sends, answer where the call continues) or an interrupt is pending: taken with the callee's frame pushed, as at its first instruction (perform: may have moved the arguments: the send cannot be executed again), the frame popped again if no frames were flushed. 0: retry, 1: leave."
+	<c: 'uint64_t jit_bl_entry_slow(Frame *f, uint64_t ret, uint64_t c)'>
+	| nfp n h g flushes inv |
+	self setTop: f ret: ret mode: 0.
+	jit sync: f.
+	nfp := self calleeFp: f ret: ret.
 	(self cCoerce: nfp to: 'uint64_t') >= jit state stackLimitNormal ifTrue: [
+		(jit isOptFrame: f) ifTrue: [^jit optSendFrom: f ret: ret].
 		interpreter materializeAll.
 		^1].
-	^jit interrupt: f
+	h := self cCoerce: c to: 'JitMethod *'.
+	n := (self intVal: (c = 1 ifTrue: [self loadRef: (nfp at: -1) at: BC_NUMARGS] ifFalse: [self loadRef: h method at: CM_NUMARGS])) asInt32.
+	self setTop: f ret: ret fp: nfp argc: n.
+	interpreter syncFrame: f.
+	flushes := interpreter statFlushes.
+	inv := jit invalidations.
+	c = 1
+		ifTrue: [interpreter activateBlock: n]
+		ifFalse: [
+			g := interpreter pushFrame: h method argc: n code: c ecode: -1.
+			g isNull ifTrue: [self fatal: 'baseline: no room for a frame below the stack limit'].
+			(((interpreter methodPrim: h method) bitAnd: CM_PRIM_ERROR_FLAG) ~= 0 and: [(self loadRef: h method at: CM_NUMTEMPS) ~= (self intOop: 0)]) ifTrue: [
+				"a failed primitive's error code into the first temp, as the frame's code puts it"
+				g fp at: n put: jit state ecode asUInt64]].
+	jit resetStress.
+	jit clearInterrupt.
+	interpreter interruptSafepoint.
+	(interpreter statFlushes ~= flushes or: [inv ~= jit invalidations]) ifTrue: [^1].
+	c = 1 ifTrue: [nfp at: -1 put: (interpreter frames + (interpreter nframes - 1)) closure].
+	interpreter nframes: (f - interpreter frames) asInt32 + 1.
+	^0
 !
 prim: f fp: fp fn: fn info: info
 	"A compiled method's C primitive (f the sender, at the send whose return address is the state's primRet; the receiver below fp): 0 success (the result in the state), 1 leave, 2 failure (the error code in the state)."
@@ -695,7 +762,7 @@ prim: f fp: fp fn: fn info: info
 	leaf := (info bitAnd: 256) ~= 0.
 	base := (self cCoerce: fp to: 'oop *') - 1.
 	leaf ifFalse: [
-		self setTop: f ret: jit state primRet mode: 1.
+		self setTop: f ret: jit state primRet fp: fp argc: n.
 		jit sync: f].
 	flushes := interpreter statFlushes.
 	inv := jit invalidations.

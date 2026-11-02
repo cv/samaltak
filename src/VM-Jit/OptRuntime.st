@@ -446,7 +446,7 @@ send: f index: k site: key
 	^r
 !
 sendFrom: f ret: ret
-	"A call of f's optimized code (at the call safepoint return address ret is in; JitBaselineRuntime>>setTop:ret:mode: set its pc and sp) found no machine code it may call (not linked: what baseline code leaves to the interpreter for; or no room on the stack, an interrupt pending at the callee's entry): the runtime sends. Answer where the call continues: the callee's entry (its frame pushed), the sent stub (the result is in the receiver's slot) or 1 (leave)."
+	"A call of f's optimized code (at the call safepoint return address ret is in; JitBaselineRuntime>>setTop:ret:mode: set its pc and sp) found no machine code it may call (not linked: what baseline code leaves to the interpreter for; or no room on the stack): the runtime sends. Answer where the call continues: the callee's entry (its frame pushed), the sent stub (the result is in the receiver's slot) or 1 (leave)."
 	<c: 'uint64_t opt_send_from(Frame *f, uint64_t ret)'>
 	| h r |
 	h := self cCoerce: f code to: 'JitMethod *'.
@@ -788,7 +788,12 @@ decode: h index: k frame: f regs: regs mode: mode
 		bcs := self methodBytecodes: (rtActMethod at: nacts - 1).
 		op := bcs at: sendPc.
 		((op >= 16r97 and: [op < 16rA0]) or: [op >= 16rF0 and: [op < 16rFC]]) ifFalse: [
-			0 to: argc do: [:i | self push: (base at: i)].
+			self push: (base at: 0).
+			"a perform: of a constant selector sent it: the selector goes back between receiver and arguments"
+			((rec at: 2) bitAnd: SI_PERFORMED) ~= 0 ifTrue: [
+				self push: (self poolAt: (rec at: 3) of: h).
+				rtActDepth at: nacts - 1 put: (rtActDepth at: nacts - 1) + 1].
+			1 to: argc do: [:i | self push: (base at: i)].
 			rtActDepth at: nacts - 1 put: (rtActDepth at: nacts - 1) + argc + 1].
 		rtActPc at: nacts - 1 put: sendPc]
 !

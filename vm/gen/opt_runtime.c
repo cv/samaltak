@@ -176,8 +176,11 @@ static void opt_decode(jit_method *h, int64_t k, frame *f, uint64_t *regs, int32
     uint64_t o;
     uint8_t *bcs;
     uint8_t op;
-    int32_t i_3;
     oop v_7;
+    int32_t i_3;
+    oop v_8;
+    int32_t i_4;
+    oop v_9;
     rec = h->meta + h->sp_table[k];
     send_pc = rec[1];
     argc = rec[2] & 255;
@@ -327,10 +330,24 @@ static void opt_decode(jit_method *h, int64_t k, frame *f, uint64_t *regs, int32
         bcs = (uint8_t *)(o + 16);
         op = bcs[send_pc];
         if (!(((op >= 0x97) && (op < 0xA0)) || ((op >= 0xF0) && (op < 0xFC)))) {
-            for (i_3 = 0; i_3 <= argc; i_3++) {
-                v_7 = base[i_3];
+            v_7 = base[0];
+            if (rt_deopt_count < OPT_MAX_DEOPT_VALS) {
+                rt_deopt_vals[rt_deopt_count] = v_7;
+                rt_deopt_count = rt_deopt_count + 1;
+            }
+            if ((rec[2] & SI_PERFORMED) != 0) {
+                i_3 = rec[3];
+                v_8 = ((oop *)(h->code_start + h->pool_offset))[i_3];
                 if (rt_deopt_count < OPT_MAX_DEOPT_VALS) {
-                    rt_deopt_vals[rt_deopt_count] = v_7;
+                    rt_deopt_vals[rt_deopt_count] = v_8;
+                    rt_deopt_count = rt_deopt_count + 1;
+                }
+                rt_act_depth[nacts - 1] = rt_act_depth[nacts - 1] + 1;
+            }
+            for (i_4 = 1; i_4 <= argc; i_4++) {
+                v_9 = base[i_4];
+                if (rt_deopt_count < OPT_MAX_DEOPT_VALS) {
+                    rt_deopt_vals[rt_deopt_count] = v_9;
                     rt_deopt_count = rt_deopt_count + 1;
                 }
             }
