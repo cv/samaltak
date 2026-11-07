@@ -561,7 +561,7 @@ static void tick_arm(int ident, int64_t us, bool periodic)
         ch->flags = EV_DELETE | EV_RECEIPT;
     } else {
         ch->flags = EV_ADD | EV_RECEIPT | (periodic ? 0 : EV_ONESHOT);
-        ch->fflags = NOTE_USECONDS;
+        ch->fflags = NOTE_USECONDS | NOTE_CRITICAL;
         ch->data = us;
     }
     kevent(tick_kq, ch, 1, res, 1, zero);
