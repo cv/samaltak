@@ -72,15 +72,17 @@ testPerformInALoopStaysOptimized
 		self assert: (self statistics - before) optRuntimeSends < 50]
 !
 testAtOfAStringArgumentIsInlined
-	"at: of a String argument (push temp, push temp, at:: a superinstruction; baseline code reads Strings without a send, so they leave no feedback): the deoptimization reports the String, the code compiled again reads it inline, without calling the C primitive (unless --jit-flags deopt makes it)."
-	| o s before |
+	"at: of a String argument (push temp, push temp, at:: a superinstruction; baseline code reads Strings without a send, so they leave no feedback): the deoptimization reports the String, the code compiled again reads it inline, without calling the C primitive (unless --jit-flags deopt makes it). The counter is the VM's, other Processes' calls included: the quietest of 3 rounds counts."
+	| o s calls |
 	self define: 'count: c in: aString | n | n := 0. 1 to: aString size do: [:i | (aString at: i) == c ifTrue: [n := n + 1]]. ^n'.
 	o := JitRuntimeTestSubject new.
 	s := String new: 1000 withAll: $a.
 	3 timesRepeat: [self assert: (o count: $a in: s) equals: 1000].
-	before := self statistics.
-	self assert: (o count: $a in: s) equals: 1000.
-	self stressed ifFalse: [self assert: (self statistics - before) jitPrimitiveCalls < 100]
+	calls := (1 to: 3) collect: [:i | | before |
+		before := self statistics.
+		self assert: (o count: $a in: s) equals: 1000.
+		(self statistics - before) jitPrimitiveCalls].
+	self stressed ifFalse: [self assert: calls min < 100]
 !
 testPerformOfAConstantIsInlined
 	"perform: of a constant selector is a send of it, inlined into a loop's unit: redefining the method invalidates the code, the loop goes on with the new one."
@@ -250,15 +252,18 @@ testDisassemblyShowsInlinedActivations
 	self assert: (listing includesSubstring: 'inlined activation 1')
 !
 testDisassemblyLeavesFeedback
-	"A listing of code compiled without notes compiles a copy: the Float the method's baseline code saw stays feedback, its optimized code takes Floats."
-	| m |
+	"A listing of code compiled without notes compiles a copy: the Float the method's baseline code saw stays feedback, its optimized code takes Floats. Feedback bytes are shared by hash and compiling another method may clear this one's, so a new method gets 3 tries; a listing that clears it fails all of them."
 	Smalltalk vm jitParameters: #(nil '-eager' nil nil).
+	self assert: ((1 to: 3) anySatisfy: [:i | self listingLeavesFeedback])
+!
+listingLeavesFeedback
+	| m |
 	self define: 'add: x to: y ^x + y'.
 	m := JitRuntimeTestSubject >> #add:to:.
 	3 timesRepeat: [self assert: (JitRuntimeTestSubject new add: 1.5 to: 2.5) equals: 4.0].
 	self assert: ((m machineCodeFor: #opt) includesSubstring: 'fadd').
 	self assert: ((m machineCodeFor: #baseline) beginsWith: 'JitRuntimeTestSubject>>add:to:  baseline').
-	self assert: ((m machineCodeFor: #opt) includesSubstring: 'fadd')
+	^(m machineCodeFor: #opt) includesSubstring: 'fadd'
 !
 testCharacterValueGuardsItsArgumentFirst
 	"Character value: inlined (feedback) for a value not known to be a SmallInteger: the guard on it comes before the conversion, which reads the guard's result."

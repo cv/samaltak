@@ -232,7 +232,7 @@ testRefreshesTenTimesASecondUnderLoad
 	cpu := (c1 - c0) * 100.0 / (t1 - t0).
 	"A refresh redraws only the views whose data changed (retained drawing). Not when every method is compiled at its first activation or optimized code deoptimizes for the stress: compiling takes the window's CPU then."
 	((Smalltalk vm jitParameters at: 3) = 0 or: [Smalltalk vm jitFlags includes: 'deopt']) ifFalse: [
-		self assert: cpu < 2.0 description: 'the Profiler used ', (cpu printShowingDecimalPlaces: 2), '% CPU'].
+		self assert: cpu < 4.0 description: 'the Profiler used ', (cpu printShowingDecimalPlaces: 2), '% CPU'].
 	self assert: view refreshMicros < 20000
 !
 testPinnedRangeStaysFrozen

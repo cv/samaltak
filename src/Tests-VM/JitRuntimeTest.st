@@ -138,8 +138,8 @@ testDisassembly
 
 !JitRuntimeTest methodsFor: 'tests: perform'!
 testPerform
-	"perform: with up to four arguments and perform:withArguments: with up to two, selectors the sends do not know: once their targets are cached no lookups (inline cache misses) and no sends through the runtime; three arguments in an Array go through the interpreter."
-	| o sels arrays before |
+	"perform: with up to four arguments and perform:withArguments: with up to two, selectors the sends do not know: once their targets are cached no lookups (inline cache misses) and no sends through the runtime; three arguments in an Array go through the interpreter. The counters are the VM's, other Processes' included: the quietest of 3 rounds counts."
+	| o sels arrays deltas |
 	self define: 'zero ^0'.
 	self define: 'one: x ^x'.
 	self define: 'two: x with: y ^x * 10 + y'.
@@ -151,10 +151,12 @@ testPerform
 	sels := #(#zero #one: #two:with: #three:with:with: #four:with:with:with:).
 	arrays := #(#() #(1) #(1 2)).
 	self assert: (o performs: 10 with: sels with: arrays) equals: 13830.
-	before := self statistics.
-	self assert: (o performs: 3000 with: sels with: arrays) equals: 4149000.
-	self assert: (self statistics - before) jitInlineCacheMisses < 300.
-	self assert: (self statistics - before) optRuntimeSends < 300.
+	deltas := (1 to: 3) collect: [:i | | before |
+		before := self statistics.
+		self assert: (o performs: 3000 with: sels with: arrays) equals: 4149000.
+		self statistics - before].
+	self assert: (deltas collect: [:d | d jitInlineCacheMisses]) min < 300.
+	self assert: (deltas collect: [:d | d optRuntimeSends]) min < 300.
 	3 timesRepeat: [
 		self assert: (o call: #three:with:with: withArguments: #(1 2 3)) equals: 123.
 		self assert: (o call: #four:with:with:with: withArguments: #(1 2 3 4)) equals: 1234]
@@ -258,7 +260,8 @@ testPerformWithProcessSwitches
 	ticks := 0.
 	stop := false.
 	self fork: [[stop] whileFalse: [(Delay forMilliseconds: 1) wait. ticks := ticks + 1]] at: Processor activePriority + 1.
-	result := [o sum: 1000000 via: #add:to:] ensure: [stop := true].
-	self assert: result equals: 500001500000.
-	self assert: ticks > 0
+	"a loaded machine may wake it late: until it has woken up during a run"
+	[[result := o sum: 1000000 via: #add:to:.
+	  self assert: result equals: 500001500000.
+	  ticks = 0] whileTrue] ensure: [stop := true]
 ! !
