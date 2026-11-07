@@ -1,11 +1,11 @@
 Widget subclass: #MenuView
-	instanceVariableNames: 'menu highlight onClose closed submenuView armed'
+	instanceVariableNames: 'menu highlight onClose closed submenuView armed parentView'
 	classVariableNames: ''
 	package: 'UI-Widgets'!
 
 MenuView comment: 'I show a Menu as a Blue Book popup: a 1-point black frame (the hard shadow is the overlay''s), an optional striped title bar, tracked-capitals headers, 21-point items with an italic description and a right-aligned key equivalent, dotted separators, check marks. The item under the pointer or chosen with the arrow keys is inverted.
 
-Keys: up/down (skipping headers, separators and disabled items), home/end, return/enter/space to choose, right to open a submenu, escape/left to close, letters jump to the next item starting with them. Choosing an item closes me (through the World) and runs its action in the Process of the window the menu was opened from (the overlay''s invoker), or in a new Process when there is none.
+Keys: up/down (skipping headers, separators and disabled items), home/end, return/enter/space to choose, right to open a submenu, escape/left to close, letters jump to the next item starting with them. Choosing an item closes me and the menus I am a submenu of (through the World) and runs its action in the Process of the window the first of them was opened from (the overlay''s invoker), or in a new Process when there is none.
 
 The World hosts me (World current openMenu: aMenu at: aPoint calls aMenu asMenuView); my preferredExtent is my size.'!
 
@@ -34,6 +34,10 @@ highlightedItem
 onClose: aBlock
 	"aBlock runs when I close (chosen or dismissed)."
 	onClose := aBlock
+!
+parentView: aMenuView
+	"The menu I am a submenu of."
+	parentView := aMenuView
 !
 isClosed
 	^closed == true
@@ -163,6 +167,11 @@ choose: index
 close: anItem
 	"Close and run anItem's action: in the invoking window's Process when I am hosted in an overlay (closing the overlay ends its Process), else right after closing."
 	| w invoker |
+	parentView isNil ifFalse: [
+		"My parent does this without me (onClose makes it forget me): closing my overlay ends my Process, so I close last."
+		onClose value.
+		parentView close: anItem.
+		^self close].
 	w := self window.
 	invoker := (w notNil and: [w respondsTo: #invoker]) ifTrue: [w invoker] ifFalse: [nil].
 	invoker notNil ifTrue: [
@@ -181,9 +190,10 @@ chooseLabeled: aString
 !
 openSubmenuAt: index
 	| r |
+	submenuView isNil ifFalse: [submenuView close].
 	r := self itemRect: index.
 	submenuView := (self items at: index) submenu asMenuView.
-	submenuView onClose: [submenuView := nil].
+	submenuView onClose: [submenuView := nil]; parentView: self.
 	self worldDo: [:world | world openMenu: submenuView at: (self localToScreen: r topRight)].
 	^submenuView
 !

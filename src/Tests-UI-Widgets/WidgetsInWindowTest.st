@@ -110,6 +110,41 @@ testDiagonalMoveIntoSubmenuHighlightsItsItem
 	self assert: (highlights includes: 2).
 	self assert: highlights last equals: 1
 !
+testChoosingInSubmenuClosesAllMenus
+	"In a submenu's submenu, its owner clicked twice: by click, then by release after a drag."
+	| ran |
+	list menuBlock: [Menu new
+		add: 'break in window' submenu: (Menu new
+			add: 'Windows' submenu: (Menu new add: 'Widgets' action: [ran := 1]; add: 'Workspace' action: [ran := 2]; yourself);
+			yourself);
+		yourself].
+	1 to: 2 do: [:i |
+		| menu a |
+		self rightClick: (self rowPoint: 1).
+		2 timesRepeat: [
+			menu := world overlays last content.
+			self click: (menu screenPointFrom: (menu itemRect: 1) center)].
+		self click: (menu screenPointFrom: (menu itemRect: 1) center).
+		menu := world overlays last content.
+		a := menu screenPointFrom: (menu itemRect: 1) center.
+		i = 1
+			ifTrue: [self click: a]
+			ifFalse: [self drag: a to: (menu screenPointFrom: (menu itemRect: 2) center)].
+		self assert: ran equals: i.
+		self assert: world overlays isEmpty]
+!
+testSubmenuOfMenuWithoutInvokerRunsInANewProcess
+	"As the World menu's own items do, not in the active window's Process."
+	| ran menu |
+	(world openMenu: (Menu new add: 'Tools' submenu: (Menu new add: 'Workspace' action: [ran := Processor activeProcess]; yourself); yourself) at: 600 @ 400) invoker: nil.
+	self settle.
+	2 timesRepeat: [
+		menu := world overlays last content.
+		self click: (menu screenPointFrom: (menu itemRect: 1) center)].
+	self assert: (self waitFor: [ran notNil]).
+	self deny: ran == window process.
+	self assert: world overlays isEmpty
+!
 testCaretBlinksOnWindowTimer
 	| before |
 	self click: (self screenPoint: 30 @ 10 of: editor).

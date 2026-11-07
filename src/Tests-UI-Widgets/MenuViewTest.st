@@ -57,6 +57,17 @@ testClickAndHover
 	self click: r center.
 	self assert: chosen equals: #workspace
 !
+testChoosingInUnhostedSubmenuClosesItsParent
+	"Without overlays: the stand-in World hosts neither menu in one."
+	| sub |
+	menu add: 'More' submenu: (Menu new add: 'Deep' action: [chosen := #deep]; yourself).
+	self click: (view itemRect: menu items size) center.
+	sub := window world lastMenu.
+	sub chooseLabeled: 'Deep'.
+	self assert: chosen equals: #deep.
+	self assert: sub isClosed.
+	self assert: view isClosed
+!
 testReleaseWithoutPressDoesNotChoose
 	self up: (view itemRect: 3) center.
 	self assert: chosen isNil.
