@@ -68,6 +68,7 @@ itemRect: index
 !
 itemIndexAt: aPoint
 	| tops |
+	(aPoint x >= 0 and: [aPoint x < self width]) ifFalse: [^0].
 	tops := self itemTops.
 	1 to: self items size do: [:i |
 		(aPoint y >= (tops at: i) and: [aPoint y < ((tops at: i) + (self heightOf: (self items at: i)))]) ifTrue: [^i]].

@@ -73,6 +73,15 @@ testReleaseWithoutPressDoesNotChoose
 	self assert: chosen isNil.
 	self deny: view isClosed
 !
+testReleaseBesideTheMenuDoesNotChoose
+	"A press in the menu captures the pointer: a release beside it, at an item's height (over a submenu), chooses nothing."
+	| r |
+	r := view itemRect: 3.
+	self down: r center.
+	self up: (view width + 20) @ r center y.
+	self assert: chosen isNil.
+	self deny: view isClosed
+!
 testDisabledItemsAreSkippedAndInert
 	| r |
 	r := view itemRect: 7.
