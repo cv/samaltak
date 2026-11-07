@@ -268,6 +268,21 @@ static void test_events(int win)
     pf_event_set_semaphore(0);
 }
 
+/* Events of a window that closed before they were pumped are dropped: as events of no window they would reach the
+ * next World, a display scale change with the closed window's scale -1. */
+static void test_closed_window_events(void)
+{
+    pf_event got;
+    while (pf_event_next(&got)) free(got.text);
+    int win = pf_window_open(400, 300, "closed", PF_WIN_HIDDEN | PF_WIN_HIGH_DENSITY);
+    CHECK(win > 0, "window");
+    CHECK(pf_window_close(win), "close window");
+    pf_pump();
+    int orphans = 0;
+    while (pf_event_next(&got)) orphans += got.window == 0 && got.type == PF_EV_DISPLAY_SCALE_CHANGED, free(got.text);
+    CHECK(orphans == 0, "%d display scale events of a closed window", orphans);
+}
+
 /* ---- GPU ----------------------------------------------------------------- */
 
 static const char *msl =
@@ -541,6 +556,7 @@ int main(int argc, char **argv)
     test_sockets();
     printf("gpu (offscreen) and events\n");
     test_gpu();
+    test_closed_window_events();
     printf("present\n");
     test_present();
     test_sockets_close();

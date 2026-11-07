@@ -195,6 +195,9 @@ static void translate(SDL_Event *e)
     }
     if ((t == SDL_EVENT_WINDOW_RESIZED) || ((t == SDL_EVENT_WINDOW_CLOSE_REQUESTED) || ((t == SDL_EVENT_WINDOW_FOCUS_GAINED) || ((t == SDL_EVENT_WINDOW_FOCUS_LOST) || ((t == SDL_EVENT_WINDOW_DISPLAY_SCALE_CHANGED) || ((t == SDL_EVENT_WINDOW_MOUSE_LEAVE) || (t == SDL_EVENT_WINDOW_EXPOSED))))))) {
         ev->window = pf_window_from_sdl_id(e->window.windowID);
+        if (ev->window == 0) {
+            return;
+        }
         if (t == SDL_EVENT_WINDOW_RESIZED) {
             ev->type = PF_EV_WINDOW_RESIZED;
             ev->x = (double)e->window.data1;
