@@ -191,7 +191,7 @@ testTerminatedProcessesMerge
 !
 testLiveFollowsAWrappingRing
 	"Live aggregates of a small ring, updated at random intervals while it wraps, equal a rebuild of their samples."
-	| small cpu alloc random old checks |
+	| small cpu alloc random old checks steps start |
 	small := Profiler new.
 	small ringBytes: (StackRing bytes: 0 depth: small maxDepth) tableBytes + 16 + 60000.
 	small allocationInterval: 1024 * 1024.
@@ -201,10 +201,14 @@ testLiveFollowsAWrappingRing
 	Profiler default: small.
 	small start.
 	checks := 0.
+	steps := 0.
 	[cpu := ProfileAggregate on: small kind: #cpu.
 	 alloc := ProfileAggregate on: small kind: #allocation.
 	 self startWorkloads.
-	 30 timesRepeat: [ | ring |
+	 start := Time millisecondClockValue.
+	 "30 steps, and on a loaded machine (fewer samples a millisecond) on until the ring wrapped three times, at most 10 s."
+	 [steps < 30 or: [small buffer count <= (small buffer size * 3) and: [Time millisecondClockValue - start < 10000]]] whileTrue: [ | ring |
+		steps := steps + 1.
 		(Delay forMilliseconds: 5 + (random nextInt: 60)) wait.
 		cpu update.
 		alloc update.
