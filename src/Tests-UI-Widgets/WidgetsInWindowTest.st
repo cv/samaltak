@@ -145,6 +145,20 @@ testSubmenuOfMenuWithoutInvokerRunsInANewProcess
 	self deny: ran == window process.
 	self assert: world overlays isEmpty
 !
+testEscapeInSubmenuClosesOnlyIt
+	"Its parent, with no submenu left, clears the highlight when the pointer leaves."
+	| parent |
+	list menuBlock: [Menu new add: 'break in window' submenu: (Menu new add: 'Widgets' action: []; yourself); yourself].
+	self rightClick: (self rowPoint: 1).
+	parent := world overlays last content.
+	self click: (parent screenPointFrom: (parent itemRect: 1) center).
+	self key: #escape modifiers: 0.
+	self settle.
+	self assert: world overlays size equals: 1.
+	self moveTo: 950 @ 650.
+	self settle.
+	self assert: parent highlightIndex equals: 0
+!
 testCaretBlinksOnWindowTimer
 	| before |
 	self click: (self screenPoint: 30 @ 10 of: editor).

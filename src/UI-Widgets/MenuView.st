@@ -201,8 +201,8 @@ close
 	closed == true ifTrue: [^self].
 	closed := true.
 	submenuView isNil ifFalse: [submenuView close].
-	self worldDo: [:world | world closeMenu: self].
-	onClose isNil ifFalse: [onClose value]
+	onClose isNil ifFalse: [onClose value].
+	self worldDo: [:world | world closeMenu: self]
 !
 moveHighlight: delta
 	| n i |
