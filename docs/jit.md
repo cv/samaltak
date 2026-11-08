@@ -1,6 +1,6 @@
 # JIT
 
-Two compilers on a shared runtime: `baseline` (Cog-style) and the optimizing tier `opt`, whose lower tier is baseline code. Both are written in Smalltalk: Lowtalk for code in the VM (translated to C like the rest of it), ordinary Smalltalk for code in the image. No LLVM at run time. Target: Apple Silicon (M2 Max, arm64, macOS). Both beat Pharo 12's Cog JIT on every Are We Fast Yet benchmark (Comparison, docs/benchmarks.md).
+Two compilers on a shared runtime: `baseline` (Cog-style) and the optimizing tier `opt`, whose lower tier is baseline code. Both are written in Smalltalk: Lowtalk for code in the VM (translated to C like the rest of it), ordinary Smalltalk for code in the image. No LLVM at run time. Target: Apple Silicon (M2 Max, arm64, macOS). Both beat Pharo 12's Cog JIT on every Are We Fast Yet, micro and real-world benchmark (Comparison, docs/benchmarks.md).
 
 | `--jit` | what |
 |---|---|
@@ -116,17 +116,17 @@ Tests (`Tests-VM`): encodings against the system assembler's (`Arm64Reference`, 
 
 ## Comparison
 
-Every design measured on the same benchmarks (`vm/tests/bench/results`): AWFY geometric mean of the steady state (median of the last half of the iterations, median of 3 invocations) relative to the interpreter and to Pharo 12; compile time and code size per bytecode compiled over the AWFY runs (for `opt` its optimizing compilations, inlined bytecodes included). The ratios of each row come from one run interleaved with `none`: template, threaded and stencil from `samaltak-cp-{none,template,threaded,stencil}-2026-10-24-*.csv` (10 iterations; Pharo 12 from `pharo12-cog-2026-10-24-*.csv`), the others from `samaltak-{none,baseline,opt}-2026-11-02-*.csv` and `pharo12-cog-2026-11-02-*.csv` (30 iterations), `baseline`'s DeltaBlue, Havlak, Json, Mandelbrot and Sieve and its code size from `samaltak-baseline-2026-11-02b-*.csv`; default thresholds.
+Every design measured on the same benchmarks (`vm/tests/bench/results`): AWFY geometric mean of the steady state (median of the last half of the iterations, median of 3 invocations) relative to the interpreter and to Pharo 12; compile time and code size per bytecode compiled over the AWFY runs (for `opt` its optimizing compilations, inlined bytecodes included). The ratios of each row come from one run interleaved with `none`: template, threaded and stencil from `samaltak-cp-{none,template,threaded,stencil}-2026-10-24-*.csv` (10 iterations; Pharo 12 from `pharo12-cog-2026-10-24-*.csv`), the others from `samaltak-{none,baseline,opt}-2026-11-07-*.csv` and `pharo12-cog-2026-11-07-*.csv` (30 iterations), their compile time and code size from `samaltak-{baseline,opt}-2026-11-02-*.csv`; default thresholds.
 
 | design | what | AWFY / `none` | AWFY / Pharo 12 | µs / bytecode | bytes / bytecode |
 |---|---|---|---|---|---|
-| `none` | the interpreter | 1 | 2.64 | – | – |
+| `none` | the interpreter | 1 | 2.61 | – | – |
 | template | a fixed machine-code template per bytecode on the frame's slots, sends through the runtime | 0.75 | 1.93 | 0.17 | 37 |
 | threaded | call threading: a `bl` per bytecode into its handler, C compiled into the VM | 1.21 | 3.14 | 0.12 | 15 |
 | stencil | copy-and-patch: handler stencils compiled by cc, copied and patched | 0.86 | 2.24 | 0.15 | 68 |
-| `baseline` | Cog-style: inline caches, operands in registers, inline arithmetic and primitives | 0.25 | 0.65 | 0.17 | 42 |
-| `opt` | baseline code plus the optimizing tier | 0.13 | 0.34 | 4.6 | 90 |
+| `baseline` | Cog-style: inline caches, operands in registers, inline arithmetic and primitives | 0.24 | 0.64 | 0.17 | 42 |
+| `opt` | baseline code plus the optimizing tier | 0.13 | 0.33 | 4.6 | 90 |
 | Pharo 12 | Cog, the same sources | 0.38 | 1 | – | – |
 
-- Removing the interpreter's dispatch alone (template) gives 0.75×; a call per bytecode (threaded) costs more than the dispatch; the stencils (1.16× template) keep the operand stack's top in a register where the template knows every slot's offset. `baseline` beats Pharo 12 on every benchmark, in the steady state (NBody by 5 %) and in the first iteration (0.63); `opt` (0.52× `baseline`) more so (first iterations 0.45).
+- Removing the interpreter's dispatch alone (template) gives 0.75×; a call per bytecode (threaded) costs more than the dispatch; the stencils (1.16× template) keep the operand stack's top in a register where the template knows every slot's offset. `baseline` beats Pharo 12 on every benchmark, in the steady state (NBody by 7 %) and in the first iteration (0.60); `opt` (0.51× `baseline`) more so (first iterations 0.43).
 - Ablations (one flag off, AWFY geometric mean of the steady state relative to all on; `samaltak-jit-baseline-no-FLAG-2026-10-28-*.csv`, `samaltak-opt-no-FLAG-2026-10-28-*.csv`): `baseline` `ic` 5.54, `arith` 1.39, `regs` 1.32, `barrier` 1.22, `mega` 1.22, `prims` 1.21, `blocks` 1.13, `float` 1.09, `access` 1.07, `quick` 1.06, `fuse` 1.02, `pic` 1.00; `opt` `prims` 3.94, `inline` 2.49, `blocks` 1.58, `unbox` 1.21, `gvn` 1.06, `alloc` 1.04, `calls` 1.02.
