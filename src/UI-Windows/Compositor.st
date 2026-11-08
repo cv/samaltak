@@ -1,5 +1,5 @@
 Object subclass: #Compositor
-	instanceVariableNames: 'world displayWindow renderer process running vsync vsyncIndex wake sleeping skip tickTimeout idleFrames frameCount presenting requests recorder gpuTimer clock knownProcesses lastCpu lastScan lastRecord lastError lastErrorTime pipelineVersion standIn'
+	instanceVariableNames: 'world displayWindow renderer process running vsync vsyncIndex wake sleeping skip tickTimeout lastTick idleFrames frameCount presenting requests recorder gpuTimer clock knownProcesses lastCpu lastScan lastRecord lastError lastErrorTime pipelineVersion standIn'
 	classVariableNames: ''
 	package: 'UI-Windows'!
 
@@ -54,6 +54,10 @@ renderer
 !
 gpuTimer
 	^gpuTimer
+!
+tickTimeout: milliseconds
+	"How long after the previous tick I tick without a display refresh."
+	tickTimeout := milliseconds
 ! !
 
 !Compositor methodsFor: 'starting and stopping'!
@@ -70,6 +74,7 @@ start
 	rate := [displayWindow refreshRate] on: Error do: [:e | e return: 60].
 	skip := rate > 61 ifTrue: [(rate / 60) rounded] ifFalse: [1].
 	tickTimeout := rate > 0 ifTrue: [(skip * 1500 / rate) rounded] ifFalse: [25].
+	lastTick := Time millisecondClockValue.
 	gpuTimer := GPUTimer new.
 	process := [self run] newProcess.
 	process priority: self class priority; name: 'compositor (vsync)'.
@@ -147,15 +152,19 @@ run
 				e return: nil]]]
 !
 waitForTick
-	"Wait for skip display refreshes, at most one and a half ticks: the display link may be missing (the display sleeps) or late (macOS throttles it to about 10 Hz while the VM runs in the background role), then I tick on that timeout."
+	"Wait for skip display refreshes, at most one and a half ticks after the previous tick: the display link may be missing (the display sleeps) or late (macOS throttles it to about 10 Hz while the VM runs in the background role), then I tick on that timeout."
 	| late |
-	(idleFrames >= 20 and: [gpuTimer isIdle]) ifTrue: [^self sleep].
-	late := Delay forMilliseconds: tickTimeout.
+	(idleFrames >= 20 and: [gpuTimer isIdle]) ifTrue: [
+		self sleep.
+		lastTick := Time millisecondClockValue.
+		^self].
+	late := Delay forMilliseconds: (lastTick + tickTimeout - Time millisecondClockValue max: 1).
 	late signal: vsync.
 	skip timesRepeat: [
 		late isExpired ifFalse: [vsync wait].
 		vsync consumeAllSignals].
-	late cancel
+	late cancel.
+	lastTick := Time millisecondClockValue
 !
 armVsync
 	"Have the display link signal vsync on every refresh. While the display sleeps there is none: waitForTick ticks on its timeout."

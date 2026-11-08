@@ -220,6 +220,19 @@ testPresentsWithoutDisplayRefreshes
 	world waitForFrames: 10.
 	self assert: world compositor frameCount - n >= 10
 !
+testTicksKeepTheirPaceWithoutDisplayRefreshes
+	"Without refreshes the next tick comes tickTimeout (here 150 ms) after the previous one, not after the end of a long frame (here 60 ms: 210 between ticks then)."
+	| c n t0 |
+	self open: RecordingTestView new title: 'Pace' at: (100 @ 100 extent: 300 @ 200).
+	c := world compositor.
+	c sync: [:x | DisplayWindow vsyncSemaphoreIndex: 0. x tickTimeout: 150].
+	n := c frameCount.
+	t0 := Time millisecondClockValue.
+	1 to: 6 do: [:i |
+		c do: [:x | | t | t := Time millisecondClockValue. [Time millisecondClockValue - t < 60] whileTrue].
+		self assert: (self waitFor: [c frameCount >= (n + i)]) description: 'no frame'].
+	self assert: Time millisecondClockValue - t0 / 6 < 185
+!
 testHostResize
 	DisplayWindow injectEvent: {UIEvent evWindowResized. nil. 1000. 700. 0. 0. nil. world displayWindow windowId}.
 	self settle.
