@@ -39,6 +39,14 @@ subject
 !
 sitesOf: aSelector
 	^(JitBaselineTestSubject >> aSelector) jitSendSites
+!
+uninterrupted: aBlock
+	"Evaluate aBlock at the timer's priority, so no process switch can land at the entry of an activation. The switch would hand that activation to the interpreter, whose sends do not touch the inline caches a test is reading."
+	| p old |
+	p := Processor activeProcess.
+	old := p priority.
+	p priority: Processor timingPriority.
+	^aBlock ensure: [p priority: old]
 ! !
 
 !JitBaselineTest methodsFor: 'tests'!
@@ -67,6 +75,9 @@ testEveryMethodCompiles
 	self assert: failed isEmpty description: [failed printString]
 !
 testInlineCacheStates
+	self uninterrupted: [self inlineCacheStates]
+!
+inlineCacheStates
 	"A send site goes monomorphic, polymorphic, megamorphic; it answers right in each state, and says which classes it saw."
 	| s sites receivers |
 	self define: 'foo ^0' in: Object.
