@@ -57,13 +57,17 @@ testCompiledCodeRuns
 	self assert: (self statistics - before) jitMethodsCompiled > 0
 !
 testActivationsFindCodeCompiledSinceTheEntryWasFilled
-	"The send's cache entry counts answer's activations; answer is compiled at the fourth. Installing code leaves the entries as they are: the later activations through this one still enter the machine code."
-	| before |
+	"The send's cache entry counts answer's activations; answer is compiled at the fourth. Installing code leaves the entries as they are: the later activations through this one still enter the machine code. sends: must stay interpreted: a method compiled on its first activation (its hash shares a counter with others') calls answer from machine code, not through the entry; define it anew then."
+	| before tries |
 	Smalltalk vm jitParameters: #(nil nil 3 1000000).
 	self define: 'answer | x | x := 1. ^x'.
-	self define: 'sends: n | s | s := 0. 1 to: n do: [:i | s := s + self answer]. ^s'.
-	before := self statistics.
-	self assert: (JitRuntimeTestSubject new sends: 20) equals: 20.
+	tries := 0.
+	[self define: 'sends: n | s | s := 0. 1 to: n do: [:i | s := s + self answer]. ^s'.
+	 before := self statistics.
+	 self assert: (JitRuntimeTestSubject new sends: 20) equals: 20.
+	 tries := tries + 1.
+	 (JitRuntimeTestSubject >> #sends:) jitSendSites notNil and: [tries < 5]] whileTrue.
+	self assert: (JitRuntimeTestSubject >> #sends:) jitSendSites isNil description: 'sends: was compiled'.
 	self assert: (self statistics - before) jitEntries >= 17
 !
 testOnStackReplacement
