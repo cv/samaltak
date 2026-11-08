@@ -1,236 +1,236 @@
-# compile-speed 2026-11-08 08:28 vm=/Users/schani/Work/samaltak/.claude/worktrees/agent-a3a0e748ace093fa2/vm/build/samaltak image=/Users/schani/Work/samaltak/.claude/worktrees/agent-a3a0e748ace093fa2/build/samaltak.image rounds=30 awfy-rounds=5
+# compile-speed 2026-11-08 09:20 vm=/Users/schani/Work/samaltak/.claude/worktrees/agent-a3a0e748ace093fa2/vm/build/samaltak image=/Users/schani/Work/samaltak/.claude/worktrees/agent-a3a0e748ace093fa2/build/samaltak.image rounds=30 awfy-rounds=5
 # corpus,config,round,probes,compiled,bytes,instrs,compile_us,wall_us,code_bytes,extra
-full,baseline,1,630,635,18877,13932,2188,2859,618888,countedBytes=18925 failures=0
-full,baseline,10,630,635,18877,13932,2257,2376,618888,countedBytes=18925 failures=0
-full,baseline,11,630,635,18877,13932,2149,2246,618888,countedBytes=18925 failures=0
-full,baseline,12,630,635,18877,13932,2188,2330,618888,countedBytes=18925 failures=0
-full,baseline,13,630,635,18877,13932,2193,2328,618888,countedBytes=18925 failures=0
-full,baseline,14,630,635,18877,13932,2249,2910,618888,countedBytes=18925 failures=0
-full,baseline,15,630,635,18877,13932,2117,2216,618888,countedBytes=18925 failures=0
-full,baseline,16,630,635,18877,13932,2207,2337,618888,countedBytes=18925 failures=0
-full,baseline,17,630,635,18877,13932,2276,2423,618888,countedBytes=18925 failures=0
-full,baseline,18,630,636,18877,13932,2893,2328,1000792,countedBytes=25460 failures=0
-full,baseline,19,630,635,18877,13932,2174,2330,618888,countedBytes=18925 failures=0
-full,baseline,2,630,635,18877,13932,2146,2247,618888,countedBytes=18925 failures=0
-full,baseline,20,630,635,18877,13932,2230,2360,618888,countedBytes=18925 failures=0
-full,baseline,21,630,636,18877,13932,2160,2276,619928,countedBytes=18975 failures=0
-full,baseline,22,630,635,18877,13932,2180,2307,618888,countedBytes=18925 failures=0
-full,baseline,23,630,635,18877,13932,2146,2264,618888,countedBytes=18925 failures=0
-full,baseline,24,630,635,18877,13932,2156,2804,618888,countedBytes=18925 failures=0
-full,baseline,25,630,635,18877,13932,2183,2302,618888,countedBytes=18925 failures=0
-full,baseline,26,630,635,18877,13932,2169,2276,618888,countedBytes=18925 failures=0
-full,baseline,27,630,635,18877,13932,2135,2239,618888,countedBytes=18925 failures=0
-full,baseline,28,630,635,18877,13932,2135,2256,618888,countedBytes=18925 failures=0
-full,baseline,29,630,635,18877,13932,2256,2368,618888,countedBytes=18925 failures=0
-full,baseline,3,630,635,18877,13932,2154,2288,618888,countedBytes=18925 failures=0
-full,baseline,30,630,635,18877,13932,2171,2310,618888,countedBytes=18925 failures=0
-full,baseline,4,630,635,18877,13932,2130,2816,618888,countedBytes=18925 failures=0
-full,baseline,5,630,635,18877,13932,2203,2866,618888,countedBytes=18925 failures=0
-full,baseline,6,630,635,18877,13932,2149,2269,618888,countedBytes=18925 failures=0
-full,baseline,7,630,635,18877,13932,2271,2802,618888,countedBytes=18925 failures=0
-full,baseline,8,630,635,18877,13932,2184,2793,618888,countedBytes=18925 failures=0
-full,baseline,9,630,635,18877,13932,2195,2290,618888,countedBytes=18925 failures=0
-full,cog,1,630,632,16400,15386,2000,2226,332336,xray=630 blocks=0 compactions=0
-full,cog,10,630,633,16400,15386,3000,2211,332336,xray=630 blocks=0 compactions=0
-full,cog,11,630,632,16400,15386,2000,2182,332336,xray=630 blocks=0 compactions=0
-full,cog,12,630,632,16400,15386,3000,2266,332336,xray=630 blocks=0 compactions=0
-full,cog,13,630,633,16400,15386,2000,2244,332336,xray=630 blocks=0 compactions=0
-full,cog,14,630,634,16400,15386,2000,2162,332336,xray=630 blocks=0 compactions=0
-full,cog,15,630,632,16400,15386,2000,2210,332336,xray=630 blocks=0 compactions=0
-full,cog,16,630,632,16400,15386,2000,2153,332336,xray=630 blocks=0 compactions=0
-full,cog,17,630,632,16400,15386,2000,2110,332336,xray=630 blocks=0 compactions=0
-full,cog,18,630,633,16400,15386,2000,2159,332336,xray=630 blocks=0 compactions=0
-full,cog,19,630,632,16400,15386,2000,2214,332336,xray=630 blocks=0 compactions=0
-full,cog,2,630,633,16400,15386,2000,2450,332336,xray=630 blocks=0 compactions=0
-full,cog,20,630,633,16400,15386,2000,2233,332336,xray=630 blocks=0 compactions=0
-full,cog,21,630,633,16400,15386,2000,2158,332336,xray=630 blocks=0 compactions=0
-full,cog,22,630,632,16400,15386,2000,2178,332336,xray=630 blocks=0 compactions=0
-full,cog,23,630,633,16400,15386,2000,2196,332336,xray=630 blocks=0 compactions=0
-full,cog,24,630,633,16400,15386,2000,2242,332336,xray=630 blocks=0 compactions=0
-full,cog,25,630,632,16400,15386,3000,2169,332336,xray=630 blocks=0 compactions=0
-full,cog,26,630,633,16400,15386,3000,2273,332336,xray=630 blocks=0 compactions=0
-full,cog,27,630,634,16400,15386,2000,2170,332336,xray=630 blocks=0 compactions=0
-full,cog,28,630,633,16400,15386,2000,2178,332336,xray=630 blocks=0 compactions=0
-full,cog,29,630,633,16400,15386,3000,2172,332336,xray=630 blocks=0 compactions=0
-full,cog,3,630,632,16400,15386,2000,2233,332336,xray=630 blocks=0 compactions=0
-full,cog,30,630,632,16400,15386,3000,2178,332336,xray=630 blocks=0 compactions=0
-full,cog,4,630,634,16400,15386,2000,2201,332336,xray=630 blocks=0 compactions=0
-full,cog,5,630,633,16400,15386,2000,2183,332336,xray=630 blocks=0 compactions=0
-full,cog,6,630,634,16400,15386,3000,2298,332336,xray=630 blocks=0 compactions=0
-full,cog,7,630,633,16400,15386,2000,2184,332336,xray=630 blocks=0 compactions=0
-full,cog,8,630,633,16400,15386,3000,2166,332336,xray=630 blocks=0 compactions=0
-full,cog,9,630,632,16400,15386,2000,2229,332336,xray=630 blocks=0 compactions=0
-full,opt,1,630,595,18877,13932,11797,15866,547888,lowerUs=2473 failures=39 countedBytes=15616
-full,opt,10,630,595,18877,13932,11489,14262,544832,lowerUs=2352 failures=39 countedBytes=15616
-full,opt,11,630,595,18877,13932,11683,14486,545144,lowerUs=2386 failures=39 countedBytes=15616
-full,opt,12,630,595,18877,13932,11503,14690,545144,lowerUs=2335 failures=39 countedBytes=15616
-full,opt,13,630,595,18877,13932,11824,15984,543752,lowerUs=2428 failures=39 countedBytes=15616
-full,opt,14,630,595,18877,13932,11512,14350,543752,lowerUs=2423 failures=39 countedBytes=15616
-full,opt,15,630,595,18877,13932,11361,15480,543752,lowerUs=2515 failures=38 countedBytes=15616
-full,opt,16,630,595,18877,13932,13941,18658,545144,lowerUs=2908 failures=39 countedBytes=15616
-full,opt,17,630,595,18877,13932,11805,14588,546496,lowerUs=2374 failures=39 countedBytes=15616
-full,opt,18,630,596,18877,13932,11614,15762,546696,lowerUs=3149 failures=39 countedBytes=15666
-full,opt,19,630,596,18877,13932,11669,14266,553392,lowerUs=2270 failures=39 countedBytes=15656
-full,opt,2,630,595,18877,13932,11820,16014,545144,lowerUs=3254 failures=39 countedBytes=15616
-full,opt,20,630,595,18877,13932,11666,15586,547888,lowerUs=2354 failures=39 countedBytes=15616
-full,opt,21,630,595,18877,13932,11523,15612,544832,lowerUs=2409 failures=39 countedBytes=15616
-full,opt,22,630,595,18877,13932,11651,15704,546496,lowerUs=3168 failures=39 countedBytes=15616
-full,opt,23,630,595,18877,13932,11640,14338,549176,lowerUs=2385 failures=39 countedBytes=15616
-full,opt,24,630,595,18877,13932,11360,15314,545144,lowerUs=2418 failures=39 countedBytes=15616
-full,opt,25,630,595,18877,13932,11766,15102,544832,lowerUs=2552 failures=39 countedBytes=15616
-full,opt,26,630,595,18877,13932,11472,15076,545144,lowerUs=2436 failures=39 countedBytes=15616
-full,opt,27,630,595,18877,13932,11794,14578,549176,lowerUs=2402 failures=39 countedBytes=15616
-full,opt,28,630,595,18877,13932,11510,15436,545144,lowerUs=2457 failures=39 countedBytes=15616
-full,opt,29,630,595,18877,13932,12074,16404,549176,lowerUs=2605 failures=39 countedBytes=15616
-full,opt,3,630,595,18877,13932,11492,15568,547888,lowerUs=2365 failures=39 countedBytes=15616
-full,opt,30,630,611,18877,13932,24458,16100,567824,lowerUs=-8330 failures=40 countedBytes=16590
-full,opt,4,630,595,18877,13932,11600,14530,543752,lowerUs=2354 failures=39 countedBytes=15616
-full,opt,5,630,595,18877,13932,11703,15875,545144,lowerUs=2401 failures=39 countedBytes=15616
-full,opt,6,630,595,18877,13932,11456,15588,545144,lowerUs=2388 failures=39 countedBytes=15616
-full,opt,7,630,595,18877,13932,11573,14493,543752,lowerUs=2451 failures=39 countedBytes=15616
-full,opt,8,630,595,18877,13932,12367,16470,547888,lowerUs=2620 failures=39 countedBytes=15616
-full,opt,9,630,595,18877,13932,12073,14902,547888,lowerUs=2427 failures=39 countedBytes=15616
-noblock,baseline,1,591,596,15526,11614,1865,1969,500800,countedBytes=15574 failures=0
-noblock,baseline,10,591,596,15526,11614,1789,1923,500800,countedBytes=15574 failures=0
-noblock,baseline,11,591,596,15526,11614,1750,1864,500800,countedBytes=15574 failures=0
-noblock,baseline,12,591,596,15526,11614,1826,1940,500800,countedBytes=15574 failures=0
-noblock,baseline,13,591,596,15526,11614,1845,1972,500800,countedBytes=15574 failures=0
-noblock,baseline,14,591,596,15526,11614,1809,1910,500800,countedBytes=15574 failures=0
-noblock,baseline,15,591,596,15526,11614,2061,2157,500800,countedBytes=15574 failures=0
-noblock,baseline,16,591,596,15526,11614,1800,1962,500800,countedBytes=15574 failures=0
-noblock,baseline,17,591,596,15526,11614,1838,2436,500800,countedBytes=15574 failures=0
-noblock,baseline,18,591,596,15526,11614,1793,1882,500800,countedBytes=15574 failures=0
-noblock,baseline,19,591,596,15526,11614,1818,1926,500800,countedBytes=15574 failures=0
-noblock,baseline,2,591,596,15526,11614,1812,2403,500800,countedBytes=15574 failures=0
-noblock,baseline,20,591,596,15526,11614,1943,2065,500800,countedBytes=15574 failures=0
-noblock,baseline,21,591,596,15526,11614,1770,1862,500800,countedBytes=15574 failures=0
-noblock,baseline,22,591,596,15526,11614,1754,1868,500800,countedBytes=15574 failures=0
-noblock,baseline,23,591,596,15526,11614,1826,1923,500800,countedBytes=15574 failures=0
-noblock,baseline,24,591,596,15526,11614,1802,1918,500800,countedBytes=15574 failures=0
-noblock,baseline,25,591,596,15526,11614,1736,1812,500800,countedBytes=15574 failures=0
-noblock,baseline,26,591,596,15526,11614,1819,1924,500800,countedBytes=15574 failures=0
-noblock,baseline,27,591,596,15526,11614,1836,1946,500800,countedBytes=15574 failures=0
-noblock,baseline,28,591,596,15526,11614,1780,1916,500800,countedBytes=15574 failures=0
-noblock,baseline,29,591,596,15526,11614,1827,1962,500800,countedBytes=15574 failures=0
-noblock,baseline,3,591,596,15526,11614,1880,2005,500800,countedBytes=15574 failures=0
-noblock,baseline,30,591,597,15526,11614,2528,1956,814184,countedBytes=21143 failures=0
-noblock,baseline,4,591,596,15526,11614,1864,1952,500800,countedBytes=15574 failures=0
-noblock,baseline,5,591,596,15526,11614,1943,2058,500800,countedBytes=15574 failures=0
-noblock,baseline,6,591,596,15526,11614,1906,1996,500800,countedBytes=15574 failures=0
-noblock,baseline,7,591,596,15526,11614,1815,1912,500800,countedBytes=15574 failures=0
-noblock,baseline,8,591,596,15526,11614,1957,2064,500800,countedBytes=15574 failures=0
-noblock,baseline,9,591,596,15526,11614,1806,1929,500800,countedBytes=15574 failures=0
-noblock,cog,1,591,594,14569,13805,2000,2026,301352,xray=591 blocks=0 compactions=0
-noblock,cog,10,591,594,14569,13805,2000,2029,301352,xray=591 blocks=0 compactions=0
-noblock,cog,11,591,594,14569,13805,2000,1954,301352,xray=591 blocks=0 compactions=0
-noblock,cog,12,591,594,14569,13805,2000,2087,301352,xray=591 blocks=0 compactions=0
-noblock,cog,13,591,593,14569,13805,2000,2001,301352,xray=591 blocks=0 compactions=0
-noblock,cog,14,591,595,14569,13805,2000,1948,301352,xray=591 blocks=0 compactions=0
-noblock,cog,15,591,595,14569,13805,2000,1928,301352,xray=591 blocks=0 compactions=0
-noblock,cog,16,591,595,14569,13805,2000,1962,301352,xray=591 blocks=0 compactions=0
-noblock,cog,17,591,595,14569,13805,2000,1962,301352,xray=591 blocks=0 compactions=0
-noblock,cog,18,591,594,14569,13805,2000,1924,301352,xray=591 blocks=0 compactions=0
-noblock,cog,19,591,593,14569,13805,2000,1952,301352,xray=591 blocks=0 compactions=0
-noblock,cog,2,591,593,14569,13805,2000,2062,301352,xray=591 blocks=0 compactions=0
-noblock,cog,20,591,593,14569,13805,2000,2006,301352,xray=591 blocks=0 compactions=0
-noblock,cog,21,591,593,14569,13805,2000,1944,301352,xray=591 blocks=0 compactions=0
-noblock,cog,22,591,593,14569,13805,2000,1928,301352,xray=591 blocks=0 compactions=0
-noblock,cog,23,591,594,14569,13805,2000,1980,301352,xray=591 blocks=0 compactions=0
-noblock,cog,24,591,594,14569,13805,2000,2002,301352,xray=591 blocks=0 compactions=0
-noblock,cog,25,591,593,14569,13805,2000,1949,301352,xray=591 blocks=0 compactions=0
-noblock,cog,26,591,594,14569,13805,2000,1982,301352,xray=591 blocks=0 compactions=0
-noblock,cog,27,591,595,14569,13805,2000,1970,301352,xray=591 blocks=0 compactions=0
-noblock,cog,28,591,594,14569,13805,2000,1988,301352,xray=591 blocks=0 compactions=0
-noblock,cog,29,591,595,14569,13805,2000,1978,301352,xray=591 blocks=0 compactions=0
-noblock,cog,3,591,594,14569,13805,2000,2024,301352,xray=591 blocks=0 compactions=0
-noblock,cog,30,591,594,14569,13805,2000,1960,301352,xray=591 blocks=0 compactions=0
-noblock,cog,4,591,594,14569,13805,2000,1964,301352,xray=591 blocks=0 compactions=0
-noblock,cog,5,591,595,14569,13805,2000,2170,301352,xray=591 blocks=0 compactions=0
-noblock,cog,6,591,593,14569,13805,2000,1988,301352,xray=591 blocks=0 compactions=0
-noblock,cog,7,591,593,14569,13805,2000,2036,301352,xray=591 blocks=0 compactions=0
-noblock,cog,8,591,594,14569,13805,2000,2106,301352,xray=591 blocks=0 compactions=0
-noblock,cog,9,591,594,14569,13805,2000,1986,301352,xray=591 blocks=0 compactions=0
-noblock,opt,1,591,594,15526,11614,11642,15188,542216,lowerUs=2109 failures=1 countedBytes=15564
-noblock,opt,10,591,594,15526,11614,11125,13496,543608,lowerUs=1934 failures=1 countedBytes=15564
-noblock,opt,11,591,594,15526,11614,11215,13695,542216,lowerUs=2044 failures=1 countedBytes=15564
-noblock,opt,12,591,594,15526,11614,11665,14448,544960,lowerUs=2771 failures=1 countedBytes=15564
-noblock,opt,13,591,594,15526,11614,11285,14790,547640,lowerUs=1964 failures=1 countedBytes=15564
-noblock,opt,14,591,594,15526,11614,11259,13555,546352,lowerUs=1927 failures=1 countedBytes=15564
-noblock,opt,15,591,594,15526,11614,11297,14941,546352,lowerUs=2080 failures=1 countedBytes=15564
-noblock,opt,16,591,594,15526,11614,11432,14976,543608,lowerUs=2123 failures=1 countedBytes=15564
-noblock,opt,17,591,594,15526,11614,11237,14864,543608,lowerUs=2072 failures=1 countedBytes=15564
-noblock,opt,18,591,593,15526,11614,11032,14514,543064,lowerUs=2081 failures=1 countedBytes=15543
-noblock,opt,19,591,594,15526,11614,11262,14880,544960,lowerUs=2010 failures=1 countedBytes=15564
-noblock,opt,2,591,594,15526,11614,11189,14306,543608,lowerUs=2013 failures=1 countedBytes=15564
-noblock,opt,20,591,594,15526,11614,11168,13786,543296,lowerUs=2053 failures=1 countedBytes=15564
-noblock,opt,21,591,594,15526,11614,10995,14672,543608,lowerUs=2068 failures=1 countedBytes=15564
-noblock,opt,22,591,609,15526,11614,23492,14170,565968,lowerUs=-8904 failures=2 countedBytes=16535
-noblock,opt,23,591,594,15526,11614,11376,13773,546352,lowerUs=1974 failures=1 countedBytes=15564
-noblock,opt,24,591,594,15526,11614,10997,14597,543608,lowerUs=2760 failures=1 countedBytes=15564
-noblock,opt,25,591,594,15526,11614,11139,13548,543296,lowerUs=2045 failures=1 countedBytes=15564
-noblock,opt,26,591,594,15526,11614,11227,13504,543608,lowerUs=1945 failures=1 countedBytes=15564
-noblock,opt,27,591,594,15526,11614,11431,15191,543296,lowerUs=2098 failures=1 countedBytes=15564
-noblock,opt,28,591,594,15526,11614,11066,13430,543608,lowerUs=1999 failures=1 countedBytes=15564
-noblock,opt,29,591,594,15526,11614,11607,15250,543608,lowerUs=1984 failures=1 countedBytes=15564
-noblock,opt,3,591,594,15526,11614,11569,13958,546352,lowerUs=2053 failures=2 countedBytes=15564
-noblock,opt,30,591,594,15526,11614,11315,13670,544960,lowerUs=1995 failures=1 countedBytes=15564
-noblock,opt,4,591,594,15526,11614,11255,14792,543608,lowerUs=1956 failures=1 countedBytes=15564
-noblock,opt,5,591,594,15526,11614,11152,14824,543608,lowerUs=2061 failures=1 countedBytes=15564
-noblock,opt,6,591,594,15526,11614,11636,14458,542216,lowerUs=2131 failures=1 countedBytes=15564
-noblock,opt,7,591,594,15526,11614,11338,14874,546352,lowerUs=1928 failures=1 countedBytes=15564
-noblock,opt,8,591,594,15526,11614,11392,13838,543296,lowerUs=2007 failures=1 countedBytes=15564
-noblock,opt,9,591,594,15526,11614,11079,14696,542216,lowerUs=2041 failures=1 countedBytes=15564
+full,baseline,1,630,635,18877,13932,2312,2810,618888,countedBytes=18925 failures=0
+full,baseline,10,630,635,18877,13932,2227,2330,618888,countedBytes=18925 failures=0
+full,baseline,11,630,635,18877,13932,2110,2204,618888,countedBytes=18925 failures=0
+full,baseline,12,630,635,18877,13932,2104,2232,618888,countedBytes=18925 failures=0
+full,baseline,13,630,635,18877,13932,2189,2322,618888,countedBytes=18925 failures=0
+full,baseline,14,630,635,18877,13932,2186,2298,618888,countedBytes=18925 failures=0
+full,baseline,15,630,635,18877,13932,2172,2279,618888,countedBytes=18925 failures=0
+full,baseline,16,630,635,18877,13932,2169,2282,618888,countedBytes=18925 failures=0
+full,baseline,17,630,635,18877,13932,2096,2211,618888,countedBytes=18925 failures=0
+full,baseline,18,630,635,18877,13932,2176,2288,618888,countedBytes=18925 failures=0
+full,baseline,19,630,635,18877,13932,2173,2277,618888,countedBytes=18925 failures=0
+full,baseline,2,630,635,18877,13932,2188,2329,618888,countedBytes=18925 failures=0
+full,baseline,20,630,635,18877,13932,2227,2385,618888,countedBytes=18925 failures=0
+full,baseline,21,630,635,18877,13932,2143,2252,618888,countedBytes=18925 failures=0
+full,baseline,22,630,635,18877,13932,2331,2457,618888,countedBytes=18925 failures=0
+full,baseline,23,630,635,18877,13932,2182,2835,618888,countedBytes=18925 failures=0
+full,baseline,24,630,637,18877,13932,2550,2256,849520,countedBytes=23026 failures=0
+full,baseline,25,630,635,18877,13932,2309,2950,618888,countedBytes=18925 failures=0
+full,baseline,26,630,635,18877,13932,2218,2330,618888,countedBytes=18925 failures=0
+full,baseline,27,630,635,18877,13932,2372,2484,618888,countedBytes=18925 failures=0
+full,baseline,28,630,635,18877,13932,2217,2352,618888,countedBytes=18925 failures=0
+full,baseline,29,630,635,18877,13932,2201,2330,618888,countedBytes=18925 failures=0
+full,baseline,3,630,635,18877,13932,2239,2799,618888,countedBytes=18925 failures=0
+full,baseline,30,630,635,18877,13932,2229,2822,618888,countedBytes=18925 failures=0
+full,baseline,4,630,636,18877,13932,2857,2296,998912,countedBytes=25598 failures=0
+full,baseline,5,630,635,18877,13932,2215,2343,618888,countedBytes=18925 failures=0
+full,baseline,6,630,635,18877,13932,2141,2260,618888,countedBytes=18925 failures=0
+full,baseline,7,630,635,18877,13932,2296,3020,618888,countedBytes=18925 failures=0
+full,baseline,8,630,635,18877,13932,2130,2243,618888,countedBytes=18925 failures=0
+full,baseline,9,630,635,18877,13932,2149,2254,618888,countedBytes=18925 failures=0
+full,cog,1,630,633,16400,15386,3000,2275,332336,xray=630 blocks=0 compactions=0
+full,cog,10,630,633,16400,15386,2000,2300,332336,xray=630 blocks=0 compactions=0
+full,cog,11,630,633,16400,15386,2000,2182,332336,xray=630 blocks=0 compactions=0
+full,cog,12,630,632,16400,15386,3000,2329,332336,xray=630 blocks=0 compactions=0
+full,cog,13,630,633,16400,15386,2000,2154,332336,xray=630 blocks=0 compactions=0
+full,cog,14,630,632,16400,15386,2000,2207,332336,xray=630 blocks=0 compactions=0
+full,cog,15,630,634,16400,15386,3000,2172,332336,xray=630 blocks=0 compactions=0
+full,cog,16,630,633,16400,15386,2000,2238,332336,xray=630 blocks=0 compactions=0
+full,cog,17,630,632,16400,15386,2000,2152,332336,xray=630 blocks=0 compactions=0
+full,cog,18,630,633,16400,15386,2000,2186,332336,xray=630 blocks=0 compactions=0
+full,cog,19,630,633,16400,15386,2000,2261,332336,xray=630 blocks=0 compactions=0
+full,cog,2,630,632,16400,15386,2000,2283,332336,xray=630 blocks=0 compactions=0
+full,cog,20,630,633,16400,15386,2000,2194,332336,xray=630 blocks=0 compactions=0
+full,cog,21,630,633,16400,15386,3000,2160,332336,xray=630 blocks=0 compactions=0
+full,cog,22,630,634,16400,15386,2000,2188,332336,xray=630 blocks=0 compactions=0
+full,cog,23,630,632,16400,15386,3000,2432,332336,xray=630 blocks=0 compactions=0
+full,cog,24,630,633,16400,15386,2000,2176,332336,xray=630 blocks=0 compactions=0
+full,cog,25,630,632,16400,15386,2000,2141,332336,xray=630 blocks=0 compactions=0
+full,cog,26,630,633,16400,15386,2000,2201,332336,xray=630 blocks=0 compactions=0
+full,cog,27,630,632,16400,15386,2000,2174,332336,xray=630 blocks=0 compactions=0
+full,cog,28,630,632,16400,15386,3000,2170,332336,xray=630 blocks=0 compactions=0
+full,cog,29,630,634,16400,15386,2000,2242,332336,xray=630 blocks=0 compactions=0
+full,cog,3,630,632,16400,15386,2000,2197,332336,xray=630 blocks=0 compactions=0
+full,cog,30,630,633,16400,15386,3000,2282,332336,xray=630 blocks=0 compactions=0
+full,cog,4,630,633,16400,15386,2000,2162,332336,xray=630 blocks=0 compactions=0
+full,cog,5,630,633,16400,15386,3000,2230,332336,xray=630 blocks=0 compactions=0
+full,cog,6,630,634,16400,15386,2000,2188,332336,xray=630 blocks=0 compactions=0
+full,cog,7,630,632,16400,15386,2000,2168,332336,xray=630 blocks=0 compactions=0
+full,cog,8,630,633,16400,15386,3000,2207,332336,xray=630 blocks=0 compactions=0
+full,cog,9,630,633,16400,15386,2000,2265,332336,xray=630 blocks=0 compactions=0
+full,opt,1,630,596,18877,13932,11696,15168,550176,lowerUs=2449 failures=39 countedBytes=15656
+full,opt,10,630,596,18877,13932,11959,15866,549216,lowerUs=2625 failures=40 countedBytes=15656
+full,opt,11,630,595,18877,13932,11972,14812,547888,lowerUs=2489 failures=39 countedBytes=15616
+full,opt,12,630,595,18877,13932,11469,14295,544832,lowerUs=2488 failures=39 countedBytes=15616
+full,opt,13,630,595,18877,13932,11494,15634,547888,lowerUs=2472 failures=39 countedBytes=15616
+full,opt,14,630,596,18877,13932,12018,14822,553664,lowerUs=2425 failures=39 countedBytes=15656
+full,opt,15,630,596,18877,13932,11528,15426,551960,lowerUs=2370 failures=39 countedBytes=15656
+full,opt,16,630,595,18877,13932,11552,15564,545144,lowerUs=3210 failures=39 countedBytes=15616
+full,opt,17,630,595,18877,13932,11946,16160,547888,lowerUs=2529 failures=39 countedBytes=15616
+full,opt,18,630,595,18877,13932,12035,15668,546496,lowerUs=2559 failures=39 countedBytes=15616
+full,opt,19,630,595,18877,13932,11538,15588,547888,lowerUs=3093 failures=39 countedBytes=15616
+full,opt,2,630,595,18877,13932,11673,15605,545144,lowerUs=2470 failures=39 countedBytes=15616
+full,opt,20,630,595,18877,13932,11604,14814,545144,lowerUs=3149 failures=39 countedBytes=15616
+full,opt,21,630,595,18877,13932,11738,15777,546496,lowerUs=2412 failures=39 countedBytes=15616
+full,opt,22,630,595,18877,13932,11825,15752,544832,lowerUs=2511 failures=39 countedBytes=15616
+full,opt,23,630,595,18877,13932,11617,14546,543752,lowerUs=2523 failures=39 countedBytes=15616
+full,opt,24,630,595,18877,13932,11472,15522,544832,lowerUs=3178 failures=39 countedBytes=15616
+full,opt,25,630,595,18877,13932,11438,14154,545144,lowerUs=2353 failures=39 countedBytes=15616
+full,opt,26,630,595,18877,13932,11564,15300,543752,lowerUs=2538 failures=39 countedBytes=15616
+full,opt,27,630,595,18877,13932,11140,13868,543752,lowerUs=2342 failures=39 countedBytes=15616
+full,opt,28,630,611,18877,13932,23181,14528,567656,lowerUs=-8242 failures=40 countedBytes=16590
+full,opt,29,630,595,18877,13932,11347,14176,544832,lowerUs=2901 failures=39 countedBytes=15616
+full,opt,3,630,595,18877,13932,11654,14451,546496,lowerUs=2397 failures=39 countedBytes=15616
+full,opt,30,630,595,18877,13932,11496,15644,545144,lowerUs=2411 failures=38 countedBytes=15616
+full,opt,4,630,595,18877,13932,11602,14480,545144,lowerUs=2441 failures=39 countedBytes=15616
+full,opt,5,630,595,18877,13932,11560,15283,545144,lowerUs=2435 failures=39 countedBytes=15616
+full,opt,6,630,595,18877,13932,12095,16052,547888,lowerUs=2544 failures=39 countedBytes=15616
+full,opt,7,630,611,18877,13932,24063,15921,568040,lowerUs=-8607 failures=40 countedBytes=16590
+full,opt,8,630,595,18877,13932,11449,15434,545144,lowerUs=2485 failures=39 countedBytes=15616
+full,opt,9,630,595,18877,13932,11510,15688,544832,lowerUs=2502 failures=39 countedBytes=15616
+noblock,baseline,1,591,596,15526,11614,1789,1896,500800,countedBytes=15574 failures=0
+noblock,baseline,10,591,596,15526,11614,1820,1926,500800,countedBytes=15574 failures=0
+noblock,baseline,11,591,596,15526,11614,1808,2341,500800,countedBytes=15574 failures=0
+noblock,baseline,12,591,596,15526,11614,2026,2478,500800,countedBytes=15574 failures=0
+noblock,baseline,13,591,596,15526,11614,1860,1966,500800,countedBytes=15574 failures=0
+noblock,baseline,14,591,596,15526,11614,1857,1950,500800,countedBytes=15574 failures=0
+noblock,baseline,15,591,597,15526,11614,2606,2244,881840,countedBytes=22331 failures=0
+noblock,baseline,16,591,596,15526,11614,1803,1906,500800,countedBytes=15574 failures=0
+noblock,baseline,17,591,597,15526,11614,2484,1910,879800,countedBytes=22247 failures=0
+noblock,baseline,18,591,596,15526,11614,1846,1979,500800,countedBytes=15574 failures=0
+noblock,baseline,19,591,596,15526,11614,1807,1916,500800,countedBytes=15574 failures=0
+noblock,baseline,2,591,596,15526,11614,1812,1904,500800,countedBytes=15574 failures=0
+noblock,baseline,20,591,596,15526,11614,1797,1891,500800,countedBytes=15574 failures=0
+noblock,baseline,21,591,596,15526,11614,1833,1926,500800,countedBytes=15574 failures=0
+noblock,baseline,22,591,596,15526,11614,1841,1967,500800,countedBytes=15574 failures=0
+noblock,baseline,23,591,596,15526,11614,1809,1898,500800,countedBytes=15574 failures=0
+noblock,baseline,24,591,597,15526,11614,2549,2446,883320,countedBytes=22439 failures=0
+noblock,baseline,25,591,596,15526,11614,1833,1957,500800,countedBytes=15574 failures=0
+noblock,baseline,26,591,596,15526,11614,1940,2036,500800,countedBytes=15574 failures=0
+noblock,baseline,27,591,596,15526,11614,2103,2638,500800,countedBytes=15574 failures=0
+noblock,baseline,28,591,596,15526,11614,1899,2014,500800,countedBytes=15574 failures=0
+noblock,baseline,29,591,596,15526,11614,1821,1950,500800,countedBytes=15574 failures=0
+noblock,baseline,3,591,596,15526,11614,1829,1947,500800,countedBytes=15574 failures=0
+noblock,baseline,30,591,596,15526,11614,1778,1888,500800,countedBytes=15574 failures=0
+noblock,baseline,4,591,596,15526,11614,1818,1936,500800,countedBytes=15574 failures=0
+noblock,baseline,5,591,597,15526,11614,2522,1924,882504,countedBytes=22241 failures=0
+noblock,baseline,6,591,596,15526,11614,1851,1932,500800,countedBytes=15574 failures=0
+noblock,baseline,7,591,596,15526,11614,1817,1916,500800,countedBytes=15574 failures=0
+noblock,baseline,8,591,596,15526,11614,1841,1972,500800,countedBytes=15574 failures=0
+noblock,baseline,9,591,596,15526,11614,1805,1928,500800,countedBytes=15574 failures=0
+noblock,cog,1,591,593,14569,13805,2000,2046,301352,xray=591 blocks=0 compactions=0
+noblock,cog,10,591,595,14569,13805,2000,2012,301352,xray=591 blocks=0 compactions=0
+noblock,cog,11,591,593,14569,13805,2000,1926,301352,xray=591 blocks=0 compactions=0
+noblock,cog,12,591,593,14569,13805,2000,1980,301352,xray=591 blocks=0 compactions=0
+noblock,cog,13,591,595,14569,13805,2000,2004,301352,xray=591 blocks=0 compactions=0
+noblock,cog,14,591,594,14569,13805,2000,1965,301352,xray=591 blocks=0 compactions=0
+noblock,cog,15,591,593,14569,13805,2000,1936,301352,xray=591 blocks=0 compactions=0
+noblock,cog,16,591,593,14569,13805,2000,1936,301352,xray=591 blocks=0 compactions=0
+noblock,cog,17,591,594,14569,13805,2000,1966,301352,xray=591 blocks=0 compactions=0
+noblock,cog,18,591,593,14569,13805,2000,1947,301352,xray=591 blocks=0 compactions=0
+noblock,cog,19,591,594,14569,13805,2000,1952,301352,xray=591 blocks=0 compactions=0
+noblock,cog,2,591,593,14569,13805,2000,1980,301352,xray=591 blocks=0 compactions=0
+noblock,cog,20,591,595,14569,13805,2000,1992,301352,xray=591 blocks=0 compactions=0
+noblock,cog,21,591,594,14569,13805,2000,2012,301352,xray=591 blocks=0 compactions=0
+noblock,cog,22,591,594,14569,13805,2000,1990,301352,xray=591 blocks=0 compactions=0
+noblock,cog,23,591,593,14569,13805,2000,1948,301352,xray=591 blocks=0 compactions=0
+noblock,cog,24,591,594,14569,13805,2000,1944,301352,xray=591 blocks=0 compactions=0
+noblock,cog,25,591,595,14569,13805,2000,1968,301352,xray=591 blocks=0 compactions=0
+noblock,cog,26,591,593,14569,13805,2000,1948,301352,xray=591 blocks=0 compactions=0
+noblock,cog,27,591,593,14569,13805,2000,1982,301352,xray=591 blocks=0 compactions=0
+noblock,cog,28,591,593,14569,13805,2000,1954,301352,xray=591 blocks=0 compactions=0
+noblock,cog,29,591,593,14569,13805,3000,2032,301352,xray=591 blocks=0 compactions=0
+noblock,cog,3,591,593,14569,13805,2000,1978,301352,xray=591 blocks=0 compactions=0
+noblock,cog,30,591,595,14569,13805,2000,1942,301352,xray=591 blocks=0 compactions=0
+noblock,cog,4,591,594,14569,13805,1000,1926,301352,xray=591 blocks=0 compactions=0
+noblock,cog,5,591,594,14569,13805,1000,1960,301352,xray=591 blocks=0 compactions=0
+noblock,cog,6,591,593,14569,13805,2000,1999,301352,xray=591 blocks=0 compactions=0
+noblock,cog,7,591,593,14569,13805,1000,2044,301352,xray=591 blocks=0 compactions=0
+noblock,cog,8,591,594,14569,13805,2000,1954,301352,xray=591 blocks=0 compactions=0
+noblock,cog,9,591,594,14569,13805,2000,2154,301352,xray=591 blocks=0 compactions=0
+noblock,opt,1,591,594,15526,11614,10861,13766,543608,lowerUs=2032 failures=1 countedBytes=15564
+noblock,opt,10,591,594,15526,11614,10754,13086,543608,lowerUs=2590 failures=1 countedBytes=15564
+noblock,opt,11,591,594,15526,11614,11232,13620,543608,lowerUs=1979 failures=1 countedBytes=15564
+noblock,opt,12,591,594,15526,11614,10939,14556,543296,lowerUs=2049 failures=1 countedBytes=15564
+noblock,opt,13,591,594,15526,11614,11205,13708,543608,lowerUs=2796 failures=1 countedBytes=15564
+noblock,opt,14,591,594,15526,11614,10958,13388,542216,lowerUs=2012 failures=1 countedBytes=15564
+noblock,opt,15,591,594,15526,11614,10933,14492,543608,lowerUs=2085 failures=1 countedBytes=15564
+noblock,opt,16,591,594,15526,11614,11030,14472,543608,lowerUs=2062 failures=1 countedBytes=15564
+noblock,opt,17,591,594,15526,11614,10913,13240,543608,lowerUs=1942 failures=1 countedBytes=15564
+noblock,opt,18,591,594,15526,11614,10883,14393,543296,lowerUs=2015 failures=1 countedBytes=15564
+noblock,opt,19,591,594,15526,11614,11202,14676,543296,lowerUs=2056 failures=1 countedBytes=15564
+noblock,opt,2,591,594,15526,11614,11164,14678,543608,lowerUs=2144 failures=1 countedBytes=15564
+noblock,opt,20,591,594,15526,11614,11353,14818,546352,lowerUs=2048 failures=0 countedBytes=15564
+noblock,opt,21,591,594,15526,11614,11226,14778,543296,lowerUs=2079 failures=1 countedBytes=15564
+noblock,opt,22,591,594,15526,11614,10963,14246,543608,lowerUs=2011 failures=1 countedBytes=15564
+noblock,opt,23,591,594,15526,11614,11053,14315,543608,lowerUs=2035 failures=1 countedBytes=15564
+noblock,opt,24,591,594,15526,11614,10785,14116,542216,lowerUs=2751 failures=1 countedBytes=15564
+noblock,opt,25,591,594,15526,11614,11211,14506,543608,lowerUs=2092 failures=1 countedBytes=15564
+noblock,opt,26,591,594,15526,11614,10649,12932,542216,lowerUs=2599 failures=1 countedBytes=15564
+noblock,opt,27,591,594,15526,11614,10831,13206,543296,lowerUs=1910 failures=1 countedBytes=15564
+noblock,opt,28,591,610,15526,11614,11504,13952,565664,lowerUs=2000 failures=2 countedBytes=16538
+noblock,opt,29,591,595,15526,11614,19501,13524,748560,lowerUs=2615 failures=1 countedBytes=21133
+noblock,opt,3,591,594,15526,11614,11014,14018,543296,lowerUs=2073 failures=1 countedBytes=15564
+noblock,opt,30,591,594,15526,11614,11114,14562,546352,lowerUs=2020 failures=1 countedBytes=15564
+noblock,opt,4,591,594,15526,11614,10748,14006,543608,lowerUs=1974 failures=1 countedBytes=15564
+noblock,opt,5,591,594,15526,11614,11321,14960,546352,lowerUs=2038 failures=1 countedBytes=15564
+noblock,opt,6,591,594,15526,11614,10858,14340,543296,lowerUs=2642 failures=0 countedBytes=15564
+noblock,opt,7,591,594,15526,11614,11418,15064,546352,lowerUs=2029 failures=2 countedBytes=15564
+noblock,opt,8,591,594,15526,11614,11181,14515,546352,lowerUs=2007 failures=1 countedBytes=15564
+noblock,opt,9,591,594,15526,11614,10983,13708,543296,lowerUs=2768 failures=1 countedBytes=15564
 #
 # corpus config rounds probes compiled bytes instrs compile_us(median; cog: mean) us/method us/byte us/instr wall_us(median) wall/method code/byte code/instr
-# full     baseline   30  630    635  18877  13932    2181.5    3.44  0.1156  0.1566    2327.8    3.69   32.8   44.4
-# full     cog        30  630    633  16400  15386    2266.7    3.58  0.1382  0.1473    2190.2    3.48   20.3   21.6
-# full     opt        30  630    595  18877  13932   11658.5   19.59  0.6176  0.8368   15458.5   24.54   28.9   39.1
-# noblock  baseline   30  591    596  15526  11614    1822.5    3.06  0.1174  0.1569    1942.8    3.29   32.3   43.1
-# noblock  cog        30  591    594  14569  13805    2000.0    3.37  0.1373  0.1449    1980.8    3.35   20.7   21.8
-# noblock  opt        30  591    594  15526  11614   11260.5   18.96  0.7253  0.9696   14486.0   24.51   35.0   46.8
+# full     baseline   30  630    635  18877  13932    2195.0    3.46  0.1163  0.1576    2325.2    3.69   32.8   44.4
+# full     cog        30  630    633  16400  15386    2300.0    3.63  0.1402  0.1495    2195.5    3.48   20.3   21.6
+# full     opt        30  630    595  18877  13932   11603.0   19.50  0.6147  0.8328   15430.2   24.49   28.9   39.1
+# noblock  baseline   30  591    596  15526  11614    1833.0    3.08  0.1181  0.1578    1941.2    3.28   32.3   43.1
+# noblock  cog        30  591    594  14569  13805    1933.3    3.26  0.1327  0.1400    1967.2    3.33   20.7   21.8
+# noblock  opt        30  591    594  15526  11614   11022.0   18.56  0.7099  0.9490   14280.5   24.16   35.0   46.8
 # config benchmark runs first_ms(median) compile_ms(mean) share_of_first% compiled_units code_compaction_ms
-# baseline  Bounce         5      21.87      0.128     0.6     26.0     0.00
-# baseline  CD             5      88.71      0.513     0.6    118.0     0.00
-# baseline  DeltaBlue      5      29.24      0.439     1.5    108.2     0.00
-# baseline  Havlak         5     210.30      0.536     0.3    131.4     0.00
-# baseline  Json           5      36.56      0.334     0.9     81.0     0.00
-# baseline  List           5      17.22      0.089     0.5     24.0     0.00
-# baseline  Mandelbrot     5     205.04      0.151     0.1     21.0     0.00
-# baseline  NBody          5     324.98      0.240     0.1     45.0     0.00
-# baseline  Permute        5      21.32      0.082     0.4     19.0     0.00
-# baseline  Queens         5      19.69      0.093     0.5     23.2     0.00
-# baseline  Richards       5      17.63      0.287     1.6    105.0     0.00
-# baseline  Sieve          5      34.40      0.108     0.3     20.0     0.00
-# baseline  Storage        5      36.95      0.134     0.4     24.0     0.00
-# baseline  Towers         5      13.97      0.113     0.8     27.0     0.00
-# cog       Bounce         5      32.30      0.000     0.0     17.8     0.00
-# cog       CD             5     203.85      1.000     0.5    165.6     1.00
-# cog       DeltaBlue      5      80.84      0.800     1.0    152.6     1.00
-# cog       Havlak         5     395.66      1.000     0.3    175.8     1.00
-# cog       Json           5      58.46      0.000     0.0     77.4     0.00
-# cog       List           5      23.64      0.000     0.0     16.0     0.00
-# cog       Mandelbrot     5     371.56      0.000     0.0     13.4     0.00
-# cog       NBody          5     351.04      0.200     0.1    115.0     0.20
-# cog       Permute        5      33.29      0.000     0.0     12.0     0.00
-# cog       Queens         5      42.62      0.000     0.0     13.8     0.00
-# cog       Richards       5      22.84      0.600     2.6    108.6     0.20
-# cog       Sieve          5      56.91      0.000     0.0     86.6     0.00
-# cog       Storage        5      57.39      0.000     0.0     96.2     0.00
-# cog       Towers         5      16.82      0.000     0.0     20.0     0.00
-# opt       Bounce         5      12.43      1.458    11.7     33.2     0.00
-# opt       CD             5      66.63     16.397    24.6    163.6     0.00
-# opt       DeltaBlue      5      67.02     46.949    70.1    196.8     0.00
-# opt       Havlak         5      95.72     19.421    20.3    198.4     0.00
-# opt       Json           5      38.51     27.192    70.6    128.0     0.00
-# opt       List           5      13.34      1.502    11.3     31.6     0.00
-# opt       Mandelbrot     5     119.42      2.541     2.1     25.0     0.00
-# opt       NBody          5     145.77      1.943     1.3     49.6     0.00
-# opt       Permute        5      13.72      1.070     7.8     24.4     0.00
-# opt       Queens         5      14.37      1.980    13.8     34.8     0.00
-# opt       Richards       5      11.50      1.325    11.5    113.8     0.00
-# opt       Sieve          5      25.06      2.339     9.3     27.0     0.00
-# opt       Storage        5      28.74      2.729     9.5     30.8     0.00
-# opt       Towers         5       9.68      1.317    13.6     33.2     0.00
-# baseline  TOTAL first iterations 1077.9 ms, compile 3.2 ms, 0.3%
-# cog       TOTAL first iterations 1747.2 ms, compile 3.6 ms, 0.2%
-# opt       TOTAL first iterations 661.9 ms, compile 128.2 ms, 19.4%
+# baseline  Bounce         5      21.99      0.135     0.6     26.6     0.00
+# baseline  CD             5      89.19      0.524     0.6    117.0     0.00
+# baseline  DeltaBlue      5      29.00      0.434     1.5    108.4     0.00
+# baseline  Havlak         5     211.86      0.524     0.2    129.0     0.00
+# baseline  Json           5      35.90      0.324     0.9     81.0     0.00
+# baseline  List           5      17.49      0.089     0.5     24.0     0.00
+# baseline  Mandelbrot     5     205.36      0.158     0.1     20.6     0.00
+# baseline  NBody          5     325.86      0.227     0.1     43.0     0.00
+# baseline  Permute        5      21.60      0.094     0.4     19.4     0.00
+# baseline  Queens         5      20.05      0.116     0.6     24.2     0.00
+# baseline  Richards       5      17.45      0.285     1.6    105.0     0.00
+# baseline  Sieve          5      34.87      0.118     0.3     20.8     0.00
+# baseline  Storage        5      37.23      0.129     0.3     25.0     0.00
+# baseline  Towers         5      13.90      0.093     0.7     26.0     0.00
+# cog       Bounce         5      32.88      0.200     0.6     17.4     0.00
+# cog       CD             5     204.76      0.600     0.3    169.4     1.00
+# cog       DeltaBlue      5      82.50      0.400     0.5    154.0     1.00
+# cog       Havlak         5     402.71      0.600     0.1    174.6     0.80
+# cog       Json           5      58.00      0.000     0.0     77.8     0.00
+# cog       List           5      23.71      0.000     0.0     16.2     0.00
+# cog       Mandelbrot     5     371.87      0.000     0.0     12.2     0.00
+# cog       NBody          5     357.98      0.200     0.1    116.0     0.00
+# cog       Permute        5      33.11      0.000     0.0     12.0     0.00
+# cog       Queens         5      42.85      0.200     0.5     14.0     0.00
+# cog       Richards       5      23.51      0.400     1.7    111.8     0.00
+# cog       Sieve          5      58.56      0.800     1.4     92.2     0.00
+# cog       Storage        5      56.05      0.400     0.7     96.2     0.00
+# cog       Towers         5      16.81      0.200     1.2     19.8     0.00
+# opt       Bounce         5      12.87      1.916    14.9     34.2     0.00
+# opt       CD             5      66.51     16.340    24.6    161.8     0.00
+# opt       DeltaBlue      5      64.28     46.181    71.8    198.4     0.00
+# opt       Havlak         5      96.05     19.508    20.3    198.4     0.00
+# opt       Json           5      39.34     26.970    68.6    128.6     0.00
+# opt       List           5      13.53      1.494    11.0     31.0     0.00
+# opt       Mandelbrot     5     121.50      2.533     2.1     24.0     0.00
+# opt       NBody          5     147.03      2.433     1.7     48.0     0.00
+# opt       Permute        5      15.05      0.772     5.1     24.2     0.00
+# opt       Queens         5      14.42      2.239    15.5     36.4     0.00
+# opt       Richards       5      11.63      1.316    11.3    114.8     0.00
+# opt       Sieve          5      25.34      2.306     9.1     26.4     0.00
+# opt       Storage        5      28.57      2.544     8.9     30.2     0.00
+# opt       Towers         5       8.74      1.132    13.0     32.8     0.00
+# baseline  TOTAL first iterations 1081.7 ms, compile 3.3 ms, 0.3%
+# cog       TOTAL first iterations 1765.3 ms, compile 4.0 ms, 0.2%
+# opt       TOTAL first iterations 664.9 ms, compile 127.7 ms, 19.2%
