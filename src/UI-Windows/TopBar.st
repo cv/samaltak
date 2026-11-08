@@ -89,30 +89,58 @@ updateAt: nowMicros
 
 !TopBar methodsFor: 'drawing'!
 drawOn: c
-	| w x right y font bold mono monoBold label hintLeft banner |
-	w := world extent x.
-	c fillRect: (0 @ 0 extent: w @ 26) color: Color white.
-	c fillRect: (0 @ 26 extent: w @ 1) color: Color black.
+	"The brand and, at the right, ? and the tags always; the rest while it fits, in the order of importance: the process count, the image name, fps, ms, the sparkline, its label, the banner, the hint (the first to go when the World is narrow)."
+	| x font mono monoBold label banner hint keep pieces avail |
+	c fillRect: (0 @ 0 extent: world extent x @ 26) color: Color white.
+	c fillRect: (0 @ 26 extent: world extent x @ 1) color: Color black.
 	c image: (UIIcons orbScale: c scale) in: (14 @ 5 extent: 16 @ 16).
 	font := self font: #brand.
-	y := (26 - font lineHeight / 2) rounded.
-	c drawString: 'Samaltak' at: 37 @ y font: font color: Color black.
-	c drawString: 'Samaltak' at: 37.5 @ y font: font color: Color black.
+	c drawString: 'Samaltak' at: 37 @ (26 - font lineHeight / 2) rounded font: font color: Color black.
+	c drawString: 'Samaltak' at: 37.5 @ (26 - font lineHeight / 2) rounded font: font color: Color black.
 	x := 37 + (font widthOf: 'Samaltak') + 14.
-	c fillRect: (x @ 7 extent: 1 @ 13) color: Color black.
-	x := x + 15.
 	font := self font: #regular.
-	c drawString: world imageName at: x @ (26 - font lineHeight / 2) rounded font: font color: Color black.
-	hintLeft := x + (font widthOf: world imageName) + 14.
-	(banner := Smalltalk vm banner) isNil ifFalse: [
+	mono := self font: #mono.
+	monoBold := self font: #monoBold.
+	label := Font header.
+	banner := Smalltalk vm banner.
+	hint := 'Click the desktop for the World menu'.
+	avail := world extent x - 12 - self fixedRightWidth - x.
+	pieces := OrderedCollection new.
+	pieces
+		add: #procs -> ((mono widthOf: procText) + 8);
+		add: #name -> (15 + (font widthOf: world imageName) + 14);
+		add: #fps -> (7 + (mono widthOf: fpsText));
+		add: #ms -> (7 + (monoBold widthOf: msText));
+		add: #spark -> (7 + 64);
+		add: #label -> (7 + (label widthOf: 'compositor')).
+	banner isNil ifFalse: [pieces add: #banner -> (15 + (font widthOf: banner) + 14)].
+	pieces add: #hint -> (((self font: #italic) widthOf: hint) + 14).
+	keep := IdentitySet new.
+	pieces do: [:p |
+		p value > avail ifTrue: [^self drawOn: c keeping: keep from: x font: font banner: banner hint: hint].
+		avail := avail - p value.
+		keep add: p key].
+	self drawOn: c keeping: keep from: x font: font banner: banner hint: hint
+!
+drawOn: c keeping: keep from: left font: font banner: banner hint: hint
+	| mono monoBold label x hintLeft right y |
+	mono := self font: #mono.
+	monoBold := self font: #monoBold.
+	label := Font header.
+	x := left.
+	hintLeft := x.
+	(keep includes: #name) ifTrue: [
+		c fillRect: (x @ 7 extent: 1 @ 13) color: Color black.
+		x := x + 15.
+		c drawString: world imageName at: x @ (26 - font lineHeight / 2) rounded font: font color: Color black.
+		hintLeft := x + (font widthOf: world imageName) + 14].
+	(keep includes: #banner) ifTrue: [
 		c fillRect: (hintLeft @ 7 extent: 1 @ 13) color: Color black.
 		c drawString: banner at: (hintLeft + 15) @ (26 - font lineHeight / 2) rounded font: font color: Color black.
 		hintLeft := hintLeft + 15 + (font widthOf: banner) + 14].
 	"right to left"
-	mono := self font: #mono.
-	monoBold := self font: #monoBold.
 	y := (26 - mono lineHeight / 2) rounded.
-	right := w - 12.
+	right := world extent x - 12.
 	World helpHandler notNil ifTrue: [
 		right := self drawHelpOn: c right: right.
 		right := right - 8].
@@ -122,22 +150,35 @@ drawOn: c
 	Animation timeScale = 1 ifFalse: [
 		right := self drawSlowTagOn: c right: right.
 		right := right - 10].
-	right := right - (mono widthOf: procText).
-	c drawString: procText at: right @ y font: mono color: Color black.
-	right := right - 8.
-	c fillRect: (right @ 7 extent: 1 @ 13) color: Color black.
-	right := right - 7 - (mono widthOf: fpsText).
-	c drawString: fpsText at: right @ y font: mono color: Color black.
-	right := right - 7 - (monoBold widthOf: msText).
-	c drawString: msText at: right @ y font: monoBold color: Color black.
-	right := right - 7 - 64.
-	self drawSparkOn: c in: (right @ 5 extent: 64 @ 16).
-	label := Font header.
-	right := right - 7 - (label widthOf: 'compositor').
-	c drawString: 'compositor' at: right @ (26 - label lineHeight / 2) rounded font: label color: Color black.
-	font := self font: #italic.
-	c drawString: 'Click the desktop for the World menu'
-		in: (hintLeft @ 0 corner: (right - 14) @ 26) font: font color: (Color named: #ink3) align: #center
+	(keep includes: #procs) ifTrue: [
+		right := right - (mono widthOf: procText).
+		c drawString: procText at: right @ y font: mono color: Color black.
+		right := right - 8].
+	(keep includes: #fps) ifTrue: [
+		c fillRect: (right @ 7 extent: 1 @ 13) color: Color black.
+		right := right - 7 - (mono widthOf: fpsText).
+		c drawString: fpsText at: right @ y font: mono color: Color black].
+	(keep includes: #ms) ifTrue: [
+		right := right - 7 - (monoBold widthOf: msText).
+		c drawString: msText at: right @ y font: monoBold color: Color black].
+	(keep includes: #spark) ifTrue: [
+		right := right - 7 - 64.
+		self drawSparkOn: c in: (right @ 5 extent: 64 @ 16)].
+	(keep includes: #label) ifTrue: [
+		right := right - 7 - (label widthOf: 'compositor').
+		c drawString: 'compositor' at: right @ (26 - label lineHeight / 2) rounded font: label color: Color black].
+	(keep includes: #hint) ifTrue: [
+		c drawString: hint
+			in: (hintLeft @ 0 corner: (right - 14) @ 26) font: (self font: #italic) color: (Color named: #ink3) align: #center]
+!
+fixedRightWidth
+	"What ? and the tags take at the right, as drawOn:keeping:... places them."
+	| width |
+	width := 0.
+	World helpHandler notNil ifTrue: [width := width + 20 + 8].
+	(self remoteSince: Time millisecondClockValue) notNil ifTrue: [width := width + self remoteTagWidth + 10].
+	Animation timeScale = 1 ifFalse: [width := width + self slowTagWidth + 10].
+	^width
 !
 drawSparkOn: c in: r
 	| yOf prev n |
@@ -168,7 +209,7 @@ drawRemoteTagOn: c right: right flash: aBoolean
 	| font label w r ink |
 	font := Font header.
 	label := 'REMOTE'.
-	w := 6 + 6 + 5 + (font widthOf: label) + 6.
+	w := self remoteTagWidth.
 	r := (right - w) @ 4 extent: w @ 18.
 	ink := aBoolean ifTrue: [Color white] ifFalse: [Color ultramarine].
 	aBoolean ifTrue: [c fillRect: r color: Color ultramarine].
@@ -181,12 +222,21 @@ drawSlowTagOn: c right: right
 	"While animations run slowed down: an ultramarine tag with the factor, e.g. 10× SLOW."
 	| font label w r |
 	font := Font header.
-	label := Animation timeScale printString, '× SLOW'.
-	w := 6 + (font widthOf: label) + 6.
+	label := self slowTagLabel.
+	w := self slowTagWidth.
 	r := (right - w) @ 4 extent: w @ 18.
 	c fillRect: r color: Color ultramarine.
 	c drawString: label at: (r left + 6) @ (r top + (18 - font lineHeight / 2) rounded) font: font color: Color white.
 	^r left
+!
+remoteTagWidth
+	^6 + 6 + 5 + (Font header widthOf: 'REMOTE') + 6
+!
+slowTagLabel
+	^Animation timeScale printString, '× SLOW'
+!
+slowTagWidth
+	^6 + (Font header widthOf: self slowTagLabel) + 6
 !
 drawHelpOn: c right: right
 	"The ? button (opens Help, like the World menu's Help…)."
