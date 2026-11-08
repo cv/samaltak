@@ -5,11 +5,14 @@ CLibrary subclass: #CoreVideo
 
 CoreVideo comment: 'The CVDisplayLink functions of the vsync semaphore (deprecated in macOS 15, hence the pragma). Not simulated.
 
-CVDisplayLink is deprecated; PlatformVsync, its only user, turns off the deprecation warnings.'!
+CVDisplayLink is deprecated; DarwinPlatformHost, its only user, turns off the deprecation warnings.'!
 
 !CoreVideo class methodsFor: 'declaring'!
 headers
 	^#('<CoreVideo/CoreVideo.h>')
+!
+targetOS
+	^#darwin
 !
 typedefs
 	^#((CVDisplayLinkRef 'void *') (CVReturn int32_t) (CVOptionFlags uint64_t) (CVTimeStamp opaque)

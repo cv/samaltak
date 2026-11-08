@@ -229,7 +229,7 @@ void asm_mov_imm(int64_t rd, uint64_t value)
                 if (inverted) {
                     imm = h_2 ^ 0xFFFF;
                     s = 16 * i_2;
-                    if (!((imm >= 0) && (imm <= 0xFFFF) && (((s & 15) == 0) && ((s >= 0) && (s <= ((rd & REG_W) == 0 ? 64 : 32) - 16))))) {
+                    if (!((imm <= 0xFFFF) && (((s & 15) == 0) && ((s >= 0) && (s <= ((rd & REG_W) == 0 ? 64 : 32) - 16))))) {
                         if (asm_error == ASM_OK) {
                             asm_error = ASM_ERR_IMMEDIATE;
                         }
@@ -245,7 +245,7 @@ void asm_mov_imm(int64_t rd, uint64_t value)
                 exit_move_wide:;
                 } else {
                     s_2 = 16 * i_2;
-                    if (!((h_2 >= 0) && (h_2 <= 0xFFFF) && (((s_2 & 15) == 0) && ((s_2 >= 0) && (s_2 <= ((rd & REG_W) == 0 ? 64 : 32) - 16))))) {
+                    if (!((h_2 <= 0xFFFF) && (((s_2 & 15) == 0) && ((s_2 >= 0) && (s_2 <= ((rd & REG_W) == 0 ? 64 : 32) - 16))))) {
                         if (asm_error == ASM_OK) {
                             asm_error = ASM_ERR_IMMEDIATE;
                         }
@@ -263,7 +263,7 @@ void asm_mov_imm(int64_t rd, uint64_t value)
                 first = false;
             } else {
                 s_3 = 16 * i_2;
-                if (!((h_2 >= 0) && (h_2 <= 0xFFFF) && (((s_3 & 15) == 0) && ((s_3 >= 0) && (s_3 <= ((rd & REG_W) == 0 ? 64 : 32) - 16))))) {
+                if (!((h_2 <= 0xFFFF) && (((s_3 & 15) == 0) && ((s_3 >= 0) && (s_3 <= ((rd & REG_W) == 0 ? 64 : 32) - 16))))) {
                     if (asm_error == ASM_OK) {
                         asm_error = ASM_ERR_IMMEDIATE;
                     }

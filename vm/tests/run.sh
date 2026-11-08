@@ -91,8 +91,14 @@ for mode in $MODES; do
 done
 
 # macOS runs a VM whose app is covered in the darwin background role, which coalesces timers; taskpolicy -b does the same.
-taskpolicy -b "$VM" "$IMG" --headless TimerTicks >"$OUT/TimerTicks.out" 2>&1
-check "TimerTicks (darwin background)" "$EXP/TimerTicks.txt" "$OUT/TimerTicks.out"
+# Linux has no such role: the nearest is a VM at the lowest priority.
+if [ "$(uname -s)" = Darwin ]; then
+    taskpolicy -b "$VM" "$IMG" --headless TimerTicks >"$OUT/TimerTicks.out" 2>&1
+    check "TimerTicks (darwin background)" "$EXP/TimerTicks.txt" "$OUT/TimerTicks.out"
+else
+    nice -n 19 "$VM" "$IMG" --headless TimerTicks >"$OUT/TimerTicks.out" 2>&1
+    check "TimerTicks (nice 19)" "$EXP/TimerTicks.txt" "$OUT/TimerTicks.out"
+fi
 
 if [ "${BENCH:-1}" = 1 ]; then
     "$VM" --jit none "$IMG" --headless Bench 2>&1 >/dev/null | sed 's/^/bench: /'

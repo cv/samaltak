@@ -433,13 +433,8 @@ int64_t pf_socket_send(int s, const void *buf, size_t n)
 /* PlatformSockets>>wrap: */
 static int socket_wrap(int fd)
 {
-    int local;
-    int *one;
     int h;
-    memset(&local, 0, sizeof local);
-    one = &local;
-    *one = 1;
-    setsockopt(fd, SOL_SOCKET, SO_NOSIGPIPE, one, (uint32_t)sizeof(int));
+    pf_host_socket_opened(fd);
     h = pf_fd_add(fd, PF_FD_SOCKET, NULL);
     if (h == 0) {
         close(fd);

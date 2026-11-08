@@ -489,8 +489,19 @@ primGpuSwapchainFormat
 	bad ifTrue: [^self fail].
 	self answerHandle: (gpu swapchainFormat: d asInt32 window: w asInt32)
 !
+primGpuShaderLanguage
+	"dev -> 'msl' or 'glsl': what gpuCreateShader takes"
+	<vmPrimitive: 460 name: 'gpuShaderLanguage'>
+	| d l |
+	(self args: 1) ifFalse: [^self fail].
+	d := self intArg: 0.
+	bad ifTrue: [^self fail].
+	l := gpu shaderLanguage: d asInt32.
+	l isNull ifTrue: [^self fail].
+	self answer: (memory stringFromUtf8: l size: (libc strlen: l))
+!
 primGpuCreateShader
-	"dev msl entry stage samplers uniformBuffers storageBuffers storageTextures -> shader"
+	"dev source (in the device's shaderLanguage) entry stage samplers uniformBuffers storageBuffers storageTextures -> shader"
 	<vmPrimitive: 433 name: 'gpuCreateShader'>
 	| d stage ns nu nsb nst src entry h |
 	(self args: 8) ifFalse: [^self fail].

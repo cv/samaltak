@@ -1,11 +1,11 @@
 VMCoreModule subclass: #Scheduler
-	instanceVariableNames: 'interruptPending lastPreempted allocSampleClass allocSampleSize allocSampleInterval allocSampleCountdown allocSampleSema statProcessSwitches allocSamplePending inIdle preemptToFront allocSampleUnread samplerTickUnread timerMs samplerIntervalUs samplerNextUs lastSwitchUs startUs samplerSema pendingExt pendingExtN pendingExtCap tickIdle tickPollUs tickArmedPoll tickArmedDeadline tickDeadlineFired tickKq'
+	instanceVariableNames: 'interruptPending lastPreempted allocSampleClass allocSampleSize allocSampleInterval allocSampleCountdown allocSampleSema statProcessSwitches allocSamplePending inIdle preemptToFront allocSampleUnread samplerTickUnread timerMs samplerIntervalUs samplerNextUs lastSwitchUs startUs samplerSema pendingExt pendingExtN pendingExtCap tickIdle tickPollUs tickArmedPoll tickArmedDeadline tickDeadlineFired ticker'
 	classVariableNames: 'TICK_DEADLINE TICK_POLL'
 	package: 'VM-Core'!
 
 Scheduler comment: 'Process scheduler, semaphores and interrupts: the timer, the CPU and allocation samplers, external semaphore signals.
 
-While Smalltalk runs, a kqueue timer serviced by the ticker thread requests an interrupt check when the timer or the CPU sampler is due, and a periodic one every tickPollUs if the platform asked for polls (requestPeriodicPoll:). While the VM waits in the platform''s wait both are disarmed: the wait''s timeout covers the timer and the sampler, and the platform wakes it for events. tickUpdate (VM thread) re-arms after any change.'!
+While Smalltalk runs, a timer of the Ticker (its thread calls tickFired:) requests an interrupt check when the timer or the CPU sampler is due, and a periodic one every tickPollUs if the platform asked for polls (requestPeriodicPoll:). While the VM waits in the platform''s wait both are disarmed: the wait''s timeout covers the timer and the sampler, and the platform wakes it for events. tickUpdate (VM thread) re-arms after any change.'!
 
 !Scheduler class methodsFor: 'declaring'!
 declarations
@@ -15,7 +15,7 @@ declarations
 		(timerMs int64_t -1) (samplerIntervalUs int64_t) (samplerNextUs int64_t) (lastSwitchUs int64_t) (startUs int64_t)
 		(samplerSema int32_t) (pendingExt 'int32_t *') (pendingExtN int32_t) (pendingExtCap int32_t)
 		(tickIdle bool) (tickPollUs int64_t) (tickArmedPoll int64_t) (tickArmedDeadline int64_t 16r7FFFFFFFFFFFFFFF)
-		(tickDeadlineFired atomic_bool) (tickKq int32_t -1))
+		(tickDeadlineFired atomic_bool) (ticker Ticker))
 !
 initialize
 	TICK_DEADLINE := 1.
@@ -123,41 +123,11 @@ signalExternalSemaphore: index
 ! !
 
 !Scheduler methodsFor: 'ticker'!
-tickArm: ident microseconds: us periodic: periodic
-	"us < 0 disarms (an already fired one-shot is gone: ENOENT, ignored). Critical: in the background role macOS would coalesce a 1 ms timer to about 60 ms."
-	<c: 'void tick_arm(int ident, int64_t us, bool periodic)'>
-	| ch res zero |
-	ch := self local: 'KEvent'.
-	res := self local: 'KEvent'.
-	zero := self local: 'Timespec'.
-	ch ident: ident asUInt64.
-	ch filter: posix EVFILT_TIMER.
-	us < 0
-		ifTrue: [ch flags: (posix EV_DELETE bitOr: posix EV_RECEIPT)]
-		ifFalse: [
-			ch flags: ((posix EV_ADD bitOr: posix EV_RECEIPT) bitOr: (periodic ifTrue: [0] ifFalse: [posix EV_ONESHOT])).
-			ch fflags: (posix NOTE_USECONDS bitOr: posix NOTE_CRITICAL).
-			ch data: us].
-	posix kevent: tickKq changes: ch count: 1 events: res count: 1 timeout: zero
-!
-ticker: arg
-	"The ticker thread: request an interrupt check whenever a timer fires."
-	<c: 'void *ticker(void *arg)'>
-	| ev |
-	ev := self local: 'KEvent'.
-	[(posix kevent: tickKq changes: self null count: 0 events: ev count: 1 timeout: self null) > 0 ifTrue: [
-		ev ident = TICK_DEADLINE ifTrue: [self atomicStore: #tickDeadlineFired value: true].
-		self requestInterruptCheck]] repeat
-!
-tickerStart
-	<c: 'void ticker_start(void)'>
-	| t |
-	tickKq := posix kqueue.
-	tickKq < 0 ifTrue: [self fatal: 'cannot create the ticker''s kqueue'].
-	t := self local: 'pthread_t'.
-	(posix pthreadCreate: t attributes: self null start: (self functionPointer: #ticker:) argument: self null) ~= 0 ifTrue: [
-		self fatal: 'cannot start the ticker thread'].
-	posix pthreadDetach: t value
+tickFired: ident
+	"The Ticker's thread: timer ident (TICK_DEADLINE, TICK_POLL) fired; request an interrupt check."
+	<c: 'void tick_fired(int ident)'>
+	ident = TICK_DEADLINE ifTrue: [self atomicStore: #tickDeadlineFired value: true].
+	self requestInterruptCheck
 !
 tickUpdate
 	"A pending one-shot is not armed twice; one that fired before its deadline (clock skew) is armed again."
@@ -171,10 +141,10 @@ tickUpdate
 		(samplerIntervalUs > 0 and: [samplerNextUs < due]) ifTrue: [due := samplerNextUs]].
 	((self atomicExchange: #tickDeadlineFired value: false) or: [due ~= tickArmedDeadline]) ifTrue: [
 		due <= now ifTrue: [self requestInterruptCheck].
-		self tickArm: TICK_DEADLINE microseconds: ((due = 16r7FFFFFFFFFFFFFFF or: [due <= now]) ifTrue: [-1] ifFalse: [due - now]) periodic: false.
+		ticker arm: TICK_DEADLINE microseconds: ((due = 16r7FFFFFFFFFFFFFFF or: [due <= now]) ifTrue: [-1] ifFalse: [due - now]) periodic: false.
 		tickArmedDeadline := due].
 	poll ~= tickArmedPoll ifTrue: [
-		self tickArm: TICK_POLL microseconds: (poll ~= 0 ifTrue: [poll] ifFalse: [-1]) periodic: true.
+		ticker arm: TICK_POLL microseconds: (poll ~= 0 ifTrue: [poll] ifFalse: [-1]) periodic: true.
 		tickArmedPoll := poll]
 !
 tickSetIdle: aBoolean
@@ -195,7 +165,7 @@ init
 	lastPreempted := memory nilOop.
 	allocSampleClass := memory nilOop.
 	lastSwitchUs := self threadCpuUs.
-	self tickerStart
+	ticker start
 ! !
 
 !Scheduler methodsFor: 'linked lists'!

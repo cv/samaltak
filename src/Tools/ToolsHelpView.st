@@ -17,6 +17,7 @@ sections
 			#('⌘I' 'inspect it — opens an Inspector')
 			#('⌘B' 'browse it — class or implementor')
 			#('⌘S' 'accept — compile method in a Browser')
+			#('⌘F' 'filter a Browser by class and method names')
 			#('right-click' 'the same, as a menu')))
 		#('Processes' #(
 			#('⌘.' 'user interrupt — stops the busy Process')

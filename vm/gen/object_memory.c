@@ -130,7 +130,7 @@ oop alloc_old(oop cls, int fmt, uint32_t n)
     if (o == 0) {
         a = 16 + 8 * (uint64_t)n;
         fatal_begin();
-        fprintf(stderr, "out of memory allocating %llu bytes", a);
+        fprintf(stderr, "out of memory allocating %llu bytes", (unsigned long long)a);
         fatal_end();
     }
     return o;

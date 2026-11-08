@@ -279,7 +279,7 @@ static void opt_print_node(int32_t n)
         }
         fputs(" ]", stderr);
     }
-    fprintf(stderr, " aux=%lld", nd->aux);
+    fprintf(stderr, " aux=%lld", (long long)nd->aux);
     if (nd->state >= 0) {
         fprintf(stderr, " st=%d", nd->state);
     }

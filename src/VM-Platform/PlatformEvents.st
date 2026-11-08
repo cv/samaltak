@@ -1,5 +1,5 @@
 VMPlatformModule subclass: #PlatformEvents
-	instanceVariableNames: 'q qHead qLen qCap qDropped inputSem inputArmed lastPumpNs mouseX mouseY'
+	instanceVariableNames: 'q qHead qLen qCap qDropped inputSem inputArmed lastPumpNs mouseX mouseY keyMods'
 	classVariableNames: ''
 	package: 'VM-Platform'!
 
@@ -8,7 +8,7 @@ PlatformEvents comment: 'The event queue: one FIFO holds translated SDL events a
 !PlatformEvents class methodsFor: 'declaring'!
 declarations
 	^#((q 'pf_event *') (qHead int32_t) (qLen int32_t) (qCap int32_t) (qDropped int64_t) (inputSem int32_t) (inputArmed bool true)
-		(lastPumpNs uint64_t) (mouseX double) (mouseY double))
+		(lastPumpNs uint64_t) (mouseX double) (mouseY double) (keyMods SDL_Keymod))
 ! !
 
 !PlatformEvents methodsFor: 'accessing'!
@@ -95,8 +95,8 @@ modsOf: m
 	<c: 'int mods_of(SDL_Keymod m)'>
 	^((((m bitAnd: sdl SDL_KMOD_SHIFT) ~= 0 ifTrue: [PF_MOD_SHIFT] ifFalse: [0])
 		bitOr: ((m bitAnd: sdl SDL_KMOD_CTRL) ~= 0 ifTrue: [PF_MOD_CTRL] ifFalse: [0]))
-		bitOr: ((m bitAnd: sdl SDL_KMOD_ALT) ~= 0 ifTrue: [PF_MOD_ALT] ifFalse: [0]))
-		bitOr: ((m bitAnd: sdl SDL_KMOD_GUI) ~= 0 ifTrue: [PF_MOD_CMD] ifFalse: [0])
+		bitOr: ((m bitAnd: host altKeymod) ~= 0 ifTrue: [PF_MOD_ALT] ifFalse: [0]))
+		bitOr: ((m bitAnd: host cmdKeymod) ~= 0 ifTrue: [PF_MOD_CMD] ifFalse: [0])
 !
 translate: e
 	"Queue the pf_event of an SDL event (others, the wake event among them, are ignored)."
@@ -145,11 +145,14 @@ translate: e
 		ev type: (t = sdl SDL_EVENT_KEY_DOWN ifTrue: [PF_EV_KEY_DOWN] ifFalse: [PF_EV_KEY_UP]).
 		ev key: e key key.
 		ev mods: (self modsOf: e key mod).
+		t = sdl SDL_EVENT_KEY_DOWN ifTrue: [keyMods := e key mod].
 		ev xkind: PF_X_BOOL.
 		ev ival: (e key isRepeat ifTrue: [1] ifFalse: [0]).
 		ev window: (windows fromSDLId: e key windowID).
 		^self push: ev].
 	t = sdl SDL_EVENT_TEXT_INPUT ifTrue: [
+		"A key pressed with cmd is a command, not text (as on macOS, where it produces none): on Linux cmd is alt, whose keys do type."
+		(keyMods bitAnd: host cmdKeymod) ~= 0 ifTrue: [^self].
 		ev type: PF_EV_TEXT_INPUT.
 		ev xkind: PF_X_TEXT.
 		"pf_event_push copies it"

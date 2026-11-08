@@ -7,9 +7,6 @@
 #include <stddef.h>
 #include <stdint.h>
 #include <string.h>
-#include <pthread.h>
-#include <sys/mman.h>
-#include <libkern/OSCacheControl.h>
 #define guest_display_open(w, h, cell) ((void)(w), (void)(h), (void)(cell), false)
 #define guest_display_fill(x, y, w, h, rule) ((void)(x), (void)(y), (void)(w), (void)(h), (void)(rule))
 #define guest_display_copy(x, y, w, h, to_x, to_y) ((void)(x), (void)(y), (void)(w), (void)(h), (void)(to_x), (void)(to_y))
@@ -20,30 +17,50 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <math.h>
-#include <sys/event.h>
+#include <sys/mman.h>
 #include <sys/time.h>
 #include <time.h>
+#include <pthread.h>
 #include <unistd.h>
 #include <limits.h>
+#ifdef __APPLE__
+#include <libkern/OSCacheControl.h>
+#include <sys/event.h>
+#endif
+#ifdef __linux__
+#include <sys/timerfd.h>
+#endif
 #ifndef SAMALTAK_NO_PLATFORM
-#include <CoreVideo/CoreVideo.h>
 #include <fcntl.h>
 #include <sys/stat.h>
 #include <dirent.h>
 #include <errno.h>
 #include <poll.h>
 #include <signal.h>
+#ifdef __APPLE__
+#define st_mtim st_mtimespec
+#endif
 #include <spawn.h>
 #include <sys/wait.h>
 #include <sys/ioctl.h>
+#ifdef __APPLE__
 #include <util.h>
-#include <crt_externs.h>
+#else
+#include <pty.h>
+#endif
 #include <sys/socket.h>
 #include <netdb.h>
 #include <netinet/in.h>
 #include <netinet/tcp.h>
 #include <arpa/inet.h>
 #include <SDL3/SDL.h>
+#ifdef __APPLE__
+#include <CoreVideo/CoreVideo.h>
+#include <crt_externs.h>
+#endif
+#ifdef __linux__
+#include <shaderc/shaderc.h>
+#endif
 #endif
 
 typedef uint64_t oop;
@@ -1335,10 +1352,18 @@ extern uint64_t stat_process_switches;
 extern int32_t argc;
 extern int32_t args_start;
 extern char **argv;
+#ifdef __APPLE__
+#endif
+#ifdef __linux__
+#endif
 #ifndef SAMALTAK_NO_PLATFORM
 extern char last_error[1024];
 extern uint64_t last_pump_ns;
 extern int32_t q_len;
+#ifdef __APPLE__
+#endif
+#ifdef __linux__
+#endif
 #endif
 
 void asm_begin(uint64_t start, uint64_t limit);
@@ -1727,6 +1752,7 @@ void set_timer(int64_t ms);
 void signal_external_semaphore(int index);
 void suspend_active(void);
 int64_t thread_cpu_us(void);
+void tick_fired(int ident);
 void sched_uncharge(int64_t us);
 void prim_flush_cache_for_selector(void);
 void prim_flush_method_cache(void);
@@ -1747,6 +1773,24 @@ void prim_vm_banner(void);
 void prim_vm_stats(void);
 const char *vm_banner(void);
 int main(int argc, char **argv);
+#ifdef __APPLE__
+void jit_platform_begin_writing(void);
+bool jit_platform_runs_code(void);
+void jit_platform_end_writing(void);
+void jit_platform_invalidate(void *start, size_t size);
+void *jit_platform_map(void *near, uint64_t size);
+void tick_arm(int ident, int64_t us, bool periodic);
+void ticker_start(void);
+#endif
+#ifdef __linux__
+void jit_platform_begin_writing(void);
+bool jit_platform_runs_code(void);
+void jit_platform_end_writing(void);
+void jit_platform_invalidate(void *start, size_t size);
+void *jit_platform_map(void *near, uint64_t size);
+void tick_arm(int ident, int64_t us, bool periodic);
+void ticker_start(void);
+#endif
 #ifndef SAMALTAK_NO_PLATFORM
 void pf_os_error(const char *what, int code);
 void pf_os_error_path(const char *what, const char *path, int code);
@@ -1799,7 +1843,7 @@ int pf_gpu_create_buffer(int dev, int usage, uint32_t size);
 int pf_gpu_create_device(bool debug);
 int pf_gpu_create_pipeline(int dev, int vs, int fs, int stride, pf_vattr *attrs, int nattrs, int prim, int blend, int target_format);
 int pf_gpu_create_sampler(int dev, bool linear, bool repeat);
-int pf_gpu_create_shader(int dev, const char *msl, const char *entry, int stage, int samplers, int uniform_buffers, int storage_buffers, int storage_textures);
+int pf_gpu_create_shader(int dev, const char *source, const char *entry, int stage, int samplers, int uniform_buffers, int storage_buffers, int storage_textures);
 int pf_gpu_create_texture(int dev, int w, int h, int format, int usage);
 bool pf_gpu_download(int tex, int x, int y, int w, int h, void *dst, size_t dst_len);
 bool pf_gpu_draw(int pass, int vertex_count, int first_vertex);
@@ -1812,6 +1856,7 @@ bool pf_gpu_push_uniforms(int cmd_or_pass, int stage, int slot, const void *data
 bool pf_gpu_release(int h);
 bool pf_gpu_set_scissor(int pass, int x, int y, int w, int h);
 bool pf_gpu_set_viewport(int pass, float x, float y, float w, float h);
+const char *pf_gpu_shader_language(int dev);
 void pf_gpu_shutdown(void);
 int pf_gpu_submit(int cmd, bool want_fence, bool *ok);
 int pf_gpu_swapchain_format(int dev, int win);
@@ -1863,6 +1908,7 @@ void prim_gpu_push_uniforms(void);
 void prim_gpu_release(void);
 void prim_gpu_set_scissor(void);
 void prim_gpu_set_viewport(void);
+void prim_gpu_shader_language(void);
 void prim_gpu_submit(void);
 void prim_gpu_swapchain_format(void);
 void prim_gpu_texture_size(void);
@@ -1929,6 +1975,7 @@ bool pf_socket_semaphores(int s, int read_index, int write_index);
 int64_t pf_socket_send(int s, const void *buf, size_t n);
 bool pf_vsync_pending(void);
 void pf_vsync_poll(void);
+void pf_vsync_refreshed(void);
 bool pf_vsync_semaphore(int index);
 char *pf_clipboard_get(void);
 bool pf_clipboard_set(const char *s);
@@ -1953,6 +2000,26 @@ void platform_poll(void);
 void platform_shutdown(void);
 void platform_wait(int64_t timeout_us);
 void pf_wake(void);
+#ifdef __APPLE__
+SDL_Keymod pf_host_alt_keymod(void);
+SDL_Keymod pf_host_cmd_keymod(void);
+void *pf_host_compile_shader(const char *source, int stage, size_t *size_out);
+char **pf_host_environ(void);
+SDL_GPUShaderFormat pf_host_shader_formats(void);
+void pf_host_socket_opened(int fd);
+bool pf_host_vsync_start(void);
+void pf_host_vsync_stop(void);
+#endif
+#ifdef __linux__
+SDL_Keymod pf_host_alt_keymod(void);
+SDL_Keymod pf_host_cmd_keymod(void);
+void *pf_host_compile_shader(const char *source, int stage, size_t *size_out);
+char **pf_host_environ(void);
+SDL_GPUShaderFormat pf_host_shader_formats(void);
+void pf_host_socket_opened(int fd);
+bool pf_host_vsync_start(void);
+void pf_host_vsync_stop(void);
+#endif
 #endif
 
 static inline uint64_t lt_bits_of_double(double d)

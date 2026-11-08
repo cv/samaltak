@@ -30,7 +30,7 @@ static char **pty_child_env(char **envp)
     char **env;
     uint64_t k;
     int64_t i;
-    src = envp != NULL ? envp : *_NSGetEnviron();
+    src = envp != NULL ? envp : pf_host_environ();
     n = 0ULL;
     has_term = false;
     while (src[n] != NULL) {
@@ -169,11 +169,11 @@ bool pf_pty_resize(int p, int rows, int cols)
 static char *pty_resolve(const char *argv0, char **envp)
 {
     const char *path;
+    const char *end;
     char *cand;
     char **e;
     size_t n;
     bool done;
-    char *end;
     uint64_t len;
     if (strchr(argv0, 47) != NULL) {
         if (access(argv0, X_OK) != 0) {

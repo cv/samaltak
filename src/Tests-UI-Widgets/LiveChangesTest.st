@@ -57,18 +57,23 @@ testThemeAccentChangeRestylesOpenWindows
 	self assert: Color ultramarine equals: red
 !
 testShaderChangeRebuildsThePipeline
-	| w center version |
+	| w center version glsl selector |
 	w := self open: (RecordingTestView new color: (Color r: 1 g: 0 b: 0); yourself) title: 'Shader' at: (100 @ 100 extent: 240 @ 120).
 	center := w contentOrigin + (w contentExtent // 2).
 	self assert: (self pixel: center is: (Color r: 1 g: 0 b: 0)).
 	version := world compositor renderer pipelineVersion.
-	self edit: Renderer class selector: #shaderSource
-		replacing: 'if (m == 0u) return in.color;'
-		with: 'if (m == 0u) return in.color.bgra;'.
+	"the uber-shader in the device's language"
+	glsl := world compositor renderer device shaderLanguage == #glsl.
+	selector := glsl ifTrue: [#glslShaderSource] ifFalse: [#shaderSource].
+	self edit: Renderer class selector: selector
+		replacing: (glsl ifTrue: ['if (m == 0u) return vColor;'] ifFalse: ['if (m == 0u) return in.color;'])
+		with: (glsl ifTrue: ['if (m == 0u) return vColor.bgra;'] ifFalse: ['if (m == 0u) return in.color.bgra;']).
 	self assert: (self waitFor: [self pixel: center is: (Color r: 0 g: 0 b: 1)]) description: 'the cached layer was not rendered with the new shader'.
 	self assert: world compositor renderer pipelineVersion equals: version + 1.
 	"a shader that does not compile: the old pipeline stays, the error is toasted"
-	self edit: Renderer class selector: #shaderSource replacing: 'uint m = in.mode' with: 'uint m = in.noSuchField'.
+	self edit: Renderer class selector: selector
+		replacing: (glsl ifTrue: ['uint m = vMode'] ifFalse: ['uint m = in.mode'])
+		with: (glsl ifTrue: ['uint m = noSuchField'] ifFalse: ['uint m = in.noSuchField']).
 	self assert: (self waitFor: [world toasts anySatisfy: [:t | t text includesSubstring: 'noSuchField']]).
 	self assert: world compositor renderer pipelineVersion equals: version + 1.
 	self assert: (self pixel: center is: (Color r: 0 g: 0 b: 1))

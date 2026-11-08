@@ -25,6 +25,14 @@ isAbstractModule
 isInterface
 	"Whether I only declare functions that another module implements (with the same C names)."
 	^false
+!
+targetOS
+	"The operating system I am compiled for: nil (every one), #darwin or #linux. One implementation of an interface per OS: the build compiles the one for its OS (vm/gen/sources.mk), the C file and my prototypes are guarded by the OS's predefined macro."
+	^nil
+!
+isSimulated
+	"Whether a simulation may run me. Where several modules implement an interface, a simulation connects one that is simulated."
+	^true
 ! !
 
 !VMModule methodsFor: 'simulation'!

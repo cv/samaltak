@@ -229,6 +229,10 @@ getWindowDisplayScale: window
 	<c: 'float SDL_GetWindowDisplayScale(SDL_Window *window)'>
 	^self notSimulated
 !
+getPrimaryDisplay
+	<c: 'SDL_DisplayID SDL_GetPrimaryDisplay(void)'>
+	^self notSimulated
+!
 getDisplayForWindow: window
 	<c: 'SDL_DisplayID SDL_GetDisplayForWindow(SDL_Window *window)'>
 	^self notSimulated

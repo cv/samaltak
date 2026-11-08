@@ -1,9 +1,9 @@
 Object subclass: #GPUDevice
-	instanceVariableNames: 'handle session debug'
+	instanceVariableNames: 'handle session debug language'
 	classVariableNames: 'Default Session'
 	package: 'Graphics-GPU'!
 
-GPUDevice comment: 'I am a GPU device (SDL_GPU on Metal) and the factory for every other GPU object. "GPUDevice default" is created lazily. Platform handles die with the VM process: on image startup a new session begins, and I and every object I created re-create our handles from the parameters we keep, on first use. Textures lose their contents then; their owners notice through GPUTexture>>generation.'!
+GPUDevice comment: 'I am a GPU device (SDL_GPU on Metal or Vulkan) and the factory for every other GPU object. "GPUDevice default" is created lazily. Platform handles die with the VM process: on image startup a new session begins, and I and every object I created re-create our handles from the parameters we keep, on first use. Textures lose their contents then; their owners notice through GPUTexture>>generation.'!
 
 !GPUDevice methodsFor: 'initialization'!
 setDebug: aBoolean
@@ -17,7 +17,15 @@ handle
 	Session isNil ifTrue: [Session := Object new].
 	handle := GPUPlatform createDevice: debug == true.
 	session := Session.
+	language := nil.
 	^handle
+!
+shaderLanguage
+	"#msl (Metal, macOS) or #glsl (Vulkan, Linux: GLSL 450 compiled to SPIR-V with SAMALTAK_VERTEX or SAMALTAK_FRAGMENT defined, so that one source can hold both stages; the entry point is main). Shader sources are in this language."
+	| h |
+	h := self handle.
+	language isNil ifTrue: [language := (GPUPlatform shaderLanguage: h) asSymbol].
+	^language
 !
 session
 	"Answer the token of the session my current handle belongs to; objects I made compare against it."

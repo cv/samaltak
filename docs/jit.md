@@ -1,6 +1,6 @@
 # JIT
 
-Two compilers on a shared runtime: `baseline` (Cog-style) and the optimizing tier `opt`, whose lower tier is baseline code. Both are written in Smalltalk: Lowtalk for code in the VM (translated to C like the rest of it), ordinary Smalltalk for code in the image. No LLVM at run time. Target: Apple Silicon (M2 Max, arm64, macOS). Both beat Pharo 12's Cog JIT on every Are We Fast Yet, micro and real-world benchmark (Comparison, docs/benchmarks.md).
+Two compilers on a shared runtime: `baseline` (Cog-style) and the optimizing tier `opt`, whose lower tier is baseline code. Both are written in Smalltalk: Lowtalk for code in the VM (translated to C like the rest of it), ordinary Smalltalk for code in the image. No LLVM at run time. Target: Apple Silicon (M2 Max, arm64, macOS; also Linux on arm64, e.g. Asahi). Both beat Pharo 12's Cog JIT on every Are We Fast Yet, micro and real-world benchmark (Comparison, docs/benchmarks.md).
 
 | `--jit` | what |
 |---|---|

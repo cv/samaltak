@@ -3,7 +3,7 @@ VMModule subclass: #CodeCache
 	classVariableNames: 'CACHE_SPACE'
 	package: 'VM-Jit'!
 
-CodeCache comment: 'I am the region generated code lives in: one MAP_JIT mapping, bump allocated, flushed as a whole. On macOS a thread either writes the region or executes it: beginWriting before writing code, endWritingFrom:size: after it (write protection back on, instruction cache invalidated).
+CodeCache comment: 'I am the region generated code lives in: one executable mapping (JitPlatform: MAP_JIT on macOS), bump allocated, flushed as a whole. On macOS a thread either writes the region or executes it: beginWriting before writing code, endWritingFrom:size: after it (write protection back on, instruction cache invalidated).
 
 	cache openWithSize: 64 * 1024 * 1024.
 	entry := cache allocate: size.
@@ -16,7 +16,7 @@ Simulated, the region is simulated memory and its code does not run (canRunCode)
 
 !CodeCache class methodsFor: 'declaring'!
 declarations
-	^#((posix Posix) (jit DarwinJit) (cacheStart uint64_t) (cacheBase uint64_t) (cacheTop uint64_t) (cacheLimit uint64_t) (cacheSpace 'uint8_t[CACHE_SPACE]'))
+	^#((posix Posix) (jit JitPlatform) (cacheStart uint64_t) (cacheBase uint64_t) (cacheTop uint64_t) (cacheLimit uint64_t) (cacheSpace 'uint8_t[CACHE_SPACE]'))
 !
 initialize
 	"Room for the largest cache (128 MB) and a page."
@@ -25,8 +25,8 @@ initialize
 
 !CodeCache methodsFor: 'region'!
 canRunCode
-	"Whether machine code runs: on Apple Silicon, not in the simulator."
-	^jit pthreadJitWriteProtectSupported ~= 0
+	"Whether machine code runs: not in the simulator."
+	^jit canRunCode
 !
 openWithSize: size
 	"Map the region; answer whether it worked. It takes the place of cacheSpace (zero-fill, in the VM's own image): near the VM's data, so that adrp from the code reaches it (tiering counters, type feedback, eden's top, call caches)."
@@ -34,8 +34,7 @@ openWithSize: size
 	<export>
 	| p near |
 	near := ((self cCoerce: cacheSpace to: 'uint64_t') + 16383) bitClear: 16383.
-	jit munmap: (self cCoerce: near to: 'void *') length: size.
-	p := posix mmap: (self cCoerce: near to: 'void *') length: size protection: ((posix PROT_READ bitOr: posix PROT_WRITE) bitOr: jit PROT_EXEC) flags: ((posix MAP_PRIVATE bitOr: posix MAP_ANON) bitOr: jit MAP_JIT) file: -1 offset: 0.
+	p := jit map: (self cCoerce: near to: 'void *') size: size.
 	p = posix MAP_FAILED ifTrue: [^false].
 	cacheStart := self cCoerce: p to: 'uint64_t'.
 	cacheBase := cacheStart.
@@ -81,18 +80,18 @@ resetTo: address
 !CodeCache methodsFor: 'writing'!
 beginWriting
 	"Make the region writable (and not executable) for this thread."
-	jit pthreadJitWriteProtect: 0
+	jit beginWriting
 !
 endWritingFrom: start size: size
 	"Make the region executable again, with the instruction cache current for [start, start + size)."
-	jit pthreadJitWriteProtect: 1.
-	jit sysIcacheInvalidate: (self cCoerce: start to: 'void *') size: size
+	jit endWriting.
+	jit invalidate: (self cCoerce: start to: 'void *') size: size
 !
 endWriting
 	"Make the region executable again; only data changed (or invalidate: what did)."
-	jit pthreadJitWriteProtect: 1
+	jit endWriting
 !
 invalidate: start size: size
 	"Code changed in [start, start + size)."
-	jit sysIcacheInvalidate: (self cCoerce: start to: 'void *') size: size
+	jit invalidate: (self cCoerce: start to: 'void *') size: size
 ! !

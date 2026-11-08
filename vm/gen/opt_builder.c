@@ -252,6 +252,7 @@ bool opt_build(oop m, int32_t s, int32_t t, int32_t d, bool res)
         ob_no_inline[ob_no_inline_count] = (opt_acts + e)->method;
         ob_no_inline_count = ob_no_inline_count + 1;
     }
+    __builtin_unreachable();
 }
 
 /* OptBuilder>>buildAct: */

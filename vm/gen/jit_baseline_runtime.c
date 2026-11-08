@@ -683,12 +683,12 @@ exit_selector_of:;
         is_super = kind == 1;
         site = h->code_start + s->bl;
         lit = h->code_start + s->lit;
-        pthread_jit_write_protect_np(0);
+        jit_platform_begin_writing();
         if (is_super) {
             s->target = (uint64_t)t;
             target = t->uentry;
             asm_patch_branch(site, target);
-            sys_icache_invalidate((void *)site, 4);
+            jit_platform_invalidate((void *)site, 4);
         } else if ((s->info & BL_SITE_MEGA) != 0) {
             i_2 = (int64_t)((((cls ^ sel) >> 3) & 4095) * 4);
             mega_table[i_2] = cls;
@@ -705,7 +705,7 @@ exit_selector_of:;
             s->target = (uint64_t)t;
             target_2 = t->entry;
             asm_patch_branch(site, target_2);
-            sys_icache_invalidate((void *)site, 4);
+            jit_platform_invalidate((void *)site, 4);
         } else {
             p = s->pic;
             if ((p == 0) && ((jit_flags & JIT_FLAG_PIC) != 0)) {
@@ -715,7 +715,7 @@ exit_selector_of:;
                     s->pic = p;
                     target_3 = p + sizeof(baseline_pic);
                     asm_patch_branch(site, target_3);
-                    sys_icache_invalidate((void *)site, 4);
+                    jit_platform_invalidate((void *)site, 4);
                 }
             }
             if (!((p != 0) && ({
@@ -732,7 +732,7 @@ exit_selector_of:;
     site_2 = p + (sizeof(baseline_pic) + 12 + 16 * i_3 + 12);
     target_4 = t->uentry;
     asm_patch_branch(site_2, target_4);
-    sys_icache_invalidate((void *)site_2, 4);
+    jit_platform_invalidate((void *)site_2, 4);
     r_add_case_to = true;
 exit_add_case_to:;
     r_add_case_to; }))) {
@@ -741,7 +741,7 @@ exit_add_case_to:;
                 bl_set_slot(lit, sel);
                 target_5 = (jit_flags & JIT_FLAG_MEGA) != 0 ? bl_mega : bl_miss;
                 asm_patch_branch(site, target_5);
-                sys_icache_invalidate((void *)site, 4);
+                jit_platform_invalidate((void *)site, 4);
                 i_4 = (int64_t)((((cls ^ sel) >> 3) & 4095) * 4);
                 mega_table[i_4] = cls;
                 mega_table[i_4 + 1] = sel;
@@ -753,7 +753,7 @@ exit_add_case_to:;
     r_method_prim_2; }) & CM_PRIM_MASK)) == PK_PERFORM ? -1 : (int64_t)selector_argc(sel));
             }
         }
-        pthread_jit_write_protect_np(1);
+        jit_platform_end_writing();
     }
     return t->uentry;
 }
@@ -786,7 +786,7 @@ static uint64_t bl_new_pic(uint64_t site, oop c0, jit_method *t0)
         return 0;
     }
     size = (uint64_t)(sizeof(baseline_pic) + 128);
-    sys_icache_invalidate((void *)p, size);
+    jit_platform_invalidate((void *)p, size);
     for (i = 0; i <= 5; i++) {
         bl_register_slot((uint64_t)&pic->classes + (uint64_t)(8 * i));
     }
@@ -804,7 +804,7 @@ static uint64_t bl_new_pic(uint64_t site, oop c0, jit_method *t0)
     site_2 = p + (sizeof(baseline_pic) + 12 + 16 * i_2 + 12);
     target = t0->uentry;
     asm_patch_branch(site_2, target);
-    sys_icache_invalidate((void *)site_2, 4);
+    jit_platform_invalidate((void *)site_2, 4);
     r_add_case_to = true;
 exit_add_case_to:;
     r_add_case_to; })) {
@@ -1450,7 +1450,7 @@ void bl_redirect(jit_method *h, jit_method *o)
         return;
     }
     a = h->uentry;
-    pthread_jit_write_protect_np(0);
+    jit_platform_begin_writing();
     if (o == h) {
         if (h->entry_word != 0) {
             *(uint32_t *)a = h->entry_word;
@@ -1462,8 +1462,8 @@ void bl_redirect(jit_method *h, jit_method *o)
         }
         *(uint32_t *)a = (uint32_t)(0x14000000 | ((((int64_t)o->code_start - (int64_t)a) >> 2) & 0x3FFFFFF));
     }
-    sys_icache_invalidate((void *)a, 4);
-    pthread_jit_write_protect_np(1);
+    jit_platform_invalidate((void *)a, 4);
+    jit_platform_end_writing();
 }
 
 /* JitBaselineRuntime>>registerSlot: */
@@ -1678,7 +1678,7 @@ void bl_unlink_selector(oop sel)
     if (table_count == 0) {
         return;
     }
-    pthread_jit_write_protect_np(0);
+    jit_platform_begin_writing();
     for (i = 0; i <= 65535; i++) {
         h = method_table[i];
         if ((h != NULL) && (h->mode == JIT_BASELINE)) {
@@ -1711,7 +1711,7 @@ exit_selector_of:;
                         s->pic = 0;
                         s->info = s->info & 3221225471LL;
                         asm_patch_branch(site, bl_miss);
-                        sys_icache_invalidate((void *)site, 4);
+                        jit_platform_invalidate((void *)site, 4);
                     }
                 }
             }
@@ -1749,13 +1749,13 @@ exit_selector_of_2:;
                     s_2->pic = 0;
                     s_2->info = s_2->info & 3221225471LL;
                     asm_patch_branch(site_2, bl_miss);
-                    sys_icache_invalidate((void *)site_2, 4);
+                    jit_platform_invalidate((void *)site_2, 4);
                 }
             }
         }
     exit_unlink_sites_of_2:;
     }
-    pthread_jit_write_protect_np(1);
+    jit_platform_end_writing();
 }
 
 /* JitBaselineRuntime>>youngRoots: */

@@ -355,7 +355,7 @@ int pf_gpu_create_device(bool debug)
         pf_set_error("out of memory");
         return 0;
     }
-    d->dev = SDL_CreateGPUDevice(SDL_GPU_SHADERFORMAT_MSL, debug, (const char *)NULL);
+    d->dev = SDL_CreateGPUDevice(pf_host_shader_formats(), debug, (const char *)NULL);
     if (d->dev == NULL) {
         free(d);
         return sdl_fail("SDL_CreateGPUDevice");
@@ -513,11 +513,14 @@ int pf_gpu_create_sampler(int dev, bool linear, bool repeat)
 }
 
 /* PlatformGPU>>createShader:source:entry:stage:samplers:uniformBuffers:storageBuffers:storageTextures: */
-int pf_gpu_create_shader(int dev, const char *msl, const char *entry, int stage, int samplers, int uniform_buffers, int storage_buffers, int storage_textures)
+int pf_gpu_create_shader(int dev, const char *source, const char *entry, int stage, int samplers, int uniform_buffers, int storage_buffers, int storage_textures)
 {
     gpu_dev *d;
     SDL_GPUShaderCreateInfo local;
     SDL_GPUShaderCreateInfo *ci;
+    void *spirv;
+    size_t local_2;
+    size_t *size;
     SDL_GPUShader *s;
     int r_add;
     int h;
@@ -527,10 +530,23 @@ int pf_gpu_create_shader(int dev, const char *msl, const char *entry, int stage,
     }
     memset(&local, 0, sizeof local);
     ci = &local;
-    ci->code_size = strlen(msl);
-    ci->code = (Uint8 *)msl;
+    spirv = NULL;
+    if ((SDL_GetGPUShaderFormats(d->dev) & SDL_GPU_SHADERFORMAT_MSL) != 0) {
+        ci->code_size = strlen(source);
+        ci->code = (Uint8 *)source;
+        ci->format = SDL_GPU_SHADERFORMAT_MSL;
+    } else {
+        memset(&local_2, 0, sizeof local_2);
+        size = &local_2;
+        spirv = pf_host_compile_shader(source, stage, size);
+        if (spirv == NULL) {
+            return 0;
+        }
+        ci->code_size = *size;
+        ci->code = (Uint8 *)spirv;
+        ci->format = SDL_GPU_SHADERFORMAT_SPIRV;
+    }
     ci->entrypoint = entry;
-    ci->format = SDL_GPU_SHADERFORMAT_MSL;
     ci->stage = stage == PF_STAGE_FRAGMENT ? SDL_GPU_SHADERSTAGE_FRAGMENT : SDL_GPU_SHADERSTAGE_VERTEX;
     ci->num_samplers = samplers;
     ci->num_storage_textures = storage_textures;
@@ -539,6 +555,7 @@ int pf_gpu_create_shader(int dev, const char *msl, const char *entry, int stage,
     SDL_ClearError();
     log_error[0] = 0;
     s = SDL_CreateGPUShader(d->dev, ci);
+    free(spirv);
     if (s == NULL) {
         return sdl_fail("SDL_CreateGPUShader");
     }
@@ -786,6 +803,7 @@ static void *fence_watcher(void *unused)
         nanosleep(nap, (struct timespec *)NULL);
         pthread_mutex_lock(watch_lock);
     }
+    __builtin_unreachable();
 }
 
 /* PlatformGPU>>get:kind:what: */
@@ -1025,6 +1043,26 @@ bool pf_gpu_set_viewport(int pass, float x, float y, float w, float h)
     vp->max_depth = 1.0;
     SDL_SetGPUViewport(p, vp);
     return true;
+}
+
+/* PlatformGPU>>shaderLanguage: */
+const char *pf_gpu_shader_language(int dev)
+{
+    gpu_dev *d;
+    SDL_GPUShaderFormat f;
+    d = dev_get(dev);
+    if (d == NULL) {
+        return (const char *)NULL;
+    }
+    f = SDL_GetGPUShaderFormats(d->dev);
+    if ((f & SDL_GPU_SHADERFORMAT_MSL) != 0) {
+        return "msl";
+    }
+    if ((f & SDL_GPU_SHADERFORMAT_SPIRV) != 0) {
+        return "glsl";
+    }
+    pf_set_error("the device takes neither MSL nor SPIR-V shaders");
+    return (const char *)NULL;
 }
 
 /* PlatformGPU>>shutdown */

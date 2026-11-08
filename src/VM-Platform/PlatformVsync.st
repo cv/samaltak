@@ -1,48 +1,37 @@
 VMPlatformModule subclass: #PlatformVsync
-	instanceVariableNames: 'displayLink pending vsyncSem'
+	instanceVariableNames: 'pending vsyncSem running'
 	classVariableNames: ''
 	package: 'VM-Platform'!
 
-PlatformVsync comment: 'The display-refresh semaphore: a CVDisplayLink thread flags each refresh; the next platform_poll signals the semaphore (the compositor''s frame clock). Signaled at most once per poll, so a late compositor skips refreshes.'!
+PlatformVsync comment: 'The display-refresh semaphore: the host''s refresh thread (PlatformHost: a CVDisplayLink on macOS, a timer at the display''s refresh rate on Linux) flags each refresh; the next platform_poll signals the semaphore (the compositor''s frame clock). Signaled at most once per poll, so a late compositor skips refreshes.'!
 
 !PlatformVsync class methodsFor: 'declaring'!
-cPreamble
-	"CVDisplayLink is deprecated (CADisplayLink needs a view)."
-	^'#pragma clang diagnostic ignored "-Wdeprecated-declarations"'
-!
 declarations
-	^#((displayLink CVDisplayLinkRef) (pending atomic_int) (vsyncSem int32_t))
+	^#((pending atomic_int) (vsyncSem int32_t) (running bool))
 ! !
 
 !PlatformVsync methodsFor: 'vsync'!
-onRefresh: link now: now output: outputTime flags: flagsIn flagsOut: flagsOut context: context
-	"The display link's thread: flag the refresh, wake the VM once."
-	<c: 'CVReturn on_refresh(CVDisplayLinkRef link, const CVTimeStamp *now, const CVTimeStamp *output_time, CVOptionFlags flags_in, CVOptionFlags *flags_out, void *context)'>
+refreshed
+	"The refresh thread: flag the refresh, wake the VM once."
+	<c: 'void pf_vsync_refreshed(void)'>
+	<export>
 	(self atomicExchange: #pending value: 1) = 0 ifTrue: [
 		scheduler requestInterruptCheck.
-		sdlPlatform wake].
-	^coreVideo kCVReturnSuccess
+		sdlPlatform wake]
 !
 semaphore: index
 	"Signal external semaphore index once per display refresh; 0 = stop."
 	<c: 'bool pf_vsync_semaphore(int index)'>
 	<export>
-	| link |
 	platform init.
 	vsyncSem := index.
-	(index ~= 0 and: [displayLink isNull]) ifTrue: [
-		link := self local: 'CVDisplayLinkRef'.
-		(coreVideo createWithActiveCGDisplays: link) ~= coreVideo kCVReturnSuccess ifTrue: [
-			common setError: 'CVDisplayLinkCreateWithActiveCGDisplays failed'.
-			^false].
-		displayLink := link value.
-		coreVideo setOutputCallback: displayLink callback: (self functionPointer: #onRefresh:now:output:flags:flagsOut:context:) userInfo: self null.
-		coreVideo start: displayLink.
+	(index ~= 0 and: [running not]) ifTrue: [
+		host vsyncStart ifFalse: [^false].
+		running := true.
 		^true].
-	(index = 0 and: [displayLink notNull]) ifTrue: [
-		coreVideo stop: displayLink.
-		coreVideo release: displayLink.
-		displayLink := self null].
+	(index = 0 and: [running]) ifTrue: [
+		host vsyncStop.
+		running := false].
 	^true
 !
 poll

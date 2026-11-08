@@ -7,7 +7,9 @@ PosixIO comment: 'The file, directory, pipe and poll calls of the platform layer
 
 !PosixIO class methodsFor: 'declaring'!
 headers
-	^#('<fcntl.h>' '<unistd.h>' '<sys/stat.h>' '<dirent.h>' '<errno.h>' '<string.h>' '<poll.h>' '<signal.h>')
+	"struct stat's modification time is st_mtim (POSIX.1-2008); macOS calls it st_mtimespec."
+	^#('<fcntl.h>' '<unistd.h>' '<sys/stat.h>' '<dirent.h>' '<errno.h>' '<string.h>' '<poll.h>' '<signal.h>'
+		'#ifdef __APPLE__' '#define st_mtim st_mtimespec' '#endif')
 !
 typedefs
 	^#((mode_t uint16_t) (DIR opaque) (nfds_t uint32_t) (sig_t 'void (*)(int)'))
@@ -77,8 +79,8 @@ stat: path into: st
 	(s at: 1) ifFalse: [^self fail: self ENOENT].
 	st st_mode: ((s at: 2) ifTrue: [16r4000] ifFalse: [16r8000]).
 	st st_size: (s at: 3).
-	st st_mtimespec tv_sec: (s at: 4) // 1000000.
-	st st_mtimespec tv_nsec: (s at: 4) \\ 1000000 * 1000.
+	st st_mtim tv_sec: (s at: 4) // 1000000.
+	st st_mtim tv_nsec: (s at: 4) \\ 1000000 * 1000.
 	^0
 !
 S_ISDIR: m
@@ -338,7 +340,7 @@ cName
 	^'struct stat'
 !
 fields
-	^#((st_mode mode_t) (st_size off_t) (st_mtimespec 'struct timespec'))
+	^#((st_mode mode_t) (st_size off_t) (st_mtim 'struct timespec'))
 ! !
 
 ExternStruct subclass: #Dirent

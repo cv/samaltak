@@ -15,6 +15,11 @@ seed: vm
 image: vm seed
 	$(VM) $(OUT)/seed.image --headless --stage2 $(OUT)/samaltak.image
 
+# Start the system. The image is rebuilt only if src/, boot/ or the VM are newer, so an image saved from the World menu stays.
+run: vm
+	@[ -f $(OUT)/samaltak.image ] && [ -z "$$(find src boot $(VM) -newer $(OUT)/samaltak.image | head -1)" ] || $(MAKE) image
+	$(VM) $(OUT)/samaltak.image
+
 test-vm: vm
 	vm/tests/run.sh
 
@@ -85,4 +90,4 @@ clean:
 	$(MAKE) -C vm clean
 	rm -rf build
 
-.PHONY: all vm seed image translate test-vm test-jit test video mindblown-video jit-video clean
+.PHONY: all vm seed image run translate test-vm test-jit test video mindblown-video jit-video clean

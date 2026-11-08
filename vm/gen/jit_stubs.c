@@ -481,7 +481,7 @@ bool jit_generate_stubs(void)
     uint64_t size;
     start = cache_top;
     symbol_count = 0;
-    pthread_jit_write_protect_np(0);
+    jit_platform_begin_writing();
     asm_begin(start, cache_limit);
     asm_record_notes(false);
     restore = asm_new_label();
@@ -581,7 +581,7 @@ exit_add_sub:;
     value = (uint64_t)state_block;
     v_2 = value;
     imm = v_2 & 0xFFFF;
-    if (!((imm >= 0) && (imm <= 0xFFFF))) {
+    if (!(imm <= 0xFFFF)) {
         if (asm_error == ASM_OK) {
             asm_error = ASM_ERR_IMMEDIATE;
         }
@@ -596,7 +596,7 @@ exit_add_sub:;
     }
 exit_move_wide:;
     imm_2 = (v_2 >> 16) & 0xFFFF;
-    if (!((imm_2 >= 0) && (imm_2 <= 0xFFFF))) {
+    if (!(imm_2 <= 0xFFFF)) {
         if (asm_error == ASM_OK) {
             asm_error = ASM_ERR_IMMEDIATE;
         }
@@ -611,7 +611,7 @@ exit_move_wide:;
     }
 exit_move_wide_2:;
     imm_3 = (v_2 >> 32) & 0xFFFF;
-    if (!((imm_3 >= 0) && (imm_3 <= 0xFFFF))) {
+    if (!(imm_3 <= 0xFFFF)) {
         if (asm_error == ASM_OK) {
             asm_error = ASM_ERR_IMMEDIATE;
         }
@@ -626,7 +626,7 @@ exit_move_wide_2:;
     }
 exit_move_wide_3:;
     imm_4 = v_2 >> 48;
-    if (!((imm_4 >= 0) && (imm_4 <= 0xFFFF))) {
+    if (!(imm_4 <= 0xFFFF)) {
         if (asm_error == ASM_OK) {
             asm_error = ASM_ERR_IMMEDIATE;
         }
@@ -930,7 +930,7 @@ exit_add_sub_4:;
     value_2 = (uint64_t)jit_exit_sync;
     v_6 = value_2;
     imm_5 = v_6 & 0xFFFF;
-    if (!((imm_5 >= 0) && (imm_5 <= 0xFFFF))) {
+    if (!(imm_5 <= 0xFFFF)) {
         if (asm_error == ASM_OK) {
             asm_error = ASM_ERR_IMMEDIATE;
         }
@@ -945,7 +945,7 @@ exit_add_sub_4:;
     }
 exit_move_wide_5:;
     imm_6 = (v_6 >> 16) & 0xFFFF;
-    if (!((imm_6 >= 0) && (imm_6 <= 0xFFFF))) {
+    if (!(imm_6 <= 0xFFFF)) {
         if (asm_error == ASM_OK) {
             asm_error = ASM_ERR_IMMEDIATE;
         }
@@ -960,7 +960,7 @@ exit_move_wide_5:;
     }
 exit_move_wide_6:;
     imm_7 = (v_6 >> 32) & 0xFFFF;
-    if (!((imm_7 >= 0) && (imm_7 <= 0xFFFF))) {
+    if (!(imm_7 <= 0xFFFF)) {
         if (asm_error == ASM_OK) {
             asm_error = ASM_ERR_IMMEDIATE;
         }
@@ -975,7 +975,7 @@ exit_move_wide_6:;
     }
 exit_move_wide_7:;
     imm_8 = v_6 >> 48;
-    if (!((imm_8 >= 0) && (imm_8 <= 0xFFFF))) {
+    if (!(imm_8 <= 0xFFFF)) {
         if (asm_error == ASM_OK) {
             asm_error = ASM_ERR_IMMEDIATE;
         }
@@ -1570,7 +1570,7 @@ exit_add_sub_6:;
     value_3 = (uint64_t)jit_bl_miss;
     v_9 = value_3;
     imm_10 = v_9 & 0xFFFF;
-    if (!((imm_10 >= 0) && (imm_10 <= 0xFFFF))) {
+    if (!(imm_10 <= 0xFFFF)) {
         if (asm_error == ASM_OK) {
             asm_error = ASM_ERR_IMMEDIATE;
         }
@@ -1585,7 +1585,7 @@ exit_add_sub_6:;
     }
 exit_move_wide_9:;
     imm_11 = (v_9 >> 16) & 0xFFFF;
-    if (!((imm_11 >= 0) && (imm_11 <= 0xFFFF))) {
+    if (!(imm_11 <= 0xFFFF)) {
         if (asm_error == ASM_OK) {
             asm_error = ASM_ERR_IMMEDIATE;
         }
@@ -1600,7 +1600,7 @@ exit_move_wide_9:;
     }
 exit_move_wide_10:;
     imm_12 = (v_9 >> 32) & 0xFFFF;
-    if (!((imm_12 >= 0) && (imm_12 <= 0xFFFF))) {
+    if (!(imm_12 <= 0xFFFF)) {
         if (asm_error == ASM_OK) {
             asm_error = ASM_ERR_IMMEDIATE;
         }
@@ -1615,7 +1615,7 @@ exit_move_wide_10:;
     }
 exit_move_wide_11:;
     imm_13 = v_9 >> 48;
-    if (!((imm_13 >= 0) && (imm_13 <= 0xFFFF))) {
+    if (!(imm_13 <= 0xFFFF)) {
         if (asm_error == ASM_OK) {
             asm_error = ASM_ERR_IMMEDIATE;
         }
@@ -2154,7 +2154,7 @@ exit_add_sub_9:;
     value_4 = (uint64_t)jit_bl_block;
     v_13 = value_4;
     imm_15 = v_13 & 0xFFFF;
-    if (!((imm_15 >= 0) && (imm_15 <= 0xFFFF))) {
+    if (!(imm_15 <= 0xFFFF)) {
         if (asm_error == ASM_OK) {
             asm_error = ASM_ERR_IMMEDIATE;
         }
@@ -2169,7 +2169,7 @@ exit_add_sub_9:;
     }
 exit_move_wide_13:;
     imm_16 = (v_13 >> 16) & 0xFFFF;
-    if (!((imm_16 >= 0) && (imm_16 <= 0xFFFF))) {
+    if (!(imm_16 <= 0xFFFF)) {
         if (asm_error == ASM_OK) {
             asm_error = ASM_ERR_IMMEDIATE;
         }
@@ -2184,7 +2184,7 @@ exit_move_wide_13:;
     }
 exit_move_wide_14:;
     imm_17 = (v_13 >> 32) & 0xFFFF;
-    if (!((imm_17 >= 0) && (imm_17 <= 0xFFFF))) {
+    if (!(imm_17 <= 0xFFFF)) {
         if (asm_error == ASM_OK) {
             asm_error = ASM_ERR_IMMEDIATE;
         }
@@ -2199,7 +2199,7 @@ exit_move_wide_14:;
     }
 exit_move_wide_15:;
     imm_18 = v_13 >> 48;
-    if (!((imm_18 >= 0) && (imm_18 <= 0xFFFF))) {
+    if (!(imm_18 <= 0xFFFF)) {
         if (asm_error == ASM_OK) {
             asm_error = ASM_ERR_IMMEDIATE;
         }
@@ -2355,7 +2355,7 @@ exit_pair_3:;
     value_5 = (uint64_t)jit_bl_perform;
     v_15 = value_5;
     imm_19 = v_15 & 0xFFFF;
-    if (!((imm_19 >= 0) && (imm_19 <= 0xFFFF))) {
+    if (!(imm_19 <= 0xFFFF)) {
         if (asm_error == ASM_OK) {
             asm_error = ASM_ERR_IMMEDIATE;
         }
@@ -2370,7 +2370,7 @@ exit_pair_3:;
     }
 exit_move_wide_17:;
     imm_20 = (v_15 >> 16) & 0xFFFF;
-    if (!((imm_20 >= 0) && (imm_20 <= 0xFFFF))) {
+    if (!(imm_20 <= 0xFFFF)) {
         if (asm_error == ASM_OK) {
             asm_error = ASM_ERR_IMMEDIATE;
         }
@@ -2385,7 +2385,7 @@ exit_move_wide_17:;
     }
 exit_move_wide_18:;
     imm_21 = (v_15 >> 32) & 0xFFFF;
-    if (!((imm_21 >= 0) && (imm_21 <= 0xFFFF))) {
+    if (!(imm_21 <= 0xFFFF)) {
         if (asm_error == ASM_OK) {
             asm_error = ASM_ERR_IMMEDIATE;
         }
@@ -2400,7 +2400,7 @@ exit_move_wide_18:;
     }
 exit_move_wide_19:;
     imm_22 = v_15 >> 48;
-    if (!((imm_22 >= 0) && (imm_22 <= 0xFFFF))) {
+    if (!(imm_22 <= 0xFFFF)) {
         if (asm_error == ASM_OK) {
             asm_error = ASM_ERR_IMMEDIATE;
         }
@@ -2622,7 +2622,7 @@ exit_pair_5:;
     value_6 = (uint64_t)jit_bl_entry_slow;
     v_17 = value_6;
     imm_23 = v_17 & 0xFFFF;
-    if (!((imm_23 >= 0) && (imm_23 <= 0xFFFF))) {
+    if (!(imm_23 <= 0xFFFF)) {
         if (asm_error == ASM_OK) {
             asm_error = ASM_ERR_IMMEDIATE;
         }
@@ -2637,7 +2637,7 @@ exit_pair_5:;
     }
 exit_move_wide_21:;
     imm_24 = (v_17 >> 16) & 0xFFFF;
-    if (!((imm_24 >= 0) && (imm_24 <= 0xFFFF))) {
+    if (!(imm_24 <= 0xFFFF)) {
         if (asm_error == ASM_OK) {
             asm_error = ASM_ERR_IMMEDIATE;
         }
@@ -2652,7 +2652,7 @@ exit_move_wide_21:;
     }
 exit_move_wide_22:;
     imm_25 = (v_17 >> 32) & 0xFFFF;
-    if (!((imm_25 >= 0) && (imm_25 <= 0xFFFF))) {
+    if (!(imm_25 <= 0xFFFF)) {
         if (asm_error == ASM_OK) {
             asm_error = ASM_ERR_IMMEDIATE;
         }
@@ -2667,7 +2667,7 @@ exit_move_wide_22:;
     }
 exit_move_wide_23:;
     imm_26 = v_17 >> 48;
-    if (!((imm_26 >= 0) && (imm_26 <= 0xFFFF))) {
+    if (!(imm_26 <= 0xFFFF)) {
         if (asm_error == ASM_OK) {
             asm_error = ASM_ERR_IMMEDIATE;
         }
@@ -2856,7 +2856,7 @@ exit_pair_6:;
     value_7 = (uint64_t)jit_bl_prim;
     v_19 = value_7;
     imm_27 = v_19 & 0xFFFF;
-    if (!((imm_27 >= 0) && (imm_27 <= 0xFFFF))) {
+    if (!(imm_27 <= 0xFFFF)) {
         if (asm_error == ASM_OK) {
             asm_error = ASM_ERR_IMMEDIATE;
         }
@@ -2871,7 +2871,7 @@ exit_pair_6:;
     }
 exit_move_wide_25:;
     imm_28 = (v_19 >> 16) & 0xFFFF;
-    if (!((imm_28 >= 0) && (imm_28 <= 0xFFFF))) {
+    if (!(imm_28 <= 0xFFFF)) {
         if (asm_error == ASM_OK) {
             asm_error = ASM_ERR_IMMEDIATE;
         }
@@ -2886,7 +2886,7 @@ exit_move_wide_25:;
     }
 exit_move_wide_26:;
     imm_29 = (v_19 >> 32) & 0xFFFF;
-    if (!((imm_29 >= 0) && (imm_29 <= 0xFFFF))) {
+    if (!(imm_29 <= 0xFFFF)) {
         if (asm_error == ASM_OK) {
             asm_error = ASM_ERR_IMMEDIATE;
         }
@@ -2901,7 +2901,7 @@ exit_move_wide_26:;
     }
 exit_move_wide_27:;
     imm_30 = v_19 >> 48;
-    if (!((imm_30 >= 0) && (imm_30 <= 0xFFFF))) {
+    if (!(imm_30 <= 0xFFFF)) {
         if (asm_error == ASM_OK) {
             asm_error = ASM_ERR_IMMEDIATE;
         }
@@ -3137,7 +3137,7 @@ exit_offset_to_24:;
     value_8 = (uint64_t)jit_write_barrier;
     v_21 = value_8;
     imm_31 = v_21 & 0xFFFF;
-    if (!((imm_31 >= 0) && (imm_31 <= 0xFFFF))) {
+    if (!(imm_31 <= 0xFFFF)) {
         if (asm_error == ASM_OK) {
             asm_error = ASM_ERR_IMMEDIATE;
         }
@@ -3152,7 +3152,7 @@ exit_offset_to_24:;
     }
 exit_move_wide_29:;
     imm_32 = (v_21 >> 16) & 0xFFFF;
-    if (!((imm_32 >= 0) && (imm_32 <= 0xFFFF))) {
+    if (!(imm_32 <= 0xFFFF)) {
         if (asm_error == ASM_OK) {
             asm_error = ASM_ERR_IMMEDIATE;
         }
@@ -3167,7 +3167,7 @@ exit_move_wide_29:;
     }
 exit_move_wide_30:;
     imm_33 = (v_21 >> 32) & 0xFFFF;
-    if (!((imm_33 >= 0) && (imm_33 <= 0xFFFF))) {
+    if (!(imm_33 <= 0xFFFF)) {
         if (asm_error == ASM_OK) {
             asm_error = ASM_ERR_IMMEDIATE;
         }
@@ -3182,7 +3182,7 @@ exit_move_wide_30:;
     }
 exit_move_wide_31:;
     imm_34 = v_21 >> 48;
-    if (!((imm_34 >= 0) && (imm_34 <= 0xFFFF))) {
+    if (!(imm_34 <= 0xFFFF)) {
         if (asm_error == ASM_OK) {
             asm_error = ASM_ERR_IMMEDIATE;
         }
@@ -3852,8 +3852,8 @@ exit_offset_to_33:;
     }
     code_cache_allocate(asm_pc - asm_start);
     size = asm_pc - asm_start;
-    pthread_jit_write_protect_np(1);
-    sys_icache_invalidate((void *)start, size);
+    jit_platform_end_writing();
+    jit_platform_invalidate((void *)start, size);
     return true;
 }
 

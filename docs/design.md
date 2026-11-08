@@ -4,7 +4,7 @@ Working decisions. Open questions marked **?**.
 
 ## Core
 
-- The VM (object memory, GC, interpreter, scheduler, primitives, image I/O) and the platform layer (SDL3 windows and input, SDL_GPU on Metal, files, sockets, ptys) are written in **Lowtalk** (docs/lowtalk.md): a subset of Smalltalk that is also plain Smalltalk. Running it directly is the simulator (debuggable and profilable with the image's own tools, the VM Simulator window); `VMTranslator` turns it into C. There is no hand-written C.
+- The VM (object memory, GC, interpreter, scheduler, primitives, image I/O) and the platform layer (SDL3 windows and input, SDL_GPU on Metal or Vulkan, files, sockets, ptys) are written in **Lowtalk** (docs/lowtalk.md): a subset of Smalltalk that is also plain Smalltalk. Running it directly is the simulator (debuggable and profilable with the image's own tools, the VM Simulator window); `VMTranslator` turns it into C. There is no hand-written C.
 - The generated C (`vm/gen/`) is checked in, so a fresh checkout builds without a working VM; `make test` checks that it is what the sources translate to. Built with PGO it is as fast as the hand-written C VM it replaced.
 - Images are built from the sources by `ImageBuilder` (Smalltalk), which allocates the new image's objects with the VM's own object memory, simulated, so the object format has one definition (`VMConstants`). It runs in a checked-in seed image (`boot/seed.image`), after filing in its current sources; the seed only needs updating when the builder needs something the seed's kernel lacks.
 - Next: a native-code backend for the translator's typed tree, and a JIT in the image.
@@ -86,7 +86,7 @@ A package may use packages of its own layer, the layer directly below, and layer
 | 2 | Graphics-Canvas | 2D paths, text, images → immutable DisplayLists; GPU compute rasterizer |
 | 1 | Graphics-GPU | WebGPU-shaped 3D API: devices, buffers, pipelines, command encoders |
 | 0 | Kernel, System, Compiler | Language, processes, files, profiling, debugging, remote control |
-| — | Platform (C) | SDL3 windows and input, SDL_GPU (Metal), files, sockets |
+| — | Platform (C) | SDL3 windows and input, SDL_GPU (Metal, Vulkan), files, sockets |
 
 Widgets draw on a `Canvas`; they never see `GPUDevice`.
 

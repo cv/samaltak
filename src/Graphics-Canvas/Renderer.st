@@ -3,7 +3,7 @@ Object subclass: #Renderer
 	classVariableNames: 'Default SourceGeneration ShaderErrorHandler'
 	package: 'Graphics-Canvas'!
 
-Renderer comment: 'I draw DisplayLists with the GPU: one uber-shader (MSL source below) whose modes are solid, glyph (R8 coverage), image (premultiplied RGBA), halftone, stripes and antialiased lines; premultiplied-alpha blending into RGBA8 targets. Each DisplayList is uploaded into my vertex buffer at its own offset within a command buffer (uploads to one range would otherwise overwrite each other before the submit), then encoded batch by batch (texture, scissor, and the batch''s translation as a vertex uniform).
+Renderer comment: 'I draw DisplayLists with the GPU: one uber-shader (MSL source below, and glslShaderSource for Vulkan) whose modes are solid, glyph (R8 coverage), image (premultiplied RGBA), halftone, stripes and antialiased lines; premultiplied-alpha blending into RGBA8 targets. Each DisplayList is uploaded into my vertex buffer at its own offset within a command buffer (uploads to one range would otherwise overwrite each other before the submit), then encoded batch by batch (texture, scissor, and the batch''s translation as a vertex uniform).
 
 	Renderer default render: aDisplayList on: aSurface clear: Color white
 
@@ -12,7 +12,7 @@ My shaders are Smalltalk source: when my methods change (SystemChanges), every R
 !Renderer methodsFor: 'initialization'!
 setDevice: aDevice
 	device := aDevice.
-	pipeline := self pipelineFrom: self class shaderSource.
+	pipeline := self pipelineFrom: (self class shaderSourceFor: device shaderLanguage).
 	sourceGeneration := self class sourceGeneration.
 	pipelineVersion := 1.
 	nearestSampler := device samplerLinear: false repeat: false.
@@ -37,10 +37,10 @@ pipelineVersion
 ! !
 
 !Renderer methodsFor: 'pipeline'!
-pipelineFrom: mslSource
+pipelineFrom: source
 	| vs fs |
-	vs := device shaderSource: mslSource entry: 'vmain' stage: #vertex samplers: 0 uniformBuffers: 1.
-	fs := device shaderSource: mslSource entry: 'fmain' stage: #fragment samplers: 1 uniformBuffers: 0.
+	vs := device shaderSource: source entry: 'vmain' stage: #vertex samplers: 0 uniformBuffers: 1.
+	fs := device shaderSource: source entry: 'fmain' stage: #fragment samplers: 1 uniformBuffers: 0.
 	^device
 		pipelineVertex: vs fragment: fs stride: 40
 		attributes: #(#(#float4 0) #(#uint 16) #(#uint 20) #(#ubyte4norm 24) #(#uint 28) #(#float2 32))
@@ -51,7 +51,7 @@ updatePipeline
 	| new |
 	sourceGeneration = self class sourceGeneration ifTrue: [^false].
 	sourceGeneration := self class sourceGeneration.
-	new := [(self pipelineFrom: self class shaderSource) handle; yourself]
+	new := [(self pipelineFrom: (self class shaderSourceFor: device shaderLanguage)) handle; yourself]
 		on: Error
 		do: [:e | self class reportShaderError: e. e return: nil].
 	new isNil ifTrue: [^false].
@@ -173,6 +173,93 @@ reportShaderError: anError
 ! !
 
 !Renderer class methodsFor: 'shaders'!
+shaderSourceFor: aLanguage
+	"The uber-shader in aLanguage (GPUDevice>>shaderLanguage)."
+	^aLanguage == #glsl ifTrue: [self glslShaderSource] ifFalse: [self shaderSource]
+!
+glslShaderSource
+	"shaderSource in GLSL (Vulkan): both stages, chosen by SAMALTAK_VERTEX / SAMALTAK_FRAGMENT."
+	^'#version 450
+
+#ifdef SAMALTAK_VERTEX
+layout(location = 0) in vec4 rect;
+layout(location = 1) in uint uv0;
+layout(location = 2) in uint uv1;
+layout(location = 3) in vec4 color;
+layout(location = 4) in uint mode;
+layout(location = 5) in vec2 origin;
+layout(location = 0) out vec2 vUv;
+layout(location = 1) out vec4 vColor;
+layout(location = 2) flat out vec2 vOrg;
+layout(location = 3) flat out uint vMode;
+layout(set = 1, binding = 0) uniform U { vec2 viewport; vec2 translation; } u;
+
+void main() {
+	vec2 p;
+	if ((mode & 0x80000000u) !!= 0u) {
+		p = rect.xy;
+		vUv = vec2(uintBitsToFloat(uv0), uintBitsToFloat(uv1));
+	} else {
+		uint c = uint(gl_VertexIndex) % 6u;
+		vec2 k = vec2((c == 1u || c == 3u || c == 4u) ? 1.0 : 0.0, (c == 2u || c == 4u || c == 5u) ? 1.0 : 0.0);
+		p = mix(rect.xy, rect.zw, k);
+		vec2 a = vec2(float(uv0 & 0xFFFFu), float(uv0 >> 16));
+		vec2 b = vec2(float(uv1 & 0xFFFFu), float(uv1 >> 16));
+		vUv = mix(a, b, k);
+	}
+	p += origin + u.translation;
+	gl_Position = vec4(p.x / u.viewport.x * 2.0 - 1.0, 1.0 - p.y / u.viewport.y * 2.0, 0.0, 1.0);
+	vOrg = rect.xy + origin + u.translation;
+	vColor = color;
+	vMode = mode;
+}
+#endif
+
+#ifdef SAMALTAK_FRAGMENT
+layout(location = 0) in vec2 vUv;
+layout(location = 1) in vec4 vColor;
+layout(location = 2) flat in vec2 vOrg;
+layout(location = 3) flat in uint vMode;
+layout(location = 0) out vec4 fragColor;
+layout(set = 2, binding = 0) uniform sampler2D tex;
+
+vec4 shade() {
+	uint m = vMode & 0xFFu;
+	if (m == 0u) return vColor;
+	if (m == 1u) {
+		vec2 size = vec2(textureSize(tex, 0));
+		return vColor * textureLod(tex, vUv / size, 0.0).r;
+	}
+	if (m == 2u) {
+		vec2 size = vec2(textureSize(tex, 0));
+		return textureLod(tex, vUv / size, 0.0) * vColor.a;
+	}
+	if (m == 5u) {
+		float cover = clamp(vUv.y + 0.5 - abs(vUv.x), 0.0, 1.0);
+		return vColor * cover;
+	}
+	uint cell = max((vMode >> 8) & 0xFFu, 1u);
+	uint variant = (vMode >> 16) & 0xFFu;
+	vec2 d = floor(gl_FragCoord.xy - vOrg);
+	uint ix = uint(max(d.x, 0.0)) / cell;
+	uint iy = uint(max(d.y, 0.0)) / cell;
+	bool on;
+	if (m == 3u) {
+		on = variant == 1u ? ((ix + iy) & 1u) == 0u : ((ix & 1u) == 1u && (iy & 1u) == 1u);
+	} else {
+		if (variant == 1u) on = (ix & 1u) == 0u;
+		else if (variant == 2u) on = ((uint(max(d.x + d.y, 0.0)) / cell) & 1u) == 0u;
+		else on = (iy & 1u) == 0u;
+	}
+	return on ? vColor : vec4(0.0);
+}
+
+void main() {
+	fragColor = shade();
+}
+#endif
+'
+!
 shaderSource
 	"The uber-shader. Vertex: pick the quad corner from the vertex index (all six vertices of a quad are equal), or take the explicit position (bit 31 of mode), then add the origin and the batch's translation. Fragment: by mode."
 	^'#include <metal_stdlib>
