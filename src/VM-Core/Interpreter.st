@@ -874,14 +874,6 @@ entryFor: aClass selector: aSelector
 	g := cache + (self cacheIndexOf: aClass selector: aSelector).
 	(g cls = aClass and: [g sel = aSelector]) ifTrue: [^g].
 	^self fillCache: aClass selector: aSelector
-!
-setCacheCode: c forMethod: m
-	"m got machine code c: method cache entries that count its activations switch to it."
-	<c: 'void set_cache_code(uint64_t c, oop m)'>
-	0 to: CACHE_SIZE - 1 do: [:i |
-		((cache + i) method = m and: [(cache + i) kind = K_JIT]) ifTrue: [(cache + i) code: c]].
-	0 to: ICACHE_SIZE - 1 do: [:i |
-		((icache + i) method = m and: [(icache + i) kind = K_JIT]) ifTrue: [(icache + i) code: c]]
 ! !
 
 !Interpreter methodsFor: 'diagnostics'!
@@ -2220,7 +2212,7 @@ VMStruct subclass: #CacheEntry
 	classVariableNames: ''
 	package: 'VM-Core'!
 
-CacheEntry comment: 'A method cache entry. Key cls and sel (in the inline cache, sel holds the send site: ip after the send bytecode). kind 0: activate a frame; else K_PRIM, K_QUICK, K_SETTER, K_CONST, K_LEAF bits, or K_JIT: activate a frame for a method with machine code (code: its JitMethod) or whose activations the JIT counts (code 1). qconst: the method only answers this constant (or self if 0): no frame (Squeak''s quick returns). quick >= 0: the method is ^instVar quick. nset > 0: a setter storing its arguments into setIvar. bcs and lits are raw pointers into the method, valid until the next GC (which flushes the caches). 64 bytes.'!
+CacheEntry comment: 'A method cache entry. Key cls and sel (in the inline cache, sel holds the send site: ip after the send bytecode). kind 0: activate a frame; else K_PRIM, K_QUICK, K_SETTER, K_CONST, K_LEAF bits, or K_JIT: activate a frame for a method with machine code (code: its JitMethod) or whose activations the JIT counts (code 1); code is what the method had when the entry was filled, installing code does not touch the entries: an activation counted by an entry finds code compiled since (JitRuntime>>codeOf:counting:), one through baseline code the method''s optimized code (JitRuntime>>best:). qconst: the method only answers this constant (or self if 0): no frame (Squeak''s quick returns). quick >= 0: the method is ^instVar quick. nset > 0: a setter storing its arguments into setIvar. bcs and lits are raw pointers into the method, valid until the next GC (which flushes the caches). 64 bytes.'!
 
 !CacheEntry class methodsFor: 'declaring'!
 fields

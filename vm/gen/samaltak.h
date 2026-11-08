@@ -1443,7 +1443,6 @@ frame *interp_push_frame_entry(cache_entry *e, int32_t n);
 void interp_roots(void (*fn)(oop *));
 int selector_argc(oop sel);
 oop sender_marked(oop c, int64_t p, oop stop);
-void set_cache_code(uint64_t c, oop m);
 void set_prim_base(int argc);
 cache_entry *site_entry(uint8_t *site, oop cls, oop sel);
 void interp_sync_frame(frame *f);

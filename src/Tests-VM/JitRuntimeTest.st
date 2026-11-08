@@ -56,6 +56,16 @@ testCompiledCodeRuns
 	self assert: (JitRuntimeTestSubject new fib: 20) equals: 6765.
 	self assert: (self statistics - before) jitMethodsCompiled > 0
 !
+testActivationsFindCodeCompiledSinceTheEntryWasFilled
+	"The send's cache entry counts answer's activations; answer is compiled at the fourth. Installing code leaves the entries as they are: the later activations through this one still enter the machine code."
+	| before |
+	Smalltalk vm jitParameters: #(nil nil 3 1000000).
+	self define: 'answer | x | x := 1. ^x'.
+	self define: 'sends: n | s | s := 0. 1 to: n do: [:i | s := s + self answer]. ^s'.
+	before := self statistics.
+	self assert: (JitRuntimeTestSubject new sends: 20) equals: 20.
+	self assert: (self statistics - before) jitEntries >= 17
+!
 testOnStackReplacement
 	"A loop in a method the interpreter started: compiled after 5 backward jumps and continued in machine code."
 	| before |

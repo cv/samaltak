@@ -1180,7 +1180,6 @@ exit_note_young:;
     if (!((o != NULL) && ((o->flags & JM_FAILED) == 0))) {
         return (jit_method *)NULL;
     }
-    set_cache_code((uint64_t)o, m);
     jit_code_changed(m);
     return o;
 }

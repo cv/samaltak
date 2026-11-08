@@ -12719,23 +12719,6 @@ oop sender_marked(oop c, int64_t p, oop stop)
     return nil_oop;
 }
 
-/* Interpreter>>setCacheCode:forMethod: */
-void set_cache_code(uint64_t c, oop m)
-{
-    int i;
-    int i_2;
-    for (i = 0; i <= 4095; i++) {
-        if (((cache + i)->method == m) && ((cache + i)->kind == K_JIT)) {
-            (cache + i)->code = c;
-        }
-    }
-    for (i_2 = 0; i_2 <= 4095; i_2++) {
-        if (((icache + i_2)->method == m) && ((icache + i_2)->kind == K_JIT)) {
-            (icache + i_2)->code = c;
-        }
-    }
-}
-
 /* Interpreter>>setPrimBase: */
 void set_prim_base(int n)
 {

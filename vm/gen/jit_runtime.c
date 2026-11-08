@@ -75,6 +75,10 @@ exit_frame_code_for:;
 void jit_activated(frame *f)
 {
     uint64_t c;
+    jit_method *h_2;
+    jit_method *r_best;
+    jit_method *o;
+    jit_method *v;
     jit_method *h;
     uint64_t address;
     frame *f_2;
@@ -84,12 +88,31 @@ void jit_activated(frame *f)
     frame *g;
     uint64_t c_3;
     oop m;
-    uint64_t o;
+    uint64_t o_2;
     if (flush_pending && jit_no_opt_frames()) {
         jit_flush();
     }
     c = f->code;
-    h = c > JIT_MAX_COUNT ? (jit_method *)f->code : jit_code_of(f->method, true);
+    h = ({
+    if (c > JIT_MAX_COUNT) {
+        h_2 = (jit_method *)f->code;
+        v = ({
+    if ((h_2->opt == 0) || (jit_mode != JIT_OPT)) {
+        r_best = h_2;
+        goto exit_best;
+    }
+    o = (jit_method *)h_2->opt;
+    if ((o != NULL) && ((o->flags & JM_FAILED) == 0) && ((o->flags & JM_DEAD) == 0)) {
+        r_best = o;
+        goto exit_best;
+    }
+    r_best = h_2;
+exit_best:;
+    r_best; });
+    } else {
+        v = jit_code_of(f->method, true);
+    }
+    v; });
     if (h == NULL) {
         f->code = jit_mode == JIT_NONE ? 0 : 1;
         return;
@@ -132,8 +155,8 @@ void jit_activated(frame *f)
             c_3 = g->code;
             if (!((c_3 > JIT_MAX_COUNT) && (((jit_method *)g->code)->mode == JIT_OPT))) {
                 m = g->method;
-                o = *(uint64_t *)(m + 16 + 24);
-                g->pc = (int32_t)(g->ip - (uint8_t *)(o + 16));
+                o_2 = *(uint64_t *)(m + 16 + 24);
+                g->pc = (int32_t)(g->ip - (uint8_t *)(o_2 + 16));
             }
             interp_sync_frame(g);
             a = jit_address_for(g);
@@ -640,7 +663,6 @@ exit_insert:;
     if (jit_mode == JIT_OPT) {
         opt_counts[((uint32_t)(((*(uint64_t *)m) >> H_HASH_SHIFT) & H_HASH_MASK)) & 65535] = opt_initial_count(m);
     }
-    set_cache_code((uint64_t)h, m);
     return h;
 }
 
@@ -715,14 +737,18 @@ void jit_defaults(void)
 /* JitRuntime>>dispatch:frame:argc: */
 uint64_t jit_dispatch(cache_entry *e, frame *f, int32_t n)
 {
+    jit_method *h;
     uint8_t kind;
     oop *base;
     oop m;
     uint64_t c;
+    jit_method *h_2;
+    jit_method *r_best;
+    jit_method *o;
     frame *g;
     int32_t status;
     int32_t r_error_code_for;
-    uint64_t o;
+    uint64_t o_2;
     int64_t r_method_prim;
     uint64_t p;
     oop r;
@@ -737,19 +763,19 @@ uint64_t jit_dispatch(cache_entry *e, frame *f, int32_t n)
     uint64_t inv;
     oop v;
     oop m_2;
-    uint64_t o_2;
+    uint64_t o_3;
     int64_t pc;
     int32_t n_2;
     uint64_t r_leave_after;
     uint64_t c_2;
     oop m_3;
-    uint64_t o_3;
+    uint64_t o_4;
     int64_t pc_2;
     int32_t n_3;
     uint64_t r_leave_after_2;
     uint64_t c_3;
     int32_t r_error_code_for_2;
-    uint64_t o_4;
+    uint64_t o_5;
     int64_t r_method_prim_2;
     uint64_t p_2;
     kind = e->kind;
@@ -760,11 +786,26 @@ uint64_t jit_dispatch(cache_entry *e, frame *f, int32_t n)
         if (!(c > JIT_MAX_COUNT)) {
             return jit_activate(m, f, n, -1, 0);
         }
+        h_2 = (jit_method *)e->code;
+        h = ({
+    if ((h_2->opt == 0) || (jit_mode != JIT_OPT)) {
+        r_best = h_2;
+        goto exit_best;
+    }
+    o = (jit_method *)h_2->opt;
+    if ((o != NULL) && ((o->flags & JM_FAILED) == 0) && ((o->flags & JM_DEAD) == 0)) {
+        r_best = o;
+        goto exit_best;
+    }
+    r_best = h_2;
+exit_best:;
+    r_best; });
         g = interp_push_frame_entry(e, n);
         if (g == NULL) {
             return jit_leave(f, f->pc, f->sp - send_pushed);
         }
-        return ((jit_method *)e->code)->start - JIT_PROLOGUE_BYTES;
+        g->code = (uint64_t)h;
+        return h->start - JIT_PROLOGUE_BYTES;
     }
     if (kind == 0) {
         return jit_activate(m, f, n, -1, 0);
@@ -778,8 +819,8 @@ uint64_t jit_dispatch(cache_entry *e, frame *f, int32_t n)
         }
         return jit_activate(m, f, n, ({
     if ((prim_error_code >= 0) && ({
-    o = *(uint64_t *)(m + 16 + 40);
-    ((((int64_t)o) >> 1) > 0) && ((({
+    o_2 = *(uint64_t *)(m + 16 + 40);
+    ((((int64_t)o_2) >> 1) > 0) && ((({
     p = *(uint64_t *)(m + 16 + 56);
     r_method_prim = (p & 1) != 0 ? ((int64_t)p) >> 1 : 0;
     r_method_prim; }) & CM_PRIM_ERROR_FLAG) != 0); })) {
@@ -844,8 +885,8 @@ exit_error_code_for:;
         base[0] = v;
         if (inv != invalidations) {
             m_2 = f->method;
-            o_2 = *(uint64_t *)(m_2 + 16 + 24);
-            pc = f->ip - (uint8_t *)(o_2 + 16);
+            o_3 = *(uint64_t *)(m_2 + 16 + 24);
+            pc = f->ip - (uint8_t *)(o_3 + 16);
             n_2 = f->sp - n;
             return ({
     c_2 = f->code;
@@ -868,8 +909,8 @@ exit_leave_after:;
         }
         if (inv != invalidations) {
             m_3 = f->method;
-            o_3 = *(uint64_t *)(m_3 + 16 + 24);
-            pc_2 = f->ip - (uint8_t *)(o_3 + 16);
+            o_4 = *(uint64_t *)(m_3 + 16 + 24);
+            pc_2 = f->ip - (uint8_t *)(o_4 + 16);
             n_3 = f->sp;
             return ({
     c_3 = f->code;
@@ -895,8 +936,8 @@ exit_leave_after_2:;
     }
     return jit_activate(m, f, n, ({
     if ((prim_error_code >= 0) && ({
-    o_4 = *(uint64_t *)(m + 16 + 40);
-    ((((int64_t)o_4) >> 1) > 0) && ((({
+    o_5 = *(uint64_t *)(m + 16 + 40);
+    ((((int64_t)o_5) >> 1) > 0) && ((({
     p_2 = *(uint64_t *)(m + 16 + 56);
     r_method_prim_2 = (p_2 & 1) != 0 ? ((int64_t)p_2) >> 1 : 0;
     r_method_prim_2; }) & CM_PRIM_ERROR_FLAG) != 0); })) {

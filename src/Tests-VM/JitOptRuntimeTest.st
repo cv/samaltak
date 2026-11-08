@@ -47,6 +47,22 @@ testDeoptimizationOfASpeculation
 	self assert: (o sumTwice: 1000) equals: 1001000.
 	self assert: (self statistics - before) optDeoptimizations + (self statistics - before) optMethodsCompiled > 0
 !
+testActivationsFindOptimizedCodeThroughAnEntryOfBaselineCode
+	"An interpreted send whose cache entry was filled when plusOne: had baseline code only: its activations run the optimized code the method gets meanwhile (JitRuntime>>best:). The Float failing a SmallInteger guard in it shows that they do."
+	| o before |
+	Smalltalk vm jitParameters: #(nil '-eager' 2 1000000).
+	self define: 'plusOne: x ^x + 1'.
+	self define: 'warm: n | s | s := 0. 1 to: n do: [:i | s := self plusOne: i]. ^s'.
+	self define: 'sends: n last: v | s | s := 0. 1 to: n do: [:i | s := self plusOne: (i = n ifTrue: [v] ifFalse: [i])]. ^s'.
+	o := JitRuntimeTestSubject new.
+	self assert: (o warm: 4) equals: 5.
+	"a full GC empties the method caches: the entry of the send in sends:last: is filled from the baseline code"
+	Smalltalk vm garbageCollect.
+	before := self statistics.
+	self assert: (o sends: 5000 last: 1.5) equals: 2.5.
+	self assert: (self statistics - before) optMethodsCompiled > 0.
+	self stressed ifFalse: [self assert: (self statistics - before) optDeoptimizations > 0]
+!
 testInvalidationWhileRunning
 	"A method inlined into running optimized code (a loop's unit, from feedback) is redefined: the code is invalidated, the running activation continues with the new method."
 	| before |

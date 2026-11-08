@@ -285,7 +285,6 @@ optimize: m lower: h
 	cache endWriting.
 	self noteYoung: o.
 	(runtime hasCode: o) ifFalse: [^self null].
-	interpreter setCacheCode: (self cCoerce: o to: 'uint64_t') forMethod: m.
 	runtime codeChanged: m.
 	^o
 !

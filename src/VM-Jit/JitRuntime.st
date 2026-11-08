@@ -636,7 +636,6 @@ compileAndInstall: m
 	(self insert: h) ifFalse: [^self null].
 	(self hasCode: h) ifFalse: [^self null].
 	self tiering ifTrue: [optCounts at: ((self hashOf: m) bitAnd: JIT_TABLE_SIZE - 1) put: (optimizer initialCount: m)].
-	interpreter setCacheCode: (self cCoerce: h to: 'uint64_t') forMethod: m.
 	^h
 !
 compileCopy: m mode: md
@@ -956,7 +955,7 @@ activated: f
 	| h |
 	self prepare.
 	h := (self isCode: f code)
-		ifTrue: [self cCoerce: f code to: 'JitMethod *']
+		ifTrue: [self best: (self cCoerce: f code to: 'JitMethod *')]
 		ifFalse: [self codeOf: f method counting: true].
 	h isNull ifTrue: [
 		f code: (jitMode = JIT_NONE ifTrue: [0] ifFalse: [1]).
@@ -1188,15 +1187,18 @@ specialFast: k base: base
 dispatch: e frame: f argc: n
 	"f's ip is past the send, f's sp counts receiver and arguments."
 	<c: 'uint64_t jit_dispatch(CacheEntry *e, Frame *f, int32_t n)'>
-	| kind base m status ecode moved inv r v ns ok g |
+	<var: #h type: 'JitMethod *'>
+	| kind base m status ecode moved inv r v ns ok g h |
 	kind := e kind.
 	base := f fp + (f sp - n - 1).
 	m := e method.
 	kind = K_JIT ifTrue: [
 		(self isCode: e code) ifFalse: [^self activate: m frame: f argc: n ecode: -1 code: 0].
+		h := self best: (self cCoerce: e code to: 'JitMethod *').
 		g := interpreter pushFrameEntry: e argc: n.
 		g isNull ifTrue: [^self leave: f pc: f pc sp: f sp - sendPushed].
-		^(self cCoerce: e code to: 'JitMethod *') start - JIT_PROLOGUE_BYTES].
+		g code: (self cCoerce: h to: 'uint64_t').
+		^h start - JIT_PROLOGUE_BYTES].
 	kind = 0 ifTrue: [^self activate: m frame: f argc: n ecode: -1 code: 0].
 	(kind bitAnd: K_LEAF) ~= 0 ifTrue: [
 		status := interpreter callPrimitive: e prim base: base argc: n.
