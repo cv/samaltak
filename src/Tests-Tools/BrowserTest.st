@@ -31,6 +31,116 @@ gutterPointOf: aSymbol
 	^list localToScreen: (list paddingX + 5) @ r center y
 ! !
 
+!BrowserTest methodsFor: 'filter'!
+openFilter
+	self key: $f modifiers: self commandModifier.
+	self settle.
+	self assert: (self in: window do: [window keyboardFocus]) == browser filterField
+!
+filter: aString
+	self type: aString.
+	self settle.
+	self assert: browser filterField text equals: aString
+!
+type: aString
+	DisplayWindow injectEvent: {7. nil. 0. 0. 0. 0. aString. world displayWindow windowId}
+!
+testFilterFindsMethodsAcrossPackagesAsYouType
+	| found |
+	self openFilter.
+	self filter: 'gcd'.
+	found := browser classList items.
+	self assert: (found includes: Integer).
+	self deny: (found includes: Object).
+	self assert: (browser packageList items anySatisfy: [:p | p name = 'Kernel-Numbers']).
+	self deny: (browser packageList items anySatisfy: [:p | p name = 'Tools']).
+	self type: 'x'.
+	self settle.
+	self assert: browser classList items isEmpty.
+	self assert: browser methodList items isEmpty
+!
+testFilterPickShowsTheMatchingMethodOnItsSide
+	"Return goes to the first class, which shows the method found; a class-side method turns the switch."
+	self openFilter.
+	self filter: 'integer gcd'.
+	self assert: browser classList items first equals: Integer.
+	self key: #return modifiers: 0.
+	self settle.
+	self assert: (self in: window do: [window keyboardFocus]) == browser classList.
+	self assert: browser selectedClass equals: Integer.
+	self assert: browser methodList items equals: #(#gcd:).
+	self assert: browser selectedSelector equals: #gcd:.
+	self assert: browser selectedProtocol equals: browser allProtocol.
+	self assert: browser code text equals: (Integer >> #gcd:) source.
+	self in: window do: [browser openFilter. browser filterField text: 'readFrom'. browser filterChanged].
+	self in: window do: [browser classPicked: Number].
+	self assert: browser side equals: #class.
+	self assert: (browser methodList items allSatisfy: [:s | s asLowercase includesSubstring: 'readfrom'])
+!
+testFilterNamingAClassShowsItsDefinitionAndAllMethods
+	self openFilter.
+	self filter: 'orderedcoll'.
+	self assert: browser classList items first equals: OrderedCollection.
+	self key: #down modifiers: 0.
+	self settle.
+	self assert: (browser code text includesSubstring: 'subclass: #OrderedCollection').
+	self assert: browser methodList items size equals: OrderedCollection selectors size.
+	"a method picked here has the protocol -- all --, so that it is accepted as a method"
+	self in: window do: [browser methodList select: #add:].
+	self assert: browser selectedProtocol equals: browser allProtocol.
+	self assert: browser code text equals: (OrderedCollection >> #add:) source
+!
+testFilterKeepsTheCodePaneUntilSomethingIsPicked
+	self browseTo: ToolsTestFixture selector: #answer.
+	self in: window do: [browser code text: 'answer
+	^43'. browser code dirty: true].
+	self openFilter.
+	self filter: 'gcd'.
+	self assert: browser code text equals: 'answer
+	^43'.
+	self assert: browser code isDirty.
+	self assert: browser selectedClass equals: ToolsTestFixture.
+	self assert: browser selectedSelector equals: #answer
+!
+testEscapeShowsTheWholeSystemAtWhatWasPicked
+	| focus |
+	self in: window do: [browser code focus].
+	self openFilter.
+	self filter: 'gcd'.
+	self key: #escape modifiers: 0.
+	self settle.
+	self deny: browser isFiltering.
+	self assert: (self in: window do: [window keyboardFocus]) == browser code description: 'the focus went back'.
+	self assert: browser packageList items size equals: browser sortedPackages size.
+	self openFilter.
+	self filter: 'integer gcd'.
+	self key: #return modifiers: 0.
+	self settle.
+	focus := self in: window do: [window keyboardFocus].
+	self key: #escape modifiers: 0.
+	self settle.
+	self deny: browser isFiltering.
+	self deny: (window content widgetNamed: 'filter-bar') isVisible.
+	self assert: (self in: window do: [window keyboardFocus]) == focus.
+	self assert: browser packageList selection name equals: 'Kernel-Numbers'.
+	self assert: browser classList items equals: browser selectedPackage classes asArray.
+	self assert: browser classList selection equals: Integer.
+	self assert: browser methodList selection equals: #gcd:.
+	self assert: browser protocolList items size equals: browser protocolItems size
+!
+testFilterArrowsMoveBetweenClassesAndMethods
+	self openFilter.
+	self filter: 'integer gcd'.
+	self key: #return modifiers: 0.
+	self settle.
+	self key: #right modifiers: 0.
+	self settle.
+	self assert: (self in: window do: [window keyboardFocus]) == browser methodList.
+	self key: #left modifiers: 0.
+	self settle.
+	self assert: (self in: window do: [window keyboardFocus]) == browser classList
+! !
+
 !BrowserTest methodsFor: 'tests'!
 testBrowseToGcd
 	self browseTo: Integer selector: #gcd:.
