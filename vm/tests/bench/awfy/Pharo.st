@@ -21,7 +21,7 @@ microseconds
 !
 counters
 	"VM parameter indices and names."
-	^#(#(7 #fullGCs) #(8 #fullGCMilliseconds) #(9 #scavenges) #(10 #scavengeMilliseconds) #(34 #bytesAllocated))
+	^#(#(7 #fullGCs) #(8 #fullGCMilliseconds) #(9 #scavenges) #(10 #scavengeMilliseconds) #(34 #bytesAllocated) #(75 #cogMethods) #(76 #cogMethodMs) #(77 #cogBlocks) #(78 #cogBlockMs) #(62 #cogCompactions) #(63 #cogCompactionMs))
 !
 statistics
 	^self counters collect: [:each | Smalltalk vm parameterAt: each first]

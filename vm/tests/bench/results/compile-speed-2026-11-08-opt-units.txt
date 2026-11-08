@@ -1,0 +1,18 @@
+benchmark units(meth/block/osr) counterBytes(file,stat) rootBytes rootInstrs inlBytes inlInstrs inl/root code(file,stat) withInlining optUs baseUnits
+Bounce         19 (12/1/6)    1713,   1713    1434     875    5276    3744  3.68    72096,   72096   15    4074 38
+CD             65 (49/6/10)    4557,   4557    3630    2513   17956   14180  4.95   449168,  449168   52   19798 131
+DeltaBlue     112 (83/13/16)    4533,   4533    3485    2515   44591   34854 12.80   791392,  791392   91   60211 120
+Havlak        100 (76/11/13)    5608,   5608    4580    3108   29402   21914  6.42   577912,  577912   78   29744 146
+Json           58 (51/2/5)    1797,   1797    1578    1201   30184   23149 19.13   403480,  403480   49   27783 92
+List           14 (11/0/3)    1285,   1285    1211     755    5049    3683  4.17    75240,   75240   12    3521 38
+Mandelbrot     12 (7/1/4)    1280,   1280    1144     744    1520    1074  1.33    54256,   54256    9    2482 32
+NBody          14 (7/2/5)    1836,   1836    1328     959    1964    1465  1.48    72552,   72552   10    2996 57
+Permute        13 (9/0/4)    1264,   1302    1168     721    3552    2477  3.04    60816,   65040    8    2856 33
+Queens         20 (15/0/5)    1528,   1528    1441     897    5715    3886  3.97    93296,   93296   14    4594 37
+Richards       23 (15/4/4)    1610,   1618    1429     990    3988    3023  2.79    69376,   65496   20    2701 118
+Sieve          18 (10/1/7)    1620,   1631    1403     860    3495    2367  2.49    61576,   61648   11    3126 31
+Storage        20 (15/1/4)    2886,   2934    2687    1666    7017    4730  2.61   136360,  139400   16    7551 38
+Towers         16 (12/0/4)    1645,   1645    1531     941    6864    5189  4.48   115296,  115296   15    5060 40
+TOTAL units 504 (372/42/90) counterBytes file 33162 stat 33267 rootBytes 28049 rootInstrs 18745 inlBytes 166573 inlInstrs 125735 code file 3032816 stat 3036272 unitsWithInlining 400 optUs 176497
+root+inl bytes 194622 instrs 144480; inl/root bytes 5.94; opt: us/unit 350.2 us/rootByte 6.29 us/(root+inl)Byte 0.907 us/rootInstr 9.42 us/(root+inl)Instr 1.222; code/rootByte 108.2 code/(root+inl)Byte 15.6
+lower tier in these runs: units 951 bytes 20849 us 4473 code 1086088: us/unit 4.70 us/byte 0.2145 code/byte 52.1
