@@ -193,7 +193,7 @@ framesValid: valid
 		libc fprintf: libc stderr format: 'slot %lld of %lld: %llx
 ' with: i with: cstackUsed asInt64 with: (cstack at: i).
 		0 to: nframes - 1 do: [:k |
-			libc fprintf: libc stderr format: 'frame %d fp %ld sp %d pc %d ' with: k with: ((frames + k) fp - cstack) asInt64 with: (frames + k) sp with: (frames + k) pc.
+			libc fprintf: libc stderr format: 'frame %d fp %lld sp %d pc %d ' with: k with: ((frames + k) fp - cstack) asInt64 with: (frames + k) sp with: (frames + k) pc.
 			self printActivation: (frames + k) method receiver: ((frames + k) fp at: -1) closure: (frames + k) closure on: libc stderr].
 		^false]].
 	^true

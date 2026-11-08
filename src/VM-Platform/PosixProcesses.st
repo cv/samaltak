@@ -7,7 +7,8 @@ PosixProcesses comment: 'Child processes and pseudo-terminals: posix_spawnp, wai
 
 !PosixProcesses class methodsFor: 'declaring'!
 headers
-	^#('<spawn.h>' '<sys/wait.h>' '<signal.h>' '<sys/ioctl.h>' '<util.h>' '<crt_externs.h>' '<unistd.h>')
+	"forkpty is declared in util.h on macOS, in pty.h on Linux."
+	^#('<spawn.h>' '<sys/wait.h>' '<signal.h>' '<sys/ioctl.h>' '#ifdef __APPLE__' '<util.h>' '#else' '<pty.h>' '#endif' '<unistd.h>')
 !
 typedefs
 	^#((posix_spawn_file_actions_t opaque) (posix_spawnattr_t opaque) (sigset_t uint32_t))
@@ -21,11 +22,6 @@ notSimulated
 !PosixProcesses methodsFor: 'processes'!
 spawnp: pid file: file fileActions: fileActions attributes: attributes argv: argv envp: envp
 	<c: 'int posix_spawnp(pid_t *pid, const char *file, const posix_spawn_file_actions_t *file_actions, const posix_spawnattr_t *attributes, char **argv, char **envp)'>
-	^self notSimulated
-!
-environment
-	"The environ of the process: the address of the environment array."
-	<c: 'char ***_NSGetEnviron(void)'>
 	^self notSimulated
 !
 waitpid: pid status: status options: options

@@ -16,7 +16,7 @@ CLibrary comment: 'I am the abstract class of the C libraries the VM calls. A su
 		<cMacro: ''int PROT_READ''>
 		^1
 
-headers (class side) answers the #include lines, typedefs the library''s types (#((FILE opaque) (pthread_t uintptr_t))).'!
+headers (class side) answers the #include lines, typedefs the library''s types (#((FILE opaque) (pthread_t uintptr_t))), targetOS the operating system I belong to (nil: every one).'!
 
 !CLibrary class methodsFor: 'declaring'!
 headers
@@ -24,6 +24,10 @@ headers
 !
 typedefs
 	^#()
+!
+targetOS
+	"The operating system whose library I am: nil (every one), #darwin or #linux. My headers are included only there, and only modules for that OS may use me."
+	^nil
 ! !
 
 !CLibrary methodsFor: 'simulation'!

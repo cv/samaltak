@@ -24,6 +24,7 @@ resolve: argv0 environment: envp
 	"The malloc'd path of argv0, searched in PATH (from envp, else ours) unless it has a slash; NULL (and the error set) if there is none."
 	<c: 'char *pty_resolve(const char *argv0, char **envp)'>
 	<var: #path type: 'const char *'>
+	<var: #end type: 'const char *'>
 	| path e n done end len cand |
 	(posixIO strchr: argv0 char: $/ value) notNull ifTrue: [
 		(posixIO access: argv0 mode: posixIO X_OK) ~= 0 ifTrue: [
@@ -63,7 +64,7 @@ childEnvironment: envp
 	"envp (or ours) with TERM=xterm-256color unless envp sets TERM; the strings are shared, the array malloc'd."
 	<c: 'char **pty_child_env(char **envp)'>
 	| src n hasTerm env k |
-	src := envp notNull ifTrue: [envp] ifFalse: [posixProcesses environment value].
+	src := envp notNull ifTrue: [envp] ifFalse: [host environment].
 	n := 0 asUInt64.
 	hasTerm := false.
 	[(src at: n) notNull] whileTrue: [

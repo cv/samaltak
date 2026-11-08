@@ -29,10 +29,8 @@ wouldBlock
 wrap: fd
 	"A socket handle for fd (closed if the table is full)."
 	<c: 'int socket_wrap(int fd)'>
-	| one h |
-	one := self local: 'int'.
-	one value: 1.
-	posixSockets setsockopt: fd level: posixSockets SOL_SOCKET option: posixSockets SO_NOSIGPIPE value: one length: (self sizeof: 'int') asUInt32.
+	| h |
+	host socketOpened: fd.
 	h := self add: fd kind: PF_FD_SOCKET pointer: self null.
 	h = 0 ifTrue: [posixIO close: fd].
 	^h

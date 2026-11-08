@@ -49,6 +49,10 @@ generate: aTFunction
 	aTFunction statements do: [:s | self statement: s].
 	(aTFunction returnType isVoid not and: [body endsControlFlow not]) ifTrue: [
 		self error: 'missing return at the end of a function returning ' , aTFunction returnType name node: nil].
+	"A thread's endless loop at the end: say so, or gcc reports a function returning non-void without a return statement."
+	(aTFunction returnType isVoid not and: [body statements notEmpty and: [
+		(body statements last isKindOf: CWhile) and: [body statements last endsControlFlow]]]) ifTrue: [
+			body add: (CExprStatement expression: (CRaw text: '__builtin_unreachable()' type: (translator registry at: 'void')))].
 	result := TCFunction new
 		setFunction: aTFunction
 		locals: locals
@@ -419,11 +423,19 @@ externSend: aSelector library: aLibraryClass arguments: argNodes node: aNode
 		i <= ftype parameterTypes size
 			ifTrue: [
 				self checkAssignable: e to: (ftype parameterTypes at: i) node: a.
-				e := self coerce: e to: (ftype parameterTypes at: i) node: a].
+				e := self coerce: e to: (ftype parameterTypes at: i) node: a]
+			ifFalse: [e := self variadicArgument: e].
 		args add: e].
 	^(CCall function: ext cName arguments: args type: ftype returnType)
 		noReturn: ext isNoReturn;
 		yourself
+!
+variadicArgument: aCExpr
+	"A 64-bit integer passed to ... (printf's %lld, %llu, %llx) as long long: what int64_t is on macOS, while on Linux it is long."
+	| t |
+	t := self valueType: aCExpr.
+	(#('int64_t' 'uint64_t' 'oop') includes: t name) ifFalse: [^aCExpr].
+	^self cast: aCExpr to: (translator registry at: (t isSigned ifTrue: ['long long'] ifFalse: ['unsigned long long']))
 ! !
 
 !TCodeGenerator methodsFor: 'inlining'!
@@ -970,6 +982,13 @@ comparison: sel left: a right: b node: aNode
 		^self fold: (CBinary operator: (self cOperatorFor: sel) left: a right: b type: self boolType)].
 	(ta isArithmetic and: [tb isArithmetic]) ifFalse: [^self error: 'cannot compare ' , ta name , ' with ' , tb name node: aNode].
 	self arithmeticType: a and: b node: aNode.
+	"An unsigned value is never below 0: x >= 0 is true, x < 0 false (C compilers warn about such comparisons)."
+	(b isConstant and: [b value = 0 and: [ta isInteger and: [ta isSigned not and: [a isPure]]]]) ifTrue: [
+		sel == #>= ifTrue: [^CConst value: true type: self boolType].
+		sel == #< ifTrue: [^CConst value: false type: self boolType]].
+	(a isConstant and: [a value = 0 and: [tb isInteger and: [tb isSigned not and: [b isPure]]]]) ifTrue: [
+		sel == #<= ifTrue: [^CConst value: true type: self boolType].
+		sel == #> ifTrue: [^CConst value: false type: self boolType]].
 	^self fold: (CBinary operator: (self cOperatorFor: sel) left: a right: b type: self boolType)
 !
 bitwise: sel left: a right: b node: aNode

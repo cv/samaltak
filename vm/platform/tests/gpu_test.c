@@ -297,6 +297,22 @@ static const char *msl =
     "fragment float4 fmain(VOut in [[stage_in]], texture2d<float> atlas [[texture(0)]], sampler s [[sampler(0)]]) {\n"
     "  return in.color * atlas.sample(s, in.uv).r; }\n";
 
+/* The same in GLSL (Vulkan): one source, the stage chosen by SAMALTAK_VERTEX / SAMALTAK_FRAGMENT, the entry main. */
+static const char *glsl =
+    "#version 450\n"
+    "#ifdef SAMALTAK_VERTEX\n"
+    "layout(location = 0) in vec2 pos; layout(location = 1) in vec2 uv; layout(location = 2) in vec4 color;\n"
+    "layout(location = 0) out vec2 vUv; layout(location = 1) out vec4 vColor;\n"
+    "layout(set = 1, binding = 0) uniform U { vec2 viewport; } u;\n"
+    "void main() { vec2 p = pos / u.viewport * 2.0 - 1.0;\n"
+    "  gl_Position = vec4(p.x, -p.y, 0.0, 1.0); vUv = uv; vColor = color; }\n"
+    "#else\n"
+    "layout(location = 0) in vec2 vUv; layout(location = 1) in vec4 vColor;\n"
+    "layout(location = 0) out vec4 fragColor;\n"
+    "layout(set = 2, binding = 0) uniform sampler2D atlas;\n"
+    "void main() { fragColor = vColor * texture(atlas, vUv).r; }\n"
+    "#endif\n";
+
 typedef struct {
     float x, y, u, v;
     uint8_t r, g, b, a;
@@ -379,11 +395,15 @@ static void test_gpu(void)
     bool ok;
     pf_gpu_submit(cmd, false, &ok);
 
-    vs = pf_gpu_create_shader(dev, msl, "vmain", PF_STAGE_VERTEX, 0, 1, 0, 0);
-    fs = pf_gpu_create_shader(dev, msl, "fmain", PF_STAGE_FRAGMENT, 1, 0, 0, 0);
+    const char *language = pf_gpu_shader_language(dev);
+    CHECK(language && (strcmp(language, "msl") == 0 || strcmp(language, "glsl") == 0), "shader language");
+    bool metal = language && strcmp(language, "msl") == 0;
+    printf("  shader language: %s\n", language ? language : "?");
+    vs = pf_gpu_create_shader(dev, metal ? msl : glsl, metal ? "vmain" : "main", PF_STAGE_VERTEX, 0, 1, 0, 0);
+    fs = pf_gpu_create_shader(dev, metal ? msl : glsl, metal ? "fmain" : "main", PF_STAGE_FRAGMENT, 1, 0, 0, 0);
     CHECK(vs > 0 && fs > 0, "shaders");
     CHECK(pf_gpu_create_shader(dev, "garbage", "main0", PF_STAGE_VERTEX, 0, 0, 0, 0) == 0 &&
-              strstr(pf_last_error(), "unknown type name"),
+              strstr(pf_last_error(), metal ? "unknown type name" : "syntax error"),
           "bad shader reports compile error");
     pipe_rgba = pf_gpu_create_pipeline(dev, vs, fs, sizeof(vtx), layout, 3, PF_PRIM_TRIANGLES, PF_BLEND_PREMULTIPLIED,
                                        PF_TEX_RGBA8);

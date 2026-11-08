@@ -8,7 +8,9 @@ VMTranslator comment: 'I translate Lowtalk modules (docs/lowtalk.md) into C: one
 	(VMTranslator modules: VMTranslator vmModules header: ''samaltak'') writeTo: ''vm/gen''.
 	VMTranslator generateVM	"what make translate runs"
 
-Errors (TranslationError) name the method and quote the source; translate collects them all before it fails.'!
+Errors (TranslationError) name the method and quote the source; translate collects them all before it fails.
+
+One vm/gen serves every OS: a module or C library whose targetOS is #darwin or #linux has its headers, prototypes and C file guarded by the OS''s predefined macro (targetOSes), and sources.mk lists its file under that OS (VM_CORE_SOURCES_LINUX ...), so the build picks the OS''s implementation of each interface. A module for every OS may not use one OS''s library or module.'!
 
 Error subclass: #TranslationError
 	instanceVariableNames: ''
@@ -18,6 +20,15 @@ Error subclass: #TranslationError
 !VMTranslator class methodsFor: 'instance creation'!
 modules: aCollectionOfClasses header: aString
 	^self new setModules: aCollectionOfClasses header: aString
+! !
+
+!VMTranslator class methodsFor: 'operating systems'!
+targetOSes
+	"#(os predefinedMacro makeSuffix): the operating systems a module or library can be for (targetOS), the C macro that is defined there, the suffix of their source lists in sources.mk (uname -s, upper case)."
+	^#((darwin '__APPLE__' 'DARWIN') (linux '__linux__' 'LINUX'))
+!
+guardFor: anOS
+	^((self targetOSes detect: [:e | (e at: 1) = anOS] ifNone: [self error: 'no such target OS: ' , anOS printString]) at: 2)
 ! !
 
 !VMTranslator class methodsFor: 'the VM'!
@@ -113,6 +124,7 @@ translate
 	"Answer the files: an OrderedCollection of name -> contents. Signals a TranslationError listing every error."
 	| cFunctions files |
 	cFunctions := OrderedCollection new.
+	self checkTargetOSes.
 	self translatedModules do: [:m |
 		(m functions values asSortedCollection: [:a :b | a selector <= b selector]) do: [:f |
 			f isFunction ifTrue: [
@@ -135,6 +147,42 @@ writeTo: aDirectory
 	(File exists: aDirectory) ifFalse: [Directory create: aDirectory].
 	files do: [:each | File writeText: each value to: aDirectory , '/' , each key].
 	^files collect: [:each | each key]
+! !
+
+!VMTranslator methodsFor: 'operating systems'!
+checkTargetOSes
+	"A module may use the libraries and modules of every OS and of its own."
+	self translatedModules do: [:m |
+		| os |
+		os := m moduleClass targetOS.
+		m globals do: [:g |
+			| other |
+			(g isModuleReference and: [(other := g referencedModule targetOS) notNil and: [other ~= os]]) ifTrue: [
+				errors add: m name , ': ' , g name , ' is ' , g referencedModule name , ', for ' , other , ' only, but ' , m name , ' is for ' , (os ifNil: ['every OS'])]]].
+	errors notEmpty ifTrue: [^TranslationError signal: (errors inject: '' into: [:acc :e | acc , e , (String with: Character lf)])]
+!
+osGroups: aCollection key: aKeyBlock do: anEmitBlock on: aStream
+	"anEmitBlock on the elements for every OS, then on each OS's under its guard. aKeyBlock answers an element's targetOS."
+	(aCollection select: [:e | (aKeyBlock value: e) isNil]) do: anEmitBlock.
+	self class targetOSes do: [:spec |
+		| own |
+		own := aCollection select: [:e | (aKeyBlock value: e) = (spec at: 1)].
+		own notEmpty ifTrue: [
+			aStream nextPutAll: '#ifdef '; nextPutAll: (spec at: 2); lf.
+			own do: anEmitBlock.
+			aStream nextPutAll: '#endif'; lf]]
+!
+includeLibraries: aCollection on: aStream seen: aSet
+	"The headers of the libraries for every OS, then each OS's under its guard. What an OS's libraries include stays unseen, so that a later library for every OS still includes it."
+	(aCollection select: [:lib | lib targetOS isNil]) do: [:lib | lib headers do: [:h | self include: h on: aStream seen: aSet]].
+	self class targetOSes do: [:spec |
+		| own seen |
+		own := aCollection select: [:lib | lib targetOS = (spec at: 1)].
+		own notEmpty ifTrue: [
+			seen := aSet copy.
+			aStream nextPutAll: '#ifdef '; nextPutAll: (spec at: 2); lf.
+			own do: [:lib | lib headers do: [:h | self include: h on: aStream seen: seen]].
+			aStream nextPutAll: '#endif'; lf]]
 ! !
 
 !VMTranslator methodsFor: 'printing C'!
@@ -199,8 +247,8 @@ header: cFunctions
 	s nextPutAll: '#ifndef '; nextPutAll: guard; lf; nextPutAll: '#define '; nextPutAll: guard; lf; lf.
 	included := Set new.
 	#('<stdatomic.h>' '<stdbool.h>' '<stddef.h>' '<stdint.h>' '<string.h>') do: [:h | self include: h on: s seen: included].
-	self coreLibraries do: [:lib | lib headers do: [:h | self include: h on: s seen: included]].
-	self platform: [self platformLibraries do: [:lib | lib headers do: [:h | self include: h on: s seen: included]]] on: s.
+	self includeLibraries: self coreLibraries on: s seen: included.
+	self platform: [self includeLibraries: self platformLibraries on: s seen: included] on: s.
 	s lf; nextPutAll: 'typedef uint64_t oop;'; lf.
 	self typedefs do: [:td |
 		s nextPutAll: 'typedef '; nextPutAll: ((registry parse: (td at: 2)) declare: (td at: 1) asString); nextPut: $;; lf].
@@ -225,17 +273,18 @@ header: cFunctions
 		s nextPutAll: 'extern int vm_primitive_count;'; lf; lf].
 	#(false true) do: [:platform |
 		self platform: [
-			(self translatedModules select: [:m | (self isPlatformModule: m) = platform]) do: [:m |
+			self osGroups: (self translatedModules select: [:m | (self isPlatformModule: m) = platform]) key: [:m | m moduleClass targetOS] do: [:m |
 				(m globals values asSortedCollection: [:a :b | a name <= b name]) do: [:g |
 					(g isModuleReference not and: [g isRegister not and: [g isUsedOutside]]) ifTrue: [
-						s nextPutAll: 'extern '; nextPutAll: (g type declare: g cName); nextPut: $;; lf]]]]
+						s nextPutAll: 'extern '; nextPutAll: (g type declare: g cName); nextPut: $;; lf]]] on: s]
 			if: platform on: s].
 	s lf.
 	#(false true) do: [:platform |
 		self platform: [
-			cFunctions do: [:f |
-				(f function isStatic not and: [(self isPlatformModule: f function module) = platform]) ifTrue: [
-					s nextPutAll: f declaration; nextPut: $;; lf]]]
+			self osGroups: (cFunctions select: [:f | f function isStatic not and: [(self isPlatformModule: f function module) = platform]])
+				key: [:f | f function module moduleClass targetOS]
+				do: [:f | s nextPutAll: f declaration; nextPut: $;; lf]
+				on: s]
 			if: platform on: s].
 	(modules values select: [:m | m moduleClass isInterface]) do: [:m |
 		(m functions values asSortedCollection: [:a :b | a selector <= b selector]) do: [:f |
@@ -329,6 +378,7 @@ cFileFor: aTModule functions: cFunctions
 	s nextPutAll: '/* '; nextPutAll: aTModule name; nextPutAll: ' ('; nextPutAll: aTModule moduleClass packageName; nextPutAll: ') */'; lf.
 	(aTModule moduleClass class includesSelector: #cPreamble) ifTrue: [s nextPutAll: aTModule moduleClass cPreamble; lf].
 	s nextPutAll: '#include "'; nextPutAll: headerName; nextPutAll: '.h"'; lf; lf.
+	aTModule moduleClass targetOS notNil ifTrue: [s nextPutAll: '#ifdef '; nextPutAll: (self class guardFor: aTModule moduleClass targetOS); lf; lf].
 	globals := (aTModule globals values select: [:g | g isModuleReference not and: [g isRegister not]])
 		asSortedCollection: [:a :b | a name <= b name].
 	globals do: [:g |
@@ -344,6 +394,7 @@ cFileFor: aTModule functions: cFunctions
 		s nextPutAll: '/* '; nextPutAll: f function printString; nextPutAll: ' */'; lf.
 		f printOn: s.
 		s lf].
+	aTModule moduleClass targetOS notNil ifTrue: [s nextPutAll: '#endif'; lf].
 	^s contents
 !
 initializer: aLiteral type: aCType
@@ -376,12 +427,15 @@ primitiveTableFile
 	s nextPutAll: '#include "'; nextPutAll: headerName; nextPutAll: '.h"'; lf; lf.
 	s nextPutAll: (registry at: 'PrimitiveEntry') name; nextPutAll: ' vm_primitive_table[] = {'; lf.
 	self primitives do: [:f |
-		| p platform |
+		| p platform os |
 		p := f primitive.
 		platform := self isPlatformModule: f module.
+		os := f module moduleClass targetOS.
 		platform ifTrue: [s nextPutAll: '#ifndef SAMALTAK_NO_PLATFORM'; lf].
+		os notNil ifTrue: [s nextPutAll: '#ifdef '; nextPutAll: (self class guardFor: os); lf].
 		s nextPutAll: '    {'; print: (p at: 1); nextPutAll: ', '; print: ((p at: 3) ifTrue: [1] ifFalse: [0]) + ((p at: 4) ifTrue: [2] ifFalse: [0]);
 			nextPutAll: ', '; nextPutAll: (CConst value: (p at: 2) type: nil) cString; nextPutAll: ', '; nextPutAll: f cName; nextPutAll: '},'; lf.
+		os notNil ifTrue: [s nextPutAll: '#endif'; lf].
 		platform ifTrue: [s nextPutAll: '#endif'; lf]].
 	s nextPutAll: '};'; lf; lf.
 	s nextPutAll: 'int vm_primitive_count = sizeof vm_primitive_table / sizeof vm_primitive_table[0];'; lf.
@@ -391,23 +445,23 @@ isPlatformModule: aTModule
 	^aTModule moduleClass packageName = 'VM-Platform'
 !
 sourcesMakefile
-	"Which generated files make which VM: the core, then one platform implementation (headless, or the platform layer)."
-	| s core headless platform |
-	core := OrderedCollection new.
-	headless := OrderedCollection new.
-	platform := OrderedCollection new.
+	"Which generated files make which VM: the core, then one platform implementation (headless, or the platform layer); each followed by its files for one OS only (VM_CORE_SOURCES_LINUX: the build adds those of its uname -s)."
+	| s lists kind |
+	lists := Dictionary new.
 	self translatedModules do: [:m |
-		| name |
-		name := m cFileName , '.c'.
-		(self isPlatformModule: m)
-			ifTrue: [platform add: name]
-			ifFalse: [(m moduleClass inheritsFrom: PlatformInterface) ifTrue: [headless add: name] ifFalse: [core add: name]]].
-	self primitives notEmpty ifTrue: [core add: 'primitive_entries.c'].
+		kind := (self isPlatformModule: m)
+			ifTrue: ['VM_PLATFORM_SOURCES']
+			ifFalse: [(m moduleClass inheritsFrom: PlatformInterface) ifTrue: ['VM_HEADLESS_SOURCES'] ifFalse: ['VM_CORE_SOURCES']].
+		m moduleClass targetOS notNil ifTrue: [
+			kind := kind , '_' , ((self class targetOSes detect: [:spec | (spec at: 1) = m moduleClass targetOS]) at: 3)].
+		(lists at: kind ifAbsentPut: [OrderedCollection new]) add: m cFileName , '.c'].
+	self primitives notEmpty ifTrue: [(lists at: 'VM_CORE_SOURCES' ifAbsentPut: [OrderedCollection new]) add: 'primitive_entries.c'].
 	s := WriteStream on: String new.
 	s nextPutAll: '# Generated by VMTranslator. Do not edit.'; lf.
-	#('VM_CORE_SOURCES' 'VM_HEADLESS_SOURCES' 'VM_PLATFORM_SOURCES') with: (Array with: core with: headless with: platform) do: [:var :list |
-		s nextPutAll: var; nextPutAll: ' :='.
-		(list asSortedCollection: [:a :b | a <= b]) do: [:f | s nextPutAll: ' '; nextPutAll: f].
-		s lf].
+	#('VM_CORE_SOURCES' 'VM_HEADLESS_SOURCES' 'VM_PLATFORM_SOURCES') do: [:var |
+		(Array with: var) , (self class targetOSes collect: [:spec | var , '_' , (spec at: 3)]) do: [:name |
+			s nextPutAll: name; nextPutAll: ' :='.
+			((lists at: name ifAbsent: [#()]) asSortedCollection: [:a :b | a <= b]) do: [:f | s nextPutAll: ' '; nextPutAll: f].
+			s lf]].
 	^s contents
 ! !

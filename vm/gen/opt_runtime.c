@@ -75,7 +75,7 @@ void opt_all_roots(void (*fn)(oop *))
         fn(rt_act_method + i_2);
     }
 exit_decoded_roots:;
-    pthread_jit_write_protect_np(0);
+    jit_platform_begin_writing();
     for (i_3 = 0; i_3 <= rt_all_count - 1; i_3++) {
         o = rt_all[i_3];
         fn(&o->method);
@@ -87,7 +87,7 @@ exit_decoded_roots:;
             }
         }
     }
-    pthread_jit_write_protect_np(1);
+    jit_platform_end_writing();
 }
 
 /* OptRuntime>>blockCodeFor:start: */
@@ -593,9 +593,9 @@ uint64_t opt_deopt_guard(frame *f, int64_t k)
                 n_2 = opt_initial_count(h->method);
                 opt_counts[((uint32_t)(((*(uint64_t *)m_4) >> H_HASH_SHIFT) & H_HASH_MASK)) & 65535] = n_2;
                 h_2 = (jit_method *)h->lower;
-                pthread_jit_write_protect_np(0);
+                jit_platform_begin_writing();
                 h_2->opt = 0;
-                pthread_jit_write_protect_np(1);
+                jit_platform_end_writing();
                 jit_code_changed(h->method);
             }
             jit_kill(h);
@@ -727,7 +727,7 @@ exit_send_argc_of:;
                 jit_note_send(m, pc, (r_2 & 7) != 0 ? tag_class[r_2 & 7] : *(uint64_t *)(r_2 + 8));
                 if (getenv("SAMALTAK_OPT_TRACE") != NULL) {
                     r_3 = g_2->fp[i_4];
-                    fprintf(stderr, "deopt receiver %lld (Array %lld): ", (r_3 & 7) != 0 ? tag_class[r_3 & 7] : *(uint64_t *)(r_3 + 8), cls_array);
+                    fprintf(stderr, "deopt receiver %lld (Array %lld): ", (unsigned long long)((r_3 & 7) != 0 ? tag_class[r_3 & 7] : *(uint64_t *)(r_3 + 8)), (unsigned long long)cls_array);
                     r_4 = g_2->fp[i_4];
                     print_class_name((r_4 & 7) != 0 ? tag_class[r_4 & 7] : *(uint64_t *)(r_4 + 8), stderr);
                     fputc(10, stderr);
@@ -794,9 +794,9 @@ exit_signature_at_2:;
     if (stressed) {
         return r;
     }
-    pthread_jit_write_protect_np(0);
+    jit_platform_begin_writing();
     h->deopts = h->deopts + 1;
-    pthread_jit_write_protect_np(1);
+    jit_platform_end_writing();
     if (fresh || (h->deopts > OPT_MAX_DEOPTS)) {
         if (!((h != NULL) && ((h->flags & JM_FAILED) == 0) && ((h->flags & 2) == 0))) {
             goto exit_invalidate_2;
@@ -807,9 +807,9 @@ exit_signature_at_2:;
             n_5 = opt_initial_count(h->method);
             opt_counts[((uint32_t)(((*(uint64_t *)m_6) >> H_HASH_SHIFT) & H_HASH_MASK)) & 65535] = n_5;
             h_3 = (jit_method *)h->lower;
-            pthread_jit_write_protect_np(0);
+            jit_platform_begin_writing();
             h_3->opt = 0;
-            pthread_jit_write_protect_np(1);
+            jit_platform_end_writing();
             jit_code_changed(h->method);
         }
         jit_kill(h);
@@ -885,7 +885,7 @@ bool opt_header_valid(jit_method *o, bool (*valid)(oop))
     for (i = 0; i <= (int64_t)o->pool_count - 1; i++) {
         o_2 = pool[i];
         if (((o_2 & 7) == 0) && (!valid(pool[i]))) {
-            fprintf(stderr, "optimized code: bad pool entry %lld: %llx\n", i, pool[i]);
+            fprintf(stderr, "optimized code: bad pool entry %lld: %llx\n", (long long)i, (unsigned long long)pool[i]);
             return false;
         }
     }
@@ -920,9 +920,9 @@ void opt_invalidate_all(void)
             n = opt_initial_count(o->method);
             opt_counts[((uint32_t)(((*(uint64_t *)m) >> H_HASH_SHIFT) & H_HASH_MASK)) & 65535] = n;
             h = (jit_method *)o->lower;
-            pthread_jit_write_protect_np(0);
+            jit_platform_begin_writing();
             h->opt = 0;
-            pthread_jit_write_protect_np(1);
+            jit_platform_end_writing();
             jit_code_changed(o->method);
         }
         jit_kill(o);
@@ -954,9 +954,9 @@ void opt_invalidate_selector(oop sel)
                     n = opt_initial_count(o->method);
                     opt_counts[((uint32_t)(((*(uint64_t *)m) >> H_HASH_SHIFT) & H_HASH_MASK)) & 65535] = n;
                     h = (jit_method *)o->lower;
-                    pthread_jit_write_protect_np(0);
+                    jit_platform_begin_writing();
                     h->opt = 0;
-                    pthread_jit_write_protect_np(1);
+                    jit_platform_end_writing();
                     jit_code_changed(o->method);
                 }
                 jit_kill(o);
@@ -1152,11 +1152,11 @@ static jit_method *opt_optimize(oop m, jit_method *h)
     } else {
         flush_pending = true;
     }
-    pthread_jit_write_protect_np(0);
+    jit_platform_begin_writing();
     h->opt = (uint64_t)o;
     o->lower = (uint64_t)h;
     o->stamp = rt_stamp;
-    pthread_jit_write_protect_np(1);
+    jit_platform_end_writing();
     o_2 = o->method;
     young = (uint64_t)(o_2 - young_lo) < young_hi - young_lo;
     for (i = 0; i <= (int64_t)o->pool_count - 1; i++) {
@@ -1216,7 +1216,7 @@ static jit_method *opt_optimize_unit(oop m, int32_t s, int32_t t, int32_t d, jit
     } else {
         flush_pending = true;
     }
-    pthread_jit_write_protect_np(0);
+    jit_platform_begin_writing();
     o->lower = (uint64_t)h;
     o->block_start = (uint32_t)s;
     o->osr_pc = (uint32_t)t;
@@ -1225,7 +1225,7 @@ static jit_method *opt_optimize_unit(oop m, int32_t s, int32_t t, int32_t d, jit
         o->generation = p->generation + 1;
     }
     o->method_hash = (uint32_t)(((*(uint64_t *)m) >> H_HASH_SHIFT) & H_HASH_MASK);
-    pthread_jit_write_protect_np(1);
+    jit_platform_end_writing();
     o_2 = o->method;
     young = (uint64_t)(o_2 - young_lo) < young_hi - young_lo;
     for (i_2 = 0; i_2 <= (int64_t)o->pool_count - 1; i_2++) {
@@ -1967,7 +1967,7 @@ exit_failed_2:;
 /* OptRuntime>>traceDeopt:index:mode: */
 static void opt_trace_deopt(jit_method *h, int64_t k, int32_t mode)
 {
-    fprintf(stderr, "deopt mode %d at %lld (unit loop %d), %d activations, ", mode, k, h->osr_pc, rt_act_count);
+    fprintf(stderr, "deopt mode %d at %lld (unit loop %d), %d activations, ", mode, (long long)k, h->osr_pc, rt_act_count);
     fprintf(stderr, "innermost pc %d depth %d: ", rt_act_pc[rt_act_count - 1], rt_act_depth[rt_act_count - 1]);
     print_activation(h->method, nil_oop, nil_oop, stderr);
 }
@@ -2032,7 +2032,7 @@ void opt_young_roots(void (*fn)(oop *))
     }
 exit_decoded_roots:;
     if (rt_opt_young_overflow) {
-        pthread_jit_write_protect_np(0);
+        jit_platform_begin_writing();
         for (i_3 = 0; i_3 <= rt_all_count - 1; i_3++) {
             o_2 = rt_all[i_3];
             fn(&o_2->method);
@@ -2044,13 +2044,13 @@ exit_decoded_roots:;
                 }
             }
         }
-        pthread_jit_write_protect_np(1);
+        jit_platform_end_writing();
         return;
     }
     if (rt_opt_young_count == 0) {
         return;
     }
-    pthread_jit_write_protect_np(0);
+    jit_platform_begin_writing();
     for (i_5 = 0; i_5 <= rt_opt_young_count - 1; i_5++) {
         o_4 = rt_opt_young[i_5];
         fn(&o_4->method);
@@ -2062,7 +2062,7 @@ exit_decoded_roots:;
             }
         }
     }
-    pthread_jit_write_protect_np(1);
+    jit_platform_end_writing();
     n = 0;
     for (i_7 = 0; i_7 <= rt_opt_young_count - 1; i_7++) {
         o = rt_opt_young[i_7];

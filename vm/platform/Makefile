@@ -3,17 +3,27 @@
 SDL_CFLAGS ?= $(shell pkg-config --cflags sdl3 2>/dev/null || echo -I/opt/homebrew/include)
 SDL_LIBS ?= $(shell pkg-config --libs sdl3 2>/dev/null || echo -L/opt/homebrew/lib -lSDL3)
 CFLAGS ?= -std=gnu11 -O2 -g -Wall -Wextra -Wno-unused-parameter
+UNAME_S := $(shell uname -s)
+OS := $(shell echo $(UNAME_S) | tr a-z A-Z)
+ifeq ($(UNAME_S),Darwin)
+  OS_CFLAGS := -D_DARWIN_C_SOURCE
+  OS_LIBS := -framework CoreVideo
+else
+  # gcc's extra warnings about the generated code are not bugs (see ../Makefile)
+  OS_CFLAGS := -D_GNU_SOURCE -fsigned-char -Wno-type-limits -Wno-parentheses -Wno-maybe-uninitialized -Wno-format-truncation
+  OS_LIBS := $(shell pkg-config --libs shaderc 2>/dev/null || echo -lshaderc_shared)
+endif
 BUILD := ../build/platform-test
 GEN := ../gen
 include $(GEN)/sources.mk
-INTERNALS := $(addprefix $(GEN)/,$(filter-out platform_primitives.c,$(VM_PLATFORM_SOURCES)))
+INTERNALS := $(addprefix $(GEN)/,$(filter-out platform_primitives.c,$(VM_PLATFORM_SOURCES) $(VM_PLATFORM_SOURCES_$(OS))))
 
 test: $(BUILD)/gpu_test
 	$(BUILD)/gpu_test
 
 $(BUILD)/gpu_test: tests/gpu_test.c $(INTERNALS) $(GEN)/samaltak.h
 	@mkdir -p $(BUILD)
-	$(CC) $(CFLAGS) -D_DARWIN_C_SOURCE -I$(GEN) $(SDL_CFLAGS) -o $@ tests/gpu_test.c $(INTERNALS) $(SDL_LIBS) -framework CoreVideo -lpthread
+	$(CC) $(CFLAGS) $(OS_CFLAGS) -I$(GEN) $(SDL_CFLAGS) -o $@ tests/gpu_test.c $(INTERNALS) $(SDL_LIBS) $(OS_LIBS) -lpthread
 
 # Through the real VM (built into its own directory so it never clobbers vm/build/samaltak).
 st-test:

@@ -293,7 +293,7 @@ stat: path into: s
 	s exists: true.
 	s isDir: (posixIO S_ISDIR: st st_mode).
 	s fileSize: st st_size.
-	s mtimeUs: (st st_mtimespec tv_sec * 1000000) + (st st_mtimespec tv_nsec quo: 1000).
+	s mtimeUs: (st st_mtim tv_sec * 1000000) + (st st_mtim tv_nsec quo: 1000).
 	^true
 !
 dirEntries: path count: n
@@ -365,7 +365,7 @@ spawn: argv
 	| pid r |
 	pid := self local: 'pid_t'.
 	platform init.
-	r := posixProcesses spawnp: pid file: (argv at: 0) fileActions: self null attributes: self null argv: argv envp: posixProcesses environment value.
+	r := posixProcesses spawnp: pid file: (argv at: 0) fileActions: self null attributes: self null argv: argv envp: host environment.
 	r ~= 0 ifTrue: [
 		common failOS: 'posix_spawnp' path: (argv at: 0) code: r.
 		^-1].

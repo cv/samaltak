@@ -203,10 +203,10 @@ void jit_all_roots(void (*fn)(oop *))
     if (!cache_opened) {
         return;
     }
-    pthread_jit_write_protect_np(0);
+    jit_platform_begin_writing();
     bl_all_roots(fn);
     if (table_count == 0) {
-        pthread_jit_write_protect_np(1);
+        jit_platform_end_writing();
         return;
     }
     for (i = 0; i <= 65535; i++) {
@@ -215,7 +215,7 @@ void jit_all_roots(void (*fn)(oop *))
             fn(&h->method);
         }
     }
-    pthread_jit_write_protect_np(1);
+    jit_platform_end_writing();
 }
 
 /* JitRuntime>>backJump: */
@@ -544,7 +544,7 @@ jit_method *jit_compile(oop m, int32_t md, bool want_notes)
     t0 = thread_cpu_us();
     start = cache_top;
     map_count = 0;
-    pthread_jit_write_protect_np(0);
+    jit_platform_begin_writing();
     asm_begin(start, cache_limit);
     asm_record_notes(want_notes);
     ok = jit_analyze(m) && ({
@@ -563,8 +563,8 @@ jit_method *jit_compile(oop m, int32_t md, bool want_notes)
     err = asm_finish();
     if (err == ASM_ERR_FULL) {
         asm_record_notes(false);
-        pthread_jit_write_protect_np(1);
-        sys_icache_invalidate((void *)start, 0);
+        jit_platform_end_writing();
+        jit_platform_invalidate((void *)start, 0);
         flush_pending = true;
         sched_uncharge(thread_cpu_us() - t0);
         return (jit_method *)NULL;
@@ -577,8 +577,8 @@ jit_method *jit_compile(oop m, int32_t md, bool want_notes)
     }
     asm_record_notes(false);
     size = cache_top - start;
-    pthread_jit_write_protect_np(1);
-    sys_icache_invalidate((void *)start, size);
+    jit_platform_end_writing();
+    jit_platform_invalidate((void *)start, size);
     if (h == NULL) {
         flush_pending = true;
         sched_uncharge(thread_cpu_us() - t0);
@@ -1292,10 +1292,10 @@ void jit_kill(jit_method *h)
 {
     int32_t i;
     frame *f;
-    pthread_jit_write_protect_np(0);
+    jit_platform_begin_writing();
     h->method = nil_oop;
     h->flags = h->flags | JM_DEAD;
-    pthread_jit_write_protect_np(1);
+    jit_platform_end_writing();
     if (h->mode != JIT_OPT) {
         for (i = 0; i <= nframes - 1; i++) {
             f = frames + i;
@@ -2246,12 +2246,12 @@ void jit_start(void)
         }
     }
     jit_refresh_state();
-    if (!(pthread_jit_write_protect_supported_np() != 0)) {
+    if (!jit_platform_runs_code()) {
         jit_mode = JIT_NONE;
     }
     if ((jit_mode != JIT_NONE) && (!jit_ensure_open())) {
         fatal_begin();
-        fprintf(stderr, "cannot open a %lld MB code cache", jit_cache_mb);
+        fprintf(stderr, "cannot open a %lld MB code cache", (long long)jit_cache_mb);
         fatal_end();
     }
 }
@@ -2299,7 +2299,7 @@ void jit_young_roots(void (*fn)(oop *))
     if (!cache_opened) {
         return;
     }
-    pthread_jit_write_protect_np(0);
+    jit_platform_begin_writing();
     if (young_overflow) {
         for (i = 0; i <= 65535; i++) {
             h = method_table[i];
@@ -2313,6 +2313,6 @@ void jit_young_roots(void (*fn)(oop *))
         }
     }
     bl_young_roots(fn);
-    pthread_jit_write_protect_np(1);
+    jit_platform_end_writing();
 }
 

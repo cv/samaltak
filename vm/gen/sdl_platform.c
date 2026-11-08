@@ -174,6 +174,7 @@ static void *watch_main(void *arg)
         pthread_cond_broadcast(w_cv);
         pthread_mutex_unlock(w_mu);
     }
+    __builtin_unreachable();
 }
 
 /* SDLPlatform>>watcherStart */

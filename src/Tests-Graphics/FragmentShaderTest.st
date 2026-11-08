@@ -14,8 +14,14 @@ tearDown
 ! !
 
 !FragmentShaderTest methodsFor: 'support'!
+msl: mslString glsl: glslString
+	"The source in the device's shader language."
+	^shader device shaderLanguage == #glsl ifTrue: [glslString] ifFalse: [mslString]
+!
 tint
-	^'fragment float4 fmain(ShaderIn in [[stage_in]], constant float4 &tint [[buffer(0)]]) { return tint; }'
+	^self
+		msl: 'fragment float4 fmain(ShaderIn in [[stage_in]], constant float4 &tint [[buffer(0)]]) { return tint; }'
+		glsl: 'layout(set = 3, binding = 0) uniform U { vec4 tint; }; void main() { fragColor = tint; }'
 !
 uniforms: anArray
 	| bytes |
@@ -37,7 +43,9 @@ testUniformsShow
 testUVFromTheTopLeft
 	| form |
 	form := self draw: (shader imageExtent: 8 @ 8
-		source: 'fragment float4 fmain(ShaderIn in [[stage_in]], constant float4 &u [[buffer(0)]]) { return float4(in.uv, in.size.x / 8.0, 1.0); }'
+		source: (self
+			msl: 'fragment float4 fmain(ShaderIn in [[stage_in]], constant float4 &u [[buffer(0)]]) { return float4(in.uv, in.size.x / 8.0, 1.0); }'
+			glsl: 'layout(set = 3, binding = 0) uniform U { vec4 u; }; void main() { fragColor = vec4(uv, size.x / 8.0, 1.0); }')
 		uniforms: (self uniforms: #(0))).
 	self assertPixel: 4 @ 4 in: form is: #(16 16 255 255) tolerance: 1.
 	self assertPixel: 11 @ 4 in: form is: #(239 16 255 255) tolerance: 1.
@@ -58,7 +66,9 @@ testNewSourceAndCompileErrors
 	| errors form handler |
 	self assertPixel: 8 @ 8 in: (self draw: (shader imageExtent: 8 @ 8 source: self tint uniforms: (self uniforms: #(1 0 0 1)))) is: #(255 0 0 255).
 	form := self draw: (shader imageExtent: 8 @ 8
-		source: 'fragment float4 fmain(ShaderIn in [[stage_in]], constant float4 &tint [[buffer(0)]]) { return tint.gbra; }'
+		source: (self
+			msl: 'fragment float4 fmain(ShaderIn in [[stage_in]], constant float4 &tint [[buffer(0)]]) { return tint.gbra; }'
+			glsl: 'layout(set = 3, binding = 0) uniform U { vec4 tint; }; void main() { fragColor = tint.gbra; }')
 		uniforms: (self uniforms: #(1 0 0 1))).
 	self assertPixel: 8 @ 8 in: form is: #(0 0 255 255).
 	errors := OrderedCollection new.

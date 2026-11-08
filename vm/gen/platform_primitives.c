@@ -1712,6 +1712,38 @@ void prim_gpu_set_viewport(void)
     }
 }
 
+/* PlatformPrimitives>>primGpuShaderLanguage */
+void prim_gpu_shader_language(void)
+{
+    bool r_args;
+    int64_t d;
+    const char *l;
+    oop v;
+    if (!({
+    bad = false;
+    r_args = prim_nargs == 1;
+    r_args; })) {
+        prim_status = PS_FAIL;
+        prim_error_code = -1;
+        return;
+    }
+    d = int_arg(0);
+    if (bad) {
+        prim_status = PS_FAIL;
+        prim_error_code = -1;
+        return;
+    }
+    l = pf_gpu_shader_language((int32_t)d);
+    if (l == NULL) {
+        prim_status = PS_FAIL;
+        prim_error_code = -1;
+        return;
+    }
+    v = string_from_utf8(l, strlen(l));
+    prim_result = v;
+    prim_status = PS_OK;
+}
+
 /* PlatformPrimitives>>primGpuSubmit */
 void prim_gpu_submit(void)
 {

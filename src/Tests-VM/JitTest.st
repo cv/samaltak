@@ -37,7 +37,7 @@ flushed=0
 !JitTest methodsFor: 'tests'!
 testSampleInC
 	| run |
-	run := self compileAndRun: {JitSample. Arm64Assembler. CodeCache} header: 'jit' arguments: #().
+	run := self compileAndRun: {JitSample. Arm64Assembler. CodeCache. DarwinJitPlatform. LinuxJitPlatform} header: 'jit' arguments: #().
 	self assert: run exitCode = 0 description: [run output].
 	self assert: run output equals: self sampleOutput
 ! !

@@ -27,7 +27,6 @@ static int64_t tick_armed_deadline = 9223372036854775807LL;
 static int64_t tick_armed_poll;
 static atomic_bool tick_deadline_fired;
 static bool tick_idle;
-static int32_t tick_kq = -1;
 static int64_t tick_poll_us;
 static int64_t timer_ms = -1LL;
 
@@ -38,11 +37,8 @@ static int64_t priority_of(oop p);
 static int64_t raw_now_us(void);
 static oop remove_first_link(oop list);
 static void signal_index(int index);
-static void tick_arm(int ident, int64_t us, bool periodic);
 static void tick_set_idle(bool idle);
 static void tick_update(void);
-static void *ticker(void *arg);
-static void ticker_start(void);
 static void transfer_to(oop proc);
 static void transfer_to_highest(void);
 
@@ -540,31 +536,13 @@ int64_t thread_cpu_us(void)
     return ts->tv_sec * 1000000 + ts->tv_nsec / 1000;
 }
 
-/* Scheduler>>tickArm:microseconds:periodic: */
-static void tick_arm(int ident, int64_t us, bool periodic)
+/* Scheduler>>tickFired: */
+void tick_fired(int ident)
 {
-    struct kevent local;
-    struct kevent *ch;
-    struct kevent local_2;
-    struct kevent *res;
-    struct timespec local_3;
-    struct timespec *zero;
-    memset(&local, 0, sizeof local);
-    ch = &local;
-    memset(&local_2, 0, sizeof local_2);
-    res = &local_2;
-    memset(&local_3, 0, sizeof local_3);
-    zero = &local_3;
-    ch->ident = (uint64_t)ident;
-    ch->filter = EVFILT_TIMER;
-    if (us < 0) {
-        ch->flags = EV_DELETE | EV_RECEIPT;
-    } else {
-        ch->flags = EV_ADD | EV_RECEIPT | (periodic ? 0 : EV_ONESHOT);
-        ch->fflags = NOTE_USECONDS | NOTE_CRITICAL;
-        ch->data = us;
+    if (ident == TICK_DEADLINE) {
+        atomic_store_explicit(&tick_deadline_fired, true, memory_order_relaxed);
     }
-    kevent(tick_kq, ch, 1, res, 1, zero);
+    request_interrupt_check();
 }
 
 /* Scheduler>>tickSetIdle: */
@@ -602,44 +580,6 @@ static void tick_update(void)
         tick_arm(TICK_POLL, poll != 0 ? poll : -1, true);
         tick_armed_poll = poll;
     }
-}
-
-/* Scheduler>>ticker: */
-static void *ticker(void *arg)
-{
-    struct kevent local;
-    struct kevent *ev;
-    memset(&local, 0, sizeof local);
-    ev = &local;
-    for (;;) {
-        if (kevent(tick_kq, (const struct kevent *)NULL, 0, ev, 1, (const struct timespec *)NULL) > 0) {
-            if (ev->ident == TICK_DEADLINE) {
-                atomic_store_explicit(&tick_deadline_fired, true, memory_order_relaxed);
-            }
-            request_interrupt_check();
-        }
-    }
-}
-
-/* Scheduler>>tickerStart */
-static void ticker_start(void)
-{
-    pthread_t local;
-    pthread_t *t;
-    tick_kq = kqueue();
-    if (tick_kq < 0) {
-        fatal_begin();
-        fprintf(stderr, "cannot create the ticker's kqueue");
-        fatal_end();
-    }
-    memset(&local, 0, sizeof local);
-    t = &local;
-    if (pthread_create(t, (const pthread_attr_t *)NULL, ticker, NULL) != 0) {
-        fatal_begin();
-        fprintf(stderr, "cannot start the ticker thread");
-        fatal_end();
-    }
-    pthread_detach(*t);
 }
 
 /* Scheduler>>transferTo: */

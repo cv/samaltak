@@ -32,8 +32,7 @@ bool code_cache_open(uint64_t size)
     uint64_t near;
     void *p;
     near = ((uint64_t)cache_space + 16383) & 18446744073709535232ULL;
-    munmap((void *)near, size);
-    p = mmap((void *)near, size, PROT_READ | PROT_WRITE | PROT_EXEC, MAP_PRIVATE | MAP_ANON | MAP_JIT, -1, 0);
+    p = jit_platform_map((void *)near, size);
     if (p == MAP_FAILED) {
         return false;
     }

@@ -1,13 +1,13 @@
 CLibrary subclass: #Posix
-	instanceVariableNames: 'kqueues'
+	instanceVariableNames: ''
 	classVariableNames: ''
 	package: 'VM-Core'!
 
-Posix comment: 'The POSIX and BSD calls of the VM core: memory mappings, clocks, threads, kqueue timers. Simulated: mmap reserves simulated memory, a thread is a Process of the host, a kqueue keeps timers and kevent waits for them with Delays.'!
+Posix comment: 'The POSIX calls of the VM core: memory mappings, clocks, threads. Simulated: mmap reserves simulated memory, a thread is a Process of the host.'!
 
 !Posix class methodsFor: 'declaring'!
 headers
-	^#('<sys/mman.h>' '<sys/event.h>' '<sys/time.h>' '<time.h>' '<pthread.h>' '<unistd.h>' '<stdlib.h>' '<limits.h>')
+	^#('<sys/mman.h>' '<sys/time.h>' '<time.h>' '<pthread.h>' '<unistd.h>' '<stdlib.h>' '<limits.h>')
 !
 typedefs
 	^#((pthread_t uintptr_t) (pthread_attr_t opaque) (clockid_t int32_t) (useconds_t uint32_t))
@@ -28,6 +28,14 @@ PROT_READ
 PROT_WRITE
 	<cMacro: 'int PROT_WRITE'>
 	^2
+!
+PROT_EXEC
+	<cMacro: 'int PROT_EXEC'>
+	^4
+!
+munmap: addr length: n
+	<c: 'int munmap(void *addr, size_t n)'>
+	^0
 !
 MAP_PRIVATE
 	<cMacro: 'int MAP_PRIVATE'>
@@ -90,50 +98,6 @@ pthreadDetach: thread
 	^0
 ! !
 
-!Posix methodsFor: 'kqueue'!
-kqueue
-	<c: 'int kqueue(void)'>
-	kqueues isNil ifTrue: [kqueues := OrderedCollection new].
-	kqueues add: (SimulatedKQueue simulation: sim).
-	^kqueues size + 2
-!
-kevent: kq changes: changes count: nchanges events: events count: nevents timeout: timeout
-	<c: 'int kevent(int kq, const struct kevent *changes, int nchanges, struct kevent *events, int nevents, const struct timespec *timeout)'>
-	| q |
-	q := kqueues at: kq - 2.
-	0 to: nchanges - 1 do: [:i | q apply: (changes at: i) posix: self].
-	(timeout notNull and: [nchanges > 0]) ifTrue: [^0].
-	nevents = 0 ifTrue: [^0].
-	^q waitInto: events timeout: timeout
-!
-EVFILT_TIMER
-	<cMacro: 'int16_t EVFILT_TIMER'>
-	^-7
-!
-EV_ADD
-	<cMacro: 'uint16_t EV_ADD'>
-	^1
-!
-EV_DELETE
-	<cMacro: 'uint16_t EV_DELETE'>
-	^2
-!
-EV_ONESHOT
-	<cMacro: 'uint16_t EV_ONESHOT'>
-	^16r10
-!
-EV_RECEIPT
-	<cMacro: 'uint16_t EV_RECEIPT'>
-	^16r40
-!
-NOTE_USECONDS
-	<cMacro: 'uint32_t NOTE_USECONDS'>
-	^2
-!
-NOTE_CRITICAL
-	<cMacro: 'uint32_t NOTE_CRITICAL'>
-	^16r20
-! !
 
 !Posix methodsFor: 'files'!
 realpath: path into: resolved
@@ -142,58 +106,6 @@ realpath: path into: resolved
 	p := self memory stringAt: path.
 	(p beginsWith: '/') ifFalse: [p := File join: File primCwd with: p].
 	^self memory pointerTo: (CTypeRegistry default at: 'char') at: (self memory newCString: p)
-! !
-
-Object subclass: #SimulatedKQueue
-	instanceVariableNames: 'timers changed simulation'
-	classVariableNames: ''
-	package: 'VM-Core'!
-
-SimulatedKQueue comment: 'A kqueue of the simulated VM: its timers (ident -> {deadline µs. interval µs or nil}).'!
-
-!SimulatedKQueue class methodsFor: 'instance creation'!
-simulation: aVMSimulation
-	^self new setSimulation: aVMSimulation
-! !
-
-!SimulatedKQueue methodsFor: 'initialization'!
-setSimulation: aVMSimulation
-	simulation := aVMSimulation.
-	timers := Dictionary new.
-	changed := Semaphore new
-! !
-
-!SimulatedKQueue methodsFor: 'events'!
-apply: aKEvent posix: aPosix
-	(aKEvent flags bitAnd: aPosix EV_DELETE) ~= 0 ifTrue: [
-		timers removeKey: aKEvent ident ifAbsent: [].
-		^changed signal].
-	(aKEvent flags bitAnd: aPosix EV_ADD) ~= 0 ifTrue: [
-		timers at: aKEvent ident put: (Array
-			with: simulation microsecondClock + aKEvent data
-			with: ((aKEvent flags bitAnd: aPosix EV_ONESHOT) ~= 0 ifTrue: [nil] ifFalse: [aKEvent data])).
-		changed signal]
-!
-waitInto: events timeout: aTimespec
-	"Wait for the earliest timer (forever if timeout is NULL); fill events at: 0."
-	| next now |
-	[timers isEmpty
-		ifTrue: [
-			aTimespec notNull ifTrue: [^0].
-			changed wait]
-		ifFalse: [
-			next := timers associations inject: nil into: [:a :b | (a isNil or: [(b value at: 1) < (a value at: 1)]) ifTrue: [b] ifFalse: [a]].
-			now := simulation microsecondClock.
-			(next value at: 1) <= now
-				ifTrue: [
-					(events at: 0) ident: next key.
-					(next value at: 2) isNil
-						ifTrue: [timers removeKey: next key]
-						ifFalse: [next value at: 1 put: now + (next value at: 2)].
-					^1]
-				ifFalse: [
-					aTimespec notNull ifTrue: [^0].
-					changed waitTimeoutMSecs: ((next value at: 1) - now + 999 // 1000 max: 1)]]] repeat
 ! !
 
 ExternStruct subclass: #Timespec
@@ -220,19 +132,6 @@ cName
 !
 fields
 	^#((tv_sec int64_t) (tv_usec int32_t))
-! !
-
-ExternStruct subclass: #KEvent
-	instanceVariableNames: ''
-	classVariableNames: ''
-	package: 'VM-Core'!
-
-!KEvent class methodsFor: 'declaring'!
-cName
-	^'struct kevent'
-!
-fields
-	^#((ident uintptr_t) (filter int16_t) (flags uint16_t) (fflags uint32_t) (data intptr_t) (udata 'void *'))
 ! !
 
 CLibrary subclass: #LibM

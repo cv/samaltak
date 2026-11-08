@@ -370,7 +370,7 @@ int64_t pf_spawn(char **argv)
     memset(&local, 0, sizeof local);
     pid = &local;
     platform_init();
-    r = posix_spawnp(pid, argv[0], (const posix_spawn_file_actions_t *)NULL, (const posix_spawnattr_t *)NULL, argv, *_NSGetEnviron());
+    r = posix_spawnp(pid, argv[0], (const posix_spawn_file_actions_t *)NULL, (const posix_spawnattr_t *)NULL, argv, pf_host_environ());
     if (r != 0) {
         pf_os_error_path("posix_spawnp", argv[0], r);
         return -1;
@@ -396,7 +396,7 @@ bool pf_file_stat(const char *path, pf_stat *s)
     s->exists = true;
     s->is_dir = S_ISDIR(st->st_mode);
     s->file_size = st->st_size;
-    s->mtime_us = st->st_mtimespec.tv_sec * 1000000 + st->st_mtimespec.tv_nsec / 1000;
+    s->mtime_us = st->st_mtim.tv_sec * 1000000 + st->st_mtim.tv_nsec / 1000;
     return true;
 }
 
@@ -527,6 +527,7 @@ static void *wb_main(void *arg)
         free(j->data);
         free(j);
     }
+    __builtin_unreachable();
 }
 
 /* PlatformFiles>>writesDone: */

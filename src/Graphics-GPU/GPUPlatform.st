@@ -20,6 +20,11 @@ createDevice: debug
 	<primitive: 'gpuCreateDevice'>
 	^self fail: 'gpuCreateDevice'
 !
+shaderLanguage: device
+	"'msl' or 'glsl': the source gpuCreateShader takes on device."
+	<primitive: 'gpuShaderLanguage'>
+	^self fail: 'gpuShaderLanguage'
+!
 claim: device window: window
 	<primitive: 'gpuClaimWindow'>
 	^self fail: 'gpuClaimWindow'

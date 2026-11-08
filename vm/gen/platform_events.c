@@ -4,6 +4,7 @@
 
 static bool input_armed = true;
 static int32_t input_sem;
+static SDL_Keymod key_mods;
 uint64_t last_pump_ns;
 static double mouse_x;
 static double mouse_y;
@@ -25,7 +26,7 @@ int64_t pf_event_dropped(void)
 /* PlatformEvents>>modsOf: */
 static int mods_of(SDL_Keymod m)
 {
-    return ((m & SDL_KMOD_SHIFT) != 0 ? PF_MOD_SHIFT : 0) | ((m & SDL_KMOD_CTRL) != 0 ? PF_MOD_CTRL : 0) | ((m & SDL_KMOD_ALT) != 0 ? PF_MOD_ALT : 0) | ((m & SDL_KMOD_GUI) != 0 ? PF_MOD_CMD : 0);
+    return ((m & SDL_KMOD_SHIFT) != 0 ? PF_MOD_SHIFT : 0) | ((m & SDL_KMOD_CTRL) != 0 ? PF_MOD_CTRL : 0) | ((m & pf_host_alt_keymod()) != 0 ? PF_MOD_ALT : 0) | ((m & pf_host_cmd_keymod()) != 0 ? PF_MOD_CMD : 0);
 }
 
 /* PlatformEvents>>next: */
@@ -174,6 +175,9 @@ static void translate(SDL_Event *e)
         ev->type = t == SDL_EVENT_KEY_DOWN ? PF_EV_KEY_DOWN : PF_EV_KEY_UP;
         ev->key = e->key.key;
         ev->mods = mods_of(e->key.mod);
+        if (t == SDL_EVENT_KEY_DOWN) {
+            key_mods = e->key.mod;
+        }
         ev->xkind = PF_X_BOOL;
         ev->ival = e->key.repeat ? 1 : 0;
         ev->window = pf_window_from_sdl_id(e->key.windowID);
@@ -181,6 +185,9 @@ static void translate(SDL_Event *e)
         return;
     }
     if (t == SDL_EVENT_TEXT_INPUT) {
+        if ((key_mods & pf_host_cmd_keymod()) != 0) {
+            return;
+        }
         ev->type = PF_EV_TEXT_INPUT;
         ev->xkind = PF_X_TEXT;
         ev->text = (char *)e->text.text;

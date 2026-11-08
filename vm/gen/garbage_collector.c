@@ -331,7 +331,7 @@ void full_gc(void)
         a = live >> 20;
         b = max_heap_bytes >> 20;
         fatal_begin();
-        fprintf(stderr, "out of memory (%llu MB live, limit %zu MB)", a, b);
+        fprintf(stderr, "out of memory (%llu MB live, limit %zu MB)", (unsigned long long)a, b);
         fatal_end();
     }
 }

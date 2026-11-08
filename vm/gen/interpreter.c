@@ -571,15 +571,15 @@ bool interp_frames_valid(bool (*valid)(oop))
     ((o_2 & 1) != 0) && ({
     o_3 = (frames + i)->ctx;
     *(uint64_t *)(o_3 + 16 + 0) != (uint64_t)((((int64_t)i) << 1) | 1); }); })) {
-            fprintf(stderr, "frame %lld: its Context is married to another frame\n", (int64_t)i);
+            fprintf(stderr, "frame %lld: its Context is married to another frame\n", (long long)(int64_t)i);
             return false;
         }
     }
     for (i_2 = 0; i_2 <= (int64_t)cstack_used - 1; i_2++) {
         if (!valid(cstack[i_2])) {
-            fprintf(stderr, "slot %lld of %lld: %llx\n", i_2, (int64_t)cstack_used, cstack[i_2]);
+            fprintf(stderr, "slot %lld of %lld: %llx\n", (long long)i_2, (long long)(int64_t)cstack_used, (unsigned long long)cstack[i_2]);
             for (k = 0; k <= nframes - 1; k++) {
-                fprintf(stderr, "frame %d fp %ld sp %d pc %d ", k, (frames + k)->fp - cstack, (frames + k)->sp, (frames + k)->pc);
+                fprintf(stderr, "frame %d fp %lld sp %d pc %d ", k, (long long)((frames + k)->fp - cstack), (frames + k)->sp, (frames + k)->pc);
                 print_activation((frames + k)->method, (frames + k)->fp[-1], (frames + k)->closure, stderr);
             }
             return false;
@@ -12499,7 +12499,7 @@ static void print_stack(oop a_context, FILE *f)
     }
     for (k = nframes - 1; k >= 0; k--) {
         if ((depth > 60) && (i == 40)) {
-            fprintf(f, "... %lld more frames ...\n", depth - 50);
+            fprintf(f, "... %lld more frames ...\n", (long long)(depth - 50));
         }
         if ((depth <= 60) || ((i < 40) || (i >= depth - 10))) {
             fr2 = frames + k;
@@ -12510,7 +12510,7 @@ static void print_stack(oop a_context, FILE *f)
     c = a_context;
     while (((c & 7) == 0) && (c != nil_oop)) {
         if ((depth > 60) && (i == 40)) {
-            fprintf(f, "... %lld more frames ...\n", depth - 50);
+            fprintf(f, "... %lld more frames ...\n", (long long)(depth - 50));
         }
         if ((depth <= 60) || ((i < 40) || (i >= depth - 10))) {
             print_activation(*(uint64_t *)(c + 16 + 24), *(uint64_t *)(c + 16 + 40), *(uint64_t *)(c + 16 + 32), f);

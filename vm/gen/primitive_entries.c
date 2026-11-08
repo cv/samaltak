@@ -298,6 +298,9 @@ primitive_entry vm_primitive_table[] = {
     {459, 2, "gpuFenceElapsed", prim_gpu_fence_elapsed},
 #endif
 #ifndef SAMALTAK_NO_PLATFORM
+    {460, 2, "gpuShaderLanguage", prim_gpu_shader_language},
+#endif
+#ifndef SAMALTAK_NO_PLATFORM
     {500, 2, "fileOpen", prim_file_open},
 #endif
 #ifndef SAMALTAK_NO_PLATFORM

@@ -3,7 +3,7 @@ CLibrary subclass: #SDLGPU
 	classVariableNames: ''
 	package: 'VM-Platform'!
 
-SDLGPU comment: 'The SDL_GPU functions of the platform layer (Metal on macOS): devices, shaders, pipelines, textures, samplers, buffers, transfers, passes, fences. Not simulated.'!
+SDLGPU comment: 'The SDL_GPU functions of the platform layer (Metal on macOS, Vulkan on Linux): devices, shaders, pipelines, textures, samplers, buffers, transfers, passes, fences. Not simulated.'!
 
 !SDLGPU class methodsFor: 'declaring'!
 headers
@@ -33,6 +33,10 @@ createDevice: formatFlags debug: debugMode name: name
 	<c: 'SDL_GPUDevice *SDL_CreateGPUDevice(SDL_GPUShaderFormat format_flags, bool debug_mode, const char *name)'>
 	^self notSimulated
 !
+shaderFormats: device
+	<c: 'SDL_GPUShaderFormat SDL_GetGPUShaderFormats(SDL_GPUDevice *device)'>
+	^self notSimulated
+!
 destroyDevice: device
 	<c: 'void SDL_DestroyGPUDevice(SDL_GPUDevice *device)'>
 	^self notSimulated
@@ -59,6 +63,10 @@ setSwapchainParameters: device window: window composition: composition mode: pre
 !
 swapchainTextureFormat: device window: window
 	<c: 'SDL_GPUTextureFormat SDL_GetGPUSwapchainTextureFormat(SDL_GPUDevice *device, SDL_Window *window)'>
+	^self notSimulated
+!
+SDL_GPU_SHADERFORMAT_SPIRV
+	<cMacro: 'SDL_GPUShaderFormat SDL_GPU_SHADERFORMAT_SPIRV'>
 	^self notSimulated
 !
 SDL_GPU_SHADERFORMAT_MSL

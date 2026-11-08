@@ -3,11 +3,19 @@ Widget subclass: #ShaderView
 	classVariableNames: ''
 	package: 'UI-Widgets'!
 
-ShaderView comment: 'I show a picture computed on the GPU by a fragment shader (FragmentShader: the source after its prelude, a function fmain), at device resolution, in my bounds. Subclasses answer shaderSource (MSL) and uniforms, an Array of rows, each one float4 of the shader''s uniform struct: up to four Numbers, Points (two) and Colors (r g b a, premultiplied by the shader if it wants). Each drawing renders a new frame from them (at renderScale); invalidate when they change (every frame, for an animation). A changed shaderSource takes effect at the next drawing.'!
+ShaderView comment: 'I show a picture computed on the GPU by a fragment shader (FragmentShader: the source after its prelude, a function fmain), at device resolution, in my bounds. Subclasses answer shaderSource (MSL) and glslShaderSource (GLSL, for Vulkan; see FragmentShader) and uniforms, an Array of rows, each one float4 of the shader''s uniform struct: up to four Numbers, Points (two) and Colors (r g b a, premultiplied by the shader if it wants). Each drawing renders a new frame from them (at renderScale); invalidate when they change (every frame, for an animation). A changed shaderSource takes effect at the next drawing.'!
 
 !ShaderView methodsFor: 'shader'!
 shaderSource
+	"MSL."
 	^self subclassResponsibility
+!
+glslShaderSource
+	"GLSL: shaderSource for Vulkan."
+	^self subclassResponsibility
+!
+shaderSourceFor: aLanguage
+	^aLanguage == #glsl ifTrue: [self glslShaderSource] ifFalse: [self shaderSource]
 !
 uniforms
 	^#()
@@ -26,7 +34,7 @@ drawSelfOn: aCanvas
 	aCanvas
 		image: (shader
 			imageExtent: (self width * s) rounded @ (self height * s) rounded
-			source: self shaderSource
+			source: (self shaderSourceFor: shader device shaderLanguage)
 			uniforms: self packedUniforms)
 		in: self localBounds
 !

@@ -1,16 +1,41 @@
 # Samaltak VM. `make` → build/samaltak. NO_PLATFORM=1 builds a headless-only VM.
 # The sources are gen/: C translated from the Lowtalk modules in src/VM-Core and src/VM-Platform (make translate at
-# the top level regenerates them); gen/sources.mk says which files make the core and which the platform layer.
+# the top level regenerates them); gen/sources.mk says which files make the core and which the platform layer, and
+# which of them are for one OS only (VM_CORE_SOURCES_LINUX ...: this build adds those of its uname -s).
+# macOS: Homebrew sdl3, clang. Linux: sdl3 and shaderc (GLSL → SPIR-V for SDL_GPU on Vulkan), gcc or clang.
 # Profile-guided: pgo.profdata (if present) steers optimization; `make pgo IMAGE=...` retrains it. NO_PGO=1 skips it.
 # BRIEF=1 prints one line per file instead of the commands.
+UNAME_S := $(shell uname -s)
+OS := $(shell echo $(UNAME_S) | tr a-z A-Z)
 CC ?= cc
-CFLAGS ?= -O2 -g -flto
-CFLAGS += -std=gnu11 -Wall -Wextra -Wno-unused-parameter -MMD -MP -Igen -D_DARWIN_C_SOURCE
+IS_CLANG := $(shell $(CC) --version 2>/dev/null | grep -q clang && echo yes)
+ifeq ($(IS_CLANG),yes)
+  CFLAGS ?= -O2 -g -flto
+else
+  # gcc: -flto=auto spreads the link over the cores. Its extra warnings about generated code are not bugs: comparisons
+  # always true for some types, && inside ||, uninitialized locals on paths the code never takes, and messages cut to
+  # the error buffer's size on purpose.
+  CFLAGS ?= -O2 -g -flto=auto
+  CFLAGS += -Wno-type-limits -Wno-parentheses -Wno-maybe-uninitialized -Wno-format-truncation
+endif
+CFLAGS += -std=gnu11 -Wall -Wextra -Wno-unused-parameter -MMD -MP -Igen
+ifeq ($(UNAME_S),Darwin)
+  CFLAGS += -D_DARWIN_C_SOURCE
+  OS_PLATFORM_LIBS := -framework CoreVideo
+else
+  # The VM was written for Darwin's arm64 ABI, where char is signed; Linux's makes it unsigned.
+  CFLAGS += -D_GNU_SOURCE -fsigned-char
+  OS_PLATFORM_LIBS := $(shell pkg-config --libs shaderc 2>/dev/null || echo -lshaderc_shared)
+endif
 LDLIBS += -lm -lpthread
 
 BUILD := build
 PGO_PROFILE := pgo.profdata
 LLVM_PROFDATA := $(shell xcrun -f llvm-profdata 2>/dev/null || command -v llvm-profdata)
+ifneq ($(IS_CLANG),yes)
+  # The profile is clang's (llvm-profdata); gcc builds without it.
+  NO_PGO := 1
+endif
 ifneq ($(PGO_GEN),)
   CFLAGS += -fprofile-instr-generate=$(CURDIR)/$(BUILD)/prof/%p.profraw
   LDFLAGS += -fprofile-instr-generate
@@ -19,9 +44,9 @@ else ifeq ($(and $(wildcard $(PGO_PROFILE)),$(if $(NO_PGO),,yes)),yes)
   PGO_DEP := $(PGO_PROFILE)
 endif
 include gen/sources.mk
-CORE_SRCS := $(addprefix gen/,$(VM_CORE_SOURCES))
-HEADLESS_SRCS := $(addprefix gen/,$(VM_HEADLESS_SOURCES))
-PLATFORM_SRCS := $(addprefix gen/,$(VM_PLATFORM_SOURCES))
+CORE_SRCS := $(addprefix gen/,$(VM_CORE_SOURCES) $(VM_CORE_SOURCES_$(OS)))
+HEADLESS_SRCS := $(addprefix gen/,$(VM_HEADLESS_SOURCES) $(VM_HEADLESS_SOURCES_$(OS)))
+PLATFORM_SRCS := $(addprefix gen/,$(VM_PLATFORM_SOURCES) $(VM_PLATFORM_SOURCES_$(OS)))
 
 SDL_CFLAGS := $(shell pkg-config --cflags sdl3 2>/dev/null)
 SDL_LIBS := $(shell pkg-config --libs sdl3 2>/dev/null)
@@ -36,7 +61,7 @@ ifneq ($(and $(PLATFORM_SRCS),$(SDL_LIBS),$(if $(NO_PLATFORM),,yes)),)
   VARIANT := platform
   SRCS := $(CORE_SRCS) $(PLATFORM_SRCS)
   CFLAGS += $(SDL_CFLAGS)
-  LDLIBS += $(SDL_LIBS) -framework CoreVideo
+  LDLIBS += $(SDL_LIBS) $(OS_PLATFORM_LIBS)
 else
   VARIANT := headless
   SRCS := $(CORE_SRCS) $(HEADLESS_SRCS)

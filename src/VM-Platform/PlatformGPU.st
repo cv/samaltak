@@ -144,13 +144,26 @@ createDevice: debug
 	d isNull ifTrue: [
 		common setError: 'out of memory'.
 		^0].
-	d dev: (sdlGpu createDevice: sdlGpu SDL_GPU_SHADERFORMAT_MSL debug: debug name: self null).
+	d dev: (sdlGpu createDevice: host shaderFormats debug: debug name: self null).
 	d dev isNull ifTrue: [
 		libc free: d.
 		^self sdlFail: 'SDL_CreateGPUDevice'].
 	h := common table: objs add: K_DEV pointer: d.
 	(objs v + h) dev: h.
 	^h
+!
+shaderLanguage: dev
+	"What source createShader: takes on dev: 'msl' (Metal), 'glsl' (SPIR-V devices: compiled by the host), NULL on error."
+	<c: 'const char *pf_gpu_shader_language(int dev)'>
+	<export>
+	| d f |
+	d := self device: dev.
+	d isNull ifTrue: [^self null].
+	f := sdlGpu shaderFormats: d dev.
+	(f bitAnd: sdlGpu SDL_GPU_SHADERFORMAT_MSL) ~= 0 ifTrue: [^'msl'].
+	(f bitAnd: sdlGpu SDL_GPU_SHADERFORMAT_SPIRV) ~= 0 ifTrue: [^'glsl'].
+	common setError: 'the device takes neither MSL nor SPIR-V shaders'.
+	^self null
 !
 claimWindow: dev window: win
 	<c: 'bool pf_gpu_claim_window(int dev, int win)'>
@@ -223,17 +236,28 @@ waitIdle: dev
 ! !
 
 !PlatformGPU methodsFor: 'resources'!
-createShader: dev source: msl entry: entry stage: stage samplers: samplers uniformBuffers: uniformBuffers storageBuffers: storageBuffers storageTextures: storageTextures
-	<c: 'int pf_gpu_create_shader(int dev, const char *msl, const char *entry, int stage, int samplers, int uniform_buffers, int storage_buffers, int storage_textures)'>
+createShader: dev source: source entry: entry stage: stage samplers: samplers uniformBuffers: uniformBuffers storageBuffers: storageBuffers storageTextures: storageTextures
+	"source is in the device's shaderLanguage: MSL, or GLSL compiled to SPIR-V by the host (entry is then main)."
+	<c: 'int pf_gpu_create_shader(int dev, const char *source, const char *entry, int stage, int samplers, int uniform_buffers, int storage_buffers, int storage_textures)'>
 	<export>
-	| d ci s |
+	| d ci s spirv size |
 	d := self device: dev.
 	d isNull ifTrue: [^0].
 	ci := self local: 'SDL_GPUShaderCreateInfo'.
-	ci code_size: (libc strlen: msl).
-	ci code: (self cCoerce: msl to: 'Uint8 *').
+	spirv := self null.
+	((sdlGpu shaderFormats: d dev) bitAnd: sdlGpu SDL_GPU_SHADERFORMAT_MSL) ~= 0
+		ifTrue: [
+			ci code_size: (libc strlen: source).
+			ci code: (self cCoerce: source to: 'Uint8 *').
+			ci format: sdlGpu SDL_GPU_SHADERFORMAT_MSL]
+		ifFalse: [
+			size := self local: 'size_t'.
+			spirv := host compileShader: source stage: stage size: size.
+			spirv isNull ifTrue: [^0].
+			ci code_size: size value.
+			ci code: (self cCoerce: spirv to: 'Uint8 *').
+			ci format: sdlGpu SDL_GPU_SHADERFORMAT_SPIRV].
 	ci entrypoint: entry.
-	ci format: sdlGpu SDL_GPU_SHADERFORMAT_MSL.
 	ci stage: (stage = PF_STAGE_FRAGMENT ifTrue: [sdlGpu SDL_GPU_SHADERSTAGE_FRAGMENT] ifFalse: [sdlGpu SDL_GPU_SHADERSTAGE_VERTEX]).
 	ci num_samplers: samplers.
 	ci num_storage_textures: storageTextures.
@@ -242,6 +266,7 @@ createShader: dev source: msl entry: entry stage: stage samplers: samplers unifo
 	sdl clearError.
 	logError at: 0 put: 0.
 	s := sdlGpu createShader: d dev info: ci.
+	libc free: spirv.
 	s isNull ifTrue: [^self sdlFail: 'SDL_CreateGPUShader'].
 	^self add: K_SHADER pointer: s device: dev
 !
