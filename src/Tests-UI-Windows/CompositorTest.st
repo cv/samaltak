@@ -211,6 +211,15 @@ testRecordWritesRawFrames
 	self assert: size equals: recorder framesWritten * 64 * 40 * 4.
 	File delete: path
 !
+testPresentsWithoutDisplayRefreshes
+	"The display link stops while the display sleeps; macOS slows it to about 10 Hz while the VM runs in the background role. The compositor presents anyway."
+	| n |
+	self open: RecordingTestView new title: 'Ticks' at: (100 @ 100 extent: 300 @ 200).
+	world compositor sync: [:c | DisplayWindow vsyncSemaphoreIndex: 0].
+	n := world compositor frameCount.
+	world waitForFrames: 10.
+	self assert: world compositor frameCount - n >= 10
+!
 testHostResize
 	DisplayWindow injectEvent: {UIEvent evWindowResized. nil. 1000. 700. 0. 0. nil. world displayWindow windowId}.
 	self settle.

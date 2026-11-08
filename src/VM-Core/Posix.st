@@ -129,6 +129,10 @@ EV_RECEIPT
 NOTE_USECONDS
 	<cMacro: 'uint32_t NOTE_USECONDS'>
 	^2
+!
+NOTE_CRITICAL
+	<cMacro: 'uint32_t NOTE_CRITICAL'>
+	^16r20
 ! !
 
 !Posix methodsFor: 'files'!

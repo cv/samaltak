@@ -124,7 +124,7 @@ signalExternalSemaphore: index
 
 !Scheduler methodsFor: 'ticker'!
 tickArm: ident microseconds: us periodic: periodic
-	"us < 0 disarms (an already fired one-shot is gone: ENOENT, ignored)."
+	"us < 0 disarms (an already fired one-shot is gone: ENOENT, ignored). Critical: in the background role macOS would coalesce a 1 ms timer to about 60 ms."
 	<c: 'void tick_arm(int ident, int64_t us, bool periodic)'>
 	| ch res zero |
 	ch := self local: 'KEvent'.
@@ -136,7 +136,7 @@ tickArm: ident microseconds: us periodic: periodic
 		ifTrue: [ch flags: (posix EV_DELETE bitOr: posix EV_RECEIPT)]
 		ifFalse: [
 			ch flags: ((posix EV_ADD bitOr: posix EV_RECEIPT) bitOr: (periodic ifTrue: [0] ifFalse: [posix EV_ONESHOT])).
-			ch fflags: posix NOTE_USECONDS.
+			ch fflags: (posix NOTE_USECONDS bitOr: posix NOTE_CRITICAL).
 			ch data: us].
 	posix kevent: tickKq changes: ch count: 1 events: res count: 1 timeout: zero
 !

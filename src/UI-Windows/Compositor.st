@@ -1,5 +1,5 @@
 Object subclass: #Compositor
-	instanceVariableNames: 'world displayWindow renderer process running vsync vsyncIndex wake sleeping skip idleFrames frameCount presenting requests recorder gpuTimer clock knownProcesses lastCpu lastScan lastRecord lastError lastErrorTime pipelineVersion standIn'
+	instanceVariableNames: 'world displayWindow renderer process running vsync vsyncIndex wake sleeping skip tickTimeout idleFrames frameCount presenting requests recorder gpuTimer clock knownProcesses lastCpu lastScan lastRecord lastError lastErrorTime pipelineVersion standIn'
 	classVariableNames: ''
 	package: 'UI-Windows'!
 
@@ -66,9 +66,10 @@ start
 	vsync := Semaphore new.
 	wake := Semaphore new.
 	vsyncIndex := Smalltalk vm registerExternalSemaphore: vsync.
-	DisplayWindow vsyncSemaphoreIndex: vsyncIndex.
+	self armVsync.
 	rate := [displayWindow refreshRate] on: Error do: [:e | e return: 60].
 	skip := rate > 61 ifTrue: [(rate / 60) rounded] ifFalse: [1].
+	tickTimeout := rate > 0 ifTrue: [(skip * 1500 / rate) rounded] ifFalse: [25].
 	gpuTimer := GPUTimer new.
 	process := [self run] newProcess.
 	process priority: self class priority; name: 'compositor (vsync)'.
@@ -146,10 +147,19 @@ run
 				e return: nil]]]
 !
 waitForTick
+	"Wait for skip display refreshes, at most one and a half ticks: the display link may be missing (the display sleeps) or late (macOS throttles it to about 10 Hz while the VM runs in the background role), then I tick on that timeout."
+	| late |
 	(idleFrames >= 20 and: [gpuTimer isIdle]) ifTrue: [^self sleep].
+	late := Delay forMilliseconds: tickTimeout.
+	late signal: vsync.
 	skip timesRepeat: [
-		vsync wait.
-		vsync consumeAllSignals]
+		late isExpired ifFalse: [vsync wait].
+		vsync consumeAllSignals].
+	late cancel
+!
+armVsync
+	"Have the display link signal vsync on every refresh. While the display sleeps there is none: waitForTick ticks on its timeout."
+	[DisplayWindow vsyncSemaphoreIndex: vsyncIndex] on: Error do: [:e | e return: nil]
 !
 sleep
 	sleeping := true.
@@ -158,7 +168,7 @@ sleep
 	world needsFrame ifFalse: [wake waitTimeoutMSecs: 500].
 	sleeping := false.
 	wake consumeAllSignals.
-	DisplayWindow vsyncSemaphoreIndex: vsyncIndex.
+	self armVsync.
 	vsync consumeAllSignals
 !
 frame

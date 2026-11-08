@@ -573,6 +573,20 @@ testSampling
 	t := Smalltalk millisecondClock.
 	[Processor activeProcess cpuMicroseconds - a < 15000 and: [Smalltalk millisecondClock < (t + 10000)]] whileTrue.
 	(Processor activeProcess cpuMicroseconds - a >= 15000) printNl
+!
+testTimerTicks
+	"The sampler ticks about once a millisecond while Smalltalk runs, also when macOS coalesces timers: run.sh runs me in the darwin background role (taskpolicy -b), which macOS gives a VM whose app is covered. Counted per millisecond of CPU time I get, so a busy machine starving me does not fail me."
+	| s count a t |
+	s := Semaphore new.
+	Smalltalk registerExternal: s at: 1.
+	count := Array with: 0.
+	[[s wait. count at: 1 put: (count at: 1) + 1] repeat] forkAt: 70.
+	a := Processor activeProcess cpuMicroseconds.
+	t := Smalltalk millisecondClock.
+	Smalltalk samplerInterval: 1000 index: 1.
+	[Processor activeProcess cpuMicroseconds - a < 300000 and: [Smalltalk millisecondClock < (t + 10000)]] whileTrue.
+	Smalltalk samplerInterval: 0 index: 1.
+	((count at: 1) * 2000 >= (Processor activeProcess cpuMicroseconds - a)) printNl
 ! !
 
 !MiniTests methodsFor: 'stack overflow'!

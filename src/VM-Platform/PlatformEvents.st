@@ -163,6 +163,8 @@ translate: e
 		or: [t = sdl SDL_EVENT_WINDOW_FOCUS_LOST or: [t = sdl SDL_EVENT_WINDOW_DISPLAY_SCALE_CHANGED
 		or: [t = sdl SDL_EVENT_WINDOW_MOUSE_LEAVE or: [t = sdl SDL_EVENT_WINDOW_EXPOSED]]]]]]) ifTrue: [
 			ev window: (windows fromSDLId: e window windowID).
+			"Closed before its events were pumped: as events of no window they would reach any World."
+			ev window = 0 ifTrue: [^self].
 			t = sdl SDL_EVENT_WINDOW_RESIZED
 				ifTrue: [
 					ev type: PF_EV_WINDOW_RESIZED.
