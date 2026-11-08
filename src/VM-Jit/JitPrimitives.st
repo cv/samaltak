@@ -9,12 +9,15 @@ JitPrimitives comment: 'The JIT seen from the image: its parameters (jitParamete
 primJitParameters
 	"Smalltalk vm jitParameters [: anArray]: {mode. flags. threshold. osr. cache MB}, mode and flags as Strings ('baseline', 'arith,fuse,barrier'). With anArray {mode. flags. threshold. osr} (nil keeps one; flags are changes, as --jit-flags) set them; answer the parameters before. A new mode or new flags drop all machine code."
 	<vmPrimitive: 180 name: 'jitParameters'>
-	| r old p m saved |
+	| r old p m saved s |
 	r := self local: 'oop'.
 	r value: (memory allocObj: memory clsArray format: F_VAR slots: 5).
 	memory pushRoot: r.
-	self storeRef: r value at: 0 put: (self stringFrom: (jit modeName: jit mode)).
-	self storeRef: r value at: 1 put: self flagsString.
+	"Allocating the strings may collect: r value only after them."
+	s := self stringFrom: (jit modeName: jit mode).
+	self storeRef: r value at: 0 put: s.
+	s := self flagsString.
+	self storeRef: r value at: 1 put: s.
 	self storeRef: r value at: 2 put: (self intOop: jit threshold).
 	self storeRef: r value at: 3 put: (self intOop: jit osrThreshold).
 	self storeRef: r value at: 4 put: (self intOop: jit cacheMB).

@@ -50,6 +50,13 @@ testParameters
 	self flagNames do: [:each | self assert: (self flagNames includes: each)].
 	self should: [Smalltalk vm jitParameters: #(nil 'nonsense' nil nil)] raise: Error
 !
+testParametersSurviveAScavenge
+	"The primitive allocates the strings of its answer: a scavenge at one of them moves the answer, whose slots must still get them."
+	| scavenges |
+	scavenges := Smalltalk vm statistics scavenges.
+	[Smalltalk vm statistics scavenges - scavenges < 30] whileTrue: [
+		1000 timesRepeat: [Smalltalk vm jitParameters do: [:each | self assert: each notNil]]]
+!
 testEveryMethodCompiles
 	"Every method of the image has baseline code."
 	| failed |
