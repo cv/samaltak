@@ -1,5 +1,5 @@
 OptModule subclass: #OptIR
-	instanceVariableNames: 'optNodes optNodeCount optBlocks optBlockCount optEdges optEdgeCount optOperands optOperandCount optStates optStateCount optActs optActCount optFull optCurAct optCurPc'
+	instanceVariableNames: 'optNodes optNodeCount optBlocks optBlockCount optEdges optEdgeCount optOperands optOperandCount optStates optStateCount optActs optActCount optFull optCurAct optCurPc optOsrEntry optOsrState optOsrNumbers'
 	classVariableNames: ''
 	package: 'VM-Jit'!
 
@@ -13,7 +13,7 @@ declarations
 		(optOperands 'int32_t[OPT_MAX_OPERANDS]') (optOperandCount int32_t)
 		(optStates 'OptState[OPT_MAX_STATES]') (optStateCount int32_t)
 		(optActs 'OptAct[OPT_MAX_ACTS]') (optActCount int32_t)
-		(optFull bool) (optCurAct int32_t) (optCurPc int32_t))
+		(optFull bool) (optCurAct int32_t) (optCurPc int32_t) (optOsrEntry int32_t) (optOsrState int32_t) (optOsrNumbers uint64_t))
 ! !
 
 !OptIR methodsFor: 'accessing'!
@@ -69,6 +69,23 @@ origin: a pc: pc
 	"New nodes come from the instruction at a's pc."
 	optCurAct := a.
 	optCurPc := pc
+!
+osrEntry
+	"A loop unit's entry block (its parameters are the frame's slots at the loop head), -1 for other units."
+	^optOsrEntry
+!
+osrState
+	"The frame state at the loop head in the entry block, where a guard there deoptimizes to."
+	^optOsrState
+!
+osrNumbers
+	"Bit i: the frame's slot i held a number when the loop unit was compiled."
+	^optOsrNumbers
+!
+osrEntry: b state: s numbers: bits
+	optOsrEntry := b.
+	optOsrState := s.
+	optOsrNumbers := bits
 ! !
 
 !OptIR methodsFor: 'building'!
@@ -82,7 +99,10 @@ reset
 	optActCount := 0.
 	optFull := false.
 	optCurAct := 0.
-	optCurPc := 0
+	optCurPc := 0.
+	optOsrEntry := -1.
+	optOsrState := -1.
+	optOsrNumbers := 0
 !
 newBlock
 	"A new empty block."

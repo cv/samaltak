@@ -340,6 +340,86 @@ primStringCaseInsensitiveCompare
 			x ~= y ifTrue: [^self answer: (self intOop: (x < y ifTrue: [-1] ifFalse: [1]))]]].
 	self answer: (self intOop: (na < nb ifTrue: [-1] ifFalse: [na > nb ifTrue: [1] ifFalse: [0]]))
 !
+uppercase: c
+	"Character>>asUppercase of the byte c (not ÿ, whose uppercase is wide): a-z and à-þ but ÷ go down 32."
+	^((c >= 97 and: [c <= 122]) or: [c >= 224 and: [c <= 254 and: [c ~= 247]]]) ifTrue: [c - 32] ifFalse: [c]
+!
+convertCase: upper
+	"asUppercase (upper) or asLowercase of a ByteString or ByteSymbol: a new ByteString. Fails for others and for ÿ going up."
+	<c: 'void prim_convert_case(bool upper)'>
+	| r n s a b c |
+	r := self receiver.
+	(self isByteString: r) ifFalse: [^self fail].
+	n := memory byteSize: r.
+	s := memory allocBytes: memory clsBytestring count: n.
+	r := self receiver.
+	a := self bytesOf: r.
+	b := self bytesOf: s.
+	0 to: n asInt64 - 1 do: [:i |
+		c := (a at: i) asInt32.
+		upper
+			ifTrue: [
+				c = 255 ifTrue: [^self fail].
+				c := self uppercase: c]
+			ifFalse: [c := self lowercase: c].
+		b at: i put: c asUInt8].
+	self answer: s
+!
+primStringAsUppercase
+	<vmPrimitive: 92 name: 'stringAsUppercase'>
+	self convertCase: true
+!
+primStringAsLowercase
+	<vmPrimitive: 93 name: 'stringAsLowercase'>
+	self convertCase: false
+!
+primStringIndexOf
+	"indexOf: aCharacter startingAt: start: the index of its first occurrence at or after start, 0 if none. Fails for a start below 1 or anything but a Character."
+	<vmPrimitive: 117 name: 'stringIndexOf'>
+	<leaf>
+	| r c s v b w |
+	r := self receiver.
+	c := self arg: 0.
+	s := self arg: 1.
+	(self argCount = 2 and: [(self isStringLike: r) and: [(self isChar: c) and: [(self isInt: s) and: [(self intVal: s) >= 1]]]]) ifFalse: [^self fail].
+	v := self charVal: c.
+	(self formatOf: r) >= F_BYTES
+		ifTrue: [
+			b := self bytesOf: r.
+			v < 256 ifTrue: [
+				(self intVal: s) - 1 to: (memory byteSize: r) asInt64 - 1 do: [:i |
+					(b at: i) asUInt32 = v ifTrue: [^self answer: (self intOop: i + 1)]]]]
+		ifFalse: [
+			w := self words32Of: r.
+			(self intVal: s) - 1 to: (memory word32Size: r) asInt64 - 1 do: [:i |
+				(w at: i) = v ifTrue: [^self answer: (self intOop: i + 1)]]].
+	self answer: (self intOop: 0)
+!
+primStringIndexOfSubstring
+	"indexOfSubCollection: aString startingAt: start: where aString next begins at or after start, 0 if it does not (start if it is empty). Fails for a start below 1 or anything but a String."
+	<vmPrimitive: 118 name: 'stringIndexOfSubstring'>
+	<leaf>
+	| r p s n m a b first k |
+	r := self receiver.
+	p := self arg: 0.
+	s := self arg: 1.
+	(self argCount = 2 and: [(self isStringLike: r) and: [(memory isKindOfString: p) and: [(self isInt: s) and: [(self intVal: s) >= 1]]]]) ifFalse: [^self fail].
+	n := (memory stringSize: r) asInt64.
+	m := (memory stringSize: p) asInt64.
+	m = 0 ifTrue: [^self answer: s].
+	((self formatOf: r) >= F_BYTES and: [(self formatOf: p) >= F_BYTES]) ifTrue: [
+		a := self bytesOf: r.
+		b := self bytesOf: p.
+		first := b at: 0.
+		(self intVal: s) - 1 to: n - m do: [:i |
+			((a at: i) = first and: [(libc memcmp: a + i with: b size: m asUInt64) = 0]) ifTrue: [^self answer: (self intOop: i + 1)]].
+		^self answer: (self intOop: 0)].
+	(self intVal: s) - 1 to: n - m do: [:i |
+		k := 0.
+		[k < m and: [(memory stringCharAt: r index: (i + k) asUInt64) = (memory stringCharAt: p index: k asUInt64)]] whileTrue: [k := k + 1].
+		k = m ifTrue: [^self answer: (self intOop: i + 1)]].
+	self answer: (self intOop: 0)
+!
 elementKindOf: o
 	| f |
 	f := self formatOf: o.

@@ -119,17 +119,29 @@ bool opt_compile(oop m)
         print_activation(m, nil_oop, nil_oop, stderr);
     }
     ob_frame = rt_unit_frame;
+    ps_unbox_off = false;
     ok = opt_build(m, rt_unit_start, (rt_unit_osr & 0xFFFF) - 1, rt_unit_depth, rt_unit_osr >= 0x10000) && ({
     opt_cleanup(ob_entry_block);
     if (trace) {
         opt_ir_print();
     }
-    opt_allocate(ob_param_slots) && ({
+    opt_allocate(ob_param_slots); });
+    if ((!ok) && ps_unboxed) {
+        ps_unbox_off = true;
+        ok = opt_build(m, rt_unit_start, (rt_unit_osr & 0xFFFF) - 1, rt_unit_depth, rt_unit_osr >= 0x10000) && ({
+    opt_cleanup(ob_entry_block);
+    if (trace) {
+        opt_ir_print();
+    }
+    opt_allocate(ob_param_slots); });
+        ps_unbox_off = false;
+    }
+    ok = ok && ({
     if (trace) {
         fputs("allocated:\n", stderr);
         opt_ir_print();
     }
-    opt_generate(m, 0); }); });
+    opt_generate(m, 0); });
     jit_analyze(m);
     if (!ok) {
         rt_stat_opt_failed = rt_stat_opt_failed + 1;

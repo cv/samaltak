@@ -44,6 +44,7 @@ digitValue
 	^self value >= aCharacter value
 !
 = aCharacter
+	<primitive: 'identical'>
 	^self == aCharacter
 !
 hash

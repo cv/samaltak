@@ -94,6 +94,15 @@ emitReloadReceiver
 	asm comment: 'reload the receiver (a GC may have moved it)'.
 	asm ldr: X21 base: X20 offset: -8
 !
+constantDouble: v
+	"The IEEE bits of the SmallInteger or SmallFloat64 constant v."
+	| r b |
+	(v bitAnd: 1) ~= 0 ifTrue: [^self bitsOfDouble: (v asInt64 >> 1) asFloat].
+	r := v asUInt64 >> 3.
+	r <= 1 ifTrue: [^r << 63].
+	b := r + (896 asUInt64 << 53).
+	^(b >> 1) bitOr: (b << 63)
+!
 emitCountDown: address to: slowLabel
 	"Decrement the int32 counter at address (in the VM's data, within adrp's range of the code), branch to slowLabel when it is no longer positive (--jit opt: the lower tier counts method entries and backward jumps; the slow path calls the tier-up stub)."
 	asm comment: 'count toward optimization'.

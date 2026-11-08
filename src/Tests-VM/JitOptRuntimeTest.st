@@ -218,6 +218,51 @@ testEntryFromBaselineCodeWithoutRoom
 	self define: 'many: n | a b c d e f g h i j k l | a := n. b := a. c := b. d := c. e := d. f := e. g := f. h := g. i := h. j := i. k := j. l := k. ^(self down: l - 1) + 1'.
 	3 timesRepeat: [self assert: (JitRuntimeTestSubject new down: 30000) equals: 30000]
 !
+testLoopValuesAcrossInterruptChecks
+	"Values a loop keeps in registers and only its interrupt check needs in their home slots are stored there when the check calls the runtime: a Process that collects runs there, objects move, the loop goes on with what it held."
+	| o done p r |
+	Smalltalk vm jitParameters: #(nil '-eager' nil nil).
+	self define: 'carry: n | a s | a := Array with: 0. s := 0. 1 to: n do: [:i | s := s + (a at: 1). a := Array with: (a at: 1) + 1 with: s]. ^{s. a first. a last}'.
+	o := JitRuntimeTestSubject new.
+	done := false.
+	p := self fork: [[done] whileFalse: [Smalltalk vm scavenge. (Delay forMilliseconds: 1) wait]] at: Processor activePriority + 1.
+	1 to: 5 do: [:k |
+		r := o carry: 200000.
+		self assert: r equals: {19999900000. 200000. 19999900000}].
+	done := true
+!
+testFloatLoopsKeepTheirSumsOnDoubles
+	"A loop's running Float stays on doubles (its phi's twin), across interrupt checks where Processes switch and the collector runs; a SmallInteger sum beside it stays one; a loop unit entered with a SmallInteger, a Fraction or nil where it was compiled with a Float answers what the interpreter answers; a loop that sends keeps its Float boxed; more running Floats than d registers compile without twins."
+	| o done many |
+	Smalltalk vm jitParameters: #(nil '-eager' nil nil).
+	self define: 'fsum: n | r | r := 0.0. 1 to: n do: [:i | r := r + (i * 0.5)]. ^r'.
+	self define: 'fsumFrom: r0 n: n | r | r := r0. 1 to: n do: [:i | r := r + i]. ^r'.
+	self define: 'big: x | a | a := x. ' , ((1 to: 150) inject: '' into: [:all :i | all , 'a := a. ']) , '^a'.
+	self define: 'fsumSends: n | r | r := 0.0. 1 to: n do: [:i | r := r + (self big: i * 0.5)]. ^r'.
+	many := String new writeStream.
+	many nextPutAll: 'many: n | '.
+	1 to: 20 do: [:k | many nextPutAll: 'a'; print: k; space].
+	many nextPutAll: '| '.
+	1 to: 20 do: [:k | many nextPutAll: 'a'; print: k; nextPutAll: ' := '; print: k; nextPutAll: '.0. '].
+	many nextPutAll: '1 to: n do: [:i | '.
+	1 to: 20 do: [:k | many nextPutAll: 'a'; print: k; nextPutAll: ' := a'; print: k; nextPutAll: ' + 0.5. '].
+	many nextPutAll: ']. ^'.
+	(1 to: 20) do: [:k | many nextPutAll: 'a'; print: k] separatedBy: [many nextPutAll: ' + '].
+	self define: many contents.
+	o := JitRuntimeTestSubject new.
+	done := false.
+	self fork: [[done] whileFalse: [Smalltalk vm scavenge. (Delay forMilliseconds: 1) wait]] at: Processor activePriority + 1.
+	1 to: 5 do: [:k | self assert: (o fsum: 200000) equals: 10000050000.0].
+	done := true.
+	self assert: (o fsumFrom: 0.5 n: 100000) equals: 5000050000.5.
+	self assert: (o fsumFrom: 0.5 n: 100000) equals: 5000050000.5.
+	self assert: (o fsumFrom: 1 n: 100000) equals: 5000050001.
+	self assert: (o fsumFrom: 1/2 n: 100000) equals: 10000100001 / 2.
+	self should: [o fsumFrom: nil n: 100000] raise: MessageNotUnderstood.
+	self assert: (o fsumFrom: 0.5 n: 100000) equals: 5000050000.5.
+	self assert: (o fsumSends: 100000) equals: 2500025000.0.
+	self assert: (o many: 100000) equals: 1000210.0
+!
 testDeoptimizationStress
 	"--jit-flags deopt: optimized code deoptimizes every so often at its guards and safepoints; the compiler's tests still pass."
 	| run |

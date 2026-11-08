@@ -141,12 +141,24 @@ buildOsr: a
 			ifTrue: [self writeArg: (self var: a slot: i) value: (self param: i)]
 			ifFalse: [(obArgFlags at: (self var: a slot: i)) = 2 ifFalse: [self write: (self var: a slot: i) value: (self param: i)]].
 		self noteClosureIn: i act: a].
+	ir osrEntry: obCurBlock state: (self stateAct: a pc: obOsrPc depth: obValidSlots) numbers: self frameNumbers.
 	b := self blockAt: obOsrPc act: a.
 	self goto: b.
 	self buildAct: a.
 	self bailed ifTrue: [^false].
 	0 to: ir blockCount - 1 do: [:k | ((ir block: k) flags bitAnd: BF_SEALED) = 0 ifTrue: [self seal: k]].
 	^self bailed not
+!
+frameNumbers
+	"Bit i: the frame's slot i holds a SmallInteger or a Float (the first 64)."
+	| bits v |
+	bits := 0 asUInt64.
+	obFrame isNull ifTrue: [^bits].
+	0 to: (obValidSlots min: 64) - 1 do: [:i |
+		v := obFrame fp at: i.
+		((self isInt: v) or: [(v bitAnd: 7) = 4 or: [(self isPtr: v) and: [(self rawClass: v) = memory clsBoxedfloat]]]) ifTrue: [
+			bits := bits bitOr: 1 asUInt64 << i]].
+	^bits
 !
 markResident: a
 	"The temps of a that its closures reach (outer temps at a block depth that is a): read from and written to the frame."

@@ -59,6 +59,63 @@ two' lines) = #('one' 'two').
 	self assert: '+' numArgs = 1.
 	self assert: 'size' numArgs = 0
 !
+testCasePrimitives
+	"asUppercase and asLowercase of byte strings and Symbols (the primitives) answer what the Character loop answers: every Latin-1 code, ÿ going up to the wide Ÿ, wide strings."
+	| all wide |
+	all := String new: 256.
+	1 to: 256 do: [:i | all at: i put: (Character value: i - 1)].
+	self assert: all asUppercase equals: (all collect: [:c | c asUppercase]).
+	self assert: all asLowercase equals: (all collect: [:c | c asLowercase]).
+	self assert: (all copyFrom: 1 to: 255) asUppercase class equals: ByteString.
+	self assert: all asUppercase class equals: WideString.
+	self assert: all asUppercase last value equals: 376.
+	self assert: #abcXYZ asUppercase equals: 'ABCXYZ'.
+	self assert: #abcXYZ asLowercase class equals: ByteString.
+	self assert: '' asUppercase equals: ''.
+	wide := String with: $a with: (Character value: 955) with: $Z.
+	self assert: wide asUppercase equals: (String with: $A with: (Character value: 955) with: $Z).
+	self assert: wide asLowercase equals: (String with: $a with: (Character value: 955) with: $z)
+!
+testIndexOfPrimitives
+	"indexOf:startingAt: and indexOfSubCollection:startingAt: (primitives for Strings) answer what the loops of SequenceableCollection answer: byte, wide and Symbol receivers and arguments, starts past the end, arguments that are not Characters or Strings."
+	| lambda strings chars patterns |
+	lambda := Character value: 955.
+	strings := {'abcabc'. #abcabc. 'abc' , (String with: lambda) , 'abc'. ''. 'a'}.
+	chars := {$a. $c. lambda. $z. (Character value: 300). 97. nil}.
+	patterns := {'bc'. 'abc'. #ca. 'c' , (String with: lambda). (String with: lambda). 'abcabcx'. ''. {$b. $c}. 'x'}.
+	strings do: [:s |
+		chars do: [:c |
+			0 to: s size + 2 do: [:i |
+				self
+					assert: (i = 0 ifTrue: [s indexOf: c] ifFalse: [s indexOf: c startingAt: i])
+					equals: (i = 0
+						ifTrue: [(s asArray indexOf: c) ]
+						ifFalse: [s asArray indexOf: c startingAt: i])]].
+		patterns do: [:p |
+			1 to: s size + 2 do: [:i |
+				self
+					assert: (s indexOfSubCollection: p startingAt: i)
+					equals: (s asArray indexOfSubCollection: p asArray startingAt: i)]]].
+	self should: ['abc' indexOf: $a startingAt: 0] raise: Error.
+	self assert: ('hello' indexOf: $l ifAbsent: [0]) equals: 3.
+	self assert: ('hello' indexOf: $z ifAbsent: [#none]) equals: #none.
+	self assert: ('hello' includes: $o).
+	self deny: ('hello' includes: 111).
+	self assert: ('banana' occurrencesOf: $a) equals: 3.
+	self assert: ('banana' occurrencesOf: 97) equals: 0
+!
+testLines
+	| cr lf |
+	cr := String with: Character cr.
+	lf := String with: Character lf.
+	self assert: '' lines equals: #().
+	self assert: 'a' lines equals: #('a').
+	self assert: ('a' , lf) lines equals: #('a').
+	self assert: ('a' , cr , lf , 'b') lines equals: #('a' 'b').
+	self assert: ('a' , lf , cr , 'b') lines equals: #('a' '' 'b').
+	self assert: ('a' , cr , cr , 'b' , lf , lf) lines equals: #('a' '' 'b' '').
+	self assert: (lf , 'a' , cr , 'b' , cr , lf , 'c') lines equals: #('' 'a' 'b' 'c')
+!
 testSearching
 	self assert: ('hello world' includesSubstring: 'o w').
 	self deny: ('hello world' includesSubstring: 'xyz').

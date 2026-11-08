@@ -264,18 +264,25 @@ primFloatPrintString
 !
 printStringOf: a
 	<c: 'oop float_print_string(double a)'>
-	<var: #p type: 'int'>
+	<var: #lo type: 'int'>
+	<var: #hi type: 'int'>
+	<var: #mid type: 'int'>
 	<var: #nd type: 'int'>
-	| out buf digits p neg s nd exp o |
+	| out buf digits lo hi mid neg s nd exp o |
 	out := self local: 'char[64]'.
 	a ~= a ifTrue: [^memory stringFromUtf8: 'nan' size: 3].
 	(self isFinite: a) ifFalse: [^a < 0.0 ifTrue: [memory stringFromUtf8: '-inf' size: 4] ifFalse: [memory stringFromUtf8: 'inf' size: 3]].
 	a = 0.0 ifTrue: [^((self bitsOfDouble: a) >> 63) ~= 0 ifTrue: [memory stringFromUtf8: '-0.0' size: 4] ifFalse: [memory stringFromUtf8: '0.0' size: 3]].
 	buf := self local: 'char[40]'.
 	digits := self local: 'char[24]'.
-	p := 1.
-	[libc snprintf: buf size: 40 format: '%.*e' with: p - 1 with: a.
-	 (libm strtod: buf end: self null) = a or: [p >= 17]] whileFalse: [p := p + 1].
+	"the fewest significant digits that read back as a (17 always do), by bisection"
+	lo := 1.
+	hi := 17.
+	[lo < hi] whileTrue: [
+		mid := lo + hi quo: 2.
+		libc snprintf: buf size: 40 format: '%.*e' with: mid - 1 with: a.
+		(libm strtod: buf end: self null) = a ifTrue: [hi := mid] ifFalse: [lo := mid + 1]].
+	libc snprintf: buf size: 40 format: '%.*e' with: lo - 1 with: a.
 	neg := (buf at: 0) = $- value.
 	s := neg ifTrue: [buf + 1] ifFalse: [buf].
 	nd := 0.

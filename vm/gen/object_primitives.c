@@ -6,7 +6,47 @@ static oop instances_class;
 static size_t instances_count;
 static oop instances_result;
 
+static void prim_convert_case(bool upper);
 static void count_instance(oop o, void *d);
+
+/* ObjectPrimitives>>convertCase: */
+static void prim_convert_case(bool upper)
+{
+    oop r;
+    size_t n;
+    oop s;
+    uint8_t *a;
+    uint8_t *b;
+    int64_t i;
+    int32_t c;
+    r = prim_base[0];
+    if (!(((r & 7) == 0) && ((*(uint64_t *)(r + 8) == cls_bytestring) || (*(uint64_t *)(r + 8) == special(SO_BYTESYMBOL))))) {
+        prim_status = PS_FAIL;
+        prim_error_code = -1;
+        return;
+    }
+    n = byte_size(r);
+    s = alloc_bytes(cls_bytestring, n);
+    r = prim_base[0];
+    a = (uint8_t *)(r + 16);
+    b = (uint8_t *)(s + 16);
+    for (i = 0; i <= (int64_t)n - 1; i++) {
+        c = (int32_t)a[i];
+        if (upper) {
+            if (c == 255) {
+                prim_status = PS_FAIL;
+                prim_error_code = -1;
+                return;
+            }
+            c = ((c >= 97) && (c <= 122)) || ((c >= 224) && ((c <= 254) && (c != 247))) ? c - 32 : c;
+        } else {
+            c = ((c >= 65) && (c <= 90)) || ((c >= 192) && ((c <= 222) && (c != 215))) ? c + 32 : c;
+        }
+        b[i] = (uint8_t)c;
+    }
+    prim_result = s;
+    prim_status = PS_OK;
+}
 
 /* ObjectPrimitives>>countInstance:data: */
 static void count_instance(oop o, void *d)
@@ -1376,6 +1416,18 @@ void prim_special_objects_array(void)
     prim_status = PS_OK;
 }
 
+/* ObjectPrimitives>>primStringAsLowercase */
+void prim_string_as_lowercase(void)
+{
+    prim_convert_case(false);
+}
+
+/* ObjectPrimitives>>primStringAsUppercase */
+void prim_string_as_uppercase(void)
+{
+    prim_convert_case(true);
+}
+
 /* ObjectPrimitives>>primStringAt */
 void prim_string_at(void)
 {
@@ -1618,6 +1670,150 @@ exit_is_string_like:;
     v = string_hash(s);
     v_2 = (uint64_t)((((int64_t)v) << 1) | 1);
     prim_result = v_2;
+    prim_status = PS_OK;
+}
+
+/* ObjectPrimitives>>primStringIndexOf */
+void prim_string_index_of(void)
+{
+    oop r;
+    oop c;
+    oop s;
+    bool r_is_string_like;
+    int32_t f;
+    uint32_t v;
+    uint8_t *b;
+    int64_t i;
+    int64_t stop;
+    int64_t v_2;
+    uint64_t v_3;
+    uint32_t *w;
+    int64_t i_2;
+    int64_t stop_2;
+    int64_t v_4;
+    uint64_t v_5;
+    r = prim_base[0];
+    c = prim_base[1];
+    s = prim_base[2];
+    if (!((prim_nargs == 2) && (({
+    if (!((r & 7) == 0)) {
+        r_is_string_like = false;
+        goto exit_is_string_like;
+    }
+    f = (int32_t)(((*(uint64_t *)r) >> H_FMT_SHIFT) & H_FMT_MASK);
+    r_is_string_like = (f >= F_BYTES) || ((f == 10) || (f == 11));
+exit_is_string_like:;
+    r_is_string_like; }) && (((c & 7) == 2) && (((s & 1) != 0) && ((((int64_t)s) >> 1) >= 1)))))) {
+        prim_status = PS_FAIL;
+        prim_error_code = -1;
+        return;
+    }
+    v = (uint32_t)(c >> 3);
+    if ((int32_t)(((*(uint64_t *)r) >> H_FMT_SHIFT) & H_FMT_MASK) >= F_BYTES) {
+        b = (uint8_t *)(r + 16);
+        if (v < 256) {
+            stop = (int64_t)byte_size(r) - 1;
+            for (i = (((int64_t)s) >> 1) - 1; i <= stop; i++) {
+                if ((uint32_t)b[i] == v) {
+                    v_2 = i + 1;
+                    v_3 = (uint64_t)((v_2 << 1) | 1);
+                    prim_result = v_3;
+                    prim_status = PS_OK;
+                    return;
+                }
+            }
+        }
+    } else {
+        w = (uint32_t *)(r + 16);
+        stop_2 = (int64_t)word32_size(r) - 1;
+        for (i_2 = (((int64_t)s) >> 1) - 1; i_2 <= stop_2; i_2++) {
+            if (w[i_2] == v) {
+                v_4 = i_2 + 1;
+                v_5 = (uint64_t)((v_4 << 1) | 1);
+                prim_result = v_5;
+                prim_status = PS_OK;
+                return;
+            }
+        }
+    }
+    prim_result = 1ULL;
+    prim_status = PS_OK;
+}
+
+/* ObjectPrimitives>>primStringIndexOfSubstring */
+void prim_string_index_of_substring(void)
+{
+    oop r;
+    oop p;
+    oop s;
+    bool r_is_string_like;
+    int32_t f;
+    int64_t n;
+    int64_t m;
+    uint8_t *a;
+    uint8_t *b;
+    uint8_t first;
+    int64_t i;
+    int64_t v;
+    uint64_t v_2;
+    int64_t i_2;
+    int64_t k;
+    int64_t v_3;
+    uint64_t v_4;
+    r = prim_base[0];
+    p = prim_base[1];
+    s = prim_base[2];
+    if (!((prim_nargs == 2) && (({
+    if (!((r & 7) == 0)) {
+        r_is_string_like = false;
+        goto exit_is_string_like;
+    }
+    f = (int32_t)(((*(uint64_t *)r) >> H_FMT_SHIFT) & H_FMT_MASK);
+    r_is_string_like = (f >= F_BYTES) || ((f == 10) || (f == 11));
+exit_is_string_like:;
+    r_is_string_like; }) && (is_kind_of_string(p) && (((s & 1) != 0) && ((((int64_t)s) >> 1) >= 1)))))) {
+        prim_status = PS_FAIL;
+        prim_error_code = -1;
+        return;
+    }
+    n = (int64_t)string_size(r);
+    m = (int64_t)string_size(p);
+    if (m == 0) {
+        prim_result = s;
+        prim_status = PS_OK;
+        return;
+    }
+    if (((int32_t)(((*(uint64_t *)r) >> H_FMT_SHIFT) & H_FMT_MASK) >= F_BYTES) && ((int32_t)(((*(uint64_t *)p) >> H_FMT_SHIFT) & H_FMT_MASK) >= F_BYTES)) {
+        a = (uint8_t *)(r + 16);
+        b = (uint8_t *)(p + 16);
+        first = b[0];
+        for (i = (((int64_t)s) >> 1) - 1; i <= n - m; i++) {
+            if ((a[i] == first) && (memcmp(a + i, b, (uint64_t)m) == 0)) {
+                v = i + 1;
+                v_2 = (uint64_t)((v << 1) | 1);
+                prim_result = v_2;
+                prim_status = PS_OK;
+                return;
+            }
+        }
+        prim_result = 1ULL;
+        prim_status = PS_OK;
+        return;
+    }
+    for (i_2 = (((int64_t)s) >> 1) - 1; i_2 <= n - m; i_2++) {
+        k = 0;
+        while ((k < m) && (string_char_at(r, (uint64_t)(i_2 + k)) == string_char_at(p, (uint64_t)k))) {
+            k = k + 1;
+        }
+        if (k == m) {
+            v_3 = i_2 + 1;
+            v_4 = (uint64_t)((v_3 << 1) | 1);
+            prim_result = v_4;
+            prim_status = PS_OK;
+            return;
+        }
+    }
+    prim_result = 1ULL;
     prim_status = PS_OK;
 }
 

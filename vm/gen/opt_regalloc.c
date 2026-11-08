@@ -12,6 +12,7 @@ static int32_t ra_live_in;
 static int32_t ra_live_out;
 static int32_t ra_live_words;
 static int32_t ra_max_pos;
+static uint8_t ra_safe_call[4096];
 static int32_t ra_safe_count;
 int32_t ra_safe_list[262144];
 static int32_t ra_safe_list_count;
@@ -55,19 +56,22 @@ static bool opt_assign_slots(void)
     int32_t i;
     int32_t v;
     opt_node *nd;
-    bool r_crosses_safepoint;
+    bool r_crosses_call;
     opt_node *nd_2;
     int32_t i_2;
     bool r_fail;
-    bool r_crosses_safepoint_2;
+    bool r_crosses_safepoint;
     opt_node *nd_3;
     int32_t i_3;
-    bool r_crosses_safepoint_3;
+    bool r_crosses_safepoint_2;
     opt_node *nd_4;
     int32_t i_4;
     int64_t j;
     int32_t n;
     int32_t n_2;
+    bool r_crosses_call_2;
+    opt_node *nd_5;
+    int32_t i_5;
     ra_slot_top = ra_slot_base;
     ra_slot_free_count = 0;
     ra_active_count = 0;
@@ -77,17 +81,17 @@ static bool opt_assign_slots(void)
         if (((int32_t)nd->rep == R_DBL) && ({
     nd_2 = opt_nodes + v;
     for (i_2 = 0; i_2 <= ra_safe_count - 1; i_2++) {
-        if ((ra_safe_pos[i_2] >= nd_2->lstart) && (ra_safe_pos[i_2] < nd_2->lend)) {
-            r_crosses_safepoint = true;
-            goto exit_crosses_safepoint;
+        if ((ra_safe_call[i_2] != 0) && ((ra_safe_pos[i_2] >= nd_2->lstart) && (ra_safe_pos[i_2] < nd_2->lend))) {
+            r_crosses_call = true;
+            goto exit_crosses_call;
         }
     }
-    r_crosses_safepoint = false;
-exit_crosses_safepoint:;
-    r_crosses_safepoint; })) {
+    r_crosses_call = false;
+exit_crosses_call:;
+    r_crosses_call; })) {
             return ({
     if (getenv("SAMALTAK_OPT_TRACE") != NULL) {
-        fprintf(stderr, "double v%d lives across a safepoint", v);
+        fprintf(stderr, "double v%d lives across a call", v);
         fputc(10, stderr);
     }
     r_fail = false;
@@ -97,26 +101,26 @@ exit_crosses_safepoint:;
     nd_3 = opt_nodes + v;
     for (i_3 = 0; i_3 <= ra_safe_count - 1; i_3++) {
         if ((ra_safe_pos[i_3] >= nd_3->lstart) && (ra_safe_pos[i_3] < nd_3->lend)) {
-            r_crosses_safepoint_2 = true;
-            goto exit_crosses_safepoint_2;
+            r_crosses_safepoint = true;
+            goto exit_crosses_safepoint;
         }
     }
-    r_crosses_safepoint_2 = false;
-exit_crosses_safepoint_2:;
-    r_crosses_safepoint_2; })) && (((int32_t)nd->op == O_PARAM) && (nd->aux >= 0))) {
+    r_crosses_safepoint = false;
+exit_crosses_safepoint:;
+    r_crosses_safepoint; })) && (((int32_t)nd->op == O_PARAM) && (nd->aux >= 0))) {
             nd->slot = (int16_t)nd->aux;
         }
         if (((nd->reg < 0) || ({
     nd_4 = opt_nodes + v;
     for (i_4 = 0; i_4 <= ra_safe_count - 1; i_4++) {
         if ((ra_safe_pos[i_4] >= nd_4->lstart) && (ra_safe_pos[i_4] < nd_4->lend)) {
-            r_crosses_safepoint_3 = true;
-            goto exit_crosses_safepoint_3;
+            r_crosses_safepoint_2 = true;
+            goto exit_crosses_safepoint_2;
         }
     }
-    r_crosses_safepoint_3 = false;
-exit_crosses_safepoint_3:;
-    r_crosses_safepoint_3; })) && (nd->slot < 0)) {
+    r_crosses_safepoint_2 = false;
+exit_crosses_safepoint_2:;
+    r_crosses_safepoint_2; })) && ((nd->slot < 0) && ((int32_t)nd->rep != R_DBL))) {
             j = 0;
             while (j < ra_active_count) {
                 n = ra_active[j];
@@ -145,6 +149,19 @@ exit_crosses_safepoint_3:;
             }
             ra_active[ra_active_count] = v;
             ra_active_count = ra_active_count + 1;
+            if ((nd->reg >= 0) && (!({
+    nd_5 = opt_nodes + v;
+    for (i_5 = 0; i_5 <= ra_safe_count - 1; i_5++) {
+        if ((ra_safe_call[i_5] != 0) && ((ra_safe_pos[i_5] >= nd_5->lstart) && (ra_safe_pos[i_5] < nd_5->lend))) {
+            r_crosses_call_2 = true;
+            goto exit_crosses_call_2;
+        }
+    }
+    r_crosses_call_2 = false;
+exit_crosses_call_2:;
+    r_crosses_call_2; }))) {
+                nd->flags = nd->flags | NF_LAZY;
+            }
         }
     }
     return true;
@@ -852,6 +869,7 @@ static void opt_number_positions(void)
     r_is_safepoint = (op == O_SEND) || ((op == O_CALL) || (op == O_CHECKINT));
     r_is_safepoint; }) && (ra_safe_count < RA_MAX_SAFE)) {
                     ra_safe_pos[ra_safe_count] = pos;
+                    ra_safe_call[ra_safe_count] = (int32_t)nd->op == O_CHECKINT ? 0 : 1;
                     ra_safe_count = ra_safe_count + 1;
                 }
             }

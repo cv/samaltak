@@ -172,12 +172,14 @@ emitAt: pc
 	(analysis isBlockStart: pc)
 		ifTrue: [
 			(self emitBlockEntry: pc) ifFalse: [^false].
-			(analysis isTarget: pc) ifTrue: [selfValid := false]]
+			(analysis isTarget: pc) ifTrue: [selfValid := false].
+			(analysis isLoopHead: pc) ifTrue: [self headCheck: pc]]
 		ifFalse: [
 			pc = 0
 				ifTrue: [
 					asm bind: (self labelFor: 0).
-					(analysis isTarget: 0) ifTrue: [selfValid := false]]
+					(analysis isTarget: 0) ifTrue: [selfValid := false].
+					(analysis isLoopHead: 0) ifTrue: [self headCheck: 0]]
 				ifFalse: [
 					((analysis isTarget: pc) or: [(pcMerge at: pc) = 1]) ifTrue: [
 						(dead not and: [self canThreadInto: pc]) ifTrue: [self threadInto: pc].
@@ -187,7 +189,9 @@ emitAt: pc
 						self ssReset: d.
 						selfValid := false.
 						dead := false.
-						(analysis isLoopHead: pc) ifTrue: [self noteLoopResume: pc]]]].
+						(analysis isLoopHead: pc) ifTrue: [
+							self noteLoopResume: pc.
+							self headCheck: pc]]]].
 	dead ifTrue: [^true].
 	ssTop = d ifFalse: [^false].
 	asm bytecode: pc.
@@ -265,9 +269,11 @@ popRegion
 
 !JitBaselineCompiler methodsFor: 'loop temps'!
 beginLoopAt: head
-	"An innermost loop from head that sends nothing (inline operations' slow paths aside), entered only by falling in and by its back jumps: its most used temps (up to 3) live in x26-x28 too, stored through to their slots. Loaded here, on the way in."
+	"An innermost loop from head that makes no closures, Arrays or thisContext, entered only by falling in and by its back jumps: its most used temps (up to 3, each used more often than the loop sends) live in x26-x28 too, stored through to their slots. Loaded here, on the way in, and again after every call out of the loop (sends, slow paths: the callee and the collector change them)."
 	<c: 'void bl_begin_loop(int32_t head)'>
-	| end n p op t k best bestCount c |
+	| end n p op t k best bestCount c sends |
+	"a jump threaded into the loop's head would skip the loads below"
+	(pcMerge at: head) = 1 ifTrue: [^self].
 	n := analysis size.
 	end := -1 asInt32.
 	p := head.
@@ -279,6 +285,7 @@ beginLoopAt: head
 			ifFalse: [p := (p + 1) asInt32]].
 	end < 0 ifTrue: [^self].
 	"what the loop does, and who jumps into it"
+	sends := 0.
 	p := 0 asInt32.
 	[p < n] whileTrue: [
 		(analysis isStart: p) ifTrue: [
@@ -286,12 +293,13 @@ beginLoopAt: head
 			(p >= head and: [p <= end])
 				ifTrue: [
 					(p ~= head and: [analysis isLoopHead: p]) ifTrue: [^self].
-					(op = 16r8D or: [op = 16r8E or: [(op >= 16rC0 and: [op < 16rF0]) or: [op = 16r8F or: [op = 16r76 or: [op = 16r94]]]]]) ifTrue: [^self].
+					(op = 16r8F or: [op = 16r76 or: [op = 16r94]]) ifTrue: [^self].
+					(op = 16r8D or: [op = 16r8E or: [op >= 16rC0 and: [op < 16rF0]]]) ifTrue: [sends := sends + 1].
 					(op >= 16rA0 and: [op < 16rC0]) ifTrue: [
-						(self specialSends: op - 16rA0) ifTrue: [^self]].
+						(self specialSends: op - 16rA0) ifTrue: [sends := sends + 1]].
 					((op >= 16r97 and: [op < 16rA0]) or: [op >= 16rF0 and: [op < 16rFC]]) ifTrue: [
 						k := analysis specialIndexOf: analysis bytecodes + p.
-						(self specialSends: k) ifTrue: [^self]]]
+						(self specialSends: k) ifTrue: [sends := sends + 1]]]
 				ifFalse: [
 					((op >= 16r90 and: [op <= 16r92]) and: [(analysis jumpTargetAt: p) >= head and: [(analysis jumpTargetAt: p) <= end]]) ifTrue: [^self]].
 			p := (p + (analysis lengthAt: p)) asInt32]
@@ -301,7 +309,7 @@ beginLoopAt: head
 	c := 0.
 	1 to: 3 do: [:round |
 		best := -1.
-		bestCount := 1.
+		bestCount := sends max: 1.
 		0 to: curArgs + curTemps - 1 do: [:tt |
 			(self isLoopTemp: tt among: c) ifFalse: [
 				t := self uses: tt from: head to: end.
@@ -964,6 +972,8 @@ emitPrimitive
 		k = brt pkCharFromValue ifTrue: [self emitCharFromValuePrimitive: fail].
 		(k = brt pkAt or: [k = brt pkAtPut or: [k = brt pkBasicSize]]) ifTrue: [self emitIndexedPrimitive: k fail: fail].
 		(k = brt pkUint32At or: [k = brt pkUint32AtPut]) ifTrue: [self emitUint32Primitive: k = brt pkUint32AtPut fail: fail].
+		(k = brt pkStringAt and: [curArgs = 1]) ifTrue: [self emitStringPrimitive: false fail: fail].
+		(k = brt pkStringAtPut and: [curArgs = 2]) ifTrue: [self emitStringPrimitive: true fail: fail].
 		k = brt pkStringCompare ifTrue: [self emitStringComparePrimitive: fail].
 		k = brt pkHash ifTrue: [self emitHashPrimitive: fail]].
 	k = brt pkMarker ifTrue: [^true].
@@ -1262,6 +1272,71 @@ emitIndexedResult: k
 		asm lsl: X0 with: X0 imm: 1.
 		asm orr: X0 with: X0 imm: 1].
 	k = brt pkAtPut ifTrue: [asm mov: X0 with: X2].
+	asm ret
+!
+emitStringPrimitive: isPut fail: fail
+	"stringAt and stringAtPut: at: and at:put: of a String, bytes or 32-bit words: a SmallInteger index (slot 0) within the size; a Character answered, or stored (a byte's into bytes) into a receiver not immutable. Anything else the C function."
+	<c: 'void bl_emit_string_primitive(bool isPut, int32_t fail)'>
+	| words |
+	words := asm newLabel.
+	asm comment: (isPut ifTrue: ['primitive stringAtPut'] ifFalse: ['primitive stringAt']).
+	asm tst: X0 imm: 7.
+	asm b: fail if: COND_NE.
+	asm ldr: X11 base: X0 offset: 0.
+	asm ubfx: X9 with: X11 lsb: H_FMT_SHIFT width: 5.
+	asm ubfx: X10 with: X11 lsb: 0 width: 32.
+	asm comment: 'the index: a SmallInteger, zero-based in x16'.
+	asm ldr: X1 base: X20 offset: (self slot: 0).
+	asm tbz: X1 bit: 0 to: fail.
+	asm asr: X16 with: X1 imm: 1.
+	asm sub: X16 with: X16 imm: 1.
+	isPut ifTrue: [
+		asm comment: 'not immutable; a Character, its code in x12'.
+		asm tbnz: X11 bit: 59 to: fail.
+		asm ldr: X2 base: X20 offset: (self slot: 1).
+		asm and: X12 with: X2 imm: 7.
+		asm cmp: X12 imm: 2.
+		asm b: fail if: COND_NE.
+		asm lsr: X12 with: X2 imm: 3].
+	asm add: X17 with: X0 imm: 16.
+	asm cmp: X9 imm: F_BYTES.
+	asm b: words if: COND_LO.
+	asm comment: 'bytes: slots * 8 - (format - 16)'.
+	asm lsl: X10 with: X10 imm: 3.
+	asm sub: X10 with: X10 with: X9.
+	asm add: X10 with: X10 imm: F_BYTES.
+	asm cmp: X16 with: X10.
+	asm b: fail if: COND_HS.
+	isPut
+		ifTrue: [
+			asm cmp: X12 imm: 255.
+			asm b: fail if: COND_HI.
+			asm strb: W12 base: X17 index: X16.
+			asm mov: X0 with: X2]
+		ifFalse: [
+			asm ldrb: W0 base: X17 index: X16.
+			asm lsl: X0 with: X0 imm: 3.
+			asm orr: X0 with: X0 imm: 2].
+	asm ret.
+	asm bind: words.
+	asm comment: '32-bit words: slots * 2 - (format - 10)'.
+	asm cmp: X9 imm: F_W32.
+	asm b: fail if: COND_LO.
+	asm cmp: X9 imm: F_W32 + 1.
+	asm b: fail if: COND_HI.
+	asm lsl: X10 with: X10 imm: 1.
+	asm sub: X10 with: X10 with: X9.
+	asm add: X10 with: X10 imm: F_W32.
+	asm cmp: X16 with: X10.
+	asm b: fail if: COND_HS.
+	isPut
+		ifTrue: [
+			asm str: W12 base: X17 index: X16 extend: EXT_LSL shift: 2.
+			asm mov: X0 with: X2]
+		ifFalse: [
+			asm ldr: W0 base: X17 index: X16 extend: EXT_LSL shift: 2.
+			asm lsl: X0 with: X0 imm: 3.
+			asm orr: X0 with: X0 imm: 2].
 	asm ret
 !
 emitUint32Primitive: isPut fail: fail
@@ -1575,6 +1650,7 @@ pushContextField: i pc: pc
 	asm bind: married.
 	asm comment: 'married: its frame answers'.
 	self emitRuntimeCall: (asm labelAt: stubs contextFieldStub) pc: pc depth: ssTop.
+	loopActive ifTrue: [self emitLoadLoopTemps: loopId].
 	asm bind: done.
 	^self ssPush: SS_SLOT val: 0 reg: -1
 !
@@ -1825,9 +1901,10 @@ prepareSend: ri
 	self loadReceiver: ri kind: k reg: r val: v
 !
 finishSend: n pc: pc
-	"The send's receiver and n arguments are gone, its result is in x0."
+	"The send's receiver and n arguments are gone, its result is in x0; the loop's temps again."
 	self ssPop: n + 1.
 	self ssDropRegsAfterCall.
+	loopActive ifTrue: [self emitLoadLoopTemps: loopId].
 	self noteContinuation: pc result: X0.
 	^self ssPushReg: X0
 !
@@ -1848,23 +1925,27 @@ exitAt: pc
 	dead := true.
 	^true
 !
-interruptCheck: t
-	"A backward jump to t: the interrupt flag's check (inline), its slow path out of line; answer the label of the check."
-	<c: 'int32_t bl_interrupt_check(int32_t t)'>
-	| check s |
-	check := asm newLabel.
-	asm bind: check.
-	s := self slow: SL_INTERRUPT pc: t depth: (analysis depthAt: t).
-	s < 0 ifTrue: [
-		asm fail: ASM_ERR_LABEL.
-		^check].
-	slCont at: s put: (self labelFor: t).
-	asm comment: 'jump back: interrupt check'.
+headCheck: h
+	"A loop's head, where every turn of the loop passes: the interrupt flag's check (inline), its slow path out of line."
+	<c: 'void bl_head_check(int32_t h)'>
+	| s |
+	s := self slow: SL_INTERRUPT pc: h depth: (analysis depthAt: h).
+	s < 0 ifTrue: [^asm fail: ASM_ERR_LABEL].
+	slCont at: s put: (self labelFor: h).
+	asm comment: 'loop head: interrupt check'.
 	asm ldr: W16 base: X22 offset: self interruptOffset.
-	asm cbnz: W16 to: (slLabel at: s).
+	asm cbnz: W16 to: (slLabel at: s)
+!
+backJump: t
+	"A backward jump to the loop head t (which checks for interrupts), counting down toward optimization first (--jit opt); answer its label."
+	<c: 'int32_t bl_back_jump(int32_t t)'>
+	| l |
+	l := asm newLabel.
+	asm bind: l.
 	(self emitTierUp: t depth: (analysis depthAt: t) loop: 1) ifFalse: [asm fail: ASM_ERR_LABEL].
+	asm comment: 'jump back'.
 	asm b: (self labelFor: t).
-	^check
+	^l
 !
 jump: pc
 	| t |
@@ -1872,7 +1953,7 @@ jump: pc
 	(self canThreadInto: t) ifTrue: [^self threadInto: t].
 	self ssFlushAll.
 	(analysis isLoopHead: t)
-		ifTrue: [self interruptCheck: t]
+		ifTrue: [self backJump: t]
 		ifFalse: [
 			asm comment: 'jump'.
 			asm b: (self labelFor: t)].
@@ -1905,15 +1986,15 @@ threadInto: j
 	^true
 !
 branch: cond to: t
-	"Branch to t if cond (the stack is in its slots); a backward branch checks for interrupts. Answer the label slow paths branch to for the same jump."
+	"Branch to t if cond (the stack is in its slots); a backward branch counts down toward optimization first (--jit opt). Answer the label slow paths branch to for the same jump."
 	<c: 'int32_t bl_branch(int32_t cond, int32_t t)'>
 	| skip check |
-	(analysis isLoopHead: t) ifFalse: [
+	((analysis isLoopHead: t) and: [counterAddr ~= 0]) ifFalse: [
 		asm b: (self labelFor: t) if: cond.
 		^self labelFor: t].
 	skip := asm newLabel.
 	asm b: skip if: (cond bitXor: 1).
-	check := self interruptCheck: t.
+	check := self backJump: t.
 	asm bind: skip.
 	^check
 !
@@ -1930,7 +2011,7 @@ conditionalJump: pc
 			self ssFlushAll.
 			asm comment: 'the condition is constant: jump'.
 			(analysis isLoopHead: t)
-				ifTrue: [self interruptCheck: t]
+				ifTrue: [self backJump: t]
 				ifFalse: [asm b: (self labelFor: t)].
 			dead := true].
 		^true].
@@ -2250,15 +2331,6 @@ isCertainFloat: i
 	(k = SS_TEMP and: [(self tempDouble: (ssVal at: i) asInt32) >= 0]) ifTrue: [^true].
 	^k = SS_CONST and: [((ssVal at: i) bitAnd: 7) = 4]
 !
-constantDouble: v
-	"The IEEE bits of the SmallInteger or SmallFloat64 constant v."
-	| r b |
-	(v bitAnd: 1) ~= 0 ifTrue: [^self bitsOfDouble: (v asInt64 >> 1) asFloat].
-	r := v asUInt64 >> 3.
-	r <= 1 ifTrue: [^r << 63].
-	b := r + (896 asUInt64 << 53).
-	^(b >> 1) bitOr: (b << 63)
-!
 loadDouble: bits into: d
 	asm comment: 'a Float constant'.
 	asm mov: X16 imm: bits.
@@ -2474,7 +2546,7 @@ fold: k a: a b: b
 arith: k pc: pc pushes: pushes
 	"SmallInteger arithmetic and comparisons inline (tag checks, overflow branches, immediates); Floats and anything else in the slow path (inline Floats, then a send)."
 	<c: 'bool bl_arith(int32_t k, int32_t pc, int32_t pushes)'>
-	| a b ra rb rr s imm c compare j aKnown bKnown bv |
+	| a b ra rb rr s imm c compare j aKnown bKnown bv same |
 	a := ssTop - 2.
 	b := ssTop - 1.
 	(self foldable: k a: a b: b) ifTrue: [^self fold: k a: a b: b].
@@ -2483,6 +2555,8 @@ arith: k pc: pc pushes: pushes
 	aKnown := self ssIsSmallInt: a.
 	bKnown := self ssIsSmallInt: b.
 	bv := ssVal at: b.
+	"the same temp twice (x * x): one register"
+	same := (ssKind at: a) = SS_TEMP and: [(ssKind at: b) = SS_TEMP and: [(ssVal at: a) = bv]].
 	self ssFlushKeepingDoublesTo: a.
 	ra := self ssMaterialize: a.
 	c := bKnown ifTrue: [bv >> 1] ifFalse: [0].
@@ -2491,7 +2565,7 @@ arith: k pc: pc pushes: pushes
 		((k = 0 or: [k = 1]) and: [c > -2048 and: [c < 2048]]) or: [
 			(compare and: [bv >= 0 and: [bv < 4096]]) or: [
 				(k = 12 and: [c > -62 and: [c < 62]]) or: [(k = 14 or: [k = 15]) and: [c >= 0]]]]].
-	rb := imm ifTrue: [-2] ifFalse: [self ssMaterialize: b].
+	rb := imm ifTrue: [-2] ifFalse: [same ifTrue: [ra] ifFalse: [self ssMaterialize: b]].
 	rr := self allocReg.
 	s := self slow: SL_SEND pc: pc depth: ssTop.
 	s < 0 ifTrue: [^false].
@@ -2909,6 +2983,7 @@ emitBoxSlow: i
 		reg := (saved at: k + 1) asInt32.
 		asm ldr: (reg bitAnd: 255) base: X20 offset: (self slot: slot).
 		k := k + 2].
+	self emitLoadLoopTemps: (slLoop at: i).
 	asm ldr: X21 base: X20 offset: -8.
 	asm b: (slCont at: i)
 !
@@ -3060,6 +3135,13 @@ emitToDouble: r into: d fail: fail
 	int := asm newLabel.
 	obj := asm newLabel.
 	done := asm newLabel.
+	self emitSmallFloat: r into: d int: int obj: obj.
+	asm b: done.
+	self emitOtherFloat: r into: d int: int obj: obj fail: fail done: done.
+	asm bind: done
+!
+emitSmallFloat: r into: d int: int obj: obj
+	"d := the SmallFloat64 in r; a SmallInteger branches to int, anything else to obj (x16 its tag). Uses x16, x17."
 	asm tbnz: r bit: 0 to: int.
 	asm and: X16 with: r imm: 7.
 	asm cmp: X16 imm: 4.
@@ -3071,8 +3153,10 @@ emitToDouble: r into: d fail: fail
 	asm cmp: X16 imm: 1.
 	asm csel: X16 with: X16 with: X17 cond: COND_LS.
 	asm ror: X16 with: X16 imm: 1.
-	asm fmov: d with: X16.
-	asm b: done.
+	asm fmov: d with: X16
+!
+emitOtherFloat: r into: d int: int obj: obj fail: fail done: done
+	"emitSmallFloat:into:int:obj:'s other cases: a BoxedFloat64 at obj (then to done; anything else to fail), a SmallInteger at int (falling through)."
 	asm bind: obj.
 	asm cbnz: X16 to: fail.
 	asm comment: 'a BoxedFloat64: its word'.
@@ -3085,8 +3169,7 @@ emitToDouble: r into: d fail: fail
 	asm bind: int.
 	asm comment: 'a SmallInteger: convert'.
 	asm asr: X16 with: r imm: 1.
-	asm scvtf: d with: X16.
-	asm bind: done
+	asm scvtf: d with: X16
 !
 emitBox: d into: r cont: cont fail: fail
 	"r := the Float in d if it is a SmallFloat64, then branch to cont; else branch to fail."
@@ -3113,23 +3196,45 @@ emitBox: d into: r cont: cont fail: fail
 	asm b: cont
 !
 emitFloatPath: i send: send
-	"Floats (SmallFloat64, BoxedFloat64, at most one SmallInteger) inline; two SmallIntegers (an overflow) and anything else send."
-	| k ra rb cond |
-	k := ((slInfo at: i) >> 16) bitAnd: 255.
+	"Floats (SmallFloat64, BoxedFloat64, at most one SmallInteger) inline, SmallFloat64s straight through (the other cases after); two SmallIntegers (an overflow) and anything else send."
+	| ra rb ia oa da ib ob db |
 	ra := slA at: i.
 	rb := slB at: i.
+	ia := asm newLabel.
+	oa := asm newLabel.
+	da := asm newLabel.
+	ib := asm newLabel.
+	ob := asm newLabel.
+	db := asm newLabel.
 	asm comment: 'Floats inline: not two SmallIntegers'.
 	rb = -2
 		ifTrue: [asm tbnz: ra bit: 0 to: send]
 		ifFalse: [
 			asm and: X16 with: ra with: rb.
 			asm tbnz: X16 bit: 0 to: send].
-	self emitToDouble: ra into: D0 fail: send.
+	self emitSmallFloat: ra into: D0 int: ia obj: oa.
+	asm bind: da.
 	rb = -2
 		ifTrue: [
 			asm mov: X16 imm: (slY at: i) >> 1.
 			asm scvtf: D1 with: X16]
-		ifFalse: [self emitToDouble: rb into: D1 fail: send].
+		ifFalse: [
+			rb = ra
+				ifTrue: [asm fmov: D1 with: D0]
+				ifFalse: [
+					self emitSmallFloat: rb into: D1 int: ib obj: ob.
+					asm bind: db]].
+	self emitFloatResult: i send: send.
+	self emitOtherFloat: ra into: D0 int: ia obj: oa fail: send done: da.
+	asm b: da.
+	(rb = -2 or: [rb = ra]) ifTrue: [^self].
+	self emitOtherFloat: rb into: D1 int: ib obj: ob fail: send done: db.
+	asm b: db
+!
+emitFloatResult: i send: send
+	"emitFloatPath:send:'s operation on d0 and d1, its result to the main line."
+	| k cond |
+	k := ((slInfo at: i) >> 16) bitAnd: 255.
 	counterAddr ~= 0 ifTrue: [self emitFloatFeedback: (slPc at: i)].
 	(k >= 2 and: [k <= 7]) ifTrue: [
 		asm fcmp: D0 with: D1.

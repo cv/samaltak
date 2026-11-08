@@ -327,10 +327,10 @@ copyReplaceAll: oldSubCollection with: newSubCollection
 	stream := WriteStream on: (self species new: self size).
 	start := 1.
 	[(index := self indexOfSubCollection: oldSubCollection startingAt: start) > 0] whileTrue: [
-		start to: index - 1 do: [:i | stream nextPut: (self at: i)].
+		stream nextPutAll: (self copyFrom: start to: index - 1).
 		stream nextPutAll: newSubCollection.
 		start := index + oldSubCollection size].
-	start to: self size do: [:i | stream nextPut: (self at: i)].
+	stream nextPutAll: (self copyFrom: start to: self size).
 	^stream contents
 !
 copyReplacing: oldObject with: newObject

@@ -1,5 +1,5 @@
 OptModule subclass: #OptCodegen
-	instanceVariableNames: 'ir passes regalloc cgCodeStart cgBcSize cgValidSlots cgEntryPc cgSlotTop cgMaxOut cgNeed cgExitPlainLabel cgExitSyncLabel cgDeoptLabel cgReturnLabel cgHeaderLabel cgChecksLabel cgBodyLabel cgInterruptLabel cgBarrierLabel cgDeoptReturnLabel cgStackFullLabel cgOuts cgOutCount cgPoolOops cgPoolLabels cgPoolCount cgMetaWords cgMetaCount cgSpOffsets cgSpCount cgMoveSrc cgMoveDst cgMoveLoc cgMoveCount cgRootAct cgLastPc cgLastAct builder cgDeps cgDepCount cgSunk cgSunkCount cgChainActs cgChainCount cgDoubles cgSiteBl cgSiteLit cgSiteInfo cgSiteIndex cgSiteSel cgSiteCount cgRetOff cgRetIndex cgRetArgc cgRetCount'
+	instanceVariableNames: 'ir passes regalloc cgCodeStart cgBcSize cgValidSlots cgEntryPc cgSlotTop cgMaxOut cgNeed cgExitPlainLabel cgExitSyncLabel cgDeoptLabel cgReturnLabel cgHeaderLabel cgChecksLabel cgBodyLabel cgInterruptLabel cgBarrierLabel cgDeoptReturnLabel cgStackFullLabel cgOuts cgOutCount cgPoolOops cgPoolLabels cgPoolCount cgMetaWords cgMetaCount cgSpOffsets cgSpCount cgMoveSrc cgMoveDst cgMoveLoc cgMoveCount cgRootAct cgLastPc cgLastAct builder cgDeps cgDepCount cgSunk cgSunkCount cgChainActs cgChainCount cgDoubles cgSiteBl cgSiteLit cgSiteInfo cgSiteIndex cgSiteSel cgSiteCount cgRetOff cgRetIndex cgRetArgc cgRetCount cgOrder cgPlaced'
 	classVariableNames: 'CG_MAX_META CG_MAX_MOVES CG_MAX_OUT CG_MAX_POOL CG_MAX_RETS CG_MAX_SITES CG_MAX_SP OUT_BARRIER OUT_BOTTOM OUT_DEOPT OUT_INTERRUPT OUT_LAZY OUT_RESUME OUT_SENT OUT_SITE OUT_STACK OUT_WIDOW'
 	package: 'VM-Jit'!
 
@@ -20,7 +20,8 @@ declarations
 		(builder OptBuilder) (cgDeps 'int32_t[256]') (cgDepCount int32_t)
 		(cgSunk 'int32_t[64]') (cgSunkCount int32_t) (cgDoubles bool) (cgChainActs 'int32_t[512]') (cgChainCount int32_t)
 		(cgSiteBl 'uint32_t[CG_MAX_SITES]') (cgSiteLit 'int32_t[CG_MAX_SITES]') (cgSiteInfo 'uint32_t[CG_MAX_SITES]') (cgSiteIndex 'int32_t[CG_MAX_SITES]') (cgSiteSel 'int32_t[CG_MAX_SITES]') (cgSiteCount int32_t)
-		(cgRetOff 'uint32_t[CG_MAX_RETS]') (cgRetIndex 'int32_t[CG_MAX_RETS]') (cgRetArgc 'int32_t[CG_MAX_RETS]') (cgRetCount int32_t))
+		(cgRetOff 'uint32_t[CG_MAX_RETS]') (cgRetIndex 'int32_t[CG_MAX_RETS]') (cgRetArgc 'int32_t[CG_MAX_RETS]') (cgRetCount int32_t)
+		(cgOrder 'int32_t[OPT_MAX_BLOCKS]') (cgPlaced 'uint8_t[OPT_MAX_BLOCKS]'))
 !
 initialize
 	CG_MAX_OUT := 4096.
@@ -144,11 +145,12 @@ generate: m act: a
 	0 to: passes orderCount - 1 do: [:i | (ir block: (passes orderAt: i)) label: asm newLabel].
 	builder isEntryUnit ifTrue: [self emitBaselineEntry].
 	self emitEntry.
+	self order.
 	0 to: passes orderCount - 1 do: [:i |
-		b := passes orderAt: i.
+		b := cgOrder at: i.
 		bl := ir block: b.
 		asm bind: bl label.
-		self emitBlock: b next: (i + 1 < passes orderCount ifTrue: [passes orderAt: i + 1] ifFalse: [-1])].
+		self emitBlock: b next: (i + 1 < passes orderCount ifTrue: [cgOrder at: i + 1] ifFalse: [-1])].
 	(self emitOuts) ifFalse: [^false].
 	cgDepCount := (builder depCount min: 256) asInt32.
 	0 to: cgDepCount - 1 do: [:i | cgDeps at: i put: (self poolIndexOf: (builder depAt: i))].
@@ -256,6 +258,40 @@ emitEntry
 		cgValidSlots to: cgSlotTop - 1 do: [:i | asm str: X16 base: X20 offset: 8 * i]].
 	asm bind: cgBodyLabel
 !
+order
+	"The blocks in the order of their code: reverse postorder, but a loop's back edge (a block that only jumps back to the loop's head) right after the comparison that branches to it, which falls into it: a turn of the loop takes one branch."
+	| n b t |
+	0 to: passes orderCount - 1 do: [:i | cgPlaced at: (passes orderAt: i) put: 0].
+	n := 0.
+	0 to: passes orderCount - 1 do: [:i |
+		b := passes orderAt: i.
+		(cgPlaced at: b) = 0 ifTrue: [
+			cgOrder at: n put: b.
+			cgPlaced at: b put: 1.
+			n := n + 1.
+			t := self backEdgeAfter: b.
+			(t >= 0 and: [(cgPlaced at: t) = 0]) ifTrue: [
+				cgOrder at: n put: t.
+				cgPlaced at: t put: 1.
+				n := n + 1]]]
+!
+backEdgeAfter: b
+	"The successor of b's compare and branch that only jumps back to the head of a loop around b, -1 if none."
+	| bl nd |
+	bl := ir block: b.
+	(bl succ1 >= 0 and: [bl last >= 0]) ifFalse: [^-1].
+	nd := ir node: bl last.
+	(nd op asInt32 = O_BRANCH and: [self isFused: nd a]) ifFalse: [^-1].
+	(self is: bl succ0 backEdgeFrom: b) ifTrue: [^bl succ0].
+	(self is: bl succ1 backEdgeFrom: b) ifTrue: [^bl succ1].
+	^-1
+!
+is: s backEdgeFrom: b
+	| sb |
+	sb := ir block: s.
+	^sb npreds = 1 and: [sb succ1 < 0 and: [sb succ0 >= 0 and: [(ir block: sb succ0) rpo <= (ir block: b) rpo and: [
+		sb last >= 0 and: [(ir node: sb last) op asInt32 = O_GOTO]]]]]
+!
 emitBlock: b next: nextBlock
 	| n nd |
 	n := (ir block: b) first.
@@ -296,11 +332,11 @@ dst: n
 	^X14
 !
 def: n from: r
-	"n's result is in r: into its register, and into its home slot if it has one (a value lives in its slot across safepoints: stored once, where it is defined)."
+	"n's result is in r: into its register, and into its home slot if it has one (a value lives in its slot across safepoints: stored once, where it is defined; one only interrupt checks need there by their slow path)."
 	| nd |
 	nd := ir node: n.
 	(nd reg >= 0 and: [nd reg asInt32 ~= r]) ifTrue: [asm mov: nd reg asInt32 with: r].
-	nd slot >= 0 ifTrue: [asm str: r base: X20 offset: 8 * nd slot asInt32]
+	(nd slot >= 0 and: [(nd flags bitAnd: NF_LAZY) = 0]) ifTrue: [asm str: r base: X20 offset: 8 * nd slot asInt32]
 !
 loadConstant: v into: r
 	(self isInt: v) ifTrue: [
@@ -555,6 +591,13 @@ emitBranch: n block: b next: nextBlock
 		asm b: s if: COND_NE].
 	f ~= nextBlock ifTrue: [asm b: fl]
 !
+emitDouble: bits into: d
+	"d := the double with the IEEE bits bits: an fmov immediate where one encodes it."
+	(asm fmovImmediate: (self doubleFromBits: bits)) >= 0 ifTrue: [^asm fmov: d imm: (self doubleFromBits: bits)].
+	asm comment: 'a Float constant'.
+	asm mov: X16 imm: bits.
+	asm fmov: d with: X16
+!
 dsrc: v
 	"v's D register (doubles always have one)."
 	(ir node: v) reg >= D0 ifTrue: [^(ir node: v) reg asInt32].
@@ -567,8 +610,14 @@ emitFloat: n
 	nd := ir node: n.
 	op := nd op asInt32.
 	op = O_UNBOXF ifTrue: [
-		x := self src: nd a into: X15.
 		r := self dsrc: n.
+		((ir node: nd a) op asInt32 = O_CONST and: [((ir node: nd a) aux bitAnd: 1) ~= 0 or: [((ir node: nd a) aux bitAnd: 7) = 4]]) ifTrue: [
+			^self emitDouble: (self constantDouble: (ir node: nd a) aux asUInt64) into: r].
+		x := self src: nd a into: X15.
+		(ir node: nd a) tkind asInt32 = T_SMI ifTrue: [
+			asm comment: 'a SmallInteger''s double'.
+			asm asr: X16 with: x imm: 1.
+			^asm scvtf: r with: X16].
 		(ir node: nd a) tkind asInt32 ~= T_FLOAT ifTrue: [
 			s := self deoptLabelFor: n.
 			int := asm newLabel.
@@ -1195,7 +1244,12 @@ emitFramePc: pc sp: sp
 	asm str: X16 base: X19 offset: self pcOffset
 !
 saveAcross: n
-	"Values live after safepoint n are in their home slots already (def:from:)."
+	"Values live after safepoint n are in their home slots: stored where they are defined (def:from:), or here if only interrupt checks need them there."
+	| v nd |
+	(ir node: n) live to: (ir node: n) live + (ir node: n) nlive - 1 do: [:i |
+		v := regalloc safeLiveAt: i.
+		nd := ir node: v.
+		((nd flags bitAnd: NF_LAZY) ~= 0 and: [nd reg >= 0 and: [nd slot >= 0]]) ifTrue: [asm str: nd reg asInt32 base: X20 offset: 8 * nd slot asInt32]]
 !
 reloadAcross: n
 	| v nd |
@@ -1215,13 +1269,51 @@ emitMovesFrom: b to: s
 	n := (ir block: s) first.
 	[n >= 0 and: [(ir node: n) op asInt32 = O_PHI]] whileTrue: [
 		nd := ir node: n.
-		(regalloc isValue: n) ifTrue: [
+		((regalloc isValue: n) and: [nd rep asInt32 ~= R_DBL]) ifTrue: [
 			cgMoveCount >= CG_MAX_MOVES ifTrue: [^asm fail: ASM_ERR_FULL].
 			cgMoveDst at: cgMoveCount put: n.
 			cgMoveSrc at: cgMoveCount put: (ir operand: nd args + k).
 			cgMoveCount := cgMoveCount + 1].
 		n := nd next].
-	self sequentializeMoves
+	self sequentializeMoves.
+	self emitDoubleMovesFrom: k to: s
+!
+emitDoubleMovesFrom: k to: s
+	"The parallel moves into s's phis on doubles of their k-th operands: between d registers (a cycle through D0), then Float constants."
+	| n nd src d c blocked progress |
+	cgMoveCount := 0.
+	n := (ir block: s) first.
+	[n >= 0 and: [(ir node: n) op asInt32 = O_PHI]] whileTrue: [
+		nd := ir node: n.
+		((regalloc isValue: n) and: [nd rep asInt32 = R_DBL]) ifTrue: [
+			cgMoveCount >= CG_MAX_MOVES ifTrue: [^asm fail: ASM_ERR_FULL].
+			src := ir operand: nd args + k.
+			cgMoveDst at: cgMoveCount put: nd reg asInt32.
+			cgMoveSrc at: cgMoveCount put: src.
+			cgMoveLoc at: cgMoveCount put: ((ir node: src) op asInt32 = O_CONST ifTrue: [-1] ifFalse: [(ir node: src) reg asInt32]).
+			cgMoveCount := cgMoveCount + 1].
+		n := nd next].
+	[(self firstRegisterMove) >= 0] whileTrue: [
+		progress := false.
+		0 to: cgMoveCount - 1 do: [:i |
+			d := cgMoveDst at: i.
+			((cgMoveLoc at: i) >= 0 and: [progress not]) ifTrue: [
+				blocked := false.
+				0 to: cgMoveCount - 1 do: [:j | (j ~= i and: [(cgMoveLoc at: j) = d]) ifTrue: [blocked := true]].
+				blocked ifFalse: [
+					(cgMoveLoc at: i) ~= d ifTrue: [asm fmov: d with: (cgMoveLoc at: i)].
+					cgMoveLoc at: i put: -2.
+					progress := true]]].
+		progress ifFalse: [
+			"a cycle: the first pending destination's value goes to D0, its readers read D0"
+			c := self firstRegisterMove.
+			d := cgMoveDst at: c.
+			asm fmov: D0 with: d.
+			0 to: cgMoveCount - 1 do: [:j | (cgMoveLoc at: j) = d ifTrue: [cgMoveLoc at: j put: D0]]]].
+	0 to: cgMoveCount - 1 do: [:i |
+		(cgMoveLoc at: i) = -1 ifTrue: [
+			self emitDouble: (self constantDouble: (ir node: (cgMoveSrc at: i)) aux asUInt64) into: (cgMoveDst at: i)]].
+	cgMoveCount := 0
 !
 locOf: v
 	"A location for the move resolver: register r, 1000 + slot, -1 for a constant."
@@ -1290,7 +1382,7 @@ moveRegTo: phi from: r
 	| nd |
 	nd := ir node: phi.
 	(nd reg >= 0 and: [nd reg asInt32 ~= r]) ifTrue: [asm mov: nd reg asInt32 with: r].
-	nd slot >= 0 ifTrue: [asm str: r base: X20 offset: 8 * nd slot asInt32]
+	(nd slot >= 0 and: [(nd flags bitAnd: NF_LAZY) = 0]) ifTrue: [asm str: r base: X20 offset: 8 * nd slot asInt32]
 ! !
 
 !OptCodegen methodsFor: 'out of line'!
@@ -1331,8 +1423,12 @@ emitOuts
 			asm comment: 'interrupt: call the runtime'.
 			self saveAcross: o node.
 			self emitFramePc: cgBcSize + (self recordSafepoint: o node kind: (ir node: o node) aux asInt32) sp: cgSlotTop.
+			cgDoubles ifTrue: [
+				asm comment: 'the doubles around it'.
+				0 to: 7 do: [:i | asm stp: D16 + (2 * i) with: D16 + (2 * i) + 1 base: SP preIndex: -16]].
 			asm mov: X0 with: X19.
 			asm bl: cgInterruptLabel.
+			cgDoubles ifTrue: [7 to: 0 by: -1 do: [:i | asm ldp: D16 + (2 * i) with: D16 + (2 * i) + 1 base: SP postIndex: 16]].
 			asm cbnz: X0 to: cgExitPlainLabel.
 			self emitReloadPinned.
 			self reloadAcross: o node.

@@ -1,5 +1,5 @@
 OptModule subclass: #OptRegalloc
-	instanceVariableNames: 'ir passes raLiveWords raLiveIn raLiveOut raLiveArena raSorted raSortCount raBucket raBucketNext raActive raActiveCount raFreeRegs raSafePos raSafeCount raSlotTop raSlotFree raSlotFreeCount raSlotBase raMaxPos raSafeList raSafeListCount'
+	instanceVariableNames: 'ir passes raLiveWords raLiveIn raLiveOut raLiveArena raSorted raSortCount raBucket raBucketNext raActive raActiveCount raFreeRegs raSafePos raSafeCall raSafeCount raSlotTop raSlotFree raSlotFreeCount raSlotBase raMaxPos raSafeList raSafeListCount'
 	classVariableNames: 'RA_ARENA RA_MAX_ACTIVE RA_MAX_SAFE RA_MAX_SAFELIST RA_MAX_SLOTS RA_NREGS'
 	package: 'VM-Jit'!
 
@@ -10,7 +10,7 @@ declarations
 	^#((ir OptIR) (passes OptPasses) (raLiveWords int32_t) (raLiveIn int32_t) (raLiveOut int32_t) (raLiveArena 'uint64_t[RA_ARENA]')
 		(raSorted 'int32_t[OPT_MAX_NODES]') (raSortCount int32_t) (raBucket 'int32_t[OPT_MAX_NODES]') (raBucketNext 'int32_t[OPT_MAX_NODES]')
 		(raActive 'int32_t[RA_MAX_ACTIVE]') (raActiveCount int32_t) (raFreeRegs 'int32_t[RA_NREGS]')
-		(raSafePos 'int32_t[RA_MAX_SAFE]') (raSafeCount int32_t)
+		(raSafePos 'int32_t[RA_MAX_SAFE]') (raSafeCall 'uint8_t[RA_MAX_SAFE]') (raSafeCount int32_t)
 		(raSlotTop int32_t) (raSlotFree 'int32_t[RA_MAX_SLOTS]') (raSlotFreeCount int32_t) (raSlotBase int32_t) (raMaxPos int32_t) (raSafeList 'int32_t[RA_MAX_SAFELIST]') (raSafeListCount int32_t))
 !
 initialize
@@ -77,6 +77,7 @@ numberPositions
 					nd pos: pos.
 					((self isSafepoint: n) and: [raSafeCount < RA_MAX_SAFE]) ifTrue: [
 						raSafePos at: raSafeCount put: pos.
+						raSafeCall at: raSafeCount put: (nd op asInt32 = O_CHECKINT ifTrue: [0] ifFalse: [1]).
 						raSafeCount := raSafeCount + 1]].
 			nd lstart: 16r7FFFFFFF.
 			nd lend: -1.
@@ -352,6 +353,13 @@ crossesSafepoint: v
 	0 to: raSafeCount - 1 do: [:i | ((raSafePos at: i) >= nd lstart and: [(raSafePos at: i) < nd lend]) ifTrue: [^true]].
 	^false
 !
+crossesCall: v
+	"v is live after a send or call inside its interval (a safepoint that is not an interrupt check)."
+	| nd |
+	nd := ir node: v.
+	0 to: raSafeCount - 1 do: [:i | ((raSafeCall at: i) ~= 0 and: [(raSafePos at: i) >= nd lstart and: [(raSafePos at: i) < nd lend]]) ifTrue: [^true]].
+	^false
+!
 assignSlots
 	"Home slots for spilled values and values live across safepoints, reused when intervals no longer overlap."
 	<c: 'bool opt_assign_slots(void)'>
@@ -362,10 +370,11 @@ assignSlots
 	0 to: raSortCount - 1 do: [:i |
 		v := raSorted at: i.
 		nd := ir node: v.
-		(nd rep asInt32 = R_DBL and: [self crossesSafepoint: v]) ifTrue: [^self fail: 'double v%d lives across a safepoint' node: v].
+		"doubles have no home slot: they live across interrupt checks only (their slow path saves the d registers)"
+		(nd rep asInt32 = R_DBL and: [self crossesCall: v]) ifTrue: [^self fail: 'double v%d lives across a call' node: v].
 		"an argument (a unit's parameter) lives in its own slot, which the code never writes"
 		((nd reg < 0 or: [self crossesSafepoint: v]) and: [nd op asInt32 = O_PARAM and: [nd aux >= 0]]) ifTrue: [nd slot: nd aux asInt16].
-		((nd reg < 0 or: [self crossesSafepoint: v]) and: [nd slot < 0]) ifTrue: [
+		((nd reg < 0 or: [self crossesSafepoint: v]) and: [nd slot < 0 and: [nd rep asInt32 ~= R_DBL]]) ifTrue: [
 			j := 0.
 			[j < raActiveCount] whileTrue: [
 				(ir node: (raActive at: j)) lend < nd lstart
@@ -385,6 +394,8 @@ assignSlots
 					raSlotTop := raSlotTop + 1].
 			raActiveCount >= RA_MAX_ACTIVE ifTrue: [^false].
 			raActive at: raActiveCount put: v.
-			raActiveCount := raActiveCount + 1]].
+			raActiveCount := raActiveCount + 1.
+			"only interrupt checks need it in its slot: their slow path stores it"
+			(nd reg >= 0 and: [(self crossesCall: v) not]) ifTrue: [nd flags: (nd flags bitOr: NF_LAZY)]]].
 	^true
 ! !

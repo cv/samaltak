@@ -1186,7 +1186,9 @@ exit_int_args_do:;
 /* NumericPrimitives>>printStringOf: */
 static oop float_print_string(double a)
 {
-    int p;
+    int lo;
+    int hi;
+    int mid;
     int nd;
     char local[64];
     char *out;
@@ -1218,14 +1220,18 @@ static oop float_print_string(double a)
     buf = local_2;
     memset(&local_3, 0, sizeof local_3);
     digits = local_3;
-    p = 1;
-    for (;;) {
-        snprintf(buf, 40, "%.*e", p - 1, a);
-        if ((strtod(buf, (char **)NULL) == a) || (p >= 17)) {
-            break;
+    lo = 1;
+    hi = 17;
+    while (lo < hi) {
+        mid = (lo + hi) / 2;
+        snprintf(buf, 40, "%.*e", mid - 1, a);
+        if (strtod(buf, (char **)NULL) == a) {
+            hi = mid;
+        } else {
+            lo = mid + 1;
         }
-        p = p + 1;
     }
+    snprintf(buf, 40, "%.*e", lo - 1, a);
     neg = buf[0] == 45;
     s = neg ? buf + 1 : buf;
     nd = 0;

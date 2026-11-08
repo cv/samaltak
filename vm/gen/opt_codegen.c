@@ -29,8 +29,10 @@ static int32_t cg_move_dst[256];
 static int32_t cg_move_loc[256];
 static int32_t cg_move_src[256];
 static int32_t cg_need;
+static int32_t cg_order[2048];
 static int32_t cg_out_count;
 static opt_out cg_outs[4096];
+static uint8_t cg_placed[2048];
 int32_t cg_pool_count;
 int32_t cg_pool_labels[1024];
 static oop cg_pool_oops[1024];
@@ -1103,35 +1105,53 @@ static void opt_emit_node(int32_t n, int32_t b, int32_t next_block)
     uint64_t a_word_395;
     opt_node *nd_40;
     int32_t op_6;
-    int32_t v_57;
-    int64_t r_src_14;
-    opt_node *nd_41;
-    uint64_t v_58;
-    int64_t value_17;
+    int32_t r_dsrc;
+    int32_t r_5;
+    int32_t n_16;
+    int32_t n_17;
+    int32_t n_18;
+    int32_t n_19;
+    uint64_t v_57;
+    uint64_t r_constant_double;
+    uint64_t r_6;
+    uint64_t b_2;
+    uint64_t bits_58;
+    double a_double;
+    int32_t enc_16;
     uint64_t a_word_396;
     uint64_t a_word_397;
-    int64_t off_152;
-    uint64_t a_word_398;
-    uint64_t a_word_399;
-    int64_t off_153;
+    int64_t a_word_398;
+    int64_t a_word_399;
+    int32_t v_58;
+    int64_t r_src_14;
+    opt_node *nd_41;
+    uint64_t v_59;
+    int64_t value_17;
     uint64_t a_word_400;
     uint64_t a_word_401;
-    int64_t off_154;
+    int64_t off_152;
     uint64_t a_word_402;
     uint64_t a_word_403;
+    int64_t off_153;
     uint64_t a_word_404;
+    uint64_t a_word_405;
+    int64_t off_154;
+    uint64_t a_word_406;
+    uint64_t a_word_407;
+    uint64_t a_word_408;
     int32_t a_label_17;
     uint64_t target_53;
     int64_t r_offset_to_53;
     int64_t off_155;
-    uint64_t a_word_405;
+    uint64_t a_word_409;
     int32_t off_156;
-    uint64_t a_word_406;
-    uint64_t a_word_407;
+    uint64_t a_word_410;
+    uint64_t a_word_411;
     int64_t x_8;
-    int32_t r_dsrc;
-    int32_t r_5;
-    int32_t n_16;
+    int32_t n_20;
+    uint64_t a_word_412;
+    int64_t a_word_413;
+    int32_t n_21;
     int32_t r_deopt_label_for_5;
     int32_t r_record_guard_5;
     int32_t op_7;
@@ -1141,15 +1161,15 @@ static void opt_emit_node(int32_t n, int32_t b, int32_t next_block)
     opt_out *o_39;
     int32_t l_5;
     int64_t off_157;
-    uint64_t a_word_408;
-    uint64_t a_word_409;
+    uint64_t a_word_414;
+    uint64_t a_word_415;
     int64_t off_158;
-    uint64_t a_word_410;
-    uint64_t a_word_411;
+    uint64_t a_word_416;
+    uint64_t a_word_417;
     uint64_t target_54;
     int64_t r_offset_to_54;
     int64_t off_159;
-    uint64_t a_word_412;
+    uint64_t a_word_418;
     int32_t s_35;
     int32_t int_;
     int32_t boxed;
@@ -1157,44 +1177,44 @@ static void opt_emit_node(int32_t n, int32_t b, int32_t next_block)
     uint64_t target_55;
     int64_t r_offset_to_55;
     int64_t off_160;
-    uint64_t a_word_413;
-    int32_t enc_16;
-    uint64_t a_word_414;
+    uint64_t a_word_419;
+    int32_t enc_17;
+    uint64_t a_word_420;
     uint64_t target_56;
     int64_t r_offset_to_56;
     int64_t off_161;
-    uint64_t a_word_415;
-    uint64_t a_word_416;
-    int64_t a_word_417;
-    int64_t a_word_418;
-    int32_t n_17;
+    uint64_t a_word_421;
+    uint64_t a_word_422;
+    int64_t a_word_423;
+    int64_t a_word_424;
+    int32_t n_22;
     uint64_t target_57;
     int64_t r_offset_to_57;
     int64_t off_162;
-    int64_t a_word_419;
+    int64_t a_word_425;
     uint64_t target_58;
     int64_t r_offset_to_58;
     int64_t off_163;
-    uint64_t a_word_420;
-    uint64_t a_word_421;
+    uint64_t a_word_426;
+    uint64_t a_word_427;
     int64_t off_164;
-    uint64_t a_word_422;
-    uint64_t a_word_423;
+    uint64_t a_word_428;
+    uint64_t a_word_429;
     uint64_t target_59;
     int64_t r_offset_to_59;
     int64_t off_165;
-    uint64_t a_word_424;
-    int64_t bits_58;
-    int s_36;
-    uint64_t a_word_425;
+    uint64_t a_word_430;
     int64_t bits_59;
-    uint64_t a_word_426;
+    int s_36;
+    uint64_t a_word_431;
+    int64_t bits_60;
+    uint64_t a_word_432;
     uint64_t target_60;
     int64_t r_offset_to_60;
     int64_t off_166;
-    int64_t a_word_427;
-    uint64_t a_word_428;
-    int64_t a_word_429;
+    int64_t a_word_433;
+    uint64_t a_word_434;
+    int64_t a_word_435;
     int32_t r_deopt_label_for_6;
     int32_t r_record_guard_6;
     int32_t op_8;
@@ -1204,59 +1224,59 @@ static void opt_emit_node(int32_t n, int32_t b, int32_t next_block)
     opt_out *o_43;
     int32_t l_6;
     int64_t off_167;
-    uint64_t a_word_430;
-    uint64_t a_word_431;
+    uint64_t a_word_436;
+    uint64_t a_word_437;
     int64_t off_168;
-    uint64_t a_word_432;
-    uint64_t a_word_433;
+    uint64_t a_word_438;
+    uint64_t a_word_439;
     uint64_t target_61;
     int64_t r_offset_to_61;
     int64_t off_169;
-    uint64_t a_word_434;
+    uint64_t a_word_440;
     int32_t zero;
     int32_t store;
-    int32_t v_63;
+    int32_t v_64;
     int32_t r_dsrc_2;
     int32_t rn_11;
-    uint64_t a_word_435;
+    uint64_t a_word_441;
     uint64_t target_62;
     int64_t r_offset_to_62;
     int64_t off_170;
-    uint64_t a_word_436;
+    uint64_t a_word_442;
     uint64_t target_63;
     int64_t r_offset_to_63;
     int64_t off_171;
-    uint64_t a_word_437;
+    uint64_t a_word_443;
     uint64_t target_64;
     int64_t r_offset_to_64;
     int64_t off_172;
-    int64_t a_word_438;
+    int64_t a_word_444;
     int32_t r_dst_8;
     opt_node *nd_42;
-    int r_6;
+    int r_7;
     int s_37;
-    int64_t sf_25;
-    uint64_t a_word_439;
-    int32_t enc_17;
-    uint64_t a_word_440;
+    int64_t sf_26;
+    uint64_t a_word_445;
+    int32_t enc_18;
+    uint64_t a_word_446;
     opt_node *nd_43;
     int32_t rd_25;
-    uint64_t a_word_441;
-    uint64_t a_word_442;
+    uint64_t a_word_447;
+    uint64_t a_word_448;
     int32_t rn_12;
-    uint64_t a_word_443;
+    uint64_t a_word_449;
     int32_t off_173;
-    int64_t bits_60;
-    int s_38;
-    uint64_t a_word_444;
     int64_t bits_61;
-    uint64_t a_word_445;
+    int s_38;
+    uint64_t a_word_450;
+    int64_t bits_62;
+    uint64_t a_word_451;
     int32_t r_dsrc_3;
     int32_t rd_26;
-    int32_t v_67;
+    int32_t v_68;
     int32_t r_dsrc_4;
     int32_t rn_13;
-    uint64_t a_word_446;
+    uint64_t a_word_452;
     int32_t k_6;
     int32_t r_deopt_label_for_7;
     int32_t r_record_guard_7;
@@ -1267,232 +1287,232 @@ static void opt_emit_node(int32_t n, int32_t b, int32_t next_block)
     opt_out *o_48;
     int32_t l_7;
     int64_t off_174;
-    uint64_t a_word_447;
-    uint64_t a_word_448;
+    uint64_t a_word_453;
+    uint64_t a_word_454;
     int64_t off_175;
-    uint64_t a_word_449;
-    uint64_t a_word_450;
+    uint64_t a_word_455;
+    uint64_t a_word_456;
     uint64_t target_65;
     int64_t r_offset_to_65;
     int64_t off_176;
-    uint64_t a_word_451;
-    int32_t v_69;
+    uint64_t a_word_457;
+    int32_t v_70;
     int32_t r_dsrc_5;
     int32_t rn_14;
-    uint64_t a_word_452;
+    uint64_t a_word_458;
     uint64_t target_66;
     int64_t r_offset_to_66;
     int64_t off_177;
-    uint64_t a_word_453;
+    uint64_t a_word_459;
     int32_t r_dsrc_6;
     int32_t rd_27;
-    int32_t v_70;
+    int32_t v_71;
     int32_t r_dsrc_7;
     int32_t rn_15;
-    int32_t v_71;
+    int32_t v_72;
     int32_t r_dsrc_8;
     int32_t rm;
-    uint64_t a_word_454;
+    uint64_t a_word_460;
     int32_t r_dsrc_9;
     int32_t rd_28;
-    int32_t v_72;
+    int32_t v_73;
     int32_t r_dsrc_10;
     int32_t rn_16;
-    int32_t v_73;
+    int32_t v_74;
     int32_t r_dsrc_11;
     int32_t rm_2;
-    uint64_t a_word_455;
+    uint64_t a_word_461;
     int32_t r_dsrc_12;
     int32_t rd_29;
-    int32_t v_74;
+    int32_t v_75;
     int32_t r_dsrc_13;
     int32_t rn_17;
-    int32_t v_75;
+    int32_t v_76;
     int32_t r_dsrc_14;
     int32_t rm_3;
-    uint64_t a_word_456;
+    uint64_t a_word_462;
     int32_t r_dsrc_15;
     int32_t rd_30;
-    int32_t v_76;
+    int32_t v_77;
     int32_t r_dsrc_16;
     int32_t rn_18;
-    int32_t v_77;
+    int32_t v_78;
     int32_t r_dsrc_17;
     int32_t rm_4;
-    uint64_t a_word_457;
+    uint64_t a_word_463;
     bool r_is_fused;
     opt_node *nd_44;
-    int32_t n_18;
+    int32_t n_23;
     opt_node *nx;
     opt_node *nd_45;
-    int32_t v_78;
+    int32_t v_79;
     int32_t r_dsrc_18;
     int32_t rn_19;
-    int32_t v_79;
+    int32_t v_80;
     int32_t r_dsrc_19;
     int32_t rm_5;
-    uint64_t a_word_458;
-    int32_t v_80;
+    uint64_t a_word_464;
+    int32_t v_81;
     int64_t r_src_15;
     opt_node *nd_46;
-    uint64_t v_81;
+    uint64_t v_82;
     int64_t value_18;
-    uint64_t a_word_459;
-    uint64_t a_word_460;
-    int64_t off_178;
-    uint64_t a_word_461;
-    uint64_t a_word_462;
-    int64_t off_179;
-    uint64_t a_word_463;
-    uint64_t a_word_464;
-    int64_t off_180;
     uint64_t a_word_465;
     uint64_t a_word_466;
+    int64_t off_178;
     uint64_t a_word_467;
+    uint64_t a_word_468;
+    int64_t off_179;
+    uint64_t a_word_469;
+    uint64_t a_word_470;
+    int64_t off_180;
+    uint64_t a_word_471;
+    uint64_t a_word_472;
+    uint64_t a_word_473;
     int32_t a_label_18;
     uint64_t target_67;
     int64_t r_offset_to_67;
     int64_t off_181;
-    uint64_t a_word_468;
+    uint64_t a_word_474;
     int32_t off_182;
-    uint64_t a_word_469;
-    uint64_t a_word_470;
+    uint64_t a_word_475;
+    uint64_t a_word_476;
     int64_t x_9;
     uint64_t cls;
-    int32_t enc_18;
-    uint64_t a_word_471;
     int32_t enc_19;
-    uint64_t a_word_472;
-    int32_t enc_20;
-    uint64_t a_word_473;
-    int64_t rd_31;
-    int32_t enc_21;
-    uint64_t a_word_474;
-    uint64_t a_word_475;
-    int64_t value_19;
-    uint64_t a_word_476;
     uint64_t a_word_477;
-    int64_t off_183;
+    int32_t enc_20;
     uint64_t a_word_478;
+    int32_t enc_21;
     uint64_t a_word_479;
-    int64_t off_184;
+    int64_t rd_31;
+    int32_t enc_22;
     uint64_t a_word_480;
     uint64_t a_word_481;
-    int64_t off_185;
+    int64_t value_19;
     uint64_t a_word_482;
     uint64_t a_word_483;
+    int64_t off_183;
     uint64_t a_word_484;
+    uint64_t a_word_485;
+    int64_t off_184;
+    uint64_t a_word_486;
+    uint64_t a_word_487;
+    int64_t off_185;
+    uint64_t a_word_488;
+    uint64_t a_word_489;
+    uint64_t a_word_490;
     int32_t a_label_19;
     uint64_t target_68;
     int64_t r_offset_to_68;
     int64_t off_186;
-    uint64_t a_word_485;
-    int32_t v_85;
+    uint64_t a_word_491;
+    int32_t v_86;
     int64_t r_src_16;
     opt_node *nd_47;
-    uint64_t v_86;
+    uint64_t v_87;
     int64_t value_20;
-    uint64_t a_word_486;
-    uint64_t a_word_487;
-    int64_t off_187;
-    uint64_t a_word_488;
-    uint64_t a_word_489;
-    int64_t off_188;
-    uint64_t a_word_490;
-    uint64_t a_word_491;
-    int64_t off_189;
     uint64_t a_word_492;
     uint64_t a_word_493;
+    int64_t off_187;
     uint64_t a_word_494;
+    uint64_t a_word_495;
+    int64_t off_188;
+    uint64_t a_word_496;
+    uint64_t a_word_497;
+    int64_t off_189;
+    uint64_t a_word_498;
+    uint64_t a_word_499;
+    uint64_t a_word_500;
     int32_t a_label_20;
     uint64_t target_69;
     int64_t r_offset_to_69;
     int64_t off_190;
-    uint64_t a_word_495;
+    uint64_t a_word_501;
     int32_t off_191;
-    uint64_t a_word_496;
-    uint64_t a_word_497;
+    uint64_t a_word_502;
+    uint64_t a_word_503;
     int64_t y_2;
-    uint64_t a_word_498;
-    int32_t enc_22;
-    uint64_t a_word_499;
-    int32_t n_19;
-    int32_t n_20;
+    uint64_t a_word_504;
+    int32_t enc_23;
+    uint64_t a_word_505;
+    int32_t n_24;
+    int32_t n_25;
     uint64_t o_54;
-    int32_t n_21;
-    int32_t n_22;
-    int32_t n_23;
+    int32_t n_26;
+    int32_t n_27;
+    int32_t n_28;
     int64_t imm_4;
     int64_t rd_32;
     bool neg_40;
-    int64_t v_88;
+    int64_t v_89;
     int o_55;
-    uint64_t a_word_500;
-    uint64_t a_word_501;
-    int32_t n_24;
+    uint64_t a_word_506;
+    uint64_t a_word_507;
+    int32_t n_29;
     int64_t imm_5;
     int64_t rd_33;
     bool neg_41;
-    int64_t v_89;
+    int64_t v_90;
     int o_56;
-    uint64_t a_word_502;
-    uint64_t a_word_503;
-    int32_t v_90;
-    int64_t r_src_17;
-    opt_node *nd_48;
-    uint64_t v_91;
-    int64_t value_21;
-    uint64_t a_word_504;
-    uint64_t a_word_505;
-    int64_t off_192;
-    uint64_t a_word_506;
-    uint64_t a_word_507;
-    int64_t off_193;
     uint64_t a_word_508;
     uint64_t a_word_509;
-    int64_t off_194;
+    int32_t v_91;
+    int64_t r_src_17;
+    opt_node *nd_48;
+    uint64_t v_92;
+    int64_t value_21;
     uint64_t a_word_510;
     uint64_t a_word_511;
+    int64_t off_192;
     uint64_t a_word_512;
+    uint64_t a_word_513;
+    int64_t off_193;
+    uint64_t a_word_514;
+    uint64_t a_word_515;
+    int64_t off_194;
+    uint64_t a_word_516;
+    uint64_t a_word_517;
+    uint64_t a_word_518;
     int32_t a_label_21;
     uint64_t target_70;
     int64_t r_offset_to_70;
     int64_t off_195;
-    uint64_t a_word_513;
+    uint64_t a_word_519;
     int32_t off_196;
-    uint64_t a_word_514;
-    uint64_t a_word_515;
+    uint64_t a_word_520;
+    uint64_t a_word_521;
     int64_t rd_34;
     int ext_11;
-    uint64_t a_word_516;
-    uint64_t a_word_517;
+    uint64_t a_word_522;
+    uint64_t a_word_523;
     int32_t r_dst_9;
     opt_node *nd_49;
     int64_t off_197;
-    uint64_t a_word_518;
-    uint64_t a_word_519;
+    uint64_t a_word_524;
+    uint64_t a_word_525;
     int64_t off_198;
-    uint64_t a_word_520;
-    uint64_t a_word_521;
+    uint64_t a_word_526;
+    uint64_t a_word_527;
     int64_t r_condition_of;
     opt_node *nd_50;
     int32_t k_10;
-    int v_92;
     int v_93;
+    int v_94;
     int64_t c;
-    uint64_t a_word_522;
+    uint64_t a_word_528;
     opt_node *nd_51;
     int32_t rd_35;
-    uint64_t a_word_523;
-    uint64_t a_word_524;
+    uint64_t a_word_529;
+    uint64_t a_word_530;
     int32_t rn_20;
-    uint64_t a_word_525;
+    uint64_t a_word_531;
     int32_t off_199;
-    int64_t bits_62;
-    int s_39;
-    uint64_t a_word_526;
     int64_t bits_63;
-    uint64_t a_word_527;
+    int s_39;
+    uint64_t a_word_532;
+    int64_t bits_64;
+    uint64_t a_word_533;
     int32_t r_deopt_label_for_8;
     int32_t r_record_guard_8;
     int32_t op_10;
@@ -1502,124 +1522,124 @@ static void opt_emit_node(int32_t n, int32_t b, int32_t next_block)
     opt_out *o_58;
     int32_t l_8;
     int64_t off_200;
-    uint64_t a_word_528;
-    uint64_t a_word_529;
+    uint64_t a_word_534;
+    uint64_t a_word_535;
     int64_t off_201;
-    uint64_t a_word_530;
-    uint64_t a_word_531;
+    uint64_t a_word_536;
+    uint64_t a_word_537;
     uint64_t target_71;
     int64_t r_offset_to_71;
     int64_t off_202;
-    uint64_t a_word_532;
+    uint64_t a_word_538;
     int32_t s;
-    int32_t v_96;
+    int32_t v_97;
     int64_t r_src_18;
     opt_node *nd_52;
-    uint64_t v_97;
+    uint64_t v_98;
     int64_t value_22;
-    uint64_t a_word_533;
-    uint64_t a_word_534;
-    int64_t off_203;
-    uint64_t a_word_535;
-    uint64_t a_word_536;
-    int64_t off_204;
-    uint64_t a_word_537;
-    uint64_t a_word_538;
-    int64_t off_205;
     uint64_t a_word_539;
     uint64_t a_word_540;
+    int64_t off_203;
     uint64_t a_word_541;
+    uint64_t a_word_542;
+    int64_t off_204;
+    uint64_t a_word_543;
+    uint64_t a_word_544;
+    int64_t off_205;
+    uint64_t a_word_545;
+    uint64_t a_word_546;
+    uint64_t a_word_547;
     int32_t a_label_22;
     uint64_t target_72;
     int64_t r_offset_to_72;
     int64_t off_206;
-    uint64_t a_word_542;
-    int32_t off_207;
-    uint64_t a_word_543;
-    uint64_t a_word_544;
-    uint64_t cls_2;
-    int32_t enc_23;
-    uint64_t a_word_545;
-    int32_t enc_24;
-    uint64_t a_word_546;
-    int32_t enc_25;
-    uint64_t a_word_547;
-    int64_t rd_36;
-    int32_t enc_26;
     uint64_t a_word_548;
+    int32_t off_207;
     uint64_t a_word_549;
-    int64_t value_23;
     uint64_t a_word_550;
+    uint64_t cls_2;
+    int32_t enc_24;
     uint64_t a_word_551;
-    int64_t off_208;
+    int32_t enc_25;
     uint64_t a_word_552;
+    int32_t enc_26;
     uint64_t a_word_553;
-    int64_t off_209;
+    int64_t rd_36;
+    int32_t enc_27;
     uint64_t a_word_554;
     uint64_t a_word_555;
-    int64_t off_210;
+    int64_t value_23;
     uint64_t a_word_556;
     uint64_t a_word_557;
+    int64_t off_208;
     uint64_t a_word_558;
+    uint64_t a_word_559;
+    int64_t off_209;
+    uint64_t a_word_560;
+    uint64_t a_word_561;
+    int64_t off_210;
+    uint64_t a_word_562;
+    uint64_t a_word_563;
+    uint64_t a_word_564;
     int32_t a_label_23;
     uint64_t target_73;
     int64_t r_offset_to_73;
     int64_t off_211;
-    uint64_t a_word_559;
+    uint64_t a_word_565;
     uint64_t target_74;
     int64_t r_offset_to_74;
     int64_t off_212;
-    uint64_t a_word_560;
+    uint64_t a_word_566;
     opt_node *nd_53;
     int32_t rd_37;
-    uint64_t a_word_561;
-    uint64_t a_word_562;
+    uint64_t a_word_567;
+    uint64_t a_word_568;
     int32_t rn_21;
-    uint64_t a_word_563;
+    uint64_t a_word_569;
     int32_t off_213;
-    int64_t bits_64;
-    int s_40;
-    uint64_t a_word_564;
     int64_t bits_65;
-    uint64_t a_word_565;
-    int32_t v_102;
+    int s_40;
+    uint64_t a_word_570;
+    int64_t bits_66;
+    uint64_t a_word_571;
+    int32_t v_103;
     int64_t r_src_19;
     opt_node *nd_54;
-    uint64_t v_103;
+    uint64_t v_104;
     int64_t value_24;
-    uint64_t a_word_566;
-    uint64_t a_word_567;
-    int64_t off_214;
-    uint64_t a_word_568;
-    uint64_t a_word_569;
-    int64_t off_215;
-    uint64_t a_word_570;
-    uint64_t a_word_571;
-    int64_t off_216;
     uint64_t a_word_572;
     uint64_t a_word_573;
+    int64_t off_214;
     uint64_t a_word_574;
+    uint64_t a_word_575;
+    int64_t off_215;
+    uint64_t a_word_576;
+    uint64_t a_word_577;
+    int64_t off_216;
+    uint64_t a_word_578;
+    uint64_t a_word_579;
+    uint64_t a_word_580;
     int32_t a_label_24;
     uint64_t target_75;
     int64_t r_offset_to_75;
     int64_t off_217;
-    uint64_t a_word_575;
+    uint64_t a_word_581;
     int32_t off_218;
-    uint64_t a_word_576;
-    uint64_t a_word_577;
-    int64_t r_7;
+    uint64_t a_word_582;
+    uint64_t a_word_583;
+    int64_t r_8;
     opt_node *nd_55;
     int32_t rd_38;
-    uint64_t a_word_578;
-    uint64_t a_word_579;
+    uint64_t a_word_584;
+    uint64_t a_word_585;
     int32_t rn_22;
-    uint64_t a_word_580;
+    uint64_t a_word_586;
     int32_t off_219;
-    int64_t bits_66;
-    int s_41;
-    uint64_t a_word_581;
     int64_t bits_67;
-    uint64_t a_word_582;
+    int s_41;
+    uint64_t a_word_587;
+    int64_t bits_68;
+    uint64_t a_word_588;
     int32_t r_deopt_label_for_9;
     int32_t r_record_guard_9;
     int32_t op_11;
@@ -1629,59 +1649,59 @@ static void opt_emit_node(int32_t n, int32_t b, int32_t next_block)
     opt_out *o_65;
     int32_t l_9;
     int64_t off_220;
-    uint64_t a_word_583;
-    uint64_t a_word_584;
+    uint64_t a_word_589;
+    uint64_t a_word_590;
     int64_t off_221;
-    uint64_t a_word_585;
-    uint64_t a_word_586;
+    uint64_t a_word_591;
+    uint64_t a_word_592;
     uint64_t target_76;
     int64_t r_offset_to_76;
     int64_t off_222;
-    uint64_t a_word_587;
-    int32_t v_106;
+    uint64_t a_word_593;
+    int32_t v_107;
     int64_t r_src_20;
     opt_node *nd_56;
-    uint64_t v_107;
+    uint64_t v_108;
     int64_t value_25;
-    uint64_t a_word_588;
-    uint64_t a_word_589;
-    int64_t off_223;
-    uint64_t a_word_590;
-    uint64_t a_word_591;
-    int64_t off_224;
-    uint64_t a_word_592;
-    uint64_t a_word_593;
-    int64_t off_225;
     uint64_t a_word_594;
     uint64_t a_word_595;
+    int64_t off_223;
     uint64_t a_word_596;
+    uint64_t a_word_597;
+    int64_t off_224;
+    uint64_t a_word_598;
+    uint64_t a_word_599;
+    int64_t off_225;
+    uint64_t a_word_600;
+    uint64_t a_word_601;
+    uint64_t a_word_602;
     int32_t a_label_25;
     uint64_t target_77;
     int64_t r_offset_to_77;
     int64_t off_226;
-    uint64_t a_word_597;
+    uint64_t a_word_603;
     int32_t off_227;
-    uint64_t a_word_598;
-    uint64_t a_word_599;
+    uint64_t a_word_604;
+    uint64_t a_word_605;
     int64_t rd_39;
-    int32_t enc_27;
-    uint64_t a_word_600;
+    int32_t enc_28;
+    uint64_t a_word_606;
     uint64_t target_78;
     int64_t r_offset_to_78;
     int64_t off_228;
-    uint64_t a_word_601;
+    uint64_t a_word_607;
     opt_node *nd_57;
     int32_t rd_40;
-    uint64_t a_word_602;
-    uint64_t a_word_603;
+    uint64_t a_word_608;
+    uint64_t a_word_609;
     int32_t rn_23;
-    uint64_t a_word_604;
+    uint64_t a_word_610;
     int32_t off_229;
-    int64_t bits_68;
-    int s_42;
-    uint64_t a_word_605;
     int64_t bits_69;
-    uint64_t a_word_606;
+    int s_42;
+    uint64_t a_word_611;
+    int64_t bits_70;
+    uint64_t a_word_612;
     opt_node *nd_58;
     int32_t r_deopt_label_for_10;
     int32_t r_record_guard_10;
@@ -1692,103 +1712,103 @@ static void opt_emit_node(int32_t n, int32_t b, int32_t next_block)
     opt_out *o_68;
     int32_t l_10;
     int64_t off_230;
-    uint64_t a_word_607;
-    uint64_t a_word_608;
+    uint64_t a_word_613;
+    uint64_t a_word_614;
     int64_t off_231;
-    uint64_t a_word_609;
-    uint64_t a_word_610;
+    uint64_t a_word_615;
+    uint64_t a_word_616;
     uint64_t target_79;
     int64_t r_offset_to_79;
     int64_t off_232;
-    uint64_t a_word_611;
+    uint64_t a_word_617;
     int32_t s_43;
     bool is_add;
-    int32_t v_110;
+    int32_t v_111;
     int64_t r_src_21;
     opt_node *nd_59;
-    uint64_t v_111;
+    uint64_t v_112;
     int64_t value_26;
-    uint64_t a_word_612;
-    uint64_t a_word_613;
-    int64_t off_233;
-    uint64_t a_word_614;
-    uint64_t a_word_615;
-    int64_t off_234;
-    uint64_t a_word_616;
-    uint64_t a_word_617;
-    int64_t off_235;
     uint64_t a_word_618;
     uint64_t a_word_619;
+    int64_t off_233;
     uint64_t a_word_620;
+    uint64_t a_word_621;
+    int64_t off_234;
+    uint64_t a_word_622;
+    uint64_t a_word_623;
+    int64_t off_235;
+    uint64_t a_word_624;
+    uint64_t a_word_625;
+    uint64_t a_word_626;
     int32_t a_label_26;
     uint64_t target_80;
     int64_t r_offset_to_80;
     int64_t off_236;
-    uint64_t a_word_621;
+    uint64_t a_word_627;
     int32_t off_237;
-    uint64_t a_word_622;
-    uint64_t a_word_623;
+    uint64_t a_word_628;
+    uint64_t a_word_629;
     int64_t x_10;
-    int32_t n_25;
-    int32_t n_26;
-    int32_t n_27;
+    int32_t n_30;
+    int32_t n_31;
+    int32_t n_32;
     int64_t c_2;
     int64_t imm_6;
     bool neg_52;
-    int64_t v_112;
-    int o_70;
-    uint64_t a_word_624;
-    uint64_t a_word_625;
-    int64_t imm_7;
-    bool neg_53;
     int64_t v_113;
-    int o_71;
-    uint64_t a_word_626;
-    uint64_t a_word_627;
-    int32_t v_114;
-    int64_t r_src_22;
-    opt_node *nd_60;
-    uint64_t v_115;
-    int64_t value_27;
-    uint64_t a_word_628;
-    uint64_t a_word_629;
-    int64_t off_238;
+    int o_70;
     uint64_t a_word_630;
     uint64_t a_word_631;
-    int64_t off_239;
+    int64_t imm_7;
+    bool neg_53;
+    int64_t v_114;
+    int o_71;
     uint64_t a_word_632;
     uint64_t a_word_633;
-    int64_t off_240;
+    int32_t v_115;
+    int64_t r_src_22;
+    opt_node *nd_60;
+    uint64_t v_116;
+    int64_t value_27;
     uint64_t a_word_634;
     uint64_t a_word_635;
+    int64_t off_238;
     uint64_t a_word_636;
+    uint64_t a_word_637;
+    int64_t off_239;
+    uint64_t a_word_638;
+    uint64_t a_word_639;
+    int64_t off_240;
+    uint64_t a_word_640;
+    uint64_t a_word_641;
+    uint64_t a_word_642;
     int32_t a_label_27;
     uint64_t target_81;
     int64_t r_offset_to_81;
     int64_t off_241;
-    uint64_t a_word_637;
-    int32_t off_242;
-    uint64_t a_word_638;
-    uint64_t a_word_639;
-    int64_t y_3;
-    uint64_t a_word_640;
-    uint64_t a_word_641;
-    uint64_t a_word_642;
     uint64_t a_word_643;
+    int32_t off_242;
     uint64_t a_word_644;
+    uint64_t a_word_645;
+    int64_t y_3;
+    uint64_t a_word_646;
+    uint64_t a_word_647;
+    uint64_t a_word_648;
+    uint64_t a_word_649;
+    uint64_t a_word_650;
     uint64_t target_82;
     int64_t r_offset_to_82;
     int64_t off_243;
-    uint64_t a_word_645;
+    uint64_t a_word_651;
     opt_node *nd_61;
     int32_t rd_41;
-    int64_t a_word_646;
-    int64_t a_word_647;
+    int64_t a_word_652;
+    int64_t a_word_653;
     int32_t rn_24;
-    uint64_t a_word_648;
+    uint64_t a_word_654;
     int32_t off_244;
-    uint64_t a_word_649;
-    uint64_t a_word_650;
+    uint64_t a_word_655;
+    uint64_t a_word_656;
     opt_node *nd_62;
     int32_t r_deopt_label_for_11;
     int32_t r_record_guard_11;
@@ -1799,85 +1819,85 @@ static void opt_emit_node(int32_t n, int32_t b, int32_t next_block)
     opt_out *o_74;
     int32_t l_11;
     int64_t off_245;
-    uint64_t a_word_651;
-    uint64_t a_word_652;
+    uint64_t a_word_657;
+    uint64_t a_word_658;
     int64_t off_246;
-    uint64_t a_word_653;
-    uint64_t a_word_654;
+    uint64_t a_word_659;
+    uint64_t a_word_660;
     uint64_t target_83;
     int64_t r_offset_to_83;
     int64_t off_247;
-    uint64_t a_word_655;
+    uint64_t a_word_661;
     int32_t s_44;
-    int32_t v_119;
+    int32_t v_120;
     int64_t r_src_23;
     opt_node *nd_63;
-    uint64_t v_120;
+    uint64_t v_121;
     int64_t value_28;
-    uint64_t a_word_656;
-    uint64_t a_word_657;
-    int64_t off_248;
-    uint64_t a_word_658;
-    uint64_t a_word_659;
-    int64_t off_249;
-    uint64_t a_word_660;
-    uint64_t a_word_661;
-    int64_t off_250;
     uint64_t a_word_662;
     uint64_t a_word_663;
+    int64_t off_248;
     uint64_t a_word_664;
+    uint64_t a_word_665;
+    int64_t off_249;
+    uint64_t a_word_666;
+    uint64_t a_word_667;
+    int64_t off_250;
+    uint64_t a_word_668;
+    uint64_t a_word_669;
+    uint64_t a_word_670;
     int32_t a_label_28;
     uint64_t target_84;
     int64_t r_offset_to_84;
     int64_t off_251;
-    uint64_t a_word_665;
-    int32_t off_252;
-    uint64_t a_word_666;
-    uint64_t a_word_667;
-    int64_t x_11;
-    int32_t v_121;
-    int64_t r_src_24;
-    opt_node *nd_64;
-    uint64_t v_122;
-    int64_t value_29;
-    uint64_t a_word_668;
-    uint64_t a_word_669;
-    int64_t off_253;
-    uint64_t a_word_670;
     uint64_t a_word_671;
-    int64_t off_254;
+    int32_t off_252;
     uint64_t a_word_672;
     uint64_t a_word_673;
-    int64_t off_255;
+    int64_t x_11;
+    int32_t v_122;
+    int64_t r_src_24;
+    opt_node *nd_64;
+    uint64_t v_123;
+    int64_t value_29;
     uint64_t a_word_674;
     uint64_t a_word_675;
+    int64_t off_253;
     uint64_t a_word_676;
+    uint64_t a_word_677;
+    int64_t off_254;
+    uint64_t a_word_678;
+    uint64_t a_word_679;
+    int64_t off_255;
+    uint64_t a_word_680;
+    uint64_t a_word_681;
+    uint64_t a_word_682;
     int32_t a_label_29;
     uint64_t target_85;
     int64_t r_offset_to_85;
     int64_t off_256;
-    uint64_t a_word_677;
+    uint64_t a_word_683;
     int32_t off_257;
-    uint64_t a_word_678;
-    uint64_t a_word_679;
+    uint64_t a_word_684;
+    uint64_t a_word_685;
     int64_t y_4;
-    uint64_t a_word_680;
-    uint64_t a_word_681;
+    uint64_t a_word_686;
+    uint64_t a_word_687;
     uint64_t target_86;
     int64_t r_offset_to_86;
     int64_t off_258;
-    uint64_t a_word_682;
-    int32_t enc_28;
-    uint64_t a_word_683;
+    uint64_t a_word_688;
+    int32_t enc_29;
+    uint64_t a_word_689;
     opt_node *nd_65;
     int32_t rd_42;
-    int64_t a_word_684;
-    int64_t a_word_685;
+    int64_t a_word_690;
+    int64_t a_word_691;
     int32_t rn_25;
-    uint64_t a_word_686;
+    uint64_t a_word_692;
     int32_t off_259;
-    uint64_t a_word_687;
-    uint64_t a_word_688;
+    uint64_t a_word_693;
+    uint64_t a_word_694;
     opt_node *nd_66;
     int32_t op_14;
     int32_t r_deopt_label_for_12;
@@ -1889,180 +1909,180 @@ static void opt_emit_node(int32_t n, int32_t b, int32_t next_block)
     opt_out *o_78;
     int32_t l_12;
     int64_t off_260;
-    uint64_t a_word_689;
-    uint64_t a_word_690;
+    uint64_t a_word_695;
+    uint64_t a_word_696;
     int64_t off_261;
-    uint64_t a_word_691;
-    uint64_t a_word_692;
+    uint64_t a_word_697;
+    uint64_t a_word_698;
     uint64_t target_87;
     int64_t r_offset_to_87;
     int64_t off_262;
-    uint64_t a_word_693;
+    uint64_t a_word_699;
     int32_t s_45;
-    int32_t v_126;
+    int32_t v_127;
     int64_t r_src_25;
     opt_node *nd_67;
-    uint64_t v_127;
+    uint64_t v_128;
     int64_t value_30;
-    uint64_t a_word_694;
-    uint64_t a_word_695;
-    int64_t off_263;
-    uint64_t a_word_696;
-    uint64_t a_word_697;
-    int64_t off_264;
-    uint64_t a_word_698;
-    uint64_t a_word_699;
-    int64_t off_265;
     uint64_t a_word_700;
     uint64_t a_word_701;
+    int64_t off_263;
     uint64_t a_word_702;
+    uint64_t a_word_703;
+    int64_t off_264;
+    uint64_t a_word_704;
+    uint64_t a_word_705;
+    int64_t off_265;
+    uint64_t a_word_706;
+    uint64_t a_word_707;
+    uint64_t a_word_708;
     int32_t a_label_30;
     uint64_t target_88;
     int64_t r_offset_to_88;
     int64_t off_266;
-    uint64_t a_word_703;
+    uint64_t a_word_709;
     int32_t off_267;
-    uint64_t a_word_704;
-    uint64_t a_word_705;
+    uint64_t a_word_710;
+    uint64_t a_word_711;
     int64_t rn_26;
-    uint64_t a_word_706;
-    int32_t v_128;
+    uint64_t a_word_712;
+    int32_t v_129;
     int64_t r_src_26;
     opt_node *nd_68;
-    uint64_t v_129;
+    uint64_t v_130;
     int64_t value_31;
-    uint64_t a_word_707;
-    uint64_t a_word_708;
-    int64_t off_268;
-    uint64_t a_word_709;
-    uint64_t a_word_710;
-    int64_t off_269;
-    uint64_t a_word_711;
-    uint64_t a_word_712;
-    int64_t off_270;
     uint64_t a_word_713;
     uint64_t a_word_714;
+    int64_t off_268;
     uint64_t a_word_715;
+    uint64_t a_word_716;
+    int64_t off_269;
+    uint64_t a_word_717;
+    uint64_t a_word_718;
+    int64_t off_270;
+    uint64_t a_word_719;
+    uint64_t a_word_720;
+    uint64_t a_word_721;
     int32_t a_label_31;
     uint64_t target_89;
     int64_t r_offset_to_89;
     int64_t off_271;
-    uint64_t a_word_716;
+    uint64_t a_word_722;
     int32_t off_272;
-    uint64_t a_word_717;
-    uint64_t a_word_718;
+    uint64_t a_word_723;
+    uint64_t a_word_724;
     int64_t rn_27;
-    uint64_t a_word_719;
+    uint64_t a_word_725;
     int32_t done_7;
     int32_t neg_59;
     uint64_t target_90;
     int64_t r_offset_to_90;
     int64_t off_273;
-    uint64_t a_word_720;
+    uint64_t a_word_726;
     uint64_t target_91;
     int64_t r_offset_to_91;
     int64_t off_274;
-    uint64_t a_word_721;
+    uint64_t a_word_727;
     uint64_t target_92;
     int64_t r_offset_to_92;
     int64_t off_275;
-    uint64_t a_word_722;
+    uint64_t a_word_728;
     uint64_t target_93;
     int64_t r_offset_to_93;
     int64_t off_276;
-    int64_t a_word_723;
+    int64_t a_word_729;
     uint64_t target_94;
     int64_t r_offset_to_94;
     int64_t off_277;
-    uint64_t a_word_724;
-    int32_t enc_29;
-    uint64_t a_word_725;
+    uint64_t a_word_730;
+    int32_t enc_30;
+    uint64_t a_word_731;
     opt_node *nd_69;
     int32_t rd_43;
-    int64_t a_word_726;
-    int64_t a_word_727;
+    int64_t a_word_732;
+    int64_t a_word_733;
     int32_t rn_28;
-    uint64_t a_word_728;
+    uint64_t a_word_734;
     int32_t off_278;
-    uint64_t a_word_729;
-    uint64_t a_word_730;
+    uint64_t a_word_735;
+    uint64_t a_word_736;
     uint64_t target_95;
     int64_t r_offset_to_95;
     int64_t off_279;
-    uint64_t a_word_731;
+    uint64_t a_word_737;
     uint64_t target_96;
     int64_t r_offset_to_96;
     int64_t off_280;
-    int64_t a_word_732;
+    int64_t a_word_738;
     uint64_t target_97;
     int64_t r_offset_to_97;
     int64_t off_281;
-    uint64_t a_word_733;
+    uint64_t a_word_739;
     uint64_t target_98;
     int64_t r_offset_to_98;
     int64_t off_282;
-    uint64_t a_word_734;
-    int32_t enc_30;
-    uint64_t a_word_735;
+    uint64_t a_word_740;
+    int32_t enc_31;
+    uint64_t a_word_741;
     uint64_t target_99;
     int64_t r_offset_to_99;
     int64_t off_283;
-    uint64_t a_word_736;
-    int32_t enc_31;
-    uint64_t a_word_737;
+    uint64_t a_word_742;
+    int32_t enc_32;
+    uint64_t a_word_743;
     opt_node *nd_70;
     int32_t rd_44;
-    int64_t a_word_738;
-    int64_t a_word_739;
+    int64_t a_word_744;
+    int64_t a_word_745;
     int32_t rn_29;
-    uint64_t a_word_740;
-    int32_t off_284;
-    uint64_t a_word_741;
-    uint64_t a_word_742;
-    int32_t v_134;
-    int64_t r_src_27;
-    opt_node *nd_71;
-    uint64_t v_135;
-    int64_t value_32;
-    uint64_t a_word_743;
-    uint64_t a_word_744;
-    int64_t off_285;
-    uint64_t a_word_745;
     uint64_t a_word_746;
-    int64_t off_286;
+    int32_t off_284;
     uint64_t a_word_747;
     uint64_t a_word_748;
-    int64_t off_287;
+    int32_t v_135;
+    int64_t r_src_27;
+    opt_node *nd_71;
+    uint64_t v_136;
+    int64_t value_32;
     uint64_t a_word_749;
     uint64_t a_word_750;
+    int64_t off_285;
     uint64_t a_word_751;
+    uint64_t a_word_752;
+    int64_t off_286;
+    uint64_t a_word_753;
+    uint64_t a_word_754;
+    int64_t off_287;
+    uint64_t a_word_755;
+    uint64_t a_word_756;
+    uint64_t a_word_757;
     int32_t a_label_32;
     uint64_t target_100;
     int64_t r_offset_to_100;
     int64_t off_288;
-    uint64_t a_word_752;
+    uint64_t a_word_758;
     int32_t off_289;
-    uint64_t a_word_753;
-    uint64_t a_word_754;
+    uint64_t a_word_759;
+    uint64_t a_word_760;
     int32_t r_dst_10;
     opt_node *nd_72;
     int s_46;
-    int64_t sf_29;
-    uint64_t a_word_755;
-    int32_t enc_32;
-    uint64_t a_word_756;
+    int64_t sf_30;
+    uint64_t a_word_761;
+    int32_t enc_33;
+    uint64_t a_word_762;
     opt_node *nd_73;
     int32_t rd_45;
-    uint64_t a_word_757;
-    uint64_t a_word_758;
+    uint64_t a_word_763;
+    uint64_t a_word_764;
     int32_t rn_30;
-    uint64_t a_word_759;
+    uint64_t a_word_765;
     int32_t off_290;
-    int64_t bits_70;
-    int s_47;
-    uint64_t a_word_760;
     int64_t bits_71;
-    uint64_t a_word_761;
+    int s_47;
+    uint64_t a_word_766;
+    int64_t bits_72;
+    uint64_t a_word_767;
     int32_t r_deopt_label_for_13;
     int32_t r_record_guard_13;
     int32_t op_16;
@@ -2072,38 +2092,38 @@ static void opt_emit_node(int32_t n, int32_t b, int32_t next_block)
     opt_out *o_85;
     int32_t l_13;
     int64_t off_291;
-    uint64_t a_word_762;
-    uint64_t a_word_763;
+    uint64_t a_word_768;
+    uint64_t a_word_769;
     int64_t off_292;
-    uint64_t a_word_764;
-    uint64_t a_word_765;
+    uint64_t a_word_770;
+    uint64_t a_word_771;
     uint64_t target_101;
     int64_t r_offset_to_101;
     int64_t off_293;
-    uint64_t a_word_766;
-    uint64_t a_word_767;
+    uint64_t a_word_772;
+    uint64_t a_word_773;
     uint64_t target_102;
     int64_t r_offset_to_102;
     int64_t off_294;
-    uint64_t a_word_768;
-    int r_8;
+    uint64_t a_word_774;
+    int r_9;
     int s_48;
-    int64_t sf_31;
-    uint64_t a_word_769;
-    int32_t enc_33;
-    uint64_t a_word_770;
+    int64_t sf_32;
+    uint64_t a_word_775;
+    int32_t enc_34;
+    uint64_t a_word_776;
     opt_node *nd_74;
     int32_t rd_46;
-    uint64_t a_word_771;
-    uint64_t a_word_772;
+    uint64_t a_word_777;
+    uint64_t a_word_778;
     int32_t rn_31;
-    uint64_t a_word_773;
+    uint64_t a_word_779;
     int32_t off_295;
-    int64_t bits_72;
-    int s_49;
-    uint64_t a_word_774;
     int64_t bits_73;
-    uint64_t a_word_775;
+    int s_49;
+    uint64_t a_word_780;
+    int64_t bits_74;
+    uint64_t a_word_781;
     int32_t r_deopt_label_for_14;
     int32_t r_record_guard_14;
     int32_t op_17;
@@ -2113,163 +2133,163 @@ static void opt_emit_node(int32_t n, int32_t b, int32_t next_block)
     opt_out *o_88;
     int32_t l_14;
     int64_t off_296;
-    uint64_t a_word_776;
-    uint64_t a_word_777;
+    uint64_t a_word_782;
+    uint64_t a_word_783;
     int64_t off_297;
-    uint64_t a_word_778;
-    uint64_t a_word_779;
+    uint64_t a_word_784;
+    uint64_t a_word_785;
     uint64_t target_103;
     int64_t r_offset_to_103;
     int64_t off_298;
-    uint64_t a_word_780;
-    int32_t v_140;
+    uint64_t a_word_786;
+    int32_t v_141;
     int64_t r_src_28;
     opt_node *nd_75;
-    uint64_t v_141;
+    uint64_t v_142;
     int64_t value_33;
-    uint64_t a_word_781;
-    uint64_t a_word_782;
-    int64_t off_299;
-    uint64_t a_word_783;
-    uint64_t a_word_784;
-    int64_t off_300;
-    uint64_t a_word_785;
-    uint64_t a_word_786;
-    int64_t off_301;
     uint64_t a_word_787;
     uint64_t a_word_788;
+    int64_t off_299;
     uint64_t a_word_789;
+    uint64_t a_word_790;
+    int64_t off_300;
+    uint64_t a_word_791;
+    uint64_t a_word_792;
+    int64_t off_301;
+    uint64_t a_word_793;
+    uint64_t a_word_794;
+    uint64_t a_word_795;
     int32_t a_label_33;
     uint64_t target_104;
     int64_t r_offset_to_104;
     int64_t off_302;
-    uint64_t a_word_790;
-    int32_t off_303;
-    uint64_t a_word_791;
-    uint64_t a_word_792;
-    int32_t v_142;
-    int64_t r_src_29;
-    opt_node *nd_76;
-    uint64_t v_143;
-    int64_t value_34;
-    uint64_t a_word_793;
-    uint64_t a_word_794;
-    int64_t off_304;
-    uint64_t a_word_795;
     uint64_t a_word_796;
-    int64_t off_305;
+    int32_t off_303;
     uint64_t a_word_797;
     uint64_t a_word_798;
-    int64_t off_306;
+    int32_t v_143;
+    int64_t r_src_29;
+    opt_node *nd_76;
+    uint64_t v_144;
+    int64_t value_34;
     uint64_t a_word_799;
     uint64_t a_word_800;
+    int64_t off_304;
     uint64_t a_word_801;
+    uint64_t a_word_802;
+    int64_t off_305;
+    uint64_t a_word_803;
+    uint64_t a_word_804;
+    int64_t off_306;
+    uint64_t a_word_805;
+    uint64_t a_word_806;
+    uint64_t a_word_807;
     int32_t a_label_34;
     uint64_t target_105;
     int64_t r_offset_to_105;
     int64_t off_307;
-    uint64_t a_word_802;
+    uint64_t a_word_808;
     int32_t off_308;
-    uint64_t a_word_803;
-    uint64_t a_word_804;
+    uint64_t a_word_809;
+    uint64_t a_word_810;
     int64_t y;
-    uint64_t a_word_805;
-    int32_t enc_34;
-    uint64_t a_word_806;
+    uint64_t a_word_811;
+    int32_t enc_35;
+    uint64_t a_word_812;
     uint64_t target_106;
     int64_t r_offset_to_106;
     int64_t off_309;
-    uint64_t a_word_807;
-    int32_t v_144;
+    uint64_t a_word_813;
+    int32_t v_145;
     int64_t r_src_30;
     opt_node *nd_77;
-    uint64_t v_145;
+    uint64_t v_146;
     int64_t value_35;
-    uint64_t a_word_808;
-    uint64_t a_word_809;
-    int64_t off_310;
-    uint64_t a_word_810;
-    uint64_t a_word_811;
-    int64_t off_311;
-    uint64_t a_word_812;
-    uint64_t a_word_813;
-    int64_t off_312;
     uint64_t a_word_814;
     uint64_t a_word_815;
+    int64_t off_310;
     uint64_t a_word_816;
+    uint64_t a_word_817;
+    int64_t off_311;
+    uint64_t a_word_818;
+    uint64_t a_word_819;
+    int64_t off_312;
+    uint64_t a_word_820;
+    uint64_t a_word_821;
+    uint64_t a_word_822;
     int32_t a_label_35;
     uint64_t target_107;
     int64_t r_offset_to_107;
     int64_t off_313;
-    uint64_t a_word_817;
-    int32_t off_314;
-    uint64_t a_word_818;
-    uint64_t a_word_819;
-    int32_t v_146;
-    int64_t r_src_31;
-    opt_node *nd_78;
-    uint64_t v_147;
-    int64_t value_36;
-    uint64_t a_word_820;
-    uint64_t a_word_821;
-    int64_t off_315;
-    uint64_t a_word_822;
     uint64_t a_word_823;
-    int64_t off_316;
+    int32_t off_314;
     uint64_t a_word_824;
     uint64_t a_word_825;
-    int64_t off_317;
+    int32_t v_147;
+    int64_t r_src_31;
+    opt_node *nd_78;
+    uint64_t v_148;
+    int64_t value_36;
     uint64_t a_word_826;
     uint64_t a_word_827;
+    int64_t off_315;
     uint64_t a_word_828;
+    uint64_t a_word_829;
+    int64_t off_316;
+    uint64_t a_word_830;
+    uint64_t a_word_831;
+    int64_t off_317;
+    uint64_t a_word_832;
+    uint64_t a_word_833;
+    uint64_t a_word_834;
     int32_t a_label_36;
     uint64_t target_108;
     int64_t r_offset_to_108;
     int64_t off_318;
-    uint64_t a_word_829;
-    int32_t off_319;
-    uint64_t a_word_830;
-    uint64_t a_word_831;
-    int32_t r_dst_11;
-    opt_node *nd_79;
-    uint64_t a_word_832;
-    uint64_t a_word_833;
-    uint64_t a_word_834;
-    int32_t enc_35;
     uint64_t a_word_835;
-    opt_node *nd_80;
-    int32_t rd_47;
+    int32_t off_319;
     uint64_t a_word_836;
     uint64_t a_word_837;
-    int32_t rn_32;
+    int32_t r_dst_11;
+    opt_node *nd_79;
     uint64_t a_word_838;
-    int32_t off_320;
-    int64_t bits_74;
-    int s_50;
     uint64_t a_word_839;
-    int64_t bits_75;
     uint64_t a_word_840;
+    int32_t enc_36;
+    uint64_t a_word_841;
+    opt_node *nd_80;
+    int32_t rd_47;
+    uint64_t a_word_842;
+    uint64_t a_word_843;
+    int32_t rn_32;
+    uint64_t a_word_844;
+    int32_t off_320;
+    int64_t bits_75;
+    int s_50;
+    uint64_t a_word_845;
+    int64_t bits_76;
+    uint64_t a_word_846;
     int32_t back;
     int32_t r_out_18;
     opt_out *o_91;
     int32_t s_51;
     int64_t off_321;
-    uint64_t a_word_841;
-    uint64_t a_word_842;
+    uint64_t a_word_847;
+    uint64_t a_word_848;
     uint64_t target_109;
     int64_t r_offset_to_109;
     int64_t off_322;
-    uint64_t a_word_843;
+    uint64_t a_word_849;
     int64_t off_323;
-    uint64_t a_word_844;
-    uint64_t a_word_845;
+    uint64_t a_word_850;
+    uint64_t a_word_851;
     int64_t off_324;
-    uint64_t a_word_846;
-    uint64_t a_word_847;
+    uint64_t a_word_852;
+    uint64_t a_word_853;
     uint64_t target_110;
     int64_t r_offset_to_110;
     int64_t off_325;
-    uint64_t a_word_848;
+    uint64_t a_word_854;
     opt_node *nd_81;
     int32_t argc;
     int32_t k_18;
@@ -2280,415 +2300,460 @@ static void opt_emit_node(int32_t n, int32_t b, int32_t next_block)
     int32_t isize;
     int64_t k_19;
     int32_t i_10;
-    int32_t n_28;
+    int32_t n_33;
     opt_node *sz;
     uint64_t o_93;
     uint64_t o_94;
     uint64_t o_95;
     int32_t i_11;
-    int32_t v_150;
+    int32_t v_151;
     int64_t r_src_32;
     opt_node *nd_83;
-    uint64_t v_151;
+    uint64_t v_152;
     int64_t value_37;
-    uint64_t a_word_849;
-    uint64_t a_word_850;
-    int64_t off_327;
-    uint64_t a_word_851;
-    uint64_t a_word_852;
-    int64_t off_328;
-    uint64_t a_word_853;
-    uint64_t a_word_854;
-    int64_t off_329;
     uint64_t a_word_855;
     uint64_t a_word_856;
+    int64_t off_327;
     uint64_t a_word_857;
+    uint64_t a_word_858;
+    int64_t off_328;
+    uint64_t a_word_859;
+    uint64_t a_word_860;
+    int64_t off_329;
+    uint64_t a_word_861;
+    uint64_t a_word_862;
+    uint64_t a_word_863;
     int32_t a_label_37;
     uint64_t target_111;
     int64_t r_offset_to_111;
     int64_t off_330;
-    uint64_t a_word_858;
+    uint64_t a_word_864;
     int32_t off_331;
-    uint64_t a_word_859;
-    uint64_t a_word_860;
-    int64_t r_10;
+    uint64_t a_word_865;
+    uint64_t a_word_866;
+    int64_t r_11;
     uint64_t target_112;
     int64_t r_offset_to_112;
     int64_t off_332;
-    uint64_t a_word_861;
-    uint64_t a_word_862;
+    uint64_t a_word_867;
+    uint64_t a_word_868;
     uint64_t target_113;
     int64_t r_offset_to_113;
     int64_t off_333;
-    uint64_t a_word_863;
-    bool neg_72;
-    int32_t v_153;
-    int o_97;
-    uint64_t a_word_864;
-    uint64_t a_word_865;
-    uint64_t a_word_866;
-    uint64_t imm_8;
-    int32_t enc_36;
-    uint64_t a_word_867;
-    int64_t off_334;
-    uint64_t a_word_868;
     uint64_t a_word_869;
-    int32_t enc_37;
+    bool neg_72;
+    int32_t v_154;
+    int o_97;
     uint64_t a_word_870;
+    uint64_t a_word_871;
+    uint64_t a_word_872;
+    uint64_t imm_8;
+    int32_t enc_37;
+    uint64_t a_word_873;
+    int64_t off_334;
+    uint64_t a_word_874;
+    uint64_t a_word_875;
+    int32_t enc_38;
+    uint64_t a_word_876;
     int32_t a_label_38;
     int64_t off_335;
-    uint64_t a_word_871;
+    uint64_t a_word_877;
     int64_t imm_9;
     bool neg_75;
-    int64_t v_156;
+    int64_t v_157;
     int o_100;
-    uint64_t a_word_872;
-    uint64_t a_word_873;
+    uint64_t a_word_878;
+    uint64_t a_word_879;
     uint64_t target_114;
     int64_t r_offset_to_114;
     int64_t off_336;
-    uint64_t a_word_874;
+    uint64_t a_word_880;
     int32_t a_label_39;
     int64_t off_337;
-    uint64_t a_word_875;
+    uint64_t a_word_881;
     int64_t imm_10;
     bool neg_76;
-    int64_t v_157;
+    int64_t v_158;
     int o_101;
-    uint64_t a_word_876;
-    uint64_t a_word_877;
-    uint64_t v_158;
-    int64_t value_38;
-    uint64_t a_word_878;
-    uint64_t a_word_879;
-    int64_t off_338;
-    uint64_t a_word_880;
-    uint64_t a_word_881;
-    int64_t off_339;
     uint64_t a_word_882;
     uint64_t a_word_883;
-    int64_t off_340;
+    uint64_t v_159;
+    int64_t value_38;
     uint64_t a_word_884;
     uint64_t a_word_885;
+    int64_t off_338;
     uint64_t a_word_886;
+    uint64_t a_word_887;
+    int64_t off_339;
+    uint64_t a_word_888;
+    uint64_t a_word_889;
+    int64_t off_340;
+    uint64_t a_word_890;
+    uint64_t a_word_891;
+    uint64_t a_word_892;
     int32_t a_label_40;
     uint64_t target_115;
     int64_t r_offset_to_115;
     int64_t off_341;
-    uint64_t a_word_887;
+    uint64_t a_word_893;
     int64_t off_342;
-    uint64_t a_word_888;
-    uint64_t a_word_889;
+    uint64_t a_word_894;
+    uint64_t a_word_895;
     int64_t i_12;
     int64_t off_343;
-    uint64_t a_word_890;
-    uint64_t a_word_891;
+    uint64_t a_word_896;
+    uint64_t a_word_897;
     int32_t loop;
     int32_t fill;
     uint64_t target_116;
     int64_t r_offset_to_116;
     int64_t off_344;
-    int64_t a_word_892;
+    int64_t a_word_898;
     uint64_t target_117;
     int64_t r_offset_to_117;
     int64_t off_345;
-    uint64_t a_word_893;
+    uint64_t a_word_899;
     int32_t r_dst_12;
     opt_node *nd_84;
-    int64_t a_word_894;
-    int64_t a_word_895;
+    int64_t a_word_900;
+    int64_t a_word_901;
     int64_t rn_33;
-    uint64_t a_word_896;
+    uint64_t a_word_902;
     opt_node *nd_85;
     int32_t rd_48;
-    uint64_t a_word_897;
-    uint64_t a_word_898;
+    uint64_t a_word_903;
+    uint64_t a_word_904;
     int32_t rn_34;
-    uint64_t a_word_899;
+    uint64_t a_word_905;
     int32_t off_346;
-    int64_t bits_76;
-    int s_53;
-    uint64_t a_word_900;
     int64_t bits_77;
-    uint64_t a_word_901;
+    int s_53;
+    uint64_t a_word_906;
+    int64_t bits_78;
+    uint64_t a_word_907;
     uint64_t target_118;
     int64_t r_offset_to_118;
     int64_t off_347;
-    int64_t a_word_902;
+    int64_t a_word_908;
     int32_t i_13;
-    int32_t i_14;
-    int32_t v_163;
-    int64_t r_src_33;
+    int32_t v_164;
     opt_node *nd_86;
-    uint64_t v_164;
-    int64_t value_39;
-    uint64_t a_word_903;
-    uint64_t a_word_904;
-    int64_t off_348;
-    uint64_t a_word_905;
-    uint64_t a_word_906;
-    int64_t off_349;
-    uint64_t a_word_907;
-    uint64_t a_word_908;
-    int64_t off_350;
+    int32_t rt_2;
+    int32_t off_348;
+    int64_t bits_79;
+    int s_54;
     uint64_t a_word_909;
+    int64_t bits_80;
     uint64_t a_word_910;
+    int32_t i_14;
+    int32_t i_15;
+    int32_t v_165;
+    int64_t r_src_33;
+    opt_node *nd_87;
+    uint64_t v_166;
+    int64_t value_39;
     uint64_t a_word_911;
+    uint64_t a_word_912;
+    int64_t off_349;
+    uint64_t a_word_913;
+    uint64_t a_word_914;
+    int64_t off_350;
+    uint64_t a_word_915;
+    uint64_t a_word_916;
+    int64_t off_351;
+    uint64_t a_word_917;
+    uint64_t a_word_918;
+    uint64_t a_word_919;
     int32_t a_label_41;
     uint64_t target_119;
     int64_t r_offset_to_119;
-    int64_t off_351;
-    uint64_t a_word_912;
-    int32_t off_352;
-    uint64_t a_word_913;
-    uint64_t a_word_914;
-    int64_t r_9;
-    int32_t off_353;
-    int64_t bits_78;
-    int s_54;
-    uint64_t a_word_915;
-    int64_t bits_79;
-    uint64_t a_word_916;
-    int32_t i_15;
-    int32_t v_165;
-    int64_t r_src_34;
-    opt_node *nd_87;
-    uint64_t v_166;
-    int64_t value_40;
-    uint64_t a_word_917;
-    uint64_t a_word_918;
-    int64_t off_354;
-    uint64_t a_word_919;
+    int64_t off_352;
     uint64_t a_word_920;
-    int64_t off_355;
+    int32_t off_353;
     uint64_t a_word_921;
     uint64_t a_word_922;
-    int64_t off_356;
+    int64_t r_10;
+    int32_t off_354;
+    int64_t bits_81;
+    int s_55;
     uint64_t a_word_923;
+    int64_t bits_82;
     uint64_t a_word_924;
+    int32_t i_16;
+    int32_t v_167;
+    int64_t r_src_34;
+    opt_node *nd_88;
+    uint64_t v_168;
+    int64_t value_40;
     uint64_t a_word_925;
+    uint64_t a_word_926;
+    int64_t off_355;
+    uint64_t a_word_927;
+    uint64_t a_word_928;
+    int64_t off_356;
+    uint64_t a_word_929;
+    uint64_t a_word_930;
+    int64_t off_357;
+    uint64_t a_word_931;
+    uint64_t a_word_932;
+    uint64_t a_word_933;
     int32_t a_label_42;
     uint64_t target_120;
     int64_t r_offset_to_120;
-    int64_t off_357;
-    uint64_t a_word_926;
-    int32_t off_358;
-    uint64_t a_word_927;
-    uint64_t a_word_928;
-    uint64_t a_word_929;
-    uint64_t a_word_930;
-    uint64_t a_word_931;
+    int64_t off_358;
+    uint64_t a_word_934;
+    int32_t off_359;
+    uint64_t a_word_935;
+    uint64_t a_word_936;
+    uint64_t a_word_937;
+    uint64_t a_word_938;
+    uint64_t a_word_939;
     int32_t off_326;
     bool neg_82;
-    int32_t v_168;
+    int32_t v_170;
     int o_107;
-    uint64_t a_word_932;
-    uint64_t a_word_933;
-    uint64_t a_word_934;
+    uint64_t a_word_940;
+    uint64_t a_word_941;
+    uint64_t a_word_942;
     int32_t back_2;
     int32_t a_label_43;
     uint64_t target_121;
     int64_t r_offset_to_121;
-    int64_t off_359;
-    int64_t a_word_935;
+    int64_t off_360;
+    int64_t a_word_943;
     int32_t r_out_19;
     opt_out *o_108;
     int64_t imm_11;
     bool neg_83;
-    int64_t v_169;
+    int64_t v_171;
     int o_109;
-    uint64_t a_word_936;
-    uint64_t a_word_937;
+    uint64_t a_word_944;
+    uint64_t a_word_945;
     uint64_t target_122;
     int64_t r_offset_to_122;
-    int64_t off_360;
-    uint64_t a_word_938;
+    int64_t off_361;
+    uint64_t a_word_946;
     int32_t a_label_44;
     uint64_t target_123;
     int64_t r_offset_to_123;
-    int64_t off_361;
-    int64_t a_word_939;
+    int64_t off_362;
+    int64_t a_word_947;
     int32_t lit;
     uint64_t target_124;
     int64_t r_offset_to_124;
-    int64_t off_362;
-    uint64_t a_word_940;
-    opt_node *nd_88;
+    int64_t off_363;
+    uint64_t a_word_948;
+    opt_node *nd_89;
     int32_t a_label_45;
     uint64_t target_125;
     int64_t r_offset_to_125;
-    int64_t off_363;
-    int64_t a_word_941;
+    int64_t off_364;
+    int64_t a_word_949;
     bool neg_84;
-    int32_t v_170;
+    int32_t v_172;
     int o_110;
-    uint64_t a_word_942;
-    uint64_t a_word_943;
-    uint64_t a_word_944;
+    uint64_t a_word_950;
+    uint64_t a_word_951;
+    uint64_t a_word_952;
     int32_t cont;
     int32_t r_out_20;
     opt_out *o_111;
     int32_t r_out_21;
     opt_out *o_112;
     int32_t lazy;
-    int64_t off_364;
-    uint64_t a_word_945;
     int64_t off_365;
-    uint64_t a_word_946;
-    uint64_t a_word_947;
-    int32_t enc_38;
-    uint64_t a_word_948;
+    uint64_t a_word_953;
+    int64_t off_366;
+    uint64_t a_word_954;
+    uint64_t a_word_955;
+    int32_t enc_39;
+    uint64_t a_word_956;
     uint64_t target_126;
     int64_t r_offset_to_126;
-    int64_t off_366;
-    uint64_t a_word_949;
     int64_t off_367;
-    uint64_t a_word_950;
-    uint64_t a_word_951;
+    uint64_t a_word_957;
     int64_t off_368;
-    uint64_t a_word_952;
-    uint64_t a_word_953;
+    uint64_t a_word_958;
+    uint64_t a_word_959;
+    int64_t off_369;
+    uint64_t a_word_960;
+    uint64_t a_word_961;
     uint64_t target_127;
     int64_t r_offset_to_127;
-    int64_t off_369;
-    uint64_t a_word_954;
+    int64_t off_370;
+    uint64_t a_word_962;
     int32_t r_out_22;
     opt_out *o_114;
-    int64_t off_370;
-    uint64_t a_word_955;
-    uint64_t a_word_956;
+    int64_t off_371;
+    uint64_t a_word_963;
+    uint64_t a_word_964;
     uint64_t target_128;
     int64_t r_offset_to_128;
-    int64_t off_371;
-    uint64_t a_word_957;
-    opt_node *nd_89;
-    int32_t rd_49;
-    int64_t a_word_958;
-    int64_t a_word_959;
-    int32_t rn_35;
-    uint64_t a_word_960;
-    int32_t off_372;
-    uint64_t a_word_961;
-    uint64_t a_word_962;
-    int32_t i_16;
-    int32_t v_173;
+    int64_t off_372;
+    uint64_t a_word_965;
     opt_node *nd_90;
-    int32_t rt_2;
+    int32_t rd_49;
+    int64_t a_word_966;
+    int64_t a_word_967;
+    int32_t rn_35;
+    uint64_t a_word_968;
     int32_t off_373;
-    int64_t bits_80;
-    int s_55;
-    uint64_t a_word_963;
-    int64_t bits_81;
-    uint64_t a_word_964;
-    int32_t s_56;
+    uint64_t a_word_969;
+    uint64_t a_word_970;
+    int32_t i_17;
+    int32_t v_175;
+    opt_node *nd_91;
+    int32_t rt_3;
+    int32_t off_374;
+    int64_t bits_83;
+    int s_56;
+    uint64_t a_word_971;
+    int64_t bits_84;
+    uint64_t a_word_972;
+    int32_t s_57;
     int64_t r_pred_index_of;
     int32_t e;
-    int64_t i_17;
-    int64_t k_20;
-    int32_t n_29;
-    opt_node *nd_91;
-    bool r_is_value;
-    opt_node *nd_92;
     int64_t i_18;
-    int32_t i_19;
-    int32_t v_174;
-    int64_t r_loc_of;
+    int64_t k_20;
+    int32_t n_34;
+    opt_node *nd_92;
+    bool r_is_value;
     opt_node *nd_93;
-    int32_t r_first_register_move;
+    int64_t i_19;
     int32_t i_20;
+    int32_t v_176;
+    int64_t r_loc_of;
+    opt_node *nd_94;
+    int32_t r_first_register_move;
+    int32_t i_21;
     int32_t k_21;
     bool progress;
-    int32_t v_175;
+    int32_t v_177;
     int64_t r_loc_of_2;
-    opt_node *nd_94;
+    opt_node *nd_95;
     int64_t d;
     bool blocked;
     int32_t j;
     int32_t l_15;
-    uint64_t a_word_965;
-    uint64_t a_word_966;
-    uint64_t a_word_967;
-    int32_t off_374;
-    uint64_t a_word_968;
-    uint64_t a_word_969;
-    int32_t phi;
-    int32_t r_11;
-    opt_node *nd_95;
-    int32_t rd_50;
-    uint64_t a_word_970;
-    uint64_t a_word_971;
-    int32_t rn_36;
-    uint64_t a_word_972;
-    int32_t off_375;
-    int64_t bits_82;
-    int s_57;
     uint64_t a_word_973;
-    int64_t bits_83;
     uint64_t a_word_974;
-    int32_t r_first_register_move_2;
-    int32_t i_21;
-    int32_t v_178;
-    int64_t r_loc_of_3;
-    opt_node *nd_96;
     uint64_t a_word_975;
+    int32_t off_375;
     uint64_t a_word_976;
     uint64_t a_word_977;
-    int64_t off_376;
+    int32_t phi;
+    int32_t r_12;
+    opt_node *nd_96;
+    int32_t rd_50;
     uint64_t a_word_978;
     uint64_t a_word_979;
-    int32_t j_2;
-    int32_t i_22;
-    int32_t phi_2;
-    int32_t v_180;
-    int64_t r_src_35;
-    opt_node *nd_97;
-    uint64_t v_181;
-    int64_t value_41;
+    int32_t rn_36;
     uint64_t a_word_980;
+    int32_t off_376;
+    int64_t bits_85;
+    int s_58;
     uint64_t a_word_981;
-    int64_t off_377;
+    int64_t bits_86;
     uint64_t a_word_982;
+    int32_t r_first_register_move_2;
+    int32_t i_22;
+    int32_t v_180;
+    int64_t r_loc_of_3;
+    opt_node *nd_97;
     uint64_t a_word_983;
-    int64_t off_378;
     uint64_t a_word_984;
     uint64_t a_word_985;
-    int64_t off_379;
+    int64_t off_377;
     uint64_t a_word_986;
     uint64_t a_word_987;
+    int32_t j_2;
+    int32_t i_23;
+    int32_t phi_2;
+    int32_t v_182;
+    int64_t r_src_35;
+    opt_node *nd_98;
+    uint64_t v_183;
+    int64_t value_41;
     uint64_t a_word_988;
+    uint64_t a_word_989;
+    int64_t off_378;
+    uint64_t a_word_990;
+    uint64_t a_word_991;
+    int64_t off_379;
+    uint64_t a_word_992;
+    uint64_t a_word_993;
+    int64_t off_380;
+    uint64_t a_word_994;
+    uint64_t a_word_995;
+    uint64_t a_word_996;
     int32_t a_label_46;
     uint64_t target_129;
     int64_t r_offset_to_129;
-    int64_t off_380;
-    uint64_t a_word_989;
-    int32_t off_381;
-    uint64_t a_word_990;
-    uint64_t a_word_991;
-    int64_t r_12;
-    opt_node *nd_98;
-    int32_t rd_51;
-    uint64_t a_word_992;
-    uint64_t a_word_993;
-    int32_t rn_37;
-    uint64_t a_word_994;
+    int64_t off_381;
+    uint64_t a_word_997;
     int32_t off_382;
-    int64_t bits_84;
-    int s_58;
-    uint64_t a_word_995;
-    int64_t bits_85;
-    uint64_t a_word_996;
-    int32_t b_2;
+    uint64_t a_word_998;
+    uint64_t a_word_999;
+    int64_t r_13;
+    opt_node *nd_99;
+    int32_t rd_51;
+    uint64_t a_word_1000;
+    uint64_t a_word_1001;
+    int32_t rn_37;
+    uint64_t a_word_1002;
+    int32_t off_383;
+    int64_t bits_87;
+    int s_59;
+    uint64_t a_word_1003;
+    int64_t bits_88;
+    uint64_t a_word_1004;
+    int32_t n_35;
+    opt_node *nd_100;
+    bool r_is_value_2;
+    opt_node *nd_101;
+    int64_t i_24;
+    int32_t src;
+    int32_t r_first_register_move_3;
+    int32_t i_25;
+    bool progress_2;
+    int32_t i_26;
+    int32_t d_2;
+    bool blocked_2;
+    int32_t j_3;
+    int32_t rn_38;
+    uint64_t a_word_1005;
+    uint64_t a_word_1006;
+    int32_t r_first_register_move_4;
+    int32_t i_27;
+    int32_t c_3;
+    uint64_t a_word_1007;
+    int32_t j_4;
+    int32_t i_28;
+    int32_t n_36;
+    uint64_t v_185;
+    uint64_t r_constant_double_2;
+    uint64_t r_14;
+    uint64_t b_3;
+    uint64_t bits_89;
+    int32_t d_3;
+    double a_double_2;
+    int32_t enc_40;
+    uint64_t a_word_1008;
+    uint64_t a_word_1009;
+    int64_t a_word_1010;
+    int64_t a_word_1011;
+    int32_t b_4;
     int32_t a_label_47;
     uint64_t target_130;
     int64_t r_offset_to_130;
-    int64_t off_383;
-    int64_t a_word_997;
-    opt_node *nd_99;
-    int32_t v_183;
+    int64_t off_384;
+    int64_t a_word_1012;
+    opt_node *nd_102;
+    int32_t v_186;
     opt_node *vd;
     bool r_is_fused_2;
-    opt_node *nd_100;
-    int32_t n_30;
+    opt_node *nd_103;
+    int32_t n_37;
     opt_node *nx_2;
     int32_t r_deopt_label_for_15;
     int32_t r_record_guard_15;
@@ -2698,303 +2763,303 @@ static void opt_emit_node(int32_t n, int32_t b, int32_t next_block)
     int32_t r_out_23;
     opt_out *o_120;
     int32_t l_16;
-    int64_t off_384;
-    uint64_t a_word_998;
-    uint64_t a_word_999;
     int64_t off_385;
-    uint64_t a_word_1000;
-    uint64_t a_word_1001;
+    uint64_t a_word_1013;
+    uint64_t a_word_1014;
+    int64_t off_386;
+    uint64_t a_word_1015;
+    uint64_t a_word_1016;
     uint64_t target_131;
     int64_t r_offset_to_131;
-    int64_t off_386;
-    uint64_t a_word_1002;
-    int32_t s_59;
+    int64_t off_387;
+    uint64_t a_word_1017;
+    int32_t s_60;
     int32_t t;
     int32_t f;
     int32_t tl;
     int32_t fl;
     bool r_is_fused_3;
-    opt_node *nd_101;
-    int32_t n_31;
+    opt_node *nd_104;
+    int32_t n_38;
     opt_node *nx_3;
-    opt_node *nd_102;
-    int32_t v_185;
+    opt_node *nd_105;
+    int32_t v_188;
     int32_t r_dsrc_20;
-    int32_t rn_38;
-    int32_t v_186;
+    int32_t rn_39;
+    int32_t v_189;
     int32_t r_dsrc_21;
     int32_t rm_6;
-    uint64_t a_word_1003;
-    int32_t v_187;
+    uint64_t a_word_1018;
+    int32_t v_190;
     int64_t r_src_36;
-    opt_node *nd_103;
-    uint64_t v_188;
+    opt_node *nd_106;
+    uint64_t v_191;
     int64_t value_42;
-    uint64_t a_word_1004;
-    uint64_t a_word_1005;
-    int64_t off_387;
-    uint64_t a_word_1006;
-    uint64_t a_word_1007;
+    uint64_t a_word_1019;
+    uint64_t a_word_1020;
     int64_t off_388;
-    uint64_t a_word_1008;
-    uint64_t a_word_1009;
+    uint64_t a_word_1021;
+    uint64_t a_word_1022;
     int64_t off_389;
-    uint64_t a_word_1010;
-    uint64_t a_word_1011;
-    uint64_t a_word_1012;
+    uint64_t a_word_1023;
+    uint64_t a_word_1024;
+    int64_t off_390;
+    uint64_t a_word_1025;
+    uint64_t a_word_1026;
+    uint64_t a_word_1027;
     int32_t a_label_48;
     uint64_t target_132;
     int64_t r_offset_to_132;
-    int64_t off_390;
-    uint64_t a_word_1013;
-    int32_t off_391;
-    uint64_t a_word_1014;
-    uint64_t a_word_1015;
+    int64_t off_391;
+    uint64_t a_word_1028;
+    int32_t off_392;
+    uint64_t a_word_1029;
+    uint64_t a_word_1030;
     int64_t x_12;
     uint64_t cls_3;
-    int32_t enc_39;
-    uint64_t a_word_1016;
-    int32_t enc_40;
-    uint64_t a_word_1017;
     int32_t enc_41;
-    uint64_t a_word_1018;
-    int64_t rd_52;
+    uint64_t a_word_1031;
     int32_t enc_42;
-    uint64_t a_word_1019;
-    uint64_t a_word_1020;
+    uint64_t a_word_1032;
+    int32_t enc_43;
+    uint64_t a_word_1033;
+    int64_t rd_52;
+    int32_t enc_44;
+    uint64_t a_word_1034;
+    uint64_t a_word_1035;
     int64_t value_43;
-    uint64_t a_word_1021;
-    uint64_t a_word_1022;
-    int64_t off_392;
-    uint64_t a_word_1023;
-    uint64_t a_word_1024;
+    uint64_t a_word_1036;
+    uint64_t a_word_1037;
     int64_t off_393;
-    uint64_t a_word_1025;
-    uint64_t a_word_1026;
+    uint64_t a_word_1038;
+    uint64_t a_word_1039;
     int64_t off_394;
-    uint64_t a_word_1027;
-    uint64_t a_word_1028;
-    uint64_t a_word_1029;
+    uint64_t a_word_1040;
+    uint64_t a_word_1041;
+    int64_t off_395;
+    uint64_t a_word_1042;
+    uint64_t a_word_1043;
+    uint64_t a_word_1044;
     int32_t a_label_49;
     uint64_t target_133;
     int64_t r_offset_to_133;
-    int64_t off_395;
-    uint64_t a_word_1030;
-    int32_t v_192;
-    int64_t r_src_37;
-    opt_node *nd_104;
-    uint64_t v_193;
-    int64_t value_44;
-    uint64_t a_word_1031;
-    uint64_t a_word_1032;
     int64_t off_396;
-    uint64_t a_word_1033;
-    uint64_t a_word_1034;
+    uint64_t a_word_1045;
+    int32_t v_195;
+    int64_t r_src_37;
+    opt_node *nd_107;
+    uint64_t v_196;
+    int64_t value_44;
+    uint64_t a_word_1046;
+    uint64_t a_word_1047;
     int64_t off_397;
-    uint64_t a_word_1035;
-    uint64_t a_word_1036;
+    uint64_t a_word_1048;
+    uint64_t a_word_1049;
     int64_t off_398;
-    uint64_t a_word_1037;
-    uint64_t a_word_1038;
-    uint64_t a_word_1039;
+    uint64_t a_word_1050;
+    uint64_t a_word_1051;
+    int64_t off_399;
+    uint64_t a_word_1052;
+    uint64_t a_word_1053;
+    uint64_t a_word_1054;
     int32_t a_label_50;
     uint64_t target_134;
     int64_t r_offset_to_134;
-    int64_t off_399;
-    uint64_t a_word_1040;
-    int32_t off_400;
-    uint64_t a_word_1041;
-    uint64_t a_word_1042;
+    int64_t off_400;
+    uint64_t a_word_1055;
+    int32_t off_401;
+    uint64_t a_word_1056;
+    uint64_t a_word_1057;
     int64_t y_5;
-    uint64_t a_word_1043;
-    int32_t enc_43;
-    uint64_t a_word_1044;
-    int32_t n_32;
-    int32_t n_33;
+    uint64_t a_word_1058;
+    int32_t enc_45;
+    uint64_t a_word_1059;
+    int32_t n_39;
+    int32_t n_40;
     uint64_t o_126;
-    int32_t n_34;
-    int32_t n_35;
-    int32_t n_36;
+    int32_t n_41;
+    int32_t n_42;
+    int32_t n_43;
     int64_t imm_12;
     int64_t rd_53;
     bool neg_96;
-    int64_t v_195;
+    int64_t v_198;
     int o_127;
-    uint64_t a_word_1045;
-    uint64_t a_word_1046;
-    int32_t n_37;
+    uint64_t a_word_1060;
+    uint64_t a_word_1061;
+    int32_t n_44;
     int64_t imm_13;
     int64_t rd_54;
     bool neg_97;
-    int64_t v_196;
+    int64_t v_199;
     int o_128;
-    uint64_t a_word_1047;
-    uint64_t a_word_1048;
-    int32_t v_197;
+    uint64_t a_word_1062;
+    uint64_t a_word_1063;
+    int32_t v_200;
     int64_t r_src_38;
-    opt_node *nd_105;
-    uint64_t v_198;
+    opt_node *nd_108;
+    uint64_t v_201;
     int64_t value_45;
-    uint64_t a_word_1049;
-    uint64_t a_word_1050;
-    int64_t off_401;
-    uint64_t a_word_1051;
-    uint64_t a_word_1052;
+    uint64_t a_word_1064;
+    uint64_t a_word_1065;
     int64_t off_402;
-    uint64_t a_word_1053;
-    uint64_t a_word_1054;
+    uint64_t a_word_1066;
+    uint64_t a_word_1067;
     int64_t off_403;
-    uint64_t a_word_1055;
-    uint64_t a_word_1056;
-    uint64_t a_word_1057;
+    uint64_t a_word_1068;
+    uint64_t a_word_1069;
+    int64_t off_404;
+    uint64_t a_word_1070;
+    uint64_t a_word_1071;
+    uint64_t a_word_1072;
     int32_t a_label_51;
     uint64_t target_135;
     int64_t r_offset_to_135;
-    int64_t off_404;
-    uint64_t a_word_1058;
-    int32_t off_405;
-    uint64_t a_word_1059;
-    uint64_t a_word_1060;
+    int64_t off_405;
+    uint64_t a_word_1073;
+    int32_t off_406;
+    uint64_t a_word_1074;
+    uint64_t a_word_1075;
     int64_t rd_55;
     int ext_12;
-    uint64_t a_word_1061;
-    uint64_t a_word_1062;
+    uint64_t a_word_1076;
+    uint64_t a_word_1077;
     int64_t r_condition_of_2;
-    opt_node *nd_106;
+    opt_node *nd_109;
     int32_t k_23;
-    int v_199;
-    int v_200;
-    int64_t c_3;
+    int v_202;
+    int v_203;
+    int64_t c_4;
     uint64_t target_136;
     int64_t r_offset_to_136;
-    int64_t off_406;
-    uint64_t a_word_1063;
+    int64_t off_407;
+    uint64_t a_word_1078;
     int64_t r_condition_of_3;
-    opt_node *nd_107;
+    opt_node *nd_110;
     int32_t k_24;
-    int v_201;
-    int v_202;
-    int64_t c_4;
+    int v_204;
+    int v_205;
+    int64_t c_5;
     uint64_t target_137;
     int64_t r_offset_to_137;
-    int64_t off_407;
-    uint64_t a_word_1064;
+    int64_t off_408;
+    uint64_t a_word_1079;
     uint64_t target_138;
     int64_t r_offset_to_138;
-    int64_t off_408;
-    int64_t a_word_1065;
-    int64_t r_src_39;
-    opt_node *nd_108;
-    uint64_t v_203;
-    int64_t value_46;
-    uint64_t a_word_1066;
-    uint64_t a_word_1067;
     int64_t off_409;
-    uint64_t a_word_1068;
-    uint64_t a_word_1069;
+    int64_t a_word_1080;
+    int64_t r_src_39;
+    opt_node *nd_111;
+    uint64_t v_206;
+    int64_t value_46;
+    uint64_t a_word_1081;
+    uint64_t a_word_1082;
     int64_t off_410;
-    uint64_t a_word_1070;
-    uint64_t a_word_1071;
+    uint64_t a_word_1083;
+    uint64_t a_word_1084;
     int64_t off_411;
-    uint64_t a_word_1072;
-    uint64_t a_word_1073;
-    uint64_t a_word_1074;
+    uint64_t a_word_1085;
+    uint64_t a_word_1086;
+    int64_t off_412;
+    uint64_t a_word_1087;
+    uint64_t a_word_1088;
+    uint64_t a_word_1089;
     int32_t a_label_52;
     uint64_t target_139;
     int64_t r_offset_to_139;
-    int64_t off_412;
-    uint64_t a_word_1075;
-    int32_t off_413;
-    uint64_t a_word_1076;
-    uint64_t a_word_1077;
-    int64_t rv;
-    int64_t off_414;
-    uint64_t a_word_1078;
-    uint64_t a_word_1079;
-    int64_t rd_56;
-    int ext_13;
-    uint64_t a_word_1080;
-    uint64_t a_word_1081;
-    uint64_t target_140;
-    int64_t r_offset_to_140;
-    int64_t off_415;
-    uint64_t a_word_1082;
-    int64_t off_416;
-    uint64_t a_word_1083;
-    uint64_t a_word_1084;
-    int64_t rd_57;
-    int ext_14;
-    uint64_t a_word_1085;
-    uint64_t a_word_1086;
-    uint64_t target_141;
-    int64_t r_offset_to_141;
-    int64_t off_417;
-    uint64_t a_word_1087;
-    uint64_t target_142;
-    int64_t r_offset_to_142;
-    int64_t off_418;
-    int64_t a_word_1088;
-    opt_node *nd_109;
-    int32_t v_204;
-    int64_t r_src_40;
-    opt_node *nd_110;
-    uint64_t v_205;
-    int64_t value_47;
-    uint64_t a_word_1089;
+    int64_t off_413;
     uint64_t a_word_1090;
-    int64_t off_419;
+    int32_t off_414;
     uint64_t a_word_1091;
     uint64_t a_word_1092;
-    int64_t off_420;
+    int64_t rv;
+    int64_t off_415;
     uint64_t a_word_1093;
     uint64_t a_word_1094;
-    int64_t off_421;
+    int64_t rd_56;
+    int ext_13;
     uint64_t a_word_1095;
     uint64_t a_word_1096;
+    uint64_t target_140;
+    int64_t r_offset_to_140;
+    int64_t off_416;
     uint64_t a_word_1097;
+    int64_t off_417;
+    uint64_t a_word_1098;
+    uint64_t a_word_1099;
+    int64_t rd_57;
+    int ext_14;
+    uint64_t a_word_1100;
+    uint64_t a_word_1101;
+    uint64_t target_141;
+    int64_t r_offset_to_141;
+    int64_t off_418;
+    uint64_t a_word_1102;
+    uint64_t target_142;
+    int64_t r_offset_to_142;
+    int64_t off_419;
+    int64_t a_word_1103;
+    opt_node *nd_112;
+    int32_t v_207;
+    int64_t r_src_40;
+    opt_node *nd_113;
+    uint64_t v_208;
+    int64_t value_47;
+    uint64_t a_word_1104;
+    uint64_t a_word_1105;
+    int64_t off_420;
+    uint64_t a_word_1106;
+    uint64_t a_word_1107;
+    int64_t off_421;
+    uint64_t a_word_1108;
+    uint64_t a_word_1109;
+    int64_t off_422;
+    uint64_t a_word_1110;
+    uint64_t a_word_1111;
+    uint64_t a_word_1112;
     int32_t a_label_53;
     uint64_t target_143;
     int64_t r_offset_to_143;
-    int64_t off_422;
-    uint64_t a_word_1098;
-    int32_t off_423;
-    uint64_t a_word_1099;
-    uint64_t a_word_1100;
+    int64_t off_423;
+    uint64_t a_word_1113;
+    int32_t off_424;
+    uint64_t a_word_1114;
+    uint64_t a_word_1115;
     int64_t x_13;
     int32_t r_out_24;
     opt_out *o_129;
-    int32_t s_60;
-    int64_t off_424;
-    uint64_t a_word_1101;
-    uint64_t a_word_1102;
+    int32_t s_61;
+    int64_t off_425;
+    uint64_t a_word_1116;
+    uint64_t a_word_1117;
     uint64_t target_144;
     int64_t r_offset_to_144;
-    int64_t off_425;
-    uint64_t a_word_1103;
-    uint64_t a_word_1104;
-    uint64_t a_word_1105;
-    uint64_t a_word_1106;
+    int64_t off_426;
+    uint64_t a_word_1118;
+    uint64_t a_word_1119;
+    uint64_t a_word_1120;
+    uint64_t a_word_1121;
     int32_t r_entry_pc;
     int32_t back_3;
     int32_t r_out_25;
     opt_out *o_131;
     int32_t w;
-    int64_t off_426;
-    uint64_t a_word_1107;
-    uint64_t a_word_1108;
     int64_t off_427;
-    uint64_t a_word_1109;
-    uint64_t a_word_1110;
+    uint64_t a_word_1122;
+    uint64_t a_word_1123;
+    int64_t off_428;
+    uint64_t a_word_1124;
+    uint64_t a_word_1125;
     uint64_t target_145;
     int64_t r_offset_to_145;
-    int64_t off_428;
-    uint64_t a_word_1111;
+    int64_t off_429;
+    uint64_t a_word_1126;
     size_t imm_14;
     bool neg_99;
-    size_t v_207;
+    size_t v_210;
     int o_132;
-    uint64_t a_word_1112;
-    uint64_t a_word_1113;
+    uint64_t a_word_1127;
+    uint64_t a_word_1128;
     int32_t r_deopt_label_for_16;
     int32_t r_record_guard_16;
     int32_t op_19;
@@ -3003,21 +3068,21 @@ static void opt_emit_node(int32_t n, int32_t b, int32_t next_block)
     int32_t r_out_26;
     opt_out *o_133;
     int32_t l_17;
-    int64_t off_429;
-    uint64_t a_word_1114;
-    uint64_t a_word_1115;
     int64_t off_430;
-    uint64_t a_word_1116;
-    uint64_t a_word_1117;
+    uint64_t a_word_1129;
+    uint64_t a_word_1130;
+    int64_t off_431;
+    uint64_t a_word_1131;
+    uint64_t a_word_1132;
     uint64_t target_146;
     int64_t r_offset_to_146;
-    int64_t off_431;
-    uint64_t a_word_1118;
+    int64_t off_432;
+    uint64_t a_word_1133;
     int32_t a_label_54;
     uint64_t target_147;
     int64_t r_offset_to_147;
-    int64_t off_432;
-    int64_t a_word_1119;
+    int64_t off_433;
+    int64_t a_word_1134;
     nd = opt_nodes + n;
     op = (int32_t)nd->op;
     if (op == O_PHI) {
@@ -3112,7 +3177,7 @@ exit_dst:;
             exit_logical:;
             }
         }
-        if (nd_3->slot >= 0) {
+        if ((nd_3->slot >= 0) && ((nd_3->flags & NF_LAZY) == 0)) {
             off_2 = 8 * (int32_t)nd_3->slot;
             bits_3 = (r & REG_D) != 0 ? 0xC4000000LL : (r & REG_W) == 0 ? 0xC0000000LL : 0x80000000LL;
             s_3 = (r & REG_W) == 0 ? 3 : 2;
@@ -3487,7 +3552,7 @@ exit_dst_2:;
                 exit_logical_3:;
                 }
             }
-            if (nd_6->slot >= 0) {
+            if ((nd_6->slot >= 0) && ((nd_6->flags & NF_LAZY) == 0)) {
                 off_9 = 8 * (int32_t)nd_6->slot;
                 bits_7 = (r & REG_D) != 0 ? 0xC4000000LL : (r & REG_W) == 0 ? 0xC0000000LL : 0x80000000LL;
                 s_5 = (r & REG_W) == 0 ? 3 : 2;
@@ -3652,7 +3717,7 @@ exit_dst_2:;
             exit_logical_4:;
             }
         }
-        if (nd_7->slot >= 0) {
+        if ((nd_7->slot >= 0) && ((nd_7->flags & NF_LAZY) == 0)) {
             off_13 = 8 * (int32_t)nd_7->slot;
             bits_15 = (r & REG_D) != 0 ? 0xC4000000LL : (r & REG_W) == 0 ? 0xC0000000LL : 0x80000000LL;
             s_9 = (r & REG_W) == 0 ? 3 : 2;
@@ -3981,7 +4046,7 @@ exit_dst_3:;
             exit_logical_5:;
             }
         }
-        if (nd_10->slot >= 0) {
+        if ((nd_10->slot >= 0) && ((nd_10->flags & NF_LAZY) == 0)) {
             off_20 = 8 * (int32_t)nd_10->slot;
             bits_19 = (r & REG_D) != 0 ? 0xC4000000LL : (r & REG_W) == 0 ? 0xC0000000LL : 0x80000000LL;
             s_11 = (r & REG_W) == 0 ? 3 : 2;
@@ -5677,7 +5742,7 @@ exit_offset_to_16:;
                 exit_logical_9:;
                 }
             }
-            if (nd_19->slot >= 0) {
+            if ((nd_19->slot >= 0) && ((nd_19->flags & NF_LAZY) == 0)) {
                 off_60 = 8 * (int32_t)nd_19->slot;
                 bits_27 = (r_2 & REG_D) != 0 ? 0xC4000000LL : (r_2 & REG_W) == 0 ? 0xC0000000LL : 0x80000000LL;
                 s_16 = (r_2 & REG_W) == 0 ? 3 : 2;
@@ -6950,7 +7015,7 @@ exit_dst_5:;
                 exit_logical_12:;
                 }
             }
-            if (nd_26->slot >= 0) {
+            if ((nd_26->slot >= 0) && ((nd_26->flags & NF_LAZY) == 0)) {
                 off_88 = 8 * (int32_t)nd_26->slot;
                 bits_34 = (r_3 & REG_D) != 0 ? 0xC4000000LL : (r_3 & REG_W) == 0 ? 0xC0000000LL : 0x80000000LL;
                 s_21 = (r_3 & REG_W) == 0 ? 3 : 2;
@@ -7075,7 +7140,7 @@ exit_dst_5:;
             exit_logical_15:;
             }
         }
-        if (nd_27->slot >= 0) {
+        if ((nd_27->slot >= 0) && ((nd_27->flags & NF_LAZY) == 0)) {
             off_89 = 8 * (int32_t)nd_27->slot;
             bits_36 = (r_3 & REG_D) != 0 ? 0xC4000000LL : (r_3 & REG_W) == 0 ? 0xC0000000LL : 0x80000000LL;
             s_22 = (r_3 & REG_W) == 0 ? 3 : 2;
@@ -9093,7 +9158,7 @@ exit_dst_6:;
             exit_logical_22:;
             }
         }
-        if (nd_35->slot >= 0) {
+        if ((nd_35->slot >= 0) && ((nd_35->flags & NF_LAZY) == 0)) {
             off_129 = 8 * (int32_t)nd_35->slot;
             bits_40 = (r & REG_D) != 0 ? 0xC4000000LL : (r & REG_W) == 0 ? 0xC0000000LL : 0x80000000LL;
             s_26 = (r & REG_W) == 0 ? 3 : 2;
@@ -10070,7 +10135,7 @@ exit_offset_to_52:;
             exit_logical_25:;
             }
         }
-        if (nd_39->slot >= 0) {
+        if ((nd_39->slot >= 0) && ((nd_39->flags & NF_LAZY) == 0)) {
             off_151 = 8 * (int32_t)nd_39->slot;
             bits_56 = (r_4 & REG_D) != 0 ? 0xC4000000LL : (r_4 & REG_W) == 0 ? 0xC0000000LL : 0x80000000LL;
             s_34 = (r_4 & REG_W) == 0 ? 3 : 2;
@@ -10106,60 +10171,153 @@ exit_offset_to_52:;
         nd_40 = opt_nodes + n;
         op_6 = (int32_t)nd_40->op;
         if (op_6 == O_UNBOXF) {
-            v_57 = nd_40->a;
-            x_8 = ({
-    nd_41 = opt_nodes + v_57;
-    if ((int32_t)nd_41->op == O_CONST) {
-        v_58 = (uint64_t)nd_41->aux;
-        if ((v_58 & 1) != 0) {
-            if (((int64_t)v_58 >= -2147483648) && ((int64_t)v_58 <= 0x7FFFFFFF)) {
-                value_17 = (int64_t)v_58;
-                if ((value_17 >= 0) && (value_17 <= 0xFFFF)) {
-                    if (!((value_17 >= 0) && (value_17 <= 0xFFFF))) {
+            r_5 = ({
+    if ((opt_nodes + n)->reg >= D0) {
+        r_dsrc = (int32_t)(opt_nodes + n)->reg;
+        goto exit_dsrc;
+    }
+    if (asm_error == ASM_OK) {
+        asm_error = ASM_ERR_OPERAND;
+    }
+    r_dsrc = D0;
+exit_dsrc:;
+    r_dsrc; });
+            n_16 = nd_40->a;
+            if (((int32_t)(opt_nodes + n_16)->op == O_CONST) && ({
+    n_17 = nd_40->a;
+    (((opt_nodes + n_17)->aux & 1) != 0) || ({
+    n_18 = nd_40->a;
+    ((opt_nodes + n_18)->aux & 7) == 4; }); })) {
+                n_19 = nd_40->a;
+                v_57 = (uint64_t)(opt_nodes + n_19)->aux;
+                bits_58 = ({
+    if ((v_57 & 1) != 0) {
+        r_constant_double = lt_bits_of_double((double)(((int64_t)v_57) >> 1));
+        goto exit_constant_double;
+    }
+    r_6 = v_57 >> 3;
+    if (r_6 <= 1) {
+        r_constant_double = r_6 << 63;
+        goto exit_constant_double;
+    }
+    b_2 = r_6 + 8070450532247928832ULL;
+    r_constant_double = (b_2 >> 1) | (b_2 << 63);
+exit_constant_double:;
+    r_constant_double; });
+                if (asm_fmov_immediate(lt_double_from_bits(bits_58)) >= 0) {
+                    a_double = lt_double_from_bits(bits_58);
+                    enc_16 = asm_fmov_immediate(a_double);
+                    if (enc_16 < 0) {
                         if (asm_error == ASM_OK) {
                             asm_error = ASM_ERR_IMMEDIATE;
                         }
-                        goto exit_move_wide_49;
+                        goto exit_fmov;
                     }
-                    a_word_396 = 3531603968LL | (0ULL | (((uint64_t)value_17) << 5) | 15);
+                    a_word_396 = 0x1E601000 | (((uint64_t)enc_16) << 13) | (r_5 & 31);
                     if (asm_pc < asm_limit) {
                         *(uint32_t *)asm_pc = a_word_396;
                         asm_pc = asm_pc + 4;
                     } else if (asm_error == ASM_OK) {
                         asm_error = ASM_ERR_FULL;
                     }
+                exit_fmov:;
+                    goto exit_emit_double;
+                }
+                if (asm_noting) {
+                    asm_note("a Float constant", 0);
+                }
+                if ((bits_58 >= 0) && (bits_58 <= 0xFFFF)) {
+                    if (!((bits_58 >= 0) && (bits_58 <= 0xFFFF))) {
+                        if (asm_error == ASM_OK) {
+                            asm_error = ASM_ERR_IMMEDIATE;
+                        }
+                        goto exit_move_wide_49;
+                    }
+                    a_word_397 = 3531603968LL | (0ULL | (bits_58 << 5) | 16);
+                    if (asm_pc < asm_limit) {
+                        *(uint32_t *)asm_pc = a_word_397;
+                        asm_pc = asm_pc + 4;
+                    } else if (asm_error == ASM_OK) {
+                        asm_error = ASM_ERR_FULL;
+                    }
                 exit_move_wide_49:;
+                } else {
+                    asm_mov_imm(X16, bits_58);
+                }
+                if ((r_5 & REG_D) != 0) {
+                    a_word_398 = 0x9E670000LL | (512ULL | (r_5 & 31));
+                    if (asm_pc < asm_limit) {
+                        *(uint32_t *)asm_pc = a_word_398;
+                        asm_pc = asm_pc + 4;
+                    } else if (asm_error == ASM_OK) {
+                        asm_error = ASM_ERR_FULL;
+                    }
+                } else {
+                    a_word_399 = 0x9E660000LL | (512ULL | (r_5 & 31));
+                    if (asm_pc < asm_limit) {
+                        *(uint32_t *)asm_pc = a_word_399;
+                        asm_pc = asm_pc + 4;
+                    } else if (asm_error == ASM_OK) {
+                        asm_error = ASM_ERR_FULL;
+                    }
+                }
+            exit_emit_double:;
+                goto exit_emit_float;
+            }
+            v_58 = nd_40->a;
+            x_8 = ({
+    nd_41 = opt_nodes + v_58;
+    if ((int32_t)nd_41->op == O_CONST) {
+        v_59 = (uint64_t)nd_41->aux;
+        if ((v_59 & 1) != 0) {
+            if (((int64_t)v_59 >= -2147483648) && ((int64_t)v_59 <= 0x7FFFFFFF)) {
+                value_17 = (int64_t)v_59;
+                if ((value_17 >= 0) && (value_17 <= 0xFFFF)) {
+                    if (!((value_17 >= 0) && (value_17 <= 0xFFFF))) {
+                        if (asm_error == ASM_OK) {
+                            asm_error = ASM_ERR_IMMEDIATE;
+                        }
+                        goto exit_move_wide_50;
+                    }
+                    a_word_400 = 3531603968LL | (0ULL | (((uint64_t)value_17) << 5) | 15);
+                    if (asm_pc < asm_limit) {
+                        *(uint32_t *)asm_pc = a_word_400;
+                        asm_pc = asm_pc + 4;
+                    } else if (asm_error == ASM_OK) {
+                        asm_error = ASM_ERR_FULL;
+                    }
+                exit_move_wide_50:;
                 } else {
                     asm_mov_imm(X15, (uint64_t)value_17);
                 }
                 goto exit_load_constant_17;
             }
-            if ((v_58 >= 0) && (v_58 <= 0xFFFF)) {
-                if (!((v_58 >= 0) && (v_58 <= 0xFFFF))) {
+            if ((v_59 >= 0) && (v_59 <= 0xFFFF)) {
+                if (!((v_59 >= 0) && (v_59 <= 0xFFFF))) {
                     if (asm_error == ASM_OK) {
                         asm_error = ASM_ERR_IMMEDIATE;
                     }
-                    goto exit_move_wide_50;
+                    goto exit_move_wide_51;
                 }
-                a_word_397 = 3531603968LL | (0ULL | (v_58 << 5) | 15);
+                a_word_401 = 3531603968LL | (0ULL | (v_59 << 5) | 15);
                 if (asm_pc < asm_limit) {
-                    *(uint32_t *)asm_pc = a_word_397;
+                    *(uint32_t *)asm_pc = a_word_401;
                     asm_pc = asm_pc + 4;
                 } else if (asm_error == ASM_OK) {
                     asm_error = ASM_ERR_FULL;
                 }
-            exit_move_wide_50:;
+            exit_move_wide_51:;
             } else {
-                asm_mov_imm(X15, v_58);
+                asm_mov_imm(X15, v_59);
             }
             goto exit_load_constant_17;
         }
-        if (v_58 == nil_oop) {
+        if (v_59 == nil_oop) {
             off_152 = (int64_t)&((jit_state *)0)->nil_oop;
             if ((off_152 >= 0) && ((off_152 & 7) == 0) && ((off_152 >> 3) <= 4095)) {
-                a_word_398 = 4181721088LL | ((((uint64_t)(off_152 >> 3)) << 10) | 719ULL);
+                a_word_402 = 4181721088LL | ((((uint64_t)(off_152 >> 3)) << 10) | 719ULL);
                 if (asm_pc < asm_limit) {
-                    *(uint32_t *)asm_pc = a_word_398;
+                    *(uint32_t *)asm_pc = a_word_402;
                     asm_pc = asm_pc + 4;
                 } else if (asm_error == ASM_OK) {
                     asm_error = ASM_ERR_FULL;
@@ -10171,9 +10329,9 @@ exit_offset_to_52:;
                     }
                     goto exit_load_store_101;
                 }
-                a_word_399 = 4164943872LL | (((uint64_t)(off_152 & 511)) << 12) | 719ULL;
+                a_word_403 = 4164943872LL | (((uint64_t)(off_152 & 511)) << 12) | 719ULL;
                 if (asm_pc < asm_limit) {
-                    *(uint32_t *)asm_pc = a_word_399;
+                    *(uint32_t *)asm_pc = a_word_403;
                     asm_pc = asm_pc + 4;
                 } else if (asm_error == ASM_OK) {
                     asm_error = ASM_ERR_FULL;
@@ -10182,12 +10340,12 @@ exit_offset_to_52:;
             }
             goto exit_load_constant_17;
         }
-        if (v_58 == true_oop) {
+        if (v_59 == true_oop) {
             off_153 = (int64_t)&((jit_state *)0)->true_oop;
             if ((off_153 >= 0) && ((off_153 & 7) == 0) && ((off_153 >> 3) <= 4095)) {
-                a_word_400 = 4181721088LL | ((((uint64_t)(off_153 >> 3)) << 10) | 719ULL);
+                a_word_404 = 4181721088LL | ((((uint64_t)(off_153 >> 3)) << 10) | 719ULL);
                 if (asm_pc < asm_limit) {
-                    *(uint32_t *)asm_pc = a_word_400;
+                    *(uint32_t *)asm_pc = a_word_404;
                     asm_pc = asm_pc + 4;
                 } else if (asm_error == ASM_OK) {
                     asm_error = ASM_ERR_FULL;
@@ -10199,9 +10357,9 @@ exit_offset_to_52:;
                     }
                     goto exit_load_store_102;
                 }
-                a_word_401 = 4164943872LL | (((uint64_t)(off_153 & 511)) << 12) | 719ULL;
+                a_word_405 = 4164943872LL | (((uint64_t)(off_153 & 511)) << 12) | 719ULL;
                 if (asm_pc < asm_limit) {
-                    *(uint32_t *)asm_pc = a_word_401;
+                    *(uint32_t *)asm_pc = a_word_405;
                     asm_pc = asm_pc + 4;
                 } else if (asm_error == ASM_OK) {
                     asm_error = ASM_ERR_FULL;
@@ -10210,12 +10368,12 @@ exit_offset_to_52:;
             }
             goto exit_load_constant_17;
         }
-        if (v_58 == false_oop) {
+        if (v_59 == false_oop) {
             off_154 = (int64_t)&((jit_state *)0)->false_oop;
             if ((off_154 >= 0) && ((off_154 & 7) == 0) && ((off_154 >> 3) <= 4095)) {
-                a_word_402 = 4181721088LL | ((((uint64_t)(off_154 >> 3)) << 10) | 719ULL);
+                a_word_406 = 4181721088LL | ((((uint64_t)(off_154 >> 3)) << 10) | 719ULL);
                 if (asm_pc < asm_limit) {
-                    *(uint32_t *)asm_pc = a_word_402;
+                    *(uint32_t *)asm_pc = a_word_406;
                     asm_pc = asm_pc + 4;
                 } else if (asm_error == ASM_OK) {
                     asm_error = ASM_ERR_FULL;
@@ -10227,9 +10385,9 @@ exit_offset_to_52:;
                     }
                     goto exit_load_store_103;
                 }
-                a_word_403 = 4164943872LL | (((uint64_t)(off_154 & 511)) << 12) | 719ULL;
+                a_word_407 = 4164943872LL | (((uint64_t)(off_154 & 511)) << 12) | 719ULL;
                 if (asm_pc < asm_limit) {
-                    *(uint32_t *)asm_pc = a_word_403;
+                    *(uint32_t *)asm_pc = a_word_407;
                     asm_pc = asm_pc + 4;
                 } else if (asm_error == ASM_OK) {
                     asm_error = ASM_ERR_FULL;
@@ -10238,30 +10396,30 @@ exit_offset_to_52:;
             }
             goto exit_load_constant_17;
         }
-        if ((v_58 & 7) != 0) {
-            if ((v_58 >= 0) && (v_58 <= 0xFFFF)) {
-                if (!((v_58 >= 0) && (v_58 <= 0xFFFF))) {
+        if ((v_59 & 7) != 0) {
+            if ((v_59 >= 0) && (v_59 <= 0xFFFF)) {
+                if (!((v_59 >= 0) && (v_59 <= 0xFFFF))) {
                     if (asm_error == ASM_OK) {
                         asm_error = ASM_ERR_IMMEDIATE;
                     }
-                    goto exit_move_wide_51;
+                    goto exit_move_wide_52;
                 }
-                a_word_404 = 3531603968LL | (0ULL | (v_58 << 5) | 15);
+                a_word_408 = 3531603968LL | (0ULL | (v_59 << 5) | 15);
                 if (asm_pc < asm_limit) {
-                    *(uint32_t *)asm_pc = a_word_404;
+                    *(uint32_t *)asm_pc = a_word_408;
                     asm_pc = asm_pc + 4;
                 } else if (asm_error == ASM_OK) {
                     asm_error = ASM_ERR_FULL;
                 }
-            exit_move_wide_51:;
+            exit_move_wide_52:;
             } else {
-                asm_mov_imm(X15, v_58);
+                asm_mov_imm(X15, v_59);
             }
             goto exit_load_constant_17;
         }
-        a_label_17 = cg_pool_labels[opt_pool_index(v_58)];
+        a_label_17 = cg_pool_labels[opt_pool_index(v_59)];
         target_53 = asm_target_of(a_label_17);
-        a_word_405 = 0x58000000 | ((((uint64_t)({
+        a_word_409 = 0x58000000 | ((((uint64_t)({
     off_155 = ((int64_t)(target_53 - asm_pc)) >> 2;
     if (!((off_155 >= -262144) && (off_155 <= 262143))) {
         if (asm_error == ASM_OK) {
@@ -10274,7 +10432,7 @@ exit_offset_to_52:;
 exit_offset_to_53:;
     r_offset_to_53; })) << 5) | 15);
         if (asm_pc < asm_limit) {
-            *(uint32_t *)asm_pc = a_word_405;
+            *(uint32_t *)asm_pc = a_word_409;
             asm_pc = asm_pc + 4;
         } else if (asm_error == ASM_OK) {
             asm_error = ASM_ERR_FULL;
@@ -10290,9 +10448,9 @@ exit_offset_to_53:;
     if (nd_41->slot >= 0) {
         off_156 = 8 * (int32_t)nd_41->slot;
         if ((off_156 >= 0) && ((off_156 & 7) == 0) && ((off_156 >> 3) <= 4095)) {
-            a_word_406 = 4181721088LL | ((((uint64_t)(off_156 >> 3)) << 10) | 655ULL);
+            a_word_410 = 4181721088LL | ((((uint64_t)(off_156 >> 3)) << 10) | 655ULL);
             if (asm_pc < asm_limit) {
-                *(uint32_t *)asm_pc = a_word_406;
+                *(uint32_t *)asm_pc = a_word_410;
                 asm_pc = asm_pc + 4;
             } else if (asm_error == ASM_OK) {
                 asm_error = ASM_ERR_FULL;
@@ -10304,9 +10462,9 @@ exit_offset_to_53:;
                 }
                 goto exit_load_store_104;
             }
-            a_word_407 = 4164943872LL | (((uint64_t)(off_156 & 511)) << 12) | 655ULL;
+            a_word_411 = 4164943872LL | (((uint64_t)(off_156 & 511)) << 12) | 655ULL;
             if (asm_pc < asm_limit) {
-                *(uint32_t *)asm_pc = a_word_407;
+                *(uint32_t *)asm_pc = a_word_411;
                 asm_pc = asm_pc + 4;
             } else if (asm_error == ASM_OK) {
                 asm_error = ASM_ERR_FULL;
@@ -10322,19 +10480,29 @@ exit_offset_to_53:;
     r_src_14 = X15;
 exit_src_14:;
     r_src_14; });
-            r_5 = ({
-    if ((opt_nodes + n)->reg >= D0) {
-        r_dsrc = (int32_t)(opt_nodes + n)->reg;
-        goto exit_dsrc;
-    }
-    if (asm_error == ASM_OK) {
-        asm_error = ASM_ERR_OPERAND;
-    }
-    r_dsrc = D0;
-exit_dsrc:;
-    r_dsrc; });
-            n_16 = nd_40->a;
-            if ((int32_t)(opt_nodes + n_16)->tkind != T_FLOAT) {
+            n_20 = nd_40->a;
+            if ((int32_t)(opt_nodes + n_20)->tkind == T_SMI) {
+                if (asm_noting) {
+                    asm_note("a SmallInteger's double", 0);
+                }
+                a_word_412 = 2470445056LL | (130048ULL | ((((uint64_t)(x_8 & 31)) << 5) | 16));
+                if (asm_pc < asm_limit) {
+                    *(uint32_t *)asm_pc = a_word_412;
+                    asm_pc = asm_pc + 4;
+                } else if (asm_error == ASM_OK) {
+                    asm_error = ASM_ERR_FULL;
+                }
+                a_word_413 = 2657222656LL | (512ULL | (r_5 & 31));
+                if (asm_pc < asm_limit) {
+                    *(uint32_t *)asm_pc = a_word_413;
+                    asm_pc = asm_pc + 4;
+                } else if (asm_error == ASM_OK) {
+                    asm_error = ASM_ERR_FULL;
+                }
+                goto exit_emit_float;
+            }
+            n_21 = nd_40->a;
+            if ((int32_t)(opt_nodes + n_21)->tkind != T_FLOAT) {
                 s_35 = ({
     k_7 = ({
     op_7 = (int32_t)(opt_nodes + n)->op;
@@ -10371,9 +10539,9 @@ exit_out_8:;
     }
     off_157 = (int64_t)&((jit_state *)0)->stress;
     if ((off_157 >= 0) && ((off_157 & 7) == 0) && ((off_157 >> 3) <= 4095)) {
-        a_word_408 = 4181721088LL | ((((uint64_t)(off_157 >> 3)) << 10) | 720ULL);
+        a_word_414 = 4181721088LL | ((((uint64_t)(off_157 >> 3)) << 10) | 720ULL);
         if (asm_pc < asm_limit) {
-            *(uint32_t *)asm_pc = a_word_408;
+            *(uint32_t *)asm_pc = a_word_414;
             asm_pc = asm_pc + 4;
         } else if (asm_error == ASM_OK) {
             asm_error = ASM_ERR_FULL;
@@ -10385,9 +10553,9 @@ exit_out_8:;
             }
             goto exit_load_store_105;
         }
-        a_word_409 = 4164943872LL | (((uint64_t)(off_157 & 511)) << 12) | 720ULL;
+        a_word_415 = 4164943872LL | (((uint64_t)(off_157 & 511)) << 12) | 720ULL;
         if (asm_pc < asm_limit) {
-            *(uint32_t *)asm_pc = a_word_409;
+            *(uint32_t *)asm_pc = a_word_415;
             asm_pc = asm_pc + 4;
         } else if (asm_error == ASM_OK) {
             asm_error = ASM_ERR_FULL;
@@ -10407,9 +10575,9 @@ exit_out_8:;
 exit_add_sub_39:;
     off_158 = (int64_t)&((jit_state *)0)->stress;
     if ((off_158 >= 0) && ((off_158 & 7) == 0) && ((off_158 >> 3) <= 4095)) {
-        a_word_410 = 4177526784LL | ((((uint64_t)(off_158 >> 3)) << 10) | 720ULL);
+        a_word_416 = 4177526784LL | ((((uint64_t)(off_158 >> 3)) << 10) | 720ULL);
         if (asm_pc < asm_limit) {
-            *(uint32_t *)asm_pc = a_word_410;
+            *(uint32_t *)asm_pc = a_word_416;
             asm_pc = asm_pc + 4;
         } else if (asm_error == ASM_OK) {
             asm_error = ASM_ERR_FULL;
@@ -10421,9 +10589,9 @@ exit_add_sub_39:;
             }
             goto exit_load_store_106;
         }
-        a_word_411 = 4160749568LL | (((uint64_t)(off_158 & 511)) << 12) | 720ULL;
+        a_word_417 = 4160749568LL | (((uint64_t)(off_158 & 511)) << 12) | 720ULL;
         if (asm_pc < asm_limit) {
-            *(uint32_t *)asm_pc = a_word_411;
+            *(uint32_t *)asm_pc = a_word_417;
             asm_pc = asm_pc + 4;
         } else if (asm_error == ASM_OK) {
             asm_error = ASM_ERR_FULL;
@@ -10431,7 +10599,7 @@ exit_add_sub_39:;
     exit_load_store_106:;
     }
     target_54 = asm_target_of(l_5);
-    a_word_412 = 0x54000000 | ((((uint64_t)({
+    a_word_418 = 0x54000000 | ((((uint64_t)({
     off_159 = ((int64_t)(target_54 - asm_pc)) >> 2;
     if (!((off_159 >= -262144) && (off_159 <= 262143))) {
         if (asm_error == ASM_OK) {
@@ -10444,7 +10612,7 @@ exit_add_sub_39:;
 exit_offset_to_54:;
     r_offset_to_54; })) << 5) | 0);
     if (asm_pc < asm_limit) {
-        *(uint32_t *)asm_pc = a_word_412;
+        *(uint32_t *)asm_pc = a_word_418;
         asm_pc = asm_pc + 4;
     } else if (asm_error == ASM_OK) {
         asm_error = ASM_ERR_FULL;
@@ -10456,7 +10624,7 @@ exit_emit_stress_at_5:;
                 boxed = asm_new_label();
                 done_6 = asm_new_label();
                 target_55 = asm_target_of(int_);
-                a_word_413 = 922746880ULL | ((((uint64_t)({
+                a_word_419 = 922746880ULL | ((((uint64_t)({
     off_160 = ((int64_t)(target_55 - asm_pc)) >> 2;
     if (!((off_160 >= -8192) && (off_160 <= 8191))) {
         if (asm_error == ASM_OK) {
@@ -10469,21 +10637,21 @@ exit_emit_stress_at_5:;
 exit_offset_to_55:;
     r_offset_to_55; })) << 5) | (x_8 & 31));
                 if (asm_pc < asm_limit) {
-                    *(uint32_t *)asm_pc = a_word_413;
+                    *(uint32_t *)asm_pc = a_word_419;
                     asm_pc = asm_pc + 4;
                 } else if (asm_error == ASM_OK) {
                     asm_error = ASM_ERR_FULL;
                 }
-                enc_16 = asm_logical_immediate(7ULL, 64);
-                if (enc_16 < 0) {
+                enc_17 = asm_logical_immediate(7ULL, 64);
+                if (enc_17 < 0) {
                     if (asm_error == ASM_OK) {
                         asm_error = ASM_ERR_IMMEDIATE;
                     }
                     goto exit_logical_26;
                 }
-                a_word_414 = 2449473536LL | ((((uint64_t)enc_16) << 10) | ((((uint64_t)(x_8 & 31)) << 5) | 16));
+                a_word_420 = 2449473536LL | ((((uint64_t)enc_17) << 10) | ((((uint64_t)(x_8 & 31)) << 5) | 16));
                 if (asm_pc < asm_limit) {
-                    *(uint32_t *)asm_pc = a_word_414;
+                    *(uint32_t *)asm_pc = a_word_420;
                     asm_pc = asm_pc + 4;
                 } else if (asm_error == ASM_OK) {
                     asm_error = ASM_ERR_FULL;
@@ -10501,7 +10669,7 @@ exit_offset_to_55:;
                 }
             exit_add_sub_40:;
                 target_56 = asm_target_of(boxed);
-                a_word_415 = 0x54000000 | ((((uint64_t)({
+                a_word_421 = 0x54000000 | ((((uint64_t)({
     off_161 = ((int64_t)(target_56 - asm_pc)) >> 2;
     if (!((off_161 >= -262144) && (off_161 <= 262143))) {
         if (asm_error == ASM_OK) {
@@ -10514,7 +10682,7 @@ exit_offset_to_55:;
 exit_offset_to_56:;
     r_offset_to_56; })) << 5) | 1);
                 if (asm_pc < asm_limit) {
-                    *(uint32_t *)asm_pc = a_word_415;
+                    *(uint32_t *)asm_pc = a_word_421;
                     asm_pc = asm_pc + 4;
                 } else if (asm_error == ASM_OK) {
                     asm_error = ASM_ERR_FULL;
@@ -10523,9 +10691,9 @@ exit_offset_to_56:;
             if (asm_noting) {
                 asm_note("a SmallFloat64's double", 0);
             }
-            a_word_416 = 3544186880LL | (261120ULL | ((((uint64_t)(x_8 & 31)) << 5) | 16));
+            a_word_422 = 3544186880LL | (261120ULL | ((((uint64_t)(x_8 & 31)) << 5) | 16));
             if (asm_pc < asm_limit) {
-                *(uint32_t *)asm_pc = a_word_416;
+                *(uint32_t *)asm_pc = a_word_422;
                 asm_pc = asm_pc + 4;
             } else if (asm_error == ASM_OK) {
                 asm_error = ASM_ERR_FULL;
@@ -10561,26 +10729,26 @@ exit_offset_to_56:;
                 asm_error = ASM_ERR_FULL;
             }
             if ((r_5 & REG_D) != 0) {
-                a_word_417 = 0x9E670000LL | (512ULL | (r_5 & 31));
+                a_word_423 = 0x9E670000LL | (512ULL | (r_5 & 31));
                 if (asm_pc < asm_limit) {
-                    *(uint32_t *)asm_pc = a_word_417;
+                    *(uint32_t *)asm_pc = a_word_423;
                     asm_pc = asm_pc + 4;
                 } else if (asm_error == ASM_OK) {
                     asm_error = ASM_ERR_FULL;
                 }
             } else {
-                a_word_418 = 0x9E660000LL | (512ULL | (r_5 & 31));
+                a_word_424 = 0x9E660000LL | (512ULL | (r_5 & 31));
                 if (asm_pc < asm_limit) {
-                    *(uint32_t *)asm_pc = a_word_418;
+                    *(uint32_t *)asm_pc = a_word_424;
                     asm_pc = asm_pc + 4;
                 } else if (asm_error == ASM_OK) {
                     asm_error = ASM_ERR_FULL;
                 }
             }
-            n_17 = nd_40->a;
-            if ((int32_t)(opt_nodes + n_17)->tkind != T_FLOAT) {
+            n_22 = nd_40->a;
+            if ((int32_t)(opt_nodes + n_22)->tkind != T_FLOAT) {
                 target_57 = asm_target_of(done_6);
-                a_word_419 = 0x14000000 | ({
+                a_word_425 = 0x14000000 | ({
     off_162 = ((int64_t)(target_57 - asm_pc)) >> 2;
     if (!((off_162 >= -33554432) && (off_162 <= 33554431))) {
         if (asm_error == ASM_OK) {
@@ -10593,7 +10761,7 @@ exit_offset_to_56:;
 exit_offset_to_57:;
     r_offset_to_57; });
                 if (asm_pc < asm_limit) {
-                    *(uint32_t *)asm_pc = a_word_419;
+                    *(uint32_t *)asm_pc = a_word_425;
                     asm_pc = asm_pc + 4;
                 } else if (asm_error == ASM_OK) {
                     asm_error = ASM_ERR_FULL;
@@ -10603,7 +10771,7 @@ exit_offset_to_57:;
                     asm_note("a BoxedFloat64's double (anything else deoptimizes)", 0);
                 }
                 target_58 = asm_target_of(s_35);
-                a_word_420 = 3036676096LL | ((((uint64_t)({
+                a_word_426 = 3036676096LL | ((((uint64_t)({
     off_163 = ((int64_t)(target_58 - asm_pc)) >> 2;
     if (!((off_163 >= -262144) && (off_163 <= 262143))) {
         if (asm_error == ASM_OK) {
@@ -10616,23 +10784,23 @@ exit_offset_to_57:;
 exit_offset_to_58:;
     r_offset_to_58; })) << 5) | 16);
                 if (asm_pc < asm_limit) {
-                    *(uint32_t *)asm_pc = a_word_420;
+                    *(uint32_t *)asm_pc = a_word_426;
                     asm_pc = asm_pc + 4;
                 } else if (asm_error == ASM_OK) {
                     asm_error = ASM_ERR_FULL;
                 }
-                a_word_421 = 4181721088LL | (1024ULL | ((((uint64_t)(x_8 & 31)) << 5) | 16));
+                a_word_427 = 4181721088LL | (1024ULL | ((((uint64_t)(x_8 & 31)) << 5) | 16));
                 if (asm_pc < asm_limit) {
-                    *(uint32_t *)asm_pc = a_word_421;
+                    *(uint32_t *)asm_pc = a_word_427;
                     asm_pc = asm_pc + 4;
                 } else if (asm_error == ASM_OK) {
                     asm_error = ASM_ERR_FULL;
                 }
                 off_164 = (int64_t)&((jit_state *)0)->boxed_float_class;
                 if ((off_164 >= 0) && ((off_164 & 7) == 0) && ((off_164 >> 3) <= 4095)) {
-                    a_word_422 = 4181721088LL | ((((uint64_t)(off_164 >> 3)) << 10) | 721ULL);
+                    a_word_428 = 4181721088LL | ((((uint64_t)(off_164 >> 3)) << 10) | 721ULL);
                     if (asm_pc < asm_limit) {
-                        *(uint32_t *)asm_pc = a_word_422;
+                        *(uint32_t *)asm_pc = a_word_428;
                         asm_pc = asm_pc + 4;
                     } else if (asm_error == ASM_OK) {
                         asm_error = ASM_ERR_FULL;
@@ -10644,9 +10812,9 @@ exit_offset_to_58:;
                         }
                         goto exit_load_store_107;
                     }
-                    a_word_423 = 4164943872LL | (((uint64_t)(off_164 & 511)) << 12) | 721ULL;
+                    a_word_429 = 4164943872LL | (((uint64_t)(off_164 & 511)) << 12) | 721ULL;
                     if (asm_pc < asm_limit) {
-                        *(uint32_t *)asm_pc = a_word_423;
+                        *(uint32_t *)asm_pc = a_word_429;
                         asm_pc = asm_pc + 4;
                     } else if (asm_error == ASM_OK) {
                         asm_error = ASM_ERR_FULL;
@@ -10660,7 +10828,7 @@ exit_offset_to_58:;
                     asm_error = ASM_ERR_FULL;
                 }
                 target_59 = asm_target_of(s_35);
-                a_word_424 = 0x54000000 | ((((uint64_t)({
+                a_word_430 = 0x54000000 | ((((uint64_t)({
     off_165 = ((int64_t)(target_59 - asm_pc)) >> 2;
     if (!((off_165 >= -262144) && (off_165 <= 262143))) {
         if (asm_error == ASM_OK) {
@@ -10673,33 +10841,33 @@ exit_offset_to_58:;
 exit_offset_to_59:;
     r_offset_to_59; })) << 5) | 1);
                 if (asm_pc < asm_limit) {
-                    *(uint32_t *)asm_pc = a_word_424;
+                    *(uint32_t *)asm_pc = a_word_430;
                     asm_pc = asm_pc + 4;
                 } else if (asm_error == ASM_OK) {
                     asm_error = ASM_ERR_FULL;
                 }
-                bits_58 = (r_5 & REG_D) != 0 ? 0xC4400000LL : (r_5 & REG_W) == 0 ? 0xC0400000LL : 0x80400000LL;
+                bits_59 = (r_5 & REG_D) != 0 ? 0xC4400000LL : (r_5 & REG_W) == 0 ? 0xC0400000LL : 0x80400000LL;
                 s_36 = (r_5 & REG_W) == 0 ? 3 : 2;
                 if (((16 & ((1LL << s_36) - 1)) == 0) && ((16LL >> s_36) <= 4095)) {
-                    a_word_425 = 0x39000000 | bits_58 | ((((uint64_t)(16LL >> s_36)) << 10) | ((((uint64_t)(x_8 & 31)) << 5) | (r_5 & 31)));
+                    a_word_431 = 0x39000000 | bits_59 | ((((uint64_t)(16LL >> s_36)) << 10) | ((((uint64_t)(x_8 & 31)) << 5) | (r_5 & 31)));
                     if (asm_pc < asm_limit) {
-                        *(uint32_t *)asm_pc = a_word_425;
+                        *(uint32_t *)asm_pc = a_word_431;
                         asm_pc = asm_pc + 4;
                     } else if (asm_error == ASM_OK) {
                         asm_error = ASM_ERR_FULL;
                     }
                 } else {
-                    bits_59 = 0x38000000 | bits_58;
-                    a_word_426 = bits_59 | 65536ULL | ((((uint64_t)(x_8 & 31)) << 5) | (r_5 & 31));
+                    bits_60 = 0x38000000 | bits_59;
+                    a_word_432 = bits_60 | 65536ULL | ((((uint64_t)(x_8 & 31)) << 5) | (r_5 & 31));
                     if (asm_pc < asm_limit) {
-                        *(uint32_t *)asm_pc = a_word_426;
+                        *(uint32_t *)asm_pc = a_word_432;
                         asm_pc = asm_pc + 4;
                     } else if (asm_error == ASM_OK) {
                         asm_error = ASM_ERR_FULL;
                     }
                 }
                 target_60 = asm_target_of(done_6);
-                a_word_427 = 0x14000000 | ({
+                a_word_433 = 0x14000000 | ({
     off_166 = ((int64_t)(target_60 - asm_pc)) >> 2;
     if (!((off_166 >= -33554432) && (off_166 <= 33554431))) {
         if (asm_error == ASM_OK) {
@@ -10712,22 +10880,22 @@ exit_offset_to_59:;
 exit_offset_to_60:;
     r_offset_to_60; });
                 if (asm_pc < asm_limit) {
-                    *(uint32_t *)asm_pc = a_word_427;
+                    *(uint32_t *)asm_pc = a_word_433;
                     asm_pc = asm_pc + 4;
                 } else if (asm_error == ASM_OK) {
                     asm_error = ASM_ERR_FULL;
                 }
                 asm_bind(int_);
-                a_word_428 = 2470445056LL | (130048ULL | ((((uint64_t)(x_8 & 31)) << 5) | 16));
+                a_word_434 = 2470445056LL | (130048ULL | ((((uint64_t)(x_8 & 31)) << 5) | 16));
                 if (asm_pc < asm_limit) {
-                    *(uint32_t *)asm_pc = a_word_428;
+                    *(uint32_t *)asm_pc = a_word_434;
                     asm_pc = asm_pc + 4;
                 } else if (asm_error == ASM_OK) {
                     asm_error = ASM_ERR_FULL;
                 }
-                a_word_429 = 2657222656LL | (512ULL | (r_5 & 31));
+                a_word_435 = 2657222656LL | (512ULL | (r_5 & 31));
                 if (asm_pc < asm_limit) {
-                    *(uint32_t *)asm_pc = a_word_429;
+                    *(uint32_t *)asm_pc = a_word_435;
                     asm_pc = asm_pc + 4;
                 } else if (asm_error == ASM_OK) {
                     asm_error = ASM_ERR_FULL;
@@ -10773,9 +10941,9 @@ exit_out_9:;
     }
     off_167 = (int64_t)&((jit_state *)0)->stress;
     if ((off_167 >= 0) && ((off_167 & 7) == 0) && ((off_167 >> 3) <= 4095)) {
-        a_word_430 = 4181721088LL | ((((uint64_t)(off_167 >> 3)) << 10) | 720ULL);
+        a_word_436 = 4181721088LL | ((((uint64_t)(off_167 >> 3)) << 10) | 720ULL);
         if (asm_pc < asm_limit) {
-            *(uint32_t *)asm_pc = a_word_430;
+            *(uint32_t *)asm_pc = a_word_436;
             asm_pc = asm_pc + 4;
         } else if (asm_error == ASM_OK) {
             asm_error = ASM_ERR_FULL;
@@ -10787,9 +10955,9 @@ exit_out_9:;
             }
             goto exit_load_store_108;
         }
-        a_word_431 = 4164943872LL | (((uint64_t)(off_167 & 511)) << 12) | 720ULL;
+        a_word_437 = 4164943872LL | (((uint64_t)(off_167 & 511)) << 12) | 720ULL;
         if (asm_pc < asm_limit) {
-            *(uint32_t *)asm_pc = a_word_431;
+            *(uint32_t *)asm_pc = a_word_437;
             asm_pc = asm_pc + 4;
         } else if (asm_error == ASM_OK) {
             asm_error = ASM_ERR_FULL;
@@ -10809,9 +10977,9 @@ exit_out_9:;
 exit_add_sub_42:;
     off_168 = (int64_t)&((jit_state *)0)->stress;
     if ((off_168 >= 0) && ((off_168 & 7) == 0) && ((off_168 >> 3) <= 4095)) {
-        a_word_432 = 4177526784LL | ((((uint64_t)(off_168 >> 3)) << 10) | 720ULL);
+        a_word_438 = 4177526784LL | ((((uint64_t)(off_168 >> 3)) << 10) | 720ULL);
         if (asm_pc < asm_limit) {
-            *(uint32_t *)asm_pc = a_word_432;
+            *(uint32_t *)asm_pc = a_word_438;
             asm_pc = asm_pc + 4;
         } else if (asm_error == ASM_OK) {
             asm_error = ASM_ERR_FULL;
@@ -10823,9 +10991,9 @@ exit_add_sub_42:;
             }
             goto exit_load_store_109;
         }
-        a_word_433 = 4160749568LL | (((uint64_t)(off_168 & 511)) << 12) | 720ULL;
+        a_word_439 = 4160749568LL | (((uint64_t)(off_168 & 511)) << 12) | 720ULL;
         if (asm_pc < asm_limit) {
-            *(uint32_t *)asm_pc = a_word_433;
+            *(uint32_t *)asm_pc = a_word_439;
             asm_pc = asm_pc + 4;
         } else if (asm_error == ASM_OK) {
             asm_error = ASM_ERR_FULL;
@@ -10833,7 +11001,7 @@ exit_add_sub_42:;
     exit_load_store_109:;
     }
     target_61 = asm_target_of(l_6);
-    a_word_434 = 0x54000000 | ((((uint64_t)({
+    a_word_440 = 0x54000000 | ((((uint64_t)({
     off_169 = ((int64_t)(target_61 - asm_pc)) >> 2;
     if (!((off_169 >= -262144) && (off_169 <= 262143))) {
         if (asm_error == ASM_OK) {
@@ -10846,7 +11014,7 @@ exit_add_sub_42:;
 exit_offset_to_61:;
     r_offset_to_61; })) << 5) | 0);
     if (asm_pc < asm_limit) {
-        *(uint32_t *)asm_pc = a_word_434;
+        *(uint32_t *)asm_pc = a_word_440;
         asm_pc = asm_pc + 4;
     } else if (asm_error == ASM_OK) {
         asm_error = ASM_ERR_FULL;
@@ -10859,10 +11027,10 @@ exit_emit_stress_at_6:;
             if (asm_noting) {
                 asm_note("as a SmallFloat64 (out of its exponent range: deoptimize)", 0);
             }
-            v_63 = nd_40->a;
+            v_64 = nd_40->a;
             rn_11 = ({
-    if ((opt_nodes + v_63)->reg >= D0) {
-        r_dsrc_2 = (int32_t)(opt_nodes + v_63)->reg;
+    if ((opt_nodes + v_64)->reg >= D0) {
+        r_dsrc_2 = (int32_t)(opt_nodes + v_64)->reg;
         goto exit_dsrc_2;
     }
     if (asm_error == ASM_OK) {
@@ -10871,9 +11039,9 @@ exit_emit_stress_at_6:;
     r_dsrc_2 = D0;
 exit_dsrc_2:;
     r_dsrc_2; });
-            a_word_435 = 0x9E660000LL | ((((uint64_t)(rn_11 & 31)) << 5) | 16);
+            a_word_441 = 0x9E660000LL | ((((uint64_t)(rn_11 & 31)) << 5) | 16);
             if (asm_pc < asm_limit) {
-                *(uint32_t *)asm_pc = a_word_435;
+                *(uint32_t *)asm_pc = a_word_441;
                 asm_pc = asm_pc + 4;
             } else if (asm_error == ASM_OK) {
                 asm_error = ASM_ERR_FULL;
@@ -10885,7 +11053,7 @@ exit_dsrc_2:;
                 asm_error = ASM_ERR_FULL;
             }
             target_62 = asm_target_of(zero);
-            a_word_436 = 3019898880LL | ((((uint64_t)({
+            a_word_442 = 3019898880LL | ((((uint64_t)({
     off_170 = ((int64_t)(target_62 - asm_pc)) >> 2;
     if (!((off_170 >= -262144) && (off_170 <= 262143))) {
         if (asm_error == ASM_OK) {
@@ -10898,7 +11066,7 @@ exit_dsrc_2:;
 exit_offset_to_62:;
     r_offset_to_62; })) << 5) | 17);
             if (asm_pc < asm_limit) {
-                *(uint32_t *)asm_pc = a_word_436;
+                *(uint32_t *)asm_pc = a_word_442;
                 asm_pc = asm_pc + 4;
             } else if (asm_error == ASM_OK) {
                 asm_error = ASM_ERR_FULL;
@@ -10932,7 +11100,7 @@ exit_offset_to_62:;
             }
         exit_add_sub_44:;
             target_63 = asm_target_of(s_35);
-            a_word_437 = 0x54000000 | ((((uint64_t)({
+            a_word_443 = 0x54000000 | ((((uint64_t)({
     off_171 = ((int64_t)(target_63 - asm_pc)) >> 2;
     if (!((off_171 >= -262144) && (off_171 <= 262143))) {
         if (asm_error == ASM_OK) {
@@ -10945,7 +11113,7 @@ exit_offset_to_62:;
 exit_offset_to_63:;
     r_offset_to_63; })) << 5) | 8);
             if (asm_pc < asm_limit) {
-                *(uint32_t *)asm_pc = a_word_437;
+                *(uint32_t *)asm_pc = a_word_443;
                 asm_pc = asm_pc + 4;
             } else if (asm_error == ASM_OK) {
                 asm_error = ASM_ERR_FULL;
@@ -10964,7 +11132,7 @@ exit_offset_to_63:;
                 asm_error = ASM_ERR_FULL;
             }
             target_64 = asm_target_of(store);
-            a_word_438 = 0x14000000 | ({
+            a_word_444 = 0x14000000 | ({
     off_172 = ((int64_t)(target_64 - asm_pc)) >> 2;
     if (!((off_172 >= -33554432) && (off_172 <= 33554431))) {
         if (asm_error == ASM_OK) {
@@ -10977,7 +11145,7 @@ exit_offset_to_63:;
 exit_offset_to_64:;
     r_offset_to_64; });
             if (asm_pc < asm_limit) {
-                *(uint32_t *)asm_pc = a_word_438;
+                *(uint32_t *)asm_pc = a_word_444;
                 asm_pc = asm_pc + 4;
             } else if (asm_error == ASM_OK) {
                 asm_error = ASM_ERR_FULL;
@@ -11005,34 +11173,34 @@ exit_dst_8:;
                 }
                 goto exit_lsl;
             }
-            r_6 = (((r_5 & REG_W) == 0 ? 64 : 32) - 3) & (((r_5 & REG_W) == 0 ? 64 : 32) - 1);
+            r_7 = (((r_5 & REG_W) == 0 ? 64 : 32) - 3) & (((r_5 & REG_W) == 0 ? 64 : 32) - 1);
             s_37 = ((r_5 & REG_W) == 0 ? 64 : 32) - 1 - 3;
-            sf_25 = (r_5 & REG_W) == 0 ? 0x80000000LL : 0;
-            if (!((r_6 >= 0) && (r_6 <= ((r_5 & REG_W) == 0 ? 64 : 32) - 1) && ((s_37 >= 0) && (s_37 <= ((r_5 & REG_W) == 0 ? 64 : 32) - 1)))) {
+            sf_26 = (r_5 & REG_W) == 0 ? 0x80000000LL : 0;
+            if (!((r_7 >= 0) && (r_7 <= ((r_5 & REG_W) == 0 ? 64 : 32) - 1) && ((s_37 >= 0) && (s_37 <= ((r_5 & REG_W) == 0 ? 64 : 32) - 1)))) {
                 if (asm_error == ASM_OK) {
                     asm_error = ASM_ERR_IMMEDIATE;
                 }
                 goto exit_bitfield;
             }
-            a_word_439 = 0x13000000 | sf_25 | ((sf_25 >> 9) | 0x40000000) | ((((uint64_t)r_6) << 16) | (((uint64_t)s_37) << 10) | (544ULL | (r_5 & 31)));
+            a_word_445 = 0x13000000 | sf_26 | ((sf_26 >> 9) | 0x40000000) | ((((uint64_t)r_7) << 16) | (((uint64_t)s_37) << 10) | (544ULL | (r_5 & 31)));
             if (asm_pc < asm_limit) {
-                *(uint32_t *)asm_pc = a_word_439;
+                *(uint32_t *)asm_pc = a_word_445;
                 asm_pc = asm_pc + 4;
             } else if (asm_error == ASM_OK) {
                 asm_error = ASM_ERR_FULL;
             }
         exit_bitfield:;
         exit_lsl:;
-            enc_17 = asm_logical_immediate(4ULL, (r_5 & REG_W) == 0 ? 64 : 32);
-            if (enc_17 < 0) {
+            enc_18 = asm_logical_immediate(4ULL, (r_5 & REG_W) == 0 ? 64 : 32);
+            if (enc_18 < 0) {
                 if (asm_error == ASM_OK) {
                     asm_error = ASM_ERR_IMMEDIATE;
                 }
                 goto exit_logical_27;
             }
-            a_word_440 = 0x12000000 | ((r_5 & REG_W) == 0 ? 0x80000000LL : 0) | 0x20000000 | ((((uint64_t)enc_17) << 10) | ((((uint64_t)(r_5 & 31)) << 5) | (r_5 & 31)));
+            a_word_446 = 0x12000000 | ((r_5 & REG_W) == 0 ? 0x80000000LL : 0) | 0x20000000 | ((((uint64_t)enc_18) << 10) | ((((uint64_t)(r_5 & 31)) << 5) | (r_5 & 31)));
             if (asm_pc < asm_limit) {
-                *(uint32_t *)asm_pc = a_word_440;
+                *(uint32_t *)asm_pc = a_word_446;
                 asm_pc = asm_pc + 4;
             } else if (asm_error == ASM_OK) {
                 asm_error = ASM_ERR_FULL;
@@ -11042,17 +11210,17 @@ exit_dst_8:;
             if ((nd_43->reg >= 0) && ((int32_t)nd_43->reg != r_5)) {
                 rd_25 = (int32_t)nd_43->reg;
                 if (((rd_25 & REG_SP) != 0) || ((r_5 & REG_SP) != 0)) {
-                    a_word_441 = 0x11000000 | ((rd_25 & REG_W) == 0 ? 0x80000000LL : 0) | 0 | (0ULL | ((((uint64_t)(r_5 & 31)) << 5) | (rd_25 & 31)));
+                    a_word_447 = 0x11000000 | ((rd_25 & REG_W) == 0 ? 0x80000000LL : 0) | 0 | (0ULL | ((((uint64_t)(r_5 & 31)) << 5) | (rd_25 & 31)));
                     if (asm_pc < asm_limit) {
-                        *(uint32_t *)asm_pc = a_word_441;
+                        *(uint32_t *)asm_pc = a_word_447;
                         asm_pc = asm_pc + 4;
                     } else if (asm_error == ASM_OK) {
                         asm_error = ASM_ERR_FULL;
                     }
                     goto exit_add_sub_45;
-                    a_word_442 = 0x11400000 | ((rd_25 & REG_W) == 0 ? 0x80000000LL : 0) | 0 | (0ULL | ((((uint64_t)(r_5 & 31)) << 5) | (rd_25 & 31)));
+                    a_word_448 = 0x11400000 | ((rd_25 & REG_W) == 0 ? 0x80000000LL : 0) | 0 | (0ULL | ((((uint64_t)(r_5 & 31)) << 5) | (rd_25 & 31)));
                     if (asm_pc < asm_limit) {
-                        *(uint32_t *)asm_pc = a_word_442;
+                        *(uint32_t *)asm_pc = a_word_448;
                         asm_pc = asm_pc + 4;
                     } else if (asm_error == ASM_OK) {
                         asm_error = ASM_ERR_FULL;
@@ -11070,9 +11238,9 @@ exit_dst_8:;
                         }
                         goto exit_logical_28;
                     }
-                    a_word_443 = 0xA000000 | ((rd_25 & REG_W) == 0 ? 0x80000000LL : 0) | 0x20000000 | (0ULL | ((((uint64_t)(r_5 & 31)) << 16) | (((uint64_t)(rn_12 & 31)) << 5) | (rd_25 & 31)));
+                    a_word_449 = 0xA000000 | ((rd_25 & REG_W) == 0 ? 0x80000000LL : 0) | 0x20000000 | (0ULL | ((((uint64_t)(r_5 & 31)) << 16) | (((uint64_t)(rn_12 & 31)) << 5) | (rd_25 & 31)));
                     if (asm_pc < asm_limit) {
-                        *(uint32_t *)asm_pc = a_word_443;
+                        *(uint32_t *)asm_pc = a_word_449;
                         asm_pc = asm_pc + 4;
                     } else if (asm_error == ASM_OK) {
                         asm_error = ASM_ERR_FULL;
@@ -11080,29 +11248,29 @@ exit_dst_8:;
                 exit_logical_28:;
                 }
             }
-            if (nd_43->slot >= 0) {
+            if ((nd_43->slot >= 0) && ((nd_43->flags & NF_LAZY) == 0)) {
                 off_173 = 8 * (int32_t)nd_43->slot;
-                bits_60 = (r_5 & REG_D) != 0 ? 0xC4000000LL : (r_5 & REG_W) == 0 ? 0xC0000000LL : 0x80000000LL;
+                bits_61 = (r_5 & REG_D) != 0 ? 0xC4000000LL : (r_5 & REG_W) == 0 ? 0xC0000000LL : 0x80000000LL;
                 s_38 = (r_5 & REG_W) == 0 ? 3 : 2;
                 if ((off_173 >= 0) && ((off_173 & ((1LL << s_38) - 1)) == 0) && ((off_173 >> s_38) <= 4095)) {
-                    a_word_444 = 0x39000000 | bits_60 | ((((uint64_t)(off_173 >> s_38)) << 10) | (640ULL | (r_5 & 31)));
+                    a_word_450 = 0x39000000 | bits_61 | ((((uint64_t)(off_173 >> s_38)) << 10) | (640ULL | (r_5 & 31)));
                     if (asm_pc < asm_limit) {
-                        *(uint32_t *)asm_pc = a_word_444;
+                        *(uint32_t *)asm_pc = a_word_450;
                         asm_pc = asm_pc + 4;
                     } else if (asm_error == ASM_OK) {
                         asm_error = ASM_ERR_FULL;
                     }
                 } else {
-                    bits_61 = 0x38000000 | bits_60;
+                    bits_62 = 0x38000000 | bits_61;
                     if (!((off_173 >= -256) && (off_173 <= 255))) {
                         if (asm_error == ASM_OK) {
                             asm_error = ASM_ERR_IMMEDIATE;
                         }
                         goto exit_load_store_110;
                     }
-                    a_word_445 = bits_61 | (((uint64_t)(off_173 & 511)) << 12) | (640ULL | (r_5 & 31));
+                    a_word_451 = bits_62 | (((uint64_t)(off_173 & 511)) << 12) | (640ULL | (r_5 & 31));
                     if (asm_pc < asm_limit) {
-                        *(uint32_t *)asm_pc = a_word_445;
+                        *(uint32_t *)asm_pc = a_word_451;
                         asm_pc = asm_pc + 4;
                     } else if (asm_error == ASM_OK) {
                         asm_error = ASM_ERR_FULL;
@@ -11124,10 +11292,10 @@ exit_dst_8:;
     r_dsrc_3 = D0;
 exit_dsrc_3:;
     r_dsrc_3; });
-            v_67 = nd_40->a;
+            v_68 = nd_40->a;
             rn_13 = ({
-    if ((opt_nodes + v_67)->reg >= D0) {
-        r_dsrc_4 = (int32_t)(opt_nodes + v_67)->reg;
+    if ((opt_nodes + v_68)->reg >= D0) {
+        r_dsrc_4 = (int32_t)(opt_nodes + v_68)->reg;
         goto exit_dsrc_4;
     }
     if (asm_error == ASM_OK) {
@@ -11136,9 +11304,9 @@ exit_dsrc_3:;
     r_dsrc_4 = D0;
 exit_dsrc_4:;
     r_dsrc_4; });
-            a_word_446 = 0x1E61C000 | ((((uint64_t)(rn_13 & 31)) << 5) | (rd_26 & 31));
+            a_word_452 = 0x1E61C000 | ((((uint64_t)(rn_13 & 31)) << 5) | (rd_26 & 31));
             if (asm_pc < asm_limit) {
-                *(uint32_t *)asm_pc = a_word_446;
+                *(uint32_t *)asm_pc = a_word_452;
                 asm_pc = asm_pc + 4;
             } else if (asm_error == ASM_OK) {
                 asm_error = ASM_ERR_FULL;
@@ -11183,9 +11351,9 @@ exit_out_10:;
     }
     off_174 = (int64_t)&((jit_state *)0)->stress;
     if ((off_174 >= 0) && ((off_174 & 7) == 0) && ((off_174 >> 3) <= 4095)) {
-        a_word_447 = 4181721088LL | ((((uint64_t)(off_174 >> 3)) << 10) | 720ULL);
+        a_word_453 = 4181721088LL | ((((uint64_t)(off_174 >> 3)) << 10) | 720ULL);
         if (asm_pc < asm_limit) {
-            *(uint32_t *)asm_pc = a_word_447;
+            *(uint32_t *)asm_pc = a_word_453;
             asm_pc = asm_pc + 4;
         } else if (asm_error == ASM_OK) {
             asm_error = ASM_ERR_FULL;
@@ -11197,9 +11365,9 @@ exit_out_10:;
             }
             goto exit_load_store_111;
         }
-        a_word_448 = 4164943872LL | (((uint64_t)(off_174 & 511)) << 12) | 720ULL;
+        a_word_454 = 4164943872LL | (((uint64_t)(off_174 & 511)) << 12) | 720ULL;
         if (asm_pc < asm_limit) {
-            *(uint32_t *)asm_pc = a_word_448;
+            *(uint32_t *)asm_pc = a_word_454;
             asm_pc = asm_pc + 4;
         } else if (asm_error == ASM_OK) {
             asm_error = ASM_ERR_FULL;
@@ -11219,9 +11387,9 @@ exit_out_10:;
 exit_add_sub_46:;
     off_175 = (int64_t)&((jit_state *)0)->stress;
     if ((off_175 >= 0) && ((off_175 & 7) == 0) && ((off_175 >> 3) <= 4095)) {
-        a_word_449 = 4177526784LL | ((((uint64_t)(off_175 >> 3)) << 10) | 720ULL);
+        a_word_455 = 4177526784LL | ((((uint64_t)(off_175 >> 3)) << 10) | 720ULL);
         if (asm_pc < asm_limit) {
-            *(uint32_t *)asm_pc = a_word_449;
+            *(uint32_t *)asm_pc = a_word_455;
             asm_pc = asm_pc + 4;
         } else if (asm_error == ASM_OK) {
             asm_error = ASM_ERR_FULL;
@@ -11233,9 +11401,9 @@ exit_add_sub_46:;
             }
             goto exit_load_store_112;
         }
-        a_word_450 = 4160749568LL | (((uint64_t)(off_175 & 511)) << 12) | 720ULL;
+        a_word_456 = 4160749568LL | (((uint64_t)(off_175 & 511)) << 12) | 720ULL;
         if (asm_pc < asm_limit) {
-            *(uint32_t *)asm_pc = a_word_450;
+            *(uint32_t *)asm_pc = a_word_456;
             asm_pc = asm_pc + 4;
         } else if (asm_error == ASM_OK) {
             asm_error = ASM_ERR_FULL;
@@ -11243,7 +11411,7 @@ exit_add_sub_46:;
     exit_load_store_112:;
     }
     target_65 = asm_target_of(l_7);
-    a_word_451 = 0x54000000 | ((((uint64_t)({
+    a_word_457 = 0x54000000 | ((((uint64_t)({
     off_176 = ((int64_t)(target_65 - asm_pc)) >> 2;
     if (!((off_176 >= -262144) && (off_176 <= 262143))) {
         if (asm_error == ASM_OK) {
@@ -11256,7 +11424,7 @@ exit_add_sub_46:;
 exit_offset_to_65:;
     r_offset_to_65; })) << 5) | 0);
     if (asm_pc < asm_limit) {
-        *(uint32_t *)asm_pc = a_word_451;
+        *(uint32_t *)asm_pc = a_word_457;
         asm_pc = asm_pc + 4;
     } else if (asm_error == ASM_OK) {
         asm_error = ASM_ERR_FULL;
@@ -11267,10 +11435,10 @@ exit_emit_stress_at_7:;
             if (asm_noting) {
                 asm_note("division by zero: deoptimize", 0);
             }
-            v_69 = nd_40->b;
+            v_70 = nd_40->b;
             rn_14 = ({
-    if ((opt_nodes + v_69)->reg >= D0) {
-        r_dsrc_5 = (int32_t)(opt_nodes + v_69)->reg;
+    if ((opt_nodes + v_70)->reg >= D0) {
+        r_dsrc_5 = (int32_t)(opt_nodes + v_70)->reg;
         goto exit_dsrc_5;
     }
     if (asm_error == ASM_OK) {
@@ -11279,15 +11447,15 @@ exit_emit_stress_at_7:;
     r_dsrc_5 = D0;
 exit_dsrc_5:;
     r_dsrc_5; });
-            a_word_452 = 0x1E602008 | (((uint64_t)(rn_14 & 31)) << 5);
+            a_word_458 = 0x1E602008 | (((uint64_t)(rn_14 & 31)) << 5);
             if (asm_pc < asm_limit) {
-                *(uint32_t *)asm_pc = a_word_452;
+                *(uint32_t *)asm_pc = a_word_458;
                 asm_pc = asm_pc + 4;
             } else if (asm_error == ASM_OK) {
                 asm_error = ASM_ERR_FULL;
             }
             target_66 = asm_target_of(s_35);
-            a_word_453 = 0x54000000 | ((((uint64_t)({
+            a_word_459 = 0x54000000 | ((((uint64_t)({
     off_177 = ((int64_t)(target_66 - asm_pc)) >> 2;
     if (!((off_177 >= -262144) && (off_177 <= 262143))) {
         if (asm_error == ASM_OK) {
@@ -11300,7 +11468,7 @@ exit_dsrc_5:;
 exit_offset_to_66:;
     r_offset_to_66; })) << 5) | 0);
             if (asm_pc < asm_limit) {
-                *(uint32_t *)asm_pc = a_word_453;
+                *(uint32_t *)asm_pc = a_word_459;
                 asm_pc = asm_pc + 4;
             } else if (asm_error == ASM_OK) {
                 asm_error = ASM_ERR_FULL;
@@ -11318,10 +11486,10 @@ exit_offset_to_66:;
     r_dsrc_6 = D0;
 exit_dsrc_6:;
     r_dsrc_6; });
-            v_70 = nd_40->a;
+            v_71 = nd_40->a;
             rn_15 = ({
-    if ((opt_nodes + v_70)->reg >= D0) {
-        r_dsrc_7 = (int32_t)(opt_nodes + v_70)->reg;
+    if ((opt_nodes + v_71)->reg >= D0) {
+        r_dsrc_7 = (int32_t)(opt_nodes + v_71)->reg;
         goto exit_dsrc_7;
     }
     if (asm_error == ASM_OK) {
@@ -11330,10 +11498,10 @@ exit_dsrc_6:;
     r_dsrc_7 = D0;
 exit_dsrc_7:;
     r_dsrc_7; });
-            v_71 = nd_40->b;
+            v_72 = nd_40->b;
             rm = ({
-    if ((opt_nodes + v_71)->reg >= D0) {
-        r_dsrc_8 = (int32_t)(opt_nodes + v_71)->reg;
+    if ((opt_nodes + v_72)->reg >= D0) {
+        r_dsrc_8 = (int32_t)(opt_nodes + v_72)->reg;
         goto exit_dsrc_8;
     }
     if (asm_error == ASM_OK) {
@@ -11342,9 +11510,9 @@ exit_dsrc_7:;
     r_dsrc_8 = D0;
 exit_dsrc_8:;
     r_dsrc_8; });
-            a_word_454 = 0x1E602800 | ((((uint64_t)(rm & 31)) << 16) | (((uint64_t)(rn_15 & 31)) << 5) | (rd_27 & 31));
+            a_word_460 = 0x1E602800 | ((((uint64_t)(rm & 31)) << 16) | (((uint64_t)(rn_15 & 31)) << 5) | (rd_27 & 31));
             if (asm_pc < asm_limit) {
-                *(uint32_t *)asm_pc = a_word_454;
+                *(uint32_t *)asm_pc = a_word_460;
                 asm_pc = asm_pc + 4;
             } else if (asm_error == ASM_OK) {
                 asm_error = ASM_ERR_FULL;
@@ -11363,10 +11531,10 @@ exit_dsrc_8:;
     r_dsrc_9 = D0;
 exit_dsrc_9:;
     r_dsrc_9; });
-            v_72 = nd_40->a;
+            v_73 = nd_40->a;
             rn_16 = ({
-    if ((opt_nodes + v_72)->reg >= D0) {
-        r_dsrc_10 = (int32_t)(opt_nodes + v_72)->reg;
+    if ((opt_nodes + v_73)->reg >= D0) {
+        r_dsrc_10 = (int32_t)(opt_nodes + v_73)->reg;
         goto exit_dsrc_10;
     }
     if (asm_error == ASM_OK) {
@@ -11375,10 +11543,10 @@ exit_dsrc_9:;
     r_dsrc_10 = D0;
 exit_dsrc_10:;
     r_dsrc_10; });
-            v_73 = nd_40->b;
+            v_74 = nd_40->b;
             rm_2 = ({
-    if ((opt_nodes + v_73)->reg >= D0) {
-        r_dsrc_11 = (int32_t)(opt_nodes + v_73)->reg;
+    if ((opt_nodes + v_74)->reg >= D0) {
+        r_dsrc_11 = (int32_t)(opt_nodes + v_74)->reg;
         goto exit_dsrc_11;
     }
     if (asm_error == ASM_OK) {
@@ -11387,9 +11555,9 @@ exit_dsrc_10:;
     r_dsrc_11 = D0;
 exit_dsrc_11:;
     r_dsrc_11; });
-            a_word_455 = 0x1E603800 | ((((uint64_t)(rm_2 & 31)) << 16) | (((uint64_t)(rn_16 & 31)) << 5) | (rd_28 & 31));
+            a_word_461 = 0x1E603800 | ((((uint64_t)(rm_2 & 31)) << 16) | (((uint64_t)(rn_16 & 31)) << 5) | (rd_28 & 31));
             if (asm_pc < asm_limit) {
-                *(uint32_t *)asm_pc = a_word_455;
+                *(uint32_t *)asm_pc = a_word_461;
                 asm_pc = asm_pc + 4;
             } else if (asm_error == ASM_OK) {
                 asm_error = ASM_ERR_FULL;
@@ -11408,10 +11576,10 @@ exit_dsrc_11:;
     r_dsrc_12 = D0;
 exit_dsrc_12:;
     r_dsrc_12; });
-            v_74 = nd_40->a;
+            v_75 = nd_40->a;
             rn_17 = ({
-    if ((opt_nodes + v_74)->reg >= D0) {
-        r_dsrc_13 = (int32_t)(opt_nodes + v_74)->reg;
+    if ((opt_nodes + v_75)->reg >= D0) {
+        r_dsrc_13 = (int32_t)(opt_nodes + v_75)->reg;
         goto exit_dsrc_13;
     }
     if (asm_error == ASM_OK) {
@@ -11420,10 +11588,10 @@ exit_dsrc_12:;
     r_dsrc_13 = D0;
 exit_dsrc_13:;
     r_dsrc_13; });
-            v_75 = nd_40->b;
+            v_76 = nd_40->b;
             rm_3 = ({
-    if ((opt_nodes + v_75)->reg >= D0) {
-        r_dsrc_14 = (int32_t)(opt_nodes + v_75)->reg;
+    if ((opt_nodes + v_76)->reg >= D0) {
+        r_dsrc_14 = (int32_t)(opt_nodes + v_76)->reg;
         goto exit_dsrc_14;
     }
     if (asm_error == ASM_OK) {
@@ -11432,9 +11600,9 @@ exit_dsrc_13:;
     r_dsrc_14 = D0;
 exit_dsrc_14:;
     r_dsrc_14; });
-            a_word_456 = 0x1E600800 | ((((uint64_t)(rm_3 & 31)) << 16) | (((uint64_t)(rn_17 & 31)) << 5) | (rd_29 & 31));
+            a_word_462 = 0x1E600800 | ((((uint64_t)(rm_3 & 31)) << 16) | (((uint64_t)(rn_17 & 31)) << 5) | (rd_29 & 31));
             if (asm_pc < asm_limit) {
-                *(uint32_t *)asm_pc = a_word_456;
+                *(uint32_t *)asm_pc = a_word_462;
                 asm_pc = asm_pc + 4;
             } else if (asm_error == ASM_OK) {
                 asm_error = ASM_ERR_FULL;
@@ -11452,10 +11620,10 @@ exit_dsrc_14:;
     r_dsrc_15 = D0;
 exit_dsrc_15:;
     r_dsrc_15; });
-        v_76 = nd_40->a;
+        v_77 = nd_40->a;
         rn_18 = ({
-    if ((opt_nodes + v_76)->reg >= D0) {
-        r_dsrc_16 = (int32_t)(opt_nodes + v_76)->reg;
+    if ((opt_nodes + v_77)->reg >= D0) {
+        r_dsrc_16 = (int32_t)(opt_nodes + v_77)->reg;
         goto exit_dsrc_16;
     }
     if (asm_error == ASM_OK) {
@@ -11464,10 +11632,10 @@ exit_dsrc_15:;
     r_dsrc_16 = D0;
 exit_dsrc_16:;
     r_dsrc_16; });
-        v_77 = nd_40->b;
+        v_78 = nd_40->b;
         rm_4 = ({
-    if ((opt_nodes + v_77)->reg >= D0) {
-        r_dsrc_17 = (int32_t)(opt_nodes + v_77)->reg;
+    if ((opt_nodes + v_78)->reg >= D0) {
+        r_dsrc_17 = (int32_t)(opt_nodes + v_78)->reg;
         goto exit_dsrc_17;
     }
     if (asm_error == ASM_OK) {
@@ -11476,9 +11644,9 @@ exit_dsrc_16:;
     r_dsrc_17 = D0;
 exit_dsrc_17:;
     r_dsrc_17; });
-        a_word_457 = 0x1E601800 | ((((uint64_t)(rm_4 & 31)) << 16) | (((uint64_t)(rn_18 & 31)) << 5) | (rd_30 & 31));
+        a_word_463 = 0x1E601800 | ((((uint64_t)(rm_4 & 31)) << 16) | (((uint64_t)(rn_18 & 31)) << 5) | (rd_30 & 31));
         if (asm_pc < asm_limit) {
-            *(uint32_t *)asm_pc = a_word_457;
+            *(uint32_t *)asm_pc = a_word_463;
             asm_pc = asm_pc + 4;
         } else if (asm_error == ASM_OK) {
             asm_error = ASM_ERR_FULL;
@@ -11497,8 +11665,8 @@ exit_dsrc_17:;
         r_is_fused = false;
         goto exit_is_fused;
     }
-    n_18 = nd_44->next;
-    nx = opt_nodes + n_18;
+    n_23 = nd_44->next;
+    nx = opt_nodes + n_23;
     r_is_fused = ((int32_t)nx->op == O_BRANCH) && (nx->a == n);
 exit_is_fused:;
     r_is_fused; })) {
@@ -11506,10 +11674,10 @@ exit_is_fused:;
         }
         nd_45 = opt_nodes + n;
         if ((int32_t)nd_45->op == O_FCMP) {
-            v_78 = nd_45->a;
+            v_79 = nd_45->a;
             rn_19 = ({
-    if ((opt_nodes + v_78)->reg >= D0) {
-        r_dsrc_18 = (int32_t)(opt_nodes + v_78)->reg;
+    if ((opt_nodes + v_79)->reg >= D0) {
+        r_dsrc_18 = (int32_t)(opt_nodes + v_79)->reg;
         goto exit_dsrc_18;
     }
     if (asm_error == ASM_OK) {
@@ -11518,10 +11686,10 @@ exit_is_fused:;
     r_dsrc_18 = D0;
 exit_dsrc_18:;
     r_dsrc_18; });
-            v_79 = nd_45->b;
+            v_80 = nd_45->b;
             rm_5 = ({
-    if ((opt_nodes + v_79)->reg >= D0) {
-        r_dsrc_19 = (int32_t)(opt_nodes + v_79)->reg;
+    if ((opt_nodes + v_80)->reg >= D0) {
+        r_dsrc_19 = (int32_t)(opt_nodes + v_80)->reg;
         goto exit_dsrc_19;
     }
     if (asm_error == ASM_OK) {
@@ -11530,69 +11698,69 @@ exit_dsrc_18:;
     r_dsrc_19 = D0;
 exit_dsrc_19:;
     r_dsrc_19; });
-            a_word_458 = 0x1E602000 | ((((uint64_t)(rm_5 & 31)) << 16) | (((uint64_t)(rn_19 & 31)) << 5) | 0);
+            a_word_464 = 0x1E602000 | ((((uint64_t)(rm_5 & 31)) << 16) | (((uint64_t)(rn_19 & 31)) << 5) | 0);
             if (asm_pc < asm_limit) {
-                *(uint32_t *)asm_pc = a_word_458;
+                *(uint32_t *)asm_pc = a_word_464;
                 asm_pc = asm_pc + 4;
             } else if (asm_error == ASM_OK) {
                 asm_error = ASM_ERR_FULL;
             }
             goto exit_emit_compare;
         }
-        v_80 = nd_45->a;
+        v_81 = nd_45->a;
         x_9 = ({
-    nd_46 = opt_nodes + v_80;
+    nd_46 = opt_nodes + v_81;
     if ((int32_t)nd_46->op == O_CONST) {
-        v_81 = (uint64_t)nd_46->aux;
-        if ((v_81 & 1) != 0) {
-            if (((int64_t)v_81 >= -2147483648) && ((int64_t)v_81 <= 0x7FFFFFFF)) {
-                value_18 = (int64_t)v_81;
+        v_82 = (uint64_t)nd_46->aux;
+        if ((v_82 & 1) != 0) {
+            if (((int64_t)v_82 >= -2147483648) && ((int64_t)v_82 <= 0x7FFFFFFF)) {
+                value_18 = (int64_t)v_82;
                 if ((value_18 >= 0) && (value_18 <= 0xFFFF)) {
                     if (!((value_18 >= 0) && (value_18 <= 0xFFFF))) {
                         if (asm_error == ASM_OK) {
                             asm_error = ASM_ERR_IMMEDIATE;
                         }
-                        goto exit_move_wide_52;
+                        goto exit_move_wide_53;
                     }
-                    a_word_459 = 3531603968LL | (0ULL | (((uint64_t)value_18) << 5) | 14);
+                    a_word_465 = 3531603968LL | (0ULL | (((uint64_t)value_18) << 5) | 14);
                     if (asm_pc < asm_limit) {
-                        *(uint32_t *)asm_pc = a_word_459;
+                        *(uint32_t *)asm_pc = a_word_465;
                         asm_pc = asm_pc + 4;
                     } else if (asm_error == ASM_OK) {
                         asm_error = ASM_ERR_FULL;
                     }
-                exit_move_wide_52:;
+                exit_move_wide_53:;
                 } else {
                     asm_mov_imm(X14, (uint64_t)value_18);
                 }
                 goto exit_load_constant_18;
             }
-            if ((v_81 >= 0) && (v_81 <= 0xFFFF)) {
-                if (!((v_81 >= 0) && (v_81 <= 0xFFFF))) {
+            if ((v_82 >= 0) && (v_82 <= 0xFFFF)) {
+                if (!((v_82 >= 0) && (v_82 <= 0xFFFF))) {
                     if (asm_error == ASM_OK) {
                         asm_error = ASM_ERR_IMMEDIATE;
                     }
-                    goto exit_move_wide_53;
+                    goto exit_move_wide_54;
                 }
-                a_word_460 = 3531603968LL | (0ULL | (v_81 << 5) | 14);
+                a_word_466 = 3531603968LL | (0ULL | (v_82 << 5) | 14);
                 if (asm_pc < asm_limit) {
-                    *(uint32_t *)asm_pc = a_word_460;
+                    *(uint32_t *)asm_pc = a_word_466;
                     asm_pc = asm_pc + 4;
                 } else if (asm_error == ASM_OK) {
                     asm_error = ASM_ERR_FULL;
                 }
-            exit_move_wide_53:;
+            exit_move_wide_54:;
             } else {
-                asm_mov_imm(X14, v_81);
+                asm_mov_imm(X14, v_82);
             }
             goto exit_load_constant_18;
         }
-        if (v_81 == nil_oop) {
+        if (v_82 == nil_oop) {
             off_178 = (int64_t)&((jit_state *)0)->nil_oop;
             if ((off_178 >= 0) && ((off_178 & 7) == 0) && ((off_178 >> 3) <= 4095)) {
-                a_word_461 = 4181721088LL | ((((uint64_t)(off_178 >> 3)) << 10) | 718ULL);
+                a_word_467 = 4181721088LL | ((((uint64_t)(off_178 >> 3)) << 10) | 718ULL);
                 if (asm_pc < asm_limit) {
-                    *(uint32_t *)asm_pc = a_word_461;
+                    *(uint32_t *)asm_pc = a_word_467;
                     asm_pc = asm_pc + 4;
                 } else if (asm_error == ASM_OK) {
                     asm_error = ASM_ERR_FULL;
@@ -11604,9 +11772,9 @@ exit_dsrc_19:;
                     }
                     goto exit_load_store_113;
                 }
-                a_word_462 = 4164943872LL | (((uint64_t)(off_178 & 511)) << 12) | 718ULL;
+                a_word_468 = 4164943872LL | (((uint64_t)(off_178 & 511)) << 12) | 718ULL;
                 if (asm_pc < asm_limit) {
-                    *(uint32_t *)asm_pc = a_word_462;
+                    *(uint32_t *)asm_pc = a_word_468;
                     asm_pc = asm_pc + 4;
                 } else if (asm_error == ASM_OK) {
                     asm_error = ASM_ERR_FULL;
@@ -11615,12 +11783,12 @@ exit_dsrc_19:;
             }
             goto exit_load_constant_18;
         }
-        if (v_81 == true_oop) {
+        if (v_82 == true_oop) {
             off_179 = (int64_t)&((jit_state *)0)->true_oop;
             if ((off_179 >= 0) && ((off_179 & 7) == 0) && ((off_179 >> 3) <= 4095)) {
-                a_word_463 = 4181721088LL | ((((uint64_t)(off_179 >> 3)) << 10) | 718ULL);
+                a_word_469 = 4181721088LL | ((((uint64_t)(off_179 >> 3)) << 10) | 718ULL);
                 if (asm_pc < asm_limit) {
-                    *(uint32_t *)asm_pc = a_word_463;
+                    *(uint32_t *)asm_pc = a_word_469;
                     asm_pc = asm_pc + 4;
                 } else if (asm_error == ASM_OK) {
                     asm_error = ASM_ERR_FULL;
@@ -11632,9 +11800,9 @@ exit_dsrc_19:;
                     }
                     goto exit_load_store_114;
                 }
-                a_word_464 = 4164943872LL | (((uint64_t)(off_179 & 511)) << 12) | 718ULL;
+                a_word_470 = 4164943872LL | (((uint64_t)(off_179 & 511)) << 12) | 718ULL;
                 if (asm_pc < asm_limit) {
-                    *(uint32_t *)asm_pc = a_word_464;
+                    *(uint32_t *)asm_pc = a_word_470;
                     asm_pc = asm_pc + 4;
                 } else if (asm_error == ASM_OK) {
                     asm_error = ASM_ERR_FULL;
@@ -11643,12 +11811,12 @@ exit_dsrc_19:;
             }
             goto exit_load_constant_18;
         }
-        if (v_81 == false_oop) {
+        if (v_82 == false_oop) {
             off_180 = (int64_t)&((jit_state *)0)->false_oop;
             if ((off_180 >= 0) && ((off_180 & 7) == 0) && ((off_180 >> 3) <= 4095)) {
-                a_word_465 = 4181721088LL | ((((uint64_t)(off_180 >> 3)) << 10) | 718ULL);
+                a_word_471 = 4181721088LL | ((((uint64_t)(off_180 >> 3)) << 10) | 718ULL);
                 if (asm_pc < asm_limit) {
-                    *(uint32_t *)asm_pc = a_word_465;
+                    *(uint32_t *)asm_pc = a_word_471;
                     asm_pc = asm_pc + 4;
                 } else if (asm_error == ASM_OK) {
                     asm_error = ASM_ERR_FULL;
@@ -11660,9 +11828,9 @@ exit_dsrc_19:;
                     }
                     goto exit_load_store_115;
                 }
-                a_word_466 = 4164943872LL | (((uint64_t)(off_180 & 511)) << 12) | 718ULL;
+                a_word_472 = 4164943872LL | (((uint64_t)(off_180 & 511)) << 12) | 718ULL;
                 if (asm_pc < asm_limit) {
-                    *(uint32_t *)asm_pc = a_word_466;
+                    *(uint32_t *)asm_pc = a_word_472;
                     asm_pc = asm_pc + 4;
                 } else if (asm_error == ASM_OK) {
                     asm_error = ASM_ERR_FULL;
@@ -11671,30 +11839,30 @@ exit_dsrc_19:;
             }
             goto exit_load_constant_18;
         }
-        if ((v_81 & 7) != 0) {
-            if ((v_81 >= 0) && (v_81 <= 0xFFFF)) {
-                if (!((v_81 >= 0) && (v_81 <= 0xFFFF))) {
+        if ((v_82 & 7) != 0) {
+            if ((v_82 >= 0) && (v_82 <= 0xFFFF)) {
+                if (!((v_82 >= 0) && (v_82 <= 0xFFFF))) {
                     if (asm_error == ASM_OK) {
                         asm_error = ASM_ERR_IMMEDIATE;
                     }
-                    goto exit_move_wide_54;
+                    goto exit_move_wide_55;
                 }
-                a_word_467 = 3531603968LL | (0ULL | (v_81 << 5) | 14);
+                a_word_473 = 3531603968LL | (0ULL | (v_82 << 5) | 14);
                 if (asm_pc < asm_limit) {
-                    *(uint32_t *)asm_pc = a_word_467;
+                    *(uint32_t *)asm_pc = a_word_473;
                     asm_pc = asm_pc + 4;
                 } else if (asm_error == ASM_OK) {
                     asm_error = ASM_ERR_FULL;
                 }
-            exit_move_wide_54:;
+            exit_move_wide_55:;
             } else {
-                asm_mov_imm(X14, v_81);
+                asm_mov_imm(X14, v_82);
             }
             goto exit_load_constant_18;
         }
-        a_label_18 = cg_pool_labels[opt_pool_index(v_81)];
+        a_label_18 = cg_pool_labels[opt_pool_index(v_82)];
         target_67 = asm_target_of(a_label_18);
-        a_word_468 = 0x58000000 | ((((uint64_t)({
+        a_word_474 = 0x58000000 | ((((uint64_t)({
     off_181 = ((int64_t)(target_67 - asm_pc)) >> 2;
     if (!((off_181 >= -262144) && (off_181 <= 262143))) {
         if (asm_error == ASM_OK) {
@@ -11707,7 +11875,7 @@ exit_dsrc_19:;
 exit_offset_to_67:;
     r_offset_to_67; })) << 5) | 14);
         if (asm_pc < asm_limit) {
-            *(uint32_t *)asm_pc = a_word_468;
+            *(uint32_t *)asm_pc = a_word_474;
             asm_pc = asm_pc + 4;
         } else if (asm_error == ASM_OK) {
             asm_error = ASM_ERR_FULL;
@@ -11723,9 +11891,9 @@ exit_offset_to_67:;
     if (nd_46->slot >= 0) {
         off_182 = 8 * (int32_t)nd_46->slot;
         if ((off_182 >= 0) && ((off_182 & 7) == 0) && ((off_182 >> 3) <= 4095)) {
-            a_word_469 = 4181721088LL | ((((uint64_t)(off_182 >> 3)) << 10) | 654ULL);
+            a_word_475 = 4181721088LL | ((((uint64_t)(off_182 >> 3)) << 10) | 654ULL);
             if (asm_pc < asm_limit) {
-                *(uint32_t *)asm_pc = a_word_469;
+                *(uint32_t *)asm_pc = a_word_475;
                 asm_pc = asm_pc + 4;
             } else if (asm_error == ASM_OK) {
                 asm_error = ASM_ERR_FULL;
@@ -11737,9 +11905,9 @@ exit_offset_to_67:;
                 }
                 goto exit_load_store_116;
             }
-            a_word_470 = 4164943872LL | (((uint64_t)(off_182 & 511)) << 12) | 654ULL;
+            a_word_476 = 4164943872LL | (((uint64_t)(off_182 & 511)) << 12) | 654ULL;
             if (asm_pc < asm_limit) {
-                *(uint32_t *)asm_pc = a_word_470;
+                *(uint32_t *)asm_pc = a_word_476;
                 asm_pc = asm_pc + 4;
             } else if (asm_error == ASM_OK) {
                 asm_error = ASM_ERR_FULL;
@@ -11758,16 +11926,16 @@ exit_src_15:;
         if ((int32_t)nd_45->op == O_CLASSIS) {
             cls = (uint64_t)nd_45->aux;
             if (cls == cls_smallint) {
-                enc_18 = asm_logical_immediate(1ULL, 64);
-                if (enc_18 < 0) {
+                enc_19 = asm_logical_immediate(1ULL, 64);
+                if (enc_19 < 0) {
                     if (asm_error == ASM_OK) {
                         asm_error = ASM_ERR_IMMEDIATE;
                     }
                     goto exit_logical_29;
                 }
-                a_word_471 = 2449473536LL | ((((uint64_t)enc_18) << 10) | ((((uint64_t)(x_9 & 31)) << 5) | 16));
+                a_word_477 = 2449473536LL | ((((uint64_t)enc_19) << 10) | ((((uint64_t)(x_9 & 31)) << 5) | 16));
                 if (asm_pc < asm_limit) {
-                    *(uint32_t *)asm_pc = a_word_471;
+                    *(uint32_t *)asm_pc = a_word_477;
                     asm_pc = asm_pc + 4;
                 } else if (asm_error == ASM_OK) {
                     asm_error = ASM_ERR_FULL;
@@ -11787,16 +11955,16 @@ exit_src_15:;
                 goto exit_emit_class_test;
             }
             if (cls == cls_smallfloat) {
-                enc_19 = asm_logical_immediate(7ULL, 64);
-                if (enc_19 < 0) {
+                enc_20 = asm_logical_immediate(7ULL, 64);
+                if (enc_20 < 0) {
                     if (asm_error == ASM_OK) {
                         asm_error = ASM_ERR_IMMEDIATE;
                     }
                     goto exit_logical_30;
                 }
-                a_word_472 = 2449473536LL | ((((uint64_t)enc_19) << 10) | ((((uint64_t)(x_9 & 31)) << 5) | 16));
+                a_word_478 = 2449473536LL | ((((uint64_t)enc_20) << 10) | ((((uint64_t)(x_9 & 31)) << 5) | 16));
                 if (asm_pc < asm_limit) {
-                    *(uint32_t *)asm_pc = a_word_472;
+                    *(uint32_t *)asm_pc = a_word_478;
                     asm_pc = asm_pc + 4;
                 } else if (asm_error == ASM_OK) {
                     asm_error = ASM_ERR_FULL;
@@ -11816,16 +11984,16 @@ exit_src_15:;
                 goto exit_emit_class_test;
             }
             if (cls == cls_char) {
-                enc_20 = asm_logical_immediate(7ULL, 64);
-                if (enc_20 < 0) {
+                enc_21 = asm_logical_immediate(7ULL, 64);
+                if (enc_21 < 0) {
                     if (asm_error == ASM_OK) {
                         asm_error = ASM_ERR_IMMEDIATE;
                     }
                     goto exit_logical_31;
                 }
-                a_word_473 = 2449473536LL | ((((uint64_t)enc_20) << 10) | ((((uint64_t)(x_9 & 31)) << 5) | 16));
+                a_word_479 = 2449473536LL | ((((uint64_t)enc_21) << 10) | ((((uint64_t)(x_9 & 31)) << 5) | 16));
                 if (asm_pc < asm_limit) {
-                    *(uint32_t *)asm_pc = a_word_473;
+                    *(uint32_t *)asm_pc = a_word_479;
                     asm_pc = asm_pc + 4;
                 } else if (asm_error == ASM_OK) {
                     asm_error = ASM_ERR_FULL;
@@ -11845,24 +12013,24 @@ exit_src_15:;
                 goto exit_emit_class_test;
             }
             rd_31 = (x_9 & REG_W) | 31;
-            enc_21 = asm_logical_immediate(7ULL, (rd_31 & REG_W) == 0 ? 64 : 32);
-            if (enc_21 < 0) {
+            enc_22 = asm_logical_immediate(7ULL, (rd_31 & REG_W) == 0 ? 64 : 32);
+            if (enc_22 < 0) {
                 if (asm_error == ASM_OK) {
                     asm_error = ASM_ERR_IMMEDIATE;
                 }
                 goto exit_logical_32;
             }
-            a_word_474 = 0x12000000 | ((rd_31 & REG_W) == 0 ? 0x80000000LL : 0) | 0x60000000 | ((((uint64_t)enc_21) << 10) | ((((uint64_t)(x_9 & 31)) << 5) | (rd_31 & 31)));
+            a_word_480 = 0x12000000 | ((rd_31 & REG_W) == 0 ? 0x80000000LL : 0) | 0x60000000 | ((((uint64_t)enc_22) << 10) | ((((uint64_t)(x_9 & 31)) << 5) | (rd_31 & 31)));
             if (asm_pc < asm_limit) {
-                *(uint32_t *)asm_pc = a_word_474;
+                *(uint32_t *)asm_pc = a_word_480;
                 asm_pc = asm_pc + 4;
             } else if (asm_error == ASM_OK) {
                 asm_error = ASM_ERR_FULL;
             }
         exit_logical_32:;
-            a_word_475 = 2592079872LL | (0ULL | (1441792ULL | (((uint64_t)(x_9 & 31)) << 5) | 16));
+            a_word_481 = 2592079872LL | (0ULL | (1441792ULL | (((uint64_t)(x_9 & 31)) << 5) | 16));
             if (asm_pc < asm_limit) {
-                *(uint32_t *)asm_pc = a_word_475;
+                *(uint32_t *)asm_pc = a_word_481;
                 asm_pc = asm_pc + 4;
             } else if (asm_error == ASM_OK) {
                 asm_error = ASM_ERR_FULL;
@@ -11881,16 +12049,16 @@ exit_src_15:;
                             if (asm_error == ASM_OK) {
                                 asm_error = ASM_ERR_IMMEDIATE;
                             }
-                            goto exit_move_wide_55;
+                            goto exit_move_wide_56;
                         }
-                        a_word_476 = 3531603968LL | (0ULL | (((uint64_t)value_19) << 5) | 17);
+                        a_word_482 = 3531603968LL | (0ULL | (((uint64_t)value_19) << 5) | 17);
                         if (asm_pc < asm_limit) {
-                            *(uint32_t *)asm_pc = a_word_476;
+                            *(uint32_t *)asm_pc = a_word_482;
                             asm_pc = asm_pc + 4;
                         } else if (asm_error == ASM_OK) {
                             asm_error = ASM_ERR_FULL;
                         }
-                    exit_move_wide_55:;
+                    exit_move_wide_56:;
                     } else {
                         asm_mov_imm(X17, (uint64_t)value_19);
                     }
@@ -11901,16 +12069,16 @@ exit_src_15:;
                         if (asm_error == ASM_OK) {
                             asm_error = ASM_ERR_IMMEDIATE;
                         }
-                        goto exit_move_wide_56;
+                        goto exit_move_wide_57;
                     }
-                    a_word_477 = 3531603968LL | (0ULL | (cls << 5) | 17);
+                    a_word_483 = 3531603968LL | (0ULL | (cls << 5) | 17);
                     if (asm_pc < asm_limit) {
-                        *(uint32_t *)asm_pc = a_word_477;
+                        *(uint32_t *)asm_pc = a_word_483;
                         asm_pc = asm_pc + 4;
                     } else if (asm_error == ASM_OK) {
                         asm_error = ASM_ERR_FULL;
                     }
-                exit_move_wide_56:;
+                exit_move_wide_57:;
                 } else {
                     asm_mov_imm(X17, cls);
                 }
@@ -11919,9 +12087,9 @@ exit_src_15:;
             if (cls == nil_oop) {
                 off_183 = (int64_t)&((jit_state *)0)->nil_oop;
                 if ((off_183 >= 0) && ((off_183 & 7) == 0) && ((off_183 >> 3) <= 4095)) {
-                    a_word_478 = 4181721088LL | ((((uint64_t)(off_183 >> 3)) << 10) | 721ULL);
+                    a_word_484 = 4181721088LL | ((((uint64_t)(off_183 >> 3)) << 10) | 721ULL);
                     if (asm_pc < asm_limit) {
-                        *(uint32_t *)asm_pc = a_word_478;
+                        *(uint32_t *)asm_pc = a_word_484;
                         asm_pc = asm_pc + 4;
                     } else if (asm_error == ASM_OK) {
                         asm_error = ASM_ERR_FULL;
@@ -11933,9 +12101,9 @@ exit_src_15:;
                         }
                         goto exit_load_store_117;
                     }
-                    a_word_479 = 4164943872LL | (((uint64_t)(off_183 & 511)) << 12) | 721ULL;
+                    a_word_485 = 4164943872LL | (((uint64_t)(off_183 & 511)) << 12) | 721ULL;
                     if (asm_pc < asm_limit) {
-                        *(uint32_t *)asm_pc = a_word_479;
+                        *(uint32_t *)asm_pc = a_word_485;
                         asm_pc = asm_pc + 4;
                     } else if (asm_error == ASM_OK) {
                         asm_error = ASM_ERR_FULL;
@@ -11947,9 +12115,9 @@ exit_src_15:;
             if (cls == true_oop) {
                 off_184 = (int64_t)&((jit_state *)0)->true_oop;
                 if ((off_184 >= 0) && ((off_184 & 7) == 0) && ((off_184 >> 3) <= 4095)) {
-                    a_word_480 = 4181721088LL | ((((uint64_t)(off_184 >> 3)) << 10) | 721ULL);
+                    a_word_486 = 4181721088LL | ((((uint64_t)(off_184 >> 3)) << 10) | 721ULL);
                     if (asm_pc < asm_limit) {
-                        *(uint32_t *)asm_pc = a_word_480;
+                        *(uint32_t *)asm_pc = a_word_486;
                         asm_pc = asm_pc + 4;
                     } else if (asm_error == ASM_OK) {
                         asm_error = ASM_ERR_FULL;
@@ -11961,9 +12129,9 @@ exit_src_15:;
                         }
                         goto exit_load_store_118;
                     }
-                    a_word_481 = 4164943872LL | (((uint64_t)(off_184 & 511)) << 12) | 721ULL;
+                    a_word_487 = 4164943872LL | (((uint64_t)(off_184 & 511)) << 12) | 721ULL;
                     if (asm_pc < asm_limit) {
-                        *(uint32_t *)asm_pc = a_word_481;
+                        *(uint32_t *)asm_pc = a_word_487;
                         asm_pc = asm_pc + 4;
                     } else if (asm_error == ASM_OK) {
                         asm_error = ASM_ERR_FULL;
@@ -11975,9 +12143,9 @@ exit_src_15:;
             if (cls == false_oop) {
                 off_185 = (int64_t)&((jit_state *)0)->false_oop;
                 if ((off_185 >= 0) && ((off_185 & 7) == 0) && ((off_185 >> 3) <= 4095)) {
-                    a_word_482 = 4181721088LL | ((((uint64_t)(off_185 >> 3)) << 10) | 721ULL);
+                    a_word_488 = 4181721088LL | ((((uint64_t)(off_185 >> 3)) << 10) | 721ULL);
                     if (asm_pc < asm_limit) {
-                        *(uint32_t *)asm_pc = a_word_482;
+                        *(uint32_t *)asm_pc = a_word_488;
                         asm_pc = asm_pc + 4;
                     } else if (asm_error == ASM_OK) {
                         asm_error = ASM_ERR_FULL;
@@ -11989,9 +12157,9 @@ exit_src_15:;
                         }
                         goto exit_load_store_119;
                     }
-                    a_word_483 = 4164943872LL | (((uint64_t)(off_185 & 511)) << 12) | 721ULL;
+                    a_word_489 = 4164943872LL | (((uint64_t)(off_185 & 511)) << 12) | 721ULL;
                     if (asm_pc < asm_limit) {
-                        *(uint32_t *)asm_pc = a_word_483;
+                        *(uint32_t *)asm_pc = a_word_489;
                         asm_pc = asm_pc + 4;
                     } else if (asm_error == ASM_OK) {
                         asm_error = ASM_ERR_FULL;
@@ -12006,16 +12174,16 @@ exit_src_15:;
                         if (asm_error == ASM_OK) {
                             asm_error = ASM_ERR_IMMEDIATE;
                         }
-                        goto exit_move_wide_57;
+                        goto exit_move_wide_58;
                     }
-                    a_word_484 = 3531603968LL | (0ULL | (cls << 5) | 17);
+                    a_word_490 = 3531603968LL | (0ULL | (cls << 5) | 17);
                     if (asm_pc < asm_limit) {
-                        *(uint32_t *)asm_pc = a_word_484;
+                        *(uint32_t *)asm_pc = a_word_490;
                         asm_pc = asm_pc + 4;
                     } else if (asm_error == ASM_OK) {
                         asm_error = ASM_ERR_FULL;
                     }
-                exit_move_wide_57:;
+                exit_move_wide_58:;
                 } else {
                     asm_mov_imm(X17, cls);
                 }
@@ -12023,7 +12191,7 @@ exit_src_15:;
             }
             a_label_19 = cg_pool_labels[opt_pool_index(cls)];
             target_68 = asm_target_of(a_label_19);
-            a_word_485 = 0x58000000 | ((((uint64_t)({
+            a_word_491 = 0x58000000 | ((((uint64_t)({
     off_186 = ((int64_t)(target_68 - asm_pc)) >> 2;
     if (!((off_186 >= -262144) && (off_186 <= 262143))) {
         if (asm_error == ASM_OK) {
@@ -12036,7 +12204,7 @@ exit_src_15:;
 exit_offset_to_68:;
     r_offset_to_68; })) << 5) | 17);
             if (asm_pc < asm_limit) {
-                *(uint32_t *)asm_pc = a_word_485;
+                *(uint32_t *)asm_pc = a_word_491;
                 asm_pc = asm_pc + 4;
             } else if (asm_error == ASM_OK) {
                 asm_error = ASM_ERR_FULL;
@@ -12052,60 +12220,60 @@ exit_offset_to_68:;
             goto exit_emit_compare;
         }
         if ((int32_t)nd_45->op == O_BOTHINT) {
-            v_85 = nd_45->b;
+            v_86 = nd_45->b;
             y_2 = ({
-    nd_47 = opt_nodes + v_85;
+    nd_47 = opt_nodes + v_86;
     if ((int32_t)nd_47->op == O_CONST) {
-        v_86 = (uint64_t)nd_47->aux;
-        if ((v_86 & 1) != 0) {
-            if (((int64_t)v_86 >= -2147483648) && ((int64_t)v_86 <= 0x7FFFFFFF)) {
-                value_20 = (int64_t)v_86;
+        v_87 = (uint64_t)nd_47->aux;
+        if ((v_87 & 1) != 0) {
+            if (((int64_t)v_87 >= -2147483648) && ((int64_t)v_87 <= 0x7FFFFFFF)) {
+                value_20 = (int64_t)v_87;
                 if ((value_20 >= 0) && (value_20 <= 0xFFFF)) {
                     if (!((value_20 >= 0) && (value_20 <= 0xFFFF))) {
                         if (asm_error == ASM_OK) {
                             asm_error = ASM_ERR_IMMEDIATE;
                         }
-                        goto exit_move_wide_58;
+                        goto exit_move_wide_59;
                     }
-                    a_word_486 = 3531603968LL | (0ULL | (((uint64_t)value_20) << 5) | 15);
+                    a_word_492 = 3531603968LL | (0ULL | (((uint64_t)value_20) << 5) | 15);
                     if (asm_pc < asm_limit) {
-                        *(uint32_t *)asm_pc = a_word_486;
+                        *(uint32_t *)asm_pc = a_word_492;
                         asm_pc = asm_pc + 4;
                     } else if (asm_error == ASM_OK) {
                         asm_error = ASM_ERR_FULL;
                     }
-                exit_move_wide_58:;
+                exit_move_wide_59:;
                 } else {
                     asm_mov_imm(X15, (uint64_t)value_20);
                 }
                 goto exit_load_constant_20;
             }
-            if ((v_86 >= 0) && (v_86 <= 0xFFFF)) {
-                if (!((v_86 >= 0) && (v_86 <= 0xFFFF))) {
+            if ((v_87 >= 0) && (v_87 <= 0xFFFF)) {
+                if (!((v_87 >= 0) && (v_87 <= 0xFFFF))) {
                     if (asm_error == ASM_OK) {
                         asm_error = ASM_ERR_IMMEDIATE;
                     }
-                    goto exit_move_wide_59;
+                    goto exit_move_wide_60;
                 }
-                a_word_487 = 3531603968LL | (0ULL | (v_86 << 5) | 15);
+                a_word_493 = 3531603968LL | (0ULL | (v_87 << 5) | 15);
                 if (asm_pc < asm_limit) {
-                    *(uint32_t *)asm_pc = a_word_487;
+                    *(uint32_t *)asm_pc = a_word_493;
                     asm_pc = asm_pc + 4;
                 } else if (asm_error == ASM_OK) {
                     asm_error = ASM_ERR_FULL;
                 }
-            exit_move_wide_59:;
+            exit_move_wide_60:;
             } else {
-                asm_mov_imm(X15, v_86);
+                asm_mov_imm(X15, v_87);
             }
             goto exit_load_constant_20;
         }
-        if (v_86 == nil_oop) {
+        if (v_87 == nil_oop) {
             off_187 = (int64_t)&((jit_state *)0)->nil_oop;
             if ((off_187 >= 0) && ((off_187 & 7) == 0) && ((off_187 >> 3) <= 4095)) {
-                a_word_488 = 4181721088LL | ((((uint64_t)(off_187 >> 3)) << 10) | 719ULL);
+                a_word_494 = 4181721088LL | ((((uint64_t)(off_187 >> 3)) << 10) | 719ULL);
                 if (asm_pc < asm_limit) {
-                    *(uint32_t *)asm_pc = a_word_488;
+                    *(uint32_t *)asm_pc = a_word_494;
                     asm_pc = asm_pc + 4;
                 } else if (asm_error == ASM_OK) {
                     asm_error = ASM_ERR_FULL;
@@ -12117,9 +12285,9 @@ exit_offset_to_68:;
                     }
                     goto exit_load_store_120;
                 }
-                a_word_489 = 4164943872LL | (((uint64_t)(off_187 & 511)) << 12) | 719ULL;
+                a_word_495 = 4164943872LL | (((uint64_t)(off_187 & 511)) << 12) | 719ULL;
                 if (asm_pc < asm_limit) {
-                    *(uint32_t *)asm_pc = a_word_489;
+                    *(uint32_t *)asm_pc = a_word_495;
                     asm_pc = asm_pc + 4;
                 } else if (asm_error == ASM_OK) {
                     asm_error = ASM_ERR_FULL;
@@ -12128,12 +12296,12 @@ exit_offset_to_68:;
             }
             goto exit_load_constant_20;
         }
-        if (v_86 == true_oop) {
+        if (v_87 == true_oop) {
             off_188 = (int64_t)&((jit_state *)0)->true_oop;
             if ((off_188 >= 0) && ((off_188 & 7) == 0) && ((off_188 >> 3) <= 4095)) {
-                a_word_490 = 4181721088LL | ((((uint64_t)(off_188 >> 3)) << 10) | 719ULL);
+                a_word_496 = 4181721088LL | ((((uint64_t)(off_188 >> 3)) << 10) | 719ULL);
                 if (asm_pc < asm_limit) {
-                    *(uint32_t *)asm_pc = a_word_490;
+                    *(uint32_t *)asm_pc = a_word_496;
                     asm_pc = asm_pc + 4;
                 } else if (asm_error == ASM_OK) {
                     asm_error = ASM_ERR_FULL;
@@ -12145,9 +12313,9 @@ exit_offset_to_68:;
                     }
                     goto exit_load_store_121;
                 }
-                a_word_491 = 4164943872LL | (((uint64_t)(off_188 & 511)) << 12) | 719ULL;
+                a_word_497 = 4164943872LL | (((uint64_t)(off_188 & 511)) << 12) | 719ULL;
                 if (asm_pc < asm_limit) {
-                    *(uint32_t *)asm_pc = a_word_491;
+                    *(uint32_t *)asm_pc = a_word_497;
                     asm_pc = asm_pc + 4;
                 } else if (asm_error == ASM_OK) {
                     asm_error = ASM_ERR_FULL;
@@ -12156,12 +12324,12 @@ exit_offset_to_68:;
             }
             goto exit_load_constant_20;
         }
-        if (v_86 == false_oop) {
+        if (v_87 == false_oop) {
             off_189 = (int64_t)&((jit_state *)0)->false_oop;
             if ((off_189 >= 0) && ((off_189 & 7) == 0) && ((off_189 >> 3) <= 4095)) {
-                a_word_492 = 4181721088LL | ((((uint64_t)(off_189 >> 3)) << 10) | 719ULL);
+                a_word_498 = 4181721088LL | ((((uint64_t)(off_189 >> 3)) << 10) | 719ULL);
                 if (asm_pc < asm_limit) {
-                    *(uint32_t *)asm_pc = a_word_492;
+                    *(uint32_t *)asm_pc = a_word_498;
                     asm_pc = asm_pc + 4;
                 } else if (asm_error == ASM_OK) {
                     asm_error = ASM_ERR_FULL;
@@ -12173,9 +12341,9 @@ exit_offset_to_68:;
                     }
                     goto exit_load_store_122;
                 }
-                a_word_493 = 4164943872LL | (((uint64_t)(off_189 & 511)) << 12) | 719ULL;
+                a_word_499 = 4164943872LL | (((uint64_t)(off_189 & 511)) << 12) | 719ULL;
                 if (asm_pc < asm_limit) {
-                    *(uint32_t *)asm_pc = a_word_493;
+                    *(uint32_t *)asm_pc = a_word_499;
                     asm_pc = asm_pc + 4;
                 } else if (asm_error == ASM_OK) {
                     asm_error = ASM_ERR_FULL;
@@ -12184,30 +12352,30 @@ exit_offset_to_68:;
             }
             goto exit_load_constant_20;
         }
-        if ((v_86 & 7) != 0) {
-            if ((v_86 >= 0) && (v_86 <= 0xFFFF)) {
-                if (!((v_86 >= 0) && (v_86 <= 0xFFFF))) {
+        if ((v_87 & 7) != 0) {
+            if ((v_87 >= 0) && (v_87 <= 0xFFFF)) {
+                if (!((v_87 >= 0) && (v_87 <= 0xFFFF))) {
                     if (asm_error == ASM_OK) {
                         asm_error = ASM_ERR_IMMEDIATE;
                     }
-                    goto exit_move_wide_60;
+                    goto exit_move_wide_61;
                 }
-                a_word_494 = 3531603968LL | (0ULL | (v_86 << 5) | 15);
+                a_word_500 = 3531603968LL | (0ULL | (v_87 << 5) | 15);
                 if (asm_pc < asm_limit) {
-                    *(uint32_t *)asm_pc = a_word_494;
+                    *(uint32_t *)asm_pc = a_word_500;
                     asm_pc = asm_pc + 4;
                 } else if (asm_error == ASM_OK) {
                     asm_error = ASM_ERR_FULL;
                 }
-            exit_move_wide_60:;
+            exit_move_wide_61:;
             } else {
-                asm_mov_imm(X15, v_86);
+                asm_mov_imm(X15, v_87);
             }
             goto exit_load_constant_20;
         }
-        a_label_20 = cg_pool_labels[opt_pool_index(v_86)];
+        a_label_20 = cg_pool_labels[opt_pool_index(v_87)];
         target_69 = asm_target_of(a_label_20);
-        a_word_495 = 0x58000000 | ((((uint64_t)({
+        a_word_501 = 0x58000000 | ((((uint64_t)({
     off_190 = ((int64_t)(target_69 - asm_pc)) >> 2;
     if (!((off_190 >= -262144) && (off_190 <= 262143))) {
         if (asm_error == ASM_OK) {
@@ -12220,7 +12388,7 @@ exit_offset_to_68:;
 exit_offset_to_69:;
     r_offset_to_69; })) << 5) | 15);
         if (asm_pc < asm_limit) {
-            *(uint32_t *)asm_pc = a_word_495;
+            *(uint32_t *)asm_pc = a_word_501;
             asm_pc = asm_pc + 4;
         } else if (asm_error == ASM_OK) {
             asm_error = ASM_ERR_FULL;
@@ -12236,9 +12404,9 @@ exit_offset_to_69:;
     if (nd_47->slot >= 0) {
         off_191 = 8 * (int32_t)nd_47->slot;
         if ((off_191 >= 0) && ((off_191 & 7) == 0) && ((off_191 >> 3) <= 4095)) {
-            a_word_496 = 4181721088LL | ((((uint64_t)(off_191 >> 3)) << 10) | 655ULL);
+            a_word_502 = 4181721088LL | ((((uint64_t)(off_191 >> 3)) << 10) | 655ULL);
             if (asm_pc < asm_limit) {
-                *(uint32_t *)asm_pc = a_word_496;
+                *(uint32_t *)asm_pc = a_word_502;
                 asm_pc = asm_pc + 4;
             } else if (asm_error == ASM_OK) {
                 asm_error = ASM_ERR_FULL;
@@ -12250,9 +12418,9 @@ exit_offset_to_69:;
                 }
                 goto exit_load_store_123;
             }
-            a_word_497 = 4164943872LL | (((uint64_t)(off_191 & 511)) << 12) | 655ULL;
+            a_word_503 = 4164943872LL | (((uint64_t)(off_191 & 511)) << 12) | 655ULL;
             if (asm_pc < asm_limit) {
-                *(uint32_t *)asm_pc = a_word_497;
+                *(uint32_t *)asm_pc = a_word_503;
                 asm_pc = asm_pc + 4;
             } else if (asm_error == ASM_OK) {
                 asm_error = ASM_ERR_FULL;
@@ -12268,23 +12436,23 @@ exit_offset_to_69:;
     r_src_16 = X15;
 exit_src_16:;
     r_src_16; });
-            a_word_498 = 2315255808LL | (0ULL | ((((uint64_t)(y_2 & 31)) << 16) | (((uint64_t)(x_9 & 31)) << 5) | 16));
+            a_word_504 = 2315255808LL | (0ULL | ((((uint64_t)(y_2 & 31)) << 16) | (((uint64_t)(x_9 & 31)) << 5) | 16));
             if (asm_pc < asm_limit) {
-                *(uint32_t *)asm_pc = a_word_498;
+                *(uint32_t *)asm_pc = a_word_504;
                 asm_pc = asm_pc + 4;
             } else if (asm_error == ASM_OK) {
                 asm_error = ASM_ERR_FULL;
             }
-            enc_22 = asm_logical_immediate(1ULL, 64);
-            if (enc_22 < 0) {
+            enc_23 = asm_logical_immediate(1ULL, 64);
+            if (enc_23 < 0) {
                 if (asm_error == ASM_OK) {
                     asm_error = ASM_ERR_IMMEDIATE;
                 }
                 goto exit_logical_33;
             }
-            a_word_499 = 2449473536LL | ((((uint64_t)enc_22) << 10) | 528ULL);
+            a_word_505 = 2449473536LL | ((((uint64_t)enc_23) << 10) | 528ULL);
             if (asm_pc < asm_limit) {
-                *(uint32_t *)asm_pc = a_word_499;
+                *(uint32_t *)asm_pc = a_word_505;
                 asm_pc = asm_pc + 4;
             } else if (asm_error == ASM_OK) {
                 asm_error = ASM_ERR_FULL;
@@ -12303,35 +12471,35 @@ exit_src_16:;
         exit_add_sub_50:;
             goto exit_emit_compare;
         }
-        n_19 = nd_45->b;
-        if (((int32_t)(opt_nodes + n_19)->op == O_CONST) && ({
-    n_20 = nd_45->b;
-    o_54 = (uint64_t)(opt_nodes + n_20)->aux;
+        n_24 = nd_45->b;
+        if (((int32_t)(opt_nodes + n_24)->op == O_CONST) && ({
+    n_25 = nd_45->b;
+    o_54 = (uint64_t)(opt_nodes + n_25)->aux;
     ((o_54 & 1) != 0) && ({
-    n_21 = nd_45->b;
-    ((opt_nodes + n_21)->aux >= -4095) && ((opt_nodes + n_21)->aux <= 4095); }); })) {
-            n_22 = nd_45->b;
-            if ((opt_nodes + n_22)->aux >= 0) {
-                n_23 = nd_45->b;
-                imm_4 = (opt_nodes + n_23)->aux;
+    n_26 = nd_45->b;
+    ((opt_nodes + n_26)->aux >= -4095) && ((opt_nodes + n_26)->aux <= 4095); }); })) {
+            n_27 = nd_45->b;
+            if ((opt_nodes + n_27)->aux >= 0) {
+                n_28 = nd_45->b;
+                imm_4 = (opt_nodes + n_28)->aux;
                 rd_32 = (x_9 & REG_W) | 31;
                 neg_40 = imm_4 < 0;
-                v_88 = neg_40 ? -imm_4 : imm_4;
+                v_89 = neg_40 ? -imm_4 : imm_4;
                 o_55 = neg_40 ? 536870912 : 0x60000000;
-                if (v_88 <= 4095) {
-                    a_word_500 = 0x11000000 | ((rd_32 & REG_W) == 0 ? 0x80000000LL : 0) | o_55 | ((((uint64_t)v_88) << 10) | ((((uint64_t)(x_9 & 31)) << 5) | (rd_32 & 31)));
+                if (v_89 <= 4095) {
+                    a_word_506 = 0x11000000 | ((rd_32 & REG_W) == 0 ? 0x80000000LL : 0) | o_55 | ((((uint64_t)v_89) << 10) | ((((uint64_t)(x_9 & 31)) << 5) | (rd_32 & 31)));
                     if (asm_pc < asm_limit) {
-                        *(uint32_t *)asm_pc = a_word_500;
+                        *(uint32_t *)asm_pc = a_word_506;
                         asm_pc = asm_pc + 4;
                     } else if (asm_error == ASM_OK) {
                         asm_error = ASM_ERR_FULL;
                     }
                     goto exit_add_sub_51;
                 }
-                if (((v_88 & 4095) == 0) && (v_88 <= 0xFFF000)) {
-                    a_word_501 = 0x11400000 | ((rd_32 & REG_W) == 0 ? 0x80000000LL : 0) | o_55 | ((((uint64_t)(v_88 >> 12)) << 10) | ((((uint64_t)(x_9 & 31)) << 5) | (rd_32 & 31)));
+                if (((v_89 & 4095) == 0) && (v_89 <= 0xFFF000)) {
+                    a_word_507 = 0x11400000 | ((rd_32 & REG_W) == 0 ? 0x80000000LL : 0) | o_55 | ((((uint64_t)(v_89 >> 12)) << 10) | ((((uint64_t)(x_9 & 31)) << 5) | (rd_32 & 31)));
                     if (asm_pc < asm_limit) {
-                        *(uint32_t *)asm_pc = a_word_501;
+                        *(uint32_t *)asm_pc = a_word_507;
                         asm_pc = asm_pc + 4;
                     } else if (asm_error == ASM_OK) {
                         asm_error = ASM_ERR_FULL;
@@ -12343,26 +12511,26 @@ exit_src_16:;
                 }
             exit_add_sub_51:;
             } else {
-                n_24 = nd_45->b;
-                imm_5 = -(opt_nodes + n_24)->aux;
+                n_29 = nd_45->b;
+                imm_5 = -(opt_nodes + n_29)->aux;
                 rd_33 = (x_9 & REG_W) | 31;
                 neg_41 = imm_5 < 0;
-                v_89 = neg_41 ? -imm_5 : imm_5;
+                v_90 = neg_41 ? -imm_5 : imm_5;
                 o_56 = neg_41 ? 1610612736 : 0x20000000;
-                if (v_89 <= 4095) {
-                    a_word_502 = 0x11000000 | ((rd_33 & REG_W) == 0 ? 0x80000000LL : 0) | o_56 | ((((uint64_t)v_89) << 10) | ((((uint64_t)(x_9 & 31)) << 5) | (rd_33 & 31)));
+                if (v_90 <= 4095) {
+                    a_word_508 = 0x11000000 | ((rd_33 & REG_W) == 0 ? 0x80000000LL : 0) | o_56 | ((((uint64_t)v_90) << 10) | ((((uint64_t)(x_9 & 31)) << 5) | (rd_33 & 31)));
                     if (asm_pc < asm_limit) {
-                        *(uint32_t *)asm_pc = a_word_502;
+                        *(uint32_t *)asm_pc = a_word_508;
                         asm_pc = asm_pc + 4;
                     } else if (asm_error == ASM_OK) {
                         asm_error = ASM_ERR_FULL;
                     }
                     goto exit_add_sub_52;
                 }
-                if (((v_89 & 4095) == 0) && (v_89 <= 0xFFF000)) {
-                    a_word_503 = 0x11400000 | ((rd_33 & REG_W) == 0 ? 0x80000000LL : 0) | o_56 | ((((uint64_t)(v_89 >> 12)) << 10) | ((((uint64_t)(x_9 & 31)) << 5) | (rd_33 & 31)));
+                if (((v_90 & 4095) == 0) && (v_90 <= 0xFFF000)) {
+                    a_word_509 = 0x11400000 | ((rd_33 & REG_W) == 0 ? 0x80000000LL : 0) | o_56 | ((((uint64_t)(v_90 >> 12)) << 10) | ((((uint64_t)(x_9 & 31)) << 5) | (rd_33 & 31)));
                     if (asm_pc < asm_limit) {
-                        *(uint32_t *)asm_pc = a_word_503;
+                        *(uint32_t *)asm_pc = a_word_509;
                         asm_pc = asm_pc + 4;
                     } else if (asm_error == ASM_OK) {
                         asm_error = ASM_ERR_FULL;
@@ -12375,60 +12543,60 @@ exit_src_16:;
             exit_add_sub_52:;
             }
         } else {
-            v_90 = nd_45->b;
+            v_91 = nd_45->b;
             y_2 = ({
-    nd_48 = opt_nodes + v_90;
+    nd_48 = opt_nodes + v_91;
     if ((int32_t)nd_48->op == O_CONST) {
-        v_91 = (uint64_t)nd_48->aux;
-        if ((v_91 & 1) != 0) {
-            if (((int64_t)v_91 >= -2147483648) && ((int64_t)v_91 <= 0x7FFFFFFF)) {
-                value_21 = (int64_t)v_91;
+        v_92 = (uint64_t)nd_48->aux;
+        if ((v_92 & 1) != 0) {
+            if (((int64_t)v_92 >= -2147483648) && ((int64_t)v_92 <= 0x7FFFFFFF)) {
+                value_21 = (int64_t)v_92;
                 if ((value_21 >= 0) && (value_21 <= 0xFFFF)) {
                     if (!((value_21 >= 0) && (value_21 <= 0xFFFF))) {
                         if (asm_error == ASM_OK) {
                             asm_error = ASM_ERR_IMMEDIATE;
                         }
-                        goto exit_move_wide_61;
+                        goto exit_move_wide_62;
                     }
-                    a_word_504 = 3531603968LL | (0ULL | (((uint64_t)value_21) << 5) | 15);
+                    a_word_510 = 3531603968LL | (0ULL | (((uint64_t)value_21) << 5) | 15);
                     if (asm_pc < asm_limit) {
-                        *(uint32_t *)asm_pc = a_word_504;
+                        *(uint32_t *)asm_pc = a_word_510;
                         asm_pc = asm_pc + 4;
                     } else if (asm_error == ASM_OK) {
                         asm_error = ASM_ERR_FULL;
                     }
-                exit_move_wide_61:;
+                exit_move_wide_62:;
                 } else {
                     asm_mov_imm(X15, (uint64_t)value_21);
                 }
                 goto exit_load_constant_21;
             }
-            if ((v_91 >= 0) && (v_91 <= 0xFFFF)) {
-                if (!((v_91 >= 0) && (v_91 <= 0xFFFF))) {
+            if ((v_92 >= 0) && (v_92 <= 0xFFFF)) {
+                if (!((v_92 >= 0) && (v_92 <= 0xFFFF))) {
                     if (asm_error == ASM_OK) {
                         asm_error = ASM_ERR_IMMEDIATE;
                     }
-                    goto exit_move_wide_62;
+                    goto exit_move_wide_63;
                 }
-                a_word_505 = 3531603968LL | (0ULL | (v_91 << 5) | 15);
+                a_word_511 = 3531603968LL | (0ULL | (v_92 << 5) | 15);
                 if (asm_pc < asm_limit) {
-                    *(uint32_t *)asm_pc = a_word_505;
+                    *(uint32_t *)asm_pc = a_word_511;
                     asm_pc = asm_pc + 4;
                 } else if (asm_error == ASM_OK) {
                     asm_error = ASM_ERR_FULL;
                 }
-            exit_move_wide_62:;
+            exit_move_wide_63:;
             } else {
-                asm_mov_imm(X15, v_91);
+                asm_mov_imm(X15, v_92);
             }
             goto exit_load_constant_21;
         }
-        if (v_91 == nil_oop) {
+        if (v_92 == nil_oop) {
             off_192 = (int64_t)&((jit_state *)0)->nil_oop;
             if ((off_192 >= 0) && ((off_192 & 7) == 0) && ((off_192 >> 3) <= 4095)) {
-                a_word_506 = 4181721088LL | ((((uint64_t)(off_192 >> 3)) << 10) | 719ULL);
+                a_word_512 = 4181721088LL | ((((uint64_t)(off_192 >> 3)) << 10) | 719ULL);
                 if (asm_pc < asm_limit) {
-                    *(uint32_t *)asm_pc = a_word_506;
+                    *(uint32_t *)asm_pc = a_word_512;
                     asm_pc = asm_pc + 4;
                 } else if (asm_error == ASM_OK) {
                     asm_error = ASM_ERR_FULL;
@@ -12440,9 +12608,9 @@ exit_src_16:;
                     }
                     goto exit_load_store_124;
                 }
-                a_word_507 = 4164943872LL | (((uint64_t)(off_192 & 511)) << 12) | 719ULL;
+                a_word_513 = 4164943872LL | (((uint64_t)(off_192 & 511)) << 12) | 719ULL;
                 if (asm_pc < asm_limit) {
-                    *(uint32_t *)asm_pc = a_word_507;
+                    *(uint32_t *)asm_pc = a_word_513;
                     asm_pc = asm_pc + 4;
                 } else if (asm_error == ASM_OK) {
                     asm_error = ASM_ERR_FULL;
@@ -12451,12 +12619,12 @@ exit_src_16:;
             }
             goto exit_load_constant_21;
         }
-        if (v_91 == true_oop) {
+        if (v_92 == true_oop) {
             off_193 = (int64_t)&((jit_state *)0)->true_oop;
             if ((off_193 >= 0) && ((off_193 & 7) == 0) && ((off_193 >> 3) <= 4095)) {
-                a_word_508 = 4181721088LL | ((((uint64_t)(off_193 >> 3)) << 10) | 719ULL);
+                a_word_514 = 4181721088LL | ((((uint64_t)(off_193 >> 3)) << 10) | 719ULL);
                 if (asm_pc < asm_limit) {
-                    *(uint32_t *)asm_pc = a_word_508;
+                    *(uint32_t *)asm_pc = a_word_514;
                     asm_pc = asm_pc + 4;
                 } else if (asm_error == ASM_OK) {
                     asm_error = ASM_ERR_FULL;
@@ -12468,9 +12636,9 @@ exit_src_16:;
                     }
                     goto exit_load_store_125;
                 }
-                a_word_509 = 4164943872LL | (((uint64_t)(off_193 & 511)) << 12) | 719ULL;
+                a_word_515 = 4164943872LL | (((uint64_t)(off_193 & 511)) << 12) | 719ULL;
                 if (asm_pc < asm_limit) {
-                    *(uint32_t *)asm_pc = a_word_509;
+                    *(uint32_t *)asm_pc = a_word_515;
                     asm_pc = asm_pc + 4;
                 } else if (asm_error == ASM_OK) {
                     asm_error = ASM_ERR_FULL;
@@ -12479,12 +12647,12 @@ exit_src_16:;
             }
             goto exit_load_constant_21;
         }
-        if (v_91 == false_oop) {
+        if (v_92 == false_oop) {
             off_194 = (int64_t)&((jit_state *)0)->false_oop;
             if ((off_194 >= 0) && ((off_194 & 7) == 0) && ((off_194 >> 3) <= 4095)) {
-                a_word_510 = 4181721088LL | ((((uint64_t)(off_194 >> 3)) << 10) | 719ULL);
+                a_word_516 = 4181721088LL | ((((uint64_t)(off_194 >> 3)) << 10) | 719ULL);
                 if (asm_pc < asm_limit) {
-                    *(uint32_t *)asm_pc = a_word_510;
+                    *(uint32_t *)asm_pc = a_word_516;
                     asm_pc = asm_pc + 4;
                 } else if (asm_error == ASM_OK) {
                     asm_error = ASM_ERR_FULL;
@@ -12496,9 +12664,9 @@ exit_src_16:;
                     }
                     goto exit_load_store_126;
                 }
-                a_word_511 = 4164943872LL | (((uint64_t)(off_194 & 511)) << 12) | 719ULL;
+                a_word_517 = 4164943872LL | (((uint64_t)(off_194 & 511)) << 12) | 719ULL;
                 if (asm_pc < asm_limit) {
-                    *(uint32_t *)asm_pc = a_word_511;
+                    *(uint32_t *)asm_pc = a_word_517;
                     asm_pc = asm_pc + 4;
                 } else if (asm_error == ASM_OK) {
                     asm_error = ASM_ERR_FULL;
@@ -12507,30 +12675,30 @@ exit_src_16:;
             }
             goto exit_load_constant_21;
         }
-        if ((v_91 & 7) != 0) {
-            if ((v_91 >= 0) && (v_91 <= 0xFFFF)) {
-                if (!((v_91 >= 0) && (v_91 <= 0xFFFF))) {
+        if ((v_92 & 7) != 0) {
+            if ((v_92 >= 0) && (v_92 <= 0xFFFF)) {
+                if (!((v_92 >= 0) && (v_92 <= 0xFFFF))) {
                     if (asm_error == ASM_OK) {
                         asm_error = ASM_ERR_IMMEDIATE;
                     }
-                    goto exit_move_wide_63;
+                    goto exit_move_wide_64;
                 }
-                a_word_512 = 3531603968LL | (0ULL | (v_91 << 5) | 15);
+                a_word_518 = 3531603968LL | (0ULL | (v_92 << 5) | 15);
                 if (asm_pc < asm_limit) {
-                    *(uint32_t *)asm_pc = a_word_512;
+                    *(uint32_t *)asm_pc = a_word_518;
                     asm_pc = asm_pc + 4;
                 } else if (asm_error == ASM_OK) {
                     asm_error = ASM_ERR_FULL;
                 }
-            exit_move_wide_63:;
+            exit_move_wide_64:;
             } else {
-                asm_mov_imm(X15, v_91);
+                asm_mov_imm(X15, v_92);
             }
             goto exit_load_constant_21;
         }
-        a_label_21 = cg_pool_labels[opt_pool_index(v_91)];
+        a_label_21 = cg_pool_labels[opt_pool_index(v_92)];
         target_70 = asm_target_of(a_label_21);
-        a_word_513 = 0x58000000 | ((((uint64_t)({
+        a_word_519 = 0x58000000 | ((((uint64_t)({
     off_195 = ((int64_t)(target_70 - asm_pc)) >> 2;
     if (!((off_195 >= -262144) && (off_195 <= 262143))) {
         if (asm_error == ASM_OK) {
@@ -12543,7 +12711,7 @@ exit_src_16:;
 exit_offset_to_70:;
     r_offset_to_70; })) << 5) | 15);
         if (asm_pc < asm_limit) {
-            *(uint32_t *)asm_pc = a_word_513;
+            *(uint32_t *)asm_pc = a_word_519;
             asm_pc = asm_pc + 4;
         } else if (asm_error == ASM_OK) {
             asm_error = ASM_ERR_FULL;
@@ -12559,9 +12727,9 @@ exit_offset_to_70:;
     if (nd_48->slot >= 0) {
         off_196 = 8 * (int32_t)nd_48->slot;
         if ((off_196 >= 0) && ((off_196 & 7) == 0) && ((off_196 >> 3) <= 4095)) {
-            a_word_514 = 4181721088LL | ((((uint64_t)(off_196 >> 3)) << 10) | 655ULL);
+            a_word_520 = 4181721088LL | ((((uint64_t)(off_196 >> 3)) << 10) | 655ULL);
             if (asm_pc < asm_limit) {
-                *(uint32_t *)asm_pc = a_word_514;
+                *(uint32_t *)asm_pc = a_word_520;
                 asm_pc = asm_pc + 4;
             } else if (asm_error == ASM_OK) {
                 asm_error = ASM_ERR_FULL;
@@ -12573,9 +12741,9 @@ exit_offset_to_70:;
                 }
                 goto exit_load_store_127;
             }
-            a_word_515 = 4164943872LL | (((uint64_t)(off_196 & 511)) << 12) | 655ULL;
+            a_word_521 = 4164943872LL | (((uint64_t)(off_196 & 511)) << 12) | 655ULL;
             if (asm_pc < asm_limit) {
-                *(uint32_t *)asm_pc = a_word_515;
+                *(uint32_t *)asm_pc = a_word_521;
                 asm_pc = asm_pc + 4;
             } else if (asm_error == ASM_OK) {
                 asm_error = ASM_ERR_FULL;
@@ -12594,9 +12762,9 @@ exit_src_17:;
             rd_34 = (x_9 & REG_W) | 31;
             if (((rd_34 & REG_SP) != 0) || ((x_9 & REG_SP) != 0)) {
                 ext_11 = (rd_34 & REG_W) == 0 ? EXT_UXTX : EXT_UXTW;
-                a_word_516 = 0xB200000 | ((rd_34 & REG_W) == 0 ? 0x80000000LL : 0) | 0x60000000 | ((((uint64_t)(ext_11 & 7)) << 13) | 0ULL | ((((uint64_t)(y_2 & 31)) << 16) | (((uint64_t)(x_9 & 31)) << 5) | (rd_34 & 31)));
+                a_word_522 = 0xB200000 | ((rd_34 & REG_W) == 0 ? 0x80000000LL : 0) | 0x60000000 | ((((uint64_t)(ext_11 & 7)) << 13) | 0ULL | ((((uint64_t)(y_2 & 31)) << 16) | (((uint64_t)(x_9 & 31)) << 5) | (rd_34 & 31)));
                 if (asm_pc < asm_limit) {
-                    *(uint32_t *)asm_pc = a_word_516;
+                    *(uint32_t *)asm_pc = a_word_522;
                     asm_pc = asm_pc + 4;
                 } else if (asm_error == ASM_OK) {
                     asm_error = ASM_ERR_FULL;
@@ -12609,9 +12777,9 @@ exit_src_17:;
                 }
                 goto exit_add_sub_53;
             }
-            a_word_517 = 0xB000000 | ((rd_34 & REG_W) == 0 ? 0x80000000LL : 0) | 0x60000000 | (0ULL | ((((uint64_t)(y_2 & 31)) << 16) | (((uint64_t)(x_9 & 31)) << 5) | (rd_34 & 31)));
+            a_word_523 = 0xB000000 | ((rd_34 & REG_W) == 0 ? 0x80000000LL : 0) | 0x60000000 | (0ULL | ((((uint64_t)(y_2 & 31)) << 16) | (((uint64_t)(x_9 & 31)) << 5) | (rd_34 & 31)));
             if (asm_pc < asm_limit) {
-                *(uint32_t *)asm_pc = a_word_517;
+                *(uint32_t *)asm_pc = a_word_523;
                 asm_pc = asm_pc + 4;
             } else if (asm_error == ASM_OK) {
                 asm_error = ASM_ERR_FULL;
@@ -12630,9 +12798,9 @@ exit_dst_9:;
     r_dst_9; });
         off_197 = (int64_t)&((jit_state *)0)->true_oop;
         if ((off_197 >= 0) && ((off_197 & 7) == 0) && ((off_197 >> 3) <= 4095)) {
-            a_word_518 = 4181721088LL | ((((uint64_t)(off_197 >> 3)) << 10) | 720ULL);
+            a_word_524 = 4181721088LL | ((((uint64_t)(off_197 >> 3)) << 10) | 720ULL);
             if (asm_pc < asm_limit) {
-                *(uint32_t *)asm_pc = a_word_518;
+                *(uint32_t *)asm_pc = a_word_524;
                 asm_pc = asm_pc + 4;
             } else if (asm_error == ASM_OK) {
                 asm_error = ASM_ERR_FULL;
@@ -12644,9 +12812,9 @@ exit_dst_9:;
                 }
                 goto exit_load_store_128;
             }
-            a_word_519 = 4164943872LL | (((uint64_t)(off_197 & 511)) << 12) | 720ULL;
+            a_word_525 = 4164943872LL | (((uint64_t)(off_197 & 511)) << 12) | 720ULL;
             if (asm_pc < asm_limit) {
-                *(uint32_t *)asm_pc = a_word_519;
+                *(uint32_t *)asm_pc = a_word_525;
                 asm_pc = asm_pc + 4;
             } else if (asm_error == ASM_OK) {
                 asm_error = ASM_ERR_FULL;
@@ -12655,9 +12823,9 @@ exit_dst_9:;
         }
         off_198 = (int64_t)&((jit_state *)0)->false_oop;
         if ((off_198 >= 0) && ((off_198 & 7) == 0) && ((off_198 >> 3) <= 4095)) {
-            a_word_520 = 4181721088LL | ((((uint64_t)(off_198 >> 3)) << 10) | 721ULL);
+            a_word_526 = 4181721088LL | ((((uint64_t)(off_198 >> 3)) << 10) | 721ULL);
             if (asm_pc < asm_limit) {
-                *(uint32_t *)asm_pc = a_word_520;
+                *(uint32_t *)asm_pc = a_word_526;
                 asm_pc = asm_pc + 4;
             } else if (asm_error == ASM_OK) {
                 asm_error = ASM_ERR_FULL;
@@ -12669,9 +12837,9 @@ exit_dst_9:;
                 }
                 goto exit_load_store_129;
             }
-            a_word_521 = 4164943872LL | (((uint64_t)(off_198 & 511)) << 12) | 721ULL;
+            a_word_527 = 4164943872LL | (((uint64_t)(off_198 & 511)) << 12) | 721ULL;
             if (asm_pc < asm_limit) {
-                *(uint32_t *)asm_pc = a_word_521;
+                *(uint32_t *)asm_pc = a_word_527;
                 asm_pc = asm_pc + 4;
             } else if (asm_error == ASM_OK) {
                 asm_error = ASM_ERR_FULL;
@@ -12700,53 +12868,53 @@ exit_dst_9:;
     if ((int32_t)nd_50->op == O_FCMP) {
         switch (k_10) {
         case 2:
-            v_92 = COND_MI;
+            v_93 = COND_MI;
             break;
         case 3:
-            v_92 = COND_GT;
+            v_93 = COND_GT;
             break;
         case 4:
-            v_92 = COND_LS;
+            v_93 = COND_LS;
             break;
         case 5:
-            v_92 = COND_GE;
+            v_93 = COND_GE;
             break;
         case 6:
-            v_92 = COND_EQ;
+            v_93 = COND_EQ;
             break;
         default:
-            v_92 = COND_NE;
+            v_93 = COND_NE;
             break;
         }
-        r_condition_of = v_92;
+        r_condition_of = v_93;
         goto exit_condition_of;
     }
     switch (k_10) {
     case 2:
-        v_93 = COND_LT;
+        v_94 = COND_LT;
         break;
     case 3:
-        v_93 = COND_GT;
+        v_94 = COND_GT;
         break;
     case 4:
-        v_93 = COND_LE;
+        v_94 = COND_LE;
         break;
     case 5:
-        v_93 = COND_GE;
+        v_94 = COND_GE;
         break;
     case 6:
-        v_93 = COND_EQ;
+        v_94 = COND_EQ;
         break;
     default:
-        v_93 = COND_NE;
+        v_94 = COND_NE;
         break;
     }
-    r_condition_of = v_93;
+    r_condition_of = v_94;
 exit_condition_of:;
     r_condition_of; });
-        a_word_522 = 0x1A800000 | ((r & REG_W) == 0 ? 0x80000000LL : 0) | 0 | ((((uint64_t)(c & 15)) << 12) | (1114624ULL | (r & 31)));
+        a_word_528 = 0x1A800000 | ((r & REG_W) == 0 ? 0x80000000LL : 0) | 0 | ((((uint64_t)(c & 15)) << 12) | (1114624ULL | (r & 31)));
         if (asm_pc < asm_limit) {
-            *(uint32_t *)asm_pc = a_word_522;
+            *(uint32_t *)asm_pc = a_word_528;
             asm_pc = asm_pc + 4;
         } else if (asm_error == ASM_OK) {
             asm_error = ASM_ERR_FULL;
@@ -12755,17 +12923,17 @@ exit_condition_of:;
         if ((nd_51->reg >= 0) && ((int32_t)nd_51->reg != r)) {
             rd_35 = (int32_t)nd_51->reg;
             if (((rd_35 & REG_SP) != 0) || ((r & REG_SP) != 0)) {
-                a_word_523 = 0x11000000 | ((rd_35 & REG_W) == 0 ? 0x80000000LL : 0) | 0 | (0ULL | ((((uint64_t)(r & 31)) << 5) | (rd_35 & 31)));
+                a_word_529 = 0x11000000 | ((rd_35 & REG_W) == 0 ? 0x80000000LL : 0) | 0 | (0ULL | ((((uint64_t)(r & 31)) << 5) | (rd_35 & 31)));
                 if (asm_pc < asm_limit) {
-                    *(uint32_t *)asm_pc = a_word_523;
+                    *(uint32_t *)asm_pc = a_word_529;
                     asm_pc = asm_pc + 4;
                 } else if (asm_error == ASM_OK) {
                     asm_error = ASM_ERR_FULL;
                 }
                 goto exit_add_sub_54;
-                a_word_524 = 0x11400000 | ((rd_35 & REG_W) == 0 ? 0x80000000LL : 0) | 0 | (0ULL | ((((uint64_t)(r & 31)) << 5) | (rd_35 & 31)));
+                a_word_530 = 0x11400000 | ((rd_35 & REG_W) == 0 ? 0x80000000LL : 0) | 0 | (0ULL | ((((uint64_t)(r & 31)) << 5) | (rd_35 & 31)));
                 if (asm_pc < asm_limit) {
-                    *(uint32_t *)asm_pc = a_word_524;
+                    *(uint32_t *)asm_pc = a_word_530;
                     asm_pc = asm_pc + 4;
                 } else if (asm_error == ASM_OK) {
                     asm_error = ASM_ERR_FULL;
@@ -12783,9 +12951,9 @@ exit_condition_of:;
                     }
                     goto exit_logical_34;
                 }
-                a_word_525 = 0xA000000 | ((rd_35 & REG_W) == 0 ? 0x80000000LL : 0) | 0x20000000 | (0ULL | ((((uint64_t)(r & 31)) << 16) | (((uint64_t)(rn_20 & 31)) << 5) | (rd_35 & 31)));
+                a_word_531 = 0xA000000 | ((rd_35 & REG_W) == 0 ? 0x80000000LL : 0) | 0x20000000 | (0ULL | ((((uint64_t)(r & 31)) << 16) | (((uint64_t)(rn_20 & 31)) << 5) | (rd_35 & 31)));
                 if (asm_pc < asm_limit) {
-                    *(uint32_t *)asm_pc = a_word_525;
+                    *(uint32_t *)asm_pc = a_word_531;
                     asm_pc = asm_pc + 4;
                 } else if (asm_error == ASM_OK) {
                     asm_error = ASM_ERR_FULL;
@@ -12793,29 +12961,29 @@ exit_condition_of:;
             exit_logical_34:;
             }
         }
-        if (nd_51->slot >= 0) {
+        if ((nd_51->slot >= 0) && ((nd_51->flags & NF_LAZY) == 0)) {
             off_199 = 8 * (int32_t)nd_51->slot;
-            bits_62 = (r & REG_D) != 0 ? 0xC4000000LL : (r & REG_W) == 0 ? 0xC0000000LL : 0x80000000LL;
+            bits_63 = (r & REG_D) != 0 ? 0xC4000000LL : (r & REG_W) == 0 ? 0xC0000000LL : 0x80000000LL;
             s_39 = (r & REG_W) == 0 ? 3 : 2;
             if ((off_199 >= 0) && ((off_199 & ((1LL << s_39) - 1)) == 0) && ((off_199 >> s_39) <= 4095)) {
-                a_word_526 = 0x39000000 | bits_62 | ((((uint64_t)(off_199 >> s_39)) << 10) | (640ULL | (r & 31)));
+                a_word_532 = 0x39000000 | bits_63 | ((((uint64_t)(off_199 >> s_39)) << 10) | (640ULL | (r & 31)));
                 if (asm_pc < asm_limit) {
-                    *(uint32_t *)asm_pc = a_word_526;
+                    *(uint32_t *)asm_pc = a_word_532;
                     asm_pc = asm_pc + 4;
                 } else if (asm_error == ASM_OK) {
                     asm_error = ASM_ERR_FULL;
                 }
             } else {
-                bits_63 = 0x38000000 | bits_62;
+                bits_64 = 0x38000000 | bits_63;
                 if (!((off_199 >= -256) && (off_199 <= 255))) {
                     if (asm_error == ASM_OK) {
                         asm_error = ASM_ERR_IMMEDIATE;
                     }
                     goto exit_load_store_130;
                 }
-                a_word_527 = bits_63 | (((uint64_t)(off_199 & 511)) << 12) | (640ULL | (r & 31));
+                a_word_533 = bits_64 | (((uint64_t)(off_199 & 511)) << 12) | (640ULL | (r & 31));
                 if (asm_pc < asm_limit) {
-                    *(uint32_t *)asm_pc = a_word_527;
+                    *(uint32_t *)asm_pc = a_word_533;
                     asm_pc = asm_pc + 4;
                 } else if (asm_error == ASM_OK) {
                     asm_error = ASM_ERR_FULL;
@@ -12862,9 +13030,9 @@ exit_out_11:;
     }
     off_200 = (int64_t)&((jit_state *)0)->stress;
     if ((off_200 >= 0) && ((off_200 & 7) == 0) && ((off_200 >> 3) <= 4095)) {
-        a_word_528 = 4181721088LL | ((((uint64_t)(off_200 >> 3)) << 10) | 720ULL);
+        a_word_534 = 4181721088LL | ((((uint64_t)(off_200 >> 3)) << 10) | 720ULL);
         if (asm_pc < asm_limit) {
-            *(uint32_t *)asm_pc = a_word_528;
+            *(uint32_t *)asm_pc = a_word_534;
             asm_pc = asm_pc + 4;
         } else if (asm_error == ASM_OK) {
             asm_error = ASM_ERR_FULL;
@@ -12876,9 +13044,9 @@ exit_out_11:;
             }
             goto exit_load_store_131;
         }
-        a_word_529 = 4164943872LL | (((uint64_t)(off_200 & 511)) << 12) | 720ULL;
+        a_word_535 = 4164943872LL | (((uint64_t)(off_200 & 511)) << 12) | 720ULL;
         if (asm_pc < asm_limit) {
-            *(uint32_t *)asm_pc = a_word_529;
+            *(uint32_t *)asm_pc = a_word_535;
             asm_pc = asm_pc + 4;
         } else if (asm_error == ASM_OK) {
             asm_error = ASM_ERR_FULL;
@@ -12898,9 +13066,9 @@ exit_out_11:;
 exit_add_sub_55:;
     off_201 = (int64_t)&((jit_state *)0)->stress;
     if ((off_201 >= 0) && ((off_201 & 7) == 0) && ((off_201 >> 3) <= 4095)) {
-        a_word_530 = 4177526784LL | ((((uint64_t)(off_201 >> 3)) << 10) | 720ULL);
+        a_word_536 = 4177526784LL | ((((uint64_t)(off_201 >> 3)) << 10) | 720ULL);
         if (asm_pc < asm_limit) {
-            *(uint32_t *)asm_pc = a_word_530;
+            *(uint32_t *)asm_pc = a_word_536;
             asm_pc = asm_pc + 4;
         } else if (asm_error == ASM_OK) {
             asm_error = ASM_ERR_FULL;
@@ -12912,9 +13080,9 @@ exit_add_sub_55:;
             }
             goto exit_load_store_132;
         }
-        a_word_531 = 4160749568LL | (((uint64_t)(off_201 & 511)) << 12) | 720ULL;
+        a_word_537 = 4160749568LL | (((uint64_t)(off_201 & 511)) << 12) | 720ULL;
         if (asm_pc < asm_limit) {
-            *(uint32_t *)asm_pc = a_word_531;
+            *(uint32_t *)asm_pc = a_word_537;
             asm_pc = asm_pc + 4;
         } else if (asm_error == ASM_OK) {
             asm_error = ASM_ERR_FULL;
@@ -12922,7 +13090,7 @@ exit_add_sub_55:;
     exit_load_store_132:;
     }
     target_71 = asm_target_of(l_8);
-    a_word_532 = 0x54000000 | ((((uint64_t)({
+    a_word_538 = 0x54000000 | ((((uint64_t)({
     off_202 = ((int64_t)(target_71 - asm_pc)) >> 2;
     if (!((off_202 >= -262144) && (off_202 <= 262143))) {
         if (asm_error == ASM_OK) {
@@ -12935,7 +13103,7 @@ exit_add_sub_55:;
 exit_offset_to_71:;
     r_offset_to_71; })) << 5) | 0);
     if (asm_pc < asm_limit) {
-        *(uint32_t *)asm_pc = a_word_532;
+        *(uint32_t *)asm_pc = a_word_538;
         asm_pc = asm_pc + 4;
     } else if (asm_error == ASM_OK) {
         asm_error = ASM_ERR_FULL;
@@ -12943,60 +13111,60 @@ exit_offset_to_71:;
 exit_emit_stress_at_8:;
     r_deopt_label_for_8 = l_8;
     r_deopt_label_for_8; });
-        v_96 = nd->a;
+        v_97 = nd->a;
         x = ({
-    nd_52 = opt_nodes + v_96;
+    nd_52 = opt_nodes + v_97;
     if ((int32_t)nd_52->op == O_CONST) {
-        v_97 = (uint64_t)nd_52->aux;
-        if ((v_97 & 1) != 0) {
-            if (((int64_t)v_97 >= -2147483648) && ((int64_t)v_97 <= 0x7FFFFFFF)) {
-                value_22 = (int64_t)v_97;
+        v_98 = (uint64_t)nd_52->aux;
+        if ((v_98 & 1) != 0) {
+            if (((int64_t)v_98 >= -2147483648) && ((int64_t)v_98 <= 0x7FFFFFFF)) {
+                value_22 = (int64_t)v_98;
                 if ((value_22 >= 0) && (value_22 <= 0xFFFF)) {
                     if (!((value_22 >= 0) && (value_22 <= 0xFFFF))) {
                         if (asm_error == ASM_OK) {
                             asm_error = ASM_ERR_IMMEDIATE;
                         }
-                        goto exit_move_wide_64;
+                        goto exit_move_wide_65;
                     }
-                    a_word_533 = 3531603968LL | (0ULL | (((uint64_t)value_22) << 5) | 15);
+                    a_word_539 = 3531603968LL | (0ULL | (((uint64_t)value_22) << 5) | 15);
                     if (asm_pc < asm_limit) {
-                        *(uint32_t *)asm_pc = a_word_533;
+                        *(uint32_t *)asm_pc = a_word_539;
                         asm_pc = asm_pc + 4;
                     } else if (asm_error == ASM_OK) {
                         asm_error = ASM_ERR_FULL;
                     }
-                exit_move_wide_64:;
+                exit_move_wide_65:;
                 } else {
                     asm_mov_imm(X15, (uint64_t)value_22);
                 }
                 goto exit_load_constant_22;
             }
-            if ((v_97 >= 0) && (v_97 <= 0xFFFF)) {
-                if (!((v_97 >= 0) && (v_97 <= 0xFFFF))) {
+            if ((v_98 >= 0) && (v_98 <= 0xFFFF)) {
+                if (!((v_98 >= 0) && (v_98 <= 0xFFFF))) {
                     if (asm_error == ASM_OK) {
                         asm_error = ASM_ERR_IMMEDIATE;
                     }
-                    goto exit_move_wide_65;
+                    goto exit_move_wide_66;
                 }
-                a_word_534 = 3531603968LL | (0ULL | (v_97 << 5) | 15);
+                a_word_540 = 3531603968LL | (0ULL | (v_98 << 5) | 15);
                 if (asm_pc < asm_limit) {
-                    *(uint32_t *)asm_pc = a_word_534;
+                    *(uint32_t *)asm_pc = a_word_540;
                     asm_pc = asm_pc + 4;
                 } else if (asm_error == ASM_OK) {
                     asm_error = ASM_ERR_FULL;
                 }
-            exit_move_wide_65:;
+            exit_move_wide_66:;
             } else {
-                asm_mov_imm(X15, v_97);
+                asm_mov_imm(X15, v_98);
             }
             goto exit_load_constant_22;
         }
-        if (v_97 == nil_oop) {
+        if (v_98 == nil_oop) {
             off_203 = (int64_t)&((jit_state *)0)->nil_oop;
             if ((off_203 >= 0) && ((off_203 & 7) == 0) && ((off_203 >> 3) <= 4095)) {
-                a_word_535 = 4181721088LL | ((((uint64_t)(off_203 >> 3)) << 10) | 719ULL);
+                a_word_541 = 4181721088LL | ((((uint64_t)(off_203 >> 3)) << 10) | 719ULL);
                 if (asm_pc < asm_limit) {
-                    *(uint32_t *)asm_pc = a_word_535;
+                    *(uint32_t *)asm_pc = a_word_541;
                     asm_pc = asm_pc + 4;
                 } else if (asm_error == ASM_OK) {
                     asm_error = ASM_ERR_FULL;
@@ -13008,9 +13176,9 @@ exit_emit_stress_at_8:;
                     }
                     goto exit_load_store_133;
                 }
-                a_word_536 = 4164943872LL | (((uint64_t)(off_203 & 511)) << 12) | 719ULL;
+                a_word_542 = 4164943872LL | (((uint64_t)(off_203 & 511)) << 12) | 719ULL;
                 if (asm_pc < asm_limit) {
-                    *(uint32_t *)asm_pc = a_word_536;
+                    *(uint32_t *)asm_pc = a_word_542;
                     asm_pc = asm_pc + 4;
                 } else if (asm_error == ASM_OK) {
                     asm_error = ASM_ERR_FULL;
@@ -13019,12 +13187,12 @@ exit_emit_stress_at_8:;
             }
             goto exit_load_constant_22;
         }
-        if (v_97 == true_oop) {
+        if (v_98 == true_oop) {
             off_204 = (int64_t)&((jit_state *)0)->true_oop;
             if ((off_204 >= 0) && ((off_204 & 7) == 0) && ((off_204 >> 3) <= 4095)) {
-                a_word_537 = 4181721088LL | ((((uint64_t)(off_204 >> 3)) << 10) | 719ULL);
+                a_word_543 = 4181721088LL | ((((uint64_t)(off_204 >> 3)) << 10) | 719ULL);
                 if (asm_pc < asm_limit) {
-                    *(uint32_t *)asm_pc = a_word_537;
+                    *(uint32_t *)asm_pc = a_word_543;
                     asm_pc = asm_pc + 4;
                 } else if (asm_error == ASM_OK) {
                     asm_error = ASM_ERR_FULL;
@@ -13036,9 +13204,9 @@ exit_emit_stress_at_8:;
                     }
                     goto exit_load_store_134;
                 }
-                a_word_538 = 4164943872LL | (((uint64_t)(off_204 & 511)) << 12) | 719ULL;
+                a_word_544 = 4164943872LL | (((uint64_t)(off_204 & 511)) << 12) | 719ULL;
                 if (asm_pc < asm_limit) {
-                    *(uint32_t *)asm_pc = a_word_538;
+                    *(uint32_t *)asm_pc = a_word_544;
                     asm_pc = asm_pc + 4;
                 } else if (asm_error == ASM_OK) {
                     asm_error = ASM_ERR_FULL;
@@ -13047,12 +13215,12 @@ exit_emit_stress_at_8:;
             }
             goto exit_load_constant_22;
         }
-        if (v_97 == false_oop) {
+        if (v_98 == false_oop) {
             off_205 = (int64_t)&((jit_state *)0)->false_oop;
             if ((off_205 >= 0) && ((off_205 & 7) == 0) && ((off_205 >> 3) <= 4095)) {
-                a_word_539 = 4181721088LL | ((((uint64_t)(off_205 >> 3)) << 10) | 719ULL);
+                a_word_545 = 4181721088LL | ((((uint64_t)(off_205 >> 3)) << 10) | 719ULL);
                 if (asm_pc < asm_limit) {
-                    *(uint32_t *)asm_pc = a_word_539;
+                    *(uint32_t *)asm_pc = a_word_545;
                     asm_pc = asm_pc + 4;
                 } else if (asm_error == ASM_OK) {
                     asm_error = ASM_ERR_FULL;
@@ -13064,9 +13232,9 @@ exit_emit_stress_at_8:;
                     }
                     goto exit_load_store_135;
                 }
-                a_word_540 = 4164943872LL | (((uint64_t)(off_205 & 511)) << 12) | 719ULL;
+                a_word_546 = 4164943872LL | (((uint64_t)(off_205 & 511)) << 12) | 719ULL;
                 if (asm_pc < asm_limit) {
-                    *(uint32_t *)asm_pc = a_word_540;
+                    *(uint32_t *)asm_pc = a_word_546;
                     asm_pc = asm_pc + 4;
                 } else if (asm_error == ASM_OK) {
                     asm_error = ASM_ERR_FULL;
@@ -13075,30 +13243,30 @@ exit_emit_stress_at_8:;
             }
             goto exit_load_constant_22;
         }
-        if ((v_97 & 7) != 0) {
-            if ((v_97 >= 0) && (v_97 <= 0xFFFF)) {
-                if (!((v_97 >= 0) && (v_97 <= 0xFFFF))) {
+        if ((v_98 & 7) != 0) {
+            if ((v_98 >= 0) && (v_98 <= 0xFFFF)) {
+                if (!((v_98 >= 0) && (v_98 <= 0xFFFF))) {
                     if (asm_error == ASM_OK) {
                         asm_error = ASM_ERR_IMMEDIATE;
                     }
-                    goto exit_move_wide_66;
+                    goto exit_move_wide_67;
                 }
-                a_word_541 = 3531603968LL | (0ULL | (v_97 << 5) | 15);
+                a_word_547 = 3531603968LL | (0ULL | (v_98 << 5) | 15);
                 if (asm_pc < asm_limit) {
-                    *(uint32_t *)asm_pc = a_word_541;
+                    *(uint32_t *)asm_pc = a_word_547;
                     asm_pc = asm_pc + 4;
                 } else if (asm_error == ASM_OK) {
                     asm_error = ASM_ERR_FULL;
                 }
-            exit_move_wide_66:;
+            exit_move_wide_67:;
             } else {
-                asm_mov_imm(X15, v_97);
+                asm_mov_imm(X15, v_98);
             }
             goto exit_load_constant_22;
         }
-        a_label_22 = cg_pool_labels[opt_pool_index(v_97)];
+        a_label_22 = cg_pool_labels[opt_pool_index(v_98)];
         target_72 = asm_target_of(a_label_22);
-        a_word_542 = 0x58000000 | ((((uint64_t)({
+        a_word_548 = 0x58000000 | ((((uint64_t)({
     off_206 = ((int64_t)(target_72 - asm_pc)) >> 2;
     if (!((off_206 >= -262144) && (off_206 <= 262143))) {
         if (asm_error == ASM_OK) {
@@ -13111,7 +13279,7 @@ exit_emit_stress_at_8:;
 exit_offset_to_72:;
     r_offset_to_72; })) << 5) | 15);
         if (asm_pc < asm_limit) {
-            *(uint32_t *)asm_pc = a_word_542;
+            *(uint32_t *)asm_pc = a_word_548;
             asm_pc = asm_pc + 4;
         } else if (asm_error == ASM_OK) {
             asm_error = ASM_ERR_FULL;
@@ -13127,9 +13295,9 @@ exit_offset_to_72:;
     if (nd_52->slot >= 0) {
         off_207 = 8 * (int32_t)nd_52->slot;
         if ((off_207 >= 0) && ((off_207 & 7) == 0) && ((off_207 >> 3) <= 4095)) {
-            a_word_543 = 4181721088LL | ((((uint64_t)(off_207 >> 3)) << 10) | 655ULL);
+            a_word_549 = 4181721088LL | ((((uint64_t)(off_207 >> 3)) << 10) | 655ULL);
             if (asm_pc < asm_limit) {
-                *(uint32_t *)asm_pc = a_word_543;
+                *(uint32_t *)asm_pc = a_word_549;
                 asm_pc = asm_pc + 4;
             } else if (asm_error == ASM_OK) {
                 asm_error = ASM_ERR_FULL;
@@ -13141,9 +13309,9 @@ exit_offset_to_72:;
                 }
                 goto exit_load_store_136;
             }
-            a_word_544 = 4164943872LL | (((uint64_t)(off_207 & 511)) << 12) | 655ULL;
+            a_word_550 = 4164943872LL | (((uint64_t)(off_207 & 511)) << 12) | 655ULL;
             if (asm_pc < asm_limit) {
-                *(uint32_t *)asm_pc = a_word_544;
+                *(uint32_t *)asm_pc = a_word_550;
                 asm_pc = asm_pc + 4;
             } else if (asm_error == ASM_OK) {
                 asm_error = ASM_ERR_FULL;
@@ -13164,16 +13332,16 @@ exit_src_18:;
         }
         cls_2 = (uint64_t)nd->aux;
         if (cls_2 == cls_smallint) {
-            enc_23 = asm_logical_immediate(1ULL, 64);
-            if (enc_23 < 0) {
+            enc_24 = asm_logical_immediate(1ULL, 64);
+            if (enc_24 < 0) {
                 if (asm_error == ASM_OK) {
                     asm_error = ASM_ERR_IMMEDIATE;
                 }
                 goto exit_logical_35;
             }
-            a_word_545 = 2449473536LL | ((((uint64_t)enc_23) << 10) | ((((uint64_t)(x & 31)) << 5) | 16));
+            a_word_551 = 2449473536LL | ((((uint64_t)enc_24) << 10) | ((((uint64_t)(x & 31)) << 5) | 16));
             if (asm_pc < asm_limit) {
-                *(uint32_t *)asm_pc = a_word_545;
+                *(uint32_t *)asm_pc = a_word_551;
                 asm_pc = asm_pc + 4;
             } else if (asm_error == ASM_OK) {
                 asm_error = ASM_ERR_FULL;
@@ -13193,16 +13361,16 @@ exit_src_18:;
             goto exit_emit_class_test_2;
         }
         if (cls_2 == cls_smallfloat) {
-            enc_24 = asm_logical_immediate(7ULL, 64);
-            if (enc_24 < 0) {
+            enc_25 = asm_logical_immediate(7ULL, 64);
+            if (enc_25 < 0) {
                 if (asm_error == ASM_OK) {
                     asm_error = ASM_ERR_IMMEDIATE;
                 }
                 goto exit_logical_36;
             }
-            a_word_546 = 2449473536LL | ((((uint64_t)enc_24) << 10) | ((((uint64_t)(x & 31)) << 5) | 16));
+            a_word_552 = 2449473536LL | ((((uint64_t)enc_25) << 10) | ((((uint64_t)(x & 31)) << 5) | 16));
             if (asm_pc < asm_limit) {
-                *(uint32_t *)asm_pc = a_word_546;
+                *(uint32_t *)asm_pc = a_word_552;
                 asm_pc = asm_pc + 4;
             } else if (asm_error == ASM_OK) {
                 asm_error = ASM_ERR_FULL;
@@ -13222,16 +13390,16 @@ exit_src_18:;
             goto exit_emit_class_test_2;
         }
         if (cls_2 == cls_char) {
-            enc_25 = asm_logical_immediate(7ULL, 64);
-            if (enc_25 < 0) {
+            enc_26 = asm_logical_immediate(7ULL, 64);
+            if (enc_26 < 0) {
                 if (asm_error == ASM_OK) {
                     asm_error = ASM_ERR_IMMEDIATE;
                 }
                 goto exit_logical_37;
             }
-            a_word_547 = 2449473536LL | ((((uint64_t)enc_25) << 10) | ((((uint64_t)(x & 31)) << 5) | 16));
+            a_word_553 = 2449473536LL | ((((uint64_t)enc_26) << 10) | ((((uint64_t)(x & 31)) << 5) | 16));
             if (asm_pc < asm_limit) {
-                *(uint32_t *)asm_pc = a_word_547;
+                *(uint32_t *)asm_pc = a_word_553;
                 asm_pc = asm_pc + 4;
             } else if (asm_error == ASM_OK) {
                 asm_error = ASM_ERR_FULL;
@@ -13251,24 +13419,24 @@ exit_src_18:;
             goto exit_emit_class_test_2;
         }
         rd_36 = (x & REG_W) | 31;
-        enc_26 = asm_logical_immediate(7ULL, (rd_36 & REG_W) == 0 ? 64 : 32);
-        if (enc_26 < 0) {
+        enc_27 = asm_logical_immediate(7ULL, (rd_36 & REG_W) == 0 ? 64 : 32);
+        if (enc_27 < 0) {
             if (asm_error == ASM_OK) {
                 asm_error = ASM_ERR_IMMEDIATE;
             }
             goto exit_logical_38;
         }
-        a_word_548 = 0x12000000 | ((rd_36 & REG_W) == 0 ? 0x80000000LL : 0) | 0x60000000 | ((((uint64_t)enc_26) << 10) | ((((uint64_t)(x & 31)) << 5) | (rd_36 & 31)));
+        a_word_554 = 0x12000000 | ((rd_36 & REG_W) == 0 ? 0x80000000LL : 0) | 0x60000000 | ((((uint64_t)enc_27) << 10) | ((((uint64_t)(x & 31)) << 5) | (rd_36 & 31)));
         if (asm_pc < asm_limit) {
-            *(uint32_t *)asm_pc = a_word_548;
+            *(uint32_t *)asm_pc = a_word_554;
             asm_pc = asm_pc + 4;
         } else if (asm_error == ASM_OK) {
             asm_error = ASM_ERR_FULL;
         }
     exit_logical_38:;
-        a_word_549 = 2592079872LL | (0ULL | (1441792ULL | (((uint64_t)(x & 31)) << 5) | 16));
+        a_word_555 = 2592079872LL | (0ULL | (1441792ULL | (((uint64_t)(x & 31)) << 5) | 16));
         if (asm_pc < asm_limit) {
-            *(uint32_t *)asm_pc = a_word_549;
+            *(uint32_t *)asm_pc = a_word_555;
             asm_pc = asm_pc + 4;
         } else if (asm_error == ASM_OK) {
             asm_error = ASM_ERR_FULL;
@@ -13287,16 +13455,16 @@ exit_src_18:;
                         if (asm_error == ASM_OK) {
                             asm_error = ASM_ERR_IMMEDIATE;
                         }
-                        goto exit_move_wide_67;
+                        goto exit_move_wide_68;
                     }
-                    a_word_550 = 3531603968LL | (0ULL | (((uint64_t)value_23) << 5) | 17);
+                    a_word_556 = 3531603968LL | (0ULL | (((uint64_t)value_23) << 5) | 17);
                     if (asm_pc < asm_limit) {
-                        *(uint32_t *)asm_pc = a_word_550;
+                        *(uint32_t *)asm_pc = a_word_556;
                         asm_pc = asm_pc + 4;
                     } else if (asm_error == ASM_OK) {
                         asm_error = ASM_ERR_FULL;
                     }
-                exit_move_wide_67:;
+                exit_move_wide_68:;
                 } else {
                     asm_mov_imm(X17, (uint64_t)value_23);
                 }
@@ -13307,16 +13475,16 @@ exit_src_18:;
                     if (asm_error == ASM_OK) {
                         asm_error = ASM_ERR_IMMEDIATE;
                     }
-                    goto exit_move_wide_68;
+                    goto exit_move_wide_69;
                 }
-                a_word_551 = 3531603968LL | (0ULL | (cls_2 << 5) | 17);
+                a_word_557 = 3531603968LL | (0ULL | (cls_2 << 5) | 17);
                 if (asm_pc < asm_limit) {
-                    *(uint32_t *)asm_pc = a_word_551;
+                    *(uint32_t *)asm_pc = a_word_557;
                     asm_pc = asm_pc + 4;
                 } else if (asm_error == ASM_OK) {
                     asm_error = ASM_ERR_FULL;
                 }
-            exit_move_wide_68:;
+            exit_move_wide_69:;
             } else {
                 asm_mov_imm(X17, cls_2);
             }
@@ -13325,9 +13493,9 @@ exit_src_18:;
         if (cls_2 == nil_oop) {
             off_208 = (int64_t)&((jit_state *)0)->nil_oop;
             if ((off_208 >= 0) && ((off_208 & 7) == 0) && ((off_208 >> 3) <= 4095)) {
-                a_word_552 = 4181721088LL | ((((uint64_t)(off_208 >> 3)) << 10) | 721ULL);
+                a_word_558 = 4181721088LL | ((((uint64_t)(off_208 >> 3)) << 10) | 721ULL);
                 if (asm_pc < asm_limit) {
-                    *(uint32_t *)asm_pc = a_word_552;
+                    *(uint32_t *)asm_pc = a_word_558;
                     asm_pc = asm_pc + 4;
                 } else if (asm_error == ASM_OK) {
                     asm_error = ASM_ERR_FULL;
@@ -13339,9 +13507,9 @@ exit_src_18:;
                     }
                     goto exit_load_store_137;
                 }
-                a_word_553 = 4164943872LL | (((uint64_t)(off_208 & 511)) << 12) | 721ULL;
+                a_word_559 = 4164943872LL | (((uint64_t)(off_208 & 511)) << 12) | 721ULL;
                 if (asm_pc < asm_limit) {
-                    *(uint32_t *)asm_pc = a_word_553;
+                    *(uint32_t *)asm_pc = a_word_559;
                     asm_pc = asm_pc + 4;
                 } else if (asm_error == ASM_OK) {
                     asm_error = ASM_ERR_FULL;
@@ -13353,9 +13521,9 @@ exit_src_18:;
         if (cls_2 == true_oop) {
             off_209 = (int64_t)&((jit_state *)0)->true_oop;
             if ((off_209 >= 0) && ((off_209 & 7) == 0) && ((off_209 >> 3) <= 4095)) {
-                a_word_554 = 4181721088LL | ((((uint64_t)(off_209 >> 3)) << 10) | 721ULL);
+                a_word_560 = 4181721088LL | ((((uint64_t)(off_209 >> 3)) << 10) | 721ULL);
                 if (asm_pc < asm_limit) {
-                    *(uint32_t *)asm_pc = a_word_554;
+                    *(uint32_t *)asm_pc = a_word_560;
                     asm_pc = asm_pc + 4;
                 } else if (asm_error == ASM_OK) {
                     asm_error = ASM_ERR_FULL;
@@ -13367,9 +13535,9 @@ exit_src_18:;
                     }
                     goto exit_load_store_138;
                 }
-                a_word_555 = 4164943872LL | (((uint64_t)(off_209 & 511)) << 12) | 721ULL;
+                a_word_561 = 4164943872LL | (((uint64_t)(off_209 & 511)) << 12) | 721ULL;
                 if (asm_pc < asm_limit) {
-                    *(uint32_t *)asm_pc = a_word_555;
+                    *(uint32_t *)asm_pc = a_word_561;
                     asm_pc = asm_pc + 4;
                 } else if (asm_error == ASM_OK) {
                     asm_error = ASM_ERR_FULL;
@@ -13381,9 +13549,9 @@ exit_src_18:;
         if (cls_2 == false_oop) {
             off_210 = (int64_t)&((jit_state *)0)->false_oop;
             if ((off_210 >= 0) && ((off_210 & 7) == 0) && ((off_210 >> 3) <= 4095)) {
-                a_word_556 = 4181721088LL | ((((uint64_t)(off_210 >> 3)) << 10) | 721ULL);
+                a_word_562 = 4181721088LL | ((((uint64_t)(off_210 >> 3)) << 10) | 721ULL);
                 if (asm_pc < asm_limit) {
-                    *(uint32_t *)asm_pc = a_word_556;
+                    *(uint32_t *)asm_pc = a_word_562;
                     asm_pc = asm_pc + 4;
                 } else if (asm_error == ASM_OK) {
                     asm_error = ASM_ERR_FULL;
@@ -13395,9 +13563,9 @@ exit_src_18:;
                     }
                     goto exit_load_store_139;
                 }
-                a_word_557 = 4164943872LL | (((uint64_t)(off_210 & 511)) << 12) | 721ULL;
+                a_word_563 = 4164943872LL | (((uint64_t)(off_210 & 511)) << 12) | 721ULL;
                 if (asm_pc < asm_limit) {
-                    *(uint32_t *)asm_pc = a_word_557;
+                    *(uint32_t *)asm_pc = a_word_563;
                     asm_pc = asm_pc + 4;
                 } else if (asm_error == ASM_OK) {
                     asm_error = ASM_ERR_FULL;
@@ -13412,16 +13580,16 @@ exit_src_18:;
                     if (asm_error == ASM_OK) {
                         asm_error = ASM_ERR_IMMEDIATE;
                     }
-                    goto exit_move_wide_69;
+                    goto exit_move_wide_70;
                 }
-                a_word_558 = 3531603968LL | (0ULL | (cls_2 << 5) | 17);
+                a_word_564 = 3531603968LL | (0ULL | (cls_2 << 5) | 17);
                 if (asm_pc < asm_limit) {
-                    *(uint32_t *)asm_pc = a_word_558;
+                    *(uint32_t *)asm_pc = a_word_564;
                     asm_pc = asm_pc + 4;
                 } else if (asm_error == ASM_OK) {
                     asm_error = ASM_ERR_FULL;
                 }
-            exit_move_wide_69:;
+            exit_move_wide_70:;
             } else {
                 asm_mov_imm(X17, cls_2);
             }
@@ -13429,7 +13597,7 @@ exit_src_18:;
         }
         a_label_23 = cg_pool_labels[opt_pool_index(cls_2)];
         target_73 = asm_target_of(a_label_23);
-        a_word_559 = 0x58000000 | ((((uint64_t)({
+        a_word_565 = 0x58000000 | ((((uint64_t)({
     off_211 = ((int64_t)(target_73 - asm_pc)) >> 2;
     if (!((off_211 >= -262144) && (off_211 <= 262143))) {
         if (asm_error == ASM_OK) {
@@ -13442,7 +13610,7 @@ exit_src_18:;
 exit_offset_to_73:;
     r_offset_to_73; })) << 5) | 17);
         if (asm_pc < asm_limit) {
-            *(uint32_t *)asm_pc = a_word_559;
+            *(uint32_t *)asm_pc = a_word_565;
             asm_pc = asm_pc + 4;
         } else if (asm_error == ASM_OK) {
             asm_error = ASM_ERR_FULL;
@@ -13456,7 +13624,7 @@ exit_offset_to_73:;
         }
     exit_emit_class_test_2:;
         target_74 = asm_target_of(s);
-        a_word_560 = 0x54000000 | ((((uint64_t)({
+        a_word_566 = 0x54000000 | ((((uint64_t)({
     off_212 = ((int64_t)(target_74 - asm_pc)) >> 2;
     if (!((off_212 >= -262144) && (off_212 <= 262143))) {
         if (asm_error == ASM_OK) {
@@ -13469,7 +13637,7 @@ exit_offset_to_73:;
 exit_offset_to_74:;
     r_offset_to_74; })) << 5) | 1);
         if (asm_pc < asm_limit) {
-            *(uint32_t *)asm_pc = a_word_560;
+            *(uint32_t *)asm_pc = a_word_566;
             asm_pc = asm_pc + 4;
         } else if (asm_error == ASM_OK) {
             asm_error = ASM_ERR_FULL;
@@ -13478,17 +13646,17 @@ exit_offset_to_74:;
         if ((nd_53->reg >= 0) && ((int32_t)nd_53->reg != x)) {
             rd_37 = (int32_t)nd_53->reg;
             if (((rd_37 & REG_SP) != 0) || ((x & REG_SP) != 0)) {
-                a_word_561 = 0x11000000 | ((rd_37 & REG_W) == 0 ? 0x80000000LL : 0) | 0 | (0ULL | ((((uint64_t)(x & 31)) << 5) | (rd_37 & 31)));
+                a_word_567 = 0x11000000 | ((rd_37 & REG_W) == 0 ? 0x80000000LL : 0) | 0 | (0ULL | ((((uint64_t)(x & 31)) << 5) | (rd_37 & 31)));
                 if (asm_pc < asm_limit) {
-                    *(uint32_t *)asm_pc = a_word_561;
+                    *(uint32_t *)asm_pc = a_word_567;
                     asm_pc = asm_pc + 4;
                 } else if (asm_error == ASM_OK) {
                     asm_error = ASM_ERR_FULL;
                 }
                 goto exit_add_sub_59;
-                a_word_562 = 0x11400000 | ((rd_37 & REG_W) == 0 ? 0x80000000LL : 0) | 0 | (0ULL | ((((uint64_t)(x & 31)) << 5) | (rd_37 & 31)));
+                a_word_568 = 0x11400000 | ((rd_37 & REG_W) == 0 ? 0x80000000LL : 0) | 0 | (0ULL | ((((uint64_t)(x & 31)) << 5) | (rd_37 & 31)));
                 if (asm_pc < asm_limit) {
-                    *(uint32_t *)asm_pc = a_word_562;
+                    *(uint32_t *)asm_pc = a_word_568;
                     asm_pc = asm_pc + 4;
                 } else if (asm_error == ASM_OK) {
                     asm_error = ASM_ERR_FULL;
@@ -13506,9 +13674,9 @@ exit_offset_to_74:;
                     }
                     goto exit_logical_39;
                 }
-                a_word_563 = 0xA000000 | ((rd_37 & REG_W) == 0 ? 0x80000000LL : 0) | 0x20000000 | (0ULL | ((((uint64_t)(x & 31)) << 16) | (((uint64_t)(rn_21 & 31)) << 5) | (rd_37 & 31)));
+                a_word_569 = 0xA000000 | ((rd_37 & REG_W) == 0 ? 0x80000000LL : 0) | 0x20000000 | (0ULL | ((((uint64_t)(x & 31)) << 16) | (((uint64_t)(rn_21 & 31)) << 5) | (rd_37 & 31)));
                 if (asm_pc < asm_limit) {
-                    *(uint32_t *)asm_pc = a_word_563;
+                    *(uint32_t *)asm_pc = a_word_569;
                     asm_pc = asm_pc + 4;
                 } else if (asm_error == ASM_OK) {
                     asm_error = ASM_ERR_FULL;
@@ -13516,29 +13684,29 @@ exit_offset_to_74:;
             exit_logical_39:;
             }
         }
-        if (nd_53->slot >= 0) {
+        if ((nd_53->slot >= 0) && ((nd_53->flags & NF_LAZY) == 0)) {
             off_213 = 8 * (int32_t)nd_53->slot;
-            bits_64 = (x & REG_D) != 0 ? 0xC4000000LL : (x & REG_W) == 0 ? 0xC0000000LL : 0x80000000LL;
+            bits_65 = (x & REG_D) != 0 ? 0xC4000000LL : (x & REG_W) == 0 ? 0xC0000000LL : 0x80000000LL;
             s_40 = (x & REG_W) == 0 ? 3 : 2;
             if ((off_213 >= 0) && ((off_213 & ((1LL << s_40) - 1)) == 0) && ((off_213 >> s_40) <= 4095)) {
-                a_word_564 = 0x39000000 | bits_64 | ((((uint64_t)(off_213 >> s_40)) << 10) | (640ULL | (x & 31)));
+                a_word_570 = 0x39000000 | bits_65 | ((((uint64_t)(off_213 >> s_40)) << 10) | (640ULL | (x & 31)));
                 if (asm_pc < asm_limit) {
-                    *(uint32_t *)asm_pc = a_word_564;
+                    *(uint32_t *)asm_pc = a_word_570;
                     asm_pc = asm_pc + 4;
                 } else if (asm_error == ASM_OK) {
                     asm_error = ASM_ERR_FULL;
                 }
             } else {
-                bits_65 = 0x38000000 | bits_64;
+                bits_66 = 0x38000000 | bits_65;
                 if (!((off_213 >= -256) && (off_213 <= 255))) {
                     if (asm_error == ASM_OK) {
                         asm_error = ASM_ERR_IMMEDIATE;
                     }
                     goto exit_load_store_140;
                 }
-                a_word_565 = bits_65 | (((uint64_t)(off_213 & 511)) << 12) | (640ULL | (x & 31));
+                a_word_571 = bits_66 | (((uint64_t)(off_213 & 511)) << 12) | (640ULL | (x & 31));
                 if (asm_pc < asm_limit) {
-                    *(uint32_t *)asm_pc = a_word_565;
+                    *(uint32_t *)asm_pc = a_word_571;
                     asm_pc = asm_pc + 4;
                 } else if (asm_error == ASM_OK) {
                     asm_error = ASM_ERR_FULL;
@@ -13549,60 +13717,60 @@ exit_offset_to_74:;
         return;
     }
     if (op == O_CAST) {
-        v_102 = nd->a;
-        r_7 = ({
-    nd_54 = opt_nodes + v_102;
+        v_103 = nd->a;
+        r_8 = ({
+    nd_54 = opt_nodes + v_103;
     if ((int32_t)nd_54->op == O_CONST) {
-        v_103 = (uint64_t)nd_54->aux;
-        if ((v_103 & 1) != 0) {
-            if (((int64_t)v_103 >= -2147483648) && ((int64_t)v_103 <= 0x7FFFFFFF)) {
-                value_24 = (int64_t)v_103;
+        v_104 = (uint64_t)nd_54->aux;
+        if ((v_104 & 1) != 0) {
+            if (((int64_t)v_104 >= -2147483648) && ((int64_t)v_104 <= 0x7FFFFFFF)) {
+                value_24 = (int64_t)v_104;
                 if ((value_24 >= 0) && (value_24 <= 0xFFFF)) {
                     if (!((value_24 >= 0) && (value_24 <= 0xFFFF))) {
                         if (asm_error == ASM_OK) {
                             asm_error = ASM_ERR_IMMEDIATE;
                         }
-                        goto exit_move_wide_70;
+                        goto exit_move_wide_71;
                     }
-                    a_word_566 = 3531603968LL | (0ULL | (((uint64_t)value_24) << 5) | 15);
+                    a_word_572 = 3531603968LL | (0ULL | (((uint64_t)value_24) << 5) | 15);
                     if (asm_pc < asm_limit) {
-                        *(uint32_t *)asm_pc = a_word_566;
+                        *(uint32_t *)asm_pc = a_word_572;
                         asm_pc = asm_pc + 4;
                     } else if (asm_error == ASM_OK) {
                         asm_error = ASM_ERR_FULL;
                     }
-                exit_move_wide_70:;
+                exit_move_wide_71:;
                 } else {
                     asm_mov_imm(X15, (uint64_t)value_24);
                 }
                 goto exit_load_constant_24;
             }
-            if ((v_103 >= 0) && (v_103 <= 0xFFFF)) {
-                if (!((v_103 >= 0) && (v_103 <= 0xFFFF))) {
+            if ((v_104 >= 0) && (v_104 <= 0xFFFF)) {
+                if (!((v_104 >= 0) && (v_104 <= 0xFFFF))) {
                     if (asm_error == ASM_OK) {
                         asm_error = ASM_ERR_IMMEDIATE;
                     }
-                    goto exit_move_wide_71;
+                    goto exit_move_wide_72;
                 }
-                a_word_567 = 3531603968LL | (0ULL | (v_103 << 5) | 15);
+                a_word_573 = 3531603968LL | (0ULL | (v_104 << 5) | 15);
                 if (asm_pc < asm_limit) {
-                    *(uint32_t *)asm_pc = a_word_567;
+                    *(uint32_t *)asm_pc = a_word_573;
                     asm_pc = asm_pc + 4;
                 } else if (asm_error == ASM_OK) {
                     asm_error = ASM_ERR_FULL;
                 }
-            exit_move_wide_71:;
+            exit_move_wide_72:;
             } else {
-                asm_mov_imm(X15, v_103);
+                asm_mov_imm(X15, v_104);
             }
             goto exit_load_constant_24;
         }
-        if (v_103 == nil_oop) {
+        if (v_104 == nil_oop) {
             off_214 = (int64_t)&((jit_state *)0)->nil_oop;
             if ((off_214 >= 0) && ((off_214 & 7) == 0) && ((off_214 >> 3) <= 4095)) {
-                a_word_568 = 4181721088LL | ((((uint64_t)(off_214 >> 3)) << 10) | 719ULL);
+                a_word_574 = 4181721088LL | ((((uint64_t)(off_214 >> 3)) << 10) | 719ULL);
                 if (asm_pc < asm_limit) {
-                    *(uint32_t *)asm_pc = a_word_568;
+                    *(uint32_t *)asm_pc = a_word_574;
                     asm_pc = asm_pc + 4;
                 } else if (asm_error == ASM_OK) {
                     asm_error = ASM_ERR_FULL;
@@ -13614,9 +13782,9 @@ exit_offset_to_74:;
                     }
                     goto exit_load_store_141;
                 }
-                a_word_569 = 4164943872LL | (((uint64_t)(off_214 & 511)) << 12) | 719ULL;
+                a_word_575 = 4164943872LL | (((uint64_t)(off_214 & 511)) << 12) | 719ULL;
                 if (asm_pc < asm_limit) {
-                    *(uint32_t *)asm_pc = a_word_569;
+                    *(uint32_t *)asm_pc = a_word_575;
                     asm_pc = asm_pc + 4;
                 } else if (asm_error == ASM_OK) {
                     asm_error = ASM_ERR_FULL;
@@ -13625,12 +13793,12 @@ exit_offset_to_74:;
             }
             goto exit_load_constant_24;
         }
-        if (v_103 == true_oop) {
+        if (v_104 == true_oop) {
             off_215 = (int64_t)&((jit_state *)0)->true_oop;
             if ((off_215 >= 0) && ((off_215 & 7) == 0) && ((off_215 >> 3) <= 4095)) {
-                a_word_570 = 4181721088LL | ((((uint64_t)(off_215 >> 3)) << 10) | 719ULL);
+                a_word_576 = 4181721088LL | ((((uint64_t)(off_215 >> 3)) << 10) | 719ULL);
                 if (asm_pc < asm_limit) {
-                    *(uint32_t *)asm_pc = a_word_570;
+                    *(uint32_t *)asm_pc = a_word_576;
                     asm_pc = asm_pc + 4;
                 } else if (asm_error == ASM_OK) {
                     asm_error = ASM_ERR_FULL;
@@ -13642,9 +13810,9 @@ exit_offset_to_74:;
                     }
                     goto exit_load_store_142;
                 }
-                a_word_571 = 4164943872LL | (((uint64_t)(off_215 & 511)) << 12) | 719ULL;
+                a_word_577 = 4164943872LL | (((uint64_t)(off_215 & 511)) << 12) | 719ULL;
                 if (asm_pc < asm_limit) {
-                    *(uint32_t *)asm_pc = a_word_571;
+                    *(uint32_t *)asm_pc = a_word_577;
                     asm_pc = asm_pc + 4;
                 } else if (asm_error == ASM_OK) {
                     asm_error = ASM_ERR_FULL;
@@ -13653,12 +13821,12 @@ exit_offset_to_74:;
             }
             goto exit_load_constant_24;
         }
-        if (v_103 == false_oop) {
+        if (v_104 == false_oop) {
             off_216 = (int64_t)&((jit_state *)0)->false_oop;
             if ((off_216 >= 0) && ((off_216 & 7) == 0) && ((off_216 >> 3) <= 4095)) {
-                a_word_572 = 4181721088LL | ((((uint64_t)(off_216 >> 3)) << 10) | 719ULL);
+                a_word_578 = 4181721088LL | ((((uint64_t)(off_216 >> 3)) << 10) | 719ULL);
                 if (asm_pc < asm_limit) {
-                    *(uint32_t *)asm_pc = a_word_572;
+                    *(uint32_t *)asm_pc = a_word_578;
                     asm_pc = asm_pc + 4;
                 } else if (asm_error == ASM_OK) {
                     asm_error = ASM_ERR_FULL;
@@ -13670,9 +13838,9 @@ exit_offset_to_74:;
                     }
                     goto exit_load_store_143;
                 }
-                a_word_573 = 4164943872LL | (((uint64_t)(off_216 & 511)) << 12) | 719ULL;
+                a_word_579 = 4164943872LL | (((uint64_t)(off_216 & 511)) << 12) | 719ULL;
                 if (asm_pc < asm_limit) {
-                    *(uint32_t *)asm_pc = a_word_573;
+                    *(uint32_t *)asm_pc = a_word_579;
                     asm_pc = asm_pc + 4;
                 } else if (asm_error == ASM_OK) {
                     asm_error = ASM_ERR_FULL;
@@ -13681,30 +13849,30 @@ exit_offset_to_74:;
             }
             goto exit_load_constant_24;
         }
-        if ((v_103 & 7) != 0) {
-            if ((v_103 >= 0) && (v_103 <= 0xFFFF)) {
-                if (!((v_103 >= 0) && (v_103 <= 0xFFFF))) {
+        if ((v_104 & 7) != 0) {
+            if ((v_104 >= 0) && (v_104 <= 0xFFFF)) {
+                if (!((v_104 >= 0) && (v_104 <= 0xFFFF))) {
                     if (asm_error == ASM_OK) {
                         asm_error = ASM_ERR_IMMEDIATE;
                     }
-                    goto exit_move_wide_72;
+                    goto exit_move_wide_73;
                 }
-                a_word_574 = 3531603968LL | (0ULL | (v_103 << 5) | 15);
+                a_word_580 = 3531603968LL | (0ULL | (v_104 << 5) | 15);
                 if (asm_pc < asm_limit) {
-                    *(uint32_t *)asm_pc = a_word_574;
+                    *(uint32_t *)asm_pc = a_word_580;
                     asm_pc = asm_pc + 4;
                 } else if (asm_error == ASM_OK) {
                     asm_error = ASM_ERR_FULL;
                 }
-            exit_move_wide_72:;
+            exit_move_wide_73:;
             } else {
-                asm_mov_imm(X15, v_103);
+                asm_mov_imm(X15, v_104);
             }
             goto exit_load_constant_24;
         }
-        a_label_24 = cg_pool_labels[opt_pool_index(v_103)];
+        a_label_24 = cg_pool_labels[opt_pool_index(v_104)];
         target_75 = asm_target_of(a_label_24);
-        a_word_575 = 0x58000000 | ((((uint64_t)({
+        a_word_581 = 0x58000000 | ((((uint64_t)({
     off_217 = ((int64_t)(target_75 - asm_pc)) >> 2;
     if (!((off_217 >= -262144) && (off_217 <= 262143))) {
         if (asm_error == ASM_OK) {
@@ -13717,7 +13885,7 @@ exit_offset_to_74:;
 exit_offset_to_75:;
     r_offset_to_75; })) << 5) | 15);
         if (asm_pc < asm_limit) {
-            *(uint32_t *)asm_pc = a_word_575;
+            *(uint32_t *)asm_pc = a_word_581;
             asm_pc = asm_pc + 4;
         } else if (asm_error == ASM_OK) {
             asm_error = ASM_ERR_FULL;
@@ -13733,9 +13901,9 @@ exit_offset_to_75:;
     if (nd_54->slot >= 0) {
         off_218 = 8 * (int32_t)nd_54->slot;
         if ((off_218 >= 0) && ((off_218 & 7) == 0) && ((off_218 >> 3) <= 4095)) {
-            a_word_576 = 4181721088LL | ((((uint64_t)(off_218 >> 3)) << 10) | 655ULL);
+            a_word_582 = 4181721088LL | ((((uint64_t)(off_218 >> 3)) << 10) | 655ULL);
             if (asm_pc < asm_limit) {
-                *(uint32_t *)asm_pc = a_word_576;
+                *(uint32_t *)asm_pc = a_word_582;
                 asm_pc = asm_pc + 4;
             } else if (asm_error == ASM_OK) {
                 asm_error = ASM_ERR_FULL;
@@ -13747,9 +13915,9 @@ exit_offset_to_75:;
                 }
                 goto exit_load_store_144;
             }
-            a_word_577 = 4164943872LL | (((uint64_t)(off_218 & 511)) << 12) | 655ULL;
+            a_word_583 = 4164943872LL | (((uint64_t)(off_218 & 511)) << 12) | 655ULL;
             if (asm_pc < asm_limit) {
-                *(uint32_t *)asm_pc = a_word_577;
+                *(uint32_t *)asm_pc = a_word_583;
                 asm_pc = asm_pc + 4;
             } else if (asm_error == ASM_OK) {
                 asm_error = ASM_ERR_FULL;
@@ -13766,20 +13934,20 @@ exit_offset_to_75:;
 exit_src_19:;
     r_src_19; });
         nd_55 = opt_nodes + n;
-        if ((nd_55->reg >= 0) && ((int32_t)nd_55->reg != r_7)) {
+        if ((nd_55->reg >= 0) && ((int32_t)nd_55->reg != r_8)) {
             rd_38 = (int32_t)nd_55->reg;
-            if (((rd_38 & REG_SP) != 0) || ((r_7 & REG_SP) != 0)) {
-                a_word_578 = 0x11000000 | ((rd_38 & REG_W) == 0 ? 0x80000000LL : 0) | 0 | (0ULL | ((((uint64_t)(r_7 & 31)) << 5) | (rd_38 & 31)));
+            if (((rd_38 & REG_SP) != 0) || ((r_8 & REG_SP) != 0)) {
+                a_word_584 = 0x11000000 | ((rd_38 & REG_W) == 0 ? 0x80000000LL : 0) | 0 | (0ULL | ((((uint64_t)(r_8 & 31)) << 5) | (rd_38 & 31)));
                 if (asm_pc < asm_limit) {
-                    *(uint32_t *)asm_pc = a_word_578;
+                    *(uint32_t *)asm_pc = a_word_584;
                     asm_pc = asm_pc + 4;
                 } else if (asm_error == ASM_OK) {
                     asm_error = ASM_ERR_FULL;
                 }
                 goto exit_add_sub_60;
-                a_word_579 = 0x11400000 | ((rd_38 & REG_W) == 0 ? 0x80000000LL : 0) | 0 | (0ULL | ((((uint64_t)(r_7 & 31)) << 5) | (rd_38 & 31)));
+                a_word_585 = 0x11400000 | ((rd_38 & REG_W) == 0 ? 0x80000000LL : 0) | 0 | (0ULL | ((((uint64_t)(r_8 & 31)) << 5) | (rd_38 & 31)));
                 if (asm_pc < asm_limit) {
-                    *(uint32_t *)asm_pc = a_word_579;
+                    *(uint32_t *)asm_pc = a_word_585;
                     asm_pc = asm_pc + 4;
                 } else if (asm_error == ASM_OK) {
                     asm_error = ASM_ERR_FULL;
@@ -13797,9 +13965,9 @@ exit_src_19:;
                     }
                     goto exit_logical_40;
                 }
-                a_word_580 = 0xA000000 | ((rd_38 & REG_W) == 0 ? 0x80000000LL : 0) | 0x20000000 | (0ULL | ((((uint64_t)(r_7 & 31)) << 16) | (((uint64_t)(rn_22 & 31)) << 5) | (rd_38 & 31)));
+                a_word_586 = 0xA000000 | ((rd_38 & REG_W) == 0 ? 0x80000000LL : 0) | 0x20000000 | (0ULL | ((((uint64_t)(r_8 & 31)) << 16) | (((uint64_t)(rn_22 & 31)) << 5) | (rd_38 & 31)));
                 if (asm_pc < asm_limit) {
-                    *(uint32_t *)asm_pc = a_word_580;
+                    *(uint32_t *)asm_pc = a_word_586;
                     asm_pc = asm_pc + 4;
                 } else if (asm_error == ASM_OK) {
                     asm_error = ASM_ERR_FULL;
@@ -13807,29 +13975,29 @@ exit_src_19:;
             exit_logical_40:;
             }
         }
-        if (nd_55->slot >= 0) {
+        if ((nd_55->slot >= 0) && ((nd_55->flags & NF_LAZY) == 0)) {
             off_219 = 8 * (int32_t)nd_55->slot;
-            bits_66 = (r_7 & REG_D) != 0 ? 0xC4000000LL : (r_7 & REG_W) == 0 ? 0xC0000000LL : 0x80000000LL;
-            s_41 = (r_7 & REG_W) == 0 ? 3 : 2;
+            bits_67 = (r_8 & REG_D) != 0 ? 0xC4000000LL : (r_8 & REG_W) == 0 ? 0xC0000000LL : 0x80000000LL;
+            s_41 = (r_8 & REG_W) == 0 ? 3 : 2;
             if ((off_219 >= 0) && ((off_219 & ((1LL << s_41) - 1)) == 0) && ((off_219 >> s_41) <= 4095)) {
-                a_word_581 = 0x39000000 | bits_66 | ((((uint64_t)(off_219 >> s_41)) << 10) | (640ULL | (r_7 & 31)));
+                a_word_587 = 0x39000000 | bits_67 | ((((uint64_t)(off_219 >> s_41)) << 10) | (640ULL | (r_8 & 31)));
                 if (asm_pc < asm_limit) {
-                    *(uint32_t *)asm_pc = a_word_581;
+                    *(uint32_t *)asm_pc = a_word_587;
                     asm_pc = asm_pc + 4;
                 } else if (asm_error == ASM_OK) {
                     asm_error = ASM_ERR_FULL;
                 }
             } else {
-                bits_67 = 0x38000000 | bits_66;
+                bits_68 = 0x38000000 | bits_67;
                 if (!((off_219 >= -256) && (off_219 <= 255))) {
                     if (asm_error == ASM_OK) {
                         asm_error = ASM_ERR_IMMEDIATE;
                     }
                     goto exit_load_store_145;
                 }
-                a_word_582 = bits_67 | (((uint64_t)(off_219 & 511)) << 12) | (640ULL | (r_7 & 31));
+                a_word_588 = bits_68 | (((uint64_t)(off_219 & 511)) << 12) | (640ULL | (r_8 & 31));
                 if (asm_pc < asm_limit) {
-                    *(uint32_t *)asm_pc = a_word_582;
+                    *(uint32_t *)asm_pc = a_word_588;
                     asm_pc = asm_pc + 4;
                 } else if (asm_error == ASM_OK) {
                     asm_error = ASM_ERR_FULL;
@@ -13876,9 +14044,9 @@ exit_out_12:;
     }
     off_220 = (int64_t)&((jit_state *)0)->stress;
     if ((off_220 >= 0) && ((off_220 & 7) == 0) && ((off_220 >> 3) <= 4095)) {
-        a_word_583 = 4181721088LL | ((((uint64_t)(off_220 >> 3)) << 10) | 720ULL);
+        a_word_589 = 4181721088LL | ((((uint64_t)(off_220 >> 3)) << 10) | 720ULL);
         if (asm_pc < asm_limit) {
-            *(uint32_t *)asm_pc = a_word_583;
+            *(uint32_t *)asm_pc = a_word_589;
             asm_pc = asm_pc + 4;
         } else if (asm_error == ASM_OK) {
             asm_error = ASM_ERR_FULL;
@@ -13890,9 +14058,9 @@ exit_out_12:;
             }
             goto exit_load_store_146;
         }
-        a_word_584 = 4164943872LL | (((uint64_t)(off_220 & 511)) << 12) | 720ULL;
+        a_word_590 = 4164943872LL | (((uint64_t)(off_220 & 511)) << 12) | 720ULL;
         if (asm_pc < asm_limit) {
-            *(uint32_t *)asm_pc = a_word_584;
+            *(uint32_t *)asm_pc = a_word_590;
             asm_pc = asm_pc + 4;
         } else if (asm_error == ASM_OK) {
             asm_error = ASM_ERR_FULL;
@@ -13912,9 +14080,9 @@ exit_out_12:;
 exit_add_sub_61:;
     off_221 = (int64_t)&((jit_state *)0)->stress;
     if ((off_221 >= 0) && ((off_221 & 7) == 0) && ((off_221 >> 3) <= 4095)) {
-        a_word_585 = 4177526784LL | ((((uint64_t)(off_221 >> 3)) << 10) | 720ULL);
+        a_word_591 = 4177526784LL | ((((uint64_t)(off_221 >> 3)) << 10) | 720ULL);
         if (asm_pc < asm_limit) {
-            *(uint32_t *)asm_pc = a_word_585;
+            *(uint32_t *)asm_pc = a_word_591;
             asm_pc = asm_pc + 4;
         } else if (asm_error == ASM_OK) {
             asm_error = ASM_ERR_FULL;
@@ -13926,9 +14094,9 @@ exit_add_sub_61:;
             }
             goto exit_load_store_147;
         }
-        a_word_586 = 4160749568LL | (((uint64_t)(off_221 & 511)) << 12) | 720ULL;
+        a_word_592 = 4160749568LL | (((uint64_t)(off_221 & 511)) << 12) | 720ULL;
         if (asm_pc < asm_limit) {
-            *(uint32_t *)asm_pc = a_word_586;
+            *(uint32_t *)asm_pc = a_word_592;
             asm_pc = asm_pc + 4;
         } else if (asm_error == ASM_OK) {
             asm_error = ASM_ERR_FULL;
@@ -13936,7 +14104,7 @@ exit_add_sub_61:;
     exit_load_store_147:;
     }
     target_76 = asm_target_of(l_9);
-    a_word_587 = 0x54000000 | ((((uint64_t)({
+    a_word_593 = 0x54000000 | ((((uint64_t)({
     off_222 = ((int64_t)(target_76 - asm_pc)) >> 2;
     if (!((off_222 >= -262144) && (off_222 <= 262143))) {
         if (asm_error == ASM_OK) {
@@ -13949,7 +14117,7 @@ exit_add_sub_61:;
 exit_offset_to_76:;
     r_offset_to_76; })) << 5) | 0);
     if (asm_pc < asm_limit) {
-        *(uint32_t *)asm_pc = a_word_587;
+        *(uint32_t *)asm_pc = a_word_593;
         asm_pc = asm_pc + 4;
     } else if (asm_error == ASM_OK) {
         asm_error = ASM_ERR_FULL;
@@ -13957,60 +14125,60 @@ exit_offset_to_76:;
 exit_emit_stress_at_9:;
     r_deopt_label_for_9 = l_9;
     r_deopt_label_for_9; });
-        v_106 = nd->a;
+        v_107 = nd->a;
         x = ({
-    nd_56 = opt_nodes + v_106;
+    nd_56 = opt_nodes + v_107;
     if ((int32_t)nd_56->op == O_CONST) {
-        v_107 = (uint64_t)nd_56->aux;
-        if ((v_107 & 1) != 0) {
-            if (((int64_t)v_107 >= -2147483648) && ((int64_t)v_107 <= 0x7FFFFFFF)) {
-                value_25 = (int64_t)v_107;
+        v_108 = (uint64_t)nd_56->aux;
+        if ((v_108 & 1) != 0) {
+            if (((int64_t)v_108 >= -2147483648) && ((int64_t)v_108 <= 0x7FFFFFFF)) {
+                value_25 = (int64_t)v_108;
                 if ((value_25 >= 0) && (value_25 <= 0xFFFF)) {
                     if (!((value_25 >= 0) && (value_25 <= 0xFFFF))) {
                         if (asm_error == ASM_OK) {
                             asm_error = ASM_ERR_IMMEDIATE;
                         }
-                        goto exit_move_wide_73;
+                        goto exit_move_wide_74;
                     }
-                    a_word_588 = 3531603968LL | (0ULL | (((uint64_t)value_25) << 5) | 15);
+                    a_word_594 = 3531603968LL | (0ULL | (((uint64_t)value_25) << 5) | 15);
                     if (asm_pc < asm_limit) {
-                        *(uint32_t *)asm_pc = a_word_588;
+                        *(uint32_t *)asm_pc = a_word_594;
                         asm_pc = asm_pc + 4;
                     } else if (asm_error == ASM_OK) {
                         asm_error = ASM_ERR_FULL;
                     }
-                exit_move_wide_73:;
+                exit_move_wide_74:;
                 } else {
                     asm_mov_imm(X15, (uint64_t)value_25);
                 }
                 goto exit_load_constant_25;
             }
-            if ((v_107 >= 0) && (v_107 <= 0xFFFF)) {
-                if (!((v_107 >= 0) && (v_107 <= 0xFFFF))) {
+            if ((v_108 >= 0) && (v_108 <= 0xFFFF)) {
+                if (!((v_108 >= 0) && (v_108 <= 0xFFFF))) {
                     if (asm_error == ASM_OK) {
                         asm_error = ASM_ERR_IMMEDIATE;
                     }
-                    goto exit_move_wide_74;
+                    goto exit_move_wide_75;
                 }
-                a_word_589 = 3531603968LL | (0ULL | (v_107 << 5) | 15);
+                a_word_595 = 3531603968LL | (0ULL | (v_108 << 5) | 15);
                 if (asm_pc < asm_limit) {
-                    *(uint32_t *)asm_pc = a_word_589;
+                    *(uint32_t *)asm_pc = a_word_595;
                     asm_pc = asm_pc + 4;
                 } else if (asm_error == ASM_OK) {
                     asm_error = ASM_ERR_FULL;
                 }
-            exit_move_wide_74:;
+            exit_move_wide_75:;
             } else {
-                asm_mov_imm(X15, v_107);
+                asm_mov_imm(X15, v_108);
             }
             goto exit_load_constant_25;
         }
-        if (v_107 == nil_oop) {
+        if (v_108 == nil_oop) {
             off_223 = (int64_t)&((jit_state *)0)->nil_oop;
             if ((off_223 >= 0) && ((off_223 & 7) == 0) && ((off_223 >> 3) <= 4095)) {
-                a_word_590 = 4181721088LL | ((((uint64_t)(off_223 >> 3)) << 10) | 719ULL);
+                a_word_596 = 4181721088LL | ((((uint64_t)(off_223 >> 3)) << 10) | 719ULL);
                 if (asm_pc < asm_limit) {
-                    *(uint32_t *)asm_pc = a_word_590;
+                    *(uint32_t *)asm_pc = a_word_596;
                     asm_pc = asm_pc + 4;
                 } else if (asm_error == ASM_OK) {
                     asm_error = ASM_ERR_FULL;
@@ -14022,9 +14190,9 @@ exit_emit_stress_at_9:;
                     }
                     goto exit_load_store_148;
                 }
-                a_word_591 = 4164943872LL | (((uint64_t)(off_223 & 511)) << 12) | 719ULL;
+                a_word_597 = 4164943872LL | (((uint64_t)(off_223 & 511)) << 12) | 719ULL;
                 if (asm_pc < asm_limit) {
-                    *(uint32_t *)asm_pc = a_word_591;
+                    *(uint32_t *)asm_pc = a_word_597;
                     asm_pc = asm_pc + 4;
                 } else if (asm_error == ASM_OK) {
                     asm_error = ASM_ERR_FULL;
@@ -14033,12 +14201,12 @@ exit_emit_stress_at_9:;
             }
             goto exit_load_constant_25;
         }
-        if (v_107 == true_oop) {
+        if (v_108 == true_oop) {
             off_224 = (int64_t)&((jit_state *)0)->true_oop;
             if ((off_224 >= 0) && ((off_224 & 7) == 0) && ((off_224 >> 3) <= 4095)) {
-                a_word_592 = 4181721088LL | ((((uint64_t)(off_224 >> 3)) << 10) | 719ULL);
+                a_word_598 = 4181721088LL | ((((uint64_t)(off_224 >> 3)) << 10) | 719ULL);
                 if (asm_pc < asm_limit) {
-                    *(uint32_t *)asm_pc = a_word_592;
+                    *(uint32_t *)asm_pc = a_word_598;
                     asm_pc = asm_pc + 4;
                 } else if (asm_error == ASM_OK) {
                     asm_error = ASM_ERR_FULL;
@@ -14050,9 +14218,9 @@ exit_emit_stress_at_9:;
                     }
                     goto exit_load_store_149;
                 }
-                a_word_593 = 4164943872LL | (((uint64_t)(off_224 & 511)) << 12) | 719ULL;
+                a_word_599 = 4164943872LL | (((uint64_t)(off_224 & 511)) << 12) | 719ULL;
                 if (asm_pc < asm_limit) {
-                    *(uint32_t *)asm_pc = a_word_593;
+                    *(uint32_t *)asm_pc = a_word_599;
                     asm_pc = asm_pc + 4;
                 } else if (asm_error == ASM_OK) {
                     asm_error = ASM_ERR_FULL;
@@ -14061,12 +14229,12 @@ exit_emit_stress_at_9:;
             }
             goto exit_load_constant_25;
         }
-        if (v_107 == false_oop) {
+        if (v_108 == false_oop) {
             off_225 = (int64_t)&((jit_state *)0)->false_oop;
             if ((off_225 >= 0) && ((off_225 & 7) == 0) && ((off_225 >> 3) <= 4095)) {
-                a_word_594 = 4181721088LL | ((((uint64_t)(off_225 >> 3)) << 10) | 719ULL);
+                a_word_600 = 4181721088LL | ((((uint64_t)(off_225 >> 3)) << 10) | 719ULL);
                 if (asm_pc < asm_limit) {
-                    *(uint32_t *)asm_pc = a_word_594;
+                    *(uint32_t *)asm_pc = a_word_600;
                     asm_pc = asm_pc + 4;
                 } else if (asm_error == ASM_OK) {
                     asm_error = ASM_ERR_FULL;
@@ -14078,9 +14246,9 @@ exit_emit_stress_at_9:;
                     }
                     goto exit_load_store_150;
                 }
-                a_word_595 = 4164943872LL | (((uint64_t)(off_225 & 511)) << 12) | 719ULL;
+                a_word_601 = 4164943872LL | (((uint64_t)(off_225 & 511)) << 12) | 719ULL;
                 if (asm_pc < asm_limit) {
-                    *(uint32_t *)asm_pc = a_word_595;
+                    *(uint32_t *)asm_pc = a_word_601;
                     asm_pc = asm_pc + 4;
                 } else if (asm_error == ASM_OK) {
                     asm_error = ASM_ERR_FULL;
@@ -14089,30 +14257,30 @@ exit_emit_stress_at_9:;
             }
             goto exit_load_constant_25;
         }
-        if ((v_107 & 7) != 0) {
-            if ((v_107 >= 0) && (v_107 <= 0xFFFF)) {
-                if (!((v_107 >= 0) && (v_107 <= 0xFFFF))) {
+        if ((v_108 & 7) != 0) {
+            if ((v_108 >= 0) && (v_108 <= 0xFFFF)) {
+                if (!((v_108 >= 0) && (v_108 <= 0xFFFF))) {
                     if (asm_error == ASM_OK) {
                         asm_error = ASM_ERR_IMMEDIATE;
                     }
-                    goto exit_move_wide_75;
+                    goto exit_move_wide_76;
                 }
-                a_word_596 = 3531603968LL | (0ULL | (v_107 << 5) | 15);
+                a_word_602 = 3531603968LL | (0ULL | (v_108 << 5) | 15);
                 if (asm_pc < asm_limit) {
-                    *(uint32_t *)asm_pc = a_word_596;
+                    *(uint32_t *)asm_pc = a_word_602;
                     asm_pc = asm_pc + 4;
                 } else if (asm_error == ASM_OK) {
                     asm_error = ASM_ERR_FULL;
                 }
-            exit_move_wide_75:;
+            exit_move_wide_76:;
             } else {
-                asm_mov_imm(X15, v_107);
+                asm_mov_imm(X15, v_108);
             }
             goto exit_load_constant_25;
         }
-        a_label_25 = cg_pool_labels[opt_pool_index(v_107)];
+        a_label_25 = cg_pool_labels[opt_pool_index(v_108)];
         target_77 = asm_target_of(a_label_25);
-        a_word_597 = 0x58000000 | ((((uint64_t)({
+        a_word_603 = 0x58000000 | ((((uint64_t)({
     off_226 = ((int64_t)(target_77 - asm_pc)) >> 2;
     if (!((off_226 >= -262144) && (off_226 <= 262143))) {
         if (asm_error == ASM_OK) {
@@ -14125,7 +14293,7 @@ exit_emit_stress_at_9:;
 exit_offset_to_77:;
     r_offset_to_77; })) << 5) | 15);
         if (asm_pc < asm_limit) {
-            *(uint32_t *)asm_pc = a_word_597;
+            *(uint32_t *)asm_pc = a_word_603;
             asm_pc = asm_pc + 4;
         } else if (asm_error == ASM_OK) {
             asm_error = ASM_ERR_FULL;
@@ -14141,9 +14309,9 @@ exit_offset_to_77:;
     if (nd_56->slot >= 0) {
         off_227 = 8 * (int32_t)nd_56->slot;
         if ((off_227 >= 0) && ((off_227 & 7) == 0) && ((off_227 >> 3) <= 4095)) {
-            a_word_598 = 4181721088LL | ((((uint64_t)(off_227 >> 3)) << 10) | 655ULL);
+            a_word_604 = 4181721088LL | ((((uint64_t)(off_227 >> 3)) << 10) | 655ULL);
             if (asm_pc < asm_limit) {
-                *(uint32_t *)asm_pc = a_word_598;
+                *(uint32_t *)asm_pc = a_word_604;
                 asm_pc = asm_pc + 4;
             } else if (asm_error == ASM_OK) {
                 asm_error = ASM_ERR_FULL;
@@ -14155,9 +14323,9 @@ exit_offset_to_77:;
                 }
                 goto exit_load_store_151;
             }
-            a_word_599 = 4164943872LL | (((uint64_t)(off_227 & 511)) << 12) | 655ULL;
+            a_word_605 = 4164943872LL | (((uint64_t)(off_227 & 511)) << 12) | 655ULL;
             if (asm_pc < asm_limit) {
-                *(uint32_t *)asm_pc = a_word_599;
+                *(uint32_t *)asm_pc = a_word_605;
                 asm_pc = asm_pc + 4;
             } else if (asm_error == ASM_OK) {
                 asm_error = ASM_ERR_FULL;
@@ -14177,23 +14345,23 @@ exit_src_20:;
             asm_note("guard: a SmallInteger", 0);
         }
         rd_39 = (x & REG_W) | 31;
-        enc_27 = asm_logical_immediate(1ULL, (rd_39 & REG_W) == 0 ? 64 : 32);
-        if (enc_27 < 0) {
+        enc_28 = asm_logical_immediate(1ULL, (rd_39 & REG_W) == 0 ? 64 : 32);
+        if (enc_28 < 0) {
             if (asm_error == ASM_OK) {
                 asm_error = ASM_ERR_IMMEDIATE;
             }
             goto exit_logical_41;
         }
-        a_word_600 = 0x12000000 | ((rd_39 & REG_W) == 0 ? 0x80000000LL : 0) | 0x60000000 | ((((uint64_t)enc_27) << 10) | ((((uint64_t)(x & 31)) << 5) | (rd_39 & 31)));
+        a_word_606 = 0x12000000 | ((rd_39 & REG_W) == 0 ? 0x80000000LL : 0) | 0x60000000 | ((((uint64_t)enc_28) << 10) | ((((uint64_t)(x & 31)) << 5) | (rd_39 & 31)));
         if (asm_pc < asm_limit) {
-            *(uint32_t *)asm_pc = a_word_600;
+            *(uint32_t *)asm_pc = a_word_606;
             asm_pc = asm_pc + 4;
         } else if (asm_error == ASM_OK) {
             asm_error = ASM_ERR_FULL;
         }
     exit_logical_41:;
         target_78 = asm_target_of(s);
-        a_word_601 = 0x54000000 | ((((uint64_t)({
+        a_word_607 = 0x54000000 | ((((uint64_t)({
     off_228 = ((int64_t)(target_78 - asm_pc)) >> 2;
     if (!((off_228 >= -262144) && (off_228 <= 262143))) {
         if (asm_error == ASM_OK) {
@@ -14206,7 +14374,7 @@ exit_src_20:;
 exit_offset_to_78:;
     r_offset_to_78; })) << 5) | 0);
         if (asm_pc < asm_limit) {
-            *(uint32_t *)asm_pc = a_word_601;
+            *(uint32_t *)asm_pc = a_word_607;
             asm_pc = asm_pc + 4;
         } else if (asm_error == ASM_OK) {
             asm_error = ASM_ERR_FULL;
@@ -14215,17 +14383,17 @@ exit_offset_to_78:;
         if ((nd_57->reg >= 0) && ((int32_t)nd_57->reg != x)) {
             rd_40 = (int32_t)nd_57->reg;
             if (((rd_40 & REG_SP) != 0) || ((x & REG_SP) != 0)) {
-                a_word_602 = 0x11000000 | ((rd_40 & REG_W) == 0 ? 0x80000000LL : 0) | 0 | (0ULL | ((((uint64_t)(x & 31)) << 5) | (rd_40 & 31)));
+                a_word_608 = 0x11000000 | ((rd_40 & REG_W) == 0 ? 0x80000000LL : 0) | 0 | (0ULL | ((((uint64_t)(x & 31)) << 5) | (rd_40 & 31)));
                 if (asm_pc < asm_limit) {
-                    *(uint32_t *)asm_pc = a_word_602;
+                    *(uint32_t *)asm_pc = a_word_608;
                     asm_pc = asm_pc + 4;
                 } else if (asm_error == ASM_OK) {
                     asm_error = ASM_ERR_FULL;
                 }
                 goto exit_add_sub_62;
-                a_word_603 = 0x11400000 | ((rd_40 & REG_W) == 0 ? 0x80000000LL : 0) | 0 | (0ULL | ((((uint64_t)(x & 31)) << 5) | (rd_40 & 31)));
+                a_word_609 = 0x11400000 | ((rd_40 & REG_W) == 0 ? 0x80000000LL : 0) | 0 | (0ULL | ((((uint64_t)(x & 31)) << 5) | (rd_40 & 31)));
                 if (asm_pc < asm_limit) {
-                    *(uint32_t *)asm_pc = a_word_603;
+                    *(uint32_t *)asm_pc = a_word_609;
                     asm_pc = asm_pc + 4;
                 } else if (asm_error == ASM_OK) {
                     asm_error = ASM_ERR_FULL;
@@ -14243,9 +14411,9 @@ exit_offset_to_78:;
                     }
                     goto exit_logical_42;
                 }
-                a_word_604 = 0xA000000 | ((rd_40 & REG_W) == 0 ? 0x80000000LL : 0) | 0x20000000 | (0ULL | ((((uint64_t)(x & 31)) << 16) | (((uint64_t)(rn_23 & 31)) << 5) | (rd_40 & 31)));
+                a_word_610 = 0xA000000 | ((rd_40 & REG_W) == 0 ? 0x80000000LL : 0) | 0x20000000 | (0ULL | ((((uint64_t)(x & 31)) << 16) | (((uint64_t)(rn_23 & 31)) << 5) | (rd_40 & 31)));
                 if (asm_pc < asm_limit) {
-                    *(uint32_t *)asm_pc = a_word_604;
+                    *(uint32_t *)asm_pc = a_word_610;
                     asm_pc = asm_pc + 4;
                 } else if (asm_error == ASM_OK) {
                     asm_error = ASM_ERR_FULL;
@@ -14253,29 +14421,29 @@ exit_offset_to_78:;
             exit_logical_42:;
             }
         }
-        if (nd_57->slot >= 0) {
+        if ((nd_57->slot >= 0) && ((nd_57->flags & NF_LAZY) == 0)) {
             off_229 = 8 * (int32_t)nd_57->slot;
-            bits_68 = (x & REG_D) != 0 ? 0xC4000000LL : (x & REG_W) == 0 ? 0xC0000000LL : 0x80000000LL;
+            bits_69 = (x & REG_D) != 0 ? 0xC4000000LL : (x & REG_W) == 0 ? 0xC0000000LL : 0x80000000LL;
             s_42 = (x & REG_W) == 0 ? 3 : 2;
             if ((off_229 >= 0) && ((off_229 & ((1LL << s_42) - 1)) == 0) && ((off_229 >> s_42) <= 4095)) {
-                a_word_605 = 0x39000000 | bits_68 | ((((uint64_t)(off_229 >> s_42)) << 10) | (640ULL | (x & 31)));
+                a_word_611 = 0x39000000 | bits_69 | ((((uint64_t)(off_229 >> s_42)) << 10) | (640ULL | (x & 31)));
                 if (asm_pc < asm_limit) {
-                    *(uint32_t *)asm_pc = a_word_605;
+                    *(uint32_t *)asm_pc = a_word_611;
                     asm_pc = asm_pc + 4;
                 } else if (asm_error == ASM_OK) {
                     asm_error = ASM_ERR_FULL;
                 }
             } else {
-                bits_69 = 0x38000000 | bits_68;
+                bits_70 = 0x38000000 | bits_69;
                 if (!((off_229 >= -256) && (off_229 <= 255))) {
                     if (asm_error == ASM_OK) {
                         asm_error = ASM_ERR_IMMEDIATE;
                     }
                     goto exit_load_store_152;
                 }
-                a_word_606 = bits_69 | (((uint64_t)(off_229 & 511)) << 12) | (640ULL | (x & 31));
+                a_word_612 = bits_70 | (((uint64_t)(off_229 & 511)) << 12) | (640ULL | (x & 31));
                 if (asm_pc < asm_limit) {
-                    *(uint32_t *)asm_pc = a_word_606;
+                    *(uint32_t *)asm_pc = a_word_612;
                     asm_pc = asm_pc + 4;
                 } else if (asm_error == ASM_OK) {
                     asm_error = ASM_ERR_FULL;
@@ -14323,9 +14491,9 @@ exit_out_13:;
     }
     off_230 = (int64_t)&((jit_state *)0)->stress;
     if ((off_230 >= 0) && ((off_230 & 7) == 0) && ((off_230 >> 3) <= 4095)) {
-        a_word_607 = 4181721088LL | ((((uint64_t)(off_230 >> 3)) << 10) | 720ULL);
+        a_word_613 = 4181721088LL | ((((uint64_t)(off_230 >> 3)) << 10) | 720ULL);
         if (asm_pc < asm_limit) {
-            *(uint32_t *)asm_pc = a_word_607;
+            *(uint32_t *)asm_pc = a_word_613;
             asm_pc = asm_pc + 4;
         } else if (asm_error == ASM_OK) {
             asm_error = ASM_ERR_FULL;
@@ -14337,9 +14505,9 @@ exit_out_13:;
             }
             goto exit_load_store_153;
         }
-        a_word_608 = 4164943872LL | (((uint64_t)(off_230 & 511)) << 12) | 720ULL;
+        a_word_614 = 4164943872LL | (((uint64_t)(off_230 & 511)) << 12) | 720ULL;
         if (asm_pc < asm_limit) {
-            *(uint32_t *)asm_pc = a_word_608;
+            *(uint32_t *)asm_pc = a_word_614;
             asm_pc = asm_pc + 4;
         } else if (asm_error == ASM_OK) {
             asm_error = ASM_ERR_FULL;
@@ -14359,9 +14527,9 @@ exit_out_13:;
 exit_add_sub_63:;
     off_231 = (int64_t)&((jit_state *)0)->stress;
     if ((off_231 >= 0) && ((off_231 & 7) == 0) && ((off_231 >> 3) <= 4095)) {
-        a_word_609 = 4177526784LL | ((((uint64_t)(off_231 >> 3)) << 10) | 720ULL);
+        a_word_615 = 4177526784LL | ((((uint64_t)(off_231 >> 3)) << 10) | 720ULL);
         if (asm_pc < asm_limit) {
-            *(uint32_t *)asm_pc = a_word_609;
+            *(uint32_t *)asm_pc = a_word_615;
             asm_pc = asm_pc + 4;
         } else if (asm_error == ASM_OK) {
             asm_error = ASM_ERR_FULL;
@@ -14373,9 +14541,9 @@ exit_add_sub_63:;
             }
             goto exit_load_store_154;
         }
-        a_word_610 = 4160749568LL | (((uint64_t)(off_231 & 511)) << 12) | 720ULL;
+        a_word_616 = 4160749568LL | (((uint64_t)(off_231 & 511)) << 12) | 720ULL;
         if (asm_pc < asm_limit) {
-            *(uint32_t *)asm_pc = a_word_610;
+            *(uint32_t *)asm_pc = a_word_616;
             asm_pc = asm_pc + 4;
         } else if (asm_error == ASM_OK) {
             asm_error = ASM_ERR_FULL;
@@ -14383,7 +14551,7 @@ exit_add_sub_63:;
     exit_load_store_154:;
     }
     target_79 = asm_target_of(l_10);
-    a_word_611 = 0x54000000 | ((((uint64_t)({
+    a_word_617 = 0x54000000 | ((((uint64_t)({
     off_232 = ((int64_t)(target_79 - asm_pc)) >> 2;
     if (!((off_232 >= -262144) && (off_232 <= 262143))) {
         if (asm_error == ASM_OK) {
@@ -14396,7 +14564,7 @@ exit_add_sub_63:;
 exit_offset_to_79:;
     r_offset_to_79; })) << 5) | 0);
     if (asm_pc < asm_limit) {
-        *(uint32_t *)asm_pc = a_word_611;
+        *(uint32_t *)asm_pc = a_word_617;
         asm_pc = asm_pc + 4;
     } else if (asm_error == ASM_OK) {
         asm_error = ASM_ERR_FULL;
@@ -14405,60 +14573,60 @@ exit_emit_stress_at_10:;
     r_deopt_label_for_10 = l_10;
     r_deopt_label_for_10; });
         is_add = (int32_t)nd_58->op == O_IADD;
-        v_110 = nd_58->a;
+        v_111 = nd_58->a;
         x_10 = ({
-    nd_59 = opt_nodes + v_110;
+    nd_59 = opt_nodes + v_111;
     if ((int32_t)nd_59->op == O_CONST) {
-        v_111 = (uint64_t)nd_59->aux;
-        if ((v_111 & 1) != 0) {
-            if (((int64_t)v_111 >= -2147483648) && ((int64_t)v_111 <= 0x7FFFFFFF)) {
-                value_26 = (int64_t)v_111;
+        v_112 = (uint64_t)nd_59->aux;
+        if ((v_112 & 1) != 0) {
+            if (((int64_t)v_112 >= -2147483648) && ((int64_t)v_112 <= 0x7FFFFFFF)) {
+                value_26 = (int64_t)v_112;
                 if ((value_26 >= 0) && (value_26 <= 0xFFFF)) {
                     if (!((value_26 >= 0) && (value_26 <= 0xFFFF))) {
                         if (asm_error == ASM_OK) {
                             asm_error = ASM_ERR_IMMEDIATE;
                         }
-                        goto exit_move_wide_76;
+                        goto exit_move_wide_77;
                     }
-                    a_word_612 = 3531603968LL | (0ULL | (((uint64_t)value_26) << 5) | 14);
+                    a_word_618 = 3531603968LL | (0ULL | (((uint64_t)value_26) << 5) | 14);
                     if (asm_pc < asm_limit) {
-                        *(uint32_t *)asm_pc = a_word_612;
+                        *(uint32_t *)asm_pc = a_word_618;
                         asm_pc = asm_pc + 4;
                     } else if (asm_error == ASM_OK) {
                         asm_error = ASM_ERR_FULL;
                     }
-                exit_move_wide_76:;
+                exit_move_wide_77:;
                 } else {
                     asm_mov_imm(X14, (uint64_t)value_26);
                 }
                 goto exit_load_constant_26;
             }
-            if ((v_111 >= 0) && (v_111 <= 0xFFFF)) {
-                if (!((v_111 >= 0) && (v_111 <= 0xFFFF))) {
+            if ((v_112 >= 0) && (v_112 <= 0xFFFF)) {
+                if (!((v_112 >= 0) && (v_112 <= 0xFFFF))) {
                     if (asm_error == ASM_OK) {
                         asm_error = ASM_ERR_IMMEDIATE;
                     }
-                    goto exit_move_wide_77;
+                    goto exit_move_wide_78;
                 }
-                a_word_613 = 3531603968LL | (0ULL | (v_111 << 5) | 14);
+                a_word_619 = 3531603968LL | (0ULL | (v_112 << 5) | 14);
                 if (asm_pc < asm_limit) {
-                    *(uint32_t *)asm_pc = a_word_613;
+                    *(uint32_t *)asm_pc = a_word_619;
                     asm_pc = asm_pc + 4;
                 } else if (asm_error == ASM_OK) {
                     asm_error = ASM_ERR_FULL;
                 }
-            exit_move_wide_77:;
+            exit_move_wide_78:;
             } else {
-                asm_mov_imm(X14, v_111);
+                asm_mov_imm(X14, v_112);
             }
             goto exit_load_constant_26;
         }
-        if (v_111 == nil_oop) {
+        if (v_112 == nil_oop) {
             off_233 = (int64_t)&((jit_state *)0)->nil_oop;
             if ((off_233 >= 0) && ((off_233 & 7) == 0) && ((off_233 >> 3) <= 4095)) {
-                a_word_614 = 4181721088LL | ((((uint64_t)(off_233 >> 3)) << 10) | 718ULL);
+                a_word_620 = 4181721088LL | ((((uint64_t)(off_233 >> 3)) << 10) | 718ULL);
                 if (asm_pc < asm_limit) {
-                    *(uint32_t *)asm_pc = a_word_614;
+                    *(uint32_t *)asm_pc = a_word_620;
                     asm_pc = asm_pc + 4;
                 } else if (asm_error == ASM_OK) {
                     asm_error = ASM_ERR_FULL;
@@ -14470,9 +14638,9 @@ exit_emit_stress_at_10:;
                     }
                     goto exit_load_store_155;
                 }
-                a_word_615 = 4164943872LL | (((uint64_t)(off_233 & 511)) << 12) | 718ULL;
+                a_word_621 = 4164943872LL | (((uint64_t)(off_233 & 511)) << 12) | 718ULL;
                 if (asm_pc < asm_limit) {
-                    *(uint32_t *)asm_pc = a_word_615;
+                    *(uint32_t *)asm_pc = a_word_621;
                     asm_pc = asm_pc + 4;
                 } else if (asm_error == ASM_OK) {
                     asm_error = ASM_ERR_FULL;
@@ -14481,12 +14649,12 @@ exit_emit_stress_at_10:;
             }
             goto exit_load_constant_26;
         }
-        if (v_111 == true_oop) {
+        if (v_112 == true_oop) {
             off_234 = (int64_t)&((jit_state *)0)->true_oop;
             if ((off_234 >= 0) && ((off_234 & 7) == 0) && ((off_234 >> 3) <= 4095)) {
-                a_word_616 = 4181721088LL | ((((uint64_t)(off_234 >> 3)) << 10) | 718ULL);
+                a_word_622 = 4181721088LL | ((((uint64_t)(off_234 >> 3)) << 10) | 718ULL);
                 if (asm_pc < asm_limit) {
-                    *(uint32_t *)asm_pc = a_word_616;
+                    *(uint32_t *)asm_pc = a_word_622;
                     asm_pc = asm_pc + 4;
                 } else if (asm_error == ASM_OK) {
                     asm_error = ASM_ERR_FULL;
@@ -14498,9 +14666,9 @@ exit_emit_stress_at_10:;
                     }
                     goto exit_load_store_156;
                 }
-                a_word_617 = 4164943872LL | (((uint64_t)(off_234 & 511)) << 12) | 718ULL;
+                a_word_623 = 4164943872LL | (((uint64_t)(off_234 & 511)) << 12) | 718ULL;
                 if (asm_pc < asm_limit) {
-                    *(uint32_t *)asm_pc = a_word_617;
+                    *(uint32_t *)asm_pc = a_word_623;
                     asm_pc = asm_pc + 4;
                 } else if (asm_error == ASM_OK) {
                     asm_error = ASM_ERR_FULL;
@@ -14509,12 +14677,12 @@ exit_emit_stress_at_10:;
             }
             goto exit_load_constant_26;
         }
-        if (v_111 == false_oop) {
+        if (v_112 == false_oop) {
             off_235 = (int64_t)&((jit_state *)0)->false_oop;
             if ((off_235 >= 0) && ((off_235 & 7) == 0) && ((off_235 >> 3) <= 4095)) {
-                a_word_618 = 4181721088LL | ((((uint64_t)(off_235 >> 3)) << 10) | 718ULL);
+                a_word_624 = 4181721088LL | ((((uint64_t)(off_235 >> 3)) << 10) | 718ULL);
                 if (asm_pc < asm_limit) {
-                    *(uint32_t *)asm_pc = a_word_618;
+                    *(uint32_t *)asm_pc = a_word_624;
                     asm_pc = asm_pc + 4;
                 } else if (asm_error == ASM_OK) {
                     asm_error = ASM_ERR_FULL;
@@ -14526,9 +14694,9 @@ exit_emit_stress_at_10:;
                     }
                     goto exit_load_store_157;
                 }
-                a_word_619 = 4164943872LL | (((uint64_t)(off_235 & 511)) << 12) | 718ULL;
+                a_word_625 = 4164943872LL | (((uint64_t)(off_235 & 511)) << 12) | 718ULL;
                 if (asm_pc < asm_limit) {
-                    *(uint32_t *)asm_pc = a_word_619;
+                    *(uint32_t *)asm_pc = a_word_625;
                     asm_pc = asm_pc + 4;
                 } else if (asm_error == ASM_OK) {
                     asm_error = ASM_ERR_FULL;
@@ -14537,30 +14705,30 @@ exit_emit_stress_at_10:;
             }
             goto exit_load_constant_26;
         }
-        if ((v_111 & 7) != 0) {
-            if ((v_111 >= 0) && (v_111 <= 0xFFFF)) {
-                if (!((v_111 >= 0) && (v_111 <= 0xFFFF))) {
+        if ((v_112 & 7) != 0) {
+            if ((v_112 >= 0) && (v_112 <= 0xFFFF)) {
+                if (!((v_112 >= 0) && (v_112 <= 0xFFFF))) {
                     if (asm_error == ASM_OK) {
                         asm_error = ASM_ERR_IMMEDIATE;
                     }
-                    goto exit_move_wide_78;
+                    goto exit_move_wide_79;
                 }
-                a_word_620 = 3531603968LL | (0ULL | (v_111 << 5) | 14);
+                a_word_626 = 3531603968LL | (0ULL | (v_112 << 5) | 14);
                 if (asm_pc < asm_limit) {
-                    *(uint32_t *)asm_pc = a_word_620;
+                    *(uint32_t *)asm_pc = a_word_626;
                     asm_pc = asm_pc + 4;
                 } else if (asm_error == ASM_OK) {
                     asm_error = ASM_ERR_FULL;
                 }
-            exit_move_wide_78:;
+            exit_move_wide_79:;
             } else {
-                asm_mov_imm(X14, v_111);
+                asm_mov_imm(X14, v_112);
             }
             goto exit_load_constant_26;
         }
-        a_label_26 = cg_pool_labels[opt_pool_index(v_111)];
+        a_label_26 = cg_pool_labels[opt_pool_index(v_112)];
         target_80 = asm_target_of(a_label_26);
-        a_word_621 = 0x58000000 | ((((uint64_t)({
+        a_word_627 = 0x58000000 | ((((uint64_t)({
     off_236 = ((int64_t)(target_80 - asm_pc)) >> 2;
     if (!((off_236 >= -262144) && (off_236 <= 262143))) {
         if (asm_error == ASM_OK) {
@@ -14573,7 +14741,7 @@ exit_emit_stress_at_10:;
 exit_offset_to_80:;
     r_offset_to_80; })) << 5) | 14);
         if (asm_pc < asm_limit) {
-            *(uint32_t *)asm_pc = a_word_621;
+            *(uint32_t *)asm_pc = a_word_627;
             asm_pc = asm_pc + 4;
         } else if (asm_error == ASM_OK) {
             asm_error = ASM_ERR_FULL;
@@ -14589,9 +14757,9 @@ exit_offset_to_80:;
     if (nd_59->slot >= 0) {
         off_237 = 8 * (int32_t)nd_59->slot;
         if ((off_237 >= 0) && ((off_237 & 7) == 0) && ((off_237 >> 3) <= 4095)) {
-            a_word_622 = 4181721088LL | ((((uint64_t)(off_237 >> 3)) << 10) | 654ULL);
+            a_word_628 = 4181721088LL | ((((uint64_t)(off_237 >> 3)) << 10) | 654ULL);
             if (asm_pc < asm_limit) {
-                *(uint32_t *)asm_pc = a_word_622;
+                *(uint32_t *)asm_pc = a_word_628;
                 asm_pc = asm_pc + 4;
             } else if (asm_error == ASM_OK) {
                 asm_error = ASM_ERR_FULL;
@@ -14603,9 +14771,9 @@ exit_offset_to_80:;
                 }
                 goto exit_load_store_158;
             }
-            a_word_623 = 4164943872LL | (((uint64_t)(off_237 & 511)) << 12) | 654ULL;
+            a_word_629 = 4164943872LL | (((uint64_t)(off_237 & 511)) << 12) | 654ULL;
             if (asm_pc < asm_limit) {
-                *(uint32_t *)asm_pc = a_word_623;
+                *(uint32_t *)asm_pc = a_word_629;
                 asm_pc = asm_pc + 4;
             } else if (asm_error == ASM_OK) {
                 asm_error = ASM_ERR_FULL;
@@ -14621,31 +14789,31 @@ exit_offset_to_80:;
     r_src_21 = X14;
 exit_src_21:;
     r_src_21; });
-        n_25 = nd_58->b;
-        if (((int32_t)(opt_nodes + n_25)->op == O_CONST) && ({
-    n_26 = nd_58->b;
-    ((int64_t)((uint64_t)(opt_nodes + n_26)->aux - 1) >= -4095) && ((int64_t)((uint64_t)(opt_nodes + n_26)->aux - 1) <= 4095); })) {
-            n_27 = nd_58->b;
-            c_2 = (int64_t)((uint64_t)(opt_nodes + n_27)->aux - 1);
+        n_30 = nd_58->b;
+        if (((int32_t)(opt_nodes + n_30)->op == O_CONST) && ({
+    n_31 = nd_58->b;
+    ((int64_t)((uint64_t)(opt_nodes + n_31)->aux - 1) >= -4095) && ((int64_t)((uint64_t)(opt_nodes + n_31)->aux - 1) <= 4095); })) {
+            n_32 = nd_58->b;
+            c_2 = (int64_t)((uint64_t)(opt_nodes + n_32)->aux - 1);
             if (is_add == c_2 >= 0) {
                 imm_6 = c_2 < 0 ? -c_2 : c_2;
                 neg_52 = imm_6 < 0;
-                v_112 = neg_52 ? -imm_6 : imm_6;
+                v_113 = neg_52 ? -imm_6 : imm_6;
                 o_70 = neg_52 ? 1610612736 : 0x20000000;
-                if (v_112 <= 4095) {
-                    a_word_624 = 2432696320LL | o_70 | ((((uint64_t)v_112) << 10) | ((((uint64_t)(x_10 & 31)) << 5) | 16));
+                if (v_113 <= 4095) {
+                    a_word_630 = 2432696320LL | o_70 | ((((uint64_t)v_113) << 10) | ((((uint64_t)(x_10 & 31)) << 5) | 16));
                     if (asm_pc < asm_limit) {
-                        *(uint32_t *)asm_pc = a_word_624;
+                        *(uint32_t *)asm_pc = a_word_630;
                         asm_pc = asm_pc + 4;
                     } else if (asm_error == ASM_OK) {
                         asm_error = ASM_ERR_FULL;
                     }
                     goto exit_add_sub_64;
                 }
-                if (((v_112 & 4095) == 0) && (v_112 <= 0xFFF000)) {
-                    a_word_625 = 2436890624LL | o_70 | ((((uint64_t)(v_112 >> 12)) << 10) | ((((uint64_t)(x_10 & 31)) << 5) | 16));
+                if (((v_113 & 4095) == 0) && (v_113 <= 0xFFF000)) {
+                    a_word_631 = 2436890624LL | o_70 | ((((uint64_t)(v_113 >> 12)) << 10) | ((((uint64_t)(x_10 & 31)) << 5) | 16));
                     if (asm_pc < asm_limit) {
-                        *(uint32_t *)asm_pc = a_word_625;
+                        *(uint32_t *)asm_pc = a_word_631;
                         asm_pc = asm_pc + 4;
                     } else if (asm_error == ASM_OK) {
                         asm_error = ASM_ERR_FULL;
@@ -14659,22 +14827,22 @@ exit_src_21:;
             } else {
                 imm_7 = c_2 < 0 ? -c_2 : c_2;
                 neg_53 = imm_7 < 0;
-                v_113 = neg_53 ? -imm_7 : imm_7;
+                v_114 = neg_53 ? -imm_7 : imm_7;
                 o_71 = neg_53 ? 536870912 : 0x60000000;
-                if (v_113 <= 4095) {
-                    a_word_626 = 2432696320LL | o_71 | ((((uint64_t)v_113) << 10) | ((((uint64_t)(x_10 & 31)) << 5) | 16));
+                if (v_114 <= 4095) {
+                    a_word_632 = 2432696320LL | o_71 | ((((uint64_t)v_114) << 10) | ((((uint64_t)(x_10 & 31)) << 5) | 16));
                     if (asm_pc < asm_limit) {
-                        *(uint32_t *)asm_pc = a_word_626;
+                        *(uint32_t *)asm_pc = a_word_632;
                         asm_pc = asm_pc + 4;
                     } else if (asm_error == ASM_OK) {
                         asm_error = ASM_ERR_FULL;
                     }
                     goto exit_add_sub_65;
                 }
-                if (((v_113 & 4095) == 0) && (v_113 <= 0xFFF000)) {
-                    a_word_627 = 2436890624LL | o_71 | ((((uint64_t)(v_113 >> 12)) << 10) | ((((uint64_t)(x_10 & 31)) << 5) | 16));
+                if (((v_114 & 4095) == 0) && (v_114 <= 0xFFF000)) {
+                    a_word_633 = 2436890624LL | o_71 | ((((uint64_t)(v_114 >> 12)) << 10) | ((((uint64_t)(x_10 & 31)) << 5) | 16));
                     if (asm_pc < asm_limit) {
-                        *(uint32_t *)asm_pc = a_word_627;
+                        *(uint32_t *)asm_pc = a_word_633;
                         asm_pc = asm_pc + 4;
                     } else if (asm_error == ASM_OK) {
                         asm_error = ASM_ERR_FULL;
@@ -14687,60 +14855,60 @@ exit_src_21:;
             exit_add_sub_65:;
             }
         } else {
-            v_114 = nd_58->b;
+            v_115 = nd_58->b;
             y_3 = ({
-    nd_60 = opt_nodes + v_114;
+    nd_60 = opt_nodes + v_115;
     if ((int32_t)nd_60->op == O_CONST) {
-        v_115 = (uint64_t)nd_60->aux;
-        if ((v_115 & 1) != 0) {
-            if (((int64_t)v_115 >= -2147483648) && ((int64_t)v_115 <= 0x7FFFFFFF)) {
-                value_27 = (int64_t)v_115;
+        v_116 = (uint64_t)nd_60->aux;
+        if ((v_116 & 1) != 0) {
+            if (((int64_t)v_116 >= -2147483648) && ((int64_t)v_116 <= 0x7FFFFFFF)) {
+                value_27 = (int64_t)v_116;
                 if ((value_27 >= 0) && (value_27 <= 0xFFFF)) {
                     if (!((value_27 >= 0) && (value_27 <= 0xFFFF))) {
                         if (asm_error == ASM_OK) {
                             asm_error = ASM_ERR_IMMEDIATE;
                         }
-                        goto exit_move_wide_79;
+                        goto exit_move_wide_80;
                     }
-                    a_word_628 = 3531603968LL | (0ULL | (((uint64_t)value_27) << 5) | 15);
+                    a_word_634 = 3531603968LL | (0ULL | (((uint64_t)value_27) << 5) | 15);
                     if (asm_pc < asm_limit) {
-                        *(uint32_t *)asm_pc = a_word_628;
+                        *(uint32_t *)asm_pc = a_word_634;
                         asm_pc = asm_pc + 4;
                     } else if (asm_error == ASM_OK) {
                         asm_error = ASM_ERR_FULL;
                     }
-                exit_move_wide_79:;
+                exit_move_wide_80:;
                 } else {
                     asm_mov_imm(X15, (uint64_t)value_27);
                 }
                 goto exit_load_constant_27;
             }
-            if ((v_115 >= 0) && (v_115 <= 0xFFFF)) {
-                if (!((v_115 >= 0) && (v_115 <= 0xFFFF))) {
+            if ((v_116 >= 0) && (v_116 <= 0xFFFF)) {
+                if (!((v_116 >= 0) && (v_116 <= 0xFFFF))) {
                     if (asm_error == ASM_OK) {
                         asm_error = ASM_ERR_IMMEDIATE;
                     }
-                    goto exit_move_wide_80;
+                    goto exit_move_wide_81;
                 }
-                a_word_629 = 3531603968LL | (0ULL | (v_115 << 5) | 15);
+                a_word_635 = 3531603968LL | (0ULL | (v_116 << 5) | 15);
                 if (asm_pc < asm_limit) {
-                    *(uint32_t *)asm_pc = a_word_629;
+                    *(uint32_t *)asm_pc = a_word_635;
                     asm_pc = asm_pc + 4;
                 } else if (asm_error == ASM_OK) {
                     asm_error = ASM_ERR_FULL;
                 }
-            exit_move_wide_80:;
+            exit_move_wide_81:;
             } else {
-                asm_mov_imm(X15, v_115);
+                asm_mov_imm(X15, v_116);
             }
             goto exit_load_constant_27;
         }
-        if (v_115 == nil_oop) {
+        if (v_116 == nil_oop) {
             off_238 = (int64_t)&((jit_state *)0)->nil_oop;
             if ((off_238 >= 0) && ((off_238 & 7) == 0) && ((off_238 >> 3) <= 4095)) {
-                a_word_630 = 4181721088LL | ((((uint64_t)(off_238 >> 3)) << 10) | 719ULL);
+                a_word_636 = 4181721088LL | ((((uint64_t)(off_238 >> 3)) << 10) | 719ULL);
                 if (asm_pc < asm_limit) {
-                    *(uint32_t *)asm_pc = a_word_630;
+                    *(uint32_t *)asm_pc = a_word_636;
                     asm_pc = asm_pc + 4;
                 } else if (asm_error == ASM_OK) {
                     asm_error = ASM_ERR_FULL;
@@ -14752,9 +14920,9 @@ exit_src_21:;
                     }
                     goto exit_load_store_159;
                 }
-                a_word_631 = 4164943872LL | (((uint64_t)(off_238 & 511)) << 12) | 719ULL;
+                a_word_637 = 4164943872LL | (((uint64_t)(off_238 & 511)) << 12) | 719ULL;
                 if (asm_pc < asm_limit) {
-                    *(uint32_t *)asm_pc = a_word_631;
+                    *(uint32_t *)asm_pc = a_word_637;
                     asm_pc = asm_pc + 4;
                 } else if (asm_error == ASM_OK) {
                     asm_error = ASM_ERR_FULL;
@@ -14763,12 +14931,12 @@ exit_src_21:;
             }
             goto exit_load_constant_27;
         }
-        if (v_115 == true_oop) {
+        if (v_116 == true_oop) {
             off_239 = (int64_t)&((jit_state *)0)->true_oop;
             if ((off_239 >= 0) && ((off_239 & 7) == 0) && ((off_239 >> 3) <= 4095)) {
-                a_word_632 = 4181721088LL | ((((uint64_t)(off_239 >> 3)) << 10) | 719ULL);
+                a_word_638 = 4181721088LL | ((((uint64_t)(off_239 >> 3)) << 10) | 719ULL);
                 if (asm_pc < asm_limit) {
-                    *(uint32_t *)asm_pc = a_word_632;
+                    *(uint32_t *)asm_pc = a_word_638;
                     asm_pc = asm_pc + 4;
                 } else if (asm_error == ASM_OK) {
                     asm_error = ASM_ERR_FULL;
@@ -14780,9 +14948,9 @@ exit_src_21:;
                     }
                     goto exit_load_store_160;
                 }
-                a_word_633 = 4164943872LL | (((uint64_t)(off_239 & 511)) << 12) | 719ULL;
+                a_word_639 = 4164943872LL | (((uint64_t)(off_239 & 511)) << 12) | 719ULL;
                 if (asm_pc < asm_limit) {
-                    *(uint32_t *)asm_pc = a_word_633;
+                    *(uint32_t *)asm_pc = a_word_639;
                     asm_pc = asm_pc + 4;
                 } else if (asm_error == ASM_OK) {
                     asm_error = ASM_ERR_FULL;
@@ -14791,12 +14959,12 @@ exit_src_21:;
             }
             goto exit_load_constant_27;
         }
-        if (v_115 == false_oop) {
+        if (v_116 == false_oop) {
             off_240 = (int64_t)&((jit_state *)0)->false_oop;
             if ((off_240 >= 0) && ((off_240 & 7) == 0) && ((off_240 >> 3) <= 4095)) {
-                a_word_634 = 4181721088LL | ((((uint64_t)(off_240 >> 3)) << 10) | 719ULL);
+                a_word_640 = 4181721088LL | ((((uint64_t)(off_240 >> 3)) << 10) | 719ULL);
                 if (asm_pc < asm_limit) {
-                    *(uint32_t *)asm_pc = a_word_634;
+                    *(uint32_t *)asm_pc = a_word_640;
                     asm_pc = asm_pc + 4;
                 } else if (asm_error == ASM_OK) {
                     asm_error = ASM_ERR_FULL;
@@ -14808,9 +14976,9 @@ exit_src_21:;
                     }
                     goto exit_load_store_161;
                 }
-                a_word_635 = 4164943872LL | (((uint64_t)(off_240 & 511)) << 12) | 719ULL;
+                a_word_641 = 4164943872LL | (((uint64_t)(off_240 & 511)) << 12) | 719ULL;
                 if (asm_pc < asm_limit) {
-                    *(uint32_t *)asm_pc = a_word_635;
+                    *(uint32_t *)asm_pc = a_word_641;
                     asm_pc = asm_pc + 4;
                 } else if (asm_error == ASM_OK) {
                     asm_error = ASM_ERR_FULL;
@@ -14819,30 +14987,30 @@ exit_src_21:;
             }
             goto exit_load_constant_27;
         }
-        if ((v_115 & 7) != 0) {
-            if ((v_115 >= 0) && (v_115 <= 0xFFFF)) {
-                if (!((v_115 >= 0) && (v_115 <= 0xFFFF))) {
+        if ((v_116 & 7) != 0) {
+            if ((v_116 >= 0) && (v_116 <= 0xFFFF)) {
+                if (!((v_116 >= 0) && (v_116 <= 0xFFFF))) {
                     if (asm_error == ASM_OK) {
                         asm_error = ASM_ERR_IMMEDIATE;
                     }
-                    goto exit_move_wide_81;
+                    goto exit_move_wide_82;
                 }
-                a_word_636 = 3531603968LL | (0ULL | (v_115 << 5) | 15);
+                a_word_642 = 3531603968LL | (0ULL | (v_116 << 5) | 15);
                 if (asm_pc < asm_limit) {
-                    *(uint32_t *)asm_pc = a_word_636;
+                    *(uint32_t *)asm_pc = a_word_642;
                     asm_pc = asm_pc + 4;
                 } else if (asm_error == ASM_OK) {
                     asm_error = ASM_ERR_FULL;
                 }
-            exit_move_wide_81:;
+            exit_move_wide_82:;
             } else {
-                asm_mov_imm(X15, v_115);
+                asm_mov_imm(X15, v_116);
             }
             goto exit_load_constant_27;
         }
-        a_label_27 = cg_pool_labels[opt_pool_index(v_115)];
+        a_label_27 = cg_pool_labels[opt_pool_index(v_116)];
         target_81 = asm_target_of(a_label_27);
-        a_word_637 = 0x58000000 | ((((uint64_t)({
+        a_word_643 = 0x58000000 | ((((uint64_t)({
     off_241 = ((int64_t)(target_81 - asm_pc)) >> 2;
     if (!((off_241 >= -262144) && (off_241 <= 262143))) {
         if (asm_error == ASM_OK) {
@@ -14855,7 +15023,7 @@ exit_src_21:;
 exit_offset_to_81:;
     r_offset_to_81; })) << 5) | 15);
         if (asm_pc < asm_limit) {
-            *(uint32_t *)asm_pc = a_word_637;
+            *(uint32_t *)asm_pc = a_word_643;
             asm_pc = asm_pc + 4;
         } else if (asm_error == ASM_OK) {
             asm_error = ASM_ERR_FULL;
@@ -14871,9 +15039,9 @@ exit_offset_to_81:;
     if (nd_60->slot >= 0) {
         off_242 = 8 * (int32_t)nd_60->slot;
         if ((off_242 >= 0) && ((off_242 & 7) == 0) && ((off_242 >> 3) <= 4095)) {
-            a_word_638 = 4181721088LL | ((((uint64_t)(off_242 >> 3)) << 10) | 655ULL);
+            a_word_644 = 4181721088LL | ((((uint64_t)(off_242 >> 3)) << 10) | 655ULL);
             if (asm_pc < asm_limit) {
-                *(uint32_t *)asm_pc = a_word_638;
+                *(uint32_t *)asm_pc = a_word_644;
                 asm_pc = asm_pc + 4;
             } else if (asm_error == ASM_OK) {
                 asm_error = ASM_ERR_FULL;
@@ -14885,9 +15053,9 @@ exit_offset_to_81:;
                 }
                 goto exit_load_store_162;
             }
-            a_word_639 = 4164943872LL | (((uint64_t)(off_242 & 511)) << 12) | 655ULL;
+            a_word_645 = 4164943872LL | (((uint64_t)(off_242 & 511)) << 12) | 655ULL;
             if (asm_pc < asm_limit) {
-                *(uint32_t *)asm_pc = a_word_639;
+                *(uint32_t *)asm_pc = a_word_645;
                 asm_pc = asm_pc + 4;
             } else if (asm_error == ASM_OK) {
                 asm_error = ASM_ERR_FULL;
@@ -14903,9 +15071,9 @@ exit_offset_to_81:;
     r_src_22 = X15;
 exit_src_22:;
     r_src_22; });
-            a_word_640 = 3506438144LL | (1024ULL | ((((uint64_t)(y_3 & 31)) << 5) | 17));
+            a_word_646 = 3506438144LL | (1024ULL | ((((uint64_t)(y_3 & 31)) << 5) | 17));
             if (asm_pc < asm_limit) {
-                *(uint32_t *)asm_pc = a_word_640;
+                *(uint32_t *)asm_pc = a_word_646;
                 asm_pc = asm_pc + 4;
             } else if (asm_error == ASM_OK) {
                 asm_error = ASM_ERR_FULL;
@@ -14917,18 +15085,18 @@ exit_src_22:;
         exit_add_sub_66:;
             if (is_add) {
                 if ((x_10 & REG_SP) != 0) {
-                    a_word_641 = 2871001088LL | (24576ULL | (1114112ULL | (((uint64_t)(x_10 & 31)) << 5) | 16));
+                    a_word_647 = 2871001088LL | (24576ULL | (1114112ULL | (((uint64_t)(x_10 & 31)) << 5) | 16));
                     if (asm_pc < asm_limit) {
-                        *(uint32_t *)asm_pc = a_word_641;
+                        *(uint32_t *)asm_pc = a_word_647;
                         asm_pc = asm_pc + 4;
                     } else if (asm_error == ASM_OK) {
                         asm_error = ASM_ERR_FULL;
                     }
                     goto exit_add_sub_67;
                 }
-                a_word_642 = 2868903936LL | (0ULL | (1114112ULL | (((uint64_t)(x_10 & 31)) << 5) | 16));
+                a_word_648 = 2868903936LL | (0ULL | (1114112ULL | (((uint64_t)(x_10 & 31)) << 5) | 16));
                 if (asm_pc < asm_limit) {
-                    *(uint32_t *)asm_pc = a_word_642;
+                    *(uint32_t *)asm_pc = a_word_648;
                     asm_pc = asm_pc + 4;
                 } else if (asm_error == ASM_OK) {
                     asm_error = ASM_ERR_FULL;
@@ -14936,18 +15104,18 @@ exit_src_22:;
             exit_add_sub_67:;
             } else {
                 if ((x_10 & REG_SP) != 0) {
-                    a_word_643 = 3944742912LL | (24576ULL | (1114112ULL | (((uint64_t)(x_10 & 31)) << 5) | 16));
+                    a_word_649 = 3944742912LL | (24576ULL | (1114112ULL | (((uint64_t)(x_10 & 31)) << 5) | 16));
                     if (asm_pc < asm_limit) {
-                        *(uint32_t *)asm_pc = a_word_643;
+                        *(uint32_t *)asm_pc = a_word_649;
                         asm_pc = asm_pc + 4;
                     } else if (asm_error == ASM_OK) {
                         asm_error = ASM_ERR_FULL;
                     }
                     goto exit_add_sub_68;
                 }
-                a_word_644 = 3942645760LL | (0ULL | (1114112ULL | (((uint64_t)(x_10 & 31)) << 5) | 16));
+                a_word_650 = 3942645760LL | (0ULL | (1114112ULL | (((uint64_t)(x_10 & 31)) << 5) | 16));
                 if (asm_pc < asm_limit) {
-                    *(uint32_t *)asm_pc = a_word_644;
+                    *(uint32_t *)asm_pc = a_word_650;
                     asm_pc = asm_pc + 4;
                 } else if (asm_error == ASM_OK) {
                     asm_error = ASM_ERR_FULL;
@@ -14956,7 +15124,7 @@ exit_src_22:;
             }
         }
         target_82 = asm_target_of(s_43);
-        a_word_645 = 0x54000000 | ((((uint64_t)({
+        a_word_651 = 0x54000000 | ((((uint64_t)({
     off_243 = ((int64_t)(target_82 - asm_pc)) >> 2;
     if (!((off_243 >= -262144) && (off_243 <= 262143))) {
         if (asm_error == ASM_OK) {
@@ -14969,7 +15137,7 @@ exit_src_22:;
 exit_offset_to_82:;
     r_offset_to_82; })) << 5) | 6);
         if (asm_pc < asm_limit) {
-            *(uint32_t *)asm_pc = a_word_645;
+            *(uint32_t *)asm_pc = a_word_651;
             asm_pc = asm_pc + 4;
         } else if (asm_error == ASM_OK) {
             asm_error = ASM_ERR_FULL;
@@ -14978,17 +15146,17 @@ exit_offset_to_82:;
         if ((nd_61->reg >= 0) && ((int32_t)nd_61->reg != X16)) {
             rd_41 = (int32_t)nd_61->reg;
             if ((rd_41 & REG_SP) != 0) {
-                a_word_646 = 0x11000000 | ((rd_41 & REG_W) == 0 ? 0x80000000LL : 0) | 0 | (0ULL | (512ULL | (rd_41 & 31)));
+                a_word_652 = 0x11000000 | ((rd_41 & REG_W) == 0 ? 0x80000000LL : 0) | 0 | (0ULL | (512ULL | (rd_41 & 31)));
                 if (asm_pc < asm_limit) {
-                    *(uint32_t *)asm_pc = a_word_646;
+                    *(uint32_t *)asm_pc = a_word_652;
                     asm_pc = asm_pc + 4;
                 } else if (asm_error == ASM_OK) {
                     asm_error = ASM_ERR_FULL;
                 }
                 goto exit_add_sub_69;
-                a_word_647 = 0x11400000 | ((rd_41 & REG_W) == 0 ? 0x80000000LL : 0) | 0 | (0ULL | (512ULL | (rd_41 & 31)));
+                a_word_653 = 0x11400000 | ((rd_41 & REG_W) == 0 ? 0x80000000LL : 0) | 0 | (0ULL | (512ULL | (rd_41 & 31)));
                 if (asm_pc < asm_limit) {
-                    *(uint32_t *)asm_pc = a_word_647;
+                    *(uint32_t *)asm_pc = a_word_653;
                     asm_pc = asm_pc + 4;
                 } else if (asm_error == ASM_OK) {
                     asm_error = ASM_ERR_FULL;
@@ -15006,9 +15174,9 @@ exit_offset_to_82:;
                     }
                     goto exit_logical_43;
                 }
-                a_word_648 = 0xA000000 | ((rd_41 & REG_W) == 0 ? 0x80000000LL : 0) | 0x20000000 | (0ULL | (1048576ULL | (((uint64_t)(rn_24 & 31)) << 5) | (rd_41 & 31)));
+                a_word_654 = 0xA000000 | ((rd_41 & REG_W) == 0 ? 0x80000000LL : 0) | 0x20000000 | (0ULL | (1048576ULL | (((uint64_t)(rn_24 & 31)) << 5) | (rd_41 & 31)));
                 if (asm_pc < asm_limit) {
-                    *(uint32_t *)asm_pc = a_word_648;
+                    *(uint32_t *)asm_pc = a_word_654;
                     asm_pc = asm_pc + 4;
                 } else if (asm_error == ASM_OK) {
                     asm_error = ASM_ERR_FULL;
@@ -15016,12 +15184,12 @@ exit_offset_to_82:;
             exit_logical_43:;
             }
         }
-        if (nd_61->slot >= 0) {
+        if ((nd_61->slot >= 0) && ((nd_61->flags & NF_LAZY) == 0)) {
             off_244 = 8 * (int32_t)nd_61->slot;
             if ((off_244 >= 0) && ((off_244 & 7) == 0) && ((off_244 >> 3) <= 4095)) {
-                a_word_649 = 4177526784LL | ((((uint64_t)(off_244 >> 3)) << 10) | 656ULL);
+                a_word_655 = 4177526784LL | ((((uint64_t)(off_244 >> 3)) << 10) | 656ULL);
                 if (asm_pc < asm_limit) {
-                    *(uint32_t *)asm_pc = a_word_649;
+                    *(uint32_t *)asm_pc = a_word_655;
                     asm_pc = asm_pc + 4;
                 } else if (asm_error == ASM_OK) {
                     asm_error = ASM_ERR_FULL;
@@ -15033,9 +15201,9 @@ exit_offset_to_82:;
                     }
                     goto exit_load_store_163;
                 }
-                a_word_650 = 4160749568LL | (((uint64_t)(off_244 & 511)) << 12) | 656ULL;
+                a_word_656 = 4160749568LL | (((uint64_t)(off_244 & 511)) << 12) | 656ULL;
                 if (asm_pc < asm_limit) {
-                    *(uint32_t *)asm_pc = a_word_650;
+                    *(uint32_t *)asm_pc = a_word_656;
                     asm_pc = asm_pc + 4;
                 } else if (asm_error == ASM_OK) {
                     asm_error = ASM_ERR_FULL;
@@ -15083,9 +15251,9 @@ exit_out_14:;
     }
     off_245 = (int64_t)&((jit_state *)0)->stress;
     if ((off_245 >= 0) && ((off_245 & 7) == 0) && ((off_245 >> 3) <= 4095)) {
-        a_word_651 = 4181721088LL | ((((uint64_t)(off_245 >> 3)) << 10) | 720ULL);
+        a_word_657 = 4181721088LL | ((((uint64_t)(off_245 >> 3)) << 10) | 720ULL);
         if (asm_pc < asm_limit) {
-            *(uint32_t *)asm_pc = a_word_651;
+            *(uint32_t *)asm_pc = a_word_657;
             asm_pc = asm_pc + 4;
         } else if (asm_error == ASM_OK) {
             asm_error = ASM_ERR_FULL;
@@ -15097,9 +15265,9 @@ exit_out_14:;
             }
             goto exit_load_store_164;
         }
-        a_word_652 = 4164943872LL | (((uint64_t)(off_245 & 511)) << 12) | 720ULL;
+        a_word_658 = 4164943872LL | (((uint64_t)(off_245 & 511)) << 12) | 720ULL;
         if (asm_pc < asm_limit) {
-            *(uint32_t *)asm_pc = a_word_652;
+            *(uint32_t *)asm_pc = a_word_658;
             asm_pc = asm_pc + 4;
         } else if (asm_error == ASM_OK) {
             asm_error = ASM_ERR_FULL;
@@ -15119,9 +15287,9 @@ exit_out_14:;
 exit_add_sub_70:;
     off_246 = (int64_t)&((jit_state *)0)->stress;
     if ((off_246 >= 0) && ((off_246 & 7) == 0) && ((off_246 >> 3) <= 4095)) {
-        a_word_653 = 4177526784LL | ((((uint64_t)(off_246 >> 3)) << 10) | 720ULL);
+        a_word_659 = 4177526784LL | ((((uint64_t)(off_246 >> 3)) << 10) | 720ULL);
         if (asm_pc < asm_limit) {
-            *(uint32_t *)asm_pc = a_word_653;
+            *(uint32_t *)asm_pc = a_word_659;
             asm_pc = asm_pc + 4;
         } else if (asm_error == ASM_OK) {
             asm_error = ASM_ERR_FULL;
@@ -15133,9 +15301,9 @@ exit_add_sub_70:;
             }
             goto exit_load_store_165;
         }
-        a_word_654 = 4160749568LL | (((uint64_t)(off_246 & 511)) << 12) | 720ULL;
+        a_word_660 = 4160749568LL | (((uint64_t)(off_246 & 511)) << 12) | 720ULL;
         if (asm_pc < asm_limit) {
-            *(uint32_t *)asm_pc = a_word_654;
+            *(uint32_t *)asm_pc = a_word_660;
             asm_pc = asm_pc + 4;
         } else if (asm_error == ASM_OK) {
             asm_error = ASM_ERR_FULL;
@@ -15143,7 +15311,7 @@ exit_add_sub_70:;
     exit_load_store_165:;
     }
     target_83 = asm_target_of(l_11);
-    a_word_655 = 0x54000000 | ((((uint64_t)({
+    a_word_661 = 0x54000000 | ((((uint64_t)({
     off_247 = ((int64_t)(target_83 - asm_pc)) >> 2;
     if (!((off_247 >= -262144) && (off_247 <= 262143))) {
         if (asm_error == ASM_OK) {
@@ -15156,7 +15324,7 @@ exit_add_sub_70:;
 exit_offset_to_83:;
     r_offset_to_83; })) << 5) | 0);
     if (asm_pc < asm_limit) {
-        *(uint32_t *)asm_pc = a_word_655;
+        *(uint32_t *)asm_pc = a_word_661;
         asm_pc = asm_pc + 4;
     } else if (asm_error == ASM_OK) {
         asm_error = ASM_ERR_FULL;
@@ -15164,60 +15332,60 @@ exit_offset_to_83:;
 exit_emit_stress_at_11:;
     r_deopt_label_for_11 = l_11;
     r_deopt_label_for_11; });
-        v_119 = nd_62->a;
+        v_120 = nd_62->a;
         x_11 = ({
-    nd_63 = opt_nodes + v_119;
+    nd_63 = opt_nodes + v_120;
     if ((int32_t)nd_63->op == O_CONST) {
-        v_120 = (uint64_t)nd_63->aux;
-        if ((v_120 & 1) != 0) {
-            if (((int64_t)v_120 >= -2147483648) && ((int64_t)v_120 <= 0x7FFFFFFF)) {
-                value_28 = (int64_t)v_120;
+        v_121 = (uint64_t)nd_63->aux;
+        if ((v_121 & 1) != 0) {
+            if (((int64_t)v_121 >= -2147483648) && ((int64_t)v_121 <= 0x7FFFFFFF)) {
+                value_28 = (int64_t)v_121;
                 if ((value_28 >= 0) && (value_28 <= 0xFFFF)) {
                     if (!((value_28 >= 0) && (value_28 <= 0xFFFF))) {
                         if (asm_error == ASM_OK) {
                             asm_error = ASM_ERR_IMMEDIATE;
                         }
-                        goto exit_move_wide_82;
+                        goto exit_move_wide_83;
                     }
-                    a_word_656 = 3531603968LL | (0ULL | (((uint64_t)value_28) << 5) | 14);
+                    a_word_662 = 3531603968LL | (0ULL | (((uint64_t)value_28) << 5) | 14);
                     if (asm_pc < asm_limit) {
-                        *(uint32_t *)asm_pc = a_word_656;
+                        *(uint32_t *)asm_pc = a_word_662;
                         asm_pc = asm_pc + 4;
                     } else if (asm_error == ASM_OK) {
                         asm_error = ASM_ERR_FULL;
                     }
-                exit_move_wide_82:;
+                exit_move_wide_83:;
                 } else {
                     asm_mov_imm(X14, (uint64_t)value_28);
                 }
                 goto exit_load_constant_28;
             }
-            if ((v_120 >= 0) && (v_120 <= 0xFFFF)) {
-                if (!((v_120 >= 0) && (v_120 <= 0xFFFF))) {
+            if ((v_121 >= 0) && (v_121 <= 0xFFFF)) {
+                if (!((v_121 >= 0) && (v_121 <= 0xFFFF))) {
                     if (asm_error == ASM_OK) {
                         asm_error = ASM_ERR_IMMEDIATE;
                     }
-                    goto exit_move_wide_83;
+                    goto exit_move_wide_84;
                 }
-                a_word_657 = 3531603968LL | (0ULL | (v_120 << 5) | 14);
+                a_word_663 = 3531603968LL | (0ULL | (v_121 << 5) | 14);
                 if (asm_pc < asm_limit) {
-                    *(uint32_t *)asm_pc = a_word_657;
+                    *(uint32_t *)asm_pc = a_word_663;
                     asm_pc = asm_pc + 4;
                 } else if (asm_error == ASM_OK) {
                     asm_error = ASM_ERR_FULL;
                 }
-            exit_move_wide_83:;
+            exit_move_wide_84:;
             } else {
-                asm_mov_imm(X14, v_120);
+                asm_mov_imm(X14, v_121);
             }
             goto exit_load_constant_28;
         }
-        if (v_120 == nil_oop) {
+        if (v_121 == nil_oop) {
             off_248 = (int64_t)&((jit_state *)0)->nil_oop;
             if ((off_248 >= 0) && ((off_248 & 7) == 0) && ((off_248 >> 3) <= 4095)) {
-                a_word_658 = 4181721088LL | ((((uint64_t)(off_248 >> 3)) << 10) | 718ULL);
+                a_word_664 = 4181721088LL | ((((uint64_t)(off_248 >> 3)) << 10) | 718ULL);
                 if (asm_pc < asm_limit) {
-                    *(uint32_t *)asm_pc = a_word_658;
+                    *(uint32_t *)asm_pc = a_word_664;
                     asm_pc = asm_pc + 4;
                 } else if (asm_error == ASM_OK) {
                     asm_error = ASM_ERR_FULL;
@@ -15229,9 +15397,9 @@ exit_emit_stress_at_11:;
                     }
                     goto exit_load_store_166;
                 }
-                a_word_659 = 4164943872LL | (((uint64_t)(off_248 & 511)) << 12) | 718ULL;
+                a_word_665 = 4164943872LL | (((uint64_t)(off_248 & 511)) << 12) | 718ULL;
                 if (asm_pc < asm_limit) {
-                    *(uint32_t *)asm_pc = a_word_659;
+                    *(uint32_t *)asm_pc = a_word_665;
                     asm_pc = asm_pc + 4;
                 } else if (asm_error == ASM_OK) {
                     asm_error = ASM_ERR_FULL;
@@ -15240,12 +15408,12 @@ exit_emit_stress_at_11:;
             }
             goto exit_load_constant_28;
         }
-        if (v_120 == true_oop) {
+        if (v_121 == true_oop) {
             off_249 = (int64_t)&((jit_state *)0)->true_oop;
             if ((off_249 >= 0) && ((off_249 & 7) == 0) && ((off_249 >> 3) <= 4095)) {
-                a_word_660 = 4181721088LL | ((((uint64_t)(off_249 >> 3)) << 10) | 718ULL);
+                a_word_666 = 4181721088LL | ((((uint64_t)(off_249 >> 3)) << 10) | 718ULL);
                 if (asm_pc < asm_limit) {
-                    *(uint32_t *)asm_pc = a_word_660;
+                    *(uint32_t *)asm_pc = a_word_666;
                     asm_pc = asm_pc + 4;
                 } else if (asm_error == ASM_OK) {
                     asm_error = ASM_ERR_FULL;
@@ -15257,9 +15425,9 @@ exit_emit_stress_at_11:;
                     }
                     goto exit_load_store_167;
                 }
-                a_word_661 = 4164943872LL | (((uint64_t)(off_249 & 511)) << 12) | 718ULL;
+                a_word_667 = 4164943872LL | (((uint64_t)(off_249 & 511)) << 12) | 718ULL;
                 if (asm_pc < asm_limit) {
-                    *(uint32_t *)asm_pc = a_word_661;
+                    *(uint32_t *)asm_pc = a_word_667;
                     asm_pc = asm_pc + 4;
                 } else if (asm_error == ASM_OK) {
                     asm_error = ASM_ERR_FULL;
@@ -15268,12 +15436,12 @@ exit_emit_stress_at_11:;
             }
             goto exit_load_constant_28;
         }
-        if (v_120 == false_oop) {
+        if (v_121 == false_oop) {
             off_250 = (int64_t)&((jit_state *)0)->false_oop;
             if ((off_250 >= 0) && ((off_250 & 7) == 0) && ((off_250 >> 3) <= 4095)) {
-                a_word_662 = 4181721088LL | ((((uint64_t)(off_250 >> 3)) << 10) | 718ULL);
+                a_word_668 = 4181721088LL | ((((uint64_t)(off_250 >> 3)) << 10) | 718ULL);
                 if (asm_pc < asm_limit) {
-                    *(uint32_t *)asm_pc = a_word_662;
+                    *(uint32_t *)asm_pc = a_word_668;
                     asm_pc = asm_pc + 4;
                 } else if (asm_error == ASM_OK) {
                     asm_error = ASM_ERR_FULL;
@@ -15285,9 +15453,9 @@ exit_emit_stress_at_11:;
                     }
                     goto exit_load_store_168;
                 }
-                a_word_663 = 4164943872LL | (((uint64_t)(off_250 & 511)) << 12) | 718ULL;
+                a_word_669 = 4164943872LL | (((uint64_t)(off_250 & 511)) << 12) | 718ULL;
                 if (asm_pc < asm_limit) {
-                    *(uint32_t *)asm_pc = a_word_663;
+                    *(uint32_t *)asm_pc = a_word_669;
                     asm_pc = asm_pc + 4;
                 } else if (asm_error == ASM_OK) {
                     asm_error = ASM_ERR_FULL;
@@ -15296,30 +15464,30 @@ exit_emit_stress_at_11:;
             }
             goto exit_load_constant_28;
         }
-        if ((v_120 & 7) != 0) {
-            if ((v_120 >= 0) && (v_120 <= 0xFFFF)) {
-                if (!((v_120 >= 0) && (v_120 <= 0xFFFF))) {
+        if ((v_121 & 7) != 0) {
+            if ((v_121 >= 0) && (v_121 <= 0xFFFF)) {
+                if (!((v_121 >= 0) && (v_121 <= 0xFFFF))) {
                     if (asm_error == ASM_OK) {
                         asm_error = ASM_ERR_IMMEDIATE;
                     }
-                    goto exit_move_wide_84;
+                    goto exit_move_wide_85;
                 }
-                a_word_664 = 3531603968LL | (0ULL | (v_120 << 5) | 14);
+                a_word_670 = 3531603968LL | (0ULL | (v_121 << 5) | 14);
                 if (asm_pc < asm_limit) {
-                    *(uint32_t *)asm_pc = a_word_664;
+                    *(uint32_t *)asm_pc = a_word_670;
                     asm_pc = asm_pc + 4;
                 } else if (asm_error == ASM_OK) {
                     asm_error = ASM_ERR_FULL;
                 }
-            exit_move_wide_84:;
+            exit_move_wide_85:;
             } else {
-                asm_mov_imm(X14, v_120);
+                asm_mov_imm(X14, v_121);
             }
             goto exit_load_constant_28;
         }
-        a_label_28 = cg_pool_labels[opt_pool_index(v_120)];
+        a_label_28 = cg_pool_labels[opt_pool_index(v_121)];
         target_84 = asm_target_of(a_label_28);
-        a_word_665 = 0x58000000 | ((((uint64_t)({
+        a_word_671 = 0x58000000 | ((((uint64_t)({
     off_251 = ((int64_t)(target_84 - asm_pc)) >> 2;
     if (!((off_251 >= -262144) && (off_251 <= 262143))) {
         if (asm_error == ASM_OK) {
@@ -15332,7 +15500,7 @@ exit_emit_stress_at_11:;
 exit_offset_to_84:;
     r_offset_to_84; })) << 5) | 14);
         if (asm_pc < asm_limit) {
-            *(uint32_t *)asm_pc = a_word_665;
+            *(uint32_t *)asm_pc = a_word_671;
             asm_pc = asm_pc + 4;
         } else if (asm_error == ASM_OK) {
             asm_error = ASM_ERR_FULL;
@@ -15348,9 +15516,9 @@ exit_offset_to_84:;
     if (nd_63->slot >= 0) {
         off_252 = 8 * (int32_t)nd_63->slot;
         if ((off_252 >= 0) && ((off_252 & 7) == 0) && ((off_252 >> 3) <= 4095)) {
-            a_word_666 = 4181721088LL | ((((uint64_t)(off_252 >> 3)) << 10) | 654ULL);
+            a_word_672 = 4181721088LL | ((((uint64_t)(off_252 >> 3)) << 10) | 654ULL);
             if (asm_pc < asm_limit) {
-                *(uint32_t *)asm_pc = a_word_666;
+                *(uint32_t *)asm_pc = a_word_672;
                 asm_pc = asm_pc + 4;
             } else if (asm_error == ASM_OK) {
                 asm_error = ASM_ERR_FULL;
@@ -15362,9 +15530,9 @@ exit_offset_to_84:;
                 }
                 goto exit_load_store_169;
             }
-            a_word_667 = 4164943872LL | (((uint64_t)(off_252 & 511)) << 12) | 654ULL;
+            a_word_673 = 4164943872LL | (((uint64_t)(off_252 & 511)) << 12) | 654ULL;
             if (asm_pc < asm_limit) {
-                *(uint32_t *)asm_pc = a_word_667;
+                *(uint32_t *)asm_pc = a_word_673;
                 asm_pc = asm_pc + 4;
             } else if (asm_error == ASM_OK) {
                 asm_error = ASM_ERR_FULL;
@@ -15380,60 +15548,60 @@ exit_offset_to_84:;
     r_src_23 = X14;
 exit_src_23:;
     r_src_23; });
-        v_121 = nd_62->b;
+        v_122 = nd_62->b;
         y_4 = ({
-    nd_64 = opt_nodes + v_121;
+    nd_64 = opt_nodes + v_122;
     if ((int32_t)nd_64->op == O_CONST) {
-        v_122 = (uint64_t)nd_64->aux;
-        if ((v_122 & 1) != 0) {
-            if (((int64_t)v_122 >= -2147483648) && ((int64_t)v_122 <= 0x7FFFFFFF)) {
-                value_29 = (int64_t)v_122;
+        v_123 = (uint64_t)nd_64->aux;
+        if ((v_123 & 1) != 0) {
+            if (((int64_t)v_123 >= -2147483648) && ((int64_t)v_123 <= 0x7FFFFFFF)) {
+                value_29 = (int64_t)v_123;
                 if ((value_29 >= 0) && (value_29 <= 0xFFFF)) {
                     if (!((value_29 >= 0) && (value_29 <= 0xFFFF))) {
                         if (asm_error == ASM_OK) {
                             asm_error = ASM_ERR_IMMEDIATE;
                         }
-                        goto exit_move_wide_85;
+                        goto exit_move_wide_86;
                     }
-                    a_word_668 = 3531603968LL | (0ULL | (((uint64_t)value_29) << 5) | 15);
+                    a_word_674 = 3531603968LL | (0ULL | (((uint64_t)value_29) << 5) | 15);
                     if (asm_pc < asm_limit) {
-                        *(uint32_t *)asm_pc = a_word_668;
+                        *(uint32_t *)asm_pc = a_word_674;
                         asm_pc = asm_pc + 4;
                     } else if (asm_error == ASM_OK) {
                         asm_error = ASM_ERR_FULL;
                     }
-                exit_move_wide_85:;
+                exit_move_wide_86:;
                 } else {
                     asm_mov_imm(X15, (uint64_t)value_29);
                 }
                 goto exit_load_constant_29;
             }
-            if ((v_122 >= 0) && (v_122 <= 0xFFFF)) {
-                if (!((v_122 >= 0) && (v_122 <= 0xFFFF))) {
+            if ((v_123 >= 0) && (v_123 <= 0xFFFF)) {
+                if (!((v_123 >= 0) && (v_123 <= 0xFFFF))) {
                     if (asm_error == ASM_OK) {
                         asm_error = ASM_ERR_IMMEDIATE;
                     }
-                    goto exit_move_wide_86;
+                    goto exit_move_wide_87;
                 }
-                a_word_669 = 3531603968LL | (0ULL | (v_122 << 5) | 15);
+                a_word_675 = 3531603968LL | (0ULL | (v_123 << 5) | 15);
                 if (asm_pc < asm_limit) {
-                    *(uint32_t *)asm_pc = a_word_669;
+                    *(uint32_t *)asm_pc = a_word_675;
                     asm_pc = asm_pc + 4;
                 } else if (asm_error == ASM_OK) {
                     asm_error = ASM_ERR_FULL;
                 }
-            exit_move_wide_86:;
+            exit_move_wide_87:;
             } else {
-                asm_mov_imm(X15, v_122);
+                asm_mov_imm(X15, v_123);
             }
             goto exit_load_constant_29;
         }
-        if (v_122 == nil_oop) {
+        if (v_123 == nil_oop) {
             off_253 = (int64_t)&((jit_state *)0)->nil_oop;
             if ((off_253 >= 0) && ((off_253 & 7) == 0) && ((off_253 >> 3) <= 4095)) {
-                a_word_670 = 4181721088LL | ((((uint64_t)(off_253 >> 3)) << 10) | 719ULL);
+                a_word_676 = 4181721088LL | ((((uint64_t)(off_253 >> 3)) << 10) | 719ULL);
                 if (asm_pc < asm_limit) {
-                    *(uint32_t *)asm_pc = a_word_670;
+                    *(uint32_t *)asm_pc = a_word_676;
                     asm_pc = asm_pc + 4;
                 } else if (asm_error == ASM_OK) {
                     asm_error = ASM_ERR_FULL;
@@ -15445,9 +15613,9 @@ exit_src_23:;
                     }
                     goto exit_load_store_170;
                 }
-                a_word_671 = 4164943872LL | (((uint64_t)(off_253 & 511)) << 12) | 719ULL;
+                a_word_677 = 4164943872LL | (((uint64_t)(off_253 & 511)) << 12) | 719ULL;
                 if (asm_pc < asm_limit) {
-                    *(uint32_t *)asm_pc = a_word_671;
+                    *(uint32_t *)asm_pc = a_word_677;
                     asm_pc = asm_pc + 4;
                 } else if (asm_error == ASM_OK) {
                     asm_error = ASM_ERR_FULL;
@@ -15456,12 +15624,12 @@ exit_src_23:;
             }
             goto exit_load_constant_29;
         }
-        if (v_122 == true_oop) {
+        if (v_123 == true_oop) {
             off_254 = (int64_t)&((jit_state *)0)->true_oop;
             if ((off_254 >= 0) && ((off_254 & 7) == 0) && ((off_254 >> 3) <= 4095)) {
-                a_word_672 = 4181721088LL | ((((uint64_t)(off_254 >> 3)) << 10) | 719ULL);
+                a_word_678 = 4181721088LL | ((((uint64_t)(off_254 >> 3)) << 10) | 719ULL);
                 if (asm_pc < asm_limit) {
-                    *(uint32_t *)asm_pc = a_word_672;
+                    *(uint32_t *)asm_pc = a_word_678;
                     asm_pc = asm_pc + 4;
                 } else if (asm_error == ASM_OK) {
                     asm_error = ASM_ERR_FULL;
@@ -15473,9 +15641,9 @@ exit_src_23:;
                     }
                     goto exit_load_store_171;
                 }
-                a_word_673 = 4164943872LL | (((uint64_t)(off_254 & 511)) << 12) | 719ULL;
+                a_word_679 = 4164943872LL | (((uint64_t)(off_254 & 511)) << 12) | 719ULL;
                 if (asm_pc < asm_limit) {
-                    *(uint32_t *)asm_pc = a_word_673;
+                    *(uint32_t *)asm_pc = a_word_679;
                     asm_pc = asm_pc + 4;
                 } else if (asm_error == ASM_OK) {
                     asm_error = ASM_ERR_FULL;
@@ -15484,12 +15652,12 @@ exit_src_23:;
             }
             goto exit_load_constant_29;
         }
-        if (v_122 == false_oop) {
+        if (v_123 == false_oop) {
             off_255 = (int64_t)&((jit_state *)0)->false_oop;
             if ((off_255 >= 0) && ((off_255 & 7) == 0) && ((off_255 >> 3) <= 4095)) {
-                a_word_674 = 4181721088LL | ((((uint64_t)(off_255 >> 3)) << 10) | 719ULL);
+                a_word_680 = 4181721088LL | ((((uint64_t)(off_255 >> 3)) << 10) | 719ULL);
                 if (asm_pc < asm_limit) {
-                    *(uint32_t *)asm_pc = a_word_674;
+                    *(uint32_t *)asm_pc = a_word_680;
                     asm_pc = asm_pc + 4;
                 } else if (asm_error == ASM_OK) {
                     asm_error = ASM_ERR_FULL;
@@ -15501,9 +15669,9 @@ exit_src_23:;
                     }
                     goto exit_load_store_172;
                 }
-                a_word_675 = 4164943872LL | (((uint64_t)(off_255 & 511)) << 12) | 719ULL;
+                a_word_681 = 4164943872LL | (((uint64_t)(off_255 & 511)) << 12) | 719ULL;
                 if (asm_pc < asm_limit) {
-                    *(uint32_t *)asm_pc = a_word_675;
+                    *(uint32_t *)asm_pc = a_word_681;
                     asm_pc = asm_pc + 4;
                 } else if (asm_error == ASM_OK) {
                     asm_error = ASM_ERR_FULL;
@@ -15512,30 +15680,30 @@ exit_src_23:;
             }
             goto exit_load_constant_29;
         }
-        if ((v_122 & 7) != 0) {
-            if ((v_122 >= 0) && (v_122 <= 0xFFFF)) {
-                if (!((v_122 >= 0) && (v_122 <= 0xFFFF))) {
+        if ((v_123 & 7) != 0) {
+            if ((v_123 >= 0) && (v_123 <= 0xFFFF)) {
+                if (!((v_123 >= 0) && (v_123 <= 0xFFFF))) {
                     if (asm_error == ASM_OK) {
                         asm_error = ASM_ERR_IMMEDIATE;
                     }
-                    goto exit_move_wide_87;
+                    goto exit_move_wide_88;
                 }
-                a_word_676 = 3531603968LL | (0ULL | (v_122 << 5) | 15);
+                a_word_682 = 3531603968LL | (0ULL | (v_123 << 5) | 15);
                 if (asm_pc < asm_limit) {
-                    *(uint32_t *)asm_pc = a_word_676;
+                    *(uint32_t *)asm_pc = a_word_682;
                     asm_pc = asm_pc + 4;
                 } else if (asm_error == ASM_OK) {
                     asm_error = ASM_ERR_FULL;
                 }
-            exit_move_wide_87:;
+            exit_move_wide_88:;
             } else {
-                asm_mov_imm(X15, v_122);
+                asm_mov_imm(X15, v_123);
             }
             goto exit_load_constant_29;
         }
-        a_label_29 = cg_pool_labels[opt_pool_index(v_122)];
+        a_label_29 = cg_pool_labels[opt_pool_index(v_123)];
         target_85 = asm_target_of(a_label_29);
-        a_word_677 = 0x58000000 | ((((uint64_t)({
+        a_word_683 = 0x58000000 | ((((uint64_t)({
     off_256 = ((int64_t)(target_85 - asm_pc)) >> 2;
     if (!((off_256 >= -262144) && (off_256 <= 262143))) {
         if (asm_error == ASM_OK) {
@@ -15548,7 +15716,7 @@ exit_src_23:;
 exit_offset_to_85:;
     r_offset_to_85; })) << 5) | 15);
         if (asm_pc < asm_limit) {
-            *(uint32_t *)asm_pc = a_word_677;
+            *(uint32_t *)asm_pc = a_word_683;
             asm_pc = asm_pc + 4;
         } else if (asm_error == ASM_OK) {
             asm_error = ASM_ERR_FULL;
@@ -15564,9 +15732,9 @@ exit_offset_to_85:;
     if (nd_64->slot >= 0) {
         off_257 = 8 * (int32_t)nd_64->slot;
         if ((off_257 >= 0) && ((off_257 & 7) == 0) && ((off_257 >> 3) <= 4095)) {
-            a_word_678 = 4181721088LL | ((((uint64_t)(off_257 >> 3)) << 10) | 655ULL);
+            a_word_684 = 4181721088LL | ((((uint64_t)(off_257 >> 3)) << 10) | 655ULL);
             if (asm_pc < asm_limit) {
-                *(uint32_t *)asm_pc = a_word_678;
+                *(uint32_t *)asm_pc = a_word_684;
                 asm_pc = asm_pc + 4;
             } else if (asm_error == ASM_OK) {
                 asm_error = ASM_ERR_FULL;
@@ -15578,9 +15746,9 @@ exit_offset_to_85:;
                 }
                 goto exit_load_store_173;
             }
-            a_word_679 = 4164943872LL | (((uint64_t)(off_257 & 511)) << 12) | 655ULL;
+            a_word_685 = 4164943872LL | (((uint64_t)(off_257 & 511)) << 12) | 655ULL;
             if (asm_pc < asm_limit) {
-                *(uint32_t *)asm_pc = a_word_679;
+                *(uint32_t *)asm_pc = a_word_685;
                 asm_pc = asm_pc + 4;
             } else if (asm_error == ASM_OK) {
                 asm_error = ASM_ERR_FULL;
@@ -15596,16 +15764,16 @@ exit_offset_to_85:;
     r_src_24 = X15;
 exit_src_24:;
     r_src_24; });
-        a_word_680 = 2470445056LL | (130048ULL | ((((uint64_t)(x_11 & 31)) << 5) | 16));
+        a_word_686 = 2470445056LL | (130048ULL | ((((uint64_t)(x_11 & 31)) << 5) | 16));
         if (asm_pc < asm_limit) {
-            *(uint32_t *)asm_pc = a_word_680;
+            *(uint32_t *)asm_pc = a_word_686;
             asm_pc = asm_pc + 4;
         } else if (asm_error == ASM_OK) {
             asm_error = ASM_ERR_FULL;
         }
-        a_word_681 = 3506438144LL | (1024ULL | ((((uint64_t)(y_4 & 31)) << 5) | 17));
+        a_word_687 = 3506438144LL | (1024ULL | ((((uint64_t)(y_4 & 31)) << 5) | 17));
         if (asm_pc < asm_limit) {
-            *(uint32_t *)asm_pc = a_word_681;
+            *(uint32_t *)asm_pc = a_word_687;
             asm_pc = asm_pc + 4;
         } else if (asm_error == ASM_OK) {
             asm_error = ASM_ERR_FULL;
@@ -15634,7 +15802,7 @@ exit_src_24:;
             asm_error = ASM_ERR_FULL;
         }
         target_86 = asm_target_of(s_44);
-        a_word_682 = 0x54000000 | ((((uint64_t)({
+        a_word_688 = 0x54000000 | ((((uint64_t)({
     off_258 = ((int64_t)(target_86 - asm_pc)) >> 2;
     if (!((off_258 >= -262144) && (off_258 <= 262143))) {
         if (asm_error == ASM_OK) {
@@ -15647,21 +15815,21 @@ exit_src_24:;
 exit_offset_to_86:;
     r_offset_to_86; })) << 5) | 1);
         if (asm_pc < asm_limit) {
-            *(uint32_t *)asm_pc = a_word_682;
+            *(uint32_t *)asm_pc = a_word_688;
             asm_pc = asm_pc + 4;
         } else if (asm_error == ASM_OK) {
             asm_error = ASM_ERR_FULL;
         }
-        enc_28 = asm_logical_immediate(1ULL, 64);
-        if (enc_28 < 0) {
+        enc_29 = asm_logical_immediate(1ULL, 64);
+        if (enc_29 < 0) {
             if (asm_error == ASM_OK) {
                 asm_error = ASM_ERR_IMMEDIATE;
             }
             goto exit_logical_44;
         }
-        a_word_683 = 2986344448LL | ((((uint64_t)enc_28) << 10) | 496ULL);
+        a_word_689 = 2986344448LL | ((((uint64_t)enc_29) << 10) | 496ULL);
         if (asm_pc < asm_limit) {
-            *(uint32_t *)asm_pc = a_word_683;
+            *(uint32_t *)asm_pc = a_word_689;
             asm_pc = asm_pc + 4;
         } else if (asm_error == ASM_OK) {
             asm_error = ASM_ERR_FULL;
@@ -15671,17 +15839,17 @@ exit_offset_to_86:;
         if ((nd_65->reg >= 0) && ((int32_t)nd_65->reg != X16)) {
             rd_42 = (int32_t)nd_65->reg;
             if ((rd_42 & REG_SP) != 0) {
-                a_word_684 = 0x11000000 | ((rd_42 & REG_W) == 0 ? 0x80000000LL : 0) | 0 | (0ULL | (512ULL | (rd_42 & 31)));
+                a_word_690 = 0x11000000 | ((rd_42 & REG_W) == 0 ? 0x80000000LL : 0) | 0 | (0ULL | (512ULL | (rd_42 & 31)));
                 if (asm_pc < asm_limit) {
-                    *(uint32_t *)asm_pc = a_word_684;
+                    *(uint32_t *)asm_pc = a_word_690;
                     asm_pc = asm_pc + 4;
                 } else if (asm_error == ASM_OK) {
                     asm_error = ASM_ERR_FULL;
                 }
                 goto exit_add_sub_72;
-                a_word_685 = 0x11400000 | ((rd_42 & REG_W) == 0 ? 0x80000000LL : 0) | 0 | (0ULL | (512ULL | (rd_42 & 31)));
+                a_word_691 = 0x11400000 | ((rd_42 & REG_W) == 0 ? 0x80000000LL : 0) | 0 | (0ULL | (512ULL | (rd_42 & 31)));
                 if (asm_pc < asm_limit) {
-                    *(uint32_t *)asm_pc = a_word_685;
+                    *(uint32_t *)asm_pc = a_word_691;
                     asm_pc = asm_pc + 4;
                 } else if (asm_error == ASM_OK) {
                     asm_error = ASM_ERR_FULL;
@@ -15699,9 +15867,9 @@ exit_offset_to_86:;
                     }
                     goto exit_logical_45;
                 }
-                a_word_686 = 0xA000000 | ((rd_42 & REG_W) == 0 ? 0x80000000LL : 0) | 0x20000000 | (0ULL | (1048576ULL | (((uint64_t)(rn_25 & 31)) << 5) | (rd_42 & 31)));
+                a_word_692 = 0xA000000 | ((rd_42 & REG_W) == 0 ? 0x80000000LL : 0) | 0x20000000 | (0ULL | (1048576ULL | (((uint64_t)(rn_25 & 31)) << 5) | (rd_42 & 31)));
                 if (asm_pc < asm_limit) {
-                    *(uint32_t *)asm_pc = a_word_686;
+                    *(uint32_t *)asm_pc = a_word_692;
                     asm_pc = asm_pc + 4;
                 } else if (asm_error == ASM_OK) {
                     asm_error = ASM_ERR_FULL;
@@ -15709,12 +15877,12 @@ exit_offset_to_86:;
             exit_logical_45:;
             }
         }
-        if (nd_65->slot >= 0) {
+        if ((nd_65->slot >= 0) && ((nd_65->flags & NF_LAZY) == 0)) {
             off_259 = 8 * (int32_t)nd_65->slot;
             if ((off_259 >= 0) && ((off_259 & 7) == 0) && ((off_259 >> 3) <= 4095)) {
-                a_word_687 = 4177526784LL | ((((uint64_t)(off_259 >> 3)) << 10) | 656ULL);
+                a_word_693 = 4177526784LL | ((((uint64_t)(off_259 >> 3)) << 10) | 656ULL);
                 if (asm_pc < asm_limit) {
-                    *(uint32_t *)asm_pc = a_word_687;
+                    *(uint32_t *)asm_pc = a_word_693;
                     asm_pc = asm_pc + 4;
                 } else if (asm_error == ASM_OK) {
                     asm_error = ASM_ERR_FULL;
@@ -15726,9 +15894,9 @@ exit_offset_to_86:;
                     }
                     goto exit_load_store_174;
                 }
-                a_word_688 = 4160749568LL | (((uint64_t)(off_259 & 511)) << 12) | 656ULL;
+                a_word_694 = 4160749568LL | (((uint64_t)(off_259 & 511)) << 12) | 656ULL;
                 if (asm_pc < asm_limit) {
-                    *(uint32_t *)asm_pc = a_word_688;
+                    *(uint32_t *)asm_pc = a_word_694;
                     asm_pc = asm_pc + 4;
                 } else if (asm_error == ASM_OK) {
                     asm_error = ASM_ERR_FULL;
@@ -15777,9 +15945,9 @@ exit_out_15:;
     }
     off_260 = (int64_t)&((jit_state *)0)->stress;
     if ((off_260 >= 0) && ((off_260 & 7) == 0) && ((off_260 >> 3) <= 4095)) {
-        a_word_689 = 4181721088LL | ((((uint64_t)(off_260 >> 3)) << 10) | 720ULL);
+        a_word_695 = 4181721088LL | ((((uint64_t)(off_260 >> 3)) << 10) | 720ULL);
         if (asm_pc < asm_limit) {
-            *(uint32_t *)asm_pc = a_word_689;
+            *(uint32_t *)asm_pc = a_word_695;
             asm_pc = asm_pc + 4;
         } else if (asm_error == ASM_OK) {
             asm_error = ASM_ERR_FULL;
@@ -15791,9 +15959,9 @@ exit_out_15:;
             }
             goto exit_load_store_175;
         }
-        a_word_690 = 4164943872LL | (((uint64_t)(off_260 & 511)) << 12) | 720ULL;
+        a_word_696 = 4164943872LL | (((uint64_t)(off_260 & 511)) << 12) | 720ULL;
         if (asm_pc < asm_limit) {
-            *(uint32_t *)asm_pc = a_word_690;
+            *(uint32_t *)asm_pc = a_word_696;
             asm_pc = asm_pc + 4;
         } else if (asm_error == ASM_OK) {
             asm_error = ASM_ERR_FULL;
@@ -15813,9 +15981,9 @@ exit_out_15:;
 exit_add_sub_73:;
     off_261 = (int64_t)&((jit_state *)0)->stress;
     if ((off_261 >= 0) && ((off_261 & 7) == 0) && ((off_261 >> 3) <= 4095)) {
-        a_word_691 = 4177526784LL | ((((uint64_t)(off_261 >> 3)) << 10) | 720ULL);
+        a_word_697 = 4177526784LL | ((((uint64_t)(off_261 >> 3)) << 10) | 720ULL);
         if (asm_pc < asm_limit) {
-            *(uint32_t *)asm_pc = a_word_691;
+            *(uint32_t *)asm_pc = a_word_697;
             asm_pc = asm_pc + 4;
         } else if (asm_error == ASM_OK) {
             asm_error = ASM_ERR_FULL;
@@ -15827,9 +15995,9 @@ exit_add_sub_73:;
             }
             goto exit_load_store_176;
         }
-        a_word_692 = 4160749568LL | (((uint64_t)(off_261 & 511)) << 12) | 720ULL;
+        a_word_698 = 4160749568LL | (((uint64_t)(off_261 & 511)) << 12) | 720ULL;
         if (asm_pc < asm_limit) {
-            *(uint32_t *)asm_pc = a_word_692;
+            *(uint32_t *)asm_pc = a_word_698;
             asm_pc = asm_pc + 4;
         } else if (asm_error == ASM_OK) {
             asm_error = ASM_ERR_FULL;
@@ -15837,7 +16005,7 @@ exit_add_sub_73:;
     exit_load_store_176:;
     }
     target_87 = asm_target_of(l_12);
-    a_word_693 = 0x54000000 | ((((uint64_t)({
+    a_word_699 = 0x54000000 | ((((uint64_t)({
     off_262 = ((int64_t)(target_87 - asm_pc)) >> 2;
     if (!((off_262 >= -262144) && (off_262 <= 262143))) {
         if (asm_error == ASM_OK) {
@@ -15850,7 +16018,7 @@ exit_add_sub_73:;
 exit_offset_to_87:;
     r_offset_to_87; })) << 5) | 0);
     if (asm_pc < asm_limit) {
-        *(uint32_t *)asm_pc = a_word_693;
+        *(uint32_t *)asm_pc = a_word_699;
         asm_pc = asm_pc + 4;
     } else if (asm_error == ASM_OK) {
         asm_error = ASM_ERR_FULL;
@@ -15858,60 +16026,60 @@ exit_offset_to_87:;
 exit_emit_stress_at_12:;
     r_deopt_label_for_12 = l_12;
     r_deopt_label_for_12; });
-        v_126 = nd_66->a;
+        v_127 = nd_66->a;
         rn_26 = ({
-    nd_67 = opt_nodes + v_126;
+    nd_67 = opt_nodes + v_127;
     if ((int32_t)nd_67->op == O_CONST) {
-        v_127 = (uint64_t)nd_67->aux;
-        if ((v_127 & 1) != 0) {
-            if (((int64_t)v_127 >= -2147483648) && ((int64_t)v_127 <= 0x7FFFFFFF)) {
-                value_30 = (int64_t)v_127;
+        v_128 = (uint64_t)nd_67->aux;
+        if ((v_128 & 1) != 0) {
+            if (((int64_t)v_128 >= -2147483648) && ((int64_t)v_128 <= 0x7FFFFFFF)) {
+                value_30 = (int64_t)v_128;
                 if ((value_30 >= 0) && (value_30 <= 0xFFFF)) {
                     if (!((value_30 >= 0) && (value_30 <= 0xFFFF))) {
                         if (asm_error == ASM_OK) {
                             asm_error = ASM_ERR_IMMEDIATE;
                         }
-                        goto exit_move_wide_88;
+                        goto exit_move_wide_89;
                     }
-                    a_word_694 = 3531603968LL | (0ULL | (((uint64_t)value_30) << 5) | 14);
+                    a_word_700 = 3531603968LL | (0ULL | (((uint64_t)value_30) << 5) | 14);
                     if (asm_pc < asm_limit) {
-                        *(uint32_t *)asm_pc = a_word_694;
+                        *(uint32_t *)asm_pc = a_word_700;
                         asm_pc = asm_pc + 4;
                     } else if (asm_error == ASM_OK) {
                         asm_error = ASM_ERR_FULL;
                     }
-                exit_move_wide_88:;
+                exit_move_wide_89:;
                 } else {
                     asm_mov_imm(X14, (uint64_t)value_30);
                 }
                 goto exit_load_constant_30;
             }
-            if ((v_127 >= 0) && (v_127 <= 0xFFFF)) {
-                if (!((v_127 >= 0) && (v_127 <= 0xFFFF))) {
+            if ((v_128 >= 0) && (v_128 <= 0xFFFF)) {
+                if (!((v_128 >= 0) && (v_128 <= 0xFFFF))) {
                     if (asm_error == ASM_OK) {
                         asm_error = ASM_ERR_IMMEDIATE;
                     }
-                    goto exit_move_wide_89;
+                    goto exit_move_wide_90;
                 }
-                a_word_695 = 3531603968LL | (0ULL | (v_127 << 5) | 14);
+                a_word_701 = 3531603968LL | (0ULL | (v_128 << 5) | 14);
                 if (asm_pc < asm_limit) {
-                    *(uint32_t *)asm_pc = a_word_695;
+                    *(uint32_t *)asm_pc = a_word_701;
                     asm_pc = asm_pc + 4;
                 } else if (asm_error == ASM_OK) {
                     asm_error = ASM_ERR_FULL;
                 }
-            exit_move_wide_89:;
+            exit_move_wide_90:;
             } else {
-                asm_mov_imm(X14, v_127);
+                asm_mov_imm(X14, v_128);
             }
             goto exit_load_constant_30;
         }
-        if (v_127 == nil_oop) {
+        if (v_128 == nil_oop) {
             off_263 = (int64_t)&((jit_state *)0)->nil_oop;
             if ((off_263 >= 0) && ((off_263 & 7) == 0) && ((off_263 >> 3) <= 4095)) {
-                a_word_696 = 4181721088LL | ((((uint64_t)(off_263 >> 3)) << 10) | 718ULL);
+                a_word_702 = 4181721088LL | ((((uint64_t)(off_263 >> 3)) << 10) | 718ULL);
                 if (asm_pc < asm_limit) {
-                    *(uint32_t *)asm_pc = a_word_696;
+                    *(uint32_t *)asm_pc = a_word_702;
                     asm_pc = asm_pc + 4;
                 } else if (asm_error == ASM_OK) {
                     asm_error = ASM_ERR_FULL;
@@ -15923,9 +16091,9 @@ exit_emit_stress_at_12:;
                     }
                     goto exit_load_store_177;
                 }
-                a_word_697 = 4164943872LL | (((uint64_t)(off_263 & 511)) << 12) | 718ULL;
+                a_word_703 = 4164943872LL | (((uint64_t)(off_263 & 511)) << 12) | 718ULL;
                 if (asm_pc < asm_limit) {
-                    *(uint32_t *)asm_pc = a_word_697;
+                    *(uint32_t *)asm_pc = a_word_703;
                     asm_pc = asm_pc + 4;
                 } else if (asm_error == ASM_OK) {
                     asm_error = ASM_ERR_FULL;
@@ -15934,12 +16102,12 @@ exit_emit_stress_at_12:;
             }
             goto exit_load_constant_30;
         }
-        if (v_127 == true_oop) {
+        if (v_128 == true_oop) {
             off_264 = (int64_t)&((jit_state *)0)->true_oop;
             if ((off_264 >= 0) && ((off_264 & 7) == 0) && ((off_264 >> 3) <= 4095)) {
-                a_word_698 = 4181721088LL | ((((uint64_t)(off_264 >> 3)) << 10) | 718ULL);
+                a_word_704 = 4181721088LL | ((((uint64_t)(off_264 >> 3)) << 10) | 718ULL);
                 if (asm_pc < asm_limit) {
-                    *(uint32_t *)asm_pc = a_word_698;
+                    *(uint32_t *)asm_pc = a_word_704;
                     asm_pc = asm_pc + 4;
                 } else if (asm_error == ASM_OK) {
                     asm_error = ASM_ERR_FULL;
@@ -15951,9 +16119,9 @@ exit_emit_stress_at_12:;
                     }
                     goto exit_load_store_178;
                 }
-                a_word_699 = 4164943872LL | (((uint64_t)(off_264 & 511)) << 12) | 718ULL;
+                a_word_705 = 4164943872LL | (((uint64_t)(off_264 & 511)) << 12) | 718ULL;
                 if (asm_pc < asm_limit) {
-                    *(uint32_t *)asm_pc = a_word_699;
+                    *(uint32_t *)asm_pc = a_word_705;
                     asm_pc = asm_pc + 4;
                 } else if (asm_error == ASM_OK) {
                     asm_error = ASM_ERR_FULL;
@@ -15962,12 +16130,12 @@ exit_emit_stress_at_12:;
             }
             goto exit_load_constant_30;
         }
-        if (v_127 == false_oop) {
+        if (v_128 == false_oop) {
             off_265 = (int64_t)&((jit_state *)0)->false_oop;
             if ((off_265 >= 0) && ((off_265 & 7) == 0) && ((off_265 >> 3) <= 4095)) {
-                a_word_700 = 4181721088LL | ((((uint64_t)(off_265 >> 3)) << 10) | 718ULL);
+                a_word_706 = 4181721088LL | ((((uint64_t)(off_265 >> 3)) << 10) | 718ULL);
                 if (asm_pc < asm_limit) {
-                    *(uint32_t *)asm_pc = a_word_700;
+                    *(uint32_t *)asm_pc = a_word_706;
                     asm_pc = asm_pc + 4;
                 } else if (asm_error == ASM_OK) {
                     asm_error = ASM_ERR_FULL;
@@ -15979,9 +16147,9 @@ exit_emit_stress_at_12:;
                     }
                     goto exit_load_store_179;
                 }
-                a_word_701 = 4164943872LL | (((uint64_t)(off_265 & 511)) << 12) | 718ULL;
+                a_word_707 = 4164943872LL | (((uint64_t)(off_265 & 511)) << 12) | 718ULL;
                 if (asm_pc < asm_limit) {
-                    *(uint32_t *)asm_pc = a_word_701;
+                    *(uint32_t *)asm_pc = a_word_707;
                     asm_pc = asm_pc + 4;
                 } else if (asm_error == ASM_OK) {
                     asm_error = ASM_ERR_FULL;
@@ -15990,30 +16158,30 @@ exit_emit_stress_at_12:;
             }
             goto exit_load_constant_30;
         }
-        if ((v_127 & 7) != 0) {
-            if ((v_127 >= 0) && (v_127 <= 0xFFFF)) {
-                if (!((v_127 >= 0) && (v_127 <= 0xFFFF))) {
+        if ((v_128 & 7) != 0) {
+            if ((v_128 >= 0) && (v_128 <= 0xFFFF)) {
+                if (!((v_128 >= 0) && (v_128 <= 0xFFFF))) {
                     if (asm_error == ASM_OK) {
                         asm_error = ASM_ERR_IMMEDIATE;
                     }
-                    goto exit_move_wide_90;
+                    goto exit_move_wide_91;
                 }
-                a_word_702 = 3531603968LL | (0ULL | (v_127 << 5) | 14);
+                a_word_708 = 3531603968LL | (0ULL | (v_128 << 5) | 14);
                 if (asm_pc < asm_limit) {
-                    *(uint32_t *)asm_pc = a_word_702;
+                    *(uint32_t *)asm_pc = a_word_708;
                     asm_pc = asm_pc + 4;
                 } else if (asm_error == ASM_OK) {
                     asm_error = ASM_ERR_FULL;
                 }
-            exit_move_wide_90:;
+            exit_move_wide_91:;
             } else {
-                asm_mov_imm(X14, v_127);
+                asm_mov_imm(X14, v_128);
             }
             goto exit_load_constant_30;
         }
-        a_label_30 = cg_pool_labels[opt_pool_index(v_127)];
+        a_label_30 = cg_pool_labels[opt_pool_index(v_128)];
         target_88 = asm_target_of(a_label_30);
-        a_word_703 = 0x58000000 | ((((uint64_t)({
+        a_word_709 = 0x58000000 | ((((uint64_t)({
     off_266 = ((int64_t)(target_88 - asm_pc)) >> 2;
     if (!((off_266 >= -262144) && (off_266 <= 262143))) {
         if (asm_error == ASM_OK) {
@@ -16026,7 +16194,7 @@ exit_emit_stress_at_12:;
 exit_offset_to_88:;
     r_offset_to_88; })) << 5) | 14);
         if (asm_pc < asm_limit) {
-            *(uint32_t *)asm_pc = a_word_703;
+            *(uint32_t *)asm_pc = a_word_709;
             asm_pc = asm_pc + 4;
         } else if (asm_error == ASM_OK) {
             asm_error = ASM_ERR_FULL;
@@ -16042,9 +16210,9 @@ exit_offset_to_88:;
     if (nd_67->slot >= 0) {
         off_267 = 8 * (int32_t)nd_67->slot;
         if ((off_267 >= 0) && ((off_267 & 7) == 0) && ((off_267 >> 3) <= 4095)) {
-            a_word_704 = 4181721088LL | ((((uint64_t)(off_267 >> 3)) << 10) | 654ULL);
+            a_word_710 = 4181721088LL | ((((uint64_t)(off_267 >> 3)) << 10) | 654ULL);
             if (asm_pc < asm_limit) {
-                *(uint32_t *)asm_pc = a_word_704;
+                *(uint32_t *)asm_pc = a_word_710;
                 asm_pc = asm_pc + 4;
             } else if (asm_error == ASM_OK) {
                 asm_error = ASM_ERR_FULL;
@@ -16056,9 +16224,9 @@ exit_offset_to_88:;
                 }
                 goto exit_load_store_180;
             }
-            a_word_705 = 4164943872LL | (((uint64_t)(off_267 & 511)) << 12) | 654ULL;
+            a_word_711 = 4164943872LL | (((uint64_t)(off_267 & 511)) << 12) | 654ULL;
             if (asm_pc < asm_limit) {
-                *(uint32_t *)asm_pc = a_word_705;
+                *(uint32_t *)asm_pc = a_word_711;
                 asm_pc = asm_pc + 4;
             } else if (asm_error == ASM_OK) {
                 asm_error = ASM_ERR_FULL;
@@ -16074,67 +16242,67 @@ exit_offset_to_88:;
     r_src_25 = X14;
 exit_src_25:;
     r_src_25; });
-        a_word_706 = 2470445056LL | (130048ULL | ((((uint64_t)(rn_26 & 31)) << 5) | 16));
+        a_word_712 = 2470445056LL | (130048ULL | ((((uint64_t)(rn_26 & 31)) << 5) | 16));
         if (asm_pc < asm_limit) {
-            *(uint32_t *)asm_pc = a_word_706;
+            *(uint32_t *)asm_pc = a_word_712;
             asm_pc = asm_pc + 4;
         } else if (asm_error == ASM_OK) {
             asm_error = ASM_ERR_FULL;
         }
-        v_128 = nd_66->b;
+        v_129 = nd_66->b;
         rn_27 = ({
-    nd_68 = opt_nodes + v_128;
+    nd_68 = opt_nodes + v_129;
     if ((int32_t)nd_68->op == O_CONST) {
-        v_129 = (uint64_t)nd_68->aux;
-        if ((v_129 & 1) != 0) {
-            if (((int64_t)v_129 >= -2147483648) && ((int64_t)v_129 <= 0x7FFFFFFF)) {
-                value_31 = (int64_t)v_129;
+        v_130 = (uint64_t)nd_68->aux;
+        if ((v_130 & 1) != 0) {
+            if (((int64_t)v_130 >= -2147483648) && ((int64_t)v_130 <= 0x7FFFFFFF)) {
+                value_31 = (int64_t)v_130;
                 if ((value_31 >= 0) && (value_31 <= 0xFFFF)) {
                     if (!((value_31 >= 0) && (value_31 <= 0xFFFF))) {
                         if (asm_error == ASM_OK) {
                             asm_error = ASM_ERR_IMMEDIATE;
                         }
-                        goto exit_move_wide_91;
+                        goto exit_move_wide_92;
                     }
-                    a_word_707 = 3531603968LL | (0ULL | (((uint64_t)value_31) << 5) | 15);
+                    a_word_713 = 3531603968LL | (0ULL | (((uint64_t)value_31) << 5) | 15);
                     if (asm_pc < asm_limit) {
-                        *(uint32_t *)asm_pc = a_word_707;
+                        *(uint32_t *)asm_pc = a_word_713;
                         asm_pc = asm_pc + 4;
                     } else if (asm_error == ASM_OK) {
                         asm_error = ASM_ERR_FULL;
                     }
-                exit_move_wide_91:;
+                exit_move_wide_92:;
                 } else {
                     asm_mov_imm(X15, (uint64_t)value_31);
                 }
                 goto exit_load_constant_31;
             }
-            if ((v_129 >= 0) && (v_129 <= 0xFFFF)) {
-                if (!((v_129 >= 0) && (v_129 <= 0xFFFF))) {
+            if ((v_130 >= 0) && (v_130 <= 0xFFFF)) {
+                if (!((v_130 >= 0) && (v_130 <= 0xFFFF))) {
                     if (asm_error == ASM_OK) {
                         asm_error = ASM_ERR_IMMEDIATE;
                     }
-                    goto exit_move_wide_92;
+                    goto exit_move_wide_93;
                 }
-                a_word_708 = 3531603968LL | (0ULL | (v_129 << 5) | 15);
+                a_word_714 = 3531603968LL | (0ULL | (v_130 << 5) | 15);
                 if (asm_pc < asm_limit) {
-                    *(uint32_t *)asm_pc = a_word_708;
+                    *(uint32_t *)asm_pc = a_word_714;
                     asm_pc = asm_pc + 4;
                 } else if (asm_error == ASM_OK) {
                     asm_error = ASM_ERR_FULL;
                 }
-            exit_move_wide_92:;
+            exit_move_wide_93:;
             } else {
-                asm_mov_imm(X15, v_129);
+                asm_mov_imm(X15, v_130);
             }
             goto exit_load_constant_31;
         }
-        if (v_129 == nil_oop) {
+        if (v_130 == nil_oop) {
             off_268 = (int64_t)&((jit_state *)0)->nil_oop;
             if ((off_268 >= 0) && ((off_268 & 7) == 0) && ((off_268 >> 3) <= 4095)) {
-                a_word_709 = 4181721088LL | ((((uint64_t)(off_268 >> 3)) << 10) | 719ULL);
+                a_word_715 = 4181721088LL | ((((uint64_t)(off_268 >> 3)) << 10) | 719ULL);
                 if (asm_pc < asm_limit) {
-                    *(uint32_t *)asm_pc = a_word_709;
+                    *(uint32_t *)asm_pc = a_word_715;
                     asm_pc = asm_pc + 4;
                 } else if (asm_error == ASM_OK) {
                     asm_error = ASM_ERR_FULL;
@@ -16146,9 +16314,9 @@ exit_src_25:;
                     }
                     goto exit_load_store_181;
                 }
-                a_word_710 = 4164943872LL | (((uint64_t)(off_268 & 511)) << 12) | 719ULL;
+                a_word_716 = 4164943872LL | (((uint64_t)(off_268 & 511)) << 12) | 719ULL;
                 if (asm_pc < asm_limit) {
-                    *(uint32_t *)asm_pc = a_word_710;
+                    *(uint32_t *)asm_pc = a_word_716;
                     asm_pc = asm_pc + 4;
                 } else if (asm_error == ASM_OK) {
                     asm_error = ASM_ERR_FULL;
@@ -16157,12 +16325,12 @@ exit_src_25:;
             }
             goto exit_load_constant_31;
         }
-        if (v_129 == true_oop) {
+        if (v_130 == true_oop) {
             off_269 = (int64_t)&((jit_state *)0)->true_oop;
             if ((off_269 >= 0) && ((off_269 & 7) == 0) && ((off_269 >> 3) <= 4095)) {
-                a_word_711 = 4181721088LL | ((((uint64_t)(off_269 >> 3)) << 10) | 719ULL);
+                a_word_717 = 4181721088LL | ((((uint64_t)(off_269 >> 3)) << 10) | 719ULL);
                 if (asm_pc < asm_limit) {
-                    *(uint32_t *)asm_pc = a_word_711;
+                    *(uint32_t *)asm_pc = a_word_717;
                     asm_pc = asm_pc + 4;
                 } else if (asm_error == ASM_OK) {
                     asm_error = ASM_ERR_FULL;
@@ -16174,9 +16342,9 @@ exit_src_25:;
                     }
                     goto exit_load_store_182;
                 }
-                a_word_712 = 4164943872LL | (((uint64_t)(off_269 & 511)) << 12) | 719ULL;
+                a_word_718 = 4164943872LL | (((uint64_t)(off_269 & 511)) << 12) | 719ULL;
                 if (asm_pc < asm_limit) {
-                    *(uint32_t *)asm_pc = a_word_712;
+                    *(uint32_t *)asm_pc = a_word_718;
                     asm_pc = asm_pc + 4;
                 } else if (asm_error == ASM_OK) {
                     asm_error = ASM_ERR_FULL;
@@ -16185,12 +16353,12 @@ exit_src_25:;
             }
             goto exit_load_constant_31;
         }
-        if (v_129 == false_oop) {
+        if (v_130 == false_oop) {
             off_270 = (int64_t)&((jit_state *)0)->false_oop;
             if ((off_270 >= 0) && ((off_270 & 7) == 0) && ((off_270 >> 3) <= 4095)) {
-                a_word_713 = 4181721088LL | ((((uint64_t)(off_270 >> 3)) << 10) | 719ULL);
+                a_word_719 = 4181721088LL | ((((uint64_t)(off_270 >> 3)) << 10) | 719ULL);
                 if (asm_pc < asm_limit) {
-                    *(uint32_t *)asm_pc = a_word_713;
+                    *(uint32_t *)asm_pc = a_word_719;
                     asm_pc = asm_pc + 4;
                 } else if (asm_error == ASM_OK) {
                     asm_error = ASM_ERR_FULL;
@@ -16202,9 +16370,9 @@ exit_src_25:;
                     }
                     goto exit_load_store_183;
                 }
-                a_word_714 = 4164943872LL | (((uint64_t)(off_270 & 511)) << 12) | 719ULL;
+                a_word_720 = 4164943872LL | (((uint64_t)(off_270 & 511)) << 12) | 719ULL;
                 if (asm_pc < asm_limit) {
-                    *(uint32_t *)asm_pc = a_word_714;
+                    *(uint32_t *)asm_pc = a_word_720;
                     asm_pc = asm_pc + 4;
                 } else if (asm_error == ASM_OK) {
                     asm_error = ASM_ERR_FULL;
@@ -16213,30 +16381,30 @@ exit_src_25:;
             }
             goto exit_load_constant_31;
         }
-        if ((v_129 & 7) != 0) {
-            if ((v_129 >= 0) && (v_129 <= 0xFFFF)) {
-                if (!((v_129 >= 0) && (v_129 <= 0xFFFF))) {
+        if ((v_130 & 7) != 0) {
+            if ((v_130 >= 0) && (v_130 <= 0xFFFF)) {
+                if (!((v_130 >= 0) && (v_130 <= 0xFFFF))) {
                     if (asm_error == ASM_OK) {
                         asm_error = ASM_ERR_IMMEDIATE;
                     }
-                    goto exit_move_wide_93;
+                    goto exit_move_wide_94;
                 }
-                a_word_715 = 3531603968LL | (0ULL | (v_129 << 5) | 15);
+                a_word_721 = 3531603968LL | (0ULL | (v_130 << 5) | 15);
                 if (asm_pc < asm_limit) {
-                    *(uint32_t *)asm_pc = a_word_715;
+                    *(uint32_t *)asm_pc = a_word_721;
                     asm_pc = asm_pc + 4;
                 } else if (asm_error == ASM_OK) {
                     asm_error = ASM_ERR_FULL;
                 }
-            exit_move_wide_93:;
+            exit_move_wide_94:;
             } else {
-                asm_mov_imm(X15, v_129);
+                asm_mov_imm(X15, v_130);
             }
             goto exit_load_constant_31;
         }
-        a_label_31 = cg_pool_labels[opt_pool_index(v_129)];
+        a_label_31 = cg_pool_labels[opt_pool_index(v_130)];
         target_89 = asm_target_of(a_label_31);
-        a_word_716 = 0x58000000 | ((((uint64_t)({
+        a_word_722 = 0x58000000 | ((((uint64_t)({
     off_271 = ((int64_t)(target_89 - asm_pc)) >> 2;
     if (!((off_271 >= -262144) && (off_271 <= 262143))) {
         if (asm_error == ASM_OK) {
@@ -16249,7 +16417,7 @@ exit_src_25:;
 exit_offset_to_89:;
     r_offset_to_89; })) << 5) | 15);
         if (asm_pc < asm_limit) {
-            *(uint32_t *)asm_pc = a_word_716;
+            *(uint32_t *)asm_pc = a_word_722;
             asm_pc = asm_pc + 4;
         } else if (asm_error == ASM_OK) {
             asm_error = ASM_ERR_FULL;
@@ -16265,9 +16433,9 @@ exit_offset_to_89:;
     if (nd_68->slot >= 0) {
         off_272 = 8 * (int32_t)nd_68->slot;
         if ((off_272 >= 0) && ((off_272 & 7) == 0) && ((off_272 >> 3) <= 4095)) {
-            a_word_717 = 4181721088LL | ((((uint64_t)(off_272 >> 3)) << 10) | 655ULL);
+            a_word_723 = 4181721088LL | ((((uint64_t)(off_272 >> 3)) << 10) | 655ULL);
             if (asm_pc < asm_limit) {
-                *(uint32_t *)asm_pc = a_word_717;
+                *(uint32_t *)asm_pc = a_word_723;
                 asm_pc = asm_pc + 4;
             } else if (asm_error == ASM_OK) {
                 asm_error = ASM_ERR_FULL;
@@ -16279,9 +16447,9 @@ exit_offset_to_89:;
                 }
                 goto exit_load_store_184;
             }
-            a_word_718 = 4164943872LL | (((uint64_t)(off_272 & 511)) << 12) | 655ULL;
+            a_word_724 = 4164943872LL | (((uint64_t)(off_272 & 511)) << 12) | 655ULL;
             if (asm_pc < asm_limit) {
-                *(uint32_t *)asm_pc = a_word_718;
+                *(uint32_t *)asm_pc = a_word_724;
                 asm_pc = asm_pc + 4;
             } else if (asm_error == ASM_OK) {
                 asm_error = ASM_ERR_FULL;
@@ -16297,9 +16465,9 @@ exit_offset_to_89:;
     r_src_26 = X15;
 exit_src_26:;
     r_src_26; });
-        a_word_719 = 2470445056LL | (130048ULL | ((((uint64_t)(rn_27 & 31)) << 5) | 17));
+        a_word_725 = 2470445056LL | (130048ULL | ((((uint64_t)(rn_27 & 31)) << 5) | 17));
         if (asm_pc < asm_limit) {
-            *(uint32_t *)asm_pc = a_word_719;
+            *(uint32_t *)asm_pc = a_word_725;
             asm_pc = asm_pc + 4;
         } else if (asm_error == ASM_OK) {
             asm_error = ASM_ERR_FULL;
@@ -16308,7 +16476,7 @@ exit_src_26:;
         if (op_14 == O_ISHIFT) {
             neg_59 = asm_new_label();
             target_90 = asm_target_of(neg_59);
-            a_word_720 = 3086483456ULL | ((((uint64_t)({
+            a_word_726 = 3086483456ULL | ((((uint64_t)({
     off_273 = ((int64_t)(target_90 - asm_pc)) >> 2;
     if (!((off_273 >= -8192) && (off_273 <= 8191))) {
         if (asm_error == ASM_OK) {
@@ -16321,7 +16489,7 @@ exit_src_26:;
 exit_offset_to_90:;
     r_offset_to_90; })) << 5) | 17);
             if (asm_pc < asm_limit) {
-                *(uint32_t *)asm_pc = a_word_720;
+                *(uint32_t *)asm_pc = a_word_726;
                 asm_pc = asm_pc + 4;
             } else if (asm_error == ASM_OK) {
                 asm_error = ASM_ERR_FULL;
@@ -16341,7 +16509,7 @@ exit_offset_to_90:;
             }
         exit_add_sub_74:;
             target_91 = asm_target_of(s_45);
-            a_word_721 = 0x54000000 | ((((uint64_t)({
+            a_word_727 = 0x54000000 | ((((uint64_t)({
     off_274 = ((int64_t)(target_91 - asm_pc)) >> 2;
     if (!((off_274 >= -262144) && (off_274 <= 262143))) {
         if (asm_error == ASM_OK) {
@@ -16354,7 +16522,7 @@ exit_offset_to_90:;
 exit_offset_to_91:;
     r_offset_to_91; })) << 5) | 8);
             if (asm_pc < asm_limit) {
-                *(uint32_t *)asm_pc = a_word_721;
+                *(uint32_t *)asm_pc = a_word_727;
                 asm_pc = asm_pc + 4;
             } else if (asm_error == ASM_OK) {
                 asm_error = ASM_ERR_FULL;
@@ -16378,7 +16546,7 @@ exit_offset_to_91:;
                 asm_error = ASM_ERR_FULL;
             }
             target_92 = asm_target_of(s_45);
-            a_word_722 = 0x54000000 | ((((uint64_t)({
+            a_word_728 = 0x54000000 | ((((uint64_t)({
     off_275 = ((int64_t)(target_92 - asm_pc)) >> 2;
     if (!((off_275 >= -262144) && (off_275 <= 262143))) {
         if (asm_error == ASM_OK) {
@@ -16391,13 +16559,13 @@ exit_offset_to_91:;
 exit_offset_to_92:;
     r_offset_to_92; })) << 5) | 1);
             if (asm_pc < asm_limit) {
-                *(uint32_t *)asm_pc = a_word_722;
+                *(uint32_t *)asm_pc = a_word_728;
                 asm_pc = asm_pc + 4;
             } else if (asm_error == ASM_OK) {
                 asm_error = ASM_ERR_FULL;
             }
             target_93 = asm_target_of(done_7);
-            a_word_723 = 0x14000000 | ({
+            a_word_729 = 0x14000000 | ({
     off_276 = ((int64_t)(target_93 - asm_pc)) >> 2;
     if (!((off_276 >= -33554432) && (off_276 <= 33554431))) {
         if (asm_error == ASM_OK) {
@@ -16410,7 +16578,7 @@ exit_offset_to_92:;
 exit_offset_to_93:;
     r_offset_to_93; });
             if (asm_pc < asm_limit) {
-                *(uint32_t *)asm_pc = a_word_723;
+                *(uint32_t *)asm_pc = a_word_729;
                 asm_pc = asm_pc + 4;
             } else if (asm_error == ASM_OK) {
                 asm_error = ASM_ERR_FULL;
@@ -16454,7 +16622,7 @@ exit_offset_to_93:;
                 asm_error = ASM_ERR_FULL;
             }
             target_94 = asm_target_of(s_45);
-            a_word_724 = 0x54000000 | ((((uint64_t)({
+            a_word_730 = 0x54000000 | ((((uint64_t)({
     off_277 = ((int64_t)(target_94 - asm_pc)) >> 2;
     if (!((off_277 >= -262144) && (off_277 <= 262143))) {
         if (asm_error == ASM_OK) {
@@ -16467,21 +16635,21 @@ exit_offset_to_93:;
 exit_offset_to_94:;
     r_offset_to_94; })) << 5) | 6);
             if (asm_pc < asm_limit) {
-                *(uint32_t *)asm_pc = a_word_724;
+                *(uint32_t *)asm_pc = a_word_730;
                 asm_pc = asm_pc + 4;
             } else if (asm_error == ASM_OK) {
                 asm_error = ASM_ERR_FULL;
             }
-            enc_29 = asm_logical_immediate(1ULL, 64);
-            if (enc_29 < 0) {
+            enc_30 = asm_logical_immediate(1ULL, 64);
+            if (enc_30 < 0) {
                 if (asm_error == ASM_OK) {
                     asm_error = ASM_ERR_IMMEDIATE;
                 }
                 goto exit_logical_46;
             }
-            a_word_725 = 2986344448LL | ((((uint64_t)enc_29) << 10) | 495ULL);
+            a_word_731 = 2986344448LL | ((((uint64_t)enc_30) << 10) | 495ULL);
             if (asm_pc < asm_limit) {
-                *(uint32_t *)asm_pc = a_word_725;
+                *(uint32_t *)asm_pc = a_word_731;
                 asm_pc = asm_pc + 4;
             } else if (asm_error == ASM_OK) {
                 asm_error = ASM_ERR_FULL;
@@ -16491,17 +16659,17 @@ exit_offset_to_94:;
             if ((nd_69->reg >= 0) && ((int32_t)nd_69->reg != X15)) {
                 rd_43 = (int32_t)nd_69->reg;
                 if ((rd_43 & REG_SP) != 0) {
-                    a_word_726 = 0x11000000 | ((rd_43 & REG_W) == 0 ? 0x80000000LL : 0) | 0 | (0ULL | (480ULL | (rd_43 & 31)));
+                    a_word_732 = 0x11000000 | ((rd_43 & REG_W) == 0 ? 0x80000000LL : 0) | 0 | (0ULL | (480ULL | (rd_43 & 31)));
                     if (asm_pc < asm_limit) {
-                        *(uint32_t *)asm_pc = a_word_726;
+                        *(uint32_t *)asm_pc = a_word_732;
                         asm_pc = asm_pc + 4;
                     } else if (asm_error == ASM_OK) {
                         asm_error = ASM_ERR_FULL;
                     }
                     goto exit_add_sub_75;
-                    a_word_727 = 0x11400000 | ((rd_43 & REG_W) == 0 ? 0x80000000LL : 0) | 0 | (0ULL | (480ULL | (rd_43 & 31)));
+                    a_word_733 = 0x11400000 | ((rd_43 & REG_W) == 0 ? 0x80000000LL : 0) | 0 | (0ULL | (480ULL | (rd_43 & 31)));
                     if (asm_pc < asm_limit) {
-                        *(uint32_t *)asm_pc = a_word_727;
+                        *(uint32_t *)asm_pc = a_word_733;
                         asm_pc = asm_pc + 4;
                     } else if (asm_error == ASM_OK) {
                         asm_error = ASM_ERR_FULL;
@@ -16519,9 +16687,9 @@ exit_offset_to_94:;
                         }
                         goto exit_logical_47;
                     }
-                    a_word_728 = 0xA000000 | ((rd_43 & REG_W) == 0 ? 0x80000000LL : 0) | 0x20000000 | (0ULL | (983040ULL | (((uint64_t)(rn_28 & 31)) << 5) | (rd_43 & 31)));
+                    a_word_734 = 0xA000000 | ((rd_43 & REG_W) == 0 ? 0x80000000LL : 0) | 0x20000000 | (0ULL | (983040ULL | (((uint64_t)(rn_28 & 31)) << 5) | (rd_43 & 31)));
                     if (asm_pc < asm_limit) {
-                        *(uint32_t *)asm_pc = a_word_728;
+                        *(uint32_t *)asm_pc = a_word_734;
                         asm_pc = asm_pc + 4;
                     } else if (asm_error == ASM_OK) {
                         asm_error = ASM_ERR_FULL;
@@ -16529,12 +16697,12 @@ exit_offset_to_94:;
                 exit_logical_47:;
                 }
             }
-            if (nd_69->slot >= 0) {
+            if ((nd_69->slot >= 0) && ((nd_69->flags & NF_LAZY) == 0)) {
                 off_278 = 8 * (int32_t)nd_69->slot;
                 if ((off_278 >= 0) && ((off_278 & 7) == 0) && ((off_278 >> 3) <= 4095)) {
-                    a_word_729 = 4177526784LL | ((((uint64_t)(off_278 >> 3)) << 10) | 655ULL);
+                    a_word_735 = 4177526784LL | ((((uint64_t)(off_278 >> 3)) << 10) | 655ULL);
                     if (asm_pc < asm_limit) {
-                        *(uint32_t *)asm_pc = a_word_729;
+                        *(uint32_t *)asm_pc = a_word_735;
                         asm_pc = asm_pc + 4;
                     } else if (asm_error == ASM_OK) {
                         asm_error = ASM_ERR_FULL;
@@ -16546,9 +16714,9 @@ exit_offset_to_94:;
                         }
                         goto exit_load_store_185;
                     }
-                    a_word_730 = 4160749568LL | (((uint64_t)(off_278 & 511)) << 12) | 655ULL;
+                    a_word_736 = 4160749568LL | (((uint64_t)(off_278 & 511)) << 12) | 655ULL;
                     if (asm_pc < asm_limit) {
-                        *(uint32_t *)asm_pc = a_word_730;
+                        *(uint32_t *)asm_pc = a_word_736;
                         asm_pc = asm_pc + 4;
                     } else if (asm_error == ASM_OK) {
                         asm_error = ASM_ERR_FULL;
@@ -16559,7 +16727,7 @@ exit_offset_to_94:;
             goto exit_emit_div_shift;
         }
         target_95 = asm_target_of(s_45);
-        a_word_731 = 3019898880LL | ((((uint64_t)({
+        a_word_737 = 3019898880LL | ((((uint64_t)({
     off_279 = ((int64_t)(target_95 - asm_pc)) >> 2;
     if (!((off_279 >= -262144) && (off_279 <= 262143))) {
         if (asm_error == ASM_OK) {
@@ -16572,7 +16740,7 @@ exit_offset_to_94:;
 exit_offset_to_95:;
     r_offset_to_95; })) << 5) | 17);
         if (asm_pc < asm_limit) {
-            *(uint32_t *)asm_pc = a_word_731;
+            *(uint32_t *)asm_pc = a_word_737;
             asm_pc = asm_pc + 4;
         } else if (asm_error == ASM_OK) {
             asm_error = ASM_ERR_FULL;
@@ -16591,7 +16759,7 @@ exit_offset_to_95:;
         }
         if (nd_66->aux == 1) {
             target_96 = asm_target_of(done_7);
-            a_word_732 = 0x14000000 | ({
+            a_word_738 = 0x14000000 | ({
     off_280 = ((int64_t)(target_96 - asm_pc)) >> 2;
     if (!((off_280 >= -33554432) && (off_280 <= 33554431))) {
         if (asm_error == ASM_OK) {
@@ -16604,7 +16772,7 @@ exit_offset_to_95:;
 exit_offset_to_96:;
     r_offset_to_96; });
             if (asm_pc < asm_limit) {
-                *(uint32_t *)asm_pc = a_word_732;
+                *(uint32_t *)asm_pc = a_word_738;
                 asm_pc = asm_pc + 4;
             } else if (asm_error == ASM_OK) {
                 asm_error = ASM_ERR_FULL;
@@ -16614,7 +16782,7 @@ exit_offset_to_96:;
             asm_note("floored: a remainder of the divisor's other sign moves", 0);
         }
         target_97 = asm_target_of(done_7);
-        a_word_733 = 3019898880LL | ((((uint64_t)({
+        a_word_739 = 3019898880LL | ((((uint64_t)({
     off_281 = ((int64_t)(target_97 - asm_pc)) >> 2;
     if (!((off_281 >= -262144) && (off_281 <= 262143))) {
         if (asm_error == ASM_OK) {
@@ -16627,7 +16795,7 @@ exit_offset_to_96:;
 exit_offset_to_97:;
     r_offset_to_97; })) << 5) | 14);
         if (asm_pc < asm_limit) {
-            *(uint32_t *)asm_pc = a_word_733;
+            *(uint32_t *)asm_pc = a_word_739;
             asm_pc = asm_pc + 4;
         } else if (asm_error == ASM_OK) {
             asm_error = ASM_ERR_FULL;
@@ -16639,7 +16807,7 @@ exit_offset_to_97:;
             asm_error = ASM_ERR_FULL;
         }
         target_98 = asm_target_of(done_7);
-        a_word_734 = 3069706240ULL | ((((uint64_t)({
+        a_word_740 = 3069706240ULL | ((((uint64_t)({
     off_282 = ((int64_t)(target_98 - asm_pc)) >> 2;
     if (!((off_282 >= -8192) && (off_282 <= 8191))) {
         if (asm_error == ASM_OK) {
@@ -16652,7 +16820,7 @@ exit_offset_to_97:;
 exit_offset_to_98:;
     r_offset_to_98; })) << 5) | 16);
         if (asm_pc < asm_limit) {
-            *(uint32_t *)asm_pc = a_word_734;
+            *(uint32_t *)asm_pc = a_word_740;
             asm_pc = asm_pc + 4;
         } else if (asm_error == ASM_OK) {
             asm_error = ASM_ERR_FULL;
@@ -16685,16 +16853,16 @@ exit_offset_to_98:;
             } else if (asm_error == ASM_OK) {
                 asm_error = ASM_ERR_FULL;
             }
-            enc_30 = asm_logical_immediate(1ULL, 64);
-            if (enc_30 < 0) {
+            enc_31 = asm_logical_immediate(1ULL, 64);
+            if (enc_31 < 0) {
                 if (asm_error == ASM_OK) {
                     asm_error = ASM_ERR_IMMEDIATE;
                 }
                 goto exit_logical_48;
             }
-            a_word_735 = 2986344448LL | ((((uint64_t)enc_30) << 10) | 463ULL);
+            a_word_741 = 2986344448LL | ((((uint64_t)enc_31) << 10) | 463ULL);
             if (asm_pc < asm_limit) {
-                *(uint32_t *)asm_pc = a_word_735;
+                *(uint32_t *)asm_pc = a_word_741;
                 asm_pc = asm_pc + 4;
             } else if (asm_error == ASM_OK) {
                 asm_error = ASM_ERR_FULL;
@@ -16708,7 +16876,7 @@ exit_offset_to_98:;
                 asm_error = ASM_ERR_FULL;
             }
             target_99 = asm_target_of(s_45);
-            a_word_736 = 0x54000000 | ((((uint64_t)({
+            a_word_742 = 0x54000000 | ((((uint64_t)({
     off_283 = ((int64_t)(target_99 - asm_pc)) >> 2;
     if (!((off_283 >= -262144) && (off_283 <= 262143))) {
         if (asm_error == ASM_OK) {
@@ -16721,21 +16889,21 @@ exit_offset_to_98:;
 exit_offset_to_99:;
     r_offset_to_99; })) << 5) | 6);
             if (asm_pc < asm_limit) {
-                *(uint32_t *)asm_pc = a_word_736;
+                *(uint32_t *)asm_pc = a_word_742;
                 asm_pc = asm_pc + 4;
             } else if (asm_error == ASM_OK) {
                 asm_error = ASM_ERR_FULL;
             }
-            enc_31 = asm_logical_immediate(1ULL, 64);
-            if (enc_31 < 0) {
+            enc_32 = asm_logical_immediate(1ULL, 64);
+            if (enc_32 < 0) {
                 if (asm_error == ASM_OK) {
                     asm_error = ASM_ERR_IMMEDIATE;
                 }
                 goto exit_logical_49;
             }
-            a_word_737 = 2986344448LL | ((((uint64_t)enc_31) << 10) | 495ULL);
+            a_word_743 = 2986344448LL | ((((uint64_t)enc_32) << 10) | 495ULL);
             if (asm_pc < asm_limit) {
-                *(uint32_t *)asm_pc = a_word_737;
+                *(uint32_t *)asm_pc = a_word_743;
                 asm_pc = asm_pc + 4;
             } else if (asm_error == ASM_OK) {
                 asm_error = ASM_ERR_FULL;
@@ -16746,17 +16914,17 @@ exit_offset_to_99:;
         if ((nd_70->reg >= 0) && ((int32_t)nd_70->reg != X15)) {
             rd_44 = (int32_t)nd_70->reg;
             if ((rd_44 & REG_SP) != 0) {
-                a_word_738 = 0x11000000 | ((rd_44 & REG_W) == 0 ? 0x80000000LL : 0) | 0 | (0ULL | (480ULL | (rd_44 & 31)));
+                a_word_744 = 0x11000000 | ((rd_44 & REG_W) == 0 ? 0x80000000LL : 0) | 0 | (0ULL | (480ULL | (rd_44 & 31)));
                 if (asm_pc < asm_limit) {
-                    *(uint32_t *)asm_pc = a_word_738;
+                    *(uint32_t *)asm_pc = a_word_744;
                     asm_pc = asm_pc + 4;
                 } else if (asm_error == ASM_OK) {
                     asm_error = ASM_ERR_FULL;
                 }
                 goto exit_add_sub_77;
-                a_word_739 = 0x11400000 | ((rd_44 & REG_W) == 0 ? 0x80000000LL : 0) | 0 | (0ULL | (480ULL | (rd_44 & 31)));
+                a_word_745 = 0x11400000 | ((rd_44 & REG_W) == 0 ? 0x80000000LL : 0) | 0 | (0ULL | (480ULL | (rd_44 & 31)));
                 if (asm_pc < asm_limit) {
-                    *(uint32_t *)asm_pc = a_word_739;
+                    *(uint32_t *)asm_pc = a_word_745;
                     asm_pc = asm_pc + 4;
                 } else if (asm_error == ASM_OK) {
                     asm_error = ASM_ERR_FULL;
@@ -16774,9 +16942,9 @@ exit_offset_to_99:;
                     }
                     goto exit_logical_50;
                 }
-                a_word_740 = 0xA000000 | ((rd_44 & REG_W) == 0 ? 0x80000000LL : 0) | 0x20000000 | (0ULL | (983040ULL | (((uint64_t)(rn_29 & 31)) << 5) | (rd_44 & 31)));
+                a_word_746 = 0xA000000 | ((rd_44 & REG_W) == 0 ? 0x80000000LL : 0) | 0x20000000 | (0ULL | (983040ULL | (((uint64_t)(rn_29 & 31)) << 5) | (rd_44 & 31)));
                 if (asm_pc < asm_limit) {
-                    *(uint32_t *)asm_pc = a_word_740;
+                    *(uint32_t *)asm_pc = a_word_746;
                     asm_pc = asm_pc + 4;
                 } else if (asm_error == ASM_OK) {
                     asm_error = ASM_ERR_FULL;
@@ -16784,12 +16952,12 @@ exit_offset_to_99:;
             exit_logical_50:;
             }
         }
-        if (nd_70->slot >= 0) {
+        if ((nd_70->slot >= 0) && ((nd_70->flags & NF_LAZY) == 0)) {
             off_284 = 8 * (int32_t)nd_70->slot;
             if ((off_284 >= 0) && ((off_284 & 7) == 0) && ((off_284 >> 3) <= 4095)) {
-                a_word_741 = 4177526784LL | ((((uint64_t)(off_284 >> 3)) << 10) | 655ULL);
+                a_word_747 = 4177526784LL | ((((uint64_t)(off_284 >> 3)) << 10) | 655ULL);
                 if (asm_pc < asm_limit) {
-                    *(uint32_t *)asm_pc = a_word_741;
+                    *(uint32_t *)asm_pc = a_word_747;
                     asm_pc = asm_pc + 4;
                 } else if (asm_error == ASM_OK) {
                     asm_error = ASM_ERR_FULL;
@@ -16801,9 +16969,9 @@ exit_offset_to_99:;
                     }
                     goto exit_load_store_186;
                 }
-                a_word_742 = 4160749568LL | (((uint64_t)(off_284 & 511)) << 12) | 655ULL;
+                a_word_748 = 4160749568LL | (((uint64_t)(off_284 & 511)) << 12) | 655ULL;
                 if (asm_pc < asm_limit) {
-                    *(uint32_t *)asm_pc = a_word_742;
+                    *(uint32_t *)asm_pc = a_word_748;
                     asm_pc = asm_pc + 4;
                 } else if (asm_error == ASM_OK) {
                     asm_error = ASM_ERR_FULL;
@@ -16815,60 +16983,60 @@ exit_offset_to_99:;
         return;
     }
     if (op == O_CHARCONV) {
-        v_134 = nd->a;
+        v_135 = nd->a;
         x = ({
-    nd_71 = opt_nodes + v_134;
+    nd_71 = opt_nodes + v_135;
     if ((int32_t)nd_71->op == O_CONST) {
-        v_135 = (uint64_t)nd_71->aux;
-        if ((v_135 & 1) != 0) {
-            if (((int64_t)v_135 >= -2147483648) && ((int64_t)v_135 <= 0x7FFFFFFF)) {
-                value_32 = (int64_t)v_135;
+        v_136 = (uint64_t)nd_71->aux;
+        if ((v_136 & 1) != 0) {
+            if (((int64_t)v_136 >= -2147483648) && ((int64_t)v_136 <= 0x7FFFFFFF)) {
+                value_32 = (int64_t)v_136;
                 if ((value_32 >= 0) && (value_32 <= 0xFFFF)) {
                     if (!((value_32 >= 0) && (value_32 <= 0xFFFF))) {
                         if (asm_error == ASM_OK) {
                             asm_error = ASM_ERR_IMMEDIATE;
                         }
-                        goto exit_move_wide_94;
+                        goto exit_move_wide_95;
                     }
-                    a_word_743 = 3531603968LL | (0ULL | (((uint64_t)value_32) << 5) | 14);
+                    a_word_749 = 3531603968LL | (0ULL | (((uint64_t)value_32) << 5) | 14);
                     if (asm_pc < asm_limit) {
-                        *(uint32_t *)asm_pc = a_word_743;
+                        *(uint32_t *)asm_pc = a_word_749;
                         asm_pc = asm_pc + 4;
                     } else if (asm_error == ASM_OK) {
                         asm_error = ASM_ERR_FULL;
                     }
-                exit_move_wide_94:;
+                exit_move_wide_95:;
                 } else {
                     asm_mov_imm(X14, (uint64_t)value_32);
                 }
                 goto exit_load_constant_32;
             }
-            if ((v_135 >= 0) && (v_135 <= 0xFFFF)) {
-                if (!((v_135 >= 0) && (v_135 <= 0xFFFF))) {
+            if ((v_136 >= 0) && (v_136 <= 0xFFFF)) {
+                if (!((v_136 >= 0) && (v_136 <= 0xFFFF))) {
                     if (asm_error == ASM_OK) {
                         asm_error = ASM_ERR_IMMEDIATE;
                     }
-                    goto exit_move_wide_95;
+                    goto exit_move_wide_96;
                 }
-                a_word_744 = 3531603968LL | (0ULL | (v_135 << 5) | 14);
+                a_word_750 = 3531603968LL | (0ULL | (v_136 << 5) | 14);
                 if (asm_pc < asm_limit) {
-                    *(uint32_t *)asm_pc = a_word_744;
+                    *(uint32_t *)asm_pc = a_word_750;
                     asm_pc = asm_pc + 4;
                 } else if (asm_error == ASM_OK) {
                     asm_error = ASM_ERR_FULL;
                 }
-            exit_move_wide_95:;
+            exit_move_wide_96:;
             } else {
-                asm_mov_imm(X14, v_135);
+                asm_mov_imm(X14, v_136);
             }
             goto exit_load_constant_32;
         }
-        if (v_135 == nil_oop) {
+        if (v_136 == nil_oop) {
             off_285 = (int64_t)&((jit_state *)0)->nil_oop;
             if ((off_285 >= 0) && ((off_285 & 7) == 0) && ((off_285 >> 3) <= 4095)) {
-                a_word_745 = 4181721088LL | ((((uint64_t)(off_285 >> 3)) << 10) | 718ULL);
+                a_word_751 = 4181721088LL | ((((uint64_t)(off_285 >> 3)) << 10) | 718ULL);
                 if (asm_pc < asm_limit) {
-                    *(uint32_t *)asm_pc = a_word_745;
+                    *(uint32_t *)asm_pc = a_word_751;
                     asm_pc = asm_pc + 4;
                 } else if (asm_error == ASM_OK) {
                     asm_error = ASM_ERR_FULL;
@@ -16880,9 +17048,9 @@ exit_offset_to_99:;
                     }
                     goto exit_load_store_187;
                 }
-                a_word_746 = 4164943872LL | (((uint64_t)(off_285 & 511)) << 12) | 718ULL;
+                a_word_752 = 4164943872LL | (((uint64_t)(off_285 & 511)) << 12) | 718ULL;
                 if (asm_pc < asm_limit) {
-                    *(uint32_t *)asm_pc = a_word_746;
+                    *(uint32_t *)asm_pc = a_word_752;
                     asm_pc = asm_pc + 4;
                 } else if (asm_error == ASM_OK) {
                     asm_error = ASM_ERR_FULL;
@@ -16891,12 +17059,12 @@ exit_offset_to_99:;
             }
             goto exit_load_constant_32;
         }
-        if (v_135 == true_oop) {
+        if (v_136 == true_oop) {
             off_286 = (int64_t)&((jit_state *)0)->true_oop;
             if ((off_286 >= 0) && ((off_286 & 7) == 0) && ((off_286 >> 3) <= 4095)) {
-                a_word_747 = 4181721088LL | ((((uint64_t)(off_286 >> 3)) << 10) | 718ULL);
+                a_word_753 = 4181721088LL | ((((uint64_t)(off_286 >> 3)) << 10) | 718ULL);
                 if (asm_pc < asm_limit) {
-                    *(uint32_t *)asm_pc = a_word_747;
+                    *(uint32_t *)asm_pc = a_word_753;
                     asm_pc = asm_pc + 4;
                 } else if (asm_error == ASM_OK) {
                     asm_error = ASM_ERR_FULL;
@@ -16908,9 +17076,9 @@ exit_offset_to_99:;
                     }
                     goto exit_load_store_188;
                 }
-                a_word_748 = 4164943872LL | (((uint64_t)(off_286 & 511)) << 12) | 718ULL;
+                a_word_754 = 4164943872LL | (((uint64_t)(off_286 & 511)) << 12) | 718ULL;
                 if (asm_pc < asm_limit) {
-                    *(uint32_t *)asm_pc = a_word_748;
+                    *(uint32_t *)asm_pc = a_word_754;
                     asm_pc = asm_pc + 4;
                 } else if (asm_error == ASM_OK) {
                     asm_error = ASM_ERR_FULL;
@@ -16919,12 +17087,12 @@ exit_offset_to_99:;
             }
             goto exit_load_constant_32;
         }
-        if (v_135 == false_oop) {
+        if (v_136 == false_oop) {
             off_287 = (int64_t)&((jit_state *)0)->false_oop;
             if ((off_287 >= 0) && ((off_287 & 7) == 0) && ((off_287 >> 3) <= 4095)) {
-                a_word_749 = 4181721088LL | ((((uint64_t)(off_287 >> 3)) << 10) | 718ULL);
+                a_word_755 = 4181721088LL | ((((uint64_t)(off_287 >> 3)) << 10) | 718ULL);
                 if (asm_pc < asm_limit) {
-                    *(uint32_t *)asm_pc = a_word_749;
+                    *(uint32_t *)asm_pc = a_word_755;
                     asm_pc = asm_pc + 4;
                 } else if (asm_error == ASM_OK) {
                     asm_error = ASM_ERR_FULL;
@@ -16936,9 +17104,9 @@ exit_offset_to_99:;
                     }
                     goto exit_load_store_189;
                 }
-                a_word_750 = 4164943872LL | (((uint64_t)(off_287 & 511)) << 12) | 718ULL;
+                a_word_756 = 4164943872LL | (((uint64_t)(off_287 & 511)) << 12) | 718ULL;
                 if (asm_pc < asm_limit) {
-                    *(uint32_t *)asm_pc = a_word_750;
+                    *(uint32_t *)asm_pc = a_word_756;
                     asm_pc = asm_pc + 4;
                 } else if (asm_error == ASM_OK) {
                     asm_error = ASM_ERR_FULL;
@@ -16947,30 +17115,30 @@ exit_offset_to_99:;
             }
             goto exit_load_constant_32;
         }
-        if ((v_135 & 7) != 0) {
-            if ((v_135 >= 0) && (v_135 <= 0xFFFF)) {
-                if (!((v_135 >= 0) && (v_135 <= 0xFFFF))) {
+        if ((v_136 & 7) != 0) {
+            if ((v_136 >= 0) && (v_136 <= 0xFFFF)) {
+                if (!((v_136 >= 0) && (v_136 <= 0xFFFF))) {
                     if (asm_error == ASM_OK) {
                         asm_error = ASM_ERR_IMMEDIATE;
                     }
-                    goto exit_move_wide_96;
+                    goto exit_move_wide_97;
                 }
-                a_word_751 = 3531603968LL | (0ULL | (v_135 << 5) | 14);
+                a_word_757 = 3531603968LL | (0ULL | (v_136 << 5) | 14);
                 if (asm_pc < asm_limit) {
-                    *(uint32_t *)asm_pc = a_word_751;
+                    *(uint32_t *)asm_pc = a_word_757;
                     asm_pc = asm_pc + 4;
                 } else if (asm_error == ASM_OK) {
                     asm_error = ASM_ERR_FULL;
                 }
-            exit_move_wide_96:;
+            exit_move_wide_97:;
             } else {
-                asm_mov_imm(X14, v_135);
+                asm_mov_imm(X14, v_136);
             }
             goto exit_load_constant_32;
         }
-        a_label_32 = cg_pool_labels[opt_pool_index(v_135)];
+        a_label_32 = cg_pool_labels[opt_pool_index(v_136)];
         target_100 = asm_target_of(a_label_32);
-        a_word_752 = 0x58000000 | ((((uint64_t)({
+        a_word_758 = 0x58000000 | ((((uint64_t)({
     off_288 = ((int64_t)(target_100 - asm_pc)) >> 2;
     if (!((off_288 >= -262144) && (off_288 <= 262143))) {
         if (asm_error == ASM_OK) {
@@ -16983,7 +17151,7 @@ exit_offset_to_99:;
 exit_offset_to_100:;
     r_offset_to_100; })) << 5) | 14);
         if (asm_pc < asm_limit) {
-            *(uint32_t *)asm_pc = a_word_752;
+            *(uint32_t *)asm_pc = a_word_758;
             asm_pc = asm_pc + 4;
         } else if (asm_error == ASM_OK) {
             asm_error = ASM_ERR_FULL;
@@ -16999,9 +17167,9 @@ exit_offset_to_100:;
     if (nd_71->slot >= 0) {
         off_289 = 8 * (int32_t)nd_71->slot;
         if ((off_289 >= 0) && ((off_289 & 7) == 0) && ((off_289 >> 3) <= 4095)) {
-            a_word_753 = 4181721088LL | ((((uint64_t)(off_289 >> 3)) << 10) | 654ULL);
+            a_word_759 = 4181721088LL | ((((uint64_t)(off_289 >> 3)) << 10) | 654ULL);
             if (asm_pc < asm_limit) {
-                *(uint32_t *)asm_pc = a_word_753;
+                *(uint32_t *)asm_pc = a_word_759;
                 asm_pc = asm_pc + 4;
             } else if (asm_error == ASM_OK) {
                 asm_error = ASM_ERR_FULL;
@@ -17013,9 +17181,9 @@ exit_offset_to_100:;
                 }
                 goto exit_load_store_190;
             }
-            a_word_754 = 4164943872LL | (((uint64_t)(off_289 & 511)) << 12) | 654ULL;
+            a_word_760 = 4164943872LL | (((uint64_t)(off_289 & 511)) << 12) | 654ULL;
             if (asm_pc < asm_limit) {
-                *(uint32_t *)asm_pc = a_word_754;
+                *(uint32_t *)asm_pc = a_word_760;
                 asm_pc = asm_pc + 4;
             } else if (asm_error == ASM_OK) {
                 asm_error = ASM_ERR_FULL;
@@ -17045,31 +17213,31 @@ exit_dst_10:;
                 asm_note("a Character's value", 0);
             }
             s_46 = ((r & REG_W) == 0 ? 64 : 32) - 1;
-            sf_29 = (r & REG_W) == 0 ? 0x80000000LL : 0;
+            sf_30 = (r & REG_W) == 0 ? 0x80000000LL : 0;
             if (!((2 <= ((r & REG_W) == 0 ? 64 : 32) - 1) && ((s_46 >= 0) && (s_46 <= ((r & REG_W) == 0 ? 64 : 32) - 1)))) {
                 if (asm_error == ASM_OK) {
                     asm_error = ASM_ERR_IMMEDIATE;
                 }
                 goto exit_bitfield_2;
             }
-            a_word_755 = 0x13000000 | sf_29 | ((sf_29 >> 9) | 0x40000000) | (131072ULL | (((uint64_t)s_46) << 10) | ((((uint64_t)(x & 31)) << 5) | (r & 31)));
+            a_word_761 = 0x13000000 | sf_30 | ((sf_30 >> 9) | 0x40000000) | (131072ULL | (((uint64_t)s_46) << 10) | ((((uint64_t)(x & 31)) << 5) | (r & 31)));
             if (asm_pc < asm_limit) {
-                *(uint32_t *)asm_pc = a_word_755;
+                *(uint32_t *)asm_pc = a_word_761;
                 asm_pc = asm_pc + 4;
             } else if (asm_error == ASM_OK) {
                 asm_error = ASM_ERR_FULL;
             }
         exit_bitfield_2:;
-            enc_32 = asm_logical_immediate(1ULL, (r & REG_W) == 0 ? 64 : 32);
-            if (enc_32 < 0) {
+            enc_33 = asm_logical_immediate(1ULL, (r & REG_W) == 0 ? 64 : 32);
+            if (enc_33 < 0) {
                 if (asm_error == ASM_OK) {
                     asm_error = ASM_ERR_IMMEDIATE;
                 }
                 goto exit_logical_51;
             }
-            a_word_756 = 0x12000000 | ((r & REG_W) == 0 ? 0x80000000LL : 0) | 0x20000000 | ((((uint64_t)enc_32) << 10) | ((((uint64_t)(r & 31)) << 5) | (r & 31)));
+            a_word_762 = 0x12000000 | ((r & REG_W) == 0 ? 0x80000000LL : 0) | 0x20000000 | ((((uint64_t)enc_33) << 10) | ((((uint64_t)(r & 31)) << 5) | (r & 31)));
             if (asm_pc < asm_limit) {
-                *(uint32_t *)asm_pc = a_word_756;
+                *(uint32_t *)asm_pc = a_word_762;
                 asm_pc = asm_pc + 4;
             } else if (asm_error == ASM_OK) {
                 asm_error = ASM_ERR_FULL;
@@ -17079,17 +17247,17 @@ exit_dst_10:;
             if ((nd_73->reg >= 0) && ((int32_t)nd_73->reg != r)) {
                 rd_45 = (int32_t)nd_73->reg;
                 if (((rd_45 & REG_SP) != 0) || ((r & REG_SP) != 0)) {
-                    a_word_757 = 0x11000000 | ((rd_45 & REG_W) == 0 ? 0x80000000LL : 0) | 0 | (0ULL | ((((uint64_t)(r & 31)) << 5) | (rd_45 & 31)));
+                    a_word_763 = 0x11000000 | ((rd_45 & REG_W) == 0 ? 0x80000000LL : 0) | 0 | (0ULL | ((((uint64_t)(r & 31)) << 5) | (rd_45 & 31)));
                     if (asm_pc < asm_limit) {
-                        *(uint32_t *)asm_pc = a_word_757;
+                        *(uint32_t *)asm_pc = a_word_763;
                         asm_pc = asm_pc + 4;
                     } else if (asm_error == ASM_OK) {
                         asm_error = ASM_ERR_FULL;
                     }
                     goto exit_add_sub_78;
-                    a_word_758 = 0x11400000 | ((rd_45 & REG_W) == 0 ? 0x80000000LL : 0) | 0 | (0ULL | ((((uint64_t)(r & 31)) << 5) | (rd_45 & 31)));
+                    a_word_764 = 0x11400000 | ((rd_45 & REG_W) == 0 ? 0x80000000LL : 0) | 0 | (0ULL | ((((uint64_t)(r & 31)) << 5) | (rd_45 & 31)));
                     if (asm_pc < asm_limit) {
-                        *(uint32_t *)asm_pc = a_word_758;
+                        *(uint32_t *)asm_pc = a_word_764;
                         asm_pc = asm_pc + 4;
                     } else if (asm_error == ASM_OK) {
                         asm_error = ASM_ERR_FULL;
@@ -17107,9 +17275,9 @@ exit_dst_10:;
                         }
                         goto exit_logical_52;
                     }
-                    a_word_759 = 0xA000000 | ((rd_45 & REG_W) == 0 ? 0x80000000LL : 0) | 0x20000000 | (0ULL | ((((uint64_t)(r & 31)) << 16) | (((uint64_t)(rn_30 & 31)) << 5) | (rd_45 & 31)));
+                    a_word_765 = 0xA000000 | ((rd_45 & REG_W) == 0 ? 0x80000000LL : 0) | 0x20000000 | (0ULL | ((((uint64_t)(r & 31)) << 16) | (((uint64_t)(rn_30 & 31)) << 5) | (rd_45 & 31)));
                     if (asm_pc < asm_limit) {
-                        *(uint32_t *)asm_pc = a_word_759;
+                        *(uint32_t *)asm_pc = a_word_765;
                         asm_pc = asm_pc + 4;
                     } else if (asm_error == ASM_OK) {
                         asm_error = ASM_ERR_FULL;
@@ -17117,29 +17285,29 @@ exit_dst_10:;
                 exit_logical_52:;
                 }
             }
-            if (nd_73->slot >= 0) {
+            if ((nd_73->slot >= 0) && ((nd_73->flags & NF_LAZY) == 0)) {
                 off_290 = 8 * (int32_t)nd_73->slot;
-                bits_70 = (r & REG_D) != 0 ? 0xC4000000LL : (r & REG_W) == 0 ? 0xC0000000LL : 0x80000000LL;
+                bits_71 = (r & REG_D) != 0 ? 0xC4000000LL : (r & REG_W) == 0 ? 0xC0000000LL : 0x80000000LL;
                 s_47 = (r & REG_W) == 0 ? 3 : 2;
                 if ((off_290 >= 0) && ((off_290 & ((1LL << s_47) - 1)) == 0) && ((off_290 >> s_47) <= 4095)) {
-                    a_word_760 = 0x39000000 | bits_70 | ((((uint64_t)(off_290 >> s_47)) << 10) | (640ULL | (r & 31)));
+                    a_word_766 = 0x39000000 | bits_71 | ((((uint64_t)(off_290 >> s_47)) << 10) | (640ULL | (r & 31)));
                     if (asm_pc < asm_limit) {
-                        *(uint32_t *)asm_pc = a_word_760;
+                        *(uint32_t *)asm_pc = a_word_766;
                         asm_pc = asm_pc + 4;
                     } else if (asm_error == ASM_OK) {
                         asm_error = ASM_ERR_FULL;
                     }
                 } else {
-                    bits_71 = 0x38000000 | bits_70;
+                    bits_72 = 0x38000000 | bits_71;
                     if (!((off_290 >= -256) && (off_290 <= 255))) {
                         if (asm_error == ASM_OK) {
                             asm_error = ASM_ERR_IMMEDIATE;
                         }
                         goto exit_load_store_191;
                     }
-                    a_word_761 = bits_71 | (((uint64_t)(off_290 & 511)) << 12) | (640ULL | (r & 31));
+                    a_word_767 = bits_72 | (((uint64_t)(off_290 & 511)) << 12) | (640ULL | (r & 31));
                     if (asm_pc < asm_limit) {
-                        *(uint32_t *)asm_pc = a_word_761;
+                        *(uint32_t *)asm_pc = a_word_767;
                         asm_pc = asm_pc + 4;
                     } else if (asm_error == ASM_OK) {
                         asm_error = ASM_ERR_FULL;
@@ -17185,9 +17353,9 @@ exit_out_16:;
     }
     off_291 = (int64_t)&((jit_state *)0)->stress;
     if ((off_291 >= 0) && ((off_291 & 7) == 0) && ((off_291 >> 3) <= 4095)) {
-        a_word_762 = 4181721088LL | ((((uint64_t)(off_291 >> 3)) << 10) | 720ULL);
+        a_word_768 = 4181721088LL | ((((uint64_t)(off_291 >> 3)) << 10) | 720ULL);
         if (asm_pc < asm_limit) {
-            *(uint32_t *)asm_pc = a_word_762;
+            *(uint32_t *)asm_pc = a_word_768;
             asm_pc = asm_pc + 4;
         } else if (asm_error == ASM_OK) {
             asm_error = ASM_ERR_FULL;
@@ -17199,9 +17367,9 @@ exit_out_16:;
             }
             goto exit_load_store_192;
         }
-        a_word_763 = 4164943872LL | (((uint64_t)(off_291 & 511)) << 12) | 720ULL;
+        a_word_769 = 4164943872LL | (((uint64_t)(off_291 & 511)) << 12) | 720ULL;
         if (asm_pc < asm_limit) {
-            *(uint32_t *)asm_pc = a_word_763;
+            *(uint32_t *)asm_pc = a_word_769;
             asm_pc = asm_pc + 4;
         } else if (asm_error == ASM_OK) {
             asm_error = ASM_ERR_FULL;
@@ -17221,9 +17389,9 @@ exit_out_16:;
 exit_add_sub_79:;
     off_292 = (int64_t)&((jit_state *)0)->stress;
     if ((off_292 >= 0) && ((off_292 & 7) == 0) && ((off_292 >> 3) <= 4095)) {
-        a_word_764 = 4177526784LL | ((((uint64_t)(off_292 >> 3)) << 10) | 720ULL);
+        a_word_770 = 4177526784LL | ((((uint64_t)(off_292 >> 3)) << 10) | 720ULL);
         if (asm_pc < asm_limit) {
-            *(uint32_t *)asm_pc = a_word_764;
+            *(uint32_t *)asm_pc = a_word_770;
             asm_pc = asm_pc + 4;
         } else if (asm_error == ASM_OK) {
             asm_error = ASM_ERR_FULL;
@@ -17235,9 +17403,9 @@ exit_add_sub_79:;
             }
             goto exit_load_store_193;
         }
-        a_word_765 = 4160749568LL | (((uint64_t)(off_292 & 511)) << 12) | 720ULL;
+        a_word_771 = 4160749568LL | (((uint64_t)(off_292 & 511)) << 12) | 720ULL;
         if (asm_pc < asm_limit) {
-            *(uint32_t *)asm_pc = a_word_765;
+            *(uint32_t *)asm_pc = a_word_771;
             asm_pc = asm_pc + 4;
         } else if (asm_error == ASM_OK) {
             asm_error = ASM_ERR_FULL;
@@ -17245,7 +17413,7 @@ exit_add_sub_79:;
     exit_load_store_193:;
     }
     target_101 = asm_target_of(l_13);
-    a_word_766 = 0x54000000 | ((((uint64_t)({
+    a_word_772 = 0x54000000 | ((((uint64_t)({
     off_293 = ((int64_t)(target_101 - asm_pc)) >> 2;
     if (!((off_293 >= -262144) && (off_293 <= 262143))) {
         if (asm_error == ASM_OK) {
@@ -17258,7 +17426,7 @@ exit_add_sub_79:;
 exit_offset_to_101:;
     r_offset_to_101; })) << 5) | 0);
     if (asm_pc < asm_limit) {
-        *(uint32_t *)asm_pc = a_word_766;
+        *(uint32_t *)asm_pc = a_word_772;
         asm_pc = asm_pc + 4;
     } else if (asm_error == ASM_OK) {
         asm_error = ASM_ERR_FULL;
@@ -17269,9 +17437,9 @@ exit_emit_stress_at_13:;
         if (asm_noting) {
             asm_note("the Character of a SmallInteger (0 to 16r3FFFFFFF)", 0);
         }
-        a_word_767 = 2470445056LL | (130048ULL | ((((uint64_t)(x & 31)) << 5) | 16));
+        a_word_773 = 2470445056LL | (130048ULL | ((((uint64_t)(x & 31)) << 5) | 16));
         if (asm_pc < asm_limit) {
-            *(uint32_t *)asm_pc = a_word_767;
+            *(uint32_t *)asm_pc = a_word_773;
             asm_pc = asm_pc + 4;
         } else if (asm_error == ASM_OK) {
             asm_error = ASM_ERR_FULL;
@@ -17284,7 +17452,7 @@ exit_emit_stress_at_13:;
             asm_error = ASM_ERR_FULL;
         }
         target_102 = asm_target_of(s);
-        a_word_768 = 0x54000000 | ((((uint64_t)({
+        a_word_774 = 0x54000000 | ((((uint64_t)({
     off_294 = ((int64_t)(target_102 - asm_pc)) >> 2;
     if (!((off_294 >= -262144) && (off_294 <= 262143))) {
         if (asm_error == ASM_OK) {
@@ -17297,7 +17465,7 @@ exit_emit_stress_at_13:;
 exit_offset_to_102:;
     r_offset_to_102; })) << 5) | 8);
         if (asm_pc < asm_limit) {
-            *(uint32_t *)asm_pc = a_word_768;
+            *(uint32_t *)asm_pc = a_word_774;
             asm_pc = asm_pc + 4;
         } else if (asm_error == ASM_OK) {
             asm_error = ASM_ERR_FULL;
@@ -17308,34 +17476,34 @@ exit_offset_to_102:;
             }
             goto exit_lsl_2;
         }
-        r_8 = (((r & REG_W) == 0 ? 64 : 32) - 3) & (((r & REG_W) == 0 ? 64 : 32) - 1);
+        r_9 = (((r & REG_W) == 0 ? 64 : 32) - 3) & (((r & REG_W) == 0 ? 64 : 32) - 1);
         s_48 = ((r & REG_W) == 0 ? 64 : 32) - 1 - 3;
-        sf_31 = (r & REG_W) == 0 ? 0x80000000LL : 0;
-        if (!((r_8 >= 0) && (r_8 <= ((r & REG_W) == 0 ? 64 : 32) - 1) && ((s_48 >= 0) && (s_48 <= ((r & REG_W) == 0 ? 64 : 32) - 1)))) {
+        sf_32 = (r & REG_W) == 0 ? 0x80000000LL : 0;
+        if (!((r_9 >= 0) && (r_9 <= ((r & REG_W) == 0 ? 64 : 32) - 1) && ((s_48 >= 0) && (s_48 <= ((r & REG_W) == 0 ? 64 : 32) - 1)))) {
             if (asm_error == ASM_OK) {
                 asm_error = ASM_ERR_IMMEDIATE;
             }
             goto exit_bitfield_3;
         }
-        a_word_769 = 0x13000000 | sf_31 | ((sf_31 >> 9) | 0x40000000) | ((((uint64_t)r_8) << 16) | (((uint64_t)s_48) << 10) | (512ULL | (r & 31)));
+        a_word_775 = 0x13000000 | sf_32 | ((sf_32 >> 9) | 0x40000000) | ((((uint64_t)r_9) << 16) | (((uint64_t)s_48) << 10) | (512ULL | (r & 31)));
         if (asm_pc < asm_limit) {
-            *(uint32_t *)asm_pc = a_word_769;
+            *(uint32_t *)asm_pc = a_word_775;
             asm_pc = asm_pc + 4;
         } else if (asm_error == ASM_OK) {
             asm_error = ASM_ERR_FULL;
         }
     exit_bitfield_3:;
     exit_lsl_2:;
-        enc_33 = asm_logical_immediate(2ULL, (r & REG_W) == 0 ? 64 : 32);
-        if (enc_33 < 0) {
+        enc_34 = asm_logical_immediate(2ULL, (r & REG_W) == 0 ? 64 : 32);
+        if (enc_34 < 0) {
             if (asm_error == ASM_OK) {
                 asm_error = ASM_ERR_IMMEDIATE;
             }
             goto exit_logical_53;
         }
-        a_word_770 = 0x12000000 | ((r & REG_W) == 0 ? 0x80000000LL : 0) | 0x20000000 | ((((uint64_t)enc_33) << 10) | ((((uint64_t)(r & 31)) << 5) | (r & 31)));
+        a_word_776 = 0x12000000 | ((r & REG_W) == 0 ? 0x80000000LL : 0) | 0x20000000 | ((((uint64_t)enc_34) << 10) | ((((uint64_t)(r & 31)) << 5) | (r & 31)));
         if (asm_pc < asm_limit) {
-            *(uint32_t *)asm_pc = a_word_770;
+            *(uint32_t *)asm_pc = a_word_776;
             asm_pc = asm_pc + 4;
         } else if (asm_error == ASM_OK) {
             asm_error = ASM_ERR_FULL;
@@ -17345,17 +17513,17 @@ exit_offset_to_102:;
         if ((nd_74->reg >= 0) && ((int32_t)nd_74->reg != r)) {
             rd_46 = (int32_t)nd_74->reg;
             if (((rd_46 & REG_SP) != 0) || ((r & REG_SP) != 0)) {
-                a_word_771 = 0x11000000 | ((rd_46 & REG_W) == 0 ? 0x80000000LL : 0) | 0 | (0ULL | ((((uint64_t)(r & 31)) << 5) | (rd_46 & 31)));
+                a_word_777 = 0x11000000 | ((rd_46 & REG_W) == 0 ? 0x80000000LL : 0) | 0 | (0ULL | ((((uint64_t)(r & 31)) << 5) | (rd_46 & 31)));
                 if (asm_pc < asm_limit) {
-                    *(uint32_t *)asm_pc = a_word_771;
+                    *(uint32_t *)asm_pc = a_word_777;
                     asm_pc = asm_pc + 4;
                 } else if (asm_error == ASM_OK) {
                     asm_error = ASM_ERR_FULL;
                 }
                 goto exit_add_sub_80;
-                a_word_772 = 0x11400000 | ((rd_46 & REG_W) == 0 ? 0x80000000LL : 0) | 0 | (0ULL | ((((uint64_t)(r & 31)) << 5) | (rd_46 & 31)));
+                a_word_778 = 0x11400000 | ((rd_46 & REG_W) == 0 ? 0x80000000LL : 0) | 0 | (0ULL | ((((uint64_t)(r & 31)) << 5) | (rd_46 & 31)));
                 if (asm_pc < asm_limit) {
-                    *(uint32_t *)asm_pc = a_word_772;
+                    *(uint32_t *)asm_pc = a_word_778;
                     asm_pc = asm_pc + 4;
                 } else if (asm_error == ASM_OK) {
                     asm_error = ASM_ERR_FULL;
@@ -17373,9 +17541,9 @@ exit_offset_to_102:;
                     }
                     goto exit_logical_54;
                 }
-                a_word_773 = 0xA000000 | ((rd_46 & REG_W) == 0 ? 0x80000000LL : 0) | 0x20000000 | (0ULL | ((((uint64_t)(r & 31)) << 16) | (((uint64_t)(rn_31 & 31)) << 5) | (rd_46 & 31)));
+                a_word_779 = 0xA000000 | ((rd_46 & REG_W) == 0 ? 0x80000000LL : 0) | 0x20000000 | (0ULL | ((((uint64_t)(r & 31)) << 16) | (((uint64_t)(rn_31 & 31)) << 5) | (rd_46 & 31)));
                 if (asm_pc < asm_limit) {
-                    *(uint32_t *)asm_pc = a_word_773;
+                    *(uint32_t *)asm_pc = a_word_779;
                     asm_pc = asm_pc + 4;
                 } else if (asm_error == ASM_OK) {
                     asm_error = ASM_ERR_FULL;
@@ -17383,29 +17551,29 @@ exit_offset_to_102:;
             exit_logical_54:;
             }
         }
-        if (nd_74->slot >= 0) {
+        if ((nd_74->slot >= 0) && ((nd_74->flags & NF_LAZY) == 0)) {
             off_295 = 8 * (int32_t)nd_74->slot;
-            bits_72 = (r & REG_D) != 0 ? 0xC4000000LL : (r & REG_W) == 0 ? 0xC0000000LL : 0x80000000LL;
+            bits_73 = (r & REG_D) != 0 ? 0xC4000000LL : (r & REG_W) == 0 ? 0xC0000000LL : 0x80000000LL;
             s_49 = (r & REG_W) == 0 ? 3 : 2;
             if ((off_295 >= 0) && ((off_295 & ((1LL << s_49) - 1)) == 0) && ((off_295 >> s_49) <= 4095)) {
-                a_word_774 = 0x39000000 | bits_72 | ((((uint64_t)(off_295 >> s_49)) << 10) | (640ULL | (r & 31)));
+                a_word_780 = 0x39000000 | bits_73 | ((((uint64_t)(off_295 >> s_49)) << 10) | (640ULL | (r & 31)));
                 if (asm_pc < asm_limit) {
-                    *(uint32_t *)asm_pc = a_word_774;
+                    *(uint32_t *)asm_pc = a_word_780;
                     asm_pc = asm_pc + 4;
                 } else if (asm_error == ASM_OK) {
                     asm_error = ASM_ERR_FULL;
                 }
             } else {
-                bits_73 = 0x38000000 | bits_72;
+                bits_74 = 0x38000000 | bits_73;
                 if (!((off_295 >= -256) && (off_295 <= 255))) {
                     if (asm_error == ASM_OK) {
                         asm_error = ASM_ERR_IMMEDIATE;
                     }
                     goto exit_load_store_194;
                 }
-                a_word_775 = bits_73 | (((uint64_t)(off_295 & 511)) << 12) | (640ULL | (r & 31));
+                a_word_781 = bits_74 | (((uint64_t)(off_295 & 511)) << 12) | (640ULL | (r & 31));
                 if (asm_pc < asm_limit) {
-                    *(uint32_t *)asm_pc = a_word_775;
+                    *(uint32_t *)asm_pc = a_word_781;
                     asm_pc = asm_pc + 4;
                 } else if (asm_error == ASM_OK) {
                     asm_error = ASM_ERR_FULL;
@@ -17452,9 +17620,9 @@ exit_out_17:;
     }
     off_296 = (int64_t)&((jit_state *)0)->stress;
     if ((off_296 >= 0) && ((off_296 & 7) == 0) && ((off_296 >> 3) <= 4095)) {
-        a_word_776 = 4181721088LL | ((((uint64_t)(off_296 >> 3)) << 10) | 720ULL);
+        a_word_782 = 4181721088LL | ((((uint64_t)(off_296 >> 3)) << 10) | 720ULL);
         if (asm_pc < asm_limit) {
-            *(uint32_t *)asm_pc = a_word_776;
+            *(uint32_t *)asm_pc = a_word_782;
             asm_pc = asm_pc + 4;
         } else if (asm_error == ASM_OK) {
             asm_error = ASM_ERR_FULL;
@@ -17466,9 +17634,9 @@ exit_out_17:;
             }
             goto exit_load_store_195;
         }
-        a_word_777 = 4164943872LL | (((uint64_t)(off_296 & 511)) << 12) | 720ULL;
+        a_word_783 = 4164943872LL | (((uint64_t)(off_296 & 511)) << 12) | 720ULL;
         if (asm_pc < asm_limit) {
-            *(uint32_t *)asm_pc = a_word_777;
+            *(uint32_t *)asm_pc = a_word_783;
             asm_pc = asm_pc + 4;
         } else if (asm_error == ASM_OK) {
             asm_error = ASM_ERR_FULL;
@@ -17488,9 +17656,9 @@ exit_out_17:;
 exit_add_sub_81:;
     off_297 = (int64_t)&((jit_state *)0)->stress;
     if ((off_297 >= 0) && ((off_297 & 7) == 0) && ((off_297 >> 3) <= 4095)) {
-        a_word_778 = 4177526784LL | ((((uint64_t)(off_297 >> 3)) << 10) | 720ULL);
+        a_word_784 = 4177526784LL | ((((uint64_t)(off_297 >> 3)) << 10) | 720ULL);
         if (asm_pc < asm_limit) {
-            *(uint32_t *)asm_pc = a_word_778;
+            *(uint32_t *)asm_pc = a_word_784;
             asm_pc = asm_pc + 4;
         } else if (asm_error == ASM_OK) {
             asm_error = ASM_ERR_FULL;
@@ -17502,9 +17670,9 @@ exit_add_sub_81:;
             }
             goto exit_load_store_196;
         }
-        a_word_779 = 4160749568LL | (((uint64_t)(off_297 & 511)) << 12) | 720ULL;
+        a_word_785 = 4160749568LL | (((uint64_t)(off_297 & 511)) << 12) | 720ULL;
         if (asm_pc < asm_limit) {
-            *(uint32_t *)asm_pc = a_word_779;
+            *(uint32_t *)asm_pc = a_word_785;
             asm_pc = asm_pc + 4;
         } else if (asm_error == ASM_OK) {
             asm_error = ASM_ERR_FULL;
@@ -17512,7 +17680,7 @@ exit_add_sub_81:;
     exit_load_store_196:;
     }
     target_103 = asm_target_of(l_14);
-    a_word_780 = 0x54000000 | ((((uint64_t)({
+    a_word_786 = 0x54000000 | ((((uint64_t)({
     off_298 = ((int64_t)(target_103 - asm_pc)) >> 2;
     if (!((off_298 >= -262144) && (off_298 <= 262143))) {
         if (asm_error == ASM_OK) {
@@ -17525,7 +17693,7 @@ exit_add_sub_81:;
 exit_offset_to_103:;
     r_offset_to_103; })) << 5) | 0);
     if (asm_pc < asm_limit) {
-        *(uint32_t *)asm_pc = a_word_780;
+        *(uint32_t *)asm_pc = a_word_786;
         asm_pc = asm_pc + 4;
     } else if (asm_error == ASM_OK) {
         asm_error = ASM_ERR_FULL;
@@ -17536,60 +17704,60 @@ exit_emit_stress_at_14:;
         if (asm_noting) {
             asm_note("guard: not two SmallIntegers", 0);
         }
-        v_140 = nd->a;
+        v_141 = nd->a;
         x = ({
-    nd_75 = opt_nodes + v_140;
+    nd_75 = opt_nodes + v_141;
     if ((int32_t)nd_75->op == O_CONST) {
-        v_141 = (uint64_t)nd_75->aux;
-        if ((v_141 & 1) != 0) {
-            if (((int64_t)v_141 >= -2147483648) && ((int64_t)v_141 <= 0x7FFFFFFF)) {
-                value_33 = (int64_t)v_141;
+        v_142 = (uint64_t)nd_75->aux;
+        if ((v_142 & 1) != 0) {
+            if (((int64_t)v_142 >= -2147483648) && ((int64_t)v_142 <= 0x7FFFFFFF)) {
+                value_33 = (int64_t)v_142;
                 if ((value_33 >= 0) && (value_33 <= 0xFFFF)) {
                     if (!((value_33 >= 0) && (value_33 <= 0xFFFF))) {
                         if (asm_error == ASM_OK) {
                             asm_error = ASM_ERR_IMMEDIATE;
                         }
-                        goto exit_move_wide_97;
+                        goto exit_move_wide_98;
                     }
-                    a_word_781 = 3531603968LL | (0ULL | (((uint64_t)value_33) << 5) | 14);
+                    a_word_787 = 3531603968LL | (0ULL | (((uint64_t)value_33) << 5) | 14);
                     if (asm_pc < asm_limit) {
-                        *(uint32_t *)asm_pc = a_word_781;
+                        *(uint32_t *)asm_pc = a_word_787;
                         asm_pc = asm_pc + 4;
                     } else if (asm_error == ASM_OK) {
                         asm_error = ASM_ERR_FULL;
                     }
-                exit_move_wide_97:;
+                exit_move_wide_98:;
                 } else {
                     asm_mov_imm(X14, (uint64_t)value_33);
                 }
                 goto exit_load_constant_33;
             }
-            if ((v_141 >= 0) && (v_141 <= 0xFFFF)) {
-                if (!((v_141 >= 0) && (v_141 <= 0xFFFF))) {
+            if ((v_142 >= 0) && (v_142 <= 0xFFFF)) {
+                if (!((v_142 >= 0) && (v_142 <= 0xFFFF))) {
                     if (asm_error == ASM_OK) {
                         asm_error = ASM_ERR_IMMEDIATE;
                     }
-                    goto exit_move_wide_98;
+                    goto exit_move_wide_99;
                 }
-                a_word_782 = 3531603968LL | (0ULL | (v_141 << 5) | 14);
+                a_word_788 = 3531603968LL | (0ULL | (v_142 << 5) | 14);
                 if (asm_pc < asm_limit) {
-                    *(uint32_t *)asm_pc = a_word_782;
+                    *(uint32_t *)asm_pc = a_word_788;
                     asm_pc = asm_pc + 4;
                 } else if (asm_error == ASM_OK) {
                     asm_error = ASM_ERR_FULL;
                 }
-            exit_move_wide_98:;
+            exit_move_wide_99:;
             } else {
-                asm_mov_imm(X14, v_141);
+                asm_mov_imm(X14, v_142);
             }
             goto exit_load_constant_33;
         }
-        if (v_141 == nil_oop) {
+        if (v_142 == nil_oop) {
             off_299 = (int64_t)&((jit_state *)0)->nil_oop;
             if ((off_299 >= 0) && ((off_299 & 7) == 0) && ((off_299 >> 3) <= 4095)) {
-                a_word_783 = 4181721088LL | ((((uint64_t)(off_299 >> 3)) << 10) | 718ULL);
+                a_word_789 = 4181721088LL | ((((uint64_t)(off_299 >> 3)) << 10) | 718ULL);
                 if (asm_pc < asm_limit) {
-                    *(uint32_t *)asm_pc = a_word_783;
+                    *(uint32_t *)asm_pc = a_word_789;
                     asm_pc = asm_pc + 4;
                 } else if (asm_error == ASM_OK) {
                     asm_error = ASM_ERR_FULL;
@@ -17601,9 +17769,9 @@ exit_emit_stress_at_14:;
                     }
                     goto exit_load_store_197;
                 }
-                a_word_784 = 4164943872LL | (((uint64_t)(off_299 & 511)) << 12) | 718ULL;
+                a_word_790 = 4164943872LL | (((uint64_t)(off_299 & 511)) << 12) | 718ULL;
                 if (asm_pc < asm_limit) {
-                    *(uint32_t *)asm_pc = a_word_784;
+                    *(uint32_t *)asm_pc = a_word_790;
                     asm_pc = asm_pc + 4;
                 } else if (asm_error == ASM_OK) {
                     asm_error = ASM_ERR_FULL;
@@ -17612,12 +17780,12 @@ exit_emit_stress_at_14:;
             }
             goto exit_load_constant_33;
         }
-        if (v_141 == true_oop) {
+        if (v_142 == true_oop) {
             off_300 = (int64_t)&((jit_state *)0)->true_oop;
             if ((off_300 >= 0) && ((off_300 & 7) == 0) && ((off_300 >> 3) <= 4095)) {
-                a_word_785 = 4181721088LL | ((((uint64_t)(off_300 >> 3)) << 10) | 718ULL);
+                a_word_791 = 4181721088LL | ((((uint64_t)(off_300 >> 3)) << 10) | 718ULL);
                 if (asm_pc < asm_limit) {
-                    *(uint32_t *)asm_pc = a_word_785;
+                    *(uint32_t *)asm_pc = a_word_791;
                     asm_pc = asm_pc + 4;
                 } else if (asm_error == ASM_OK) {
                     asm_error = ASM_ERR_FULL;
@@ -17629,9 +17797,9 @@ exit_emit_stress_at_14:;
                     }
                     goto exit_load_store_198;
                 }
-                a_word_786 = 4164943872LL | (((uint64_t)(off_300 & 511)) << 12) | 718ULL;
+                a_word_792 = 4164943872LL | (((uint64_t)(off_300 & 511)) << 12) | 718ULL;
                 if (asm_pc < asm_limit) {
-                    *(uint32_t *)asm_pc = a_word_786;
+                    *(uint32_t *)asm_pc = a_word_792;
                     asm_pc = asm_pc + 4;
                 } else if (asm_error == ASM_OK) {
                     asm_error = ASM_ERR_FULL;
@@ -17640,12 +17808,12 @@ exit_emit_stress_at_14:;
             }
             goto exit_load_constant_33;
         }
-        if (v_141 == false_oop) {
+        if (v_142 == false_oop) {
             off_301 = (int64_t)&((jit_state *)0)->false_oop;
             if ((off_301 >= 0) && ((off_301 & 7) == 0) && ((off_301 >> 3) <= 4095)) {
-                a_word_787 = 4181721088LL | ((((uint64_t)(off_301 >> 3)) << 10) | 718ULL);
+                a_word_793 = 4181721088LL | ((((uint64_t)(off_301 >> 3)) << 10) | 718ULL);
                 if (asm_pc < asm_limit) {
-                    *(uint32_t *)asm_pc = a_word_787;
+                    *(uint32_t *)asm_pc = a_word_793;
                     asm_pc = asm_pc + 4;
                 } else if (asm_error == ASM_OK) {
                     asm_error = ASM_ERR_FULL;
@@ -17657,9 +17825,9 @@ exit_emit_stress_at_14:;
                     }
                     goto exit_load_store_199;
                 }
-                a_word_788 = 4164943872LL | (((uint64_t)(off_301 & 511)) << 12) | 718ULL;
+                a_word_794 = 4164943872LL | (((uint64_t)(off_301 & 511)) << 12) | 718ULL;
                 if (asm_pc < asm_limit) {
-                    *(uint32_t *)asm_pc = a_word_788;
+                    *(uint32_t *)asm_pc = a_word_794;
                     asm_pc = asm_pc + 4;
                 } else if (asm_error == ASM_OK) {
                     asm_error = ASM_ERR_FULL;
@@ -17668,30 +17836,30 @@ exit_emit_stress_at_14:;
             }
             goto exit_load_constant_33;
         }
-        if ((v_141 & 7) != 0) {
-            if ((v_141 >= 0) && (v_141 <= 0xFFFF)) {
-                if (!((v_141 >= 0) && (v_141 <= 0xFFFF))) {
+        if ((v_142 & 7) != 0) {
+            if ((v_142 >= 0) && (v_142 <= 0xFFFF)) {
+                if (!((v_142 >= 0) && (v_142 <= 0xFFFF))) {
                     if (asm_error == ASM_OK) {
                         asm_error = ASM_ERR_IMMEDIATE;
                     }
-                    goto exit_move_wide_99;
+                    goto exit_move_wide_100;
                 }
-                a_word_789 = 3531603968LL | (0ULL | (v_141 << 5) | 14);
+                a_word_795 = 3531603968LL | (0ULL | (v_142 << 5) | 14);
                 if (asm_pc < asm_limit) {
-                    *(uint32_t *)asm_pc = a_word_789;
+                    *(uint32_t *)asm_pc = a_word_795;
                     asm_pc = asm_pc + 4;
                 } else if (asm_error == ASM_OK) {
                     asm_error = ASM_ERR_FULL;
                 }
-            exit_move_wide_99:;
+            exit_move_wide_100:;
             } else {
-                asm_mov_imm(X14, v_141);
+                asm_mov_imm(X14, v_142);
             }
             goto exit_load_constant_33;
         }
-        a_label_33 = cg_pool_labels[opt_pool_index(v_141)];
+        a_label_33 = cg_pool_labels[opt_pool_index(v_142)];
         target_104 = asm_target_of(a_label_33);
-        a_word_790 = 0x58000000 | ((((uint64_t)({
+        a_word_796 = 0x58000000 | ((((uint64_t)({
     off_302 = ((int64_t)(target_104 - asm_pc)) >> 2;
     if (!((off_302 >= -262144) && (off_302 <= 262143))) {
         if (asm_error == ASM_OK) {
@@ -17704,7 +17872,7 @@ exit_emit_stress_at_14:;
 exit_offset_to_104:;
     r_offset_to_104; })) << 5) | 14);
         if (asm_pc < asm_limit) {
-            *(uint32_t *)asm_pc = a_word_790;
+            *(uint32_t *)asm_pc = a_word_796;
             asm_pc = asm_pc + 4;
         } else if (asm_error == ASM_OK) {
             asm_error = ASM_ERR_FULL;
@@ -17720,9 +17888,9 @@ exit_offset_to_104:;
     if (nd_75->slot >= 0) {
         off_303 = 8 * (int32_t)nd_75->slot;
         if ((off_303 >= 0) && ((off_303 & 7) == 0) && ((off_303 >> 3) <= 4095)) {
-            a_word_791 = 4181721088LL | ((((uint64_t)(off_303 >> 3)) << 10) | 654ULL);
+            a_word_797 = 4181721088LL | ((((uint64_t)(off_303 >> 3)) << 10) | 654ULL);
             if (asm_pc < asm_limit) {
-                *(uint32_t *)asm_pc = a_word_791;
+                *(uint32_t *)asm_pc = a_word_797;
                 asm_pc = asm_pc + 4;
             } else if (asm_error == ASM_OK) {
                 asm_error = ASM_ERR_FULL;
@@ -17734,9 +17902,9 @@ exit_offset_to_104:;
                 }
                 goto exit_load_store_200;
             }
-            a_word_792 = 4164943872LL | (((uint64_t)(off_303 & 511)) << 12) | 654ULL;
+            a_word_798 = 4164943872LL | (((uint64_t)(off_303 & 511)) << 12) | 654ULL;
             if (asm_pc < asm_limit) {
-                *(uint32_t *)asm_pc = a_word_792;
+                *(uint32_t *)asm_pc = a_word_798;
                 asm_pc = asm_pc + 4;
             } else if (asm_error == ASM_OK) {
                 asm_error = ASM_ERR_FULL;
@@ -17752,60 +17920,60 @@ exit_offset_to_104:;
     r_src_28 = X14;
 exit_src_28:;
     r_src_28; });
-        v_142 = nd->b;
+        v_143 = nd->b;
         y = ({
-    nd_76 = opt_nodes + v_142;
+    nd_76 = opt_nodes + v_143;
     if ((int32_t)nd_76->op == O_CONST) {
-        v_143 = (uint64_t)nd_76->aux;
-        if ((v_143 & 1) != 0) {
-            if (((int64_t)v_143 >= -2147483648) && ((int64_t)v_143 <= 0x7FFFFFFF)) {
-                value_34 = (int64_t)v_143;
+        v_144 = (uint64_t)nd_76->aux;
+        if ((v_144 & 1) != 0) {
+            if (((int64_t)v_144 >= -2147483648) && ((int64_t)v_144 <= 0x7FFFFFFF)) {
+                value_34 = (int64_t)v_144;
                 if ((value_34 >= 0) && (value_34 <= 0xFFFF)) {
                     if (!((value_34 >= 0) && (value_34 <= 0xFFFF))) {
                         if (asm_error == ASM_OK) {
                             asm_error = ASM_ERR_IMMEDIATE;
                         }
-                        goto exit_move_wide_100;
+                        goto exit_move_wide_101;
                     }
-                    a_word_793 = 3531603968LL | (0ULL | (((uint64_t)value_34) << 5) | 15);
+                    a_word_799 = 3531603968LL | (0ULL | (((uint64_t)value_34) << 5) | 15);
                     if (asm_pc < asm_limit) {
-                        *(uint32_t *)asm_pc = a_word_793;
+                        *(uint32_t *)asm_pc = a_word_799;
                         asm_pc = asm_pc + 4;
                     } else if (asm_error == ASM_OK) {
                         asm_error = ASM_ERR_FULL;
                     }
-                exit_move_wide_100:;
+                exit_move_wide_101:;
                 } else {
                     asm_mov_imm(X15, (uint64_t)value_34);
                 }
                 goto exit_load_constant_34;
             }
-            if ((v_143 >= 0) && (v_143 <= 0xFFFF)) {
-                if (!((v_143 >= 0) && (v_143 <= 0xFFFF))) {
+            if ((v_144 >= 0) && (v_144 <= 0xFFFF)) {
+                if (!((v_144 >= 0) && (v_144 <= 0xFFFF))) {
                     if (asm_error == ASM_OK) {
                         asm_error = ASM_ERR_IMMEDIATE;
                     }
-                    goto exit_move_wide_101;
+                    goto exit_move_wide_102;
                 }
-                a_word_794 = 3531603968LL | (0ULL | (v_143 << 5) | 15);
+                a_word_800 = 3531603968LL | (0ULL | (v_144 << 5) | 15);
                 if (asm_pc < asm_limit) {
-                    *(uint32_t *)asm_pc = a_word_794;
+                    *(uint32_t *)asm_pc = a_word_800;
                     asm_pc = asm_pc + 4;
                 } else if (asm_error == ASM_OK) {
                     asm_error = ASM_ERR_FULL;
                 }
-            exit_move_wide_101:;
+            exit_move_wide_102:;
             } else {
-                asm_mov_imm(X15, v_143);
+                asm_mov_imm(X15, v_144);
             }
             goto exit_load_constant_34;
         }
-        if (v_143 == nil_oop) {
+        if (v_144 == nil_oop) {
             off_304 = (int64_t)&((jit_state *)0)->nil_oop;
             if ((off_304 >= 0) && ((off_304 & 7) == 0) && ((off_304 >> 3) <= 4095)) {
-                a_word_795 = 4181721088LL | ((((uint64_t)(off_304 >> 3)) << 10) | 719ULL);
+                a_word_801 = 4181721088LL | ((((uint64_t)(off_304 >> 3)) << 10) | 719ULL);
                 if (asm_pc < asm_limit) {
-                    *(uint32_t *)asm_pc = a_word_795;
+                    *(uint32_t *)asm_pc = a_word_801;
                     asm_pc = asm_pc + 4;
                 } else if (asm_error == ASM_OK) {
                     asm_error = ASM_ERR_FULL;
@@ -17817,9 +17985,9 @@ exit_src_28:;
                     }
                     goto exit_load_store_201;
                 }
-                a_word_796 = 4164943872LL | (((uint64_t)(off_304 & 511)) << 12) | 719ULL;
+                a_word_802 = 4164943872LL | (((uint64_t)(off_304 & 511)) << 12) | 719ULL;
                 if (asm_pc < asm_limit) {
-                    *(uint32_t *)asm_pc = a_word_796;
+                    *(uint32_t *)asm_pc = a_word_802;
                     asm_pc = asm_pc + 4;
                 } else if (asm_error == ASM_OK) {
                     asm_error = ASM_ERR_FULL;
@@ -17828,12 +17996,12 @@ exit_src_28:;
             }
             goto exit_load_constant_34;
         }
-        if (v_143 == true_oop) {
+        if (v_144 == true_oop) {
             off_305 = (int64_t)&((jit_state *)0)->true_oop;
             if ((off_305 >= 0) && ((off_305 & 7) == 0) && ((off_305 >> 3) <= 4095)) {
-                a_word_797 = 4181721088LL | ((((uint64_t)(off_305 >> 3)) << 10) | 719ULL);
+                a_word_803 = 4181721088LL | ((((uint64_t)(off_305 >> 3)) << 10) | 719ULL);
                 if (asm_pc < asm_limit) {
-                    *(uint32_t *)asm_pc = a_word_797;
+                    *(uint32_t *)asm_pc = a_word_803;
                     asm_pc = asm_pc + 4;
                 } else if (asm_error == ASM_OK) {
                     asm_error = ASM_ERR_FULL;
@@ -17845,9 +18013,9 @@ exit_src_28:;
                     }
                     goto exit_load_store_202;
                 }
-                a_word_798 = 4164943872LL | (((uint64_t)(off_305 & 511)) << 12) | 719ULL;
+                a_word_804 = 4164943872LL | (((uint64_t)(off_305 & 511)) << 12) | 719ULL;
                 if (asm_pc < asm_limit) {
-                    *(uint32_t *)asm_pc = a_word_798;
+                    *(uint32_t *)asm_pc = a_word_804;
                     asm_pc = asm_pc + 4;
                 } else if (asm_error == ASM_OK) {
                     asm_error = ASM_ERR_FULL;
@@ -17856,12 +18024,12 @@ exit_src_28:;
             }
             goto exit_load_constant_34;
         }
-        if (v_143 == false_oop) {
+        if (v_144 == false_oop) {
             off_306 = (int64_t)&((jit_state *)0)->false_oop;
             if ((off_306 >= 0) && ((off_306 & 7) == 0) && ((off_306 >> 3) <= 4095)) {
-                a_word_799 = 4181721088LL | ((((uint64_t)(off_306 >> 3)) << 10) | 719ULL);
+                a_word_805 = 4181721088LL | ((((uint64_t)(off_306 >> 3)) << 10) | 719ULL);
                 if (asm_pc < asm_limit) {
-                    *(uint32_t *)asm_pc = a_word_799;
+                    *(uint32_t *)asm_pc = a_word_805;
                     asm_pc = asm_pc + 4;
                 } else if (asm_error == ASM_OK) {
                     asm_error = ASM_ERR_FULL;
@@ -17873,9 +18041,9 @@ exit_src_28:;
                     }
                     goto exit_load_store_203;
                 }
-                a_word_800 = 4164943872LL | (((uint64_t)(off_306 & 511)) << 12) | 719ULL;
+                a_word_806 = 4164943872LL | (((uint64_t)(off_306 & 511)) << 12) | 719ULL;
                 if (asm_pc < asm_limit) {
-                    *(uint32_t *)asm_pc = a_word_800;
+                    *(uint32_t *)asm_pc = a_word_806;
                     asm_pc = asm_pc + 4;
                 } else if (asm_error == ASM_OK) {
                     asm_error = ASM_ERR_FULL;
@@ -17884,30 +18052,30 @@ exit_src_28:;
             }
             goto exit_load_constant_34;
         }
-        if ((v_143 & 7) != 0) {
-            if ((v_143 >= 0) && (v_143 <= 0xFFFF)) {
-                if (!((v_143 >= 0) && (v_143 <= 0xFFFF))) {
+        if ((v_144 & 7) != 0) {
+            if ((v_144 >= 0) && (v_144 <= 0xFFFF)) {
+                if (!((v_144 >= 0) && (v_144 <= 0xFFFF))) {
                     if (asm_error == ASM_OK) {
                         asm_error = ASM_ERR_IMMEDIATE;
                     }
-                    goto exit_move_wide_102;
+                    goto exit_move_wide_103;
                 }
-                a_word_801 = 3531603968LL | (0ULL | (v_143 << 5) | 15);
+                a_word_807 = 3531603968LL | (0ULL | (v_144 << 5) | 15);
                 if (asm_pc < asm_limit) {
-                    *(uint32_t *)asm_pc = a_word_801;
+                    *(uint32_t *)asm_pc = a_word_807;
                     asm_pc = asm_pc + 4;
                 } else if (asm_error == ASM_OK) {
                     asm_error = ASM_ERR_FULL;
                 }
-            exit_move_wide_102:;
+            exit_move_wide_103:;
             } else {
-                asm_mov_imm(X15, v_143);
+                asm_mov_imm(X15, v_144);
             }
             goto exit_load_constant_34;
         }
-        a_label_34 = cg_pool_labels[opt_pool_index(v_143)];
+        a_label_34 = cg_pool_labels[opt_pool_index(v_144)];
         target_105 = asm_target_of(a_label_34);
-        a_word_802 = 0x58000000 | ((((uint64_t)({
+        a_word_808 = 0x58000000 | ((((uint64_t)({
     off_307 = ((int64_t)(target_105 - asm_pc)) >> 2;
     if (!((off_307 >= -262144) && (off_307 <= 262143))) {
         if (asm_error == ASM_OK) {
@@ -17920,7 +18088,7 @@ exit_src_28:;
 exit_offset_to_105:;
     r_offset_to_105; })) << 5) | 15);
         if (asm_pc < asm_limit) {
-            *(uint32_t *)asm_pc = a_word_802;
+            *(uint32_t *)asm_pc = a_word_808;
             asm_pc = asm_pc + 4;
         } else if (asm_error == ASM_OK) {
             asm_error = ASM_ERR_FULL;
@@ -17936,9 +18104,9 @@ exit_offset_to_105:;
     if (nd_76->slot >= 0) {
         off_308 = 8 * (int32_t)nd_76->slot;
         if ((off_308 >= 0) && ((off_308 & 7) == 0) && ((off_308 >> 3) <= 4095)) {
-            a_word_803 = 4181721088LL | ((((uint64_t)(off_308 >> 3)) << 10) | 655ULL);
+            a_word_809 = 4181721088LL | ((((uint64_t)(off_308 >> 3)) << 10) | 655ULL);
             if (asm_pc < asm_limit) {
-                *(uint32_t *)asm_pc = a_word_803;
+                *(uint32_t *)asm_pc = a_word_809;
                 asm_pc = asm_pc + 4;
             } else if (asm_error == ASM_OK) {
                 asm_error = ASM_ERR_FULL;
@@ -17950,9 +18118,9 @@ exit_offset_to_105:;
                 }
                 goto exit_load_store_204;
             }
-            a_word_804 = 4164943872LL | (((uint64_t)(off_308 & 511)) << 12) | 655ULL;
+            a_word_810 = 4164943872LL | (((uint64_t)(off_308 & 511)) << 12) | 655ULL;
             if (asm_pc < asm_limit) {
-                *(uint32_t *)asm_pc = a_word_804;
+                *(uint32_t *)asm_pc = a_word_810;
                 asm_pc = asm_pc + 4;
             } else if (asm_error == ASM_OK) {
                 asm_error = ASM_ERR_FULL;
@@ -17968,30 +18136,30 @@ exit_offset_to_105:;
     r_src_29 = X15;
 exit_src_29:;
     r_src_29; });
-        a_word_805 = 2315255808LL | (0ULL | ((((uint64_t)(y & 31)) << 16) | (((uint64_t)(x & 31)) << 5) | 16));
+        a_word_811 = 2315255808LL | (0ULL | ((((uint64_t)(y & 31)) << 16) | (((uint64_t)(x & 31)) << 5) | 16));
         if (asm_pc < asm_limit) {
-            *(uint32_t *)asm_pc = a_word_805;
+            *(uint32_t *)asm_pc = a_word_811;
             asm_pc = asm_pc + 4;
         } else if (asm_error == ASM_OK) {
             asm_error = ASM_ERR_FULL;
         }
-        enc_34 = asm_logical_immediate(1ULL, 64);
-        if (enc_34 < 0) {
+        enc_35 = asm_logical_immediate(1ULL, 64);
+        if (enc_35 < 0) {
             if (asm_error == ASM_OK) {
                 asm_error = ASM_ERR_IMMEDIATE;
             }
             goto exit_logical_55;
         }
-        a_word_806 = 4060086272LL | ((((uint64_t)enc_34) << 10) | 543ULL);
+        a_word_812 = 4060086272LL | ((((uint64_t)enc_35) << 10) | 543ULL);
         if (asm_pc < asm_limit) {
-            *(uint32_t *)asm_pc = a_word_806;
+            *(uint32_t *)asm_pc = a_word_812;
             asm_pc = asm_pc + 4;
         } else if (asm_error == ASM_OK) {
             asm_error = ASM_ERR_FULL;
         }
     exit_logical_55:;
         target_106 = asm_target_of(s);
-        a_word_807 = 0x54000000 | ((((uint64_t)({
+        a_word_813 = 0x54000000 | ((((uint64_t)({
     off_309 = ((int64_t)(target_106 - asm_pc)) >> 2;
     if (!((off_309 >= -262144) && (off_309 <= 262143))) {
         if (asm_error == ASM_OK) {
@@ -18004,7 +18172,7 @@ exit_src_29:;
 exit_offset_to_106:;
     r_offset_to_106; })) << 5) | 1);
         if (asm_pc < asm_limit) {
-            *(uint32_t *)asm_pc = a_word_807;
+            *(uint32_t *)asm_pc = a_word_813;
             asm_pc = asm_pc + 4;
         } else if (asm_error == ASM_OK) {
             asm_error = ASM_ERR_FULL;
@@ -18012,60 +18180,60 @@ exit_offset_to_106:;
         return;
     }
     if ((op == O_IAND) || ((op == O_IOR) || (op == O_IXOR))) {
-        v_144 = nd->a;
+        v_145 = nd->a;
         x = ({
-    nd_77 = opt_nodes + v_144;
+    nd_77 = opt_nodes + v_145;
     if ((int32_t)nd_77->op == O_CONST) {
-        v_145 = (uint64_t)nd_77->aux;
-        if ((v_145 & 1) != 0) {
-            if (((int64_t)v_145 >= -2147483648) && ((int64_t)v_145 <= 0x7FFFFFFF)) {
-                value_35 = (int64_t)v_145;
+        v_146 = (uint64_t)nd_77->aux;
+        if ((v_146 & 1) != 0) {
+            if (((int64_t)v_146 >= -2147483648) && ((int64_t)v_146 <= 0x7FFFFFFF)) {
+                value_35 = (int64_t)v_146;
                 if ((value_35 >= 0) && (value_35 <= 0xFFFF)) {
                     if (!((value_35 >= 0) && (value_35 <= 0xFFFF))) {
                         if (asm_error == ASM_OK) {
                             asm_error = ASM_ERR_IMMEDIATE;
                         }
-                        goto exit_move_wide_103;
+                        goto exit_move_wide_104;
                     }
-                    a_word_808 = 3531603968LL | (0ULL | (((uint64_t)value_35) << 5) | 14);
+                    a_word_814 = 3531603968LL | (0ULL | (((uint64_t)value_35) << 5) | 14);
                     if (asm_pc < asm_limit) {
-                        *(uint32_t *)asm_pc = a_word_808;
+                        *(uint32_t *)asm_pc = a_word_814;
                         asm_pc = asm_pc + 4;
                     } else if (asm_error == ASM_OK) {
                         asm_error = ASM_ERR_FULL;
                     }
-                exit_move_wide_103:;
+                exit_move_wide_104:;
                 } else {
                     asm_mov_imm(X14, (uint64_t)value_35);
                 }
                 goto exit_load_constant_35;
             }
-            if ((v_145 >= 0) && (v_145 <= 0xFFFF)) {
-                if (!((v_145 >= 0) && (v_145 <= 0xFFFF))) {
+            if ((v_146 >= 0) && (v_146 <= 0xFFFF)) {
+                if (!((v_146 >= 0) && (v_146 <= 0xFFFF))) {
                     if (asm_error == ASM_OK) {
                         asm_error = ASM_ERR_IMMEDIATE;
                     }
-                    goto exit_move_wide_104;
+                    goto exit_move_wide_105;
                 }
-                a_word_809 = 3531603968LL | (0ULL | (v_145 << 5) | 14);
+                a_word_815 = 3531603968LL | (0ULL | (v_146 << 5) | 14);
                 if (asm_pc < asm_limit) {
-                    *(uint32_t *)asm_pc = a_word_809;
+                    *(uint32_t *)asm_pc = a_word_815;
                     asm_pc = asm_pc + 4;
                 } else if (asm_error == ASM_OK) {
                     asm_error = ASM_ERR_FULL;
                 }
-            exit_move_wide_104:;
+            exit_move_wide_105:;
             } else {
-                asm_mov_imm(X14, v_145);
+                asm_mov_imm(X14, v_146);
             }
             goto exit_load_constant_35;
         }
-        if (v_145 == nil_oop) {
+        if (v_146 == nil_oop) {
             off_310 = (int64_t)&((jit_state *)0)->nil_oop;
             if ((off_310 >= 0) && ((off_310 & 7) == 0) && ((off_310 >> 3) <= 4095)) {
-                a_word_810 = 4181721088LL | ((((uint64_t)(off_310 >> 3)) << 10) | 718ULL);
+                a_word_816 = 4181721088LL | ((((uint64_t)(off_310 >> 3)) << 10) | 718ULL);
                 if (asm_pc < asm_limit) {
-                    *(uint32_t *)asm_pc = a_word_810;
+                    *(uint32_t *)asm_pc = a_word_816;
                     asm_pc = asm_pc + 4;
                 } else if (asm_error == ASM_OK) {
                     asm_error = ASM_ERR_FULL;
@@ -18077,9 +18245,9 @@ exit_offset_to_106:;
                     }
                     goto exit_load_store_205;
                 }
-                a_word_811 = 4164943872LL | (((uint64_t)(off_310 & 511)) << 12) | 718ULL;
+                a_word_817 = 4164943872LL | (((uint64_t)(off_310 & 511)) << 12) | 718ULL;
                 if (asm_pc < asm_limit) {
-                    *(uint32_t *)asm_pc = a_word_811;
+                    *(uint32_t *)asm_pc = a_word_817;
                     asm_pc = asm_pc + 4;
                 } else if (asm_error == ASM_OK) {
                     asm_error = ASM_ERR_FULL;
@@ -18088,12 +18256,12 @@ exit_offset_to_106:;
             }
             goto exit_load_constant_35;
         }
-        if (v_145 == true_oop) {
+        if (v_146 == true_oop) {
             off_311 = (int64_t)&((jit_state *)0)->true_oop;
             if ((off_311 >= 0) && ((off_311 & 7) == 0) && ((off_311 >> 3) <= 4095)) {
-                a_word_812 = 4181721088LL | ((((uint64_t)(off_311 >> 3)) << 10) | 718ULL);
+                a_word_818 = 4181721088LL | ((((uint64_t)(off_311 >> 3)) << 10) | 718ULL);
                 if (asm_pc < asm_limit) {
-                    *(uint32_t *)asm_pc = a_word_812;
+                    *(uint32_t *)asm_pc = a_word_818;
                     asm_pc = asm_pc + 4;
                 } else if (asm_error == ASM_OK) {
                     asm_error = ASM_ERR_FULL;
@@ -18105,9 +18273,9 @@ exit_offset_to_106:;
                     }
                     goto exit_load_store_206;
                 }
-                a_word_813 = 4164943872LL | (((uint64_t)(off_311 & 511)) << 12) | 718ULL;
+                a_word_819 = 4164943872LL | (((uint64_t)(off_311 & 511)) << 12) | 718ULL;
                 if (asm_pc < asm_limit) {
-                    *(uint32_t *)asm_pc = a_word_813;
+                    *(uint32_t *)asm_pc = a_word_819;
                     asm_pc = asm_pc + 4;
                 } else if (asm_error == ASM_OK) {
                     asm_error = ASM_ERR_FULL;
@@ -18116,12 +18284,12 @@ exit_offset_to_106:;
             }
             goto exit_load_constant_35;
         }
-        if (v_145 == false_oop) {
+        if (v_146 == false_oop) {
             off_312 = (int64_t)&((jit_state *)0)->false_oop;
             if ((off_312 >= 0) && ((off_312 & 7) == 0) && ((off_312 >> 3) <= 4095)) {
-                a_word_814 = 4181721088LL | ((((uint64_t)(off_312 >> 3)) << 10) | 718ULL);
+                a_word_820 = 4181721088LL | ((((uint64_t)(off_312 >> 3)) << 10) | 718ULL);
                 if (asm_pc < asm_limit) {
-                    *(uint32_t *)asm_pc = a_word_814;
+                    *(uint32_t *)asm_pc = a_word_820;
                     asm_pc = asm_pc + 4;
                 } else if (asm_error == ASM_OK) {
                     asm_error = ASM_ERR_FULL;
@@ -18133,9 +18301,9 @@ exit_offset_to_106:;
                     }
                     goto exit_load_store_207;
                 }
-                a_word_815 = 4164943872LL | (((uint64_t)(off_312 & 511)) << 12) | 718ULL;
+                a_word_821 = 4164943872LL | (((uint64_t)(off_312 & 511)) << 12) | 718ULL;
                 if (asm_pc < asm_limit) {
-                    *(uint32_t *)asm_pc = a_word_815;
+                    *(uint32_t *)asm_pc = a_word_821;
                     asm_pc = asm_pc + 4;
                 } else if (asm_error == ASM_OK) {
                     asm_error = ASM_ERR_FULL;
@@ -18144,30 +18312,30 @@ exit_offset_to_106:;
             }
             goto exit_load_constant_35;
         }
-        if ((v_145 & 7) != 0) {
-            if ((v_145 >= 0) && (v_145 <= 0xFFFF)) {
-                if (!((v_145 >= 0) && (v_145 <= 0xFFFF))) {
+        if ((v_146 & 7) != 0) {
+            if ((v_146 >= 0) && (v_146 <= 0xFFFF)) {
+                if (!((v_146 >= 0) && (v_146 <= 0xFFFF))) {
                     if (asm_error == ASM_OK) {
                         asm_error = ASM_ERR_IMMEDIATE;
                     }
-                    goto exit_move_wide_105;
+                    goto exit_move_wide_106;
                 }
-                a_word_816 = 3531603968LL | (0ULL | (v_145 << 5) | 14);
+                a_word_822 = 3531603968LL | (0ULL | (v_146 << 5) | 14);
                 if (asm_pc < asm_limit) {
-                    *(uint32_t *)asm_pc = a_word_816;
+                    *(uint32_t *)asm_pc = a_word_822;
                     asm_pc = asm_pc + 4;
                 } else if (asm_error == ASM_OK) {
                     asm_error = ASM_ERR_FULL;
                 }
-            exit_move_wide_105:;
+            exit_move_wide_106:;
             } else {
-                asm_mov_imm(X14, v_145);
+                asm_mov_imm(X14, v_146);
             }
             goto exit_load_constant_35;
         }
-        a_label_35 = cg_pool_labels[opt_pool_index(v_145)];
+        a_label_35 = cg_pool_labels[opt_pool_index(v_146)];
         target_107 = asm_target_of(a_label_35);
-        a_word_817 = 0x58000000 | ((((uint64_t)({
+        a_word_823 = 0x58000000 | ((((uint64_t)({
     off_313 = ((int64_t)(target_107 - asm_pc)) >> 2;
     if (!((off_313 >= -262144) && (off_313 <= 262143))) {
         if (asm_error == ASM_OK) {
@@ -18180,7 +18348,7 @@ exit_offset_to_106:;
 exit_offset_to_107:;
     r_offset_to_107; })) << 5) | 14);
         if (asm_pc < asm_limit) {
-            *(uint32_t *)asm_pc = a_word_817;
+            *(uint32_t *)asm_pc = a_word_823;
             asm_pc = asm_pc + 4;
         } else if (asm_error == ASM_OK) {
             asm_error = ASM_ERR_FULL;
@@ -18196,9 +18364,9 @@ exit_offset_to_107:;
     if (nd_77->slot >= 0) {
         off_314 = 8 * (int32_t)nd_77->slot;
         if ((off_314 >= 0) && ((off_314 & 7) == 0) && ((off_314 >> 3) <= 4095)) {
-            a_word_818 = 4181721088LL | ((((uint64_t)(off_314 >> 3)) << 10) | 654ULL);
+            a_word_824 = 4181721088LL | ((((uint64_t)(off_314 >> 3)) << 10) | 654ULL);
             if (asm_pc < asm_limit) {
-                *(uint32_t *)asm_pc = a_word_818;
+                *(uint32_t *)asm_pc = a_word_824;
                 asm_pc = asm_pc + 4;
             } else if (asm_error == ASM_OK) {
                 asm_error = ASM_ERR_FULL;
@@ -18210,9 +18378,9 @@ exit_offset_to_107:;
                 }
                 goto exit_load_store_208;
             }
-            a_word_819 = 4164943872LL | (((uint64_t)(off_314 & 511)) << 12) | 654ULL;
+            a_word_825 = 4164943872LL | (((uint64_t)(off_314 & 511)) << 12) | 654ULL;
             if (asm_pc < asm_limit) {
-                *(uint32_t *)asm_pc = a_word_819;
+                *(uint32_t *)asm_pc = a_word_825;
                 asm_pc = asm_pc + 4;
             } else if (asm_error == ASM_OK) {
                 asm_error = ASM_ERR_FULL;
@@ -18228,60 +18396,60 @@ exit_offset_to_107:;
     r_src_30 = X14;
 exit_src_30:;
     r_src_30; });
-        v_146 = nd->b;
+        v_147 = nd->b;
         y = ({
-    nd_78 = opt_nodes + v_146;
+    nd_78 = opt_nodes + v_147;
     if ((int32_t)nd_78->op == O_CONST) {
-        v_147 = (uint64_t)nd_78->aux;
-        if ((v_147 & 1) != 0) {
-            if (((int64_t)v_147 >= -2147483648) && ((int64_t)v_147 <= 0x7FFFFFFF)) {
-                value_36 = (int64_t)v_147;
+        v_148 = (uint64_t)nd_78->aux;
+        if ((v_148 & 1) != 0) {
+            if (((int64_t)v_148 >= -2147483648) && ((int64_t)v_148 <= 0x7FFFFFFF)) {
+                value_36 = (int64_t)v_148;
                 if ((value_36 >= 0) && (value_36 <= 0xFFFF)) {
                     if (!((value_36 >= 0) && (value_36 <= 0xFFFF))) {
                         if (asm_error == ASM_OK) {
                             asm_error = ASM_ERR_IMMEDIATE;
                         }
-                        goto exit_move_wide_106;
+                        goto exit_move_wide_107;
                     }
-                    a_word_820 = 3531603968LL | (0ULL | (((uint64_t)value_36) << 5) | 15);
+                    a_word_826 = 3531603968LL | (0ULL | (((uint64_t)value_36) << 5) | 15);
                     if (asm_pc < asm_limit) {
-                        *(uint32_t *)asm_pc = a_word_820;
+                        *(uint32_t *)asm_pc = a_word_826;
                         asm_pc = asm_pc + 4;
                     } else if (asm_error == ASM_OK) {
                         asm_error = ASM_ERR_FULL;
                     }
-                exit_move_wide_106:;
+                exit_move_wide_107:;
                 } else {
                     asm_mov_imm(X15, (uint64_t)value_36);
                 }
                 goto exit_load_constant_36;
             }
-            if ((v_147 >= 0) && (v_147 <= 0xFFFF)) {
-                if (!((v_147 >= 0) && (v_147 <= 0xFFFF))) {
+            if ((v_148 >= 0) && (v_148 <= 0xFFFF)) {
+                if (!((v_148 >= 0) && (v_148 <= 0xFFFF))) {
                     if (asm_error == ASM_OK) {
                         asm_error = ASM_ERR_IMMEDIATE;
                     }
-                    goto exit_move_wide_107;
+                    goto exit_move_wide_108;
                 }
-                a_word_821 = 3531603968LL | (0ULL | (v_147 << 5) | 15);
+                a_word_827 = 3531603968LL | (0ULL | (v_148 << 5) | 15);
                 if (asm_pc < asm_limit) {
-                    *(uint32_t *)asm_pc = a_word_821;
+                    *(uint32_t *)asm_pc = a_word_827;
                     asm_pc = asm_pc + 4;
                 } else if (asm_error == ASM_OK) {
                     asm_error = ASM_ERR_FULL;
                 }
-            exit_move_wide_107:;
+            exit_move_wide_108:;
             } else {
-                asm_mov_imm(X15, v_147);
+                asm_mov_imm(X15, v_148);
             }
             goto exit_load_constant_36;
         }
-        if (v_147 == nil_oop) {
+        if (v_148 == nil_oop) {
             off_315 = (int64_t)&((jit_state *)0)->nil_oop;
             if ((off_315 >= 0) && ((off_315 & 7) == 0) && ((off_315 >> 3) <= 4095)) {
-                a_word_822 = 4181721088LL | ((((uint64_t)(off_315 >> 3)) << 10) | 719ULL);
+                a_word_828 = 4181721088LL | ((((uint64_t)(off_315 >> 3)) << 10) | 719ULL);
                 if (asm_pc < asm_limit) {
-                    *(uint32_t *)asm_pc = a_word_822;
+                    *(uint32_t *)asm_pc = a_word_828;
                     asm_pc = asm_pc + 4;
                 } else if (asm_error == ASM_OK) {
                     asm_error = ASM_ERR_FULL;
@@ -18293,9 +18461,9 @@ exit_src_30:;
                     }
                     goto exit_load_store_209;
                 }
-                a_word_823 = 4164943872LL | (((uint64_t)(off_315 & 511)) << 12) | 719ULL;
+                a_word_829 = 4164943872LL | (((uint64_t)(off_315 & 511)) << 12) | 719ULL;
                 if (asm_pc < asm_limit) {
-                    *(uint32_t *)asm_pc = a_word_823;
+                    *(uint32_t *)asm_pc = a_word_829;
                     asm_pc = asm_pc + 4;
                 } else if (asm_error == ASM_OK) {
                     asm_error = ASM_ERR_FULL;
@@ -18304,12 +18472,12 @@ exit_src_30:;
             }
             goto exit_load_constant_36;
         }
-        if (v_147 == true_oop) {
+        if (v_148 == true_oop) {
             off_316 = (int64_t)&((jit_state *)0)->true_oop;
             if ((off_316 >= 0) && ((off_316 & 7) == 0) && ((off_316 >> 3) <= 4095)) {
-                a_word_824 = 4181721088LL | ((((uint64_t)(off_316 >> 3)) << 10) | 719ULL);
+                a_word_830 = 4181721088LL | ((((uint64_t)(off_316 >> 3)) << 10) | 719ULL);
                 if (asm_pc < asm_limit) {
-                    *(uint32_t *)asm_pc = a_word_824;
+                    *(uint32_t *)asm_pc = a_word_830;
                     asm_pc = asm_pc + 4;
                 } else if (asm_error == ASM_OK) {
                     asm_error = ASM_ERR_FULL;
@@ -18321,9 +18489,9 @@ exit_src_30:;
                     }
                     goto exit_load_store_210;
                 }
-                a_word_825 = 4164943872LL | (((uint64_t)(off_316 & 511)) << 12) | 719ULL;
+                a_word_831 = 4164943872LL | (((uint64_t)(off_316 & 511)) << 12) | 719ULL;
                 if (asm_pc < asm_limit) {
-                    *(uint32_t *)asm_pc = a_word_825;
+                    *(uint32_t *)asm_pc = a_word_831;
                     asm_pc = asm_pc + 4;
                 } else if (asm_error == ASM_OK) {
                     asm_error = ASM_ERR_FULL;
@@ -18332,12 +18500,12 @@ exit_src_30:;
             }
             goto exit_load_constant_36;
         }
-        if (v_147 == false_oop) {
+        if (v_148 == false_oop) {
             off_317 = (int64_t)&((jit_state *)0)->false_oop;
             if ((off_317 >= 0) && ((off_317 & 7) == 0) && ((off_317 >> 3) <= 4095)) {
-                a_word_826 = 4181721088LL | ((((uint64_t)(off_317 >> 3)) << 10) | 719ULL);
+                a_word_832 = 4181721088LL | ((((uint64_t)(off_317 >> 3)) << 10) | 719ULL);
                 if (asm_pc < asm_limit) {
-                    *(uint32_t *)asm_pc = a_word_826;
+                    *(uint32_t *)asm_pc = a_word_832;
                     asm_pc = asm_pc + 4;
                 } else if (asm_error == ASM_OK) {
                     asm_error = ASM_ERR_FULL;
@@ -18349,9 +18517,9 @@ exit_src_30:;
                     }
                     goto exit_load_store_211;
                 }
-                a_word_827 = 4164943872LL | (((uint64_t)(off_317 & 511)) << 12) | 719ULL;
+                a_word_833 = 4164943872LL | (((uint64_t)(off_317 & 511)) << 12) | 719ULL;
                 if (asm_pc < asm_limit) {
-                    *(uint32_t *)asm_pc = a_word_827;
+                    *(uint32_t *)asm_pc = a_word_833;
                     asm_pc = asm_pc + 4;
                 } else if (asm_error == ASM_OK) {
                     asm_error = ASM_ERR_FULL;
@@ -18360,30 +18528,30 @@ exit_src_30:;
             }
             goto exit_load_constant_36;
         }
-        if ((v_147 & 7) != 0) {
-            if ((v_147 >= 0) && (v_147 <= 0xFFFF)) {
-                if (!((v_147 >= 0) && (v_147 <= 0xFFFF))) {
+        if ((v_148 & 7) != 0) {
+            if ((v_148 >= 0) && (v_148 <= 0xFFFF)) {
+                if (!((v_148 >= 0) && (v_148 <= 0xFFFF))) {
                     if (asm_error == ASM_OK) {
                         asm_error = ASM_ERR_IMMEDIATE;
                     }
-                    goto exit_move_wide_108;
+                    goto exit_move_wide_109;
                 }
-                a_word_828 = 3531603968LL | (0ULL | (v_147 << 5) | 15);
+                a_word_834 = 3531603968LL | (0ULL | (v_148 << 5) | 15);
                 if (asm_pc < asm_limit) {
-                    *(uint32_t *)asm_pc = a_word_828;
+                    *(uint32_t *)asm_pc = a_word_834;
                     asm_pc = asm_pc + 4;
                 } else if (asm_error == ASM_OK) {
                     asm_error = ASM_ERR_FULL;
                 }
-            exit_move_wide_108:;
+            exit_move_wide_109:;
             } else {
-                asm_mov_imm(X15, v_147);
+                asm_mov_imm(X15, v_148);
             }
             goto exit_load_constant_36;
         }
-        a_label_36 = cg_pool_labels[opt_pool_index(v_147)];
+        a_label_36 = cg_pool_labels[opt_pool_index(v_148)];
         target_108 = asm_target_of(a_label_36);
-        a_word_829 = 0x58000000 | ((((uint64_t)({
+        a_word_835 = 0x58000000 | ((((uint64_t)({
     off_318 = ((int64_t)(target_108 - asm_pc)) >> 2;
     if (!((off_318 >= -262144) && (off_318 <= 262143))) {
         if (asm_error == ASM_OK) {
@@ -18396,7 +18564,7 @@ exit_src_30:;
 exit_offset_to_108:;
     r_offset_to_108; })) << 5) | 15);
         if (asm_pc < asm_limit) {
-            *(uint32_t *)asm_pc = a_word_829;
+            *(uint32_t *)asm_pc = a_word_835;
             asm_pc = asm_pc + 4;
         } else if (asm_error == ASM_OK) {
             asm_error = ASM_ERR_FULL;
@@ -18412,9 +18580,9 @@ exit_offset_to_108:;
     if (nd_78->slot >= 0) {
         off_319 = 8 * (int32_t)nd_78->slot;
         if ((off_319 >= 0) && ((off_319 & 7) == 0) && ((off_319 >> 3) <= 4095)) {
-            a_word_830 = 4181721088LL | ((((uint64_t)(off_319 >> 3)) << 10) | 655ULL);
+            a_word_836 = 4181721088LL | ((((uint64_t)(off_319 >> 3)) << 10) | 655ULL);
             if (asm_pc < asm_limit) {
-                *(uint32_t *)asm_pc = a_word_830;
+                *(uint32_t *)asm_pc = a_word_836;
                 asm_pc = asm_pc + 4;
             } else if (asm_error == ASM_OK) {
                 asm_error = ASM_ERR_FULL;
@@ -18426,9 +18594,9 @@ exit_offset_to_108:;
                 }
                 goto exit_load_store_212;
             }
-            a_word_831 = 4164943872LL | (((uint64_t)(off_319 & 511)) << 12) | 655ULL;
+            a_word_837 = 4164943872LL | (((uint64_t)(off_319 & 511)) << 12) | 655ULL;
             if (asm_pc < asm_limit) {
-                *(uint32_t *)asm_pc = a_word_831;
+                *(uint32_t *)asm_pc = a_word_837;
                 asm_pc = asm_pc + 4;
             } else if (asm_error == ASM_OK) {
                 asm_error = ASM_ERR_FULL;
@@ -18460,9 +18628,9 @@ exit_dst_11:;
                 }
                 goto exit_logical_56;
             }
-            a_word_832 = 0xA000000 | ((r & REG_W) == 0 ? 0x80000000LL : 0) | 0 | (0ULL | ((((uint64_t)(y & 31)) << 16) | (((uint64_t)(x & 31)) << 5) | (r & 31)));
+            a_word_838 = 0xA000000 | ((r & REG_W) == 0 ? 0x80000000LL : 0) | 0 | (0ULL | ((((uint64_t)(y & 31)) << 16) | (((uint64_t)(x & 31)) << 5) | (r & 31)));
             if (asm_pc < asm_limit) {
-                *(uint32_t *)asm_pc = a_word_832;
+                *(uint32_t *)asm_pc = a_word_838;
                 asm_pc = asm_pc + 4;
             } else if (asm_error == ASM_OK) {
                 asm_error = ASM_ERR_FULL;
@@ -18476,9 +18644,9 @@ exit_dst_11:;
                 }
                 goto exit_logical_57;
             }
-            a_word_833 = 0xA000000 | ((r & REG_W) == 0 ? 0x80000000LL : 0) | 0x20000000 | (0ULL | ((((uint64_t)(y & 31)) << 16) | (((uint64_t)(x & 31)) << 5) | (r & 31)));
+            a_word_839 = 0xA000000 | ((r & REG_W) == 0 ? 0x80000000LL : 0) | 0x20000000 | (0ULL | ((((uint64_t)(y & 31)) << 16) | (((uint64_t)(x & 31)) << 5) | (r & 31)));
             if (asm_pc < asm_limit) {
-                *(uint32_t *)asm_pc = a_word_833;
+                *(uint32_t *)asm_pc = a_word_839;
                 asm_pc = asm_pc + 4;
             } else if (asm_error == ASM_OK) {
                 asm_error = ASM_ERR_FULL;
@@ -18492,24 +18660,24 @@ exit_dst_11:;
                 }
                 goto exit_logical_58;
             }
-            a_word_834 = 0xA000000 | ((r & REG_W) == 0 ? 0x80000000LL : 0) | 0x40000000 | (0ULL | ((((uint64_t)(y & 31)) << 16) | (((uint64_t)(x & 31)) << 5) | (r & 31)));
+            a_word_840 = 0xA000000 | ((r & REG_W) == 0 ? 0x80000000LL : 0) | 0x40000000 | (0ULL | ((((uint64_t)(y & 31)) << 16) | (((uint64_t)(x & 31)) << 5) | (r & 31)));
             if (asm_pc < asm_limit) {
-                *(uint32_t *)asm_pc = a_word_834;
+                *(uint32_t *)asm_pc = a_word_840;
                 asm_pc = asm_pc + 4;
             } else if (asm_error == ASM_OK) {
                 asm_error = ASM_ERR_FULL;
             }
         exit_logical_58:;
-            enc_35 = asm_logical_immediate(1ULL, (r & REG_W) == 0 ? 64 : 32);
-            if (enc_35 < 0) {
+            enc_36 = asm_logical_immediate(1ULL, (r & REG_W) == 0 ? 64 : 32);
+            if (enc_36 < 0) {
                 if (asm_error == ASM_OK) {
                     asm_error = ASM_ERR_IMMEDIATE;
                 }
                 goto exit_logical_59;
             }
-            a_word_835 = 0x12000000 | ((r & REG_W) == 0 ? 0x80000000LL : 0) | 0x20000000 | ((((uint64_t)enc_35) << 10) | ((((uint64_t)(r & 31)) << 5) | (r & 31)));
+            a_word_841 = 0x12000000 | ((r & REG_W) == 0 ? 0x80000000LL : 0) | 0x20000000 | ((((uint64_t)enc_36) << 10) | ((((uint64_t)(r & 31)) << 5) | (r & 31)));
             if (asm_pc < asm_limit) {
-                *(uint32_t *)asm_pc = a_word_835;
+                *(uint32_t *)asm_pc = a_word_841;
                 asm_pc = asm_pc + 4;
             } else if (asm_error == ASM_OK) {
                 asm_error = ASM_ERR_FULL;
@@ -18520,17 +18688,17 @@ exit_dst_11:;
         if ((nd_80->reg >= 0) && ((int32_t)nd_80->reg != r)) {
             rd_47 = (int32_t)nd_80->reg;
             if (((rd_47 & REG_SP) != 0) || ((r & REG_SP) != 0)) {
-                a_word_836 = 0x11000000 | ((rd_47 & REG_W) == 0 ? 0x80000000LL : 0) | 0 | (0ULL | ((((uint64_t)(r & 31)) << 5) | (rd_47 & 31)));
+                a_word_842 = 0x11000000 | ((rd_47 & REG_W) == 0 ? 0x80000000LL : 0) | 0 | (0ULL | ((((uint64_t)(r & 31)) << 5) | (rd_47 & 31)));
                 if (asm_pc < asm_limit) {
-                    *(uint32_t *)asm_pc = a_word_836;
+                    *(uint32_t *)asm_pc = a_word_842;
                     asm_pc = asm_pc + 4;
                 } else if (asm_error == ASM_OK) {
                     asm_error = ASM_ERR_FULL;
                 }
                 goto exit_add_sub_82;
-                a_word_837 = 0x11400000 | ((rd_47 & REG_W) == 0 ? 0x80000000LL : 0) | 0 | (0ULL | ((((uint64_t)(r & 31)) << 5) | (rd_47 & 31)));
+                a_word_843 = 0x11400000 | ((rd_47 & REG_W) == 0 ? 0x80000000LL : 0) | 0 | (0ULL | ((((uint64_t)(r & 31)) << 5) | (rd_47 & 31)));
                 if (asm_pc < asm_limit) {
-                    *(uint32_t *)asm_pc = a_word_837;
+                    *(uint32_t *)asm_pc = a_word_843;
                     asm_pc = asm_pc + 4;
                 } else if (asm_error == ASM_OK) {
                     asm_error = ASM_ERR_FULL;
@@ -18548,9 +18716,9 @@ exit_dst_11:;
                     }
                     goto exit_logical_60;
                 }
-                a_word_838 = 0xA000000 | ((rd_47 & REG_W) == 0 ? 0x80000000LL : 0) | 0x20000000 | (0ULL | ((((uint64_t)(r & 31)) << 16) | (((uint64_t)(rn_32 & 31)) << 5) | (rd_47 & 31)));
+                a_word_844 = 0xA000000 | ((rd_47 & REG_W) == 0 ? 0x80000000LL : 0) | 0x20000000 | (0ULL | ((((uint64_t)(r & 31)) << 16) | (((uint64_t)(rn_32 & 31)) << 5) | (rd_47 & 31)));
                 if (asm_pc < asm_limit) {
-                    *(uint32_t *)asm_pc = a_word_838;
+                    *(uint32_t *)asm_pc = a_word_844;
                     asm_pc = asm_pc + 4;
                 } else if (asm_error == ASM_OK) {
                     asm_error = ASM_ERR_FULL;
@@ -18558,29 +18726,29 @@ exit_dst_11:;
             exit_logical_60:;
             }
         }
-        if (nd_80->slot >= 0) {
+        if ((nd_80->slot >= 0) && ((nd_80->flags & NF_LAZY) == 0)) {
             off_320 = 8 * (int32_t)nd_80->slot;
-            bits_74 = (r & REG_D) != 0 ? 0xC4000000LL : (r & REG_W) == 0 ? 0xC0000000LL : 0x80000000LL;
+            bits_75 = (r & REG_D) != 0 ? 0xC4000000LL : (r & REG_W) == 0 ? 0xC0000000LL : 0x80000000LL;
             s_50 = (r & REG_W) == 0 ? 3 : 2;
             if ((off_320 >= 0) && ((off_320 & ((1LL << s_50) - 1)) == 0) && ((off_320 >> s_50) <= 4095)) {
-                a_word_839 = 0x39000000 | bits_74 | ((((uint64_t)(off_320 >> s_50)) << 10) | (640ULL | (r & 31)));
+                a_word_845 = 0x39000000 | bits_75 | ((((uint64_t)(off_320 >> s_50)) << 10) | (640ULL | (r & 31)));
                 if (asm_pc < asm_limit) {
-                    *(uint32_t *)asm_pc = a_word_839;
+                    *(uint32_t *)asm_pc = a_word_845;
                     asm_pc = asm_pc + 4;
                 } else if (asm_error == ASM_OK) {
                     asm_error = ASM_ERR_FULL;
                 }
             } else {
-                bits_75 = 0x38000000 | bits_74;
+                bits_76 = 0x38000000 | bits_75;
                 if (!((off_320 >= -256) && (off_320 <= 255))) {
                     if (asm_error == ASM_OK) {
                         asm_error = ASM_ERR_IMMEDIATE;
                     }
                     goto exit_load_store_213;
                 }
-                a_word_840 = bits_75 | (((uint64_t)(off_320 & 511)) << 12) | (640ULL | (r & 31));
+                a_word_846 = bits_76 | (((uint64_t)(off_320 & 511)) << 12) | (640ULL | (r & 31));
                 if (asm_pc < asm_limit) {
-                    *(uint32_t *)asm_pc = a_word_840;
+                    *(uint32_t *)asm_pc = a_word_846;
                     asm_pc = asm_pc + 4;
                 } else if (asm_error == ASM_OK) {
                     asm_error = ASM_ERR_FULL;
@@ -18617,9 +18785,9 @@ exit_out_18:;
         }
         off_321 = (int64_t)&((jit_state *)0)->interrupt;
         if ((off_321 >= 0) && ((off_321 & 3) == 0) && ((off_321 >> 2) <= 4095)) {
-            a_word_841 = 3107979264LL | ((((uint64_t)(off_321 >> 2)) << 10) | 720ULL);
+            a_word_847 = 3107979264LL | ((((uint64_t)(off_321 >> 2)) << 10) | 720ULL);
             if (asm_pc < asm_limit) {
-                *(uint32_t *)asm_pc = a_word_841;
+                *(uint32_t *)asm_pc = a_word_847;
                 asm_pc = asm_pc + 4;
             } else if (asm_error == ASM_OK) {
                 asm_error = ASM_ERR_FULL;
@@ -18631,9 +18799,9 @@ exit_out_18:;
                 }
                 goto exit_load_store_214;
             }
-            a_word_842 = 3091202048LL | (((uint64_t)(off_321 & 511)) << 12) | 720ULL;
+            a_word_848 = 3091202048LL | (((uint64_t)(off_321 & 511)) << 12) | 720ULL;
             if (asm_pc < asm_limit) {
-                *(uint32_t *)asm_pc = a_word_842;
+                *(uint32_t *)asm_pc = a_word_848;
                 asm_pc = asm_pc + 4;
             } else if (asm_error == ASM_OK) {
                 asm_error = ASM_ERR_FULL;
@@ -18641,7 +18809,7 @@ exit_out_18:;
         exit_load_store_214:;
         }
         target_109 = asm_target_of(s_51);
-        a_word_843 = 889192448 | ((((uint64_t)({
+        a_word_849 = 889192448 | ((((uint64_t)({
     off_322 = ((int64_t)(target_109 - asm_pc)) >> 2;
     if (!((off_322 >= -262144) && (off_322 <= 262143))) {
         if (asm_error == ASM_OK) {
@@ -18654,7 +18822,7 @@ exit_out_18:;
 exit_offset_to_109:;
     r_offset_to_109; })) << 5) | 16);
         if (asm_pc < asm_limit) {
-            *(uint32_t *)asm_pc = a_word_843;
+            *(uint32_t *)asm_pc = a_word_849;
             asm_pc = asm_pc + 4;
         } else if (asm_error == ASM_OK) {
             asm_error = ASM_ERR_FULL;
@@ -18667,9 +18835,9 @@ exit_offset_to_109:;
         }
         off_323 = (int64_t)&((jit_state *)0)->stress;
         if ((off_323 >= 0) && ((off_323 & 7) == 0) && ((off_323 >> 3) <= 4095)) {
-            a_word_844 = 4181721088LL | ((((uint64_t)(off_323 >> 3)) << 10) | 720ULL);
+            a_word_850 = 4181721088LL | ((((uint64_t)(off_323 >> 3)) << 10) | 720ULL);
             if (asm_pc < asm_limit) {
-                *(uint32_t *)asm_pc = a_word_844;
+                *(uint32_t *)asm_pc = a_word_850;
                 asm_pc = asm_pc + 4;
             } else if (asm_error == ASM_OK) {
                 asm_error = ASM_ERR_FULL;
@@ -18681,9 +18849,9 @@ exit_offset_to_109:;
                 }
                 goto exit_load_store_215;
             }
-            a_word_845 = 4164943872LL | (((uint64_t)(off_323 & 511)) << 12) | 720ULL;
+            a_word_851 = 4164943872LL | (((uint64_t)(off_323 & 511)) << 12) | 720ULL;
             if (asm_pc < asm_limit) {
-                *(uint32_t *)asm_pc = a_word_845;
+                *(uint32_t *)asm_pc = a_word_851;
                 asm_pc = asm_pc + 4;
             } else if (asm_error == ASM_OK) {
                 asm_error = ASM_ERR_FULL;
@@ -18703,9 +18871,9 @@ exit_offset_to_109:;
     exit_add_sub_83:;
         off_324 = (int64_t)&((jit_state *)0)->stress;
         if ((off_324 >= 0) && ((off_324 & 7) == 0) && ((off_324 >> 3) <= 4095)) {
-            a_word_846 = 4177526784LL | ((((uint64_t)(off_324 >> 3)) << 10) | 720ULL);
+            a_word_852 = 4177526784LL | ((((uint64_t)(off_324 >> 3)) << 10) | 720ULL);
             if (asm_pc < asm_limit) {
-                *(uint32_t *)asm_pc = a_word_846;
+                *(uint32_t *)asm_pc = a_word_852;
                 asm_pc = asm_pc + 4;
             } else if (asm_error == ASM_OK) {
                 asm_error = ASM_ERR_FULL;
@@ -18717,9 +18885,9 @@ exit_offset_to_109:;
                 }
                 goto exit_load_store_216;
             }
-            a_word_847 = 4160749568LL | (((uint64_t)(off_324 & 511)) << 12) | 720ULL;
+            a_word_853 = 4160749568LL | (((uint64_t)(off_324 & 511)) << 12) | 720ULL;
             if (asm_pc < asm_limit) {
-                *(uint32_t *)asm_pc = a_word_847;
+                *(uint32_t *)asm_pc = a_word_853;
                 asm_pc = asm_pc + 4;
             } else if (asm_error == ASM_OK) {
                 asm_error = ASM_ERR_FULL;
@@ -18727,7 +18895,7 @@ exit_offset_to_109:;
         exit_load_store_216:;
         }
         target_110 = asm_target_of(s_51);
-        a_word_848 = 0x54000000 | ((((uint64_t)({
+        a_word_854 = 0x54000000 | ((((uint64_t)({
     off_325 = ((int64_t)(target_110 - asm_pc)) >> 2;
     if (!((off_325 >= -262144) && (off_325 <= 262143))) {
         if (asm_error == ASM_OK) {
@@ -18740,7 +18908,7 @@ exit_offset_to_109:;
 exit_offset_to_110:;
     r_offset_to_110; })) << 5) | 0);
         if (asm_pc < asm_limit) {
-            *(uint32_t *)asm_pc = a_word_848;
+            *(uint32_t *)asm_pc = a_word_854;
             asm_pc = asm_pc + 4;
         } else if (asm_error == ASM_OK) {
             asm_error = ASM_ERR_FULL;
@@ -18767,8 +18935,8 @@ exit_offset_to_110:;
                 k_19 = isize;
             } else {
                 i_10 = nd_82->args + 1;
-                n_28 = opt_operands[i_10];
-                sz = opt_nodes + n_28;
+                n_33 = opt_operands[i_10];
+                sz = opt_nodes + n_33;
                 if (((int32_t)sz->op == O_CONST) && ({
     o_93 = (uint64_t)sz->aux;
     ((o_93 & 1) != 0) && ({
@@ -18778,60 +18946,60 @@ exit_offset_to_110:;
                     k_19 = isize + (int32_t)(((int64_t)o_95) >> 1);
                 } else {
                     i_11 = nd_82->args + 1;
-                    v_150 = opt_operands[i_11];
-                    r_10 = ({
-    nd_83 = opt_nodes + v_150;
+                    v_151 = opt_operands[i_11];
+                    r_11 = ({
+    nd_83 = opt_nodes + v_151;
     if ((int32_t)nd_83->op == O_CONST) {
-        v_151 = (uint64_t)nd_83->aux;
-        if ((v_151 & 1) != 0) {
-            if (((int64_t)v_151 >= -2147483648) && ((int64_t)v_151 <= 0x7FFFFFFF)) {
-                value_37 = (int64_t)v_151;
+        v_152 = (uint64_t)nd_83->aux;
+        if ((v_152 & 1) != 0) {
+            if (((int64_t)v_152 >= -2147483648) && ((int64_t)v_152 <= 0x7FFFFFFF)) {
+                value_37 = (int64_t)v_152;
                 if ((value_37 >= 0) && (value_37 <= 0xFFFF)) {
                     if (!((value_37 >= 0) && (value_37 <= 0xFFFF))) {
                         if (asm_error == ASM_OK) {
                             asm_error = ASM_ERR_IMMEDIATE;
                         }
-                        goto exit_move_wide_109;
+                        goto exit_move_wide_110;
                     }
-                    a_word_849 = 3531603968LL | (0ULL | (((uint64_t)value_37) << 5) | 15);
+                    a_word_855 = 3531603968LL | (0ULL | (((uint64_t)value_37) << 5) | 15);
                     if (asm_pc < asm_limit) {
-                        *(uint32_t *)asm_pc = a_word_849;
+                        *(uint32_t *)asm_pc = a_word_855;
                         asm_pc = asm_pc + 4;
                     } else if (asm_error == ASM_OK) {
                         asm_error = ASM_ERR_FULL;
                     }
-                exit_move_wide_109:;
+                exit_move_wide_110:;
                 } else {
                     asm_mov_imm(X15, (uint64_t)value_37);
                 }
                 goto exit_load_constant_37;
             }
-            if ((v_151 >= 0) && (v_151 <= 0xFFFF)) {
-                if (!((v_151 >= 0) && (v_151 <= 0xFFFF))) {
+            if ((v_152 >= 0) && (v_152 <= 0xFFFF)) {
+                if (!((v_152 >= 0) && (v_152 <= 0xFFFF))) {
                     if (asm_error == ASM_OK) {
                         asm_error = ASM_ERR_IMMEDIATE;
                     }
-                    goto exit_move_wide_110;
+                    goto exit_move_wide_111;
                 }
-                a_word_850 = 3531603968LL | (0ULL | (v_151 << 5) | 15);
+                a_word_856 = 3531603968LL | (0ULL | (v_152 << 5) | 15);
                 if (asm_pc < asm_limit) {
-                    *(uint32_t *)asm_pc = a_word_850;
+                    *(uint32_t *)asm_pc = a_word_856;
                     asm_pc = asm_pc + 4;
                 } else if (asm_error == ASM_OK) {
                     asm_error = ASM_ERR_FULL;
                 }
-            exit_move_wide_110:;
+            exit_move_wide_111:;
             } else {
-                asm_mov_imm(X15, v_151);
+                asm_mov_imm(X15, v_152);
             }
             goto exit_load_constant_37;
         }
-        if (v_151 == nil_oop) {
+        if (v_152 == nil_oop) {
             off_327 = (int64_t)&((jit_state *)0)->nil_oop;
             if ((off_327 >= 0) && ((off_327 & 7) == 0) && ((off_327 >> 3) <= 4095)) {
-                a_word_851 = 4181721088LL | ((((uint64_t)(off_327 >> 3)) << 10) | 719ULL);
+                a_word_857 = 4181721088LL | ((((uint64_t)(off_327 >> 3)) << 10) | 719ULL);
                 if (asm_pc < asm_limit) {
-                    *(uint32_t *)asm_pc = a_word_851;
+                    *(uint32_t *)asm_pc = a_word_857;
                     asm_pc = asm_pc + 4;
                 } else if (asm_error == ASM_OK) {
                     asm_error = ASM_ERR_FULL;
@@ -18843,9 +19011,9 @@ exit_offset_to_110:;
                     }
                     goto exit_load_store_217;
                 }
-                a_word_852 = 4164943872LL | (((uint64_t)(off_327 & 511)) << 12) | 719ULL;
+                a_word_858 = 4164943872LL | (((uint64_t)(off_327 & 511)) << 12) | 719ULL;
                 if (asm_pc < asm_limit) {
-                    *(uint32_t *)asm_pc = a_word_852;
+                    *(uint32_t *)asm_pc = a_word_858;
                     asm_pc = asm_pc + 4;
                 } else if (asm_error == ASM_OK) {
                     asm_error = ASM_ERR_FULL;
@@ -18854,12 +19022,12 @@ exit_offset_to_110:;
             }
             goto exit_load_constant_37;
         }
-        if (v_151 == true_oop) {
+        if (v_152 == true_oop) {
             off_328 = (int64_t)&((jit_state *)0)->true_oop;
             if ((off_328 >= 0) && ((off_328 & 7) == 0) && ((off_328 >> 3) <= 4095)) {
-                a_word_853 = 4181721088LL | ((((uint64_t)(off_328 >> 3)) << 10) | 719ULL);
+                a_word_859 = 4181721088LL | ((((uint64_t)(off_328 >> 3)) << 10) | 719ULL);
                 if (asm_pc < asm_limit) {
-                    *(uint32_t *)asm_pc = a_word_853;
+                    *(uint32_t *)asm_pc = a_word_859;
                     asm_pc = asm_pc + 4;
                 } else if (asm_error == ASM_OK) {
                     asm_error = ASM_ERR_FULL;
@@ -18871,9 +19039,9 @@ exit_offset_to_110:;
                     }
                     goto exit_load_store_218;
                 }
-                a_word_854 = 4164943872LL | (((uint64_t)(off_328 & 511)) << 12) | 719ULL;
+                a_word_860 = 4164943872LL | (((uint64_t)(off_328 & 511)) << 12) | 719ULL;
                 if (asm_pc < asm_limit) {
-                    *(uint32_t *)asm_pc = a_word_854;
+                    *(uint32_t *)asm_pc = a_word_860;
                     asm_pc = asm_pc + 4;
                 } else if (asm_error == ASM_OK) {
                     asm_error = ASM_ERR_FULL;
@@ -18882,12 +19050,12 @@ exit_offset_to_110:;
             }
             goto exit_load_constant_37;
         }
-        if (v_151 == false_oop) {
+        if (v_152 == false_oop) {
             off_329 = (int64_t)&((jit_state *)0)->false_oop;
             if ((off_329 >= 0) && ((off_329 & 7) == 0) && ((off_329 >> 3) <= 4095)) {
-                a_word_855 = 4181721088LL | ((((uint64_t)(off_329 >> 3)) << 10) | 719ULL);
+                a_word_861 = 4181721088LL | ((((uint64_t)(off_329 >> 3)) << 10) | 719ULL);
                 if (asm_pc < asm_limit) {
-                    *(uint32_t *)asm_pc = a_word_855;
+                    *(uint32_t *)asm_pc = a_word_861;
                     asm_pc = asm_pc + 4;
                 } else if (asm_error == ASM_OK) {
                     asm_error = ASM_ERR_FULL;
@@ -18899,9 +19067,9 @@ exit_offset_to_110:;
                     }
                     goto exit_load_store_219;
                 }
-                a_word_856 = 4164943872LL | (((uint64_t)(off_329 & 511)) << 12) | 719ULL;
+                a_word_862 = 4164943872LL | (((uint64_t)(off_329 & 511)) << 12) | 719ULL;
                 if (asm_pc < asm_limit) {
-                    *(uint32_t *)asm_pc = a_word_856;
+                    *(uint32_t *)asm_pc = a_word_862;
                     asm_pc = asm_pc + 4;
                 } else if (asm_error == ASM_OK) {
                     asm_error = ASM_ERR_FULL;
@@ -18910,30 +19078,30 @@ exit_offset_to_110:;
             }
             goto exit_load_constant_37;
         }
-        if ((v_151 & 7) != 0) {
-            if ((v_151 >= 0) && (v_151 <= 0xFFFF)) {
-                if (!((v_151 >= 0) && (v_151 <= 0xFFFF))) {
+        if ((v_152 & 7) != 0) {
+            if ((v_152 >= 0) && (v_152 <= 0xFFFF)) {
+                if (!((v_152 >= 0) && (v_152 <= 0xFFFF))) {
                     if (asm_error == ASM_OK) {
                         asm_error = ASM_ERR_IMMEDIATE;
                     }
-                    goto exit_move_wide_111;
+                    goto exit_move_wide_112;
                 }
-                a_word_857 = 3531603968LL | (0ULL | (v_151 << 5) | 15);
+                a_word_863 = 3531603968LL | (0ULL | (v_152 << 5) | 15);
                 if (asm_pc < asm_limit) {
-                    *(uint32_t *)asm_pc = a_word_857;
+                    *(uint32_t *)asm_pc = a_word_863;
                     asm_pc = asm_pc + 4;
                 } else if (asm_error == ASM_OK) {
                     asm_error = ASM_ERR_FULL;
                 }
-            exit_move_wide_111:;
+            exit_move_wide_112:;
             } else {
-                asm_mov_imm(X15, v_151);
+                asm_mov_imm(X15, v_152);
             }
             goto exit_load_constant_37;
         }
-        a_label_37 = cg_pool_labels[opt_pool_index(v_151)];
+        a_label_37 = cg_pool_labels[opt_pool_index(v_152)];
         target_111 = asm_target_of(a_label_37);
-        a_word_858 = 0x58000000 | ((((uint64_t)({
+        a_word_864 = 0x58000000 | ((((uint64_t)({
     off_330 = ((int64_t)(target_111 - asm_pc)) >> 2;
     if (!((off_330 >= -262144) && (off_330 <= 262143))) {
         if (asm_error == ASM_OK) {
@@ -18946,7 +19114,7 @@ exit_offset_to_110:;
 exit_offset_to_111:;
     r_offset_to_111; })) << 5) | 15);
         if (asm_pc < asm_limit) {
-            *(uint32_t *)asm_pc = a_word_858;
+            *(uint32_t *)asm_pc = a_word_864;
             asm_pc = asm_pc + 4;
         } else if (asm_error == ASM_OK) {
             asm_error = ASM_ERR_FULL;
@@ -18962,9 +19130,9 @@ exit_offset_to_111:;
     if (nd_83->slot >= 0) {
         off_331 = 8 * (int32_t)nd_83->slot;
         if ((off_331 >= 0) && ((off_331 & 7) == 0) && ((off_331 >> 3) <= 4095)) {
-            a_word_859 = 4181721088LL | ((((uint64_t)(off_331 >> 3)) << 10) | 655ULL);
+            a_word_865 = 4181721088LL | ((((uint64_t)(off_331 >> 3)) << 10) | 655ULL);
             if (asm_pc < asm_limit) {
-                *(uint32_t *)asm_pc = a_word_859;
+                *(uint32_t *)asm_pc = a_word_865;
                 asm_pc = asm_pc + 4;
             } else if (asm_error == ASM_OK) {
                 asm_error = ASM_ERR_FULL;
@@ -18976,9 +19144,9 @@ exit_offset_to_111:;
                 }
                 goto exit_load_store_220;
             }
-            a_word_860 = 4164943872LL | (((uint64_t)(off_331 & 511)) << 12) | 655ULL;
+            a_word_866 = 4164943872LL | (((uint64_t)(off_331 & 511)) << 12) | 655ULL;
             if (asm_pc < asm_limit) {
-                *(uint32_t *)asm_pc = a_word_860;
+                *(uint32_t *)asm_pc = a_word_866;
                 asm_pc = asm_pc + 4;
             } else if (asm_error == ASM_OK) {
                 asm_error = ASM_ERR_FULL;
@@ -18995,7 +19163,7 @@ exit_offset_to_111:;
 exit_src_32:;
     r_src_32; });
                     target_112 = asm_target_of(slow_4);
-                    a_word_861 = 905969664ULL | ((((uint64_t)({
+                    a_word_867 = 905969664ULL | ((((uint64_t)({
     off_332 = ((int64_t)(target_112 - asm_pc)) >> 2;
     if (!((off_332 >= -8192) && (off_332 <= 8191))) {
         if (asm_error == ASM_OK) {
@@ -19006,16 +19174,16 @@ exit_src_32:;
     }
     r_offset_to_112 = off_332 & 16383;
 exit_offset_to_112:;
-    r_offset_to_112; })) << 5) | (r_10 & 31));
+    r_offset_to_112; })) << 5) | (r_11 & 31));
                     if (asm_pc < asm_limit) {
-                        *(uint32_t *)asm_pc = a_word_861;
+                        *(uint32_t *)asm_pc = a_word_867;
                         asm_pc = asm_pc + 4;
                     } else if (asm_error == ASM_OK) {
                         asm_error = ASM_ERR_FULL;
                     }
-                    a_word_862 = 2470445056LL | (130048ULL | ((((uint64_t)(r_10 & 31)) << 5) | 15));
+                    a_word_868 = 2470445056LL | (130048ULL | ((((uint64_t)(r_11 & 31)) << 5) | 15));
                     if (asm_pc < asm_limit) {
-                        *(uint32_t *)asm_pc = a_word_862;
+                        *(uint32_t *)asm_pc = a_word_868;
                         asm_pc = asm_pc + 4;
                     } else if (asm_error == ASM_OK) {
                         asm_error = ASM_ERR_FULL;
@@ -19032,7 +19200,7 @@ exit_offset_to_112:;
                     }
                 exit_add_sub_84:;
                     target_113 = asm_target_of(slow_4);
-                    a_word_863 = 0x54000000 | ((((uint64_t)({
+                    a_word_869 = 0x54000000 | ((((uint64_t)({
     off_333 = ((int64_t)(target_113 - asm_pc)) >> 2;
     if (!((off_333 >= -262144) && (off_333 <= 262143))) {
         if (asm_error == ASM_OK) {
@@ -19045,29 +19213,29 @@ exit_offset_to_112:;
 exit_offset_to_113:;
     r_offset_to_113; })) << 5) | 8);
                     if (asm_pc < asm_limit) {
-                        *(uint32_t *)asm_pc = a_word_863;
+                        *(uint32_t *)asm_pc = a_word_869;
                         asm_pc = asm_pc + 4;
                     } else if (asm_error == ASM_OK) {
                         asm_error = ASM_ERR_FULL;
                     }
                     if (isize > 0) {
                         neg_72 = isize < 0;
-                        v_153 = neg_72 ? -isize : isize;
+                        v_154 = neg_72 ? -isize : isize;
                         o_97 = neg_72 ? 1073741824 : 0;
-                        if (v_153 <= 4095) {
-                            a_word_864 = 2432696320LL | o_97 | ((((uint64_t)v_153) << 10) | 495ULL);
+                        if (v_154 <= 4095) {
+                            a_word_870 = 2432696320LL | o_97 | ((((uint64_t)v_154) << 10) | 495ULL);
                             if (asm_pc < asm_limit) {
-                                *(uint32_t *)asm_pc = a_word_864;
+                                *(uint32_t *)asm_pc = a_word_870;
                                 asm_pc = asm_pc + 4;
                             } else if (asm_error == ASM_OK) {
                                 asm_error = ASM_ERR_FULL;
                             }
                             goto exit_add_sub_85;
                         }
-                        if (((v_153 & 4095) == 0) && (v_153 <= 0xFFF000)) {
-                            a_word_865 = 2436890624LL | o_97 | ((((uint64_t)(v_153 >> 12)) << 10) | 495ULL);
+                        if (((v_154 & 4095) == 0) && (v_154 <= 0xFFF000)) {
+                            a_word_871 = 2436890624LL | o_97 | ((((uint64_t)(v_154 >> 12)) << 10) | 495ULL);
                             if (asm_pc < asm_limit) {
-                                *(uint32_t *)asm_pc = a_word_865;
+                                *(uint32_t *)asm_pc = a_word_871;
                                 asm_pc = asm_pc + 4;
                             } else if (asm_error == ASM_OK) {
                                 asm_error = ASM_ERR_FULL;
@@ -19087,16 +19255,16 @@ exit_offset_to_113:;
                         if (asm_error == ASM_OK) {
                             asm_error = ASM_ERR_IMMEDIATE;
                         }
-                        goto exit_move_wide_112;
+                        goto exit_move_wide_113;
                     }
-                    a_word_866 = 3531603968LL | (0ULL | (((uint64_t)k_19) << 5) | 15);
+                    a_word_872 = 3531603968LL | (0ULL | (((uint64_t)k_19) << 5) | 15);
                     if (asm_pc < asm_limit) {
-                        *(uint32_t *)asm_pc = a_word_866;
+                        *(uint32_t *)asm_pc = a_word_872;
                         asm_pc = asm_pc + 4;
                     } else if (asm_error == ASM_OK) {
                         asm_error = ASM_ERR_FULL;
                     }
-                exit_move_wide_112:;
+                exit_move_wide_113:;
                 } else {
                     asm_mov_imm(X15, (uint64_t)k_19);
                 }
@@ -19106,16 +19274,16 @@ exit_offset_to_113:;
             }
             if (fmt != 0) {
                 imm_8 = ((uint64_t)fmt) << H_FMT_SHIFT;
-                enc_36 = asm_logical_immediate(imm_8, 64);
-                if (enc_36 < 0) {
+                enc_37 = asm_logical_immediate(imm_8, 64);
+                if (enc_37 < 0) {
                     if (asm_error == ASM_OK) {
                         asm_error = ASM_ERR_IMMEDIATE;
                     }
                     goto exit_logical_61;
                 }
-                a_word_867 = 2986344448LL | ((((uint64_t)enc_36) << 10) | 495ULL);
+                a_word_873 = 2986344448LL | ((((uint64_t)enc_37) << 10) | 495ULL);
                 if (asm_pc < asm_limit) {
-                    *(uint32_t *)asm_pc = a_word_867;
+                    *(uint32_t *)asm_pc = a_word_873;
                     asm_pc = asm_pc + 4;
                 } else if (asm_error == ASM_OK) {
                     asm_error = ASM_ERR_FULL;
@@ -19124,9 +19292,9 @@ exit_offset_to_113:;
             }
             off_334 = (int64_t)&((jit_state *)0)->hash_box;
             if ((off_334 >= 0) && ((off_334 & 7) == 0) && ((off_334 >> 3) <= 4095)) {
-                a_word_868 = 4181721088LL | ((((uint64_t)(off_334 >> 3)) << 10) | 720ULL);
+                a_word_874 = 4181721088LL | ((((uint64_t)(off_334 >> 3)) << 10) | 720ULL);
                 if (asm_pc < asm_limit) {
-                    *(uint32_t *)asm_pc = a_word_868;
+                    *(uint32_t *)asm_pc = a_word_874;
                     asm_pc = asm_pc + 4;
                 } else if (asm_error == ASM_OK) {
                     asm_error = ASM_ERR_FULL;
@@ -19138,9 +19306,9 @@ exit_offset_to_113:;
                     }
                     goto exit_load_store_221;
                 }
-                a_word_869 = 4164943872LL | (((uint64_t)(off_334 & 511)) << 12) | 720ULL;
+                a_word_875 = 4164943872LL | (((uint64_t)(off_334 & 511)) << 12) | 720ULL;
                 if (asm_pc < asm_limit) {
-                    *(uint32_t *)asm_pc = a_word_869;
+                    *(uint32_t *)asm_pc = a_word_875;
                     asm_pc = asm_pc + 4;
                 } else if (asm_error == ASM_OK) {
                     asm_error = ASM_ERR_FULL;
@@ -19179,16 +19347,16 @@ exit_offset_to_113:;
             } else if (asm_error == ASM_OK) {
                 asm_error = ASM_ERR_FULL;
             }
-            enc_37 = asm_logical_immediate(4194303ULL, 64);
-            if (enc_37 < 0) {
+            enc_38 = asm_logical_immediate(4194303ULL, 64);
+            if (enc_38 < 0) {
                 if (asm_error == ASM_OK) {
                     asm_error = ASM_ERR_IMMEDIATE;
                 }
                 goto exit_logical_62;
             }
-            a_word_870 = 2449473536LL | ((((uint64_t)enc_37) << 10) | 561ULL);
+            a_word_876 = 2449473536LL | ((((uint64_t)enc_38) << 10) | 561ULL);
             if (asm_pc < asm_limit) {
-                *(uint32_t *)asm_pc = a_word_870;
+                *(uint32_t *)asm_pc = a_word_876;
                 asm_pc = asm_pc + 4;
             } else if (asm_error == ASM_OK) {
                 asm_error = ASM_ERR_FULL;
@@ -19258,9 +19426,9 @@ exit_offset_to_113:;
                 }
                 goto exit_adrp;
             }
-            a_word_871 = 0x90000000LL | (((uint64_t)(off_335 & 3)) << 29) | ((((uint64_t)((off_335 >> 2) & 0x7FFFF)) << 5) | 17);
+            a_word_877 = 0x90000000LL | (((uint64_t)(off_335 & 3)) << 29) | ((((uint64_t)((off_335 >> 2) & 0x7FFFF)) << 5) | 17);
             if (asm_pc < asm_limit) {
-                *(uint32_t *)asm_pc = a_word_871;
+                *(uint32_t *)asm_pc = a_word_877;
                 asm_pc = asm_pc + 4;
             } else if (asm_error == ASM_OK) {
                 asm_error = ASM_ERR_FULL;
@@ -19268,22 +19436,22 @@ exit_offset_to_113:;
         exit_adrp:;
             imm_9 = (int64_t)(((uint64_t)eden_box) & 0xFFF);
             neg_75 = imm_9 < 0;
-            v_156 = neg_75 ? -imm_9 : imm_9;
+            v_157 = neg_75 ? -imm_9 : imm_9;
             o_100 = neg_75 ? 1073741824 : 0;
-            if (v_156 <= 4095) {
-                a_word_872 = 2432696320LL | o_100 | ((((uint64_t)v_156) << 10) | 561ULL);
+            if (v_157 <= 4095) {
+                a_word_878 = 2432696320LL | o_100 | ((((uint64_t)v_157) << 10) | 561ULL);
                 if (asm_pc < asm_limit) {
-                    *(uint32_t *)asm_pc = a_word_872;
+                    *(uint32_t *)asm_pc = a_word_878;
                     asm_pc = asm_pc + 4;
                 } else if (asm_error == ASM_OK) {
                     asm_error = ASM_ERR_FULL;
                 }
                 goto exit_add_sub_88;
             }
-            if (((v_156 & 4095) == 0) && (v_156 <= 0xFFF000)) {
-                a_word_873 = 2436890624LL | o_100 | ((((uint64_t)(v_156 >> 12)) << 10) | 561ULL);
+            if (((v_157 & 4095) == 0) && (v_157 <= 0xFFF000)) {
+                a_word_879 = 2436890624LL | o_100 | ((((uint64_t)(v_157 >> 12)) << 10) | 561ULL);
                 if (asm_pc < asm_limit) {
-                    *(uint32_t *)asm_pc = a_word_873;
+                    *(uint32_t *)asm_pc = a_word_879;
                     asm_pc = asm_pc + 4;
                 } else if (asm_error == ASM_OK) {
                     asm_error = ASM_ERR_FULL;
@@ -19319,7 +19487,7 @@ exit_offset_to_113:;
                 asm_error = ASM_ERR_FULL;
             }
             target_114 = asm_target_of(slow_4);
-            a_word_874 = 0x54000000 | ((((uint64_t)({
+            a_word_880 = 0x54000000 | ((((uint64_t)({
     off_336 = ((int64_t)(target_114 - asm_pc)) >> 2;
     if (!((off_336 >= -262144) && (off_336 <= 262143))) {
         if (asm_error == ASM_OK) {
@@ -19332,7 +19500,7 @@ exit_offset_to_113:;
 exit_offset_to_114:;
     r_offset_to_114; })) << 5) | 8);
             if (asm_pc < asm_limit) {
-                *(uint32_t *)asm_pc = a_word_874;
+                *(uint32_t *)asm_pc = a_word_880;
                 asm_pc = asm_pc + 4;
             } else if (asm_error == ASM_OK) {
                 asm_error = ASM_ERR_FULL;
@@ -19345,9 +19513,9 @@ exit_offset_to_114:;
                 }
                 goto exit_adrp_2;
             }
-            a_word_875 = 0x90000000LL | (((uint64_t)(off_337 & 3)) << 29) | ((((uint64_t)((off_337 >> 2) & 0x7FFFF)) << 5) | 17);
+            a_word_881 = 0x90000000LL | (((uint64_t)(off_337 & 3)) << 29) | ((((uint64_t)((off_337 >> 2) & 0x7FFFF)) << 5) | 17);
             if (asm_pc < asm_limit) {
-                *(uint32_t *)asm_pc = a_word_875;
+                *(uint32_t *)asm_pc = a_word_881;
                 asm_pc = asm_pc + 4;
             } else if (asm_error == ASM_OK) {
                 asm_error = ASM_ERR_FULL;
@@ -19355,22 +19523,22 @@ exit_offset_to_114:;
         exit_adrp_2:;
             imm_10 = (int64_t)(((uint64_t)eden_box) & 0xFFF);
             neg_76 = imm_10 < 0;
-            v_157 = neg_76 ? -imm_10 : imm_10;
+            v_158 = neg_76 ? -imm_10 : imm_10;
             o_101 = neg_76 ? 1073741824 : 0;
-            if (v_157 <= 4095) {
-                a_word_876 = 2432696320LL | o_101 | ((((uint64_t)v_157) << 10) | 561ULL);
+            if (v_158 <= 4095) {
+                a_word_882 = 2432696320LL | o_101 | ((((uint64_t)v_158) << 10) | 561ULL);
                 if (asm_pc < asm_limit) {
-                    *(uint32_t *)asm_pc = a_word_876;
+                    *(uint32_t *)asm_pc = a_word_882;
                     asm_pc = asm_pc + 4;
                 } else if (asm_error == ASM_OK) {
                     asm_error = ASM_ERR_FULL;
                 }
                 goto exit_add_sub_89;
             }
-            if (((v_157 & 4095) == 0) && (v_157 <= 0xFFF000)) {
-                a_word_877 = 2436890624LL | o_101 | ((((uint64_t)(v_157 >> 12)) << 10) | 561ULL);
+            if (((v_158 & 4095) == 0) && (v_158 <= 0xFFF000)) {
+                a_word_883 = 2436890624LL | o_101 | ((((uint64_t)(v_158 >> 12)) << 10) | 561ULL);
                 if (asm_pc < asm_limit) {
-                    *(uint32_t *)asm_pc = a_word_877;
+                    *(uint32_t *)asm_pc = a_word_883;
                     asm_pc = asm_pc + 4;
                 } else if (asm_error == ASM_OK) {
                     asm_error = ASM_ERR_FULL;
@@ -19387,56 +19555,56 @@ exit_offset_to_114:;
             } else if (asm_error == ASM_OK) {
                 asm_error = ASM_ERR_FULL;
             }
-            v_158 = nd_82->tcls;
-            if ((v_158 & 1) != 0) {
-                if (((int64_t)v_158 >= -2147483648) && ((int64_t)v_158 <= 0x7FFFFFFF)) {
-                    value_38 = (int64_t)v_158;
+            v_159 = nd_82->tcls;
+            if ((v_159 & 1) != 0) {
+                if (((int64_t)v_159 >= -2147483648) && ((int64_t)v_159 <= 0x7FFFFFFF)) {
+                    value_38 = (int64_t)v_159;
                     if ((value_38 >= 0) && (value_38 <= 0xFFFF)) {
                         if (!((value_38 >= 0) && (value_38 <= 0xFFFF))) {
                             if (asm_error == ASM_OK) {
                                 asm_error = ASM_ERR_IMMEDIATE;
                             }
-                            goto exit_move_wide_113;
+                            goto exit_move_wide_114;
                         }
-                        a_word_878 = 3531603968LL | (0ULL | (((uint64_t)value_38) << 5) | 17);
+                        a_word_884 = 3531603968LL | (0ULL | (((uint64_t)value_38) << 5) | 17);
                         if (asm_pc < asm_limit) {
-                            *(uint32_t *)asm_pc = a_word_878;
+                            *(uint32_t *)asm_pc = a_word_884;
                             asm_pc = asm_pc + 4;
                         } else if (asm_error == ASM_OK) {
                             asm_error = ASM_ERR_FULL;
                         }
-                    exit_move_wide_113:;
+                    exit_move_wide_114:;
                     } else {
                         asm_mov_imm(X17, (uint64_t)value_38);
                     }
                     goto exit_load_constant_38;
                 }
-                if ((v_158 >= 0) && (v_158 <= 0xFFFF)) {
-                    if (!((v_158 >= 0) && (v_158 <= 0xFFFF))) {
+                if ((v_159 >= 0) && (v_159 <= 0xFFFF)) {
+                    if (!((v_159 >= 0) && (v_159 <= 0xFFFF))) {
                         if (asm_error == ASM_OK) {
                             asm_error = ASM_ERR_IMMEDIATE;
                         }
-                        goto exit_move_wide_114;
+                        goto exit_move_wide_115;
                     }
-                    a_word_879 = 3531603968LL | (0ULL | (v_158 << 5) | 17);
+                    a_word_885 = 3531603968LL | (0ULL | (v_159 << 5) | 17);
                     if (asm_pc < asm_limit) {
-                        *(uint32_t *)asm_pc = a_word_879;
+                        *(uint32_t *)asm_pc = a_word_885;
                         asm_pc = asm_pc + 4;
                     } else if (asm_error == ASM_OK) {
                         asm_error = ASM_ERR_FULL;
                     }
-                exit_move_wide_114:;
+                exit_move_wide_115:;
                 } else {
-                    asm_mov_imm(X17, v_158);
+                    asm_mov_imm(X17, v_159);
                 }
                 goto exit_load_constant_38;
             }
-            if (v_158 == nil_oop) {
+            if (v_159 == nil_oop) {
                 off_338 = (int64_t)&((jit_state *)0)->nil_oop;
                 if ((off_338 >= 0) && ((off_338 & 7) == 0) && ((off_338 >> 3) <= 4095)) {
-                    a_word_880 = 4181721088LL | ((((uint64_t)(off_338 >> 3)) << 10) | 721ULL);
+                    a_word_886 = 4181721088LL | ((((uint64_t)(off_338 >> 3)) << 10) | 721ULL);
                     if (asm_pc < asm_limit) {
-                        *(uint32_t *)asm_pc = a_word_880;
+                        *(uint32_t *)asm_pc = a_word_886;
                         asm_pc = asm_pc + 4;
                     } else if (asm_error == ASM_OK) {
                         asm_error = ASM_ERR_FULL;
@@ -19448,9 +19616,9 @@ exit_offset_to_114:;
                         }
                         goto exit_load_store_222;
                     }
-                    a_word_881 = 4164943872LL | (((uint64_t)(off_338 & 511)) << 12) | 721ULL;
+                    a_word_887 = 4164943872LL | (((uint64_t)(off_338 & 511)) << 12) | 721ULL;
                     if (asm_pc < asm_limit) {
-                        *(uint32_t *)asm_pc = a_word_881;
+                        *(uint32_t *)asm_pc = a_word_887;
                         asm_pc = asm_pc + 4;
                     } else if (asm_error == ASM_OK) {
                         asm_error = ASM_ERR_FULL;
@@ -19459,12 +19627,12 @@ exit_offset_to_114:;
                 }
                 goto exit_load_constant_38;
             }
-            if (v_158 == true_oop) {
+            if (v_159 == true_oop) {
                 off_339 = (int64_t)&((jit_state *)0)->true_oop;
                 if ((off_339 >= 0) && ((off_339 & 7) == 0) && ((off_339 >> 3) <= 4095)) {
-                    a_word_882 = 4181721088LL | ((((uint64_t)(off_339 >> 3)) << 10) | 721ULL);
+                    a_word_888 = 4181721088LL | ((((uint64_t)(off_339 >> 3)) << 10) | 721ULL);
                     if (asm_pc < asm_limit) {
-                        *(uint32_t *)asm_pc = a_word_882;
+                        *(uint32_t *)asm_pc = a_word_888;
                         asm_pc = asm_pc + 4;
                     } else if (asm_error == ASM_OK) {
                         asm_error = ASM_ERR_FULL;
@@ -19476,9 +19644,9 @@ exit_offset_to_114:;
                         }
                         goto exit_load_store_223;
                     }
-                    a_word_883 = 4164943872LL | (((uint64_t)(off_339 & 511)) << 12) | 721ULL;
+                    a_word_889 = 4164943872LL | (((uint64_t)(off_339 & 511)) << 12) | 721ULL;
                     if (asm_pc < asm_limit) {
-                        *(uint32_t *)asm_pc = a_word_883;
+                        *(uint32_t *)asm_pc = a_word_889;
                         asm_pc = asm_pc + 4;
                     } else if (asm_error == ASM_OK) {
                         asm_error = ASM_ERR_FULL;
@@ -19487,12 +19655,12 @@ exit_offset_to_114:;
                 }
                 goto exit_load_constant_38;
             }
-            if (v_158 == false_oop) {
+            if (v_159 == false_oop) {
                 off_340 = (int64_t)&((jit_state *)0)->false_oop;
                 if ((off_340 >= 0) && ((off_340 & 7) == 0) && ((off_340 >> 3) <= 4095)) {
-                    a_word_884 = 4181721088LL | ((((uint64_t)(off_340 >> 3)) << 10) | 721ULL);
+                    a_word_890 = 4181721088LL | ((((uint64_t)(off_340 >> 3)) << 10) | 721ULL);
                     if (asm_pc < asm_limit) {
-                        *(uint32_t *)asm_pc = a_word_884;
+                        *(uint32_t *)asm_pc = a_word_890;
                         asm_pc = asm_pc + 4;
                     } else if (asm_error == ASM_OK) {
                         asm_error = ASM_ERR_FULL;
@@ -19504,9 +19672,9 @@ exit_offset_to_114:;
                         }
                         goto exit_load_store_224;
                     }
-                    a_word_885 = 4164943872LL | (((uint64_t)(off_340 & 511)) << 12) | 721ULL;
+                    a_word_891 = 4164943872LL | (((uint64_t)(off_340 & 511)) << 12) | 721ULL;
                     if (asm_pc < asm_limit) {
-                        *(uint32_t *)asm_pc = a_word_885;
+                        *(uint32_t *)asm_pc = a_word_891;
                         asm_pc = asm_pc + 4;
                     } else if (asm_error == ASM_OK) {
                         asm_error = ASM_ERR_FULL;
@@ -19515,30 +19683,30 @@ exit_offset_to_114:;
                 }
                 goto exit_load_constant_38;
             }
-            if ((v_158 & 7) != 0) {
-                if ((v_158 >= 0) && (v_158 <= 0xFFFF)) {
-                    if (!((v_158 >= 0) && (v_158 <= 0xFFFF))) {
+            if ((v_159 & 7) != 0) {
+                if ((v_159 >= 0) && (v_159 <= 0xFFFF)) {
+                    if (!((v_159 >= 0) && (v_159 <= 0xFFFF))) {
                         if (asm_error == ASM_OK) {
                             asm_error = ASM_ERR_IMMEDIATE;
                         }
-                        goto exit_move_wide_115;
+                        goto exit_move_wide_116;
                     }
-                    a_word_886 = 3531603968LL | (0ULL | (v_158 << 5) | 17);
+                    a_word_892 = 3531603968LL | (0ULL | (v_159 << 5) | 17);
                     if (asm_pc < asm_limit) {
-                        *(uint32_t *)asm_pc = a_word_886;
+                        *(uint32_t *)asm_pc = a_word_892;
                         asm_pc = asm_pc + 4;
                     } else if (asm_error == ASM_OK) {
                         asm_error = ASM_ERR_FULL;
                     }
-                exit_move_wide_115:;
+                exit_move_wide_116:;
                 } else {
-                    asm_mov_imm(X17, v_158);
+                    asm_mov_imm(X17, v_159);
                 }
                 goto exit_load_constant_38;
             }
-            a_label_40 = cg_pool_labels[opt_pool_index(v_158)];
+            a_label_40 = cg_pool_labels[opt_pool_index(v_159)];
             target_115 = asm_target_of(a_label_40);
-            a_word_887 = 0x58000000 | ((((uint64_t)({
+            a_word_893 = 0x58000000 | ((((uint64_t)({
     off_341 = ((int64_t)(target_115 - asm_pc)) >> 2;
     if (!((off_341 >= -262144) && (off_341 <= 262143))) {
         if (asm_error == ASM_OK) {
@@ -19551,7 +19719,7 @@ exit_offset_to_114:;
 exit_offset_to_115:;
     r_offset_to_115; })) << 5) | 17);
             if (asm_pc < asm_limit) {
-                *(uint32_t *)asm_pc = a_word_887;
+                *(uint32_t *)asm_pc = a_word_893;
                 asm_pc = asm_pc + 4;
             } else if (asm_error == ASM_OK) {
                 asm_error = ASM_ERR_FULL;
@@ -19568,9 +19736,9 @@ exit_offset_to_115:;
             }
             off_342 = (int64_t)&((jit_state *)0)->nil_oop;
             if ((off_342 >= 0) && ((off_342 & 7) == 0) && ((off_342 >> 3) <= 4095)) {
-                a_word_888 = 4181721088LL | ((((uint64_t)(off_342 >> 3)) << 10) | 721ULL);
+                a_word_894 = 4181721088LL | ((((uint64_t)(off_342 >> 3)) << 10) | 721ULL);
                 if (asm_pc < asm_limit) {
-                    *(uint32_t *)asm_pc = a_word_888;
+                    *(uint32_t *)asm_pc = a_word_894;
                     asm_pc = asm_pc + 4;
                 } else if (asm_error == ASM_OK) {
                     asm_error = ASM_ERR_FULL;
@@ -19582,9 +19750,9 @@ exit_offset_to_115:;
                     }
                     goto exit_load_store_225;
                 }
-                a_word_889 = 4164943872LL | (((uint64_t)(off_342 & 511)) << 12) | 721ULL;
+                a_word_895 = 4164943872LL | (((uint64_t)(off_342 & 511)) << 12) | 721ULL;
                 if (asm_pc < asm_limit) {
-                    *(uint32_t *)asm_pc = a_word_889;
+                    *(uint32_t *)asm_pc = a_word_895;
                     asm_pc = asm_pc + 4;
                 } else if (asm_error == ASM_OK) {
                     asm_error = ASM_ERR_FULL;
@@ -19595,9 +19763,9 @@ exit_offset_to_115:;
                 for (i_12 = 0; i_12 <= k_19 - 1; i_12++) {
                     off_343 = 16 + 8 * i_12;
                     if ((off_343 >= 0) && ((off_343 & 7) == 0) && ((off_343 >> 3) <= 4095)) {
-                        a_word_890 = 4177526784LL | ((((uint64_t)(off_343 >> 3)) << 10) | 529ULL);
+                        a_word_896 = 4177526784LL | ((((uint64_t)(off_343 >> 3)) << 10) | 529ULL);
                         if (asm_pc < asm_limit) {
-                            *(uint32_t *)asm_pc = a_word_890;
+                            *(uint32_t *)asm_pc = a_word_896;
                             asm_pc = asm_pc + 4;
                         } else if (asm_error == ASM_OK) {
                             asm_error = ASM_ERR_FULL;
@@ -19609,9 +19777,9 @@ exit_offset_to_115:;
                             }
                             goto exit_load_store_226;
                         }
-                        a_word_891 = 4160749568LL | (((uint64_t)(off_343 & 511)) << 12) | 529ULL;
+                        a_word_897 = 4160749568LL | (((uint64_t)(off_343 & 511)) << 12) | 529ULL;
                         if (asm_pc < asm_limit) {
-                            *(uint32_t *)asm_pc = a_word_891;
+                            *(uint32_t *)asm_pc = a_word_897;
                             asm_pc = asm_pc + 4;
                         } else if (asm_error == ASM_OK) {
                             asm_error = ASM_ERR_FULL;
@@ -19640,7 +19808,7 @@ exit_offset_to_115:;
                 }
             exit_add_sub_90:;
                 target_116 = asm_target_of(fill);
-                a_word_892 = 0x14000000 | ({
+                a_word_898 = 0x14000000 | ({
     off_344 = ((int64_t)(target_116 - asm_pc)) >> 2;
     if (!((off_344 >= -33554432) && (off_344 <= 33554431))) {
         if (asm_error == ASM_OK) {
@@ -19653,7 +19821,7 @@ exit_offset_to_115:;
 exit_offset_to_116:;
     r_offset_to_116; });
                 if (asm_pc < asm_limit) {
-                    *(uint32_t *)asm_pc = a_word_892;
+                    *(uint32_t *)asm_pc = a_word_898;
                     asm_pc = asm_pc + 4;
                 } else if (asm_error == ASM_OK) {
                     asm_error = ASM_ERR_FULL;
@@ -19678,7 +19846,7 @@ exit_offset_to_116:;
             exit_add_sub_91:;
                 asm_bind(fill);
                 target_117 = asm_target_of(loop);
-                a_word_893 = 889192448 | ((((uint64_t)({
+                a_word_899 = 889192448 | ((((uint64_t)({
     off_345 = ((int64_t)(target_117 - asm_pc)) >> 2;
     if (!((off_345 >= -262144) && (off_345 <= 262143))) {
         if (asm_error == ASM_OK) {
@@ -19691,13 +19859,13 @@ exit_offset_to_116:;
 exit_offset_to_117:;
     r_offset_to_117; })) << 5) | 15);
                 if (asm_pc < asm_limit) {
-                    *(uint32_t *)asm_pc = a_word_893;
+                    *(uint32_t *)asm_pc = a_word_899;
                     asm_pc = asm_pc + 4;
                 } else if (asm_error == ASM_OK) {
                     asm_error = ASM_ERR_FULL;
                 }
             }
-            r_10 = ({
+            r_11 = ({
     nd_84 = opt_nodes + n;
     if (nd_84->reg >= 0) {
         r_dst_12 = (int32_t)nd_84->reg;
@@ -19706,18 +19874,18 @@ exit_offset_to_117:;
     r_dst_12 = X14;
 exit_dst_12:;
     r_dst_12; });
-            if ((r_10 & REG_SP) != 0) {
-                a_word_894 = 0x11000000 | ((r_10 & REG_W) == 0 ? 0x80000000LL : 0) | 0 | (0ULL | (512ULL | (r_10 & 31)));
+            if ((r_11 & REG_SP) != 0) {
+                a_word_900 = 0x11000000 | ((r_11 & REG_W) == 0 ? 0x80000000LL : 0) | 0 | (0ULL | (512ULL | (r_11 & 31)));
                 if (asm_pc < asm_limit) {
-                    *(uint32_t *)asm_pc = a_word_894;
+                    *(uint32_t *)asm_pc = a_word_900;
                     asm_pc = asm_pc + 4;
                 } else if (asm_error == ASM_OK) {
                     asm_error = ASM_ERR_FULL;
                 }
                 goto exit_add_sub_92;
-                a_word_895 = 0x11400000 | ((r_10 & REG_W) == 0 ? 0x80000000LL : 0) | 0 | (0ULL | (512ULL | (r_10 & 31)));
+                a_word_901 = 0x11400000 | ((r_11 & REG_W) == 0 ? 0x80000000LL : 0) | 0 | (0ULL | (512ULL | (r_11 & 31)));
                 if (asm_pc < asm_limit) {
-                    *(uint32_t *)asm_pc = a_word_895;
+                    *(uint32_t *)asm_pc = a_word_901;
                     asm_pc = asm_pc + 4;
                 } else if (asm_error == ASM_OK) {
                     asm_error = ASM_ERR_FULL;
@@ -19728,16 +19896,16 @@ exit_dst_12:;
                 }
             exit_add_sub_92:;
             } else {
-                rn_33 = (r_10 & REG_W) | 31;
-                if (0 >= ((r_10 & REG_W) == 0 ? 64 : 32)) {
+                rn_33 = (r_11 & REG_W) | 31;
+                if (0 >= ((r_11 & REG_W) == 0 ? 64 : 32)) {
                     if (asm_error == ASM_OK) {
                         asm_error = ASM_ERR_OPERAND;
                     }
                     goto exit_logical_63;
                 }
-                a_word_896 = 0xA000000 | ((r_10 & REG_W) == 0 ? 0x80000000LL : 0) | 0x20000000 | (0ULL | (1048576ULL | (((uint64_t)(rn_33 & 31)) << 5) | (r_10 & 31)));
+                a_word_902 = 0xA000000 | ((r_11 & REG_W) == 0 ? 0x80000000LL : 0) | 0x20000000 | (0ULL | (1048576ULL | (((uint64_t)(rn_33 & 31)) << 5) | (r_11 & 31)));
                 if (asm_pc < asm_limit) {
-                    *(uint32_t *)asm_pc = a_word_896;
+                    *(uint32_t *)asm_pc = a_word_902;
                     asm_pc = asm_pc + 4;
                 } else if (asm_error == ASM_OK) {
                     asm_error = ASM_ERR_FULL;
@@ -19745,20 +19913,20 @@ exit_dst_12:;
             exit_logical_63:;
             }
             nd_85 = opt_nodes + n;
-            if ((nd_85->reg >= 0) && ((int32_t)nd_85->reg != r_10)) {
+            if ((nd_85->reg >= 0) && ((int32_t)nd_85->reg != r_11)) {
                 rd_48 = (int32_t)nd_85->reg;
-                if (((rd_48 & REG_SP) != 0) || ((r_10 & REG_SP) != 0)) {
-                    a_word_897 = 0x11000000 | ((rd_48 & REG_W) == 0 ? 0x80000000LL : 0) | 0 | (0ULL | ((((uint64_t)(r_10 & 31)) << 5) | (rd_48 & 31)));
+                if (((rd_48 & REG_SP) != 0) || ((r_11 & REG_SP) != 0)) {
+                    a_word_903 = 0x11000000 | ((rd_48 & REG_W) == 0 ? 0x80000000LL : 0) | 0 | (0ULL | ((((uint64_t)(r_11 & 31)) << 5) | (rd_48 & 31)));
                     if (asm_pc < asm_limit) {
-                        *(uint32_t *)asm_pc = a_word_897;
+                        *(uint32_t *)asm_pc = a_word_903;
                         asm_pc = asm_pc + 4;
                     } else if (asm_error == ASM_OK) {
                         asm_error = ASM_ERR_FULL;
                     }
                     goto exit_add_sub_93;
-                    a_word_898 = 0x11400000 | ((rd_48 & REG_W) == 0 ? 0x80000000LL : 0) | 0 | (0ULL | ((((uint64_t)(r_10 & 31)) << 5) | (rd_48 & 31)));
+                    a_word_904 = 0x11400000 | ((rd_48 & REG_W) == 0 ? 0x80000000LL : 0) | 0 | (0ULL | ((((uint64_t)(r_11 & 31)) << 5) | (rd_48 & 31)));
                     if (asm_pc < asm_limit) {
-                        *(uint32_t *)asm_pc = a_word_898;
+                        *(uint32_t *)asm_pc = a_word_904;
                         asm_pc = asm_pc + 4;
                     } else if (asm_error == ASM_OK) {
                         asm_error = ASM_ERR_FULL;
@@ -19776,9 +19944,9 @@ exit_dst_12:;
                         }
                         goto exit_logical_64;
                     }
-                    a_word_899 = 0xA000000 | ((rd_48 & REG_W) == 0 ? 0x80000000LL : 0) | 0x20000000 | (0ULL | ((((uint64_t)(r_10 & 31)) << 16) | (((uint64_t)(rn_34 & 31)) << 5) | (rd_48 & 31)));
+                    a_word_905 = 0xA000000 | ((rd_48 & REG_W) == 0 ? 0x80000000LL : 0) | 0x20000000 | (0ULL | ((((uint64_t)(r_11 & 31)) << 16) | (((uint64_t)(rn_34 & 31)) << 5) | (rd_48 & 31)));
                     if (asm_pc < asm_limit) {
-                        *(uint32_t *)asm_pc = a_word_899;
+                        *(uint32_t *)asm_pc = a_word_905;
                         asm_pc = asm_pc + 4;
                     } else if (asm_error == ASM_OK) {
                         asm_error = ASM_ERR_FULL;
@@ -19786,29 +19954,29 @@ exit_dst_12:;
                 exit_logical_64:;
                 }
             }
-            if (nd_85->slot >= 0) {
+            if ((nd_85->slot >= 0) && ((nd_85->flags & NF_LAZY) == 0)) {
                 off_346 = 8 * (int32_t)nd_85->slot;
-                bits_76 = (r_10 & REG_D) != 0 ? 0xC4000000LL : (r_10 & REG_W) == 0 ? 0xC0000000LL : 0x80000000LL;
-                s_53 = (r_10 & REG_W) == 0 ? 3 : 2;
+                bits_77 = (r_11 & REG_D) != 0 ? 0xC4000000LL : (r_11 & REG_W) == 0 ? 0xC0000000LL : 0x80000000LL;
+                s_53 = (r_11 & REG_W) == 0 ? 3 : 2;
                 if ((off_346 >= 0) && ((off_346 & ((1LL << s_53) - 1)) == 0) && ((off_346 >> s_53) <= 4095)) {
-                    a_word_900 = 0x39000000 | bits_76 | ((((uint64_t)(off_346 >> s_53)) << 10) | (640ULL | (r_10 & 31)));
+                    a_word_906 = 0x39000000 | bits_77 | ((((uint64_t)(off_346 >> s_53)) << 10) | (640ULL | (r_11 & 31)));
                     if (asm_pc < asm_limit) {
-                        *(uint32_t *)asm_pc = a_word_900;
+                        *(uint32_t *)asm_pc = a_word_906;
                         asm_pc = asm_pc + 4;
                     } else if (asm_error == ASM_OK) {
                         asm_error = ASM_ERR_FULL;
                     }
                 } else {
-                    bits_77 = 0x38000000 | bits_76;
+                    bits_78 = 0x38000000 | bits_77;
                     if (!((off_346 >= -256) && (off_346 <= 255))) {
                         if (asm_error == ASM_OK) {
                             asm_error = ASM_ERR_IMMEDIATE;
                         }
                         goto exit_load_store_227;
                     }
-                    a_word_901 = bits_77 | (((uint64_t)(off_346 & 511)) << 12) | (640ULL | (r_10 & 31));
+                    a_word_907 = bits_78 | (((uint64_t)(off_346 & 511)) << 12) | (640ULL | (r_11 & 31));
                     if (asm_pc < asm_limit) {
-                        *(uint32_t *)asm_pc = a_word_901;
+                        *(uint32_t *)asm_pc = a_word_907;
                         asm_pc = asm_pc + 4;
                     } else if (asm_error == ASM_OK) {
                         asm_error = ASM_ERR_FULL;
@@ -19817,7 +19985,7 @@ exit_dst_12:;
                 }
             }
             target_118 = asm_target_of(done_8);
-            a_word_902 = 0x14000000 | ({
+            a_word_908 = 0x14000000 | ({
     off_347 = ((int64_t)(target_118 - asm_pc)) >> 2;
     if (!((off_347 >= -33554432) && (off_347 <= 33554431))) {
         if (asm_error == ASM_OK) {
@@ -19830,100 +19998,107 @@ exit_dst_12:;
 exit_offset_to_118:;
     r_offset_to_118; });
             if (asm_pc < asm_limit) {
-                *(uint32_t *)asm_pc = a_word_902;
+                *(uint32_t *)asm_pc = a_word_908;
                 asm_pc = asm_pc + 4;
             } else if (asm_error == ASM_OK) {
                 asm_error = ASM_ERR_FULL;
             }
             asm_bind(slow_4);
         }
+        for (i_13 = (opt_nodes + n)->live; i_13 <= (opt_nodes + n)->live + (opt_nodes + n)->nlive - 1; i_13++) {
+            v_164 = ra_safe_list[i_13];
+            nd_86 = opt_nodes + v_164;
+            if (((nd_86->flags & NF_LAZY) != 0) && ((nd_86->reg >= 0) && (nd_86->slot >= 0))) {
+                rt_2 = (int32_t)nd_86->reg;
+                off_348 = 8 * (int32_t)nd_86->slot;
+                bits_79 = (rt_2 & REG_D) != 0 ? 0xC4000000LL : (rt_2 & REG_W) == 0 ? 0xC0000000LL : 0x80000000LL;
+                s_54 = (rt_2 & REG_W) == 0 ? 3 : 2;
+                if ((off_348 >= 0) && ((off_348 & ((1LL << s_54) - 1)) == 0) && ((off_348 >> s_54) <= 4095)) {
+                    a_word_909 = 0x39000000 | bits_79 | ((((uint64_t)(off_348 >> s_54)) << 10) | (640ULL | (rt_2 & 31)));
+                    if (asm_pc < asm_limit) {
+                        *(uint32_t *)asm_pc = a_word_909;
+                        asm_pc = asm_pc + 4;
+                    } else if (asm_error == ASM_OK) {
+                        asm_error = ASM_ERR_FULL;
+                    }
+                } else {
+                    bits_80 = 0x38000000 | bits_79;
+                    if (!((off_348 >= -256) && (off_348 <= 255))) {
+                        if (asm_error == ASM_OK) {
+                            asm_error = ASM_ERR_IMMEDIATE;
+                        }
+                        goto exit_load_store_228;
+                    }
+                    a_word_910 = bits_80 | (((uint64_t)(off_348 & 511)) << 12) | (640ULL | (rt_2 & 31));
+                    if (asm_pc < asm_limit) {
+                        *(uint32_t *)asm_pc = a_word_910;
+                        asm_pc = asm_pc + 4;
+                    } else if (asm_error == ASM_OK) {
+                        asm_error = ASM_ERR_FULL;
+                    }
+                exit_load_store_228:;
+                }
+            }
+        }
         if (asm_noting) {
             asm_note("receiver and arguments", 0);
         }
-        for (i_13 = 0; i_13 <= argc; i_13++) {
-            i_14 = nd_81->args + i_13;
-            v_163 = opt_operands[i_14];
-            r_9 = ({
-    nd_86 = opt_nodes + v_163;
-    if ((int32_t)nd_86->op == O_CONST) {
-        v_164 = (uint64_t)nd_86->aux;
-        if ((v_164 & 1) != 0) {
-            if (((int64_t)v_164 >= -2147483648) && ((int64_t)v_164 <= 0x7FFFFFFF)) {
-                value_39 = (int64_t)v_164;
+        for (i_14 = 0; i_14 <= argc; i_14++) {
+            i_15 = nd_81->args + i_14;
+            v_165 = opt_operands[i_15];
+            r_10 = ({
+    nd_87 = opt_nodes + v_165;
+    if ((int32_t)nd_87->op == O_CONST) {
+        v_166 = (uint64_t)nd_87->aux;
+        if ((v_166 & 1) != 0) {
+            if (((int64_t)v_166 >= -2147483648) && ((int64_t)v_166 <= 0x7FFFFFFF)) {
+                value_39 = (int64_t)v_166;
                 if ((value_39 >= 0) && (value_39 <= 0xFFFF)) {
                     if (!((value_39 >= 0) && (value_39 <= 0xFFFF))) {
                         if (asm_error == ASM_OK) {
                             asm_error = ASM_ERR_IMMEDIATE;
                         }
-                        goto exit_move_wide_116;
+                        goto exit_move_wide_117;
                     }
-                    a_word_903 = 3531603968LL | (0ULL | (((uint64_t)value_39) << 5) | 14);
+                    a_word_911 = 3531603968LL | (0ULL | (((uint64_t)value_39) << 5) | 14);
                     if (asm_pc < asm_limit) {
-                        *(uint32_t *)asm_pc = a_word_903;
+                        *(uint32_t *)asm_pc = a_word_911;
                         asm_pc = asm_pc + 4;
                     } else if (asm_error == ASM_OK) {
                         asm_error = ASM_ERR_FULL;
                     }
-                exit_move_wide_116:;
+                exit_move_wide_117:;
                 } else {
                     asm_mov_imm(X14, (uint64_t)value_39);
                 }
                 goto exit_load_constant_39;
             }
-            if ((v_164 >= 0) && (v_164 <= 0xFFFF)) {
-                if (!((v_164 >= 0) && (v_164 <= 0xFFFF))) {
+            if ((v_166 >= 0) && (v_166 <= 0xFFFF)) {
+                if (!((v_166 >= 0) && (v_166 <= 0xFFFF))) {
                     if (asm_error == ASM_OK) {
                         asm_error = ASM_ERR_IMMEDIATE;
                     }
-                    goto exit_move_wide_117;
+                    goto exit_move_wide_118;
                 }
-                a_word_904 = 3531603968LL | (0ULL | (v_164 << 5) | 14);
+                a_word_912 = 3531603968LL | (0ULL | (v_166 << 5) | 14);
                 if (asm_pc < asm_limit) {
-                    *(uint32_t *)asm_pc = a_word_904;
+                    *(uint32_t *)asm_pc = a_word_912;
                     asm_pc = asm_pc + 4;
                 } else if (asm_error == ASM_OK) {
                     asm_error = ASM_ERR_FULL;
                 }
-            exit_move_wide_117:;
+            exit_move_wide_118:;
             } else {
-                asm_mov_imm(X14, v_164);
+                asm_mov_imm(X14, v_166);
             }
             goto exit_load_constant_39;
         }
-        if (v_164 == nil_oop) {
-            off_348 = (int64_t)&((jit_state *)0)->nil_oop;
-            if ((off_348 >= 0) && ((off_348 & 7) == 0) && ((off_348 >> 3) <= 4095)) {
-                a_word_905 = 4181721088LL | ((((uint64_t)(off_348 >> 3)) << 10) | 718ULL);
-                if (asm_pc < asm_limit) {
-                    *(uint32_t *)asm_pc = a_word_905;
-                    asm_pc = asm_pc + 4;
-                } else if (asm_error == ASM_OK) {
-                    asm_error = ASM_ERR_FULL;
-                }
-            } else {
-                if (!((off_348 >= -256) && (off_348 <= 255))) {
-                    if (asm_error == ASM_OK) {
-                        asm_error = ASM_ERR_IMMEDIATE;
-                    }
-                    goto exit_load_store_228;
-                }
-                a_word_906 = 4164943872LL | (((uint64_t)(off_348 & 511)) << 12) | 718ULL;
-                if (asm_pc < asm_limit) {
-                    *(uint32_t *)asm_pc = a_word_906;
-                    asm_pc = asm_pc + 4;
-                } else if (asm_error == ASM_OK) {
-                    asm_error = ASM_ERR_FULL;
-                }
-            exit_load_store_228:;
-            }
-            goto exit_load_constant_39;
-        }
-        if (v_164 == true_oop) {
-            off_349 = (int64_t)&((jit_state *)0)->true_oop;
+        if (v_166 == nil_oop) {
+            off_349 = (int64_t)&((jit_state *)0)->nil_oop;
             if ((off_349 >= 0) && ((off_349 & 7) == 0) && ((off_349 >> 3) <= 4095)) {
-                a_word_907 = 4181721088LL | ((((uint64_t)(off_349 >> 3)) << 10) | 718ULL);
+                a_word_913 = 4181721088LL | ((((uint64_t)(off_349 >> 3)) << 10) | 718ULL);
                 if (asm_pc < asm_limit) {
-                    *(uint32_t *)asm_pc = a_word_907;
+                    *(uint32_t *)asm_pc = a_word_913;
                     asm_pc = asm_pc + 4;
                 } else if (asm_error == ASM_OK) {
                     asm_error = ASM_ERR_FULL;
@@ -19935,9 +20110,9 @@ exit_offset_to_118:;
                     }
                     goto exit_load_store_229;
                 }
-                a_word_908 = 4164943872LL | (((uint64_t)(off_349 & 511)) << 12) | 718ULL;
+                a_word_914 = 4164943872LL | (((uint64_t)(off_349 & 511)) << 12) | 718ULL;
                 if (asm_pc < asm_limit) {
-                    *(uint32_t *)asm_pc = a_word_908;
+                    *(uint32_t *)asm_pc = a_word_914;
                     asm_pc = asm_pc + 4;
                 } else if (asm_error == ASM_OK) {
                     asm_error = ASM_ERR_FULL;
@@ -19946,12 +20121,12 @@ exit_offset_to_118:;
             }
             goto exit_load_constant_39;
         }
-        if (v_164 == false_oop) {
-            off_350 = (int64_t)&((jit_state *)0)->false_oop;
+        if (v_166 == true_oop) {
+            off_350 = (int64_t)&((jit_state *)0)->true_oop;
             if ((off_350 >= 0) && ((off_350 & 7) == 0) && ((off_350 >> 3) <= 4095)) {
-                a_word_909 = 4181721088LL | ((((uint64_t)(off_350 >> 3)) << 10) | 718ULL);
+                a_word_915 = 4181721088LL | ((((uint64_t)(off_350 >> 3)) << 10) | 718ULL);
                 if (asm_pc < asm_limit) {
-                    *(uint32_t *)asm_pc = a_word_909;
+                    *(uint32_t *)asm_pc = a_word_915;
                     asm_pc = asm_pc + 4;
                 } else if (asm_error == ASM_OK) {
                     asm_error = ASM_ERR_FULL;
@@ -19963,9 +20138,9 @@ exit_offset_to_118:;
                     }
                     goto exit_load_store_230;
                 }
-                a_word_910 = 4164943872LL | (((uint64_t)(off_350 & 511)) << 12) | 718ULL;
+                a_word_916 = 4164943872LL | (((uint64_t)(off_350 & 511)) << 12) | 718ULL;
                 if (asm_pc < asm_limit) {
-                    *(uint32_t *)asm_pc = a_word_910;
+                    *(uint32_t *)asm_pc = a_word_916;
                     asm_pc = asm_pc + 4;
                 } else if (asm_error == ASM_OK) {
                     asm_error = ASM_ERR_FULL;
@@ -19974,43 +20149,71 @@ exit_offset_to_118:;
             }
             goto exit_load_constant_39;
         }
-        if ((v_164 & 7) != 0) {
-            if ((v_164 >= 0) && (v_164 <= 0xFFFF)) {
-                if (!((v_164 >= 0) && (v_164 <= 0xFFFF))) {
-                    if (asm_error == ASM_OK) {
-                        asm_error = ASM_ERR_IMMEDIATE;
-                    }
-                    goto exit_move_wide_118;
-                }
-                a_word_911 = 3531603968LL | (0ULL | (v_164 << 5) | 14);
+        if (v_166 == false_oop) {
+            off_351 = (int64_t)&((jit_state *)0)->false_oop;
+            if ((off_351 >= 0) && ((off_351 & 7) == 0) && ((off_351 >> 3) <= 4095)) {
+                a_word_917 = 4181721088LL | ((((uint64_t)(off_351 >> 3)) << 10) | 718ULL);
                 if (asm_pc < asm_limit) {
-                    *(uint32_t *)asm_pc = a_word_911;
+                    *(uint32_t *)asm_pc = a_word_917;
                     asm_pc = asm_pc + 4;
                 } else if (asm_error == ASM_OK) {
                     asm_error = ASM_ERR_FULL;
                 }
-            exit_move_wide_118:;
             } else {
-                asm_mov_imm(X14, v_164);
+                if (!((off_351 >= -256) && (off_351 <= 255))) {
+                    if (asm_error == ASM_OK) {
+                        asm_error = ASM_ERR_IMMEDIATE;
+                    }
+                    goto exit_load_store_231;
+                }
+                a_word_918 = 4164943872LL | (((uint64_t)(off_351 & 511)) << 12) | 718ULL;
+                if (asm_pc < asm_limit) {
+                    *(uint32_t *)asm_pc = a_word_918;
+                    asm_pc = asm_pc + 4;
+                } else if (asm_error == ASM_OK) {
+                    asm_error = ASM_ERR_FULL;
+                }
+            exit_load_store_231:;
             }
             goto exit_load_constant_39;
         }
-        a_label_41 = cg_pool_labels[opt_pool_index(v_164)];
+        if ((v_166 & 7) != 0) {
+            if ((v_166 >= 0) && (v_166 <= 0xFFFF)) {
+                if (!((v_166 >= 0) && (v_166 <= 0xFFFF))) {
+                    if (asm_error == ASM_OK) {
+                        asm_error = ASM_ERR_IMMEDIATE;
+                    }
+                    goto exit_move_wide_119;
+                }
+                a_word_919 = 3531603968LL | (0ULL | (v_166 << 5) | 14);
+                if (asm_pc < asm_limit) {
+                    *(uint32_t *)asm_pc = a_word_919;
+                    asm_pc = asm_pc + 4;
+                } else if (asm_error == ASM_OK) {
+                    asm_error = ASM_ERR_FULL;
+                }
+            exit_move_wide_119:;
+            } else {
+                asm_mov_imm(X14, v_166);
+            }
+            goto exit_load_constant_39;
+        }
+        a_label_41 = cg_pool_labels[opt_pool_index(v_166)];
         target_119 = asm_target_of(a_label_41);
-        a_word_912 = 0x58000000 | ((((uint64_t)({
-    off_351 = ((int64_t)(target_119 - asm_pc)) >> 2;
-    if (!((off_351 >= -262144) && (off_351 <= 262143))) {
+        a_word_920 = 0x58000000 | ((((uint64_t)({
+    off_352 = ((int64_t)(target_119 - asm_pc)) >> 2;
+    if (!((off_352 >= -262144) && (off_352 <= 262143))) {
         if (asm_error == ASM_OK) {
             asm_error = ASM_ERR_RANGE;
         }
         r_offset_to_119 = 0;
         goto exit_offset_to_119;
     }
-    r_offset_to_119 = off_351 & 524287;
+    r_offset_to_119 = off_352 & 524287;
 exit_offset_to_119:;
     r_offset_to_119; })) << 5) | 14);
         if (asm_pc < asm_limit) {
-            *(uint32_t *)asm_pc = a_word_912;
+            *(uint32_t *)asm_pc = a_word_920;
             asm_pc = asm_pc + 4;
         } else if (asm_error == ASM_OK) {
             asm_error = ASM_ERR_FULL;
@@ -20019,35 +20222,35 @@ exit_offset_to_119:;
         r_src_33 = X14;
         goto exit_src_33;
     }
-    if (nd_86->reg >= 0) {
-        r_src_33 = (int32_t)nd_86->reg;
+    if (nd_87->reg >= 0) {
+        r_src_33 = (int32_t)nd_87->reg;
         goto exit_src_33;
     }
-    if (nd_86->slot >= 0) {
-        off_352 = 8 * (int32_t)nd_86->slot;
-        if ((off_352 >= 0) && ((off_352 & 7) == 0) && ((off_352 >> 3) <= 4095)) {
-            a_word_913 = 4181721088LL | ((((uint64_t)(off_352 >> 3)) << 10) | 654ULL);
+    if (nd_87->slot >= 0) {
+        off_353 = 8 * (int32_t)nd_87->slot;
+        if ((off_353 >= 0) && ((off_353 & 7) == 0) && ((off_353 >> 3) <= 4095)) {
+            a_word_921 = 4181721088LL | ((((uint64_t)(off_353 >> 3)) << 10) | 654ULL);
             if (asm_pc < asm_limit) {
-                *(uint32_t *)asm_pc = a_word_913;
+                *(uint32_t *)asm_pc = a_word_921;
                 asm_pc = asm_pc + 4;
             } else if (asm_error == ASM_OK) {
                 asm_error = ASM_ERR_FULL;
             }
         } else {
-            if (!((off_352 >= -256) && (off_352 <= 255))) {
+            if (!((off_353 >= -256) && (off_353 <= 255))) {
                 if (asm_error == ASM_OK) {
                     asm_error = ASM_ERR_IMMEDIATE;
                 }
-                goto exit_load_store_231;
+                goto exit_load_store_232;
             }
-            a_word_914 = 4164943872LL | (((uint64_t)(off_352 & 511)) << 12) | 654ULL;
+            a_word_922 = 4164943872LL | (((uint64_t)(off_353 & 511)) << 12) | 654ULL;
             if (asm_pc < asm_limit) {
-                *(uint32_t *)asm_pc = a_word_914;
+                *(uint32_t *)asm_pc = a_word_922;
                 asm_pc = asm_pc + 4;
             } else if (asm_error == ASM_OK) {
                 asm_error = ASM_ERR_FULL;
             }
-        exit_load_store_231:;
+        exit_load_store_232:;
         }
         r_src_33 = X14;
         goto exit_src_33;
@@ -20058,118 +20261,90 @@ exit_offset_to_119:;
     r_src_33 = X14;
 exit_src_33:;
     r_src_33; });
-            off_353 = 8 * (cg_slot_top + i_13);
-            bits_78 = (r_9 & REG_D) != 0 ? 0xC4000000LL : (r_9 & REG_W) == 0 ? 0xC0000000LL : 0x80000000LL;
-            s_54 = (r_9 & REG_W) == 0 ? 3 : 2;
-            if ((off_353 >= 0) && ((off_353 & ((1LL << s_54) - 1)) == 0) && ((off_353 >> s_54) <= 4095)) {
-                a_word_915 = 0x39000000 | bits_78 | ((((uint64_t)(off_353 >> s_54)) << 10) | (640ULL | (r_9 & 31)));
+            off_354 = 8 * (cg_slot_top + i_14);
+            bits_81 = (r_10 & REG_D) != 0 ? 0xC4000000LL : (r_10 & REG_W) == 0 ? 0xC0000000LL : 0x80000000LL;
+            s_55 = (r_10 & REG_W) == 0 ? 3 : 2;
+            if ((off_354 >= 0) && ((off_354 & ((1LL << s_55) - 1)) == 0) && ((off_354 >> s_55) <= 4095)) {
+                a_word_923 = 0x39000000 | bits_81 | ((((uint64_t)(off_354 >> s_55)) << 10) | (640ULL | (r_10 & 31)));
                 if (asm_pc < asm_limit) {
-                    *(uint32_t *)asm_pc = a_word_915;
+                    *(uint32_t *)asm_pc = a_word_923;
                     asm_pc = asm_pc + 4;
                 } else if (asm_error == ASM_OK) {
                     asm_error = ASM_ERR_FULL;
                 }
             } else {
-                bits_79 = 0x38000000 | bits_78;
-                if (!((off_353 >= -256) && (off_353 <= 255))) {
-                    if (asm_error == ASM_OK) {
-                        asm_error = ASM_ERR_IMMEDIATE;
-                    }
-                    goto exit_load_store_232;
-                }
-                a_word_916 = bits_79 | (((uint64_t)(off_353 & 511)) << 12) | (640ULL | (r_9 & 31));
-                if (asm_pc < asm_limit) {
-                    *(uint32_t *)asm_pc = a_word_916;
-                    asm_pc = asm_pc + 4;
-                } else if (asm_error == ASM_OK) {
-                    asm_error = ASM_ERR_FULL;
-                }
-            exit_load_store_232:;
-            }
-        }
-        i_15 = nd_81->args;
-        v_165 = opt_operands[i_15];
-        r_9 = ({
-    nd_87 = opt_nodes + v_165;
-    if ((int32_t)nd_87->op == O_CONST) {
-        v_166 = (uint64_t)nd_87->aux;
-        if ((v_166 & 1) != 0) {
-            if (((int64_t)v_166 >= -2147483648) && ((int64_t)v_166 <= 0x7FFFFFFF)) {
-                value_40 = (int64_t)v_166;
-                if ((value_40 >= 0) && (value_40 <= 0xFFFF)) {
-                    if (!((value_40 >= 0) && (value_40 <= 0xFFFF))) {
-                        if (asm_error == ASM_OK) {
-                            asm_error = ASM_ERR_IMMEDIATE;
-                        }
-                        goto exit_move_wide_119;
-                    }
-                    a_word_917 = 3531603968LL | (0ULL | (((uint64_t)value_40) << 5) | 0);
-                    if (asm_pc < asm_limit) {
-                        *(uint32_t *)asm_pc = a_word_917;
-                        asm_pc = asm_pc + 4;
-                    } else if (asm_error == ASM_OK) {
-                        asm_error = ASM_ERR_FULL;
-                    }
-                exit_move_wide_119:;
-                } else {
-                    asm_mov_imm(X0, (uint64_t)value_40);
-                }
-                goto exit_load_constant_40;
-            }
-            if ((v_166 >= 0) && (v_166 <= 0xFFFF)) {
-                if (!((v_166 >= 0) && (v_166 <= 0xFFFF))) {
-                    if (asm_error == ASM_OK) {
-                        asm_error = ASM_ERR_IMMEDIATE;
-                    }
-                    goto exit_move_wide_120;
-                }
-                a_word_918 = 3531603968LL | (0ULL | (v_166 << 5) | 0);
-                if (asm_pc < asm_limit) {
-                    *(uint32_t *)asm_pc = a_word_918;
-                    asm_pc = asm_pc + 4;
-                } else if (asm_error == ASM_OK) {
-                    asm_error = ASM_ERR_FULL;
-                }
-            exit_move_wide_120:;
-            } else {
-                asm_mov_imm(X0, v_166);
-            }
-            goto exit_load_constant_40;
-        }
-        if (v_166 == nil_oop) {
-            off_354 = (int64_t)&((jit_state *)0)->nil_oop;
-            if ((off_354 >= 0) && ((off_354 & 7) == 0) && ((off_354 >> 3) <= 4095)) {
-                a_word_919 = 4181721088LL | ((((uint64_t)(off_354 >> 3)) << 10) | 704ULL);
-                if (asm_pc < asm_limit) {
-                    *(uint32_t *)asm_pc = a_word_919;
-                    asm_pc = asm_pc + 4;
-                } else if (asm_error == ASM_OK) {
-                    asm_error = ASM_ERR_FULL;
-                }
-            } else {
+                bits_82 = 0x38000000 | bits_81;
                 if (!((off_354 >= -256) && (off_354 <= 255))) {
                     if (asm_error == ASM_OK) {
                         asm_error = ASM_ERR_IMMEDIATE;
                     }
                     goto exit_load_store_233;
                 }
-                a_word_920 = 4164943872LL | (((uint64_t)(off_354 & 511)) << 12) | 704ULL;
+                a_word_924 = bits_82 | (((uint64_t)(off_354 & 511)) << 12) | (640ULL | (r_10 & 31));
                 if (asm_pc < asm_limit) {
-                    *(uint32_t *)asm_pc = a_word_920;
+                    *(uint32_t *)asm_pc = a_word_924;
                     asm_pc = asm_pc + 4;
                 } else if (asm_error == ASM_OK) {
                     asm_error = ASM_ERR_FULL;
                 }
             exit_load_store_233:;
             }
+        }
+        i_16 = nd_81->args;
+        v_167 = opt_operands[i_16];
+        r_10 = ({
+    nd_88 = opt_nodes + v_167;
+    if ((int32_t)nd_88->op == O_CONST) {
+        v_168 = (uint64_t)nd_88->aux;
+        if ((v_168 & 1) != 0) {
+            if (((int64_t)v_168 >= -2147483648) && ((int64_t)v_168 <= 0x7FFFFFFF)) {
+                value_40 = (int64_t)v_168;
+                if ((value_40 >= 0) && (value_40 <= 0xFFFF)) {
+                    if (!((value_40 >= 0) && (value_40 <= 0xFFFF))) {
+                        if (asm_error == ASM_OK) {
+                            asm_error = ASM_ERR_IMMEDIATE;
+                        }
+                        goto exit_move_wide_120;
+                    }
+                    a_word_925 = 3531603968LL | (0ULL | (((uint64_t)value_40) << 5) | 0);
+                    if (asm_pc < asm_limit) {
+                        *(uint32_t *)asm_pc = a_word_925;
+                        asm_pc = asm_pc + 4;
+                    } else if (asm_error == ASM_OK) {
+                        asm_error = ASM_ERR_FULL;
+                    }
+                exit_move_wide_120:;
+                } else {
+                    asm_mov_imm(X0, (uint64_t)value_40);
+                }
+                goto exit_load_constant_40;
+            }
+            if ((v_168 >= 0) && (v_168 <= 0xFFFF)) {
+                if (!((v_168 >= 0) && (v_168 <= 0xFFFF))) {
+                    if (asm_error == ASM_OK) {
+                        asm_error = ASM_ERR_IMMEDIATE;
+                    }
+                    goto exit_move_wide_121;
+                }
+                a_word_926 = 3531603968LL | (0ULL | (v_168 << 5) | 0);
+                if (asm_pc < asm_limit) {
+                    *(uint32_t *)asm_pc = a_word_926;
+                    asm_pc = asm_pc + 4;
+                } else if (asm_error == ASM_OK) {
+                    asm_error = ASM_ERR_FULL;
+                }
+            exit_move_wide_121:;
+            } else {
+                asm_mov_imm(X0, v_168);
+            }
             goto exit_load_constant_40;
         }
-        if (v_166 == true_oop) {
-            off_355 = (int64_t)&((jit_state *)0)->true_oop;
+        if (v_168 == nil_oop) {
+            off_355 = (int64_t)&((jit_state *)0)->nil_oop;
             if ((off_355 >= 0) && ((off_355 & 7) == 0) && ((off_355 >> 3) <= 4095)) {
-                a_word_921 = 4181721088LL | ((((uint64_t)(off_355 >> 3)) << 10) | 704ULL);
+                a_word_927 = 4181721088LL | ((((uint64_t)(off_355 >> 3)) << 10) | 704ULL);
                 if (asm_pc < asm_limit) {
-                    *(uint32_t *)asm_pc = a_word_921;
+                    *(uint32_t *)asm_pc = a_word_927;
                     asm_pc = asm_pc + 4;
                 } else if (asm_error == ASM_OK) {
                     asm_error = ASM_ERR_FULL;
@@ -20181,9 +20356,9 @@ exit_src_33:;
                     }
                     goto exit_load_store_234;
                 }
-                a_word_922 = 4164943872LL | (((uint64_t)(off_355 & 511)) << 12) | 704ULL;
+                a_word_928 = 4164943872LL | (((uint64_t)(off_355 & 511)) << 12) | 704ULL;
                 if (asm_pc < asm_limit) {
-                    *(uint32_t *)asm_pc = a_word_922;
+                    *(uint32_t *)asm_pc = a_word_928;
                     asm_pc = asm_pc + 4;
                 } else if (asm_error == ASM_OK) {
                     asm_error = ASM_ERR_FULL;
@@ -20192,12 +20367,12 @@ exit_src_33:;
             }
             goto exit_load_constant_40;
         }
-        if (v_166 == false_oop) {
-            off_356 = (int64_t)&((jit_state *)0)->false_oop;
+        if (v_168 == true_oop) {
+            off_356 = (int64_t)&((jit_state *)0)->true_oop;
             if ((off_356 >= 0) && ((off_356 & 7) == 0) && ((off_356 >> 3) <= 4095)) {
-                a_word_923 = 4181721088LL | ((((uint64_t)(off_356 >> 3)) << 10) | 704ULL);
+                a_word_929 = 4181721088LL | ((((uint64_t)(off_356 >> 3)) << 10) | 704ULL);
                 if (asm_pc < asm_limit) {
-                    *(uint32_t *)asm_pc = a_word_923;
+                    *(uint32_t *)asm_pc = a_word_929;
                     asm_pc = asm_pc + 4;
                 } else if (asm_error == ASM_OK) {
                     asm_error = ASM_ERR_FULL;
@@ -20209,9 +20384,9 @@ exit_src_33:;
                     }
                     goto exit_load_store_235;
                 }
-                a_word_924 = 4164943872LL | (((uint64_t)(off_356 & 511)) << 12) | 704ULL;
+                a_word_930 = 4164943872LL | (((uint64_t)(off_356 & 511)) << 12) | 704ULL;
                 if (asm_pc < asm_limit) {
-                    *(uint32_t *)asm_pc = a_word_924;
+                    *(uint32_t *)asm_pc = a_word_930;
                     asm_pc = asm_pc + 4;
                 } else if (asm_error == ASM_OK) {
                     asm_error = ASM_ERR_FULL;
@@ -20220,43 +20395,71 @@ exit_src_33:;
             }
             goto exit_load_constant_40;
         }
-        if ((v_166 & 7) != 0) {
-            if ((v_166 >= 0) && (v_166 <= 0xFFFF)) {
-                if (!((v_166 >= 0) && (v_166 <= 0xFFFF))) {
-                    if (asm_error == ASM_OK) {
-                        asm_error = ASM_ERR_IMMEDIATE;
-                    }
-                    goto exit_move_wide_121;
-                }
-                a_word_925 = 3531603968LL | (0ULL | (v_166 << 5) | 0);
+        if (v_168 == false_oop) {
+            off_357 = (int64_t)&((jit_state *)0)->false_oop;
+            if ((off_357 >= 0) && ((off_357 & 7) == 0) && ((off_357 >> 3) <= 4095)) {
+                a_word_931 = 4181721088LL | ((((uint64_t)(off_357 >> 3)) << 10) | 704ULL);
                 if (asm_pc < asm_limit) {
-                    *(uint32_t *)asm_pc = a_word_925;
+                    *(uint32_t *)asm_pc = a_word_931;
                     asm_pc = asm_pc + 4;
                 } else if (asm_error == ASM_OK) {
                     asm_error = ASM_ERR_FULL;
                 }
-            exit_move_wide_121:;
             } else {
-                asm_mov_imm(X0, v_166);
+                if (!((off_357 >= -256) && (off_357 <= 255))) {
+                    if (asm_error == ASM_OK) {
+                        asm_error = ASM_ERR_IMMEDIATE;
+                    }
+                    goto exit_load_store_236;
+                }
+                a_word_932 = 4164943872LL | (((uint64_t)(off_357 & 511)) << 12) | 704ULL;
+                if (asm_pc < asm_limit) {
+                    *(uint32_t *)asm_pc = a_word_932;
+                    asm_pc = asm_pc + 4;
+                } else if (asm_error == ASM_OK) {
+                    asm_error = ASM_ERR_FULL;
+                }
+            exit_load_store_236:;
             }
             goto exit_load_constant_40;
         }
-        a_label_42 = cg_pool_labels[opt_pool_index(v_166)];
+        if ((v_168 & 7) != 0) {
+            if ((v_168 >= 0) && (v_168 <= 0xFFFF)) {
+                if (!((v_168 >= 0) && (v_168 <= 0xFFFF))) {
+                    if (asm_error == ASM_OK) {
+                        asm_error = ASM_ERR_IMMEDIATE;
+                    }
+                    goto exit_move_wide_122;
+                }
+                a_word_933 = 3531603968LL | (0ULL | (v_168 << 5) | 0);
+                if (asm_pc < asm_limit) {
+                    *(uint32_t *)asm_pc = a_word_933;
+                    asm_pc = asm_pc + 4;
+                } else if (asm_error == ASM_OK) {
+                    asm_error = ASM_ERR_FULL;
+                }
+            exit_move_wide_122:;
+            } else {
+                asm_mov_imm(X0, v_168);
+            }
+            goto exit_load_constant_40;
+        }
+        a_label_42 = cg_pool_labels[opt_pool_index(v_168)];
         target_120 = asm_target_of(a_label_42);
-        a_word_926 = 0x58000000 | ((((uint64_t)({
-    off_357 = ((int64_t)(target_120 - asm_pc)) >> 2;
-    if (!((off_357 >= -262144) && (off_357 <= 262143))) {
+        a_word_934 = 0x58000000 | ((((uint64_t)({
+    off_358 = ((int64_t)(target_120 - asm_pc)) >> 2;
+    if (!((off_358 >= -262144) && (off_358 <= 262143))) {
         if (asm_error == ASM_OK) {
             asm_error = ASM_ERR_RANGE;
         }
         r_offset_to_120 = 0;
         goto exit_offset_to_120;
     }
-    r_offset_to_120 = off_357 & 524287;
+    r_offset_to_120 = off_358 & 524287;
 exit_offset_to_120:;
     r_offset_to_120; })) << 5) | 0);
         if (asm_pc < asm_limit) {
-            *(uint32_t *)asm_pc = a_word_926;
+            *(uint32_t *)asm_pc = a_word_934;
             asm_pc = asm_pc + 4;
         } else if (asm_error == ASM_OK) {
             asm_error = ASM_ERR_FULL;
@@ -20265,35 +20468,35 @@ exit_offset_to_120:;
         r_src_34 = X0;
         goto exit_src_34;
     }
-    if (nd_87->reg >= 0) {
-        r_src_34 = (int32_t)nd_87->reg;
+    if (nd_88->reg >= 0) {
+        r_src_34 = (int32_t)nd_88->reg;
         goto exit_src_34;
     }
-    if (nd_87->slot >= 0) {
-        off_358 = 8 * (int32_t)nd_87->slot;
-        if ((off_358 >= 0) && ((off_358 & 7) == 0) && ((off_358 >> 3) <= 4095)) {
-            a_word_927 = 4181721088LL | ((((uint64_t)(off_358 >> 3)) << 10) | 640ULL);
+    if (nd_88->slot >= 0) {
+        off_359 = 8 * (int32_t)nd_88->slot;
+        if ((off_359 >= 0) && ((off_359 & 7) == 0) && ((off_359 >> 3) <= 4095)) {
+            a_word_935 = 4181721088LL | ((((uint64_t)(off_359 >> 3)) << 10) | 640ULL);
             if (asm_pc < asm_limit) {
-                *(uint32_t *)asm_pc = a_word_927;
+                *(uint32_t *)asm_pc = a_word_935;
                 asm_pc = asm_pc + 4;
             } else if (asm_error == ASM_OK) {
                 asm_error = ASM_ERR_FULL;
             }
         } else {
-            if (!((off_358 >= -256) && (off_358 <= 255))) {
+            if (!((off_359 >= -256) && (off_359 <= 255))) {
                 if (asm_error == ASM_OK) {
                     asm_error = ASM_ERR_IMMEDIATE;
                 }
-                goto exit_load_store_236;
+                goto exit_load_store_237;
             }
-            a_word_928 = 4164943872LL | (((uint64_t)(off_358 & 511)) << 12) | 640ULL;
+            a_word_936 = 4164943872LL | (((uint64_t)(off_359 & 511)) << 12) | 640ULL;
             if (asm_pc < asm_limit) {
-                *(uint32_t *)asm_pc = a_word_928;
+                *(uint32_t *)asm_pc = a_word_936;
                 asm_pc = asm_pc + 4;
             } else if (asm_error == ASM_OK) {
                 asm_error = ASM_ERR_FULL;
             }
-        exit_load_store_236:;
+        exit_load_store_237:;
         }
         r_src_34 = X0;
         goto exit_src_34;
@@ -20304,19 +20507,19 @@ exit_offset_to_120:;
     r_src_34 = X0;
 exit_src_34:;
     r_src_34; });
-        if (r_9 != X0) {
-            if ((r_9 & REG_SP) != 0) {
-                a_word_929 = 2432696320LL | (0ULL | ((((uint64_t)(r_9 & 31)) << 5) | 0));
+        if (r_10 != X0) {
+            if ((r_10 & REG_SP) != 0) {
+                a_word_937 = 2432696320LL | (0ULL | ((((uint64_t)(r_10 & 31)) << 5) | 0));
                 if (asm_pc < asm_limit) {
-                    *(uint32_t *)asm_pc = a_word_929;
+                    *(uint32_t *)asm_pc = a_word_937;
                     asm_pc = asm_pc + 4;
                 } else if (asm_error == ASM_OK) {
                     asm_error = ASM_ERR_FULL;
                 }
                 goto exit_add_sub_94;
-                a_word_930 = 2436890624LL | (0ULL | ((((uint64_t)(r_9 & 31)) << 5) | 0));
+                a_word_938 = 2436890624LL | (0ULL | ((((uint64_t)(r_10 & 31)) << 5) | 0));
                 if (asm_pc < asm_limit) {
-                    *(uint32_t *)asm_pc = a_word_930;
+                    *(uint32_t *)asm_pc = a_word_938;
                     asm_pc = asm_pc + 4;
                 } else if (asm_error == ASM_OK) {
                     asm_error = ASM_ERR_FULL;
@@ -20327,9 +20530,9 @@ exit_src_34:;
                 }
             exit_add_sub_94:;
             } else {
-                a_word_931 = 2852126720LL | (0ULL | ((((uint64_t)(r_9 & 31)) << 16) | 992ULL | 0));
+                a_word_939 = 2852126720LL | (0ULL | ((((uint64_t)(r_10 & 31)) << 16) | 992ULL | 0));
                 if (asm_pc < asm_limit) {
-                    *(uint32_t *)asm_pc = a_word_931;
+                    *(uint32_t *)asm_pc = a_word_939;
                     asm_pc = asm_pc + 4;
                 } else if (asm_error == ASM_OK) {
                     asm_error = ASM_ERR_FULL;
@@ -20342,22 +20545,22 @@ exit_src_34:;
         }
         if (off_326 <= 4095) {
             neg_82 = off_326 < 0;
-            v_168 = neg_82 ? -off_326 : off_326;
+            v_170 = neg_82 ? -off_326 : off_326;
             o_107 = neg_82 ? 1073741824 : 0;
-            if (v_168 <= 4095) {
-                a_word_932 = 2432696320LL | o_107 | ((((uint64_t)v_168) << 10) | 660ULL);
+            if (v_170 <= 4095) {
+                a_word_940 = 2432696320LL | o_107 | ((((uint64_t)v_170) << 10) | 660ULL);
                 if (asm_pc < asm_limit) {
-                    *(uint32_t *)asm_pc = a_word_932;
+                    *(uint32_t *)asm_pc = a_word_940;
                     asm_pc = asm_pc + 4;
                 } else if (asm_error == ASM_OK) {
                     asm_error = ASM_ERR_FULL;
                 }
                 goto exit_add_sub_95;
             }
-            if (((v_168 & 4095) == 0) && (v_168 <= 0xFFF000)) {
-                a_word_933 = 2436890624LL | o_107 | ((((uint64_t)(v_168 >> 12)) << 10) | 660ULL);
+            if (((v_170 & 4095) == 0) && (v_170 <= 0xFFF000)) {
+                a_word_941 = 2436890624LL | o_107 | ((((uint64_t)(v_170 >> 12)) << 10) | 660ULL);
                 if (asm_pc < asm_limit) {
-                    *(uint32_t *)asm_pc = a_word_933;
+                    *(uint32_t *)asm_pc = a_word_941;
                     asm_pc = asm_pc + 4;
                 } else if (asm_error == ASM_OK) {
                     asm_error = ASM_ERR_FULL;
@@ -20374,16 +20577,16 @@ exit_src_34:;
                     if (asm_error == ASM_OK) {
                         asm_error = ASM_ERR_IMMEDIATE;
                     }
-                    goto exit_move_wide_122;
+                    goto exit_move_wide_123;
                 }
-                a_word_934 = 3531603968LL | (0ULL | (((uint64_t)off_326) << 5) | 16);
+                a_word_942 = 3531603968LL | (0ULL | (((uint64_t)off_326) << 5) | 16);
                 if (asm_pc < asm_limit) {
-                    *(uint32_t *)asm_pc = a_word_934;
+                    *(uint32_t *)asm_pc = a_word_942;
                     asm_pc = asm_pc + 4;
                 } else if (asm_error == ASM_OK) {
                     asm_error = ASM_ERR_FULL;
                 }
-            exit_move_wide_122:;
+            exit_move_wide_123:;
             } else {
                 asm_mov_imm(X16, (uint64_t)off_326);
             }
@@ -20401,20 +20604,20 @@ exit_src_34:;
             }
             a_label_43 = asm_label_at(jit_lookup(nd_81->tcls)->uentry);
             target_121 = asm_target_of(a_label_43);
-            a_word_935 = 0x94000000LL | ({
-    off_359 = ((int64_t)(target_121 - asm_pc)) >> 2;
-    if (!((off_359 >= -33554432) && (off_359 <= 33554431))) {
+            a_word_943 = 0x94000000LL | ({
+    off_360 = ((int64_t)(target_121 - asm_pc)) >> 2;
+    if (!((off_360 >= -33554432) && (off_360 <= 33554431))) {
         if (asm_error == ASM_OK) {
             asm_error = ASM_ERR_RANGE;
         }
         r_offset_to_121 = 0;
         goto exit_offset_to_121;
     }
-    r_offset_to_121 = off_359 & 67108863;
+    r_offset_to_121 = off_360 & 67108863;
 exit_offset_to_121:;
     r_offset_to_121; });
             if (asm_pc < asm_limit) {
-                *(uint32_t *)asm_pc = a_word_935;
+                *(uint32_t *)asm_pc = a_word_943;
                 asm_pc = asm_pc + 4;
             } else if (asm_error == ASM_OK) {
                 asm_error = ASM_ERR_FULL;
@@ -20451,22 +20654,22 @@ exit_out_19:;
             }
             imm_11 = (int64_t)(uint64_t)((((int64_t)argc) << 1) | 1);
             neg_83 = imm_11 < 0;
-            v_169 = neg_83 ? -imm_11 : imm_11;
+            v_171 = neg_83 ? -imm_11 : imm_11;
             o_109 = neg_83 ? 536870912 : 0x60000000;
-            if (v_169 <= 4095) {
-                a_word_936 = 2432696320LL | o_109 | ((((uint64_t)v_169) << 10) | 543ULL);
+            if (v_171 <= 4095) {
+                a_word_944 = 2432696320LL | o_109 | ((((uint64_t)v_171) << 10) | 543ULL);
                 if (asm_pc < asm_limit) {
-                    *(uint32_t *)asm_pc = a_word_936;
+                    *(uint32_t *)asm_pc = a_word_944;
                     asm_pc = asm_pc + 4;
                 } else if (asm_error == ASM_OK) {
                     asm_error = ASM_ERR_FULL;
                 }
                 goto exit_add_sub_96;
             }
-            if (((v_169 & 4095) == 0) && (v_169 <= 0xFFF000)) {
-                a_word_937 = 2436890624LL | o_109 | ((((uint64_t)(v_169 >> 12)) << 10) | 543ULL);
+            if (((v_171 & 4095) == 0) && (v_171 <= 0xFFF000)) {
+                a_word_945 = 2436890624LL | o_109 | ((((uint64_t)(v_171 >> 12)) << 10) | 543ULL);
                 if (asm_pc < asm_limit) {
-                    *(uint32_t *)asm_pc = a_word_937;
+                    *(uint32_t *)asm_pc = a_word_945;
                     asm_pc = asm_pc + 4;
                 } else if (asm_error == ASM_OK) {
                     asm_error = ASM_ERR_FULL;
@@ -20478,40 +20681,40 @@ exit_out_19:;
             }
         exit_add_sub_96:;
             target_122 = asm_target_of(slow_4);
-            a_word_938 = 0x54000000 | ((((uint64_t)({
-    off_360 = ((int64_t)(target_122 - asm_pc)) >> 2;
-    if (!((off_360 >= -262144) && (off_360 <= 262143))) {
+            a_word_946 = 0x54000000 | ((((uint64_t)({
+    off_361 = ((int64_t)(target_122 - asm_pc)) >> 2;
+    if (!((off_361 >= -262144) && (off_361 <= 262143))) {
         if (asm_error == ASM_OK) {
             asm_error = ASM_ERR_RANGE;
         }
         r_offset_to_122 = 0;
         goto exit_offset_to_122;
     }
-    r_offset_to_122 = off_360 & 524287;
+    r_offset_to_122 = off_361 & 524287;
 exit_offset_to_122:;
     r_offset_to_122; })) << 5) | 1);
             if (asm_pc < asm_limit) {
-                *(uint32_t *)asm_pc = a_word_938;
+                *(uint32_t *)asm_pc = a_word_946;
                 asm_pc = asm_pc + 4;
             } else if (asm_error == ASM_OK) {
                 asm_error = ASM_ERR_FULL;
             }
             a_label_44 = asm_label_at(bl_block);
             target_123 = asm_target_of(a_label_44);
-            a_word_939 = 0x94000000LL | ({
-    off_361 = ((int64_t)(target_123 - asm_pc)) >> 2;
-    if (!((off_361 >= -33554432) && (off_361 <= 33554431))) {
+            a_word_947 = 0x94000000LL | ({
+    off_362 = ((int64_t)(target_123 - asm_pc)) >> 2;
+    if (!((off_362 >= -33554432) && (off_362 <= 33554431))) {
         if (asm_error == ASM_OK) {
             asm_error = ASM_ERR_RANGE;
         }
         r_offset_to_123 = 0;
         goto exit_offset_to_123;
     }
-    r_offset_to_123 = off_361 & 67108863;
+    r_offset_to_123 = off_362 & 67108863;
 exit_offset_to_123:;
     r_offset_to_123; });
             if (asm_pc < asm_limit) {
-                *(uint32_t *)asm_pc = a_word_939;
+                *(uint32_t *)asm_pc = a_word_947;
                 asm_pc = asm_pc + 4;
             } else if (asm_error == ASM_OK) {
                 asm_error = ASM_ERR_FULL;
@@ -20522,25 +20725,25 @@ exit_offset_to_123:;
                 asm_note("x9 := inline cache %d's class", cg_site_count);
             }
             target_124 = asm_target_of(lit);
-            a_word_940 = 0x58000000 | ((((uint64_t)({
-    off_362 = ((int64_t)(target_124 - asm_pc)) >> 2;
-    if (!((off_362 >= -262144) && (off_362 <= 262143))) {
+            a_word_948 = 0x58000000 | ((((uint64_t)({
+    off_363 = ((int64_t)(target_124 - asm_pc)) >> 2;
+    if (!((off_363 >= -262144) && (off_363 <= 262143))) {
         if (asm_error == ASM_OK) {
             asm_error = ASM_ERR_RANGE;
         }
         r_offset_to_124 = 0;
         goto exit_offset_to_124;
     }
-    r_offset_to_124 = off_362 & 524287;
+    r_offset_to_124 = off_363 & 524287;
 exit_offset_to_124:;
     r_offset_to_124; })) << 5) | 9);
             if (asm_pc < asm_limit) {
-                *(uint32_t *)asm_pc = a_word_940;
+                *(uint32_t *)asm_pc = a_word_948;
                 asm_pc = asm_pc + 4;
             } else if (asm_error == ASM_OK) {
                 asm_error = ASM_ERR_FULL;
             }
-            nd_88 = opt_nodes + n;
+            nd_89 = opt_nodes + n;
             if (cg_site_count >= CG_MAX_SITES) {
                 if (asm_error == ASM_OK) {
                     asm_error = ASM_ERR_FULL;
@@ -20549,9 +20752,9 @@ exit_offset_to_124:;
             }
             cg_site_bl[cg_site_count] = (uint32_t)(asm_pc - cg_code_start);
             cg_site_lit[cg_site_count] = lit;
-            cg_site_info[cg_site_count] = (uint32_t)((nd_88->aux2 & 255) | (((nd_88->aux2 >> 8) & 3) << 24));
+            cg_site_info[cg_site_count] = (uint32_t)((nd_89->aux2 & 255) | (((nd_89->aux2 >> 8) & 3) << 24));
             cg_site_index[cg_site_count] = k_18;
-            cg_site_sel[cg_site_count] = opt_pool_index((uint64_t)nd_88->aux);
+            cg_site_sel[cg_site_count] = opt_pool_index((uint64_t)nd_89->aux);
             cg_site_count = cg_site_count + 1;
         exit_note_site:;
             if (asm_noting) {
@@ -20559,20 +20762,20 @@ exit_offset_to_124:;
             }
             a_label_45 = asm_label_at(bl_miss);
             target_125 = asm_target_of(a_label_45);
-            a_word_941 = 0x94000000LL | ({
-    off_363 = ((int64_t)(target_125 - asm_pc)) >> 2;
-    if (!((off_363 >= -33554432) && (off_363 <= 33554431))) {
+            a_word_949 = 0x94000000LL | ({
+    off_364 = ((int64_t)(target_125 - asm_pc)) >> 2;
+    if (!((off_364 >= -33554432) && (off_364 <= 33554431))) {
         if (asm_error == ASM_OK) {
             asm_error = ASM_ERR_RANGE;
         }
         r_offset_to_125 = 0;
         goto exit_offset_to_125;
     }
-    r_offset_to_125 = off_363 & 67108863;
+    r_offset_to_125 = off_364 & 67108863;
 exit_offset_to_125:;
     r_offset_to_125; });
             if (asm_pc < asm_limit) {
-                *(uint32_t *)asm_pc = a_word_941;
+                *(uint32_t *)asm_pc = a_word_949;
                 asm_pc = asm_pc + 4;
             } else if (asm_error == ASM_OK) {
                 asm_error = ASM_ERR_FULL;
@@ -20592,22 +20795,22 @@ exit_offset_to_125:;
         asm_bind(back_2);
         if (off_326 <= 4095) {
             neg_84 = off_326 < 0;
-            v_170 = neg_84 ? -off_326 : off_326;
+            v_172 = neg_84 ? -off_326 : off_326;
             o_110 = neg_84 ? 0 : 0x40000000;
-            if (v_170 <= 4095) {
-                a_word_942 = 2432696320LL | o_110 | ((((uint64_t)v_170) << 10) | 660ULL);
+            if (v_172 <= 4095) {
+                a_word_950 = 2432696320LL | o_110 | ((((uint64_t)v_172) << 10) | 660ULL);
                 if (asm_pc < asm_limit) {
-                    *(uint32_t *)asm_pc = a_word_942;
+                    *(uint32_t *)asm_pc = a_word_950;
                     asm_pc = asm_pc + 4;
                 } else if (asm_error == ASM_OK) {
                     asm_error = ASM_ERR_FULL;
                 }
                 goto exit_add_sub_97;
             }
-            if (((v_170 & 4095) == 0) && (v_170 <= 0xFFF000)) {
-                a_word_943 = 2436890624LL | o_110 | ((((uint64_t)(v_170 >> 12)) << 10) | 660ULL);
+            if (((v_172 & 4095) == 0) && (v_172 <= 0xFFF000)) {
+                a_word_951 = 2436890624LL | o_110 | ((((uint64_t)(v_172 >> 12)) << 10) | 660ULL);
                 if (asm_pc < asm_limit) {
-                    *(uint32_t *)asm_pc = a_word_943;
+                    *(uint32_t *)asm_pc = a_word_951;
                     asm_pc = asm_pc + 4;
                 } else if (asm_error == ASM_OK) {
                     asm_error = ASM_ERR_FULL;
@@ -20624,16 +20827,16 @@ exit_offset_to_125:;
                     if (asm_error == ASM_OK) {
                         asm_error = ASM_ERR_IMMEDIATE;
                     }
-                    goto exit_move_wide_123;
+                    goto exit_move_wide_124;
                 }
-                a_word_944 = 3531603968LL | (0ULL | (((uint64_t)off_326) << 5) | 16);
+                a_word_952 = 3531603968LL | (0ULL | (((uint64_t)off_326) << 5) | 16);
                 if (asm_pc < asm_limit) {
-                    *(uint32_t *)asm_pc = a_word_944;
+                    *(uint32_t *)asm_pc = a_word_952;
                     asm_pc = asm_pc + 4;
                 } else if (asm_error == ASM_OK) {
                     asm_error = ASM_ERR_FULL;
                 }
-            exit_move_wide_123:;
+            exit_move_wide_124:;
             } else {
                 asm_mov_imm(X16, (uint64_t)off_326);
             }
@@ -20688,76 +20891,76 @@ exit_out_21:;
         if (asm_noting) {
             asm_note("invalidated meanwhile: deoptimize", 0);
         }
-        off_364 = (int64_t)(asm_target_of(cg_header_label) - asm_pc);
-        if (!((off_364 >= -1048576) && (off_364 <= 0xFFFFF))) {
+        off_365 = (int64_t)(asm_target_of(cg_header_label) - asm_pc);
+        if (!((off_365 >= -1048576) && (off_365 <= 0xFFFFF))) {
             if (asm_error == ASM_OK) {
                 asm_error = ASM_ERR_RANGE;
             }
             goto exit_adr;
         }
-        a_word_945 = 0x10000000 | (((uint64_t)(off_364 & 3)) << 29) | ((((uint64_t)((off_364 >> 2) & 0x7FFFF)) << 5) | 16);
+        a_word_953 = 0x10000000 | (((uint64_t)(off_365 & 3)) << 29) | ((((uint64_t)((off_365 >> 2) & 0x7FFFF)) << 5) | 16);
         if (asm_pc < asm_limit) {
-            *(uint32_t *)asm_pc = a_word_945;
+            *(uint32_t *)asm_pc = a_word_953;
             asm_pc = asm_pc + 4;
         } else if (asm_error == ASM_OK) {
             asm_error = ASM_ERR_FULL;
         }
     exit_adr:;
-        off_365 = (int64_t)&((jit_method *)0)->flags;
-        if ((off_365 >= 0) && ((off_365 & 3) == 0) && ((off_365 >> 2) <= 4095)) {
-            a_word_946 = 3107979264LL | ((((uint64_t)(off_365 >> 2)) << 10) | 528ULL);
+        off_366 = (int64_t)&((jit_method *)0)->flags;
+        if ((off_366 >= 0) && ((off_366 & 3) == 0) && ((off_366 >> 2) <= 4095)) {
+            a_word_954 = 3107979264LL | ((((uint64_t)(off_366 >> 2)) << 10) | 528ULL);
             if (asm_pc < asm_limit) {
-                *(uint32_t *)asm_pc = a_word_946;
+                *(uint32_t *)asm_pc = a_word_954;
                 asm_pc = asm_pc + 4;
             } else if (asm_error == ASM_OK) {
                 asm_error = ASM_ERR_FULL;
             }
         } else {
-            if (!((off_365 >= -256) && (off_365 <= 255))) {
+            if (!((off_366 >= -256) && (off_366 <= 255))) {
                 if (asm_error == ASM_OK) {
                     asm_error = ASM_ERR_IMMEDIATE;
                 }
-                goto exit_load_store_237;
+                goto exit_load_store_238;
             }
-            a_word_947 = 3091202048LL | (((uint64_t)(off_365 & 511)) << 12) | 528ULL;
+            a_word_955 = 3091202048LL | (((uint64_t)(off_366 & 511)) << 12) | 528ULL;
             if (asm_pc < asm_limit) {
-                *(uint32_t *)asm_pc = a_word_947;
+                *(uint32_t *)asm_pc = a_word_955;
                 asm_pc = asm_pc + 4;
             } else if (asm_error == ASM_OK) {
                 asm_error = ASM_ERR_FULL;
             }
-        exit_load_store_237:;
+        exit_load_store_238:;
         }
-        enc_38 = asm_logical_immediate(2ULL, 32);
-        if (enc_38 < 0) {
+        enc_39 = asm_logical_immediate(2ULL, 32);
+        if (enc_39 < 0) {
             if (asm_error == ASM_OK) {
                 asm_error = ASM_ERR_IMMEDIATE;
             }
             goto exit_logical_65;
         }
-        a_word_948 = 1912602624 | ((((uint64_t)enc_38) << 10) | 543ULL);
+        a_word_956 = 1912602624 | ((((uint64_t)enc_39) << 10) | 543ULL);
         if (asm_pc < asm_limit) {
-            *(uint32_t *)asm_pc = a_word_948;
+            *(uint32_t *)asm_pc = a_word_956;
             asm_pc = asm_pc + 4;
         } else if (asm_error == ASM_OK) {
             asm_error = ASM_ERR_FULL;
         }
     exit_logical_65:;
         target_126 = asm_target_of(lazy);
-        a_word_949 = 0x54000000 | ((((uint64_t)({
-    off_366 = ((int64_t)(target_126 - asm_pc)) >> 2;
-    if (!((off_366 >= -262144) && (off_366 <= 262143))) {
+        a_word_957 = 0x54000000 | ((((uint64_t)({
+    off_367 = ((int64_t)(target_126 - asm_pc)) >> 2;
+    if (!((off_367 >= -262144) && (off_367 <= 262143))) {
         if (asm_error == ASM_OK) {
             asm_error = ASM_ERR_RANGE;
         }
         r_offset_to_126 = 0;
         goto exit_offset_to_126;
     }
-    r_offset_to_126 = off_366 & 524287;
+    r_offset_to_126 = off_367 & 524287;
 exit_offset_to_126:;
     r_offset_to_126; })) << 5) | 1);
         if (asm_pc < asm_limit) {
-            *(uint32_t *)asm_pc = a_word_949;
+            *(uint32_t *)asm_pc = a_word_957;
             asm_pc = asm_pc + 4;
         } else if (asm_error == ASM_OK) {
             asm_error = ASM_ERR_FULL;
@@ -20768,30 +20971,30 @@ exit_offset_to_126:;
         if (asm_noting) {
             asm_note("deoptimization stress", 0);
         }
-        off_367 = (int64_t)&((jit_state *)0)->stress;
-        if ((off_367 >= 0) && ((off_367 & 7) == 0) && ((off_367 >> 3) <= 4095)) {
-            a_word_950 = 4181721088LL | ((((uint64_t)(off_367 >> 3)) << 10) | 720ULL);
+        off_368 = (int64_t)&((jit_state *)0)->stress;
+        if ((off_368 >= 0) && ((off_368 & 7) == 0) && ((off_368 >> 3) <= 4095)) {
+            a_word_958 = 4181721088LL | ((((uint64_t)(off_368 >> 3)) << 10) | 720ULL);
             if (asm_pc < asm_limit) {
-                *(uint32_t *)asm_pc = a_word_950;
+                *(uint32_t *)asm_pc = a_word_958;
                 asm_pc = asm_pc + 4;
             } else if (asm_error == ASM_OK) {
                 asm_error = ASM_ERR_FULL;
             }
         } else {
-            if (!((off_367 >= -256) && (off_367 <= 255))) {
+            if (!((off_368 >= -256) && (off_368 <= 255))) {
                 if (asm_error == ASM_OK) {
                     asm_error = ASM_ERR_IMMEDIATE;
                 }
-                goto exit_load_store_238;
+                goto exit_load_store_239;
             }
-            a_word_951 = 4164943872LL | (((uint64_t)(off_367 & 511)) << 12) | 720ULL;
+            a_word_959 = 4164943872LL | (((uint64_t)(off_368 & 511)) << 12) | 720ULL;
             if (asm_pc < asm_limit) {
-                *(uint32_t *)asm_pc = a_word_951;
+                *(uint32_t *)asm_pc = a_word_959;
                 asm_pc = asm_pc + 4;
             } else if (asm_error == ASM_OK) {
                 asm_error = ASM_ERR_FULL;
             }
-        exit_load_store_238:;
+        exit_load_store_239:;
         }
         if (asm_pc < asm_limit) {
             *(uint32_t *)asm_pc = 4043310608ULL;
@@ -20804,46 +21007,46 @@ exit_offset_to_126:;
             asm_error = ASM_ERR_IMMEDIATE;
         }
     exit_add_sub_98:;
-        off_368 = (int64_t)&((jit_state *)0)->stress;
-        if ((off_368 >= 0) && ((off_368 & 7) == 0) && ((off_368 >> 3) <= 4095)) {
-            a_word_952 = 4177526784LL | ((((uint64_t)(off_368 >> 3)) << 10) | 720ULL);
+        off_369 = (int64_t)&((jit_state *)0)->stress;
+        if ((off_369 >= 0) && ((off_369 & 7) == 0) && ((off_369 >> 3) <= 4095)) {
+            a_word_960 = 4177526784LL | ((((uint64_t)(off_369 >> 3)) << 10) | 720ULL);
             if (asm_pc < asm_limit) {
-                *(uint32_t *)asm_pc = a_word_952;
+                *(uint32_t *)asm_pc = a_word_960;
                 asm_pc = asm_pc + 4;
             } else if (asm_error == ASM_OK) {
                 asm_error = ASM_ERR_FULL;
             }
         } else {
-            if (!((off_368 >= -256) && (off_368 <= 255))) {
+            if (!((off_369 >= -256) && (off_369 <= 255))) {
                 if (asm_error == ASM_OK) {
                     asm_error = ASM_ERR_IMMEDIATE;
                 }
-                goto exit_load_store_239;
+                goto exit_load_store_240;
             }
-            a_word_953 = 4160749568LL | (((uint64_t)(off_368 & 511)) << 12) | 720ULL;
+            a_word_961 = 4160749568LL | (((uint64_t)(off_369 & 511)) << 12) | 720ULL;
             if (asm_pc < asm_limit) {
-                *(uint32_t *)asm_pc = a_word_953;
+                *(uint32_t *)asm_pc = a_word_961;
                 asm_pc = asm_pc + 4;
             } else if (asm_error == ASM_OK) {
                 asm_error = ASM_ERR_FULL;
             }
-        exit_load_store_239:;
+        exit_load_store_240:;
         }
         target_127 = asm_target_of(lazy);
-        a_word_954 = 0x54000000 | ((((uint64_t)({
-    off_369 = ((int64_t)(target_127 - asm_pc)) >> 2;
-    if (!((off_369 >= -262144) && (off_369 <= 262143))) {
+        a_word_962 = 0x54000000 | ((((uint64_t)({
+    off_370 = ((int64_t)(target_127 - asm_pc)) >> 2;
+    if (!((off_370 >= -262144) && (off_370 <= 262143))) {
         if (asm_error == ASM_OK) {
             asm_error = ASM_ERR_RANGE;
         }
         r_offset_to_127 = 0;
         goto exit_offset_to_127;
     }
-    r_offset_to_127 = off_369 & 524287;
+    r_offset_to_127 = off_370 & 524287;
 exit_offset_to_127:;
     r_offset_to_127; })) << 5) | 0);
         if (asm_pc < asm_limit) {
-            *(uint32_t *)asm_pc = a_word_954;
+            *(uint32_t *)asm_pc = a_word_962;
             asm_pc = asm_pc + 4;
         } else if (asm_error == ASM_OK) {
             asm_error = ASM_ERR_FULL;
@@ -20874,46 +21077,46 @@ exit_out_22:;
             if (asm_noting) {
                 asm_note("interrupt check (an allocation sample)", 0);
             }
-            off_370 = (int64_t)&((jit_state *)0)->interrupt;
-            if ((off_370 >= 0) && ((off_370 & 3) == 0) && ((off_370 >> 2) <= 4095)) {
-                a_word_955 = 3107979264LL | ((((uint64_t)(off_370 >> 2)) << 10) | 720ULL);
+            off_371 = (int64_t)&((jit_state *)0)->interrupt;
+            if ((off_371 >= 0) && ((off_371 & 3) == 0) && ((off_371 >> 2) <= 4095)) {
+                a_word_963 = 3107979264LL | ((((uint64_t)(off_371 >> 2)) << 10) | 720ULL);
                 if (asm_pc < asm_limit) {
-                    *(uint32_t *)asm_pc = a_word_955;
+                    *(uint32_t *)asm_pc = a_word_963;
                     asm_pc = asm_pc + 4;
                 } else if (asm_error == ASM_OK) {
                     asm_error = ASM_ERR_FULL;
                 }
             } else {
-                if (!((off_370 >= -256) && (off_370 <= 255))) {
+                if (!((off_371 >= -256) && (off_371 <= 255))) {
                     if (asm_error == ASM_OK) {
                         asm_error = ASM_ERR_IMMEDIATE;
                     }
-                    goto exit_load_store_240;
+                    goto exit_load_store_241;
                 }
-                a_word_956 = 3091202048LL | (((uint64_t)(off_370 & 511)) << 12) | 720ULL;
+                a_word_964 = 3091202048LL | (((uint64_t)(off_371 & 511)) << 12) | 720ULL;
                 if (asm_pc < asm_limit) {
-                    *(uint32_t *)asm_pc = a_word_956;
+                    *(uint32_t *)asm_pc = a_word_964;
                     asm_pc = asm_pc + 4;
                 } else if (asm_error == ASM_OK) {
                     asm_error = ASM_ERR_FULL;
                 }
-            exit_load_store_240:;
+            exit_load_store_241:;
             }
             target_128 = asm_target_of(slow_4);
-            a_word_957 = 889192448 | ((((uint64_t)({
-    off_371 = ((int64_t)(target_128 - asm_pc)) >> 2;
-    if (!((off_371 >= -262144) && (off_371 <= 262143))) {
+            a_word_965 = 889192448 | ((((uint64_t)({
+    off_372 = ((int64_t)(target_128 - asm_pc)) >> 2;
+    if (!((off_372 >= -262144) && (off_372 <= 262143))) {
         if (asm_error == ASM_OK) {
             asm_error = ASM_ERR_RANGE;
         }
         r_offset_to_128 = 0;
         goto exit_offset_to_128;
     }
-    r_offset_to_128 = off_371 & 524287;
+    r_offset_to_128 = off_372 & 524287;
 exit_offset_to_128:;
     r_offset_to_128; })) << 5) | 16);
             if (asm_pc < asm_limit) {
-                *(uint32_t *)asm_pc = a_word_957;
+                *(uint32_t *)asm_pc = a_word_965;
                 asm_pc = asm_pc + 4;
             } else if (asm_error == ASM_OK) {
                 asm_error = ASM_ERR_FULL;
@@ -20923,21 +21126,21 @@ exit_offset_to_128:;
         if (asm_noting) {
             asm_note("the result (x0)", 0);
         }
-        nd_89 = opt_nodes + n;
-        if ((nd_89->reg >= 0) && ((int32_t)nd_89->reg != X0)) {
-            rd_49 = (int32_t)nd_89->reg;
+        nd_90 = opt_nodes + n;
+        if ((nd_90->reg >= 0) && ((int32_t)nd_90->reg != X0)) {
+            rd_49 = (int32_t)nd_90->reg;
             if ((rd_49 & REG_SP) != 0) {
-                a_word_958 = 0x11000000 | ((rd_49 & REG_W) == 0 ? 0x80000000LL : 0) | 0 | (0ULL | (0ULL | (rd_49 & 31)));
+                a_word_966 = 0x11000000 | ((rd_49 & REG_W) == 0 ? 0x80000000LL : 0) | 0 | (0ULL | (0ULL | (rd_49 & 31)));
                 if (asm_pc < asm_limit) {
-                    *(uint32_t *)asm_pc = a_word_958;
+                    *(uint32_t *)asm_pc = a_word_966;
                     asm_pc = asm_pc + 4;
                 } else if (asm_error == ASM_OK) {
                     asm_error = ASM_ERR_FULL;
                 }
                 goto exit_add_sub_99;
-                a_word_959 = 0x11400000 | ((rd_49 & REG_W) == 0 ? 0x80000000LL : 0) | 0 | (0ULL | (0ULL | (rd_49 & 31)));
+                a_word_967 = 0x11400000 | ((rd_49 & REG_W) == 0 ? 0x80000000LL : 0) | 0 | (0ULL | (0ULL | (rd_49 & 31)));
                 if (asm_pc < asm_limit) {
-                    *(uint32_t *)asm_pc = a_word_959;
+                    *(uint32_t *)asm_pc = a_word_967;
                     asm_pc = asm_pc + 4;
                 } else if (asm_error == ASM_OK) {
                     asm_error = ASM_ERR_FULL;
@@ -20955,9 +21158,9 @@ exit_offset_to_128:;
                     }
                     goto exit_logical_66;
                 }
-                a_word_960 = 0xA000000 | ((rd_49 & REG_W) == 0 ? 0x80000000LL : 0) | 0x20000000 | (0ULL | (0ULL | (((uint64_t)(rn_35 & 31)) << 5) | (rd_49 & 31)));
+                a_word_968 = 0xA000000 | ((rd_49 & REG_W) == 0 ? 0x80000000LL : 0) | 0x20000000 | (0ULL | (0ULL | (((uint64_t)(rn_35 & 31)) << 5) | (rd_49 & 31)));
                 if (asm_pc < asm_limit) {
-                    *(uint32_t *)asm_pc = a_word_960;
+                    *(uint32_t *)asm_pc = a_word_968;
                     asm_pc = asm_pc + 4;
                 } else if (asm_error == ASM_OK) {
                     asm_error = ASM_ERR_FULL;
@@ -20965,65 +21168,65 @@ exit_offset_to_128:;
             exit_logical_66:;
             }
         }
-        if (nd_89->slot >= 0) {
-            off_372 = 8 * (int32_t)nd_89->slot;
-            if ((off_372 >= 0) && ((off_372 & 7) == 0) && ((off_372 >> 3) <= 4095)) {
-                a_word_961 = 4177526784LL | ((((uint64_t)(off_372 >> 3)) << 10) | 640ULL);
+        if ((nd_90->slot >= 0) && ((nd_90->flags & NF_LAZY) == 0)) {
+            off_373 = 8 * (int32_t)nd_90->slot;
+            if ((off_373 >= 0) && ((off_373 & 7) == 0) && ((off_373 >> 3) <= 4095)) {
+                a_word_969 = 4177526784LL | ((((uint64_t)(off_373 >> 3)) << 10) | 640ULL);
                 if (asm_pc < asm_limit) {
-                    *(uint32_t *)asm_pc = a_word_961;
+                    *(uint32_t *)asm_pc = a_word_969;
                     asm_pc = asm_pc + 4;
                 } else if (asm_error == ASM_OK) {
                     asm_error = ASM_ERR_FULL;
                 }
             } else {
-                if (!((off_372 >= -256) && (off_372 <= 255))) {
+                if (!((off_373 >= -256) && (off_373 <= 255))) {
                     if (asm_error == ASM_OK) {
                         asm_error = ASM_ERR_IMMEDIATE;
                     }
-                    goto exit_load_store_241;
+                    goto exit_load_store_242;
                 }
-                a_word_962 = 4160749568LL | (((uint64_t)(off_372 & 511)) << 12) | 640ULL;
+                a_word_970 = 4160749568LL | (((uint64_t)(off_373 & 511)) << 12) | 640ULL;
                 if (asm_pc < asm_limit) {
-                    *(uint32_t *)asm_pc = a_word_962;
+                    *(uint32_t *)asm_pc = a_word_970;
                     asm_pc = asm_pc + 4;
                 } else if (asm_error == ASM_OK) {
                     asm_error = ASM_ERR_FULL;
                 }
-            exit_load_store_241:;
+            exit_load_store_242:;
             }
         }
-        for (i_16 = (opt_nodes + n)->live; i_16 <= (opt_nodes + n)->live + (opt_nodes + n)->nlive - 1; i_16++) {
-            v_173 = ra_safe_list[i_16];
-            nd_90 = opt_nodes + v_173;
-            if ((nd_90->reg >= 0) && (nd_90->slot >= 0)) {
-                rt_2 = (int32_t)nd_90->reg;
-                off_373 = 8 * (int32_t)nd_90->slot;
-                bits_80 = (rt_2 & REG_D) != 0 ? 0xC4400000LL : (rt_2 & REG_W) == 0 ? 0xC0400000LL : 0x80400000LL;
-                s_55 = (rt_2 & REG_W) == 0 ? 3 : 2;
-                if ((off_373 >= 0) && ((off_373 & ((1LL << s_55) - 1)) == 0) && ((off_373 >> s_55) <= 4095)) {
-                    a_word_963 = 0x39000000 | bits_80 | ((((uint64_t)(off_373 >> s_55)) << 10) | (640ULL | (rt_2 & 31)));
+        for (i_17 = (opt_nodes + n)->live; i_17 <= (opt_nodes + n)->live + (opt_nodes + n)->nlive - 1; i_17++) {
+            v_175 = ra_safe_list[i_17];
+            nd_91 = opt_nodes + v_175;
+            if ((nd_91->reg >= 0) && (nd_91->slot >= 0)) {
+                rt_3 = (int32_t)nd_91->reg;
+                off_374 = 8 * (int32_t)nd_91->slot;
+                bits_83 = (rt_3 & REG_D) != 0 ? 0xC4400000LL : (rt_3 & REG_W) == 0 ? 0xC0400000LL : 0x80400000LL;
+                s_56 = (rt_3 & REG_W) == 0 ? 3 : 2;
+                if ((off_374 >= 0) && ((off_374 & ((1LL << s_56) - 1)) == 0) && ((off_374 >> s_56) <= 4095)) {
+                    a_word_971 = 0x39000000 | bits_83 | ((((uint64_t)(off_374 >> s_56)) << 10) | (640ULL | (rt_3 & 31)));
                     if (asm_pc < asm_limit) {
-                        *(uint32_t *)asm_pc = a_word_963;
+                        *(uint32_t *)asm_pc = a_word_971;
                         asm_pc = asm_pc + 4;
                     } else if (asm_error == ASM_OK) {
                         asm_error = ASM_ERR_FULL;
                     }
                 } else {
-                    bits_81 = 0x38000000 | bits_80;
-                    if (!((off_373 >= -256) && (off_373 <= 255))) {
+                    bits_84 = 0x38000000 | bits_83;
+                    if (!((off_374 >= -256) && (off_374 <= 255))) {
                         if (asm_error == ASM_OK) {
                             asm_error = ASM_ERR_IMMEDIATE;
                         }
-                        goto exit_load_store_242;
+                        goto exit_load_store_243;
                     }
-                    a_word_964 = bits_81 | (((uint64_t)(off_373 & 511)) << 12) | (640ULL | (rt_2 & 31));
+                    a_word_972 = bits_84 | (((uint64_t)(off_374 & 511)) << 12) | (640ULL | (rt_3 & 31));
                     if (asm_pc < asm_limit) {
-                        *(uint32_t *)asm_pc = a_word_964;
+                        *(uint32_t *)asm_pc = a_word_972;
                         asm_pc = asm_pc + 4;
                     } else if (asm_error == ASM_OK) {
                         asm_error = ASM_ERR_FULL;
                     }
-                exit_load_store_242:;
+                exit_load_store_243:;
                 }
             }
         }
@@ -21031,16 +21234,16 @@ exit_offset_to_128:;
         return;
     }
     if (op == O_GOTO) {
-        s_56 = (opt_blocks + b)->succ0;
+        s_57 = (opt_blocks + b)->succ0;
         k_20 = ({
-    e = (opt_blocks + s_56)->preds;
-    i_17 = 0;
+    e = (opt_blocks + s_57)->preds;
+    i_18 = 0;
     while (e >= 0) {
         if ((opt_edges + e)->from == b) {
-            r_pred_index_of = i_17;
+            r_pred_index_of = i_18;
             goto exit_pred_index_of;
         }
-        i_17 = i_17 + 1;
+        i_18 = i_18 + 1;
         e = (opt_edges + e)->next;
     }
     r_pred_index_of = -1;
@@ -21050,51 +21253,51 @@ exit_pred_index_of:;
             goto exit_emit_moves_from;
         }
         cg_move_count = 0;
-        n_29 = (opt_blocks + s_56)->first;
-        while ((n_29 >= 0) && ((int32_t)(opt_nodes + n_29)->op == O_PHI)) {
-            nd_91 = opt_nodes + n_29;
+        n_34 = (opt_blocks + s_57)->first;
+        while ((n_34 >= 0) && ((int32_t)(opt_nodes + n_34)->op == O_PHI)) {
+            nd_92 = opt_nodes + n_34;
             if (({
-    if (n_29 < 0) {
+    if (n_34 < 0) {
         r_is_value = false;
         goto exit_is_value;
     }
-    nd_92 = opt_nodes + n_29;
-    r_is_value = (nd_92->block >= 0) && (((int32_t)nd_92->rep != R_NONE) && (((int32_t)nd_92->op != O_CONST) && (((int32_t)nd_92->op != O_CLOSURE) && (((int32_t)nd_92->op != O_HOMESLOT) && ((nd_92->flags & NF_DEAD) == 0)))));
+    nd_93 = opt_nodes + n_34;
+    r_is_value = (nd_93->block >= 0) && (((int32_t)nd_93->rep != R_NONE) && (((int32_t)nd_93->op != O_CONST) && (((int32_t)nd_93->op != O_CLOSURE) && (((int32_t)nd_93->op != O_HOMESLOT) && ((nd_93->flags & NF_DEAD) == 0)))));
 exit_is_value:;
-    r_is_value; })) {
+    r_is_value; }) && ((int32_t)nd_92->rep != R_DBL)) {
                 if (cg_move_count >= CG_MAX_MOVES) {
                     if (asm_error == ASM_OK) {
                         asm_error = ASM_ERR_FULL;
                     }
                     goto exit_emit_moves_from;
                 }
-                cg_move_dst[cg_move_count] = n_29;
-                i_18 = nd_91->args + k_20;
-                cg_move_src[cg_move_count] = opt_operands[i_18];
+                cg_move_dst[cg_move_count] = n_34;
+                i_19 = nd_92->args + k_20;
+                cg_move_src[cg_move_count] = opt_operands[i_19];
                 cg_move_count = cg_move_count + 1;
             }
-            n_29 = nd_91->next;
+            n_34 = nd_92->next;
         }
-        for (i_19 = 0; i_19 <= cg_move_count - 1; i_19++) {
-            v_174 = cg_move_src[i_19];
-            cg_move_loc[i_19] = ({
-    nd_93 = opt_nodes + v_174;
-    if ((int32_t)nd_93->op == O_CONST) {
+        for (i_20 = 0; i_20 <= cg_move_count - 1; i_20++) {
+            v_176 = cg_move_src[i_20];
+            cg_move_loc[i_20] = ({
+    nd_94 = opt_nodes + v_176;
+    if ((int32_t)nd_94->op == O_CONST) {
         r_loc_of = -1;
         goto exit_loc_of;
     }
-    if (nd_93->reg >= 0) {
-        r_loc_of = (int32_t)nd_93->reg;
+    if (nd_94->reg >= 0) {
+        r_loc_of = (int32_t)nd_94->reg;
         goto exit_loc_of;
     }
-    r_loc_of = 1000 + (int32_t)nd_93->slot;
+    r_loc_of = 1000 + (int32_t)nd_94->slot;
 exit_loc_of:;
     r_loc_of; });
         }
         while ((k_21 = ({
-    for (i_20 = 0; i_20 <= cg_move_count - 1; i_20++) {
-        if (cg_move_loc[i_20] >= 0) {
-            r_first_register_move = i_20;
+    for (i_21 = 0; i_21 <= cg_move_count - 1; i_21++) {
+        if (cg_move_loc[i_21] >= 0) {
+            r_first_register_move = i_21;
             goto exit_first_register_move;
         }
     }
@@ -21104,18 +21307,18 @@ exit_first_register_move:;
             progress = false;
             k_21 = 0;
             while (k_21 < cg_move_count) {
-                v_175 = cg_move_dst[k_21];
+                v_177 = cg_move_dst[k_21];
                 d = ({
-    nd_94 = opt_nodes + v_175;
-    if ((int32_t)nd_94->op == O_CONST) {
+    nd_95 = opt_nodes + v_177;
+    if ((int32_t)nd_95->op == O_CONST) {
         r_loc_of_2 = -1;
         goto exit_loc_of_2;
     }
-    if (nd_94->reg >= 0) {
-        r_loc_of_2 = (int32_t)nd_94->reg;
+    if (nd_95->reg >= 0) {
+        r_loc_of_2 = (int32_t)nd_95->reg;
         goto exit_loc_of_2;
     }
-    r_loc_of_2 = 1000 + (int32_t)nd_94->slot;
+    r_loc_of_2 = 1000 + (int32_t)nd_95->slot;
 exit_loc_of_2:;
     r_loc_of_2; });
                 blocked = false;
@@ -21134,17 +21337,17 @@ exit_loc_of_2:;
                         if (l_15 < 1000) {
                             if (d == -1) {
                                 if ((l_15 & REG_SP) != 0) {
-                                    a_word_965 = 2432696320LL | (0ULL | ((((uint64_t)(l_15 & 31)) << 5) | 17));
+                                    a_word_973 = 2432696320LL | (0ULL | ((((uint64_t)(l_15 & 31)) << 5) | 17));
                                     if (asm_pc < asm_limit) {
-                                        *(uint32_t *)asm_pc = a_word_965;
+                                        *(uint32_t *)asm_pc = a_word_973;
                                         asm_pc = asm_pc + 4;
                                     } else if (asm_error == ASM_OK) {
                                         asm_error = ASM_ERR_FULL;
                                     }
                                     goto exit_add_sub_100;
-                                    a_word_966 = 2436890624LL | (0ULL | ((((uint64_t)(l_15 & 31)) << 5) | 17));
+                                    a_word_974 = 2436890624LL | (0ULL | ((((uint64_t)(l_15 & 31)) << 5) | 17));
                                     if (asm_pc < asm_limit) {
-                                        *(uint32_t *)asm_pc = a_word_966;
+                                        *(uint32_t *)asm_pc = a_word_974;
                                         asm_pc = asm_pc + 4;
                                     } else if (asm_error == ASM_OK) {
                                         asm_error = ASM_ERR_FULL;
@@ -21155,9 +21358,9 @@ exit_loc_of_2:;
                                     }
                                 exit_add_sub_100:;
                                 } else {
-                                    a_word_967 = 2852126720LL | (0ULL | ((((uint64_t)(l_15 & 31)) << 16) | 992ULL | 17));
+                                    a_word_975 = 2852126720LL | (0ULL | ((((uint64_t)(l_15 & 31)) << 16) | 992ULL | 17));
                                     if (asm_pc < asm_limit) {
-                                        *(uint32_t *)asm_pc = a_word_967;
+                                        *(uint32_t *)asm_pc = a_word_975;
                                         asm_pc = asm_pc + 4;
                                     } else if (asm_error == ASM_OK) {
                                         asm_error = ASM_ERR_FULL;
@@ -21166,49 +21369,49 @@ exit_loc_of_2:;
                             }
                             goto exit_move_loc;
                         }
-                        off_374 = 8 * (l_15 - 1000);
-                        if ((off_374 >= 0) && ((off_374 & 7) == 0) && ((off_374 >> 3) <= 4095)) {
-                            a_word_968 = 4181721088LL | ((((uint64_t)(off_374 >> 3)) << 10) | 657ULL);
+                        off_375 = 8 * (l_15 - 1000);
+                        if ((off_375 >= 0) && ((off_375 & 7) == 0) && ((off_375 >> 3) <= 4095)) {
+                            a_word_976 = 4181721088LL | ((((uint64_t)(off_375 >> 3)) << 10) | 657ULL);
                             if (asm_pc < asm_limit) {
-                                *(uint32_t *)asm_pc = a_word_968;
+                                *(uint32_t *)asm_pc = a_word_976;
                                 asm_pc = asm_pc + 4;
                             } else if (asm_error == ASM_OK) {
                                 asm_error = ASM_ERR_FULL;
                             }
                         } else {
-                            if (!((off_374 >= -256) && (off_374 <= 255))) {
+                            if (!((off_375 >= -256) && (off_375 <= 255))) {
                                 if (asm_error == ASM_OK) {
                                     asm_error = ASM_ERR_IMMEDIATE;
                                 }
-                                goto exit_load_store_243;
+                                goto exit_load_store_244;
                             }
-                            a_word_969 = 4164943872LL | (((uint64_t)(off_374 & 511)) << 12) | 657ULL;
+                            a_word_977 = 4164943872LL | (((uint64_t)(off_375 & 511)) << 12) | 657ULL;
                             if (asm_pc < asm_limit) {
-                                *(uint32_t *)asm_pc = a_word_969;
+                                *(uint32_t *)asm_pc = a_word_977;
                                 asm_pc = asm_pc + 4;
                             } else if (asm_error == ASM_OK) {
                                 asm_error = ASM_ERR_FULL;
                             }
-                        exit_load_store_243:;
+                        exit_load_store_244:;
                         }
                     exit_move_loc:;
                         phi = cg_move_dst[k_21];
-                        r_11 = cg_move_loc[k_21] < 1000 ? cg_move_loc[k_21] : X17;
-                        nd_95 = opt_nodes + phi;
-                        if ((nd_95->reg >= 0) && ((int32_t)nd_95->reg != r_11)) {
-                            rd_50 = (int32_t)nd_95->reg;
-                            if (((rd_50 & REG_SP) != 0) || ((r_11 & REG_SP) != 0)) {
-                                a_word_970 = 0x11000000 | ((rd_50 & REG_W) == 0 ? 0x80000000LL : 0) | 0 | (0ULL | ((((uint64_t)(r_11 & 31)) << 5) | (rd_50 & 31)));
+                        r_12 = cg_move_loc[k_21] < 1000 ? cg_move_loc[k_21] : X17;
+                        nd_96 = opt_nodes + phi;
+                        if ((nd_96->reg >= 0) && ((int32_t)nd_96->reg != r_12)) {
+                            rd_50 = (int32_t)nd_96->reg;
+                            if (((rd_50 & REG_SP) != 0) || ((r_12 & REG_SP) != 0)) {
+                                a_word_978 = 0x11000000 | ((rd_50 & REG_W) == 0 ? 0x80000000LL : 0) | 0 | (0ULL | ((((uint64_t)(r_12 & 31)) << 5) | (rd_50 & 31)));
                                 if (asm_pc < asm_limit) {
-                                    *(uint32_t *)asm_pc = a_word_970;
+                                    *(uint32_t *)asm_pc = a_word_978;
                                     asm_pc = asm_pc + 4;
                                 } else if (asm_error == ASM_OK) {
                                     asm_error = ASM_ERR_FULL;
                                 }
                                 goto exit_add_sub_101;
-                                a_word_971 = 0x11400000 | ((rd_50 & REG_W) == 0 ? 0x80000000LL : 0) | 0 | (0ULL | ((((uint64_t)(r_11 & 31)) << 5) | (rd_50 & 31)));
+                                a_word_979 = 0x11400000 | ((rd_50 & REG_W) == 0 ? 0x80000000LL : 0) | 0 | (0ULL | ((((uint64_t)(r_12 & 31)) << 5) | (rd_50 & 31)));
                                 if (asm_pc < asm_limit) {
-                                    *(uint32_t *)asm_pc = a_word_971;
+                                    *(uint32_t *)asm_pc = a_word_979;
                                     asm_pc = asm_pc + 4;
                                 } else if (asm_error == ASM_OK) {
                                     asm_error = ASM_ERR_FULL;
@@ -21226,9 +21429,9 @@ exit_loc_of_2:;
                                     }
                                     goto exit_logical_67;
                                 }
-                                a_word_972 = 0xA000000 | ((rd_50 & REG_W) == 0 ? 0x80000000LL : 0) | 0x20000000 | (0ULL | ((((uint64_t)(r_11 & 31)) << 16) | (((uint64_t)(rn_36 & 31)) << 5) | (rd_50 & 31)));
+                                a_word_980 = 0xA000000 | ((rd_50 & REG_W) == 0 ? 0x80000000LL : 0) | 0x20000000 | (0ULL | ((((uint64_t)(r_12 & 31)) << 16) | (((uint64_t)(rn_36 & 31)) << 5) | (rd_50 & 31)));
                                 if (asm_pc < asm_limit) {
-                                    *(uint32_t *)asm_pc = a_word_972;
+                                    *(uint32_t *)asm_pc = a_word_980;
                                     asm_pc = asm_pc + 4;
                                 } else if (asm_error == ASM_OK) {
                                     asm_error = ASM_ERR_FULL;
@@ -21236,34 +21439,34 @@ exit_loc_of_2:;
                             exit_logical_67:;
                             }
                         }
-                        if (nd_95->slot >= 0) {
-                            off_375 = 8 * (int32_t)nd_95->slot;
-                            bits_82 = (r_11 & REG_D) != 0 ? 0xC4000000LL : (r_11 & REG_W) == 0 ? 0xC0000000LL : 0x80000000LL;
-                            s_57 = (r_11 & REG_W) == 0 ? 3 : 2;
-                            if ((off_375 >= 0) && ((off_375 & ((1LL << s_57) - 1)) == 0) && ((off_375 >> s_57) <= 4095)) {
-                                a_word_973 = 0x39000000 | bits_82 | ((((uint64_t)(off_375 >> s_57)) << 10) | (640ULL | (r_11 & 31)));
+                        if ((nd_96->slot >= 0) && ((nd_96->flags & NF_LAZY) == 0)) {
+                            off_376 = 8 * (int32_t)nd_96->slot;
+                            bits_85 = (r_12 & REG_D) != 0 ? 0xC4000000LL : (r_12 & REG_W) == 0 ? 0xC0000000LL : 0x80000000LL;
+                            s_58 = (r_12 & REG_W) == 0 ? 3 : 2;
+                            if ((off_376 >= 0) && ((off_376 & ((1LL << s_58) - 1)) == 0) && ((off_376 >> s_58) <= 4095)) {
+                                a_word_981 = 0x39000000 | bits_85 | ((((uint64_t)(off_376 >> s_58)) << 10) | (640ULL | (r_12 & 31)));
                                 if (asm_pc < asm_limit) {
-                                    *(uint32_t *)asm_pc = a_word_973;
+                                    *(uint32_t *)asm_pc = a_word_981;
                                     asm_pc = asm_pc + 4;
                                 } else if (asm_error == ASM_OK) {
                                     asm_error = ASM_ERR_FULL;
                                 }
                             } else {
-                                bits_83 = 0x38000000 | bits_82;
-                                if (!((off_375 >= -256) && (off_375 <= 255))) {
+                                bits_86 = 0x38000000 | bits_85;
+                                if (!((off_376 >= -256) && (off_376 <= 255))) {
                                     if (asm_error == ASM_OK) {
                                         asm_error = ASM_ERR_IMMEDIATE;
                                     }
-                                    goto exit_load_store_244;
+                                    goto exit_load_store_245;
                                 }
-                                a_word_974 = bits_83 | (((uint64_t)(off_375 & 511)) << 12) | (640ULL | (r_11 & 31));
+                                a_word_982 = bits_86 | (((uint64_t)(off_376 & 511)) << 12) | (640ULL | (r_12 & 31));
                                 if (asm_pc < asm_limit) {
-                                    *(uint32_t *)asm_pc = a_word_974;
+                                    *(uint32_t *)asm_pc = a_word_982;
                                     asm_pc = asm_pc + 4;
                                 } else if (asm_error == ASM_OK) {
                                     asm_error = ASM_ERR_FULL;
                                 }
-                            exit_load_store_244:;
+                            exit_load_store_245:;
                             }
                         }
                     }
@@ -21276,42 +21479,42 @@ exit_loc_of_2:;
             }
             if (!progress) {
                 k_21 = ({
-    for (i_21 = 0; i_21 <= cg_move_count - 1; i_21++) {
-        if (cg_move_loc[i_21] >= 0) {
-            r_first_register_move_2 = i_21;
+    for (i_22 = 0; i_22 <= cg_move_count - 1; i_22++) {
+        if (cg_move_loc[i_22] >= 0) {
+            r_first_register_move_2 = i_22;
             goto exit_first_register_move_2;
         }
     }
     r_first_register_move_2 = -1;
 exit_first_register_move_2:;
     r_first_register_move_2; });
-                v_178 = cg_move_dst[k_21];
+                v_180 = cg_move_dst[k_21];
                 d = ({
-    nd_96 = opt_nodes + v_178;
-    if ((int32_t)nd_96->op == O_CONST) {
+    nd_97 = opt_nodes + v_180;
+    if ((int32_t)nd_97->op == O_CONST) {
         r_loc_of_3 = -1;
         goto exit_loc_of_3;
     }
-    if (nd_96->reg >= 0) {
-        r_loc_of_3 = (int32_t)nd_96->reg;
+    if (nd_97->reg >= 0) {
+        r_loc_of_3 = (int32_t)nd_97->reg;
         goto exit_loc_of_3;
     }
-    r_loc_of_3 = 1000 + (int32_t)nd_96->slot;
+    r_loc_of_3 = 1000 + (int32_t)nd_97->slot;
 exit_loc_of_3:;
     r_loc_of_3; });
                 if (d < 1000) {
                     if ((d & REG_SP) != 0) {
-                        a_word_975 = 2432696320LL | (0ULL | ((((uint64_t)(d & 31)) << 5) | 16));
+                        a_word_983 = 2432696320LL | (0ULL | ((((uint64_t)(d & 31)) << 5) | 16));
                         if (asm_pc < asm_limit) {
-                            *(uint32_t *)asm_pc = a_word_975;
+                            *(uint32_t *)asm_pc = a_word_983;
                             asm_pc = asm_pc + 4;
                         } else if (asm_error == ASM_OK) {
                             asm_error = ASM_ERR_FULL;
                         }
                         goto exit_add_sub_102;
-                        a_word_976 = 2436890624LL | (0ULL | ((((uint64_t)(d & 31)) << 5) | 16));
+                        a_word_984 = 2436890624LL | (0ULL | ((((uint64_t)(d & 31)) << 5) | 16));
                         if (asm_pc < asm_limit) {
-                            *(uint32_t *)asm_pc = a_word_976;
+                            *(uint32_t *)asm_pc = a_word_984;
                             asm_pc = asm_pc + 4;
                         } else if (asm_error == ASM_OK) {
                             asm_error = ASM_ERR_FULL;
@@ -21322,9 +21525,9 @@ exit_loc_of_3:;
                         }
                     exit_add_sub_102:;
                     } else {
-                        a_word_977 = 2852126720LL | (0ULL | ((((uint64_t)(d & 31)) << 16) | 992ULL | 16));
+                        a_word_985 = 2852126720LL | (0ULL | ((((uint64_t)(d & 31)) << 16) | 992ULL | 16));
                         if (asm_pc < asm_limit) {
-                            *(uint32_t *)asm_pc = a_word_977;
+                            *(uint32_t *)asm_pc = a_word_985;
                             asm_pc = asm_pc + 4;
                         } else if (asm_error == ASM_OK) {
                             asm_error = ASM_ERR_FULL;
@@ -21332,30 +21535,30 @@ exit_loc_of_3:;
                     }
                     goto exit_move_loc_2;
                 }
-                off_376 = 8 * (d - 1000);
-                if ((off_376 >= 0) && ((off_376 & 7) == 0) && ((off_376 >> 3) <= 4095)) {
-                    a_word_978 = 4181721088LL | ((((uint64_t)(off_376 >> 3)) << 10) | 656ULL);
+                off_377 = 8 * (d - 1000);
+                if ((off_377 >= 0) && ((off_377 & 7) == 0) && ((off_377 >> 3) <= 4095)) {
+                    a_word_986 = 4181721088LL | ((((uint64_t)(off_377 >> 3)) << 10) | 656ULL);
                     if (asm_pc < asm_limit) {
-                        *(uint32_t *)asm_pc = a_word_978;
+                        *(uint32_t *)asm_pc = a_word_986;
                         asm_pc = asm_pc + 4;
                     } else if (asm_error == ASM_OK) {
                         asm_error = ASM_ERR_FULL;
                     }
                 } else {
-                    if (!((off_376 >= -256) && (off_376 <= 255))) {
+                    if (!((off_377 >= -256) && (off_377 <= 255))) {
                         if (asm_error == ASM_OK) {
                             asm_error = ASM_ERR_IMMEDIATE;
                         }
-                        goto exit_load_store_245;
+                        goto exit_load_store_246;
                     }
-                    a_word_979 = 4164943872LL | (((uint64_t)(off_376 & 511)) << 12) | 656ULL;
+                    a_word_987 = 4164943872LL | (((uint64_t)(off_377 & 511)) << 12) | 656ULL;
                     if (asm_pc < asm_limit) {
-                        *(uint32_t *)asm_pc = a_word_979;
+                        *(uint32_t *)asm_pc = a_word_987;
                         asm_pc = asm_pc + 4;
                     } else if (asm_error == ASM_OK) {
                         asm_error = ASM_ERR_FULL;
                     }
-                exit_load_store_245:;
+                exit_load_store_246:;
                 }
             exit_move_loc_2:;
                 for (j_2 = 0; j_2 <= cg_move_count - 1; j_2++) {
@@ -21365,90 +21568,62 @@ exit_loc_of_3:;
                 }
             }
         }
-        for (i_22 = 0; i_22 <= cg_move_count - 1; i_22++) {
-            phi_2 = cg_move_dst[i_22];
-            v_180 = cg_move_src[i_22];
-            r_12 = ({
-    nd_97 = opt_nodes + v_180;
-    if ((int32_t)nd_97->op == O_CONST) {
-        v_181 = (uint64_t)nd_97->aux;
-        if ((v_181 & 1) != 0) {
-            if (((int64_t)v_181 >= -2147483648) && ((int64_t)v_181 <= 0x7FFFFFFF)) {
-                value_41 = (int64_t)v_181;
+        for (i_23 = 0; i_23 <= cg_move_count - 1; i_23++) {
+            phi_2 = cg_move_dst[i_23];
+            v_182 = cg_move_src[i_23];
+            r_13 = ({
+    nd_98 = opt_nodes + v_182;
+    if ((int32_t)nd_98->op == O_CONST) {
+        v_183 = (uint64_t)nd_98->aux;
+        if ((v_183 & 1) != 0) {
+            if (((int64_t)v_183 >= -2147483648) && ((int64_t)v_183 <= 0x7FFFFFFF)) {
+                value_41 = (int64_t)v_183;
                 if ((value_41 >= 0) && (value_41 <= 0xFFFF)) {
                     if (!((value_41 >= 0) && (value_41 <= 0xFFFF))) {
                         if (asm_error == ASM_OK) {
                             asm_error = ASM_ERR_IMMEDIATE;
                         }
-                        goto exit_move_wide_124;
+                        goto exit_move_wide_125;
                     }
-                    a_word_980 = 3531603968LL | (0ULL | (((uint64_t)value_41) << 5) | 17);
+                    a_word_988 = 3531603968LL | (0ULL | (((uint64_t)value_41) << 5) | 17);
                     if (asm_pc < asm_limit) {
-                        *(uint32_t *)asm_pc = a_word_980;
+                        *(uint32_t *)asm_pc = a_word_988;
                         asm_pc = asm_pc + 4;
                     } else if (asm_error == ASM_OK) {
                         asm_error = ASM_ERR_FULL;
                     }
-                exit_move_wide_124:;
+                exit_move_wide_125:;
                 } else {
                     asm_mov_imm(X17, (uint64_t)value_41);
                 }
                 goto exit_load_constant_41;
             }
-            if ((v_181 >= 0) && (v_181 <= 0xFFFF)) {
-                if (!((v_181 >= 0) && (v_181 <= 0xFFFF))) {
+            if ((v_183 >= 0) && (v_183 <= 0xFFFF)) {
+                if (!((v_183 >= 0) && (v_183 <= 0xFFFF))) {
                     if (asm_error == ASM_OK) {
                         asm_error = ASM_ERR_IMMEDIATE;
                     }
-                    goto exit_move_wide_125;
+                    goto exit_move_wide_126;
                 }
-                a_word_981 = 3531603968LL | (0ULL | (v_181 << 5) | 17);
+                a_word_989 = 3531603968LL | (0ULL | (v_183 << 5) | 17);
                 if (asm_pc < asm_limit) {
-                    *(uint32_t *)asm_pc = a_word_981;
+                    *(uint32_t *)asm_pc = a_word_989;
                     asm_pc = asm_pc + 4;
                 } else if (asm_error == ASM_OK) {
                     asm_error = ASM_ERR_FULL;
                 }
-            exit_move_wide_125:;
+            exit_move_wide_126:;
             } else {
-                asm_mov_imm(X17, v_181);
+                asm_mov_imm(X17, v_183);
             }
             goto exit_load_constant_41;
         }
-        if (v_181 == nil_oop) {
-            off_377 = (int64_t)&((jit_state *)0)->nil_oop;
-            if ((off_377 >= 0) && ((off_377 & 7) == 0) && ((off_377 >> 3) <= 4095)) {
-                a_word_982 = 4181721088LL | ((((uint64_t)(off_377 >> 3)) << 10) | 721ULL);
-                if (asm_pc < asm_limit) {
-                    *(uint32_t *)asm_pc = a_word_982;
-                    asm_pc = asm_pc + 4;
-                } else if (asm_error == ASM_OK) {
-                    asm_error = ASM_ERR_FULL;
-                }
-            } else {
-                if (!((off_377 >= -256) && (off_377 <= 255))) {
-                    if (asm_error == ASM_OK) {
-                        asm_error = ASM_ERR_IMMEDIATE;
-                    }
-                    goto exit_load_store_246;
-                }
-                a_word_983 = 4164943872LL | (((uint64_t)(off_377 & 511)) << 12) | 721ULL;
-                if (asm_pc < asm_limit) {
-                    *(uint32_t *)asm_pc = a_word_983;
-                    asm_pc = asm_pc + 4;
-                } else if (asm_error == ASM_OK) {
-                    asm_error = ASM_ERR_FULL;
-                }
-            exit_load_store_246:;
-            }
-            goto exit_load_constant_41;
-        }
-        if (v_181 == true_oop) {
-            off_378 = (int64_t)&((jit_state *)0)->true_oop;
+        if (v_183 == nil_oop) {
+            off_378 = (int64_t)&((jit_state *)0)->nil_oop;
             if ((off_378 >= 0) && ((off_378 & 7) == 0) && ((off_378 >> 3) <= 4095)) {
-                a_word_984 = 4181721088LL | ((((uint64_t)(off_378 >> 3)) << 10) | 721ULL);
+                a_word_990 = 4181721088LL | ((((uint64_t)(off_378 >> 3)) << 10) | 721ULL);
                 if (asm_pc < asm_limit) {
-                    *(uint32_t *)asm_pc = a_word_984;
+                    *(uint32_t *)asm_pc = a_word_990;
                     asm_pc = asm_pc + 4;
                 } else if (asm_error == ASM_OK) {
                     asm_error = ASM_ERR_FULL;
@@ -21460,9 +21635,9 @@ exit_loc_of_3:;
                     }
                     goto exit_load_store_247;
                 }
-                a_word_985 = 4164943872LL | (((uint64_t)(off_378 & 511)) << 12) | 721ULL;
+                a_word_991 = 4164943872LL | (((uint64_t)(off_378 & 511)) << 12) | 721ULL;
                 if (asm_pc < asm_limit) {
-                    *(uint32_t *)asm_pc = a_word_985;
+                    *(uint32_t *)asm_pc = a_word_991;
                     asm_pc = asm_pc + 4;
                 } else if (asm_error == ASM_OK) {
                     asm_error = ASM_ERR_FULL;
@@ -21471,12 +21646,12 @@ exit_loc_of_3:;
             }
             goto exit_load_constant_41;
         }
-        if (v_181 == false_oop) {
-            off_379 = (int64_t)&((jit_state *)0)->false_oop;
+        if (v_183 == true_oop) {
+            off_379 = (int64_t)&((jit_state *)0)->true_oop;
             if ((off_379 >= 0) && ((off_379 & 7) == 0) && ((off_379 >> 3) <= 4095)) {
-                a_word_986 = 4181721088LL | ((((uint64_t)(off_379 >> 3)) << 10) | 721ULL);
+                a_word_992 = 4181721088LL | ((((uint64_t)(off_379 >> 3)) << 10) | 721ULL);
                 if (asm_pc < asm_limit) {
-                    *(uint32_t *)asm_pc = a_word_986;
+                    *(uint32_t *)asm_pc = a_word_992;
                     asm_pc = asm_pc + 4;
                 } else if (asm_error == ASM_OK) {
                     asm_error = ASM_ERR_FULL;
@@ -21488,9 +21663,9 @@ exit_loc_of_3:;
                     }
                     goto exit_load_store_248;
                 }
-                a_word_987 = 4164943872LL | (((uint64_t)(off_379 & 511)) << 12) | 721ULL;
+                a_word_993 = 4164943872LL | (((uint64_t)(off_379 & 511)) << 12) | 721ULL;
                 if (asm_pc < asm_limit) {
-                    *(uint32_t *)asm_pc = a_word_987;
+                    *(uint32_t *)asm_pc = a_word_993;
                     asm_pc = asm_pc + 4;
                 } else if (asm_error == ASM_OK) {
                     asm_error = ASM_ERR_FULL;
@@ -21499,43 +21674,71 @@ exit_loc_of_3:;
             }
             goto exit_load_constant_41;
         }
-        if ((v_181 & 7) != 0) {
-            if ((v_181 >= 0) && (v_181 <= 0xFFFF)) {
-                if (!((v_181 >= 0) && (v_181 <= 0xFFFF))) {
-                    if (asm_error == ASM_OK) {
-                        asm_error = ASM_ERR_IMMEDIATE;
-                    }
-                    goto exit_move_wide_126;
-                }
-                a_word_988 = 3531603968LL | (0ULL | (v_181 << 5) | 17);
+        if (v_183 == false_oop) {
+            off_380 = (int64_t)&((jit_state *)0)->false_oop;
+            if ((off_380 >= 0) && ((off_380 & 7) == 0) && ((off_380 >> 3) <= 4095)) {
+                a_word_994 = 4181721088LL | ((((uint64_t)(off_380 >> 3)) << 10) | 721ULL);
                 if (asm_pc < asm_limit) {
-                    *(uint32_t *)asm_pc = a_word_988;
+                    *(uint32_t *)asm_pc = a_word_994;
                     asm_pc = asm_pc + 4;
                 } else if (asm_error == ASM_OK) {
                     asm_error = ASM_ERR_FULL;
                 }
-            exit_move_wide_126:;
             } else {
-                asm_mov_imm(X17, v_181);
+                if (!((off_380 >= -256) && (off_380 <= 255))) {
+                    if (asm_error == ASM_OK) {
+                        asm_error = ASM_ERR_IMMEDIATE;
+                    }
+                    goto exit_load_store_249;
+                }
+                a_word_995 = 4164943872LL | (((uint64_t)(off_380 & 511)) << 12) | 721ULL;
+                if (asm_pc < asm_limit) {
+                    *(uint32_t *)asm_pc = a_word_995;
+                    asm_pc = asm_pc + 4;
+                } else if (asm_error == ASM_OK) {
+                    asm_error = ASM_ERR_FULL;
+                }
+            exit_load_store_249:;
             }
             goto exit_load_constant_41;
         }
-        a_label_46 = cg_pool_labels[opt_pool_index(v_181)];
+        if ((v_183 & 7) != 0) {
+            if ((v_183 >= 0) && (v_183 <= 0xFFFF)) {
+                if (!((v_183 >= 0) && (v_183 <= 0xFFFF))) {
+                    if (asm_error == ASM_OK) {
+                        asm_error = ASM_ERR_IMMEDIATE;
+                    }
+                    goto exit_move_wide_127;
+                }
+                a_word_996 = 3531603968LL | (0ULL | (v_183 << 5) | 17);
+                if (asm_pc < asm_limit) {
+                    *(uint32_t *)asm_pc = a_word_996;
+                    asm_pc = asm_pc + 4;
+                } else if (asm_error == ASM_OK) {
+                    asm_error = ASM_ERR_FULL;
+                }
+            exit_move_wide_127:;
+            } else {
+                asm_mov_imm(X17, v_183);
+            }
+            goto exit_load_constant_41;
+        }
+        a_label_46 = cg_pool_labels[opt_pool_index(v_183)];
         target_129 = asm_target_of(a_label_46);
-        a_word_989 = 0x58000000 | ((((uint64_t)({
-    off_380 = ((int64_t)(target_129 - asm_pc)) >> 2;
-    if (!((off_380 >= -262144) && (off_380 <= 262143))) {
+        a_word_997 = 0x58000000 | ((((uint64_t)({
+    off_381 = ((int64_t)(target_129 - asm_pc)) >> 2;
+    if (!((off_381 >= -262144) && (off_381 <= 262143))) {
         if (asm_error == ASM_OK) {
             asm_error = ASM_ERR_RANGE;
         }
         r_offset_to_129 = 0;
         goto exit_offset_to_129;
     }
-    r_offset_to_129 = off_380 & 524287;
+    r_offset_to_129 = off_381 & 524287;
 exit_offset_to_129:;
     r_offset_to_129; })) << 5) | 17);
         if (asm_pc < asm_limit) {
-            *(uint32_t *)asm_pc = a_word_989;
+            *(uint32_t *)asm_pc = a_word_997;
             asm_pc = asm_pc + 4;
         } else if (asm_error == ASM_OK) {
             asm_error = ASM_ERR_FULL;
@@ -21544,35 +21747,35 @@ exit_offset_to_129:;
         r_src_35 = X17;
         goto exit_src_35;
     }
-    if (nd_97->reg >= 0) {
-        r_src_35 = (int32_t)nd_97->reg;
+    if (nd_98->reg >= 0) {
+        r_src_35 = (int32_t)nd_98->reg;
         goto exit_src_35;
     }
-    if (nd_97->slot >= 0) {
-        off_381 = 8 * (int32_t)nd_97->slot;
-        if ((off_381 >= 0) && ((off_381 & 7) == 0) && ((off_381 >> 3) <= 4095)) {
-            a_word_990 = 4181721088LL | ((((uint64_t)(off_381 >> 3)) << 10) | 657ULL);
+    if (nd_98->slot >= 0) {
+        off_382 = 8 * (int32_t)nd_98->slot;
+        if ((off_382 >= 0) && ((off_382 & 7) == 0) && ((off_382 >> 3) <= 4095)) {
+            a_word_998 = 4181721088LL | ((((uint64_t)(off_382 >> 3)) << 10) | 657ULL);
             if (asm_pc < asm_limit) {
-                *(uint32_t *)asm_pc = a_word_990;
+                *(uint32_t *)asm_pc = a_word_998;
                 asm_pc = asm_pc + 4;
             } else if (asm_error == ASM_OK) {
                 asm_error = ASM_ERR_FULL;
             }
         } else {
-            if (!((off_381 >= -256) && (off_381 <= 255))) {
+            if (!((off_382 >= -256) && (off_382 <= 255))) {
                 if (asm_error == ASM_OK) {
                     asm_error = ASM_ERR_IMMEDIATE;
                 }
-                goto exit_load_store_249;
+                goto exit_load_store_250;
             }
-            a_word_991 = 4164943872LL | (((uint64_t)(off_381 & 511)) << 12) | 657ULL;
+            a_word_999 = 4164943872LL | (((uint64_t)(off_382 & 511)) << 12) | 657ULL;
             if (asm_pc < asm_limit) {
-                *(uint32_t *)asm_pc = a_word_991;
+                *(uint32_t *)asm_pc = a_word_999;
                 asm_pc = asm_pc + 4;
             } else if (asm_error == ASM_OK) {
                 asm_error = ASM_ERR_FULL;
             }
-        exit_load_store_249:;
+        exit_load_store_250:;
         }
         r_src_35 = X17;
         goto exit_src_35;
@@ -21583,21 +21786,21 @@ exit_offset_to_129:;
     r_src_35 = X17;
 exit_src_35:;
     r_src_35; });
-            nd_98 = opt_nodes + phi_2;
-            if ((nd_98->reg >= 0) && ((int32_t)nd_98->reg != r_12)) {
-                rd_51 = (int32_t)nd_98->reg;
-                if (((rd_51 & REG_SP) != 0) || ((r_12 & REG_SP) != 0)) {
-                    a_word_992 = 0x11000000 | ((rd_51 & REG_W) == 0 ? 0x80000000LL : 0) | 0 | (0ULL | ((((uint64_t)(r_12 & 31)) << 5) | (rd_51 & 31)));
+            nd_99 = opt_nodes + phi_2;
+            if ((nd_99->reg >= 0) && ((int32_t)nd_99->reg != r_13)) {
+                rd_51 = (int32_t)nd_99->reg;
+                if (((rd_51 & REG_SP) != 0) || ((r_13 & REG_SP) != 0)) {
+                    a_word_1000 = 0x11000000 | ((rd_51 & REG_W) == 0 ? 0x80000000LL : 0) | 0 | (0ULL | ((((uint64_t)(r_13 & 31)) << 5) | (rd_51 & 31)));
                     if (asm_pc < asm_limit) {
-                        *(uint32_t *)asm_pc = a_word_992;
+                        *(uint32_t *)asm_pc = a_word_1000;
                         asm_pc = asm_pc + 4;
                     } else if (asm_error == ASM_OK) {
                         asm_error = ASM_ERR_FULL;
                     }
                     goto exit_add_sub_103;
-                    a_word_993 = 0x11400000 | ((rd_51 & REG_W) == 0 ? 0x80000000LL : 0) | 0 | (0ULL | ((((uint64_t)(r_12 & 31)) << 5) | (rd_51 & 31)));
+                    a_word_1001 = 0x11400000 | ((rd_51 & REG_W) == 0 ? 0x80000000LL : 0) | 0 | (0ULL | ((((uint64_t)(r_13 & 31)) << 5) | (rd_51 & 31)));
                     if (asm_pc < asm_limit) {
-                        *(uint32_t *)asm_pc = a_word_993;
+                        *(uint32_t *)asm_pc = a_word_1001;
                         asm_pc = asm_pc + 4;
                     } else if (asm_error == ASM_OK) {
                         asm_error = ASM_ERR_FULL;
@@ -21615,9 +21818,9 @@ exit_src_35:;
                         }
                         goto exit_logical_68;
                     }
-                    a_word_994 = 0xA000000 | ((rd_51 & REG_W) == 0 ? 0x80000000LL : 0) | 0x20000000 | (0ULL | ((((uint64_t)(r_12 & 31)) << 16) | (((uint64_t)(rn_37 & 31)) << 5) | (rd_51 & 31)));
+                    a_word_1002 = 0xA000000 | ((rd_51 & REG_W) == 0 ? 0x80000000LL : 0) | 0x20000000 | (0ULL | ((((uint64_t)(r_13 & 31)) << 16) | (((uint64_t)(rn_37 & 31)) << 5) | (rd_51 & 31)));
                     if (asm_pc < asm_limit) {
-                        *(uint32_t *)asm_pc = a_word_994;
+                        *(uint32_t *)asm_pc = a_word_1002;
                         asm_pc = asm_pc + 4;
                     } else if (asm_error == ASM_OK) {
                         asm_error = ASM_ERR_FULL;
@@ -21625,57 +21828,238 @@ exit_src_35:;
                 exit_logical_68:;
                 }
             }
-            if (nd_98->slot >= 0) {
-                off_382 = 8 * (int32_t)nd_98->slot;
-                bits_84 = (r_12 & REG_D) != 0 ? 0xC4000000LL : (r_12 & REG_W) == 0 ? 0xC0000000LL : 0x80000000LL;
-                s_58 = (r_12 & REG_W) == 0 ? 3 : 2;
-                if ((off_382 >= 0) && ((off_382 & ((1LL << s_58) - 1)) == 0) && ((off_382 >> s_58) <= 4095)) {
-                    a_word_995 = 0x39000000 | bits_84 | ((((uint64_t)(off_382 >> s_58)) << 10) | (640ULL | (r_12 & 31)));
+            if ((nd_99->slot >= 0) && ((nd_99->flags & NF_LAZY) == 0)) {
+                off_383 = 8 * (int32_t)nd_99->slot;
+                bits_87 = (r_13 & REG_D) != 0 ? 0xC4000000LL : (r_13 & REG_W) == 0 ? 0xC0000000LL : 0x80000000LL;
+                s_59 = (r_13 & REG_W) == 0 ? 3 : 2;
+                if ((off_383 >= 0) && ((off_383 & ((1LL << s_59) - 1)) == 0) && ((off_383 >> s_59) <= 4095)) {
+                    a_word_1003 = 0x39000000 | bits_87 | ((((uint64_t)(off_383 >> s_59)) << 10) | (640ULL | (r_13 & 31)));
                     if (asm_pc < asm_limit) {
-                        *(uint32_t *)asm_pc = a_word_995;
+                        *(uint32_t *)asm_pc = a_word_1003;
                         asm_pc = asm_pc + 4;
                     } else if (asm_error == ASM_OK) {
                         asm_error = ASM_ERR_FULL;
                     }
                 } else {
-                    bits_85 = 0x38000000 | bits_84;
-                    if (!((off_382 >= -256) && (off_382 <= 255))) {
+                    bits_88 = 0x38000000 | bits_87;
+                    if (!((off_383 >= -256) && (off_383 <= 255))) {
                         if (asm_error == ASM_OK) {
                             asm_error = ASM_ERR_IMMEDIATE;
                         }
-                        goto exit_load_store_250;
+                        goto exit_load_store_251;
                     }
-                    a_word_996 = bits_85 | (((uint64_t)(off_382 & 511)) << 12) | (640ULL | (r_12 & 31));
+                    a_word_1004 = bits_88 | (((uint64_t)(off_383 & 511)) << 12) | (640ULL | (r_13 & 31));
                     if (asm_pc < asm_limit) {
-                        *(uint32_t *)asm_pc = a_word_996;
+                        *(uint32_t *)asm_pc = a_word_1004;
                         asm_pc = asm_pc + 4;
                     } else if (asm_error == ASM_OK) {
                         asm_error = ASM_ERR_FULL;
                     }
-                exit_load_store_250:;
+                exit_load_store_251:;
                 }
             }
         }
         cg_move_count = 0;
+        cg_move_count = 0;
+        n_35 = (opt_blocks + s_57)->first;
+        while ((n_35 >= 0) && ((int32_t)(opt_nodes + n_35)->op == O_PHI)) {
+            nd_100 = opt_nodes + n_35;
+            if (({
+    if (n_35 < 0) {
+        r_is_value_2 = false;
+        goto exit_is_value_2;
+    }
+    nd_101 = opt_nodes + n_35;
+    r_is_value_2 = (nd_101->block >= 0) && (((int32_t)nd_101->rep != R_NONE) && (((int32_t)nd_101->op != O_CONST) && (((int32_t)nd_101->op != O_CLOSURE) && (((int32_t)nd_101->op != O_HOMESLOT) && ((nd_101->flags & NF_DEAD) == 0)))));
+exit_is_value_2:;
+    r_is_value_2; }) && ((int32_t)nd_100->rep == R_DBL)) {
+                if (cg_move_count >= CG_MAX_MOVES) {
+                    if (asm_error == ASM_OK) {
+                        asm_error = ASM_ERR_FULL;
+                    }
+                    goto exit_emit_double_moves_from;
+                }
+                i_24 = nd_100->args + k_20;
+                src = opt_operands[i_24];
+                cg_move_dst[cg_move_count] = (int32_t)nd_100->reg;
+                cg_move_src[cg_move_count] = src;
+                cg_move_loc[cg_move_count] = (int32_t)(opt_nodes + src)->op == O_CONST ? -1 : (int32_t)(opt_nodes + src)->reg;
+                cg_move_count = cg_move_count + 1;
+            }
+            n_35 = nd_100->next;
+        }
+        while (({
+    for (i_25 = 0; i_25 <= cg_move_count - 1; i_25++) {
+        if (cg_move_loc[i_25] >= 0) {
+            r_first_register_move_3 = i_25;
+            goto exit_first_register_move_3;
+        }
+    }
+    r_first_register_move_3 = -1;
+exit_first_register_move_3:;
+    r_first_register_move_3; }) >= 0) {
+            progress_2 = false;
+            for (i_26 = 0; i_26 <= cg_move_count - 1; i_26++) {
+                d_2 = cg_move_dst[i_26];
+                if ((cg_move_loc[i_26] >= 0) && (!progress_2)) {
+                    blocked_2 = false;
+                    for (j_3 = 0; j_3 <= cg_move_count - 1; j_3++) {
+                        if ((j_3 != i_26) && (cg_move_loc[j_3] == d_2)) {
+                            blocked_2 = true;
+                        }
+                    }
+                    if (!blocked_2) {
+                        if (cg_move_loc[i_26] != d_2) {
+                            rn_38 = cg_move_loc[i_26];
+                            if ((d_2 & REG_D) != 0) {
+                                a_word_1005 = ((rn_38 & REG_D) != 0 ? 0x1E604000 : 0x9E670000LL) | ((((uint64_t)(rn_38 & 31)) << 5) | (d_2 & 31));
+                                if (asm_pc < asm_limit) {
+                                    *(uint32_t *)asm_pc = a_word_1005;
+                                    asm_pc = asm_pc + 4;
+                                } else if (asm_error == ASM_OK) {
+                                    asm_error = ASM_ERR_FULL;
+                                }
+                            } else {
+                                a_word_1006 = 0x9E660000LL | ((((uint64_t)(rn_38 & 31)) << 5) | (d_2 & 31));
+                                if (asm_pc < asm_limit) {
+                                    *(uint32_t *)asm_pc = a_word_1006;
+                                    asm_pc = asm_pc + 4;
+                                } else if (asm_error == ASM_OK) {
+                                    asm_error = ASM_ERR_FULL;
+                                }
+                            }
+                        }
+                        cg_move_loc[i_26] = -2;
+                        progress_2 = true;
+                    }
+                }
+            }
+            if (!progress_2) {
+                c_3 = ({
+    for (i_27 = 0; i_27 <= cg_move_count - 1; i_27++) {
+        if (cg_move_loc[i_27] >= 0) {
+            r_first_register_move_4 = i_27;
+            goto exit_first_register_move_4;
+        }
+    }
+    r_first_register_move_4 = -1;
+exit_first_register_move_4:;
+    r_first_register_move_4; });
+                d_2 = cg_move_dst[c_3];
+                a_word_1007 = ((d_2 & REG_D) != 0 ? 0x1E604000 : 0x9E670000LL) | ((((uint64_t)(d_2 & 31)) << 5) | 0);
+                if (asm_pc < asm_limit) {
+                    *(uint32_t *)asm_pc = a_word_1007;
+                    asm_pc = asm_pc + 4;
+                } else if (asm_error == ASM_OK) {
+                    asm_error = ASM_ERR_FULL;
+                }
+                for (j_4 = 0; j_4 <= cg_move_count - 1; j_4++) {
+                    if (cg_move_loc[j_4] == d_2) {
+                        cg_move_loc[j_4] = D0;
+                    }
+                }
+            }
+        }
+        for (i_28 = 0; i_28 <= cg_move_count - 1; i_28++) {
+            if (cg_move_loc[i_28] == -1) {
+                n_36 = cg_move_src[i_28];
+                v_185 = (uint64_t)(opt_nodes + n_36)->aux;
+                bits_89 = ({
+    if ((v_185 & 1) != 0) {
+        r_constant_double_2 = lt_bits_of_double((double)(((int64_t)v_185) >> 1));
+        goto exit_constant_double_2;
+    }
+    r_14 = v_185 >> 3;
+    if (r_14 <= 1) {
+        r_constant_double_2 = r_14 << 63;
+        goto exit_constant_double_2;
+    }
+    b_3 = r_14 + 8070450532247928832ULL;
+    r_constant_double_2 = (b_3 >> 1) | (b_3 << 63);
+exit_constant_double_2:;
+    r_constant_double_2; });
+                d_3 = cg_move_dst[i_28];
+                if (asm_fmov_immediate(lt_double_from_bits(bits_89)) >= 0) {
+                    a_double_2 = lt_double_from_bits(bits_89);
+                    enc_40 = asm_fmov_immediate(a_double_2);
+                    if (enc_40 < 0) {
+                        if (asm_error == ASM_OK) {
+                            asm_error = ASM_ERR_IMMEDIATE;
+                        }
+                        goto exit_fmov_2;
+                    }
+                    a_word_1008 = 0x1E601000 | (((uint64_t)enc_40) << 13) | (d_3 & 31);
+                    if (asm_pc < asm_limit) {
+                        *(uint32_t *)asm_pc = a_word_1008;
+                        asm_pc = asm_pc + 4;
+                    } else if (asm_error == ASM_OK) {
+                        asm_error = ASM_ERR_FULL;
+                    }
+                exit_fmov_2:;
+                    goto exit_emit_double_2;
+                }
+                if (asm_noting) {
+                    asm_note("a Float constant", 0);
+                }
+                if ((bits_89 >= 0) && (bits_89 <= 0xFFFF)) {
+                    if (!((bits_89 >= 0) && (bits_89 <= 0xFFFF))) {
+                        if (asm_error == ASM_OK) {
+                            asm_error = ASM_ERR_IMMEDIATE;
+                        }
+                        goto exit_move_wide_128;
+                    }
+                    a_word_1009 = 3531603968LL | (0ULL | (bits_89 << 5) | 16);
+                    if (asm_pc < asm_limit) {
+                        *(uint32_t *)asm_pc = a_word_1009;
+                        asm_pc = asm_pc + 4;
+                    } else if (asm_error == ASM_OK) {
+                        asm_error = ASM_ERR_FULL;
+                    }
+                exit_move_wide_128:;
+                } else {
+                    asm_mov_imm(X16, bits_89);
+                }
+                if ((d_3 & REG_D) != 0) {
+                    a_word_1010 = 0x9E670000LL | (512ULL | (d_3 & 31));
+                    if (asm_pc < asm_limit) {
+                        *(uint32_t *)asm_pc = a_word_1010;
+                        asm_pc = asm_pc + 4;
+                    } else if (asm_error == ASM_OK) {
+                        asm_error = ASM_ERR_FULL;
+                    }
+                } else {
+                    a_word_1011 = 0x9E660000LL | (512ULL | (d_3 & 31));
+                    if (asm_pc < asm_limit) {
+                        *(uint32_t *)asm_pc = a_word_1011;
+                        asm_pc = asm_pc + 4;
+                    } else if (asm_error == ASM_OK) {
+                        asm_error = ASM_ERR_FULL;
+                    }
+                }
+            exit_emit_double_2:;
+            }
+        }
+        cg_move_count = 0;
+    exit_emit_double_moves_from:;
     exit_emit_moves_from:;
         if ((opt_blocks + b)->succ0 != next_block) {
-            b_2 = (opt_blocks + b)->succ0;
-            a_label_47 = (opt_blocks + b_2)->label;
+            b_4 = (opt_blocks + b)->succ0;
+            a_label_47 = (opt_blocks + b_4)->label;
             target_130 = asm_target_of(a_label_47);
-            a_word_997 = 0x14000000 | ({
-    off_383 = ((int64_t)(target_130 - asm_pc)) >> 2;
-    if (!((off_383 >= -33554432) && (off_383 <= 33554431))) {
+            a_word_1012 = 0x14000000 | ({
+    off_384 = ((int64_t)(target_130 - asm_pc)) >> 2;
+    if (!((off_384 >= -33554432) && (off_384 <= 33554431))) {
         if (asm_error == ASM_OK) {
             asm_error = ASM_ERR_RANGE;
         }
         r_offset_to_130 = 0;
         goto exit_offset_to_130;
     }
-    r_offset_to_130 = off_383 & 67108863;
+    r_offset_to_130 = off_384 & 67108863;
 exit_offset_to_130:;
     r_offset_to_130; });
             if (asm_pc < asm_limit) {
-                *(uint32_t *)asm_pc = a_word_997;
+                *(uint32_t *)asm_pc = a_word_1012;
                 asm_pc = asm_pc + 4;
             } else if (asm_error == ASM_OK) {
                 asm_error = ASM_ERR_FULL;
@@ -21684,25 +22068,25 @@ exit_offset_to_130:;
         return;
     }
     if (op == O_BRANCH) {
-        nd_99 = opt_nodes + n;
-        v_183 = nd_99->a;
-        vd = opt_nodes + v_183;
+        nd_102 = opt_nodes + n;
+        v_186 = nd_102->a;
+        vd = opt_nodes + v_186;
         if (((int32_t)vd->tkind != T_BOOL) && (!({
-    nd_100 = opt_nodes + v_183;
-    if (!(nd_100->uses == 1)) {
+    nd_103 = opt_nodes + v_186;
+    if (!(nd_103->uses == 1)) {
         r_is_fused_2 = false;
         goto exit_is_fused_2;
     }
-    if (nd_100->next < 0) {
+    if (nd_103->next < 0) {
         r_is_fused_2 = false;
         goto exit_is_fused_2;
     }
-    n_30 = nd_100->next;
-    nx_2 = opt_nodes + n_30;
-    r_is_fused_2 = ((int32_t)nx_2->op == O_BRANCH) && (nx_2->a == v_183);
+    n_37 = nd_103->next;
+    nx_2 = opt_nodes + n_37;
+    r_is_fused_2 = ((int32_t)nx_2->op == O_BRANCH) && (nx_2->a == v_186);
 exit_is_fused_2:;
     r_is_fused_2; }))) {
-            s_59 = ({
+            s_60 = ({
     k_22 = ({
     op_18 = (int32_t)(opt_nodes + n)->op;
     why_15 = (op_18 == O_GUARDCLASS) || (op_18 == O_DEOPT) ? FB_DEOPT_CLASS : op_18 == O_NOTINTS ? FB_INTS : (op_18 == O_GUARDINT) || ((op_18 == O_IADD) || ((op_18 == O_ISUB) || ((op_18 == O_IMUL) || ((op_18 == O_IMOD) || ((op_18 == O_IDIV) || (op_18 == O_ISHIFT)))))) ? FB_DEOPT_ARITH : FB_DEOPT_OTHER;
@@ -21736,30 +22120,30 @@ exit_out_23:;
     if (asm_noting) {
         asm_note("deoptimization stress", 0);
     }
-    off_384 = (int64_t)&((jit_state *)0)->stress;
-    if ((off_384 >= 0) && ((off_384 & 7) == 0) && ((off_384 >> 3) <= 4095)) {
-        a_word_998 = 4181721088LL | ((((uint64_t)(off_384 >> 3)) << 10) | 720ULL);
+    off_385 = (int64_t)&((jit_state *)0)->stress;
+    if ((off_385 >= 0) && ((off_385 & 7) == 0) && ((off_385 >> 3) <= 4095)) {
+        a_word_1013 = 4181721088LL | ((((uint64_t)(off_385 >> 3)) << 10) | 720ULL);
         if (asm_pc < asm_limit) {
-            *(uint32_t *)asm_pc = a_word_998;
+            *(uint32_t *)asm_pc = a_word_1013;
             asm_pc = asm_pc + 4;
         } else if (asm_error == ASM_OK) {
             asm_error = ASM_ERR_FULL;
         }
     } else {
-        if (!((off_384 >= -256) && (off_384 <= 255))) {
+        if (!((off_385 >= -256) && (off_385 <= 255))) {
             if (asm_error == ASM_OK) {
                 asm_error = ASM_ERR_IMMEDIATE;
             }
-            goto exit_load_store_251;
+            goto exit_load_store_252;
         }
-        a_word_999 = 4164943872LL | (((uint64_t)(off_384 & 511)) << 12) | 720ULL;
+        a_word_1014 = 4164943872LL | (((uint64_t)(off_385 & 511)) << 12) | 720ULL;
         if (asm_pc < asm_limit) {
-            *(uint32_t *)asm_pc = a_word_999;
+            *(uint32_t *)asm_pc = a_word_1014;
             asm_pc = asm_pc + 4;
         } else if (asm_error == ASM_OK) {
             asm_error = ASM_ERR_FULL;
         }
-    exit_load_store_251:;
+    exit_load_store_252:;
     }
     if (asm_pc < asm_limit) {
         *(uint32_t *)asm_pc = 4043310608ULL;
@@ -21772,46 +22156,46 @@ exit_out_23:;
         asm_error = ASM_ERR_IMMEDIATE;
     }
 exit_add_sub_104:;
-    off_385 = (int64_t)&((jit_state *)0)->stress;
-    if ((off_385 >= 0) && ((off_385 & 7) == 0) && ((off_385 >> 3) <= 4095)) {
-        a_word_1000 = 4177526784LL | ((((uint64_t)(off_385 >> 3)) << 10) | 720ULL);
+    off_386 = (int64_t)&((jit_state *)0)->stress;
+    if ((off_386 >= 0) && ((off_386 & 7) == 0) && ((off_386 >> 3) <= 4095)) {
+        a_word_1015 = 4177526784LL | ((((uint64_t)(off_386 >> 3)) << 10) | 720ULL);
         if (asm_pc < asm_limit) {
-            *(uint32_t *)asm_pc = a_word_1000;
+            *(uint32_t *)asm_pc = a_word_1015;
             asm_pc = asm_pc + 4;
         } else if (asm_error == ASM_OK) {
             asm_error = ASM_ERR_FULL;
         }
     } else {
-        if (!((off_385 >= -256) && (off_385 <= 255))) {
+        if (!((off_386 >= -256) && (off_386 <= 255))) {
             if (asm_error == ASM_OK) {
                 asm_error = ASM_ERR_IMMEDIATE;
             }
-            goto exit_load_store_252;
+            goto exit_load_store_253;
         }
-        a_word_1001 = 4160749568LL | (((uint64_t)(off_385 & 511)) << 12) | 720ULL;
+        a_word_1016 = 4160749568LL | (((uint64_t)(off_386 & 511)) << 12) | 720ULL;
         if (asm_pc < asm_limit) {
-            *(uint32_t *)asm_pc = a_word_1001;
+            *(uint32_t *)asm_pc = a_word_1016;
             asm_pc = asm_pc + 4;
         } else if (asm_error == ASM_OK) {
             asm_error = ASM_ERR_FULL;
         }
-    exit_load_store_252:;
+    exit_load_store_253:;
     }
     target_131 = asm_target_of(l_16);
-    a_word_1002 = 0x54000000 | ((((uint64_t)({
-    off_386 = ((int64_t)(target_131 - asm_pc)) >> 2;
-    if (!((off_386 >= -262144) && (off_386 <= 262143))) {
+    a_word_1017 = 0x54000000 | ((((uint64_t)({
+    off_387 = ((int64_t)(target_131 - asm_pc)) >> 2;
+    if (!((off_387 >= -262144) && (off_387 <= 262143))) {
         if (asm_error == ASM_OK) {
             asm_error = ASM_ERR_RANGE;
         }
         r_offset_to_131 = 0;
         goto exit_offset_to_131;
     }
-    r_offset_to_131 = off_386 & 524287;
+    r_offset_to_131 = off_387 & 524287;
 exit_offset_to_131:;
     r_offset_to_131; })) << 5) | 0);
     if (asm_pc < asm_limit) {
-        *(uint32_t *)asm_pc = a_word_1002;
+        *(uint32_t *)asm_pc = a_word_1017;
         asm_pc = asm_pc + 4;
     } else if (asm_error == ASM_OK) {
         asm_error = ASM_ERR_FULL;
@@ -21825,26 +22209,26 @@ exit_emit_stress_at_17:;
         tl = (opt_blocks + t)->label;
         fl = (opt_blocks + f)->label;
         if (({
-    nd_101 = opt_nodes + v_183;
-    if (!(nd_101->uses == 1)) {
+    nd_104 = opt_nodes + v_186;
+    if (!(nd_104->uses == 1)) {
         r_is_fused_3 = false;
         goto exit_is_fused_3;
     }
-    if (nd_101->next < 0) {
+    if (nd_104->next < 0) {
         r_is_fused_3 = false;
         goto exit_is_fused_3;
     }
-    n_31 = nd_101->next;
-    nx_3 = opt_nodes + n_31;
-    r_is_fused_3 = ((int32_t)nx_3->op == O_BRANCH) && (nx_3->a == v_183);
+    n_38 = nd_104->next;
+    nx_3 = opt_nodes + n_38;
+    r_is_fused_3 = ((int32_t)nx_3->op == O_BRANCH) && (nx_3->a == v_186);
 exit_is_fused_3:;
     r_is_fused_3; })) {
-            nd_102 = opt_nodes + v_183;
-            if ((int32_t)nd_102->op == O_FCMP) {
-                v_185 = nd_102->a;
-                rn_38 = ({
-    if ((opt_nodes + v_185)->reg >= D0) {
-        r_dsrc_20 = (int32_t)(opt_nodes + v_185)->reg;
+            nd_105 = opt_nodes + v_186;
+            if ((int32_t)nd_105->op == O_FCMP) {
+                v_188 = nd_105->a;
+                rn_39 = ({
+    if ((opt_nodes + v_188)->reg >= D0) {
+        r_dsrc_20 = (int32_t)(opt_nodes + v_188)->reg;
         goto exit_dsrc_20;
     }
     if (asm_error == ASM_OK) {
@@ -21853,10 +22237,10 @@ exit_is_fused_3:;
     r_dsrc_20 = D0;
 exit_dsrc_20:;
     r_dsrc_20; });
-                v_186 = nd_102->b;
+                v_189 = nd_105->b;
                 rm_6 = ({
-    if ((opt_nodes + v_186)->reg >= D0) {
-        r_dsrc_21 = (int32_t)(opt_nodes + v_186)->reg;
+    if ((opt_nodes + v_189)->reg >= D0) {
+        r_dsrc_21 = (int32_t)(opt_nodes + v_189)->reg;
         goto exit_dsrc_21;
     }
     if (asm_error == ASM_OK) {
@@ -21865,97 +22249,69 @@ exit_dsrc_20:;
     r_dsrc_21 = D0;
 exit_dsrc_21:;
     r_dsrc_21; });
-                a_word_1003 = 0x1E602000 | ((((uint64_t)(rm_6 & 31)) << 16) | (((uint64_t)(rn_38 & 31)) << 5) | 0);
+                a_word_1018 = 0x1E602000 | ((((uint64_t)(rm_6 & 31)) << 16) | (((uint64_t)(rn_39 & 31)) << 5) | 0);
                 if (asm_pc < asm_limit) {
-                    *(uint32_t *)asm_pc = a_word_1003;
+                    *(uint32_t *)asm_pc = a_word_1018;
                     asm_pc = asm_pc + 4;
                 } else if (asm_error == ASM_OK) {
                     asm_error = ASM_ERR_FULL;
                 }
                 goto exit_emit_compare_2;
             }
-            v_187 = nd_102->a;
+            v_190 = nd_105->a;
             x_12 = ({
-    nd_103 = opt_nodes + v_187;
-    if ((int32_t)nd_103->op == O_CONST) {
-        v_188 = (uint64_t)nd_103->aux;
-        if ((v_188 & 1) != 0) {
-            if (((int64_t)v_188 >= -2147483648) && ((int64_t)v_188 <= 0x7FFFFFFF)) {
-                value_42 = (int64_t)v_188;
+    nd_106 = opt_nodes + v_190;
+    if ((int32_t)nd_106->op == O_CONST) {
+        v_191 = (uint64_t)nd_106->aux;
+        if ((v_191 & 1) != 0) {
+            if (((int64_t)v_191 >= -2147483648) && ((int64_t)v_191 <= 0x7FFFFFFF)) {
+                value_42 = (int64_t)v_191;
                 if ((value_42 >= 0) && (value_42 <= 0xFFFF)) {
                     if (!((value_42 >= 0) && (value_42 <= 0xFFFF))) {
                         if (asm_error == ASM_OK) {
                             asm_error = ASM_ERR_IMMEDIATE;
                         }
-                        goto exit_move_wide_127;
+                        goto exit_move_wide_129;
                     }
-                    a_word_1004 = 3531603968LL | (0ULL | (((uint64_t)value_42) << 5) | 14);
+                    a_word_1019 = 3531603968LL | (0ULL | (((uint64_t)value_42) << 5) | 14);
                     if (asm_pc < asm_limit) {
-                        *(uint32_t *)asm_pc = a_word_1004;
+                        *(uint32_t *)asm_pc = a_word_1019;
                         asm_pc = asm_pc + 4;
                     } else if (asm_error == ASM_OK) {
                         asm_error = ASM_ERR_FULL;
                     }
-                exit_move_wide_127:;
+                exit_move_wide_129:;
                 } else {
                     asm_mov_imm(X14, (uint64_t)value_42);
                 }
                 goto exit_load_constant_42;
             }
-            if ((v_188 >= 0) && (v_188 <= 0xFFFF)) {
-                if (!((v_188 >= 0) && (v_188 <= 0xFFFF))) {
+            if ((v_191 >= 0) && (v_191 <= 0xFFFF)) {
+                if (!((v_191 >= 0) && (v_191 <= 0xFFFF))) {
                     if (asm_error == ASM_OK) {
                         asm_error = ASM_ERR_IMMEDIATE;
                     }
-                    goto exit_move_wide_128;
+                    goto exit_move_wide_130;
                 }
-                a_word_1005 = 3531603968LL | (0ULL | (v_188 << 5) | 14);
+                a_word_1020 = 3531603968LL | (0ULL | (v_191 << 5) | 14);
                 if (asm_pc < asm_limit) {
-                    *(uint32_t *)asm_pc = a_word_1005;
+                    *(uint32_t *)asm_pc = a_word_1020;
                     asm_pc = asm_pc + 4;
                 } else if (asm_error == ASM_OK) {
                     asm_error = ASM_ERR_FULL;
                 }
-            exit_move_wide_128:;
+            exit_move_wide_130:;
             } else {
-                asm_mov_imm(X14, v_188);
+                asm_mov_imm(X14, v_191);
             }
             goto exit_load_constant_42;
         }
-        if (v_188 == nil_oop) {
-            off_387 = (int64_t)&((jit_state *)0)->nil_oop;
-            if ((off_387 >= 0) && ((off_387 & 7) == 0) && ((off_387 >> 3) <= 4095)) {
-                a_word_1006 = 4181721088LL | ((((uint64_t)(off_387 >> 3)) << 10) | 718ULL);
-                if (asm_pc < asm_limit) {
-                    *(uint32_t *)asm_pc = a_word_1006;
-                    asm_pc = asm_pc + 4;
-                } else if (asm_error == ASM_OK) {
-                    asm_error = ASM_ERR_FULL;
-                }
-            } else {
-                if (!((off_387 >= -256) && (off_387 <= 255))) {
-                    if (asm_error == ASM_OK) {
-                        asm_error = ASM_ERR_IMMEDIATE;
-                    }
-                    goto exit_load_store_253;
-                }
-                a_word_1007 = 4164943872LL | (((uint64_t)(off_387 & 511)) << 12) | 718ULL;
-                if (asm_pc < asm_limit) {
-                    *(uint32_t *)asm_pc = a_word_1007;
-                    asm_pc = asm_pc + 4;
-                } else if (asm_error == ASM_OK) {
-                    asm_error = ASM_ERR_FULL;
-                }
-            exit_load_store_253:;
-            }
-            goto exit_load_constant_42;
-        }
-        if (v_188 == true_oop) {
-            off_388 = (int64_t)&((jit_state *)0)->true_oop;
+        if (v_191 == nil_oop) {
+            off_388 = (int64_t)&((jit_state *)0)->nil_oop;
             if ((off_388 >= 0) && ((off_388 & 7) == 0) && ((off_388 >> 3) <= 4095)) {
-                a_word_1008 = 4181721088LL | ((((uint64_t)(off_388 >> 3)) << 10) | 718ULL);
+                a_word_1021 = 4181721088LL | ((((uint64_t)(off_388 >> 3)) << 10) | 718ULL);
                 if (asm_pc < asm_limit) {
-                    *(uint32_t *)asm_pc = a_word_1008;
+                    *(uint32_t *)asm_pc = a_word_1021;
                     asm_pc = asm_pc + 4;
                 } else if (asm_error == ASM_OK) {
                     asm_error = ASM_ERR_FULL;
@@ -21967,9 +22323,9 @@ exit_dsrc_21:;
                     }
                     goto exit_load_store_254;
                 }
-                a_word_1009 = 4164943872LL | (((uint64_t)(off_388 & 511)) << 12) | 718ULL;
+                a_word_1022 = 4164943872LL | (((uint64_t)(off_388 & 511)) << 12) | 718ULL;
                 if (asm_pc < asm_limit) {
-                    *(uint32_t *)asm_pc = a_word_1009;
+                    *(uint32_t *)asm_pc = a_word_1022;
                     asm_pc = asm_pc + 4;
                 } else if (asm_error == ASM_OK) {
                     asm_error = ASM_ERR_FULL;
@@ -21978,12 +22334,12 @@ exit_dsrc_21:;
             }
             goto exit_load_constant_42;
         }
-        if (v_188 == false_oop) {
-            off_389 = (int64_t)&((jit_state *)0)->false_oop;
+        if (v_191 == true_oop) {
+            off_389 = (int64_t)&((jit_state *)0)->true_oop;
             if ((off_389 >= 0) && ((off_389 & 7) == 0) && ((off_389 >> 3) <= 4095)) {
-                a_word_1010 = 4181721088LL | ((((uint64_t)(off_389 >> 3)) << 10) | 718ULL);
+                a_word_1023 = 4181721088LL | ((((uint64_t)(off_389 >> 3)) << 10) | 718ULL);
                 if (asm_pc < asm_limit) {
-                    *(uint32_t *)asm_pc = a_word_1010;
+                    *(uint32_t *)asm_pc = a_word_1023;
                     asm_pc = asm_pc + 4;
                 } else if (asm_error == ASM_OK) {
                     asm_error = ASM_ERR_FULL;
@@ -21995,9 +22351,9 @@ exit_dsrc_21:;
                     }
                     goto exit_load_store_255;
                 }
-                a_word_1011 = 4164943872LL | (((uint64_t)(off_389 & 511)) << 12) | 718ULL;
+                a_word_1024 = 4164943872LL | (((uint64_t)(off_389 & 511)) << 12) | 718ULL;
                 if (asm_pc < asm_limit) {
-                    *(uint32_t *)asm_pc = a_word_1011;
+                    *(uint32_t *)asm_pc = a_word_1024;
                     asm_pc = asm_pc + 4;
                 } else if (asm_error == ASM_OK) {
                     asm_error = ASM_ERR_FULL;
@@ -22006,43 +22362,71 @@ exit_dsrc_21:;
             }
             goto exit_load_constant_42;
         }
-        if ((v_188 & 7) != 0) {
-            if ((v_188 >= 0) && (v_188 <= 0xFFFF)) {
-                if (!((v_188 >= 0) && (v_188 <= 0xFFFF))) {
-                    if (asm_error == ASM_OK) {
-                        asm_error = ASM_ERR_IMMEDIATE;
-                    }
-                    goto exit_move_wide_129;
-                }
-                a_word_1012 = 3531603968LL | (0ULL | (v_188 << 5) | 14);
+        if (v_191 == false_oop) {
+            off_390 = (int64_t)&((jit_state *)0)->false_oop;
+            if ((off_390 >= 0) && ((off_390 & 7) == 0) && ((off_390 >> 3) <= 4095)) {
+                a_word_1025 = 4181721088LL | ((((uint64_t)(off_390 >> 3)) << 10) | 718ULL);
                 if (asm_pc < asm_limit) {
-                    *(uint32_t *)asm_pc = a_word_1012;
+                    *(uint32_t *)asm_pc = a_word_1025;
                     asm_pc = asm_pc + 4;
                 } else if (asm_error == ASM_OK) {
                     asm_error = ASM_ERR_FULL;
                 }
-            exit_move_wide_129:;
             } else {
-                asm_mov_imm(X14, v_188);
+                if (!((off_390 >= -256) && (off_390 <= 255))) {
+                    if (asm_error == ASM_OK) {
+                        asm_error = ASM_ERR_IMMEDIATE;
+                    }
+                    goto exit_load_store_256;
+                }
+                a_word_1026 = 4164943872LL | (((uint64_t)(off_390 & 511)) << 12) | 718ULL;
+                if (asm_pc < asm_limit) {
+                    *(uint32_t *)asm_pc = a_word_1026;
+                    asm_pc = asm_pc + 4;
+                } else if (asm_error == ASM_OK) {
+                    asm_error = ASM_ERR_FULL;
+                }
+            exit_load_store_256:;
             }
             goto exit_load_constant_42;
         }
-        a_label_48 = cg_pool_labels[opt_pool_index(v_188)];
+        if ((v_191 & 7) != 0) {
+            if ((v_191 >= 0) && (v_191 <= 0xFFFF)) {
+                if (!((v_191 >= 0) && (v_191 <= 0xFFFF))) {
+                    if (asm_error == ASM_OK) {
+                        asm_error = ASM_ERR_IMMEDIATE;
+                    }
+                    goto exit_move_wide_131;
+                }
+                a_word_1027 = 3531603968LL | (0ULL | (v_191 << 5) | 14);
+                if (asm_pc < asm_limit) {
+                    *(uint32_t *)asm_pc = a_word_1027;
+                    asm_pc = asm_pc + 4;
+                } else if (asm_error == ASM_OK) {
+                    asm_error = ASM_ERR_FULL;
+                }
+            exit_move_wide_131:;
+            } else {
+                asm_mov_imm(X14, v_191);
+            }
+            goto exit_load_constant_42;
+        }
+        a_label_48 = cg_pool_labels[opt_pool_index(v_191)];
         target_132 = asm_target_of(a_label_48);
-        a_word_1013 = 0x58000000 | ((((uint64_t)({
-    off_390 = ((int64_t)(target_132 - asm_pc)) >> 2;
-    if (!((off_390 >= -262144) && (off_390 <= 262143))) {
+        a_word_1028 = 0x58000000 | ((((uint64_t)({
+    off_391 = ((int64_t)(target_132 - asm_pc)) >> 2;
+    if (!((off_391 >= -262144) && (off_391 <= 262143))) {
         if (asm_error == ASM_OK) {
             asm_error = ASM_ERR_RANGE;
         }
         r_offset_to_132 = 0;
         goto exit_offset_to_132;
     }
-    r_offset_to_132 = off_390 & 524287;
+    r_offset_to_132 = off_391 & 524287;
 exit_offset_to_132:;
     r_offset_to_132; })) << 5) | 14);
         if (asm_pc < asm_limit) {
-            *(uint32_t *)asm_pc = a_word_1013;
+            *(uint32_t *)asm_pc = a_word_1028;
             asm_pc = asm_pc + 4;
         } else if (asm_error == ASM_OK) {
             asm_error = ASM_ERR_FULL;
@@ -22051,35 +22435,35 @@ exit_offset_to_132:;
         r_src_36 = X14;
         goto exit_src_36;
     }
-    if (nd_103->reg >= 0) {
-        r_src_36 = (int32_t)nd_103->reg;
+    if (nd_106->reg >= 0) {
+        r_src_36 = (int32_t)nd_106->reg;
         goto exit_src_36;
     }
-    if (nd_103->slot >= 0) {
-        off_391 = 8 * (int32_t)nd_103->slot;
-        if ((off_391 >= 0) && ((off_391 & 7) == 0) && ((off_391 >> 3) <= 4095)) {
-            a_word_1014 = 4181721088LL | ((((uint64_t)(off_391 >> 3)) << 10) | 654ULL);
+    if (nd_106->slot >= 0) {
+        off_392 = 8 * (int32_t)nd_106->slot;
+        if ((off_392 >= 0) && ((off_392 & 7) == 0) && ((off_392 >> 3) <= 4095)) {
+            a_word_1029 = 4181721088LL | ((((uint64_t)(off_392 >> 3)) << 10) | 654ULL);
             if (asm_pc < asm_limit) {
-                *(uint32_t *)asm_pc = a_word_1014;
+                *(uint32_t *)asm_pc = a_word_1029;
                 asm_pc = asm_pc + 4;
             } else if (asm_error == ASM_OK) {
                 asm_error = ASM_ERR_FULL;
             }
         } else {
-            if (!((off_391 >= -256) && (off_391 <= 255))) {
+            if (!((off_392 >= -256) && (off_392 <= 255))) {
                 if (asm_error == ASM_OK) {
                     asm_error = ASM_ERR_IMMEDIATE;
                 }
-                goto exit_load_store_256;
+                goto exit_load_store_257;
             }
-            a_word_1015 = 4164943872LL | (((uint64_t)(off_391 & 511)) << 12) | 654ULL;
+            a_word_1030 = 4164943872LL | (((uint64_t)(off_392 & 511)) << 12) | 654ULL;
             if (asm_pc < asm_limit) {
-                *(uint32_t *)asm_pc = a_word_1015;
+                *(uint32_t *)asm_pc = a_word_1030;
                 asm_pc = asm_pc + 4;
             } else if (asm_error == ASM_OK) {
                 asm_error = ASM_ERR_FULL;
             }
-        exit_load_store_256:;
+        exit_load_store_257:;
         }
         r_src_36 = X14;
         goto exit_src_36;
@@ -22090,19 +22474,19 @@ exit_offset_to_132:;
     r_src_36 = X14;
 exit_src_36:;
     r_src_36; });
-            if ((int32_t)nd_102->op == O_CLASSIS) {
-                cls_3 = (uint64_t)nd_102->aux;
+            if ((int32_t)nd_105->op == O_CLASSIS) {
+                cls_3 = (uint64_t)nd_105->aux;
                 if (cls_3 == cls_smallint) {
-                    enc_39 = asm_logical_immediate(1ULL, 64);
-                    if (enc_39 < 0) {
+                    enc_41 = asm_logical_immediate(1ULL, 64);
+                    if (enc_41 < 0) {
                         if (asm_error == ASM_OK) {
                             asm_error = ASM_ERR_IMMEDIATE;
                         }
                         goto exit_logical_69;
                     }
-                    a_word_1016 = 2449473536LL | ((((uint64_t)enc_39) << 10) | ((((uint64_t)(x_12 & 31)) << 5) | 16));
+                    a_word_1031 = 2449473536LL | ((((uint64_t)enc_41) << 10) | ((((uint64_t)(x_12 & 31)) << 5) | 16));
                     if (asm_pc < asm_limit) {
-                        *(uint32_t *)asm_pc = a_word_1016;
+                        *(uint32_t *)asm_pc = a_word_1031;
                         asm_pc = asm_pc + 4;
                     } else if (asm_error == ASM_OK) {
                         asm_error = ASM_ERR_FULL;
@@ -22122,16 +22506,16 @@ exit_src_36:;
                     goto exit_emit_class_test_3;
                 }
                 if (cls_3 == cls_smallfloat) {
-                    enc_40 = asm_logical_immediate(7ULL, 64);
-                    if (enc_40 < 0) {
+                    enc_42 = asm_logical_immediate(7ULL, 64);
+                    if (enc_42 < 0) {
                         if (asm_error == ASM_OK) {
                             asm_error = ASM_ERR_IMMEDIATE;
                         }
                         goto exit_logical_70;
                     }
-                    a_word_1017 = 2449473536LL | ((((uint64_t)enc_40) << 10) | ((((uint64_t)(x_12 & 31)) << 5) | 16));
+                    a_word_1032 = 2449473536LL | ((((uint64_t)enc_42) << 10) | ((((uint64_t)(x_12 & 31)) << 5) | 16));
                     if (asm_pc < asm_limit) {
-                        *(uint32_t *)asm_pc = a_word_1017;
+                        *(uint32_t *)asm_pc = a_word_1032;
                         asm_pc = asm_pc + 4;
                     } else if (asm_error == ASM_OK) {
                         asm_error = ASM_ERR_FULL;
@@ -22151,16 +22535,16 @@ exit_src_36:;
                     goto exit_emit_class_test_3;
                 }
                 if (cls_3 == cls_char) {
-                    enc_41 = asm_logical_immediate(7ULL, 64);
-                    if (enc_41 < 0) {
+                    enc_43 = asm_logical_immediate(7ULL, 64);
+                    if (enc_43 < 0) {
                         if (asm_error == ASM_OK) {
                             asm_error = ASM_ERR_IMMEDIATE;
                         }
                         goto exit_logical_71;
                     }
-                    a_word_1018 = 2449473536LL | ((((uint64_t)enc_41) << 10) | ((((uint64_t)(x_12 & 31)) << 5) | 16));
+                    a_word_1033 = 2449473536LL | ((((uint64_t)enc_43) << 10) | ((((uint64_t)(x_12 & 31)) << 5) | 16));
                     if (asm_pc < asm_limit) {
-                        *(uint32_t *)asm_pc = a_word_1018;
+                        *(uint32_t *)asm_pc = a_word_1033;
                         asm_pc = asm_pc + 4;
                     } else if (asm_error == ASM_OK) {
                         asm_error = ASM_ERR_FULL;
@@ -22180,24 +22564,24 @@ exit_src_36:;
                     goto exit_emit_class_test_3;
                 }
                 rd_52 = (x_12 & REG_W) | 31;
-                enc_42 = asm_logical_immediate(7ULL, (rd_52 & REG_W) == 0 ? 64 : 32);
-                if (enc_42 < 0) {
+                enc_44 = asm_logical_immediate(7ULL, (rd_52 & REG_W) == 0 ? 64 : 32);
+                if (enc_44 < 0) {
                     if (asm_error == ASM_OK) {
                         asm_error = ASM_ERR_IMMEDIATE;
                     }
                     goto exit_logical_72;
                 }
-                a_word_1019 = 0x12000000 | ((rd_52 & REG_W) == 0 ? 0x80000000LL : 0) | 0x60000000 | ((((uint64_t)enc_42) << 10) | ((((uint64_t)(x_12 & 31)) << 5) | (rd_52 & 31)));
+                a_word_1034 = 0x12000000 | ((rd_52 & REG_W) == 0 ? 0x80000000LL : 0) | 0x60000000 | ((((uint64_t)enc_44) << 10) | ((((uint64_t)(x_12 & 31)) << 5) | (rd_52 & 31)));
                 if (asm_pc < asm_limit) {
-                    *(uint32_t *)asm_pc = a_word_1019;
+                    *(uint32_t *)asm_pc = a_word_1034;
                     asm_pc = asm_pc + 4;
                 } else if (asm_error == ASM_OK) {
                     asm_error = ASM_ERR_FULL;
                 }
             exit_logical_72:;
-                a_word_1020 = 2592079872LL | (0ULL | (1441792ULL | (((uint64_t)(x_12 & 31)) << 5) | 16));
+                a_word_1035 = 2592079872LL | (0ULL | (1441792ULL | (((uint64_t)(x_12 & 31)) << 5) | 16));
                 if (asm_pc < asm_limit) {
-                    *(uint32_t *)asm_pc = a_word_1020;
+                    *(uint32_t *)asm_pc = a_word_1035;
                     asm_pc = asm_pc + 4;
                 } else if (asm_error == ASM_OK) {
                     asm_error = ASM_ERR_FULL;
@@ -22216,16 +22600,16 @@ exit_src_36:;
                                 if (asm_error == ASM_OK) {
                                     asm_error = ASM_ERR_IMMEDIATE;
                                 }
-                                goto exit_move_wide_130;
+                                goto exit_move_wide_132;
                             }
-                            a_word_1021 = 3531603968LL | (0ULL | (((uint64_t)value_43) << 5) | 17);
+                            a_word_1036 = 3531603968LL | (0ULL | (((uint64_t)value_43) << 5) | 17);
                             if (asm_pc < asm_limit) {
-                                *(uint32_t *)asm_pc = a_word_1021;
+                                *(uint32_t *)asm_pc = a_word_1036;
                                 asm_pc = asm_pc + 4;
                             } else if (asm_error == ASM_OK) {
                                 asm_error = ASM_ERR_FULL;
                             }
-                        exit_move_wide_130:;
+                        exit_move_wide_132:;
                         } else {
                             asm_mov_imm(X17, (uint64_t)value_43);
                         }
@@ -22236,55 +22620,27 @@ exit_src_36:;
                             if (asm_error == ASM_OK) {
                                 asm_error = ASM_ERR_IMMEDIATE;
                             }
-                            goto exit_move_wide_131;
+                            goto exit_move_wide_133;
                         }
-                        a_word_1022 = 3531603968LL | (0ULL | (cls_3 << 5) | 17);
+                        a_word_1037 = 3531603968LL | (0ULL | (cls_3 << 5) | 17);
                         if (asm_pc < asm_limit) {
-                            *(uint32_t *)asm_pc = a_word_1022;
+                            *(uint32_t *)asm_pc = a_word_1037;
                             asm_pc = asm_pc + 4;
                         } else if (asm_error == ASM_OK) {
                             asm_error = ASM_ERR_FULL;
                         }
-                    exit_move_wide_131:;
+                    exit_move_wide_133:;
                     } else {
                         asm_mov_imm(X17, cls_3);
                     }
                     goto exit_load_constant_43;
                 }
                 if (cls_3 == nil_oop) {
-                    off_392 = (int64_t)&((jit_state *)0)->nil_oop;
-                    if ((off_392 >= 0) && ((off_392 & 7) == 0) && ((off_392 >> 3) <= 4095)) {
-                        a_word_1023 = 4181721088LL | ((((uint64_t)(off_392 >> 3)) << 10) | 721ULL);
-                        if (asm_pc < asm_limit) {
-                            *(uint32_t *)asm_pc = a_word_1023;
-                            asm_pc = asm_pc + 4;
-                        } else if (asm_error == ASM_OK) {
-                            asm_error = ASM_ERR_FULL;
-                        }
-                    } else {
-                        if (!((off_392 >= -256) && (off_392 <= 255))) {
-                            if (asm_error == ASM_OK) {
-                                asm_error = ASM_ERR_IMMEDIATE;
-                            }
-                            goto exit_load_store_257;
-                        }
-                        a_word_1024 = 4164943872LL | (((uint64_t)(off_392 & 511)) << 12) | 721ULL;
-                        if (asm_pc < asm_limit) {
-                            *(uint32_t *)asm_pc = a_word_1024;
-                            asm_pc = asm_pc + 4;
-                        } else if (asm_error == ASM_OK) {
-                            asm_error = ASM_ERR_FULL;
-                        }
-                    exit_load_store_257:;
-                    }
-                    goto exit_load_constant_43;
-                }
-                if (cls_3 == true_oop) {
-                    off_393 = (int64_t)&((jit_state *)0)->true_oop;
+                    off_393 = (int64_t)&((jit_state *)0)->nil_oop;
                     if ((off_393 >= 0) && ((off_393 & 7) == 0) && ((off_393 >> 3) <= 4095)) {
-                        a_word_1025 = 4181721088LL | ((((uint64_t)(off_393 >> 3)) << 10) | 721ULL);
+                        a_word_1038 = 4181721088LL | ((((uint64_t)(off_393 >> 3)) << 10) | 721ULL);
                         if (asm_pc < asm_limit) {
-                            *(uint32_t *)asm_pc = a_word_1025;
+                            *(uint32_t *)asm_pc = a_word_1038;
                             asm_pc = asm_pc + 4;
                         } else if (asm_error == ASM_OK) {
                             asm_error = ASM_ERR_FULL;
@@ -22296,9 +22652,9 @@ exit_src_36:;
                             }
                             goto exit_load_store_258;
                         }
-                        a_word_1026 = 4164943872LL | (((uint64_t)(off_393 & 511)) << 12) | 721ULL;
+                        a_word_1039 = 4164943872LL | (((uint64_t)(off_393 & 511)) << 12) | 721ULL;
                         if (asm_pc < asm_limit) {
-                            *(uint32_t *)asm_pc = a_word_1026;
+                            *(uint32_t *)asm_pc = a_word_1039;
                             asm_pc = asm_pc + 4;
                         } else if (asm_error == ASM_OK) {
                             asm_error = ASM_ERR_FULL;
@@ -22307,12 +22663,12 @@ exit_src_36:;
                     }
                     goto exit_load_constant_43;
                 }
-                if (cls_3 == false_oop) {
-                    off_394 = (int64_t)&((jit_state *)0)->false_oop;
+                if (cls_3 == true_oop) {
+                    off_394 = (int64_t)&((jit_state *)0)->true_oop;
                     if ((off_394 >= 0) && ((off_394 & 7) == 0) && ((off_394 >> 3) <= 4095)) {
-                        a_word_1027 = 4181721088LL | ((((uint64_t)(off_394 >> 3)) << 10) | 721ULL);
+                        a_word_1040 = 4181721088LL | ((((uint64_t)(off_394 >> 3)) << 10) | 721ULL);
                         if (asm_pc < asm_limit) {
-                            *(uint32_t *)asm_pc = a_word_1027;
+                            *(uint32_t *)asm_pc = a_word_1040;
                             asm_pc = asm_pc + 4;
                         } else if (asm_error == ASM_OK) {
                             asm_error = ASM_ERR_FULL;
@@ -22324,14 +22680,42 @@ exit_src_36:;
                             }
                             goto exit_load_store_259;
                         }
-                        a_word_1028 = 4164943872LL | (((uint64_t)(off_394 & 511)) << 12) | 721ULL;
+                        a_word_1041 = 4164943872LL | (((uint64_t)(off_394 & 511)) << 12) | 721ULL;
                         if (asm_pc < asm_limit) {
-                            *(uint32_t *)asm_pc = a_word_1028;
+                            *(uint32_t *)asm_pc = a_word_1041;
                             asm_pc = asm_pc + 4;
                         } else if (asm_error == ASM_OK) {
                             asm_error = ASM_ERR_FULL;
                         }
                     exit_load_store_259:;
+                    }
+                    goto exit_load_constant_43;
+                }
+                if (cls_3 == false_oop) {
+                    off_395 = (int64_t)&((jit_state *)0)->false_oop;
+                    if ((off_395 >= 0) && ((off_395 & 7) == 0) && ((off_395 >> 3) <= 4095)) {
+                        a_word_1042 = 4181721088LL | ((((uint64_t)(off_395 >> 3)) << 10) | 721ULL);
+                        if (asm_pc < asm_limit) {
+                            *(uint32_t *)asm_pc = a_word_1042;
+                            asm_pc = asm_pc + 4;
+                        } else if (asm_error == ASM_OK) {
+                            asm_error = ASM_ERR_FULL;
+                        }
+                    } else {
+                        if (!((off_395 >= -256) && (off_395 <= 255))) {
+                            if (asm_error == ASM_OK) {
+                                asm_error = ASM_ERR_IMMEDIATE;
+                            }
+                            goto exit_load_store_260;
+                        }
+                        a_word_1043 = 4164943872LL | (((uint64_t)(off_395 & 511)) << 12) | 721ULL;
+                        if (asm_pc < asm_limit) {
+                            *(uint32_t *)asm_pc = a_word_1043;
+                            asm_pc = asm_pc + 4;
+                        } else if (asm_error == ASM_OK) {
+                            asm_error = ASM_ERR_FULL;
+                        }
+                    exit_load_store_260:;
                     }
                     goto exit_load_constant_43;
                 }
@@ -22341,16 +22725,16 @@ exit_src_36:;
                             if (asm_error == ASM_OK) {
                                 asm_error = ASM_ERR_IMMEDIATE;
                             }
-                            goto exit_move_wide_132;
+                            goto exit_move_wide_134;
                         }
-                        a_word_1029 = 3531603968LL | (0ULL | (cls_3 << 5) | 17);
+                        a_word_1044 = 3531603968LL | (0ULL | (cls_3 << 5) | 17);
                         if (asm_pc < asm_limit) {
-                            *(uint32_t *)asm_pc = a_word_1029;
+                            *(uint32_t *)asm_pc = a_word_1044;
                             asm_pc = asm_pc + 4;
                         } else if (asm_error == ASM_OK) {
                             asm_error = ASM_ERR_FULL;
                         }
-                    exit_move_wide_132:;
+                    exit_move_wide_134:;
                     } else {
                         asm_mov_imm(X17, cls_3);
                     }
@@ -22358,20 +22742,20 @@ exit_src_36:;
                 }
                 a_label_49 = cg_pool_labels[opt_pool_index(cls_3)];
                 target_133 = asm_target_of(a_label_49);
-                a_word_1030 = 0x58000000 | ((((uint64_t)({
-    off_395 = ((int64_t)(target_133 - asm_pc)) >> 2;
-    if (!((off_395 >= -262144) && (off_395 <= 262143))) {
+                a_word_1045 = 0x58000000 | ((((uint64_t)({
+    off_396 = ((int64_t)(target_133 - asm_pc)) >> 2;
+    if (!((off_396 >= -262144) && (off_396 <= 262143))) {
         if (asm_error == ASM_OK) {
             asm_error = ASM_ERR_RANGE;
         }
         r_offset_to_133 = 0;
         goto exit_offset_to_133;
     }
-    r_offset_to_133 = off_395 & 524287;
+    r_offset_to_133 = off_396 & 524287;
 exit_offset_to_133:;
     r_offset_to_133; })) << 5) | 17);
                 if (asm_pc < asm_limit) {
-                    *(uint32_t *)asm_pc = a_word_1030;
+                    *(uint32_t *)asm_pc = a_word_1045;
                     asm_pc = asm_pc + 4;
                 } else if (asm_error == ASM_OK) {
                     asm_error = ASM_ERR_FULL;
@@ -22386,89 +22770,61 @@ exit_offset_to_133:;
             exit_emit_class_test_3:;
                 goto exit_emit_compare_2;
             }
-            if ((int32_t)nd_102->op == O_BOTHINT) {
-                v_192 = nd_102->b;
+            if ((int32_t)nd_105->op == O_BOTHINT) {
+                v_195 = nd_105->b;
                 y_5 = ({
-    nd_104 = opt_nodes + v_192;
-    if ((int32_t)nd_104->op == O_CONST) {
-        v_193 = (uint64_t)nd_104->aux;
-        if ((v_193 & 1) != 0) {
-            if (((int64_t)v_193 >= -2147483648) && ((int64_t)v_193 <= 0x7FFFFFFF)) {
-                value_44 = (int64_t)v_193;
+    nd_107 = opt_nodes + v_195;
+    if ((int32_t)nd_107->op == O_CONST) {
+        v_196 = (uint64_t)nd_107->aux;
+        if ((v_196 & 1) != 0) {
+            if (((int64_t)v_196 >= -2147483648) && ((int64_t)v_196 <= 0x7FFFFFFF)) {
+                value_44 = (int64_t)v_196;
                 if ((value_44 >= 0) && (value_44 <= 0xFFFF)) {
                     if (!((value_44 >= 0) && (value_44 <= 0xFFFF))) {
                         if (asm_error == ASM_OK) {
                             asm_error = ASM_ERR_IMMEDIATE;
                         }
-                        goto exit_move_wide_133;
+                        goto exit_move_wide_135;
                     }
-                    a_word_1031 = 3531603968LL | (0ULL | (((uint64_t)value_44) << 5) | 15);
+                    a_word_1046 = 3531603968LL | (0ULL | (((uint64_t)value_44) << 5) | 15);
                     if (asm_pc < asm_limit) {
-                        *(uint32_t *)asm_pc = a_word_1031;
+                        *(uint32_t *)asm_pc = a_word_1046;
                         asm_pc = asm_pc + 4;
                     } else if (asm_error == ASM_OK) {
                         asm_error = ASM_ERR_FULL;
                     }
-                exit_move_wide_133:;
+                exit_move_wide_135:;
                 } else {
                     asm_mov_imm(X15, (uint64_t)value_44);
                 }
                 goto exit_load_constant_44;
             }
-            if ((v_193 >= 0) && (v_193 <= 0xFFFF)) {
-                if (!((v_193 >= 0) && (v_193 <= 0xFFFF))) {
+            if ((v_196 >= 0) && (v_196 <= 0xFFFF)) {
+                if (!((v_196 >= 0) && (v_196 <= 0xFFFF))) {
                     if (asm_error == ASM_OK) {
                         asm_error = ASM_ERR_IMMEDIATE;
                     }
-                    goto exit_move_wide_134;
+                    goto exit_move_wide_136;
                 }
-                a_word_1032 = 3531603968LL | (0ULL | (v_193 << 5) | 15);
+                a_word_1047 = 3531603968LL | (0ULL | (v_196 << 5) | 15);
                 if (asm_pc < asm_limit) {
-                    *(uint32_t *)asm_pc = a_word_1032;
+                    *(uint32_t *)asm_pc = a_word_1047;
                     asm_pc = asm_pc + 4;
                 } else if (asm_error == ASM_OK) {
                     asm_error = ASM_ERR_FULL;
                 }
-            exit_move_wide_134:;
+            exit_move_wide_136:;
             } else {
-                asm_mov_imm(X15, v_193);
+                asm_mov_imm(X15, v_196);
             }
             goto exit_load_constant_44;
         }
-        if (v_193 == nil_oop) {
-            off_396 = (int64_t)&((jit_state *)0)->nil_oop;
-            if ((off_396 >= 0) && ((off_396 & 7) == 0) && ((off_396 >> 3) <= 4095)) {
-                a_word_1033 = 4181721088LL | ((((uint64_t)(off_396 >> 3)) << 10) | 719ULL);
-                if (asm_pc < asm_limit) {
-                    *(uint32_t *)asm_pc = a_word_1033;
-                    asm_pc = asm_pc + 4;
-                } else if (asm_error == ASM_OK) {
-                    asm_error = ASM_ERR_FULL;
-                }
-            } else {
-                if (!((off_396 >= -256) && (off_396 <= 255))) {
-                    if (asm_error == ASM_OK) {
-                        asm_error = ASM_ERR_IMMEDIATE;
-                    }
-                    goto exit_load_store_260;
-                }
-                a_word_1034 = 4164943872LL | (((uint64_t)(off_396 & 511)) << 12) | 719ULL;
-                if (asm_pc < asm_limit) {
-                    *(uint32_t *)asm_pc = a_word_1034;
-                    asm_pc = asm_pc + 4;
-                } else if (asm_error == ASM_OK) {
-                    asm_error = ASM_ERR_FULL;
-                }
-            exit_load_store_260:;
-            }
-            goto exit_load_constant_44;
-        }
-        if (v_193 == true_oop) {
-            off_397 = (int64_t)&((jit_state *)0)->true_oop;
+        if (v_196 == nil_oop) {
+            off_397 = (int64_t)&((jit_state *)0)->nil_oop;
             if ((off_397 >= 0) && ((off_397 & 7) == 0) && ((off_397 >> 3) <= 4095)) {
-                a_word_1035 = 4181721088LL | ((((uint64_t)(off_397 >> 3)) << 10) | 719ULL);
+                a_word_1048 = 4181721088LL | ((((uint64_t)(off_397 >> 3)) << 10) | 719ULL);
                 if (asm_pc < asm_limit) {
-                    *(uint32_t *)asm_pc = a_word_1035;
+                    *(uint32_t *)asm_pc = a_word_1048;
                     asm_pc = asm_pc + 4;
                 } else if (asm_error == ASM_OK) {
                     asm_error = ASM_ERR_FULL;
@@ -22480,9 +22836,9 @@ exit_offset_to_133:;
                     }
                     goto exit_load_store_261;
                 }
-                a_word_1036 = 4164943872LL | (((uint64_t)(off_397 & 511)) << 12) | 719ULL;
+                a_word_1049 = 4164943872LL | (((uint64_t)(off_397 & 511)) << 12) | 719ULL;
                 if (asm_pc < asm_limit) {
-                    *(uint32_t *)asm_pc = a_word_1036;
+                    *(uint32_t *)asm_pc = a_word_1049;
                     asm_pc = asm_pc + 4;
                 } else if (asm_error == ASM_OK) {
                     asm_error = ASM_ERR_FULL;
@@ -22491,12 +22847,12 @@ exit_offset_to_133:;
             }
             goto exit_load_constant_44;
         }
-        if (v_193 == false_oop) {
-            off_398 = (int64_t)&((jit_state *)0)->false_oop;
+        if (v_196 == true_oop) {
+            off_398 = (int64_t)&((jit_state *)0)->true_oop;
             if ((off_398 >= 0) && ((off_398 & 7) == 0) && ((off_398 >> 3) <= 4095)) {
-                a_word_1037 = 4181721088LL | ((((uint64_t)(off_398 >> 3)) << 10) | 719ULL);
+                a_word_1050 = 4181721088LL | ((((uint64_t)(off_398 >> 3)) << 10) | 719ULL);
                 if (asm_pc < asm_limit) {
-                    *(uint32_t *)asm_pc = a_word_1037;
+                    *(uint32_t *)asm_pc = a_word_1050;
                     asm_pc = asm_pc + 4;
                 } else if (asm_error == ASM_OK) {
                     asm_error = ASM_ERR_FULL;
@@ -22508,9 +22864,9 @@ exit_offset_to_133:;
                     }
                     goto exit_load_store_262;
                 }
-                a_word_1038 = 4164943872LL | (((uint64_t)(off_398 & 511)) << 12) | 719ULL;
+                a_word_1051 = 4164943872LL | (((uint64_t)(off_398 & 511)) << 12) | 719ULL;
                 if (asm_pc < asm_limit) {
-                    *(uint32_t *)asm_pc = a_word_1038;
+                    *(uint32_t *)asm_pc = a_word_1051;
                     asm_pc = asm_pc + 4;
                 } else if (asm_error == ASM_OK) {
                     asm_error = ASM_ERR_FULL;
@@ -22519,43 +22875,71 @@ exit_offset_to_133:;
             }
             goto exit_load_constant_44;
         }
-        if ((v_193 & 7) != 0) {
-            if ((v_193 >= 0) && (v_193 <= 0xFFFF)) {
-                if (!((v_193 >= 0) && (v_193 <= 0xFFFF))) {
-                    if (asm_error == ASM_OK) {
-                        asm_error = ASM_ERR_IMMEDIATE;
-                    }
-                    goto exit_move_wide_135;
-                }
-                a_word_1039 = 3531603968LL | (0ULL | (v_193 << 5) | 15);
+        if (v_196 == false_oop) {
+            off_399 = (int64_t)&((jit_state *)0)->false_oop;
+            if ((off_399 >= 0) && ((off_399 & 7) == 0) && ((off_399 >> 3) <= 4095)) {
+                a_word_1052 = 4181721088LL | ((((uint64_t)(off_399 >> 3)) << 10) | 719ULL);
                 if (asm_pc < asm_limit) {
-                    *(uint32_t *)asm_pc = a_word_1039;
+                    *(uint32_t *)asm_pc = a_word_1052;
                     asm_pc = asm_pc + 4;
                 } else if (asm_error == ASM_OK) {
                     asm_error = ASM_ERR_FULL;
                 }
-            exit_move_wide_135:;
             } else {
-                asm_mov_imm(X15, v_193);
+                if (!((off_399 >= -256) && (off_399 <= 255))) {
+                    if (asm_error == ASM_OK) {
+                        asm_error = ASM_ERR_IMMEDIATE;
+                    }
+                    goto exit_load_store_263;
+                }
+                a_word_1053 = 4164943872LL | (((uint64_t)(off_399 & 511)) << 12) | 719ULL;
+                if (asm_pc < asm_limit) {
+                    *(uint32_t *)asm_pc = a_word_1053;
+                    asm_pc = asm_pc + 4;
+                } else if (asm_error == ASM_OK) {
+                    asm_error = ASM_ERR_FULL;
+                }
+            exit_load_store_263:;
             }
             goto exit_load_constant_44;
         }
-        a_label_50 = cg_pool_labels[opt_pool_index(v_193)];
+        if ((v_196 & 7) != 0) {
+            if ((v_196 >= 0) && (v_196 <= 0xFFFF)) {
+                if (!((v_196 >= 0) && (v_196 <= 0xFFFF))) {
+                    if (asm_error == ASM_OK) {
+                        asm_error = ASM_ERR_IMMEDIATE;
+                    }
+                    goto exit_move_wide_137;
+                }
+                a_word_1054 = 3531603968LL | (0ULL | (v_196 << 5) | 15);
+                if (asm_pc < asm_limit) {
+                    *(uint32_t *)asm_pc = a_word_1054;
+                    asm_pc = asm_pc + 4;
+                } else if (asm_error == ASM_OK) {
+                    asm_error = ASM_ERR_FULL;
+                }
+            exit_move_wide_137:;
+            } else {
+                asm_mov_imm(X15, v_196);
+            }
+            goto exit_load_constant_44;
+        }
+        a_label_50 = cg_pool_labels[opt_pool_index(v_196)];
         target_134 = asm_target_of(a_label_50);
-        a_word_1040 = 0x58000000 | ((((uint64_t)({
-    off_399 = ((int64_t)(target_134 - asm_pc)) >> 2;
-    if (!((off_399 >= -262144) && (off_399 <= 262143))) {
+        a_word_1055 = 0x58000000 | ((((uint64_t)({
+    off_400 = ((int64_t)(target_134 - asm_pc)) >> 2;
+    if (!((off_400 >= -262144) && (off_400 <= 262143))) {
         if (asm_error == ASM_OK) {
             asm_error = ASM_ERR_RANGE;
         }
         r_offset_to_134 = 0;
         goto exit_offset_to_134;
     }
-    r_offset_to_134 = off_399 & 524287;
+    r_offset_to_134 = off_400 & 524287;
 exit_offset_to_134:;
     r_offset_to_134; })) << 5) | 15);
         if (asm_pc < asm_limit) {
-            *(uint32_t *)asm_pc = a_word_1040;
+            *(uint32_t *)asm_pc = a_word_1055;
             asm_pc = asm_pc + 4;
         } else if (asm_error == ASM_OK) {
             asm_error = ASM_ERR_FULL;
@@ -22564,35 +22948,35 @@ exit_offset_to_134:;
         r_src_37 = X15;
         goto exit_src_37;
     }
-    if (nd_104->reg >= 0) {
-        r_src_37 = (int32_t)nd_104->reg;
+    if (nd_107->reg >= 0) {
+        r_src_37 = (int32_t)nd_107->reg;
         goto exit_src_37;
     }
-    if (nd_104->slot >= 0) {
-        off_400 = 8 * (int32_t)nd_104->slot;
-        if ((off_400 >= 0) && ((off_400 & 7) == 0) && ((off_400 >> 3) <= 4095)) {
-            a_word_1041 = 4181721088LL | ((((uint64_t)(off_400 >> 3)) << 10) | 655ULL);
+    if (nd_107->slot >= 0) {
+        off_401 = 8 * (int32_t)nd_107->slot;
+        if ((off_401 >= 0) && ((off_401 & 7) == 0) && ((off_401 >> 3) <= 4095)) {
+            a_word_1056 = 4181721088LL | ((((uint64_t)(off_401 >> 3)) << 10) | 655ULL);
             if (asm_pc < asm_limit) {
-                *(uint32_t *)asm_pc = a_word_1041;
+                *(uint32_t *)asm_pc = a_word_1056;
                 asm_pc = asm_pc + 4;
             } else if (asm_error == ASM_OK) {
                 asm_error = ASM_ERR_FULL;
             }
         } else {
-            if (!((off_400 >= -256) && (off_400 <= 255))) {
+            if (!((off_401 >= -256) && (off_401 <= 255))) {
                 if (asm_error == ASM_OK) {
                     asm_error = ASM_ERR_IMMEDIATE;
                 }
-                goto exit_load_store_263;
+                goto exit_load_store_264;
             }
-            a_word_1042 = 4164943872LL | (((uint64_t)(off_400 & 511)) << 12) | 655ULL;
+            a_word_1057 = 4164943872LL | (((uint64_t)(off_401 & 511)) << 12) | 655ULL;
             if (asm_pc < asm_limit) {
-                *(uint32_t *)asm_pc = a_word_1042;
+                *(uint32_t *)asm_pc = a_word_1057;
                 asm_pc = asm_pc + 4;
             } else if (asm_error == ASM_OK) {
                 asm_error = ASM_ERR_FULL;
             }
-        exit_load_store_263:;
+        exit_load_store_264:;
         }
         r_src_37 = X15;
         goto exit_src_37;
@@ -22603,23 +22987,23 @@ exit_offset_to_134:;
     r_src_37 = X15;
 exit_src_37:;
     r_src_37; });
-                a_word_1043 = 2315255808LL | (0ULL | ((((uint64_t)(y_5 & 31)) << 16) | (((uint64_t)(x_12 & 31)) << 5) | 16));
+                a_word_1058 = 2315255808LL | (0ULL | ((((uint64_t)(y_5 & 31)) << 16) | (((uint64_t)(x_12 & 31)) << 5) | 16));
                 if (asm_pc < asm_limit) {
-                    *(uint32_t *)asm_pc = a_word_1043;
+                    *(uint32_t *)asm_pc = a_word_1058;
                     asm_pc = asm_pc + 4;
                 } else if (asm_error == ASM_OK) {
                     asm_error = ASM_ERR_FULL;
                 }
-                enc_43 = asm_logical_immediate(1ULL, 64);
-                if (enc_43 < 0) {
+                enc_45 = asm_logical_immediate(1ULL, 64);
+                if (enc_45 < 0) {
                     if (asm_error == ASM_OK) {
                         asm_error = ASM_ERR_IMMEDIATE;
                     }
                     goto exit_logical_73;
                 }
-                a_word_1044 = 2449473536LL | ((((uint64_t)enc_43) << 10) | 528ULL);
+                a_word_1059 = 2449473536LL | ((((uint64_t)enc_45) << 10) | 528ULL);
                 if (asm_pc < asm_limit) {
-                    *(uint32_t *)asm_pc = a_word_1044;
+                    *(uint32_t *)asm_pc = a_word_1059;
                     asm_pc = asm_pc + 4;
                 } else if (asm_error == ASM_OK) {
                     asm_error = ASM_ERR_FULL;
@@ -22638,35 +23022,35 @@ exit_src_37:;
             exit_add_sub_108:;
                 goto exit_emit_compare_2;
             }
-            n_32 = nd_102->b;
-            if (((int32_t)(opt_nodes + n_32)->op == O_CONST) && ({
-    n_33 = nd_102->b;
-    o_126 = (uint64_t)(opt_nodes + n_33)->aux;
+            n_39 = nd_105->b;
+            if (((int32_t)(opt_nodes + n_39)->op == O_CONST) && ({
+    n_40 = nd_105->b;
+    o_126 = (uint64_t)(opt_nodes + n_40)->aux;
     ((o_126 & 1) != 0) && ({
-    n_34 = nd_102->b;
-    ((opt_nodes + n_34)->aux >= -4095) && ((opt_nodes + n_34)->aux <= 4095); }); })) {
-                n_35 = nd_102->b;
-                if ((opt_nodes + n_35)->aux >= 0) {
-                    n_36 = nd_102->b;
-                    imm_12 = (opt_nodes + n_36)->aux;
+    n_41 = nd_105->b;
+    ((opt_nodes + n_41)->aux >= -4095) && ((opt_nodes + n_41)->aux <= 4095); }); })) {
+                n_42 = nd_105->b;
+                if ((opt_nodes + n_42)->aux >= 0) {
+                    n_43 = nd_105->b;
+                    imm_12 = (opt_nodes + n_43)->aux;
                     rd_53 = (x_12 & REG_W) | 31;
                     neg_96 = imm_12 < 0;
-                    v_195 = neg_96 ? -imm_12 : imm_12;
+                    v_198 = neg_96 ? -imm_12 : imm_12;
                     o_127 = neg_96 ? 536870912 : 0x60000000;
-                    if (v_195 <= 4095) {
-                        a_word_1045 = 0x11000000 | ((rd_53 & REG_W) == 0 ? 0x80000000LL : 0) | o_127 | ((((uint64_t)v_195) << 10) | ((((uint64_t)(x_12 & 31)) << 5) | (rd_53 & 31)));
+                    if (v_198 <= 4095) {
+                        a_word_1060 = 0x11000000 | ((rd_53 & REG_W) == 0 ? 0x80000000LL : 0) | o_127 | ((((uint64_t)v_198) << 10) | ((((uint64_t)(x_12 & 31)) << 5) | (rd_53 & 31)));
                         if (asm_pc < asm_limit) {
-                            *(uint32_t *)asm_pc = a_word_1045;
+                            *(uint32_t *)asm_pc = a_word_1060;
                             asm_pc = asm_pc + 4;
                         } else if (asm_error == ASM_OK) {
                             asm_error = ASM_ERR_FULL;
                         }
                         goto exit_add_sub_109;
                     }
-                    if (((v_195 & 4095) == 0) && (v_195 <= 0xFFF000)) {
-                        a_word_1046 = 0x11400000 | ((rd_53 & REG_W) == 0 ? 0x80000000LL : 0) | o_127 | ((((uint64_t)(v_195 >> 12)) << 10) | ((((uint64_t)(x_12 & 31)) << 5) | (rd_53 & 31)));
+                    if (((v_198 & 4095) == 0) && (v_198 <= 0xFFF000)) {
+                        a_word_1061 = 0x11400000 | ((rd_53 & REG_W) == 0 ? 0x80000000LL : 0) | o_127 | ((((uint64_t)(v_198 >> 12)) << 10) | ((((uint64_t)(x_12 & 31)) << 5) | (rd_53 & 31)));
                         if (asm_pc < asm_limit) {
-                            *(uint32_t *)asm_pc = a_word_1046;
+                            *(uint32_t *)asm_pc = a_word_1061;
                             asm_pc = asm_pc + 4;
                         } else if (asm_error == ASM_OK) {
                             asm_error = ASM_ERR_FULL;
@@ -22678,26 +23062,26 @@ exit_src_37:;
                     }
                 exit_add_sub_109:;
                 } else {
-                    n_37 = nd_102->b;
-                    imm_13 = -(opt_nodes + n_37)->aux;
+                    n_44 = nd_105->b;
+                    imm_13 = -(opt_nodes + n_44)->aux;
                     rd_54 = (x_12 & REG_W) | 31;
                     neg_97 = imm_13 < 0;
-                    v_196 = neg_97 ? -imm_13 : imm_13;
+                    v_199 = neg_97 ? -imm_13 : imm_13;
                     o_128 = neg_97 ? 1610612736 : 0x20000000;
-                    if (v_196 <= 4095) {
-                        a_word_1047 = 0x11000000 | ((rd_54 & REG_W) == 0 ? 0x80000000LL : 0) | o_128 | ((((uint64_t)v_196) << 10) | ((((uint64_t)(x_12 & 31)) << 5) | (rd_54 & 31)));
+                    if (v_199 <= 4095) {
+                        a_word_1062 = 0x11000000 | ((rd_54 & REG_W) == 0 ? 0x80000000LL : 0) | o_128 | ((((uint64_t)v_199) << 10) | ((((uint64_t)(x_12 & 31)) << 5) | (rd_54 & 31)));
                         if (asm_pc < asm_limit) {
-                            *(uint32_t *)asm_pc = a_word_1047;
+                            *(uint32_t *)asm_pc = a_word_1062;
                             asm_pc = asm_pc + 4;
                         } else if (asm_error == ASM_OK) {
                             asm_error = ASM_ERR_FULL;
                         }
                         goto exit_add_sub_110;
                     }
-                    if (((v_196 & 4095) == 0) && (v_196 <= 0xFFF000)) {
-                        a_word_1048 = 0x11400000 | ((rd_54 & REG_W) == 0 ? 0x80000000LL : 0) | o_128 | ((((uint64_t)(v_196 >> 12)) << 10) | ((((uint64_t)(x_12 & 31)) << 5) | (rd_54 & 31)));
+                    if (((v_199 & 4095) == 0) && (v_199 <= 0xFFF000)) {
+                        a_word_1063 = 0x11400000 | ((rd_54 & REG_W) == 0 ? 0x80000000LL : 0) | o_128 | ((((uint64_t)(v_199 >> 12)) << 10) | ((((uint64_t)(x_12 & 31)) << 5) | (rd_54 & 31)));
                         if (asm_pc < asm_limit) {
-                            *(uint32_t *)asm_pc = a_word_1048;
+                            *(uint32_t *)asm_pc = a_word_1063;
                             asm_pc = asm_pc + 4;
                         } else if (asm_error == ASM_OK) {
                             asm_error = ASM_ERR_FULL;
@@ -22710,88 +23094,60 @@ exit_src_37:;
                 exit_add_sub_110:;
                 }
             } else {
-                v_197 = nd_102->b;
+                v_200 = nd_105->b;
                 y_5 = ({
-    nd_105 = opt_nodes + v_197;
-    if ((int32_t)nd_105->op == O_CONST) {
-        v_198 = (uint64_t)nd_105->aux;
-        if ((v_198 & 1) != 0) {
-            if (((int64_t)v_198 >= -2147483648) && ((int64_t)v_198 <= 0x7FFFFFFF)) {
-                value_45 = (int64_t)v_198;
+    nd_108 = opt_nodes + v_200;
+    if ((int32_t)nd_108->op == O_CONST) {
+        v_201 = (uint64_t)nd_108->aux;
+        if ((v_201 & 1) != 0) {
+            if (((int64_t)v_201 >= -2147483648) && ((int64_t)v_201 <= 0x7FFFFFFF)) {
+                value_45 = (int64_t)v_201;
                 if ((value_45 >= 0) && (value_45 <= 0xFFFF)) {
                     if (!((value_45 >= 0) && (value_45 <= 0xFFFF))) {
                         if (asm_error == ASM_OK) {
                             asm_error = ASM_ERR_IMMEDIATE;
                         }
-                        goto exit_move_wide_136;
+                        goto exit_move_wide_138;
                     }
-                    a_word_1049 = 3531603968LL | (0ULL | (((uint64_t)value_45) << 5) | 15);
+                    a_word_1064 = 3531603968LL | (0ULL | (((uint64_t)value_45) << 5) | 15);
                     if (asm_pc < asm_limit) {
-                        *(uint32_t *)asm_pc = a_word_1049;
+                        *(uint32_t *)asm_pc = a_word_1064;
                         asm_pc = asm_pc + 4;
                     } else if (asm_error == ASM_OK) {
                         asm_error = ASM_ERR_FULL;
                     }
-                exit_move_wide_136:;
+                exit_move_wide_138:;
                 } else {
                     asm_mov_imm(X15, (uint64_t)value_45);
                 }
                 goto exit_load_constant_45;
             }
-            if ((v_198 >= 0) && (v_198 <= 0xFFFF)) {
-                if (!((v_198 >= 0) && (v_198 <= 0xFFFF))) {
+            if ((v_201 >= 0) && (v_201 <= 0xFFFF)) {
+                if (!((v_201 >= 0) && (v_201 <= 0xFFFF))) {
                     if (asm_error == ASM_OK) {
                         asm_error = ASM_ERR_IMMEDIATE;
                     }
-                    goto exit_move_wide_137;
+                    goto exit_move_wide_139;
                 }
-                a_word_1050 = 3531603968LL | (0ULL | (v_198 << 5) | 15);
+                a_word_1065 = 3531603968LL | (0ULL | (v_201 << 5) | 15);
                 if (asm_pc < asm_limit) {
-                    *(uint32_t *)asm_pc = a_word_1050;
+                    *(uint32_t *)asm_pc = a_word_1065;
                     asm_pc = asm_pc + 4;
                 } else if (asm_error == ASM_OK) {
                     asm_error = ASM_ERR_FULL;
                 }
-            exit_move_wide_137:;
+            exit_move_wide_139:;
             } else {
-                asm_mov_imm(X15, v_198);
+                asm_mov_imm(X15, v_201);
             }
             goto exit_load_constant_45;
         }
-        if (v_198 == nil_oop) {
-            off_401 = (int64_t)&((jit_state *)0)->nil_oop;
-            if ((off_401 >= 0) && ((off_401 & 7) == 0) && ((off_401 >> 3) <= 4095)) {
-                a_word_1051 = 4181721088LL | ((((uint64_t)(off_401 >> 3)) << 10) | 719ULL);
-                if (asm_pc < asm_limit) {
-                    *(uint32_t *)asm_pc = a_word_1051;
-                    asm_pc = asm_pc + 4;
-                } else if (asm_error == ASM_OK) {
-                    asm_error = ASM_ERR_FULL;
-                }
-            } else {
-                if (!((off_401 >= -256) && (off_401 <= 255))) {
-                    if (asm_error == ASM_OK) {
-                        asm_error = ASM_ERR_IMMEDIATE;
-                    }
-                    goto exit_load_store_264;
-                }
-                a_word_1052 = 4164943872LL | (((uint64_t)(off_401 & 511)) << 12) | 719ULL;
-                if (asm_pc < asm_limit) {
-                    *(uint32_t *)asm_pc = a_word_1052;
-                    asm_pc = asm_pc + 4;
-                } else if (asm_error == ASM_OK) {
-                    asm_error = ASM_ERR_FULL;
-                }
-            exit_load_store_264:;
-            }
-            goto exit_load_constant_45;
-        }
-        if (v_198 == true_oop) {
-            off_402 = (int64_t)&((jit_state *)0)->true_oop;
+        if (v_201 == nil_oop) {
+            off_402 = (int64_t)&((jit_state *)0)->nil_oop;
             if ((off_402 >= 0) && ((off_402 & 7) == 0) && ((off_402 >> 3) <= 4095)) {
-                a_word_1053 = 4181721088LL | ((((uint64_t)(off_402 >> 3)) << 10) | 719ULL);
+                a_word_1066 = 4181721088LL | ((((uint64_t)(off_402 >> 3)) << 10) | 719ULL);
                 if (asm_pc < asm_limit) {
-                    *(uint32_t *)asm_pc = a_word_1053;
+                    *(uint32_t *)asm_pc = a_word_1066;
                     asm_pc = asm_pc + 4;
                 } else if (asm_error == ASM_OK) {
                     asm_error = ASM_ERR_FULL;
@@ -22803,9 +23159,9 @@ exit_src_37:;
                     }
                     goto exit_load_store_265;
                 }
-                a_word_1054 = 4164943872LL | (((uint64_t)(off_402 & 511)) << 12) | 719ULL;
+                a_word_1067 = 4164943872LL | (((uint64_t)(off_402 & 511)) << 12) | 719ULL;
                 if (asm_pc < asm_limit) {
-                    *(uint32_t *)asm_pc = a_word_1054;
+                    *(uint32_t *)asm_pc = a_word_1067;
                     asm_pc = asm_pc + 4;
                 } else if (asm_error == ASM_OK) {
                     asm_error = ASM_ERR_FULL;
@@ -22814,12 +23170,12 @@ exit_src_37:;
             }
             goto exit_load_constant_45;
         }
-        if (v_198 == false_oop) {
-            off_403 = (int64_t)&((jit_state *)0)->false_oop;
+        if (v_201 == true_oop) {
+            off_403 = (int64_t)&((jit_state *)0)->true_oop;
             if ((off_403 >= 0) && ((off_403 & 7) == 0) && ((off_403 >> 3) <= 4095)) {
-                a_word_1055 = 4181721088LL | ((((uint64_t)(off_403 >> 3)) << 10) | 719ULL);
+                a_word_1068 = 4181721088LL | ((((uint64_t)(off_403 >> 3)) << 10) | 719ULL);
                 if (asm_pc < asm_limit) {
-                    *(uint32_t *)asm_pc = a_word_1055;
+                    *(uint32_t *)asm_pc = a_word_1068;
                     asm_pc = asm_pc + 4;
                 } else if (asm_error == ASM_OK) {
                     asm_error = ASM_ERR_FULL;
@@ -22831,9 +23187,9 @@ exit_src_37:;
                     }
                     goto exit_load_store_266;
                 }
-                a_word_1056 = 4164943872LL | (((uint64_t)(off_403 & 511)) << 12) | 719ULL;
+                a_word_1069 = 4164943872LL | (((uint64_t)(off_403 & 511)) << 12) | 719ULL;
                 if (asm_pc < asm_limit) {
-                    *(uint32_t *)asm_pc = a_word_1056;
+                    *(uint32_t *)asm_pc = a_word_1069;
                     asm_pc = asm_pc + 4;
                 } else if (asm_error == ASM_OK) {
                     asm_error = ASM_ERR_FULL;
@@ -22842,43 +23198,71 @@ exit_src_37:;
             }
             goto exit_load_constant_45;
         }
-        if ((v_198 & 7) != 0) {
-            if ((v_198 >= 0) && (v_198 <= 0xFFFF)) {
-                if (!((v_198 >= 0) && (v_198 <= 0xFFFF))) {
-                    if (asm_error == ASM_OK) {
-                        asm_error = ASM_ERR_IMMEDIATE;
-                    }
-                    goto exit_move_wide_138;
-                }
-                a_word_1057 = 3531603968LL | (0ULL | (v_198 << 5) | 15);
+        if (v_201 == false_oop) {
+            off_404 = (int64_t)&((jit_state *)0)->false_oop;
+            if ((off_404 >= 0) && ((off_404 & 7) == 0) && ((off_404 >> 3) <= 4095)) {
+                a_word_1070 = 4181721088LL | ((((uint64_t)(off_404 >> 3)) << 10) | 719ULL);
                 if (asm_pc < asm_limit) {
-                    *(uint32_t *)asm_pc = a_word_1057;
+                    *(uint32_t *)asm_pc = a_word_1070;
                     asm_pc = asm_pc + 4;
                 } else if (asm_error == ASM_OK) {
                     asm_error = ASM_ERR_FULL;
                 }
-            exit_move_wide_138:;
             } else {
-                asm_mov_imm(X15, v_198);
+                if (!((off_404 >= -256) && (off_404 <= 255))) {
+                    if (asm_error == ASM_OK) {
+                        asm_error = ASM_ERR_IMMEDIATE;
+                    }
+                    goto exit_load_store_267;
+                }
+                a_word_1071 = 4164943872LL | (((uint64_t)(off_404 & 511)) << 12) | 719ULL;
+                if (asm_pc < asm_limit) {
+                    *(uint32_t *)asm_pc = a_word_1071;
+                    asm_pc = asm_pc + 4;
+                } else if (asm_error == ASM_OK) {
+                    asm_error = ASM_ERR_FULL;
+                }
+            exit_load_store_267:;
             }
             goto exit_load_constant_45;
         }
-        a_label_51 = cg_pool_labels[opt_pool_index(v_198)];
+        if ((v_201 & 7) != 0) {
+            if ((v_201 >= 0) && (v_201 <= 0xFFFF)) {
+                if (!((v_201 >= 0) && (v_201 <= 0xFFFF))) {
+                    if (asm_error == ASM_OK) {
+                        asm_error = ASM_ERR_IMMEDIATE;
+                    }
+                    goto exit_move_wide_140;
+                }
+                a_word_1072 = 3531603968LL | (0ULL | (v_201 << 5) | 15);
+                if (asm_pc < asm_limit) {
+                    *(uint32_t *)asm_pc = a_word_1072;
+                    asm_pc = asm_pc + 4;
+                } else if (asm_error == ASM_OK) {
+                    asm_error = ASM_ERR_FULL;
+                }
+            exit_move_wide_140:;
+            } else {
+                asm_mov_imm(X15, v_201);
+            }
+            goto exit_load_constant_45;
+        }
+        a_label_51 = cg_pool_labels[opt_pool_index(v_201)];
         target_135 = asm_target_of(a_label_51);
-        a_word_1058 = 0x58000000 | ((((uint64_t)({
-    off_404 = ((int64_t)(target_135 - asm_pc)) >> 2;
-    if (!((off_404 >= -262144) && (off_404 <= 262143))) {
+        a_word_1073 = 0x58000000 | ((((uint64_t)({
+    off_405 = ((int64_t)(target_135 - asm_pc)) >> 2;
+    if (!((off_405 >= -262144) && (off_405 <= 262143))) {
         if (asm_error == ASM_OK) {
             asm_error = ASM_ERR_RANGE;
         }
         r_offset_to_135 = 0;
         goto exit_offset_to_135;
     }
-    r_offset_to_135 = off_404 & 524287;
+    r_offset_to_135 = off_405 & 524287;
 exit_offset_to_135:;
     r_offset_to_135; })) << 5) | 15);
         if (asm_pc < asm_limit) {
-            *(uint32_t *)asm_pc = a_word_1058;
+            *(uint32_t *)asm_pc = a_word_1073;
             asm_pc = asm_pc + 4;
         } else if (asm_error == ASM_OK) {
             asm_error = ASM_ERR_FULL;
@@ -22887,35 +23271,35 @@ exit_offset_to_135:;
         r_src_38 = X15;
         goto exit_src_38;
     }
-    if (nd_105->reg >= 0) {
-        r_src_38 = (int32_t)nd_105->reg;
+    if (nd_108->reg >= 0) {
+        r_src_38 = (int32_t)nd_108->reg;
         goto exit_src_38;
     }
-    if (nd_105->slot >= 0) {
-        off_405 = 8 * (int32_t)nd_105->slot;
-        if ((off_405 >= 0) && ((off_405 & 7) == 0) && ((off_405 >> 3) <= 4095)) {
-            a_word_1059 = 4181721088LL | ((((uint64_t)(off_405 >> 3)) << 10) | 655ULL);
+    if (nd_108->slot >= 0) {
+        off_406 = 8 * (int32_t)nd_108->slot;
+        if ((off_406 >= 0) && ((off_406 & 7) == 0) && ((off_406 >> 3) <= 4095)) {
+            a_word_1074 = 4181721088LL | ((((uint64_t)(off_406 >> 3)) << 10) | 655ULL);
             if (asm_pc < asm_limit) {
-                *(uint32_t *)asm_pc = a_word_1059;
+                *(uint32_t *)asm_pc = a_word_1074;
                 asm_pc = asm_pc + 4;
             } else if (asm_error == ASM_OK) {
                 asm_error = ASM_ERR_FULL;
             }
         } else {
-            if (!((off_405 >= -256) && (off_405 <= 255))) {
+            if (!((off_406 >= -256) && (off_406 <= 255))) {
                 if (asm_error == ASM_OK) {
                     asm_error = ASM_ERR_IMMEDIATE;
                 }
-                goto exit_load_store_267;
+                goto exit_load_store_268;
             }
-            a_word_1060 = 4164943872LL | (((uint64_t)(off_405 & 511)) << 12) | 655ULL;
+            a_word_1075 = 4164943872LL | (((uint64_t)(off_406 & 511)) << 12) | 655ULL;
             if (asm_pc < asm_limit) {
-                *(uint32_t *)asm_pc = a_word_1060;
+                *(uint32_t *)asm_pc = a_word_1075;
                 asm_pc = asm_pc + 4;
             } else if (asm_error == ASM_OK) {
                 asm_error = ASM_ERR_FULL;
             }
-        exit_load_store_267:;
+        exit_load_store_268:;
         }
         r_src_38 = X15;
         goto exit_src_38;
@@ -22929,9 +23313,9 @@ exit_src_38:;
                 rd_55 = (x_12 & REG_W) | 31;
                 if (((rd_55 & REG_SP) != 0) || ((x_12 & REG_SP) != 0)) {
                     ext_12 = (rd_55 & REG_W) == 0 ? EXT_UXTX : EXT_UXTW;
-                    a_word_1061 = 0xB200000 | ((rd_55 & REG_W) == 0 ? 0x80000000LL : 0) | 0x60000000 | ((((uint64_t)(ext_12 & 7)) << 13) | 0ULL | ((((uint64_t)(y_5 & 31)) << 16) | (((uint64_t)(x_12 & 31)) << 5) | (rd_55 & 31)));
+                    a_word_1076 = 0xB200000 | ((rd_55 & REG_W) == 0 ? 0x80000000LL : 0) | 0x60000000 | ((((uint64_t)(ext_12 & 7)) << 13) | 0ULL | ((((uint64_t)(y_5 & 31)) << 16) | (((uint64_t)(x_12 & 31)) << 5) | (rd_55 & 31)));
                     if (asm_pc < asm_limit) {
-                        *(uint32_t *)asm_pc = a_word_1061;
+                        *(uint32_t *)asm_pc = a_word_1076;
                         asm_pc = asm_pc + 4;
                     } else if (asm_error == ASM_OK) {
                         asm_error = ASM_ERR_FULL;
@@ -22944,9 +23328,9 @@ exit_src_38:;
                     }
                     goto exit_add_sub_111;
                 }
-                a_word_1062 = 0xB000000 | ((rd_55 & REG_W) == 0 ? 0x80000000LL : 0) | 0x60000000 | (0ULL | ((((uint64_t)(y_5 & 31)) << 16) | (((uint64_t)(x_12 & 31)) << 5) | (rd_55 & 31)));
+                a_word_1077 = 0xB000000 | ((rd_55 & REG_W) == 0 ? 0x80000000LL : 0) | 0x60000000 | (0ULL | ((((uint64_t)(y_5 & 31)) << 16) | (((uint64_t)(x_12 & 31)) << 5) | (rd_55 & 31)));
                 if (asm_pc < asm_limit) {
-                    *(uint32_t *)asm_pc = a_word_1062;
+                    *(uint32_t *)asm_pc = a_word_1077;
                     asm_pc = asm_pc + 4;
                 } else if (asm_error == ASM_OK) {
                     asm_error = ASM_ERR_FULL;
@@ -22955,193 +23339,193 @@ exit_src_38:;
             }
         exit_emit_compare_2:;
             if (t == next_block) {
-                c_3 = ({
-    nd_106 = opt_nodes + v_183;
-    if ((int32_t)nd_106->op == O_EQ) {
+                c_4 = ({
+    nd_109 = opt_nodes + v_186;
+    if ((int32_t)nd_109->op == O_EQ) {
         r_condition_of_2 = COND_EQ;
         goto exit_condition_of_2;
     }
-    if ((int32_t)nd_106->op == O_CLASSIS) {
+    if ((int32_t)nd_109->op == O_CLASSIS) {
         r_condition_of_2 = COND_EQ;
         goto exit_condition_of_2;
     }
-    if ((int32_t)nd_106->op == O_NE) {
+    if ((int32_t)nd_109->op == O_NE) {
         r_condition_of_2 = COND_NE;
         goto exit_condition_of_2;
     }
-    if ((int32_t)nd_106->op == O_BOTHINT) {
+    if ((int32_t)nd_109->op == O_BOTHINT) {
         r_condition_of_2 = COND_EQ;
         goto exit_condition_of_2;
     }
-    k_23 = (int32_t)nd_106->aux;
-    if ((int32_t)nd_106->op == O_FCMP) {
+    k_23 = (int32_t)nd_109->aux;
+    if ((int32_t)nd_109->op == O_FCMP) {
         switch (k_23) {
         case 2:
-            v_199 = COND_MI;
+            v_202 = COND_MI;
             break;
         case 3:
-            v_199 = COND_GT;
+            v_202 = COND_GT;
             break;
         case 4:
-            v_199 = COND_LS;
+            v_202 = COND_LS;
             break;
         case 5:
-            v_199 = COND_GE;
+            v_202 = COND_GE;
             break;
         case 6:
-            v_199 = COND_EQ;
+            v_202 = COND_EQ;
             break;
         default:
-            v_199 = COND_NE;
+            v_202 = COND_NE;
             break;
         }
-        r_condition_of_2 = v_199;
+        r_condition_of_2 = v_202;
         goto exit_condition_of_2;
     }
     switch (k_23) {
     case 2:
-        v_200 = COND_LT;
+        v_203 = COND_LT;
         break;
     case 3:
-        v_200 = COND_GT;
+        v_203 = COND_GT;
         break;
     case 4:
-        v_200 = COND_LE;
+        v_203 = COND_LE;
         break;
     case 5:
-        v_200 = COND_GE;
+        v_203 = COND_GE;
         break;
     case 6:
-        v_200 = COND_EQ;
+        v_203 = COND_EQ;
         break;
     default:
-        v_200 = COND_NE;
+        v_203 = COND_NE;
         break;
     }
-    r_condition_of_2 = v_200;
+    r_condition_of_2 = v_203;
 exit_condition_of_2:;
     r_condition_of_2; }) ^ 1;
                 target_136 = asm_target_of(fl);
-                a_word_1063 = 0x54000000 | ((((uint64_t)({
-    off_406 = ((int64_t)(target_136 - asm_pc)) >> 2;
-    if (!((off_406 >= -262144) && (off_406 <= 262143))) {
+                a_word_1078 = 0x54000000 | ((((uint64_t)({
+    off_407 = ((int64_t)(target_136 - asm_pc)) >> 2;
+    if (!((off_407 >= -262144) && (off_407 <= 262143))) {
         if (asm_error == ASM_OK) {
             asm_error = ASM_ERR_RANGE;
         }
         r_offset_to_136 = 0;
         goto exit_offset_to_136;
     }
-    r_offset_to_136 = off_406 & 524287;
+    r_offset_to_136 = off_407 & 524287;
 exit_offset_to_136:;
-    r_offset_to_136; })) << 5) | (c_3 & 15));
+    r_offset_to_136; })) << 5) | (c_4 & 15));
                 if (asm_pc < asm_limit) {
-                    *(uint32_t *)asm_pc = a_word_1063;
+                    *(uint32_t *)asm_pc = a_word_1078;
                     asm_pc = asm_pc + 4;
                 } else if (asm_error == ASM_OK) {
                     asm_error = ASM_ERR_FULL;
                 }
             } else {
-                c_4 = ({
-    nd_107 = opt_nodes + v_183;
-    if ((int32_t)nd_107->op == O_EQ) {
+                c_5 = ({
+    nd_110 = opt_nodes + v_186;
+    if ((int32_t)nd_110->op == O_EQ) {
         r_condition_of_3 = COND_EQ;
         goto exit_condition_of_3;
     }
-    if ((int32_t)nd_107->op == O_CLASSIS) {
+    if ((int32_t)nd_110->op == O_CLASSIS) {
         r_condition_of_3 = COND_EQ;
         goto exit_condition_of_3;
     }
-    if ((int32_t)nd_107->op == O_NE) {
+    if ((int32_t)nd_110->op == O_NE) {
         r_condition_of_3 = COND_NE;
         goto exit_condition_of_3;
     }
-    if ((int32_t)nd_107->op == O_BOTHINT) {
+    if ((int32_t)nd_110->op == O_BOTHINT) {
         r_condition_of_3 = COND_EQ;
         goto exit_condition_of_3;
     }
-    k_24 = (int32_t)nd_107->aux;
-    if ((int32_t)nd_107->op == O_FCMP) {
+    k_24 = (int32_t)nd_110->aux;
+    if ((int32_t)nd_110->op == O_FCMP) {
         switch (k_24) {
         case 2:
-            v_201 = COND_MI;
+            v_204 = COND_MI;
             break;
         case 3:
-            v_201 = COND_GT;
+            v_204 = COND_GT;
             break;
         case 4:
-            v_201 = COND_LS;
+            v_204 = COND_LS;
             break;
         case 5:
-            v_201 = COND_GE;
+            v_204 = COND_GE;
             break;
         case 6:
-            v_201 = COND_EQ;
+            v_204 = COND_EQ;
             break;
         default:
-            v_201 = COND_NE;
+            v_204 = COND_NE;
             break;
         }
-        r_condition_of_3 = v_201;
+        r_condition_of_3 = v_204;
         goto exit_condition_of_3;
     }
     switch (k_24) {
     case 2:
-        v_202 = COND_LT;
+        v_205 = COND_LT;
         break;
     case 3:
-        v_202 = COND_GT;
+        v_205 = COND_GT;
         break;
     case 4:
-        v_202 = COND_LE;
+        v_205 = COND_LE;
         break;
     case 5:
-        v_202 = COND_GE;
+        v_205 = COND_GE;
         break;
     case 6:
-        v_202 = COND_EQ;
+        v_205 = COND_EQ;
         break;
     default:
-        v_202 = COND_NE;
+        v_205 = COND_NE;
         break;
     }
-    r_condition_of_3 = v_202;
+    r_condition_of_3 = v_205;
 exit_condition_of_3:;
     r_condition_of_3; });
                 target_137 = asm_target_of(tl);
-                a_word_1064 = 0x54000000 | ((((uint64_t)({
-    off_407 = ((int64_t)(target_137 - asm_pc)) >> 2;
-    if (!((off_407 >= -262144) && (off_407 <= 262143))) {
+                a_word_1079 = 0x54000000 | ((((uint64_t)({
+    off_408 = ((int64_t)(target_137 - asm_pc)) >> 2;
+    if (!((off_408 >= -262144) && (off_408 <= 262143))) {
         if (asm_error == ASM_OK) {
             asm_error = ASM_ERR_RANGE;
         }
         r_offset_to_137 = 0;
         goto exit_offset_to_137;
     }
-    r_offset_to_137 = off_407 & 524287;
+    r_offset_to_137 = off_408 & 524287;
 exit_offset_to_137:;
-    r_offset_to_137; })) << 5) | (c_4 & 15));
+    r_offset_to_137; })) << 5) | (c_5 & 15));
                 if (asm_pc < asm_limit) {
-                    *(uint32_t *)asm_pc = a_word_1064;
+                    *(uint32_t *)asm_pc = a_word_1079;
                     asm_pc = asm_pc + 4;
                 } else if (asm_error == ASM_OK) {
                     asm_error = ASM_ERR_FULL;
                 }
                 if (f != next_block) {
                     target_138 = asm_target_of(fl);
-                    a_word_1065 = 0x14000000 | ({
-    off_408 = ((int64_t)(target_138 - asm_pc)) >> 2;
-    if (!((off_408 >= -33554432) && (off_408 <= 33554431))) {
+                    a_word_1080 = 0x14000000 | ({
+    off_409 = ((int64_t)(target_138 - asm_pc)) >> 2;
+    if (!((off_409 >= -33554432) && (off_409 <= 33554431))) {
         if (asm_error == ASM_OK) {
             asm_error = ASM_ERR_RANGE;
         }
         r_offset_to_138 = 0;
         goto exit_offset_to_138;
     }
-    r_offset_to_138 = off_408 & 67108863;
+    r_offset_to_138 = off_409 & 67108863;
 exit_offset_to_138:;
     r_offset_to_138; });
                     if (asm_pc < asm_limit) {
-                        *(uint32_t *)asm_pc = a_word_1065;
+                        *(uint32_t *)asm_pc = a_word_1080;
                         asm_pc = asm_pc + 4;
                     } else if (asm_error == ASM_OK) {
                         asm_error = ASM_ERR_FULL;
@@ -23151,86 +23535,58 @@ exit_offset_to_138:;
             goto exit_emit_branch;
         }
         rv = ({
-    nd_108 = opt_nodes + v_183;
-    if ((int32_t)nd_108->op == O_CONST) {
-        v_203 = (uint64_t)nd_108->aux;
-        if ((v_203 & 1) != 0) {
-            if (((int64_t)v_203 >= -2147483648) && ((int64_t)v_203 <= 0x7FFFFFFF)) {
-                value_46 = (int64_t)v_203;
+    nd_111 = opt_nodes + v_186;
+    if ((int32_t)nd_111->op == O_CONST) {
+        v_206 = (uint64_t)nd_111->aux;
+        if ((v_206 & 1) != 0) {
+            if (((int64_t)v_206 >= -2147483648) && ((int64_t)v_206 <= 0x7FFFFFFF)) {
+                value_46 = (int64_t)v_206;
                 if ((value_46 >= 0) && (value_46 <= 0xFFFF)) {
                     if (!((value_46 >= 0) && (value_46 <= 0xFFFF))) {
                         if (asm_error == ASM_OK) {
                             asm_error = ASM_ERR_IMMEDIATE;
                         }
-                        goto exit_move_wide_139;
+                        goto exit_move_wide_141;
                     }
-                    a_word_1066 = 3531603968LL | (0ULL | (((uint64_t)value_46) << 5) | 14);
+                    a_word_1081 = 3531603968LL | (0ULL | (((uint64_t)value_46) << 5) | 14);
                     if (asm_pc < asm_limit) {
-                        *(uint32_t *)asm_pc = a_word_1066;
+                        *(uint32_t *)asm_pc = a_word_1081;
                         asm_pc = asm_pc + 4;
                     } else if (asm_error == ASM_OK) {
                         asm_error = ASM_ERR_FULL;
                     }
-                exit_move_wide_139:;
+                exit_move_wide_141:;
                 } else {
                     asm_mov_imm(X14, (uint64_t)value_46);
                 }
                 goto exit_load_constant_46;
             }
-            if ((v_203 >= 0) && (v_203 <= 0xFFFF)) {
-                if (!((v_203 >= 0) && (v_203 <= 0xFFFF))) {
+            if ((v_206 >= 0) && (v_206 <= 0xFFFF)) {
+                if (!((v_206 >= 0) && (v_206 <= 0xFFFF))) {
                     if (asm_error == ASM_OK) {
                         asm_error = ASM_ERR_IMMEDIATE;
                     }
-                    goto exit_move_wide_140;
+                    goto exit_move_wide_142;
                 }
-                a_word_1067 = 3531603968LL | (0ULL | (v_203 << 5) | 14);
+                a_word_1082 = 3531603968LL | (0ULL | (v_206 << 5) | 14);
                 if (asm_pc < asm_limit) {
-                    *(uint32_t *)asm_pc = a_word_1067;
+                    *(uint32_t *)asm_pc = a_word_1082;
                     asm_pc = asm_pc + 4;
                 } else if (asm_error == ASM_OK) {
                     asm_error = ASM_ERR_FULL;
                 }
-            exit_move_wide_140:;
+            exit_move_wide_142:;
             } else {
-                asm_mov_imm(X14, v_203);
+                asm_mov_imm(X14, v_206);
             }
             goto exit_load_constant_46;
         }
-        if (v_203 == nil_oop) {
-            off_409 = (int64_t)&((jit_state *)0)->nil_oop;
-            if ((off_409 >= 0) && ((off_409 & 7) == 0) && ((off_409 >> 3) <= 4095)) {
-                a_word_1068 = 4181721088LL | ((((uint64_t)(off_409 >> 3)) << 10) | 718ULL);
-                if (asm_pc < asm_limit) {
-                    *(uint32_t *)asm_pc = a_word_1068;
-                    asm_pc = asm_pc + 4;
-                } else if (asm_error == ASM_OK) {
-                    asm_error = ASM_ERR_FULL;
-                }
-            } else {
-                if (!((off_409 >= -256) && (off_409 <= 255))) {
-                    if (asm_error == ASM_OK) {
-                        asm_error = ASM_ERR_IMMEDIATE;
-                    }
-                    goto exit_load_store_268;
-                }
-                a_word_1069 = 4164943872LL | (((uint64_t)(off_409 & 511)) << 12) | 718ULL;
-                if (asm_pc < asm_limit) {
-                    *(uint32_t *)asm_pc = a_word_1069;
-                    asm_pc = asm_pc + 4;
-                } else if (asm_error == ASM_OK) {
-                    asm_error = ASM_ERR_FULL;
-                }
-            exit_load_store_268:;
-            }
-            goto exit_load_constant_46;
-        }
-        if (v_203 == true_oop) {
-            off_410 = (int64_t)&((jit_state *)0)->true_oop;
+        if (v_206 == nil_oop) {
+            off_410 = (int64_t)&((jit_state *)0)->nil_oop;
             if ((off_410 >= 0) && ((off_410 & 7) == 0) && ((off_410 >> 3) <= 4095)) {
-                a_word_1070 = 4181721088LL | ((((uint64_t)(off_410 >> 3)) << 10) | 718ULL);
+                a_word_1083 = 4181721088LL | ((((uint64_t)(off_410 >> 3)) << 10) | 718ULL);
                 if (asm_pc < asm_limit) {
-                    *(uint32_t *)asm_pc = a_word_1070;
+                    *(uint32_t *)asm_pc = a_word_1083;
                     asm_pc = asm_pc + 4;
                 } else if (asm_error == ASM_OK) {
                     asm_error = ASM_ERR_FULL;
@@ -23242,9 +23598,9 @@ exit_offset_to_138:;
                     }
                     goto exit_load_store_269;
                 }
-                a_word_1071 = 4164943872LL | (((uint64_t)(off_410 & 511)) << 12) | 718ULL;
+                a_word_1084 = 4164943872LL | (((uint64_t)(off_410 & 511)) << 12) | 718ULL;
                 if (asm_pc < asm_limit) {
-                    *(uint32_t *)asm_pc = a_word_1071;
+                    *(uint32_t *)asm_pc = a_word_1084;
                     asm_pc = asm_pc + 4;
                 } else if (asm_error == ASM_OK) {
                     asm_error = ASM_ERR_FULL;
@@ -23253,12 +23609,12 @@ exit_offset_to_138:;
             }
             goto exit_load_constant_46;
         }
-        if (v_203 == false_oop) {
-            off_411 = (int64_t)&((jit_state *)0)->false_oop;
+        if (v_206 == true_oop) {
+            off_411 = (int64_t)&((jit_state *)0)->true_oop;
             if ((off_411 >= 0) && ((off_411 & 7) == 0) && ((off_411 >> 3) <= 4095)) {
-                a_word_1072 = 4181721088LL | ((((uint64_t)(off_411 >> 3)) << 10) | 718ULL);
+                a_word_1085 = 4181721088LL | ((((uint64_t)(off_411 >> 3)) << 10) | 718ULL);
                 if (asm_pc < asm_limit) {
-                    *(uint32_t *)asm_pc = a_word_1072;
+                    *(uint32_t *)asm_pc = a_word_1085;
                     asm_pc = asm_pc + 4;
                 } else if (asm_error == ASM_OK) {
                     asm_error = ASM_ERR_FULL;
@@ -23270,9 +23626,9 @@ exit_offset_to_138:;
                     }
                     goto exit_load_store_270;
                 }
-                a_word_1073 = 4164943872LL | (((uint64_t)(off_411 & 511)) << 12) | 718ULL;
+                a_word_1086 = 4164943872LL | (((uint64_t)(off_411 & 511)) << 12) | 718ULL;
                 if (asm_pc < asm_limit) {
-                    *(uint32_t *)asm_pc = a_word_1073;
+                    *(uint32_t *)asm_pc = a_word_1086;
                     asm_pc = asm_pc + 4;
                 } else if (asm_error == ASM_OK) {
                     asm_error = ASM_ERR_FULL;
@@ -23281,43 +23637,71 @@ exit_offset_to_138:;
             }
             goto exit_load_constant_46;
         }
-        if ((v_203 & 7) != 0) {
-            if ((v_203 >= 0) && (v_203 <= 0xFFFF)) {
-                if (!((v_203 >= 0) && (v_203 <= 0xFFFF))) {
-                    if (asm_error == ASM_OK) {
-                        asm_error = ASM_ERR_IMMEDIATE;
-                    }
-                    goto exit_move_wide_141;
-                }
-                a_word_1074 = 3531603968LL | (0ULL | (v_203 << 5) | 14);
+        if (v_206 == false_oop) {
+            off_412 = (int64_t)&((jit_state *)0)->false_oop;
+            if ((off_412 >= 0) && ((off_412 & 7) == 0) && ((off_412 >> 3) <= 4095)) {
+                a_word_1087 = 4181721088LL | ((((uint64_t)(off_412 >> 3)) << 10) | 718ULL);
                 if (asm_pc < asm_limit) {
-                    *(uint32_t *)asm_pc = a_word_1074;
+                    *(uint32_t *)asm_pc = a_word_1087;
                     asm_pc = asm_pc + 4;
                 } else if (asm_error == ASM_OK) {
                     asm_error = ASM_ERR_FULL;
                 }
-            exit_move_wide_141:;
             } else {
-                asm_mov_imm(X14, v_203);
+                if (!((off_412 >= -256) && (off_412 <= 255))) {
+                    if (asm_error == ASM_OK) {
+                        asm_error = ASM_ERR_IMMEDIATE;
+                    }
+                    goto exit_load_store_271;
+                }
+                a_word_1088 = 4164943872LL | (((uint64_t)(off_412 & 511)) << 12) | 718ULL;
+                if (asm_pc < asm_limit) {
+                    *(uint32_t *)asm_pc = a_word_1088;
+                    asm_pc = asm_pc + 4;
+                } else if (asm_error == ASM_OK) {
+                    asm_error = ASM_ERR_FULL;
+                }
+            exit_load_store_271:;
             }
             goto exit_load_constant_46;
         }
-        a_label_52 = cg_pool_labels[opt_pool_index(v_203)];
+        if ((v_206 & 7) != 0) {
+            if ((v_206 >= 0) && (v_206 <= 0xFFFF)) {
+                if (!((v_206 >= 0) && (v_206 <= 0xFFFF))) {
+                    if (asm_error == ASM_OK) {
+                        asm_error = ASM_ERR_IMMEDIATE;
+                    }
+                    goto exit_move_wide_143;
+                }
+                a_word_1089 = 3531603968LL | (0ULL | (v_206 << 5) | 14);
+                if (asm_pc < asm_limit) {
+                    *(uint32_t *)asm_pc = a_word_1089;
+                    asm_pc = asm_pc + 4;
+                } else if (asm_error == ASM_OK) {
+                    asm_error = ASM_ERR_FULL;
+                }
+            exit_move_wide_143:;
+            } else {
+                asm_mov_imm(X14, v_206);
+            }
+            goto exit_load_constant_46;
+        }
+        a_label_52 = cg_pool_labels[opt_pool_index(v_206)];
         target_139 = asm_target_of(a_label_52);
-        a_word_1075 = 0x58000000 | ((((uint64_t)({
-    off_412 = ((int64_t)(target_139 - asm_pc)) >> 2;
-    if (!((off_412 >= -262144) && (off_412 <= 262143))) {
+        a_word_1090 = 0x58000000 | ((((uint64_t)({
+    off_413 = ((int64_t)(target_139 - asm_pc)) >> 2;
+    if (!((off_413 >= -262144) && (off_413 <= 262143))) {
         if (asm_error == ASM_OK) {
             asm_error = ASM_ERR_RANGE;
         }
         r_offset_to_139 = 0;
         goto exit_offset_to_139;
     }
-    r_offset_to_139 = off_412 & 524287;
+    r_offset_to_139 = off_413 & 524287;
 exit_offset_to_139:;
     r_offset_to_139; })) << 5) | 14);
         if (asm_pc < asm_limit) {
-            *(uint32_t *)asm_pc = a_word_1075;
+            *(uint32_t *)asm_pc = a_word_1090;
             asm_pc = asm_pc + 4;
         } else if (asm_error == ASM_OK) {
             asm_error = ASM_ERR_FULL;
@@ -23326,50 +23710,16 @@ exit_offset_to_139:;
         r_src_39 = X14;
         goto exit_src_39;
     }
-    if (nd_108->reg >= 0) {
-        r_src_39 = (int32_t)nd_108->reg;
+    if (nd_111->reg >= 0) {
+        r_src_39 = (int32_t)nd_111->reg;
         goto exit_src_39;
     }
-    if (nd_108->slot >= 0) {
-        off_413 = 8 * (int32_t)nd_108->slot;
-        if ((off_413 >= 0) && ((off_413 & 7) == 0) && ((off_413 >> 3) <= 4095)) {
-            a_word_1076 = 4181721088LL | ((((uint64_t)(off_413 >> 3)) << 10) | 654ULL);
-            if (asm_pc < asm_limit) {
-                *(uint32_t *)asm_pc = a_word_1076;
-                asm_pc = asm_pc + 4;
-            } else if (asm_error == ASM_OK) {
-                asm_error = ASM_ERR_FULL;
-            }
-        } else {
-            if (!((off_413 >= -256) && (off_413 <= 255))) {
-                if (asm_error == ASM_OK) {
-                    asm_error = ASM_ERR_IMMEDIATE;
-                }
-                goto exit_load_store_271;
-            }
-            a_word_1077 = 4164943872LL | (((uint64_t)(off_413 & 511)) << 12) | 654ULL;
-            if (asm_pc < asm_limit) {
-                *(uint32_t *)asm_pc = a_word_1077;
-                asm_pc = asm_pc + 4;
-            } else if (asm_error == ASM_OK) {
-                asm_error = ASM_ERR_FULL;
-            }
-        exit_load_store_271:;
-        }
-        r_src_39 = X14;
-        goto exit_src_39;
-    }
-    if (asm_error == ASM_OK) {
-        asm_error = ASM_ERR_OPERAND;
-    }
-    r_src_39 = X14;
-exit_src_39:;
-    r_src_39; });
-        off_414 = (int64_t)&((jit_state *)0)->true_oop;
+    if (nd_111->slot >= 0) {
+        off_414 = 8 * (int32_t)nd_111->slot;
         if ((off_414 >= 0) && ((off_414 & 7) == 0) && ((off_414 >> 3) <= 4095)) {
-            a_word_1078 = 4181721088LL | ((((uint64_t)(off_414 >> 3)) << 10) | 720ULL);
+            a_word_1091 = 4181721088LL | ((((uint64_t)(off_414 >> 3)) << 10) | 654ULL);
             if (asm_pc < asm_limit) {
-                *(uint32_t *)asm_pc = a_word_1078;
+                *(uint32_t *)asm_pc = a_word_1091;
                 asm_pc = asm_pc + 4;
             } else if (asm_error == ASM_OK) {
                 asm_error = ASM_ERR_FULL;
@@ -23381,21 +23731,55 @@ exit_src_39:;
                 }
                 goto exit_load_store_272;
             }
-            a_word_1079 = 4164943872LL | (((uint64_t)(off_414 & 511)) << 12) | 720ULL;
+            a_word_1092 = 4164943872LL | (((uint64_t)(off_414 & 511)) << 12) | 654ULL;
             if (asm_pc < asm_limit) {
-                *(uint32_t *)asm_pc = a_word_1079;
+                *(uint32_t *)asm_pc = a_word_1092;
                 asm_pc = asm_pc + 4;
             } else if (asm_error == ASM_OK) {
                 asm_error = ASM_ERR_FULL;
             }
         exit_load_store_272:;
         }
+        r_src_39 = X14;
+        goto exit_src_39;
+    }
+    if (asm_error == ASM_OK) {
+        asm_error = ASM_ERR_OPERAND;
+    }
+    r_src_39 = X14;
+exit_src_39:;
+    r_src_39; });
+        off_415 = (int64_t)&((jit_state *)0)->true_oop;
+        if ((off_415 >= 0) && ((off_415 & 7) == 0) && ((off_415 >> 3) <= 4095)) {
+            a_word_1093 = 4181721088LL | ((((uint64_t)(off_415 >> 3)) << 10) | 720ULL);
+            if (asm_pc < asm_limit) {
+                *(uint32_t *)asm_pc = a_word_1093;
+                asm_pc = asm_pc + 4;
+            } else if (asm_error == ASM_OK) {
+                asm_error = ASM_ERR_FULL;
+            }
+        } else {
+            if (!((off_415 >= -256) && (off_415 <= 255))) {
+                if (asm_error == ASM_OK) {
+                    asm_error = ASM_ERR_IMMEDIATE;
+                }
+                goto exit_load_store_273;
+            }
+            a_word_1094 = 4164943872LL | (((uint64_t)(off_415 & 511)) << 12) | 720ULL;
+            if (asm_pc < asm_limit) {
+                *(uint32_t *)asm_pc = a_word_1094;
+                asm_pc = asm_pc + 4;
+            } else if (asm_error == ASM_OK) {
+                asm_error = ASM_ERR_FULL;
+            }
+        exit_load_store_273:;
+        }
         rd_56 = (rv & REG_W) | 31;
         if (((rd_56 & REG_SP) != 0) || ((rv & REG_SP) != 0)) {
             ext_13 = (rd_56 & REG_W) == 0 ? EXT_UXTX : EXT_UXTW;
-            a_word_1080 = 0xB200000 | ((rd_56 & REG_W) == 0 ? 0x80000000LL : 0) | 0x60000000 | ((((uint64_t)(ext_13 & 7)) << 13) | 0ULL | (1048576ULL | (((uint64_t)(rv & 31)) << 5) | (rd_56 & 31)));
+            a_word_1095 = 0xB200000 | ((rd_56 & REG_W) == 0 ? 0x80000000LL : 0) | 0x60000000 | ((((uint64_t)(ext_13 & 7)) << 13) | 0ULL | (1048576ULL | (((uint64_t)(rv & 31)) << 5) | (rd_56 & 31)));
             if (asm_pc < asm_limit) {
-                *(uint32_t *)asm_pc = a_word_1080;
+                *(uint32_t *)asm_pc = a_word_1095;
                 asm_pc = asm_pc + 4;
             } else if (asm_error == ASM_OK) {
                 asm_error = ASM_ERR_FULL;
@@ -23408,29 +23792,29 @@ exit_src_39:;
             }
             goto exit_add_sub_112;
         }
-        a_word_1081 = 0xB000000 | ((rd_56 & REG_W) == 0 ? 0x80000000LL : 0) | 0x60000000 | (0ULL | (1048576ULL | (((uint64_t)(rv & 31)) << 5) | (rd_56 & 31)));
+        a_word_1096 = 0xB000000 | ((rd_56 & REG_W) == 0 ? 0x80000000LL : 0) | 0x60000000 | (0ULL | (1048576ULL | (((uint64_t)(rv & 31)) << 5) | (rd_56 & 31)));
         if (asm_pc < asm_limit) {
-            *(uint32_t *)asm_pc = a_word_1081;
+            *(uint32_t *)asm_pc = a_word_1096;
             asm_pc = asm_pc + 4;
         } else if (asm_error == ASM_OK) {
             asm_error = ASM_ERR_FULL;
         }
     exit_add_sub_112:;
         target_140 = asm_target_of(tl);
-        a_word_1082 = 0x54000000 | ((((uint64_t)({
-    off_415 = ((int64_t)(target_140 - asm_pc)) >> 2;
-    if (!((off_415 >= -262144) && (off_415 <= 262143))) {
+        a_word_1097 = 0x54000000 | ((((uint64_t)({
+    off_416 = ((int64_t)(target_140 - asm_pc)) >> 2;
+    if (!((off_416 >= -262144) && (off_416 <= 262143))) {
         if (asm_error == ASM_OK) {
             asm_error = ASM_ERR_RANGE;
         }
         r_offset_to_140 = 0;
         goto exit_offset_to_140;
     }
-    r_offset_to_140 = off_415 & 524287;
+    r_offset_to_140 = off_416 & 524287;
 exit_offset_to_140:;
     r_offset_to_140; })) << 5) | 0);
         if (asm_pc < asm_limit) {
-            *(uint32_t *)asm_pc = a_word_1082;
+            *(uint32_t *)asm_pc = a_word_1097;
             asm_pc = asm_pc + 4;
         } else if (asm_error == ASM_OK) {
             asm_error = ASM_ERR_FULL;
@@ -23439,37 +23823,37 @@ exit_offset_to_140:;
             if (asm_noting) {
                 asm_note("neither true nor false: the interpreter sends mustBeBoolean", 0);
             }
-            off_416 = (int64_t)&((jit_state *)0)->false_oop;
-            if ((off_416 >= 0) && ((off_416 & 7) == 0) && ((off_416 >> 3) <= 4095)) {
-                a_word_1083 = 4181721088LL | ((((uint64_t)(off_416 >> 3)) << 10) | 720ULL);
+            off_417 = (int64_t)&((jit_state *)0)->false_oop;
+            if ((off_417 >= 0) && ((off_417 & 7) == 0) && ((off_417 >> 3) <= 4095)) {
+                a_word_1098 = 4181721088LL | ((((uint64_t)(off_417 >> 3)) << 10) | 720ULL);
                 if (asm_pc < asm_limit) {
-                    *(uint32_t *)asm_pc = a_word_1083;
+                    *(uint32_t *)asm_pc = a_word_1098;
                     asm_pc = asm_pc + 4;
                 } else if (asm_error == ASM_OK) {
                     asm_error = ASM_ERR_FULL;
                 }
             } else {
-                if (!((off_416 >= -256) && (off_416 <= 255))) {
+                if (!((off_417 >= -256) && (off_417 <= 255))) {
                     if (asm_error == ASM_OK) {
                         asm_error = ASM_ERR_IMMEDIATE;
                     }
-                    goto exit_load_store_273;
+                    goto exit_load_store_274;
                 }
-                a_word_1084 = 4164943872LL | (((uint64_t)(off_416 & 511)) << 12) | 720ULL;
+                a_word_1099 = 4164943872LL | (((uint64_t)(off_417 & 511)) << 12) | 720ULL;
                 if (asm_pc < asm_limit) {
-                    *(uint32_t *)asm_pc = a_word_1084;
+                    *(uint32_t *)asm_pc = a_word_1099;
                     asm_pc = asm_pc + 4;
                 } else if (asm_error == ASM_OK) {
                     asm_error = ASM_ERR_FULL;
                 }
-            exit_load_store_273:;
+            exit_load_store_274:;
             }
             rd_57 = (rv & REG_W) | 31;
             if (((rd_57 & REG_SP) != 0) || ((rv & REG_SP) != 0)) {
                 ext_14 = (rd_57 & REG_W) == 0 ? EXT_UXTX : EXT_UXTW;
-                a_word_1085 = 0xB200000 | ((rd_57 & REG_W) == 0 ? 0x80000000LL : 0) | 0x60000000 | ((((uint64_t)(ext_14 & 7)) << 13) | 0ULL | (1048576ULL | (((uint64_t)(rv & 31)) << 5) | (rd_57 & 31)));
+                a_word_1100 = 0xB200000 | ((rd_57 & REG_W) == 0 ? 0x80000000LL : 0) | 0x60000000 | ((((uint64_t)(ext_14 & 7)) << 13) | 0ULL | (1048576ULL | (((uint64_t)(rv & 31)) << 5) | (rd_57 & 31)));
                 if (asm_pc < asm_limit) {
-                    *(uint32_t *)asm_pc = a_word_1085;
+                    *(uint32_t *)asm_pc = a_word_1100;
                     asm_pc = asm_pc + 4;
                 } else if (asm_error == ASM_OK) {
                     asm_error = ASM_ERR_FULL;
@@ -23482,29 +23866,29 @@ exit_offset_to_140:;
                 }
                 goto exit_add_sub_113;
             }
-            a_word_1086 = 0xB000000 | ((rd_57 & REG_W) == 0 ? 0x80000000LL : 0) | 0x60000000 | (0ULL | (1048576ULL | (((uint64_t)(rv & 31)) << 5) | (rd_57 & 31)));
+            a_word_1101 = 0xB000000 | ((rd_57 & REG_W) == 0 ? 0x80000000LL : 0) | 0x60000000 | (0ULL | (1048576ULL | (((uint64_t)(rv & 31)) << 5) | (rd_57 & 31)));
             if (asm_pc < asm_limit) {
-                *(uint32_t *)asm_pc = a_word_1086;
+                *(uint32_t *)asm_pc = a_word_1101;
                 asm_pc = asm_pc + 4;
             } else if (asm_error == ASM_OK) {
                 asm_error = ASM_ERR_FULL;
             }
         exit_add_sub_113:;
-            target_141 = asm_target_of(s_59);
-            a_word_1087 = 0x54000000 | ((((uint64_t)({
-    off_417 = ((int64_t)(target_141 - asm_pc)) >> 2;
-    if (!((off_417 >= -262144) && (off_417 <= 262143))) {
+            target_141 = asm_target_of(s_60);
+            a_word_1102 = 0x54000000 | ((((uint64_t)({
+    off_418 = ((int64_t)(target_141 - asm_pc)) >> 2;
+    if (!((off_418 >= -262144) && (off_418 <= 262143))) {
         if (asm_error == ASM_OK) {
             asm_error = ASM_ERR_RANGE;
         }
         r_offset_to_141 = 0;
         goto exit_offset_to_141;
     }
-    r_offset_to_141 = off_417 & 524287;
+    r_offset_to_141 = off_418 & 524287;
 exit_offset_to_141:;
     r_offset_to_141; })) << 5) | 1);
             if (asm_pc < asm_limit) {
-                *(uint32_t *)asm_pc = a_word_1087;
+                *(uint32_t *)asm_pc = a_word_1102;
                 asm_pc = asm_pc + 4;
             } else if (asm_error == ASM_OK) {
                 asm_error = ASM_ERR_FULL;
@@ -23512,20 +23896,20 @@ exit_offset_to_141:;
         }
         if (f != next_block) {
             target_142 = asm_target_of(fl);
-            a_word_1088 = 0x14000000 | ({
-    off_418 = ((int64_t)(target_142 - asm_pc)) >> 2;
-    if (!((off_418 >= -33554432) && (off_418 <= 33554431))) {
+            a_word_1103 = 0x14000000 | ({
+    off_419 = ((int64_t)(target_142 - asm_pc)) >> 2;
+    if (!((off_419 >= -33554432) && (off_419 <= 33554431))) {
         if (asm_error == ASM_OK) {
             asm_error = ASM_ERR_RANGE;
         }
         r_offset_to_142 = 0;
         goto exit_offset_to_142;
     }
-    r_offset_to_142 = off_418 & 67108863;
+    r_offset_to_142 = off_419 & 67108863;
 exit_offset_to_142:;
     r_offset_to_142; });
             if (asm_pc < asm_limit) {
-                *(uint32_t *)asm_pc = a_word_1088;
+                *(uint32_t *)asm_pc = a_word_1103;
                 asm_pc = asm_pc + 4;
             } else if (asm_error == ASM_OK) {
                 asm_error = ASM_ERR_FULL;
@@ -23535,89 +23919,61 @@ exit_offset_to_142:;
         return;
     }
     if (op == O_RETURN) {
-        nd_109 = opt_nodes + n;
-        v_204 = nd_109->a;
+        nd_112 = opt_nodes + n;
+        v_207 = nd_112->a;
         x_13 = ({
-    nd_110 = opt_nodes + v_204;
-    if ((int32_t)nd_110->op == O_CONST) {
-        v_205 = (uint64_t)nd_110->aux;
-        if ((v_205 & 1) != 0) {
-            if (((int64_t)v_205 >= -2147483648) && ((int64_t)v_205 <= 0x7FFFFFFF)) {
-                value_47 = (int64_t)v_205;
+    nd_113 = opt_nodes + v_207;
+    if ((int32_t)nd_113->op == O_CONST) {
+        v_208 = (uint64_t)nd_113->aux;
+        if ((v_208 & 1) != 0) {
+            if (((int64_t)v_208 >= -2147483648) && ((int64_t)v_208 <= 0x7FFFFFFF)) {
+                value_47 = (int64_t)v_208;
                 if ((value_47 >= 0) && (value_47 <= 0xFFFF)) {
                     if (!((value_47 >= 0) && (value_47 <= 0xFFFF))) {
                         if (asm_error == ASM_OK) {
                             asm_error = ASM_ERR_IMMEDIATE;
                         }
-                        goto exit_move_wide_142;
+                        goto exit_move_wide_144;
                     }
-                    a_word_1089 = 3531603968LL | (0ULL | (((uint64_t)value_47) << 5) | 14);
+                    a_word_1104 = 3531603968LL | (0ULL | (((uint64_t)value_47) << 5) | 14);
                     if (asm_pc < asm_limit) {
-                        *(uint32_t *)asm_pc = a_word_1089;
+                        *(uint32_t *)asm_pc = a_word_1104;
                         asm_pc = asm_pc + 4;
                     } else if (asm_error == ASM_OK) {
                         asm_error = ASM_ERR_FULL;
                     }
-                exit_move_wide_142:;
+                exit_move_wide_144:;
                 } else {
                     asm_mov_imm(X14, (uint64_t)value_47);
                 }
                 goto exit_load_constant_47;
             }
-            if ((v_205 >= 0) && (v_205 <= 0xFFFF)) {
-                if (!((v_205 >= 0) && (v_205 <= 0xFFFF))) {
+            if ((v_208 >= 0) && (v_208 <= 0xFFFF)) {
+                if (!((v_208 >= 0) && (v_208 <= 0xFFFF))) {
                     if (asm_error == ASM_OK) {
                         asm_error = ASM_ERR_IMMEDIATE;
                     }
-                    goto exit_move_wide_143;
+                    goto exit_move_wide_145;
                 }
-                a_word_1090 = 3531603968LL | (0ULL | (v_205 << 5) | 14);
+                a_word_1105 = 3531603968LL | (0ULL | (v_208 << 5) | 14);
                 if (asm_pc < asm_limit) {
-                    *(uint32_t *)asm_pc = a_word_1090;
+                    *(uint32_t *)asm_pc = a_word_1105;
                     asm_pc = asm_pc + 4;
                 } else if (asm_error == ASM_OK) {
                     asm_error = ASM_ERR_FULL;
                 }
-            exit_move_wide_143:;
+            exit_move_wide_145:;
             } else {
-                asm_mov_imm(X14, v_205);
+                asm_mov_imm(X14, v_208);
             }
             goto exit_load_constant_47;
         }
-        if (v_205 == nil_oop) {
-            off_419 = (int64_t)&((jit_state *)0)->nil_oop;
-            if ((off_419 >= 0) && ((off_419 & 7) == 0) && ((off_419 >> 3) <= 4095)) {
-                a_word_1091 = 4181721088LL | ((((uint64_t)(off_419 >> 3)) << 10) | 718ULL);
-                if (asm_pc < asm_limit) {
-                    *(uint32_t *)asm_pc = a_word_1091;
-                    asm_pc = asm_pc + 4;
-                } else if (asm_error == ASM_OK) {
-                    asm_error = ASM_ERR_FULL;
-                }
-            } else {
-                if (!((off_419 >= -256) && (off_419 <= 255))) {
-                    if (asm_error == ASM_OK) {
-                        asm_error = ASM_ERR_IMMEDIATE;
-                    }
-                    goto exit_load_store_274;
-                }
-                a_word_1092 = 4164943872LL | (((uint64_t)(off_419 & 511)) << 12) | 718ULL;
-                if (asm_pc < asm_limit) {
-                    *(uint32_t *)asm_pc = a_word_1092;
-                    asm_pc = asm_pc + 4;
-                } else if (asm_error == ASM_OK) {
-                    asm_error = ASM_ERR_FULL;
-                }
-            exit_load_store_274:;
-            }
-            goto exit_load_constant_47;
-        }
-        if (v_205 == true_oop) {
-            off_420 = (int64_t)&((jit_state *)0)->true_oop;
+        if (v_208 == nil_oop) {
+            off_420 = (int64_t)&((jit_state *)0)->nil_oop;
             if ((off_420 >= 0) && ((off_420 & 7) == 0) && ((off_420 >> 3) <= 4095)) {
-                a_word_1093 = 4181721088LL | ((((uint64_t)(off_420 >> 3)) << 10) | 718ULL);
+                a_word_1106 = 4181721088LL | ((((uint64_t)(off_420 >> 3)) << 10) | 718ULL);
                 if (asm_pc < asm_limit) {
-                    *(uint32_t *)asm_pc = a_word_1093;
+                    *(uint32_t *)asm_pc = a_word_1106;
                     asm_pc = asm_pc + 4;
                 } else if (asm_error == ASM_OK) {
                     asm_error = ASM_ERR_FULL;
@@ -23629,9 +23985,9 @@ exit_offset_to_142:;
                     }
                     goto exit_load_store_275;
                 }
-                a_word_1094 = 4164943872LL | (((uint64_t)(off_420 & 511)) << 12) | 718ULL;
+                a_word_1107 = 4164943872LL | (((uint64_t)(off_420 & 511)) << 12) | 718ULL;
                 if (asm_pc < asm_limit) {
-                    *(uint32_t *)asm_pc = a_word_1094;
+                    *(uint32_t *)asm_pc = a_word_1107;
                     asm_pc = asm_pc + 4;
                 } else if (asm_error == ASM_OK) {
                     asm_error = ASM_ERR_FULL;
@@ -23640,12 +23996,12 @@ exit_offset_to_142:;
             }
             goto exit_load_constant_47;
         }
-        if (v_205 == false_oop) {
-            off_421 = (int64_t)&((jit_state *)0)->false_oop;
+        if (v_208 == true_oop) {
+            off_421 = (int64_t)&((jit_state *)0)->true_oop;
             if ((off_421 >= 0) && ((off_421 & 7) == 0) && ((off_421 >> 3) <= 4095)) {
-                a_word_1095 = 4181721088LL | ((((uint64_t)(off_421 >> 3)) << 10) | 718ULL);
+                a_word_1108 = 4181721088LL | ((((uint64_t)(off_421 >> 3)) << 10) | 718ULL);
                 if (asm_pc < asm_limit) {
-                    *(uint32_t *)asm_pc = a_word_1095;
+                    *(uint32_t *)asm_pc = a_word_1108;
                     asm_pc = asm_pc + 4;
                 } else if (asm_error == ASM_OK) {
                     asm_error = ASM_ERR_FULL;
@@ -23657,9 +24013,9 @@ exit_offset_to_142:;
                     }
                     goto exit_load_store_276;
                 }
-                a_word_1096 = 4164943872LL | (((uint64_t)(off_421 & 511)) << 12) | 718ULL;
+                a_word_1109 = 4164943872LL | (((uint64_t)(off_421 & 511)) << 12) | 718ULL;
                 if (asm_pc < asm_limit) {
-                    *(uint32_t *)asm_pc = a_word_1096;
+                    *(uint32_t *)asm_pc = a_word_1109;
                     asm_pc = asm_pc + 4;
                 } else if (asm_error == ASM_OK) {
                     asm_error = ASM_ERR_FULL;
@@ -23668,43 +24024,71 @@ exit_offset_to_142:;
             }
             goto exit_load_constant_47;
         }
-        if ((v_205 & 7) != 0) {
-            if ((v_205 >= 0) && (v_205 <= 0xFFFF)) {
-                if (!((v_205 >= 0) && (v_205 <= 0xFFFF))) {
-                    if (asm_error == ASM_OK) {
-                        asm_error = ASM_ERR_IMMEDIATE;
-                    }
-                    goto exit_move_wide_144;
-                }
-                a_word_1097 = 3531603968LL | (0ULL | (v_205 << 5) | 14);
+        if (v_208 == false_oop) {
+            off_422 = (int64_t)&((jit_state *)0)->false_oop;
+            if ((off_422 >= 0) && ((off_422 & 7) == 0) && ((off_422 >> 3) <= 4095)) {
+                a_word_1110 = 4181721088LL | ((((uint64_t)(off_422 >> 3)) << 10) | 718ULL);
                 if (asm_pc < asm_limit) {
-                    *(uint32_t *)asm_pc = a_word_1097;
+                    *(uint32_t *)asm_pc = a_word_1110;
                     asm_pc = asm_pc + 4;
                 } else if (asm_error == ASM_OK) {
                     asm_error = ASM_ERR_FULL;
                 }
-            exit_move_wide_144:;
             } else {
-                asm_mov_imm(X14, v_205);
+                if (!((off_422 >= -256) && (off_422 <= 255))) {
+                    if (asm_error == ASM_OK) {
+                        asm_error = ASM_ERR_IMMEDIATE;
+                    }
+                    goto exit_load_store_277;
+                }
+                a_word_1111 = 4164943872LL | (((uint64_t)(off_422 & 511)) << 12) | 718ULL;
+                if (asm_pc < asm_limit) {
+                    *(uint32_t *)asm_pc = a_word_1111;
+                    asm_pc = asm_pc + 4;
+                } else if (asm_error == ASM_OK) {
+                    asm_error = ASM_ERR_FULL;
+                }
+            exit_load_store_277:;
             }
             goto exit_load_constant_47;
         }
-        a_label_53 = cg_pool_labels[opt_pool_index(v_205)];
+        if ((v_208 & 7) != 0) {
+            if ((v_208 >= 0) && (v_208 <= 0xFFFF)) {
+                if (!((v_208 >= 0) && (v_208 <= 0xFFFF))) {
+                    if (asm_error == ASM_OK) {
+                        asm_error = ASM_ERR_IMMEDIATE;
+                    }
+                    goto exit_move_wide_146;
+                }
+                a_word_1112 = 3531603968LL | (0ULL | (v_208 << 5) | 14);
+                if (asm_pc < asm_limit) {
+                    *(uint32_t *)asm_pc = a_word_1112;
+                    asm_pc = asm_pc + 4;
+                } else if (asm_error == ASM_OK) {
+                    asm_error = ASM_ERR_FULL;
+                }
+            exit_move_wide_146:;
+            } else {
+                asm_mov_imm(X14, v_208);
+            }
+            goto exit_load_constant_47;
+        }
+        a_label_53 = cg_pool_labels[opt_pool_index(v_208)];
         target_143 = asm_target_of(a_label_53);
-        a_word_1098 = 0x58000000 | ((((uint64_t)({
-    off_422 = ((int64_t)(target_143 - asm_pc)) >> 2;
-    if (!((off_422 >= -262144) && (off_422 <= 262143))) {
+        a_word_1113 = 0x58000000 | ((((uint64_t)({
+    off_423 = ((int64_t)(target_143 - asm_pc)) >> 2;
+    if (!((off_423 >= -262144) && (off_423 <= 262143))) {
         if (asm_error == ASM_OK) {
             asm_error = ASM_ERR_RANGE;
         }
         r_offset_to_143 = 0;
         goto exit_offset_to_143;
     }
-    r_offset_to_143 = off_422 & 524287;
+    r_offset_to_143 = off_423 & 524287;
 exit_offset_to_143:;
     r_offset_to_143; })) << 5) | 14);
         if (asm_pc < asm_limit) {
-            *(uint32_t *)asm_pc = a_word_1098;
+            *(uint32_t *)asm_pc = a_word_1113;
             asm_pc = asm_pc + 4;
         } else if (asm_error == ASM_OK) {
             asm_error = ASM_ERR_FULL;
@@ -23713,35 +24097,35 @@ exit_offset_to_143:;
         r_src_40 = X14;
         goto exit_src_40;
     }
-    if (nd_110->reg >= 0) {
-        r_src_40 = (int32_t)nd_110->reg;
+    if (nd_113->reg >= 0) {
+        r_src_40 = (int32_t)nd_113->reg;
         goto exit_src_40;
     }
-    if (nd_110->slot >= 0) {
-        off_423 = 8 * (int32_t)nd_110->slot;
-        if ((off_423 >= 0) && ((off_423 & 7) == 0) && ((off_423 >> 3) <= 4095)) {
-            a_word_1099 = 4181721088LL | ((((uint64_t)(off_423 >> 3)) << 10) | 654ULL);
+    if (nd_113->slot >= 0) {
+        off_424 = 8 * (int32_t)nd_113->slot;
+        if ((off_424 >= 0) && ((off_424 & 7) == 0) && ((off_424 >> 3) <= 4095)) {
+            a_word_1114 = 4181721088LL | ((((uint64_t)(off_424 >> 3)) << 10) | 654ULL);
             if (asm_pc < asm_limit) {
-                *(uint32_t *)asm_pc = a_word_1099;
+                *(uint32_t *)asm_pc = a_word_1114;
                 asm_pc = asm_pc + 4;
             } else if (asm_error == ASM_OK) {
                 asm_error = ASM_ERR_FULL;
             }
         } else {
-            if (!((off_423 >= -256) && (off_423 <= 255))) {
+            if (!((off_424 >= -256) && (off_424 <= 255))) {
                 if (asm_error == ASM_OK) {
                     asm_error = ASM_ERR_IMMEDIATE;
                 }
-                goto exit_load_store_277;
+                goto exit_load_store_278;
             }
-            a_word_1100 = 4164943872LL | (((uint64_t)(off_423 & 511)) << 12) | 654ULL;
+            a_word_1115 = 4164943872LL | (((uint64_t)(off_424 & 511)) << 12) | 654ULL;
             if (asm_pc < asm_limit) {
-                *(uint32_t *)asm_pc = a_word_1100;
+                *(uint32_t *)asm_pc = a_word_1115;
                 asm_pc = asm_pc + 4;
             } else if (asm_error == ASM_OK) {
                 asm_error = ASM_ERR_FULL;
             }
-        exit_load_store_277:;
+        exit_load_store_278:;
         }
         r_src_40 = X14;
         goto exit_src_40;
@@ -23755,7 +24139,7 @@ exit_src_40:;
         if (asm_noting) {
             asm_note("the bottom frame returns into a Context: the interpreter does it", 0);
         }
-        s_60 = ({
+        s_61 = ({
     if (cg_out_count >= CG_MAX_OUT) {
         if (asm_error == ASM_OK) {
             asm_error = ASM_ERR_FULL;
@@ -23774,30 +24158,30 @@ exit_src_40:;
     r_out_24 = o_129->label;
 exit_out_24:;
     r_out_24; });
-        off_424 = (int64_t)&((jit_state *)0)->frames;
-        if ((off_424 >= 0) && ((off_424 & 7) == 0) && ((off_424 >> 3) <= 4095)) {
-            a_word_1101 = 4181721088LL | ((((uint64_t)(off_424 >> 3)) << 10) | 720ULL);
+        off_425 = (int64_t)&((jit_state *)0)->frames;
+        if ((off_425 >= 0) && ((off_425 & 7) == 0) && ((off_425 >> 3) <= 4095)) {
+            a_word_1116 = 4181721088LL | ((((uint64_t)(off_425 >> 3)) << 10) | 720ULL);
             if (asm_pc < asm_limit) {
-                *(uint32_t *)asm_pc = a_word_1101;
+                *(uint32_t *)asm_pc = a_word_1116;
                 asm_pc = asm_pc + 4;
             } else if (asm_error == ASM_OK) {
                 asm_error = ASM_ERR_FULL;
             }
         } else {
-            if (!((off_424 >= -256) && (off_424 <= 255))) {
+            if (!((off_425 >= -256) && (off_425 <= 255))) {
                 if (asm_error == ASM_OK) {
                     asm_error = ASM_ERR_IMMEDIATE;
                 }
-                goto exit_load_store_278;
+                goto exit_load_store_279;
             }
-            a_word_1102 = 4164943872LL | (((uint64_t)(off_424 & 511)) << 12) | 720ULL;
+            a_word_1117 = 4164943872LL | (((uint64_t)(off_425 & 511)) << 12) | 720ULL;
             if (asm_pc < asm_limit) {
-                *(uint32_t *)asm_pc = a_word_1102;
+                *(uint32_t *)asm_pc = a_word_1117;
                 asm_pc = asm_pc + 4;
             } else if (asm_error == ASM_OK) {
                 asm_error = ASM_ERR_FULL;
             }
-        exit_load_store_278:;
+        exit_load_store_279:;
         }
         if (asm_pc < asm_limit) {
             *(uint32_t *)asm_pc = 3943694975ULL;
@@ -23805,21 +24189,21 @@ exit_out_24:;
         } else if (asm_error == ASM_OK) {
             asm_error = ASM_ERR_FULL;
         }
-        target_144 = asm_target_of(s_60);
-        a_word_1103 = 0x54000000 | ((((uint64_t)({
-    off_425 = ((int64_t)(target_144 - asm_pc)) >> 2;
-    if (!((off_425 >= -262144) && (off_425 <= 262143))) {
+        target_144 = asm_target_of(s_61);
+        a_word_1118 = 0x54000000 | ((((uint64_t)({
+    off_426 = ((int64_t)(target_144 - asm_pc)) >> 2;
+    if (!((off_426 >= -262144) && (off_426 <= 262143))) {
         if (asm_error == ASM_OK) {
             asm_error = ASM_ERR_RANGE;
         }
         r_offset_to_144 = 0;
         goto exit_offset_to_144;
     }
-    r_offset_to_144 = off_425 & 524287;
+    r_offset_to_144 = off_426 & 524287;
 exit_offset_to_144:;
     r_offset_to_144; })) << 5) | 0);
         if (asm_pc < asm_limit) {
-            *(uint32_t *)asm_pc = a_word_1103;
+            *(uint32_t *)asm_pc = a_word_1118;
             asm_pc = asm_pc + 4;
         } else if (asm_error == ASM_OK) {
             asm_error = ASM_ERR_FULL;
@@ -23829,17 +24213,17 @@ exit_offset_to_144:;
         }
         if (x_13 != X0) {
             if ((x_13 & REG_SP) != 0) {
-                a_word_1104 = 2432696320LL | (0ULL | ((((uint64_t)(x_13 & 31)) << 5) | 0));
+                a_word_1119 = 2432696320LL | (0ULL | ((((uint64_t)(x_13 & 31)) << 5) | 0));
                 if (asm_pc < asm_limit) {
-                    *(uint32_t *)asm_pc = a_word_1104;
+                    *(uint32_t *)asm_pc = a_word_1119;
                     asm_pc = asm_pc + 4;
                 } else if (asm_error == ASM_OK) {
                     asm_error = ASM_ERR_FULL;
                 }
                 goto exit_add_sub_114;
-                a_word_1105 = 2436890624LL | (0ULL | ((((uint64_t)(x_13 & 31)) << 5) | 0));
+                a_word_1120 = 2436890624LL | (0ULL | ((((uint64_t)(x_13 & 31)) << 5) | 0));
                 if (asm_pc < asm_limit) {
-                    *(uint32_t *)asm_pc = a_word_1105;
+                    *(uint32_t *)asm_pc = a_word_1120;
                     asm_pc = asm_pc + 4;
                 } else if (asm_error == ASM_OK) {
                     asm_error = ASM_ERR_FULL;
@@ -23850,9 +24234,9 @@ exit_offset_to_144:;
                 }
             exit_add_sub_114:;
             } else {
-                a_word_1106 = 2852126720LL | (0ULL | ((((uint64_t)(x_13 & 31)) << 16) | 992ULL | 0));
+                a_word_1121 = 2852126720LL | (0ULL | ((((uint64_t)(x_13 & 31)) << 16) | 992ULL | 0));
                 if (asm_pc < asm_limit) {
-                    *(uint32_t *)asm_pc = a_word_1106;
+                    *(uint32_t *)asm_pc = a_word_1121;
                     asm_pc = asm_pc + 4;
                 } else if (asm_error == ASM_OK) {
                     asm_error = ASM_ERR_FULL;
@@ -23888,36 +24272,11 @@ exit_entry_pc:;
 exit_out_25:;
     r_out_25; });
             (cg_outs + (cg_out_count - 1))->resume = back_3;
-            off_426 = (int64_t)&((frame *)0)->ctx;
-            if ((off_426 >= 0) && ((off_426 & 7) == 0) && ((off_426 >> 3) <= 4095)) {
-                a_word_1107 = 4181721088LL | ((((uint64_t)(off_426 >> 3)) << 10) | 624ULL);
-                if (asm_pc < asm_limit) {
-                    *(uint32_t *)asm_pc = a_word_1107;
-                    asm_pc = asm_pc + 4;
-                } else if (asm_error == ASM_OK) {
-                    asm_error = ASM_ERR_FULL;
-                }
-            } else {
-                if (!((off_426 >= -256) && (off_426 <= 255))) {
-                    if (asm_error == ASM_OK) {
-                        asm_error = ASM_ERR_IMMEDIATE;
-                    }
-                    goto exit_load_store_279;
-                }
-                a_word_1108 = 4164943872LL | (((uint64_t)(off_426 & 511)) << 12) | 624ULL;
-                if (asm_pc < asm_limit) {
-                    *(uint32_t *)asm_pc = a_word_1108;
-                    asm_pc = asm_pc + 4;
-                } else if (asm_error == ASM_OK) {
-                    asm_error = ASM_ERR_FULL;
-                }
-            exit_load_store_279:;
-            }
-            off_427 = (int64_t)&((jit_state *)0)->nil_oop;
+            off_427 = (int64_t)&((frame *)0)->ctx;
             if ((off_427 >= 0) && ((off_427 & 7) == 0) && ((off_427 >> 3) <= 4095)) {
-                a_word_1109 = 4181721088LL | ((((uint64_t)(off_427 >> 3)) << 10) | 721ULL);
+                a_word_1122 = 4181721088LL | ((((uint64_t)(off_427 >> 3)) << 10) | 624ULL);
                 if (asm_pc < asm_limit) {
-                    *(uint32_t *)asm_pc = a_word_1109;
+                    *(uint32_t *)asm_pc = a_word_1122;
                     asm_pc = asm_pc + 4;
                 } else if (asm_error == ASM_OK) {
                     asm_error = ASM_ERR_FULL;
@@ -23929,14 +24288,39 @@ exit_out_25:;
                     }
                     goto exit_load_store_280;
                 }
-                a_word_1110 = 4164943872LL | (((uint64_t)(off_427 & 511)) << 12) | 721ULL;
+                a_word_1123 = 4164943872LL | (((uint64_t)(off_427 & 511)) << 12) | 624ULL;
                 if (asm_pc < asm_limit) {
-                    *(uint32_t *)asm_pc = a_word_1110;
+                    *(uint32_t *)asm_pc = a_word_1123;
                     asm_pc = asm_pc + 4;
                 } else if (asm_error == ASM_OK) {
                     asm_error = ASM_ERR_FULL;
                 }
             exit_load_store_280:;
+            }
+            off_428 = (int64_t)&((jit_state *)0)->nil_oop;
+            if ((off_428 >= 0) && ((off_428 & 7) == 0) && ((off_428 >> 3) <= 4095)) {
+                a_word_1124 = 4181721088LL | ((((uint64_t)(off_428 >> 3)) << 10) | 721ULL);
+                if (asm_pc < asm_limit) {
+                    *(uint32_t *)asm_pc = a_word_1124;
+                    asm_pc = asm_pc + 4;
+                } else if (asm_error == ASM_OK) {
+                    asm_error = ASM_ERR_FULL;
+                }
+            } else {
+                if (!((off_428 >= -256) && (off_428 <= 255))) {
+                    if (asm_error == ASM_OK) {
+                        asm_error = ASM_ERR_IMMEDIATE;
+                    }
+                    goto exit_load_store_281;
+                }
+                a_word_1125 = 4164943872LL | (((uint64_t)(off_428 & 511)) << 12) | 721ULL;
+                if (asm_pc < asm_limit) {
+                    *(uint32_t *)asm_pc = a_word_1125;
+                    asm_pc = asm_pc + 4;
+                } else if (asm_error == ASM_OK) {
+                    asm_error = ASM_ERR_FULL;
+                }
+            exit_load_store_281:;
             }
             if (asm_pc < asm_limit) {
                 *(uint32_t *)asm_pc = 3943760415ULL;
@@ -23945,20 +24329,20 @@ exit_out_25:;
                 asm_error = ASM_ERR_FULL;
             }
             target_145 = asm_target_of(w);
-            a_word_1111 = 0x54000000 | ((((uint64_t)({
-    off_428 = ((int64_t)(target_145 - asm_pc)) >> 2;
-    if (!((off_428 >= -262144) && (off_428 <= 262143))) {
+            a_word_1126 = 0x54000000 | ((((uint64_t)({
+    off_429 = ((int64_t)(target_145 - asm_pc)) >> 2;
+    if (!((off_429 >= -262144) && (off_429 <= 262143))) {
         if (asm_error == ASM_OK) {
             asm_error = ASM_ERR_RANGE;
         }
         r_offset_to_145 = 0;
         goto exit_offset_to_145;
     }
-    r_offset_to_145 = off_428 & 524287;
+    r_offset_to_145 = off_429 & 524287;
 exit_offset_to_145:;
     r_offset_to_145; })) << 5) | 1);
             if (asm_pc < asm_limit) {
-                *(uint32_t *)asm_pc = a_word_1111;
+                *(uint32_t *)asm_pc = a_word_1126;
                 asm_pc = asm_pc + 4;
             } else if (asm_error == ASM_OK) {
                 asm_error = ASM_ERR_FULL;
@@ -23967,22 +24351,22 @@ exit_offset_to_145:;
         }
         imm_14 = sizeof(frame);
         neg_99 = imm_14 < 0;
-        v_207 = neg_99 ? -imm_14 : imm_14;
+        v_210 = neg_99 ? -imm_14 : imm_14;
         o_132 = neg_99 ? 0 : 0x40000000;
-        if (v_207 <= 4095) {
-            a_word_1112 = 2432696320LL | o_132 | ((((uint64_t)v_207) << 10) | 627ULL);
+        if (v_210 <= 4095) {
+            a_word_1127 = 2432696320LL | o_132 | ((((uint64_t)v_210) << 10) | 627ULL);
             if (asm_pc < asm_limit) {
-                *(uint32_t *)asm_pc = a_word_1112;
+                *(uint32_t *)asm_pc = a_word_1127;
                 asm_pc = asm_pc + 4;
             } else if (asm_error == ASM_OK) {
                 asm_error = ASM_ERR_FULL;
             }
             goto exit_add_sub_115;
         }
-        if (((v_207 & 4095) == 0) && (v_207 <= 0xFFF000)) {
-            a_word_1113 = 2436890624LL | o_132 | ((((uint64_t)(v_207 >> 12)) << 10) | 627ULL);
+        if (((v_210 & 4095) == 0) && (v_210 <= 0xFFF000)) {
+            a_word_1128 = 2436890624LL | o_132 | ((((uint64_t)(v_210 >> 12)) << 10) | 627ULL);
             if (asm_pc < asm_limit) {
-                *(uint32_t *)asm_pc = a_word_1113;
+                *(uint32_t *)asm_pc = a_word_1128;
                 asm_pc = asm_pc + 4;
             } else if (asm_error == ASM_OK) {
                 asm_error = ASM_ERR_FULL;
@@ -24042,30 +24426,30 @@ exit_out_26:;
     if (asm_noting) {
         asm_note("deoptimization stress", 0);
     }
-    off_429 = (int64_t)&((jit_state *)0)->stress;
-    if ((off_429 >= 0) && ((off_429 & 7) == 0) && ((off_429 >> 3) <= 4095)) {
-        a_word_1114 = 4181721088LL | ((((uint64_t)(off_429 >> 3)) << 10) | 720ULL);
+    off_430 = (int64_t)&((jit_state *)0)->stress;
+    if ((off_430 >= 0) && ((off_430 & 7) == 0) && ((off_430 >> 3) <= 4095)) {
+        a_word_1129 = 4181721088LL | ((((uint64_t)(off_430 >> 3)) << 10) | 720ULL);
         if (asm_pc < asm_limit) {
-            *(uint32_t *)asm_pc = a_word_1114;
+            *(uint32_t *)asm_pc = a_word_1129;
             asm_pc = asm_pc + 4;
         } else if (asm_error == ASM_OK) {
             asm_error = ASM_ERR_FULL;
         }
     } else {
-        if (!((off_429 >= -256) && (off_429 <= 255))) {
+        if (!((off_430 >= -256) && (off_430 <= 255))) {
             if (asm_error == ASM_OK) {
                 asm_error = ASM_ERR_IMMEDIATE;
             }
-            goto exit_load_store_281;
+            goto exit_load_store_282;
         }
-        a_word_1115 = 4164943872LL | (((uint64_t)(off_429 & 511)) << 12) | 720ULL;
+        a_word_1130 = 4164943872LL | (((uint64_t)(off_430 & 511)) << 12) | 720ULL;
         if (asm_pc < asm_limit) {
-            *(uint32_t *)asm_pc = a_word_1115;
+            *(uint32_t *)asm_pc = a_word_1130;
             asm_pc = asm_pc + 4;
         } else if (asm_error == ASM_OK) {
             asm_error = ASM_ERR_FULL;
         }
-    exit_load_store_281:;
+    exit_load_store_282:;
     }
     if (asm_pc < asm_limit) {
         *(uint32_t *)asm_pc = 4043310608ULL;
@@ -24078,46 +24462,46 @@ exit_out_26:;
         asm_error = ASM_ERR_IMMEDIATE;
     }
 exit_add_sub_116:;
-    off_430 = (int64_t)&((jit_state *)0)->stress;
-    if ((off_430 >= 0) && ((off_430 & 7) == 0) && ((off_430 >> 3) <= 4095)) {
-        a_word_1116 = 4177526784LL | ((((uint64_t)(off_430 >> 3)) << 10) | 720ULL);
+    off_431 = (int64_t)&((jit_state *)0)->stress;
+    if ((off_431 >= 0) && ((off_431 & 7) == 0) && ((off_431 >> 3) <= 4095)) {
+        a_word_1131 = 4177526784LL | ((((uint64_t)(off_431 >> 3)) << 10) | 720ULL);
         if (asm_pc < asm_limit) {
-            *(uint32_t *)asm_pc = a_word_1116;
+            *(uint32_t *)asm_pc = a_word_1131;
             asm_pc = asm_pc + 4;
         } else if (asm_error == ASM_OK) {
             asm_error = ASM_ERR_FULL;
         }
     } else {
-        if (!((off_430 >= -256) && (off_430 <= 255))) {
+        if (!((off_431 >= -256) && (off_431 <= 255))) {
             if (asm_error == ASM_OK) {
                 asm_error = ASM_ERR_IMMEDIATE;
             }
-            goto exit_load_store_282;
+            goto exit_load_store_283;
         }
-        a_word_1117 = 4160749568LL | (((uint64_t)(off_430 & 511)) << 12) | 720ULL;
+        a_word_1132 = 4160749568LL | (((uint64_t)(off_431 & 511)) << 12) | 720ULL;
         if (asm_pc < asm_limit) {
-            *(uint32_t *)asm_pc = a_word_1117;
+            *(uint32_t *)asm_pc = a_word_1132;
             asm_pc = asm_pc + 4;
         } else if (asm_error == ASM_OK) {
             asm_error = ASM_ERR_FULL;
         }
-    exit_load_store_282:;
+    exit_load_store_283:;
     }
     target_146 = asm_target_of(l_17);
-    a_word_1118 = 0x54000000 | ((((uint64_t)({
-    off_431 = ((int64_t)(target_146 - asm_pc)) >> 2;
-    if (!((off_431 >= -262144) && (off_431 <= 262143))) {
+    a_word_1133 = 0x54000000 | ((((uint64_t)({
+    off_432 = ((int64_t)(target_146 - asm_pc)) >> 2;
+    if (!((off_432 >= -262144) && (off_432 <= 262143))) {
         if (asm_error == ASM_OK) {
             asm_error = ASM_ERR_RANGE;
         }
         r_offset_to_146 = 0;
         goto exit_offset_to_146;
     }
-    r_offset_to_146 = off_431 & 524287;
+    r_offset_to_146 = off_432 & 524287;
 exit_offset_to_146:;
     r_offset_to_146; })) << 5) | 0);
     if (asm_pc < asm_limit) {
-        *(uint32_t *)asm_pc = a_word_1118;
+        *(uint32_t *)asm_pc = a_word_1133;
         asm_pc = asm_pc + 4;
     } else if (asm_error == ASM_OK) {
         asm_error = ASM_ERR_FULL;
@@ -24126,20 +24510,20 @@ exit_emit_stress_at_18:;
     r_deopt_label_for_16 = l_17;
     r_deopt_label_for_16; });
         target_147 = asm_target_of(a_label_54);
-        a_word_1119 = 0x14000000 | ({
-    off_432 = ((int64_t)(target_147 - asm_pc)) >> 2;
-    if (!((off_432 >= -33554432) && (off_432 <= 33554431))) {
+        a_word_1134 = 0x14000000 | ({
+    off_433 = ((int64_t)(target_147 - asm_pc)) >> 2;
+    if (!((off_433 >= -33554432) && (off_433 <= 33554431))) {
         if (asm_error == ASM_OK) {
             asm_error = ASM_ERR_RANGE;
         }
         r_offset_to_147 = 0;
         goto exit_offset_to_147;
     }
-    r_offset_to_147 = off_432 & 67108863;
+    r_offset_to_147 = off_433 & 67108863;
 exit_offset_to_147:;
     r_offset_to_147; });
         if (asm_pc < asm_limit) {
-            *(uint32_t *)asm_pc = a_word_1119;
+            *(uint32_t *)asm_pc = a_word_1134;
             asm_pc = asm_pc + 4;
         } else if (asm_error == ASM_OK) {
             asm_error = ASM_ERR_FULL;
@@ -24252,18 +24636,40 @@ bool opt_generate(oop m, int32_t a)
     uint64_t a_word_33;
     uint64_t a_word_34;
     int32_t i_7;
+    int64_t n_3;
+    int32_t i_8;
+    int32_t b_3;
+    int64_t r_back_edge_after;
+    opt_block *bl_2;
+    int32_t n_4;
+    opt_node *nd;
+    int32_t n_5;
+    bool r_is_fused;
+    opt_node *nd_2;
+    int32_t n_6;
+    opt_node *nx;
+    int32_t s_8;
+    bool r_is;
+    opt_block *sb;
+    int32_t b_4;
+    int32_t n_7;
+    int32_t s_9;
+    bool r_is_2;
+    opt_block *sb_2;
+    int32_t b_5;
+    int32_t n_8;
+    int64_t t;
+    int32_t i_9;
     int32_t b;
     opt_block *bl;
-    int32_t i_8;
-    int32_t v_4;
     int32_t next_block;
-    int32_t n_3;
-    opt_node *nd;
+    int32_t n_9;
+    opt_node *nd_3;
     int32_t a_pc;
     int32_t an_integer;
     int32_t an_integer_2;
     bool r_emit_outs;
-    int32_t i_9;
+    int32_t i_10;
     opt_out *o_5;
     int32_t value_2;
     uint64_t a_word_35;
@@ -24271,215 +24677,236 @@ bool opt_generate(oop m, int32_t a)
     int64_t r_offset_to_6;
     int64_t off_21;
     int64_t a_word_36;
-    int32_t n_4;
-    int32_t n_5;
+    int32_t n_10;
+    int32_t i_11;
+    int32_t v_4;
+    opt_node *nd_4;
+    int32_t rt;
+    int32_t off_22;
+    int64_t bits;
+    int s_10;
+    uint64_t a_word_37;
+    int64_t bits_2;
+    uint64_t a_word_38;
+    int32_t n_11;
+    int32_t n_12;
     int32_t k;
     int32_t pc;
     int64_t value_3;
-    uint64_t a_word_37;
-    int64_t off_22;
-    uint64_t a_word_38;
     uint64_t a_word_39;
+    int64_t off_23;
+    uint64_t a_word_40;
+    uint64_t a_word_41;
+    int i_12;
+    int rt_2;
+    int rt2;
+    int s_11;
+    uint64_t a_word_42;
     uint64_t target_7;
     int64_t r_offset_to_7;
-    int64_t off_23;
-    int64_t a_word_40;
+    int64_t off_24;
+    int64_t a_word_43;
+    int i_13;
+    int rt_3;
+    int rt2_2;
+    int s_12;
+    uint64_t a_word_44;
     uint64_t target_8;
     int64_t r_offset_to_8;
-    int64_t off_24;
-    uint64_t a_word_41;
     int64_t off_25;
-    uint64_t a_word_42;
-    int64_t off_26;
-    uint64_t a_word_43;
-    uint64_t a_word_44;
-    int32_t n_6;
-    int32_t i_10;
-    int32_t v_5;
-    opt_node *nd_2;
-    int32_t rt;
-    int32_t off_27;
-    int64_t bits;
-    int s_9;
     uint64_t a_word_45;
-    int64_t bits_2;
+    int64_t off_26;
     uint64_t a_word_46;
+    int64_t off_27;
+    uint64_t a_word_47;
+    uint64_t a_word_48;
+    int32_t n_13;
+    int32_t i_14;
+    int32_t v_5;
+    opt_node *nd_5;
+    int32_t rt_4;
+    int32_t off_28;
+    int64_t bits_3;
+    int s_14;
+    uint64_t a_word_49;
+    int64_t bits_4;
+    uint64_t a_word_50;
     int32_t a_label_3;
     uint64_t target_9;
     int64_t r_offset_to_9;
-    int64_t off_28;
-    int64_t a_word_47;
+    int64_t off_29;
+    int64_t a_word_51;
     int32_t obj;
     int32_t v_6;
-    int i_11;
-    int rt_2;
-    int rt2;
-    int s_10;
-    uint64_t a_word_48;
-    int i_12;
-    int rt_3;
-    int rt2_2;
-    int s_11;
-    uint64_t a_word_49;
-    uint64_t a_word_50;
-    uint64_t a_word_51;
+    int i_15;
+    int rt_5;
+    int rt2_3;
+    int s_15;
     uint64_t a_word_52;
+    int i_16;
+    int rt_6;
+    int rt2_4;
+    int s_16;
     uint64_t a_word_53;
     uint64_t a_word_54;
     uint64_t a_word_55;
+    uint64_t a_word_56;
+    uint64_t a_word_57;
+    uint64_t a_word_58;
+    uint64_t a_word_59;
     uint64_t target_10;
     int64_t r_offset_to_10;
-    int64_t off_29;
-    int64_t a_word_56;
-    int i_13;
-    int rt_4;
-    int rt2_3;
-    int s_12;
-    uint64_t a_word_57;
-    int i_14;
-    int rt_5;
-    int rt2_4;
-    int s_13;
-    uint64_t a_word_58;
+    int64_t off_30;
+    int64_t a_word_60;
+    int i_17;
+    int rt_7;
+    int rt2_5;
+    int s_17;
+    uint64_t a_word_61;
+    int i_18;
+    int rt_8;
+    int rt2_6;
+    int s_18;
+    uint64_t a_word_62;
     int32_t a_label_4;
     uint64_t target_11;
     int64_t r_offset_to_11;
-    int64_t off_30;
-    int64_t a_word_59;
-    int32_t off_31;
-    uint64_t a_word_60;
-    uint64_t a_word_61;
+    int64_t off_31;
+    int64_t a_word_63;
+    int32_t off_32;
+    uint64_t a_word_64;
+    uint64_t a_word_65;
     int32_t pc_2;
     int32_t sp;
     int64_t value_4;
-    uint64_t a_word_62;
-    int64_t off_32;
-    uint64_t a_word_63;
-    uint64_t a_word_64;
+    uint64_t a_word_66;
+    int64_t off_33;
+    uint64_t a_word_67;
+    uint64_t a_word_68;
     int32_t value_5;
-    uint64_t a_word_65;
+    uint64_t a_word_69;
     uint64_t target_12;
     int64_t r_offset_to_12;
-    int64_t off_33;
-    int64_t a_word_66;
+    int64_t off_34;
+    int64_t a_word_70;
     uint64_t target_13;
     int64_t r_offset_to_13;
-    int64_t off_34;
-    int64_t a_word_67;
+    int64_t off_35;
+    int64_t a_word_71;
     int32_t pc_3;
     uint64_t offset_2;
-    int32_t off_35;
-    uint64_t a_word_68;
-    uint64_t a_word_69;
+    int32_t off_36;
+    uint64_t a_word_72;
+    uint64_t a_word_73;
     int32_t a_label_5;
     uint64_t target_14;
     int64_t r_offset_to_14;
-    int64_t off_36;
-    int64_t a_word_70;
-    int32_t off_37;
-    uint64_t a_word_71;
-    uint64_t a_word_72;
+    int64_t off_37;
+    int64_t a_word_74;
+    int32_t off_38;
+    uint64_t a_word_75;
+    uint64_t a_word_76;
     int32_t pc_4;
     int32_t sp_2;
     int64_t value_6;
-    uint64_t a_word_73;
-    int64_t off_38;
-    uint64_t a_word_74;
-    uint64_t a_word_75;
+    uint64_t a_word_77;
+    int64_t off_39;
+    uint64_t a_word_78;
+    uint64_t a_word_79;
     uint64_t target_15;
     int64_t r_offset_to_15;
-    int64_t off_39;
-    int64_t a_word_76;
+    int64_t off_40;
+    int64_t a_word_80;
     uint64_t target_16;
     int64_t r_offset_to_16;
-    int64_t off_40;
-    uint64_t a_word_77;
     int64_t off_41;
-    uint64_t a_word_78;
-    int64_t off_42;
-    uint64_t a_word_79;
-    uint64_t a_word_80;
-    int32_t off_43;
     uint64_t a_word_81;
+    int64_t off_42;
     uint64_t a_word_82;
+    int64_t off_43;
+    uint64_t a_word_83;
+    uint64_t a_word_84;
+    int32_t off_44;
+    uint64_t a_word_85;
+    uint64_t a_word_86;
     int32_t a_label_6;
     uint64_t target_17;
     int64_t r_offset_to_17;
-    int64_t off_44;
-    int64_t a_word_83;
-    int32_t n_7;
+    int64_t off_45;
+    int64_t a_word_87;
+    int32_t n_14;
     int32_t k_2;
     int32_t lit;
     uint64_t target_18;
     int64_t r_offset_to_18;
-    int64_t off_45;
-    uint64_t a_word_84;
-    opt_node *nd_3;
+    int64_t off_46;
+    uint64_t a_word_88;
+    opt_node *nd_6;
     int32_t a_label_7;
     uint64_t target_19;
     int64_t r_offset_to_19;
-    int64_t off_46;
-    int64_t a_word_85;
+    int64_t off_47;
+    int64_t a_word_89;
     int32_t k_3;
-    int32_t n_8;
-    int32_t n_9;
+    int32_t n_15;
+    int32_t n_16;
     int32_t a_label_8;
     uint64_t target_20;
     int64_t r_offset_to_20;
-    int64_t off_47;
-    int64_t a_word_86;
-    int64_t value_7;
-    uint64_t a_word_87;
     int64_t off_48;
-    uint64_t a_word_88;
-    uint64_t a_word_89;
-    uint64_t target_21;
-    int64_t r_offset_to_21;
-    int64_t off_49;
     int64_t a_word_90;
-    uint64_t target_22;
-    int64_t r_offset_to_22;
-    int64_t off_50;
-    int64_t a_word_91;
-    int64_t off_51;
+    int64_t value_7;
+    uint64_t a_word_91;
+    int64_t off_49;
     uint64_t a_word_92;
     uint64_t a_word_93;
+    uint64_t target_21;
+    int64_t r_offset_to_21;
+    int64_t off_50;
+    int64_t a_word_94;
+    uint64_t target_22;
+    int64_t r_offset_to_22;
+    int64_t off_51;
+    int64_t a_word_95;
+    int64_t off_52;
+    uint64_t a_word_96;
+    uint64_t a_word_97;
     int32_t a_label_9;
     uint64_t target_23;
     int64_t r_offset_to_23;
-    int64_t off_52;
-    int64_t a_word_94;
+    int64_t off_53;
+    int64_t a_word_98;
     int32_t a_label_10;
     uint64_t target_24;
     int64_t r_offset_to_24;
-    int64_t off_53;
-    int64_t a_word_95;
-    int32_t n_10;
+    int64_t off_54;
+    int64_t a_word_99;
+    int32_t n_17;
     int32_t r_record_guard;
     int32_t op;
     int why;
     int32_t value_8;
-    uint64_t a_word_96;
+    uint64_t a_word_100;
     uint64_t target_25;
     int64_t r_offset_to_25;
-    int64_t off_54;
-    int64_t a_word_97;
-    int32_t i_15;
+    int64_t off_55;
+    int64_t a_word_101;
+    int32_t i_19;
     int32_t a_label_11;
     uint64_t target_26;
     int64_t r_offset_to_26;
-    int64_t off_55;
-    int64_t a_word_98;
+    int64_t off_56;
+    int64_t a_word_102;
     int32_t a_label_12;
     uint64_t target_27;
     int64_t r_offset_to_27;
-    int64_t off_56;
-    int64_t a_word_99;
-    int32_t i_16;
+    int64_t off_57;
+    int64_t a_word_103;
+    int32_t i_20;
     oop a_value;
-    oop a_word_100;
-    uint64_t a_word_101;
-    int32_t i_17;
+    oop a_word_104;
+    uint64_t a_word_105;
+    int32_t i_21;
     cg_code_start = asm_pc;
     cg_root_act = a;
     cg_last_pc = -1;
@@ -25194,48 +25621,113 @@ exit_offset_to_5:;
     }
     asm_bind(cg_body_label);
     for (i_7 = 0; i_7 <= ps_order_count - 1; i_7++) {
-        b = ps_order[i_7];
+        cg_placed[ps_order[i_7]] = 0;
+    }
+    n_3 = 0;
+    for (i_8 = 0; i_8 <= ps_order_count - 1; i_8++) {
+        b_3 = ps_order[i_8];
+        if (cg_placed[b_3] == 0) {
+            cg_order[n_3] = b_3;
+            cg_placed[b_3] = 1;
+            n_3 = n_3 + 1;
+            t = ({
+    bl_2 = opt_blocks + b_3;
+    if (!((bl_2->succ1 >= 0) && (bl_2->last >= 0))) {
+        r_back_edge_after = -1;
+        goto exit_back_edge_after;
+    }
+    n_4 = bl_2->last;
+    nd = opt_nodes + n_4;
+    if (!(((int32_t)nd->op == O_BRANCH) && ({
+    n_5 = nd->a;
+    ({
+    nd_2 = opt_nodes + n_5;
+    if (!(nd_2->uses == 1)) {
+        r_is_fused = false;
+        goto exit_is_fused;
+    }
+    if (nd_2->next < 0) {
+        r_is_fused = false;
+        goto exit_is_fused;
+    }
+    n_6 = nd_2->next;
+    nx = opt_nodes + n_6;
+    r_is_fused = ((int32_t)nx->op == O_BRANCH) && (nx->a == n_5);
+exit_is_fused:;
+    r_is_fused; }); }))) {
+        r_back_edge_after = -1;
+        goto exit_back_edge_after;
+    }
+    s_8 = bl_2->succ0;
+    if (({
+    sb = opt_blocks + s_8;
+    r_is = (sb->npreds == 1) && ((sb->succ1 < 0) && ((sb->succ0 >= 0) && ({
+    b_4 = sb->succ0;
+    ((opt_blocks + b_4)->rpo <= (opt_blocks + b_3)->rpo) && ((sb->last >= 0) && ({
+    n_7 = sb->last;
+    (int32_t)(opt_nodes + n_7)->op == O_GOTO; })); })));
+    r_is; })) {
+        r_back_edge_after = bl_2->succ0;
+        goto exit_back_edge_after;
+    }
+    s_9 = bl_2->succ1;
+    if (({
+    sb_2 = opt_blocks + s_9;
+    r_is_2 = (sb_2->npreds == 1) && ((sb_2->succ1 < 0) && ((sb_2->succ0 >= 0) && ({
+    b_5 = sb_2->succ0;
+    ((opt_blocks + b_5)->rpo <= (opt_blocks + b_3)->rpo) && ((sb_2->last >= 0) && ({
+    n_8 = sb_2->last;
+    (int32_t)(opt_nodes + n_8)->op == O_GOTO; })); })));
+    r_is_2; })) {
+        r_back_edge_after = bl_2->succ1;
+        goto exit_back_edge_after;
+    }
+    r_back_edge_after = -1;
+exit_back_edge_after:;
+    r_back_edge_after; });
+            if ((t >= 0) && (cg_placed[t] == 0)) {
+                cg_order[n_3] = t;
+                cg_placed[t] = 1;
+                n_3 = n_3 + 1;
+            }
+        }
+    }
+    for (i_9 = 0; i_9 <= ps_order_count - 1; i_9++) {
+        b = cg_order[i_9];
         bl = opt_blocks + b;
         asm_bind(bl->label);
-        next_block = ({
-    if (i_7 + 1 < ps_order_count) {
-        i_8 = i_7 + 1;
-        v_4 = ps_order[i_8];
-    } else {
-        v_4 = -1;
-    }
-    v_4; });
-        n_3 = (opt_blocks + b)->first;
-        while (n_3 >= 0) {
-            nd = opt_nodes + n_3;
-            if (((nd->bcact != cg_last_act) || (nd->bcpc != cg_last_pc)) && (((int32_t)nd->op != O_PHI) && ((int32_t)nd->op != O_CONST))) {
-                if (nd->bcact == cg_root_act) {
-                    a_pc = nd->bcpc;
+        next_block = i_9 + 1 < ps_order_count ? cg_order[i_9 + 1] : -1;
+        n_9 = (opt_blocks + b)->first;
+        while (n_9 >= 0) {
+            nd_3 = opt_nodes + n_9;
+            if (((nd_3->bcact != cg_last_act) || (nd_3->bcpc != cg_last_pc)) && (((int32_t)nd_3->op != O_PHI) && ((int32_t)nd_3->op != O_CONST))) {
+                if (nd_3->bcact == cg_root_act) {
+                    a_pc = nd_3->bcpc;
                     if (asm_noting) {
                         asm_note((const char *)NULL, a_pc);
                     }
                 } else {
-                    if (nd->bcact != cg_last_act) {
-                        an_integer = nd->bcact;
+                    if (nd_3->bcact != cg_last_act) {
+                        an_integer = nd_3->bcact;
                         if (asm_noting) {
                             asm_note("inlined activation %d", an_integer);
                         }
                     }
-                    an_integer_2 = nd->bcpc;
+                    an_integer_2 = nd_3->bcpc;
                     if (asm_noting) {
                         asm_note("its pc %d", an_integer_2);
                     }
                 }
-                cg_last_act = nd->bcact;
-                cg_last_pc = nd->bcpc;
+                cg_last_act = nd_3->bcact;
+                cg_last_pc = nd_3->bcpc;
             }
-            opt_emit_node(n_3, b, next_block);
-            n_3 = nd->next;
+            opt_emit_node(n_9, b, next_block);
+            n_9 = nd_3->next;
         }
     }
     if (!({
-    for (i_9 = 0; i_9 <= cg_out_count - 1; i_9++) {
-        o_5 = cg_outs + i_9;
+    for (i_10 = 0; i_10 <= cg_out_count - 1; i_10++) {
+        o_5 = cg_outs + i_10;
         asm_bind(o_5->label);
         if (o_5->kind == OUT_DEOPT) {
             if (asm_noting) {
@@ -25284,10 +25776,46 @@ exit_offset_to_6:;
             if (asm_noting) {
                 asm_note("interrupt: call the runtime", 0);
             }
-            n_4 = o_5->node;
-            n_5 = o_5->node;
-            k = (int32_t)(opt_nodes + n_5)->aux;
-            pc = cg_bc_size + opt_record_state((opt_nodes + n_4)->state, k, n_4, true);
+            n_10 = o_5->node;
+            for (i_11 = (opt_nodes + n_10)->live; i_11 <= (opt_nodes + n_10)->live + (opt_nodes + n_10)->nlive - 1; i_11++) {
+                v_4 = ra_safe_list[i_11];
+                nd_4 = opt_nodes + v_4;
+                if (((nd_4->flags & NF_LAZY) != 0) && ((nd_4->reg >= 0) && (nd_4->slot >= 0))) {
+                    rt = (int32_t)nd_4->reg;
+                    off_22 = 8 * (int32_t)nd_4->slot;
+                    bits = (rt & REG_D) != 0 ? 0xC4000000LL : (rt & REG_W) == 0 ? 0xC0000000LL : 0x80000000LL;
+                    s_10 = (rt & REG_W) == 0 ? 3 : 2;
+                    if ((off_22 >= 0) && ((off_22 & ((1LL << s_10) - 1)) == 0) && ((off_22 >> s_10) <= 4095)) {
+                        a_word_37 = 0x39000000 | bits | ((((uint64_t)(off_22 >> s_10)) << 10) | (640ULL | (rt & 31)));
+                        if (asm_pc < asm_limit) {
+                            *(uint32_t *)asm_pc = a_word_37;
+                            asm_pc = asm_pc + 4;
+                        } else if (asm_error == ASM_OK) {
+                            asm_error = ASM_ERR_FULL;
+                        }
+                    } else {
+                        bits_2 = 0x38000000 | bits;
+                        if (!((off_22 >= -256) && (off_22 <= 255))) {
+                            if (asm_error == ASM_OK) {
+                                asm_error = ASM_ERR_IMMEDIATE;
+                            }
+                            goto exit_load_store_9;
+                        }
+                        a_word_38 = bits_2 | (((uint64_t)(off_22 & 511)) << 12) | (640ULL | (rt & 31));
+                        if (asm_pc < asm_limit) {
+                            *(uint32_t *)asm_pc = a_word_38;
+                            asm_pc = asm_pc + 4;
+                        } else if (asm_error == ASM_OK) {
+                            asm_error = ASM_ERR_FULL;
+                        }
+                    exit_load_store_9:;
+                    }
+                }
+            }
+            n_11 = o_5->node;
+            n_12 = o_5->node;
+            k = (int32_t)(opt_nodes + n_12)->aux;
+            pc = cg_bc_size + opt_record_state((opt_nodes + n_11)->state, k, n_11, true);
             if (asm_noting) {
                 asm_note("frame pc and sp", 0);
             }
@@ -25299,9 +25827,9 @@ exit_offset_to_6:;
                     }
                     goto exit_move_wide_3;
                 }
-                a_word_37 = 3531603968LL | (0ULL | (((uint64_t)value_3) << 5) | 16);
+                a_word_39 = 3531603968LL | (0ULL | (((uint64_t)value_3) << 5) | 16);
                 if (asm_pc < asm_limit) {
-                    *(uint32_t *)asm_pc = a_word_37;
+                    *(uint32_t *)asm_pc = a_word_39;
                     asm_pc = asm_pc + 4;
                 } else if (asm_error == ASM_OK) {
                     asm_error = ASM_ERR_FULL;
@@ -25310,30 +25838,54 @@ exit_offset_to_6:;
             } else {
                 asm_mov_imm(X16, (uint64_t)value_3);
             }
-            off_22 = (int64_t)&((frame *)0)->pc;
-            if ((off_22 >= 0) && ((off_22 & 7) == 0) && ((off_22 >> 3) <= 4095)) {
-                a_word_38 = 4177526784LL | ((((uint64_t)(off_22 >> 3)) << 10) | 624ULL);
+            off_23 = (int64_t)&((frame *)0)->pc;
+            if ((off_23 >= 0) && ((off_23 & 7) == 0) && ((off_23 >> 3) <= 4095)) {
+                a_word_40 = 4177526784LL | ((((uint64_t)(off_23 >> 3)) << 10) | 624ULL);
                 if (asm_pc < asm_limit) {
-                    *(uint32_t *)asm_pc = a_word_38;
+                    *(uint32_t *)asm_pc = a_word_40;
                     asm_pc = asm_pc + 4;
                 } else if (asm_error == ASM_OK) {
                     asm_error = ASM_ERR_FULL;
                 }
             } else {
-                if (!((off_22 >= -256) && (off_22 <= 255))) {
+                if (!((off_23 >= -256) && (off_23 <= 255))) {
                     if (asm_error == ASM_OK) {
                         asm_error = ASM_ERR_IMMEDIATE;
                     }
-                    goto exit_load_store_9;
+                    goto exit_load_store_10;
                 }
-                a_word_39 = 4160749568LL | (((uint64_t)(off_22 & 511)) << 12) | 624ULL;
+                a_word_41 = 4160749568LL | (((uint64_t)(off_23 & 511)) << 12) | 624ULL;
                 if (asm_pc < asm_limit) {
-                    *(uint32_t *)asm_pc = a_word_39;
+                    *(uint32_t *)asm_pc = a_word_41;
                     asm_pc = asm_pc + 4;
                 } else if (asm_error == ASM_OK) {
                     asm_error = ASM_ERR_FULL;
                 }
-            exit_load_store_9:;
+            exit_load_store_10:;
+            }
+            if (cg_doubles) {
+                if (asm_noting) {
+                    asm_note("the doubles around it", 0);
+                }
+                for (i_12 = 0; i_12 <= 7; i_12++) {
+                    rt_2 = D16 + 2 * i_12;
+                    rt2 = D16 + 2 * i_12 + 1;
+                    s_11 = (rt_2 & REG_W) == 0 ? 3 : 2;
+                    if (!(((-16 & ((1LL << s_11) - 1)) == 0) && (((-16LL >> s_11) >= -64) && ((-16LL >> s_11) <= 63)))) {
+                        if (asm_error == ASM_OK) {
+                            asm_error = ASM_ERR_IMMEDIATE;
+                        }
+                        goto exit_pair_5;
+                    }
+                    a_word_42 = 696254464 | ((rt_2 & REG_D) != 0 ? 0x44000000 : (rt_2 & REG_W) == 0 ? 0x80000000LL : 0) | (((uint64_t)((-16LL >> s_11) & 127)) << 15) | ((((uint64_t)(rt2 & 31)) << 10) | (992ULL | (rt_2 & 31)));
+                    if (asm_pc < asm_limit) {
+                        *(uint32_t *)asm_pc = a_word_42;
+                        asm_pc = asm_pc + 4;
+                    } else if (asm_error == ASM_OK) {
+                        asm_error = ASM_ERR_FULL;
+                    }
+                exit_pair_5:;
+                }
             }
             if (asm_pc < asm_limit) {
                 *(uint32_t *)asm_pc = 2853372896ULL;
@@ -25342,39 +25894,60 @@ exit_offset_to_6:;
                 asm_error = ASM_ERR_FULL;
             }
             target_7 = asm_target_of(cg_interrupt_label);
-            a_word_40 = 0x94000000LL | ({
-    off_23 = ((int64_t)(target_7 - asm_pc)) >> 2;
-    if (!((off_23 >= -33554432) && (off_23 <= 33554431))) {
+            a_word_43 = 0x94000000LL | ({
+    off_24 = ((int64_t)(target_7 - asm_pc)) >> 2;
+    if (!((off_24 >= -33554432) && (off_24 <= 33554431))) {
         if (asm_error == ASM_OK) {
             asm_error = ASM_ERR_RANGE;
         }
         r_offset_to_7 = 0;
         goto exit_offset_to_7;
     }
-    r_offset_to_7 = off_23 & 67108863;
+    r_offset_to_7 = off_24 & 67108863;
 exit_offset_to_7:;
     r_offset_to_7; });
             if (asm_pc < asm_limit) {
-                *(uint32_t *)asm_pc = a_word_40;
+                *(uint32_t *)asm_pc = a_word_43;
                 asm_pc = asm_pc + 4;
             } else if (asm_error == ASM_OK) {
                 asm_error = ASM_ERR_FULL;
             }
+            if (cg_doubles) {
+                for (i_13 = 7; i_13 >= 0; i_13--) {
+                    rt_3 = D16 + 2 * i_13;
+                    rt2_2 = D16 + 2 * i_13 + 1;
+                    s_12 = (rt_3 & REG_W) == 0 ? 3 : 2;
+                    if (!(((16 & ((1LL << s_12) - 1)) == 0) && (((16LL >> s_12) >= -64) && ((16LL >> s_12) <= 63)))) {
+                        if (asm_error == ASM_OK) {
+                            asm_error = ASM_ERR_IMMEDIATE;
+                        }
+                        goto exit_pair_6;
+                    }
+                    a_word_44 = 683671552 | ((rt_3 & REG_D) != 0 ? 0x44000000 : (rt_3 & REG_W) == 0 ? 0x80000000LL : 0) | (((uint64_t)((16LL >> s_12) & 127)) << 15) | ((((uint64_t)(rt2_2 & 31)) << 10) | (992ULL | (rt_3 & 31)));
+                    if (asm_pc < asm_limit) {
+                        *(uint32_t *)asm_pc = a_word_44;
+                        asm_pc = asm_pc + 4;
+                    } else if (asm_error == ASM_OK) {
+                        asm_error = ASM_ERR_FULL;
+                    }
+                exit_pair_6:;
+                }
+            }
             target_8 = asm_target_of(cg_exit_plain_label);
-            a_word_41 = 3036676096LL | ((((uint64_t)({
-    off_24 = ((int64_t)(target_8 - asm_pc)) >> 2;
-    if (!((off_24 >= -262144) && (off_24 <= 262143))) {
+            a_word_45 = 3036676096LL | ((((uint64_t)({
+    off_25 = ((int64_t)(target_8 - asm_pc)) >> 2;
+    if (!((off_25 >= -262144) && (off_25 <= 262143))) {
         if (asm_error == ASM_OK) {
             asm_error = ASM_ERR_RANGE;
         }
         r_offset_to_8 = 0;
         goto exit_offset_to_8;
     }
-    r_offset_to_8 = off_24 & 524287;
+    r_offset_to_8 = off_25 & 524287;
 exit_offset_to_8:;
     r_offset_to_8; })) << 5) | 0);
             if (asm_pc < asm_limit) {
-                *(uint32_t *)asm_pc = a_word_41;
+                *(uint32_t *)asm_pc = a_word_45;
                 asm_pc = asm_pc + 4;
             } else if (asm_error == ASM_OK) {
                 asm_error = ASM_ERR_FULL;
@@ -25382,98 +25955,98 @@ exit_offset_to_8:;
             if (asm_noting) {
                 asm_note("nil, true, false again (a GC may have moved them)", 0);
             }
-            off_25 = (int64_t)&((jit_state *)0)->nil_oop;
-            if (!(((off_25 & 7) == 0) && (((off_25 >> 3) >= -64) && ((off_25 >> 3) <= 63)))) {
+            off_26 = (int64_t)&((jit_state *)0)->nil_oop;
+            if (!(((off_26 & 7) == 0) && (((off_26 >> 3) >= -64) && ((off_26 >> 3) <= 63)))) {
                 if (asm_error == ASM_OK) {
                     asm_error = ASM_ERR_IMMEDIATE;
                 }
-                goto exit_pair_5;
+                goto exit_pair_7;
             }
-            a_word_42 = 2839543808LL | (((uint64_t)((off_25 >> 3) & 127)) << 15) | 25303ULL;
+            a_word_46 = 2839543808LL | (((uint64_t)((off_26 >> 3) & 127)) << 15) | 25303ULL;
             if (asm_pc < asm_limit) {
-                *(uint32_t *)asm_pc = a_word_42;
+                *(uint32_t *)asm_pc = a_word_46;
                 asm_pc = asm_pc + 4;
             } else if (asm_error == ASM_OK) {
                 asm_error = ASM_ERR_FULL;
             }
-        exit_pair_5:;
-            off_26 = (int64_t)&((jit_state *)0)->false_oop;
-            if ((off_26 >= 0) && ((off_26 & 7) == 0) && ((off_26 >> 3) <= 4095)) {
-                a_word_43 = 4181721088LL | ((((uint64_t)(off_26 >> 3)) << 10) | 729ULL);
+        exit_pair_7:;
+            off_27 = (int64_t)&((jit_state *)0)->false_oop;
+            if ((off_27 >= 0) && ((off_27 & 7) == 0) && ((off_27 >> 3) <= 4095)) {
+                a_word_47 = 4181721088LL | ((((uint64_t)(off_27 >> 3)) << 10) | 729ULL);
                 if (asm_pc < asm_limit) {
-                    *(uint32_t *)asm_pc = a_word_43;
+                    *(uint32_t *)asm_pc = a_word_47;
                     asm_pc = asm_pc + 4;
                 } else if (asm_error == ASM_OK) {
                     asm_error = ASM_ERR_FULL;
                 }
             } else {
-                if (!((off_26 >= -256) && (off_26 <= 255))) {
+                if (!((off_27 >= -256) && (off_27 <= 255))) {
                     if (asm_error == ASM_OK) {
                         asm_error = ASM_ERR_IMMEDIATE;
                     }
-                    goto exit_load_store_10;
+                    goto exit_load_store_11;
                 }
-                a_word_44 = 4164943872LL | (((uint64_t)(off_26 & 511)) << 12) | 729ULL;
+                a_word_48 = 4164943872LL | (((uint64_t)(off_27 & 511)) << 12) | 729ULL;
                 if (asm_pc < asm_limit) {
-                    *(uint32_t *)asm_pc = a_word_44;
+                    *(uint32_t *)asm_pc = a_word_48;
                     asm_pc = asm_pc + 4;
                 } else if (asm_error == ASM_OK) {
                     asm_error = ASM_ERR_FULL;
                 }
-            exit_load_store_10:;
+            exit_load_store_11:;
             }
-            n_6 = o_5->node;
-            for (i_10 = (opt_nodes + n_6)->live; i_10 <= (opt_nodes + n_6)->live + (opt_nodes + n_6)->nlive - 1; i_10++) {
-                v_5 = ra_safe_list[i_10];
-                nd_2 = opt_nodes + v_5;
-                if ((nd_2->reg >= 0) && (nd_2->slot >= 0)) {
-                    rt = (int32_t)nd_2->reg;
-                    off_27 = 8 * (int32_t)nd_2->slot;
-                    bits = (rt & REG_D) != 0 ? 0xC4400000LL : (rt & REG_W) == 0 ? 0xC0400000LL : 0x80400000LL;
-                    s_9 = (rt & REG_W) == 0 ? 3 : 2;
-                    if ((off_27 >= 0) && ((off_27 & ((1LL << s_9) - 1)) == 0) && ((off_27 >> s_9) <= 4095)) {
-                        a_word_45 = 0x39000000 | bits | ((((uint64_t)(off_27 >> s_9)) << 10) | (640ULL | (rt & 31)));
+            n_13 = o_5->node;
+            for (i_14 = (opt_nodes + n_13)->live; i_14 <= (opt_nodes + n_13)->live + (opt_nodes + n_13)->nlive - 1; i_14++) {
+                v_5 = ra_safe_list[i_14];
+                nd_5 = opt_nodes + v_5;
+                if ((nd_5->reg >= 0) && (nd_5->slot >= 0)) {
+                    rt_4 = (int32_t)nd_5->reg;
+                    off_28 = 8 * (int32_t)nd_5->slot;
+                    bits_3 = (rt_4 & REG_D) != 0 ? 0xC4400000LL : (rt_4 & REG_W) == 0 ? 0xC0400000LL : 0x80400000LL;
+                    s_14 = (rt_4 & REG_W) == 0 ? 3 : 2;
+                    if ((off_28 >= 0) && ((off_28 & ((1LL << s_14) - 1)) == 0) && ((off_28 >> s_14) <= 4095)) {
+                        a_word_49 = 0x39000000 | bits_3 | ((((uint64_t)(off_28 >> s_14)) << 10) | (640ULL | (rt_4 & 31)));
                         if (asm_pc < asm_limit) {
-                            *(uint32_t *)asm_pc = a_word_45;
+                            *(uint32_t *)asm_pc = a_word_49;
                             asm_pc = asm_pc + 4;
                         } else if (asm_error == ASM_OK) {
                             asm_error = ASM_ERR_FULL;
                         }
                     } else {
-                        bits_2 = 0x38000000 | bits;
-                        if (!((off_27 >= -256) && (off_27 <= 255))) {
+                        bits_4 = 0x38000000 | bits_3;
+                        if (!((off_28 >= -256) && (off_28 <= 255))) {
                             if (asm_error == ASM_OK) {
                                 asm_error = ASM_ERR_IMMEDIATE;
                             }
-                            goto exit_load_store_11;
+                            goto exit_load_store_12;
                         }
-                        a_word_46 = bits_2 | (((uint64_t)(off_27 & 511)) << 12) | (640ULL | (rt & 31));
+                        a_word_50 = bits_4 | (((uint64_t)(off_28 & 511)) << 12) | (640ULL | (rt_4 & 31));
                         if (asm_pc < asm_limit) {
-                            *(uint32_t *)asm_pc = a_word_46;
+                            *(uint32_t *)asm_pc = a_word_50;
                             asm_pc = asm_pc + 4;
                         } else if (asm_error == ASM_OK) {
                             asm_error = ASM_ERR_FULL;
                         }
-                    exit_load_store_11:;
+                    exit_load_store_12:;
                     }
                 }
             }
             a_label_3 = o_5->resume;
             target_9 = asm_target_of(a_label_3);
-            a_word_47 = 0x14000000 | ({
-    off_28 = ((int64_t)(target_9 - asm_pc)) >> 2;
-    if (!((off_28 >= -33554432) && (off_28 <= 33554431))) {
+            a_word_51 = 0x14000000 | ({
+    off_29 = ((int64_t)(target_9 - asm_pc)) >> 2;
+    if (!((off_29 >= -33554432) && (off_29 <= 33554431))) {
         if (asm_error == ASM_OK) {
             asm_error = ASM_ERR_RANGE;
         }
         r_offset_to_9 = 0;
         goto exit_offset_to_9;
     }
-    r_offset_to_9 = off_28 & 67108863;
+    r_offset_to_9 = off_29 & 67108863;
 exit_offset_to_9:;
     r_offset_to_9; });
             if (asm_pc < asm_limit) {
-                *(uint32_t *)asm_pc = a_word_47;
+                *(uint32_t *)asm_pc = a_word_51;
                 asm_pc = asm_pc + 4;
             } else if (asm_error == ASM_OK) {
                 asm_error = ASM_ERR_FULL;
@@ -25485,58 +26058,58 @@ exit_offset_to_9:;
             }
             obj = o_5->index & 255;
             v_6 = o_5->index >> 8;
-            for (i_11 = 0; i_11 <= 7; i_11++) {
-                rt_2 = 2 * i_11;
-                rt2 = 2 * i_11 + 1;
-                s_10 = (rt_2 & REG_W) == 0 ? 3 : 2;
-                if (!(((-16 & ((1LL << s_10) - 1)) == 0) && (((-16LL >> s_10) >= -64) && ((-16LL >> s_10) <= 63)))) {
+            for (i_15 = 0; i_15 <= 7; i_15++) {
+                rt_5 = 2 * i_15;
+                rt2_3 = 2 * i_15 + 1;
+                s_15 = (rt_5 & REG_W) == 0 ? 3 : 2;
+                if (!(((-16 & ((1LL << s_15) - 1)) == 0) && (((-16LL >> s_15) >= -64) && ((-16LL >> s_15) <= 63)))) {
                     if (asm_error == ASM_OK) {
                         asm_error = ASM_ERR_IMMEDIATE;
                     }
-                    goto exit_pair_6;
+                    goto exit_pair_8;
                 }
-                a_word_48 = 696254464 | ((rt_2 & REG_D) != 0 ? 0x44000000 : (rt_2 & REG_W) == 0 ? 0x80000000LL : 0) | (((uint64_t)((-16LL >> s_10) & 127)) << 15) | ((((uint64_t)(rt2 & 31)) << 10) | (992ULL | (rt_2 & 31)));
+                a_word_52 = 696254464 | ((rt_5 & REG_D) != 0 ? 0x44000000 : (rt_5 & REG_W) == 0 ? 0x80000000LL : 0) | (((uint64_t)((-16LL >> s_15) & 127)) << 15) | ((((uint64_t)(rt2_3 & 31)) << 10) | (992ULL | (rt_5 & 31)));
                 if (asm_pc < asm_limit) {
-                    *(uint32_t *)asm_pc = a_word_48;
+                    *(uint32_t *)asm_pc = a_word_52;
                     asm_pc = asm_pc + 4;
                 } else if (asm_error == ASM_OK) {
                     asm_error = ASM_ERR_FULL;
                 }
-            exit_pair_6:;
+            exit_pair_8:;
             }
             if (cg_doubles) {
-                for (i_12 = 0; i_12 <= 7; i_12++) {
-                    rt_3 = D16 + 2 * i_12;
-                    rt2_2 = D16 + 2 * i_12 + 1;
-                    s_11 = (rt_3 & REG_W) == 0 ? 3 : 2;
-                    if (!(((-16 & ((1LL << s_11) - 1)) == 0) && (((-16LL >> s_11) >= -64) && ((-16LL >> s_11) <= 63)))) {
+                for (i_16 = 0; i_16 <= 7; i_16++) {
+                    rt_6 = D16 + 2 * i_16;
+                    rt2_4 = D16 + 2 * i_16 + 1;
+                    s_16 = (rt_6 & REG_W) == 0 ? 3 : 2;
+                    if (!(((-16 & ((1LL << s_16) - 1)) == 0) && (((-16LL >> s_16) >= -64) && ((-16LL >> s_16) <= 63)))) {
                         if (asm_error == ASM_OK) {
                             asm_error = ASM_ERR_IMMEDIATE;
                         }
-                        goto exit_pair_7;
+                        goto exit_pair_9;
                     }
-                    a_word_49 = 696254464 | ((rt_3 & REG_D) != 0 ? 0x44000000 : (rt_3 & REG_W) == 0 ? 0x80000000LL : 0) | (((uint64_t)((-16LL >> s_11) & 127)) << 15) | ((((uint64_t)(rt2_2 & 31)) << 10) | (992ULL | (rt_3 & 31)));
+                    a_word_53 = 696254464 | ((rt_6 & REG_D) != 0 ? 0x44000000 : (rt_6 & REG_W) == 0 ? 0x80000000LL : 0) | (((uint64_t)((-16LL >> s_16) & 127)) << 15) | ((((uint64_t)(rt2_4 & 31)) << 10) | (992ULL | (rt_6 & 31)));
                     if (asm_pc < asm_limit) {
-                        *(uint32_t *)asm_pc = a_word_49;
+                        *(uint32_t *)asm_pc = a_word_53;
                         asm_pc = asm_pc + 4;
                     } else if (asm_error == ASM_OK) {
                         asm_error = ASM_ERR_FULL;
                     }
-                exit_pair_7:;
+                exit_pair_9:;
                 }
             }
             if ((obj & REG_SP) != 0) {
-                a_word_50 = 2432696320LL | (0ULL | ((((uint64_t)(obj & 31)) << 5) | 16));
+                a_word_54 = 2432696320LL | (0ULL | ((((uint64_t)(obj & 31)) << 5) | 16));
                 if (asm_pc < asm_limit) {
-                    *(uint32_t *)asm_pc = a_word_50;
+                    *(uint32_t *)asm_pc = a_word_54;
                     asm_pc = asm_pc + 4;
                 } else if (asm_error == ASM_OK) {
                     asm_error = ASM_ERR_FULL;
                 }
                 goto exit_add_sub_4;
-                a_word_51 = 2436890624LL | (0ULL | ((((uint64_t)(obj & 31)) << 5) | 16));
+                a_word_55 = 2436890624LL | (0ULL | ((((uint64_t)(obj & 31)) << 5) | 16));
                 if (asm_pc < asm_limit) {
-                    *(uint32_t *)asm_pc = a_word_51;
+                    *(uint32_t *)asm_pc = a_word_55;
                     asm_pc = asm_pc + 4;
                 } else if (asm_error == ASM_OK) {
                     asm_error = ASM_ERR_FULL;
@@ -25547,26 +26120,26 @@ exit_offset_to_9:;
                 }
             exit_add_sub_4:;
             } else {
-                a_word_52 = 2852126720LL | (0ULL | ((((uint64_t)(obj & 31)) << 16) | 992ULL | 16));
+                a_word_56 = 2852126720LL | (0ULL | ((((uint64_t)(obj & 31)) << 16) | 992ULL | 16));
                 if (asm_pc < asm_limit) {
-                    *(uint32_t *)asm_pc = a_word_52;
+                    *(uint32_t *)asm_pc = a_word_56;
                     asm_pc = asm_pc + 4;
                 } else if (asm_error == ASM_OK) {
                     asm_error = ASM_ERR_FULL;
                 }
             }
             if ((v_6 & REG_SP) != 0) {
-                a_word_53 = 2432696320LL | (0ULL | ((((uint64_t)(v_6 & 31)) << 5) | 17));
+                a_word_57 = 2432696320LL | (0ULL | ((((uint64_t)(v_6 & 31)) << 5) | 17));
                 if (asm_pc < asm_limit) {
-                    *(uint32_t *)asm_pc = a_word_53;
+                    *(uint32_t *)asm_pc = a_word_57;
                     asm_pc = asm_pc + 4;
                 } else if (asm_error == ASM_OK) {
                     asm_error = ASM_ERR_FULL;
                 }
                 goto exit_add_sub_5;
-                a_word_54 = 2436890624LL | (0ULL | ((((uint64_t)(v_6 & 31)) << 5) | 17));
+                a_word_58 = 2436890624LL | (0ULL | ((((uint64_t)(v_6 & 31)) << 5) | 17));
                 if (asm_pc < asm_limit) {
-                    *(uint32_t *)asm_pc = a_word_54;
+                    *(uint32_t *)asm_pc = a_word_58;
                     asm_pc = asm_pc + 4;
                 } else if (asm_error == ASM_OK) {
                     asm_error = ASM_ERR_FULL;
@@ -25577,9 +26150,9 @@ exit_offset_to_9:;
                 }
             exit_add_sub_5:;
             } else {
-                a_word_55 = 2852126720LL | (0ULL | ((((uint64_t)(v_6 & 31)) << 16) | 992ULL | 17));
+                a_word_59 = 2852126720LL | (0ULL | ((((uint64_t)(v_6 & 31)) << 16) | 992ULL | 17));
                 if (asm_pc < asm_limit) {
-                    *(uint32_t *)asm_pc = a_word_55;
+                    *(uint32_t *)asm_pc = a_word_59;
                     asm_pc = asm_pc + 4;
                 } else if (asm_error == ASM_OK) {
                     asm_error = ASM_ERR_FULL;
@@ -25598,80 +26171,80 @@ exit_offset_to_9:;
                 asm_error = ASM_ERR_FULL;
             }
             target_10 = asm_target_of(cg_barrier_label);
-            a_word_56 = 0x94000000LL | ({
-    off_29 = ((int64_t)(target_10 - asm_pc)) >> 2;
-    if (!((off_29 >= -33554432) && (off_29 <= 33554431))) {
+            a_word_60 = 0x94000000LL | ({
+    off_30 = ((int64_t)(target_10 - asm_pc)) >> 2;
+    if (!((off_30 >= -33554432) && (off_30 <= 33554431))) {
         if (asm_error == ASM_OK) {
             asm_error = ASM_ERR_RANGE;
         }
         r_offset_to_10 = 0;
         goto exit_offset_to_10;
     }
-    r_offset_to_10 = off_29 & 67108863;
+    r_offset_to_10 = off_30 & 67108863;
 exit_offset_to_10:;
     r_offset_to_10; });
             if (asm_pc < asm_limit) {
-                *(uint32_t *)asm_pc = a_word_56;
+                *(uint32_t *)asm_pc = a_word_60;
                 asm_pc = asm_pc + 4;
             } else if (asm_error == ASM_OK) {
                 asm_error = ASM_ERR_FULL;
             }
             if (cg_doubles) {
-                for (i_13 = 7; i_13 >= 0; i_13--) {
-                    rt_4 = D16 + 2 * i_13;
-                    rt2_3 = D16 + 2 * i_13 + 1;
-                    s_12 = (rt_4 & REG_W) == 0 ? 3 : 2;
-                    if (!(((16 & ((1LL << s_12) - 1)) == 0) && (((16LL >> s_12) >= -64) && ((16LL >> s_12) <= 63)))) {
+                for (i_17 = 7; i_17 >= 0; i_17--) {
+                    rt_7 = D16 + 2 * i_17;
+                    rt2_5 = D16 + 2 * i_17 + 1;
+                    s_17 = (rt_7 & REG_W) == 0 ? 3 : 2;
+                    if (!(((16 & ((1LL << s_17) - 1)) == 0) && (((16LL >> s_17) >= -64) && ((16LL >> s_17) <= 63)))) {
                         if (asm_error == ASM_OK) {
                             asm_error = ASM_ERR_IMMEDIATE;
                         }
-                        goto exit_pair_8;
+                        goto exit_pair_10;
                     }
-                    a_word_57 = 683671552 | ((rt_4 & REG_D) != 0 ? 0x44000000 : (rt_4 & REG_W) == 0 ? 0x80000000LL : 0) | (((uint64_t)((16LL >> s_12) & 127)) << 15) | ((((uint64_t)(rt2_3 & 31)) << 10) | (992ULL | (rt_4 & 31)));
+                    a_word_61 = 683671552 | ((rt_7 & REG_D) != 0 ? 0x44000000 : (rt_7 & REG_W) == 0 ? 0x80000000LL : 0) | (((uint64_t)((16LL >> s_17) & 127)) << 15) | ((((uint64_t)(rt2_5 & 31)) << 10) | (992ULL | (rt_7 & 31)));
                     if (asm_pc < asm_limit) {
-                        *(uint32_t *)asm_pc = a_word_57;
+                        *(uint32_t *)asm_pc = a_word_61;
                         asm_pc = asm_pc + 4;
                     } else if (asm_error == ASM_OK) {
                         asm_error = ASM_ERR_FULL;
                     }
-                exit_pair_8:;
+                exit_pair_10:;
                 }
             }
-            for (i_14 = 7; i_14 >= 0; i_14--) {
-                rt_5 = 2 * i_14;
-                rt2_4 = 2 * i_14 + 1;
-                s_13 = (rt_5 & REG_W) == 0 ? 3 : 2;
-                if (!(((16 & ((1LL << s_13) - 1)) == 0) && (((16LL >> s_13) >= -64) && ((16LL >> s_13) <= 63)))) {
+            for (i_18 = 7; i_18 >= 0; i_18--) {
+                rt_8 = 2 * i_18;
+                rt2_6 = 2 * i_18 + 1;
+                s_18 = (rt_8 & REG_W) == 0 ? 3 : 2;
+                if (!(((16 & ((1LL << s_18) - 1)) == 0) && (((16LL >> s_18) >= -64) && ((16LL >> s_18) <= 63)))) {
                     if (asm_error == ASM_OK) {
                         asm_error = ASM_ERR_IMMEDIATE;
                     }
-                    goto exit_pair_9;
+                    goto exit_pair_11;
                 }
-                a_word_58 = 683671552 | ((rt_5 & REG_D) != 0 ? 0x44000000 : (rt_5 & REG_W) == 0 ? 0x80000000LL : 0) | (((uint64_t)((16LL >> s_13) & 127)) << 15) | ((((uint64_t)(rt2_4 & 31)) << 10) | (992ULL | (rt_5 & 31)));
+                a_word_62 = 683671552 | ((rt_8 & REG_D) != 0 ? 0x44000000 : (rt_8 & REG_W) == 0 ? 0x80000000LL : 0) | (((uint64_t)((16LL >> s_18) & 127)) << 15) | ((((uint64_t)(rt2_6 & 31)) << 10) | (992ULL | (rt_8 & 31)));
                 if (asm_pc < asm_limit) {
-                    *(uint32_t *)asm_pc = a_word_58;
+                    *(uint32_t *)asm_pc = a_word_62;
                     asm_pc = asm_pc + 4;
                 } else if (asm_error == ASM_OK) {
                     asm_error = ASM_ERR_FULL;
                 }
-            exit_pair_9:;
+            exit_pair_11:;
             }
             a_label_4 = o_5->resume;
             target_11 = asm_target_of(a_label_4);
-            a_word_59 = 0x14000000 | ({
-    off_30 = ((int64_t)(target_11 - asm_pc)) >> 2;
-    if (!((off_30 >= -33554432) && (off_30 <= 33554431))) {
+            a_word_63 = 0x14000000 | ({
+    off_31 = ((int64_t)(target_11 - asm_pc)) >> 2;
+    if (!((off_31 >= -33554432) && (off_31 <= 33554431))) {
         if (asm_error == ASM_OK) {
             asm_error = ASM_ERR_RANGE;
         }
         r_offset_to_11 = 0;
         goto exit_offset_to_11;
     }
-    r_offset_to_11 = off_30 & 67108863;
+    r_offset_to_11 = off_31 & 67108863;
 exit_offset_to_11:;
     r_offset_to_11; });
             if (asm_pc < asm_limit) {
-                *(uint32_t *)asm_pc = a_word_59;
+                *(uint32_t *)asm_pc = a_word_63;
                 asm_pc = asm_pc + 4;
             } else if (asm_error == ASM_OK) {
                 asm_error = ASM_ERR_FULL;
@@ -25681,30 +26254,30 @@ exit_offset_to_11:;
             if (asm_noting) {
                 asm_note("deoptimize after the call: the runtime rebuilds the frames (the result in its slot)", 0);
             }
-            off_31 = 8 * cg_slot_top;
-            if ((off_31 >= 0) && ((off_31 & 7) == 0) && ((off_31 >> 3) <= 4095)) {
-                a_word_60 = 4177526784LL | ((((uint64_t)(off_31 >> 3)) << 10) | 640ULL);
+            off_32 = 8 * cg_slot_top;
+            if ((off_32 >= 0) && ((off_32 & 7) == 0) && ((off_32 >> 3) <= 4095)) {
+                a_word_64 = 4177526784LL | ((((uint64_t)(off_32 >> 3)) << 10) | 640ULL);
                 if (asm_pc < asm_limit) {
-                    *(uint32_t *)asm_pc = a_word_60;
+                    *(uint32_t *)asm_pc = a_word_64;
                     asm_pc = asm_pc + 4;
                 } else if (asm_error == ASM_OK) {
                     asm_error = ASM_ERR_FULL;
                 }
             } else {
-                if (!((off_31 >= -256) && (off_31 <= 255))) {
+                if (!((off_32 >= -256) && (off_32 <= 255))) {
                     if (asm_error == ASM_OK) {
                         asm_error = ASM_ERR_IMMEDIATE;
                     }
-                    goto exit_load_store_12;
+                    goto exit_load_store_13;
                 }
-                a_word_61 = 4160749568LL | (((uint64_t)(off_31 & 511)) << 12) | 640ULL;
+                a_word_65 = 4160749568LL | (((uint64_t)(off_32 & 511)) << 12) | 640ULL;
                 if (asm_pc < asm_limit) {
-                    *(uint32_t *)asm_pc = a_word_61;
+                    *(uint32_t *)asm_pc = a_word_65;
                     asm_pc = asm_pc + 4;
                 } else if (asm_error == ASM_OK) {
                     asm_error = ASM_ERR_FULL;
                 }
-            exit_load_store_12:;
+            exit_load_store_13:;
             }
             pc_2 = cg_bc_size + o_5->index;
             sp = cg_slot_top + 1;
@@ -25719,9 +26292,9 @@ exit_offset_to_11:;
                     }
                     goto exit_move_wide_4;
                 }
-                a_word_62 = 3531603968LL | (0ULL | (((uint64_t)value_4) << 5) | 16);
+                a_word_66 = 3531603968LL | (0ULL | (((uint64_t)value_4) << 5) | 16);
                 if (asm_pc < asm_limit) {
-                    *(uint32_t *)asm_pc = a_word_62;
+                    *(uint32_t *)asm_pc = a_word_66;
                     asm_pc = asm_pc + 4;
                 } else if (asm_error == ASM_OK) {
                     asm_error = ASM_ERR_FULL;
@@ -25730,30 +26303,30 @@ exit_offset_to_11:;
             } else {
                 asm_mov_imm(X16, (uint64_t)value_4);
             }
-            off_32 = (int64_t)&((frame *)0)->pc;
-            if ((off_32 >= 0) && ((off_32 & 7) == 0) && ((off_32 >> 3) <= 4095)) {
-                a_word_63 = 4177526784LL | ((((uint64_t)(off_32 >> 3)) << 10) | 624ULL);
+            off_33 = (int64_t)&((frame *)0)->pc;
+            if ((off_33 >= 0) && ((off_33 & 7) == 0) && ((off_33 >> 3) <= 4095)) {
+                a_word_67 = 4177526784LL | ((((uint64_t)(off_33 >> 3)) << 10) | 624ULL);
                 if (asm_pc < asm_limit) {
-                    *(uint32_t *)asm_pc = a_word_63;
+                    *(uint32_t *)asm_pc = a_word_67;
                     asm_pc = asm_pc + 4;
                 } else if (asm_error == ASM_OK) {
                     asm_error = ASM_ERR_FULL;
                 }
             } else {
-                if (!((off_32 >= -256) && (off_32 <= 255))) {
+                if (!((off_33 >= -256) && (off_33 <= 255))) {
                     if (asm_error == ASM_OK) {
                         asm_error = ASM_ERR_IMMEDIATE;
                     }
-                    goto exit_load_store_13;
+                    goto exit_load_store_14;
                 }
-                a_word_64 = 4160749568LL | (((uint64_t)(off_32 & 511)) << 12) | 624ULL;
+                a_word_68 = 4160749568LL | (((uint64_t)(off_33 & 511)) << 12) | 624ULL;
                 if (asm_pc < asm_limit) {
-                    *(uint32_t *)asm_pc = a_word_64;
+                    *(uint32_t *)asm_pc = a_word_68;
                     asm_pc = asm_pc + 4;
                 } else if (asm_error == ASM_OK) {
                     asm_error = ASM_ERR_FULL;
                 }
-            exit_load_store_13:;
+            exit_load_store_14:;
             }
             if (asm_pc < asm_limit) {
                 *(uint32_t *)asm_pc = 2853372896ULL;
@@ -25769,9 +26342,9 @@ exit_offset_to_11:;
                     }
                     goto exit_move_wide_5;
                 }
-                a_word_65 = 3531603968LL | (0ULL | (((uint64_t)value_5) << 5) | 1);
+                a_word_69 = 3531603968LL | (0ULL | (((uint64_t)value_5) << 5) | 1);
                 if (asm_pc < asm_limit) {
-                    *(uint32_t *)asm_pc = a_word_65;
+                    *(uint32_t *)asm_pc = a_word_69;
                     asm_pc = asm_pc + 4;
                 } else if (asm_error == ASM_OK) {
                     asm_error = ASM_ERR_FULL;
@@ -25781,39 +26354,39 @@ exit_offset_to_11:;
                 asm_mov_imm(X1, (uint64_t)value_5);
             }
             target_12 = asm_target_of(cg_deopt_return_label);
-            a_word_66 = 0x94000000LL | ({
-    off_33 = ((int64_t)(target_12 - asm_pc)) >> 2;
-    if (!((off_33 >= -33554432) && (off_33 <= 33554431))) {
+            a_word_70 = 0x94000000LL | ({
+    off_34 = ((int64_t)(target_12 - asm_pc)) >> 2;
+    if (!((off_34 >= -33554432) && (off_34 <= 33554431))) {
         if (asm_error == ASM_OK) {
             asm_error = ASM_ERR_RANGE;
         }
         r_offset_to_12 = 0;
         goto exit_offset_to_12;
     }
-    r_offset_to_12 = off_33 & 67108863;
+    r_offset_to_12 = off_34 & 67108863;
 exit_offset_to_12:;
     r_offset_to_12; });
             if (asm_pc < asm_limit) {
-                *(uint32_t *)asm_pc = a_word_66;
+                *(uint32_t *)asm_pc = a_word_70;
                 asm_pc = asm_pc + 4;
             } else if (asm_error == ASM_OK) {
                 asm_error = ASM_ERR_FULL;
             }
             target_13 = asm_target_of(cg_exit_plain_label);
-            a_word_67 = 0x14000000 | ({
-    off_34 = ((int64_t)(target_13 - asm_pc)) >> 2;
-    if (!((off_34 >= -33554432) && (off_34 <= 33554431))) {
+            a_word_71 = 0x14000000 | ({
+    off_35 = ((int64_t)(target_13 - asm_pc)) >> 2;
+    if (!((off_35 >= -33554432) && (off_35 <= 33554431))) {
         if (asm_error == ASM_OK) {
             asm_error = ASM_ERR_RANGE;
         }
         r_offset_to_13 = 0;
         goto exit_offset_to_13;
     }
-    r_offset_to_13 = off_34 & 67108863;
+    r_offset_to_13 = off_35 & 67108863;
 exit_offset_to_13:;
     r_offset_to_13; });
             if (asm_pc < asm_limit) {
-                *(uint32_t *)asm_pc = a_word_67;
+                *(uint32_t *)asm_pc = a_word_71;
                 asm_pc = asm_pc + 4;
             } else if (asm_error == ASM_OK) {
                 asm_error = ASM_ERR_FULL;
@@ -25830,47 +26403,47 @@ exit_offset_to_13:;
             if (asm_noting) {
                 asm_note("resumption after the call (the interpreter returned into the frame): the result from its slot", 0);
             }
-            off_35 = 8 * cg_slot_top;
-            if ((off_35 >= 0) && ((off_35 & 7) == 0) && ((off_35 >> 3) <= 4095)) {
-                a_word_68 = 4181721088LL | ((((uint64_t)(off_35 >> 3)) << 10) | 640ULL);
+            off_36 = 8 * cg_slot_top;
+            if ((off_36 >= 0) && ((off_36 & 7) == 0) && ((off_36 >> 3) <= 4095)) {
+                a_word_72 = 4181721088LL | ((((uint64_t)(off_36 >> 3)) << 10) | 640ULL);
                 if (asm_pc < asm_limit) {
-                    *(uint32_t *)asm_pc = a_word_68;
+                    *(uint32_t *)asm_pc = a_word_72;
                     asm_pc = asm_pc + 4;
                 } else if (asm_error == ASM_OK) {
                     asm_error = ASM_ERR_FULL;
                 }
             } else {
-                if (!((off_35 >= -256) && (off_35 <= 255))) {
+                if (!((off_36 >= -256) && (off_36 <= 255))) {
                     if (asm_error == ASM_OK) {
                         asm_error = ASM_ERR_IMMEDIATE;
                     }
-                    goto exit_load_store_14;
+                    goto exit_load_store_15;
                 }
-                a_word_69 = 4164943872LL | (((uint64_t)(off_35 & 511)) << 12) | 640ULL;
+                a_word_73 = 4164943872LL | (((uint64_t)(off_36 & 511)) << 12) | 640ULL;
                 if (asm_pc < asm_limit) {
-                    *(uint32_t *)asm_pc = a_word_69;
+                    *(uint32_t *)asm_pc = a_word_73;
                     asm_pc = asm_pc + 4;
                 } else if (asm_error == ASM_OK) {
                     asm_error = ASM_ERR_FULL;
                 }
-            exit_load_store_14:;
+            exit_load_store_15:;
             }
             a_label_5 = o_5->resume;
             target_14 = asm_target_of(a_label_5);
-            a_word_70 = 0x14000000 | ({
-    off_36 = ((int64_t)(target_14 - asm_pc)) >> 2;
-    if (!((off_36 >= -33554432) && (off_36 <= 33554431))) {
+            a_word_74 = 0x14000000 | ({
+    off_37 = ((int64_t)(target_14 - asm_pc)) >> 2;
+    if (!((off_37 >= -33554432) && (off_37 <= 33554431))) {
         if (asm_error == ASM_OK) {
             asm_error = ASM_ERR_RANGE;
         }
         r_offset_to_14 = 0;
         goto exit_offset_to_14;
     }
-    r_offset_to_14 = off_36 & 67108863;
+    r_offset_to_14 = off_37 & 67108863;
 exit_offset_to_14:;
     r_offset_to_14; });
             if (asm_pc < asm_limit) {
-                *(uint32_t *)asm_pc = a_word_70;
+                *(uint32_t *)asm_pc = a_word_74;
                 asm_pc = asm_pc + 4;
             } else if (asm_error == ASM_OK) {
                 asm_error = ASM_ERR_FULL;
@@ -25880,30 +26453,30 @@ exit_offset_to_14:;
             if (asm_noting) {
                 asm_note("interrupt after the call: the runtime handles it (the result in its slot)", 0);
             }
-            off_37 = 8 * cg_slot_top;
-            if ((off_37 >= 0) && ((off_37 & 7) == 0) && ((off_37 >> 3) <= 4095)) {
-                a_word_71 = 4177526784LL | ((((uint64_t)(off_37 >> 3)) << 10) | 640ULL);
+            off_38 = 8 * cg_slot_top;
+            if ((off_38 >= 0) && ((off_38 & 7) == 0) && ((off_38 >> 3) <= 4095)) {
+                a_word_75 = 4177526784LL | ((((uint64_t)(off_38 >> 3)) << 10) | 640ULL);
                 if (asm_pc < asm_limit) {
-                    *(uint32_t *)asm_pc = a_word_71;
+                    *(uint32_t *)asm_pc = a_word_75;
                     asm_pc = asm_pc + 4;
                 } else if (asm_error == ASM_OK) {
                     asm_error = ASM_ERR_FULL;
                 }
             } else {
-                if (!((off_37 >= -256) && (off_37 <= 255))) {
+                if (!((off_38 >= -256) && (off_38 <= 255))) {
                     if (asm_error == ASM_OK) {
                         asm_error = ASM_ERR_IMMEDIATE;
                     }
-                    goto exit_load_store_15;
+                    goto exit_load_store_16;
                 }
-                a_word_72 = 4160749568LL | (((uint64_t)(off_37 & 511)) << 12) | 640ULL;
+                a_word_76 = 4160749568LL | (((uint64_t)(off_38 & 511)) << 12) | 640ULL;
                 if (asm_pc < asm_limit) {
-                    *(uint32_t *)asm_pc = a_word_72;
+                    *(uint32_t *)asm_pc = a_word_76;
                     asm_pc = asm_pc + 4;
                 } else if (asm_error == ASM_OK) {
                     asm_error = ASM_ERR_FULL;
                 }
-            exit_load_store_15:;
+            exit_load_store_16:;
             }
             pc_4 = cg_bc_size + o_5->index;
             sp_2 = cg_slot_top + 1;
@@ -25918,9 +26491,9 @@ exit_offset_to_14:;
                     }
                     goto exit_move_wide_6;
                 }
-                a_word_73 = 3531603968LL | (0ULL | (((uint64_t)value_6) << 5) | 16);
+                a_word_77 = 3531603968LL | (0ULL | (((uint64_t)value_6) << 5) | 16);
                 if (asm_pc < asm_limit) {
-                    *(uint32_t *)asm_pc = a_word_73;
+                    *(uint32_t *)asm_pc = a_word_77;
                     asm_pc = asm_pc + 4;
                 } else if (asm_error == ASM_OK) {
                     asm_error = ASM_ERR_FULL;
@@ -25929,30 +26502,30 @@ exit_offset_to_14:;
             } else {
                 asm_mov_imm(X16, (uint64_t)value_6);
             }
-            off_38 = (int64_t)&((frame *)0)->pc;
-            if ((off_38 >= 0) && ((off_38 & 7) == 0) && ((off_38 >> 3) <= 4095)) {
-                a_word_74 = 4177526784LL | ((((uint64_t)(off_38 >> 3)) << 10) | 624ULL);
+            off_39 = (int64_t)&((frame *)0)->pc;
+            if ((off_39 >= 0) && ((off_39 & 7) == 0) && ((off_39 >> 3) <= 4095)) {
+                a_word_78 = 4177526784LL | ((((uint64_t)(off_39 >> 3)) << 10) | 624ULL);
                 if (asm_pc < asm_limit) {
-                    *(uint32_t *)asm_pc = a_word_74;
+                    *(uint32_t *)asm_pc = a_word_78;
                     asm_pc = asm_pc + 4;
                 } else if (asm_error == ASM_OK) {
                     asm_error = ASM_ERR_FULL;
                 }
             } else {
-                if (!((off_38 >= -256) && (off_38 <= 255))) {
+                if (!((off_39 >= -256) && (off_39 <= 255))) {
                     if (asm_error == ASM_OK) {
                         asm_error = ASM_ERR_IMMEDIATE;
                     }
-                    goto exit_load_store_16;
+                    goto exit_load_store_17;
                 }
-                a_word_75 = 4160749568LL | (((uint64_t)(off_38 & 511)) << 12) | 624ULL;
+                a_word_79 = 4160749568LL | (((uint64_t)(off_39 & 511)) << 12) | 624ULL;
                 if (asm_pc < asm_limit) {
-                    *(uint32_t *)asm_pc = a_word_75;
+                    *(uint32_t *)asm_pc = a_word_79;
                     asm_pc = asm_pc + 4;
                 } else if (asm_error == ASM_OK) {
                     asm_error = ASM_ERR_FULL;
                 }
-            exit_load_store_16:;
+            exit_load_store_17:;
             }
             if (asm_pc < asm_limit) {
                 *(uint32_t *)asm_pc = 2853372896ULL;
@@ -25961,39 +26534,39 @@ exit_offset_to_14:;
                 asm_error = ASM_ERR_FULL;
             }
             target_15 = asm_target_of(cg_interrupt_label);
-            a_word_76 = 0x94000000LL | ({
-    off_39 = ((int64_t)(target_15 - asm_pc)) >> 2;
-    if (!((off_39 >= -33554432) && (off_39 <= 33554431))) {
+            a_word_80 = 0x94000000LL | ({
+    off_40 = ((int64_t)(target_15 - asm_pc)) >> 2;
+    if (!((off_40 >= -33554432) && (off_40 <= 33554431))) {
         if (asm_error == ASM_OK) {
             asm_error = ASM_ERR_RANGE;
         }
         r_offset_to_15 = 0;
         goto exit_offset_to_15;
     }
-    r_offset_to_15 = off_39 & 67108863;
+    r_offset_to_15 = off_40 & 67108863;
 exit_offset_to_15:;
     r_offset_to_15; });
             if (asm_pc < asm_limit) {
-                *(uint32_t *)asm_pc = a_word_76;
+                *(uint32_t *)asm_pc = a_word_80;
                 asm_pc = asm_pc + 4;
             } else if (asm_error == ASM_OK) {
                 asm_error = ASM_ERR_FULL;
             }
             target_16 = asm_target_of(cg_exit_plain_label);
-            a_word_77 = 3036676096LL | ((((uint64_t)({
-    off_40 = ((int64_t)(target_16 - asm_pc)) >> 2;
-    if (!((off_40 >= -262144) && (off_40 <= 262143))) {
+            a_word_81 = 3036676096LL | ((((uint64_t)({
+    off_41 = ((int64_t)(target_16 - asm_pc)) >> 2;
+    if (!((off_41 >= -262144) && (off_41 <= 262143))) {
         if (asm_error == ASM_OK) {
             asm_error = ASM_ERR_RANGE;
         }
         r_offset_to_16 = 0;
         goto exit_offset_to_16;
     }
-    r_offset_to_16 = off_40 & 524287;
+    r_offset_to_16 = off_41 & 524287;
 exit_offset_to_16:;
     r_offset_to_16; })) << 5) | 0);
             if (asm_pc < asm_limit) {
-                *(uint32_t *)asm_pc = a_word_77;
+                *(uint32_t *)asm_pc = a_word_81;
                 asm_pc = asm_pc + 4;
             } else if (asm_error == ASM_OK) {
                 asm_error = ASM_ERR_FULL;
@@ -26001,51 +26574,26 @@ exit_offset_to_16:;
             if (asm_noting) {
                 asm_note("nil, true, false again (a GC may have moved them)", 0);
             }
-            off_41 = (int64_t)&((jit_state *)0)->nil_oop;
-            if (!(((off_41 & 7) == 0) && (((off_41 >> 3) >= -64) && ((off_41 >> 3) <= 63)))) {
+            off_42 = (int64_t)&((jit_state *)0)->nil_oop;
+            if (!(((off_42 & 7) == 0) && (((off_42 >> 3) >= -64) && ((off_42 >> 3) <= 63)))) {
                 if (asm_error == ASM_OK) {
                     asm_error = ASM_ERR_IMMEDIATE;
                 }
-                goto exit_pair_10;
+                goto exit_pair_12;
             }
-            a_word_78 = 2839543808LL | (((uint64_t)((off_41 >> 3) & 127)) << 15) | 25303ULL;
+            a_word_82 = 2839543808LL | (((uint64_t)((off_42 >> 3) & 127)) << 15) | 25303ULL;
             if (asm_pc < asm_limit) {
-                *(uint32_t *)asm_pc = a_word_78;
+                *(uint32_t *)asm_pc = a_word_82;
                 asm_pc = asm_pc + 4;
             } else if (asm_error == ASM_OK) {
                 asm_error = ASM_ERR_FULL;
             }
-        exit_pair_10:;
-            off_42 = (int64_t)&((jit_state *)0)->false_oop;
-            if ((off_42 >= 0) && ((off_42 & 7) == 0) && ((off_42 >> 3) <= 4095)) {
-                a_word_79 = 4181721088LL | ((((uint64_t)(off_42 >> 3)) << 10) | 729ULL);
-                if (asm_pc < asm_limit) {
-                    *(uint32_t *)asm_pc = a_word_79;
-                    asm_pc = asm_pc + 4;
-                } else if (asm_error == ASM_OK) {
-                    asm_error = ASM_ERR_FULL;
-                }
-            } else {
-                if (!((off_42 >= -256) && (off_42 <= 255))) {
-                    if (asm_error == ASM_OK) {
-                        asm_error = ASM_ERR_IMMEDIATE;
-                    }
-                    goto exit_load_store_17;
-                }
-                a_word_80 = 4164943872LL | (((uint64_t)(off_42 & 511)) << 12) | 729ULL;
-                if (asm_pc < asm_limit) {
-                    *(uint32_t *)asm_pc = a_word_80;
-                    asm_pc = asm_pc + 4;
-                } else if (asm_error == ASM_OK) {
-                    asm_error = ASM_ERR_FULL;
-                }
-            exit_load_store_17:;
-            }
-            off_43 = 8 * cg_slot_top;
+        exit_pair_12:;
+            off_43 = (int64_t)&((jit_state *)0)->false_oop;
             if ((off_43 >= 0) && ((off_43 & 7) == 0) && ((off_43 >> 3) <= 4095)) {
-                a_word_81 = 4181721088LL | ((((uint64_t)(off_43 >> 3)) << 10) | 640ULL);
+                a_word_83 = 4181721088LL | ((((uint64_t)(off_43 >> 3)) << 10) | 729ULL);
                 if (asm_pc < asm_limit) {
-                    *(uint32_t *)asm_pc = a_word_81;
+                    *(uint32_t *)asm_pc = a_word_83;
                     asm_pc = asm_pc + 4;
                 } else if (asm_error == ASM_OK) {
                     asm_error = ASM_ERR_FULL;
@@ -26057,31 +26605,56 @@ exit_offset_to_16:;
                     }
                     goto exit_load_store_18;
                 }
-                a_word_82 = 4164943872LL | (((uint64_t)(off_43 & 511)) << 12) | 640ULL;
+                a_word_84 = 4164943872LL | (((uint64_t)(off_43 & 511)) << 12) | 729ULL;
                 if (asm_pc < asm_limit) {
-                    *(uint32_t *)asm_pc = a_word_82;
+                    *(uint32_t *)asm_pc = a_word_84;
                     asm_pc = asm_pc + 4;
                 } else if (asm_error == ASM_OK) {
                     asm_error = ASM_ERR_FULL;
                 }
             exit_load_store_18:;
             }
+            off_44 = 8 * cg_slot_top;
+            if ((off_44 >= 0) && ((off_44 & 7) == 0) && ((off_44 >> 3) <= 4095)) {
+                a_word_85 = 4181721088LL | ((((uint64_t)(off_44 >> 3)) << 10) | 640ULL);
+                if (asm_pc < asm_limit) {
+                    *(uint32_t *)asm_pc = a_word_85;
+                    asm_pc = asm_pc + 4;
+                } else if (asm_error == ASM_OK) {
+                    asm_error = ASM_ERR_FULL;
+                }
+            } else {
+                if (!((off_44 >= -256) && (off_44 <= 255))) {
+                    if (asm_error == ASM_OK) {
+                        asm_error = ASM_ERR_IMMEDIATE;
+                    }
+                    goto exit_load_store_19;
+                }
+                a_word_86 = 4164943872LL | (((uint64_t)(off_44 & 511)) << 12) | 640ULL;
+                if (asm_pc < asm_limit) {
+                    *(uint32_t *)asm_pc = a_word_86;
+                    asm_pc = asm_pc + 4;
+                } else if (asm_error == ASM_OK) {
+                    asm_error = ASM_ERR_FULL;
+                }
+            exit_load_store_19:;
+            }
             a_label_6 = o_5->resume;
             target_17 = asm_target_of(a_label_6);
-            a_word_83 = 0x14000000 | ({
-    off_44 = ((int64_t)(target_17 - asm_pc)) >> 2;
-    if (!((off_44 >= -33554432) && (off_44 <= 33554431))) {
+            a_word_87 = 0x14000000 | ({
+    off_45 = ((int64_t)(target_17 - asm_pc)) >> 2;
+    if (!((off_45 >= -33554432) && (off_45 <= 33554431))) {
         if (asm_error == ASM_OK) {
             asm_error = ASM_ERR_RANGE;
         }
         r_offset_to_17 = 0;
         goto exit_offset_to_17;
     }
-    r_offset_to_17 = off_44 & 67108863;
+    r_offset_to_17 = off_45 & 67108863;
 exit_offset_to_17:;
     r_offset_to_17; });
             if (asm_pc < asm_limit) {
-                *(uint32_t *)asm_pc = a_word_83;
+                *(uint32_t *)asm_pc = a_word_87;
                 asm_pc = asm_pc + 4;
             } else if (asm_error == ASM_OK) {
                 asm_error = ASM_ERR_FULL;
@@ -26091,32 +26664,32 @@ exit_offset_to_17:;
             if (asm_noting) {
                 asm_note("not a closure with as many arguments: the send through an inline cache", 0);
             }
-            n_7 = o_5->node;
+            n_14 = o_5->node;
             k_2 = o_5->index;
             lit = asm_new_label();
             if (asm_noting) {
                 asm_note("x9 := inline cache %d's class", cg_site_count);
             }
             target_18 = asm_target_of(lit);
-            a_word_84 = 0x58000000 | ((((uint64_t)({
-    off_45 = ((int64_t)(target_18 - asm_pc)) >> 2;
-    if (!((off_45 >= -262144) && (off_45 <= 262143))) {
+            a_word_88 = 0x58000000 | ((((uint64_t)({
+    off_46 = ((int64_t)(target_18 - asm_pc)) >> 2;
+    if (!((off_46 >= -262144) && (off_46 <= 262143))) {
         if (asm_error == ASM_OK) {
             asm_error = ASM_ERR_RANGE;
         }
         r_offset_to_18 = 0;
         goto exit_offset_to_18;
     }
-    r_offset_to_18 = off_45 & 524287;
+    r_offset_to_18 = off_46 & 524287;
 exit_offset_to_18:;
     r_offset_to_18; })) << 5) | 9);
             if (asm_pc < asm_limit) {
-                *(uint32_t *)asm_pc = a_word_84;
+                *(uint32_t *)asm_pc = a_word_88;
                 asm_pc = asm_pc + 4;
             } else if (asm_error == ASM_OK) {
                 asm_error = ASM_ERR_FULL;
             }
-            nd_3 = opt_nodes + n_7;
+            nd_6 = opt_nodes + n_14;
             if (cg_site_count >= CG_MAX_SITES) {
                 if (asm_error == ASM_OK) {
                     asm_error = ASM_ERR_FULL;
@@ -26125,9 +26698,9 @@ exit_offset_to_18:;
             }
             cg_site_bl[cg_site_count] = (uint32_t)(asm_pc - cg_code_start);
             cg_site_lit[cg_site_count] = lit;
-            cg_site_info[cg_site_count] = (uint32_t)((nd_3->aux2 & 255) | (((nd_3->aux2 >> 8) & 3) << 24));
+            cg_site_info[cg_site_count] = (uint32_t)((nd_6->aux2 & 255) | (((nd_6->aux2 >> 8) & 3) << 24));
             cg_site_index[cg_site_count] = k_2;
-            cg_site_sel[cg_site_count] = opt_pool_index((uint64_t)nd_3->aux);
+            cg_site_sel[cg_site_count] = opt_pool_index((uint64_t)nd_6->aux);
             cg_site_count = cg_site_count + 1;
         exit_note_site:;
             if (asm_noting) {
@@ -26135,27 +26708,27 @@ exit_offset_to_18:;
             }
             a_label_7 = asm_label_at(bl_miss);
             target_19 = asm_target_of(a_label_7);
-            a_word_85 = 0x94000000LL | ({
-    off_46 = ((int64_t)(target_19 - asm_pc)) >> 2;
-    if (!((off_46 >= -33554432) && (off_46 <= 33554431))) {
+            a_word_89 = 0x94000000LL | ({
+    off_47 = ((int64_t)(target_19 - asm_pc)) >> 2;
+    if (!((off_47 >= -33554432) && (off_47 <= 33554431))) {
         if (asm_error == ASM_OK) {
             asm_error = ASM_ERR_RANGE;
         }
         r_offset_to_19 = 0;
         goto exit_offset_to_19;
     }
-    r_offset_to_19 = off_46 & 67108863;
+    r_offset_to_19 = off_47 & 67108863;
 exit_offset_to_19:;
     r_offset_to_19; });
             if (asm_pc < asm_limit) {
-                *(uint32_t *)asm_pc = a_word_85;
+                *(uint32_t *)asm_pc = a_word_89;
                 asm_pc = asm_pc + 4;
             } else if (asm_error == ASM_OK) {
                 asm_error = ASM_ERR_FULL;
             }
             k_3 = o_5->index;
-            n_8 = o_5->node;
-            n_9 = (int32_t)(opt_nodes + n_8)->nargs - 1;
+            n_15 = o_5->node;
+            n_16 = (int32_t)(opt_nodes + n_15)->nargs - 1;
             if (cg_ret_count >= CG_MAX_RETS) {
                 if (asm_error == ASM_OK) {
                     asm_error = ASM_ERR_FULL;
@@ -26164,25 +26737,25 @@ exit_offset_to_19:;
             }
             cg_ret_off[cg_ret_count] = (uint32_t)(asm_pc - cg_code_start);
             cg_ret_index[cg_ret_count] = k_3;
-            cg_ret_argc[cg_ret_count] = n_9;
+            cg_ret_argc[cg_ret_count] = n_16;
             cg_ret_count = cg_ret_count + 1;
         exit_note_ret:;
             a_label_8 = o_5->resume;
             target_20 = asm_target_of(a_label_8);
-            a_word_86 = 0x14000000 | ({
-    off_47 = ((int64_t)(target_20 - asm_pc)) >> 2;
-    if (!((off_47 >= -33554432) && (off_47 <= 33554431))) {
+            a_word_90 = 0x14000000 | ({
+    off_48 = ((int64_t)(target_20 - asm_pc)) >> 2;
+    if (!((off_48 >= -33554432) && (off_48 <= 33554431))) {
         if (asm_error == ASM_OK) {
             asm_error = ASM_ERR_RANGE;
         }
         r_offset_to_20 = 0;
         goto exit_offset_to_20;
     }
-    r_offset_to_20 = off_47 & 67108863;
+    r_offset_to_20 = off_48 & 67108863;
 exit_offset_to_20:;
     r_offset_to_20; });
             if (asm_pc < asm_limit) {
-                *(uint32_t *)asm_pc = a_word_86;
+                *(uint32_t *)asm_pc = a_word_90;
                 asm_pc = asm_pc + 4;
             } else if (asm_error == ASM_OK) {
                 asm_error = ASM_ERR_FULL;
@@ -26203,9 +26776,9 @@ exit_offset_to_20:;
                     }
                     goto exit_move_wide_7;
                 }
-                a_word_87 = 3531603968LL | (0ULL | (((uint64_t)value_7) << 5) | 16);
+                a_word_91 = 3531603968LL | (0ULL | (((uint64_t)value_7) << 5) | 16);
                 if (asm_pc < asm_limit) {
-                    *(uint32_t *)asm_pc = a_word_87;
+                    *(uint32_t *)asm_pc = a_word_91;
                     asm_pc = asm_pc + 4;
                 } else if (asm_error == ASM_OK) {
                     asm_error = ASM_ERR_FULL;
@@ -26214,30 +26787,30 @@ exit_offset_to_20:;
             } else {
                 asm_mov_imm(X16, (uint64_t)value_7);
             }
-            off_48 = (int64_t)&((frame *)0)->pc;
-            if ((off_48 >= 0) && ((off_48 & 7) == 0) && ((off_48 >> 3) <= 4095)) {
-                a_word_88 = 4177526784LL | ((((uint64_t)(off_48 >> 3)) << 10) | 624ULL);
+            off_49 = (int64_t)&((frame *)0)->pc;
+            if ((off_49 >= 0) && ((off_49 & 7) == 0) && ((off_49 >> 3) <= 4095)) {
+                a_word_92 = 4177526784LL | ((((uint64_t)(off_49 >> 3)) << 10) | 624ULL);
                 if (asm_pc < asm_limit) {
-                    *(uint32_t *)asm_pc = a_word_88;
+                    *(uint32_t *)asm_pc = a_word_92;
                     asm_pc = asm_pc + 4;
                 } else if (asm_error == ASM_OK) {
                     asm_error = ASM_ERR_FULL;
                 }
             } else {
-                if (!((off_48 >= -256) && (off_48 <= 255))) {
+                if (!((off_49 >= -256) && (off_49 <= 255))) {
                     if (asm_error == ASM_OK) {
                         asm_error = ASM_ERR_IMMEDIATE;
                     }
-                    goto exit_load_store_19;
+                    goto exit_load_store_20;
                 }
-                a_word_89 = 4160749568LL | (((uint64_t)(off_48 & 511)) << 12) | 624ULL;
+                a_word_93 = 4160749568LL | (((uint64_t)(off_49 & 511)) << 12) | 624ULL;
                 if (asm_pc < asm_limit) {
-                    *(uint32_t *)asm_pc = a_word_89;
+                    *(uint32_t *)asm_pc = a_word_93;
                     asm_pc = asm_pc + 4;
                 } else if (asm_error == ASM_OK) {
                     asm_error = ASM_ERR_FULL;
                 }
-            exit_load_store_19:;
+            exit_load_store_20:;
             }
             if (asm_pc < asm_limit) {
                 *(uint32_t *)asm_pc = 2853372896ULL;
@@ -26246,39 +26819,39 @@ exit_offset_to_20:;
                 asm_error = ASM_ERR_FULL;
             }
             target_21 = asm_target_of(cg_stack_full_label);
-            a_word_90 = 0x94000000LL | ({
-    off_49 = ((int64_t)(target_21 - asm_pc)) >> 2;
-    if (!((off_49 >= -33554432) && (off_49 <= 33554431))) {
+            a_word_94 = 0x94000000LL | ({
+    off_50 = ((int64_t)(target_21 - asm_pc)) >> 2;
+    if (!((off_50 >= -33554432) && (off_50 <= 33554431))) {
         if (asm_error == ASM_OK) {
             asm_error = ASM_ERR_RANGE;
         }
         r_offset_to_21 = 0;
         goto exit_offset_to_21;
     }
-    r_offset_to_21 = off_49 & 67108863;
+    r_offset_to_21 = off_50 & 67108863;
 exit_offset_to_21:;
     r_offset_to_21; });
             if (asm_pc < asm_limit) {
-                *(uint32_t *)asm_pc = a_word_90;
+                *(uint32_t *)asm_pc = a_word_94;
                 asm_pc = asm_pc + 4;
             } else if (asm_error == ASM_OK) {
                 asm_error = ASM_ERR_FULL;
             }
             target_22 = asm_target_of(cg_exit_sync_label);
-            a_word_91 = 0x14000000 | ({
-    off_50 = ((int64_t)(target_22 - asm_pc)) >> 2;
-    if (!((off_50 >= -33554432) && (off_50 <= 33554431))) {
+            a_word_95 = 0x14000000 | ({
+    off_51 = ((int64_t)(target_22 - asm_pc)) >> 2;
+    if (!((off_51 >= -33554432) && (off_51 <= 33554431))) {
         if (asm_error == ASM_OK) {
             asm_error = ASM_ERR_RANGE;
         }
         r_offset_to_22 = 0;
         goto exit_offset_to_22;
     }
-    r_offset_to_22 = off_50 & 67108863;
+    r_offset_to_22 = off_51 & 67108863;
 exit_offset_to_22:;
     r_offset_to_22; });
             if (asm_pc < asm_limit) {
-                *(uint32_t *)asm_pc = a_word_91;
+                *(uint32_t *)asm_pc = a_word_95;
                 asm_pc = asm_pc + 4;
             } else if (asm_error == ASM_OK) {
                 asm_error = ASM_ERR_FULL;
@@ -26303,30 +26876,30 @@ exit_offset_to_22:;
             } else if (asm_error == ASM_OK) {
                 asm_error = ASM_ERR_FULL;
             }
-            off_51 = (int64_t)&((frame *)0)->pc;
-            if ((off_51 >= 0) && ((off_51 & 7) == 0) && ((off_51 >> 3) <= 4095)) {
-                a_word_92 = 4177526784LL | ((((uint64_t)(off_51 >> 3)) << 10) | 624ULL);
+            off_52 = (int64_t)&((frame *)0)->pc;
+            if ((off_52 >= 0) && ((off_52 & 7) == 0) && ((off_52 >> 3) <= 4095)) {
+                a_word_96 = 4177526784LL | ((((uint64_t)(off_52 >> 3)) << 10) | 624ULL);
                 if (asm_pc < asm_limit) {
-                    *(uint32_t *)asm_pc = a_word_92;
+                    *(uint32_t *)asm_pc = a_word_96;
                     asm_pc = asm_pc + 4;
                 } else if (asm_error == ASM_OK) {
                     asm_error = ASM_ERR_FULL;
                 }
             } else {
-                if (!((off_51 >= -256) && (off_51 <= 255))) {
+                if (!((off_52 >= -256) && (off_52 <= 255))) {
                     if (asm_error == ASM_OK) {
                         asm_error = ASM_ERR_IMMEDIATE;
                     }
-                    goto exit_load_store_20;
+                    goto exit_load_store_21;
                 }
-                a_word_93 = 4160749568LL | (((uint64_t)(off_51 & 511)) << 12) | 624ULL;
+                a_word_97 = 4160749568LL | (((uint64_t)(off_52 & 511)) << 12) | 624ULL;
                 if (asm_pc < asm_limit) {
-                    *(uint32_t *)asm_pc = a_word_93;
+                    *(uint32_t *)asm_pc = a_word_97;
                     asm_pc = asm_pc + 4;
                 } else if (asm_error == ASM_OK) {
                     asm_error = ASM_ERR_FULL;
                 }
-            exit_load_store_20:;
+            exit_load_store_21:;
             }
             if (asm_pc < asm_limit) {
                 *(uint32_t *)asm_pc = 2853372896ULL;
@@ -26336,20 +26909,20 @@ exit_offset_to_22:;
             }
             a_label_9 = asm_label_at(widow_stub);
             target_23 = asm_target_of(a_label_9);
-            a_word_94 = 0x94000000LL | ({
-    off_52 = ((int64_t)(target_23 - asm_pc)) >> 2;
-    if (!((off_52 >= -33554432) && (off_52 <= 33554431))) {
+            a_word_98 = 0x94000000LL | ({
+    off_53 = ((int64_t)(target_23 - asm_pc)) >> 2;
+    if (!((off_53 >= -33554432) && (off_53 <= 33554431))) {
         if (asm_error == ASM_OK) {
             asm_error = ASM_ERR_RANGE;
         }
         r_offset_to_23 = 0;
         goto exit_offset_to_23;
     }
-    r_offset_to_23 = off_52 & 67108863;
+    r_offset_to_23 = off_53 & 67108863;
 exit_offset_to_23:;
     r_offset_to_23; });
             if (asm_pc < asm_limit) {
-                *(uint32_t *)asm_pc = a_word_94;
+                *(uint32_t *)asm_pc = a_word_98;
                 asm_pc = asm_pc + 4;
             } else if (asm_error == ASM_OK) {
                 asm_error = ASM_ERR_FULL;
@@ -26362,20 +26935,20 @@ exit_offset_to_23:;
             }
             a_label_10 = o_5->resume;
             target_24 = asm_target_of(a_label_10);
-            a_word_95 = 0x14000000 | ({
-    off_53 = ((int64_t)(target_24 - asm_pc)) >> 2;
-    if (!((off_53 >= -33554432) && (off_53 <= 33554431))) {
+            a_word_99 = 0x14000000 | ({
+    off_54 = ((int64_t)(target_24 - asm_pc)) >> 2;
+    if (!((off_54 >= -33554432) && (off_54 <= 33554431))) {
         if (asm_error == ASM_OK) {
             asm_error = ASM_ERR_RANGE;
         }
         r_offset_to_24 = 0;
         goto exit_offset_to_24;
     }
-    r_offset_to_24 = off_53 & 67108863;
+    r_offset_to_24 = off_54 & 67108863;
 exit_offset_to_24:;
     r_offset_to_24; });
             if (asm_pc < asm_limit) {
-                *(uint32_t *)asm_pc = a_word_95;
+                *(uint32_t *)asm_pc = a_word_99;
                 asm_pc = asm_pc + 4;
             } else if (asm_error == ASM_OK) {
                 asm_error = ASM_ERR_FULL;
@@ -26385,14 +26958,14 @@ exit_offset_to_24:;
             if (asm_noting) {
                 asm_note("the bottom frame returns into a Context: the runtime does it", 0);
             }
-            n_10 = o_5->node;
+            n_17 = o_5->node;
             value_8 = ({
-    op = (int32_t)(opt_nodes + n_10)->op;
+    op = (int32_t)(opt_nodes + n_17)->op;
     why = (op == O_GUARDCLASS) || (op == O_DEOPT) ? FB_DEOPT_CLASS : op == O_NOTINTS ? FB_INTS : (op == O_GUARDINT) || ((op == O_IADD) || ((op == O_ISUB) || ((op == O_IMUL) || ((op == O_IMOD) || ((op == O_IDIV) || (op == O_ISHIFT)))))) ? FB_DEOPT_ARITH : FB_DEOPT_OTHER;
     if (getenv("SAMALTAK_OPT_TRACE") != NULL) {
-        fprintf(stderr, "guard safepoint %d: v%d\n", cg_sp_count, n_10);
+        fprintf(stderr, "guard safepoint %d: v%d\n", cg_sp_count, n_17);
     }
-    r_record_guard = opt_record_state((opt_nodes + n_10)->state, (int32_t)(SP_GUARD | (((int64_t)why) << 8)), n_10, false);
+    r_record_guard = opt_record_state((opt_nodes + n_17)->state, (int32_t)(SP_GUARD | (((int64_t)why) << 8)), n_17, false);
     r_record_guard; });
             if ((value_8 >= 0) && (value_8 <= 0xFFFF)) {
                 if (!((value_8 >= 0) && (value_8 <= 0xFFFF))) {
@@ -26401,9 +26974,9 @@ exit_offset_to_24:;
                     }
                     goto exit_move_wide_8;
                 }
-                a_word_96 = 1384120320 | (0ULL | (((uint64_t)value_8) << 5) | 17);
+                a_word_100 = 1384120320 | (0ULL | (((uint64_t)value_8) << 5) | 17);
                 if (asm_pc < asm_limit) {
-                    *(uint32_t *)asm_pc = a_word_96;
+                    *(uint32_t *)asm_pc = a_word_100;
                     asm_pc = asm_pc + 4;
                 } else if (asm_error == ASM_OK) {
                     asm_error = ASM_ERR_FULL;
@@ -26413,20 +26986,20 @@ exit_offset_to_24:;
                 asm_mov_imm(W17, (uint64_t)value_8);
             }
             target_25 = asm_target_of(cg_return_label);
-            a_word_97 = 0x14000000 | ({
-    off_54 = ((int64_t)(target_25 - asm_pc)) >> 2;
-    if (!((off_54 >= -33554432) && (off_54 <= 33554431))) {
+            a_word_101 = 0x14000000 | ({
+    off_55 = ((int64_t)(target_25 - asm_pc)) >> 2;
+    if (!((off_55 >= -33554432) && (off_55 <= 33554431))) {
         if (asm_error == ASM_OK) {
             asm_error = ASM_ERR_RANGE;
         }
         r_offset_to_25 = 0;
         goto exit_offset_to_25;
     }
-    r_offset_to_25 = off_54 & 67108863;
+    r_offset_to_25 = off_55 & 67108863;
 exit_offset_to_25:;
     r_offset_to_25; });
             if (asm_pc < asm_limit) {
-                *(uint32_t *)asm_pc = a_word_97;
+                *(uint32_t *)asm_pc = a_word_101;
                 asm_pc = asm_pc + 4;
             } else if (asm_error == ASM_OK) {
                 asm_error = ASM_ERR_FULL;
@@ -26438,8 +27011,8 @@ exit_offset_to_25:;
         return false;
     }
     cg_dep_count = ob_dep_count < 256 ? ob_dep_count : 256;
-    for (i_15 = 0; i_15 <= cg_dep_count - 1; i_15++) {
-        cg_deps[i_15] = opt_pool_index(ob_deps[i_15]);
+    for (i_19 = 0; i_19 <= cg_dep_count - 1; i_19++) {
+        cg_deps[i_19] = opt_pool_index(ob_deps[i_19]);
     }
     asm_bind(cg_exit_plain_label);
     if (asm_noting) {
@@ -26447,20 +27020,20 @@ exit_offset_to_25:;
     }
     a_label_11 = asm_label_at(exit_plain_addr);
     target_26 = asm_target_of(a_label_11);
-    a_word_98 = 0x14000000 | ({
-    off_55 = ((int64_t)(target_26 - asm_pc)) >> 2;
-    if (!((off_55 >= -33554432) && (off_55 <= 33554431))) {
+    a_word_102 = 0x14000000 | ({
+    off_56 = ((int64_t)(target_26 - asm_pc)) >> 2;
+    if (!((off_56 >= -33554432) && (off_56 <= 33554431))) {
         if (asm_error == ASM_OK) {
             asm_error = ASM_ERR_RANGE;
         }
         r_offset_to_26 = 0;
         goto exit_offset_to_26;
     }
-    r_offset_to_26 = off_55 & 67108863;
+    r_offset_to_26 = off_56 & 67108863;
 exit_offset_to_26:;
     r_offset_to_26; });
     if (asm_pc < asm_limit) {
-        *(uint32_t *)asm_pc = a_word_98;
+        *(uint32_t *)asm_pc = a_word_102;
         asm_pc = asm_pc + 4;
     } else if (asm_error == ASM_OK) {
         asm_error = ASM_ERR_FULL;
@@ -26471,20 +27044,20 @@ exit_offset_to_26:;
     }
     a_label_12 = asm_label_at(bl_exit_sync);
     target_27 = asm_target_of(a_label_12);
-    a_word_99 = 0x14000000 | ({
-    off_56 = ((int64_t)(target_27 - asm_pc)) >> 2;
-    if (!((off_56 >= -33554432) && (off_56 <= 33554431))) {
+    a_word_103 = 0x14000000 | ({
+    off_57 = ((int64_t)(target_27 - asm_pc)) >> 2;
+    if (!((off_57 >= -33554432) && (off_57 <= 33554431))) {
         if (asm_error == ASM_OK) {
             asm_error = ASM_ERR_RANGE;
         }
         r_offset_to_27 = 0;
         goto exit_offset_to_27;
     }
-    r_offset_to_27 = off_56 & 67108863;
+    r_offset_to_27 = off_57 & 67108863;
 exit_offset_to_27:;
     r_offset_to_27; });
     if (asm_pc < asm_limit) {
-        *(uint32_t *)asm_pc = a_word_99;
+        *(uint32_t *)asm_pc = a_word_103;
         asm_pc = asm_pc + 4;
     } else if (asm_error == ASM_OK) {
         asm_error = ASM_ERR_FULL;
@@ -26497,26 +27070,26 @@ exit_offset_to_27:;
             asm_error = ASM_ERR_FULL;
         }
     }
-    for (i_16 = 0; i_16 <= cg_pool_count - 1; i_16++) {
-        asm_bind(cg_pool_labels[i_16]);
-        a_value = cg_pool_oops[i_16];
-        a_word_100 = a_value & 0xFFFFFFFFLL;
+    for (i_20 = 0; i_20 <= cg_pool_count - 1; i_20++) {
+        asm_bind(cg_pool_labels[i_20]);
+        a_value = cg_pool_oops[i_20];
+        a_word_104 = a_value & 0xFFFFFFFFLL;
         if (asm_pc < asm_limit) {
-            *(uint32_t *)asm_pc = a_word_100;
+            *(uint32_t *)asm_pc = a_word_104;
             asm_pc = asm_pc + 4;
         } else if (asm_error == ASM_OK) {
             asm_error = ASM_ERR_FULL;
         }
-        a_word_101 = ((uint64_t)a_value) >> 32;
+        a_word_105 = ((uint64_t)a_value) >> 32;
         if (asm_pc < asm_limit) {
-            *(uint32_t *)asm_pc = a_word_101;
+            *(uint32_t *)asm_pc = a_word_105;
             asm_pc = asm_pc + 4;
         } else if (asm_error == ASM_OK) {
             asm_error = ASM_ERR_FULL;
         }
     }
-    for (i_17 = 0; i_17 <= cg_site_count - 1; i_17++) {
-        asm_bind(cg_site_lit[i_17]);
+    for (i_21 = 0; i_21 <= cg_site_count - 1; i_21++) {
+        asm_bind(cg_site_lit[i_21]);
         if (asm_pc < asm_limit) {
             *(uint32_t *)asm_pc = 0LL;
             asm_pc = asm_pc + 4;

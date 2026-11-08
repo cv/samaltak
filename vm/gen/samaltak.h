@@ -322,6 +322,7 @@ typedef void (*prim_fn)(void);
 #define NF_BLOCKCALL 16
 #define NF_DEAD 2
 #define NF_GUARD 4
+#define NF_LAZY 32
 #define NF_PURE 1
 #define OA_BLOCK 8
 #define OA_LOOP 4
@@ -503,6 +504,8 @@ typedef void (*prim_fn)(void);
 #define PK_MARKER 2
 #define PK_NONE 0
 #define PK_PERFORM 1
+#define PK_STRING_AT 19
+#define PK_STRING_AT_PUT 20
 #define PK_STRING_COMPARE 18
 #define PK_UINT32_AT 16
 #define PK_UINT32_AT_PUT 17
@@ -1295,10 +1298,15 @@ extern bool opt_full;
 extern int32_t opt_node_count;
 extern opt_node opt_nodes[16384];
 extern int32_t opt_operands[131072];
+extern int32_t opt_osr_entry;
+extern uint64_t opt_osr_numbers;
+extern int32_t opt_osr_state;
 extern int32_t opt_state_count;
 extern opt_state opt_states[4096];
 extern int32_t ps_order[2048];
 extern int32_t ps_order_count;
+extern bool ps_unbox_off;
+extern bool ps_unboxed;
 extern int32_t ra_safe_list[262144];
 extern int32_t ra_slot_top;
 extern jit_method *rt_all[16384];
@@ -1649,11 +1657,15 @@ void prim_replace_from_to(void);
 void prim_set_immutable(void);
 void prim_shallow_copy(void);
 void prim_special_objects_array(void);
+void prim_string_as_lowercase(void);
+void prim_string_as_uppercase(void);
 void prim_string_at(void);
 void prim_string_at_put(void);
 void prim_string_case_insensitive_compare(void);
 void prim_string_compare(void);
 void prim_string_hash(void);
+void prim_string_index_of(void);
+void prim_string_index_of_substring(void);
 bool opt_build(oop m, int32_t s, int32_t t, int32_t d, bool res);
 bool opt_generate(oop m, int32_t a);
 int32_t opt_add_pred(int32_t from, int32_t to);

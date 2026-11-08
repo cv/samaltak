@@ -28,6 +28,25 @@ size
 !
 lineCount
 	^self lines size
+!
+indexOf: anObject
+	^self indexOf: anObject startingAt: 1
+!
+indexOf: anObject startingAt: start
+	"Answer the index of the first element equal to anObject at or after start, 0 if none."
+	<primitive: 'stringIndexOf'>
+	start to: self size do: [:i | (self at: i) = anObject ifTrue: [^i]].
+	^0
+!
+indexOf: anObject startingAt: start ifAbsent: aBlock
+	| i |
+	i := self indexOf: anObject startingAt: start.
+	^i = 0 ifTrue: [aBlock value] ifFalse: [i]
+!
+indexOfSubCollection: aString startingAt: start
+	"Answer the index where aString begins at or after start, 0 if it does not occur."
+	<primitive: 'stringIndexOfSubstring'>
+	^super indexOfSubCollection: aString startingAt: start
 ! !
 
 !String methodsFor: 'private'!
@@ -148,6 +167,16 @@ matchPattern: p against: aString at: s
 ! !
 
 !String methodsFor: 'testing'!
+includes: anObject
+	^(self indexOf: anObject startingAt: 1) > 0
+!
+occurrencesOf: anObject
+	| n i |
+	n := 0.
+	i := 0.
+	[(i := self indexOf: anObject startingAt: i + 1) > 0] whileTrue: [n := n + 1].
+	^n
+!
 isString
 	^true
 !
@@ -211,9 +240,11 @@ asInteger
 	^negative ifTrue: [value negated] ifFalse: [value]
 !
 asUppercase
+	<primitive: 'stringAsUppercase'>
 	^self collect: [:c | c asUppercase]
 !
 asLowercase
+	<primitive: 'stringAsLowercase'>
 	^self collect: [:c | c asLowercase]
 !
 capitalized
@@ -317,18 +348,17 @@ splitOn: aString
 !
 lines
 	"Answer an Array of my lines, split at cr, lf or crlf."
-	| result start i c |
+	| result start cr lf end |
 	result := OrderedCollection new.
 	start := 1.
-	i := 1.
-	[i <= self size] whileTrue: [
-		c := self at: i.
-		(c = Character cr or: [c = Character lf])
-			ifTrue: [
-				result add: (self copyFrom: start to: i - 1).
-				(c = Character cr and: [i < self size and: [(self at: i + 1) = Character lf]]) ifTrue: [i := i + 1].
-				start := i + 1].
-		i := i + 1].
+	cr := self indexOf: Character cr startingAt: 1.
+	lf := self indexOf: Character lf startingAt: 1.
+	[cr > 0 or: [lf > 0]] whileTrue: [
+		end := (cr = 0 or: [lf > 0 and: [lf < cr]]) ifTrue: [lf] ifFalse: [cr].
+		result add: (self copyFrom: start to: end - 1).
+		start := (end = cr and: [lf = (cr + 1)]) ifTrue: [lf + 1] ifFalse: [end + 1].
+		(cr > 0 and: [cr < start]) ifTrue: [cr := self indexOf: Character cr startingAt: start].
+		(lf > 0 and: [lf < start]) ifTrue: [lf := self indexOf: Character lf startingAt: start]].
 	start <= self size ifTrue: [result add: (self copyFrom: start to: self size)].
 	^result asArray
 !

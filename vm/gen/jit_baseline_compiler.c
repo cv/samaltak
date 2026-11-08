@@ -90,6 +90,7 @@ static int32_t uentry_offset;
 static bool bl_access(int32_t k, int32_t pc, int32_t pushes);
 static int32_t bl_alloc_reg(void);
 static bool bl_arith(int32_t k, int32_t pc, int32_t pushes);
+static int32_t bl_back_jump(int32_t t);
 static void bl_barrier(int32_t obj, int32_t hdr, int32_t v);
 static void bl_begin_loop(int32_t head);
 static int32_t bl_branch(int32_t cond, int32_t t);
@@ -117,9 +118,10 @@ static bool bl_emit_slow_paths(void);
 static void bl_emit_slow_send(int32_t i);
 static bool bl_emit_stack_check(int32_t pc);
 static void bl_emit_string_compare_primitive(int32_t fail);
+static void bl_emit_string_primitive(bool isPut, int32_t fail);
 static void bl_emit_uint32_primitive(bool isPut, int32_t fail);
 static bool bl_float_arith(int32_t k, int32_t pc, int32_t pushes);
-static int32_t bl_interrupt_check(int32_t t);
+static void bl_head_check(int32_t h);
 static void bl_load_literal(int64_t i, int32_t r);
 static void bl_load_receiver(int32_t ri, int32_t k, int32_t r, int64_t v);
 static void bl_note_continuation(int32_t pc, int32_t r);
@@ -851,6 +853,7 @@ static bool bl_arith(int32_t k, int32_t pc, int32_t pushes)
     bool a_known;
     bool b_known;
     int64_t bv;
+    bool same;
     int32_t ra;
     int64_t c;
     bool imm;
@@ -1145,11 +1148,12 @@ exit_is_certain_float_2:;
     a_known = (ss_kind[a] == SS_CONST) && ((ss_val[a] & 1) != 0);
     b_known = (ss_kind[b] == SS_CONST) && ((ss_val[b] & 1) != 0);
     bv = ss_val[b];
+    same = (ss_kind[a] == SS_TEMP) && ((ss_kind[b] == SS_TEMP) && (ss_val[a] == bv));
     bl_ss_flush_keeping_doubles(a);
     ra = bl_ss_materialize(a);
     c = b_known ? bv >> 1 : 0;
     imm = b_known && ((((k == 0) || (k == 1)) && ((c > -2048) && (c < 2048))) || ((compare && ((bv >= 0) && (bv < 4096))) || (((k == 12) && ((c > -62) && (c < 62))) || (((k == 14) || (k == 15)) && (c >= 0)))));
-    rb = imm ? -2 : bl_ss_materialize(b);
+    rb = imm ? -2 : same ? ra : bl_ss_materialize(b);
     rr = bl_alloc_reg();
     s = bl_slow(SL_SEND, pc, ss_top);
     if (s < 0) {
@@ -2422,6 +2426,189 @@ exit_offset_to_13:;
     return bl_ss_push(SS_REG, 0, rr);
 }
 
+/* JitBaselineCompiler>>backJump: */
+static int32_t bl_back_jump(int32_t t)
+{
+    int32_t l;
+    int32_t d;
+    bool r_emit_tier_up;
+    int32_t s;
+    int32_t after;
+    int32_t slow_label;
+    int32_t a_label;
+    int64_t off;
+    uint64_t a_word;
+    int64_t off_2;
+    uint64_t a_word_2;
+    uint64_t a_word_3;
+    int64_t off_3;
+    uint64_t a_word_4;
+    uint64_t a_word_5;
+    uint64_t target;
+    int64_t r_offset_to;
+    int64_t off_4;
+    uint64_t a_word_6;
+    int32_t r_label_for;
+    int32_t a_label_2;
+    uint64_t target_2;
+    int64_t r_offset_to_2;
+    int64_t off_5;
+    int64_t a_word_7;
+    l = asm_new_label();
+    asm_bind(l);
+    d = (int32_t)ana_depths[t];
+    if (!({
+    if (counter_addr == 0) {
+        r_emit_tier_up = true;
+        goto exit_emit_tier_up;
+    }
+    s = bl_slow(SL_TIERUP, t, d);
+    if (s < 0) {
+        r_emit_tier_up = false;
+        goto exit_emit_tier_up;
+    }
+    after = asm_new_label();
+    sl_cont[s] = after;
+    sl_info[s] = 1;
+    slow_label = sl_label[s];
+    if (asm_noting) {
+        asm_note("count toward optimization", 0);
+    }
+    a_label = asm_label_at(counter_addr);
+    off = ((int64_t)((asm_target_of(a_label) & 18446744073709547520ULL) - (asm_pc & 18446744073709547520ULL))) >> 12;
+    if (!((off >= -1048576) && (off <= 0xFFFFF))) {
+        if (asm_error == ASM_OK) {
+            asm_error = ASM_ERR_RANGE;
+        }
+        goto exit_adrp;
+    }
+    a_word = 0x90000000LL | (((uint64_t)(off & 3)) << 29) | ((((uint64_t)((off >> 2) & 0x7FFFF)) << 5) | 16);
+    if (asm_pc < asm_limit) {
+        *(uint32_t *)asm_pc = a_word;
+        asm_pc = asm_pc + 4;
+    } else if (asm_error == ASM_OK) {
+        asm_error = ASM_ERR_FULL;
+    }
+exit_adrp:;
+    off_2 = (int64_t)(counter_addr & 0xFFF);
+    if ((off_2 >= 0) && ((off_2 & 3) == 0) && ((off_2 >> 2) <= 4095)) {
+        a_word_2 = 3107979264LL | ((((uint64_t)(off_2 >> 2)) << 10) | 529ULL);
+        if (asm_pc < asm_limit) {
+            *(uint32_t *)asm_pc = a_word_2;
+            asm_pc = asm_pc + 4;
+        } else if (asm_error == ASM_OK) {
+            asm_error = ASM_ERR_FULL;
+        }
+    } else {
+        if (!((off_2 >= -256) && (off_2 <= 255))) {
+            if (asm_error == ASM_OK) {
+                asm_error = ASM_ERR_IMMEDIATE;
+            }
+            goto exit_load_store;
+        }
+        a_word_3 = 3091202048LL | (((uint64_t)(off_2 & 511)) << 12) | 529ULL;
+        if (asm_pc < asm_limit) {
+            *(uint32_t *)asm_pc = a_word_3;
+            asm_pc = asm_pc + 4;
+        } else if (asm_error == ASM_OK) {
+            asm_error = ASM_ERR_FULL;
+        }
+    exit_load_store:;
+    }
+    if (asm_pc < asm_limit) {
+        *(uint32_t *)asm_pc = 1895826993ULL;
+        asm_pc = asm_pc + 4;
+    } else if (asm_error == ASM_OK) {
+        asm_error = ASM_ERR_FULL;
+    }
+    goto exit_add_sub;
+    if (asm_error == ASM_OK) {
+        asm_error = ASM_ERR_IMMEDIATE;
+    }
+exit_add_sub:;
+    off_3 = (int64_t)(counter_addr & 0xFFF);
+    if ((off_3 >= 0) && ((off_3 & 3) == 0) && ((off_3 >> 2) <= 4095)) {
+        a_word_4 = 3103784960LL | ((((uint64_t)(off_3 >> 2)) << 10) | 529ULL);
+        if (asm_pc < asm_limit) {
+            *(uint32_t *)asm_pc = a_word_4;
+            asm_pc = asm_pc + 4;
+        } else if (asm_error == ASM_OK) {
+            asm_error = ASM_ERR_FULL;
+        }
+    } else {
+        if (!((off_3 >= -256) && (off_3 <= 255))) {
+            if (asm_error == ASM_OK) {
+                asm_error = ASM_ERR_IMMEDIATE;
+            }
+            goto exit_load_store_2;
+        }
+        a_word_5 = 3087007744LL | (((uint64_t)(off_3 & 511)) << 12) | 529ULL;
+        if (asm_pc < asm_limit) {
+            *(uint32_t *)asm_pc = a_word_5;
+            asm_pc = asm_pc + 4;
+        } else if (asm_error == ASM_OK) {
+            asm_error = ASM_ERR_FULL;
+        }
+    exit_load_store_2:;
+    }
+    target = asm_target_of(slow_label);
+    a_word_6 = 0x54000000 | ((((uint64_t)({
+    off_4 = ((int64_t)(target - asm_pc)) >> 2;
+    if (!((off_4 >= -262144) && (off_4 <= 262143))) {
+        if (asm_error == ASM_OK) {
+            asm_error = ASM_ERR_RANGE;
+        }
+        r_offset_to = 0;
+        goto exit_offset_to;
+    }
+    r_offset_to = off_4 & 524287;
+exit_offset_to:;
+    r_offset_to; })) << 5) | 13);
+    if (asm_pc < asm_limit) {
+        *(uint32_t *)asm_pc = a_word_6;
+        asm_pc = asm_pc + 4;
+    } else if (asm_error == ASM_OK) {
+        asm_error = ASM_ERR_FULL;
+    }
+    asm_bind(after);
+    r_emit_tier_up = true;
+exit_emit_tier_up:;
+    r_emit_tier_up; })) {
+        if (asm_error == ASM_OK) {
+            asm_error = ASM_ERR_LABEL;
+        }
+    }
+    if (asm_noting) {
+        asm_note("jump back", 0);
+    }
+    a_label_2 = ({
+    if (pc_labels[t] < 0) {
+        pc_labels[t] = asm_new_label();
+    }
+    r_label_for = pc_labels[t];
+    r_label_for; });
+    target_2 = asm_target_of(a_label_2);
+    a_word_7 = 0x14000000 | ({
+    off_5 = ((int64_t)(target_2 - asm_pc)) >> 2;
+    if (!((off_5 >= -33554432) && (off_5 <= 33554431))) {
+        if (asm_error == ASM_OK) {
+            asm_error = ASM_ERR_RANGE;
+        }
+        r_offset_to_2 = 0;
+        goto exit_offset_to_2;
+    }
+    r_offset_to_2 = off_5 & 67108863;
+exit_offset_to_2:;
+    r_offset_to_2; });
+    if (asm_pc < asm_limit) {
+        *(uint32_t *)asm_pc = a_word_7;
+        asm_pc = asm_pc + 4;
+    } else if (asm_error == ASM_OK) {
+        asm_error = ASM_ERR_FULL;
+    }
+    return l;
+}
+
 /* JitBaselineCompiler>>barrier:header:value: */
 static void bl_barrier(int32_t obj, int32_t hdr, int32_t v)
 {
@@ -2774,6 +2961,7 @@ static void bl_begin_loop(int32_t head)
     int32_t pc;
     uint8_t op_2;
     int64_t r_length_of;
+    int64_t sends;
     int k_2;
     bool r_special_sends;
     uint8_t *p_2;
@@ -2803,6 +2991,9 @@ static void bl_begin_loop(int32_t head)
     uint8_t op_6;
     int64_t r_length_of_3;
     int64_t t;
+    if (pc_merge[head] == 1) {
+        return;
+    }
     n = bc_size;
     end = -1;
     p = head;
@@ -2882,6 +3073,7 @@ exit_length_of:;
     if (end < 0) {
         return;
     }
+    sends = 0;
     p = 0;
     while (p < n) {
         if ((ana_flags[p] & ANA_START) != 0) {
@@ -2890,8 +3082,11 @@ exit_length_of:;
                 if ((p != head) && ((ana_flags[p] & ANA_LOOP) != 0)) {
                     return;
                 }
-                if ((op == 0x8D) || ((op == 0x8E) || (((op >= 0xC0) && (op < 0xF0)) || ((op == 0x8F) || ((op == 0x76) || (op == 0x94)))))) {
+                if ((op == 0x8F) || ((op == 0x76) || (op == 0x94))) {
                     return;
+                }
+                if ((op == 0x8D) || ((op == 0x8E) || ((op >= 0xC0) && (op < 0xF0)))) {
+                    sends = sends + 1;
                 }
                 if ((op >= 0xA0) && (op < 0xC0)) {
                     k_2 = op - 0xA0;
@@ -2919,7 +3114,7 @@ exit_length_of:;
     r_special_sends = true;
 exit_special_sends:;
     r_special_sends; })) {
-                        return;
+                        sends = sends + 1;
                     }
                 }
                 if (((op >= 0x97) && (op < 0xA0)) || ((op >= 0xF0) && (op < 0xFC))) {
@@ -2969,7 +3164,7 @@ exit_special_index_of:;
     r_special_sends_2 = true;
 exit_special_sends_2:;
     r_special_sends_2; })) {
-                        return;
+                        sends = sends + 1;
                     }
                 }
             } else if ((op >= 0x90) && (op <= 0x92) && ({
@@ -3050,7 +3245,7 @@ exit_length_of_2:;
     c = 0;
     for (round = 1; round <= 3; round++) {
         best = -1;
-        best_count = 1;
+        best_count = sends > 1 ? sends : 1;
         for (tt = 0; tt <= cur_args + cur_temps - 1; tt++) {
             if (!({
     for (i = 0; i <= c - 1; i++) {
@@ -3201,7 +3396,7 @@ static int32_t bl_branch(int32_t cond, int32_t t)
     int64_t off_2;
     uint64_t a_word_2;
     int32_t check;
-    if (!((ana_flags[t] & ANA_LOOP) != 0)) {
+    if (!(((ana_flags[t] & ANA_LOOP) != 0) && (counter_addr != 0))) {
         a_label = ({
     if (pc_labels[t] < 0) {
         pc_labels[t] = asm_new_label();
@@ -3255,7 +3450,7 @@ exit_offset_to_2:;
     } else if (asm_error == ASM_OK) {
         asm_error = ASM_ERR_FULL;
     }
-    check = bl_interrupt_check(t);
+    check = bl_back_jump(t);
     asm_bind(skip);
     return check;
 }
@@ -4584,6 +4779,9 @@ static bool bl_emit_at(int32_t pc)
         if ((ana_flags[pc] & ANA_TARGET) != 0) {
             self_valid = false;
         }
+        if ((ana_flags[pc] & ANA_LOOP) != 0) {
+            bl_head_check(pc);
+        }
     } else if (pc == 0) {
         asm_bind(({
     if (pc_labels[0] < 0) {
@@ -4593,6 +4791,9 @@ static bool bl_emit_at(int32_t pc)
     r_label_for; }));
         if ((ana_flags[0] & ANA_TARGET) != 0) {
             self_valid = false;
+        }
+        if ((ana_flags[0] & ANA_LOOP) != 0) {
+            bl_head_check(0);
         }
     } else if (((ana_flags[pc] & ANA_TARGET) != 0) || (pc_merge[pc] == 1)) {
         if ((!dead) && ({
@@ -4642,7 +4843,7 @@ exit_can_thread_into:;
                 asm_note("the condition is constant: jump", 0);
             }
             if ((ana_flags[t] & ANA_LOOP) != 0) {
-                bl_interrupt_check(t);
+                bl_back_jump(t);
             } else {
                 a_label = ({
     if (pc_labels[t] < 0) {
@@ -4840,6 +5041,7 @@ exit_offset_to_3:;
     r_label_for_5 = pc_labels[pc];
     r_label_for_5; });
         exit_note_loop_resume:;
+            bl_head_check(pc);
         }
     }
     if (dead) {
@@ -5913,6 +6115,9 @@ exit_offset_to_8:;
         asm_note("married: its frame answers", 0);
     }
     bl_emit_runtime_call(asm_label_at(context_field_stub), pc, ss_top);
+    if (loop_active) {
+        bl_emit_load_loop_temps(loop_id);
+    }
     asm_bind(done);
     r_push_context_field = bl_ss_push(SS_SLOT, 0, -1);
     r_push_context_field; });
@@ -7456,6 +7661,9 @@ exit_length_of:;
     }
     bl_drop_doubles();
     self_valid = false;
+    if (loop_active) {
+        bl_emit_load_loop_temps(loop_id);
+    }
     bl_note_continuation(pc, X0);
     r_finish_send = bl_ss_push(SS_REG, 0, X0);
     r_finish_send; });
@@ -7554,6 +7762,9 @@ exit_length_of_2:;
     }
     bl_drop_doubles();
     self_valid = false;
+    if (loop_active) {
+        bl_emit_load_loop_temps(loop_id);
+    }
     bl_note_continuation(pc, X0);
     r_finish_send_2 = bl_ss_push(SS_REG, 0, X0);
     r_finish_send_2; });
@@ -7710,7 +7921,7 @@ exit_can_thread_into_2:;
                 asm_note("the condition is constant: jump", 0);
             }
             if ((ana_flags[t_13] & ANA_LOOP) != 0) {
-                bl_interrupt_check(t_13);
+                bl_back_jump(t_13);
             } else {
                 a_label_9 = ({
     if (pc_labels[t_13] < 0) {
@@ -7877,7 +8088,7 @@ exit_thread_into_2:;
     }
     bl_ss_flush_to(ss_top);
     if ((ana_flags[t_12] & ANA_LOOP) != 0) {
-        bl_interrupt_check(t_12);
+        bl_back_jump(t_12);
     } else {
         if (asm_noting) {
             asm_note("jump", 0);
@@ -7928,7 +8139,7 @@ exit_jump:;
                 asm_note("the condition is constant: jump", 0);
             }
             if ((ana_flags[t_14] & ANA_LOOP) != 0) {
-                bl_interrupt_check(t_14);
+                bl_back_jump(t_14);
             } else {
                 a_label_13 = ({
     if (pc_labels[t_14] < 0) {
@@ -16218,6 +16429,12 @@ exit_offset_to_30:;
         if ((k == PK_UINT32_AT) || (k == PK_UINT32_AT_PUT)) {
             bl_emit_uint32_primitive(k == PK_UINT32_AT_PUT, fail);
         }
+        if ((k == PK_STRING_AT) && (cur_args == 1)) {
+            bl_emit_string_primitive(false, fail);
+        }
+        if ((k == PK_STRING_AT_PUT) && (cur_args == 2)) {
+            bl_emit_string_primitive(true, fail);
+        }
         if (k == PK_STRING_COMPARE) {
             bl_emit_string_compare_primitive(fail);
         }
@@ -18993,6 +19210,7 @@ exit_offset_to_20:;
                 }
                 k_4 = k_4 + 2;
             }
+            bl_emit_load_loop_temps(sl_loop[i]);
             if (asm_pc < asm_limit) {
                 *(uint32_t *)asm_pc = 4167008917ULL;
                 asm_pc = asm_pc + 4;
@@ -19098,9 +19316,14 @@ static void bl_emit_slow_send(int32_t i)
     int32_t ri;
     int32_t send;
     int32_t leave;
-    int64_t k;
     int8_t ra;
     int8_t rb;
+    int32_t ia;
+    int32_t oa;
+    int32_t da;
+    int32_t ib;
+    int32_t ob;
+    int32_t db;
     uint64_t target;
     int64_t r_offset_to;
     int64_t off;
@@ -19110,9 +19333,6 @@ static void bl_emit_slow_send(int32_t i)
     int64_t r_offset_to_2;
     int64_t off_2;
     uint64_t a_word_3;
-    int32_t int_;
-    int32_t obj;
-    int32_t done;
     uint64_t target_3;
     int64_t r_offset_to_3;
     int64_t off_3;
@@ -19124,129 +19344,127 @@ static void bl_emit_slow_send(int32_t i)
     int64_t off_4;
     uint64_t a_word_6;
     uint64_t a_word_7;
+    int64_t value;
+    uint64_t a_word_8;
     uint64_t target_5;
     int64_t r_offset_to_5;
     int64_t off_5;
-    int64_t a_word_8;
+    uint64_t a_word_9;
+    int32_t enc_2;
+    uint64_t a_word_10;
     uint64_t target_6;
     int64_t r_offset_to_6;
     int64_t off_6;
-    uint64_t a_word_9;
-    uint64_t a_word_10;
-    int64_t off_7;
     uint64_t a_word_11;
     uint64_t a_word_12;
-    uint64_t target_7;
-    int64_t r_offset_to_7;
-    int64_t off_8;
-    uint64_t a_word_13;
-    uint64_t a_word_14;
-    uint64_t target_8;
-    int64_t r_offset_to_8;
-    int64_t off_9;
-    int64_t a_word_15;
-    uint64_t a_word_16;
-    int64_t value;
-    uint64_t a_word_17;
-    int32_t int__2;
-    int32_t obj_2;
-    int32_t done_2;
-    uint64_t target_9;
-    int64_t r_offset_to_9;
-    int64_t off_10;
-    uint64_t a_word_18;
-    int32_t enc_2;
-    uint64_t a_word_19;
-    uint64_t target_10;
-    int64_t r_offset_to_10;
-    int64_t off_11;
-    uint64_t a_word_20;
-    uint64_t a_word_21;
-    uint64_t target_11;
-    int64_t r_offset_to_11;
-    int64_t off_12;
-    int64_t a_word_22;
-    uint64_t target_12;
-    int64_t r_offset_to_12;
-    int64_t off_13;
-    uint64_t a_word_23;
-    uint64_t a_word_24;
-    int64_t off_14;
-    uint64_t a_word_25;
-    uint64_t a_word_26;
-    uint64_t target_13;
-    int64_t r_offset_to_13;
-    int64_t off_15;
-    uint64_t a_word_27;
-    uint64_t a_word_28;
-    uint64_t target_14;
-    int64_t r_offset_to_14;
-    int64_t off_16;
-    int64_t a_word_29;
-    uint64_t a_word_30;
+    int64_t k;
     int32_t pc;
     uint64_t a;
     int32_t a_label;
-    int64_t off_17;
-    uint64_t a_word_31;
-    int64_t off_18;
-    uint64_t a_word_32;
-    uint64_t a_word_33;
+    int64_t off_7;
+    uint64_t a_word_13;
+    int64_t off_8;
+    uint64_t a_word_14;
+    uint64_t a_word_15;
     int v_5;
     int cond;
     int32_t a_label_2;
     int32_t pc_2;
     int c;
-    uint64_t target_15;
-    int64_t r_offset_to_15;
-    int64_t off_19;
-    uint64_t a_word_34;
+    uint64_t target_7;
+    int64_t r_offset_to_7;
+    int64_t off_9;
+    uint64_t a_word_16;
     int32_t a_label_3;
-    uint64_t target_16;
-    int64_t r_offset_to_16;
-    int64_t off_20;
-    int64_t a_word_35;
+    uint64_t target_8;
+    int64_t r_offset_to_8;
+    int64_t off_10;
+    int64_t a_word_17;
     int8_t rd;
-    uint64_t a_word_36;
+    uint64_t a_word_18;
     int32_t a_label_4;
-    uint64_t target_17;
-    int64_t r_offset_to_17;
-    int64_t off_21;
-    int64_t a_word_37;
-    uint64_t target_18;
-    int64_t r_offset_to_18;
-    int64_t off_22;
-    uint64_t a_word_38;
-    uint64_t target_19;
-    int64_t r_offset_to_19;
-    int64_t off_23;
-    int64_t a_word_39;
+    uint64_t target_9;
+    int64_t r_offset_to_9;
+    int64_t off_11;
+    int64_t a_word_19;
+    uint64_t target_10;
+    int64_t r_offset_to_10;
+    int64_t off_12;
+    uint64_t a_word_20;
+    uint64_t target_11;
+    int64_t r_offset_to_11;
+    int64_t off_13;
+    int64_t a_word_21;
     int8_t r_2;
     int32_t cont;
     int32_t zero;
+    uint64_t target_12;
+    int64_t r_offset_to_12;
+    int64_t off_14;
+    uint64_t a_word_22;
+    uint64_t target_13;
+    int64_t r_offset_to_13;
+    int64_t off_15;
+    uint64_t a_word_23;
+    int r_3;
+    int s;
+    int64_t sf_8;
+    uint64_t a_word_24;
+    int32_t enc_3;
+    uint64_t a_word_25;
+    uint64_t target_14;
+    int64_t r_offset_to_14;
+    int64_t off_16;
+    int64_t a_word_26;
+    int r_4;
+    int s_2;
+    int64_t sf_10;
+    uint64_t a_word_27;
+    int32_t enc_4;
+    uint64_t a_word_28;
+    uint64_t target_15;
+    int64_t r_offset_to_15;
+    int64_t off_17;
+    int64_t a_word_29;
+    uint64_t target_16;
+    int64_t r_offset_to_16;
+    int64_t off_18;
+    uint64_t a_word_30;
+    uint64_t a_word_31;
+    int64_t off_19;
+    uint64_t a_word_32;
+    uint64_t a_word_33;
+    uint64_t target_17;
+    int64_t r_offset_to_17;
+    int64_t off_20;
+    uint64_t a_word_34;
+    uint64_t a_word_35;
+    uint64_t target_18;
+    int64_t r_offset_to_18;
+    int64_t off_21;
+    int64_t a_word_36;
+    uint64_t a_word_37;
+    uint64_t target_19;
+    int64_t r_offset_to_19;
+    int64_t off_22;
+    int64_t a_word_38;
     uint64_t target_20;
     int64_t r_offset_to_20;
-    int64_t off_24;
+    int64_t off_23;
+    uint64_t a_word_39;
     uint64_t a_word_40;
+    int64_t off_24;
+    uint64_t a_word_41;
+    uint64_t a_word_42;
     uint64_t target_21;
     int64_t r_offset_to_21;
     int64_t off_25;
-    uint64_t a_word_41;
-    int r_3;
-    int s;
-    int64_t sf_10;
-    uint64_t a_word_42;
-    int32_t enc_3;
     uint64_t a_word_43;
+    uint64_t a_word_44;
     uint64_t target_22;
     int64_t r_offset_to_22;
     int64_t off_26;
-    int64_t a_word_44;
-    int r_4;
-    int s_2;
-    int64_t sf_12;
-    uint64_t a_word_45;
-    int32_t enc_4;
+    int64_t a_word_45;
     uint64_t a_word_46;
     uint64_t target_23;
     int64_t r_offset_to_23;
@@ -19504,9 +19722,9 @@ static void bl_emit_slow_send(int32_t i)
     uint64_t a_word_137;
     uint64_t a_word_138;
     int32_t d_5;
-    int32_t int__3;
-    int32_t obj_3;
-    int32_t done_3;
+    int32_t int_;
+    int32_t obj;
+    int32_t done;
     uint64_t target_44;
     int64_t r_offset_to_44;
     int64_t off_69;
@@ -19550,9 +19768,9 @@ static void bl_emit_slow_send(int32_t i)
     uint64_t a_word_154;
     int8_t r_12;
     int d_6;
-    int32_t int__4;
-    int32_t obj_4;
-    int32_t done_4;
+    int32_t int__2;
+    int32_t obj_2;
+    int32_t done_2;
     uint64_t target_50;
     int64_t r_offset_to_50;
     int64_t off_77;
@@ -19617,9 +19835,9 @@ static void bl_emit_slow_send(int32_t i)
     uint64_t a_word_176;
     uint64_t a_word_177;
     int32_t d_8;
-    int32_t int__5;
-    int32_t obj_5;
-    int32_t done_5;
+    int32_t int__3;
+    int32_t obj_3;
+    int32_t done_3;
     uint64_t target_58;
     int64_t r_offset_to_58;
     int64_t off_89;
@@ -19739,9 +19957,14 @@ static void bl_emit_slow_send(int32_t i)
     send = asm_new_label();
     leave = asm_new_label();
     if ((info & SL_FLOAT) != 0) {
-        k = (sl_info[i] >> 16) & 255;
         ra = sl_a[i];
         rb = sl_b[i];
+        ia = asm_new_label();
+        oa = asm_new_label();
+        da = asm_new_label();
+        ib = asm_new_label();
+        ob = asm_new_label();
+        db = asm_new_label();
         if (asm_noting) {
             asm_note("Floats inline: not two SmallIntegers", 0);
         }
@@ -19793,10 +20016,7 @@ exit_offset_to_2:;
                 asm_error = ASM_ERR_FULL;
             }
         }
-        int_ = asm_new_label();
-        obj = asm_new_label();
-        done = asm_new_label();
-        target_3 = asm_target_of(int_);
+        target_3 = asm_target_of(ia);
         a_word_4 = 922746880ULL | ((((uint64_t)({
     off_3 = ((int64_t)(target_3 - asm_pc)) >> 2;
     if (!((off_3 >= -8192) && (off_3 <= 8191))) {
@@ -19841,7 +20061,7 @@ exit_offset_to_3:;
             asm_error = ASM_ERR_IMMEDIATE;
         }
     exit_add_sub:;
-        target_4 = asm_target_of(obj);
+        target_4 = asm_target_of(oa);
         a_word_6 = 0x54000000 | ((((uint64_t)({
     off_4 = ((int64_t)(target_4 - asm_pc)) >> 2;
     if (!((off_4 >= -262144) && (off_4 <= 262143))) {
@@ -19906,149 +20126,7 @@ exit_offset_to_4:;
         } else if (asm_error == ASM_OK) {
             asm_error = ASM_ERR_FULL;
         }
-        target_5 = asm_target_of(done);
-        a_word_8 = 0x14000000 | ({
-    off_5 = ((int64_t)(target_5 - asm_pc)) >> 2;
-    if (!((off_5 >= -33554432) && (off_5 <= 33554431))) {
-        if (asm_error == ASM_OK) {
-            asm_error = ASM_ERR_RANGE;
-        }
-        r_offset_to_5 = 0;
-        goto exit_offset_to_5;
-    }
-    r_offset_to_5 = off_5 & 67108863;
-exit_offset_to_5:;
-    r_offset_to_5; });
-        if (asm_pc < asm_limit) {
-            *(uint32_t *)asm_pc = a_word_8;
-            asm_pc = asm_pc + 4;
-        } else if (asm_error == ASM_OK) {
-            asm_error = ASM_ERR_FULL;
-        }
-        asm_bind(obj);
-        target_6 = asm_target_of(send);
-        a_word_9 = 3036676096LL | ((((uint64_t)({
-    off_6 = ((int64_t)(target_6 - asm_pc)) >> 2;
-    if (!((off_6 >= -262144) && (off_6 <= 262143))) {
-        if (asm_error == ASM_OK) {
-            asm_error = ASM_ERR_RANGE;
-        }
-        r_offset_to_6 = 0;
-        goto exit_offset_to_6;
-    }
-    r_offset_to_6 = off_6 & 524287;
-exit_offset_to_6:;
-    r_offset_to_6; })) << 5) | 16);
-        if (asm_pc < asm_limit) {
-            *(uint32_t *)asm_pc = a_word_9;
-            asm_pc = asm_pc + 4;
-        } else if (asm_error == ASM_OK) {
-            asm_error = ASM_ERR_FULL;
-        }
-        if (asm_noting) {
-            asm_note("a BoxedFloat64: its word", 0);
-        }
-        a_word_10 = 4181721088LL | (1024ULL | ((((uint64_t)(ra & 31)) << 5) | 16));
-        if (asm_pc < asm_limit) {
-            *(uint32_t *)asm_pc = a_word_10;
-            asm_pc = asm_pc + 4;
-        } else if (asm_error == ASM_OK) {
-            asm_error = ASM_ERR_FULL;
-        }
-        off_7 = (int64_t)&((jit_state *)0)->boxed_float_class;
-        if ((off_7 >= 0) && ((off_7 & 7) == 0) && ((off_7 >> 3) <= 4095)) {
-            a_word_11 = 4181721088LL | ((((uint64_t)(off_7 >> 3)) << 10) | 721ULL);
-            if (asm_pc < asm_limit) {
-                *(uint32_t *)asm_pc = a_word_11;
-                asm_pc = asm_pc + 4;
-            } else if (asm_error == ASM_OK) {
-                asm_error = ASM_ERR_FULL;
-            }
-        } else {
-            if (!((off_7 >= -256) && (off_7 <= 255))) {
-                if (asm_error == ASM_OK) {
-                    asm_error = ASM_ERR_IMMEDIATE;
-                }
-                goto exit_load_store;
-            }
-            a_word_12 = 4164943872LL | (((uint64_t)(off_7 & 511)) << 12) | 721ULL;
-            if (asm_pc < asm_limit) {
-                *(uint32_t *)asm_pc = a_word_12;
-                asm_pc = asm_pc + 4;
-            } else if (asm_error == ASM_OK) {
-                asm_error = ASM_ERR_FULL;
-            }
-        exit_load_store:;
-        }
-        if (asm_pc < asm_limit) {
-            *(uint32_t *)asm_pc = 3943760415ULL;
-            asm_pc = asm_pc + 4;
-        } else if (asm_error == ASM_OK) {
-            asm_error = ASM_ERR_FULL;
-        }
-        target_7 = asm_target_of(send);
-        a_word_13 = 0x54000000 | ((((uint64_t)({
-    off_8 = ((int64_t)(target_7 - asm_pc)) >> 2;
-    if (!((off_8 >= -262144) && (off_8 <= 262143))) {
-        if (asm_error == ASM_OK) {
-            asm_error = ASM_ERR_RANGE;
-        }
-        r_offset_to_7 = 0;
-        goto exit_offset_to_7;
-    }
-    r_offset_to_7 = off_8 & 524287;
-exit_offset_to_7:;
-    r_offset_to_7; })) << 5) | 1);
-        if (asm_pc < asm_limit) {
-            *(uint32_t *)asm_pc = a_word_13;
-            asm_pc = asm_pc + 4;
-        } else if (asm_error == ASM_OK) {
-            asm_error = ASM_ERR_FULL;
-        }
-        a_word_14 = 4248829952LL | (2048ULL | ((((uint64_t)(ra & 31)) << 5) | 0));
-        if (asm_pc < asm_limit) {
-            *(uint32_t *)asm_pc = a_word_14;
-            asm_pc = asm_pc + 4;
-        } else if (asm_error == ASM_OK) {
-            asm_error = ASM_ERR_FULL;
-        }
-        target_8 = asm_target_of(done);
-        a_word_15 = 0x14000000 | ({
-    off_9 = ((int64_t)(target_8 - asm_pc)) >> 2;
-    if (!((off_9 >= -33554432) && (off_9 <= 33554431))) {
-        if (asm_error == ASM_OK) {
-            asm_error = ASM_ERR_RANGE;
-        }
-        r_offset_to_8 = 0;
-        goto exit_offset_to_8;
-    }
-    r_offset_to_8 = off_9 & 67108863;
-exit_offset_to_8:;
-    r_offset_to_8; });
-        if (asm_pc < asm_limit) {
-            *(uint32_t *)asm_pc = a_word_15;
-            asm_pc = asm_pc + 4;
-        } else if (asm_error == ASM_OK) {
-            asm_error = ASM_ERR_FULL;
-        }
-        asm_bind(int_);
-        if (asm_noting) {
-            asm_note("a SmallInteger: convert", 0);
-        }
-        a_word_16 = 2470445056LL | (130048ULL | ((((uint64_t)(ra & 31)) << 5) | 16));
-        if (asm_pc < asm_limit) {
-            *(uint32_t *)asm_pc = a_word_16;
-            asm_pc = asm_pc + 4;
-        } else if (asm_error == ASM_OK) {
-            asm_error = ASM_ERR_FULL;
-        }
-        if (asm_pc < asm_limit) {
-            *(uint32_t *)asm_pc = 2657223168ULL;
-            asm_pc = asm_pc + 4;
-        } else if (asm_error == ASM_OK) {
-            asm_error = ASM_ERR_FULL;
-        }
-        asm_bind(done);
+        asm_bind(da);
         if (rb == -2) {
             value = sl_y[i] >> 1;
             if ((value >= 0) && (value <= 0xFFFF)) {
@@ -20058,9 +20136,9 @@ exit_offset_to_8:;
                     }
                     goto exit_move_wide;
                 }
-                a_word_17 = 3531603968LL | (0ULL | (((uint64_t)value) << 5) | 16);
+                a_word_8 = 3531603968LL | (0ULL | (((uint64_t)value) << 5) | 16);
                 if (asm_pc < asm_limit) {
-                    *(uint32_t *)asm_pc = a_word_17;
+                    *(uint32_t *)asm_pc = a_word_8;
                     asm_pc = asm_pc + 4;
                 } else if (asm_error == ASM_OK) {
                     asm_error = ASM_ERR_FULL;
@@ -20075,25 +20153,29 @@ exit_offset_to_8:;
             } else if (asm_error == ASM_OK) {
                 asm_error = ASM_ERR_FULL;
             }
+        } else if (rb == ra) {
+            if (asm_pc < asm_limit) {
+                *(uint32_t *)asm_pc = 509624321ULL;
+                asm_pc = asm_pc + 4;
+            } else if (asm_error == ASM_OK) {
+                asm_error = ASM_ERR_FULL;
+            }
         } else {
-            int__2 = asm_new_label();
-            obj_2 = asm_new_label();
-            done_2 = asm_new_label();
-            target_9 = asm_target_of(int__2);
-            a_word_18 = 922746880ULL | ((((uint64_t)({
-    off_10 = ((int64_t)(target_9 - asm_pc)) >> 2;
-    if (!((off_10 >= -8192) && (off_10 <= 8191))) {
+            target_5 = asm_target_of(ib);
+            a_word_9 = 922746880ULL | ((((uint64_t)({
+    off_5 = ((int64_t)(target_5 - asm_pc)) >> 2;
+    if (!((off_5 >= -8192) && (off_5 <= 8191))) {
         if (asm_error == ASM_OK) {
             asm_error = ASM_ERR_RANGE;
         }
-        r_offset_to_9 = 0;
-        goto exit_offset_to_9;
+        r_offset_to_5 = 0;
+        goto exit_offset_to_5;
     }
-    r_offset_to_9 = off_10 & 16383;
-exit_offset_to_9:;
-    r_offset_to_9; })) << 5) | (rb & 31));
+    r_offset_to_5 = off_5 & 16383;
+exit_offset_to_5:;
+    r_offset_to_5; })) << 5) | (rb & 31));
             if (asm_pc < asm_limit) {
-                *(uint32_t *)asm_pc = a_word_18;
+                *(uint32_t *)asm_pc = a_word_9;
                 asm_pc = asm_pc + 4;
             } else if (asm_error == ASM_OK) {
                 asm_error = ASM_ERR_FULL;
@@ -20105,9 +20187,9 @@ exit_offset_to_9:;
                 }
                 goto exit_logical_2;
             }
-            a_word_19 = 2449473536LL | ((((uint64_t)enc_2) << 10) | ((((uint64_t)(rb & 31)) << 5) | 16));
+            a_word_10 = 2449473536LL | ((((uint64_t)enc_2) << 10) | ((((uint64_t)(rb & 31)) << 5) | 16));
             if (asm_pc < asm_limit) {
-                *(uint32_t *)asm_pc = a_word_19;
+                *(uint32_t *)asm_pc = a_word_10;
                 asm_pc = asm_pc + 4;
             } else if (asm_error == ASM_OK) {
                 asm_error = ASM_ERR_FULL;
@@ -20124,21 +20206,21 @@ exit_offset_to_9:;
                 asm_error = ASM_ERR_IMMEDIATE;
             }
         exit_add_sub_3:;
-            target_10 = asm_target_of(obj_2);
-            a_word_20 = 0x54000000 | ((((uint64_t)({
-    off_11 = ((int64_t)(target_10 - asm_pc)) >> 2;
-    if (!((off_11 >= -262144) && (off_11 <= 262143))) {
+            target_6 = asm_target_of(ob);
+            a_word_11 = 0x54000000 | ((((uint64_t)({
+    off_6 = ((int64_t)(target_6 - asm_pc)) >> 2;
+    if (!((off_6 >= -262144) && (off_6 <= 262143))) {
         if (asm_error == ASM_OK) {
             asm_error = ASM_ERR_RANGE;
         }
-        r_offset_to_10 = 0;
-        goto exit_offset_to_10;
+        r_offset_to_6 = 0;
+        goto exit_offset_to_6;
     }
-    r_offset_to_10 = off_11 & 524287;
-exit_offset_to_10:;
-    r_offset_to_10; })) << 5) | 1);
+    r_offset_to_6 = off_6 & 524287;
+exit_offset_to_6:;
+    r_offset_to_6; })) << 5) | 1);
             if (asm_pc < asm_limit) {
-                *(uint32_t *)asm_pc = a_word_20;
+                *(uint32_t *)asm_pc = a_word_11;
                 asm_pc = asm_pc + 4;
             } else if (asm_error == ASM_OK) {
                 asm_error = ASM_ERR_FULL;
@@ -20146,9 +20228,9 @@ exit_offset_to_10:;
             if (asm_noting) {
                 asm_note("a SmallFloat64: rotate back", 0);
             }
-            a_word_21 = 3544186880LL | (261120ULL | ((((uint64_t)(rb & 31)) << 5) | 16));
+            a_word_12 = 3544186880LL | (261120ULL | ((((uint64_t)(rb & 31)) << 5) | 16));
             if (asm_pc < asm_limit) {
-                *(uint32_t *)asm_pc = a_word_21;
+                *(uint32_t *)asm_pc = a_word_12;
                 asm_pc = asm_pc + 4;
             } else if (asm_error == ASM_OK) {
                 asm_error = ASM_ERR_FULL;
@@ -20189,150 +20271,9 @@ exit_offset_to_10:;
             } else if (asm_error == ASM_OK) {
                 asm_error = ASM_ERR_FULL;
             }
-            target_11 = asm_target_of(done_2);
-            a_word_22 = 0x14000000 | ({
-    off_12 = ((int64_t)(target_11 - asm_pc)) >> 2;
-    if (!((off_12 >= -33554432) && (off_12 <= 33554431))) {
-        if (asm_error == ASM_OK) {
-            asm_error = ASM_ERR_RANGE;
+            asm_bind(db);
         }
-        r_offset_to_11 = 0;
-        goto exit_offset_to_11;
-    }
-    r_offset_to_11 = off_12 & 67108863;
-exit_offset_to_11:;
-    r_offset_to_11; });
-            if (asm_pc < asm_limit) {
-                *(uint32_t *)asm_pc = a_word_22;
-                asm_pc = asm_pc + 4;
-            } else if (asm_error == ASM_OK) {
-                asm_error = ASM_ERR_FULL;
-            }
-            asm_bind(obj_2);
-            target_12 = asm_target_of(send);
-            a_word_23 = 3036676096LL | ((((uint64_t)({
-    off_13 = ((int64_t)(target_12 - asm_pc)) >> 2;
-    if (!((off_13 >= -262144) && (off_13 <= 262143))) {
-        if (asm_error == ASM_OK) {
-            asm_error = ASM_ERR_RANGE;
-        }
-        r_offset_to_12 = 0;
-        goto exit_offset_to_12;
-    }
-    r_offset_to_12 = off_13 & 524287;
-exit_offset_to_12:;
-    r_offset_to_12; })) << 5) | 16);
-            if (asm_pc < asm_limit) {
-                *(uint32_t *)asm_pc = a_word_23;
-                asm_pc = asm_pc + 4;
-            } else if (asm_error == ASM_OK) {
-                asm_error = ASM_ERR_FULL;
-            }
-            if (asm_noting) {
-                asm_note("a BoxedFloat64: its word", 0);
-            }
-            a_word_24 = 4181721088LL | (1024ULL | ((((uint64_t)(rb & 31)) << 5) | 16));
-            if (asm_pc < asm_limit) {
-                *(uint32_t *)asm_pc = a_word_24;
-                asm_pc = asm_pc + 4;
-            } else if (asm_error == ASM_OK) {
-                asm_error = ASM_ERR_FULL;
-            }
-            off_14 = (int64_t)&((jit_state *)0)->boxed_float_class;
-            if ((off_14 >= 0) && ((off_14 & 7) == 0) && ((off_14 >> 3) <= 4095)) {
-                a_word_25 = 4181721088LL | ((((uint64_t)(off_14 >> 3)) << 10) | 721ULL);
-                if (asm_pc < asm_limit) {
-                    *(uint32_t *)asm_pc = a_word_25;
-                    asm_pc = asm_pc + 4;
-                } else if (asm_error == ASM_OK) {
-                    asm_error = ASM_ERR_FULL;
-                }
-            } else {
-                if (!((off_14 >= -256) && (off_14 <= 255))) {
-                    if (asm_error == ASM_OK) {
-                        asm_error = ASM_ERR_IMMEDIATE;
-                    }
-                    goto exit_load_store_2;
-                }
-                a_word_26 = 4164943872LL | (((uint64_t)(off_14 & 511)) << 12) | 721ULL;
-                if (asm_pc < asm_limit) {
-                    *(uint32_t *)asm_pc = a_word_26;
-                    asm_pc = asm_pc + 4;
-                } else if (asm_error == ASM_OK) {
-                    asm_error = ASM_ERR_FULL;
-                }
-            exit_load_store_2:;
-            }
-            if (asm_pc < asm_limit) {
-                *(uint32_t *)asm_pc = 3943760415ULL;
-                asm_pc = asm_pc + 4;
-            } else if (asm_error == ASM_OK) {
-                asm_error = ASM_ERR_FULL;
-            }
-            target_13 = asm_target_of(send);
-            a_word_27 = 0x54000000 | ((((uint64_t)({
-    off_15 = ((int64_t)(target_13 - asm_pc)) >> 2;
-    if (!((off_15 >= -262144) && (off_15 <= 262143))) {
-        if (asm_error == ASM_OK) {
-            asm_error = ASM_ERR_RANGE;
-        }
-        r_offset_to_13 = 0;
-        goto exit_offset_to_13;
-    }
-    r_offset_to_13 = off_15 & 524287;
-exit_offset_to_13:;
-    r_offset_to_13; })) << 5) | 1);
-            if (asm_pc < asm_limit) {
-                *(uint32_t *)asm_pc = a_word_27;
-                asm_pc = asm_pc + 4;
-            } else if (asm_error == ASM_OK) {
-                asm_error = ASM_ERR_FULL;
-            }
-            a_word_28 = 4248829952LL | (2048ULL | ((((uint64_t)(rb & 31)) << 5) | 1));
-            if (asm_pc < asm_limit) {
-                *(uint32_t *)asm_pc = a_word_28;
-                asm_pc = asm_pc + 4;
-            } else if (asm_error == ASM_OK) {
-                asm_error = ASM_ERR_FULL;
-            }
-            target_14 = asm_target_of(done_2);
-            a_word_29 = 0x14000000 | ({
-    off_16 = ((int64_t)(target_14 - asm_pc)) >> 2;
-    if (!((off_16 >= -33554432) && (off_16 <= 33554431))) {
-        if (asm_error == ASM_OK) {
-            asm_error = ASM_ERR_RANGE;
-        }
-        r_offset_to_14 = 0;
-        goto exit_offset_to_14;
-    }
-    r_offset_to_14 = off_16 & 67108863;
-exit_offset_to_14:;
-    r_offset_to_14; });
-            if (asm_pc < asm_limit) {
-                *(uint32_t *)asm_pc = a_word_29;
-                asm_pc = asm_pc + 4;
-            } else if (asm_error == ASM_OK) {
-                asm_error = ASM_ERR_FULL;
-            }
-            asm_bind(int__2);
-            if (asm_noting) {
-                asm_note("a SmallInteger: convert", 0);
-            }
-            a_word_30 = 2470445056LL | (130048ULL | ((((uint64_t)(rb & 31)) << 5) | 16));
-            if (asm_pc < asm_limit) {
-                *(uint32_t *)asm_pc = a_word_30;
-                asm_pc = asm_pc + 4;
-            } else if (asm_error == ASM_OK) {
-                asm_error = ASM_ERR_FULL;
-            }
-            if (asm_pc < asm_limit) {
-                *(uint32_t *)asm_pc = 2657223169ULL;
-                asm_pc = asm_pc + 4;
-            } else if (asm_error == ASM_OK) {
-                asm_error = ASM_ERR_FULL;
-            }
-            asm_bind(done_2);
-        }
+        k = (sl_info[i] >> 16) & 255;
         if (counter_addr != 0) {
             pc = sl_pc[i];
             a = (uint64_t)(fb_floats + (((uint64_t)(uint32_t)(((*(uint64_t *)cur_method) >> H_HASH_SHIFT) & H_HASH_MASK) * 31 + (uint64_t)pc) & 65535));
@@ -20349,45 +20290,45 @@ exit_offset_to_14:;
                 asm_error = ASM_ERR_FULL;
             }
             a_label = asm_label_at(a);
-            off_17 = ((int64_t)((asm_target_of(a_label) & 18446744073709547520ULL) - (asm_pc & 18446744073709547520ULL))) >> 12;
-            if (!((off_17 >= -1048576) && (off_17 <= 0xFFFFF))) {
+            off_7 = ((int64_t)((asm_target_of(a_label) & 18446744073709547520ULL) - (asm_pc & 18446744073709547520ULL))) >> 12;
+            if (!((off_7 >= -1048576) && (off_7 <= 0xFFFFF))) {
                 if (asm_error == ASM_OK) {
                     asm_error = ASM_ERR_RANGE;
                 }
                 goto exit_adrp;
             }
-            a_word_31 = 0x90000000LL | (((uint64_t)(off_17 & 3)) << 29) | ((((uint64_t)((off_17 >> 2) & 0x7FFFF)) << 5) | 16);
+            a_word_13 = 0x90000000LL | (((uint64_t)(off_7 & 3)) << 29) | ((((uint64_t)((off_7 >> 2) & 0x7FFFF)) << 5) | 16);
             if (asm_pc < asm_limit) {
-                *(uint32_t *)asm_pc = a_word_31;
+                *(uint32_t *)asm_pc = a_word_13;
                 asm_pc = asm_pc + 4;
             } else if (asm_error == ASM_OK) {
                 asm_error = ASM_ERR_FULL;
             }
         exit_adrp:;
-            off_18 = (int64_t)(a & 0xFFF);
-            if ((off_18 >= 0) && ((off_18 & 0) == 0) && ((off_18 >> 0) <= 4095)) {
-                a_word_32 = 956301312 | ((((uint64_t)(off_18 >> 0)) << 10) | 529ULL);
+            off_8 = (int64_t)(a & 0xFFF);
+            if ((off_8 >= 0) && ((off_8 & 0) == 0) && ((off_8 >> 0) <= 4095)) {
+                a_word_14 = 956301312 | ((((uint64_t)(off_8 >> 0)) << 10) | 529ULL);
                 if (asm_pc < asm_limit) {
-                    *(uint32_t *)asm_pc = a_word_32;
+                    *(uint32_t *)asm_pc = a_word_14;
                     asm_pc = asm_pc + 4;
                 } else if (asm_error == ASM_OK) {
                     asm_error = ASM_ERR_FULL;
                 }
             } else {
-                if (!((off_18 >= -256) && (off_18 <= 255))) {
+                if (!((off_8 >= -256) && (off_8 <= 255))) {
                     if (asm_error == ASM_OK) {
                         asm_error = ASM_ERR_IMMEDIATE;
                     }
-                    goto exit_load_store_3;
+                    goto exit_load_store;
                 }
-                a_word_33 = 939524096 | (((uint64_t)(off_18 & 511)) << 12) | 529ULL;
+                a_word_15 = 939524096 | (((uint64_t)(off_8 & 511)) << 12) | 529ULL;
                 if (asm_pc < asm_limit) {
-                    *(uint32_t *)asm_pc = a_word_33;
+                    *(uint32_t *)asm_pc = a_word_15;
                     asm_pc = asm_pc + 4;
                 } else if (asm_error == ASM_OK) {
                     asm_error = ASM_ERR_FULL;
                 }
-            exit_load_store_3:;
+            exit_load_store:;
             }
         }
         if ((k >= 2) && (k <= 7)) {
@@ -20422,76 +20363,76 @@ exit_offset_to_14:;
                 a_label_2 = sl_target[i];
                 pc_2 = (int32_t)sl_x[i];
                 c = ana_bcs[pc_2] == 0x91 ? cond : cond ^ 1;
-                target_15 = asm_target_of(a_label_2);
-                a_word_34 = 0x54000000 | ((((uint64_t)({
-    off_19 = ((int64_t)(target_15 - asm_pc)) >> 2;
-    if (!((off_19 >= -262144) && (off_19 <= 262143))) {
+                target_7 = asm_target_of(a_label_2);
+                a_word_16 = 0x54000000 | ((((uint64_t)({
+    off_9 = ((int64_t)(target_7 - asm_pc)) >> 2;
+    if (!((off_9 >= -262144) && (off_9 <= 262143))) {
         if (asm_error == ASM_OK) {
             asm_error = ASM_ERR_RANGE;
         }
-        r_offset_to_15 = 0;
-        goto exit_offset_to_15;
+        r_offset_to_7 = 0;
+        goto exit_offset_to_7;
     }
-    r_offset_to_15 = off_19 & 524287;
-exit_offset_to_15:;
-    r_offset_to_15; })) << 5) | (c & 15));
+    r_offset_to_7 = off_9 & 524287;
+exit_offset_to_7:;
+    r_offset_to_7; })) << 5) | (c & 15));
                 if (asm_pc < asm_limit) {
-                    *(uint32_t *)asm_pc = a_word_34;
+                    *(uint32_t *)asm_pc = a_word_16;
                     asm_pc = asm_pc + 4;
                 } else if (asm_error == ASM_OK) {
                     asm_error = ASM_ERR_FULL;
                 }
                 a_label_3 = sl_cont[i];
-                target_16 = asm_target_of(a_label_3);
-                a_word_35 = 0x14000000 | ({
-    off_20 = ((int64_t)(target_16 - asm_pc)) >> 2;
-    if (!((off_20 >= -33554432) && (off_20 <= 33554431))) {
+                target_8 = asm_target_of(a_label_3);
+                a_word_17 = 0x14000000 | ({
+    off_10 = ((int64_t)(target_8 - asm_pc)) >> 2;
+    if (!((off_10 >= -33554432) && (off_10 <= 33554431))) {
         if (asm_error == ASM_OK) {
             asm_error = ASM_ERR_RANGE;
         }
-        r_offset_to_16 = 0;
-        goto exit_offset_to_16;
+        r_offset_to_8 = 0;
+        goto exit_offset_to_8;
     }
-    r_offset_to_16 = off_20 & 67108863;
-exit_offset_to_16:;
-    r_offset_to_16; });
+    r_offset_to_8 = off_10 & 67108863;
+exit_offset_to_8:;
+    r_offset_to_8; });
                 if (asm_pc < asm_limit) {
-                    *(uint32_t *)asm_pc = a_word_35;
+                    *(uint32_t *)asm_pc = a_word_17;
                     asm_pc = asm_pc + 4;
                 } else if (asm_error == ASM_OK) {
                     asm_error = ASM_ERR_FULL;
                 }
-                goto exit_emit_float_path;
+                goto exit_emit_float_result;
             }
             rd = sl_r[i];
-            a_word_36 = 0x1A800000 | ((rd & REG_W) == 0 ? 0x80000000LL : 0) | 0 | ((((uint64_t)(cond & 15)) << 12) | (1639168ULL | (rd & 31)));
+            a_word_18 = 0x1A800000 | ((rd & REG_W) == 0 ? 0x80000000LL : 0) | 0 | ((((uint64_t)(cond & 15)) << 12) | (1639168ULL | (rd & 31)));
             if (asm_pc < asm_limit) {
-                *(uint32_t *)asm_pc = a_word_36;
+                *(uint32_t *)asm_pc = a_word_18;
                 asm_pc = asm_pc + 4;
             } else if (asm_error == ASM_OK) {
                 asm_error = ASM_ERR_FULL;
             }
             a_label_4 = sl_cont[i];
-            target_17 = asm_target_of(a_label_4);
-            a_word_37 = 0x14000000 | ({
-    off_21 = ((int64_t)(target_17 - asm_pc)) >> 2;
-    if (!((off_21 >= -33554432) && (off_21 <= 33554431))) {
+            target_9 = asm_target_of(a_label_4);
+            a_word_19 = 0x14000000 | ({
+    off_11 = ((int64_t)(target_9 - asm_pc)) >> 2;
+    if (!((off_11 >= -33554432) && (off_11 <= 33554431))) {
         if (asm_error == ASM_OK) {
             asm_error = ASM_ERR_RANGE;
         }
-        r_offset_to_17 = 0;
-        goto exit_offset_to_17;
+        r_offset_to_9 = 0;
+        goto exit_offset_to_9;
     }
-    r_offset_to_17 = off_21 & 67108863;
-exit_offset_to_17:;
-    r_offset_to_17; });
+    r_offset_to_9 = off_11 & 67108863;
+exit_offset_to_9:;
+    r_offset_to_9; });
             if (asm_pc < asm_limit) {
-                *(uint32_t *)asm_pc = a_word_37;
+                *(uint32_t *)asm_pc = a_word_19;
                 asm_pc = asm_pc + 4;
             } else if (asm_error == ASM_OK) {
                 asm_error = ASM_ERR_FULL;
             }
-            goto exit_emit_float_path;
+            goto exit_emit_float_result;
         }
         if (k == 0) {
             if (asm_pc < asm_limit) {
@@ -20524,21 +20465,21 @@ exit_offset_to_17:;
             } else if (asm_error == ASM_OK) {
                 asm_error = ASM_ERR_FULL;
             }
-            target_18 = asm_target_of(send);
-            a_word_38 = 0x54000000 | ((((uint64_t)({
-    off_22 = ((int64_t)(target_18 - asm_pc)) >> 2;
-    if (!((off_22 >= -262144) && (off_22 <= 262143))) {
+            target_10 = asm_target_of(send);
+            a_word_20 = 0x54000000 | ((((uint64_t)({
+    off_12 = ((int64_t)(target_10 - asm_pc)) >> 2;
+    if (!((off_12 >= -262144) && (off_12 <= 262143))) {
         if (asm_error == ASM_OK) {
             asm_error = ASM_ERR_RANGE;
         }
-        r_offset_to_18 = 0;
-        goto exit_offset_to_18;
+        r_offset_to_10 = 0;
+        goto exit_offset_to_10;
     }
-    r_offset_to_18 = off_22 & 524287;
-exit_offset_to_18:;
-    r_offset_to_18; })) << 5) | 0);
+    r_offset_to_10 = off_12 & 524287;
+exit_offset_to_10:;
+    r_offset_to_10; })) << 5) | 0);
             if (asm_pc < asm_limit) {
-                *(uint32_t *)asm_pc = a_word_38;
+                *(uint32_t *)asm_pc = a_word_20;
                 asm_pc = asm_pc + 4;
             } else if (asm_error == ASM_OK) {
                 asm_error = ASM_ERR_FULL;
@@ -20551,26 +20492,26 @@ exit_offset_to_18:;
             }
         }
         if (!((k == 0) || ((k == 1) || ((k == 8) || (k == 9))))) {
-            target_19 = asm_target_of(send);
-            a_word_39 = 0x14000000 | ({
-    off_23 = ((int64_t)(target_19 - asm_pc)) >> 2;
-    if (!((off_23 >= -33554432) && (off_23 <= 33554431))) {
+            target_11 = asm_target_of(send);
+            a_word_21 = 0x14000000 | ({
+    off_13 = ((int64_t)(target_11 - asm_pc)) >> 2;
+    if (!((off_13 >= -33554432) && (off_13 <= 33554431))) {
         if (asm_error == ASM_OK) {
             asm_error = ASM_ERR_RANGE;
         }
-        r_offset_to_19 = 0;
-        goto exit_offset_to_19;
+        r_offset_to_11 = 0;
+        goto exit_offset_to_11;
     }
-    r_offset_to_19 = off_23 & 67108863;
-exit_offset_to_19:;
-    r_offset_to_19; });
+    r_offset_to_11 = off_13 & 67108863;
+exit_offset_to_11:;
+    r_offset_to_11; });
             if (asm_pc < asm_limit) {
-                *(uint32_t *)asm_pc = a_word_39;
+                *(uint32_t *)asm_pc = a_word_21;
                 asm_pc = asm_pc + 4;
             } else if (asm_error == ASM_OK) {
                 asm_error = ASM_ERR_FULL;
             }
-            goto exit_emit_float_path;
+            goto exit_emit_float_result;
         }
         r_2 = sl_r[i];
         cont = sl_cont[i];
@@ -20590,21 +20531,21 @@ exit_offset_to_19:;
         } else if (asm_error == ASM_OK) {
             asm_error = ASM_ERR_FULL;
         }
-        target_20 = asm_target_of(zero);
-        a_word_40 = 3019898880LL | ((((uint64_t)({
-    off_24 = ((int64_t)(target_20 - asm_pc)) >> 2;
-    if (!((off_24 >= -262144) && (off_24 <= 262143))) {
+        target_12 = asm_target_of(zero);
+        a_word_22 = 3019898880LL | ((((uint64_t)({
+    off_14 = ((int64_t)(target_12 - asm_pc)) >> 2;
+    if (!((off_14 >= -262144) && (off_14 <= 262143))) {
         if (asm_error == ASM_OK) {
             asm_error = ASM_ERR_RANGE;
         }
-        r_offset_to_20 = 0;
-        goto exit_offset_to_20;
+        r_offset_to_12 = 0;
+        goto exit_offset_to_12;
     }
-    r_offset_to_20 = off_24 & 524287;
-exit_offset_to_20:;
-    r_offset_to_20; })) << 5) | 17);
+    r_offset_to_12 = off_14 & 524287;
+exit_offset_to_12:;
+    r_offset_to_12; })) << 5) | 17);
         if (asm_pc < asm_limit) {
-            *(uint32_t *)asm_pc = a_word_40;
+            *(uint32_t *)asm_pc = a_word_22;
             asm_pc = asm_pc + 4;
         } else if (asm_error == ASM_OK) {
             asm_error = ASM_ERR_FULL;
@@ -20637,21 +20578,21 @@ exit_offset_to_20:;
             asm_error = ASM_ERR_IMMEDIATE;
         }
     exit_add_sub_6:;
-        target_21 = asm_target_of(send);
-        a_word_41 = 0x54000000 | ((((uint64_t)({
-    off_25 = ((int64_t)(target_21 - asm_pc)) >> 2;
-    if (!((off_25 >= -262144) && (off_25 <= 262143))) {
+        target_13 = asm_target_of(send);
+        a_word_23 = 0x54000000 | ((((uint64_t)({
+    off_15 = ((int64_t)(target_13 - asm_pc)) >> 2;
+    if (!((off_15 >= -262144) && (off_15 <= 262143))) {
         if (asm_error == ASM_OK) {
             asm_error = ASM_ERR_RANGE;
         }
-        r_offset_to_21 = 0;
-        goto exit_offset_to_21;
+        r_offset_to_13 = 0;
+        goto exit_offset_to_13;
     }
-    r_offset_to_21 = off_25 & 524287;
-exit_offset_to_21:;
-    r_offset_to_21; })) << 5) | 8);
+    r_offset_to_13 = off_15 & 524287;
+exit_offset_to_13:;
+    r_offset_to_13; })) << 5) | 8);
         if (asm_pc < asm_limit) {
-            *(uint32_t *)asm_pc = a_word_41;
+            *(uint32_t *)asm_pc = a_word_23;
             asm_pc = asm_pc + 4;
         } else if (asm_error == ASM_OK) {
             asm_error = ASM_ERR_FULL;
@@ -20677,16 +20618,16 @@ exit_offset_to_21:;
         }
         r_3 = (((r_2 & REG_W) == 0 ? 64 : 32) - 3) & (((r_2 & REG_W) == 0 ? 64 : 32) - 1);
         s = ((r_2 & REG_W) == 0 ? 64 : 32) - 1 - 3;
-        sf_10 = (r_2 & REG_W) == 0 ? 0x80000000LL : 0;
+        sf_8 = (r_2 & REG_W) == 0 ? 0x80000000LL : 0;
         if (!((r_3 >= 0) && (r_3 <= ((r_2 & REG_W) == 0 ? 64 : 32) - 1) && ((s >= 0) && (s <= ((r_2 & REG_W) == 0 ? 64 : 32) - 1)))) {
             if (asm_error == ASM_OK) {
                 asm_error = ASM_ERR_IMMEDIATE;
             }
             goto exit_bitfield;
         }
-        a_word_42 = 0x13000000 | sf_10 | ((sf_10 >> 9) | 0x40000000) | ((((uint64_t)r_3) << 16) | (((uint64_t)s) << 10) | (544ULL | (r_2 & 31)));
+        a_word_24 = 0x13000000 | sf_8 | ((sf_8 >> 9) | 0x40000000) | ((((uint64_t)r_3) << 16) | (((uint64_t)s) << 10) | (544ULL | (r_2 & 31)));
         if (asm_pc < asm_limit) {
-            *(uint32_t *)asm_pc = a_word_42;
+            *(uint32_t *)asm_pc = a_word_24;
             asm_pc = asm_pc + 4;
         } else if (asm_error == ASM_OK) {
             asm_error = ASM_ERR_FULL;
@@ -20700,29 +20641,29 @@ exit_offset_to_21:;
             }
             goto exit_logical_3;
         }
-        a_word_43 = 0x12000000 | ((r_2 & REG_W) == 0 ? 0x80000000LL : 0) | 0x20000000 | ((((uint64_t)enc_3) << 10) | ((((uint64_t)(r_2 & 31)) << 5) | (r_2 & 31)));
+        a_word_25 = 0x12000000 | ((r_2 & REG_W) == 0 ? 0x80000000LL : 0) | 0x20000000 | ((((uint64_t)enc_3) << 10) | ((((uint64_t)(r_2 & 31)) << 5) | (r_2 & 31)));
         if (asm_pc < asm_limit) {
-            *(uint32_t *)asm_pc = a_word_43;
+            *(uint32_t *)asm_pc = a_word_25;
             asm_pc = asm_pc + 4;
         } else if (asm_error == ASM_OK) {
             asm_error = ASM_ERR_FULL;
         }
     exit_logical_3:;
-        target_22 = asm_target_of(cont);
-        a_word_44 = 0x14000000 | ({
-    off_26 = ((int64_t)(target_22 - asm_pc)) >> 2;
-    if (!((off_26 >= -33554432) && (off_26 <= 33554431))) {
+        target_14 = asm_target_of(cont);
+        a_word_26 = 0x14000000 | ({
+    off_16 = ((int64_t)(target_14 - asm_pc)) >> 2;
+    if (!((off_16 >= -33554432) && (off_16 <= 33554431))) {
         if (asm_error == ASM_OK) {
             asm_error = ASM_ERR_RANGE;
         }
-        r_offset_to_22 = 0;
-        goto exit_offset_to_22;
+        r_offset_to_14 = 0;
+        goto exit_offset_to_14;
     }
-    r_offset_to_22 = off_26 & 67108863;
-exit_offset_to_22:;
-    r_offset_to_22; });
+    r_offset_to_14 = off_16 & 67108863;
+exit_offset_to_14:;
+    r_offset_to_14; });
         if (asm_pc < asm_limit) {
-            *(uint32_t *)asm_pc = a_word_44;
+            *(uint32_t *)asm_pc = a_word_26;
             asm_pc = asm_pc + 4;
         } else if (asm_error == ASM_OK) {
             asm_error = ASM_ERR_FULL;
@@ -20742,16 +20683,16 @@ exit_offset_to_22:;
         }
         r_4 = (((r_2 & REG_W) == 0 ? 64 : 32) - 3) & (((r_2 & REG_W) == 0 ? 64 : 32) - 1);
         s_2 = ((r_2 & REG_W) == 0 ? 64 : 32) - 1 - 3;
-        sf_12 = (r_2 & REG_W) == 0 ? 0x80000000LL : 0;
+        sf_10 = (r_2 & REG_W) == 0 ? 0x80000000LL : 0;
         if (!((r_4 >= 0) && (r_4 <= ((r_2 & REG_W) == 0 ? 64 : 32) - 1) && ((s_2 >= 0) && (s_2 <= ((r_2 & REG_W) == 0 ? 64 : 32) - 1)))) {
             if (asm_error == ASM_OK) {
                 asm_error = ASM_ERR_IMMEDIATE;
             }
             goto exit_bitfield_2;
         }
-        a_word_45 = 0x13000000 | sf_12 | ((sf_12 >> 9) | 0x40000000) | ((((uint64_t)r_4) << 16) | (((uint64_t)s_2) << 10) | (544ULL | (r_2 & 31)));
+        a_word_27 = 0x13000000 | sf_10 | ((sf_10 >> 9) | 0x40000000) | ((((uint64_t)r_4) << 16) | (((uint64_t)s_2) << 10) | (544ULL | (r_2 & 31)));
         if (asm_pc < asm_limit) {
-            *(uint32_t *)asm_pc = a_word_45;
+            *(uint32_t *)asm_pc = a_word_27;
             asm_pc = asm_pc + 4;
         } else if (asm_error == ASM_OK) {
             asm_error = ASM_ERR_FULL;
@@ -20765,15 +20706,303 @@ exit_offset_to_22:;
             }
             goto exit_logical_4;
         }
-        a_word_46 = 0x12000000 | ((r_2 & REG_W) == 0 ? 0x80000000LL : 0) | 0x20000000 | ((((uint64_t)enc_4) << 10) | ((((uint64_t)(r_2 & 31)) << 5) | (r_2 & 31)));
+        a_word_28 = 0x12000000 | ((r_2 & REG_W) == 0 ? 0x80000000LL : 0) | 0x20000000 | ((((uint64_t)enc_4) << 10) | ((((uint64_t)(r_2 & 31)) << 5) | (r_2 & 31)));
+        if (asm_pc < asm_limit) {
+            *(uint32_t *)asm_pc = a_word_28;
+            asm_pc = asm_pc + 4;
+        } else if (asm_error == ASM_OK) {
+            asm_error = ASM_ERR_FULL;
+        }
+    exit_logical_4:;
+        target_15 = asm_target_of(cont);
+        a_word_29 = 0x14000000 | ({
+    off_17 = ((int64_t)(target_15 - asm_pc)) >> 2;
+    if (!((off_17 >= -33554432) && (off_17 <= 33554431))) {
+        if (asm_error == ASM_OK) {
+            asm_error = ASM_ERR_RANGE;
+        }
+        r_offset_to_15 = 0;
+        goto exit_offset_to_15;
+    }
+    r_offset_to_15 = off_17 & 67108863;
+exit_offset_to_15:;
+    r_offset_to_15; });
+        if (asm_pc < asm_limit) {
+            *(uint32_t *)asm_pc = a_word_29;
+            asm_pc = asm_pc + 4;
+        } else if (asm_error == ASM_OK) {
+            asm_error = ASM_ERR_FULL;
+        }
+    exit_emit_float_result:;
+        asm_bind(oa);
+        target_16 = asm_target_of(send);
+        a_word_30 = 3036676096LL | ((((uint64_t)({
+    off_18 = ((int64_t)(target_16 - asm_pc)) >> 2;
+    if (!((off_18 >= -262144) && (off_18 <= 262143))) {
+        if (asm_error == ASM_OK) {
+            asm_error = ASM_ERR_RANGE;
+        }
+        r_offset_to_16 = 0;
+        goto exit_offset_to_16;
+    }
+    r_offset_to_16 = off_18 & 524287;
+exit_offset_to_16:;
+    r_offset_to_16; })) << 5) | 16);
+        if (asm_pc < asm_limit) {
+            *(uint32_t *)asm_pc = a_word_30;
+            asm_pc = asm_pc + 4;
+        } else if (asm_error == ASM_OK) {
+            asm_error = ASM_ERR_FULL;
+        }
+        if (asm_noting) {
+            asm_note("a BoxedFloat64: its word", 0);
+        }
+        a_word_31 = 4181721088LL | (1024ULL | ((((uint64_t)(ra & 31)) << 5) | 16));
+        if (asm_pc < asm_limit) {
+            *(uint32_t *)asm_pc = a_word_31;
+            asm_pc = asm_pc + 4;
+        } else if (asm_error == ASM_OK) {
+            asm_error = ASM_ERR_FULL;
+        }
+        off_19 = (int64_t)&((jit_state *)0)->boxed_float_class;
+        if ((off_19 >= 0) && ((off_19 & 7) == 0) && ((off_19 >> 3) <= 4095)) {
+            a_word_32 = 4181721088LL | ((((uint64_t)(off_19 >> 3)) << 10) | 721ULL);
+            if (asm_pc < asm_limit) {
+                *(uint32_t *)asm_pc = a_word_32;
+                asm_pc = asm_pc + 4;
+            } else if (asm_error == ASM_OK) {
+                asm_error = ASM_ERR_FULL;
+            }
+        } else {
+            if (!((off_19 >= -256) && (off_19 <= 255))) {
+                if (asm_error == ASM_OK) {
+                    asm_error = ASM_ERR_IMMEDIATE;
+                }
+                goto exit_load_store_2;
+            }
+            a_word_33 = 4164943872LL | (((uint64_t)(off_19 & 511)) << 12) | 721ULL;
+            if (asm_pc < asm_limit) {
+                *(uint32_t *)asm_pc = a_word_33;
+                asm_pc = asm_pc + 4;
+            } else if (asm_error == ASM_OK) {
+                asm_error = ASM_ERR_FULL;
+            }
+        exit_load_store_2:;
+        }
+        if (asm_pc < asm_limit) {
+            *(uint32_t *)asm_pc = 3943760415ULL;
+            asm_pc = asm_pc + 4;
+        } else if (asm_error == ASM_OK) {
+            asm_error = ASM_ERR_FULL;
+        }
+        target_17 = asm_target_of(send);
+        a_word_34 = 0x54000000 | ((((uint64_t)({
+    off_20 = ((int64_t)(target_17 - asm_pc)) >> 2;
+    if (!((off_20 >= -262144) && (off_20 <= 262143))) {
+        if (asm_error == ASM_OK) {
+            asm_error = ASM_ERR_RANGE;
+        }
+        r_offset_to_17 = 0;
+        goto exit_offset_to_17;
+    }
+    r_offset_to_17 = off_20 & 524287;
+exit_offset_to_17:;
+    r_offset_to_17; })) << 5) | 1);
+        if (asm_pc < asm_limit) {
+            *(uint32_t *)asm_pc = a_word_34;
+            asm_pc = asm_pc + 4;
+        } else if (asm_error == ASM_OK) {
+            asm_error = ASM_ERR_FULL;
+        }
+        a_word_35 = 4248829952LL | (2048ULL | ((((uint64_t)(ra & 31)) << 5) | 0));
+        if (asm_pc < asm_limit) {
+            *(uint32_t *)asm_pc = a_word_35;
+            asm_pc = asm_pc + 4;
+        } else if (asm_error == ASM_OK) {
+            asm_error = ASM_ERR_FULL;
+        }
+        target_18 = asm_target_of(da);
+        a_word_36 = 0x14000000 | ({
+    off_21 = ((int64_t)(target_18 - asm_pc)) >> 2;
+    if (!((off_21 >= -33554432) && (off_21 <= 33554431))) {
+        if (asm_error == ASM_OK) {
+            asm_error = ASM_ERR_RANGE;
+        }
+        r_offset_to_18 = 0;
+        goto exit_offset_to_18;
+    }
+    r_offset_to_18 = off_21 & 67108863;
+exit_offset_to_18:;
+    r_offset_to_18; });
+        if (asm_pc < asm_limit) {
+            *(uint32_t *)asm_pc = a_word_36;
+            asm_pc = asm_pc + 4;
+        } else if (asm_error == ASM_OK) {
+            asm_error = ASM_ERR_FULL;
+        }
+        asm_bind(ia);
+        if (asm_noting) {
+            asm_note("a SmallInteger: convert", 0);
+        }
+        a_word_37 = 2470445056LL | (130048ULL | ((((uint64_t)(ra & 31)) << 5) | 16));
+        if (asm_pc < asm_limit) {
+            *(uint32_t *)asm_pc = a_word_37;
+            asm_pc = asm_pc + 4;
+        } else if (asm_error == ASM_OK) {
+            asm_error = ASM_ERR_FULL;
+        }
+        if (asm_pc < asm_limit) {
+            *(uint32_t *)asm_pc = 2657223168ULL;
+            asm_pc = asm_pc + 4;
+        } else if (asm_error == ASM_OK) {
+            asm_error = ASM_ERR_FULL;
+        }
+        target_19 = asm_target_of(da);
+        a_word_38 = 0x14000000 | ({
+    off_22 = ((int64_t)(target_19 - asm_pc)) >> 2;
+    if (!((off_22 >= -33554432) && (off_22 <= 33554431))) {
+        if (asm_error == ASM_OK) {
+            asm_error = ASM_ERR_RANGE;
+        }
+        r_offset_to_19 = 0;
+        goto exit_offset_to_19;
+    }
+    r_offset_to_19 = off_22 & 67108863;
+exit_offset_to_19:;
+    r_offset_to_19; });
+        if (asm_pc < asm_limit) {
+            *(uint32_t *)asm_pc = a_word_38;
+            asm_pc = asm_pc + 4;
+        } else if (asm_error == ASM_OK) {
+            asm_error = ASM_ERR_FULL;
+        }
+        if ((rb == -2) || (rb == ra)) {
+            goto exit_emit_float_path;
+        }
+        asm_bind(ob);
+        target_20 = asm_target_of(send);
+        a_word_39 = 3036676096LL | ((((uint64_t)({
+    off_23 = ((int64_t)(target_20 - asm_pc)) >> 2;
+    if (!((off_23 >= -262144) && (off_23 <= 262143))) {
+        if (asm_error == ASM_OK) {
+            asm_error = ASM_ERR_RANGE;
+        }
+        r_offset_to_20 = 0;
+        goto exit_offset_to_20;
+    }
+    r_offset_to_20 = off_23 & 524287;
+exit_offset_to_20:;
+    r_offset_to_20; })) << 5) | 16);
+        if (asm_pc < asm_limit) {
+            *(uint32_t *)asm_pc = a_word_39;
+            asm_pc = asm_pc + 4;
+        } else if (asm_error == ASM_OK) {
+            asm_error = ASM_ERR_FULL;
+        }
+        if (asm_noting) {
+            asm_note("a BoxedFloat64: its word", 0);
+        }
+        a_word_40 = 4181721088LL | (1024ULL | ((((uint64_t)(rb & 31)) << 5) | 16));
+        if (asm_pc < asm_limit) {
+            *(uint32_t *)asm_pc = a_word_40;
+            asm_pc = asm_pc + 4;
+        } else if (asm_error == ASM_OK) {
+            asm_error = ASM_ERR_FULL;
+        }
+        off_24 = (int64_t)&((jit_state *)0)->boxed_float_class;
+        if ((off_24 >= 0) && ((off_24 & 7) == 0) && ((off_24 >> 3) <= 4095)) {
+            a_word_41 = 4181721088LL | ((((uint64_t)(off_24 >> 3)) << 10) | 721ULL);
+            if (asm_pc < asm_limit) {
+                *(uint32_t *)asm_pc = a_word_41;
+                asm_pc = asm_pc + 4;
+            } else if (asm_error == ASM_OK) {
+                asm_error = ASM_ERR_FULL;
+            }
+        } else {
+            if (!((off_24 >= -256) && (off_24 <= 255))) {
+                if (asm_error == ASM_OK) {
+                    asm_error = ASM_ERR_IMMEDIATE;
+                }
+                goto exit_load_store_3;
+            }
+            a_word_42 = 4164943872LL | (((uint64_t)(off_24 & 511)) << 12) | 721ULL;
+            if (asm_pc < asm_limit) {
+                *(uint32_t *)asm_pc = a_word_42;
+                asm_pc = asm_pc + 4;
+            } else if (asm_error == ASM_OK) {
+                asm_error = ASM_ERR_FULL;
+            }
+        exit_load_store_3:;
+        }
+        if (asm_pc < asm_limit) {
+            *(uint32_t *)asm_pc = 3943760415ULL;
+            asm_pc = asm_pc + 4;
+        } else if (asm_error == ASM_OK) {
+            asm_error = ASM_ERR_FULL;
+        }
+        target_21 = asm_target_of(send);
+        a_word_43 = 0x54000000 | ((((uint64_t)({
+    off_25 = ((int64_t)(target_21 - asm_pc)) >> 2;
+    if (!((off_25 >= -262144) && (off_25 <= 262143))) {
+        if (asm_error == ASM_OK) {
+            asm_error = ASM_ERR_RANGE;
+        }
+        r_offset_to_21 = 0;
+        goto exit_offset_to_21;
+    }
+    r_offset_to_21 = off_25 & 524287;
+exit_offset_to_21:;
+    r_offset_to_21; })) << 5) | 1);
+        if (asm_pc < asm_limit) {
+            *(uint32_t *)asm_pc = a_word_43;
+            asm_pc = asm_pc + 4;
+        } else if (asm_error == ASM_OK) {
+            asm_error = ASM_ERR_FULL;
+        }
+        a_word_44 = 4248829952LL | (2048ULL | ((((uint64_t)(rb & 31)) << 5) | 1));
+        if (asm_pc < asm_limit) {
+            *(uint32_t *)asm_pc = a_word_44;
+            asm_pc = asm_pc + 4;
+        } else if (asm_error == ASM_OK) {
+            asm_error = ASM_ERR_FULL;
+        }
+        target_22 = asm_target_of(db);
+        a_word_45 = 0x14000000 | ({
+    off_26 = ((int64_t)(target_22 - asm_pc)) >> 2;
+    if (!((off_26 >= -33554432) && (off_26 <= 33554431))) {
+        if (asm_error == ASM_OK) {
+            asm_error = ASM_ERR_RANGE;
+        }
+        r_offset_to_22 = 0;
+        goto exit_offset_to_22;
+    }
+    r_offset_to_22 = off_26 & 67108863;
+exit_offset_to_22:;
+    r_offset_to_22; });
+        if (asm_pc < asm_limit) {
+            *(uint32_t *)asm_pc = a_word_45;
+            asm_pc = asm_pc + 4;
+        } else if (asm_error == ASM_OK) {
+            asm_error = ASM_ERR_FULL;
+        }
+        asm_bind(ib);
+        if (asm_noting) {
+            asm_note("a SmallInteger: convert", 0);
+        }
+        a_word_46 = 2470445056LL | (130048ULL | ((((uint64_t)(rb & 31)) << 5) | 16));
         if (asm_pc < asm_limit) {
             *(uint32_t *)asm_pc = a_word_46;
             asm_pc = asm_pc + 4;
         } else if (asm_error == ASM_OK) {
             asm_error = ASM_ERR_FULL;
         }
-    exit_logical_4:;
-        target_23 = asm_target_of(cont);
+        if (asm_pc < asm_limit) {
+            *(uint32_t *)asm_pc = 2657223169ULL;
+            asm_pc = asm_pc + 4;
+        } else if (asm_error == ASM_OK) {
+            asm_error = ASM_ERR_FULL;
+        }
+        target_23 = asm_target_of(db);
         a_word_47 = 0x14000000 | ({
     off_27 = ((int64_t)(target_23 - asm_pc)) >> 2;
     if (!((off_27 >= -33554432) && (off_27 <= 33554431))) {
@@ -22498,10 +22727,10 @@ exit_length_of:;
                 }
             }
             d_5 = D0 + d_4;
-            int__3 = asm_new_label();
-            obj_3 = asm_new_label();
-            done_3 = asm_new_label();
-            target_44 = asm_target_of(int__3);
+            int_ = asm_new_label();
+            obj = asm_new_label();
+            done = asm_new_label();
+            target_44 = asm_target_of(int_);
             a_word_139 = 922746880ULL | ((((uint64_t)({
     off_69 = ((int64_t)(target_44 - asm_pc)) >> 2;
     if (!((off_69 >= -8192) && (off_69 <= 8191))) {
@@ -22546,7 +22775,7 @@ exit_offset_to_44:;
                 asm_error = ASM_ERR_IMMEDIATE;
             }
         exit_add_sub_20:;
-            target_45 = asm_target_of(obj_3);
+            target_45 = asm_target_of(obj);
             a_word_141 = 0x54000000 | ((((uint64_t)({
     off_70 = ((int64_t)(target_45 - asm_pc)) >> 2;
     if (!((off_70 >= -262144) && (off_70 <= 262143))) {
@@ -22621,7 +22850,7 @@ exit_offset_to_45:;
                     asm_error = ASM_ERR_FULL;
                 }
             }
-            target_46 = asm_target_of(done_3);
+            target_46 = asm_target_of(done);
             a_word_144 = 0x14000000 | ({
     off_71 = ((int64_t)(target_46 - asm_pc)) >> 2;
     if (!((off_71 >= -33554432) && (off_71 <= 33554431))) {
@@ -22640,7 +22869,7 @@ exit_offset_to_46:;
             } else if (asm_error == ASM_OK) {
                 asm_error = ASM_ERR_FULL;
             }
-            asm_bind(obj_3);
+            asm_bind(obj);
             target_47 = asm_target_of(leave_2);
             a_word_145 = 3036676096LL | ((((uint64_t)({
     off_72 = ((int64_t)(target_47 - asm_pc)) >> 2;
@@ -22739,7 +22968,7 @@ exit_offset_to_48:;
                     asm_error = ASM_ERR_FULL;
                 }
             }
-            target_49 = asm_target_of(done_3);
+            target_49 = asm_target_of(done);
             a_word_151 = 0x14000000 | ({
     off_75 = ((int64_t)(target_49 - asm_pc)) >> 2;
     if (!((off_75 >= -33554432) && (off_75 <= 33554431))) {
@@ -22758,7 +22987,7 @@ exit_offset_to_49:;
             } else if (asm_error == ASM_OK) {
                 asm_error = ASM_ERR_FULL;
             }
-            asm_bind(int__3);
+            asm_bind(int_);
             if (asm_noting) {
                 asm_note("a SmallInteger: convert", 0);
             }
@@ -22775,7 +23004,7 @@ exit_offset_to_49:;
             } else if (asm_error == ASM_OK) {
                 asm_error = ASM_ERR_FULL;
             }
-            asm_bind(done_3);
+            asm_bind(done);
             k_7 = k_7 + 2;
         }
         k_9 = dn - 1;
@@ -22809,10 +23038,10 @@ exit_offset_to_49:;
         }
         r_12 = sl_r[i];
         d_6 = D0 + r_12;
-        int__4 = asm_new_label();
-        obj_4 = asm_new_label();
-        done_4 = asm_new_label();
-        target_50 = asm_target_of(int__4);
+        int__2 = asm_new_label();
+        obj_2 = asm_new_label();
+        done_2 = asm_new_label();
+        target_50 = asm_target_of(int__2);
         a_word_155 = 922746880ULL | ((((uint64_t)({
     off_77 = ((int64_t)(target_50 - asm_pc)) >> 2;
     if (!((off_77 >= -8192) && (off_77 <= 8191))) {
@@ -22857,7 +23086,7 @@ exit_offset_to_50:;
             asm_error = ASM_ERR_IMMEDIATE;
         }
     exit_add_sub_22:;
-        target_51 = asm_target_of(obj_4);
+        target_51 = asm_target_of(obj_2);
         a_word_157 = 0x54000000 | ((((uint64_t)({
     off_78 = ((int64_t)(target_51 - asm_pc)) >> 2;
     if (!((off_78 >= -262144) && (off_78 <= 262143))) {
@@ -22932,7 +23161,7 @@ exit_offset_to_51:;
                 asm_error = ASM_ERR_FULL;
             }
         }
-        target_52 = asm_target_of(done_4);
+        target_52 = asm_target_of(done_2);
         a_word_160 = 0x14000000 | ({
     off_79 = ((int64_t)(target_52 - asm_pc)) >> 2;
     if (!((off_79 >= -33554432) && (off_79 <= 33554431))) {
@@ -22951,7 +23180,7 @@ exit_offset_to_52:;
         } else if (asm_error == ASM_OK) {
             asm_error = ASM_ERR_FULL;
         }
-        asm_bind(obj_4);
+        asm_bind(obj_2);
         target_53 = asm_target_of(leave_2);
         a_word_161 = 3036676096LL | ((((uint64_t)({
     off_80 = ((int64_t)(target_53 - asm_pc)) >> 2;
@@ -23050,7 +23279,7 @@ exit_offset_to_54:;
                 asm_error = ASM_ERR_FULL;
             }
         }
-        target_55 = asm_target_of(done_4);
+        target_55 = asm_target_of(done_2);
         a_word_167 = 0x14000000 | ({
     off_83 = ((int64_t)(target_55 - asm_pc)) >> 2;
     if (!((off_83 >= -33554432) && (off_83 <= 33554431))) {
@@ -23069,7 +23298,7 @@ exit_offset_to_55:;
         } else if (asm_error == ASM_OK) {
             asm_error = ASM_ERR_FULL;
         }
-        asm_bind(int__4);
+        asm_bind(int__2);
         if (asm_noting) {
             asm_note("a SmallInteger: convert", 0);
         }
@@ -23086,7 +23315,7 @@ exit_offset_to_55:;
         } else if (asm_error == ASM_OK) {
             asm_error = ASM_ERR_FULL;
         }
-        asm_bind(done_4);
+        asm_bind(done_2);
         a_label_11 = sl_cont[i];
         target_56 = asm_target_of(a_label_11);
         a_word_169 = 0x14000000 | ({
@@ -23242,10 +23471,10 @@ exit_offset_to_57:;
             }
         }
         d_8 = D0 + d_7;
-        int__5 = asm_new_label();
-        obj_5 = asm_new_label();
-        done_5 = asm_new_label();
-        target_58 = asm_target_of(int__5);
+        int__3 = asm_new_label();
+        obj_3 = asm_new_label();
+        done_3 = asm_new_label();
+        target_58 = asm_target_of(int__3);
         a_word_178 = 922746880ULL | ((((uint64_t)({
     off_89 = ((int64_t)(target_58 - asm_pc)) >> 2;
     if (!((off_89 >= -8192) && (off_89 <= 8191))) {
@@ -23290,7 +23519,7 @@ exit_offset_to_58:;
             asm_error = ASM_ERR_IMMEDIATE;
         }
     exit_add_sub_24:;
-        target_59 = asm_target_of(obj_5);
+        target_59 = asm_target_of(obj_3);
         a_word_180 = 0x54000000 | ((((uint64_t)({
     off_90 = ((int64_t)(target_59 - asm_pc)) >> 2;
     if (!((off_90 >= -262144) && (off_90 <= 262143))) {
@@ -23365,7 +23594,7 @@ exit_offset_to_59:;
                 asm_error = ASM_ERR_FULL;
             }
         }
-        target_60 = asm_target_of(done_5);
+        target_60 = asm_target_of(done_3);
         a_word_183 = 0x14000000 | ({
     off_91 = ((int64_t)(target_60 - asm_pc)) >> 2;
     if (!((off_91 >= -33554432) && (off_91 <= 33554431))) {
@@ -23384,7 +23613,7 @@ exit_offset_to_60:;
         } else if (asm_error == ASM_OK) {
             asm_error = ASM_ERR_FULL;
         }
-        asm_bind(obj_5);
+        asm_bind(obj_3);
         target_61 = asm_target_of(leave);
         a_word_184 = 3036676096LL | ((((uint64_t)({
     off_92 = ((int64_t)(target_61 - asm_pc)) >> 2;
@@ -23483,7 +23712,7 @@ exit_offset_to_62:;
                 asm_error = ASM_ERR_FULL;
             }
         }
-        target_63 = asm_target_of(done_5);
+        target_63 = asm_target_of(done_3);
         a_word_190 = 0x14000000 | ({
     off_95 = ((int64_t)(target_63 - asm_pc)) >> 2;
     if (!((off_95 >= -33554432) && (off_95 <= 33554431))) {
@@ -23502,7 +23731,7 @@ exit_offset_to_63:;
         } else if (asm_error == ASM_OK) {
             asm_error = ASM_ERR_FULL;
         }
-        asm_bind(int__5);
+        asm_bind(int__3);
         if (asm_noting) {
             asm_note("a SmallInteger: convert", 0);
         }
@@ -23519,7 +23748,7 @@ exit_offset_to_63:;
         } else if (asm_error == ASM_OK) {
             asm_error = ASM_ERR_FULL;
         }
-        asm_bind(done_5);
+        asm_bind(done_3);
         k_10 = k_10 + 2;
     }
     if ((info & SL_FUSED) != 0) {
@@ -24541,6 +24770,574 @@ exit_offset_to_6:;
     }
 }
 
+/* JitBaselineCompiler>>emitStringPrimitive:fail: */
+static void bl_emit_string_primitive(bool is_put, int32_t fail)
+{
+    int32_t words;
+    char *a_string;
+    int32_t enc;
+    uint64_t a_word;
+    uint64_t target;
+    int64_t r_offset_to;
+    int64_t off;
+    uint64_t a_word_2;
+    uint64_t target_2;
+    int64_t r_offset_to_2;
+    int64_t off_2;
+    uint64_t a_word_3;
+    uint64_t target_3;
+    int64_t r_offset_to_3;
+    int64_t off_3;
+    uint64_t a_word_4;
+    int32_t enc_2;
+    uint64_t a_word_5;
+    uint64_t target_4;
+    int64_t r_offset_to_4;
+    int64_t off_4;
+    uint64_t a_word_6;
+    uint64_t target_5;
+    int64_t r_offset_to_5;
+    int64_t off_5;
+    uint64_t a_word_7;
+    uint64_t target_6;
+    int64_t r_offset_to_6;
+    int64_t off_6;
+    uint64_t a_word_8;
+    uint64_t target_7;
+    int64_t r_offset_to_7;
+    int64_t off_7;
+    uint64_t a_word_9;
+    int32_t enc_3;
+    uint64_t a_word_10;
+    uint64_t target_8;
+    int64_t r_offset_to_8;
+    int64_t off_8;
+    uint64_t a_word_11;
+    uint64_t target_9;
+    int64_t r_offset_to_9;
+    int64_t off_9;
+    uint64_t a_word_12;
+    uint64_t target_10;
+    int64_t r_offset_to_10;
+    int64_t off_10;
+    uint64_t a_word_13;
+    int32_t enc_4;
+    uint64_t a_word_14;
+    words = asm_new_label();
+    a_string = is_put ? "primitive stringAtPut" : "primitive stringAt";
+    if (asm_noting) {
+        asm_note(a_string, 0);
+    }
+    enc = asm_logical_immediate(7ULL, 64);
+    if (enc < 0) {
+        if (asm_error == ASM_OK) {
+            asm_error = ASM_ERR_IMMEDIATE;
+        }
+        goto exit_logical;
+    }
+    a_word = 4060086272LL | ((((uint64_t)enc) << 10) | 31ULL);
+    if (asm_pc < asm_limit) {
+        *(uint32_t *)asm_pc = a_word;
+        asm_pc = asm_pc + 4;
+    } else if (asm_error == ASM_OK) {
+        asm_error = ASM_ERR_FULL;
+    }
+exit_logical:;
+    target = asm_target_of(fail);
+    a_word_2 = 0x54000000 | ((((uint64_t)({
+    off = ((int64_t)(target - asm_pc)) >> 2;
+    if (!((off >= -262144) && (off <= 262143))) {
+        if (asm_error == ASM_OK) {
+            asm_error = ASM_ERR_RANGE;
+        }
+        r_offset_to = 0;
+        goto exit_offset_to;
+    }
+    r_offset_to = off & 524287;
+exit_offset_to:;
+    r_offset_to; })) << 5) | 1);
+    if (asm_pc < asm_limit) {
+        *(uint32_t *)asm_pc = a_word_2;
+        asm_pc = asm_pc + 4;
+    } else if (asm_error == ASM_OK) {
+        asm_error = ASM_ERR_FULL;
+    }
+    if (asm_pc < asm_limit) {
+        *(uint32_t *)asm_pc = 4181721099ULL;
+        asm_pc = asm_pc + 4;
+    } else if (asm_error == ASM_OK) {
+        asm_error = ASM_ERR_FULL;
+    }
+    if (asm_pc < asm_limit) {
+        *(uint32_t *)asm_pc = 3546321257ULL;
+        asm_pc = asm_pc + 4;
+    } else if (asm_error == ASM_OK) {
+        asm_error = ASM_ERR_FULL;
+    }
+    if (asm_pc < asm_limit) {
+        *(uint32_t *)asm_pc = 3544218986ULL;
+        asm_pc = asm_pc + 4;
+    } else if (asm_error == ASM_OK) {
+        asm_error = ASM_ERR_FULL;
+    }
+    if (asm_noting) {
+        asm_note("the index: a SmallInteger, zero-based in x16", 0);
+    }
+    if (asm_pc < asm_limit) {
+        *(uint32_t *)asm_pc = 4181721729ULL;
+        asm_pc = asm_pc + 4;
+    } else if (asm_error == ASM_OK) {
+        asm_error = ASM_ERR_FULL;
+    }
+    target_2 = asm_target_of(fail);
+    a_word_3 = 905969664ULL | ((((uint64_t)({
+    off_2 = ((int64_t)(target_2 - asm_pc)) >> 2;
+    if (!((off_2 >= -8192) && (off_2 <= 8191))) {
+        if (asm_error == ASM_OK) {
+            asm_error = ASM_ERR_RANGE;
+        }
+        r_offset_to_2 = 0;
+        goto exit_offset_to_2;
+    }
+    r_offset_to_2 = off_2 & 16383;
+exit_offset_to_2:;
+    r_offset_to_2; })) << 5) | 1);
+    if (asm_pc < asm_limit) {
+        *(uint32_t *)asm_pc = a_word_3;
+        asm_pc = asm_pc + 4;
+    } else if (asm_error == ASM_OK) {
+        asm_error = ASM_ERR_FULL;
+    }
+    if (asm_pc < asm_limit) {
+        *(uint32_t *)asm_pc = 2470575152ULL;
+        asm_pc = asm_pc + 4;
+    } else if (asm_error == ASM_OK) {
+        asm_error = ASM_ERR_FULL;
+    }
+    if (asm_pc < asm_limit) {
+        *(uint32_t *)asm_pc = 3506439696ULL;
+        asm_pc = asm_pc + 4;
+    } else if (asm_error == ASM_OK) {
+        asm_error = ASM_ERR_FULL;
+    }
+    goto exit_add_sub;
+    if (asm_error == ASM_OK) {
+        asm_error = ASM_ERR_IMMEDIATE;
+    }
+exit_add_sub:;
+    if (is_put) {
+        if (asm_noting) {
+            asm_note("not immutable; a Character, its code in x12", 0);
+        }
+        target_3 = asm_target_of(fail);
+        a_word_4 = 3084386304ULL | ((((uint64_t)({
+    off_3 = ((int64_t)(target_3 - asm_pc)) >> 2;
+    if (!((off_3 >= -8192) && (off_3 <= 8191))) {
+        if (asm_error == ASM_OK) {
+            asm_error = ASM_ERR_RANGE;
+        }
+        r_offset_to_3 = 0;
+        goto exit_offset_to_3;
+    }
+    r_offset_to_3 = off_3 & 16383;
+exit_offset_to_3:;
+    r_offset_to_3; })) << 5) | 11);
+        if (asm_pc < asm_limit) {
+            *(uint32_t *)asm_pc = a_word_4;
+            asm_pc = asm_pc + 4;
+        } else if (asm_error == ASM_OK) {
+            asm_error = ASM_ERR_FULL;
+        }
+        if (asm_pc < asm_limit) {
+            *(uint32_t *)asm_pc = 4181722754ULL;
+            asm_pc = asm_pc + 4;
+        } else if (asm_error == ASM_OK) {
+            asm_error = ASM_ERR_FULL;
+        }
+        enc_2 = asm_logical_immediate(7ULL, 64);
+        if (enc_2 < 0) {
+            if (asm_error == ASM_OK) {
+                asm_error = ASM_ERR_IMMEDIATE;
+            }
+            goto exit_logical_2;
+        }
+        a_word_5 = 2449473536LL | ((((uint64_t)enc_2) << 10) | 76ULL);
+        if (asm_pc < asm_limit) {
+            *(uint32_t *)asm_pc = a_word_5;
+            asm_pc = asm_pc + 4;
+        } else if (asm_error == ASM_OK) {
+            asm_error = ASM_ERR_FULL;
+        }
+    exit_logical_2:;
+        if (asm_pc < asm_limit) {
+            *(uint32_t *)asm_pc = 4043311519ULL;
+            asm_pc = asm_pc + 4;
+        } else if (asm_error == ASM_OK) {
+            asm_error = ASM_ERR_FULL;
+        }
+        goto exit_add_sub_2;
+        if (asm_error == ASM_OK) {
+            asm_error = ASM_ERR_IMMEDIATE;
+        }
+    exit_add_sub_2:;
+        target_4 = asm_target_of(fail);
+        a_word_6 = 0x54000000 | ((((uint64_t)({
+    off_4 = ((int64_t)(target_4 - asm_pc)) >> 2;
+    if (!((off_4 >= -262144) && (off_4 <= 262143))) {
+        if (asm_error == ASM_OK) {
+            asm_error = ASM_ERR_RANGE;
+        }
+        r_offset_to_4 = 0;
+        goto exit_offset_to_4;
+    }
+    r_offset_to_4 = off_4 & 524287;
+exit_offset_to_4:;
+    r_offset_to_4; })) << 5) | 1);
+        if (asm_pc < asm_limit) {
+            *(uint32_t *)asm_pc = a_word_6;
+            asm_pc = asm_pc + 4;
+        } else if (asm_error == ASM_OK) {
+            asm_error = ASM_ERR_FULL;
+        }
+        if (asm_pc < asm_limit) {
+            *(uint32_t *)asm_pc = 3544448076ULL;
+            asm_pc = asm_pc + 4;
+        } else if (asm_error == ASM_OK) {
+            asm_error = ASM_ERR_FULL;
+        }
+    }
+    if (asm_pc < asm_limit) {
+        *(uint32_t *)asm_pc = 2432712721ULL;
+        asm_pc = asm_pc + 4;
+    } else if (asm_error == ASM_OK) {
+        asm_error = ASM_ERR_FULL;
+    }
+    goto exit_add_sub_3;
+    if (asm_error == ASM_OK) {
+        asm_error = ASM_ERR_IMMEDIATE;
+    }
+exit_add_sub_3:;
+    if (asm_pc < asm_limit) {
+        *(uint32_t *)asm_pc = 4043325759ULL;
+        asm_pc = asm_pc + 4;
+    } else if (asm_error == ASM_OK) {
+        asm_error = ASM_ERR_FULL;
+    }
+    goto exit_add_sub_4;
+    if (asm_error == ASM_OK) {
+        asm_error = ASM_ERR_IMMEDIATE;
+    }
+exit_add_sub_4:;
+    target_5 = asm_target_of(words);
+    a_word_7 = 0x54000000 | ((((uint64_t)({
+    off_5 = ((int64_t)(target_5 - asm_pc)) >> 2;
+    if (!((off_5 >= -262144) && (off_5 <= 262143))) {
+        if (asm_error == ASM_OK) {
+            asm_error = ASM_ERR_RANGE;
+        }
+        r_offset_to_5 = 0;
+        goto exit_offset_to_5;
+    }
+    r_offset_to_5 = off_5 & 524287;
+exit_offset_to_5:;
+    r_offset_to_5; })) << 5) | 3);
+    if (asm_pc < asm_limit) {
+        *(uint32_t *)asm_pc = a_word_7;
+        asm_pc = asm_pc + 4;
+    } else if (asm_error == ASM_OK) {
+        asm_error = ASM_ERR_FULL;
+    }
+    if (asm_noting) {
+        asm_note("bytes: slots * 8 - (format - 16)", 0);
+    }
+    if (asm_pc < asm_limit) {
+        *(uint32_t *)asm_pc = 3548246346ULL;
+        asm_pc = asm_pc + 4;
+    } else if (asm_error == ASM_OK) {
+        asm_error = ASM_ERR_FULL;
+    }
+    if (asm_pc < asm_limit) {
+        *(uint32_t *)asm_pc = 3406365002ULL;
+        asm_pc = asm_pc + 4;
+    } else if (asm_error == ASM_OK) {
+        asm_error = ASM_ERR_FULL;
+    }
+    if (asm_pc < asm_limit) {
+        *(uint32_t *)asm_pc = 2432713034ULL;
+        asm_pc = asm_pc + 4;
+    } else if (asm_error == ASM_OK) {
+        asm_error = ASM_ERR_FULL;
+    }
+    goto exit_add_sub_5;
+    if (asm_error == ASM_OK) {
+        asm_error = ASM_ERR_IMMEDIATE;
+    }
+exit_add_sub_5:;
+    if (asm_pc < asm_limit) {
+        *(uint32_t *)asm_pc = 3943301663ULL;
+        asm_pc = asm_pc + 4;
+    } else if (asm_error == ASM_OK) {
+        asm_error = ASM_ERR_FULL;
+    }
+    target_6 = asm_target_of(fail);
+    a_word_8 = 0x54000000 | ((((uint64_t)({
+    off_6 = ((int64_t)(target_6 - asm_pc)) >> 2;
+    if (!((off_6 >= -262144) && (off_6 <= 262143))) {
+        if (asm_error == ASM_OK) {
+            asm_error = ASM_ERR_RANGE;
+        }
+        r_offset_to_6 = 0;
+        goto exit_offset_to_6;
+    }
+    r_offset_to_6 = off_6 & 524287;
+exit_offset_to_6:;
+    r_offset_to_6; })) << 5) | 2);
+    if (asm_pc < asm_limit) {
+        *(uint32_t *)asm_pc = a_word_8;
+        asm_pc = asm_pc + 4;
+    } else if (asm_error == ASM_OK) {
+        asm_error = ASM_ERR_FULL;
+    }
+    if (is_put) {
+        if (asm_pc < asm_limit) {
+            *(uint32_t *)asm_pc = 4043570591ULL;
+            asm_pc = asm_pc + 4;
+        } else if (asm_error == ASM_OK) {
+            asm_error = ASM_ERR_FULL;
+        }
+        goto exit_add_sub_6;
+        if (asm_error == ASM_OK) {
+            asm_error = ASM_ERR_IMMEDIATE;
+        }
+    exit_add_sub_6:;
+        target_7 = asm_target_of(fail);
+        a_word_9 = 0x54000000 | ((((uint64_t)({
+    off_7 = ((int64_t)(target_7 - asm_pc)) >> 2;
+    if (!((off_7 >= -262144) && (off_7 <= 262143))) {
+        if (asm_error == ASM_OK) {
+            asm_error = ASM_ERR_RANGE;
+        }
+        r_offset_to_7 = 0;
+        goto exit_offset_to_7;
+    }
+    r_offset_to_7 = off_7 & 524287;
+exit_offset_to_7:;
+    r_offset_to_7; })) << 5) | 8);
+        if (asm_pc < asm_limit) {
+            *(uint32_t *)asm_pc = a_word_9;
+            asm_pc = asm_pc + 4;
+        } else if (asm_error == ASM_OK) {
+            asm_error = ASM_ERR_FULL;
+        }
+        if (asm_pc < asm_limit) {
+            *(uint32_t *)asm_pc = 942697004ULL;
+            asm_pc = asm_pc + 4;
+        } else if (asm_error == ASM_OK) {
+            asm_error = ASM_ERR_FULL;
+        }
+        if (asm_pc < asm_limit) {
+            *(uint32_t *)asm_pc = 2852258784ULL;
+            asm_pc = asm_pc + 4;
+        } else if (asm_error == ASM_OK) {
+            asm_error = ASM_ERR_FULL;
+        }
+    } else {
+        if (asm_pc < asm_limit) {
+            *(uint32_t *)asm_pc = 946891296ULL;
+            asm_pc = asm_pc + 4;
+        } else if (asm_error == ASM_OK) {
+            asm_error = ASM_ERR_FULL;
+        }
+        if (asm_pc < asm_limit) {
+            *(uint32_t *)asm_pc = 3548246016ULL;
+            asm_pc = asm_pc + 4;
+        } else if (asm_error == ASM_OK) {
+            asm_error = ASM_ERR_FULL;
+        }
+        enc_3 = asm_logical_immediate(2ULL, 64);
+        if (enc_3 < 0) {
+            if (asm_error == ASM_OK) {
+                asm_error = ASM_ERR_IMMEDIATE;
+            }
+            goto exit_logical_3;
+        }
+        a_word_10 = 2986344448LL | ((((uint64_t)enc_3) << 10) | 0ULL);
+        if (asm_pc < asm_limit) {
+            *(uint32_t *)asm_pc = a_word_10;
+            asm_pc = asm_pc + 4;
+        } else if (asm_error == ASM_OK) {
+            asm_error = ASM_ERR_FULL;
+        }
+    exit_logical_3:;
+    }
+    if (asm_pc < asm_limit) {
+        *(uint32_t *)asm_pc = 0xD65F03C0LL;
+        asm_pc = asm_pc + 4;
+    } else if (asm_error == ASM_OK) {
+        asm_error = ASM_ERR_FULL;
+    }
+    asm_bind(words);
+    if (asm_noting) {
+        asm_note("32-bit words: slots * 2 - (format - 10)", 0);
+    }
+    if (asm_pc < asm_limit) {
+        *(uint32_t *)asm_pc = 4043319615ULL;
+        asm_pc = asm_pc + 4;
+    } else if (asm_error == ASM_OK) {
+        asm_error = ASM_ERR_FULL;
+    }
+    goto exit_add_sub_7;
+    if (asm_error == ASM_OK) {
+        asm_error = ASM_ERR_IMMEDIATE;
+    }
+exit_add_sub_7:;
+    target_8 = asm_target_of(fail);
+    a_word_11 = 0x54000000 | ((((uint64_t)({
+    off_8 = ((int64_t)(target_8 - asm_pc)) >> 2;
+    if (!((off_8 >= -262144) && (off_8 <= 262143))) {
+        if (asm_error == ASM_OK) {
+            asm_error = ASM_ERR_RANGE;
+        }
+        r_offset_to_8 = 0;
+        goto exit_offset_to_8;
+    }
+    r_offset_to_8 = off_8 & 524287;
+exit_offset_to_8:;
+    r_offset_to_8; })) << 5) | 3);
+    if (asm_pc < asm_limit) {
+        *(uint32_t *)asm_pc = a_word_11;
+        asm_pc = asm_pc + 4;
+    } else if (asm_error == ASM_OK) {
+        asm_error = ASM_ERR_FULL;
+    }
+    if (asm_pc < asm_limit) {
+        *(uint32_t *)asm_pc = 4043320639ULL;
+        asm_pc = asm_pc + 4;
+    } else if (asm_error == ASM_OK) {
+        asm_error = ASM_ERR_FULL;
+    }
+    goto exit_add_sub_8;
+    if (asm_error == ASM_OK) {
+        asm_error = ASM_ERR_IMMEDIATE;
+    }
+exit_add_sub_8:;
+    target_9 = asm_target_of(fail);
+    a_word_12 = 0x54000000 | ((((uint64_t)({
+    off_9 = ((int64_t)(target_9 - asm_pc)) >> 2;
+    if (!((off_9 >= -262144) && (off_9 <= 262143))) {
+        if (asm_error == ASM_OK) {
+            asm_error = ASM_ERR_RANGE;
+        }
+        r_offset_to_9 = 0;
+        goto exit_offset_to_9;
+    }
+    r_offset_to_9 = off_9 & 524287;
+exit_offset_to_9:;
+    r_offset_to_9; })) << 5) | 8);
+    if (asm_pc < asm_limit) {
+        *(uint32_t *)asm_pc = a_word_12;
+        asm_pc = asm_pc + 4;
+    } else if (asm_error == ASM_OK) {
+        asm_error = ASM_ERR_FULL;
+    }
+    if (asm_pc < asm_limit) {
+        *(uint32_t *)asm_pc = 3548379466ULL;
+        asm_pc = asm_pc + 4;
+    } else if (asm_error == ASM_OK) {
+        asm_error = ASM_ERR_FULL;
+    }
+    if (asm_pc < asm_limit) {
+        *(uint32_t *)asm_pc = 3406365002ULL;
+        asm_pc = asm_pc + 4;
+    } else if (asm_error == ASM_OK) {
+        asm_error = ASM_ERR_FULL;
+    }
+    if (asm_pc < asm_limit) {
+        *(uint32_t *)asm_pc = 2432706890ULL;
+        asm_pc = asm_pc + 4;
+    } else if (asm_error == ASM_OK) {
+        asm_error = ASM_ERR_FULL;
+    }
+    goto exit_add_sub_9;
+    if (asm_error == ASM_OK) {
+        asm_error = ASM_ERR_IMMEDIATE;
+    }
+exit_add_sub_9:;
+    if (asm_pc < asm_limit) {
+        *(uint32_t *)asm_pc = 3943301663ULL;
+        asm_pc = asm_pc + 4;
+    } else if (asm_error == ASM_OK) {
+        asm_error = ASM_ERR_FULL;
+    }
+    target_10 = asm_target_of(fail);
+    a_word_13 = 0x54000000 | ((((uint64_t)({
+    off_10 = ((int64_t)(target_10 - asm_pc)) >> 2;
+    if (!((off_10 >= -262144) && (off_10 <= 262143))) {
+        if (asm_error == ASM_OK) {
+            asm_error = ASM_ERR_RANGE;
+        }
+        r_offset_to_10 = 0;
+        goto exit_offset_to_10;
+    }
+    r_offset_to_10 = off_10 & 524287;
+exit_offset_to_10:;
+    r_offset_to_10; })) << 5) | 2);
+    if (asm_pc < asm_limit) {
+        *(uint32_t *)asm_pc = a_word_13;
+        asm_pc = asm_pc + 4;
+    } else if (asm_error == ASM_OK) {
+        asm_error = ASM_ERR_FULL;
+    }
+    if (is_put) {
+        if (asm_pc < asm_limit) {
+            *(uint32_t *)asm_pc = 3090184748ULL;
+            asm_pc = asm_pc + 4;
+        } else if (asm_error == ASM_OK) {
+            asm_error = ASM_ERR_FULL;
+        }
+        if (asm_pc < asm_limit) {
+            *(uint32_t *)asm_pc = 2852258784ULL;
+            asm_pc = asm_pc + 4;
+        } else if (asm_error == ASM_OK) {
+            asm_error = ASM_ERR_FULL;
+        }
+    } else {
+        if (asm_pc < asm_limit) {
+            *(uint32_t *)asm_pc = 3094379040ULL;
+            asm_pc = asm_pc + 4;
+        } else if (asm_error == ASM_OK) {
+            asm_error = ASM_ERR_FULL;
+        }
+        if (asm_pc < asm_limit) {
+            *(uint32_t *)asm_pc = 3548246016ULL;
+            asm_pc = asm_pc + 4;
+        } else if (asm_error == ASM_OK) {
+            asm_error = ASM_ERR_FULL;
+        }
+        enc_4 = asm_logical_immediate(2ULL, 64);
+        if (enc_4 < 0) {
+            if (asm_error == ASM_OK) {
+                asm_error = ASM_ERR_IMMEDIATE;
+            }
+            goto exit_logical_4;
+        }
+        a_word_14 = 2986344448LL | ((((uint64_t)enc_4) << 10) | 0ULL);
+        if (asm_pc < asm_limit) {
+            *(uint32_t *)asm_pc = a_word_14;
+            asm_pc = asm_pc + 4;
+        } else if (asm_error == ASM_OK) {
+            asm_error = ASM_ERR_FULL;
+        }
+    exit_logical_4:;
+    }
+    if (asm_pc < asm_limit) {
+        *(uint32_t *)asm_pc = 0xD65F03C0LL;
+        asm_pc = asm_pc + 4;
+    } else if (asm_error == ASM_OK) {
+        asm_error = ASM_ERR_FULL;
+    }
+}
+
 /* JitBaselineCompiler>>emitUint32Primitive:fail: */
 static void bl_emit_uint32_primitive(bool is_put, int32_t fail)
 {
@@ -25362,10 +26159,9 @@ exit_offset_to:;
     return bl_ss_push(SS_DREG, 0, dr);
 }
 
-/* JitBaselineCompiler>>interruptCheck: */
-static int32_t bl_interrupt_check(int32_t t)
+/* JitBaselineCompiler>>headCheck: */
+static void bl_head_check(int32_t h)
 {
-    int32_t check;
     int32_t s;
     int32_t r_label_for;
     int64_t off;
@@ -25376,47 +26172,21 @@ static int32_t bl_interrupt_check(int32_t t)
     int64_t r_offset_to;
     int64_t off_2;
     uint64_t a_word_3;
-    int32_t d;
-    bool r_emit_tier_up;
-    int32_t s_2;
-    int32_t after;
-    int32_t slow_label;
-    int32_t a_label_2;
-    int64_t off_3;
-    uint64_t a_word_4;
-    int64_t off_4;
-    uint64_t a_word_5;
-    uint64_t a_word_6;
-    int64_t off_5;
-    uint64_t a_word_7;
-    uint64_t a_word_8;
-    uint64_t target_2;
-    int64_t r_offset_to_2;
-    int64_t off_6;
-    uint64_t a_word_9;
-    int32_t r_label_for_2;
-    int32_t a_label_3;
-    uint64_t target_3;
-    int64_t r_offset_to_3;
-    int64_t off_7;
-    int64_t a_word_10;
-    check = asm_new_label();
-    asm_bind(check);
-    s = bl_slow(SL_INTERRUPT, t, (int32_t)ana_depths[t]);
+    s = bl_slow(SL_INTERRUPT, h, (int32_t)ana_depths[h]);
     if (s < 0) {
         if (asm_error == ASM_OK) {
             asm_error = ASM_ERR_LABEL;
         }
-        return check;
+        return;
     }
     sl_cont[s] = ({
-    if (pc_labels[t] < 0) {
-        pc_labels[t] = asm_new_label();
+    if (pc_labels[h] < 0) {
+        pc_labels[h] = asm_new_label();
     }
-    r_label_for = pc_labels[t];
+    r_label_for = pc_labels[h];
     r_label_for; });
     if (asm_noting) {
-        asm_note("jump back: interrupt check", 0);
+        asm_note("loop head: interrupt check", 0);
     }
     off = (int64_t)&((jit_state *)0)->interrupt;
     if ((off >= 0) && ((off & 3) == 0) && ((off >> 2) <= 4095)) {
@@ -25463,154 +26233,6 @@ exit_offset_to:;
     } else if (asm_error == ASM_OK) {
         asm_error = ASM_ERR_FULL;
     }
-    d = (int32_t)ana_depths[t];
-    if (!({
-    if (counter_addr == 0) {
-        r_emit_tier_up = true;
-        goto exit_emit_tier_up;
-    }
-    s_2 = bl_slow(SL_TIERUP, t, d);
-    if (s_2 < 0) {
-        r_emit_tier_up = false;
-        goto exit_emit_tier_up;
-    }
-    after = asm_new_label();
-    sl_cont[s_2] = after;
-    sl_info[s_2] = 1;
-    slow_label = sl_label[s_2];
-    if (asm_noting) {
-        asm_note("count toward optimization", 0);
-    }
-    a_label_2 = asm_label_at(counter_addr);
-    off_3 = ((int64_t)((asm_target_of(a_label_2) & 18446744073709547520ULL) - (asm_pc & 18446744073709547520ULL))) >> 12;
-    if (!((off_3 >= -1048576) && (off_3 <= 0xFFFFF))) {
-        if (asm_error == ASM_OK) {
-            asm_error = ASM_ERR_RANGE;
-        }
-        goto exit_adrp;
-    }
-    a_word_4 = 0x90000000LL | (((uint64_t)(off_3 & 3)) << 29) | ((((uint64_t)((off_3 >> 2) & 0x7FFFF)) << 5) | 16);
-    if (asm_pc < asm_limit) {
-        *(uint32_t *)asm_pc = a_word_4;
-        asm_pc = asm_pc + 4;
-    } else if (asm_error == ASM_OK) {
-        asm_error = ASM_ERR_FULL;
-    }
-exit_adrp:;
-    off_4 = (int64_t)(counter_addr & 0xFFF);
-    if ((off_4 >= 0) && ((off_4 & 3) == 0) && ((off_4 >> 2) <= 4095)) {
-        a_word_5 = 3107979264LL | ((((uint64_t)(off_4 >> 2)) << 10) | 529ULL);
-        if (asm_pc < asm_limit) {
-            *(uint32_t *)asm_pc = a_word_5;
-            asm_pc = asm_pc + 4;
-        } else if (asm_error == ASM_OK) {
-            asm_error = ASM_ERR_FULL;
-        }
-    } else {
-        if (!((off_4 >= -256) && (off_4 <= 255))) {
-            if (asm_error == ASM_OK) {
-                asm_error = ASM_ERR_IMMEDIATE;
-            }
-            goto exit_load_store_2;
-        }
-        a_word_6 = 3091202048LL | (((uint64_t)(off_4 & 511)) << 12) | 529ULL;
-        if (asm_pc < asm_limit) {
-            *(uint32_t *)asm_pc = a_word_6;
-            asm_pc = asm_pc + 4;
-        } else if (asm_error == ASM_OK) {
-            asm_error = ASM_ERR_FULL;
-        }
-    exit_load_store_2:;
-    }
-    if (asm_pc < asm_limit) {
-        *(uint32_t *)asm_pc = 1895826993ULL;
-        asm_pc = asm_pc + 4;
-    } else if (asm_error == ASM_OK) {
-        asm_error = ASM_ERR_FULL;
-    }
-    goto exit_add_sub;
-    if (asm_error == ASM_OK) {
-        asm_error = ASM_ERR_IMMEDIATE;
-    }
-exit_add_sub:;
-    off_5 = (int64_t)(counter_addr & 0xFFF);
-    if ((off_5 >= 0) && ((off_5 & 3) == 0) && ((off_5 >> 2) <= 4095)) {
-        a_word_7 = 3103784960LL | ((((uint64_t)(off_5 >> 2)) << 10) | 529ULL);
-        if (asm_pc < asm_limit) {
-            *(uint32_t *)asm_pc = a_word_7;
-            asm_pc = asm_pc + 4;
-        } else if (asm_error == ASM_OK) {
-            asm_error = ASM_ERR_FULL;
-        }
-    } else {
-        if (!((off_5 >= -256) && (off_5 <= 255))) {
-            if (asm_error == ASM_OK) {
-                asm_error = ASM_ERR_IMMEDIATE;
-            }
-            goto exit_load_store_3;
-        }
-        a_word_8 = 3087007744LL | (((uint64_t)(off_5 & 511)) << 12) | 529ULL;
-        if (asm_pc < asm_limit) {
-            *(uint32_t *)asm_pc = a_word_8;
-            asm_pc = asm_pc + 4;
-        } else if (asm_error == ASM_OK) {
-            asm_error = ASM_ERR_FULL;
-        }
-    exit_load_store_3:;
-    }
-    target_2 = asm_target_of(slow_label);
-    a_word_9 = 0x54000000 | ((((uint64_t)({
-    off_6 = ((int64_t)(target_2 - asm_pc)) >> 2;
-    if (!((off_6 >= -262144) && (off_6 <= 262143))) {
-        if (asm_error == ASM_OK) {
-            asm_error = ASM_ERR_RANGE;
-        }
-        r_offset_to_2 = 0;
-        goto exit_offset_to_2;
-    }
-    r_offset_to_2 = off_6 & 524287;
-exit_offset_to_2:;
-    r_offset_to_2; })) << 5) | 13);
-    if (asm_pc < asm_limit) {
-        *(uint32_t *)asm_pc = a_word_9;
-        asm_pc = asm_pc + 4;
-    } else if (asm_error == ASM_OK) {
-        asm_error = ASM_ERR_FULL;
-    }
-    asm_bind(after);
-    r_emit_tier_up = true;
-exit_emit_tier_up:;
-    r_emit_tier_up; })) {
-        if (asm_error == ASM_OK) {
-            asm_error = ASM_ERR_LABEL;
-        }
-    }
-    a_label_3 = ({
-    if (pc_labels[t] < 0) {
-        pc_labels[t] = asm_new_label();
-    }
-    r_label_for_2 = pc_labels[t];
-    r_label_for_2; });
-    target_3 = asm_target_of(a_label_3);
-    a_word_10 = 0x14000000 | ({
-    off_7 = ((int64_t)(target_3 - asm_pc)) >> 2;
-    if (!((off_7 >= -33554432) && (off_7 <= 33554431))) {
-        if (asm_error == ASM_OK) {
-            asm_error = ASM_ERR_RANGE;
-        }
-        r_offset_to_3 = 0;
-        goto exit_offset_to_3;
-    }
-    r_offset_to_3 = off_7 & 67108863;
-exit_offset_to_3:;
-    r_offset_to_3; });
-    if (asm_pc < asm_limit) {
-        *(uint32_t *)asm_pc = a_word_10;
-        asm_pc = asm_pc + 4;
-    } else if (asm_error == ASM_OK) {
-        asm_error = ASM_ERR_FULL;
-    }
-    return check;
 }
 
 /* JitBaselineCompiler>>loadLiteral:into: */
@@ -26663,6 +27285,9 @@ exit_length_of_3:;
     }
     bl_drop_doubles();
     self_valid = false;
+    if (loop_active) {
+        bl_emit_load_loop_temps(loop_id);
+    }
     bl_note_continuation(pc, X0);
     r_finish_send = bl_ss_push(SS_REG, 0, X0);
     r_finish_send; });
@@ -28352,6 +28977,9 @@ exit_offset_to_4:;
     }
     bl_drop_doubles();
     self_valid = false;
+    if (loop_active) {
+        bl_emit_load_loop_temps(loop_id);
+    }
     bl_note_continuation(pc, X0);
     r_finish_send = bl_ss_push(SS_REG, 0, X0);
     r_finish_send; });

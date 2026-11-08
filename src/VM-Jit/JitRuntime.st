@@ -1272,7 +1272,7 @@ entryOfTop
 	^a - JIT_PROLOGUE_BYTES
 !
 interrupt: f
-	"An interrupt check at a method or block entry or a backward jump; f's pc and sp are where the interpreter would continue."
+	"An interrupt check at a method or block entry, a loop head or a backward jump; f's pc and sp are where the interpreter would continue."
 	<c: 'uint64_t jit_interrupt(Frame *f)'>
 	| moved inv |
 	self sync: f.

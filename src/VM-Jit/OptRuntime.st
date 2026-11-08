@@ -302,21 +302,32 @@ compile: m
 		libc fprintf: libc stderr format: 'opt: (block %d, loop %d) ' with: rtUnitStart with: rtUnitOsr.
 		interpreter printActivation: m receiver: memory nilOop closure: memory nilOop on: libc stderr].
 	builder frame: rtUnitFrame.
-	ok := (builder build: m start: rtUnitStart osr: (rtUnitOsr bitAnd: 16rFFFF) - 1 depth: rtUnitDepth resident: rtUnitOsr >= 16r10000) and: [
-		passes cleanup: builder entryBlock.
-		trace ifTrue: [ir print].
-		(regalloc allocate: builder paramSlots) and: [
-			trace ifTrue: [
-				libc fputs: 'allocated:
+	passes unboxOff: false.
+	ok := self buildAndAllocate: m trace: trace.
+	"twins on doubles that do not fit the d registers or meet a call: again without them"
+	(ok not and: [passes unboxed]) ifTrue: [
+		passes unboxOff: true.
+		ok := self buildAndAllocate: m trace: trace.
+		passes unboxOff: false].
+	ok := ok and: [
+		trace ifTrue: [
+			libc fputs: 'allocated:
 ' to: libc stderr.
-				ir print].
-			codegen generate: m act: 0]].
+			ir print].
+		codegen generate: m act: 0].
 	"the analysis the runtime reads afterwards is m's"
 	analysis analyze: m.
 	ok ifFalse: [rtStatOptFailed := rtStatOptFailed + 1].
 	trace ifTrue: [libc fprintf: libc stderr format: 'opt: %s
 ' with: (ok ifTrue: ['ok'] ifFalse: ['failed'])].
 	^ok
+!
+buildAndAllocate: m trace: trace
+	"The unit's IR built, cleaned up and allocated; answer whether it could be."
+	^(builder build: m start: rtUnitStart osr: (rtUnitOsr bitAnd: 16rFFFF) - 1 depth: rtUnitDepth resident: rtUnitOsr >= 16r10000) and: [
+		passes cleanup: builder entryBlock.
+		trace ifTrue: [ir print].
+		regalloc allocate: builder paramSlots]
 !
 extraBytes
 	"What the optimized code's header needs after its notes: the safepoint table, the records, the dependencies, the inline caches and the return map."

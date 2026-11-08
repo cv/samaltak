@@ -23,6 +23,24 @@ testPrinting
 	self assert: (3.14159 printShowingDecimalPlaces: 2) = '3.14'.
 	self assert: (2.5 printShowingDecimalPlaces: 0) = '3'
 !
+testPrintingIsShortest
+	"printString answers the fewest significant digits that read back: from 1 to 17, across the exponent range; every printed Float reads back."
+	| f |
+	self assert: (Float fromIEEEBits: 1) printString equals: '5.0e-324'.
+	self assert: Float fmax printString equals: '1.7976931348623157e308'.
+	self assert: Float fminNormalized printString equals: '2.2250738585072014e-308'.
+	self assert: (Float fromIEEEBits: 16r3FF0000000000001) printString equals: '1.0000000000000002'.
+	self assert: (123456789 / 10000.0) printString equals: '12345.6789'.
+	self assert: 123456789.0 printString equals: '123456789.0'.
+	self assert: (2 raisedTo: 53) asFloat printString equals: '9007199254740992.0'.
+	self assert: 0.3 printString equals: '0.3'.
+	self assert: (1 / 100000.0) printString equals: '0.00001'.
+	self assert: (1 / 1000000.0) printString equals: '1.0e-6'.
+	1 to: 240 do: [:i |
+		f := (i * 7919 \\ 100003) / 997.0 * (10 raisedTo: i \\ 60 - 30).
+		self assert: (Number readFrom: f printString) equals: f.
+		self assert: (Number readFrom: f negated printString) equals: f negated]
+!
 testArithmetic
 	self assert: 1.5 + 1.5 = 3.0.
 	self assert: 1.5 + 1 = 2.5.

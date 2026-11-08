@@ -117,6 +117,32 @@ testFloats
 	self assert: (s f6: 2.0) isInfinite.
 	self assert: ((s f6: 1.0e-300) - 1.0e300) abs < 1.0e290
 !
+testSquares
+	"The same temp twice (x * x) is one register, decoded once by the Floats' slow path; SmallFloat64s go straight through it, its other cases (a BoxedFloat64, a SmallInteger) after it."
+	| s |
+	self define: 'sq: x ^x * x'.
+	self define: 'sqMixed: x | y | y := x. ^(y * y) + (y - y) + (y + y)'.
+	self define: 'sqCompare: x | y | y := x. ^Array with: y < y with: y = y with: y <= y'.
+	self define: 'mixed: x with: y ^(x * y) + (y - x)'.
+	s := self subject.
+	self assert: (s sq: 3) equals: 9.
+	self assert: (s sq: 1.5) equals: 2.25.
+	self assert: (s sq: (2 raisedTo: 100) asFloat) equals: (2 raisedTo: 200) asFloat.
+	self assert: (s sq: (2 raisedTo: 300) asFloat) equals: (2 raisedTo: 600) asFloat.
+	self assert: (s sq: -0.0) equals: 0.0.
+	self assert: (s sq: (2 raisedTo: 40)) equals: (2 raisedTo: 80).
+	self assert: (s sq: (2 raisedTo: 70)) equals: (2 raisedTo: 140).
+	self assert: (s sq: 1 / 2) equals: 1 / 4.
+	self assert: (s sqMixed: 1.5) equals: 5.25.
+	self assert: (s sqMixed: (2 raisedTo: 300) asFloat) equals: (2 raisedTo: 600) asFloat + (2 raisedTo: 301) asFloat.
+	self assert: (s sqCompare: 2.5) equals: #(false true true).
+	self assert: (s sqCompare: 7) equals: #(false true true).
+	self assert: (s sqCompare: Float nan) equals: #(false false false).
+	self assert: (s mixed: 2 with: 0.5) equals: -0.5.
+	self assert: (s mixed: 0.5 with: 2) equals: 2.5.
+	self assert: (s mixed: (2 raisedTo: 300) asFloat with: 3) equals: (2 raisedTo: 300) asFloat * 3 + (3 - (2 raisedTo: 300) asFloat).
+	self assert: (s mixed: 1.5 with: (2 raisedTo: 300) asFloat) equals: (2 raisedTo: 300) asFloat * 1.5 + ((2 raisedTo: 300) asFloat - 1.5)
+!
 testUnboxedTempChangedInASlowPath
 	"x is unboxed in a d register; the slow path of w + x runs a block that stores a String into x: the code goes on with x's new value."
 	| w |
@@ -189,6 +215,58 @@ testPrimitives
 	self assert: on equals: off.
 	self assert: (on first: 4) equals: #(1 0 1 0)
 !
+testStringPrimitives
+	"String at: and at:put: (stringAt, stringAtPut) in machine code answer what their C functions answer: byte and wide strings, a read-only Symbol, indices out of range, Characters that do not fit, non-Characters; they call no C function (the VM's counter, other Processes' calls included: the quietest of 3 rounds counts)."
+	| strings on off deltas |
+	self define: 'strs: objs | r try | r := OrderedCollection new. try := [:b | r add: (b on: Error do: [:e | e class name])]. objs do: [:o | -1 to: 4 do: [:i | try value: [o perform: #at: with: i]. try value: [o streamAt: i put: $z]. try value: [o streamAt: i put: (Character value: 300)]. try value: [o streamAt: i put: 3]. try value: [o perform: #at: with: i]]. r add: o printString]. ^r asArray'.
+	strings := [{'abc' copy. #sym. String with: (Character value: 955) with: $b with: $c. 'é' copy}].
+	on := self subject strs: strings value.
+	Smalltalk vm jitParameters: #(nil '-prims' nil nil).
+	off := self subject strs: strings value.
+	Smalltalk vm jitParameters: #(nil 'prims' nil nil).
+	self assert: on equals: off.
+	self assert: on last equals: '''z'''.
+	self define: 'fill: s times: n 1 to: n do: [:k | 1 to: s size do: [:i | s streamAt: i put: (s perform: #at: with: i)]]. ^s'.
+	deltas := (1 to: 3) collect: [:i | | before |
+		before := Smalltalk vm statistics.
+		self subject fill: (String new: 100 withAll: $q) times: 100.
+		Smalltalk vm statistics - before].
+	self assert: (deltas collect: [:d | d jitPrimitiveCalls]) min < 1000
+!
+testLoopEnteredByAThreadedJump
+	"A jump threaded into a conditional jump whose next instruction is a loop's head enters the loop without falling in: the loop's temps are right there too (that loop keeps them in their slots), with sends in the loop and without."
+	self define: 'id: x ^x'.
+	self define: 'threaded: a m: m | k len sum | k := 1. len := 100. sum := 0. (a and: [m < 10]) ifTrue: [[k <= len] whileTrue: [sum := sum + (self id: k). k := k + 1]]. ^sum'.
+	self define: 'threadedNoSends: a m: m | k len sum | k := 1. len := 100. sum := 0. (a and: [m < 10]) ifTrue: [[k <= len] whileTrue: [sum := sum + k. k := k + 1]]. ^sum'.
+	self assert: (self subject threaded: true m: 3) equals: 5050.
+	self assert: (self subject threaded: false m: 3) equals: 0.
+	self assert: (self subject threaded: true m: 30) equals: 0.
+	self assert: (self subject threadedNoSends: true m: 3) equals: 5050.
+	self assert: (self subject threadedNoSends: true m: 30) equals: 0
+!
+testLoopBottoms
+	"A loop's bottom (a comparison and a conditional jump back) is one branch to the head, where the loop checks for interrupts (also at a method's or a block's start); the comparison's slow path (Floats, LargeIntegers) goes back to the head or leaves the loop as the conditional jump would; a non-Boolean leaves for mustBeBoolean."
+	| s big |
+	self define: 'from: a to: b | k | k := 0. a to: b do: [:i | k := k + i]. ^k'.
+	self define: 'count: n | k | [k isNil or: [k < n]] whileTrue: [k := (k ifNil: [0]) + 1]. ^k'.
+	self define: 'inBlock: n | m | m := 0. [[m < n] whileTrue: [m := m + 1]] value. ^m'.
+	self define: 'notBoolean: x | k | k := 0. [k := k + 1. k < 3 ifTrue: [true] ifFalse: [x]] whileTrue. ^k'.
+	self define: 'many: n | k | k := 0. 1 to: n do: [:i | k := k + 1]. ^k'.
+	s := self subject.
+	big := 2 raisedTo: 62.
+	self assert: (s from: 1 to: 100) equals: 5050.
+	self assert: (s from: 1 to: 0) equals: 0.
+	self assert: (s from: 1 to: 2.5) equals: 3.
+	self assert: (s from: 0.5 to: 3) equals: 4.5.
+	self assert: (s from: big to: big + 3) equals: 4 * big + 6.
+	self assert: (s from: SmallInteger maxVal - 2 to: SmallInteger maxVal + 1) equals: 4 * SmallInteger maxVal - 2.
+	self assert: (s count: 5) equals: 5.
+	self assert: (s inBlock: 7) equals: 7.
+	self assert: (s notBoolean: false) equals: 3.
+	self should: [s notBoolean: 7] raise: Error.
+	self assert: (s many: 3000000) equals: 3000000.
+	self assert: (((JitBaselineTestSubject >> #from:to:) machineCodeFor: #baseline) includesSubstring: 'loop head: interrupt check')
+!
 testNilTests
 	"isNil and notNil compare with nil until a class defines them; then all code is dropped and they are sent."
 	| other |
@@ -228,7 +306,7 @@ testDisassembly
 	self assert: (listing includesSubstring: 'stack check').
 	self assert: (listing includesSubstring: 'native frame record').
 	self assert: (listing includesSubstring: 'Floats').
-	self assert: (listing includesSubstring: 'jump back: interrupt check').
+	self assert: (listing includesSubstring: 'loop head: interrupt check').
 	self assert: (listing includesSubstring: 'pop the frame and the record, return').
 	self assert: (listing includesSubstring: '-- sum: n')
 ! !

@@ -1,5 +1,5 @@
 OptModule subclass: #OptPasses
-	instanceVariableNames: 'ir psOrder psOrderCount psVisitMark psWorkList psIdom psPre psPost psChild psSibling psHeads psChain'
+	instanceVariableNames: 'ir psOrder psOrderCount psVisitMark psWorkList psIdom psPre psPost psChild psSibling psHeads psChain psUnboxOff psUnboxed'
 	classVariableNames: ''
 	package: 'VM-Jit'!
 
@@ -9,12 +9,20 @@ OptPasses comment: 'Passes over the IR (OptIR) after it is built: operands resol
 declarations
 	^#((ir OptIR) (psOrder 'int32_t[OPT_MAX_BLOCKS]') (psOrderCount int32_t) (psVisitMark 'uint8_t[OPT_MAX_BLOCKS]') (psWorkList 'int32_t[OPT_MAX_NODES]')
 		(psIdom 'int32_t[OPT_MAX_BLOCKS]') (psPre 'int32_t[OPT_MAX_BLOCKS]') (psPost 'int32_t[OPT_MAX_BLOCKS]') (psChild 'int32_t[OPT_MAX_BLOCKS]') (psSibling 'int32_t[OPT_MAX_BLOCKS]')
-		(psHeads 'int32_t[4096]') (psChain 'int32_t[OPT_MAX_NODES]'))
+		(psHeads 'int32_t[4096]') (psChain 'int32_t[OPT_MAX_NODES]') (psUnboxOff bool) (psUnboxed bool))
 ! !
 
 !OptPasses methodsFor: 'accessing'!
 orderCount
 	^psOrderCount
+!
+unboxOff: aBoolean
+	"Compile without unboxPhis (a compilation it made fail is tried again so)."
+	psUnboxOff := aBoolean
+!
+unboxed
+	"unboxPhis made a twin in this compilation."
+	^psUnboxed
 !
 orderAt: i
 	^psOrder at: i
@@ -28,6 +36,12 @@ cleanup: entry
 	self removeUnreachable.
 	self simplifyPhis.
 	self resolveOperands.
+	self typePhis.
+	self resolveOperands.
+	psUnboxed := false.
+	(psUnboxOff not and: [runtime flag: runtime unboxFlag]) ifTrue: [
+		self unboxPhis.
+		self resolveOperands].
 	(runtime flag: runtime gvnFlag) ifTrue: [
 		self dominators: entry.
 		self valueNumbers.
@@ -58,6 +72,130 @@ simplifyPhis
 					nd fwd: same.
 					ir unlink: n.
 					changed := true]]]]
+!
+typePhis
+	"A phi of SmallIntegers (every operand one, or such a phi: a loop's counter, a running sum) is a SmallInteger, to a fixed point from all of them; guards of SmallIntegers go."
+	<c: 'void opt_type_phis(void)'>
+	| changed nd v count |
+	count := 0.
+	0 to: ir nodeCount - 1 do: [:n |
+		nd := ir node: n.
+		(nd op asInt32 = O_PHI and: [nd fwd < 0 and: [nd block >= 0 and: [nd tkind asInt32 = T_ANY]]]) ifTrue: [
+			nd tkind: T_SMI.
+			psWorkList at: count put: n.
+			count := count + 1]].
+	changed := true.
+	[changed] whileTrue: [
+		changed := false.
+		0 to: count - 1 do: [:k |
+			nd := ir node: (psWorkList at: k).
+			nd tkind asInt32 = T_SMI ifTrue: [
+				0 to: nd nargs asInt32 - 1 do: [:i |
+					v := ir resolve: (ir operand: nd args + i).
+					((ir node: v) tkind asInt32 = T_SMI or: [nd tkind asInt32 ~= T_SMI]) ifFalse: [
+						nd tkind: T_ANY.
+						changed := true]]]]].
+	0 to: ir nodeCount - 1 do: [:n |
+		nd := ir node: n.
+		(nd op asInt32 = O_GUARDINT and: [nd fwd < 0 and: [nd block >= 0 and: [(ir node: (ir resolve: nd a)) tkind asInt32 = T_SMI]]]) ifTrue: [
+			nd fwd: (ir resolve: nd a).
+			ir unlink: n]]
+!
+unboxPhis
+	"A loop's Float phi gets a twin on doubles that the loop's arithmetic reads instead of unboxing the phi every time around, so the chain stays in d registers (the boxed phi stays for all else: frame states, sends, the exit): into it flow Float constants, the doubles of boxes, the twin itself, and from a loop unit's entry the frame's value, unboxed there once (a guard). Not in loops whose code calls: d registers do not survive a call."
+	<c: 'void opt_unbox_phis(void)'>
+	| hb lo hi e calls n nd k o u ok uses |
+	0 to: ir blockCount - 1 do: [:h |
+		hb := ir block: h.
+		(hb rpo >= 0 and: [(hb flags bitAnd: BF_LOOP) ~= 0]) ifTrue: [
+			"the loop's code: from the header to its last latch, in order"
+			lo := hb rpo.
+			hi := -1.
+			e := hb preds.
+			[e >= 0] whileTrue: [
+				(ir block: (ir edge: e) from) rpo >= lo ifTrue: [hi := hi max: (ir block: (ir edge: e) from) rpo].
+				e := (ir edge: e) next].
+			calls := hi < 0.
+			lo to: hi do: [:i |
+				n := (ir block: (psOrder at: i)) first.
+				[n >= 0] whileTrue: [
+					((ir node: n) op asInt32 = O_SEND or: [(ir node: n) op asInt32 = O_CALL]) ifTrue: [calls := true].
+					n := (ir node: n) next]].
+			calls ifFalse: [
+				n := hb first.
+				[n >= 0 and: [(ir node: n) op asInt32 = O_PHI]] whileTrue: [
+					nd := ir node: n.
+					ok := nd fwd < 0 and: [nd rep asInt32 = R_OOP and: [nd tkind asInt32 ~= T_SMI]].
+					e := hb preds.
+					k := 0.
+					[ok and: [e >= 0]] whileTrue: [
+						o := ir resolve: (ir operand: nd args + k).
+						ok := o = n or: [(ir node: o) op asInt32 = O_BOXF or: [(self isFloatConstant: o) or: [(ir edge: e) from = ir osrEntry and: [self isFrameNumber: o]]]].
+						k := k + 1.
+						e := (ir edge: e) next].
+					uses := 0.
+					ok ifTrue: [
+						lo to: hi do: [:i |
+							u := (ir block: (psOrder at: i)) first.
+							[u >= 0] whileTrue: [
+								((ir node: u) op asInt32 = O_UNBOXF and: [(ir resolve: (ir node: u) a) = n]) ifTrue: [uses := uses + 1].
+								u := (ir node: u) next]]].
+					uses > 0 ifTrue: [self twin: n block: h from: lo to: hi].
+					n := nd next]]]]
+!
+isFloatConstant: v
+	^(ir node: v) op asInt32 = O_CONST and: [((ir node: v) aux bitAnd: 7) = 4]
+!
+isFrameNumber: v
+	"v is a loop unit's parameter, a frame slot that held a number when the unit was compiled."
+	| nd |
+	nd := ir node: v.
+	^ir osrState >= 0 and: [nd op asInt32 = O_PARAM and: [nd aux >= 0 and: [nd aux < 64 and: [(ir osrNumbers bitAnd: 1 asUInt64 << nd aux) ~= 0]]]]
+!
+twin: n block: h from: lo to: hi
+	"Phi n's twin on doubles in h: operands the doubles of n's (an unboxing guard at the loop unit's entry); n's unboxings in the loop read it."
+	| nd p2 e k o x g u nu |
+	nd := ir node: n.
+	p2 := ir newNode: O_PHI rep: R_DBL.
+	(ir node: p2) bcact: nd bcact.
+	(ir node: p2) bcpc: nd bcpc.
+	(ir node: p2) tkind: T_FLOAT.
+	(ir node: p2) nargs: nd nargs.
+	(ir node: p2) args: (ir allocOperands: nd nargs asInt32).
+	ir insert: p2 before: n.
+	e := (ir block: h) preds.
+	k := 0.
+	[e >= 0] whileTrue: [
+		o := ir resolve: (ir operand: nd args + k).
+		x := o = n
+			ifTrue: [p2]
+			ifFalse: [
+				(ir node: o) op asInt32 = O_BOXF
+					ifTrue: [ir resolve: (ir node: o) a]
+					ifFalse: [
+						(self isFloatConstant: o)
+							ifTrue: [o]
+							ifFalse: [
+								g := ir newNode: O_UNBOXF rep: R_DBL.
+								(ir node: g) a: o.
+								(ir node: g) state: ir osrState.
+								(ir node: g) flags: NF_GUARD.
+								(ir node: g) bcact: nd bcact.
+								(ir node: g) bcpc: nd bcpc.
+								ir insert: g before: (ir block: (ir edge: e) from) last.
+								g]]].
+		ir operand: (ir node: p2) args + k put: x.
+		k := k + 1.
+		e := (ir edge: e) next].
+	lo to: hi do: [:i |
+		u := (ir block: (psOrder at: i)) first.
+		[u >= 0] whileTrue: [
+			nu := (ir node: u) next.
+			((ir node: u) op asInt32 = O_UNBOXF and: [(ir resolve: (ir node: u) a) = n]) ifTrue: [
+				(ir node: u) fwd: p2.
+				ir unlink: u].
+			u := nu]].
+	psUnboxed := true
 !
 resolveOperands
 	"Every operand (fixed, variadic, of frame states) to what replaced it."
