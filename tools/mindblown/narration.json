@@ -1,5 +1,9 @@
 [
   {
+    "id": "clock",
+    "caption": "Recorded on a work clock: times, frame stats and CPU figures shown inside Samaltak are its CPU work at a nominal 3.3 GHz, not wall time. The VM rebuild's seconds are real."
+  },
+  {
     "id": "intro",
     "caption": "Samaltak · Live. Everything in this video changes a running system, driven through samaltak-ctl. Co-star: Claude's Robot.",
     "spoken": "Okay, so this whole video is one running system. No restarts, no tricks. That's Claude's Robot, a copy of Claude Shannon's juggling machine, and it's a Smalltalk window like everything else."

@@ -105,6 +105,7 @@ function expect(ref, part) {
 }
 let J = null;                     // the robot's window (Claude's Robot, a ShannonJuggler)
 const ROBOT = '(Tools windowsOf: ShannonJuggler) first content';
+const REBUILD = "(Process allInstances select: [:p | p name = 'VM rebuild'])";   // Rebuild VM & reboot, in its Process
 // The GC beat's do-it: allocates about 100000 arrays a second for a minute or two, keeping the last 3000 (2 MB, less
 // than a survivor space): each dies before its second scavenge.
 const GLYPH = '(Font code glyphFor: $g) inspect';
@@ -114,6 +115,8 @@ const MENU = () => box('@menu');
 
 // ---------------------------------------------------------------- beats
 const beats = [
+  // The caption saying how the video was recorded.
+  ['clock', async () => { await sleep(3500); }],
   // Claude's Robot juggles at the bottom right, animated every frame in its window's Process.
   ['intro', async () => {
     await sleep(2500);
@@ -265,15 +268,15 @@ const beats = [
     await S.recordingEnded();                          // its recording ended with it
     S.stopSegment();
   }],
-  // It starts again from the saved image (the screen black until the recording's next segment begins with the restart
-  // splash); everything is back once the splash's curtain lifts, the robot frozen mid-throw, the debugger open.
-  // Proceed: it juggles on, in the new colour (the debugger closes).
+  // It starts again from the saved image (the screen black between the segments); the next segment begins with
+  // everything back, the robot frozen mid-throw, the debugger open. Proceed: it juggles on, in the new colour (the
+  // debugger closes).
   ['relaunch', async () => {
     await S.cue('start it again', null, async () => {
       await S.open({ fresh: false, args: openArgs, wait: null });
       S.startSegment();
     });
-    await S.cue("Everything's back", null, null, { when: 'World current notNil and: [World current curtain isNil]', max: 20 });
+    S.mark("Everything's back", S.videoBefore);
     const dbg = await S.win(/Debugger/, 30000);
     await S.cue('Proceed', box(dbg), () => act('click', `${dbg}.proceed`), { frac: 0.5 });
     await sleep(1500);
@@ -318,8 +321,10 @@ const beats = [
     const shown = () => ctl('snapshot', sim, '--depth', '1').split('\n').some(l => l.includes('.screen ') && / frames=[1-9]/.test(l));
     await S.cue("here's Smalltalk running inside Smalltalk", () => box(screen), async () => {
       act('click', `${sim}.st80`);
-      for (const t = Date.now(); !shown(); await sleep(100))
-        if (Date.now() - t > 15000) throw new Error('the Smalltalk-80 guest shows no frames');
+      for (let t = 0; !shown(); t += 100) {
+        if (t > 15000) throw new Error('the Smalltalk-80 guest shows no frames');
+        await sleep(100);
+      }
     }, { lead: 2, max: 15 });
     await sleep(1500);
     const pixel = (x, y) => JSON.parse(ctl('hover', screen, '--at', `${x},${y}`)).at.join(',');
@@ -368,6 +373,8 @@ const beats = [
     });
     await sleep(300);
     if (ref) place(ref, 18, 41, 866, 470);
+    // On the recording clock a rebuild takes less video than the next beat's narration: it waits for it.
+    S.eval(`${REBUILD} do: [:p | p suspend]. 1`);
   }],
   // While it compiles, on the old VM: a do-it that allocates, keeping its last 3000 arrays, then World menu › System
   // Monitor (right column): they die young, survivors are promoted after two scavenges, old space barely grows. The
@@ -380,12 +387,15 @@ const beats = [
     const mon = await S.win(/System Monitor/);
     await sleep(300);
     place(mon, 898, 41, 524, 843);
+    await S.spoken(1.5);                               // the rebuild goes on, to fade once this has been said
+    S.eval(`${REBUILD} do: [:p | p resume]. 1`);
     await S.recordingEnded(240000);                    // the screen fades, the VM execs the new one: the recording ends
     S.stopSegment();
-    S.startSegment();                                  // the new VM's World, from the restart splash on
-    for (let t = Date.now(); ; await sleep(200)) {
-      try { S.run(['wait', 'rebooted in', '15000']); break; } catch (e) { if (Date.now() - t > 120000) throw e; }
+    await S.spoken(-0.35);                             // black until this narration and the next one's first word are over
+    for (let t = 0; ; t += 15000) {                    // the new VM has resumed, its World composited
+      try { S.run(['wait', 'rebooted in', '15000']); break; } catch (e) { if (t > 120000) throw e; }
     }
+    S.startSegment();
     await sleep(800);
   }],
   // The System Monitor, restored with the image, samples on; widened over the screen (its charts keep their last
@@ -453,8 +463,10 @@ await sleep(800);
 place(J, 898, 422, 524, 462);
 // The Workspace gets the video's two do-its now (a long text types slowly there), its caret back at the top.
 act('type', `${W.workspace}.text`, `\n${GLYPH}\n${CHURN}`, '--end', '--delay', '0');
-for (const t = Date.now(); !text(`${W.workspace}.text`).includes(CHURN); await sleep(500))
-  if (Date.now() - t > 60000) throw new Error('the do-its did not arrive in the Workspace');
+for (let t = 0; !text(`${W.workspace}.text`).includes(CHURN); t += 500) {
+  if (t > 60000) throw new Error('the do-its did not arrive in the Workspace');
+  await sleep(500);
+}
 act('select', `${W.workspace}.text`, 'start');
 await sleep(1500);
 S.startSegment();
