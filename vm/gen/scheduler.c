@@ -9,6 +9,11 @@ static bool alloc_sample_pending;
 int32_t alloc_sample_sema;
 int64_t alloc_sample_size;
 bool alloc_sample_unread;
+static int64_t frame_fps;
+static int64_t frame_index;
+static int64_t frame_next_us;
+static int64_t frame_origin_us;
+static int32_t frame_sema;
 static bool in_idle;
 atomic_int interrupt_pending;
 oop last_preempted;
@@ -29,6 +34,16 @@ static atomic_bool tick_deadline_fired;
 static bool tick_idle;
 static int64_t tick_poll_us;
 static int64_t timer_ms = -1LL;
+static int64_t work_clock_cycles;
+static bool work_clock_held;
+static int64_t work_clock_hold_cycles;
+static bool work_clock_on;
+static bool work_clock_paced;
+static bool work_clock_querying;
+static int64_t work_clock_raw;
+static bool work_clock_running;
+static int64_t work_clock_us;
+static bool work_clock_uses_cycles;
 
 static void add_first_link(oop list, oop link);
 static void add_last_link(oop list, oop link);
@@ -149,6 +164,11 @@ void handle_interrupts(void)
         signal_index(alloc_sample_sema);
     }
     preempt_to_front = false;
+    if ((frame_sema != 0) && (now >= frame_next_us)) {
+        frame_index = frame_index + 1;
+        frame_next_us = frame_origin_us + (frame_index * 1000 + frame_fps - 1) / frame_fps * 1000;
+        signal_index(frame_sema);
+    }
     if (finalization_pending) {
         finalization_pending = false;
         s = special(SO_FINALIZATION_SEMAPHORE);
@@ -168,10 +188,130 @@ void handle_interrupts(void)
 /* Scheduler>>idleWait */
 static void idle_wait(void)
 {
+    int64_t r_work_clock_sync;
+    int64_t r_work_clock_thread_cycles;
+    int64_t r_real_thread_cpu_us;
+    struct timespec local;
+    struct timespec *ts;
+    int64_t us;
+    int64_t raw;
+    int64_t next;
+    int64_t r_work_clock_deadline;
+    int64_t due_3;
+    int64_t due_2;
+    int64_t now_2;
+    int64_t r_work_clock_deadline_2;
+    int64_t due_4;
+    int64_t due;
+    int64_t r_work_clock_thread_cycles_2;
+    int64_t r_real_thread_cpu_us_2;
+    struct timespec local_2;
+    struct timespec *ts_2;
     int64_t now;
     int64_t wait;
     in_idle = true;
     if ((pending_ext_n == 0) && (!alloc_sample_pending)) {
+        if (work_clock_on) {
+            now_2 = ({
+    if (!((work_clock_running || work_clock_paced) && (!work_clock_held))) {
+        r_work_clock_sync = work_clock_us;
+        goto exit_work_clock_sync;
+    }
+    us = (({
+    if (work_clock_uses_cycles) {
+        r_work_clock_thread_cycles = ticker_thread_cycles();
+        goto exit_work_clock_thread_cycles;
+    }
+    r_work_clock_thread_cycles = ({
+    memset(&local, 0, sizeof local);
+    ts = &local;
+    clock_gettime(CLOCK_THREAD_CPUTIME_ID, ts);
+    r_real_thread_cpu_us = ts->tv_sec * 1000000 + ts->tv_nsec / 1000;
+    r_real_thread_cpu_us; }) * WORK_CYCLES_PER_US;
+exit_work_clock_thread_cycles:;
+    r_work_clock_thread_cycles; }) - work_clock_cycles) / WORK_CYCLES_PER_US;
+    work_clock_cycles = work_clock_cycles + us * WORK_CYCLES_PER_US;
+    if (work_clock_paced) {
+        raw = raw_now_us();
+        if (raw - work_clock_raw > us) {
+            us = raw - work_clock_raw;
+        }
+        work_clock_raw = raw;
+    }
+    if (us > 0) {
+        next = work_clock_us + us;
+        due_2 = ({
+    due_3 = 0x7FFFFFFFFFFFFFFFLL;
+    if ((timer_ms >= 0) && (timer_ms < 9223372036854775LL)) {
+        due_3 = timer_ms * 1000;
+    }
+    if ((sampler_interval_us > 0) && (sampler_next_us < due_3)) {
+        due_3 = sampler_next_us;
+    }
+    if ((frame_sema != 0) && (frame_next_us < due_3)) {
+        due_3 = frame_next_us;
+    }
+    r_work_clock_deadline = due_3;
+    r_work_clock_deadline; });
+        if (next > due_2) {
+            next = due_2;
+        }
+        if (next > work_clock_us) {
+            work_clock_us = next;
+        }
+    }
+    r_work_clock_sync = work_clock_us;
+exit_work_clock_sync:;
+    r_work_clock_sync; });
+            due = ({
+    due_4 = 0x7FFFFFFFFFFFFFFFLL;
+    if ((timer_ms >= 0) && (timer_ms < 9223372036854775LL)) {
+        due_4 = timer_ms * 1000;
+    }
+    if ((sampler_interval_us > 0) && (sampler_next_us < due_4)) {
+        due_4 = sampler_next_us;
+    }
+    if ((frame_sema != 0) && (frame_next_us < due_4)) {
+        due_4 = frame_next_us;
+    }
+    r_work_clock_deadline_2 = due_4;
+    r_work_clock_deadline_2; });
+            if (!((work_clock_running || work_clock_paced) && (due != 0x7FFFFFFFFFFFFFFFLL))) {
+                tick_set_idle(true);
+                platform_wait(-1);
+                tick_set_idle(false);
+                goto exit_work_clock_idle;
+            }
+            if (work_clock_paced) {
+                if (due > now_2) {
+                    tick_set_idle(true);
+                    platform_wait(due - now_2);
+                    tick_set_idle(false);
+                }
+                goto exit_work_clock_idle;
+            }
+            if (due > now_2) {
+                work_clock_us = due;
+            }
+            work_clock_cycles = ({
+    if (work_clock_uses_cycles) {
+        r_work_clock_thread_cycles_2 = ticker_thread_cycles();
+        goto exit_work_clock_thread_cycles_2;
+    }
+    r_work_clock_thread_cycles_2 = ({
+    memset(&local_2, 0, sizeof local_2);
+    ts_2 = &local_2;
+    clock_gettime(CLOCK_THREAD_CPUTIME_ID, ts_2);
+    r_real_thread_cpu_us_2 = ts_2->tv_sec * 1000000 + ts_2->tv_nsec / 1000;
+    r_real_thread_cpu_us_2; }) * WORK_CYCLES_PER_US;
+exit_work_clock_thread_cycles_2:;
+    r_work_clock_thread_cycles_2; });
+        exit_work_clock_idle:;
+            handle_interrupts();
+            last_switch_us = thread_cpu_us();
+            in_idle = false;
+            return;
+        }
         now = now_us();
         wait = 0x7FFFFFFFFFFFFFFFLL;
         if (timer_ms >= 0) {
@@ -212,6 +352,70 @@ int64_t now_ms(void)
 /* Scheduler>>nowUs */
 int64_t now_us(void)
 {
+    int64_t r_work_clock_sync;
+    int64_t r_work_clock_thread_cycles;
+    int64_t r_real_thread_cpu_us;
+    struct timespec local;
+    struct timespec *ts;
+    int64_t us;
+    int64_t raw;
+    int64_t next;
+    int64_t r_work_clock_deadline;
+    int64_t due_2;
+    int64_t due;
+    if (work_clock_on) {
+        return ({
+    if (!((work_clock_running || work_clock_paced) && (!work_clock_held))) {
+        r_work_clock_sync = work_clock_us;
+        goto exit_work_clock_sync;
+    }
+    us = (({
+    if (work_clock_uses_cycles) {
+        r_work_clock_thread_cycles = ticker_thread_cycles();
+        goto exit_work_clock_thread_cycles;
+    }
+    r_work_clock_thread_cycles = ({
+    memset(&local, 0, sizeof local);
+    ts = &local;
+    clock_gettime(CLOCK_THREAD_CPUTIME_ID, ts);
+    r_real_thread_cpu_us = ts->tv_sec * 1000000 + ts->tv_nsec / 1000;
+    r_real_thread_cpu_us; }) * WORK_CYCLES_PER_US;
+exit_work_clock_thread_cycles:;
+    r_work_clock_thread_cycles; }) - work_clock_cycles) / WORK_CYCLES_PER_US;
+    work_clock_cycles = work_clock_cycles + us * WORK_CYCLES_PER_US;
+    if (work_clock_paced) {
+        raw = raw_now_us();
+        if (raw - work_clock_raw > us) {
+            us = raw - work_clock_raw;
+        }
+        work_clock_raw = raw;
+    }
+    if (us > 0) {
+        next = work_clock_us + us;
+        due = ({
+    due_2 = 0x7FFFFFFFFFFFFFFFLL;
+    if ((timer_ms >= 0) && (timer_ms < 9223372036854775LL)) {
+        due_2 = timer_ms * 1000;
+    }
+    if ((sampler_interval_us > 0) && (sampler_next_us < due_2)) {
+        due_2 = sampler_next_us;
+    }
+    if ((frame_sema != 0) && (frame_next_us < due_2)) {
+        due_2 = frame_next_us;
+    }
+    r_work_clock_deadline = due_2;
+    r_work_clock_deadline; });
+        if (next > due) {
+            next = due;
+        }
+        if (next > work_clock_us) {
+            work_clock_us = next;
+        }
+    }
+    r_work_clock_sync = work_clock_us;
+exit_work_clock_sync:;
+    r_work_clock_sync; });
+    }
     return raw_now_us() - start_us;
 }
 
@@ -274,9 +478,127 @@ static int64_t raw_now_us(void)
 /* Scheduler>>relinquish: */
 void relinquish(int64_t microseconds)
 {
+    int64_t r_work_clock_sync;
+    int64_t r_work_clock_thread_cycles;
+    int64_t r_real_thread_cpu_us;
+    struct timespec local;
+    struct timespec *ts;
+    int64_t us_2;
+    int64_t raw;
+    int64_t next;
+    int64_t r_work_clock_deadline;
+    int64_t due_3;
+    int64_t due_2;
+    int64_t now_2;
+    int64_t r_work_clock_deadline_2;
+    int64_t due_4;
+    int64_t due;
+    int64_t r_work_clock_thread_cycles_2;
+    int64_t r_real_thread_cpu_us_2;
+    struct timespec local_2;
+    struct timespec *ts_2;
     int64_t us;
     int64_t now;
     if ((pending_ext_n != 0) || alloc_sample_pending) {
+        return;
+    }
+    if (work_clock_on) {
+        now_2 = ({
+    if (!((work_clock_running || work_clock_paced) && (!work_clock_held))) {
+        r_work_clock_sync = work_clock_us;
+        goto exit_work_clock_sync;
+    }
+    us_2 = (({
+    if (work_clock_uses_cycles) {
+        r_work_clock_thread_cycles = ticker_thread_cycles();
+        goto exit_work_clock_thread_cycles;
+    }
+    r_work_clock_thread_cycles = ({
+    memset(&local, 0, sizeof local);
+    ts = &local;
+    clock_gettime(CLOCK_THREAD_CPUTIME_ID, ts);
+    r_real_thread_cpu_us = ts->tv_sec * 1000000 + ts->tv_nsec / 1000;
+    r_real_thread_cpu_us; }) * WORK_CYCLES_PER_US;
+exit_work_clock_thread_cycles:;
+    r_work_clock_thread_cycles; }) - work_clock_cycles) / WORK_CYCLES_PER_US;
+    work_clock_cycles = work_clock_cycles + us_2 * WORK_CYCLES_PER_US;
+    if (work_clock_paced) {
+        raw = raw_now_us();
+        if (raw - work_clock_raw > us_2) {
+            us_2 = raw - work_clock_raw;
+        }
+        work_clock_raw = raw;
+    }
+    if (us_2 > 0) {
+        next = work_clock_us + us_2;
+        due_2 = ({
+    due_3 = 0x7FFFFFFFFFFFFFFFLL;
+    if ((timer_ms >= 0) && (timer_ms < 9223372036854775LL)) {
+        due_3 = timer_ms * 1000;
+    }
+    if ((sampler_interval_us > 0) && (sampler_next_us < due_3)) {
+        due_3 = sampler_next_us;
+    }
+    if ((frame_sema != 0) && (frame_next_us < due_3)) {
+        due_3 = frame_next_us;
+    }
+    r_work_clock_deadline = due_3;
+    r_work_clock_deadline; });
+        if (next > due_2) {
+            next = due_2;
+        }
+        if (next > work_clock_us) {
+            work_clock_us = next;
+        }
+    }
+    r_work_clock_sync = work_clock_us;
+exit_work_clock_sync:;
+    r_work_clock_sync; });
+        due = ({
+    due_4 = 0x7FFFFFFFFFFFFFFFLL;
+    if ((timer_ms >= 0) && (timer_ms < 9223372036854775LL)) {
+        due_4 = timer_ms * 1000;
+    }
+    if ((sampler_interval_us > 0) && (sampler_next_us < due_4)) {
+        due_4 = sampler_next_us;
+    }
+    if ((frame_sema != 0) && (frame_next_us < due_4)) {
+        due_4 = frame_next_us;
+    }
+    r_work_clock_deadline_2 = due_4;
+    r_work_clock_deadline_2; });
+        if (!((work_clock_running || work_clock_paced) && (due != 0x7FFFFFFFFFFFFFFFLL))) {
+            tick_set_idle(true);
+            platform_wait(-1);
+            tick_set_idle(false);
+            goto exit_work_clock_idle;
+        }
+        if (work_clock_paced) {
+            if (due > now_2) {
+                tick_set_idle(true);
+                platform_wait(due - now_2);
+                tick_set_idle(false);
+            }
+            goto exit_work_clock_idle;
+        }
+        if (due > now_2) {
+            work_clock_us = due;
+        }
+        work_clock_cycles = ({
+    if (work_clock_uses_cycles) {
+        r_work_clock_thread_cycles_2 = ticker_thread_cycles();
+        goto exit_work_clock_thread_cycles_2;
+    }
+    r_work_clock_thread_cycles_2 = ({
+    memset(&local_2, 0, sizeof local_2);
+    ts_2 = &local_2;
+    clock_gettime(CLOCK_THREAD_CPUTIME_ID, ts_2);
+    r_real_thread_cpu_us_2 = ts_2->tv_sec * 1000000 + ts_2->tv_nsec / 1000;
+    r_real_thread_cpu_us_2; }) * WORK_CYCLES_PER_US;
+exit_work_clock_thread_cycles_2:;
+    r_work_clock_thread_cycles_2; });
+    exit_work_clock_idle:;
+        request_interrupt_check();
         return;
     }
     us = microseconds;
@@ -528,12 +850,34 @@ void suspend_active(void)
 /* Scheduler>>threadCpuUs */
 int64_t thread_cpu_us(void)
 {
+    int64_t r_work_clock_thread_cycles;
+    int64_t r_real_thread_cpu_us;
     struct timespec local;
     struct timespec *ts;
+    int64_t r_real_thread_cpu_us_2;
+    struct timespec local_2;
+    struct timespec *ts_2;
+    if (work_clock_on) {
+        return ({
+    if (work_clock_uses_cycles) {
+        r_work_clock_thread_cycles = ticker_thread_cycles();
+        goto exit_work_clock_thread_cycles;
+    }
+    r_work_clock_thread_cycles = ({
     memset(&local, 0, sizeof local);
     ts = &local;
     clock_gettime(CLOCK_THREAD_CPUTIME_ID, ts);
-    return ts->tv_sec * 1000000 + ts->tv_nsec / 1000;
+    r_real_thread_cpu_us = ts->tv_sec * 1000000 + ts->tv_nsec / 1000;
+    r_real_thread_cpu_us; }) * WORK_CYCLES_PER_US;
+exit_work_clock_thread_cycles:;
+    r_work_clock_thread_cycles; }) / WORK_CYCLES_PER_US;
+    }
+    return ({
+    memset(&local_2, 0, sizeof local_2);
+    ts_2 = &local_2;
+    clock_gettime(CLOCK_THREAD_CPUTIME_ID, ts_2);
+    r_real_thread_cpu_us_2 = ts_2->tv_sec * 1000000 + ts_2->tv_nsec / 1000;
+    r_real_thread_cpu_us_2; });
 }
 
 /* Scheduler>>tickFired: */
@@ -559,9 +903,9 @@ static void tick_update(void)
     int64_t poll;
     int64_t now;
     due = 0x7FFFFFFFFFFFFFFFLL;
-    poll = tick_idle ? 0 : tick_poll_us;
+    poll = tick_idle ? 0 : work_clock_on ? WORK_CLOCK_POLL_US : tick_poll_us;
     now = now_us();
-    if (!tick_idle) {
+    if (!(tick_idle || work_clock_on)) {
         if ((timer_ms >= 0) && (timer_ms < 9223372036854775LL)) {
             due = timer_ms * 1000;
         }
@@ -652,7 +996,7 @@ static void transfer_to_highest(void)
     for (;;) {
         o = special(SO_PROCESSOR);
         lists = *(uint64_t *)(o + 16 + 0);
-        for (i = (int64_t)(uint32_t)*(uint64_t *)lists - 1; i >= 0; i--) {
+        for (i = (int64_t)(uint32_t)*(uint64_t *)lists - 1; i >= (work_clock_on && (!(work_clock_running || (work_clock_paced || work_clock_querying))) ? 49 : 0); i--) {
             l = *(uint64_t *)(lists + 16 + 8 * i);
             if (*(uint64_t *)(l + 16 + 0) != nil_oop) {
                 transfer_to(remove_first_link(l));
@@ -667,5 +1011,522 @@ static void transfer_to_highest(void)
 void sched_uncharge(int64_t us)
 {
     last_switch_us = last_switch_us + us;
+}
+
+/* Scheduler>>workClockCharge: */
+void work_clock_charge(int64_t us)
+{
+    if (!work_clock_on) {
+        return;
+    }
+    work_clock_us = work_clock_us + us;
+}
+
+/* Scheduler>>workClockHeldUs */
+int64_t work_clock_held_us(void)
+{
+    int64_t r_work_clock_thread_cycles;
+    int64_t r_real_thread_cpu_us;
+    struct timespec local;
+    struct timespec *ts;
+    if (!work_clock_held) {
+        return now_us();
+    }
+    return work_clock_us + (({
+    if (work_clock_uses_cycles) {
+        r_work_clock_thread_cycles = ticker_thread_cycles();
+        goto exit_work_clock_thread_cycles;
+    }
+    r_work_clock_thread_cycles = ({
+    memset(&local, 0, sizeof local);
+    ts = &local;
+    clock_gettime(CLOCK_THREAD_CPUTIME_ID, ts);
+    r_real_thread_cpu_us = ts->tv_sec * 1000000 + ts->tv_nsec / 1000;
+    r_real_thread_cpu_us; }) * WORK_CYCLES_PER_US;
+exit_work_clock_thread_cycles:;
+    r_work_clock_thread_cycles; }) - work_clock_hold_cycles) / WORK_CYCLES_PER_US;
+}
+
+/* Scheduler>>workClockHold */
+void work_clock_hold(void)
+{
+    int64_t r_work_clock_thread_cycles;
+    int64_t r_real_thread_cpu_us;
+    struct timespec local;
+    struct timespec *ts;
+    int64_t us;
+    int64_t raw;
+    int64_t next;
+    int64_t r_work_clock_deadline;
+    int64_t due_2;
+    int64_t due;
+    int64_t r_work_clock_thread_cycles_2;
+    int64_t r_real_thread_cpu_us_2;
+    struct timespec local_2;
+    struct timespec *ts_2;
+    if (!work_clock_on) {
+        return;
+    }
+    if (!((work_clock_running || work_clock_paced) && (!work_clock_held))) {
+        goto exit_work_clock_sync;
+    }
+    us = (({
+    if (work_clock_uses_cycles) {
+        r_work_clock_thread_cycles = ticker_thread_cycles();
+        goto exit_work_clock_thread_cycles;
+    }
+    r_work_clock_thread_cycles = ({
+    memset(&local, 0, sizeof local);
+    ts = &local;
+    clock_gettime(CLOCK_THREAD_CPUTIME_ID, ts);
+    r_real_thread_cpu_us = ts->tv_sec * 1000000 + ts->tv_nsec / 1000;
+    r_real_thread_cpu_us; }) * WORK_CYCLES_PER_US;
+exit_work_clock_thread_cycles:;
+    r_work_clock_thread_cycles; }) - work_clock_cycles) / WORK_CYCLES_PER_US;
+    work_clock_cycles = work_clock_cycles + us * WORK_CYCLES_PER_US;
+    if (work_clock_paced) {
+        raw = raw_now_us();
+        if (raw - work_clock_raw > us) {
+            us = raw - work_clock_raw;
+        }
+        work_clock_raw = raw;
+    }
+    if (us > 0) {
+        next = work_clock_us + us;
+        due = ({
+    due_2 = 0x7FFFFFFFFFFFFFFFLL;
+    if ((timer_ms >= 0) && (timer_ms < 9223372036854775LL)) {
+        due_2 = timer_ms * 1000;
+    }
+    if ((sampler_interval_us > 0) && (sampler_next_us < due_2)) {
+        due_2 = sampler_next_us;
+    }
+    if ((frame_sema != 0) && (frame_next_us < due_2)) {
+        due_2 = frame_next_us;
+    }
+    r_work_clock_deadline = due_2;
+    r_work_clock_deadline; });
+        if (next > due) {
+            next = due;
+        }
+        if (next > work_clock_us) {
+            work_clock_us = next;
+        }
+    }
+exit_work_clock_sync:;
+    work_clock_held = true;
+    work_clock_hold_cycles = ({
+    if (work_clock_uses_cycles) {
+        r_work_clock_thread_cycles_2 = ticker_thread_cycles();
+        goto exit_work_clock_thread_cycles_2;
+    }
+    r_work_clock_thread_cycles_2 = ({
+    memset(&local_2, 0, sizeof local_2);
+    ts_2 = &local_2;
+    clock_gettime(CLOCK_THREAD_CPUTIME_ID, ts_2);
+    r_real_thread_cpu_us_2 = ts_2->tv_sec * 1000000 + ts_2->tv_nsec / 1000;
+    r_real_thread_cpu_us_2; }) * WORK_CYCLES_PER_US;
+exit_work_clock_thread_cycles_2:;
+    r_work_clock_thread_cycles_2; });
+}
+
+/* Scheduler>>workClockNextFrame */
+int64_t work_clock_next_frame(void)
+{
+    if (!work_clock_on) {
+        return -1;
+    }
+    return frame_next_us;
+}
+
+/* Scheduler>>workClockPaced: */
+void work_clock_set_paced(bool a_boolean)
+{
+    bool moving;
+    int64_t r_work_clock_thread_cycles;
+    int64_t r_real_thread_cpu_us;
+    struct timespec local;
+    struct timespec *ts;
+    int64_t us;
+    int64_t raw;
+    int64_t next;
+    int64_t r_work_clock_deadline;
+    int64_t due_2;
+    int64_t due;
+    int64_t r_work_clock_thread_cycles_2;
+    int64_t r_real_thread_cpu_us_2;
+    struct timespec local_2;
+    struct timespec *ts_2;
+    if (work_clock_on) {
+        moving = work_clock_running || work_clock_paced;
+        if (moving) {
+            if (!((work_clock_running || work_clock_paced) && (!work_clock_held))) {
+                goto exit_work_clock_sync;
+            }
+            us = (({
+    if (work_clock_uses_cycles) {
+        r_work_clock_thread_cycles = ticker_thread_cycles();
+        goto exit_work_clock_thread_cycles;
+    }
+    r_work_clock_thread_cycles = ({
+    memset(&local, 0, sizeof local);
+    ts = &local;
+    clock_gettime(CLOCK_THREAD_CPUTIME_ID, ts);
+    r_real_thread_cpu_us = ts->tv_sec * 1000000 + ts->tv_nsec / 1000;
+    r_real_thread_cpu_us; }) * WORK_CYCLES_PER_US;
+exit_work_clock_thread_cycles:;
+    r_work_clock_thread_cycles; }) - work_clock_cycles) / WORK_CYCLES_PER_US;
+            work_clock_cycles = work_clock_cycles + us * WORK_CYCLES_PER_US;
+            if (work_clock_paced) {
+                raw = raw_now_us();
+                if (raw - work_clock_raw > us) {
+                    us = raw - work_clock_raw;
+                }
+                work_clock_raw = raw;
+            }
+            if (us > 0) {
+                next = work_clock_us + us;
+                due = ({
+    due_2 = 0x7FFFFFFFFFFFFFFFLL;
+    if ((timer_ms >= 0) && (timer_ms < 9223372036854775LL)) {
+        due_2 = timer_ms * 1000;
+    }
+    if ((sampler_interval_us > 0) && (sampler_next_us < due_2)) {
+        due_2 = sampler_next_us;
+    }
+    if ((frame_sema != 0) && (frame_next_us < due_2)) {
+        due_2 = frame_next_us;
+    }
+    r_work_clock_deadline = due_2;
+    r_work_clock_deadline; });
+                if (next > due) {
+                    next = due;
+                }
+                if (next > work_clock_us) {
+                    work_clock_us = next;
+                }
+            }
+        exit_work_clock_sync:;
+        }
+        work_clock_running = work_clock_running;
+        work_clock_paced = a_boolean;
+        work_clock_raw = raw_now_us();
+        if (!moving) {
+            work_clock_cycles = ({
+    if (work_clock_uses_cycles) {
+        r_work_clock_thread_cycles_2 = ticker_thread_cycles();
+        goto exit_work_clock_thread_cycles_2;
+    }
+    r_work_clock_thread_cycles_2 = ({
+    memset(&local_2, 0, sizeof local_2);
+    ts_2 = &local_2;
+    clock_gettime(CLOCK_THREAD_CPUTIME_ID, ts_2);
+    r_real_thread_cpu_us_2 = ts_2->tv_sec * 1000000 + ts_2->tv_nsec / 1000;
+    r_real_thread_cpu_us_2; }) * WORK_CYCLES_PER_US;
+exit_work_clock_thread_cycles_2:;
+    r_work_clock_thread_cycles_2; });
+        }
+    }
+}
+
+/* Scheduler>>workClockQuerying: */
+void work_clock_set_querying(bool a_boolean)
+{
+    work_clock_querying = a_boolean;
+}
+
+/* Scheduler>>workClockRelease */
+int64_t work_clock_release(void)
+{
+    int64_t r_work_clock_thread_cycles;
+    int64_t r_real_thread_cpu_us;
+    struct timespec local;
+    struct timespec *ts;
+    int64_t now;
+    if (!work_clock_on) {
+        return 0;
+    }
+    now = ({
+    if (work_clock_uses_cycles) {
+        r_work_clock_thread_cycles = ticker_thread_cycles();
+        goto exit_work_clock_thread_cycles;
+    }
+    r_work_clock_thread_cycles = ({
+    memset(&local, 0, sizeof local);
+    ts = &local;
+    clock_gettime(CLOCK_THREAD_CPUTIME_ID, ts);
+    r_real_thread_cpu_us = ts->tv_sec * 1000000 + ts->tv_nsec / 1000;
+    r_real_thread_cpu_us; }) * WORK_CYCLES_PER_US;
+exit_work_clock_thread_cycles:;
+    r_work_clock_thread_cycles; });
+    work_clock_held = false;
+    work_clock_cycles = now;
+    work_clock_raw = raw_now_us();
+    return (now - work_clock_hold_cycles) / WORK_CYCLES_PER_US;
+}
+
+/* Scheduler>>workClockRunning: */
+void work_clock_set_running(bool a_boolean)
+{
+    bool moving;
+    int64_t r_work_clock_thread_cycles;
+    int64_t r_real_thread_cpu_us;
+    struct timespec local;
+    struct timespec *ts;
+    int64_t us;
+    int64_t raw;
+    int64_t next;
+    int64_t r_work_clock_deadline;
+    int64_t due_2;
+    int64_t due;
+    int64_t r_work_clock_thread_cycles_2;
+    int64_t r_real_thread_cpu_us_2;
+    struct timespec local_2;
+    struct timespec *ts_2;
+    if (work_clock_on) {
+        moving = work_clock_running || work_clock_paced;
+        if (moving) {
+            if (!((work_clock_running || work_clock_paced) && (!work_clock_held))) {
+                goto exit_work_clock_sync;
+            }
+            us = (({
+    if (work_clock_uses_cycles) {
+        r_work_clock_thread_cycles = ticker_thread_cycles();
+        goto exit_work_clock_thread_cycles;
+    }
+    r_work_clock_thread_cycles = ({
+    memset(&local, 0, sizeof local);
+    ts = &local;
+    clock_gettime(CLOCK_THREAD_CPUTIME_ID, ts);
+    r_real_thread_cpu_us = ts->tv_sec * 1000000 + ts->tv_nsec / 1000;
+    r_real_thread_cpu_us; }) * WORK_CYCLES_PER_US;
+exit_work_clock_thread_cycles:;
+    r_work_clock_thread_cycles; }) - work_clock_cycles) / WORK_CYCLES_PER_US;
+            work_clock_cycles = work_clock_cycles + us * WORK_CYCLES_PER_US;
+            if (work_clock_paced) {
+                raw = raw_now_us();
+                if (raw - work_clock_raw > us) {
+                    us = raw - work_clock_raw;
+                }
+                work_clock_raw = raw;
+            }
+            if (us > 0) {
+                next = work_clock_us + us;
+                due = ({
+    due_2 = 0x7FFFFFFFFFFFFFFFLL;
+    if ((timer_ms >= 0) && (timer_ms < 9223372036854775LL)) {
+        due_2 = timer_ms * 1000;
+    }
+    if ((sampler_interval_us > 0) && (sampler_next_us < due_2)) {
+        due_2 = sampler_next_us;
+    }
+    if ((frame_sema != 0) && (frame_next_us < due_2)) {
+        due_2 = frame_next_us;
+    }
+    r_work_clock_deadline = due_2;
+    r_work_clock_deadline; });
+                if (next > due) {
+                    next = due;
+                }
+                if (next > work_clock_us) {
+                    work_clock_us = next;
+                }
+            }
+        exit_work_clock_sync:;
+        }
+        work_clock_running = a_boolean;
+        work_clock_paced = work_clock_paced;
+        work_clock_raw = raw_now_us();
+        if (!moving) {
+            work_clock_cycles = ({
+    if (work_clock_uses_cycles) {
+        r_work_clock_thread_cycles_2 = ticker_thread_cycles();
+        goto exit_work_clock_thread_cycles_2;
+    }
+    r_work_clock_thread_cycles_2 = ({
+    memset(&local_2, 0, sizeof local_2);
+    ts_2 = &local_2;
+    clock_gettime(CLOCK_THREAD_CPUTIME_ID, ts_2);
+    r_real_thread_cpu_us_2 = ts_2->tv_sec * 1000000 + ts_2->tv_nsec / 1000;
+    r_real_thread_cpu_us_2; }) * WORK_CYCLES_PER_US;
+exit_work_clock_thread_cycles_2:;
+    r_work_clock_thread_cycles_2; });
+        }
+    }
+}
+
+/* Scheduler>>workClockStart:semaphore: */
+int64_t work_clock_start(int64_t fps, int32_t index)
+{
+    int64_t r_work_clock_thread_cycles;
+    int64_t r_real_thread_cpu_us;
+    struct timespec local;
+    struct timespec *ts;
+    int64_t r_work_clock_sync;
+    int64_t r_work_clock_thread_cycles_2;
+    int64_t r_real_thread_cpu_us_2;
+    struct timespec local_2;
+    struct timespec *ts_2;
+    int64_t us;
+    int64_t raw;
+    int64_t next;
+    int64_t r_work_clock_deadline;
+    int64_t due_2;
+    int64_t due;
+    if (!work_clock_on) {
+        work_clock_us = now_us();
+        work_clock_uses_cycles = ticker_thread_cycles() >= 0;
+        if (!work_clock_uses_cycles) {
+            fprintf(stderr, "samaltak: no cycle counter here: the recording clock counts CPU time, so load and core type change what is recorded\n");
+        }
+        work_clock_on = true;
+        work_clock_running = true;
+        work_clock_paced = false;
+        work_clock_cycles = ({
+    if (work_clock_uses_cycles) {
+        r_work_clock_thread_cycles = ticker_thread_cycles();
+        goto exit_work_clock_thread_cycles;
+    }
+    r_work_clock_thread_cycles = ({
+    memset(&local, 0, sizeof local);
+    ts = &local;
+    clock_gettime(CLOCK_THREAD_CPUTIME_ID, ts);
+    r_real_thread_cpu_us = ts->tv_sec * 1000000 + ts->tv_nsec / 1000;
+    r_real_thread_cpu_us; }) * WORK_CYCLES_PER_US;
+exit_work_clock_thread_cycles:;
+    r_work_clock_thread_cycles; });
+        work_clock_raw = raw_now_us();
+        last_switch_us = thread_cpu_us();
+        tick_update();
+    }
+    if ((fps > 0) && (frame_sema != index)) {
+        frame_sema = index;
+        frame_fps = fps;
+        frame_origin_us = (({
+    if (!((work_clock_running || work_clock_paced) && (!work_clock_held))) {
+        r_work_clock_sync = work_clock_us;
+        goto exit_work_clock_sync;
+    }
+    us = (({
+    if (work_clock_uses_cycles) {
+        r_work_clock_thread_cycles_2 = ticker_thread_cycles();
+        goto exit_work_clock_thread_cycles_2;
+    }
+    r_work_clock_thread_cycles_2 = ({
+    memset(&local_2, 0, sizeof local_2);
+    ts_2 = &local_2;
+    clock_gettime(CLOCK_THREAD_CPUTIME_ID, ts_2);
+    r_real_thread_cpu_us_2 = ts_2->tv_sec * 1000000 + ts_2->tv_nsec / 1000;
+    r_real_thread_cpu_us_2; }) * WORK_CYCLES_PER_US;
+exit_work_clock_thread_cycles_2:;
+    r_work_clock_thread_cycles_2; }) - work_clock_cycles) / WORK_CYCLES_PER_US;
+    work_clock_cycles = work_clock_cycles + us * WORK_CYCLES_PER_US;
+    if (work_clock_paced) {
+        raw = raw_now_us();
+        if (raw - work_clock_raw > us) {
+            us = raw - work_clock_raw;
+        }
+        work_clock_raw = raw;
+    }
+    if (us > 0) {
+        next = work_clock_us + us;
+        due = ({
+    due_2 = 0x7FFFFFFFFFFFFFFFLL;
+    if ((timer_ms >= 0) && (timer_ms < 9223372036854775LL)) {
+        due_2 = timer_ms * 1000;
+    }
+    if ((sampler_interval_us > 0) && (sampler_next_us < due_2)) {
+        due_2 = sampler_next_us;
+    }
+    if ((frame_sema != 0) && (frame_next_us < due_2)) {
+        due_2 = frame_next_us;
+    }
+    r_work_clock_deadline = due_2;
+    r_work_clock_deadline; });
+        if (next > due) {
+            next = due;
+        }
+        if (next > work_clock_us) {
+            work_clock_us = next;
+        }
+    }
+    r_work_clock_sync = work_clock_us;
+exit_work_clock_sync:;
+    r_work_clock_sync; }) + 999) / 1000;
+        frame_origin_us = frame_origin_us * 1000;
+        frame_index = 0;
+        frame_next_us = frame_origin_us;
+    }
+    return frame_origin_us;
+}
+
+/* Scheduler>>workClockStop */
+void work_clock_stop(void)
+{
+    int64_t r_work_clock_thread_cycles;
+    int64_t r_real_thread_cpu_us;
+    struct timespec local;
+    struct timespec *ts;
+    int64_t us;
+    int64_t raw;
+    int64_t next;
+    int64_t r_work_clock_deadline;
+    int64_t due_2;
+    int64_t due;
+    if (!work_clock_on) {
+        return;
+    }
+    if (!((work_clock_running || work_clock_paced) && (!work_clock_held))) {
+        goto exit_work_clock_sync;
+    }
+    us = (({
+    if (work_clock_uses_cycles) {
+        r_work_clock_thread_cycles = ticker_thread_cycles();
+        goto exit_work_clock_thread_cycles;
+    }
+    r_work_clock_thread_cycles = ({
+    memset(&local, 0, sizeof local);
+    ts = &local;
+    clock_gettime(CLOCK_THREAD_CPUTIME_ID, ts);
+    r_real_thread_cpu_us = ts->tv_sec * 1000000 + ts->tv_nsec / 1000;
+    r_real_thread_cpu_us; }) * WORK_CYCLES_PER_US;
+exit_work_clock_thread_cycles:;
+    r_work_clock_thread_cycles; }) - work_clock_cycles) / WORK_CYCLES_PER_US;
+    work_clock_cycles = work_clock_cycles + us * WORK_CYCLES_PER_US;
+    if (work_clock_paced) {
+        raw = raw_now_us();
+        if (raw - work_clock_raw > us) {
+            us = raw - work_clock_raw;
+        }
+        work_clock_raw = raw;
+    }
+    if (us > 0) {
+        next = work_clock_us + us;
+        due = ({
+    due_2 = 0x7FFFFFFFFFFFFFFFLL;
+    if ((timer_ms >= 0) && (timer_ms < 9223372036854775LL)) {
+        due_2 = timer_ms * 1000;
+    }
+    if ((sampler_interval_us > 0) && (sampler_next_us < due_2)) {
+        due_2 = sampler_next_us;
+    }
+    if ((frame_sema != 0) && (frame_next_us < due_2)) {
+        due_2 = frame_next_us;
+    }
+    r_work_clock_deadline = due_2;
+    r_work_clock_deadline; });
+        if (next > due) {
+            next = due;
+        }
+        if (next > work_clock_us) {
+            work_clock_us = next;
+        }
+    }
+exit_work_clock_sync:;
+    start_us = raw_now_us() - work_clock_us;
+    work_clock_on = false;
+    frame_sema = 0;
+    last_switch_us = thread_cpu_us();
+    tick_update();
 }
 

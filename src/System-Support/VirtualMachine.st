@@ -5,6 +5,60 @@ Object subclass: #VirtualMachine
 
 VirtualMachine comment: 'I am the facade for the VM''s system primitives (Smalltalk vm): command-line arguments, image path, statistics, garbage collection, standard output and the primitive table. Tools use me instead of calling primitives directly.'!
 
+!VirtualMachine methodsFor: 'recording clock'!
+isOnWorkClock
+	^self workClockNextFrame notNil
+!
+workClockStart: fps semaphore: anIndex
+	"The clock of the image (Time, Delay) becomes the work clock, running; if fps > 0, external semaphore anIndex is signaled when each frame of fps per second is due, the first one now. Answer when that first frame was (µs). See the comment of the VM's Scheduler."
+	<primitive: 'workClockStart'>
+	^self primitiveFailed
+!
+workClockStop
+	<primitive: 'workClockStop'>
+	^self primitiveFailed
+!
+workClockRunning: aBoolean
+	"Does the clock run (a driver command is in flight) or stand still?"
+	<primitive: 'workClockRunning'>
+	^self primitiveFailed
+!
+workClockPaced: aBoolean
+	"Whether an external program runs: then the clock keeps moving, at least at the pace of real time."
+	<primitive: 'workClockPaced'>
+	^self primitiveFailed
+!
+workClockQuerying: aBoolean
+	"A query is being served while the clock stands still: a Process below the control server's priority may run if the query waits for it (it may hold a lock)."
+	<primitive: 'workClockQuerying'>
+	^self primitiveFailed
+!
+workClockHold
+	"A frame of the compositor begins: its work does not move the clock."
+	<primitive: 'workClockHold'>
+	^self primitiveFailed
+!
+workClockRelease
+	"The frame ended: answer its work (µs at the clock's rate)."
+	<primitive: 'workClockRelease'>
+	^self primitiveFailed
+!
+workClockHeldMicros
+	"During a frame: the clock plus the frame's work so far (the times the frame reports); else the clock."
+	<primitive: 'workClockHeldMicros'>
+	^self primitiveFailed
+!
+workClockCharge: microseconds
+	"Move the clock on by microseconds: a frame took longer than a display refresh."
+	<primitive: 'workClockCharge'>
+	^self primitiveFailed
+!
+workClockNextFrame
+	"When the next frame is due (µs of the clock), nil while the work clock is off."
+	<primitive: 'workClockNextFrame'>
+	^self primitiveFailed
+! !
+
 !VirtualMachine methodsFor: 'accessing'!
 arguments
 	"Answer the command-line arguments after the image path."

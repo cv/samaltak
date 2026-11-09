@@ -11,7 +11,7 @@ const os = require('os');
 
 const ROOT = path.resolve(__dirname, '..');
 const USAGE = `usage: samaltak-ctl [--session name] <command> [args]
-  open [--headless] [--hidden] [--image path] [--theme t] [--port n] [--window-size WxH] [--source-dir d]   start an image with --control
+  open [--headless] [--hidden] [--work-clock] [--image path] [--theme t] [--port n] [--window-size WxH] [--source-dir d]   start an image with --control (--work-clock: on the recording clock from the start)
   snapshot [ref] [--depth n] [--bounds]    widget tree with stable @refs
   find <text>                              refs whose label/ref contains text
   click <ref|x,y> [--right] [--mods Shift+Meta]
@@ -24,10 +24,11 @@ const USAGE = `usage: samaltak-ctl [--session name] <command> [args]
   select <ref> <text|all|end|from-to|line:n>   editor selection, or list item by label
   scroll <ref> [dy]
   eval <smalltalk>                         prints the printString; exit 3 on a Smalltalk error
-  wait <cond> [timeout-ms]                 cond: JSON ({"ref":..,"text":..,"idle":true,"gone":..}), @ref, idle, ms, or text
+  wait <cond> [timeout-ms]                 cond: JSON ({"ref":..,"text":..,"idle":true,"gone":..,"eval":..}), @ref, idle, ms, or text
+  advance <ms> | advance <n>f              let time pass (while recording, the image's clock moves only during commands)
   bounds <ref>
   screenshot [ref] <path> [--scale 1|2] [--pointer]   window/widget, or the whole screen (default: display scale)
-  record start <out.mp4> [--size WxH] [--fps n]   record the screen with ffmpeg (raw RGBA through a FIFO)
+  record start <out.mp4> [--size WxH] [--fps n] [--raw]   record the screen with ffmpeg (raw RGBA through a FIFO; --raw: <out> gets the RGBA frames, no ffmpeg)
   record stop
   state
   close
@@ -43,7 +44,7 @@ for (let i = 0; i < argv.length; i++) {
   const a = argv[i];
   if (a === '--session') session = argv[++i];
   else if (/^--(theme|type|depth|mods|timeout|image|port|scale|size|fps|window-size|settle|delay|source-dir|at)$/.test(a)) flags[a.slice(2)] = argv[++i];
-  else if (/^--(headless|hidden|headed|bounds|right|end|start|replace|json|pointer)$/.test(a)) flags[a.slice(2)] = true;
+  else if (/^--(headless|hidden|work-clock|raw|headed|bounds|right|end|start|replace|json|pointer)$/.test(a)) flags[a.slice(2)] = true;
   else if (a === '-h' || a === '--help') { console.log(USAGE); process.exit(0); }
   else pos.push(a);
 }
@@ -54,6 +55,8 @@ const SESSION_FILE = path.join(DIR, `${session}.json`);
 
 function die(msg, code = 1) { process.stderr.write(`samaltak-ctl: ${msg}\n`); process.exit(code); }
 const sleep = ms => new Promise(r => setTimeout(r, ms));
+// Commands that wait on the image's clock: real time is not theirs to bound (the machine may be loaded).
+const HOUR = 3600000;
 const alive = pid => { try { process.kill(pid, 0); return true; } catch (e) { return e.code === 'EPERM'; } };
 
 function readSession() {
@@ -144,6 +147,7 @@ async function open() {
   const vmArgs = [image, '--control', '--control-port', String(port), '--control-port-file', portFile];
   if (flags.headless) vmArgs.push('--headless');
   if (flags.hidden) vmArgs.push('--hidden');
+  if (flags['work-clock']) vmArgs.push('--work-clock');
   if (flags.theme) vmArgs.push('--theme', flags.theme);
   if (flags['window-size']) vmArgs.push('--window-size', flags['window-size']);
   if (flags['source-dir']) vmArgs.push('--source-dir', path.resolve(flags['source-dir']));
@@ -158,6 +162,8 @@ async function open() {
     try { p = parseInt(fs.readFileSync(portFile, 'utf8'), 10); } catch (_) { /* not yet */ }
     if (p > 0) {
       fs.writeFileSync(SESSION_FILE, JSON.stringify({ pid: child.pid, port: p, image, log: logFile, started: new Date().toISOString() }, null, 2));
+      // On the work clock nothing runs between commands: this command lets the image start.
+      if (flags['work-clock']) await call({ cmd: 'wait', idle: true, eval: 'World current notNil', timeout: 120000 }, HOUR);
       console.log(`opened ${image} (session ${session}, pid ${child.pid}, port ${p})`);
       return;
     }
@@ -218,6 +224,12 @@ async function record() {
     w = st.screen.w; h = st.screen.h;
   }
   const fps = +(flags.fps || 30);
+  if (flags.raw) {
+    const r = await attempt({ cmd: 'record', action: 'start', path: out, w, h, fps });
+    if (!r.ok) die(r.error || JSON.stringify(r));
+    console.log(`recording raw RGBA ${w}x${h} at ${r.fps} fps to ${out} (samaltak-ctl record stop)`);
+    return;
+  }
   const fifo = path.join(DIR, `${session}.fifo`);
   fs.rmSync(fifo, { force: true });
   require('child_process').execFileSync('mkfifo', [fifo]);
@@ -302,7 +314,12 @@ async function main() {
       else if (/^\d+$/.test(a)) cond = { ms: +a };
       else cond = { text: a };
       const t = +(args[1] || flags.timeout || cond.timeout || 10000);
-      return print(await call({ ...cond, cmd: 'wait', timeout: t }, t + (cond.ms || 0) + 30000));
+      return print(await call({ ...cond, cmd: 'wait', timeout: t }, HOUR));
+    }
+    case 'advance': {
+      need(1, 'advance <ms> | advance <n>f');
+      const frames = args[0].match(/^(\d+)f$/);
+      return print(await call(frames ? { cmd: 'advance', frames: +frames[1] } : { cmd: 'advance', ms: +args[0] }, HOUR));
     }
     case 'bounds': need(1, 'bounds <ref>'); return print(await call({ cmd: 'bounds', target: args[0] }));
     case 'state': return print(await call({ cmd: 'state' }));

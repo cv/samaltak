@@ -54,6 +54,10 @@ SIGHUP
 ! !
 
 !PosixProcesses methodsFor: 'pseudo-terminals'!
+tcgetpgrp: fd
+	<c: 'pid_t tcgetpgrp(int fd)'>
+	^self notSimulated
+!
 forkpty: amaster name: name termios: termp winsize: winp
 	<c: 'pid_t forkpty(int *amaster, char *name, struct termios *termp, struct winsize *winp)'>
 	^self notSimulated

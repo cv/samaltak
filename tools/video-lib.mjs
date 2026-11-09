@@ -1,9 +1,11 @@
-// Shared driver for the narrated videos (walkthrough.mjs, mindblown/walkthrough-mindblown.mjs): a visible Samaltak
+// Shared driver for the narrated videos (walkthrough.mjs, mindblown/walkthrough-mindblown.mjs): a hidden Samaltak
 // window driven only through samaltak-ctl, recorded from the compositor (samaltak-ctl record), with a caption per step.
+// It runs on the recording clock (tools/README.md): time passes only in samaltak-ctl commands (sleep below is one, and
+// video times are frame numbers), so the load on the machine, the display and the app's role do not change the video.
 // Each step lasts at least as long as its narration clip (<out>/narration/durations.json from narrate.mjs); its cue
 // words are spoken when their effects show (cue, compose-video.py).
-// A recording may have several segments (e.g. across a quit and relaunch of the image): the video keeps real time, each
-// segment's last frame (black, after a quit's fade) holds until the next begins; <out>/raw.mp4 is the result, the
+// A recording may have several segments (e.g. across a quit and relaunch of the image): each segment's last frame
+// (black, after a quit's fade) holds SEGMENT_GAP seconds until the next begins; <out>/raw.mp4 is the result, the
 // captions are timed on it.
 import { execFile, execFileSync } from 'node:child_process';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
@@ -12,7 +14,9 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const here = dirname(fileURLToPath(import.meta.url));
-export const sleep = ms => new Promise(r => setTimeout(r, ms));
+const SEGMENT_GAP = 2;     // s of black between segments, the restart the video does not show
+let clock = null;          // the VideoSession on the recording clock: sleeping is letting its clock run
+export const sleep = ms => clock ? clock.advance(ms) : new Promise(r => setTimeout(r, ms));
 const sleepSync = ms => Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms);
 const alive = pid => { try { process.kill(pid, 0); return true; } catch { return false; } };
 const probe = file => +execFileSync('ffprobe', ['-v', 'error', '-show_entries', 'format=duration', '-of', 'csv=p=0', file], { encoding: 'utf8' }).trim();
@@ -30,8 +34,9 @@ export class VideoSession {
     this.times = existsSync(timesFile) ? JSON.parse(readFileSync(timesFile, 'utf8')) : {};
     this.captions = [];
     this.segments = [];     // {file, start: its video time, dur}
+    this.fps = 30;
     this.videoBefore = 0;   // video time at which the current (or last) segment began
-    this.t0 = 0;            // wall clock (ms) at which the video time is videoBefore
+    this.frames = 0;        // frames written to the current segment so far (the last count a query saw)
     this.recording = false;
     // Input commands wait at most 400 ms for the image to settle; with busy set they return at once (a busy image
     // never settles, and the script paces itself).
@@ -42,24 +47,28 @@ export class VideoSession {
   ctl(...args) { return this.run(['--settle', '400', ...args]); }
   act(...args) { return this.busy ? this.run(['--settle', '0', ...args]) : this.ctl(...args); }
   eval(source) { return this.run(['eval', source]); }
-  now() { return this.videoBefore + (Date.now() - this.t0) / 1000; }
+  // The video time: the frame the recording is at. The image may have quit (the frames then are all there are).
+  now() {
+    if (this.recording) try { this.frames = JSON.parse(this.run(['state'])).videoFrames ?? this.frames; } catch {}
+    return this.videoBefore + this.frames / this.fps;
+  }
+  // Let the image's clock run for ms (at most 1 ms short).
+  advance(ms) { return this.run(['advance', String(Math.max(1, Math.round(ms)))]); }
 
   // Window ref by title, from a shallow snapshot; waits until the window exists.
   async win(re, timeout = 15000) {
-    const t = Date.now();
-    for (;;) {
+    for (let t = 0; ; t += 100) {
       let snap = '';
       try { snap = this.ctl('snapshot', '--depth', '1'); } catch {} // the UI registers a moment after the image listens
       const line = snap.split('\n').find(l => l.startsWith('window ') && re.test(l));
       if (line) return line.match(/@w\d+/)[0];
-      if (Date.now() - t > timeout) throw new Error(`no window matching ${re}`);
+      if (t > timeout) throw new Error(`no window matching ${re}`);
       await sleep(100);
     }
   }
   async gone(re, timeout = 15000) {
-    const t = Date.now();
-    while (this.ctl('snapshot', '--depth', '1').split('\n').some(l => l.startsWith('window ') && re.test(l))) {
-      if (Date.now() - t > timeout) throw new Error(`window ${re} still open`);
+    for (let t = 0; this.ctl('snapshot', '--depth', '1').split('\n').some(l => l.startsWith('window ') && re.test(l)); t += 100) {
+      if (t > timeout) throw new Error(`window ${re} still open`);
       await sleep(100);
     }
   }
@@ -75,7 +84,8 @@ export class VideoSession {
   // Start the image (fresh: close any old session first) and wait for its desktop (wait: null, only until it listens).
   async open({ fresh = true, image = this.image, args = [], wait = /System Browser|Workspace/ } = {}) {
     if (fresh) { try { this.ctl('close'); } catch {} }
-    this.ctl('open', '--image', image, '--window-size', '1440x900', ...args);
+    this.ctl('open', '--hidden', '--work-clock', '--image', image, '--window-size', '1440x900', ...args);
+    clock = this;
     if (!wait) return;
     await this.win(wait);
     try { this.ctl('wait', 'idle', '15000'); } catch {}
@@ -84,21 +94,14 @@ export class VideoSession {
   startSegment() {
     const file = join(this.out, `raw-${this.segments.length + 1}.mp4`);
     for (const t = Date.now(); ; sleepSync(30)) {
-      try { this.run(['record', 'start', file, '--size', '1440x900', '--fps', '30']); break; }
+      try { this.run(['record', 'start', file, '--size', '1440x900', '--fps', String(this.fps)]); break; }
       catch (e) { if (Date.now() - t > 30000) throw e; }
     }
-    // The video's clock is the recorder's (its first frame at its startTime, image ms): now() follows it.
-    const [start, at] = this.eval("(World current compositor recorder instVarNamed: 'startTime') printString, ' ', (Time microsecondClockValue / 1000.0) printString")
-      .replace(/'/g, '').split(' ').map(Number);
-    const first = Date.now() - (at - start);
-    if (this.segments.length) this.videoBefore += (first - this.t0) / 1000;
-    this.imageStart = start;
-    this.t0 = first;
+    if (this.segments.length) this.videoBefore = this.now() + SEGMENT_GAP;
+    this.frames = 0;
     this.segments.push({ file, start: this.videoBefore });
     this.recording = true;
   }
-  // The video time of image time ms (Time microsecondClockValue / 1000) in the current segment.
-  imageToVideo(ms) { return this.videoBefore + (ms - this.imageStart) / 1000; }
   // Evaluate source without waiting: a Promise of its printString.
   evalAsync(source, timeout = 30000) {
     return new Promise((resolve, reject) => execFile(join(here, 'samaltak-ctl'), ['eval', source, '--timeout', String(timeout)],
@@ -122,6 +125,8 @@ export class VideoSession {
     const seg = this.segments[this.segments.length - 1];
     seg.dur = probe(seg.file);
   }
+  // Let the clock run until the Smalltalk expression when answers true (at most timeout s of it).
+  waitUntil(when, timeout) { return this.run(['wait', JSON.stringify({ eval: when }), String(timeout * 1000)]); }
 
   // Begin step id: wait until the previous step's narration is over, then show id's caption.
   async say(id) {
@@ -154,22 +159,20 @@ export class VideoSession {
   // seconds earlier when the effect takes about that long to show), run action, note when. Where the effect shows:
   // region, [x, y, w, h] of the screen (or a function answering it after the action), in which compose-video.py finds
   // the frame where it changed (within max seconds; frac of its largest change counts as shown); or, where the screen
-  // moves anyway, when: a Smalltalk condition that turns true with the effect, waited for in the image (false when the
-  // cue begins: else the effect came before its words); neither: the action is what shows (e.g. a launch, while the
+  // moves anyway, when: a Smalltalk condition that turns true with the effect, the clock runs until it holds (false when
+  // the cue begins: else the effect came before its words); neither: the action is what shows (e.g. a launch, while the
   // screen is black). Text is spoken there.
   async cue(text, region, action, { lead = 0, max = 2, frac = 0.3, when = null } = {}) {
     const step = this.captions[this.captions.length - 1];
     const at = this.cueAt(step.id, text), prev = step.cues[step.cues.length - 1];
-    const waiting = when && this.evalAsync(`[${when}] value ifTrue: [-1] ifFalse: [[${when}] whileFalse: [(Delay forMilliseconds: 10) wait]. Time microsecondClockValue / 1000.0]`, (max + 30) * 1000);
+    if (when && this.eval(`[${when}] value`) === 'true') throw new Error(`cue ${JSON.stringify(text)}: ${when} before it began`);
     const earliest = prev ? prev.est + at - this.cueAt(step.id, prev.text) : step.start + at;
     const wait = (earliest - lead - this.now()) * 1000;
     if (wait > 0) await sleep(wait);
     const t = this.now();
     if (action) await action();
-    // the image's time: the next frame (60 Hz) shows it
-    const ms = waiting ? parseFloat(await waiting) : null;
-    if (ms < 0) throw new Error(`cue ${JSON.stringify(text)}: ${when} before it began`);
-    const shown = waiting ? this.imageToVideo(ms) + 1 / 60 : region == null ? t : null;
+    if (when) this.waitUntil(when, max + 30);
+    const shown = when ? this.now() : region == null ? t : null;
     step.cues.push({ text, t, est: shown ?? Math.max(this.now(), t + lead), shown, max, frac,
       region: shown != null ? null : typeof region === 'function' ? region() : region });
   }

@@ -22,6 +22,58 @@ primUtcMicroseconds
 	tv := self local: 'Timeval'.
 	posix gettimeofday: tv zone: self null.
 	self answer: (self intOop: (tv tv_sec * 1000000) + tv tv_usec)
+!
+primWorkClockStart
+	"(fps, semaphore index) The work clock starts: answer its time in µs."
+	<vmPrimitive: 567 name: 'workClockStart'>
+	((self isInt: (self arg: 0)) and: [self isInt: (self arg: 1)]) ifFalse: [^self fail].
+	self answer: (self intOop: (scheduler workClockStart: (self intVal: (self arg: 0)) semaphore: (self intVal: (self arg: 1)) asInt32))
+!
+primWorkClockStop
+	<vmPrimitive: 568 name: 'workClockStop'>
+	scheduler workClockStop.
+	self answer: self receiver
+!
+primWorkClockRunning
+	<vmPrimitive: 569 name: 'workClockRunning'>
+	scheduler workClockRunning: self arg0 = memory trueOop.
+	self answer: self receiver
+!
+primWorkClockPaced
+	<vmPrimitive: 570 name: 'workClockPaced'>
+	scheduler workClockPaced: self arg0 = memory trueOop.
+	self answer: self receiver
+!
+primWorkClockQuerying
+	<vmPrimitive: 577 name: 'workClockQuerying'>
+	scheduler workClockQuerying: self arg0 = memory trueOop.
+	self answer: self receiver
+!
+primWorkClockHold
+	<vmPrimitive: 573 name: 'workClockHold'>
+	scheduler workClockHold.
+	self answer: self receiver
+!
+primWorkClockRelease
+	<vmPrimitive: 574 name: 'workClockRelease'>
+	self answer: (self intOop: scheduler workClockRelease)
+!
+primWorkClockHeldMicros
+	<vmPrimitive: 575 name: 'workClockHeldMicros'>
+	self answer: (self intOop: scheduler workClockHeldUs)
+!
+primWorkClockCharge
+	<vmPrimitive: 576 name: 'workClockCharge'>
+	(self isInt: self arg0) ifFalse: [^self fail].
+	scheduler workClockCharge: (self intVal: self arg0).
+	self answer: self receiver
+!
+primWorkClockNextFrame
+	"µs of the next frame of the work clock, nil while it is off"
+	<vmPrimitive: 572 name: 'workClockNextFrame'>
+	| us |
+	us := scheduler workClockNextFrame.
+	self answer: (us < 0 ifTrue: [memory nilOop] ifFalse: [self intOop: us])
 ! !
 
 !SystemPrimitives methodsFor: 'system'!

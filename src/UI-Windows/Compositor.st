@@ -1,5 +1,5 @@
 Object subclass: #Compositor
-	instanceVariableNames: 'world displayWindow renderer process running vsync vsyncIndex wake sleeping skip tickTimeout lastTick idleFrames frameCount presenting requests recorder gpuTimer clock knownProcesses lastCpu lastScan lastRecord lastError lastErrorTime pipelineVersion standIn'
+	instanceVariableNames: 'world displayWindow renderer process running vsync vsyncIndex wake sleeping skip tickTimeout lastTick idleFrames frameCount presenting requests recorder lastFrameWork onWorkClock ownsWorkClock gpuTimer clock knownProcesses lastCpu lastScan lastRecord lastError lastErrorTime pipelineVersion standIn'
 	classVariableNames: ''
 	package: 'UI-Windows'!
 
@@ -14,6 +14,8 @@ setWorld: aWorld
 	world := aWorld.
 	displayWindow := aWorld displayWindow.
 	running := false.
+	onWorkClock := false.
+	lastFrameWork := 0.
 	sleeping := false.
 	idleFrames := 0.
 	frameCount := 0.
@@ -39,15 +41,15 @@ clock
 	"The animation clock at the current frame (ms, Float)."
 	^clock ifNil: [Animation now]
 !
+tickClock
+	"The animation clock at the current frame; nil before the first."
+	^clock
+!
 isPresenting
 	^presenting
 !
 recorder
 	^recorder
-!
-recorder: aFrameRecorderOrNil
-	recorder := aFrameRecorderOrNil.
-	world changed
 !
 renderer
 	^renderer
@@ -70,6 +72,7 @@ start
 	vsync := Semaphore new.
 	wake := Semaphore new.
 	vsyncIndex := Smalltalk vm registerExternalSemaphore: vsync.
+	onWorkClock := Smalltalk vm isOnWorkClock.
 	self armVsync.
 	rate := [displayWindow refreshRate] on: Error do: [:e | e return: 60].
 	skip := rate > 61 ifTrue: [(rate / 60) rounded] ifFalse: [1].
@@ -82,10 +85,10 @@ start
 !
 stop
 	running := false.
+	recorder isNil ifFalse: [self stopRecording].
 	DisplayWindow vsyncSemaphoreIndex: 0.
 	Smalltalk vm unregisterExternalSemaphore: vsyncIndex.
 	vsyncIndex := nil.
-	recorder isNil ifFalse: [recorder stop. recorder := nil].
 	gpuTimer isNil ifFalse: [gpuTimer stop].
 	(process notNil and: [process ~~ Processor activeProcess]) ifTrue: [process terminate].
 	process := nil.
@@ -101,6 +104,29 @@ abandon
 !
 wake
 	sleeping ifTrue: [wake signal]
+!
+startRecording: aFrameRecorder
+	"Record on the work clock (the VM's Scheduler): its frame signal replaces the display's refreshes, so I present once per tick of that clock and the recorder gets every frame, whatever the machine does."
+	aFrameRecorder open.
+	DisplayWindow vsyncSemaphoreIndex: 0.
+	vsync consumeAllSignals.
+	ownsWorkClock := onWorkClock not.
+	onWorkClock := true.
+	aFrameRecorder startAt: (Smalltalk vm workClockStart: FrameRecorder tickRate semaphore: vsyncIndex).
+	recorder := aFrameRecorder.
+	world changed
+!
+stopRecording
+	"Back to the real clock and the display; answer the recorder."
+	| stopped |
+	stopped := recorder.
+	recorder := nil.
+	stopped stop.
+	ownsWorkClock ifTrue: [
+		Smalltalk vm workClockStop.
+		onWorkClock := false.
+		self armVsync].
+	^stopped
 ! !
 
 !Compositor methodsFor: 'stand-in'!
@@ -146,7 +172,7 @@ run
 		self waitForTick.
 		(running and: [self isLoopProcess]) ifTrue: [
 			[gpuTimer poll.
-			 self frame] on: Error do: [:e |
+			 onWorkClock ifTrue: [self frameOnWorkClock] ifFalse: [self frame]] on: Error do: [:e |
 				self reportError: e.
 				presenting := false.
 				e return: nil]]]
@@ -154,20 +180,21 @@ run
 waitForTick
 	"Wait for skip display refreshes, at most one and a half ticks after the previous tick: the display link may be missing (the display sleeps) or late (macOS throttles it to about 10 Hz while the VM runs in the background role), then I tick on that timeout."
 	| late |
-	(idleFrames >= 20 and: [gpuTimer isIdle]) ifTrue: [
+	(idleFrames >= 20 and: [gpuTimer isIdle and: [recorder isNil]]) ifTrue: [
 		self sleep.
 		lastTick := Time millisecondClockValue.
 		^self].
 	late := Delay forMilliseconds: (lastTick + tickTimeout - Time millisecondClockValue max: 1).
 	late signal: vsync.
-	skip timesRepeat: [
+	(onWorkClock ifTrue: [1] ifFalse: [skip]) timesRepeat: [
 		late isExpired ifFalse: [vsync wait].
 		vsync consumeAllSignals].
 	late cancel.
 	lastTick := Time millisecondClockValue
 !
 armVsync
-	"Have the display link signal vsync on every refresh. While the display sleeps there is none: waitForTick ticks on its timeout."
+	"Have the display link signal vsync on every refresh, the recording clock on each of its ticks. While the display sleeps there is none: waitForTick ticks on its timeout."
+	onWorkClock ifTrue: [^Smalltalk vm workClockStart: FrameRecorder tickRate semaphore: vsyncIndex].
 	[DisplayWindow vsyncSemaphoreIndex: vsyncIndex] on: Error do: [:e | e return: nil]
 !
 sleep
@@ -182,14 +209,16 @@ sleep
 !
 frame
 	| t0 now animating needs |
+	onWorkClock ifTrue: [Smalltalk vm workClockPaced: (OSProcess anyRunning or: [PseudoTerminal anyRunsAJob])].
 	t0 := Time microsecondClockValue.
+	recorder isNil ifFalse: [t0 := recorder tickStartAt: t0].
 	now := Animation nowAt: t0 / 1000.0.
 	clock := now.
 	animating := self stepAt: now.
 	t0 - lastScan > 1000000 ifTrue: [self scanProcesses: t0].
 	needs := world consumeNeedsFrame.
 	needs := (world topBar updateAt: t0) | needs | animating | requests isEmpty not | world isHidden not
-		| (recorder notNil and: [recorder wantsFrameAt: t0 / 1000.0]).
+		| recorder notNil.
 	needs ifFalse: [
 		idleFrames := idleFrames + 1.
 		^self].
@@ -197,6 +226,18 @@ frame
 	presenting := true.
 	self present: t0 now: now.
 	presenting := false
+!
+frameOnWorkClock
+	"A frame on the recording clock: its work does not move the clock (the time of the GPU driver's calls is noise, in every recording another one), unless the CPU work of the previous frame did not fit in a tick: that would have missed a refresh of a real screen, and the clock passes the excess. GPU time is reported only (the fences' latencies are milliseconds of queueing: no measure of a frame's GPU work)."
+	| excess |
+	excess := lastFrameWork - (1000000 // FrameRecorder tickRate).
+	excess > 0 ifTrue: [Smalltalk vm workClockCharge: excess].
+	Smalltalk vm workClockHold.
+	[self frame] ensure: [lastFrameWork := Smalltalk vm workClockRelease]
+!
+frameClock
+	"The clock of the times a frame reports: on the recording clock its work moves this one but not that (frameOnWorkClock)."
+	^onWorkClock ifTrue: [Smalltalk vm workClockHeldMicros] ifFalse: [Time microsecondClockValue]
 !
 stepAt: now
 	"Advance animations; post frame ticks; answer whether anything needs further frames."
@@ -218,7 +259,7 @@ present: t0 now: now
 	| scale toRender drawUs rasterUs t cmd list stats0 stats1 t1 shown gpuStart fence fenceAt |
 	scale := world displayScale.
 	stats0 := Smalltalk vm statistics.
-	t := Time microsecondClockValue.
+	t := self frameClock.
 	renderer updatePipeline.
 	pipelineVersion = renderer pipelineVersion ifFalse: [
 		pipelineVersion := renderer pipelineVersion.
@@ -230,32 +271,32 @@ present: t0 now: now
 		key = w layer chromeKey ifFalse: [
 			w layer chromeList: (w chromeDisplayListScale: scale); chromeKey: key].
 		w layer needsRender ifTrue: [toRender add: w]].
-	drawUs := Time microsecondClockValue - t.
-	t := Time microsecondClockValue.
+	drawUs := self frameClock - t.
+	t := self frameClock.
 	toRender isEmpty ifFalse: [
 		cmd := renderer device commandBuffer.
 		toRender do: [:w | w layer renderExtent: w extent scale: scale renderer: renderer commandBuffer: cmd].
-		gpuStart := Time microsecondClockValue.
+		gpuStart := self frameClock.
 		cmd submit].
-	rasterUs := Time microsecondClockValue - t.
-	t := Time microsecondClockValue.
+	rasterUs := self frameClock - t.
+	t := self frameClock.
 	list := self compositeListScale: scale pointer: true time: now.
-	drawUs := drawUs + (Time microsecondClockValue - t).
-	t := Time microsecondClockValue.
+	drawUs := drawUs + (self frameClock - t).
+	t := self frameClock.
 	gpuStart isNil ifTrue: [gpuStart := t].
 	shown := displayWindow show: list clear: Color white.
-	fenceAt := Time microsecondClockValue.
+	fenceAt := self frameClock.
 	fence := renderer device commandBuffer submitWithFence.
-	rasterUs := rasterUs + (Time microsecondClockValue - t).
+	rasterUs := rasterUs + (self frameClock - t).
 	recorder isNil ifFalse: [recorder captureFrom: displayWindow surface compositor: self].
 	self runRequests.
 	frameCount := frameCount + 1.
-	t1 := Time microsecondClockValue.
+	t1 := self frameClock.
 	stats1 := Smalltalk vm statistics.
 	self recordFrameStart: t0 end: t1 draw: drawUs raster: rasterUs
 		gcCount: stats1 gcCount - stats0 gcCount
 		gcMicros: stats1 gcMicroseconds - stats0 gcMicroseconds
-		dropped: shown not.
+		dropped: (recorder isNil ifTrue: [shown not] ifFalse: [recorder missedTickBefore: t0]).
 	gpuTimer fence: fence submittedAt: fenceAt - gpuStart record: lastRecord
 ! !
 

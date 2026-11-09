@@ -200,16 +200,60 @@ testRecordWritesRawFrames
 	path := self scratchPath: 'record.rgba'.
 	File deleteIfExists: path.
 	recorder := FrameRecorder path: path width: 64 height: 40 fps: 30.
-	recorder start.
-	world compositor recorder: recorder.
-	"Record for 250 ms."
+	world compositor startRecording: recorder.
+	"Record for 250 ms of the recording clock: 8 frames at 30 fps."
 	(Delay forMilliseconds: 250) wait.
-	world compositor recorder: nil.
-	recorder stop.
+	world compositor stopRecording.
 	size := File sizeOf: path.
-	self assert: recorder framesWritten >= 2.
+	self assert: recorder framesWritten equals: 8.
 	self assert: size equals: recorder framesWritten * 64 * 40 * 4.
 	File delete: path
+!
+testRecordingWaitsForASlowReader
+	"Frames go to the reader synchronously: one that takes its time delays the recording but loses none."
+	| dir fifo out reader recorder |
+	dir := self scratchPath: 'fifo'.
+	OSProcess run: 'mkdir -p ', dir.
+	fifo := dir, '/video'.
+	out := dir, '/frames'.
+	File deleteIfExists: fifo.
+	File deleteIfExists: out.
+	OSProcess run: 'mkfifo ', fifo.
+	reader := (OSProcess command: 'sleep 0.5; dd if=', fifo, ' of=', out, ' bs=16384 2>/dev/null') start.
+	recorder := FrameRecorder path: fifo width: 64 height: 40 fps: 30.
+	world compositor startRecording: recorder.
+	(Delay forMilliseconds: 300) wait.
+	world compositor stopRecording.
+	reader wait.
+	self assert: recorder framesWritten equals: 9.
+	self assert: (File sizeOf: out) equals: recorder framesWritten * 64 * 40 * 4.
+	OSProcess run: 'rm -rf ', dir
+!
+testRecordingStepsOneFramePerTick
+	"Each tick of the recording clock is presented, whatever the display does; the video takes every second one at 30 fps."
+	| recorder path n |
+	path := self scratchPath: 'ticks.rgba'.
+	File deleteIfExists: path.
+	recorder := FrameRecorder path: path width: 16 height: 16 fps: 30.
+	n := world compositor frameCount.
+	world compositor startRecording: recorder.
+	(Delay forMilliseconds: 1000) wait.
+	world compositor stopRecording.
+	self assert: (world compositor frameCount - n between: 59 and: 61).
+	self assert: (recorder framesWritten between: 29 and: 30).
+	File delete: path
+!
+testTheTickGridIsWholeMilliseconds
+	| recorder |
+	recorder := FrameRecorder path: 'unused' width: 16 height: 16 fps: 30.
+	recorder startAt: 1000000.
+	self assert: (recorder tickStart: 0) equals: 1000000.
+	self assert: (recorder tickStart: 1) equals: 1017000.
+	self assert: (recorder tickStart: 2) equals: 1034000.
+	self assert: (recorder tickStart: 3) equals: 1050000.
+	0 to: 600 do: [:k |
+		self assert: (recorder tickAt: (recorder tickStart: k)) equals: k.
+		self assert: (recorder tickAt: (recorder tickStart: k) + 900) equals: k]
 !
 testPresentsWithoutDisplayRefreshes
 	"The display link stops while the display sleeps; macOS slows it to about 10 Hz while the VM runs in the background role. The compositor presents anyway."

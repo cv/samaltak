@@ -191,6 +191,15 @@ wait: p block: block status: status done: done
 	c reaped: done value.
 	^true
 !
+foreground: p
+	"The foreground process group of pty p's terminal, < 0 (and the error set) if it cannot be told."
+	<c: 'int pf_pty_foreground(int p)'>
+	<export>
+	| o |
+	o := sockets fdGet: p kind: PF_FD_PTY.
+	o isNull ifTrue: [^-1].
+	^posixProcesses tcgetpgrp: o i asInt32
+!
 close: p
 	"Hangs up the child (SIGHUP) unless it has ended."
 	<c: 'bool pf_pty_close(int p)'>

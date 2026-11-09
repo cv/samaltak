@@ -1,6 +1,6 @@
 Object subclass: #RemoteControl
 	instanceVariableNames: ''
-	classVariableNames: 'Bindings Commands GenericCommands IdleConditions LastCommand LastRequestTime PointResolver RefTable Root SnapshotLock StateProviders WaitConditions'
+	classVariableNames: 'Bindings Commands GenericCommands IdleConditions InFlight LastCommand LastRequestTime PointResolver RefTable Root SnapshotLock StateProviders WaitConditions'
 	package: 'System-Remote'!
 
 RemoteControl comment: 'I am the command registry and the extension API of remote control (docs/design.md, "Remote control"); ControlServer feeds me requests. Everything is on my class side.
@@ -51,7 +51,8 @@ registerBuiltins
 	self registerCommand: 'quit' handler: [:r | self quit: r].
 	self registerWaitCondition: 'text' with: [:text :r | (self snapshot allText includesSubstring: text asString)].
 	self registerWaitCondition: 'ref' with: [:ref :r | (self snapshot resolve: ref) notNil].
-	self registerWaitCondition: 'gone' with: [:ref :r | (self snapshot resolve: ref) isNil]
+	self registerWaitCondition: 'gone' with: [:ref :r | (self snapshot resolve: ref) isNil].
+	self registerWaitCondition: 'eval' with: [:source :r | (Compiler evaluate: source for: nil bindings: Bindings) == true]
 ! !
 
 !RemoteControl class methodsFor: 'registering commands'!
@@ -78,7 +79,7 @@ handlerFor: aString
 !
 uiCommandNames
 	"Commands a UI provides; without one the image answers a clear error for them."
-	^#('snapshot' 'find' 'click' 'hover' 'type' 'key' 'drag' 'select' 'scroll' 'resize' 'bounds' 'screenshot' 'record')
+	^#('snapshot' 'find' 'click' 'hover' 'type' 'key' 'drag' 'select' 'scroll' 'resize' 'bounds' 'screenshot' 'record' 'advance')
 ! !
 
 !RemoteControl class methodsFor: 'snapshot root'!
@@ -221,6 +222,30 @@ unknownCommandMessage: aString
 !
 describeError: anException
 	^[anException printString] on: Error do: [:e | e return: anException class name asString]
+! !
+
+!RemoteControl class methodsFor: 'recording clock'!
+movesTheClock: aRequest
+	"While a video is recorded the clock stands still except during commands that act (Compositor>>startRecording:): a query only looks at the image as it is."
+	^(#('ping' 'commands' 'state' 'snapshot' 'find' 'bounds') includes: aRequest command) not
+!
+commandStarted: aRequest
+	"Answer whether aRequest moves the clock: whether commandFinished is due when it ends. What it costs before this does not count: resolving a ref, say."
+	(self movesTheClock: aRequest) ifFalse: [^false].
+	InFlight := (InFlight ifNil: [0]) + 1.
+	Smalltalk vm workClockRunning: true.
+	^true
+!
+commandFinished
+	"The clock stops on the next tick of the frame grid: the next command starts at the same time whatever this one's work cost, down to the last cycle."
+	| next ms |
+	InFlight := InFlight - 1.
+	InFlight = 0 ifFalse: [^self].
+	next := Smalltalk vm workClockNextFrame.
+	next isNil ifTrue: [^self].
+	ms := next // 1000 - Time millisecondClockValue.
+	ms > 0 ifTrue: [(Delay forMilliseconds: ms) wait].
+	Smalltalk vm workClockRunning: false
 ! !
 
 !RemoteControl class methodsFor: 'built-in commands'!

@@ -1,6 +1,6 @@
 Object subclass: #OSProcess
 	instanceVariableNames: 'command directory pid exitCode output errorOutput outputPath errorPath'
-	classVariableNames: 'NextId'
+	classVariableNames: 'NextId Running'
 	package: 'System-Files'!
 
 OSProcess comment: 'I run an external program through /bin/sh and capture its exit code, standard output and standard error (redirected into temporary files, read and deleted when it ends). Waiting polls with a Delay, so only the waiting Process blocks.
@@ -62,6 +62,8 @@ start
 			nextPutAll: ' 2>'; nextPutAll: (self class quote: errorPath); nextPutAll: ' </dev/null'].
 	pid := File primSpawn: {'/bin/sh'. '-c'. script}.
 	pid isNil ifTrue: [^FileError signal: 'Cannot start /bin/sh: ', File lastError path: '/bin/sh'].
+	Running isNil ifTrue: [Running := IdentitySet new].
+	Running add: self.
 	^self
 !
 wait
@@ -92,6 +94,7 @@ poll
 	output := self readAndDelete: outputPath.
 	errorOutput := self readAndDelete: errorPath.
 	exitCode := status.
+	Running isNil ifFalse: [Running remove: self ifAbsent: []].
 	^true
 !
 readAndDelete: aPath
@@ -109,6 +112,22 @@ printOn: aStream
 		ifTrue: [aStream nextPutAll: (pid isNil ifTrue: [' not started'] ifFalse: [' running'])]
 		ifFalse: [aStream nextPutAll: ' exit '; print: exitCode].
 	aStream nextPut: $)
+! !
+
+!OSProcess class methodsFor: 'system startup'!
+initialize
+	Smalltalk addToStartUpList: self
+!
+startUp: resuming
+	"The programs started by the VM that saved the image are not this VM's children."
+	resuming ifTrue: [Running := nil]
+! !
+
+!OSProcess class methodsFor: 'accessing'!
+anyRunning
+	"Whether a program I started has not ended yet."
+	Running isNil ifTrue: [^false].
+	^Running asArray anySatisfy: [:each | each isRunning]
 ! !
 
 !OSProcess class methodsFor: 'running'!

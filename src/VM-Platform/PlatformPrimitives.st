@@ -1249,6 +1249,17 @@ primPtyWait
 	(ptys wait: h asInt32 block: block status: st done: done) ifFalse: [^self fail].
 	self answer: (done value ifTrue: [self intOop: st value] ifFalse: [memory nilOop])
 !
+primPtyForeground
+	"pty -> its foreground process group"
+	<vmPrimitive: 571 name: 'ptyForeground'>
+	| h group |
+	(self args: 1) ifFalse: [^self fail].
+	h := self intArg: 0.
+	bad ifTrue: [^self fail].
+	group := ptys foreground: h asInt32.
+	group < 0 ifTrue: [^self fail].
+	self answer: (self intOop: group asInt64)
+!
 primPtyClose
 	"pty (hangs up the child unless it ended)"
 	<vmPrimitive: 566 name: 'ptyClose'>

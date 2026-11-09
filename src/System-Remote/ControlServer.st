@@ -1,6 +1,6 @@
 Object subclass: #ControlServer
 	instanceVariableNames: 'socket port process connections lock ready readyIndex ownReady ownIndex host wakeAt'
-	classVariableNames: 'Current'
+	classVariableNames: 'Current HoldClock'
 	package: 'System-Remote'!
 
 ControlServer comment: 'I am the remote-control service: a TCP server on 127.0.0.1 speaking JSON lines. Each request is one JSON object on one line, {"id": 1, "cmd": "eval", "source": "3 + 4"}; each response is one line, {"id": 1, "ok": true, "printString": "7", ...} or {"id": 1, "ok": false, "error": "...", "code": 2}. Commands are RemoteControl''s.
@@ -30,6 +30,10 @@ service
 	"Accept pending clients and let each connection read and dispatch what arrived. Never waits. Not while the image runs its startup list (requests would see it half restored): I look again soon."
 	(socket isNil or: [socket isOpen not]) ifTrue: [^self].
 	Smalltalk isStartingUp ifTrue: [^self wakeIn: 20].
+	HoldClock == true ifTrue: [
+		"--work-clock: the startup list is done; from here on the clock moves with the commands"
+		HoldClock := false.
+		Smalltalk vm workClockRunning: false].
 	self acceptPending.
 	self connections do: [:each | each pump].
 	self connections do: [:each | each stepJob]
@@ -140,6 +144,9 @@ startFromCommandLine
 		Smalltalk vm stderrWrite: 'control: ', e messageText, (String with: Character lf).
 		e return: nil].
 	server isNil ifTrue: [^self].
+	(Smalltalk vm arguments includes: '--work-clock') ifTrue: [
+		Smalltalk vm workClockStart: 0 semaphore: 0.
+		HoldClock := true].
 	file := Smalltalk argumentAfter: '--control-port-file'.
 	file isNil ifFalse: [server writePortTo: file].
 	Smalltalk vm stdoutWrite: 'control: listening on 127.0.0.1:', server port printString, (String with: Character lf).

@@ -2413,6 +2413,40 @@ void prim_pty_close(void)
     }
 }
 
+/* PlatformPrimitives>>primPtyForeground */
+void prim_pty_foreground(void)
+{
+    bool r_args;
+    int64_t h;
+    int group;
+    int64_t v;
+    uint64_t v_2;
+    if (!({
+    bad = false;
+    r_args = prim_nargs == 1;
+    r_args; })) {
+        prim_status = PS_FAIL;
+        prim_error_code = -1;
+        return;
+    }
+    h = int_arg(0);
+    if (bad) {
+        prim_status = PS_FAIL;
+        prim_error_code = -1;
+        return;
+    }
+    group = pf_pty_foreground((int32_t)h);
+    if (group < 0) {
+        prim_status = PS_FAIL;
+        prim_error_code = -1;
+        return;
+    }
+    v = (int64_t)group;
+    v_2 = (uint64_t)((v << 1) | 1);
+    prim_result = v_2;
+    prim_status = PS_OK;
+}
+
 /* PlatformPrimitives>>primPtyRead */
 void prim_pty_read(void)
 {

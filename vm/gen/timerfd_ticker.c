@@ -79,4 +79,10 @@ void ticker_start(void)
 {
 }
 
+/* TimerfdTicker>>threadCycles */
+int64_t ticker_thread_cycles(void)
+{
+    return -1;
+}
+
 #endif

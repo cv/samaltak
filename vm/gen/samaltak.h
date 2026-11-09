@@ -677,6 +677,9 @@ typedef void (*prim_fn)(void);
 #define W8 72
 #define W9 73
 #define WB_MAX 3
+#define WORK_CLOCK_FLOOR 50
+#define WORK_CLOCK_POLL_US 200
+#define WORK_CYCLES_PER_US 3300
 #define WSP 127
 #define WZR 95
 #define X0 0
@@ -1754,6 +1757,16 @@ void suspend_active(void);
 int64_t thread_cpu_us(void);
 void tick_fired(int ident);
 void sched_uncharge(int64_t us);
+void work_clock_charge(int64_t us);
+int64_t work_clock_held_us(void);
+void work_clock_hold(void);
+int64_t work_clock_next_frame(void);
+void work_clock_set_paced(bool paced);
+void work_clock_set_querying(bool querying);
+int64_t work_clock_release(void);
+void work_clock_set_running(bool running);
+int64_t work_clock_start(int64_t fps, int32_t index);
+void work_clock_stop(void);
 void prim_flush_cache_for_selector(void);
 void prim_flush_method_cache(void);
 void prim_gc(void);
@@ -1771,6 +1784,16 @@ void prim_utc_microseconds(void);
 void prim_vm_arguments(void);
 void prim_vm_banner(void);
 void prim_vm_stats(void);
+void prim_work_clock_charge(void);
+void prim_work_clock_held_micros(void);
+void prim_work_clock_hold(void);
+void prim_work_clock_next_frame(void);
+void prim_work_clock_paced(void);
+void prim_work_clock_querying(void);
+void prim_work_clock_release(void);
+void prim_work_clock_running(void);
+void prim_work_clock_start(void);
+void prim_work_clock_stop(void);
 const char *vm_banner(void);
 int main(int argc, char **argv);
 #ifdef __APPLE__
@@ -1781,6 +1804,7 @@ void jit_platform_invalidate(void *start, size_t size);
 void *jit_platform_map(void *near, uint64_t size);
 void tick_arm(int ident, int64_t us, bool periodic);
 void ticker_start(void);
+int64_t ticker_thread_cycles(void);
 #endif
 #ifdef __linux__
 void jit_platform_begin_writing(void);
@@ -1790,6 +1814,7 @@ void jit_platform_invalidate(void *start, size_t size);
 void *jit_platform_map(void *near, uint64_t size);
 void tick_arm(int ident, int64_t us, bool periodic);
 void ticker_start(void);
+int64_t ticker_thread_cycles(void);
 #endif
 #ifndef SAMALTAK_NO_PLATFORM
 void pf_os_error(const char *what, int code);
@@ -1924,6 +1949,7 @@ void prim_platform_handle_counts(void);
 void prim_platform_last_error(void);
 void prim_process_wait(void);
 void prim_pty_close(void);
+void prim_pty_foreground(void);
 void prim_pty_read(void);
 void prim_pty_resize(void);
 void prim_pty_semaphore(void);
@@ -1951,6 +1977,7 @@ void prim_window_set_title(void);
 void prim_window_show(void);
 void prim_window_size(void);
 bool pf_pty_close(int p);
+int pf_pty_foreground(int p);
 bool pf_pty_resize(int p, int rows, int cols);
 int pf_pty_spawn(char **argv, char **envp, const char *cwd, int rows, int cols, int64_t *pid_out);
 bool pf_pty_wait(int p, bool block, int *status, bool *done);

@@ -6,7 +6,8 @@ Object subclass: #UIRemote
 UIRemote comment: 'I connect the window system to remote control (System-Remote): the World is the snapshot root, my pointResolver maps refs to screen points (raising a covered window), remote presses wait for the drawn pointer to get there (RemoteInputDevice arrivalBlock:), the World being settled is an idle condition, and I register the screenshot and record commands and the frames wait condition.
 
 	screenshot {path, target?, scale?, pointer?}   PNG of the screen (with the remote pointer only if pointer: true), a window''s layer or a widget''s part of it, at scale 1 or 2 (default: the display scale)
-	record {action: start, path: fifo, w, h, fps} / {action: stop}   raw RGBA frames, downsampled on the GPU, written to a FIFO (ffmpeg -f rawvideo -pix_fmt rgba -s WxH -r FPS -i fifo ...)
+	record {action: start, path: fifo, w, h, fps} / {action: stop}   raw RGBA frames, downsampled on the GPU, written to a FIFO (ffmpeg -f rawvideo -pix_fmt rgba -s WxH -r FPS -i fifo ...); from start to stop the image runs on the recording clock (tools/README.md)
+	advance {ms: n} / {frames: n}       let n ms of the clock pass, or until n more video frames are written
 	wait {frames: n}                    until n more frames were presented'!
 
 !UIRemote class methodsFor: 'installing'!
@@ -15,6 +16,7 @@ installOn: aWorld
 	RemoteControl pointResolver: [:node | self pointFor: node].
 	RemoteControl registerCommand: 'screenshot' handler: [:r | self screenshot: r].
 	RemoteControl registerCommand: 'record' handler: [:r | self record: r].
+	RemoteControl registerCommand: 'advance' handler: [:r | self advance: r].
 	IdleCondition isNil ifTrue: [
 		IdleCondition := [World current isNil or: [World current isSettled]].
 		RemoteControl addIdleCondition: IdleCondition].
@@ -42,6 +44,7 @@ uninstall
 	RemoteControl unregisterWaitCondition: 'frames'.
 	RemoteControl unregisterCommand: 'screenshot'.
 	RemoteControl unregisterCommand: 'record'.
+	RemoteControl unregisterCommand: 'advance'.
 	RemoteControl pointResolver: nil.
 	RemoteInputDevice default timeScaleBlock: nil; arrivalBlock: nil.
 	RemoteControl root: nil
@@ -114,8 +117,7 @@ record: aRequest
 	action = 'stop' ifTrue: [
 		recorder := world compositor recorder.
 		recorder isNil ifTrue: [^RemoteError signal: 'record: not recording'].
-		world compositor recorder: nil.
-		recorder stop.
+		world compositor stopRecording.
 		^Dictionary new at: 'frames' put: recorder framesWritten; at: 'captured' put: recorder framesCaptured; yourself].
 	action = 'start' ifFalse: [^RemoteError signal: 'record: action must be start or stop'].
 	world compositor recorder isNil ifFalse: [^RemoteError signal: 'record: already recording'].
@@ -124,9 +126,24 @@ record: aRequest
 		width: (aRequest numberAt: 'w' ifAbsent: [world extent x rounded])
 		height: (aRequest numberAt: 'h' ifAbsent: [world extent y rounded])
 		fps: (aRequest numberAt: 'fps' ifAbsent: [30]).
-	recorder start.
-	world compositor recorder: recorder.
+	world compositor startRecording: recorder.
 	^Dictionary new at: 'recording' put: true; at: 'w' put: recorder width; at: 'h' put: recorder height; at: 'fps' put: recorder fps; yourself
+!
+advance: aRequest
+	"Let the clock run for ms milliseconds, or until frames more video frames are written; answer them (the recording clock only moves during commands like this one)."
+	| world recorder frames target ms |
+	world := World current.
+	world isNil ifTrue: [^RemoteError signal: 'advance: no World is running'].
+	frames := aRequest numberAt: 'frames' ifAbsent: [nil].
+	frames isNil ifFalse: [
+		recorder := world compositor recorder.
+		recorder isNil ifTrue: [^RemoteError signal: 'advance frames: not recording'].
+		target := recorder framesWritten + frames.
+		[recorder framesWritten < target and: [recorder isRunning]] whileTrue: [(Delay forMilliseconds: 1) wait].
+		^Dictionary new at: 'frames' put: recorder framesWritten; yourself].
+	ms := aRequest numberAt: 'ms' ifAbsent: [0].
+	ms > 0 ifTrue: [(Delay forMilliseconds: ms) wait].
+	^Dictionary new at: 'ms' put: ms; yourself
 !
 frames: n for: aRequest
 	| world start |
@@ -146,5 +163,6 @@ addStateTo: aDictionary
 	aDictionary at: 'screen' put: (Dictionary new at: 'w' put: world extent x rounded; at: 'h' put: world extent y rounded; at: 'scale' put: world displayScale; yourself).
 	aDictionary at: 'focus' put: (world activeWindow isNil ifFalse: ['@', world activeWindow remoteName]).
 	aDictionary at: 'frames' put: world compositor frameCount.
+	world compositor recorder isNil ifFalse: [aDictionary at: 'videoFrames' put: world compositor recorder framesWritten].
 	aDictionary at: 'compositor' put: world topBar statsText
 ! !

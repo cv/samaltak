@@ -1,5 +1,5 @@
 Object subclass: #ControlConnection
-	instanceVariableNames: 'server socket process line pending handler buffer jobRequest'
+	instanceVariableNames: 'server socket process line pending handler buffer jobRequest moved'
 	classVariableNames: ''
 	package: 'System-Remote'!
 
@@ -42,6 +42,7 @@ handleLine: aByteArray
 	request isDictionary ifTrue: [^self respond: request to: nil].
 	(server notNil and: [server host notNil and: [(self class transientCommands includes: request command) not]])
 		ifTrue: [^self beginInline: request].
+	moved := RemoteControl commandStarted: request.
 	"Without a host every request runs in a Process of its own while it is handled: commands play input and wait for it, which the input dispatcher (my host) must be free to deliver."
 	handler := [
 		[self respond: (RemoteControl dispatch: request) to: request]
@@ -52,8 +53,10 @@ handleLine: aByteArray
 beginInline: aRequest
 	"In my host's Process (the input dispatcher): answer at once, or start the input command's job, which stepJob continues without ever waiting."
 	| r |
-	r := RemoteControl begin: aRequest.
+	Smalltalk vm workClockQuerying: true.
+	r := [RemoteControl begin: aRequest] ensure: [Smalltalk vm workClockQuerying: false].
 	r isDictionary ifTrue: [^self respond: r to: aRequest].
+	moved := RemoteControl commandStarted: aRequest.
 	handler := r.
 	jobRequest := aRequest.
 	self stepJob
@@ -70,6 +73,9 @@ stepJob
 	self handlePending
 !
 respond: aDictionary to: aRequestOrNil
+	moved == true ifTrue: [
+		moved := false.
+		RemoteControl commandFinished].
 	socket sendAll: ((JSON render: aDictionary), (String with: Character lf)) utf8Encoded.
 	(aRequestOrNil notNil and: [aRequestOrNil afterResponse notNil]) ifTrue: [aRequestOrNil afterResponse value]
 !
@@ -104,7 +110,7 @@ process
 !ControlConnection class methodsFor: 'commands'!
 transientCommands
 	"Commands that may wait for long (an evaluation, a wait condition, the compositor): they run in a Process of their own even when the input dispatcher hosts remote control. All other commands are input (or read the widget tree) and run in the host's Process without waiting."
-	^#('eval' 'wait' 'screenshot' 'record' 'quit')
+	^#('eval' 'wait' 'screenshot' 'record' 'advance' 'quit')
 ! !
 
 !ControlConnection class methodsFor: 'instance creation'!

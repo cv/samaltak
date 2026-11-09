@@ -82,7 +82,7 @@ step
 				due > now ifTrue: [^due - now].
 				(self waitsForPointer: (s at: 2) at: now) ifTrue: [^10].
 				device inject: (s at: 2).
-				lastInject := now.
+				lastInject := Smalltalk vm isOnWorkClock ifTrue: [due] ifFalse: [now].
 				index := index + 1]
 			ifFalse: [
 				s first == #settle ifTrue: [

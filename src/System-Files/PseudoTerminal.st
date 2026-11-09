@@ -1,6 +1,6 @@
 Object subclass: #PseudoTerminal
 	instanceVariableNames: 'handle pid exitStatus semaphore semaphoreIndex session'
-	classVariableNames: 'Session'
+	classVariableNames: 'Open Session'
 	package: 'System-Files'!
 
 PseudoTerminal comment: 'I am the master side of a pseudo-terminal whose slave side runs a child process (a shell), over the platform''s pty primitives (vm/platform/README.md). Reading and writing never block: readInto: answers nil when nothing is pending, write:from:count: nil when the terminal is full. My semaphore is signaled (once, then re-armed by the next read or blocked write) when output arrives, the child side closes, or a blocked write may continue: drain until nil, then wait.
@@ -17,6 +17,8 @@ setHandle: aHandle pid: anInteger
 	handle := aHandle.
 	pid := anInteger.
 	session := self class session.
+	Open isNil ifTrue: [Open := Dictionary new].
+	Open at: aHandle put: anInteger.
 	semaphore := Semaphore new.
 	semaphoreIndex := Smalltalk vm registerExternalSemaphore: semaphore.
 	self class primSemaphore: handle read: semaphoreIndex write: semaphoreIndex.
@@ -105,6 +107,7 @@ close
 	h := handle.
 	h isNil ifTrue: [^self].
 	handle := nil.
+	Open removeKey: h ifAbsent: [].
 	WeakRegistry default remove: self.
 	self class primClose: h.
 	self releaseSemaphore
@@ -152,13 +155,29 @@ session
 !
 startUp: resuming
 	"Handles of ptys saved in the image died with the VM that saved it."
-	resuming ifTrue: [Session := Object new]
+	resuming ifTrue: [
+		Session := Object new.
+		Open := nil]
 !
 initialize
 	Smalltalk addToStartUpList: self
 ! !
 
+!PseudoTerminal class methodsFor: 'accessing'!
+anyRunsAJob
+	"Whether a program runs in the foreground of one of my terminals: more than the shell each was started with, waiting at its prompt."
+	Open isNil ifTrue: [^false].
+	^Open associations anySatisfy: [:each | | group |
+		group := self primForeground: each key.
+		group notNil and: [group ~= each value]]
+! !
+
 !PseudoTerminal class methodsFor: 'primitives'!
+primForeground: aHandle
+	"Answer the foreground process group of aHandle's terminal, nil on failure."
+	<primitive: 'ptyForeground'>
+	^nil
+!
 primSpawn: argv environment: env directory: cwd rows: rows columns: columns
 	<primitive: 'ptySpawn'>
 	^nil

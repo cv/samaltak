@@ -1,11 +1,13 @@
 VMCoreModule subclass: #Scheduler
-	instanceVariableNames: 'interruptPending lastPreempted allocSampleClass allocSampleSize allocSampleInterval allocSampleCountdown allocSampleSema statProcessSwitches allocSamplePending inIdle preemptToFront allocSampleUnread samplerTickUnread timerMs samplerIntervalUs samplerNextUs lastSwitchUs startUs samplerSema pendingExt pendingExtN pendingExtCap tickIdle tickPollUs tickArmedPoll tickArmedDeadline tickDeadlineFired ticker'
-	classVariableNames: 'TICK_DEADLINE TICK_POLL'
+	instanceVariableNames: 'interruptPending lastPreempted allocSampleClass allocSampleSize allocSampleInterval allocSampleCountdown allocSampleSema statProcessSwitches allocSamplePending inIdle preemptToFront allocSampleUnread samplerTickUnread timerMs samplerIntervalUs samplerNextUs lastSwitchUs startUs samplerSema pendingExt pendingExtN pendingExtCap tickIdle tickPollUs tickArmedPoll tickArmedDeadline tickDeadlineFired ticker workClockOn workClockRunning workClockPaced workClockUsesCycles workClockUs workClockCycles workClockRaw workClockHeld workClockHoldCycles workClockQuerying frameSema frameFps frameOriginUs frameIndex frameNextUs'
+	classVariableNames: 'TICK_DEADLINE TICK_POLL WORK_CLOCK_FLOOR WORK_CLOCK_POLL_US WORK_CYCLES_PER_US'
 	package: 'VM-Core'!
 
 Scheduler comment: 'Process scheduler, semaphores and interrupts: the timer, the CPU and allocation samplers, external semaphore signals.
 
-While Smalltalk runs, a timer of the Ticker (its thread calls tickFired:) requests an interrupt check when the timer or the CPU sampler is due, and a periodic one every tickPollUs if the platform asked for polls (requestPeriodicPoll:). While the VM waits in the platform''s wait both are disarmed: the wait''s timeout covers the timer and the sampler, and the platform wakes it for events. tickUpdate (VM thread) re-arms after any change.'!
+While Smalltalk runs, a timer of the Ticker (its thread calls tickFired:) requests an interrupt check when the timer or the CPU sampler is due, and a periodic one every tickPollUs if the platform asked for polls (requestPeriodicPoll:). While the VM waits in the platform''s wait both are disarmed: the wait''s timeout covers the timer and the sampler, and the platform wakes it for events. tickUpdate (VM thread) re-arms after any change.
+
+While a video is recorded (workClockStart:semaphore:) my clock is the work clock, so that what is recorded does not depend on the machine''s load: it counts the cycles of the VM thread at 3.3 GHz (not real time, not CPU time), jumps to the next deadline when no Process can run, and stands still between the commands of the driver (workClockRunning:), when only the Processes at WORK_CLOCK_FLOOR and above run. It never passes a deadline, so frames and Delays land on their exact times; the work a late interrupt check lets through is not counted. The Ticker only polls then. While an external program runs (workClockPaced:) it also moves at least at the pace of real time, and does not stand still.'!
 
 !Scheduler class methodsFor: 'declaring'!
 declarations
@@ -15,11 +17,18 @@ declarations
 		(timerMs int64_t -1) (samplerIntervalUs int64_t) (samplerNextUs int64_t) (lastSwitchUs int64_t) (startUs int64_t)
 		(samplerSema int32_t) (pendingExt 'int32_t *') (pendingExtN int32_t) (pendingExtCap int32_t)
 		(tickIdle bool) (tickPollUs int64_t) (tickArmedPoll int64_t) (tickArmedDeadline int64_t 16r7FFFFFFFFFFFFFFF)
-		(tickDeadlineFired atomic_bool) (ticker Ticker))
+		(tickDeadlineFired atomic_bool) (ticker Ticker)
+		(workClockOn bool) (workClockRunning bool) (workClockPaced bool) (workClockUsesCycles bool)
+		(workClockUs int64_t) (workClockCycles int64_t) (workClockRaw int64_t) (workClockHeld bool) (workClockHoldCycles int64_t) (workClockQuerying bool)
+		(frameSema int32_t) (frameFps int64_t) (frameOriginUs int64_t) (frameIndex int64_t) (frameNextUs int64_t))
 !
 initialize
 	TICK_DEADLINE := 1.
-	TICK_POLL := 2
+	TICK_POLL := 2.
+	"The work clock: its rate (a 3.3 GHz core), how often a running Smalltalk is checked against its deadlines (µs of real time), the lowest priority that runs while it stands still (the control server's)."
+	WORK_CYCLES_PER_US := 3300.
+	WORK_CLOCK_POLL_US := 200.
+	WORK_CLOCK_FLOOR := 50
 ! !
 
 !Scheduler methodsFor: 'accessing'!
@@ -82,6 +91,7 @@ rawNowUs
 !
 nowUs
 	<c: 'int64_t now_us(void)'>
+	workClockOn ifTrue: [^self workClockSync].
 	^self rawNowUs - startUs
 !
 nowMs
@@ -89,8 +99,12 @@ nowMs
 	^self nowUs quo: 1000
 !
 threadCpuUs
-	"The VM thread's CPU time, which Processes are charged: wall time would charge the running one while the OS runs other threads."
+	"The VM thread's CPU time, which Processes are charged: wall time would charge the running one while the OS runs other threads. While recording its cycles at the work clock's rate."
 	<c: 'int64_t thread_cpu_us(void)'>
+	workClockOn ifTrue: [^self workClockThreadCycles quo: WORK_CYCLES_PER_US].
+	^self realThreadCpuUs
+!
+realThreadCpuUs
 	| ts |
 	ts := self local: 'Timespec'.
 	posix clockGettime: posix CLOCK_THREAD_CPUTIME_ID into: ts.
@@ -122,6 +136,170 @@ signalExternalSemaphore: index
 	self requestInterruptCheck
 ! !
 
+!Scheduler methodsFor: 'work clock'!
+workClockStart: fps semaphore: index
+	"From now on the clock is the work clock (see my comment), running. With fps > 0, external semaphore index is signaled when frame k is due, on the millisecond grid of the clock (the Delays'): ceiling(k × 1000 / fps) ms after frame 0, which is due at the next whole millisecond (kept if that semaphore is already armed). Answer when frame 0 is."
+	<c: 'int64_t work_clock_start(int64_t fps, int32_t index)'>
+	workClockOn ifFalse: [
+		workClockUs := self nowUs.
+		workClockUsesCycles := ticker threadCycles >= 0.
+		workClockUsesCycles ifFalse: [
+			libc fprintf: libc stderr format: 'samaltak: no cycle counter here: the recording clock counts CPU time, so load and core type change what is recorded
+'].
+		workClockOn := true.
+		workClockRunning := true.
+		workClockPaced := false.
+		workClockCycles := self workClockThreadCycles.
+		workClockRaw := self rawNowUs.
+		lastSwitchUs := self threadCpuUs.
+		self tickUpdate].
+	(fps > 0 and: [frameSema ~= index]) ifTrue: [
+		frameSema := index.
+		frameFps := fps.
+		frameOriginUs := self workClockSync + 999 quo: 1000.
+		frameOriginUs := frameOriginUs * 1000.
+		frameIndex := 0.
+		frameNextUs := frameOriginUs].
+	^frameOriginUs
+!
+workClockStop
+	"Back to the real clock, which goes on from the work clock's time."
+	<c: 'void work_clock_stop(void)'>
+	workClockOn ifFalse: [^self].
+	self workClockSync.
+	startUs := self rawNowUs - workClockUs.
+	workClockOn := false.
+	frameSema := 0.
+	lastSwitchUs := self threadCpuUs.
+	self tickUpdate
+!
+workClockRunning: aBoolean
+	"Whether a command of the driver is in flight: the clock stands still between commands."
+	<c: 'void work_clock_set_running(bool running)'>
+	workClockOn ifTrue: [self workClockSetRunning: aBoolean paced: workClockPaced]
+!
+workClockPaced: aBoolean
+	"Whether an external program is running: the clock then moves at least as fast as real time, even between commands."
+	<c: 'void work_clock_set_paced(bool paced)'>
+	workClockOn ifTrue: [self workClockSetRunning: workClockRunning paced: aBoolean]
+!
+workClockSetRunning: running paced: paced
+	| moving |
+	moving := workClockRunning or: [workClockPaced].
+	moving ifTrue: [self workClockSync].
+	workClockRunning := running.
+	workClockPaced := paced.
+	workClockRaw := self rawNowUs.
+	moving ifFalse: [workClockCycles := self workClockThreadCycles]
+!
+workClockNextFrame
+	"When the next frame is due (µs), < 0 while the work clock is off."
+	<c: 'int64_t work_clock_next_frame(void)'>
+	workClockOn ifFalse: [^-1].
+	^frameNextUs
+!
+workClockQuerying: aBoolean
+	"A query is being served with the clock standing still: Processes below the floor may run if it waits for one (it may hold a lock the query needs); the clock stays where it is."
+	<c: 'void work_clock_set_querying(bool querying)'>
+	workClockQuerying := aBoolean
+!
+workClockHold
+	"The Compositor's frame begins: its work does not move the clock (Compositor>>frameOnWorkClock)."
+	<c: 'void work_clock_hold(void)'>
+	workClockOn ifFalse: [^self].
+	self workClockSync.
+	workClockHeld := true.
+	workClockHoldCycles := self workClockThreadCycles
+!
+workClockRelease
+	"The frame ended: answer its work, in µs at the clock's rate."
+	<c: 'int64_t work_clock_release(void)'>
+	| now |
+	workClockOn ifFalse: [^0].
+	now := self workClockThreadCycles.
+	workClockHeld := false.
+	workClockCycles := now.
+	workClockRaw := self rawNowUs.
+	^(now - workClockHoldCycles) quo: WORK_CYCLES_PER_US
+!
+workClockHeldUs
+	"During a frame the clock stands still; this one, its time plus the frame's work so far, does not: for the times the frame reports."
+	<c: 'int64_t work_clock_held_us(void)'>
+	workClockHeld ifFalse: [^self nowUs].
+	^workClockUs + ((self workClockThreadCycles - workClockHoldCycles) quo: WORK_CYCLES_PER_US)
+!
+workClockCharge: us
+	"A frame took longer than a tick: the clock passes the excess."
+	<c: 'void work_clock_charge(int64_t us)'>
+	workClockOn ifFalse: [^self].
+	workClockUs := workClockUs + us
+!
+workClockThreadCycles
+	"The VM thread's cycles; without a cycle counter, its CPU time at the same rate."
+	workClockUsesCycles ifTrue: [^ticker threadCycles].
+	^self realThreadCpuUs * WORK_CYCLES_PER_US
+!
+workClockDeadline
+	"The next time something is due: my clock does not pass it, however late the interrupt check comes."
+	| due |
+	due := 16r7FFFFFFFFFFFFFFF.
+	(timerMs >= 0 and: [timerMs < (16r7FFFFFFFFFFFFFFF quo: 1000)]) ifTrue: [due := timerMs * 1000].
+	(samplerIntervalUs > 0 and: [samplerNextUs < due]) ifTrue: [due := samplerNextUs].
+	(frameSema ~= 0 and: [frameNextUs < due]) ifTrue: [due := frameNextUs].
+	^due
+!
+workClockSync
+	"Advance the clock by the work done since the last time (paced: at least by the real time gone by), stopping at the next deadline; answer it."
+	| us raw next due |
+	((workClockRunning or: [workClockPaced]) and: [workClockHeld not]) ifFalse: [^workClockUs].
+	us := (self workClockThreadCycles - workClockCycles) quo: WORK_CYCLES_PER_US.
+	workClockCycles := workClockCycles + (us * WORK_CYCLES_PER_US).
+	workClockPaced ifTrue: [
+		raw := self rawNowUs.
+		raw - workClockRaw > us ifTrue: [us := raw - workClockRaw].
+		workClockRaw := raw].
+	us > 0 ifTrue: [
+		next := workClockUs + us.
+		due := self workClockDeadline.
+		next > due ifTrue: [next := due].
+		next > workClockUs ifTrue: [workClockUs := next]].
+	^workClockUs
+!
+workClockIdle
+	"No Process can run. The clock jumps to the next deadline; paced, it waits for it in real time, or for an outside event (a child's output). Standing still, or with no deadline, only an outside event (the driver's next command) can change anything."
+	| now due |
+	now := self workClockSync.
+	due := self workClockDeadline.
+	((workClockRunning or: [workClockPaced]) and: [due ~= 16r7FFFFFFFFFFFFFFF]) ifFalse: [
+		self tickSetIdle: true.
+		platform wait: -1.
+		self tickSetIdle: false.
+		^self].
+	workClockPaced ifTrue: [
+		due > now ifTrue: [
+			self tickSetIdle: true.
+			platform wait: due - now.
+			self tickSetIdle: false].
+		^self].
+	due > now ifTrue: [workClockUs := due].
+	workClockCycles := self workClockThreadCycles
+!
+workClockIdleWait
+	self workClockIdle.
+	self handleInterrupts.
+	lastSwitchUs := self threadCpuUs.
+	inIdle := false
+!
+workClockFrameDue
+	frameIndex := frameIndex + 1.
+	frameNextUs := frameOriginUs + ((((frameIndex * 1000) + frameFps - 1) quo: frameFps) * 1000).
+	self signalIndex: frameSema
+!
+lowestRunList
+	"The first run list that may run: while the work clock stands still, only the control Processes do."
+	^(workClockOn and: [(workClockRunning or: [workClockPaced or: [workClockQuerying]]) not]) ifTrue: [WORK_CLOCK_FLOOR - 1] ifFalse: [0]
+! !
+
 !Scheduler methodsFor: 'ticker'!
 tickFired: ident
 	"The Ticker's thread: timer ident (TICK_DEADLINE, TICK_POLL) fired; request an interrupt check."
@@ -134,9 +312,9 @@ tickUpdate
 	<c: 'void tick_update(void)'>
 	| due poll now |
 	due := 16r7FFFFFFFFFFFFFFF.
-	poll := tickIdle ifTrue: [0] ifFalse: [tickPollUs].
+	poll := tickIdle ifTrue: [0] ifFalse: [workClockOn ifTrue: [WORK_CLOCK_POLL_US] ifFalse: [tickPollUs]].
 	now := self nowUs.
-	tickIdle ifFalse: [
+	(tickIdle or: [workClockOn]) ifFalse: [
 		(timerMs >= 0 and: [timerMs < (16r7FFFFFFFFFFFFFFF quo: 1000)]) ifTrue: [due := timerMs * 1000].
 		(samplerIntervalUs > 0 and: [samplerNextUs < due]) ifTrue: [due := samplerNextUs]].
 	((self atomicExchange: #tickDeadlineFired value: false) or: [due ~= tickArmedDeadline]) ifTrue: [
@@ -262,6 +440,7 @@ idleWait
 	| now wait |
 	inIdle := true.
 	(pendingExtN = 0 and: [allocSamplePending not]) ifTrue: [
+		workClockOn ifTrue: [^self workClockIdleWait].
 		now := self nowUs.
 		wait := 16r7FFFFFFFFFFFFFFF.
 		timerMs >= 0 ifTrue: [wait := (timerMs * 1000) - now].
@@ -279,7 +458,7 @@ transferToHighest
 	<c: 'void transfer_to_highest(void)'>
 	| lists l |
 	[lists := self loadRef: self processor at: SCHED_LISTS.
-	 (self numSlots: lists) asInt64 - 1 to: 0 by: -1 do: [:i |
+	 (self numSlots: lists) asInt64 - 1 to: self lowestRunList by: -1 do: [:i |
 		l := self loadRef: lists at: i.
 		(self loadRef: l at: LL_FIRST) ~= memory nilOop ifTrue: [
 			self transferTo: (self removeFirstLink: l).
@@ -366,6 +545,7 @@ handleInterrupts
 		allocSamplePending := false.
 		self signalIndex: allocSampleSema].
 	preemptToFront := false.
+	(frameSema ~= 0 and: [now >= frameNextUs]) ifTrue: [self workClockFrameDue].
 	gc finalizationPending ifTrue: [
 		gc finalizationPending: false.
 		s := memory special: SO_FINALIZATION_SEMAPHORE.
@@ -407,6 +587,9 @@ relinquish: microseconds
 	<c: 'void relinquish(int64_t us)'>
 	| us now |
 	(pendingExtN ~= 0 or: [allocSamplePending]) ifTrue: [^self].
+	workClockOn ifTrue: [
+		self workClockIdle.
+		^self requestInterruptCheck].
 	us := microseconds.
 	now := self nowUs.
 	(timerMs >= 0 and: [(timerMs * 1000) - now < us]) ifTrue: [us := (timerMs * 1000) - now].

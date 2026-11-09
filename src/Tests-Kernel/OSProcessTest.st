@@ -6,6 +6,14 @@ TestCase subclass: #OSProcessTest
 OSProcessTest comment: 'Tests OSProcess (external programs through /bin/sh) and the File/Directory helpers it is used with.'!
 
 !OSProcessTest methodsFor: 'tests'!
+testAnyRunningWhileAProgramRuns
+	| p |
+	self deny: OSProcess anyRunning.
+	p := (OSProcess command: 'sleep 30') start.
+	self assert: OSProcess anyRunning.
+	p terminate; wait.
+	self deny: OSProcess anyRunning
+!
 testOutputAndExitCode
 	| p |
 	p := OSProcess run: 'printf ''hello\nworld\n''; printf oops >&2; exit 3'.

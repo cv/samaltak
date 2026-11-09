@@ -307,6 +307,133 @@ void prim_vm_stats(void)
     prim_status = PS_OK;
 }
 
+/* SystemPrimitives>>primWorkClockCharge */
+void prim_work_clock_charge(void)
+{
+    oop o;
+    oop o_2;
+    oop v;
+    o = prim_nargs > 0 ? prim_base[1] : nil_oop;
+    if (!((o & 1) != 0)) {
+        prim_status = PS_FAIL;
+        prim_error_code = -1;
+        return;
+    }
+    o_2 = prim_nargs > 0 ? prim_base[1] : nil_oop;
+    work_clock_charge(((int64_t)o_2) >> 1);
+    v = prim_base[0];
+    prim_result = v;
+    prim_status = PS_OK;
+}
+
+/* SystemPrimitives>>primWorkClockHeldMicros */
+void prim_work_clock_held_micros(void)
+{
+    int64_t v;
+    uint64_t v_2;
+    v = work_clock_held_us();
+    v_2 = (uint64_t)((v << 1) | 1);
+    prim_result = v_2;
+    prim_status = PS_OK;
+}
+
+/* SystemPrimitives>>primWorkClockHold */
+void prim_work_clock_hold(void)
+{
+    oop v;
+    work_clock_hold();
+    v = prim_base[0];
+    prim_result = v;
+    prim_status = PS_OK;
+}
+
+/* SystemPrimitives>>primWorkClockNextFrame */
+void prim_work_clock_next_frame(void)
+{
+    int64_t us;
+    oop v;
+    us = work_clock_next_frame();
+    v = us < 0 ? nil_oop : (uint64_t)((us << 1) | 1);
+    prim_result = v;
+    prim_status = PS_OK;
+}
+
+/* SystemPrimitives>>primWorkClockPaced */
+void prim_work_clock_paced(void)
+{
+    oop v;
+    work_clock_set_paced((prim_nargs > 0 ? prim_base[1] : nil_oop) == true_oop);
+    v = prim_base[0];
+    prim_result = v;
+    prim_status = PS_OK;
+}
+
+/* SystemPrimitives>>primWorkClockQuerying */
+void prim_work_clock_querying(void)
+{
+    oop v;
+    work_clock_set_querying((prim_nargs > 0 ? prim_base[1] : nil_oop) == true_oop);
+    v = prim_base[0];
+    prim_result = v;
+    prim_status = PS_OK;
+}
+
+/* SystemPrimitives>>primWorkClockRelease */
+void prim_work_clock_release(void)
+{
+    int64_t v;
+    uint64_t v_2;
+    v = work_clock_release();
+    v_2 = (uint64_t)((v << 1) | 1);
+    prim_result = v_2;
+    prim_status = PS_OK;
+}
+
+/* SystemPrimitives>>primWorkClockRunning */
+void prim_work_clock_running(void)
+{
+    oop v;
+    work_clock_set_running((prim_nargs > 0 ? prim_base[1] : nil_oop) == true_oop);
+    v = prim_base[0];
+    prim_result = v;
+    prim_status = PS_OK;
+}
+
+/* SystemPrimitives>>primWorkClockStart */
+void prim_work_clock_start(void)
+{
+    oop o;
+    oop o_2;
+    oop o_3;
+    oop o_4;
+    int64_t v;
+    uint64_t v_2;
+    o = prim_base[1];
+    if (!(((o & 1) != 0) && ({
+    o_2 = prim_base[2];
+    (o_2 & 1) != 0; }))) {
+        prim_status = PS_FAIL;
+        prim_error_code = -1;
+        return;
+    }
+    o_3 = prim_base[1];
+    o_4 = prim_base[2];
+    v = work_clock_start(((int64_t)o_3) >> 1, (int32_t)(((int64_t)o_4) >> 1));
+    v_2 = (uint64_t)((v << 1) | 1);
+    prim_result = v_2;
+    prim_status = PS_OK;
+}
+
+/* SystemPrimitives>>primWorkClockStop */
+void prim_work_clock_stop(void)
+{
+    oop v;
+    work_clock_stop();
+    v = prim_base[0];
+    prim_result = v;
+    prim_status = PS_OK;
+}
+
 /* SystemPrimitives>>stringsArray:count: */
 static oop strings_array(char **v, int n)
 {

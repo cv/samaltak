@@ -402,6 +402,19 @@ primitive_entry vm_primitive_table[] = {
 #ifndef SAMALTAK_NO_PLATFORM
     {566, 2, "ptyClose", prim_pty_close},
 #endif
+    {567, 2, "workClockStart", prim_work_clock_start},
+    {568, 2, "workClockStop", prim_work_clock_stop},
+    {569, 2, "workClockRunning", prim_work_clock_running},
+    {570, 2, "workClockPaced", prim_work_clock_paced},
+#ifndef SAMALTAK_NO_PLATFORM
+    {571, 2, "ptyForeground", prim_pty_foreground},
+#endif
+    {572, 2, "workClockNextFrame", prim_work_clock_next_frame},
+    {573, 2, "workClockHold", prim_work_clock_hold},
+    {574, 2, "workClockRelease", prim_work_clock_release},
+    {575, 2, "workClockHeldMicros", prim_work_clock_held_micros},
+    {576, 2, "workClockCharge", prim_work_clock_charge},
+    {577, 2, "workClockQuerying", prim_work_clock_querying},
 };
 
 int vm_primitive_count = sizeof vm_primitive_table / sizeof vm_primitive_table[0];

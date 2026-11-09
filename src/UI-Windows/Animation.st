@@ -152,7 +152,10 @@ interpolate: a to: b at: e
 	^a interpolateTo: b at: e
 !
 now
-	"The clock animations run on (milliseconds, Float): real time, timeScale times slower since the scale was set."
+	"The clock animations run on (milliseconds, Float): real time, timeScale times slower since the scale was set. On the recording clock that of the compositor's last tick, so that a moment noted a few cycles later does not move an animation."
+	| world |
+	(Smalltalk vm isOnWorkClock and: [(world := World current) notNil and: [world compositor tickClock notNil]])
+		ifTrue: [^world compositor tickClock].
 	^self nowAt: Time microsecondClockValue / 1000.0
 !
 nowAt: realMilliseconds

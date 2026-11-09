@@ -133,6 +133,17 @@ static void pty_exec_child(char *path, char **argv, char **env, const char *cwd,
     _exit(127);
 }
 
+/* PlatformPtys>>foreground: */
+int pf_pty_foreground(int p)
+{
+    pf_obj *o;
+    o = pf_fd_get(p, PF_FD_PTY);
+    if (o == NULL) {
+        return -1;
+    }
+    return tcgetpgrp((int32_t)o->i);
+}
+
 /* PlatformPtys>>reapHungUp */
 static void reap_hung_up(void)
 {

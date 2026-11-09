@@ -34,6 +34,17 @@ ptys
 ! !
 
 !PseudoTerminalTest methodsFor: 'tests'!
+testRunsAJobWhileTheShellDoes
+	"The shell waiting at its prompt runs no job; a foreground program it started does."
+	| deadline |
+	self spawn: #('sh' '-i').
+	self outputUntil: '$ '.
+	self deny: PseudoTerminal anyRunsAJob.
+	pty nextPutAll: 'sleep 30', (String with: Character lf).
+	deadline := Time millisecondClockValue + 10000.
+	[PseudoTerminal anyRunsAJob or: [Time millisecondClockValue > deadline]] whileFalse: [(Delay forMilliseconds: 20) wait].
+	self assert: PseudoTerminal anyRunsAJob
+!
 testOutputAndExitStatus
 	self spawn: #('sh' '-c' 'printf "hi\nthere"; exit 3').
 	self assert: pty pid > 0.

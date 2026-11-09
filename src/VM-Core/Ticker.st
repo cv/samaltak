@@ -23,10 +23,15 @@ arm: ident microseconds: us periodic: periodic
 	"Fire ident after us microseconds (every us if periodic); us < 0 disarms. VM thread."
 	<c: 'void tick_arm(int ident, int64_t us, bool periodic)'>
 	self subclassResponsibility
+!
+threadCycles
+	"The calling thread's CPU cycles so far; negative if there is no counter. Only the recording clock (Scheduler) asks."
+	<c: 'int64_t ticker_thread_cycles(void)'>
+	self subclassResponsibility
 ! !
 
 Ticker subclass: #KqueueTicker
-	instanceVariableNames: 'kqueue kq'
+	instanceVariableNames: 'kqueue kq counts'
 	classVariableNames: ''
 	package: 'VM-Core'!
 
@@ -34,10 +39,14 @@ KqueueTicker comment: 'The ticker on macOS: one kqueue of EVFILT_TIMER events, o
 
 !KqueueTicker class methodsFor: 'declaring'!
 declarations
-	^#((kqueue Kqueue) (kq int32_t -1))
+	^#((kqueue Kqueue) (kq int32_t -1) (counts ThreadCounts))
 !
 targetOS
 	^#darwin
+!
+cPreamble
+	"thread_selfcounts has no header: see ThreadCounts."
+	^'extern int thread_selfcounts(int type, void *buf, unsigned long nbytes);'
 ! !
 
 !KqueueTicker methodsFor: 'timers'!
@@ -69,6 +78,14 @@ arm: ident microseconds: us periodic: periodic
 			ch fflags: (kqueue NOTE_USECONDS bitOr: kqueue NOTE_CRITICAL).
 			ch data: us].
 	kqueue kevent: kq changes: ch count: 1 events: res count: 1 timeout: zero
+!
+threadCycles
+	<c: 'int64_t ticker_thread_cycles(void)'>
+	<export>
+	| counters |
+	counters := self local: 'uint64_t[2]'.
+	(counts threadSelfcounts: 1 into: counters size: 16) ~= 0 ifTrue: [^-1].
+	^(counters at: 1) asInt64
 !
 run: arg
 	"The ticker thread."
@@ -120,6 +137,11 @@ arm: ident microseconds: us periodic: periodic
 		periodic ifTrue: [(spec fieldAddress: #it_interval) copyStructFrom: value]].
 	timerfd settime: (fds at: ident) flags: 0 new: spec old: self null
 !
+threadCycles
+	<c: 'int64_t ticker_thread_cycles(void)'>
+	<export>
+	^-1
+!
 open: ident
 	"The timerfd of ident and its thread."
 	| fd t |
@@ -140,6 +162,26 @@ run: arg
 	[(fds at: ident) >= 0] whileTrue: [
 		(timerfd read: (fds at: ident) into: expirations count: 8) = 8 ifTrue: [scheduler tickFired: ident]].
 	^self null
+! !
+
+CLibrary subclass: #ThreadCounts
+	instanceVariableNames: ''
+	classVariableNames: ''
+	package: 'VM-Core'!
+
+ThreadCounts comment: 'The calling thread''s retired instructions and cycles (element 0 and 1 of the answer): thread_selfcounts, a private XNU syscall that the C library exports without a header. Only the recording clock calls it (Scheduler, while workClockOn), never a normal run; if it fails (another macOS) the clock falls back to CPU time and says so. Simulated: the simulator''s clock at that rate.'!
+
+!ThreadCounts class methodsFor: 'declaring'!
+targetOS
+	^#darwin
+! !
+
+!ThreadCounts methodsFor: 'counting'!
+threadSelfcounts: type into: buf size: nbytes
+	<c: 'int thread_selfcounts(int type, uint64_t *buf, size_t nbytes)'>
+	buf at: 0 put: 0.
+	buf at: 1 put: sim microsecondClock * 3300.
+	^0
 ! !
 
 CLibrary subclass: #Kqueue
