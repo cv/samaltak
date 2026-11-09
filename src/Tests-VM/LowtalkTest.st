@@ -71,6 +71,29 @@ testInlineArgumentsAndSelfComparisons
 	self assert: (c includesSubstring: 'counter = counter + 1;
     report("same", 2);')
 !
+testSignaturesAreInferred
+	"A parameter is the join of its call sites (a literal adapts), a function without ^expression is void, <var:type:> and <returns:> override the join."
+	| c |
+	[LowtalkSample compile: 'widened: x <function> ^x' classified: 'inference'.
+	 LowtalkSample compile: 'given: x <function> <var: #x type: ''int16_t''> <returns: ''int32_t''> ^x' classified: 'inference'.
+	 LowtalkSample compile: 'caller <function> self widened: 1. self widened: counter. self given: 2' classified: 'inference'.
+	 c := ((VMTranslator modules: {LowtalkSample} header: 'sample') translate detect: [:each | each key = 'lowtalk_sample.c']) value.
+	 self assert: (c includesSubstring: 'static int64_t widened(int64_t x);').
+	 self assert: (c includesSubstring: 'static int32_t given(int16_t x);').
+	 self assert: (c includesSubstring: 'static void caller(void);')]
+		ensure: [#(#widened: #given: #caller) do: [:sel | LowtalkSample removeSelector: sel]]
+!
+testAParameterNothingTypesIsAnError
+	[LowtalkSample compile: 'lonely: x <function> ^x' classified: 'inference'.
+	 self should: [(VMTranslator modules: {LowtalkSample} header: 'sample') translate] raise: TranslationError]
+		ensure: [LowtalkSample removeSelector: #lonely:]
+!
+testNoModuleMethodHasACPrototype
+	"C prototypes are CLibrary's business: the foreign APIs. A VM function is plain Smalltalk."
+	VMModule allSubclasses do: [:c |
+		c selectors do: [:sel |
+			self deny: (((c compiledMethodAt: sel) pragmas ifNil: [#()]) anySatisfy: [:p | p selector == #c:])]]
+!
 testSampleInC
 	| run |
 	run := self compileAndRun: {LowtalkSample} header: 'sample' arguments: #().

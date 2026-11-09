@@ -412,7 +412,10 @@ moduleQualifiedName
 !
 fullyQualifiedName
 	"With every keyword of my selector."
-	^module cFileName , '_' , (LowtalkNames snake: (selector copyReplaceAll: ':' with: '_') allButLast)
+	| s |
+	s := selector copyReplaceAll: ':' with: '_'.
+	(s endsWith: '_') ifTrue: [s := s allButLast].
+	^module cFileName , '_' , (LowtalkNames snake: s)
 !
 localNames
 	"What my code calls its locals in C, for the names no function may take."
