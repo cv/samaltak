@@ -280,7 +280,7 @@ void full_gc(void)
     uint64_t a;
     size_t b;
     interp_before_gc();
-    t0 = now_us();
+    t0 = work_clock_held_us();
     stat_full_gcs = stat_full_gcs + 1;
     stat_allocated = stat_allocated + (eden_box[0] - eden_lo);
     old_used = old_top - old_lo;
@@ -326,7 +326,7 @@ void full_gc(void)
         vm_remember(active_ctx);
     }
     after_gc();
-    stat_full_us = stat_full_us + (uint64_t)(now_us() - t0);
+    stat_full_us = stat_full_us + (uint64_t)(work_clock_held_us() - t0);
     if (live > max_heap_bytes) {
         a = live >> 20;
         b = max_heap_bytes >> 20;
@@ -577,7 +577,7 @@ void scavenge(void)
     int64_t k;
     oop w;
     interp_before_gc();
-    t0 = now_us();
+    t0 = work_clock_held_us();
     stat_scavenges = stat_scavenges + 1;
     stat_allocated = stat_allocated + (eden_box[0] - eden_lo);
     to_lo = to_top = surv_other_lo;
@@ -629,7 +629,7 @@ void scavenge(void)
         vm_remember(active_ctx);
     }
     after_gc();
-    stat_scavenge_us = stat_scavenge_us + (uint64_t)(now_us() - t0);
+    stat_scavenge_us = stat_scavenge_us + (uint64_t)(work_clock_held_us() - t0);
 }
 
 /* GarbageCollector>>tracedSlots: */

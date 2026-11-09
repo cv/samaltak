@@ -676,7 +676,6 @@ typedef void (*prim_fn)(void);
 #define W7 71
 #define W8 72
 #define W9 73
-#define WB_MAX 3
 #define WORK_CLOCK_FLOOR 50
 #define WORK_CLOCK_POLL_US 200
 #define WORK_CYCLES_PER_US 3300
@@ -741,7 +740,6 @@ typedef struct pf_table pf_table;
 typedef struct pf_vattr pf_vattr;
 typedef struct pty_child pty_child;
 typedef struct sock_sems sock_sems;
-typedef struct wb_job wb_job;
 #endif
 
 struct baseline_pic {
@@ -1109,14 +1107,6 @@ struct sock_sems {
     bool write_armed;
 };
 _Static_assert(sizeof(sock_sems) == 12, "the simulator lays out SockSems as C does");
-
-struct wb_job {
-    int32_t fd;
-    char *data;
-    size_t len;
-    wb_job *next;
-};
-_Static_assert(sizeof(wb_job) == 32, "the simulator lays out WbJob as C does");
 
 #endif
 extern primitive_entry vm_primitive_table[];
@@ -1842,7 +1832,6 @@ char **pf_dir_entries(const char *path, int *n);
 void pf_exec(char **argv);
 bool pf_file_flush(int f);
 int pf_file_handle_count(void);
-void pf_files_init(void);
 bool pf_mkfifo(const char *path);
 int pf_file_open(const char *path, int mode);
 int64_t pf_file_position(int f);
@@ -1854,7 +1843,6 @@ int64_t pf_file_size(int f);
 int64_t pf_spawn(char **argv);
 bool pf_file_stat(const char *path, pf_stat *s);
 int64_t pf_file_write(int f, const void *buf, size_t n);
-int64_t pf_file_write_behind(int f, const void *buf, size_t n);
 int pf_gpu_acquire_cmd(int dev);
 int pf_gpu_acquire_swapchain(int cmd, int win, int *w, int *h);
 int pf_gpu_begin_pass(int cmd, int tex, float *clear);
@@ -1909,7 +1897,6 @@ void prim_file_seek(void);
 void prim_file_size(void);
 void prim_file_stat(void);
 void prim_file_write(void);
-void prim_file_write_behind(void);
 void prim_gpu_acquire_command_buffer(void);
 void prim_gpu_acquire_swapchain(void);
 void prim_gpu_begin_pass(void);

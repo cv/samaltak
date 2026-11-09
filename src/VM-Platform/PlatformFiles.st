@@ -1,20 +1,16 @@
 VMPlatformModule subclass: #PlatformFiles
-	instanceVariableNames: 'table wbLock wbAdded wbFinished wbHead wbTail wbPending wbFailedFd wbErrno wbStarted'
-	classVariableNames: 'K_FILE WB_MAX'
+	instanceVariableNames: 'table'
+	classVariableNames: 'K_FILE'
 	package: 'VM-Platform'!
 
-PlatformFiles comment: 'Files (raw file descriptors, unbuffered; handles of kind K_FILE, i = the descriptor), directories, FIFOs, child processes.
-
-Write-behind: a background thread performs queued writes, so a slow reader (a FIFO into ffmpeg) does not block the VM thread. At most WB_MAX writes are pending at once; flush and close wait until a file''s writes are done. A queued write stays at the head of the queue while it is written.'!
+PlatformFiles comment: 'Files (raw file descriptors, unbuffered; handles of kind K_FILE, i = the descriptor), directories, FIFOs, child processes.'!
 
 !PlatformFiles class methodsFor: 'declaring'!
 declarations
-	^#((table 'pf_table[1]') (wbLock 'pthread_mutex_t[1]') (wbAdded 'pthread_cond_t[1]') (wbFinished 'pthread_cond_t[1]')
-		(wbHead 'wb_job *') (wbTail 'wb_job *') (wbPending int32_t) (wbFailedFd int32_t -1) (wbErrno int32_t) (wbStarted bool))
+	^#((table 'pf_table[1]'))
 !
 initialize
-	K_FILE := 1.
-	WB_MAX := 3
+	K_FILE := 1
 ! !
 
 !PlatformFiles methodsFor: 'private'!
@@ -43,13 +39,6 @@ openFlags: mode
 ! !
 
 !PlatformFiles methodsFor: 'files'!
-init
-	"From platform_init."
-	<c: 'void pf_files_init(void)'>
-	posixThreads mutexInit: wbLock attributes: self null.
-	posixThreads condInit: wbAdded attributes: self null.
-	posixThreads condInit: wbFinished attributes: self null
-!
 open: path mode: mode
 	"mode: PF_FILE_READ, PF_FILE_READ_WRITE, PF_FILE_APPEND or PF_FILE_CREATE_TRUNCATE."
 	<c: 'int pf_file_open(const char *path, int mode)'>
@@ -73,7 +62,6 @@ close: f
 	| fd |
 	fd := self fdOf: f.
 	fd < 0 ifTrue: [^false].
-	self writesDone: fd.
 	common table: table remove: f.
 	(posixIO close: fd) = 0 ifTrue: [^true].
 	self failOS: 'close'.
@@ -147,14 +135,10 @@ flush: f
 	"Writes are unbuffered, so flush only pushes regular files to disk."
 	<c: 'bool pf_file_flush(int f)'>
 	<export>
-	| fd st e |
+	| fd st |
 	fd := self fdOf: f.
 	st := self local: 'struct stat'.
 	fd < 0 ifTrue: [^false].
-	e := self writesDone: fd.
-	e ~= 0 ifTrue: [
-		common failOS: 'write' path: self null code: e.
-		^false].
 	((posixIO fstat: fd into: st) = 0 and: [(posixIO S_ISREG: st st_mode) and: [(posixIO fsync: fd) ~= 0]]) ifTrue: [
 		self failOS: 'fsync'.
 		^false].
@@ -164,103 +148,6 @@ handleCount
 	<c: 'int pf_file_handle_count(void)'>
 	<export>
 	^common table: table count: -1
-! !
-
-!PlatformFiles methodsFor: 'write-behind'!
-writeBehind: f bytes: buf count: n
-	"Queue a copy for the writer thread: n, 0 if WB_MAX writes are pending, < 0 on an error (also of an earlier write)."
-	<c: 'int64_t pf_file_write_behind(int f, const void *buf, size_t n)'>
-	<export>
-	| fd e j data t |
-	fd := self fdOf: f.
-	fd < 0 ifTrue: [^-1].
-	posixThreads mutexLock: wbLock.
-	wbFailedFd = fd ifTrue: [
-		wbFailedFd := -1.
-		e := wbErrno.
-		posixThreads mutexUnlock: wbLock.
-		common failOS: 'write' path: self null code: e.
-		^-1].
-	wbPending >= WB_MAX ifTrue: [
-		posixThreads mutexUnlock: wbLock.
-		^0].
-	j := self cCoerce: (libc malloc: (self sizeof: 'wb_job')) to: 'wb_job *'.
-	data := self cCoerce: (libc malloc: (n ~= 0 ifTrue: [n] ifFalse: [1])) to: 'char *'.
-	(j isNull or: [data isNull]) ifTrue: [
-		libc free: j.
-		libc free: data.
-		posixThreads mutexUnlock: wbLock.
-		common setError: 'out of memory'.
-		^-1].
-	libc memcpy: data from: buf size: n.
-	j fd: fd.
-	j data: data.
-	j len: n.
-	j next: self null.
-	wbTail notNull ifTrue: [wbTail next: j] ifFalse: [wbHead := j].
-	wbTail := j.
-	wbPending := wbPending + 1.
-	wbStarted ifFalse: [
-		t := self local: 'pthread_t'.
-		(posix pthreadCreate: t attributes: self null start: (self functionPointer: #writer:) argument: self null) = 0 ifTrue: [
-			posix pthreadDetach: t value.
-			wbStarted := true]].
-	posixThreads condSignal: wbAdded.
-	posixThreads mutexUnlock: wbLock.
-	^n asInt64
-!
-writer: arg
-	"The writer thread: perform the queued writes in order."
-	<c: 'void *wb_main(void *arg)'>
-	<var: #e type: 'int'>
-	<var: #done type: 'size_t'>
-	| j done e r |
-	[posixThreads mutexLock: wbLock.
-	 [wbHead isNull] whileTrue: [posixThreads condWait: wbAdded mutex: wbLock].
-	 j := wbHead.
-	 posixThreads mutexUnlock: wbLock.
-	 done := 0.
-	 e := 0.
-	 [done < j len and: [e = 0]] whileTrue: [
-		r := posixIO write: j fd bytes: j data + done count: j len - done.
-		r < 0
-			ifTrue: [posixIO errno ~= posixIO EINTR ifTrue: [e := posixIO errno]]
-			ifFalse: [done := done + r asUInt64]].
-	 posixThreads mutexLock: wbLock.
-	 wbHead := j next.
-	 wbHead isNull ifTrue: [wbTail := self null].
-	 wbPending := wbPending - 1.
-	 e ~= 0 ifTrue: [
-		wbFailedFd := j fd.
-		wbErrno := e].
-	 posixThreads condBroadcast: wbFinished.
-	 posixThreads mutexUnlock: wbLock.
-	 libc free: j data.
-	 libc free: j] repeat
-!
-hasWrites: fd
-	"With wbLock held."
-	<c: 'bool wb_has(int fd)'>
-	| j |
-	j := wbHead.
-	[j notNull] whileTrue: [
-		j fd = fd ifTrue: [^true].
-		j := j next].
-	^false
-!
-writesDone: fd
-	"Wait until fd's queued writes are done; answer the errno of one that failed, else 0."
-	<c: 'int wb_drain(int fd)'>
-	<var: #e type: 'int'>
-	| e |
-	posixThreads mutexLock: wbLock.
-	[self hasWrites: fd] whileTrue: [posixThreads condWait: wbFinished mutex: wbLock].
-	e := 0.
-	wbFailedFd = fd ifTrue: [
-		wbFailedFd := -1.
-		e := wbErrno].
-	posixThreads mutexUnlock: wbLock.
-	^e
 ! !
 
 !PlatformFiles methodsFor: 'paths'!
@@ -417,14 +304,3 @@ fields
 	^#((exists bool) (isDir bool) (fileSize int64_t) (mtimeUs int64_t))
 ! !
 
-VMStruct subclass: #WbJob
-	instanceVariableNames: ''
-	classVariableNames: ''
-	package: 'VM-Platform'!
-
-WbJob comment: 'A queued write-behind: the bytes (malloc''d) for a file descriptor.'!
-
-!WbJob class methodsFor: 'declaring'!
-fields
-	^#((fd int32_t) (data 'char *') (len size_t) (next 'wb_job *'))
-! !

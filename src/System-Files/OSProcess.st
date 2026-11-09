@@ -124,6 +124,10 @@ startUp: resuming
 ! !
 
 !OSProcess class methodsFor: 'accessing'!
+externalWork
+	"Whether a program outside the image is at work: one I started, or one on a terminal. The recording clock keeps pace with real time then."
+	^self anyRunning or: [PseudoTerminal anyBusy]
+!
 anyRunning
 	"Whether a program I started has not ended yet."
 	Running isNil ifTrue: [^false].

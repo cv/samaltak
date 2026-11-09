@@ -32,7 +32,6 @@ init
 	common nowMs.
 	posixThreads mutexInit: wMu attributes: self null.
 	posixThreads condInit: wCv attributes: self null.
-	files init.
 	gpu init.
 	(posixIO pipe: wPipe) = 0 ifTrue: [
 		posixIO fcntl: (wPipe at: 0) command: posixIO F_SETFL value: posixIO O_NONBLOCK.

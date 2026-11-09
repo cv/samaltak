@@ -127,11 +127,6 @@ primWrite: handle from: aByteArray startingAt: start count: count
 	<primitive: 'fileWrite'>
 	^nil
 !
-primWriteBehind: handle from: aByteArray startingAt: start count: count
-	"Queue the bytes for the VM's background writer thread (at most 3 writes pending); answer count, 0 if the queue is full, or nil on an error (also of an earlier queued write)."
-	<primitive: 'fileWriteBehind'>
-	^nil
-!
 primSize: handle
 	<primitive: 'fileSize'>
 	^nil

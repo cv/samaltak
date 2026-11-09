@@ -1,6 +1,6 @@
 Object subclass: #PseudoTerminal
 	instanceVariableNames: 'handle pid exitStatus semaphore semaphoreIndex session'
-	classVariableNames: 'Open Session'
+	classVariableNames: 'LastActivity Open Session'
 	package: 'System-Files'!
 
 PseudoTerminal comment: 'I am the master side of a pseudo-terminal whose slave side runs a child process (a shell), over the platform''s pty primitives (vm/platform/README.md). Reading and writing never block: readInto: answers nil when nothing is pending, write:from:count: nil when the terminal is full. My semaphore is signaled (once, then re-armed by the next read or blocked write) when output arrives, the child side closes, or a blocked write may continue: drain until nil, then wait.
@@ -48,6 +48,7 @@ readInto: aByteArray startingAt: start count: count
 	self isOpen ifFalse: [^0].
 	n := self class primRead: handle into: aByteArray start: start count: count.
 	n == false ifTrue: [^0].
+	(n notNil and: [n > 0]) ifTrue: [LastActivity := Time utcMicroseconds].
 	^n
 !
 write: bytes from: start count: count
@@ -56,6 +57,7 @@ write: bytes from: start count: count
 	self isOpen ifFalse: [^0].
 	n := self class primWrite: handle from: bytes start: start count: count.
 	n == false ifTrue: [^0].
+	(n notNil and: [n > 0]) ifTrue: [LastActivity := Time utcMicroseconds].
 	^n
 !
 nextPutAll: aStringOrBytes
@@ -164,6 +166,10 @@ initialize
 ! !
 
 !PseudoTerminal class methodsFor: 'accessing'!
+anyBusy
+	"Whether a program outside the image is at work on one of my terminals: a foreground job, or a read or write in the last 300 ms of real time (the shell has yet to get to what was typed, or is just done)."
+	^(LastActivity notNil and: [Time utcMicroseconds - LastActivity < 300000]) or: [self anyRunsAJob]
+!
 anyRunsAJob
 	"Whether a program runs in the foreground of one of my terminals: more than the shell each was started with, waiting at its prompt."
 	Open isNil ifTrue: [^false].

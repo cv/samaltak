@@ -379,7 +379,7 @@ scavenge
 	<c: 'void scavenge(void)'>
 	| t0 tenureScan kept o scan w |
 	interpreter beforeGC.
-	t0 := scheduler nowUs.
+	t0 := scheduler workClockHeldUs.
 	statScavenges := statScavenges + 1.
 	statAllocated := statAllocated + (self edenTop - edenLo).
 	toLo := toTop := survOtherLo.
@@ -417,7 +417,7 @@ scavenge
 	self edenTop: edenLo.
 	self rememberIfOld: interpreter activeCtx.
 	self afterGC.
-	statScavengeUs := statScavengeUs + (scheduler nowUs - t0) asUInt64
+	statScavengeUs := statScavengeUs + (scheduler workClockHeldUs - t0) asUInt64
 ! !
 
 !GarbageCollector methodsFor: 'full GC'!
@@ -451,7 +451,7 @@ fullGC
 	<c: 'void full_gc(void)'>
 	| t0 oldUsed scan s lo hi live classSlot nl |
 	interpreter beforeGC.
-	t0 := scheduler nowUs.
+	t0 := scheduler workClockHeldUs.
 	statFullGcs := statFullGcs + 1.
 	statAllocated := statAllocated + (self edenTop - edenLo).
 	oldUsed := oldTop - oldLo.
@@ -487,7 +487,7 @@ fullGC
 	oldBudget > maxHeapBytes ifTrue: [oldBudget := maxHeapBytes].
 	self rememberIfOld: interpreter activeCtx.
 	self afterGC.
-	statFullUs := statFullUs + (scheduler nowUs - t0) asUInt64.
+	statFullUs := statFullUs + (scheduler workClockHeldUs - t0) asUInt64.
 	live > maxHeapBytes ifTrue: [self fatal: 'out of memory (%llu MB live, limit %zu MB)' with: live >> 20 with: maxHeapBytes >> 20]
 !
 collectGarbage: need

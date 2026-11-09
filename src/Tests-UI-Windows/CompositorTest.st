@@ -201,11 +201,11 @@ testRecordWritesRawFrames
 	File deleteIfExists: path.
 	recorder := FrameRecorder path: path width: 64 height: 40 fps: 30.
 	world compositor startRecording: recorder.
-	"Record for 250 ms of the recording clock: 8 frames at 30 fps."
+	"Record for 250 ms of the recording clock: 8 frames at 30 fps, a frame more if the clock stops just past a slot."
 	(Delay forMilliseconds: 250) wait.
 	world compositor stopRecording.
 	size := File sizeOf: path.
-	self assert: recorder framesWritten equals: 8.
+	self assert: (recorder framesWritten between: 8 and: 9).
 	self assert: size equals: recorder framesWritten * 64 * 40 * 4.
 	File delete: path
 !
@@ -225,7 +225,7 @@ testRecordingWaitsForASlowReader
 	(Delay forMilliseconds: 300) wait.
 	world compositor stopRecording.
 	reader wait.
-	self assert: recorder framesWritten equals: 9.
+	self assert: (recorder framesWritten between: 9 and: 10).
 	self assert: (File sizeOf: out) equals: recorder framesWritten * 64 * 40 * 4.
 	OSProcess run: 'rm -rf ', dir
 !

@@ -45,8 +45,9 @@ targetOS
 	^#darwin
 !
 cPreamble
-	"thread_selfcounts has no header: see ThreadCounts."
-	^'extern int thread_selfcounts(int type, void *buf, unsigned long nbytes);'
+	"thread_selfcounts has no header, and another macOS may not have it (ThreadCounts): weak, so the VM starts anyway and the call answers -1."
+	^'extern int thread_selfcounts(int type, void *buf, unsigned long nbytes) __attribute__((weak_import));
+static inline int thread_selfcounts_checked(int type, void *buf, unsigned long nbytes) { return thread_selfcounts ? thread_selfcounts(type, buf, nbytes) : -1; }'
 ! !
 
 !KqueueTicker methodsFor: 'timers'!
@@ -178,7 +179,7 @@ targetOS
 
 !ThreadCounts methodsFor: 'counting'!
 threadSelfcounts: type into: buf size: nbytes
-	<c: 'int thread_selfcounts(int type, uint64_t *buf, size_t nbytes)'>
+	<c: 'int thread_selfcounts_checked(int type, uint64_t *buf, size_t nbytes)'>
 	buf at: 0 put: 0.
 	buf at: 1 put: sim microsecondClock * 3300.
 	^0

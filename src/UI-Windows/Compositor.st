@@ -209,7 +209,7 @@ sleep
 !
 frame
 	| t0 now animating needs |
-	onWorkClock ifTrue: [Smalltalk vm workClockPaced: (OSProcess anyRunning or: [PseudoTerminal anyRunsAJob])].
+	onWorkClock ifTrue: [Smalltalk vm workClockPaced: OSProcess externalWork].
 	t0 := Time microsecondClockValue.
 	recorder isNil ifFalse: [t0 := recorder tickStartAt: t0].
 	now := Animation nowAt: t0 / 1000.0.

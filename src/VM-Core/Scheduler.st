@@ -223,7 +223,7 @@ workClockRelease
 	^(now - workClockHoldCycles) quo: WORK_CYCLES_PER_US
 !
 workClockHeldUs
-	"During a frame the clock stands still; this one, its time plus the frame's work so far, does not: for the times the frame reports."
+	"During a frame the clock stands still; this one, its time plus the frame's work so far, does not: for the times the frame reports, and how long a garbage collection in it took."
 	<c: 'int64_t work_clock_held_us(void)'>
 	workClockHeld ifFalse: [^self nowUs].
 	^workClockUs + ((self workClockThreadCycles - workClockHoldCycles) quo: WORK_CYCLES_PER_US)

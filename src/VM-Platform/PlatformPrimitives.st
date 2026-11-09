@@ -1069,15 +1069,6 @@ primProcessWait
 	done := self local: 'bool'.
 	(files processWait: pid block: block status: st done: done) ifFalse: [^self fail].
 	self answer: (done value ifTrue: [self intOop: st value] ifFalse: [memory nilOop])
-!
-primFileWriteBehind
-	"file bytes start count -> count, 0 if 3 writes are pending (written by a background thread)"
-	<vmPrimitive: 517 name: 'fileWriteBehind'>
-	| h n p |
-	h := self local: 'int64_t'.
-	n := self local: 'int64_t'.
-	p := self rangeArgs: false handle: h count: n.
-	self answerSize: (p notNull ifTrue: [files writeBehind: h value asInt32 bytes: p count: n value asUInt64] ifFalse: [-1])
 ! !
 
 !PlatformPrimitives methodsFor: 'sockets'!

@@ -3,20 +3,8 @@
 #include "samaltak.h"
 
 static pf_table table[1];
-static pthread_cond_t wb_added[1];
-static int32_t wb_errno;
-static int32_t wb_failed_fd = -1;
-static pthread_cond_t wb_finished[1];
-static wb_job *wb_head;
-static pthread_mutex_t wb_lock[1];
-static int32_t wb_pending;
-static bool wb_started;
-static wb_job *wb_tail;
 
 static int file_fd(int f);
-static bool wb_has(int fd);
-static void *wb_main(void *arg);
-static int wb_drain(int fd);
 
 /* PlatformFiles>>close: */
 bool pf_file_close(int f)
@@ -26,7 +14,6 @@ bool pf_file_close(int f)
     if (fd < 0) {
         return false;
     }
-    wb_drain(fd);
     pf_table_remove(table, f);
     if (close(fd) == 0) {
         return true;
@@ -163,16 +150,10 @@ bool pf_file_flush(int f)
     int fd;
     struct stat local;
     struct stat *st;
-    int e;
     fd = file_fd(f);
     memset(&local, 0, sizeof local);
     st = &local;
     if (fd < 0) {
-        return false;
-    }
-    e = wb_drain(fd);
-    if (e != 0) {
-        pf_os_error_path("write", (const char *)NULL, e);
         return false;
     }
     if ((fstat(fd, st) == 0) && (S_ISREG(st->st_mode) && (fsync(fd) != 0))) {
@@ -186,28 +167,6 @@ bool pf_file_flush(int f)
 int pf_file_handle_count(void)
 {
     return pf_table_count(table, -1);
-}
-
-/* PlatformFiles>>hasWrites: */
-static bool wb_has(int fd)
-{
-    wb_job *j;
-    j = wb_head;
-    while (j != NULL) {
-        if (j->fd == fd) {
-            return true;
-        }
-        j = j->next;
-    }
-    return false;
-}
-
-/* PlatformFiles>>init */
-void pf_files_init(void)
-{
-    pthread_mutex_init(wb_lock, (const pthread_mutexattr_t *)NULL);
-    pthread_cond_init(wb_added, (const pthread_condattr_t *)NULL);
-    pthread_cond_init(wb_finished, (const pthread_condattr_t *)NULL);
 }
 
 /* PlatformFiles>>mkfifo: */
@@ -425,125 +384,5 @@ int64_t pf_file_write(int f, const void *buf, size_t n)
         }
     }
     return (int64_t)done;
-}
-
-/* PlatformFiles>>writeBehind:bytes:count: */
-int64_t pf_file_write_behind(int f, const void *buf, size_t n)
-{
-    int fd;
-    int32_t e;
-    wb_job *j;
-    char *data;
-    pthread_t local;
-    pthread_t *t;
-    fd = file_fd(f);
-    if (fd < 0) {
-        return -1;
-    }
-    pthread_mutex_lock(wb_lock);
-    if (wb_failed_fd == fd) {
-        wb_failed_fd = -1;
-        e = wb_errno;
-        pthread_mutex_unlock(wb_lock);
-        pf_os_error_path("write", (const char *)NULL, e);
-        return -1;
-    }
-    if (wb_pending >= WB_MAX) {
-        pthread_mutex_unlock(wb_lock);
-        return 0;
-    }
-    j = (wb_job *)malloc(sizeof(wb_job));
-    data = (char *)malloc(n != 0 ? n : 1);
-    if ((j == NULL) || (data == NULL)) {
-        free(j);
-        free(data);
-        pthread_mutex_unlock(wb_lock);
-        pf_set_error("out of memory");
-        return -1;
-    }
-    memcpy(data, buf, n);
-    j->fd = fd;
-    j->data = data;
-    j->len = n;
-    j->next = (wb_job *)NULL;
-    if (wb_tail != NULL) {
-        wb_tail->next = j;
-    } else {
-        wb_head = j;
-    }
-    wb_tail = j;
-    wb_pending = wb_pending + 1;
-    if (!wb_started) {
-        memset(&local, 0, sizeof local);
-        t = &local;
-        if (pthread_create(t, (const pthread_attr_t *)NULL, wb_main, NULL) == 0) {
-            pthread_detach(*t);
-            wb_started = true;
-        }
-    }
-    pthread_cond_signal(wb_added);
-    pthread_mutex_unlock(wb_lock);
-    return (int64_t)n;
-}
-
-/* PlatformFiles>>writer: */
-static void *wb_main(void *arg)
-{
-    size_t done;
-    int e;
-    wb_job *j;
-    ssize_t r;
-    for (;;) {
-        pthread_mutex_lock(wb_lock);
-        while (wb_head == NULL) {
-            pthread_cond_wait(wb_added, wb_lock);
-        }
-        j = wb_head;
-        pthread_mutex_unlock(wb_lock);
-        done = 0;
-        e = 0;
-        while ((done < j->len) && (e == 0)) {
-            r = write(j->fd, j->data + done, j->len - done);
-            if (r < 0) {
-                if (errno != EINTR) {
-                    e = errno;
-                }
-            } else {
-                done = done + (uint64_t)r;
-            }
-        }
-        pthread_mutex_lock(wb_lock);
-        wb_head = j->next;
-        if (wb_head == NULL) {
-            wb_tail = (wb_job *)NULL;
-        }
-        wb_pending = wb_pending - 1;
-        if (e != 0) {
-            wb_failed_fd = j->fd;
-            wb_errno = e;
-        }
-        pthread_cond_broadcast(wb_finished);
-        pthread_mutex_unlock(wb_lock);
-        free(j->data);
-        free(j);
-    }
-    __builtin_unreachable();
-}
-
-/* PlatformFiles>>writesDone: */
-static int wb_drain(int fd)
-{
-    int e;
-    pthread_mutex_lock(wb_lock);
-    while (wb_has(fd)) {
-        pthread_cond_wait(wb_finished, wb_lock);
-    }
-    e = 0;
-    if (wb_failed_fd == fd) {
-        wb_failed_fd = -1;
-        e = wb_errno;
-    }
-    pthread_mutex_unlock(wb_lock);
-    return e;
 }
 

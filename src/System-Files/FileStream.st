@@ -161,15 +161,6 @@ isClosed
 ! !
 
 !FileStream methodsFor: 'flushing'!
-writeBehind: aByteArray
-	"Hand aByteArray to the VM's background writer, so a slow reader (a FIFO) does not block every Process: answer true if queued, false if 3 writes are still pending (try again later). flush and close wait for queued writes."
-	| count |
-	self flushWriteBuffer.
-	self checkOpen.
-	count := File primWriteBehind: handle from: aByteArray startingAt: 1 count: aByteArray size.
-	count isNil ifTrue: [^File signalErrorFor: name].
-	^count > 0 or: [aByteArray isEmpty]
-!
 flush
 	self flushWriteBuffer.
 	handle isNil ifFalse: [File primFlush: handle]

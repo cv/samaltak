@@ -44,7 +44,6 @@ void platform_init(void)
     pf_now_ms();
     pthread_mutex_init(w_mu, (const pthread_mutexattr_t *)NULL);
     pthread_cond_init(w_cv, (const pthread_condattr_t *)NULL);
-    pf_files_init();
     pf_gpu_init();
     if (pipe(w_pipe) == 0) {
         fcntl(w_pipe[0], F_SETFL, O_NONBLOCK);

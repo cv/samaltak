@@ -352,9 +352,6 @@ primitive_entry vm_primitive_table[] = {
     {516, 2, "processWait", prim_process_wait},
 #endif
 #ifndef SAMALTAK_NO_PLATFORM
-    {517, 2, "fileWriteBehind", prim_file_write_behind},
-#endif
-#ifndef SAMALTAK_NO_PLATFORM
     {518, 0, "execProcess", prim_exec_process},
 #endif
 #ifndef SAMALTAK_NO_PLATFORM

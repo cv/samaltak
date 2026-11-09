@@ -740,33 +740,6 @@ void prim_file_write(void)
 exit_answer_size:;
 }
 
-/* PlatformPrimitives>>primFileWriteBehind */
-void prim_file_write_behind(void)
-{
-    int64_t local;
-    int64_t *h;
-    int64_t local_2;
-    int64_t *n;
-    uint8_t *p;
-    int64_t r;
-    uint64_t v;
-    memset(&local, 0, sizeof local);
-    h = &local;
-    memset(&local_2, 0, sizeof local_2);
-    n = &local_2;
-    p = range_args(false, h, n);
-    r = p != NULL ? pf_file_write_behind((int32_t)*h, p, (uint64_t)*n) : -1;
-    if (r < 0) {
-        prim_status = PS_FAIL;
-        prim_error_code = -1;
-        goto exit_answer_size;
-    }
-    v = (uint64_t)((r << 1) | 1);
-    prim_result = v;
-    prim_status = PS_OK;
-exit_answer_size:;
-}
-
 /* PlatformPrimitives>>primGpuAcquireCommandBuffer */
 void prim_gpu_acquire_command_buffer(void)
 {

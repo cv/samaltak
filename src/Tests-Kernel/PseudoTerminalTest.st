@@ -34,6 +34,12 @@ ptys
 ! !
 
 !PseudoTerminalTest methodsFor: 'tests'!
+testBusyJustAfterInput
+	"Typed into a terminal, a program outside the image is about to react: it takes real time."
+	self spawn: #('cat').
+	pty nextPutAll: 'x'.
+	self assert: PseudoTerminal anyBusy
+!
 testRunsAJobWhileTheShellDoes
 	"The shell waiting at its prompt runs no job; a foreground program it started does."
 	| deadline |

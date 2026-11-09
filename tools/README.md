@@ -76,9 +76,9 @@ What the on-screen numbers are, while recording. They are measured, not constant
 | a Terminal's output, lap times printed by a program in it, the VM Rebuild's seconds | real: those programs ran for real, in real time (see below) |
 | dates | real time |
 
-On an idle machine's performance cores cycles at 3.3 GHz are CPU time, to about 1%. Under load they are the same work; on the efficiency cores of the Background role a compute-bound stretch shows up to about a third slower (high-IPC code; +3% on low-IPC code) because those cores need more cycles for the same work, and the numbers above say so.
+On a performance core of the M2 Max cycles at 3.3 GHz are CPU time, to about 1% (3290-3335 cycles per µs over six workloads). Under load they are the same work; on the efficiency cores of the Background role a compute-bound stretch shows up to about a third slower (high-IPC code; +3% on low-IPC code) because those cores need more cycles for the same work, and the numbers above say so.
 
-Programs outside the image cannot be stepped. While one runs (a Terminal's foreground job, an `OSProcess`: cc, make) the clock runs at least at real-time pace and does not stand still between commands: the program's speed is the machine's, and its output, printed times and how long it takes on screen depend on the load. Nothing else does.
+Programs outside the image cannot be stepped. While one is at work (a Terminal's foreground job or 300 ms of real time after a terminal's input or output; an `OSProcess`: cc, make) the clock moves at least at real-time pace and does not stand still between commands: the program's speed is the machine's, and its output, printed times and how long it takes on screen depend on the load. Nothing else does.
 
 What matches between recordings, and what does not: the frame count and every frame, except the measured numbers above (a few pixels of the top bar and the Process Browser's CPU column), and, rarely, an event whose work ends within noise of a tick and shows one tick (1/60 s) earlier or later. The first run after a rebuild can differ a little more (cold image pages cost cycles).
 

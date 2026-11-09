@@ -245,6 +245,7 @@ commandFinished
 	next isNil ifTrue: [^self].
 	ms := next // 1000 - Time millisecondClockValue.
 	ms > 0 ifTrue: [(Delay forMilliseconds: ms) wait].
+	Smalltalk vm workClockPaced: OSProcess externalWork.
 	Smalltalk vm workClockRunning: false
 ! !
 
