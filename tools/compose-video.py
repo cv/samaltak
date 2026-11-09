@@ -13,6 +13,7 @@ import numpy as np
 
 SPOKEN_AFTER = 0.06   # a cue's words start this long after its effect shows (word times are good to about 50 ms)
 LATE = 0.15
+CAPTION_ONLY = 3.5    # how long a caption without narration stays up, over the next step's narration
 MIN_PAUSE = 0.15      # a shortened pause, from the end of the speech (+50 ms) to the next piece
 FPS = 30
 
@@ -110,7 +111,7 @@ for p in pieces:
 
 # Captions change when their step's narration (or its screen) begins.
 for i in range(1, len(caps)):
-    caps[i]['start'] = max(caps[i]['start'], caps[i - 1]['start'])
+    caps[i]['start'] = max(caps[i]['start'], caps[i - 1]['start'] + (0 if caps[i - 1]['id'] in durations else CAPTION_ONLY))
     caps[i - 1]['end'] = caps[i]['start']
 problems += [f"{p['sid']}: starts before the video, at {p['start']:.2f} s" for p in pieces if p['start'] < 0]
 json.dump(report, open(os.path.join(d, 'cues.json'), 'w'), indent=1)

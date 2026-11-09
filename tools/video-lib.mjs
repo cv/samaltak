@@ -110,6 +110,13 @@ export class VideoSession {
     this.segments.push({ file, start: this.videoBefore });
     this.recording = true;
   }
+  // The recording's first s seconds are not part of the video (finish cuts them off): the recorder's start-up, whose slow
+  // frames the top bar shows for a second.
+  preroll(s) {
+    this.cut = s;
+    this.videoBefore -= s;
+    this.segments[this.segments.length - 1].start -= s;
+  }
   // Wait until the recording ended by itself: the image quit, or its VM exec'd another (ffmpeg saw the end of the FIFO):
   // let the clock run until the image has gone, then real time. timeout: seconds of the clock, or real ones after that.
   async recordingEnded(timeout = 30000) {
@@ -137,7 +144,7 @@ export class VideoSession {
     const step = this.steps.find(s => s.id === id);
     if (!step) throw new Error(`no narration step ${id}`);
     const prev = this.captions[this.captions.length - 1];
-    if (prev) {
+    if (prev && this.durations[prev.id]) {       // a caption without narration runs over the next step's
       const wait = (this.narrationEnd(prev) + 0.4 - this.now()) * 1000;
       if (wait > 0) await sleep(wait);
     }
@@ -212,6 +219,11 @@ export class VideoSession {
         .concat(segs.map((s, i) => `[s${i}]`).join('') + `concat=n=${segs.length}:v=1:a=0[v]`);
       execFileSync('ffmpeg', ['-v', 'error', '-y', ...segs.flatMap(s => ['-i', s.file]), '-filter_complex', graph.join(';'),
         '-map', '[v]', '-c:v', 'libx264', '-crf', '12', '-preset', 'fast', '-pix_fmt', 'yuv420p', raw]);
+    }
+    if (this.cut) {
+      execFileSync('ffmpeg', ['-v', 'error', '-y', '-ss', String(this.cut), '-i', raw, '-c:v', 'libx264', '-crf', '12', '-preset', 'fast',
+        '-pix_fmt', 'yuv420p', `${raw}.mp4`]);
+      execFileSync('mv', [`${raw}.mp4`, raw]);
     }
     writeFileSync(join(this.out, 'captions.json'), JSON.stringify(this.captions, null, 2));
     console.log(`wrote ${raw} (${probe(raw).toFixed(2)} s, ${this.segments.length} segment(s)) and captions.json`);

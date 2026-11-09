@@ -23,6 +23,7 @@ usage: $0 [options] [benchmark[:inner] ...]
   -o FILE           also write CSV and '#' lines to FILE
   --ms              show each lap and the summary in words and milliseconds (FILE gets the CSV)
   --cpu             measure the CPU time of the thread running Smalltalk instead of wall time (load matters less)
+  --go FILE         a start gun: once loaded, create FILE.ready and wait for FILE before the first lap
   --summary FILE... only summarize result files (one invocation each; steady = median over files)
 EOF
     exit 2
@@ -87,7 +88,7 @@ summarize() {
     }'
 }
 
-VM= IMAGE= VMARGS= PHARO=0 SUITE=awfy N=30 INNER= OUT= SUMMARY=0 MS=0 CPU=0 CPU_LABEL=
+VM= IMAGE= VMARGS= PHARO=0 SUITE=awfy N=30 INNER= OUT= SUMMARY=0 MS=0 CPU=0 CPU_LABEL= GO=
 while [ $# -gt 0 ]; do
     case $1 in
     --vm) VM=$2; shift ;;
@@ -100,6 +101,7 @@ while [ $# -gt 0 ]; do
     -o) OUT=$2; shift ;;
     --ms) MS=1 ;;
     --cpu) CPU=1 CPU_LABEL=' of CPU' ;;
+    --go) GO=$2; shift ;;
     --summary) SUMMARY=1 ;;
     -h|--help) usage ;;
     -*) usage ;;
@@ -158,10 +160,12 @@ for spec in "$@"; do
     run="(Smalltalk at: #Harness) new run: #('$b' '$N' '$in')"
     if [ $PHARO = 1 ]; then
         [ $CPU = 1 ] && files="'PharoCPU' $files"
+        [ -n "$GO" ] && run="'$GO.ready' asFileReference ensureCreateFile. ['$GO' asFileReference exists] whileFalse: [(Delay forMilliseconds: 2) wait]. $run"
         expr="[#('Pharo' $files) do: [:n | ('$DIR/', n, '.st') asFileReference fileIn]. $run. ''] on: Error do: [:e | 'ERROR ', e class name, ': ', e messageText]"
         (cd "$WORK" && "$VM" --headless $VMARGS "$IMAGE" eval "$expr") 2>&1
     else
         [ $CPU = 1 ] && files="'SamaltakCPU' $files"
+        [ -n "$GO" ] && run="(FileStream forceNewFileNamed: '$GO.ready') close. [File exists: '$GO'] whileFalse: [(Delay forMilliseconds: 2) wait]. $run"
         expr="[#('Samaltak' $files) do: [:n | Compiler fileIn: '$DIR/', n, '.st']. $run. ''] on: Error do: [:e | 'ERROR ', e class name, ': ', e messageText]"
         "$VM" $VMARGS "$IMAGE" --headless --eval "$expr" 2>&1
     fi | tee "$LOG" | tr -u '\r' '\n' | grep --line-buffered -E '^[A-Za-z0-9]+,[0-9]+,-?[0-9]+$|^# ' | tee -a "$ALL" | show
