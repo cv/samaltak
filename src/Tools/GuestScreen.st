@@ -1,9 +1,9 @@
 Widget subclass: #GuestScreen
-	instanceVariableNames: 'screenExtent back form nearest rows font glyphs events lock invalid dirty pressed frames frameStart inputStart frameTimes latency onOpen'
+	instanceVariableNames: 'screenExtent back form nearest rows glyphs events lock invalid dirty pressed frames frameStart inputStart frameTimes latency onOpen'
 	classVariableNames: 'Black White'
 	package: 'Tools'!
 
-GuestScreen comment: 'I am the screen of the VM Simulator''s guest (VMSimulation>>display:, what VM-Core''s GuestDisplay draws on): 1-bit pixels, as many as the guest opens, scaled to fit me by a whole number of device pixels, unfiltered. The simulation''s Process draws into a back buffer (I clip); flush copies it into the Form I show and has my window draw me again. Text is JetBrains Mono at 11.67 px, thresholded at half coverage: cells of 7 by 16 pixels. My pointer and key events, in guest pixels and character codes (DisplayPrimitives), wait in a queue for nextEvent.
+GuestScreen comment: 'I am the screen of the VM Simulator''s guest (VMSimulation>>display:, what VM-Core''s GuestDisplay draws on): 1-bit pixels, as many as the guest opens, scaled to fit me by a whole number of points, unfiltered. The simulation''s Process draws into a back buffer (I clip); flush copies it into the Form I show and has my window draw me again. Text is X11''s misc-fixed 7x14 bitmap font (class side, glyphs 32 to 126; the others are blank) in cells of 7 by 16 pixels, reversed white on black. My pointer and key events, in guest pixels and character codes (DisplayPrimitives), wait in a queue for nextEvent.
 
 Timing: a frame runs from the guest''s first call after a flush (it woke up) to the next flush; an input''s latency from its arrival here to the flush after the guest took it. Remote: role canvas, state size= frames= frame= (mean and max over the last 50 frames) input=; remotePointAt: ''x,y'' is the screen point of guest pixel x,y.'!
 
@@ -67,7 +67,6 @@ open: w height: h
 	rows at: 0 put: (Bitmap new: w withAll: White); at: 1 put: (Bitmap new: w withAll: Black).
 	rows at: 2 put: (Bitmap new: w + 1).
 	1 to: w + 1 do: [:i | (rows at: 2) at: i put: (i odd ifTrue: [Black] ifFalse: [White])].
-	font := Font face: (Font faceNamed: 'JetBrainsMono-Regular') size: 11.67 scale: 1.
 	glyphs := Array new: 512.
 	lock critical: [events removeAll. frameTimes removeAll].
 	frames := 0.
@@ -188,21 +187,19 @@ glyph: aBitmap x: x y: y
 glyphFor: code reversed: aBoolean
 	| index |
 	index := code + 1 + (aBoolean ifTrue: [256] ifFalse: [0]).
-	^(glyphs at: index) ifNil: [glyphs at: index put: (self rasterize: code ink: (aBoolean ifTrue: [White] ifFalse: [Black]))]
+	^(glyphs at: index) ifNil: [glyphs at: index put: (self cellOf: code ink: (aBoolean ifTrue: [White] ifFalse: [Black]))]
 !
-rasterize: code ink: ink
-	"A cell of pixels: the glyph where its coverage is at least half."
-	| cell bits info baseline px py |
+cellOf: code ink: ink
+	"A cell of pixels: the font's glyph of code, in ink on the other color (a code without a glyph is a blank cell)."
+	| cell bits rows row |
 	cell := self cell.
 	bits := Bitmap new: cell x * cell y withAll: (ink = Black ifTrue: [White] ifFalse: [Black]).
-	info := font glyphForCodePoint: code phase: 0.
-	baseline := font ascent rounded.
-	0 to: info height - 1 do: [:gy |
-		0 to: info width - 1 do: [:gx |
-			px := gx + info left.
-			py := baseline + info top + gy.
-			((px between: 0 and: cell x - 1) and: [(py between: 0 and: cell y - 1) and: [(info coverageAtX: gx y: gy) >= 128]])
-				ifTrue: [bits at: py * cell x + px + 1 put: ink]]].
+	(code between: 32 and: 126) ifFalse: [^bits].
+	rows := self class glyphRows at: code - 31.
+	0 to: cell y - 1 do: [:y |
+		row := (rows at: y * 2 + 1) digitValue * 16 + (rows at: y * 2 + 2) digitValue.
+		0 to: cell x - 1 do: [:x |
+			(row bitAt: 8 - x) = 1 ifTrue: [bits at: y * cell x + x + 1 put: ink]]].
 	^bits
 !
 queue: type at: aPoint key: key modifiers: aModifiers
@@ -212,10 +209,8 @@ queue: type at: aPoint key: key modifiers: aModifiers
 
 !GuestScreen methodsFor: 'geometry'!
 pixelSize
-	"Points per guest pixel: the most whole device pixels that fit, at least one."
-	| s |
-	s := self window isNil ifTrue: [1] ifFalse: [self window world isNil ifTrue: [1] ifFalse: [self window world displayScale]].
-	^(((self width * s / screenExtent x) floor min: (self height * s / screenExtent y) floor) max: 1) / s
+	"Points per guest pixel: the most whole points that fit, at least one."
+	^((self width / screenExtent x) floor min: (self height / screenExtent y) floor) max: 1
 !
 screenRect
 	| p |
@@ -312,4 +307,106 @@ remotePointAt: aString
 	r := self screenRect.
 	p := self pixelSize.
 	^self localToScreen: r origin + ((parts first asNumber + 0.5) @ (parts last asNumber + 0.5) * p)
+! !
+
+!GuestScreen class methodsFor: 'font'!
+glyphRows
+	"X11's misc-fixed 7x14 (public domain, font-misc-misc), glyphs 32 to 126: each 16 rows of 7 pixels, two hex digits a row with the high bit leftmost, one blank row above and below."
+	^#(
+		'00000000000000000000000000000000'
+		'00000010101010101010001010000000'
+		'00002828282800000000000000000000'
+		'0000002828287c28287c282828000000'
+		'00000010789494503814949478100000'
+		'0000006494987010203864a498000000'
+		'00000030484848306494889864000000'
+		'00001010101000000000000000000000'
+		'00000408101020202020201010080400'
+		'00004020101008080808081010204000'
+		'00000000001054381038541000000000'
+		'00000000001010107c10101000000000'
+		'00000000000000000000003010102000'
+		'00000000000000007c00000000000000'
+		'00000000000000000000001038100000'
+		'00000404080810101020204040808000'
+		'00000030488484848484844830000000'
+		'0000001030501010101010107c000000'
+		'000000788484040808102040fc000000'
+		'000000fc040810380404848478000000'
+		'00000008182828484888fc0808000000'
+		'000000fc8080f8840404848478000000'
+		'00000038408080b8c484848478000000'
+		'000000fc040808101020204040000000'
+		'00000078848448304884848478000000'
+		'000000788484848c7404848870000000'
+		'00000000001038100000103810000000'
+		'00000000000030300000301010200000'
+		'00000000040810204020100804000000'
+		'000000000000fc0000fc000000000000'
+		'00000000402010080408102040000000'
+		'00000078848408101010001010000000'
+		'00000038449ca4a4a4a49c403c000000'
+		'0000003048848484fc84848484000000'
+		'000000f0888488f088848488f0000000'
+		'00000078848480808080848478000000'
+		'000000f08884848484848488f0000000'
+		'000000fc808080f080808080fc000000'
+		'000000fc808080f08080808080000000'
+		'00000078848480809c84848c74000000'
+		'00000084848484fc8484848484000000'
+		'0000007c10101010101010107c000000'
+		'0000001c080808080808888870000000'
+		'000000848890a0c0a090888484000000'
+		'000000808080808080808080fc000000'
+		'00000084ccccb4b48484848484000000'
+		'0000008484c4c4a4948c8c8484000000'
+		'00000078848484848484848478000000'
+		'000000f884848484f880808080000000'
+		'000000788484848484e4948c78080400'
+		'000000f884848484f890888484000000'
+		'00000078848480601804848478000000'
+		'000000fe101010101010101010000000'
+		'00000084848484848484848478000000'
+		'00000084848484484848303030000000'
+		'00000044444444444454545428000000'
+		'00000084844848303048488484000000'
+		'00000044444428281010101010000000'
+		'000000fc0408101020404080fc000000'
+		'00003c20202020202020202020203c00'
+		'00008080404020202010100808040400'
+		'00007808080808080808080808087800'
+		'00003048840000000000000000000000'
+		'0000000000000000000000000000fc00'
+		'00002010080000000000000000000000'
+		'0000000000007884047c84847c000000'
+		'000000808080b8c4848484c4b8000000'
+		'00000000000078848080808478000000'
+		'000000040404748c8484848c74000000'
+		'000000000000788484fc808478000000'
+		'00000018242020f82020202020000000'
+		'000000000000748888887040b8847800'
+		'000000808080b8c48484848484000000'
+		'0000001010003010101010107c000000'
+		'0000000404000c040404040444443800'
+		'0000008080808890a0e0908884000000'
+		'0000003010101010101010107c000000'
+		'00000000000068545454545444000000'
+		'000000000000b8c48484848484000000'
+		'00000000000078848484848478000000'
+		'000000000000b8c4848484c4b8808000'
+		'000000000000748c8484848c74040400'
+		'000000000000b8c48480808080000000'
+		'00000000000078844030088478000000'
+		'000000202020f8202020202418000000'
+		'00000000000084848484848c74000000'
+		'00000000000044444428281010000000'
+		'00000000000044445454545428000000'
+		'00000000000084844830488484000000'
+		'000000000000848484848c7404847800'
+		'000000000000fc0810202040fc000000'
+		'00000c10101010102010101010100c00'
+		'00001010101010101010101010101000'
+		'00006010101010100810101010106000'
+		'000040a4940800000000000000000000'
+	)
 ! !
