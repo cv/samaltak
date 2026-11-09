@@ -106,7 +106,6 @@ function expect(ref, part) {
 let J = null;                     // the robot's window (Claude's Robot, a ShannonJuggler)
 let T = null;                     // the Tenure Test's window
 let SIM = null;                   // the VM Simulator's window
-const ROBOT = '(Tools windowsOf: ShannonJuggler) first content';
 const TENURE_DONE = '(Tools windowsOf: TenureTest) first content isRunning not';
 const GLYPH = '(Font code glyphFor: $g) inspect';
 const TENURE = 'TenureTest open';
@@ -196,30 +195,11 @@ const beats = [
     if (fresh) { act('click', `${fresh}.close`); await sleep(700); }
   }],
 
-  // 6. Edit and continue, no debugger: Tools › ShannonJuggler › move: (run for every ball in every frame) gets gravity
-  // pointing up while the robot juggles: the balls fall up and settle at the ceiling (they rise within a split second
-  // of the save; "fall up" comes as long after "save" as the take has it).
-  ['gravity', async () => {
-    await browseTo('Tools', 'ShannonJuggler');
-    await S.cue('This is move', CODE(), pickMethod('move:'));
-    await S.cue('save', STATUS(), save, { prepare: async () => {
-      await edit('0 @ 0.4', '0 @ -0.4', 140);
-      expect(`${W.browser}.code`, '(0 @ -0.4)');
-    } });
-    await S.spoken();
-  }],
-  // Gravity back; a click on the robot restarts the act (the balls into its hands: its frame count starts over).
-  ['restore', async () => {
-    await S.cue('put gravity back', STATUS(), save, { prepare: () => edit('0 @ -0.4', '0 @ 0.4', 60) });
-    act('hover', `${J}.stage`); await sleep(300);
-    await S.cue('click', null, () => act('click', `${J}.stage`), { when: `${ROBOT} frame < 100` });
-    await sleep(1500);
-  }],
-
   // 7. The one debugger stop: Tools › ShannonJuggler › ballColor (read every frame) › break in window ▸ Claude's Robot:
   // the robot's Process stops in its next frame, the robot freezes mid-throw (the debugger opens); the rest of the
   // system is live (the Process Browser is dragged).
   ['freeze', async () => {
+    await browseTo('Tools', 'ShannonJuggler');
     act('select', `${W.browser}.methods`, 'ballColor'); await sleep(500);
     act('rightclick', `${W.browser}.methods.ballcolor`); await sleep(500);
     act('click', '@menu.break-in-window'); await sleep(600);
@@ -291,7 +271,7 @@ const beats = [
     S.markLines(mc, 'send: #@', 'send: #@', 'send: #velocity');   // the send below scrolls to the bottom: the first is mid-pane
     const LISTING = box(`${mc}.text`);
     const SEND = 'send: #velocity numArgs: 0';
-    await S.cue('This line is the send of velocity', LISTING, () => S.markLines(mc, SEND));
+    await S.cue('This line is the send of the velocity getter', LISTING, () => S.markLines(mc, SEND));
     await S.cue('It checks the class', LISTING, () => S.markLines(mc, 'guard: its class', 'b.ne', SEND));
     await S.cue('reads the field', LISTING, () => S.markLines(mc, 'inlined activation 1', 'its pc 0', SEND, 1));
     await S.spoken();
@@ -309,7 +289,7 @@ const beats = [
     SIM = await S.win(/VM Simulator/);
     await sleep(400);
     place(SIM, 18, 27, 1404, 873);                     // room for the guest at two points a pixel
-    await browseTo('VM-Core', 'GarbageCollector', 'class');   // behind it, ready for the GC beat
+    await sleep(400);
     const screen = `${SIM}.screen`;
     // the guest display appears with the guest, its first frame a moment later
     const shown = () => ctl('snapshot', SIM, '--depth', '1').split('\n').some(l => l.includes('.screen ') && / frames=[1-9]/.test(l));
@@ -394,6 +374,7 @@ const beats = [
   // (a do-it in the Workspace; the right column): the same loop on the old VM and, after the rebuild, on the new one, in
   // lanes on the same axes.
   ['gc', async () => {
+    await browseTo('VM-Core', 'GarbageCollector', 'class');
     await S.cue('this little constant', CODE(), async () => {
       await pickMethod('initialize')();
       act('select', `${W.browser}.code`, 'TENURE_AGE := 2');

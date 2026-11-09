@@ -57,24 +57,6 @@
     ]
   },
   {
-    "id": "gravity",
-    "caption": "Edit and continue: flip gravity in move: (0 @ 0.4 becomes 0 @ -0.4) while it juggles, ⌘S: the balls fall up.",
-    "spoken": "Now the robot. This is move, it does the physics for every ball, every frame. I'll flip gravity, save... and the balls fall up.",
-    "cues": [
-      "This is move",
-      "save"
-    ]
-  },
-  {
-    "id": "restore",
-    "caption": "Gravity back; a click puts the balls back into the robot's hands.",
-    "spoken": "Let's put gravity back, and click, so it gets its balls back.",
-    "cues": [
-      "put gravity back",
-      "click"
-    ]
-  },
-  {
     "id": "freeze",
     "caption": "An image is the whole state of the running system, saved and restored. The example: a breakpoint in ballColor, only for the robot's Process: it freezes mid-throw, the rest of the system keeps running.",
     "spoken": "One of Smalltalk's features is that it can save and restore the whole state of the running system, in an image. Let me show you. Here's a breakpoint in ball colour, just for the robot's process. It stops mid-throw, and everything else keeps going.",
@@ -86,7 +68,7 @@
   {
     "id": "recolour",
     "caption": "Change the colour in the debugger, ⌘S: the method is recompiled, the frame restarts; the Process stays stopped.",
-    "spoken": "I'll change the colour right here in the debugger and save. It's still stopped, though.",
+    "spoken": "I'll change the colour right here in the debugger and save. [confident] It's still stopped, of course.",
     "cues": [
       "save"
     ]
@@ -113,18 +95,18 @@
   {
     "id": "jit",
     "caption": "The JIT is Smalltalk too: the arm64 it made for move:. Under the bytecode send: #velocity, a guard on the receiver's class, then an inlined activation: the field is read straight from the object, no call.",
-    "spoken": "The VM compiles the busy methods to machine code, and the jit's written in Smalltalk too. So here's what it made for move. This line is the send of velocity. And look, there's no call here. It checks the class, then reads the field straight out of the object. That send is gone, it got inlined.",
+    "spoken": "The VM compiles the busy methods to machine code, and the jit's written in Smalltalk too. So here's what it made for move, the method that does the physics for every ball, every frame. This line is the send of the velocity getter. And look, there's no call here. It checks the class, then reads the field straight out of the object. That send is gone, it got inlined.",
     "cues": [
       "here's what it made for move",
-      "This line is the send of velocity",
+      "This line is the send of the velocity getter",
       "It checks the class",
       "reads the field"
     ]
   },
   {
     "id": "guest",
-    "caption": "Smalltalk in Smalltalk: the VM's own Smalltalk classes run as plain Smalltalk in a Process of this image, no C, no second program, and boot a Smalltalk-80 image. 3 + 4 → 7.",
-    "spoken": "Since the VM's written in Smalltalk, it can run inside itself. These are the VM's own classes, running as plain Smalltalk, in a process of this image. No C, no second program. And it's booted a tiny Smalltalk-80, black and white. Three plus four... seven. And its windows drag around, too.",
+    "caption": "Smalltalk in Smalltalk: the VM's own Smalltalk classes run as plain Smalltalk, alongside everything else here, and boot a Smalltalk-80 image. 3 + 4 → 7.",
+    "spoken": "Since the VM's written in Smalltalk, it can run inside itself. These are the VM's own classes, running as plain Smalltalk, alongside everything else here. And it's booted a tiny Smalltalk-80, black and white. Three plus four... seven. And its windows drag around, too.",
     "cues": [
       "And it's booted",
       "Three plus four",
