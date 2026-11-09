@@ -3,7 +3,7 @@ Object subclass: #CSourceScanner
 	classVariableNames: 'Classes Keywords'
 	package: 'Tools'!
 
-CSourceScanner comment: 'I tokenize C source for the File Browser''s highlighting (TextHighlighter scanner:), as Scanner does Smalltalk, in the Smalltalk highlighter''s types (Theme syntaxStyleFor:): #comment (/* */ and //), #keyword (keywords, the standard types, a preprocessor directive''s # and name), #global (string and character literals: the accent); everything between them, white space included, comes as one #identifier token (vm/gen/interpreter.c, 12,681 lines: 11,000 tokens). Simple: no trigraphs, no line continuations.
+CSourceScanner comment: 'I tokenize C source for the File Browser''s highlighting (TextHighlighter scanner:), as Scanner does Smalltalk, in the Smalltalk highlighter''s types (Theme syntaxStyleFor:): #comment (/* */ and //), #keyword (keywords, the standard types, a preprocessor directive''s # and name), #global (string, character and number literals: the accent), #return (the name of a function, before its parentheses); everything between them, white space included, comes as one #identifier token (vm/gen/interpreter.c, 12,681 lines: 11,000 tokens). Simple: no trigraphs, no line continuations.
 
 	CSourceScanner highlight: ''static int x = 1; /* one */'' do: [:type :start :stop | Transcript show: type; cr]'!
 
@@ -25,7 +25,12 @@ highlight: aString do: aBlock
 		k = 1
 			ifTrue: [
 				[stop < n and: [(c := (aString at: stop + 1) value) >= 128 or: [(classes at: c + 1) = 1]]] whileTrue: [stop := stop + 1].
-				(stop - i < 9 and: [keywords includes: (aString copyFrom: i to: stop)]) ifTrue: [type := #keyword].
+				(stop - i < 9 and: [keywords includes: (aString copyFrom: i to: stop)])
+					ifTrue: [type := #keyword]
+					ifFalse: [
+						((aString at: i) isDigit)
+							ifTrue: [type := #global]
+							ifFalse: [(self parenthesisIn: aString after: stop) ifTrue: [type := #return]]].
 				lineStart := false]
 			ifFalse: [
 				k = 2
@@ -57,6 +62,13 @@ highlight: aString do: aBlock
 			plain := stop + 1].
 		i := stop + 1].
 	plain <= n ifTrue: [aBlock value: #identifier value: plain value: n]
+!
+parenthesisIn: aString after: anIndex
+	"Whether the next character after anIndex, spaces aside, is an open parenthesis: a function's name."
+	| j |
+	j := anIndex + 1.
+	[j <= aString size and: [(aString at: j) == $ ]] whileTrue: [j := j + 1].
+	^j <= aString size and: [(aString at: j) == $(]
 !
 literalIn: s at: i
 	"The stop of the string or character literal at i: its closing quote, or the end of its line."

@@ -152,7 +152,6 @@ workspaceText
 Click a line, then cmd-P prints it,
 cmd-D does it."
 3 + 4
-100 factorial printString size
 (1 to: 10) inject: 0 into: [:a :b | a + b]
 #(3 1 2) asSortedCollection asArray
 Smalltalk vmBanner

@@ -76,8 +76,8 @@
   },
   {
     "id": "freeze",
-    "caption": "A breakpoint in ballColor, only for the robot's Process: it freezes mid-throw, the rest of the system keeps running.",
-    "spoken": "Next, a breakpoint in ball colour, just for the robot's process. It stops mid-throw, and everything else keeps going.",
+    "caption": "An image is the whole state of the running system, saved and restored. The example: a breakpoint in ballColor, only for the robot's Process: it freezes mid-throw, the rest of the system keeps running.",
+    "spoken": "One of Smalltalk's features is that it can save and restore the whole state of the running system, in an image. Let me show you. Here's a breakpoint in ball colour, just for the robot's process. It stops mid-throw, and everything else keeps going.",
     "cues": [
       "It stops mid-throw",
       "keeps going"
@@ -123,13 +123,12 @@
   },
   {
     "id": "guest",
-    "caption": "Smalltalk in Smalltalk: the VM's own Smalltalk classes run as plain Smalltalk in a Process of this image, no C, no second program, and boot a Smalltalk-80 image. 3 + 4 → 7; 100 factorial printString size → 158.",
-    "spoken": "Since the VM's written in Smalltalk, it can run inside itself. These are the VM's own classes, running as plain Smalltalk, in a process of this image. No C, no second program. And it's booted a tiny Smalltalk-80, black and white. Three plus four... seven. Something bigger... and its windows drag around, too.",
+    "caption": "Smalltalk in Smalltalk: the VM's own Smalltalk classes run as plain Smalltalk in a Process of this image, no C, no second program, and boot a Smalltalk-80 image. 3 + 4 → 7.",
+    "spoken": "Since the VM's written in Smalltalk, it can run inside itself. These are the VM's own classes, running as plain Smalltalk, in a process of this image. No C, no second program. And it's booted a tiny Smalltalk-80, black and white. Three plus four... seven. And its windows drag around, too.",
     "cues": [
       "And it's booted",
       "Three plus four",
       "seven",
-      "Something bigger",
       "drag around"
     ]
   },
@@ -142,6 +141,16 @@
     ]
   },
   {
+    "id": "core",
+    "caption": "No hand-written C: the VM's Smalltalk is translated to C and compiled. The File Browser (Smalltalk too) shows the C the translator generated, then the Smalltalk it came from.",
+    "spoken": "So how much of this is hand-written C? None. The VM's all Smalltalk, but it can't run on itself, so it gets translated to C and compiled. Here's the C the translator generated, the whole interpreter... and here's the Smalltalk it came from.",
+    "cues": [
+      "Here's the C",
+      "the whole interpreter",
+      "here's the Smalltalk it came from"
+    ]
+  },
+  {
     "id": "gc",
     "caption": "The GC is Smalltalk too: GarbageCollector class>>initialize. TENURE_AGE: how many scavenges an object survives before it is promoted to old space. Now 2.",
     "spoken": "The garbage collector's Smalltalk too, and this little constant says how many collections an object has to survive before it gets promoted to old space. Right now that's two.",
@@ -151,8 +160,8 @@
   },
   {
     "id": "gc-before",
-    "caption": "Tenure Test, on the running VM (TENURE_AGE 2): a million arrays of 80 slots, keeping only the last 3,000. Old space in MB against seconds, and how many full GCs ran.",
-    "spoken": "So here's a loop that allocates a million arrays and keeps only the last three thousand. And watch old space... flat. Those arrays die before their second collection, so nothing gets promoted.",
+    "caption": "Tenure Test, TENURE_AGE 2: a million arrays of 80 slots, keeping only the last 3,000; old space (MB) against seconds. The loop's arrays die young; the slow rise is the rest of the running system.",
+    "spoken": "So here's a loop that allocates a million arrays and keeps only the last three thousand. Watch old space... it barely moves. Those arrays die before their second collection, so they never get promoted. The few megabytes it creeps up are the rest of the system.",
     "cues": [
       "here's a loop"
     ]
@@ -167,10 +176,10 @@
   },
   {
     "id": "gc-rebuild",
-    "caption": "The running VM is a program translated from those classes: Smalltalk → C → clang → the binary. Rebuild VM & reboot makes a new one and restarts the image on it, windows and all.",
-    "spoken": "Now I'll rebuild the VM. Why rebuild, if it's written in Smalltalk? Because the VM is the thing running the Smalltalk, so it can't run on itself. These classes get translated to C, and compiled into the program you're watching. To change that program, you build a new one, and restart on it.",
+    "caption": "Rebuild VM & reboot: the VM's classes translated to C, compiled, the image restarted on the new binary, windows and all.",
+    "spoken": "So that's part of the VM itself, which means a rebuild. The classes get translated to C, compiled, and the image restarts on the new VM.",
     "cues": [
-      "rebuild the VM"
+      "a rebuild"
     ]
   },
   {
@@ -180,16 +189,6 @@
     "cues": [
       "there's the new VM",
       "same loop"
-    ]
-  },
-  {
-    "id": "core",
-    "caption": "No hand-written C: the File Browser (Smalltalk too) shows the C the translator generated, then the Smalltalk it came from.",
-    "spoken": "Last thing. How much of this is hand-written C? None. Here's the C the translator generated, the whole interpreter... and here's the Smalltalk it came from.",
-    "cues": [
-      "Here's the C",
-      "the whole interpreter",
-      "here's the Smalltalk it came from"
     ]
   },
   {

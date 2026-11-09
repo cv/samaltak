@@ -5,7 +5,7 @@
 // Each step lasts at least as long as its narration clip (<out>/narration/durations.json from narrate.mjs), which plays
 // whole; its cue words are spoken when their effects show (cue, compose-video.py).
 // A recording may have several segments (e.g. across a quit and relaunch of the image): each segment's last frame
-// (black, after a quit's fade) holds SEGMENT_GAP seconds until the next begins; <out>/raw.mp4 is the result, the
+// (black, after a quit's fade) holds SEGMENT_GAP seconds (or startSegment's gap) until the next begins; <out>/raw.mp4 is the result, the
 // captions are timed on it.
 import { execFileSync } from 'node:child_process';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
@@ -97,7 +97,7 @@ export class VideoSession {
     try { this.ctl('wait', 'idle', '15000'); } catch {}
   }
   // Start recording a segment, as soon as the image's UI can (right after a start it registers record a moment later).
-  startSegment() {
+  startSegment({ gap = SEGMENT_GAP } = {}) {
     const file = join(this.out, `raw-${this.segments.length + 1}.mp4`);
     for (const t = Date.now(); ; sleepSync(30)) {
       try { this.run(['record', 'start', file, '--size', '1440x900', '--fps', String(this.fps)]); break; }
@@ -105,7 +105,7 @@ export class VideoSession {
     }
     if (this.segments.length) {
       const last = this.segments[this.segments.length - 1];
-      this.videoBefore = Math.max(last.start + last.dur + SEGMENT_GAP, this.between);
+      this.videoBefore = Math.max(last.start + last.dur + gap, this.between);
     }
     this.between = null;
     this.frames = 0;

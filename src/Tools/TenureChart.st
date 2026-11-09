@@ -3,7 +3,7 @@ Widget subclass: #TenureChart
 	classVariableNames: ''
 	package: 'Tools'!
 
-TenureChart comment: 'I draw the Tenure Test''s runs, one lane each, on the same axes (0 to 200 MB of old space, the seconds of a run): the run''s TENURE_AGE and what old space did above its plot, old space as a line, a dotted line at each full GC.'!
+TenureChart comment: 'I draw the Tenure Test''s runs, one lane each, on the same axes (0 to 200 MB of old space, the seconds of a run): the run''s TENURE_AGE and what old space did above its plot, old space as a step line (the samples: it only falls at a full GC), a dotted line at each full GC.'!
 
 !TenureChart methodsFor: 'accessing'!
 runs: aCollection seconds: aNumber
@@ -52,8 +52,10 @@ drawRun: aRun in: plot on: aCanvas
 		plot top to: plot bottom by: 6 do: [:y |
 			aCanvas line: x @ y to: x @ (y + 2) color: theme ink width: 1]].
 	points do: [:p | | q |
-		q := (self xOf: p x in: plot) @ (self yOf: p y in: plot).
-		previous isNil ifFalse: [aCanvas line: previous to: q color: theme ultramarine width: 2].
+		q := (self xOf: p x in: plot) rounded @ (self yOf: p y in: plot) rounded.
+		previous isNil ifFalse: [
+			aCanvas line: previous to: q x @ previous y color: theme ultramarine width: 2.
+			aCanvas line: q x @ previous y to: q color: theme ultramarine width: 2].
 		previous := q]
 !
 yOf: megabytes in: plot

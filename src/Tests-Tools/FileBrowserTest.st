@@ -209,9 +209,12 @@ testCSourceScanner
 	CSourceScanner highlight: source do: [:type :start :stop | tokens add: type -> (source copyFrom: start to: stop)].
 	self assert: (tokens inject: '' into: [:all :each | all, each value]) equals: source.
 	self assert: ((tokens reject: [:each | each key == #identifier]) collect: [:each | each key]) asArray
-		equals: #(#keyword #comment #keyword #global #global #keyword #comment).
+		equals: #(#keyword #global #comment #keyword #global #global #keyword #comment).
 	self assert: ((tokens reject: [:each | each key == #identifier]) collect: [:each | each value]) asArray
-		equals: {'int'. '// one'. '# define'. '"a /* b"'. '''\'''''. 'return'. '/* two */'}
+		equals: {'int'. '1'. '// one'. '# define'. '"a /* b"'. '''\'''''. 'return'. '/* two */'}.
+	tokens := OrderedCollection new.
+	CSourceScanner highlight: 'g (1x);' do: [:type :start :stop | tokens add: type].
+	self assert: (tokens reject: [:each | each == #identifier]) asArray equals: #(#return #global)
 !
 testMachineCodeScanner
 	| lf source tokens typeOf |
