@@ -37,7 +37,7 @@ Object.assign(S.env, { ZDOTDIR: zdot, SHELL: '/bin/zsh' });
 const ctl = (...a) => S.ctl(...a), act = (...a) => S.act(...a);
 const DESK = '1431,250';   // the desk at the right edge, never covered
 const W = { workspace: '@w1', transcript: '@w2', procs: '@w3', mandel: '@w4', inspector: '@w5', browser: '@w6' };
-const LAPS = 120;
+const LAPS = 160;
 const GO = { pharo: '/tmp/go-pharo', samaltak: '/tmp/go-samaltak' };   // the race's start gun (awfy.sh --go)
 const PHARO = '/tmp/pharo12';
 execFileSync('ln', ['-sfn', join(process.env.HOME, '.cache/pharo12'), PHARO]);
@@ -62,7 +62,6 @@ const FILE_IN = "#('Samaltak' 'Harness' 'Core' 'Mandelbrot') do: [:n | Compiler 
 const bounds = ref => JSON.parse(ctl('bounds', ref));
 const box = ref => { const b = bounds(ref); return [b.x, b.y, b.w, b.h]; };
 const VIEWER = [810, 100, 600, 760];     // the File Browser's file viewer, right of three columns
-const TYPING = { frac: 0.05, max: 6 };   // typing shows at its first change (the selection)
 function place(ref, x, y, w, h) {
   const moveTo = (tx, ty) => { const b = bounds(ref); if (b.x !== tx || b.y !== ty) act('drag', ref, String(tx - b.x), String(ty - b.y)); };
   const b = bounds(ref);
@@ -143,8 +142,6 @@ const PRINTED = source => `[:t | | i | i := t indexOfSubCollection: ${quote(sour
 
 // ---------------------------------------------------------------- beats
 const beats = [
-  // The caption saying how the video was recorded, over the start of the next step's narration.
-  ['clock', async () => {}],
   // Two Terminals: Pharo 12 (left), Samaltak (right), the same AWFY sources, each lap's CPU time in ms as it ends (--ms
   // --cpu). Both started before the recording and wait, loaded, for the start gun (--go): the first laps show about 2 s
   // in, the words "each line" a while later (the take says who is racing first).
@@ -152,7 +149,6 @@ const beats = [
     await sleep(1400);
     raceStart = { real: Date.now(), video: S.now() };
     for (const f of Object.values(GO)) writeFileSync(f, '');
-    await S.cue('Each line is one lap', [730, 60, 680, 800], null, { frac: 0.02, max: 1 });
     await S.spoken();
   }],
   // Samaltak's summary, as its Terminal shows it: it is done; Pharo runs on.
@@ -170,7 +166,7 @@ const beats = [
   // The Terminals close over the File Browser (opened before the recording; Pharo's run with its Terminal): src ›
   // VM-Jit with each file's lines, the baseline compiler, the optimizer's first pass; vm › gen: the C translated from them.
   ['source', async () => {
-    await S.cue("The JIT's written in Smalltalk", [730, 60, 680, 800], () => act('click', `${T2}.close`));
+    await S.cue("The jit's written in Smalltalk", [730, 60, 680, 800], () => act('click', `${T2}.close`));
     act('click', `${T1}.close`); await sleep(300);
     await S.cue('a baseline compiler', VIEWER, () => pick(3, 'JitBaselineCompiler.st', 0));
     await S.cue('an optimizing one', VIEWER, () => pick(3, 'OptBuilder.st', 0));
@@ -244,10 +240,6 @@ const beats = [
   ['deopt', async () => {
     act('click', `${MO}.close`); await sleep(400);
     act('click', `${MC}.close`); await sleep(400);
-    await S.cue('make the inside of the set red', box(`${W.browser}.code`), async () => {
-      act('select', `${W.browser}.code`, '16rFF000000'); await sleep(200);
-      act('type', `${W.browser}.code`, '16rFF0000FF', '--delay', '45'); await sleep(200);
-    }, TYPING);
     S.busy = true;                                     // the Mandelbrot's Process renders: commands do not wait to settle
     place(W.mandel, 898, 41, 524, 843);                // taller: it renders again (⌘S lands about a third in)
     await until(() => /rendering/.test(ctl('snapshot', `${W.mandel}.status`)), 10000, 'the render to start');
@@ -255,7 +247,10 @@ const beats = [
     await printed(DO.before);
     // the new method is in: the next rows the render publishes (every 50 ms) are red
     await S.cue('save', null, () => act('key', 'Meta+s', `${W.browser}.code`),
-      { when: '(MandelbrotView >> #pixelFor:) literals includes: 16rFF0000FF', max: 5 });
+      { when: '(MandelbrotView >> #pixelFor:) literals includes: 16rFF0000FF', max: 5, prepare: async () => {
+        act('select', `${W.browser}.code`, '16rFF000000'); await sleep(200);
+        act('type', `${W.browser}.code`, '16rFF0000FF', '--delay', '45'); await sleep(200);
+      } });
   }],
   // The counters again; the render goes on, red from the row where the method changed.
   ['deopt-after', async () => {

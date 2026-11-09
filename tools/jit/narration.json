@@ -1,13 +1,8 @@
 [
   {
-    "id": "clock",
-    "caption": "Recorded on a work clock: times and frame stats shown inside Samaltak are its CPU work at a nominal 3.3 GHz, not wall time. The race's laps are each process's own CPU time."
-  },
-  {
     "id": "race",
-    "caption": "Are We Fast Yet's Mandelbrot, 120 laps, the same source on both, run at once: Pharo 12 (Cog) on the left, Samaltak on the right. Each line: one lap, in ms of CPU time. On screen the race runs at about {speed}× real speed.",
-    "spoken": "Same benchmark, same source code: Pharo 12 on the left, Samaltak on the right. Each line is one lap, in milliseconds.",
-    "cues": ["Each line is one lap"]
+    "caption": "Are We Fast Yet's Mandelbrot, 160 laps, the same source on both, run at once: Pharo 12 (Cog) on the left, Samaltak on the right. Each line: one lap, in ms of CPU time. On screen the race runs at about {speed}× real speed.",
+    "spoken": "Same benchmark, same source code: Pharo 12 on the left, Samaltak on the right. Each line is one lap, in milliseconds."
   },
   {
     "id": "race-done",
@@ -18,8 +13,8 @@
   {
     "id": "source",
     "caption": "src/VM-Jit, 15,090 lines in 23 files: the baseline compiler, the optimizing one (Opt…), the runtime and assembler they share. Translated to C in vm/gen.",
-    "spoken": "The JIT's written in Smalltalk: a baseline compiler and an optimizing one, about fifteen thousand lines, translated to C like the rest of the VM.",
-    "cues": ["The JIT's written in Smalltalk", "a baseline compiler", "an optimizing one", "translated to C"]
+    "spoken": "The jit's written in Smalltalk: a baseline compiler and an optimizing one, about fifteen thousand lines, translated to C like the rest of the VM.",
+    "cues": ["The jit's written in Smalltalk", "a baseline compiler", "an optimizing one", "translated to C"]
   },
   {
     "id": "tiers",
@@ -49,7 +44,7 @@
     "id": "deopt",
     "caption": "MandelbrotView>>pixelFor:, inlined into the render loop: the inside of the set from black to red, ⌘S while it renders.",
     "spoken": "Opt inlined pixelFor: into the render loop. I'll make the inside of the set red, and save while it's rendering.",
-    "cues": ["make the inside of the set red", "save"]
+    "cues": ["save"]
   },
   {
     "id": "deopt-after",

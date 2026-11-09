@@ -24,6 +24,9 @@ initialize
 ! !
 
 !GarbageCollector methodsFor: 'accessing'!
+tenureAge
+	^TENURE_AGE
+!
 youngLo
 	^youngLo
 !

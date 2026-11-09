@@ -50,8 +50,6 @@ const box = ref => { const b = bounds(ref); return [b.x, b.y, b.w, b.h]; };
 const WORKSPACE = () => box(`${W.workspace}.text`);
 const CODE = () => box(`${W.browser}.code`);
 const STATUS = () => box(`${W.browser}.status`);
-// Typing shows at its first change (the selection); everything else at about a third of its change.
-const TYPING = { frac: 0.05, max: 6 };
 
 // Browse to a method in the default System Browser (@w6), on the instance or class side; the method's own selection is
 // a function, for a cue (its source shows in the code pane).
@@ -104,19 +102,16 @@ function expect(ref, part) {
   if (!t.includes(part)) throw new Error(`${ref} does not contain ${JSON.stringify(part)}:\n${t}`);
 }
 let J = null;                     // the robot's window (Claude's Robot, a ShannonJuggler)
+let T = null;                     // the Tenure Test's window
 const ROBOT = '(Tools windowsOf: ShannonJuggler) first content';
-const REBUILD = "(Process allInstances select: [:p | p name = 'VM rebuild'])";   // Rebuild VM & reboot, in its Process
-// The GC beat's do-it: allocates about 100000 arrays a second for a minute or two, keeping the last 3000 (2 MB, less
-// than a survivor space): each dies before its second scavenge.
+const TENURE_DONE = '(Tools windowsOf: TenureTest) first content isRunning not';
 const GLYPH = '(Font code glyphFor: $g) inspect';
-const CHURN = "[| keep | keep := Array new: 3000. 1 to: 12000000 do: [:i | keep at: i \\\\ 3000 + 1 put: (Array new: 80). i \\\\ 1200 = 0 ifTrue: [(Delay forMilliseconds: 10) wait]]] forkNamed: 'churn'";
+const TENURE = 'TenureTest open';
 // The World menu's region, once it is open.
 const MENU = () => box('@menu');
 
 // ---------------------------------------------------------------- beats
 const beats = [
-  // The caption saying how the video was recorded, over the start of the next step's narration.
-  ['clock', async () => {}],
   // Claude's Robot juggles at the bottom right, animated every frame in its window's Process.
   ['intro', async () => {
     await sleep(2500);
@@ -126,8 +121,7 @@ const beats = [
   // follows at once while the robot juggles (in the Workspace: the class names); back once that has been said.
   ['restyle', async () => {
     await browse('UI-Widgets', 'Theme', 'initializeBlueBook');
-    await edit('16r1B3A8C', '16rC8102E', 140);
-    await S.cue('save', WORKSPACE(), save);
+    await S.cue('save', WORKSPACE(), save, { prepare: () => edit('16r1B3A8C', '16rC8102E', 140) });
     await S.spoken();
     await edit('16rC8102E', '16r1B3A8C', 50);
     save(); await sleep(1200);
@@ -137,13 +131,9 @@ const beats = [
   // (every window) get scan lines; accepting compiles it into a new GPU pipeline before the next frame. Then put it back.
   ['shader', async () => {
     await browse('Graphics-Canvas', 'Renderer', 'shaderSource', 'class');
-    await S.cue('edit it here', CODE(), () => edit('return tex.sample(s, in.uv / size) * in.color.a;',
-      'return tex.sample(s, in.uv / size) * in.color.a * (((uint(in.pos.y) / 4u) & 1u) == 0u ? 1.0 : 0.88);', 35), TYPING);
-    await S.cue('Save', WORKSPACE(), save);
-    await S.cue('undo', WORKSPACE(), async () => {
-      await edit(' * (((uint(in.pos.y) / 4u) & 1u) == 0u ? 1.0 : 0.88)', '', 0);
-      save();
-    }, { lead: 0.9 });
+    await S.cue('Save', WORKSPACE(), save, { prepare: () => edit('return tex.sample(s, in.uv / size) * in.color.a;',
+      'return tex.sample(s, in.uv / size) * in.color.a * (((uint(in.pos.y) / 4u) & 1u) == 0u ? 1.0 : 0.88);', 35) });
+    await S.cue('undo', WORKSPACE(), save, { prepare: () => edit(' * (((uint(in.pos.y) / 4u) & 1u) == 0u ? 1.0 : 0.88)', '', 0) });
     await sleep(1200);
   }],
 
@@ -153,10 +143,11 @@ const beats = [
   ['compositor', async () => {
     await browseTo('UI-Windows', 'Compositor', 'instance');
     await S.cue('This is the compositor', CODE(), pickMethod('drawWindow:on:time:'));
-    await sleep(600);
-    await edit('* s.', '* s * 24.', 80);
-    await edit('Color black.', 'Color ultramarine.', 70);
-    await S.cue('and there', [886, 60, 11, 400], save);
+    await S.cue('and there', [886, 60, 11, 400], save, { prepare: async () => {
+      await sleep(400);
+      await edit('* s.', '* s * 24.', 80);
+      await edit('Color black.', 'Color ultramarine.', 70);
+    } });
     await S.spoken();
     await edit('* s * 24.', '* s.', 0);
     await edit('Color ultramarine.', 'Color black.', 0);
@@ -167,8 +158,7 @@ const beats = [
   // re-rasterizes as a block with the letter cut out. The coverage pixels of 'g' in an Inspector; then put it back.
   ['glyphs', async () => {
     await browse('Graphics-Canvas', 'GlyphRasterizer', 'coverage', 'instance');
-    await S.cue('flip the coverage', CODE(), () => edit('put: (v', 'put: 255 - (v', 80), TYPING);
-    await S.cue('yeah', WORKSPACE(), save);
+    await S.cue('yeah', WORKSPACE(), save, { prepare: () => edit('put: (v', 'put: 255 - (v', 80) });
     act('select', `${W.workspace}.text`, GLYPH); await sleep(400);
     let insp = null;
     await S.cue('Those are the real pixels', () => box(insp), async () => {
@@ -178,7 +168,7 @@ const beats = [
     try { act('hover', `${insp}.pixels`, '--at', '8,14'); } catch {}
     await sleep(1000);
     act('click', `${insp}.close`); await sleep(600);
-    await S.cue('back', WORKSPACE(), async () => { await edit('255 - (v', '(v', 0); save(); }, { lead: 1.0 });
+    await S.cue('back', WORKSPACE(), save, { prepare: () => edit('255 - (v', '(v', 0) });
     await sleep(1200);
   }],
 
@@ -211,14 +201,15 @@ const beats = [
   ['gravity', async () => {
     await browseTo('Tools', 'ShannonJuggler');
     await S.cue('This is move', CODE(), pickMethod('move:'));
-    await S.cue('flip gravity', CODE(), () => edit('0 @ 0.4', '0 @ -0.4', 140), TYPING);
-    expect(`${W.browser}.code`, '(0 @ -0.4)');
-    await S.cue('save', STATUS(), save);
+    await S.cue('save', STATUS(), save, { prepare: async () => {
+      await edit('0 @ 0.4', '0 @ -0.4', 140);
+      expect(`${W.browser}.code`, '(0 @ -0.4)');
+    } });
     await S.spoken();
   }],
   // Gravity back; a click on the robot restarts the act (the balls into its hands: its frame count starts over).
   ['restore', async () => {
-    await S.cue('put gravity back', STATUS(), async () => { await edit('0 @ -0.4', '0 @ 0.4', 60); save(); }, { ...TYPING, lead: 0.5 });
+    await S.cue('put gravity back', STATUS(), save, { prepare: () => edit('0 @ -0.4', '0 @ 0.4', 60) });
     act('hover', `${J}.stage`); await sleep(300);
     await S.cue('click', null, () => act('click', `${J}.stage`), { when: `${ROBOT} frame < 100` });
     await sleep(1500);
@@ -249,10 +240,10 @@ const beats = [
   ['recolour', async () => {
     const dbg = await S.win(/Debugger/);
     const old = text(`${dbg}.source`).match(/Color r: [\d.]+ g: [\d.]+ b: [\d.]+|Color \w+/)[0];
-    await S.cue('change the colour', box(`${dbg}.source`), () => replaceIn(`${dbg}.source`, old, 'Color r: 0.1 g: 0.8 b: 0.75', 70), TYPING);
-    expect(`${dbg}.source`, 'Color r: 0.1 g: 0.8 b: 0.75');
-    await sleep(300);
-    await S.cue('save', box(dbg), () => act('key', 'Meta+s', `${dbg}.source`));
+    await S.cue('save', box(dbg), () => act('key', 'Meta+s', `${dbg}.source`), { prepare: async () => {
+      await replaceIn(`${dbg}.source`, old, 'Color r: 0.1 g: 0.8 b: 0.75', 70);
+      expect(`${dbg}.source`, 'Color r: 0.1 g: 0.8 b: 0.75');
+    } });
     await sleep(1500);
   }],
   // World menu › Save image, › Quit while it is stopped: the screen fades to black, the image quits.
@@ -286,7 +277,8 @@ const beats = [
   }],
 
   // 8. The JIT (VM-Jit, Smalltalk too) has compiled move: (every ball, every frame): System Browser › move: › machine
-  // code: its arm64 under each bytecode, commented; scrolled to the first statement, where sends are inlined.
+  // code: its arm64 under each bytecode. The send of velocity in the first statement: the line of the send, the guard on
+  // the class, the inlined activation reading the field; each stays highlighted while it is talked about.
   ['jit', async () => {
     act('select', `${W.browser}.methods`, 'move:'); await sleep(700);
     act('rightclick', `${W.browser}.methods.move`); await sleep(800);
@@ -298,10 +290,15 @@ const beats = [
       await sleep(400);
       place(mc, 18, 41, 866, 843);
     });
-    await sleep(1800);
-    act('scroll', `${mc}.text`, '1240'); await sleep(1500);
-    await S.cue('the sends got inlined', box(`${mc}.text`), () => act('scroll', `${mc}.text`, '480'));
-    await sleep(2000);
+    await sleep(600);
+    S.markLines(mc, 'send: #@', 'send: #@', 'send: #velocity');   // the send below scrolls to the bottom: the first is mid-pane
+    const LISTING = box(`${mc}.text`);
+    const SEND = 'send: #velocity numArgs: 0';
+    await S.cue('This line is the send of velocity', LISTING, () => S.markLines(mc, SEND));
+    await S.cue('It checks the class', LISTING, () => S.markLines(mc, 'guard: its class', 'b.ne', SEND));
+    await S.cue('reads the field', LISTING, () => S.markLines(mc, 'inlined activation 1', 'its pc 0', SEND, 1));
+    await S.spoken();
+    await sleep(2500);                                 // it stays up a while
     act('click', `${mc}.close`); await sleep(600);
   }],
 
@@ -351,68 +348,72 @@ const beats = [
     await S.cue('drag around', box(screen), () => act('drag', tab, '-230', '25'), { frac: 0.1 });   // the ball window, by its title tab
     await sleep(2200);
   }],
-  // 11. The GC is Smalltalk too (VM-Core › GarbageCollector): TENURE_AGE := 0 promotes every survivor of a scavenge
-  // (2: those that survive two). World menu › Rebuild VM & reboot: the VM is translated to C (the translation runs
-  // the class-side initialize methods again: TENURE_AGE 0), compiled, the image saved, the screen faded, the new VM
-  // exec'd (same process, same control port).
+  // 11. The GC is Smalltalk too (VM-Core › GarbageCollector class › initialize): the constant TENURE_AGE. The Tenure Test
+  // (a do-it in the Workspace; the right column): the same loop on the old VM and, after the rebuild, on the new one, in
+  // lanes on the same axes.
   ['gc', async () => {
     const sim = await S.win(/VM Simulator/, 1000).catch(() => null);
     if (sim) { act('click', `${sim}.close`); await sleep(600); }
     await browseTo('VM-Core', 'GarbageCollector', 'class');
-    await S.cue("The garbage collector's Smalltalk too", CODE(), pickMethod('initialize'));
-    await sleep(600);
-    await S.cue('make that zero', CODE(), () => edit('TENURE_AGE := 2', 'TENURE_AGE := 0', 110), TYPING);
-    expect(`${W.browser}.code`, 'TENURE_AGE := 0');
-    await S.cue('save', STATUS(), save);
-    await sleep(500);
-    act('click', DESK); await sleep(700);
+    await S.cue('this little constant', CODE(), async () => {
+      await pickMethod('initialize')();
+      act('select', `${W.browser}.code`, 'TENURE_AGE := 2');
+    });
+    await evaluate(TENURE);
+    T = await S.win(/Tenure Test/);
+    await sleep(300);
+    place(T, 898, 41, 524, 843);
+    await S.spoken();
+  }],
+  // Run: a million arrays, the last 3000 kept: old space stays flat.
+  ['gc-before', async () => {
+    await S.cue("here's a loop", box(`${T}.chart`), () => act('click', `${T}.run`), { frac: 0.02, max: 3 });
+    await S.spoken();
+    S.waitUntil(TENURE_DONE, 30);
+    await sleep(2000);                                 // the flat line stays up a while
+  }],
+  // TENURE_AGE 0, ⌘S.
+  ['gc-edit', async () => {
+    await S.cue('save', STATUS(), save, { prepare: async () => {
+      await edit('TENURE_AGE := 2', 'TENURE_AGE := 0', 60);
+      expect(`${W.browser}.code`, 'TENURE_AGE := 0');
+    } });
+    await S.spoken();
+  }],
+  // World menu › Rebuild VM & reboot: translated to C, compiled (bottom left, its output streams in), the image saved,
+  // the screen fades, the new VM exec'd: the recording ends; the next segment begins with the new VM's restart.
+  ['gc-rebuild', async () => {
     let rb = null, ref = null;
     await S.cue('rebuild the VM', () => rb, async () => {
       act('click', '@menu.rebuild-vm-reboot');
       try { ref = await S.win(/VM Rebuild/); rb = box(ref); } catch {}
-    });
+    }, { prepare: async () => { act('click', DESK); await sleep(700); } });
     await sleep(300);
-    if (ref) place(ref, 18, 41, 866, 470);
-    // On the recording clock a rebuild takes less video than the next beat's narration: it waits for it.
-    S.eval(`${REBUILD} do: [:p | p suspend]. 1`);
-  }],
-  // While it compiles, on the old VM: a do-it that allocates, keeping its last 3000 arrays, then World menu › System
-  // Monitor (right column): they die young, survivors are promoted after two scavenges, old space barely grows. The
-  // recording ends with the old VM; the next segment starts with the new VM's restart splash.
-  ['gc-churn', async () => {
-    await S.cue("here's a little loop", WORKSPACE(), () => evaluate(CHURN));
-    S.busy = true;                                     // the churn keeps the image busy: commands do not wait to settle
-    act('click', DESK); await sleep(500);
-    act('click', '@menu.system-monitor');
-    const mon = await S.win(/System Monitor/);
-    await sleep(300);
-    place(mon, 898, 41, 524, 843);
-    await S.spoken(1.5);                               // the rebuild goes on, to fade once this has been said
-    S.eval(`${REBUILD} do: [:p | p resume]. 1`);
-    await S.recordingEnded(240000);                    // the screen fades, the VM execs the new one: the recording ends
+    if (ref) place(ref, 18, 525, 866, 359);
+    await S.recordingEnded(240000);
     S.stopSegment();
-    await S.spoken(-0.35);                             // black until this narration and the next one's first word are over
+    await S.spoken(-0.35);                             // black until this narration's over
     for (let t = 0; ; t += 15000) {                    // the new VM has resumed, its World composited
       try { S.run(['wait', 'rebooted in', '15000']); break; } catch (e) { if (t > 120000) throw e; }
     }
     S.startSegment();
     await sleep(800);
   }],
-  // The System Monitor, restored with the image, samples on; widened over the screen (its charts keep their last
-  // minute): old space climbs, a full GC every few seconds, the count of full GCs in its readout.
+  // The new VM, the Tenure Test restored with the image, its lane from the old VM: Run again.
   ['gc-after', async () => {
     S.mark("there's the new VM", S.videoBefore);
-    const mon = await S.win(/System Monitor/);
-    await S.cue('old space fills right up', [40, 80, 820, 760], () => place(mon, 18, 41, 1404, 843));
-    await sleep(6000);
+    T = await S.win(/Tenure Test/);
+    await S.cue('same loop', box(`${T}.chart`), () => act('click', `${T}.run`), { frac: 0.02, max: 3 });
+    await S.spoken();
+    S.waitUntil(TENURE_DONE, 30);
+    await sleep(3000);                                 // both lanes stay up a while
   }],
 
   // 12. No hand-written C: World menu › File Browser (Smalltalk too) on the left: vm › gen lists the generated C with
   // line counts; interpreter.c begins "Generated by VMTranslator … Do not edit.", its interpret function a table of
-  // bytecode handlers; src › VM-Core › Interpreter.st is the Lowtalk it comes from (interpret, <c: 'void
-  // interpret(void)'>).
+  // bytecode handlers; src › VM-Core › Interpreter.st is the Smalltalk it comes from (the interpret method).
   ['core', async () => {
-    for (const re of [/VM Rebuild/, /System Monitor/]) {
+    for (const re of [/VM Rebuild/, /Tenure Test/]) {
       const w = await S.win(re, 1000).catch(() => null);
       if (w) { act('click', `${w}.close`); await sleep(500); }
     }
@@ -440,7 +441,7 @@ const beats = [
     await pick(2, 'VM-Core');
     await S.cue("here's the Smalltalk it came from", VIEWER, async () => {
       await pick(3, 'Interpreter.st', 700);
-      await show('src/VM-Core/Interpreter.st', "<c: 'void interpret(void)'>");
+      await show('src/VM-Core/Interpreter.st', 'ss := memory special: SO_SPECIAL_SELECTORS.');
     }, { frac: 0.1 });
     await S.spoken();
     await sleep(800);
@@ -462,8 +463,8 @@ J = await S.win(/Claude's Robot/);
 await sleep(800);
 place(J, 898, 422, 524, 462);
 // The Workspace gets the video's two do-its now (a long text types slowly there), its caret back at the top.
-act('type', `${W.workspace}.text`, `\n${GLYPH}\n${CHURN}`, '--end', '--delay', '0');
-for (let t = 0; !text(`${W.workspace}.text`).includes(CHURN); t += 500) {
+act('type', `${W.workspace}.text`, `\n${GLYPH}\n${TENURE}`, '--end', '--delay', '0');
+for (let t = 0; !text(`${W.workspace}.text`).includes(TENURE); t += 500) {
   if (t > 60000) throw new Error('the do-its did not arrive in the Workspace');
   await sleep(500);
 }

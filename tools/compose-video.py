@@ -3,18 +3,18 @@
 Usage: compose-video.py <dir> [out-name]   (expects <dir>/raw.mp4 and <dir>/captions.json; writes <dir>/<out-name>,
 default walkthrough.mp4, and <dir>/cues.json)
 
-A step's clip plays from its caption's start, unless the step has cues (video-lib.mjs cue): for each, the time its
-effect showed is known (the image's) or found, the first frame after its action where its region of the screen changed;
-the clip is cut before each cue's words (narration/times.json) so that they are spoken SPOKEN_AFTER s after it; what
-comes before the first cue runs straight into it. Clips never overlap: a piece that would run into the next loses its
-trailing silence (a pause shortened), else the next comes later (its words at most LATE s late)."""
+A step's clip plays whole, at one start: its cues' words (video-lib.mjs cue, narration/times.json) are spoken SPOKEN_AFTER s
+after their effects show or later, never before; the walkthrough schedules its actions for that, from how long each
+took to show in the last pass (written here to <dir>/leads.json). A cue's effect that shows more than EARLY s before its
+words, or later, is an error. For each cue, the time its effect showed is known (the image's) or found: the first frame
+after its action where its region of the screen changed. Clips never overlap (a clip that would run into the next
+loses its trailing silence, else the next comes later)."""
 import html, json, os, subprocess, sys
 import numpy as np
 
 SPOKEN_AFTER = 0.06   # a cue's words start this long after its effect shows (word times are good to about 50 ms)
-LATE = 0.15
-CAPTION_ONLY = 3.5    # how long a caption without narration stays up, over the next step's narration
-MIN_PAUSE = 0.15      # a shortened pause, from the end of the speech (+50 ms) to the next piece
+EARLY = 0.5           # the most a cue's effect may show before its words
+MIN_PAUSE = 0.15      # a shortened pause, from the end of the speech (+50 ms) to the next clip
 FPS = 30
 
 d = os.path.abspath(sys.argv[1] if len(sys.argv) > 1 else os.path.join(os.path.dirname(__file__), '../.context/video-real'))
@@ -67,21 +67,16 @@ def speech_end(sid, a, b):
     return b if len(v) == 0 else min(b, (fa + v[-1] + 1) / 100 + 0.05)
 
 
-# Where each clip's pieces play (step, start: in the video, a-b: of the clip; cue: its report) — a cue step is cut
-# before each cue.
-pieces, report, problems = [], [], []
+# Where each clip plays (step, start in the video, its duration), with its cues' reports.
+pieces, report, problems, leads = [], [], [], {}
 for c in caps:
     sid, dur = c['id'], durations.get(c['id'])
     if dur is None or not os.path.exists(os.path.join(narration, f'{sid}.mp3')):
         continue
     cues = c.get('cues') or []
-    if not cues:
-        pieces.append({'sid': sid, 'start': c['start'], 'a': 0.0, 'b': dur, 'cue': None})
-        continue
-    spec = {x['text']: x for x in times[sid]['cues']}
-    places = []
+    spec = {x['text']: x for x in times[sid]['cues']} if cues else {}
+    marks = []
     for k, cue in enumerate(cues):
-        at, cut = spec[cue['text']]['at'], spec[cue['text']]['cut']
         if cue.get('shown') is not None:
             e, amount = cue['shown'], None
         else:
@@ -89,34 +84,37 @@ for c in caps:
             if e is None:
                 problems.append(f'{sid}: {cue["text"]!r}: no change in its region within {cue["max"]} s')
                 e = cue['est']
+        leads[f"{sid}|{cue['text']}"] = round(e - cue['t'], 3)
+        if cue.get('prepared') is not None:
+            leads[f"{sid}|{cue['text']}|prepare"] = round(cue['prepared'], 3)
         report.append({'step': sid, 'cue': cue['text'], 'action': round(cue['t'], 3), 'shown': round(e, 3),
-                       'spoken': None, 'change': None if amount is None else round(float(amount), 4), 'at': at - cut})
-        places.append((cut, e + SPOKEN_AFTER - (at - cut), report[-1]))
-    cut0, start0, _ = places[0]
-    pieces.append({'sid': sid, 'start': start0 - cut0, 'a': 0.0, 'b': cut0, 'cue': None})
-    for k, (cut, start, r) in enumerate(places):
-        pieces.append({'sid': sid, 'start': start, 'a': cut, 'b': places[k + 1][0] if k + 1 < len(places) else dur, 'cue': r})
-    c['start'] = start0 if cut0 < 0.1 else min(c['start'], start0 - cut0)   # a narration that begins with its effect brings its caption
+                       'spoken': None, 'change': None if amount is None else round(float(amount), 4)})
+        marks.append((spec[cue['text']]['at'], report[-1]))
+    start = max([r['shown'] + SPOKEN_AFTER - at for at, r in marks] or [c['start']])
+    pieces.append({'sid': sid, 'start': start, 'dur': dur, 'marks': marks})
+    c['start'] = min(c['start'], start)   # a narration that starts before its step brings its caption
 
 for prev, cur in zip(pieces, pieces[1:]):
-    if prev['start'] + prev['b'] - prev['a'] > cur['start'] + 0.005:
-        prev['b'] = speech_end(prev['sid'], prev['a'], prev['b'])
-        cur['start'] = max(cur['start'], prev['start'] + prev['b'] - prev['a'] + MIN_PAUSE)
+    if prev['start'] + prev['dur'] > cur['start'] + 0.005:
+        prev['dur'] = speech_end(prev['sid'], 0, prev['dur'])
+        cur['start'] = max(cur['start'], prev['start'] + prev['dur'] + MIN_PAUSE)
 for p in pieces:
-    if p['cue']:
-        r = p['cue']
-        r['spoken'] = round(p['start'] + r.pop('at'), 3)
-        if r['spoken'] - r['shown'] > SPOKEN_AFTER + LATE:
-            problems.append(f"{r['step']}: {r['cue']!r} spoken {r['spoken'] - r['shown']:.2f} s after it showed")
+    for at, r in p['marks']:
+        r['spoken'] = round(p['start'] + at, 3)
+        gap = r['spoken'] - r['shown']
+        if gap < SPOKEN_AFTER - 0.03:
+            problems.append(f"{r['step']}: {r['cue']!r} spoken {SPOKEN_AFTER - gap:.2f} s before it shows")
+        elif gap > EARLY + SPOKEN_AFTER:
+            problems.append(f"{r['step']}: {r['cue']!r} shows {gap - SPOKEN_AFTER:.2f} s before its words")
 
 # Captions change when their step's narration (or its screen) begins.
 for i in range(1, len(caps)):
-    caps[i]['start'] = max(caps[i]['start'], caps[i - 1]['start'] + (0 if caps[i - 1]['id'] in durations else CAPTION_ONLY))
     caps[i - 1]['end'] = caps[i]['start']
 problems += [f"{p['sid']}: starts before the video, at {p['start']:.2f} s" for p in pieces if p['start'] < 0]
 json.dump(report, open(os.path.join(d, 'cues.json'), 'w'), indent=1)
+json.dump(leads, open(os.path.join(d, 'leads.json'), 'w'), indent=1)
 for r in report:
-    print(f"{r['spoken']:7.2f}s  {r['step']:12s} {r['cue']!r}  (action {r['action']:.2f}, shown {r['shown']:.2f})")
+    print(f"{r['spoken']:7.2f}s  {r['step']:12s} {r['cue']!r}  (action {r['action']:.2f}, shown {r['shown']:.2f}, spoken {r['spoken'] - r['shown']:+.2f} after)")
 if problems:
     sys.exit('compose-video: ' + '\n  '.join(problems))
 
@@ -147,7 +145,7 @@ if pieces:
     for k, p in enumerate(pieces):
         args += ['-i', os.path.join(narration, f"{p['sid']}.mp3")]
         ms = int(round(p['start'] * 1000))
-        graph.append(f"[{base + k}:a]atrim=start={p['a']:.3f}:end={p['b']:.3f},asetpts=PTS-STARTPTS,adelay={ms}|{ms}[a{k}]")
+        graph.append(f"[{base + k}:a]atrim=end={p['dur']:.3f},asetpts=PTS-STARTPTS,adelay={ms}|{ms}[a{k}]")
     graph.append(''.join(f'[a{k}]' for k in range(len(pieces))) + f'amix=inputs={len(pieces)}:normalize=0[aout]')
     maps += ['-map', '[aout]', '-c:a', 'aac', '-b:a', '160k']
 args += ['-filter_complex', ';'.join(graph), *maps, '-c:v', 'libx264', '-pix_fmt', 'yuv420p',

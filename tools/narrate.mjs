@@ -4,7 +4,7 @@
 // Usage: node narrate.mjs <out-dir> [steps.json]   →  <out-dir>/narration/<id>.mp3, durations.json, times.json
 // Needs ELEVENLABS_API_KEY (environment or the repo's .env). ELEVENLABS_VOICE picks the voice; ELEVENLABS_REQUEST (JSON)
 // adds to each request, e.g. {"voice_settings": {"stability": 0.5, "style": 0}}, and with "continuity": true each line
-// gets its neighbours as previous_text and next_text, so the lines flow like one conversation. Clips are cached by
+// gets its neighbours as previous_text and next_text (not part of its cache key), so the lines flow like one conversation. Clips are cached by
 // what is sent. Each clip has a reference with the timing of every character (<id>.ref.json, /with-timestamps): a new
 // clip is its own; a clip made before keeps its audio, and a take of the same request (<id>.ref.mp3) is mapped onto it.
 import { execFileSync } from 'node:child_process';
@@ -50,8 +50,8 @@ for (const [i, step] of steps.entries()) {
   const body = { text: step.spoken, model_id: MODEL, ...extra };
   if (continuity && i > 0) body.previous_text = steps[i - 1].spoken;
   if (continuity && i < steps.length - 1) body.next_text = steps[i + 1].spoken;
-  const sent = Object.keys(body).length > 2 ? JSON.stringify(body) : step.spoken;   // plain requests keep their old hash
-  const hash = createHash('sha256').update(`${VOICE}\n${MODEL}\n${sent}`).digest('hex');
+  const { previous_text, next_text, ...request } = body;   // a clip is its own text: a neighbour's edit leaves it alone
+  const hash = createHash('sha256').update(`${VOICE}\n${MODEL}\n${Object.keys(request).length > 2 ? JSON.stringify(request) : step.spoken}`).digest('hex');
   if (!existsSync(file) || !existsSync(stamp) || readFileSync(stamp, 'utf8') !== hash) {
     const take = await speak(step.id, body);
     writeFileSync(file, take.audio);

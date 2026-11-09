@@ -2,8 +2,8 @@
 // window driven only through samaltak-ctl, recorded from the compositor (samaltak-ctl record), with a caption per step.
 // It runs on the recording clock (tools/README.md): time passes only in samaltak-ctl commands (sleep below is one, and
 // video times are frame numbers), so the load on the machine, the display and the app's role do not change the video.
-// Each step lasts at least as long as its narration clip (<out>/narration/durations.json from narrate.mjs); its cue
-// words are spoken when their effects show (cue, compose-video.py).
+// Each step lasts at least as long as its narration clip (<out>/narration/durations.json from narrate.mjs), which plays
+// whole; its cue words are spoken when their effects show (cue, compose-video.py).
 // A recording may have several segments (e.g. across a quit and relaunch of the image): each segment's last frame
 // (black, after a quit's fade) holds SEGMENT_GAP seconds until the next begins; <out>/raw.mp4 is the result, the
 // captions are timed on it.
@@ -32,6 +32,8 @@ export class VideoSession {
     const durationsFile = join(out, 'narration', 'durations.json'), timesFile = join(out, 'narration', 'times.json');
     this.durations = existsSync(durationsFile) ? JSON.parse(readFileSync(durationsFile, 'utf8')) : {};
     this.times = existsSync(timesFile) ? JSON.parse(readFileSync(timesFile, 'utf8')) : {};
+    const leadsFile = join(out, 'leads.json');
+    this.leads = existsSync(leadsFile) ? JSON.parse(readFileSync(leadsFile, 'utf8')) : {};   // how long each cue took to show in the last pass
     this.captions = [];
     this.segments = [];     // {file, start: its video time, dur}
     this.fps = 30;
@@ -144,7 +146,7 @@ export class VideoSession {
     const step = this.steps.find(s => s.id === id);
     if (!step) throw new Error(`no narration step ${id}`);
     const prev = this.captions[this.captions.length - 1];
-    if (prev && this.durations[prev.id]) {       // a caption without narration runs over the next step's
+    if (prev) {
       const wait = (this.narrationEnd(prev) + 0.4 - this.now()) * 1000;
       if (wait > 0) await sleep(wait);
     }
@@ -159,43 +161,59 @@ export class VideoSession {
     if (!c) throw new Error(`no cue ${JSON.stringify(text)} in step ${id} (its "cues" in the narration file; narrate.mjs)`);
     return c.at;
   }
-  // When a step's narration ends at the latest (its speech: times.json "end", else its clip): from its last cue so far,
-  // else from its start.
+  // When a step's narration ends at the latest (its speech: times.json "end", else its clip).
   narrationEnd(step) {
-    const d = this.times[step.id]?.end ?? this.durations[step.id] ?? 0, last = step.cues[step.cues.length - 1];
-    return last ? last.est + d - this.cueAt(step.id, last.text) : step.start + d;
+    return (step.origin ?? step.start) + (this.times[step.id]?.end ?? this.durations[step.id] ?? 0);
   }
   // A cue of the current step: text, a phrase of its narration ("cues"), says that action happens or that its effect
-  // shows. Wait until the narration could have got to text (spoken on from the step's start or its previous cue; lead
-  // seconds earlier when the effect takes about that long to show), run action, note when. Where the effect shows:
-  // region, [x, y, w, h] of the screen (or a function answering it after the action), in which compose-video.py finds
-  // the frame where it changed (within max seconds; frac of its largest change counts as shown); or, where the screen
-  // moves anyway, when: a Smalltalk condition that turns true with the effect, the clock runs until it holds (false when
-  // the cue begins: else the effect came before its words); neither: the action is what shows (e.g. a launch, while the
-  // screen is black). Text is spoken there.
-  async cue(text, region, action, { lead = 0, max = 2, frac = 0.3, when = null } = {}) {
+  // shows. Run action early enough for its effect to show as text is spoken: the step's clip plays whole from its origin
+  // (the first cue fixes it: as soon as this cue can be met), lead seconds before text. lead: how long the action took
+  // to show in the last pass (compose-video.py leads.json), an estimate in the first (the option). Where the effect
+  // shows: region, [x, y, w, h] of the screen (or a function answering it after the action), in which compose-video.py
+  // finds the frame where it changed (within max seconds; frac of its largest change counts as shown); or, where the
+  // screen moves anyway, when: a Smalltalk condition that turns true with the effect, the clock runs until it holds
+  // (false when the cue begins: else the effect came before its words); neither: the action is what shows (e.g. a
+  // launch, while the screen is black).
+  async cue(text, region, action, { lead = 0, max = 2, frac = 0.3, when = null, prepare = null } = {}) {
     const step = this.captions[this.captions.length - 1];
-    const at = this.cueAt(step.id, text), prev = step.cues[step.cues.length - 1];
+    const at = this.cueAt(step.id, text);
     if (when && this.eval(`[${when}] value`) === 'true') throw new Error(`cue ${JSON.stringify(text)}: ${when} before it began`);
-    const earliest = prev ? prev.est + at - this.cueAt(step.id, prev.text) : step.start + at;
-    const wait = (earliest - lead - this.now()) * 1000;
-    if (wait > 0) await sleep(wait);
+    lead = this.leads[`${step.id}|${text}`] ?? lead;
+    const needs = prepare ? this.leads[`${step.id}|${text}|prepare`] ?? 2 : 0;
+    step.origin ??= Math.max(step.start, this.now() + needs + lead - at);
+    const until = async s => { const wait = (s - this.now()) * 1000; if (wait > 0) await sleep(wait); };
+    let prepared = null;
+    if (prepare) {
+      await until(step.origin + at - lead - needs);
+      const p0 = this.now();
+      await prepare();
+      prepared = this.now() - p0;
+    }
+    await until(step.origin + at - lead);
     const t = this.now();
     const busy = this.busy;
     if (when) this.busy = true;      // the condition says when the effect shows: the action does not wait for it to settle
     try { if (action) await action(); } finally { this.busy = busy; }
     if (when) this.waitUntil(when, max + 30);
     const shown = when ? this.now() : region == null ? t : null;
-    step.cues.push({ text, t, est: shown ?? Math.max(this.now(), t + lead), shown, max, frac,
+    step.cues.push({ text, t, est: shown ?? Math.max(this.now(), t + lead), shown, max, frac, prepared,
       region: shown != null ? null : typeof region === 'function' ? region() : region });
+  }
+  // Select whole lines of a listing (the front TextView's text): from the line holding what (after the first after) to
+  // the line holding last, and extra lines more; scrolled into view.
+  markLines(win, what, last = what, after = '', extra = 0) {
+    const quote = s => `'${s.replace(/'/g, "''")}'`;
+    const [from, to] = this.eval(`| t i j | t := (Tools windowsOf: TextView) first content text. i := t indexOfSubCollection: ${quote(what)} startingAt: ((t indexOfSubCollection: ${quote(after || what)} startingAt: 1) max: 1). i = 0 ifTrue: [^'0 0']. j := t indexOfSubCollection: ${quote(last)} startingAt: i. [i > 1 and: [(t at: i - 1) ~= Character lf]] whileTrue: [i := i - 1]. [j <= t size and: [(t at: j) ~= Character lf]] whileTrue: [j := j + 1]. ${extra} timesRepeat: [j := j + 1. [j <= t size and: [(t at: j) ~= Character lf]] whileTrue: [j := j + 1]]. {i - 1. j - 1}`).match(/-?\d+/g).map(Number);
+    if (to <= 0) throw new Error(`no ${what} in the listing`);
+    this.act('select', `${win}.text`, `${from}-${to}`);
   }
   // A cue whose effect showed at video time t without an action (e.g. the first frame after a restart).
   mark(text, t) {
     const step = this.captions[this.captions.length - 1];
-    this.cueAt(step.id, text);
+    step.origin ??= Math.max(step.start, t - this.cueAt(step.id, text));
     step.cues.push({ text, t, est: t, shown: t, region: null });
   }
-  // Wait until the current step's narration is over (or before s earlier).
+  // Wait until the current step's narration is over (or s earlier).
   async spoken(before = 0) {
     const wait = (this.narrationEnd(this.captions[this.captions.length - 1]) - before - this.now()) * 1000;
     if (wait > 0) await sleep(wait);
