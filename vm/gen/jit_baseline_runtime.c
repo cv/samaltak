@@ -23,17 +23,17 @@ static int64_t young_slot_count;
 static uint64_t young_slots[16384];
 static bool young_slots_overflow;
 
-static jit_method *bl_header_of(oop m);
-static uint64_t bl_new_pic(uint64_t site, oop c0, jit_method *t0);
-static int32_t bl_nil_test_of(oop sel);
-static void bl_note_nil_test(oop m, void *d);
-static int64_t bl_ret_index(jit_method *h, uint64_t ret);
-static void bl_set_slot(uint64_t a, oop v);
-static void bl_set_top(frame *f, uint64_t ret, int32_t mode);
-static jit_method *bl_target_for(oop cls, oop sel);
+static jit_method *header_of(oop m);
+static uint64_t new_pic_for(uint64_t site, uint64_t c0, jit_method *t0);
+static int nil_test_of(oop sel);
+static void note_nil_test(uint64_t o, void *d);
+static int64_t ret_index_of(jit_method *h, uint64_t ret);
+static void set_slot(uint64_t a, uint64_t v);
+static void set_top(frame *f, uint64_t ret, int mode);
+static jit_method *target_for(oop cls, oop sel);
 
 /* JitBaselineRuntime>>afterGC */
-void bl_after_gc(void)
+void jit_baseline_runtime_after_gc(void)
 {
     int64_t i;
     uint64_t v;
@@ -69,7 +69,7 @@ void bl_after_gc(void)
 }
 
 /* JitBaselineRuntime>>allRoots: */
-void bl_all_roots(void (*fn)(oop *))
+void jit_baseline_runtime_all_roots(void (*fn)(oop *))
 {
     int64_t i;
     for (i = 0; i <= oop_slot_count - 1; i++) {
@@ -80,7 +80,7 @@ void bl_all_roots(void (*fn)(oop *))
 }
 
 /* JitBaselineRuntime>>block:closure:ret: */
-uint64_t jit_bl_block(frame *f, oop c, uint64_t ret)
+uint64_t jit_baseline_runtime_block(frame *f, oop c, uint64_t ret)
 {
     oop o;
     uint64_t o_2;
@@ -110,12 +110,12 @@ uint64_t jit_bl_block(frame *f, oop c, uint64_t ret)
     uint64_t startpc;
     int64_t i;
     stat_block_misses = stat_block_misses + 1;
-    bl_set_top(f, ret, 0);
+    set_top(f, ret, 0);
     if ((jit_mode == JIT_BASELINE) || (jit_mode == JIT_OPT)) {
         f->method = ((jit_method *)f->code)->method;
-        bl_canonicalize_below(f);
+        canonicalize_below(f);
     }
-    interp_sync_frame(f);
+    sync_frame(f);
     o = f->method;
     o_2 = *(uint64_t *)(o + 16 + 16);
     f->lits = (oop *)(o_2 + 16);
@@ -127,9 +127,9 @@ uint64_t jit_bl_block(frame *f, oop c, uint64_t ret)
     }
     m_2 = *(uint64_t *)(ctx + 16 + 24);
     startpc_2 = *(uint64_t *)(c + 16 + 8);
-    h = jit_lookup(m_2);
+    h = jit_runtime_lookup(m_2);
     if (h == NULL) {
-        h = jit_compile_install(m_2);
+        h = compile_and_install(m_2);
     }
     if (!((h != NULL) && ((h->flags & JM_FAILED) == 0) && (h->mode == JIT_BASELINE))) {
         r_entry_of_block = 0ULL;
@@ -141,7 +141,7 @@ uint64_t jit_bl_block(frame *f, oop c, uint64_t ret)
         r_opt_unit_entry_of = 0ULL;
         goto exit_opt_unit_entry_of;
     }
-    r_opt_unit_entry_of = opt_unit_entry(m_2, s);
+    r_opt_unit_entry_of = unit_entry_of(m_2, s);
 exit_opt_unit_entry_of:;
     r_opt_unit_entry_of; });
     if (entry_2 != 0) {
@@ -169,7 +169,7 @@ exit_entry_of_block:;
         fatal_end();
     }
     h_2 = (jit_method *)f->code;
-    i_2 = bl_ret_index(h_2, ret);
+    i_2 = ret_index_of(h_2, ret);
     if (i_2 < 0) {
         a = (void *)ret;
         fatal_begin();
@@ -180,9 +180,9 @@ exit_entry_of_block:;
     r_ret_entry; })[2];
     r_callee_fp = f->fp + (f->sp + (int32_t)((info >> 26) & 3) - (int32_t)(info & 255));
     r_callee_fp; });
-        bl_set_top(f, ret, 1);
+        set_top(f, ret, 1);
         f->sp = (int32_t)(fp - f->fp + n);
-        interp_sync_frame(f);
+        sync_frame(f);
         activate_block(n);
         return 1;
     }
@@ -199,15 +199,15 @@ exit_entry_of_block:;
 }
 
 /* JitBaselineRuntime>>box:bits: */
-oop jit_bl_box(frame *f, uint64_t b)
+oop box(frame *f, uint64_t b)
 {
     oop o;
     uint64_t o_2;
     if ((jit_mode == JIT_BASELINE) || (jit_mode == JIT_OPT)) {
         f->method = ((jit_method *)f->code)->method;
-        bl_canonicalize_below(f);
+        canonicalize_below(f);
     }
-    interp_sync_frame(f);
+    sync_frame(f);
     o = f->method;
     o_2 = *(uint64_t *)(o + 16 + 16);
     f->lits = (oop *)(o_2 + 16);
@@ -215,7 +215,7 @@ oop jit_bl_box(frame *f, uint64_t b)
 }
 
 /* JitBaselineRuntime>>canonicalizeBelow: */
-void bl_canonicalize_below(frame *f)
+void canonicalize_below(frame *f)
 {
     frame *base;
     frame *g;
@@ -249,7 +249,7 @@ void bl_canonicalize_below(frame *f)
         fatal_end();
     }
     h_2 = (jit_method *)g->code;
-    i = bl_ret_index(h_2, ret);
+    i = ret_index_of(h_2, ret);
     if (i < 0) {
         a = (void *)ret;
         fatal_begin();
@@ -286,7 +286,7 @@ void bl_canonicalize_below(frame *f)
 }
 
 /* JitBaselineRuntime>>entrySlow:ret:callee: */
-uint64_t jit_bl_entry_slow(frame *f, uint64_t ret, uint64_t c)
+uint64_t entry_slow(frame *f, uint64_t ret, uint64_t c)
 {
     oop o;
     uint64_t o_2;
@@ -313,12 +313,12 @@ uint64_t jit_bl_entry_slow(frame *f, uint64_t ret, uint64_t c)
     uint64_t p;
     oop o_6;
     int32_t n_2;
-    bl_set_top(f, ret, 0);
+    set_top(f, ret, 0);
     if ((jit_mode == JIT_BASELINE) || (jit_mode == JIT_OPT)) {
         f->method = ((jit_method *)f->code)->method;
-        bl_canonicalize_below(f);
+        canonicalize_below(f);
     }
-    interp_sync_frame(f);
+    sync_frame(f);
     o = f->method;
     o_2 = *(uint64_t *)(o + 16 + 16);
     f->lits = (oop *)(o_2 + 16);
@@ -331,7 +331,7 @@ uint64_t jit_bl_entry_slow(frame *f, uint64_t ret, uint64_t c)
         fatal_end();
     }
     h_2 = (jit_method *)f->code;
-    i = bl_ret_index(h_2, ret);
+    i = ret_index_of(h_2, ret);
     if (i < 0) {
         a = (void *)ret;
         fatal_begin();
@@ -345,7 +345,7 @@ uint64_t jit_bl_entry_slow(frame *f, uint64_t ret, uint64_t c)
     if ((uint64_t)nfp >= state_block->stack_limit_normal) {
         c_3 = f->code;
         if ((c_3 > JIT_MAX_COUNT) && (((jit_method *)f->code)->mode == JIT_OPT)) {
-            return opt_send_from(f, ret);
+            return send_from(f, ret);
         }
         materialize_all();
         return 1;
@@ -361,15 +361,15 @@ uint64_t jit_bl_entry_slow(frame *f, uint64_t ret, uint64_t c)
     }
     v; });
     n = (int32_t)(((int64_t)o_5) >> 1);
-    bl_set_top(f, ret, 1);
+    set_top(f, ret, 1);
     f->sp = (int32_t)(nfp - f->fp + n);
-    interp_sync_frame(f);
+    sync_frame(f);
     moved = frame_epoch;
     inv = invalidations;
     if (c == 1) {
         activate_block(n);
     } else {
-        g = interp_push_frame(h->method, n, c, -1);
+        g = push_frame(h->method, n, c, -1);
         if (g == NULL) {
             fatal_begin();
             fprintf(stderr, "baseline: no room for a frame below the stack limit");
@@ -406,10 +406,10 @@ uint64_t jit_bl_entry_slow(frame *f, uint64_t ret, uint64_t c)
 }
 
 /* JitBaselineRuntime>>feedbackCasesOf:site: */
-int64_t bl_feedback_cases(oop m, int64_t i)
+int64_t feedback_cases_of(oop m, int64_t i)
 {
     baseline_site *s;
-    s = bl_header_of(m)->sites + i;
+    s = header_of(m)->sites + i;
     if (s->pic != 0) {
         return (int64_t)((baseline_pic *)s->pic)->count;
     }
@@ -420,11 +420,11 @@ int64_t bl_feedback_cases(oop m, int64_t i)
 }
 
 /* JitBaselineRuntime>>feedbackClassOf:site:case: */
-oop bl_feedback_class(oop m, int64_t i, int64_t j)
+oop feedback_class_of(oop m, int64_t i, int64_t j)
 {
     jit_method *h;
     baseline_site *s;
-    h = bl_header_of(m);
+    h = header_of(m);
     s = h->sites + i;
     if (s->pic != 0) {
         return *(uint64_t *)((uint64_t)&((baseline_pic *)s->pic)->classes + (uint64_t)(8 * j));
@@ -436,13 +436,13 @@ oop bl_feedback_class(oop m, int64_t i, int64_t j)
 }
 
 /* JitBaselineRuntime>>feedbackPcOf:site: */
-int64_t bl_feedback_pc(oop m, int64_t i)
+int64_t feedback_pc_of(oop m, int64_t i)
 {
-    return (int64_t)(bl_header_of(m)->sites + i)->pc;
+    return (int64_t)(header_of(m)->sites + i)->pc;
 }
 
 /* JitBaselineRuntime>>feedbackSelectorOf:site: */
-oop bl_feedback_selector(oop m, int64_t i)
+uint64_t feedback_selector_of(oop m, int64_t i)
 {
     jit_method *h;
     baseline_site *s;
@@ -452,7 +452,7 @@ oop bl_feedback_selector(oop m, int64_t i)
     oop o;
     oop o_2;
     uint64_t o_3;
-    h = bl_header_of(m);
+    h = header_of(m);
     s = h->sites + i;
     return ({
     if (h->mode == JIT_OPT) {
@@ -462,7 +462,7 @@ oop bl_feedback_selector(oop m, int64_t i)
     info = s->info;
     i_2 = (info >> 16) & 255;
     if (((info >> 24) & 3) == 2) {
-        o = special(SO_SPECIAL_SELECTORS);
+        o = object_memory_special(SO_SPECIAL_SELECTORS);
         r_selector_of = *(uint64_t *)(o + 16 + 8 * i_2);
         goto exit_selector_of;
     }
@@ -474,10 +474,10 @@ exit_selector_of:;
 }
 
 /* JitBaselineRuntime>>feedbackSitesOf: */
-int64_t bl_feedback_sites(oop m)
+int64_t feedback_sites_of(oop m)
 {
     jit_method *h;
-    h = bl_header_of(m);
+    h = header_of(m);
     if (h == NULL) {
         return -1;
     }
@@ -485,10 +485,10 @@ int64_t bl_feedback_sites(oop m)
 }
 
 /* JitBaselineRuntime>>feedbackStateOf:site: */
-int64_t bl_feedback_state(oop m, int64_t i)
+int64_t feedback_state_of(oop m, int64_t i)
 {
     baseline_site *s;
-    s = bl_header_of(m)->sites + i;
+    s = header_of(m)->sites + i;
     if ((s->info & BL_SITE_MEGA) != 0) {
         return 3;
     }
@@ -499,10 +499,10 @@ int64_t bl_feedback_state(oop m, int64_t i)
 }
 
 /* JitBaselineRuntime>>feedbackTargetOf:site:case: */
-oop bl_feedback_target(oop m, int64_t i, int64_t j)
+oop feedback_target_of(oop m, int64_t i, int64_t j)
 {
     baseline_site *s;
-    s = bl_header_of(m)->sites + i;
+    s = header_of(m)->sites + i;
     if (s->pic != 0) {
         return ((jit_method *)*(uint64_t *)((uint64_t)&((baseline_pic *)s->pic)->targets + (uint64_t)(8 * j)))->method;
     }
@@ -510,7 +510,7 @@ oop bl_feedback_target(oop m, int64_t i, int64_t j)
 }
 
 /* JitBaselineRuntime>>flushed */
-void bl_flushed(void)
+void jit_baseline_runtime_flushed(void)
 {
     oop_slot_count = 0;
     young_slot_count = 0;
@@ -520,7 +520,7 @@ void bl_flushed(void)
 }
 
 /* JitBaselineRuntime>>forgetSlotsFrom: */
-void bl_forget_slots_from(uint64_t address)
+void forget_slots_from(uint64_t address)
 {
     int64_t n;
     int64_t i;
@@ -544,10 +544,10 @@ void bl_forget_slots_from(uint64_t address)
 }
 
 /* JitBaselineRuntime>>headerOf: */
-static jit_method *bl_header_of(oop m)
+static jit_method *header_of(oop m)
 {
     jit_method *h;
-    h = jit_lookup(m);
+    h = jit_runtime_lookup(m);
     if (!((h != NULL) && ((h->flags & JM_FAILED) == 0) && (h->mode == JIT_BASELINE))) {
         return (jit_method *)NULL;
     }
@@ -555,7 +555,7 @@ static jit_method *bl_header_of(oop m)
 }
 
 /* JitBaselineRuntime>>miss:receiver:ret: */
-uint64_t jit_bl_miss(frame *f, oop rcv, uint64_t ret)
+uint64_t jit_baseline_runtime_miss(frame *f, oop rcv, uint64_t ret)
 {
     jit_method *h;
     oop o;
@@ -606,12 +606,12 @@ uint64_t jit_bl_miss(frame *f, oop rcv, uint64_t ret)
     uint64_t p_3;
     stat_misses = stat_misses + 1;
     h = (jit_method *)f->code;
-    bl_set_top(f, ret, 0);
+    set_top(f, ret, 0);
     if ((jit_mode == JIT_BASELINE) || (jit_mode == JIT_OPT)) {
         f->method = ((jit_method *)f->code)->method;
-        bl_canonicalize_below(f);
+        canonicalize_below(f);
     }
-    interp_sync_frame(f);
+    sync_frame(f);
     o = f->method;
     o_2 = *(uint64_t *)(o + 16 + 16);
     f->lits = (oop *)(o_2 + 16);
@@ -644,7 +644,7 @@ exit_site_of:;
     opt = h->mode == JIT_OPT;
     kind = (s->info >> 24) & 3;
     if (opt && (kind == 1)) {
-        return opt_send_from(f, ret);
+        return send_from(f, ret);
     }
     sel = ({
     if (h->mode == JIT_OPT) {
@@ -654,7 +654,7 @@ exit_site_of:;
     info = s->info;
     i = (info >> 16) & 255;
     if (((info >> 24) & 3) == 2) {
-        o_3 = special(SO_SPECIAL_SELECTORS);
+        o_3 = object_memory_special(SO_SPECIAL_SELECTORS);
         r_selector_of = *(uint64_t *)(o_3 + 16 + 8 * i);
         goto exit_selector_of;
     }
@@ -673,49 +673,49 @@ exit_selector_of:;
     }
     v_2; });
     if ((jit_mode == JIT_OPT) && ((kind != 1) && (!opt))) {
-        jit_note_send(h->method, (int64_t)s->pc, cls);
+        note_send(h->method, (int64_t)s->pc, cls);
     }
-    t = bl_target_for(cls, sel);
+    t = target_for(cls, sel);
     if (t == NULL) {
-        return opt ? opt_send_from(f, ret) : 1;
+        return opt ? send_from(f, ret) : 1;
     }
     if ((jit_flags & JIT_FLAG_IC) != 0) {
         is_super = kind == 1;
         site = h->code_start + s->bl;
         lit = h->code_start + s->lit;
-        jit_platform_begin_writing();
+        begin_writing();
         if (is_super) {
             s->target = (uint64_t)t;
             target = t->uentry;
-            asm_patch_branch(site, target);
-            jit_platform_invalidate((void *)site, 4);
+            patch_branch_at(site, target);
+            invalidate((void *)site, 4);
         } else if ((s->info & BL_SITE_MEGA) != 0) {
             i_2 = (int64_t)((((cls ^ sel) >> 3) & 4095) * 4);
             mega_table[i_2] = cls;
             mega_table[i_2 + 1] = sel;
             mega_table[i_2 + 2] = t->uentry;
             m = t->method;
-            mega_table[i_2 + 3] = (uint64_t)(bl_prim_kind((int32_t)(({
+            mega_table[i_2 + 3] = (uint64_t)(prim_kind_of((int32_t)(({
     p_2 = *(uint64_t *)(m + 16 + 56);
     r_method_prim = (p_2 & 1) != 0 ? ((int64_t)p_2) >> 1 : 0;
     r_method_prim; }) & CM_PRIM_MASK)) == PK_PERFORM ? -1 : (int64_t)selector_argc(sel));
         } else if (s->target == 0) {
             stat_links = stat_links + 1;
-            bl_set_slot(lit, cls);
+            set_slot(lit, cls);
             s->target = (uint64_t)t;
             target_2 = t->entry;
-            asm_patch_branch(site, target_2);
-            jit_platform_invalidate((void *)site, 4);
+            patch_branch_at(site, target_2);
+            invalidate((void *)site, 4);
         } else {
             p = s->pic;
             if ((p == 0) && ((jit_flags & JIT_FLAG_PIC) != 0)) {
-                p = bl_new_pic(site, *(uint64_t *)lit, (jit_method *)s->target);
+                p = new_pic_for(site, *(uint64_t *)lit, (jit_method *)s->target);
                 if (p != 0) {
                     stat_pics = stat_pics + 1;
                     s->pic = p;
                     target_3 = p + sizeof(baseline_pic);
-                    asm_patch_branch(site, target_3);
-                    jit_platform_invalidate((void *)site, 4);
+                    patch_branch_at(site, target_3);
+                    invalidate((void *)site, 4);
                 }
             }
             if (!((p != 0) && ({
@@ -725,41 +725,41 @@ exit_selector_of:;
         r_add_case_to = false;
         goto exit_add_case_to;
     }
-    bl_set_slot((uint64_t)&pic->classes + (uint64_t)(8 * n), cls);
+    set_slot((uint64_t)&pic->classes + (uint64_t)(8 * n), cls);
     *(uint64_t *)((uint64_t)&pic->targets + (uint64_t)(8 * n)) = (uint64_t)t;
     pic->count = n + 1;
     i_3 = (int32_t)n;
     site_2 = p + (sizeof(baseline_pic) + 12 + 16 * i_3 + 12);
     target_4 = t->uentry;
-    asm_patch_branch(site_2, target_4);
-    jit_platform_invalidate((void *)site_2, 4);
+    patch_branch_at(site_2, target_4);
+    invalidate((void *)site_2, 4);
     r_add_case_to = true;
 exit_add_case_to:;
     r_add_case_to; }))) {
                 stat_megas = stat_megas + 1;
                 s->info = s->info | BL_SITE_MEGA;
-                bl_set_slot(lit, sel);
+                set_slot(lit, sel);
                 target_5 = (jit_flags & JIT_FLAG_MEGA) != 0 ? bl_mega : bl_miss;
-                asm_patch_branch(site, target_5);
-                jit_platform_invalidate((void *)site, 4);
+                patch_branch_at(site, target_5);
+                invalidate((void *)site, 4);
                 i_4 = (int64_t)((((cls ^ sel) >> 3) & 4095) * 4);
                 mega_table[i_4] = cls;
                 mega_table[i_4 + 1] = sel;
                 mega_table[i_4 + 2] = t->uentry;
                 m_2 = t->method;
-                mega_table[i_4 + 3] = (uint64_t)(bl_prim_kind((int32_t)(({
+                mega_table[i_4 + 3] = (uint64_t)(prim_kind_of((int32_t)(({
     p_3 = *(uint64_t *)(m_2 + 16 + 56);
     r_method_prim_2 = (p_3 & 1) != 0 ? ((int64_t)p_3) >> 1 : 0;
     r_method_prim_2; }) & CM_PRIM_MASK)) == PK_PERFORM ? -1 : (int64_t)selector_argc(sel));
             }
         }
-        jit_platform_end_writing();
+        end_writing();
     }
     return t->uentry;
 }
 
 /* JitBaselineRuntime>>newPicFor:class:target: */
-static uint64_t bl_new_pic(uint64_t site, oop c0, jit_method *t0)
+static uint64_t new_pic_for(uint64_t site, uint64_t c0, jit_method *t0)
 {
     uint64_t p;
     baseline_pic *pic;
@@ -782,13 +782,13 @@ static uint64_t bl_new_pic(uint64_t site, oop c0, jit_method *t0)
     pic = (baseline_pic *)p;
     memset(pic, 0, sizeof(baseline_pic));
     pic->site = site;
-    if (!bl_emit_pic(p)) {
+    if (!emit_pic_at(p)) {
         return 0;
     }
     size = (uint64_t)(sizeof(baseline_pic) + 128);
-    jit_platform_invalidate((void *)p, size);
+    invalidate((void *)p, size);
     for (i = 0; i <= 5; i++) {
-        bl_register_slot((uint64_t)&pic->classes + (uint64_t)(8 * i));
+        register_slot((uint64_t)&pic->classes + (uint64_t)(8 * i));
     }
     if (!({
     pic_2 = (baseline_pic *)p;
@@ -797,14 +797,14 @@ static uint64_t bl_new_pic(uint64_t site, oop c0, jit_method *t0)
         r_add_case_to = false;
         goto exit_add_case_to;
     }
-    bl_set_slot((uint64_t)&pic_2->classes + (uint64_t)(8 * n), c0);
+    set_slot((uint64_t)&pic_2->classes + (uint64_t)(8 * n), c0);
     *(uint64_t *)((uint64_t)&pic_2->targets + (uint64_t)(8 * n)) = (uint64_t)t0;
     pic_2->count = n + 1;
     i_2 = (int32_t)n;
     site_2 = p + (sizeof(baseline_pic) + 12 + 16 * i_2 + 12);
     target = t0->uentry;
-    asm_patch_branch(site_2, target);
-    jit_platform_invalidate((void *)site_2, 4);
+    patch_branch_at(site_2, target);
+    invalidate((void *)site_2, 4);
     r_add_case_to = true;
 exit_add_case_to:;
     r_add_case_to; })) {
@@ -814,7 +814,7 @@ exit_add_case_to:;
 }
 
 /* JitBaselineRuntime>>nilTestOf: */
-static int32_t bl_nil_test_of(oop sel)
+static int nil_test_of(oop sel)
 {
     size_t n;
     if (!(((sel & 7) == 0) && (*(uint64_t *)(sel + 8) == state_block->byte_symbol_class))) {
@@ -831,7 +831,7 @@ static int32_t bl_nil_test_of(oop sel)
 }
 
 /* JitBaselineRuntime>>nilTestsChanged: */
-void bl_nil_tests_changed(oop sel)
+void nil_tests_changed(oop sel)
 {
     bool was;
     was = nil_scanned && nil_inline;
@@ -840,11 +840,11 @@ void bl_nil_tests_changed(oop sel)
             return;
         }
         nil_scanned = false;
-        if (bl_nil_tests_inlinable()) {
+        if (nil_tests_inlinable()) {
             return;
         }
     } else {
-        if (bl_nil_test_of(sel) == 0) {
+        if (nil_test_of(sel) == 0) {
             return;
         }
         nil_scanned = true;
@@ -858,14 +858,14 @@ void bl_nil_tests_changed(oop sel)
 }
 
 /* JitBaselineRuntime>>nilTestsInlinable */
-bool bl_nil_tests_inlinable(void)
+bool nil_tests_inlinable(void)
 {
     if (!nil_scanned) {
         nil_scanned = true;
         nil_inline = true;
         nil_found = 0;
-        walk_old_space(bl_note_nil_test, NULL);
-        walk_young_space(bl_note_nil_test, NULL);
+        walk_old_space(note_nil_test, NULL);
+        walk_young_space(note_nil_test, NULL);
         if (!(nil_found == 15)) {
             nil_inline = false;
         }
@@ -874,17 +874,17 @@ bool bl_nil_tests_inlinable(void)
 }
 
 /* JitBaselineRuntime>>noteNilTest:data: */
-static void bl_note_nil_test(oop m, void *d)
+static void note_nil_test(uint64_t m, void *d)
 {
-    int32_t k;
+    int k;
     uint64_t cls;
     uint64_t root;
     int quick;
     uint64_t bc;
-    if (!(nil_inline && (*(uint64_t *)(m + 8) == special(SO_COMPILEDMETHOD)))) {
+    if (!(nil_inline && (*(uint64_t *)(m + 8) == object_memory_special(SO_COMPILEDMETHOD)))) {
         return;
     }
-    k = bl_nil_test_of(*(uint64_t *)(m + 16 + 0));
+    k = nil_test_of(*(uint64_t *)(m + 16 + 0));
     if (k == 0) {
         return;
     }
@@ -907,7 +907,7 @@ static void bl_note_nil_test(oop m, void *d)
 }
 
 /* JitBaselineRuntime>>performMiss:receiver:ret:info: */
-uint64_t jit_bl_perform(frame *f, oop rcv, uint64_t ret, uint64_t info)
+uint64_t perform_miss(frame *f, oop rcv, uint64_t ret, uint64_t info)
 {
     int32_t n;
     oop o;
@@ -936,12 +936,12 @@ uint64_t jit_bl_perform(frame *f, oop rcv, uint64_t ret, uint64_t info)
     int32_t i_3;
     stat_misses = stat_misses + 1;
     n = (int32_t)(info & 255);
-    bl_set_top(f, ret, 0);
+    set_top(f, ret, 0);
     if ((jit_mode == JIT_BASELINE) || (jit_mode == JIT_OPT)) {
         f->method = ((jit_method *)f->code)->method;
-        bl_canonicalize_below(f);
+        canonicalize_below(f);
     }
-    interp_sync_frame(f);
+    sync_frame(f);
     o = f->method;
     o_2 = *(uint64_t *)(o + 16 + 16);
     f->lits = (oop *)(o_2 + 16);
@@ -954,7 +954,7 @@ uint64_t jit_bl_perform(frame *f, oop rcv, uint64_t ret, uint64_t info)
         fatal_end();
     }
     h = (jit_method *)f->code;
-    i = bl_ret_index(h, ret);
+    i = ret_index_of(h, ret);
     if (i < 0) {
         a = (void *)ret;
         fatal_begin();
@@ -975,15 +975,15 @@ uint64_t jit_bl_perform(frame *f, oop rcv, uint64_t ret, uint64_t info)
         return 0;
     }
     cls = (rcv & 7) != 0 ? tag_class[rcv & 7] : *(uint64_t *)(rcv + 8);
-    t = bl_target_for(cls, sel);
+    t = target_for(cls, sel);
     if ((t == NULL) || ({
     m = t->method;
-    (bl_prim_kind((int32_t)(({
+    (prim_kind_of((int32_t)(({
     p = *(uint64_t *)(m + 16 + 56);
     r_method_prim = (p & 1) != 0 ? ((int64_t)p) >> 1 : 0;
     r_method_prim; }) & CM_PRIM_MASK)) == PK_PERFORM) || ((k > n) || ((uint64_t)fp >= state_block->stack_limit_normal)); })) {
         c_2 = f->code;
-        return (c_2 > JIT_MAX_COUNT) && (((jit_method *)f->code)->mode == JIT_OPT) ? opt_send_from(f, ret) : 1;
+        return (c_2 > JIT_MAX_COUNT) && (((jit_method *)f->code)->mode == JIT_OPT) ? send_from(f, ret) : 1;
     }
     if ((jit_flags & JIT_FLAG_IC) != 0) {
         i_2 = (int64_t)((((cls ^ sel) >> 3) & 4095) * 4);
@@ -991,7 +991,7 @@ uint64_t jit_bl_perform(frame *f, oop rcv, uint64_t ret, uint64_t info)
         mega_table[i_2 + 1] = sel;
         mega_table[i_2 + 2] = t->uentry;
         m_2 = t->method;
-        mega_table[i_2 + 3] = (uint64_t)(bl_prim_kind((int32_t)(({
+        mega_table[i_2 + 3] = (uint64_t)(prim_kind_of((int32_t)(({
     p_2 = *(uint64_t *)(m_2 + 16 + 56);
     r_method_prim_2 = (p_2 & 1) != 0 ? ((int64_t)p_2) >> 1 : 0;
     r_method_prim_2; }) & CM_PRIM_MASK)) == PK_PERFORM ? -1 : (int64_t)selector_argc(sel));
@@ -1007,7 +1007,7 @@ uint64_t jit_bl_perform(frame *f, oop rcv, uint64_t ret, uint64_t info)
 }
 
 /* JitBaselineRuntime>>prim:fp:fn:info: */
-uint64_t jit_bl_prim(frame *f, uint64_t fp, uint64_t fn, uint64_t info)
+uint64_t jit_baseline_runtime_prim(frame *f, uint64_t fp, uint64_t fn, uint64_t info)
 {
     int32_t n;
     bool leaf;
@@ -1040,20 +1040,20 @@ uint64_t jit_bl_prim(frame *f, uint64_t fp, uint64_t fn, uint64_t info)
     base = (oop *)fp - 1;
     if (!leaf) {
         ret = state_block->prim_ret;
-        bl_set_top(f, ret, 1);
+        set_top(f, ret, 1);
         f->sp = (int32_t)((oop *)fp - f->fp + n);
         if ((jit_mode == JIT_BASELINE) || (jit_mode == JIT_OPT)) {
             f->method = ((jit_method *)f->code)->method;
-            bl_canonicalize_below(f);
+            canonicalize_below(f);
         }
-        interp_sync_frame(f);
+        sync_frame(f);
         o = f->method;
         o_2 = *(uint64_t *)(o + 16 + 16);
         f->lits = (oop *)(o_2 + 16);
     }
     moved = frame_epoch;
     inv = invalidations;
-    status = interp_call_primitive((prim_fn)fn, base, n);
+    status = call_primitive((prim_fn)fn, base, n);
     if (status == PS_OK) {
         v = prim_result;
         prim_result = nil_oop;
@@ -1070,19 +1070,19 @@ uint64_t jit_bl_prim(frame *f, uint64_t fp, uint64_t fn, uint64_t info)
                 return ({
     c_2 = f->code;
     if ((c_2 > JIT_MAX_COUNT) && (((jit_method *)f->code)->mode == JIT_OPT)) {
-        r_leave_after = opt_leave(f, true);
+        r_leave_after = opt_runtime_leave(f, true);
         goto exit_leave_after;
     }
-    r_leave_after = jit_leave(f, pc, n_2);
+    r_leave_after = jit_runtime_leave(f, pc, n_2);
 exit_leave_after:;
     r_leave_after; });
             }
             f->sp = f->sp - n;
             if ((jit_mode == JIT_BASELINE) || (jit_mode == JIT_OPT)) {
                 f->method = ((jit_method *)f->code)->method;
-                bl_canonicalize_below(f);
+                canonicalize_below(f);
             }
-            interp_sync_frame(f);
+            sync_frame(f);
             o_3 = f->method;
             o_4 = *(uint64_t *)(o_3 + 16 + 16);
             f->lits = (oop *)(o_4 + 16);
@@ -1100,10 +1100,10 @@ exit_leave_after:;
             return ({
     c_4 = f->code;
     if ((c_4 > JIT_MAX_COUNT) && (((jit_method *)f->code)->mode == JIT_OPT)) {
-        r_leave_after_2 = opt_leave(f, true);
+        r_leave_after_2 = opt_runtime_leave(f, true);
         goto exit_leave_after_2;
     }
-    r_leave_after_2 = jit_leave(f, pc_2, n_3);
+    r_leave_after_2 = jit_runtime_leave(f, pc_2, n_3);
 exit_leave_after_2:;
     r_leave_after_2; });
         }
@@ -1131,7 +1131,7 @@ exit_leave_after_2:;
 }
 
 /* JitBaselineRuntime>>primKindOf: */
-int32_t bl_prim_kind(int32_t p)
+int32_t prim_kind_of(int32_t p)
 {
     int i;
     primitive_entry *t;
@@ -1431,7 +1431,7 @@ int32_t bl_prim_kind(int32_t p)
 }
 
 /* JitBaselineRuntime>>primOpOf: */
-int32_t bl_prim_op(int32_t p)
+int32_t prim_op_of(int32_t p)
 {
     if ((p <= 0) || (p >= 1024)) {
         return 0;
@@ -1440,7 +1440,7 @@ int32_t bl_prim_op(int32_t p)
 }
 
 /* JitBaselineRuntime>>redirect:to: */
-void bl_redirect(jit_method *h, jit_method *o)
+void redirect(jit_method *h, jit_method *o)
 {
     uint64_t a;
     if (!((jit_mode == JIT_OPT) && ((h->mode == JIT_BASELINE) && ((h->flags & JM_ENTRY) != 0)))) {
@@ -1450,7 +1450,7 @@ void bl_redirect(jit_method *h, jit_method *o)
         return;
     }
     a = h->uentry;
-    jit_platform_begin_writing();
+    begin_writing();
     if (o == h) {
         if (h->entry_word != 0) {
             *(uint32_t *)a = h->entry_word;
@@ -1462,12 +1462,12 @@ void bl_redirect(jit_method *h, jit_method *o)
         }
         *(uint32_t *)a = (uint32_t)(0x14000000 | ((((int64_t)o->code_start - (int64_t)a) >> 2) & 0x3FFFFFF));
     }
-    jit_platform_invalidate((void *)a, 4);
-    jit_platform_end_writing();
+    invalidate((void *)a, 4);
+    end_writing();
 }
 
 /* JitBaselineRuntime>>registerSlot: */
-void bl_register_slot(uint64_t a)
+void register_slot(uint64_t a)
 {
     uint64_t v;
     int64_t i;
@@ -1499,7 +1499,7 @@ void bl_register_slot(uint64_t a)
 }
 
 /* JitBaselineRuntime>>retIndexOf:at: */
-static int64_t bl_ret_index(jit_method *h, uint64_t ret)
+static int64_t ret_index_of(jit_method *h, uint64_t ret)
 {
     uint32_t off;
     int64_t lo;
@@ -1525,15 +1525,15 @@ static int64_t bl_ret_index(jit_method *h, uint64_t ret)
 }
 
 /* JitBaselineRuntime>>returnSlow: */
-uint64_t jit_bl_return_slow(frame *f)
+uint64_t return_slow(frame *f)
 {
     oop o;
     uint64_t o_2;
     if ((jit_mode == JIT_BASELINE) || (jit_mode == JIT_OPT)) {
         f->method = ((jit_method *)f->code)->method;
-        bl_canonicalize_below(f);
+        canonicalize_below(f);
     }
-    interp_sync_frame(f);
+    sync_frame(f);
     o = f->method;
     o_2 = *(uint64_t *)(o + 16 + 16);
     f->lits = (oop *)(o_2 + 16);
@@ -1541,17 +1541,17 @@ uint64_t jit_bl_return_slow(frame *f)
         return 1;
     }
     if (f->ctx != nil_oop) {
-        widow(f);
+        interpreter_widow(f);
     }
     return 0;
 }
 
 /* JitBaselineRuntime>>setSlot:to: */
-static void bl_set_slot(uint64_t a, oop v)
+static void set_slot(uint64_t a, uint64_t v)
 {
     int64_t i;
     *(uint64_t *)a = v;
-    if (((v & 7) == 0) && ((uint64_t)(v - young_lo) < young_hi - young_lo)) {
+    if (((v & 7) == 0) && (v - young_lo < young_hi - young_lo)) {
         if (young_slots_overflow) {
             goto exit_note_young_slot;
         }
@@ -1571,7 +1571,7 @@ static void bl_set_slot(uint64_t a, oop v)
 }
 
 /* JitBaselineRuntime>>setTop:ret:mode: */
-static void bl_set_top(frame *f, uint64_t ret, int32_t mode)
+static void set_top(frame *f, uint64_t ret, int mode)
 {
     uint32_t *r_ret_entry;
     uint64_t c;
@@ -1591,7 +1591,7 @@ static void bl_set_top(frame *f, uint64_t ret, int32_t mode)
         fatal_end();
     }
     h_2 = (jit_method *)f->code;
-    i = bl_ret_index(h_2, ret);
+    i = ret_index_of(h_2, ret);
     if (i < 0) {
         a = (void *)ret;
         fatal_begin();
@@ -1619,7 +1619,7 @@ static void bl_set_top(frame *f, uint64_t ret, int32_t mode)
 }
 
 /* JitBaselineRuntime>>targetFor:selector: */
-static jit_method *bl_target_for(oop cls, oop sel)
+static jit_method *target_for(oop cls, oop sel)
 {
     cache_entry *e;
     oop m;
@@ -1629,7 +1629,7 @@ static jit_method *bl_target_for(oop cls, oop sel)
         return (jit_method *)NULL;
     }
     m = e->method;
-    t = jit_code_of(m, true);
+    t = code_of(m, true);
     if (!((t != NULL) && ((t->flags & JM_FAILED) == 0))) {
         return (jit_method *)NULL;
     }
@@ -1643,13 +1643,13 @@ static jit_method *bl_target_for(oop cls, oop sel)
 }
 
 /* JitBaselineRuntime>>unlinkAll */
-void bl_unlink_all(void)
+void unlink_all(void)
 {
-    bl_unlink_selector(0);
+    unlink_selector(0);
 }
 
 /* JitBaselineRuntime>>unlinkSelector: */
-void bl_unlink_selector(oop sel)
+void unlink_selector(oop sel)
 {
     int i;
     jit_method *h;
@@ -1678,7 +1678,7 @@ void bl_unlink_selector(oop sel)
     if (table_count == 0) {
         return;
     }
-    jit_platform_begin_writing();
+    begin_writing();
     for (i = 0; i <= 65535; i++) {
         h = method_table[i];
         if ((h != NULL) && (h->mode == JIT_BASELINE)) {
@@ -1696,7 +1696,7 @@ void bl_unlink_selector(oop sel)
     info = s->info;
     i_2 = (info >> 16) & 255;
     if (((info >> 24) & 3) == 2) {
-        o = special(SO_SPECIAL_SELECTORS);
+        o = object_memory_special(SO_SPECIAL_SELECTORS);
         r_selector_of = *(uint64_t *)(o + 16 + 8 * i_2);
         goto exit_selector_of;
     }
@@ -1710,8 +1710,8 @@ exit_selector_of:;
                         s->target = 0;
                         s->pic = 0;
                         s->info = s->info & 3221225471LL;
-                        asm_patch_branch(site, bl_miss);
-                        jit_platform_invalidate((void *)site, 4);
+                        patch_branch_at(site, bl_miss);
+                        invalidate((void *)site, 4);
                     }
                 }
             }
@@ -1734,7 +1734,7 @@ exit_selector_of:;
     info_2 = s_2->info;
     i_4 = (info_2 >> 16) & 255;
     if (((info_2 >> 24) & 3) == 2) {
-        o_4 = special(SO_SPECIAL_SELECTORS);
+        o_4 = object_memory_special(SO_SPECIAL_SELECTORS);
         r_selector_of_2 = *(uint64_t *)(o_4 + 16 + 8 * i_4);
         goto exit_selector_of_2;
     }
@@ -1748,22 +1748,22 @@ exit_selector_of_2:;
                     s_2->target = 0;
                     s_2->pic = 0;
                     s_2->info = s_2->info & 3221225471LL;
-                    asm_patch_branch(site_2, bl_miss);
-                    jit_platform_invalidate((void *)site_2, 4);
+                    patch_branch_at(site_2, bl_miss);
+                    invalidate((void *)site_2, 4);
                 }
             }
         }
     exit_unlink_sites_of_2:;
     }
-    jit_platform_end_writing();
+    end_writing();
 }
 
 /* JitBaselineRuntime>>youngRoots: */
-void bl_young_roots(void (*fn)(oop *))
+void jit_baseline_runtime_young_roots(void (*fn)(oop *))
 {
     int64_t i;
     if (young_slots_overflow) {
-        bl_all_roots(fn);
+        jit_baseline_runtime_all_roots(fn);
         return;
     }
     for (i = 0; i <= young_slot_count - 1; i++) {

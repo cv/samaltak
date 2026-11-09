@@ -8,10 +8,10 @@ static inline int thread_selfcounts_checked(int type, void *buf, unsigned long n
 
 static int32_t kq = -1;
 
-static void *kqueue_ticker(void *arg);
+static void *kqueue_ticker_run(void *arg);
 
 /* KqueueTicker>>arm:microseconds:periodic: */
-void tick_arm(int ident, int64_t us, bool periodic)
+void arm(int ident, int64_t us, bool periodic)
 {
     struct kevent local;
     struct kevent *ch;
@@ -38,7 +38,7 @@ void tick_arm(int ident, int64_t us, bool periodic)
 }
 
 /* KqueueTicker>>run: */
-static void *kqueue_ticker(void *arg)
+static void *kqueue_ticker_run(void *arg)
 {
     struct kevent local;
     struct kevent *ev;
@@ -65,7 +65,7 @@ void ticker_start(void)
     }
     memset(&local, 0, sizeof local);
     t = &local;
-    if (pthread_create(t, (const pthread_attr_t *)NULL, kqueue_ticker, NULL) != 0) {
+    if (pthread_create(t, (const pthread_attr_t *)NULL, kqueue_ticker_run, NULL) != 0) {
         fatal_begin();
         fprintf(stderr, "cannot start the ticker thread");
         fatal_end();
@@ -74,7 +74,7 @@ void ticker_start(void)
 }
 
 /* KqueueTicker>>threadCycles */
-int64_t ticker_thread_cycles(void)
+int64_t thread_cycles(void)
 {
     uint64_t local[2];
     uint64_t *counters;

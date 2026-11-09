@@ -5,7 +5,7 @@
 char *image_path;
 
 /* ImageFile>>loadImage: */
-void load_image(const char *path)
+void load_image(char *path)
 {
     FILE *f;
     image_header local;
@@ -93,7 +93,7 @@ void load_image(const char *path)
 }
 
 /* ImageFile>>writeSnapshot: */
-bool write_snapshot(const char *path)
+bool write_snapshot(char *path)
 {
     image_header local;
     image_header *h;

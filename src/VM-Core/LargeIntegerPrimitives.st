@@ -13,7 +13,7 @@ declarations
 !LargeIntegerPrimitives methodsFor: 'operands'!
 operand: o into: x
 	"x := the Integer o: its magnitude as limbs, least significant first (o's bytes, or x's own two for a SmallInteger), their number without leading zero limbs, and its sign (never negative for zero). False if o is no Integer."
-	<c: 'bool large_decode(oop o, LargeOperand *x)'>
+	<function>
 	| v m c p n |
 	(self isInt: o) ifTrue: [
 		v := self intVal: o.
@@ -41,7 +41,7 @@ operands: a and: b
 !
 scratch: n
 	"At least n limbs of scratch memory, kept for the next primitive; NULL if they cannot be had."
-	<c: 'uint32_t *large_scratch(int64_t n)'>
+	<function>
 	| cap |
 	n > scratchLimbs ifTrue: [
 		cap := n > (scratchLimbs * 2) ifTrue: [n] ifFalse: [scratchLimbs * 2].
@@ -56,7 +56,7 @@ fits: n
 !
 answer: r count: n negative: neg
 	"Answer the Integer with the magnitude r (n limbs) and sign neg: a SmallInteger if it fits, else a new LargeInteger without leading zero bytes."
-	<c: 'void large_answer(const uint32_t *r, int64_t n, bool neg)'>
+	<function>
 	| k m top bytes o |
 	k := n.
 	[k > 0 and: [(r at: k - 1) = 0]] whileTrue: [k := k - 1].
@@ -78,7 +78,7 @@ answer: r count: n negative: neg
 !LargeIntegerPrimitives methodsFor: 'magnitudes'!
 compare: a count: na with: b count: nb
 	"-1, 0 or 1: the magnitude a against b (no leading zero limbs)."
-	<c: 'int large_compare(const uint32_t *a, int64_t na, const uint32_t *b, int64_t nb)'>
+	<function>
 	| i |
 	na ~= nb ifTrue: [^na < nb ifTrue: [-1] ifFalse: [1]].
 	i := na - 1.
@@ -88,7 +88,7 @@ compare: a count: na with: b count: nb
 !
 sum: a count: na plus: b count: nb into: r
 	"r := a + b (na >= nb); answer its limbs (na + 1 at most)."
-	<c: 'int64_t large_sum(const uint32_t *a, int64_t na, const uint32_t *b, int64_t nb, uint32_t *r)'>
+	<function>
 	| carry t |
 	carry := 0 asUInt64.
 	0 to: nb - 1 do: [:i |
@@ -104,7 +104,7 @@ sum: a count: na plus: b count: nb into: r
 !
 difference: a count: na minus: b count: nb into: r
 	"r := a - b (a >= b, na >= nb); answer its limbs (na at most)."
-	<c: 'int64_t large_difference(const uint32_t *a, int64_t na, const uint32_t *b, int64_t nb, uint32_t *r)'>
+	<function>
 	| borrow t |
 	borrow := 0.
 	0 to: nb - 1 do: [:i |
@@ -119,7 +119,7 @@ difference: a count: na minus: b count: nb into: r
 !
 product: a count: na times: b count: nb into: r
 	"r (na + nb limbs) := a * b, schoolbook: a row per limb of a, so a short a makes few passes over b; the first row writes r, the others add to it."
-	<c: 'void large_product(const uint32_t *a, int64_t na, const uint32_t *b, int64_t nb, uint32_t *r)'>
+	<function>
 	| ai carry t |
 	0 to: na - 1 do: [:i |
 		ai := (a at: i) asUInt64.
@@ -133,7 +133,7 @@ product: a count: na times: b count: nb into: r
 !
 divide: a count: na by: b count: nb quotient: q remainder: r work: w
 	"q (na - nb + 1 limbs) := a quo: b and r (nb limbs) := a rem: b, for a >= b > 0 without leading zero limbs: short division by one limb, else Knuth's algorithm D (TAOCP 4.3.1) on copies shifted so that the divisor's top bit is set (w: na + nb + 2 limbs)."
-	<c: 'void large_divide(const uint32_t *a, int64_t na, const uint32_t *b, int64_t nb, uint32_t *q, uint32_t *r, uint32_t *w)'>
+	<function>
 	| d rem t s un vn vTop vNext num qhat rhat carry borrow p diff |
 	nb = 1 ifTrue: [
 		d := (b at: 0) asUInt64.
@@ -195,7 +195,7 @@ leadingZeros: x
 !
 shift: x count: n left: k into: r
 	"r (n + (k quo: 32) + 1 limbs) := x << k."
-	<c: 'void large_shift_left(const uint32_t *x, int64_t n, int64_t k, uint32_t *r)'>
+	<function>
 	| limbs bits carry t |
 	limbs := k quo: 32.
 	bits := k rem: 32.
@@ -209,7 +209,7 @@ shift: x count: n left: k into: r
 !
 shift: x count: n right: k into: r
 	"r (n - (k quo: 32) limbs, k < 32 n) := x >> k; answer whether 1 bits were shifted out."
-	<c: 'bool large_shift_right(const uint32_t *x, int64_t n, int64_t k, uint32_t *r)'>
+	<function>
 	| limbs bits lost next |
 	limbs := k quo: 32.
 	bits := k rem: 32.
@@ -222,7 +222,7 @@ shift: x count: n right: k into: r
 !
 increment: x count: n
 	"x := x + 1 (room for n + 1 limbs); answer its limbs."
-	<c: 'int64_t large_increment(uint32_t *x, int64_t n)'>
+	<function>
 	| i |
 	i := 0.
 	[i < n and: [(x at: i) = 16rFFFFFFFF]] whileTrue: [
@@ -236,7 +236,7 @@ increment: x count: n
 !
 lowest: x count: n
 	"The index of x's lowest nonzero limb; n if there is none."
-	<c: 'int64_t large_lowest(const uint32_t *x, int64_t n)'>
+	<function>
 	| i |
 	i := 0.
 	[i < n and: [(x at: i) = 0]] whileTrue: [i := i + 1].
@@ -244,7 +244,7 @@ lowest: x count: n
 !
 limb: i of: x lowest: z
 	"Limb i of x in two's complement (z: the index of x's lowest nonzero limb): for a negative x, ~(|x| - 1)."
-	<c: 'uint32_t large_twos_limb(int64_t i, LargeOperand *x, int64_t z)'>
+	<function>
 	| v |
 	v := i < x count ifTrue: [x limbs at: i] ifFalse: [0 asUInt32].
 	x neg ifFalse: [^v].
@@ -256,7 +256,7 @@ limb: i of: x lowest: z
 !LargeIntegerPrimitives methodsFor: 'operations'!
 add: subtract
 	"The receiver plus the argument (minus it if subtract): magnitudes added if the signs agree, else the smaller subtracted from the larger."
-	<c: 'void large_add(bool subtract)'>
+	<function>
 	| a b bneg r n |
 	a := self local: 'LargeOperand'.
 	b := self local: 'LargeOperand'.
@@ -275,7 +275,7 @@ add: subtract
 !
 divide: mode
 	"The receiver divided by the argument: mode 0 quo:, 1 rem: (truncated), 2 //, 3 \\ (floored). Fails on a zero divisor."
-	<c: 'void large_div(int mode)'>
+	<function>
 	| a b na nb w q rem qn rn neg floored |
 	a := self local: 'LargeOperand'.
 	b := self local: 'LargeOperand'.
@@ -309,7 +309,7 @@ divide: mode
 !
 bitOp: op
 	"The receiver op the argument in two's complement (op 1 bitAnd:, 2 bitOr:, 3 bitXor:), on one more limb than the longer magnitude, so that the top limb holds the sign."
-	<c: 'void large_bit_op(int op)'>
+	<function>
 	| a b n r za zb x y |
 	a := self local: 'LargeOperand'.
 	b := self local: 'LargeOperand'.

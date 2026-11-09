@@ -2,15 +2,15 @@
 /* SystemPrimitives (VM-Core) */
 #include "samaltak.h"
 
-static oop strings_array(char **v, int n);
+static oop strings_array(char **v, int32_t n);
 
 /* SystemPrimitives>>primFlushCacheForSelector */
 void prim_flush_cache_for_selector(void)
 {
     oop v;
     flush_method_cache_selector(prim_nargs > 0 ? prim_base[1] : prim_base[0]);
-    jit_methods_changed_for(prim_nargs > 0 ? prim_base[1] : prim_base[0]);
-    jit_opt_methods_changed(prim_nargs > 0 ? prim_base[1] : prim_base[0]);
+    methods_changed_for(prim_nargs > 0 ? prim_base[1] : prim_base[0]);
+    opt_methods_changed(prim_nargs > 0 ? prim_base[1] : prim_base[0]);
     v = prim_base[0];
     prim_result = v;
     prim_status = PS_OK;
@@ -21,8 +21,8 @@ void prim_flush_method_cache(void)
 {
     oop v;
     flush_method_cache();
-    jit_methods_changed();
-    jit_opt_methods_changed(nil_oop);
+    methods_changed();
+    opt_methods_changed(nil_oop);
     v = prim_base[0];
     prim_result = v;
     prim_status = PS_OK;
@@ -45,7 +45,7 @@ void prim_getenv(void)
 {
     char *k;
     char *v;
-    oop v_2;
+    uint64_t v_2;
     if (!is_kind_of_string(prim_nargs > 0 ? prim_base[1] : nil_oop)) {
         prim_status = PS_FAIL;
         prim_error_code = -1;
@@ -68,7 +68,7 @@ void prim_getenv(void)
 void prim_image_path(void)
 {
     char *p;
-    oop v;
+    uint64_t v;
     p = image_path == NULL ? "" : image_path;
     v = string_from_utf8(p, strlen(p));
     prim_result = v;
@@ -91,7 +91,7 @@ void prim_millisecond_clock(void)
 {
     int64_t v;
     uint64_t v_2;
-    v = now_ms();
+    v = scheduler_now_ms();
     v_2 = (uint64_t)((v << 1) | 1);
     prim_result = v_2;
     prim_status = PS_OK;
@@ -101,7 +101,7 @@ void prim_millisecond_clock(void)
 void prim_primitive_names(void)
 {
     oop v;
-    v = primitive_names_array();
+    v = names_array();
     prim_result = v;
     prim_status = PS_OK;
 }
@@ -113,7 +113,7 @@ void prim_quit(void)
     c = prim_nargs > 0 ? prim_base[1] : nil_oop;
     fflush(stdout);
     fflush(stderr);
-    platform_shutdown();
+    platform_interface_shutdown();
     exit((c & 1) != 0 ? (int32_t)(((int64_t)c) >> 1) : 0);
 }
 
@@ -133,9 +133,9 @@ void prim_scavenge(void)
 void prim_snapshot(void)
 {
     char *path;
-    oop o;
+    uint64_t o;
     bool ok;
-    oop o_2;
+    uint64_t o_2;
     oop ctx;
     if (!is_kind_of_string(prim_nargs > 0 ? prim_base[1] : nil_oop)) {
         prim_status = PS_FAIL;
@@ -152,15 +152,15 @@ void prim_snapshot(void)
     materialize_all();
     o = active_process();
     *(uint64_t *)(o + 16 + 8) = active_ctx;
-    if (((active_ctx & 7) == 0) && (((uint64_t)(active_ctx - young_lo) < young_hi - young_lo) && ((!((uint64_t)(o - young_lo) < young_hi - young_lo)) && (((*(uint64_t *)o) & H_REMEMBERED) == 0)))) {
-        vm_remember(o);
+    if (((active_ctx & 7) == 0) && (((uint64_t)(active_ctx - young_lo) < young_hi - young_lo) && ((!(o - young_lo < young_hi - young_lo)) && (((*(uint64_t *)o) & H_REMEMBERED) == 0)))) {
+        remember(o);
     }
     ok = write_snapshot(path);
     free(path);
     o_2 = active_process();
     *(uint64_t *)(o_2 + 16 + 8) = nil_oop;
-    if (((nil_oop & 7) == 0) && (((uint64_t)(nil_oop - young_lo) < young_hi - young_lo) && ((!((uint64_t)(o_2 - young_lo) < young_hi - young_lo)) && (((*(uint64_t *)o_2) & H_REMEMBERED) == 0)))) {
-        vm_remember(o_2);
+    if (((nil_oop & 7) == 0) && (((uint64_t)(nil_oop - young_lo) < young_hi - young_lo) && ((!(o_2 - young_lo < young_hi - young_lo)) && (((*(uint64_t *)o_2) & H_REMEMBERED) == 0)))) {
+        remember(o_2);
     }
     ctx = active_ctx;
     ((oop *)(ctx + 16))[CTX_FIXED + ctx_stackp(ctx) - 1] = ok ? false_oop : nil_oop;
@@ -248,9 +248,9 @@ void prim_vm_arguments(void)
 /* SystemPrimitives>>primVMBanner */
 void prim_vm_banner(void)
 {
-    const char *b;
-    oop v;
-    b = vm_banner();
+    char *b;
+    uint64_t v;
+    b = banner();
     v = string_from_utf8(b, strlen(b));
     prim_result = v;
     prim_status = PS_OK;
@@ -263,7 +263,7 @@ void prim_vm_stats(void)
     int64_t *v;
     int i;
     int i_2;
-    oop a;
+    uint64_t a;
     int i_3;
     int64_t v_2;
     memset(&local, 0, sizeof local);
@@ -293,10 +293,10 @@ void prim_vm_stats(void)
     v[22] = (int64_t)stat_osr;
     v[23] = (int64_t)stat_failed;
     for (i = 0; i <= 6; i++) {
-        v[24 + i] = (int64_t)jit_baseline_stat((int32_t)i);
+        v[24 + i] = (int64_t)baseline_stat((int32_t)i);
     }
     for (i_2 = 0; i_2 <= 8; i_2++) {
-        v[31 + i_2] = jit_opt_stat((int32_t)i_2);
+        v[31 + i_2] = opt_stat((int32_t)i_2);
     }
     v[40] = 2LL;
     a = alloc_obj(cls_array, F_VAR, 41);
@@ -363,7 +363,7 @@ void prim_work_clock_next_frame(void)
 void prim_work_clock_paced(void)
 {
     oop v;
-    work_clock_set_paced((prim_nargs > 0 ? prim_base[1] : nil_oop) == true_oop);
+    scheduler_work_clock_paced((prim_nargs > 0 ? prim_base[1] : nil_oop) == true_oop);
     v = prim_base[0];
     prim_result = v;
     prim_status = PS_OK;
@@ -373,7 +373,7 @@ void prim_work_clock_paced(void)
 void prim_work_clock_querying(void)
 {
     oop v;
-    work_clock_set_querying((prim_nargs > 0 ? prim_base[1] : nil_oop) == true_oop);
+    scheduler_work_clock_querying((prim_nargs > 0 ? prim_base[1] : nil_oop) == true_oop);
     v = prim_base[0];
     prim_result = v;
     prim_status = PS_OK;
@@ -394,7 +394,7 @@ void prim_work_clock_release(void)
 void prim_work_clock_running(void)
 {
     oop v;
-    work_clock_set_running((prim_nargs > 0 ? prim_base[1] : nil_oop) == true_oop);
+    scheduler_work_clock_running((prim_nargs > 0 ? prim_base[1] : nil_oop) == true_oop);
     v = prim_base[0];
     prim_result = v;
     prim_status = PS_OK;
@@ -436,13 +436,13 @@ void prim_work_clock_stop(void)
 }
 
 /* SystemPrimitives>>stringsArray:count: */
-static oop strings_array(char **v, int n)
+static oop strings_array(char **v, int32_t n)
 {
-    oop a;
+    uint64_t a;
     oop local;
     oop *root;
-    int i;
-    oop s;
+    int32_t i;
+    uint64_t s;
     oop o;
     a = alloc_obj(cls_array, F_VAR, (uint32_t)n);
     memset(&local, 0, sizeof local);
@@ -453,8 +453,8 @@ static oop strings_array(char **v, int n)
         s = string_from_utf8(v[i], strlen(v[i]));
         o = *root;
         *(uint64_t *)(o + 16 + 8 * i) = s;
-        if (((s & 7) == 0) && (((uint64_t)(s - young_lo) < young_hi - young_lo) && ((!((uint64_t)(o - young_lo) < young_hi - young_lo)) && (((*(uint64_t *)o) & H_REMEMBERED) == 0)))) {
-            vm_remember(o);
+        if (((s & 7) == 0) && ((s - young_lo < young_hi - young_lo) && ((!((uint64_t)(o - young_lo) < young_hi - young_lo)) && (((*(uint64_t *)o) & H_REMEMBERED) == 0)))) {
+            remember(o);
         }
     }
     pop_root();

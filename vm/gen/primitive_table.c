@@ -7,10 +7,10 @@ static int32_t flags[1024];
 static bool initialized;
 static const char *names[1024];
 
-static void init_prim_table(void);
+static void init_table(void);
 
 /* PrimitiveTable>>initTable */
-static void init_prim_table(void)
+static void init_table(void)
 {
     primitive_entry *t;
     int i;
@@ -38,44 +38,44 @@ static void init_prim_table(void)
 }
 
 /* PrimitiveTable>>isLeaf: */
-bool prim_is_leaf(int64_t n)
+bool is_leaf(int64_t n)
 {
     int32_t r_flags_of;
     return (({
-    init_prim_table();
+    init_table();
     r_flags_of = (n > 0) && (n < MAX_PRIM) ? flags[n] : 0;
     r_flags_of; }) & PRIM_LEAF) != 0;
 }
 
 /* PrimitiveTable>>isTryable: */
-bool prim_tryable(int64_t n)
+bool is_tryable(int64_t n)
 {
     int32_t r_flags_of;
     return (({
-    init_prim_table();
+    init_table();
     r_flags_of = (n > 0) && (n < MAX_PRIM) ? flags[n] : 0;
     r_flags_of; }) & PRIM_TRYABLE) != 0;
 }
 
 /* PrimitiveTable>>lookup: */
-prim_fn prim_lookup(int64_t n)
+prim_fn primitive_table_lookup(int64_t n)
 {
-    init_prim_table();
+    init_table();
     return (n > 0) && (n < MAX_PRIM) ? by_number[n] : (prim_fn)NULL;
 }
 
 /* PrimitiveTable>>namesArray */
-oop primitive_names_array(void)
+oop names_array(void)
 {
     primitive_entry *t;
     int64_t max;
     int i;
-    oop a;
+    uint64_t a;
     oop local;
     oop *root;
     int i_2;
     primitive_entry *e;
-    oop s;
+    uint64_t s;
     oop o;
     int32_t i_3;
     t = vm_primitive_table;
@@ -96,8 +96,8 @@ oop primitive_names_array(void)
         o = *root;
         i_3 = e->number - 1;
         *(uint64_t *)(o + 16 + 8 * i_3) = s;
-        if (((s & 7) == 0) && (((uint64_t)(s - young_lo) < young_hi - young_lo) && ((!((uint64_t)(o - young_lo) < young_hi - young_lo)) && (((*(uint64_t *)o) & H_REMEMBERED) == 0)))) {
-            vm_remember(o);
+        if (((s & 7) == 0) && ((s - young_lo < young_hi - young_lo) && ((!((uint64_t)(o - young_lo) < young_hi - young_lo)) && (((*(uint64_t *)o) & H_REMEMBERED) == 0)))) {
+            remember(o);
         }
     }
     pop_root();

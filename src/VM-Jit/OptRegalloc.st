@@ -48,7 +48,7 @@ isSafepoint: n
 !OptRegalloc methodsFor: 'allocation'!
 allocate: numArgs
 	"Allocate registers and slots for the ordered IR; answer whether it fit."
-	<c: 'bool opt_allocate(int32_t numArgs)'>
+	<function>
 	self numberPositions.
 	(self liveness) ifFalse: [^false].
 	(self recordSafepointLiveness) ifFalse: [^false].
@@ -59,7 +59,7 @@ allocate: numArgs
 !
 numberPositions
 	"Two positions per node, a block's phis at its first position."
-	<c: 'void opt_number_positions(void)'>
+	<function>
 	| pos b bl n nd |
 	pos := 2.
 	raSafeCount := 0.
@@ -90,7 +90,7 @@ numberPositions
 !
 liveness
 	"liveIn/liveOut bit sets per block until nothing changes (blocks in postorder)."
-	<c: 'bool opt_liveness(void)'>
+	<function>
 	| words changed b bl in out tmp |
 	words := (ir nodeCount + 63) >> 6.
 	raLiveWords := words.
@@ -152,7 +152,7 @@ isSet: v in: set
 !
 transfer: b out: out into: in
 	"in := (out minus b's definitions) plus its uses, walking b backward; b's phis are not live-in."
-	<c: 'void opt_transfer(int32_t b, int32_t out, int32_t in)'>
+	<function>
 	| n nd |
 	0 to: raLiveWords - 1 do: [:w | raLiveArena at: in + w put: (raLiveArena at: out + w)].
 	n := (ir block: b) last.
@@ -164,7 +164,7 @@ transfer: b out: out into: in
 !
 recordSafepointLiveness
 	"For each safepoint, the values live after it (its frame state's among them): saved before it, reloaded after it."
-	<c: 'bool opt_record_safepoint_liveness(void)'>
+	<function>
 	| b n nd st s set sv |
 	raSafeListCount := 0.
 	set := 2 * ir blockCount * raLiveWords.
@@ -229,7 +229,7 @@ extend: v to: pos
 	pos > nd lend ifTrue: [nd lend: pos]
 !
 buildIntervals
-	<c: 'void opt_build_intervals(void)'>
+	<function>
 	| b bl in out n nd k e p s st after |
 	0 to: passes orderCount - 1 do: [:i |
 		b := passes orderAt: i.
@@ -271,7 +271,7 @@ buildIntervals
 !
 linearScan
 	"Registers in order of interval start; spill the interval that ends last when none is free."
-	<c: 'bool opt_linear_scan(void)'>
+	<function>
 	| v nd j r victim far lo hi dbl |
 	self sortIntervals.
 	raActiveCount := 0.
@@ -362,7 +362,7 @@ crossesCall: v
 !
 assignSlots
 	"Home slots for spilled values and values live across safepoints, reused when intervals no longer overlap."
-	<c: 'bool opt_assign_slots(void)'>
+	<function>
 	| v nd j |
 	raSlotTop := raSlotBase.
 	raSlotFreeCount := 0.

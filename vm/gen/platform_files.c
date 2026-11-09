@@ -4,37 +4,37 @@
 
 static pf_table table[1];
 
-static int file_fd(int f);
+static int32_t platform_files_fd_of(int32_t f);
 
 /* PlatformFiles>>close: */
-bool pf_file_close(int f)
+bool platform_files_close(int32_t f)
 {
-    int fd;
-    fd = file_fd(f);
+    int32_t fd;
+    fd = platform_files_fd_of(f);
     if (fd < 0) {
         return false;
     }
-    pf_table_remove(table, f);
+    platform_common_table_remove(table, f);
     if (close(fd) == 0) {
         return true;
     }
-    pf_os_error_path("close", (const char *)NULL, errno);
+    platform_common_fail_os_path_code("close", (char *)NULL, errno);
     return false;
 }
 
 /* PlatformFiles>>cwd */
-char *pf_cwd(void)
+char *platform_files_cwd(void)
 {
     char *p;
     p = getcwd((char *)NULL, 0);
     if (p == NULL) {
-        pf_os_error_path("getcwd", (const char *)NULL, errno);
+        platform_common_fail_os_path_code("getcwd", (char *)NULL, errno);
     }
     return p;
 }
 
 /* PlatformFiles>>delete: */
-bool pf_file_delete(const char *path)
+bool delete(char *path)
 {
     if (unlink(path) == 0) {
         return true;
@@ -42,22 +42,22 @@ bool pf_file_delete(const char *path)
     if (((errno == EISDIR) || (errno == EPERM)) && (rmdir(path) == 0)) {
         return true;
     }
-    pf_os_error_path("delete", path, errno);
+    platform_common_fail_os_path_code("delete", path, errno);
     return false;
 }
 
 /* PlatformFiles>>dirCreate: */
-bool pf_dir_create(const char *path)
+bool dir_create(char *path)
 {
     if (mkdir(path, 493) == 0) {
         return true;
     }
-    pf_os_error_path("mkdir", path, errno);
+    platform_common_fail_os_path_code("mkdir", path, errno);
     return false;
 }
 
 /* PlatformFiles>>dirEntries:count: */
-char **pf_dir_entries(const char *path, int *n)
+char **dir_entries(char *path, int *n)
 {
     int cap;
     DIR *d;
@@ -68,7 +68,7 @@ char **pf_dir_entries(const char *path, int *n)
     char *s;
     d = opendir(path);
     if (d == NULL) {
-        pf_os_error_path("opendir", path, errno);
+        platform_common_fail_os_path_code("opendir", path, errno);
         return (char **)NULL;
     }
     cap = 64;
@@ -102,14 +102,14 @@ char **pf_dir_entries(const char *path, int *n)
             free(v[*n]);
         }
         free(v);
-        pf_set_error("out of memory");
+        set_error("out of memory");
         return (char **)NULL;
     }
     return v;
 }
 
 /* PlatformFiles>>exec: */
-void pf_exec(char **argv)
+void exec(char **argv)
 {
     int max_fd;
     int fd;
@@ -129,14 +129,14 @@ void pf_exec(char **argv)
     }
     execvp(argv[0], argv);
     path = argv[0];
-    pf_os_error_path("execvp", path, errno);
+    platform_common_fail_os_path_code("execvp", path, errno);
 }
 
 /* PlatformFiles>>fdOf: */
-static int file_fd(int f)
+static int32_t platform_files_fd_of(int32_t f)
 {
     pf_obj *o;
-    o = pf_table_get(table, f, K_FILE);
+    o = platform_common_table_at_kind(table, f, K_FILE);
     if (o == NULL) {
         snprintf(last_error, LAST_ERROR_SIZE, "bad file handle %d", f);
         return -1;
@@ -145,47 +145,47 @@ static int file_fd(int f)
 }
 
 /* PlatformFiles>>flush: */
-bool pf_file_flush(int f)
+bool platform_files_flush(int32_t f)
 {
-    int fd;
+    int32_t fd;
     struct stat local;
     struct stat *st;
-    fd = file_fd(f);
+    fd = platform_files_fd_of(f);
     memset(&local, 0, sizeof local);
     st = &local;
     if (fd < 0) {
         return false;
     }
     if ((fstat(fd, st) == 0) && (S_ISREG(st->st_mode) && (fsync(fd) != 0))) {
-        pf_os_error_path("fsync", (const char *)NULL, errno);
+        platform_common_fail_os_path_code("fsync", (char *)NULL, errno);
         return false;
     }
     return true;
 }
 
 /* PlatformFiles>>handleCount */
-int pf_file_handle_count(void)
+int32_t platform_files_handle_count(void)
 {
-    return pf_table_count(table, -1);
+    return platform_common_table_count(table, -1);
 }
 
 /* PlatformFiles>>mkfifo: */
-bool pf_mkfifo(const char *path)
+bool platform_files_mkfifo(char *path)
 {
     if (mkfifo(path, 420) == 0) {
         return true;
     }
-    pf_os_error_path("mkfifo", path, errno);
+    platform_common_fail_os_path_code("mkfifo", path, errno);
     return false;
 }
 
 /* PlatformFiles>>open:mode: */
-int pf_file_open(const char *path, int mode)
+int32_t platform_files_open(char *path, int32_t mode)
 {
     int v;
     int fd;
-    int h;
-    platform_init();
+    int32_t h;
+    platform_interface_init();
     if ((mode < 0) || (mode > 3)) {
         snprintf(last_error, LAST_ERROR_SIZE, "bad file mode %d", mode);
         return 0;
@@ -206,32 +206,32 @@ int pf_file_open(const char *path, int mode)
     }
     fd = open(path, v | O_CLOEXEC, 420);
     if (fd < 0) {
-        pf_os_error_path("open", path, errno);
+        platform_common_fail_os_path_code("open", path, errno);
         return 0;
     }
-    h = pf_table_add(table, K_FILE, NULL);
+    h = platform_common_table_add_pointer(table, K_FILE, NULL);
     (table->v + h)->i = fd;
     return h;
 }
 
 /* PlatformFiles>>position: */
-int64_t pf_file_position(int f)
+off_t position(int32_t f)
 {
-    int fd;
+    int32_t fd;
     off_t r;
-    fd = file_fd(f);
+    fd = platform_files_fd_of(f);
     if (fd < 0) {
         return -1;
     }
     r = lseek(fd, 0, SEEK_CUR);
     if (r < 0) {
-        pf_os_error_path("lseek", (const char *)NULL, errno);
+        platform_common_fail_os_path_code("lseek", (char *)NULL, errno);
     }
     return r;
 }
 
 /* PlatformFiles>>processWait:block:status:done: */
-bool pf_process_wait(int64_t pid, bool block, int *status, bool *done)
+bool process_wait(int64_t pid, bool block, int *status, bool *done)
 {
     int local;
     int *st;
@@ -245,7 +245,7 @@ bool pf_process_wait(int64_t pid, bool block, int *status, bool *done)
         }
     }
     if (r < 0) {
-        pf_os_error_path("waitpid", (const char *)NULL, errno);
+        platform_common_fail_os_path_code("waitpid", (char *)NULL, errno);
         return false;
     }
     *done = r != 0;
@@ -256,11 +256,11 @@ bool pf_process_wait(int64_t pid, bool block, int *status, bool *done)
 }
 
 /* PlatformFiles>>read:into:count: */
-int64_t pf_file_read(int f, void *buf, size_t n)
+ssize_t platform_files_read(int32_t f, void *buf, uint64_t n)
 {
-    int fd;
+    int32_t fd;
     ssize_t r;
-    fd = file_fd(f);
+    fd = platform_files_fd_of(f);
     if (fd < 0) {
         return -1;
     }
@@ -271,74 +271,74 @@ int64_t pf_file_read(int f, void *buf, size_t n)
         }
     }
     if (r < 0) {
-        pf_os_error_path("read", (const char *)NULL, errno);
+        platform_common_fail_os_path_code("read", (char *)NULL, errno);
     }
     return r;
 }
 
 /* PlatformFiles>>rename:to: */
-bool pf_file_rename(const char *from, const char *to)
+bool platform_files_rename(char *from, char *to)
 {
     if (rename(from, to) == 0) {
         return true;
     }
-    pf_os_error_path("rename", from, errno);
+    platform_common_fail_os_path_code("rename", from, errno);
     return false;
 }
 
 /* PlatformFiles>>seek:to: */
-bool pf_file_seek(int f, int64_t pos)
+bool seek(int32_t f, int64_t pos)
 {
-    int fd;
-    fd = file_fd(f);
+    int32_t fd;
+    fd = platform_files_fd_of(f);
     if (fd < 0) {
         return false;
     }
     if (lseek(fd, pos, SEEK_SET) >= 0) {
         return true;
     }
-    pf_os_error_path("lseek", (const char *)NULL, errno);
+    platform_common_fail_os_path_code("lseek", (char *)NULL, errno);
     return false;
 }
 
 /* PlatformFiles>>size: */
-int64_t pf_file_size(int f)
+off_t platform_files_size(int32_t f)
 {
-    int fd;
+    int32_t fd;
     struct stat local;
     struct stat *st;
-    fd = file_fd(f);
+    fd = platform_files_fd_of(f);
     memset(&local, 0, sizeof local);
     st = &local;
     if (fd < 0) {
         return -1;
     }
     if (fstat(fd, st) != 0) {
-        pf_os_error_path("fstat", (const char *)NULL, errno);
+        platform_common_fail_os_path_code("fstat", (char *)NULL, errno);
         return -1;
     }
     return st->st_size;
 }
 
 /* PlatformFiles>>spawn: */
-int64_t pf_spawn(char **argv)
+int64_t platform_files_spawn(char **argv)
 {
     pid_t local;
     pid_t *pid;
     int r;
     memset(&local, 0, sizeof local);
     pid = &local;
-    platform_init();
-    r = posix_spawnp(pid, argv[0], (const posix_spawn_file_actions_t *)NULL, (const posix_spawnattr_t *)NULL, argv, pf_host_environ());
+    platform_interface_init();
+    r = posix_spawnp(pid, argv[0], (const posix_spawn_file_actions_t *)NULL, (const posix_spawnattr_t *)NULL, argv, environment());
     if (r != 0) {
-        pf_os_error_path("posix_spawnp", argv[0], r);
+        platform_common_fail_os_path_code("posix_spawnp", argv[0], r);
         return -1;
     }
     return *pid;
 }
 
 /* PlatformFiles>>stat:into: */
-bool pf_file_stat(const char *path, pf_stat *s)
+bool platform_files_stat(char *path, pf_stat *s)
 {
     struct stat local;
     struct stat *st;
@@ -349,7 +349,7 @@ bool pf_file_stat(const char *path, pf_stat *s)
         if ((errno == ENOENT) || (errno == ENOTDIR)) {
             return true;
         }
-        pf_os_error_path("stat", path, errno);
+        platform_common_fail_os_path_code("stat", path, errno);
         return false;
     }
     s->exists = true;
@@ -360,13 +360,13 @@ bool pf_file_stat(const char *path, pf_stat *s)
 }
 
 /* PlatformFiles>>write:bytes:count: */
-int64_t pf_file_write(int f, const void *buf, size_t n)
+int64_t platform_files_write(int32_t f, const void *buf, uint64_t n)
 {
     size_t done;
-    int fd;
+    int32_t fd;
     uint8_t *p;
     ssize_t r;
-    fd = file_fd(f);
+    fd = platform_files_fd_of(f);
     if (fd < 0) {
         return -1;
     }
@@ -376,7 +376,7 @@ int64_t pf_file_write(int f, const void *buf, size_t n)
         r = write(fd, p + done, n - done);
         if (r < 0) {
             if (errno != EINTR) {
-                pf_os_error_path("write", (const char *)NULL, errno);
+                platform_common_fail_os_path_code("write", (char *)NULL, errno);
                 return -1;
             }
         } else {

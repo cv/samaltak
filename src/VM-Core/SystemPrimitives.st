@@ -163,7 +163,7 @@ primFlushCacheForSelector
 	self answer: self receiver
 !
 stringsArray: v count: n
-	<c: 'oop strings_array(char **v, int n)'>
+	<function>
 	| a root s |
 	a := memory allocObj: memory clsArray format: F_VAR slots: n asUInt32.
 	root := self local: 'oop'.

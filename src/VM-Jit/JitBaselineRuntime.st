@@ -230,14 +230,14 @@ named: s is: name
 !
 primKindOf: p
 	"How compiled code runs primitive p (PK_MARKER: not at all, the method's body runs)."
-	<c: 'int32_t bl_prim_kind(int32_t p)'>
+	<function>
 	primKindsReady ifFalse: [self initPrimKinds].
 	(p <= 0 or: [p >= 1024]) ifTrue: [^PK_MARKER].
 	^(primKinds at: p) asInt32
 !
 primOpOf: p
 	"The operation of a PK_INT_OP or PK_FLOAT_OP primitive (see initialize); 1: PK_PERFORM's perform:withArguments:."
-	<c: 'int32_t bl_prim_op(int32_t p)'>
+	<function>
 	(p <= 0 or: [p >= 1024]) ifTrue: [^0].
 	^(primOps at: p) asInt32
 !
@@ -251,7 +251,7 @@ isLeafPrimitive: p
 !JitBaselineRuntime methodsFor: 'nil tests'!
 nilTestOf: sel
 	"1 if sel is #isNil, 2 if #notNil, else 0."
-	<c: 'int32_t bl_nil_test_of(oop sel)'>
+	<function>
 	| n |
 	((self isPtr: sel) and: [(self rawClass: sel) = jit state byteSymbolClass]) ifFalse: [^0].
 	n := memory byteSize: sel.
@@ -261,7 +261,7 @@ nilTestOf: sel
 !
 nilTestsInlinable
 	"isNil and notNil may be compiled as comparisons with nil: on the heap, the only methods so named are UndefinedObject's and ProtoObject's quick ones (checked once, again after flushMethodCache; a new definition drops all code)."
-	<c: 'bool bl_nil_tests_inlinable(void)'>
+	<function>
 	nilScanned ifFalse: [
 		nilScanned := true.
 		nilInline := true.
@@ -273,7 +273,7 @@ nilTestsInlinable
 !
 noteNilTest: m data: d
 	"m, if a method isNil or notNil, keeps nil tests inlinable only if it is UndefinedObject's or ProtoObject's quick one (nilFound: which of the four were seen)."
-	<c: 'void bl_note_nil_test(oop m, void *d)'>
+	<function>
 	| k cls bc root quick |
 	(nilInline and: [(self rawClass: m) = (memory special: SO_COMPILEDMETHOD)]) ifFalse: [^self].
 	k := self nilTestOf: (self loadRef: m at: CM_SELECTOR).
@@ -294,7 +294,7 @@ noteNilTest: m data: d
 !
 nilTestsChanged: sel
 	"Method dictionaries changed (sel 0: all of them, scanned again): a definition of isNil or notNil ends their inlining; if code inlined them, it all goes."
-	<c: 'void bl_nil_tests_changed(oop sel)'>
+	<function>
 	| was |
 	was := nilScanned and: [nilInline].
 	sel = 0
@@ -313,7 +313,7 @@ nilTestsChanged: sel
 !JitBaselineRuntime methodsFor: 'lazy frames'!
 retIndexOf: h at: ret
 	"The return map entry of return address ret in h's code, -1 if none."
-	<c: 'int64_t bl_ret_index(JitMethod *h, uint64_t ret)'>
+	<function>
 	| off lo hi mid v |
 	off := (ret - h codeStart) asUInt32.
 	lo := 0.
@@ -335,7 +335,7 @@ retEntry: ret of: f
 !
 setTop: f ret: ret mode: mode
 	"f (the top frame) is in the send whose return address is ret: mode 0 at the send (the interpreter would execute it again), 1 in its primitive (arguments still on the stack, pc after it). Optimized code: at the call's safepoint, its receiver and arguments on the stack (OptRuntime decodes either from there)."
-	<c: 'void bl_set_top(Frame *f, uint64_t ret, int32_t mode)'>
+	<function>
 	| e pc d info h |
 	e := self retEntry: ret of: f.
 	h := self cCoerce: f code to: 'JitMethod *'.
@@ -367,7 +367,7 @@ calleeFp: f ret: ret
 !
 canonicalizeBelow: f
 	"The frames below f (the top) that machine code suspended in calls get their method, pc, sp, ip and lits from the return addresses in their callees' records: baseline code's return map, or optimized code's (the call's safepoint: pc bcSize + its index, sp its slots)."
-	<c: 'void bl_canonicalize_below(Frame *f)'>
+	<function>
 	| base g h rec ret e pc sp info |
 	base := self cCoerce: jit state baseFrame to: 'Frame *'.
 	g := f - 1.
@@ -420,7 +420,11 @@ selectorOf: s in: h
 !
 miss: f receiver: rcv ret: ret
 	"A send at f's site ret found no target (unlinked, a class check failed, no case of the polymorphic or megamorphic cache): look it up, link the site, answer the target's unchecked entry (1: leave, the interpreter sends). Optimized code's sites link the same way; where baseline code would leave, the runtime sends (OptRuntime>>sendFrom:ret:)."
-	<c: 'uint64_t jit_bl_miss(Frame *f, oop rcv, uint64_t ret)'>
+	<function>
+	<var: #f type: 'Frame *'>
+	<var: #rcv type: 'oop'>
+	<var: #ret type: 'uint64_t'>
+	<returns: 'uint64_t'>
 	| h s kind sel cls t opt |
 	statMisses := statMisses + 1.
 	h := self cCoerce: f code to: 'JitMethod *'.
@@ -445,7 +449,7 @@ miss: f receiver: rcv ret: ret
 !
 targetFor: cls selector: sel
 	"The baseline code a send of sel to an instance of cls may call, compiled when the method's activations reach the threshold; null if there is none or the interpreter sends it (doesNotUnderstand:)."
-	<c: 'JitMethod *bl_target_for(oop cls, oop sel)'>
+	<function>
 	| e m t |
 	e := interpreter entryFor: cls selector: sel.
 	e isNull ifTrue: [^self null].
@@ -462,7 +466,7 @@ patchCall: site to: target
 !
 redirect: h to: o
 	"--jit opt: the callers of h's unchecked entry go to o, its method's optimized code (a b to the frame code at its start), or (o = h) to h's own code again."
-	<c: 'void bl_redirect(JitMethod *h, JitMethod *o)'>
+	<function>
 	| a |
 	(jit tiering and: [h mode = jit baselineMode and: [(h flags bitAnd: jit entryFlag) ~= 0]]) ifFalse: [^self].
 	(o ~= h and: [o blockStart ~= 0 or: [o osrPc ~= 0]]) ifTrue: [^self].
@@ -532,7 +536,7 @@ isPerform: t
 !
 newPicFor: site class: c0 target: t0
 	"A polymorphic inline cache whose first case is c0 (to t0); 0 if the code cache or the slot registry is full."
-	<c: 'uint64_t bl_new_pic(uint64_t site, oop c0, JitMethod *t0)'>
+	<function>
 	| p pic |
 	oopSlotCount + BL_PIC_CASES > BL_MAX_OOP_SLOTS ifTrue: [^0].
 	p := cache allocate: compiler picBytes asUInt64.
@@ -571,12 +575,12 @@ unlinkSite: s in: h
 !
 unlinkAll
 	"Method dictionaries changed or objects were become: every site unlinked, the caches cleared."
-	<c: 'void bl_unlink_all(void)'>
+	<function>
 	self unlinkSelector: 0
 !
 unlinkSelector: sel
 	"The sites sending sel (0: all), baseline code's and optimized code's, unlinked, the caches cleared."
-	<c: 'void bl_unlink_selector(oop sel)'>
+	<function>
 	| h |
 	self clearCaches.
 	jit tableCount = 0 ifTrue: [^self].
@@ -603,7 +607,7 @@ clearCaches
 !JitBaselineRuntime methodsFor: 'type feedback'!
 headerOf: m
 	"m's baseline code, null if it has none."
-	<c: 'JitMethod *bl_header_of(oop m)'>
+	<function>
 	| h |
 	h := jit lookup: m.
 	((jit hasCode: h) and: [h mode = jit baselineMode]) ifFalse: [^self null].
@@ -611,7 +615,7 @@ headerOf: m
 !
 feedbackSitesOf: m
 	"How many send sites m's baseline code has (in code order, the order of their pcs within straight-line code); -1 if it has no baseline code."
-	<c: 'int64_t bl_feedback_sites(oop m)'>
+	<function>
 	| h |
 	h := self headerOf: m.
 	h isNull ifTrue: [^-1].
@@ -619,18 +623,19 @@ feedbackSitesOf: m
 !
 feedbackPcOf: m site: i
 	"The bytecode pc of send site i."
-	<c: 'int64_t bl_feedback_pc(oop m, int64_t i)'>
+	<function>
 	^((self headerOf: m) sites + i) pc asInt64
 !
 feedbackSelectorOf: m site: i
-	<c: 'oop bl_feedback_selector(oop m, int64_t i)'>
+	<function>
 	| h |
 	h := self headerOf: m.
 	^self selectorOf: h sites + i in: h
 !
 feedbackStateOf: m site: i
 	"0 unlinked, 1 monomorphic, 2 polymorphic, 3 megamorphic."
-	<c: 'int64_t bl_feedback_state(oop m, int64_t i)'>
+	<function>
+	<returns: 'int64_t'>
 	| s |
 	s := (self headerOf: m) sites + i.
 	(s info bitAnd: BL_SITE_MEGA) ~= 0 ifTrue: [^3].
@@ -639,7 +644,7 @@ feedbackStateOf: m site: i
 !
 feedbackCasesOf: m site: i
 	"The receiver classes site i's caches hold (a megamorphic site: those of the polymorphic cache it had); a super send has one case without a class."
-	<c: 'int64_t bl_feedback_cases(oop m, int64_t i)'>
+	<function>
 	| s |
 	s := (self headerOf: m) sites + i.
 	s pic ~= 0 ifTrue: [^(self cCoerce: s pic to: 'BaselinePic *') count asInt64].
@@ -648,7 +653,7 @@ feedbackCasesOf: m site: i
 !
 feedbackClassOf: m site: i case: j
 	"Case j's receiver class (nil for a super send)."
-	<c: 'oop bl_feedback_class(oop m, int64_t i, int64_t j)'>
+	<function>
 	| h s |
 	h := self headerOf: m.
 	s := h sites + i.
@@ -658,7 +663,7 @@ feedbackClassOf: m site: i case: j
 !
 feedbackTargetOf: m site: i case: j
 	"Case j's method."
-	<c: 'oop bl_feedback_target(oop m, int64_t i, int64_t j)'>
+	<function>
 	| s |
 	s := (self headerOf: m) sites + i.
 	s pic ~= 0 ifTrue: [^(self cCoerce: (self uint64At: (self cCoerce: ((self cCoerce: s pic to: 'BaselinePic *') fieldAddress: #targets) to: 'uint64_t') + (8 * j) asUInt64) to: 'JitMethod *') method].
@@ -668,7 +673,11 @@ feedbackTargetOf: m site: i case: j
 !JitBaselineRuntime methodsFor: 'called by machine code'!
 block: f closure: c ret: ret
 	"The block stub found no entry for closure c (its argument count checked): its home method's code, compiled if need be, and the block's entry, its optimized unit's if it has one; none: the block's frame pushed (f past the send), 1 (leave: the interpreter runs it)."
-	<c: 'uint64_t jit_bl_block(Frame *f, oop c, uint64_t ret)'>
+	<function>
+	<var: #f type: 'Frame *'>
+	<var: #c type: 'oop'>
+	<var: #ret type: 'uint64_t'>
+	<returns: 'uint64_t'>
 	| m startpc entry i n |
 	statBlockMisses := statBlockMisses + 1.
 	self setTop: f ret: ret mode: 0.
@@ -707,7 +716,12 @@ entryOfBlock: c
 !
 performMiss: f receiver: rcv ret: ret info: info
 	"A perform method's machine code (info: its argument count n, | 256 for perform:withArguments:) found no target in megaTable for rcv's class and the selector: look it up, fill the table, move the arguments down over the selector (perform:withArguments:: the Array's elements, up to 2) and answer the target's unchecked entry; 0: the primitive fails (the method's body runs); 1: leave, the interpreter sends (not understood, not compiled yet, perform: again, more arguments, no room; a sender in optimized code: the runtime sends, OptRuntime>>sendFrom:ret:)."
-	<c: 'uint64_t jit_bl_perform(Frame *f, oop rcv, uint64_t ret, uint64_t info)'>
+	<function>
+	<var: #f type: 'Frame *'>
+	<var: #rcv type: 'oop'>
+	<var: #ret type: 'uint64_t'>
+	<var: #info type: 'uint64_t'>
+	<returns: 'uint64_t'>
 	| n fp sel arr k cls t |
 	statMisses := statMisses + 1.
 	n := (info bitAnd: 255) asInt32.
@@ -732,7 +746,11 @@ performMiss: f receiver: rcv ret: ret info: info
 !
 entrySlow: f ret: ret callee: c
 	"A callee's stack check failed (f is its sender, at the send; c the callee's header, 1 at a block's entry): the C stack is full (the frames become Contexts and the interpreter sends again; a sender in optimized code: the runtime sends, answer where the call continues) or an interrupt is pending: taken with the callee's frame pushed, as at its first instruction (perform: may have moved the arguments: the send cannot be executed again), the frame popped again if no frames were flushed. 0: retry, 1: leave."
-	<c: 'uint64_t jit_bl_entry_slow(Frame *f, uint64_t ret, uint64_t c)'>
+	<function>
+	<var: #f type: 'Frame *'>
+	<var: #ret type: 'uint64_t'>
+	<var: #c type: 'uint64_t'>
+	<returns: 'uint64_t'>
 	| nfp n h g moved inv |
 	self setTop: f ret: ret mode: 0.
 	jit sync: f.
@@ -765,7 +783,12 @@ entrySlow: f ret: ret callee: c
 !
 prim: f fp: fp fn: fn info: info
 	"A compiled method's C primitive (f the sender, at the send whose return address is the state's primRet; the receiver below fp): 0 success (the result in the state), 1 leave, 2 failure (the error code in the state)."
-	<c: 'uint64_t jit_bl_prim(Frame *f, uint64_t fp, uint64_t fn, uint64_t info)'>
+	<function>
+	<var: #f type: 'Frame *'>
+	<var: #fp type: 'uint64_t'>
+	<var: #fn type: 'uint64_t'>
+	<var: #info type: 'uint64_t'>
+	<returns: 'uint64_t'>
 	| n leaf base moved inv status v code |
 	statPrimCalls := statPrimCalls + 1.
 	n := (info bitAnd: 255) asInt32.
@@ -805,13 +828,18 @@ prim: f fp: fp fn: fn info: info
 !
 box: f bits: b
 	"A Float (IEEE bits b) that is not a SmallFloat64 (f's pc and sp stored): a BoxedFloat64, which may collect."
-	<c: 'oop jit_bl_box(Frame *f, uint64_t b)'>
+	<function>
+	<var: #f type: 'Frame *'>
+	<var: #b type: 'uint64_t'>
+	<returns: 'oop'>
 	jit sync: f.
 	^memory floatOop: (self doubleFromBits: b)
 !
 returnSlow: f
 	"f returns but is married or frame 0 (pc and sp stored): widow it, or leave for the interpreter to return into the Context below."
-	<c: 'uint64_t jit_bl_return_slow(Frame *f)'>
+	<function>
+	<var: #f type: 'Frame *'>
+	<returns: 'uint64_t'>
 	jit sync: f.
 	f = interpreter frames ifTrue: [^1].
 	f ctx ~= memory nilOop ifTrue: [interpreter widow: f].
@@ -821,7 +849,7 @@ returnSlow: f
 !JitBaselineRuntime methodsFor: 'collector'!
 setSlot: a to: v
 	"Store v into the registered word at a; a young v makes it a young root."
-	<c: 'void bl_set_slot(uint64_t a, oop v)'>
+	<function>
 	self uint64At: a put: v.
 	((self isPtr: v) and: [self isYoung: v]) ifTrue: [self noteYoungSlot: a]
 !
@@ -840,7 +868,7 @@ canRegister: n
 !
 registerSlot: a
 	"The word at a in the code holds an object: the collector updates it."
-	<c: 'void bl_register_slot(uint64_t a)'>
+	<function>
 	| v |
 	oopSlotCount >= BL_MAX_OOP_SLOTS ifTrue: [self fatal: 'baseline: too many object references in code'].
 	oopSlots at: oopSlotCount put: a.
@@ -850,19 +878,19 @@ registerSlot: a
 !
 youngRoots: fn
 	"Scavenges (writing enabled): the code's young objects."
-	<c: 'void bl_young_roots(void (*fn)(oop *))'>
+	<function>
 	youngSlotsOverflow ifTrue: [^self allRoots: fn].
 	0 to: youngSlotCount - 1 do: [:i | fn call: (self cCoerce: (youngSlots at: i) to: 'oop *')]
 !
 allRoots: fn
 	"Full GCs and become (writing enabled): every object in the code; the caches keyed by objects are cleared."
-	<c: 'void bl_all_roots(void (*fn)(oop *))'>
+	<function>
 	0 to: oopSlotCount - 1 do: [:i | fn call: (self cCoerce: (oopSlots at: i) to: 'oop *')].
 	self clearCaches
 !
 afterGC
 	"Forget slots whose objects are old now; the caches keyed by objects are cleared (young ones moved)."
-	<c: 'void bl_after_gc(void)'>
+	<function>
 	| n v |
 	self clearCaches.
 	youngSlotsOverflow ifTrue: [
@@ -887,7 +915,7 @@ afterGC
 !
 forgetSlotsFrom: address
 	"The code from address on is dropped: its words are not the collector's business any more."
-	<c: 'void bl_forget_slots_from(uint64_t address)'>
+	<function>
 	| n |
 	n := 0.
 	0 to: oopSlotCount - 1 do: [:i | (oopSlots at: i) < address ifTrue: [
@@ -902,7 +930,7 @@ forgetSlotsFrom: address
 !
 flushed
 	"The code cache was flushed."
-	<c: 'void bl_flushed(void)'>
+	<function>
 	oopSlotCount := 0.
 	youngSlotCount := 0.
 	youngSlotsOverflow := false.

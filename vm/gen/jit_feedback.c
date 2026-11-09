@@ -7,11 +7,11 @@ uint8_t fb_floats[65536];
 static feedback_site fb_sites[65536];
 static bool fb_young;
 
-static void fb_clear(void);
-static feedback_site *fb_site_for(oop m, int64_t pc);
+static void jit_feedback_clear(void);
+static feedback_site *site_for(oop m, int64_t pc);
 
 /* JitFeedback>>allRoots: */
-void fb_all_roots(void (*fn)(oop *))
+void jit_feedback_all_roots(void (*fn)(oop *))
 {
     int i;
     feedback_site *s;
@@ -33,7 +33,7 @@ void fb_all_roots(void (*fn)(oop *))
 }
 
 /* JitFeedback>>clear */
-static void fb_clear(void)
+static void jit_feedback_clear(void)
 {
     memset(fb_sites, 0, sizeof(feedback_site) * FB_MAX);
     fb_count = 0;
@@ -41,15 +41,15 @@ static void fb_clear(void)
 }
 
 /* JitFeedback>>flagsAt:pc: */
-uint32_t fb_flags_at(oop m, int64_t pc)
+uint32_t flags_at(oop m, int64_t pc)
 {
     feedback_site *s;
     uint32_t f;
     jit_method *h;
-    s = fb_site_at(m, pc);
+    s = site_at(m, pc);
     f = s == NULL ? 0U : s->flags;
     if ((*(uint8_t *)(uint64_t)(fb_floats + (((uint64_t)(uint32_t)(((*(uint64_t *)m) >> H_HASH_SHIFT) & H_HASH_MASK) * 31 + (uint64_t)pc) & 65535)) != 0) && ({
-    h = jit_lookup(m);
+    h = jit_runtime_lookup(m);
     (h != NULL) && ((h->flags & JM_FAILED) == 0); })) {
         f = f | FB_FLOAT;
     }
@@ -57,19 +57,19 @@ uint32_t fb_flags_at(oop m, int64_t pc)
 }
 
 /* JitFeedback>>noteFlags:pc:flags: */
-void jit_note_flags(oop m, int64_t pc, uint32_t f)
+void note_flags(oop m, int64_t pc, uint32_t f)
 {
     feedback_site *s;
-    s = fb_site_for(m, pc);
+    s = site_for(m, pc);
     s->flags = s->flags | f;
 }
 
 /* JitFeedback>>noteSend:pc:class: */
-void jit_note_send(oop m, int64_t pc, oop cls)
+void note_send(oop m, int64_t pc, oop cls)
 {
     feedback_site *s;
     int k;
-    s = fb_site_for(m, pc);
+    s = site_for(m, pc);
     for (k = 0; k <= 3; k++) {
         if (s->classes[k] == cls) {
             if (s->counts[k] < 0xFFFFFFF) {
@@ -90,7 +90,7 @@ void jit_note_send(oop m, int64_t pc, oop cls)
 }
 
 /* JitFeedback>>siteAt:pc: */
-feedback_site *fb_site_at(oop m, int64_t pc)
+feedback_site *site_at(oop m, int64_t pc)
 {
     uint64_t i;
     feedback_site *s;
@@ -105,7 +105,7 @@ feedback_site *fb_site_at(oop m, int64_t pc)
 }
 
 /* JitFeedback>>siteFor:pc: */
-static feedback_site *fb_site_for(oop m, int64_t pc)
+static feedback_site *site_for(oop m, int64_t pc)
 {
     uint64_t i;
     feedback_site *s;
@@ -117,8 +117,8 @@ static feedback_site *fb_site_for(oop m, int64_t pc)
         i = (i + 1) & 65535;
     }
     if (fb_count >= 49152) {
-        fb_clear();
-        return fb_site_for(m, pc);
+        jit_feedback_clear();
+        return site_for(m, pc);
     }
     memset(s, 0, sizeof(feedback_site));
     s->method = m;
@@ -131,7 +131,7 @@ static feedback_site *fb_site_for(oop m, int64_t pc)
 }
 
 /* JitFeedback>>youngRoots: */
-void fb_young_roots(void (*fn)(oop *))
+void jit_feedback_young_roots(void (*fn)(oop *))
 {
     int i;
     oop o;
@@ -140,7 +140,7 @@ void fb_young_roots(void (*fn)(oop *))
     if (!fb_young) {
         return;
     }
-    fb_all_roots(fn);
+    jit_feedback_all_roots(fn);
     fb_young = false;
     for (i = 0; i <= 65535; i++) {
         if ((fb_sites + i)->method != 0) {

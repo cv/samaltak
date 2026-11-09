@@ -13,31 +13,31 @@ static bool watcher_started;
 static fence_watch *watches;
 
 static void capture_log(void *userdata, int category, SDL_LogPriority priority, const char *message);
-static gpu_dev *dev_get(int h);
-static gpu_dev *dev_of(pf_obj *o);
+static gpu_dev *device(int32_t h);
+static gpu_dev *device_of(pf_obj *o);
 static void *fence_watcher(void *unused);
-static pf_obj *gpu_get(int h, int kind, const char *what);
+static pf_obj *get(int32_t h, int kind, char *what);
 static int64_t mono_us(void);
-static SDL_GPURenderPass *gpu_pass(int h);
-static void release_obj(int h);
-static void release_device(int dh);
-static int sdl_fail(const char *what);
+static SDL_GPURenderPass *platform_gpu_pass(int32_t h);
+static void release(int32_t h);
+static void release_device(int32_t dh);
+static int sdl_fail(char *what);
 static SDL_GPUTextureFormat sdl_format(int f);
-static pf_obj *target_get(int tex);
-static void unwatch_fence(int h);
-static void up_flush(gpu_dev *d);
-static uint8_t *up_reserve(gpu_dev *d, uint32_t n, uint32_t *off);
-static SDL_GPUVertexElementFormat va_format(int f);
-static void watch_fence(int h, SDL_GPUFence *f, SDL_GPUDevice *d);
+static pf_obj *platform_gpu_target(int32_t tex);
+static void unwatch(int32_t h);
+static void upload_flush(gpu_dev *d);
+static uint8_t *upload_reserve(gpu_dev *d, uint32_t n, uint32_t *off);
+static SDL_GPUVertexElementFormat vertex_format(int32_t f);
+static void watch(int32_t h, SDL_GPUFence *f, SDL_GPUDevice *d);
 
 /* PlatformGPU>>acquireCommandBuffer: */
-int pf_gpu_acquire_cmd(int dev)
+int32_t acquire_command_buffer(int32_t dev)
 {
     gpu_dev *d;
     SDL_GPUCommandBuffer *c;
-    int r_add;
-    int h;
-    d = dev_get(dev);
+    int32_t r_add;
+    int32_t h;
+    d = device(dev);
     if (d == NULL) {
         return 0;
     }
@@ -46,14 +46,14 @@ int pf_gpu_acquire_cmd(int dev)
         return sdl_fail("SDL_AcquireGPUCommandBuffer");
     }
     return ({
-    h = pf_table_add(objs, K_CMD, c);
+    h = platform_common_table_add_pointer(objs, K_CMD, c);
     (objs->v + h)->dev = dev;
     r_add = h;
     r_add; });
 }
 
 /* PlatformGPU>>acquireSwapchain:window:width:height: */
-int pf_gpu_acquire_swapchain(int cmd, int win, int *w, int *h)
+int32_t acquire_swapchain(int32_t cmd, int32_t win, int *w, int *h)
 {
     pf_obj *c;
     SDL_Window *sw;
@@ -65,15 +65,15 @@ int pf_gpu_acquire_swapchain(int cmd, int win, int *w, int *h)
     Uint32 *th;
     int32_t dev;
     int fmt;
-    int sh;
+    int32_t sh;
     pf_obj *o;
-    c = gpu_get(cmd, K_CMD, "command buffer");
-    sw = pf_window_sdl(win);
-    pf_set_error("");
+    c = get(cmd, K_CMD, "command buffer");
+    sw = sdl_window(win);
+    set_error("");
     if ((c == NULL) || (sw == NULL)) {
         return 0;
     }
-    if (pf_window_is_hidden(win)) {
+    if (is_hidden(win)) {
         return 0;
     }
     memset(&local, 0, sizeof local);
@@ -89,8 +89,8 @@ int pf_gpu_acquire_swapchain(int cmd, int win, int *w, int *h)
         return 0;
     }
     dev = c->dev;
-    fmt = pf_gpu_swapchain_format(dev, win);
-    sh = pf_table_add(objs, K_SWAP, *t);
+    fmt = swapchain_format(dev, win);
+    sh = platform_common_table_add_pointer(objs, K_SWAP, *t);
     o = objs->v + sh;
     o->dev = dev;
     o->w = *tw;
@@ -103,7 +103,7 @@ int pf_gpu_acquire_swapchain(int cmd, int win, int *w, int *h)
 }
 
 /* PlatformGPU>>beginPass:target:clear: */
-int pf_gpu_begin_pass(int cmd, int tex, float *clear)
+int begin_pass(int32_t cmd, int32_t tex, float *clear)
 {
     pf_obj *c;
     pf_obj *t;
@@ -111,11 +111,11 @@ int pf_gpu_begin_pass(int cmd, int tex, float *clear)
     SDL_GPUColorTargetInfo *ci;
     SDL_GPURenderPass *p;
     int32_t dev;
-    int r_add;
-    int h_2;
-    int h;
-    c = gpu_get(cmd, K_CMD, "command buffer");
-    t = target_get(tex);
+    int32_t r_add;
+    int32_t h_2;
+    int32_t h;
+    c = get(cmd, K_CMD, "command buffer");
+    t = platform_gpu_target(tex);
     if ((c == NULL) || (t == NULL)) {
         return 0;
     }
@@ -136,7 +136,7 @@ int pf_gpu_begin_pass(int cmd, int tex, float *clear)
     }
     dev = c->dev;
     h = ({
-    h_2 = pf_table_add(objs, K_PASS, p);
+    h_2 = platform_common_table_add_pointer(objs, K_PASS, p);
     (objs->v + h_2)->dev = dev;
     r_add = h_2;
     r_add; });
@@ -145,15 +145,15 @@ int pf_gpu_begin_pass(int cmd, int tex, float *clear)
 }
 
 /* PlatformGPU>>bindPipeline:pipeline: */
-bool pf_gpu_bind_pipeline(int pass, int pipe)
+bool bind_pipeline(int32_t pass, int32_t pipe)
 {
     SDL_GPURenderPass *p;
     pf_obj *o;
-    p = gpu_pass(pass);
+    p = platform_gpu_pass(pass);
     if (p == NULL) {
         return false;
     }
-    o = gpu_get(pipe, K_PIPE, "pipeline");
+    o = get(pipe, K_PIPE, "pipeline");
     if (o == NULL) {
         return false;
     }
@@ -162,19 +162,19 @@ bool pf_gpu_bind_pipeline(int pass, int pipe)
 }
 
 /* PlatformGPU>>bindTexture:slot:texture:sampler: */
-bool pf_gpu_bind_texture(int pass, int slot, int tex, int sampler)
+bool bind_texture(int32_t pass, int32_t slot, int32_t tex, int32_t sampler)
 {
     SDL_GPURenderPass *p;
     pf_obj *t;
     pf_obj *s;
     SDL_GPUTextureSamplerBinding local;
     SDL_GPUTextureSamplerBinding *b;
-    p = gpu_pass(pass);
+    p = platform_gpu_pass(pass);
     if (p == NULL) {
         return false;
     }
-    t = gpu_get(tex, K_TEX, "texture");
-    s = gpu_get(sampler, K_SAMPLER, "sampler");
+    t = get(tex, K_TEX, "texture");
+    s = get(sampler, K_SAMPLER, "sampler");
     if ((t == NULL) || (s == NULL)) {
         return false;
     }
@@ -187,17 +187,17 @@ bool pf_gpu_bind_texture(int pass, int slot, int tex, int sampler)
 }
 
 /* PlatformGPU>>bindVertexBuffer:slot:buffer:offset: */
-bool pf_gpu_bind_vertex_buffer(int pass, int slot, int buf, uint32_t offset)
+bool bind_vertex_buffer(int32_t pass, int32_t slot, int32_t buf, uint32_t offset)
 {
     SDL_GPURenderPass *p;
     pf_obj *o;
     SDL_GPUBufferBinding local;
     SDL_GPUBufferBinding *b;
-    p = gpu_pass(pass);
+    p = platform_gpu_pass(pass);
     if (p == NULL) {
         return false;
     }
-    o = gpu_get(buf, K_BUF, "buffer");
+    o = get(buf, K_BUF, "buffer");
     if (o == NULL) {
         return false;
     }
@@ -210,7 +210,7 @@ bool pf_gpu_bind_vertex_buffer(int pass, int slot, int buf, uint32_t offset)
 }
 
 /* PlatformGPU>>blit:source:rect:destination:rect:linear: */
-bool pf_gpu_blit(int cmd, int src, int *sr, int dst, int *dr, bool linear)
+bool blit(int32_t cmd, int32_t src, int *sr, int32_t dst, int *dr, bool linear)
 {
     pf_obj *c;
     pf_obj *s;
@@ -218,9 +218,9 @@ bool pf_gpu_blit(int cmd, int src, int *sr, int dst, int *dr, bool linear)
     bool full;
     SDL_GPUBlitInfo local;
     SDL_GPUBlitInfo *bi;
-    c = gpu_get(cmd, K_CMD, "command buffer");
-    s = gpu_get(src, K_TEX, "texture");
-    t = target_get(dst);
+    c = get(cmd, K_CMD, "command buffer");
+    s = get(src, K_TEX, "texture");
+    t = platform_gpu_target(dst);
     if ((c == NULL) || ((s == NULL) || (t == NULL))) {
         return false;
     }
@@ -244,7 +244,7 @@ bool pf_gpu_blit(int cmd, int src, int *sr, int dst, int *dr, bool linear)
 }
 
 /* PlatformGPU>>bytesPerPixel: */
-int pf_gpu_bytes_per_pixel(int format)
+int bytes_per_pixel(int32_t format)
 {
     return format == PF_TEX_R8 ? 1 : 4;
 }
@@ -259,15 +259,15 @@ static void capture_log(void *userdata, int category, SDL_LogPriority priority, 
 }
 
 /* PlatformGPU>>claimWindow:window: */
-bool pf_gpu_claim_window(int dev, int win)
+bool claim_window(int32_t dev, int32_t win)
 {
     int slot;
     gpu_dev *d;
     SDL_Window *w;
     int i;
     SDL_GPUPresentMode mode;
-    d = dev_get(dev);
-    w = pf_window_sdl(win);
+    d = device(dev);
+    w = sdl_window(win);
     if ((d == NULL) || (w == NULL)) {
         return false;
     }
@@ -281,7 +281,7 @@ bool pf_gpu_claim_window(int dev, int win)
         }
     }
     if (slot < 0) {
-        pf_set_error("too many claimed windows");
+        set_error("too many claimed windows");
         return false;
     }
     if (!SDL_ClaimWindowForGPUDevice(d->dev, w)) {
@@ -303,21 +303,21 @@ bool pf_gpu_claim_window(int dev, int win)
 }
 
 /* PlatformGPU>>createBuffer:usage:size: */
-int pf_gpu_create_buffer(int dev, int usage, uint32_t size)
+int32_t create_buffer(int32_t dev, int32_t usage, uint32_t size)
 {
     gpu_dev *d;
     SDL_GPUBufferCreateInfo local;
     SDL_GPUBufferCreateInfo *ci;
     SDL_GPUBuffer *b;
-    int r_add;
-    int h_2;
-    int h;
-    d = dev_get(dev);
+    int32_t r_add;
+    int32_t h_2;
+    int32_t h;
+    d = device(dev);
     if (d == NULL) {
         return 0;
     }
     if ((usage != PF_BUFUSE_VERTEX) || (size == 0)) {
-        pf_set_error("bad buffer parameters");
+        set_error("bad buffer parameters");
         return 0;
     }
     memset(&local, 0, sizeof local);
@@ -329,7 +329,7 @@ int pf_gpu_create_buffer(int dev, int usage, uint32_t size)
         return sdl_fail("SDL_CreateGPUBuffer");
     }
     h = ({
-    h_2 = pf_table_add(objs, K_BUF, b);
+    h_2 = platform_common_table_add_pointer(objs, K_BUF, b);
     (objs->v + h_2)->dev = dev;
     r_add = h_2;
     r_add; });
@@ -338,12 +338,12 @@ int pf_gpu_create_buffer(int dev, int usage, uint32_t size)
 }
 
 /* PlatformGPU>>createDevice: */
-int pf_gpu_create_device(bool debug)
+int32_t create_device(bool debug)
 {
     gpu_dev *d;
-    int h;
-    platform_init();
-    if (!pf_video_init()) {
+    int32_t h;
+    platform_interface_init();
+    if (!video_init()) {
         return 0;
     }
     if (default_log == NULL) {
@@ -352,28 +352,28 @@ int pf_gpu_create_device(bool debug)
     }
     d = (gpu_dev *)calloc(1, sizeof(gpu_dev));
     if (d == NULL) {
-        pf_set_error("out of memory");
+        set_error("out of memory");
         return 0;
     }
-    d->dev = SDL_CreateGPUDevice(pf_host_shader_formats(), debug, (const char *)NULL);
+    d->dev = SDL_CreateGPUDevice(shader_formats(), debug, (const char *)NULL);
     if (d->dev == NULL) {
         free(d);
         return sdl_fail("SDL_CreateGPUDevice");
     }
-    h = pf_table_add(objs, K_DEV, d);
+    h = platform_common_table_add_pointer(objs, K_DEV, d);
     (objs->v + h)->dev = h;
     return h;
 }
 
 /* PlatformGPU>>createPipeline:vertexShader:fragmentShader:stride:attributes:count:primitive:blend:targetFormat: */
-int pf_gpu_create_pipeline(int dev, int vs, int fs, int stride, pf_vattr *attrs, int nattrs, int prim, int blend, int target_format)
+int32_t create_pipeline(int32_t dev, int32_t vs, int32_t fs, int32_t stride, pf_vattr *attrs, int32_t nattrs, int32_t prim, int32_t blend, int32_t target_format)
 {
     gpu_dev *d;
     pf_obj *v;
     pf_obj *f;
     SDL_GPUVertexAttribute local[16];
     SDL_GPUVertexAttribute *va;
-    int i;
+    int32_t i;
     int32_t a;
     SDL_GPUVertexBufferDescription local_2;
     SDL_GPUVertexBufferDescription *vb;
@@ -384,16 +384,16 @@ int pf_gpu_create_pipeline(int dev, int vs, int fs, int stride, pf_vattr *attrs,
     SDL_GPUGraphicsPipelineCreateInfo *ci;
     SDL_GPUPrimitiveType v_2;
     SDL_GPUGraphicsPipeline *p;
-    int r_add;
-    int h;
-    d = dev_get(dev);
-    v = gpu_get(vs, K_SHADER, "vertex shader");
-    f = gpu_get(fs, K_SHADER, "fragment shader");
+    int32_t r_add;
+    int32_t h;
+    d = device(dev);
+    v = get(vs, K_SHADER, "vertex shader");
+    f = get(fs, K_SHADER, "fragment shader");
     if ((d == NULL) || ((v == NULL) || (f == NULL))) {
         return 0;
     }
     if ((nattrs < 0) || (nattrs > 16)) {
-        pf_set_error("bad attribute count");
+        set_error("bad attribute count");
         return 0;
     }
     if (sdl_format(target_format) == SDL_GPU_TEXTUREFORMAT_INVALID) {
@@ -409,7 +409,7 @@ int pf_gpu_create_pipeline(int dev, int vs, int fs, int stride, pf_vattr *attrs,
     for (i = 0; i <= nattrs - 1; i++) {
         (va + i)->location = i;
         (va + i)->buffer_slot = 0;
-        (va + i)->format = va_format((attrs + i)->format);
+        (va + i)->format = vertex_format((attrs + i)->format);
         (va + i)->offset = (attrs + i)->offset;
         if ((va + i)->format == SDL_GPU_VERTEXELEMENTFORMAT_INVALID) {
             a = (attrs + i)->format;
@@ -470,14 +470,14 @@ int pf_gpu_create_pipeline(int dev, int vs, int fs, int stride, pf_vattr *attrs,
         return sdl_fail("SDL_CreateGPUGraphicsPipeline");
     }
     return ({
-    h = pf_table_add(objs, K_PIPE, p);
+    h = platform_common_table_add_pointer(objs, K_PIPE, p);
     (objs->v + h)->dev = dev;
     r_add = h;
     r_add; });
 }
 
 /* PlatformGPU>>createSampler:linear:repeat: */
-int pf_gpu_create_sampler(int dev, bool linear, bool repeat)
+int32_t create_sampler(int32_t dev, bool linear, bool repeat)
 {
     gpu_dev *d;
     SDL_GPUFilter f;
@@ -485,9 +485,9 @@ int pf_gpu_create_sampler(int dev, bool linear, bool repeat)
     SDL_GPUSamplerCreateInfo local;
     SDL_GPUSamplerCreateInfo *ci;
     SDL_GPUSampler *s;
-    int r_add;
-    int h;
-    d = dev_get(dev);
+    int32_t r_add;
+    int32_t h;
+    d = device(dev);
     if (d == NULL) {
         return 0;
     }
@@ -506,14 +506,14 @@ int pf_gpu_create_sampler(int dev, bool linear, bool repeat)
         return sdl_fail("SDL_CreateGPUSampler");
     }
     return ({
-    h = pf_table_add(objs, K_SAMPLER, s);
+    h = platform_common_table_add_pointer(objs, K_SAMPLER, s);
     (objs->v + h)->dev = dev;
     r_add = h;
     r_add; });
 }
 
 /* PlatformGPU>>createShader:source:entry:stage:samplers:uniformBuffers:storageBuffers:storageTextures: */
-int pf_gpu_create_shader(int dev, const char *source, const char *entry, int stage, int samplers, int uniform_buffers, int storage_buffers, int storage_textures)
+int32_t create_shader(int32_t dev, char *source, char *entry, int32_t stage, int32_t samplers, int32_t uniform_buffers, int32_t storage_buffers, int32_t storage_textures)
 {
     gpu_dev *d;
     SDL_GPUShaderCreateInfo local;
@@ -522,9 +522,9 @@ int pf_gpu_create_shader(int dev, const char *source, const char *entry, int sta
     size_t local_2;
     size_t *size;
     SDL_GPUShader *s;
-    int r_add;
-    int h;
-    d = dev_get(dev);
+    int32_t r_add;
+    int32_t h;
+    d = device(dev);
     if (d == NULL) {
         return 0;
     }
@@ -538,7 +538,7 @@ int pf_gpu_create_shader(int dev, const char *source, const char *entry, int sta
     } else {
         memset(&local_2, 0, sizeof local_2);
         size = &local_2;
-        spirv = pf_host_compile_shader(source, stage, size);
+        spirv = compile_shader(source, stage, size);
         if (spirv == NULL) {
             return 0;
         }
@@ -560,27 +560,27 @@ int pf_gpu_create_shader(int dev, const char *source, const char *entry, int sta
         return sdl_fail("SDL_CreateGPUShader");
     }
     return ({
-    h = pf_table_add(objs, K_SHADER, s);
+    h = platform_common_table_add_pointer(objs, K_SHADER, s);
     (objs->v + h)->dev = dev;
     r_add = h;
     r_add; });
 }
 
 /* PlatformGPU>>createTexture:width:height:format:usage: */
-int pf_gpu_create_texture(int dev, int w, int h, int format, int usage)
+int32_t create_texture(int32_t dev, int32_t w, int32_t h, int32_t format, int32_t usage)
 {
     gpu_dev *d;
     SDL_GPUTextureCreateInfo local;
     SDL_GPUTextureCreateInfo *ci;
     SDL_GPUTexture *t;
-    int th;
+    int32_t th;
     pf_obj *o;
-    d = dev_get(dev);
+    d = device(dev);
     if (d == NULL) {
         return 0;
     }
     if ((w <= 0) || ((h <= 0) || ((sdl_format(format) == SDL_GPU_TEXTUREFORMAT_INVALID) || ((usage & 3) == 0)))) {
-        pf_set_error("bad texture parameters");
+        set_error("bad texture parameters");
         return 0;
     }
     memset(&local, 0, sizeof local);
@@ -596,7 +596,7 @@ int pf_gpu_create_texture(int dev, int w, int h, int format, int usage)
     if (t == NULL) {
         return sdl_fail("SDL_CreateGPUTexture");
     }
-    th = pf_table_add(objs, K_TEX, t);
+    th = platform_common_table_add_pointer(objs, K_TEX, t);
     o = objs->v + th;
     o->dev = dev;
     o->w = w;
@@ -607,10 +607,10 @@ int pf_gpu_create_texture(int dev, int w, int h, int format, int usage)
 }
 
 /* PlatformGPU>>device: */
-static gpu_dev *dev_get(int h)
+static gpu_dev *device(int32_t h)
 {
     pf_obj *o;
-    o = gpu_get(h, K_DEV, "device");
+    o = get(h, K_DEV, "device");
     if (o == NULL) {
         return (gpu_dev *)NULL;
     }
@@ -618,13 +618,13 @@ static gpu_dev *dev_get(int h)
 }
 
 /* PlatformGPU>>deviceOf: */
-static gpu_dev *dev_of(pf_obj *o)
+static gpu_dev *device_of(pf_obj *o)
 {
-    return (gpu_dev *)pf_table_get(objs, o->dev, K_DEV)->ptr;
+    return (gpu_dev *)platform_common_table_at_kind(objs, o->dev, K_DEV)->ptr;
 }
 
 /* PlatformGPU>>download:x:y:width:height:into:length: */
-bool pf_gpu_download(int tex, int x, int y, int w, int h, void *dst, size_t dst_len)
+bool download(int32_t tex, int32_t x, int32_t y, int32_t w, int32_t h, void *dst, size_t dst_len)
 {
     pf_obj *o;
     uint64_t n;
@@ -644,17 +644,17 @@ bool pf_gpu_download(int tex, int x, int y, int w, int h, void *dst, size_t dst_
     uint32_t *t;
     int64_t i;
     uint32_t v;
-    o = gpu_get(tex, K_TEX, "texture");
+    o = get(tex, K_TEX, "texture");
     if (o == NULL) {
         return false;
     }
-    n = (uint64_t)w * (uint64_t)h * (uint64_t)pf_gpu_bytes_per_pixel(o->fmt);
+    n = (uint64_t)w * (uint64_t)h * (uint64_t)bytes_per_pixel(o->fmt);
     if ((x < 0) || ((y < 0) || ((w <= 0) || ((h <= 0) || ((x + w > o->w) || ((y + h > o->h) || (dst_len < n))))))) {
-        pf_set_error("bad download region");
+        set_error("bad download region");
         return false;
     }
-    d = dev_of(o);
-    up_flush(d);
+    d = device_of(o);
+    upload_flush(d);
     if (n > d->down_cap) {
         if (d->down_tb != NULL) {
             SDL_ReleaseGPUTransferBuffer(d->dev, d->down_tb);
@@ -720,10 +720,10 @@ bool pf_gpu_download(int tex, int x, int y, int w, int h, void *dst, size_t dst_
 }
 
 /* PlatformGPU>>draw:vertices:first: */
-bool pf_gpu_draw(int pass, int vertex_count, int first_vertex)
+bool draw(int32_t pass, int32_t vertex_count, int32_t first_vertex)
 {
     SDL_GPURenderPass *p;
-    p = gpu_pass(pass);
+    p = platform_gpu_pass(pass);
     if (p == NULL) {
         return false;
     }
@@ -732,35 +732,35 @@ bool pf_gpu_draw(int pass, int vertex_count, int first_vertex)
 }
 
 /* PlatformGPU>>endPass: */
-bool pf_gpu_end_pass(int pass)
+bool end_pass(int32_t pass)
 {
     SDL_GPURenderPass *p;
-    p = gpu_pass(pass);
+    p = platform_gpu_pass(pass);
     if (p == NULL) {
         return false;
     }
     SDL_EndGPURenderPass(p);
-    pf_table_remove(objs, pass);
+    platform_common_table_remove(objs, pass);
     return true;
 }
 
 /* PlatformGPU>>fenceDone: */
-int pf_gpu_fence_done(int fence)
+int fence_done(int32_t fence)
 {
     pf_obj *o;
-    o = gpu_get(fence, K_FENCE, "fence");
+    o = get(fence, K_FENCE, "fence");
     if (o == NULL) {
         return -1;
     }
-    return SDL_QueryGPUFence(dev_of(o)->dev, (SDL_GPUFence *)o->ptr) ? 1 : 0;
+    return SDL_QueryGPUFence(device_of(o)->dev, (SDL_GPUFence *)o->ptr) ? 1 : 0;
 }
 
 /* PlatformGPU>>fenceElapsed: */
-int64_t pf_gpu_fence_elapsed(int fence)
+int64_t fence_elapsed(int32_t fence)
 {
     int64_t r;
     fence_watch *w;
-    if (gpu_get(fence, K_FENCE, "fence") == NULL) {
+    if (get(fence, K_FENCE, "fence") == NULL) {
         return -2;
     }
     r = -1;
@@ -807,10 +807,10 @@ static void *fence_watcher(void *unused)
 }
 
 /* PlatformGPU>>get:kind:what: */
-static pf_obj *gpu_get(int h, int kind, const char *what)
+static pf_obj *get(int32_t h, int kind, char *what)
 {
     pf_obj *o;
-    o = pf_table_get(objs, h, kind);
+    o = platform_common_table_at_kind(objs, h, kind);
     if (o == NULL) {
         snprintf(last_error, LAST_ERROR_SIZE, "bad %s handle %d", what, h);
     }
@@ -818,19 +818,19 @@ static pf_obj *gpu_get(int h, int kind, const char *what)
 }
 
 /* PlatformGPU>>handleCounts: */
-void pf_gpu_handle_counts(int64_t *out)
+void platform_gpu_handle_counts(int64_t *out)
 {
-    out[0] = pf_table_count(objs, K_DEV);
-    out[1] = pf_table_count(objs, K_SHADER);
-    out[2] = pf_table_count(objs, K_PIPE);
-    out[3] = pf_table_count(objs, K_TEX);
-    out[4] = pf_table_count(objs, K_SAMPLER);
-    out[5] = pf_table_count(objs, K_BUF);
-    out[6] = pf_table_count(objs, K_FENCE);
+    out[0] = platform_common_table_count(objs, K_DEV);
+    out[1] = platform_common_table_count(objs, K_SHADER);
+    out[2] = platform_common_table_count(objs, K_PIPE);
+    out[3] = platform_common_table_count(objs, K_TEX);
+    out[4] = platform_common_table_count(objs, K_SAMPLER);
+    out[5] = platform_common_table_count(objs, K_BUF);
+    out[6] = platform_common_table_count(objs, K_FENCE);
 }
 
 /* PlatformGPU>>init */
-void pf_gpu_init(void)
+void platform_gpu_init(void)
 {
     pthread_mutex_init(watch_lock, (const pthread_mutexattr_t *)NULL);
     pthread_cond_init(watch_cond, (const pthread_condattr_t *)NULL);
@@ -848,10 +848,10 @@ static int64_t mono_us(void)
 }
 
 /* PlatformGPU>>pass: */
-static SDL_GPURenderPass *gpu_pass(int h)
+static SDL_GPURenderPass *platform_gpu_pass(int32_t h)
 {
     pf_obj *o;
-    o = gpu_get(h, K_PASS, "render pass");
+    o = get(h, K_PASS, "render pass");
     if (o == NULL) {
         return (SDL_GPURenderPass *)NULL;
     }
@@ -859,12 +859,12 @@ static SDL_GPURenderPass *gpu_pass(int h)
 }
 
 /* PlatformGPU>>pushUniforms:stage:slot:data:count: */
-bool pf_gpu_push_uniforms(int cmd_or_pass, int stage, int slot, const void *data, uint32_t n)
+bool push_uniforms(int32_t cmd_or_pass, int32_t stage, int32_t slot, const void *data, uint32_t n)
 {
     pf_obj *o;
-    o = pf_table_get(objs, cmd_or_pass, -1);
+    o = platform_common_table_at_kind(objs, cmd_or_pass, -1);
     if ((o != NULL) && (o->kind == K_PASS)) {
-        o = pf_table_get(objs, (int32_t)o->i, K_CMD);
+        o = platform_common_table_at_kind(objs, (int32_t)o->i, K_CMD);
     }
     if ((o == NULL) || (o->kind != K_CMD)) {
         snprintf(last_error, LAST_ERROR_SIZE, "bad command buffer handle %d", cmd_or_pass);
@@ -879,13 +879,13 @@ bool pf_gpu_push_uniforms(int cmd_or_pass, int stage, int slot, const void *data
 }
 
 /* PlatformGPU>>release: */
-static void release_obj(int h)
+static void release(int32_t h)
 {
     pf_obj *o;
     SDL_GPUDevice *dv;
     int32_t k;
     o = objs->v + h;
-    dv = dev_of(o)->dev;
+    dv = device_of(o)->dev;
     switch (o->kind) {
     case K_SHADER:
         SDL_ReleaseGPUShader(dv, (SDL_GPUShader *)o->ptr);
@@ -903,40 +903,40 @@ static void release_obj(int h)
         SDL_ReleaseGPUBuffer(dv, (SDL_GPUBuffer *)o->ptr);
         break;
     case K_FENCE:
-        unwatch_fence(h);
+        unwatch(h);
         SDL_ReleaseGPUFence(dv, (SDL_GPUFence *)o->ptr);
         break;
     case K_CMD:
         SDL_CancelGPUCommandBuffer((SDL_GPUCommandBuffer *)o->ptr);
         for (k = 1; k <= objs->n - 1; k++) {
             if ((((objs->v + k)->kind == K_SWAP) || ((objs->v + k)->kind == K_PASS)) && ((objs->v + k)->i == h)) {
-                pf_table_remove(objs, k);
+                platform_common_table_remove(objs, k);
             }
         }
         break;
     default:
         break;
     }
-    pf_table_remove(objs, h);
+    platform_common_table_remove(objs, h);
 }
 
 /* PlatformGPU>>releaseDevice: */
-static void release_device(int dh)
+static void release_device(int32_t dh)
 {
     gpu_dev *d;
     int32_t h;
     int i;
     d = (gpu_dev *)(objs->v + dh)->ptr;
-    up_flush(d);
+    upload_flush(d);
     SDL_WaitForGPUIdle(d->dev);
     for (h = 1; h <= objs->n - 1; h++) {
         if ((h != dh) && (((objs->v + h)->kind != 0) && ((objs->v + h)->dev == dh))) {
-            release_obj(h);
+            release(h);
         }
     }
     for (i = 0; i <= 15; i++) {
         if (d->claimed[i] != 0) {
-            SDL_ReleaseWindowFromGPUDevice(d->dev, pf_window_sdl(d->claimed[i]));
+            SDL_ReleaseWindowFromGPUDevice(d->dev, sdl_window(d->claimed[i]));
         }
     }
     if (d->up_tb != NULL) {
@@ -947,32 +947,32 @@ static void release_device(int dh)
     }
     SDL_DestroyGPUDevice(d->dev);
     free(d);
-    pf_table_remove(objs, dh);
+    platform_common_table_remove(objs, dh);
 }
 
 /* PlatformGPU>>releaseHandle: */
-bool pf_gpu_release(int h)
+bool release_handle(int32_t h)
 {
     pf_obj *o;
-    o = pf_table_get(objs, h, -1);
+    o = platform_common_table_at_kind(objs, h, -1);
     if (o == NULL) {
         snprintf(last_error, LAST_ERROR_SIZE, "bad GPU handle %d", h);
         return false;
     }
     if ((o->kind == K_PASS) || (o->kind == K_SWAP)) {
-        pf_set_error("pass/swapchain handles end with their command buffer");
+        set_error("pass/swapchain handles end with their command buffer");
         return false;
     }
     if (o->kind == K_DEV) {
         release_device(h);
     } else {
-        release_obj(h);
+        release(h);
     }
     return true;
 }
 
 /* PlatformGPU>>sdlFail: */
-static int sdl_fail(const char *what)
+static int sdl_fail(char *what)
 {
     const char *e;
     const char *b;
@@ -1004,12 +1004,12 @@ static SDL_GPUTextureFormat sdl_format(int f)
 }
 
 /* PlatformGPU>>setScissor:x:y:width:height: */
-bool pf_gpu_set_scissor(int pass, int x, int y, int w, int h)
+bool set_scissor(int32_t pass, int32_t x, int32_t y, int32_t w, int32_t h)
 {
     SDL_GPURenderPass *p;
     SDL_Rect local;
     SDL_Rect *r;
-    p = gpu_pass(pass);
+    p = platform_gpu_pass(pass);
     if (p == NULL) {
         return false;
     }
@@ -1024,12 +1024,12 @@ bool pf_gpu_set_scissor(int pass, int x, int y, int w, int h)
 }
 
 /* PlatformGPU>>setViewport:x:y:width:height: */
-bool pf_gpu_set_viewport(int pass, float x, float y, float w, float h)
+bool set_viewport(int32_t pass, float x, float y, float w, float h)
 {
     SDL_GPURenderPass *p;
     SDL_GPUViewport local;
     SDL_GPUViewport *vp;
-    p = gpu_pass(pass);
+    p = platform_gpu_pass(pass);
     if (p == NULL) {
         return false;
     }
@@ -1046,13 +1046,13 @@ bool pf_gpu_set_viewport(int pass, float x, float y, float w, float h)
 }
 
 /* PlatformGPU>>shaderLanguage: */
-const char *pf_gpu_shader_language(int dev)
+char *shader_language(int32_t dev)
 {
     gpu_dev *d;
     SDL_GPUShaderFormat f;
-    d = dev_get(dev);
+    d = device(dev);
     if (d == NULL) {
-        return (const char *)NULL;
+        return (char *)NULL;
     }
     f = SDL_GetGPUShaderFormats(d->dev);
     if ((f & SDL_GPU_SHADERFORMAT_MSL) != 0) {
@@ -1061,12 +1061,12 @@ const char *pf_gpu_shader_language(int dev)
     if ((f & SDL_GPU_SHADERFORMAT_SPIRV) != 0) {
         return "glsl";
     }
-    pf_set_error("the device takes neither MSL nor SPIR-V shaders");
-    return (const char *)NULL;
+    set_error("the device takes neither MSL nor SPIR-V shaders");
+    return (char *)NULL;
 }
 
 /* PlatformGPU>>shutdown */
-void pf_gpu_shutdown(void)
+void platform_gpu_shutdown(void)
 {
     int32_t h;
     for (h = 1; h <= objs->n - 1; h++) {
@@ -1077,30 +1077,30 @@ void pf_gpu_shutdown(void)
 }
 
 /* PlatformGPU>>submit:fence:ok: */
-int pf_gpu_submit(int cmd, bool want_fence, bool *ok)
+int submit(int32_t cmd, bool want_fence, bool *ok)
 {
     pf_obj *c;
     SDL_GPUCommandBuffer *cb;
     int32_t dev;
     int32_t k;
     SDL_GPUFence *f;
-    int r_add;
-    int h_2;
-    int h;
-    c = gpu_get(cmd, K_CMD, "command buffer");
+    int32_t r_add;
+    int32_t h_2;
+    int32_t h;
+    c = get(cmd, K_CMD, "command buffer");
     *ok = false;
     if (c == NULL) {
         return 0;
     }
-    up_flush(dev_of(c));
+    upload_flush(device_of(c));
     cb = (SDL_GPUCommandBuffer *)c->ptr;
     dev = c->dev;
     for (k = 1; k <= objs->n - 1; k++) {
         if ((((objs->v + k)->kind == K_SWAP) || ((objs->v + k)->kind == K_PASS)) && ((objs->v + k)->i == cmd)) {
-            pf_table_remove(objs, k);
+            platform_common_table_remove(objs, k);
         }
     }
-    pf_table_remove(objs, cmd);
+    platform_common_table_remove(objs, cmd);
     if (!want_fence) {
         if (!SDL_SubmitGPUCommandBuffer(cb)) {
             return sdl_fail("SDL_SubmitGPUCommandBuffer");
@@ -1113,25 +1113,25 @@ int pf_gpu_submit(int cmd, bool want_fence, bool *ok)
         return sdl_fail("SDL_SubmitGPUCommandBufferAndAcquireFence");
     }
     h = ({
-    h_2 = pf_table_add(objs, K_FENCE, f);
+    h_2 = platform_common_table_add_pointer(objs, K_FENCE, f);
     (objs->v + h_2)->dev = dev;
     r_add = h_2;
     r_add; });
-    watch_fence(h, f, dev_of(objs->v + h)->dev);
+    watch(h, f, device_of(objs->v + h)->dev);
     *ok = true;
     return h;
 }
 
 /* PlatformGPU>>swapchainFormat:window: */
-int pf_gpu_swapchain_format(int dev, int win)
+int swapchain_format(int32_t dev, int32_t win)
 {
     gpu_dev *d;
     SDL_Window *w;
     SDL_GPUTextureFormat f;
     int i;
     int32_t a;
-    d = dev_get(dev);
-    w = pf_window_sdl(win);
+    d = device(dev);
+    w = sdl_window(win);
     if ((d == NULL) || (w == NULL)) {
         return 0;
     }
@@ -1147,10 +1147,10 @@ int pf_gpu_swapchain_format(int dev, int win)
 }
 
 /* PlatformGPU>>target: */
-static pf_obj *target_get(int tex)
+static pf_obj *platform_gpu_target(int32_t tex)
 {
     pf_obj *o;
-    o = pf_table_get(objs, tex, -1);
+    o = platform_common_table_at_kind(objs, tex, -1);
     if ((o == NULL) || ((o->kind != K_TEX) && (o->kind != K_SWAP))) {
         snprintf(last_error, LAST_ERROR_SIZE, "bad texture handle %d", tex);
         return (pf_obj *)NULL;
@@ -1159,10 +1159,10 @@ static pf_obj *target_get(int tex)
 }
 
 /* PlatformGPU>>textureSize:width:height:format: */
-bool pf_gpu_texture_size(int tex, int *w, int *h, int *format)
+bool texture_size(int32_t tex, int *w, int *h, int *format)
 {
     pf_obj *o;
-    o = target_get(tex);
+    o = platform_gpu_target(tex);
     if (o == NULL) {
         return false;
     }
@@ -1173,7 +1173,7 @@ bool pf_gpu_texture_size(int tex, int *w, int *h, int *format)
 }
 
 /* PlatformGPU>>unwatch: */
-static void unwatch_fence(int h)
+static void unwatch(int32_t h)
 {
     pthread_mutex_lock(watch_lock);
     if (h < nwatches) {
@@ -1186,7 +1186,7 @@ static void unwatch_fence(int h)
 }
 
 /* PlatformGPU>>uploadBuffer:data:count:offset: */
-bool pf_gpu_upload_buffer(int buf, const void *data, uint32_t n, uint32_t dst_offset)
+bool upload_buffer(int32_t buf, const void *data, uint32_t n, uint32_t dst_offset)
 {
     pf_obj *o;
     gpu_dev *d;
@@ -1197,7 +1197,7 @@ bool pf_gpu_upload_buffer(int buf, const void *data, uint32_t n, uint32_t dst_of
     SDL_GPUTransferBufferLocation *src;
     SDL_GPUBufferRegion local_3;
     SDL_GPUBufferRegion *dst;
-    o = gpu_get(buf, K_BUF, "buffer");
+    o = get(buf, K_BUF, "buffer");
     if (o == NULL) {
         return false;
     }
@@ -1205,13 +1205,13 @@ bool pf_gpu_upload_buffer(int buf, const void *data, uint32_t n, uint32_t dst_of
         return true;
     }
     if ((uint64_t)dst_offset + n > (uint64_t)o->i) {
-        pf_set_error("upload out of buffer bounds");
+        set_error("upload out of buffer bounds");
         return false;
     }
-    d = dev_of(o);
+    d = device_of(o);
     memset(&local, 0, sizeof local);
     off = &local;
-    p = up_reserve(d, n, off);
+    p = upload_reserve(d, n, off);
     if (p == NULL) {
         return false;
     }
@@ -1231,7 +1231,7 @@ bool pf_gpu_upload_buffer(int buf, const void *data, uint32_t n, uint32_t dst_of
 }
 
 /* PlatformGPU>>uploadFlush: */
-static void up_flush(gpu_dev *d)
+static void upload_flush(gpu_dev *d)
 {
     if (d->up_cmd == NULL) {
         return;
@@ -1244,7 +1244,7 @@ static void up_flush(gpu_dev *d)
 }
 
 /* PlatformGPU>>uploadReserve:bytes:offset: */
-static uint8_t *up_reserve(gpu_dev *d, uint32_t n, uint32_t *off)
+static uint8_t *upload_reserve(gpu_dev *d, uint32_t n, uint32_t *off)
 {
     uint32_t cap;
     uint32_t need;
@@ -1253,7 +1253,7 @@ static uint8_t *up_reserve(gpu_dev *d, uint32_t n, uint32_t *off)
     uint8_t *p;
     need = (n + 15) & 4294967280LL;
     if (d->up_used + need > d->up_cap) {
-        up_flush(d);
+        upload_flush(d);
         if (need > d->up_cap) {
             cap = 0x400000;
             while (cap < need) {
@@ -1293,7 +1293,7 @@ static uint8_t *up_reserve(gpu_dev *d, uint32_t n, uint32_t *off)
 }
 
 /* PlatformGPU>>uploadTexture:data:length:x:y:width:height:bytesPerRow: */
-bool pf_gpu_upload_texture(int tex, const void *data, size_t len, int x, int y, int w, int h, int bytes_per_row)
+bool upload_texture(int32_t tex, const void *data, size_t len, int32_t x, int32_t y, int32_t w, int32_t h, int32_t bytes_per_row)
 {
     pf_obj *o;
     uint64_t row;
@@ -1301,24 +1301,24 @@ bool pf_gpu_upload_texture(int tex, const void *data, size_t len, int x, int y, 
     uint32_t local;
     uint32_t *off;
     uint8_t *p;
-    int r;
+    int32_t r;
     SDL_GPUTextureTransferInfo local_2;
     SDL_GPUTextureTransferInfo *src;
     SDL_GPUTextureRegion local_3;
     SDL_GPUTextureRegion *dst;
-    o = gpu_get(tex, K_TEX, "texture");
+    o = get(tex, K_TEX, "texture");
     if (o == NULL) {
         return false;
     }
-    row = (uint64_t)w * (uint64_t)pf_gpu_bytes_per_pixel(o->fmt);
+    row = (uint64_t)w * (uint64_t)bytes_per_pixel(o->fmt);
     if ((x < 0) || ((y < 0) || ((w <= 0) || ((h <= 0) || ((x + w > o->w) || ((y + h > o->h) || (((uint64_t)bytes_per_row < row) || (len < (uint64_t)(h - 1) * (uint64_t)bytes_per_row + row)))))))) {
-        pf_set_error("bad texture upload region");
+        set_error("bad texture upload region");
         return false;
     }
-    d = dev_of(o);
+    d = device_of(o);
     memset(&local, 0, sizeof local);
     off = &local;
-    p = up_reserve(d, (uint32_t)(row * (uint64_t)h), off);
+    p = upload_reserve(d, (uint32_t)(row * (uint64_t)h), off);
     if (p == NULL) {
         return false;
     }
@@ -1349,7 +1349,7 @@ bool pf_gpu_upload_texture(int tex, const void *data, size_t len, int x, int y, 
 }
 
 /* PlatformGPU>>vertexFormat: */
-static SDL_GPUVertexElementFormat va_format(int f)
+static SDL_GPUVertexElementFormat vertex_format(int32_t f)
 {
     SDL_GPUVertexElementFormat v;
     switch (f) {
@@ -1385,19 +1385,19 @@ static SDL_GPUVertexElementFormat va_format(int f)
 }
 
 /* PlatformGPU>>waitFence: */
-bool pf_gpu_wait_fence(int fence)
+bool wait_fence(int32_t fence)
 {
     pf_obj *o;
     SDL_GPUFence *local;
     SDL_GPUFence **f;
-    o = gpu_get(fence, K_FENCE, "fence");
+    o = get(fence, K_FENCE, "fence");
     if (o == NULL) {
         return false;
     }
     memset(&local, 0, sizeof local);
     f = &local;
     *f = (SDL_GPUFence *)o->ptr;
-    if (SDL_WaitForGPUFences(dev_of(o)->dev, true, f, 1)) {
+    if (SDL_WaitForGPUFences(device_of(o)->dev, true, f, 1)) {
         return true;
     }
     sdl_fail("SDL_WaitForGPUFences");
@@ -1405,14 +1405,14 @@ bool pf_gpu_wait_fence(int fence)
 }
 
 /* PlatformGPU>>waitIdle: */
-bool pf_gpu_wait_idle(int dev)
+bool wait_idle(int32_t dev)
 {
     gpu_dev *d;
-    d = dev_get(dev);
+    d = device(dev);
     if (d == NULL) {
         return false;
     }
-    up_flush(d);
+    upload_flush(d);
     if (SDL_WaitForGPUIdle(d->dev)) {
         return true;
     }
@@ -1421,9 +1421,9 @@ bool pf_gpu_wait_idle(int dev)
 }
 
 /* PlatformGPU>>watch:fence:device: */
-static void watch_fence(int h, SDL_GPUFence *f, SDL_GPUDevice *d)
+static void watch(int32_t h, SDL_GPUFence *f, SDL_GPUDevice *d)
 {
-    int n;
+    int32_t n;
     fence_watch *nw;
     fence_watch *w;
     pthread_t local;
@@ -1463,7 +1463,7 @@ static void watch_fence(int h, SDL_GPUFence *f, SDL_GPUDevice *d)
 }
 
 /* PlatformGPU>>windowClosing: */
-void pf_gpu_window_closing(int win)
+void window_closing(int32_t win)
 {
     int32_t h;
     gpu_dev *d;
@@ -1474,7 +1474,7 @@ void pf_gpu_window_closing(int win)
             for (i = 0; i <= 15; i++) {
                 if (d->claimed[i] == win) {
                     SDL_WaitForGPUIdle(d->dev);
-                    SDL_ReleaseWindowFromGPUDevice(d->dev, pf_window_sdl(win));
+                    SDL_ReleaseWindowFromGPUDevice(d->dev, sdl_window(win));
                     d->claimed[i] = 0;
                 }
             }

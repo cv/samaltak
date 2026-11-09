@@ -149,7 +149,7 @@ specialIndexOf: p
 !BytecodeAnalysis methodsFor: 'analysis'!
 analyze: m
 	"Analyze method m; answer whether it can be compiled."
-	<c: 'bool jit_analyze(oop m)'>
+	<function>
 	| bc lo pc d op len ok next t k |
 	bc := self loadRef: m at: CM_BYTECODES.
 	lo := self loadRef: m at: CM_LITERALS.

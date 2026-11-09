@@ -30,8 +30,8 @@ canRunCode
 !
 openWithSize: size
 	"Map the region; answer whether it worked. It takes the place of cacheSpace (zero-fill, in the VM's own image): near the VM's data, so that adrp from the code reaches it (tiering counters, type feedback, eden's top, call caches)."
-	<c: 'bool code_cache_open(uint64_t size)'>
 	<export>
+	<var: #size type: 'uint64_t'>
 	| p near |
 	near := ((self cCoerce: cacheSpace to: 'uint64_t') + 16383) bitClear: 16383.
 	p := jit map: (self cCoerce: near to: 'void *') size: size.
@@ -54,7 +54,6 @@ limit
 !
 allocate: size
 	"Answer the address of size bytes for code (16-byte aligned), 0 if the cache is full."
-	<c: 'uint64_t code_cache_allocate(uint64_t size)'>
 	<export>
 	| a |
 	a := cacheTop.
@@ -64,7 +63,6 @@ allocate: size
 !
 flush
 	"Forget all code allocated since keep (none of it may be running)."
-	<c: 'void code_cache_flush(void)'>
 	<export>
 	cacheTop := cacheBase
 !

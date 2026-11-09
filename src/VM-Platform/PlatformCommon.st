@@ -17,12 +17,10 @@ initialize
 
 !PlatformCommon methodsFor: 'errors'!
 lastErrorString
-	<c: 'const char *pf_last_error(void)'>
 	<export>
 	^lastError
 !
 setError: message
-	<c: 'void pf_set_error(const char *message)'>
 	<export>
 	libc snprintf: lastError size: LAST_ERROR_SIZE format: '%s' with: message
 !
@@ -37,19 +35,18 @@ setError: format with: a with: b with: c
 !
 failOS: what code: code
 	"what: the strerror of code."
-	<c: 'void pf_os_error(const char *what, int code)'>
+	<function>
 	self setError: '%s: %s' with: what with: (posixIO strerror: code)
 !
 failOS: what path: path code: code
 	"what path: the strerror of code; path may be NULL."
-	<c: 'void pf_os_error_path(const char *what, const char *path, int code)'>
+	<function>
 	self setError: '%s %s: %s' with: what with: (path notNull ifTrue: [path] ifFalse: ['']) with: (posixIO strerror: code)
 ! !
 
 !PlatformCommon methodsFor: 'time'!
 nowMs
 	"Monotonic, ms since the first call."
-	<c: 'int64_t pf_now_ms(void)'>
 	<export>
 	| ts ms |
 	ts := self local: 'struct timespec'.
@@ -62,7 +59,6 @@ nowMs
 !PlatformCommon methodsFor: 'handle tables'!
 table: t add: kind pointer: ptr
 	"A new handle of kind for ptr (its other fields zero), 0 if out of memory."
-	<c: 'int pf_table_add(pf_table *t, int kind, void *ptr)'>
 	<export>
 	| h cap v o |
 	t freeHead ~= 0
@@ -87,7 +83,6 @@ table: t add: kind pointer: ptr
 !
 table: t at: h kind: kind
 	"The live object of handle h, if it has kind (any kind if kind < 0); else NULL."
-	<c: 'pf_obj *pf_table_get(pf_table *t, int h, int kind)'>
 	<export>
 	| o |
 	(h <= 0 or: [h >= t n]) ifTrue: [^self null].
@@ -96,7 +91,6 @@ table: t at: h kind: kind
 	^o
 !
 table: t remove: h
-	<c: 'void pf_table_remove(pf_table *t, int h)'>
 	<export>
 	| o |
 	(h <= 0 or: [h >= t n]) ifTrue: [^self].
@@ -109,7 +103,6 @@ table: t remove: h
 !
 table: t count: kind
 	"Live handles of kind (any kind if kind < 0)."
-	<c: 'int pf_table_count(pf_table *t, int kind)'>
 	<export>
 	| n o |
 	n := 0.
@@ -120,7 +113,6 @@ table: t count: kind
 !
 handleCounts: out
 	"Live handles: files sockets windows gpuDevices shaders pipelines textures samplers buffers fences ptys."
-	<c: 'void pf_handle_counts(int64_t *out)'>
 	<export>
 	out at: 0 put: files handleCount.
 	out at: 1 put: sockets handleCount.

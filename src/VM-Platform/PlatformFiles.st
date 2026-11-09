@@ -22,7 +22,7 @@ failOS: what path: path
 !
 fdOf: f
 	"The descriptor of file handle f, -1 (and the error set) if it is none."
-	<c: 'int file_fd(int f)'>
+	<function>
 	| o |
 	o := common table: table at: f kind: K_FILE.
 	o isNull ifTrue: [
@@ -41,7 +41,6 @@ openFlags: mode
 !PlatformFiles methodsFor: 'files'!
 open: path mode: mode
 	"mode: PF_FILE_READ, PF_FILE_READ_WRITE, PF_FILE_APPEND or PF_FILE_CREATE_TRUNCATE."
-	<c: 'int pf_file_open(const char *path, int mode)'>
 	<export>
 	| fd h |
 	platform init.
@@ -57,7 +56,6 @@ open: path mode: mode
 	^h
 !
 close: f
-	<c: 'bool pf_file_close(int f)'>
 	<export>
 	| fd |
 	fd := self fdOf: f.
@@ -69,7 +67,7 @@ close: f
 !
 read: f into: buf count: n
 	"< 0 on error."
-	<c: 'int64_t pf_file_read(int f, void *buf, size_t n)'>
+	<var: #buf type: 'void *'>
 	<export>
 	| fd r |
 	fd := self fdOf: f.
@@ -81,7 +79,7 @@ read: f into: buf count: n
 !
 write: f bytes: buf count: n
 	"< 0 on error."
-	<c: 'int64_t pf_file_write(int f, const void *buf, size_t n)'>
+	<var: #buf type: 'const void *'>
 	<export>
 	<var: #done type: 'size_t'>
 	| fd p done r |
@@ -100,7 +98,6 @@ write: f bytes: buf count: n
 	^done asInt64
 !
 size: f
-	<c: 'int64_t pf_file_size(int f)'>
 	<export>
 	| fd st |
 	fd := self fdOf: f.
@@ -112,7 +109,6 @@ size: f
 	^st st_size
 !
 position: f
-	<c: 'int64_t pf_file_position(int f)'>
 	<export>
 	| fd r |
 	fd := self fdOf: f.
@@ -122,7 +118,6 @@ position: f
 	^r
 !
 seek: f to: pos
-	<c: 'bool pf_file_seek(int f, int64_t pos)'>
 	<export>
 	| fd |
 	fd := self fdOf: f.
@@ -133,7 +128,6 @@ seek: f to: pos
 !
 flush: f
 	"Writes are unbuffered, so flush only pushes regular files to disk."
-	<c: 'bool pf_file_flush(int f)'>
 	<export>
 	| fd st |
 	fd := self fdOf: f.
@@ -145,14 +139,12 @@ flush: f
 	^true
 !
 handleCount
-	<c: 'int pf_file_handle_count(void)'>
 	<export>
 	^common table: table count: -1
 ! !
 
 !PlatformFiles methodsFor: 'paths'!
 delete: path
-	<c: 'bool pf_file_delete(const char *path)'>
 	<export>
 	(posixIO unlink: path) = 0 ifTrue: [^true].
 	((posixIO errno = posixIO EISDIR or: [posixIO errno = posixIO EPERM]) and: [(posixIO rmdir: path) = 0]) ifTrue: [^true].
@@ -160,7 +152,6 @@ delete: path
 	^false
 !
 rename: from to: to
-	<c: 'bool pf_file_rename(const char *from, const char *to)'>
 	<export>
 	(posixIO rename: from to: to) = 0 ifTrue: [^true].
 	self failOS: 'rename' path: from.
@@ -168,7 +159,6 @@ rename: from to: to
 !
 stat: path into: s
 	"A missing path is no error: s exists is false."
-	<c: 'bool pf_file_stat(const char *path, pf_stat *s)'>
 	<export>
 	| st |
 	st := self local: 'struct stat'.
@@ -185,7 +175,6 @@ stat: path into: s
 !
 dirEntries: path count: n
 	"A malloc'd array of n malloc'd names."
-	<c: 'char **pf_dir_entries(const char *path, int *n)'>
 	<export>
 	<var: #cap type: 'int'>
 	| d cap v ok e nv s |
@@ -221,7 +210,6 @@ dirEntries: path count: n
 	^v
 !
 dirCreate: path
-	<c: 'bool pf_dir_create(const char *path)'>
 	<export>
 	(posixIO mkdir: path mode: 8r755) = 0 ifTrue: [^true].
 	self failOS: 'mkdir' path: path.
@@ -229,7 +217,6 @@ dirCreate: path
 !
 cwd
 	"malloc'd."
-	<c: 'char *pf_cwd(void)'>
 	<export>
 	| p |
 	p := posixIO getcwd: self null size: 0.
@@ -237,7 +224,6 @@ cwd
 	^p
 !
 mkfifo: path
-	<c: 'bool pf_mkfifo(const char *path)'>
 	<export>
 	(posixIO mkfifo: path mode: 8r644) = 0 ifTrue: [^true].
 	self failOS: 'mkfifo' path: path.
@@ -247,7 +233,7 @@ mkfifo: path
 !PlatformFiles methodsFor: 'processes'!
 spawn: argv
 	"argv first is looked up in PATH; stdio is inherited. The pid, < 0 on error."
-	<c: 'int64_t pf_spawn(char **argv)'>
+	<returns: 'int64_t'>
 	<export>
 	| pid r |
 	pid := self local: 'pid_t'.
@@ -260,7 +246,6 @@ spawn: argv
 !
 exec: argv
 	"Replace the VM's process by argv first (looked up in PATH): same pid, standard streams; every other descriptor closes. Returns only on failure."
-	<c: 'void pf_exec(char **argv)'>
 	<export>
 	| maxFd flags |
 	libc fflush: libc stdout.
@@ -275,7 +260,6 @@ exec: argv
 !
 processWait: pid block: block status: status done: done
 	"status: the exit code, or 128 + the signal number."
-	<c: 'bool pf_process_wait(int64_t pid, bool block, int *status, bool *done)'>
 	<export>
 	| st r |
 	st := self local: 'int'.
@@ -297,7 +281,7 @@ VMStruct subclass: #PfStat
 	classVariableNames: ''
 	package: 'VM-Platform'!
 
-PfStat comment: 'What pf_file_stat answers.'!
+PfStat comment: 'What platform_files_stat answers.'!
 
 !PfStat class methodsFor: 'declaring'!
 fields

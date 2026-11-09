@@ -28,7 +28,7 @@ wouldBlock
 !
 wrap: fd
 	"A socket handle for fd (closed if the table is full)."
-	<c: 'int socket_wrap(int fd)'>
+	<function>
 	| h |
 	host socketOpened: fd.
 	h := self add: fd kind: PF_FD_SOCKET pointer: self null.
@@ -43,7 +43,7 @@ noDelay: fd
 !
 resolve: host port: port passive: passive
 	"The addresses of host (any if NULL or empty) and port; NULL (and the error set) if there are none."
-	<c: 'struct addrinfo *socket_resolve(const char *host, int port, bool passive)'>
+	<function>
 	| hints ai ps r |
 	hints := self local: 'struct addrinfo'.
 	ai := self local: 'struct addrinfo *'.
@@ -60,7 +60,7 @@ resolve: host port: port passive: passive
 !
 eventsOf: h
 	"The poll events handle h waits for."
-	<c: 'short events_of(int h)'>
+	<function>
 	| s |
 	s := sems + h.
 	^(((s readSem ~= 0 and: [s readArmed]) ifTrue: [posixIO POLLIN] ifFalse: [0])
@@ -69,7 +69,6 @@ eventsOf: h
 
 !PlatformSockets methodsFor: 'descriptor table'!
 fdGet: h kind: kind
-	<c: 'pf_obj *pf_fd_get(int h, int kind)'>
 	<export>
 	| o |
 	o := common table: table at: h kind: kind.
@@ -78,7 +77,7 @@ fdGet: h kind: kind
 !
 fdOf: h kind: kind
 	"The descriptor of handle h, -1 (and the error set) if it is none."
-	<c: 'int fd_of_kind(int h, int kind)'>
+	<function>
 	| o |
 	o := self fdGet: h kind: kind.
 	o isNull ifTrue: [^-1].
@@ -86,7 +85,7 @@ fdOf: h kind: kind
 !
 add: fd kind: kind pointer: ptr
 	"Make fd non-blocking and close-on-exec; its handle, 0 when the table is full (fd left open)."
-	<c: 'int pf_fd_add(int fd, int kind, void *ptr)'>
+	<var: #ptr type: 'void *'>
 	<export>
 	| h |
 	posixIO fcntl: fd command: posixIO F_SETFL value: ((posixIO fcntl: fd command: posixIO F_GETFL) bitOr: posixIO O_NONBLOCK).
@@ -101,7 +100,6 @@ add: fd kind: kind pointer: ptr
 	^h
 !
 close: h kind: kind
-	<c: 'bool pf_fd_close(int h, int kind)'>
 	<export>
 	| fd |
 	fd := self fdOf: h kind: kind.
@@ -114,7 +112,8 @@ close: h kind: kind
 !
 read: h kind: kind into: buf count: n
 	"0 at EOF, -1 would block, -2 error."
-	<c: 'int64_t fd_read(int h, int kind, void *buf, size_t n)'>
+	<function>
+	<var: #buf type: 'void *'>
 	| fd r |
 	fd := self fdOf: h kind: kind.
 	fd < 0 ifTrue: [^-2].
@@ -132,7 +131,8 @@ read: h kind: kind into: buf count: n
 !
 write: h kind: kind bytes: buf count: n
 	"-1 would block, -2 error."
-	<c: 'int64_t fd_write(int h, int kind, const void *buf, size_t n)'>
+	<function>
+	<var: #buf type: 'const void *'>
 	| fd r |
 	fd := self fdOf: h kind: kind.
 	fd < 0 ifTrue: [^-2].
@@ -147,7 +147,7 @@ write: h kind: kind bytes: buf count: n
 	^-2
 !
 semaphores: h kind: kind read: readIndex write: writeIndex
-	<c: 'bool fd_semaphores(int h, int kind, int read_index, int write_index)'>
+	<function>
 	| s had |
 	(self fdOf: h kind: kind) < 0 ifTrue: [^false].
 	s := sems + h.
@@ -163,7 +163,6 @@ semaphores: h kind: kind read: readIndex write: writeIndex
 
 !PlatformSockets methodsFor: 'sockets'!
 listen: host port: port backlog: backlog
-	<c: 'int pf_socket_listen(const char *host, int port, int backlog)'>
 	<export>
 	| ai fd one |
 	platform init.
@@ -187,7 +186,6 @@ listen: host port: port backlog: backlog
 !
 connect: host port: port
 	"Blocking connect (meant for localhost), then non-blocking."
-	<c: 'int pf_socket_connect(const char *host, int port)'>
 	<export>
 	<var: #fd type: 'int'>
 	| ai a fd connected |
@@ -213,7 +211,6 @@ connect: host port: port
 !
 accept: s wouldBlock: wouldBlock
 	"0 and wouldBlock: none pending."
-	<c: 'int pf_socket_accept(int s, bool *would_block)'>
 	<export>
 	| fd c e |
 	fd := self socketFd: s.
@@ -234,28 +231,25 @@ accept: s wouldBlock: wouldBlock
 !
 recv: s into: buf count: n
 	"0 at EOF, -1 would block, -2 error."
-	<c: 'int64_t pf_socket_recv(int s, void *buf, size_t n)'>
+	<var: #buf type: 'void *'>
 	<export>
 	^self read: s kind: PF_FD_SOCKET into: buf count: n
 !
 send: s bytes: buf count: n
 	"-1 would block, -2 error."
-	<c: 'int64_t pf_socket_send(int s, const void *buf, size_t n)'>
+	<var: #buf type: 'const void *'>
 	<export>
 	^self write: s kind: PF_FD_SOCKET bytes: buf count: n
 !
 close: s
-	<c: 'bool pf_socket_close(int s)'>
 	<export>
 	^self close: s kind: PF_FD_SOCKET
 !
 semaphores: s read: readIndex write: writeIndex
-	<c: 'bool pf_socket_semaphores(int s, int read_index, int write_index)'>
 	<export>
 	^self semaphores: s kind: PF_FD_SOCKET read: readIndex write: writeIndex
 !
 localPort: s
-	<c: 'int pf_socket_local_port(int s)'>
 	<export>
 	| fd ss len |
 	fd := self socketFd: s.
@@ -271,7 +265,6 @@ localPort: s
 		ifFalse: [posixSockets ntohs: (self cCoerce: ss to: 'struct sockaddr_in *') sin_port]
 !
 handleCount
-	<c: 'int pf_socket_handle_count(void)'>
 	<export>
 	^common table: table count: PF_FD_SOCKET
 ! !
@@ -279,36 +272,33 @@ handleCount
 !PlatformSockets methodsFor: 'pseudo-terminals'!
 ptyRead: p into: buf count: n
 	"0 at EOF (the child side closed), -1 would block, -2 error."
-	<c: 'int64_t pf_pty_read(int p, void *buf, size_t n)'>
+	<var: #buf type: 'void *'>
 	<export>
 	^self read: p kind: PF_FD_PTY into: buf count: n
 !
 ptyWrite: p bytes: buf count: n
 	"-1 would block, -2 error."
-	<c: 'int64_t pf_pty_write(int p, const void *buf, size_t n)'>
+	<var: #buf type: 'const void *'>
 	<export>
 	^self write: p kind: PF_FD_PTY bytes: buf count: n
 !
 ptySemaphores: p read: readIndex write: writeIndex
-	<c: 'bool pf_pty_semaphores(int p, int read_index, int write_index)'>
 	<export>
 	^self semaphores: p kind: PF_FD_PTY read: readIndex write: writeIndex
 !
 ptyHandleCount
-	<c: 'int pf_pty_handle_count(void)'>
 	<export>
 	^common table: table count: PF_FD_PTY
 ! !
 
 !PlatformSockets methodsFor: 'polling'!
 anyArmed
-	<c: 'bool pf_socket_any_armed(void)'>
 	<export>
 	^armedCount > 0
 !
 pollFds: pollfds max: max
 	"Fill pollfds (struct pollfd[max]) with the armed descriptors; answer their count."
-	<c: 'int pf_socket_poll_fds(void *pollfds, int max)'>
+	<var: #pollfds type: 'void *'>
 	<export>
 	<var: #n type: 'int'>
 	| p n ev |
@@ -326,7 +316,6 @@ pollFds: pollfds max: max
 !
 poll: timeoutMs
 	"Signal the semaphores of the ready descriptors."
-	<c: 'void pf_socket_poll(int timeout_ms)'>
 	<export>
 	<var: #n type: 'int'>
 	| p hs n ev r s |

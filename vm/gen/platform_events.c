@@ -18,7 +18,7 @@ static int mods_of(SDL_Keymod m);
 static void translate(SDL_Event *e);
 
 /* PlatformEvents>>dropped */
-int64_t pf_event_dropped(void)
+int64_t dropped(void)
 {
     return q_dropped;
 }
@@ -26,11 +26,11 @@ int64_t pf_event_dropped(void)
 /* PlatformEvents>>modsOf: */
 static int mods_of(SDL_Keymod m)
 {
-    return ((m & SDL_KMOD_SHIFT) != 0 ? PF_MOD_SHIFT : 0) | ((m & SDL_KMOD_CTRL) != 0 ? PF_MOD_CTRL : 0) | ((m & pf_host_alt_keymod()) != 0 ? PF_MOD_ALT : 0) | ((m & pf_host_cmd_keymod()) != 0 ? PF_MOD_CMD : 0);
+    return ((m & SDL_KMOD_SHIFT) != 0 ? PF_MOD_SHIFT : 0) | ((m & SDL_KMOD_CTRL) != 0 ? PF_MOD_CTRL : 0) | ((m & alt_keymod()) != 0 ? PF_MOD_ALT : 0) | ((m & cmd_keymod()) != 0 ? PF_MOD_CMD : 0);
 }
 
 /* PlatformEvents>>next: */
-bool pf_event_next(pf_event *out)
+bool platform_events_next(pf_event *out)
 {
     input_armed = true;
     if (q_len == 0) {
@@ -43,11 +43,11 @@ bool pf_event_next(pf_event *out)
 }
 
 /* PlatformEvents>>pump */
-void pf_pump(void)
+void pump(void)
 {
     SDL_Event local;
     SDL_Event *e;
-    if (!pf_video_inited()) {
+    if (!video_inited()) {
         return;
     }
     memset(&local, 0, sizeof local);
@@ -60,7 +60,7 @@ void pf_pump(void)
 }
 
 /* PlatformEvents>>push: */
-void pf_event_push(pf_event *e)
+void platform_events_push(pf_event *e)
 {
     char *text;
     int32_t cap;
@@ -101,16 +101,16 @@ void pf_event_push(pf_event *e)
 }
 
 /* PlatformEvents>>setSemaphore: */
-void pf_event_set_semaphore(int index)
+void set_semaphore(int32_t index)
 {
     input_sem = index;
     input_armed = true;
 }
 
 /* PlatformEvents>>signalReady */
-void pf_signal_ready(void)
+void signal_ready(void)
 {
-    pf_vsync_poll();
+    platform_vsync_poll();
     if ((q_len != 0) && ((input_sem != 0) && input_armed)) {
         input_armed = false;
         signal_external_semaphore(input_sem);
@@ -129,7 +129,7 @@ static void translate(SDL_Event *e)
     ev = &local;
     now = SDL_GetTicksNS();
     age = now > e->common.timestamp ? now - e->common.timestamp : 0;
-    ev->time_ms = pf_now_ms() - (int64_t)(age / 1000000);
+    ev->time_ms = platform_common_now_ms() - (int64_t)(age / 1000000);
     ev->mods = mods_of(SDL_GetModState());
     ev->x = mouse_x;
     ev->y = mouse_y;
@@ -141,8 +141,8 @@ static void translate(SDL_Event *e)
         ev->x = mouse_x;
         ev->y = mouse_y;
         ev->key = e->motion.state;
-        ev->window = pf_window_from_sdl_id(e->motion.windowID);
-        pf_event_push(ev);
+        ev->window = from_sdl_id(e->motion.windowID);
+        platform_events_push(ev);
         return;
     }
     if ((t == SDL_EVENT_MOUSE_BUTTON_DOWN) || (t == SDL_EVENT_MOUSE_BUTTON_UP)) {
@@ -154,8 +154,8 @@ static void translate(SDL_Event *e)
         ev->key = e->button.button;
         ev->xkind = PF_X_INT;
         ev->ival = e->button.clicks;
-        ev->window = pf_window_from_sdl_id(e->button.windowID);
-        pf_event_push(ev);
+        ev->window = from_sdl_id(e->button.windowID);
+        platform_events_push(ev);
         return;
     }
     if (t == SDL_EVENT_MOUSE_WHEEL) {
@@ -167,8 +167,8 @@ static void translate(SDL_Event *e)
         ev->xkind = PF_X_POINT;
         ev->dx = e->wheel.x;
         ev->dy = e->wheel.y;
-        ev->window = pf_window_from_sdl_id(e->wheel.windowID);
-        pf_event_push(ev);
+        ev->window = from_sdl_id(e->wheel.windowID);
+        platform_events_push(ev);
         return;
     }
     if ((t == SDL_EVENT_KEY_DOWN) || (t == SDL_EVENT_KEY_UP)) {
@@ -180,28 +180,28 @@ static void translate(SDL_Event *e)
         }
         ev->xkind = PF_X_BOOL;
         ev->ival = e->key.repeat ? 1 : 0;
-        ev->window = pf_window_from_sdl_id(e->key.windowID);
-        pf_event_push(ev);
+        ev->window = from_sdl_id(e->key.windowID);
+        platform_events_push(ev);
         return;
     }
     if (t == SDL_EVENT_TEXT_INPUT) {
-        if ((key_mods & pf_host_cmd_keymod()) != 0) {
+        if ((key_mods & cmd_keymod()) != 0) {
             return;
         }
         ev->type = PF_EV_TEXT_INPUT;
         ev->xkind = PF_X_TEXT;
         ev->text = (char *)e->text.text;
-        ev->window = pf_window_from_sdl_id(e->text.windowID);
-        pf_event_push(ev);
+        ev->window = from_sdl_id(e->text.windowID);
+        platform_events_push(ev);
         return;
     }
     if (t == SDL_EVENT_QUIT) {
         ev->type = PF_EV_QUIT;
-        pf_event_push(ev);
+        platform_events_push(ev);
         return;
     }
     if ((t == SDL_EVENT_WINDOW_RESIZED) || ((t == SDL_EVENT_WINDOW_CLOSE_REQUESTED) || ((t == SDL_EVENT_WINDOW_FOCUS_GAINED) || ((t == SDL_EVENT_WINDOW_FOCUS_LOST) || ((t == SDL_EVENT_WINDOW_DISPLAY_SCALE_CHANGED) || ((t == SDL_EVENT_WINDOW_MOUSE_LEAVE) || (t == SDL_EVENT_WINDOW_EXPOSED))))))) {
-        ev->window = pf_window_from_sdl_id(e->window.windowID);
+        ev->window = from_sdl_id(e->window.windowID);
         if (ev->window == 0) {
             return;
         }
@@ -227,18 +227,18 @@ static void translate(SDL_Event *e)
             }
             if (t == SDL_EVENT_WINDOW_DISPLAY_SCALE_CHANGED) {
                 ev->type = PF_EV_DISPLAY_SCALE_CHANGED;
-                ev->x = pf_window_display_scale(ev->window);
+                ev->x = display_scale(ev->window);
                 ev->y = 0.0;
             }
         }
-        pf_event_push(ev);
+        platform_events_push(ev);
         return;
     }
 }
 
 /* PlatformEvents>>updatePollInterval */
-void pf_update_poll_interval(void)
+void update_poll_interval(void)
 {
-    request_periodic_poll(pf_video_inited() || pf_socket_any_armed() ? PF_POLL_US : 0);
+    request_periodic_poll(video_inited() || any_armed() ? PF_POLL_US : 0);
 }
 

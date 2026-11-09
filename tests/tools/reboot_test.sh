@@ -28,7 +28,7 @@ before=$(windows)
 gen=$(cat vm/gen/* | cksum)
 check "banner before" "'Samaltak VM'" "$($CTL eval 'Smalltalk vm banner')"
 
-$CTL eval "VMMain compile: 'banner <c: ''const char *vm_banner(void)''> ^''Samaltak VM, rebooted''' classified: 'running'. 1" >/dev/null
+$CTL eval "VMMain compile: 'banner <function> ^''Samaltak VM, rebooted''' classified: 'running'. 1" >/dev/null
 $CTL click 1000,893 >/dev/null
 $CTL click @menu.rebuild-vm-reboot >/dev/null
 # The image goes away for a moment; samaltak-ctl waits while the same pid comes back on the same port.

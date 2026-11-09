@@ -29,7 +29,7 @@ testGuestShowsAnEditedVMMethodAtOnce
 	original := VMMain compiledMethodAt: #banner.
 	self fork: [sim runMain: VMMain arguments: {'samaltak'. '--eden'. '1'. '--max-heap'. '64'. image. '--headless'. 'Guest'}] at: Processor userBackgroundPriority.
 	[self assert: (self waitFor: [sim stdoutContents includesSubstring: 'Samaltak VM | tick 1 | 1 squared = 1'] timeout: 30000).
-	 VMMain compile: 'banner <c: ''const char *vm_banner(void)''> ^''edited''' classified: 'running'.
+	 VMMain compile: 'banner <function> ^''edited''' classified: 'running'.
 	 self assert: (self waitFor: [sim stdoutContents includesSubstring: 'edited | tick'] timeout: 30000)]
 		ensure: [VMMain addSelector: #banner withMethod: original]
 !
@@ -49,7 +49,7 @@ testSmalltalk80GuestShowsAnEditedVMMethod
 	original := VMMain compiledMethodAt: #banner.
 	self startSmalltalk80On: (screen := RecordingDisplay new).
 	self assert: (screen hasShown: 'Samaltak VM' rule: 0).
-	[VMMain compile: 'banner <c: ''const char *vm_banner(void)''> ^''edited''' classified: 'running'.
+	[VMMain compile: 'banner <function> ^''edited''' classified: 'running'.
 	 self assert: (self waitFor: [screen hasShown: 'edited' rule: 0] timeout: 30000)]
 		ensure: [VMMain addSelector: #banner withMethod: original]
 !

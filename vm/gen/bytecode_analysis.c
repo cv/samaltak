@@ -19,7 +19,7 @@ int32_t prim_index;
 static int32_t work_count;
 
 /* BytecodeAnalysis>>analyze: */
-bool jit_analyze(oop m)
+bool analyze(oop m)
 {
     uint64_t bc;
     uint64_t lo;

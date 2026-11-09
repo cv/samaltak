@@ -5,31 +5,31 @@
 #ifdef __APPLE__
 
 /* DarwinJitPlatform>>beginWriting */
-void jit_platform_begin_writing(void)
+void begin_writing(void)
 {
     pthread_jit_write_protect_np(0);
 }
 
 /* DarwinJitPlatform>>canRunCode */
-bool jit_platform_runs_code(void)
+bool can_run_code(void)
 {
     return pthread_jit_write_protect_supported_np() != 0;
 }
 
 /* DarwinJitPlatform>>endWriting */
-void jit_platform_end_writing(void)
+void end_writing(void)
 {
     pthread_jit_write_protect_np(1);
 }
 
 /* DarwinJitPlatform>>invalidate:size: */
-void jit_platform_invalidate(void *start, size_t size)
+void invalidate(void *start, uint64_t size)
 {
     sys_icache_invalidate(start, size);
 }
 
 /* DarwinJitPlatform>>map:size: */
-void *jit_platform_map(void *near, uint64_t size)
+void *map(void *near, uint64_t size)
 {
     munmap(near, size);
     return mmap(near, size, PROT_READ | PROT_WRITE | PROT_EXEC, MAP_PRIVATE | MAP_ANON | MAP_JIT, -1, 0);

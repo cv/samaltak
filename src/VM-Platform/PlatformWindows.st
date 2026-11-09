@@ -16,7 +16,6 @@ initialize
 
 !PlatformWindows methodsFor: 'video'!
 videoInit
-	<c: 'bool pf_video_init(void)'>
 	<export>
 	videoOk ifTrue: [^true].
 	sdl setHint: sdl SDL_HINT_QUIT_ON_LAST_WINDOW_CLOSE value: '0'.
@@ -29,7 +28,6 @@ videoInit
 	^true
 !
 videoInited
-	<c: 'bool pf_video_inited(void)'>
 	<export>
 	^videoOk
 ! !
@@ -37,7 +35,7 @@ videoInited
 !PlatformWindows methodsFor: 'windows'!
 sdlWindow: win
 	"The SDL_Window of a window handle; NULL (and the error set) if it is none."
-	<c: 'SDL_Window *pf_window_sdl(int win)'>
+	<returns: 'SDL_Window *'>
 	<export>
 	| o |
 	o := common table: table at: win kind: K_WINDOW.
@@ -47,7 +45,6 @@ sdlWindow: win
 	^o ptr
 !
 open: w height: h title: title flags: flags
-	<c: 'int pf_window_open(int w, int h, const char *title, int flags)'>
 	<export>
 	<var: #f type: 'SDL_WindowFlags'>
 	| f sw handle |
@@ -66,7 +63,6 @@ open: w height: h title: title flags: flags
 	^handle
 !
 close: win
-	<c: 'bool pf_window_close(int win)'>
 	<export>
 	| sw |
 	sw := self sdlWindow: win.
@@ -79,21 +75,18 @@ close: win
 !
 fromSDLId: id
 	"The handle of the window with SDL window id, 0 if none."
-	<c: 'int pf_window_from_sdl_id(uint32_t id)'>
 	<export>
 	1 to: table n - 1 do: [:h | ((table v + h) kind = K_WINDOW and: [(table v + h) i = id]) ifTrue: [^h]].
 	^0
 !
 size: win width: w height: h
 	"In points."
-	<c: 'bool pf_window_size(int win, int *w, int *h)'>
 	<export>
 	| sw |
 	sw := self sdlWindow: win.
 	^sw notNull and: [sdl getWindowSize: sw width: w height: h]
 !
 pixelSize: win width: w height: h
-	<c: 'bool pf_window_pixel_size(int win, int *w, int *h)'>
 	<export>
 	| sw |
 	sw := self sdlWindow: win.
@@ -101,7 +94,6 @@ pixelSize: win width: w height: h
 !
 displayScale: win
 	"< 0 on error."
-	<c: 'double pf_window_display_scale(int win)'>
 	<export>
 	| sw s |
 	sw := self sdlWindow: win.
@@ -111,7 +103,6 @@ displayScale: win
 !
 refreshRate: win
 	"Hz, 0 if unknown, < 0 on error."
-	<c: 'double pf_window_refresh_rate(int win)'>
 	<export>
 	| sw m |
 	sw := self sdlWindow: win.
@@ -120,14 +111,12 @@ refreshRate: win
 	^m notNull ifTrue: [m refresh_rate] ifFalse: [0.0]
 !
 setTitle: win title: title
-	<c: 'bool pf_window_set_title(int win, const char *title)'>
 	<export>
 	| sw |
 	sw := self sdlWindow: win.
 	^sw notNull and: [sdl setWindowTitle: sw title: title]
 !
 show: win visible: show
-	<c: 'bool pf_window_show(int win, bool show)'>
 	<export>
 	| sw |
 	sw := self sdlWindow: win.
@@ -135,14 +124,12 @@ show: win visible: show
 !
 isHidden: win
 	"Hidden or minimized (or no window)."
-	<c: 'bool pf_window_is_hidden(int win)'>
 	<export>
 	| sw |
 	sw := self sdlWindow: win.
 	^sw isNull or: [((sdl getWindowFlags: sw) bitAnd: (sdl SDL_WINDOW_HIDDEN bitOr: sdl SDL_WINDOW_MINIMIZED)) ~= 0]
 !
 shutdown
-	<c: 'void pf_windows_shutdown(void)'>
 	<export>
 	1 to: table n - 1 do: [:h | (table v + h) kind = K_WINDOW ifTrue: [self close: h]].
 	0 to: CURSOR_KINDS - 1 do: [:i |
@@ -151,7 +138,6 @@ shutdown
 			cursors at: i put: self null]]
 !
 handleCount
-	<c: 'int pf_window_handle_count(void)'>
 	<export>
 	^common table: table count: -1
 ! !
@@ -172,7 +158,6 @@ systemCursor: kind
 !
 setCursor: kind
 	"0 arrow, 1 ibeam, 2 hand, 3 resize-ew, 4 resize-ns, 5 resize-nwse, 6 resize-nesw, 7 move, 8 wait, 9 crosshair, 10 not-allowed"
-	<c: 'bool pf_set_cursor(int kind)'>
 	<export>
 	(kind < 0 or: [kind >= CURSOR_KINDS]) ifTrue: [
 		common setError: 'bad cursor %d' with: kind.
@@ -186,7 +171,6 @@ setCursor: kind
 !
 clipboardGet
 	"malloc'd."
-	<c: 'char *pf_clipboard_get(void)'>
 	<export>
 	| s r |
 	self videoInit ifFalse: [^self null].
@@ -197,7 +181,6 @@ clipboardGet
 	^r
 !
 clipboardSet: s
-	<c: 'bool pf_clipboard_set(const char *s)'>
 	<export>
 	self videoInit ifFalse: [^false].
 	(sdl setClipboardText: s) ifFalse: [

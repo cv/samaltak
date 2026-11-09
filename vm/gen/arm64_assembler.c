@@ -20,7 +20,7 @@ uint64_t asm_start;
 static int32_t asm_unresolved;
 
 /* Arm64Assembler>>beginAt:limit: */
-void asm_begin(uint64_t start, uint64_t limit)
+void begin_at(uint64_t start, uint64_t limit)
 {
     asm_start = start;
     asm_pc = start;
@@ -33,14 +33,14 @@ void asm_begin(uint64_t start, uint64_t limit)
 }
 
 /* Arm64Assembler>>bind: */
-void asm_bind(int32_t a_label)
+void arm64_assembler_bind(int32_t a_label)
 {
     int32_t f;
     asm_labels[a_label] = asm_pc;
     f = asm_label_fixups[a_label];
     while (f >= 0) {
         if (asm_fixup_sites[f] < asm_pc) {
-            asm_patch_branch(asm_fixup_sites[f], asm_pc);
+            patch_branch_at(asm_fixup_sites[f], asm_pc);
         }
         asm_unresolved = asm_unresolved - 1;
         f = asm_fixup_next[f];
@@ -49,7 +49,7 @@ void asm_bind(int32_t a_label)
 }
 
 /* Arm64Assembler>>branchTargetAt: */
-uint64_t asm_branch_target(uint64_t site)
+uint64_t branch_target_at(uint64_t site)
 {
     uint32_t w;
     int64_t imm;
@@ -75,7 +75,7 @@ uint64_t asm_branch_target(uint64_t site)
 }
 
 /* Arm64Assembler>>finish */
-int32_t asm_finish(void)
+int32_t arm64_assembler_finish(void)
 {
     if (asm_unresolved > 0) {
         if (asm_error == ASM_OK) {
@@ -86,7 +86,7 @@ int32_t asm_finish(void)
 }
 
 /* Arm64Assembler>>fmovImmediate: */
-int32_t asm_fmov_immediate(double a_double)
+int32_t fmov_immediate(double a_double)
 {
     uint64_t b;
     uint64_t exp;
@@ -102,16 +102,16 @@ int32_t asm_fmov_immediate(double a_double)
 }
 
 /* Arm64Assembler>>labelAt: */
-int32_t asm_label_at(uint64_t an_address)
+int32_t label_at(uint64_t an_address)
 {
     int32_t label;
-    label = asm_new_label();
+    label = new_label();
     asm_labels[label] = an_address;
     return label;
 }
 
 /* Arm64Assembler>>logicalImmediate:width: */
-int32_t asm_logical_immediate(uint64_t value, int32_t width)
+int32_t logical_immediate(uint64_t value, int width)
 {
     uint64_t v;
     int64_t size;
@@ -159,7 +159,7 @@ int32_t asm_logical_immediate(uint64_t value, int32_t width)
 }
 
 /* Arm64Assembler>>mov64At: */
-uint64_t asm_mov64(uint64_t site)
+uint64_t mov64_at(uint64_t site)
 {
     uint64_t v;
     int i;
@@ -171,7 +171,7 @@ uint64_t asm_mov64(uint64_t site)
 }
 
 /* Arm64Assembler>>movImm:value: */
-void asm_mov_imm(int64_t rd, uint64_t value)
+void mov_imm(int64_t rd, uint64_t value)
 {
     uint64_t v;
     int halves;
@@ -208,7 +208,7 @@ void asm_mov_imm(int64_t rd, uint64_t value)
         }
     }
     if (halves - (zeros > ones ? zeros : ones) > 1) {
-        enc = asm_logical_immediate(v, (rd & REG_W) == 0 ? 64 : 32);
+        enc = logical_immediate(v, (rd & REG_W) == 0 ? 64 : 32);
         if (enc >= 0) {
             a_word = 0x32000000 | ((rd & REG_W) == 0 ? 0x80000000LL : 0) | ((((uint64_t)enc) << 10) | (992ULL | (rd & 31)));
             if (asm_pc < asm_limit) {
@@ -316,7 +316,7 @@ void asm_mov_imm(int64_t rd, uint64_t value)
 }
 
 /* Arm64Assembler>>newLabel */
-int32_t asm_new_label(void)
+int32_t new_label(void)
 {
     if (asm_label_count >= ASM_MAX_LABELS) {
         if (asm_error == ASM_OK) {
@@ -331,7 +331,7 @@ int32_t asm_new_label(void)
 }
 
 /* Arm64Assembler>>note:value: */
-void asm_note(const char *a_string, int64_t an_integer)
+void note(const char *a_string, int64_t an_integer)
 {
     if (asm_note_count < ASM_MAX_NOTES) {
         asm_note_offsets[asm_note_count] = (uint32_t)(asm_pc - asm_start);
@@ -342,7 +342,7 @@ void asm_note(const char *a_string, int64_t an_integer)
 }
 
 /* Arm64Assembler>>patchBranchAt:to: */
-bool asm_patch_branch(uint64_t site, uint64_t target)
+bool patch_branch_at(uint64_t site, uint64_t target)
 {
     uint32_t w;
     int64_t off;
@@ -448,7 +448,7 @@ exit_patch_2:;
 }
 
 /* Arm64Assembler>>patchMov64At:value: */
-void asm_patch_mov64(uint64_t site, uint64_t value)
+void patch_mov64_at(uint64_t site, uint64_t value)
 {
     int i;
     for (i = 0; i <= 3; i++) {
@@ -457,14 +457,14 @@ void asm_patch_mov64(uint64_t site, uint64_t value)
 }
 
 /* Arm64Assembler>>recordNotes: */
-void asm_record_notes(bool a_boolean)
+void record_notes(bool a_boolean)
 {
     asm_noting = a_boolean;
     asm_note_count = 0;
 }
 
 /* Arm64Assembler>>targetOf: */
-uint64_t asm_target_of(int32_t a_label)
+uint64_t target_of(int32_t a_label)
 {
     uint64_t a;
     a = asm_labels[a_label];

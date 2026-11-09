@@ -3,22 +3,22 @@
 #include "samaltak.h"
 
 /* HeadlessPlatform>>init */
-void platform_init(void)
+void platform_interface_init(void)
 {
 }
 
 /* HeadlessPlatform>>poll */
-void platform_poll(void)
+void platform_interface_poll(void)
 {
 }
 
 /* HeadlessPlatform>>shutdown */
-void platform_shutdown(void)
+void platform_interface_shutdown(void)
 {
 }
 
 /* HeadlessPlatform>>wait: */
-void platform_wait(int64_t timeout_us)
+void platform_interface_wait(int64_t timeout_us)
 {
     if (timeout_us < 0) {
         fatal_begin();

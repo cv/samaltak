@@ -6,7 +6,7 @@ char last_error[1024];
 static int64_t now_base = -1LL;
 
 /* PlatformCommon>>failOS:code: */
-void pf_os_error(const char *what, int code)
+void platform_common_fail_os_code(char *what, int code)
 {
     char *b;
     b = strerror(code);
@@ -14,9 +14,9 @@ void pf_os_error(const char *what, int code)
 }
 
 /* PlatformCommon>>failOS:path:code: */
-void pf_os_error_path(const char *what, const char *path, int code)
+void platform_common_fail_os_path_code(char *what, char *path, int code)
 {
-    const char *b;
+    char *b;
     char *c;
     b = path != NULL ? path : "";
     c = strerror(code);
@@ -24,23 +24,23 @@ void pf_os_error_path(const char *what, const char *path, int code)
 }
 
 /* PlatformCommon>>handleCounts: */
-void pf_handle_counts(int64_t *out)
+void platform_common_handle_counts(int64_t *out)
 {
-    out[0] = pf_file_handle_count();
-    out[1] = pf_socket_handle_count();
-    out[2] = pf_window_handle_count();
-    pf_gpu_handle_counts(out + 3);
-    out[10] = pf_pty_handle_count();
+    out[0] = platform_files_handle_count();
+    out[1] = platform_sockets_handle_count();
+    out[2] = platform_windows_handle_count();
+    platform_gpu_handle_counts(out + 3);
+    out[10] = pty_handle_count();
 }
 
 /* PlatformCommon>>lastErrorString */
-const char *pf_last_error(void)
+char *last_error_string(void)
 {
     return last_error;
 }
 
 /* PlatformCommon>>nowMs */
-int64_t pf_now_ms(void)
+int64_t platform_common_now_ms(void)
 {
     struct timespec local;
     struct timespec *ts;
@@ -56,13 +56,13 @@ int64_t pf_now_ms(void)
 }
 
 /* PlatformCommon>>setError: */
-void pf_set_error(const char *message)
+void set_error(const char *message)
 {
     snprintf(last_error, LAST_ERROR_SIZE, "%s", message);
 }
 
 /* PlatformCommon>>table:add:pointer: */
-int pf_table_add(pf_table *t, int kind, void *ptr)
+int32_t platform_common_table_add_pointer(pf_table *t, int kind, void *ptr)
 {
     int32_t h;
     int32_t cap;
@@ -95,7 +95,7 @@ int pf_table_add(pf_table *t, int kind, void *ptr)
 }
 
 /* PlatformCommon>>table:at:kind: */
-pf_obj *pf_table_get(pf_table *t, int h, int kind)
+pf_obj *platform_common_table_at_kind(pf_table *t, int32_t h, int kind)
 {
     pf_obj *o;
     if ((h <= 0) || (h >= t->n)) {
@@ -109,7 +109,7 @@ pf_obj *pf_table_get(pf_table *t, int h, int kind)
 }
 
 /* PlatformCommon>>table:count: */
-int pf_table_count(pf_table *t, int kind)
+int32_t platform_common_table_count(pf_table *t, int kind)
 {
     int64_t n;
     int32_t h;
@@ -125,7 +125,7 @@ int pf_table_count(pf_table *t, int kind)
 }
 
 /* PlatformCommon>>table:remove: */
-void pf_table_remove(pf_table *t, int h)
+void platform_common_table_remove(pf_table *t, int32_t h)
 {
     pf_obj *o;
     if ((h <= 0) || (h >= t->n)) {

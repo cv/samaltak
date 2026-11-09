@@ -87,62 +87,62 @@ static int8_t temp_d[1100];
 static int32_t tier_up_label;
 static int32_t uentry_offset;
 
-static bool bl_access(int32_t k, int32_t pc, int32_t pushes);
-static int32_t bl_alloc_reg(void);
-static bool bl_arith(int32_t k, int32_t pc, int32_t pushes);
-static int32_t bl_back_jump(int32_t t);
-static void bl_barrier(int32_t obj, int32_t hdr, int32_t v);
-static void bl_begin_loop(int32_t head);
-static int32_t bl_branch(int32_t cond, int32_t t);
-static int32_t bl_dalloc(void);
-static int32_t bl_double_of(int32_t i, int32_t d, int32_t fail);
-static void bl_drop_doubles(void);
-static bool bl_emit_at(int32_t pc);
-static bool bl_emit_block_entry(int32_t pc);
-static void bl_emit_box(int32_t d, int32_t r);
-static void bl_emit_box_slow(int32_t d, int32_t r, int32_t pc, int32_t depth);
-static void bl_emit_float_primitive(int32_t op, int32_t fail);
-static void bl_emit_frame(bool is_block, int32_t na, int32_t nt);
-static void bl_emit_indexed_primitive(int32_t k, int32_t fail);
-static void bl_emit_inline_closure(int32_t pc, int32_t fail);
-static void bl_emit_int_primitive(int32_t op, int32_t fail);
-static void bl_emit_literals(void);
-static void bl_emit_load_loop_temps(int32_t id);
-static bool bl_emit_method_entry(void);
-static bool bl_emit_perform_primitive(void);
-static bool bl_emit_primitive(void);
-static void bl_emit_quick(void);
-static void bl_emit_runtime_call(int32_t label, int32_t pc, int32_t d);
-static void bl_emit_site_call(int32_t pc, uint32_t info, int32_t ri);
-static bool bl_emit_slow_paths(void);
-static void bl_emit_slow_send(int32_t i);
-static bool bl_emit_stack_check(int32_t pc);
-static void bl_emit_string_compare_primitive(int32_t fail);
-static void bl_emit_string_primitive(bool isPut, int32_t fail);
-static void bl_emit_uint32_primitive(bool isPut, int32_t fail);
-static bool bl_float_arith(int32_t k, int32_t pc, int32_t pushes);
-static void bl_head_check(int32_t h);
-static void bl_load_literal(int64_t i, int32_t r);
-static void bl_load_receiver(int32_t ri, int32_t k, int32_t r, int64_t v);
-static void bl_note_continuation(int32_t pc, int32_t r);
-static void bl_note_doubles_below(int32_t a, int32_t s);
-static void bl_note_live_regs(int32_t s, int32_t r);
-static void bl_note_ret(int32_t pc, int32_t d, uint32_t info);
-static int32_t bl_slow(int32_t kind, int32_t pc, int32_t d);
-static bool bl_special(int32_t k, int32_t pc, int32_t pushes);
-static void bl_ss_flush_keeping_doubles(int32_t n);
-static void bl_ss_flush_to(int32_t n);
-static int32_t bl_ss_materialize(int32_t i);
-static void bl_ss_materialize_into(int32_t i, int32_t r);
-static void bl_ss_pop(int32_t n);
-static bool bl_ss_push(int32_t kind, int64_t v, int32_t r);
-static void bl_ss_reset(int32_t d);
-static void bl_ss_spill(int32_t i);
-static void bl_ss_temp_changing(int32_t t);
-static bool bl_value(int32_t k, int32_t pc, int32_t pushes);
+static bool jit_baseline_compiler_access(int32_t k, int32_t pc, int pushes);
+static int alloc_reg(void);
+static bool arith(int32_t k, int32_t pc, int pushes);
+static int32_t jit_baseline_compiler_back_jump(int32_t t);
+static void jit_baseline_compiler_barrier(int32_t obj, int hdr, int32_t v);
+static void begin_loop_at(int32_t head);
+static int32_t branch(int cond, int32_t t);
+static int d_alloc(void);
+static int32_t double_of(int32_t i, int d, int32_t fail);
+static void drop_doubles(void);
+static bool emit_at(int32_t pc);
+static bool emit_block_entry(int32_t pc);
+static void emit_box(int32_t d, int32_t r);
+static void emit_box_in_slow_path(int32_t d, int r, int32_t pc, int32_t depth);
+static void emit_float_primitive(int32_t op, int32_t fail);
+static void emit_frame_for(bool is_block, int32_t na, int32_t nt);
+static void emit_indexed_primitive(int32_t k, int32_t fail);
+static void emit_inline_closure(int32_t pc, int32_t fail);
+static void emit_int_primitive(int32_t op, int32_t fail);
+static void emit_literals(void);
+static void emit_load_loop_temps(int32_t id);
+static bool emit_method_entry(void);
+static bool emit_perform_primitive(void);
+static bool emit_primitive(void);
+static void emit_quick_method(void);
+static void emit_runtime_call(int32_t stub_label, int32_t pc, int32_t d);
+static void emit_site_call(int32_t pc, uint32_t info, int32_t ri);
+static bool emit_slow_paths(void);
+static void emit_slow_send(int32_t i);
+static bool emit_stack_check(int32_t pc);
+static void emit_string_compare_primitive(int32_t fail);
+static void emit_string_primitive(bool is_put, int32_t fail);
+static void emit_uint32_primitive(bool is_put, int32_t fail);
+static bool jit_baseline_compiler_float_arith(int32_t k, int32_t pc, int pushes);
+static void head_check(int32_t h);
+static void load_literal(int64_t i, int r);
+static void load_receiver(int32_t ri, int32_t k, int32_t r, int64_t v);
+static void note_continuation(int32_t pc, int r);
+static void note_doubles_below(int32_t a, int32_t s);
+static void note_live_regs_for(int32_t s, int32_t r);
+static void note_ret(int32_t pc, int32_t d, uint32_t info);
+static int32_t jit_baseline_compiler_slow(int kind, int32_t pc, int32_t d);
+static bool jit_baseline_compiler_special(int32_t k, int32_t pc, int pushes);
+static void ss_flush_keeping_doubles_to(int32_t n);
+static void ss_flush_to(int32_t n);
+static int32_t jit_baseline_compiler_ss_materialize(int32_t i);
+static void jit_baseline_compiler_ss_materialize_into(int32_t i, int32_t r);
+static void ss_pop(int n);
+static bool ss_push(int32_t kind, int64_t v, int r);
+static void ss_reset(int32_t d);
+static void ss_spill(int32_t i);
+static void ss_temp_changing(int t);
+static bool jit_baseline_compiler_value(int32_t k, int32_t pc, int pushes);
 
 /* JitBaselineCompiler>>access:pc:pushes: */
-static bool bl_access(int32_t k, int32_t pc, int32_t pushes)
+static bool jit_baseline_compiler_access(int32_t k, int32_t pc, int pushes)
 {
     int32_t rb;
     int32_t rc;
@@ -153,7 +153,7 @@ static bool bl_access(int32_t k, int32_t pc, int32_t pushes)
     uint8_t k_2;
     bool barrier;
     int32_t ra;
-    int32_t rr;
+    int rr;
     int32_t s;
     uint8_t op;
     int64_t r_length_of;
@@ -228,7 +228,7 @@ static bool bl_access(int32_t k, int32_t pc, int32_t pushes)
     int64_t a_word_25;
     uint64_t a_word_26;
     uint64_t a_word_27;
-    int32_t rn;
+    int rn;
     uint64_t a_word_28;
     n = (k == 19) || (k == 20) ? 1 : special_argc[k];
     a = ss_top - n - 1;
@@ -238,18 +238,18 @@ static bool bl_access(int32_t k, int32_t pc, int32_t pushes)
     k_2 = ss_kind[i];
     r_needs_barrier = !((k_2 == SS_CONST) || (k_2 == SS_PINNED));
     r_needs_barrier; }); });
-    bl_ss_flush_to(a);
-    ra = bl_ss_materialize(a);
+    ss_flush_to(a);
+    ra = jit_baseline_compiler_ss_materialize(a);
     rb = -1;
     rc = -1;
     if (n >= 1) {
-        rb = bl_ss_materialize(a + 1);
+        rb = jit_baseline_compiler_ss_materialize(a + 1);
     }
     if (n >= 2) {
-        rc = bl_ss_materialize(a + 2);
+        rc = jit_baseline_compiler_ss_materialize(a + 2);
     }
-    rr = bl_alloc_reg();
-    s = bl_slow(SL_SEND, pc, ss_top);
+    rr = alloc_reg();
+    s = jit_baseline_compiler_slow(SL_SEND, pc, ss_top);
     if (s < 0) {
         return false;
     }
@@ -319,10 +319,10 @@ static bool bl_access(int32_t k, int32_t pc, int32_t pushes)
 exit_length_of:;
     r_length_of; })) << 8) | ((((uint64_t)k) & 255) << 16) | 33554432ULL | (((uint64_t)pushes) << 26))) | ((k >= 16) && (k <= 18) ? SL_ACCESS : 0);
     if (asm_noting) {
-        asm_note("the receiver must be an object", 0);
+        note("the receiver must be an object", 0);
     }
     rd = (ra & REG_W) | 31;
-    enc = asm_logical_immediate(7ULL, (rd & REG_W) == 0 ? 64 : 32);
+    enc = logical_immediate(7ULL, (rd & REG_W) == 0 ? 64 : 32);
     if (enc < 0) {
         if (asm_error == ASM_OK) {
             asm_error = ASM_ERR_IMMEDIATE;
@@ -338,7 +338,7 @@ exit_length_of:;
     }
 exit_logical:;
     a_label = sl_label[s];
-    target = asm_target_of(a_label);
+    target = target_of(a_label);
     a_word_2 = 0x54000000 | ((((uint64_t)({
     off = ((int64_t)(target - asm_pc)) >> 2;
     if (!((off >= -262144) && (off <= 262143))) {
@@ -367,7 +367,7 @@ exit_offset_to:;
     if ((k == 27) || (k == 28)) {
         a_string = k == 27 ? "x of a Point" : "y of a Point";
         if (asm_noting) {
-            asm_note(a_string, 0);
+            note(a_string, 0);
         }
         off_2 = (int64_t)&((jit_state *)0)->point_class;
         if ((off_2 >= 0) && ((off_2 & 7) == 0) && ((off_2 >> 3) <= 4095)) {
@@ -401,7 +401,7 @@ exit_offset_to:;
             asm_error = ASM_ERR_FULL;
         }
         a_label_2 = sl_label[s];
-        target_2 = asm_target_of(a_label_2);
+        target_2 = target_of(a_label_2);
         a_word_6 = 0x54000000 | ((((uint64_t)({
     off_3 = ((int64_t)(target_2 - asm_pc)) >> 2;
     if (!((off_3 >= -262144) && (off_3 <= 262143))) {
@@ -451,7 +451,7 @@ exit_offset_to_2:;
         }
     } else {
         if (asm_noting) {
-            asm_note("an Array (other formats out of line)", 0);
+            note("an Array (other formats out of line)", 0);
         }
         off_5 = (int64_t)&((jit_state *)0)->array_class;
         if ((off_5 >= 0) && ((off_5 & 7) == 0) && ((off_5 >> 3) <= 4095)) {
@@ -485,7 +485,7 @@ exit_offset_to_2:;
             asm_error = ASM_ERR_FULL;
         }
         a_label_3 = sl_label[s];
-        target_3 = asm_target_of(a_label_3);
+        target_3 = target_of(a_label_3);
         a_word_11 = 0x54000000 | ((((uint64_t)({
     off_6 = ((int64_t)(target_3 - asm_pc)) >> 2;
     if (!((off_6 >= -262144) && (off_6 <= 262143))) {
@@ -513,7 +513,7 @@ exit_offset_to_3:;
         }
         if (k == 18) {
             if (asm_noting) {
-                asm_note("size: its slot count", 0);
+                note("size: its slot count", 0);
             }
             if (!(32 <= ((rr & REG_W) == 0 ? 64 : 32))) {
                 if (asm_error == ASM_OK) {
@@ -562,7 +562,7 @@ exit_offset_to_3:;
                 asm_error = ASM_ERR_FULL;
             }
         exit_add_sub:;
-            enc_2 = asm_logical_immediate(1ULL, (rr & REG_W) == 0 ? 64 : 32);
+            enc_2 = logical_immediate(1ULL, (rr & REG_W) == 0 ? 64 : 32);
             if (enc_2 < 0) {
                 if (asm_error == ASM_OK) {
                     asm_error = ASM_ERR_IMMEDIATE;
@@ -580,11 +580,11 @@ exit_offset_to_3:;
         }
         if (k != 18) {
             if (asm_noting) {
-                asm_note("a SmallInteger index within its slots", 0);
+                note("a SmallInteger index within its slots", 0);
             }
             label = sl_label[s];
             rd_2 = (rb & REG_W) | 31;
-            enc_3 = asm_logical_immediate(1ULL, (rd_2 & REG_W) == 0 ? 64 : 32);
+            enc_3 = logical_immediate(1ULL, (rd_2 & REG_W) == 0 ? 64 : 32);
             if (enc_3 < 0) {
                 if (asm_error == ASM_OK) {
                     asm_error = ASM_ERR_IMMEDIATE;
@@ -599,7 +599,7 @@ exit_offset_to_3:;
                 asm_error = ASM_ERR_FULL;
             }
         exit_logical_3:;
-            target_4 = asm_target_of(label);
+            target_4 = target_of(label);
             a_word_18 = 0x54000000 | ((((uint64_t)({
     off_7 = ((int64_t)(target_4 - asm_pc)) >> 2;
     if (!((off_7 >= -262144) && (off_7 <= 262143))) {
@@ -649,7 +649,7 @@ exit_offset_to_4:;
                 asm_error = ASM_ERR_FULL;
             }
             a_label_4 = sl_label[s];
-            target_5 = asm_target_of(a_label_4);
+            target_5 = target_of(a_label_4);
             a_word_20 = 0x54000000 | ((((uint64_t)({
     off_8 = ((int64_t)(target_5 - asm_pc)) >> 2;
     if (!((off_8 >= -262144) && (off_8 <= 262143))) {
@@ -699,10 +699,10 @@ exit_offset_to_5:;
             exit_load_store_4:;
             } else {
                 if (asm_noting) {
-                    asm_note("not immutable; store, answer the value", 0);
+                    note("not immutable; store, answer the value", 0);
                 }
                 label_2 = sl_label[s];
-                enc_4 = asm_logical_immediate(576460752303423488ULL, 64);
+                enc_4 = logical_immediate(576460752303423488ULL, 64);
                 if (enc_4 < 0) {
                     if (asm_error == ASM_OK) {
                         asm_error = ASM_ERR_IMMEDIATE;
@@ -717,7 +717,7 @@ exit_offset_to_5:;
                     asm_error = ASM_ERR_FULL;
                 }
             exit_logical_4:;
-                target_6 = asm_target_of(label_2);
+                target_6 = target_of(label_2);
                 a_word_24 = 0x54000000 | ((((uint64_t)({
     off_9 = ((int64_t)(target_6 - asm_pc)) >> 2;
     if (!((off_9 >= -262144) && (off_9 <= 262143))) {
@@ -753,7 +753,7 @@ exit_offset_to_6:;
                 }
             exit_load_store_5:;
                 if (barrier) {
-                    bl_barrier(ra, X11, rc);
+                    jit_baseline_compiler_barrier(ra, X11, rc);
                 }
                 if (((rr & REG_SP) != 0) || ((rc & REG_SP) != 0)) {
                     a_word_26 = 0x11000000 | ((rr & REG_W) == 0 ? 0x80000000LL : 0) | 0 | (0ULL | ((((uint64_t)(rc & 31)) << 5) | (rr & 31)));
@@ -796,15 +796,15 @@ exit_offset_to_6:;
             }
         }
     }
-    sl_cont[s] = asm_new_label();
-    asm_bind(sl_cont[s]);
-    bl_note_continuation(pc, rr);
-    bl_ss_pop(n + 1);
-    return bl_ss_push(SS_REG, 0, rr);
+    sl_cont[s] = new_label();
+    arm64_assembler_bind(sl_cont[s]);
+    note_continuation(pc, rr);
+    ss_pop(n + 1);
+    return ss_push(SS_REG, 0, rr);
 }
 
 /* JitBaselineCompiler>>allocReg */
-static int32_t bl_alloc_reg(void)
+static int alloc_reg(void)
 {
     int r;
     int32_t i;
@@ -816,15 +816,15 @@ static int32_t bl_alloc_reg(void)
     }
     for (i = ss_base; i <= ss_top - 1; i++) {
         if (ss_kind[i] == SS_REG) {
-            bl_ss_spill(i);
-            return bl_alloc_reg();
+            ss_spill(i);
+            return alloc_reg();
         }
     }
     return X0;
 }
 
 /* JitBaselineCompiler>>arith:pc:pushes: */
-static bool bl_arith(int32_t k, int32_t pc, int32_t pushes)
+static bool arith(int32_t k, int32_t pc, int pushes)
 {
     int32_t a;
     int32_t b;
@@ -858,7 +858,7 @@ static bool bl_arith(int32_t k, int32_t pc, int32_t pushes)
     int64_t c;
     bool imm;
     int32_t rb;
-    int32_t rr;
+    int rr;
     int32_t s;
     uint8_t op;
     int64_t r_length_of;
@@ -1053,7 +1053,7 @@ exit_foldable:;
         return ({
     x_2 = ss_val[a] >> 1;
     y_2 = ss_val[b] >> 1;
-    bl_ss_pop(2);
+    ss_pop(2);
     if ((k >= 2) && (k <= 7)) {
         switch (k) {
         case 2:
@@ -1076,26 +1076,26 @@ exit_foldable:;
             break;
         }
         c_2 = v;
-        r_fold = bl_ss_push(SS_PINNED, c_2 ? X24 : X25, -1);
+        r_fold = ss_push(SS_PINNED, c_2 ? X24 : X25, -1);
         goto exit_fold;
     }
     if (k == 0) {
         v_2 = x_2 + y_2;
-        r_fold = bl_ss_push(SS_CONST, (v_2 << 1) | 1, -1);
+        r_fold = ss_push(SS_CONST, (v_2 << 1) | 1, -1);
         goto exit_fold;
     }
     if (k == 1) {
         v_3 = x_2 - y_2;
-        r_fold = bl_ss_push(SS_CONST, (v_3 << 1) | 1, -1);
+        r_fold = ss_push(SS_CONST, (v_3 << 1) | 1, -1);
         goto exit_fold;
     }
     if (k == 14) {
         v_4 = x_2 & y_2;
-        r_fold = bl_ss_push(SS_CONST, (v_4 << 1) | 1, -1);
+        r_fold = ss_push(SS_CONST, (v_4 << 1) | 1, -1);
         goto exit_fold;
     }
     v_5 = x_2 | y_2;
-    r_fold = bl_ss_push(SS_CONST, (v_5 << 1) | 1, -1);
+    r_fold = ss_push(SS_CONST, (v_5 << 1) | 1, -1);
 exit_fold:;
     r_fold; });
     }
@@ -1143,19 +1143,19 @@ exit_temp_double_2:;
     r_is_certain_float_2 = (k_3 == SS_CONST) && ((ss_val[b] & 7) == 4);
 exit_is_certain_float_2:;
     r_is_certain_float_2; })))) {
-        return bl_float_arith(k, pc, pushes);
+        return jit_baseline_compiler_float_arith(k, pc, pushes);
     }
     a_known = (ss_kind[a] == SS_CONST) && ((ss_val[a] & 1) != 0);
     b_known = (ss_kind[b] == SS_CONST) && ((ss_val[b] & 1) != 0);
     bv = ss_val[b];
     same = (ss_kind[a] == SS_TEMP) && ((ss_kind[b] == SS_TEMP) && (ss_val[a] == bv));
-    bl_ss_flush_keeping_doubles(a);
-    ra = bl_ss_materialize(a);
+    ss_flush_keeping_doubles_to(a);
+    ra = jit_baseline_compiler_ss_materialize(a);
     c = b_known ? bv >> 1 : 0;
     imm = b_known && ((((k == 0) || (k == 1)) && ((c > -2048) && (c < 2048))) || ((compare && ((bv >= 0) && (bv < 4096))) || (((k == 12) && ((c > -62) && (c < 62))) || (((k == 14) || (k == 15)) && (c >= 0)))));
-    rb = imm ? -2 : same ? ra : bl_ss_materialize(b);
-    rr = bl_alloc_reg();
-    s = bl_slow(SL_SEND, pc, ss_top);
+    rb = imm ? -2 : same ? ra : jit_baseline_compiler_ss_materialize(b);
+    rr = alloc_reg();
+    s = jit_baseline_compiler_slow(SL_SEND, pc, ss_top);
     if (s < 0) {
         return false;
     }
@@ -1224,13 +1224,13 @@ exit_is_certain_float_2:;
     r_length_of = 0;
 exit_length_of:;
     r_length_of; })) << 8) | ((((uint64_t)k) & 255) << 16) | 33554432ULL | (((uint64_t)pushes) << 26))) | (((jit_flags & JIT_FLAG_FLOAT) != 0) && (k <= 9) ? SL_FLOAT : 0);
-    bl_note_doubles_below(a, s);
+    note_doubles_below(a, s);
     if (k == 9) {
         if (asm_noting) {
-            asm_note("/: Floats inline (out of line), anything else sends", 0);
+            note("/: Floats inline (out of line), anything else sends", 0);
         }
         a_label = sl_label[s];
-        target = asm_target_of(a_label);
+        target = target_of(a_label);
         a_word = 0x14000000 | ({
     off = ((int64_t)(target - asm_pc)) >> 2;
     if (!((off >= -33554432) && (off <= 33554431))) {
@@ -1251,13 +1251,13 @@ exit_offset_to:;
         }
     } else {
         if (asm_noting) {
-            asm_note("SmallInteger tag checks (else Floats out of line, else a send)", 0);
+            note("SmallInteger tag checks (else Floats out of line, else a send)", 0);
         }
         if (a_known) {
             if (!b_known) {
                 label = sl_label[s];
                 rd = (rb & REG_W) | 31;
-                enc = asm_logical_immediate(1ULL, (rd & REG_W) == 0 ? 64 : 32);
+                enc = logical_immediate(1ULL, (rd & REG_W) == 0 ? 64 : 32);
                 if (enc < 0) {
                     if (asm_error == ASM_OK) {
                         asm_error = ASM_ERR_IMMEDIATE;
@@ -1272,7 +1272,7 @@ exit_offset_to:;
                     asm_error = ASM_ERR_FULL;
                 }
             exit_logical:;
-                target_2 = asm_target_of(label);
+                target_2 = target_of(label);
                 a_word_3 = 0x54000000 | ((((uint64_t)({
     off_2 = ((int64_t)(target_2 - asm_pc)) >> 2;
     if (!((off_2 >= -262144) && (off_2 <= 262143))) {
@@ -1295,7 +1295,7 @@ exit_offset_to_2:;
         } else if (b_known) {
             label_2 = sl_label[s];
             rd_2 = (ra & REG_W) | 31;
-            enc_2 = asm_logical_immediate(1ULL, (rd_2 & REG_W) == 0 ? 64 : 32);
+            enc_2 = logical_immediate(1ULL, (rd_2 & REG_W) == 0 ? 64 : 32);
             if (enc_2 < 0) {
                 if (asm_error == ASM_OK) {
                     asm_error = ASM_ERR_IMMEDIATE;
@@ -1310,7 +1310,7 @@ exit_offset_to_2:;
                 asm_error = ASM_ERR_FULL;
             }
         exit_logical_2:;
-            target_3 = asm_target_of(label_2);
+            target_3 = target_of(label_2);
             a_word_5 = 0x54000000 | ((((uint64_t)({
     off_3 = ((int64_t)(target_3 - asm_pc)) >> 2;
     if (!((off_3 >= -262144) && (off_3 <= 262143))) {
@@ -1338,7 +1338,7 @@ exit_offset_to_3:;
                 asm_error = ASM_ERR_FULL;
             }
             label_3 = sl_label[s];
-            enc_3 = asm_logical_immediate(1ULL, 64);
+            enc_3 = logical_immediate(1ULL, 64);
             if (enc_3 < 0) {
                 if (asm_error == ASM_OK) {
                     asm_error = ASM_ERR_IMMEDIATE;
@@ -1353,7 +1353,7 @@ exit_offset_to_3:;
                 asm_error = ASM_ERR_FULL;
             }
         exit_logical_3:;
-            target_4 = asm_target_of(label_3);
+            target_4 = target_of(label_3);
             a_word_8 = 0x54000000 | ((((uint64_t)({
     off_4 = ((int64_t)(target_4 - asm_pc)) >> 2;
     if (!((off_4 >= -262144) && (off_4 <= 262143))) {
@@ -1432,7 +1432,7 @@ exit_offset_to_4:;
             }
         exit_add_sub_2:;
         }
-        bl_ss_pop(2);
+        ss_pop(2);
         switch (k) {
         case 2:
             v_7 = COND_LT;
@@ -1548,7 +1548,7 @@ exit_fused_jump_after:;
     r_fused_jump_after; });
     if (j_2 < 0) {
         if (asm_noting) {
-            asm_note("the Boolean", 0);
+            note("the Boolean", 0);
         }
         a_word_13 = 0x1A800000 | ((rr & REG_W) == 0 ? 0x80000000LL : 0) | 0 | ((((uint64_t)(v_7 & 15)) << 12) | (1639168ULL | (rr & 31)));
         if (asm_pc < asm_limit) {
@@ -1565,9 +1565,9 @@ exit_fused_jump_after:;
     if_true = ana_bcs[j_2] == 0x91;
     taken = if_true ? v_7 : v_7 ^ 1;
     if (asm_noting) {
-        asm_note("compare and branch (fused with the conditional jump)", 0);
+        note("compare and branch (fused with the conditional jump)", 0);
     }
-    fused_target = bl_branch(taken, t_3);
+    fused_target = branch(taken, t_3);
     pc_merge[j_2] = 2;
     r_emit_compare_result = j_2;
 exit_emit_compare_result:;
@@ -1576,8 +1576,8 @@ exit_emit_compare_result:;
             sl_info[s] = sl_info[s] | SL_FUSED;
             sl_x[s] = j;
             sl_target[s] = fused_target;
-            sl_cont[s] = asm_new_label();
-            asm_bind(sl_cont[s]);
+            sl_cont[s] = new_label();
+            arm64_assembler_bind(sl_cont[s]);
             if (rr >= 0) {
                 if (((rr >= 0) && (rr <= 8)) || ((rr >= 12) && (rr <= 15))) {
                     reg_owner[rr] = -1;
@@ -1585,14 +1585,14 @@ exit_emit_compare_result:;
             }
             return true;
         }
-        sl_cont[s] = asm_new_label();
-        asm_bind(sl_cont[s]);
-        bl_note_continuation(pc, rr);
-        return bl_ss_push(SS_REG, 0, rr);
+        sl_cont[s] = new_label();
+        arm64_assembler_bind(sl_cont[s]);
+        note_continuation(pc, rr);
+        return ss_push(SS_REG, 0, rr);
     }
     if (k == 0) {
         if (asm_noting) {
-            asm_note("+ (overflow: the slow path)", 0);
+            note("+ (overflow: the slow path)", 0);
         }
         if (imm) {
             if (c >= 0) {
@@ -1694,7 +1694,7 @@ exit_emit_compare_result:;
         exit_add_sub_6:;
         }
         a_label_2 = sl_label[s];
-        target_5 = asm_target_of(a_label_2);
+        target_5 = target_of(a_label_2);
         a_word_21 = 0x54000000 | ((((uint64_t)({
     off_5 = ((int64_t)(target_5 - asm_pc)) >> 2;
     if (!((off_5 >= -262144) && (off_5 <= 262143))) {
@@ -1716,7 +1716,7 @@ exit_offset_to_5:;
     }
     if (k == 1) {
         if (asm_noting) {
-            asm_note("- (overflow: the slow path)", 0);
+            note("- (overflow: the slow path)", 0);
         }
         if (imm) {
             if (c >= 0) {
@@ -1818,7 +1818,7 @@ exit_offset_to_5:;
         exit_add_sub_10:;
         }
         a_label_3 = sl_label[s];
-        target_6 = asm_target_of(a_label_3);
+        target_6 = target_of(a_label_3);
         a_word_29 = 0x54000000 | ((((uint64_t)({
     off_6 = ((int64_t)(target_6 - asm_pc)) >> 2;
     if (!((off_6 >= -262144) && (off_6 <= 262143))) {
@@ -1840,7 +1840,7 @@ exit_offset_to_6:;
     }
     if (k == 8) {
         if (asm_noting) {
-            asm_note("*: a 128-bit product that does not fit goes to the slow path", 0);
+            note("*: a 128-bit product that does not fit goes to the slow path", 0);
         }
         a_word_30 = 2470445056LL | (130048ULL | ((((uint64_t)(ra & 31)) << 5) | 16));
         if (asm_pc < asm_limit) {
@@ -1882,7 +1882,7 @@ exit_offset_to_6:;
             asm_error = ASM_ERR_FULL;
         }
         a_label_4 = sl_label[s];
-        target_7 = asm_target_of(a_label_4);
+        target_7 = target_of(a_label_4);
         a_word_34 = 0x54000000 | ((((uint64_t)({
     off_7 = ((int64_t)(target_7 - asm_pc)) >> 2;
     if (!((off_7 >= -262144) && (off_7 <= 262143))) {
@@ -1901,7 +1901,7 @@ exit_offset_to_7:;
         } else if (asm_error == ASM_OK) {
             asm_error = ASM_ERR_FULL;
         }
-        enc_4 = asm_logical_immediate(1ULL, (rr & REG_W) == 0 ? 64 : 32);
+        enc_4 = logical_immediate(1ULL, (rr & REG_W) == 0 ? 64 : 32);
         if (enc_4 < 0) {
             if (asm_error == ASM_OK) {
                 asm_error = ASM_ERR_IMMEDIATE;
@@ -1919,10 +1919,10 @@ exit_offset_to_7:;
     }
     if ((k == 10) || (k == 13)) {
         slow = sl_label[s];
-        exact = asm_new_label();
+        exact = new_label();
         a_string = k == 13 ? "//: the quotient rounded toward negative infinity" : "\\\\: the remainder with the divisor's sign";
         if (asm_noting) {
-            asm_note(a_string, 0);
+            note(a_string, 0);
         }
         a_word_36 = 2470445056LL | (130048ULL | ((((uint64_t)(ra & 31)) << 5) | 16));
         if (asm_pc < asm_limit) {
@@ -1947,7 +1947,7 @@ exit_offset_to_7:;
                 asm_error = ASM_ERR_FULL;
             }
         }
-        target_8 = asm_target_of(slow);
+        target_8 = target_of(slow);
         a_word_38 = 3019898880LL | ((((uint64_t)({
     off_8 = ((int64_t)(target_8 - asm_pc)) >> 2;
     if (!((off_8 >= -262144) && (off_8 <= 262143))) {
@@ -1978,7 +1978,7 @@ exit_offset_to_8:;
         } else if (asm_error == ASM_OK) {
             asm_error = ASM_ERR_FULL;
         }
-        target_9 = asm_target_of(exact);
+        target_9 = target_of(exact);
         a_word_39 = 3019898880LL | ((((uint64_t)({
     off_9 = ((int64_t)(target_9 - asm_pc)) >> 2;
     if (!((off_9 >= -262144) && (off_9 <= 262143))) {
@@ -2003,7 +2003,7 @@ exit_offset_to_9:;
         } else if (asm_error == ASM_OK) {
             asm_error = ASM_ERR_FULL;
         }
-        target_10 = asm_target_of(exact);
+        target_10 = target_of(exact);
         a_word_40 = 3069706240ULL | ((((uint64_t)({
     off_10 = ((int64_t)(target_10 - asm_pc)) >> 2;
     if (!((off_10 >= -8192) && (off_10 <= 8191))) {
@@ -2040,10 +2040,10 @@ exit_offset_to_10:;
         } else if (asm_error == ASM_OK) {
             asm_error = ASM_ERR_FULL;
         }
-        asm_bind(exact);
+        arm64_assembler_bind(exact);
         if (k == 13) {
             if (asm_noting) {
-                asm_note("the quotient must be a SmallInteger", 0);
+                note("the quotient must be a SmallInteger", 0);
             }
             if ((rr & REG_SP) != 0) {
                 ext_4 = (rr & REG_W) == 0 ? EXT_UXTX : EXT_UXTW;
@@ -2077,7 +2077,7 @@ exit_offset_to_10:;
             } else if (asm_error == ASM_OK) {
                 asm_error = ASM_ERR_FULL;
             }
-            target_11 = asm_target_of(slow);
+            target_11 = target_of(slow);
             a_word_44 = 0x54000000 | ((((uint64_t)({
     off_11 = ((int64_t)(target_11 - asm_pc)) >> 2;
     if (!((off_11 >= -262144) && (off_11 <= 262143))) {
@@ -2123,7 +2123,7 @@ exit_offset_to_11:;
             }
         exit_add_sub_14:;
         }
-        enc_5 = asm_logical_immediate(1ULL, (rr & REG_W) == 0 ? 64 : 32);
+        enc_5 = logical_immediate(1ULL, (rr & REG_W) == 0 ? 64 : 32);
         if (enc_5 < 0) {
             if (asm_error == ASM_OK) {
                 asm_error = ASM_ERR_IMMEDIATE;
@@ -2143,9 +2143,9 @@ exit_offset_to_11:;
         slow_2 = sl_label[s];
         if (!imm) {
             if (asm_noting) {
-                asm_note("bitShift: by a variable: the slow path", 0);
+                note("bitShift: by a variable: the slow path", 0);
             }
-            target_12 = asm_target_of(slow_2);
+            target_12 = target_of(slow_2);
             a_word_48 = 0x14000000 | ({
     off_12 = ((int64_t)(target_12 - asm_pc)) >> 2;
     if (!((off_12 >= -33554432) && (off_12 <= 33554431))) {
@@ -2168,7 +2168,7 @@ exit_offset_to_12:;
         }
         if (c >= 0) {
             if (asm_noting) {
-                asm_note("bitShift: left (the shift must lose nothing)", 0);
+                note("bitShift: left (the shift must lose nothing)", 0);
             }
             a_word_49 = 3506438144LL | (1024ULL | ((((uint64_t)(ra & 31)) << 5) | 16));
             if (asm_pc < asm_limit) {
@@ -2220,7 +2220,7 @@ exit_offset_to_12:;
                 asm_error = ASM_ERR_FULL;
             }
         exit_add_sub_16:;
-            target_13 = asm_target_of(slow_2);
+            target_13 = target_of(slow_2);
             a_word_52 = 0x54000000 | ((((uint64_t)({
     off_13 = ((int64_t)(target_13 - asm_pc)) >> 2;
     if (!((off_13 >= -262144) && (off_13 <= 262143))) {
@@ -2239,7 +2239,7 @@ exit_offset_to_13:;
             } else if (asm_error == ASM_OK) {
                 asm_error = ASM_ERR_FULL;
             }
-            enc_6 = asm_logical_immediate(1ULL, (rr & REG_W) == 0 ? 64 : 32);
+            enc_6 = logical_immediate(1ULL, (rr & REG_W) == 0 ? 64 : 32);
             if (enc_6 < 0) {
                 if (asm_error == ASM_OK) {
                     asm_error = ASM_ERR_IMMEDIATE;
@@ -2257,7 +2257,7 @@ exit_offset_to_13:;
             goto exit_emit_shift;
         }
         if (asm_noting) {
-            asm_note("bitShift: right", 0);
+            note("bitShift: right", 0);
         }
         s_3 = -c;
         s_4 = ((rr & REG_W) == 0 ? 64 : 32) - 1;
@@ -2276,7 +2276,7 @@ exit_offset_to_13:;
             asm_error = ASM_ERR_FULL;
         }
     exit_bitfield_2:;
-        enc_7 = asm_logical_immediate(1ULL, (rr & REG_W) == 0 ? 64 : 32);
+        enc_7 = logical_immediate(1ULL, (rr & REG_W) == 0 ? 64 : 32);
         if (enc_7 < 0) {
             if (asm_error == ASM_OK) {
                 asm_error = ASM_ERR_IMMEDIATE;
@@ -2295,11 +2295,11 @@ exit_offset_to_13:;
     }
     if (k == 14) {
         if (asm_noting) {
-            asm_note("bitAnd:", 0);
+            note("bitAnd:", 0);
         }
         if (imm) {
-            if (asm_logical_immediate((uint64_t)bv, 64) >= 0) {
-                enc_8 = asm_logical_immediate((uint64_t)bv, (rr & REG_W) == 0 ? 64 : 32);
+            if (logical_immediate((uint64_t)bv, 64) >= 0) {
+                enc_8 = logical_immediate((uint64_t)bv, (rr & REG_W) == 0 ? 64 : 32);
                 if (enc_8 < 0) {
                     if (asm_error == ASM_OK) {
                         asm_error = ASM_ERR_IMMEDIATE;
@@ -2331,7 +2331,7 @@ exit_offset_to_13:;
                     }
                 exit_move_wide:;
                 } else {
-                    asm_mov_imm(X16, (uint64_t)bv);
+                    mov_imm(X16, (uint64_t)bv);
                 }
                 if (0 >= ((rr & REG_W) == 0 ? 64 : 32)) {
                     if (asm_error == ASM_OK) {
@@ -2367,7 +2367,7 @@ exit_offset_to_13:;
     }
     if (k == 15) {
         if (asm_noting) {
-            asm_note("bitOr:", 0);
+            note("bitOr:", 0);
         }
         if (imm) {
             if ((bv >= 0) && (bv <= 0xFFFF)) {
@@ -2386,7 +2386,7 @@ exit_offset_to_13:;
                 }
             exit_move_wide_2:;
             } else {
-                asm_mov_imm(X16, (uint64_t)bv);
+                mov_imm(X16, (uint64_t)bv);
             }
             if (0 >= ((rr & REG_W) == 0 ? 64 : 32)) {
                 if (asm_error == ASM_OK) {
@@ -2419,15 +2419,15 @@ exit_offset_to_13:;
         exit_logical_12:;
         }
     }
-    sl_cont[s] = asm_new_label();
-    asm_bind(sl_cont[s]);
-    bl_note_continuation(pc, rr);
-    bl_ss_pop(2);
-    return bl_ss_push(SS_REG, 0, rr);
+    sl_cont[s] = new_label();
+    arm64_assembler_bind(sl_cont[s]);
+    note_continuation(pc, rr);
+    ss_pop(2);
+    return ss_push(SS_REG, 0, rr);
 }
 
 /* JitBaselineCompiler>>backJump: */
-static int32_t bl_back_jump(int32_t t)
+static int32_t jit_baseline_compiler_back_jump(int32_t t)
 {
     int32_t l;
     int32_t d;
@@ -2454,28 +2454,28 @@ static int32_t bl_back_jump(int32_t t)
     int64_t r_offset_to_2;
     int64_t off_5;
     int64_t a_word_7;
-    l = asm_new_label();
-    asm_bind(l);
+    l = new_label();
+    arm64_assembler_bind(l);
     d = (int32_t)ana_depths[t];
     if (!({
     if (counter_addr == 0) {
         r_emit_tier_up = true;
         goto exit_emit_tier_up;
     }
-    s = bl_slow(SL_TIERUP, t, d);
+    s = jit_baseline_compiler_slow(SL_TIERUP, t, d);
     if (s < 0) {
         r_emit_tier_up = false;
         goto exit_emit_tier_up;
     }
-    after = asm_new_label();
+    after = new_label();
     sl_cont[s] = after;
     sl_info[s] = 1;
     slow_label = sl_label[s];
     if (asm_noting) {
-        asm_note("count toward optimization", 0);
+        note("count toward optimization", 0);
     }
-    a_label = asm_label_at(counter_addr);
-    off = ((int64_t)((asm_target_of(a_label) & 18446744073709547520ULL) - (asm_pc & 18446744073709547520ULL))) >> 12;
+    a_label = label_at(counter_addr);
+    off = ((int64_t)((target_of(a_label) & 18446744073709547520ULL) - (asm_pc & 18446744073709547520ULL))) >> 12;
     if (!((off >= -1048576) && (off <= 0xFFFFF))) {
         if (asm_error == ASM_OK) {
             asm_error = ASM_ERR_RANGE;
@@ -2551,7 +2551,7 @@ exit_add_sub:;
         }
     exit_load_store_2:;
     }
-    target = asm_target_of(slow_label);
+    target = target_of(slow_label);
     a_word_6 = 0x54000000 | ((((uint64_t)({
     off_4 = ((int64_t)(target - asm_pc)) >> 2;
     if (!((off_4 >= -262144) && (off_4 <= 262143))) {
@@ -2570,7 +2570,7 @@ exit_offset_to:;
     } else if (asm_error == ASM_OK) {
         asm_error = ASM_ERR_FULL;
     }
-    asm_bind(after);
+    arm64_assembler_bind(after);
     r_emit_tier_up = true;
 exit_emit_tier_up:;
     r_emit_tier_up; })) {
@@ -2579,15 +2579,15 @@ exit_emit_tier_up:;
         }
     }
     if (asm_noting) {
-        asm_note("jump back", 0);
+        note("jump back", 0);
     }
     a_label_2 = ({
     if (pc_labels[t] < 0) {
-        pc_labels[t] = asm_new_label();
+        pc_labels[t] = new_label();
     }
     r_label_for = pc_labels[t];
     r_label_for; });
-    target_2 = asm_target_of(a_label_2);
+    target_2 = target_of(a_label_2);
     a_word_7 = 0x14000000 | ({
     off_5 = ((int64_t)(target_2 - asm_pc)) >> 2;
     if (!((off_5 >= -33554432) && (off_5 <= 33554431))) {
@@ -2610,7 +2610,7 @@ exit_offset_to_2:;
 }
 
 /* JitBaselineCompiler>>barrier:header:value: */
-static void bl_barrier(int32_t obj, int32_t hdr, int32_t v)
+static void jit_baseline_compiler_barrier(int32_t obj, int hdr, int32_t v)
 {
     uint64_t a_word;
     uint64_t a_word_2;
@@ -2645,7 +2645,7 @@ static void bl_barrier(int32_t obj, int32_t hdr, int32_t v)
     int64_t r_offset_to_4;
     int64_t off_5;
     uint64_t a_word_16;
-    int32_t rd_2;
+    int rd_2;
     int32_t enc_2;
     uint64_t a_word_17;
     int32_t a_label;
@@ -2655,7 +2655,7 @@ static void bl_barrier(int32_t obj, int32_t hdr, int32_t v)
     uint64_t a_word_18;
     if (!((jit_flags & JIT_FLAG_BARRIER) != 0)) {
         if (asm_noting) {
-            asm_note("store barrier: the remember stub", 0);
+            note("store barrier: the remember stub", 0);
         }
         if ((obj & REG_SP) != 0) {
             a_word = 2432696320LL | (0ULL | ((((uint64_t)(obj & 31)) << 5) | 16));
@@ -2723,7 +2723,7 @@ static void bl_barrier(int32_t obj, int32_t hdr, int32_t v)
         } else if (asm_error == ASM_OK) {
             asm_error = ASM_ERR_FULL;
         }
-        target = asm_target_of(remember_label);
+        target = target_of(remember_label);
         a_word_7 = 0x94000000LL | ({
     off = ((int64_t)(target - asm_pc)) >> 2;
     if (!((off >= -33554432) && (off <= 33554431))) {
@@ -2750,8 +2750,8 @@ exit_offset_to:;
         }
         return;
     }
-    done = asm_new_label();
-    s = bl_slow(SL_BARRIER, 0, 0);
+    done = new_label();
+    s = jit_baseline_compiler_slow(SL_BARRIER, 0, 0);
     if (s < 0) {
         if (asm_error == ASM_OK) {
             asm_error = ASM_ERR_LABEL;
@@ -2762,10 +2762,10 @@ exit_offset_to:;
     sl_b[s] = (int8_t)v;
     sl_cont[s] = done;
     if (asm_noting) {
-        asm_note("store barrier: an immediate needs nothing", 0);
+        note("store barrier: an immediate needs nothing", 0);
     }
     rd = (v & REG_W) | 31;
-    enc = asm_logical_immediate(7ULL, (rd & REG_W) == 0 ? 64 : 32);
+    enc = logical_immediate(7ULL, (rd & REG_W) == 0 ? 64 : 32);
     if (enc < 0) {
         if (asm_error == ASM_OK) {
             asm_error = ASM_ERR_IMMEDIATE;
@@ -2780,7 +2780,7 @@ exit_offset_to:;
         asm_error = ASM_ERR_FULL;
     }
 exit_logical:;
-    target_2 = asm_target_of(done);
+    target_2 = target_of(done);
     a_word_9 = 0x54000000 | ((((uint64_t)({
     off_2 = ((int64_t)(target_2 - asm_pc)) >> 2;
     if (!((off_2 >= -262144) && (off_2 <= 262143))) {
@@ -2800,7 +2800,7 @@ exit_offset_to_2:;
         asm_error = ASM_ERR_FULL;
     }
     if (asm_noting) {
-        asm_note("nor an old value", 0);
+        note("nor an old value", 0);
     }
     off_3 = (int64_t)&((jit_state *)0)->young_lo;
     if (!(((off_3 & 7) == 0) && (((off_3 >> 3) >= -64) && ((off_3 >> 3) <= 63)))) {
@@ -2847,7 +2847,7 @@ exit_add_sub_3:;
     } else if (asm_error == ASM_OK) {
         asm_error = ASM_ERR_FULL;
     }
-    target_3 = asm_target_of(done);
+    target_3 = target_of(done);
     a_word_13 = 0x54000000 | ((((uint64_t)({
     off_4 = ((int64_t)(target_3 - asm_pc)) >> 2;
     if (!((off_4 >= -262144) && (off_4 <= 262143))) {
@@ -2867,7 +2867,7 @@ exit_offset_to_3:;
         asm_error = ASM_ERR_FULL;
     }
     if (asm_noting) {
-        asm_note("nor a young object or a remembered one", 0);
+        note("nor a young object or a remembered one", 0);
     }
     if ((obj & REG_SP) != 0) {
         a_word_14 = 3407872000LL | (24576ULL | (1048576ULL | (((uint64_t)(obj & 31)) << 5) | 9));
@@ -2893,7 +2893,7 @@ exit_add_sub_4:;
     } else if (asm_error == ASM_OK) {
         asm_error = ASM_ERR_FULL;
     }
-    target_4 = asm_target_of(done);
+    target_4 = target_of(done);
     a_word_16 = 0x54000000 | ((((uint64_t)({
     off_5 = ((int64_t)(target_4 - asm_pc)) >> 2;
     if (!((off_5 >= -262144) && (off_5 <= 262143))) {
@@ -2913,7 +2913,7 @@ exit_offset_to_4:;
         asm_error = ASM_ERR_FULL;
     }
     rd_2 = (hdr & REG_W) | 31;
-    enc_2 = asm_logical_immediate(1152921504606846976ULL, (rd_2 & REG_W) == 0 ? 64 : 32);
+    enc_2 = logical_immediate(1152921504606846976ULL, (rd_2 & REG_W) == 0 ? 64 : 32);
     if (enc_2 < 0) {
         if (asm_error == ASM_OK) {
             asm_error = ASM_ERR_IMMEDIATE;
@@ -2929,7 +2929,7 @@ exit_offset_to_4:;
     }
 exit_logical_2:;
     a_label = sl_label[s];
-    target_5 = asm_target_of(a_label);
+    target_5 = target_of(a_label);
     a_word_18 = 0x54000000 | ((((uint64_t)({
     off_6 = ((int64_t)(target_5 - asm_pc)) >> 2;
     if (!((off_6 >= -262144) && (off_6 <= 262143))) {
@@ -2948,11 +2948,11 @@ exit_offset_to_5:;
     } else if (asm_error == ASM_OK) {
         asm_error = ASM_ERR_FULL;
     }
-    asm_bind(done);
+    arm64_assembler_bind(done);
 }
 
 /* JitBaselineCompiler>>beginLoopAt: */
-static void bl_begin_loop(int32_t head)
+static void begin_loop_at(int32_t head)
 {
     int32_t n;
     int64_t end;
@@ -3096,7 +3096,7 @@ exit_length_of:;
         goto exit_special_sends;
     }
     if ((k_2 == 23) || (k_2 == 24)) {
-        r_special_sends = !(((jit_flags & JIT_FLAG_PRIMS) != 0) && bl_nil_tests_inlinable());
+        r_special_sends = !(((jit_flags & JIT_FLAG_PRIMS) != 0) && nil_tests_inlinable());
         goto exit_special_sends;
     }
     if ((k_2 <= 8) || ((k_2 == 10) || ((k_2 >= 12) && (k_2 <= 15)))) {
@@ -3146,7 +3146,7 @@ exit_special_index_of:;
         goto exit_special_sends_2;
     }
     if ((k == 23) || (k == 24)) {
-        r_special_sends_2 = !(((jit_flags & JIT_FLAG_PRIMS) != 0) && bl_nil_tests_inlinable());
+        r_special_sends_2 = !(((jit_flags & JIT_FLAG_PRIMS) != 0) && nil_tests_inlinable());
         goto exit_special_sends_2;
     }
     if ((k <= 8) || ((k == 10) || ((k >= 12) && (k <= 15)))) {
@@ -3374,13 +3374,13 @@ exit_length_of_3:;
     loop_active = true;
     loop_end = (int32_t)end;
     if (asm_noting) {
-        asm_note("the loop's temps into x26-x28", 0);
+        note("the loop's temps into x26-x28", 0);
     }
-    bl_emit_load_loop_temps(loop_id);
+    emit_load_loop_temps(loop_id);
 }
 
 /* JitBaselineCompiler>>branch:to: */
-static int32_t bl_branch(int32_t cond, int32_t t)
+static int32_t branch(int cond, int32_t t)
 {
     int32_t r_label_for;
     int32_t a_label;
@@ -3390,7 +3390,7 @@ static int32_t bl_branch(int32_t cond, int32_t t)
     uint64_t a_word;
     int32_t r_label_for_2;
     int32_t skip;
-    int32_t c;
+    int c;
     uint64_t target_2;
     int64_t r_offset_to_2;
     int64_t off_2;
@@ -3399,11 +3399,11 @@ static int32_t bl_branch(int32_t cond, int32_t t)
     if (!(((ana_flags[t] & ANA_LOOP) != 0) && (counter_addr != 0))) {
         a_label = ({
     if (pc_labels[t] < 0) {
-        pc_labels[t] = asm_new_label();
+        pc_labels[t] = new_label();
     }
     r_label_for = pc_labels[t];
     r_label_for; });
-        target = asm_target_of(a_label);
+        target = target_of(a_label);
         a_word = 0x54000000 | ((((uint64_t)({
     off = ((int64_t)(target - asm_pc)) >> 2;
     if (!((off >= -262144) && (off <= 262143))) {
@@ -3424,14 +3424,14 @@ exit_offset_to:;
         }
         return ({
     if (pc_labels[t] < 0) {
-        pc_labels[t] = asm_new_label();
+        pc_labels[t] = new_label();
     }
     r_label_for_2 = pc_labels[t];
     r_label_for_2; });
     }
-    skip = asm_new_label();
+    skip = new_label();
     c = cond ^ 1;
-    target_2 = asm_target_of(skip);
+    target_2 = target_of(skip);
     a_word_2 = 0x54000000 | ((((uint64_t)({
     off_2 = ((int64_t)(target_2 - asm_pc)) >> 2;
     if (!((off_2 >= -262144) && (off_2 <= 262143))) {
@@ -3450,13 +3450,13 @@ exit_offset_to_2:;
     } else if (asm_error == ASM_OK) {
         asm_error = ASM_ERR_FULL;
     }
-    check = bl_back_jump(t);
-    asm_bind(skip);
+    check = jit_baseline_compiler_back_jump(t);
+    arm64_assembler_bind(skip);
     return check;
 }
 
 /* JitBaselineCompiler>>compile: */
-bool bl_compile(oop m)
+bool jit_baseline_compiler_compile(oop m)
 {
     int32_t n;
     int32_t i;
@@ -3491,22 +3491,22 @@ bool bl_compile(oop m)
     ret_count = 0;
     block_count = 0;
     region_count = 0;
-    header_label = asm_new_label();
-    exit_sync_label = asm_new_label();
-    exit_plain_label = asm_new_label();
-    miss_label = asm_label_at(bl_miss);
-    block_label = asm_label_at(bl_block);
-    mega_label = asm_label_at(bl_mega);
-    perform_label = asm_label_at(bl_perform);
-    interrupt_label = asm_label_at(interrupt_stub);
-    closure_label = asm_label_at(closure_stub);
-    make_array_label = asm_label_at(make_array_stub);
-    entry_slow_label = asm_label_at(bl_entry_slow);
-    prim_label = asm_label_at(bl_prim);
-    remember_label = asm_label_at(bl_remember);
-    return_slow_label = asm_label_at(bl_return_slow);
-    box_label = asm_label_at(bl_box);
-    tier_up_label = asm_label_at(tier_up_stub);
+    header_label = new_label();
+    exit_sync_label = new_label();
+    exit_plain_label = new_label();
+    miss_label = label_at(bl_miss);
+    block_label = label_at(bl_block);
+    mega_label = label_at(bl_mega);
+    perform_label = label_at(bl_perform);
+    interrupt_label = label_at(interrupt_stub);
+    closure_label = label_at(closure_stub);
+    make_array_label = label_at(make_array_stub);
+    entry_slow_label = label_at(bl_entry_slow);
+    prim_label = label_at(bl_prim);
+    remember_label = label_at(bl_remember);
+    return_slow_label = label_at(bl_return_slow);
+    box_label = label_at(bl_box);
+    tier_up_label = label_at(tier_up_stub);
     counter_addr = jit_mode == JIT_OPT ? (uint64_t)(opt_counts + (((uint32_t)(((*(uint64_t *)m) >> H_HASH_SHIFT) & H_HASH_MASK)) & 65535)) : 0;
     cur_method = m;
     saved_count = 0;
@@ -3515,7 +3515,7 @@ bool bl_compile(oop m)
     cur_args = num_args;
     cur_temps = num_temps;
     cur_frame_size = ana_frame_size;
-    if (!bl_emit_method_entry()) {
+    if (!emit_method_entry()) {
         return false;
     }
     dead = false;
@@ -3528,7 +3528,7 @@ bool bl_compile(oop m)
                 cur_temps = region_temps[region_count];
                 cur_frame_size = region_sizes[region_count];
             }
-            if (!bl_emit_at((int32_t)pc)) {
+            if (!emit_at((int32_t)pc)) {
                 return false;
             }
             op_2 = ana_bcs[pc];
@@ -3599,15 +3599,15 @@ exit_length_of:;
     if (asm_error != ASM_OK) {
         return false;
     }
-    if (!bl_emit_slow_paths()) {
+    if (!emit_slow_paths()) {
         return false;
     }
     if (asm_noting) {
-        asm_note("leave to the interpreter at the stored pc", 0);
+        note("leave to the interpreter at the stored pc", 0);
     }
-    asm_bind(exit_sync_label);
-    a_label = asm_label_at(bl_exit_sync);
-    target = asm_target_of(a_label);
+    arm64_assembler_bind(exit_sync_label);
+    a_label = label_at(bl_exit_sync);
+    target = target_of(a_label);
     a_word = 0x14000000 | ({
     off = ((int64_t)(target - asm_pc)) >> 2;
     if (!((off >= -33554432) && (off <= 33554431))) {
@@ -3627,11 +3627,11 @@ exit_offset_to:;
         asm_error = ASM_ERR_FULL;
     }
     if (asm_noting) {
-        asm_note("leave to the interpreter (the runtime made the frames canonical)", 0);
+        note("leave to the interpreter (the runtime made the frames canonical)", 0);
     }
-    asm_bind(exit_plain_label);
-    a_label_2 = asm_label_at(exit_plain_addr);
-    target_2 = asm_target_of(a_label_2);
+    arm64_assembler_bind(exit_plain_label);
+    a_label_2 = label_at(exit_plain_addr);
+    target_2 = target_of(a_label_2);
     a_word_2 = 0x14000000 | ({
     off_2 = ((int64_t)(target_2 - asm_pc)) >> 2;
     if (!((off_2 >= -33554432) && (off_2 <= 33554431))) {
@@ -3650,12 +3650,12 @@ exit_offset_to_2:;
     } else if (asm_error == ASM_OK) {
         asm_error = ASM_ERR_FULL;
     }
-    bl_emit_literals();
+    emit_literals();
     return !(asm_error != ASM_OK);
 }
 
 /* JitBaselineCompiler>>dAlloc */
-static int32_t bl_dalloc(void)
+static int d_alloc(void)
 {
     int r;
     int32_t t;
@@ -3685,8 +3685,8 @@ static int32_t bl_dalloc(void)
     }
     for (i = ss_base; i <= ss_top - 1; i++) {
         if (ss_kind[i] == SS_DREG) {
-            bl_ss_spill(i);
-            return bl_dalloc();
+            ss_spill(i);
+            return d_alloc();
         }
     }
     if (asm_error == ASM_OK) {
@@ -3696,7 +3696,7 @@ static int32_t bl_dalloc(void)
 }
 
 /* JitBaselineCompiler>>doubleOf:scratch:fail: */
-static int32_t bl_double_of(int32_t i, int32_t d, int32_t fail)
+static int32_t double_of(int32_t i, int d, int32_t fail)
 {
     uint8_t k;
     int8_t r_2;
@@ -3791,7 +3791,7 @@ exit_temp_double:;
 exit_constant_double:;
     r_constant_double; });
         if (asm_noting) {
-            asm_note("a Float constant", 0);
+            note("a Float constant", 0);
         }
         if (bits <= 0xFFFF) {
             if (!(bits <= 0xFFFF)) {
@@ -3809,7 +3809,7 @@ exit_constant_double:;
             }
         exit_move_wide:;
         } else {
-            asm_mov_imm(X16, bits);
+            mov_imm(X16, bits);
         }
         if ((d & REG_D) != 0) {
             a_word_2 = 0x9E670000LL | (512ULL | (d & 31));
@@ -3830,14 +3830,14 @@ exit_constant_double:;
         }
         return d;
     }
-    r = bl_ss_materialize(i);
+    r = jit_baseline_compiler_ss_materialize(i);
     if (asm_noting) {
-        asm_note("as a double", 0);
+        note("as a double", 0);
     }
-    int_ = asm_new_label();
-    obj = asm_new_label();
-    done = asm_new_label();
-    target = asm_target_of(int_);
+    int_ = new_label();
+    obj = new_label();
+    done = new_label();
+    target = target_of(int_);
     a_word_4 = 922746880ULL | ((((uint64_t)({
     off = ((int64_t)(target - asm_pc)) >> 2;
     if (!((off >= -8192) && (off <= 8191))) {
@@ -3856,7 +3856,7 @@ exit_offset_to:;
     } else if (asm_error == ASM_OK) {
         asm_error = ASM_ERR_FULL;
     }
-    enc = asm_logical_immediate(7ULL, 64);
+    enc = logical_immediate(7ULL, 64);
     if (enc < 0) {
         if (asm_error == ASM_OK) {
             asm_error = ASM_ERR_IMMEDIATE;
@@ -3882,7 +3882,7 @@ exit_logical:;
         asm_error = ASM_ERR_IMMEDIATE;
     }
 exit_add_sub:;
-    target_2 = asm_target_of(obj);
+    target_2 = target_of(obj);
     a_word_6 = 0x54000000 | ((((uint64_t)({
     off_2 = ((int64_t)(target_2 - asm_pc)) >> 2;
     if (!((off_2 >= -262144) && (off_2 <= 262143))) {
@@ -3902,7 +3902,7 @@ exit_offset_to_2:;
         asm_error = ASM_ERR_FULL;
     }
     if (asm_noting) {
-        asm_note("a SmallFloat64: rotate back", 0);
+        note("a SmallFloat64: rotate back", 0);
     }
     a_word_7 = 3544186880LL | (261120ULL | ((((uint64_t)(r & 31)) << 5) | 16));
     if (asm_pc < asm_limit) {
@@ -3911,7 +3911,7 @@ exit_offset_to_2:;
     } else if (asm_error == ASM_OK) {
         asm_error = ASM_ERR_FULL;
     }
-    asm_mov_imm(X17, 8070450532247928832ULL);
+    mov_imm(X17, 8070450532247928832ULL);
     if (asm_pc < asm_limit) {
         *(uint32_t *)asm_pc = 2333147665ULL;
         asm_pc = asm_pc + 4;
@@ -3958,7 +3958,7 @@ exit_add_sub_2:;
             asm_error = ASM_ERR_FULL;
         }
     }
-    target_3 = asm_target_of(done);
+    target_3 = target_of(done);
     a_word_10 = 0x14000000 | ({
     off_3 = ((int64_t)(target_3 - asm_pc)) >> 2;
     if (!((off_3 >= -33554432) && (off_3 <= 33554431))) {
@@ -3977,8 +3977,8 @@ exit_offset_to_3:;
     } else if (asm_error == ASM_OK) {
         asm_error = ASM_ERR_FULL;
     }
-    asm_bind(obj);
-    target_4 = asm_target_of(fail);
+    arm64_assembler_bind(obj);
+    target_4 = target_of(fail);
     a_word_11 = 3036676096LL | ((((uint64_t)({
     off_4 = ((int64_t)(target_4 - asm_pc)) >> 2;
     if (!((off_4 >= -262144) && (off_4 <= 262143))) {
@@ -3998,7 +3998,7 @@ exit_offset_to_4:;
         asm_error = ASM_ERR_FULL;
     }
     if (asm_noting) {
-        asm_note("a BoxedFloat64: its word", 0);
+        note("a BoxedFloat64: its word", 0);
     }
     a_word_12 = 4181721088LL | (1024ULL | ((((uint64_t)(r & 31)) << 5) | 16));
     if (asm_pc < asm_limit) {
@@ -4038,7 +4038,7 @@ exit_offset_to_4:;
     } else if (asm_error == ASM_OK) {
         asm_error = ASM_ERR_FULL;
     }
-    target_5 = asm_target_of(fail);
+    target_5 = target_of(fail);
     a_word_15 = 0x54000000 | ((((uint64_t)({
     off_6 = ((int64_t)(target_5 - asm_pc)) >> 2;
     if (!((off_6 >= -262144) && (off_6 <= 262143))) {
@@ -4077,7 +4077,7 @@ exit_offset_to_5:;
             asm_error = ASM_ERR_FULL;
         }
     }
-    target_6 = asm_target_of(done);
+    target_6 = target_of(done);
     a_word_18 = 0x14000000 | ({
     off_7 = ((int64_t)(target_6 - asm_pc)) >> 2;
     if (!((off_7 >= -33554432) && (off_7 <= 33554431))) {
@@ -4096,9 +4096,9 @@ exit_offset_to_6:;
     } else if (asm_error == ASM_OK) {
         asm_error = ASM_ERR_FULL;
     }
-    asm_bind(int_);
+    arm64_assembler_bind(int_);
     if (asm_noting) {
-        asm_note("a SmallInteger: convert", 0);
+        note("a SmallInteger: convert", 0);
     }
     a_word_19 = 2470445056LL | (130048ULL | ((((uint64_t)(r & 31)) << 5) | 16));
     if (asm_pc < asm_limit) {
@@ -4114,12 +4114,12 @@ exit_offset_to_6:;
     } else if (asm_error == ASM_OK) {
         asm_error = ASM_ERR_FULL;
     }
-    asm_bind(done);
+    arm64_assembler_bind(done);
     return d;
 }
 
 /* JitBaselineCompiler>>dropDoubles */
-static void bl_drop_doubles(void)
+static void drop_doubles(void)
 {
     int r;
     int t;
@@ -4132,7 +4132,7 @@ static void bl_drop_doubles(void)
 }
 
 /* JitBaselineCompiler>>emitAt: */
-static bool bl_emit_at(int32_t pc)
+static bool emit_at(int32_t pc)
 {
     uint8_t op;
     int32_t d;
@@ -4182,7 +4182,7 @@ static bool bl_emit_at(int32_t pc)
     int32_t r_label_for_5;
     int i;
     bool r_push_inst_var;
-    int32_t r_2;
+    int r_2;
     int64_t r_self_reg;
     int64_t rn;
     int off_4;
@@ -4196,7 +4196,7 @@ static bool bl_emit_at(int32_t pc)
     oop v;
     int i_3;
     bool r_push_literal_variable;
-    int32_t r_3;
+    int r_3;
     int64_t bits_3;
     int s_4;
     uint64_t a_word_10;
@@ -4273,11 +4273,11 @@ static bool bl_emit_at(int32_t pc)
     uint64_t a_word_28;
     bool r_dup;
     int32_t i_8;
-    int32_t r_13;
+    int r_13;
     int8_t rm_3;
     uint64_t a_word_29;
     uint64_t a_word_30;
-    int32_t rn_3;
+    int rn_3;
     uint64_t a_word_31;
     bool r_return_;
     int32_t ret;
@@ -4348,7 +4348,7 @@ static bool bl_emit_at(int32_t pc)
     int32_t pc_6;
     uint8_t i_10;
     bool r_push_inst_var_2;
-    int32_t r_14;
+    int r_14;
     int64_t r_self_reg_4;
     int64_t rn_5;
     int off_22;
@@ -4364,7 +4364,7 @@ static bool bl_emit_at(int32_t pc)
     int32_t pc_8;
     uint8_t i_12;
     bool r_push_literal_variable_2;
-    int32_t r_15;
+    int r_15;
     int64_t bits_15;
     int s_14;
     uint64_t a_word_55;
@@ -4565,7 +4565,7 @@ static bool bl_emit_at(int32_t pc)
     uint8_t i_23;
     int32_t top_4;
     int32_t v_17;
-    int32_t r_34;
+    int r_34;
     char *a_format;
     int64_t off_40;
     uint64_t a_word_99;
@@ -4769,19 +4769,19 @@ static bool bl_emit_at(int32_t pc)
         return true;
     }
     if ((ana_flags[pc] & ANA_BLOCK) != 0) {
-        if (!bl_emit_block_entry(pc)) {
+        if (!emit_block_entry(pc)) {
             return false;
         }
         if ((ana_flags[pc] & ANA_TARGET) != 0) {
             self_valid = false;
         }
         if ((ana_flags[pc] & ANA_LOOP) != 0) {
-            bl_head_check(pc);
+            head_check(pc);
         }
     } else if (pc == 0) {
-        asm_bind(({
+        arm64_assembler_bind(({
     if (pc_labels[0] < 0) {
-        pc_labels[0] = asm_new_label();
+        pc_labels[0] = new_label();
     }
     r_label_for = pc_labels[0];
     r_label_for; }));
@@ -4789,7 +4789,7 @@ static bool bl_emit_at(int32_t pc)
             self_valid = false;
         }
         if ((ana_flags[0] & ANA_LOOP) != 0) {
-            bl_head_check(0);
+            head_check(0);
         }
     } else if (((ana_flags[pc] & ANA_TARGET) != 0) || (pc_merge[pc] == 1)) {
         if ((!dead) && ({
@@ -4822,7 +4822,7 @@ static bool bl_emit_at(int32_t pc)
 exit_can_thread_into:;
     r_can_thread_into; })) {
             if (asm_noting) {
-                asm_note("jump threading: the conditional jump at pc %d, here", pc);
+                note("jump threading: the conditional jump at pc %d, here", pc);
             }
             after = pc + 3;
             if (!({
@@ -4832,22 +4832,22 @@ exit_can_thread_into:;
     if_true = ana_bcs[pc] == 0x91;
     k = ss_kind[top];
     if ((k == SS_PINNED) && (ss_val[top] != X23)) {
-        bl_ss_pop(1);
+        ss_pop(1);
         if (ss_val[top] == X24 == if_true) {
-            bl_ss_flush_to(ss_top);
+            ss_flush_to(ss_top);
             if (asm_noting) {
-                asm_note("the condition is constant: jump", 0);
+                note("the condition is constant: jump", 0);
             }
             if ((ana_flags[t] & ANA_LOOP) != 0) {
-                bl_back_jump(t);
+                jit_baseline_compiler_back_jump(t);
             } else {
                 a_label = ({
     if (pc_labels[t] < 0) {
-        pc_labels[t] = asm_new_label();
+        pc_labels[t] = new_label();
     }
     r_label_for_2 = pc_labels[t];
     r_label_for_2; });
-                target = asm_target_of(a_label);
+                target = target_of(a_label);
                 a_word = 0x14000000 | ({
     off = ((int64_t)(target - asm_pc)) >> 2;
     if (!((off >= -33554432) && (off <= 33554431))) {
@@ -4872,12 +4872,12 @@ exit_offset_to:;
         r_conditional_jump = true;
         goto exit_conditional_jump;
     }
-    bl_ss_flush_to(top);
-    r = bl_ss_materialize(top);
-    bl_ss_pop(1);
+    ss_flush_to(top);
+    r = jit_baseline_compiler_ss_materialize(top);
+    ss_pop(1);
     a_string = if_true ? "pop, jump if true" : "pop, jump if false";
     if (asm_noting) {
-        asm_note(a_string, 0);
+        note(a_string, 0);
     }
     rm = if_true ? X24 : X25;
     rd = (r & REG_W) | 31;
@@ -4906,15 +4906,15 @@ exit_offset_to:;
         asm_error = ASM_ERR_FULL;
     }
 exit_add_sub:;
-    bl_branch(COND_EQ, t);
-    s = bl_slow(SL_MUSTBEBOOLEAN, pc, ss_top + 1);
+    branch(COND_EQ, t);
+    s = jit_baseline_compiler_slow(SL_MUSTBEBOOLEAN, pc, ss_top + 1);
     if (s < 0) {
         r_conditional_jump = false;
         goto exit_conditional_jump;
     }
     sl_a[s] = (int8_t)r;
     if (asm_noting) {
-        asm_note("neither true nor false: the interpreter sends mustBeBoolean", 0);
+        note("neither true nor false: the interpreter sends mustBeBoolean", 0);
     }
     rm_2 = if_true ? X25 : X24;
     rd_2 = (r & REG_W) | 31;
@@ -4944,7 +4944,7 @@ exit_add_sub:;
     }
 exit_add_sub_2:;
     a_label_2 = sl_label[s];
-    target_2 = asm_target_of(a_label_2);
+    target_2 = target_of(a_label_2);
     a_word_6 = 0x54000000 | ((((uint64_t)({
     off_2 = ((int64_t)(target_2 - asm_pc)) >> 2;
     if (!((off_2 >= -262144) && (off_2 <= 262143))) {
@@ -4969,14 +4969,14 @@ exit_conditional_jump:;
                 goto exit_thread_into;
             }
             if (!dead) {
-                bl_ss_flush_to(ss_top);
+                ss_flush_to(ss_top);
                 a_label_3 = ({
     if (pc_labels[after] < 0) {
-        pc_labels[after] = asm_new_label();
+        pc_labels[after] = new_label();
     }
     r_label_for_3 = pc_labels[after];
     r_label_for_3; });
-                target_3 = asm_target_of(a_label_3);
+                target_3 = target_of(a_label_3);
                 a_word_7 = 0x14000000 | ({
     off_3 = ((int64_t)(target_3 - asm_pc)) >> 2;
     if (!((off_3 >= -33554432) && (off_3 <= 33554431))) {
@@ -5001,18 +5001,18 @@ exit_offset_to_3:;
         exit_thread_into:;
         }
         if (!dead) {
-            bl_ss_flush_to(ss_top);
+            ss_flush_to(ss_top);
         }
         if (((ana_flags[pc] & ANA_LOOP) != 0) && ((!dead) && (!loop_active))) {
-            bl_begin_loop(pc);
+            begin_loop_at(pc);
         }
-        asm_bind(({
+        arm64_assembler_bind(({
     if (pc_labels[pc] < 0) {
-        pc_labels[pc] = asm_new_label();
+        pc_labels[pc] = new_label();
     }
     r_label_for_4 = pc_labels[pc];
     r_label_for_4; }));
-        bl_ss_reset(d);
+        ss_reset(d);
         self_valid = false;
         dead = false;
         if ((ana_flags[pc] & ANA_LOOP) != 0) {
@@ -5025,19 +5025,19 @@ exit_offset_to_3:;
                 }
                 goto exit_note_loop_resume;
             }
-            s_2 = bl_slow(SL_RESUME, pc, (int32_t)ana_depths[pc]);
+            s_2 = jit_baseline_compiler_slow(SL_RESUME, pc, (int32_t)ana_depths[pc]);
             if (s_2 < 0) {
                 goto exit_note_loop_resume;
             }
             sl_r[s_2] = -1;
             sl_cont[s_2] = ({
     if (pc_labels[pc] < 0) {
-        pc_labels[pc] = asm_new_label();
+        pc_labels[pc] = new_label();
     }
     r_label_for_5 = pc_labels[pc];
     r_label_for_5; });
         exit_note_loop_resume:;
-            bl_head_check(pc);
+            head_check(pc);
         }
     }
     if (dead) {
@@ -5047,25 +5047,25 @@ exit_offset_to_3:;
         return false;
     }
     if (asm_noting) {
-        asm_note((const char *)NULL, pc);
+        note((const char *)NULL, pc);
     }
     if (!((jit_flags & JIT_FLAG_REGS) != 0)) {
-        bl_ss_flush_to(ss_top);
+        ss_flush_to(ss_top);
     }
     if (op < 0x10) {
-        return bl_ss_push(SS_TEMP, op, -1);
+        return ss_push(SS_TEMP, op, -1);
     }
     if (op < 0x20) {
         i = op - 0x10;
         return ({
-    r_2 = bl_alloc_reg();
+    r_2 = alloc_reg();
     if (asm_noting) {
-        asm_note("push inst var %d", i);
+        note("push inst var %d", i);
     }
     rn = ({
     if (!self_valid) {
         if (asm_noting) {
-            asm_note("self (x21 is stale after a call)", 0);
+            note("self (x21 is stale after a call)", 0);
         }
         if (asm_pc < asm_limit) {
             *(uint32_t *)asm_pc = 4167008917ULL;
@@ -5105,7 +5105,7 @@ exit_offset_to_3:;
         }
     exit_load_store:;
     }
-    r_push_inst_var = bl_ss_push(SS_REG, 0, r_2);
+    r_push_inst_var = ss_push(SS_REG, 0, r_2);
     r_push_inst_var; });
     }
     if (op < 0x40) {
@@ -5117,20 +5117,20 @@ exit_offset_to_3:;
     }
     v = ana_lits[i_2];
     if ((v & 7) != 0) {
-        r_push_literal = bl_ss_push(SS_CONST, (int64_t)v, -1);
+        r_push_literal = ss_push(SS_CONST, (int64_t)v, -1);
         goto exit_push_literal;
     }
-    r_push_literal = bl_ss_push(SS_LIT, i_2, -1);
+    r_push_literal = ss_push(SS_LIT, i_2, -1);
 exit_push_literal:;
     r_push_literal; });
     }
     if (op < 0x60) {
         i_3 = op - 0x40;
         return ({
-    r_3 = bl_alloc_reg();
-    bl_load_literal(i_3, r_3);
+    r_3 = alloc_reg();
+    load_literal(i_3, r_3);
     if (asm_noting) {
-        asm_note("its value", 0);
+        note("its value", 0);
     }
     bits_3 = (r_3 & REG_D) != 0 ? 0xC4400000LL : (r_3 & REG_W) == 0 ? 0xC0400000LL : 0x80400000LL;
     s_4 = (r_3 & REG_W) == 0 ? 3 : 2;
@@ -5152,7 +5152,7 @@ exit_push_literal:;
             asm_error = ASM_ERR_FULL;
         }
     }
-    r_push_literal_variable = bl_ss_push(SS_REG, 0, r_3);
+    r_push_literal_variable = ss_push(SS_REG, 0, r_3);
     r_push_literal_variable; });
     }
     if (op < 0x68) {
@@ -5161,11 +5161,11 @@ exit_push_literal:;
     i_4 = ss_top - 1;
     k_2 = ss_kind[i_4];
     if ((k_2 == SS_TEMP) && (ss_val[i_4] == t_2)) {
-        bl_ss_pop(1);
+        ss_pop(1);
         r_store_temp = true;
         goto exit_store_temp;
     }
-    bl_ss_temp_changing(t_2);
+    ss_temp_changing(t_2);
     if (({
     if (!loop_active) {
         r_loop_reg_of = -1;
@@ -5200,10 +5200,10 @@ exit_loop_reg_of:;
 exit_loop_reg_of_2:;
     r_loop_reg_of_2; });
     if (asm_noting) {
-        asm_note("temp %d := top (its loop register and its slot)", t_2);
+        note("temp %d := top (its loop register and its slot)", t_2);
     }
     if (k_3 == SS_DREG) {
-        bl_emit_box(ss_reg[i_6], X17);
+        emit_box(ss_reg[i_6], X17);
         off_5 = 8 * t_2;
         if ((off_5 >= 0) && ((off_5 & 7) == 0) && ((off_5 >> 3) <= 4095)) {
             a_word_12 = 4177526784LL | ((((uint64_t)(off_5 >> 3)) << 10) | 657ULL);
@@ -5312,7 +5312,7 @@ exit_temp_double:;
             dreg_refs[r_7] = (int8_t)(dreg_refs[r_7] + 1);
         }
     exit_set_temp_2:;
-        bl_ss_materialize_into(i_6, r_4);
+        jit_baseline_compiler_ss_materialize_into(i_6, r_4);
         off_6 = 8 * t_2;
         bits_5 = (r_4 & REG_D) != 0 ? 0xC4000000LL : (r_4 & REG_W) == 0 ? 0xC0000000LL : 0x80000000LL;
         s_5 = (r_4 & REG_W) == 0 ? 3 : 2;
@@ -5342,16 +5342,16 @@ exit_temp_double:;
         exit_load_store_3:;
         }
     }
-    bl_ss_pop(1);
+    ss_pop(1);
     r_store_loop_temp = true;
     r_store_loop_temp; });
         goto exit_store_temp;
     }
     if (k_2 == SS_DREG) {
         if (asm_noting) {
-            asm_note("temp %d := an unboxed Float, boxed (it stays unboxed in its d register too)", t_2);
+            note("temp %d := an unboxed Float, boxed (it stays unboxed in its d register too)", t_2);
         }
-        bl_emit_box(ss_reg[i_4], X17);
+        emit_box(ss_reg[i_4], X17);
         off_7 = 8 * t_2;
         if ((off_7 >= 0) && ((off_7 & 7) == 0) && ((off_7 >> 3) <= 4095)) {
             a_word_19 = 4177526784LL | ((((uint64_t)(off_7 >> 3)) << 10) | 657ULL);
@@ -5392,7 +5392,7 @@ exit_temp_double:;
             dreg_refs[r_9] = (int8_t)(dreg_refs[r_9] + 1);
         }
     exit_set_temp_3:;
-        bl_ss_pop(1);
+        ss_pop(1);
         r_store_temp = true;
         goto exit_store_temp;
     }
@@ -5426,7 +5426,7 @@ exit_temp_double_2:;
     }
 exit_set_temp_4:;
     if (asm_noting) {
-        asm_note("temp %d := top", t_2);
+        note("temp %d := top", t_2);
     }
     if (k_2 == SS_REG) {
         rt = ss_reg[i_4];
@@ -5494,7 +5494,7 @@ exit_set_temp_4:;
         rt_3 = ({
     if (!self_valid) {
         if (asm_noting) {
-            asm_note("self (x21 is stale after a call)", 0);
+            note("self (x21 is stale after a call)", 0);
         }
         if (asm_pc < asm_limit) {
             *(uint32_t *)asm_pc = 4167008917ULL;
@@ -5536,7 +5536,7 @@ exit_set_temp_4:;
         }
     }
     if ((k_2 == SS_CONST) || ((k_2 == SS_TEMP) || ((k_2 == SS_LIT) || (k_2 == SS_SLOT)))) {
-        bl_ss_materialize_into(i_4, X16);
+        jit_baseline_compiler_ss_materialize_into(i_4, X16);
         off_11 = 8 * t_2;
         if ((off_11 >= 0) && ((off_11 & 7) == 0) && ((off_11 >> 3) <= 4095)) {
             a_word_27 = 4177526784LL | ((((uint64_t)(off_11 >> 3)) << 10) | 656ULL);
@@ -5563,47 +5563,47 @@ exit_set_temp_4:;
         exit_load_store_8:;
         }
     }
-    bl_ss_pop(1);
+    ss_pop(1);
     r_store_temp = true;
 exit_store_temp:;
     r_store_temp; });
     }
     if (op == 0x70) {
-        return bl_ss_push(SS_SELF, 0, -1);
+        return ss_push(SS_SELF, 0, -1);
     }
     if (op == 0x71) {
-        return bl_ss_push(SS_PINNED, X24, -1);
+        return ss_push(SS_PINNED, X24, -1);
     }
     if (op == 0x72) {
-        return bl_ss_push(SS_PINNED, X25, -1);
+        return ss_push(SS_PINNED, X25, -1);
     }
     if (op == 0x73) {
-        return bl_ss_push(SS_PINNED, X23, -1);
+        return ss_push(SS_PINNED, X23, -1);
     }
     if (op == 0x74) {
-        return bl_ss_push(SS_CONST, 1, -1);
+        return ss_push(SS_CONST, 1, -1);
     }
     if (op == 0x75) {
-        return bl_ss_push(SS_CONST, 3, -1);
+        return ss_push(SS_CONST, 3, -1);
     }
     if (op == 0x76) {
-        bl_ss_flush_to(ss_top);
+        ss_flush_to(ss_top);
         if (asm_noting) {
-            asm_note("thisContext: the runtime marries this frame", 0);
+            note("thisContext: the runtime marries this frame", 0);
         }
-        bl_emit_runtime_call(asm_label_at(context_stub), pc, ss_top);
-        return bl_ss_push(SS_SLOT, 0, -1);
+        emit_runtime_call(label_at(context_stub), pc, ss_top);
+        return ss_push(SS_SLOT, 0, -1);
     }
     if (op == 0x77) {
         return ({
     i_8 = ss_top - 1;
     if ((ss_kind[i_8] == SS_SLOT) || (ss_kind[i_8] == SS_DREG)) {
-        bl_ss_materialize(i_8);
+        jit_baseline_compiler_ss_materialize(i_8);
     }
     if (ss_kind[i_8] == SS_REG) {
-        r_13 = bl_alloc_reg();
+        r_13 = alloc_reg();
         if (asm_noting) {
-            asm_note("dup", 0);
+            note("dup", 0);
         }
         rm_3 = ss_reg[i_8];
         if (((r_13 & REG_SP) != 0) || ((rm_3 & REG_SP) != 0)) {
@@ -5644,25 +5644,25 @@ exit_store_temp:;
             }
         exit_logical_2:;
         }
-        r_dup = bl_ss_push(SS_REG, 0, r_13);
+        r_dup = ss_push(SS_REG, 0, r_13);
         goto exit_dup;
     }
-    r_dup = bl_ss_push(ss_kind[i_8], ss_val[i_8], -1);
+    r_dup = ss_push(ss_kind[i_8], ss_val[i_8], -1);
 exit_dup:;
     r_dup; });
     }
     if (op == 0x78) {
-        bl_ss_pop(1);
+        ss_pop(1);
         return true;
     }
     if ((op == 0x79) || (op == 0x7B)) {
         return ({
     if (asm_noting) {
-        asm_note("return top", 0);
+        note("return top", 0);
     }
-    bl_ss_materialize_into(ss_top - 1, X0);
-    ret = asm_new_label();
-    s_9 = bl_slow(SL_RETURN, pc, ss_top);
+    jit_baseline_compiler_ss_materialize_into(ss_top - 1, X0);
+    ret = new_label();
+    s_9 = jit_baseline_compiler_slow(SL_RETURN, pc, ss_top);
     if (s_9 < 0) {
         r_return_ = false;
         goto exit_return_;
@@ -5670,7 +5670,7 @@ exit_dup:;
     sl_cont[s_9] = ret;
     sl_info[s_9] = 0;
     if (asm_noting) {
-        asm_note("a married frame leaves its slots to its Context", 0);
+        note("a married frame leaves its slots to its Context", 0);
     }
     off_12 = (int64_t)&((frame *)0)->ctx;
     if ((off_12 >= 0) && ((off_12 & 7) == 0) && ((off_12 >> 3) <= 4095)) {
@@ -5704,7 +5704,7 @@ exit_dup:;
         asm_error = ASM_ERR_FULL;
     }
     a_label_4 = sl_label[s_9];
-    target_4 = asm_target_of(a_label_4);
+    target_4 = target_of(a_label_4);
     a_word_34 = 0x54000000 | ((((uint64_t)({
     off_13 = ((int64_t)(target_4 - asm_pc)) >> 2;
     if (!((off_13 >= -262144) && (off_13 <= 262143))) {
@@ -5723,9 +5723,9 @@ exit_offset_to_4:;
     } else if (asm_error == ASM_OK) {
         asm_error = ASM_ERR_FULL;
     }
-    asm_bind(ret);
+    arm64_assembler_bind(ret);
     if (asm_noting) {
-        asm_note("pop the frame and the record, return", 0);
+        note("pop the frame and the record, return", 0);
     }
     imm = sizeof(frame);
     v_6 = imm;
@@ -5773,7 +5773,7 @@ exit_return_:;
     if (op == 0x7A) {
         return ({
     if (asm_noting) {
-        asm_note("return self", 0);
+        note("return self", 0);
     }
     if (self_valid) {
         if (asm_pc < asm_limit) {
@@ -5788,8 +5788,8 @@ exit_return_:;
     } else if (asm_error == ASM_OK) {
         asm_error = ASM_ERR_FULL;
     }
-    ret_2 = asm_new_label();
-    s_11 = bl_slow(SL_RETURN, pc, ss_top);
+    ret_2 = new_label();
+    s_11 = jit_baseline_compiler_slow(SL_RETURN, pc, ss_top);
     if (s_11 < 0) {
         r_return__2 = false;
         goto exit_return__2;
@@ -5797,7 +5797,7 @@ exit_return_:;
     sl_cont[s_11] = ret_2;
     sl_info[s_11] = 1;
     if (asm_noting) {
-        asm_note("a married frame leaves its slots to its Context", 0);
+        note("a married frame leaves its slots to its Context", 0);
     }
     off_14 = (int64_t)&((frame *)0)->ctx;
     if ((off_14 >= 0) && ((off_14 & 7) == 0) && ((off_14 >> 3) <= 4095)) {
@@ -5831,7 +5831,7 @@ exit_return_:;
         asm_error = ASM_ERR_FULL;
     }
     a_label_5 = sl_label[s_11];
-    target_5 = asm_target_of(a_label_5);
+    target_5 = target_of(a_label_5);
     a_word_39 = 0x54000000 | ((((uint64_t)({
     off_15 = ((int64_t)(target_5 - asm_pc)) >> 2;
     if (!((off_15 >= -262144) && (off_15 <= 262143))) {
@@ -5850,9 +5850,9 @@ exit_offset_to_5:;
     } else if (asm_error == ASM_OK) {
         asm_error = ASM_ERR_FULL;
     }
-    asm_bind(ret_2);
+    arm64_assembler_bind(ret_2);
     if (asm_noting) {
-        asm_note("pop the frame and the record, return", 0);
+        note("pop the frame and the record, return", 0);
     }
     imm_2 = sizeof(frame);
     v_7 = imm_2;
@@ -5900,12 +5900,12 @@ exit_return__2:;
     if (op == 0x7C) {
         return ({
     if (asm_noting) {
-        asm_note("non-local return: the interpreter unwinds", 0);
+        note("non-local return: the interpreter unwinds", 0);
     }
     r_non_local_return = ({
-    bl_ss_flush_to(ss_top);
+    ss_flush_to(ss_top);
     if (asm_noting) {
-        asm_note("spill: frame pc %d", pc);
+        note("spill: frame pc %d", pc);
     }
     value = (((int64_t)ss_top) << 32) | pc;
     if ((value >= 0) && (value <= 0xFFFF)) {
@@ -5924,7 +5924,7 @@ exit_return__2:;
         }
     exit_move_wide:;
     } else {
-        asm_mov_imm(X16, (uint64_t)value);
+        mov_imm(X16, (uint64_t)value);
     }
     off_16 = (int64_t)&((frame *)0)->pc;
     if ((off_16 >= 0) && ((off_16 & 7) == 0) && ((off_16 >> 3) <= 4095)) {
@@ -5951,7 +5951,7 @@ exit_return__2:;
         }
     exit_load_store_11:;
     }
-    target_6 = asm_target_of(exit_sync_label);
+    target_6 = target_of(exit_sync_label);
     a_word_45 = 0x14000000 | ({
     off_17 = ((int64_t)(target_6 - asm_pc)) >> 2;
     if (!((off_17 >= -33554432) && (off_17 <= 33554431))) {
@@ -5978,7 +5978,7 @@ exit_offset_to_6:;
     if (op == 0x80) {
         pc_3 = pc + 1;
         t_5 = ana_bcs[pc_3];
-        return bl_ss_push(SS_TEMP, t_5, -1);
+        return ss_push(SS_TEMP, t_5, -1);
     }
     if (op == 0x81) {
         pc_4 = pc + 1;
@@ -5986,16 +5986,16 @@ exit_offset_to_6:;
             pc_5 = pc + 1;
             i_9 = ana_bcs[pc_5];
             return ({
-    bl_ss_flush_to(ss_top);
-    married = asm_new_label();
-    done = asm_new_label();
+    ss_flush_to(ss_top);
+    married = new_label();
+    done = new_label();
     if (asm_noting) {
-        asm_note("push inst var %d of a Context: married?", i_9);
+        note("push inst var %d of a Context: married?", i_9);
     }
     rn_4 = ({
     if (!self_valid) {
         if (asm_noting) {
-            asm_note("self (x21 is stale after a call)", 0);
+            note("self (x21 is stale after a call)", 0);
         }
         if (asm_pc < asm_limit) {
             *(uint32_t *)asm_pc = 4167008917ULL;
@@ -6014,7 +6014,7 @@ exit_offset_to_6:;
     } else if (asm_error == ASM_OK) {
         asm_error = ASM_ERR_FULL;
     }
-    target_7 = asm_target_of(married);
+    target_7 = target_of(married);
     a_word_47 = 922746880ULL | ((((uint64_t)({
     off_18 = ((int64_t)(target_7 - asm_pc)) >> 2;
     if (!((off_18 >= -8192) && (off_18 <= 8191))) {
@@ -6083,7 +6083,7 @@ exit_offset_to_7:;
         }
     exit_load_store_13:;
     }
-    target_8 = asm_target_of(done);
+    target_8 = target_of(done);
     a_word_52 = 0x14000000 | ({
     off_21 = ((int64_t)(target_8 - asm_pc)) >> 2;
     if (!((off_21 >= -33554432) && (off_21 <= 33554431))) {
@@ -6102,29 +6102,29 @@ exit_offset_to_8:;
     } else if (asm_error == ASM_OK) {
         asm_error = ASM_ERR_FULL;
     }
-    asm_bind(married);
+    arm64_assembler_bind(married);
     if (asm_noting) {
-        asm_note("married: its frame answers", 0);
+        note("married: its frame answers", 0);
     }
-    bl_emit_runtime_call(asm_label_at(context_field_stub), pc, ss_top);
+    emit_runtime_call(label_at(context_field_stub), pc, ss_top);
     if (loop_active) {
-        bl_emit_load_loop_temps(loop_id);
+        emit_load_loop_temps(loop_id);
     }
-    asm_bind(done);
-    r_push_context_field = bl_ss_push(SS_SLOT, 0, -1);
+    arm64_assembler_bind(done);
+    r_push_context_field = ss_push(SS_SLOT, 0, -1);
     r_push_context_field; });
         }
         pc_6 = pc + 1;
         i_10 = ana_bcs[pc_6];
         return ({
-    r_14 = bl_alloc_reg();
+    r_14 = alloc_reg();
     if (asm_noting) {
-        asm_note("push inst var %d", i_10);
+        note("push inst var %d", i_10);
     }
     rn_5 = ({
     if (!self_valid) {
         if (asm_noting) {
-            asm_note("self (x21 is stale after a call)", 0);
+            note("self (x21 is stale after a call)", 0);
         }
         if (asm_pc < asm_limit) {
             *(uint32_t *)asm_pc = 4167008917ULL;
@@ -6164,7 +6164,7 @@ exit_offset_to_8:;
         }
     exit_load_store_14:;
     }
-    r_push_inst_var_2 = bl_ss_push(SS_REG, 0, r_14);
+    r_push_inst_var_2 = ss_push(SS_REG, 0, r_14);
     r_push_inst_var_2; });
     }
     if (op == 0x82) {
@@ -6177,10 +6177,10 @@ exit_offset_to_8:;
     }
     v_8 = ana_lits[i_11];
     if ((v_8 & 7) != 0) {
-        r_push_literal_2 = bl_ss_push(SS_CONST, (int64_t)v_8, -1);
+        r_push_literal_2 = ss_push(SS_CONST, (int64_t)v_8, -1);
         goto exit_push_literal_2;
     }
-    r_push_literal_2 = bl_ss_push(SS_LIT, i_11, -1);
+    r_push_literal_2 = ss_push(SS_LIT, i_11, -1);
 exit_push_literal_2:;
     r_push_literal_2; });
     }
@@ -6188,10 +6188,10 @@ exit_push_literal_2:;
         pc_8 = pc + 1;
         i_12 = ana_bcs[pc_8];
         return ({
-    r_15 = bl_alloc_reg();
-    bl_load_literal(i_12, r_15);
+    r_15 = alloc_reg();
+    load_literal(i_12, r_15);
     if (asm_noting) {
-        asm_note("its value", 0);
+        note("its value", 0);
     }
     bits_15 = (r_15 & REG_D) != 0 ? 0xC4400000LL : (r_15 & REG_W) == 0 ? 0xC0400000LL : 0x80400000LL;
     s_14 = (r_15 & REG_W) == 0 ? 3 : 2;
@@ -6213,7 +6213,7 @@ exit_push_literal_2:;
             asm_error = ASM_ERR_FULL;
         }
     }
-    r_push_literal_variable_2 = bl_ss_push(SS_REG, 0, r_15);
+    r_push_literal_variable_2 = ss_push(SS_REG, 0, r_15);
     r_push_literal_variable_2; });
     }
     if (op == 0x84) {
@@ -6226,7 +6226,7 @@ exit_push_literal_2:;
         r_store_temp_2 = true;
         goto exit_store_temp_2;
     }
-    bl_ss_temp_changing(t_6);
+    ss_temp_changing(t_6);
     if (({
     if (!loop_active) {
         r_loop_reg_of_3 = -1;
@@ -6261,10 +6261,10 @@ exit_loop_reg_of_3:;
 exit_loop_reg_of_4:;
     r_loop_reg_of_4; });
     if (asm_noting) {
-        asm_note("temp %d := top (its loop register and its slot)", t_6);
+        note("temp %d := top (its loop register and its slot)", t_6);
     }
     if (k_5 == SS_DREG) {
-        bl_emit_box(ss_reg[i_15], X17);
+        emit_box(ss_reg[i_15], X17);
         off_23 = 8 * t_6;
         if ((off_23 >= 0) && ((off_23 & 7) == 0) && ((off_23 >> 3) <= 4095)) {
             a_word_57 = 4177526784LL | ((((uint64_t)(off_23 >> 3)) << 10) | 657ULL);
@@ -6373,7 +6373,7 @@ exit_temp_double_3:;
             dreg_refs[r_19] = (int8_t)(dreg_refs[r_19] + 1);
         }
     exit_set_temp_6:;
-        bl_ss_materialize_into(i_15, r_16);
+        jit_baseline_compiler_ss_materialize_into(i_15, r_16);
         off_24 = 8 * t_6;
         bits_17 = (r_16 & REG_D) != 0 ? 0xC4000000LL : (r_16 & REG_W) == 0 ? 0xC0000000LL : 0x80000000LL;
         s_15 = (r_16 & REG_W) == 0 ? 3 : 2;
@@ -6409,9 +6409,9 @@ exit_temp_double_3:;
     }
     if (k_4 == SS_DREG) {
         if (asm_noting) {
-            asm_note("temp %d := an unboxed Float, boxed (it stays unboxed in its d register too)", t_6);
+            note("temp %d := an unboxed Float, boxed (it stays unboxed in its d register too)", t_6);
         }
-        bl_emit_box(ss_reg[i_13], X17);
+        emit_box(ss_reg[i_13], X17);
         off_25 = 8 * t_6;
         if ((off_25 >= 0) && ((off_25 & 7) == 0) && ((off_25 >> 3) <= 4095)) {
             a_word_64 = 4177526784LL | ((((uint64_t)(off_25 >> 3)) << 10) | 657ULL);
@@ -6485,7 +6485,7 @@ exit_temp_double_4:;
     }
 exit_set_temp_8:;
     if (asm_noting) {
-        asm_note("temp %d := top", t_6);
+        note("temp %d := top", t_6);
     }
     if (k_4 == SS_REG) {
         rt_4 = ss_reg[i_13];
@@ -6553,7 +6553,7 @@ exit_set_temp_8:;
         rt_6 = ({
     if (!self_valid) {
         if (asm_noting) {
-            asm_note("self (x21 is stale after a call)", 0);
+            note("self (x21 is stale after a call)", 0);
         }
         if (asm_pc < asm_limit) {
             *(uint32_t *)asm_pc = 4167008917ULL;
@@ -6595,7 +6595,7 @@ exit_set_temp_8:;
         }
     }
     if ((k_4 == SS_CONST) || ((k_4 == SS_TEMP) || ((k_4 == SS_LIT) || (k_4 == SS_SLOT)))) {
-        rt_7 = bl_ss_materialize(i_13);
+        rt_7 = jit_baseline_compiler_ss_materialize(i_13);
         off_29 = 8 * t_6;
         bits_25 = (rt_7 & REG_D) != 0 ? 0xC4000000LL : (rt_7 & REG_W) == 0 ? 0xC0000000LL : 0x80000000LL;
         s_19 = (rt_7 & REG_W) == 0 ? 3 : 2;
@@ -6635,15 +6635,15 @@ exit_store_temp_2:;
         is_context = op == 0x88;
         return ({
     top_2 = ss_top - 1;
-    bl_ss_flush_to(top_2);
-    v_12 = bl_ss_materialize(top_2);
+    ss_flush_to(top_2);
+    v_12 = jit_baseline_compiler_ss_materialize(top_2);
     if (asm_noting) {
-        asm_note("store into inst var %d: is the receiver immutable?", i_17);
+        note("store into inst var %d: is the receiver immutable?", i_17);
     }
     rn_7 = ({
     if (!self_valid) {
         if (asm_noting) {
-            asm_note("self (x21 is stale after a call)", 0);
+            note("self (x21 is stale after a call)", 0);
         }
         if (asm_pc < asm_limit) {
             *(uint32_t *)asm_pc = 4167008917ULL;
@@ -6662,14 +6662,14 @@ exit_store_temp_2:;
     } else if (asm_error == ASM_OK) {
         asm_error = ASM_ERR_FULL;
     }
-    s_20 = bl_slow(SL_MUSTBEBOOLEAN, pc, ss_top);
+    s_20 = jit_baseline_compiler_slow(SL_MUSTBEBOOLEAN, pc, ss_top);
     if (s_20 < 0) {
         r_store_inst_var = false;
         goto exit_store_inst_var;
     }
     sl_a[s_20] = (int8_t)v_12;
     label = sl_label[s_20];
-    enc = asm_logical_immediate(576460752303423488ULL, 64);
+    enc = logical_immediate(576460752303423488ULL, 64);
     if (enc < 0) {
         if (asm_error == ASM_OK) {
             asm_error = ASM_ERR_IMMEDIATE;
@@ -6684,7 +6684,7 @@ exit_store_temp_2:;
         asm_error = ASM_ERR_FULL;
     }
 exit_logical_4:;
-    target_9 = asm_target_of(label);
+    target_9 = target_of(label);
     a_word_76 = 0x54000000 | ((((uint64_t)({
     off_30 = ((int64_t)(target_9 - asm_pc)) >> 2;
     if (!((off_30 >= -262144) && (off_30 <= 262143))) {
@@ -6705,7 +6705,7 @@ exit_offset_to_9:;
     }
     if (is_context) {
         if (asm_noting) {
-            asm_note("a married Context (its sender a SmallInteger)?", 0);
+            note("a married Context (its sender a SmallInteger)?", 0);
         }
         if (asm_pc < asm_limit) {
             *(uint32_t *)asm_pc = 4181723817ULL;
@@ -6714,7 +6714,7 @@ exit_offset_to_9:;
             asm_error = ASM_ERR_FULL;
         }
         a_label_6 = sl_label[s_20];
-        target_10 = asm_target_of(a_label_6);
+        target_10 = target_of(a_label_6);
         a_word_77 = 922746880ULL | ((((uint64_t)({
     off_31 = ((int64_t)(target_10 - asm_pc)) >> 2;
     if (!((off_31 >= -8192) && (off_31 <= 8191))) {
@@ -6766,7 +6766,7 @@ exit_offset_to_10:;
     k_6 = ss_kind[top_2];
     r_needs_barrier = !((k_6 == SS_CONST) || (k_6 == SS_PINNED));
     r_needs_barrier; })) {
-        bl_barrier(X21, X11, v_12);
+        jit_baseline_compiler_barrier(X21, X11, v_12);
     }
     r_store_inst_var = true;
 exit_store_inst_var:;
@@ -6778,11 +6778,11 @@ exit_store_inst_var:;
         pop = op == 0x89;
         return ({
     top_3 = ss_top - 1;
-    bl_ss_flush_to(top_3);
-    v_13 = bl_ss_materialize(top_3);
-    bl_load_literal(i_18, X10);
+    ss_flush_to(top_3);
+    v_13 = jit_baseline_compiler_ss_materialize(top_3);
+    load_literal(i_18, X10);
     if (asm_noting) {
-        asm_note("store into its value", 0);
+        note("store into its value", 0);
     }
     bits_29 = (v_13 & REG_D) != 0 ? 0xC4000000LL : (v_13 & REG_W) == 0 ? 0xC0000000LL : 0x80000000LL;
     s_22 = (v_13 & REG_W) == 0 ? 3 : 2;
@@ -6814,10 +6814,10 @@ exit_store_inst_var:;
         } else if (asm_error == ASM_OK) {
             asm_error = ASM_ERR_FULL;
         }
-        bl_barrier(X10, X11, v_13);
+        jit_baseline_compiler_barrier(X10, X11, v_13);
     }
     if (pop) {
-        bl_ss_pop(1);
+        ss_pop(1);
     }
     r_store_literal_variable = true;
     r_store_literal_variable; });
@@ -6829,11 +6829,11 @@ exit_store_inst_var:;
     i_19 = ss_top - 1;
     k_8 = ss_kind[i_19];
     if ((k_8 == SS_TEMP) && (ss_val[i_19] == t_9)) {
-        bl_ss_pop(1);
+        ss_pop(1);
         r_store_temp_3 = true;
         goto exit_store_temp_3;
     }
-    bl_ss_temp_changing(t_9);
+    ss_temp_changing(t_9);
     if (({
     if (!loop_active) {
         r_loop_reg_of_5 = -1;
@@ -6868,10 +6868,10 @@ exit_loop_reg_of_5:;
 exit_loop_reg_of_6:;
     r_loop_reg_of_6; });
     if (asm_noting) {
-        asm_note("temp %d := top (its loop register and its slot)", t_9);
+        note("temp %d := top (its loop register and its slot)", t_9);
     }
     if (k_9 == SS_DREG) {
-        bl_emit_box(ss_reg[i_21], X17);
+        emit_box(ss_reg[i_21], X17);
         off_33 = 8 * t_9;
         if ((off_33 >= 0) && ((off_33 & 7) == 0) && ((off_33 >> 3) <= 4095)) {
             a_word_82 = 4177526784LL | ((((uint64_t)(off_33 >> 3)) << 10) | 657ULL);
@@ -6980,7 +6980,7 @@ exit_temp_double_5:;
             dreg_refs[r_28] = (int8_t)(dreg_refs[r_28] + 1);
         }
     exit_set_temp_10:;
-        bl_ss_materialize_into(i_21, r_25);
+        jit_baseline_compiler_ss_materialize_into(i_21, r_25);
         off_34 = 8 * t_9;
         bits_31 = (r_25 & REG_D) != 0 ? 0xC4000000LL : (r_25 & REG_W) == 0 ? 0xC0000000LL : 0x80000000LL;
         s_23 = (r_25 & REG_W) == 0 ? 3 : 2;
@@ -7010,16 +7010,16 @@ exit_temp_double_5:;
         exit_load_store_24:;
         }
     }
-    bl_ss_pop(1);
+    ss_pop(1);
     r_store_loop_temp_3 = true;
     r_store_loop_temp_3; });
         goto exit_store_temp_3;
     }
     if (k_8 == SS_DREG) {
         if (asm_noting) {
-            asm_note("temp %d := an unboxed Float, boxed (it stays unboxed in its d register too)", t_9);
+            note("temp %d := an unboxed Float, boxed (it stays unboxed in its d register too)", t_9);
         }
-        bl_emit_box(ss_reg[i_19], X17);
+        emit_box(ss_reg[i_19], X17);
         off_35 = 8 * t_9;
         if ((off_35 >= 0) && ((off_35 & 7) == 0) && ((off_35 >> 3) <= 4095)) {
             a_word_89 = 4177526784LL | ((((uint64_t)(off_35 >> 3)) << 10) | 657ULL);
@@ -7060,7 +7060,7 @@ exit_temp_double_5:;
             dreg_refs[r_30] = (int8_t)(dreg_refs[r_30] + 1);
         }
     exit_set_temp_11:;
-        bl_ss_pop(1);
+        ss_pop(1);
         r_store_temp_3 = true;
         goto exit_store_temp_3;
     }
@@ -7094,7 +7094,7 @@ exit_temp_double_6:;
     }
 exit_set_temp_12:;
     if (asm_noting) {
-        asm_note("temp %d := top", t_9);
+        note("temp %d := top", t_9);
     }
     if (k_8 == SS_REG) {
         rt_8 = ss_reg[i_19];
@@ -7162,7 +7162,7 @@ exit_set_temp_12:;
         rt_10 = ({
     if (!self_valid) {
         if (asm_noting) {
-            asm_note("self (x21 is stale after a call)", 0);
+            note("self (x21 is stale after a call)", 0);
         }
         if (asm_pc < asm_limit) {
             *(uint32_t *)asm_pc = 4167008917ULL;
@@ -7204,7 +7204,7 @@ exit_set_temp_12:;
         }
     }
     if ((k_8 == SS_CONST) || ((k_8 == SS_TEMP) || ((k_8 == SS_LIT) || (k_8 == SS_SLOT)))) {
-        bl_ss_materialize_into(i_19, X16);
+        jit_baseline_compiler_ss_materialize_into(i_19, X16);
         off_39 = 8 * t_9;
         if ((off_39 >= 0) && ((off_39 & 7) == 0) && ((off_39 >> 3) <= 4095)) {
             a_word_97 = 4177526784LL | ((((uint64_t)(off_39 >> 3)) << 10) | 656ULL);
@@ -7231,7 +7231,7 @@ exit_set_temp_12:;
         exit_load_store_29:;
         }
     }
-    bl_ss_pop(1);
+    ss_pop(1);
     r_store_temp_3 = true;
 exit_store_temp_3:;
     r_store_temp_3; });
@@ -7245,13 +7245,13 @@ exit_store_temp_3:;
     i_23 = ana_bcs[pc_14];
     top_4 = ss_top - 1;
     if (op_3 != 0x8A) {
-        bl_ss_flush_to(top_4);
-        v_17 = bl_ss_materialize(top_4);
+        ss_flush_to(top_4);
+        v_17 = jit_baseline_compiler_ss_materialize(top_4);
     }
-    r_34 = op_3 == 0x8A ? bl_alloc_reg() : v_17;
+    r_34 = op_3 == 0x8A ? alloc_reg() : v_17;
     a_format = op_3 == 0x8A ? "push outer temp %d" : "store outer temp %d";
     if (asm_noting) {
-        asm_note(a_format, i_23);
+        note(a_format, i_23);
     }
     off_40 = (int64_t)&((frame *)0)->closure;
     if ((off_40 >= 0) && ((off_40 & 7) == 0) && ((off_40 >> 3) <= 4095)) {
@@ -7304,9 +7304,9 @@ exit_store_temp_3:;
     } else if (asm_error == ASM_OK) {
         asm_error = ASM_ERR_FULL;
     }
-    married_2 = asm_new_label();
-    done_2 = asm_new_label();
-    target_11 = asm_target_of(married_2);
+    married_2 = new_label();
+    done_2 = new_label();
+    target_11 = target_of(married_2);
     a_word_101 = 922746880ULL | ((((uint64_t)({
     off_41 = ((int64_t)(target_11 - asm_pc)) >> 2;
     if (!((off_41 >= -8192) && (off_41 <= 8191))) {
@@ -7326,7 +7326,7 @@ exit_offset_to_11:;
         asm_error = ASM_ERR_FULL;
     }
     if (asm_noting) {
-        asm_note("a Context: its slot", 0);
+        note("a Context: its slot", 0);
     }
     if (op_3 == 0x8A) {
         i_24 = CTX_FIXED + i_23;
@@ -7398,10 +7398,10 @@ exit_offset_to_11:;
             } else if (asm_error == ASM_OK) {
                 asm_error = ASM_ERR_FULL;
             }
-            bl_barrier(X10, X11, v_17);
+            jit_baseline_compiler_barrier(X10, X11, v_17);
         }
     }
-    target_12 = asm_target_of(done_2);
+    target_12 = target_of(done_2);
     a_word_106 = 0x14000000 | ({
     off_44 = ((int64_t)(target_12 - asm_pc)) >> 2;
     if (!((off_44 >= -33554432) && (off_44 <= 33554431))) {
@@ -7420,9 +7420,9 @@ exit_offset_to_12:;
     } else if (asm_error == ASM_OK) {
         asm_error = ASM_ERR_FULL;
     }
-    asm_bind(married_2);
+    arm64_assembler_bind(married_2);
     if (asm_noting) {
-        asm_note("married: the slot in its frame", 0);
+        note("married: the slot in its frame", 0);
     }
     off_45 = (int64_t)&((jit_state *)0)->frames;
     if ((off_45 >= 0) && ((off_45 & 7) == 0) && ((off_45 >> 3) <= 4095)) {
@@ -7545,13 +7545,13 @@ exit_offset_to_12:;
         exit_load_store_36:;
         }
     }
-    asm_bind(done_2);
+    arm64_assembler_bind(done_2);
     if (op_3 == 0x8A) {
-        r_outer_temp = bl_ss_push(SS_REG, 0, r_34);
+        r_outer_temp = ss_push(SS_REG, 0, r_34);
         goto exit_outer_temp;
     }
     if (op_3 == 0x8C) {
-        bl_ss_pop(1);
+        ss_pop(1);
     }
     r_outer_temp = true;
 exit_outer_temp:;
@@ -7569,9 +7569,9 @@ exit_outer_temp:;
     if ((k_12 == SS_TEMP) || ((k_12 == SS_LIT) || ((k_12 == SS_SLOT) || (k_12 == SS_CONST)))) {
         owner = reg_owner[X0];
         if ((owner >= 0) && (owner < SS_MAX)) {
-            bl_ss_spill(owner);
+            ss_spill(owner);
         }
-        bl_ss_materialize_into(ri, X0);
+        jit_baseline_compiler_ss_materialize_into(ri, X0);
         ss_in_slot[ri] = k_12 == SS_SLOT ? 1 : 0;
         ss_kind[ri] = SS_REG;
         ss_reg[ri] = 0;
@@ -7583,10 +7583,10 @@ exit_outer_temp:;
     }
     r_35 = ss_reg[ri];
     v_18 = ss_val[ri];
-    bl_ss_flush_to(ss_top);
-    bl_load_receiver(ri, k_12, r_35, v_18);
+    ss_flush_to(ss_top);
+    load_receiver(ri, k_12, r_35, v_18);
     op_4 = ana_bcs[pc];
-    bl_emit_site_call(pc, (uint32_t)(((uint64_t)n) | (((uint64_t)({
+    emit_site_call(pc, (uint32_t)(((uint64_t)n) | (((uint64_t)({
     if (op_4 < 0x68) {
         r_length_of = 1;
         goto exit_length_of;
@@ -7647,17 +7647,17 @@ exit_outer_temp:;
 exit_length_of:;
     r_length_of; })) << 8) | ((((uint64_t)sel) & 255) << 16) | (((uint64_t)kind) << 24) | 0ULL), ri);
     r_send = ({
-    bl_ss_pop(n + 1);
+    ss_pop(n + 1);
     for (r_36 = 0; r_36 <= 31; r_36++) {
         reg_owner[r_36] = -1;
     }
-    bl_drop_doubles();
+    drop_doubles();
     self_valid = false;
     if (loop_active) {
-        bl_emit_load_loop_temps(loop_id);
+        emit_load_loop_temps(loop_id);
     }
-    bl_note_continuation(pc, X0);
-    r_finish_send = bl_ss_push(SS_REG, 0, X0);
+    note_continuation(pc, X0);
+    r_finish_send = ss_push(SS_REG, 0, X0);
     r_finish_send; });
     r_send; });
     }
@@ -7670,9 +7670,9 @@ exit_length_of:;
     if ((k_13 == SS_TEMP) || ((k_13 == SS_LIT) || ((k_13 == SS_SLOT) || (k_13 == SS_CONST)))) {
         owner_2 = reg_owner[X0];
         if ((owner_2 >= 0) && (owner_2 < SS_MAX)) {
-            bl_ss_spill(owner_2);
+            ss_spill(owner_2);
         }
-        bl_ss_materialize_into(ri_2, X0);
+        jit_baseline_compiler_ss_materialize_into(ri_2, X0);
         ss_in_slot[ri_2] = k_13 == SS_SLOT ? 1 : 0;
         ss_kind[ri_2] = SS_REG;
         ss_reg[ri_2] = 0;
@@ -7684,10 +7684,10 @@ exit_length_of:;
     }
     r_37 = ss_reg[ri_2];
     v_19 = ss_val[ri_2];
-    bl_ss_flush_to(ss_top);
-    bl_load_receiver(ri_2, k_13, r_37, v_19);
+    ss_flush_to(ss_top);
+    load_receiver(ri_2, k_13, r_37, v_19);
     op_5 = ana_bcs[pc];
-    bl_emit_site_call(pc, (uint32_t)(((uint64_t)n_2) | (((uint64_t)({
+    emit_site_call(pc, (uint32_t)(((uint64_t)n_2) | (((uint64_t)({
     if (op_5 < 0x68) {
         r_length_of_2 = 1;
         goto exit_length_of_2;
@@ -7748,17 +7748,17 @@ exit_length_of:;
 exit_length_of_2:;
     r_length_of_2; })) << 8) | ((((uint64_t)sel_2) & 255) << 16) | 0ULL | 0ULL), ri_2);
     r_send_2 = ({
-    bl_ss_pop(n_2 + 1);
+    ss_pop(n_2 + 1);
     for (r_38 = 0; r_38 <= 31; r_38++) {
         reg_owner[r_38] = -1;
     }
-    bl_drop_doubles();
+    drop_doubles();
     self_valid = false;
     if (loop_active) {
-        bl_emit_load_loop_temps(loop_id);
+        emit_load_loop_temps(loop_id);
     }
-    bl_note_continuation(pc, X0);
-    r_finish_send_2 = bl_ss_push(SS_REG, 0, X0);
+    note_continuation(pc, X0);
+    r_finish_send_2 = ss_push(SS_REG, 0, X0);
     r_finish_send_2; });
     r_send_2; });
     }
@@ -7767,9 +7767,9 @@ exit_length_of_2:;
     pc_17 = pc + 4;
     pc_18 = pc + 5;
     after_2 = pc + 6 + ((((int64_t)ana_bcs[pc_17]) << 8) | ana_bcs[pc_18]);
-    bl_ss_flush_to(ss_top);
-    slow = asm_new_label();
-    bl_emit_inline_closure(pc, slow);
+    ss_flush_to(ss_top);
+    slow = new_label();
+    emit_inline_closure(pc, slow);
     off_49 = 8 * ss_top;
     if ((off_49 >= 0) && ((off_49 & 7) == 0) && ((off_49 >> 3) <= 4095)) {
         a_word_115 = 4177526784LL | ((((uint64_t)(off_49 >> 3)) << 10) | 649ULL);
@@ -7798,11 +7798,11 @@ exit_length_of_2:;
     pc_19 = (int32_t)after_2;
     a_label_7 = ({
     if (pc_labels[pc_19] < 0) {
-        pc_labels[pc_19] = asm_new_label();
+        pc_labels[pc_19] = new_label();
     }
     r_label_for_6 = pc_labels[pc_19];
     r_label_for_6; });
-    target_13 = asm_target_of(a_label_7);
+    target_13 = target_of(a_label_7);
     a_word_117 = 0x14000000 | ({
     off_50 = ((int64_t)(target_13 - asm_pc)) >> 2;
     if (!((off_50 >= -33554432) && (off_50 <= 33554431))) {
@@ -7821,23 +7821,23 @@ exit_offset_to_13:;
     } else if (asm_error == ASM_OK) {
         asm_error = ASM_ERR_FULL;
     }
-    asm_bind(slow);
+    arm64_assembler_bind(slow);
     if (asm_noting) {
-        asm_note("eden is full: the runtime makes it (and collects)", 0);
+        note("eden is full: the runtime makes it (and collects)", 0);
     }
-    bl_emit_runtime_call(closure_label, pc, ss_top);
-    bl_ss_push(SS_SLOT, 0, -1);
+    emit_runtime_call(closure_label, pc, ss_top);
+    ss_push(SS_SLOT, 0, -1);
     if (asm_noting) {
-        asm_note("skip the block's code", 0);
+        note("skip the block's code", 0);
     }
     pc_20 = (int32_t)after_2;
     a_label_8 = ({
     if (pc_labels[pc_20] < 0) {
-        pc_labels[pc_20] = asm_new_label();
+        pc_labels[pc_20] = new_label();
     }
     r_label_for_7 = pc_labels[pc_20];
     r_label_for_7; });
-    target_14 = asm_target_of(a_label_8);
+    target_14 = target_of(a_label_8);
     a_word_118 = 0x14000000 | ({
     off_51 = ((int64_t)(target_14 - asm_pc)) >> 2;
     if (!((off_51 >= -33554432) && (off_51 <= 33554431))) {
@@ -7896,7 +7896,7 @@ exit_can_thread_into_2:;
     r_can_thread_into_2; })) {
         r_jump = ({
     if (asm_noting) {
-        asm_note("jump threading: the conditional jump at pc %d, here", t_12);
+        note("jump threading: the conditional jump at pc %d, here", t_12);
     }
     after_3 = t_12 + 3;
     if (!({
@@ -7906,22 +7906,22 @@ exit_can_thread_into_2:;
     if_true_2 = ana_bcs[t_12] == 0x91;
     k_14 = ss_kind[top_5];
     if ((k_14 == SS_PINNED) && (ss_val[top_5] != X23)) {
-        bl_ss_pop(1);
+        ss_pop(1);
         if (ss_val[top_5] == X24 == if_true_2) {
-            bl_ss_flush_to(ss_top);
+            ss_flush_to(ss_top);
             if (asm_noting) {
-                asm_note("the condition is constant: jump", 0);
+                note("the condition is constant: jump", 0);
             }
             if ((ana_flags[t_13] & ANA_LOOP) != 0) {
-                bl_back_jump(t_13);
+                jit_baseline_compiler_back_jump(t_13);
             } else {
                 a_label_9 = ({
     if (pc_labels[t_13] < 0) {
-        pc_labels[t_13] = asm_new_label();
+        pc_labels[t_13] = new_label();
     }
     r_label_for_8 = pc_labels[t_13];
     r_label_for_8; });
-                target_15 = asm_target_of(a_label_9);
+                target_15 = target_of(a_label_9);
                 a_word_119 = 0x14000000 | ({
     off_52 = ((int64_t)(target_15 - asm_pc)) >> 2;
     if (!((off_52 >= -33554432) && (off_52 <= 33554431))) {
@@ -7946,12 +7946,12 @@ exit_offset_to_15:;
         r_conditional_jump_2 = true;
         goto exit_conditional_jump_2;
     }
-    bl_ss_flush_to(top_5);
-    r_39 = bl_ss_materialize(top_5);
-    bl_ss_pop(1);
+    ss_flush_to(top_5);
+    r_39 = jit_baseline_compiler_ss_materialize(top_5);
+    ss_pop(1);
     a_string_2 = if_true_2 ? "pop, jump if true" : "pop, jump if false";
     if (asm_noting) {
-        asm_note(a_string_2, 0);
+        note(a_string_2, 0);
     }
     rm_4 = if_true_2 ? X24 : X25;
     rd_3 = (r_39 & REG_W) | 31;
@@ -7980,15 +7980,15 @@ exit_offset_to_15:;
         asm_error = ASM_ERR_FULL;
     }
 exit_add_sub_9:;
-    bl_branch(COND_EQ, t_13);
-    s_31 = bl_slow(SL_MUSTBEBOOLEAN, t_12, ss_top + 1);
+    branch(COND_EQ, t_13);
+    s_31 = jit_baseline_compiler_slow(SL_MUSTBEBOOLEAN, t_12, ss_top + 1);
     if (s_31 < 0) {
         r_conditional_jump_2 = false;
         goto exit_conditional_jump_2;
     }
     sl_a[s_31] = (int8_t)r_39;
     if (asm_noting) {
-        asm_note("neither true nor false: the interpreter sends mustBeBoolean", 0);
+        note("neither true nor false: the interpreter sends mustBeBoolean", 0);
     }
     rm_5 = if_true_2 ? X25 : X24;
     rd_4 = (r_39 & REG_W) | 31;
@@ -8018,7 +8018,7 @@ exit_add_sub_9:;
     }
 exit_add_sub_10:;
     a_label_10 = sl_label[s_31];
-    target_16 = asm_target_of(a_label_10);
+    target_16 = target_of(a_label_10);
     a_word_124 = 0x54000000 | ((((uint64_t)({
     off_53 = ((int64_t)(target_16 - asm_pc)) >> 2;
     if (!((off_53 >= -262144) && (off_53 <= 262143))) {
@@ -8044,14 +8044,14 @@ exit_conditional_jump_2:;
         goto exit_thread_into_2;
     }
     if (!dead) {
-        bl_ss_flush_to(ss_top);
+        ss_flush_to(ss_top);
         a_label_11 = ({
     if (pc_labels[after_3] < 0) {
-        pc_labels[after_3] = asm_new_label();
+        pc_labels[after_3] = new_label();
     }
     r_label_for_9 = pc_labels[after_3];
     r_label_for_9; });
-        target_17 = asm_target_of(a_label_11);
+        target_17 = target_of(a_label_11);
         a_word_125 = 0x14000000 | ({
     off_54 = ((int64_t)(target_17 - asm_pc)) >> 2;
     if (!((off_54 >= -33554432) && (off_54 <= 33554431))) {
@@ -8078,20 +8078,20 @@ exit_thread_into_2:;
     r_thread_into; });
         goto exit_jump;
     }
-    bl_ss_flush_to(ss_top);
+    ss_flush_to(ss_top);
     if ((ana_flags[t_12] & ANA_LOOP) != 0) {
-        bl_back_jump(t_12);
+        jit_baseline_compiler_back_jump(t_12);
     } else {
         if (asm_noting) {
-            asm_note("jump", 0);
+            note("jump", 0);
         }
         a_label_12 = ({
     if (pc_labels[t_12] < 0) {
-        pc_labels[t_12] = asm_new_label();
+        pc_labels[t_12] = new_label();
     }
     r_label_for_10 = pc_labels[t_12];
     r_label_for_10; });
-        target_18 = asm_target_of(a_label_12);
+        target_18 = target_of(a_label_12);
         a_word_126 = 0x14000000 | ({
     off_55 = ((int64_t)(target_18 - asm_pc)) >> 2;
     if (!((off_55 >= -33554432) && (off_55 <= 33554431))) {
@@ -8124,22 +8124,22 @@ exit_jump:;
     if_true_3 = ana_bcs[pc] == 0x91;
     k_15 = ss_kind[top_6];
     if ((k_15 == SS_PINNED) && (ss_val[top_6] != X23)) {
-        bl_ss_pop(1);
+        ss_pop(1);
         if (ss_val[top_6] == X24 == if_true_3) {
-            bl_ss_flush_to(ss_top);
+            ss_flush_to(ss_top);
             if (asm_noting) {
-                asm_note("the condition is constant: jump", 0);
+                note("the condition is constant: jump", 0);
             }
             if ((ana_flags[t_14] & ANA_LOOP) != 0) {
-                bl_back_jump(t_14);
+                jit_baseline_compiler_back_jump(t_14);
             } else {
                 a_label_13 = ({
     if (pc_labels[t_14] < 0) {
-        pc_labels[t_14] = asm_new_label();
+        pc_labels[t_14] = new_label();
     }
     r_label_for_11 = pc_labels[t_14];
     r_label_for_11; });
-                target_19 = asm_target_of(a_label_13);
+                target_19 = target_of(a_label_13);
                 a_word_127 = 0x14000000 | ({
     off_56 = ((int64_t)(target_19 - asm_pc)) >> 2;
     if (!((off_56 >= -33554432) && (off_56 <= 33554431))) {
@@ -8164,12 +8164,12 @@ exit_offset_to_19:;
         r_conditional_jump_3 = true;
         goto exit_conditional_jump_3;
     }
-    bl_ss_flush_to(top_6);
-    r_40 = bl_ss_materialize(top_6);
-    bl_ss_pop(1);
+    ss_flush_to(top_6);
+    r_40 = jit_baseline_compiler_ss_materialize(top_6);
+    ss_pop(1);
     a_string_3 = if_true_3 ? "pop, jump if true" : "pop, jump if false";
     if (asm_noting) {
-        asm_note(a_string_3, 0);
+        note(a_string_3, 0);
     }
     rm_6 = if_true_3 ? X24 : X25;
     rd_5 = (r_40 & REG_W) | 31;
@@ -8198,15 +8198,15 @@ exit_offset_to_19:;
         asm_error = ASM_ERR_FULL;
     }
 exit_add_sub_11:;
-    bl_branch(COND_EQ, t_14);
-    s_32 = bl_slow(SL_MUSTBEBOOLEAN, pc, ss_top + 1);
+    branch(COND_EQ, t_14);
+    s_32 = jit_baseline_compiler_slow(SL_MUSTBEBOOLEAN, pc, ss_top + 1);
     if (s_32 < 0) {
         r_conditional_jump_3 = false;
         goto exit_conditional_jump_3;
     }
     sl_a[s_32] = (int8_t)r_40;
     if (asm_noting) {
-        asm_note("neither true nor false: the interpreter sends mustBeBoolean", 0);
+        note("neither true nor false: the interpreter sends mustBeBoolean", 0);
     }
     rm_7 = if_true_3 ? X25 : X24;
     rd_6 = (r_40 & REG_W) | 31;
@@ -8236,7 +8236,7 @@ exit_add_sub_11:;
     }
 exit_add_sub_12:;
     a_label_14 = sl_label[s_32];
-    target_20 = asm_target_of(a_label_14);
+    target_20 = target_of(a_label_14);
     a_word_132 = 0x54000000 | ((((uint64_t)({
     off_57 = ((int64_t)(target_20 - asm_pc)) >> 2;
     if (!((off_57 >= -262144) && (off_57 <= 262143))) {
@@ -8261,19 +8261,19 @@ exit_conditional_jump_3:;
     }
     if (op == 0x93) {
         pc_24 = pc + 1;
-        return bl_ss_push(SS_CONST, (((int64_t)(int32_t)(int16_t)(ana_bcs[pc_24] | (((int64_t)ana_bcs[pc_24 + 1]) << 8))) << 1) | 1, -1);
+        return ss_push(SS_CONST, (((int64_t)(int32_t)(int16_t)(ana_bcs[pc_24] | (((int64_t)ana_bcs[pc_24 + 1]) << 8))) << 1) | 1, -1);
     }
     if (op == 0x94) {
         return ({
     pc_25 = pc + 1;
     n_3 = (int32_t)ana_bcs[pc_25];
-    bl_ss_flush_to(ss_top);
+    ss_flush_to(ss_top);
     if (asm_noting) {
-        asm_note("make an Array: call the runtime", 0);
+        note("make an Array: call the runtime", 0);
     }
-    bl_emit_runtime_call(make_array_label, pc, ss_top);
-    bl_ss_pop(n_3);
-    r_make_array = bl_ss_push(SS_SLOT, 0, -1);
+    emit_runtime_call(make_array_label, pc, ss_top);
+    ss_pop(n_3);
+    r_make_array = ss_push(SS_SLOT, 0, -1);
     r_make_array; });
     }
     if (((op >= 0x97) && (op < 0xA0)) || ((op >= 0xF0) && (op < 0xFC))) {
@@ -8283,9 +8283,9 @@ exit_conditional_jump_3:;
     b = ana_bcs[pc_26];
     pc_27 = pc + 1;
     t_15 = ana_bcs[pc_27];
-    bl_ss_push(SS_TEMP, t_15, -1);
+    ss_push(SS_TEMP, t_15, -1);
     if ((op_7 == 0x97) || ((op_7 >= 0x9A) && (op_7 < 0xA0))) {
-        bl_ss_push(SS_TEMP, b, -1);
+        ss_push(SS_TEMP, b, -1);
     } else if ((op_7 == 0x98) || ((op_7 >= 0xF0) && (op_7 < 0xF6))) {
         if (!({
     if (b >= num_lits) {
@@ -8294,10 +8294,10 @@ exit_conditional_jump_3:;
     }
     v_20 = ana_lits[b];
     if ((v_20 & 7) != 0) {
-        r_push_literal_3 = bl_ss_push(SS_CONST, (int64_t)v_20, -1);
+        r_push_literal_3 = ss_push(SS_CONST, (int64_t)v_20, -1);
         goto exit_push_literal_3;
     }
-    r_push_literal_3 = bl_ss_push(SS_LIT, b, -1);
+    r_push_literal_3 = ss_push(SS_LIT, b, -1);
 exit_push_literal_3:;
     r_push_literal_3; })) {
             r_superinstruction = false;
@@ -8305,10 +8305,10 @@ exit_push_literal_3:;
         }
     } else {
         v_21 = (int8_t)b;
-        bl_ss_push(SS_CONST, (((int64_t)v_21) << 1) | 1, -1);
+        ss_push(SS_CONST, (((int64_t)v_21) << 1) | 1, -1);
     }
     p = ana_bcs + pc;
-    r_superinstruction = bl_special(({
+    r_superinstruction = jit_baseline_compiler_special(({
     op_8 = p[0];
     if ((op_8 >= 0xA0) && (op_8 < 0xC0)) {
         r_special_index_of = (int32_t)(op_8 - 0xA0);
@@ -8333,13 +8333,13 @@ exit_superinstruction:;
     r_superinstruction; });
     }
     if ((op >= 0xA0) && (op < 0xC0)) {
-        return bl_special(op - 0xA0, pc, 0);
+        return jit_baseline_compiler_special(op - 0xA0, pc, 0);
     }
     return false;
 }
 
 /* JitBaselineCompiler>>emitBlockEntry: */
-static bool bl_emit_block_entry(int32_t pc)
+static bool emit_block_entry(int32_t pc)
 {
     int32_t p;
     int32_t pc_2;
@@ -8410,39 +8410,39 @@ exit_push_region:;
     if (block_count >= BL_MAX_BLOCKS) {
         return false;
     }
-    entry = asm_new_label();
-    asm_bind(entry);
+    entry = new_label();
+    arm64_assembler_bind(entry);
     block_pcs[block_count] = pc;
     block_labels[block_count] = entry;
     block_count = block_count + 1;
     if (asm_noting) {
-        asm_note("block entry: x0 the closure, x20 our fp, x30 back to the value send", 0);
+        note("block entry: x0 the closure, x20 our fp, x30 back to the value send", 0);
     }
-    if (!bl_emit_stack_check(pc)) {
+    if (!emit_stack_check(pc)) {
         return false;
     }
-    bl_emit_frame(true, na, nt);
+    emit_frame_for(true, na, nt);
     d = na + nt;
     if (!({
     if (counter_addr == 0) {
         r_emit_tier_up = true;
         goto exit_emit_tier_up;
     }
-    s_2 = bl_slow(SL_TIERUP, pc, d);
+    s_2 = jit_baseline_compiler_slow(SL_TIERUP, pc, d);
     if (s_2 < 0) {
         r_emit_tier_up = false;
         goto exit_emit_tier_up;
     }
-    after = asm_new_label();
+    after = new_label();
     sl_cont[s_2] = after;
     sl_info[s_2] = 0;
     sl_loop[s_2] = -1;
     slow_label = sl_label[s_2];
     if (asm_noting) {
-        asm_note("count toward optimization", 0);
+        note("count toward optimization", 0);
     }
-    a_label = asm_label_at(counter_addr);
-    off = ((int64_t)((asm_target_of(a_label) & 18446744073709547520ULL) - (asm_pc & 18446744073709547520ULL))) >> 12;
+    a_label = label_at(counter_addr);
+    off = ((int64_t)((target_of(a_label) & 18446744073709547520ULL) - (asm_pc & 18446744073709547520ULL))) >> 12;
     if (!((off >= -1048576) && (off <= 0xFFFFF))) {
         if (asm_error == ASM_OK) {
             asm_error = ASM_ERR_RANGE;
@@ -8518,7 +8518,7 @@ exit_add_sub:;
         }
     exit_load_store_2:;
     }
-    target = asm_target_of(slow_label);
+    target = target_of(slow_label);
     a_word_6 = 0x54000000 | ((((uint64_t)({
     off_4 = ((int64_t)(target - asm_pc)) >> 2;
     if (!((off_4 >= -262144) && (off_4 <= 262143))) {
@@ -8537,28 +8537,28 @@ exit_offset_to:;
     } else if (asm_error == ASM_OK) {
         asm_error = ASM_ERR_FULL;
     }
-    asm_bind(after);
+    arm64_assembler_bind(after);
     r_emit_tier_up = true;
 exit_emit_tier_up:;
     r_emit_tier_up; })) {
         return false;
     }
-    bl_ss_reset(na + nt);
+    ss_reset(na + nt);
     self_valid = true;
     dead = false;
-    s = bl_slow(SL_START, pc, na + nt);
+    s = jit_baseline_compiler_slow(SL_START, pc, na + nt);
     if (s < 0) {
         return false;
     }
     sl_cont[s] = ({
     if (pc_labels[pc] < 0) {
-        pc_labels[pc] = asm_new_label();
+        pc_labels[pc] = new_label();
     }
     r_label_for = pc_labels[pc];
     r_label_for; });
-    asm_bind(({
+    arm64_assembler_bind(({
     if (pc_labels[pc] < 0) {
-        pc_labels[pc] = asm_new_label();
+        pc_labels[pc] = new_label();
     }
     r_label_for_2 = pc_labels[pc];
     r_label_for_2; }));
@@ -8566,7 +8566,7 @@ exit_emit_tier_up:;
 }
 
 /* JitBaselineCompiler>>emitBox:into: */
-static void bl_emit_box(int32_t d, int32_t r)
+static void emit_box(int32_t d, int32_t r)
 {
     int32_t s;
     int8_t r_3;
@@ -8589,7 +8589,7 @@ static void bl_emit_box(int32_t d, int32_t r)
     uint64_t a_word_4;
     int32_t enc;
     uint64_t a_word_5;
-    s = bl_slow(SL_BOX, cur_pc, ss_top);
+    s = jit_baseline_compiler_slow(SL_BOX, cur_pc, ss_top);
     if (s < 0) {
         if (asm_error == ASM_OK) {
             asm_error = ASM_ERR_LABEL;
@@ -8598,13 +8598,13 @@ static void bl_emit_box(int32_t d, int32_t r)
     }
     sl_a[s] = (int8_t)d;
     sl_r[s] = (int8_t)r;
-    sl_cont[s] = asm_new_label();
-    bl_note_live_regs(s, r);
+    sl_cont[s] = new_label();
+    note_live_regs_for(s, r);
     r_3 = sl_a[s];
     d_2 = D0 + r_3;
     r_2 = sl_r[s];
     if (asm_noting) {
-        asm_note("box: a SmallFloat64 if its exponent fits (zero, other exponents out of line)", 0);
+        note("box: a SmallFloat64 if its exponent fits (zero, other exponents out of line)", 0);
     }
     a_word = 0x9E660000LL | ((((uint64_t)(d_2 & 31)) << 5) | 16);
     if (asm_pc < asm_limit) {
@@ -8620,7 +8620,7 @@ static void bl_emit_box(int32_t d, int32_t r)
         asm_error = ASM_ERR_FULL;
     }
     a_label = sl_label[s];
-    target = asm_target_of(a_label);
+    target = target_of(a_label);
     a_word_2 = 3019898880LL | ((((uint64_t)({
     off = ((int64_t)(target - asm_pc)) >> 2;
     if (!((off >= -262144) && (off <= 262143))) {
@@ -8668,7 +8668,7 @@ exit_add_sub:;
     }
 exit_add_sub_2:;
     a_label_2 = sl_label[s];
-    target_2 = asm_target_of(a_label_2);
+    target_2 = target_of(a_label_2);
     a_word_3 = 0x54000000 | ((((uint64_t)({
     off_2 = ((int64_t)(target_2 - asm_pc)) >> 2;
     if (!((off_2 >= -262144) && (off_2 <= 262143))) {
@@ -8693,7 +8693,7 @@ exit_offset_to_2:;
     } else if (asm_error == ASM_OK) {
         asm_error = ASM_ERR_FULL;
     }
-    asm_mov_imm(X9, 8070450532247928832ULL);
+    mov_imm(X9, 8070450532247928832ULL);
     if (asm_pc < asm_limit) {
         *(uint32_t *)asm_pc = 3406365233ULL;
         asm_pc = asm_pc + 4;
@@ -8724,7 +8724,7 @@ exit_offset_to_2:;
     }
 exit_bitfield:;
 exit_lsl:;
-    enc = asm_logical_immediate(4ULL, (r_2 & REG_W) == 0 ? 64 : 32);
+    enc = logical_immediate(4ULL, (r_2 & REG_W) == 0 ? 64 : 32);
     if (enc < 0) {
         if (asm_error == ASM_OK) {
             asm_error = ASM_ERR_IMMEDIATE;
@@ -8739,11 +8739,11 @@ exit_lsl:;
         asm_error = ASM_ERR_FULL;
     }
 exit_logical:;
-    asm_bind(sl_cont[s]);
+    arm64_assembler_bind(sl_cont[s]);
 }
 
 /* JitBaselineCompiler>>emitBoxInSlowPath:into:pc:depth: */
-static void bl_emit_box_slow(int32_t d, int32_t r, int32_t pc, int32_t depth)
+static void emit_box_in_slow_path(int32_t d, int r, int32_t pc, int32_t depth)
 {
     int32_t s;
     int8_t r_3;
@@ -8766,7 +8766,7 @@ static void bl_emit_box_slow(int32_t d, int32_t r, int32_t pc, int32_t depth)
     uint64_t a_word_4;
     int32_t enc;
     uint64_t a_word_5;
-    s = bl_slow(SL_BOX, pc, depth);
+    s = jit_baseline_compiler_slow(SL_BOX, pc, depth);
     if (s < 0) {
         if (asm_error == ASM_OK) {
             asm_error = ASM_ERR_LABEL;
@@ -8775,14 +8775,14 @@ static void bl_emit_box_slow(int32_t d, int32_t r, int32_t pc, int32_t depth)
     }
     sl_a[s] = (int8_t)d;
     sl_r[s] = (int8_t)r;
-    sl_cont[s] = asm_new_label();
+    sl_cont[s] = new_label();
     sl_saved_start[s] = saved_count;
     sl_saved_count[s] = 0;
     r_3 = sl_a[s];
     d_2 = D0 + r_3;
     r_2 = sl_r[s];
     if (asm_noting) {
-        asm_note("box: a SmallFloat64 if its exponent fits (zero, other exponents out of line)", 0);
+        note("box: a SmallFloat64 if its exponent fits (zero, other exponents out of line)", 0);
     }
     a_word = 0x9E660000LL | ((((uint64_t)(d_2 & 31)) << 5) | 16);
     if (asm_pc < asm_limit) {
@@ -8798,7 +8798,7 @@ static void bl_emit_box_slow(int32_t d, int32_t r, int32_t pc, int32_t depth)
         asm_error = ASM_ERR_FULL;
     }
     a_label = sl_label[s];
-    target = asm_target_of(a_label);
+    target = target_of(a_label);
     a_word_2 = 3019898880LL | ((((uint64_t)({
     off = ((int64_t)(target - asm_pc)) >> 2;
     if (!((off >= -262144) && (off <= 262143))) {
@@ -8846,7 +8846,7 @@ exit_add_sub:;
     }
 exit_add_sub_2:;
     a_label_2 = sl_label[s];
-    target_2 = asm_target_of(a_label_2);
+    target_2 = target_of(a_label_2);
     a_word_3 = 0x54000000 | ((((uint64_t)({
     off_2 = ((int64_t)(target_2 - asm_pc)) >> 2;
     if (!((off_2 >= -262144) && (off_2 <= 262143))) {
@@ -8871,7 +8871,7 @@ exit_offset_to_2:;
     } else if (asm_error == ASM_OK) {
         asm_error = ASM_ERR_FULL;
     }
-    asm_mov_imm(X9, 8070450532247928832ULL);
+    mov_imm(X9, 8070450532247928832ULL);
     if (asm_pc < asm_limit) {
         *(uint32_t *)asm_pc = 3406365233ULL;
         asm_pc = asm_pc + 4;
@@ -8902,7 +8902,7 @@ exit_offset_to_2:;
     }
 exit_bitfield:;
 exit_lsl:;
-    enc = asm_logical_immediate(4ULL, (r_2 & REG_W) == 0 ? 64 : 32);
+    enc = logical_immediate(4ULL, (r_2 & REG_W) == 0 ? 64 : 32);
     if (enc < 0) {
         if (asm_error == ASM_OK) {
             asm_error = ASM_ERR_IMMEDIATE;
@@ -8917,11 +8917,11 @@ exit_lsl:;
         asm_error = ASM_ERR_FULL;
     }
 exit_logical:;
-    asm_bind(sl_cont[s]);
+    arm64_assembler_bind(sl_cont[s]);
 }
 
 /* JitBaselineCompiler>>emitFloatPrimitive:fail: */
-static void bl_emit_float_primitive(int32_t op, int32_t fail)
+static void emit_float_primitive(int32_t op, int32_t fail)
 {
     int32_t int_;
     int32_t obj;
@@ -9027,12 +9027,12 @@ static void bl_emit_float_primitive(int32_t op, int32_t fail)
     int64_t off_21;
     int64_t a_word_29;
     if (asm_noting) {
-        asm_note("Float primitive: the receiver (and the argument) as doubles", 0);
+        note("Float primitive: the receiver (and the argument) as doubles", 0);
     }
-    int_ = asm_new_label();
-    obj = asm_new_label();
-    done_2 = asm_new_label();
-    target = asm_target_of(int_);
+    int_ = new_label();
+    obj = new_label();
+    done_2 = new_label();
+    target = target_of(int_);
     a_word = 922746880ULL | ((((uint64_t)({
     off = ((int64_t)(target - asm_pc)) >> 2;
     if (!((off >= -8192) && (off <= 8191))) {
@@ -9051,7 +9051,7 @@ exit_offset_to:;
     } else if (asm_error == ASM_OK) {
         asm_error = ASM_ERR_FULL;
     }
-    enc = asm_logical_immediate(7ULL, 64);
+    enc = logical_immediate(7ULL, 64);
     if (enc < 0) {
         if (asm_error == ASM_OK) {
             asm_error = ASM_ERR_IMMEDIATE;
@@ -9077,7 +9077,7 @@ exit_logical:;
         asm_error = ASM_ERR_IMMEDIATE;
     }
 exit_add_sub:;
-    target_2 = asm_target_of(obj);
+    target_2 = target_of(obj);
     a_word_3 = 0x54000000 | ((((uint64_t)({
     off_2 = ((int64_t)(target_2 - asm_pc)) >> 2;
     if (!((off_2 >= -262144) && (off_2 <= 262143))) {
@@ -9097,7 +9097,7 @@ exit_offset_to_2:;
         asm_error = ASM_ERR_FULL;
     }
     if (asm_noting) {
-        asm_note("a SmallFloat64: rotate back", 0);
+        note("a SmallFloat64: rotate back", 0);
     }
     if (asm_pc < asm_limit) {
         *(uint32_t *)asm_pc = 3544448016ULL;
@@ -9105,7 +9105,7 @@ exit_offset_to_2:;
     } else if (asm_error == ASM_OK) {
         asm_error = ASM_ERR_FULL;
     }
-    asm_mov_imm(X17, 8070450532247928832ULL);
+    mov_imm(X17, 8070450532247928832ULL);
     if (asm_pc < asm_limit) {
         *(uint32_t *)asm_pc = 2333147665ULL;
         asm_pc = asm_pc + 4;
@@ -9141,7 +9141,7 @@ exit_add_sub_2:;
     } else if (asm_error == ASM_OK) {
         asm_error = ASM_ERR_FULL;
     }
-    target_3 = asm_target_of(done_2);
+    target_3 = target_of(done_2);
     a_word_4 = 0x14000000 | ({
     off_3 = ((int64_t)(target_3 - asm_pc)) >> 2;
     if (!((off_3 >= -33554432) && (off_3 <= 33554431))) {
@@ -9160,8 +9160,8 @@ exit_offset_to_3:;
     } else if (asm_error == ASM_OK) {
         asm_error = ASM_ERR_FULL;
     }
-    asm_bind(obj);
-    target_4 = asm_target_of(fail);
+    arm64_assembler_bind(obj);
+    target_4 = target_of(fail);
     a_word_5 = 3036676096LL | ((((uint64_t)({
     off_4 = ((int64_t)(target_4 - asm_pc)) >> 2;
     if (!((off_4 >= -262144) && (off_4 <= 262143))) {
@@ -9181,7 +9181,7 @@ exit_offset_to_4:;
         asm_error = ASM_ERR_FULL;
     }
     if (asm_noting) {
-        asm_note("a BoxedFloat64: its word", 0);
+        note("a BoxedFloat64: its word", 0);
     }
     if (asm_pc < asm_limit) {
         *(uint32_t *)asm_pc = 4181722128ULL;
@@ -9220,7 +9220,7 @@ exit_offset_to_4:;
     } else if (asm_error == ASM_OK) {
         asm_error = ASM_ERR_FULL;
     }
-    target_5 = asm_target_of(fail);
+    target_5 = target_of(fail);
     a_word_8 = 0x54000000 | ((((uint64_t)({
     off_6 = ((int64_t)(target_5 - asm_pc)) >> 2;
     if (!((off_6 >= -262144) && (off_6 <= 262143))) {
@@ -9245,7 +9245,7 @@ exit_offset_to_5:;
     } else if (asm_error == ASM_OK) {
         asm_error = ASM_ERR_FULL;
     }
-    target_6 = asm_target_of(done_2);
+    target_6 = target_of(done_2);
     a_word_9 = 0x14000000 | ({
     off_7 = ((int64_t)(target_6 - asm_pc)) >> 2;
     if (!((off_7 >= -33554432) && (off_7 <= 33554431))) {
@@ -9264,9 +9264,9 @@ exit_offset_to_6:;
     } else if (asm_error == ASM_OK) {
         asm_error = ASM_ERR_FULL;
     }
-    asm_bind(int_);
+    arm64_assembler_bind(int_);
     if (asm_noting) {
-        asm_note("a SmallInteger: convert", 0);
+        note("a SmallInteger: convert", 0);
     }
     if (asm_pc < asm_limit) {
         *(uint32_t *)asm_pc = 2470575120ULL;
@@ -9280,7 +9280,7 @@ exit_offset_to_6:;
     } else if (asm_error == ASM_OK) {
         asm_error = ASM_ERR_FULL;
     }
-    asm_bind(done_2);
+    arm64_assembler_bind(done_2);
     if (op < 14) {
         if (asm_pc < asm_limit) {
             *(uint32_t *)asm_pc = 4181721729ULL;
@@ -9288,10 +9288,10 @@ exit_offset_to_6:;
         } else if (asm_error == ASM_OK) {
             asm_error = ASM_ERR_FULL;
         }
-        int__2 = asm_new_label();
-        obj_2 = asm_new_label();
-        done_3 = asm_new_label();
-        target_7 = asm_target_of(int__2);
+        int__2 = new_label();
+        obj_2 = new_label();
+        done_3 = new_label();
+        target_7 = target_of(int__2);
         a_word_10 = 922746880ULL | ((((uint64_t)({
     off_8 = ((int64_t)(target_7 - asm_pc)) >> 2;
     if (!((off_8 >= -8192) && (off_8 <= 8191))) {
@@ -9310,7 +9310,7 @@ exit_offset_to_7:;
         } else if (asm_error == ASM_OK) {
             asm_error = ASM_ERR_FULL;
         }
-        enc_2 = asm_logical_immediate(7ULL, 64);
+        enc_2 = logical_immediate(7ULL, 64);
         if (enc_2 < 0) {
             if (asm_error == ASM_OK) {
                 asm_error = ASM_ERR_IMMEDIATE;
@@ -9336,7 +9336,7 @@ exit_offset_to_7:;
             asm_error = ASM_ERR_IMMEDIATE;
         }
     exit_add_sub_3:;
-        target_8 = asm_target_of(obj_2);
+        target_8 = target_of(obj_2);
         a_word_12 = 0x54000000 | ((((uint64_t)({
     off_9 = ((int64_t)(target_8 - asm_pc)) >> 2;
     if (!((off_9 >= -262144) && (off_9 <= 262143))) {
@@ -9356,7 +9356,7 @@ exit_offset_to_8:;
             asm_error = ASM_ERR_FULL;
         }
         if (asm_noting) {
-            asm_note("a SmallFloat64: rotate back", 0);
+            note("a SmallFloat64: rotate back", 0);
         }
         if (asm_pc < asm_limit) {
             *(uint32_t *)asm_pc = 3544448048ULL;
@@ -9364,7 +9364,7 @@ exit_offset_to_8:;
         } else if (asm_error == ASM_OK) {
             asm_error = ASM_ERR_FULL;
         }
-        asm_mov_imm(X17, 8070450532247928832ULL);
+        mov_imm(X17, 8070450532247928832ULL);
         if (asm_pc < asm_limit) {
             *(uint32_t *)asm_pc = 2333147665ULL;
             asm_pc = asm_pc + 4;
@@ -9400,7 +9400,7 @@ exit_offset_to_8:;
         } else if (asm_error == ASM_OK) {
             asm_error = ASM_ERR_FULL;
         }
-        target_9 = asm_target_of(done_3);
+        target_9 = target_of(done_3);
         a_word_13 = 0x14000000 | ({
     off_10 = ((int64_t)(target_9 - asm_pc)) >> 2;
     if (!((off_10 >= -33554432) && (off_10 <= 33554431))) {
@@ -9419,8 +9419,8 @@ exit_offset_to_9:;
         } else if (asm_error == ASM_OK) {
             asm_error = ASM_ERR_FULL;
         }
-        asm_bind(obj_2);
-        target_10 = asm_target_of(fail);
+        arm64_assembler_bind(obj_2);
+        target_10 = target_of(fail);
         a_word_14 = 3036676096LL | ((((uint64_t)({
     off_11 = ((int64_t)(target_10 - asm_pc)) >> 2;
     if (!((off_11 >= -262144) && (off_11 <= 262143))) {
@@ -9440,7 +9440,7 @@ exit_offset_to_10:;
             asm_error = ASM_ERR_FULL;
         }
         if (asm_noting) {
-            asm_note("a BoxedFloat64: its word", 0);
+            note("a BoxedFloat64: its word", 0);
         }
         if (asm_pc < asm_limit) {
             *(uint32_t *)asm_pc = 4181722160ULL;
@@ -9479,7 +9479,7 @@ exit_offset_to_10:;
         } else if (asm_error == ASM_OK) {
             asm_error = ASM_ERR_FULL;
         }
-        target_11 = asm_target_of(fail);
+        target_11 = target_of(fail);
         a_word_17 = 0x54000000 | ((((uint64_t)({
     off_13 = ((int64_t)(target_11 - asm_pc)) >> 2;
     if (!((off_13 >= -262144) && (off_13 <= 262143))) {
@@ -9504,7 +9504,7 @@ exit_offset_to_11:;
         } else if (asm_error == ASM_OK) {
             asm_error = ASM_ERR_FULL;
         }
-        target_12 = asm_target_of(done_3);
+        target_12 = target_of(done_3);
         a_word_18 = 0x14000000 | ({
     off_14 = ((int64_t)(target_12 - asm_pc)) >> 2;
     if (!((off_14 >= -33554432) && (off_14 <= 33554431))) {
@@ -9523,9 +9523,9 @@ exit_offset_to_12:;
         } else if (asm_error == ASM_OK) {
             asm_error = ASM_ERR_FULL;
         }
-        asm_bind(int__2);
+        arm64_assembler_bind(int__2);
         if (asm_noting) {
-            asm_note("a SmallInteger: convert", 0);
+            note("a SmallInteger: convert", 0);
         }
         if (asm_pc < asm_limit) {
             *(uint32_t *)asm_pc = 2470575152ULL;
@@ -9539,12 +9539,12 @@ exit_offset_to_12:;
         } else if (asm_error == ASM_OK) {
             asm_error = ASM_ERR_FULL;
         }
-        asm_bind(done_3);
+        arm64_assembler_bind(done_3);
     }
     if (op >= 8) {
         if (op == 15) {
             if (asm_noting) {
-                asm_note("truncated: a SmallInteger (else the C function)", 0);
+                note("truncated: a SmallInteger (else the C function)", 0);
             }
             if (asm_pc < asm_limit) {
                 *(uint32_t *)asm_pc = 509616128ULL;
@@ -9552,7 +9552,7 @@ exit_offset_to_12:;
             } else if (asm_error == ASM_OK) {
                 asm_error = ASM_ERR_FULL;
             }
-            target_13 = asm_target_of(fail);
+            target_13 = target_of(fail);
             a_word_19 = 0x54000000 | ((((uint64_t)({
     off_15 = ((int64_t)(target_13 - asm_pc)) >> 2;
     if (!((off_15 >= -262144) && (off_15 <= 262143))) {
@@ -9589,7 +9589,7 @@ exit_offset_to_13:;
             } else if (asm_error == ASM_OK) {
                 asm_error = ASM_ERR_FULL;
             }
-            target_14 = asm_target_of(fail);
+            target_14 = target_of(fail);
             a_word_20 = 0x54000000 | ((((uint64_t)({
     off_16 = ((int64_t)(target_14 - asm_pc)) >> 2;
     if (!((off_16 >= -262144) && (off_16 <= 262143))) {
@@ -9608,7 +9608,7 @@ exit_offset_to_14:;
             } else if (asm_error == ASM_OK) {
                 asm_error = ASM_ERR_FULL;
             }
-            enc_3 = asm_logical_immediate(1ULL, 64);
+            enc_3 = logical_immediate(1ULL, 64);
             if (enc_3 < 0) {
                 if (asm_error == ASM_OK) {
                     asm_error = ASM_ERR_IMMEDIATE;
@@ -9706,7 +9706,7 @@ exit_offset_to_14:;
         } else if (asm_error == ASM_OK) {
             asm_error = ASM_ERR_FULL;
         }
-        target_15 = asm_target_of(fail);
+        target_15 = target_of(fail);
         a_word_23 = 0x54000000 | ((((uint64_t)({
     off_17 = ((int64_t)(target_15 - asm_pc)) >> 2;
     if (!((off_17 >= -262144) && (off_17 <= 262143))) {
@@ -9740,10 +9740,10 @@ exit_offset_to_15:;
             asm_error = ASM_ERR_FULL;
         }
     }
-    done = asm_new_label();
-    zero = asm_new_label();
+    done = new_label();
+    zero = new_label();
     if (asm_noting) {
-        asm_note("the result: a SmallFloat64 if its exponent fits", 0);
+        note("the result: a SmallFloat64 if its exponent fits", 0);
     }
     if (asm_pc < asm_limit) {
         *(uint32_t *)asm_pc = 2657484816ULL;
@@ -9757,7 +9757,7 @@ exit_offset_to_15:;
     } else if (asm_error == ASM_OK) {
         asm_error = ASM_ERR_FULL;
     }
-    target_16 = asm_target_of(zero);
+    target_16 = target_of(zero);
     a_word_24 = 3019898880LL | ((((uint64_t)({
     off_18 = ((int64_t)(target_16 - asm_pc)) >> 2;
     if (!((off_18 >= -262144) && (off_18 <= 262143))) {
@@ -9804,7 +9804,7 @@ exit_add_sub_5:;
         asm_error = ASM_ERR_IMMEDIATE;
     }
 exit_add_sub_6:;
-    target_17 = asm_target_of(fail);
+    target_17 = target_of(fail);
     a_word_25 = 0x54000000 | ((((uint64_t)({
     off_19 = ((int64_t)(target_17 - asm_pc)) >> 2;
     if (!((off_19 >= -262144) && (off_19 <= 262143))) {
@@ -9829,7 +9829,7 @@ exit_offset_to_17:;
     } else if (asm_error == ASM_OK) {
         asm_error = ASM_ERR_FULL;
     }
-    asm_mov_imm(X9, 8070450532247928832ULL);
+    mov_imm(X9, 8070450532247928832ULL);
     if (asm_pc < asm_limit) {
         *(uint32_t *)asm_pc = 3406365233ULL;
         asm_pc = asm_pc + 4;
@@ -9842,7 +9842,7 @@ exit_offset_to_17:;
     } else if (asm_error == ASM_OK) {
         asm_error = ASM_ERR_FULL;
     }
-    enc_4 = asm_logical_immediate(4ULL, 64);
+    enc_4 = logical_immediate(4ULL, 64);
     if (enc_4 < 0) {
         if (asm_error == ASM_OK) {
             asm_error = ASM_ERR_IMMEDIATE;
@@ -9857,7 +9857,7 @@ exit_offset_to_17:;
         asm_error = ASM_ERR_FULL;
     }
 exit_logical_4:;
-    target_18 = asm_target_of(done);
+    target_18 = target_of(done);
     a_word_27 = 0x14000000 | ({
     off_20 = ((int64_t)(target_18 - asm_pc)) >> 2;
     if (!((off_20 >= -33554432) && (off_20 <= 33554431))) {
@@ -9876,7 +9876,7 @@ exit_offset_to_18:;
     } else if (asm_error == ASM_OK) {
         asm_error = ASM_ERR_FULL;
     }
-    asm_bind(zero);
+    arm64_assembler_bind(zero);
     if (asm_pc < asm_limit) {
         *(uint32_t *)asm_pc = 3548380689ULL;
         asm_pc = asm_pc + 4;
@@ -9889,7 +9889,7 @@ exit_offset_to_18:;
     } else if (asm_error == ASM_OK) {
         asm_error = ASM_ERR_FULL;
     }
-    enc_5 = asm_logical_immediate(4ULL, 64);
+    enc_5 = logical_immediate(4ULL, 64);
     if (enc_5 < 0) {
         if (asm_error == ASM_OK) {
             asm_error = ASM_ERR_IMMEDIATE;
@@ -9904,7 +9904,7 @@ exit_offset_to_18:;
         asm_error = ASM_ERR_FULL;
     }
 exit_logical_5:;
-    target_19 = asm_target_of(done);
+    target_19 = target_of(done);
     a_word_29 = 0x14000000 | ({
     off_21 = ((int64_t)(target_19 - asm_pc)) >> 2;
     if (!((off_21 >= -33554432) && (off_21 <= 33554431))) {
@@ -9923,7 +9923,7 @@ exit_offset_to_19:;
     } else if (asm_error == ASM_OK) {
         asm_error = ASM_ERR_FULL;
     }
-    asm_bind(done);
+    arm64_assembler_bind(done);
     if (asm_pc < asm_limit) {
         *(uint32_t *)asm_pc = 0xD65F03C0LL;
         asm_pc = asm_pc + 4;
@@ -9933,7 +9933,7 @@ exit_offset_to_19:;
 }
 
 /* JitBaselineCompiler>>emitFrameFor:args:temps: */
-static void bl_emit_frame(bool is_block, int32_t na, int32_t nt)
+static void emit_frame_for(bool is_block, int32_t na, int32_t nt)
 {
     size_t imm;
     size_t v;
@@ -9957,7 +9957,7 @@ static void bl_emit_frame(bool is_block, int32_t na, int32_t nt)
     uint64_t a_word_10;
     uint64_t a_word_11;
     if (asm_noting) {
-        asm_note("native frame record (x29, x30; x29 stays the C frame of jit_enter)", 0);
+        note("native frame record (x29, x30; x29 stays the C frame of jit_enter)", 0);
     }
     if (asm_pc < asm_limit) {
         *(uint32_t *)asm_pc = 2847898621ULL;
@@ -9966,7 +9966,7 @@ static void bl_emit_frame(bool is_block, int32_t na, int32_t nt)
         asm_error = ASM_ERR_FULL;
     }
     if (asm_noting) {
-        asm_note("x19 := our Frame: code (the header after the code; the runtime sets method from it), closure, ctx nil, fp, pc and sp 0 (lazy: derived from return addresses)", 0);
+        note("x19 := our Frame: code (the header after the code; the runtime sets method from it), closure, ctx nil, fp, pc and sp 0 (lazy: derived from return addresses)", 0);
     }
     imm = sizeof(frame);
     v = imm;
@@ -9994,7 +9994,7 @@ static void bl_emit_frame(bool is_block, int32_t na, int32_t nt)
         asm_error = ASM_ERR_IMMEDIATE;
     }
 exit_add_sub:;
-    off = (int64_t)(asm_target_of(header_label) - asm_pc);
+    off = (int64_t)(target_of(header_label) - asm_pc);
     if (!((off >= -1048576) && (off <= 0xFFFFF))) {
         if (asm_error == ASM_OK) {
             asm_error = ASM_ERR_RANGE;
@@ -10084,7 +10084,7 @@ exit_adr:;
 exit_pair_3:;
     if (is_block) {
         if (asm_noting) {
-            asm_note("the receiver: the outer context's, into the closure's slot", 0);
+            note("the receiver: the outer context's, into the closure's slot", 0);
         }
         if (asm_pc < asm_limit) {
             *(uint32_t *)asm_pc = 4181723152ULL;
@@ -10106,7 +10106,7 @@ exit_pair_3:;
         }
     } else {
         if (asm_noting) {
-            asm_note("x21 := the receiver", 0);
+            note("x21 := the receiver", 0);
         }
         if (asm_pc < asm_limit) {
             *(uint32_t *)asm_pc = 2852127733ULL;
@@ -10117,7 +10117,7 @@ exit_pair_3:;
     }
     if (nt > 0) {
         if (asm_noting) {
-            asm_note("temps := nil", 0);
+            note("temps := nil", 0);
         }
     }
     i = na;
@@ -10171,7 +10171,7 @@ exit_pair_3:;
 }
 
 /* JitBaselineCompiler>>emitIndexedPrimitive:fail: */
-static void bl_emit_indexed_primitive(int32_t k, int32_t fail)
+static void emit_indexed_primitive(int32_t k, int32_t fail)
 {
     int32_t bytes;
     int32_t words;
@@ -10244,13 +10244,13 @@ static void bl_emit_indexed_primitive(int32_t k, int32_t fail)
     uint64_t a_word_19;
     int32_t enc_6;
     uint64_t a_word_20;
-    bytes = asm_new_label();
-    words = asm_new_label();
+    bytes = new_label();
+    words = new_label();
     a_string = k == PK_AT ? "primitive at:" : k == PK_AT_PUT ? "primitive at:put:" : "primitive basicSize";
     if (asm_noting) {
-        asm_note(a_string, 0);
+        note(a_string, 0);
     }
-    enc = asm_logical_immediate(7ULL, 64);
+    enc = logical_immediate(7ULL, 64);
     if (enc < 0) {
         if (asm_error == ASM_OK) {
             asm_error = ASM_ERR_IMMEDIATE;
@@ -10265,7 +10265,7 @@ static void bl_emit_indexed_primitive(int32_t k, int32_t fail)
         asm_error = ASM_ERR_FULL;
     }
 exit_logical:;
-    target = asm_target_of(fail);
+    target = target_of(fail);
     a_word_2 = 0x54000000 | ((((uint64_t)({
     off = ((int64_t)(target - asm_pc)) >> 2;
     if (!((off >= -262144) && (off <= 262143))) {
@@ -10304,7 +10304,7 @@ exit_offset_to:;
     }
     if (k != PK_BASIC_SIZE) {
         if (asm_noting) {
-            asm_note("the index: a SmallInteger, zero-based in x16", 0);
+            note("the index: a SmallInteger, zero-based in x16", 0);
         }
         if (asm_pc < asm_limit) {
             *(uint32_t *)asm_pc = 4181721729ULL;
@@ -10312,7 +10312,7 @@ exit_offset_to:;
         } else if (asm_error == ASM_OK) {
             asm_error = ASM_ERR_FULL;
         }
-        target_2 = asm_target_of(fail);
+        target_2 = target_of(fail);
         a_word_3 = 905969664ULL | ((((uint64_t)({
     off_2 = ((int64_t)(target_2 - asm_pc)) >> 2;
     if (!((off_2 >= -8192) && (off_2 <= 8191))) {
@@ -10351,9 +10351,9 @@ exit_offset_to_2:;
     }
     if (k == PK_AT_PUT) {
         if (asm_noting) {
-            asm_note("not immutable", 0);
+            note("not immutable", 0);
         }
-        target_3 = asm_target_of(fail);
+        target_3 = target_of(fail);
         a_word_4 = 3084386304ULL | ((((uint64_t)({
     off_3 = ((int64_t)(target_3 - asm_pc)) >> 2;
     if (!((off_3 >= -8192) && (off_3 <= 8191))) {
@@ -10401,7 +10401,7 @@ exit_add_sub_2:;
         asm_error = ASM_ERR_IMMEDIATE;
     }
 exit_add_sub_3:;
-    target_4 = asm_target_of(bytes);
+    target_4 = target_of(bytes);
     a_word_5 = 0x54000000 | ((((uint64_t)({
     off_4 = ((int64_t)(target_4 - asm_pc)) >> 2;
     if (!((off_4 >= -262144) && (off_4 <= 262143))) {
@@ -10421,7 +10421,7 @@ exit_offset_to_4:;
         asm_error = ASM_ERR_FULL;
     }
     if (asm_noting) {
-        asm_note("pointers: the slot count", 0);
+        note("pointers: the slot count", 0);
     }
     if (k == PK_BASIC_SIZE) {
         if (asm_pc < asm_limit) {
@@ -10430,7 +10430,7 @@ exit_offset_to_4:;
         } else if (asm_error == ASM_OK) {
             asm_error = ASM_ERR_FULL;
         }
-        enc_2 = asm_logical_immediate(1ULL, 64);
+        enc_2 = logical_immediate(1ULL, 64);
         if (enc_2 < 0) {
             if (asm_error == ASM_OK) {
                 asm_error = ASM_ERR_IMMEDIATE;
@@ -10459,7 +10459,7 @@ exit_offset_to_4:;
     } else if (asm_error == ASM_OK) {
         asm_error = ASM_ERR_FULL;
     }
-    target_5 = asm_target_of(fail);
+    target_5 = target_of(fail);
     a_word_7 = 0x54000000 | ((((uint64_t)({
     off_5 = ((int64_t)(target_5 - asm_pc)) >> 2;
     if (!((off_5 >= -262144) && (off_5 <= 262143))) {
@@ -10494,7 +10494,7 @@ exit_emit_indexed:;
         } else if (asm_error == ASM_OK) {
             asm_error = ASM_ERR_FULL;
         }
-        bl_barrier(X0, X11, X2);
+        jit_baseline_compiler_barrier(X0, X11, X2);
         if (asm_pc < asm_limit) {
             *(uint32_t *)asm_pc = 2852258784ULL;
             asm_pc = asm_pc + 4;
@@ -10508,7 +10508,7 @@ exit_emit_indexed:;
     } else if (asm_error == ASM_OK) {
         asm_error = ASM_ERR_FULL;
     }
-    asm_bind(bytes);
+    arm64_assembler_bind(bytes);
     if (asm_pc < asm_limit) {
         *(uint32_t *)asm_pc = 4043325759ULL;
         asm_pc = asm_pc + 4;
@@ -10520,7 +10520,7 @@ exit_emit_indexed:;
         asm_error = ASM_ERR_IMMEDIATE;
     }
 exit_add_sub_4:;
-    target_6 = asm_target_of(words);
+    target_6 = target_of(words);
     a_word_8 = 0x54000000 | ((((uint64_t)({
     off_6 = ((int64_t)(target_6 - asm_pc)) >> 2;
     if (!((off_6 >= -262144) && (off_6 <= 262143))) {
@@ -10540,7 +10540,7 @@ exit_offset_to_6:;
         asm_error = ASM_ERR_FULL;
     }
     if (asm_noting) {
-        asm_note("bytes: slots * 8 - (format - 16)", 0);
+        note("bytes: slots * 8 - (format - 16)", 0);
     }
     if (asm_pc < asm_limit) {
         *(uint32_t *)asm_pc = 3548246346ULL;
@@ -10572,7 +10572,7 @@ exit_add_sub_5:;
         } else if (asm_error == ASM_OK) {
             asm_error = ASM_ERR_FULL;
         }
-        enc_3 = asm_logical_immediate(1ULL, 64);
+        enc_3 = logical_immediate(1ULL, 64);
         if (enc_3 < 0) {
             if (asm_error == ASM_OK) {
                 asm_error = ASM_ERR_IMMEDIATE;
@@ -10601,7 +10601,7 @@ exit_add_sub_5:;
     } else if (asm_error == ASM_OK) {
         asm_error = ASM_ERR_FULL;
     }
-    target_7 = asm_target_of(fail);
+    target_7 = target_of(fail);
     a_word_10 = 0x54000000 | ((((uint64_t)({
     off_7 = ((int64_t)(target_7 - asm_pc)) >> 2;
     if (!((off_7 >= -262144) && (off_7 <= 262143))) {
@@ -10630,7 +10630,7 @@ exit_emit_indexed_2:;
         }
     }
     if (k == PK_AT_PUT) {
-        target_8 = asm_target_of(fail);
+        target_8 = target_of(fail);
         a_word_11 = 905969664ULL | ((((uint64_t)({
     off_8 = ((int64_t)(target_8 - asm_pc)) >> 2;
     if (!((off_8 >= -8192) && (off_8 <= 8191))) {
@@ -10666,7 +10666,7 @@ exit_offset_to_8:;
             asm_error = ASM_ERR_IMMEDIATE;
         }
     exit_add_sub_6:;
-        target_9 = asm_target_of(fail);
+        target_9 = target_of(fail);
         a_word_12 = 0x54000000 | ((((uint64_t)({
     off_9 = ((int64_t)(target_9 - asm_pc)) >> 2;
     if (!((off_9 >= -262144) && (off_9 <= 262143))) {
@@ -10699,7 +10699,7 @@ exit_offset_to_9:;
         } else if (asm_error == ASM_OK) {
             asm_error = ASM_ERR_FULL;
         }
-        enc_4 = asm_logical_immediate(1ULL, 64);
+        enc_4 = logical_immediate(1ULL, 64);
         if (enc_4 < 0) {
             if (asm_error == ASM_OK) {
                 asm_error = ASM_ERR_IMMEDIATE;
@@ -10729,7 +10729,7 @@ exit_offset_to_9:;
     } else if (asm_error == ASM_OK) {
         asm_error = ASM_ERR_FULL;
     }
-    asm_bind(words);
+    arm64_assembler_bind(words);
     if (asm_pc < asm_limit) {
         *(uint32_t *)asm_pc = 4043319615ULL;
         asm_pc = asm_pc + 4;
@@ -10741,7 +10741,7 @@ exit_offset_to_9:;
         asm_error = ASM_ERR_IMMEDIATE;
     }
 exit_add_sub_7:;
-    target_10 = asm_target_of(fail);
+    target_10 = target_of(fail);
     a_word_14 = 0x54000000 | ((((uint64_t)({
     off_10 = ((int64_t)(target_10 - asm_pc)) >> 2;
     if (!((off_10 >= -262144) && (off_10 <= 262143))) {
@@ -10771,7 +10771,7 @@ exit_offset_to_10:;
         asm_error = ASM_ERR_IMMEDIATE;
     }
 exit_add_sub_8:;
-    target_11 = asm_target_of(fail);
+    target_11 = target_of(fail);
     a_word_15 = 0x54000000 | ((((uint64_t)({
     off_11 = ((int64_t)(target_11 - asm_pc)) >> 2;
     if (!((off_11 >= -262144) && (off_11 <= 262143))) {
@@ -10791,7 +10791,7 @@ exit_offset_to_11:;
         asm_error = ASM_ERR_FULL;
     }
     if (asm_noting) {
-        asm_note("32-bit words: slots * 2 - (format - 10)", 0);
+        note("32-bit words: slots * 2 - (format - 10)", 0);
     }
     if (asm_pc < asm_limit) {
         *(uint32_t *)asm_pc = 3548379466ULL;
@@ -10823,7 +10823,7 @@ exit_add_sub_9:;
         } else if (asm_error == ASM_OK) {
             asm_error = ASM_ERR_FULL;
         }
-        enc_5 = asm_logical_immediate(1ULL, 64);
+        enc_5 = logical_immediate(1ULL, 64);
         if (enc_5 < 0) {
             if (asm_error == ASM_OK) {
                 asm_error = ASM_ERR_IMMEDIATE;
@@ -10852,7 +10852,7 @@ exit_add_sub_9:;
     } else if (asm_error == ASM_OK) {
         asm_error = ASM_ERR_FULL;
     }
-    target_12 = asm_target_of(fail);
+    target_12 = target_of(fail);
     a_word_17 = 0x54000000 | ((((uint64_t)({
     off_12 = ((int64_t)(target_12 - asm_pc)) >> 2;
     if (!((off_12 >= -262144) && (off_12 <= 262143))) {
@@ -10881,7 +10881,7 @@ exit_emit_indexed_3:;
         }
     }
     if (k == PK_AT_PUT) {
-        target_13 = asm_target_of(fail);
+        target_13 = target_of(fail);
         a_word_18 = 905969664ULL | ((((uint64_t)({
     off_13 = ((int64_t)(target_13 - asm_pc)) >> 2;
     if (!((off_13 >= -8192) && (off_13 <= 8191))) {
@@ -10912,7 +10912,7 @@ exit_offset_to_13:;
         } else if (asm_error == ASM_OK) {
             asm_error = ASM_ERR_FULL;
         }
-        target_14 = asm_target_of(fail);
+        target_14 = target_of(fail);
         a_word_19 = 3036676096LL | ((((uint64_t)({
     off_14 = ((int64_t)(target_14 - asm_pc)) >> 2;
     if (!((off_14 >= -262144) && (off_14 <= 262143))) {
@@ -10945,7 +10945,7 @@ exit_offset_to_14:;
         } else if (asm_error == ASM_OK) {
             asm_error = ASM_ERR_FULL;
         }
-        enc_6 = asm_logical_immediate(1ULL, 64);
+        enc_6 = logical_immediate(1ULL, 64);
         if (enc_6 < 0) {
             if (asm_error == ASM_OK) {
                 asm_error = ASM_ERR_IMMEDIATE;
@@ -10978,7 +10978,7 @@ exit_offset_to_14:;
 }
 
 /* JitBaselineCompiler>>emitInlineClosure:fail: */
-static void bl_emit_inline_closure(int32_t pc, int32_t fail)
+static void emit_inline_closure(int32_t pc, int32_t fail)
 {
     int32_t have;
     int64_t off;
@@ -11090,9 +11090,9 @@ static void bl_emit_inline_closure(int32_t pc, int32_t fail)
     int32_t off_21;
     uint64_t a_word_42;
     uint64_t a_word_43;
-    have = asm_new_label();
+    have = new_label();
     if (asm_noting) {
-        asm_note("the frame's Context; none: marry the frame (sender its index, stackp 0, method, closure, receiver, the rest nil)", 0);
+        note("the frame's Context; none: marry the frame (sender its index, stackp 0, method, closure, receiver, the rest nil)", 0);
     }
     off = (int64_t)&((frame *)0)->ctx;
     if ((off >= 0) && ((off & 7) == 0) && ((off >> 3) <= 4095)) {
@@ -11125,7 +11125,7 @@ static void bl_emit_inline_closure(int32_t pc, int32_t fail)
     } else if (asm_error == ASM_OK) {
         asm_error = ASM_ERR_FULL;
     }
-    target = asm_target_of(have);
+    target = target_of(have);
     a_word_3 = 0x54000000 | ((((uint64_t)({
     off_2 = ((int64_t)(target - asm_pc)) >> 2;
     if (!((off_2 >= -262144) && (off_2 <= 262143))) {
@@ -11163,7 +11163,7 @@ exit_offset_to:;
         }
     exit_move_wide:;
     } else {
-        asm_mov_imm(X16, (uint64_t)value);
+        mov_imm(X16, (uint64_t)value);
     }
     if ((cls_off >= 0) && ((cls_off & 7) == 0) && ((cls_off >> 3) <= 4095)) {
         a_word_5 = 4181721088LL | ((((uint64_t)(cls_off >> 3)) << 10) | 721ULL);
@@ -11212,12 +11212,12 @@ exit_offset_to:;
         }
     exit_move_wide_2:;
     } else {
-        asm_mov_imm(X10, (uint64_t)value_2);
+        mov_imm(X10, (uint64_t)value_2);
     }
-    full = asm_new_label();
-    after = asm_new_label();
+    full = new_label();
+    after = new_label();
     if (asm_noting) {
-        asm_note("allocate in eden: bump the top unless it passes the limit", 0);
+        note("allocate in eden: bump the top unless it passes the limit", 0);
     }
     off_3 = (int64_t)&((jit_state *)0)->eden_box;
     if ((off_3 >= 0) && ((off_3 & 7) == 0) && ((off_3 >> 3) <= 4095)) {
@@ -11262,7 +11262,7 @@ exit_offset_to:;
     } else if (asm_error == ASM_OK) {
         asm_error = ASM_ERR_FULL;
     }
-    target_2 = asm_target_of(full);
+    target_2 = target_of(full);
     a_word_10 = 0x54000000 | ((((uint64_t)({
     off_4 = ((int64_t)(target_2 - asm_pc)) >> 2;
     if (!((off_4 >= -262144) && (off_4 <= 262143))) {
@@ -11288,7 +11288,7 @@ exit_offset_to_2:;
         asm_error = ASM_ERR_FULL;
     }
     if (asm_noting) {
-        asm_note("the identity hash: the next value of the VM's generator (never 0)", 0);
+        note("the identity hash: the next value of the VM's generator (never 0)", 0);
     }
     off_5 = (int64_t)&((jit_state *)0)->hash_box;
     if ((off_5 >= 0) && ((off_5 & 7) == 0) && ((off_5 >> 3) <= 4095)) {
@@ -11379,7 +11379,7 @@ exit_add_sub:;
         asm_error = ASM_ERR_FULL;
     }
     if (asm_noting) {
-        asm_note("header (with the hash) and class", 0);
+        note("header (with the hash) and class", 0);
     }
     if (asm_pc < asm_limit) {
         *(uint32_t *)asm_pc = 2831239148ULL;
@@ -11399,7 +11399,7 @@ exit_add_sub:;
     } else if (asm_error == ASM_OK) {
         asm_error = ASM_ERR_FULL;
     }
-    target_3 = asm_target_of(after);
+    target_3 = target_of(after);
     a_word_14 = 0x14000000 | ({
     off_7 = ((int64_t)(target_3 - asm_pc)) >> 2;
     if (!((off_7 >= -33554432) && (off_7 <= 33554431))) {
@@ -11418,9 +11418,9 @@ exit_offset_to_3:;
     } else if (asm_error == ASM_OK) {
         asm_error = ASM_ERR_FULL;
     }
-    asm_bind(full);
+    arm64_assembler_bind(full);
     if (asm_noting) {
-        asm_note("eden is full: the C function (it collects)", 0);
+        note("eden is full: the C function (it collects)", 0);
     }
     if (asm_pc < asm_limit) {
         *(uint32_t *)asm_pc = 2432713727ULL;
@@ -11433,7 +11433,7 @@ exit_offset_to_3:;
         asm_error = ASM_ERR_IMMEDIATE;
     }
 exit_add_sub_2:;
-    target_4 = asm_target_of(fail);
+    target_4 = target_of(fail);
     a_word_15 = 0x14000000 | ({
     off_8 = ((int64_t)(target_4 - asm_pc)) >> 2;
     if (!((off_8 >= -33554432) && (off_8 <= 33554431))) {
@@ -11452,9 +11452,9 @@ exit_offset_to_4:;
     } else if (asm_error == ASM_OK) {
         asm_error = ASM_ERR_FULL;
     }
-    asm_bind(after);
-    loop = asm_new_label();
-    done = asm_new_label();
+    arm64_assembler_bind(after);
+    loop = new_label();
+    done = new_label();
     if (asm_pc < asm_limit) {
         *(uint32_t *)asm_pc = 2432713008ULL;
         asm_pc = asm_pc + 4;
@@ -11472,14 +11472,14 @@ exit_add_sub_3:;
     } else if (asm_error == ASM_OK) {
         asm_error = ASM_ERR_FULL;
     }
-    asm_bind(loop);
+    arm64_assembler_bind(loop);
     if (asm_pc < asm_limit) {
         *(uint32_t *)asm_pc = 3943760415ULL;
         asm_pc = asm_pc + 4;
     } else if (asm_error == ASM_OK) {
         asm_error = ASM_ERR_FULL;
     }
-    target_5 = asm_target_of(done);
+    target_5 = target_of(done);
     a_word_16 = 0x54000000 | ((((uint64_t)({
     off_9 = ((int64_t)(target_5 - asm_pc)) >> 2;
     if (!((off_9 >= -262144) && (off_9 <= 262143))) {
@@ -11504,7 +11504,7 @@ exit_offset_to_5:;
     } else if (asm_error == ASM_OK) {
         asm_error = ASM_ERR_FULL;
     }
-    target_6 = asm_target_of(loop);
+    target_6 = target_of(loop);
     a_word_17 = 0x14000000 | ({
     off_10 = ((int64_t)(target_6 - asm_pc)) >> 2;
     if (!((off_10 >= -33554432) && (off_10 <= 33554431))) {
@@ -11523,7 +11523,7 @@ exit_offset_to_6:;
     } else if (asm_error == ASM_OK) {
         asm_error = ASM_ERR_FULL;
     }
-    asm_bind(done);
+    arm64_assembler_bind(done);
     off_11 = (int64_t)&((jit_state *)0)->frames;
     if ((off_11 >= 0) && ((off_11 & 7) == 0) && ((off_11 >> 3) <= 4095)) {
         a_word_18 = 4181721088LL | ((((uint64_t)(off_11 >> 3)) << 10) | 720ULL);
@@ -11561,7 +11561,7 @@ exit_offset_to_6:;
     } else if (asm_error == ASM_OK) {
         asm_error = ASM_ERR_FULL;
     }
-    enc = asm_logical_immediate(1ULL, 64);
+    enc = logical_immediate(1ULL, 64);
     if (enc < 0) {
         if (asm_error == ASM_OK) {
             asm_error = ASM_ERR_IMMEDIATE;
@@ -11588,7 +11588,7 @@ exit_logical:;
     } else if (asm_error == ASM_OK) {
         asm_error = ASM_ERR_FULL;
     }
-    off_12 = (int64_t)(asm_target_of(header_label) - asm_pc);
+    off_12 = (int64_t)(target_of(header_label) - asm_pc);
     if (!((off_12 >= -1048576) && (off_12 <= 0xFFFFF))) {
         if (asm_error == ASM_OK) {
             asm_error = ASM_ERR_RANGE;
@@ -11683,11 +11683,11 @@ exit_adr:;
     } else if (asm_error == ASM_OK) {
         asm_error = ASM_ERR_FULL;
     }
-    asm_bind(have);
+    arm64_assembler_bind(have);
     o_4 = *(uint64_t *)(cls_block + 16 + 16);
     n = (int32_t)((((int64_t)o_4) >> 1) & CLS_INSTSIZE_MASK) > 5 ? (int32_t)((((int64_t)o_4) >> 1) & CLS_INSTSIZE_MASK) : 5;
     if (asm_noting) {
-        asm_note("the closure: outerContext, startpc, numArgs, numTemps, frameSize, the rest nil", 0);
+        note("the closure: outerContext, startpc, numArgs, numTemps, frameSize, the rest nil", 0);
     }
     cls_off_2 = (int64_t)&((jit_state *)0)->block_class;
     value_3 = ((int64_t)n) | 4294967296LL;
@@ -11707,7 +11707,7 @@ exit_adr:;
         }
     exit_move_wide_3:;
     } else {
-        asm_mov_imm(X16, (uint64_t)value_3);
+        mov_imm(X16, (uint64_t)value_3);
     }
     if ((cls_off_2 >= 0) && ((cls_off_2 & 7) == 0) && ((cls_off_2 >> 3) <= 4095)) {
         a_word_27 = 4181721088LL | ((((uint64_t)(cls_off_2 >> 3)) << 10) | 721ULL);
@@ -11756,12 +11756,12 @@ exit_adr:;
         }
     exit_move_wide_4:;
     } else {
-        asm_mov_imm(X10, (uint64_t)value_4);
+        mov_imm(X10, (uint64_t)value_4);
     }
-    full_2 = asm_new_label();
-    after_2 = asm_new_label();
+    full_2 = new_label();
+    after_2 = new_label();
     if (asm_noting) {
-        asm_note("allocate in eden: bump the top unless it passes the limit", 0);
+        note("allocate in eden: bump the top unless it passes the limit", 0);
     }
     off_15 = (int64_t)&((jit_state *)0)->eden_box;
     if ((off_15 >= 0) && ((off_15 & 7) == 0) && ((off_15 >> 3) <= 4095)) {
@@ -11806,7 +11806,7 @@ exit_adr:;
     } else if (asm_error == ASM_OK) {
         asm_error = ASM_ERR_FULL;
     }
-    target_7 = asm_target_of(full_2);
+    target_7 = target_of(full_2);
     a_word_32 = 0x54000000 | ((((uint64_t)({
     off_16 = ((int64_t)(target_7 - asm_pc)) >> 2;
     if (!((off_16 >= -262144) && (off_16 <= 262143))) {
@@ -11832,7 +11832,7 @@ exit_offset_to_7:;
         asm_error = ASM_ERR_FULL;
     }
     if (asm_noting) {
-        asm_note("the identity hash: the next value of the VM's generator (never 0)", 0);
+        note("the identity hash: the next value of the VM's generator (never 0)", 0);
     }
     off_17 = (int64_t)&((jit_state *)0)->hash_box;
     if ((off_17 >= 0) && ((off_17 & 7) == 0) && ((off_17 >> 3) <= 4095)) {
@@ -11923,7 +11923,7 @@ exit_add_sub_4:;
         asm_error = ASM_ERR_FULL;
     }
     if (asm_noting) {
-        asm_note("header (with the hash) and class", 0);
+        note("header (with the hash) and class", 0);
     }
     if (asm_pc < asm_limit) {
         *(uint32_t *)asm_pc = 2831239148ULL;
@@ -11943,7 +11943,7 @@ exit_add_sub_4:;
     } else if (asm_error == ASM_OK) {
         asm_error = ASM_ERR_FULL;
     }
-    target_8 = asm_target_of(after_2);
+    target_8 = target_of(after_2);
     a_word_36 = 0x14000000 | ({
     off_19 = ((int64_t)(target_8 - asm_pc)) >> 2;
     if (!((off_19 >= -33554432) && (off_19 <= 33554431))) {
@@ -11962,9 +11962,9 @@ exit_offset_to_8:;
     } else if (asm_error == ASM_OK) {
         asm_error = ASM_ERR_FULL;
     }
-    asm_bind(full_2);
+    arm64_assembler_bind(full_2);
     if (asm_noting) {
-        asm_note("eden is full: the C function (it collects)", 0);
+        note("eden is full: the C function (it collects)", 0);
     }
     if (asm_pc < asm_limit) {
         *(uint32_t *)asm_pc = 2432713727ULL;
@@ -11977,7 +11977,7 @@ exit_offset_to_8:;
         asm_error = ASM_ERR_IMMEDIATE;
     }
 exit_add_sub_5:;
-    target_9 = asm_target_of(fail);
+    target_9 = target_of(fail);
     a_word_37 = 0x14000000 | ({
     off_20 = ((int64_t)(target_9 - asm_pc)) >> 2;
     if (!((off_20 >= -33554432) && (off_20 <= 33554431))) {
@@ -11996,7 +11996,7 @@ exit_offset_to_9:;
     } else if (asm_error == ASM_OK) {
         asm_error = ASM_ERR_FULL;
     }
-    asm_bind(after_2);
+    arm64_assembler_bind(after_2);
     v_6 = pc + 6;
     value_5 = (((int64_t)v_6) << 1) | 1;
     if ((value_5 >= 0) && (value_5 <= 0xFFFF)) {
@@ -12015,7 +12015,7 @@ exit_offset_to_9:;
         }
     exit_move_wide_5:;
     } else {
-        asm_mov_imm(X16, (uint64_t)value_5);
+        mov_imm(X16, (uint64_t)value_5);
     }
     if (asm_pc < asm_limit) {
         *(uint32_t *)asm_pc = 2835431725ULL;
@@ -12042,7 +12042,7 @@ exit_offset_to_9:;
         }
     exit_move_wide_6:;
     } else {
-        asm_mov_imm(X16, (uint64_t)value_6);
+        mov_imm(X16, (uint64_t)value_6);
     }
     pc_3 = pc + 2;
     v_8 = (int64_t)ana_bcs[pc_3];
@@ -12063,7 +12063,7 @@ exit_offset_to_9:;
         }
     exit_move_wide_7:;
     } else {
-        asm_mov_imm(X17, (uint64_t)value_7);
+        mov_imm(X17, (uint64_t)value_7);
     }
     if (asm_pc < asm_limit) {
         *(uint32_t *)asm_pc = 2835498288ULL;
@@ -12090,7 +12090,7 @@ exit_offset_to_9:;
         }
     exit_move_wide_8:;
     } else {
-        asm_mov_imm(X16, (uint64_t)value_8);
+        mov_imm(X16, (uint64_t)value_8);
     }
     if (asm_pc < asm_limit) {
         *(uint32_t *)asm_pc = 4177533232ULL;
@@ -12128,7 +12128,7 @@ exit_offset_to_9:;
 }
 
 /* JitBaselineCompiler>>emitIntPrimitive:fail: */
-static void bl_emit_int_primitive(int32_t op, int32_t fail)
+static void emit_int_primitive(int32_t op, int32_t fail)
 {
     uint64_t target;
     int64_t r_offset_to;
@@ -12195,9 +12195,9 @@ static void bl_emit_int_primitive(int32_t op, int32_t fail)
     int32_t enc_5;
     uint64_t a_word_18;
     if (asm_noting) {
-        asm_note("SmallInteger primitive: receiver and argument SmallIntegers", 0);
+        note("SmallInteger primitive: receiver and argument SmallIntegers", 0);
     }
-    target = asm_target_of(fail);
+    target = target_of(fail);
     a_word = 905969664ULL | ((((uint64_t)({
     off = ((int64_t)(target - asm_pc)) >> 2;
     if (!((off >= -8192) && (off <= 8191))) {
@@ -12222,7 +12222,7 @@ exit_offset_to:;
     } else if (asm_error == ASM_OK) {
         asm_error = ASM_ERR_FULL;
     }
-    target_2 = asm_target_of(fail);
+    target_2 = target_of(fail);
     a_word_2 = 905969664ULL | ((((uint64_t)({
     off_2 = ((int64_t)(target_2 - asm_pc)) >> 2;
     if (!((off_2 >= -8192) && (off_2 <= 8191))) {
@@ -12259,7 +12259,7 @@ exit_offset_to_2:;
         } else if (asm_error == ASM_OK) {
             asm_error = ASM_ERR_FULL;
         }
-        target_3 = asm_target_of(fail);
+        target_3 = target_of(fail);
         a_word_3 = 0x54000000 | ((((uint64_t)({
     off_3 = ((int64_t)(target_3 - asm_pc)) >> 2;
     if (!((off_3 >= -262144) && (off_3 <= 262143))) {
@@ -12303,7 +12303,7 @@ exit_offset_to_3:;
         } else if (asm_error == ASM_OK) {
             asm_error = ASM_ERR_FULL;
         }
-        target_4 = asm_target_of(fail);
+        target_4 = target_of(fail);
         a_word_4 = 0x54000000 | ((((uint64_t)({
     off_4 = ((int64_t)(target_4 - asm_pc)) >> 2;
     if (!((off_4 >= -262144) && (off_4 <= 262143))) {
@@ -12365,7 +12365,7 @@ exit_offset_to_4:;
         } else if (asm_error == ASM_OK) {
             asm_error = ASM_ERR_FULL;
         }
-        target_5 = asm_target_of(fail);
+        target_5 = target_of(fail);
         a_word_5 = 0x54000000 | ((((uint64_t)({
     off_5 = ((int64_t)(target_5 - asm_pc)) >> 2;
     if (!((off_5 >= -262144) && (off_5 <= 262143))) {
@@ -12384,7 +12384,7 @@ exit_offset_to_5:;
         } else if (asm_error == ASM_OK) {
             asm_error = ASM_ERR_FULL;
         }
-        enc = asm_logical_immediate(1ULL, 64);
+        enc = logical_immediate(1ULL, 64);
         if (enc < 0) {
             if (asm_error == ASM_OK) {
                 asm_error = ASM_ERR_IMMEDIATE;
@@ -12423,7 +12423,7 @@ exit_offset_to_5:;
         } else if (asm_error == ASM_OK) {
             asm_error = ASM_ERR_FULL;
         }
-        enc_2 = asm_logical_immediate(1ULL, 64);
+        enc_2 = logical_immediate(1ULL, 64);
         if (enc_2 < 0) {
             if (asm_error == ASM_OK) {
                 asm_error = ASM_ERR_IMMEDIATE;
@@ -12440,9 +12440,9 @@ exit_offset_to_5:;
     exit_logical_2:;
     }
     if (op == 7) {
-        right = asm_new_label();
+        right = new_label();
         if (asm_noting) {
-            asm_note("bitShift: left if the count is not negative (nothing may be lost), else right", 0);
+            note("bitShift: left if the count is not negative (nothing may be lost), else right", 0);
         }
         if (asm_pc < asm_limit) {
             *(uint32_t *)asm_pc = 2470575152ULL;
@@ -12450,7 +12450,7 @@ exit_offset_to_5:;
         } else if (asm_error == ASM_OK) {
             asm_error = ASM_ERR_FULL;
         }
-        target_6 = asm_target_of(right);
+        target_6 = target_of(right);
         a_word_8 = 3086483456ULL | ((((uint64_t)({
     off_6 = ((int64_t)(target_6 - asm_pc)) >> 2;
     if (!((off_6 >= -8192) && (off_6 <= 8191))) {
@@ -12480,7 +12480,7 @@ exit_offset_to_6:;
             asm_error = ASM_ERR_IMMEDIATE;
         }
     exit_add_sub_4:;
-        target_7 = asm_target_of(fail);
+        target_7 = target_of(fail);
         a_word_9 = 0x54000000 | ((((uint64_t)({
     off_7 = ((int64_t)(target_7 - asm_pc)) >> 2;
     if (!((off_7 >= -262144) && (off_7 <= 262143))) {
@@ -12528,7 +12528,7 @@ exit_offset_to_7:;
         } else if (asm_error == ASM_OK) {
             asm_error = ASM_ERR_FULL;
         }
-        target_8 = asm_target_of(fail);
+        target_8 = target_of(fail);
         a_word_10 = 0x54000000 | ((((uint64_t)({
     off_8 = ((int64_t)(target_8 - asm_pc)) >> 2;
     if (!((off_8 >= -262144) && (off_8 <= 262143))) {
@@ -12547,7 +12547,7 @@ exit_offset_to_8:;
         } else if (asm_error == ASM_OK) {
             asm_error = ASM_ERR_FULL;
         }
-        enc_3 = asm_logical_immediate(1ULL, 64);
+        enc_3 = logical_immediate(1ULL, 64);
         if (enc_3 < 0) {
             if (asm_error == ASM_OK) {
                 asm_error = ASM_ERR_IMMEDIATE;
@@ -12568,7 +12568,7 @@ exit_offset_to_8:;
         } else if (asm_error == ASM_OK) {
             asm_error = ASM_ERR_FULL;
         }
-        asm_bind(right);
+        arm64_assembler_bind(right);
         if (asm_pc < asm_limit) {
             *(uint32_t *)asm_pc = 3406824432ULL;
             asm_pc = asm_pc + 4;
@@ -12599,7 +12599,7 @@ exit_offset_to_8:;
         } else if (asm_error == ASM_OK) {
             asm_error = ASM_ERR_FULL;
         }
-        enc_4 = asm_logical_immediate(1ULL, 64);
+        enc_4 = logical_immediate(1ULL, 64);
         if (enc_4 < 0) {
             if (asm_error == ASM_OK) {
                 asm_error = ASM_ERR_IMMEDIATE;
@@ -12660,7 +12660,7 @@ exit_offset_to_8:;
     if (op >= 16) {
         a_string = op == 16 ? "quo:" : op == 17 ? "rem:" : op == 18 ? "//" : "\\\\";
         if (asm_noting) {
-            asm_note(a_string, 0);
+            note(a_string, 0);
         }
         if (asm_pc < asm_limit) {
             *(uint32_t *)asm_pc = 2470575120ULL;
@@ -12674,7 +12674,7 @@ exit_offset_to_8:;
         } else if (asm_error == ASM_OK) {
             asm_error = ASM_ERR_FULL;
         }
-        target_9 = asm_target_of(fail);
+        target_9 = target_of(fail);
         a_word_14 = 3019898880LL | ((((uint64_t)({
     off_9 = ((int64_t)(target_9 - asm_pc)) >> 2;
     if (!((off_9 >= -262144) && (off_9 <= 262143))) {
@@ -12709,10 +12709,10 @@ exit_offset_to_9:;
         }
         if (op >= 18) {
             if (asm_noting) {
-                asm_note("floored: a remainder whose sign differs from the divisor's corrects quotient and remainder", 0);
+                note("floored: a remainder whose sign differs from the divisor's corrects quotient and remainder", 0);
             }
-            exact = asm_new_label();
-            target_10 = asm_target_of(exact);
+            exact = new_label();
+            target_10 = target_of(exact);
             a_word_15 = 3019898880LL | ((((uint64_t)({
     off_10 = ((int64_t)(target_10 - asm_pc)) >> 2;
     if (!((off_10 >= -262144) && (off_10 <= 262143))) {
@@ -12737,7 +12737,7 @@ exit_offset_to_10:;
             } else if (asm_error == ASM_OK) {
                 asm_error = ASM_ERR_FULL;
             }
-            target_11 = asm_target_of(exact);
+            target_11 = target_of(exact);
             a_word_16 = 3069706240ULL | ((((uint64_t)({
     off_11 = ((int64_t)(target_11 - asm_pc)) >> 2;
     if (!((off_11 >= -8192) && (off_11 <= 8191))) {
@@ -12773,7 +12773,7 @@ exit_offset_to_11:;
             } else if (asm_error == ASM_OK) {
                 asm_error = ASM_ERR_FULL;
             }
-            asm_bind(exact);
+            arm64_assembler_bind(exact);
         }
         if ((op == 17) || (op == 19)) {
             if (asm_pc < asm_limit) {
@@ -12784,7 +12784,7 @@ exit_offset_to_11:;
             }
         }
         if (asm_noting) {
-            asm_note("a SmallInteger (minVal // -1 is not)", 0);
+            note("a SmallInteger (minVal // -1 is not)", 0);
         }
         if (asm_pc < asm_limit) {
             *(uint32_t *)asm_pc = 2332623146ULL;
@@ -12798,7 +12798,7 @@ exit_offset_to_11:;
         } else if (asm_error == ASM_OK) {
             asm_error = ASM_ERR_FULL;
         }
-        target_12 = asm_target_of(fail);
+        target_12 = target_of(fail);
         a_word_17 = 0x54000000 | ((((uint64_t)({
     off_12 = ((int64_t)(target_12 - asm_pc)) >> 2;
     if (!((off_12 >= -262144) && (off_12 <= 262143))) {
@@ -12817,7 +12817,7 @@ exit_offset_to_12:;
         } else if (asm_error == ASM_OK) {
             asm_error = ASM_ERR_FULL;
         }
-        enc_5 = asm_logical_immediate(1ULL, 64);
+        enc_5 = logical_immediate(1ULL, 64);
         if (enc_5 < 0) {
             if (asm_error == ASM_OK) {
                 asm_error = ASM_ERR_IMMEDIATE;
@@ -12842,7 +12842,7 @@ exit_offset_to_12:;
 }
 
 /* JitBaselineCompiler>>emitLiterals */
-static void bl_emit_literals(void)
+static void emit_literals(void)
 {
     int i;
     oop a_value;
@@ -12860,9 +12860,9 @@ static void bl_emit_literals(void)
     for (i = 0; i <= 255; i++) {
         if (pool_labels[i] >= 0) {
             if (asm_noting) {
-                asm_note("literal %d", i);
+                note("literal %d", i);
             }
-            asm_bind(pool_labels[i]);
+            arm64_assembler_bind(pool_labels[i]);
             a_value = ana_lits[i];
             a_word = a_value & 0xFFFFFFFFLL;
             if (asm_pc < asm_limit) {
@@ -12882,9 +12882,9 @@ static void bl_emit_literals(void)
     }
     for (i_2 = 0; i_2 <= site_count - 1; i_2++) {
         if (asm_noting) {
-            asm_note("inline cache %d: its class (the selector once megamorphic)", i_2);
+            note("inline cache %d: its class (the selector once megamorphic)", i_2);
         }
-        asm_bind(site_lit[i_2]);
+        arm64_assembler_bind(site_lit[i_2]);
         if (asm_pc < asm_limit) {
             *(uint32_t *)asm_pc = 0LL;
             asm_pc = asm_pc + 4;
@@ -12898,11 +12898,11 @@ static void bl_emit_literals(void)
             asm_error = ASM_ERR_FULL;
         }
     }
-    asm_bind(header_label);
+    arm64_assembler_bind(header_label);
 }
 
 /* JitBaselineCompiler>>emitLoadLoopTemps: */
-static void bl_emit_load_loop_temps(int32_t id)
+static void emit_load_loop_temps(int32_t id)
 {
     int32_t i;
     int32_t an_integer;
@@ -12920,7 +12920,7 @@ static void bl_emit_load_loop_temps(int32_t id)
     for (i = 0; i <= loop_table[4 * id] - 1; i++) {
         an_integer = 26 + i;
         if (asm_noting) {
-            asm_note("x%d := temp %d", an_integer);
+            note("x%d := temp %d", an_integer);
         }
         rt = X26 + i;
         k = loop_table[4 * id + 1 + i];
@@ -12956,7 +12956,7 @@ static void bl_emit_load_loop_temps(int32_t id)
 }
 
 /* JitBaselineCompiler>>emitMethodEntry */
-static bool bl_emit_method_entry(void)
+static bool emit_method_entry(void)
 {
     int32_t imm;
     int32_t uentry;
@@ -12999,11 +12999,11 @@ static bool bl_emit_method_entry(void)
     uint64_t a_word_13;
     int32_t r_label_for;
     if (asm_noting) {
-        asm_note("checked entry: x0 the receiver, x9 the class the inline cache expects, x20 our fp, x30 back to the send", 0);
+        note("checked entry: x0 the receiver, x9 the class the inline cache expects, x20 our fp, x30 back to the send", 0);
     }
-    imm = asm_new_label();
-    uentry = asm_new_label();
-    enc = asm_logical_immediate(7ULL, 64);
+    imm = new_label();
+    uentry = new_label();
+    enc = logical_immediate(7ULL, 64);
     if (enc < 0) {
         if (asm_error == ASM_OK) {
             asm_error = ASM_ERR_IMMEDIATE;
@@ -13018,7 +13018,7 @@ static bool bl_emit_method_entry(void)
         asm_error = ASM_ERR_FULL;
     }
 exit_logical:;
-    target = asm_target_of(imm);
+    target = target_of(imm);
     a_word_2 = 0x54000000 | ((((uint64_t)({
     off = ((int64_t)(target - asm_pc)) >> 2;
     if (!((off >= -262144) && (off <= 262143))) {
@@ -13038,7 +13038,7 @@ exit_offset_to:;
         asm_error = ASM_ERR_FULL;
     }
     if (asm_noting) {
-        asm_note("an object: its class word", 0);
+        note("an object: its class word", 0);
     }
     if (asm_pc < asm_limit) {
         *(uint32_t *)asm_pc = 4181722128ULL;
@@ -13052,18 +13052,18 @@ exit_offset_to:;
     } else if (asm_error == ASM_OK) {
         asm_error = ASM_ERR_FULL;
     }
-    s = bl_slow(SL_ENTRY_IMM, 0, 0);
+    s = jit_baseline_compiler_slow(SL_ENTRY_IMM, 0, 0);
     if (s < 0) {
         return false;
     }
     sl_label[s] = imm;
     sl_cont[s] = uentry;
-    sl_target[s] = asm_new_label();
+    sl_target[s] = new_label();
     if (asm_noting) {
-        asm_note("not the cached class: the miss handler relinks", 0);
+        note("not the cached class: the miss handler relinks", 0);
     }
     a_label = sl_target[s];
-    target_2 = asm_target_of(a_label);
+    target_2 = target_of(a_label);
     a_word_3 = 0x54000000 | ((((uint64_t)({
     off_2 = ((int64_t)(target_2 - asm_pc)) >> 2;
     if (!((off_2 >= -262144) && (off_2 <= 262143))) {
@@ -13086,27 +13086,27 @@ exit_offset_to_2:;
         return false;
     }
     uentry_offset = (int32_t)(asm_pc - code_start);
-    asm_bind(uentry);
+    arm64_assembler_bind(uentry);
     if (asm_noting) {
-        asm_note("unchecked entry (polymorphic caches, the megamorphic stub, super sends)", 0);
+        note("unchecked entry (polymorphic caches, the megamorphic stub, super sends)", 0);
     }
     p = asm_pc;
     if (((jit_flags & JIT_FLAG_QUICK) != 0) && (prim_index == 0)) {
-        bl_emit_quick();
+        emit_quick_method();
     }
     if (prim_index != 0) {
-        if (!bl_emit_primitive()) {
+        if (!emit_primitive()) {
             return false;
         }
     }
     plain_entry = asm_pc == p;
-    if (!bl_emit_stack_check(0)) {
+    if (!emit_stack_check(0)) {
         return false;
     }
-    bl_emit_frame(false, cur_args, cur_temps);
+    emit_frame_for(false, cur_args, cur_temps);
     if (prim_error) {
         if (asm_noting) {
-            asm_note("the primitive's error code (or nil) into the first temp", 0);
+            note("the primitive's error code (or nil) into the first temp", 0);
         }
         off_3 = (int64_t)&((jit_state *)0)->ecode;
         if ((off_3 >= 0) && ((off_3 & 7) == 0) && ((off_3 >> 3) <= 4095)) {
@@ -13165,21 +13165,21 @@ exit_offset_to_2:;
         r_emit_tier_up = true;
         goto exit_emit_tier_up;
     }
-    s_2 = bl_slow(SL_TIERUP, 0, d);
+    s_2 = jit_baseline_compiler_slow(SL_TIERUP, 0, d);
     if (s_2 < 0) {
         r_emit_tier_up = false;
         goto exit_emit_tier_up;
     }
-    after = asm_new_label();
+    after = new_label();
     sl_cont[s_2] = after;
     sl_info[s_2] = 0;
     sl_loop[s_2] = -1;
     slow_label = sl_label[s_2];
     if (asm_noting) {
-        asm_note("count toward optimization", 0);
+        note("count toward optimization", 0);
     }
-    a_label_2 = asm_label_at(counter_addr);
-    off_5 = ((int64_t)((asm_target_of(a_label_2) & 18446744073709547520ULL) - (asm_pc & 18446744073709547520ULL))) >> 12;
+    a_label_2 = label_at(counter_addr);
+    off_5 = ((int64_t)((target_of(a_label_2) & 18446744073709547520ULL) - (asm_pc & 18446744073709547520ULL))) >> 12;
     if (!((off_5 >= -1048576) && (off_5 <= 0xFFFFF))) {
         if (asm_error == ASM_OK) {
             asm_error = ASM_ERR_RANGE;
@@ -13255,7 +13255,7 @@ exit_add_sub:;
         }
     exit_load_store_4:;
     }
-    target_3 = asm_target_of(slow_label);
+    target_3 = target_of(slow_label);
     a_word_13 = 0x54000000 | ((((uint64_t)({
     off_8 = ((int64_t)(target_3 - asm_pc)) >> 2;
     if (!((off_8 >= -262144) && (off_8 <= 262143))) {
@@ -13274,21 +13274,21 @@ exit_offset_to_3:;
     } else if (asm_error == ASM_OK) {
         asm_error = ASM_ERR_FULL;
     }
-    asm_bind(after);
+    arm64_assembler_bind(after);
     r_emit_tier_up = true;
 exit_emit_tier_up:;
     r_emit_tier_up; })) {
         return false;
     }
-    bl_ss_reset(cur_args + cur_temps);
+    ss_reset(cur_args + cur_temps);
     self_valid = true;
-    s = bl_slow(SL_START, 0, cur_args + cur_temps);
+    s = jit_baseline_compiler_slow(SL_START, 0, cur_args + cur_temps);
     if (s < 0) {
         return false;
     }
     sl_cont[s] = ({
     if (pc_labels[0] < 0) {
-        pc_labels[0] = asm_new_label();
+        pc_labels[0] = new_label();
     }
     r_label_for = pc_labels[0];
     r_label_for; });
@@ -13296,7 +13296,7 @@ exit_emit_tier_up:;
 }
 
 /* JitBaselineCompiler>>emitPerformPrimitive */
-static bool bl_emit_perform_primitive(void)
+static bool emit_perform_primitive(void)
 {
     int32_t n;
     bool with_args;
@@ -13397,15 +13397,15 @@ static bool bl_emit_perform_primitive(void)
     int64_t off_19;
     int64_t a_word_32;
     n = cur_args;
-    with_args = bl_prim_op(prim_index) == 1;
-    slow = asm_new_label();
-    fail = asm_new_label();
+    with_args = prim_op_of(prim_index) == 1;
+    slow = new_label();
+    fail = new_label();
     if (((jit_flags & JIT_FLAG_PRIMS) != 0) && (with_args ? n == 2 : n >= 1)) {
-        imm = asm_new_label();
-        have = asm_new_label();
-        go = asm_new_label();
+        imm = new_label();
+        have = new_label();
+        go = new_label();
         if (asm_noting) {
-            asm_note("primitive perform: the megamorphic table's target for the receiver's class and the selector", 0);
+            note("primitive perform: the megamorphic table's target for the receiver's class and the selector", 0);
         }
         if (asm_pc < asm_limit) {
             *(uint32_t *)asm_pc = 4181721737ULL;
@@ -13413,7 +13413,7 @@ static bool bl_emit_perform_primitive(void)
         } else if (asm_error == ASM_OK) {
             asm_error = ASM_ERR_FULL;
         }
-        enc = asm_logical_immediate(7ULL, 64);
+        enc = logical_immediate(7ULL, 64);
         if (enc < 0) {
             if (asm_error == ASM_OK) {
                 asm_error = ASM_ERR_IMMEDIATE;
@@ -13428,7 +13428,7 @@ static bool bl_emit_perform_primitive(void)
             asm_error = ASM_ERR_FULL;
         }
     exit_logical:;
-        target = asm_target_of(imm);
+        target = target_of(imm);
         a_word_2 = 3036676096LL | ((((uint64_t)({
     off = ((int64_t)(target - asm_pc)) >> 2;
     if (!((off >= -262144) && (off <= 262143))) {
@@ -13453,7 +13453,7 @@ exit_offset_to:;
         } else if (asm_error == ASM_OK) {
             asm_error = ASM_ERR_FULL;
         }
-        asm_bind(have);
+        arm64_assembler_bind(have);
         if (asm_pc < asm_limit) {
             *(uint32_t *)asm_pc = 3389587978ULL;
             asm_pc = asm_pc + 4;
@@ -13491,7 +13491,7 @@ exit_offset_to:;
             }
         exit_load_store:;
         }
-        enc_2 = asm_logical_immediate(4095ULL, 64);
+        enc_2 = logical_immediate(4095ULL, 64);
         if (enc_2 < 0) {
             if (asm_error == ASM_OK) {
                 asm_error = ASM_ERR_IMMEDIATE;
@@ -13524,7 +13524,7 @@ exit_offset_to:;
         } else if (asm_error == ASM_OK) {
             asm_error = ASM_ERR_FULL;
         }
-        target_2 = asm_target_of(slow);
+        target_2 = target_of(slow);
         a_word_6 = 0x54000000 | ((((uint64_t)({
     off_3 = ((int64_t)(target_2 - asm_pc)) >> 2;
     if (!((off_3 >= -262144) && (off_3 <= 262143))) {
@@ -13549,7 +13549,7 @@ exit_offset_to_2:;
         } else if (asm_error == ASM_OK) {
             asm_error = ASM_ERR_FULL;
         }
-        target_3 = asm_target_of(slow);
+        target_3 = target_of(slow);
         a_word_7 = 0x54000000 | ((((uint64_t)({
     off_4 = ((int64_t)(target_3 - asm_pc)) >> 2;
     if (!((off_4 >= -262144) && (off_4 <= 262143))) {
@@ -13569,7 +13569,7 @@ exit_offset_to_3:;
             asm_error = ASM_ERR_FULL;
         }
         if (asm_noting) {
-            asm_note("its unchecked entry and argument count (-1: a perform method); room for its frame", 0);
+            note("its unchecked entry and argument count (-1: a perform method); room for its frame", 0);
         }
         if (asm_pc < asm_limit) {
             *(uint32_t *)asm_pc = 2839627120ULL;
@@ -13608,7 +13608,7 @@ exit_offset_to_3:;
         } else if (asm_error == ASM_OK) {
             asm_error = ASM_ERR_FULL;
         }
-        target_4 = asm_target_of(slow);
+        target_4 = target_of(slow);
         a_word_10 = 0x54000000 | ((((uint64_t)({
     off_6 = ((int64_t)(target_4 - asm_pc)) >> 2;
     if (!((off_6 >= -262144) && (off_6 <= 262143))) {
@@ -13629,7 +13629,7 @@ exit_offset_to_4:;
         }
         if (with_args) {
             if (asm_noting) {
-                asm_note("an Array of as many elements, up to 2: they replace the selector and the Array", 0);
+                note("an Array of as many elements, up to 2: they replace the selector and the Array", 0);
             }
             if (asm_pc < asm_limit) {
                 *(uint32_t *)asm_pc = 4181722766ULL;
@@ -13637,7 +13637,7 @@ exit_offset_to_4:;
             } else if (asm_error == ASM_OK) {
                 asm_error = ASM_ERR_FULL;
             }
-            enc_3 = asm_logical_immediate(7ULL, 64);
+            enc_3 = logical_immediate(7ULL, 64);
             if (enc_3 < 0) {
                 if (asm_error == ASM_OK) {
                     asm_error = ASM_ERR_IMMEDIATE;
@@ -13652,7 +13652,7 @@ exit_offset_to_4:;
                 asm_error = ASM_ERR_FULL;
             }
         exit_logical_3:;
-            target_5 = asm_target_of(slow);
+            target_5 = target_of(slow);
             a_word_12 = 0x54000000 | ((((uint64_t)({
     off_7 = ((int64_t)(target_5 - asm_pc)) >> 2;
     if (!((off_7 >= -262144) && (off_7 <= 262143))) {
@@ -13708,7 +13708,7 @@ exit_offset_to_5:;
             } else if (asm_error == ASM_OK) {
                 asm_error = ASM_ERR_FULL;
             }
-            target_6 = asm_target_of(slow);
+            target_6 = target_of(slow);
             a_word_15 = 0x54000000 | ((((uint64_t)({
     off_9 = ((int64_t)(target_6 - asm_pc)) >> 2;
     if (!((off_9 >= -262144) && (off_9 <= 262143))) {
@@ -13739,7 +13739,7 @@ exit_offset_to_6:;
             } else if (asm_error == ASM_OK) {
                 asm_error = ASM_ERR_FULL;
             }
-            target_7 = asm_target_of(slow);
+            target_7 = target_of(slow);
             a_word_16 = 0x54000000 | ((((uint64_t)({
     off_10 = ((int64_t)(target_7 - asm_pc)) >> 2;
     if (!((off_10 >= -262144) && (off_10 <= 262143))) {
@@ -13769,7 +13769,7 @@ exit_offset_to_7:;
                 asm_error = ASM_ERR_IMMEDIATE;
             }
         exit_add_sub:;
-            target_8 = asm_target_of(slow);
+            target_8 = target_of(slow);
             a_word_17 = 0x54000000 | ((((uint64_t)({
     off_11 = ((int64_t)(target_8 - asm_pc)) >> 2;
     if (!((off_11 >= -262144) && (off_11 <= 262143))) {
@@ -13788,7 +13788,7 @@ exit_offset_to_8:;
             } else if (asm_error == ASM_OK) {
                 asm_error = ASM_ERR_FULL;
             }
-            target_9 = asm_target_of(go);
+            target_9 = target_of(go);
             a_word_18 = 3019898880LL | ((((uint64_t)({
     off_12 = ((int64_t)(target_9 - asm_pc)) >> 2;
     if (!((off_12 >= -262144) && (off_12 <= 262143))) {
@@ -13830,7 +13830,7 @@ exit_offset_to_9:;
                 asm_error = ASM_ERR_IMMEDIATE;
             }
         exit_add_sub_2:;
-            target_10 = asm_target_of(go);
+            target_10 = target_of(go);
             a_word_19 = 0x54000000 | ((((uint64_t)({
     off_13 = ((int64_t)(target_10 - asm_pc)) >> 2;
     if (!((off_13 >= -262144) && (off_13 <= 262143))) {
@@ -13890,7 +13890,7 @@ exit_offset_to_10:;
                 asm_error = ASM_ERR_IMMEDIATE;
             }
         exit_add_sub_3:;
-            target_11 = asm_target_of(slow);
+            target_11 = target_of(slow);
             a_word_22 = 0x54000000 | ((((uint64_t)({
     off_14 = ((int64_t)(target_11 - asm_pc)) >> 2;
     if (!((off_14 >= -262144) && (off_14 <= 262143))) {
@@ -13911,7 +13911,7 @@ exit_offset_to_11:;
             }
             if (n > 1) {
                 if (asm_noting) {
-                    asm_note("the arguments one slot down, over the selector", 0);
+                    note("the arguments one slot down, over the selector", 0);
                 }
             }
             for (i = 1; i <= n - 1; i++) {
@@ -13968,14 +13968,14 @@ exit_offset_to_11:;
                 }
             }
         }
-        asm_bind(go);
+        arm64_assembler_bind(go);
         if (asm_pc < asm_limit) {
             *(uint32_t *)asm_pc = 3592356352ULL;
             asm_pc = asm_pc + 4;
         } else if (asm_error == ASM_OK) {
             asm_error = ASM_ERR_FULL;
         }
-        asm_bind(imm);
+        arm64_assembler_bind(imm);
         imm_3 = (int64_t)&((jit_state *)0)->tag_classes;
         neg_4 = imm_3 < 0;
         v_4 = neg_4 ? -imm_3 : imm_3;
@@ -14010,7 +14010,7 @@ exit_offset_to_11:;
         } else if (asm_error == ASM_OK) {
             asm_error = ASM_ERR_FULL;
         }
-        target_12 = asm_target_of(have);
+        target_12 = target_of(have);
         a_word_29 = 0x14000000 | ({
     off_17 = ((int64_t)(target_12 - asm_pc)) >> 2;
     if (!((off_17 >= -33554432) && (off_17 <= 33554431))) {
@@ -14030,9 +14030,9 @@ exit_offset_to_12:;
             asm_error = ASM_ERR_FULL;
         }
     }
-    asm_bind(slow);
+    arm64_assembler_bind(slow);
     if (asm_noting) {
-        asm_note("the runtime: the table filled, the primitive failed (the frame and the body follow) or leave", 0);
+        note("the runtime: the table filled, the primitive failed (the frame and the body follow) or leave", 0);
     }
     value = n | (with_args ? 256 : 0);
     if ((value >= 0) && (value <= 0xFFFF)) {
@@ -14051,9 +14051,9 @@ exit_offset_to_12:;
         }
     exit_move_wide:;
     } else {
-        asm_mov_imm(X1, (uint64_t)value);
+        mov_imm(X1, (uint64_t)value);
     }
-    off_18 = (int64_t)(asm_target_of(fail) - asm_pc);
+    off_18 = (int64_t)(target_of(fail) - asm_pc);
     if (!((off_18 >= -1048576) && (off_18 <= 0xFFFFF))) {
         if (asm_error == ASM_OK) {
             asm_error = ASM_ERR_RANGE;
@@ -14068,7 +14068,7 @@ exit_offset_to_12:;
         asm_error = ASM_ERR_FULL;
     }
 exit_adr:;
-    target_13 = asm_target_of(perform_label);
+    target_13 = target_of(perform_label);
     a_word_32 = 0x14000000 | ({
     off_19 = ((int64_t)(target_13 - asm_pc)) >> 2;
     if (!((off_19 >= -33554432) && (off_19 <= 33554431))) {
@@ -14087,12 +14087,12 @@ exit_offset_to_13:;
     } else if (asm_error == ASM_OK) {
         asm_error = ASM_ERR_FULL;
     }
-    asm_bind(fail);
+    arm64_assembler_bind(fail);
     return true;
 }
 
 /* JitBaselineCompiler>>emitPicAt: */
-bool bl_emit_pic(uint64_t pic)
+bool emit_pic_at(uint64_t pic)
 {
     uint64_t code;
     baseline_pic *p;
@@ -14135,13 +14135,13 @@ bool bl_emit_pic(uint64_t pic)
     int64_t off_6;
     int64_t a_word_9;
     code = pic + sizeof(baseline_pic);
-    asm_begin(code, pic + (sizeof(baseline_pic) + 128));
-    asm_record_notes(false);
+    begin_at(code, pic + (sizeof(baseline_pic) + 128));
+    record_notes(false);
     p = (baseline_pic *)pic;
-    miss = asm_label_at(bl_miss);
-    imm = asm_new_label();
-    cmp = asm_new_label();
-    enc = asm_logical_immediate(7ULL, 64);
+    miss = label_at(bl_miss);
+    imm = new_label();
+    cmp = new_label();
+    enc = logical_immediate(7ULL, 64);
     if (enc < 0) {
         if (asm_error == ASM_OK) {
             asm_error = ASM_ERR_IMMEDIATE;
@@ -14156,7 +14156,7 @@ bool bl_emit_pic(uint64_t pic)
         asm_error = ASM_ERR_FULL;
     }
 exit_logical:;
-    target = asm_target_of(imm);
+    target = target_of(imm);
     a_word_2 = 3036676096LL | ((((uint64_t)({
     off = ((int64_t)(target - asm_pc)) >> 2;
     if (!((off >= -262144) && (off <= 262143))) {
@@ -14181,11 +14181,11 @@ exit_offset_to:;
     } else if (asm_error == ASM_OK) {
         asm_error = ASM_ERR_FULL;
     }
-    asm_bind(cmp);
+    arm64_assembler_bind(cmp);
     for (i = 0; i <= 5; i++) {
-        next = asm_new_label();
-        a_label = asm_label_at((uint64_t)&p->classes + 8 * i);
-        target_2 = asm_target_of(a_label);
+        next = new_label();
+        a_label = label_at((uint64_t)&p->classes + 8 * i);
+        target_2 = target_of(a_label);
         a_word_3 = 0x58000000 | ((((uint64_t)({
     off_2 = ((int64_t)(target_2 - asm_pc)) >> 2;
     if (!((off_2 >= -262144) && (off_2 <= 262143))) {
@@ -14210,7 +14210,7 @@ exit_offset_to_2:;
         } else if (asm_error == ASM_OK) {
             asm_error = ASM_ERR_FULL;
         }
-        target_3 = asm_target_of(next);
+        target_3 = target_of(next);
         a_word_4 = 0x54000000 | ((((uint64_t)({
     off_3 = ((int64_t)(target_3 - asm_pc)) >> 2;
     if (!((off_3 >= -262144) && (off_3 <= 262143))) {
@@ -14229,7 +14229,7 @@ exit_offset_to_3:;
         } else if (asm_error == ASM_OK) {
             asm_error = ASM_ERR_FULL;
         }
-        target_4 = asm_target_of(miss);
+        target_4 = target_of(miss);
         a_word_5 = 0x14000000 | ({
     off_4 = ((int64_t)(target_4 - asm_pc)) >> 2;
     if (!((off_4 >= -33554432) && (off_4 <= 33554431))) {
@@ -14248,9 +14248,9 @@ exit_offset_to_4:;
         } else if (asm_error == ASM_OK) {
             asm_error = ASM_ERR_FULL;
         }
-        asm_bind(next);
+        arm64_assembler_bind(next);
     }
-    target_5 = asm_target_of(miss);
+    target_5 = target_of(miss);
     a_word_6 = 0x14000000 | ({
     off_5 = ((int64_t)(target_5 - asm_pc)) >> 2;
     if (!((off_5 >= -33554432) && (off_5 <= 33554431))) {
@@ -14269,7 +14269,7 @@ exit_offset_to_5:;
     } else if (asm_error == ASM_OK) {
         asm_error = ASM_ERR_FULL;
     }
-    asm_bind(imm);
+    arm64_assembler_bind(imm);
     imm_2 = (int64_t)&((jit_state *)0)->tag_classes;
     neg = imm_2 < 0;
     v = neg ? -imm_2 : imm_2;
@@ -14304,7 +14304,7 @@ exit_add_sub:;
     } else if (asm_error == ASM_OK) {
         asm_error = ASM_ERR_FULL;
     }
-    target_6 = asm_target_of(cmp);
+    target_6 = target_of(cmp);
     a_word_9 = 0x14000000 | ({
     off_6 = ((int64_t)(target_6 - asm_pc)) >> 2;
     if (!((off_6 >= -33554432) && (off_6 <= 33554431))) {
@@ -14323,11 +14323,11 @@ exit_offset_to_6:;
     } else if (asm_error == ASM_OK) {
         asm_error = ASM_ERR_FULL;
     }
-    return asm_finish() == ASM_OK;
+    return arm64_assembler_finish() == ASM_OK;
 }
 
 /* JitBaselineCompiler>>emitPrimitive */
-static bool bl_emit_primitive(void)
+static bool emit_primitive(void)
 {
     int32_t k;
     int32_t fail;
@@ -14543,15 +14543,15 @@ static bool bl_emit_primitive(void)
     int64_t r_offset_to_32;
     int64_t off_43;
     int64_t a_word_67;
-    k = bl_prim_kind(prim_index);
+    k = prim_kind_of(prim_index);
     if (k == PK_PERFORM) {
-        return bl_emit_perform_primitive();
+        return emit_perform_primitive();
     }
-    fail = asm_new_label();
+    fail = new_label();
     if ((jit_flags & JIT_FLAG_PRIMS) != 0) {
         if (k == PK_BASICNEW) {
             if (asm_noting) {
-                asm_note("primitive basicNew: the class's format (spec << 16 | inst size) says fixed fields", 0);
+                note("primitive basicNew: the class's format (spec << 16 | inst size) says fixed fields", 0);
             }
             if (asm_pc < asm_limit) {
                 *(uint32_t *)asm_pc = 4181725194ULL;
@@ -14576,7 +14576,7 @@ static bool bl_emit_primitive(void)
                 asm_error = ASM_ERR_IMMEDIATE;
             }
         exit_add_sub:;
-            target = asm_target_of(fail);
+            target = target_of(fail);
             a_word = 0x54000000 | ((((uint64_t)({
     off = ((int64_t)(target - asm_pc)) >> 2;
     if (!((off >= -262144) && (off <= 262143))) {
@@ -14612,7 +14612,7 @@ exit_offset_to:;
                 asm_error = ASM_ERR_IMMEDIATE;
             }
         exit_add_sub_2:;
-            target_2 = asm_target_of(fail);
+            target_2 = target_of(fail);
             a_word_2 = 0x54000000 | ((((uint64_t)({
     off_2 = ((int64_t)(target_2 - asm_pc)) >> 2;
     if (!((off_2 >= -262144) && (off_2 <= 262143))) {
@@ -14632,9 +14632,9 @@ exit_offset_to_2:;
                 asm_error = ASM_ERR_FULL;
             }
             if (asm_noting) {
-                asm_note("the header word: inst size slots, format F_FIXED (F_EMPTY if none)", 0);
+                note("the header word: inst size slots, format F_FIXED (F_EMPTY if none)", 0);
             }
-            asm_mov_imm(X16, 4294967296ULL);
+            mov_imm(X16, 4294967296ULL);
             if (asm_pc < asm_limit) {
                 *(uint32_t *)asm_pc = 4043309407ULL;
                 asm_pc = asm_pc + 4;
@@ -14688,10 +14688,10 @@ exit_offset_to_2:;
                 asm_error = ASM_ERR_IMMEDIATE;
             }
         exit_add_sub_4:;
-            full = asm_new_label();
-            after = asm_new_label();
+            full = new_label();
+            after = new_label();
             if (asm_noting) {
-                asm_note("allocate in eden: bump the top unless it passes the limit", 0);
+                note("allocate in eden: bump the top unless it passes the limit", 0);
             }
             off_3 = (int64_t)&((jit_state *)0)->eden_box;
             if ((off_3 >= 0) && ((off_3 & 7) == 0) && ((off_3 >> 3) <= 4095)) {
@@ -14736,7 +14736,7 @@ exit_offset_to_2:;
             } else if (asm_error == ASM_OK) {
                 asm_error = ASM_ERR_FULL;
             }
-            target_3 = asm_target_of(full);
+            target_3 = target_of(full);
             a_word_5 = 0x54000000 | ((((uint64_t)({
     off_4 = ((int64_t)(target_3 - asm_pc)) >> 2;
     if (!((off_4 >= -262144) && (off_4 <= 262143))) {
@@ -14762,7 +14762,7 @@ exit_offset_to_3:;
                 asm_error = ASM_ERR_FULL;
             }
             if (asm_noting) {
-                asm_note("the identity hash: the next value of the VM's generator (never 0)", 0);
+                note("the identity hash: the next value of the VM's generator (never 0)", 0);
             }
             off_5 = (int64_t)&((jit_state *)0)->hash_box;
             if ((off_5 >= 0) && ((off_5 & 7) == 0) && ((off_5 >> 3) <= 4095)) {
@@ -14853,7 +14853,7 @@ exit_offset_to_3:;
                 asm_error = ASM_ERR_FULL;
             }
             if (asm_noting) {
-                asm_note("header (with the hash) and class", 0);
+                note("header (with the hash) and class", 0);
             }
             if (asm_pc < asm_limit) {
                 *(uint32_t *)asm_pc = 2831239148ULL;
@@ -14873,7 +14873,7 @@ exit_offset_to_3:;
             } else if (asm_error == ASM_OK) {
                 asm_error = ASM_ERR_FULL;
             }
-            target_4 = asm_target_of(after);
+            target_4 = target_of(after);
             a_word_9 = 0x14000000 | ({
     off_7 = ((int64_t)(target_4 - asm_pc)) >> 2;
     if (!((off_7 >= -33554432) && (off_7 <= 33554431))) {
@@ -14892,9 +14892,9 @@ exit_offset_to_4:;
             } else if (asm_error == ASM_OK) {
                 asm_error = ASM_ERR_FULL;
             }
-            asm_bind(full);
+            arm64_assembler_bind(full);
             if (asm_noting) {
-                asm_note("eden is full: the C function (it collects)", 0);
+                note("eden is full: the C function (it collects)", 0);
             }
             if (asm_pc < asm_limit) {
                 *(uint32_t *)asm_pc = 2432713727ULL;
@@ -14907,7 +14907,7 @@ exit_offset_to_4:;
                 asm_error = ASM_ERR_IMMEDIATE;
             }
         exit_add_sub_6:;
-            target_5 = asm_target_of(fail);
+            target_5 = target_of(fail);
             a_word_10 = 0x14000000 | ({
     off_8 = ((int64_t)(target_5 - asm_pc)) >> 2;
     if (!((off_8 >= -33554432) && (off_8 <= 33554431))) {
@@ -14926,12 +14926,12 @@ exit_offset_to_5:;
             } else if (asm_error == ASM_OK) {
                 asm_error = ASM_ERR_FULL;
             }
-            asm_bind(after);
+            arm64_assembler_bind(after);
             if (asm_noting) {
-                asm_note("fields := nil", 0);
+                note("fields := nil", 0);
             }
-            loop = asm_new_label();
-            done = asm_new_label();
+            loop = new_label();
+            done = new_label();
             if (asm_pc < asm_limit) {
                 *(uint32_t *)asm_pc = 2432713008ULL;
                 asm_pc = asm_pc + 4;
@@ -14949,14 +14949,14 @@ exit_offset_to_5:;
             } else if (asm_error == ASM_OK) {
                 asm_error = ASM_ERR_FULL;
             }
-            asm_bind(loop);
+            arm64_assembler_bind(loop);
             if (asm_pc < asm_limit) {
                 *(uint32_t *)asm_pc = 3943760415ULL;
                 asm_pc = asm_pc + 4;
             } else if (asm_error == ASM_OK) {
                 asm_error = ASM_ERR_FULL;
             }
-            target_6 = asm_target_of(done);
+            target_6 = target_of(done);
             a_word_11 = 0x54000000 | ((((uint64_t)({
     off_9 = ((int64_t)(target_6 - asm_pc)) >> 2;
     if (!((off_9 >= -262144) && (off_9 <= 262143))) {
@@ -14981,7 +14981,7 @@ exit_offset_to_6:;
             } else if (asm_error == ASM_OK) {
                 asm_error = ASM_ERR_FULL;
             }
-            target_7 = asm_target_of(loop);
+            target_7 = target_of(loop);
             a_word_12 = 0x14000000 | ({
     off_10 = ((int64_t)(target_7 - asm_pc)) >> 2;
     if (!((off_10 >= -33554432) && (off_10 <= 33554431))) {
@@ -15000,7 +15000,7 @@ exit_offset_to_7:;
             } else if (asm_error == ASM_OK) {
                 asm_error = ASM_ERR_FULL;
             }
-            asm_bind(done);
+            arm64_assembler_bind(done);
             if (asm_pc < asm_limit) {
                 *(uint32_t *)asm_pc = 2852717536ULL;
                 asm_pc = asm_pc + 4;
@@ -15016,7 +15016,7 @@ exit_offset_to_7:;
         }
         if (k == PK_BASICNEW_SIZE) {
             if (asm_noting) {
-                asm_note("primitive basicNew: a SmallInteger size from 0 to 8191", 0);
+                note("primitive basicNew: a SmallInteger size from 0 to 8191", 0);
             }
             if (asm_pc < asm_limit) {
                 *(uint32_t *)asm_pc = 4181721744ULL;
@@ -15024,7 +15024,7 @@ exit_offset_to_7:;
             } else if (asm_error == ASM_OK) {
                 asm_error = ASM_ERR_FULL;
             }
-            target_8 = asm_target_of(fail);
+            target_8 = target_of(fail);
             a_word_13 = 905969664ULL | ((((uint64_t)({
     off_11 = ((int64_t)(target_8 - asm_pc)) >> 2;
     if (!((off_11 >= -8192) && (off_11 <= 8191))) {
@@ -15061,7 +15061,7 @@ exit_offset_to_8:;
             } else if (asm_error == ASM_OK) {
                 asm_error = ASM_ERR_FULL;
             }
-            target_9 = asm_target_of(fail);
+            target_9 = target_of(fail);
             a_word_14 = 0x54000000 | ((((uint64_t)({
     off_12 = ((int64_t)(target_9 - asm_pc)) >> 2;
     if (!((off_12 >= -262144) && (off_12 <= 262143))) {
@@ -15087,17 +15087,17 @@ exit_offset_to_9:;
                 asm_error = ASM_ERR_FULL;
             }
             if (asm_noting) {
-                asm_note("indexable pointers without fixed fields (spec 2, inst size 0)", 0);
+                note("indexable pointers without fixed fields (spec 2, inst size 0)", 0);
             }
-            asm_mov_imm(X17, 262145ULL);
+            mov_imm(X17, 262145ULL);
             if (asm_pc < asm_limit) {
                 *(uint32_t *)asm_pc = 3943760223ULL;
                 asm_pc = asm_pc + 4;
             } else if (asm_error == ASM_OK) {
                 asm_error = ASM_ERR_FULL;
             }
-            bytes = asm_new_label();
-            target_10 = asm_target_of(bytes);
+            bytes = new_label();
+            target_10 = target_of(bytes);
             a_word_15 = 0x54000000 | ((((uint64_t)({
     off_13 = ((int64_t)(target_10 - asm_pc)) >> 2;
     if (!((off_13 >= -262144) && (off_13 <= 262143))) {
@@ -15127,7 +15127,7 @@ exit_offset_to_10:;
                 asm_error = ASM_ERR_IMMEDIATE;
             }
         exit_add_sub_8:;
-            target_11 = asm_target_of(fail);
+            target_11 = target_of(fail);
             a_word_16 = 0x54000000 | ((((uint64_t)({
     off_14 = ((int64_t)(target_11 - asm_pc)) >> 2;
     if (!((off_14 >= -262144) && (off_14 <= 262143))) {
@@ -15146,7 +15146,7 @@ exit_offset_to_11:;
             } else if (asm_error == ASM_OK) {
                 asm_error = ASM_ERR_FULL;
             }
-            asm_mov_imm(X10, 8589934592ULL);
+            mov_imm(X10, 8589934592ULL);
             if (asm_pc < asm_limit) {
                 *(uint32_t *)asm_pc = 2853175626ULL;
                 asm_pc = asm_pc + 4;
@@ -15176,10 +15176,10 @@ exit_offset_to_11:;
                 asm_error = ASM_ERR_IMMEDIATE;
             }
         exit_add_sub_9:;
-            full_2 = asm_new_label();
-            after_2 = asm_new_label();
+            full_2 = new_label();
+            after_2 = new_label();
             if (asm_noting) {
-                asm_note("allocate in eden: bump the top unless it passes the limit", 0);
+                note("allocate in eden: bump the top unless it passes the limit", 0);
             }
             off_15 = (int64_t)&((jit_state *)0)->eden_box;
             if ((off_15 >= 0) && ((off_15 & 7) == 0) && ((off_15 >> 3) <= 4095)) {
@@ -15224,7 +15224,7 @@ exit_offset_to_11:;
             } else if (asm_error == ASM_OK) {
                 asm_error = ASM_ERR_FULL;
             }
-            target_12 = asm_target_of(full_2);
+            target_12 = target_of(full_2);
             a_word_19 = 0x54000000 | ((((uint64_t)({
     off_16 = ((int64_t)(target_12 - asm_pc)) >> 2;
     if (!((off_16 >= -262144) && (off_16 <= 262143))) {
@@ -15250,7 +15250,7 @@ exit_offset_to_12:;
                 asm_error = ASM_ERR_FULL;
             }
             if (asm_noting) {
-                asm_note("the identity hash: the next value of the VM's generator (never 0)", 0);
+                note("the identity hash: the next value of the VM's generator (never 0)", 0);
             }
             off_17 = (int64_t)&((jit_state *)0)->hash_box;
             if ((off_17 >= 0) && ((off_17 & 7) == 0) && ((off_17 >> 3) <= 4095)) {
@@ -15341,7 +15341,7 @@ exit_offset_to_12:;
                 asm_error = ASM_ERR_FULL;
             }
             if (asm_noting) {
-                asm_note("header (with the hash) and class", 0);
+                note("header (with the hash) and class", 0);
             }
             if (asm_pc < asm_limit) {
                 *(uint32_t *)asm_pc = 2831239148ULL;
@@ -15361,7 +15361,7 @@ exit_offset_to_12:;
             } else if (asm_error == ASM_OK) {
                 asm_error = ASM_ERR_FULL;
             }
-            target_13 = asm_target_of(after_2);
+            target_13 = target_of(after_2);
             a_word_23 = 0x14000000 | ({
     off_19 = ((int64_t)(target_13 - asm_pc)) >> 2;
     if (!((off_19 >= -33554432) && (off_19 <= 33554431))) {
@@ -15380,9 +15380,9 @@ exit_offset_to_13:;
             } else if (asm_error == ASM_OK) {
                 asm_error = ASM_ERR_FULL;
             }
-            asm_bind(full_2);
+            arm64_assembler_bind(full_2);
             if (asm_noting) {
-                asm_note("eden is full: the C function (it collects)", 0);
+                note("eden is full: the C function (it collects)", 0);
             }
             if (asm_pc < asm_limit) {
                 *(uint32_t *)asm_pc = 2432713727ULL;
@@ -15395,7 +15395,7 @@ exit_offset_to_13:;
                 asm_error = ASM_ERR_IMMEDIATE;
             }
         exit_add_sub_11:;
-            target_14 = asm_target_of(fail);
+            target_14 = target_of(fail);
             a_word_24 = 0x14000000 | ({
     off_20 = ((int64_t)(target_14 - asm_pc)) >> 2;
     if (!((off_20 >= -33554432) && (off_20 <= 33554431))) {
@@ -15414,12 +15414,12 @@ exit_offset_to_14:;
             } else if (asm_error == ASM_OK) {
                 asm_error = ASM_ERR_FULL;
             }
-            asm_bind(after_2);
+            arm64_assembler_bind(after_2);
             if (asm_noting) {
-                asm_note("slots := nil", 0);
+                note("slots := nil", 0);
             }
-            loop_2 = asm_new_label();
-            done_2 = asm_new_label();
+            loop_2 = new_label();
+            done_2 = new_label();
             if (asm_pc < asm_limit) {
                 *(uint32_t *)asm_pc = 2432713008ULL;
                 asm_pc = asm_pc + 4;
@@ -15437,14 +15437,14 @@ exit_offset_to_14:;
             } else if (asm_error == ASM_OK) {
                 asm_error = ASM_ERR_FULL;
             }
-            asm_bind(loop_2);
+            arm64_assembler_bind(loop_2);
             if (asm_pc < asm_limit) {
                 *(uint32_t *)asm_pc = 3943760415ULL;
                 asm_pc = asm_pc + 4;
             } else if (asm_error == ASM_OK) {
                 asm_error = ASM_ERR_FULL;
             }
-            target_15 = asm_target_of(done_2);
+            target_15 = target_of(done_2);
             a_word_25 = 0x54000000 | ((((uint64_t)({
     off_21 = ((int64_t)(target_15 - asm_pc)) >> 2;
     if (!((off_21 >= -262144) && (off_21 <= 262143))) {
@@ -15469,7 +15469,7 @@ exit_offset_to_15:;
             } else if (asm_error == ASM_OK) {
                 asm_error = ASM_ERR_FULL;
             }
-            target_16 = asm_target_of(loop_2);
+            target_16 = target_of(loop_2);
             a_word_26 = 0x14000000 | ({
     off_22 = ((int64_t)(target_16 - asm_pc)) >> 2;
     if (!((off_22 >= -33554432) && (off_22 <= 33554431))) {
@@ -15488,7 +15488,7 @@ exit_offset_to_16:;
             } else if (asm_error == ASM_OK) {
                 asm_error = ASM_ERR_FULL;
             }
-            asm_bind(done_2);
+            arm64_assembler_bind(done_2);
             if (asm_pc < asm_limit) {
                 *(uint32_t *)asm_pc = 2852717536ULL;
                 asm_pc = asm_pc + 4;
@@ -15501,18 +15501,18 @@ exit_offset_to_16:;
             } else if (asm_error == ASM_OK) {
                 asm_error = ASM_ERR_FULL;
             }
-            asm_bind(bytes);
+            arm64_assembler_bind(bytes);
             if (asm_noting) {
-                asm_note("bytes (spec 16, inst size 0): format 16 + unused bytes, zeroed", 0);
+                note("bytes (spec 16, inst size 0): format 16 + unused bytes, zeroed", 0);
             }
-            asm_mov_imm(X17, 2097153ULL);
+            mov_imm(X17, 2097153ULL);
             if (asm_pc < asm_limit) {
                 *(uint32_t *)asm_pc = 3943760223ULL;
                 asm_pc = asm_pc + 4;
             } else if (asm_error == ASM_OK) {
                 asm_error = ASM_ERR_FULL;
             }
-            target_17 = asm_target_of(fail);
+            target_17 = target_of(fail);
             a_word_27 = 0x54000000 | ((((uint64_t)({
     off_23 = ((int64_t)(target_17 - asm_pc)) >> 2;
     if (!((off_23 >= -262144) && (off_23 <= 262143))) {
@@ -15600,10 +15600,10 @@ exit_offset_to_17:;
                 asm_error = ASM_ERR_IMMEDIATE;
             }
         exit_add_sub_15:;
-            full_3 = asm_new_label();
-            after_3 = asm_new_label();
+            full_3 = new_label();
+            after_3 = new_label();
             if (asm_noting) {
-                asm_note("allocate in eden: bump the top unless it passes the limit", 0);
+                note("allocate in eden: bump the top unless it passes the limit", 0);
             }
             off_24 = (int64_t)&((jit_state *)0)->eden_box;
             if ((off_24 >= 0) && ((off_24 & 7) == 0) && ((off_24 >> 3) <= 4095)) {
@@ -15648,7 +15648,7 @@ exit_offset_to_17:;
             } else if (asm_error == ASM_OK) {
                 asm_error = ASM_ERR_FULL;
             }
-            target_18 = asm_target_of(full_3);
+            target_18 = target_of(full_3);
             a_word_30 = 0x54000000 | ((((uint64_t)({
     off_25 = ((int64_t)(target_18 - asm_pc)) >> 2;
     if (!((off_25 >= -262144) && (off_25 <= 262143))) {
@@ -15674,7 +15674,7 @@ exit_offset_to_18:;
                 asm_error = ASM_ERR_FULL;
             }
             if (asm_noting) {
-                asm_note("the identity hash: the next value of the VM's generator (never 0)", 0);
+                note("the identity hash: the next value of the VM's generator (never 0)", 0);
             }
             off_26 = (int64_t)&((jit_state *)0)->hash_box;
             if ((off_26 >= 0) && ((off_26 & 7) == 0) && ((off_26 >> 3) <= 4095)) {
@@ -15765,7 +15765,7 @@ exit_offset_to_18:;
                 asm_error = ASM_ERR_FULL;
             }
             if (asm_noting) {
-                asm_note("header (with the hash) and class", 0);
+                note("header (with the hash) and class", 0);
             }
             if (asm_pc < asm_limit) {
                 *(uint32_t *)asm_pc = 2831239148ULL;
@@ -15785,7 +15785,7 @@ exit_offset_to_18:;
             } else if (asm_error == ASM_OK) {
                 asm_error = ASM_ERR_FULL;
             }
-            target_19 = asm_target_of(after_3);
+            target_19 = target_of(after_3);
             a_word_34 = 0x14000000 | ({
     off_28 = ((int64_t)(target_19 - asm_pc)) >> 2;
     if (!((off_28 >= -33554432) && (off_28 <= 33554431))) {
@@ -15804,9 +15804,9 @@ exit_offset_to_19:;
             } else if (asm_error == ASM_OK) {
                 asm_error = ASM_ERR_FULL;
             }
-            asm_bind(full_3);
+            arm64_assembler_bind(full_3);
             if (asm_noting) {
-                asm_note("eden is full: the C function (it collects)", 0);
+                note("eden is full: the C function (it collects)", 0);
             }
             if (asm_pc < asm_limit) {
                 *(uint32_t *)asm_pc = 2432713727ULL;
@@ -15819,7 +15819,7 @@ exit_offset_to_19:;
                 asm_error = ASM_ERR_IMMEDIATE;
             }
         exit_add_sub_17:;
-            target_20 = asm_target_of(fail);
+            target_20 = target_of(fail);
             a_word_35 = 0x14000000 | ({
     off_29 = ((int64_t)(target_20 - asm_pc)) >> 2;
     if (!((off_29 >= -33554432) && (off_29 <= 33554431))) {
@@ -15838,12 +15838,12 @@ exit_offset_to_20:;
             } else if (asm_error == ASM_OK) {
                 asm_error = ASM_ERR_FULL;
             }
-            asm_bind(after_3);
+            arm64_assembler_bind(after_3);
             if (asm_noting) {
-                asm_note("bytes := 0", 0);
+                note("bytes := 0", 0);
             }
-            loop_3 = asm_new_label();
-            done_3 = asm_new_label();
+            loop_3 = new_label();
+            done_3 = new_label();
             if (asm_pc < asm_limit) {
                 *(uint32_t *)asm_pc = 2432713008ULL;
                 asm_pc = asm_pc + 4;
@@ -15861,14 +15861,14 @@ exit_offset_to_20:;
             } else if (asm_error == ASM_OK) {
                 asm_error = ASM_ERR_FULL;
             }
-            asm_bind(loop_3);
+            arm64_assembler_bind(loop_3);
             if (asm_pc < asm_limit) {
                 *(uint32_t *)asm_pc = 3943760415ULL;
                 asm_pc = asm_pc + 4;
             } else if (asm_error == ASM_OK) {
                 asm_error = ASM_ERR_FULL;
             }
-            target_21 = asm_target_of(done_3);
+            target_21 = target_of(done_3);
             a_word_36 = 0x54000000 | ((((uint64_t)({
     off_30 = ((int64_t)(target_21 - asm_pc)) >> 2;
     if (!((off_30 >= -262144) && (off_30 <= 262143))) {
@@ -15893,7 +15893,7 @@ exit_offset_to_21:;
             } else if (asm_error == ASM_OK) {
                 asm_error = ASM_ERR_FULL;
             }
-            target_22 = asm_target_of(loop_3);
+            target_22 = target_of(loop_3);
             a_word_37 = 0x14000000 | ({
     off_31 = ((int64_t)(target_22 - asm_pc)) >> 2;
     if (!((off_31 >= -33554432) && (off_31 <= 33554431))) {
@@ -15912,7 +15912,7 @@ exit_offset_to_22:;
             } else if (asm_error == ASM_OK) {
                 asm_error = ASM_ERR_FULL;
             }
-            asm_bind(done_3);
+            arm64_assembler_bind(done_3);
             if (asm_pc < asm_limit) {
                 *(uint32_t *)asm_pc = 2852717536ULL;
                 asm_pc = asm_pc + 4;
@@ -15928,7 +15928,7 @@ exit_offset_to_22:;
         }
         if (k == PK_IDENTICAL) {
             if (asm_noting) {
-                asm_note("primitive ==: the receiver and the argument", 0);
+                note("primitive ==: the receiver and the argument", 0);
             }
             if (asm_pc < asm_limit) {
                 *(uint32_t *)asm_pc = 4181721744ULL;
@@ -15956,11 +15956,11 @@ exit_offset_to_22:;
             }
         }
         if (k == PK_CLASS) {
-            imm = asm_new_label();
+            imm = new_label();
             if (asm_noting) {
-                asm_note("primitive class: an object's class word, an immediate's by its tag", 0);
+                note("primitive class: an object's class word, an immediate's by its tag", 0);
             }
-            enc = asm_logical_immediate(7ULL, 64);
+            enc = logical_immediate(7ULL, 64);
             if (enc < 0) {
                 if (asm_error == ASM_OK) {
                     asm_error = ASM_ERR_IMMEDIATE;
@@ -15975,7 +15975,7 @@ exit_offset_to_22:;
                 asm_error = ASM_ERR_FULL;
             }
         exit_logical:;
-            target_23 = asm_target_of(imm);
+            target_23 = target_of(imm);
             a_word_39 = 0x54000000 | ((((uint64_t)({
     off_32 = ((int64_t)(target_23 - asm_pc)) >> 2;
     if (!((off_32 >= -262144) && (off_32 <= 262143))) {
@@ -16006,8 +16006,8 @@ exit_offset_to_23:;
             } else if (asm_error == ASM_OK) {
                 asm_error = ASM_ERR_FULL;
             }
-            asm_bind(imm);
-            enc_2 = asm_logical_immediate(7ULL, 64);
+            arm64_assembler_bind(imm);
+            enc_2 = logical_immediate(7ULL, 64);
             if (enc_2 < 0) {
                 if (asm_error == ASM_OK) {
                     asm_error = ASM_ERR_IMMEDIATE;
@@ -16065,9 +16065,9 @@ exit_offset_to_23:;
         }
         if (k == PK_CLOSURE_VALUE) {
             if (asm_noting) {
-                asm_note("primitive closure value: a BlockClosure with as many arguments", 0);
+                note("primitive closure value: a BlockClosure with as many arguments", 0);
             }
-            enc_3 = asm_logical_immediate(7ULL, 64);
+            enc_3 = logical_immediate(7ULL, 64);
             if (enc_3 < 0) {
                 if (asm_error == ASM_OK) {
                     asm_error = ASM_ERR_IMMEDIATE;
@@ -16082,7 +16082,7 @@ exit_offset_to_23:;
                 asm_error = ASM_ERR_FULL;
             }
         exit_logical_3:;
-            target_24 = asm_target_of(fail);
+            target_24 = target_of(fail);
             a_word_44 = 0x54000000 | ((((uint64_t)({
     off_33 = ((int64_t)(target_24 - asm_pc)) >> 2;
     if (!((off_33 >= -262144) && (off_33 <= 262143))) {
@@ -16138,7 +16138,7 @@ exit_offset_to_24:;
             } else if (asm_error == ASM_OK) {
                 asm_error = ASM_ERR_FULL;
             }
-            target_25 = asm_target_of(fail);
+            target_25 = target_of(fail);
             a_word_47 = 0x54000000 | ((((uint64_t)({
     off_35 = ((int64_t)(target_25 - asm_pc)) >> 2;
     if (!((off_35 >= -262144) && (off_35 <= 262143))) {
@@ -16191,7 +16191,7 @@ exit_offset_to_25:;
                 asm_error = ASM_ERR_IMMEDIATE;
             }
         exit_add_sub_20:;
-            target_26 = asm_target_of(fail);
+            target_26 = target_of(fail);
             a_word_50 = 0x54000000 | ((((uint64_t)({
     off_36 = ((int64_t)(target_26 - asm_pc)) >> 2;
     if (!((off_36 >= -262144) && (off_36 <= 262143))) {
@@ -16211,9 +16211,9 @@ exit_offset_to_26:;
                 asm_error = ASM_ERR_FULL;
             }
             if (asm_noting) {
-                asm_note("the block's code (x30 still returns to the send)", 0);
+                note("the block's code (x30 still returns to the send)", 0);
             }
-            target_27 = asm_target_of(block_label);
+            target_27 = target_of(block_label);
             a_word_51 = 0x14000000 | ({
     off_37 = ((int64_t)(target_27 - asm_pc)) >> 2;
     if (!((off_37 >= -33554432) && (off_37 <= 33554431))) {
@@ -16234,16 +16234,16 @@ exit_offset_to_27:;
             }
         }
         if (k == PK_INT_OP) {
-            bl_emit_int_primitive(bl_prim_op(prim_index), fail);
+            emit_int_primitive(prim_op_of(prim_index), fail);
         }
         if (k == PK_FLOAT_OP) {
-            bl_emit_float_primitive(bl_prim_op(prim_index), fail);
+            emit_float_primitive(prim_op_of(prim_index), fail);
         }
         if (k == PK_CHAR_VALUE) {
             if (asm_noting) {
-                asm_note("primitive charValue: a Character's code", 0);
+                note("primitive charValue: a Character's code", 0);
             }
-            enc_4 = asm_logical_immediate(7ULL, 64);
+            enc_4 = logical_immediate(7ULL, 64);
             if (enc_4 < 0) {
                 if (asm_error == ASM_OK) {
                     asm_error = ASM_ERR_IMMEDIATE;
@@ -16269,7 +16269,7 @@ exit_offset_to_27:;
                 asm_error = ASM_ERR_IMMEDIATE;
             }
         exit_add_sub_21:;
-            target_28 = asm_target_of(fail);
+            target_28 = target_of(fail);
             a_word_53 = 0x54000000 | ((((uint64_t)({
     off_38 = ((int64_t)(target_28 - asm_pc)) >> 2;
     if (!((off_38 >= -262144) && (off_38 <= 262143))) {
@@ -16300,7 +16300,7 @@ exit_offset_to_28:;
             } else if (asm_error == ASM_OK) {
                 asm_error = ASM_ERR_FULL;
             }
-            enc_5 = asm_logical_immediate(1ULL, 64);
+            enc_5 = logical_immediate(1ULL, 64);
             if (enc_5 < 0) {
                 if (asm_error == ASM_OK) {
                     asm_error = ASM_ERR_IMMEDIATE;
@@ -16324,7 +16324,7 @@ exit_offset_to_28:;
         }
         if (k == PK_CHAR_FROM_VALUE) {
             if (asm_noting) {
-                asm_note("primitive charFromValue: the Character of a code (0 to 16r3FFFFFFF)", 0);
+                note("primitive charFromValue: the Character of a code (0 to 16r3FFFFFFF)", 0);
             }
             if (asm_pc < asm_limit) {
                 *(uint32_t *)asm_pc = 4181721729ULL;
@@ -16332,7 +16332,7 @@ exit_offset_to_28:;
             } else if (asm_error == ASM_OK) {
                 asm_error = ASM_ERR_FULL;
             }
-            target_29 = asm_target_of(fail);
+            target_29 = target_of(fail);
             a_word_55 = 905969664ULL | ((((uint64_t)({
     off_39 = ((int64_t)(target_29 - asm_pc)) >> 2;
     if (!((off_39 >= -8192) && (off_39 <= 8191))) {
@@ -16357,14 +16357,14 @@ exit_offset_to_29:;
             } else if (asm_error == ASM_OK) {
                 asm_error = ASM_ERR_FULL;
             }
-            asm_mov_imm(X17, 1073741823ULL);
+            mov_imm(X17, 1073741823ULL);
             if (asm_pc < asm_limit) {
                 *(uint32_t *)asm_pc = 3943760415ULL;
                 asm_pc = asm_pc + 4;
             } else if (asm_error == ASM_OK) {
                 asm_error = ASM_ERR_FULL;
             }
-            target_30 = asm_target_of(fail);
+            target_30 = target_of(fail);
             a_word_56 = 0x54000000 | ((((uint64_t)({
     off_40 = ((int64_t)(target_30 - asm_pc)) >> 2;
     if (!((off_40 >= -262144) && (off_40 <= 262143))) {
@@ -16389,7 +16389,7 @@ exit_offset_to_30:;
             } else if (asm_error == ASM_OK) {
                 asm_error = ASM_ERR_FULL;
             }
-            enc_6 = asm_logical_immediate(2ULL, 64);
+            enc_6 = logical_immediate(2ULL, 64);
             if (enc_6 < 0) {
                 if (asm_error == ASM_OK) {
                     asm_error = ASM_ERR_IMMEDIATE;
@@ -16412,25 +16412,25 @@ exit_offset_to_30:;
             }
         }
         if ((k == PK_AT) || ((k == PK_AT_PUT) || (k == PK_BASIC_SIZE))) {
-            bl_emit_indexed_primitive(k, fail);
+            emit_indexed_primitive(k, fail);
         }
         if ((k == PK_UINT32_AT) || (k == PK_UINT32_AT_PUT)) {
-            bl_emit_uint32_primitive(k == PK_UINT32_AT_PUT, fail);
+            emit_uint32_primitive(k == PK_UINT32_AT_PUT, fail);
         }
         if ((k == PK_STRING_AT) && (cur_args == 1)) {
-            bl_emit_string_primitive(false, fail);
+            emit_string_primitive(false, fail);
         }
         if ((k == PK_STRING_AT_PUT) && (cur_args == 2)) {
-            bl_emit_string_primitive(true, fail);
+            emit_string_primitive(true, fail);
         }
         if (k == PK_STRING_COMPARE) {
-            bl_emit_string_compare_primitive(fail);
+            emit_string_compare_primitive(fail);
         }
         if (k == PK_HASH) {
             if (asm_noting) {
-                asm_note("primitive identityHash: an object's header hash", 0);
+                note("primitive identityHash: an object's header hash", 0);
             }
-            enc_7 = asm_logical_immediate(7ULL, 64);
+            enc_7 = logical_immediate(7ULL, 64);
             if (enc_7 < 0) {
                 if (asm_error == ASM_OK) {
                     asm_error = ASM_ERR_IMMEDIATE;
@@ -16445,7 +16445,7 @@ exit_offset_to_30:;
                 asm_error = ASM_ERR_FULL;
             }
         exit_logical_7:;
-            target_31 = asm_target_of(fail);
+            target_31 = target_of(fail);
             a_word_59 = 0x54000000 | ((((uint64_t)({
     off_41 = ((int64_t)(target_31 - asm_pc)) >> 2;
     if (!((off_41 >= -262144) && (off_41 <= 262143))) {
@@ -16482,7 +16482,7 @@ exit_offset_to_31:;
             } else if (asm_error == ASM_OK) {
                 asm_error = ASM_ERR_FULL;
             }
-            enc_8 = asm_logical_immediate(1ULL, 64);
+            enc_8 = logical_immediate(1ULL, 64);
             if (enc_8 < 0) {
                 if (asm_error == ASM_OK) {
                     asm_error = ASM_ERR_IMMEDIATE;
@@ -16508,12 +16508,12 @@ exit_offset_to_31:;
     if (k == PK_MARKER) {
         return true;
     }
-    asm_bind(fail);
+    arm64_assembler_bind(fail);
     if (asm_noting) {
-        asm_note("the primitive's C function: success returns to the sender, failure continues here", 0);
+        note("the primitive's C function: success returns to the sender, failure continues here", 0);
     }
-    info = asm_new_label();
-    off_42 = (int64_t)(asm_target_of(info) - asm_pc);
+    info = new_label();
+    off_42 = (int64_t)(target_of(info) - asm_pc);
     if (!((off_42 >= -1048576) && (off_42 <= 0xFFFFF))) {
         if (asm_error == ASM_OK) {
             asm_error = ASM_ERR_RANGE;
@@ -16528,7 +16528,7 @@ exit_offset_to_31:;
         asm_error = ASM_ERR_FULL;
     }
 exit_adr:;
-    value = (uint64_t)prim_lookup(prim_index);
+    value = (uint64_t)primitive_table_lookup(prim_index);
     v_22 = value;
     imm_4 = v_22 & 0xFFFF;
     if (!(imm_4 <= 0xFFFF)) {
@@ -16590,7 +16590,7 @@ exit_move_wide_3:;
         asm_error = ASM_ERR_FULL;
     }
 exit_move_wide_4:;
-    value_2 = cur_args | (prim_is_leaf(prim_index) ? 256 : 0) | (prim_error ? 512 : 0);
+    value_2 = cur_args | (is_leaf(prim_index) ? 256 : 0) | (prim_error ? 512 : 0);
     if ((value_2 >= 0) && (value_2 <= 0xFFFF)) {
         if (!((value_2 >= 0) && (value_2 <= 0xFFFF))) {
             if (asm_error == ASM_OK) {
@@ -16607,9 +16607,9 @@ exit_move_wide_4:;
         }
     exit_move_wide_5:;
     } else {
-        asm_mov_imm(X3, (uint64_t)value_2);
+        mov_imm(X3, (uint64_t)value_2);
     }
-    target_32 = asm_target_of(prim_label);
+    target_32 = target_of(prim_label);
     a_word_67 = 0x14000000 | ({
     off_43 = ((int64_t)(target_32 - asm_pc)) >> 2;
     if (!((off_43 >= -33554432) && (off_43 <= 33554431))) {
@@ -16628,12 +16628,12 @@ exit_offset_to_32:;
     } else if (asm_error == ASM_OK) {
         asm_error = ASM_ERR_FULL;
     }
-    asm_bind(info);
+    arm64_assembler_bind(info);
     return true;
 }
 
 /* JitBaselineCompiler>>emitQuickMethod */
-static void bl_emit_quick(void)
+static void emit_quick_method(void)
 {
     bool r_is_quick_method;
     int32_t n_2;
@@ -16725,9 +16725,9 @@ exit_is_quick_method:;
     r_is_quick_method; })) {
         return;
     }
-    framed = asm_new_label();
+    framed = new_label();
     if (asm_noting) {
-        asm_note("quick method: an interrupt pending (stack limit 0)? then with a frame", 0);
+        note("quick method: an interrupt pending (stack limit 0)? then with a frame", 0);
     }
     off = (int64_t)&((jit_state *)0)->stack_limit;
     if ((off >= 0) && ((off & 7) == 0) && ((off >> 3) <= 4095)) {
@@ -16754,7 +16754,7 @@ exit_is_quick_method:;
         }
     exit_load_store:;
     }
-    target = asm_target_of(framed);
+    target = target_of(framed);
     a_word_3 = 3019898880LL | ((((uint64_t)({
     off_2 = ((int64_t)(target - asm_pc)) >> 2;
     if (!((off_2 >= -262144) && (off_2 <= 262143))) {
@@ -16778,7 +16778,7 @@ exit_offset_to:;
     if (n_3 == 1) {
         if (b0_3 == 0x7A) {
             if (asm_noting) {
-                asm_note("quick: ^self", 0);
+                note("quick: ^self", 0);
             }
             if (asm_pc < asm_limit) {
                 *(uint32_t *)asm_pc = 0xD65F03C0LL;
@@ -16794,7 +16794,7 @@ exit_offset_to:;
         if ((b0_3 >= 0x10) && (b0_3 <= 0x1F)) {
             an_integer = b0_3 - 0x10;
             if (asm_noting) {
-                asm_note("quick: ^inst var %d", an_integer);
+                note("quick: ^inst var %d", an_integer);
             }
             i = b0_3 - 0x10;
             off_3 = 16 + 8 * i;
@@ -16832,7 +16832,7 @@ exit_offset_to:;
         }
         if ((b0_3 >= 0x71) && (b0_3 <= 0x73)) {
             if (asm_noting) {
-                asm_note("quick: ^true, ^false or ^nil", 0);
+                note("quick: ^true, ^false or ^nil", 0);
             }
             rm = b0_3 == 0x71 ? X24 : b0_3 == 0x72 ? X25 : X23;
             if ((rm & REG_SP) != 0) {
@@ -16875,7 +16875,7 @@ exit_offset_to:;
         }
         if ((b0_3 == 0x74) || (b0_3 == 0x75)) {
             if (asm_noting) {
-                asm_note("quick: ^0 or ^1", 0);
+                note("quick: ^0 or ^1", 0);
             }
             v_2 = b0_3 - 0x74;
             value = (((int64_t)v_2) << 1) | 1;
@@ -16895,7 +16895,7 @@ exit_offset_to:;
                 }
             exit_move_wide:;
             } else {
-                asm_mov_imm(X0, (uint64_t)value);
+                mov_imm(X0, (uint64_t)value);
             }
             if (asm_pc < asm_limit) {
                 *(uint32_t *)asm_pc = 0xD65F03C0LL;
@@ -16907,9 +16907,9 @@ exit_offset_to:;
         }
         if ((b0_3 >= 0x20) && (b0_3 <= 0x3F)) {
             if (asm_noting) {
-                asm_note("quick: ^literal", 0);
+                note("quick: ^literal", 0);
             }
-            bl_load_literal(b0_3 - 0x20, X0);
+            load_literal(b0_3 - 0x20, X0);
             if (asm_pc < asm_limit) {
                 *(uint32_t *)asm_pc = 0xD65F03C0LL;
                 asm_pc = asm_pc + 4;
@@ -16922,7 +16922,7 @@ exit_offset_to:;
     }
     if ((n_3 == 4) && ((b0_3 == 0x93) && (ana_bcs[3] == 0x79))) {
         if (asm_noting) {
-            asm_note("quick: ^SmallInteger", 0);
+            note("quick: ^SmallInteger", 0);
         }
         v_3 = (int32_t)(int16_t)(ana_bcs[1] | (((int64_t)ana_bcs[2]) << 8));
         value_2 = (((int64_t)v_3) << 1) | 1;
@@ -16942,7 +16942,7 @@ exit_offset_to:;
             }
         exit_move_wide_2:;
         } else {
-            asm_mov_imm(X0, (uint64_t)value_2);
+            mov_imm(X0, (uint64_t)value_2);
         }
         if (asm_pc < asm_limit) {
             *(uint32_t *)asm_pc = 0xD65F03C0LL;
@@ -16952,9 +16952,9 @@ exit_offset_to:;
         }
         goto exit_emit_quick_body;
     }
-    s_2 = asm_new_label();
+    s_2 = new_label();
     if (asm_noting) {
-        asm_note("quick setter: an immutable receiver takes the frame's path", 0);
+        note("quick setter: an immutable receiver takes the frame's path", 0);
     }
     if (asm_pc < asm_limit) {
         *(uint32_t *)asm_pc = 4181721099ULL;
@@ -16962,7 +16962,7 @@ exit_offset_to:;
     } else if (asm_error == ASM_OK) {
         asm_error = ASM_ERR_FULL;
     }
-    target_2 = asm_target_of(s_2);
+    target_2 = target_of(s_2);
     a_word_11 = 3084386304ULL | ((((uint64_t)({
     off_4 = ((int64_t)(target_2 - asm_pc)) >> 2;
     if (!((off_4 >= -8192) && (off_4 <= 8191))) {
@@ -16985,7 +16985,7 @@ exit_offset_to_2:;
         pc_5 = 4 * k_2 + 2;
         an_integer_2 = ana_bcs[pc_5];
         if (asm_noting) {
-            asm_note("inst var %d := argument", an_integer_2);
+            note("inst var %d := argument", an_integer_2);
         }
         off_5 = 8 * k_2;
         if ((off_5 >= 0) && ((off_5 & 7) == 0) && ((off_5 >> 3) <= 4095)) {
@@ -17039,10 +17039,10 @@ exit_offset_to_2:;
             }
         exit_load_store_4:;
         }
-        bl_barrier(X0, X11, X10);
+        jit_baseline_compiler_barrier(X0, X11, X10);
     }
     if (asm_noting) {
-        asm_note("answer self", 0);
+        note("answer self", 0);
     }
     if (asm_pc < asm_limit) {
         *(uint32_t *)asm_pc = 0xD65F03C0LL;
@@ -17050,13 +17050,13 @@ exit_offset_to_2:;
     } else if (asm_error == ASM_OK) {
         asm_error = ASM_ERR_FULL;
     }
-    asm_bind(s_2);
+    arm64_assembler_bind(s_2);
 exit_emit_quick_body:;
-    asm_bind(framed);
+    arm64_assembler_bind(framed);
 }
 
 /* JitBaselineCompiler>>emitRuntimeCall:pc:depth: */
-static void bl_emit_runtime_call(int32_t stub_label, int32_t pc, int32_t d)
+static void emit_runtime_call(int32_t stub_label, int32_t pc, int32_t d)
 {
     int64_t value;
     uint64_t a_word;
@@ -17078,7 +17078,7 @@ static void bl_emit_runtime_call(int32_t stub_label, int32_t pc, int32_t d)
     uint64_t a_word_8;
     int r;
     if (asm_noting) {
-        asm_note("spill: frame pc %d", pc);
+        note("spill: frame pc %d", pc);
     }
     value = (((int64_t)d) << 32) | pc;
     if ((value >= 0) && (value <= 0xFFFF)) {
@@ -17097,7 +17097,7 @@ static void bl_emit_runtime_call(int32_t stub_label, int32_t pc, int32_t d)
         }
     exit_move_wide:;
     } else {
-        asm_mov_imm(X16, (uint64_t)value);
+        mov_imm(X16, (uint64_t)value);
     }
     off = (int64_t)&((frame *)0)->pc;
     if ((off >= 0) && ((off & 7) == 0) && ((off >> 3) <= 4095)) {
@@ -17130,7 +17130,7 @@ static void bl_emit_runtime_call(int32_t stub_label, int32_t pc, int32_t d)
     } else if (asm_error == ASM_OK) {
         asm_error = ASM_ERR_FULL;
     }
-    target = asm_target_of(stub_label);
+    target = target_of(stub_label);
     a_word_4 = 0x94000000LL | ({
     off_2 = ((int64_t)(target - asm_pc)) >> 2;
     if (!((off_2 >= -33554432) && (off_2 <= 33554431))) {
@@ -17149,7 +17149,7 @@ exit_offset_to:;
     } else if (asm_error == ASM_OK) {
         asm_error = ASM_ERR_FULL;
     }
-    target_2 = asm_target_of(exit_plain_label);
+    target_2 = target_of(exit_plain_label);
     a_word_5 = 3036676096LL | ((((uint64_t)({
     off_3 = ((int64_t)(target_2 - asm_pc)) >> 2;
     if (!((off_3 >= -262144) && (off_3 <= 262143))) {
@@ -17169,7 +17169,7 @@ exit_offset_to_2:;
         asm_error = ASM_ERR_FULL;
     }
     if (asm_noting) {
-        asm_note("nil, true, false again (a GC may have moved them)", 0);
+        note("nil, true, false again (a GC may have moved them)", 0);
     }
     off_4 = (int64_t)&((jit_state *)0)->nil_oop;
     if (!(((off_4 & 7) == 0) && (((off_4 >> 3) >= -64) && ((off_4 >> 3) <= 63)))) {
@@ -17214,12 +17214,12 @@ exit_pair:;
     for (r = 0; r <= 31; r++) {
         reg_owner[r] = -1;
     }
-    bl_drop_doubles();
+    drop_doubles();
     self_valid = false;
 }
 
 /* JitBaselineCompiler>>emitSiteCall:info:receiver: */
-static void bl_emit_site_call(int32_t pc, uint32_t info, int32_t ri)
+static void emit_site_call(int32_t pc, uint32_t info, int32_t ri)
 {
     int32_t site;
     int32_t off;
@@ -17252,13 +17252,13 @@ static void bl_emit_site_call(int32_t pc, uint32_t info, int32_t ri)
     }
     site = site_count;
     site_count = site_count + 1;
-    site_lit[site] = asm_new_label();
+    site_lit[site] = new_label();
     site_info[site] = info;
     site_pc[site] = (uint16_t)pc;
     site_depth[site] = (uint16_t)(int32_t)ana_depths[pc];
     off = 8 * (ri + 1);
     if (asm_noting) {
-        asm_note("x20 := the callee's fp", 0);
+        note("x20 := the callee's fp", 0);
     }
     if (off <= 4095) {
         neg = off < 0;
@@ -17305,7 +17305,7 @@ static void bl_emit_site_call(int32_t pc, uint32_t info, int32_t ri)
             }
         exit_move_wide:;
         } else {
-            asm_mov_imm(X16, (uint64_t)off);
+            mov_imm(X16, (uint64_t)off);
         }
         if (asm_pc < asm_limit) {
             *(uint32_t *)asm_pc = 2333082260ULL;
@@ -17315,10 +17315,10 @@ static void bl_emit_site_call(int32_t pc, uint32_t info, int32_t ri)
         }
     }
     if (asm_noting) {
-        asm_note("x9 := inline cache %d's class", site);
+        note("x9 := inline cache %d's class", site);
     }
     a_label = site_lit[site];
-    target = asm_target_of(a_label);
+    target = target_of(a_label);
     a_word_4 = 0x58000000 | ((((uint64_t)({
     off_2 = ((int64_t)(target - asm_pc)) >> 2;
     if (!((off_2 >= -262144) && (off_2 <= 262143))) {
@@ -17338,10 +17338,10 @@ exit_offset_to:;
         asm_error = ASM_ERR_FULL;
     }
     if (asm_noting) {
-        asm_note("call the inline cache's target (the miss stub while unlinked)", 0);
+        note("call the inline cache's target (the miss stub while unlinked)", 0);
     }
     site_bl[site] = (uint32_t)(asm_pc - code_start);
-    target_2 = asm_target_of(miss_label);
+    target_2 = target_of(miss_label);
     a_word_5 = 0x94000000LL | ({
     off_3 = ((int64_t)(target_2 - asm_pc)) >> 2;
     if (!((off_3 >= -33554432) && (off_3 <= 33554431))) {
@@ -17360,9 +17360,9 @@ exit_offset_to_2:;
     } else if (asm_error == ASM_OK) {
         asm_error = ASM_ERR_FULL;
     }
-    bl_note_ret(pc, (int32_t)ana_depths[pc], info);
+    note_ret(pc, (int32_t)ana_depths[pc], info);
     if (asm_noting) {
-        asm_note("back: x0 the result, x20 our fp again", 0);
+        note("back: x0 the result, x20 our fp again", 0);
     }
     if (off <= 4095) {
         neg_2 = off < 0;
@@ -17409,7 +17409,7 @@ exit_offset_to_2:;
             }
         exit_move_wide_2:;
         } else {
-            asm_mov_imm(X16, (uint64_t)off);
+            mov_imm(X16, (uint64_t)off);
         }
         if (asm_pc < asm_limit) {
             *(uint32_t *)asm_pc = 3406824084ULL;
@@ -17421,7 +17421,7 @@ exit_offset_to_2:;
 }
 
 /* JitBaselineCompiler>>emitSlowPaths */
-static bool bl_emit_slow_paths(void)
+static bool emit_slow_paths(void)
 {
     int32_t i;
     uint8_t kind;
@@ -17687,15 +17687,15 @@ static bool bl_emit_slow_paths(void)
     i = 0;
     while (i < sl_count) {
         kind = sl_kind[i];
-        asm_bind(sl_label[i]);
+        arm64_assembler_bind(sl_label[i]);
         if (kind == SL_INTERRUPT) {
             if (asm_noting) {
-                asm_note("interrupt: the runtime handles it", 0);
+                note("interrupt: the runtime handles it", 0);
             }
-            bl_emit_runtime_call(interrupt_label, sl_pc[i], sl_depth[i]);
-            bl_emit_load_loop_temps(sl_loop[i]);
+            emit_runtime_call(interrupt_label, sl_pc[i], sl_depth[i]);
+            emit_load_loop_temps(sl_loop[i]);
             a_label = sl_cont[i];
-            target = asm_target_of(a_label);
+            target = target_of(a_label);
             a_word = 0x14000000 | ({
     off = ((int64_t)(target - asm_pc)) >> 2;
     if (!((off >= -33554432) && (off <= 33554431))) {
@@ -17718,7 +17718,7 @@ exit_offset_to:;
         if (kind == SL_START) {
             if (counter_addr != 0) {
                 if (asm_noting) {
-                    asm_note("entry: x19 := the callee's Frame, push x29/x30, x20 := fp, x21 := receiver", 0);
+                    note("entry: x19 := the callee's Frame, push x29/x30, x20 := fp, x21 := receiver", 0);
                 }
                 imm = sizeof(frame);
                 v = imm;
@@ -17811,7 +17811,7 @@ exit_offset_to:;
             }
             if (counter_addr != 0) {
                 if (asm_noting) {
-                    asm_note("pc and sp 0: the frame is lazy from here (a pushed frame's pc may be stale)", 0);
+                    note("pc and sp 0: the frame is lazy from here (a pushed frame's pc may be stale)", 0);
                 }
                 off_3 = (int64_t)&((frame *)0)->pc;
                 if ((off_3 >= 0) && ((off_3 & 7) == 0) && ((off_3 >> 3) <= 4095)) {
@@ -17839,9 +17839,9 @@ exit_offset_to:;
                 exit_load_store_2:;
                 }
             }
-            intr = asm_new_label();
+            intr = new_label();
             if (asm_noting) {
-                asm_note("resumption at the start: interrupt check", 0);
+                note("resumption at the start: interrupt check", 0);
             }
             off_4 = (int64_t)&((jit_state *)0)->interrupt;
             if ((off_4 >= 0) && ((off_4 & 3) == 0) && ((off_4 >> 2) <= 4095)) {
@@ -17868,7 +17868,7 @@ exit_offset_to:;
                 }
             exit_load_store_3:;
             }
-            target_2 = asm_target_of(intr);
+            target_2 = target_of(intr);
             a_word_10 = 889192448 | ((((uint64_t)({
     off_5 = ((int64_t)(target_2 - asm_pc)) >> 2;
     if (!((off_5 >= -262144) && (off_5 <= 262143))) {
@@ -17894,21 +17894,21 @@ exit_offset_to_2:;
         r_emit_tier_up = true;
         goto exit_emit_tier_up;
     }
-    s_2 = bl_slow(SL_TIERUP, pc_2, d);
+    s_2 = jit_baseline_compiler_slow(SL_TIERUP, pc_2, d);
     if (s_2 < 0) {
         r_emit_tier_up = false;
         goto exit_emit_tier_up;
     }
-    after = asm_new_label();
+    after = new_label();
     sl_cont[s_2] = after;
     sl_info[s_2] = 0;
     sl_loop[s_2] = -1;
     slow_label = sl_label[s_2];
     if (asm_noting) {
-        asm_note("count toward optimization", 0);
+        note("count toward optimization", 0);
     }
-    a_label_2 = asm_label_at(counter_addr);
-    off_6 = ((int64_t)((asm_target_of(a_label_2) & 18446744073709547520ULL) - (asm_pc & 18446744073709547520ULL))) >> 12;
+    a_label_2 = label_at(counter_addr);
+    off_6 = ((int64_t)((target_of(a_label_2) & 18446744073709547520ULL) - (asm_pc & 18446744073709547520ULL))) >> 12;
     if (!((off_6 >= -1048576) && (off_6 <= 0xFFFFF))) {
         if (asm_error == ASM_OK) {
             asm_error = ASM_ERR_RANGE;
@@ -17984,7 +17984,7 @@ exit_add_sub_3:;
         }
     exit_load_store_5:;
     }
-    target_3 = asm_target_of(slow_label);
+    target_3 = target_of(slow_label);
     a_word_16 = 0x54000000 | ((((uint64_t)({
     off_9 = ((int64_t)(target_3 - asm_pc)) >> 2;
     if (!((off_9 >= -262144) && (off_9 <= 262143))) {
@@ -18003,7 +18003,7 @@ exit_offset_to_3:;
     } else if (asm_error == ASM_OK) {
         asm_error = ASM_ERR_FULL;
     }
-    asm_bind(after);
+    arm64_assembler_bind(after);
     r_emit_tier_up = true;
 exit_emit_tier_up:;
     r_emit_tier_up; })) {
@@ -18013,7 +18013,7 @@ exit_emit_tier_up:;
                 goto exit_emit_start;
             }
             a_label_3 = sl_cont[i];
-            target_4 = asm_target_of(a_label_3);
+            target_4 = target_of(a_label_3);
             a_word_17 = 0x14000000 | ({
     off_10 = ((int64_t)(target_4 - asm_pc)) >> 2;
     if (!((off_10 >= -33554432) && (off_10 <= 33554431))) {
@@ -18032,8 +18032,8 @@ exit_offset_to_4:;
             } else if (asm_error == ASM_OK) {
                 asm_error = ASM_ERR_FULL;
             }
-            asm_bind(intr);
-            bl_emit_runtime_call(interrupt_label, sl_pc[i], sl_depth[i]);
+            arm64_assembler_bind(intr);
+            emit_runtime_call(interrupt_label, sl_pc[i], sl_depth[i]);
             if (asm_pc < asm_limit) {
                 *(uint32_t *)asm_pc = 4167008917ULL;
                 asm_pc = asm_pc + 4;
@@ -18041,7 +18041,7 @@ exit_offset_to_4:;
                 asm_error = ASM_ERR_FULL;
             }
             a_label_4 = sl_cont[i];
-            target_5 = asm_target_of(a_label_4);
+            target_5 = target_of(a_label_4);
             a_word_18 = 0x14000000 | ({
     off_11 = ((int64_t)(target_5 - asm_pc)) >> 2;
     if (!((off_11 >= -33554432) && (off_11 <= 33554431))) {
@@ -18064,12 +18064,12 @@ exit_offset_to_5:;
         }
         if (kind == SL_TIERUP) {
             if (asm_noting) {
-                asm_note("tier up: the runtime answers 0 (go on), 1 (leave) or where the frame continues", 0);
+                note("tier up: the runtime answers 0 (go on), 1 (leave) or where the frame continues", 0);
             }
             pc_3 = sl_pc[i];
             d_2 = sl_depth[i];
             if (asm_noting) {
-                asm_note("spill: frame pc %d", pc_3);
+                note("spill: frame pc %d", pc_3);
             }
             value = (((int64_t)d_2) << 32) | pc_3;
             if ((value >= 0) && (value <= 0xFFFF)) {
@@ -18088,7 +18088,7 @@ exit_offset_to_5:;
                 }
             exit_move_wide:;
             } else {
-                asm_mov_imm(X16, (uint64_t)value);
+                mov_imm(X16, (uint64_t)value);
             }
             off_12 = (int64_t)&((frame *)0)->pc;
             if ((off_12 >= 0) && ((off_12 & 7) == 0) && ((off_12 >> 3) <= 4095)) {
@@ -18138,9 +18138,9 @@ exit_offset_to_5:;
                 }
             exit_move_wide_2:;
             } else {
-                asm_mov_imm(X1, (uint64_t)value_2);
+                mov_imm(X1, (uint64_t)value_2);
             }
-            target_6 = asm_target_of(tier_up_label);
+            target_6 = target_of(tier_up_label);
             a_word_23 = 0x94000000LL | ({
     off_13 = ((int64_t)(target_6 - asm_pc)) >> 2;
     if (!((off_13 >= -33554432) && (off_13 <= 33554431))) {
@@ -18159,8 +18159,8 @@ exit_offset_to_6:;
             } else if (asm_error == ASM_OK) {
                 asm_error = ASM_ERR_FULL;
             }
-            l = asm_new_label();
-            target_7 = asm_target_of(l);
+            l = new_label();
+            target_7 = target_of(l);
             a_word_24 = 3019898880LL | ((((uint64_t)({
     off_14 = ((int64_t)(target_7 - asm_pc)) >> 2;
     if (!((off_14 >= -262144) && (off_14 <= 262143))) {
@@ -18190,7 +18190,7 @@ exit_offset_to_7:;
                 asm_error = ASM_ERR_IMMEDIATE;
             }
         exit_add_sub_4:;
-            target_8 = asm_target_of(exit_plain_label);
+            target_8 = target_of(exit_plain_label);
             a_word_25 = 0x54000000 | ((((uint64_t)({
     off_15 = ((int64_t)(target_8 - asm_pc)) >> 2;
     if (!((off_15 >= -262144) && (off_15 <= 262143))) {
@@ -18215,9 +18215,9 @@ exit_offset_to_8:;
             } else if (asm_error == ASM_OK) {
                 asm_error = ASM_ERR_FULL;
             }
-            asm_bind(l);
+            arm64_assembler_bind(l);
             if (asm_noting) {
-                asm_note("nil, true, false again (a GC may have moved them)", 0);
+                note("nil, true, false again (a GC may have moved them)", 0);
             }
             off_16 = (int64_t)&((jit_state *)0)->nil_oop;
             if (!(((off_16 & 7) == 0) && (((off_16 >> 3) >= -64) && ((off_16 >> 3) <= 63)))) {
@@ -18259,7 +18259,7 @@ exit_offset_to_8:;
                 }
             exit_load_store_7:;
             }
-            bl_emit_load_loop_temps(sl_loop[i]);
+            emit_load_loop_temps(sl_loop[i]);
             if (asm_pc < asm_limit) {
                 *(uint32_t *)asm_pc = 4167008917ULL;
                 asm_pc = asm_pc + 4;
@@ -18267,7 +18267,7 @@ exit_offset_to_8:;
                 asm_error = ASM_ERR_FULL;
             }
             a_label_5 = sl_cont[i];
-            target_9 = asm_target_of(a_label_5);
+            target_9 = target_of(a_label_5);
             a_word_29 = 0x14000000 | ({
     off_18 = ((int64_t)(target_9 - asm_pc)) >> 2;
     if (!((off_18 >= -33554432) && (off_18 <= 33554431))) {
@@ -18288,11 +18288,11 @@ exit_offset_to_9:;
             }
         }
         if (kind == SL_SEND) {
-            bl_emit_slow_send(i);
+            emit_slow_send(i);
         }
         if (kind == SL_MUSTBEBOOLEAN) {
             if (asm_noting) {
-                asm_note("leave to the interpreter at this instruction (mustBeBoolean, attemptToAssign:withIndex:, a married Context's field)", 0);
+                note("leave to the interpreter at this instruction (mustBeBoolean, attemptToAssign:withIndex:, a married Context's field)", 0);
             }
             rt = sl_a[i];
             k = sl_depth[i] - 1;
@@ -18327,7 +18327,7 @@ exit_offset_to_9:;
             pc_4 = sl_pc[i];
             d_3 = sl_depth[i];
             if (asm_noting) {
-                asm_note("spill: frame pc %d", pc_4);
+                note("spill: frame pc %d", pc_4);
             }
             value_3 = (((int64_t)d_3) << 32) | pc_4;
             if ((value_3 >= 0) && (value_3 <= 0xFFFF)) {
@@ -18346,7 +18346,7 @@ exit_offset_to_9:;
                 }
             exit_move_wide_3:;
             } else {
-                asm_mov_imm(X16, (uint64_t)value_3);
+                mov_imm(X16, (uint64_t)value_3);
             }
             off_20 = (int64_t)&((frame *)0)->pc;
             if ((off_20 >= 0) && ((off_20 & 7) == 0) && ((off_20 >> 3) <= 4095)) {
@@ -18373,7 +18373,7 @@ exit_offset_to_9:;
                 }
             exit_load_store_9:;
             }
-            target_10 = asm_target_of(exit_sync_label);
+            target_10 = target_of(exit_sync_label);
             a_word_35 = 0x14000000 | ({
     off_21 = ((int64_t)(target_10 - asm_pc)) >> 2;
     if (!((off_21 >= -33554432) && (off_21 <= 33554431))) {
@@ -18395,7 +18395,7 @@ exit_offset_to_10:;
         }
         if (kind == SL_RETURN) {
             if (asm_noting) {
-                asm_note("married frame (or frame 0): the runtime widows it or leaves", 0);
+                note("married frame (or frame 0): the runtime widows it or leaves", 0);
             }
             if (sl_info[i] == 0) {
                 k_2 = sl_depth[i] - 1;
@@ -18425,7 +18425,7 @@ exit_offset_to_10:;
                 exit_load_store_10:;
                 }
             }
-            bl_emit_runtime_call(return_slow_label, sl_pc[i], sl_depth[i]);
+            emit_runtime_call(return_slow_label, sl_pc[i], sl_depth[i]);
             if (sl_info[i] == 0) {
                 k_3 = sl_depth[i] - 1;
                 off_23 = 8 * k_3;
@@ -18460,7 +18460,7 @@ exit_offset_to_10:;
                 asm_error = ASM_ERR_FULL;
             }
             a_label_6 = sl_cont[i];
-            target_11 = asm_target_of(a_label_6);
+            target_11 = target_of(a_label_6);
             a_word_40 = 0x14000000 | ({
     off_24 = ((int64_t)(target_11 - asm_pc)) >> 2;
     if (!((off_24 >= -33554432) && (off_24 <= 33554431))) {
@@ -18482,7 +18482,7 @@ exit_offset_to_11:;
         }
         if (kind == SL_BARRIER) {
             if (asm_noting) {
-                asm_note("remember the old object (the stub preserves the registers)", 0);
+                note("remember the old object (the stub preserves the registers)", 0);
             }
             rm = sl_a[i];
             if ((rm & REG_SP) != 0) {
@@ -18552,7 +18552,7 @@ exit_offset_to_11:;
             } else if (asm_error == ASM_OK) {
                 asm_error = ASM_ERR_FULL;
             }
-            target_12 = asm_target_of(remember_label);
+            target_12 = target_of(remember_label);
             a_word_47 = 0x94000000LL | ({
     off_25 = ((int64_t)(target_12 - asm_pc)) >> 2;
     if (!((off_25 >= -33554432) && (off_25 <= 33554431))) {
@@ -18578,7 +18578,7 @@ exit_offset_to_12:;
                 asm_error = ASM_ERR_FULL;
             }
             a_label_7 = sl_cont[i];
-            target_13 = asm_target_of(a_label_7);
+            target_13 = target_of(a_label_7);
             a_word_48 = 0x14000000 | ({
     off_26 = ((int64_t)(target_13 - asm_pc)) >> 2;
     if (!((off_26 >= -33554432) && (off_26 <= 33554431))) {
@@ -18600,10 +18600,10 @@ exit_offset_to_13:;
         }
         if (kind == SL_CLASS) {
             if (asm_noting) {
-                asm_note("the class of an immediate: by its tag", 0);
+                note("the class of an immediate: by its tag", 0);
             }
             rn = sl_a[i];
-            enc = asm_logical_immediate(7ULL, 64);
+            enc = logical_immediate(7ULL, 64);
             if (enc < 0) {
                 if (asm_error == ASM_OK) {
                     asm_error = ASM_ERR_IMMEDIATE;
@@ -18664,7 +18664,7 @@ exit_offset_to_13:;
             }
         exit_load_store_12:;
             a_label_8 = sl_cont[i];
-            target_14 = asm_target_of(a_label_8);
+            target_14 = target_of(a_label_8);
             a_word_53 = 0x14000000 | ({
     off_27 = ((int64_t)(target_14 - asm_pc)) >> 2;
     if (!((off_27 >= -33554432) && (off_27 <= 33554431))) {
@@ -18686,9 +18686,9 @@ exit_offset_to_14:;
         }
         if (kind == SL_ENTRY_IMM) {
             if (asm_noting) {
-                asm_note("an immediate receiver: its class by its tag", 0);
+                note("an immediate receiver: its class by its tag", 0);
             }
-            enc_2 = asm_logical_immediate(7ULL, 64);
+            enc_2 = logical_immediate(7ULL, 64);
             if (enc_2 < 0) {
                 if (asm_error == ASM_OK) {
                     asm_error = ASM_ERR_IMMEDIATE;
@@ -18744,7 +18744,7 @@ exit_offset_to_14:;
                 asm_error = ASM_ERR_FULL;
             }
             a_label_9 = sl_cont[i];
-            target_15 = asm_target_of(a_label_9);
+            target_15 = target_of(a_label_9);
             a_word_57 = 0x54000000 | ((((uint64_t)({
     off_28 = ((int64_t)(target_15 - asm_pc)) >> 2;
     if (!((off_28 >= -262144) && (off_28 <= 262143))) {
@@ -18763,11 +18763,11 @@ exit_offset_to_15:;
             } else if (asm_error == ASM_OK) {
                 asm_error = ASM_ERR_FULL;
             }
-            asm_bind(sl_target[i]);
+            arm64_assembler_bind(sl_target[i]);
             if (asm_noting) {
-                asm_note("the miss stub (relinks the inline cache)", 0);
+                note("the miss stub (relinks the inline cache)", 0);
             }
-            target_16 = asm_target_of(miss_label);
+            target_16 = target_of(miss_label);
             a_word_58 = 0x14000000 | ({
     off_29 = ((int64_t)(target_16 - asm_pc)) >> 2;
     if (!((off_29 >= -33554432) && (off_29 <= 33554431))) {
@@ -18789,10 +18789,10 @@ exit_offset_to_16:;
         }
         if (kind == SL_ENTRY_SLOW) {
             if (asm_noting) {
-                asm_note("stack full or interrupt pending: the runtime (x11 the callee: our header, 1 a block), then retry", 0);
+                note("stack full or interrupt pending: the runtime (x11 the callee: our header, 1 a block), then retry", 0);
             }
             if (sl_pc[i] == 0) {
-                off_30 = (int64_t)(asm_target_of(header_label) - asm_pc);
+                off_30 = (int64_t)(target_of(header_label) - asm_pc);
                 if (!((off_30 >= -1048576) && (off_30 <= 0xFFFFF))) {
                     if (asm_error == ASM_OK) {
                         asm_error = ASM_ERR_RANGE;
@@ -18814,7 +18814,7 @@ exit_offset_to_16:;
                 asm_error = ASM_ERR_FULL;
             }
             a_label_10 = sl_cont[i];
-            off_31 = (int64_t)(asm_target_of(a_label_10) - asm_pc);
+            off_31 = (int64_t)(target_of(a_label_10) - asm_pc);
             if (!((off_31 >= -1048576) && (off_31 <= 0xFFFFF))) {
                 if (asm_error == ASM_OK) {
                     asm_error = ASM_ERR_RANGE;
@@ -18829,7 +18829,7 @@ exit_offset_to_16:;
                 asm_error = ASM_ERR_FULL;
             }
         exit_adr_2:;
-            target_17 = asm_target_of(entry_slow_label);
+            target_17 = target_of(entry_slow_label);
             a_word_61 = 0x14000000 | ({
     off_32 = ((int64_t)(target_17 - asm_pc)) >> 2;
     if (!((off_32 >= -33554432) && (off_32 <= 33554431))) {
@@ -18853,9 +18853,9 @@ exit_offset_to_17:;
             r_2 = sl_a[i];
             d_4 = D0 + r_2;
             r = sl_r[i];
-            big = asm_new_label();
+            big = new_label();
             if (asm_noting) {
-                asm_note("box: zero keeps its sign", 0);
+                note("box: zero keeps its sign", 0);
             }
             a_word_62 = 0x9E660000LL | ((((uint64_t)(d_4 & 31)) << 5) | 16);
             if (asm_pc < asm_limit) {
@@ -18870,7 +18870,7 @@ exit_offset_to_17:;
             } else if (asm_error == ASM_OK) {
                 asm_error = ASM_ERR_FULL;
             }
-            target_18 = asm_target_of(big);
+            target_18 = target_of(big);
             a_word_63 = 3036676096LL | ((((uint64_t)({
     off_33 = ((int64_t)(target_18 - asm_pc)) >> 2;
     if (!((off_33 >= -262144) && (off_33 <= 262143))) {
@@ -18919,7 +18919,7 @@ exit_offset_to_18:;
             }
         exit_bitfield:;
         exit_lsl:;
-            enc_3 = asm_logical_immediate(4ULL, (r & REG_W) == 0 ? 64 : 32);
+            enc_3 = logical_immediate(4ULL, (r & REG_W) == 0 ? 64 : 32);
             if (enc_3 < 0) {
                 if (asm_error == ASM_OK) {
                     asm_error = ASM_ERR_IMMEDIATE;
@@ -18935,7 +18935,7 @@ exit_offset_to_18:;
             }
         exit_logical_3:;
             a_label_11 = sl_cont[i];
-            target_19 = asm_target_of(a_label_11);
+            target_19 = target_of(a_label_11);
             a_word_66 = 0x14000000 | ({
     off_34 = ((int64_t)(target_19 - asm_pc)) >> 2;
     if (!((off_34 >= -33554432) && (off_34 <= 33554431))) {
@@ -18954,9 +18954,9 @@ exit_offset_to_19:;
             } else if (asm_error == ASM_OK) {
                 asm_error = ASM_ERR_FULL;
             }
-            asm_bind(big);
+            arm64_assembler_bind(big);
             if (asm_noting) {
-                asm_note("a BoxedFloat64: the runtime boxes it (the stack's registers into their slots around the call)", 0);
+                note("a BoxedFloat64: the runtime boxes it (the stack's registers into their slots around the call)", 0);
             }
             k_4 = sl_saved_start[i];
             for (n = 1; n <= sl_saved_count[i]; n++) {
@@ -18998,7 +18998,7 @@ exit_offset_to_19:;
             pc_5 = sl_pc[i];
             d_5 = sl_depth[i];
             if (asm_noting) {
-                asm_note("spill: frame pc %d", pc_5);
+                note("spill: frame pc %d", pc_5);
             }
             value_4 = (((int64_t)d_5) << 32) | pc_5;
             if ((value_4 >= 0) && (value_4 <= 0xFFFF)) {
@@ -19017,7 +19017,7 @@ exit_offset_to_19:;
                 }
             exit_move_wide_4:;
             } else {
-                asm_mov_imm(X16, (uint64_t)value_4);
+                mov_imm(X16, (uint64_t)value_4);
             }
             off_36 = (int64_t)&((frame *)0)->pc;
             if ((off_36 >= 0) && ((off_36 & 7) == 0) && ((off_36 >> 3) <= 4095)) {
@@ -19057,7 +19057,7 @@ exit_offset_to_19:;
             } else if (asm_error == ASM_OK) {
                 asm_error = ASM_ERR_FULL;
             }
-            target_20 = asm_target_of(box_label);
+            target_20 = target_of(box_label);
             a_word_73 = 0x94000000LL | ({
     off_37 = ((int64_t)(target_20 - asm_pc)) >> 2;
     if (!((off_37 >= -33554432) && (off_37 <= 33554431))) {
@@ -19117,7 +19117,7 @@ exit_offset_to_20:;
                 }
             }
             if (asm_noting) {
-                asm_note("nil, true, false again (a GC may have moved them)", 0);
+                note("nil, true, false again (a GC may have moved them)", 0);
             }
             off_38 = (int64_t)&((jit_state *)0)->nil_oop;
             if (!(((off_38 & 7) == 0) && (((off_38 >> 3) >= -64) && ((off_38 >> 3) <= 63)))) {
@@ -19194,7 +19194,7 @@ exit_offset_to_20:;
                 }
                 k_4 = k_4 + 2;
             }
-            bl_emit_load_loop_temps(sl_loop[i]);
+            emit_load_loop_temps(sl_loop[i]);
             if (asm_pc < asm_limit) {
                 *(uint32_t *)asm_pc = 4167008917ULL;
                 asm_pc = asm_pc + 4;
@@ -19202,7 +19202,7 @@ exit_offset_to_20:;
                 asm_error = ASM_ERR_FULL;
             }
             a_label_12 = sl_cont[i];
-            target_21 = asm_target_of(a_label_12);
+            target_21 = target_of(a_label_12);
             a_word_82 = 0x14000000 | ({
     off_41 = ((int64_t)(target_21 - asm_pc)) >> 2;
     if (!((off_41 >= -33554432) && (off_41 <= 33554431))) {
@@ -19230,10 +19230,10 @@ exit_offset_to_21:;
                 map_offsets[map_count] = (uint32_t)offset_2;
                 map_count = map_count + 1;
             }
-            bl_emit_load_loop_temps(sl_loop[i]);
+            emit_load_loop_temps(sl_loop[i]);
             if (sl_r[i] >= 0) {
                 if (asm_noting) {
-                    asm_note("resumption after an interpreted send: its result from its slot", 0);
+                    note("resumption after an interpreted send: its result from its slot", 0);
                 }
                 rt_5 = sl_r[i];
                 k_5 = sl_depth[i] - 1;
@@ -19267,7 +19267,7 @@ exit_offset_to_21:;
                 }
             }
             a_label_13 = sl_cont[i];
-            target_22 = asm_target_of(a_label_13);
+            target_22 = target_of(a_label_13);
             a_word_85 = 0x14000000 | ({
     off_43 = ((int64_t)(target_22 - asm_pc)) >> 2;
     if (!((off_43 >= -33554432) && (off_43 <= 33554431))) {
@@ -19293,7 +19293,7 @@ exit_offset_to_22:;
 }
 
 /* JitBaselineCompiler>>emitSlowSend: */
-static void bl_emit_slow_send(int32_t i)
+static void emit_slow_send(int32_t i)
 {
     int64_t info;
     int32_t n;
@@ -19938,22 +19938,22 @@ static void bl_emit_slow_send(int32_t i)
     info = sl_info[i];
     n = (int32_t)(info & 255);
     ri = sl_depth[i] - n - 1;
-    send = asm_new_label();
-    leave = asm_new_label();
+    send = new_label();
+    leave = new_label();
     if ((info & SL_FLOAT) != 0) {
         ra = sl_a[i];
         rb = sl_b[i];
-        ia = asm_new_label();
-        oa = asm_new_label();
-        da = asm_new_label();
-        ib = asm_new_label();
-        ob = asm_new_label();
-        db = asm_new_label();
+        ia = new_label();
+        oa = new_label();
+        da = new_label();
+        ib = new_label();
+        ob = new_label();
+        db = new_label();
         if (asm_noting) {
-            asm_note("Floats inline: not two SmallIntegers", 0);
+            note("Floats inline: not two SmallIntegers", 0);
         }
         if (rb == -2) {
-            target = asm_target_of(send);
+            target = target_of(send);
             a_word = 922746880ULL | ((((uint64_t)({
     off = ((int64_t)(target - asm_pc)) >> 2;
     if (!((off >= -8192) && (off <= 8191))) {
@@ -19980,7 +19980,7 @@ exit_offset_to:;
             } else if (asm_error == ASM_OK) {
                 asm_error = ASM_ERR_FULL;
             }
-            target_2 = asm_target_of(send);
+            target_2 = target_of(send);
             a_word_3 = 922746880ULL | ((((uint64_t)({
     off_2 = ((int64_t)(target_2 - asm_pc)) >> 2;
     if (!((off_2 >= -8192) && (off_2 <= 8191))) {
@@ -20000,7 +20000,7 @@ exit_offset_to_2:;
                 asm_error = ASM_ERR_FULL;
             }
         }
-        target_3 = asm_target_of(ia);
+        target_3 = target_of(ia);
         a_word_4 = 922746880ULL | ((((uint64_t)({
     off_3 = ((int64_t)(target_3 - asm_pc)) >> 2;
     if (!((off_3 >= -8192) && (off_3 <= 8191))) {
@@ -20019,7 +20019,7 @@ exit_offset_to_3:;
         } else if (asm_error == ASM_OK) {
             asm_error = ASM_ERR_FULL;
         }
-        enc = asm_logical_immediate(7ULL, 64);
+        enc = logical_immediate(7ULL, 64);
         if (enc < 0) {
             if (asm_error == ASM_OK) {
                 asm_error = ASM_ERR_IMMEDIATE;
@@ -20045,7 +20045,7 @@ exit_offset_to_3:;
             asm_error = ASM_ERR_IMMEDIATE;
         }
     exit_add_sub:;
-        target_4 = asm_target_of(oa);
+        target_4 = target_of(oa);
         a_word_6 = 0x54000000 | ((((uint64_t)({
     off_4 = ((int64_t)(target_4 - asm_pc)) >> 2;
     if (!((off_4 >= -262144) && (off_4 <= 262143))) {
@@ -20065,7 +20065,7 @@ exit_offset_to_4:;
             asm_error = ASM_ERR_FULL;
         }
         if (asm_noting) {
-            asm_note("a SmallFloat64: rotate back", 0);
+            note("a SmallFloat64: rotate back", 0);
         }
         a_word_7 = 3544186880LL | (261120ULL | ((((uint64_t)(ra & 31)) << 5) | 16));
         if (asm_pc < asm_limit) {
@@ -20074,7 +20074,7 @@ exit_offset_to_4:;
         } else if (asm_error == ASM_OK) {
             asm_error = ASM_ERR_FULL;
         }
-        asm_mov_imm(X17, 8070450532247928832ULL);
+        mov_imm(X17, 8070450532247928832ULL);
         if (asm_pc < asm_limit) {
             *(uint32_t *)asm_pc = 2333147665ULL;
             asm_pc = asm_pc + 4;
@@ -20110,7 +20110,7 @@ exit_offset_to_4:;
         } else if (asm_error == ASM_OK) {
             asm_error = ASM_ERR_FULL;
         }
-        asm_bind(da);
+        arm64_assembler_bind(da);
         if (rb == -2) {
             value = sl_y[i] >> 1;
             if ((value >= 0) && (value <= 0xFFFF)) {
@@ -20129,7 +20129,7 @@ exit_offset_to_4:;
                 }
             exit_move_wide:;
             } else {
-                asm_mov_imm(X16, (uint64_t)value);
+                mov_imm(X16, (uint64_t)value);
             }
             if (asm_pc < asm_limit) {
                 *(uint32_t *)asm_pc = 2657223169ULL;
@@ -20145,7 +20145,7 @@ exit_offset_to_4:;
                 asm_error = ASM_ERR_FULL;
             }
         } else {
-            target_5 = asm_target_of(ib);
+            target_5 = target_of(ib);
             a_word_9 = 922746880ULL | ((((uint64_t)({
     off_5 = ((int64_t)(target_5 - asm_pc)) >> 2;
     if (!((off_5 >= -8192) && (off_5 <= 8191))) {
@@ -20164,7 +20164,7 @@ exit_offset_to_5:;
             } else if (asm_error == ASM_OK) {
                 asm_error = ASM_ERR_FULL;
             }
-            enc_2 = asm_logical_immediate(7ULL, 64);
+            enc_2 = logical_immediate(7ULL, 64);
             if (enc_2 < 0) {
                 if (asm_error == ASM_OK) {
                     asm_error = ASM_ERR_IMMEDIATE;
@@ -20190,7 +20190,7 @@ exit_offset_to_5:;
                 asm_error = ASM_ERR_IMMEDIATE;
             }
         exit_add_sub_3:;
-            target_6 = asm_target_of(ob);
+            target_6 = target_of(ob);
             a_word_11 = 0x54000000 | ((((uint64_t)({
     off_6 = ((int64_t)(target_6 - asm_pc)) >> 2;
     if (!((off_6 >= -262144) && (off_6 <= 262143))) {
@@ -20210,7 +20210,7 @@ exit_offset_to_6:;
                 asm_error = ASM_ERR_FULL;
             }
             if (asm_noting) {
-                asm_note("a SmallFloat64: rotate back", 0);
+                note("a SmallFloat64: rotate back", 0);
             }
             a_word_12 = 3544186880LL | (261120ULL | ((((uint64_t)(rb & 31)) << 5) | 16));
             if (asm_pc < asm_limit) {
@@ -20219,7 +20219,7 @@ exit_offset_to_6:;
             } else if (asm_error == ASM_OK) {
                 asm_error = ASM_ERR_FULL;
             }
-            asm_mov_imm(X17, 8070450532247928832ULL);
+            mov_imm(X17, 8070450532247928832ULL);
             if (asm_pc < asm_limit) {
                 *(uint32_t *)asm_pc = 2333147665ULL;
                 asm_pc = asm_pc + 4;
@@ -20255,7 +20255,7 @@ exit_offset_to_6:;
             } else if (asm_error == ASM_OK) {
                 asm_error = ASM_ERR_FULL;
             }
-            asm_bind(db);
+            arm64_assembler_bind(db);
         }
         k = (sl_info[i] >> 16) & 255;
         if (counter_addr != 0) {
@@ -20265,7 +20265,7 @@ exit_offset_to_6:;
                 *(uint8_t *)a = 0;
             }
             if (asm_noting) {
-                asm_note("type feedback: a Float here", 0);
+                note("type feedback: a Float here", 0);
             }
             if (asm_pc < asm_limit) {
                 *(uint32_t *)asm_pc = 3531604017ULL;
@@ -20273,8 +20273,8 @@ exit_offset_to_6:;
             } else if (asm_error == ASM_OK) {
                 asm_error = ASM_ERR_FULL;
             }
-            a_label = asm_label_at(a);
-            off_7 = ((int64_t)((asm_target_of(a_label) & 18446744073709547520ULL) - (asm_pc & 18446744073709547520ULL))) >> 12;
+            a_label = label_at(a);
+            off_7 = ((int64_t)((target_of(a_label) & 18446744073709547520ULL) - (asm_pc & 18446744073709547520ULL))) >> 12;
             if (!((off_7 >= -1048576) && (off_7 <= 0xFFFFF))) {
                 if (asm_error == ASM_OK) {
                     asm_error = ASM_ERR_RANGE;
@@ -20347,7 +20347,7 @@ exit_offset_to_6:;
                 a_label_2 = sl_target[i];
                 pc_2 = (int32_t)sl_x[i];
                 c = ana_bcs[pc_2] == 0x91 ? cond : cond ^ 1;
-                target_7 = asm_target_of(a_label_2);
+                target_7 = target_of(a_label_2);
                 a_word_16 = 0x54000000 | ((((uint64_t)({
     off_9 = ((int64_t)(target_7 - asm_pc)) >> 2;
     if (!((off_9 >= -262144) && (off_9 <= 262143))) {
@@ -20367,7 +20367,7 @@ exit_offset_to_7:;
                     asm_error = ASM_ERR_FULL;
                 }
                 a_label_3 = sl_cont[i];
-                target_8 = asm_target_of(a_label_3);
+                target_8 = target_of(a_label_3);
                 a_word_17 = 0x14000000 | ({
     off_10 = ((int64_t)(target_8 - asm_pc)) >> 2;
     if (!((off_10 >= -33554432) && (off_10 <= 33554431))) {
@@ -20397,7 +20397,7 @@ exit_offset_to_8:;
                 asm_error = ASM_ERR_FULL;
             }
             a_label_4 = sl_cont[i];
-            target_9 = asm_target_of(a_label_4);
+            target_9 = target_of(a_label_4);
             a_word_19 = 0x14000000 | ({
     off_11 = ((int64_t)(target_9 - asm_pc)) >> 2;
     if (!((off_11 >= -33554432) && (off_11 <= 33554431))) {
@@ -20449,7 +20449,7 @@ exit_offset_to_9:;
             } else if (asm_error == ASM_OK) {
                 asm_error = ASM_ERR_FULL;
             }
-            target_10 = asm_target_of(send);
+            target_10 = target_of(send);
             a_word_20 = 0x54000000 | ((((uint64_t)({
     off_12 = ((int64_t)(target_10 - asm_pc)) >> 2;
     if (!((off_12 >= -262144) && (off_12 <= 262143))) {
@@ -20476,7 +20476,7 @@ exit_offset_to_10:;
             }
         }
         if (!((k == 0) || ((k == 1) || ((k == 8) || (k == 9))))) {
-            target_11 = asm_target_of(send);
+            target_11 = target_of(send);
             a_word_21 = 0x14000000 | ({
     off_13 = ((int64_t)(target_11 - asm_pc)) >> 2;
     if (!((off_13 >= -33554432) && (off_13 <= 33554431))) {
@@ -20499,9 +20499,9 @@ exit_offset_to_11:;
         }
         r_2 = sl_r[i];
         cont = sl_cont[i];
-        zero = asm_new_label();
+        zero = new_label();
         if (asm_noting) {
-            asm_note("the result: a SmallFloat64 if its exponent fits", 0);
+            note("the result: a SmallFloat64 if its exponent fits", 0);
         }
         if (asm_pc < asm_limit) {
             *(uint32_t *)asm_pc = 2657484816ULL;
@@ -20515,7 +20515,7 @@ exit_offset_to_11:;
         } else if (asm_error == ASM_OK) {
             asm_error = ASM_ERR_FULL;
         }
-        target_12 = asm_target_of(zero);
+        target_12 = target_of(zero);
         a_word_22 = 3019898880LL | ((((uint64_t)({
     off_14 = ((int64_t)(target_12 - asm_pc)) >> 2;
     if (!((off_14 >= -262144) && (off_14 <= 262143))) {
@@ -20562,7 +20562,7 @@ exit_offset_to_12:;
             asm_error = ASM_ERR_IMMEDIATE;
         }
     exit_add_sub_6:;
-        target_13 = asm_target_of(send);
+        target_13 = target_of(send);
         a_word_23 = 0x54000000 | ((((uint64_t)({
     off_15 = ((int64_t)(target_13 - asm_pc)) >> 2;
     if (!((off_15 >= -262144) && (off_15 <= 262143))) {
@@ -20587,7 +20587,7 @@ exit_offset_to_13:;
         } else if (asm_error == ASM_OK) {
             asm_error = ASM_ERR_FULL;
         }
-        asm_mov_imm(X9, 8070450532247928832ULL);
+        mov_imm(X9, 8070450532247928832ULL);
         if (asm_pc < asm_limit) {
             *(uint32_t *)asm_pc = 3406365233ULL;
             asm_pc = asm_pc + 4;
@@ -20618,7 +20618,7 @@ exit_offset_to_13:;
         }
     exit_bitfield:;
     exit_lsl:;
-        enc_3 = asm_logical_immediate(4ULL, (r_2 & REG_W) == 0 ? 64 : 32);
+        enc_3 = logical_immediate(4ULL, (r_2 & REG_W) == 0 ? 64 : 32);
         if (enc_3 < 0) {
             if (asm_error == ASM_OK) {
                 asm_error = ASM_ERR_IMMEDIATE;
@@ -20633,7 +20633,7 @@ exit_offset_to_13:;
             asm_error = ASM_ERR_FULL;
         }
     exit_logical_3:;
-        target_14 = asm_target_of(cont);
+        target_14 = target_of(cont);
         a_word_26 = 0x14000000 | ({
     off_16 = ((int64_t)(target_14 - asm_pc)) >> 2;
     if (!((off_16 >= -33554432) && (off_16 <= 33554431))) {
@@ -20652,7 +20652,7 @@ exit_offset_to_14:;
         } else if (asm_error == ASM_OK) {
             asm_error = ASM_ERR_FULL;
         }
-        asm_bind(zero);
+        arm64_assembler_bind(zero);
         if (asm_pc < asm_limit) {
             *(uint32_t *)asm_pc = 3548380689ULL;
             asm_pc = asm_pc + 4;
@@ -20683,7 +20683,7 @@ exit_offset_to_14:;
         }
     exit_bitfield_2:;
     exit_lsl_2:;
-        enc_4 = asm_logical_immediate(4ULL, (r_2 & REG_W) == 0 ? 64 : 32);
+        enc_4 = logical_immediate(4ULL, (r_2 & REG_W) == 0 ? 64 : 32);
         if (enc_4 < 0) {
             if (asm_error == ASM_OK) {
                 asm_error = ASM_ERR_IMMEDIATE;
@@ -20698,7 +20698,7 @@ exit_offset_to_14:;
             asm_error = ASM_ERR_FULL;
         }
     exit_logical_4:;
-        target_15 = asm_target_of(cont);
+        target_15 = target_of(cont);
         a_word_29 = 0x14000000 | ({
     off_17 = ((int64_t)(target_15 - asm_pc)) >> 2;
     if (!((off_17 >= -33554432) && (off_17 <= 33554431))) {
@@ -20718,8 +20718,8 @@ exit_offset_to_15:;
             asm_error = ASM_ERR_FULL;
         }
     exit_emit_float_result:;
-        asm_bind(oa);
-        target_16 = asm_target_of(send);
+        arm64_assembler_bind(oa);
+        target_16 = target_of(send);
         a_word_30 = 3036676096LL | ((((uint64_t)({
     off_18 = ((int64_t)(target_16 - asm_pc)) >> 2;
     if (!((off_18 >= -262144) && (off_18 <= 262143))) {
@@ -20739,7 +20739,7 @@ exit_offset_to_16:;
             asm_error = ASM_ERR_FULL;
         }
         if (asm_noting) {
-            asm_note("a BoxedFloat64: its word", 0);
+            note("a BoxedFloat64: its word", 0);
         }
         a_word_31 = 4181721088LL | (1024ULL | ((((uint64_t)(ra & 31)) << 5) | 16));
         if (asm_pc < asm_limit) {
@@ -20779,7 +20779,7 @@ exit_offset_to_16:;
         } else if (asm_error == ASM_OK) {
             asm_error = ASM_ERR_FULL;
         }
-        target_17 = asm_target_of(send);
+        target_17 = target_of(send);
         a_word_34 = 0x54000000 | ((((uint64_t)({
     off_20 = ((int64_t)(target_17 - asm_pc)) >> 2;
     if (!((off_20 >= -262144) && (off_20 <= 262143))) {
@@ -20805,7 +20805,7 @@ exit_offset_to_17:;
         } else if (asm_error == ASM_OK) {
             asm_error = ASM_ERR_FULL;
         }
-        target_18 = asm_target_of(da);
+        target_18 = target_of(da);
         a_word_36 = 0x14000000 | ({
     off_21 = ((int64_t)(target_18 - asm_pc)) >> 2;
     if (!((off_21 >= -33554432) && (off_21 <= 33554431))) {
@@ -20824,9 +20824,9 @@ exit_offset_to_18:;
         } else if (asm_error == ASM_OK) {
             asm_error = ASM_ERR_FULL;
         }
-        asm_bind(ia);
+        arm64_assembler_bind(ia);
         if (asm_noting) {
-            asm_note("a SmallInteger: convert", 0);
+            note("a SmallInteger: convert", 0);
         }
         a_word_37 = 2470445056LL | (130048ULL | ((((uint64_t)(ra & 31)) << 5) | 16));
         if (asm_pc < asm_limit) {
@@ -20841,7 +20841,7 @@ exit_offset_to_18:;
         } else if (asm_error == ASM_OK) {
             asm_error = ASM_ERR_FULL;
         }
-        target_19 = asm_target_of(da);
+        target_19 = target_of(da);
         a_word_38 = 0x14000000 | ({
     off_22 = ((int64_t)(target_19 - asm_pc)) >> 2;
     if (!((off_22 >= -33554432) && (off_22 <= 33554431))) {
@@ -20863,8 +20863,8 @@ exit_offset_to_19:;
         if ((rb == -2) || (rb == ra)) {
             goto exit_emit_float_path;
         }
-        asm_bind(ob);
-        target_20 = asm_target_of(send);
+        arm64_assembler_bind(ob);
+        target_20 = target_of(send);
         a_word_39 = 3036676096LL | ((((uint64_t)({
     off_23 = ((int64_t)(target_20 - asm_pc)) >> 2;
     if (!((off_23 >= -262144) && (off_23 <= 262143))) {
@@ -20884,7 +20884,7 @@ exit_offset_to_20:;
             asm_error = ASM_ERR_FULL;
         }
         if (asm_noting) {
-            asm_note("a BoxedFloat64: its word", 0);
+            note("a BoxedFloat64: its word", 0);
         }
         a_word_40 = 4181721088LL | (1024ULL | ((((uint64_t)(rb & 31)) << 5) | 16));
         if (asm_pc < asm_limit) {
@@ -20924,7 +20924,7 @@ exit_offset_to_20:;
         } else if (asm_error == ASM_OK) {
             asm_error = ASM_ERR_FULL;
         }
-        target_21 = asm_target_of(send);
+        target_21 = target_of(send);
         a_word_43 = 0x54000000 | ((((uint64_t)({
     off_25 = ((int64_t)(target_21 - asm_pc)) >> 2;
     if (!((off_25 >= -262144) && (off_25 <= 262143))) {
@@ -20950,7 +20950,7 @@ exit_offset_to_21:;
         } else if (asm_error == ASM_OK) {
             asm_error = ASM_ERR_FULL;
         }
-        target_22 = asm_target_of(db);
+        target_22 = target_of(db);
         a_word_45 = 0x14000000 | ({
     off_26 = ((int64_t)(target_22 - asm_pc)) >> 2;
     if (!((off_26 >= -33554432) && (off_26 <= 33554431))) {
@@ -20969,9 +20969,9 @@ exit_offset_to_22:;
         } else if (asm_error == ASM_OK) {
             asm_error = ASM_ERR_FULL;
         }
-        asm_bind(ib);
+        arm64_assembler_bind(ib);
         if (asm_noting) {
-            asm_note("a SmallInteger: convert", 0);
+            note("a SmallInteger: convert", 0);
         }
         a_word_46 = 2470445056LL | (130048ULL | ((((uint64_t)(rb & 31)) << 5) | 16));
         if (asm_pc < asm_limit) {
@@ -20986,7 +20986,7 @@ exit_offset_to_22:;
         } else if (asm_error == ASM_OK) {
             asm_error = ASM_ERR_FULL;
         }
-        target_23 = asm_target_of(db);
+        target_23 = target_of(db);
         a_word_47 = 0x14000000 | ({
     off_27 = ((int64_t)(target_23 - asm_pc)) >> 2;
     if (!((off_27 >= -33554432) && (off_27 <= 33554431))) {
@@ -21010,12 +21010,12 @@ exit_offset_to_23:;
     if ((info & SL_ACCESS) != 0) {
         k_2 = (sl_info[i] >> 16) & 255;
         ra_2 = sl_a[i];
-        str = asm_new_label();
+        str = new_label();
         if (asm_noting) {
-            asm_note("Strings and ByteArrays", 0);
+            note("Strings and ByteArrays", 0);
         }
         rd_2 = (ra_2 & REG_W) | 31;
-        enc_5 = asm_logical_immediate(7ULL, (rd_2 & REG_W) == 0 ? 64 : 32);
+        enc_5 = logical_immediate(7ULL, (rd_2 & REG_W) == 0 ? 64 : 32);
         if (enc_5 < 0) {
             if (asm_error == ASM_OK) {
                 asm_error = ASM_ERR_IMMEDIATE;
@@ -21030,7 +21030,7 @@ exit_offset_to_23:;
             asm_error = ASM_ERR_FULL;
         }
     exit_logical_5:;
-        target_24 = asm_target_of(send);
+        target_24 = target_of(send);
         a_word_49 = 0x54000000 | ((((uint64_t)({
     off_28 = ((int64_t)(target_24 - asm_pc)) >> 2;
     if (!((off_28 >= -262144) && (off_28 <= 262143))) {
@@ -21087,7 +21087,7 @@ exit_offset_to_24:;
         } else if (asm_error == ASM_OK) {
             asm_error = ASM_ERR_FULL;
         }
-        target_25 = asm_target_of(str);
+        target_25 = target_of(str);
         a_word_53 = 0x54000000 | ((((uint64_t)({
     off_30 = ((int64_t)(target_25 - asm_pc)) >> 2;
     if (!((off_30 >= -262144) && (off_30 <= 262143))) {
@@ -21138,7 +21138,7 @@ exit_offset_to_25:;
             } else if (asm_error == ASM_OK) {
                 asm_error = ASM_ERR_FULL;
             }
-            target_26 = asm_target_of(str);
+            target_26 = target_of(str);
             a_word_56 = 0x54000000 | ((((uint64_t)({
     off_32 = ((int64_t)(target_26 - asm_pc)) >> 2;
     if (!((off_32 >= -262144) && (off_32 <= 262143))) {
@@ -21189,7 +21189,7 @@ exit_offset_to_26:;
         } else if (asm_error == ASM_OK) {
             asm_error = ASM_ERR_FULL;
         }
-        target_27 = asm_target_of(send);
+        target_27 = target_of(send);
         a_word_59 = 0x54000000 | ((((uint64_t)({
     off_34 = ((int64_t)(target_27 - asm_pc)) >> 2;
     if (!((off_34 >= -262144) && (off_34 <= 262143))) {
@@ -21214,7 +21214,7 @@ exit_offset_to_27:;
         rc = sl_c[i];
         rr = sl_r[i];
         if (asm_noting) {
-            asm_note("the byte size: slots * 8 - (format - 16)", 0);
+            note("the byte size: slots * 8 - (format - 16)", 0);
         }
         a_word_60 = 4181721088LL | (0ULL | ((((uint64_t)(ra_3 & 31)) << 5) | 11));
         if (asm_pc < asm_limit) {
@@ -21284,7 +21284,7 @@ exit_offset_to_27:;
                 asm_error = ASM_ERR_FULL;
             }
         exit_add_sub_8:;
-            enc_6 = asm_logical_immediate(1ULL, (rr & REG_W) == 0 ? 64 : 32);
+            enc_6 = logical_immediate(1ULL, (rr & REG_W) == 0 ? 64 : 32);
             if (enc_6 < 0) {
                 if (asm_error == ASM_OK) {
                     asm_error = ASM_ERR_IMMEDIATE;
@@ -21300,7 +21300,7 @@ exit_offset_to_27:;
             }
         exit_logical_6:;
             a_label_5 = sl_cont[i];
-            target_28 = asm_target_of(a_label_5);
+            target_28 = target_of(a_label_5);
             a_word_64 = 0x14000000 | ({
     off_35 = ((int64_t)(target_28 - asm_pc)) >> 2;
     if (!((off_35 >= -33554432) && (off_35 <= 33554431))) {
@@ -21322,9 +21322,9 @@ exit_offset_to_28:;
             goto exit_emit_bytes;
         }
         if (asm_noting) {
-            asm_note("a SmallInteger index within the bytes", 0);
+            note("a SmallInteger index within the bytes", 0);
         }
-        target_29 = asm_target_of(send);
+        target_29 = target_of(send);
         a_word_65 = 905969664ULL | ((((uint64_t)({
     off_36 = ((int64_t)(target_29 - asm_pc)) >> 2;
     if (!((off_36 >= -8192) && (off_36 <= 8191))) {
@@ -21367,7 +21367,7 @@ exit_offset_to_29:;
         } else if (asm_error == ASM_OK) {
             asm_error = ASM_ERR_FULL;
         }
-        target_30 = asm_target_of(send);
+        target_30 = target_of(send);
         a_word_67 = 0x54000000 | ((((uint64_t)({
     off_37 = ((int64_t)(target_30 - asm_pc)) >> 2;
     if (!((off_37 >= -262144) && (off_37 <= 262143))) {
@@ -21429,7 +21429,7 @@ exit_offset_to_30:;
             }
         exit_bitfield_3:;
         exit_lsl_3:;
-            enc_7 = asm_logical_immediate(1ULL, (rr & REG_W) == 0 ? 64 : 32);
+            enc_7 = logical_immediate(1ULL, (rr & REG_W) == 0 ? 64 : 32);
             if (enc_7 < 0) {
                 if (asm_error == ASM_OK) {
                     asm_error = ASM_ERR_IMMEDIATE;
@@ -21445,7 +21445,7 @@ exit_offset_to_30:;
             }
         exit_logical_7:;
             a_label_6 = sl_cont[i];
-            target_31 = asm_target_of(a_label_6);
+            target_31 = target_of(a_label_6);
             a_word_71 = 0x14000000 | ({
     off_38 = ((int64_t)(target_31 - asm_pc)) >> 2;
     if (!((off_38 >= -33554432) && (off_38 <= 33554431))) {
@@ -21467,9 +21467,9 @@ exit_offset_to_31:;
             goto exit_emit_bytes;
         }
         if (asm_noting) {
-            asm_note("not immutable, a byte value", 0);
+            note("not immutable, a byte value", 0);
         }
-        target_32 = asm_target_of(send);
+        target_32 = target_of(send);
         a_word_72 = 3084386304ULL | ((((uint64_t)({
     off_39 = ((int64_t)(target_32 - asm_pc)) >> 2;
     if (!((off_39 >= -8192) && (off_39 <= 8191))) {
@@ -21488,7 +21488,7 @@ exit_offset_to_32:;
         } else if (asm_error == ASM_OK) {
             asm_error = ASM_ERR_FULL;
         }
-        target_33 = asm_target_of(send);
+        target_33 = target_of(send);
         a_word_73 = 905969664ULL | ((((uint64_t)({
     off_40 = ((int64_t)(target_33 - asm_pc)) >> 2;
     if (!((off_40 >= -8192) && (off_40 <= 8191))) {
@@ -21525,7 +21525,7 @@ exit_offset_to_33:;
             asm_error = ASM_ERR_IMMEDIATE;
         }
     exit_add_sub_11:;
-        target_34 = asm_target_of(send);
+        target_34 = target_of(send);
         a_word_75 = 0x54000000 | ((((uint64_t)({
     off_41 = ((int64_t)(target_34 - asm_pc)) >> 2;
     if (!((off_41 >= -262144) && (off_41 <= 262143))) {
@@ -21589,7 +21589,7 @@ exit_offset_to_34:;
         exit_logical_8:;
         }
         a_label_7 = sl_cont[i];
-        target_35 = asm_target_of(a_label_7);
+        target_35 = target_of(a_label_7);
         a_word_79 = 0x14000000 | ({
     off_42 = ((int64_t)(target_35 - asm_pc)) >> 2;
     if (!((off_42 >= -33554432) && (off_42 <= 33554431))) {
@@ -21609,14 +21609,14 @@ exit_offset_to_35:;
             asm_error = ASM_ERR_FULL;
         }
     exit_emit_bytes:;
-        asm_bind(str);
+        arm64_assembler_bind(str);
         k_4 = (sl_info[i] >> 16) & 255;
         ra_4 = sl_a[i];
         rb_3 = sl_b[i];
         rc_2 = sl_c[i];
         rr_2 = sl_r[i];
         if (asm_noting) {
-            asm_note("the byte size: slots * 8 - (format - 16)", 0);
+            note("the byte size: slots * 8 - (format - 16)", 0);
         }
         a_word_80 = 4181721088LL | (0ULL | ((((uint64_t)(ra_4 & 31)) << 5) | 11));
         if (asm_pc < asm_limit) {
@@ -21686,7 +21686,7 @@ exit_offset_to_35:;
                 asm_error = ASM_ERR_FULL;
             }
         exit_add_sub_14:;
-            enc_8 = asm_logical_immediate(1ULL, (rr_2 & REG_W) == 0 ? 64 : 32);
+            enc_8 = logical_immediate(1ULL, (rr_2 & REG_W) == 0 ? 64 : 32);
             if (enc_8 < 0) {
                 if (asm_error == ASM_OK) {
                     asm_error = ASM_ERR_IMMEDIATE;
@@ -21702,7 +21702,7 @@ exit_offset_to_35:;
             }
         exit_logical_9:;
             a_label_8 = sl_cont[i];
-            target_36 = asm_target_of(a_label_8);
+            target_36 = target_of(a_label_8);
             a_word_84 = 0x14000000 | ({
     off_43 = ((int64_t)(target_36 - asm_pc)) >> 2;
     if (!((off_43 >= -33554432) && (off_43 <= 33554431))) {
@@ -21724,9 +21724,9 @@ exit_offset_to_36:;
             goto exit_emit_bytes_2;
         }
         if (asm_noting) {
-            asm_note("a SmallInteger index within the bytes", 0);
+            note("a SmallInteger index within the bytes", 0);
         }
-        target_37 = asm_target_of(send);
+        target_37 = target_of(send);
         a_word_85 = 905969664ULL | ((((uint64_t)({
     off_44 = ((int64_t)(target_37 - asm_pc)) >> 2;
     if (!((off_44 >= -8192) && (off_44 <= 8191))) {
@@ -21769,7 +21769,7 @@ exit_offset_to_37:;
         } else if (asm_error == ASM_OK) {
             asm_error = ASM_ERR_FULL;
         }
-        target_38 = asm_target_of(send);
+        target_38 = target_of(send);
         a_word_87 = 0x54000000 | ((((uint64_t)({
     off_45 = ((int64_t)(target_38 - asm_pc)) >> 2;
     if (!((off_45 >= -262144) && (off_45 <= 262143))) {
@@ -21808,7 +21808,7 @@ exit_offset_to_38:;
                 asm_error = ASM_ERR_FULL;
             }
             if (asm_noting) {
-                asm_note("a Character", 0);
+                note("a Character", 0);
             }
             if (!(3 <= ((rr_2 & REG_W) == 0 ? 64 : 32) - 1)) {
                 if (asm_error == ASM_OK) {
@@ -21834,7 +21834,7 @@ exit_offset_to_38:;
             }
         exit_bitfield_4:;
         exit_lsl_4:;
-            enc_9 = asm_logical_immediate(2ULL, (rr_2 & REG_W) == 0 ? 64 : 32);
+            enc_9 = logical_immediate(2ULL, (rr_2 & REG_W) == 0 ? 64 : 32);
             if (enc_9 < 0) {
                 if (asm_error == ASM_OK) {
                     asm_error = ASM_ERR_IMMEDIATE;
@@ -21850,7 +21850,7 @@ exit_offset_to_38:;
             }
         exit_logical_10:;
             a_label_9 = sl_cont[i];
-            target_39 = asm_target_of(a_label_9);
+            target_39 = target_of(a_label_9);
             a_word_91 = 0x14000000 | ({
     off_46 = ((int64_t)(target_39 - asm_pc)) >> 2;
     if (!((off_46 >= -33554432) && (off_46 <= 33554431))) {
@@ -21872,9 +21872,9 @@ exit_offset_to_39:;
             goto exit_emit_bytes_2;
         }
         if (asm_noting) {
-            asm_note("not immutable, a byte value", 0);
+            note("not immutable, a byte value", 0);
         }
-        target_40 = asm_target_of(send);
+        target_40 = target_of(send);
         a_word_92 = 3084386304ULL | ((((uint64_t)({
     off_47 = ((int64_t)(target_40 - asm_pc)) >> 2;
     if (!((off_47 >= -8192) && (off_47 <= 8191))) {
@@ -21893,7 +21893,7 @@ exit_offset_to_40:;
         } else if (asm_error == ASM_OK) {
             asm_error = ASM_ERR_FULL;
         }
-        enc_10 = asm_logical_immediate(7ULL, 64);
+        enc_10 = logical_immediate(7ULL, 64);
         if (enc_10 < 0) {
             if (asm_error == ASM_OK) {
                 asm_error = ASM_ERR_IMMEDIATE;
@@ -21919,7 +21919,7 @@ exit_offset_to_40:;
             asm_error = ASM_ERR_IMMEDIATE;
         }
     exit_add_sub_17:;
-        target_41 = asm_target_of(send);
+        target_41 = target_of(send);
         a_word_94 = 0x54000000 | ((((uint64_t)({
     off_48 = ((int64_t)(target_41 - asm_pc)) >> 2;
     if (!((off_48 >= -262144) && (off_48 <= 262143))) {
@@ -21956,7 +21956,7 @@ exit_offset_to_41:;
             asm_error = ASM_ERR_IMMEDIATE;
         }
     exit_add_sub_18:;
-        target_42 = asm_target_of(send);
+        target_42 = target_of(send);
         a_word_96 = 0x54000000 | ((((uint64_t)({
     off_49 = ((int64_t)(target_42 - asm_pc)) >> 2;
     if (!((off_49 >= -262144) && (off_49 <= 262143))) {
@@ -22020,7 +22020,7 @@ exit_offset_to_42:;
         exit_logical_12:;
         }
         a_label_10 = sl_cont[i];
-        target_43 = asm_target_of(a_label_10);
+        target_43 = target_of(a_label_10);
         a_word_100 = 0x14000000 | ({
     off_50 = ((int64_t)(target_43 - asm_pc)) >> 2;
     if (!((off_50 >= -33554432) && (off_50 <= 33554431))) {
@@ -22041,9 +22041,9 @@ exit_offset_to_43:;
         }
     exit_emit_bytes_2:;
     }
-    asm_bind(send);
+    arm64_assembler_bind(send);
     if (asm_noting) {
-        asm_note("send: the operands into their slots, the receiver into x0", 0);
+        note("send: the operands into their slots, the receiver into x0", 0);
     }
     r_7 = sl_a[i];
     v_19 = sl_x[i];
@@ -22120,7 +22120,7 @@ exit_offset_to_43:;
             }
         exit_move_wide_2:;
         } else {
-            asm_mov_imm(X16, (uint64_t)v_19);
+            mov_imm(X16, (uint64_t)v_19);
         }
         off_53 = 8 * ri;
         if ((off_53 >= 0) && ((off_53 & 7) == 0) && ((off_53 >> 3) <= 4095)) {
@@ -22254,7 +22254,7 @@ exit_store_operand:;
             }
         exit_move_wide_3:;
         } else {
-            asm_mov_imm(X16, (uint64_t)v_20);
+            mov_imm(X16, (uint64_t)v_20);
         }
         off_57 = 8 * i_2;
         if ((off_57 >= 0) && ((off_57 & 7) == 0) && ((off_57 >> 3) <= 4095)) {
@@ -22421,7 +22421,7 @@ exit_store_operand_3:;
     if (!(r_10 == -3)) {
         goto exit_box_operand;
     }
-    bl_emit_box_slow(d, X17, pc_3, depth);
+    emit_box_in_slow_path(d, X17, pc_3, depth);
     off_62 = 8 * ri;
     if ((off_62 >= 0) && ((off_62 & 7) == 0) && ((off_62 >> 3) <= 4095)) {
         a_word_125 = 4177526784LL | ((((uint64_t)(off_62 >> 3)) << 10) | 657ULL);
@@ -22456,7 +22456,7 @@ exit_box_operand:;
     if (!(r_11 == -3)) {
         goto exit_box_operand_2;
     }
-    bl_emit_box_slow(d_2, X17, pc_4, depth_2);
+    emit_box_in_slow_path(d_2, X17, pc_4, depth_2);
     off_63 = 8 * i_4;
     if ((off_63 >= 0) && ((off_63 & 7) == 0) && ((off_63 >> 3) <= 4095)) {
         a_word_127 = 4177526784LL | ((((uint64_t)(off_63 >> 3)) << 10) | 657ULL);
@@ -22488,7 +22488,7 @@ exit_box_operand_2:;
         slot = (int32_t)saved[k_5];
         d_3 = (int32_t)saved[k_5 + 1];
         if (slot >= 0) {
-            bl_emit_box_slow(d_3, X17, sl_pc[i], sl_depth[i]);
+            emit_box_in_slow_path(d_3, X17, sl_pc[i], sl_depth[i]);
             off_64 = 8 * slot;
             if ((off_64 >= 0) && ((off_64 & 7) == 0) && ((off_64 >> 3) <= 4095)) {
                 a_word_129 = 4177526784LL | ((((uint64_t)(off_64 >> 3)) << 10) | 657ULL);
@@ -22542,9 +22542,9 @@ exit_box_operand_2:;
         }
     exit_load_store_21:;
     }
-    bl_emit_site_call(sl_pc[i], (uint32_t)(info & 0xFFFFFFFFLL), ri);
+    emit_site_call(sl_pc[i], (uint32_t)(info & 0xFFFFFFFFLL), ri);
     if (asm_noting) {
-        asm_note("x21 again (the callee changed it)", 0);
+        note("x21 again (the callee changed it)", 0);
     }
     if (asm_pc < asm_limit) {
         *(uint32_t *)asm_pc = 4167008917ULL;
@@ -22552,9 +22552,9 @@ exit_box_operand_2:;
     } else if (asm_error == ASM_OK) {
         asm_error = ASM_ERR_FULL;
     }
-    bl_emit_load_loop_temps(sl_loop[i]);
+    emit_load_loop_temps(sl_loop[i]);
     if ((info & SL_DOUBLES) != 0) {
-        leave_2 = asm_new_label();
+        leave_2 = new_label();
         n_3 = (int32_t)(sl_info[i] & 255);
         pc_5 = sl_pc[i];
         op = ana_bcs[pc_5];
@@ -22651,7 +22651,7 @@ exit_length_of:;
             d_4 = (int32_t)saved[k_7 + 1];
             if (slot_2 >= 0) {
                 if (asm_noting) {
-                    asm_note("unbox stack slot %d again", slot_2);
+                    note("unbox stack slot %d again", slot_2);
                 }
                 off_67 = 8 * slot_2;
                 if ((off_67 >= 0) && ((off_67 & 7) == 0) && ((off_67 >> 3) <= 4095)) {
@@ -22681,7 +22681,7 @@ exit_length_of:;
             } else {
                 an_integer = -1 - slot_2;
                 if (asm_noting) {
-                    asm_note("unbox temp %d again", an_integer);
+                    note("unbox temp %d again", an_integer);
                 }
                 k_8 = -1 - slot_2;
                 off_68 = 8 * k_8;
@@ -22711,10 +22711,10 @@ exit_length_of:;
                 }
             }
             d_5 = D0 + d_4;
-            int_ = asm_new_label();
-            obj = asm_new_label();
-            done = asm_new_label();
-            target_44 = asm_target_of(int_);
+            int_ = new_label();
+            obj = new_label();
+            done = new_label();
+            target_44 = target_of(int_);
             a_word_139 = 922746880ULL | ((((uint64_t)({
     off_69 = ((int64_t)(target_44 - asm_pc)) >> 2;
     if (!((off_69 >= -8192) && (off_69 <= 8191))) {
@@ -22733,7 +22733,7 @@ exit_offset_to_44:;
             } else if (asm_error == ASM_OK) {
                 asm_error = ASM_ERR_FULL;
             }
-            enc_11 = asm_logical_immediate(7ULL, 64);
+            enc_11 = logical_immediate(7ULL, 64);
             if (enc_11 < 0) {
                 if (asm_error == ASM_OK) {
                     asm_error = ASM_ERR_IMMEDIATE;
@@ -22759,7 +22759,7 @@ exit_offset_to_44:;
                 asm_error = ASM_ERR_IMMEDIATE;
             }
         exit_add_sub_20:;
-            target_45 = asm_target_of(obj);
+            target_45 = target_of(obj);
             a_word_141 = 0x54000000 | ((((uint64_t)({
     off_70 = ((int64_t)(target_45 - asm_pc)) >> 2;
     if (!((off_70 >= -262144) && (off_70 <= 262143))) {
@@ -22779,7 +22779,7 @@ exit_offset_to_45:;
                 asm_error = ASM_ERR_FULL;
             }
             if (asm_noting) {
-                asm_note("a SmallFloat64: rotate back", 0);
+                note("a SmallFloat64: rotate back", 0);
             }
             if (asm_pc < asm_limit) {
                 *(uint32_t *)asm_pc = 3544448336ULL;
@@ -22787,7 +22787,7 @@ exit_offset_to_45:;
             } else if (asm_error == ASM_OK) {
                 asm_error = ASM_ERR_FULL;
             }
-            asm_mov_imm(X17, 8070450532247928832ULL);
+            mov_imm(X17, 8070450532247928832ULL);
             if (asm_pc < asm_limit) {
                 *(uint32_t *)asm_pc = 2333147665ULL;
                 asm_pc = asm_pc + 4;
@@ -22834,7 +22834,7 @@ exit_offset_to_45:;
                     asm_error = ASM_ERR_FULL;
                 }
             }
-            target_46 = asm_target_of(done);
+            target_46 = target_of(done);
             a_word_144 = 0x14000000 | ({
     off_71 = ((int64_t)(target_46 - asm_pc)) >> 2;
     if (!((off_71 >= -33554432) && (off_71 <= 33554431))) {
@@ -22853,8 +22853,8 @@ exit_offset_to_46:;
             } else if (asm_error == ASM_OK) {
                 asm_error = ASM_ERR_FULL;
             }
-            asm_bind(obj);
-            target_47 = asm_target_of(leave_2);
+            arm64_assembler_bind(obj);
+            target_47 = target_of(leave_2);
             a_word_145 = 3036676096LL | ((((uint64_t)({
     off_72 = ((int64_t)(target_47 - asm_pc)) >> 2;
     if (!((off_72 >= -262144) && (off_72 <= 262143))) {
@@ -22874,7 +22874,7 @@ exit_offset_to_47:;
                 asm_error = ASM_ERR_FULL;
             }
             if (asm_noting) {
-                asm_note("a BoxedFloat64: its word", 0);
+                note("a BoxedFloat64: its word", 0);
             }
             if (asm_pc < asm_limit) {
                 *(uint32_t *)asm_pc = 4181722448ULL;
@@ -22913,7 +22913,7 @@ exit_offset_to_47:;
             } else if (asm_error == ASM_OK) {
                 asm_error = ASM_ERR_FULL;
             }
-            target_48 = asm_target_of(leave_2);
+            target_48 = target_of(leave_2);
             a_word_148 = 0x54000000 | ((((uint64_t)({
     off_74 = ((int64_t)(target_48 - asm_pc)) >> 2;
     if (!((off_74 >= -262144) && (off_74 <= 262143))) {
@@ -22952,7 +22952,7 @@ exit_offset_to_48:;
                     asm_error = ASM_ERR_FULL;
                 }
             }
-            target_49 = asm_target_of(done);
+            target_49 = target_of(done);
             a_word_151 = 0x14000000 | ({
     off_75 = ((int64_t)(target_49 - asm_pc)) >> 2;
     if (!((off_75 >= -33554432) && (off_75 <= 33554431))) {
@@ -22971,9 +22971,9 @@ exit_offset_to_49:;
             } else if (asm_error == ASM_OK) {
                 asm_error = ASM_ERR_FULL;
             }
-            asm_bind(int_);
+            arm64_assembler_bind(int_);
             if (asm_noting) {
-                asm_note("a SmallInteger: convert", 0);
+                note("a SmallInteger: convert", 0);
             }
             if (asm_pc < asm_limit) {
                 *(uint32_t *)asm_pc = 2470575440ULL;
@@ -22988,7 +22988,7 @@ exit_offset_to_49:;
             } else if (asm_error == ASM_OK) {
                 asm_error = ASM_ERR_FULL;
             }
-            asm_bind(done);
+            arm64_assembler_bind(done);
             k_7 = k_7 + 2;
         }
         k_9 = dn - 1;
@@ -23018,14 +23018,14 @@ exit_offset_to_49:;
         exit_load_store_26:;
         }
         if (asm_noting) {
-            asm_note("the result unboxed (not a Float: the interpreter continues)", 0);
+            note("the result unboxed (not a Float: the interpreter continues)", 0);
         }
         r_12 = sl_r[i];
         d_6 = D0 + r_12;
-        int__2 = asm_new_label();
-        obj_2 = asm_new_label();
-        done_2 = asm_new_label();
-        target_50 = asm_target_of(int__2);
+        int__2 = new_label();
+        obj_2 = new_label();
+        done_2 = new_label();
+        target_50 = target_of(int__2);
         a_word_155 = 922746880ULL | ((((uint64_t)({
     off_77 = ((int64_t)(target_50 - asm_pc)) >> 2;
     if (!((off_77 >= -8192) && (off_77 <= 8191))) {
@@ -23044,7 +23044,7 @@ exit_offset_to_50:;
         } else if (asm_error == ASM_OK) {
             asm_error = ASM_ERR_FULL;
         }
-        enc_12 = asm_logical_immediate(7ULL, 64);
+        enc_12 = logical_immediate(7ULL, 64);
         if (enc_12 < 0) {
             if (asm_error == ASM_OK) {
                 asm_error = ASM_ERR_IMMEDIATE;
@@ -23070,7 +23070,7 @@ exit_offset_to_50:;
             asm_error = ASM_ERR_IMMEDIATE;
         }
     exit_add_sub_22:;
-        target_51 = asm_target_of(obj_2);
+        target_51 = target_of(obj_2);
         a_word_157 = 0x54000000 | ((((uint64_t)({
     off_78 = ((int64_t)(target_51 - asm_pc)) >> 2;
     if (!((off_78 >= -262144) && (off_78 <= 262143))) {
@@ -23090,7 +23090,7 @@ exit_offset_to_51:;
             asm_error = ASM_ERR_FULL;
         }
         if (asm_noting) {
-            asm_note("a SmallFloat64: rotate back", 0);
+            note("a SmallFloat64: rotate back", 0);
         }
         if (asm_pc < asm_limit) {
             *(uint32_t *)asm_pc = 3544448016ULL;
@@ -23098,7 +23098,7 @@ exit_offset_to_51:;
         } else if (asm_error == ASM_OK) {
             asm_error = ASM_ERR_FULL;
         }
-        asm_mov_imm(X17, 8070450532247928832ULL);
+        mov_imm(X17, 8070450532247928832ULL);
         if (asm_pc < asm_limit) {
             *(uint32_t *)asm_pc = 2333147665ULL;
             asm_pc = asm_pc + 4;
@@ -23145,7 +23145,7 @@ exit_offset_to_51:;
                 asm_error = ASM_ERR_FULL;
             }
         }
-        target_52 = asm_target_of(done_2);
+        target_52 = target_of(done_2);
         a_word_160 = 0x14000000 | ({
     off_79 = ((int64_t)(target_52 - asm_pc)) >> 2;
     if (!((off_79 >= -33554432) && (off_79 <= 33554431))) {
@@ -23164,8 +23164,8 @@ exit_offset_to_52:;
         } else if (asm_error == ASM_OK) {
             asm_error = ASM_ERR_FULL;
         }
-        asm_bind(obj_2);
-        target_53 = asm_target_of(leave_2);
+        arm64_assembler_bind(obj_2);
+        target_53 = target_of(leave_2);
         a_word_161 = 3036676096LL | ((((uint64_t)({
     off_80 = ((int64_t)(target_53 - asm_pc)) >> 2;
     if (!((off_80 >= -262144) && (off_80 <= 262143))) {
@@ -23185,7 +23185,7 @@ exit_offset_to_53:;
             asm_error = ASM_ERR_FULL;
         }
         if (asm_noting) {
-            asm_note("a BoxedFloat64: its word", 0);
+            note("a BoxedFloat64: its word", 0);
         }
         if (asm_pc < asm_limit) {
             *(uint32_t *)asm_pc = 4181722128ULL;
@@ -23224,7 +23224,7 @@ exit_offset_to_53:;
         } else if (asm_error == ASM_OK) {
             asm_error = ASM_ERR_FULL;
         }
-        target_54 = asm_target_of(leave_2);
+        target_54 = target_of(leave_2);
         a_word_164 = 0x54000000 | ((((uint64_t)({
     off_82 = ((int64_t)(target_54 - asm_pc)) >> 2;
     if (!((off_82 >= -262144) && (off_82 <= 262143))) {
@@ -23263,7 +23263,7 @@ exit_offset_to_54:;
                 asm_error = ASM_ERR_FULL;
             }
         }
-        target_55 = asm_target_of(done_2);
+        target_55 = target_of(done_2);
         a_word_167 = 0x14000000 | ({
     off_83 = ((int64_t)(target_55 - asm_pc)) >> 2;
     if (!((off_83 >= -33554432) && (off_83 <= 33554431))) {
@@ -23282,9 +23282,9 @@ exit_offset_to_55:;
         } else if (asm_error == ASM_OK) {
             asm_error = ASM_ERR_FULL;
         }
-        asm_bind(int__2);
+        arm64_assembler_bind(int__2);
         if (asm_noting) {
-            asm_note("a SmallInteger: convert", 0);
+            note("a SmallInteger: convert", 0);
         }
         if (asm_pc < asm_limit) {
             *(uint32_t *)asm_pc = 2470575120ULL;
@@ -23299,9 +23299,9 @@ exit_offset_to_55:;
         } else if (asm_error == ASM_OK) {
             asm_error = ASM_ERR_FULL;
         }
-        asm_bind(done_2);
+        arm64_assembler_bind(done_2);
         a_label_11 = sl_cont[i];
-        target_56 = asm_target_of(a_label_11);
+        target_56 = target_of(a_label_11);
         a_word_169 = 0x14000000 | ({
     off_84 = ((int64_t)(target_56 - asm_pc)) >> 2;
     if (!((off_84 >= -33554432) && (off_84 <= 33554431))) {
@@ -23320,9 +23320,9 @@ exit_offset_to_56:;
         } else if (asm_error == ASM_OK) {
             asm_error = ASM_ERR_FULL;
         }
-        asm_bind(leave_2);
+        arm64_assembler_bind(leave_2);
         if (asm_noting) {
-            asm_note("spill: frame pc %d", next);
+            note("spill: frame pc %d", next);
         }
         value_2 = (((int64_t)dn) << 32) | next;
         if ((value_2 >= 0) && (value_2 <= 0xFFFF)) {
@@ -23341,7 +23341,7 @@ exit_offset_to_56:;
             }
         exit_move_wide_4:;
         } else {
-            asm_mov_imm(X16, (uint64_t)value_2);
+            mov_imm(X16, (uint64_t)value_2);
         }
         off_85 = (int64_t)&((frame *)0)->pc;
         if ((off_85 >= 0) && ((off_85 & 7) == 0) && ((off_85 >> 3) <= 4095)) {
@@ -23368,7 +23368,7 @@ exit_offset_to_56:;
             }
         exit_load_store_28:;
         }
-        target_57 = asm_target_of(exit_sync_label);
+        target_57 = target_of(exit_sync_label);
         a_word_173 = 0x14000000 | ({
     off_86 = ((int64_t)(target_57 - asm_pc)) >> 2;
     if (!((off_86 >= -33554432) && (off_86 <= 33554431))) {
@@ -23395,7 +23395,7 @@ exit_offset_to_57:;
         d_7 = (int32_t)saved[k_10 + 1];
         if (slot_3 >= 0) {
             if (asm_noting) {
-                asm_note("unbox stack slot %d again", slot_3);
+                note("unbox stack slot %d again", slot_3);
             }
             off_87 = 8 * slot_3;
             if ((off_87 >= 0) && ((off_87 & 7) == 0) && ((off_87 >> 3) <= 4095)) {
@@ -23425,7 +23425,7 @@ exit_offset_to_57:;
         } else {
             an_integer_2 = -1 - slot_3;
             if (asm_noting) {
-                asm_note("unbox temp %d again", an_integer_2);
+                note("unbox temp %d again", an_integer_2);
             }
             k_11 = -1 - slot_3;
             off_88 = 8 * k_11;
@@ -23455,10 +23455,10 @@ exit_offset_to_57:;
             }
         }
         d_8 = D0 + d_7;
-        int__3 = asm_new_label();
-        obj_3 = asm_new_label();
-        done_3 = asm_new_label();
-        target_58 = asm_target_of(int__3);
+        int__3 = new_label();
+        obj_3 = new_label();
+        done_3 = new_label();
+        target_58 = target_of(int__3);
         a_word_178 = 922746880ULL | ((((uint64_t)({
     off_89 = ((int64_t)(target_58 - asm_pc)) >> 2;
     if (!((off_89 >= -8192) && (off_89 <= 8191))) {
@@ -23477,7 +23477,7 @@ exit_offset_to_58:;
         } else if (asm_error == ASM_OK) {
             asm_error = ASM_ERR_FULL;
         }
-        enc_13 = asm_logical_immediate(7ULL, 64);
+        enc_13 = logical_immediate(7ULL, 64);
         if (enc_13 < 0) {
             if (asm_error == ASM_OK) {
                 asm_error = ASM_ERR_IMMEDIATE;
@@ -23503,7 +23503,7 @@ exit_offset_to_58:;
             asm_error = ASM_ERR_IMMEDIATE;
         }
     exit_add_sub_24:;
-        target_59 = asm_target_of(obj_3);
+        target_59 = target_of(obj_3);
         a_word_180 = 0x54000000 | ((((uint64_t)({
     off_90 = ((int64_t)(target_59 - asm_pc)) >> 2;
     if (!((off_90 >= -262144) && (off_90 <= 262143))) {
@@ -23523,7 +23523,7 @@ exit_offset_to_59:;
             asm_error = ASM_ERR_FULL;
         }
         if (asm_noting) {
-            asm_note("a SmallFloat64: rotate back", 0);
+            note("a SmallFloat64: rotate back", 0);
         }
         if (asm_pc < asm_limit) {
             *(uint32_t *)asm_pc = 3544448336ULL;
@@ -23531,7 +23531,7 @@ exit_offset_to_59:;
         } else if (asm_error == ASM_OK) {
             asm_error = ASM_ERR_FULL;
         }
-        asm_mov_imm(X17, 8070450532247928832ULL);
+        mov_imm(X17, 8070450532247928832ULL);
         if (asm_pc < asm_limit) {
             *(uint32_t *)asm_pc = 2333147665ULL;
             asm_pc = asm_pc + 4;
@@ -23578,7 +23578,7 @@ exit_offset_to_59:;
                 asm_error = ASM_ERR_FULL;
             }
         }
-        target_60 = asm_target_of(done_3);
+        target_60 = target_of(done_3);
         a_word_183 = 0x14000000 | ({
     off_91 = ((int64_t)(target_60 - asm_pc)) >> 2;
     if (!((off_91 >= -33554432) && (off_91 <= 33554431))) {
@@ -23597,8 +23597,8 @@ exit_offset_to_60:;
         } else if (asm_error == ASM_OK) {
             asm_error = ASM_ERR_FULL;
         }
-        asm_bind(obj_3);
-        target_61 = asm_target_of(leave);
+        arm64_assembler_bind(obj_3);
+        target_61 = target_of(leave);
         a_word_184 = 3036676096LL | ((((uint64_t)({
     off_92 = ((int64_t)(target_61 - asm_pc)) >> 2;
     if (!((off_92 >= -262144) && (off_92 <= 262143))) {
@@ -23618,7 +23618,7 @@ exit_offset_to_61:;
             asm_error = ASM_ERR_FULL;
         }
         if (asm_noting) {
-            asm_note("a BoxedFloat64: its word", 0);
+            note("a BoxedFloat64: its word", 0);
         }
         if (asm_pc < asm_limit) {
             *(uint32_t *)asm_pc = 4181722448ULL;
@@ -23657,7 +23657,7 @@ exit_offset_to_61:;
         } else if (asm_error == ASM_OK) {
             asm_error = ASM_ERR_FULL;
         }
-        target_62 = asm_target_of(leave);
+        target_62 = target_of(leave);
         a_word_187 = 0x54000000 | ((((uint64_t)({
     off_94 = ((int64_t)(target_62 - asm_pc)) >> 2;
     if (!((off_94 >= -262144) && (off_94 <= 262143))) {
@@ -23696,7 +23696,7 @@ exit_offset_to_62:;
                 asm_error = ASM_ERR_FULL;
             }
         }
-        target_63 = asm_target_of(done_3);
+        target_63 = target_of(done_3);
         a_word_190 = 0x14000000 | ({
     off_95 = ((int64_t)(target_63 - asm_pc)) >> 2;
     if (!((off_95 >= -33554432) && (off_95 <= 33554431))) {
@@ -23715,9 +23715,9 @@ exit_offset_to_63:;
         } else if (asm_error == ASM_OK) {
             asm_error = ASM_ERR_FULL;
         }
-        asm_bind(int__3);
+        arm64_assembler_bind(int__3);
         if (asm_noting) {
-            asm_note("a SmallInteger: convert", 0);
+            note("a SmallInteger: convert", 0);
         }
         if (asm_pc < asm_limit) {
             *(uint32_t *)asm_pc = 2470575440ULL;
@@ -23732,7 +23732,7 @@ exit_offset_to_63:;
         } else if (asm_error == ASM_OK) {
             asm_error = ASM_ERR_FULL;
         }
-        asm_bind(done_3);
+        arm64_assembler_bind(done_3);
         k_10 = k_10 + 2;
     }
     if ((info & SL_FUSED) != 0) {
@@ -23740,7 +23740,7 @@ exit_offset_to_63:;
         dj = (int32_t)ana_depths[j];
         if_true = ana_bcs[j] == 0x91;
         if (asm_noting) {
-            asm_note("the Boolean decides the jump", 0);
+            note("the Boolean decides the jump", 0);
         }
         rm = if_true ? X24 : X25;
         a_word_192 = 3942645760LL | (0ULL | ((((uint64_t)(rm & 31)) << 16) | 0ULL | 31));
@@ -23751,7 +23751,7 @@ exit_offset_to_63:;
             asm_error = ASM_ERR_FULL;
         }
         a_label_12 = sl_target[i];
-        target_64 = asm_target_of(a_label_12);
+        target_64 = target_of(a_label_12);
         a_word_193 = 0x54000000 | ((((uint64_t)({
     off_96 = ((int64_t)(target_64 - asm_pc)) >> 2;
     if (!((off_96 >= -262144) && (off_96 <= 262143))) {
@@ -23779,7 +23779,7 @@ exit_offset_to_64:;
             asm_error = ASM_ERR_FULL;
         }
         a_label_13 = sl_cont[i];
-        target_65 = asm_target_of(a_label_13);
+        target_65 = target_of(a_label_13);
         a_word_195 = 0x54000000 | ((((uint64_t)({
     off_97 = ((int64_t)(target_65 - asm_pc)) >> 2;
     if (!((off_97 >= -262144) && (off_97 <= 262143))) {
@@ -23799,7 +23799,7 @@ exit_offset_to_65:;
             asm_error = ASM_ERR_FULL;
         }
         if (asm_noting) {
-            asm_note("neither true nor false: the interpreter sends mustBeBoolean", 0);
+            note("neither true nor false: the interpreter sends mustBeBoolean", 0);
         }
         k_12 = dj - 1;
         off_98 = 8 * k_12;
@@ -23828,7 +23828,7 @@ exit_offset_to_65:;
         exit_load_store_32:;
         }
         if (asm_noting) {
-            asm_note("spill: frame pc %d", j);
+            note("spill: frame pc %d", j);
         }
         value_3 = (((int64_t)dj) << 32) | j;
         if ((value_3 >= 0) && (value_3 <= 0xFFFF)) {
@@ -23847,7 +23847,7 @@ exit_offset_to_65:;
             }
         exit_move_wide_5:;
         } else {
-            asm_mov_imm(X16, (uint64_t)value_3);
+            mov_imm(X16, (uint64_t)value_3);
         }
         off_99 = (int64_t)&((frame *)0)->pc;
         if ((off_99 >= 0) && ((off_99 & 7) == 0) && ((off_99 >> 3) <= 4095)) {
@@ -23874,7 +23874,7 @@ exit_offset_to_65:;
             }
         exit_load_store_33:;
         }
-        target_66 = asm_target_of(exit_sync_label);
+        target_66 = target_of(exit_sync_label);
         a_word_201 = 0x14000000 | ({
     off_100 = ((int64_t)(target_66 - asm_pc)) >> 2;
     if (!((off_100 >= -33554432) && (off_100 <= 33554431))) {
@@ -23957,9 +23957,9 @@ exit_offset_to_66:;
 exit_length_of_2:;
     r_length_of_2; }));
             dn_2 = sl_depth[i] - (int32_t)(sl_info[i] & 255);
-            asm_bind(leave);
+            arm64_assembler_bind(leave);
             if (asm_noting) {
-                asm_note("a temp is not a Float any more: the interpreter continues", 0);
+                note("a temp is not a Float any more: the interpreter continues", 0);
             }
             k_13 = dn_2 - 1;
             off_101 = 8 * k_13;
@@ -23988,7 +23988,7 @@ exit_length_of_2:;
             exit_load_store_34:;
             }
             if (asm_noting) {
-                asm_note("spill: frame pc %d", next_2);
+                note("spill: frame pc %d", next_2);
             }
             value_4 = (((int64_t)dn_2) << 32) | next_2;
             if ((value_4 >= 0) && (value_4 <= 0xFFFF)) {
@@ -24007,7 +24007,7 @@ exit_length_of_2:;
                 }
             exit_move_wide_6:;
             } else {
-                asm_mov_imm(X16, (uint64_t)value_4);
+                mov_imm(X16, (uint64_t)value_4);
             }
             off_102 = (int64_t)&((frame *)0)->pc;
             if ((off_102 >= 0) && ((off_102 & 7) == 0) && ((off_102 >> 3) <= 4095)) {
@@ -24034,7 +24034,7 @@ exit_length_of_2:;
                 }
             exit_load_store_35:;
             }
-            target_67 = asm_target_of(exit_sync_label);
+            target_67 = target_of(exit_sync_label);
             a_word_207 = 0x14000000 | ({
     off_103 = ((int64_t)(target_67 - asm_pc)) >> 2;
     if (!((off_103 >= -33554432) && (off_103 <= 33554431))) {
@@ -24098,7 +24098,7 @@ exit_offset_to_67:;
         }
     }
     a_label_14 = sl_cont[i];
-    target_68 = asm_target_of(a_label_14);
+    target_68 = target_of(a_label_14);
     a_word_211 = 0x14000000 | ({
     off_104 = ((int64_t)(target_68 - asm_pc)) >> 2;
     if (!((off_104 >= -33554432) && (off_104 <= 33554431))) {
@@ -24181,9 +24181,9 @@ exit_offset_to_68:;
 exit_length_of_3:;
     r_length_of_3; }));
         dn_3 = sl_depth[i] - (int32_t)(sl_info[i] & 255);
-        asm_bind(leave);
+        arm64_assembler_bind(leave);
         if (asm_noting) {
-            asm_note("a temp is not a Float any more: the interpreter continues", 0);
+            note("a temp is not a Float any more: the interpreter continues", 0);
         }
         k_14 = dn_3 - 1;
         off_105 = 8 * k_14;
@@ -24212,7 +24212,7 @@ exit_length_of_3:;
         exit_load_store_36:;
         }
         if (asm_noting) {
-            asm_note("spill: frame pc %d", next_3);
+            note("spill: frame pc %d", next_3);
         }
         value_5 = (((int64_t)dn_3) << 32) | next_3;
         if ((value_5 >= 0) && (value_5 <= 0xFFFF)) {
@@ -24231,7 +24231,7 @@ exit_length_of_3:;
             }
         exit_move_wide_7:;
         } else {
-            asm_mov_imm(X16, (uint64_t)value_5);
+            mov_imm(X16, (uint64_t)value_5);
         }
         off_106 = (int64_t)&((frame *)0)->pc;
         if ((off_106 >= 0) && ((off_106 & 7) == 0) && ((off_106 >> 3) <= 4095)) {
@@ -24258,7 +24258,7 @@ exit_length_of_3:;
             }
         exit_load_store_37:;
         }
-        target_69 = asm_target_of(exit_sync_label);
+        target_69 = target_of(exit_sync_label);
         a_word_217 = 0x14000000 | ({
     off_107 = ((int64_t)(target_69 - asm_pc)) >> 2;
     if (!((off_107 >= -33554432) && (off_107 <= 33554431))) {
@@ -24281,7 +24281,7 @@ exit_offset_to_69:;
 }
 
 /* JitBaselineCompiler>>emitStackCheck: */
-static bool bl_emit_stack_check(int32_t pc)
+static bool emit_stack_check(int32_t pc)
 {
     int32_t check;
     int64_t off;
@@ -24293,10 +24293,10 @@ static bool bl_emit_stack_check(int32_t pc)
     int64_t r_offset_to;
     int64_t off_2;
     uint64_t a_word_3;
-    check = asm_new_label();
-    asm_bind(check);
+    check = new_label();
+    arm64_assembler_bind(check);
     if (asm_noting) {
-        asm_note("stack check (the limit is 0 while an interrupt is pending)", 0);
+        note("stack check (the limit is 0 while an interrupt is pending)", 0);
     }
     off = (int64_t)&((jit_state *)0)->stack_limit;
     if ((off >= 0) && ((off & 7) == 0) && ((off >> 3) <= 4095)) {
@@ -24329,13 +24329,13 @@ static bool bl_emit_stack_check(int32_t pc)
     } else if (asm_error == ASM_OK) {
         asm_error = ASM_ERR_FULL;
     }
-    s = bl_slow(SL_ENTRY_SLOW, pc, 0);
+    s = jit_baseline_compiler_slow(SL_ENTRY_SLOW, pc, 0);
     if (s < 0) {
         return false;
     }
     sl_cont[s] = check;
     a_label = sl_label[s];
-    target = asm_target_of(a_label);
+    target = target_of(a_label);
     a_word_3 = 0x54000000 | ((((uint64_t)({
     off_2 = ((int64_t)(target - asm_pc)) >> 2;
     if (!((off_2 >= -262144) && (off_2 <= 262143))) {
@@ -24358,7 +24358,7 @@ exit_offset_to:;
 }
 
 /* JitBaselineCompiler>>emitStringComparePrimitive: */
-static void bl_emit_string_compare_primitive(int32_t fail)
+static void emit_string_compare_primitive(int32_t fail)
 {
     int32_t loop;
     int32_t differ;
@@ -24389,11 +24389,11 @@ static void bl_emit_string_compare_primitive(int32_t fail)
     int64_t r_offset_to_6;
     int64_t off_6;
     uint64_t a_word_7;
-    loop = asm_new_label();
-    differ = asm_new_label();
-    sizes = asm_new_label();
+    loop = new_label();
+    differ = new_label();
+    sizes = new_label();
     if (asm_noting) {
-        asm_note("primitive stringCompare: two byte objects, their sizes in x10 and x14", 0);
+        note("primitive stringCompare: two byte objects, their sizes in x10 and x14", 0);
     }
     if (asm_pc < asm_limit) {
         *(uint32_t *)asm_pc = 4181721729ULL;
@@ -24407,7 +24407,7 @@ static void bl_emit_string_compare_primitive(int32_t fail)
     } else if (asm_error == ASM_OK) {
         asm_error = ASM_ERR_FULL;
     }
-    enc = asm_logical_immediate(7ULL, 64);
+    enc = logical_immediate(7ULL, 64);
     if (enc < 0) {
         if (asm_error == ASM_OK) {
             asm_error = ASM_ERR_IMMEDIATE;
@@ -24422,7 +24422,7 @@ static void bl_emit_string_compare_primitive(int32_t fail)
         asm_error = ASM_ERR_FULL;
     }
 exit_logical:;
-    target = asm_target_of(fail);
+    target = target_of(fail);
     a_word_2 = 0x54000000 | ((((uint64_t)({
     off = ((int64_t)(target - asm_pc)) >> 2;
     if (!((off >= -262144) && (off <= 262143))) {
@@ -24464,7 +24464,7 @@ exit_offset_to:;
         asm_error = ASM_ERR_IMMEDIATE;
     }
 exit_add_sub:;
-    target_2 = asm_target_of(fail);
+    target_2 = target_of(fail);
     a_word_3 = 0x54000000 | ((((uint64_t)({
     off_2 = ((int64_t)(target_2 - asm_pc)) >> 2;
     if (!((off_2 >= -262144) && (off_2 <= 262143))) {
@@ -24506,7 +24506,7 @@ exit_offset_to_2:;
         asm_error = ASM_ERR_IMMEDIATE;
     }
 exit_add_sub_2:;
-    target_3 = asm_target_of(fail);
+    target_3 = target_of(fail);
     a_word_4 = 0x54000000 | ((((uint64_t)({
     off_3 = ((int64_t)(target_3 - asm_pc)) >> 2;
     if (!((off_3 >= -262144) && (off_3 <= 262143))) {
@@ -24618,10 +24618,10 @@ exit_add_sub_5:;
     }
 exit_add_sub_6:;
     if (asm_noting) {
-        asm_note("the common bytes", 0);
+        note("the common bytes", 0);
     }
-    asm_bind(loop);
-    target_4 = asm_target_of(sizes);
+    arm64_assembler_bind(loop);
+    target_4 = target_of(sizes);
     a_word_5 = 3019898880LL | ((((uint64_t)({
     off_4 = ((int64_t)(target_4 - asm_pc)) >> 2;
     if (!((off_4 >= -262144) && (off_4 <= 262143))) {
@@ -24669,7 +24669,7 @@ exit_add_sub_7:;
     } else if (asm_error == ASM_OK) {
         asm_error = ASM_ERR_FULL;
     }
-    target_5 = asm_target_of(loop);
+    target_5 = target_of(loop);
     a_word_6 = 0x54000000 | ((((uint64_t)({
     off_5 = ((int64_t)(target_5 - asm_pc)) >> 2;
     if (!((off_5 >= -262144) && (off_5 <= 262143))) {
@@ -24688,9 +24688,9 @@ exit_offset_to_5:;
     } else if (asm_error == ASM_OK) {
         asm_error = ASM_ERR_FULL;
     }
-    asm_bind(differ);
+    arm64_assembler_bind(differ);
     if (asm_noting) {
-        asm_note("-1 or 1 by the first different byte", 0);
+        note("-1 or 1 by the first different byte", 0);
     }
     if (asm_pc < asm_limit) {
         *(uint32_t *)asm_pc = 3531604064ULL;
@@ -24698,7 +24698,7 @@ exit_offset_to_5:;
     } else if (asm_error == ASM_OK) {
         asm_error = ASM_ERR_FULL;
     }
-    asm_mov_imm(X9, 18446744073709551615ULL);
+    mov_imm(X9, 18446744073709551615ULL);
     if (asm_pc < asm_limit) {
         *(uint32_t *)asm_pc = 2592092448ULL;
         asm_pc = asm_pc + 4;
@@ -24711,9 +24711,9 @@ exit_offset_to_5:;
     } else if (asm_error == ASM_OK) {
         asm_error = ASM_ERR_FULL;
     }
-    asm_bind(sizes);
+    arm64_assembler_bind(sizes);
     if (asm_noting) {
-        asm_note("equal so far: -1, 0 or 1 by the sizes", 0);
+        note("equal so far: -1, 0 or 1 by the sizes", 0);
     }
     if (asm_pc < asm_limit) {
         *(uint32_t *)asm_pc = 3531604000ULL;
@@ -24727,7 +24727,7 @@ exit_offset_to_5:;
     } else if (asm_error == ASM_OK) {
         asm_error = ASM_ERR_FULL;
     }
-    target_6 = asm_target_of(differ);
+    target_6 = target_of(differ);
     a_word_7 = 0x54000000 | ((((uint64_t)({
     off_6 = ((int64_t)(target_6 - asm_pc)) >> 2;
     if (!((off_6 >= -262144) && (off_6 <= 262143))) {
@@ -24755,7 +24755,7 @@ exit_offset_to_6:;
 }
 
 /* JitBaselineCompiler>>emitStringPrimitive:fail: */
-static void bl_emit_string_primitive(bool is_put, int32_t fail)
+static void emit_string_primitive(bool is_put, int32_t fail)
 {
     int32_t words;
     char *a_string;
@@ -24807,12 +24807,12 @@ static void bl_emit_string_primitive(bool is_put, int32_t fail)
     uint64_t a_word_13;
     int32_t enc_4;
     uint64_t a_word_14;
-    words = asm_new_label();
+    words = new_label();
     a_string = is_put ? "primitive stringAtPut" : "primitive stringAt";
     if (asm_noting) {
-        asm_note(a_string, 0);
+        note(a_string, 0);
     }
-    enc = asm_logical_immediate(7ULL, 64);
+    enc = logical_immediate(7ULL, 64);
     if (enc < 0) {
         if (asm_error == ASM_OK) {
             asm_error = ASM_ERR_IMMEDIATE;
@@ -24827,7 +24827,7 @@ static void bl_emit_string_primitive(bool is_put, int32_t fail)
         asm_error = ASM_ERR_FULL;
     }
 exit_logical:;
-    target = asm_target_of(fail);
+    target = target_of(fail);
     a_word_2 = 0x54000000 | ((((uint64_t)({
     off = ((int64_t)(target - asm_pc)) >> 2;
     if (!((off >= -262144) && (off <= 262143))) {
@@ -24865,7 +24865,7 @@ exit_offset_to:;
         asm_error = ASM_ERR_FULL;
     }
     if (asm_noting) {
-        asm_note("the index: a SmallInteger, zero-based in x16", 0);
+        note("the index: a SmallInteger, zero-based in x16", 0);
     }
     if (asm_pc < asm_limit) {
         *(uint32_t *)asm_pc = 4181721729ULL;
@@ -24873,7 +24873,7 @@ exit_offset_to:;
     } else if (asm_error == ASM_OK) {
         asm_error = ASM_ERR_FULL;
     }
-    target_2 = asm_target_of(fail);
+    target_2 = target_of(fail);
     a_word_3 = 905969664ULL | ((((uint64_t)({
     off_2 = ((int64_t)(target_2 - asm_pc)) >> 2;
     if (!((off_2 >= -8192) && (off_2 <= 8191))) {
@@ -24911,9 +24911,9 @@ exit_offset_to_2:;
 exit_add_sub:;
     if (is_put) {
         if (asm_noting) {
-            asm_note("not immutable; a Character, its code in x12", 0);
+            note("not immutable; a Character, its code in x12", 0);
         }
-        target_3 = asm_target_of(fail);
+        target_3 = target_of(fail);
         a_word_4 = 3084386304ULL | ((((uint64_t)({
     off_3 = ((int64_t)(target_3 - asm_pc)) >> 2;
     if (!((off_3 >= -8192) && (off_3 <= 8191))) {
@@ -24938,7 +24938,7 @@ exit_offset_to_3:;
         } else if (asm_error == ASM_OK) {
             asm_error = ASM_ERR_FULL;
         }
-        enc_2 = asm_logical_immediate(7ULL, 64);
+        enc_2 = logical_immediate(7ULL, 64);
         if (enc_2 < 0) {
             if (asm_error == ASM_OK) {
                 asm_error = ASM_ERR_IMMEDIATE;
@@ -24964,7 +24964,7 @@ exit_offset_to_3:;
             asm_error = ASM_ERR_IMMEDIATE;
         }
     exit_add_sub_2:;
-        target_4 = asm_target_of(fail);
+        target_4 = target_of(fail);
         a_word_6 = 0x54000000 | ((((uint64_t)({
     off_4 = ((int64_t)(target_4 - asm_pc)) >> 2;
     if (!((off_4 >= -262144) && (off_4 <= 262143))) {
@@ -25012,7 +25012,7 @@ exit_add_sub_3:;
         asm_error = ASM_ERR_IMMEDIATE;
     }
 exit_add_sub_4:;
-    target_5 = asm_target_of(words);
+    target_5 = target_of(words);
     a_word_7 = 0x54000000 | ((((uint64_t)({
     off_5 = ((int64_t)(target_5 - asm_pc)) >> 2;
     if (!((off_5 >= -262144) && (off_5 <= 262143))) {
@@ -25032,7 +25032,7 @@ exit_offset_to_5:;
         asm_error = ASM_ERR_FULL;
     }
     if (asm_noting) {
-        asm_note("bytes: slots * 8 - (format - 16)", 0);
+        note("bytes: slots * 8 - (format - 16)", 0);
     }
     if (asm_pc < asm_limit) {
         *(uint32_t *)asm_pc = 3548246346ULL;
@@ -25063,7 +25063,7 @@ exit_add_sub_5:;
     } else if (asm_error == ASM_OK) {
         asm_error = ASM_ERR_FULL;
     }
-    target_6 = asm_target_of(fail);
+    target_6 = target_of(fail);
     a_word_8 = 0x54000000 | ((((uint64_t)({
     off_6 = ((int64_t)(target_6 - asm_pc)) >> 2;
     if (!((off_6 >= -262144) && (off_6 <= 262143))) {
@@ -25094,7 +25094,7 @@ exit_offset_to_6:;
             asm_error = ASM_ERR_IMMEDIATE;
         }
     exit_add_sub_6:;
-        target_7 = asm_target_of(fail);
+        target_7 = target_of(fail);
         a_word_9 = 0x54000000 | ((((uint64_t)({
     off_7 = ((int64_t)(target_7 - asm_pc)) >> 2;
     if (!((off_7 >= -262144) && (off_7 <= 262143))) {
@@ -25138,7 +25138,7 @@ exit_offset_to_7:;
         } else if (asm_error == ASM_OK) {
             asm_error = ASM_ERR_FULL;
         }
-        enc_3 = asm_logical_immediate(2ULL, 64);
+        enc_3 = logical_immediate(2ULL, 64);
         if (enc_3 < 0) {
             if (asm_error == ASM_OK) {
                 asm_error = ASM_ERR_IMMEDIATE;
@@ -25160,9 +25160,9 @@ exit_offset_to_7:;
     } else if (asm_error == ASM_OK) {
         asm_error = ASM_ERR_FULL;
     }
-    asm_bind(words);
+    arm64_assembler_bind(words);
     if (asm_noting) {
-        asm_note("32-bit words: slots * 2 - (format - 10)", 0);
+        note("32-bit words: slots * 2 - (format - 10)", 0);
     }
     if (asm_pc < asm_limit) {
         *(uint32_t *)asm_pc = 4043319615ULL;
@@ -25175,7 +25175,7 @@ exit_offset_to_7:;
         asm_error = ASM_ERR_IMMEDIATE;
     }
 exit_add_sub_7:;
-    target_8 = asm_target_of(fail);
+    target_8 = target_of(fail);
     a_word_11 = 0x54000000 | ((((uint64_t)({
     off_8 = ((int64_t)(target_8 - asm_pc)) >> 2;
     if (!((off_8 >= -262144) && (off_8 <= 262143))) {
@@ -25205,7 +25205,7 @@ exit_offset_to_8:;
         asm_error = ASM_ERR_IMMEDIATE;
     }
 exit_add_sub_8:;
-    target_9 = asm_target_of(fail);
+    target_9 = target_of(fail);
     a_word_12 = 0x54000000 | ((((uint64_t)({
     off_9 = ((int64_t)(target_9 - asm_pc)) >> 2;
     if (!((off_9 >= -262144) && (off_9 <= 262143))) {
@@ -25253,7 +25253,7 @@ exit_add_sub_9:;
     } else if (asm_error == ASM_OK) {
         asm_error = ASM_ERR_FULL;
     }
-    target_10 = asm_target_of(fail);
+    target_10 = target_of(fail);
     a_word_13 = 0x54000000 | ((((uint64_t)({
     off_10 = ((int64_t)(target_10 - asm_pc)) >> 2;
     if (!((off_10 >= -262144) && (off_10 <= 262143))) {
@@ -25298,7 +25298,7 @@ exit_offset_to_10:;
         } else if (asm_error == ASM_OK) {
             asm_error = ASM_ERR_FULL;
         }
-        enc_4 = asm_logical_immediate(2ULL, 64);
+        enc_4 = logical_immediate(2ULL, 64);
         if (enc_4 < 0) {
             if (asm_error == ASM_OK) {
                 asm_error = ASM_ERR_IMMEDIATE;
@@ -25323,7 +25323,7 @@ exit_offset_to_10:;
 }
 
 /* JitBaselineCompiler>>emitUint32Primitive:fail: */
-static void bl_emit_uint32_primitive(bool is_put, int32_t fail)
+static void emit_uint32_primitive(bool is_put, int32_t fail)
 {
     char *a_string;
     int32_t enc;
@@ -25364,9 +25364,9 @@ static void bl_emit_uint32_primitive(bool is_put, int32_t fail)
     uint64_t a_word_10;
     a_string = is_put ? "primitive uint32At:put: of bytes" : "primitive uint32At: of bytes";
     if (asm_noting) {
-        asm_note(a_string, 0);
+        note(a_string, 0);
     }
-    enc = asm_logical_immediate(7ULL, 64);
+    enc = logical_immediate(7ULL, 64);
     if (enc < 0) {
         if (asm_error == ASM_OK) {
             asm_error = ASM_ERR_IMMEDIATE;
@@ -25381,7 +25381,7 @@ static void bl_emit_uint32_primitive(bool is_put, int32_t fail)
         asm_error = ASM_ERR_FULL;
     }
 exit_logical:;
-    target = asm_target_of(fail);
+    target = target_of(fail);
     a_word_2 = 0x54000000 | ((((uint64_t)({
     off = ((int64_t)(target - asm_pc)) >> 2;
     if (!((off >= -262144) && (off <= 262143))) {
@@ -25423,7 +25423,7 @@ exit_offset_to:;
         asm_error = ASM_ERR_IMMEDIATE;
     }
 exit_add_sub:;
-    target_2 = asm_target_of(fail);
+    target_2 = target_of(fail);
     a_word_3 = 0x54000000 | ((((uint64_t)({
     off_2 = ((int64_t)(target_2 - asm_pc)) >> 2;
     if (!((off_2 >= -262144) && (off_2 <= 262143))) {
@@ -25443,7 +25443,7 @@ exit_offset_to_2:;
         asm_error = ASM_ERR_FULL;
     }
     if (is_put) {
-        target_3 = asm_target_of(fail);
+        target_3 = target_of(fail);
         a_word_4 = 3084386304ULL | ((((uint64_t)({
     off_3 = ((int64_t)(target_3 - asm_pc)) >> 2;
     if (!((off_3 >= -8192) && (off_3 <= 8191))) {
@@ -25493,7 +25493,7 @@ exit_offset_to_3:;
     }
 exit_add_sub_2:;
     if (asm_noting) {
-        asm_note("offset - 1 + 4 within the bytes", 0);
+        note("offset - 1 + 4 within the bytes", 0);
     }
     if (asm_pc < asm_limit) {
         *(uint32_t *)asm_pc = 4181721729ULL;
@@ -25501,7 +25501,7 @@ exit_add_sub_2:;
     } else if (asm_error == ASM_OK) {
         asm_error = ASM_ERR_FULL;
     }
-    target_4 = asm_target_of(fail);
+    target_4 = target_of(fail);
     a_word_5 = 905969664ULL | ((((uint64_t)({
     off_4 = ((int64_t)(target_4 - asm_pc)) >> 2;
     if (!((off_4 >= -8192) && (off_4 <= 8191))) {
@@ -25537,7 +25537,7 @@ exit_offset_to_4:;
         asm_error = ASM_ERR_IMMEDIATE;
     }
 exit_add_sub_3:;
-    target_5 = asm_target_of(fail);
+    target_5 = target_of(fail);
     a_word_6 = 3086483456ULL | ((((uint64_t)({
     off_5 = ((int64_t)(target_5 - asm_pc)) >> 2;
     if (!((off_5 >= -8192) && (off_5 <= 8191))) {
@@ -25573,7 +25573,7 @@ exit_add_sub_4:;
     } else if (asm_error == ASM_OK) {
         asm_error = ASM_ERR_FULL;
     }
-    target_6 = asm_target_of(fail);
+    target_6 = target_of(fail);
     a_word_7 = 0x54000000 | ((((uint64_t)({
     off_6 = ((int64_t)(target_6 - asm_pc)) >> 2;
     if (!((off_6 >= -262144) && (off_6 <= 262143))) {
@@ -25616,7 +25616,7 @@ exit_add_sub_5:;
         } else if (asm_error == ASM_OK) {
             asm_error = ASM_ERR_FULL;
         }
-        enc_2 = asm_logical_immediate(1ULL, 64);
+        enc_2 = logical_immediate(1ULL, 64);
         if (enc_2 < 0) {
             if (asm_error == ASM_OK) {
                 asm_error = ASM_ERR_IMMEDIATE;
@@ -25645,7 +25645,7 @@ exit_add_sub_5:;
     } else if (asm_error == ASM_OK) {
         asm_error = ASM_ERR_FULL;
     }
-    target_7 = asm_target_of(fail);
+    target_7 = target_of(fail);
     a_word_9 = 905969664ULL | ((((uint64_t)({
     off_7 = ((int64_t)(target_7 - asm_pc)) >> 2;
     if (!((off_7 >= -8192) && (off_7 <= 8191))) {
@@ -25676,7 +25676,7 @@ exit_offset_to_7:;
     } else if (asm_error == ASM_OK) {
         asm_error = ASM_ERR_FULL;
     }
-    target_8 = asm_target_of(fail);
+    target_8 = target_of(fail);
     a_word_10 = 3036676096LL | ((((uint64_t)({
     off_8 = ((int64_t)(target_8 - asm_pc)) >> 2;
     if (!((off_8 >= -262144) && (off_8 <= 262143))) {
@@ -25716,7 +25716,7 @@ exit_offset_to_8:;
 }
 
 /* JitBaselineCompiler>>floatArith:pc:pushes: */
-static bool bl_float_arith(int32_t k, int32_t pc, int32_t pushes)
+static bool jit_baseline_compiler_float_arith(int32_t k, int32_t pc, int pushes)
 {
     int32_t a;
     int32_t b;
@@ -25733,7 +25733,7 @@ static bool bl_float_arith(int32_t k, int32_t pc, int32_t pushes)
     int32_t t_2;
     int64_t r_temp_double_2;
     uint64_t a_word;
-    int32_t rr;
+    int rr;
     int v;
     int64_t r_emit_compare_result;
     int64_t r_fused_jump_after;
@@ -25754,21 +25754,21 @@ static bool bl_float_arith(int32_t k, int32_t pc, int32_t pushes)
     int64_t r_offset_to;
     int64_t off;
     uint64_t a_word_4;
-    int32_t dr;
+    int dr;
     char *a_string;
-    int32_t rd;
+    int rd;
     uint64_t a_word_5;
-    int32_t rd_2;
+    int rd_2;
     uint64_t a_word_6;
-    int32_t rd_3;
+    int rd_3;
     uint64_t a_word_7;
-    int32_t rd_4;
+    int rd_4;
     uint64_t a_word_8;
     a = ss_top - 2;
     b = ss_top - 1;
     compare = (k >= 2) && (k <= 7);
-    bl_ss_flush_keeping_doubles(a);
-    s = bl_slow(SL_SEND, pc, ss_top);
+    ss_flush_keeping_doubles_to(a);
+    s = jit_baseline_compiler_slow(SL_SEND, pc, ss_top);
     if (s < 0) {
         return false;
     }
@@ -25833,12 +25833,12 @@ static bool bl_float_arith(int32_t k, int32_t pc, int32_t pushes)
     r_length_of = 0;
 exit_length_of:;
     r_length_of; })) << 8) | ((((uint64_t)k) & 255) << 16) | 33554432ULL | (((uint64_t)pushes) << 26))) | SL_DOUBLES;
-    bl_note_doubles_below(a, s);
+    note_doubles_below(a, s);
     if (asm_noting) {
-        asm_note("Floats (an operand is one for sure): both as doubles", 0);
+        note("Floats (an operand is one for sure): both as doubles", 0);
     }
-    da = bl_double_of(a, D0, sl_label[s]);
-    db = bl_double_of(b, D1, sl_label[s]);
+    da = double_of(a, D0, sl_label[s]);
+    db = double_of(b, D1, sl_label[s]);
     k_2 = ss_kind[a];
     if (k_2 == SS_DREG) {
         sl_a[s] = -3;
@@ -25909,9 +25909,9 @@ exit_operand_2:;
         } else if (asm_error == ASM_OK) {
             asm_error = ASM_ERR_FULL;
         }
-        rr = bl_alloc_reg();
+        rr = alloc_reg();
         sl_r[s] = (int8_t)rr;
-        bl_ss_pop(2);
+        ss_pop(2);
         switch (k) {
         case 2:
             v = COND_MI;
@@ -26021,7 +26021,7 @@ exit_fused_jump_after:;
     r_fused_jump_after; });
     if (j_2 < 0) {
         if (asm_noting) {
-            asm_note("the Boolean", 0);
+            note("the Boolean", 0);
         }
         a_word_2 = 0x1A800000 | ((rr & REG_W) == 0 ? 0x80000000LL : 0) | 0 | ((((uint64_t)(v & 15)) << 12) | (1639168ULL | (rr & 31)));
         if (asm_pc < asm_limit) {
@@ -26038,19 +26038,19 @@ exit_fused_jump_after:;
     if_true = ana_bcs[j_2] == 0x91;
     taken = if_true ? v : v ^ 1;
     if (asm_noting) {
-        asm_note("compare and branch (fused with the conditional jump)", 0);
+        note("compare and branch (fused with the conditional jump)", 0);
     }
-    fused_target = bl_branch(taken, t_3);
+    fused_target = branch(taken, t_3);
     pc_merge[j_2] = 2;
     r_emit_compare_result = j_2;
 exit_emit_compare_result:;
     r_emit_compare_result; });
-        sl_cont[s] = asm_new_label();
+        sl_cont[s] = new_label();
         if (j >= 0) {
             sl_info[s] = (sl_info[s] | SL_FUSED) & -34359738369LL;
             sl_x[s] = j;
             sl_target[s] = fused_target;
-            asm_bind(sl_cont[s]);
+            arm64_assembler_bind(sl_cont[s]);
             if (rr >= 0) {
                 if (((rr >= 0) && (rr <= 8)) || ((rr >= 12) && (rr <= 15))) {
                     reg_owner[rr] = -1;
@@ -26059,8 +26059,8 @@ exit_emit_compare_result:;
             return true;
         }
         sl_info[s] = sl_info[s] & -34359738369LL;
-        asm_bind(sl_cont[s]);
-        return bl_ss_push(SS_REG, 0, rr);
+        arm64_assembler_bind(sl_cont[s]);
+        return ss_push(SS_REG, 0, rr);
     }
     if (k == 9) {
         a_word_3 = 0x1E602008 | (((uint64_t)(db & 31)) << 5);
@@ -26071,7 +26071,7 @@ exit_emit_compare_result:;
             asm_error = ASM_ERR_FULL;
         }
         a_label = sl_label[s];
-        target = asm_target_of(a_label);
+        target = target_of(a_label);
         a_word_4 = 0x54000000 | ((((uint64_t)({
     off = ((int64_t)(target - asm_pc)) >> 2;
     if (!((off >= -262144) && (off <= 262143))) {
@@ -26091,12 +26091,12 @@ exit_offset_to:;
             asm_error = ASM_ERR_FULL;
         }
     }
-    bl_ss_pop(2);
-    dr = bl_dalloc();
+    ss_pop(2);
+    dr = d_alloc();
     sl_r[s] = (int8_t)dr;
     a_string = k == 0 ? "+" : k == 1 ? "-" : k == 8 ? "*" : "/";
     if (asm_noting) {
-        asm_note(a_string, 0);
+        note(a_string, 0);
     }
     if (k == 0) {
         rd = D0 + dr;
@@ -26138,13 +26138,13 @@ exit_offset_to:;
             asm_error = ASM_ERR_FULL;
         }
     }
-    sl_cont[s] = asm_new_label();
-    asm_bind(sl_cont[s]);
-    return bl_ss_push(SS_DREG, 0, dr);
+    sl_cont[s] = new_label();
+    arm64_assembler_bind(sl_cont[s]);
+    return ss_push(SS_DREG, 0, dr);
 }
 
 /* JitBaselineCompiler>>headCheck: */
-static void bl_head_check(int32_t h)
+static void head_check(int32_t h)
 {
     int32_t s;
     int32_t r_label_for;
@@ -26156,7 +26156,7 @@ static void bl_head_check(int32_t h)
     int64_t r_offset_to;
     int64_t off_2;
     uint64_t a_word_3;
-    s = bl_slow(SL_INTERRUPT, h, (int32_t)ana_depths[h]);
+    s = jit_baseline_compiler_slow(SL_INTERRUPT, h, (int32_t)ana_depths[h]);
     if (s < 0) {
         if (asm_error == ASM_OK) {
             asm_error = ASM_ERR_LABEL;
@@ -26165,12 +26165,12 @@ static void bl_head_check(int32_t h)
     }
     sl_cont[s] = ({
     if (pc_labels[h] < 0) {
-        pc_labels[h] = asm_new_label();
+        pc_labels[h] = new_label();
     }
     r_label_for = pc_labels[h];
     r_label_for; });
     if (asm_noting) {
-        asm_note("loop head: interrupt check", 0);
+        note("loop head: interrupt check", 0);
     }
     off = (int64_t)&((jit_state *)0)->interrupt;
     if ((off >= 0) && ((off & 3) == 0) && ((off >> 2) <= 4095)) {
@@ -26198,7 +26198,7 @@ static void bl_head_check(int32_t h)
     exit_load_store:;
     }
     a_label = sl_label[s];
-    target = asm_target_of(a_label);
+    target = target_of(a_label);
     a_word_3 = 889192448 | ((((uint64_t)({
     off_2 = ((int64_t)(target - asm_pc)) >> 2;
     if (!((off_2 >= -262144) && (off_2 <= 262143))) {
@@ -26220,7 +26220,7 @@ exit_offset_to:;
 }
 
 /* JitBaselineCompiler>>loadLiteral:into: */
-static void bl_load_literal(int64_t i, int32_t r)
+static void load_literal(int64_t i, int r)
 {
     int32_t i_2;
     int32_t r_literal_label;
@@ -26236,16 +26236,16 @@ static void bl_load_literal(int64_t i, int32_t r)
         return;
     }
     if (asm_noting) {
-        asm_note("literal %d (pool)", i);
+        note("literal %d (pool)", i);
     }
     i_2 = (int32_t)i;
     a_label = ({
     if (pool_labels[i_2] < 0) {
-        pool_labels[i_2] = asm_new_label();
+        pool_labels[i_2] = new_label();
     }
     r_literal_label = pool_labels[i_2];
     r_literal_label; });
-    target = asm_target_of(a_label);
+    target = target_of(a_label);
     a_word = ((r & REG_D) != 0 ? 0x5C000000 : (r & REG_W) == 0 ? 0x58000000 : 0x18000000) | ((((uint64_t)({
     off = ((int64_t)(target - asm_pc)) >> 2;
     if (!((off >= -262144) && (off <= 262143))) {
@@ -26267,7 +26267,7 @@ exit_offset_to:;
 }
 
 /* JitBaselineCompiler>>loadReceiver:kind:reg:val: */
-static void bl_load_receiver(int32_t ri, int32_t k, int32_t r, int64_t v)
+static void load_receiver(int32_t ri, int32_t k, int32_t r, int64_t v)
 {
     uint64_t a_word;
     uint64_t a_word_2;
@@ -26280,7 +26280,7 @@ static void bl_load_receiver(int32_t ri, int32_t k, int32_t r, int64_t v)
     uint64_t a_word_8;
     uint64_t a_word_9;
     if (asm_noting) {
-        asm_note("x0 := the receiver", 0);
+        note("x0 := the receiver", 0);
     }
     if (k == SS_REG) {
         if (r != X0) {
@@ -26376,7 +26376,7 @@ static void bl_load_receiver(int32_t ri, int32_t k, int32_t r, int64_t v)
             }
         exit_move_wide:;
         } else {
-            asm_mov_imm(X0, (uint64_t)v);
+            mov_imm(X0, (uint64_t)v);
         }
         return;
     }
@@ -26408,7 +26408,7 @@ static void bl_load_receiver(int32_t ri, int32_t k, int32_t r, int64_t v)
 }
 
 /* JitBaselineCompiler>>noteContinuation:result: */
-static void bl_note_continuation(int32_t pc, int32_t r)
+static void note_continuation(int32_t pc, int r)
 {
     uint8_t op;
     int64_t r_length_of;
@@ -26499,17 +26499,17 @@ exit_has_doubles:;
     r_has_doubles; })) {
         return;
     }
-    s = bl_slow(SL_RESUME, next, (int32_t)ana_depths[next]);
+    s = jit_baseline_compiler_slow(SL_RESUME, next, (int32_t)ana_depths[next]);
     if (s < 0) {
         return;
     }
     sl_r[s] = (int8_t)r;
-    sl_cont[s] = asm_new_label();
-    asm_bind(sl_cont[s]);
+    sl_cont[s] = new_label();
+    arm64_assembler_bind(sl_cont[s]);
 }
 
 /* JitBaselineCompiler>>noteDoublesBelow:for: */
-static void bl_note_doubles_below(int32_t a, int32_t s)
+static void note_doubles_below(int32_t a, int32_t s)
 {
     int32_t i;
     int32_t t;
@@ -26546,7 +26546,7 @@ static void bl_note_doubles_below(int32_t a, int32_t s)
 }
 
 /* JitBaselineCompiler>>noteLiveRegsFor:except: */
-static void bl_note_live_regs(int32_t s, int32_t r)
+static void note_live_regs_for(int32_t s, int32_t r)
 {
     int32_t i;
     sl_saved_start[s] = saved_count;
@@ -26568,7 +26568,7 @@ static void bl_note_live_regs(int32_t s, int32_t r)
 }
 
 /* JitBaselineCompiler>>noteRet:depth:info: */
-static void bl_note_ret(int32_t pc, int32_t d, uint32_t info)
+static void note_ret(int32_t pc, int32_t d, uint32_t info)
 {
     if (ret_count >= BL_MAX_RETS) {
         if (asm_error == ASM_OK) {
@@ -26584,7 +26584,7 @@ static void bl_note_ret(int32_t pc, int32_t d, uint32_t info)
 }
 
 /* JitBaselineCompiler>>slow:pc:depth: */
-static int32_t bl_slow(int32_t kind, int32_t pc, int32_t d)
+static int32_t jit_baseline_compiler_slow(int kind, int32_t pc, int32_t d)
 {
     int32_t s;
     if (sl_count >= BL_MAX_SLOW) {
@@ -26595,7 +26595,7 @@ static int32_t bl_slow(int32_t kind, int32_t pc, int32_t d)
     sl_kind[s] = (uint8_t)kind;
     sl_pc[s] = pc;
     sl_depth[s] = d;
-    sl_label[s] = asm_new_label();
+    sl_label[s] = new_label();
     sl_cont[s] = -1;
     sl_target[s] = -1;
     sl_a[s] = -1;
@@ -26612,7 +26612,7 @@ static int32_t bl_slow(int32_t kind, int32_t pc, int32_t d)
 }
 
 /* JitBaselineCompiler>>special:pc:pushes: */
-static bool bl_special(int32_t k, int32_t pc, int32_t pushes)
+static bool jit_baseline_compiler_special(int32_t k, int32_t pc, int pushes)
 {
     bool r_identical;
     int32_t a;
@@ -26631,7 +26631,7 @@ static bool bl_special(int32_t k, int32_t pc, int32_t pushes)
     int ext;
     uint64_t a_word_3;
     uint64_t a_word_4;
-    int32_t rr;
+    int rr;
     int v_2;
     int64_t r_emit_compare_result;
     int64_t r_fused_jump_after;
@@ -26649,7 +26649,7 @@ static bool bl_special(int32_t k, int32_t pc, int32_t pushes)
     bool r_class_of;
     int32_t a_2;
     int32_t ra_2;
-    int32_t rr_2;
+    int rr_2;
     int32_t s;
     int32_t rd_3;
     int32_t enc;
@@ -26673,7 +26673,7 @@ static bool bl_special(int32_t k, int32_t pc, int32_t pushes)
     int ext_2;
     uint64_t a_word_10;
     uint64_t a_word_11;
-    int32_t rr_3;
+    int rr_3;
     int cond;
     int64_t r_emit_compare_result_2;
     int64_t r_fused_jump_after_2;
@@ -26703,11 +26703,11 @@ static bool bl_special(int32_t k, int32_t pc, int32_t pushes)
         return ({
     a = ss_top - 2;
     b = ss_top - 1;
-    bl_ss_flush_to(a);
-    ra = bl_ss_materialize(a);
+    ss_flush_to(a);
+    ra = jit_baseline_compiler_ss_materialize(a);
     a_string = k == 19 ? "==" : "~~";
     if (asm_noting) {
-        asm_note(a_string, 0);
+        note(a_string, 0);
     }
     if ((ss_kind[b] == SS_CONST) && ((ss_val[b] >= 0) && (ss_val[b] < 4096))) {
         imm = ss_val[b];
@@ -26740,7 +26740,7 @@ static bool bl_special(int32_t k, int32_t pc, int32_t pushes)
         }
     exit_add_sub:;
     } else {
-        rm = bl_ss_materialize(b);
+        rm = jit_baseline_compiler_ss_materialize(b);
         rd_2 = (ra & REG_W) | 31;
         if (((rd_2 & REG_SP) != 0) || ((ra & REG_SP) != 0)) {
             ext = (rd_2 & REG_W) == 0 ? EXT_UXTX : EXT_UXTW;
@@ -26768,8 +26768,8 @@ static bool bl_special(int32_t k, int32_t pc, int32_t pushes)
         }
     exit_add_sub_2:;
     }
-    rr = bl_alloc_reg();
-    bl_ss_pop(2);
+    rr = alloc_reg();
+    ss_pop(2);
     switch (k) {
     case 2:
         v_2 = COND_LT;
@@ -26885,7 +26885,7 @@ exit_fused_jump_after:;
     r_fused_jump_after; });
     if (j_2 < 0) {
         if (asm_noting) {
-            asm_note("the Boolean", 0);
+            note("the Boolean", 0);
         }
         a_word_5 = 0x1A800000 | ((rr & REG_W) == 0 ? 0x80000000LL : 0) | 0 | ((((uint64_t)(v_2 & 15)) << 12) | (1639168ULL | (rr & 31)));
         if (asm_pc < asm_limit) {
@@ -26902,9 +26902,9 @@ exit_fused_jump_after:;
     if_true = ana_bcs[j_2] == 0x91;
     taken = if_true ? v_2 : v_2 ^ 1;
     if (asm_noting) {
-        asm_note("compare and branch (fused with the conditional jump)", 0);
+        note("compare and branch (fused with the conditional jump)", 0);
     }
-    fused_target = bl_branch(taken, t);
+    fused_target = branch(taken, t);
     pc_merge[j_2] = 2;
     r_emit_compare_result = j_2;
 exit_emit_compare_result:;
@@ -26918,29 +26918,29 @@ exit_emit_compare_result:;
         r_identical = true;
         goto exit_identical;
     }
-    r_identical = bl_ss_push(SS_REG, 0, rr);
+    r_identical = ss_push(SS_REG, 0, rr);
 exit_identical:;
     r_identical; });
     }
     if (k == 29) {
         return ({
     a_2 = ss_top - 1;
-    bl_ss_flush_to(a_2);
-    ra_2 = bl_ss_materialize(a_2);
-    rr_2 = bl_alloc_reg();
-    s = bl_slow(SL_CLASS, pc, ss_top);
+    ss_flush_to(a_2);
+    ra_2 = jit_baseline_compiler_ss_materialize(a_2);
+    rr_2 = alloc_reg();
+    s = jit_baseline_compiler_slow(SL_CLASS, pc, ss_top);
     if (s < 0) {
         r_class_of = false;
         goto exit_class_of;
     }
     sl_a[s] = (int8_t)ra_2;
     sl_r[s] = (int8_t)rr_2;
-    sl_cont[s] = asm_new_label();
+    sl_cont[s] = new_label();
     if (asm_noting) {
-        asm_note("class: an immediate's by its tag (out of line)", 0);
+        note("class: an immediate's by its tag (out of line)", 0);
     }
     rd_3 = (ra_2 & REG_W) | 31;
-    enc = asm_logical_immediate(7ULL, (rd_3 & REG_W) == 0 ? 64 : 32);
+    enc = logical_immediate(7ULL, (rd_3 & REG_W) == 0 ? 64 : 32);
     if (enc < 0) {
         if (asm_error == ASM_OK) {
             asm_error = ASM_ERR_IMMEDIATE;
@@ -26956,7 +26956,7 @@ exit_identical:;
     }
 exit_logical:;
     a_label = sl_label[s];
-    target = asm_target_of(a_label);
+    target = target_of(a_label);
     a_word_7 = 0x54000000 | ((((uint64_t)({
     off = ((int64_t)(target - asm_pc)) >> 2;
     if (!((off >= -262144) && (off <= 262143))) {
@@ -26995,21 +26995,21 @@ exit_offset_to:;
             asm_error = ASM_ERR_FULL;
         }
     }
-    asm_bind(sl_cont[s]);
-    bl_ss_pop(1);
-    r_class_of = bl_ss_push(SS_REG, 0, rr_2);
+    arm64_assembler_bind(sl_cont[s]);
+    ss_pop(1);
+    r_class_of = ss_push(SS_REG, 0, rr_2);
 exit_class_of:;
     r_class_of; });
     }
-    if (((k == 23) || (k == 24)) && (((jit_flags & JIT_FLAG_PRIMS) != 0) && bl_nil_tests_inlinable())) {
+    if (((k == 23) || (k == 24)) && (((jit_flags & JIT_FLAG_PRIMS) != 0) && nil_tests_inlinable())) {
         t_2 = k - 22;
         return ({
     a_3 = ss_top - 1;
-    bl_ss_flush_to(a_3);
-    ra_3 = bl_ss_materialize(a_3);
+    ss_flush_to(a_3);
+    ra_3 = jit_baseline_compiler_ss_materialize(a_3);
     a_string_2 = t_2 == 1 ? "isNil: == nil" : "notNil: ~~ nil";
     if (asm_noting) {
-        asm_note(a_string_2, 0);
+        note(a_string_2, 0);
     }
     rd_4 = (ra_3 & REG_W) | 31;
     if (((rd_4 & REG_SP) != 0) || ((ra_3 & REG_SP) != 0)) {
@@ -27037,8 +27037,8 @@ exit_class_of:;
         asm_error = ASM_ERR_FULL;
     }
 exit_add_sub_3:;
-    rr_3 = bl_alloc_reg();
-    bl_ss_pop(1);
+    rr_3 = alloc_reg();
+    ss_pop(1);
     cond = t_2 == 1 ? COND_EQ : COND_NE;
     j_3 = ({
     j_4 = ({
@@ -27129,7 +27129,7 @@ exit_fused_jump_after_2:;
     r_fused_jump_after_2; });
     if (j_4 < 0) {
         if (asm_noting) {
-            asm_note("the Boolean", 0);
+            note("the Boolean", 0);
         }
         a_word_12 = 0x1A800000 | ((rr_3 & REG_W) == 0 ? 0x80000000LL : 0) | 0 | ((((uint64_t)(cond & 15)) << 12) | (1639168ULL | (rr_3 & 31)));
         if (asm_pc < asm_limit) {
@@ -27146,9 +27146,9 @@ exit_fused_jump_after_2:;
     if_true_2 = ana_bcs[j_4] == 0x91;
     taken_2 = if_true_2 ? cond : cond ^ 1;
     if (asm_noting) {
-        asm_note("compare and branch (fused with the conditional jump)", 0);
+        note("compare and branch (fused with the conditional jump)", 0);
     }
-    fused_target = bl_branch(taken_2, t_3);
+    fused_target = branch(taken_2, t_3);
     pc_merge[j_4] = 2;
     r_emit_compare_result_2 = j_4;
 exit_emit_compare_result_2:;
@@ -27162,21 +27162,21 @@ exit_emit_compare_result_2:;
         r_nil_test = true;
         goto exit_nil_test;
     }
-    r_nil_test = bl_ss_push(SS_REG, 0, rr_3);
+    r_nil_test = ss_push(SS_REG, 0, rr_3);
 exit_nil_test:;
     r_nil_test; });
     }
     if (((jit_flags & JIT_FLAG_ARITH) != 0) && (((k <= 8) || ((k == 10) || ((k >= 12) && (k <= 15)))) && (k != 11))) {
-        return bl_arith(k, pc, pushes);
+        return arith(k, pc, pushes);
     }
     if (((jit_flags & JIT_FLAG_FLOAT) != 0) && (k == 9)) {
-        return bl_arith(k, pc, pushes);
+        return arith(k, pc, pushes);
     }
     if (((jit_flags & JIT_FLAG_ACCESS) != 0) && ((k == 16) || (k == 17))) {
-        return bl_access(k, pc, pushes);
+        return jit_baseline_compiler_access(k, pc, pushes);
     }
     if (((jit_flags & JIT_FLAG_BLOCKS) != 0) && ((k == 21) || ((k == 22) || (k == 30)))) {
-        return bl_value(k, pc, pushes);
+        return jit_baseline_compiler_value(k, pc, pushes);
     }
     return ({
     n = (k == 19) || (k == 20) ? 1 : special_argc[k];
@@ -27185,9 +27185,9 @@ exit_nil_test:;
     if ((k_2 == SS_TEMP) || ((k_2 == SS_LIT) || ((k_2 == SS_SLOT) || (k_2 == SS_CONST)))) {
         owner = reg_owner[X0];
         if ((owner >= 0) && (owner < SS_MAX)) {
-            bl_ss_spill(owner);
+            ss_spill(owner);
         }
-        bl_ss_materialize_into(ri, X0);
+        jit_baseline_compiler_ss_materialize_into(ri, X0);
         ss_in_slot[ri] = k_2 == SS_SLOT ? 1 : 0;
         ss_kind[ri] = SS_REG;
         ss_reg[ri] = 0;
@@ -27199,10 +27199,10 @@ exit_nil_test:;
     }
     r = ss_reg[ri];
     v_3 = ss_val[ri];
-    bl_ss_flush_to(ss_top);
-    bl_load_receiver(ri, k_2, r, v_3);
+    ss_flush_to(ss_top);
+    load_receiver(ri, k_2, r, v_3);
     op_5 = ana_bcs[pc];
-    bl_emit_site_call(pc, (uint32_t)(((uint64_t)n) | (((uint64_t)({
+    emit_site_call(pc, (uint32_t)(((uint64_t)n) | (((uint64_t)({
     if (op_5 < 0x68) {
         r_length_of_3 = 1;
         goto exit_length_of_3;
@@ -27263,23 +27263,23 @@ exit_nil_test:;
 exit_length_of_3:;
     r_length_of_3; })) << 8) | ((((uint64_t)k) & 255) << 16) | 33554432ULL | (((uint64_t)pushes) << 26)), ri);
     r_send_special = ({
-    bl_ss_pop(n + 1);
+    ss_pop(n + 1);
     for (r_2 = 0; r_2 <= 31; r_2++) {
         reg_owner[r_2] = -1;
     }
-    bl_drop_doubles();
+    drop_doubles();
     self_valid = false;
     if (loop_active) {
-        bl_emit_load_loop_temps(loop_id);
+        emit_load_loop_temps(loop_id);
     }
-    bl_note_continuation(pc, X0);
-    r_finish_send = bl_ss_push(SS_REG, 0, X0);
+    note_continuation(pc, X0);
+    r_finish_send = ss_push(SS_REG, 0, X0);
     r_finish_send; });
     r_send_special; });
 }
 
 /* JitBaselineCompiler>>ssFlushKeepingDoublesTo: */
-static void bl_ss_flush_keeping_doubles(int32_t n)
+static void ss_flush_keeping_doubles_to(int32_t n)
 {
     int32_t low;
     int32_t i;
@@ -27290,7 +27290,7 @@ static void bl_ss_flush_keeping_doubles(int32_t n)
                 low = i;
             }
         } else {
-            bl_ss_spill(i);
+            ss_spill(i);
         }
     }
     if (low < 0) {
@@ -27302,7 +27302,7 @@ static void bl_ss_flush_keeping_doubles(int32_t n)
 }
 
 /* JitBaselineCompiler>>ssFlushTo: */
-static void bl_ss_flush_to(int32_t n)
+static void ss_flush_to(int32_t n)
 {
     int32_t i;
     int8_t rt;
@@ -27314,7 +27314,7 @@ static void bl_ss_flush_to(int32_t n)
     while (i < n) {
         if ((i + 1 < n) && ((ss_kind[i] == SS_REG) && ((ss_kind[i + 1] == SS_REG) && ((ss_in_slot[i] == 0) && ((ss_in_slot[i + 1] == 0) && (i < 63)))))) {
             if (asm_noting) {
-                asm_note("spill: stack slots %d and the next", i);
+                note("spill: stack slots %d and the next", i);
             }
             rt = ss_reg[i];
             rt2 = ss_reg[i + 1];
@@ -27340,7 +27340,7 @@ static void bl_ss_flush_to(int32_t n)
             ss_kind[i + 1] = SS_SLOT;
             i = i + 2;
         } else {
-            bl_ss_spill(i);
+            ss_spill(i);
             i = i + 1;
         }
     }
@@ -27350,7 +27350,7 @@ static void bl_ss_flush_to(int32_t n)
 }
 
 /* JitBaselineCompiler>>ssMaterialize: */
-static int32_t bl_ss_materialize(int32_t i)
+static int32_t jit_baseline_compiler_ss_materialize(int32_t i)
 {
     uint8_t k;
     int64_t r_self_reg;
@@ -27362,7 +27362,7 @@ static int32_t bl_ss_materialize(int32_t i)
     int64_t r_loop_reg_of_2;
     int32_t c_2;
     int32_t i_3;
-    int32_t r;
+    int r;
     int8_t r_2;
     int32_t off;
     int64_t bits;
@@ -27391,7 +27391,7 @@ static int32_t bl_ss_materialize(int32_t i)
         return ({
     if (!self_valid) {
         if (asm_noting) {
-            asm_note("self (x21 is stale after a call)", 0);
+            note("self (x21 is stale after a call)", 0);
         }
         if (asm_pc < asm_limit) {
             *(uint32_t *)asm_pc = 4167008917ULL;
@@ -27438,12 +27438,12 @@ exit_loop_reg_of:;
 exit_loop_reg_of_2:;
     r_loop_reg_of_2; });
     }
-    r = bl_alloc_reg();
+    r = alloc_reg();
     if (k == SS_DREG) {
         if (asm_noting) {
-            asm_note("box an unboxed Float", 0);
+            note("box an unboxed Float", 0);
         }
-        bl_emit_box(ss_reg[i], r);
+        emit_box(ss_reg[i], r);
         r_2 = ss_reg[i];
         if (r_2 >= 8) {
             dreg_refs[r_2] = (int8_t)(dreg_refs[r_2] - 1);
@@ -27452,7 +27452,7 @@ exit_loop_reg_of_2:;
     }
     if (k == SS_SLOT) {
         if (asm_noting) {
-            asm_note("load stack slot %d", i);
+            note("load stack slot %d", i);
         }
         off = 8 * i;
         bits = (r & REG_D) != 0 ? 0xC4400000LL : (r & REG_W) == 0 ? 0xC0400000LL : 0x80400000LL;
@@ -27486,7 +27486,7 @@ exit_loop_reg_of_2:;
     }
     if (k == SS_CONST) {
         if (asm_noting) {
-            asm_note("the constant", 0);
+            note("the constant", 0);
         }
         value = ss_val[i];
         if ((value >= 0) && (value <= 0xFFFF)) {
@@ -27505,14 +27505,14 @@ exit_loop_reg_of_2:;
             }
         exit_move_wide:;
         } else {
-            asm_mov_imm(r, (uint64_t)value);
+            mov_imm(r, (uint64_t)value);
         }
         ss_in_slot[i] = 0;
     }
     if (k == SS_TEMP) {
         an_integer = ss_val[i];
         if (asm_noting) {
-            asm_note("load temp %d", an_integer);
+            note("load temp %d", an_integer);
         }
         k_2 = ss_val[i];
         off_2 = 8 * k_2;
@@ -27546,7 +27546,7 @@ exit_loop_reg_of_2:;
         ss_in_slot[i] = 0;
     }
     if (k == SS_LIT) {
-        bl_load_literal(ss_val[i], r);
+        load_literal(ss_val[i], r);
         ss_in_slot[i] = 0;
     }
     ss_kind[i] = SS_REG;
@@ -27559,7 +27559,7 @@ exit_loop_reg_of_2:;
 }
 
 /* JitBaselineCompiler>>ssMaterialize:into: */
-static void bl_ss_materialize_into(int32_t i, int32_t r)
+static void jit_baseline_compiler_ss_materialize_into(int32_t i, int32_t r)
 {
     uint8_t k;
     int8_t rm;
@@ -27612,7 +27612,7 @@ static void bl_ss_materialize_into(int32_t i, int32_t r)
     if (k == SS_REG) {
         if (ss_reg[i] != r) {
             if (asm_noting) {
-                asm_note("move", 0);
+                note("move", 0);
             }
             rm = ss_reg[i];
             if (((r & REG_SP) != 0) || ((rm & REG_SP) != 0)) {
@@ -27658,7 +27658,7 @@ static void bl_ss_materialize_into(int32_t i, int32_t r)
     }
     if (k == SS_PINNED) {
         if (asm_noting) {
-            asm_note("nil, true or false", 0);
+            note("nil, true or false", 0);
         }
         rm_2 = ss_val[i];
         if (((r & REG_SP) != 0) || ((rm_2 & REG_SP) != 0)) {
@@ -27704,7 +27704,7 @@ static void bl_ss_materialize_into(int32_t i, int32_t r)
     if (k == SS_SELF) {
         if (self_valid) {
             if (asm_noting) {
-                asm_note("self", 0);
+                note("self", 0);
             }
             if ((r & REG_SP) != 0) {
                 a_word_7 = 0x11000000 | ((r & REG_W) == 0 ? 0x80000000LL : 0) | 0 | (0ULL | (672ULL | (r & 31)));
@@ -27746,7 +27746,7 @@ static void bl_ss_materialize_into(int32_t i, int32_t r)
             }
         } else {
             if (asm_noting) {
-                asm_note("self", 0);
+                note("self", 0);
             }
             bits = 0x38000000 | ((r & REG_D) != 0 ? 0xC4400000LL : (r & REG_W) == 0 ? 0xC0400000LL : 0x80400000LL);
             a_word_10 = bits | 2064384ULL | (640ULL | (r & 31));
@@ -27761,7 +27761,7 @@ static void bl_ss_materialize_into(int32_t i, int32_t r)
     }
     if (k == SS_SLOT) {
         if (asm_noting) {
-            asm_note("load stack slot %d", i);
+            note("load stack slot %d", i);
         }
         off = 8 * i;
         bits_2 = (r & REG_D) != 0 ? 0xC4400000LL : (r & REG_W) == 0 ? 0xC0400000LL : 0x80400000LL;
@@ -27795,7 +27795,7 @@ static void bl_ss_materialize_into(int32_t i, int32_t r)
     }
     if (k == SS_CONST) {
         if (asm_noting) {
-            asm_note("the constant", 0);
+            note("the constant", 0);
         }
         value = ss_val[i];
         if ((value >= 0) && (value <= 0xFFFF)) {
@@ -27814,7 +27814,7 @@ static void bl_ss_materialize_into(int32_t i, int32_t r)
             }
         exit_move_wide:;
         } else {
-            asm_mov_imm(r, (uint64_t)value);
+            mov_imm(r, (uint64_t)value);
         }
         return;
     }
@@ -27837,7 +27837,7 @@ exit_loop_reg_of:;
     r_loop_reg_of; }) >= 0) {
             an_integer = ss_val[i];
             if (asm_noting) {
-                asm_note("temp %d (its loop register)", an_integer);
+                note("temp %d (its loop register)", an_integer);
             }
             t_2 = (int32_t)ss_val[i];
             rm_3 = ({
@@ -27897,7 +27897,7 @@ exit_loop_reg_of_2:;
         }
         an_integer_2 = ss_val[i];
         if (asm_noting) {
-            asm_note("load temp %d", an_integer_2);
+            note("load temp %d", an_integer_2);
         }
         k_2 = ss_val[i];
         off_2 = 8 * k_2;
@@ -27931,21 +27931,21 @@ exit_loop_reg_of_2:;
         return;
     }
     if (k == SS_LIT) {
-        bl_load_literal(ss_val[i], r);
+        load_literal(ss_val[i], r);
         return;
     }
     if (k == SS_DREG) {
         if (asm_noting) {
-            asm_note("box an unboxed Float", 0);
+            note("box an unboxed Float", 0);
         }
-        bl_emit_box(ss_reg[i], r);
+        emit_box(ss_reg[i], r);
     }
 }
 
 /* JitBaselineCompiler>>ssPop: */
-static void bl_ss_pop(int32_t n)
+static void ss_pop(int n)
 {
-    int32_t k;
+    int k;
     int32_t i;
     int8_t r;
     for (k = 1; k <= n; k++) {
@@ -27967,7 +27967,7 @@ static void bl_ss_pop(int32_t n)
 }
 
 /* JitBaselineCompiler>>ssPush:val:reg: */
-static bool bl_ss_push(int32_t kind, int64_t v, int32_t r)
+static bool ss_push(int32_t kind, int64_t v, int r)
 {
     if (ss_top >= SS_MAX) {
         return false;
@@ -27984,7 +27984,7 @@ static bool bl_ss_push(int32_t kind, int64_t v, int32_t r)
 }
 
 /* JitBaselineCompiler>>ssReset: */
-static void bl_ss_reset(int32_t d)
+static void ss_reset(int32_t d)
 {
     int32_t i;
     int r;
@@ -27996,11 +27996,11 @@ static void bl_ss_reset(int32_t d)
     for (r = 0; r <= 31; r++) {
         reg_owner[r] = -1;
     }
-    bl_drop_doubles();
+    drop_doubles();
 }
 
 /* JitBaselineCompiler>>ssSpill: */
-static void bl_ss_spill(int32_t i)
+static void ss_spill(int32_t i)
 {
     uint8_t k;
     int8_t rt;
@@ -28068,7 +28068,7 @@ static void bl_ss_spill(int32_t i)
     if (k == SS_REG) {
         if (ss_in_slot[i] == 0) {
             if (asm_noting) {
-                asm_note("spill: stack slot %d", i);
+                note("spill: stack slot %d", i);
             }
             rt = ss_reg[i];
             off = 8 * i;
@@ -28104,7 +28104,7 @@ static void bl_ss_spill(int32_t i)
     }
     if (k == SS_PINNED) {
         if (asm_noting) {
-            asm_note("spill nil, true or false: stack slot %d", i);
+            note("spill nil, true or false: stack slot %d", i);
         }
         rt_2 = ss_val[i];
         off_2 = 8 * i;
@@ -28138,7 +28138,7 @@ static void bl_ss_spill(int32_t i)
     }
     if (k == SS_CONST) {
         if (asm_noting) {
-            asm_note("spill a constant: stack slot %d", i);
+            note("spill a constant: stack slot %d", i);
         }
         value = ss_val[i];
         if ((value >= 0) && (value <= 0xFFFF)) {
@@ -28157,7 +28157,7 @@ static void bl_ss_spill(int32_t i)
             }
         exit_move_wide:;
         } else {
-            asm_mov_imm(X16, (uint64_t)value);
+            mov_imm(X16, (uint64_t)value);
         }
         off_3 = 8 * i;
         if ((off_3 >= 0) && ((off_3 & 7) == 0) && ((off_3 >> 3) <= 4095)) {
@@ -28187,12 +28187,12 @@ static void bl_ss_spill(int32_t i)
     }
     if (k == SS_SELF) {
         if (asm_noting) {
-            asm_note("spill self: stack slot %d", i);
+            note("spill self: stack slot %d", i);
         }
         rt_3 = ({
     if (!self_valid) {
         if (asm_noting) {
-            asm_note("self (x21 is stale after a call)", 0);
+            note("self (x21 is stale after a call)", 0);
         }
         if (asm_pc < asm_limit) {
             *(uint32_t *)asm_pc = 4167008917ULL;
@@ -28236,7 +28236,7 @@ static void bl_ss_spill(int32_t i)
     if (k == SS_TEMP) {
         an_integer = ss_val[i];
         if (asm_noting) {
-            asm_note("spill temp %d", an_integer);
+            note("spill temp %d", an_integer);
         }
         t = (int32_t)ss_val[i];
         if (({
@@ -28355,9 +28355,9 @@ exit_loop_reg_of_2:;
     if (k == SS_LIT) {
         an_integer_2 = ss_val[i];
         if (asm_noting) {
-            asm_note("spill literal %d", an_integer_2);
+            note("spill literal %d", an_integer_2);
         }
-        bl_load_literal(ss_val[i], X16);
+        load_literal(ss_val[i], X16);
         off_8 = 8 * i;
         if ((off_8 >= 0) && ((off_8 & 7) == 0) && ((off_8 >> 3) <= 4095)) {
             a_word_16 = 4177526784LL | ((((uint64_t)(off_8 >> 3)) << 10) | 656ULL);
@@ -28386,10 +28386,10 @@ exit_loop_reg_of_2:;
     }
     if (k == SS_DREG) {
         if (asm_noting) {
-            asm_note("spill an unboxed Float: box it into stack slot %d", i);
+            note("spill an unboxed Float: box it into stack slot %d", i);
         }
         ss_kind[i] = SS_SLOT;
-        bl_emit_box(ss_reg[i], X17);
+        emit_box(ss_reg[i], X17);
         off_9 = 8 * i;
         if ((off_9 >= 0) && ((off_9 & 7) == 0) && ((off_9 >> 3) <= 4095)) {
             a_word_18 = 4177526784LL | ((((uint64_t)(off_9 >> 3)) << 10) | 657ULL);
@@ -28424,20 +28424,20 @@ exit_loop_reg_of_2:;
 }
 
 /* JitBaselineCompiler>>ssTempChanging: */
-static void bl_ss_temp_changing(int32_t t)
+static void ss_temp_changing(int t)
 {
     int32_t i;
     int64_t r_loop_reg_of;
     int32_t c;
     int32_t i_2;
-    int32_t r;
+    int r;
     int64_t r_loop_reg_of_2;
     int32_t c_2;
     int32_t i_3;
     int64_t rm;
     uint64_t a_word;
     uint64_t a_word_2;
-    int32_t rn;
+    int rn;
     uint64_t a_word_3;
     for (i = ss_base; i <= ss_top - 1; i++) {
         if ((ss_kind[i] == SS_TEMP) && (ss_val[i] == t)) {
@@ -28456,7 +28456,7 @@ static void bl_ss_temp_changing(int32_t t)
     r_loop_reg_of = -1;
 exit_loop_reg_of:;
     r_loop_reg_of; }) >= 0) {
-                r = bl_alloc_reg();
+                r = alloc_reg();
                 rm = ({
     if (!loop_active) {
         r_loop_reg_of_2 = -1;
@@ -28518,14 +28518,14 @@ exit_loop_reg_of_2:;
                     ss_base = i;
                 }
             } else {
-                bl_ss_materialize(i);
+                jit_baseline_compiler_ss_materialize(i);
             }
         }
     }
 }
 
 /* JitBaselineCompiler>>value:pc:pushes: */
-static bool bl_value(int32_t k, int32_t pc, int32_t pushes)
+static bool jit_baseline_compiler_value(int32_t k, int32_t pc, int pushes)
 {
     int32_t n;
     int32_t ri;
@@ -28588,9 +28588,9 @@ static bool bl_value(int32_t k, int32_t pc, int32_t pushes)
     if ((k_2 == SS_TEMP) || ((k_2 == SS_LIT) || ((k_2 == SS_SLOT) || (k_2 == SS_CONST)))) {
         owner = reg_owner[X0];
         if ((owner >= 0) && (owner < SS_MAX)) {
-            bl_ss_spill(owner);
+            ss_spill(owner);
         }
-        bl_ss_materialize_into(ri, X0);
+        jit_baseline_compiler_ss_materialize_into(ri, X0);
         ss_in_slot[ri] = k_2 == SS_SLOT ? 1 : 0;
         ss_kind[ri] = SS_REG;
         ss_reg[ri] = 0;
@@ -28602,8 +28602,8 @@ static bool bl_value(int32_t k, int32_t pc, int32_t pushes)
     }
     r = ss_reg[ri];
     v = ss_val[ri];
-    bl_ss_flush_to(ss_top);
-    bl_load_receiver(ri, k_2, r, v);
+    ss_flush_to(ss_top);
+    load_receiver(ri, k_2, r, v);
     op = ana_bcs[pc];
     info = (uint32_t)(((uint64_t)n) | (((uint64_t)({
     if (op < 0x68) {
@@ -28665,16 +28665,16 @@ static bool bl_value(int32_t k, int32_t pc, int32_t pushes)
     r_length_of = 0;
 exit_length_of:;
     r_length_of; })) << 8) | ((((uint64_t)k) & 255) << 16) | 33554432ULL | (((uint64_t)pushes) << 26));
-    s = bl_slow(SL_SEND, pc, ss_top);
+    s = jit_baseline_compiler_slow(SL_SEND, pc, ss_top);
     if (s < 0) {
         return false;
     }
     sl_r[s] = 0;
     sl_info[s] = (int64_t)info;
     if (asm_noting) {
-        asm_note("a BlockClosure with %d arguments (else send)", n);
+        note("a BlockClosure with %d arguments (else send)", n);
     }
-    enc = asm_logical_immediate(7ULL, 64);
+    enc = logical_immediate(7ULL, 64);
     if (enc < 0) {
         if (asm_error == ASM_OK) {
             asm_error = ASM_ERR_IMMEDIATE;
@@ -28690,7 +28690,7 @@ exit_length_of:;
     }
 exit_logical:;
     a_label = sl_label[s];
-    target = asm_target_of(a_label);
+    target = target_of(a_label);
     a_word_2 = 0x54000000 | ((((uint64_t)({
     off_2 = ((int64_t)(target - asm_pc)) >> 2;
     if (!((off_2 >= -262144) && (off_2 <= 262143))) {
@@ -28747,7 +28747,7 @@ exit_offset_to:;
         asm_error = ASM_ERR_FULL;
     }
     a_label_2 = sl_label[s];
-    target_2 = asm_target_of(a_label_2);
+    target_2 = target_of(a_label_2);
     a_word_5 = 0x54000000 | ((((uint64_t)({
     off_4 = ((int64_t)(target_2 - asm_pc)) >> 2;
     if (!((off_4 >= -262144) && (off_4 <= 262143))) {
@@ -28801,7 +28801,7 @@ exit_offset_to_2:;
     }
 exit_add_sub:;
     a_label_3 = sl_label[s];
-    target_3 = asm_target_of(a_label_3);
+    target_3 = target_of(a_label_3);
     a_word_8 = 0x54000000 | ((((uint64_t)({
     off_5 = ((int64_t)(target_3 - asm_pc)) >> 2;
     if (!((off_5 >= -262144) && (off_5 <= 262143))) {
@@ -28822,7 +28822,7 @@ exit_offset_to_3:;
     }
     off = 8 * (ri + 1);
     if (asm_noting) {
-        asm_note("x20 := the block's fp; the block stub finds its code", 0);
+        note("x20 := the block's fp; the block stub finds its code", 0);
     }
     if (off <= 4095) {
         neg_2 = off < 0;
@@ -28869,7 +28869,7 @@ exit_offset_to_3:;
             }
         exit_move_wide:;
         } else {
-            asm_mov_imm(X16, (uint64_t)off);
+            mov_imm(X16, (uint64_t)off);
         }
         if (asm_pc < asm_limit) {
             *(uint32_t *)asm_pc = 2333082260ULL;
@@ -28878,7 +28878,7 @@ exit_offset_to_3:;
             asm_error = ASM_ERR_FULL;
         }
     }
-    target_4 = asm_target_of(block_label);
+    target_4 = target_of(block_label);
     a_word_12 = 0x94000000LL | ({
     off_6 = ((int64_t)(target_4 - asm_pc)) >> 2;
     if (!((off_6 >= -33554432) && (off_6 <= 33554431))) {
@@ -28897,7 +28897,7 @@ exit_offset_to_4:;
     } else if (asm_error == ASM_OK) {
         asm_error = ASM_ERR_FULL;
     }
-    bl_note_ret(pc, (int32_t)ana_depths[pc], info);
+    note_ret(pc, (int32_t)ana_depths[pc], info);
     if (off <= 4095) {
         neg_3 = off < 0;
         v_4 = neg_3 ? -off : off;
@@ -28943,7 +28943,7 @@ exit_offset_to_4:;
             }
         exit_move_wide_2:;
         } else {
-            asm_mov_imm(X16, (uint64_t)off);
+            mov_imm(X16, (uint64_t)off);
         }
         if (asm_pc < asm_limit) {
             *(uint32_t *)asm_pc = 3406824084ULL;
@@ -28952,25 +28952,25 @@ exit_offset_to_4:;
             asm_error = ASM_ERR_FULL;
         }
     }
-    sl_cont[s] = asm_new_label();
-    asm_bind(sl_cont[s]);
+    sl_cont[s] = new_label();
+    arm64_assembler_bind(sl_cont[s]);
     return ({
-    bl_ss_pop(n + 1);
+    ss_pop(n + 1);
     for (r_2 = 0; r_2 <= 31; r_2++) {
         reg_owner[r_2] = -1;
     }
-    bl_drop_doubles();
+    drop_doubles();
     self_valid = false;
     if (loop_active) {
-        bl_emit_load_loop_temps(loop_id);
+        emit_load_loop_temps(loop_id);
     }
-    bl_note_continuation(pc, X0);
-    r_finish_send = bl_ss_push(SS_REG, 0, X0);
+    note_continuation(pc, X0);
+    r_finish_send = ss_push(SS_REG, 0, X0);
     r_finish_send; });
 }
 
 /* JitBaselineCompiler>>writeTables:at: */
-uint64_t bl_write_tables(jit_method *h, uint64_t p)
+uint64_t write_tables(jit_method *h, uint64_t p)
 {
     uint64_t q;
     int32_t i;
@@ -28999,7 +28999,7 @@ uint64_t bl_write_tables(jit_method *h, uint64_t p)
         site->target = 0;
         site->pic = 0;
         a_label_2 = site_lit[i];
-        bl_register_slot(asm_labels[a_label_2]);
+        register_slot(asm_labels[a_label_2]);
     }
     q = q + 32 * site_count;
     h->rets = (uint32_t *)q;
@@ -29022,7 +29022,7 @@ uint64_t bl_write_tables(jit_method *h, uint64_t p)
         if (pool_labels[i_4] >= 0) {
             a_label_4 = pool_labels[i_4];
             a = asm_labels[a_label_4];
-            bl_register_slot(a);
+            register_slot(a);
         }
     }
     return q;

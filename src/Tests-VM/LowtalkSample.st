@@ -15,7 +15,9 @@ initialize
 
 !LowtalkSample methodsFor: 'running'!
 main: argc argv: argv
-	<c: 'int main(int argc, char **argv)'>
+	<function>
+	<var: #argc type: 'int'>
+	<var: #argv type: 'char **'>
 	| sum p last |
 	sum := 0.
 	1 to: 10 do: [:i | sum := sum + i].
@@ -50,21 +52,21 @@ main: argc argv: argv
 	^0
 !
 report: label value: v
-	<c: 'void report(const char *label, int64_t v)'>
+	<function>
 	libc printf: '%s=%lld
 ' with: label with: v
 ! !
 
 !LowtalkSample methodsFor: 'computing'!
 sumOfSquares
-	<c: 'int64_t sum_of_squares(void)'>
+	<function>
 	| s |
 	s := 0.
 	0 to: TABLE_SIZE - 1 do: [:i | s := s + (table at: i)].
 	^s
 !
 chainSum: first
-	<c: 'int64_t chain_sum(SamplePoint *first)'>
+	<function>
 	| s p |
 	s := 0.
 	p := first.
@@ -74,7 +76,7 @@ chainSum: first
 	^s
 !
 fib: n
-	<c: 'int64_t fib(int64_t n)'>
+	<function>
 	n < 2 ifTrue: [^n].
 	^(self fib: n - 1) + (self fib: n - 2)
 !
@@ -82,14 +84,14 @@ clamp: x
 	^(x max: 0) min: 255
 !
 classify: n
-	<c: 'int64_t classify(int64_t n)'>
+	<function>
 	^n caseOf: {
 		[1] -> [10].
 		[2] -> [20]}
 		otherwise: [-1]
 !
 checkedAdd: a to: b
-	<c: 'int64_t checked_add(int64_t a, int64_t b)'>
+	<function>
 	a ifNoOverflowAdd: b do: [:r | ^r].
 	^-1
 !
@@ -109,7 +111,7 @@ same: a as: b ignoring: unused
 	^(a = b) ifTrue: [1] ifFalse: [0]
 !
 hashOf: aString
-	<c: 'uint32_t hash_of(const char *aString)'>
+	<function>
 	| h i c |
 	h := 2166136261.
 	i := 0.
@@ -119,7 +121,7 @@ hashOf: aString
 	^h asUInt32
 !
 countdown
-	<c: 'int64_t countdown(void)'>
+	<function>
 	| n steps |
 	n := 100.
 	steps := 0.

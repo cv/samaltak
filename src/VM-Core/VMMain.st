@@ -27,11 +27,10 @@ argsStart
 !VMMain methodsFor: 'running'!
 banner
 	"What the VM calls itself (primitive vmBanner)."
-	<c: 'const char *vm_banner(void)'>
+	<function>
 	^'Samaltak VM'
 !
 usage
-	<c: 'void usage(void)'>
 	<noreturn>
 	libc fputs: 'usage: samaltak [--max-heap MB] [--eden MB] [--jit none|baseline|opt (default)] [--jit-threshold N] [--jit-osr N]
 	[--jit-opt N] [--jit-flags [-]flag,...] [--jit-cache MB] image [--headless] [arguments...]
@@ -45,7 +44,9 @@ usage
 	libc exit: 64
 !
 main: n argv: v
-	<c: 'int main(int argc, char **argv)'>
+	<function>
+	<var: #n type: 'int'>
+	<var: #v type: 'char **'>
 	| maxHeap eden i image proc ctx |
 	jit defaults.
 	maxHeap := (4096 << 20) asUInt64.
@@ -91,7 +92,7 @@ main: n argv: v
 !
 jitOption: v at: i count: n
 	"--jit MODE, --jit-threshold N, --jit-osr N, --jit-opt N, --jit-flags a,b,-c or --jit-cache MB at v[i]: answer whether it is one (its value is v[i + 1])."
-	<c: 'bool jit_option(char **v, int32_t i, int32_t n)'>
+	<function>
 	| a m |
 	i + 1 < n ifFalse: [^false].
 	a := v at: i + 1.

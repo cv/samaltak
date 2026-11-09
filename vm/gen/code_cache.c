@@ -27,12 +27,12 @@ void code_cache_flush(void)
 }
 
 /* CodeCache>>openWithSize: */
-bool code_cache_open(uint64_t size)
+bool open_with_size(uint64_t size)
 {
     uint64_t near;
     void *p;
     near = ((uint64_t)cache_space + 16383) & 18446744073709535232ULL;
-    p = jit_platform_map((void *)near, size);
+    p = map((void *)near, size);
     if (p == MAP_FAILED) {
         return false;
     }

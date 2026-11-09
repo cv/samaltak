@@ -12,7 +12,9 @@ declarations
 
 !JitSample methodsFor: 'running'!
 main: argc argv: argv
-	<c: 'int main(int argc, char **argv)'>
+	<function>
+	<var: #argc type: 'int'>
+	<var: #argv type: 'char **'>
 	(cache openWithSize: 1048576) ifFalse: [
 		libc printf: 'no code cache
 '.
@@ -36,19 +38,22 @@ main: argc argv: argv
 	^0
 !
 report: label value: v
-	<c: 'void report(const char *label, int64_t v)'>
+	<function>
 	libc printf: '%s=%lld
 ' with: label with: v
 !
 callback: a with: b
 	"Called from machine code."
-	<c: 'int64_t callback(int64_t a, double b)'>
+	<function>
+	<var: #a type: 'int64_t'>
+	<var: #b type: 'double'>
+	<returns: 'int64_t'>
 	^(a * 100) + b truncated
 ! !
 
 !JitSample methodsFor: 'compiling'!
 compile
-	<c: 'void compile(void)'>
+	<function>
 	| start loop done base |
 	start := cache top.
 	cache beginWriting.
@@ -142,7 +147,7 @@ compile
 !JitSample methodsFor: 'benchmarking'!
 bench
 	"Emit 8 instructions (add, ldr, str, cmp, b.cond, mov, mov imm, orr imm) 8192 times per pass into a buffer, for about a second."
-	<c: 'void bench(void)'>
+	<function>
 	| buffer passes t0 us |
 	buffer := self cCoerce: (libc malloc: 262144) to: 'uint64_t'.
 	passes := 0.
@@ -169,7 +174,7 @@ bench
 	libc free: (self cCoerce: buffer to: 'void *')
 !
 microseconds
-	<c: 'int64_t microseconds(void)'>
+	<function>
 	| ts |
 	ts := self local: 'struct timespec'.
 	posix clockGettime: posix CLOCK_MONOTONIC into: ts.

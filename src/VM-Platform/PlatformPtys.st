@@ -15,14 +15,14 @@ initialize
 
 !PlatformPtys methodsFor: 'private'!
 reapHungUp
-	<c: 'void reap_hung_up(void)'>
+	<function>
 	0 to: HUNG_UP_MAX - 1 do: [:i |
 		((hungUp at: i) ~= 0 and: [(posixProcesses waitpid: (hungUp at: i) asInt32 status: self null options: posixProcesses WNOHANG) ~= 0]) ifTrue: [
 			hungUp at: i put: 0]]
 !
 resolve: argv0 environment: envp
 	"The malloc'd path of argv0, searched in PATH (from envp, else ours) unless it has a slash; NULL (and the error set) if there is none."
-	<c: 'char *pty_resolve(const char *argv0, char **envp)'>
+	<function>
 	<var: #path type: 'const char *'>
 	<var: #end type: 'const char *'>
 	| path e n done end len cand |
@@ -62,7 +62,7 @@ resolve: argv0 environment: envp
 !
 childEnvironment: envp
 	"envp (or ours) with TERM=xterm-256color unless envp sets TERM; the strings are shared, the array malloc'd."
-	<c: 'char **pty_child_env(char **envp)'>
+	<function>
 	| src n hasTerm env k |
 	src := envp notNull ifTrue: [envp] ifFalse: [host environment].
 	n := 0 asUInt64.
@@ -94,7 +94,6 @@ writeError: message
 !
 execChild: path argv: argv environment: env directory: cwd maxFd: maxFd
 	"In the forked child: async-signal-safe calls only."
-	<c: 'void pty_exec_child(char *path, char **argv, char **env, const char *cwd, int max_fd)'>
 	<noreturn>
 	| dfl none |
 	dfl := self local: 'struct sigaction'.
@@ -112,7 +111,8 @@ execChild: path argv: argv environment: env directory: cwd maxFd: maxFd
 !
 child: p
 	"The pty_child of pty handle p, NULL (and the error set) if it is none."
-	<c: 'pty_child *pty_child_of(int p)'>
+	<function>
+	<returns: 'pty_child *'>
 	| o |
 	o := sockets fdGet: p kind: PF_FD_PTY.
 	o isNull ifTrue: [^self null].
@@ -122,7 +122,6 @@ child: p
 !PlatformPtys methodsFor: 'pseudo-terminals'!
 spawn: argv environment: envp directory: cwd rows: rows columns: cols pid: pidOut
 	"argv first is looked up in PATH; envp NULL = inherit (TERM=xterm-256color is set either way unless envp has TERM); cwd NULL = inherit."
-	<c: 'int pf_pty_spawn(char **argv, char **envp, const char *cwd, int rows, int cols, int64_t *pid_out)'>
 	<export>
 	| path env child ws maxFd master pid saved h |
 	platform init.
@@ -165,7 +164,6 @@ spawn: argv environment: envp directory: cwd rows: rows columns: cols pid: pidOu
 	^h
 !
 resize: p rows: rows columns: cols
-	<c: 'bool pf_pty_resize(int p, int rows, int cols)'>
 	<export>
 	| o ws |
 	o := sockets fdGet: p kind: PF_FD_PTY.
@@ -178,8 +176,7 @@ resize: p rows: rows columns: cols
 	^false
 !
 wait: p block: block status: status done: done
-	"status as pf_process_wait's."
-	<c: 'bool pf_pty_wait(int p, bool block, int *status, bool *done)'>
+	"status as process_wait's."
 	<export>
 	| c |
 	c := self child: p.
@@ -193,7 +190,6 @@ wait: p block: block status: status done: done
 !
 foreground: p
 	"The foreground process group of pty p's terminal, < 0 (and the error set) if it cannot be told."
-	<c: 'int pf_pty_foreground(int p)'>
 	<export>
 	| o |
 	o := sockets fdGet: p kind: PF_FD_PTY.
@@ -202,7 +198,6 @@ foreground: p
 !
 close: p
 	"Hangs up the child (SIGHUP) unless it has ended."
-	<c: 'bool pf_pty_close(int p)'>
 	<export>
 	| c ok placed |
 	c := self child: p.

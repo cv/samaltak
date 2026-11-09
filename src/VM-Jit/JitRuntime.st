@@ -212,14 +212,14 @@ prologueBytes
 !
 modeNamed: name
 	"The mode called name, -1 if there is none."
-	<c: 'int32_t jit_mode_named(const char *name)'>
+	<function>
 	(libc strcmp: name with: 'none') = 0 ifTrue: [^JIT_NONE].
 	(libc strcmp: name with: 'opt') = 0 ifTrue: [^JIT_OPT].
 	(libc strcmp: name with: 'baseline') = 0 ifTrue: [^JIT_BASELINE].
 	^-1
 !
 modeName: m
-	<c: 'const char *jit_mode_name(int32_t m)'>
+	<function>
 	m = JIT_OPT ifTrue: [^'opt'].
 	m = JIT_BASELINE ifTrue: [^'baseline'].
 	^'none'
@@ -252,7 +252,7 @@ is: s length: n named: name
 	^(libc strlen: name) = n asUInt64 and: [(libc memcmp: s with: name size: n asUInt64) = 0]
 !
 flagName: bit
-	<c: 'const char *jit_flag_name(uint32_t bit)'>
+	<function>
 	bit = JIT_FLAG_ARITH ifTrue: [^'arith'].
 	bit = JIT_FLAG_FUSE ifTrue: [^'fuse'].
 	bit = JIT_FLAG_BARRIER ifTrue: [^'barrier'].
@@ -279,7 +279,7 @@ lastFlag
 !
 parseFlags: s
 	"a,b,-c: set a and b, clear c. Answer whether every name is a flag."
-	<c: 'bool jit_parse_flags(const char *s)'>
+	<function>
 	| i start bit off |
 	i := 0.
 	[(s at: i) ~= 0] whileTrue: [
@@ -295,7 +295,7 @@ parseFlags: s
 !
 setMode: m
 	"Switch compilers: all code is dropped at the next point without machine code on the native stack."
-	<c: 'bool jit_set_mode(int32_t m)'>
+	<function>
 	(m ~= JIT_NONE and: [self ensureOpen not]) ifTrue: [^false].
 	"optimized frames keep the cache from being flushed: they become Contexts"
 	self noOptFrames ifFalse: [interpreter materializeAll].
@@ -306,7 +306,7 @@ setMode: m
 	^true
 !
 setFlags: f
-	<c: 'void jit_set_flags(uint32_t f)'>
+	<function>
 	self noOptFrames ifFalse: [interpreter materializeAll].
 	jitFlags := f.
 	flushPending := true.
@@ -314,13 +314,13 @@ setFlags: f
 !
 defaults
 	"Before the command line: --jit opt, threshold 2, OSR after 50 backward jumps, optimization after 1000 entries and backward jumps, 64 MB, every flag but notes and the stress flags eager and deopt."
-	<c: 'void jit_defaults(void)'>
+	<function>
 	jitMode := JIT_OPT.
 	jitFlags := ((JIT_FLAG_LAST << 1) - 1 bitClear: ((JIT_FLAG_NOTES bitOr: JIT_FLAG_EAGER) bitOr: JIT_FLAG_DEOPT)) asUInt32
 !
 start
 	"After the image is loaded. Where machine code does not run (in the simulator) the JIT stays off, whatever --jit says."
-	<c: 'void jit_start(void)'>
+	<function>
 	| t |
 	t := self primitiveTable.
 	0 to: self primitiveCount - 1 do: [:i |
@@ -332,7 +332,7 @@ start
 !
 ensureOpen
 	"Map the code cache and generate the stubs, once."
-	<c: 'bool jit_ensure_open(void)'>
+	<function>
 	cacheOpened ifTrue: [^true].
 	(jitCacheMB < 1 or: [jitCacheMB > 128]) ifTrue: [^false].
 	(cache openWithSize: (jitCacheMB << 20) asUInt64) ifFalse: [^false].
@@ -349,7 +349,7 @@ state
 !
 refreshState
 	"The JitState machine code reads through x22."
-	<c: 'void jit_refresh_state(void)'>
+	<function>
 	stateBlock nilOop: memory nilOop.
 	stateBlock trueOop: memory trueOop.
 	stateBlock falseOop: memory falseOop.
@@ -400,7 +400,7 @@ stateAddress
 !JitRuntime methodsFor: 'functions for the stubs'!
 primitiveNumberNamed: name
 	"The number of the primitive called name, -1 if there is none."
-	<c: 'int64_t jit_primitive_number(const char *name)'>
+	<function>
 	| t |
 	t := self primitiveTable.
 	0 to: self primitiveCount - 1 do: [:i | (libc strcmp: (t + i) name with: name) = 0 ifTrue: [^(t + i) number asInt64]].
@@ -452,13 +452,13 @@ exitSyncFunction
 !JitRuntime methodsFor: 'compiled methods'!
 codeAddressOf: m
 	"m has machine code compiled code may call directly (pushing its frame itself)."
-	<c: 'bool jit_has_code(oop m)'>
+	<function>
 	jitMode = JIT_NONE ifTrue: [^false].
 	^self hasCode: (self lookup: m)
 !
 slotOf: m
 	"The index of m's header in the method table, -1 if it has none."
-	<c: 'int64_t jit_slot_of(oop m)'>
+	<function>
 	| i h |
 	i := (self hashOf: m) bitAnd: JIT_TABLE_SIZE - 1.
 	[(h := methodTable at: i) notNull] whileTrue: [
@@ -468,7 +468,7 @@ slotOf: m
 !
 codeChanged: m
 	"m's best code changed (optimized, invalidated): calls of its baseline code's unchecked entry follow."
-	<c: 'void jit_code_changed(oop m)'>
+	<function>
 	| i |
 	i := self slotOf: m.
 	i < 0 ifTrue: [^self].
@@ -476,7 +476,7 @@ codeChanged: m
 !
 lookup: m
 	"m's header, null if m has none."
-	<c: 'JitMethod *jit_lookup(oop m)'>
+	<function>
 	| i h |
 	i := (self hashOf: m) bitAnd: JIT_TABLE_SIZE - 1.
 	[(h := methodTable at: i) notNull] whileTrue: [
@@ -546,7 +546,7 @@ symbolNameAt: i
 !
 codeOf: m counting: counting
 	"m's header if it has code; else, counting an activation, compile it when its count reaches the threshold."
-	<c: 'JitMethod *jit_code_of(oop m, bool counting)'>
+	<function>
 	| h i c |
 	jitMode = JIT_NONE ifTrue: [^self null].
 	h := self lookup: m.
@@ -560,7 +560,7 @@ codeOf: m counting: counting
 !
 cacheCodeFor: m
 	"What a method cache entry for m remembers (CacheEntry code): its header, 1 to count its activations, 0 if it is never compiled."
-	<c: 'uint64_t jit_cache_code(oop m)'>
+	<function>
 	| h |
 	jitMode = JIT_NONE ifTrue: [^0].
 	h := self lookup: m.
@@ -622,14 +622,14 @@ frameCodeFor: m block: startpc
 	^self blockCodeFor: m
 !
 blockCodeFor: m
-	<c: 'uint64_t jit_block_code(oop m)'>
+	<function>
 	| h |
 	h := self lookup: m.
 	(self hasCode: h) ifTrue: [^self cCoerce: h to: 'uint64_t'].
 	^1
 !
 compileAndInstall: m
-	<c: 'JitMethod *jit_compile_install(oop m)'>
+	<function>
 	| h |
 	h := self compile: m mode: self lowerMode notes: self notes.
 	h isNull ifTrue: [^self null].
@@ -651,7 +651,7 @@ copying
 !
 compile: m mode: md notes: wantNotes
 	"Compile m with compiler md into the code cache; answer its header (flagged JM_FAILED if md cannot compile it), null if the cache is full."
-	<c: 'JitMethod *jit_compile(oop m, int32_t md, bool notes)'>
+	<function>
 	<var: #h type: 'JitMethod *'>
 	| t0 dt start ok h err |
 	self ensureOpen ifFalse: [^self null].
@@ -696,7 +696,7 @@ compile: m mode: md notes: wantNotes
 !
 finish: m code: start mode: md
 	"The code is at start up to asm pc: append the header, the bytecode map and the notes."
-	<c: 'JitMethod *jit_finish(oop m, uint64_t start, int32_t md)'>
+	<function>
 	| hdr p size n h |
 	hdr := (asm pc + 7) bitClear: 7.
 	n := asm noteCount.
@@ -758,7 +758,7 @@ sortMap: h
 !
 failedHeaderFor: m
 	"A header without code: m is not compiled again until the next flush."
-	<c: 'JitMethod *jit_failed_header(oop m)'>
+	<function>
 	| hdr h |
 	hdr := (cache top + 7) bitClear: 7.
 	cache limit - cache top < ((self sizeof: 'JitMethod') + 8) ifTrue: [^self null].
@@ -785,7 +785,7 @@ noteResume: pc at: offset
 !
 mapOffsetOf: h pc: pc
 	"The code offset of resumption point pc, -1 if pc is none (binary search: the map is in pc order)."
-	<c: 'int64_t jit_map_offset(JitMethod *h, int64_t pc)'>
+	<function>
 	| lo hi mid v |
 	lo := 0.
 	hi := h mapCount asInt64 - 1.
@@ -798,7 +798,7 @@ mapOffsetOf: h pc: pc
 !
 addressFor: f
 	"Where f's machine code continues at f's ip, 0 if nowhere."
-	<c: 'uint64_t jit_address_for(Frame *f)'>
+	<function>
 	| h off |
 	(self isCode: f code) ifFalse: [^0].
 	h := self cCoerce: f code to: 'JitMethod *'.
@@ -809,7 +809,7 @@ addressFor: f
 !
 kill: h
 	"h's code must not run again: frames using it go back to the interpreter for good."
-	<c: 'void jit_kill(JitMethod *h)'>
+	<function>
 	| f |
 	cache beginWriting.
 	h method: memory nilOop.
@@ -826,13 +826,13 @@ kill: h
 !
 methodsChanged
 	"Smalltalk changed method dictionaries (flushMethodCache): inline caches relink."
-	<c: 'void jit_methods_changed(void)'>
+	<function>
 	(self baselineCode and: [cacheOpened]) ifTrue: [
 		brt unlinkAll.
 		brt nilTestsChanged: 0]
 !
 methodsChangedFor: sel
-	<c: 'void jit_methods_changed_for(oop sel)'>
+	<function>
 	(self baselineCode and: [cacheOpened]) ifTrue: [
 		brt unlinkSelector: sel.
 		brt nilTestsChanged: sel]
@@ -844,7 +844,7 @@ dropAllCode
 !
 flushCode
 	"Drop all machine code (none is on the native stack): frames continue in the interpreter."
-	<c: 'void jit_flush(void)'>
+	<function>
 	0 to: interpreter nframes - 1 do: [:i | (interpreter frames + i) code: (jitMode = JIT_NONE ifTrue: [0] ifFalse: [1])].
 	libc memset: methodTable value: 0 size: 8 * JIT_TABLE_SIZE.
 	libc memset: methodCounts value: 0 size: 2 * JIT_TABLE_SIZE.
@@ -863,7 +863,7 @@ prepare
 	(flushPending and: [self noOptFrames]) ifTrue: [self flushCode]
 !
 noOptFrames
-	<c: 'bool jit_no_opt_frames(void)'>
+	<function>
 	0 to: interpreter nframes - 1 do: [:i | (self isOptFrame: interpreter frames + i) ifTrue: [^false]].
 	^true
 ! !
@@ -871,7 +871,7 @@ noOptFrames
 !JitRuntime methodsFor: 'garbage collection'!
 youngRoots: fn
 	"Scavenges: the methods of headers compiled while their method was young, the young objects baseline code refers to."
-	<c: 'void jit_young_roots(void (*fn)(oop *))'>
+	<function>
 	feedback youngRoots: fn.
 	optimizer youngRoots: fn.
 	cacheOpened ifFalse: [^self].
@@ -890,7 +890,7 @@ methodRoots: fn
 !
 allRoots: fn
 	"Full GCs and become: every header's method and every object in the code."
-	<c: 'void jit_all_roots(void (*fn)(oop *))'>
+	<function>
 	feedback allRoots: fn.
 	optimizer allRoots: fn.
 	cacheOpened ifFalse: [^self].
@@ -902,7 +902,7 @@ allRoots: fn
 !
 afterGC
 	"Objects moved: refresh the JitState, forget young headers whose methods are old now."
-	<c: 'void jit_after_gc(void)'>
+	<function>
 	| n |
 	self refreshState.
 	brt afterGC.
@@ -916,7 +916,7 @@ afterGC
 !
 optMethodsChanged: sel
 	"Smalltalk changed a method dictionary (for selector sel; nil: any): optimized code relying on it is invalidated."
-	<c: 'void jit_opt_methods_changed(oop sel)'>
+	<function>
 	jitMode = JIT_OPT ifFalse: [^self].
 	sel = memory nilOop
 		ifTrue: [optimizer invalidateAll]
@@ -924,12 +924,12 @@ optMethodsChanged: sel
 !
 materializeOpt: f
 	"materializeAll meets optimized frame f."
-	<c: 'void jit_materialize_opt(Frame *f)'>
+	<function>
 	optimizer materialize: f
 !
 becomeMethod: from
 	"from is about to be replaced: if it is a compiled method, its code must not run for its successor."
-	<c: 'void jit_become(oop from)'>
+	<function>
 	| h |
 	jitMode = JIT_NONE ifTrue: [^self].
 	"optimized code embeds classes and methods it speculated on"
@@ -939,7 +939,7 @@ becomeMethod: from
 	(self baselineCode and: [cacheOpened]) ifTrue: [brt unlinkAll]
 !
 headersValid: valid
-	<c: 'bool jit_headers_valid(bool (*valid)(oop))'>
+	<function>
 	| h |
 	0 to: JIT_TABLE_SIZE - 1 do: [:i |
 		h := methodTable at: i.
@@ -951,7 +951,7 @@ headersValid: valid
 !JitRuntime methodsFor: 'interpreter hooks'!
 activated: f
 	"The interpreter pushed f (top frame) for a method whose cache entry has code or counts activations."
-	<c: 'void jit_activated(Frame *f)'>
+	<function>
 	| h |
 	self prepare.
 	h := (self isCode: f code)
@@ -965,7 +965,7 @@ activated: f
 !
 resume: f
 	"The interpreter is about to continue f (top frame, f code a header) at f's ip."
-	<c: 'void jit_resume(Frame *f)'>
+	<function>
 	| a |
 	self prepare.
 	a := self addressFor: f.
@@ -975,7 +975,7 @@ resume: f
 !
 backJump: f
 	"The interpreter jumped back in f (top frame, f code not 0): on-stack replacement."
-	<c: 'void jit_back_jump(Frame *f)'>
+	<function>
 	| n h a |
 	self prepare.
 	f code = 0 ifTrue: [^self].
@@ -997,7 +997,7 @@ backJump: f
 !
 resumeContext: looping
 	"The interpreter runs activeCtx without frames, returned into it or (looping) jumping back in it: it may continue in machine code (contextEntry:)."
-	<c: 'void jit_resume_context(bool looping)'>
+	<function>
 	| a |
 	self prepare.
 	a := self contextEntry: looping.
@@ -1007,7 +1007,7 @@ resumeContext: looping
 !
 contextEntry: looping
 	"If activeCtx's method has machine code for its pc, marry activeCtx to frame 0 (Interpreter>>thawFor:) and answer where the code continues, else 0. A looping Context's method is compiled after --jit-osr backward jumps."
-	<c: 'uint64_t jit_context_entry(bool looping)'>
+	<function>
 	| c m h pc off i n |
 	c := interpreter activeCtx.
 	m := self loadRef: c at: CTX_METHOD.
@@ -1079,13 +1079,16 @@ noteBottomReturn
 !
 exitSync: f
 	"The exit stub: f stored its pc and sp and leaves to the interpreter."
-	<c: 'uint64_t jit_exit_sync(Frame *f)'>
+	<function>
+	<var: #f type: 'Frame *'>
+	<returns: 'uint64_t'>
 	self sync: f.
 	^0
 !
 leave: f pc: pc sp: n
 	"Leave to the interpreter, which continues f at pc with n slots."
-	<c: 'uint64_t jit_leave(Frame *f, int64_t pc, int64_t n)'>
+	<function>
+	<var: #n type: 'int64_t'>
 	(self isOptFrame: f) ifTrue: [^optimizer leave: f after: false].
 	f pc: pc asInt32.
 	f sp: n asInt32.
@@ -1099,7 +1102,7 @@ leaveAfter: f pc: pc sp: n
 !
 specialFast: k base: base
 	"The interpreter's fast paths of special selector k with receiver and arguments at base: the result, or 0."
-	<c: 'oop jit_special_fast(int32_t k, oop *base)'>
+	<function>
 	| a b x y c i v fx fy |
 	a := base at: 0.
 	b := base at: 1.
@@ -1186,7 +1189,7 @@ specialFast: k base: base
 !
 dispatch: e frame: f argc: n
 	"f's ip is past the send, f's sp counts receiver and arguments."
-	<c: 'uint64_t jit_dispatch(CacheEntry *e, Frame *f, int32_t n)'>
+	<function>
 	<var: #h type: 'JitMethod *'>
 	| kind base m status ecode moved inv r v ns ok g h |
 	kind := e kind.
@@ -1256,7 +1259,8 @@ errorCodeFor: m
 !
 activate: m frame: f argc: n ecode: ecode code: hint
 	"Push a frame for m (receiver and arguments at the top of f, f's ip at the continuation, its pc still at the send): answer its entry, or 1 to leave for the interpreter to run it. If the stack is full the interpreter executes the send again."
-	<c: 'uint64_t jit_activate(oop m, Frame *f, int32_t n, int32_t ecode, uint64_t hint)'>
+	<function>
+	<var: #hint type: 'uint64_t'>
 	| h g |
 	h := (self isCode: hint) ifTrue: [self cCoerce: hint to: 'JitMethod *'] ifFalse: [self codeOf: m counting: true].
 	g := interpreter pushFrame: m argc: n code: ((self hasCode: h) ifTrue: [self cCoerce: h to: 'uint64_t'] ifFalse: [self frameCodeFor: m]) ecode: ecode.
@@ -1266,7 +1270,7 @@ activate: m frame: f argc: n ecode: ecode code: hint
 !
 entryOfTop
 	"A frame was pushed above the caller: its entry if it has code, else 1."
-	<c: 'uint64_t jit_entry_of_top(void)'>
+	<function>
 	| top a |
 	top := interpreter frames + (interpreter nframes - 1).
 	a := self addressFor: top.
@@ -1275,7 +1279,9 @@ entryOfTop
 !
 interrupt: f
 	"An interrupt check at a method or block entry, a loop head or a backward jump; f's pc and sp are where the interpreter would continue."
-	<c: 'uint64_t jit_interrupt(Frame *f)'>
+	<function>
+	<var: #f type: 'Frame *'>
+	<returns: 'uint64_t'>
 	| moved inv |
 	self sync: f.
 	self resetStress.
@@ -1288,7 +1294,9 @@ interrupt: f
 !
 closure: f
 	"0x8F at f's pc: push a BlockClosure whose outerContext is f's (married) Context."
-	<c: 'uint64_t jit_closure(Frame *f)'>
+	<function>
+	<var: #f type: 'Frame *'>
+	<returns: 'uint64_t'>
 	| p na nt fs b bc isize s startpc |
 	self sync: f.
 	p := f ip.
@@ -1312,7 +1320,9 @@ closure: f
 !
 pushContext: f
 	"0x76 at f's pc: push f's Context, married now."
-	<c: 'uint64_t jit_push_context(Frame *f)'>
+	<function>
+	<var: #f type: 'Frame *'>
+	<returns: 'uint64_t'>
 	self sync: f.
 	interpreter marry: f.
 	f fp at: f sp put: f ctx.
@@ -1320,7 +1330,9 @@ pushContext: f
 !
 contextField: f
 	"0x81 i (i <= 2: sender, pc, stackp) at f's pc, the receiver a married Context: push the field, which its frame answers (Interpreter>>contextField:of:). 1 if the frames were flushed instead: the interpreter executes the instruction again."
-	<c: 'uint64_t jit_context_field(Frame *f)'>
+	<function>
+	<var: #f type: 'Frame *'>
+	<returns: 'uint64_t'>
 	| v |
 	self sync: f.
 	v := interpreter contextField: (f ip at: 1) asInt64 of: (f fp at: -1).
@@ -1330,7 +1342,9 @@ contextField: f
 !
 makeArray: f
 	"0x94 n at f's pc: the top n slots into a new Array."
-	<c: 'uint64_t jit_make_array(Frame *f)'>
+	<function>
+	<var: #f type: 'Frame *'>
+	<returns: 'uint64_t'>
 	| n a |
 	self sync: f.
 	n := f ip at: 1.
@@ -1357,19 +1371,27 @@ optHeaderAt: i
 !
 tierUp: f loop: loop
 	"The lower tier's counter for f's method ran out at f's pc (a method entry, or a backward jump if loop ~= 0; f's pc and sp stored): answer 0 to go on, 1 to leave, or where f continues in optimized code."
-	<c: 'uint64_t jit_tier_up(Frame *f, int64_t loop)'>
+	<function>
+	<var: #f type: 'Frame *'>
+	<var: #loop type: 'int64_t'>
+	<returns: 'uint64_t'>
 	self sync: f.
 	^optimizer tierUp: f loop: loop
 !
 widow: f
 	"f returns and is married: its Context keeps its slots."
-	<c: 'uint64_t jit_widow(Frame *f)'>
+	<function>
+	<var: #f type: 'Frame *'>
+	<returns: 'uint64_t'>
 	interpreter widow: f.
 	^0
 !
 writeBarrier: o value: v
 	"v was stored into o."
-	<c: 'uint64_t jit_write_barrier(oop o, oop v)'>
+	<function>
+	<var: #o type: 'oop'>
+	<var: #v type: 'oop'>
+	<returns: 'uint64_t'>
 	((self isPtr: v) and: [(self isYoung: v) and: [(self isYoung: o) not and: [((self header: o) bitAnd: H_REMEMBERED) = 0]]])
 		ifTrue: [gc remember: o].
 	^0
@@ -1408,7 +1430,7 @@ statOsr
 !
 optStat: i
 	"The optimizing tier's counters (OptRuntime>>stat:)."
-	<c: 'int64_t jit_opt_stat(int32_t i)'>
+	<function>
 	^optimizer stat: i
 !
 brtFeedbackSitesOf: m
@@ -1435,7 +1457,7 @@ brtFeedbackTargetOf: m site: i case: j
 !
 baselineStat: i
 	"Counters of baseline code (JitBaselineRuntime): misses, links, polymorphic caches, megamorphic sites, block cache misses, C primitive calls, frame walks."
-	<c: 'uint64_t jit_baseline_stat(int32_t i)'>
+	<function>
 	^i caseOf: {
 		[0] -> [brt statMisses]. [1] -> [brt statLinks]. [2] -> [brt statPics]. [3] -> [brt statMegas].
 		[4] -> [brt statBlockMisses]. [5] -> [brt statPrimCalls]}

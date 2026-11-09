@@ -16,17 +16,14 @@ isInterface
 !Ticker methodsFor: 'timers'!
 start
 	"At startup (VM thread)."
-	<c: 'void ticker_start(void)'>
 	self subclassResponsibility
 !
 arm: ident microseconds: us periodic: periodic
 	"Fire ident after us microseconds (every us if periodic); us < 0 disarms. VM thread."
-	<c: 'void tick_arm(int ident, int64_t us, bool periodic)'>
 	self subclassResponsibility
 !
 threadCycles
 	"The calling thread's CPU cycles so far; negative if there is no counter. Only the recording clock (Scheduler) asks."
-	<c: 'int64_t ticker_thread_cycles(void)'>
 	self subclassResponsibility
 ! !
 
@@ -52,7 +49,6 @@ static inline int thread_selfcounts_checked(int type, void *buf, unsigned long n
 
 !KqueueTicker methodsFor: 'timers'!
 start
-	<c: 'void ticker_start(void)'>
 	<export>
 	| t |
 	kq := kqueue kqueue.
@@ -64,7 +60,6 @@ start
 !
 arm: ident microseconds: us periodic: periodic
 	"us < 0 disarms (an already fired one-shot is gone: ENOENT, ignored). Critical: in the background role macOS would coalesce a 1 ms timer to about 60 ms."
-	<c: 'void tick_arm(int ident, int64_t us, bool periodic)'>
 	<export>
 	| ch res zero |
 	ch := self local: 'KEvent'.
@@ -81,7 +76,6 @@ arm: ident microseconds: us periodic: periodic
 	kqueue kevent: kq changes: ch count: 1 events: res count: 1 timeout: zero
 !
 threadCycles
-	<c: 'int64_t ticker_thread_cycles(void)'>
 	<export>
 	| counters |
 	counters := self local: 'uint64_t[2]'.
@@ -90,7 +84,7 @@ threadCycles
 !
 run: arg
 	"The ticker thread."
-	<c: 'void *kqueue_ticker(void *arg)'>
+	<function>
 	| ev |
 	ev := self local: 'KEvent'.
 	[(kqueue kevent: kq changes: self null count: 0 events: ev count: 1 timeout: self null) > 0 ifTrue: [
@@ -118,11 +112,9 @@ isSimulated
 !TimerfdTicker methodsFor: 'timers'!
 start
 	"Each timer gets its timerfd and thread when it is first armed."
-	<c: 'void ticker_start(void)'>
 	<export>
 !
 arm: ident microseconds: us periodic: periodic
-	<c: 'void tick_arm(int ident, int64_t us, bool periodic)'>
 	<export>
 	| spec value n |
 	(ident < 1 or: [ident > 3]) ifTrue: [self fatal: 'no ticker timer %d' with: ident].
@@ -139,7 +131,6 @@ arm: ident microseconds: us periodic: periodic
 	timerfd settime: (fds at: ident) flags: 0 new: spec old: self null
 !
 threadCycles
-	<c: 'int64_t ticker_thread_cycles(void)'>
 	<export>
 	^-1
 !
@@ -156,7 +147,7 @@ open: ident
 !
 run: arg
 	"The thread of one timer (arg: its ident)."
-	<c: 'void *timerfd_ticker(void *arg)'>
+	<function>
 	| ident expirations |
 	ident := (self cCoerce: arg to: 'int64_t') asInt32.
 	expirations := self local: 'uint64_t'.

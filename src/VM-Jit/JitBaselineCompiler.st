@@ -100,7 +100,7 @@ plainEntry
 !JitBaselineCompiler methodsFor: 'compiling'!
 compile: m
 	"Emit m's code at the assembler's pc (BytecodeAnalysis has analyzed m); answer whether every reachable bytecode got code."
-	<c: 'bool bl_compile(oop m)'>
+	<function>
 	| n pc op |
 	codeStart := asm pc.
 	n := analysis size.
@@ -161,7 +161,7 @@ compile: m
 !
 emitAt: pc
 	"The code of the instruction at pc, with the simulated stack as the previous instruction left it."
-	<c: 'bool bl_emit_at(int32_t pc)'>
+	<function>
 	| op d |
 	op := analysis byteAt: pc.
 	d := analysis depthAt: pc.
@@ -270,7 +270,7 @@ popRegion
 !JitBaselineCompiler methodsFor: 'loop temps'!
 beginLoopAt: head
 	"An innermost loop from head that makes no closures, Arrays or thisContext, entered only by falling in and by its back jumps: its most used temps (up to 3, each used more often than the loop sends) live in x26-x28 too, stored through to their slots. Loaded here, on the way in, and again after every call out of the loop (sends, slow paths: the callee and the collector change them)."
-	<c: 'void bl_begin_loop(int32_t head)'>
+	<function>
 	| end n p op t k best bestCount c sends |
 	"a jump threaded into the loop's head would skip the loads below"
 	(pcMerge at: head) = 1 ifTrue: [^self].
@@ -370,7 +370,7 @@ loopRegOf: t
 !
 emitLoadLoopTemps: id
 	"Loop id's temps from their slots into x26-x28 (entering, or after a call)."
-	<c: 'void bl_emit_load_loop_temps(int32_t id)'>
+	<function>
 	id < 0 ifTrue: [^self].
 	0 to: (loopTable at: 4 * id) - 1 do: [:i |
 		asm comment: 'x%d := temp %d' with: 26 + i.
@@ -389,7 +389,7 @@ noteLoopResume: pc
 !JitBaselineCompiler methodsFor: 'simulated stack'!
 ssReset: d
 	"Control merges at a label: every entry is in its slot, no register holds anything."
-	<c: 'void bl_ss_reset(int32_t d)'>
+	<function>
 	0 to: d - 1 do: [:i | ssKind at: i put: SS_SLOT].
 	ssTop := d.
 	ssBase := d.
@@ -398,13 +398,13 @@ ssReset: d
 !
 dropDoubles
 	"No d register holds anything (a merge, a call)."
-	<c: 'void bl_drop_doubles(void)'>
+	<function>
 	0 to: 15 do: [:r | dregRefs at: r put: 0].
 	0 to: SS_MAX - 1 do: [:t | tempD at: t put: -1]
 !
 dAlloc
 	"A free d register of d8-d15 (owned once by the caller); temps' cached values are evicted first, then the deepest unboxed entry is boxed."
-	<c: 'int32_t bl_dalloc(void)'>
+	<function>
 	8 to: 15 do: [:r | (dregRefs at: r) = 0 ifTrue: [
 		dregRefs at: r put: 1.
 		^r]].
@@ -448,7 +448,8 @@ setTemp: t double: r
 	r >= 0 ifTrue: [self dRetain: r]
 !
 ssPush: kind val: v reg: r
-	<c: 'bool bl_ss_push(int32_t kind, int64_t v, int32_t r)'>
+	<function>
+	<var: #kind type: 'int32_t'>
 	ssTop >= SS_MAX ifTrue: [^false].
 	ssKind at: ssTop put: kind asUInt8.
 	ssVal at: ssTop put: v.
@@ -463,7 +464,7 @@ ssPushReg: r
 !
 ssPop: n
 	"Drop the top n entries (their registers become free)."
-	<c: 'void bl_ss_pop(int32_t n)'>
+	<function>
 	| i |
 	1 to: n do: [:k |
 		ssTop := ssTop - 1.
@@ -480,7 +481,7 @@ freeReg: r
 !
 allocReg
 	"A free register of the pool (x0-x8, x12-x15), spilling the deepest entry in a register if there is none."
-	<c: 'int32_t bl_alloc_reg(void)'>
+	<function>
 	0 to: 15 do: [:r | ((self isPoolReg: r) and: [(regOwner at: r) < 0]) ifTrue: [
 		regOwner at: r put: SS_MAX.
 		^r]].
@@ -491,7 +492,7 @@ allocReg
 !
 ssSpill: i
 	"Store entry i into its slot."
-	<c: 'void bl_ss_spill(int32_t i)'>
+	<function>
 	| k |
 	k := ssKind at: i.
 	k = SS_SLOT ifTrue: [^self].
@@ -531,7 +532,7 @@ ssSpill: i
 !
 ssFlushTo: n
 	"Entries below n go to their slots (adjacent registers with one stp)."
-	<c: 'void bl_ss_flush_to(int32_t n)'>
+	<function>
 	| i |
 	i := ssBase.
 	[i < n] whileTrue: [
@@ -554,7 +555,7 @@ ssFlushAll
 !
 ssFlushKeepingDoublesTo: n
 	"As ssFlushTo:, but unboxed Floats stay in their d registers (the slow path that follows boxes and reloads them around its send)."
-	<c: 'void bl_ss_flush_keeping_doubles(int32_t n)'>
+	<function>
 	<var: #low type: 'int32_t'>
 	| low |
 	low := -1.
@@ -575,7 +576,8 @@ selfReg
 !
 ssMaterialize: i
 	"A register holding entry i's value (x21 for self, x23-x25 for nil, true and false); entries loaded here stay in their register."
-	<c: 'int32_t bl_ss_materialize(int32_t i)'>
+	<function>
+	<returns: 'int32_t'>
 	| k r |
 	k := ssKind at: i.
 	k = SS_REG ifTrue: [^ssReg at: i].
@@ -611,7 +613,7 @@ ssMaterialize: i
 !
 ssMaterialize: i into: r
 	"Entry i's value in register r (claimed by the caller)."
-	<c: 'void bl_ss_materialize_into(int32_t i, int32_t r)'>
+	<function>
 	| k |
 	k := ssKind at: i.
 	k = SS_REG ifTrue: [
@@ -654,7 +656,7 @@ ssIsSmallInt: i
 !
 ssTempChanging: t
 	"Temp t is about to change: entries that read it lazily load it now."
-	<c: 'void bl_ss_temp_changing(int32_t t)'>
+	<function>
 	| r |
 	ssBase to: ssTop - 1 do: [:i |
 		((ssKind at: i) = SS_TEMP and: [(ssVal at: i) = t]) ifTrue: [
@@ -684,14 +686,14 @@ literalLabel: i
 	^poolLabels at: i
 !
 loadLiteral: i into: r
-	<c: 'void bl_load_literal(int64_t i, int32_t r)'>
+	<function>
 	(i < 0 or: [i >= analysis numLiterals or: [i > 255]]) ifTrue: [^asm fail: ASM_ERR_RANGE].
 	asm comment: 'literal %d (pool)' with: i.
 	asm ldr: r label: (self literalLabel: i asInt32)
 !
 emitLiterals
 	"The pool: the method's literals, then the inline caches' classes; the JitMethod header follows (8-aligned)."
-	<c: 'void bl_emit_literals(void)'>
+	<function>
 	(asm pc bitAnd: 7) ~= 0 ifTrue: [asm nop].
 	0 to: 255 do: [:i | (poolLabels at: i) >= 0 ifTrue: [
 		asm comment: 'literal %d' with: i.
@@ -760,7 +762,7 @@ intOop: v
 !JitBaselineCompiler methodsFor: 'entries'!
 emitMethodEntry
 	"Checked entry, unchecked entry, the quick method or primitive, the stack check, the frame; then the bytecodes from pc 0. Resumption at pc 0 (a frame the interpreter pushed) checks for interrupts out of line."
-	<c: 'bool bl_emit_method_entry(void)'>
+	<function>
 	| imm s uentry p |
 	asm comment: 'checked entry: x0 the receiver, x9 the class the inline cache expects, x20 our fp, x30 back to the send'.
 	imm := asm newLabel.
@@ -801,7 +803,7 @@ emitMethodEntry
 !
 emitStackCheck: pc
 	"x20 is the callee's fp: at or above the limit (or with an interrupt pending) the entry's slow path runs and then retries."
-	<c: 'bool bl_emit_stack_check(int32_t pc)'>
+	<function>
 	| check s |
 	check := asm newLabel.
 	asm bind: check.
@@ -816,7 +818,7 @@ emitStackCheck: pc
 !
 emitFrameFor: isBlock args: na temps: nt
 	"Push the Frame and the native frame record: x0 the receiver (a block: the closure), x20 the fp."
-	<c: 'void bl_emit_frame(bool is_block, int32_t na, int32_t nt)'>
+	<function>
 	| i |
 	asm comment: 'native frame record (x29, x30; x29 stays the C frame of jit_enter)'.
 	asm stp: X29 with: X30 base: SP preIndex: -16.
@@ -850,7 +852,7 @@ emitFrameFor: isBlock args: na temps: nt
 !
 emitBlockEntry: pc
 	"The block whose body starts at pc (after its 0x8F): entered from the block stub with x0 the closure and x20 the fp (args in place)."
-	<c: 'bool bl_emit_block_entry(int32_t pc)'>
+	<function>
 	| p na nt fs size entry s |
 	p := pc - 6.
 	na := (analysis byteAt: p + 1) asInt32.
@@ -880,7 +882,7 @@ emitBlockEntry: pc
 !
 emitQuickMethod
 	"^ivar, ^self, ^nil/true/false/0/1, ^literal, ^SmallInteger, setters: without a frame; anything else falls through. A pending interrupt (the stack limit is 0) takes the frame's path: sends are safepoints."
-	<c: 'void bl_emit_quick(void)'>
+	<function>
 	| b0 b1 n ok s framed |
 	(self isQuickMethod) ifFalse: [^self].
 	framed := asm newLabel.
@@ -955,7 +957,7 @@ emitQuickBody
 !JitBaselineCompiler methodsFor: 'primitives'!
 emitPrimitive
 	"The method's primitive before its frame: inline machine code for the common ones, then its C function. Success returns to the sender; failure falls through to the frame and the body."
-	<c: 'bool bl_emit_primitive(void)'>
+	<function>
 	| k fail info |
 	k := brt primKindOf: analysis primitive.
 	k = brt pkPerform ifTrue: [^self emitPerformPrimitive].
@@ -989,7 +991,7 @@ emitPrimitive
 !
 emitPerformPrimitive
 	"perform:, perform:with:... (the selector, then n - 1 arguments) and perform:withArguments: (an Array of up to 2): the target megamorphic sends of the selector to the receiver's class would take, from their table, if its argument count (the entry's fourth word) fits; the arguments one slot down, over the selector; its unchecked entry (x30 still returns to the send). Else the runtime, which fills the table, answers that the primitive failed (the frame and the body follow) or leaves."
-	<c: 'bool bl_emit_perform_primitive(void)'>
+	<function>
 	| n withArgs imm have go slow fail |
 	n := curArgs.
 	withArgs := (brt primOpOf: analysis primitive) = 1.
@@ -1065,7 +1067,7 @@ emitPerformPrimitive
 !
 emitIntPrimitive: op fail: fail
 	"SmallInteger arithmetic, bit operations, comparisons and divisions of the receiver (x0) and the argument (slot 0); anything else (overflow, other classes, division by zero) the C function."
-	<c: 'void bl_emit_int_primitive(int32_t op, int32_t fail)'>
+	<function>
 	| right exact |
 	asm comment: 'SmallInteger primitive: receiver and argument SmallIntegers'.
 	asm tbz: X0 bit: 0 to: fail.
@@ -1144,7 +1146,7 @@ emitIntPrimitive: op fail: fail
 !
 emitFloatPrimitive: op fail: fail
 	"Float arithmetic, comparisons, sqrt and truncated of the receiver (x0) and the argument (slot 0), SmallFloat64 or boxed, into SmallFloat64 results. Anything else: the C function."
-	<c: 'void bl_emit_float_primitive(int32_t op, int32_t fail)'>
+	<function>
 	| done |
 	asm comment: 'Float primitive: the receiver (and the argument) as doubles'.
 	self emitToDouble: X0 into: D0 fail: fail.
@@ -1191,7 +1193,7 @@ emitCharValuePrimitive: fail
 !
 emitIndexedPrimitive: k fail: fail
 	"at:, at:put: and basicSize of indexable pointers without fixed fields, 32-bit words and bytes: a SmallInteger index (slot 0) within the size, a word or byte value in range, a receiver not immutable; anything else the C function."
-	<c: 'void bl_emit_indexed_primitive(int32_t k, int32_t fail)'>
+	<function>
 	| bytes words |
 	bytes := asm newLabel.
 	words := asm newLabel.
@@ -1276,7 +1278,7 @@ emitIndexedResult: k
 !
 emitStringPrimitive: isPut fail: fail
 	"stringAt and stringAtPut: at: and at:put: of a String, bytes or 32-bit words: a SmallInteger index (slot 0) within the size; a Character answered, or stored (a byte's into bytes) into a receiver not immutable. Anything else the C function."
-	<c: 'void bl_emit_string_primitive(bool isPut, int32_t fail)'>
+	<function>
 	| words |
 	words := asm newLabel.
 	asm comment: (isPut ifTrue: ['primitive stringAtPut'] ifFalse: ['primitive stringAt']).
@@ -1341,7 +1343,7 @@ emitStringPrimitive: isPut fail: fail
 !
 emitUint32Primitive: isPut fail: fail
 	"uint32At: and uint32At:put: of bytes at a 1-based byte offset (slot 0), unaligned; anything else the C function."
-	<c: 'void bl_emit_uint32_primitive(bool isPut, int32_t fail)'>
+	<function>
 	asm comment: (isPut ifTrue: ['primitive uint32At:put: of bytes'] ifFalse: ['primitive uint32At: of bytes']).
 	asm tst: X0 imm: 7.
 	asm b: fail if: COND_NE.
@@ -1380,7 +1382,7 @@ emitUint32Primitive: isPut fail: fail
 !
 emitStringComparePrimitive: fail
 	"compare: of two byte strings: -1, 0 or 1 by bytes, then by size; anything else (wide strings) the C function."
-	<c: 'void bl_emit_string_compare_primitive(int32_t fail)'>
+	<function>
 	| loop differ sizes |
 	loop := asm newLabel.
 	differ := asm newLabel.
@@ -1770,7 +1772,7 @@ storeLiteralVariable: i pop: pop
 !
 barrier: obj header: hdr value: v
 	"The generational barrier after storing v into obj (hdr: obj's header): an old, unremembered obj and a young v call the remember stub (which preserves the registers). Uses x9, x16, x17."
-	<c: 'void bl_barrier(int32_t obj, int32_t hdr, int32_t v)'>
+	<function>
 	| done s |
 	runtime barrier ifFalse: [
 		asm comment: 'store barrier: the remember stub'.
@@ -1833,7 +1835,7 @@ subFp: off
 !
 noteRet: pc depth: d info: info
 	"The return address just emitted (after a bl to a callee): the frame's pc and sp while the callee runs."
-	<c: 'void bl_note_ret(int32_t pc, int32_t d, uint32_t info)'>
+	<function>
 	retCount >= BL_MAX_RETS ifTrue: [^asm fail: ASM_ERR_LABEL].
 	retOff at: retCount put: (asm pc - codeStart) asUInt32.
 	retPc at: retCount put: pc asUInt16.
@@ -1847,7 +1849,7 @@ sendInfo: pc argc: n selector: sel kind: kind pushes: pushes
 !
 emitSiteCall: pc info: info receiver: ri
 	"The inline cache's call: receiver and arguments in their slots, the receiver in x0 (entry ri at the slot below the callee's fp)."
-	<c: 'void bl_emit_site_call(int32_t pc, uint32_t info, int32_t ri)'>
+	<function>
 	| site off |
 	siteCount >= BL_MAX_SITES ifTrue: [^asm fail: ASM_ERR_LABEL].
 	site := siteCount.
@@ -1870,7 +1872,9 @@ emitSiteCall: pc info: info receiver: ri
 !
 loadReceiver: ri kind: k reg: r val: v
 	"x0 := the receiver (entry ri, which was k (r, v) before the stack went to its slots)."
-	<c: 'void bl_load_receiver(int32_t ri, int32_t k, int32_t r, int64_t v)'>
+	<function>
+	<var: #k type: 'int32_t'>
+	<var: #r type: 'int32_t'>
 	asm comment: 'x0 := the receiver'.
 	k = SS_REG ifTrue: [
 		r ~= X0 ifTrue: [asm mov: X0 with: r].
@@ -1927,7 +1931,7 @@ exitAt: pc
 !
 headCheck: h
 	"A loop's head, where every turn of the loop passes: the interrupt flag's check (inline), its slow path out of line."
-	<c: 'void bl_head_check(int32_t h)'>
+	<function>
 	| s |
 	s := self slow: SL_INTERRUPT pc: h depth: (analysis depthAt: h).
 	s < 0 ifTrue: [^asm fail: ASM_ERR_LABEL].
@@ -1938,7 +1942,7 @@ headCheck: h
 !
 backJump: t
 	"A backward jump to the loop head t (which checks for interrupts), counting down toward optimization first (--jit opt); answer its label."
-	<c: 'int32_t bl_back_jump(int32_t t)'>
+	<function>
 	| l |
 	l := asm newLabel.
 	asm bind: l.
@@ -1987,7 +1991,7 @@ threadInto: j
 !
 branch: cond to: t
 	"Branch to t if cond (the stack is in its slots); a backward branch counts down toward optimization first (--jit opt). Answer the label slow paths branch to for the same jump."
-	<c: 'int32_t bl_branch(int32_t cond, int32_t t)'>
+	<function>
 	| skip check |
 	((analysis isLoopHead: t) and: [counterAddr ~= 0]) ifFalse: [
 		asm b: (self labelFor: t) if: cond.
@@ -2084,7 +2088,7 @@ closure: pc
 !
 emitInlineClosure: pc fail: fail
 	"x9 := the BlockClosure of the 0x8F at pc, made in eden on the frame's Context; a frame without one is married to a Context made in eden (as Interpreter>>marry:). fail: eden is full. Uses x10-x17."
-	<c: 'void bl_emit_inline_closure(int32_t pc, int32_t fail)'>
+	<function>
 	| have n |
 	have := asm newLabel.
 	asm comment: 'the frame''s Context; none: marry the frame (sender its index, stackp 0, method, closure, receiver, the rest nil)'.
@@ -2123,7 +2127,7 @@ emitInlineClosure: pc fail: fail
 !
 emitRuntimeCall: stubLabel pc: pc depth: d
 	"A call of a runtime function that may allocate or switch: pc and sp stored, every entry in its slot; it answers 0 to continue, 1 to leave."
-	<c: 'void bl_emit_runtime_call(int32_t label, int32_t pc, int32_t d)'>
+	<function>
 	self emitSync: pc depth: d.
 	asm mov: X0 with: X19.
 	asm bl: stubLabel.
@@ -2208,7 +2212,7 @@ superinstruction: pc
 !JitBaselineCompiler methodsFor: 'special selectors'!
 special: k pc: pc pushes: pushes
 	"Special selector k (operands on the simulated stack): inline where it applies, else a send through an inline cache."
-	<c: 'bool bl_special(int32_t k, int32_t pc, int32_t pushes)'>
+	<function>
 	(k = 19 or: [k = 20]) ifTrue: [^self identical: k pc: pc].
 	k = 29 ifTrue: [^self classOf: pc].
 	((k = 23 or: [k = 24]) and: [runtime prims and: [brt nilTestsInlinable]]) ifTrue: [^self nilTest: k - 22 pc: pc].
@@ -2338,7 +2342,8 @@ loadDouble: bits into: d
 !
 doubleOf: i scratch: d fail: fail
 	"The D register holding entry i's value as a double (d if it has to be decoded or loaded); fail if it is not a number."
-	<c: 'int32_t bl_double_of(int32_t i, int32_t d, int32_t fail)'>
+	<function>
+	<returns: 'int32_t'>
 	| k t r |
 	k := ssKind at: i.
 	k = SS_DREG ifTrue: [^self dreg: (ssReg at: i)].
@@ -2395,7 +2400,7 @@ operand: i for: s a: isA
 !
 noteDoublesBelow: a for: s
 	"The unboxed Floats below the operands: slow path s boxes them into their slots before its send and unboxes them after."
-	<c: 'void bl_note_doubles_below(int32_t a, int32_t s)'>
+	<function>
 	slSavedStart at: s put: savedCount.
 	slSavedCount at: s put: 0.
 	ssBase to: a - 1 do: [:i | (ssKind at: i) = SS_DREG ifTrue: [
@@ -2413,7 +2418,7 @@ noteDoublesBelow: a for: s
 !
 noteLiveRegsFor: s except: r
 	"The registers holding stack entries now: slow path s (a call that may collect) stores and reloads them."
-	<c: 'void bl_note_live_regs(int32_t s, int32_t r)'>
+	<function>
 	slSavedStart at: s put: savedCount.
 	slSavedCount at: s put: 0.
 	ssBase to: ssTop - 1 do: [:i | ((ssKind at: i) = SS_REG and: [(ssReg at: i) ~= r]) ifTrue: [
@@ -2425,7 +2430,9 @@ noteLiveRegsFor: s except: r
 !
 emitBox: d into: r
 	"r := the Float in d register d, boxed: a SmallFloat64 if its exponent fits, else (out of line) a BoxedFloat64 from the runtime, with the stack's registers saved around the call. Uses x9-x11, x16, x17."
-	<c: 'void bl_emit_box(int32_t d, int32_t r)'>
+	<function>
+	<var: #d type: 'int32_t'>
+	<var: #r type: 'int32_t'>
 	| s |
 	s := self slow: SL_BOX pc: curPc depth: ssTop.
 	s < 0 ifTrue: [^asm fail: ASM_ERR_LABEL].
@@ -2456,7 +2463,7 @@ emitBoxFast: s
 !
 emitBoxInSlowPath: d into: r pc: pc depth: depth
 	"emitBox:into: where no stack entry is in a register (a slow path)."
-	<c: 'void bl_emit_box_slow(int32_t d, int32_t r, int32_t pc, int32_t depth)'>
+	<function>
 	| s |
 	s := self slow: SL_BOX pc: pc depth: depth.
 	s < 0 ifTrue: [^asm fail: ASM_ERR_LABEL].
@@ -2469,7 +2476,7 @@ emitBoxInSlowPath: d into: r pc: pc depth: depth
 !
 floatArith: k pc: pc pushes: pushes
 	"An operand is a Float for sure: decode the other (SmallFloat64, BoxedFloat64, SmallInteger), compute in d registers; the result stays unboxed (comparisons branch or answer a Boolean). Not a number: the slow path sends."
-	<c: 'bool bl_float_arith(int32_t k, int32_t pc, int32_t pushes)'>
+	<function>
 	| a b s da db dr rr j compare |
 	a := ssTop - 2.
 	b := ssTop - 1.
@@ -2545,7 +2552,7 @@ fold: k a: a b: b
 !
 arith: k pc: pc pushes: pushes
 	"SmallInteger arithmetic and comparisons inline (tag checks, overflow branches, immediates); Floats and anything else in the slow path (inline Floats, then a send)."
-	<c: 'bool bl_arith(int32_t k, int32_t pc, int32_t pushes)'>
+	<function>
 	| a b ra rb rr s imm c compare j aKnown bKnown bv same |
 	a := ssTop - 2.
 	b := ssTop - 1.
@@ -2709,7 +2716,7 @@ emitShift: ra by: rb constant: c immediate: imm into: rr slow: slow
 !
 access: k pc: pc pushes: pushes
 	"at: at:put: on Arrays inline, Strings, Symbols and ByteArrays out of line; anything else sends."
-	<c: 'bool bl_access(int32_t k, int32_t pc, int32_t pushes)'>
+	<function>
 	<var: #rb type: 'int32_t'>
 	<var: #rc type: 'int32_t'>
 	| n a ra rb rc rr s barrier |
@@ -2776,7 +2783,7 @@ access: k pc: pc pushes: pushes
 !
 value: k pc: pc pushes: pushes
 	"value value: value:value: of a closure with as many arguments: the block stub enters its code; anything else sends."
-	<c: 'bool bl_value(int32_t k, int32_t pc, int32_t pushes)'>
+	<function>
 	| n ri s info off |
 	n := analysis specialArgc: k.
 	ri := ssTop - n - 1.
@@ -2810,7 +2817,7 @@ value: k pc: pc pushes: pushes
 !JitBaselineCompiler methodsFor: 'slow paths'!
 slow: kind pc: pc depth: d
 	"A slow path, emitted after the method's code; answer its index (-1 if there are too many)."
-	<c: 'int32_t bl_slow(int32_t kind, int32_t pc, int32_t d)'>
+	<function>
 	| s |
 	slCount >= BL_MAX_SLOW ifTrue: [^-1].
 	s := slCount.
@@ -2835,7 +2842,7 @@ slow: kind pc: pc depth: d
 !
 noteContinuation: pc result: r
 	"The interpreter may return into this frame after the instruction at pc (its result in its slot): a stub loads it into r and continues the main line here."
-	<c: 'void bl_note_continuation(int32_t pc, int32_t r)'>
+	<function>
 	| next s |
 	next := (pc + (analysis lengthAt: pc)) asInt32.
 	(next < analysis size and: [analysis isResume: next]) ifFalse: [^self].
@@ -2878,7 +2885,7 @@ boxSavedDoubles: i
 		k := k + 2]
 !
 emitSlowPaths
-	<c: 'bool bl_emit_slow_paths(void)'>
+	<function>
 	<var: #i type: 'int32_t'>
 	| kind i |
 	i := 0.
@@ -3040,7 +3047,7 @@ emitTierUpSlow: i
 !
 emitSlowSend: i
 	"Floats or other formats inline if flagged, then the send through its own inline cache; the result into the main line's register (or, fused, the branch)."
-	<c: 'void bl_emit_slow_send(int32_t i)'>
+	<function>
 	| info n ri send j dj ifTrue r leave |
 	info := slInfo at: i.
 	n := (info bitAnd: 255) asInt32.
@@ -3357,7 +3364,7 @@ oopSlotCount
 !
 writeTables: h at: p
 	"The code is final: entries, send sites, return map and block entries into h's tables from p; the pool's literals registered with the collector. Answer the end."
-	<c: 'uint64_t bl_write_tables(JitMethod *h, uint64_t p)'>
+	<function>
 	| q site a |
 	h entry: codeStart.
 	h uentry: codeStart + uentryOffset asUInt64.
@@ -3408,7 +3415,7 @@ picBranchOffset: i
 !
 emitPicAt: pic
 	"The code of the polymorphic inline cache whose header is at pic: up to brt picCases classes compared, each branching to its target (the miss stub until set); no match: the miss stub. The caller enabled writing."
-	<c: 'bool bl_emit_pic(uint64_t pic)'>
+	<function>
 	| code imm cmp next p miss |
 	code := pic + self picCodeOffset.
 	asm beginAt: code limit: pic + self picBytes.

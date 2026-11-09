@@ -263,7 +263,7 @@ primFloatPrintString
 	self floatReceiverDo: [:a | self answer: (self printStringOf: a)]
 !
 printStringOf: a
-	<c: 'oop float_print_string(double a)'>
+	<function>
 	<var: #lo type: 'int'>
 	<var: #hi type: 'int'>
 	<var: #mid type: 'int'>

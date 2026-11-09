@@ -31,7 +31,7 @@ orderAt: i
 !OptPasses methodsFor: 'cleanup'!
 cleanup: entry
 	"After building: resolve, simplify phis, drop what is unreachable or unused, split critical edges, order the blocks."
-	<c: 'void opt_cleanup(int32_t entry)'>
+	<function>
 	self computeOrder: entry.
 	self removeUnreachable.
 	self simplifyPhis.
@@ -54,7 +54,7 @@ cleanup: entry
 !
 simplifyPhis
 	"A phi whose operands are all one value (or itself) is that value; repeat until none is left."
-	<c: 'void opt_simplify_phis(void)'>
+	<function>
 	| changed nd same v ok |
 	changed := true.
 	[changed] whileTrue: [
@@ -75,7 +75,7 @@ simplifyPhis
 !
 typePhis
 	"A phi of SmallIntegers (every operand one, or such a phi: a loop's counter, a running sum) is a SmallInteger, to a fixed point from all of them; guards of SmallIntegers go."
-	<c: 'void opt_type_phis(void)'>
+	<function>
 	| changed nd v count |
 	count := 0.
 	0 to: ir nodeCount - 1 do: [:n |
@@ -103,7 +103,7 @@ typePhis
 !
 unboxPhis
 	"A loop's Float phi gets a twin on doubles that the loop's arithmetic reads instead of unboxing the phi every time around, so the chain stays in d registers (the boxed phi stays for all else: frame states, sends, the exit): into it flow Float constants, the doubles of boxes, the twin itself, and from a loop unit's entry the frame's value, unboxed there once (a guard). Not in loops whose code calls: d registers do not survive a call."
-	<c: 'void opt_unbox_phis(void)'>
+	<function>
 	| hb lo hi e calls n nd k o u ok uses |
 	0 to: ir blockCount - 1 do: [:h |
 		hb := ir block: h.
@@ -199,7 +199,7 @@ twin: n block: h from: lo to: hi
 !
 resolveOperands
 	"Every operand (fixed, variadic, of frame states) to what replaced it."
-	<c: 'void opt_resolve_operands(void)'>
+	<function>
 	| nd st |
 	0 to: ir nodeCount - 1 do: [:n |
 		nd := ir node: n.
@@ -216,7 +216,7 @@ resolveOperands
 !
 dominators: entry
 	"Immediate dominators (Cooper, Harvey and Kennedy, A Simple, Fast Dominance Algorithm), then the dominator tree's preorder and postorder numbers."
-	<c: 'void opt_dominators(int32_t entry)'>
+	<function>
 	| changed b new e p n sp k |
 	0 to: ir blockCount - 1 do: [:i |
 		psIdom at: i put: -1.
@@ -279,7 +279,7 @@ dominates: x block: y
 !
 valueNumbers
 	"Global value numbering over the dominator tree: a deterministic node (arithmetic, comparisons, guards, conversions, constants) with the same operation and operands as one in a dominating position is that one; a field load only within its block with no store or safepoint between."
-	<c: 'void opt_value_numbers(void)'>
+	<function>
 	| b n nd h m md mem found |
 	0 to: 4095 do: [:i | psHeads at: i put: -1].
 	mem := 0.
@@ -337,7 +337,7 @@ same: x as: y
 !
 computeOrder: entry
 	"Reverse postorder from entry (iterative depth-first search); block rpo numbers, -1 if unreachable."
-	<c: 'void opt_compute_order(int32_t entry)'>
+	<function>
 	| sp b bl n post stack state |
 	0 to: ir blockCount - 1 do: [:i |
 		psVisitMark at: i put: 0.
@@ -376,7 +376,7 @@ computeOrder: entry
 !
 removeUnreachable
 	"Edges from unreachable blocks go; their nodes are unlinked (phis lose the matching operands)."
-	<c: 'void opt_remove_unreachable(void)'>
+	<function>
 	| bl e prev k nd n idx w |
 	0 to: ir blockCount - 1 do: [:b |
 		bl := ir block: b.
@@ -415,7 +415,7 @@ removeUnreachable
 !
 splitCriticalEdges
 	"An edge from a block with two successors into one with several predecessors gets a block of its own (phi moves go there)."
-	<c: 'void opt_split_critical_edges(void)'>
+	<function>
 	| bl n s g nb |
 	nb := ir blockCount.
 	0 to: nb - 1 do: [:b |
@@ -436,7 +436,7 @@ splitCriticalEdges
 !
 countUses
 	"uses: how many operands (and frame state values) name each node."
-	<c: 'void opt_count_uses(void)'>
+	<function>
 	| nd st |
 	0 to: ir nodeCount - 1 do: [:n | (ir node: n) uses: 0].
 	0 to: ir nodeCount - 1 do: [:n |
@@ -463,7 +463,7 @@ useState: s
 !
 removeDead
 	"Pure nodes nothing uses go (repeatedly)."
-	<c: 'void opt_remove_dead(void)'>
+	<function>
 	| changed nd |
 	changed := true.
 	[changed] whileTrue: [

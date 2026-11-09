@@ -90,7 +90,7 @@ rootAt: i
 
 !ObjectMemory methodsFor: 'special objects'!
 refreshSpecials
-	<c: 'void refresh_specials(void)'>
+	<function>
 	| s |
 	s := self slotsOf: specialsOop.
 	nilOop := s at: SO_NIL.
@@ -110,18 +110,18 @@ refreshSpecials
 !
 special: index
 	"The special objects array, 0-based."
-	<c: 'oop special(int index)'>
+	<function>
 	(index < 0 or: [index asUInt32 >= (self numSlots: specialsOop)]) ifTrue: [^nilOop].
 	^self loadRef: specialsOop at: index
 !
 pushRoot: p
-	<c: 'void push_root(oop *p)'>
+	<function>
 	rootCount >= MAX_ROOTS ifTrue: [self fatal: 'root stack overflow'].
 	rootStack at: rootCount put: p.
 	rootCount := rootCount + 1
 !
 popRoot
-	<c: 'void pop_root(void)'>
+	<function>
 	rootCount := rootCount - 1
 ! !
 
@@ -133,12 +133,12 @@ rotr1: x
 	^(x >> 1) bitOr: (x << 63) asUInt64
 !
 isFloat: o
-	<c: 'bool is_float(oop o)'>
+	<function>
 	^(o bitAnd: 7) = 4 or: [(self isPtr: o) and: [(self rawClass: o) = clsBoxedfloat]]
 !
 floatVal: o
 	"o must be a Float."
-	<c: 'double float_val(oop o)'>
+	<function>
 	| b r |
 	(o bitAnd: 7) = 4
 		ifTrue: [
@@ -149,7 +149,7 @@ floatVal: o
 !
 floatOop: d
 	"A SmallFloat64 if d has one, else a new BoxedFloat64 (may allocate)."
-	<c: 'oop float_oop(double d)'>
+	<function>
 	| b e f |
 	b := self bitsOfDouble: d.
 	(b << 1) asUInt64 = 0 ifTrue: [^((b >> 63) << 3) bitOr: 4].
@@ -162,7 +162,7 @@ floatOop: d
 
 !ObjectMemory methodsFor: 'object access'!
 classOf: o
-	<c: 'oop class_of(oop o)'>
+	<function>
 	(o bitAnd: 1) ~= 0 ifTrue: [^clsSmallint].
 	^(o bitAnd: 7) caseOf: {
 		[0] -> [self rawClass: o].
@@ -172,7 +172,8 @@ classOf: o
 !
 byteSize: o
 	"Element count of a byte object (formats 16-23); body bytes otherwise."
-	<c: 'size_t byte_size(oop o)'>
+	<function>
+	<returns: 'size_t'>
 	| f |
 	f := self formatOf: o.
 	f >= F_BYTES ifTrue: [^((self numSlots: o) * 8) - (f - F_BYTES)].
@@ -181,7 +182,8 @@ byteSize: o
 !
 word32Size: o
 	"Element count of a 32-bit object (formats 10-11)."
-	<c: 'size_t word32_size(oop o)'>
+	<function>
+	<returns: 'size_t'>
 	| f |
 	f := self formatOf: o.
 	(f = 10 or: [f = 11]) ifTrue: [^((self numSlots: o) * 2) - (f - F_W32)].
@@ -189,7 +191,7 @@ word32Size: o
 !
 fixedFields: o
 	"Fixed (non-indexable) pointer fields."
-	<c: 'uint32_t fixed_fields(oop o)'>
+	<function>
 	| f |
 	f := self formatOf: o.
 	f = F_FIXED ifTrue: [^self numSlots: o].
@@ -198,7 +200,8 @@ fixedFields: o
 	^0
 !
 indexableSize: o
-	<c: 'size_t indexable_size(oop o)'>
+	<function>
+	<returns: 'size_t'>
 	| f |
 	(self isPtr: o) ifFalse: [^0].
 	f := self formatOf: o.
@@ -212,7 +215,7 @@ indexableSize: o
 
 !ObjectMemory methodsFor: 'allocation'!
 nextHash
-	<c: 'uint32_t next_hash(void)'>
+	<function>
 	| h s |
 	s := ((self hashSeed * 6364136223846793005) + 1442695040888963407) asUInt64.
 	self hashSeed: s.
@@ -235,7 +238,7 @@ oldOverBudget
 !
 resetAllocLimit
 	"Fast-path limit: eden's end or the next allocation sample; eden_top while old space is over its budget (after the scavenge primitive), so that the next allocation collects."
-	<c: 'void reset_alloc_limit(void)'>
+	<function>
 	gc allocLimit: gc edenHi.
 	sampleMark := gc edenTop.
 	(scheduler allocSampleInterval > 0 and: [gc edenTop + scheduler allocSampleCountdown < gc edenHi]) ifTrue: [
@@ -244,7 +247,7 @@ resetAllocLimit
 !
 allocSlow: cls bytes: bytes
 	"Slow path: account allocation sampling, collect if eden is full."
-	<c: 'uint64_t alloc_slow(oop *cls, size_t bytes)'>
+	<function>
 	| p |
 	scheduler allocSampleInterval > 0 ifTrue: [
 		scheduler allocSampleCountdown: scheduler allocSampleCountdown - (gc edenTop - sampleMark) asInt64.
@@ -263,7 +266,7 @@ allocSlow: cls bytes: bytes
 	^p
 !
 allocOldTry: cls format: fmt slots: n
-	<c: 'oop alloc_old_try(oop cls, int fmt, uint32_t n)'>
+	<function>
 	| p clsRoot |
 	clsRoot := self local: 'oop'.
 	clsRoot value: cls.
@@ -278,7 +281,7 @@ allocOldTry: cls format: fmt slots: n
 !
 allocOld: cls format: fmt slots: n
 	"Directly in old space."
-	<c: 'oop alloc_old(oop cls, int fmt, uint32_t n)'>
+	<function>
 	| o |
 	o := self allocOldTry: cls format: fmt slots: n.
 	o = 0 ifTrue: [self fatal: 'out of memory allocating %llu bytes' with: 16 + (8 * n asUInt64)].
@@ -286,7 +289,7 @@ allocOld: cls format: fmt slots: n
 !
 allocObj: cls format: fmt slots: n
 	"Pointer formats nil-filled, others zeroed. May GC."
-	<c: 'oop alloc_obj(oop cls, int fmt, uint32_t n)'>
+	<function>
 	| bytes p clsRoot |
 	bytes := 16 + (8 * n asUInt64).
 	bytes > largeObjectBytes ifTrue: [
@@ -306,7 +309,7 @@ allocObj: cls format: fmt slots: n
 !
 allocObjTry: cls format: fmt slots: n
 	"alloc_obj, 0 if it can never fit in the heap."
-	<c: 'oop alloc_obj_try(oop cls, int fmt, size_t n)'>
+	<function>
 	| bytes |
 	n > 16rFFFFFFFF ifTrue: [^0].
 	bytes := 16 + (8 * n).
@@ -316,12 +319,11 @@ allocObjTry: cls format: fmt slots: n
 !
 allocContext: n
 	"Indexable slots; may GC."
-	<c: 'oop alloc_context(uint32_t n)'>
+	<function>
 	^self allocObj: clsContext format: F_FIXVAR slots: CTX_FIXED + n
 !
 allocSlots: cls count: n
 	"n = indexable slot count (0 for non-indexable classes); fields nil."
-	<c: 'oop alloc_slots(oop cls, uint32_t n)'>
 	<export>
 	| err o |
 	err := self local: 'int'.
@@ -330,17 +332,17 @@ allocSlots: cls count: n
 !
 allocBytes: cls count: n
 	"n bytes, zeroed."
-	<c: 'oop alloc_bytes(oop cls, size_t n)'>
+	<function>
 	^self allocObj: cls format: F_BYTES + ((8 - (n rem: 8)) rem: 8) asInt32 slots: (n + 7 quo: 8) asUInt32
 !
 allocWords32: cls count: n
 	"n 32-bit units, zeroed."
-	<c: 'oop alloc_words32(oop cls, size_t n)'>
+	<function>
 	^self allocObj: cls format: F_W32 + (n bitAnd: 1) asInt32 slots: (n + 1 quo: 2) asUInt32
 !
 instantiate: cls size: n error: err
 	"basicNew: semantics; *err 0, PRIM_ERR_NO_MEMORY or -1."
-	<c: 'oop instantiate(oop cls, size_t n, int *err)'>
+	<function>
 	| fo spec isize fmt nslots o |
 	err value: -1.
 	((self isPtr: cls) not or: [(self numSlots: cls) <= BEH_FORMAT]) ifTrue: [^nilOop].
@@ -377,7 +379,7 @@ instantiate: cls size: n error: err
 
 !ObjectMemory methodsFor: 'integers'!
 largeIntFrom: v negative: negative
-	<c: 'oop large_int_from_u64(uint64_t v, bool negative)'>
+	<function>
 	| n t o |
 	n := 0.
 	t := v.
@@ -391,7 +393,6 @@ largeIntFrom: v negative: negative
 !
 int64Oop: v
 	"SmallInteger or LargeInteger (may allocate)."
-	<c: 'oop int64_oop(int64_t v)'>
 	<export>
 	(self intFits: v) ifTrue: [^self intOop: v].
 	^v < 0
@@ -399,7 +400,7 @@ int64Oop: v
 		ifFalse: [self largeIntFrom: v asUInt64 negative: false]
 !
 largeMagnitude: o into: mag negative: neg
-	<c: 'bool large_magnitude(oop o, uint64_t *mag, bool *neg)'>
+	<function>
 	| c n b m |
 	((self isPtr: o) not or: [(self formatOf: o) < F_BYTES]) ifTrue: [^false].
 	c := self rawClass: o.
@@ -419,7 +420,7 @@ largeMagnitude: o into: mag negative: neg
 !
 u64Of: o into: out
 	"Non-negative Integer fitting 64 bits."
-	<c: 'bool u64_of(oop o, uint64_t *out)'>
+	<function>
 	| neg |
 	(self isInt: o) ifTrue: [
 		(self intVal: o) < 0 ifTrue: [^false].
@@ -430,7 +431,6 @@ u64Of: o into: out
 !
 int64Of: o into: out
 	"SmallInteger or LargeInteger fitting int64."
-	<c: 'bool int64_of(oop o, int64_t *out)'>
 	<export>
 	| m neg |
 	(self isInt: o) ifTrue: [
@@ -447,14 +447,15 @@ int64Of: o into: out
 
 !ObjectMemory methodsFor: 'strings'!
 isKindOfString: o
-	<c: 'bool is_kind_of_string(oop o)'>
+	<function>
 	| c |
 	(self isPtr: o) ifFalse: [^false].
 	c := self rawClass: o.
 	^c = clsBytestring or: [c = (self special: SO_BYTESYMBOL) or: [c = (self special: SO_WIDESTRING) or: [c = (self special: SO_WIDESYMBOL)]]]
 !
 stringSize: s
-	<c: 'size_t string_size(oop s)'>
+	<function>
+	<returns: 'size_t'>
 	| f |
 	f := self formatOf: s.
 	f >= F_BYTES ifTrue: [^self byteSize: s].
@@ -463,12 +464,13 @@ stringSize: s
 !
 stringCharAt: s index: i
 	"0-based code point."
-	<c: 'uint32_t string_char_at(oop s, size_t i)'>
+	<function>
 	(self formatOf: s) >= F_BYTES ifTrue: [^(self bytesOf: s) at: i].
 	^(self words32Of: s) at: i
 !
 stringHash: s
-	<c: 'uint32_t string_hash(oop s)'>
+	<function>
+	<returns: 'uint32_t'>
 	| h n |
 	h := 2166136261 asUInt32.
 	n := self stringSize: s.
@@ -477,7 +479,8 @@ stringHash: s
 !
 utf8Decode: s size: n at: index
 	"Decode the code point at *index, advancing it; malformed bytes stand for themselves."
-	<c: 'size_t utf8_decode(uint8_t *s, size_t n, size_t *index)'>
+	<function>
+	<returns: 'size_t'>
 	| i c len cp d |
 	i := index value.
 	c := (s at: i) asUInt32.
@@ -500,7 +503,7 @@ utf8Decode: s size: n at: index
 !
 stringFromUtf8: str size: n
 	"ByteString or WideString."
-	<c: 'oop string_from_utf8(const char *str, size_t n)'>
+	<function>
 	| s count i max cp r b w |
 	s := self cCoerce: str to: 'uint8_t *'.
 	count := 0 asUInt64.
@@ -529,7 +532,7 @@ stringFromUtf8: str size: n
 !
 utf8Of: s
 	"malloc'd, NUL-terminated (NULL if out of memory); ByteString/Symbol/WideString/ByteArray."
-	<c: 'char *utf8_of(oop s)'>
+	<function>
 	| n r p c |
 	(self isPtr: s) ifFalse: [^libc strdup: ''].
 	(self rawClass: s) = clsBytearray ifTrue: [
@@ -572,7 +575,7 @@ utf8Of: s
 
 !ObjectMemory methodsFor: 'initialization'!
 memoryInit: edenBytes maxHeap: maxHeap
-	<c: 'void memory_init(size_t eden_bytes, size_t max_heap)'>
+	<function>
 	gc init: edenBytes maxHeap: maxHeap.
 	largeObjectBytes := (edenBytes quo: 8) > (64 * 1024) ifTrue: [edenBytes quo: 8] ifFalse: [64 * 1024].
 	self resetAllocLimit

@@ -10,26 +10,26 @@ static CVDisplayLinkRef display_link;
 static CVReturn on_refresh(CVDisplayLinkRef link, const CVTimeStamp *now, const CVTimeStamp *output_time, CVOptionFlags flags_in, CVOptionFlags *flags_out, void *context);
 
 /* DarwinPlatformHost>>altKeymod */
-SDL_Keymod pf_host_alt_keymod(void)
+SDL_Keymod alt_keymod(void)
 {
     return SDL_KMOD_ALT;
 }
 
 /* DarwinPlatformHost>>cmdKeymod */
-SDL_Keymod pf_host_cmd_keymod(void)
+SDL_Keymod cmd_keymod(void)
 {
     return SDL_KMOD_GUI;
 }
 
 /* DarwinPlatformHost>>compileShader:stage:size: */
-void *pf_host_compile_shader(const char *source, int stage, size_t *size_out)
+void *compile_shader(char *source, int32_t stage, size_t *size_out)
 {
-    pf_set_error("GLSL is compiled only on Linux (SDL_GPU on Vulkan); on Metal shaders are MSL");
+    set_error("GLSL is compiled only on Linux (SDL_GPU on Vulkan); on Metal shaders are MSL");
     return NULL;
 }
 
 /* DarwinPlatformHost>>environment */
-char **pf_host_environ(void)
+char **environment(void)
 {
     return *_NSGetEnviron();
 }
@@ -37,18 +37,18 @@ char **pf_host_environ(void)
 /* DarwinPlatformHost>>onRefresh:now:output:flags:flagsOut:context: */
 static CVReturn on_refresh(CVDisplayLinkRef link, const CVTimeStamp *now, const CVTimeStamp *output_time, CVOptionFlags flags_in, CVOptionFlags *flags_out, void *context)
 {
-    pf_vsync_refreshed();
+    refreshed();
     return kCVReturnSuccess;
 }
 
 /* DarwinPlatformHost>>shaderFormats */
-SDL_GPUShaderFormat pf_host_shader_formats(void)
+SDL_GPUShaderFormat shader_formats(void)
 {
     return SDL_GPU_SHADERFORMAT_MSL;
 }
 
 /* DarwinPlatformHost>>socketOpened: */
-void pf_host_socket_opened(int fd)
+void socket_opened(int fd)
 {
     int local;
     int *one;
@@ -59,14 +59,14 @@ void pf_host_socket_opened(int fd)
 }
 
 /* DarwinPlatformHost>>vsyncStart */
-bool pf_host_vsync_start(void)
+bool vsync_start(void)
 {
     CVDisplayLinkRef local;
     CVDisplayLinkRef *link;
     memset(&local, 0, sizeof local);
     link = &local;
     if (CVDisplayLinkCreateWithActiveCGDisplays(link) != kCVReturnSuccess) {
-        pf_set_error("CVDisplayLinkCreateWithActiveCGDisplays failed");
+        set_error("CVDisplayLinkCreateWithActiveCGDisplays failed");
         return false;
     }
     display_link = *link;
@@ -76,7 +76,7 @@ bool pf_host_vsync_start(void)
 }
 
 /* DarwinPlatformHost>>vsyncStop */
-void pf_host_vsync_stop(void)
+void vsync_stop(void)
 {
     CVDisplayLinkStop(display_link);
     CVDisplayLinkRelease(display_link);

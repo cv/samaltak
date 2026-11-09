@@ -5,29 +5,29 @@
 #ifdef __linux__
 
 /* LinuxJitPlatform>>beginWriting */
-void jit_platform_begin_writing(void)
+void begin_writing(void)
 {
 }
 
 /* LinuxJitPlatform>>canRunCode */
-bool jit_platform_runs_code(void)
+bool can_run_code(void)
 {
     return true;
 }
 
 /* LinuxJitPlatform>>endWriting */
-void jit_platform_end_writing(void)
+void end_writing(void)
 {
 }
 
 /* LinuxJitPlatform>>invalidate:size: */
-void jit_platform_invalidate(void *start, size_t size)
+void invalidate(void *start, uint64_t size)
 {
     __builtin___clear_cache(start, (char *)start + size);
 }
 
 /* LinuxJitPlatform>>map:size: */
-void *jit_platform_map(void *near, uint64_t size)
+void *map(void *near, uint64_t size)
 {
     munmap(near, size);
     return mmap(near, size, PROT_READ | PROT_WRITE | PROT_EXEC, MAP_PRIVATE | MAP_ANON, -1, 0);

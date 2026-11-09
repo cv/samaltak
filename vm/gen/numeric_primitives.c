@@ -2,7 +2,7 @@
 /* NumericPrimitives (VM-Core) */
 #include "samaltak.h"
 
-static oop float_print_string(double a);
+static uint64_t print_string_of(double a);
 
 /* NumericPrimitives>>primCharFromValue */
 void prim_char_from_value(void)
@@ -45,7 +45,7 @@ void prim_float_abs(void)
 {
     oop ro;
     double d;
-    oop v;
+    uint64_t v;
     ro = prim_base[0];
     if (!is_float(ro)) {
         prim_status = PS_FAIL;
@@ -65,7 +65,7 @@ void prim_float_add(void)
     oop ro;
     oop bo;
     double d;
-    oop v;
+    uint64_t v;
     ro = prim_base[0];
     if (!is_float(ro)) {
         prim_status = PS_FAIL;
@@ -95,7 +95,7 @@ void prim_float_arc_tan(void)
 {
     oop ro;
     double d;
-    oop v;
+    uint64_t v;
     ro = prim_base[0];
     if (!is_float(ro)) {
         prim_status = PS_FAIL;
@@ -129,7 +129,7 @@ void prim_float_as_ieee_bits(void)
         v = (int64_t)b;
         v_2 = (uint64_t)((v << 1) | 1);
     } else {
-        v_2 = large_int_from_u64(b, false);
+        v_2 = large_int_from(b, false);
     }
     v_2; });
     prim_result = v_3;
@@ -142,7 +142,7 @@ void prim_float_cos(void)
 {
     oop ro;
     double d;
-    oop v;
+    uint64_t v;
     ro = prim_base[0];
     if (!is_float(ro)) {
         prim_status = PS_FAIL;
@@ -162,7 +162,7 @@ void prim_float_div(void)
     oop ro;
     oop bo;
     double d;
-    oop v;
+    uint64_t v;
     ro = prim_base[0];
     if (!is_float(ro)) {
         prim_status = PS_FAIL;
@@ -228,7 +228,7 @@ void prim_float_exp(void)
 {
     oop ro;
     double d;
-    oop v;
+    uint64_t v;
     ro = prim_base[0];
     if (!is_float(ro)) {
         prim_status = PS_FAIL;
@@ -276,7 +276,7 @@ void prim_float_fraction_part(void)
     double *ip;
     oop ro;
     double d;
-    oop v;
+    uint64_t v;
     memset(&local, 0, sizeof local);
     ip = &local;
     ro = prim_base[0];
@@ -298,7 +298,7 @@ void prim_float_from_ieee_bits(void)
     uint64_t local;
     uint64_t *b;
     double d;
-    oop v;
+    uint64_t v;
     memset(&local, 0, sizeof local);
     b = &local;
     if ((prim_nargs < 1) || (!u64_of(prim_base[1], b))) {
@@ -441,7 +441,7 @@ void prim_float_ln(void)
 {
     oop ro;
     double d;
-    oop v;
+    uint64_t v;
     ro = prim_base[0];
     if (!is_float(ro)) {
         prim_status = PS_FAIL;
@@ -461,7 +461,7 @@ void prim_float_mul(void)
     oop ro;
     oop bo;
     double d;
-    oop v;
+    uint64_t v;
     ro = prim_base[0];
     if (!is_float(ro)) {
         prim_status = PS_FAIL;
@@ -521,14 +521,14 @@ exit_float_args_do:;
 void prim_float_print_string(void)
 {
     oop ro;
-    oop v;
+    uint64_t v;
     ro = prim_base[0];
     if (!is_float(ro)) {
         prim_status = PS_FAIL;
         prim_error_code = -1;
         goto exit_float_receiver_do;
     }
-    v = float_print_string(float_val(ro));
+    v = print_string_of(float_val(ro));
     prim_result = v;
     prim_status = PS_OK;
 exit_float_receiver_do:;
@@ -539,7 +539,7 @@ void prim_float_sin(void)
 {
     oop ro;
     double d;
-    oop v;
+    uint64_t v;
     ro = prim_base[0];
     if (!is_float(ro)) {
         prim_status = PS_FAIL;
@@ -558,7 +558,7 @@ void prim_float_sqrt(void)
 {
     oop ro;
     double d;
-    oop v;
+    uint64_t v;
     ro = prim_base[0];
     if (!is_float(ro)) {
         prim_status = PS_FAIL;
@@ -578,7 +578,7 @@ void prim_float_sub(void)
     oop ro;
     oop bo;
     double d;
-    oop v;
+    uint64_t v;
     ro = prim_base[0];
     if (!is_float(ro)) {
         prim_status = PS_FAIL;
@@ -610,7 +610,7 @@ void prim_float_times_two_power(void)
     oop e;
     int64_t n;
     double d;
-    oop v;
+    uint64_t v;
     ro = prim_base[0];
     if (!is_float(ro)) {
         prim_status = PS_FAIL;
@@ -694,7 +694,7 @@ void prim_int_as_float(void)
 {
     oop r;
     double d;
-    oop v;
+    uint64_t v;
     r = prim_base[0];
     if (!((r & 1) != 0)) {
         prim_status = PS_FAIL;
@@ -1184,7 +1184,7 @@ exit_int_args_do:;
 }
 
 /* NumericPrimitives>>printStringOf: */
-static oop float_print_string(double a)
+static uint64_t print_string_of(double a)
 {
     int lo;
     int hi;

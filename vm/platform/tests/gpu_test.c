@@ -18,7 +18,7 @@ static int failures, checks;
             failures++;                                                      \
             printf("FAIL %s:%d: %s -- ", __FILE__, __LINE__, #c);            \
             printf(__VA_ARGS__);                                             \
-            printf(" [%s]\n", pf_last_error());                              \
+            printf(" [%s]\n", last_error_string());                              \
         }                                                                    \
     } while (0)
 
@@ -38,7 +38,7 @@ static bool signaled(int index)
 static bool poll_until_signaled(int index)
 {
     for (int i = 0; i < 2000 && !signaled(index); i++) {
-        platform_poll();
+        platform_interface_poll();
         if (!signaled(index)) usleep(1000);
     }
     return signaled(index);
@@ -48,7 +48,7 @@ static bool poll_until_signaled(int index)
 static int64_t recv_within(int s, void *buf, size_t n)
 {
     int64_t r = -1;
-    for (int i = 0; i < 2000 && (r = pf_socket_recv(s, buf, n)) == -1; i++) usleep(1000);
+    for (int i = 0; i < 2000 && (r = platform_sockets_recv(s, buf, n)) == -1; i++) usleep(1000);
     return r;
 }
 
@@ -71,33 +71,33 @@ static void test_files(void)
     snprintf(fifo, sizeof fifo, "%s/fifo", dir);
     snprintf(out, sizeof out, "%s/out", dir);
 
-    int f = pf_file_open(a, PF_FILE_CREATE_TRUNCATE);
+    int f = platform_files_open(a, PF_FILE_CREATE_TRUNCATE);
     CHECK(f > 0, "open");
-    CHECK(pf_file_write(f, "hello world", 11) == 11, "write");
-    CHECK(pf_file_size(f) == 11, "size");
-    CHECK(pf_file_seek(f, 6), "seek");
+    CHECK(platform_files_write(f, "hello world", 11) == 11, "write");
+    CHECK(platform_files_size(f) == 11, "size");
+    CHECK(seek(f, 6), "seek");
     char buf[64] = {0};
-    CHECK(pf_file_read(f, buf, 5) == 5 && !memcmp(buf, "world", 5), "read '%s'", buf);
-    CHECK(pf_file_position(f) == 11, "position");
-    CHECK(pf_file_read(f, buf, 5) == 0, "eof");
-    CHECK(pf_file_flush(f), "flush");
-    CHECK(pf_file_close(f), "close");
-    CHECK(!pf_file_close(f), "double close fails");
+    CHECK(platform_files_read(f, buf, 5) == 5 && !memcmp(buf, "world", 5), "read '%s'", buf);
+    CHECK(position(f) == 11, "position");
+    CHECK(platform_files_read(f, buf, 5) == 0, "eof");
+    CHECK(platform_files_flush(f), "flush");
+    CHECK(platform_files_close(f), "close");
+    CHECK(!platform_files_close(f), "double close fails");
 
-    f = pf_file_open(a, PF_FILE_APPEND);
-    CHECK(pf_file_write(f, "!", 1) == 1, "append");
-    pf_file_close(f);
+    f = platform_files_open(a, PF_FILE_APPEND);
+    CHECK(platform_files_write(f, "!", 1) == 1, "append");
+    platform_files_close(f);
     pf_stat st;
-    CHECK(pf_file_stat(a, &st) && st.exists && !st.is_dir && st.file_size == 12 && st.mtime_us > 0, "stat file");
-    CHECK(pf_file_stat(dir, &st) && st.exists && st.is_dir, "stat dir");
-    CHECK(pf_file_stat(b, &st) && !st.exists, "stat missing");
-    CHECK(pf_file_open(b, PF_FILE_READ) == 0, "open missing fails");
-    CHECK(pf_file_rename(a, b), "rename");
+    CHECK(platform_files_stat(a, &st) && st.exists && !st.is_dir && st.file_size == 12 && st.mtime_us > 0, "stat file");
+    CHECK(platform_files_stat(dir, &st) && st.exists && st.is_dir, "stat dir");
+    CHECK(platform_files_stat(b, &st) && !st.exists, "stat missing");
+    CHECK(platform_files_open(b, PF_FILE_READ) == 0, "open missing fails");
+    CHECK(platform_files_rename(a, b), "rename");
     char sub[256];
     snprintf(sub, sizeof sub, "%s/sub", dir);
-    CHECK(pf_dir_create(sub), "mkdir");
+    CHECK(dir_create(sub), "mkdir");
     int n = 0;
-    char **names = pf_dir_entries(dir, &n);
+    char **names = dir_entries(dir, &n);
     bool has_b = false, has_sub = false;
     for (int i = 0; i < n; i++) {
         has_b |= !strcmp(names[i], "b.txt");
@@ -106,37 +106,37 @@ static void test_files(void)
     }
     free(names);
     CHECK(n == 2 && has_b && has_sub, "dirEntries n=%d", n);
-    char *cwd = pf_cwd();
+    char *cwd = platform_files_cwd();
     CHECK(cwd && cwd[0] == '/', "cwd");
     free(cwd);
 
     /* spawn + wait */
     char *sh3[] = {"sh", "-c", "exit 3", NULL};
-    int64_t pid = pf_spawn(sh3);
+    int64_t pid = platform_files_spawn(sh3);
     int status = -1;
     bool done = false;
-    CHECK(pid > 0 && pf_process_wait(pid, true, &status, &done) && done && status == 3, "spawn exit %d", status);
+    CHECK(pid > 0 && process_wait(pid, true, &status, &done) && done && status == 3, "spawn exit %d", status);
     char *sleeper[] = {"sleep", "0.2", NULL};
-    pid = pf_spawn(sleeper);
-    CHECK(pf_process_wait(pid, false, &status, &done) && !done, "nohang wait");
-    pf_process_wait(pid, true, &status, &done);
+    pid = platform_files_spawn(sleeper);
+    CHECK(process_wait(pid, false, &status, &done) && !done, "nohang wait");
+    process_wait(pid, true, &status, &done);
 
     /* FIFO to a child process, the video-recording path */
-    CHECK(pf_mkfifo(fifo), "mkfifo");
+    CHECK(platform_files_mkfifo(fifo), "mkfifo");
     char cmd[600];
     snprintf(cmd, sizeof cmd, "cat '%s' > '%s'", fifo, out);
     char *catter[] = {"sh", "-c", cmd, NULL};
-    pid = pf_spawn(catter);
-    f = pf_file_open(fifo, PF_FILE_APPEND); /* blocks until the reader opens */
+    pid = platform_files_spawn(catter);
+    f = platform_files_open(fifo, PF_FILE_APPEND); /* blocks until the reader opens */
     CHECK(f > 0, "open fifo");
     static uint8_t frame[1 << 20];
     for (size_t i = 0; i < sizeof frame; i++) frame[i] = (uint8_t)(i * 7);
-    CHECK(pf_file_write(f, frame, sizeof frame) == (int64_t)sizeof frame, "fifo write");
-    pf_file_close(f);
-    pf_process_wait(pid, true, &status, &done);
-    CHECK(pf_file_stat(out, &st) && st.file_size == (int64_t)sizeof frame, "fifo output size %lld", (long long)st.file_size);
+    CHECK(platform_files_write(f, frame, sizeof frame) == (int64_t)sizeof frame, "fifo write");
+    platform_files_close(f);
+    process_wait(pid, true, &status, &done);
+    CHECK(platform_files_stat(out, &st) && st.file_size == (int64_t)sizeof frame, "fifo output size %lld", (long long)st.file_size);
 
-    CHECK(pf_file_delete(b) && pf_file_delete(fifo) && pf_file_delete(out) && pf_file_delete(sub) && pf_file_delete(dir),
+    CHECK(delete(b) && delete(fifo) && delete(out) && delete(sub) && delete(dir),
           "cleanup");
 }
 
@@ -148,7 +148,7 @@ static void *late_send(void *arg)
 {
     usleep(50000);
     late_sent_ms = wall_ms();
-    pf_socket_send(late_client, "late", 4);
+    platform_sockets_send(late_client, "late", 4);
     return arg;
 }
 
@@ -156,51 +156,51 @@ static void test_wake(const char *mode, int server_side, int client)
 {
     char buf[16];
     nsignals = 0;
-    while (pf_socket_recv(server_side, buf, sizeof buf) > 0) {}
+    while (platform_sockets_recv(server_side, buf, sizeof buf) > 0) {}
     late_client = client;
     pthread_t t;
     pthread_create(&t, NULL, late_send, NULL);
     double t0 = wall_ms();
-    for (int i = 0; i < 40 && !signaled(7); i++) platform_wait(2000000);
+    for (int i = 0; i < 40 && !signaled(7); i++) platform_interface_wait(2000000);
     double woke = wall_ms();
     pthread_join(t, NULL);
     /* from the send: on a loaded machine the sender's wakeup can be late too */
     double dt = woke - late_sent_ms;
     CHECK(signaled(7) && dt < 1000, "%s idle wait woke %.1f ms after the socket data was sent", mode, dt);
-    printf("  %s: platform_wait woke on socket data %.1f ms after it was sent (at %.1f ms)\n", mode, dt, late_sent_ms - t0);
-    CHECK(pf_socket_recv(server_side, buf, sizeof buf) == 4, "recv late");
+    printf("  %s: platform_interface_wait woke on socket data %.1f ms after it was sent (at %.1f ms)\n", mode, dt, late_sent_ms - t0);
+    CHECK(platform_sockets_recv(server_side, buf, sizeof buf) == 4, "recv late");
 }
 
 static int srv, conn, cli;
 
 static void test_sockets(void)
 {
-    srv = pf_socket_listen("127.0.0.1", 0, 8);
+    srv = platform_sockets_listen("127.0.0.1", 0, 8);
     CHECK(srv > 0, "listen");
-    int port = pf_socket_local_port(srv);
+    int port = local_port(srv);
     CHECK(port > 0, "port");
     bool wb;
-    CHECK(pf_socket_accept(srv, &wb) == 0 && wb, "accept would block");
-    pf_socket_semaphores(srv, 3, 0);
-    cli = pf_socket_connect("127.0.0.1", port);
+    CHECK(platform_sockets_accept(srv, &wb) == 0 && wb, "accept would block");
+    platform_sockets_semaphores_read_write(srv, 3, 0);
+    cli = platform_sockets_connect("127.0.0.1", port);
     CHECK(cli > 0, "connect");
     nsignals = 0;
     CHECK(poll_until_signaled(3), "listen semaphore signaled");
-    conn = pf_socket_accept(srv, &wb);
+    conn = platform_sockets_accept(srv, &wb);
     CHECK(conn > 0, "accept");
     char buf[64];
-    CHECK(pf_socket_recv(conn, buf, sizeof buf) == -1, "recv would block");
-    pf_socket_semaphores(conn, 7, 8);
+    CHECK(platform_sockets_recv(conn, buf, sizeof buf) == -1, "recv would block");
+    platform_sockets_semaphores_read_write(conn, 7, 8);
     nsignals = 0;
-    platform_poll();
+    platform_interface_poll();
     CHECK(!signaled(7), "no data, no signal");
-    CHECK(pf_socket_send(cli, "ping", 4) == 4, "send");
+    CHECK(platform_sockets_send(cli, "ping", 4) == 4, "send");
     CHECK(poll_until_signaled(7), "read semaphore signaled");
     nsignals = 0;
-    platform_poll();
+    platform_interface_poll();
     CHECK(!signaled(7), "signaled once until re-armed");
-    CHECK(pf_socket_recv(conn, buf, sizeof buf) == 4 && !memcmp(buf, "ping", 4), "recv");
-    CHECK(pf_socket_send(conn, "pong!", 5) == 5, "send back");
+    CHECK(platform_sockets_recv(conn, buf, sizeof buf) == 4 && !memcmp(buf, "ping", 4), "recv");
+    CHECK(platform_sockets_send(conn, "pong!", 5) == 5, "send back");
     CHECK(recv_within(cli, buf, sizeof buf) == 5 && !memcmp(buf, "pong!", 5), "recv back");
     test_wake("headless", conn, cli);
 }
@@ -208,9 +208,9 @@ static void test_sockets(void)
 static void test_sockets_close(void)
 {
     char buf[8];
-    pf_socket_close(cli);
+    platform_sockets_close(cli);
     CHECK(recv_within(conn, buf, sizeof buf) == 0, "EOF after peer close");
-    CHECK(pf_socket_close(conn) && pf_socket_close(srv), "close");
+    CHECK(platform_sockets_close(conn) && platform_sockets_close(srv), "close");
 }
 
 /* ---- events -------------------------------------------------------------- */
@@ -218,46 +218,46 @@ static void test_sockets_close(void)
 static void test_events(int win)
 {
     pf_event e = {0}, got;
-    while (pf_event_next(&got)) free(got.text);
-    pf_event_set_semaphore(5);
+    while (platform_events_next(&got)) free(got.text);
+    set_semaphore(5);
     nsignals = 0;
     e = (pf_event){.type = PF_EV_MOUSE_DOWN, .time_ms = 42, .x = 10.5, .y = 20.25, .key = 1, .mods = PF_MOD_SHIFT,
                    .xkind = PF_X_INT, .ival = 2, .window = win};
-    pf_event_push(&e);
+    platform_events_push(&e);
     e = (pf_event){.type = PF_EV_TEXT_INPUT, .xkind = PF_X_TEXT, .text = "héllo", .window = win};
-    pf_event_push(&e);
-    platform_poll();
+    platform_events_push(&e);
+    platform_interface_poll();
     CHECK(signaled(5), "input semaphore signaled");
-    while (pf_event_next(&got) && got.type != PF_EV_MOUSE_DOWN) free(got.text); /* skip OS window events */
+    while (platform_events_next(&got) && got.type != PF_EV_MOUSE_DOWN) free(got.text); /* skip OS window events */
     CHECK(got.type == PF_EV_MOUSE_DOWN && got.x == 10.5 && got.y == 20.25 && got.key == 1 &&
               got.mods == PF_MOD_SHIFT && got.ival == 2 && got.window == win && got.time_ms == 42,
           "mouse round trip");
-    CHECK(pf_event_next(&got) && got.type == PF_EV_TEXT_INPUT && !strcmp(got.text, "héllo"), "text round trip");
+    CHECK(platform_events_next(&got) && got.type == PF_EV_TEXT_INPUT && !strcmp(got.text, "héllo"), "text round trip");
     free(got.text);
     bool extra = false;
-    while (pf_event_next(&got)) extra |= got.type == PF_EV_MOUSE_DOWN || got.type == PF_EV_TEXT_INPUT, free(got.text);
+    while (platform_events_next(&got)) extra |= got.type == PF_EV_MOUSE_DOWN || got.type == PF_EV_TEXT_INPUT, free(got.text);
     CHECK(!extra, "no duplicates");
 
     /* OS events take the same path: push raw SDL events and let the poll translate them */
     SDL_Event se = {0};
     se.type = SDL_EVENT_KEY_DOWN;
-    se.key.windowID = SDL_GetWindowID(pf_window_sdl(win));
+    se.key.windowID = SDL_GetWindowID(sdl_window(win));
     se.key.key = SDLK_LEFT;
     se.key.mod = SDL_KMOD_LGUI | SDL_KMOD_LALT;
     se.key.down = true;
     SDL_PushEvent(&se);
     memset(&se, 0, sizeof se);
     se.type = SDL_EVENT_MOUSE_WHEEL;
-    se.wheel.windowID = SDL_GetWindowID(pf_window_sdl(win));
+    se.wheel.windowID = SDL_GetWindowID(sdl_window(win));
     se.wheel.y = -3;
     se.wheel.mouse_x = 5;
     se.wheel.mouse_y = 6;
     SDL_PushEvent(&se);
     nsignals = 0;
-    platform_wait(100000);
+    platform_interface_wait(100000);
     CHECK(signaled(5), "semaphore signaled for SDL events");
     bool key = false, wheel = false;
-    while (pf_event_next(&got)) {
+    while (platform_events_next(&got)) {
         if (got.type == PF_EV_KEY_DOWN)
             key = got.key == SDLK_LEFT && got.mods == (PF_MOD_CMD | PF_MOD_ALT) && got.window == win;
         if (got.type == PF_EV_WHEEL) wheel = got.dy == -3 && got.x == 5 && got.y == 6 && got.xkind == PF_X_POINT;
@@ -265,7 +265,7 @@ static void test_events(int win)
     }
     CHECK(key, "SDL key event translated");
     CHECK(wheel, "SDL wheel event translated");
-    pf_event_set_semaphore(0);
+    set_semaphore(0);
 }
 
 /* Events of a window that closed before they were pumped are dropped: as events of no window they would reach the
@@ -273,13 +273,13 @@ static void test_events(int win)
 static void test_closed_window_events(void)
 {
     pf_event got;
-    while (pf_event_next(&got)) free(got.text);
-    int win = pf_window_open(400, 300, "closed", PF_WIN_HIDDEN | PF_WIN_HIGH_DENSITY);
+    while (platform_events_next(&got)) free(got.text);
+    int win = platform_windows_open(400, 300, "closed", PF_WIN_HIDDEN | PF_WIN_HIGH_DENSITY);
     CHECK(win > 0, "window");
-    CHECK(pf_window_close(win), "close window");
-    pf_pump();
+    CHECK(platform_windows_close(win), "close window");
+    pump();
     int orphans = 0;
-    while (pf_event_next(&got)) orphans += got.window == 0 && got.type == PF_EV_DISPLAY_SCALE_CHANGED, free(got.text);
+    while (platform_events_next(&got)) orphans += got.window == 0 && got.type == PF_EV_DISPLAY_SCALE_CHANGED, free(got.text);
     CHECK(orphans == 0, "%d display scale events of a closed window", orphans);
 }
 
@@ -355,88 +355,88 @@ static int scene(vtx *v)
 
 static void render(int target, int tw, int th, int nverts)
 {
-    int cmd = pf_gpu_acquire_cmd(dev);
+    int cmd = acquire_command_buffer(dev);
     float clear[4] = {0, 0, 0, 1};
-    int pass = pf_gpu_begin_pass(cmd, target, clear);
+    int pass = begin_pass(cmd, target, clear);
     CHECK(pass > 0, "begin pass");
-    pf_gpu_bind_pipeline(pass, pipe_rgba);
-    pf_gpu_bind_vertex_buffer(pass, 0, vbuf, 0);
-    pf_gpu_bind_texture(pass, 0, atlas, nearest);
+    bind_pipeline(pass, pipe_rgba);
+    bind_vertex_buffer(pass, 0, vbuf, 0);
+    bind_texture(pass, 0, atlas, nearest);
     float u[4] = {(float)tw, (float)th, 0, 0};
-    pf_gpu_push_uniforms(pass, PF_STAGE_VERTEX, 0, u, sizeof u);
-    pf_gpu_draw(pass, nverts, 0);
-    CHECK(pf_gpu_end_pass(pass), "end pass");
+    push_uniforms(pass, PF_STAGE_VERTEX, 0, u, sizeof u);
+    draw(pass, nverts, 0);
+    CHECK(end_pass(pass), "end pass");
     bool ok;
-    int fence = pf_gpu_submit(cmd, true, &ok);
+    int fence = submit(cmd, true, &ok);
     CHECK(ok && fence > 0, "submit");
-    CHECK(pf_gpu_wait_fence(fence), "wait fence");
-    CHECK(pf_gpu_fence_done(fence) == 1, "fence done");
-    pf_gpu_release(fence);
+    CHECK(wait_fence(fence), "wait fence");
+    CHECK(fence_done(fence) == 1, "fence done");
+    release_handle(fence);
 }
 
 static void test_gpu(void)
 {
-    int win = pf_window_open(1440, 900, "hidden", PF_WIN_HIDDEN | PF_WIN_HIGH_DENSITY);
+    int win = platform_windows_open(1440, 900, "hidden", PF_WIN_HIDDEN | PF_WIN_HIGH_DENSITY);
     CHECK(win > 0, "hidden window");
     int w, h, pw, ph;
-    CHECK(pf_window_size(win, &w, &h) && w == 1440 && h == 900, "size %dx%d", w, h);
-    CHECK(pf_window_pixel_size(win, &pw, &ph), "pixel size");
-    double scale = pf_window_display_scale(win);
+    CHECK(platform_windows_size(win, &w, &h) && w == 1440 && h == 900, "size %dx%d", w, h);
+    CHECK(pixel_size(win, &pw, &ph), "pixel size");
+    double scale = display_scale(win);
     printf("  hidden window: %dx%d points, %dx%d pixels, display scale %.2f, refresh %.0f Hz\n", w, h, pw, ph, scale,
-           pf_window_refresh_rate(win));
+           refresh_rate(win));
     test_events(win);
 
-    dev = pf_gpu_create_device(true);
+    dev = create_device(true);
     CHECK(dev > 0, "device");
-    CHECK(pf_gpu_claim_window(dev, win), "claim hidden");
-    int cmd = pf_gpu_acquire_cmd(dev);
+    CHECK(claim_window(dev, win), "claim hidden");
+    int cmd = acquire_command_buffer(dev);
     int sw, sh;
-    CHECK(pf_gpu_acquire_swapchain(cmd, win, &sw, &sh) == 0 && !*pf_last_error(), "hidden window: no swapchain");
+    CHECK(acquire_swapchain(cmd, win, &sw, &sh) == 0 && !*last_error_string(), "hidden window: no swapchain");
     bool ok;
-    pf_gpu_submit(cmd, false, &ok);
+    submit(cmd, false, &ok);
 
-    const char *language = pf_gpu_shader_language(dev);
+    const char *language = shader_language(dev);
     CHECK(language && (strcmp(language, "msl") == 0 || strcmp(language, "glsl") == 0), "shader language");
     bool metal = language && strcmp(language, "msl") == 0;
     printf("  shader language: %s\n", language ? language : "?");
-    vs = pf_gpu_create_shader(dev, metal ? msl : glsl, metal ? "vmain" : "main", PF_STAGE_VERTEX, 0, 1, 0, 0);
-    fs = pf_gpu_create_shader(dev, metal ? msl : glsl, metal ? "fmain" : "main", PF_STAGE_FRAGMENT, 1, 0, 0, 0);
+    vs = create_shader(dev, metal ? msl : glsl, metal ? "vmain" : "main", PF_STAGE_VERTEX, 0, 1, 0, 0);
+    fs = create_shader(dev, metal ? msl : glsl, metal ? "fmain" : "main", PF_STAGE_FRAGMENT, 1, 0, 0, 0);
     CHECK(vs > 0 && fs > 0, "shaders");
-    CHECK(pf_gpu_create_shader(dev, "garbage", "main0", PF_STAGE_VERTEX, 0, 0, 0, 0) == 0 &&
-              strstr(pf_last_error(), metal ? "unknown type name" : "syntax error"),
+    CHECK(create_shader(dev, "garbage", "main0", PF_STAGE_VERTEX, 0, 0, 0, 0) == 0 &&
+              strstr(last_error_string(), metal ? "unknown type name" : "syntax error"),
           "bad shader reports compile error");
-    pipe_rgba = pf_gpu_create_pipeline(dev, vs, fs, sizeof(vtx), layout, 3, PF_PRIM_TRIANGLES, PF_BLEND_PREMULTIPLIED,
+    pipe_rgba = create_pipeline(dev, vs, fs, sizeof(vtx), layout, 3, PF_PRIM_TRIANGLES, PF_BLEND_PREMULTIPLIED,
                                        PF_TEX_RGBA8);
     CHECK(pipe_rgba > 0, "pipeline");
 
     /* R8 atlas: left half 255, right half 128 */
-    atlas = pf_gpu_create_texture(dev, 256, 256, PF_TEX_R8, PF_TEXUSE_SAMPLER);
+    atlas = create_texture(dev, 256, 256, PF_TEX_R8, PF_TEXUSE_SAMPLER);
     static uint8_t at[256 * 256];
     for (int y = 0; y < 256; y++)
         for (int x = 0; x < 256; x++) at[y * 256 + x] = x < 128 ? 255 : 128;
-    CHECK(pf_gpu_upload_texture(atlas, at, sizeof at, 0, 0, 256, 256, 256), "atlas upload");
-    nearest = pf_gpu_create_sampler(dev, false, false);
-    vbuf = pf_gpu_create_buffer(dev, PF_BUFUSE_VERTEX, 64 * sizeof(vtx));
+    CHECK(upload_texture(atlas, at, sizeof at, 0, 0, 256, 256, 256), "atlas upload");
+    nearest = create_sampler(dev, false, false);
+    vbuf = create_buffer(dev, PF_BUFUSE_VERTEX, 64 * sizeof(vtx));
     vtx v[64];
     int nv = scene(v);
-    CHECK(pf_gpu_upload_buffer(vbuf, v, nv * sizeof(vtx), 0), "vertex upload");
+    CHECK(upload_buffer(vbuf, v, nv * sizeof(vtx), 0), "vertex upload");
 
     const int FW = 2880, FH = 1800;
-    int target = pf_gpu_create_texture(dev, FW, FH, PF_TEX_RGBA8, PF_TEXUSE_COLOR_TARGET | PF_TEXUSE_SAMPLER);
-    int half = pf_gpu_create_texture(dev, FW / 2, FH / 2, PF_TEX_RGBA8, PF_TEXUSE_COLOR_TARGET | PF_TEXUSE_SAMPLER);
+    int target = create_texture(dev, FW, FH, PF_TEX_RGBA8, PF_TEXUSE_COLOR_TARGET | PF_TEXUSE_SAMPLER);
+    int half = create_texture(dev, FW / 2, FH / 2, PF_TEX_RGBA8, PF_TEXUSE_COLOR_TARGET | PF_TEXUSE_SAMPLER);
     CHECK(target > 0 && half > 0, "targets");
     int tw, th, tf;
-    CHECK(pf_gpu_texture_size(target, &tw, &th, &tf) && tw == FW && th == FH && tf == PF_TEX_RGBA8, "texture size");
+    CHECK(texture_size(target, &tw, &th, &tf) && tw == FW && th == FH && tf == PF_TEX_RGBA8, "texture size");
 
     size_t bytes = (size_t)FW * FH * 4;
     uint8_t *img = malloc(bytes), *img2 = malloc(bytes);
     double t_render = 1e9, t_down = 1e9, t_up = 1e9;
     for (int iter = 0; iter < 5; iter++) {
         double t0 = wall_ms();
-        pf_gpu_upload_buffer(vbuf, v, nv * sizeof(vtx), 0);
+        upload_buffer(vbuf, v, nv * sizeof(vtx), 0);
         render(target, FW, FH, nv);
         double t1 = wall_ms();
-        CHECK(pf_gpu_download(target, 0, 0, FW, FH, img, bytes), "download");
+        CHECK(download(target, 0, 0, FW, FH, img, bytes), "download");
         double t2 = wall_ms();
         if (t1 - t0 < t_render) t_render = t1 - t0;
         if (t2 - t1 < t_down) t_down = t2 - t1;
@@ -452,124 +452,124 @@ static void test_gpu(void)
     check_px(img, FW, 2001, 1000, 255, 255, 0, 255, "edge inside");
 
     /* downsample */
-    cmd = pf_gpu_acquire_cmd(dev);
+    cmd = acquire_command_buffer(dev);
     int sr[4] = {0, 0, FW, FH}, dr[4] = {0, 0, FW / 2, FH / 2};
-    CHECK(pf_gpu_blit(cmd, target, sr, half, dr, true), "blit");
-    pf_gpu_submit(cmd, false, &ok);
-    CHECK(pf_gpu_download(half, 0, 0, FW / 2, FH / 2, img2, bytes), "download half");
+    CHECK(blit(cmd, target, sr, half, dr, true), "blit");
+    submit(cmd, false, &ok);
+    CHECK(download(half, 0, 0, FW / 2, FH / 2, img2, bytes), "download half");
     check_px(img2, FW / 2, 100, 100, 255, 0, 0, 255, "half red");
     check_px(img2, FW / 2, 400, 100, 0, 255, 0, 255, "half green");
     check_px(img2, FW / 2, 1300, 800, 255, 255, 0, 255, "half yellow");
     /* half pixel 1000 covers full pixels 2000 (black) and 2001 (yellow) */
     const uint8_t *e = img2 + ((size_t)600 * (FW / 2) + 1000) * 4;
     CHECK(e[0] < 250 && e[0] > 5, "linear edge %d", e[0]);
-    CHECK(pf_gpu_download(target, 100, 100, 8, 4, img2, bytes) && near(img2, 255, 0, 0, 255), "sub-region download");
+    CHECK(download(target, 100, 100, 8, 4, img2, bytes) && near(img2, 255, 0, 0, 255), "sub-region download");
 
     /* full-frame upload round trip */
-    int up = pf_gpu_create_texture(dev, FW, FH, PF_TEX_RGBA8, PF_TEXUSE_SAMPLER);
+    int up = create_texture(dev, FW, FH, PF_TEX_RGBA8, PF_TEXUSE_SAMPLER);
     for (size_t i = 0; i < bytes; i++) img[i] = (uint8_t)(i * 31 + (i >> 12));
     for (int iter = 0; iter < 5; iter++) {
         double t0 = wall_ms();
-        pf_gpu_upload_texture(up, img, bytes, 0, 0, FW, FH, FW * 4);
-        pf_gpu_wait_idle(dev);
+        upload_texture(up, img, bytes, 0, 0, FW, FH, FW * 4);
+        wait_idle(dev);
         double dt = wall_ms() - t0;
         if (dt < t_up) t_up = dt;
     }
     memset(img2, 0, bytes);
-    CHECK(pf_gpu_download(up, 0, 0, FW, FH, img2, bytes) && !memcmp(img, img2, bytes), "upload/download round trip");
+    CHECK(download(up, 0, 0, FW, FH, img2, bytes) && !memcmp(img, img2, bytes), "upload/download round trip");
     /* partial upload with stride */
-    CHECK(pf_gpu_upload_texture(up, img, bytes, 10, 20, 3, 2, FW * 4), "partial upload");
-    CHECK(pf_gpu_download(up, 10, 20, 3, 2, img2, bytes) && !memcmp(img2, img, 12) && !memcmp(img2 + 12, img + FW * 4, 12),
+    CHECK(upload_texture(up, img, bytes, 10, 20, 3, 2, FW * 4), "partial upload");
+    CHECK(download(up, 10, 20, 3, 2, img2, bytes) && !memcmp(img2, img, 12) && !memcmp(img2 + 12, img + FW * 4, 12),
           "partial upload content");
 
     /* BGRA target downloads as RGBA */
-    int bg = pf_gpu_create_texture(dev, 64, 64, PF_TEX_BGRA8, PF_TEXUSE_COLOR_TARGET | PF_TEXUSE_SAMPLER);
-    cmd = pf_gpu_acquire_cmd(dev);
+    int bg = create_texture(dev, 64, 64, PF_TEX_BGRA8, PF_TEXUSE_COLOR_TARGET | PF_TEXUSE_SAMPLER);
+    cmd = acquire_command_buffer(dev);
     float c2[4] = {1, 0.5f, 0, 1};
-    int p2 = pf_gpu_begin_pass(cmd, bg, c2);
-    pf_gpu_end_pass(p2);
-    pf_gpu_submit(cmd, false, &ok);
-    CHECK(pf_gpu_download(bg, 0, 0, 64, 64, img2, bytes) && near(img2, 255, 128, 0, 255), "bgra download %d,%d,%d",
+    int p2 = begin_pass(cmd, bg, c2);
+    end_pass(p2);
+    submit(cmd, false, &ok);
+    CHECK(download(bg, 0, 0, 64, 64, img2, bytes) && near(img2, 255, 128, 0, 255), "bgra download %d,%d,%d",
           img2[0], img2[1], img2[2]);
 
     printf("  2880x1800 RGBA8: upload %.2f ms, render %.2f ms, download %.2f ms (best of 5)\n", t_up, t_render, t_down);
     free(img);
     free(img2);
-    pf_gpu_release(up);
-    pf_gpu_release(bg);
-    pf_gpu_release(half);
-    pf_gpu_release(target);
-    CHECK(pf_window_close(win), "close hidden window");
+    release_handle(up);
+    release_handle(bg);
+    release_handle(half);
+    release_handle(target);
+    CHECK(platform_windows_close(win), "close hidden window");
 }
 
 static void test_present(void)
 {
-    int win = pf_window_open(800, 500, "Samaltak platform test", PF_WIN_HIGH_DENSITY | PF_WIN_RESIZABLE);
+    int win = platform_windows_open(800, 500, "Samaltak platform test", PF_WIN_HIGH_DENSITY | PF_WIN_RESIZABLE);
     CHECK(win > 0, "visible window");
-    CHECK(pf_gpu_claim_window(dev, win), "claim");
-    int fmt = pf_gpu_swapchain_format(dev, win);
+    CHECK(claim_window(dev, win), "claim");
+    int fmt = swapchain_format(dev, win);
     CHECK(fmt == PF_TEX_BGRA8 || fmt == PF_TEX_RGBA8, "swapchain format %d", fmt);
-    int pipe = pf_gpu_create_pipeline(dev, vs, fs, sizeof(vtx), layout, 3, PF_PRIM_TRIANGLES, PF_BLEND_PREMULTIPLIED, fmt);
+    int pipe = create_pipeline(dev, vs, fs, sizeof(vtx), layout, 3, PF_PRIM_TRIANGLES, PF_BLEND_PREMULTIPLIED, fmt);
     CHECK(pipe > 0, "swapchain pipeline");
-    CHECK(pf_vsync_semaphore(9), "vsync semaphore");
-    double hz = pf_window_refresh_rate(win);
+    CHECK(semaphore(9), "vsync semaphore");
+    double hz = refresh_rate(win);
     int divisor = getenv("PF_VSYNC_DIV") ? atoi(getenv("PF_VSYNC_DIV")) : hz > 90 ? 2 : 1;
     int presented = 0, skipped = 0, slow_acq = 0;
     double worst = 0, worst_acq = 0, t_start = wall_ms();
     while (wall_ms() - t_start < 1500) {
         double t0 = wall_ms();
-        platform_poll();
+        platform_interface_poll();
         pf_event e;
-        while (pf_event_next(&e)) free(e.text);
-        int cmd = pf_gpu_acquire_cmd(dev);
+        while (platform_events_next(&e)) free(e.text);
+        int cmd = acquire_command_buffer(dev);
         int w, h;
         double ta = wall_ms();
-        int sc = pf_gpu_acquire_swapchain(cmd, win, &w, &h);
+        int sc = acquire_swapchain(cmd, win, &w, &h);
         ta = wall_ms() - ta;
         if (ta > worst_acq && presented > 3) worst_acq = ta;
         if (ta > 1) slow_acq++;
-        CHECK(sc || !*pf_last_error(), "acquire swapchain");
+        CHECK(sc || !*last_error_string(), "acquire swapchain");
         if (sc) {
             float t = (float)(wall_ms() - t_start) / 1500.0f;
             float clear[4] = {t, 0.2f, 1 - t, 1};
-            int pass = pf_gpu_begin_pass(cmd, sc, clear);
+            int pass = begin_pass(cmd, sc, clear);
             vtx v[6];
             float x = 100 + t * (w - 400);
             quad(v, x, 200, x + 200, 600, 0.25f, 0.5f, 255, 255, 255, 255);
-            pf_gpu_upload_buffer(vbuf, v, sizeof v, 0);
-            pf_gpu_bind_pipeline(pass, pipe);
-            pf_gpu_bind_vertex_buffer(pass, 0, vbuf, 0);
-            pf_gpu_bind_texture(pass, 0, atlas, nearest);
+            upload_buffer(vbuf, v, sizeof v, 0);
+            bind_pipeline(pass, pipe);
+            bind_vertex_buffer(pass, 0, vbuf, 0);
+            bind_texture(pass, 0, atlas, nearest);
             float u[4] = {(float)w, (float)h, 0, 0};
-            pf_gpu_push_uniforms(pass, PF_STAGE_VERTEX, 0, u, sizeof u);
-            pf_gpu_draw(pass, 6, 0);
-            pf_gpu_end_pass(pass);
+            push_uniforms(pass, PF_STAGE_VERTEX, 0, u, sizeof u);
+            draw(pass, 6, 0);
+            end_pass(pass);
             presented++;
         } else skipped++;
         bool ok;
-        pf_gpu_submit(cmd, false, &ok);
+        submit(cmd, false, &ok);
         CHECK(ok, "submit present");
         double dt = wall_ms() - t0;
         if (dt > worst && presented > 3) worst = dt;
         /* pace by the vsync semaphore, as the compositor will */
         for (int k = 0; k < divisor; k++) {
             nsignals = 0;
-            for (int i = 0; i < 50 && !signaled(9); i++) platform_wait(100000);
+            for (int i = 0; i < 50 && !signaled(9); i++) platform_interface_wait(100000);
         }
     }
-    pf_vsync_semaphore(0);
+    semaphore(0);
     printf("  visible window, every %d. vsync of %.0f Hz: %d frames in 1.5 s, %d acquires answered nil, %d acquires > 1 ms, worst "
            "frame %.2f ms (acquire %.2f ms)\n",
            divisor, hz, presented, skipped, slow_acq, worst, worst_acq);
     CHECK(presented > 50, "presented %d", presented);
-    CHECK(pf_gpu_release(pipe), "release pipeline");
+    CHECK(release_handle(pipe), "release pipeline");
     test_wake("with SDL video", conn, cli);
-    CHECK(pf_window_close(win), "close window");
+    CHECK(platform_windows_close(win), "close window");
 }
 
 int main(int argc, char **argv)
 {
-    platform_init();
+    platform_interface_init();
     printf("files\n");
     test_files();
     printf("sockets\n");
@@ -580,8 +580,8 @@ int main(int argc, char **argv)
     printf("present\n");
     test_present();
     test_sockets_close();
-    pf_gpu_release(dev);
-    platform_shutdown();
+    release_handle(dev);
+    platform_interface_shutdown();
     printf("%d/%d checks passed\n", checks - failures, checks);
     return failures ? 1 : 0;
 }

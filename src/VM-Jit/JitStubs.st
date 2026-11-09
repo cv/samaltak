@@ -139,7 +139,7 @@ emitReloadPinned
 !JitStubs methodsFor: 'generating'!
 generate
 	"Generate the trampolines and stubs at the code cache's top; answer whether they fit."
-	<c: 'bool jit_generate_stubs(void)'>
+	<function>
 	| start restore exit |
 	start := cache top.
 	symbolCount := 0.

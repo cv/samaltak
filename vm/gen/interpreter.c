@@ -28,19 +28,19 @@ uint64_t stat_materialized;
 oop tag_class[8];
 oop tmp_roots[4];
 
-static void block_activate(int argc, bool from_array);
-static void ctx_set_stackp(oop ctx, int64_t sp);
-static oop ctx_home(oop ctx);
-static cache_entry *fill_cache(oop cls, oop sel);
+static void block_activate(int32_t n, bool from_array);
+static void interpreter_ctx(oop ctx, int64_t n);
+static oop ctx_home(oop a_context);
+static cache_entry *fill_cache(oop a_class, oop a_selector);
 static int64_t frame_size(frame *f);
-static void print_stack(oop ctx, FILE *f);
+static void print_stack(oop a_context, FILE *f);
 static void refresh_prim_base(void);
 static void refresh_tag_classes(void);
 static int64_t stack_overflow_depth(void);
 static void widow_from(int64_t k, int64_t n);
 
 /* Interpreter>>activateBlock: */
-void activate_block(int n)
+void activate_block(int32_t n)
 {
     block_activate(n, false);
 }
@@ -66,7 +66,7 @@ void active_set_stackp(int64_t n)
         f->sp = (int32_t)n;
         cstack_used = (uint64_t)(f->fp + n - cstack);
     } else {
-        ctx_set_stackp(active_ctx, n);
+        interpreter_ctx(active_ctx, n);
     }
 }
 
@@ -83,7 +83,7 @@ int64_t active_stackp(void)
 }
 
 /* Interpreter>>afterGC */
-void interp_after_gc(void)
+void interpreter_after_gc(void)
 {
     int32_t i;
     frame *f;
@@ -105,7 +105,7 @@ void interp_after_gc(void)
 }
 
 /* Interpreter>>beforeGC */
-void interp_before_gc(void)
+void before_gc(void)
 {
     int32_t i;
     frame *f;
@@ -124,9 +124,9 @@ void interp_before_gc(void)
 }
 
 /* Interpreter>>blockActivate:fromArray: */
-static void block_activate(int n, bool from_array)
+static void block_activate(int32_t n, bool from_array)
 {
-    int count;
+    int32_t count;
     int64_t base;
     oop *b;
     oop cl;
@@ -137,9 +137,9 @@ static void block_activate(int n, bool from_array)
     int64_t fsize;
     oop *nfp;
     uint64_t o_3;
-    int i;
+    int32_t i;
     uint64_t o_4;
-    int i_2;
+    int32_t i_2;
     uint64_t outer;
     uint64_t m;
     frame *f;
@@ -187,7 +187,7 @@ static void block_activate(int n, bool from_array)
         for (i_2 = 0; i_2 <= count - 1; i_2++) {
             cstack[1 + i_2] = from_array ? *(uint64_t *)(arr + 16 + 8 * i_2) : b[1 + i_2];
         }
-        ctx_set_stackp(active_ctx, base);
+        interpreter_ctx(active_ctx, base);
         nfp = cstack + 1;
     }
     outer = *(uint64_t *)(cl + 16 + 0);
@@ -205,10 +205,10 @@ static void block_activate(int n, bool from_array)
         goto exit_frame_code_for;
     }
     if (jit_mode == JIT_OPT) {
-        r_frame_code_for = opt_block_code(m, startpc);
+        r_frame_code_for = opt_runtime_block_code_for(m, startpc);
         goto exit_frame_code_for;
     }
-    r_frame_code_for = jit_block_code(m);
+    r_frame_code_for = jit_runtime_block_code_for(m);
 exit_frame_code_for:;
     r_frame_code_for; });
     f->fp = nfp;
@@ -227,7 +227,7 @@ exit_frame_code_for:;
 }
 
 /* Interpreter>>callPrimitive:base:argc: */
-int32_t interp_call_primitive(prim_fn fn, oop *b, int32_t n)
+int32_t call_primitive(prim_fn fn, oop *b, int32_t n)
 {
     prim_nargs = n;
     prim_base = b;
@@ -238,7 +238,7 @@ int32_t interp_call_primitive(prim_fn fn, oop *b, int32_t n)
 }
 
 /* Interpreter>>context:slot:put: */
-bool context_slot_put(oop c, int64_t k, oop v)
+bool interpreter_context(oop c, int64_t k, oop v)
 {
     uint64_t o;
     frame *f;
@@ -255,7 +255,7 @@ bool context_slot_put(oop c, int64_t k, oop v)
 }
 
 /* Interpreter>>contextField:of: */
-oop context_field(int64_t i, oop c)
+oop interpreter_context_field(int64_t i, oop c)
 {
     uint64_t o;
     frame *f;
@@ -318,7 +318,7 @@ oop context_slot(int64_t k, oop c)
 }
 
 /* Interpreter>>ctx:setStackp: */
-static void ctx_set_stackp(oop ctx, int64_t n)
+static void interpreter_ctx(oop ctx, int64_t n)
 {
     ((oop *)(ctx + 16))[CTX_STACKP] = (uint64_t)((n << 1) | 1);
 }
@@ -375,7 +375,7 @@ void fatal_end(void)
 /* Interpreter>>fillCache:selector: */
 static cache_entry *fill_cache(oop a_class, oop a_selector)
 {
-    oop m;
+    uint64_t m;
     cache_entry *e;
     int64_t r_method_prim;
     uint64_t p_2;
@@ -411,7 +411,7 @@ static cache_entry *fill_cache(oop a_class, oop a_selector)
     p_2 = *(uint64_t *)(m + 16 + 56);
     r_method_prim = (p_2 & 1) != 0 ? ((int64_t)p_2) >> 1 : 0;
     r_method_prim; }) & CM_PRIM_MASK;
-    pf = (p != 0) && ((p != PRIM_ENSURE_MARKER) && (p != PRIM_ONDO_MARKER)) ? prim_lookup(p) : (prim_fn)NULL;
+    pf = (p != 0) && ((p != PRIM_ENSURE_MARKER) && (p != PRIM_ONDO_MARKER)) ? primitive_table_lookup(p) : (prim_fn)NULL;
     bc = *(uint64_t *)(m + 16 + 24);
     na = *(uint64_t *)(m + 16 + 32);
     nt = *(uint64_t *)(m + 16 + 40);
@@ -479,9 +479,9 @@ static cache_entry *fill_cache(oop a_class, oop a_selector)
     } else {
         e->prim = pf;
     }
-    e->kind = (uint8_t)((pf != NULL ? K_PRIM : 0) | ((pf != NULL) && prim_is_leaf(p) ? K_LEAF : 0) | (e->quick >= 0 ? K_QUICK : 0) | ((e->nset != 0 ? K_SETTER : 0) | (qc ? K_CONST : 0)));
+    e->kind = (uint8_t)((pf != NULL ? K_PRIM : 0) | ((pf != NULL) && is_leaf(p) ? K_LEAF : 0) | (e->quick >= 0 ? K_QUICK : 0) | ((e->nset != 0 ? K_SETTER : 0) | (qc ? K_CONST : 0)));
     if ((e->kind == 0) && (jit_mode != JIT_NONE)) {
-        e->code = jit_cache_code(m);
+        e->code = cache_code_for(m);
         if (e->code != 0) {
             e->kind = K_JIT;
         }
@@ -553,7 +553,7 @@ static int64_t frame_size(frame *f)
 }
 
 /* Interpreter>>framesValid: */
-bool interp_frames_valid(bool (*valid)(oop))
+bool frames_valid(bool (*valid)(oop))
 {
     int32_t i;
     oop o;
@@ -1211,7 +1211,7 @@ void interpret(void)
     oop bc;
     uint64_t o_155;
     int64_t isize;
-    oop b;
+    uint64_t b;
     oop *s_29;
     oop m_32;
     oop o_156;
@@ -1402,7 +1402,7 @@ void interpret(void)
     uint64_t o_239;
     int64_t v_165;
     int64_t v_166;
-    oop a_3;
+    uint64_t a_3;
     oop *s_55;
     oop m_59;
     oop o_240;
@@ -3171,7 +3171,7 @@ void interpret(void)
     uint64_t o_906;
     int64_t v_418;
     int64_t v_419;
-    oop args;
+    uint64_t args;
     oop *s_258;
     oop m_260;
     oop o_907;
@@ -3192,7 +3192,7 @@ void interpret(void)
     oop v_420;
     oop v_421;
     oop o_918;
-    ss = special(SO_SPECIAL_SELECTORS);
+    ss = object_memory_special(SO_SPECIAL_SELECTORS);
     for (i = 0; i <= 31; i++) {
         special_argc[i] = ((ss & 7) == 0) && ((uint32_t)i < (uint32_t)*(uint64_t *)ss) ? selector_argc(*(uint64_t *)(ss + 16 + 8 * i)) : 0;
     }
@@ -4242,7 +4242,7 @@ op_push_one:;
                                     v_101 = sp - fp + 1;
                                     s_4[CTX_STACKP] = (uint64_t)((v_101 << 1) | 1);
                                 }
-                                jit_back_jump(fr);
+                                jit_runtime_back_jump(fr);
                                 if (nframes != 0) {
                                     fr = frames + (nframes - 1);
                                     lits = fr->lits;
@@ -4277,7 +4277,7 @@ op_push_one:;
                             s_6[CTX_PC] = (uint64_t)((v_102 << 1) | 1);
                             v_103 = sp - fp + 1;
                             s_6[CTX_STACKP] = (uint64_t)((v_103 << 1) | 1);
-                            jit_resume_context(true);
+                            resume_context(true);
                             if (nframes != 0) {
                                 fr = frames + (nframes - 1);
                                 lits = fr->lits;
@@ -4399,7 +4399,7 @@ op_return_top:;
         if (fr > frames + 0) {
             if (__builtin_expect(fr->ctx != nil_oop, 0)) {
                 fr->sp = (int32_t)(sp - fp + 1);
-                widow(fr);
+                interpreter_widow(fr);
             }
             sp = fr->fp - 1;
             *sp = result;
@@ -4423,7 +4423,7 @@ op_return_top:;
                     v_108 = sp - fp + 1;
                     s_10[CTX_STACKP] = (uint64_t)((v_108 << 1) | 1);
                 }
-                jit_resume(fr);
+                jit_runtime_resume(fr);
                 if (nframes != 0) {
                     fr = frames + (nframes - 1);
                     lits = fr->lits;
@@ -4484,12 +4484,12 @@ op_return_top:;
         }
         if (__builtin_expect(fr->ctx != nil_oop, 0)) {
             fr->sp = (int32_t)(sp - fp + 1);
-            widow(fr);
+            interpreter_widow(fr);
         }
         nframes = 0;
         cstack_used = 0;
         if (((active_ctx & 7) == 0) && ((!((uint64_t)(active_ctx - young_lo) < young_hi - young_lo)) && (((*(uint64_t *)active_ctx) & H_REMEMBERED) == 0))) {
-            vm_remember(active_ctx);
+            remember(active_ctx);
         }
         s_13 = (oop *)(active_ctx + 16);
         m_13 = s_13[CTX_METHOD];
@@ -4518,7 +4518,7 @@ op_return_top:;
             s_14[CTX_PC] = (uint64_t)((v_109 << 1) | 1);
             v_110 = sp - fp + 1;
             s_14[CTX_STACKP] = (uint64_t)((v_110 << 1) | 1);
-            jit_resume_context(false);
+            resume_context(false);
             if (nframes != 0) {
                 fr = frames + (nframes - 1);
                 lits = fr->lits;
@@ -4600,7 +4600,7 @@ exit_unwind_frame_from:;
             nframes = 0;
             cstack_used = 0;
             if (((active_ctx & 7) == 0) && ((!((uint64_t)(active_ctx - young_lo) < young_hi - young_lo)) && (((*(uint64_t *)active_ctx) & H_REMEMBERED) == 0))) {
-                vm_remember(active_ctx);
+                remember(active_ctx);
             }
             s_16 = (oop *)(active_ctx + 16);
             m_18 = s_16[CTX_METHOD];
@@ -4629,7 +4629,7 @@ exit_unwind_frame_from:;
                 s_17[CTX_PC] = (uint64_t)((v_112 << 1) | 1);
                 v_113 = sp - fp + 1;
                 s_17[CTX_STACKP] = (uint64_t)((v_113 << 1) | 1);
-                jit_resume_context(false);
+                resume_context(false);
                 if (nframes != 0) {
                     fr = frames + (nframes - 1);
                     lits = fr->lits;
@@ -4685,7 +4685,7 @@ exit_unwind_frame_from:;
                 v_115 = sp - fp + 1;
                 s_19[CTX_STACKP] = (uint64_t)((v_115 << 1) | 1);
             }
-            jit_resume(fr);
+            jit_runtime_resume(fr);
             if (nframes != 0) {
                 fr = frames + (nframes - 1);
                 lits = fr->lits;
@@ -4783,7 +4783,7 @@ exit_unwind_frame_from_2:;
     }
     active_ctx = hs;
     if (((hs & 7) == 0) && ((!(hs - young_lo < young_hi - young_lo)) && (((*(uint64_t *)hs) & H_REMEMBERED) == 0))) {
-        vm_remember(hs);
+        remember(hs);
     }
     s_21 = (oop *)(active_ctx + 16);
     m_25 = s_21[CTX_METHOD];
@@ -4812,7 +4812,7 @@ exit_unwind_frame_from_2:;
         s_22[CTX_PC] = (uint64_t)((v_116 << 1) | 1);
         v_117 = sp - fp + 1;
         s_22[CTX_STACKP] = (uint64_t)((v_117 << 1) | 1);
-        jit_resume_context(false);
+        resume_context(false);
         if (nframes != 0) {
             fr = frames + (nframes - 1);
             lits = fr->lits;
@@ -4870,7 +4870,7 @@ op_push_inst_var_x:;
             v_121 = sp - fp + 1;
             s_24[CTX_STACKP] = (uint64_t)((v_121 << 1) | 1);
         }
-        v_119 = context_field(i_2, fp[-1]);
+        v_119 = interpreter_context_field(i_2, fp[-1]);
         if (nframes != 0) {
             fr = frames + (nframes - 1);
             lits = fr->lits;
@@ -4954,14 +4954,14 @@ op_store_inst_var_x:;
         v_127 = (uint64_t)((((int64_t)v_126) << 1) | 1);
         sp = sp + 1;
         *sp = v_127;
-        sel = special(SO_SEL_ATTEMPTTOASSIGN);
+        sel = object_memory_special(SO_SEL_ATTEMPTTOASSIGN);
         argc = 2;
         goto do_send;
     }
     v_128 = *sp;
     *(uint64_t *)(r_3 + 16 + 8 * i_3) = v_128;
     if (((v_128 & 7) == 0) && (((uint64_t)(v_128 - young_lo) < young_hi - young_lo) && ((!((uint64_t)(r_3 - young_lo) < young_hi - young_lo)) && (((*(uint64_t *)r_3) & H_REMEMBERED) == 0)))) {
-        vm_remember(r_3);
+        remember(r_3);
     }
     goto *ops[({
     ip = ip + 1;
@@ -4972,7 +4972,7 @@ op_store_literal_variable_x:;
     v_129 = *sp;
     *(uint64_t *)(o_144 + 16 + 8) = v_129;
     if (((v_129 & 7) == 0) && (((uint64_t)(v_129 - young_lo) < young_hi - young_lo) && ((!((uint64_t)(o_144 - young_lo) < young_hi - young_lo)) && (((*(uint64_t *)o_144) & H_REMEMBERED) == 0)))) {
-        vm_remember(o_144);
+        remember(o_144);
     }
     ip = ip + 1;
     goto *ops[({
@@ -5020,7 +5020,7 @@ op_pop_store_literal_variable_x:;
     v_130 = *sp;
     *(uint64_t *)(o_150 + 16 + 8) = v_130;
     if (((v_130 & 7) == 0) && (((uint64_t)(v_130 - young_lo) < young_hi - young_lo) && ((!((uint64_t)(o_150 - young_lo) < young_hi - young_lo)) && (((*(uint64_t *)o_150) & H_REMEMBERED) == 0)))) {
-        vm_remember(o_150);
+        remember(o_150);
     }
     ip = ip + 1;
     sp = sp - 1;
@@ -5070,7 +5070,7 @@ op_outer_temp:;
         v_133 = *sp;
         *(uint64_t *)(c_5 + 16 + 8 * i_6) = v_133;
         if (((v_133 & 7) == 0) && (((uint64_t)(v_133 - young_lo) < young_hi - young_lo) && ((!(c_5 - young_lo < young_hi - young_lo)) && (((*(uint64_t *)c_5) & H_REMEMBERED) == 0)))) {
-            vm_remember(c_5);
+            remember(c_5);
         }
         if (op == 0x8C) {
             sp = sp - 1;
@@ -5154,8 +5154,8 @@ op_closure:;
     s_27[BC_NUMARGS] = (uint64_t)((((int64_t)na) << 1) | 1);
     s_27[BC_NUMTEMPS] = (uint64_t)((((int64_t)nt) << 1) | 1);
     s_27[BC_FRAMESIZE] = (uint64_t)((((int64_t)fs) << 1) | 1);
-    if (((b & 7) == 0) && ((!((uint64_t)(b - young_lo) < young_hi - young_lo)) && (((*(uint64_t *)b) & H_REMEMBERED) == 0))) {
-        vm_remember(b);
+    if (((b & 7) == 0) && ((!(b - young_lo < young_hi - young_lo)) && (((*(uint64_t *)b) & H_REMEMBERED) == 0))) {
+        remember(b);
     }
     sp = sp + 1;
     *sp = b;
@@ -5226,7 +5226,7 @@ op_jump:;
                     v_140 = sp - fp + 1;
                     s_32[CTX_STACKP] = (uint64_t)((v_140 << 1) | 1);
                 }
-                jit_back_jump(fr);
+                jit_runtime_back_jump(fr);
                 if (nframes != 0) {
                     fr = frames + (nframes - 1);
                     lits = fr->lits;
@@ -5261,7 +5261,7 @@ op_jump:;
             s_34[CTX_PC] = (uint64_t)((v_141 << 1) | 1);
             v_142 = sp - fp + 1;
             s_34[CTX_STACKP] = (uint64_t)((v_142 << 1) | 1);
-            jit_resume_context(true);
+            resume_context(true);
             if (nframes != 0) {
                 fr = frames + (nframes - 1);
                 lits = fr->lits;
@@ -5359,7 +5359,7 @@ op_conditional_jump_91:;
                         v_147 = sp - fp + 1;
                         s_38[CTX_STACKP] = (uint64_t)((v_147 << 1) | 1);
                     }
-                    jit_back_jump(fr);
+                    jit_runtime_back_jump(fr);
                     if (nframes != 0) {
                         fr = frames + (nframes - 1);
                         lits = fr->lits;
@@ -5394,7 +5394,7 @@ op_conditional_jump_91:;
                 s_40[CTX_PC] = (uint64_t)((v_148 << 1) | 1);
                 v_149 = sp - fp + 1;
                 s_40[CTX_STACKP] = (uint64_t)((v_149 << 1) | 1);
-                jit_resume_context(true);
+                resume_context(true);
                 if (nframes != 0) {
                     fr = frames + (nframes - 1);
                     lits = fr->lits;
@@ -5426,7 +5426,7 @@ op_conditional_jump_91:;
         ip = ip - 3;
         sp = sp + 1;
         *sp = v_143;
-        sel = special(SO_SEL_MUSTBEBOOLEAN);
+        sel = object_memory_special(SO_SEL_MUSTBEBOOLEAN);
         argc = 0;
         goto do_send;
     }
@@ -5500,7 +5500,7 @@ op_conditional_jump_92:;
                         v_154 = sp - fp + 1;
                         s_44[CTX_STACKP] = (uint64_t)((v_154 << 1) | 1);
                     }
-                    jit_back_jump(fr);
+                    jit_runtime_back_jump(fr);
                     if (nframes != 0) {
                         fr = frames + (nframes - 1);
                         lits = fr->lits;
@@ -5535,7 +5535,7 @@ op_conditional_jump_92:;
                 s_46[CTX_PC] = (uint64_t)((v_155 << 1) | 1);
                 v_156 = sp - fp + 1;
                 s_46[CTX_STACKP] = (uint64_t)((v_156 << 1) | 1);
-                jit_resume_context(true);
+                resume_context(true);
                 if (nframes != 0) {
                     fr = frames + (nframes - 1);
                     lits = fr->lits;
@@ -5567,7 +5567,7 @@ op_conditional_jump_92:;
         ip = ip - 3;
         sp = sp + 1;
         *sp = v_150;
-        sel = special(SO_SEL_MUSTBEBOOLEAN);
+        sel = object_memory_special(SO_SEL_MUSTBEBOOLEAN);
         argc = 0;
         goto do_send;
     }
@@ -5692,7 +5692,7 @@ op_push_integer:;
                                     v_162 = sp - fp + 1;
                                     s_50[CTX_STACKP] = (uint64_t)((v_162 << 1) | 1);
                                 }
-                                jit_back_jump(fr);
+                                jit_runtime_back_jump(fr);
                                 if (nframes != 0) {
                                     fr = frames + (nframes - 1);
                                     lits = fr->lits;
@@ -5727,7 +5727,7 @@ op_push_integer:;
                             s_52[CTX_PC] = (uint64_t)((v_163 << 1) | 1);
                             v_164 = sp - fp + 1;
                             s_52[CTX_STACKP] = (uint64_t)((v_164 << 1) | 1);
-                            jit_resume_context(true);
+                            resume_context(true);
                             if (nframes != 0) {
                                 fr = frames + (nframes - 1);
                                 lits = fr->lits;
@@ -5819,8 +5819,8 @@ op_make_array:;
     }
     sp = sp - n_5;
     memcpy((oop *)(a_3 + 16), sp + 1, (uint64_t)n_5 * 8);
-    if (((a_3 & 7) == 0) && ((!((uint64_t)(a_3 - young_lo) < young_hi - young_lo)) && (((*(uint64_t *)a_3) & H_REMEMBERED) == 0))) {
-        vm_remember(a_3);
+    if (((a_3 & 7) == 0) && ((!(a_3 - young_lo < young_hi - young_lo)) && (((*(uint64_t *)a_3) & H_REMEMBERED) == 0))) {
+        remember(a_3);
     }
     sp = sp + 1;
     *sp = a_3;
@@ -5981,7 +5981,7 @@ op_fused_arithmetic_9c:;
                                 v_173 = sp - fp + 1;
                                 s_58[CTX_STACKP] = (uint64_t)((v_173 << 1) | 1);
                             }
-                            jit_back_jump(fr);
+                            jit_runtime_back_jump(fr);
                             if (nframes != 0) {
                                 fr = frames + (nframes - 1);
                                 lits = fr->lits;
@@ -6016,7 +6016,7 @@ op_fused_arithmetic_9c:;
                         s_60[CTX_PC] = (uint64_t)((v_174 << 1) | 1);
                         v_175 = sp - fp + 1;
                         s_60[CTX_STACKP] = (uint64_t)((v_175 << 1) | 1);
-                        jit_resume_context(true);
+                        resume_context(true);
                         if (nframes != 0) {
                             fr = frames + (nframes - 1);
                             lits = fr->lits;
@@ -6137,7 +6137,7 @@ op_fused_arithmetic_9d:;
                                 v_180 = sp - fp + 1;
                                 s_64[CTX_STACKP] = (uint64_t)((v_180 << 1) | 1);
                             }
-                            jit_back_jump(fr);
+                            jit_runtime_back_jump(fr);
                             if (nframes != 0) {
                                 fr = frames + (nframes - 1);
                                 lits = fr->lits;
@@ -6172,7 +6172,7 @@ op_fused_arithmetic_9d:;
                         s_66[CTX_PC] = (uint64_t)((v_181 << 1) | 1);
                         v_182 = sp - fp + 1;
                         s_66[CTX_STACKP] = (uint64_t)((v_182 << 1) | 1);
-                        jit_resume_context(true);
+                        resume_context(true);
                         if (nframes != 0) {
                             fr = frames + (nframes - 1);
                             lits = fr->lits;
@@ -6293,7 +6293,7 @@ op_fused_arithmetic_9e:;
                                 v_187 = sp - fp + 1;
                                 s_70[CTX_STACKP] = (uint64_t)((v_187 << 1) | 1);
                             }
-                            jit_back_jump(fr);
+                            jit_runtime_back_jump(fr);
                             if (nframes != 0) {
                                 fr = frames + (nframes - 1);
                                 lits = fr->lits;
@@ -6328,7 +6328,7 @@ op_fused_arithmetic_9e:;
                         s_72[CTX_PC] = (uint64_t)((v_188 << 1) | 1);
                         v_189 = sp - fp + 1;
                         s_72[CTX_STACKP] = (uint64_t)((v_189 << 1) | 1);
-                        jit_resume_context(true);
+                        resume_context(true);
                         if (nframes != 0) {
                             fr = frames + (nframes - 1);
                             lits = fr->lits;
@@ -6449,7 +6449,7 @@ op_fused_arithmetic_9f:;
                                 v_194 = sp - fp + 1;
                                 s_76[CTX_STACKP] = (uint64_t)((v_194 << 1) | 1);
                             }
-                            jit_back_jump(fr);
+                            jit_runtime_back_jump(fr);
                             if (nframes != 0) {
                                 fr = frames + (nframes - 1);
                                 lits = fr->lits;
@@ -6484,7 +6484,7 @@ op_fused_arithmetic_9f:;
                         s_78[CTX_PC] = (uint64_t)((v_195 << 1) | 1);
                         v_196 = sp - fp + 1;
                         s_78[CTX_STACKP] = (uint64_t)((v_196 << 1) | 1);
-                        jit_resume_context(true);
+                        resume_context(true);
                         if (nframes != 0) {
                             fr = frames + (nframes - 1);
                             lits = fr->lits;
@@ -6666,7 +6666,7 @@ op_fused_arithmetic_f2:;
                                 v_203 = sp - fp + 1;
                                 s_82[CTX_STACKP] = (uint64_t)((v_203 << 1) | 1);
                             }
-                            jit_back_jump(fr);
+                            jit_runtime_back_jump(fr);
                             if (nframes != 0) {
                                 fr = frames + (nframes - 1);
                                 lits = fr->lits;
@@ -6701,7 +6701,7 @@ op_fused_arithmetic_f2:;
                         s_84[CTX_PC] = (uint64_t)((v_204 << 1) | 1);
                         v_205 = sp - fp + 1;
                         s_84[CTX_STACKP] = (uint64_t)((v_205 << 1) | 1);
-                        jit_resume_context(true);
+                        resume_context(true);
                         if (nframes != 0) {
                             fr = frames + (nframes - 1);
                             lits = fr->lits;
@@ -6822,7 +6822,7 @@ op_fused_arithmetic_f3:;
                                 v_210 = sp - fp + 1;
                                 s_88[CTX_STACKP] = (uint64_t)((v_210 << 1) | 1);
                             }
-                            jit_back_jump(fr);
+                            jit_runtime_back_jump(fr);
                             if (nframes != 0) {
                                 fr = frames + (nframes - 1);
                                 lits = fr->lits;
@@ -6857,7 +6857,7 @@ op_fused_arithmetic_f3:;
                         s_90[CTX_PC] = (uint64_t)((v_211 << 1) | 1);
                         v_212 = sp - fp + 1;
                         s_90[CTX_STACKP] = (uint64_t)((v_212 << 1) | 1);
-                        jit_resume_context(true);
+                        resume_context(true);
                         if (nframes != 0) {
                             fr = frames + (nframes - 1);
                             lits = fr->lits;
@@ -6978,7 +6978,7 @@ op_fused_arithmetic_f4:;
                                 v_217 = sp - fp + 1;
                                 s_94[CTX_STACKP] = (uint64_t)((v_217 << 1) | 1);
                             }
-                            jit_back_jump(fr);
+                            jit_runtime_back_jump(fr);
                             if (nframes != 0) {
                                 fr = frames + (nframes - 1);
                                 lits = fr->lits;
@@ -7013,7 +7013,7 @@ op_fused_arithmetic_f4:;
                         s_96[CTX_PC] = (uint64_t)((v_218 << 1) | 1);
                         v_219 = sp - fp + 1;
                         s_96[CTX_STACKP] = (uint64_t)((v_219 << 1) | 1);
-                        jit_resume_context(true);
+                        resume_context(true);
                         if (nframes != 0) {
                             fr = frames + (nframes - 1);
                             lits = fr->lits;
@@ -7134,7 +7134,7 @@ op_fused_arithmetic_f5:;
                                 v_224 = sp - fp + 1;
                                 s_100[CTX_STACKP] = (uint64_t)((v_224 << 1) | 1);
                             }
-                            jit_back_jump(fr);
+                            jit_runtime_back_jump(fr);
                             if (nframes != 0) {
                                 fr = frames + (nframes - 1);
                                 lits = fr->lits;
@@ -7169,7 +7169,7 @@ op_fused_arithmetic_f5:;
                         s_102[CTX_PC] = (uint64_t)((v_225 << 1) | 1);
                         v_226 = sp - fp + 1;
                         s_102[CTX_STACKP] = (uint64_t)((v_226 << 1) | 1);
-                        jit_resume_context(true);
+                        resume_context(true);
                         if (nframes != 0) {
                             fr = frames + (nframes - 1);
                             lits = fr->lits;
@@ -7357,7 +7357,7 @@ op_fused_arithmetic_f8:;
                                 v_236 = sp - fp + 1;
                                 s_106[CTX_STACKP] = (uint64_t)((v_236 << 1) | 1);
                             }
-                            jit_back_jump(fr);
+                            jit_runtime_back_jump(fr);
                             if (nframes != 0) {
                                 fr = frames + (nframes - 1);
                                 lits = fr->lits;
@@ -7392,7 +7392,7 @@ op_fused_arithmetic_f8:;
                         s_108[CTX_PC] = (uint64_t)((v_237 << 1) | 1);
                         v_238 = sp - fp + 1;
                         s_108[CTX_STACKP] = (uint64_t)((v_238 << 1) | 1);
-                        jit_resume_context(true);
+                        resume_context(true);
                         if (nframes != 0) {
                             fr = frames + (nframes - 1);
                             lits = fr->lits;
@@ -7515,7 +7515,7 @@ op_fused_arithmetic_f9:;
                                 v_244 = sp - fp + 1;
                                 s_112[CTX_STACKP] = (uint64_t)((v_244 << 1) | 1);
                             }
-                            jit_back_jump(fr);
+                            jit_runtime_back_jump(fr);
                             if (nframes != 0) {
                                 fr = frames + (nframes - 1);
                                 lits = fr->lits;
@@ -7550,7 +7550,7 @@ op_fused_arithmetic_f9:;
                         s_114[CTX_PC] = (uint64_t)((v_245 << 1) | 1);
                         v_246 = sp - fp + 1;
                         s_114[CTX_STACKP] = (uint64_t)((v_246 << 1) | 1);
-                        jit_resume_context(true);
+                        resume_context(true);
                         if (nframes != 0) {
                             fr = frames + (nframes - 1);
                             lits = fr->lits;
@@ -7673,7 +7673,7 @@ op_fused_arithmetic_fa:;
                                 v_252 = sp - fp + 1;
                                 s_118[CTX_STACKP] = (uint64_t)((v_252 << 1) | 1);
                             }
-                            jit_back_jump(fr);
+                            jit_runtime_back_jump(fr);
                             if (nframes != 0) {
                                 fr = frames + (nframes - 1);
                                 lits = fr->lits;
@@ -7708,7 +7708,7 @@ op_fused_arithmetic_fa:;
                         s_120[CTX_PC] = (uint64_t)((v_253 << 1) | 1);
                         v_254 = sp - fp + 1;
                         s_120[CTX_STACKP] = (uint64_t)((v_254 << 1) | 1);
-                        jit_resume_context(true);
+                        resume_context(true);
                         if (nframes != 0) {
                             fr = frames + (nframes - 1);
                             lits = fr->lits;
@@ -7831,7 +7831,7 @@ op_fused_arithmetic_fb:;
                                 v_260 = sp - fp + 1;
                                 s_124[CTX_STACKP] = (uint64_t)((v_260 << 1) | 1);
                             }
-                            jit_back_jump(fr);
+                            jit_runtime_back_jump(fr);
                             if (nframes != 0) {
                                 fr = frames + (nframes - 1);
                                 lits = fr->lits;
@@ -7866,7 +7866,7 @@ op_fused_arithmetic_fb:;
                         s_126[CTX_PC] = (uint64_t)((v_261 << 1) | 1);
                         v_262 = sp - fp + 1;
                         s_126[CTX_STACKP] = (uint64_t)((v_262 << 1) | 1);
-                        jit_resume_context(true);
+                        resume_context(true);
                         if (nframes != 0) {
                             fr = frames + (nframes - 1);
                             lits = fr->lits;
@@ -8167,7 +8167,7 @@ op_less_than:;
                                 v_269 = sp - fp + 1;
                                 s_130[CTX_STACKP] = (uint64_t)((v_269 << 1) | 1);
                             }
-                            jit_back_jump(fr);
+                            jit_runtime_back_jump(fr);
                             if (nframes != 0) {
                                 fr = frames + (nframes - 1);
                                 lits = fr->lits;
@@ -8202,7 +8202,7 @@ op_less_than:;
                         s_132[CTX_PC] = (uint64_t)((v_270 << 1) | 1);
                         v_271 = sp - fp + 1;
                         s_132[CTX_STACKP] = (uint64_t)((v_271 << 1) | 1);
-                        jit_resume_context(true);
+                        resume_context(true);
                         if (nframes != 0) {
                             fr = frames + (nframes - 1);
                             lits = fr->lits;
@@ -8336,7 +8336,7 @@ exit_num_val_6:;
                                 v_275 = sp - fp + 1;
                                 s_136[CTX_STACKP] = (uint64_t)((v_275 << 1) | 1);
                             }
-                            jit_back_jump(fr);
+                            jit_runtime_back_jump(fr);
                             if (nframes != 0) {
                                 fr = frames + (nframes - 1);
                                 lits = fr->lits;
@@ -8371,7 +8371,7 @@ exit_num_val_6:;
                         s_138[CTX_PC] = (uint64_t)((v_276 << 1) | 1);
                         v_277 = sp - fp + 1;
                         s_138[CTX_STACKP] = (uint64_t)((v_277 << 1) | 1);
-                        jit_resume_context(true);
+                        resume_context(true);
                         if (nframes != 0) {
                             fr = frames + (nframes - 1);
                             lits = fr->lits;
@@ -8492,7 +8492,7 @@ op_greater_than:;
                                 v_281 = sp - fp + 1;
                                 s_142[CTX_STACKP] = (uint64_t)((v_281 << 1) | 1);
                             }
-                            jit_back_jump(fr);
+                            jit_runtime_back_jump(fr);
                             if (nframes != 0) {
                                 fr = frames + (nframes - 1);
                                 lits = fr->lits;
@@ -8527,7 +8527,7 @@ op_greater_than:;
                         s_144[CTX_PC] = (uint64_t)((v_282 << 1) | 1);
                         v_283 = sp - fp + 1;
                         s_144[CTX_STACKP] = (uint64_t)((v_283 << 1) | 1);
-                        jit_resume_context(true);
+                        resume_context(true);
                         if (nframes != 0) {
                             fr = frames + (nframes - 1);
                             lits = fr->lits;
@@ -8661,7 +8661,7 @@ exit_num_val_8:;
                                 v_287 = sp - fp + 1;
                                 s_148[CTX_STACKP] = (uint64_t)((v_287 << 1) | 1);
                             }
-                            jit_back_jump(fr);
+                            jit_runtime_back_jump(fr);
                             if (nframes != 0) {
                                 fr = frames + (nframes - 1);
                                 lits = fr->lits;
@@ -8696,7 +8696,7 @@ exit_num_val_8:;
                         s_150[CTX_PC] = (uint64_t)((v_288 << 1) | 1);
                         v_289 = sp - fp + 1;
                         s_150[CTX_STACKP] = (uint64_t)((v_289 << 1) | 1);
-                        jit_resume_context(true);
+                        resume_context(true);
                         if (nframes != 0) {
                             fr = frames + (nframes - 1);
                             lits = fr->lits;
@@ -8817,7 +8817,7 @@ op_less_or_equal:;
                                 v_293 = sp - fp + 1;
                                 s_154[CTX_STACKP] = (uint64_t)((v_293 << 1) | 1);
                             }
-                            jit_back_jump(fr);
+                            jit_runtime_back_jump(fr);
                             if (nframes != 0) {
                                 fr = frames + (nframes - 1);
                                 lits = fr->lits;
@@ -8852,7 +8852,7 @@ op_less_or_equal:;
                         s_156[CTX_PC] = (uint64_t)((v_294 << 1) | 1);
                         v_295 = sp - fp + 1;
                         s_156[CTX_STACKP] = (uint64_t)((v_295 << 1) | 1);
-                        jit_resume_context(true);
+                        resume_context(true);
                         if (nframes != 0) {
                             fr = frames + (nframes - 1);
                             lits = fr->lits;
@@ -8986,7 +8986,7 @@ exit_num_val_10:;
                                 v_299 = sp - fp + 1;
                                 s_160[CTX_STACKP] = (uint64_t)((v_299 << 1) | 1);
                             }
-                            jit_back_jump(fr);
+                            jit_runtime_back_jump(fr);
                             if (nframes != 0) {
                                 fr = frames + (nframes - 1);
                                 lits = fr->lits;
@@ -9021,7 +9021,7 @@ exit_num_val_10:;
                         s_162[CTX_PC] = (uint64_t)((v_300 << 1) | 1);
                         v_301 = sp - fp + 1;
                         s_162[CTX_STACKP] = (uint64_t)((v_301 << 1) | 1);
-                        jit_resume_context(true);
+                        resume_context(true);
                         if (nframes != 0) {
                             fr = frames + (nframes - 1);
                             lits = fr->lits;
@@ -9142,7 +9142,7 @@ op_greater_or_equal:;
                                 v_305 = sp - fp + 1;
                                 s_166[CTX_STACKP] = (uint64_t)((v_305 << 1) | 1);
                             }
-                            jit_back_jump(fr);
+                            jit_runtime_back_jump(fr);
                             if (nframes != 0) {
                                 fr = frames + (nframes - 1);
                                 lits = fr->lits;
@@ -9177,7 +9177,7 @@ op_greater_or_equal:;
                         s_168[CTX_PC] = (uint64_t)((v_306 << 1) | 1);
                         v_307 = sp - fp + 1;
                         s_168[CTX_STACKP] = (uint64_t)((v_307 << 1) | 1);
-                        jit_resume_context(true);
+                        resume_context(true);
                         if (nframes != 0) {
                             fr = frames + (nframes - 1);
                             lits = fr->lits;
@@ -9311,7 +9311,7 @@ exit_num_val_12:;
                                 v_311 = sp - fp + 1;
                                 s_172[CTX_STACKP] = (uint64_t)((v_311 << 1) | 1);
                             }
-                            jit_back_jump(fr);
+                            jit_runtime_back_jump(fr);
                             if (nframes != 0) {
                                 fr = frames + (nframes - 1);
                                 lits = fr->lits;
@@ -9346,7 +9346,7 @@ exit_num_val_12:;
                         s_174[CTX_PC] = (uint64_t)((v_312 << 1) | 1);
                         v_313 = sp - fp + 1;
                         s_174[CTX_STACKP] = (uint64_t)((v_313 << 1) | 1);
-                        jit_resume_context(true);
+                        resume_context(true);
                         if (nframes != 0) {
                             fr = frames + (nframes - 1);
                             lits = fr->lits;
@@ -9467,7 +9467,7 @@ op_equal:;
                                 v_317 = sp - fp + 1;
                                 s_178[CTX_STACKP] = (uint64_t)((v_317 << 1) | 1);
                             }
-                            jit_back_jump(fr);
+                            jit_runtime_back_jump(fr);
                             if (nframes != 0) {
                                 fr = frames + (nframes - 1);
                                 lits = fr->lits;
@@ -9502,7 +9502,7 @@ op_equal:;
                         s_180[CTX_PC] = (uint64_t)((v_318 << 1) | 1);
                         v_319 = sp - fp + 1;
                         s_180[CTX_STACKP] = (uint64_t)((v_319 << 1) | 1);
-                        jit_resume_context(true);
+                        resume_context(true);
                         if (nframes != 0) {
                             fr = frames + (nframes - 1);
                             lits = fr->lits;
@@ -9636,7 +9636,7 @@ exit_num_val_14:;
                                 v_323 = sp - fp + 1;
                                 s_184[CTX_STACKP] = (uint64_t)((v_323 << 1) | 1);
                             }
-                            jit_back_jump(fr);
+                            jit_runtime_back_jump(fr);
                             if (nframes != 0) {
                                 fr = frames + (nframes - 1);
                                 lits = fr->lits;
@@ -9671,7 +9671,7 @@ exit_num_val_14:;
                         s_186[CTX_PC] = (uint64_t)((v_324 << 1) | 1);
                         v_325 = sp - fp + 1;
                         s_186[CTX_STACKP] = (uint64_t)((v_325 << 1) | 1);
-                        jit_resume_context(true);
+                        resume_context(true);
                         if (nframes != 0) {
                             fr = frames + (nframes - 1);
                             lits = fr->lits;
@@ -9792,7 +9792,7 @@ op_not_equal:;
                                 v_329 = sp - fp + 1;
                                 s_190[CTX_STACKP] = (uint64_t)((v_329 << 1) | 1);
                             }
-                            jit_back_jump(fr);
+                            jit_runtime_back_jump(fr);
                             if (nframes != 0) {
                                 fr = frames + (nframes - 1);
                                 lits = fr->lits;
@@ -9827,7 +9827,7 @@ op_not_equal:;
                         s_192[CTX_PC] = (uint64_t)((v_330 << 1) | 1);
                         v_331 = sp - fp + 1;
                         s_192[CTX_STACKP] = (uint64_t)((v_331 << 1) | 1);
-                        jit_resume_context(true);
+                        resume_context(true);
                         if (nframes != 0) {
                             fr = frames + (nframes - 1);
                             lits = fr->lits;
@@ -9961,7 +9961,7 @@ exit_num_val_16:;
                                 v_335 = sp - fp + 1;
                                 s_196[CTX_STACKP] = (uint64_t)((v_335 << 1) | 1);
                             }
-                            jit_back_jump(fr);
+                            jit_runtime_back_jump(fr);
                             if (nframes != 0) {
                                 fr = frames + (nframes - 1);
                                 lits = fr->lits;
@@ -9996,7 +9996,7 @@ exit_num_val_16:;
                         s_198[CTX_PC] = (uint64_t)((v_336 << 1) | 1);
                         v_337 = sp - fp + 1;
                         s_198[CTX_STACKP] = (uint64_t)((v_337 << 1) | 1);
-                        jit_resume_context(true);
+                        resume_context(true);
                         if (nframes != 0) {
                             fr = frames + (nframes - 1);
                             lits = fr->lits;
@@ -10498,7 +10498,7 @@ op_bc_at_put:;
         if ((c_32 == cls_array) && (k_21 < (uint32_t)*(uint64_t *)o_734)) {
             *(uint64_t *)(o_734 + 16 + 8 * k_21) = v_359;
             if (((v_359 & 7) == 0) && (((uint64_t)(v_359 - young_lo) < young_hi - young_lo) && ((!((uint64_t)(o_734 - young_lo) < young_hi - young_lo)) && (((*(uint64_t *)o_734) & H_REMEMBERED) == 0)))) {
-                vm_remember(o_734);
+                remember(o_734);
             }
             sp = sp - 2;
             *sp = v_359;
@@ -10618,7 +10618,7 @@ op_identical:;
                             v_365 = sp - fp + 1;
                             s_203[CTX_STACKP] = (uint64_t)((v_365 << 1) | 1);
                         }
-                        jit_back_jump(fr);
+                        jit_runtime_back_jump(fr);
                         if (nframes != 0) {
                             fr = frames + (nframes - 1);
                             lits = fr->lits;
@@ -10653,7 +10653,7 @@ op_identical:;
                     s_205[CTX_PC] = (uint64_t)((v_366 << 1) | 1);
                     v_367 = sp - fp + 1;
                     s_205[CTX_STACKP] = (uint64_t)((v_367 << 1) | 1);
-                    jit_resume_context(true);
+                    resume_context(true);
                     if (nframes != 0) {
                         fr = frames + (nframes - 1);
                         lits = fr->lits;
@@ -10762,7 +10762,7 @@ op_not_identical:;
                             v_371 = sp - fp + 1;
                             s_209[CTX_STACKP] = (uint64_t)((v_371 << 1) | 1);
                         }
-                        jit_back_jump(fr);
+                        jit_runtime_back_jump(fr);
                         if (nframes != 0) {
                             fr = frames + (nframes - 1);
                             lits = fr->lits;
@@ -10797,7 +10797,7 @@ op_not_identical:;
                     s_211[CTX_PC] = (uint64_t)((v_372 << 1) | 1);
                     v_373 = sp - fp + 1;
                     s_211[CTX_STACKP] = (uint64_t)((v_373 << 1) | 1);
-                    jit_resume_context(true);
+                    resume_context(true);
                     if (nframes != 0) {
                         fr = frames + (nframes - 1);
                         lits = fr->lits;
@@ -10876,7 +10876,7 @@ op_bc_value_b5:;
                 v_377 = sp - fp + 1;
                 s_214[CTX_STACKP] = (uint64_t)((v_377 << 1) | 1);
             }
-            jit_resume(fr);
+            jit_runtime_resume(fr);
             if (nframes != 0) {
                 fr = frames + (nframes - 1);
                 lits = fr->lits;
@@ -10994,7 +10994,7 @@ op_bc_value_b6:;
                 v_383 = sp - fp + 1;
                 s_219[CTX_STACKP] = (uint64_t)((v_383 << 1) | 1);
             }
-            jit_resume(fr);
+            jit_runtime_resume(fr);
             if (nframes != 0) {
                 fr = frames + (nframes - 1);
                 lits = fr->lits;
@@ -11112,7 +11112,7 @@ op_bc_value_be:;
                 v_389 = sp - fp + 1;
                 s_224[CTX_STACKP] = (uint64_t)((v_389 << 1) | 1);
             }
-            jit_resume(fr);
+            jit_runtime_resume(fr);
             if (nframes != 0) {
                 fr = frames + (nframes - 1);
                 lits = fr->lits;
@@ -11303,7 +11303,7 @@ cannot_return:;
     *sp = active_ctx;
     sp = sp + 1;
     *sp = result;
-    sel = special(SO_SEL_CANNOTRETURN);
+    sel = object_memory_special(SO_SEL_CANNOTRETURN);
     argc = 1;
     goto do_send_global;
 context_non_local_return:;
@@ -11343,7 +11343,7 @@ context_non_local_return:;
         *sp = result;
         sp = sp + 1;
         *sp = marked_2;
-        sel = special(SO_SEL_ABOUTTORETURN);
+        sel = object_memory_special(SO_SEL_ABOUTTORETURN);
         argc = 2;
         goto do_send_global;
     }
@@ -11359,7 +11359,7 @@ context_non_local_return:;
     }
     active_ctx = hs_2;
     if (((hs_2 & 7) == 0) && ((!(hs_2 - young_lo < young_hi - young_lo)) && (((*(uint64_t *)hs_2) & H_REMEMBERED) == 0))) {
-        vm_remember(hs_2);
+        remember(hs_2);
     }
     s_231 = (oop *)(active_ctx + 16);
     m_235 = s_231[CTX_METHOD];
@@ -11388,7 +11388,7 @@ context_non_local_return:;
         s_232[CTX_PC] = (uint64_t)((v_396 << 1) | 1);
         v_397 = sp - fp + 1;
         s_232[CTX_STACKP] = (uint64_t)((v_397 << 1) | 1);
-        jit_resume_context(false);
+        resume_context(false);
         if (nframes != 0) {
             fr = frames + (nframes - 1);
             lits = fr->lits;
@@ -11431,7 +11431,7 @@ context_return:;
     s_234[CTX_SENDER] = nil_oop;
     active_ctx = sender;
     if (((sender & 7) == 0) && ((!((uint64_t)(sender - young_lo) < young_hi - young_lo)) && (((*(uint64_t *)sender) & H_REMEMBERED) == 0))) {
-        vm_remember(sender);
+        remember(sender);
     }
     s_235 = (oop *)(active_ctx + 16);
     m_238 = s_235[CTX_METHOD];
@@ -11460,7 +11460,7 @@ context_return:;
         s_236[CTX_PC] = (uint64_t)((v_398 << 1) | 1);
         v_399 = sp - fp + 1;
         s_236[CTX_STACKP] = (uint64_t)((v_399 << 1) | 1);
-        jit_resume_context(false);
+        resume_context(false);
         if (nframes != 0) {
             fr = frames + (nframes - 1);
             lits = fr->lits;
@@ -11560,7 +11560,7 @@ enter_frame:;
             v_401 = sp - fp + 1;
             s_239[CTX_STACKP] = (uint64_t)((v_401 << 1) | 1);
         }
-        jit_activated(fr);
+        activated(fr);
         if (nframes != 0) {
             fr = frames + (nframes - 1);
             lits = fr->lits;
@@ -11652,13 +11652,13 @@ frame_non_local_return_through:;
     sp = sp + 1;
     *sp = result;
     if (mk_2 == nil_oop) {
-        sel = special(SO_SEL_CANNOTRETURN);
+        sel = object_memory_special(SO_SEL_CANNOTRETURN);
         argc = 1;
         goto do_send_global;
     }
     sp = sp + 1;
     *sp = mk_2;
-    sel = special(SO_SEL_ABOUTTORETURN);
+    sel = object_memory_special(SO_SEL_ABOUTTORETURN);
     argc = 2;
     goto do_send_global;
 have_entry:;
@@ -11763,7 +11763,7 @@ have_entry:;
                     v_407 = sp[-argc + 1 + k_25];
                     *(uint64_t *)(r_39 + 16 + 8 * i_7) = v_407;
                     if (((v_407 & 7) == 0) && (((uint64_t)(v_407 - young_lo) < young_hi - young_lo) && ((!((uint64_t)(r_39 - young_lo) < young_hi - young_lo)) && (((*(uint64_t *)r_39) & H_REMEMBERED) == 0)))) {
-                        vm_remember(r_39);
+                        remember(r_39);
                     }
                 }
                 sp = sp - argc;
@@ -11973,7 +11973,7 @@ have_entry:;
                     v_415 = sp - fp + 1;
                     s_252[CTX_STACKP] = (uint64_t)((v_415 << 1) | 1);
                 }
-                jit_resume(fr);
+                jit_runtime_resume(fr);
                 if (nframes != 0) {
                     fr = frames + (nframes - 1);
                     lits = fr->lits;
@@ -12079,7 +12079,7 @@ have_entry:;
     }
     goto activate;
 send_does_not_understand:;
-    dnu = special(SO_SEL_DNU);
+    dnu = object_memory_special(SO_SEL_DNU);
     if (sel == dnu) {
         if (fr != NULL) {
             nframes = (int32_t)(fr - frames) + 1;
@@ -12148,8 +12148,8 @@ send_does_not_understand:;
         fr = (frame *)NULL;
     }
     memcpy((oop *)(args + 16), sp - argc + 1, (uint64_t)argc * 8);
-    if (((args & 7) == 0) && ((!((uint64_t)(args - young_lo) < young_hi - young_lo)) && (((*(uint64_t *)args) & H_REMEMBERED) == 0))) {
-        vm_remember(args);
+    if (((args & 7) == 0) && ((!(args - young_lo < young_hi - young_lo)) && (((*(uint64_t *)args) & H_REMEMBERED) == 0))) {
+        remember(args);
     }
     tmp_roots[3] = args;
     mc = cls_message;
@@ -12184,12 +12184,12 @@ send_does_not_understand:;
     v_420 = tmp_roots[1];
     *(uint64_t *)(msg + 16 + 0) = v_420;
     if (((v_420 & 7) == 0) && (((uint64_t)(v_420 - young_lo) < young_hi - young_lo) && ((!((uint64_t)(msg - young_lo) < young_hi - young_lo)) && (((*(uint64_t *)msg) & H_REMEMBERED) == 0)))) {
-        vm_remember(msg);
+        remember(msg);
     }
     v_421 = tmp_roots[3];
     *(uint64_t *)(msg + 16 + 8) = v_421;
     if (((v_421 & 7) == 0) && (((uint64_t)(v_421 - young_lo) < young_hi - young_lo) && ((!((uint64_t)(msg - young_lo) < young_hi - young_lo)) && (((*(uint64_t *)msg) & H_REMEMBERED) == 0)))) {
-        vm_remember(msg);
+        remember(msg);
     }
     cls = tmp_roots[2];
     tmp_roots[1] = nil_oop;
@@ -12198,11 +12198,11 @@ send_does_not_understand:;
     sp = sp - argc;
     sp = sp + 1;
     *sp = msg;
-    sel = special(SO_SEL_DNU);
+    sel = object_memory_special(SO_SEL_DNU);
     argc = 1;
     goto do_lookup;
 send_special:;
-    o_918 = special(SO_SPECIAL_SELECTORS);
+    o_918 = object_memory_special(SO_SPECIAL_SELECTORS);
     sel = *(uint64_t *)(o_918 + 16 + 8 * six);
     argc = special_argc[six];
     goto do_send;
@@ -12211,17 +12211,17 @@ send_special:;
 /* Interpreter>>interruptSafepoint */
 void interrupt_safepoint(void)
 {
-    oop o;
+    uint64_t o;
     int64_t depth;
     oop sel;
-    oop m;
+    uint64_t m;
     int64_t r_method_prim;
     uint64_t p;
     uint64_t o_2;
     int64_t ntemps;
     uint64_t o_3;
     int64_t fsize;
-    oop ctx;
+    uint64_t ctx;
     oop *s;
     int64_t v;
     depth = stack_check_due && ({
@@ -12233,7 +12233,7 @@ void interrupt_safepoint(void)
     }
     materialize_all();
     stack_check_due = false;
-    sel = special(SO_SEL_STACKOVERFLOW);
+    sel = object_memory_special(SO_SEL_STACKOVERFLOW);
     m = lookup_method(*(uint64_t *)(active_ctx + 8), sel);
     if ((m == 0) || ((!((m & 7) == 0)) || ((({
     p = *(uint64_t *)(m + 16 + 56);
@@ -12273,7 +12273,7 @@ bool is_married(oop o)
 }
 
 /* Interpreter>>lookupMethod:selector: */
-oop lookup_method(oop a_class, oop a_selector)
+uint64_t lookup_method(oop a_class, oop a_selector)
 {
     uint32_t h;
     oop c;
@@ -12320,7 +12320,7 @@ oop lookup_method(oop a_class, oop a_selector)
 oop marry(frame *f)
 {
     int64_t n;
-    oop ctx;
+    uint64_t ctx;
     oop *s;
     int64_t v;
     if (f->ctx != nil_oop) {
@@ -12338,8 +12338,8 @@ oop marry(frame *f)
     s[CTX_METHOD] = f->method;
     s[CTX_CLOSURE] = f->closure;
     s[CTX_RECEIVER] = f->fp[-1];
-    if (((ctx & 7) == 0) && ((!((uint64_t)(ctx - young_lo) < young_hi - young_lo)) && (((*(uint64_t *)ctx) & H_REMEMBERED) == 0))) {
-        vm_remember(ctx);
+    if (((ctx & 7) == 0) && ((!(ctx - young_lo < young_hi - young_lo)) && (((*(uint64_t *)ctx) & H_REMEMBERED) == 0))) {
+        remember(ctx);
     }
     f->ctx = ctx;
     return ctx;
@@ -12360,7 +12360,7 @@ void materialize_all(void)
     int32_t v_2;
     uint64_t n_2;
     int64_t by_heap;
-    oop o_2;
+    uint64_t o_2;
     if (nframes != 0) {
         stat_flushes = stat_flushes + 1;
         frame_epoch = frame_epoch + 1;
@@ -12370,7 +12370,7 @@ void materialize_all(void)
         f = frames + i;
         c = f->code;
         if ((c > JIT_MAX_COUNT) && (((jit_method *)f->code)->mode == JIT_OPT)) {
-            jit_materialize_opt(f);
+            materialize_opt(f);
         } else {
             ctx = f->ctx;
             if (ctx == nil_oop) {
@@ -12393,7 +12393,7 @@ void materialize_all(void)
             s[CTX_RECEIVER] = f->fp[-1];
             memcpy(s + CTX_FIXED, f->fp, (uint64_t)f->sp * 8);
             if (((ctx & 7) == 0) && ((!((uint64_t)(ctx - young_lo) < young_hi - young_lo)) && (((*(uint64_t *)ctx) & H_REMEMBERED) == 0))) {
-                vm_remember(ctx);
+                remember(ctx);
             }
             active_ctx = ctx;
         }
@@ -12464,7 +12464,7 @@ void print_class_name(oop a_class, FILE *f)
     o_2 = *(uint64_t *)(a_class + 16 + 48);
     ((int32_t)(((*(uint64_t *)o_2) >> H_FMT_SHIFT) & H_FMT_MASK) >= F_BYTES) && ({
     o_3 = *(uint64_t *)(a_class + 16 + 48);
-    *(uint64_t *)(o_3 + 8) == special(SO_BYTESYMBOL); }); })) {
+    *(uint64_t *)(o_3 + 8) == object_memory_special(SO_BYTESYMBOL); }); })) {
         n = *(uint64_t *)(a_class + 16 + 48);
         fprintf(f, "%.*s", (int32_t)byte_size(n), (char *)(uint8_t *)(n + 16));
         return;
@@ -12531,7 +12531,7 @@ void print_symbol(oop s, FILE *f)
 }
 
 /* Interpreter>>pushFrame:argc:code:ecode: */
-frame *interp_push_frame(oop m, int32_t n, uint64_t c, int32_t ecode)
+frame *push_frame(oop m, int32_t n, uint64_t c, int32_t ecode)
 {
     frame *f;
     uint64_t o;
@@ -12579,7 +12579,7 @@ frame *interp_push_frame(oop m, int32_t n, uint64_t c, int32_t ecode)
 }
 
 /* Interpreter>>pushFrameEntry:argc: */
-frame *interp_push_frame_entry(cache_entry *e, int32_t n)
+frame *push_frame_entry(cache_entry *e, int32_t n)
 {
     frame *f;
     int32_t ntemps;
@@ -12626,7 +12626,7 @@ static void refresh_tag_classes(void)
 }
 
 /* Interpreter>>roots: */
-void interp_roots(void (*fn)(oop *))
+void interpreter_roots(void (*fn)(oop *))
 {
     int32_t i;
     int64_t i_2;
@@ -12668,7 +12668,7 @@ int selector_argc(oop a_selector)
 }
 
 /* Interpreter>>senderOf:marker:upTo: */
-oop sender_marked(oop c, int64_t p, oop stop)
+oop sender_of(oop c, int64_t p, oop stop)
 {
     oop x;
     uint64_t o;
@@ -12720,7 +12720,7 @@ oop sender_marked(oop c, int64_t p, oop stop)
 }
 
 /* Interpreter>>setPrimBase: */
-void set_prim_base(int n)
+void set_prim_base(int32_t n)
 {
     prim_nargs = n;
     prim_base_index = active_stackp() - 1 - n;
@@ -12728,7 +12728,7 @@ void set_prim_base(int n)
 }
 
 /* Interpreter>>siteEntry:class:selector: */
-cache_entry *site_entry(uint8_t *site, oop a_class, oop a_selector)
+cache_entry *site_entry(uint8_t *site, uint64_t a_class, oop a_selector)
 {
     uint64_t r_icache_index_of;
     uint64_t s;
@@ -12775,7 +12775,7 @@ static int64_t stack_overflow_depth(void)
 }
 
 /* Interpreter>>syncFrame: */
-void interp_sync_frame(frame *f)
+void sync_frame(frame *f)
 {
     oop m;
     uint64_t o;
@@ -12787,7 +12787,7 @@ void interp_sync_frame(frame *f)
 }
 
 /* Interpreter>>terminate:to: */
-bool terminate_to(oop c, oop target)
+bool terminate(oop c, oop target)
 {
     int32_t t;
     frame *f;
@@ -12837,11 +12837,11 @@ bool terminate_to(oop c, oop target)
             next = *(uint64_t *)(x + 16 + 0);
             *(uint64_t *)(x + 16 + 0) = nil_oop;
             if (((nil_oop & 7) == 0) && (((uint64_t)(nil_oop - young_lo) < young_hi - young_lo) && ((!((uint64_t)(x - young_lo) < young_hi - young_lo)) && (((*(uint64_t *)x) & H_REMEMBERED) == 0)))) {
-                vm_remember(x);
+                remember(x);
             }
             *(uint64_t *)(x + 16 + 8) = nil_oop;
             if (((nil_oop & 7) == 0) && (((uint64_t)(nil_oop - young_lo) < young_hi - young_lo) && ((!((uint64_t)(x - young_lo) < young_hi - young_lo)) && (((*(uint64_t *)x) & H_REMEMBERED) == 0)))) {
-                vm_remember(x);
+                remember(x);
             }
             x = next;
         }
@@ -12870,7 +12870,7 @@ bool terminate_to(oop c, oop target)
 }
 
 /* Interpreter>>thawFor: */
-frame *interp_thaw(uint64_t code)
+frame *thaw_for(uint64_t code)
 {
     oop c;
     oop *s;
@@ -12917,7 +12917,7 @@ frame *interp_thaw(uint64_t code)
 }
 
 /* Interpreter>>widow: */
-void widow(frame *f)
+void interpreter_widow(frame *f)
 {
     oop ctx;
     oop *s;
@@ -12933,7 +12933,7 @@ void widow(frame *f)
     s[CTX_PC] = nil_oop;
     s[CTX_STACKP] = (uint64_t)((n << 1) | 1);
     if (((ctx & 7) == 0) && ((!((uint64_t)(ctx - young_lo) < young_hi - young_lo)) && (((*(uint64_t *)ctx) & H_REMEMBERED) == 0))) {
-        vm_remember(ctx);
+        remember(ctx);
     }
     f->ctx = nil_oop;
 }
@@ -12944,7 +12944,7 @@ static void widow_from(int64_t k, int64_t n)
     int64_t i;
     for (i = k; i <= n; i++) {
         if ((frames + i)->ctx != nil_oop) {
-            widow(frames + i);
+            interpreter_widow(frames + i);
         }
     }
 }

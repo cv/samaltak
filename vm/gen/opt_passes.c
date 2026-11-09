@@ -16,46 +16,46 @@ bool ps_unboxed;
 static uint8_t ps_visit_mark[2048];
 static int32_t ps_work_list[16384];
 
-static void opt_compute_order(int32_t entry);
-static void opt_count_uses(void);
-static void opt_dominators(int32_t entry);
-static void opt_remove_dead(void);
-static void opt_remove_unreachable(void);
-static void opt_resolve_operands(void);
-static void opt_simplify_phis(void);
-static void opt_split_critical_edges(void);
-static void opt_type_phis(void);
-static void opt_unbox_phis(void);
-static void opt_value_numbers(void);
+static void compute_order(int32_t entry);
+static void count_uses(void);
+static void dominators(int32_t entry);
+static void remove_dead(void);
+static void remove_unreachable(void);
+static void resolve_operands(void);
+static void simplify_phis(void);
+static void split_critical_edges(void);
+static void type_phis(void);
+static void unbox_phis(void);
+static void value_numbers(void);
 
 /* OptPasses>>cleanup: */
-void opt_cleanup(int32_t entry)
+void cleanup(int32_t entry)
 {
-    opt_compute_order(entry);
-    opt_remove_unreachable();
-    opt_simplify_phis();
-    opt_resolve_operands();
-    opt_type_phis();
-    opt_resolve_operands();
+    compute_order(entry);
+    remove_unreachable();
+    simplify_phis();
+    resolve_operands();
+    type_phis();
+    resolve_operands();
     ps_unboxed = false;
     if ((!ps_unbox_off) && ((jit_flags & JIT_FLAG_UNBOX) != 0)) {
-        opt_unbox_phis();
-        opt_resolve_operands();
+        unbox_phis();
+        resolve_operands();
     }
     if ((jit_flags & JIT_FLAG_GVN) != 0) {
-        opt_dominators(entry);
-        opt_value_numbers();
-        opt_resolve_operands();
+        dominators(entry);
+        value_numbers();
+        resolve_operands();
     }
-    opt_split_critical_edges();
-    opt_compute_order(entry);
-    opt_count_uses();
-    opt_remove_dead();
-    opt_count_uses();
+    split_critical_edges();
+    compute_order(entry);
+    count_uses();
+    remove_dead();
+    count_uses();
 }
 
 /* OptPasses>>computeOrder: */
-static void opt_compute_order(int32_t entry)
+static void compute_order(int32_t entry)
 {
     int32_t i;
     int64_t post;
@@ -109,7 +109,7 @@ static void opt_compute_order(int32_t entry)
 }
 
 /* OptPasses>>countUses */
-static void opt_count_uses(void)
+static void count_uses(void)
 {
     int32_t n;
     int32_t n_2;
@@ -187,7 +187,7 @@ static void opt_count_uses(void)
 }
 
 /* OptPasses>>dominators: */
-static void opt_dominators(int32_t entry)
+static void dominators(int32_t entry)
 {
     int32_t i;
     bool changed;
@@ -272,7 +272,7 @@ static void opt_dominators(int32_t entry)
 }
 
 /* OptPasses>>removeDead */
-static void opt_remove_dead(void)
+static void remove_dead(void)
 {
     bool changed;
     int32_t n;
@@ -315,7 +315,7 @@ static void opt_remove_dead(void)
                     (opt_nodes + n_6)->uses = (opt_nodes + n_7)->uses - 1;
                 }
                 nd->flags = nd->flags | NF_DEAD;
-                opt_unlink(n);
+                opt_ir_unlink(n);
                 changed = true;
             }
         }
@@ -323,7 +323,7 @@ static void opt_remove_dead(void)
 }
 
 /* OptPasses>>removeUnreachable */
-static void opt_remove_unreachable(void)
+static void remove_unreachable(void)
 {
     int32_t b;
     opt_block *bl;
@@ -388,14 +388,14 @@ static void opt_remove_unreachable(void)
         if (bl->rpo < 0) {
             while ((k = bl->first) >= 0) {
                 (opt_nodes + k)->flags = (opt_nodes + k)->flags | NF_DEAD;
-                opt_unlink(k);
+                opt_ir_unlink(k);
             }
         }
     }
 }
 
 /* OptPasses>>resolveOperands */
-static void opt_resolve_operands(void)
+static void resolve_operands(void)
 {
     int32_t n;
     opt_node *nd;
@@ -413,20 +413,20 @@ static void opt_resolve_operands(void)
     for (n = 0; n <= opt_node_count - 1; n++) {
         nd = opt_nodes + n;
         if (nd->a >= 0) {
-            nd->a = opt_resolve(nd->a);
+            nd->a = opt_ir_resolve(nd->a);
         }
         if (nd->b >= 0) {
-            nd->b = opt_resolve(nd->b);
+            nd->b = opt_ir_resolve(nd->b);
         }
         if (nd->c >= 0) {
             if (!((int32_t)nd->op == O_SEND)) {
-                nd->c = opt_resolve(nd->c);
+                nd->c = opt_ir_resolve(nd->c);
             }
         }
         for (i = 0; i <= (int32_t)nd->nargs - 1; i++) {
             i_2 = nd->args + i;
             i_3 = nd->args + i;
-            v = opt_resolve(opt_operands[i_3]);
+            v = opt_ir_resolve(opt_operands[i_3]);
             opt_operands[i_2] = v;
         }
     }
@@ -435,18 +435,18 @@ static void opt_resolve_operands(void)
         for (i_4 = 0; i_4 <= st->depth; i_4++) {
             i_5 = st->vals + i_4;
             i_6 = st->vals + i_4;
-            v_2 = opt_resolve(opt_operands[i_6]);
+            v_2 = opt_ir_resolve(opt_operands[i_6]);
             opt_operands[i_5] = v_2;
         }
     }
     for (a = 0; a <= opt_act_count - 1; a++) {
-        (opt_acts + a)->receiver = opt_resolve((opt_acts + a)->receiver);
-        (opt_acts + a)->closure = opt_resolve((opt_acts + a)->closure);
+        (opt_acts + a)->receiver = opt_ir_resolve((opt_acts + a)->receiver);
+        (opt_acts + a)->closure = opt_ir_resolve((opt_acts + a)->closure);
     }
 }
 
 /* OptPasses>>simplifyPhis */
-static void opt_simplify_phis(void)
+static void simplify_phis(void)
 {
     bool changed;
     int32_t n;
@@ -466,7 +466,7 @@ static void opt_simplify_phis(void)
                 ok = true;
                 for (i = 0; i <= (int32_t)nd->nargs - 1; i++) {
                     i_2 = nd->args + i;
-                    v = opt_resolve(opt_operands[i_2]);
+                    v = opt_ir_resolve(opt_operands[i_2]);
                     if ((v != n) && (v != same)) {
                         if (same < 0) {
                             same = v;
@@ -477,7 +477,7 @@ static void opt_simplify_phis(void)
                 }
                 if (ok && (same >= 0)) {
                     nd->fwd = same;
-                    opt_unlink(n);
+                    opt_ir_unlink(n);
                     changed = true;
                 }
             }
@@ -486,7 +486,7 @@ static void opt_simplify_phis(void)
 }
 
 /* OptPasses>>splitCriticalEdges */
-static void opt_split_critical_edges(void)
+static void split_critical_edges(void)
 {
     int32_t nb;
     int32_t b;
@@ -502,14 +502,14 @@ static void opt_split_critical_edges(void)
             for (k = 0; k <= 1; k++) {
                 s = k == 0 ? (opt_blocks + b)->succ0 : (opt_blocks + b)->succ1;
                 if ((opt_blocks + s)->npreds > 1) {
-                    n = opt_new_block();
+                    n = new_block();
                     (opt_blocks + n)->act = (opt_blocks + b)->act;
                     (opt_blocks + n)->flags = BF_SEALED;
-                    g = opt_new_node(O_GOTO, R_NONE);
-                    opt_append(g, n);
+                    g = new_node(O_GOTO, R_NONE);
+                    append(g, n);
                     (opt_blocks + n)->succ0 = s;
-                    opt_add_pred(b, n);
-                    opt_replace_pred(b, n, s);
+                    add_pred(b, n);
+                    replace_pred(b, n, s);
                     if (k == 0) {
                         (opt_blocks + b)->succ0 = n;
                     } else {
@@ -522,7 +522,7 @@ static void opt_split_critical_edges(void)
 }
 
 /* OptPasses>>typePhis */
-static void opt_type_phis(void)
+static void type_phis(void)
 {
     int64_t count;
     int32_t n;
@@ -553,7 +553,7 @@ static void opt_type_phis(void)
             if ((int32_t)nd->tkind == T_SMI) {
                 for (i = 0; i <= (int32_t)nd->nargs - 1; i++) {
                     i_2 = nd->args + i;
-                    v = opt_resolve(opt_operands[i_2]);
+                    v = opt_ir_resolve(opt_operands[i_2]);
                     if (!(((int32_t)(opt_nodes + v)->tkind == T_SMI) || ((int32_t)nd->tkind != T_SMI))) {
                         nd->tkind = T_ANY;
                         changed = true;
@@ -565,16 +565,16 @@ static void opt_type_phis(void)
     for (n_3 = 0; n_3 <= opt_node_count - 1; n_3++) {
         nd = opt_nodes + n_3;
         if (((int32_t)nd->op == O_GUARDINT) && ((nd->fwd < 0) && ((nd->block >= 0) && ({
-    n_4 = opt_resolve(nd->a);
+    n_4 = opt_ir_resolve(nd->a);
     (int32_t)(opt_nodes + n_4)->tkind == T_SMI; })))) {
-            nd->fwd = opt_resolve(nd->a);
-            opt_unlink(n_3);
+            nd->fwd = opt_ir_resolve(nd->a);
+            opt_ir_unlink(n_3);
         }
     }
 }
 
 /* OptPasses>>unboxPhis */
-static void opt_unbox_phis(void)
+static void unbox_phis(void)
 {
     int32_t h;
     opt_block *hb;
@@ -647,7 +647,7 @@ static void opt_unbox_phis(void)
                     k = 0;
                     while (ok && (e >= 0)) {
                         i_2 = nd->args + k;
-                        o = opt_resolve(opt_operands[i_2]);
+                        o = opt_ir_resolve(opt_operands[i_2]);
                         ok = (o == n) || (((int32_t)(opt_nodes + o)->op == O_BOXF) || ((((int32_t)(opt_nodes + o)->op == O_CONST) && (((opt_nodes + o)->aux & 7) == 4)) || (((opt_edges + e)->from == opt_osr_entry) && ({
     nd_2 = opt_nodes + o;
     r_is_frame_number = (opt_osr_state >= 0) && (((int32_t)nd_2->op == O_PARAM) && ((nd_2->aux >= 0) && ((nd_2->aux < 64) && ((opt_osr_numbers & (1LL << nd_2->aux)) != 0))));
@@ -661,7 +661,7 @@ static void opt_unbox_phis(void)
                             b_4 = ps_order[i_3];
                             u = (opt_blocks + b_4)->first;
                             while (u >= 0) {
-                                if (((int32_t)(opt_nodes + u)->op == O_UNBOXF) && (opt_resolve((opt_nodes + u)->a) == n)) {
+                                if (((int32_t)(opt_nodes + u)->op == O_UNBOXF) && (opt_ir_resolve((opt_nodes + u)->a) == n)) {
                                     uses = uses + 1;
                                 }
                                 u = (opt_nodes + u)->next;
@@ -670,30 +670,30 @@ static void opt_unbox_phis(void)
                     }
                     if (uses > 0) {
                         nd_3 = opt_nodes + n;
-                        p2 = opt_new_node(O_PHI, R_DBL);
+                        p2 = new_node(O_PHI, R_DBL);
                         (opt_nodes + p2)->bcact = nd_3->bcact;
                         (opt_nodes + p2)->bcpc = nd_3->bcpc;
                         (opt_nodes + p2)->tkind = T_FLOAT;
                         (opt_nodes + p2)->nargs = nd_3->nargs;
-                        (opt_nodes + p2)->args = opt_alloc_operands((int32_t)nd_3->nargs);
-                        opt_insert_before(p2, n);
+                        (opt_nodes + p2)->args = alloc_operands((int32_t)nd_3->nargs);
+                        insert(p2, n);
                         e_2 = (opt_blocks + h)->preds;
                         k_2 = 0;
                         while (e_2 >= 0) {
                             i_4 = nd_3->args + k_2;
-                            o_2 = opt_resolve(opt_operands[i_4]);
-                            x = o_2 == n ? p2 : (int32_t)(opt_nodes + o_2)->op == O_BOXF ? opt_resolve((opt_nodes + o_2)->a) : ({
+                            o_2 = opt_ir_resolve(opt_operands[i_4]);
+                            x = o_2 == n ? p2 : (int32_t)(opt_nodes + o_2)->op == O_BOXF ? opt_ir_resolve((opt_nodes + o_2)->a) : ({
     if (((int32_t)(opt_nodes + o_2)->op == O_CONST) && (((opt_nodes + o_2)->aux & 7) == 4)) {
         v = o_2;
     } else {
-        g = opt_new_node(O_UNBOXF, R_DBL);
+        g = new_node(O_UNBOXF, R_DBL);
         (opt_nodes + g)->a = o_2;
         (opt_nodes + g)->state = opt_osr_state;
         (opt_nodes + g)->flags = NF_GUARD;
         (opt_nodes + g)->bcact = nd_3->bcact;
         (opt_nodes + g)->bcpc = nd_3->bcpc;
         b_5 = (opt_edges + e_2)->from;
-        opt_insert_before(g, (opt_blocks + b_5)->last);
+        insert(g, (opt_blocks + b_5)->last);
         v = g;
     }
     v; });
@@ -707,9 +707,9 @@ static void opt_unbox_phis(void)
                             u_2 = (opt_blocks + b_6)->first;
                             while (u_2 >= 0) {
                                 nu = (opt_nodes + u_2)->next;
-                                if (((int32_t)(opt_nodes + u_2)->op == O_UNBOXF) && (opt_resolve((opt_nodes + u_2)->a) == n)) {
+                                if (((int32_t)(opt_nodes + u_2)->op == O_UNBOXF) && (opt_ir_resolve((opt_nodes + u_2)->a) == n)) {
                                     (opt_nodes + u_2)->fwd = p2;
-                                    opt_unlink(u_2);
+                                    opt_ir_unlink(u_2);
                                 }
                                 u_2 = nu;
                             }
@@ -724,7 +724,7 @@ static void opt_unbox_phis(void)
 }
 
 /* OptPasses>>valueNumbers */
-static void opt_value_numbers(void)
+static void value_numbers(void)
 {
     int i;
     int64_t mem;
@@ -752,10 +752,10 @@ static void opt_value_numbers(void)
         while (n >= 0) {
             nd = opt_nodes + n;
             if (nd->a >= 0) {
-                nd->a = opt_resolve(nd->a);
+                nd->a = opt_ir_resolve(nd->a);
             }
             if (nd->b >= 0) {
-                nd->b = opt_resolve(nd->b);
+                nd->b = opt_ir_resolve(nd->b);
             }
             if (({
     op = (int32_t)nd->op;
@@ -790,7 +790,7 @@ exit_is_numbered:;
                 if (found >= 0) {
                     m = nd->next;
                     nd->fwd = found;
-                    opt_unlink(n);
+                    opt_ir_unlink(n);
                     n = m;
                 } else {
                     ps_chain[n] = ps_heads[h];

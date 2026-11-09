@@ -23,7 +23,7 @@ declarations
 !DisplayPrimitives methodsFor: 'arguments'!
 ints: n from: first
 	"Whether the screen is open and arguments first .. first + n - 1 are the last ones and SmallIntegers of 16 bits."
-	<c: 'bool display_ints(int n, int first)'>
+	<function>
 	| v |
 	(opened and: [self argCount = (first + n)]) ifFalse: [^false].
 	first to: first + n - 1 do: [:i |

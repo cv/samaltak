@@ -3,7 +3,7 @@ VMPlatformModule subclass: #PlatformVsync
 	classVariableNames: ''
 	package: 'VM-Platform'!
 
-PlatformVsync comment: 'The display-refresh semaphore: the host''s refresh thread (PlatformHost: a CVDisplayLink on macOS, a timer at the display''s refresh rate on Linux) flags each refresh; the next platform_poll signals the semaphore (the compositor''s frame clock). Signaled at most once per poll, so a late compositor skips refreshes.'!
+PlatformVsync comment: 'The display-refresh semaphore: the host''s refresh thread (PlatformHost: a CVDisplayLink on macOS, a timer at the display''s refresh rate on Linux) flags each refresh; the next platform_interface_poll signals the semaphore (the compositor''s frame clock). Signaled at most once per poll, so a late compositor skips refreshes.'!
 
 !PlatformVsync class methodsFor: 'declaring'!
 declarations
@@ -13,7 +13,6 @@ declarations
 !PlatformVsync methodsFor: 'vsync'!
 refreshed
 	"The refresh thread: flag the refresh, wake the VM once."
-	<c: 'void pf_vsync_refreshed(void)'>
 	<export>
 	(self atomicExchange: #pending value: 1) = 0 ifTrue: [
 		scheduler requestInterruptCheck.
@@ -21,7 +20,6 @@ refreshed
 !
 semaphore: index
 	"Signal external semaphore index once per display refresh; 0 = stop."
-	<c: 'bool pf_vsync_semaphore(int index)'>
 	<export>
 	platform init.
 	vsyncSem := index.
@@ -35,11 +33,11 @@ semaphore: index
 	^true
 !
 poll
-	<c: 'void pf_vsync_poll(void)'>
+	<function>
 	(vsyncSem ~= 0 and: [(self atomicExchange: #pending value: 0) ~= 0]) ifTrue: [
 		scheduler signalExternalSemaphore: vsyncSem]
 !
 pending
-	<c: 'bool pf_vsync_pending(void)'>
+	<function>
 	^vsyncSem ~= 0 and: [(self atomicLoad: #pending) ~= 0]
 ! !

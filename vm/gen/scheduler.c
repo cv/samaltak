@@ -45,48 +45,48 @@ static bool work_clock_running;
 static int64_t work_clock_us;
 static bool work_clock_uses_cycles;
 
-static void add_first_link(oop list, oop link);
-static void add_last_link(oop list, oop link);
+static void add_first_link(uint64_t link, uint64_t list);
+static void add_last_link(oop link, oop list);
 static void idle_wait(void);
 static int64_t priority_of(oop p);
 static int64_t raw_now_us(void);
 static oop remove_first_link(oop list);
-static void signal_index(int index);
-static void tick_set_idle(bool idle);
+static void signal_index(int32_t index);
+static void tick_set_idle(bool a_boolean);
 static void tick_update(void);
-static void transfer_to(oop proc);
+static void transfer_to(oop a_process);
 static void transfer_to_highest(void);
 
 /* Scheduler>>activeProcess */
-oop active_process(void)
+uint64_t active_process(void)
 {
     oop o;
-    o = special(SO_PROCESSOR);
+    o = object_memory_special(SO_PROCESSOR);
     return *(uint64_t *)(o + 16 + 8);
 }
 
 /* Scheduler>>addFirstLink:to: */
-static void add_first_link(oop link, oop list)
+static void add_first_link(uint64_t link, uint64_t list)
 {
     uint64_t v;
     v = *(uint64_t *)(list + 16 + 0);
     *(uint64_t *)(link + 16 + 0) = v;
-    if (((v & 7) == 0) && ((v - young_lo < young_hi - young_lo) && ((!((uint64_t)(link - young_lo) < young_hi - young_lo)) && (((*(uint64_t *)link) & H_REMEMBERED) == 0)))) {
-        vm_remember(link);
+    if (((v & 7) == 0) && ((v - young_lo < young_hi - young_lo) && ((!(link - young_lo < young_hi - young_lo)) && (((*(uint64_t *)link) & H_REMEMBERED) == 0)))) {
+        remember(link);
     }
     if (*(uint64_t *)(list + 16 + 0) == nil_oop) {
         *(uint64_t *)(list + 16 + 8) = link;
-        if (((link & 7) == 0) && (((uint64_t)(link - young_lo) < young_hi - young_lo) && ((!((uint64_t)(list - young_lo) < young_hi - young_lo)) && (((*(uint64_t *)list) & H_REMEMBERED) == 0)))) {
-            vm_remember(list);
+        if (((link & 7) == 0) && ((link - young_lo < young_hi - young_lo) && ((!(list - young_lo < young_hi - young_lo)) && (((*(uint64_t *)list) & H_REMEMBERED) == 0)))) {
+            remember(list);
         }
     }
     *(uint64_t *)(list + 16 + 0) = link;
-    if (((link & 7) == 0) && (((uint64_t)(link - young_lo) < young_hi - young_lo) && ((!((uint64_t)(list - young_lo) < young_hi - young_lo)) && (((*(uint64_t *)list) & H_REMEMBERED) == 0)))) {
-        vm_remember(list);
+    if (((link & 7) == 0) && ((link - young_lo < young_hi - young_lo) && ((!(list - young_lo < young_hi - young_lo)) && (((*(uint64_t *)list) & H_REMEMBERED) == 0)))) {
+        remember(list);
     }
     *(uint64_t *)(link + 16 + 24) = list;
-    if (((list & 7) == 0) && (((uint64_t)(list - young_lo) < young_hi - young_lo) && ((!((uint64_t)(link - young_lo) < young_hi - young_lo)) && (((*(uint64_t *)link) & H_REMEMBERED) == 0)))) {
-        vm_remember(link);
+    if (((list & 7) == 0) && ((list - young_lo < young_hi - young_lo) && ((!(link - young_lo < young_hi - young_lo)) && (((*(uint64_t *)link) & H_REMEMBERED) == 0)))) {
+        remember(link);
     }
 }
 
@@ -96,32 +96,32 @@ static void add_last_link(oop link, oop list)
     uint64_t o;
     *(uint64_t *)(link + 16 + 0) = nil_oop;
     if (((nil_oop & 7) == 0) && (((uint64_t)(nil_oop - young_lo) < young_hi - young_lo) && ((!((uint64_t)(link - young_lo) < young_hi - young_lo)) && (((*(uint64_t *)link) & H_REMEMBERED) == 0)))) {
-        vm_remember(link);
+        remember(link);
     }
     if (*(uint64_t *)(list + 16 + 0) == nil_oop) {
         *(uint64_t *)(list + 16 + 0) = link;
         if (((link & 7) == 0) && (((uint64_t)(link - young_lo) < young_hi - young_lo) && ((!((uint64_t)(list - young_lo) < young_hi - young_lo)) && (((*(uint64_t *)list) & H_REMEMBERED) == 0)))) {
-            vm_remember(list);
+            remember(list);
         }
     } else {
         o = *(uint64_t *)(list + 16 + 8);
         *(uint64_t *)(o + 16 + 0) = link;
         if (((link & 7) == 0) && (((uint64_t)(link - young_lo) < young_hi - young_lo) && ((!(o - young_lo < young_hi - young_lo)) && (((*(uint64_t *)o) & H_REMEMBERED) == 0)))) {
-            vm_remember(o);
+            remember(o);
         }
     }
     *(uint64_t *)(list + 16 + 8) = link;
     if (((link & 7) == 0) && (((uint64_t)(link - young_lo) < young_hi - young_lo) && ((!((uint64_t)(list - young_lo) < young_hi - young_lo)) && (((*(uint64_t *)list) & H_REMEMBERED) == 0)))) {
-        vm_remember(list);
+        remember(list);
     }
     *(uint64_t *)(link + 16 + 24) = list;
     if (((list & 7) == 0) && (((uint64_t)(list - young_lo) < young_hi - young_lo) && ((!((uint64_t)(link - young_lo) < young_hi - young_lo)) && (((*(uint64_t *)link) & H_REMEMBERED) == 0)))) {
-        vm_remember(link);
+        remember(link);
     }
 }
 
 /* Scheduler>>allocSampleHit:bytes: */
-void alloc_sample_hit(oop a_class, size_t bytes)
+void alloc_sample_hit(oop a_class, uint64_t bytes)
 {
     alloc_sample_class = a_class;
     alloc_sample_size = (int64_t)bytes;
@@ -139,15 +139,15 @@ void handle_interrupts(void)
     int32_t f_2;
     int32_t i;
     atomic_store_explicit(&interrupt_pending, 0, memory_order_relaxed);
-    platform_poll();
+    platform_interface_poll();
     now = now_us();
     if ((timer_ms >= 0) && (now / 1000 >= timer_ms)) {
         timer_ms = -1;
-        s = special(SO_TIMER_SEMAPHORE);
+        s = object_memory_special(SO_TIMER_SEMAPHORE);
         if (((s & 7) == 0) && ((s != nil_oop) && ({
     f = (int32_t)(((*(uint64_t *)s) >> H_FMT_SHIFT) & H_FMT_MASK);
     (f >= 1) && (f <= 4) && ((uint32_t)*(uint64_t *)s > SEM_EXCESS); }))) {
-            signal_semaphore(s);
+            scheduler_semaphore_signal(s);
         }
     }
     preempt_to_front = true;
@@ -171,11 +171,11 @@ void handle_interrupts(void)
     }
     if (finalization_pending) {
         finalization_pending = false;
-        s = special(SO_FINALIZATION_SEMAPHORE);
+        s = object_memory_special(SO_FINALIZATION_SEMAPHORE);
         if (((s & 7) == 0) && ((s != nil_oop) && ({
     f_2 = (int32_t)(((*(uint64_t *)s) >> H_FMT_SHIFT) & H_FMT_MASK);
     (f_2 >= 1) && (f_2 <= 4) && ((uint32_t)*(uint64_t *)s > SEM_EXCESS); }))) {
-            signal_semaphore(s);
+            scheduler_semaphore_signal(s);
         }
     }
     for (i = 0; i <= pending_ext_n - 1; i++) {
@@ -219,7 +219,7 @@ static void idle_wait(void)
     }
     us = (({
     if (work_clock_uses_cycles) {
-        r_work_clock_thread_cycles = ticker_thread_cycles();
+        r_work_clock_thread_cycles = thread_cycles();
         goto exit_work_clock_thread_cycles;
     }
     r_work_clock_thread_cycles = ({
@@ -278,14 +278,14 @@ exit_work_clock_sync:;
     r_work_clock_deadline_2; });
             if (!((work_clock_running || work_clock_paced) && (due != 0x7FFFFFFFFFFFFFFFLL))) {
                 tick_set_idle(true);
-                platform_wait(-1);
+                platform_interface_wait(-1);
                 tick_set_idle(false);
                 goto exit_work_clock_idle;
             }
             if (work_clock_paced) {
                 if (due > now_2) {
                     tick_set_idle(true);
-                    platform_wait(due - now_2);
+                    platform_interface_wait(due - now_2);
                     tick_set_idle(false);
                 }
                 goto exit_work_clock_idle;
@@ -295,7 +295,7 @@ exit_work_clock_sync:;
             }
             work_clock_cycles = ({
     if (work_clock_uses_cycles) {
-        r_work_clock_thread_cycles_2 = ticker_thread_cycles();
+        r_work_clock_thread_cycles_2 = thread_cycles();
         goto exit_work_clock_thread_cycles_2;
     }
     r_work_clock_thread_cycles_2 = ({
@@ -322,9 +322,9 @@ exit_work_clock_thread_cycles_2:;
         }
         tick_set_idle(true);
         if (wait == 0x7FFFFFFFFFFFFFFFLL) {
-            platform_wait(-1);
+            platform_interface_wait(-1);
         } else if (wait > 0) {
-            platform_wait(wait);
+            platform_interface_wait(wait);
         }
         tick_set_idle(false);
     }
@@ -334,7 +334,7 @@ exit_work_clock_thread_cycles_2:;
 }
 
 /* Scheduler>>init */
-void sched_init(void)
+void scheduler_init(void)
 {
     start_us = raw_now_us();
     last_preempted = nil_oop;
@@ -344,7 +344,7 @@ void sched_init(void)
 }
 
 /* Scheduler>>nowMs */
-int64_t now_ms(void)
+int64_t scheduler_now_ms(void)
 {
     return now_us() / 1000;
 }
@@ -371,7 +371,7 @@ int64_t now_us(void)
     }
     us = (({
     if (work_clock_uses_cycles) {
-        r_work_clock_thread_cycles = ticker_thread_cycles();
+        r_work_clock_thread_cycles = thread_cycles();
         goto exit_work_clock_thread_cycles;
     }
     r_work_clock_thread_cycles = ({
@@ -445,7 +445,7 @@ int64_t process_cpu_time_us(oop proc)
 /* Scheduler>>processorYield */
 void processor_yield(void)
 {
-    oop active;
+    uint64_t active;
     int64_t pri;
     oop o;
     uint64_t o_2;
@@ -453,7 +453,7 @@ void processor_yield(void)
     uint64_t l;
     active = active_process();
     pri = priority_of(active);
-    o = special(SO_PROCESSOR);
+    o = object_memory_special(SO_PROCESSOR);
     o_2 = *(uint64_t *)(o + 16 + 0);
     i = pri - 1;
     l = *(uint64_t *)(o_2 + 16 + 8 * i);
@@ -510,7 +510,7 @@ void relinquish(int64_t microseconds)
     }
     us_2 = (({
     if (work_clock_uses_cycles) {
-        r_work_clock_thread_cycles = ticker_thread_cycles();
+        r_work_clock_thread_cycles = thread_cycles();
         goto exit_work_clock_thread_cycles;
     }
     r_work_clock_thread_cycles = ({
@@ -569,14 +569,14 @@ exit_work_clock_sync:;
     r_work_clock_deadline_2; });
         if (!((work_clock_running || work_clock_paced) && (due != 0x7FFFFFFFFFFFFFFFLL))) {
             tick_set_idle(true);
-            platform_wait(-1);
+            platform_interface_wait(-1);
             tick_set_idle(false);
             goto exit_work_clock_idle;
         }
         if (work_clock_paced) {
             if (due > now_2) {
                 tick_set_idle(true);
-                platform_wait(due - now_2);
+                platform_interface_wait(due - now_2);
                 tick_set_idle(false);
             }
             goto exit_work_clock_idle;
@@ -586,7 +586,7 @@ exit_work_clock_sync:;
         }
         work_clock_cycles = ({
     if (work_clock_uses_cycles) {
-        r_work_clock_thread_cycles_2 = ticker_thread_cycles();
+        r_work_clock_thread_cycles_2 = thread_cycles();
         goto exit_work_clock_thread_cycles_2;
     }
     r_work_clock_thread_cycles_2 = ({
@@ -611,7 +611,7 @@ exit_work_clock_thread_cycles_2:;
     }
     if (us > 0) {
         tick_set_idle(true);
-        platform_wait(us);
+        platform_interface_wait(us);
         tick_set_idle(false);
     }
     request_interrupt_check();
@@ -629,27 +629,27 @@ static oop remove_first_link(oop list)
     next = *(uint64_t *)(first + 16 + 0);
     *(uint64_t *)(list + 16 + 0) = next;
     if (((next & 7) == 0) && ((next - young_lo < young_hi - young_lo) && ((!((uint64_t)(list - young_lo) < young_hi - young_lo)) && (((*(uint64_t *)list) & H_REMEMBERED) == 0)))) {
-        vm_remember(list);
+        remember(list);
     }
     if (next == nil_oop) {
         *(uint64_t *)(list + 16 + 8) = nil_oop;
         if (((nil_oop & 7) == 0) && (((uint64_t)(nil_oop - young_lo) < young_hi - young_lo) && ((!((uint64_t)(list - young_lo) < young_hi - young_lo)) && (((*(uint64_t *)list) & H_REMEMBERED) == 0)))) {
-            vm_remember(list);
+            remember(list);
         }
     }
     *(uint64_t *)(first + 16 + 0) = nil_oop;
     if (((nil_oop & 7) == 0) && (((uint64_t)(nil_oop - young_lo) < young_hi - young_lo) && ((!(first - young_lo < young_hi - young_lo)) && (((*(uint64_t *)first) & H_REMEMBERED) == 0)))) {
-        vm_remember(first);
+        remember(first);
     }
     *(uint64_t *)(first + 16 + 24) = nil_oop;
     if (((nil_oop & 7) == 0) && (((uint64_t)(nil_oop - young_lo) < young_hi - young_lo) && ((!(first - young_lo < young_hi - young_lo)) && (((*(uint64_t *)first) & H_REMEMBERED) == 0)))) {
-        vm_remember(first);
+        remember(first);
     }
     return first;
 }
 
 /* Scheduler>>removeLink:from: */
-bool remove_link(oop link, oop list)
+bool remove_link(oop link, uint64_t list)
 {
     oop prev;
     uint64_t cur;
@@ -666,28 +666,28 @@ bool remove_link(oop link, oop list)
     next = *(uint64_t *)(link + 16 + 0);
     if (prev == nil_oop) {
         *(uint64_t *)(list + 16 + 0) = next;
-        if (((next & 7) == 0) && ((next - young_lo < young_hi - young_lo) && ((!((uint64_t)(list - young_lo) < young_hi - young_lo)) && (((*(uint64_t *)list) & H_REMEMBERED) == 0)))) {
-            vm_remember(list);
+        if (((next & 7) == 0) && ((next - young_lo < young_hi - young_lo) && ((!(list - young_lo < young_hi - young_lo)) && (((*(uint64_t *)list) & H_REMEMBERED) == 0)))) {
+            remember(list);
         }
     } else {
         *(uint64_t *)(prev + 16 + 0) = next;
         if (((next & 7) == 0) && ((next - young_lo < young_hi - young_lo) && ((!((uint64_t)(prev - young_lo) < young_hi - young_lo)) && (((*(uint64_t *)prev) & H_REMEMBERED) == 0)))) {
-            vm_remember(prev);
+            remember(prev);
         }
     }
     if (*(uint64_t *)(list + 16 + 8) == link) {
         *(uint64_t *)(list + 16 + 8) = prev;
-        if (((prev & 7) == 0) && (((uint64_t)(prev - young_lo) < young_hi - young_lo) && ((!((uint64_t)(list - young_lo) < young_hi - young_lo)) && (((*(uint64_t *)list) & H_REMEMBERED) == 0)))) {
-            vm_remember(list);
+        if (((prev & 7) == 0) && (((uint64_t)(prev - young_lo) < young_hi - young_lo) && ((!(list - young_lo < young_hi - young_lo)) && (((*(uint64_t *)list) & H_REMEMBERED) == 0)))) {
+            remember(list);
         }
     }
     *(uint64_t *)(link + 16 + 0) = nil_oop;
     if (((nil_oop & 7) == 0) && (((uint64_t)(nil_oop - young_lo) < young_hi - young_lo) && ((!((uint64_t)(link - young_lo) < young_hi - young_lo)) && (((*(uint64_t *)link) & H_REMEMBERED) == 0)))) {
-        vm_remember(link);
+        remember(link);
     }
     *(uint64_t *)(link + 16 + 24) = nil_oop;
     if (((nil_oop & 7) == 0) && (((uint64_t)(nil_oop - young_lo) < young_hi - young_lo) && ((!((uint64_t)(link - young_lo) < young_hi - young_lo)) && (((*(uint64_t *)link) & H_REMEMBERED) == 0)))) {
-        vm_remember(link);
+        remember(link);
     }
     return true;
 }
@@ -710,7 +710,7 @@ void request_periodic_poll(int64_t interval_us)
 /* Scheduler>>resumeProcess: */
 void resume_process(oop proc)
 {
-    oop active;
+    uint64_t active;
     int64_t pri;
     oop o;
     uint64_t o_2;
@@ -727,13 +727,13 @@ void resume_process(oop proc)
     if ((!in_idle) && (priority_of(proc) > priority_of(active))) {
         if (preempt_to_front) {
             pri = priority_of(active);
-            o = special(SO_PROCESSOR);
+            o = object_memory_special(SO_PROCESSOR);
             o_2 = *(uint64_t *)(o + 16 + 0);
             i = pri - 1;
             add_first_link(active, *(uint64_t *)(o_2 + 16 + 8 * i));
         } else {
             pri_2 = priority_of(active);
-            o_3 = special(SO_PROCESSOR);
+            o_3 = object_memory_special(SO_PROCESSOR);
             o_4 = *(uint64_t *)(o_3 + 16 + 0);
             i_2 = pri_2 - 1;
             add_last_link(active, *(uint64_t *)(o_4 + 16 + 8 * i_2));
@@ -742,7 +742,7 @@ void resume_process(oop proc)
         transfer_to(proc);
     } else {
         pri_3 = priority_of(proc);
-        o_5 = special(SO_PROCESSOR);
+        o_5 = object_memory_special(SO_PROCESSOR);
         o_6 = *(uint64_t *)(o_5 + 16 + 0);
         i_3 = pri_3 - 1;
         add_last_link(proc, *(uint64_t *)(o_6 + 16 + 8 * i_3));
@@ -750,7 +750,7 @@ void resume_process(oop proc)
 }
 
 /* Scheduler>>semaphoreSignal: */
-void signal_semaphore(oop sem)
+void scheduler_semaphore_signal(oop sem)
 {
     uint64_t ex;
     int64_t v;
@@ -761,7 +761,7 @@ void signal_semaphore(oop sem)
         v_2 = (uint64_t)((v << 1) | 1);
         *(uint64_t *)(sem + 16 + 16) = v_2;
         if (((v_2 & 7) == 0) && ((v_2 - young_lo < young_hi - young_lo) && ((!((uint64_t)(sem - young_lo) < young_hi - young_lo)) && (((*(uint64_t *)sem) & H_REMEMBERED) == 0)))) {
-            vm_remember(sem);
+            remember(sem);
         }
     } else {
         resume_process(remove_first_link(sem));
@@ -769,7 +769,7 @@ void signal_semaphore(oop sem)
 }
 
 /* Scheduler>>semaphoreWait: */
-void wait_semaphore(oop sem)
+void scheduler_semaphore_wait(oop sem)
 {
     uint64_t ex;
     int64_t v;
@@ -780,7 +780,7 @@ void wait_semaphore(oop sem)
         v_2 = (uint64_t)((v << 1) | 1);
         *(uint64_t *)(sem + 16 + 16) = v_2;
         if (((v_2 & 7) == 0) && ((v_2 - young_lo < young_hi - young_lo) && ((!((uint64_t)(sem - young_lo) < young_hi - young_lo)) && (((*(uint64_t *)sem) & H_REMEMBERED) == 0)))) {
-            vm_remember(sem);
+            remember(sem);
         }
         return;
     }
@@ -789,7 +789,7 @@ void wait_semaphore(oop sem)
 }
 
 /* Scheduler>>setSampler:semaphore: */
-void set_sampler(int64_t interval_us, int sema)
+void set_sampler(int64_t interval_us, int32_t sema)
 {
     sampler_interval_us = interval_us;
     sampler_sema = sema;
@@ -805,7 +805,7 @@ void set_timer(int64_t ms)
 }
 
 /* Scheduler>>signalExternalSemaphore: */
-void signal_external_semaphore(int index)
+void signal_external_semaphore(int32_t index)
 {
     if (pending_ext_n == pending_ext_cap) {
         pending_ext_cap = pending_ext_cap == 0 ? 64 : pending_ext_cap * 2;
@@ -822,13 +822,13 @@ void signal_external_semaphore(int index)
 }
 
 /* Scheduler>>signalIndex: */
-static void signal_index(int index)
+static void signal_index(int32_t index)
 {
     oop ext;
-    int i;
+    int32_t i;
     uint64_t s;
     int32_t f;
-    ext = special(SO_EXTERNAL_OBJECTS);
+    ext = object_memory_special(SO_EXTERNAL_OBJECTS);
     if ((index < 1) || ((!((ext & 7) == 0)) || ((ext == nil_oop) || ((uint32_t)index > (uint32_t)*(uint64_t *)ext)))) {
         return;
     }
@@ -837,7 +837,7 @@ static void signal_index(int index)
     if (((s & 7) == 0) && ((s != nil_oop) && ({
     f = (int32_t)(((*(uint64_t *)s) >> H_FMT_SHIFT) & H_FMT_MASK);
     (f >= 1) && (f <= 4) && ((uint32_t)*(uint64_t *)s > SEM_EXCESS); }))) {
-        signal_semaphore(s);
+        scheduler_semaphore_signal(s);
     }
 }
 
@@ -860,7 +860,7 @@ int64_t thread_cpu_us(void)
     if (work_clock_on) {
         return ({
     if (work_clock_uses_cycles) {
-        r_work_clock_thread_cycles = ticker_thread_cycles();
+        r_work_clock_thread_cycles = thread_cycles();
         goto exit_work_clock_thread_cycles;
     }
     r_work_clock_thread_cycles = ({
@@ -881,7 +881,7 @@ exit_work_clock_thread_cycles:;
 }
 
 /* Scheduler>>tickFired: */
-void tick_fired(int ident)
+void tick_fired(int32_t ident)
 {
     if (ident == TICK_DEADLINE) {
         atomic_store_explicit(&tick_deadline_fired, true, memory_order_relaxed);
@@ -917,11 +917,11 @@ static void tick_update(void)
         if (due <= now) {
             request_interrupt_check();
         }
-        tick_arm(TICK_DEADLINE, (due == 0x7FFFFFFFFFFFFFFFLL) || (due <= now) ? -1 : due - now, false);
+        arm(TICK_DEADLINE, (due == 0x7FFFFFFFFFFFFFFFLL) || (due <= now) ? -1 : due - now, false);
         tick_armed_deadline = due;
     }
     if (poll != tick_armed_poll) {
-        tick_arm(TICK_POLL, poll != 0 ? poll : -1, true);
+        arm(TICK_POLL, poll != 0 ? poll : -1, true);
         tick_armed_poll = poll;
     }
 }
@@ -931,7 +931,7 @@ static void transfer_to(oop a_process)
 {
     oop local;
     oop *proc;
-    oop old;
+    uint64_t old;
     int64_t now;
     uint64_t ct;
     int64_t v;
@@ -953,19 +953,19 @@ static void transfer_to(oop a_process)
     v = ((ct & 1) != 0 ? ((int64_t)ct) >> 1 : 0) + now - last_switch_us;
     v_2 = (uint64_t)((v << 1) | 1);
     *(uint64_t *)(old + 16 + 40) = v_2;
-    if (((v_2 & 7) == 0) && ((v_2 - young_lo < young_hi - young_lo) && ((!((uint64_t)(old - young_lo) < young_hi - young_lo)) && (((*(uint64_t *)old) & H_REMEMBERED) == 0)))) {
-        vm_remember(old);
+    if (((v_2 & 7) == 0) && ((v_2 - young_lo < young_hi - young_lo) && ((!(old - young_lo < young_hi - young_lo)) && (((*(uint64_t *)old) & H_REMEMBERED) == 0)))) {
+        remember(old);
     }
     last_switch_us = now;
     *(uint64_t *)(old + 16 + 8) = active_ctx;
-    if (((active_ctx & 7) == 0) && (((uint64_t)(active_ctx - young_lo) < young_hi - young_lo) && ((!((uint64_t)(old - young_lo) < young_hi - young_lo)) && (((*(uint64_t *)old) & H_REMEMBERED) == 0)))) {
-        vm_remember(old);
+    if (((active_ctx & 7) == 0) && (((uint64_t)(active_ctx - young_lo) < young_hi - young_lo) && ((!(old - young_lo < young_hi - young_lo)) && (((*(uint64_t *)old) & H_REMEMBERED) == 0)))) {
+        remember(old);
     }
-    o = special(SO_PROCESSOR);
+    o = object_memory_special(SO_PROCESSOR);
     v_3 = *proc;
     *(uint64_t *)(o + 16 + 8) = v_3;
     if (((v_3 & 7) == 0) && (((uint64_t)(v_3 - young_lo) < young_hi - young_lo) && ((!((uint64_t)(o - young_lo) < young_hi - young_lo)) && (((*(uint64_t *)o) & H_REMEMBERED) == 0)))) {
-        vm_remember(o);
+        remember(o);
     }
     o_2 = *proc;
     ctx = *(uint64_t *)(o_2 + 16 + 8);
@@ -977,11 +977,11 @@ static void transfer_to(oop a_process)
     o_3 = *proc;
     *(uint64_t *)(o_3 + 16 + 8) = nil_oop;
     if (((nil_oop & 7) == 0) && (((uint64_t)(nil_oop - young_lo) < young_hi - young_lo) && ((!((uint64_t)(o_3 - young_lo) < young_hi - young_lo)) && (((*(uint64_t *)o_3) & H_REMEMBERED) == 0)))) {
-        vm_remember(o_3);
+        remember(o_3);
     }
     active_ctx = ctx;
     if (((ctx & 7) == 0) && ((!(ctx - young_lo < young_hi - young_lo)) && (((*(uint64_t *)ctx) & H_REMEMBERED) == 0))) {
-        vm_remember(ctx);
+        remember(ctx);
     }
     stat_process_switches = stat_process_switches + 1;
 }
@@ -994,7 +994,7 @@ static void transfer_to_highest(void)
     int64_t i;
     uint64_t l;
     for (;;) {
-        o = special(SO_PROCESSOR);
+        o = object_memory_special(SO_PROCESSOR);
         lists = *(uint64_t *)(o + 16 + 0);
         for (i = (int64_t)(uint32_t)*(uint64_t *)lists - 1; i >= (work_clock_on && (!(work_clock_running || (work_clock_paced || work_clock_querying))) ? 49 : 0); i--) {
             l = *(uint64_t *)(lists + 16 + 8 * i);
@@ -1008,7 +1008,7 @@ static void transfer_to_highest(void)
 }
 
 /* Scheduler>>uncharge: */
-void sched_uncharge(int64_t us)
+void uncharge(int64_t us)
 {
     last_switch_us = last_switch_us + us;
 }
@@ -1034,7 +1034,7 @@ int64_t work_clock_held_us(void)
     }
     return work_clock_us + (({
     if (work_clock_uses_cycles) {
-        r_work_clock_thread_cycles = ticker_thread_cycles();
+        r_work_clock_thread_cycles = thread_cycles();
         goto exit_work_clock_thread_cycles;
     }
     r_work_clock_thread_cycles = ({
@@ -1072,7 +1072,7 @@ void work_clock_hold(void)
     }
     us = (({
     if (work_clock_uses_cycles) {
-        r_work_clock_thread_cycles = ticker_thread_cycles();
+        r_work_clock_thread_cycles = thread_cycles();
         goto exit_work_clock_thread_cycles;
     }
     r_work_clock_thread_cycles = ({
@@ -1117,7 +1117,7 @@ exit_work_clock_sync:;
     work_clock_held = true;
     work_clock_hold_cycles = ({
     if (work_clock_uses_cycles) {
-        r_work_clock_thread_cycles_2 = ticker_thread_cycles();
+        r_work_clock_thread_cycles_2 = thread_cycles();
         goto exit_work_clock_thread_cycles_2;
     }
     r_work_clock_thread_cycles_2 = ({
@@ -1140,7 +1140,7 @@ int64_t work_clock_next_frame(void)
 }
 
 /* Scheduler>>workClockPaced: */
-void work_clock_set_paced(bool a_boolean)
+void scheduler_work_clock_paced(bool a_boolean)
 {
     bool moving;
     int64_t r_work_clock_thread_cycles;
@@ -1165,7 +1165,7 @@ void work_clock_set_paced(bool a_boolean)
             }
             us = (({
     if (work_clock_uses_cycles) {
-        r_work_clock_thread_cycles = ticker_thread_cycles();
+        r_work_clock_thread_cycles = thread_cycles();
         goto exit_work_clock_thread_cycles;
     }
     r_work_clock_thread_cycles = ({
@@ -1214,7 +1214,7 @@ exit_work_clock_thread_cycles:;
         if (!moving) {
             work_clock_cycles = ({
     if (work_clock_uses_cycles) {
-        r_work_clock_thread_cycles_2 = ticker_thread_cycles();
+        r_work_clock_thread_cycles_2 = thread_cycles();
         goto exit_work_clock_thread_cycles_2;
     }
     r_work_clock_thread_cycles_2 = ({
@@ -1230,7 +1230,7 @@ exit_work_clock_thread_cycles_2:;
 }
 
 /* Scheduler>>workClockQuerying: */
-void work_clock_set_querying(bool a_boolean)
+void scheduler_work_clock_querying(bool a_boolean)
 {
     work_clock_querying = a_boolean;
 }
@@ -1248,7 +1248,7 @@ int64_t work_clock_release(void)
     }
     now = ({
     if (work_clock_uses_cycles) {
-        r_work_clock_thread_cycles = ticker_thread_cycles();
+        r_work_clock_thread_cycles = thread_cycles();
         goto exit_work_clock_thread_cycles;
     }
     r_work_clock_thread_cycles = ({
@@ -1266,7 +1266,7 @@ exit_work_clock_thread_cycles:;
 }
 
 /* Scheduler>>workClockRunning: */
-void work_clock_set_running(bool a_boolean)
+void scheduler_work_clock_running(bool a_boolean)
 {
     bool moving;
     int64_t r_work_clock_thread_cycles;
@@ -1291,7 +1291,7 @@ void work_clock_set_running(bool a_boolean)
             }
             us = (({
     if (work_clock_uses_cycles) {
-        r_work_clock_thread_cycles = ticker_thread_cycles();
+        r_work_clock_thread_cycles = thread_cycles();
         goto exit_work_clock_thread_cycles;
     }
     r_work_clock_thread_cycles = ({
@@ -1340,7 +1340,7 @@ exit_work_clock_thread_cycles:;
         if (!moving) {
             work_clock_cycles = ({
     if (work_clock_uses_cycles) {
-        r_work_clock_thread_cycles_2 = ticker_thread_cycles();
+        r_work_clock_thread_cycles_2 = thread_cycles();
         goto exit_work_clock_thread_cycles_2;
     }
     r_work_clock_thread_cycles_2 = ({
@@ -1375,7 +1375,7 @@ int64_t work_clock_start(int64_t fps, int32_t index)
     int64_t due;
     if (!work_clock_on) {
         work_clock_us = now_us();
-        work_clock_uses_cycles = ticker_thread_cycles() >= 0;
+        work_clock_uses_cycles = thread_cycles() >= 0;
         if (!work_clock_uses_cycles) {
             fprintf(stderr, "samaltak: no cycle counter here: the recording clock counts CPU time, so load and core type change what is recorded\n");
         }
@@ -1384,7 +1384,7 @@ int64_t work_clock_start(int64_t fps, int32_t index)
         work_clock_paced = false;
         work_clock_cycles = ({
     if (work_clock_uses_cycles) {
-        r_work_clock_thread_cycles = ticker_thread_cycles();
+        r_work_clock_thread_cycles = thread_cycles();
         goto exit_work_clock_thread_cycles;
     }
     r_work_clock_thread_cycles = ({
@@ -1409,7 +1409,7 @@ exit_work_clock_thread_cycles:;
     }
     us = (({
     if (work_clock_uses_cycles) {
-        r_work_clock_thread_cycles_2 = ticker_thread_cycles();
+        r_work_clock_thread_cycles_2 = thread_cycles();
         goto exit_work_clock_thread_cycles_2;
     }
     r_work_clock_thread_cycles_2 = ({
@@ -1481,7 +1481,7 @@ void work_clock_stop(void)
     }
     us = (({
     if (work_clock_uses_cycles) {
-        r_work_clock_thread_cycles = ticker_thread_cycles();
+        r_work_clock_thread_cycles = thread_cycles();
         goto exit_work_clock_thread_cycles;
     }
     r_work_clock_thread_cycles = ({

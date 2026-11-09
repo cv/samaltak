@@ -7,27 +7,27 @@ static pf_table table[1];
 static bool video_ok;
 
 /* PlatformWindows>>clipboardGet */
-char *pf_clipboard_get(void)
+char *clipboard_get(void)
 {
     char *s;
     char *r;
-    if (!pf_video_init()) {
+    if (!video_init()) {
         return (char *)NULL;
     }
     s = SDL_GetClipboardText();
     r = strdup(s != NULL ? s : "");
     SDL_free(s);
     if (r == NULL) {
-        pf_set_error("out of memory");
+        set_error("out of memory");
     }
     return r;
 }
 
 /* PlatformWindows>>clipboardSet: */
-bool pf_clipboard_set(const char *s)
+bool clipboard_set(char *s)
 {
     const char *a;
-    if (!pf_video_init()) {
+    if (!video_init()) {
         return false;
     }
     if (!SDL_SetClipboardText(s)) {
@@ -39,26 +39,26 @@ bool pf_clipboard_set(const char *s)
 }
 
 /* PlatformWindows>>close: */
-bool pf_window_close(int win)
+bool platform_windows_close(int32_t win)
 {
     SDL_Window *sw;
-    sw = pf_window_sdl(win);
+    sw = sdl_window(win);
     if (sw == NULL) {
         return false;
     }
-    pf_gpu_window_closing(win);
+    window_closing(win);
     SDL_StopTextInput(sw);
     SDL_DestroyWindow(sw);
-    pf_table_remove(table, win);
+    platform_common_table_remove(table, win);
     return true;
 }
 
 /* PlatformWindows>>displayScale: */
-double pf_window_display_scale(int win)
+double display_scale(int32_t win)
 {
     SDL_Window *sw;
     float s;
-    sw = pf_window_sdl(win);
+    sw = sdl_window(win);
     if (sw == NULL) {
         return -1.0;
     }
@@ -67,7 +67,7 @@ double pf_window_display_scale(int win)
 }
 
 /* PlatformWindows>>fromSDLId: */
-int pf_window_from_sdl_id(uint32_t id)
+int32_t from_sdl_id(SDL_WindowID id)
 {
     int32_t h;
     for (h = 1; h <= table->n - 1; h++) {
@@ -79,27 +79,27 @@ int pf_window_from_sdl_id(uint32_t id)
 }
 
 /* PlatformWindows>>handleCount */
-int pf_window_handle_count(void)
+int32_t platform_windows_handle_count(void)
 {
-    return pf_table_count(table, -1);
+    return platform_common_table_count(table, -1);
 }
 
 /* PlatformWindows>>isHidden: */
-bool pf_window_is_hidden(int win)
+bool is_hidden(int32_t win)
 {
     SDL_Window *sw;
-    sw = pf_window_sdl(win);
+    sw = sdl_window(win);
     return (sw == NULL) || ((SDL_GetWindowFlags(sw) & (SDL_WINDOW_HIDDEN | SDL_WINDOW_MINIMIZED)) != 0);
 }
 
 /* PlatformWindows>>open:height:title:flags: */
-int pf_window_open(int w, int h, const char *title, int flags)
+int32_t platform_windows_open(int32_t w, int32_t h, char *title, int32_t flags)
 {
     SDL_WindowFlags f;
     SDL_Window *sw;
     const char *a;
-    int handle;
-    if (!pf_video_init()) {
+    int32_t handle;
+    if (!video_init()) {
         return 0;
     }
     f = 0;
@@ -119,25 +119,25 @@ int pf_window_open(int w, int h, const char *title, int flags)
         return 0;
     }
     SDL_StartTextInput(sw);
-    handle = pf_table_add(table, K_WINDOW, sw);
+    handle = platform_common_table_add_pointer(table, K_WINDOW, sw);
     (table->v + handle)->i = SDL_GetWindowID(sw);
     return handle;
 }
 
 /* PlatformWindows>>pixelSize:width:height: */
-bool pf_window_pixel_size(int win, int *w, int *h)
+bool pixel_size(int32_t win, int *w, int *h)
 {
     SDL_Window *sw;
-    sw = pf_window_sdl(win);
+    sw = sdl_window(win);
     return (sw != NULL) && SDL_GetWindowSizeInPixels(sw, w, h);
 }
 
 /* PlatformWindows>>refreshRate: */
-double pf_window_refresh_rate(int win)
+double refresh_rate(int32_t win)
 {
     SDL_Window *sw;
     const SDL_DisplayMode *m;
-    sw = pf_window_sdl(win);
+    sw = sdl_window(win);
     if (sw == NULL) {
         return -1.0;
     }
@@ -146,10 +146,10 @@ double pf_window_refresh_rate(int win)
 }
 
 /* PlatformWindows>>sdlWindow: */
-SDL_Window *pf_window_sdl(int win)
+SDL_Window *sdl_window(int32_t win)
 {
     pf_obj *o;
-    o = pf_table_get(table, win, K_WINDOW);
+    o = platform_common_table_at_kind(table, win, K_WINDOW);
     if (o == NULL) {
         snprintf(last_error, LAST_ERROR_SIZE, "bad window handle %d", win);
         return (SDL_Window *)NULL;
@@ -158,7 +158,7 @@ SDL_Window *pf_window_sdl(int win)
 }
 
 /* PlatformWindows>>setCursor: */
-bool pf_set_cursor(int kind)
+bool set_cursor(int32_t kind)
 {
     SDL_SystemCursor v;
     const char *a;
@@ -166,7 +166,7 @@ bool pf_set_cursor(int kind)
         snprintf(last_error, LAST_ERROR_SIZE, "bad cursor %d", kind);
         return false;
     }
-    if (!pf_video_init()) {
+    if (!video_init()) {
         return false;
     }
     if (cursors[kind] == NULL) {
@@ -216,29 +216,29 @@ bool pf_set_cursor(int kind)
 }
 
 /* PlatformWindows>>setTitle:title: */
-bool pf_window_set_title(int win, const char *title)
+bool set_title(int32_t win, char *title)
 {
     SDL_Window *sw;
-    sw = pf_window_sdl(win);
+    sw = sdl_window(win);
     return (sw != NULL) && SDL_SetWindowTitle(sw, title);
 }
 
 /* PlatformWindows>>show:visible: */
-bool pf_window_show(int win, bool show)
+bool platform_windows_show(int32_t win, bool show)
 {
     SDL_Window *sw;
-    sw = pf_window_sdl(win);
+    sw = sdl_window(win);
     return (sw != NULL) && (show ? SDL_ShowWindow(sw) : SDL_HideWindow(sw));
 }
 
 /* PlatformWindows>>shutdown */
-void pf_windows_shutdown(void)
+void platform_windows_shutdown(void)
 {
     int32_t h;
     int i;
     for (h = 1; h <= table->n - 1; h++) {
         if ((table->v + h)->kind == K_WINDOW) {
-            pf_window_close(h);
+            platform_windows_close(h);
         }
     }
     for (i = 0; i <= 10; i++) {
@@ -250,15 +250,15 @@ void pf_windows_shutdown(void)
 }
 
 /* PlatformWindows>>size:width:height: */
-bool pf_window_size(int win, int *w, int *h)
+bool platform_windows_size(int32_t win, int *w, int *h)
 {
     SDL_Window *sw;
-    sw = pf_window_sdl(win);
+    sw = sdl_window(win);
     return (sw != NULL) && SDL_GetWindowSize(sw, w, h);
 }
 
 /* PlatformWindows>>videoInit */
-bool pf_video_init(void)
+bool video_init(void)
 {
     const char *a;
     if (video_ok) {
@@ -272,12 +272,12 @@ bool pf_video_init(void)
         return false;
     }
     video_ok = true;
-    pf_update_poll_interval();
+    update_poll_interval();
     return true;
 }
 
 /* PlatformWindows>>videoInited */
-bool pf_video_inited(void)
+bool video_inited(void)
 {
     return video_ok;
 }

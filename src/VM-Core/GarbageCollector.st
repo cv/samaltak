@@ -121,7 +121,8 @@ statWeakCleared
 
 !GarbageCollector methodsFor: 'spaces'!
 reserve: n
-	<c: 'uint64_t reserve(size_t n)'>
+	<function>
+	<var: #n type: 'size_t'>
 	| p |
 	p := posix mmap: self null length: n protection: (posix PROT_READ bitOr: posix PROT_WRITE) flags: (posix MAP_PRIVATE bitOr: posix MAP_ANON) file: -1 offset: 0.
 	p = posix MAP_FAILED ifTrue: [self fatal: 'cannot reserve %zu bytes' with: n].
@@ -129,7 +130,7 @@ reserve: n
 !
 discard: p size: n
 	"Give the pages back (a fresh anonymous mapping over them)."
-	<c: 'void discard(uint64_t p, size_t n)'>
+	<function>
 	| m |
 	m := (n + 16383) bitClear: 16383.
 	m ~= 0 ifTrue: [
@@ -137,7 +138,7 @@ discard: p size: n
 			flags: ((posix MAP_PRIVATE bitOr: posix MAP_ANON) bitOr: posix MAP_FIXED) file: -1 offset: 0]
 !
 init: edenBytes maxHeap: maxHeap
-	<c: 'void gc_init(size_t eden_bytes, size_t max_heap)'>
+	<function>
 	| surv young |
 	surv := edenBytes quo: 4.
 	young := edenBytes + (2 * surv).
@@ -162,7 +163,7 @@ init: edenBytes maxHeap: maxHeap
 
 !GarbageCollector methodsFor: 'remembered set'!
 remember: o
-	<c: 'void vm_remember(oop o)'>
+	<function>
 	self header: o put: ((self header: o) bitOr: H_REMEMBERED).
 	remsetCount = remsetCap ifTrue: [
 		remsetCap := remsetCap = 0 ifTrue: [4096] ifFalse: [remsetCap * 2].
@@ -178,7 +179,7 @@ rememberIfOld: o
 !GarbageCollector methodsFor: 'roots'!
 forEachRoot: fn
 	"The VM's roots: the variables holding oops (through a copy in memory, so fn gets pointers to them), the temporary roots, the pushed roots and the interpreter's frames."
-	<c: 'void for_each_root(void (*fn)(oop *))'>
+	<function>
 	| r |
 	r := self local: 'oop[6]'.
 	r at: 0 put: memory specialsOop.
@@ -201,7 +202,7 @@ forEachRoot: fn
 
 !GarbageCollector methodsFor: 'verification'!
 markStartsFrom: lo to: hi
-	<c: 'void mark_starts(uint64_t lo, uint64_t hi)'>
+	<function>
 	| p k |
 	p := lo.
 	[p < hi] whileTrue: [
@@ -210,7 +211,7 @@ markStartsFrom: lo to: hi
 		p := p + (self objBytes: p)]
 !
 validRef: v
-	<c: 'bool valid_ref(oop v)'>
+	<function>
 	| inOld inSurv inEden k |
 	(self isPtr: v) ifFalse: [^true].
 	inOld := v >= oldLo and: [v < oldTop].
@@ -222,7 +223,7 @@ validRef: v
 	^((startBits at: (k quo: 8)) bitAnd: 1 << (k rem: 8)) ~= 0
 !
 verifySpaceFrom: lo to: hi old: isOld
-	<c: 'void verify_space(uint64_t lo, uint64_t hi, bool is_old)'>
+	<function>
 	| p young v |
 	p := lo.
 	[p < hi] whileTrue: [
@@ -239,7 +240,7 @@ verifySpaceFrom: lo to: hi old: isOld
 		p := p + (self objBytes: p)]
 !
 verifyHeap
-	<c: 'void verify_heap(void)'>
+	<function>
 	| lo hi n |
 	lo := oldLo < youngLo ifTrue: [oldLo] ifFalse: [youngLo].
 	hi := oldTop > youngHi ifTrue: [oldTop] ifFalse: [youngHi].
@@ -257,7 +258,7 @@ verifyHeap
 	libc free: startBits
 !
 afterGC
-	<c: 'void after_gc(void)'>
+	<function>
 	verify < 0 ifTrue: [verify := (libc getenv: 'SAMALTAK_VERIFY_GC') notNull ifTrue: [1] ifFalse: [0]].
 	verify ~= 0 ifTrue: [self verifyHeap].
 	gcEpoch := gcEpoch + 1.
@@ -270,7 +271,7 @@ afterGC
 
 !GarbageCollector methodsFor: 'scavenging'!
 scavCopy: o
-	<c: 'oop scav_copy(oop o)'>
+	<function>
 	| h bytes age dst |
 	h := self header: o.
 	(h bitAnd: H_FORWARDED) ~= 0 ifTrue: [^self rawClass: o].
@@ -293,13 +294,13 @@ scavCopy: o
 	^dst
 !
 scavRoot: p
-	<c: 'void scav_root(oop *p)'>
+	<function>
 	| v |
 	v := p value.
 	((self isPtr: v) and: [self isYoung: v]) ifTrue: [p value: (self scavCopy: v)]
 !
 isContext: o
-	<c: 'bool is_context(oop o)'>
+	<function>
 	| c ctx |
 	c := self rawClass: o.
 	ctx := memory clsContext.
@@ -307,7 +308,7 @@ isContext: o
 !
 tracedSlots: o
 	"Number of leading slots the collector traces. A context's slots above stackp are stale and are cleared (the interpreter writes back stackp before anything can allocate); a weak object's indexable slots are left for clearWeakSlots."
-	<c: 'uint32_t traced_slots(oop o)'>
+	<function>
 	| f sp n live |
 	f := self formatOf: o.
 	(self fmtHasPointers: f) ifFalse: [^0].
@@ -328,7 +329,7 @@ tracedSlots: o
 	^memory fixedFields: o
 !
 refersToYoung: o
-	<c: 'bool refers_to_young(oop o)'>
+	<function>
 	| v |
 	(self isYoung: (self rawClass: o)) ifTrue: [^true].
 	0 to: (self numSlots: o) asInt64 - 1 do: [:i |
@@ -338,7 +339,7 @@ refersToYoung: o
 !
 clearWeakSlots: isDead
 	"isDead answers whether *v was not reached, updating *v to its new address otherwise."
-	<c: 'void clear_weak_slots(bool (*is_dead)(oop *))'>
+	<function>
 	| nl w s |
 	nl := memory nilOop.
 	0 to: weakCount asInt64 - 1 do: [:k |
@@ -353,7 +354,7 @@ clearWeakSlots: isDead
 	finalizationPending ifTrue: [scheduler requestInterruptCheck]
 !
 scavDead: v
-	<c: 'bool scav_dead(oop *v)'>
+	<function>
 	((self isYoung: v value) not or: [v value >= toLo and: [v value < toHi]]) ifTrue: [^false].
 	((self header: v value) bitAnd: H_FORWARDED) = 0 ifTrue: [^true].
 	v value: (self rawClass: v value).
@@ -361,7 +362,7 @@ scavDead: v
 !
 scavScan: o
 	"Copy young referents of o; answer whether o still refers to young objects (weak slots excluded)."
-	<c: 'bool scav_scan(oop o)'>
+	<function>
 	| young c s v |
 	young := false.
 	c := self rawClass: o.
@@ -379,7 +380,7 @@ scavScan: o
 	^young
 !
 scavenge
-	<c: 'void scavenge(void)'>
+	<function>
 	| t0 tenureScan kept o scan w |
 	interpreter beforeGC.
 	t0 := scheduler workClockHeldUs.
@@ -425,7 +426,7 @@ scavenge
 
 !GarbageCollector methodsFor: 'full GC'!
 fullCopy: o
-	<c: 'oop full_copy(oop o)'>
+	<function>
 	| h bytes dst |
 	h := self header: o.
 	(h bitAnd: H_FORWARDED) ~= 0 ifTrue: [^self rawClass: o].
@@ -439,19 +440,19 @@ fullCopy: o
 	^dst
 !
 fullRoot: p
-	<c: 'void full_root(oop *p)'>
+	<function>
 	| v |
 	v := p value.
 	((self isPtr: v) and: [v ~= 0]) ifTrue: [p value: (self fullCopy: v)]
 !
 fullDead: v
-	<c: 'bool full_dead(oop *v)'>
+	<function>
 	((self header: v value) bitAnd: H_FORWARDED) = 0 ifTrue: [^true].
 	v value: (self rawClass: v value).
 	^false
 !
 fullGC
-	<c: 'void full_gc(void)'>
+	<function>
 	| t0 oldUsed scan s lo hi live classSlot nl |
 	interpreter beforeGC.
 	t0 := scheduler workClockHeldUs.
@@ -495,7 +496,7 @@ fullGC
 !
 collectGarbage: need
 	"Scavenge or full GC so that need bytes fit in eden."
-	<c: 'void collect_garbage(size_t need)'>
+	<function>
 	| youngUsed oldUsed |
 	youngUsed := (self edenTop - edenLo) + (survTop - survLo).
 	oldUsed := oldTop - oldLo.
@@ -507,7 +508,7 @@ collectGarbage: need
 !
 oldAllocTry: bytes
 	"May full GC; 0 if it cannot fit in the heap limit."
-	<c: 'uint64_t old_alloc_try(size_t bytes)'>
+	<function>
 	| want p |
 	bytes > maxHeapBytes ifTrue: [^0].
 	(oldTop - oldLo) + bytes > oldBudget ifTrue: [
@@ -522,12 +523,12 @@ oldAllocTry: bytes
 
 !GarbageCollector methodsFor: 'become'!
 becomeRoot: p
-	<c: 'void become_root(oop *p)'>
+	<function>
 	p value = becomeFrom ifTrue: [p value: becomeTo]
 !
 becomeForward: from to: to
 	"One-way become; call right after a full GC (no young objects)."
-	<c: 'void become_forward(oop from, oop to)'>
+	<function>
 	| p s |
 	interpreter beforeGC.
 	becomeFrom := from.
@@ -546,7 +547,7 @@ becomeForward: from to: to
 !
 walkYoungSpace: fn data: data
 	"fn on every object of the survivor space and of eden."
-	<c: 'void walk_young_space(void (*fn)(oop, void *), void *data)'>
+	<function>
 	| p |
 	p := survLo.
 	[p < survTop] whileTrue: [
@@ -558,7 +559,7 @@ walkYoungSpace: fn data: data
 		p := p + (self objBytes: p)]
 !
 walkOldSpace: fn data: data
-	<c: 'void walk_old_space(void (*fn)(oop, void *), void *data)'>
+	<function>
 	| end p |
 	end := oldTop.
 	p := oldLo.

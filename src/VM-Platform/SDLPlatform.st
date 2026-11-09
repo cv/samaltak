@@ -5,7 +5,7 @@ PlatformInterface subclass: #SDLPlatform
 
 SDLPlatform comment: 'The platform of the GUI VM: SDL3 windows and input, sockets and pseudo-terminals polled while the VM runs and while it waits.
 
-While Smalltalk runs, platform_poll pumps SDL at most once per ms, polls the armed sockets and signals the semaphores. platform_wait blocks in SDL_WaitEventTimeout; a watcher thread poll()s the armed sockets meanwhile and wakes SDL with the wake event, as pf_wake does for any thread (the display link''s). Without video it poll()s the sockets and the wake pipe.'!
+While Smalltalk runs, platform_interface_poll pumps SDL at most once per ms, polls the armed sockets and signals the semaphores. platform_interface_wait blocks in SDL_WaitEventTimeout; a watcher thread poll()s the armed sockets meanwhile and wakes SDL with the wake event, as wake does for any thread (the display link''s). Without video it poll()s the sockets and the wake pipe.'!
 
 !SDLPlatform class methodsFor: 'declaring'!
 declarations
@@ -23,7 +23,6 @@ initialize
 !SDLPlatform methodsFor: 'platform'!
 init
 	"Idempotent."
-	<c: 'void platform_init(void)'>
 	<export>
 	initDone ifTrue: [^self].
 	initDone := true.
@@ -38,7 +37,6 @@ init
 		posixIO fcntl: (wPipe at: 1) command: posixIO F_SETFL value: posixIO O_NONBLOCK]
 !
 poll
-	<c: 'void platform_poll(void)'>
 	<export>
 	"Pumping Cocoa costs tens of µs; at most once per ms is plenty for input."
 	(windows videoInited and: [sdl getTicksNS - events lastPumpNs >= 1000000]) ifTrue: [events pump].
@@ -46,7 +44,6 @@ poll
 	events signalReady
 !
 wait: timeoutUs
-	<c: 'void platform_wait(int64_t timeout_us)'>
 	<export>
 	| ms socks p n watching |
 	self init.
@@ -76,7 +73,6 @@ wait: timeoutUs
 	events signalReady
 !
 shutdown
-	<c: 'void platform_shutdown(void)'>
 	<export>
 	gpu shutdown.
 	windows shutdown.
@@ -85,8 +81,7 @@ shutdown
 
 !SDLPlatform methodsFor: 'waking'!
 wake
-	"Any thread: end a platform_wait in progress."
-	<c: 'void pf_wake(void)'>
+	"Any thread: end a platform_interface_wait in progress."
 	<export>
 	| t e |
 	(self atomicLoad: #inWait) ifFalse: [^self].
@@ -98,7 +93,7 @@ wake
 	posixIO write: (wPipe at: 1) bytes: 'w' count: 1
 !
 drainPipe
-	<c: 'void drain_pipe(void)'>
+	<function>
 	| buf |
 	buf := self local: 'char[64]'.
 	[(posixIO read: (wPipe at: 0) into: buf count: 64) > 0] whileTrue
@@ -107,7 +102,7 @@ drainPipe
 !SDLPlatform methodsFor: 'watcher'!
 watchMain: arg
 	"The watcher thread: while the VM thread sleeps in SDL_WaitEventTimeout, poll() the armed sockets and wake SDL by pushing the wake event."
-	<c: 'void *watch_main(void *arg)'>
+	<function>
 	| r woken e |
 	[posixThreads mutexLock: wMu.
 	 [wState ~= 1] whileTrue: [posixThreads condWait: wCv mutex: wMu].
@@ -123,7 +118,7 @@ watchMain: arg
 				e := self local: 'SDL_Event'.
 				e type: (self atomicLoad: #wakeEvent) asUInt32.
 				sdl pushEvent: e]
-			ifFalse: [self drainPipe "a stop request or a stray pf_wake byte"]].
+			ifFalse: [self drainPipe "a stop request or a stray wake byte"]].
 	 posixThreads mutexLock: wMu.
 	 wState := 0.
 	 posixThreads condBroadcast: wCv.
@@ -131,7 +126,7 @@ watchMain: arg
 !
 watcherStart
 	"Hand the armed sockets to the watcher thread (started on first use)."
-	<c: 'bool watcher_start(void)'>
+	<function>
 	| t |
 	wStarted ifFalse: [
 		(wPipe at: 0) < 0 ifTrue: [^false].
@@ -150,7 +145,7 @@ watcherStart
 	^true
 !
 watcherStop
-	<c: 'void watcher_stop(void)'>
+	<function>
 	self atomicStore: #wStop value: true.
 	posixIO write: (wPipe at: 1) bytes: 'x' count: 1.
 	posixThreads mutexLock: wMu.

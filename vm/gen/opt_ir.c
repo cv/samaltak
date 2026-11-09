@@ -21,10 +21,10 @@ int32_t opt_osr_state;
 int32_t opt_state_count;
 opt_state opt_states[16384];
 
-static void opt_print_node(int32_t n);
+static void print_node(int32_t n);
 
 /* OptIR>>addPred:to: */
-int32_t opt_add_pred(int32_t from, int32_t to)
+int32_t add_pred(int32_t from, int32_t to)
 {
     opt_edge *e;
     opt_block *b;
@@ -56,7 +56,7 @@ int32_t opt_add_pred(int32_t from, int32_t to)
 }
 
 /* OptIR>>allocOperands: */
-int32_t opt_alloc_operands(int32_t n)
+int32_t alloc_operands(int32_t n)
 {
     int32_t i;
     int32_t k;
@@ -73,7 +73,7 @@ int32_t opt_alloc_operands(int32_t n)
 }
 
 /* OptIR>>append:to: */
-void opt_append(int32_t n, int32_t b)
+void append(int32_t n, int32_t b)
 {
     opt_block *bl;
     opt_node *nd;
@@ -91,7 +91,7 @@ void opt_append(int32_t n, int32_t b)
 }
 
 /* OptIR>>insert:before: */
-void opt_insert_before(int32_t n, int32_t m)
+void insert(int32_t n, int32_t m)
 {
     opt_node *md;
     opt_node *nd;
@@ -109,7 +109,7 @@ void opt_insert_before(int32_t n, int32_t m)
 }
 
 /* OptIR>>newAct */
-int32_t opt_new_act(void)
+int32_t new_act(void)
 {
     opt_act *a;
     if (opt_act_count >= OPT_MAX_ACTS) {
@@ -129,7 +129,7 @@ int32_t opt_new_act(void)
 }
 
 /* OptIR>>newBlock */
-int32_t opt_new_block(void)
+int32_t new_block(void)
 {
     opt_block *b;
     if (opt_block_count >= OPT_MAX_BLOCKS) {
@@ -152,7 +152,7 @@ int32_t opt_new_block(void)
 }
 
 /* OptIR>>newNode:rep: */
-int32_t opt_new_node(int32_t op, int32_t rep)
+int32_t new_node(int op, int rep)
 {
     opt_node *n;
     if (opt_node_count >= OPT_MAX_NODES) {
@@ -183,7 +183,7 @@ int32_t opt_new_node(int32_t op, int32_t rep)
 }
 
 /* OptIR>>newState */
-int32_t opt_new_state(void)
+int32_t new_state(void)
 {
     opt_state *s;
     if (opt_state_count >= OPT_MAX_STATES) {
@@ -199,7 +199,7 @@ int32_t opt_new_state(void)
 }
 
 /* OptIR>>pred:of: */
-int32_t opt_pred(int32_t i, int32_t b)
+int32_t pred(int32_t i, int32_t b)
 {
     int32_t p;
     int32_t i_2;
@@ -211,7 +211,7 @@ int32_t opt_pred(int32_t i, int32_t b)
 }
 
 /* OptIR>>prepend:to: */
-void opt_prepend(int32_t n, int32_t b)
+void prepend(int32_t n, int32_t b)
 {
     opt_block *bl;
     opt_node *nd;
@@ -229,7 +229,7 @@ void opt_prepend(int32_t n, int32_t b)
 }
 
 /* OptIR>>print */
-void opt_ir_print(void)
+void print(void)
 {
     int32_t b;
     opt_block *bl;
@@ -249,14 +249,14 @@ void opt_ir_print(void)
         n = bl->first;
         while (n >= 0) {
             nd = opt_nodes + n;
-            opt_print_node(n);
+            print_node(n);
             n = nd->next;
         }
     }
 }
 
 /* OptIR>>printNode: */
-static void opt_print_node(int32_t n)
+static void print_node(int32_t n)
 {
     opt_node *nd;
     int32_t i;
@@ -294,7 +294,7 @@ static void opt_print_node(int32_t n)
 }
 
 /* OptIR>>replacePred:with:in: */
-void opt_replace_pred(int32_t old, int32_t new, int32_t b)
+void replace_pred(int32_t old, int32_t new, int32_t b)
 {
     int32_t p;
     p = (opt_blocks + b)->preds;
@@ -307,7 +307,7 @@ void opt_replace_pred(int32_t old, int32_t new, int32_t b)
 }
 
 /* OptIR>>reset */
-void opt_ir_reset(void)
+void reset(void)
 {
     opt_node_count = 0;
     opt_block_count = 0;
@@ -324,7 +324,7 @@ void opt_ir_reset(void)
 }
 
 /* OptIR>>resolve: */
-int32_t opt_resolve(int32_t n)
+int32_t opt_ir_resolve(int32_t n)
 {
     int32_t m;
     if (n < 0) {
@@ -338,7 +338,7 @@ int32_t opt_resolve(int32_t n)
 }
 
 /* OptIR>>unlink: */
-void opt_unlink(int32_t n)
+void opt_ir_unlink(int32_t n)
 {
     opt_node *nd;
     opt_block *bl;

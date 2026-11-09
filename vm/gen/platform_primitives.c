@@ -6,19 +6,19 @@ static bool bad;
 
 static void answer_pair(bool ok, int a, int b);
 static void answer_string(char *s);
-static oop array_of_ints(int64_t *v, int n);
+static oop array_of(int64_t *v, int n);
 static bool bool_arg(int i);
-static uint8_t *bytes_view(oop o, size_t *n, bool writable);
+static uint8_t *bytes_of(oop o, size_t *n, bool writable);
 static double float_arg(int i);
 static void free_vector(char **v);
 static int64_t int_arg(int i);
 static bool is_text(oop o);
-static bool num_of(oop o, double *d);
+static bool number_of(uint64_t o, double *d);
 static uint8_t *range_args(bool writable, int64_t *h, int64_t *count);
-static bool rect_of(oop r, int *out);
+static bool rect(oop r, int *out);
 static char *string_arg(int i);
 static char **string_vector(oop a, bool non_empty);
-static bool text_or_delta(oop o, pf_event *e);
+static bool text_or_delta(uint64_t o, pf_event *e);
 
 /* PlatformPrimitives>>answerPair:first:second: */
 static void answer_pair(bool ok, int a, int b)
@@ -35,7 +35,7 @@ static void answer_pair(bool ok, int a, int b)
     v = local;
     v[0] = a;
     v[1] = b;
-    v_2 = array_of_ints(v, 2);
+    v_2 = array_of(v, 2);
     prim_result = v_2;
     prim_status = PS_OK;
 }
@@ -43,7 +43,7 @@ static void answer_pair(bool ok, int a, int b)
 /* PlatformPrimitives>>answerString: */
 static void answer_string(char *s)
 {
-    oop r;
+    uint64_t r;
     if (s == NULL) {
         prim_status = PS_FAIL;
         prim_error_code = -1;
@@ -56,7 +56,7 @@ static void answer_string(char *s)
 }
 
 /* PlatformPrimitives>>arrayOf:count: */
-static oop array_of_ints(int64_t *v, int n)
+static oop array_of(int64_t *v, int n)
 {
     oop a;
     int i;
@@ -68,7 +68,7 @@ static oop array_of_ints(int64_t *v, int n)
         v_3 = (uint64_t)((v_2 << 1) | 1);
         *(uint64_t *)(a + 16 + 8 * i) = v_3;
         if (((v_3 & 7) == 0) && ((v_3 - young_lo < young_hi - young_lo) && ((!((uint64_t)(a - young_lo) < young_hi - young_lo)) && (((*(uint64_t *)a) & H_REMEMBERED) == 0)))) {
-            vm_remember(a);
+            remember(a);
         }
     }
     return a;
@@ -89,7 +89,7 @@ static bool bool_arg(int i)
 }
 
 /* PlatformPrimitives>>bytesOf:size:writable: */
-static uint8_t *bytes_view(oop o, size_t *n, bool writable)
+static uint8_t *bytes_of(oop o, size_t *n, bool writable)
 {
     int32_t f;
     if (!((o & 7) == 0)) {
@@ -165,7 +165,7 @@ static bool is_text(oop o)
 }
 
 /* PlatformPrimitives>>numberOf:into: */
-static bool num_of(oop o, double *d)
+static bool number_of(uint64_t o, double *d)
 {
     if ((o & 1) != 0) {
         *d = (double)(((int64_t)o) >> 1);
@@ -190,7 +190,7 @@ void prim_clipboard_get(void)
         prim_error_code = -1;
         return;
     }
-    answer_string(pf_clipboard_get());
+    answer_string(clipboard_get());
 }
 
 /* PlatformPrimitives>>primClipboardSet */
@@ -209,7 +209,7 @@ void prim_clipboard_set(void)
         return;
     }
     s = string_arg(0);
-    ok = (!bad) && pf_clipboard_set(s);
+    ok = (!bad) && clipboard_set(s);
     free(s);
     if (ok) {
         v = prim_base[0];
@@ -233,7 +233,7 @@ void prim_cwd(void)
         prim_error_code = -1;
         return;
     }
-    answer_string(pf_cwd());
+    answer_string(platform_files_cwd());
 }
 
 /* PlatformPrimitives>>primDirCreate */
@@ -252,7 +252,7 @@ void prim_dir_create(void)
         goto exit_path_op;
     }
     p = string_arg(0);
-    ok = (!bad) && pf_dir_create(p);
+    ok = (!bad) && dir_create(p);
     free(p);
     if (ok) {
         v = prim_base[0];
@@ -276,7 +276,7 @@ void prim_dir_entries(void)
     oop local_2;
     oop *a;
     int i;
-    oop s;
+    uint64_t s;
     oop o;
     oop v_2;
     if (!({
@@ -290,7 +290,7 @@ void prim_dir_entries(void)
     p = string_arg(0);
     memset(&local, 0, sizeof local);
     n = &local;
-    v = bad ? (char **)NULL : pf_dir_entries(p, n);
+    v = bad ? (char **)NULL : dir_entries(p, n);
     free(p);
     if (v == NULL) {
         prim_status = PS_FAIL;
@@ -305,8 +305,8 @@ void prim_dir_entries(void)
         s = string_from_utf8(v[i], strlen(v[i]));
         o = *a;
         *(uint64_t *)(o + 16 + 8 * i) = s;
-        if (((s & 7) == 0) && (((uint64_t)(s - young_lo) < young_hi - young_lo) && ((!((uint64_t)(o - young_lo) < young_hi - young_lo)) && (((*(uint64_t *)o) & H_REMEMBERED) == 0)))) {
-            vm_remember(o);
+        if (((s & 7) == 0) && ((s - young_lo < young_hi - young_lo) && ((!((uint64_t)(o - young_lo) < young_hi - young_lo)) && (((*(uint64_t *)o) & H_REMEMBERED) == 0)))) {
+            remember(o);
         }
         free(v[i]);
     }
@@ -321,7 +321,7 @@ void prim_dir_entries(void)
 void prim_dropped_events(void)
 {
     bool r_args;
-    oop v;
+    uint64_t v;
     if (!({
     bad = false;
     r_args = prim_nargs == 0;
@@ -330,7 +330,7 @@ void prim_dropped_events(void)
         prim_error_code = -1;
         return;
     }
-    v = int64_oop(pf_event_dropped());
+    v = int64_oop(dropped());
     prim_result = v;
     prim_status = PS_OK;
 }
@@ -354,7 +354,7 @@ void prim_exec_process(void)
         prim_error_code = -1;
         return;
     }
-    pf_exec(argv);
+    exec(argv);
     free_vector(argv);
     prim_status = PS_FAIL;
     prim_error_code = -1;
@@ -381,7 +381,7 @@ void prim_file_close(void)
         prim_error_code = -1;
         return;
     }
-    a_boolean = pf_file_close((int32_t)f);
+    a_boolean = platform_files_close((int32_t)f);
     if (a_boolean) {
         v = prim_base[0];
         prim_result = v;
@@ -408,7 +408,7 @@ void prim_file_delete(void)
         goto exit_path_op;
     }
     p = string_arg(0);
-    ok = (!bad) && pf_file_delete(p);
+    ok = (!bad) && delete(p);
     free(p);
     if (ok) {
         v = prim_base[0];
@@ -442,7 +442,7 @@ void prim_file_flush(void)
         prim_error_code = -1;
         return;
     }
-    a_boolean = pf_file_flush((int32_t)f);
+    a_boolean = platform_files_flush((int32_t)f);
     if (a_boolean) {
         v = prim_base[0];
         prim_result = v;
@@ -459,7 +459,7 @@ void prim_file_open(void)
     bool r_args;
     char *p;
     int64_t m;
-    int h;
+    int32_t h;
     uint64_t v;
     if (!({
     bad = false;
@@ -471,7 +471,7 @@ void prim_file_open(void)
     }
     p = string_arg(0);
     m = int_arg(1);
-    h = bad ? 0 : pf_file_open(p, (int32_t)m);
+    h = bad ? 0 : platform_files_open(p, (int32_t)m);
     free(p);
     if (h > 0) {
         v = (uint64_t)((((int64_t)h) << 1) | 1);
@@ -488,8 +488,8 @@ void prim_file_position(void)
 {
     bool r_args;
     int64_t f;
-    int64_t r;
-    oop v;
+    off_t r;
+    uint64_t v;
     if (!({
     bad = false;
     r_args = prim_nargs == 1;
@@ -504,7 +504,7 @@ void prim_file_position(void)
         prim_error_code = -1;
         return;
     }
-    r = pf_file_position((int32_t)f);
+    r = position((int32_t)f);
     if (r < 0) {
         prim_status = PS_FAIL;
         prim_error_code = -1;
@@ -523,20 +523,20 @@ void prim_file_read(void)
     int64_t local_2;
     int64_t *n;
     uint8_t *p;
-    int64_t r;
+    ssize_t r;
     uint64_t v;
     memset(&local, 0, sizeof local);
     h = &local;
     memset(&local_2, 0, sizeof local_2);
     n = &local_2;
     p = range_args(true, h, n);
-    r = p != NULL ? pf_file_read((int32_t)*h, p, (uint64_t)*n) : -1;
+    r = p != NULL ? platform_files_read((int32_t)*h, p, (uint64_t)*n) : -1;
     if (r < 0) {
         prim_status = PS_FAIL;
         prim_error_code = -1;
         goto exit_answer_size;
     }
-    v = (uint64_t)((r << 1) | 1);
+    v = (uint64_t)((((int64_t)r) << 1) | 1);
     prim_result = v;
     prim_status = PS_OK;
 exit_answer_size:;
@@ -560,7 +560,7 @@ void prim_file_rename(void)
     }
     a = string_arg(0);
     b = string_arg(1);
-    ok = (!bad) && pf_file_rename(a, b);
+    ok = (!bad) && platform_files_rename(a, b);
     free(a);
     free(b);
     if (ok) {
@@ -596,7 +596,7 @@ void prim_file_seek(void)
         prim_error_code = -1;
         return;
     }
-    a_boolean = (pos >= 0) && pf_file_seek((int32_t)f, pos);
+    a_boolean = (pos >= 0) && seek((int32_t)f, pos);
     if (a_boolean) {
         v = prim_base[0];
         prim_result = v;
@@ -612,8 +612,8 @@ void prim_file_size(void)
 {
     bool r_args;
     int64_t f;
-    int64_t r;
-    oop v;
+    off_t r;
+    uint64_t v;
     if (!({
     bad = false;
     r_args = prim_nargs == 1;
@@ -628,7 +628,7 @@ void prim_file_size(void)
         prim_error_code = -1;
         return;
     }
-    r = pf_file_size((int32_t)f);
+    r = platform_files_size((int32_t)f);
     if (r < 0) {
         prim_status = PS_FAIL;
         prim_error_code = -1;
@@ -655,7 +655,7 @@ void prim_file_stat(void)
     oop o_2;
     bool a_boolean_2;
     oop v_3;
-    oop v;
+    uint64_t v;
     oop o_3;
     oop o_4;
     oop v_4;
@@ -670,7 +670,7 @@ void prim_file_stat(void)
     p = string_arg(0);
     memset(&local, 0, sizeof local);
     st = &local;
-    ok = (!bad) && pf_file_stat(p, st);
+    ok = (!bad) && platform_files_stat(p, st);
     free(p);
     if (!ok) {
         prim_status = PS_FAIL;
@@ -686,26 +686,26 @@ void prim_file_stat(void)
     v_2 = a_boolean ? true_oop : false_oop;
     *(uint64_t *)(o + 16 + 0) = v_2;
     if (((v_2 & 7) == 0) && (((uint64_t)(v_2 - young_lo) < young_hi - young_lo) && ((!((uint64_t)(o - young_lo) < young_hi - young_lo)) && (((*(uint64_t *)o) & H_REMEMBERED) == 0)))) {
-        vm_remember(o);
+        remember(o);
     }
     o_2 = *a;
     a_boolean_2 = st->is_dir;
     v_3 = a_boolean_2 ? true_oop : false_oop;
     *(uint64_t *)(o_2 + 16 + 8) = v_3;
     if (((v_3 & 7) == 0) && (((uint64_t)(v_3 - young_lo) < young_hi - young_lo) && ((!((uint64_t)(o_2 - young_lo) < young_hi - young_lo)) && (((*(uint64_t *)o_2) & H_REMEMBERED) == 0)))) {
-        vm_remember(o_2);
+        remember(o_2);
     }
     v = int64_oop(st->file_size);
     o_3 = *a;
     *(uint64_t *)(o_3 + 16 + 16) = v;
-    if (((v & 7) == 0) && (((uint64_t)(v - young_lo) < young_hi - young_lo) && ((!((uint64_t)(o_3 - young_lo) < young_hi - young_lo)) && (((*(uint64_t *)o_3) & H_REMEMBERED) == 0)))) {
-        vm_remember(o_3);
+    if (((v & 7) == 0) && ((v - young_lo < young_hi - young_lo) && ((!((uint64_t)(o_3 - young_lo) < young_hi - young_lo)) && (((*(uint64_t *)o_3) & H_REMEMBERED) == 0)))) {
+        remember(o_3);
     }
     v = int64_oop(st->mtime_us);
     o_4 = *a;
     *(uint64_t *)(o_4 + 16 + 24) = v;
-    if (((v & 7) == 0) && (((uint64_t)(v - young_lo) < young_hi - young_lo) && ((!((uint64_t)(o_4 - young_lo) < young_hi - young_lo)) && (((*(uint64_t *)o_4) & H_REMEMBERED) == 0)))) {
-        vm_remember(o_4);
+    if (((v & 7) == 0) && ((v - young_lo < young_hi - young_lo) && ((!((uint64_t)(o_4 - young_lo) < young_hi - young_lo)) && (((*(uint64_t *)o_4) & H_REMEMBERED) == 0)))) {
+        remember(o_4);
     }
     pop_root();
     v_4 = *a;
@@ -728,7 +728,7 @@ void prim_file_write(void)
     memset(&local_2, 0, sizeof local_2);
     n = &local_2;
     p = range_args(false, h, n);
-    r = p != NULL ? pf_file_write((int32_t)*h, p, (uint64_t)*n) : -1;
+    r = p != NULL ? platform_files_write((int32_t)*h, p, (uint64_t)*n) : -1;
     if (r < 0) {
         prim_status = PS_FAIL;
         prim_error_code = -1;
@@ -745,7 +745,7 @@ void prim_gpu_acquire_command_buffer(void)
 {
     bool r_args;
     int64_t d;
-    int h;
+    int32_t h;
     uint64_t v;
     if (!({
     bad = false;
@@ -761,7 +761,7 @@ void prim_gpu_acquire_command_buffer(void)
         prim_error_code = -1;
         return;
     }
-    h = pf_gpu_acquire_cmd((int32_t)d);
+    h = acquire_command_buffer((int32_t)d);
     if (h > 0) {
         v = (uint64_t)((((int64_t)h) << 1) | 1);
         prim_result = v;
@@ -782,7 +782,7 @@ void prim_gpu_acquire_swapchain(void)
     int *w;
     int local_2;
     int *h;
-    int t;
+    int32_t t;
     int64_t local_3[3];
     int64_t *v;
     oop v_2;
@@ -805,9 +805,9 @@ void prim_gpu_acquire_swapchain(void)
     w = &local;
     memset(&local_2, 0, sizeof local_2);
     h = &local_2;
-    t = pf_gpu_acquire_swapchain((int32_t)c, (int32_t)win, w, h);
+    t = acquire_swapchain((int32_t)c, (int32_t)win, w, h);
     if (t == 0) {
-        if (pf_last_error()[0] != 0) {
+        if (last_error_string()[0] != 0) {
             prim_status = PS_FAIL;
             prim_error_code = -1;
         } else {
@@ -821,7 +821,7 @@ void prim_gpu_acquire_swapchain(void)
     v[0] = t;
     v[1] = *w;
     v[2] = *h;
-    v_2 = array_of_ints(v, 3);
+    v_2 = array_of(v, 3);
     prim_result = v_2;
     prim_status = PS_OK;
 }
@@ -867,7 +867,7 @@ void prim_gpu_begin_pass(void)
             return;
         }
         for (i = 0; i <= 3; i++) {
-            if (!num_of(*(uint64_t *)(cl + 16 + 8 * i), d)) {
+            if (!number_of(*(uint64_t *)(cl + 16 + 8 * i), d)) {
                 prim_status = PS_FAIL;
                 prim_error_code = -1;
                 return;
@@ -875,7 +875,7 @@ void prim_gpu_begin_pass(void)
             rgba[i] = *d;
         }
     }
-    h = pf_gpu_begin_pass((int32_t)c, (int32_t)t, cl == nil_oop ? (float *)NULL : rgba);
+    h = begin_pass((int32_t)c, (int32_t)t, cl == nil_oop ? (float *)NULL : rgba);
     if (h > 0) {
         v = (uint64_t)((((int64_t)h) << 1) | 1);
         prim_result = v;
@@ -909,7 +909,7 @@ void prim_gpu_bind_pipeline(void)
         prim_error_code = -1;
         return;
     }
-    a_boolean = pf_gpu_bind_pipeline((int32_t)p, (int32_t)q);
+    a_boolean = bind_pipeline((int32_t)p, (int32_t)q);
     if (a_boolean) {
         v = prim_base[0];
         prim_result = v;
@@ -947,7 +947,7 @@ void prim_gpu_bind_texture(void)
         prim_error_code = -1;
         return;
     }
-    a_boolean = pf_gpu_bind_texture((int32_t)p, (int32_t)s, (int32_t)t, (int32_t)sm);
+    a_boolean = bind_texture((int32_t)p, (int32_t)s, (int32_t)t, (int32_t)sm);
     if (a_boolean) {
         v = prim_base[0];
         prim_result = v;
@@ -985,7 +985,7 @@ void prim_gpu_bind_vertex_buffer(void)
         prim_error_code = -1;
         return;
     }
-    a_boolean = pf_gpu_bind_vertex_buffer((int32_t)p, (int32_t)s, (int32_t)b, (uint32_t)off);
+    a_boolean = bind_vertex_buffer((int32_t)p, (int32_t)s, (int32_t)b, (uint32_t)off);
     if (a_boolean) {
         v = prim_base[0];
         prim_result = v;
@@ -1026,12 +1026,12 @@ void prim_gpu_blit(void)
     sr = local;
     memset(&local_2, 0, sizeof local_2);
     dr = local_2;
-    if (bad || ((!rect_of(prim_base[3], sr)) || (!rect_of(prim_base[5], dr)))) {
+    if (bad || ((!rect(prim_base[3], sr)) || (!rect(prim_base[5], dr)))) {
         prim_status = PS_FAIL;
         prim_error_code = -1;
         return;
     }
-    a_boolean = pf_gpu_blit((int32_t)c, (int32_t)s, sr, (int32_t)d, dr, linear);
+    a_boolean = blit((int32_t)c, (int32_t)s, sr, (int32_t)d, dr, linear);
     if (a_boolean) {
         v = prim_base[0];
         prim_result = v;
@@ -1065,7 +1065,7 @@ void prim_gpu_claim_window(void)
         prim_error_code = -1;
         return;
     }
-    a_boolean = pf_gpu_claim_window((int32_t)d, (int32_t)w);
+    a_boolean = claim_window((int32_t)d, (int32_t)w);
     if (a_boolean) {
         v = prim_base[0];
         prim_result = v;
@@ -1083,7 +1083,7 @@ void prim_gpu_create_buffer(void)
     int64_t d;
     int64_t u;
     int64_t n;
-    int h;
+    int32_t h;
     uint64_t v;
     if (!({
     bad = false;
@@ -1106,7 +1106,7 @@ void prim_gpu_create_buffer(void)
         prim_error_code = -1;
         return;
     }
-    h = pf_gpu_create_buffer((int32_t)d, (int32_t)u, (uint32_t)n);
+    h = create_buffer((int32_t)d, (int32_t)u, (uint32_t)n);
     if (h > 0) {
         v = (uint64_t)((((int64_t)h) << 1) | 1);
         prim_result = v;
@@ -1122,7 +1122,7 @@ void prim_gpu_create_device(void)
 {
     bool r_args;
     bool d;
-    int h;
+    int32_t h;
     uint64_t v;
     if (!({
     bad = false;
@@ -1138,7 +1138,7 @@ void prim_gpu_create_device(void)
         prim_error_code = -1;
         return;
     }
-    h = pf_gpu_create_device(d);
+    h = create_device(d);
     if (h > 0) {
         v = (uint64_t)((((int64_t)h) << 1) | 1);
         prim_result = v;
@@ -1169,7 +1169,7 @@ void prim_gpu_create_pipeline(void)
     uint64_t f;
     int32_t i_3;
     uint64_t off;
-    int h;
+    int32_t h;
     uint64_t v;
     if (!({
     bad = false;
@@ -1213,7 +1213,7 @@ void prim_gpu_create_pipeline(void)
         (va + i)->format = (int32_t)(((int64_t)f) >> 1);
         (va + i)->offset = (int32_t)(((int64_t)off) >> 1);
     }
-    h = pf_gpu_create_pipeline((int32_t)d, (int32_t)vs, (int32_t)fs, (int32_t)stride, va, n, (int32_t)prim, (int32_t)blend, (int32_t)fmt);
+    h = create_pipeline((int32_t)d, (int32_t)vs, (int32_t)fs, (int32_t)stride, va, n, (int32_t)prim, (int32_t)blend, (int32_t)fmt);
     if (h > 0) {
         v = (uint64_t)((((int64_t)h) << 1) | 1);
         prim_result = v;
@@ -1231,7 +1231,7 @@ void prim_gpu_create_sampler(void)
     int64_t d;
     bool linear;
     bool repeat;
-    int h;
+    int32_t h;
     uint64_t v;
     if (!({
     bad = false;
@@ -1249,7 +1249,7 @@ void prim_gpu_create_sampler(void)
         prim_error_code = -1;
         return;
     }
-    h = pf_gpu_create_sampler((int32_t)d, linear, repeat);
+    h = create_sampler((int32_t)d, linear, repeat);
     if (h > 0) {
         v = (uint64_t)((((int64_t)h) << 1) | 1);
         prim_result = v;
@@ -1272,7 +1272,7 @@ void prim_gpu_create_shader(void)
     int64_t nst;
     char *src;
     char *entry;
-    int h;
+    int32_t h;
     uint64_t v;
     if (!({
     bad = false;
@@ -1290,7 +1290,7 @@ void prim_gpu_create_shader(void)
     nst = int_arg(7);
     src = string_arg(1);
     entry = string_arg(2);
-    h = bad ? 0 : pf_gpu_create_shader((int32_t)d, src, entry, (int32_t)stage, (int32_t)ns, (int32_t)nu, (int32_t)nsb, (int32_t)nst);
+    h = bad ? 0 : create_shader((int32_t)d, src, entry, (int32_t)stage, (int32_t)ns, (int32_t)nu, (int32_t)nsb, (int32_t)nst);
     free(src);
     free(entry);
     if (bad) {
@@ -1317,7 +1317,7 @@ void prim_gpu_create_texture(void)
     int64_t h;
     int64_t f;
     int64_t u;
-    int h_2;
+    int32_t h_2;
     uint64_t v;
     if (!({
     bad = false;
@@ -1337,7 +1337,7 @@ void prim_gpu_create_texture(void)
         prim_error_code = -1;
         return;
     }
-    h_2 = pf_gpu_create_texture((int32_t)d, (int32_t)w, (int32_t)h, (int32_t)f, (int32_t)u);
+    h_2 = create_texture((int32_t)d, (int32_t)w, (int32_t)h, (int32_t)f, (int32_t)u);
     if (h_2 > 0) {
         v = (uint64_t)((((int64_t)h_2) << 1) | 1);
         prim_result = v;
@@ -1382,8 +1382,8 @@ void prim_gpu_download(void)
     buf = prim_base[6];
     memset(&local, 0, sizeof local);
     len = &local;
-    p = bytes_view(buf, len, true);
-    if ((p == NULL) || (!pf_gpu_download((int32_t)t, (int32_t)x, (int32_t)y, (int32_t)w, (int32_t)h, p, *len))) {
+    p = bytes_of(buf, len, true);
+    if ((p == NULL) || (!download((int32_t)t, (int32_t)x, (int32_t)y, (int32_t)w, (int32_t)h, p, *len))) {
         prim_status = PS_FAIL;
         prim_error_code = -1;
         return;
@@ -1417,7 +1417,7 @@ void prim_gpu_draw(void)
         prim_error_code = -1;
         return;
     }
-    a_boolean = pf_gpu_draw((int32_t)p, (int32_t)n, (int32_t)f);
+    a_boolean = draw((int32_t)p, (int32_t)n, (int32_t)f);
     if (a_boolean) {
         v = prim_base[0];
         prim_result = v;
@@ -1449,7 +1449,7 @@ void prim_gpu_end_pass(void)
         prim_error_code = -1;
         return;
     }
-    a_boolean = pf_gpu_end_pass((int32_t)p);
+    a_boolean = end_pass((int32_t)p);
     if (a_boolean) {
         v = prim_base[0];
         prim_result = v;
@@ -1482,7 +1482,7 @@ void prim_gpu_fence_done(void)
         prim_error_code = -1;
         return;
     }
-    r = pf_gpu_fence_done((int32_t)f);
+    r = fence_done((int32_t)f);
     if (r < 0) {
         prim_status = PS_FAIL;
         prim_error_code = -1;
@@ -1515,7 +1515,7 @@ void prim_gpu_fence_elapsed(void)
         prim_error_code = -1;
         return;
     }
-    r = pf_gpu_fence_elapsed((int32_t)f);
+    r = fence_elapsed((int32_t)f);
     if (r == -2) {
         prim_status = PS_FAIL;
         prim_error_code = -1;
@@ -1556,13 +1556,13 @@ void prim_gpu_push_uniforms(void)
     }
     memset(&local, 0, sizeof local);
     len = &local;
-    p = bytes_view(prim_base[4], len, false);
+    p = bytes_of(prim_base[4], len, false);
     if (p == NULL) {
         prim_status = PS_FAIL;
         prim_error_code = -1;
         return;
     }
-    a_boolean = pf_gpu_push_uniforms((int32_t)c, (int32_t)st, (int32_t)sl, p, (uint32_t)*len);
+    a_boolean = push_uniforms((int32_t)c, (int32_t)st, (int32_t)sl, p, (uint32_t)*len);
     if (a_boolean) {
         v = prim_base[0];
         prim_result = v;
@@ -1594,7 +1594,7 @@ void prim_gpu_release(void)
         prim_error_code = -1;
         return;
     }
-    a_boolean = pf_gpu_release((int32_t)h);
+    a_boolean = release_handle((int32_t)h);
     if (a_boolean) {
         v = prim_base[0];
         prim_result = v;
@@ -1634,7 +1634,7 @@ void prim_gpu_set_scissor(void)
         prim_error_code = -1;
         return;
     }
-    a_boolean = pf_gpu_set_scissor((int32_t)p, (int32_t)x, (int32_t)y, (int32_t)w, (int32_t)h);
+    a_boolean = set_scissor((int32_t)p, (int32_t)x, (int32_t)y, (int32_t)w, (int32_t)h);
     if (a_boolean) {
         v = prim_base[0];
         prim_result = v;
@@ -1674,7 +1674,7 @@ void prim_gpu_set_viewport(void)
         prim_error_code = -1;
         return;
     }
-    a_boolean = pf_gpu_set_viewport((int32_t)p, x, y, w, h);
+    a_boolean = set_viewport((int32_t)p, x, y, w, h);
     if (a_boolean) {
         v = prim_base[0];
         prim_result = v;
@@ -1690,8 +1690,8 @@ void prim_gpu_shader_language(void)
 {
     bool r_args;
     int64_t d;
-    const char *l;
-    oop v;
+    char *l;
+    uint64_t v;
     if (!({
     bad = false;
     r_args = prim_nargs == 1;
@@ -1706,7 +1706,7 @@ void prim_gpu_shader_language(void)
         prim_error_code = -1;
         return;
     }
-    l = pf_gpu_shader_language((int32_t)d);
+    l = shader_language((int32_t)d);
     if (l == NULL) {
         prim_status = PS_FAIL;
         prim_error_code = -1;
@@ -1744,7 +1744,7 @@ void prim_gpu_submit(void)
     }
     memset(&local, 0, sizeof local);
     ok = &local;
-    f = pf_gpu_submit((int32_t)c, want, ok);
+    f = submit((int32_t)c, want, ok);
     if (!*ok) {
         prim_status = PS_FAIL;
         prim_error_code = -1;
@@ -1778,7 +1778,7 @@ void prim_gpu_swapchain_format(void)
         prim_error_code = -1;
         return;
     }
-    h = pf_gpu_swapchain_format((int32_t)d, (int32_t)w);
+    h = swapchain_format((int32_t)d, (int32_t)w);
     if (h > 0) {
         v = (uint64_t)((((int64_t)h) << 1) | 1);
         prim_result = v;
@@ -1823,7 +1823,7 @@ void prim_gpu_texture_size(void)
     h = &local_2;
     memset(&local_3, 0, sizeof local_3);
     f = &local_3;
-    if (!pf_gpu_texture_size((int32_t)t, w, h, f)) {
+    if (!texture_size((int32_t)t, w, h, f)) {
         prim_status = PS_FAIL;
         prim_error_code = -1;
         return;
@@ -1833,7 +1833,7 @@ void prim_gpu_texture_size(void)
     v[0] = *w;
     v[1] = *h;
     v[2] = *f;
-    v_2 = array_of_ints(v, 3);
+    v_2 = array_of(v, 3);
     prim_result = v_2;
     prim_status = PS_OK;
 }
@@ -1868,13 +1868,13 @@ void prim_gpu_upload_buffer(void)
     }
     memset(&local, 0, sizeof local);
     len = &local;
-    p = bytes_view(prim_base[2], len, false);
+    p = bytes_of(prim_base[2], len, false);
     if ((p == NULL) || ((n < 0) || (((uint64_t)n > *len) || ((off < 0) || (off > 0xFFFFFFFFLL))))) {
         prim_status = PS_FAIL;
         prim_error_code = -1;
         return;
     }
-    a_boolean = pf_gpu_upload_buffer((int32_t)b, p, (uint32_t)n, (uint32_t)off);
+    a_boolean = upload_buffer((int32_t)b, p, (uint32_t)n, (uint32_t)off);
     if (a_boolean) {
         v = prim_base[0];
         prim_result = v;
@@ -1921,13 +1921,13 @@ void prim_gpu_upload_texture(void)
     }
     memset(&local, 0, sizeof local);
     len = &local;
-    p = bytes_view(prim_base[2], len, false);
+    p = bytes_of(prim_base[2], len, false);
     if (p == NULL) {
         prim_status = PS_FAIL;
         prim_error_code = -1;
         return;
     }
-    a_boolean = pf_gpu_upload_texture((int32_t)t, p, *len, (int32_t)x, (int32_t)y, (int32_t)w, (int32_t)h, (int32_t)bpr);
+    a_boolean = upload_texture((int32_t)t, p, *len, (int32_t)x, (int32_t)y, (int32_t)w, (int32_t)h, (int32_t)bpr);
     if (a_boolean) {
         v = prim_base[0];
         prim_result = v;
@@ -1959,7 +1959,7 @@ void prim_gpu_wait_fence(void)
         prim_error_code = -1;
         return;
     }
-    a_boolean = pf_gpu_wait_fence((int32_t)f);
+    a_boolean = wait_fence((int32_t)f);
     if (a_boolean) {
         v = prim_base[0];
         prim_result = v;
@@ -1991,7 +1991,7 @@ void prim_gpu_wait_idle(void)
         prim_error_code = -1;
         return;
     }
-    a_boolean = pf_gpu_wait_idle((int32_t)d);
+    a_boolean = wait_idle((int32_t)d);
     if (a_boolean) {
         v = prim_base[0];
         prim_result = v;
@@ -2034,8 +2034,8 @@ void prim_inject_event(void)
         e->type = (int32_t)(((int64_t)o) >> 1);
     }
     o = *(uint64_t *)(a + 16 + 8);
-    e->time_ms = (o & 1) != 0 ? ((int64_t)o) >> 1 : pf_now_ms();
-    ok = ok && (num_of(*(uint64_t *)(a + 16 + 16), &e->x) && num_of(*(uint64_t *)(a + 16 + 24), &e->y));
+    e->time_ms = (o & 1) != 0 ? ((int64_t)o) >> 1 : platform_common_now_ms();
+    ok = ok && (number_of(*(uint64_t *)(a + 16 + 16), &e->x) && number_of(*(uint64_t *)(a + 16 + 24), &e->y));
     o = *(uint64_t *)(a + 16 + 32);
     e->key = (o & 1) != 0 ? ((int64_t)o) >> 1 : 0;
     o = *(uint64_t *)(a + 16 + 40);
@@ -2044,7 +2044,7 @@ void prim_inject_event(void)
     e->window = (o & 1) != 0 ? (int32_t)(((int64_t)o) >> 1) : 0;
     ok = ok && text_or_delta(*(uint64_t *)(a + 16 + 48), e);
     if (ok) {
-        pf_event_push(e);
+        platform_events_push(e);
     }
     free(e->text);
     if (!ok) {
@@ -2078,7 +2078,7 @@ void prim_input_semaphore(void)
         prim_error_code = -1;
         return;
     }
-    pf_event_set_semaphore((int32_t)i);
+    set_semaphore((int32_t)i);
     v = prim_base[0];
     prim_result = v;
     prim_status = PS_OK;
@@ -2100,7 +2100,7 @@ void prim_mkfifo(void)
         goto exit_path_op;
     }
     p = string_arg(0);
-    ok = (!bad) && pf_mkfifo(p);
+    ok = (!bad) && platform_files_mkfifo(p);
     free(p);
     if (ok) {
         v = prim_base[0];
@@ -2128,7 +2128,7 @@ void prim_next_event(void)
     oop o_2;
     int64_t v_4;
     uint64_t v_5;
-    oop v;
+    uint64_t v;
     oop o_3;
     oop o_4;
     oop o_5;
@@ -2165,7 +2165,7 @@ void prim_next_event(void)
     }
     memset(&local, 0, sizeof local);
     e = &local;
-    if (!pf_event_next(e)) {
+    if (!platform_events_next(e)) {
         prim_result = nil_oop;
         prim_status = PS_OK;
         return;
@@ -2179,40 +2179,40 @@ void prim_next_event(void)
     v_3 = (uint64_t)((((int64_t)v_2) << 1) | 1);
     *(uint64_t *)(o + 16 + 0) = v_3;
     if (((v_3 & 7) == 0) && ((v_3 - young_lo < young_hi - young_lo) && ((!((uint64_t)(o - young_lo) < young_hi - young_lo)) && (((*(uint64_t *)o) & H_REMEMBERED) == 0)))) {
-        vm_remember(o);
+        remember(o);
     }
     o_2 = *a;
     v_4 = e->time_ms;
     v_5 = (uint64_t)((v_4 << 1) | 1);
     *(uint64_t *)(o_2 + 16 + 8) = v_5;
     if (((v_5 & 7) == 0) && ((v_5 - young_lo < young_hi - young_lo) && ((!((uint64_t)(o_2 - young_lo) < young_hi - young_lo)) && (((*(uint64_t *)o_2) & H_REMEMBERED) == 0)))) {
-        vm_remember(o_2);
+        remember(o_2);
     }
     v = float_oop(e->x);
     o_3 = *a;
     *(uint64_t *)(o_3 + 16 + 16) = v;
-    if (((v & 7) == 0) && (((uint64_t)(v - young_lo) < young_hi - young_lo) && ((!((uint64_t)(o_3 - young_lo) < young_hi - young_lo)) && (((*(uint64_t *)o_3) & H_REMEMBERED) == 0)))) {
-        vm_remember(o_3);
+    if (((v & 7) == 0) && ((v - young_lo < young_hi - young_lo) && ((!((uint64_t)(o_3 - young_lo) < young_hi - young_lo)) && (((*(uint64_t *)o_3) & H_REMEMBERED) == 0)))) {
+        remember(o_3);
     }
     v = float_oop(e->y);
     o_4 = *a;
     *(uint64_t *)(o_4 + 16 + 24) = v;
-    if (((v & 7) == 0) && (((uint64_t)(v - young_lo) < young_hi - young_lo) && ((!((uint64_t)(o_4 - young_lo) < young_hi - young_lo)) && (((*(uint64_t *)o_4) & H_REMEMBERED) == 0)))) {
-        vm_remember(o_4);
+    if (((v & 7) == 0) && ((v - young_lo < young_hi - young_lo) && ((!((uint64_t)(o_4 - young_lo) < young_hi - young_lo)) && (((*(uint64_t *)o_4) & H_REMEMBERED) == 0)))) {
+        remember(o_4);
     }
     o_5 = *a;
     v_6 = e->key;
     v_7 = (uint64_t)((v_6 << 1) | 1);
     *(uint64_t *)(o_5 + 16 + 32) = v_7;
     if (((v_7 & 7) == 0) && ((v_7 - young_lo < young_hi - young_lo) && ((!((uint64_t)(o_5 - young_lo) < young_hi - young_lo)) && (((*(uint64_t *)o_5) & H_REMEMBERED) == 0)))) {
-        vm_remember(o_5);
+        remember(o_5);
     }
     o_6 = *a;
     v_8 = e->mods;
     v_9 = (uint64_t)((((int64_t)v_8) << 1) | 1);
     *(uint64_t *)(o_6 + 16 + 40) = v_9;
     if (((v_9 & 7) == 0) && ((v_9 - young_lo < young_hi - young_lo) && ((!((uint64_t)(o_6 - young_lo) < young_hi - young_lo)) && (((*(uint64_t *)o_6) & H_REMEMBERED) == 0)))) {
-        vm_remember(o_6);
+        remember(o_6);
     }
     v = nil_oop;
     if (e->xkind == PF_X_INT) {
@@ -2229,27 +2229,27 @@ void prim_next_event(void)
     if (e->xkind == PF_X_POINT) {
         memset(&local_3, 0, sizeof local_3);
         p = &local_3;
-        *p = alloc_slots(special(SO_POINT), 0);
+        *p = alloc_slots(object_memory_special(SO_POINT), 0);
         push_root(p);
         v = float_oop(e->dx);
         o_7 = *p;
         *(uint64_t *)(o_7 + 16 + 0) = v;
-        if (((v & 7) == 0) && (((uint64_t)(v - young_lo) < young_hi - young_lo) && ((!((uint64_t)(o_7 - young_lo) < young_hi - young_lo)) && (((*(uint64_t *)o_7) & H_REMEMBERED) == 0)))) {
-            vm_remember(o_7);
+        if (((v & 7) == 0) && ((v - young_lo < young_hi - young_lo) && ((!((uint64_t)(o_7 - young_lo) < young_hi - young_lo)) && (((*(uint64_t *)o_7) & H_REMEMBERED) == 0)))) {
+            remember(o_7);
         }
         v = float_oop(e->dy);
         o_8 = *p;
         *(uint64_t *)(o_8 + 16 + 8) = v;
-        if (((v & 7) == 0) && (((uint64_t)(v - young_lo) < young_hi - young_lo) && ((!((uint64_t)(o_8 - young_lo) < young_hi - young_lo)) && (((*(uint64_t *)o_8) & H_REMEMBERED) == 0)))) {
-            vm_remember(o_8);
+        if (((v & 7) == 0) && ((v - young_lo < young_hi - young_lo) && ((!((uint64_t)(o_8 - young_lo) < young_hi - young_lo)) && (((*(uint64_t *)o_8) & H_REMEMBERED) == 0)))) {
+            remember(o_8);
         }
         pop_root();
         v = *p;
     }
     o_9 = *a;
     *(uint64_t *)(o_9 + 16 + 48) = v;
-    if (((v & 7) == 0) && (((uint64_t)(v - young_lo) < young_hi - young_lo) && ((!((uint64_t)(o_9 - young_lo) < young_hi - young_lo)) && (((*(uint64_t *)o_9) & H_REMEMBERED) == 0)))) {
-        vm_remember(o_9);
+    if (((v & 7) == 0) && ((v - young_lo < young_hi - young_lo) && ((!((uint64_t)(o_9 - young_lo) < young_hi - young_lo)) && (((*(uint64_t *)o_9) & H_REMEMBERED) == 0)))) {
+        remember(o_9);
     }
     o_10 = *a;
     v_13 = ({
@@ -2262,7 +2262,7 @@ void prim_next_event(void)
     v_12; });
     *(uint64_t *)(o_10 + 16 + 56) = v_13;
     if (((v_13 & 7) == 0) && ((v_13 - young_lo < young_hi - young_lo) && ((!((uint64_t)(o_10 - young_lo) < young_hi - young_lo)) && (((*(uint64_t *)o_10) & H_REMEMBERED) == 0)))) {
-        vm_remember(o_10);
+        remember(o_10);
     }
     pop_root();
     free(e->text);
@@ -2279,8 +2279,8 @@ void prim_platform_handle_counts(void)
     oop v_2;
     memset(&local, 0, sizeof local);
     v = local;
-    pf_handle_counts(v);
-    v_2 = array_of_ints(v, PF_HANDLE_COUNTS);
+    platform_common_handle_counts(v);
+    v_2 = array_of(v, PF_HANDLE_COUNTS);
     prim_result = v_2;
     prim_status = PS_OK;
 }
@@ -2289,8 +2289,8 @@ void prim_platform_handle_counts(void)
 void prim_platform_last_error(void)
 {
     bool r_args;
-    const char *e;
-    oop v;
+    char *e;
+    uint64_t v;
     if (!({
     bad = false;
     r_args = prim_nargs == 0;
@@ -2299,7 +2299,7 @@ void prim_platform_last_error(void)
         prim_error_code = -1;
         return;
     }
-    e = pf_last_error();
+    e = last_error_string();
     v = string_from_utf8(e, strlen(e));
     prim_result = v;
     prim_status = PS_OK;
@@ -2337,7 +2337,7 @@ void prim_process_wait(void)
     st = &local;
     memset(&local_2, 0, sizeof local_2);
     done = &local_2;
-    if (!pf_process_wait(pid, block, st, done)) {
+    if (!process_wait(pid, block, st, done)) {
         prim_status = PS_FAIL;
         prim_error_code = -1;
         return;
@@ -2375,7 +2375,7 @@ void prim_pty_close(void)
         prim_error_code = -1;
         return;
     }
-    a_boolean = pf_pty_close((int32_t)h);
+    a_boolean = platform_ptys_close((int32_t)h);
     if (a_boolean) {
         v = prim_base[0];
         prim_result = v;
@@ -2391,7 +2391,7 @@ void prim_pty_foreground(void)
 {
     bool r_args;
     int64_t h;
-    int group;
+    pid_t group;
     int64_t v;
     uint64_t v_2;
     if (!({
@@ -2408,7 +2408,7 @@ void prim_pty_foreground(void)
         prim_error_code = -1;
         return;
     }
-    group = pf_pty_foreground((int32_t)h);
+    group = foreground((int32_t)h);
     if (group < 0) {
         prim_status = PS_FAIL;
         prim_error_code = -1;
@@ -2428,14 +2428,14 @@ void prim_pty_read(void)
     int64_t local_2;
     int64_t *n;
     uint8_t *p;
-    int64_t r;
+    ssize_t r;
     uint64_t v;
     memset(&local, 0, sizeof local);
     h = &local;
     memset(&local_2, 0, sizeof local_2);
     n = &local_2;
     p = range_args(true, h, n);
-    r = p != NULL ? pf_pty_read((int32_t)*h, p, (uint64_t)*n) : -2;
+    r = p != NULL ? pty_read((int32_t)*h, p, (uint64_t)*n) : -2;
     if (r == -1) {
         prim_result = nil_oop;
         prim_status = PS_OK;
@@ -2446,7 +2446,7 @@ void prim_pty_read(void)
         prim_error_code = -1;
         goto exit_answer_count;
     }
-    v = (uint64_t)((r << 1) | 1);
+    v = (uint64_t)((((int64_t)r) << 1) | 1);
     prim_result = v;
     prim_status = PS_OK;
 exit_answer_count:;
@@ -2477,7 +2477,7 @@ void prim_pty_resize(void)
         prim_error_code = -1;
         return;
     }
-    a_boolean = (rows > 0) && ((cols > 0) && ((rows < 65536) && ((cols < 65536) && pf_pty_resize((int32_t)h, (int32_t)rows, (int32_t)cols))));
+    a_boolean = (rows > 0) && ((cols > 0) && ((rows < 65536) && ((cols < 65536) && resize((int32_t)h, (int32_t)rows, (int32_t)cols))));
     if (a_boolean) {
         v = prim_base[0];
         prim_result = v;
@@ -2510,7 +2510,7 @@ void prim_pty_semaphore(void)
         prim_error_code = -1;
         return;
     }
-    a_boolean = pf_pty_semaphores((int32_t)h, (int32_t)r, (int32_t)w);
+    a_boolean = pty_semaphores((int32_t)h, (int32_t)r, (int32_t)w);
     if (a_boolean) {
         v = prim_base[0];
         prim_result = v;
@@ -2559,7 +2559,7 @@ void prim_pty_spawn(void)
     pid = &local;
     h = 0;
     if ((!bad) && ((argv != NULL) && (((envp != NULL) || (prim_base[2] == nil_oop)) && ((rows > 0) && ((cols > 0) && ((rows < 65536) && (cols < 65536))))))) {
-        h = pf_pty_spawn(argv, envp, cwd, (int32_t)rows, (int32_t)cols, pid);
+        h = platform_ptys_spawn(argv, envp, cwd, (int32_t)rows, (int32_t)cols, pid);
     }
     free_vector(argv);
     free_vector(envp);
@@ -2573,7 +2573,7 @@ void prim_pty_spawn(void)
     v = local_2;
     v[0] = h;
     v[1] = *pid;
-    v_2 = array_of_ints(v, 2);
+    v_2 = array_of(v, 2);
     prim_result = v_2;
     prim_status = PS_OK;
 }
@@ -2610,7 +2610,7 @@ void prim_pty_wait(void)
     st = &local;
     memset(&local_2, 0, sizeof local_2);
     done = &local_2;
-    if (!pf_pty_wait((int32_t)h, block, st, done)) {
+    if (!platform_ptys_wait((int32_t)h, block, st, done)) {
         prim_status = PS_FAIL;
         prim_error_code = -1;
         return;
@@ -2635,14 +2635,14 @@ void prim_pty_write(void)
     int64_t local_2;
     int64_t *n;
     uint8_t *p;
-    int64_t r;
+    ssize_t r;
     uint64_t v;
     memset(&local, 0, sizeof local);
     h = &local;
     memset(&local_2, 0, sizeof local_2);
     n = &local_2;
     p = range_args(false, h, n);
-    r = p != NULL ? pf_pty_write((int32_t)*h, p, (uint64_t)*n) : -2;
+    r = p != NULL ? pty_write((int32_t)*h, p, (uint64_t)*n) : -2;
     if (r == -1) {
         prim_result = nil_oop;
         prim_status = PS_OK;
@@ -2653,7 +2653,7 @@ void prim_pty_write(void)
         prim_error_code = -1;
         goto exit_answer_count;
     }
-    v = (uint64_t)((r << 1) | 1);
+    v = (uint64_t)((((int64_t)r) << 1) | 1);
     prim_result = v;
     prim_status = PS_OK;
 exit_answer_count:;
@@ -2680,7 +2680,7 @@ void prim_set_cursor(void)
         prim_error_code = -1;
         return;
     }
-    a_boolean = pf_set_cursor((int32_t)k);
+    a_boolean = set_cursor((int32_t)k);
     if (a_boolean) {
         v = prim_base[0];
         prim_result = v;
@@ -2698,7 +2698,7 @@ void prim_socket_accept(void)
     int64_t s;
     bool local;
     bool *wb;
-    int h;
+    int32_t h;
     uint64_t v;
     if (!({
     bad = false;
@@ -2716,7 +2716,7 @@ void prim_socket_accept(void)
     }
     memset(&local, 0, sizeof local);
     wb = &local;
-    h = pf_socket_accept((int32_t)s, wb);
+    h = platform_sockets_accept((int32_t)s, wb);
     if (h != 0) {
         v = (uint64_t)((((int64_t)h) << 1) | 1);
         prim_result = v;
@@ -2753,7 +2753,7 @@ void prim_socket_close(void)
         prim_error_code = -1;
         return;
     }
-    a_boolean = pf_socket_close((int32_t)s);
+    a_boolean = platform_sockets_close((int32_t)s);
     if (a_boolean) {
         v = prim_base[0];
         prim_result = v;
@@ -2770,7 +2770,7 @@ void prim_socket_connect(void)
     bool r_args;
     char *host;
     int64_t port;
-    int h;
+    int32_t h;
     uint64_t v;
     if (!({
     bad = false;
@@ -2782,7 +2782,7 @@ void prim_socket_connect(void)
     }
     host = string_arg(0);
     port = int_arg(1);
-    h = bad ? 0 : pf_socket_connect(host, (int32_t)port);
+    h = bad ? 0 : platform_sockets_connect(host, (int32_t)port);
     free(host);
     if (h > 0) {
         v = (uint64_t)((((int64_t)h) << 1) | 1);
@@ -2801,7 +2801,7 @@ void prim_socket_listen(void)
     char *host;
     int64_t port;
     int64_t backlog;
-    int h;
+    int32_t h;
     uint64_t v;
     if (!({
     bad = false;
@@ -2814,7 +2814,7 @@ void prim_socket_listen(void)
     host = string_arg(0);
     port = int_arg(1);
     backlog = int_arg(2);
-    h = bad ? 0 : pf_socket_listen(host, (int32_t)port, (int32_t)backlog);
+    h = bad ? 0 : platform_sockets_listen(host, (int32_t)port, (int32_t)backlog);
     free(host);
     if (h > 0) {
         v = (uint64_t)((((int64_t)h) << 1) | 1);
@@ -2847,7 +2847,7 @@ void prim_socket_local_port(void)
         prim_error_code = -1;
         return;
     }
-    h = pf_socket_local_port((int32_t)s);
+    h = local_port((int32_t)s);
     if (h > 0) {
         v = (uint64_t)((((int64_t)h) << 1) | 1);
         prim_result = v;
@@ -2866,14 +2866,14 @@ void prim_socket_recv(void)
     int64_t local_2;
     int64_t *n;
     uint8_t *p;
-    int64_t r;
+    ssize_t r;
     uint64_t v;
     memset(&local, 0, sizeof local);
     h = &local;
     memset(&local_2, 0, sizeof local_2);
     n = &local_2;
     p = range_args(true, h, n);
-    r = p != NULL ? pf_socket_recv((int32_t)*h, p, (uint64_t)*n) : -2;
+    r = p != NULL ? platform_sockets_recv((int32_t)*h, p, (uint64_t)*n) : -2;
     if (r == -1) {
         prim_result = nil_oop;
         prim_status = PS_OK;
@@ -2884,7 +2884,7 @@ void prim_socket_recv(void)
         prim_error_code = -1;
         goto exit_answer_count;
     }
-    v = (uint64_t)((r << 1) | 1);
+    v = (uint64_t)((((int64_t)r) << 1) | 1);
     prim_result = v;
     prim_status = PS_OK;
 exit_answer_count:;
@@ -2912,7 +2912,7 @@ void prim_socket_semaphore(void)
         prim_error_code = -1;
         return;
     }
-    a_boolean = pf_socket_semaphores((int32_t)s, (int32_t)r, (int32_t)w);
+    a_boolean = platform_sockets_semaphores_read_write((int32_t)s, (int32_t)r, (int32_t)w);
     if (a_boolean) {
         v = prim_base[0];
         prim_result = v;
@@ -2931,14 +2931,14 @@ void prim_socket_send(void)
     int64_t local_2;
     int64_t *n;
     uint8_t *p;
-    int64_t r;
+    ssize_t r;
     uint64_t v;
     memset(&local, 0, sizeof local);
     h = &local;
     memset(&local_2, 0, sizeof local_2);
     n = &local_2;
     p = range_args(false, h, n);
-    r = p != NULL ? pf_socket_send((int32_t)*h, p, (uint64_t)*n) : -2;
+    r = p != NULL ? platform_sockets_send((int32_t)*h, p, (uint64_t)*n) : -2;
     if (r == -1) {
         prim_result = nil_oop;
         prim_status = PS_OK;
@@ -2949,7 +2949,7 @@ void prim_socket_send(void)
         prim_error_code = -1;
         goto exit_answer_count;
     }
-    v = (uint64_t)((r << 1) | 1);
+    v = (uint64_t)((((int64_t)r) << 1) | 1);
     prim_result = v;
     prim_status = PS_OK;
 exit_answer_count:;
@@ -2976,7 +2976,7 @@ void prim_spawn_process(void)
         prim_error_code = -1;
         return;
     }
-    pid = pf_spawn(argv);
+    pid = platform_files_spawn(argv);
     free_vector(argv);
     if (pid < 0) {
         prim_status = PS_FAIL;
@@ -3009,7 +3009,7 @@ void prim_vsync_semaphore(void)
         prim_error_code = -1;
         return;
     }
-    a_boolean = pf_vsync_semaphore((int32_t)i);
+    a_boolean = semaphore((int32_t)i);
     if (a_boolean) {
         v = prim_base[0];
         prim_result = v;
@@ -3041,7 +3041,7 @@ void prim_window_close(void)
         prim_error_code = -1;
         return;
     }
-    a_boolean = pf_window_close((int32_t)w);
+    a_boolean = platform_windows_close((int32_t)w);
     if (a_boolean) {
         v = prim_base[0];
         prim_result = v;
@@ -3058,7 +3058,7 @@ void prim_window_display_scale(void)
     bool r_args;
     int64_t w;
     double d;
-    oop v;
+    uint64_t v;
     if (!({
     bad = false;
     r_args = prim_nargs == 1;
@@ -3073,7 +3073,7 @@ void prim_window_display_scale(void)
         prim_error_code = -1;
         return;
     }
-    d = pf_window_display_scale((int32_t)w);
+    d = display_scale((int32_t)w);
     if (d < 0.0) {
         prim_status = PS_FAIL;
         prim_error_code = -1;
@@ -3105,7 +3105,7 @@ void prim_window_hide(void)
         prim_error_code = -1;
         return;
     }
-    a_boolean = pf_window_show((int32_t)w, false);
+    a_boolean = platform_windows_show((int32_t)w, false);
     if (a_boolean) {
         v = prim_base[0];
         prim_result = v;
@@ -3124,7 +3124,7 @@ void prim_window_open(void)
     int64_t h;
     int64_t flags;
     char *t;
-    int r;
+    int32_t r;
     uint64_t v;
     if (!({
     bad = false;
@@ -3144,7 +3144,7 @@ void prim_window_open(void)
         prim_error_code = -1;
         return;
     }
-    r = pf_window_open((int32_t)w, (int32_t)h, t, (int32_t)flags);
+    r = platform_windows_open((int32_t)w, (int32_t)h, t, (int32_t)flags);
     free(t);
     if (r > 0) {
         v = (uint64_t)((((int64_t)r) << 1) | 1);
@@ -3184,7 +3184,7 @@ void prim_window_pixel_size(void)
     w = &local;
     memset(&local_2, 0, sizeof local_2);
     h = &local_2;
-    ok = pf_window_pixel_size((int32_t)win, w, h);
+    ok = pixel_size((int32_t)win, w, h);
     answer_pair(ok, *w, *h);
 }
 
@@ -3194,7 +3194,7 @@ void prim_window_refresh_rate(void)
     bool r_args;
     int64_t w;
     double d;
-    oop v;
+    uint64_t v;
     if (!({
     bad = false;
     r_args = prim_nargs == 1;
@@ -3209,7 +3209,7 @@ void prim_window_refresh_rate(void)
         prim_error_code = -1;
         return;
     }
-    d = pf_window_refresh_rate((int32_t)w);
+    d = refresh_rate((int32_t)w);
     if (d < 0.0) {
         prim_status = PS_FAIL;
         prim_error_code = -1;
@@ -3238,7 +3238,7 @@ void prim_window_set_title(void)
     }
     w = int_arg(0);
     t = string_arg(1);
-    ok = (!bad) && pf_window_set_title((int32_t)w, t);
+    ok = (!bad) && set_title((int32_t)w, t);
     free(t);
     if (ok) {
         v = prim_base[0];
@@ -3271,7 +3271,7 @@ void prim_window_show(void)
         prim_error_code = -1;
         return;
     }
-    a_boolean = pf_window_show((int32_t)w, true);
+    a_boolean = platform_windows_show((int32_t)w, true);
     if (a_boolean) {
         v = prim_base[0];
         prim_result = v;
@@ -3310,7 +3310,7 @@ void prim_window_size(void)
     w = &local;
     memset(&local_2, 0, sizeof local_2);
     h = &local_2;
-    ok = pf_window_size((int32_t)win, w, h);
+    ok = platform_windows_size((int32_t)win, w, h);
     answer_pair(ok, *w, *h);
 }
 
@@ -3330,7 +3330,7 @@ static uint8_t *range_args(bool writable, int64_t *h, int64_t *count)
     *count = int_arg(3);
     memset(&local, 0, sizeof local);
     len = &local;
-    p = bytes_view(prim_base[2], len, writable);
+    p = bytes_of(prim_base[2], len, writable);
     if (bad || ((p == NULL) || ((start < 1) || ((*count < 0) || ((uint64_t)(start - 1 + *count) > *len))))) {
         return (uint8_t *)NULL;
     }
@@ -3338,7 +3338,7 @@ static uint8_t *range_args(bool writable, int64_t *h, int64_t *count)
 }
 
 /* PlatformPrimitives>>rect:into: */
-static bool rect_of(oop r, int *out)
+static bool rect(oop r, int *out)
 {
     int i;
     uint64_t v;
@@ -3401,7 +3401,7 @@ static char **string_vector(oop a, bool non_empty)
 }
 
 /* PlatformPrimitives>>textOrDelta:into: */
-static bool text_or_delta(oop o, pf_event *e)
+static bool text_or_delta(uint64_t o, pf_event *e)
 {
     if (o == nil_oop) {
         e->xkind = PF_X_NIL;
@@ -3417,9 +3417,9 @@ static bool text_or_delta(oop o, pf_event *e)
         e->ival = o == true_oop ? 1 : 0;
         return true;
     }
-    if (((o & 7) == 0) && (((class_of(o) == special(SO_POINT)) && ((uint32_t)*(uint64_t *)o >= 2)) || (((int32_t)(((*(uint64_t *)o) >> H_FMT_SHIFT) & H_FMT_MASK) == F_VAR) && ((uint32_t)*(uint64_t *)o == 2)))) {
+    if (((o & 7) == 0) && (((class_of(o) == object_memory_special(SO_POINT)) && ((uint32_t)*(uint64_t *)o >= 2)) || (((int32_t)(((*(uint64_t *)o) >> H_FMT_SHIFT) & H_FMT_MASK) == F_VAR) && ((uint32_t)*(uint64_t *)o == 2)))) {
         e->xkind = PF_X_POINT;
-        return num_of(*(uint64_t *)(o + 16 + 0), &e->dx) && num_of(*(uint64_t *)(o + 16 + 8), &e->dy);
+        return number_of(*(uint64_t *)(o + 16 + 0), &e->dx) && number_of(*(uint64_t *)(o + 16 + 8), &e->dy);
     }
     if (is_text(o)) {
         e->xkind = PF_X_TEXT;

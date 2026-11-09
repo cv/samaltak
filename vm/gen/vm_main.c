@@ -7,20 +7,20 @@ int32_t args_start;
 char **argv;
 static bool headless;
 
-static bool jit_option(char **v, int32_t i, int32_t n);
-static _Noreturn void usage(void);
+static bool jit_option(char **v, int32_t i, int n);
+static _Noreturn void vm_main_usage(void);
 
 /* VMMain>>banner */
-const char *vm_banner(void)
+char *banner(void)
 {
     return "Samaltak VM";
 }
 
 /* VMMain>>jitOption:at:count: */
-static bool jit_option(char **v, int32_t i, int32_t n)
+static bool jit_option(char **v, int32_t i, int n)
 {
     char *a;
-    int32_t m;
+    int m;
     long n_2;
     long n_3;
     long n_4;
@@ -30,9 +30,9 @@ static bool jit_option(char **v, int32_t i, int32_t n)
     }
     a = v[i + 1];
     if (strcmp(v[i], "--jit") == 0) {
-        m = jit_mode_named(a);
+        m = mode_named(a);
         if (m < 0) {
-            usage();
+            vm_main_usage();
         }
         jit_mode = m;
         return true;
@@ -53,8 +53,8 @@ static bool jit_option(char **v, int32_t i, int32_t n)
         return true;
     }
     if (strcmp(v[i], "--jit-flags") == 0) {
-        if (!jit_parse_flags(a)) {
-            usage();
+        if (!parse_flags(a)) {
+            vm_main_usage();
         }
         return true;
     }
@@ -77,7 +77,7 @@ int main(int n, char **v)
     oop o;
     uint64_t proc;
     uint64_t ctx;
-    jit_defaults();
+    defaults();
     max_heap = 4294967296ULL;
     eden = 16777216ULL;
     i = 1;
@@ -93,12 +93,12 @@ int main(int n, char **v)
         } else if (jit_option(v, (int32_t)i, n)) {
             i = i + 1;
         } else {
-            usage();
+            vm_main_usage();
         }
         i = i + 1;
     }
     if (i >= n) {
-        usage();
+        vm_main_usage();
     }
     image = v[i];
     argc = n;
@@ -111,12 +111,12 @@ int main(int n, char **v)
     }
     memory_init(eden, max_heap);
     load_image(image);
-    sched_init();
-    jit_start();
+    scheduler_init();
+    jit_runtime_start();
     if (!headless) {
-        platform_init();
+        platform_interface_init();
     }
-    o = special(SO_PROCESSOR);
+    o = object_memory_special(SO_PROCESSOR);
     proc = *(uint64_t *)(o + 16 + 8);
     ctx = *(uint64_t *)(proc + 16 + 8);
     if ((!((ctx & 7) == 0)) || (ctx == nil_oop)) {
@@ -127,17 +127,17 @@ int main(int n, char **v)
     active_ctx = ctx;
     *(uint64_t *)(proc + 16 + 8) = nil_oop;
     if (((nil_oop & 7) == 0) && (((uint64_t)(nil_oop - young_lo) < young_hi - young_lo) && ((!(proc - young_lo < young_hi - young_lo)) && (((*(uint64_t *)proc) & H_REMEMBERED) == 0)))) {
-        vm_remember(proc);
+        remember(proc);
     }
     if (((ctx & 7) == 0) && ((!(ctx - young_lo < young_hi - young_lo)) && (((*(uint64_t *)ctx) & H_REMEMBERED) == 0))) {
-        vm_remember(ctx);
+        remember(ctx);
     }
     interpret();
     return 0;
 }
 
 /* VMMain>>usage */
-static void usage(void)
+static void vm_main_usage(void)
 {
     fputs("usage: samaltak [--max-heap MB] [--eden MB] [--jit none|baseline|opt (default)] [--jit-threshold N] [--jit-osr N]\n\t[--jit-opt N] [--jit-flags [-]flag,...] [--jit-cache MB] image [--headless] [arguments...]\n  --jit-threshold N  activations before a method is compiled (0: the first one)\n  --jit-osr N        backward jumps before a running method is compiled and entered\n  --jit-opt N        with --jit opt: entries and backward jumps in compiled code before a method is optimized\n  --jit-flags        ablations: baseline: ic pic mega regs arith fuse float access prims blocks quick\n                     barrier; opt: inline blocks prims unbox calls alloc gvn; listings: notes;\n                     stress: eager deopt (-name turns one off)\n", stderr);
     exit(64);

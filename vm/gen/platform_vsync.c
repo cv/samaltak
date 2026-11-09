@@ -7,13 +7,13 @@ static bool running;
 static int32_t vsync_sem;
 
 /* PlatformVsync>>pending */
-bool pf_vsync_pending(void)
+bool platform_vsync_pending(void)
 {
     return (vsync_sem != 0) && (atomic_load_explicit(&pending, memory_order_relaxed) != 0);
 }
 
 /* PlatformVsync>>poll */
-void pf_vsync_poll(void)
+void platform_vsync_poll(void)
 {
     if ((vsync_sem != 0) && (atomic_exchange(&pending, 0) != 0)) {
         signal_external_semaphore(vsync_sem);
@@ -21,28 +21,28 @@ void pf_vsync_poll(void)
 }
 
 /* PlatformVsync>>refreshed */
-void pf_vsync_refreshed(void)
+void refreshed(void)
 {
     if (atomic_exchange(&pending, 1) == 0) {
         request_interrupt_check();
-        pf_wake();
+        wake();
     }
 }
 
 /* PlatformVsync>>semaphore: */
-bool pf_vsync_semaphore(int index)
+bool semaphore(int32_t index)
 {
-    platform_init();
+    platform_interface_init();
     vsync_sem = index;
     if ((index != 0) && (!running)) {
-        if (!pf_host_vsync_start()) {
+        if (!vsync_start()) {
             return false;
         }
         running = true;
         return true;
     }
     if ((index == 0) && running) {
-        pf_host_vsync_stop();
+        vsync_stop();
         running = false;
     }
     return true;

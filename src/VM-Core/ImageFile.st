@@ -17,7 +17,7 @@ imagePath
 
 !ImageFile methodsFor: 'loading'!
 loadImage: path
-	<c: 'void load_image(const char *path)'>
+	<function>
 	| f h delta p o s budget |
 	f := libc fopen: path mode: 'rb'.
 	f isNull ifTrue: [self fatal: 'cannot open image %s' with: path].
@@ -54,7 +54,7 @@ loadImage: path
 
 !ImageFile methodsFor: 'saving'!
 writeSnapshot: path
-	<c: 'bool write_snapshot(const char *path)'>
+	<function>
 	| h f ok |
 	gc fullGC.
 	h := self local: 'ImageHeader'.

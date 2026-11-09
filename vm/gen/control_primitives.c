@@ -2,22 +2,22 @@
 /* ControlPrimitives (VM-Core) */
 #include "samaltak.h"
 
-static oop allocation_sample_info(void);
+static uint64_t allocation_sample_info(void);
 
 /* ControlPrimitives>>allocationSampleInfo */
-static oop allocation_sample_info(void)
+static uint64_t allocation_sample_info(void)
 {
-    oop a;
+    uint64_t a;
     uint64_t v;
     a = alloc_obj(cls_array, F_VAR, 2);
     *(uint64_t *)(a + 16 + 0) = alloc_sample_class;
-    if (((alloc_sample_class & 7) == 0) && (((uint64_t)(alloc_sample_class - young_lo) < young_hi - young_lo) && ((!((uint64_t)(a - young_lo) < young_hi - young_lo)) && (((*(uint64_t *)a) & H_REMEMBERED) == 0)))) {
-        vm_remember(a);
+    if (((alloc_sample_class & 7) == 0) && (((uint64_t)(alloc_sample_class - young_lo) < young_hi - young_lo) && ((!(a - young_lo < young_hi - young_lo)) && (((*(uint64_t *)a) & H_REMEMBERED) == 0)))) {
+        remember(a);
     }
     v = (uint64_t)((alloc_sample_size << 1) | 1);
     *(uint64_t *)(a + 16 + 8) = v;
-    if (((v & 7) == 0) && ((v - young_lo < young_hi - young_lo) && ((!((uint64_t)(a - young_lo) < young_hi - young_lo)) && (((*(uint64_t *)a) & H_REMEMBERED) == 0)))) {
-        vm_remember(a);
+    if (((v & 7) == 0) && ((v - young_lo < young_hi - young_lo) && ((!(a - young_lo < young_hi - young_lo)) && (((*(uint64_t *)a) & H_REMEMBERED) == 0)))) {
+        remember(a);
     }
     return a;
 }
@@ -25,7 +25,7 @@ static oop allocation_sample_info(void)
 /* ControlPrimitives>>primAllocationSampleInfo */
 void prim_allocation_sample_info(void)
 {
-    oop v;
+    uint64_t v;
     v = allocation_sample_info();
     prim_result = v;
     prim_status = PS_OK;
@@ -34,7 +34,7 @@ void prim_allocation_sample_info(void)
 /* ControlPrimitives>>primAllocationSampleTake */
 void prim_allocation_sample_take(void)
 {
-    oop v;
+    uint64_t v;
     if (!alloc_sample_unread) {
         prim_result = nil_oop;
         prim_status = PS_OK;
@@ -132,7 +132,7 @@ void prim_find_next_unwind_context(void)
         prim_error_code = -1;
         return;
     }
-    v = sender_marked(prim_base[0], PRIM_ENSURE_MARKER, prim_nargs > 0 ? prim_base[1] : nil_oop);
+    v = sender_of(prim_base[0], PRIM_ENSURE_MARKER, prim_nargs > 0 ? prim_base[1] : nil_oop);
     prim_result = v;
     prim_status = PS_OK;
 }
@@ -148,7 +148,7 @@ void prim_next_handler_context(void)
         prim_error_code = -1;
         return;
     }
-    v = sender_marked(prim_base[0], PRIM_ONDO_MARKER, nil_oop);
+    v = sender_of(prim_base[0], PRIM_ONDO_MARKER, nil_oop);
     prim_result = v;
     prim_status = PS_OK;
 }
@@ -248,7 +248,7 @@ void prim_process_resume(void)
     oop p;
     uint64_t ctx;
     p = prim_base[0];
-    if (!(((p & 7) == 0) && (*(uint64_t *)(p + 8) == special(SO_PROCESS)))) {
+    if (!(((p & 7) == 0) && (*(uint64_t *)(p + 8) == object_memory_special(SO_PROCESS)))) {
         prim_status = PS_FAIL;
         prim_error_code = -1;
         return;
@@ -364,21 +364,21 @@ void prim_process_stack_into(void)
         v_3 = meths[n - 1 - j];
         *(uint64_t *)(buf + 16 + 8 * i_3) = v_3;
         if (((v_3 & 7) == 0) && (((uint64_t)(v_3 - young_lo) < young_hi - young_lo) && ((!((uint64_t)(buf - young_lo) < young_hi - young_lo)) && (((*(uint64_t *)buf) & H_REMEMBERED) == 0)))) {
-            vm_remember(buf);
+            remember(buf);
         }
         i_4 = 2 + 2 * j;
         v_4 = pcs[n - 1 - j];
         v_5 = (uint64_t)((v_4 << 1) | 1);
         *(uint64_t *)(buf + 16 + 8 * i_4) = v_5;
         if (((v_5 & 7) == 0) && ((v_5 - young_lo < young_hi - young_lo) && ((!((uint64_t)(buf - young_lo) < young_hi - young_lo)) && (((*(uint64_t *)buf) & H_REMEMBERED) == 0)))) {
-            vm_remember(buf);
+            remember(buf);
         }
     }
     v_6 = n | (((int64_t)truncated) << 16);
     v_7 = (uint64_t)((v_6 << 1) | 1);
     *(uint64_t *)(buf + 16 + 0) = v_7;
     if (((v_7 & 7) == 0) && ((v_7 - young_lo < young_hi - young_lo) && ((!((uint64_t)(buf - young_lo) < young_hi - young_lo)) && (((*(uint64_t *)buf) & H_REMEMBERED) == 0)))) {
-        vm_remember(buf);
+        remember(buf);
     }
     v_8 = k | (n << 8) | (((int64_t)truncated) << 16) | (fresh << 17);
     v_9 = (uint64_t)((v_8 << 1) | 1);
@@ -392,7 +392,7 @@ void prim_process_suspend(void)
     oop p;
     uint64_t l;
     p = prim_base[0];
-    if (!(((p & 7) == 0) && (*(uint64_t *)(p + 8) == special(SO_PROCESS)))) {
+    if (!(((p & 7) == 0) && (*(uint64_t *)(p + 8) == object_memory_special(SO_PROCESS)))) {
         prim_status = PS_FAIL;
         prim_error_code = -1;
         return;
@@ -500,7 +500,7 @@ void prim_semaphore_signal(void)
         return;
     }
     prim_commit(s);
-    signal_semaphore(s);
+    scheduler_semaphore_signal(s);
 }
 
 /* ControlPrimitives>>primSemaphoreWait */
@@ -514,7 +514,7 @@ void prim_semaphore_wait(void)
         return;
     }
     prim_commit(s);
-    wait_semaphore(s);
+    scheduler_semaphore_wait(s);
 }
 
 /* ControlPrimitives>>primSignalAtMilliseconds */
@@ -535,14 +535,14 @@ void prim_signal_at_milliseconds(void)
     if (((s & 7) == 0) && ((s != nil_oop) && ((uint32_t)*(uint64_t *)s > SEM_EXCESS))) {
         *(uint64_t *)(specials_oop + 16 + 248) = s;
         if (((s & 7) == 0) && (((uint64_t)(s - young_lo) < young_hi - young_lo) && ((!((uint64_t)(specials_oop - young_lo) < young_hi - young_lo)) && (((*(uint64_t *)specials_oop) & H_REMEMBERED) == 0)))) {
-            vm_remember(specials_oop);
+            remember(specials_oop);
         }
         o_2 = prim_base[2];
         set_timer(((int64_t)o_2) >> 1);
     } else {
         *(uint64_t *)(specials_oop + 16 + 248) = nil_oop;
         if (((nil_oop & 7) == 0) && (((uint64_t)(nil_oop - young_lo) < young_hi - young_lo) && ((!((uint64_t)(specials_oop - young_lo) < young_hi - young_lo)) && (((*(uint64_t *)specials_oop) & H_REMEMBERED) == 0)))) {
-            vm_remember(specials_oop);
+            remember(specials_oop);
         }
         set_timer(-1);
     }
@@ -580,7 +580,7 @@ void prim_stack_limit(void)
 void prim_terminate_to(void)
 {
     oop v;
-    if (!((prim_nargs == 1) && terminate_to(prim_base[0], prim_nargs > 0 ? prim_base[1] : nil_oop))) {
+    if (!((prim_nargs == 1) && terminate(prim_base[0], prim_nargs > 0 ? prim_base[1] : nil_oop))) {
         prim_status = PS_FAIL;
         prim_error_code = -1;
         return;
@@ -610,16 +610,16 @@ void prim_try_primitive(void)
     flush_if_married(prim_base[2]);
     idx = prim_base[1];
     arr = prim_base[3];
-    failed = special(SO_SEL_PRIMITIVEFAILED);
+    failed = object_memory_special(SO_SEL_PRIMITIVEFAILED);
     if (!(((idx & 1) != 0) && (((arr & 7) == 0) && (*(uint64_t *)(arr + 8) == cls_array)))) {
         prim_status = PS_FAIL;
         prim_error_code = -1;
         return;
     }
-    fn = prim_lookup(((int64_t)idx) >> 1);
+    fn = primitive_table_lookup(((int64_t)idx) >> 1);
     bi = active_stackp() - 1 - 3;
     n = (uint32_t)*(uint64_t *)arr;
-    if ((fn == NULL) || ((!prim_tryable(((int64_t)idx) >> 1)) || (bi + 1 + (int64_t)n > active_capacity()))) {
+    if ((fn == NULL) || ((!is_tryable(((int64_t)idx) >> 1)) || (bi + 1 + (int64_t)n > active_capacity()))) {
         prim_result = failed;
         prim_status = PS_OK;
         return;
@@ -633,7 +633,7 @@ void prim_try_primitive(void)
     set_prim_base((int32_t)n);
     prim_status = PS_NONE;
     fn();
-    res = prim_status == PS_OK ? prim_result : special(SO_SEL_PRIMITIVEFAILED);
+    res = prim_status == PS_OK ? prim_result : object_memory_special(SO_SEL_PRIMITIVEFAILED);
     prim_result = nil_oop;
     active_slots()[bi] = res;
     active_set_stackp(bi + 1);

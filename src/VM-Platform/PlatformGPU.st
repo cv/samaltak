@@ -33,18 +33,20 @@ initialize
 !PlatformGPU methodsFor: 'private'!
 get: h kind: kind what: what
 	"The object of handle h of kind; NULL (and the error set) if it is none."
-	<c: 'pf_obj *gpu_get(int h, int kind, const char *what)'>
+	<function>
 	| o |
 	o := common table: objs at: h kind: kind.
 	o isNull ifTrue: [common setError: 'bad %s handle %d' with: what with: h].
 	^o
 !
 deviceOf: o
-	<c: 'gpu_dev *dev_of(pf_obj *o)'>
+	<function>
+	<returns: 'gpu_dev *'>
 	^(common table: objs at: o dev kind: K_DEV) ptr
 !
 device: h
-	<c: 'gpu_dev *dev_get(int h)'>
+	<function>
+	<returns: 'gpu_dev *'>
 	| o |
 	o := self get: h kind: K_DEV what: 'device'.
 	o isNull ifTrue: [^self null].
@@ -52,7 +54,7 @@ device: h
 !
 target: tex
 	"A texture or swapchain texture."
-	<c: 'pf_obj *target_get(int tex)'>
+	<function>
 	| o |
 	o := common table: objs at: tex kind: -1.
 	(o isNull or: [o kind ~= K_TEX and: [o kind ~= K_SWAP]]) ifTrue: [
@@ -61,7 +63,8 @@ target: tex
 	^o
 !
 pass: h
-	<c: 'SDL_GPURenderPass *gpu_pass(int h)'>
+	<function>
+	<returns: 'SDL_GPURenderPass *'>
 	| o |
 	o := self get: h kind: K_PASS what: 'render pass'.
 	o isNull ifTrue: [^self null].
@@ -69,27 +72,27 @@ pass: h
 !
 captureLog: userdata category: category priority: priority message: message
 	"Metal shader compile errors go to the SDL log, not SDL_GetError: keep the last one."
-	<c: 'void capture_log(void *userdata, int category, SDL_LogPriority priority, const char *message)'>
+	<function>
 	priority >= sdl SDL_LOG_PRIORITY_ERROR ifTrue: [sdl strlcpy: logError from: message size: LOG_ERROR_SIZE].
 	defaultLog call: userdata with: category with: priority with: message
 !
 sdlFail: what
 	"Set the error from SDL (or the log); answer 0."
-	<c: 'int sdl_fail(const char *what)'>
+	<function>
 	| e |
 	e := sdl getError.
 	common setError: '%s: %s' with: what with: ((e at: 0) ~= 0 ifTrue: [e] ifFalse: [logError]).
 	^0
 !
 sdlFormat: f
-	<c: 'SDL_GPUTextureFormat sdl_format(int f)'>
+	<function>
 	^f caseOf: {
 		[PF_TEX_R8] -> [sdlGpu SDL_GPU_TEXTUREFORMAT_R8_UNORM].
 		[PF_TEX_RGBA8] -> [sdlGpu SDL_GPU_TEXTUREFORMAT_R8G8B8A8_UNORM].
 		[PF_TEX_BGRA8] -> [sdlGpu SDL_GPU_TEXTUREFORMAT_B8G8R8A8_UNORM]} otherwise: [sdlGpu SDL_GPU_TEXTUREFORMAT_INVALID]
 !
 vertexFormat: f
-	<c: 'SDL_GPUVertexElementFormat va_format(int f)'>
+	<function>
 	^f caseOf: {
 		[PF_VA_FLOAT] -> [sdlGpu SDL_GPU_VERTEXELEMENTFORMAT_FLOAT].
 		[PF_VA_FLOAT2] -> [sdlGpu SDL_GPU_VERTEXELEMENTFORMAT_FLOAT2].
@@ -120,18 +123,16 @@ isPassOrSwapchain: h of: cmd
 
 !PlatformGPU methodsFor: 'devices'!
 init
-	"From platform_init."
-	<c: 'void pf_gpu_init(void)'>
+	"From platform_interface_init."
+	<function>
 	posixThreads mutexInit: watchLock attributes: self null.
 	posixThreads condInit: watchCond attributes: self null
 !
 bytesPerPixel: format
-	<c: 'int pf_gpu_bytes_per_pixel(int format)'>
 	<export>
 	^format = PF_TEX_R8 ifTrue: [1] ifFalse: [4]
 !
 createDevice: debug
-	<c: 'int pf_gpu_create_device(bool debug)'>
 	<export>
 	| d h |
 	platform init.
@@ -154,7 +155,6 @@ createDevice: debug
 !
 shaderLanguage: dev
 	"What source createShader: takes on dev: 'msl' (Metal), 'glsl' (SPIR-V devices: compiled by the host), NULL on error."
-	<c: 'const char *pf_gpu_shader_language(int dev)'>
 	<export>
 	| d f |
 	d := self device: dev.
@@ -166,7 +166,6 @@ shaderLanguage: dev
 	^self null
 !
 claimWindow: dev window: win
-	<c: 'bool pf_gpu_claim_window(int dev, int win)'>
 	<export>
 	<var: #slot type: 'int'>
 	| d w slot mode |
@@ -198,7 +197,6 @@ claimWindow: dev window: win
 !
 windowClosing: win
 	"Release window win from the devices that claimed it."
-	<c: 'void pf_gpu_window_closing(int win)'>
 	<export>
 	| d |
 	1 to: objs n - 1 do: [:h |
@@ -212,7 +210,6 @@ windowClosing: win
 !
 swapchainFormat: dev window: win
 	"PF_TEX_*, 0 on error."
-	<c: 'int pf_gpu_swapchain_format(int dev, int win)'>
 	<export>
 	| d w f |
 	d := self device: dev.
@@ -224,7 +221,6 @@ swapchainFormat: dev window: win
 	^0
 !
 waitIdle: dev
-	<c: 'bool pf_gpu_wait_idle(int dev)'>
 	<export>
 	| d |
 	d := self device: dev.
@@ -238,7 +234,6 @@ waitIdle: dev
 !PlatformGPU methodsFor: 'resources'!
 createShader: dev source: source entry: entry stage: stage samplers: samplers uniformBuffers: uniformBuffers storageBuffers: storageBuffers storageTextures: storageTextures
 	"source is in the device's shaderLanguage: MSL, or GLSL compiled to SPIR-V by the host (entry is then main)."
-	<c: 'int pf_gpu_create_shader(int dev, const char *source, const char *entry, int stage, int samplers, int uniform_buffers, int storage_buffers, int storage_textures)'>
 	<export>
 	| d ci s spirv size |
 	d := self device: dev.
@@ -272,7 +267,6 @@ createShader: dev source: source entry: entry stage: stage samplers: samplers un
 !
 createPipeline: dev vertexShader: vs fragmentShader: fs stride: stride attributes: attrs count: nattrs primitive: prim blend: blend targetFormat: targetFormat
 	"Attribute i becomes location i in vertex buffer slot 0."
-	<c: 'int pf_gpu_create_pipeline(int dev, int vs, int fs, int stride, pf_vattr *attrs, int nattrs, int prim, int blend, int target_format)'>
 	<export>
 	| d v f va vb ct bs ci p |
 	d := self device: dev.
@@ -330,7 +324,6 @@ createPipeline: dev vertexShader: vs fragmentShader: fs stride: stride attribute
 !
 createTexture: dev width: w height: h format: format usage: usage
 	"usage: PF_TEXUSE_* bits."
-	<c: 'int pf_gpu_create_texture(int dev, int w, int h, int format, int usage)'>
 	<export>
 	| d ci t th o |
 	d := self device: dev.
@@ -359,7 +352,6 @@ createTexture: dev width: w height: h format: format usage: usage
 	^th
 !
 createSampler: dev linear: linear repeat: repeat
-	<c: 'int pf_gpu_create_sampler(int dev, bool linear, bool repeat)'>
 	<export>
 	| d f a ci s |
 	d := self device: dev.
@@ -379,7 +371,6 @@ createSampler: dev linear: linear repeat: repeat
 !
 createBuffer: dev usage: usage size: size
 	"usage: PF_BUFUSE_VERTEX."
-	<c: 'int pf_gpu_create_buffer(int dev, int usage, uint32_t size)'>
 	<export>
 	| d ci b h |
 	d := self device: dev.
@@ -397,7 +388,6 @@ createBuffer: dev usage: usage size: size
 	^h
 !
 textureSize: tex width: w height: h format: format
-	<c: 'bool pf_gpu_texture_size(int tex, int *w, int *h, int *format)'>
 	<export>
 	| o |
 	o := self target: tex.
@@ -411,7 +401,7 @@ textureSize: tex width: w height: h format: format
 !PlatformGPU methodsFor: 'uploads'!
 uploadFlush: d
 	"Submit the device's batch of uploads."
-	<c: 'void up_flush(gpu_dev *d)'>
+	<function>
 	d upCmd isNull ifTrue: [^self].
 	sdlGpu endCopyPass: d upPass.
 	sdlGpu submitCommandBuffer: d upCmd.
@@ -421,7 +411,7 @@ uploadFlush: d
 !
 uploadReserve: d bytes: n offset: off
 	"Map n bytes of the batch transfer buffer at off; the caller fills them, unmaps the buffer and records the copy on d upPass."
-	<c: 'uint8_t *up_reserve(gpu_dev *d, uint32_t n, uint32_t *off)'>
+	<function>
 	<var: #cap type: 'uint32_t'>
 	| need cap ci p |
 	need := (n + 15) bitAnd: 15 bitInvert32.
@@ -455,7 +445,7 @@ uploadReserve: d bytes: n offset: off
 	^p + off value
 !
 uploadBuffer: buf data: data count: n offset: dstOffset
-	<c: 'bool pf_gpu_upload_buffer(int buf, const void *data, uint32_t n, uint32_t dst_offset)'>
+	<var: #data type: 'const void *'>
 	<export>
 	| o d off p src dst |
 	o := self get: buf kind: K_BUF what: 'buffer'.
@@ -481,7 +471,7 @@ uploadBuffer: buf data: data count: n offset: dstOffset
 	^true
 !
 uploadTexture: tex data: data length: len x: x y: y width: w height: h bytesPerRow: bytesPerRow
-	<c: 'bool pf_gpu_upload_texture(int tex, const void *data, size_t len, int x, int y, int w, int h, int bytes_per_row)'>
+	<var: #data type: 'const void *'>
 	<export>
 	| o row d off p src dst |
 	o := self get: tex kind: K_TEX what: 'texture'.
@@ -518,7 +508,7 @@ uploadTexture: tex data: data length: len x: x y: y width: w height: h bytesPerR
 !
 download: tex x: x y: y width: w height: h into: dst length: dstLen
 	"Synchronous; BGRA8 is converted to RGBA8."
-	<c: 'bool pf_gpu_download(int tex, int x, int y, int w, int h, void *dst, size_t dst_len)'>
+	<var: #dst type: 'void *'>
 	<export>
 	| o n d ci cb cp region info f p s t v |
 	o := self get: tex kind: K_TEX what: 'texture'.
@@ -582,7 +572,6 @@ download: tex x: x y: y width: w height: h into: dst length: dstLen
 
 !PlatformGPU methodsFor: 'command buffers and passes'!
 acquireCommandBuffer: dev
-	<c: 'int pf_gpu_acquire_cmd(int dev)'>
 	<export>
 	| d c |
 	d := self device: dev.
@@ -593,7 +582,6 @@ acquireCommandBuffer: dev
 !
 acquireSwapchain: cmd window: win width: w height: h
 	"0: none available (not an error if no error is set)."
-	<c: 'int pf_gpu_acquire_swapchain(int cmd, int win, int *w, int *h)'>
 	<export>
 	| c sw t tw th dev fmt sh o |
 	c := self get: cmd kind: K_CMD what: 'command buffer'.
@@ -623,7 +611,6 @@ acquireSwapchain: cmd window: win width: w height: h
 !
 beginPass: cmd target: tex clear: clear
 	"clear: RGBA, NULL = load."
-	<c: 'int pf_gpu_begin_pass(int cmd, int tex, float *clear)'>
 	<export>
 	| c t ci p dev h |
 	c := self get: cmd kind: K_CMD what: 'command buffer'.
@@ -646,7 +633,10 @@ beginPass: cmd target: tex clear: clear
 	^h
 !
 setViewport: pass x: x y: y width: w height: h
-	<c: 'bool pf_gpu_set_viewport(int pass, float x, float y, float w, float h)'>
+	<var: #w type: 'float'>
+	<var: #h type: 'float'>
+	<var: #x type: 'float'>
+	<var: #y type: 'float'>
 	<export>
 	| p vp |
 	p := self pass: pass.
@@ -662,7 +652,6 @@ setViewport: pass x: x y: y width: w height: h
 	^true
 !
 setScissor: pass x: x y: y width: w height: h
-	<c: 'bool pf_gpu_set_scissor(int pass, int x, int y, int w, int h)'>
 	<export>
 	| p r |
 	p := self pass: pass.
@@ -676,7 +665,6 @@ setScissor: pass x: x y: y width: w height: h
 	^true
 !
 bindPipeline: pass pipeline: pipe
-	<c: 'bool pf_gpu_bind_pipeline(int pass, int pipe)'>
 	<export>
 	| p o |
 	p := self pass: pass.
@@ -687,7 +675,6 @@ bindPipeline: pass pipeline: pipe
 	^true
 !
 bindVertexBuffer: pass slot: slot buffer: buf offset: offset
-	<c: 'bool pf_gpu_bind_vertex_buffer(int pass, int slot, int buf, uint32_t offset)'>
 	<export>
 	| p o b |
 	p := self pass: pass.
@@ -701,7 +688,6 @@ bindVertexBuffer: pass slot: slot buffer: buf offset: offset
 	^true
 !
 bindTexture: pass slot: slot texture: tex sampler: sampler
-	<c: 'bool pf_gpu_bind_texture(int pass, int slot, int tex, int sampler)'>
 	<export>
 	| p t s b |
 	p := self pass: pass.
@@ -716,7 +702,7 @@ bindTexture: pass slot: slot texture: tex sampler: sampler
 	^true
 !
 pushUniforms: cmdOrPass stage: stage slot: slot data: data count: n
-	<c: 'bool pf_gpu_push_uniforms(int cmd_or_pass, int stage, int slot, const void *data, uint32_t n)'>
+	<var: #data type: 'const void *'>
 	<export>
 	| o |
 	o := common table: objs at: cmdOrPass kind: -1.
@@ -730,7 +716,6 @@ pushUniforms: cmdOrPass stage: stage slot: slot data: data count: n
 	^true
 !
 draw: pass vertices: vertexCount first: firstVertex
-	<c: 'bool pf_gpu_draw(int pass, int vertex_count, int first_vertex)'>
 	<export>
 	| p |
 	p := self pass: pass.
@@ -739,7 +724,6 @@ draw: pass vertices: vertexCount first: firstVertex
 	^true
 !
 endPass: pass
-	<c: 'bool pf_gpu_end_pass(int pass)'>
 	<export>
 	| p |
 	p := self pass: pass.
@@ -750,7 +734,6 @@ endPass: pass
 !
 blit: cmd source: src rect: sr destination: dst rect: dr linear: linear
 	"Rects: x y w h."
-	<c: 'bool pf_gpu_blit(int cmd, int src, int *sr, int dst, int *dr, bool linear)'>
 	<export>
 	| c s t full bi |
 	c := self get: cmd kind: K_CMD what: 'command buffer'.
@@ -776,7 +759,6 @@ blit: cmd source: src rect: sr destination: dst rect: dr linear: linear
 !
 submit: cmd fence: wantFence ok: ok
 	"The fence handle or 0; ok tells whether it went well."
-	<c: 'int pf_gpu_submit(int cmd, bool want_fence, bool *ok)'>
 	<export>
 	| c cb dev f h |
 	c := self get: cmd kind: K_CMD what: 'command buffer'.
@@ -801,7 +783,7 @@ submit: cmd fence: wantFence ok: ok
 
 !PlatformGPU methodsFor: 'fences'!
 monoUs
-	<c: 'int64_t mono_us(void)'>
+	<function>
 	| ts |
 	ts := self local: 'struct timespec'.
 	posix clockGettime: posix CLOCK_MONOTONIC into: ts.
@@ -809,7 +791,7 @@ monoUs
 !
 fenceWatcher: unused
 	"The watcher thread: stamp the pending fences that completed, every 200 µs while any are pending."
-	<c: 'void *fence_watcher(void *unused)'>
+	<function>
 	| nap w |
 	nap := self local: 'struct timespec'.
 	posixThreads mutexLock: watchLock.
@@ -827,7 +809,7 @@ fenceWatcher: unused
 	 posixThreads mutexLock: watchLock] repeat
 !
 watch: h fence: f device: d
-	<c: 'void watch_fence(int h, SDL_GPUFence *f, SDL_GPUDevice *d)'>
+	<function>
 	| n nw w t |
 	posixThreads mutexLock: watchLock.
 	h >= nwatches ifTrue: [
@@ -856,7 +838,7 @@ watch: h fence: f device: d
 	posixThreads mutexUnlock: watchLock
 !
 unwatch: h
-	<c: 'void unwatch_fence(int h)'>
+	<function>
 	posixThreads mutexLock: watchLock.
 	h < nwatches ifTrue: [
 		(watches + h) active ifTrue: [npending := npending - 1].
@@ -865,7 +847,6 @@ unwatch: h
 !
 fenceElapsed: fence
 	"µs from the fence's submit to its completion; -1 pending, -2 bad handle."
-	<c: 'int64_t pf_gpu_fence_elapsed(int fence)'>
 	<export>
 	| r w |
 	(self get: fence kind: K_FENCE what: 'fence') isNull ifTrue: [^-2].
@@ -878,7 +859,6 @@ fenceElapsed: fence
 	^r
 !
 waitFence: fence
-	<c: 'bool pf_gpu_wait_fence(int fence)'>
 	<export>
 	| o f |
 	o := self get: fence kind: K_FENCE what: 'fence'.
@@ -891,7 +871,6 @@ waitFence: fence
 !
 fenceDone: fence
 	"1 done, 0 pending, -1 error."
-	<c: 'int pf_gpu_fence_done(int fence)'>
 	<export>
 	| o |
 	o := self get: fence kind: K_FENCE what: 'fence'.
@@ -902,7 +881,7 @@ fenceDone: fence
 !PlatformGPU methodsFor: 'release'!
 release: h
 	"Release the object of handle h (not a device)."
-	<c: 'void release_obj(int h)'>
+	<function>
 	| o dv |
 	o := objs v + h.
 	dv := (self deviceOf: o) dev.
@@ -922,7 +901,7 @@ release: h
 	common table: objs remove: h
 !
 releaseDevice: dh
-	<c: 'void release_device(int dh)'>
+	<function>
 	| d |
 	d := self cCoerce: (objs v + dh) ptr to: 'gpu_dev *'.
 	self uploadFlush: d.
@@ -938,7 +917,6 @@ releaseDevice: dh
 !
 releaseHandle: h
 	"A device releases everything created on it; passes and swapchain textures end with their command buffer."
-	<c: 'bool pf_gpu_release(int h)'>
 	<export>
 	| o |
 	o := common table: objs at: h kind: -1.
@@ -954,13 +932,11 @@ releaseHandle: h
 	^true
 !
 shutdown
-	<c: 'void pf_gpu_shutdown(void)'>
 	<export>
 	1 to: objs n - 1 do: [:h | (objs v + h) kind = K_DEV ifTrue: [self releaseDevice: h]]
 !
 handleCounts: out
 	"devices shaders pipelines textures samplers buffers fences"
-	<c: 'void pf_gpu_handle_counts(int64_t *out)'>
 	<export>
 	out at: 0 put: (common table: objs count: K_DEV).
 	out at: 1 put: (common table: objs count: K_SHADER).

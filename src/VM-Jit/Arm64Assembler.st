@@ -24,7 +24,6 @@ initialize
 !Arm64Assembler methodsFor: 'buffer'!
 beginAt: start limit: limit
 	"Assemble into [start, limit); forget all labels."
-	<c: 'void asm_begin(uint64_t start, uint64_t limit)'>
 	<export>
 	asmStart := start.
 	asmPc := start.
@@ -37,7 +36,6 @@ beginAt: start limit: limit
 !
 finish
 	"Answer the error code: ASM_OK unless something did not encode, the buffer filled up or a label used was not bound."
-	<c: 'int32_t asm_finish(void)'>
 	<export>
 	asmUnresolved > 0 ifTrue: [self fail: ASM_ERR_LABEL].
 	^asmError
@@ -84,7 +82,6 @@ emit64: aValue
 
 !Arm64Assembler methodsFor: 'labels'!
 newLabel
-	<c: 'int32_t asm_new_label(void)'>
 	<export>
 	asmLabelCount >= ASM_MAX_LABELS ifTrue: [
 		self fail: ASM_ERR_LABEL.
@@ -96,7 +93,6 @@ newLabel
 !
 labelAt: anAddress
 	"A label bound to anAddress."
-	<c: 'int32_t asm_label_at(uint64_t address)'>
 	<export>
 	| label |
 	label := self newLabel.
@@ -105,8 +101,8 @@ labelAt: anAddress
 !
 bind: aLabel
 	"Bind aLabel to the next instruction and patch the branches to it."
-	<c: 'void asm_bind(int32_t label)'>
 	<export>
+	<var: #aLabel type: 'int32_t'>
 	| f |
 	asmLabels at: aLabel put: asmPc.
 	f := asmLabelFixups at: aLabel.
@@ -122,7 +118,6 @@ addressOf: aLabel
 !
 targetOf: aLabel
 	"The address of aLabel for an instruction at pc; if aLabel is not bound yet, pc, patched when it is bound."
-	<c: 'uint64_t asm_target_of(int32_t label)'>
 	<export>
 	| a |
 	a := asmLabels at: aLabel.
@@ -141,8 +136,8 @@ targetOf: aLabel
 !Arm64Assembler methodsFor: 'notes'!
 recordNotes: aBoolean
 	"Record comment: and bytecode: notes from now on (or not); forget those recorded."
-	<c: 'void asm_record_notes(bool on)'>
 	<export>
+	<var: #aBoolean type: 'bool'>
 	asmNoting := aBoolean.
 	asmNoteCount := 0
 !
@@ -160,8 +155,9 @@ bytecode: aPc
 !
 note: aString value: anInteger
 	"Record (pc - start, aString, anInteger); aString is NULL for a bytecode."
-	<c: 'void asm_note(const char *text, int64_t value)'>
 	<export>
+	<var: #aString type: 'const char *'>
+	<var: #anInteger type: 'int64_t'>
 	asmNoteCount < ASM_MAX_NOTES ifTrue: [
 		asmNoteOffsets at: asmNoteCount put: (asmPc - asmStart) asUInt32.
 		asmNoteTexts at: asmNoteCount put: aString.
@@ -435,8 +431,9 @@ mov: rd imm: value
 		ifFalse: [self movImm: rd value: value asUInt64]
 !
 movImm: rd value: value
-	<c: 'void asm_mov_imm(int64_t rd, uint64_t value)'>
 	<export>
+	<var: #rd type: 'int64_t'>
+	<var: #value type: 'uint64_t'>
 	| v halves zeros ones enc inverted first |
 	v := (rd bitAnd: REG_W) = 0 ifTrue: [value] ifFalse: [value bitAnd: 16rFFFFFFFF].
 	halves := (self bits: rd) >> 4.
@@ -1008,7 +1005,6 @@ fcvtzs: rd with: rn
 !Arm64Assembler methodsFor: 'encoders'!
 logicalImmediate: value width: width
 	"N:immr:imms of value as a logical immediate of width (32 or 64) bits, or -1 if it does not encode."
-	<c: 'int32_t asm_logical_immediate(uint64_t value, int32_t width)'>
 	<export>
 	| v size half mask elem ones pattern rot r |
 	v := value.
@@ -1038,8 +1034,8 @@ logicalImmediate: value width: width
 !
 fmovImmediate: aDouble
 	"The 8-bit immediate of fmov for aDouble, or -1: ±(16..31)/16 * 2^(-3..4)."
-	<c: 'int32_t asm_fmov_immediate(double d)'>
 	<export>
+	<var: #aDouble type: 'double'>
 	| b exp |
 	b := self bitsOfDouble: aDouble.
 	(b bitAnd: 16rFFFFFFFFFFFF) = 0 ifFalse: [^-1].
@@ -1051,8 +1047,9 @@ fmovImmediate: aDouble
 !Arm64Assembler methodsFor: 'patching'!
 patchBranchAt: site to: target
 	"Point the pc-relative instruction at site (b, bl, b.cond, cbz, cbnz, tbz, tbnz, ldr literal, adr, adrp) to target; answer whether it reaches."
-	<c: 'bool asm_patch_branch(uint64_t site, uint64_t target)'>
 	<export>
+	<var: #site type: 'uint64_t'>
+	<var: #target type: 'uint64_t'>
 	| w off |
 	w := self uint32At: site.
 	off := (target - site) asInt64.
@@ -1088,7 +1085,7 @@ patchFailed
 !
 branchTargetAt: site
 	"The target of the pc-relative instruction at site, 0 if it is none."
-	<c: 'uint64_t asm_branch_target(uint64_t site)'>
+	<var: #site type: 'uint64_t'>
 	<export>
 	| w |
 	w := self uint32At: site.
@@ -1106,14 +1103,15 @@ branchTargetAt: site
 !
 patchMov64At: site value: value
 	"Rewrite the constant of the mov:imm64: sequence at site."
-	<c: 'void asm_patch_mov64(uint64_t site, uint64_t value)'>
+	<var: #site type: 'uint64_t'>
+	<var: #value type: 'uint64_t'>
 	<export>
 	0 to: 3 do: [:i |
 		self uint32At: site + (4 * i) put: (((self uint32At: site + (4 * i)) bitAnd: 16rFFE0001F) bitOr: (((value >> (16 * i)) bitAnd: 16rFFFF) << 5))]
 !
 mov64At: site
 	"The constant of the mov:imm64: sequence at site."
-	<c: 'uint64_t asm_mov64(uint64_t site)'>
+	<var: #site type: 'uint64_t'>
 	<export>
 	| v |
 	v := 0 asUInt64.

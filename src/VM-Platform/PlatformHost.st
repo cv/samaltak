@@ -16,41 +16,33 @@ isInterface
 !PlatformHost methodsFor: 'host'!
 vsyncStart
 	"Call vsync refreshed (from a thread of mine) at each display refresh from now on; false (and the error set) if that cannot be done."
-	<c: 'bool pf_host_vsync_start(void)'>
 	self subclassResponsibility
 !
 vsyncStop
-	<c: 'void pf_host_vsync_stop(void)'>
 	self subclassResponsibility
 !
 environment
 	"The process's environment (NAME=value strings, NULL-terminated)."
-	<c: 'char **pf_host_environ(void)'>
 	self subclassResponsibility
 !
 socketOpened: fd
 	"A new socket: a write to it after the peer closed must fail (EPIPE), not kill the VM with SIGPIPE."
-	<c: 'void pf_host_socket_opened(int fd)'>
 	self subclassResponsibility
 !
 cmdKeymod
 	"The SDL modifier that is the image's cmd (PF_MOD_CMD)."
-	<c: 'SDL_Keymod pf_host_cmd_keymod(void)'>
 	self subclassResponsibility
 !
 altKeymod
 	"The SDL modifier that is the image's alt (PF_MOD_ALT)."
-	<c: 'SDL_Keymod pf_host_alt_keymod(void)'>
 	self subclassResponsibility
 !
 shaderFormats
 	"The shader formats a GPU device is created for."
-	<c: 'SDL_GPUShaderFormat pf_host_shader_formats(void)'>
 	self subclassResponsibility
 !
 compileShader: source stage: stage size: sizeOut
 	"SPIR-V compiled from GLSL source for stage (PF_STAGE_*, with SAMALTAK_VERTEX or SAMALTAK_FRAGMENT defined), malloc'd, its size in sizeOut; NULL with the error set (the compiler's log) if it does not compile."
-	<c: 'void *pf_host_compile_shader(const char *source, int stage, size_t *size_out)'>
 	self subclassResponsibility
 ! !
 
@@ -76,12 +68,11 @@ targetOS
 !DarwinPlatformHost methodsFor: 'host'!
 onRefresh: link now: now output: outputTime flags: flagsIn flagsOut: flagsOut context: context
 	"The display link's thread."
-	<c: 'CVReturn on_refresh(CVDisplayLinkRef link, const CVTimeStamp *now, const CVTimeStamp *output_time, CVOptionFlags flags_in, CVOptionFlags *flags_out, void *context)'>
+	<function>
 	vsync refreshed.
 	^coreVideo kCVReturnSuccess
 !
 vsyncStart
-	<c: 'bool pf_host_vsync_start(void)'>
 	<export>
 	| link |
 	link := self local: 'CVDisplayLinkRef'.
@@ -94,19 +85,16 @@ vsyncStart
 	^true
 !
 vsyncStop
-	<c: 'void pf_host_vsync_stop(void)'>
 	<export>
 	coreVideo stop: displayLink.
 	coreVideo release: displayLink.
 	displayLink := self null
 !
 environment
-	<c: 'char **pf_host_environ(void)'>
 	<export>
 	^darwin environment value
 !
 socketOpened: fd
-	<c: 'void pf_host_socket_opened(int fd)'>
 	<export>
 	| one |
 	one := self local: 'int'.
@@ -114,22 +102,18 @@ socketOpened: fd
 	posixSockets setsockopt: fd level: posixSockets SOL_SOCKET option: posixSockets SO_NOSIGPIPE value: one length: (self sizeof: 'int') asUInt32
 !
 cmdKeymod
-	<c: 'SDL_Keymod pf_host_cmd_keymod(void)'>
 	<export>
 	^sdl SDL_KMOD_GUI
 !
 altKeymod
-	<c: 'SDL_Keymod pf_host_alt_keymod(void)'>
 	<export>
 	^sdl SDL_KMOD_ALT
 !
 shaderFormats
-	<c: 'SDL_GPUShaderFormat pf_host_shader_formats(void)'>
 	<export>
 	^sdlGpu SDL_GPU_SHADERFORMAT_MSL
 !
 compileShader: source stage: stage size: sizeOut
-	<c: 'void *pf_host_compile_shader(const char *source, int stage, size_t *size_out)'>
 	<export>
 	common setError: 'GLSL is compiled only on Linux (SDL_GPU on Vulkan); on Metal shaders are MSL'.
 	^self null
@@ -153,7 +137,6 @@ targetOS
 
 !LinuxPlatformHost methodsFor: 'host'!
 vsyncStart
-	<c: 'bool pf_host_vsync_start(void)'>
 	<export>
 	| mode rate t |
 	mode := sdl getCurrentDisplayMode: sdl getPrimaryDisplay.
@@ -170,13 +153,12 @@ vsyncStart
 	^true
 !
 vsyncStop
-	<c: 'void pf_host_vsync_stop(void)'>
 	<export>
 	self atomicStore: #vsyncOn value: false
 !
 vsyncRun: arg
 	"The vsync thread: refreshed every vsyncPeriodUs, on absolute deadlines (no drift; one that has fallen behind by more than a period starts again from now); naps of 100 ms while stopped."
-	<c: 'void *linux_vsync(void *arg)'>
+	<function>
 	| next now nap period |
 	next := self local: 'Timespec'.
 	now := self local: 'Timespec'.
@@ -201,32 +183,26 @@ vsyncRun: arg
 	^self null
 !
 environment
-	<c: 'char **pf_host_environ(void)'>
 	<export>
 	^linux environ
 !
 socketOpened: fd
-	<c: 'void pf_host_socket_opened(int fd)'>
 	<export>
 	posixIO signal: posixIO SIGPIPE handler: posixIO SIG_IGN
 !
 cmdKeymod
-	<c: 'SDL_Keymod pf_host_cmd_keymod(void)'>
 	<export>
 	^sdl SDL_KMOD_ALT
 !
 altKeymod
-	<c: 'SDL_Keymod pf_host_alt_keymod(void)'>
 	<export>
 	^sdl SDL_KMOD_GUI
 !
 shaderFormats
-	<c: 'SDL_GPUShaderFormat pf_host_shader_formats(void)'>
 	<export>
 	^sdlGpu SDL_GPU_SHADERFORMAT_SPIRV
 !
 compileShader: source stage: stage size: sizeOut
-	<c: 'void *pf_host_compile_shader(const char *source, int stage, size_t *size_out)'>
 	<export>
 	| fragment r n code |
 	compiler isNull ifTrue: [

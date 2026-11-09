@@ -107,7 +107,7 @@ retArgcAt: i
 !OptCodegen methodsFor: 'generating'!
 generate: m act: a
 	"Emit the code at the assembler's pc; answer whether it could."
-	<c: 'bool opt_generate(oop m, int32_t a)'>
+	<function>
 	| b bl need |
 	cgCodeStart := asm pc.
 	cgRootAct := a.
@@ -350,7 +350,7 @@ loadConstant: v into: r
 !
 poolIndexOf: v
 	"v's entry in the pool (made if needed)."
-	<c: 'int32_t opt_pool_index(uint64_t v)'>
+	<function>
 	0 to: cgPoolCount - 1 do: [:i | (cgPoolOops at: i) = v ifTrue: [^i]].
 	cgPoolCount >= CG_MAX_POOL ifTrue: [
 		asm fail: ASM_ERR_FULL.
@@ -396,7 +396,7 @@ headerFlagsOffset
 
 !OptCodegen methodsFor: 'nodes'!
 emitNode: n block: b next: nextBlock
-	<c: 'void opt_emit_node(int32_t n, int32_t b, int32_t nextBlock)'>
+	<function>
 	| nd op x y r s |
 	nd := ir node: n.
 	op := nd op asInt32.
@@ -1533,7 +1533,7 @@ recordCall: n
 !
 recordState: s kind: kind node: n inSlots: inSlots
 	"Safepoint record: kind, metadata offset in the table; [kind, send pc, send info, selector, nacts, then per activation from the outermost: method, closure, receiver, pc, depth, locations]."
-	<c: 'int32_t opt_record_state(int32_t s, int32_t kind, int32_t n, bool inSlots)'>
+	<function>
 	| k chain nchain t st nd |
 	k := self newSafepoint.
 	k < CG_MAX_SP ifTrue: [cgMetaWords at: CG_MAX_META - 1 - k put: cgMetaCount].

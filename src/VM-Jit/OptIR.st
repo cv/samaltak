@@ -90,7 +90,7 @@ osrEntry: b state: s numbers: bits
 
 !OptIR methodsFor: 'building'!
 reset
-	<c: 'void opt_ir_reset(void)'>
+	<function>
 	optNodeCount := 0.
 	optBlockCount := 0.
 	optEdgeCount := 0.
@@ -106,7 +106,7 @@ reset
 !
 newBlock
 	"A new empty block."
-	<c: 'int32_t opt_new_block(void)'>
+	<function>
 	| b |
 	optBlockCount >= OPT_MAX_BLOCKS ifTrue: [
 		optFull := true.
@@ -127,7 +127,7 @@ newBlock
 !
 newNode: op rep: rep
 	"A new node, in no block."
-	<c: 'int32_t opt_new_node(int32_t op, int32_t rep)'>
+	<function>
 	| n |
 	optNodeCount >= OPT_MAX_NODES ifTrue: [
 		optFull := true.
@@ -156,7 +156,7 @@ newNode: op rep: rep
 !
 append: n to: b
 	"n becomes b's last node."
-	<c: 'void opt_append(int32_t n, int32_t b)'>
+	<function>
 	| bl nd |
 	bl := optBlocks + b.
 	nd := optNodes + n.
@@ -170,7 +170,7 @@ append: n to: b
 !
 prepend: n to: b
 	"n becomes b's first node (phis)."
-	<c: 'void opt_prepend(int32_t n, int32_t b)'>
+	<function>
 	| bl nd |
 	bl := optBlocks + b.
 	nd := optNodes + n.
@@ -183,7 +183,7 @@ prepend: n to: b
 	bl first: n
 !
 insert: n before: m
-	<c: 'void opt_insert_before(int32_t n, int32_t m)'>
+	<function>
 	| nd md |
 	md := optNodes + m.
 	nd := optNodes + n.
@@ -197,7 +197,7 @@ insert: n before: m
 !
 unlink: n
 	"Take n out of its block."
-	<c: 'void opt_unlink(int32_t n)'>
+	<function>
 	| nd bl |
 	nd := optNodes + n.
 	nd block < 0 ifTrue: [^self].
@@ -214,7 +214,8 @@ unlink: n
 !
 addPred: from to: to
 	"from becomes to's last predecessor; answer its index."
-	<c: 'int32_t opt_add_pred(int32_t from, int32_t to)'>
+	<function>
+	<returns: 'int32_t'>
 	| e b p i |
 	optEdgeCount >= OPT_MAX_EDGES ifTrue: [
 		optFull := true.
@@ -239,7 +240,7 @@ addPred: from to: to
 !
 pred: i of: b
 	"The block of b's i-th predecessor edge."
-	<c: 'int32_t opt_pred(int32_t i, int32_t b)'>
+	<function>
 	| p |
 	p := (optBlocks + b) preds.
 	i timesRepeat: [p := (optEdges + p) next].
@@ -247,7 +248,7 @@ pred: i of: b
 !
 replacePred: old with: new in: b
 	"Every edge from old into b now comes from new."
-	<c: 'void opt_replace_pred(int32_t old, int32_t new, int32_t b)'>
+	<function>
 	| p |
 	p := (optBlocks + b) preds.
 	[p >= 0] whileTrue: [
@@ -256,7 +257,7 @@ replacePred: old with: new in: b
 !
 allocOperands: n
 	"Room for n operands; answer the first index."
-	<c: 'int32_t opt_alloc_operands(int32_t n)'>
+	<function>
 	| i |
 	optOperandCount + n > OPT_MAX_OPERANDS ifTrue: [
 		optFull := true.
@@ -267,7 +268,7 @@ allocOperands: n
 	^i
 !
 newState
-	<c: 'int32_t opt_new_state(void)'>
+	<function>
 	| s |
 	optStateCount >= OPT_MAX_STATES ifTrue: [
 		optFull := true.
@@ -281,7 +282,7 @@ newState
 !
 newAct
 	"-1 when the table is full: act 0 is the root, a parent pointing to it from below would make a cycle."
-	<c: 'int32_t opt_new_act(void)'>
+	<function>
 	| a |
 	optActCount >= OPT_MAX_ACTS ifTrue: [
 		optFull := true.
@@ -301,7 +302,7 @@ newAct
 !OptIR methodsFor: 'queries'!
 resolve: n
 	"n, or what replaced it."
-	<c: 'int32_t opt_resolve(int32_t n)'>
+	<function>
 	| m |
 	n < 0 ifTrue: [^n].
 	m := n.
@@ -321,7 +322,7 @@ argAt: i of: n
 !OptIR methodsFor: 'printing'!
 print
 	"The IR on stderr (SAMALTAK_OPT_TRACE)."
-	<c: 'void opt_ir_print(void)'>
+	<function>
 	| bl n nd e |
 	0 to: optBlockCount - 1 do: [:b |
 		bl := optBlocks + b.
@@ -339,7 +340,7 @@ print
 			n := nd next]]
 !
 printNode: n
-	<c: 'void opt_print_node(int32_t n)'>
+	<function>
 	| nd |
 	nd := optNodes + n.
 	libc fprintf: libc stderr format: '  v%d = op%d' with: n with: nd op asInt32.

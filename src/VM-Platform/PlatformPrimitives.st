@@ -36,14 +36,14 @@ args: n
 	^self argCount = n
 !
 intArg: i
-	<c: 'int64_t int_arg(int i)'>
+	<function>
 	| v |
 	v := self local: 'int64_t'.
 	(memory int64Of: (self arg: i) into: v) ifFalse: [bad := true].
 	^v value
 !
 floatArg: i
-	<c: 'double float_arg(int i)'>
+	<function>
 	| o |
 	o := self arg: i.
 	(self isInt: o) ifTrue: [^(self intVal: o) asFloat].
@@ -52,7 +52,7 @@ floatArg: i
 	^0.0
 !
 boolArg: i
-	<c: 'bool bool_arg(int i)'>
+	<function>
 	| o |
 	o := self arg: i.
 	o = memory trueOop ifTrue: [^true].
@@ -60,7 +60,7 @@ boolArg: i
 	^false
 !
 isText: o
-	<c: 'bool is_text(oop o)'>
+	<function>
 	| f |
 	(self isPtr: o) ifFalse: [^false].
 	f := self formatOf: o.
@@ -68,7 +68,7 @@ isText: o
 !
 stringArg: i
 	"The malloc'd UTF-8 of a String argument (NULL, and bad set, otherwise)."
-	<c: 'char *string_arg(int i)'>
+	<function>
 	| o s |
 	o := self arg: i.
 	s := (self isText: o) ifTrue: [memory utf8Of: o] ifFalse: [self null].
@@ -77,7 +77,7 @@ stringArg: i
 !
 bytesOf: o size: n writable: writable
 	"The raw bytes of a byte object or Bitmap, their count in n; NULL if o is none (or immutable and writable is wanted)."
-	<c: 'uint8_t *bytes_view(oop o, size_t *n, bool writable)'>
+	<function>
 	| f |
 	(self isPtr: o) ifFalse: [^self null].
 	(writable and: [self isImmutable: o]) ifTrue: [^self null].
@@ -92,7 +92,7 @@ bytesOf: o size: n writable: writable
 !
 rangeArgs: writable handle: h count: count
 	"(handle, buffer, start, count) with 1-based start: the bytes of the range; NULL if the arguments are bad."
-	<c: 'uint8_t *range_args(bool writable, int64_t *h, int64_t *count)'>
+	<function>
 	| start len p |
 	self argCount ~= 4 ifTrue: [^self null].
 	bad := false.
@@ -105,7 +105,7 @@ rangeArgs: writable handle: h count: count
 	^p + (start - 1)
 !
 numberOf: o into: d
-	<c: 'bool num_of(oop o, double *d)'>
+	<function>
 	(self isInt: o) ifTrue: [
 		d value: (self intVal: o) asFloat.
 		^true].
@@ -116,7 +116,7 @@ numberOf: o into: d
 !
 rect: r into: out
 	"{x. y. w. h} of SmallIntegers."
-	<c: 'bool rect_of(oop r, int *out)'>
+	<function>
 	| v |
 	((self isPtr: r) and: [(self formatOf: r) = F_VAR and: [(self numSlots: r) = 4]]) ifFalse: [^false].
 	0 to: 3 do: [:i |
@@ -127,7 +127,7 @@ rect: r into: out
 !
 stringVector: a nonEmpty: nonEmpty
 	"Malloc'd NULL-terminated C strings of an Array of Strings (NULL: not one, or empty when nonEmpty)."
-	<c: 'char **string_vector(oop a, bool non_empty)'>
+	<function>
 	| n v s |
 	((self isPtr: a) and: [(self formatOf: a) = F_VAR and: [nonEmpty not or: [(self numSlots: a) ~= 0]]]) ifFalse: [^self null].
 	n := self numSlots: a.
@@ -143,7 +143,7 @@ stringVector: a nonEmpty: nonEmpty
 	^v
 !
 freeVector: v
-	<c: 'void free_vector(char **v)'>
+	<function>
 	| p |
 	v isNull ifTrue: [^self].
 	p := v.
@@ -179,7 +179,7 @@ answerNonNegative: d
 !
 answerString: s
 	"s is malloc'd (NULL: fail); freed here."
-	<c: 'void answer_string(char *s)'>
+	<function>
 	| r |
 	s isNull ifTrue: [^self fail].
 	r := memory stringFromUtf8: s size: (libc strlen: s).
@@ -188,14 +188,14 @@ answerString: s
 !
 arrayOf: v count: n
 	"An Array of n SmallIntegers."
-	<c: 'oop array_of_ints(int64_t *v, int n)'>
+	<function>
 	| a |
 	a := memory allocSlots: memory clsArray count: n asUInt32.
 	0 to: n - 1 do: [:i | self storeRef: a at: i put: (self intOop: (v at: i))].
 	^a
 !
 answerPair: ok first: a second: b
-	<c: 'void answer_pair(bool ok, int a, int b)'>
+	<function>
 	| v |
 	ok ifFalse: [^self fail].
 	v := self local: 'int64_t[2]'.
@@ -395,7 +395,7 @@ primInjectEvent
 !
 textOrDelta: o into: e
 	"Set the textOrDelta of e from o: nil, a SmallInteger, a Boolean, a Point (or a pair) of numbers, or a String (malloc'd UTF-8); answer whether o is one."
-	<c: 'bool text_or_delta(oop o, pf_event *e)'>
+	<function>
 	o = memory nilOop ifTrue: [
 		e xkind: PF_X_NIL.
 		^true].

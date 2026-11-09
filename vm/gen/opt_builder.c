@@ -52,34 +52,34 @@ int32_t ob_unit_start;
 int32_t ob_valid_slots;
 static int32_t ob_var_top;
 
-static void opt_add_phi_operands(int32_t phi, int32_t var);
-static int32_t opt_analysis_of(oop m);
-static int32_t opt_block_at(int32_t pc, int32_t a);
-static void opt_build_act(int32_t a);
-static bool opt_build_once(oop m);
-static bool opt_can_inline(oop m, int32_t a);
-static int32_t opt_closure_of(int32_t v, int32_t d);
-static int32_t opt_constant(uint64_t v);
-static int32_t opt_emit(int32_t pc, int32_t a);
-static int32_t opt_escaping_closure(void);
-static void opt_float_arith(int32_t k, int32_t x, int32_t y, int32_t pc, int32_t a, int32_t r);
-static int32_t opt_frame_closure_of(int32_t v, int32_t n, int32_t pc, int32_t a);
-static void opt_goto(int32_t b);
-static void opt_inline_block(int32_t c, int32_t d, int32_t pc, int32_t a, int32_t r, int32_t argc);
-static void opt_inline_frame_closure(int32_t x, int32_t d, int32_t pc, int32_t a, int32_t r, int32_t argc);
-static void opt_inline_method(oop m, uint64_t cls, int32_t pc, int32_t a, int32_t r, int32_t argc);
-static bool opt_inline_primitive(int64_t p, uint64_t cls, int32_t argc, int32_t pc, int32_t a, int32_t r);
-static bool opt_inline_send(uint64_t sel, int32_t argc, int32_t kind, int32_t k, int32_t pc, int32_t a, int32_t r);
-static int32_t opt_new_act_for(oop m);
-static int32_t opt_new_block_act_for(oop m, int32_t s);
-static int32_t opt_read(int32_t var, int32_t b);
-static void opt_seal(int32_t b);
-static bool opt_send_performed(uint64_t sel, int32_t rcv, uint64_t cls, int32_t n, int32_t pc, int32_t a, int32_t r);
-static int32_t opt_make_state(int32_t a, int32_t pc, int32_t d);
-static void opt_write(int32_t var, int32_t v, int32_t b);
+static void add_phi_operands(int32_t phi, int32_t var);
+static int32_t analysis_of(oop m);
+static int32_t block_at(int32_t pc, int32_t a);
+static void build_act(int32_t a);
+static bool build_once(oop m);
+static bool can_inline(uint64_t m, int32_t a);
+static int32_t closure_of(int32_t v, int d);
+static int32_t constant(oop v);
+static int32_t emit(int32_t pc, int32_t a);
+static int32_t escaping_closure(void);
+static void opt_builder_float_arith(int32_t k, int32_t x, int32_t y, int32_t pc, int32_t a, int32_t r);
+static int32_t frame_closure_of(int32_t v, int32_t n, int32_t pc, int32_t a);
+static void goto_(int32_t b);
+static void inline_block(int32_t c, int32_t d, int32_t pc, int32_t a, int32_t r, int32_t argc);
+static void inline_frame_closure(int32_t x, int32_t d, int32_t pc, int32_t a, int32_t r, int32_t argc);
+static void inline_method(uint64_t m, oop cls, int32_t pc, int32_t a, int32_t r, int32_t argc);
+static bool inline_primitive(int64_t p, oop cls, int32_t argc, int32_t pc, int32_t a, int32_t r);
+static bool inline_send(uint64_t sel, int32_t argc, int32_t kind, int32_t k, int32_t pc, int32_t a, int32_t r);
+static int32_t new_act_for(oop m);
+static int32_t new_block_act_for(oop m, int32_t s);
+static int32_t opt_builder_read(int32_t var, int32_t b);
+static void seal(int32_t b);
+static bool send_performed(uint64_t sel, int32_t rcv, oop cls, int32_t n, int32_t pc, int32_t a, int32_t r);
+static int32_t state_act(int32_t a, int32_t pc, int32_t d);
+static void opt_builder_write(int32_t var, int32_t v, int32_t b);
 
 /* OptBuilder>>addPhiOperands:var: */
-static void opt_add_phi_operands(int32_t phi, int32_t var)
+static void add_phi_operands(int32_t phi, int32_t var)
 {
     int32_t b;
     int32_t n;
@@ -89,18 +89,18 @@ static void opt_add_phi_operands(int32_t phi, int32_t var)
     int32_t v;
     b = (opt_nodes + phi)->block;
     n = (opt_blocks + b)->npreds;
-    args = opt_alloc_operands(n);
+    args = alloc_operands(n);
     (opt_nodes + phi)->args = args;
     (opt_nodes + phi)->nargs = (uint16_t)n;
     for (i = 0; i <= n - 1; i++) {
         i_2 = args + i;
-        v = opt_read(var, opt_pred(i, b));
+        v = opt_builder_read(var, pred(i, b));
         opt_operands[i_2] = v;
     }
 }
 
 /* OptBuilder>>analysisOf: */
-static int32_t opt_analysis_of(oop m)
+static int32_t analysis_of(oop m)
 {
     int32_t i;
     int32_t n;
@@ -123,7 +123,7 @@ static int32_t opt_analysis_of(oop m)
     if (ob_ana_count >= OPT_MAX_ANA) {
         return -1;
     }
-    if (!jit_analyze(m)) {
+    if (!analyze(m)) {
         return -1;
     }
     n = bc_size;
@@ -186,7 +186,7 @@ static int32_t opt_analysis_of(oop m)
     }
     r_special_index_of = -1;
 exit_special_index_of:;
-    r_special_index_of; })) >= 0) && ((k <= 9) && ((fb_flags_at(m, pc_4) & FB_FLOAT) != 0)); })) {
+    r_special_index_of; })) >= 0) && ((k <= 9) && ((flags_at(m, pc_4) & FB_FLOAT) != 0)); })) {
             ob_ana_float[ob_ana_count] = true;
         }
     }
@@ -196,14 +196,14 @@ exit_special_index_of:;
 }
 
 /* OptBuilder>>blockAt:act: */
-static int32_t opt_block_at(int32_t pc, int32_t a)
+static int32_t block_at(int32_t pc, int32_t a)
 {
     int32_t b;
     b = ob_pc_blocks[(opt_acts + a)->pcb + pc];
     if (b >= 0) {
         return b;
     }
-    b = opt_new_block();
+    b = new_block();
     (opt_blocks + b)->act = a;
     (opt_blocks + b)->pc = pc;
     if ((ob_ana_flag[(opt_acts + a)->ana + pc] & OA_LOOP) != 0) {
@@ -214,7 +214,7 @@ static int32_t opt_block_at(int32_t pc, int32_t a)
 }
 
 /* OptBuilder>>build:start:osr:depth:resident: */
-bool opt_build(oop m, int32_t s, int32_t t, int32_t d, bool res)
+bool build(oop m, int32_t s, int32_t t, int32_t d, bool res)
 {
     int32_t r_method_primitive;
     uint64_t p;
@@ -236,10 +236,10 @@ bool opt_build(oop m, int32_t s, int32_t t, int32_t d, bool res)
     ob_osr_pc = t;
     ob_valid_slots = d;
     for (;;) {
-        if (!opt_build_once(m)) {
+        if (!build_once(m)) {
             return false;
         }
-        e = opt_escaping_closure();
+        e = escaping_closure();
         if (e < 0) {
             return true;
         }
@@ -256,7 +256,7 @@ bool opt_build(oop m, int32_t s, int32_t t, int32_t d, bool res)
 }
 
 /* OptBuilder>>buildAct: */
-static void opt_build_act(int32_t a)
+static void build_act(int32_t a)
 {
     opt_act *ac;
     int32_t pc;
@@ -278,15 +278,15 @@ static void opt_build_act(int32_t a)
         if ((ob_ana_flag[(opt_acts + a)->ana + pc] & OA_START) != 0) {
             b = ob_pc_blocks[ac->pcb + pc];
             if ((b < 0) && ((ob_ana_flag[(opt_acts + a)->ana + pc] & OA_TARGET) != 0)) {
-                b = opt_block_at(pc, a);
+                b = block_at(pc, a);
             }
             if (b >= 0) {
                 if ((ob_cur_block >= 0) && (ob_cur_block != b)) {
-                    opt_goto(b);
+                    goto_(b);
                 }
                 ob_cur_block = b;
                 if (!((ob_ana_flag[(opt_acts + a)->ana + pc] & OA_LOOP) != 0)) {
-                    opt_seal(b);
+                    seal(b);
                 }
             }
             if (ob_cur_block < 0) {
@@ -367,7 +367,7 @@ exit_length_of:;
 exit_skip:;
     r_skip; });
             } else {
-                pc = opt_emit(pc, a);
+                pc = emit(pc, a);
             }
         } else {
             pc = pc + 1;
@@ -376,7 +376,7 @@ exit_skip:;
 }
 
 /* OptBuilder>>buildOnce: */
-static bool opt_build_once(oop m)
+static bool build_once(oop m)
 {
     int32_t a;
     int32_t r_param;
@@ -475,7 +475,7 @@ static bool opt_build_once(oop m)
     int32_t n_30;
     int32_t b;
     int32_t k_2;
-    opt_ir_reset();
+    reset();
     ob_bailed = false;
     ob_var_top = 0;
     memset(ob_arg_flags, 0, OPT_MAX_VARS);
@@ -492,18 +492,18 @@ static bool opt_build_once(oop m)
     ob_checked_block = -1;
     ob_spec_count = 0;
     ob_perform_act = -1;
-    a = ob_unit_start > 0 ? opt_new_block_act_for(m, ob_unit_start) : opt_new_act_for(m);
+    a = ob_unit_start > 0 ? new_block_act_for(m, ob_unit_start) : new_act_for(m);
     if (a < 0) {
         return false;
     }
-    ob_entry_block = opt_new_block();
+    ob_entry_block = new_block();
     (opt_blocks + ob_entry_block)->flags = 9;
     (opt_blocks + ob_entry_block)->act = a;
     ob_cur_block = ob_entry_block;
     (opt_acts + a)->receiver = ({
     n = ({
-    n_2 = opt_new_node(O_PARAM, R_OOP);
-    opt_append(n_2, ob_cur_block);
+    n_2 = new_node(O_PARAM, R_OOP);
+    append(n_2, ob_cur_block);
     r_add = n_2;
     r_add; });
     (opt_nodes + n)->aux = -1;
@@ -512,8 +512,8 @@ static bool opt_build_once(oop m)
     if (ob_unit_start > 0) {
         (opt_acts + a)->closure = ({
     n_3 = ({
-    n_4 = opt_new_node(O_PARAM, R_OOP);
-    opt_append(n_4, ob_cur_block);
+    n_4 = new_node(O_PARAM, R_OOP);
+    append(n_4, ob_cur_block);
     r_add_2 = n_4;
     r_add_2; });
     (opt_nodes + n_3)->aux = -2;
@@ -547,9 +547,9 @@ static bool opt_build_once(oop m)
                 if ((i >= (opt_acts + a)->num_args) && (i < (opt_acts + a)->num_args + (opt_acts + a)->num_temps)) {
                     ob_arg_flags[(opt_acts + a)->var_base + i] = 2;
                     ob_arg_vals[(opt_acts + a)->var_base + i] = ({
-    n_6 = opt_new_node(O_HOMESLOT, R_OOP);
+    n_6 = new_node(O_HOMESLOT, R_OOP);
     (opt_nodes + n_6)->aux = i;
-    opt_append(n_6, ob_entry_block);
+    append(n_6, ob_entry_block);
     r_home_slot = n_6;
     r_home_slot; });
                 }
@@ -625,8 +625,8 @@ exit_length_of:;
             var = (opt_acts + a)->var_base + i_2;
             v = ({
     n_7 = ({
-    n_8 = opt_new_node(O_PARAM, R_OOP);
-    opt_append(n_8, ob_cur_block);
+    n_8 = new_node(O_PARAM, R_OOP);
+    append(n_8, ob_cur_block);
     r_add_3 = n_8;
     r_add_3; });
     (opt_nodes + n_7)->aux = i_2;
@@ -638,8 +638,8 @@ exit_length_of:;
             }
             if ((var < OPT_MAX_VARS) && (ob_arg_flags[var] == 2)) {
                 n_9 = ({
-    n_10 = opt_new_node(O_STORESLOT, R_NONE);
-    opt_append(n_10, ob_cur_block);
+    n_10 = new_node(O_STORESLOT, R_NONE);
+    append(n_10, ob_cur_block);
     r_add_4 = n_10;
     r_add_4; });
                 (opt_nodes + n_9)->a = v;
@@ -647,14 +647,14 @@ exit_length_of:;
                 (opt_nodes + n_9)->aux = (opt_nodes + n_11)->aux;
                 goto exit_write;
             }
-            opt_write(var, v, ob_cur_block);
+            opt_builder_write(var, v, ob_cur_block);
         exit_write:;
         } else if (!(ob_arg_flags[(opt_acts + a)->var_base + i_2] == 2)) {
             var_2 = (opt_acts + a)->var_base + i_2;
             v_2 = ({
     n_12 = ({
-    n_13 = opt_new_node(O_PARAM, R_OOP);
-    opt_append(n_13, ob_cur_block);
+    n_13 = new_node(O_PARAM, R_OOP);
+    append(n_13, ob_cur_block);
     r_add_5 = n_13;
     r_add_5; });
     (opt_nodes + n_12)->aux = i_2;
@@ -662,8 +662,8 @@ exit_length_of:;
     r_param_4; });
             if ((var_2 < OPT_MAX_VARS) && (ob_arg_flags[var_2] == 2)) {
                 n_14 = ({
-    n_15 = opt_new_node(O_STORESLOT, R_NONE);
-    opt_append(n_15, ob_cur_block);
+    n_15 = new_node(O_STORESLOT, R_NONE);
+    append(n_15, ob_cur_block);
     r_add_6 = n_15;
     r_add_6; });
                 (opt_nodes + n_14)->a = v_2;
@@ -671,7 +671,7 @@ exit_length_of:;
                 (opt_nodes + n_14)->aux = (opt_nodes + n_16)->aux;
                 goto exit_write_2;
             }
-            opt_write(var_2, v_2, ob_cur_block);
+            opt_builder_write(var_2, v_2, ob_cur_block);
         exit_write_2:;
         }
         if ((ob_frame == NULL) || ((ob_frame->ctx == nil_oop) || (ob_spec_count >= 8))) {
@@ -692,7 +692,7 @@ exit_length_of:;
         if (!((pc_2 >= 0) && (bcs_2[pc_2] == 0x8F))) {
             goto exit_note_closure_in;
         }
-        d = opt_new_node(O_CLOSURE, R_OOP);
+        d = new_node(O_CLOSURE, R_OOP);
         (opt_nodes + d)->aux = pc_2 + 6;
         (opt_nodes + d)->aux2 = ((int64_t)bcs_2[pc_2 + 1]) | (((int64_t)bcs_2[pc_2 + 2]) << 8) | (((int64_t)bcs_2[pc_2 + 3]) << 16) | (((int64_t)a) << 32);
         ob_spec_param[ob_spec_count] = (opt_acts + a)->var_base + i_2;
@@ -700,7 +700,7 @@ exit_length_of:;
         ob_spec_count = ob_spec_count + 1;
     exit_note_closure_in:;
     }
-    s = opt_make_state(a, ob_osr_pc, ob_valid_slots);
+    s = state_act(a, ob_osr_pc, ob_valid_slots);
     bits_2 = ({
     bits = 0ULL;
     if (ob_frame == NULL) {
@@ -719,16 +719,16 @@ exit_frame_numbers:;
     opt_osr_entry = ob_cur_block;
     opt_osr_state = s;
     opt_osr_numbers = bits_2;
-    b_2 = opt_block_at(ob_osr_pc, a);
-    opt_goto(b_2);
-    opt_build_act(a);
+    b_2 = block_at(ob_osr_pc, a);
+    goto_(b_2);
+    build_act(a);
     if (ob_bailed || opt_full) {
         r_build_osr = false;
         goto exit_build_osr;
     }
     for (k = 0; k <= opt_block_count - 1; k++) {
         if (((opt_blocks + k)->flags & BF_SEALED) == 0) {
-            opt_seal(k);
+            seal(k);
         }
     }
     r_build_osr = !(ob_bailed || opt_full);
@@ -740,8 +740,8 @@ exit_build_osr:;
         var_3 = (opt_acts + a)->var_base + i_4;
         v_5 = ({
     n_17 = ({
-    n_18 = opt_new_node(O_PARAM, R_OOP);
-    opt_append(n_18, ob_cur_block);
+    n_18 = new_node(O_PARAM, R_OOP);
+    append(n_18, ob_cur_block);
     r_add_7 = n_18;
     r_add_7; });
     (opt_nodes + n_17)->aux = i_4;
@@ -753,8 +753,8 @@ exit_build_osr:;
         }
         if ((var_3 < OPT_MAX_VARS) && (ob_arg_flags[var_3] == 2)) {
             n_19 = ({
-    n_20 = opt_new_node(O_STORESLOT, R_NONE);
-    opt_append(n_20, ob_cur_block);
+    n_20 = new_node(O_STORESLOT, R_NONE);
+    append(n_20, ob_cur_block);
     r_add_8 = n_20;
     r_add_8; });
             (opt_nodes + n_19)->a = v_5;
@@ -762,16 +762,16 @@ exit_build_osr:;
             (opt_nodes + n_19)->aux = (opt_nodes + n_21)->aux;
             goto exit_write_3;
         }
-        opt_write(var_3, v_5, ob_cur_block);
+        opt_builder_write(var_3, v_5, ob_cur_block);
     exit_write_3:;
     }
     for (i_5 = (opt_acts + a)->num_args; i_5 <= (opt_acts + a)->num_args + (opt_acts + a)->num_temps - 1; i_5++) {
         var_4 = (opt_acts + a)->var_base + i_5;
-        v_6 = opt_constant(nil_oop);
+        v_6 = constant(nil_oop);
         if ((var_4 < OPT_MAX_VARS) && (ob_arg_flags[var_4] == 2)) {
             n_22 = ({
-    n_23 = opt_new_node(O_STORESLOT, R_NONE);
-    opt_append(n_23, ob_cur_block);
+    n_23 = new_node(O_STORESLOT, R_NONE);
+    append(n_23, ob_cur_block);
     r_add_9 = n_23;
     r_add_9; });
             (opt_nodes + n_22)->a = v_6;
@@ -779,7 +779,7 @@ exit_build_osr:;
             (opt_nodes + n_22)->aux = (opt_nodes + n_24)->aux;
             goto exit_write_4;
         }
-        opt_write(var_4, v_6, ob_cur_block);
+        opt_builder_write(var_4, v_6, ob_cur_block);
     exit_write_4:;
     }
     if (((opt_acts + a)->num_temps > 0) && ((ob_unit_start == 0) && ({
@@ -792,8 +792,8 @@ exit_build_osr:;
         i_7 = (opt_acts + a)->num_args;
         v_7 = ({
     n_25 = ({
-    n_26 = opt_new_node(O_PARAM, R_OOP);
-    opt_append(n_26, ob_cur_block);
+    n_26 = new_node(O_PARAM, R_OOP);
+    append(n_26, ob_cur_block);
     r_add_10 = n_26;
     r_add_10; });
     (opt_nodes + n_25)->aux = i_7;
@@ -801,8 +801,8 @@ exit_build_osr:;
     r_param_6; });
         if ((var_5 < OPT_MAX_VARS) && (ob_arg_flags[var_5] == 2)) {
             n_27 = ({
-    n_28 = opt_new_node(O_STORESLOT, R_NONE);
-    opt_append(n_28, ob_cur_block);
+    n_28 = new_node(O_STORESLOT, R_NONE);
+    append(n_28, ob_cur_block);
     r_add_11 = n_28;
     r_add_11; });
             (opt_nodes + n_27)->a = v_7;
@@ -810,37 +810,37 @@ exit_build_osr:;
             (opt_nodes + n_27)->aux = (opt_nodes + n_29)->aux;
             goto exit_write_5;
         }
-        opt_write(var_5, v_7, ob_cur_block);
+        opt_builder_write(var_5, v_7, ob_cur_block);
     exit_write_5:;
         ob_param_slots = (opt_acts + a)->num_args + 1;
     }
     d_2 = (opt_acts + a)->num_args + (opt_acts + a)->num_temps;
     n_30 = ({
-    n_31 = opt_new_node(O_CHECKINT, R_NONE);
-    opt_append(n_31, ob_cur_block);
+    n_31 = new_node(O_CHECKINT, R_NONE);
+    append(n_31, ob_cur_block);
     r_add_12 = n_31;
     r_add_12; });
     ob_safe_epoch = ob_safe_epoch + 1;
-    (opt_nodes + n_30)->state = opt_make_state(a, ob_unit_start, d_2);
+    (opt_nodes + n_30)->state = state_act(a, ob_unit_start, d_2);
     (opt_nodes + n_30)->aux = SP_ENTRY;
-    b = opt_new_block();
-    opt_goto(b);
+    b = new_block();
+    goto_(b);
     ob_cur_block = b;
-    opt_seal(b);
-    opt_build_act(a);
+    seal(b);
+    build_act(a);
     if (ob_bailed || opt_full) {
         return false;
     }
     for (k_2 = 0; k_2 <= opt_block_count - 1; k_2++) {
         if (((opt_blocks + k_2)->flags & BF_SEALED) == 0) {
-            opt_seal(k_2);
+            seal(k_2);
         }
     }
     return !(ob_bailed || opt_full);
 }
 
 /* OptBuilder>>canInline:act: */
-static bool opt_can_inline(oop m, int32_t a)
+static bool can_inline(uint64_t m, int32_t a)
 {
     int32_t i;
     int32_t size;
@@ -880,7 +880,7 @@ static bool opt_can_inline(oop m, int32_t a)
     if ((depth >= OPT_INLINE_DEPTH) || (same > 1)) {
         return false;
     }
-    if (opt_analysis_of(m) < 0) {
+    if (analysis_of(m) < 0) {
         return false;
     }
     o = *(uint64_t *)(m + 16 + 24);
@@ -956,7 +956,7 @@ exit_length_of:;
 }
 
 /* OptBuilder>>closureOf:depth: */
-static int32_t opt_closure_of(int32_t v, int32_t d)
+static int32_t closure_of(int32_t v, int d)
 {
     int32_t n;
     opt_node *nd;
@@ -964,7 +964,7 @@ static int32_t opt_closure_of(int32_t v, int32_t d)
     int32_t i;
     int32_t i_2;
     int32_t x;
-    n = opt_resolve(v);
+    n = opt_ir_resolve(v);
     nd = opt_nodes + n;
     if ((int32_t)nd->op == O_CLOSURE) {
         return n;
@@ -975,9 +975,9 @@ static int32_t opt_closure_of(int32_t v, int32_t d)
     c = -1;
     for (i = 0; i <= (int32_t)nd->nargs - 1; i++) {
         i_2 = nd->args + i;
-        x = opt_resolve(opt_operands[i_2]);
+        x = opt_ir_resolve(opt_operands[i_2]);
         if (x != n) {
-            x = opt_closure_of(x, d + 1);
+            x = closure_of(x, d + 1);
             if ((x < 0) || ((c >= 0) && (c != x))) {
                 return -1;
             }
@@ -988,12 +988,12 @@ static int32_t opt_closure_of(int32_t v, int32_t d)
 }
 
 /* OptBuilder>>constant: */
-static int32_t opt_constant(uint64_t v)
+static int32_t constant(oop v)
 {
     int32_t n;
     opt_node *nd;
     int32_t n_2;
-    n = opt_new_node(O_CONST, R_OOP);
+    n = new_node(O_CONST, R_OOP);
     nd = opt_nodes + n;
     nd->aux = (int64_t)v;
     nd->flags = NF_PURE;
@@ -1014,18 +1014,18 @@ static int32_t opt_constant(uint64_t v)
     if ((opt_blocks + ob_entry_block)->last >= 0) {
         n_2 = (opt_blocks + ob_entry_block)->last;
         if ((int32_t)(opt_nodes + n_2)->op >= O_GOTO) {
-            opt_insert_before(n, (opt_blocks + ob_entry_block)->last);
+            insert(n, (opt_blocks + ob_entry_block)->last);
         } else {
-            opt_append(n, ob_entry_block);
+            append(n, ob_entry_block);
         }
     } else {
-        opt_append(n, ob_entry_block);
+        append(n, ob_entry_block);
     }
     return n;
 }
 
 /* OptBuilder>>emit:act: */
-static int32_t opt_emit(int32_t pc, int32_t a)
+static int32_t emit(int32_t pc, int32_t a)
 {
     oop m;
     uint64_t o;
@@ -1920,12 +1920,12 @@ exit_length_of:;
     r_length_of; }));
     if (op < 0x10) {
         var = (opt_acts + a)->var_base + op;
-        v_2 = opt_read(var, ob_cur_block);
+        v_2 = opt_builder_read(var, ob_cur_block);
         var_2 = (opt_acts + a)->var_base + d;
         if ((var_2 < OPT_MAX_VARS) && (ob_arg_flags[var_2] == 2)) {
             n = ({
-    n_2 = opt_new_node(O_STORESLOT, R_NONE);
-    opt_append(n_2, ob_cur_block);
+    n_2 = new_node(O_STORESLOT, R_NONE);
+    append(n_2, ob_cur_block);
     r_add = n_2;
     r_add; });
             (opt_nodes + n)->a = v_2;
@@ -1933,7 +1933,7 @@ exit_length_of:;
             (opt_nodes + n)->aux = (opt_nodes + n_3)->aux;
             goto exit_write;
         }
-        opt_write(var_2, v_2, ob_cur_block);
+        opt_builder_write(var_2, v_2, ob_cur_block);
     exit_write:;
         return next;
     }
@@ -1942,8 +1942,8 @@ exit_length_of:;
         o_2 = (opt_acts + a)->receiver;
         v_3 = ({
     n_4 = ({
-    n_5 = opt_new_node(O_LOADFIELD, R_OOP);
-    opt_append(n_5, ob_cur_block);
+    n_5 = new_node(O_LOADFIELD, R_OOP);
+    append(n_5, ob_cur_block);
     r_add_2 = n_5;
     r_add_2; });
     (opt_nodes + n_4)->a = o_2;
@@ -1953,8 +1953,8 @@ exit_length_of:;
         var_3 = (opt_acts + a)->var_base + d;
         if ((var_3 < OPT_MAX_VARS) && (ob_arg_flags[var_3] == 2)) {
             n_6 = ({
-    n_7 = opt_new_node(O_STORESLOT, R_NONE);
-    opt_append(n_7, ob_cur_block);
+    n_7 = new_node(O_STORESLOT, R_NONE);
+    append(n_7, ob_cur_block);
     r_add_3 = n_7;
     r_add_3; });
             (opt_nodes + n_6)->a = v_3;
@@ -1962,7 +1962,7 @@ exit_length_of:;
             (opt_nodes + n_6)->aux = (opt_nodes + n_8)->aux;
             goto exit_write_2;
         }
-        opt_write(var_3, v_3, ob_cur_block);
+        opt_builder_write(var_3, v_3, ob_cur_block);
     exit_write_2:;
         return next;
     }
@@ -1970,12 +1970,12 @@ exit_length_of:;
         i_2 = op - 0x20;
         m_2 = (opt_acts + a)->method;
         o_3 = *(uint64_t *)(m_2 + 16 + 16);
-        v_4 = opt_constant(*(uint64_t *)(o_3 + 16 + 8 * i_2));
+        v_4 = constant(*(uint64_t *)(o_3 + 16 + 8 * i_2));
         var_4 = (opt_acts + a)->var_base + d;
         if ((var_4 < OPT_MAX_VARS) && (ob_arg_flags[var_4] == 2)) {
             n_9 = ({
-    n_10 = opt_new_node(O_STORESLOT, R_NONE);
-    opt_append(n_10, ob_cur_block);
+    n_10 = new_node(O_STORESLOT, R_NONE);
+    append(n_10, ob_cur_block);
     r_add_4 = n_10;
     r_add_4; });
             (opt_nodes + n_9)->a = v_4;
@@ -1983,7 +1983,7 @@ exit_length_of:;
             (opt_nodes + n_9)->aux = (opt_nodes + n_11)->aux;
             goto exit_write_3;
         }
-        opt_write(var_4, v_4, ob_cur_block);
+        opt_builder_write(var_4, v_4, ob_cur_block);
     exit_write_3:;
         return next;
     }
@@ -1991,11 +1991,11 @@ exit_length_of:;
         i_3 = op - 0x40;
         m_3 = (opt_acts + a)->method;
         o_4 = *(uint64_t *)(m_3 + 16 + 16);
-        o_5 = opt_constant(*(uint64_t *)(o_4 + 16 + 8 * i_3));
+        o_5 = constant(*(uint64_t *)(o_4 + 16 + 8 * i_3));
         v_5 = ({
     n_12 = ({
-    n_13 = opt_new_node(O_LOADFIELD, R_OOP);
-    opt_append(n_13, ob_cur_block);
+    n_13 = new_node(O_LOADFIELD, R_OOP);
+    append(n_13, ob_cur_block);
     r_add_5 = n_13;
     r_add_5; });
     (opt_nodes + n_12)->a = o_5;
@@ -2005,8 +2005,8 @@ exit_length_of:;
         var_5 = (opt_acts + a)->var_base + d;
         if ((var_5 < OPT_MAX_VARS) && (ob_arg_flags[var_5] == 2)) {
             n_14 = ({
-    n_15 = opt_new_node(O_STORESLOT, R_NONE);
-    opt_append(n_15, ob_cur_block);
+    n_15 = new_node(O_STORESLOT, R_NONE);
+    append(n_15, ob_cur_block);
     r_add_6 = n_15;
     r_add_6; });
             (opt_nodes + n_14)->a = v_5;
@@ -2014,7 +2014,7 @@ exit_length_of:;
             (opt_nodes + n_14)->aux = (opt_nodes + n_16)->aux;
             goto exit_write_4;
         }
-        opt_write(var_5, v_5, ob_cur_block);
+        opt_builder_write(var_5, v_5, ob_cur_block);
     exit_write_4:;
         return next;
     }
@@ -2023,11 +2023,11 @@ exit_length_of:;
         var_6 = (opt_acts + a)->var_base + i_4;
         i_5 = d - 1;
         var_7 = (opt_acts + a)->var_base + i_5;
-        v_6 = opt_read(var_7, ob_cur_block);
+        v_6 = opt_builder_read(var_7, ob_cur_block);
         if ((var_6 < OPT_MAX_VARS) && (ob_arg_flags[var_6] == 2)) {
             n_17 = ({
-    n_18 = opt_new_node(O_STORESLOT, R_NONE);
-    opt_append(n_18, ob_cur_block);
+    n_18 = new_node(O_STORESLOT, R_NONE);
+    append(n_18, ob_cur_block);
     r_add_7 = n_18;
     r_add_7; });
             (opt_nodes + n_17)->a = v_6;
@@ -2035,7 +2035,7 @@ exit_length_of:;
             (opt_nodes + n_17)->aux = (opt_nodes + n_19)->aux;
             goto exit_write_5;
         }
-        opt_write(var_6, v_6, ob_cur_block);
+        opt_builder_write(var_6, v_6, ob_cur_block);
     exit_write_5:;
         return next;
     }
@@ -2044,8 +2044,8 @@ exit_length_of:;
         var_8 = (opt_acts + a)->var_base + d;
         if ((var_8 < OPT_MAX_VARS) && (ob_arg_flags[var_8] == 2)) {
             n_20 = ({
-    n_21 = opt_new_node(O_STORESLOT, R_NONE);
-    opt_append(n_21, ob_cur_block);
+    n_21 = new_node(O_STORESLOT, R_NONE);
+    append(n_21, ob_cur_block);
     r_add_8 = n_21;
     r_add_8; });
             (opt_nodes + n_20)->a = v_7;
@@ -2053,17 +2053,17 @@ exit_length_of:;
             (opt_nodes + n_20)->aux = (opt_nodes + n_22)->aux;
             goto exit_write_6;
         }
-        opt_write(var_8, v_7, ob_cur_block);
+        opt_builder_write(var_8, v_7, ob_cur_block);
     exit_write_6:;
         return next;
     }
     if (op == 0x71) {
-        v_8 = opt_constant(true_oop);
+        v_8 = constant(true_oop);
         var_9 = (opt_acts + a)->var_base + d;
         if ((var_9 < OPT_MAX_VARS) && (ob_arg_flags[var_9] == 2)) {
             n_23 = ({
-    n_24 = opt_new_node(O_STORESLOT, R_NONE);
-    opt_append(n_24, ob_cur_block);
+    n_24 = new_node(O_STORESLOT, R_NONE);
+    append(n_24, ob_cur_block);
     r_add_9 = n_24;
     r_add_9; });
             (opt_nodes + n_23)->a = v_8;
@@ -2071,17 +2071,17 @@ exit_length_of:;
             (opt_nodes + n_23)->aux = (opt_nodes + n_25)->aux;
             goto exit_write_7;
         }
-        opt_write(var_9, v_8, ob_cur_block);
+        opt_builder_write(var_9, v_8, ob_cur_block);
     exit_write_7:;
         return next;
     }
     if (op == 0x72) {
-        v_9 = opt_constant(false_oop);
+        v_9 = constant(false_oop);
         var_10 = (opt_acts + a)->var_base + d;
         if ((var_10 < OPT_MAX_VARS) && (ob_arg_flags[var_10] == 2)) {
             n_26 = ({
-    n_27 = opt_new_node(O_STORESLOT, R_NONE);
-    opt_append(n_27, ob_cur_block);
+    n_27 = new_node(O_STORESLOT, R_NONE);
+    append(n_27, ob_cur_block);
     r_add_10 = n_27;
     r_add_10; });
             (opt_nodes + n_26)->a = v_9;
@@ -2089,17 +2089,17 @@ exit_length_of:;
             (opt_nodes + n_26)->aux = (opt_nodes + n_28)->aux;
             goto exit_write_8;
         }
-        opt_write(var_10, v_9, ob_cur_block);
+        opt_builder_write(var_10, v_9, ob_cur_block);
     exit_write_8:;
         return next;
     }
     if (op == 0x73) {
-        v_10 = opt_constant(nil_oop);
+        v_10 = constant(nil_oop);
         var_11 = (opt_acts + a)->var_base + d;
         if ((var_11 < OPT_MAX_VARS) && (ob_arg_flags[var_11] == 2)) {
             n_29 = ({
-    n_30 = opt_new_node(O_STORESLOT, R_NONE);
-    opt_append(n_30, ob_cur_block);
+    n_30 = new_node(O_STORESLOT, R_NONE);
+    append(n_30, ob_cur_block);
     r_add_11 = n_30;
     r_add_11; });
             (opt_nodes + n_29)->a = v_10;
@@ -2107,17 +2107,17 @@ exit_length_of:;
             (opt_nodes + n_29)->aux = (opt_nodes + n_31)->aux;
             goto exit_write_9;
         }
-        opt_write(var_11, v_10, ob_cur_block);
+        opt_builder_write(var_11, v_10, ob_cur_block);
     exit_write_9:;
         return next;
     }
     if (op == 0x74) {
-        v_11 = opt_constant(1ULL);
+        v_11 = constant(1ULL);
         var_12 = (opt_acts + a)->var_base + d;
         if ((var_12 < OPT_MAX_VARS) && (ob_arg_flags[var_12] == 2)) {
             n_32 = ({
-    n_33 = opt_new_node(O_STORESLOT, R_NONE);
-    opt_append(n_33, ob_cur_block);
+    n_33 = new_node(O_STORESLOT, R_NONE);
+    append(n_33, ob_cur_block);
     r_add_12 = n_33;
     r_add_12; });
             (opt_nodes + n_32)->a = v_11;
@@ -2125,17 +2125,17 @@ exit_length_of:;
             (opt_nodes + n_32)->aux = (opt_nodes + n_34)->aux;
             goto exit_write_10;
         }
-        opt_write(var_12, v_11, ob_cur_block);
+        opt_builder_write(var_12, v_11, ob_cur_block);
     exit_write_10:;
         return next;
     }
     if (op == 0x75) {
-        v_12 = opt_constant(3ULL);
+        v_12 = constant(3ULL);
         var_13 = (opt_acts + a)->var_base + d;
         if ((var_13 < OPT_MAX_VARS) && (ob_arg_flags[var_13] == 2)) {
             n_35 = ({
-    n_36 = opt_new_node(O_STORESLOT, R_NONE);
-    opt_append(n_36, ob_cur_block);
+    n_36 = new_node(O_STORESLOT, R_NONE);
+    append(n_36, ob_cur_block);
     r_add_13 = n_36;
     r_add_13; });
             (opt_nodes + n_35)->a = v_12;
@@ -2143,19 +2143,19 @@ exit_length_of:;
             (opt_nodes + n_35)->aux = (opt_nodes + n_37)->aux;
             goto exit_write_11;
         }
-        opt_write(var_13, v_12, ob_cur_block);
+        opt_builder_write(var_13, v_12, ob_cur_block);
     exit_write_11:;
         return next;
     }
     if (op == 0x77) {
         i_6 = d - 1;
         var_14 = (opt_acts + a)->var_base + i_6;
-        v_13 = opt_read(var_14, ob_cur_block);
+        v_13 = opt_builder_read(var_14, ob_cur_block);
         var_15 = (opt_acts + a)->var_base + d;
         if ((var_15 < OPT_MAX_VARS) && (ob_arg_flags[var_15] == 2)) {
             n_38 = ({
-    n_39 = opt_new_node(O_STORESLOT, R_NONE);
-    opt_append(n_39, ob_cur_block);
+    n_39 = new_node(O_STORESLOT, R_NONE);
+    append(n_39, ob_cur_block);
     r_add_14 = n_39;
     r_add_14; });
             (opt_nodes + n_38)->a = v_13;
@@ -2163,7 +2163,7 @@ exit_length_of:;
             (opt_nodes + n_38)->aux = (opt_nodes + n_40)->aux;
             goto exit_write_12;
         }
-        opt_write(var_15, v_13, ob_cur_block);
+        opt_builder_write(var_15, v_13, ob_cur_block);
     exit_write_12:;
         return next;
     }
@@ -2173,13 +2173,13 @@ exit_length_of:;
     if ((op == 0x79) || (op == 0x7B)) {
         i_7 = d - 1;
         var_16 = (opt_acts + a)->var_base + i_7;
-        v_14 = opt_read(var_16, ob_cur_block);
+        v_14 = opt_builder_read(var_16, ob_cur_block);
         if ((opt_acts + a)->parent >= 0) {
             var_17 = (opt_acts + a)->ret_var;
             if ((var_17 < OPT_MAX_VARS) && (ob_arg_flags[var_17] == 2)) {
                 n_42 = ({
-    n_43 = opt_new_node(O_STORESLOT, R_NONE);
-    opt_append(n_43, ob_cur_block);
+    n_43 = new_node(O_STORESLOT, R_NONE);
+    append(n_43, ob_cur_block);
     r_add_15 = n_43;
     r_add_15; });
                 (opt_nodes + n_42)->a = v_14;
@@ -2187,18 +2187,18 @@ exit_length_of:;
                 (opt_nodes + n_42)->aux = (opt_nodes + n_44)->aux;
                 goto exit_write_13;
             }
-            opt_write(var_17, v_14, ob_cur_block);
+            opt_builder_write(var_17, v_14, ob_cur_block);
         exit_write_13:;
-            opt_goto((opt_acts + a)->ret_block);
+            goto_((opt_acts + a)->ret_block);
             goto exit_local_return;
         }
         n_41 = ({
-    n_45 = opt_new_node(O_RETURN, R_NONE);
-    opt_append(n_45, ob_cur_block);
+    n_45 = new_node(O_RETURN, R_NONE);
+    append(n_45, ob_cur_block);
     r_add_16 = n_45;
     r_add_16; });
         (opt_nodes + n_41)->a = v_14;
-        (opt_nodes + n_41)->state = opt_make_state(a, pc, d);
+        (opt_nodes + n_41)->state = state_act(a, pc, d);
         ob_cur_block = -1;
     exit_local_return:;
         return next;
@@ -2209,8 +2209,8 @@ exit_length_of:;
             var_18 = (opt_acts + a)->ret_var;
             if ((var_18 < OPT_MAX_VARS) && (ob_arg_flags[var_18] == 2)) {
                 n_47 = ({
-    n_48 = opt_new_node(O_STORESLOT, R_NONE);
-    opt_append(n_48, ob_cur_block);
+    n_48 = new_node(O_STORESLOT, R_NONE);
+    append(n_48, ob_cur_block);
     r_add_17 = n_48;
     r_add_17; });
                 (opt_nodes + n_47)->a = v_15;
@@ -2218,18 +2218,18 @@ exit_length_of:;
                 (opt_nodes + n_47)->aux = (opt_nodes + n_49)->aux;
                 goto exit_write_14;
             }
-            opt_write(var_18, v_15, ob_cur_block);
+            opt_builder_write(var_18, v_15, ob_cur_block);
         exit_write_14:;
-            opt_goto((opt_acts + a)->ret_block);
+            goto_((opt_acts + a)->ret_block);
             goto exit_local_return_2;
         }
         n_46 = ({
-    n_50 = opt_new_node(O_RETURN, R_NONE);
-    opt_append(n_50, ob_cur_block);
+    n_50 = new_node(O_RETURN, R_NONE);
+    append(n_50, ob_cur_block);
     r_add_18 = n_50;
     r_add_18; });
         (opt_nodes + n_46)->a = v_15;
-        (opt_nodes + n_46)->state = opt_make_state(a, pc, d);
+        (opt_nodes + n_46)->state = state_act(a, pc, d);
         ob_cur_block = -1;
     exit_local_return_2:;
         return next;
@@ -2240,12 +2240,12 @@ exit_length_of:;
         o_6 = *(uint64_t *)(m_4 + 16 + 24);
         i_8 = ((uint8_t *)(o_6 + 16))[pc_2];
         var_19 = (opt_acts + a)->var_base + i_8;
-        v_16 = opt_read(var_19, ob_cur_block);
+        v_16 = opt_builder_read(var_19, ob_cur_block);
         var_20 = (opt_acts + a)->var_base + d;
         if ((var_20 < OPT_MAX_VARS) && (ob_arg_flags[var_20] == 2)) {
             n_51 = ({
-    n_52 = opt_new_node(O_STORESLOT, R_NONE);
-    opt_append(n_52, ob_cur_block);
+    n_52 = new_node(O_STORESLOT, R_NONE);
+    append(n_52, ob_cur_block);
     r_add_19 = n_52;
     r_add_19; });
             (opt_nodes + n_51)->a = v_16;
@@ -2253,7 +2253,7 @@ exit_length_of:;
             (opt_nodes + n_51)->aux = (opt_nodes + n_53)->aux;
             goto exit_write_15;
         }
-        opt_write(var_20, v_16, ob_cur_block);
+        opt_builder_write(var_20, v_16, ob_cur_block);
     exit_write_15:;
         return next;
     }
@@ -2269,8 +2269,8 @@ exit_length_of:;
         o_9 = (opt_acts + a)->receiver;
         v_17 = ({
     n_54 = ({
-    n_55 = opt_new_node(O_LOADFIELD, R_OOP);
-    opt_append(n_55, ob_cur_block);
+    n_55 = new_node(O_LOADFIELD, R_OOP);
+    append(n_55, ob_cur_block);
     r_add_20 = n_55;
     r_add_20; });
     (opt_nodes + n_54)->a = o_9;
@@ -2280,8 +2280,8 @@ exit_length_of:;
         var_21 = (opt_acts + a)->var_base + d;
         if ((var_21 < OPT_MAX_VARS) && (ob_arg_flags[var_21] == 2)) {
             n_56 = ({
-    n_57 = opt_new_node(O_STORESLOT, R_NONE);
-    opt_append(n_57, ob_cur_block);
+    n_57 = new_node(O_STORESLOT, R_NONE);
+    append(n_57, ob_cur_block);
     r_add_21 = n_57;
     r_add_21; });
             (opt_nodes + n_56)->a = v_17;
@@ -2289,7 +2289,7 @@ exit_length_of:;
             (opt_nodes + n_56)->aux = (opt_nodes + n_58)->aux;
             goto exit_write_16;
         }
-        opt_write(var_21, v_17, ob_cur_block);
+        opt_builder_write(var_21, v_17, ob_cur_block);
     exit_write_16:;
         return next;
     }
@@ -2300,12 +2300,12 @@ exit_length_of:;
         i_10 = ((uint8_t *)(o_10 + 16))[pc_5];
         m_8 = (opt_acts + a)->method;
         o_11 = *(uint64_t *)(m_8 + 16 + 16);
-        v_18 = opt_constant(*(uint64_t *)(o_11 + 16 + 8 * i_10));
+        v_18 = constant(*(uint64_t *)(o_11 + 16 + 8 * i_10));
         var_22 = (opt_acts + a)->var_base + d;
         if ((var_22 < OPT_MAX_VARS) && (ob_arg_flags[var_22] == 2)) {
             n_59 = ({
-    n_60 = opt_new_node(O_STORESLOT, R_NONE);
-    opt_append(n_60, ob_cur_block);
+    n_60 = new_node(O_STORESLOT, R_NONE);
+    append(n_60, ob_cur_block);
     r_add_22 = n_60;
     r_add_22; });
             (opt_nodes + n_59)->a = v_18;
@@ -2313,7 +2313,7 @@ exit_length_of:;
             (opt_nodes + n_59)->aux = (opt_nodes + n_61)->aux;
             goto exit_write_17;
         }
-        opt_write(var_22, v_18, ob_cur_block);
+        opt_builder_write(var_22, v_18, ob_cur_block);
     exit_write_17:;
         return next;
     }
@@ -2324,11 +2324,11 @@ exit_length_of:;
         i_11 = ((uint8_t *)(o_12 + 16))[pc_6];
         m_10 = (opt_acts + a)->method;
         o_13 = *(uint64_t *)(m_10 + 16 + 16);
-        o_14 = opt_constant(*(uint64_t *)(o_13 + 16 + 8 * i_11));
+        o_14 = constant(*(uint64_t *)(o_13 + 16 + 8 * i_11));
         v_19 = ({
     n_62 = ({
-    n_63 = opt_new_node(O_LOADFIELD, R_OOP);
-    opt_append(n_63, ob_cur_block);
+    n_63 = new_node(O_LOADFIELD, R_OOP);
+    append(n_63, ob_cur_block);
     r_add_23 = n_63;
     r_add_23; });
     (opt_nodes + n_62)->a = o_14;
@@ -2338,8 +2338,8 @@ exit_length_of:;
         var_23 = (opt_acts + a)->var_base + d;
         if ((var_23 < OPT_MAX_VARS) && (ob_arg_flags[var_23] == 2)) {
             n_64 = ({
-    n_65 = opt_new_node(O_STORESLOT, R_NONE);
-    opt_append(n_65, ob_cur_block);
+    n_65 = new_node(O_STORESLOT, R_NONE);
+    append(n_65, ob_cur_block);
     r_add_24 = n_65;
     r_add_24; });
             (opt_nodes + n_64)->a = v_19;
@@ -2347,7 +2347,7 @@ exit_length_of:;
             (opt_nodes + n_64)->aux = (opt_nodes + n_66)->aux;
             goto exit_write_18;
         }
-        opt_write(var_23, v_19, ob_cur_block);
+        opt_builder_write(var_23, v_19, ob_cur_block);
     exit_write_18:;
         return next;
     }
@@ -2359,11 +2359,11 @@ exit_length_of:;
         var_24 = (opt_acts + a)->var_base + i_12;
         i_13 = d - 1;
         var_25 = (opt_acts + a)->var_base + i_13;
-        v_20 = opt_read(var_25, ob_cur_block);
+        v_20 = opt_builder_read(var_25, ob_cur_block);
         if ((var_24 < OPT_MAX_VARS) && (ob_arg_flags[var_24] == 2)) {
             n_67 = ({
-    n_68 = opt_new_node(O_STORESLOT, R_NONE);
-    opt_append(n_68, ob_cur_block);
+    n_68 = new_node(O_STORESLOT, R_NONE);
+    append(n_68, ob_cur_block);
     r_add_25 = n_68;
     r_add_25; });
             (opt_nodes + n_67)->a = v_20;
@@ -2371,7 +2371,7 @@ exit_length_of:;
             (opt_nodes + n_67)->aux = (opt_nodes + n_69)->aux;
             goto exit_write_19;
         }
-        opt_write(var_24, v_20, ob_cur_block);
+        opt_builder_write(var_24, v_20, ob_cur_block);
     exit_write_19:;
         return next;
     }
@@ -2383,14 +2383,14 @@ exit_length_of:;
         o_17 = (opt_acts + a)->receiver;
         i_15 = d - 1;
         var_26 = (opt_acts + a)->var_base + i_15;
-        v_21 = opt_read(var_26, ob_cur_block);
-        s = opt_make_state(a, pc, d);
+        v_21 = opt_builder_read(var_26, ob_cur_block);
+        s = state_act(a, pc, d);
         if ((ob_checked_block != ob_cur_block) || (ob_checked_epoch != ob_safe_epoch)) {
             ob_checked_count = 0;
             ob_checked_block = ob_cur_block;
             ob_checked_epoch = ob_safe_epoch;
         }
-        r = opt_resolve(o_17);
+        r = opt_ir_resolve(o_17);
         st = s;
         for (k = 0; k <= ob_checked_count - 1; k++) {
             if (ob_checked[k] == r) {
@@ -2402,8 +2402,8 @@ exit_length_of:;
             ob_checked_count = ob_checked_count + 1;
         }
         n_70 = ({
-    n_71 = opt_new_node(O_STOREFIELD, R_NONE);
-    opt_append(n_71, ob_cur_block);
+    n_71 = new_node(O_STOREFIELD, R_NONE);
+    append(n_71, ob_cur_block);
     r_add_26 = n_71;
     r_add_26; });
         (opt_nodes + n_70)->a = o_17;
@@ -2419,16 +2419,16 @@ exit_length_of:;
         i_16 = ((uint8_t *)(o_18 + 16))[pc_9];
         m_14 = (opt_acts + a)->method;
         o_19 = *(uint64_t *)(m_14 + 16 + 16);
-        o_20 = opt_constant(*(uint64_t *)(o_19 + 16 + 8 * i_16));
+        o_20 = constant(*(uint64_t *)(o_19 + 16 + 8 * i_16));
         i_17 = d - 1;
         var_27 = (opt_acts + a)->var_base + i_17;
-        v_22 = opt_read(var_27, ob_cur_block);
+        v_22 = opt_builder_read(var_27, ob_cur_block);
         if ((ob_checked_block != ob_cur_block) || (ob_checked_epoch != ob_safe_epoch)) {
             ob_checked_count = 0;
             ob_checked_block = ob_cur_block;
             ob_checked_epoch = ob_safe_epoch;
         }
-        r_2 = opt_resolve(o_20);
+        r_2 = opt_ir_resolve(o_20);
         st_2 = -1;
         for (k_2 = 0; k_2 <= ob_checked_count - 1; k_2++) {
             if (ob_checked[k_2] == r_2) {
@@ -2440,8 +2440,8 @@ exit_length_of:;
             ob_checked_count = ob_checked_count + 1;
         }
         n_72 = ({
-    n_73 = opt_new_node(O_STOREFIELD, R_NONE);
-    opt_append(n_73, ob_cur_block);
+    n_73 = new_node(O_STOREFIELD, R_NONE);
+    append(n_73, ob_cur_block);
     r_add_27 = n_73;
     r_add_27; });
         (opt_nodes + n_72)->a = o_20;
@@ -2458,11 +2458,11 @@ exit_length_of:;
         var_28 = (opt_acts + a)->var_base + i_18;
         i_19 = d - 1;
         var_29 = (opt_acts + a)->var_base + i_19;
-        v_23 = opt_read(var_29, ob_cur_block);
+        v_23 = opt_builder_read(var_29, ob_cur_block);
         if ((var_28 < OPT_MAX_VARS) && (ob_arg_flags[var_28] == 2)) {
             n_74 = ({
-    n_75 = opt_new_node(O_STORESLOT, R_NONE);
-    opt_append(n_75, ob_cur_block);
+    n_75 = new_node(O_STORESLOT, R_NONE);
+    append(n_75, ob_cur_block);
     r_add_28 = n_75;
     r_add_28; });
             (opt_nodes + n_74)->a = v_23;
@@ -2470,7 +2470,7 @@ exit_length_of:;
             (opt_nodes + n_74)->aux = (opt_nodes + n_76)->aux;
             goto exit_write_20;
         }
-        opt_write(var_28, v_23, ob_cur_block);
+        opt_builder_write(var_28, v_23, ob_cur_block);
     exit_write_20:;
         return next;
     }
@@ -2482,35 +2482,35 @@ exit_length_of:;
     p = (uint8_t *)(o_22 + 16);
     r_int16_at = (int32_t)(int16_t)(p[pc_11] | (((int64_t)p[pc_11 + 1]) << 8));
     r_int16_at; });
-        b = opt_block_at(t, a);
+        b = block_at(t, a);
         if (t <= pc) {
             m_17 = (opt_acts + a)->method;
             o_23 = *(uint64_t *)(m_17 + 16 + 24);
             if (((uint8_t *)(o_23 + 16))[pc] == 0x90) {
                 d_2 = (int32_t)ob_ana_depth[(opt_acts + a)->ana + pc];
                 n_77 = ({
-    n_78 = opt_new_node(O_CHECKINT, R_NONE);
-    opt_append(n_78, ob_cur_block);
+    n_78 = new_node(O_CHECKINT, R_NONE);
+    append(n_78, ob_cur_block);
     r_add_29 = n_78;
     r_add_29; });
                 ob_safe_epoch = ob_safe_epoch + 1;
-                (opt_nodes + n_77)->state = opt_make_state(a, pc, d_2);
+                (opt_nodes + n_77)->state = state_act(a, pc, d_2);
                 (opt_nodes + n_77)->aux = SP_LOOP;
             } else {
                 d_3 = (int32_t)ob_ana_depth[(opt_acts + a)->ana + t];
                 n_79 = ({
-    n_80 = opt_new_node(O_CHECKINT, R_NONE);
-    opt_append(n_80, ob_cur_block);
+    n_80 = new_node(O_CHECKINT, R_NONE);
+    append(n_80, ob_cur_block);
     r_add_30 = n_80;
     r_add_30; });
                 ob_safe_epoch = ob_safe_epoch + 1;
-                (opt_nodes + n_79)->state = opt_make_state(a, t, d_3);
+                (opt_nodes + n_79)->state = state_act(a, t, d_3);
                 (opt_nodes + n_79)->aux = SP_LOOP;
             }
         }
-        opt_goto(b);
+        goto_(b);
         if ((t <= pc) && (ob_ana_back[(opt_acts + a)->ana + t] == pc)) {
-            opt_seal(b);
+            seal(b);
         }
         return next;
     }
@@ -2528,53 +2528,53 @@ exit_length_of:;
         d_4 = (int32_t)ob_ana_depth[(opt_acts + a)->ana + pc];
         i_20 = d_4 - 1;
         var_30 = (opt_acts + a)->var_base + i_20;
-        v_24 = opt_read(var_30, ob_cur_block);
+        v_24 = opt_builder_read(var_30, ob_cur_block);
         back = t_2 <= pc;
-        fall = opt_block_at(pc + 3, a);
-        taken = opt_block_at(t_2, a);
+        fall = block_at(pc + 3, a);
+        taken = block_at(t_2, a);
         k_3 = (int32_t)(opt_nodes + v_24)->op;
         if (k_3 == O_CONST) {
             c = (uint64_t)(opt_nodes + v_24)->aux;
             if ((c == true_oop) || (c == false_oop)) {
                 if (c == true_oop == (op_2 == 0x91)) {
-                    b_2 = opt_block_at(t_2, a);
+                    b_2 = block_at(t_2, a);
                     if (t_2 <= pc) {
                         m_20 = (opt_acts + a)->method;
                         o_26 = *(uint64_t *)(m_20 + 16 + 24);
                         if (((uint8_t *)(o_26 + 16))[pc] == 0x90) {
                             d_5 = (int32_t)ob_ana_depth[(opt_acts + a)->ana + pc];
                             n_82 = ({
-    n_83 = opt_new_node(O_CHECKINT, R_NONE);
-    opt_append(n_83, ob_cur_block);
+    n_83 = new_node(O_CHECKINT, R_NONE);
+    append(n_83, ob_cur_block);
     r_add_31 = n_83;
     r_add_31; });
                             ob_safe_epoch = ob_safe_epoch + 1;
-                            (opt_nodes + n_82)->state = opt_make_state(a, pc, d_5);
+                            (opt_nodes + n_82)->state = state_act(a, pc, d_5);
                             (opt_nodes + n_82)->aux = SP_LOOP;
                         } else {
                             d_6 = (int32_t)ob_ana_depth[(opt_acts + a)->ana + t_2];
                             n_84 = ({
-    n_85 = opt_new_node(O_CHECKINT, R_NONE);
-    opt_append(n_85, ob_cur_block);
+    n_85 = new_node(O_CHECKINT, R_NONE);
+    append(n_85, ob_cur_block);
     r_add_32 = n_85;
     r_add_32; });
                             ob_safe_epoch = ob_safe_epoch + 1;
-                            (opt_nodes + n_84)->state = opt_make_state(a, t_2, d_6);
+                            (opt_nodes + n_84)->state = state_act(a, t_2, d_6);
                             (opt_nodes + n_84)->aux = SP_LOOP;
                         }
                     }
-                    opt_goto(b_2);
+                    goto_(b_2);
                     if ((t_2 <= pc) && (ob_ana_back[(opt_acts + a)->ana + t_2] == pc)) {
-                        opt_seal(b_2);
+                        seal(b_2);
                     }
                 } else {
-                    opt_goto(fall);
+                    goto_(fall);
                 }
                 goto exit_conditional_jump;
             }
         }
         if (back) {
-            n_81 = opt_new_block();
+            n_81 = new_block();
             (opt_blocks + n_81)->act = a;
             (opt_blocks + n_81)->flags = BF_SEALED;
             taken = n_81;
@@ -2582,57 +2582,57 @@ exit_length_of:;
         on_true = op_2 == 0x91 ? taken : fall;
         on_false = op_2 == 0x91 ? fall : taken;
         n_81 = ({
-    n_86 = opt_new_node(O_BRANCH, R_NONE);
-    opt_append(n_86, ob_cur_block);
+    n_86 = new_node(O_BRANCH, R_NONE);
+    append(n_86, ob_cur_block);
     r_add_33 = n_86;
     r_add_33; });
         (opt_nodes + n_81)->a = v_24;
-        n_87 = opt_resolve(v_24);
+        n_87 = opt_ir_resolve(v_24);
         if ((int32_t)(opt_nodes + n_87)->tkind != T_BOOL) {
-            (opt_nodes + n_81)->state = opt_make_state(a, pc, d_4);
+            (opt_nodes + n_81)->state = state_act(a, pc, d_4);
         }
         (opt_blocks + ob_cur_block)->succ0 = on_true;
         (opt_blocks + ob_cur_block)->succ1 = on_false;
-        opt_add_pred(ob_cur_block, on_true);
+        add_pred(ob_cur_block, on_true);
         if (((opt_blocks + ob_cur_block)->flags & BF_LIVE) != 0) {
             (opt_blocks + on_true)->flags = (opt_blocks + on_true)->flags | BF_LIVE;
         }
-        opt_add_pred(ob_cur_block, on_false);
+        add_pred(ob_cur_block, on_false);
         if (((opt_blocks + ob_cur_block)->flags & BF_LIVE) != 0) {
             (opt_blocks + on_false)->flags = (opt_blocks + on_false)->flags | BF_LIVE;
         }
         ob_cur_block = -1;
         if (back) {
             ob_cur_block = taken;
-            b_3 = opt_block_at(t_2, a);
+            b_3 = block_at(t_2, a);
             if (t_2 <= pc) {
                 m_21 = (opt_acts + a)->method;
                 o_27 = *(uint64_t *)(m_21 + 16 + 24);
                 if (((uint8_t *)(o_27 + 16))[pc] == 0x90) {
                     d_7 = (int32_t)ob_ana_depth[(opt_acts + a)->ana + pc];
                     n_88 = ({
-    n_89 = opt_new_node(O_CHECKINT, R_NONE);
-    opt_append(n_89, ob_cur_block);
+    n_89 = new_node(O_CHECKINT, R_NONE);
+    append(n_89, ob_cur_block);
     r_add_34 = n_89;
     r_add_34; });
                     ob_safe_epoch = ob_safe_epoch + 1;
-                    (opt_nodes + n_88)->state = opt_make_state(a, pc, d_7);
+                    (opt_nodes + n_88)->state = state_act(a, pc, d_7);
                     (opt_nodes + n_88)->aux = SP_LOOP;
                 } else {
                     d_8 = (int32_t)ob_ana_depth[(opt_acts + a)->ana + t_2];
                     n_90 = ({
-    n_91 = opt_new_node(O_CHECKINT, R_NONE);
-    opt_append(n_91, ob_cur_block);
+    n_91 = new_node(O_CHECKINT, R_NONE);
+    append(n_91, ob_cur_block);
     r_add_35 = n_91;
     r_add_35; });
                     ob_safe_epoch = ob_safe_epoch + 1;
-                    (opt_nodes + n_90)->state = opt_make_state(a, t_2, d_8);
+                    (opt_nodes + n_90)->state = state_act(a, t_2, d_8);
                     (opt_nodes + n_90)->aux = SP_LOOP;
                 }
             }
-            opt_goto(b_3);
+            goto_(b_3);
             if ((t_2 <= pc) && (ob_ana_back[(opt_acts + a)->ana + t_2] == pc)) {
-                opt_seal(b_3);
+                seal(b_3);
             }
         }
     exit_conditional_jump:;
@@ -2646,12 +2646,12 @@ exit_length_of:;
     p_3 = (uint8_t *)(o_28 + 16);
     r_int16_at_3 = (int32_t)(int16_t)(p_3[pc_13] | (((int64_t)p_3[pc_13 + 1]) << 8));
     r_int16_at_3; });
-        v_26 = opt_constant((uint64_t)((((int64_t)v_25) << 1) | 1));
+        v_26 = constant((uint64_t)((((int64_t)v_25) << 1) | 1));
         var_31 = (opt_acts + a)->var_base + d;
         if ((var_31 < OPT_MAX_VARS) && (ob_arg_flags[var_31] == 2)) {
             n_92 = ({
-    n_93 = opt_new_node(O_STORESLOT, R_NONE);
-    opt_append(n_93, ob_cur_block);
+    n_93 = new_node(O_STORESLOT, R_NONE);
+    append(n_93, ob_cur_block);
     r_add_36 = n_93;
     r_add_36; });
             (opt_nodes + n_92)->a = v_26;
@@ -2659,7 +2659,7 @@ exit_length_of:;
             (opt_nodes + n_92)->aux = (opt_nodes + n_94)->aux;
             goto exit_write_21;
         }
-        opt_write(var_31, v_26, ob_cur_block);
+        opt_builder_write(var_31, v_26, ob_cur_block);
     exit_write_21:;
         return next;
     }
@@ -2718,15 +2718,15 @@ exit_length_of:;
 exit_is_value_selector:;
     r_is_value_selector; }) && ({
     var_32 = (opt_acts + a)->var_base + r_3;
-    v_27 = opt_read(var_32, ob_cur_block);
+    v_27 = opt_builder_read(var_32, ob_cur_block);
     ({
-    n_96 = opt_resolve(v_27);
+    n_96 = opt_ir_resolve(v_27);
     nd = opt_nodes + n_96;
     r_is_closure = ((int32_t)nd->op == O_CLOSURE) && ((nd->aux2 & 255) == argc);
     r_is_closure; }); }))) {
             var_33 = (opt_acts + a)->var_base + r_3;
             var_34 = (opt_acts + a)->var_base + r_3;
-            opt_inline_block(opt_resolve(opt_read(var_33, ob_cur_block)), opt_resolve(opt_read(var_34, ob_cur_block)), pc, a, r_3, argc);
+            inline_block(opt_ir_resolve(opt_builder_read(var_33, ob_cur_block)), opt_ir_resolve(opt_builder_read(var_34, ob_cur_block)), pc, a, r_3, argc);
             goto exit_send_selector;
         }
         if (((jit_flags & JIT_FLAG_BLOCKS) != 0) && ({
@@ -2758,12 +2758,12 @@ exit_is_value_selector:;
 exit_is_value_selector_2:;
     r_is_value_selector_2; }) && ({
     var_35 = (opt_acts + a)->var_base + r_3;
-    (d_9 = opt_frame_closure_of(opt_read(var_35, ob_cur_block), argc, pc, a)) >= 0; })) {
+    (d_9 = frame_closure_of(opt_builder_read(var_35, ob_cur_block), argc, pc, a)) >= 0; })) {
             var_36 = (opt_acts + a)->var_base + r_3;
-            opt_inline_frame_closure(opt_read(var_36, ob_cur_block), d_9, pc, a, r_3, argc);
+            inline_frame_closure(opt_builder_read(var_36, ob_cur_block), d_9, pc, a, r_3, argc);
             goto exit_send_selector;
         }
-        if (((jit_flags & JIT_FLAG_INLINE) != 0) && opt_inline_send(sel, argc, kind, 0, pc, a, r_3)) {
+        if (((jit_flags & JIT_FLAG_INLINE) != 0) && inline_send(sel, argc, kind, 0, pc, a, r_3)) {
             goto exit_send_selector;
         }
         if (getenv("SAMALTAK_OPT_TRACE") != NULL) {
@@ -2772,17 +2772,17 @@ exit_is_value_selector_2:;
             fputc(10, stderr);
         }
         n_98 = ({
-    n_99 = opt_new_node(O_SEND, R_OOP);
-    opt_append(n_99, ob_cur_block);
+    n_99 = new_node(O_SEND, R_OOP);
+    append(n_99, ob_cur_block);
     r_add_37 = n_99;
     r_add_37; });
         ob_safe_epoch = ob_safe_epoch + 1;
-        args = opt_alloc_operands(argc + 1);
+        args = alloc_operands(argc + 1);
         for (i_25 = 0; i_25 <= argc; i_25++) {
             i_26 = args + i_25;
             i_27 = r_3 + i_25;
             var_37 = (opt_acts + a)->var_base + i_27;
-            v_28 = opt_read(var_37, ob_cur_block);
+            v_28 = opt_builder_read(var_37, ob_cur_block);
             opt_operands[i_26] = v_28;
         }
         (opt_nodes + n_98)->args = args;
@@ -2795,7 +2795,7 @@ exit_is_value_selector_2:;
         m_28 = (opt_acts + a)->method;
         o_34 = *(uint64_t *)(m_28 + 16 + 24);
         op_4 = ((uint8_t *)(o_34 + 16))[pc];
-        (opt_nodes + n_98)->state = opt_make_state(a, (int32_t)(pc + ({
+        (opt_nodes + n_98)->state = state_act(a, (int32_t)(pc + ({
     if (op_4 < 0x68) {
         r_length_of_2 = 1;
         goto exit_length_of_2;
@@ -2858,8 +2858,8 @@ exit_length_of_2:;
         var_38 = (opt_acts + a)->var_base + r_3;
         if ((var_38 < OPT_MAX_VARS) && (ob_arg_flags[var_38] == 2)) {
             n_100 = ({
-    n_101 = opt_new_node(O_STORESLOT, R_NONE);
-    opt_append(n_101, ob_cur_block);
+    n_101 = new_node(O_STORESLOT, R_NONE);
+    append(n_101, ob_cur_block);
     r_add_38 = n_101;
     r_add_38; });
             (opt_nodes + n_100)->a = n_98;
@@ -2867,7 +2867,7 @@ exit_length_of_2:;
             (opt_nodes + n_100)->aux = (opt_nodes + n_102)->aux;
             goto exit_write_22;
         }
-        opt_write(var_38, n_98, ob_cur_block);
+        opt_builder_write(var_38, n_98, ob_cur_block);
     exit_write_22:;
     exit_send_selector:;
         return next;
@@ -2882,14 +2882,14 @@ exit_length_of_2:;
         o_36 = *(uint64_t *)(m_30 + 16 + 24);
         i_28 = ((uint8_t *)(o_36 + 16))[pc_16];
         var_39 = (opt_acts + a)->var_base + i_28;
-        x = opt_read(var_39, ob_cur_block);
+        x = opt_builder_read(var_39, ob_cur_block);
         if ((op_5 == 0x97) || ((op_5 >= 0x9A) && (op_5 < 0xA0))) {
             pc_17 = pc + 2;
             m_31 = (opt_acts + a)->method;
             o_37 = *(uint64_t *)(m_31 + 16 + 24);
             i_29 = ((uint8_t *)(o_37 + 16))[pc_17];
             var_40 = (opt_acts + a)->var_base + i_29;
-            y = opt_read(var_40, ob_cur_block);
+            y = opt_builder_read(var_40, ob_cur_block);
         } else if ((op_5 == 0x98) || ((op_5 >= 0xF0) && (op_5 < 0xF6))) {
             pc_18 = pc + 2;
             m_32 = (opt_acts + a)->method;
@@ -2897,19 +2897,19 @@ exit_length_of_2:;
             i_30 = ((uint8_t *)(o_38 + 16))[pc_18];
             m_33 = (opt_acts + a)->method;
             o_39 = *(uint64_t *)(m_33 + 16 + 16);
-            y = opt_constant(*(uint64_t *)(o_39 + 16 + 8 * i_30));
+            y = constant(*(uint64_t *)(o_39 + 16 + 8 * i_30));
         } else {
             pc_19 = pc + 2;
             m_34 = (opt_acts + a)->method;
             o_40 = *(uint64_t *)(m_34 + 16 + 24);
             v_29 = (int8_t)((uint8_t *)(o_40 + 16))[pc_19];
-            y = opt_constant((uint64_t)((((int64_t)v_29) << 1) | 1));
+            y = constant((uint64_t)((((int64_t)v_29) << 1) | 1));
         }
         var_41 = (opt_acts + a)->var_base + d_10;
         if ((var_41 < OPT_MAX_VARS) && (ob_arg_flags[var_41] == 2)) {
             n_103 = ({
-    n_104 = opt_new_node(O_STORESLOT, R_NONE);
-    opt_append(n_104, ob_cur_block);
+    n_104 = new_node(O_STORESLOT, R_NONE);
+    append(n_104, ob_cur_block);
     r_add_39 = n_104;
     r_add_39; });
             (opt_nodes + n_103)->a = x;
@@ -2917,14 +2917,14 @@ exit_length_of_2:;
             (opt_nodes + n_103)->aux = (opt_nodes + n_105)->aux;
             goto exit_write_23;
         }
-        opt_write(var_41, x, ob_cur_block);
+        opt_builder_write(var_41, x, ob_cur_block);
     exit_write_23:;
         d_11 = d_10 + 1;
         var_42 = (opt_acts + a)->var_base + d_11;
         if ((var_42 < OPT_MAX_VARS) && (ob_arg_flags[var_42] == 2)) {
             n_106 = ({
-    n_107 = opt_new_node(O_STORESLOT, R_NONE);
-    opt_append(n_107, ob_cur_block);
+    n_107 = new_node(O_STORESLOT, R_NONE);
+    append(n_107, ob_cur_block);
     r_add_40 = n_107;
     r_add_40; });
             (opt_nodes + n_106)->a = y;
@@ -2932,7 +2932,7 @@ exit_length_of_2:;
             (opt_nodes + n_106)->aux = (opt_nodes + n_108)->aux;
             goto exit_write_24;
         }
-        opt_write(var_42, y, ob_cur_block);
+        opt_builder_write(var_42, y, ob_cur_block);
     exit_write_24:;
         m_35 = (opt_acts + a)->method;
         o_41 = *(uint64_t *)(m_35 + 16 + 24);
@@ -2960,18 +2960,18 @@ exit_special_index_of:;
     r_special_index_of; });
         argc_2 = (k_4 == 19) || (k_4 == 20) ? 1 : special_argc[k_4];
         var_43 = (opt_acts + a)->var_base + d_10;
-        x_2 = opt_read(var_43, ob_cur_block);
+        x_2 = opt_builder_read(var_43, ob_cur_block);
         if (argc_2 > 0) {
             i_31 = d_10 + 1;
             var_44 = (opt_acts + a)->var_base + i_31;
-            y_2 = opt_read(var_44, ob_cur_block);
+            y_2 = opt_builder_read(var_44, ob_cur_block);
         }
         if ((k_4 == 19) || (k_4 == 20)) {
             op_7 = k_4 == 19 ? O_EQ : O_NE;
             v_30 = ({
     n_110 = ({
-    n_111 = opt_new_node(op_7, R_OOP);
-    opt_append(n_111, ob_cur_block);
+    n_111 = new_node(op_7, R_OOP);
+    append(n_111, ob_cur_block);
     r_add_41 = n_111;
     r_add_41; });
     (opt_nodes + n_110)->a = x_2;
@@ -2981,8 +2981,8 @@ exit_special_index_of:;
             var_45 = (opt_acts + a)->var_base + d_10;
             if ((var_45 < OPT_MAX_VARS) && (ob_arg_flags[var_45] == 2)) {
                 n_112 = ({
-    n_113 = opt_new_node(O_STORESLOT, R_NONE);
-    opt_append(n_113, ob_cur_block);
+    n_113 = new_node(O_STORESLOT, R_NONE);
+    append(n_113, ob_cur_block);
     r_add_42 = n_113;
     r_add_42; });
                 (opt_nodes + n_112)->a = v_30;
@@ -2990,34 +2990,34 @@ exit_special_index_of:;
                 (opt_nodes + n_112)->aux = (opt_nodes + n_114)->aux;
                 goto exit_write_25;
             }
-            opt_write(var_45, v_30, ob_cur_block);
+            opt_builder_write(var_45, v_30, ob_cur_block);
         exit_write_25:;
             goto exit_special;
         }
         if (((k_4 == 21) || ((k_4 == 22) || (k_4 == 30))) && (((jit_flags & JIT_FLAG_BLOCKS) != 0) && ({
-    n_115 = opt_resolve(x_2);
+    n_115 = opt_ir_resolve(x_2);
     nd_2 = opt_nodes + n_115;
     r_is_closure_2 = ((int32_t)nd_2->op == O_CLOSURE) && ((nd_2->aux2 & 255) == argc_2);
     r_is_closure_2; }))) {
-            opt_inline_block(opt_resolve(x_2), opt_resolve(x_2), pc, a, d_10, argc_2);
+            inline_block(opt_ir_resolve(x_2), opt_ir_resolve(x_2), pc, a, d_10, argc_2);
             goto exit_special;
         }
-        if (((k_4 == 21) || ((k_4 == 22) || (k_4 == 30))) && ((n_109 = opt_frame_closure_of(x_2, argc_2, pc, a)) >= 0)) {
-            opt_inline_frame_closure(x_2, n_109, pc, a, d_10, argc_2);
+        if (((k_4 == 21) || ((k_4 == 22) || (k_4 == 30))) && ((n_109 = frame_closure_of(x_2, argc_2, pc, a)) >= 0)) {
+            inline_frame_closure(x_2, n_109, pc, a, d_10, argc_2);
             goto exit_special;
         }
         if (k_4 == 29) {
             n_109 = ({
-    n_116 = opt_new_node(O_CLASSOF, R_OOP);
-    opt_append(n_116, ob_cur_block);
+    n_116 = new_node(O_CLASSOF, R_OOP);
+    append(n_116, ob_cur_block);
     r_add_43 = n_116;
     r_add_43; });
             (opt_nodes + n_109)->a = x_2;
             var_46 = (opt_acts + a)->var_base + d_10;
             if ((var_46 < OPT_MAX_VARS) && (ob_arg_flags[var_46] == 2)) {
                 n_117 = ({
-    n_118 = opt_new_node(O_STORESLOT, R_NONE);
-    opt_append(n_118, ob_cur_block);
+    n_118 = new_node(O_STORESLOT, R_NONE);
+    append(n_118, ob_cur_block);
     r_add_44 = n_118;
     r_add_44; });
                 (opt_nodes + n_117)->a = n_109;
@@ -3025,7 +3025,7 @@ exit_special_index_of:;
                 (opt_nodes + n_117)->aux = (opt_nodes + n_119)->aux;
                 goto exit_write_26;
             }
-            opt_write(var_46, n_109, ob_cur_block);
+            opt_builder_write(var_46, n_109, ob_cur_block);
         exit_write_26:;
             goto exit_special;
         }
@@ -3092,9 +3092,9 @@ exit_class_of_2:;
     }
     r_known_class_of = 0;
 exit_known_class_of:;
-    r_known_class_of; }) == 0) && (((jit_flags & JIT_FLAG_PRIMS) != 0) && (fb_site_at((opt_acts + a)->method, pc) == NULL))))) {
+    r_known_class_of; }) == 0) && (((jit_flags & JIT_FLAG_PRIMS) != 0) && (site_at((opt_acts + a)->method, pc) == NULL))))) {
             var_47 = (opt_acts + a)->var_base + d_10;
-            s_2 = opt_make_state(a, pc, (int32_t)ob_ana_depth[(opt_acts + a)->ana + pc]);
+            s_2 = state_act(a, pc, (int32_t)ob_ana_depth[(opt_acts + a)->ana + pc]);
             v_31 = ({
     if (cls_array == cls_smallint) {
         r_guard = ({
@@ -3103,8 +3103,8 @@ exit_known_class_of:;
         goto exit_guard_int;
     }
     n_121 = ({
-    n_122 = opt_new_node(O_GUARDINT, R_OOP);
-    opt_append(n_122, ob_cur_block);
+    n_122 = new_node(O_GUARDINT, R_OOP);
+    append(n_122, ob_cur_block);
     r_add_45 = n_122;
     r_add_45; });
     (opt_nodes + n_121)->a = x_2;
@@ -3117,8 +3117,8 @@ exit_guard_int:;
         goto exit_guard;
     }
     n_120 = ({
-    n_123 = opt_new_node(O_GUARDCLASS, R_OOP);
-    opt_append(n_123, ob_cur_block);
+    n_123 = new_node(O_GUARDCLASS, R_OOP);
+    append(n_123, ob_cur_block);
     r_add_46 = n_123;
     r_add_46; });
     (opt_nodes + n_120)->a = x_2;
@@ -3141,8 +3141,8 @@ exit_guard:;
     r_guard; });
             if ((var_47 < OPT_MAX_VARS) && (ob_arg_flags[var_47] == 2)) {
                 n_124 = ({
-    n_125 = opt_new_node(O_STORESLOT, R_NONE);
-    opt_append(n_125, ob_cur_block);
+    n_125 = new_node(O_STORESLOT, R_NONE);
+    append(n_125, ob_cur_block);
     r_add_47 = n_125;
     r_add_47; });
                 (opt_nodes + n_124)->a = v_31;
@@ -3150,7 +3150,7 @@ exit_guard:;
                 (opt_nodes + n_124)->aux = (opt_nodes + n_126)->aux;
                 goto exit_write_27;
             }
-            opt_write(var_47, v_31, ob_cur_block);
+            opt_builder_write(var_47, v_31, ob_cur_block);
         exit_write_27:;
         }
         if (((k_4 == 21) || ((k_4 == 22) || (k_4 == 30))) && ((({
@@ -3216,9 +3216,9 @@ exit_class_of_4:;
     }
     r_known_class_of_2 = 0;
 exit_known_class_of_2:;
-    r_known_class_of_2; }) == 0) && (((jit_flags & JIT_FLAG_CALLS) != 0) && (fb_site_at((opt_acts + a)->method, pc) == NULL)))) {
+    r_known_class_of_2; }) == 0) && (((jit_flags & JIT_FLAG_CALLS) != 0) && (site_at((opt_acts + a)->method, pc) == NULL)))) {
             var_48 = (opt_acts + a)->var_base + d_10;
-            s_3 = opt_make_state(a, pc, (int32_t)ob_ana_depth[(opt_acts + a)->ana + pc]);
+            s_3 = state_act(a, pc, (int32_t)ob_ana_depth[(opt_acts + a)->ana + pc]);
             v_32 = ({
     if (cls_block == cls_smallint) {
         r_guard_2 = ({
@@ -3227,8 +3227,8 @@ exit_known_class_of_2:;
         goto exit_guard_int_2;
     }
     n_128 = ({
-    n_129 = opt_new_node(O_GUARDINT, R_OOP);
-    opt_append(n_129, ob_cur_block);
+    n_129 = new_node(O_GUARDINT, R_OOP);
+    append(n_129, ob_cur_block);
     r_add_48 = n_129;
     r_add_48; });
     (opt_nodes + n_128)->a = x_2;
@@ -3241,8 +3241,8 @@ exit_guard_int_2:;
         goto exit_guard_2;
     }
     n_127 = ({
-    n_130 = opt_new_node(O_GUARDCLASS, R_OOP);
-    opt_append(n_130, ob_cur_block);
+    n_130 = new_node(O_GUARDCLASS, R_OOP);
+    append(n_130, ob_cur_block);
     r_add_49 = n_130;
     r_add_49; });
     (opt_nodes + n_127)->a = x_2;
@@ -3265,8 +3265,8 @@ exit_guard_2:;
     r_guard_2; });
             if ((var_48 < OPT_MAX_VARS) && (ob_arg_flags[var_48] == 2)) {
                 n_131 = ({
-    n_132 = opt_new_node(O_STORESLOT, R_NONE);
-    opt_append(n_132, ob_cur_block);
+    n_132 = new_node(O_STORESLOT, R_NONE);
+    append(n_132, ob_cur_block);
     r_add_50 = n_132;
     r_add_50; });
                 (opt_nodes + n_131)->a = v_32;
@@ -3274,16 +3274,16 @@ exit_guard_2:;
                 (opt_nodes + n_131)->aux = (opt_nodes + n_133)->aux;
                 goto exit_write_28;
             }
-            opt_write(var_48, v_32, ob_cur_block);
+            opt_builder_write(var_48, v_32, ob_cur_block);
         exit_write_28:;
         }
-        if (((k_4 == 23) || (k_4 == 24)) && (((jit_flags & JIT_FLAG_PRIMS) != 0) && bl_nil_tests_inlinable())) {
+        if (((k_4 == 23) || (k_4 == 24)) && (((jit_flags & JIT_FLAG_PRIMS) != 0) && nil_tests_inlinable())) {
             op_8 = k_4 == 23 ? O_EQ : O_NE;
-            y_3 = opt_constant(nil_oop);
+            y_3 = constant(nil_oop);
             v_33 = ({
     n_134 = ({
-    n_135 = opt_new_node(op_8, R_OOP);
-    opt_append(n_135, ob_cur_block);
+    n_135 = new_node(op_8, R_OOP);
+    append(n_135, ob_cur_block);
     r_add_51 = n_135;
     r_add_51; });
     (opt_nodes + n_134)->a = x_2;
@@ -3293,8 +3293,8 @@ exit_guard_2:;
             var_49 = (opt_acts + a)->var_base + d_10;
             if ((var_49 < OPT_MAX_VARS) && (ob_arg_flags[var_49] == 2)) {
                 n_136 = ({
-    n_137 = opt_new_node(O_STORESLOT, R_NONE);
-    opt_append(n_137, ob_cur_block);
+    n_137 = new_node(O_STORESLOT, R_NONE);
+    append(n_137, ob_cur_block);
     r_add_52 = n_137;
     r_add_52; });
                 (opt_nodes + n_136)->a = v_33;
@@ -3302,18 +3302,18 @@ exit_guard_2:;
                 (opt_nodes + n_136)->aux = (opt_nodes + n_138)->aux;
                 goto exit_write_29;
             }
-            opt_write(var_49, v_33, ob_cur_block);
+            opt_builder_write(var_49, v_33, ob_cur_block);
         exit_write_29:;
             goto exit_special;
         }
         if ((k_4 <= 10) || ((k_4 == 12) || ((k_4 == 13) || ((k_4 == 14) || (k_4 == 15))))) {
-            fl = fb_flags_at((opt_acts + a)->method, pc);
+            fl = flags_at((opt_acts + a)->method, pc);
             if ((k_4 <= 9) && (((jit_flags & JIT_FLAG_UNBOX) != 0) && (((fl & 132) == 0) && ({
-    n_139 = opt_resolve(x_2);
+    n_139 = opt_ir_resolve(x_2);
     ((int32_t)(opt_nodes + n_139)->tkind == T_FLOAT) || ({
-    n_140 = opt_resolve(y_2);
+    n_140 = opt_ir_resolve(y_2);
     ((int32_t)(opt_nodes + n_140)->tkind == T_FLOAT) || (({
-    site = fb_site_at((opt_acts + a)->method, pc);
+    site = site_at((opt_acts + a)->method, pc);
     if (site == NULL) {
         r_saw_only_numbers_at = true;
         goto exit_saw_only_numbers_at;
@@ -3339,11 +3339,11 @@ exit_saw_only_numbers_at:;
     r_saw_float_in = false;
 exit_saw_float_in:;
     r_saw_float_in; }); }))); }); })))) {
-                opt_float_arith(k_4, x_2, y_2, pc, a, d_10);
+                opt_builder_float_arith(k_4, x_2, y_2, pc, a, d_10);
                 goto exit_special;
             }
             if ((k_4 != 9) && (((fl & 46) == 0) && ({
-    site_2 = fb_site_at((opt_acts + a)->method, pc);
+    site_2 = site_at((opt_acts + a)->method, pc);
     if (site_2 == NULL) {
         r_saw_only_ints_at = true;
         goto exit_saw_only_ints_at;
@@ -3357,15 +3357,15 @@ exit_saw_float_in:;
     r_saw_only_ints_at = true;
 exit_saw_only_ints_at:;
     r_saw_only_ints_at; }))) {
-                s_4 = opt_make_state(a, pc, (int32_t)ob_ana_depth[(opt_acts + a)->ana + pc]);
+                s_4 = state_act(a, pc, (int32_t)ob_ana_depth[(opt_acts + a)->ana + pc]);
                 gx = ({
     if ((int32_t)(opt_nodes + x_2)->tkind == T_SMI) {
         r_guard_int_3 = x_2;
         goto exit_guard_int_3;
     }
     n_142 = ({
-    n_143 = opt_new_node(O_GUARDINT, R_OOP);
-    opt_append(n_143, ob_cur_block);
+    n_143 = new_node(O_GUARDINT, R_OOP);
+    append(n_143, ob_cur_block);
     r_add_53 = n_143;
     r_add_53; });
     (opt_nodes + n_142)->a = x_2;
@@ -3381,8 +3381,8 @@ exit_guard_int_3:;
         goto exit_guard_int_4;
     }
     n_144 = ({
-    n_145 = opt_new_node(O_GUARDINT, R_OOP);
-    opt_append(n_145, ob_cur_block);
+    n_145 = new_node(O_GUARDINT, R_OOP);
+    append(n_145, ob_cur_block);
     r_add_54 = n_145;
     r_add_54; });
     (opt_nodes + n_144)->a = y_2;
@@ -3395,8 +3395,8 @@ exit_guard_int_4:;
                 if ((k_4 >= 2) && (k_4 <= 7)) {
                     n_141 = ({
     n_146 = ({
-    n_147 = opt_new_node(O_ICMP, R_OOP);
-    opt_append(n_147, ob_cur_block);
+    n_147 = new_node(O_ICMP, R_OOP);
+    append(n_147, ob_cur_block);
     r_add_55 = n_147;
     r_add_55; });
     (opt_nodes + n_146)->a = gx;
@@ -3408,8 +3408,8 @@ exit_guard_int_4:;
                     var_50 = (opt_acts + a)->var_base + d_10;
                     if ((var_50 < OPT_MAX_VARS) && (ob_arg_flags[var_50] == 2)) {
                         n_148 = ({
-    n_149 = opt_new_node(O_STORESLOT, R_NONE);
-    opt_append(n_149, ob_cur_block);
+    n_149 = new_node(O_STORESLOT, R_NONE);
+    append(n_149, ob_cur_block);
     r_add_56 = n_149;
     r_add_56; });
                         (opt_nodes + n_148)->a = n_141;
@@ -3417,7 +3417,7 @@ exit_guard_int_4:;
                         (opt_nodes + n_148)->aux = (opt_nodes + n_150)->aux;
                         goto exit_write_30;
                     }
-                    opt_write(var_50, n_141, ob_cur_block);
+                    opt_builder_write(var_50, n_141, ob_cur_block);
                 exit_write_30:;
                     goto exit_int_arith;
                 }
@@ -3458,8 +3458,8 @@ exit_guard_int_4:;
                 }
                 n_141 = ({
     n_151 = ({
-    n_152 = opt_new_node(v_34, R_OOP);
-    opt_append(n_152, ob_cur_block);
+    n_152 = new_node(v_34, R_OOP);
+    append(n_152, ob_cur_block);
     r_add_57 = n_152;
     r_add_57; });
     (opt_nodes + n_151)->a = gx;
@@ -3476,8 +3476,8 @@ exit_guard_int_4:;
                 var_51 = (opt_acts + a)->var_base + d_10;
                 if ((var_51 < OPT_MAX_VARS) && (ob_arg_flags[var_51] == 2)) {
                     n_153 = ({
-    n_154 = opt_new_node(O_STORESLOT, R_NONE);
-    opt_append(n_154, ob_cur_block);
+    n_154 = new_node(O_STORESLOT, R_NONE);
+    append(n_154, ob_cur_block);
     r_add_58 = n_154;
     r_add_58; });
                     (opt_nodes + n_153)->a = n_141;
@@ -3485,13 +3485,13 @@ exit_guard_int_4:;
                     (opt_nodes + n_153)->aux = (opt_nodes + n_155)->aux;
                     goto exit_write_31;
                 }
-                opt_write(var_51, n_141, ob_cur_block);
+                opt_builder_write(var_51, n_141, ob_cur_block);
             exit_write_31:;
             exit_int_arith:;
                 goto exit_special;
             }
         }
-        o_44 = special(SO_SPECIAL_SELECTORS);
+        o_44 = object_memory_special(SO_SPECIAL_SELECTORS);
         sel_2 = *(uint64_t *)(o_44 + 16 + 8 * k_4);
         if (((jit_flags & JIT_FLAG_BLOCKS) != 0) && (({
     if (!(((sel_2 & 7) == 0) && ((int32_t)(((*(uint64_t *)sel_2) >> H_FMT_SHIFT) & H_FMT_MASK) >= F_BYTES))) {
@@ -3522,15 +3522,15 @@ exit_guard_int_4:;
 exit_is_value_selector_3:;
     r_is_value_selector_3; }) && ({
     var_52 = (opt_acts + a)->var_base + d_10;
-    v_35 = opt_read(var_52, ob_cur_block);
+    v_35 = opt_builder_read(var_52, ob_cur_block);
     ({
-    n_157 = opt_resolve(v_35);
+    n_157 = opt_ir_resolve(v_35);
     nd_5 = opt_nodes + n_157;
     r_is_closure_3 = ((int32_t)nd_5->op == O_CLOSURE) && ((nd_5->aux2 & 255) == argc_2);
     r_is_closure_3; }); }))) {
             var_53 = (opt_acts + a)->var_base + d_10;
             var_54 = (opt_acts + a)->var_base + d_10;
-            opt_inline_block(opt_resolve(opt_read(var_53, ob_cur_block)), opt_resolve(opt_read(var_54, ob_cur_block)), pc, a, d_10, argc_2);
+            inline_block(opt_ir_resolve(opt_builder_read(var_53, ob_cur_block)), opt_ir_resolve(opt_builder_read(var_54, ob_cur_block)), pc, a, d_10, argc_2);
             goto exit_send_selector_2;
         }
         if (((jit_flags & JIT_FLAG_BLOCKS) != 0) && ({
@@ -3562,12 +3562,12 @@ exit_is_value_selector_3:;
 exit_is_value_selector_4:;
     r_is_value_selector_4; }) && ({
     var_55 = (opt_acts + a)->var_base + d_10;
-    (d_12 = opt_frame_closure_of(opt_read(var_55, ob_cur_block), argc_2, pc, a)) >= 0; })) {
+    (d_12 = frame_closure_of(opt_builder_read(var_55, ob_cur_block), argc_2, pc, a)) >= 0; })) {
             var_56 = (opt_acts + a)->var_base + d_10;
-            opt_inline_frame_closure(opt_read(var_56, ob_cur_block), d_12, pc, a, d_10, argc_2);
+            inline_frame_closure(opt_builder_read(var_56, ob_cur_block), d_12, pc, a, d_10, argc_2);
             goto exit_send_selector_2;
         }
-        if (((jit_flags & JIT_FLAG_INLINE) != 0) && opt_inline_send(sel_2, argc_2, 2, k_4, pc, a, d_10)) {
+        if (((jit_flags & JIT_FLAG_INLINE) != 0) && inline_send(sel_2, argc_2, 2, k_4, pc, a, d_10)) {
             goto exit_send_selector_2;
         }
         if (getenv("SAMALTAK_OPT_TRACE") != NULL) {
@@ -3576,17 +3576,17 @@ exit_is_value_selector_4:;
             fputc(10, stderr);
         }
         n_159 = ({
-    n_160 = opt_new_node(O_SEND, R_OOP);
-    opt_append(n_160, ob_cur_block);
+    n_160 = new_node(O_SEND, R_OOP);
+    append(n_160, ob_cur_block);
     r_add_59 = n_160;
     r_add_59; });
         ob_safe_epoch = ob_safe_epoch + 1;
-        args_2 = opt_alloc_operands(argc_2 + 1);
+        args_2 = alloc_operands(argc_2 + 1);
         for (i_37 = 0; i_37 <= argc_2; i_37++) {
             i_38 = args_2 + i_37;
             i_39 = d_10 + i_37;
             var_57 = (opt_acts + a)->var_base + i_39;
-            v_36 = opt_read(var_57, ob_cur_block);
+            v_36 = opt_builder_read(var_57, ob_cur_block);
             opt_operands[i_38] = v_36;
         }
         (opt_nodes + n_159)->args = args_2;
@@ -3599,7 +3599,7 @@ exit_is_value_selector_4:;
         m_37 = (opt_acts + a)->method;
         o_45 = *(uint64_t *)(m_37 + 16 + 24);
         op_9 = ((uint8_t *)(o_45 + 16))[pc];
-        (opt_nodes + n_159)->state = opt_make_state(a, (int32_t)(pc + ({
+        (opt_nodes + n_159)->state = state_act(a, (int32_t)(pc + ({
     if (op_9 < 0x68) {
         r_length_of_3 = 1;
         goto exit_length_of_3;
@@ -3662,8 +3662,8 @@ exit_length_of_3:;
         var_58 = (opt_acts + a)->var_base + d_10;
         if ((var_58 < OPT_MAX_VARS) && (ob_arg_flags[var_58] == 2)) {
             n_161 = ({
-    n_162 = opt_new_node(O_STORESLOT, R_NONE);
-    opt_append(n_162, ob_cur_block);
+    n_162 = new_node(O_STORESLOT, R_NONE);
+    append(n_162, ob_cur_block);
     r_add_60 = n_162;
     r_add_60; });
             (opt_nodes + n_161)->a = n_159;
@@ -3671,7 +3671,7 @@ exit_length_of_3:;
             (opt_nodes + n_161)->aux = (opt_nodes + n_163)->aux;
             goto exit_write_32;
         }
-        opt_write(var_58, n_159, ob_cur_block);
+        opt_builder_write(var_58, n_159, ob_cur_block);
     exit_write_32:;
     exit_send_selector_2:;
     exit_special:;
@@ -3683,18 +3683,18 @@ exit_length_of_3:;
         r_4 = d - ((k_6 == 19) || (k_6 == 20) ? 1 : special_argc[k_6]) - 1;
         argc_3 = (k_5 == 19) || (k_5 == 20) ? 1 : special_argc[k_5];
         var_59 = (opt_acts + a)->var_base + r_4;
-        x_3 = opt_read(var_59, ob_cur_block);
+        x_3 = opt_builder_read(var_59, ob_cur_block);
         if (argc_3 > 0) {
             i_40 = r_4 + 1;
             var_60 = (opt_acts + a)->var_base + i_40;
-            y_4 = opt_read(var_60, ob_cur_block);
+            y_4 = opt_builder_read(var_60, ob_cur_block);
         }
         if ((k_5 == 19) || (k_5 == 20)) {
             op_10 = k_5 == 19 ? O_EQ : O_NE;
             v_37 = ({
     n_165 = ({
-    n_166 = opt_new_node(op_10, R_OOP);
-    opt_append(n_166, ob_cur_block);
+    n_166 = new_node(op_10, R_OOP);
+    append(n_166, ob_cur_block);
     r_add_61 = n_166;
     r_add_61; });
     (opt_nodes + n_165)->a = x_3;
@@ -3704,8 +3704,8 @@ exit_length_of_3:;
             var_61 = (opt_acts + a)->var_base + r_4;
             if ((var_61 < OPT_MAX_VARS) && (ob_arg_flags[var_61] == 2)) {
                 n_167 = ({
-    n_168 = opt_new_node(O_STORESLOT, R_NONE);
-    opt_append(n_168, ob_cur_block);
+    n_168 = new_node(O_STORESLOT, R_NONE);
+    append(n_168, ob_cur_block);
     r_add_62 = n_168;
     r_add_62; });
                 (opt_nodes + n_167)->a = v_37;
@@ -3713,34 +3713,34 @@ exit_length_of_3:;
                 (opt_nodes + n_167)->aux = (opt_nodes + n_169)->aux;
                 goto exit_write_33;
             }
-            opt_write(var_61, v_37, ob_cur_block);
+            opt_builder_write(var_61, v_37, ob_cur_block);
         exit_write_33:;
             goto exit_special_2;
         }
         if (((k_5 == 21) || ((k_5 == 22) || (k_5 == 30))) && (((jit_flags & JIT_FLAG_BLOCKS) != 0) && ({
-    n_170 = opt_resolve(x_3);
+    n_170 = opt_ir_resolve(x_3);
     nd_6 = opt_nodes + n_170;
     r_is_closure_4 = ((int32_t)nd_6->op == O_CLOSURE) && ((nd_6->aux2 & 255) == argc_3);
     r_is_closure_4; }))) {
-            opt_inline_block(opt_resolve(x_3), opt_resolve(x_3), pc, a, r_4, argc_3);
+            inline_block(opt_ir_resolve(x_3), opt_ir_resolve(x_3), pc, a, r_4, argc_3);
             goto exit_special_2;
         }
-        if (((k_5 == 21) || ((k_5 == 22) || (k_5 == 30))) && ((n_164 = opt_frame_closure_of(x_3, argc_3, pc, a)) >= 0)) {
-            opt_inline_frame_closure(x_3, n_164, pc, a, r_4, argc_3);
+        if (((k_5 == 21) || ((k_5 == 22) || (k_5 == 30))) && ((n_164 = frame_closure_of(x_3, argc_3, pc, a)) >= 0)) {
+            inline_frame_closure(x_3, n_164, pc, a, r_4, argc_3);
             goto exit_special_2;
         }
         if (k_5 == 29) {
             n_164 = ({
-    n_171 = opt_new_node(O_CLASSOF, R_OOP);
-    opt_append(n_171, ob_cur_block);
+    n_171 = new_node(O_CLASSOF, R_OOP);
+    append(n_171, ob_cur_block);
     r_add_63 = n_171;
     r_add_63; });
             (opt_nodes + n_164)->a = x_3;
             var_62 = (opt_acts + a)->var_base + r_4;
             if ((var_62 < OPT_MAX_VARS) && (ob_arg_flags[var_62] == 2)) {
                 n_172 = ({
-    n_173 = opt_new_node(O_STORESLOT, R_NONE);
-    opt_append(n_173, ob_cur_block);
+    n_173 = new_node(O_STORESLOT, R_NONE);
+    append(n_173, ob_cur_block);
     r_add_64 = n_173;
     r_add_64; });
                 (opt_nodes + n_172)->a = n_164;
@@ -3748,7 +3748,7 @@ exit_length_of_3:;
                 (opt_nodes + n_172)->aux = (opt_nodes + n_174)->aux;
                 goto exit_write_34;
             }
-            opt_write(var_62, n_164, ob_cur_block);
+            opt_builder_write(var_62, n_164, ob_cur_block);
         exit_write_34:;
             goto exit_special_2;
         }
@@ -3815,9 +3815,9 @@ exit_class_of_6:;
     }
     r_known_class_of_3 = 0;
 exit_known_class_of_3:;
-    r_known_class_of_3; }) == 0) && (((jit_flags & JIT_FLAG_PRIMS) != 0) && (fb_site_at((opt_acts + a)->method, pc) == NULL))))) {
+    r_known_class_of_3; }) == 0) && (((jit_flags & JIT_FLAG_PRIMS) != 0) && (site_at((opt_acts + a)->method, pc) == NULL))))) {
             var_63 = (opt_acts + a)->var_base + r_4;
-            s_5 = opt_make_state(a, pc, (int32_t)ob_ana_depth[(opt_acts + a)->ana + pc]);
+            s_5 = state_act(a, pc, (int32_t)ob_ana_depth[(opt_acts + a)->ana + pc]);
             v_38 = ({
     if (cls_array == cls_smallint) {
         r_guard_3 = ({
@@ -3826,8 +3826,8 @@ exit_known_class_of_3:;
         goto exit_guard_int_5;
     }
     n_176 = ({
-    n_177 = opt_new_node(O_GUARDINT, R_OOP);
-    opt_append(n_177, ob_cur_block);
+    n_177 = new_node(O_GUARDINT, R_OOP);
+    append(n_177, ob_cur_block);
     r_add_65 = n_177;
     r_add_65; });
     (opt_nodes + n_176)->a = x_3;
@@ -3840,8 +3840,8 @@ exit_guard_int_5:;
         goto exit_guard_3;
     }
     n_175 = ({
-    n_178 = opt_new_node(O_GUARDCLASS, R_OOP);
-    opt_append(n_178, ob_cur_block);
+    n_178 = new_node(O_GUARDCLASS, R_OOP);
+    append(n_178, ob_cur_block);
     r_add_66 = n_178;
     r_add_66; });
     (opt_nodes + n_175)->a = x_3;
@@ -3864,8 +3864,8 @@ exit_guard_3:;
     r_guard_3; });
             if ((var_63 < OPT_MAX_VARS) && (ob_arg_flags[var_63] == 2)) {
                 n_179 = ({
-    n_180 = opt_new_node(O_STORESLOT, R_NONE);
-    opt_append(n_180, ob_cur_block);
+    n_180 = new_node(O_STORESLOT, R_NONE);
+    append(n_180, ob_cur_block);
     r_add_67 = n_180;
     r_add_67; });
                 (opt_nodes + n_179)->a = v_38;
@@ -3873,7 +3873,7 @@ exit_guard_3:;
                 (opt_nodes + n_179)->aux = (opt_nodes + n_181)->aux;
                 goto exit_write_35;
             }
-            opt_write(var_63, v_38, ob_cur_block);
+            opt_builder_write(var_63, v_38, ob_cur_block);
         exit_write_35:;
         }
         if (((k_5 == 21) || ((k_5 == 22) || (k_5 == 30))) && ((({
@@ -3939,9 +3939,9 @@ exit_class_of_8:;
     }
     r_known_class_of_4 = 0;
 exit_known_class_of_4:;
-    r_known_class_of_4; }) == 0) && (((jit_flags & JIT_FLAG_CALLS) != 0) && (fb_site_at((opt_acts + a)->method, pc) == NULL)))) {
+    r_known_class_of_4; }) == 0) && (((jit_flags & JIT_FLAG_CALLS) != 0) && (site_at((opt_acts + a)->method, pc) == NULL)))) {
             var_64 = (opt_acts + a)->var_base + r_4;
-            s_6 = opt_make_state(a, pc, (int32_t)ob_ana_depth[(opt_acts + a)->ana + pc]);
+            s_6 = state_act(a, pc, (int32_t)ob_ana_depth[(opt_acts + a)->ana + pc]);
             v_39 = ({
     if (cls_block == cls_smallint) {
         r_guard_4 = ({
@@ -3950,8 +3950,8 @@ exit_known_class_of_4:;
         goto exit_guard_int_6;
     }
     n_183 = ({
-    n_184 = opt_new_node(O_GUARDINT, R_OOP);
-    opt_append(n_184, ob_cur_block);
+    n_184 = new_node(O_GUARDINT, R_OOP);
+    append(n_184, ob_cur_block);
     r_add_68 = n_184;
     r_add_68; });
     (opt_nodes + n_183)->a = x_3;
@@ -3964,8 +3964,8 @@ exit_guard_int_6:;
         goto exit_guard_4;
     }
     n_182 = ({
-    n_185 = opt_new_node(O_GUARDCLASS, R_OOP);
-    opt_append(n_185, ob_cur_block);
+    n_185 = new_node(O_GUARDCLASS, R_OOP);
+    append(n_185, ob_cur_block);
     r_add_69 = n_185;
     r_add_69; });
     (opt_nodes + n_182)->a = x_3;
@@ -3988,8 +3988,8 @@ exit_guard_4:;
     r_guard_4; });
             if ((var_64 < OPT_MAX_VARS) && (ob_arg_flags[var_64] == 2)) {
                 n_186 = ({
-    n_187 = opt_new_node(O_STORESLOT, R_NONE);
-    opt_append(n_187, ob_cur_block);
+    n_187 = new_node(O_STORESLOT, R_NONE);
+    append(n_187, ob_cur_block);
     r_add_70 = n_187;
     r_add_70; });
                 (opt_nodes + n_186)->a = v_39;
@@ -3997,16 +3997,16 @@ exit_guard_4:;
                 (opt_nodes + n_186)->aux = (opt_nodes + n_188)->aux;
                 goto exit_write_36;
             }
-            opt_write(var_64, v_39, ob_cur_block);
+            opt_builder_write(var_64, v_39, ob_cur_block);
         exit_write_36:;
         }
-        if (((k_5 == 23) || (k_5 == 24)) && (((jit_flags & JIT_FLAG_PRIMS) != 0) && bl_nil_tests_inlinable())) {
+        if (((k_5 == 23) || (k_5 == 24)) && (((jit_flags & JIT_FLAG_PRIMS) != 0) && nil_tests_inlinable())) {
             op_11 = k_5 == 23 ? O_EQ : O_NE;
-            y_5 = opt_constant(nil_oop);
+            y_5 = constant(nil_oop);
             v_40 = ({
     n_189 = ({
-    n_190 = opt_new_node(op_11, R_OOP);
-    opt_append(n_190, ob_cur_block);
+    n_190 = new_node(op_11, R_OOP);
+    append(n_190, ob_cur_block);
     r_add_71 = n_190;
     r_add_71; });
     (opt_nodes + n_189)->a = x_3;
@@ -4016,8 +4016,8 @@ exit_guard_4:;
             var_65 = (opt_acts + a)->var_base + r_4;
             if ((var_65 < OPT_MAX_VARS) && (ob_arg_flags[var_65] == 2)) {
                 n_191 = ({
-    n_192 = opt_new_node(O_STORESLOT, R_NONE);
-    opt_append(n_192, ob_cur_block);
+    n_192 = new_node(O_STORESLOT, R_NONE);
+    append(n_192, ob_cur_block);
     r_add_72 = n_192;
     r_add_72; });
                 (opt_nodes + n_191)->a = v_40;
@@ -4025,18 +4025,18 @@ exit_guard_4:;
                 (opt_nodes + n_191)->aux = (opt_nodes + n_193)->aux;
                 goto exit_write_37;
             }
-            opt_write(var_65, v_40, ob_cur_block);
+            opt_builder_write(var_65, v_40, ob_cur_block);
         exit_write_37:;
             goto exit_special_2;
         }
         if ((k_5 <= 10) || ((k_5 == 12) || ((k_5 == 13) || ((k_5 == 14) || (k_5 == 15))))) {
-            fl_2 = fb_flags_at((opt_acts + a)->method, pc);
+            fl_2 = flags_at((opt_acts + a)->method, pc);
             if ((k_5 <= 9) && (((jit_flags & JIT_FLAG_UNBOX) != 0) && (((fl_2 & 132) == 0) && ({
-    n_194 = opt_resolve(x_3);
+    n_194 = opt_ir_resolve(x_3);
     ((int32_t)(opt_nodes + n_194)->tkind == T_FLOAT) || ({
-    n_195 = opt_resolve(y_4);
+    n_195 = opt_ir_resolve(y_4);
     ((int32_t)(opt_nodes + n_195)->tkind == T_FLOAT) || (({
-    site_3 = fb_site_at((opt_acts + a)->method, pc);
+    site_3 = site_at((opt_acts + a)->method, pc);
     if (site_3 == NULL) {
         r_saw_only_numbers_at_2 = true;
         goto exit_saw_only_numbers_at_2;
@@ -4062,11 +4062,11 @@ exit_saw_only_numbers_at_2:;
     r_saw_float_in_2 = false;
 exit_saw_float_in_2:;
     r_saw_float_in_2; }); }))); }); })))) {
-                opt_float_arith(k_5, x_3, y_4, pc, a, r_4);
+                opt_builder_float_arith(k_5, x_3, y_4, pc, a, r_4);
                 goto exit_special_2;
             }
             if ((k_5 != 9) && (((fl_2 & 46) == 0) && ({
-    site_4 = fb_site_at((opt_acts + a)->method, pc);
+    site_4 = site_at((opt_acts + a)->method, pc);
     if (site_4 == NULL) {
         r_saw_only_ints_at_2 = true;
         goto exit_saw_only_ints_at_2;
@@ -4080,15 +4080,15 @@ exit_saw_float_in_2:;
     r_saw_only_ints_at_2 = true;
 exit_saw_only_ints_at_2:;
     r_saw_only_ints_at_2; }))) {
-                s_7 = opt_make_state(a, pc, (int32_t)ob_ana_depth[(opt_acts + a)->ana + pc]);
+                s_7 = state_act(a, pc, (int32_t)ob_ana_depth[(opt_acts + a)->ana + pc]);
                 gx_2 = ({
     if ((int32_t)(opt_nodes + x_3)->tkind == T_SMI) {
         r_guard_int_7 = x_3;
         goto exit_guard_int_7;
     }
     n_197 = ({
-    n_198 = opt_new_node(O_GUARDINT, R_OOP);
-    opt_append(n_198, ob_cur_block);
+    n_198 = new_node(O_GUARDINT, R_OOP);
+    append(n_198, ob_cur_block);
     r_add_73 = n_198;
     r_add_73; });
     (opt_nodes + n_197)->a = x_3;
@@ -4104,8 +4104,8 @@ exit_guard_int_7:;
         goto exit_guard_int_8;
     }
     n_199 = ({
-    n_200 = opt_new_node(O_GUARDINT, R_OOP);
-    opt_append(n_200, ob_cur_block);
+    n_200 = new_node(O_GUARDINT, R_OOP);
+    append(n_200, ob_cur_block);
     r_add_74 = n_200;
     r_add_74; });
     (opt_nodes + n_199)->a = y_4;
@@ -4118,8 +4118,8 @@ exit_guard_int_8:;
                 if ((k_5 >= 2) && (k_5 <= 7)) {
                     n_196 = ({
     n_201 = ({
-    n_202 = opt_new_node(O_ICMP, R_OOP);
-    opt_append(n_202, ob_cur_block);
+    n_202 = new_node(O_ICMP, R_OOP);
+    append(n_202, ob_cur_block);
     r_add_75 = n_202;
     r_add_75; });
     (opt_nodes + n_201)->a = gx_2;
@@ -4131,8 +4131,8 @@ exit_guard_int_8:;
                     var_66 = (opt_acts + a)->var_base + r_4;
                     if ((var_66 < OPT_MAX_VARS) && (ob_arg_flags[var_66] == 2)) {
                         n_203 = ({
-    n_204 = opt_new_node(O_STORESLOT, R_NONE);
-    opt_append(n_204, ob_cur_block);
+    n_204 = new_node(O_STORESLOT, R_NONE);
+    append(n_204, ob_cur_block);
     r_add_76 = n_204;
     r_add_76; });
                         (opt_nodes + n_203)->a = n_196;
@@ -4140,7 +4140,7 @@ exit_guard_int_8:;
                         (opt_nodes + n_203)->aux = (opt_nodes + n_205)->aux;
                         goto exit_write_38;
                     }
-                    opt_write(var_66, n_196, ob_cur_block);
+                    opt_builder_write(var_66, n_196, ob_cur_block);
                 exit_write_38:;
                     goto exit_int_arith_2;
                 }
@@ -4181,8 +4181,8 @@ exit_guard_int_8:;
                 }
                 n_196 = ({
     n_206 = ({
-    n_207 = opt_new_node(v_41, R_OOP);
-    opt_append(n_207, ob_cur_block);
+    n_207 = new_node(v_41, R_OOP);
+    append(n_207, ob_cur_block);
     r_add_77 = n_207;
     r_add_77; });
     (opt_nodes + n_206)->a = gx_2;
@@ -4199,8 +4199,8 @@ exit_guard_int_8:;
                 var_67 = (opt_acts + a)->var_base + r_4;
                 if ((var_67 < OPT_MAX_VARS) && (ob_arg_flags[var_67] == 2)) {
                     n_208 = ({
-    n_209 = opt_new_node(O_STORESLOT, R_NONE);
-    opt_append(n_209, ob_cur_block);
+    n_209 = new_node(O_STORESLOT, R_NONE);
+    append(n_209, ob_cur_block);
     r_add_78 = n_209;
     r_add_78; });
                     (opt_nodes + n_208)->a = n_196;
@@ -4208,13 +4208,13 @@ exit_guard_int_8:;
                     (opt_nodes + n_208)->aux = (opt_nodes + n_210)->aux;
                     goto exit_write_39;
                 }
-                opt_write(var_67, n_196, ob_cur_block);
+                opt_builder_write(var_67, n_196, ob_cur_block);
             exit_write_39:;
             exit_int_arith_2:;
                 goto exit_special_2;
             }
         }
-        o_48 = special(SO_SPECIAL_SELECTORS);
+        o_48 = object_memory_special(SO_SPECIAL_SELECTORS);
         sel_3 = *(uint64_t *)(o_48 + 16 + 8 * k_5);
         if (((jit_flags & JIT_FLAG_BLOCKS) != 0) && (({
     if (!(((sel_3 & 7) == 0) && ((int32_t)(((*(uint64_t *)sel_3) >> H_FMT_SHIFT) & H_FMT_MASK) >= F_BYTES))) {
@@ -4245,15 +4245,15 @@ exit_guard_int_8:;
 exit_is_value_selector_5:;
     r_is_value_selector_5; }) && ({
     var_68 = (opt_acts + a)->var_base + r_4;
-    v_42 = opt_read(var_68, ob_cur_block);
+    v_42 = opt_builder_read(var_68, ob_cur_block);
     ({
-    n_212 = opt_resolve(v_42);
+    n_212 = opt_ir_resolve(v_42);
     nd_9 = opt_nodes + n_212;
     r_is_closure_5 = ((int32_t)nd_9->op == O_CLOSURE) && ((nd_9->aux2 & 255) == argc_3);
     r_is_closure_5; }); }))) {
             var_69 = (opt_acts + a)->var_base + r_4;
             var_70 = (opt_acts + a)->var_base + r_4;
-            opt_inline_block(opt_resolve(opt_read(var_69, ob_cur_block)), opt_resolve(opt_read(var_70, ob_cur_block)), pc, a, r_4, argc_3);
+            inline_block(opt_ir_resolve(opt_builder_read(var_69, ob_cur_block)), opt_ir_resolve(opt_builder_read(var_70, ob_cur_block)), pc, a, r_4, argc_3);
             goto exit_send_selector_3;
         }
         if (((jit_flags & JIT_FLAG_BLOCKS) != 0) && ({
@@ -4285,12 +4285,12 @@ exit_is_value_selector_5:;
 exit_is_value_selector_6:;
     r_is_value_selector_6; }) && ({
     var_71 = (opt_acts + a)->var_base + r_4;
-    (d_13 = opt_frame_closure_of(opt_read(var_71, ob_cur_block), argc_3, pc, a)) >= 0; })) {
+    (d_13 = frame_closure_of(opt_builder_read(var_71, ob_cur_block), argc_3, pc, a)) >= 0; })) {
             var_72 = (opt_acts + a)->var_base + r_4;
-            opt_inline_frame_closure(opt_read(var_72, ob_cur_block), d_13, pc, a, r_4, argc_3);
+            inline_frame_closure(opt_builder_read(var_72, ob_cur_block), d_13, pc, a, r_4, argc_3);
             goto exit_send_selector_3;
         }
-        if (((jit_flags & JIT_FLAG_INLINE) != 0) && opt_inline_send(sel_3, argc_3, 2, k_5, pc, a, r_4)) {
+        if (((jit_flags & JIT_FLAG_INLINE) != 0) && inline_send(sel_3, argc_3, 2, k_5, pc, a, r_4)) {
             goto exit_send_selector_3;
         }
         if (getenv("SAMALTAK_OPT_TRACE") != NULL) {
@@ -4299,17 +4299,17 @@ exit_is_value_selector_6:;
             fputc(10, stderr);
         }
         n_214 = ({
-    n_215 = opt_new_node(O_SEND, R_OOP);
-    opt_append(n_215, ob_cur_block);
+    n_215 = new_node(O_SEND, R_OOP);
+    append(n_215, ob_cur_block);
     r_add_79 = n_215;
     r_add_79; });
         ob_safe_epoch = ob_safe_epoch + 1;
-        args_3 = opt_alloc_operands(argc_3 + 1);
+        args_3 = alloc_operands(argc_3 + 1);
         for (i_46 = 0; i_46 <= argc_3; i_46++) {
             i_47 = args_3 + i_46;
             i_48 = r_4 + i_46;
             var_73 = (opt_acts + a)->var_base + i_48;
-            v_43 = opt_read(var_73, ob_cur_block);
+            v_43 = opt_builder_read(var_73, ob_cur_block);
             opt_operands[i_47] = v_43;
         }
         (opt_nodes + n_214)->args = args_3;
@@ -4322,7 +4322,7 @@ exit_is_value_selector_6:;
         m_39 = (opt_acts + a)->method;
         o_49 = *(uint64_t *)(m_39 + 16 + 24);
         op_12 = ((uint8_t *)(o_49 + 16))[pc];
-        (opt_nodes + n_214)->state = opt_make_state(a, (int32_t)(pc + ({
+        (opt_nodes + n_214)->state = state_act(a, (int32_t)(pc + ({
     if (op_12 < 0x68) {
         r_length_of_4 = 1;
         goto exit_length_of_4;
@@ -4385,8 +4385,8 @@ exit_length_of_4:;
         var_74 = (opt_acts + a)->var_base + r_4;
         if ((var_74 < OPT_MAX_VARS) && (ob_arg_flags[var_74] == 2)) {
             n_216 = ({
-    n_217 = opt_new_node(O_STORESLOT, R_NONE);
-    opt_append(n_217, ob_cur_block);
+    n_217 = new_node(O_STORESLOT, R_NONE);
+    append(n_217, ob_cur_block);
     r_add_80 = n_217;
     r_add_80; });
             (opt_nodes + n_216)->a = n_214;
@@ -4394,7 +4394,7 @@ exit_length_of_4:;
             (opt_nodes + n_216)->aux = (opt_nodes + n_218)->aux;
             goto exit_write_40;
         }
-        opt_write(var_74, n_214, ob_cur_block);
+        opt_builder_write(var_74, n_214, ob_cur_block);
     exit_write_40:;
     exit_send_selector_3:;
     exit_special_2:;
@@ -4415,8 +4415,8 @@ exit_length_of_4:;
     o_52 = *(uint64_t *)(m_42 + 16 + 24);
     fs = ((uint8_t *)(o_52 + 16))[pc_22];
     n_219 = ({
-    n_220 = opt_new_node(O_CLOSURE, R_OOP);
-    opt_append(n_220, ob_cur_block);
+    n_220 = new_node(O_CLOSURE, R_OOP);
+    append(n_220, ob_cur_block);
     r_add_81 = n_220;
     r_add_81; });
     (opt_nodes + n_219)->aux = pc + 6;
@@ -4429,8 +4429,8 @@ exit_length_of_4:;
         var_75 = (opt_acts + a)->var_base + d;
         if ((var_75 < OPT_MAX_VARS) && (ob_arg_flags[var_75] == 2)) {
             n_221 = ({
-    n_222 = opt_new_node(O_STORESLOT, R_NONE);
-    opt_append(n_222, ob_cur_block);
+    n_222 = new_node(O_STORESLOT, R_NONE);
+    append(n_222, ob_cur_block);
     r_add_82 = n_222;
     r_add_82; });
             (opt_nodes + n_221)->a = v;
@@ -4438,7 +4438,7 @@ exit_length_of_4:;
             (opt_nodes + n_221)->aux = (opt_nodes + n_223)->aux;
             goto exit_write_41;
         }
-        opt_write(var_75, v, ob_cur_block);
+        opt_builder_write(var_75, v, ob_cur_block);
     exit_write_41:;
         pc_23 = pc + 4;
         m_43 = (opt_acts + a)->method;
@@ -4476,8 +4476,8 @@ exit_length_of_4:;
             op_14 = op_13 == 0x8A ? O_OUTERLOAD : O_OUTERSTORE;
             rep = op_13 == 0x8A ? R_OOP : R_NONE;
             n_224 = ({
-    n_225 = opt_new_node(op_14, rep);
-    opt_append(n_225, ob_cur_block);
+    n_225 = new_node(op_14, rep);
+    append(n_225, ob_cur_block);
     r_add_83 = n_225;
     r_add_83; });
             (opt_nodes + n_224)->a = (opt_acts + 0)->closure;
@@ -4487,8 +4487,8 @@ exit_length_of_4:;
                 var_76 = (opt_acts + a)->var_base + d;
                 if ((var_76 < OPT_MAX_VARS) && (ob_arg_flags[var_76] == 2)) {
                     n_226 = ({
-    n_227 = opt_new_node(O_STORESLOT, R_NONE);
-    opt_append(n_227, ob_cur_block);
+    n_227 = new_node(O_STORESLOT, R_NONE);
+    append(n_227, ob_cur_block);
     r_add_84 = n_227;
     r_add_84; });
                     (opt_nodes + n_226)->a = n_224;
@@ -4496,13 +4496,13 @@ exit_length_of_4:;
                     (opt_nodes + n_226)->aux = (opt_nodes + n_228)->aux;
                     goto exit_write_42;
                 }
-                opt_write(var_76, n_224, ob_cur_block);
+                opt_builder_write(var_76, n_224, ob_cur_block);
             exit_write_42:;
                 goto exit_outer_temp_2;
             }
             i_50 = d - 1;
             var_77 = (opt_acts + a)->var_base + i_50;
-            (opt_nodes + n_224)->b = opt_read(var_77, ob_cur_block);
+            (opt_nodes + n_224)->b = opt_builder_read(var_77, ob_cur_block);
         exit_outer_temp_2:;
             goto exit_outer_temp;
         }
@@ -4512,12 +4512,12 @@ exit_length_of_4:;
             o_58 = *(uint64_t *)(m_48 + 16 + 24);
             i_51 = ((uint8_t *)(o_58 + 16))[pc_27];
             var_78 = (opt_acts + t_3)->var_base + i_51;
-            v_45 = opt_read(var_78, ob_cur_block);
+            v_45 = opt_builder_read(var_78, ob_cur_block);
             var_79 = (opt_acts + a)->var_base + d;
             if ((var_79 < OPT_MAX_VARS) && (ob_arg_flags[var_79] == 2)) {
                 n_229 = ({
-    n_230 = opt_new_node(O_STORESLOT, R_NONE);
-    opt_append(n_230, ob_cur_block);
+    n_230 = new_node(O_STORESLOT, R_NONE);
+    append(n_230, ob_cur_block);
     r_add_85 = n_230;
     r_add_85; });
                 (opt_nodes + n_229)->a = v_45;
@@ -4525,13 +4525,13 @@ exit_length_of_4:;
                 (opt_nodes + n_229)->aux = (opt_nodes + n_231)->aux;
                 goto exit_write_43;
             }
-            opt_write(var_79, v_45, ob_cur_block);
+            opt_builder_write(var_79, v_45, ob_cur_block);
         exit_write_43:;
             goto exit_outer_temp;
         }
         i_52 = d - 1;
         var_80 = (opt_acts + a)->var_base + i_52;
-        v_44 = opt_read(var_80, ob_cur_block);
+        v_44 = opt_builder_read(var_80, ob_cur_block);
         pc_28 = pc + 2;
         m_49 = (opt_acts + a)->method;
         o_59 = *(uint64_t *)(m_49 + 16 + 24);
@@ -4539,8 +4539,8 @@ exit_length_of_4:;
         var_81 = (opt_acts + t_3)->var_base + i_53;
         if ((var_81 < OPT_MAX_VARS) && (ob_arg_flags[var_81] == 2)) {
             n_232 = ({
-    n_233 = opt_new_node(O_STORESLOT, R_NONE);
-    opt_append(n_233, ob_cur_block);
+    n_233 = new_node(O_STORESLOT, R_NONE);
+    append(n_233, ob_cur_block);
     r_add_86 = n_233;
     r_add_86; });
             (opt_nodes + n_232)->a = v_44;
@@ -4548,7 +4548,7 @@ exit_length_of_4:;
             (opt_nodes + n_232)->aux = (opt_nodes + n_234)->aux;
             goto exit_write_44;
         }
-        opt_write(var_81, v_44, ob_cur_block);
+        opt_builder_write(var_81, v_44, ob_cur_block);
     exit_write_44:;
     exit_outer_temp:;
         return next;
@@ -4556,13 +4556,13 @@ exit_length_of_4:;
     if (op == 0x7C) {
         i_54 = d - 1;
         var_82 = (opt_acts + a)->var_base + i_54;
-        v_46 = opt_read(var_82, ob_cur_block);
+        v_46 = opt_builder_read(var_82, ob_cur_block);
         h = (opt_acts + a)->home;
         if ((h < 0) && (ob_unit_start > 0)) {
-            s_8 = opt_make_state(a, pc, d);
+            s_8 = state_act(a, pc, d);
             n_236 = ({
-    n_237 = opt_new_node(O_DEOPT, R_NONE);
-    opt_append(n_237, ob_cur_block);
+    n_237 = new_node(O_DEOPT, R_NONE);
+    append(n_237, ob_cur_block);
     r_add_87 = n_237;
     r_add_87; });
             (opt_nodes + n_236)->state = s_8;
@@ -4580,8 +4580,8 @@ exit_length_of_4:;
             var_83 = (opt_acts + h)->ret_var;
             if ((var_83 < OPT_MAX_VARS) && (ob_arg_flags[var_83] == 2)) {
                 n_238 = ({
-    n_239 = opt_new_node(O_STORESLOT, R_NONE);
-    opt_append(n_239, ob_cur_block);
+    n_239 = new_node(O_STORESLOT, R_NONE);
+    append(n_239, ob_cur_block);
     r_add_88 = n_239;
     r_add_88; });
                 (opt_nodes + n_238)->a = v_46;
@@ -4589,18 +4589,18 @@ exit_length_of_4:;
                 (opt_nodes + n_238)->aux = (opt_nodes + n_240)->aux;
                 goto exit_write_45;
             }
-            opt_write(var_83, v_46, ob_cur_block);
+            opt_builder_write(var_83, v_46, ob_cur_block);
         exit_write_45:;
-            opt_goto((opt_acts + h)->ret_block);
+            goto_((opt_acts + h)->ret_block);
             goto exit_non_local_return;
         }
         n_235 = ({
-    n_241 = opt_new_node(O_RETURN, R_NONE);
-    opt_append(n_241, ob_cur_block);
+    n_241 = new_node(O_RETURN, R_NONE);
+    append(n_241, ob_cur_block);
     r_add_89 = n_241;
     r_add_89; });
         (opt_nodes + n_235)->a = v_46;
-        (opt_nodes + n_235)->state = opt_make_state(a, pc, d);
+        (opt_nodes + n_235)->state = state_act(a, pc, d);
         ob_cur_block = -1;
     exit_non_local_return:;
         return next;
@@ -4613,7 +4613,7 @@ exit_length_of_4:;
 }
 
 /* OptBuilder>>escapingClosure */
-static int32_t opt_escaping_closure(void)
+static int32_t escaping_closure(void)
 {
     int32_t n;
     opt_node *nd;
@@ -4645,11 +4645,11 @@ static int32_t opt_escaping_closure(void)
         r_uses_closure = false;
         goto exit_uses_closure;
     }
-    r_uses_closure = opt_closure_of(v, 0) >= 0;
+    r_uses_closure = closure_of(v, 0) >= 0;
 exit_uses_closure:;
     r_uses_closure; })) {
                 v_2 = nd->a;
-                n_2 = opt_closure_of(v_2, 0);
+                n_2 = closure_of(v_2, 0);
                 return (int32_t)((opt_nodes + n_2)->aux2 >> 32);
             }
             v_3 = nd->b;
@@ -4658,11 +4658,11 @@ exit_uses_closure:;
         r_uses_closure_2 = false;
         goto exit_uses_closure_2;
     }
-    r_uses_closure_2 = opt_closure_of(v_3, 0) >= 0;
+    r_uses_closure_2 = closure_of(v_3, 0) >= 0;
 exit_uses_closure_2:;
     r_uses_closure_2; })) {
                 v_4 = nd->b;
-                n_3 = opt_closure_of(v_4, 0);
+                n_3 = closure_of(v_4, 0);
                 return (int32_t)((opt_nodes + n_3)->aux2 >> 32);
             }
             if (((int32_t)nd->op != O_SEND) && ({
@@ -4672,14 +4672,14 @@ exit_uses_closure_2:;
         r_uses_closure_3 = false;
         goto exit_uses_closure_3;
     }
-    r_uses_closure_3 = opt_closure_of(v_5, 0) >= 0;
+    r_uses_closure_3 = closure_of(v_5, 0) >= 0;
 exit_uses_closure_3:;
     r_uses_closure_3; }); })) {
                 v_6 = nd->c;
-                n_4 = opt_closure_of(v_6, 0);
+                n_4 = closure_of(v_6, 0);
                 return (int32_t)((opt_nodes + n_4)->aux2 >> 32);
             }
-            if (((int32_t)nd->op != O_PHI) || (opt_closure_of(n, 0) < 0)) {
+            if (((int32_t)nd->op != O_PHI) || (closure_of(n, 0) < 0)) {
                 for (i = 0; i <= (int32_t)nd->nargs - 1; i++) {
                     i_2 = nd->args + i;
                     v_7 = opt_operands[i_2];
@@ -4688,12 +4688,12 @@ exit_uses_closure_3:;
         r_uses_closure_4 = false;
         goto exit_uses_closure_4;
     }
-    r_uses_closure_4 = opt_closure_of(v_7, 0) >= 0;
+    r_uses_closure_4 = closure_of(v_7, 0) >= 0;
 exit_uses_closure_4:;
     r_uses_closure_4; })) {
                         i_3 = nd->args + i;
                         v_8 = opt_operands[i_3];
-                        n_5 = opt_closure_of(v_8, 0);
+                        n_5 = closure_of(v_8, 0);
                         return (int32_t)((opt_nodes + n_5)->aux2 >> 32);
                     }
                 }
@@ -4704,7 +4704,7 @@ exit_uses_closure_4:;
 }
 
 /* OptBuilder>>floatArith:x:y:pc:act:rcvSlot: */
-static void opt_float_arith(int32_t k, int32_t x, int32_t y, int32_t pc, int32_t a, int32_t r)
+static void opt_builder_float_arith(int32_t k, int32_t x, int32_t y, int32_t pc, int32_t a, int32_t r)
 {
     int32_t merge;
     uint32_t fl;
@@ -4820,16 +4820,16 @@ static void opt_float_arith(int32_t k, int32_t x, int32_t y, int32_t pc, int32_t
     int32_t n_48;
     int32_t n_47;
     int32_t n_49;
-    fl = fb_flags_at((opt_acts + a)->method, pc);
-    s = opt_make_state(a, pc, (int32_t)ob_ana_depth[(opt_acts + a)->ana + pc]);
+    fl = flags_at((opt_acts + a)->method, pc);
+    s = state_act(a, pc, (int32_t)ob_ana_depth[(opt_acts + a)->ana + pc]);
     merge = -1;
-    n_2 = opt_resolve(x);
+    n_2 = opt_ir_resolve(x);
     if ((!(((int32_t)(opt_nodes + n_2)->tkind == T_FLOAT) || ({
-    n_3 = opt_resolve(y);
+    n_3 = opt_ir_resolve(y);
     (int32_t)(opt_nodes + n_3)->tkind == T_FLOAT; }))) && (((fl & FB_FLOAT) != 0) && ((fl & FB_INTS) == 0))) {
         test = ({
-    n_4 = opt_new_node(O_NOTINTS, R_NONE);
-    opt_append(n_4, ob_cur_block);
+    n_4 = new_node(O_NOTINTS, R_NONE);
+    append(n_4, ob_cur_block);
     r_add = n_4;
     r_add; });
         (opt_nodes + test)->a = x;
@@ -4837,14 +4837,14 @@ static void opt_float_arith(int32_t k, int32_t x, int32_t y, int32_t pc, int32_t
         (opt_nodes + test)->state = s;
         (opt_nodes + test)->flags = NF_GUARD;
     }
-    n_5 = opt_resolve(x);
+    n_5 = opt_ir_resolve(x);
     if (!(((int32_t)(opt_nodes + n_5)->tkind == T_FLOAT) || ({
-    n_6 = opt_resolve(y);
+    n_6 = opt_ir_resolve(y);
     ((int32_t)(opt_nodes + n_6)->tkind == T_FLOAT) || (((fl & FB_FLOAT) != 0) && ((fl & FB_INTS) == 0)); }))) {
         test = ({
     n_7 = ({
-    n_8 = opt_new_node(O_BOTHINT, R_OOP);
-    opt_append(n_8, ob_cur_block);
+    n_8 = new_node(O_BOTHINT, R_OOP);
+    append(n_8, ob_cur_block);
     r_add_2 = n_8;
     r_add_2; });
     (opt_nodes + n_7)->a = x;
@@ -4852,34 +4852,34 @@ static void opt_float_arith(int32_t k, int32_t x, int32_t y, int32_t pc, int32_t
     r_binary = n_7;
     r_binary; });
         (opt_nodes + test)->tkind = T_BOOL;
-        t = opt_new_block();
+        t = new_block();
         (opt_blocks + t)->act = a;
-        f = opt_new_block();
+        f = new_block();
         (opt_blocks + f)->act = a;
-        merge = opt_new_block();
+        merge = new_block();
         (opt_blocks + merge)->act = a;
         n_9 = ({
-    n_10 = opt_new_node(O_BRANCH, R_NONE);
-    opt_append(n_10, ob_cur_block);
+    n_10 = new_node(O_BRANCH, R_NONE);
+    append(n_10, ob_cur_block);
     r_add_3 = n_10;
     r_add_3; });
         (opt_nodes + n_9)->a = test;
         (opt_blocks + ob_cur_block)->succ0 = t;
         (opt_blocks + ob_cur_block)->succ1 = f;
-        opt_add_pred(ob_cur_block, t);
+        add_pred(ob_cur_block, t);
         if (((opt_blocks + ob_cur_block)->flags & BF_LIVE) != 0) {
             (opt_blocks + t)->flags = (opt_blocks + t)->flags | BF_LIVE;
         }
-        opt_add_pred(ob_cur_block, f);
+        add_pred(ob_cur_block, f);
         if (((opt_blocks + ob_cur_block)->flags & BF_LIVE) != 0) {
             (opt_blocks + f)->flags = (opt_blocks + f)->flags | BF_LIVE;
         }
         ob_cur_block = -1;
-        opt_seal(t);
-        opt_seal(f);
+        seal(t);
+        seal(f);
         ob_cur_block = t;
         if ((k == 9) || ((fl & 40) != 0)) {
-            o = special(SO_SPECIAL_SELECTORS);
+            o = object_memory_special(SO_SPECIAL_SELECTORS);
             sel = *(uint64_t *)(o + 16 + 8 * k);
             if (getenv("SAMALTAK_OPT_TRACE") != NULL) {
                 fprintf(stderr, "opt: call at pc %d of act %d: ", pc, a);
@@ -4887,17 +4887,17 @@ static void opt_float_arith(int32_t k, int32_t x, int32_t y, int32_t pc, int32_t
                 fputc(10, stderr);
             }
             n_11 = ({
-    n_12 = opt_new_node(O_SEND, R_OOP);
-    opt_append(n_12, ob_cur_block);
+    n_12 = new_node(O_SEND, R_OOP);
+    append(n_12, ob_cur_block);
     r_add_4 = n_12;
     r_add_4; });
             ob_safe_epoch = ob_safe_epoch + 1;
-            args = opt_alloc_operands(2);
+            args = alloc_operands(2);
             for (i = 0; i <= 1; i++) {
                 i_2 = args + i;
                 i_3 = r + i;
                 var = (opt_acts + a)->var_base + i_3;
-                v = opt_read(var, ob_cur_block);
+                v = opt_builder_read(var, ob_cur_block);
                 opt_operands[i_2] = v;
             }
             (opt_nodes + n_11)->args = args;
@@ -4910,7 +4910,7 @@ static void opt_float_arith(int32_t k, int32_t x, int32_t y, int32_t pc, int32_t
             m = (opt_acts + a)->method;
             o_2 = *(uint64_t *)(m + 16 + 24);
             op = ((uint8_t *)(o_2 + 16))[pc];
-            (opt_nodes + n_11)->state = opt_make_state(a, (int32_t)(pc + ({
+            (opt_nodes + n_11)->state = state_act(a, (int32_t)(pc + ({
     if (op < 0x68) {
         r_length_of = 1;
         goto exit_length_of;
@@ -4973,8 +4973,8 @@ exit_length_of:;
             var_2 = (opt_acts + a)->var_base + r;
             if ((var_2 < OPT_MAX_VARS) && (ob_arg_flags[var_2] == 2)) {
                 n_13 = ({
-    n_14 = opt_new_node(O_STORESLOT, R_NONE);
-    opt_append(n_14, ob_cur_block);
+    n_14 = new_node(O_STORESLOT, R_NONE);
+    append(n_14, ob_cur_block);
     r_add_5 = n_14;
     r_add_5; });
                 (opt_nodes + n_13)->a = n_11;
@@ -4982,13 +4982,13 @@ exit_length_of:;
                 (opt_nodes + n_13)->aux = (opt_nodes + n_15)->aux;
                 goto exit_write;
             }
-            opt_write(var_2, n_11, ob_cur_block);
+            opt_builder_write(var_2, n_11, ob_cur_block);
         exit_write:;
         } else {
             x_2 = ({
     n_16 = ({
-    n_17 = opt_new_node(O_CAST, R_OOP);
-    opt_append(n_17, ob_cur_block);
+    n_17 = new_node(O_CAST, R_OOP);
+    append(n_17, ob_cur_block);
     r_add_6 = n_17;
     r_add_6; });
     (opt_nodes + n_16)->a = x;
@@ -5002,8 +5002,8 @@ exit_type:;
     r_cast; });
             y_2 = ({
     n_18 = ({
-    n_19 = opt_new_node(O_CAST, R_OOP);
-    opt_append(n_19, ob_cur_block);
+    n_19 = new_node(O_CAST, R_OOP);
+    append(n_19, ob_cur_block);
     r_add_7 = n_19;
     r_add_7; });
     (opt_nodes + n_18)->a = y;
@@ -5015,15 +5015,15 @@ exit_type:;
 exit_type_2:;
     r_cast_2 = n_18;
     r_cast_2; });
-            s_2 = opt_make_state(a, pc, (int32_t)ob_ana_depth[(opt_acts + a)->ana + pc]);
+            s_2 = state_act(a, pc, (int32_t)ob_ana_depth[(opt_acts + a)->ana + pc]);
             gx = ({
     if ((int32_t)(opt_nodes + x_2)->tkind == T_SMI) {
         r_guard_int = x_2;
         goto exit_guard_int;
     }
     n_21 = ({
-    n_22 = opt_new_node(O_GUARDINT, R_OOP);
-    opt_append(n_22, ob_cur_block);
+    n_22 = new_node(O_GUARDINT, R_OOP);
+    append(n_22, ob_cur_block);
     r_add_8 = n_22;
     r_add_8; });
     (opt_nodes + n_21)->a = x_2;
@@ -5039,8 +5039,8 @@ exit_guard_int:;
         goto exit_guard_int_2;
     }
     n_23 = ({
-    n_24 = opt_new_node(O_GUARDINT, R_OOP);
-    opt_append(n_24, ob_cur_block);
+    n_24 = new_node(O_GUARDINT, R_OOP);
+    append(n_24, ob_cur_block);
     r_add_9 = n_24;
     r_add_9; });
     (opt_nodes + n_23)->a = y_2;
@@ -5053,8 +5053,8 @@ exit_guard_int_2:;
             if ((k >= 2) && (k <= 7)) {
                 n_20 = ({
     n_25 = ({
-    n_26 = opt_new_node(O_ICMP, R_OOP);
-    opt_append(n_26, ob_cur_block);
+    n_26 = new_node(O_ICMP, R_OOP);
+    append(n_26, ob_cur_block);
     r_add_10 = n_26;
     r_add_10; });
     (opt_nodes + n_25)->a = gx;
@@ -5066,8 +5066,8 @@ exit_guard_int_2:;
                 var_3 = (opt_acts + a)->var_base + r;
                 if ((var_3 < OPT_MAX_VARS) && (ob_arg_flags[var_3] == 2)) {
                     n_27 = ({
-    n_28 = opt_new_node(O_STORESLOT, R_NONE);
-    opt_append(n_28, ob_cur_block);
+    n_28 = new_node(O_STORESLOT, R_NONE);
+    append(n_28, ob_cur_block);
     r_add_11 = n_28;
     r_add_11; });
                     (opt_nodes + n_27)->a = n_20;
@@ -5075,7 +5075,7 @@ exit_guard_int_2:;
                     (opt_nodes + n_27)->aux = (opt_nodes + n_29)->aux;
                     goto exit_write_2;
                 }
-                opt_write(var_3, n_20, ob_cur_block);
+                opt_builder_write(var_3, n_20, ob_cur_block);
             exit_write_2:;
                 goto exit_int_arith;
             }
@@ -5116,8 +5116,8 @@ exit_guard_int_2:;
             }
             n_20 = ({
     n_30 = ({
-    n_31 = opt_new_node(v_2, R_OOP);
-    opt_append(n_31, ob_cur_block);
+    n_31 = new_node(v_2, R_OOP);
+    append(n_31, ob_cur_block);
     r_add_12 = n_31;
     r_add_12; });
     (opt_nodes + n_30)->a = gx;
@@ -5134,8 +5134,8 @@ exit_guard_int_2:;
             var_4 = (opt_acts + a)->var_base + r;
             if ((var_4 < OPT_MAX_VARS) && (ob_arg_flags[var_4] == 2)) {
                 n_32 = ({
-    n_33 = opt_new_node(O_STORESLOT, R_NONE);
-    opt_append(n_33, ob_cur_block);
+    n_33 = new_node(O_STORESLOT, R_NONE);
+    append(n_33, ob_cur_block);
     r_add_13 = n_33;
     r_add_13; });
                 (opt_nodes + n_32)->a = n_20;
@@ -5143,11 +5143,11 @@ exit_guard_int_2:;
                 (opt_nodes + n_32)->aux = (opt_nodes + n_34)->aux;
                 goto exit_write_3;
             }
-            opt_write(var_4, n_20, ob_cur_block);
+            opt_builder_write(var_4, n_20, ob_cur_block);
         exit_write_3:;
         exit_int_arith:;
         }
-        opt_goto(merge);
+        goto_(merge);
         ob_cur_block = f;
     }
     fx = ({
@@ -5157,8 +5157,8 @@ exit_guard_int_2:;
         goto exit_unbox_float;
     }
     n_35 = ({
-    n_36 = opt_new_node(O_UNBOXF, R_DBL);
-    opt_append(n_36, ob_cur_block);
+    n_36 = new_node(O_UNBOXF, R_DBL);
+    append(n_36, ob_cur_block);
     r_add_14 = n_36;
     r_add_14; });
     (opt_nodes + n_35)->a = x;
@@ -5174,8 +5174,8 @@ exit_unbox_float:;
         goto exit_unbox_float_2;
     }
     n_37 = ({
-    n_38 = opt_new_node(O_UNBOXF, R_DBL);
-    opt_append(n_38, ob_cur_block);
+    n_38 = new_node(O_UNBOXF, R_DBL);
+    append(n_38, ob_cur_block);
     r_add_15 = n_38;
     r_add_15; });
     (opt_nodes + n_37)->a = y;
@@ -5187,8 +5187,8 @@ exit_unbox_float_2:;
     if ((k >= 2) && (k <= 7)) {
         n = ({
     n_39 = ({
-    n_40 = opt_new_node(O_FCMP, R_OOP);
-    opt_append(n_40, ob_cur_block);
+    n_40 = new_node(O_FCMP, R_OOP);
+    append(n_40, ob_cur_block);
     r_add_16 = n_40;
     r_add_16; });
     (opt_nodes + n_39)->a = fx;
@@ -5200,8 +5200,8 @@ exit_unbox_float_2:;
         var_5 = (opt_acts + a)->var_base + r;
         if ((var_5 < OPT_MAX_VARS) && (ob_arg_flags[var_5] == 2)) {
             n_41 = ({
-    n_42 = opt_new_node(O_STORESLOT, R_NONE);
-    opt_append(n_42, ob_cur_block);
+    n_42 = new_node(O_STORESLOT, R_NONE);
+    append(n_42, ob_cur_block);
     r_add_17 = n_42;
     r_add_17; });
             (opt_nodes + n_41)->a = n;
@@ -5209,12 +5209,12 @@ exit_unbox_float_2:;
             (opt_nodes + n_41)->aux = (opt_nodes + n_43)->aux;
             goto exit_write_4;
         }
-        opt_write(var_5, n, ob_cur_block);
+        opt_builder_write(var_5, n, ob_cur_block);
     exit_write_4:;
     } else {
         n = ({
-    n_44 = opt_new_node(O_FARITH, R_DBL);
-    opt_append(n_44, ob_cur_block);
+    n_44 = new_node(O_FARITH, R_DBL);
+    append(n_44, ob_cur_block);
     r_add_18 = n_44;
     r_add_18; });
         (opt_nodes + n)->a = fx;
@@ -5225,8 +5225,8 @@ exit_unbox_float_2:;
         }
         v_3 = ({
     n_45 = ({
-    n_46 = opt_new_node(O_BOXF, R_OOP);
-    opt_append(n_46, ob_cur_block);
+    n_46 = new_node(O_BOXF, R_OOP);
+    append(n_46, ob_cur_block);
     r_add_19 = n_46;
     r_add_19; });
     (opt_nodes + n_45)->a = n;
@@ -5238,8 +5238,8 @@ exit_unbox_float_2:;
         var_6 = (opt_acts + a)->var_base + r;
         if ((var_6 < OPT_MAX_VARS) && (ob_arg_flags[var_6] == 2)) {
             n_47 = ({
-    n_48 = opt_new_node(O_STORESLOT, R_NONE);
-    opt_append(n_48, ob_cur_block);
+    n_48 = new_node(O_STORESLOT, R_NONE);
+    append(n_48, ob_cur_block);
     r_add_20 = n_48;
     r_add_20; });
             (opt_nodes + n_47)->a = v_3;
@@ -5247,18 +5247,18 @@ exit_unbox_float_2:;
             (opt_nodes + n_47)->aux = (opt_nodes + n_49)->aux;
             goto exit_write_5;
         }
-        opt_write(var_6, v_3, ob_cur_block);
+        opt_builder_write(var_6, v_3, ob_cur_block);
     exit_write_5:;
     }
     if (merge >= 0) {
-        opt_goto(merge);
-        opt_seal(merge);
+        goto_(merge);
+        seal(merge);
         ob_cur_block = merge;
     }
 }
 
 /* OptBuilder>>frameClosureOf:numArgs:pc:act: */
-static int32_t opt_frame_closure_of(int32_t v, int32_t n, int32_t pc, int32_t a)
+static int32_t frame_closure_of(int32_t v, int32_t n, int32_t pc, int32_t a)
 {
     int32_t x;
     int32_t i;
@@ -5267,15 +5267,15 @@ static int32_t opt_frame_closure_of(int32_t v, int32_t n, int32_t pc, int32_t a)
     if (!((jit_flags & JIT_FLAG_BLOCKS) != 0)) {
         return -1;
     }
-    if ((fb_flags_at((opt_acts + a)->method, pc) & FB_DEOPT_OTHER) != 0) {
+    if ((flags_at((opt_acts + a)->method, pc) & FB_DEOPT_OTHER) != 0) {
         return -1;
     }
-    x = opt_resolve(v);
+    x = opt_ir_resolve(v);
     for (i = 0; i <= ob_spec_count - 1; i++) {
         n_2 = ob_spec_info[i];
         if ((((opt_nodes + n_2)->aux2 & 255) == n) && ({
     var = ob_spec_param[i];
-    opt_resolve(opt_read(var, ob_cur_block)) == x; })) {
+    opt_ir_resolve(opt_builder_read(var, ob_cur_block)) == x; })) {
             return ob_spec_info[i];
         }
     }
@@ -5283,13 +5283,13 @@ static int32_t opt_frame_closure_of(int32_t v, int32_t n, int32_t pc, int32_t a)
 }
 
 /* OptBuilder>>goto: */
-static void opt_goto(int32_t b)
+static void goto_(int32_t b)
 {
     int32_t n;
-    n = opt_new_node(O_GOTO, R_NONE);
-    opt_append(n, ob_cur_block);
+    n = new_node(O_GOTO, R_NONE);
+    append(n, ob_cur_block);
     (opt_blocks + ob_cur_block)->succ0 = b;
-    opt_add_pred(ob_cur_block, b);
+    add_pred(ob_cur_block, b);
     if (((opt_blocks + ob_cur_block)->flags & BF_LIVE) != 0) {
         (opt_blocks + b)->flags = (opt_blocks + b)->flags | BF_LIVE;
     }
@@ -5297,7 +5297,7 @@ static void opt_goto(int32_t b)
 }
 
 /* OptBuilder>>inlineBlock:info:pc:act:rcvSlot:argc: */
-static void opt_inline_block(int32_t c, int32_t d, int32_t pc, int32_t a, int32_t r, int32_t argc)
+static void inline_block(int32_t c, int32_t d, int32_t pc, int32_t a, int32_t r, int32_t argc)
 {
     opt_node *nd;
     int32_t def;
@@ -5348,7 +5348,7 @@ static void opt_inline_block(int32_t c, int32_t d, int32_t pc, int32_t a, int32_
     na = (int32_t)(nd->aux2 & 255);
     nt = (int32_t)((nd->aux2 >> 8) & 255);
     fs = (int32_t)((nd->aux2 >> 16) & 255);
-    b = opt_new_act();
+    b = new_act();
     if (b < 0) {
         if ((!ob_bailed) && (getenv("SAMALTAK_OPT_TRACE") != NULL)) {
             fprintf(stderr, "opt: bail at pc %d of act %d\n", opt_cur_pc, opt_cur_act);
@@ -5411,15 +5411,15 @@ exit_alloc_pc_blocks:;
         var = (opt_acts + b)->var_base + i_2;
         i_3 = r + 1 + i_2;
         var_2 = (opt_acts + a)->var_base + i_3;
-        v = opt_read(var_2, ob_cur_block);
+        v = opt_builder_read(var_2, ob_cur_block);
         if (var < OPT_MAX_VARS) {
             ob_arg_vals[var] = v;
             ob_arg_flags[var] = 1;
         }
         if ((var < OPT_MAX_VARS) && (ob_arg_flags[var] == 2)) {
             n_2 = ({
-    n_3 = opt_new_node(O_STORESLOT, R_NONE);
-    opt_append(n_3, ob_cur_block);
+    n_3 = new_node(O_STORESLOT, R_NONE);
+    append(n_3, ob_cur_block);
     r_add = n_3;
     r_add; });
             (opt_nodes + n_2)->a = v;
@@ -5427,16 +5427,16 @@ exit_alloc_pc_blocks:;
             (opt_nodes + n_2)->aux = (opt_nodes + n_4)->aux;
             goto exit_write;
         }
-        opt_write(var, v, ob_cur_block);
+        opt_builder_write(var, v, ob_cur_block);
     exit_write:;
     }
     for (i_4 = argc; i_4 <= argc + nt - 1; i_4++) {
         var_3 = (opt_acts + b)->var_base + i_4;
-        v_2 = opt_constant(nil_oop);
+        v_2 = constant(nil_oop);
         if ((var_3 < OPT_MAX_VARS) && (ob_arg_flags[var_3] == 2)) {
             n_5 = ({
-    n_6 = opt_new_node(O_STORESLOT, R_NONE);
-    opt_append(n_6, ob_cur_block);
+    n_6 = new_node(O_STORESLOT, R_NONE);
+    append(n_6, ob_cur_block);
     r_add_2 = n_6;
     r_add_2; });
             (opt_nodes + n_5)->a = v_2;
@@ -5444,21 +5444,21 @@ exit_alloc_pc_blocks:;
             (opt_nodes + n_5)->aux = (opt_nodes + n_7)->aux;
             goto exit_write_2;
         }
-        opt_write(var_3, v_2, ob_cur_block);
+        opt_builder_write(var_3, v_2, ob_cur_block);
     exit_write_2:;
     }
-    entry = opt_new_block();
+    entry = new_block();
     (opt_blocks + entry)->act = b;
-    ret = opt_new_block();
+    ret = new_block();
     (opt_blocks + ret)->act = a;
     ac->ret_block = ret;
-    opt_goto(entry);
+    goto_(entry);
     ob_cur_block = entry;
-    opt_seal(entry);
-    opt_build_act(b);
+    seal(entry);
+    build_act(b);
     opt_cur_act = a;
     opt_cur_pc = pc;
-    opt_seal(ret);
+    seal(ret);
     if ((opt_blocks + ret)->npreds == 0) {
         ob_cur_block = -1;
         return;
@@ -5466,11 +5466,11 @@ exit_alloc_pc_blocks:;
     ob_cur_block = ret;
     var_4 = (opt_acts + a)->var_base + r;
     var_5 = (opt_acts + b)->ret_var;
-    v_3 = opt_read(var_5, ob_cur_block);
+    v_3 = opt_builder_read(var_5, ob_cur_block);
     if ((var_4 < OPT_MAX_VARS) && (ob_arg_flags[var_4] == 2)) {
         n_8 = ({
-    n_9 = opt_new_node(O_STORESLOT, R_NONE);
-    opt_append(n_9, ob_cur_block);
+    n_9 = new_node(O_STORESLOT, R_NONE);
+    append(n_9, ob_cur_block);
     r_add_3 = n_9;
     r_add_3; });
         (opt_nodes + n_8)->a = v_3;
@@ -5478,12 +5478,12 @@ exit_alloc_pc_blocks:;
         (opt_nodes + n_8)->aux = (opt_nodes + n_10)->aux;
         goto exit_write_3;
     }
-    opt_write(var_4, v_3, ob_cur_block);
+    opt_builder_write(var_4, v_3, ob_cur_block);
 exit_write_3:;
 }
 
 /* OptBuilder>>inlineFrameClosure:info:pc:act:rcvSlot:argc: */
-static void opt_inline_frame_closure(int32_t x, int32_t d, int32_t pc, int32_t a, int32_t r, int32_t argc)
+static void inline_frame_closure(int32_t x, int32_t d, int32_t pc, int32_t a, int32_t r, int32_t argc)
 {
     int32_t s;
     int32_t r_guard;
@@ -5538,7 +5538,7 @@ static void opt_inline_frame_closure(int32_t x, int32_t d, int32_t pc, int32_t a
     int32_t r_add_11;
     int32_t n_22;
     int32_t n_21;
-    s = opt_make_state(a, pc, (int32_t)ob_ana_depth[(opt_acts + a)->ana + pc]);
+    s = state_act(a, pc, (int32_t)ob_ana_depth[(opt_acts + a)->ana + pc]);
     g = ({
     if (cls_block == cls_smallint) {
         r_guard = ({
@@ -5547,8 +5547,8 @@ static void opt_inline_frame_closure(int32_t x, int32_t d, int32_t pc, int32_t a
         goto exit_guard_int;
     }
     n_2 = ({
-    n_3 = opt_new_node(O_GUARDINT, R_OOP);
-    opt_append(n_3, ob_cur_block);
+    n_3 = new_node(O_GUARDINT, R_OOP);
+    append(n_3, ob_cur_block);
     r_add = n_3;
     r_add; });
     (opt_nodes + n_2)->a = x;
@@ -5561,8 +5561,8 @@ exit_guard_int:;
         goto exit_guard;
     }
     n = ({
-    n_4 = opt_new_node(O_GUARDCLASS, R_OOP);
-    opt_append(n_4, ob_cur_block);
+    n_4 = new_node(O_GUARDCLASS, R_OOP);
+    append(n_4, ob_cur_block);
     r_add_2 = n_4;
     r_add_2; });
     (opt_nodes + n)->a = x;
@@ -5585,8 +5585,8 @@ exit_guard:;
     r_guard; });
     x_2 = ({
     n_5 = ({
-    n_6 = opt_new_node(O_LOADFIELD, R_OOP);
-    opt_append(n_6, ob_cur_block);
+    n_6 = new_node(O_LOADFIELD, R_OOP);
+    append(n_6, ob_cur_block);
     r_add_3 = n_6;
     r_add_3; });
     (opt_nodes + n_5)->a = g;
@@ -5594,11 +5594,11 @@ exit_guard:;
     r_load_field = n_5;
     r_load_field; });
     v = (opt_nodes + d)->aux;
-    y = opt_constant((uint64_t)((v << 1) | 1));
+    y = constant((uint64_t)((v << 1) | 1));
     test = ({
     n_7 = ({
-    n_8 = opt_new_node(O_EQ, R_OOP);
-    opt_append(n_8, ob_cur_block);
+    n_8 = new_node(O_EQ, R_OOP);
+    append(n_8, ob_cur_block);
     r_add_4 = n_8;
     r_add_4; });
     (opt_nodes + n_7)->a = x_2;
@@ -5606,33 +5606,33 @@ exit_guard:;
     r_binary = n_7;
     r_binary; });
     (opt_nodes + test)->tkind = T_BOOL;
-    t = opt_new_block();
+    t = new_block();
     (opt_blocks + t)->act = a;
-    f = opt_new_block();
+    f = new_block();
     (opt_blocks + f)->act = a;
     n_9 = ({
-    n_10 = opt_new_node(O_BRANCH, R_NONE);
-    opt_append(n_10, ob_cur_block);
+    n_10 = new_node(O_BRANCH, R_NONE);
+    append(n_10, ob_cur_block);
     r_add_5 = n_10;
     r_add_5; });
     (opt_nodes + n_9)->a = test;
     (opt_blocks + ob_cur_block)->succ0 = t;
     (opt_blocks + ob_cur_block)->succ1 = f;
-    opt_add_pred(ob_cur_block, t);
+    add_pred(ob_cur_block, t);
     if (((opt_blocks + ob_cur_block)->flags & BF_LIVE) != 0) {
         (opt_blocks + t)->flags = (opt_blocks + t)->flags | BF_LIVE;
     }
-    opt_add_pred(ob_cur_block, f);
+    add_pred(ob_cur_block, f);
     if (((opt_blocks + ob_cur_block)->flags & BF_LIVE) != 0) {
         (opt_blocks + f)->flags = (opt_blocks + f)->flags | BF_LIVE;
     }
     ob_cur_block = -1;
-    opt_seal(t);
-    opt_seal(f);
+    seal(t);
+    seal(f);
     ob_cur_block = f;
     n_11 = ({
-    n_12 = opt_new_node(O_DEOPT, R_NONE);
-    opt_append(n_12, ob_cur_block);
+    n_12 = new_node(O_DEOPT, R_NONE);
+    append(n_12, ob_cur_block);
     r_add_6 = n_12;
     r_add_6; });
     (opt_nodes + n_11)->state = s;
@@ -5640,8 +5640,8 @@ exit_guard:;
     ob_cur_block = t;
     x_3 = ({
     n_13 = ({
-    n_14 = opt_new_node(O_LOADFIELD, R_OOP);
-    opt_append(n_14, ob_cur_block);
+    n_14 = new_node(O_LOADFIELD, R_OOP);
+    append(n_14, ob_cur_block);
     r_add_7 = n_14;
     r_add_7; });
     (opt_nodes + n_13)->a = g;
@@ -5650,8 +5650,8 @@ exit_guard:;
     r_load_field_2; });
     y_2 = ({
     n_15 = ({
-    n_16 = opt_new_node(O_PARAM, R_OOP);
-    opt_append(n_16, ob_cur_block);
+    n_16 = new_node(O_PARAM, R_OOP);
+    append(n_16, ob_cur_block);
     r_add_8 = n_16;
     r_add_8; });
     (opt_nodes + n_15)->aux = -3;
@@ -5659,8 +5659,8 @@ exit_guard:;
     r_param; });
     test_2 = ({
     n_17 = ({
-    n_18 = opt_new_node(O_EQ, R_OOP);
-    opt_append(n_18, ob_cur_block);
+    n_18 = new_node(O_EQ, R_OOP);
+    append(n_18, ob_cur_block);
     r_add_9 = n_18;
     r_add_9; });
     (opt_nodes + n_17)->a = x_3;
@@ -5668,43 +5668,43 @@ exit_guard:;
     r_binary_2 = n_17;
     r_binary_2; });
     (opt_nodes + test_2)->tkind = T_BOOL;
-    t_2 = opt_new_block();
+    t_2 = new_block();
     (opt_blocks + t_2)->act = a;
-    f_2 = opt_new_block();
+    f_2 = new_block();
     (opt_blocks + f_2)->act = a;
     n_19 = ({
-    n_20 = opt_new_node(O_BRANCH, R_NONE);
-    opt_append(n_20, ob_cur_block);
+    n_20 = new_node(O_BRANCH, R_NONE);
+    append(n_20, ob_cur_block);
     r_add_10 = n_20;
     r_add_10; });
     (opt_nodes + n_19)->a = test_2;
     (opt_blocks + ob_cur_block)->succ0 = t_2;
     (opt_blocks + ob_cur_block)->succ1 = f_2;
-    opt_add_pred(ob_cur_block, t_2);
+    add_pred(ob_cur_block, t_2);
     if (((opt_blocks + ob_cur_block)->flags & BF_LIVE) != 0) {
         (opt_blocks + t_2)->flags = (opt_blocks + t_2)->flags | BF_LIVE;
     }
-    opt_add_pred(ob_cur_block, f_2);
+    add_pred(ob_cur_block, f_2);
     if (((opt_blocks + ob_cur_block)->flags & BF_LIVE) != 0) {
         (opt_blocks + f_2)->flags = (opt_blocks + f_2)->flags | BF_LIVE;
     }
     ob_cur_block = -1;
-    opt_seal(t_2);
-    opt_seal(f_2);
+    seal(t_2);
+    seal(f_2);
     ob_cur_block = f_2;
     n_21 = ({
-    n_22 = opt_new_node(O_DEOPT, R_NONE);
-    opt_append(n_22, ob_cur_block);
+    n_22 = new_node(O_DEOPT, R_NONE);
+    append(n_22, ob_cur_block);
     r_add_11 = n_22;
     r_add_11; });
     (opt_nodes + n_21)->state = s;
     ob_cur_block = -1;
     ob_cur_block = t_2;
-    opt_inline_block(g, d, pc, a, r, argc);
+    inline_block(g, d, pc, a, r, argc);
 }
 
 /* OptBuilder>>inlineMethod:receiverClass:pc:act:rcvSlot:argc: */
-static void opt_inline_method(oop m, uint64_t cls, int32_t pc, int32_t a, int32_t r, int32_t argc)
+static void inline_method(uint64_t m, oop cls, int32_t pc, int32_t a, int32_t r, int32_t argc)
 {
     int32_t b;
     opt_act *ac;
@@ -5734,7 +5734,7 @@ static void opt_inline_method(oop m, uint64_t cls, int32_t pc, int32_t a, int32_
     int32_t n_8;
     int32_t n_7;
     int32_t n_9;
-    b = opt_new_act_for(m);
+    b = new_act_for(m);
     if (b < 0) {
         if ((!ob_bailed) && (getenv("SAMALTAK_OPT_TRACE") != NULL)) {
             fprintf(stderr, "opt: bail at pc %d of act %d\n", opt_cur_pc, opt_cur_act);
@@ -5748,21 +5748,21 @@ static void opt_inline_method(oop m, uint64_t cls, int32_t pc, int32_t a, int32_
     ac->send_pc = pc;
     ac->send_argc = argc;
     var = (opt_acts + a)->var_base + r;
-    ac->receiver = opt_read(var, ob_cur_block);
+    ac->receiver = opt_builder_read(var, ob_cur_block);
     ac->rcv_class = cls;
     for (i = 0; i <= argc - 1; i++) {
         var_2 = (opt_acts + b)->var_base + i;
         i_2 = r + 1 + i;
         var_3 = (opt_acts + a)->var_base + i_2;
-        v = opt_read(var_3, ob_cur_block);
+        v = opt_builder_read(var_3, ob_cur_block);
         if (var_2 < OPT_MAX_VARS) {
             ob_arg_vals[var_2] = v;
             ob_arg_flags[var_2] = 1;
         }
         if ((var_2 < OPT_MAX_VARS) && (ob_arg_flags[var_2] == 2)) {
             n = ({
-    n_2 = opt_new_node(O_STORESLOT, R_NONE);
-    opt_append(n_2, ob_cur_block);
+    n_2 = new_node(O_STORESLOT, R_NONE);
+    append(n_2, ob_cur_block);
     r_add = n_2;
     r_add; });
             (opt_nodes + n)->a = v;
@@ -5770,16 +5770,16 @@ static void opt_inline_method(oop m, uint64_t cls, int32_t pc, int32_t a, int32_
             (opt_nodes + n)->aux = (opt_nodes + n_3)->aux;
             goto exit_write;
         }
-        opt_write(var_2, v, ob_cur_block);
+        opt_builder_write(var_2, v, ob_cur_block);
     exit_write:;
     }
     for (i_3 = argc; i_3 <= argc + ac->num_temps - 1; i_3++) {
         var_4 = (opt_acts + b)->var_base + i_3;
-        v_2 = opt_constant(nil_oop);
+        v_2 = constant(nil_oop);
         if ((var_4 < OPT_MAX_VARS) && (ob_arg_flags[var_4] == 2)) {
             n_4 = ({
-    n_5 = opt_new_node(O_STORESLOT, R_NONE);
-    opt_append(n_5, ob_cur_block);
+    n_5 = new_node(O_STORESLOT, R_NONE);
+    append(n_5, ob_cur_block);
     r_add_2 = n_5;
     r_add_2; });
             (opt_nodes + n_4)->a = v_2;
@@ -5787,21 +5787,21 @@ static void opt_inline_method(oop m, uint64_t cls, int32_t pc, int32_t a, int32_
             (opt_nodes + n_4)->aux = (opt_nodes + n_6)->aux;
             goto exit_write_2;
         }
-        opt_write(var_4, v_2, ob_cur_block);
+        opt_builder_write(var_4, v_2, ob_cur_block);
     exit_write_2:;
     }
-    entry = opt_new_block();
+    entry = new_block();
     (opt_blocks + entry)->act = b;
-    ret = opt_new_block();
+    ret = new_block();
     (opt_blocks + ret)->act = a;
     (opt_acts + b)->ret_block = ret;
-    opt_goto(entry);
+    goto_(entry);
     ob_cur_block = entry;
-    opt_seal(entry);
-    opt_build_act(b);
+    seal(entry);
+    build_act(b);
     opt_cur_act = a;
     opt_cur_pc = pc;
-    opt_seal(ret);
+    seal(ret);
     if ((opt_blocks + ret)->npreds == 0) {
         ob_cur_block = -1;
         return;
@@ -5809,11 +5809,11 @@ static void opt_inline_method(oop m, uint64_t cls, int32_t pc, int32_t a, int32_
     ob_cur_block = ret;
     var_5 = (opt_acts + a)->var_base + r;
     var_6 = (opt_acts + b)->ret_var;
-    v_3 = opt_read(var_6, ob_cur_block);
+    v_3 = opt_builder_read(var_6, ob_cur_block);
     if ((var_5 < OPT_MAX_VARS) && (ob_arg_flags[var_5] == 2)) {
         n_7 = ({
-    n_8 = opt_new_node(O_STORESLOT, R_NONE);
-    opt_append(n_8, ob_cur_block);
+    n_8 = new_node(O_STORESLOT, R_NONE);
+    append(n_8, ob_cur_block);
     r_add_3 = n_8;
     r_add_3; });
         (opt_nodes + n_7)->a = v_3;
@@ -5821,12 +5821,12 @@ static void opt_inline_method(oop m, uint64_t cls, int32_t pc, int32_t a, int32_
         (opt_nodes + n_7)->aux = (opt_nodes + n_9)->aux;
         goto exit_write_3;
     }
-    opt_write(var_5, v_3, ob_cur_block);
+    opt_builder_write(var_5, v_3, ob_cur_block);
 exit_write_3:;
 }
 
 /* OptBuilder>>inlinePrimitive:class:argc:pc:act:rcvSlot: */
-static bool opt_inline_primitive(int64_t p, uint64_t cls, int32_t argc, int32_t pc, int32_t a, int32_t r)
+static bool inline_primitive(int64_t p, oop cls, int32_t argc, int32_t pc, int32_t a, int32_t r)
 {
     int64_t r_prim_kind_of;
     int64_t p_2;
@@ -6020,163 +6020,163 @@ static bool opt_inline_primitive(int64_t p, uint64_t cls, int32_t argc, int32_t 
     if (!ob_prims_known) {
         ob_prims_known = true;
         memset(ob_prim_kinds, 0, OPT_MAX_PRIM);
-        p_2 = jit_primitive_number("at");
+        p_2 = primitive_number_named("at");
         if ((p_2 > 0) && (p_2 < OPT_MAX_PRIM)) {
             ob_prim_kinds[p_2] = 1U;
         }
-        p_3 = jit_primitive_number("atPut");
+        p_3 = primitive_number_named("atPut");
         if ((p_3 > 0) && (p_3 < OPT_MAX_PRIM)) {
             ob_prim_kinds[p_3] = 2U;
         }
-        p_4 = jit_primitive_number("basicSize");
+        p_4 = primitive_number_named("basicSize");
         if ((p_4 > 0) && (p_4 < OPT_MAX_PRIM)) {
             ob_prim_kinds[p_4] = 3U;
         }
-        p_5 = jit_primitive_number("stringAt");
+        p_5 = primitive_number_named("stringAt");
         if ((p_5 > 0) && (p_5 < OPT_MAX_PRIM)) {
             ob_prim_kinds[p_5] = 4U;
         }
-        p_6 = jit_primitive_number("stringAtPut");
+        p_6 = primitive_number_named("stringAtPut");
         if ((p_6 > 0) && (p_6 < OPT_MAX_PRIM)) {
             ob_prim_kinds[p_6] = 5U;
         }
-        p_7 = jit_primitive_number("class");
+        p_7 = primitive_number_named("class");
         if ((p_7 > 0) && (p_7 < OPT_MAX_PRIM)) {
             ob_prim_kinds[p_7] = 6U;
         }
-        p_8 = jit_primitive_number("identical");
+        p_8 = primitive_number_named("identical");
         if ((p_8 > 0) && (p_8 < OPT_MAX_PRIM)) {
             ob_prim_kinds[p_8] = 7U;
         }
-        p_9 = jit_primitive_number("intAdd");
+        p_9 = primitive_number_named("intAdd");
         if ((p_9 > 0) && (p_9 < OPT_MAX_PRIM)) {
             ob_prim_kinds[p_9] = 32U;
         }
-        p_10 = jit_primitive_number("intSub");
+        p_10 = primitive_number_named("intSub");
         if ((p_10 > 0) && (p_10 < OPT_MAX_PRIM)) {
             ob_prim_kinds[p_10] = 33U;
         }
-        p_11 = jit_primitive_number("intLess");
+        p_11 = primitive_number_named("intLess");
         if ((p_11 > 0) && (p_11 < OPT_MAX_PRIM)) {
             ob_prim_kinds[p_11] = 34U;
         }
-        p_12 = jit_primitive_number("intGreater");
+        p_12 = primitive_number_named("intGreater");
         if ((p_12 > 0) && (p_12 < OPT_MAX_PRIM)) {
             ob_prim_kinds[p_12] = 35U;
         }
-        p_13 = jit_primitive_number("intLessEq");
+        p_13 = primitive_number_named("intLessEq");
         if ((p_13 > 0) && (p_13 < OPT_MAX_PRIM)) {
             ob_prim_kinds[p_13] = 36U;
         }
-        p_14 = jit_primitive_number("intGreaterEq");
+        p_14 = primitive_number_named("intGreaterEq");
         if ((p_14 > 0) && (p_14 < OPT_MAX_PRIM)) {
             ob_prim_kinds[p_14] = 37U;
         }
-        p_15 = jit_primitive_number("intEq");
+        p_15 = primitive_number_named("intEq");
         if ((p_15 > 0) && (p_15 < OPT_MAX_PRIM)) {
             ob_prim_kinds[p_15] = 38U;
         }
-        p_16 = jit_primitive_number("intNotEq");
+        p_16 = primitive_number_named("intNotEq");
         if ((p_16 > 0) && (p_16 < OPT_MAX_PRIM)) {
             ob_prim_kinds[p_16] = 39U;
         }
-        p_17 = jit_primitive_number("intMul");
+        p_17 = primitive_number_named("intMul");
         if ((p_17 > 0) && (p_17 < OPT_MAX_PRIM)) {
             ob_prim_kinds[p_17] = 40U;
         }
-        p_18 = jit_primitive_number("intBitAnd");
+        p_18 = primitive_number_named("intBitAnd");
         if ((p_18 > 0) && (p_18 < OPT_MAX_PRIM)) {
             ob_prim_kinds[p_18] = 46U;
         }
-        p_19 = jit_primitive_number("intBitOr");
+        p_19 = primitive_number_named("intBitOr");
         if ((p_19 > 0) && (p_19 < OPT_MAX_PRIM)) {
             ob_prim_kinds[p_19] = 47U;
         }
-        p_20 = jit_primitive_number("intMod");
+        p_20 = primitive_number_named("intMod");
         if ((p_20 > 0) && (p_20 < OPT_MAX_PRIM)) {
             ob_prim_kinds[p_20] = 42U;
         }
-        p_21 = jit_primitive_number("intBitXor");
+        p_21 = primitive_number_named("intBitXor");
         if ((p_21 > 0) && (p_21 < OPT_MAX_PRIM)) {
             ob_prim_kinds[p_21] = 43U;
         }
-        p_22 = jit_primitive_number("intBitShift");
+        p_22 = primitive_number_named("intBitShift");
         if ((p_22 > 0) && (p_22 < OPT_MAX_PRIM)) {
             ob_prim_kinds[p_22] = 44U;
         }
-        p_23 = jit_primitive_number("intFloorDiv");
+        p_23 = primitive_number_named("intFloorDiv");
         if ((p_23 > 0) && (p_23 < OPT_MAX_PRIM)) {
             ob_prim_kinds[p_23] = 45U;
         }
-        p_24 = jit_primitive_number("intQuo");
+        p_24 = primitive_number_named("intQuo");
         if ((p_24 > 0) && (p_24 < OPT_MAX_PRIM)) {
             ob_prim_kinds[p_24] = 48U;
         }
-        p_25 = jit_primitive_number("intRem");
+        p_25 = primitive_number_named("intRem");
         if ((p_25 > 0) && (p_25 < OPT_MAX_PRIM)) {
             ob_prim_kinds[p_25] = 49U;
         }
-        p_26 = jit_primitive_number("charValue");
+        p_26 = primitive_number_named("charValue");
         if ((p_26 > 0) && (p_26 < OPT_MAX_PRIM)) {
             ob_prim_kinds[p_26] = 12U;
         }
-        p_27 = jit_primitive_number("charFromValue");
+        p_27 = primitive_number_named("charFromValue");
         if ((p_27 > 0) && (p_27 < OPT_MAX_PRIM)) {
             ob_prim_kinds[p_27] = 13U;
         }
-        p_28 = jit_primitive_number("floatAdd");
+        p_28 = primitive_number_named("floatAdd");
         if ((p_28 > 0) && (p_28 < OPT_MAX_PRIM)) {
             ob_prim_kinds[p_28] = 64U;
         }
-        p_29 = jit_primitive_number("floatSub");
+        p_29 = primitive_number_named("floatSub");
         if ((p_29 > 0) && (p_29 < OPT_MAX_PRIM)) {
             ob_prim_kinds[p_29] = 65U;
         }
-        p_30 = jit_primitive_number("floatLess");
+        p_30 = primitive_number_named("floatLess");
         if ((p_30 > 0) && (p_30 < OPT_MAX_PRIM)) {
             ob_prim_kinds[p_30] = 66U;
         }
-        p_31 = jit_primitive_number("floatGreater");
+        p_31 = primitive_number_named("floatGreater");
         if ((p_31 > 0) && (p_31 < OPT_MAX_PRIM)) {
             ob_prim_kinds[p_31] = 67U;
         }
-        p_32 = jit_primitive_number("floatLessEq");
+        p_32 = primitive_number_named("floatLessEq");
         if ((p_32 > 0) && (p_32 < OPT_MAX_PRIM)) {
             ob_prim_kinds[p_32] = 68U;
         }
-        p_33 = jit_primitive_number("floatGreaterEq");
+        p_33 = primitive_number_named("floatGreaterEq");
         if ((p_33 > 0) && (p_33 < OPT_MAX_PRIM)) {
             ob_prim_kinds[p_33] = 69U;
         }
-        p_34 = jit_primitive_number("floatEq");
+        p_34 = primitive_number_named("floatEq");
         if ((p_34 > 0) && (p_34 < OPT_MAX_PRIM)) {
             ob_prim_kinds[p_34] = 70U;
         }
-        p_35 = jit_primitive_number("floatNotEq");
+        p_35 = primitive_number_named("floatNotEq");
         if ((p_35 > 0) && (p_35 < OPT_MAX_PRIM)) {
             ob_prim_kinds[p_35] = 71U;
         }
-        p_36 = jit_primitive_number("floatMul");
+        p_36 = primitive_number_named("floatMul");
         if ((p_36 > 0) && (p_36 < OPT_MAX_PRIM)) {
             ob_prim_kinds[p_36] = 72U;
         }
-        p_37 = jit_primitive_number("floatDiv");
+        p_37 = primitive_number_named("floatDiv");
         if ((p_37 > 0) && (p_37 < OPT_MAX_PRIM)) {
             ob_prim_kinds[p_37] = 73U;
         }
-        p_38 = jit_primitive_number("floatSqrt");
+        p_38 = primitive_number_named("floatSqrt");
         if ((p_38 > 0) && (p_38 < OPT_MAX_PRIM)) {
             ob_prim_kinds[p_38] = 8U;
         }
-        p_39 = jit_primitive_number("basicNew");
+        p_39 = primitive_number_named("basicNew");
         if ((p_39 > 0) && (p_39 < OPT_MAX_PRIM)) {
             ob_prim_kinds[p_39] = 9U;
         }
-        p_40 = jit_primitive_number("basicNew:");
+        p_40 = primitive_number_named("basicNew:");
         if ((p_40 > 0) && (p_40 < OPT_MAX_PRIM)) {
             ob_prim_kinds[p_40] = 10U;
         }
-        p_41 = jit_primitive_number("closureValue");
+        p_41 = primitive_number_named("closureValue");
         if ((p_41 > 0) && (p_41 < OPT_MAX_PRIM)) {
             ob_prim_kinds[p_41] = 11U;
         }
@@ -6192,19 +6192,19 @@ exit_prim_kind_of:;
         return false;
     }
     var = (opt_acts + a)->var_base + r;
-    rcv = opt_read(var, ob_cur_block);
+    rcv = opt_builder_read(var, ob_cur_block);
     if ((kind == OPK_CLASS) && (argc == 0)) {
         n = ({
-    n_2 = opt_new_node(O_CLASSOF, R_OOP);
-    opt_append(n_2, ob_cur_block);
+    n_2 = new_node(O_CLASSOF, R_OOP);
+    append(n_2, ob_cur_block);
     r_add = n_2;
     r_add; });
         (opt_nodes + n)->a = rcv;
         var_2 = (opt_acts + a)->var_base + r;
         if ((var_2 < OPT_MAX_VARS) && (ob_arg_flags[var_2] == 2)) {
             n_3 = ({
-    n_4 = opt_new_node(O_STORESLOT, R_NONE);
-    opt_append(n_4, ob_cur_block);
+    n_4 = new_node(O_STORESLOT, R_NONE);
+    append(n_4, ob_cur_block);
     r_add_2 = n_4;
     r_add_2; });
             (opt_nodes + n_3)->a = n;
@@ -6212,18 +6212,18 @@ exit_prim_kind_of:;
             (opt_nodes + n_3)->aux = (opt_nodes + n_5)->aux;
             goto exit_write;
         }
-        opt_write(var_2, n, ob_cur_block);
+        opt_builder_write(var_2, n, ob_cur_block);
     exit_write:;
         return true;
     }
     if ((kind == OPK_IDENTICAL) && (argc == 1)) {
         i = r + 1;
         var_3 = (opt_acts + a)->var_base + i;
-        y = opt_read(var_3, ob_cur_block);
+        y = opt_builder_read(var_3, ob_cur_block);
         v = ({
     n_6 = ({
-    n_7 = opt_new_node(O_EQ, R_OOP);
-    opt_append(n_7, ob_cur_block);
+    n_7 = new_node(O_EQ, R_OOP);
+    append(n_7, ob_cur_block);
     r_add_3 = n_7;
     r_add_3; });
     (opt_nodes + n_6)->a = rcv;
@@ -6233,8 +6233,8 @@ exit_prim_kind_of:;
         var_4 = (opt_acts + a)->var_base + r;
         if ((var_4 < OPT_MAX_VARS) && (ob_arg_flags[var_4] == 2)) {
             n_8 = ({
-    n_9 = opt_new_node(O_STORESLOT, R_NONE);
-    opt_append(n_9, ob_cur_block);
+    n_9 = new_node(O_STORESLOT, R_NONE);
+    append(n_9, ob_cur_block);
     r_add_4 = n_9;
     r_add_4; });
             (opt_nodes + n_8)->a = v;
@@ -6242,14 +6242,14 @@ exit_prim_kind_of:;
             (opt_nodes + n_8)->aux = (opt_nodes + n_10)->aux;
             goto exit_write_2;
         }
-        opt_write(var_4, v, ob_cur_block);
+        opt_builder_write(var_4, v, ob_cur_block);
     exit_write_2:;
         return true;
     }
     if ((kind == OPK_CHARVALUE) && ((argc == 0) && (cls == cls_char))) {
         n = ({
-    n_11 = opt_new_node(O_CHARCONV, R_OOP);
-    opt_append(n_11, ob_cur_block);
+    n_11 = new_node(O_CHARCONV, R_OOP);
+    append(n_11, ob_cur_block);
     r_add_5 = n_11;
     r_add_5; });
         (opt_nodes + n)->a = rcv;
@@ -6257,8 +6257,8 @@ exit_prim_kind_of:;
         var_5 = (opt_acts + a)->var_base + r;
         if ((var_5 < OPT_MAX_VARS) && (ob_arg_flags[var_5] == 2)) {
             n_12 = ({
-    n_13 = opt_new_node(O_STORESLOT, R_NONE);
-    opt_append(n_13, ob_cur_block);
+    n_13 = new_node(O_STORESLOT, R_NONE);
+    append(n_13, ob_cur_block);
     r_add_6 = n_13;
     r_add_6; });
             (opt_nodes + n_12)->a = n;
@@ -6266,23 +6266,23 @@ exit_prim_kind_of:;
             (opt_nodes + n_12)->aux = (opt_nodes + n_14)->aux;
             goto exit_write_3;
         }
-        opt_write(var_5, n, ob_cur_block);
+        opt_builder_write(var_5, n, ob_cur_block);
     exit_write_3:;
         return true;
     }
     if ((kind == OPK_CHARFROM) && (argc == 1)) {
-        s = opt_make_state(a, pc, (int32_t)ob_ana_depth[(opt_acts + a)->ana + pc]);
+        s = state_act(a, pc, (int32_t)ob_ana_depth[(opt_acts + a)->ana + pc]);
         i_2 = r + 1;
         var_6 = (opt_acts + a)->var_base + i_2;
-        v_2 = opt_read(var_6, ob_cur_block);
+        v_2 = opt_builder_read(var_6, ob_cur_block);
         idx = ({
     if ((int32_t)(opt_nodes + v_2)->tkind == T_SMI) {
         r_guard_int = v_2;
         goto exit_guard_int;
     }
     n_15 = ({
-    n_16 = opt_new_node(O_GUARDINT, R_OOP);
-    opt_append(n_16, ob_cur_block);
+    n_16 = new_node(O_GUARDINT, R_OOP);
+    append(n_16, ob_cur_block);
     r_add_7 = n_16;
     r_add_7; });
     (opt_nodes + n_15)->a = v_2;
@@ -6293,8 +6293,8 @@ exit_prim_kind_of:;
 exit_guard_int:;
     r_guard_int; });
         n = ({
-    n_17 = opt_new_node(O_CHARCONV, R_OOP);
-    opt_append(n_17, ob_cur_block);
+    n_17 = new_node(O_CHARCONV, R_OOP);
+    append(n_17, ob_cur_block);
     r_add_8 = n_17;
     r_add_8; });
         (opt_nodes + n)->a = idx;
@@ -6305,8 +6305,8 @@ exit_guard_int:;
         var_7 = (opt_acts + a)->var_base + r;
         if ((var_7 < OPT_MAX_VARS) && (ob_arg_flags[var_7] == 2)) {
             n_18 = ({
-    n_19 = opt_new_node(O_STORESLOT, R_NONE);
-    opt_append(n_19, ob_cur_block);
+    n_19 = new_node(O_STORESLOT, R_NONE);
+    append(n_19, ob_cur_block);
     r_add_9 = n_19;
     r_add_9; });
             (opt_nodes + n_18)->a = n;
@@ -6314,7 +6314,7 @@ exit_guard_int:;
             (opt_nodes + n_18)->aux = (opt_nodes + n_20)->aux;
             goto exit_write_4;
         }
-        opt_write(var_7, n, ob_cur_block);
+        opt_builder_write(var_7, n, ob_cur_block);
     exit_write_4:;
         return true;
     }
@@ -6322,11 +6322,11 @@ exit_guard_int:;
         if (!((jit_flags & JIT_FLAG_UNBOX) != 0)) {
             return false;
         }
-        if (!((cls == cls_smallfloat) && ((fb_flags_at((opt_acts + a)->method, pc) & 132) == 0))) {
+        if (!((cls == cls_smallfloat) && ((flags_at((opt_acts + a)->method, pc) & 132) == 0))) {
             return false;
         }
         if ((kind == OPK_FSQRT) && (argc == 0)) {
-            s = opt_make_state(a, pc, (int32_t)ob_ana_depth[(opt_acts + a)->ana + pc]);
+            s = state_act(a, pc, (int32_t)ob_ana_depth[(opt_acts + a)->ana + pc]);
             idx = ({
     nd = opt_nodes + rcv;
     if (((int32_t)nd->op == O_BOXF) && ((nd->block == ob_cur_block) && (nd->aux2 == ob_safe_epoch))) {
@@ -6334,8 +6334,8 @@ exit_guard_int:;
         goto exit_unbox_float;
     }
     n_21 = ({
-    n_22 = opt_new_node(O_UNBOXF, R_DBL);
-    opt_append(n_22, ob_cur_block);
+    n_22 = new_node(O_UNBOXF, R_DBL);
+    append(n_22, ob_cur_block);
     r_add_10 = n_22;
     r_add_10; });
     (opt_nodes + n_21)->a = rcv;
@@ -6345,15 +6345,15 @@ exit_guard_int:;
 exit_unbox_float:;
     r_unbox_float; });
             n = ({
-    n_23 = opt_new_node(O_FSQRT, R_DBL);
-    opt_append(n_23, ob_cur_block);
+    n_23 = new_node(O_FSQRT, R_DBL);
+    append(n_23, ob_cur_block);
     r_add_11 = n_23;
     r_add_11; });
             (opt_nodes + n)->a = idx;
             v_3 = ({
     n_24 = ({
-    n_25 = opt_new_node(O_BOXF, R_OOP);
-    opt_append(n_25, ob_cur_block);
+    n_25 = new_node(O_BOXF, R_OOP);
+    append(n_25, ob_cur_block);
     r_add_12 = n_25;
     r_add_12; });
     (opt_nodes + n_24)->a = n;
@@ -6365,8 +6365,8 @@ exit_unbox_float:;
             var_8 = (opt_acts + a)->var_base + r;
             if ((var_8 < OPT_MAX_VARS) && (ob_arg_flags[var_8] == 2)) {
                 n_26 = ({
-    n_27 = opt_new_node(O_STORESLOT, R_NONE);
-    opt_append(n_27, ob_cur_block);
+    n_27 = new_node(O_STORESLOT, R_NONE);
+    append(n_27, ob_cur_block);
     r_add_13 = n_27;
     r_add_13; });
                 (opt_nodes + n_26)->a = v_3;
@@ -6374,7 +6374,7 @@ exit_unbox_float:;
                 (opt_nodes + n_26)->aux = (opt_nodes + n_28)->aux;
                 goto exit_write_5;
             }
-            opt_write(var_8, v_3, ob_cur_block);
+            opt_builder_write(var_8, v_3, ob_cur_block);
         exit_write_5:;
             return true;
         }
@@ -6383,36 +6383,36 @@ exit_unbox_float:;
         }
         i_3 = r + 1;
         var_9 = (opt_acts + a)->var_base + i_3;
-        opt_float_arith((int32_t)(kind - OPK_FLOAT), rcv, opt_read(var_9, ob_cur_block), pc, a, r);
+        opt_builder_float_arith((int32_t)(kind - OPK_FLOAT), rcv, opt_builder_read(var_9, ob_cur_block), pc, a, r);
         return true;
     }
     if ((kind >= OPK_INT) && (argc == 1)) {
         if (!(cls == cls_smallint)) {
             return false;
         }
-        fl = fb_flags_at((opt_acts + a)->method, pc);
+        fl = flags_at((opt_acts + a)->method, pc);
         if ((fl & 46) != 0) {
             if (!((kind - OPK_INT <= 9) && (((jit_flags & JIT_FLAG_UNBOX) != 0) && (((fl & FB_FLOAT) != 0) && ((fl & 132) == 0))))) {
                 return false;
             }
             i_4 = r + 1;
             var_10 = (opt_acts + a)->var_base + i_4;
-            opt_float_arith((int32_t)(kind - OPK_INT), rcv, opt_read(var_10, ob_cur_block), pc, a, r);
+            opt_builder_float_arith((int32_t)(kind - OPK_INT), rcv, opt_builder_read(var_10, ob_cur_block), pc, a, r);
             return true;
         }
         k = kind - OPK_INT;
         i_5 = r + 1;
         var_11 = (opt_acts + a)->var_base + i_5;
-        y_2 = opt_read(var_11, ob_cur_block);
-        s_2 = opt_make_state(a, pc, (int32_t)ob_ana_depth[(opt_acts + a)->ana + pc]);
+        y_2 = opt_builder_read(var_11, ob_cur_block);
+        s_2 = state_act(a, pc, (int32_t)ob_ana_depth[(opt_acts + a)->ana + pc]);
         gx = ({
     if ((int32_t)(opt_nodes + rcv)->tkind == T_SMI) {
         r_guard_int_2 = rcv;
         goto exit_guard_int_2;
     }
     n_30 = ({
-    n_31 = opt_new_node(O_GUARDINT, R_OOP);
-    opt_append(n_31, ob_cur_block);
+    n_31 = new_node(O_GUARDINT, R_OOP);
+    append(n_31, ob_cur_block);
     r_add_14 = n_31;
     r_add_14; });
     (opt_nodes + n_30)->a = rcv;
@@ -6428,8 +6428,8 @@ exit_guard_int_2:;
         goto exit_guard_int_3;
     }
     n_32 = ({
-    n_33 = opt_new_node(O_GUARDINT, R_OOP);
-    opt_append(n_33, ob_cur_block);
+    n_33 = new_node(O_GUARDINT, R_OOP);
+    append(n_33, ob_cur_block);
     r_add_15 = n_33;
     r_add_15; });
     (opt_nodes + n_32)->a = y_2;
@@ -6442,8 +6442,8 @@ exit_guard_int_3:;
         if ((k >= 2) && (k <= 7)) {
             n_29 = ({
     n_34 = ({
-    n_35 = opt_new_node(O_ICMP, R_OOP);
-    opt_append(n_35, ob_cur_block);
+    n_35 = new_node(O_ICMP, R_OOP);
+    append(n_35, ob_cur_block);
     r_add_16 = n_35;
     r_add_16; });
     (opt_nodes + n_34)->a = gx;
@@ -6455,8 +6455,8 @@ exit_guard_int_3:;
             var_12 = (opt_acts + a)->var_base + r;
             if ((var_12 < OPT_MAX_VARS) && (ob_arg_flags[var_12] == 2)) {
                 n_36 = ({
-    n_37 = opt_new_node(O_STORESLOT, R_NONE);
-    opt_append(n_37, ob_cur_block);
+    n_37 = new_node(O_STORESLOT, R_NONE);
+    append(n_37, ob_cur_block);
     r_add_17 = n_37;
     r_add_17; });
                 (opt_nodes + n_36)->a = n_29;
@@ -6464,7 +6464,7 @@ exit_guard_int_3:;
                 (opt_nodes + n_36)->aux = (opt_nodes + n_38)->aux;
                 goto exit_write_6;
             }
-            opt_write(var_12, n_29, ob_cur_block);
+            opt_builder_write(var_12, n_29, ob_cur_block);
         exit_write_6:;
             goto exit_int_arith;
         }
@@ -6505,8 +6505,8 @@ exit_guard_int_3:;
         }
         n_29 = ({
     n_39 = ({
-    n_40 = opt_new_node(v_4, R_OOP);
-    opt_append(n_40, ob_cur_block);
+    n_40 = new_node(v_4, R_OOP);
+    append(n_40, ob_cur_block);
     r_add_18 = n_40;
     r_add_18; });
     (opt_nodes + n_39)->a = gx;
@@ -6523,8 +6523,8 @@ exit_guard_int_3:;
         var_13 = (opt_acts + a)->var_base + r;
         if ((var_13 < OPT_MAX_VARS) && (ob_arg_flags[var_13] == 2)) {
             n_41 = ({
-    n_42 = opt_new_node(O_STORESLOT, R_NONE);
-    opt_append(n_42, ob_cur_block);
+    n_42 = new_node(O_STORESLOT, R_NONE);
+    append(n_42, ob_cur_block);
     r_add_19 = n_42;
     r_add_19; });
             (opt_nodes + n_41)->a = n_29;
@@ -6532,7 +6532,7 @@ exit_guard_int_3:;
             (opt_nodes + n_41)->aux = (opt_nodes + n_43)->aux;
             goto exit_write_7;
         }
-        opt_write(var_13, n_29, ob_cur_block);
+        opt_builder_write(var_13, n_29, ob_cur_block);
     exit_write_7:;
     exit_int_arith:;
         return true;
@@ -6558,14 +6558,14 @@ exit_guard_int_3:;
     if (ek < 0) {
         return false;
     }
-    if ((fb_flags_at((opt_acts + a)->method, pc) & FB_DEOPT_OTHER) != 0) {
+    if ((flags_at((opt_acts + a)->method, pc) & FB_DEOPT_OTHER) != 0) {
         return false;
     }
-    s = opt_make_state(a, pc, (int32_t)ob_ana_depth[(opt_acts + a)->ana + pc]);
+    s = state_act(a, pc, (int32_t)ob_ana_depth[(opt_acts + a)->ana + pc]);
     if ((kind == OPK_SIZE) && (argc == 0)) {
         n = ({
-    n_44 = opt_new_node(O_SIZE, R_OOP);
-    opt_append(n_44, ob_cur_block);
+    n_44 = new_node(O_SIZE, R_OOP);
+    append(n_44, ob_cur_block);
     r_add_20 = n_44;
     r_add_20; });
         (opt_nodes + n)->a = rcv;
@@ -6575,8 +6575,8 @@ exit_guard_int_3:;
         var_14 = (opt_acts + a)->var_base + r;
         if ((var_14 < OPT_MAX_VARS) && (ob_arg_flags[var_14] == 2)) {
             n_45 = ({
-    n_46 = opt_new_node(O_STORESLOT, R_NONE);
-    opt_append(n_46, ob_cur_block);
+    n_46 = new_node(O_STORESLOT, R_NONE);
+    append(n_46, ob_cur_block);
     r_add_21 = n_46;
     r_add_21; });
             (opt_nodes + n_45)->a = n;
@@ -6584,22 +6584,22 @@ exit_guard_int_3:;
             (opt_nodes + n_45)->aux = (opt_nodes + n_47)->aux;
             goto exit_write_8;
         }
-        opt_write(var_14, n, ob_cur_block);
+        opt_builder_write(var_14, n, ob_cur_block);
     exit_write_8:;
         return true;
     }
     if (((kind == OPK_AT) || (kind == OPK_STRINGAT)) && (argc == 1)) {
         i_6 = r + 1;
         var_15 = (opt_acts + a)->var_base + i_6;
-        v_5 = opt_read(var_15, ob_cur_block);
+        v_5 = opt_builder_read(var_15, ob_cur_block);
         idx = ({
     if ((int32_t)(opt_nodes + v_5)->tkind == T_SMI) {
         r_guard_int_4 = v_5;
         goto exit_guard_int_4;
     }
     n_48 = ({
-    n_49 = opt_new_node(O_GUARDINT, R_OOP);
-    opt_append(n_49, ob_cur_block);
+    n_49 = new_node(O_GUARDINT, R_OOP);
+    append(n_49, ob_cur_block);
     r_add_22 = n_49;
     r_add_22; });
     (opt_nodes + n_48)->a = v_5;
@@ -6610,8 +6610,8 @@ exit_guard_int_3:;
 exit_guard_int_4:;
     r_guard_int_4; });
         n = ({
-    n_50 = opt_new_node(O_INDEXLOAD, R_OOP);
-    opt_append(n_50, ob_cur_block);
+    n_50 = new_node(O_INDEXLOAD, R_OOP);
+    append(n_50, ob_cur_block);
     r_add_23 = n_50;
     r_add_23; });
         (opt_nodes + n)->a = rcv;
@@ -6628,8 +6628,8 @@ exit_guard_int_4:;
         var_16 = (opt_acts + a)->var_base + r;
         if ((var_16 < OPT_MAX_VARS) && (ob_arg_flags[var_16] == 2)) {
             n_51 = ({
-    n_52 = opt_new_node(O_STORESLOT, R_NONE);
-    opt_append(n_52, ob_cur_block);
+    n_52 = new_node(O_STORESLOT, R_NONE);
+    append(n_52, ob_cur_block);
     r_add_24 = n_52;
     r_add_24; });
             (opt_nodes + n_51)->a = n;
@@ -6637,22 +6637,22 @@ exit_guard_int_4:;
             (opt_nodes + n_51)->aux = (opt_nodes + n_53)->aux;
             goto exit_write_9;
         }
-        opt_write(var_16, n, ob_cur_block);
+        opt_builder_write(var_16, n, ob_cur_block);
     exit_write_9:;
         return true;
     }
     if (((kind == OPK_ATPUT) || (kind == OPK_STRINGATPUT)) && (argc == 2)) {
         i_7 = r + 1;
         var_17 = (opt_acts + a)->var_base + i_7;
-        v_6 = opt_read(var_17, ob_cur_block);
+        v_6 = opt_builder_read(var_17, ob_cur_block);
         idx = ({
     if ((int32_t)(opt_nodes + v_6)->tkind == T_SMI) {
         r_guard_int_5 = v_6;
         goto exit_guard_int_5;
     }
     n_54 = ({
-    n_55 = opt_new_node(O_GUARDINT, R_OOP);
-    opt_append(n_55, ob_cur_block);
+    n_55 = new_node(O_GUARDINT, R_OOP);
+    append(n_55, ob_cur_block);
     r_add_25 = n_55;
     r_add_25; });
     (opt_nodes + n_54)->a = v_6;
@@ -6664,10 +6664,10 @@ exit_guard_int_5:;
     r_guard_int_5; });
         i_8 = r + 2;
         var_18 = (opt_acts + a)->var_base + i_8;
-        val = opt_read(var_18, ob_cur_block);
+        val = opt_builder_read(var_18, ob_cur_block);
         n = ({
-    n_56 = opt_new_node(O_INDEXSTORE, R_NONE);
-    opt_append(n_56, ob_cur_block);
+    n_56 = new_node(O_INDEXSTORE, R_NONE);
+    append(n_56, ob_cur_block);
     r_add_26 = n_56;
     r_add_26; });
         (opt_nodes + n)->a = rcv;
@@ -6679,8 +6679,8 @@ exit_guard_int_5:;
         var_19 = (opt_acts + a)->var_base + r;
         if ((var_19 < OPT_MAX_VARS) && (ob_arg_flags[var_19] == 2)) {
             n_57 = ({
-    n_58 = opt_new_node(O_STORESLOT, R_NONE);
-    opt_append(n_58, ob_cur_block);
+    n_58 = new_node(O_STORESLOT, R_NONE);
+    append(n_58, ob_cur_block);
     r_add_27 = n_58;
     r_add_27; });
             (opt_nodes + n_57)->a = val;
@@ -6688,7 +6688,7 @@ exit_guard_int_5:;
             (opt_nodes + n_57)->aux = (opt_nodes + n_59)->aux;
             goto exit_write_10;
         }
-        opt_write(var_19, val, ob_cur_block);
+        opt_builder_write(var_19, val, ob_cur_block);
     exit_write_10:;
         return true;
     }
@@ -6696,7 +6696,7 @@ exit_guard_int_5:;
 }
 
 /* OptBuilder>>inlineSend:argc:kind:special:pc:act:rcvSlot: */
-static bool opt_inline_send(uint64_t sel, int32_t argc, int32_t kind, int32_t k, int32_t pc, int32_t a, int32_t r)
+static bool inline_send(uint64_t sel, int32_t argc, int32_t kind, int32_t k, int32_t pc, int32_t a, int32_t r)
 {
     int32_t var;
     int32_t rcv;
@@ -6704,7 +6704,7 @@ static bool opt_inline_send(uint64_t sel, int32_t argc, int32_t kind, int32_t k,
     uint64_t o_2;
     uint64_t cls;
     bool r_send;
-    oop m;
+    uint64_t m;
     int32_t i;
     int32_t var_2;
     int32_t r_add;
@@ -6912,7 +6912,7 @@ static bool opt_inline_send(uint64_t sel, int32_t argc, int32_t kind, int32_t k,
     oop r_class_of_2;
     oop r_class_of_3;
     bool r_send_2;
-    oop m_6;
+    uint64_t m_6;
     int32_t i_15;
     int32_t var_12;
     int32_t r_add_10;
@@ -7132,7 +7132,7 @@ static bool opt_inline_send(uint64_t sel, int32_t argc, int32_t kind, int32_t k,
     int32_t g;
     oop cls_3;
     bool r_send_3;
-    oop m_11;
+    uint64_t m_11;
     int32_t i_30;
     int32_t var_22;
     int32_t r_add_21;
@@ -7354,7 +7354,7 @@ static bool opt_inline_send(uint64_t sel, int32_t argc, int32_t kind, int32_t k,
     int32_t n_95;
     int32_t n_97;
     bool r_send_4;
-    oop m_16;
+    uint64_t m_16;
     int32_t i_45;
     int32_t var_33;
     int32_t r_add_34;
@@ -7596,7 +7596,7 @@ static bool opt_inline_send(uint64_t sel, int32_t argc, int32_t kind, int32_t k,
     int32_t n_137;
     int32_t n_136;
     var = (opt_acts + a)->var_base + r;
-    rcv = opt_read(var, ob_cur_block);
+    rcv = opt_builder_read(var, ob_cur_block);
     if (kind == 1) {
         o = (opt_acts + a)->method;
         o_2 = *(uint64_t *)(o + 16 + 8);
@@ -7624,8 +7624,8 @@ exit_note_dependency:;
     var_2 = (opt_acts + a)->var_base + r;
     if ((var_2 < OPT_MAX_VARS) && (ob_arg_flags[var_2] == 2)) {
         n_3 = ({
-    n_4 = opt_new_node(O_STORESLOT, R_NONE);
-    opt_append(n_4, ob_cur_block);
+    n_4 = new_node(O_STORESLOT, R_NONE);
+    append(n_4, ob_cur_block);
     r_add = n_4;
     r_add; });
         (opt_nodes + n_3)->a = rcv;
@@ -7633,16 +7633,16 @@ exit_note_dependency:;
         (opt_nodes + n_3)->aux = (opt_nodes + n_5)->aux;
         goto exit_write;
     }
-    opt_write(var_2, rcv, ob_cur_block);
+    opt_builder_write(var_2, rcv, ob_cur_block);
 exit_write:;
     if ((kind == 0) && ({
     i_2 = r + 1;
     n_6 = argc - 1;
     (p = ({
-    if (!((ob_perform_act < 0) && ((bl_prim_kind(({
+    if (!((ob_perform_act < 0) && ((prim_kind_of(({
     p_2 = *(uint64_t *)(m + 16 + 56);
     r_method_primitive = (p_2 & 1) != 0 ? (int32_t)((((int64_t)p_2) >> 1) & CM_PRIM_MASK) : 0;
-    r_method_primitive; })) == PK_PERFORM) && ((bl_prim_op(({
+    r_method_primitive; })) == PK_PERFORM) && ((prim_op_of(({
     p_3 = *(uint64_t *)(m + 16 + 56);
     r_method_primitive_2 = (p_3 & 1) != 0 ? (int32_t)((((int64_t)p_3) >> 1) & CM_PRIM_MASK) : 0;
     r_method_primitive_2; })) == 0) && ((n_6 >= 0) && (n_6 < 8)))))) {
@@ -7650,7 +7650,7 @@ exit_write:;
         goto exit_performed_at;
     }
     var_3 = (opt_acts + a)->var_base + i_2;
-    n_7 = opt_read(var_3, ob_cur_block);
+    n_7 = opt_builder_read(var_3, ob_cur_block);
     nd = opt_nodes + n_7;
     if (!((int32_t)nd->op == O_CONST)) {
         r_performed_at = 0ULL;
@@ -7663,7 +7663,7 @@ exit_write:;
     r_performed_at = (uint64_t)nd->aux;
 exit_performed_at:;
     r_performed_at; })) != 0; })) {
-        r_send = opt_send_performed(p, rcv, cls, argc - 1, pc, a, r);
+        r_send = send_performed(p, rcv, cls, argc - 1, pc, a, r);
         goto exit_send;
     }
     if (((jit_flags & JIT_FLAG_ALLOC) != 0) && ({
@@ -7675,163 +7675,163 @@ exit_performed_at:;
     if (!ob_prims_known) {
         ob_prims_known = true;
         memset(ob_prim_kinds, 0, OPT_MAX_PRIM);
-        p_6 = jit_primitive_number("at");
+        p_6 = primitive_number_named("at");
         if ((p_6 > 0) && (p_6 < OPT_MAX_PRIM)) {
             ob_prim_kinds[p_6] = 1U;
         }
-        p_7 = jit_primitive_number("atPut");
+        p_7 = primitive_number_named("atPut");
         if ((p_7 > 0) && (p_7 < OPT_MAX_PRIM)) {
             ob_prim_kinds[p_7] = 2U;
         }
-        p_8 = jit_primitive_number("basicSize");
+        p_8 = primitive_number_named("basicSize");
         if ((p_8 > 0) && (p_8 < OPT_MAX_PRIM)) {
             ob_prim_kinds[p_8] = 3U;
         }
-        p_9 = jit_primitive_number("stringAt");
+        p_9 = primitive_number_named("stringAt");
         if ((p_9 > 0) && (p_9 < OPT_MAX_PRIM)) {
             ob_prim_kinds[p_9] = 4U;
         }
-        p_10 = jit_primitive_number("stringAtPut");
+        p_10 = primitive_number_named("stringAtPut");
         if ((p_10 > 0) && (p_10 < OPT_MAX_PRIM)) {
             ob_prim_kinds[p_10] = 5U;
         }
-        p_11 = jit_primitive_number("class");
+        p_11 = primitive_number_named("class");
         if ((p_11 > 0) && (p_11 < OPT_MAX_PRIM)) {
             ob_prim_kinds[p_11] = 6U;
         }
-        p_12 = jit_primitive_number("identical");
+        p_12 = primitive_number_named("identical");
         if ((p_12 > 0) && (p_12 < OPT_MAX_PRIM)) {
             ob_prim_kinds[p_12] = 7U;
         }
-        p_13 = jit_primitive_number("intAdd");
+        p_13 = primitive_number_named("intAdd");
         if ((p_13 > 0) && (p_13 < OPT_MAX_PRIM)) {
             ob_prim_kinds[p_13] = 32U;
         }
-        p_14 = jit_primitive_number("intSub");
+        p_14 = primitive_number_named("intSub");
         if ((p_14 > 0) && (p_14 < OPT_MAX_PRIM)) {
             ob_prim_kinds[p_14] = 33U;
         }
-        p_15 = jit_primitive_number("intLess");
+        p_15 = primitive_number_named("intLess");
         if ((p_15 > 0) && (p_15 < OPT_MAX_PRIM)) {
             ob_prim_kinds[p_15] = 34U;
         }
-        p_16 = jit_primitive_number("intGreater");
+        p_16 = primitive_number_named("intGreater");
         if ((p_16 > 0) && (p_16 < OPT_MAX_PRIM)) {
             ob_prim_kinds[p_16] = 35U;
         }
-        p_17 = jit_primitive_number("intLessEq");
+        p_17 = primitive_number_named("intLessEq");
         if ((p_17 > 0) && (p_17 < OPT_MAX_PRIM)) {
             ob_prim_kinds[p_17] = 36U;
         }
-        p_18 = jit_primitive_number("intGreaterEq");
+        p_18 = primitive_number_named("intGreaterEq");
         if ((p_18 > 0) && (p_18 < OPT_MAX_PRIM)) {
             ob_prim_kinds[p_18] = 37U;
         }
-        p_19 = jit_primitive_number("intEq");
+        p_19 = primitive_number_named("intEq");
         if ((p_19 > 0) && (p_19 < OPT_MAX_PRIM)) {
             ob_prim_kinds[p_19] = 38U;
         }
-        p_20 = jit_primitive_number("intNotEq");
+        p_20 = primitive_number_named("intNotEq");
         if ((p_20 > 0) && (p_20 < OPT_MAX_PRIM)) {
             ob_prim_kinds[p_20] = 39U;
         }
-        p_21 = jit_primitive_number("intMul");
+        p_21 = primitive_number_named("intMul");
         if ((p_21 > 0) && (p_21 < OPT_MAX_PRIM)) {
             ob_prim_kinds[p_21] = 40U;
         }
-        p_22 = jit_primitive_number("intBitAnd");
+        p_22 = primitive_number_named("intBitAnd");
         if ((p_22 > 0) && (p_22 < OPT_MAX_PRIM)) {
             ob_prim_kinds[p_22] = 46U;
         }
-        p_23 = jit_primitive_number("intBitOr");
+        p_23 = primitive_number_named("intBitOr");
         if ((p_23 > 0) && (p_23 < OPT_MAX_PRIM)) {
             ob_prim_kinds[p_23] = 47U;
         }
-        p_24 = jit_primitive_number("intMod");
+        p_24 = primitive_number_named("intMod");
         if ((p_24 > 0) && (p_24 < OPT_MAX_PRIM)) {
             ob_prim_kinds[p_24] = 42U;
         }
-        p_25 = jit_primitive_number("intBitXor");
+        p_25 = primitive_number_named("intBitXor");
         if ((p_25 > 0) && (p_25 < OPT_MAX_PRIM)) {
             ob_prim_kinds[p_25] = 43U;
         }
-        p_26 = jit_primitive_number("intBitShift");
+        p_26 = primitive_number_named("intBitShift");
         if ((p_26 > 0) && (p_26 < OPT_MAX_PRIM)) {
             ob_prim_kinds[p_26] = 44U;
         }
-        p_27 = jit_primitive_number("intFloorDiv");
+        p_27 = primitive_number_named("intFloorDiv");
         if ((p_27 > 0) && (p_27 < OPT_MAX_PRIM)) {
             ob_prim_kinds[p_27] = 45U;
         }
-        p_28 = jit_primitive_number("intQuo");
+        p_28 = primitive_number_named("intQuo");
         if ((p_28 > 0) && (p_28 < OPT_MAX_PRIM)) {
             ob_prim_kinds[p_28] = 48U;
         }
-        p_29 = jit_primitive_number("intRem");
+        p_29 = primitive_number_named("intRem");
         if ((p_29 > 0) && (p_29 < OPT_MAX_PRIM)) {
             ob_prim_kinds[p_29] = 49U;
         }
-        p_30 = jit_primitive_number("charValue");
+        p_30 = primitive_number_named("charValue");
         if ((p_30 > 0) && (p_30 < OPT_MAX_PRIM)) {
             ob_prim_kinds[p_30] = 12U;
         }
-        p_31 = jit_primitive_number("charFromValue");
+        p_31 = primitive_number_named("charFromValue");
         if ((p_31 > 0) && (p_31 < OPT_MAX_PRIM)) {
             ob_prim_kinds[p_31] = 13U;
         }
-        p_32 = jit_primitive_number("floatAdd");
+        p_32 = primitive_number_named("floatAdd");
         if ((p_32 > 0) && (p_32 < OPT_MAX_PRIM)) {
             ob_prim_kinds[p_32] = 64U;
         }
-        p_33 = jit_primitive_number("floatSub");
+        p_33 = primitive_number_named("floatSub");
         if ((p_33 > 0) && (p_33 < OPT_MAX_PRIM)) {
             ob_prim_kinds[p_33] = 65U;
         }
-        p_34 = jit_primitive_number("floatLess");
+        p_34 = primitive_number_named("floatLess");
         if ((p_34 > 0) && (p_34 < OPT_MAX_PRIM)) {
             ob_prim_kinds[p_34] = 66U;
         }
-        p_35 = jit_primitive_number("floatGreater");
+        p_35 = primitive_number_named("floatGreater");
         if ((p_35 > 0) && (p_35 < OPT_MAX_PRIM)) {
             ob_prim_kinds[p_35] = 67U;
         }
-        p_36 = jit_primitive_number("floatLessEq");
+        p_36 = primitive_number_named("floatLessEq");
         if ((p_36 > 0) && (p_36 < OPT_MAX_PRIM)) {
             ob_prim_kinds[p_36] = 68U;
         }
-        p_37 = jit_primitive_number("floatGreaterEq");
+        p_37 = primitive_number_named("floatGreaterEq");
         if ((p_37 > 0) && (p_37 < OPT_MAX_PRIM)) {
             ob_prim_kinds[p_37] = 69U;
         }
-        p_38 = jit_primitive_number("floatEq");
+        p_38 = primitive_number_named("floatEq");
         if ((p_38 > 0) && (p_38 < OPT_MAX_PRIM)) {
             ob_prim_kinds[p_38] = 70U;
         }
-        p_39 = jit_primitive_number("floatNotEq");
+        p_39 = primitive_number_named("floatNotEq");
         if ((p_39 > 0) && (p_39 < OPT_MAX_PRIM)) {
             ob_prim_kinds[p_39] = 71U;
         }
-        p_40 = jit_primitive_number("floatMul");
+        p_40 = primitive_number_named("floatMul");
         if ((p_40 > 0) && (p_40 < OPT_MAX_PRIM)) {
             ob_prim_kinds[p_40] = 72U;
         }
-        p_41 = jit_primitive_number("floatDiv");
+        p_41 = primitive_number_named("floatDiv");
         if ((p_41 > 0) && (p_41 < OPT_MAX_PRIM)) {
             ob_prim_kinds[p_41] = 73U;
         }
-        p_42 = jit_primitive_number("floatSqrt");
+        p_42 = primitive_number_named("floatSqrt");
         if ((p_42 > 0) && (p_42 < OPT_MAX_PRIM)) {
             ob_prim_kinds[p_42] = 8U;
         }
-        p_43 = jit_primitive_number("basicNew");
+        p_43 = primitive_number_named("basicNew");
         if ((p_43 > 0) && (p_43 < OPT_MAX_PRIM)) {
             ob_prim_kinds[p_43] = 9U;
         }
-        p_44 = jit_primitive_number("basicNew:");
+        p_44 = primitive_number_named("basicNew:");
         if ((p_44 > 0) && (p_44 < OPT_MAX_PRIM)) {
             ob_prim_kinds[p_44] = 10U;
         }
-        p_45 = jit_primitive_number("closureValue");
+        p_45 = primitive_number_named("closureValue");
         if ((p_45 > 0) && (p_45 < OPT_MAX_PRIM)) {
             ob_prim_kinds[p_45] = 11U;
         }
@@ -7898,17 +7898,17 @@ exit_class_of:;
         fputc(10, stderr);
     }
     n_9 = ({
-    n_10 = opt_new_node(O_SEND, R_OOP);
-    opt_append(n_10, ob_cur_block);
+    n_10 = new_node(O_SEND, R_OOP);
+    append(n_10, ob_cur_block);
     r_add_2 = n_10;
     r_add_2; });
     ob_safe_epoch = ob_safe_epoch + 1;
-    args = opt_alloc_operands(argc + 1);
+    args = alloc_operands(argc + 1);
     for (i_3 = 0; i_3 <= argc; i_3++) {
         i_4 = args + i_3;
         i_5 = r + i_3;
         var_4 = (opt_acts + a)->var_base + i_5;
-        v = opt_read(var_4, ob_cur_block);
+        v = opt_builder_read(var_4, ob_cur_block);
         opt_operands[i_4] = v;
     }
     (opt_nodes + n_9)->args = args;
@@ -7921,7 +7921,7 @@ exit_class_of:;
     m_2 = (opt_acts + a)->method;
     o_3 = *(uint64_t *)(m_2 + 16 + 24);
     op = ((uint8_t *)(o_3 + 16))[pc];
-    (opt_nodes + n_9)->state = opt_make_state(a, (int32_t)(pc + ({
+    (opt_nodes + n_9)->state = state_act(a, (int32_t)(pc + ({
     if (op < 0x68) {
         r_length_of = 1;
         goto exit_length_of;
@@ -7984,8 +7984,8 @@ exit_length_of:;
     var_5 = (opt_acts + a)->var_base + r;
     if ((var_5 < OPT_MAX_VARS) && (ob_arg_flags[var_5] == 2)) {
         n_11 = ({
-    n_12 = opt_new_node(O_STORESLOT, R_NONE);
-    opt_append(n_12, ob_cur_block);
+    n_12 = new_node(O_STORESLOT, R_NONE);
+    append(n_12, ob_cur_block);
     r_add_3 = n_12;
     r_add_3; });
         (opt_nodes + n_11)->a = n_9;
@@ -7993,7 +7993,7 @@ exit_length_of:;
         (opt_nodes + n_11)->aux = (opt_nodes + n_13)->aux;
         goto exit_write_2;
     }
-    opt_write(var_5, n_9, ob_cur_block);
+    opt_builder_write(var_5, n_9, ob_cur_block);
 exit_write_2:;
     r_call_selector = n_9;
     r_call_selector; });
@@ -8016,163 +8016,163 @@ exit_allocate:;
     if (!ob_prims_known) {
         ob_prims_known = true;
         memset(ob_prim_kinds, 0, OPT_MAX_PRIM);
-        p_48 = jit_primitive_number("at");
+        p_48 = primitive_number_named("at");
         if ((p_48 > 0) && (p_48 < OPT_MAX_PRIM)) {
             ob_prim_kinds[p_48] = 1U;
         }
-        p_49 = jit_primitive_number("atPut");
+        p_49 = primitive_number_named("atPut");
         if ((p_49 > 0) && (p_49 < OPT_MAX_PRIM)) {
             ob_prim_kinds[p_49] = 2U;
         }
-        p_50 = jit_primitive_number("basicSize");
+        p_50 = primitive_number_named("basicSize");
         if ((p_50 > 0) && (p_50 < OPT_MAX_PRIM)) {
             ob_prim_kinds[p_50] = 3U;
         }
-        p_51 = jit_primitive_number("stringAt");
+        p_51 = primitive_number_named("stringAt");
         if ((p_51 > 0) && (p_51 < OPT_MAX_PRIM)) {
             ob_prim_kinds[p_51] = 4U;
         }
-        p_52 = jit_primitive_number("stringAtPut");
+        p_52 = primitive_number_named("stringAtPut");
         if ((p_52 > 0) && (p_52 < OPT_MAX_PRIM)) {
             ob_prim_kinds[p_52] = 5U;
         }
-        p_53 = jit_primitive_number("class");
+        p_53 = primitive_number_named("class");
         if ((p_53 > 0) && (p_53 < OPT_MAX_PRIM)) {
             ob_prim_kinds[p_53] = 6U;
         }
-        p_54 = jit_primitive_number("identical");
+        p_54 = primitive_number_named("identical");
         if ((p_54 > 0) && (p_54 < OPT_MAX_PRIM)) {
             ob_prim_kinds[p_54] = 7U;
         }
-        p_55 = jit_primitive_number("intAdd");
+        p_55 = primitive_number_named("intAdd");
         if ((p_55 > 0) && (p_55 < OPT_MAX_PRIM)) {
             ob_prim_kinds[p_55] = 32U;
         }
-        p_56 = jit_primitive_number("intSub");
+        p_56 = primitive_number_named("intSub");
         if ((p_56 > 0) && (p_56 < OPT_MAX_PRIM)) {
             ob_prim_kinds[p_56] = 33U;
         }
-        p_57 = jit_primitive_number("intLess");
+        p_57 = primitive_number_named("intLess");
         if ((p_57 > 0) && (p_57 < OPT_MAX_PRIM)) {
             ob_prim_kinds[p_57] = 34U;
         }
-        p_58 = jit_primitive_number("intGreater");
+        p_58 = primitive_number_named("intGreater");
         if ((p_58 > 0) && (p_58 < OPT_MAX_PRIM)) {
             ob_prim_kinds[p_58] = 35U;
         }
-        p_59 = jit_primitive_number("intLessEq");
+        p_59 = primitive_number_named("intLessEq");
         if ((p_59 > 0) && (p_59 < OPT_MAX_PRIM)) {
             ob_prim_kinds[p_59] = 36U;
         }
-        p_60 = jit_primitive_number("intGreaterEq");
+        p_60 = primitive_number_named("intGreaterEq");
         if ((p_60 > 0) && (p_60 < OPT_MAX_PRIM)) {
             ob_prim_kinds[p_60] = 37U;
         }
-        p_61 = jit_primitive_number("intEq");
+        p_61 = primitive_number_named("intEq");
         if ((p_61 > 0) && (p_61 < OPT_MAX_PRIM)) {
             ob_prim_kinds[p_61] = 38U;
         }
-        p_62 = jit_primitive_number("intNotEq");
+        p_62 = primitive_number_named("intNotEq");
         if ((p_62 > 0) && (p_62 < OPT_MAX_PRIM)) {
             ob_prim_kinds[p_62] = 39U;
         }
-        p_63 = jit_primitive_number("intMul");
+        p_63 = primitive_number_named("intMul");
         if ((p_63 > 0) && (p_63 < OPT_MAX_PRIM)) {
             ob_prim_kinds[p_63] = 40U;
         }
-        p_64 = jit_primitive_number("intBitAnd");
+        p_64 = primitive_number_named("intBitAnd");
         if ((p_64 > 0) && (p_64 < OPT_MAX_PRIM)) {
             ob_prim_kinds[p_64] = 46U;
         }
-        p_65 = jit_primitive_number("intBitOr");
+        p_65 = primitive_number_named("intBitOr");
         if ((p_65 > 0) && (p_65 < OPT_MAX_PRIM)) {
             ob_prim_kinds[p_65] = 47U;
         }
-        p_66 = jit_primitive_number("intMod");
+        p_66 = primitive_number_named("intMod");
         if ((p_66 > 0) && (p_66 < OPT_MAX_PRIM)) {
             ob_prim_kinds[p_66] = 42U;
         }
-        p_67 = jit_primitive_number("intBitXor");
+        p_67 = primitive_number_named("intBitXor");
         if ((p_67 > 0) && (p_67 < OPT_MAX_PRIM)) {
             ob_prim_kinds[p_67] = 43U;
         }
-        p_68 = jit_primitive_number("intBitShift");
+        p_68 = primitive_number_named("intBitShift");
         if ((p_68 > 0) && (p_68 < OPT_MAX_PRIM)) {
             ob_prim_kinds[p_68] = 44U;
         }
-        p_69 = jit_primitive_number("intFloorDiv");
+        p_69 = primitive_number_named("intFloorDiv");
         if ((p_69 > 0) && (p_69 < OPT_MAX_PRIM)) {
             ob_prim_kinds[p_69] = 45U;
         }
-        p_70 = jit_primitive_number("intQuo");
+        p_70 = primitive_number_named("intQuo");
         if ((p_70 > 0) && (p_70 < OPT_MAX_PRIM)) {
             ob_prim_kinds[p_70] = 48U;
         }
-        p_71 = jit_primitive_number("intRem");
+        p_71 = primitive_number_named("intRem");
         if ((p_71 > 0) && (p_71 < OPT_MAX_PRIM)) {
             ob_prim_kinds[p_71] = 49U;
         }
-        p_72 = jit_primitive_number("charValue");
+        p_72 = primitive_number_named("charValue");
         if ((p_72 > 0) && (p_72 < OPT_MAX_PRIM)) {
             ob_prim_kinds[p_72] = 12U;
         }
-        p_73 = jit_primitive_number("charFromValue");
+        p_73 = primitive_number_named("charFromValue");
         if ((p_73 > 0) && (p_73 < OPT_MAX_PRIM)) {
             ob_prim_kinds[p_73] = 13U;
         }
-        p_74 = jit_primitive_number("floatAdd");
+        p_74 = primitive_number_named("floatAdd");
         if ((p_74 > 0) && (p_74 < OPT_MAX_PRIM)) {
             ob_prim_kinds[p_74] = 64U;
         }
-        p_75 = jit_primitive_number("floatSub");
+        p_75 = primitive_number_named("floatSub");
         if ((p_75 > 0) && (p_75 < OPT_MAX_PRIM)) {
             ob_prim_kinds[p_75] = 65U;
         }
-        p_76 = jit_primitive_number("floatLess");
+        p_76 = primitive_number_named("floatLess");
         if ((p_76 > 0) && (p_76 < OPT_MAX_PRIM)) {
             ob_prim_kinds[p_76] = 66U;
         }
-        p_77 = jit_primitive_number("floatGreater");
+        p_77 = primitive_number_named("floatGreater");
         if ((p_77 > 0) && (p_77 < OPT_MAX_PRIM)) {
             ob_prim_kinds[p_77] = 67U;
         }
-        p_78 = jit_primitive_number("floatLessEq");
+        p_78 = primitive_number_named("floatLessEq");
         if ((p_78 > 0) && (p_78 < OPT_MAX_PRIM)) {
             ob_prim_kinds[p_78] = 68U;
         }
-        p_79 = jit_primitive_number("floatGreaterEq");
+        p_79 = primitive_number_named("floatGreaterEq");
         if ((p_79 > 0) && (p_79 < OPT_MAX_PRIM)) {
             ob_prim_kinds[p_79] = 69U;
         }
-        p_80 = jit_primitive_number("floatEq");
+        p_80 = primitive_number_named("floatEq");
         if ((p_80 > 0) && (p_80 < OPT_MAX_PRIM)) {
             ob_prim_kinds[p_80] = 70U;
         }
-        p_81 = jit_primitive_number("floatNotEq");
+        p_81 = primitive_number_named("floatNotEq");
         if ((p_81 > 0) && (p_81 < OPT_MAX_PRIM)) {
             ob_prim_kinds[p_81] = 71U;
         }
-        p_82 = jit_primitive_number("floatMul");
+        p_82 = primitive_number_named("floatMul");
         if ((p_82 > 0) && (p_82 < OPT_MAX_PRIM)) {
             ob_prim_kinds[p_82] = 72U;
         }
-        p_83 = jit_primitive_number("floatDiv");
+        p_83 = primitive_number_named("floatDiv");
         if ((p_83 > 0) && (p_83 < OPT_MAX_PRIM)) {
             ob_prim_kinds[p_83] = 73U;
         }
-        p_84 = jit_primitive_number("floatSqrt");
+        p_84 = primitive_number_named("floatSqrt");
         if ((p_84 > 0) && (p_84 < OPT_MAX_PRIM)) {
             ob_prim_kinds[p_84] = 8U;
         }
-        p_85 = jit_primitive_number("basicNew");
+        p_85 = primitive_number_named("basicNew");
         if ((p_85 > 0) && (p_85 < OPT_MAX_PRIM)) {
             ob_prim_kinds[p_85] = 9U;
         }
-        p_86 = jit_primitive_number("basicNew:");
+        p_86 = primitive_number_named("basicNew:");
         if ((p_86 > 0) && (p_86 < OPT_MAX_PRIM)) {
             ob_prim_kinds[p_86] = 10U;
         }
-        p_87 = jit_primitive_number("closureValue");
+        p_87 = primitive_number_named("closureValue");
         if ((p_87 > 0) && (p_87 < OPT_MAX_PRIM)) {
             ob_prim_kinds[p_87] = 11U;
         }
@@ -8186,15 +8186,15 @@ exit_prim_kind_of_2:;
     r_prim_kind_of_2; }) == OPK_CLOSURE; }))) {
         r_send = ({
     k_2 = -1;
-    o_4 = special(SO_SPECIAL_SELECTORS);
+    o_4 = object_memory_special(SO_SPECIAL_SELECTORS);
     if (*(uint64_t *)(o_4 + 16 + 168) == sel) {
         k_2 = 21;
     }
-    o_5 = special(SO_SPECIAL_SELECTORS);
+    o_5 = object_memory_special(SO_SPECIAL_SELECTORS);
     if (*(uint64_t *)(o_5 + 16 + 176) == sel) {
         k_2 = 22;
     }
-    o_6 = special(SO_SPECIAL_SELECTORS);
+    o_6 = object_memory_special(SO_SPECIAL_SELECTORS);
     if (*(uint64_t *)(o_6 + 16 + 240) == sel) {
         k_2 = 30;
     }
@@ -8205,17 +8205,17 @@ exit_prim_kind_of_2:;
             fputc(10, stderr);
         }
         n_15 = ({
-    n_16 = opt_new_node(O_SEND, R_OOP);
-    opt_append(n_16, ob_cur_block);
+    n_16 = new_node(O_SEND, R_OOP);
+    append(n_16, ob_cur_block);
     r_add_4 = n_16;
     r_add_4; });
         ob_safe_epoch = ob_safe_epoch + 1;
-        args_2 = opt_alloc_operands(argc + 1);
+        args_2 = alloc_operands(argc + 1);
         for (i_6 = 0; i_6 <= argc; i_6++) {
             i_7 = args_2 + i_6;
             i_8 = r + i_6;
             var_6 = (opt_acts + a)->var_base + i_8;
-            v_2 = opt_read(var_6, ob_cur_block);
+            v_2 = opt_builder_read(var_6, ob_cur_block);
             opt_operands[i_7] = v_2;
         }
         (opt_nodes + n_15)->args = args_2;
@@ -8228,7 +8228,7 @@ exit_prim_kind_of_2:;
         m_3 = (opt_acts + a)->method;
         o_7 = *(uint64_t *)(m_3 + 16 + 24);
         op_2 = ((uint8_t *)(o_7 + 16))[pc];
-        (opt_nodes + n_15)->state = opt_make_state(a, (int32_t)(pc + ({
+        (opt_nodes + n_15)->state = state_act(a, (int32_t)(pc + ({
     if (op_2 < 0x68) {
         r_length_of_2 = 1;
         goto exit_length_of_2;
@@ -8291,8 +8291,8 @@ exit_length_of_2:;
         var_7 = (opt_acts + a)->var_base + r;
         if ((var_7 < OPT_MAX_VARS) && (ob_arg_flags[var_7] == 2)) {
             n_17 = ({
-    n_18 = opt_new_node(O_STORESLOT, R_NONE);
-    opt_append(n_18, ob_cur_block);
+    n_18 = new_node(O_STORESLOT, R_NONE);
+    append(n_18, ob_cur_block);
     r_add_5 = n_18;
     r_add_5; });
             (opt_nodes + n_17)->a = n_15;
@@ -8300,7 +8300,7 @@ exit_length_of_2:;
             (opt_nodes + n_17)->aux = (opt_nodes + n_19)->aux;
             goto exit_write_3;
         }
-        opt_write(var_7, n_15, ob_cur_block);
+        opt_builder_write(var_7, n_15, ob_cur_block);
     exit_write_3:;
         r_block_call = true;
         goto exit_block_call;
@@ -8312,17 +8312,17 @@ exit_length_of_2:;
         fputc(10, stderr);
     }
     n_20 = ({
-    n_21 = opt_new_node(O_SEND, R_OOP);
-    opt_append(n_21, ob_cur_block);
+    n_21 = new_node(O_SEND, R_OOP);
+    append(n_21, ob_cur_block);
     r_add_6 = n_21;
     r_add_6; });
     ob_safe_epoch = ob_safe_epoch + 1;
-    args_3 = opt_alloc_operands(argc + 1);
+    args_3 = alloc_operands(argc + 1);
     for (i_9 = 0; i_9 <= argc; i_9++) {
         i_10 = args_3 + i_9;
         i_11 = r + i_9;
         var_8 = (opt_acts + a)->var_base + i_11;
-        v_3 = opt_read(var_8, ob_cur_block);
+        v_3 = opt_builder_read(var_8, ob_cur_block);
         opt_operands[i_10] = v_3;
     }
     (opt_nodes + n_20)->args = args_3;
@@ -8335,7 +8335,7 @@ exit_length_of_2:;
     m_4 = (opt_acts + a)->method;
     o_8 = *(uint64_t *)(m_4 + 16 + 24);
     op_3 = ((uint8_t *)(o_8 + 16))[pc];
-    (opt_nodes + n_20)->state = opt_make_state(a, (int32_t)(pc + ({
+    (opt_nodes + n_20)->state = state_act(a, (int32_t)(pc + ({
     if (op_3 < 0x68) {
         r_length_of_3 = 1;
         goto exit_length_of_3;
@@ -8398,8 +8398,8 @@ exit_length_of_3:;
     var_9 = (opt_acts + a)->var_base + r;
     if ((var_9 < OPT_MAX_VARS) && (ob_arg_flags[var_9] == 2)) {
         n_22 = ({
-    n_23 = opt_new_node(O_STORESLOT, R_NONE);
-    opt_append(n_23, ob_cur_block);
+    n_23 = new_node(O_STORESLOT, R_NONE);
+    append(n_23, ob_cur_block);
     r_add_7 = n_23;
     r_add_7; });
         (opt_nodes + n_22)->a = n_20;
@@ -8407,7 +8407,7 @@ exit_length_of_3:;
         (opt_nodes + n_22)->aux = (opt_nodes + n_24)->aux;
         goto exit_write_4;
     }
-    opt_write(var_9, n_20, ob_cur_block);
+    opt_builder_write(var_9, n_20, ob_cur_block);
 exit_write_4:;
     r_call_selector_2 = n_20;
     r_call_selector_2; });
@@ -8420,15 +8420,15 @@ exit_block_call:;
     if ((({
     p_88 = *(uint64_t *)(m + 16 + 56);
     r_method_primitive_5 = (p_88 & 1) != 0 ? (int32_t)((((int64_t)p_88) >> 1) & CM_PRIM_MASK) : 0;
-    r_method_primitive_5; }) != 0) && (((jit_flags & JIT_FLAG_PRIMS) != 0) && opt_inline_primitive(({
+    r_method_primitive_5; }) != 0) && (((jit_flags & JIT_FLAG_PRIMS) != 0) && inline_primitive(({
     p_89 = *(uint64_t *)(m + 16 + 56);
     r_method_primitive_6 = (p_89 & 1) != 0 ? (int32_t)((((int64_t)p_89) >> 1) & CM_PRIM_MASK) : 0;
     r_method_primitive_6; }), cls, argc, pc, a, r))) {
         r_send = true;
         goto exit_send;
     }
-    if (opt_can_inline(m, a)) {
-        opt_inline_method(m, cls, pc, a, r, argc);
+    if (can_inline(m, a)) {
+        inline_method(m, cls, pc, a, r, argc);
         r_send = true;
         goto exit_send;
     }
@@ -8440,17 +8440,17 @@ exit_block_call:;
         fputc(10, stderr);
     }
     n_25 = ({
-    n_26 = opt_new_node(O_SEND, R_OOP);
-    opt_append(n_26, ob_cur_block);
+    n_26 = new_node(O_SEND, R_OOP);
+    append(n_26, ob_cur_block);
     r_add_8 = n_26;
     r_add_8; });
     ob_safe_epoch = ob_safe_epoch + 1;
-    args_4 = opt_alloc_operands(argc + 1);
+    args_4 = alloc_operands(argc + 1);
     for (i_12 = 0; i_12 <= argc; i_12++) {
         i_13 = args_4 + i_12;
         i_14 = r + i_12;
         var_10 = (opt_acts + a)->var_base + i_14;
-        v_4 = opt_read(var_10, ob_cur_block);
+        v_4 = opt_builder_read(var_10, ob_cur_block);
         opt_operands[i_13] = v_4;
     }
     (opt_nodes + n_25)->args = args_4;
@@ -8463,7 +8463,7 @@ exit_block_call:;
     m_5 = (opt_acts + a)->method;
     o_9 = *(uint64_t *)(m_5 + 16 + 24);
     op_4 = ((uint8_t *)(o_9 + 16))[pc];
-    (opt_nodes + n_25)->state = opt_make_state(a, (int32_t)(pc + ({
+    (opt_nodes + n_25)->state = state_act(a, (int32_t)(pc + ({
     if (op_4 < 0x68) {
         r_length_of_4 = 1;
         goto exit_length_of_4;
@@ -8526,8 +8526,8 @@ exit_length_of_4:;
     var_11 = (opt_acts + a)->var_base + r;
     if ((var_11 < OPT_MAX_VARS) && (ob_arg_flags[var_11] == 2)) {
         n_27 = ({
-    n_28 = opt_new_node(O_STORESLOT, R_NONE);
-    opt_append(n_28, ob_cur_block);
+    n_28 = new_node(O_STORESLOT, R_NONE);
+    append(n_28, ob_cur_block);
     r_add_9 = n_28;
     r_add_9; });
         (opt_nodes + n_27)->a = n_25;
@@ -8535,11 +8535,11 @@ exit_length_of_4:;
         (opt_nodes + n_27)->aux = (opt_nodes + n_29)->aux;
         goto exit_write_5;
     }
-    opt_write(var_11, n_25, ob_cur_block);
+    opt_builder_write(var_11, n_25, ob_cur_block);
 exit_write_5:;
     r_call_selector_3 = n_25;
     r_call_selector_3; });
-    if (((jit_flags & JIT_FLAG_CALLS) != 0) && jit_has_code(m)) {
+    if (((jit_flags & JIT_FLAG_CALLS) != 0) && code_address_of(m)) {
         (opt_nodes + n_2)->op = O_CALL;
         (opt_nodes + n_2)->tcls = m;
     }
@@ -8635,8 +8635,8 @@ exit_note_dependency_2:;
     var_12 = (opt_acts + a)->var_base + r;
     if ((var_12 < OPT_MAX_VARS) && (ob_arg_flags[var_12] == 2)) {
         n_31 = ({
-    n_32 = opt_new_node(O_STORESLOT, R_NONE);
-    opt_append(n_32, ob_cur_block);
+    n_32 = new_node(O_STORESLOT, R_NONE);
+    append(n_32, ob_cur_block);
     r_add_10 = n_32;
     r_add_10; });
         (opt_nodes + n_31)->a = rcv;
@@ -8644,16 +8644,16 @@ exit_note_dependency_2:;
         (opt_nodes + n_31)->aux = (opt_nodes + n_33)->aux;
         goto exit_write_6;
     }
-    opt_write(var_12, rcv, ob_cur_block);
+    opt_builder_write(var_12, rcv, ob_cur_block);
 exit_write_6:;
     if ((kind == 0) && ({
     i_16 = r + 1;
     n_34 = argc - 1;
     (p_90 = ({
-    if (!((ob_perform_act < 0) && ((bl_prim_kind(({
+    if (!((ob_perform_act < 0) && ((prim_kind_of(({
     p_91 = *(uint64_t *)(m_6 + 16 + 56);
     r_method_primitive_7 = (p_91 & 1) != 0 ? (int32_t)((((int64_t)p_91) >> 1) & CM_PRIM_MASK) : 0;
-    r_method_primitive_7; })) == PK_PERFORM) && ((bl_prim_op(({
+    r_method_primitive_7; })) == PK_PERFORM) && ((prim_op_of(({
     p_92 = *(uint64_t *)(m_6 + 16 + 56);
     r_method_primitive_8 = (p_92 & 1) != 0 ? (int32_t)((((int64_t)p_92) >> 1) & CM_PRIM_MASK) : 0;
     r_method_primitive_8; })) == 0) && ((n_34 >= 0) && (n_34 < 8)))))) {
@@ -8661,7 +8661,7 @@ exit_write_6:;
         goto exit_performed_at_2;
     }
     var_13 = (opt_acts + a)->var_base + i_16;
-    n_35 = opt_read(var_13, ob_cur_block);
+    n_35 = opt_builder_read(var_13, ob_cur_block);
     nd_3 = opt_nodes + n_35;
     if (!((int32_t)nd_3->op == O_CONST)) {
         r_performed_at_2 = 0ULL;
@@ -8674,7 +8674,7 @@ exit_write_6:;
     r_performed_at_2 = (uint64_t)nd_3->aux;
 exit_performed_at_2:;
     r_performed_at_2; })) != 0; })) {
-        r_send_2 = opt_send_performed(p_90, rcv, cls, argc - 1, pc, a, r);
+        r_send_2 = send_performed(p_90, rcv, cls, argc - 1, pc, a, r);
         goto exit_send_2;
     }
     if (((jit_flags & JIT_FLAG_ALLOC) != 0) && ({
@@ -8686,163 +8686,163 @@ exit_performed_at_2:;
     if (!ob_prims_known) {
         ob_prims_known = true;
         memset(ob_prim_kinds, 0, OPT_MAX_PRIM);
-        p_95 = jit_primitive_number("at");
+        p_95 = primitive_number_named("at");
         if ((p_95 > 0) && (p_95 < OPT_MAX_PRIM)) {
             ob_prim_kinds[p_95] = 1U;
         }
-        p_96 = jit_primitive_number("atPut");
+        p_96 = primitive_number_named("atPut");
         if ((p_96 > 0) && (p_96 < OPT_MAX_PRIM)) {
             ob_prim_kinds[p_96] = 2U;
         }
-        p_97 = jit_primitive_number("basicSize");
+        p_97 = primitive_number_named("basicSize");
         if ((p_97 > 0) && (p_97 < OPT_MAX_PRIM)) {
             ob_prim_kinds[p_97] = 3U;
         }
-        p_98 = jit_primitive_number("stringAt");
+        p_98 = primitive_number_named("stringAt");
         if ((p_98 > 0) && (p_98 < OPT_MAX_PRIM)) {
             ob_prim_kinds[p_98] = 4U;
         }
-        p_99 = jit_primitive_number("stringAtPut");
+        p_99 = primitive_number_named("stringAtPut");
         if ((p_99 > 0) && (p_99 < OPT_MAX_PRIM)) {
             ob_prim_kinds[p_99] = 5U;
         }
-        p_100 = jit_primitive_number("class");
+        p_100 = primitive_number_named("class");
         if ((p_100 > 0) && (p_100 < OPT_MAX_PRIM)) {
             ob_prim_kinds[p_100] = 6U;
         }
-        p_101 = jit_primitive_number("identical");
+        p_101 = primitive_number_named("identical");
         if ((p_101 > 0) && (p_101 < OPT_MAX_PRIM)) {
             ob_prim_kinds[p_101] = 7U;
         }
-        p_102 = jit_primitive_number("intAdd");
+        p_102 = primitive_number_named("intAdd");
         if ((p_102 > 0) && (p_102 < OPT_MAX_PRIM)) {
             ob_prim_kinds[p_102] = 32U;
         }
-        p_103 = jit_primitive_number("intSub");
+        p_103 = primitive_number_named("intSub");
         if ((p_103 > 0) && (p_103 < OPT_MAX_PRIM)) {
             ob_prim_kinds[p_103] = 33U;
         }
-        p_104 = jit_primitive_number("intLess");
+        p_104 = primitive_number_named("intLess");
         if ((p_104 > 0) && (p_104 < OPT_MAX_PRIM)) {
             ob_prim_kinds[p_104] = 34U;
         }
-        p_105 = jit_primitive_number("intGreater");
+        p_105 = primitive_number_named("intGreater");
         if ((p_105 > 0) && (p_105 < OPT_MAX_PRIM)) {
             ob_prim_kinds[p_105] = 35U;
         }
-        p_106 = jit_primitive_number("intLessEq");
+        p_106 = primitive_number_named("intLessEq");
         if ((p_106 > 0) && (p_106 < OPT_MAX_PRIM)) {
             ob_prim_kinds[p_106] = 36U;
         }
-        p_107 = jit_primitive_number("intGreaterEq");
+        p_107 = primitive_number_named("intGreaterEq");
         if ((p_107 > 0) && (p_107 < OPT_MAX_PRIM)) {
             ob_prim_kinds[p_107] = 37U;
         }
-        p_108 = jit_primitive_number("intEq");
+        p_108 = primitive_number_named("intEq");
         if ((p_108 > 0) && (p_108 < OPT_MAX_PRIM)) {
             ob_prim_kinds[p_108] = 38U;
         }
-        p_109 = jit_primitive_number("intNotEq");
+        p_109 = primitive_number_named("intNotEq");
         if ((p_109 > 0) && (p_109 < OPT_MAX_PRIM)) {
             ob_prim_kinds[p_109] = 39U;
         }
-        p_110 = jit_primitive_number("intMul");
+        p_110 = primitive_number_named("intMul");
         if ((p_110 > 0) && (p_110 < OPT_MAX_PRIM)) {
             ob_prim_kinds[p_110] = 40U;
         }
-        p_111 = jit_primitive_number("intBitAnd");
+        p_111 = primitive_number_named("intBitAnd");
         if ((p_111 > 0) && (p_111 < OPT_MAX_PRIM)) {
             ob_prim_kinds[p_111] = 46U;
         }
-        p_112 = jit_primitive_number("intBitOr");
+        p_112 = primitive_number_named("intBitOr");
         if ((p_112 > 0) && (p_112 < OPT_MAX_PRIM)) {
             ob_prim_kinds[p_112] = 47U;
         }
-        p_113 = jit_primitive_number("intMod");
+        p_113 = primitive_number_named("intMod");
         if ((p_113 > 0) && (p_113 < OPT_MAX_PRIM)) {
             ob_prim_kinds[p_113] = 42U;
         }
-        p_114 = jit_primitive_number("intBitXor");
+        p_114 = primitive_number_named("intBitXor");
         if ((p_114 > 0) && (p_114 < OPT_MAX_PRIM)) {
             ob_prim_kinds[p_114] = 43U;
         }
-        p_115 = jit_primitive_number("intBitShift");
+        p_115 = primitive_number_named("intBitShift");
         if ((p_115 > 0) && (p_115 < OPT_MAX_PRIM)) {
             ob_prim_kinds[p_115] = 44U;
         }
-        p_116 = jit_primitive_number("intFloorDiv");
+        p_116 = primitive_number_named("intFloorDiv");
         if ((p_116 > 0) && (p_116 < OPT_MAX_PRIM)) {
             ob_prim_kinds[p_116] = 45U;
         }
-        p_117 = jit_primitive_number("intQuo");
+        p_117 = primitive_number_named("intQuo");
         if ((p_117 > 0) && (p_117 < OPT_MAX_PRIM)) {
             ob_prim_kinds[p_117] = 48U;
         }
-        p_118 = jit_primitive_number("intRem");
+        p_118 = primitive_number_named("intRem");
         if ((p_118 > 0) && (p_118 < OPT_MAX_PRIM)) {
             ob_prim_kinds[p_118] = 49U;
         }
-        p_119 = jit_primitive_number("charValue");
+        p_119 = primitive_number_named("charValue");
         if ((p_119 > 0) && (p_119 < OPT_MAX_PRIM)) {
             ob_prim_kinds[p_119] = 12U;
         }
-        p_120 = jit_primitive_number("charFromValue");
+        p_120 = primitive_number_named("charFromValue");
         if ((p_120 > 0) && (p_120 < OPT_MAX_PRIM)) {
             ob_prim_kinds[p_120] = 13U;
         }
-        p_121 = jit_primitive_number("floatAdd");
+        p_121 = primitive_number_named("floatAdd");
         if ((p_121 > 0) && (p_121 < OPT_MAX_PRIM)) {
             ob_prim_kinds[p_121] = 64U;
         }
-        p_122 = jit_primitive_number("floatSub");
+        p_122 = primitive_number_named("floatSub");
         if ((p_122 > 0) && (p_122 < OPT_MAX_PRIM)) {
             ob_prim_kinds[p_122] = 65U;
         }
-        p_123 = jit_primitive_number("floatLess");
+        p_123 = primitive_number_named("floatLess");
         if ((p_123 > 0) && (p_123 < OPT_MAX_PRIM)) {
             ob_prim_kinds[p_123] = 66U;
         }
-        p_124 = jit_primitive_number("floatGreater");
+        p_124 = primitive_number_named("floatGreater");
         if ((p_124 > 0) && (p_124 < OPT_MAX_PRIM)) {
             ob_prim_kinds[p_124] = 67U;
         }
-        p_125 = jit_primitive_number("floatLessEq");
+        p_125 = primitive_number_named("floatLessEq");
         if ((p_125 > 0) && (p_125 < OPT_MAX_PRIM)) {
             ob_prim_kinds[p_125] = 68U;
         }
-        p_126 = jit_primitive_number("floatGreaterEq");
+        p_126 = primitive_number_named("floatGreaterEq");
         if ((p_126 > 0) && (p_126 < OPT_MAX_PRIM)) {
             ob_prim_kinds[p_126] = 69U;
         }
-        p_127 = jit_primitive_number("floatEq");
+        p_127 = primitive_number_named("floatEq");
         if ((p_127 > 0) && (p_127 < OPT_MAX_PRIM)) {
             ob_prim_kinds[p_127] = 70U;
         }
-        p_128 = jit_primitive_number("floatNotEq");
+        p_128 = primitive_number_named("floatNotEq");
         if ((p_128 > 0) && (p_128 < OPT_MAX_PRIM)) {
             ob_prim_kinds[p_128] = 71U;
         }
-        p_129 = jit_primitive_number("floatMul");
+        p_129 = primitive_number_named("floatMul");
         if ((p_129 > 0) && (p_129 < OPT_MAX_PRIM)) {
             ob_prim_kinds[p_129] = 72U;
         }
-        p_130 = jit_primitive_number("floatDiv");
+        p_130 = primitive_number_named("floatDiv");
         if ((p_130 > 0) && (p_130 < OPT_MAX_PRIM)) {
             ob_prim_kinds[p_130] = 73U;
         }
-        p_131 = jit_primitive_number("floatSqrt");
+        p_131 = primitive_number_named("floatSqrt");
         if ((p_131 > 0) && (p_131 < OPT_MAX_PRIM)) {
             ob_prim_kinds[p_131] = 8U;
         }
-        p_132 = jit_primitive_number("basicNew");
+        p_132 = primitive_number_named("basicNew");
         if ((p_132 > 0) && (p_132 < OPT_MAX_PRIM)) {
             ob_prim_kinds[p_132] = 9U;
         }
-        p_133 = jit_primitive_number("basicNew:");
+        p_133 = primitive_number_named("basicNew:");
         if ((p_133 > 0) && (p_133 < OPT_MAX_PRIM)) {
             ob_prim_kinds[p_133] = 10U;
         }
-        p_134 = jit_primitive_number("closureValue");
+        p_134 = primitive_number_named("closureValue");
         if ((p_134 > 0) && (p_134 < OPT_MAX_PRIM)) {
             ob_prim_kinds[p_134] = 11U;
         }
@@ -8909,17 +8909,17 @@ exit_class_of_4:;
         fputc(10, stderr);
     }
     n_37 = ({
-    n_38 = opt_new_node(O_SEND, R_OOP);
-    opt_append(n_38, ob_cur_block);
+    n_38 = new_node(O_SEND, R_OOP);
+    append(n_38, ob_cur_block);
     r_add_11 = n_38;
     r_add_11; });
     ob_safe_epoch = ob_safe_epoch + 1;
-    args_5 = opt_alloc_operands(argc + 1);
+    args_5 = alloc_operands(argc + 1);
     for (i_17 = 0; i_17 <= argc; i_17++) {
         i_18 = args_5 + i_17;
         i_19 = r + i_17;
         var_14 = (opt_acts + a)->var_base + i_19;
-        v_5 = opt_read(var_14, ob_cur_block);
+        v_5 = opt_builder_read(var_14, ob_cur_block);
         opt_operands[i_18] = v_5;
     }
     (opt_nodes + n_37)->args = args_5;
@@ -8932,7 +8932,7 @@ exit_class_of_4:;
     m_7 = (opt_acts + a)->method;
     o_11 = *(uint64_t *)(m_7 + 16 + 24);
     op_5 = ((uint8_t *)(o_11 + 16))[pc];
-    (opt_nodes + n_37)->state = opt_make_state(a, (int32_t)(pc + ({
+    (opt_nodes + n_37)->state = state_act(a, (int32_t)(pc + ({
     if (op_5 < 0x68) {
         r_length_of_5 = 1;
         goto exit_length_of_5;
@@ -8995,8 +8995,8 @@ exit_length_of_5:;
     var_15 = (opt_acts + a)->var_base + r;
     if ((var_15 < OPT_MAX_VARS) && (ob_arg_flags[var_15] == 2)) {
         n_39 = ({
-    n_40 = opt_new_node(O_STORESLOT, R_NONE);
-    opt_append(n_40, ob_cur_block);
+    n_40 = new_node(O_STORESLOT, R_NONE);
+    append(n_40, ob_cur_block);
     r_add_12 = n_40;
     r_add_12; });
         (opt_nodes + n_39)->a = n_37;
@@ -9004,7 +9004,7 @@ exit_length_of_5:;
         (opt_nodes + n_39)->aux = (opt_nodes + n_41)->aux;
         goto exit_write_7;
     }
-    opt_write(var_15, n_37, ob_cur_block);
+    opt_builder_write(var_15, n_37, ob_cur_block);
 exit_write_7:;
     r_call_selector_4 = n_37;
     r_call_selector_4; });
@@ -9027,163 +9027,163 @@ exit_allocate_2:;
     if (!ob_prims_known) {
         ob_prims_known = true;
         memset(ob_prim_kinds, 0, OPT_MAX_PRIM);
-        p_137 = jit_primitive_number("at");
+        p_137 = primitive_number_named("at");
         if ((p_137 > 0) && (p_137 < OPT_MAX_PRIM)) {
             ob_prim_kinds[p_137] = 1U;
         }
-        p_138 = jit_primitive_number("atPut");
+        p_138 = primitive_number_named("atPut");
         if ((p_138 > 0) && (p_138 < OPT_MAX_PRIM)) {
             ob_prim_kinds[p_138] = 2U;
         }
-        p_139 = jit_primitive_number("basicSize");
+        p_139 = primitive_number_named("basicSize");
         if ((p_139 > 0) && (p_139 < OPT_MAX_PRIM)) {
             ob_prim_kinds[p_139] = 3U;
         }
-        p_140 = jit_primitive_number("stringAt");
+        p_140 = primitive_number_named("stringAt");
         if ((p_140 > 0) && (p_140 < OPT_MAX_PRIM)) {
             ob_prim_kinds[p_140] = 4U;
         }
-        p_141 = jit_primitive_number("stringAtPut");
+        p_141 = primitive_number_named("stringAtPut");
         if ((p_141 > 0) && (p_141 < OPT_MAX_PRIM)) {
             ob_prim_kinds[p_141] = 5U;
         }
-        p_142 = jit_primitive_number("class");
+        p_142 = primitive_number_named("class");
         if ((p_142 > 0) && (p_142 < OPT_MAX_PRIM)) {
             ob_prim_kinds[p_142] = 6U;
         }
-        p_143 = jit_primitive_number("identical");
+        p_143 = primitive_number_named("identical");
         if ((p_143 > 0) && (p_143 < OPT_MAX_PRIM)) {
             ob_prim_kinds[p_143] = 7U;
         }
-        p_144 = jit_primitive_number("intAdd");
+        p_144 = primitive_number_named("intAdd");
         if ((p_144 > 0) && (p_144 < OPT_MAX_PRIM)) {
             ob_prim_kinds[p_144] = 32U;
         }
-        p_145 = jit_primitive_number("intSub");
+        p_145 = primitive_number_named("intSub");
         if ((p_145 > 0) && (p_145 < OPT_MAX_PRIM)) {
             ob_prim_kinds[p_145] = 33U;
         }
-        p_146 = jit_primitive_number("intLess");
+        p_146 = primitive_number_named("intLess");
         if ((p_146 > 0) && (p_146 < OPT_MAX_PRIM)) {
             ob_prim_kinds[p_146] = 34U;
         }
-        p_147 = jit_primitive_number("intGreater");
+        p_147 = primitive_number_named("intGreater");
         if ((p_147 > 0) && (p_147 < OPT_MAX_PRIM)) {
             ob_prim_kinds[p_147] = 35U;
         }
-        p_148 = jit_primitive_number("intLessEq");
+        p_148 = primitive_number_named("intLessEq");
         if ((p_148 > 0) && (p_148 < OPT_MAX_PRIM)) {
             ob_prim_kinds[p_148] = 36U;
         }
-        p_149 = jit_primitive_number("intGreaterEq");
+        p_149 = primitive_number_named("intGreaterEq");
         if ((p_149 > 0) && (p_149 < OPT_MAX_PRIM)) {
             ob_prim_kinds[p_149] = 37U;
         }
-        p_150 = jit_primitive_number("intEq");
+        p_150 = primitive_number_named("intEq");
         if ((p_150 > 0) && (p_150 < OPT_MAX_PRIM)) {
             ob_prim_kinds[p_150] = 38U;
         }
-        p_151 = jit_primitive_number("intNotEq");
+        p_151 = primitive_number_named("intNotEq");
         if ((p_151 > 0) && (p_151 < OPT_MAX_PRIM)) {
             ob_prim_kinds[p_151] = 39U;
         }
-        p_152 = jit_primitive_number("intMul");
+        p_152 = primitive_number_named("intMul");
         if ((p_152 > 0) && (p_152 < OPT_MAX_PRIM)) {
             ob_prim_kinds[p_152] = 40U;
         }
-        p_153 = jit_primitive_number("intBitAnd");
+        p_153 = primitive_number_named("intBitAnd");
         if ((p_153 > 0) && (p_153 < OPT_MAX_PRIM)) {
             ob_prim_kinds[p_153] = 46U;
         }
-        p_154 = jit_primitive_number("intBitOr");
+        p_154 = primitive_number_named("intBitOr");
         if ((p_154 > 0) && (p_154 < OPT_MAX_PRIM)) {
             ob_prim_kinds[p_154] = 47U;
         }
-        p_155 = jit_primitive_number("intMod");
+        p_155 = primitive_number_named("intMod");
         if ((p_155 > 0) && (p_155 < OPT_MAX_PRIM)) {
             ob_prim_kinds[p_155] = 42U;
         }
-        p_156 = jit_primitive_number("intBitXor");
+        p_156 = primitive_number_named("intBitXor");
         if ((p_156 > 0) && (p_156 < OPT_MAX_PRIM)) {
             ob_prim_kinds[p_156] = 43U;
         }
-        p_157 = jit_primitive_number("intBitShift");
+        p_157 = primitive_number_named("intBitShift");
         if ((p_157 > 0) && (p_157 < OPT_MAX_PRIM)) {
             ob_prim_kinds[p_157] = 44U;
         }
-        p_158 = jit_primitive_number("intFloorDiv");
+        p_158 = primitive_number_named("intFloorDiv");
         if ((p_158 > 0) && (p_158 < OPT_MAX_PRIM)) {
             ob_prim_kinds[p_158] = 45U;
         }
-        p_159 = jit_primitive_number("intQuo");
+        p_159 = primitive_number_named("intQuo");
         if ((p_159 > 0) && (p_159 < OPT_MAX_PRIM)) {
             ob_prim_kinds[p_159] = 48U;
         }
-        p_160 = jit_primitive_number("intRem");
+        p_160 = primitive_number_named("intRem");
         if ((p_160 > 0) && (p_160 < OPT_MAX_PRIM)) {
             ob_prim_kinds[p_160] = 49U;
         }
-        p_161 = jit_primitive_number("charValue");
+        p_161 = primitive_number_named("charValue");
         if ((p_161 > 0) && (p_161 < OPT_MAX_PRIM)) {
             ob_prim_kinds[p_161] = 12U;
         }
-        p_162 = jit_primitive_number("charFromValue");
+        p_162 = primitive_number_named("charFromValue");
         if ((p_162 > 0) && (p_162 < OPT_MAX_PRIM)) {
             ob_prim_kinds[p_162] = 13U;
         }
-        p_163 = jit_primitive_number("floatAdd");
+        p_163 = primitive_number_named("floatAdd");
         if ((p_163 > 0) && (p_163 < OPT_MAX_PRIM)) {
             ob_prim_kinds[p_163] = 64U;
         }
-        p_164 = jit_primitive_number("floatSub");
+        p_164 = primitive_number_named("floatSub");
         if ((p_164 > 0) && (p_164 < OPT_MAX_PRIM)) {
             ob_prim_kinds[p_164] = 65U;
         }
-        p_165 = jit_primitive_number("floatLess");
+        p_165 = primitive_number_named("floatLess");
         if ((p_165 > 0) && (p_165 < OPT_MAX_PRIM)) {
             ob_prim_kinds[p_165] = 66U;
         }
-        p_166 = jit_primitive_number("floatGreater");
+        p_166 = primitive_number_named("floatGreater");
         if ((p_166 > 0) && (p_166 < OPT_MAX_PRIM)) {
             ob_prim_kinds[p_166] = 67U;
         }
-        p_167 = jit_primitive_number("floatLessEq");
+        p_167 = primitive_number_named("floatLessEq");
         if ((p_167 > 0) && (p_167 < OPT_MAX_PRIM)) {
             ob_prim_kinds[p_167] = 68U;
         }
-        p_168 = jit_primitive_number("floatGreaterEq");
+        p_168 = primitive_number_named("floatGreaterEq");
         if ((p_168 > 0) && (p_168 < OPT_MAX_PRIM)) {
             ob_prim_kinds[p_168] = 69U;
         }
-        p_169 = jit_primitive_number("floatEq");
+        p_169 = primitive_number_named("floatEq");
         if ((p_169 > 0) && (p_169 < OPT_MAX_PRIM)) {
             ob_prim_kinds[p_169] = 70U;
         }
-        p_170 = jit_primitive_number("floatNotEq");
+        p_170 = primitive_number_named("floatNotEq");
         if ((p_170 > 0) && (p_170 < OPT_MAX_PRIM)) {
             ob_prim_kinds[p_170] = 71U;
         }
-        p_171 = jit_primitive_number("floatMul");
+        p_171 = primitive_number_named("floatMul");
         if ((p_171 > 0) && (p_171 < OPT_MAX_PRIM)) {
             ob_prim_kinds[p_171] = 72U;
         }
-        p_172 = jit_primitive_number("floatDiv");
+        p_172 = primitive_number_named("floatDiv");
         if ((p_172 > 0) && (p_172 < OPT_MAX_PRIM)) {
             ob_prim_kinds[p_172] = 73U;
         }
-        p_173 = jit_primitive_number("floatSqrt");
+        p_173 = primitive_number_named("floatSqrt");
         if ((p_173 > 0) && (p_173 < OPT_MAX_PRIM)) {
             ob_prim_kinds[p_173] = 8U;
         }
-        p_174 = jit_primitive_number("basicNew");
+        p_174 = primitive_number_named("basicNew");
         if ((p_174 > 0) && (p_174 < OPT_MAX_PRIM)) {
             ob_prim_kinds[p_174] = 9U;
         }
-        p_175 = jit_primitive_number("basicNew:");
+        p_175 = primitive_number_named("basicNew:");
         if ((p_175 > 0) && (p_175 < OPT_MAX_PRIM)) {
             ob_prim_kinds[p_175] = 10U;
         }
-        p_176 = jit_primitive_number("closureValue");
+        p_176 = primitive_number_named("closureValue");
         if ((p_176 > 0) && (p_176 < OPT_MAX_PRIM)) {
             ob_prim_kinds[p_176] = 11U;
         }
@@ -9197,15 +9197,15 @@ exit_prim_kind_of_4:;
     r_prim_kind_of_4; }) == OPK_CLOSURE; }))) {
         r_send_2 = ({
     k_3 = -1;
-    o_12 = special(SO_SPECIAL_SELECTORS);
+    o_12 = object_memory_special(SO_SPECIAL_SELECTORS);
     if (*(uint64_t *)(o_12 + 16 + 168) == sel) {
         k_3 = 21;
     }
-    o_13 = special(SO_SPECIAL_SELECTORS);
+    o_13 = object_memory_special(SO_SPECIAL_SELECTORS);
     if (*(uint64_t *)(o_13 + 16 + 176) == sel) {
         k_3 = 22;
     }
-    o_14 = special(SO_SPECIAL_SELECTORS);
+    o_14 = object_memory_special(SO_SPECIAL_SELECTORS);
     if (*(uint64_t *)(o_14 + 16 + 240) == sel) {
         k_3 = 30;
     }
@@ -9216,17 +9216,17 @@ exit_prim_kind_of_4:;
             fputc(10, stderr);
         }
         n_43 = ({
-    n_44 = opt_new_node(O_SEND, R_OOP);
-    opt_append(n_44, ob_cur_block);
+    n_44 = new_node(O_SEND, R_OOP);
+    append(n_44, ob_cur_block);
     r_add_13 = n_44;
     r_add_13; });
         ob_safe_epoch = ob_safe_epoch + 1;
-        args_6 = opt_alloc_operands(argc + 1);
+        args_6 = alloc_operands(argc + 1);
         for (i_20 = 0; i_20 <= argc; i_20++) {
             i_21 = args_6 + i_20;
             i_22 = r + i_20;
             var_16 = (opt_acts + a)->var_base + i_22;
-            v_6 = opt_read(var_16, ob_cur_block);
+            v_6 = opt_builder_read(var_16, ob_cur_block);
             opt_operands[i_21] = v_6;
         }
         (opt_nodes + n_43)->args = args_6;
@@ -9239,7 +9239,7 @@ exit_prim_kind_of_4:;
         m_8 = (opt_acts + a)->method;
         o_15 = *(uint64_t *)(m_8 + 16 + 24);
         op_6 = ((uint8_t *)(o_15 + 16))[pc];
-        (opt_nodes + n_43)->state = opt_make_state(a, (int32_t)(pc + ({
+        (opt_nodes + n_43)->state = state_act(a, (int32_t)(pc + ({
     if (op_6 < 0x68) {
         r_length_of_6 = 1;
         goto exit_length_of_6;
@@ -9302,8 +9302,8 @@ exit_length_of_6:;
         var_17 = (opt_acts + a)->var_base + r;
         if ((var_17 < OPT_MAX_VARS) && (ob_arg_flags[var_17] == 2)) {
             n_45 = ({
-    n_46 = opt_new_node(O_STORESLOT, R_NONE);
-    opt_append(n_46, ob_cur_block);
+    n_46 = new_node(O_STORESLOT, R_NONE);
+    append(n_46, ob_cur_block);
     r_add_14 = n_46;
     r_add_14; });
             (opt_nodes + n_45)->a = n_43;
@@ -9311,7 +9311,7 @@ exit_length_of_6:;
             (opt_nodes + n_45)->aux = (opt_nodes + n_47)->aux;
             goto exit_write_8;
         }
-        opt_write(var_17, n_43, ob_cur_block);
+        opt_builder_write(var_17, n_43, ob_cur_block);
     exit_write_8:;
         r_block_call_2 = true;
         goto exit_block_call_2;
@@ -9323,17 +9323,17 @@ exit_length_of_6:;
         fputc(10, stderr);
     }
     n_48 = ({
-    n_49 = opt_new_node(O_SEND, R_OOP);
-    opt_append(n_49, ob_cur_block);
+    n_49 = new_node(O_SEND, R_OOP);
+    append(n_49, ob_cur_block);
     r_add_15 = n_49;
     r_add_15; });
     ob_safe_epoch = ob_safe_epoch + 1;
-    args_7 = opt_alloc_operands(argc + 1);
+    args_7 = alloc_operands(argc + 1);
     for (i_23 = 0; i_23 <= argc; i_23++) {
         i_24 = args_7 + i_23;
         i_25 = r + i_23;
         var_18 = (opt_acts + a)->var_base + i_25;
-        v_7 = opt_read(var_18, ob_cur_block);
+        v_7 = opt_builder_read(var_18, ob_cur_block);
         opt_operands[i_24] = v_7;
     }
     (opt_nodes + n_48)->args = args_7;
@@ -9346,7 +9346,7 @@ exit_length_of_6:;
     m_9 = (opt_acts + a)->method;
     o_16 = *(uint64_t *)(m_9 + 16 + 24);
     op_7 = ((uint8_t *)(o_16 + 16))[pc];
-    (opt_nodes + n_48)->state = opt_make_state(a, (int32_t)(pc + ({
+    (opt_nodes + n_48)->state = state_act(a, (int32_t)(pc + ({
     if (op_7 < 0x68) {
         r_length_of_7 = 1;
         goto exit_length_of_7;
@@ -9409,8 +9409,8 @@ exit_length_of_7:;
     var_19 = (opt_acts + a)->var_base + r;
     if ((var_19 < OPT_MAX_VARS) && (ob_arg_flags[var_19] == 2)) {
         n_50 = ({
-    n_51 = opt_new_node(O_STORESLOT, R_NONE);
-    opt_append(n_51, ob_cur_block);
+    n_51 = new_node(O_STORESLOT, R_NONE);
+    append(n_51, ob_cur_block);
     r_add_16 = n_51;
     r_add_16; });
         (opt_nodes + n_50)->a = n_48;
@@ -9418,7 +9418,7 @@ exit_length_of_7:;
         (opt_nodes + n_50)->aux = (opt_nodes + n_52)->aux;
         goto exit_write_9;
     }
-    opt_write(var_19, n_48, ob_cur_block);
+    opt_builder_write(var_19, n_48, ob_cur_block);
 exit_write_9:;
     r_call_selector_5 = n_48;
     r_call_selector_5; });
@@ -9431,15 +9431,15 @@ exit_block_call_2:;
     if ((({
     p_177 = *(uint64_t *)(m_6 + 16 + 56);
     r_method_primitive_11 = (p_177 & 1) != 0 ? (int32_t)((((int64_t)p_177) >> 1) & CM_PRIM_MASK) : 0;
-    r_method_primitive_11; }) != 0) && (((jit_flags & JIT_FLAG_PRIMS) != 0) && opt_inline_primitive(({
+    r_method_primitive_11; }) != 0) && (((jit_flags & JIT_FLAG_PRIMS) != 0) && inline_primitive(({
     p_178 = *(uint64_t *)(m_6 + 16 + 56);
     r_method_primitive_12 = (p_178 & 1) != 0 ? (int32_t)((((int64_t)p_178) >> 1) & CM_PRIM_MASK) : 0;
     r_method_primitive_12; }), cls, argc, pc, a, r))) {
         r_send_2 = true;
         goto exit_send_2;
     }
-    if (opt_can_inline(m_6, a)) {
-        opt_inline_method(m_6, cls, pc, a, r, argc);
+    if (can_inline(m_6, a)) {
+        inline_method(m_6, cls, pc, a, r, argc);
         r_send_2 = true;
         goto exit_send_2;
     }
@@ -9451,17 +9451,17 @@ exit_block_call_2:;
         fputc(10, stderr);
     }
     n_53 = ({
-    n_54 = opt_new_node(O_SEND, R_OOP);
-    opt_append(n_54, ob_cur_block);
+    n_54 = new_node(O_SEND, R_OOP);
+    append(n_54, ob_cur_block);
     r_add_17 = n_54;
     r_add_17; });
     ob_safe_epoch = ob_safe_epoch + 1;
-    args_8 = opt_alloc_operands(argc + 1);
+    args_8 = alloc_operands(argc + 1);
     for (i_26 = 0; i_26 <= argc; i_26++) {
         i_27 = args_8 + i_26;
         i_28 = r + i_26;
         var_20 = (opt_acts + a)->var_base + i_28;
-        v_8 = opt_read(var_20, ob_cur_block);
+        v_8 = opt_builder_read(var_20, ob_cur_block);
         opt_operands[i_27] = v_8;
     }
     (opt_nodes + n_53)->args = args_8;
@@ -9474,7 +9474,7 @@ exit_block_call_2:;
     m_10 = (opt_acts + a)->method;
     o_17 = *(uint64_t *)(m_10 + 16 + 24);
     op_8 = ((uint8_t *)(o_17 + 16))[pc];
-    (opt_nodes + n_53)->state = opt_make_state(a, (int32_t)(pc + ({
+    (opt_nodes + n_53)->state = state_act(a, (int32_t)(pc + ({
     if (op_8 < 0x68) {
         r_length_of_8 = 1;
         goto exit_length_of_8;
@@ -9537,8 +9537,8 @@ exit_length_of_8:;
     var_21 = (opt_acts + a)->var_base + r;
     if ((var_21 < OPT_MAX_VARS) && (ob_arg_flags[var_21] == 2)) {
         n_55 = ({
-    n_56 = opt_new_node(O_STORESLOT, R_NONE);
-    opt_append(n_56, ob_cur_block);
+    n_56 = new_node(O_STORESLOT, R_NONE);
+    append(n_56, ob_cur_block);
     r_add_18 = n_56;
     r_add_18; });
         (opt_nodes + n_55)->a = n_53;
@@ -9546,11 +9546,11 @@ exit_length_of_8:;
         (opt_nodes + n_55)->aux = (opt_nodes + n_57)->aux;
         goto exit_write_10;
     }
-    opt_write(var_21, n_53, ob_cur_block);
+    opt_builder_write(var_21, n_53, ob_cur_block);
 exit_write_10:;
     r_call_selector_6 = n_53;
     r_call_selector_6; });
-    if (((jit_flags & JIT_FLAG_CALLS) != 0) && jit_has_code(m_6)) {
+    if (((jit_flags & JIT_FLAG_CALLS) != 0) && code_address_of(m_6)) {
         (opt_nodes + n_30)->op = O_CALL;
         (opt_nodes + n_30)->tcls = m_6;
     }
@@ -9558,7 +9558,7 @@ exit_write_10:;
 exit_send_2:;
     r_send_2; });
     }
-    site = fb_site_at((opt_acts + a)->method, pc);
+    site = site_at((opt_acts + a)->method, pc);
     if (getenv("SAMALTAK_OPT_TRACE") != NULL) {
         fprintf(stderr, "opt: send at pc %d of act %d: feedback %s ", pc, a, site == NULL ? "none" : "some");
         print_symbol(sel, stderr);
@@ -9580,8 +9580,8 @@ exit_send_2:;
     if (n == 0) {
         return false;
     }
-    other = (kind == 2) && ((k <= 9) && ((fb_flags_at((opt_acts + a)->method, pc) & FB_FLOAT) != 0));
-    s = opt_make_state(a, pc, (int32_t)ob_ana_depth[(opt_acts + a)->ana + pc]);
+    other = (kind == 2) && ((k <= 9) && ((flags_at((opt_acts + a)->method, pc) & FB_FLOAT) != 0));
+    s = state_act(a, pc, (int32_t)ob_ana_depth[(opt_acts + a)->ana + pc]);
     if ((n == 1) && (!other)) {
         cls_2 = site->classes[0];
         g = ({
@@ -9592,8 +9592,8 @@ exit_send_2:;
         goto exit_guard_int;
     }
     n_59 = ({
-    n_60 = opt_new_node(O_GUARDINT, R_OOP);
-    opt_append(n_60, ob_cur_block);
+    n_60 = new_node(O_GUARDINT, R_OOP);
+    append(n_60, ob_cur_block);
     r_add_19 = n_60;
     r_add_19; });
     (opt_nodes + n_59)->a = rcv;
@@ -9606,8 +9606,8 @@ exit_guard_int:;
         goto exit_guard;
     }
     n_58 = ({
-    n_61 = opt_new_node(O_GUARDCLASS, R_OOP);
-    opt_append(n_61, ob_cur_block);
+    n_61 = new_node(O_GUARDCLASS, R_OOP);
+    append(n_61, ob_cur_block);
     r_add_20 = n_61;
     r_add_20; });
     (opt_nodes + n_58)->a = rcv;
@@ -9652,8 +9652,8 @@ exit_note_dependency_3:;
     var_22 = (opt_acts + a)->var_base + r;
     if ((var_22 < OPT_MAX_VARS) && (ob_arg_flags[var_22] == 2)) {
         n_63 = ({
-    n_64 = opt_new_node(O_STORESLOT, R_NONE);
-    opt_append(n_64, ob_cur_block);
+    n_64 = new_node(O_STORESLOT, R_NONE);
+    append(n_64, ob_cur_block);
     r_add_21 = n_64;
     r_add_21; });
         (opt_nodes + n_63)->a = g;
@@ -9661,16 +9661,16 @@ exit_note_dependency_3:;
         (opt_nodes + n_63)->aux = (opt_nodes + n_65)->aux;
         goto exit_write_11;
     }
-    opt_write(var_22, g, ob_cur_block);
+    opt_builder_write(var_22, g, ob_cur_block);
 exit_write_11:;
     if ((kind == 0) && ({
     i_31 = r + 1;
     n_66 = argc - 1;
     (p_179 = ({
-    if (!((ob_perform_act < 0) && ((bl_prim_kind(({
+    if (!((ob_perform_act < 0) && ((prim_kind_of(({
     p_180 = *(uint64_t *)(m_11 + 16 + 56);
     r_method_primitive_13 = (p_180 & 1) != 0 ? (int32_t)((((int64_t)p_180) >> 1) & CM_PRIM_MASK) : 0;
-    r_method_primitive_13; })) == PK_PERFORM) && ((bl_prim_op(({
+    r_method_primitive_13; })) == PK_PERFORM) && ((prim_op_of(({
     p_181 = *(uint64_t *)(m_11 + 16 + 56);
     r_method_primitive_14 = (p_181 & 1) != 0 ? (int32_t)((((int64_t)p_181) >> 1) & CM_PRIM_MASK) : 0;
     r_method_primitive_14; })) == 0) && ((n_66 >= 0) && (n_66 < 8)))))) {
@@ -9678,7 +9678,7 @@ exit_write_11:;
         goto exit_performed_at_3;
     }
     var_23 = (opt_acts + a)->var_base + i_31;
-    n_67 = opt_read(var_23, ob_cur_block);
+    n_67 = opt_builder_read(var_23, ob_cur_block);
     nd_4 = opt_nodes + n_67;
     if (!((int32_t)nd_4->op == O_CONST)) {
         r_performed_at_3 = 0ULL;
@@ -9691,7 +9691,7 @@ exit_write_11:;
     r_performed_at_3 = (uint64_t)nd_4->aux;
 exit_performed_at_3:;
     r_performed_at_3; })) != 0; })) {
-        r_send_3 = opt_send_performed(p_179, g, cls_3, argc - 1, pc, a, r);
+        r_send_3 = send_performed(p_179, g, cls_3, argc - 1, pc, a, r);
         goto exit_send_3;
     }
     if (((jit_flags & JIT_FLAG_ALLOC) != 0) && ({
@@ -9703,163 +9703,163 @@ exit_performed_at_3:;
     if (!ob_prims_known) {
         ob_prims_known = true;
         memset(ob_prim_kinds, 0, OPT_MAX_PRIM);
-        p_184 = jit_primitive_number("at");
+        p_184 = primitive_number_named("at");
         if ((p_184 > 0) && (p_184 < OPT_MAX_PRIM)) {
             ob_prim_kinds[p_184] = 1U;
         }
-        p_185 = jit_primitive_number("atPut");
+        p_185 = primitive_number_named("atPut");
         if ((p_185 > 0) && (p_185 < OPT_MAX_PRIM)) {
             ob_prim_kinds[p_185] = 2U;
         }
-        p_186 = jit_primitive_number("basicSize");
+        p_186 = primitive_number_named("basicSize");
         if ((p_186 > 0) && (p_186 < OPT_MAX_PRIM)) {
             ob_prim_kinds[p_186] = 3U;
         }
-        p_187 = jit_primitive_number("stringAt");
+        p_187 = primitive_number_named("stringAt");
         if ((p_187 > 0) && (p_187 < OPT_MAX_PRIM)) {
             ob_prim_kinds[p_187] = 4U;
         }
-        p_188 = jit_primitive_number("stringAtPut");
+        p_188 = primitive_number_named("stringAtPut");
         if ((p_188 > 0) && (p_188 < OPT_MAX_PRIM)) {
             ob_prim_kinds[p_188] = 5U;
         }
-        p_189 = jit_primitive_number("class");
+        p_189 = primitive_number_named("class");
         if ((p_189 > 0) && (p_189 < OPT_MAX_PRIM)) {
             ob_prim_kinds[p_189] = 6U;
         }
-        p_190 = jit_primitive_number("identical");
+        p_190 = primitive_number_named("identical");
         if ((p_190 > 0) && (p_190 < OPT_MAX_PRIM)) {
             ob_prim_kinds[p_190] = 7U;
         }
-        p_191 = jit_primitive_number("intAdd");
+        p_191 = primitive_number_named("intAdd");
         if ((p_191 > 0) && (p_191 < OPT_MAX_PRIM)) {
             ob_prim_kinds[p_191] = 32U;
         }
-        p_192 = jit_primitive_number("intSub");
+        p_192 = primitive_number_named("intSub");
         if ((p_192 > 0) && (p_192 < OPT_MAX_PRIM)) {
             ob_prim_kinds[p_192] = 33U;
         }
-        p_193 = jit_primitive_number("intLess");
+        p_193 = primitive_number_named("intLess");
         if ((p_193 > 0) && (p_193 < OPT_MAX_PRIM)) {
             ob_prim_kinds[p_193] = 34U;
         }
-        p_194 = jit_primitive_number("intGreater");
+        p_194 = primitive_number_named("intGreater");
         if ((p_194 > 0) && (p_194 < OPT_MAX_PRIM)) {
             ob_prim_kinds[p_194] = 35U;
         }
-        p_195 = jit_primitive_number("intLessEq");
+        p_195 = primitive_number_named("intLessEq");
         if ((p_195 > 0) && (p_195 < OPT_MAX_PRIM)) {
             ob_prim_kinds[p_195] = 36U;
         }
-        p_196 = jit_primitive_number("intGreaterEq");
+        p_196 = primitive_number_named("intGreaterEq");
         if ((p_196 > 0) && (p_196 < OPT_MAX_PRIM)) {
             ob_prim_kinds[p_196] = 37U;
         }
-        p_197 = jit_primitive_number("intEq");
+        p_197 = primitive_number_named("intEq");
         if ((p_197 > 0) && (p_197 < OPT_MAX_PRIM)) {
             ob_prim_kinds[p_197] = 38U;
         }
-        p_198 = jit_primitive_number("intNotEq");
+        p_198 = primitive_number_named("intNotEq");
         if ((p_198 > 0) && (p_198 < OPT_MAX_PRIM)) {
             ob_prim_kinds[p_198] = 39U;
         }
-        p_199 = jit_primitive_number("intMul");
+        p_199 = primitive_number_named("intMul");
         if ((p_199 > 0) && (p_199 < OPT_MAX_PRIM)) {
             ob_prim_kinds[p_199] = 40U;
         }
-        p_200 = jit_primitive_number("intBitAnd");
+        p_200 = primitive_number_named("intBitAnd");
         if ((p_200 > 0) && (p_200 < OPT_MAX_PRIM)) {
             ob_prim_kinds[p_200] = 46U;
         }
-        p_201 = jit_primitive_number("intBitOr");
+        p_201 = primitive_number_named("intBitOr");
         if ((p_201 > 0) && (p_201 < OPT_MAX_PRIM)) {
             ob_prim_kinds[p_201] = 47U;
         }
-        p_202 = jit_primitive_number("intMod");
+        p_202 = primitive_number_named("intMod");
         if ((p_202 > 0) && (p_202 < OPT_MAX_PRIM)) {
             ob_prim_kinds[p_202] = 42U;
         }
-        p_203 = jit_primitive_number("intBitXor");
+        p_203 = primitive_number_named("intBitXor");
         if ((p_203 > 0) && (p_203 < OPT_MAX_PRIM)) {
             ob_prim_kinds[p_203] = 43U;
         }
-        p_204 = jit_primitive_number("intBitShift");
+        p_204 = primitive_number_named("intBitShift");
         if ((p_204 > 0) && (p_204 < OPT_MAX_PRIM)) {
             ob_prim_kinds[p_204] = 44U;
         }
-        p_205 = jit_primitive_number("intFloorDiv");
+        p_205 = primitive_number_named("intFloorDiv");
         if ((p_205 > 0) && (p_205 < OPT_MAX_PRIM)) {
             ob_prim_kinds[p_205] = 45U;
         }
-        p_206 = jit_primitive_number("intQuo");
+        p_206 = primitive_number_named("intQuo");
         if ((p_206 > 0) && (p_206 < OPT_MAX_PRIM)) {
             ob_prim_kinds[p_206] = 48U;
         }
-        p_207 = jit_primitive_number("intRem");
+        p_207 = primitive_number_named("intRem");
         if ((p_207 > 0) && (p_207 < OPT_MAX_PRIM)) {
             ob_prim_kinds[p_207] = 49U;
         }
-        p_208 = jit_primitive_number("charValue");
+        p_208 = primitive_number_named("charValue");
         if ((p_208 > 0) && (p_208 < OPT_MAX_PRIM)) {
             ob_prim_kinds[p_208] = 12U;
         }
-        p_209 = jit_primitive_number("charFromValue");
+        p_209 = primitive_number_named("charFromValue");
         if ((p_209 > 0) && (p_209 < OPT_MAX_PRIM)) {
             ob_prim_kinds[p_209] = 13U;
         }
-        p_210 = jit_primitive_number("floatAdd");
+        p_210 = primitive_number_named("floatAdd");
         if ((p_210 > 0) && (p_210 < OPT_MAX_PRIM)) {
             ob_prim_kinds[p_210] = 64U;
         }
-        p_211 = jit_primitive_number("floatSub");
+        p_211 = primitive_number_named("floatSub");
         if ((p_211 > 0) && (p_211 < OPT_MAX_PRIM)) {
             ob_prim_kinds[p_211] = 65U;
         }
-        p_212 = jit_primitive_number("floatLess");
+        p_212 = primitive_number_named("floatLess");
         if ((p_212 > 0) && (p_212 < OPT_MAX_PRIM)) {
             ob_prim_kinds[p_212] = 66U;
         }
-        p_213 = jit_primitive_number("floatGreater");
+        p_213 = primitive_number_named("floatGreater");
         if ((p_213 > 0) && (p_213 < OPT_MAX_PRIM)) {
             ob_prim_kinds[p_213] = 67U;
         }
-        p_214 = jit_primitive_number("floatLessEq");
+        p_214 = primitive_number_named("floatLessEq");
         if ((p_214 > 0) && (p_214 < OPT_MAX_PRIM)) {
             ob_prim_kinds[p_214] = 68U;
         }
-        p_215 = jit_primitive_number("floatGreaterEq");
+        p_215 = primitive_number_named("floatGreaterEq");
         if ((p_215 > 0) && (p_215 < OPT_MAX_PRIM)) {
             ob_prim_kinds[p_215] = 69U;
         }
-        p_216 = jit_primitive_number("floatEq");
+        p_216 = primitive_number_named("floatEq");
         if ((p_216 > 0) && (p_216 < OPT_MAX_PRIM)) {
             ob_prim_kinds[p_216] = 70U;
         }
-        p_217 = jit_primitive_number("floatNotEq");
+        p_217 = primitive_number_named("floatNotEq");
         if ((p_217 > 0) && (p_217 < OPT_MAX_PRIM)) {
             ob_prim_kinds[p_217] = 71U;
         }
-        p_218 = jit_primitive_number("floatMul");
+        p_218 = primitive_number_named("floatMul");
         if ((p_218 > 0) && (p_218 < OPT_MAX_PRIM)) {
             ob_prim_kinds[p_218] = 72U;
         }
-        p_219 = jit_primitive_number("floatDiv");
+        p_219 = primitive_number_named("floatDiv");
         if ((p_219 > 0) && (p_219 < OPT_MAX_PRIM)) {
             ob_prim_kinds[p_219] = 73U;
         }
-        p_220 = jit_primitive_number("floatSqrt");
+        p_220 = primitive_number_named("floatSqrt");
         if ((p_220 > 0) && (p_220 < OPT_MAX_PRIM)) {
             ob_prim_kinds[p_220] = 8U;
         }
-        p_221 = jit_primitive_number("basicNew");
+        p_221 = primitive_number_named("basicNew");
         if ((p_221 > 0) && (p_221 < OPT_MAX_PRIM)) {
             ob_prim_kinds[p_221] = 9U;
         }
-        p_222 = jit_primitive_number("basicNew:");
+        p_222 = primitive_number_named("basicNew:");
         if ((p_222 > 0) && (p_222 < OPT_MAX_PRIM)) {
             ob_prim_kinds[p_222] = 10U;
         }
-        p_223 = jit_primitive_number("closureValue");
+        p_223 = primitive_number_named("closureValue");
         if ((p_223 > 0) && (p_223 < OPT_MAX_PRIM)) {
             ob_prim_kinds[p_223] = 11U;
         }
@@ -9926,17 +9926,17 @@ exit_class_of_5:;
         fputc(10, stderr);
     }
     n_69 = ({
-    n_70 = opt_new_node(O_SEND, R_OOP);
-    opt_append(n_70, ob_cur_block);
+    n_70 = new_node(O_SEND, R_OOP);
+    append(n_70, ob_cur_block);
     r_add_22 = n_70;
     r_add_22; });
     ob_safe_epoch = ob_safe_epoch + 1;
-    args_9 = opt_alloc_operands(argc + 1);
+    args_9 = alloc_operands(argc + 1);
     for (i_32 = 0; i_32 <= argc; i_32++) {
         i_33 = args_9 + i_32;
         i_34 = r + i_32;
         var_24 = (opt_acts + a)->var_base + i_34;
-        v_9 = opt_read(var_24, ob_cur_block);
+        v_9 = opt_builder_read(var_24, ob_cur_block);
         opt_operands[i_33] = v_9;
     }
     (opt_nodes + n_69)->args = args_9;
@@ -9949,7 +9949,7 @@ exit_class_of_5:;
     m_12 = (opt_acts + a)->method;
     o_18 = *(uint64_t *)(m_12 + 16 + 24);
     op_9 = ((uint8_t *)(o_18 + 16))[pc];
-    (opt_nodes + n_69)->state = opt_make_state(a, (int32_t)(pc + ({
+    (opt_nodes + n_69)->state = state_act(a, (int32_t)(pc + ({
     if (op_9 < 0x68) {
         r_length_of_9 = 1;
         goto exit_length_of_9;
@@ -10012,8 +10012,8 @@ exit_length_of_9:;
     var_25 = (opt_acts + a)->var_base + r;
     if ((var_25 < OPT_MAX_VARS) && (ob_arg_flags[var_25] == 2)) {
         n_71 = ({
-    n_72 = opt_new_node(O_STORESLOT, R_NONE);
-    opt_append(n_72, ob_cur_block);
+    n_72 = new_node(O_STORESLOT, R_NONE);
+    append(n_72, ob_cur_block);
     r_add_23 = n_72;
     r_add_23; });
         (opt_nodes + n_71)->a = n_69;
@@ -10021,7 +10021,7 @@ exit_length_of_9:;
         (opt_nodes + n_71)->aux = (opt_nodes + n_73)->aux;
         goto exit_write_12;
     }
-    opt_write(var_25, n_69, ob_cur_block);
+    opt_builder_write(var_25, n_69, ob_cur_block);
 exit_write_12:;
     r_call_selector_7 = n_69;
     r_call_selector_7; });
@@ -10044,163 +10044,163 @@ exit_allocate_3:;
     if (!ob_prims_known) {
         ob_prims_known = true;
         memset(ob_prim_kinds, 0, OPT_MAX_PRIM);
-        p_226 = jit_primitive_number("at");
+        p_226 = primitive_number_named("at");
         if ((p_226 > 0) && (p_226 < OPT_MAX_PRIM)) {
             ob_prim_kinds[p_226] = 1U;
         }
-        p_227 = jit_primitive_number("atPut");
+        p_227 = primitive_number_named("atPut");
         if ((p_227 > 0) && (p_227 < OPT_MAX_PRIM)) {
             ob_prim_kinds[p_227] = 2U;
         }
-        p_228 = jit_primitive_number("basicSize");
+        p_228 = primitive_number_named("basicSize");
         if ((p_228 > 0) && (p_228 < OPT_MAX_PRIM)) {
             ob_prim_kinds[p_228] = 3U;
         }
-        p_229 = jit_primitive_number("stringAt");
+        p_229 = primitive_number_named("stringAt");
         if ((p_229 > 0) && (p_229 < OPT_MAX_PRIM)) {
             ob_prim_kinds[p_229] = 4U;
         }
-        p_230 = jit_primitive_number("stringAtPut");
+        p_230 = primitive_number_named("stringAtPut");
         if ((p_230 > 0) && (p_230 < OPT_MAX_PRIM)) {
             ob_prim_kinds[p_230] = 5U;
         }
-        p_231 = jit_primitive_number("class");
+        p_231 = primitive_number_named("class");
         if ((p_231 > 0) && (p_231 < OPT_MAX_PRIM)) {
             ob_prim_kinds[p_231] = 6U;
         }
-        p_232 = jit_primitive_number("identical");
+        p_232 = primitive_number_named("identical");
         if ((p_232 > 0) && (p_232 < OPT_MAX_PRIM)) {
             ob_prim_kinds[p_232] = 7U;
         }
-        p_233 = jit_primitive_number("intAdd");
+        p_233 = primitive_number_named("intAdd");
         if ((p_233 > 0) && (p_233 < OPT_MAX_PRIM)) {
             ob_prim_kinds[p_233] = 32U;
         }
-        p_234 = jit_primitive_number("intSub");
+        p_234 = primitive_number_named("intSub");
         if ((p_234 > 0) && (p_234 < OPT_MAX_PRIM)) {
             ob_prim_kinds[p_234] = 33U;
         }
-        p_235 = jit_primitive_number("intLess");
+        p_235 = primitive_number_named("intLess");
         if ((p_235 > 0) && (p_235 < OPT_MAX_PRIM)) {
             ob_prim_kinds[p_235] = 34U;
         }
-        p_236 = jit_primitive_number("intGreater");
+        p_236 = primitive_number_named("intGreater");
         if ((p_236 > 0) && (p_236 < OPT_MAX_PRIM)) {
             ob_prim_kinds[p_236] = 35U;
         }
-        p_237 = jit_primitive_number("intLessEq");
+        p_237 = primitive_number_named("intLessEq");
         if ((p_237 > 0) && (p_237 < OPT_MAX_PRIM)) {
             ob_prim_kinds[p_237] = 36U;
         }
-        p_238 = jit_primitive_number("intGreaterEq");
+        p_238 = primitive_number_named("intGreaterEq");
         if ((p_238 > 0) && (p_238 < OPT_MAX_PRIM)) {
             ob_prim_kinds[p_238] = 37U;
         }
-        p_239 = jit_primitive_number("intEq");
+        p_239 = primitive_number_named("intEq");
         if ((p_239 > 0) && (p_239 < OPT_MAX_PRIM)) {
             ob_prim_kinds[p_239] = 38U;
         }
-        p_240 = jit_primitive_number("intNotEq");
+        p_240 = primitive_number_named("intNotEq");
         if ((p_240 > 0) && (p_240 < OPT_MAX_PRIM)) {
             ob_prim_kinds[p_240] = 39U;
         }
-        p_241 = jit_primitive_number("intMul");
+        p_241 = primitive_number_named("intMul");
         if ((p_241 > 0) && (p_241 < OPT_MAX_PRIM)) {
             ob_prim_kinds[p_241] = 40U;
         }
-        p_242 = jit_primitive_number("intBitAnd");
+        p_242 = primitive_number_named("intBitAnd");
         if ((p_242 > 0) && (p_242 < OPT_MAX_PRIM)) {
             ob_prim_kinds[p_242] = 46U;
         }
-        p_243 = jit_primitive_number("intBitOr");
+        p_243 = primitive_number_named("intBitOr");
         if ((p_243 > 0) && (p_243 < OPT_MAX_PRIM)) {
             ob_prim_kinds[p_243] = 47U;
         }
-        p_244 = jit_primitive_number("intMod");
+        p_244 = primitive_number_named("intMod");
         if ((p_244 > 0) && (p_244 < OPT_MAX_PRIM)) {
             ob_prim_kinds[p_244] = 42U;
         }
-        p_245 = jit_primitive_number("intBitXor");
+        p_245 = primitive_number_named("intBitXor");
         if ((p_245 > 0) && (p_245 < OPT_MAX_PRIM)) {
             ob_prim_kinds[p_245] = 43U;
         }
-        p_246 = jit_primitive_number("intBitShift");
+        p_246 = primitive_number_named("intBitShift");
         if ((p_246 > 0) && (p_246 < OPT_MAX_PRIM)) {
             ob_prim_kinds[p_246] = 44U;
         }
-        p_247 = jit_primitive_number("intFloorDiv");
+        p_247 = primitive_number_named("intFloorDiv");
         if ((p_247 > 0) && (p_247 < OPT_MAX_PRIM)) {
             ob_prim_kinds[p_247] = 45U;
         }
-        p_248 = jit_primitive_number("intQuo");
+        p_248 = primitive_number_named("intQuo");
         if ((p_248 > 0) && (p_248 < OPT_MAX_PRIM)) {
             ob_prim_kinds[p_248] = 48U;
         }
-        p_249 = jit_primitive_number("intRem");
+        p_249 = primitive_number_named("intRem");
         if ((p_249 > 0) && (p_249 < OPT_MAX_PRIM)) {
             ob_prim_kinds[p_249] = 49U;
         }
-        p_250 = jit_primitive_number("charValue");
+        p_250 = primitive_number_named("charValue");
         if ((p_250 > 0) && (p_250 < OPT_MAX_PRIM)) {
             ob_prim_kinds[p_250] = 12U;
         }
-        p_251 = jit_primitive_number("charFromValue");
+        p_251 = primitive_number_named("charFromValue");
         if ((p_251 > 0) && (p_251 < OPT_MAX_PRIM)) {
             ob_prim_kinds[p_251] = 13U;
         }
-        p_252 = jit_primitive_number("floatAdd");
+        p_252 = primitive_number_named("floatAdd");
         if ((p_252 > 0) && (p_252 < OPT_MAX_PRIM)) {
             ob_prim_kinds[p_252] = 64U;
         }
-        p_253 = jit_primitive_number("floatSub");
+        p_253 = primitive_number_named("floatSub");
         if ((p_253 > 0) && (p_253 < OPT_MAX_PRIM)) {
             ob_prim_kinds[p_253] = 65U;
         }
-        p_254 = jit_primitive_number("floatLess");
+        p_254 = primitive_number_named("floatLess");
         if ((p_254 > 0) && (p_254 < OPT_MAX_PRIM)) {
             ob_prim_kinds[p_254] = 66U;
         }
-        p_255 = jit_primitive_number("floatGreater");
+        p_255 = primitive_number_named("floatGreater");
         if ((p_255 > 0) && (p_255 < OPT_MAX_PRIM)) {
             ob_prim_kinds[p_255] = 67U;
         }
-        p_256 = jit_primitive_number("floatLessEq");
+        p_256 = primitive_number_named("floatLessEq");
         if ((p_256 > 0) && (p_256 < OPT_MAX_PRIM)) {
             ob_prim_kinds[p_256] = 68U;
         }
-        p_257 = jit_primitive_number("floatGreaterEq");
+        p_257 = primitive_number_named("floatGreaterEq");
         if ((p_257 > 0) && (p_257 < OPT_MAX_PRIM)) {
             ob_prim_kinds[p_257] = 69U;
         }
-        p_258 = jit_primitive_number("floatEq");
+        p_258 = primitive_number_named("floatEq");
         if ((p_258 > 0) && (p_258 < OPT_MAX_PRIM)) {
             ob_prim_kinds[p_258] = 70U;
         }
-        p_259 = jit_primitive_number("floatNotEq");
+        p_259 = primitive_number_named("floatNotEq");
         if ((p_259 > 0) && (p_259 < OPT_MAX_PRIM)) {
             ob_prim_kinds[p_259] = 71U;
         }
-        p_260 = jit_primitive_number("floatMul");
+        p_260 = primitive_number_named("floatMul");
         if ((p_260 > 0) && (p_260 < OPT_MAX_PRIM)) {
             ob_prim_kinds[p_260] = 72U;
         }
-        p_261 = jit_primitive_number("floatDiv");
+        p_261 = primitive_number_named("floatDiv");
         if ((p_261 > 0) && (p_261 < OPT_MAX_PRIM)) {
             ob_prim_kinds[p_261] = 73U;
         }
-        p_262 = jit_primitive_number("floatSqrt");
+        p_262 = primitive_number_named("floatSqrt");
         if ((p_262 > 0) && (p_262 < OPT_MAX_PRIM)) {
             ob_prim_kinds[p_262] = 8U;
         }
-        p_263 = jit_primitive_number("basicNew");
+        p_263 = primitive_number_named("basicNew");
         if ((p_263 > 0) && (p_263 < OPT_MAX_PRIM)) {
             ob_prim_kinds[p_263] = 9U;
         }
-        p_264 = jit_primitive_number("basicNew:");
+        p_264 = primitive_number_named("basicNew:");
         if ((p_264 > 0) && (p_264 < OPT_MAX_PRIM)) {
             ob_prim_kinds[p_264] = 10U;
         }
-        p_265 = jit_primitive_number("closureValue");
+        p_265 = primitive_number_named("closureValue");
         if ((p_265 > 0) && (p_265 < OPT_MAX_PRIM)) {
             ob_prim_kinds[p_265] = 11U;
         }
@@ -10214,15 +10214,15 @@ exit_prim_kind_of_6:;
     r_prim_kind_of_6; }) == OPK_CLOSURE; }))) {
         r_send_3 = ({
     k_4 = -1;
-    o_19 = special(SO_SPECIAL_SELECTORS);
+    o_19 = object_memory_special(SO_SPECIAL_SELECTORS);
     if (*(uint64_t *)(o_19 + 16 + 168) == sel) {
         k_4 = 21;
     }
-    o_20 = special(SO_SPECIAL_SELECTORS);
+    o_20 = object_memory_special(SO_SPECIAL_SELECTORS);
     if (*(uint64_t *)(o_20 + 16 + 176) == sel) {
         k_4 = 22;
     }
-    o_21 = special(SO_SPECIAL_SELECTORS);
+    o_21 = object_memory_special(SO_SPECIAL_SELECTORS);
     if (*(uint64_t *)(o_21 + 16 + 240) == sel) {
         k_4 = 30;
     }
@@ -10233,17 +10233,17 @@ exit_prim_kind_of_6:;
             fputc(10, stderr);
         }
         n_75 = ({
-    n_76 = opt_new_node(O_SEND, R_OOP);
-    opt_append(n_76, ob_cur_block);
+    n_76 = new_node(O_SEND, R_OOP);
+    append(n_76, ob_cur_block);
     r_add_24 = n_76;
     r_add_24; });
         ob_safe_epoch = ob_safe_epoch + 1;
-        args_10 = opt_alloc_operands(argc + 1);
+        args_10 = alloc_operands(argc + 1);
         for (i_35 = 0; i_35 <= argc; i_35++) {
             i_36 = args_10 + i_35;
             i_37 = r + i_35;
             var_26 = (opt_acts + a)->var_base + i_37;
-            v_10 = opt_read(var_26, ob_cur_block);
+            v_10 = opt_builder_read(var_26, ob_cur_block);
             opt_operands[i_36] = v_10;
         }
         (opt_nodes + n_75)->args = args_10;
@@ -10256,7 +10256,7 @@ exit_prim_kind_of_6:;
         m_13 = (opt_acts + a)->method;
         o_22 = *(uint64_t *)(m_13 + 16 + 24);
         op_10 = ((uint8_t *)(o_22 + 16))[pc];
-        (opt_nodes + n_75)->state = opt_make_state(a, (int32_t)(pc + ({
+        (opt_nodes + n_75)->state = state_act(a, (int32_t)(pc + ({
     if (op_10 < 0x68) {
         r_length_of_10 = 1;
         goto exit_length_of_10;
@@ -10319,8 +10319,8 @@ exit_length_of_10:;
         var_27 = (opt_acts + a)->var_base + r;
         if ((var_27 < OPT_MAX_VARS) && (ob_arg_flags[var_27] == 2)) {
             n_77 = ({
-    n_78 = opt_new_node(O_STORESLOT, R_NONE);
-    opt_append(n_78, ob_cur_block);
+    n_78 = new_node(O_STORESLOT, R_NONE);
+    append(n_78, ob_cur_block);
     r_add_25 = n_78;
     r_add_25; });
             (opt_nodes + n_77)->a = n_75;
@@ -10328,7 +10328,7 @@ exit_length_of_10:;
             (opt_nodes + n_77)->aux = (opt_nodes + n_79)->aux;
             goto exit_write_13;
         }
-        opt_write(var_27, n_75, ob_cur_block);
+        opt_builder_write(var_27, n_75, ob_cur_block);
     exit_write_13:;
         r_block_call_3 = true;
         goto exit_block_call_3;
@@ -10340,17 +10340,17 @@ exit_length_of_10:;
         fputc(10, stderr);
     }
     n_80 = ({
-    n_81 = opt_new_node(O_SEND, R_OOP);
-    opt_append(n_81, ob_cur_block);
+    n_81 = new_node(O_SEND, R_OOP);
+    append(n_81, ob_cur_block);
     r_add_26 = n_81;
     r_add_26; });
     ob_safe_epoch = ob_safe_epoch + 1;
-    args_11 = opt_alloc_operands(argc + 1);
+    args_11 = alloc_operands(argc + 1);
     for (i_38 = 0; i_38 <= argc; i_38++) {
         i_39 = args_11 + i_38;
         i_40 = r + i_38;
         var_28 = (opt_acts + a)->var_base + i_40;
-        v_11 = opt_read(var_28, ob_cur_block);
+        v_11 = opt_builder_read(var_28, ob_cur_block);
         opt_operands[i_39] = v_11;
     }
     (opt_nodes + n_80)->args = args_11;
@@ -10363,7 +10363,7 @@ exit_length_of_10:;
     m_14 = (opt_acts + a)->method;
     o_23 = *(uint64_t *)(m_14 + 16 + 24);
     op_11 = ((uint8_t *)(o_23 + 16))[pc];
-    (opt_nodes + n_80)->state = opt_make_state(a, (int32_t)(pc + ({
+    (opt_nodes + n_80)->state = state_act(a, (int32_t)(pc + ({
     if (op_11 < 0x68) {
         r_length_of_11 = 1;
         goto exit_length_of_11;
@@ -10426,8 +10426,8 @@ exit_length_of_11:;
     var_29 = (opt_acts + a)->var_base + r;
     if ((var_29 < OPT_MAX_VARS) && (ob_arg_flags[var_29] == 2)) {
         n_82 = ({
-    n_83 = opt_new_node(O_STORESLOT, R_NONE);
-    opt_append(n_83, ob_cur_block);
+    n_83 = new_node(O_STORESLOT, R_NONE);
+    append(n_83, ob_cur_block);
     r_add_27 = n_83;
     r_add_27; });
         (opt_nodes + n_82)->a = n_80;
@@ -10435,7 +10435,7 @@ exit_length_of_11:;
         (opt_nodes + n_82)->aux = (opt_nodes + n_84)->aux;
         goto exit_write_14;
     }
-    opt_write(var_29, n_80, ob_cur_block);
+    opt_builder_write(var_29, n_80, ob_cur_block);
 exit_write_14:;
     r_call_selector_8 = n_80;
     r_call_selector_8; });
@@ -10448,15 +10448,15 @@ exit_block_call_3:;
     if ((({
     p_266 = *(uint64_t *)(m_11 + 16 + 56);
     r_method_primitive_17 = (p_266 & 1) != 0 ? (int32_t)((((int64_t)p_266) >> 1) & CM_PRIM_MASK) : 0;
-    r_method_primitive_17; }) != 0) && (((jit_flags & JIT_FLAG_PRIMS) != 0) && opt_inline_primitive(({
+    r_method_primitive_17; }) != 0) && (((jit_flags & JIT_FLAG_PRIMS) != 0) && inline_primitive(({
     p_267 = *(uint64_t *)(m_11 + 16 + 56);
     r_method_primitive_18 = (p_267 & 1) != 0 ? (int32_t)((((int64_t)p_267) >> 1) & CM_PRIM_MASK) : 0;
     r_method_primitive_18; }), cls_3, argc, pc, a, r))) {
         r_send_3 = true;
         goto exit_send_3;
     }
-    if (opt_can_inline(m_11, a)) {
-        opt_inline_method(m_11, cls_3, pc, a, r, argc);
+    if (can_inline(m_11, a)) {
+        inline_method(m_11, cls_3, pc, a, r, argc);
         r_send_3 = true;
         goto exit_send_3;
     }
@@ -10468,17 +10468,17 @@ exit_block_call_3:;
         fputc(10, stderr);
     }
     n_85 = ({
-    n_86 = opt_new_node(O_SEND, R_OOP);
-    opt_append(n_86, ob_cur_block);
+    n_86 = new_node(O_SEND, R_OOP);
+    append(n_86, ob_cur_block);
     r_add_28 = n_86;
     r_add_28; });
     ob_safe_epoch = ob_safe_epoch + 1;
-    args_12 = opt_alloc_operands(argc + 1);
+    args_12 = alloc_operands(argc + 1);
     for (i_41 = 0; i_41 <= argc; i_41++) {
         i_42 = args_12 + i_41;
         i_43 = r + i_41;
         var_30 = (opt_acts + a)->var_base + i_43;
-        v_12 = opt_read(var_30, ob_cur_block);
+        v_12 = opt_builder_read(var_30, ob_cur_block);
         opt_operands[i_42] = v_12;
     }
     (opt_nodes + n_85)->args = args_12;
@@ -10491,7 +10491,7 @@ exit_block_call_3:;
     m_15 = (opt_acts + a)->method;
     o_24 = *(uint64_t *)(m_15 + 16 + 24);
     op_12 = ((uint8_t *)(o_24 + 16))[pc];
-    (opt_nodes + n_85)->state = opt_make_state(a, (int32_t)(pc + ({
+    (opt_nodes + n_85)->state = state_act(a, (int32_t)(pc + ({
     if (op_12 < 0x68) {
         r_length_of_12 = 1;
         goto exit_length_of_12;
@@ -10554,8 +10554,8 @@ exit_length_of_12:;
     var_31 = (opt_acts + a)->var_base + r;
     if ((var_31 < OPT_MAX_VARS) && (ob_arg_flags[var_31] == 2)) {
         n_87 = ({
-    n_88 = opt_new_node(O_STORESLOT, R_NONE);
-    opt_append(n_88, ob_cur_block);
+    n_88 = new_node(O_STORESLOT, R_NONE);
+    append(n_88, ob_cur_block);
     r_add_29 = n_88;
     r_add_29; });
         (opt_nodes + n_87)->a = n_85;
@@ -10563,11 +10563,11 @@ exit_length_of_12:;
         (opt_nodes + n_87)->aux = (opt_nodes + n_89)->aux;
         goto exit_write_15;
     }
-    opt_write(var_31, n_85, ob_cur_block);
+    opt_builder_write(var_31, n_85, ob_cur_block);
 exit_write_15:;
     r_call_selector_9 = n_85;
     r_call_selector_9; });
-    if (((jit_flags & JIT_FLAG_CALLS) != 0) && jit_has_code(m_11)) {
+    if (((jit_flags & JIT_FLAG_CALLS) != 0) && code_address_of(m_11)) {
         (opt_nodes + n_62)->op = O_CALL;
         (opt_nodes + n_62)->tcls = m_11;
     }
@@ -10575,46 +10575,46 @@ exit_write_15:;
 exit_send_3:;
     r_send_3; });
     }
-    merge = opt_new_block();
+    merge = new_block();
     (opt_blocks + merge)->act = a;
     for (i_44 = 0; i_44 <= n - 1; i_44++) {
         cls = site->classes[i_44];
         test = ({
-    n_90 = opt_new_node(O_CLASSIS, R_OOP);
-    opt_append(n_90, ob_cur_block);
+    n_90 = new_node(O_CLASSIS, R_OOP);
+    append(n_90, ob_cur_block);
     r_add_30 = n_90;
     r_add_30; });
         (opt_nodes + test)->a = rcv;
         (opt_nodes + test)->aux = (int64_t)cls;
         (opt_nodes + test)->tkind = T_BOOL;
-        t = opt_new_block();
+        t = new_block();
         (opt_blocks + t)->act = a;
-        next = opt_new_block();
+        next = new_block();
         (opt_blocks + next)->act = a;
         n_91 = ({
-    n_92 = opt_new_node(O_BRANCH, R_NONE);
-    opt_append(n_92, ob_cur_block);
+    n_92 = new_node(O_BRANCH, R_NONE);
+    append(n_92, ob_cur_block);
     r_add_31 = n_92;
     r_add_31; });
         (opt_nodes + n_91)->a = test;
         (opt_blocks + ob_cur_block)->succ0 = t;
         (opt_blocks + ob_cur_block)->succ1 = next;
-        opt_add_pred(ob_cur_block, t);
+        add_pred(ob_cur_block, t);
         if (((opt_blocks + ob_cur_block)->flags & BF_LIVE) != 0) {
             (opt_blocks + t)->flags = (opt_blocks + t)->flags | BF_LIVE;
         }
-        opt_add_pred(ob_cur_block, next);
+        add_pred(ob_cur_block, next);
         if (((opt_blocks + ob_cur_block)->flags & BF_LIVE) != 0) {
             (opt_blocks + next)->flags = (opt_blocks + next)->flags | BF_LIVE;
         }
         ob_cur_block = -1;
-        opt_seal(t);
-        opt_seal(next);
+        seal(t);
+        seal(next);
         ob_cur_block = t;
         g = ({
     n_93 = ({
-    n_94 = opt_new_node(O_CAST, R_OOP);
-    opt_append(n_94, ob_cur_block);
+    n_94 = new_node(O_CAST, R_OOP);
+    append(n_94, ob_cur_block);
     r_add_32 = n_94;
     r_add_32; });
     (opt_nodes + n_93)->a = rcv;
@@ -10634,8 +10634,8 @@ exit_type_2:;
         var_32 = (opt_acts + a)->var_base + r;
         if ((var_32 < OPT_MAX_VARS) && (ob_arg_flags[var_32] == 2)) {
             n_95 = ({
-    n_96 = opt_new_node(O_STORESLOT, R_NONE);
-    opt_append(n_96, ob_cur_block);
+    n_96 = new_node(O_STORESLOT, R_NONE);
+    append(n_96, ob_cur_block);
     r_add_33 = n_96;
     r_add_33; });
             (opt_nodes + n_95)->a = g;
@@ -10643,7 +10643,7 @@ exit_type_2:;
             (opt_nodes + n_95)->aux = (opt_nodes + n_97)->aux;
             goto exit_write_16;
         }
-        opt_write(var_32, g, ob_cur_block);
+        opt_builder_write(var_32, g, ob_cur_block);
     exit_write_16:;
         if (!({
     if (cls == cls_context) {
@@ -10668,8 +10668,8 @@ exit_note_dependency_4:;
     var_33 = (opt_acts + a)->var_base + r;
     if ((var_33 < OPT_MAX_VARS) && (ob_arg_flags[var_33] == 2)) {
         n_99 = ({
-    n_100 = opt_new_node(O_STORESLOT, R_NONE);
-    opt_append(n_100, ob_cur_block);
+    n_100 = new_node(O_STORESLOT, R_NONE);
+    append(n_100, ob_cur_block);
     r_add_34 = n_100;
     r_add_34; });
         (opt_nodes + n_99)->a = g;
@@ -10677,16 +10677,16 @@ exit_note_dependency_4:;
         (opt_nodes + n_99)->aux = (opt_nodes + n_101)->aux;
         goto exit_write_17;
     }
-    opt_write(var_33, g, ob_cur_block);
+    opt_builder_write(var_33, g, ob_cur_block);
 exit_write_17:;
     if ((kind == 0) && ({
     i_46 = r + 1;
     n_102 = argc - 1;
     (p_268 = ({
-    if (!((ob_perform_act < 0) && ((bl_prim_kind(({
+    if (!((ob_perform_act < 0) && ((prim_kind_of(({
     p_269 = *(uint64_t *)(m_16 + 16 + 56);
     r_method_primitive_19 = (p_269 & 1) != 0 ? (int32_t)((((int64_t)p_269) >> 1) & CM_PRIM_MASK) : 0;
-    r_method_primitive_19; })) == PK_PERFORM) && ((bl_prim_op(({
+    r_method_primitive_19; })) == PK_PERFORM) && ((prim_op_of(({
     p_270 = *(uint64_t *)(m_16 + 16 + 56);
     r_method_primitive_20 = (p_270 & 1) != 0 ? (int32_t)((((int64_t)p_270) >> 1) & CM_PRIM_MASK) : 0;
     r_method_primitive_20; })) == 0) && ((n_102 >= 0) && (n_102 < 8)))))) {
@@ -10694,7 +10694,7 @@ exit_write_17:;
         goto exit_performed_at_4;
     }
     var_34 = (opt_acts + a)->var_base + i_46;
-    n_103 = opt_read(var_34, ob_cur_block);
+    n_103 = opt_builder_read(var_34, ob_cur_block);
     nd_5 = opt_nodes + n_103;
     if (!((int32_t)nd_5->op == O_CONST)) {
         r_performed_at_4 = 0ULL;
@@ -10707,7 +10707,7 @@ exit_write_17:;
     r_performed_at_4 = (uint64_t)nd_5->aux;
 exit_performed_at_4:;
     r_performed_at_4; })) != 0; })) {
-        r_send_4 = opt_send_performed(p_268, g, cls, argc - 1, pc, a, r);
+        r_send_4 = send_performed(p_268, g, cls, argc - 1, pc, a, r);
         goto exit_send_4;
     }
     if (((jit_flags & JIT_FLAG_ALLOC) != 0) && ({
@@ -10719,163 +10719,163 @@ exit_performed_at_4:;
     if (!ob_prims_known) {
         ob_prims_known = true;
         memset(ob_prim_kinds, 0, OPT_MAX_PRIM);
-        p_273 = jit_primitive_number("at");
+        p_273 = primitive_number_named("at");
         if ((p_273 > 0) && (p_273 < OPT_MAX_PRIM)) {
             ob_prim_kinds[p_273] = 1U;
         }
-        p_274 = jit_primitive_number("atPut");
+        p_274 = primitive_number_named("atPut");
         if ((p_274 > 0) && (p_274 < OPT_MAX_PRIM)) {
             ob_prim_kinds[p_274] = 2U;
         }
-        p_275 = jit_primitive_number("basicSize");
+        p_275 = primitive_number_named("basicSize");
         if ((p_275 > 0) && (p_275 < OPT_MAX_PRIM)) {
             ob_prim_kinds[p_275] = 3U;
         }
-        p_276 = jit_primitive_number("stringAt");
+        p_276 = primitive_number_named("stringAt");
         if ((p_276 > 0) && (p_276 < OPT_MAX_PRIM)) {
             ob_prim_kinds[p_276] = 4U;
         }
-        p_277 = jit_primitive_number("stringAtPut");
+        p_277 = primitive_number_named("stringAtPut");
         if ((p_277 > 0) && (p_277 < OPT_MAX_PRIM)) {
             ob_prim_kinds[p_277] = 5U;
         }
-        p_278 = jit_primitive_number("class");
+        p_278 = primitive_number_named("class");
         if ((p_278 > 0) && (p_278 < OPT_MAX_PRIM)) {
             ob_prim_kinds[p_278] = 6U;
         }
-        p_279 = jit_primitive_number("identical");
+        p_279 = primitive_number_named("identical");
         if ((p_279 > 0) && (p_279 < OPT_MAX_PRIM)) {
             ob_prim_kinds[p_279] = 7U;
         }
-        p_280 = jit_primitive_number("intAdd");
+        p_280 = primitive_number_named("intAdd");
         if ((p_280 > 0) && (p_280 < OPT_MAX_PRIM)) {
             ob_prim_kinds[p_280] = 32U;
         }
-        p_281 = jit_primitive_number("intSub");
+        p_281 = primitive_number_named("intSub");
         if ((p_281 > 0) && (p_281 < OPT_MAX_PRIM)) {
             ob_prim_kinds[p_281] = 33U;
         }
-        p_282 = jit_primitive_number("intLess");
+        p_282 = primitive_number_named("intLess");
         if ((p_282 > 0) && (p_282 < OPT_MAX_PRIM)) {
             ob_prim_kinds[p_282] = 34U;
         }
-        p_283 = jit_primitive_number("intGreater");
+        p_283 = primitive_number_named("intGreater");
         if ((p_283 > 0) && (p_283 < OPT_MAX_PRIM)) {
             ob_prim_kinds[p_283] = 35U;
         }
-        p_284 = jit_primitive_number("intLessEq");
+        p_284 = primitive_number_named("intLessEq");
         if ((p_284 > 0) && (p_284 < OPT_MAX_PRIM)) {
             ob_prim_kinds[p_284] = 36U;
         }
-        p_285 = jit_primitive_number("intGreaterEq");
+        p_285 = primitive_number_named("intGreaterEq");
         if ((p_285 > 0) && (p_285 < OPT_MAX_PRIM)) {
             ob_prim_kinds[p_285] = 37U;
         }
-        p_286 = jit_primitive_number("intEq");
+        p_286 = primitive_number_named("intEq");
         if ((p_286 > 0) && (p_286 < OPT_MAX_PRIM)) {
             ob_prim_kinds[p_286] = 38U;
         }
-        p_287 = jit_primitive_number("intNotEq");
+        p_287 = primitive_number_named("intNotEq");
         if ((p_287 > 0) && (p_287 < OPT_MAX_PRIM)) {
             ob_prim_kinds[p_287] = 39U;
         }
-        p_288 = jit_primitive_number("intMul");
+        p_288 = primitive_number_named("intMul");
         if ((p_288 > 0) && (p_288 < OPT_MAX_PRIM)) {
             ob_prim_kinds[p_288] = 40U;
         }
-        p_289 = jit_primitive_number("intBitAnd");
+        p_289 = primitive_number_named("intBitAnd");
         if ((p_289 > 0) && (p_289 < OPT_MAX_PRIM)) {
             ob_prim_kinds[p_289] = 46U;
         }
-        p_290 = jit_primitive_number("intBitOr");
+        p_290 = primitive_number_named("intBitOr");
         if ((p_290 > 0) && (p_290 < OPT_MAX_PRIM)) {
             ob_prim_kinds[p_290] = 47U;
         }
-        p_291 = jit_primitive_number("intMod");
+        p_291 = primitive_number_named("intMod");
         if ((p_291 > 0) && (p_291 < OPT_MAX_PRIM)) {
             ob_prim_kinds[p_291] = 42U;
         }
-        p_292 = jit_primitive_number("intBitXor");
+        p_292 = primitive_number_named("intBitXor");
         if ((p_292 > 0) && (p_292 < OPT_MAX_PRIM)) {
             ob_prim_kinds[p_292] = 43U;
         }
-        p_293 = jit_primitive_number("intBitShift");
+        p_293 = primitive_number_named("intBitShift");
         if ((p_293 > 0) && (p_293 < OPT_MAX_PRIM)) {
             ob_prim_kinds[p_293] = 44U;
         }
-        p_294 = jit_primitive_number("intFloorDiv");
+        p_294 = primitive_number_named("intFloorDiv");
         if ((p_294 > 0) && (p_294 < OPT_MAX_PRIM)) {
             ob_prim_kinds[p_294] = 45U;
         }
-        p_295 = jit_primitive_number("intQuo");
+        p_295 = primitive_number_named("intQuo");
         if ((p_295 > 0) && (p_295 < OPT_MAX_PRIM)) {
             ob_prim_kinds[p_295] = 48U;
         }
-        p_296 = jit_primitive_number("intRem");
+        p_296 = primitive_number_named("intRem");
         if ((p_296 > 0) && (p_296 < OPT_MAX_PRIM)) {
             ob_prim_kinds[p_296] = 49U;
         }
-        p_297 = jit_primitive_number("charValue");
+        p_297 = primitive_number_named("charValue");
         if ((p_297 > 0) && (p_297 < OPT_MAX_PRIM)) {
             ob_prim_kinds[p_297] = 12U;
         }
-        p_298 = jit_primitive_number("charFromValue");
+        p_298 = primitive_number_named("charFromValue");
         if ((p_298 > 0) && (p_298 < OPT_MAX_PRIM)) {
             ob_prim_kinds[p_298] = 13U;
         }
-        p_299 = jit_primitive_number("floatAdd");
+        p_299 = primitive_number_named("floatAdd");
         if ((p_299 > 0) && (p_299 < OPT_MAX_PRIM)) {
             ob_prim_kinds[p_299] = 64U;
         }
-        p_300 = jit_primitive_number("floatSub");
+        p_300 = primitive_number_named("floatSub");
         if ((p_300 > 0) && (p_300 < OPT_MAX_PRIM)) {
             ob_prim_kinds[p_300] = 65U;
         }
-        p_301 = jit_primitive_number("floatLess");
+        p_301 = primitive_number_named("floatLess");
         if ((p_301 > 0) && (p_301 < OPT_MAX_PRIM)) {
             ob_prim_kinds[p_301] = 66U;
         }
-        p_302 = jit_primitive_number("floatGreater");
+        p_302 = primitive_number_named("floatGreater");
         if ((p_302 > 0) && (p_302 < OPT_MAX_PRIM)) {
             ob_prim_kinds[p_302] = 67U;
         }
-        p_303 = jit_primitive_number("floatLessEq");
+        p_303 = primitive_number_named("floatLessEq");
         if ((p_303 > 0) && (p_303 < OPT_MAX_PRIM)) {
             ob_prim_kinds[p_303] = 68U;
         }
-        p_304 = jit_primitive_number("floatGreaterEq");
+        p_304 = primitive_number_named("floatGreaterEq");
         if ((p_304 > 0) && (p_304 < OPT_MAX_PRIM)) {
             ob_prim_kinds[p_304] = 69U;
         }
-        p_305 = jit_primitive_number("floatEq");
+        p_305 = primitive_number_named("floatEq");
         if ((p_305 > 0) && (p_305 < OPT_MAX_PRIM)) {
             ob_prim_kinds[p_305] = 70U;
         }
-        p_306 = jit_primitive_number("floatNotEq");
+        p_306 = primitive_number_named("floatNotEq");
         if ((p_306 > 0) && (p_306 < OPT_MAX_PRIM)) {
             ob_prim_kinds[p_306] = 71U;
         }
-        p_307 = jit_primitive_number("floatMul");
+        p_307 = primitive_number_named("floatMul");
         if ((p_307 > 0) && (p_307 < OPT_MAX_PRIM)) {
             ob_prim_kinds[p_307] = 72U;
         }
-        p_308 = jit_primitive_number("floatDiv");
+        p_308 = primitive_number_named("floatDiv");
         if ((p_308 > 0) && (p_308 < OPT_MAX_PRIM)) {
             ob_prim_kinds[p_308] = 73U;
         }
-        p_309 = jit_primitive_number("floatSqrt");
+        p_309 = primitive_number_named("floatSqrt");
         if ((p_309 > 0) && (p_309 < OPT_MAX_PRIM)) {
             ob_prim_kinds[p_309] = 8U;
         }
-        p_310 = jit_primitive_number("basicNew");
+        p_310 = primitive_number_named("basicNew");
         if ((p_310 > 0) && (p_310 < OPT_MAX_PRIM)) {
             ob_prim_kinds[p_310] = 9U;
         }
-        p_311 = jit_primitive_number("basicNew:");
+        p_311 = primitive_number_named("basicNew:");
         if ((p_311 > 0) && (p_311 < OPT_MAX_PRIM)) {
             ob_prim_kinds[p_311] = 10U;
         }
-        p_312 = jit_primitive_number("closureValue");
+        p_312 = primitive_number_named("closureValue");
         if ((p_312 > 0) && (p_312 < OPT_MAX_PRIM)) {
             ob_prim_kinds[p_312] = 11U;
         }
@@ -10942,17 +10942,17 @@ exit_class_of_6:;
         fputc(10, stderr);
     }
     n_105 = ({
-    n_106 = opt_new_node(O_SEND, R_OOP);
-    opt_append(n_106, ob_cur_block);
+    n_106 = new_node(O_SEND, R_OOP);
+    append(n_106, ob_cur_block);
     r_add_35 = n_106;
     r_add_35; });
     ob_safe_epoch = ob_safe_epoch + 1;
-    args_13 = opt_alloc_operands(argc + 1);
+    args_13 = alloc_operands(argc + 1);
     for (i_47 = 0; i_47 <= argc; i_47++) {
         i_48 = args_13 + i_47;
         i_49 = r + i_47;
         var_35 = (opt_acts + a)->var_base + i_49;
-        v_13 = opt_read(var_35, ob_cur_block);
+        v_13 = opt_builder_read(var_35, ob_cur_block);
         opt_operands[i_48] = v_13;
     }
     (opt_nodes + n_105)->args = args_13;
@@ -10965,7 +10965,7 @@ exit_class_of_6:;
     m_17 = (opt_acts + a)->method;
     o_25 = *(uint64_t *)(m_17 + 16 + 24);
     op_13 = ((uint8_t *)(o_25 + 16))[pc];
-    (opt_nodes + n_105)->state = opt_make_state(a, (int32_t)(pc + ({
+    (opt_nodes + n_105)->state = state_act(a, (int32_t)(pc + ({
     if (op_13 < 0x68) {
         r_length_of_13 = 1;
         goto exit_length_of_13;
@@ -11028,8 +11028,8 @@ exit_length_of_13:;
     var_36 = (opt_acts + a)->var_base + r;
     if ((var_36 < OPT_MAX_VARS) && (ob_arg_flags[var_36] == 2)) {
         n_107 = ({
-    n_108 = opt_new_node(O_STORESLOT, R_NONE);
-    opt_append(n_108, ob_cur_block);
+    n_108 = new_node(O_STORESLOT, R_NONE);
+    append(n_108, ob_cur_block);
     r_add_36 = n_108;
     r_add_36; });
         (opt_nodes + n_107)->a = n_105;
@@ -11037,7 +11037,7 @@ exit_length_of_13:;
         (opt_nodes + n_107)->aux = (opt_nodes + n_109)->aux;
         goto exit_write_18;
     }
-    opt_write(var_36, n_105, ob_cur_block);
+    opt_builder_write(var_36, n_105, ob_cur_block);
 exit_write_18:;
     r_call_selector_10 = n_105;
     r_call_selector_10; });
@@ -11060,163 +11060,163 @@ exit_allocate_4:;
     if (!ob_prims_known) {
         ob_prims_known = true;
         memset(ob_prim_kinds, 0, OPT_MAX_PRIM);
-        p_315 = jit_primitive_number("at");
+        p_315 = primitive_number_named("at");
         if ((p_315 > 0) && (p_315 < OPT_MAX_PRIM)) {
             ob_prim_kinds[p_315] = 1U;
         }
-        p_316 = jit_primitive_number("atPut");
+        p_316 = primitive_number_named("atPut");
         if ((p_316 > 0) && (p_316 < OPT_MAX_PRIM)) {
             ob_prim_kinds[p_316] = 2U;
         }
-        p_317 = jit_primitive_number("basicSize");
+        p_317 = primitive_number_named("basicSize");
         if ((p_317 > 0) && (p_317 < OPT_MAX_PRIM)) {
             ob_prim_kinds[p_317] = 3U;
         }
-        p_318 = jit_primitive_number("stringAt");
+        p_318 = primitive_number_named("stringAt");
         if ((p_318 > 0) && (p_318 < OPT_MAX_PRIM)) {
             ob_prim_kinds[p_318] = 4U;
         }
-        p_319 = jit_primitive_number("stringAtPut");
+        p_319 = primitive_number_named("stringAtPut");
         if ((p_319 > 0) && (p_319 < OPT_MAX_PRIM)) {
             ob_prim_kinds[p_319] = 5U;
         }
-        p_320 = jit_primitive_number("class");
+        p_320 = primitive_number_named("class");
         if ((p_320 > 0) && (p_320 < OPT_MAX_PRIM)) {
             ob_prim_kinds[p_320] = 6U;
         }
-        p_321 = jit_primitive_number("identical");
+        p_321 = primitive_number_named("identical");
         if ((p_321 > 0) && (p_321 < OPT_MAX_PRIM)) {
             ob_prim_kinds[p_321] = 7U;
         }
-        p_322 = jit_primitive_number("intAdd");
+        p_322 = primitive_number_named("intAdd");
         if ((p_322 > 0) && (p_322 < OPT_MAX_PRIM)) {
             ob_prim_kinds[p_322] = 32U;
         }
-        p_323 = jit_primitive_number("intSub");
+        p_323 = primitive_number_named("intSub");
         if ((p_323 > 0) && (p_323 < OPT_MAX_PRIM)) {
             ob_prim_kinds[p_323] = 33U;
         }
-        p_324 = jit_primitive_number("intLess");
+        p_324 = primitive_number_named("intLess");
         if ((p_324 > 0) && (p_324 < OPT_MAX_PRIM)) {
             ob_prim_kinds[p_324] = 34U;
         }
-        p_325 = jit_primitive_number("intGreater");
+        p_325 = primitive_number_named("intGreater");
         if ((p_325 > 0) && (p_325 < OPT_MAX_PRIM)) {
             ob_prim_kinds[p_325] = 35U;
         }
-        p_326 = jit_primitive_number("intLessEq");
+        p_326 = primitive_number_named("intLessEq");
         if ((p_326 > 0) && (p_326 < OPT_MAX_PRIM)) {
             ob_prim_kinds[p_326] = 36U;
         }
-        p_327 = jit_primitive_number("intGreaterEq");
+        p_327 = primitive_number_named("intGreaterEq");
         if ((p_327 > 0) && (p_327 < OPT_MAX_PRIM)) {
             ob_prim_kinds[p_327] = 37U;
         }
-        p_328 = jit_primitive_number("intEq");
+        p_328 = primitive_number_named("intEq");
         if ((p_328 > 0) && (p_328 < OPT_MAX_PRIM)) {
             ob_prim_kinds[p_328] = 38U;
         }
-        p_329 = jit_primitive_number("intNotEq");
+        p_329 = primitive_number_named("intNotEq");
         if ((p_329 > 0) && (p_329 < OPT_MAX_PRIM)) {
             ob_prim_kinds[p_329] = 39U;
         }
-        p_330 = jit_primitive_number("intMul");
+        p_330 = primitive_number_named("intMul");
         if ((p_330 > 0) && (p_330 < OPT_MAX_PRIM)) {
             ob_prim_kinds[p_330] = 40U;
         }
-        p_331 = jit_primitive_number("intBitAnd");
+        p_331 = primitive_number_named("intBitAnd");
         if ((p_331 > 0) && (p_331 < OPT_MAX_PRIM)) {
             ob_prim_kinds[p_331] = 46U;
         }
-        p_332 = jit_primitive_number("intBitOr");
+        p_332 = primitive_number_named("intBitOr");
         if ((p_332 > 0) && (p_332 < OPT_MAX_PRIM)) {
             ob_prim_kinds[p_332] = 47U;
         }
-        p_333 = jit_primitive_number("intMod");
+        p_333 = primitive_number_named("intMod");
         if ((p_333 > 0) && (p_333 < OPT_MAX_PRIM)) {
             ob_prim_kinds[p_333] = 42U;
         }
-        p_334 = jit_primitive_number("intBitXor");
+        p_334 = primitive_number_named("intBitXor");
         if ((p_334 > 0) && (p_334 < OPT_MAX_PRIM)) {
             ob_prim_kinds[p_334] = 43U;
         }
-        p_335 = jit_primitive_number("intBitShift");
+        p_335 = primitive_number_named("intBitShift");
         if ((p_335 > 0) && (p_335 < OPT_MAX_PRIM)) {
             ob_prim_kinds[p_335] = 44U;
         }
-        p_336 = jit_primitive_number("intFloorDiv");
+        p_336 = primitive_number_named("intFloorDiv");
         if ((p_336 > 0) && (p_336 < OPT_MAX_PRIM)) {
             ob_prim_kinds[p_336] = 45U;
         }
-        p_337 = jit_primitive_number("intQuo");
+        p_337 = primitive_number_named("intQuo");
         if ((p_337 > 0) && (p_337 < OPT_MAX_PRIM)) {
             ob_prim_kinds[p_337] = 48U;
         }
-        p_338 = jit_primitive_number("intRem");
+        p_338 = primitive_number_named("intRem");
         if ((p_338 > 0) && (p_338 < OPT_MAX_PRIM)) {
             ob_prim_kinds[p_338] = 49U;
         }
-        p_339 = jit_primitive_number("charValue");
+        p_339 = primitive_number_named("charValue");
         if ((p_339 > 0) && (p_339 < OPT_MAX_PRIM)) {
             ob_prim_kinds[p_339] = 12U;
         }
-        p_340 = jit_primitive_number("charFromValue");
+        p_340 = primitive_number_named("charFromValue");
         if ((p_340 > 0) && (p_340 < OPT_MAX_PRIM)) {
             ob_prim_kinds[p_340] = 13U;
         }
-        p_341 = jit_primitive_number("floatAdd");
+        p_341 = primitive_number_named("floatAdd");
         if ((p_341 > 0) && (p_341 < OPT_MAX_PRIM)) {
             ob_prim_kinds[p_341] = 64U;
         }
-        p_342 = jit_primitive_number("floatSub");
+        p_342 = primitive_number_named("floatSub");
         if ((p_342 > 0) && (p_342 < OPT_MAX_PRIM)) {
             ob_prim_kinds[p_342] = 65U;
         }
-        p_343 = jit_primitive_number("floatLess");
+        p_343 = primitive_number_named("floatLess");
         if ((p_343 > 0) && (p_343 < OPT_MAX_PRIM)) {
             ob_prim_kinds[p_343] = 66U;
         }
-        p_344 = jit_primitive_number("floatGreater");
+        p_344 = primitive_number_named("floatGreater");
         if ((p_344 > 0) && (p_344 < OPT_MAX_PRIM)) {
             ob_prim_kinds[p_344] = 67U;
         }
-        p_345 = jit_primitive_number("floatLessEq");
+        p_345 = primitive_number_named("floatLessEq");
         if ((p_345 > 0) && (p_345 < OPT_MAX_PRIM)) {
             ob_prim_kinds[p_345] = 68U;
         }
-        p_346 = jit_primitive_number("floatGreaterEq");
+        p_346 = primitive_number_named("floatGreaterEq");
         if ((p_346 > 0) && (p_346 < OPT_MAX_PRIM)) {
             ob_prim_kinds[p_346] = 69U;
         }
-        p_347 = jit_primitive_number("floatEq");
+        p_347 = primitive_number_named("floatEq");
         if ((p_347 > 0) && (p_347 < OPT_MAX_PRIM)) {
             ob_prim_kinds[p_347] = 70U;
         }
-        p_348 = jit_primitive_number("floatNotEq");
+        p_348 = primitive_number_named("floatNotEq");
         if ((p_348 > 0) && (p_348 < OPT_MAX_PRIM)) {
             ob_prim_kinds[p_348] = 71U;
         }
-        p_349 = jit_primitive_number("floatMul");
+        p_349 = primitive_number_named("floatMul");
         if ((p_349 > 0) && (p_349 < OPT_MAX_PRIM)) {
             ob_prim_kinds[p_349] = 72U;
         }
-        p_350 = jit_primitive_number("floatDiv");
+        p_350 = primitive_number_named("floatDiv");
         if ((p_350 > 0) && (p_350 < OPT_MAX_PRIM)) {
             ob_prim_kinds[p_350] = 73U;
         }
-        p_351 = jit_primitive_number("floatSqrt");
+        p_351 = primitive_number_named("floatSqrt");
         if ((p_351 > 0) && (p_351 < OPT_MAX_PRIM)) {
             ob_prim_kinds[p_351] = 8U;
         }
-        p_352 = jit_primitive_number("basicNew");
+        p_352 = primitive_number_named("basicNew");
         if ((p_352 > 0) && (p_352 < OPT_MAX_PRIM)) {
             ob_prim_kinds[p_352] = 9U;
         }
-        p_353 = jit_primitive_number("basicNew:");
+        p_353 = primitive_number_named("basicNew:");
         if ((p_353 > 0) && (p_353 < OPT_MAX_PRIM)) {
             ob_prim_kinds[p_353] = 10U;
         }
-        p_354 = jit_primitive_number("closureValue");
+        p_354 = primitive_number_named("closureValue");
         if ((p_354 > 0) && (p_354 < OPT_MAX_PRIM)) {
             ob_prim_kinds[p_354] = 11U;
         }
@@ -11230,15 +11230,15 @@ exit_prim_kind_of_8:;
     r_prim_kind_of_8; }) == OPK_CLOSURE; }))) {
         r_send_4 = ({
     k_5 = -1;
-    o_26 = special(SO_SPECIAL_SELECTORS);
+    o_26 = object_memory_special(SO_SPECIAL_SELECTORS);
     if (*(uint64_t *)(o_26 + 16 + 168) == sel) {
         k_5 = 21;
     }
-    o_27 = special(SO_SPECIAL_SELECTORS);
+    o_27 = object_memory_special(SO_SPECIAL_SELECTORS);
     if (*(uint64_t *)(o_27 + 16 + 176) == sel) {
         k_5 = 22;
     }
-    o_28 = special(SO_SPECIAL_SELECTORS);
+    o_28 = object_memory_special(SO_SPECIAL_SELECTORS);
     if (*(uint64_t *)(o_28 + 16 + 240) == sel) {
         k_5 = 30;
     }
@@ -11249,17 +11249,17 @@ exit_prim_kind_of_8:;
             fputc(10, stderr);
         }
         n_111 = ({
-    n_112 = opt_new_node(O_SEND, R_OOP);
-    opt_append(n_112, ob_cur_block);
+    n_112 = new_node(O_SEND, R_OOP);
+    append(n_112, ob_cur_block);
     r_add_37 = n_112;
     r_add_37; });
         ob_safe_epoch = ob_safe_epoch + 1;
-        args_14 = opt_alloc_operands(argc + 1);
+        args_14 = alloc_operands(argc + 1);
         for (i_50 = 0; i_50 <= argc; i_50++) {
             i_51 = args_14 + i_50;
             i_52 = r + i_50;
             var_37 = (opt_acts + a)->var_base + i_52;
-            v_14 = opt_read(var_37, ob_cur_block);
+            v_14 = opt_builder_read(var_37, ob_cur_block);
             opt_operands[i_51] = v_14;
         }
         (opt_nodes + n_111)->args = args_14;
@@ -11272,7 +11272,7 @@ exit_prim_kind_of_8:;
         m_18 = (opt_acts + a)->method;
         o_29 = *(uint64_t *)(m_18 + 16 + 24);
         op_14 = ((uint8_t *)(o_29 + 16))[pc];
-        (opt_nodes + n_111)->state = opt_make_state(a, (int32_t)(pc + ({
+        (opt_nodes + n_111)->state = state_act(a, (int32_t)(pc + ({
     if (op_14 < 0x68) {
         r_length_of_14 = 1;
         goto exit_length_of_14;
@@ -11335,8 +11335,8 @@ exit_length_of_14:;
         var_38 = (opt_acts + a)->var_base + r;
         if ((var_38 < OPT_MAX_VARS) && (ob_arg_flags[var_38] == 2)) {
             n_113 = ({
-    n_114 = opt_new_node(O_STORESLOT, R_NONE);
-    opt_append(n_114, ob_cur_block);
+    n_114 = new_node(O_STORESLOT, R_NONE);
+    append(n_114, ob_cur_block);
     r_add_38 = n_114;
     r_add_38; });
             (opt_nodes + n_113)->a = n_111;
@@ -11344,7 +11344,7 @@ exit_length_of_14:;
             (opt_nodes + n_113)->aux = (opt_nodes + n_115)->aux;
             goto exit_write_19;
         }
-        opt_write(var_38, n_111, ob_cur_block);
+        opt_builder_write(var_38, n_111, ob_cur_block);
     exit_write_19:;
         r_block_call_4 = true;
         goto exit_block_call_4;
@@ -11356,17 +11356,17 @@ exit_length_of_14:;
         fputc(10, stderr);
     }
     n_116 = ({
-    n_117 = opt_new_node(O_SEND, R_OOP);
-    opt_append(n_117, ob_cur_block);
+    n_117 = new_node(O_SEND, R_OOP);
+    append(n_117, ob_cur_block);
     r_add_39 = n_117;
     r_add_39; });
     ob_safe_epoch = ob_safe_epoch + 1;
-    args_15 = opt_alloc_operands(argc + 1);
+    args_15 = alloc_operands(argc + 1);
     for (i_53 = 0; i_53 <= argc; i_53++) {
         i_54 = args_15 + i_53;
         i_55 = r + i_53;
         var_39 = (opt_acts + a)->var_base + i_55;
-        v_15 = opt_read(var_39, ob_cur_block);
+        v_15 = opt_builder_read(var_39, ob_cur_block);
         opt_operands[i_54] = v_15;
     }
     (opt_nodes + n_116)->args = args_15;
@@ -11379,7 +11379,7 @@ exit_length_of_14:;
     m_19 = (opt_acts + a)->method;
     o_30 = *(uint64_t *)(m_19 + 16 + 24);
     op_15 = ((uint8_t *)(o_30 + 16))[pc];
-    (opt_nodes + n_116)->state = opt_make_state(a, (int32_t)(pc + ({
+    (opt_nodes + n_116)->state = state_act(a, (int32_t)(pc + ({
     if (op_15 < 0x68) {
         r_length_of_15 = 1;
         goto exit_length_of_15;
@@ -11442,8 +11442,8 @@ exit_length_of_15:;
     var_40 = (opt_acts + a)->var_base + r;
     if ((var_40 < OPT_MAX_VARS) && (ob_arg_flags[var_40] == 2)) {
         n_118 = ({
-    n_119 = opt_new_node(O_STORESLOT, R_NONE);
-    opt_append(n_119, ob_cur_block);
+    n_119 = new_node(O_STORESLOT, R_NONE);
+    append(n_119, ob_cur_block);
     r_add_40 = n_119;
     r_add_40; });
         (opt_nodes + n_118)->a = n_116;
@@ -11451,7 +11451,7 @@ exit_length_of_15:;
         (opt_nodes + n_118)->aux = (opt_nodes + n_120)->aux;
         goto exit_write_20;
     }
-    opt_write(var_40, n_116, ob_cur_block);
+    opt_builder_write(var_40, n_116, ob_cur_block);
 exit_write_20:;
     r_call_selector_11 = n_116;
     r_call_selector_11; });
@@ -11464,15 +11464,15 @@ exit_block_call_4:;
     if ((({
     p_355 = *(uint64_t *)(m_16 + 16 + 56);
     r_method_primitive_23 = (p_355 & 1) != 0 ? (int32_t)((((int64_t)p_355) >> 1) & CM_PRIM_MASK) : 0;
-    r_method_primitive_23; }) != 0) && (((jit_flags & JIT_FLAG_PRIMS) != 0) && opt_inline_primitive(({
+    r_method_primitive_23; }) != 0) && (((jit_flags & JIT_FLAG_PRIMS) != 0) && inline_primitive(({
     p_356 = *(uint64_t *)(m_16 + 16 + 56);
     r_method_primitive_24 = (p_356 & 1) != 0 ? (int32_t)((((int64_t)p_356) >> 1) & CM_PRIM_MASK) : 0;
     r_method_primitive_24; }), cls, argc, pc, a, r))) {
         r_send_4 = true;
         goto exit_send_4;
     }
-    if (opt_can_inline(m_16, a)) {
-        opt_inline_method(m_16, cls, pc, a, r, argc);
+    if (can_inline(m_16, a)) {
+        inline_method(m_16, cls, pc, a, r, argc);
         r_send_4 = true;
         goto exit_send_4;
     }
@@ -11484,17 +11484,17 @@ exit_block_call_4:;
         fputc(10, stderr);
     }
     n_121 = ({
-    n_122 = opt_new_node(O_SEND, R_OOP);
-    opt_append(n_122, ob_cur_block);
+    n_122 = new_node(O_SEND, R_OOP);
+    append(n_122, ob_cur_block);
     r_add_41 = n_122;
     r_add_41; });
     ob_safe_epoch = ob_safe_epoch + 1;
-    args_16 = opt_alloc_operands(argc + 1);
+    args_16 = alloc_operands(argc + 1);
     for (i_56 = 0; i_56 <= argc; i_56++) {
         i_57 = args_16 + i_56;
         i_58 = r + i_56;
         var_41 = (opt_acts + a)->var_base + i_58;
-        v_16 = opt_read(var_41, ob_cur_block);
+        v_16 = opt_builder_read(var_41, ob_cur_block);
         opt_operands[i_57] = v_16;
     }
     (opt_nodes + n_121)->args = args_16;
@@ -11507,7 +11507,7 @@ exit_block_call_4:;
     m_20 = (opt_acts + a)->method;
     o_31 = *(uint64_t *)(m_20 + 16 + 24);
     op_16 = ((uint8_t *)(o_31 + 16))[pc];
-    (opt_nodes + n_121)->state = opt_make_state(a, (int32_t)(pc + ({
+    (opt_nodes + n_121)->state = state_act(a, (int32_t)(pc + ({
     if (op_16 < 0x68) {
         r_length_of_16 = 1;
         goto exit_length_of_16;
@@ -11570,8 +11570,8 @@ exit_length_of_16:;
     var_42 = (opt_acts + a)->var_base + r;
     if ((var_42 < OPT_MAX_VARS) && (ob_arg_flags[var_42] == 2)) {
         n_123 = ({
-    n_124 = opt_new_node(O_STORESLOT, R_NONE);
-    opt_append(n_124, ob_cur_block);
+    n_124 = new_node(O_STORESLOT, R_NONE);
+    append(n_124, ob_cur_block);
     r_add_42 = n_124;
     r_add_42; });
         (opt_nodes + n_123)->a = n_121;
@@ -11579,11 +11579,11 @@ exit_length_of_16:;
         (opt_nodes + n_123)->aux = (opt_nodes + n_125)->aux;
         goto exit_write_21;
     }
-    opt_write(var_42, n_121, ob_cur_block);
+    opt_builder_write(var_42, n_121, ob_cur_block);
 exit_write_21:;
     r_call_selector_12 = n_121;
     r_call_selector_12; });
-    if (((jit_flags & JIT_FLAG_CALLS) != 0) && jit_has_code(m_16)) {
+    if (((jit_flags & JIT_FLAG_CALLS) != 0) && code_address_of(m_16)) {
         (opt_nodes + n_98)->op = O_CALL;
         (opt_nodes + n_98)->tcls = m_16;
     }
@@ -11596,17 +11596,17 @@ exit_send_4:;
                 fputc(10, stderr);
             }
             n_126 = ({
-    n_127 = opt_new_node(O_SEND, R_OOP);
-    opt_append(n_127, ob_cur_block);
+    n_127 = new_node(O_SEND, R_OOP);
+    append(n_127, ob_cur_block);
     r_add_43 = n_127;
     r_add_43; });
             ob_safe_epoch = ob_safe_epoch + 1;
-            args_17 = opt_alloc_operands(argc + 1);
+            args_17 = alloc_operands(argc + 1);
             for (i_59 = 0; i_59 <= argc; i_59++) {
                 i_60 = args_17 + i_59;
                 i_61 = r + i_59;
                 var_43 = (opt_acts + a)->var_base + i_61;
-                v_17 = opt_read(var_43, ob_cur_block);
+                v_17 = opt_builder_read(var_43, ob_cur_block);
                 opt_operands[i_60] = v_17;
             }
             (opt_nodes + n_126)->args = args_17;
@@ -11619,7 +11619,7 @@ exit_send_4:;
             m_21 = (opt_acts + a)->method;
             o_32 = *(uint64_t *)(m_21 + 16 + 24);
             op_17 = ((uint8_t *)(o_32 + 16))[pc];
-            (opt_nodes + n_126)->state = opt_make_state(a, (int32_t)(pc + ({
+            (opt_nodes + n_126)->state = state_act(a, (int32_t)(pc + ({
     if (op_17 < 0x68) {
         r_length_of_17 = 1;
         goto exit_length_of_17;
@@ -11682,8 +11682,8 @@ exit_length_of_17:;
             var_44 = (opt_acts + a)->var_base + r;
             if ((var_44 < OPT_MAX_VARS) && (ob_arg_flags[var_44] == 2)) {
                 n_128 = ({
-    n_129 = opt_new_node(O_STORESLOT, R_NONE);
-    opt_append(n_129, ob_cur_block);
+    n_129 = new_node(O_STORESLOT, R_NONE);
+    append(n_129, ob_cur_block);
     r_add_44 = n_129;
     r_add_44; });
                 (opt_nodes + n_128)->a = n_126;
@@ -11691,11 +11691,11 @@ exit_length_of_17:;
                 (opt_nodes + n_128)->aux = (opt_nodes + n_130)->aux;
                 goto exit_write_22;
             }
-            opt_write(var_44, n_126, ob_cur_block);
+            opt_builder_write(var_44, n_126, ob_cur_block);
         exit_write_22:;
         }
         if (ob_cur_block >= 0) {
-            opt_goto(merge);
+            goto_(merge);
         }
         ob_cur_block = next;
     }
@@ -11706,17 +11706,17 @@ exit_length_of_17:;
             fputc(10, stderr);
         }
         n_131 = ({
-    n_132 = opt_new_node(O_SEND, R_OOP);
-    opt_append(n_132, ob_cur_block);
+    n_132 = new_node(O_SEND, R_OOP);
+    append(n_132, ob_cur_block);
     r_add_45 = n_132;
     r_add_45; });
         ob_safe_epoch = ob_safe_epoch + 1;
-        args_18 = opt_alloc_operands(argc + 1);
+        args_18 = alloc_operands(argc + 1);
         for (i_62 = 0; i_62 <= argc; i_62++) {
             i_63 = args_18 + i_62;
             i_64 = r + i_62;
             var_45 = (opt_acts + a)->var_base + i_64;
-            v_18 = opt_read(var_45, ob_cur_block);
+            v_18 = opt_builder_read(var_45, ob_cur_block);
             opt_operands[i_63] = v_18;
         }
         (opt_nodes + n_131)->args = args_18;
@@ -11729,7 +11729,7 @@ exit_length_of_17:;
         m_22 = (opt_acts + a)->method;
         o_33 = *(uint64_t *)(m_22 + 16 + 24);
         op_18 = ((uint8_t *)(o_33 + 16))[pc];
-        (opt_nodes + n_131)->state = opt_make_state(a, (int32_t)(pc + ({
+        (opt_nodes + n_131)->state = state_act(a, (int32_t)(pc + ({
     if (op_18 < 0x68) {
         r_length_of_18 = 1;
         goto exit_length_of_18;
@@ -11792,8 +11792,8 @@ exit_length_of_18:;
         var_46 = (opt_acts + a)->var_base + r;
         if ((var_46 < OPT_MAX_VARS) && (ob_arg_flags[var_46] == 2)) {
             n_133 = ({
-    n_134 = opt_new_node(O_STORESLOT, R_NONE);
-    opt_append(n_134, ob_cur_block);
+    n_134 = new_node(O_STORESLOT, R_NONE);
+    append(n_134, ob_cur_block);
     r_add_46 = n_134;
     r_add_46; });
             (opt_nodes + n_133)->a = n_131;
@@ -11801,27 +11801,27 @@ exit_length_of_18:;
             (opt_nodes + n_133)->aux = (opt_nodes + n_135)->aux;
             goto exit_write_23;
         }
-        opt_write(var_46, n_131, ob_cur_block);
+        opt_builder_write(var_46, n_131, ob_cur_block);
     exit_write_23:;
         if (ob_cur_block >= 0) {
-            opt_goto(merge);
+            goto_(merge);
         }
     } else {
         n_136 = ({
-    n_137 = opt_new_node(O_DEOPT, R_NONE);
-    opt_append(n_137, ob_cur_block);
+    n_137 = new_node(O_DEOPT, R_NONE);
+    append(n_137, ob_cur_block);
     r_add_47 = n_137;
     r_add_47; });
         (opt_nodes + n_136)->state = s;
         ob_cur_block = -1;
     }
-    opt_seal(merge);
+    seal(merge);
     ob_cur_block = (opt_blocks + merge)->npreds > 0 ? merge : -1;
     return true;
 }
 
 /* OptBuilder>>newActFor: */
-static int32_t opt_new_act_for(oop m)
+static int32_t new_act_for(oop m)
 {
     int32_t ana;
     int32_t a;
@@ -11835,11 +11835,11 @@ static int32_t opt_new_act_for(oop m)
     oop m_2;
     int32_t n;
     int32_t i;
-    ana = opt_analysis_of(m);
+    ana = analysis_of(m);
     if (ana < 0) {
         return -1;
     }
-    a = opt_new_act();
+    a = new_act();
     if (a < 0) {
         return -1;
     }
@@ -11888,7 +11888,7 @@ exit_alloc_pc_blocks:;
 }
 
 /* OptBuilder>>newBlockActFor:start: */
-static int32_t opt_new_block_act_for(oop m, int32_t s)
+static int32_t new_block_act_for(oop m, int32_t s)
 {
     int32_t a;
     opt_act *ac;
@@ -11908,7 +11908,7 @@ static int32_t opt_new_block_act_for(oop m, int32_t s)
     int32_t pc_5;
     oop m_6;
     uint64_t o_5;
-    a = opt_new_act_for(m);
+    a = new_act_for(m);
     if (a < 0) {
         return -1;
     }
@@ -11946,7 +11946,7 @@ static int32_t opt_new_block_act_for(oop m, int32_t s)
 }
 
 /* OptBuilder>>read:in: */
-static int32_t opt_read(int32_t var, int32_t b)
+static int32_t opt_builder_read(int32_t var, int32_t b)
 {
     int32_t r_add;
     int32_t n;
@@ -12005,8 +12005,8 @@ static int32_t opt_read(int32_t var, int32_t b)
     int32_t n_5;
     if ((var < OPT_MAX_VARS) && (ob_arg_flags[var] == 2)) {
         v = ({
-    n = opt_new_node(O_LOADSLOT, R_OOP);
-    opt_append(n, ob_cur_block);
+    n = new_node(O_LOADSLOT, R_OOP);
+    append(n, ob_cur_block);
     r_add = n;
     r_add; });
         n_2 = ob_arg_vals[var];
@@ -12014,7 +12014,7 @@ static int32_t opt_read(int32_t var, int32_t b)
         return v;
     }
     if ((var < OPT_MAX_VARS) && (ob_arg_flags[var] != 0)) {
-        return opt_resolve(ob_arg_vals[var]);
+        return opt_ir_resolve(ob_arg_vals[var]);
     }
     i = ({
     key = var * OPT_MAX_BLOCKS + b + 1;
@@ -12025,7 +12025,7 @@ static int32_t opt_read(int32_t var, int32_t b)
     r_def_index = i_2;
     r_def_index; });
     if (ob_def_keys[i] != 0) {
-        return opt_resolve(ob_def_vals[i]);
+        return opt_ir_resolve(ob_def_vals[i]);
     }
     bl = opt_blocks + b;
     if (((bl->flags & BF_SEALED) == 0) && ({
@@ -12369,15 +12369,15 @@ exit_length_of_4:;
     r_loop_keeps = true;
 exit_loop_keeps:;
     r_loop_keeps; })) {
-        v = opt_read(var, opt_pred(0, b));
-        opt_write(var, v, b);
+        v = opt_builder_read(var, pred(0, b));
+        opt_builder_write(var, v, b);
         return v;
     }
     if ((bl->flags & BF_SEALED) == 0) {
         phi = ({
-    n_4 = opt_new_node(O_PHI, R_OOP);
+    n_4 = new_node(O_PHI, R_OOP);
     (opt_nodes + n_4)->aux2 = var;
-    opt_prepend(n_4, b);
+    prepend(n_4, b);
     r_new_phi = n_4;
     r_new_phi; });
         if (ob_inc_count >= OPT_MAX_INC) {
@@ -12392,26 +12392,26 @@ exit_loop_keeps:;
         ob_inc_count = ob_inc_count + 1;
         v = phi;
     } else if (bl->npreds == 1) {
-        v = opt_read(var, opt_pred(0, b));
+        v = opt_builder_read(var, pred(0, b));
     } else if (bl->npreds == 0) {
-        v = opt_constant(nil_oop);
+        v = constant(nil_oop);
     } else {
         phi = ({
-    n_5 = opt_new_node(O_PHI, R_OOP);
+    n_5 = new_node(O_PHI, R_OOP);
     (opt_nodes + n_5)->aux2 = var;
-    opt_prepend(n_5, b);
+    prepend(n_5, b);
     r_new_phi_2 = n_5;
     r_new_phi_2; });
-        opt_write(var, phi, b);
-        opt_add_phi_operands(phi, var);
+        opt_builder_write(var, phi, b);
+        add_phi_operands(phi, var);
         v = phi;
     }
-    opt_write(var, v, b);
+    opt_builder_write(var, v, b);
     return v;
 }
 
 /* OptBuilder>>seal: */
-static void opt_seal(int32_t b)
+static void seal(int32_t b)
 {
     opt_block *bl;
     int64_t k;
@@ -12425,7 +12425,7 @@ static void opt_seal(int32_t b)
     while (k < ob_inc_count) {
         n = ob_inc_phis[k];
         if ((opt_nodes + n)->block == b) {
-            opt_add_phi_operands(ob_inc_phis[k], ob_inc_vars[k]);
+            add_phi_operands(ob_inc_phis[k], ob_inc_vars[k]);
             ob_inc_count = ob_inc_count - 1;
             ob_inc_phis[k] = ob_inc_phis[ob_inc_count];
             ob_inc_vars[k] = ob_inc_vars[ob_inc_count];
@@ -12436,7 +12436,7 @@ static void opt_seal(int32_t b)
 }
 
 /* OptBuilder>>sendPerformed:to:class:argc:pc:act:rcvSlot: */
-static bool opt_send_performed(uint64_t sel, int32_t rcv, uint64_t cls, int32_t n, int32_t pc, int32_t a, int32_t r)
+static bool send_performed(uint64_t sel, int32_t rcv, oop cls, int32_t n, int32_t pc, int32_t a, int32_t r)
 {
     int32_t i;
     int32_t i_2;
@@ -12449,7 +12449,7 @@ static bool opt_send_performed(uint64_t sel, int32_t rcv, uint64_t cls, int32_t 
     int32_t n_3;
     int32_t n_2;
     int32_t n_4;
-    oop m;
+    uint64_t m;
     int32_t i_5;
     int32_t var_3;
     int32_t r_add_2;
@@ -12652,7 +12652,7 @@ static bool opt_send_performed(uint64_t sel, int32_t rcv, uint64_t cls, int32_t 
     for (i = 0; i <= n; i++) {
         i_2 = r + 1 + i;
         var = (opt_acts + a)->var_base + i_2;
-        ob_perform_vals[i] = opt_read(var, ob_cur_block);
+        ob_perform_vals[i] = opt_builder_read(var, ob_cur_block);
     }
     for (i_3 = 0; i_3 <= n - 1; i_3++) {
         i_4 = r + 1 + i_3;
@@ -12660,8 +12660,8 @@ static bool opt_send_performed(uint64_t sel, int32_t rcv, uint64_t cls, int32_t 
         v = ob_perform_vals[i_3 + 1];
         if ((var_2 < OPT_MAX_VARS) && (ob_arg_flags[var_2] == 2)) {
             n_2 = ({
-    n_3 = opt_new_node(O_STORESLOT, R_NONE);
-    opt_append(n_3, ob_cur_block);
+    n_3 = new_node(O_STORESLOT, R_NONE);
+    append(n_3, ob_cur_block);
     r_add = n_3;
     r_add; });
             (opt_nodes + n_2)->a = v;
@@ -12669,7 +12669,7 @@ static bool opt_send_performed(uint64_t sel, int32_t rcv, uint64_t cls, int32_t 
             (opt_nodes + n_2)->aux = (opt_nodes + n_4)->aux;
             goto exit_write;
         }
-        opt_write(var_2, v, ob_cur_block);
+        opt_builder_write(var_2, v, ob_cur_block);
     exit_write:;
     }
     ob_perform_act = a;
@@ -12696,8 +12696,8 @@ exit_note_dependency:;
     var_3 = (opt_acts + a)->var_base + r;
     if ((var_3 < OPT_MAX_VARS) && (ob_arg_flags[var_3] == 2)) {
         n_6 = ({
-    n_7 = opt_new_node(O_STORESLOT, R_NONE);
-    opt_append(n_7, ob_cur_block);
+    n_7 = new_node(O_STORESLOT, R_NONE);
+    append(n_7, ob_cur_block);
     r_add_2 = n_7;
     r_add_2; });
         (opt_nodes + n_6)->a = rcv;
@@ -12705,16 +12705,16 @@ exit_note_dependency:;
         (opt_nodes + n_6)->aux = (opt_nodes + n_8)->aux;
         goto exit_write_2;
     }
-    opt_write(var_3, rcv, ob_cur_block);
+    opt_builder_write(var_3, rcv, ob_cur_block);
 exit_write_2:;
     if (({
     i_6 = r + 1;
     n_9 = n - 1;
     (p = ({
-    if (!((ob_perform_act < 0) && ((bl_prim_kind(({
+    if (!((ob_perform_act < 0) && ((prim_kind_of(({
     p_2 = *(uint64_t *)(m + 16 + 56);
     r_method_primitive = (p_2 & 1) != 0 ? (int32_t)((((int64_t)p_2) >> 1) & CM_PRIM_MASK) : 0;
-    r_method_primitive; })) == PK_PERFORM) && ((bl_prim_op(({
+    r_method_primitive; })) == PK_PERFORM) && ((prim_op_of(({
     p_3 = *(uint64_t *)(m + 16 + 56);
     r_method_primitive_2 = (p_3 & 1) != 0 ? (int32_t)((((int64_t)p_3) >> 1) & CM_PRIM_MASK) : 0;
     r_method_primitive_2; })) == 0) && ((n_9 >= 0) && (n_9 < 8)))))) {
@@ -12722,7 +12722,7 @@ exit_write_2:;
         goto exit_performed_at;
     }
     var_4 = (opt_acts + a)->var_base + i_6;
-    n_10 = opt_read(var_4, ob_cur_block);
+    n_10 = opt_builder_read(var_4, ob_cur_block);
     nd = opt_nodes + n_10;
     if (!((int32_t)nd->op == O_CONST)) {
         r_performed_at = 0ULL;
@@ -12735,7 +12735,7 @@ exit_write_2:;
     r_performed_at = (uint64_t)nd->aux;
 exit_performed_at:;
     r_performed_at; })) != 0; })) {
-        opt_send_performed(p, rcv, cls, n - 1, pc, a, r);
+        send_performed(p, rcv, cls, n - 1, pc, a, r);
         goto exit_send;
     }
     if (((jit_flags & JIT_FLAG_ALLOC) != 0) && ({
@@ -12747,163 +12747,163 @@ exit_performed_at:;
     if (!ob_prims_known) {
         ob_prims_known = true;
         memset(ob_prim_kinds, 0, OPT_MAX_PRIM);
-        p_6 = jit_primitive_number("at");
+        p_6 = primitive_number_named("at");
         if ((p_6 > 0) && (p_6 < OPT_MAX_PRIM)) {
             ob_prim_kinds[p_6] = 1U;
         }
-        p_7 = jit_primitive_number("atPut");
+        p_7 = primitive_number_named("atPut");
         if ((p_7 > 0) && (p_7 < OPT_MAX_PRIM)) {
             ob_prim_kinds[p_7] = 2U;
         }
-        p_8 = jit_primitive_number("basicSize");
+        p_8 = primitive_number_named("basicSize");
         if ((p_8 > 0) && (p_8 < OPT_MAX_PRIM)) {
             ob_prim_kinds[p_8] = 3U;
         }
-        p_9 = jit_primitive_number("stringAt");
+        p_9 = primitive_number_named("stringAt");
         if ((p_9 > 0) && (p_9 < OPT_MAX_PRIM)) {
             ob_prim_kinds[p_9] = 4U;
         }
-        p_10 = jit_primitive_number("stringAtPut");
+        p_10 = primitive_number_named("stringAtPut");
         if ((p_10 > 0) && (p_10 < OPT_MAX_PRIM)) {
             ob_prim_kinds[p_10] = 5U;
         }
-        p_11 = jit_primitive_number("class");
+        p_11 = primitive_number_named("class");
         if ((p_11 > 0) && (p_11 < OPT_MAX_PRIM)) {
             ob_prim_kinds[p_11] = 6U;
         }
-        p_12 = jit_primitive_number("identical");
+        p_12 = primitive_number_named("identical");
         if ((p_12 > 0) && (p_12 < OPT_MAX_PRIM)) {
             ob_prim_kinds[p_12] = 7U;
         }
-        p_13 = jit_primitive_number("intAdd");
+        p_13 = primitive_number_named("intAdd");
         if ((p_13 > 0) && (p_13 < OPT_MAX_PRIM)) {
             ob_prim_kinds[p_13] = 32U;
         }
-        p_14 = jit_primitive_number("intSub");
+        p_14 = primitive_number_named("intSub");
         if ((p_14 > 0) && (p_14 < OPT_MAX_PRIM)) {
             ob_prim_kinds[p_14] = 33U;
         }
-        p_15 = jit_primitive_number("intLess");
+        p_15 = primitive_number_named("intLess");
         if ((p_15 > 0) && (p_15 < OPT_MAX_PRIM)) {
             ob_prim_kinds[p_15] = 34U;
         }
-        p_16 = jit_primitive_number("intGreater");
+        p_16 = primitive_number_named("intGreater");
         if ((p_16 > 0) && (p_16 < OPT_MAX_PRIM)) {
             ob_prim_kinds[p_16] = 35U;
         }
-        p_17 = jit_primitive_number("intLessEq");
+        p_17 = primitive_number_named("intLessEq");
         if ((p_17 > 0) && (p_17 < OPT_MAX_PRIM)) {
             ob_prim_kinds[p_17] = 36U;
         }
-        p_18 = jit_primitive_number("intGreaterEq");
+        p_18 = primitive_number_named("intGreaterEq");
         if ((p_18 > 0) && (p_18 < OPT_MAX_PRIM)) {
             ob_prim_kinds[p_18] = 37U;
         }
-        p_19 = jit_primitive_number("intEq");
+        p_19 = primitive_number_named("intEq");
         if ((p_19 > 0) && (p_19 < OPT_MAX_PRIM)) {
             ob_prim_kinds[p_19] = 38U;
         }
-        p_20 = jit_primitive_number("intNotEq");
+        p_20 = primitive_number_named("intNotEq");
         if ((p_20 > 0) && (p_20 < OPT_MAX_PRIM)) {
             ob_prim_kinds[p_20] = 39U;
         }
-        p_21 = jit_primitive_number("intMul");
+        p_21 = primitive_number_named("intMul");
         if ((p_21 > 0) && (p_21 < OPT_MAX_PRIM)) {
             ob_prim_kinds[p_21] = 40U;
         }
-        p_22 = jit_primitive_number("intBitAnd");
+        p_22 = primitive_number_named("intBitAnd");
         if ((p_22 > 0) && (p_22 < OPT_MAX_PRIM)) {
             ob_prim_kinds[p_22] = 46U;
         }
-        p_23 = jit_primitive_number("intBitOr");
+        p_23 = primitive_number_named("intBitOr");
         if ((p_23 > 0) && (p_23 < OPT_MAX_PRIM)) {
             ob_prim_kinds[p_23] = 47U;
         }
-        p_24 = jit_primitive_number("intMod");
+        p_24 = primitive_number_named("intMod");
         if ((p_24 > 0) && (p_24 < OPT_MAX_PRIM)) {
             ob_prim_kinds[p_24] = 42U;
         }
-        p_25 = jit_primitive_number("intBitXor");
+        p_25 = primitive_number_named("intBitXor");
         if ((p_25 > 0) && (p_25 < OPT_MAX_PRIM)) {
             ob_prim_kinds[p_25] = 43U;
         }
-        p_26 = jit_primitive_number("intBitShift");
+        p_26 = primitive_number_named("intBitShift");
         if ((p_26 > 0) && (p_26 < OPT_MAX_PRIM)) {
             ob_prim_kinds[p_26] = 44U;
         }
-        p_27 = jit_primitive_number("intFloorDiv");
+        p_27 = primitive_number_named("intFloorDiv");
         if ((p_27 > 0) && (p_27 < OPT_MAX_PRIM)) {
             ob_prim_kinds[p_27] = 45U;
         }
-        p_28 = jit_primitive_number("intQuo");
+        p_28 = primitive_number_named("intQuo");
         if ((p_28 > 0) && (p_28 < OPT_MAX_PRIM)) {
             ob_prim_kinds[p_28] = 48U;
         }
-        p_29 = jit_primitive_number("intRem");
+        p_29 = primitive_number_named("intRem");
         if ((p_29 > 0) && (p_29 < OPT_MAX_PRIM)) {
             ob_prim_kinds[p_29] = 49U;
         }
-        p_30 = jit_primitive_number("charValue");
+        p_30 = primitive_number_named("charValue");
         if ((p_30 > 0) && (p_30 < OPT_MAX_PRIM)) {
             ob_prim_kinds[p_30] = 12U;
         }
-        p_31 = jit_primitive_number("charFromValue");
+        p_31 = primitive_number_named("charFromValue");
         if ((p_31 > 0) && (p_31 < OPT_MAX_PRIM)) {
             ob_prim_kinds[p_31] = 13U;
         }
-        p_32 = jit_primitive_number("floatAdd");
+        p_32 = primitive_number_named("floatAdd");
         if ((p_32 > 0) && (p_32 < OPT_MAX_PRIM)) {
             ob_prim_kinds[p_32] = 64U;
         }
-        p_33 = jit_primitive_number("floatSub");
+        p_33 = primitive_number_named("floatSub");
         if ((p_33 > 0) && (p_33 < OPT_MAX_PRIM)) {
             ob_prim_kinds[p_33] = 65U;
         }
-        p_34 = jit_primitive_number("floatLess");
+        p_34 = primitive_number_named("floatLess");
         if ((p_34 > 0) && (p_34 < OPT_MAX_PRIM)) {
             ob_prim_kinds[p_34] = 66U;
         }
-        p_35 = jit_primitive_number("floatGreater");
+        p_35 = primitive_number_named("floatGreater");
         if ((p_35 > 0) && (p_35 < OPT_MAX_PRIM)) {
             ob_prim_kinds[p_35] = 67U;
         }
-        p_36 = jit_primitive_number("floatLessEq");
+        p_36 = primitive_number_named("floatLessEq");
         if ((p_36 > 0) && (p_36 < OPT_MAX_PRIM)) {
             ob_prim_kinds[p_36] = 68U;
         }
-        p_37 = jit_primitive_number("floatGreaterEq");
+        p_37 = primitive_number_named("floatGreaterEq");
         if ((p_37 > 0) && (p_37 < OPT_MAX_PRIM)) {
             ob_prim_kinds[p_37] = 69U;
         }
-        p_38 = jit_primitive_number("floatEq");
+        p_38 = primitive_number_named("floatEq");
         if ((p_38 > 0) && (p_38 < OPT_MAX_PRIM)) {
             ob_prim_kinds[p_38] = 70U;
         }
-        p_39 = jit_primitive_number("floatNotEq");
+        p_39 = primitive_number_named("floatNotEq");
         if ((p_39 > 0) && (p_39 < OPT_MAX_PRIM)) {
             ob_prim_kinds[p_39] = 71U;
         }
-        p_40 = jit_primitive_number("floatMul");
+        p_40 = primitive_number_named("floatMul");
         if ((p_40 > 0) && (p_40 < OPT_MAX_PRIM)) {
             ob_prim_kinds[p_40] = 72U;
         }
-        p_41 = jit_primitive_number("floatDiv");
+        p_41 = primitive_number_named("floatDiv");
         if ((p_41 > 0) && (p_41 < OPT_MAX_PRIM)) {
             ob_prim_kinds[p_41] = 73U;
         }
-        p_42 = jit_primitive_number("floatSqrt");
+        p_42 = primitive_number_named("floatSqrt");
         if ((p_42 > 0) && (p_42 < OPT_MAX_PRIM)) {
             ob_prim_kinds[p_42] = 8U;
         }
-        p_43 = jit_primitive_number("basicNew");
+        p_43 = primitive_number_named("basicNew");
         if ((p_43 > 0) && (p_43 < OPT_MAX_PRIM)) {
             ob_prim_kinds[p_43] = 9U;
         }
-        p_44 = jit_primitive_number("basicNew:");
+        p_44 = primitive_number_named("basicNew:");
         if ((p_44 > 0) && (p_44 < OPT_MAX_PRIM)) {
             ob_prim_kinds[p_44] = 10U;
         }
-        p_45 = jit_primitive_number("closureValue");
+        p_45 = primitive_number_named("closureValue");
         if ((p_45 > 0) && (p_45 < OPT_MAX_PRIM)) {
             ob_prim_kinds[p_45] = 11U;
         }
@@ -12970,17 +12970,17 @@ exit_class_of:;
         fputc(10, stderr);
     }
     n_12 = ({
-    n_13 = opt_new_node(O_SEND, R_OOP);
-    opt_append(n_13, ob_cur_block);
+    n_13 = new_node(O_SEND, R_OOP);
+    append(n_13, ob_cur_block);
     r_add_3 = n_13;
     r_add_3; });
     ob_safe_epoch = ob_safe_epoch + 1;
-    args = opt_alloc_operands(n + 1);
+    args = alloc_operands(n + 1);
     for (i_7 = 0; i_7 <= n; i_7++) {
         i_8 = args + i_7;
         i_9 = r + i_7;
         var_5 = (opt_acts + a)->var_base + i_9;
-        v_2 = opt_read(var_5, ob_cur_block);
+        v_2 = opt_builder_read(var_5, ob_cur_block);
         opt_operands[i_8] = v_2;
     }
     (opt_nodes + n_12)->args = args;
@@ -12993,7 +12993,7 @@ exit_class_of:;
     m_2 = (opt_acts + a)->method;
     o = *(uint64_t *)(m_2 + 16 + 24);
     op = ((uint8_t *)(o + 16))[pc];
-    (opt_nodes + n_12)->state = opt_make_state(a, (int32_t)(pc + ({
+    (opt_nodes + n_12)->state = state_act(a, (int32_t)(pc + ({
     if (op < 0x68) {
         r_length_of = 1;
         goto exit_length_of;
@@ -13056,8 +13056,8 @@ exit_length_of:;
     var_6 = (opt_acts + a)->var_base + r;
     if ((var_6 < OPT_MAX_VARS) && (ob_arg_flags[var_6] == 2)) {
         n_14 = ({
-    n_15 = opt_new_node(O_STORESLOT, R_NONE);
-    opt_append(n_15, ob_cur_block);
+    n_15 = new_node(O_STORESLOT, R_NONE);
+    append(n_15, ob_cur_block);
     r_add_4 = n_15;
     r_add_4; });
         (opt_nodes + n_14)->a = n_12;
@@ -13065,7 +13065,7 @@ exit_length_of:;
         (opt_nodes + n_14)->aux = (opt_nodes + n_16)->aux;
         goto exit_write_3;
     }
-    opt_write(var_6, n_12, ob_cur_block);
+    opt_builder_write(var_6, n_12, ob_cur_block);
 exit_write_3:;
     r_call_selector = n_12;
     r_call_selector; });
@@ -13087,163 +13087,163 @@ exit_allocate:;
     if (!ob_prims_known) {
         ob_prims_known = true;
         memset(ob_prim_kinds, 0, OPT_MAX_PRIM);
-        p_48 = jit_primitive_number("at");
+        p_48 = primitive_number_named("at");
         if ((p_48 > 0) && (p_48 < OPT_MAX_PRIM)) {
             ob_prim_kinds[p_48] = 1U;
         }
-        p_49 = jit_primitive_number("atPut");
+        p_49 = primitive_number_named("atPut");
         if ((p_49 > 0) && (p_49 < OPT_MAX_PRIM)) {
             ob_prim_kinds[p_49] = 2U;
         }
-        p_50 = jit_primitive_number("basicSize");
+        p_50 = primitive_number_named("basicSize");
         if ((p_50 > 0) && (p_50 < OPT_MAX_PRIM)) {
             ob_prim_kinds[p_50] = 3U;
         }
-        p_51 = jit_primitive_number("stringAt");
+        p_51 = primitive_number_named("stringAt");
         if ((p_51 > 0) && (p_51 < OPT_MAX_PRIM)) {
             ob_prim_kinds[p_51] = 4U;
         }
-        p_52 = jit_primitive_number("stringAtPut");
+        p_52 = primitive_number_named("stringAtPut");
         if ((p_52 > 0) && (p_52 < OPT_MAX_PRIM)) {
             ob_prim_kinds[p_52] = 5U;
         }
-        p_53 = jit_primitive_number("class");
+        p_53 = primitive_number_named("class");
         if ((p_53 > 0) && (p_53 < OPT_MAX_PRIM)) {
             ob_prim_kinds[p_53] = 6U;
         }
-        p_54 = jit_primitive_number("identical");
+        p_54 = primitive_number_named("identical");
         if ((p_54 > 0) && (p_54 < OPT_MAX_PRIM)) {
             ob_prim_kinds[p_54] = 7U;
         }
-        p_55 = jit_primitive_number("intAdd");
+        p_55 = primitive_number_named("intAdd");
         if ((p_55 > 0) && (p_55 < OPT_MAX_PRIM)) {
             ob_prim_kinds[p_55] = 32U;
         }
-        p_56 = jit_primitive_number("intSub");
+        p_56 = primitive_number_named("intSub");
         if ((p_56 > 0) && (p_56 < OPT_MAX_PRIM)) {
             ob_prim_kinds[p_56] = 33U;
         }
-        p_57 = jit_primitive_number("intLess");
+        p_57 = primitive_number_named("intLess");
         if ((p_57 > 0) && (p_57 < OPT_MAX_PRIM)) {
             ob_prim_kinds[p_57] = 34U;
         }
-        p_58 = jit_primitive_number("intGreater");
+        p_58 = primitive_number_named("intGreater");
         if ((p_58 > 0) && (p_58 < OPT_MAX_PRIM)) {
             ob_prim_kinds[p_58] = 35U;
         }
-        p_59 = jit_primitive_number("intLessEq");
+        p_59 = primitive_number_named("intLessEq");
         if ((p_59 > 0) && (p_59 < OPT_MAX_PRIM)) {
             ob_prim_kinds[p_59] = 36U;
         }
-        p_60 = jit_primitive_number("intGreaterEq");
+        p_60 = primitive_number_named("intGreaterEq");
         if ((p_60 > 0) && (p_60 < OPT_MAX_PRIM)) {
             ob_prim_kinds[p_60] = 37U;
         }
-        p_61 = jit_primitive_number("intEq");
+        p_61 = primitive_number_named("intEq");
         if ((p_61 > 0) && (p_61 < OPT_MAX_PRIM)) {
             ob_prim_kinds[p_61] = 38U;
         }
-        p_62 = jit_primitive_number("intNotEq");
+        p_62 = primitive_number_named("intNotEq");
         if ((p_62 > 0) && (p_62 < OPT_MAX_PRIM)) {
             ob_prim_kinds[p_62] = 39U;
         }
-        p_63 = jit_primitive_number("intMul");
+        p_63 = primitive_number_named("intMul");
         if ((p_63 > 0) && (p_63 < OPT_MAX_PRIM)) {
             ob_prim_kinds[p_63] = 40U;
         }
-        p_64 = jit_primitive_number("intBitAnd");
+        p_64 = primitive_number_named("intBitAnd");
         if ((p_64 > 0) && (p_64 < OPT_MAX_PRIM)) {
             ob_prim_kinds[p_64] = 46U;
         }
-        p_65 = jit_primitive_number("intBitOr");
+        p_65 = primitive_number_named("intBitOr");
         if ((p_65 > 0) && (p_65 < OPT_MAX_PRIM)) {
             ob_prim_kinds[p_65] = 47U;
         }
-        p_66 = jit_primitive_number("intMod");
+        p_66 = primitive_number_named("intMod");
         if ((p_66 > 0) && (p_66 < OPT_MAX_PRIM)) {
             ob_prim_kinds[p_66] = 42U;
         }
-        p_67 = jit_primitive_number("intBitXor");
+        p_67 = primitive_number_named("intBitXor");
         if ((p_67 > 0) && (p_67 < OPT_MAX_PRIM)) {
             ob_prim_kinds[p_67] = 43U;
         }
-        p_68 = jit_primitive_number("intBitShift");
+        p_68 = primitive_number_named("intBitShift");
         if ((p_68 > 0) && (p_68 < OPT_MAX_PRIM)) {
             ob_prim_kinds[p_68] = 44U;
         }
-        p_69 = jit_primitive_number("intFloorDiv");
+        p_69 = primitive_number_named("intFloorDiv");
         if ((p_69 > 0) && (p_69 < OPT_MAX_PRIM)) {
             ob_prim_kinds[p_69] = 45U;
         }
-        p_70 = jit_primitive_number("intQuo");
+        p_70 = primitive_number_named("intQuo");
         if ((p_70 > 0) && (p_70 < OPT_MAX_PRIM)) {
             ob_prim_kinds[p_70] = 48U;
         }
-        p_71 = jit_primitive_number("intRem");
+        p_71 = primitive_number_named("intRem");
         if ((p_71 > 0) && (p_71 < OPT_MAX_PRIM)) {
             ob_prim_kinds[p_71] = 49U;
         }
-        p_72 = jit_primitive_number("charValue");
+        p_72 = primitive_number_named("charValue");
         if ((p_72 > 0) && (p_72 < OPT_MAX_PRIM)) {
             ob_prim_kinds[p_72] = 12U;
         }
-        p_73 = jit_primitive_number("charFromValue");
+        p_73 = primitive_number_named("charFromValue");
         if ((p_73 > 0) && (p_73 < OPT_MAX_PRIM)) {
             ob_prim_kinds[p_73] = 13U;
         }
-        p_74 = jit_primitive_number("floatAdd");
+        p_74 = primitive_number_named("floatAdd");
         if ((p_74 > 0) && (p_74 < OPT_MAX_PRIM)) {
             ob_prim_kinds[p_74] = 64U;
         }
-        p_75 = jit_primitive_number("floatSub");
+        p_75 = primitive_number_named("floatSub");
         if ((p_75 > 0) && (p_75 < OPT_MAX_PRIM)) {
             ob_prim_kinds[p_75] = 65U;
         }
-        p_76 = jit_primitive_number("floatLess");
+        p_76 = primitive_number_named("floatLess");
         if ((p_76 > 0) && (p_76 < OPT_MAX_PRIM)) {
             ob_prim_kinds[p_76] = 66U;
         }
-        p_77 = jit_primitive_number("floatGreater");
+        p_77 = primitive_number_named("floatGreater");
         if ((p_77 > 0) && (p_77 < OPT_MAX_PRIM)) {
             ob_prim_kinds[p_77] = 67U;
         }
-        p_78 = jit_primitive_number("floatLessEq");
+        p_78 = primitive_number_named("floatLessEq");
         if ((p_78 > 0) && (p_78 < OPT_MAX_PRIM)) {
             ob_prim_kinds[p_78] = 68U;
         }
-        p_79 = jit_primitive_number("floatGreaterEq");
+        p_79 = primitive_number_named("floatGreaterEq");
         if ((p_79 > 0) && (p_79 < OPT_MAX_PRIM)) {
             ob_prim_kinds[p_79] = 69U;
         }
-        p_80 = jit_primitive_number("floatEq");
+        p_80 = primitive_number_named("floatEq");
         if ((p_80 > 0) && (p_80 < OPT_MAX_PRIM)) {
             ob_prim_kinds[p_80] = 70U;
         }
-        p_81 = jit_primitive_number("floatNotEq");
+        p_81 = primitive_number_named("floatNotEq");
         if ((p_81 > 0) && (p_81 < OPT_MAX_PRIM)) {
             ob_prim_kinds[p_81] = 71U;
         }
-        p_82 = jit_primitive_number("floatMul");
+        p_82 = primitive_number_named("floatMul");
         if ((p_82 > 0) && (p_82 < OPT_MAX_PRIM)) {
             ob_prim_kinds[p_82] = 72U;
         }
-        p_83 = jit_primitive_number("floatDiv");
+        p_83 = primitive_number_named("floatDiv");
         if ((p_83 > 0) && (p_83 < OPT_MAX_PRIM)) {
             ob_prim_kinds[p_83] = 73U;
         }
-        p_84 = jit_primitive_number("floatSqrt");
+        p_84 = primitive_number_named("floatSqrt");
         if ((p_84 > 0) && (p_84 < OPT_MAX_PRIM)) {
             ob_prim_kinds[p_84] = 8U;
         }
-        p_85 = jit_primitive_number("basicNew");
+        p_85 = primitive_number_named("basicNew");
         if ((p_85 > 0) && (p_85 < OPT_MAX_PRIM)) {
             ob_prim_kinds[p_85] = 9U;
         }
-        p_86 = jit_primitive_number("basicNew:");
+        p_86 = primitive_number_named("basicNew:");
         if ((p_86 > 0) && (p_86 < OPT_MAX_PRIM)) {
             ob_prim_kinds[p_86] = 10U;
         }
-        p_87 = jit_primitive_number("closureValue");
+        p_87 = primitive_number_named("closureValue");
         if ((p_87 > 0) && (p_87 < OPT_MAX_PRIM)) {
             ob_prim_kinds[p_87] = 11U;
         }
@@ -13256,15 +13256,15 @@ exit_allocate:;
 exit_prim_kind_of_2:;
     r_prim_kind_of_2; }) == OPK_CLOSURE; }))) {
         k = -1;
-        o_2 = special(SO_SPECIAL_SELECTORS);
+        o_2 = object_memory_special(SO_SPECIAL_SELECTORS);
         if (*(uint64_t *)(o_2 + 16 + 168) == sel) {
             k = 21;
         }
-        o_3 = special(SO_SPECIAL_SELECTORS);
+        o_3 = object_memory_special(SO_SPECIAL_SELECTORS);
         if (*(uint64_t *)(o_3 + 16 + 176) == sel) {
             k = 22;
         }
-        o_4 = special(SO_SPECIAL_SELECTORS);
+        o_4 = object_memory_special(SO_SPECIAL_SELECTORS);
         if (*(uint64_t *)(o_4 + 16 + 240) == sel) {
             k = 30;
         }
@@ -13275,17 +13275,17 @@ exit_prim_kind_of_2:;
                 fputc(10, stderr);
             }
             n_18 = ({
-    n_19 = opt_new_node(O_SEND, R_OOP);
-    opt_append(n_19, ob_cur_block);
+    n_19 = new_node(O_SEND, R_OOP);
+    append(n_19, ob_cur_block);
     r_add_5 = n_19;
     r_add_5; });
             ob_safe_epoch = ob_safe_epoch + 1;
-            args_2 = opt_alloc_operands(n + 1);
+            args_2 = alloc_operands(n + 1);
             for (i_10 = 0; i_10 <= n; i_10++) {
                 i_11 = args_2 + i_10;
                 i_12 = r + i_10;
                 var_7 = (opt_acts + a)->var_base + i_12;
-                v_3 = opt_read(var_7, ob_cur_block);
+                v_3 = opt_builder_read(var_7, ob_cur_block);
                 opt_operands[i_11] = v_3;
             }
             (opt_nodes + n_18)->args = args_2;
@@ -13298,7 +13298,7 @@ exit_prim_kind_of_2:;
             m_3 = (opt_acts + a)->method;
             o_5 = *(uint64_t *)(m_3 + 16 + 24);
             op_2 = ((uint8_t *)(o_5 + 16))[pc];
-            (opt_nodes + n_18)->state = opt_make_state(a, (int32_t)(pc + ({
+            (opt_nodes + n_18)->state = state_act(a, (int32_t)(pc + ({
     if (op_2 < 0x68) {
         r_length_of_2 = 1;
         goto exit_length_of_2;
@@ -13361,8 +13361,8 @@ exit_length_of_2:;
             var_8 = (opt_acts + a)->var_base + r;
             if ((var_8 < OPT_MAX_VARS) && (ob_arg_flags[var_8] == 2)) {
                 n_20 = ({
-    n_21 = opt_new_node(O_STORESLOT, R_NONE);
-    opt_append(n_21, ob_cur_block);
+    n_21 = new_node(O_STORESLOT, R_NONE);
+    append(n_21, ob_cur_block);
     r_add_6 = n_21;
     r_add_6; });
                 (opt_nodes + n_20)->a = n_18;
@@ -13370,7 +13370,7 @@ exit_length_of_2:;
                 (opt_nodes + n_20)->aux = (opt_nodes + n_22)->aux;
                 goto exit_write_4;
             }
-            opt_write(var_8, n_18, ob_cur_block);
+            opt_builder_write(var_8, n_18, ob_cur_block);
         exit_write_4:;
             goto exit_block_call;
         }
@@ -13381,17 +13381,17 @@ exit_length_of_2:;
         fputc(10, stderr);
     }
     n_23 = ({
-    n_24 = opt_new_node(O_SEND, R_OOP);
-    opt_append(n_24, ob_cur_block);
+    n_24 = new_node(O_SEND, R_OOP);
+    append(n_24, ob_cur_block);
     r_add_7 = n_24;
     r_add_7; });
     ob_safe_epoch = ob_safe_epoch + 1;
-    args_3 = opt_alloc_operands(n + 1);
+    args_3 = alloc_operands(n + 1);
     for (i_13 = 0; i_13 <= n; i_13++) {
         i_14 = args_3 + i_13;
         i_15 = r + i_13;
         var_9 = (opt_acts + a)->var_base + i_15;
-        v_4 = opt_read(var_9, ob_cur_block);
+        v_4 = opt_builder_read(var_9, ob_cur_block);
         opt_operands[i_14] = v_4;
     }
     (opt_nodes + n_23)->args = args_3;
@@ -13404,7 +13404,7 @@ exit_length_of_2:;
     m_4 = (opt_acts + a)->method;
     o_6 = *(uint64_t *)(m_4 + 16 + 24);
     op_3 = ((uint8_t *)(o_6 + 16))[pc];
-    (opt_nodes + n_23)->state = opt_make_state(a, (int32_t)(pc + ({
+    (opt_nodes + n_23)->state = state_act(a, (int32_t)(pc + ({
     if (op_3 < 0x68) {
         r_length_of_3 = 1;
         goto exit_length_of_3;
@@ -13467,8 +13467,8 @@ exit_length_of_3:;
     var_10 = (opt_acts + a)->var_base + r;
     if ((var_10 < OPT_MAX_VARS) && (ob_arg_flags[var_10] == 2)) {
         n_25 = ({
-    n_26 = opt_new_node(O_STORESLOT, R_NONE);
-    opt_append(n_26, ob_cur_block);
+    n_26 = new_node(O_STORESLOT, R_NONE);
+    append(n_26, ob_cur_block);
     r_add_8 = n_26;
     r_add_8; });
         (opt_nodes + n_25)->a = n_23;
@@ -13476,7 +13476,7 @@ exit_length_of_3:;
         (opt_nodes + n_25)->aux = (opt_nodes + n_27)->aux;
         goto exit_write_5;
     }
-    opt_write(var_10, n_23, ob_cur_block);
+    opt_builder_write(var_10, n_23, ob_cur_block);
 exit_write_5:;
     r_call_selector_2 = n_23;
     r_call_selector_2; });
@@ -13487,14 +13487,14 @@ exit_write_5:;
     if ((({
     p_88 = *(uint64_t *)(m + 16 + 56);
     r_method_primitive_5 = (p_88 & 1) != 0 ? (int32_t)((((int64_t)p_88) >> 1) & CM_PRIM_MASK) : 0;
-    r_method_primitive_5; }) != 0) && (((jit_flags & JIT_FLAG_PRIMS) != 0) && opt_inline_primitive(({
+    r_method_primitive_5; }) != 0) && (((jit_flags & JIT_FLAG_PRIMS) != 0) && inline_primitive(({
     p_89 = *(uint64_t *)(m + 16 + 56);
     r_method_primitive_6 = (p_89 & 1) != 0 ? (int32_t)((((int64_t)p_89) >> 1) & CM_PRIM_MASK) : 0;
     r_method_primitive_6; }), cls, n, pc, a, r))) {
         goto exit_send;
     }
-    if (opt_can_inline(m, a)) {
-        opt_inline_method(m, cls, pc, a, r, n);
+    if (can_inline(m, a)) {
+        inline_method(m, cls, pc, a, r, n);
         goto exit_send;
     }
     n_5 = ({
@@ -13504,17 +13504,17 @@ exit_write_5:;
         fputc(10, stderr);
     }
     n_28 = ({
-    n_29 = opt_new_node(O_SEND, R_OOP);
-    opt_append(n_29, ob_cur_block);
+    n_29 = new_node(O_SEND, R_OOP);
+    append(n_29, ob_cur_block);
     r_add_9 = n_29;
     r_add_9; });
     ob_safe_epoch = ob_safe_epoch + 1;
-    args_4 = opt_alloc_operands(n + 1);
+    args_4 = alloc_operands(n + 1);
     for (i_16 = 0; i_16 <= n; i_16++) {
         i_17 = args_4 + i_16;
         i_18 = r + i_16;
         var_11 = (opt_acts + a)->var_base + i_18;
-        v_5 = opt_read(var_11, ob_cur_block);
+        v_5 = opt_builder_read(var_11, ob_cur_block);
         opt_operands[i_17] = v_5;
     }
     (opt_nodes + n_28)->args = args_4;
@@ -13527,7 +13527,7 @@ exit_write_5:;
     m_5 = (opt_acts + a)->method;
     o_7 = *(uint64_t *)(m_5 + 16 + 24);
     op_4 = ((uint8_t *)(o_7 + 16))[pc];
-    (opt_nodes + n_28)->state = opt_make_state(a, (int32_t)(pc + ({
+    (opt_nodes + n_28)->state = state_act(a, (int32_t)(pc + ({
     if (op_4 < 0x68) {
         r_length_of_4 = 1;
         goto exit_length_of_4;
@@ -13590,8 +13590,8 @@ exit_length_of_4:;
     var_12 = (opt_acts + a)->var_base + r;
     if ((var_12 < OPT_MAX_VARS) && (ob_arg_flags[var_12] == 2)) {
         n_30 = ({
-    n_31 = opt_new_node(O_STORESLOT, R_NONE);
-    opt_append(n_31, ob_cur_block);
+    n_31 = new_node(O_STORESLOT, R_NONE);
+    append(n_31, ob_cur_block);
     r_add_10 = n_31;
     r_add_10; });
         (opt_nodes + n_30)->a = n_28;
@@ -13599,11 +13599,11 @@ exit_length_of_4:;
         (opt_nodes + n_30)->aux = (opt_nodes + n_32)->aux;
         goto exit_write_6;
     }
-    opt_write(var_12, n_28, ob_cur_block);
+    opt_builder_write(var_12, n_28, ob_cur_block);
 exit_write_6:;
     r_call_selector_3 = n_28;
     r_call_selector_3; });
-    if (((jit_flags & JIT_FLAG_CALLS) != 0) && jit_has_code(m)) {
+    if (((jit_flags & JIT_FLAG_CALLS) != 0) && code_address_of(m)) {
         (opt_nodes + n_5)->op = O_CALL;
         (opt_nodes + n_5)->tcls = m;
     }
@@ -13613,7 +13613,7 @@ exit_send:;
 }
 
 /* OptBuilder>>stateAct:pc:depth: */
-static int32_t opt_make_state(int32_t a, int32_t pc, int32_t d)
+static int32_t state_act(int32_t a, int32_t pc, int32_t d)
 {
     opt_act *ac;
     int32_t s;
@@ -13646,12 +13646,12 @@ static int32_t opt_make_state(int32_t a, int32_t pc, int32_t d)
     int k;
     int k_2;
     ac = opt_acts + a;
-    s = opt_new_state();
+    s = new_state();
     st = opt_states + s;
     st->act = a;
     st->pc = pc;
     st->depth = d;
-    vals = opt_alloc_operands(d + 1);
+    vals = alloc_operands(d + 1);
     st->vals = vals;
     v = ac->receiver;
     opt_operands[vals] = v;
@@ -13667,7 +13667,7 @@ static int32_t opt_make_state(int32_t a, int32_t pc, int32_t d)
         } else {
             i_4 = vals + 1 + i;
             var = (opt_acts + a)->var_base + i;
-            v_4 = opt_read(var, ob_cur_block);
+            v_4 = opt_builder_read(var, ob_cur_block);
             opt_operands[i_4] = v_4;
         }
     }
@@ -13678,7 +13678,7 @@ static int32_t opt_make_state(int32_t a, int32_t pc, int32_t d)
         o = *(uint64_t *)(m + 16 + 24);
         op = ((uint8_t *)(o + 16))[pc_2];
         pc_3 = ac->send_pc;
-        (opt_states + s)->parent = opt_make_state(p, (int32_t)(ac->send_pc + ({
+        (opt_states + s)->parent = state_act(p, (int32_t)(ac->send_pc + ({
     if (op < 0x68) {
         r_length_of = 1;
         goto exit_length_of;
@@ -13782,7 +13782,7 @@ exit_receiver_slot_at:;
 }
 
 /* OptBuilder>>write:value:in: */
-static void opt_write(int32_t var, int32_t v, int32_t b)
+static void opt_builder_write(int32_t var, int32_t v, int32_t b)
 {
     uint32_t r_def_index;
     int32_t key;

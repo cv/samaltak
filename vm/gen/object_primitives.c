@@ -6,21 +6,21 @@ static oop instances_class;
 static size_t instances_count;
 static oop instances_result;
 
-static void prim_convert_case(bool upper);
-static void count_instance(oop o, void *d);
+static void convert_case(bool upper);
+static void count_instance(uint64_t o, void *d);
 
 /* ObjectPrimitives>>convertCase: */
-static void prim_convert_case(bool upper)
+static void convert_case(bool upper)
 {
     oop r;
     size_t n;
-    oop s;
+    uint64_t s;
     uint8_t *a;
     uint8_t *b;
     int64_t i;
     int32_t c;
     r = prim_base[0];
-    if (!(((r & 7) == 0) && ((*(uint64_t *)(r + 8) == cls_bytestring) || (*(uint64_t *)(r + 8) == special(SO_BYTESYMBOL))))) {
+    if (!(((r & 7) == 0) && ((*(uint64_t *)(r + 8) == cls_bytestring) || (*(uint64_t *)(r + 8) == object_memory_special(SO_BYTESYMBOL))))) {
         prim_status = PS_FAIL;
         prim_error_code = -1;
         return;
@@ -49,7 +49,7 @@ static void prim_convert_case(bool upper)
 }
 
 /* ObjectPrimitives>>countInstance:data: */
-static void count_instance(oop o, void *d)
+static void count_instance(uint64_t o, void *d)
 {
     if ((*(uint64_t *)(o + 8) == instances_class) && (o != instances_result)) {
         if ((instances_result != 0) && (instances_count >= (uint32_t)*(uint64_t *)instances_result)) {
@@ -57,8 +57,8 @@ static void count_instance(oop o, void *d)
         }
         if (instances_result != 0) {
             *(uint64_t *)(instances_result + 16 + 8 * instances_count) = o;
-            if (((o & 7) == 0) && (((uint64_t)(o - young_lo) < young_hi - young_lo) && ((!((uint64_t)(instances_result - young_lo) < young_hi - young_lo)) && (((*(uint64_t *)instances_result) & H_REMEMBERED) == 0)))) {
-                vm_remember(instances_result);
+            if (((o & 7) == 0) && ((o - young_lo < young_hi - young_lo) && ((!((uint64_t)(instances_result - young_lo) < young_hi - young_lo)) && (((*(uint64_t *)instances_result) & H_REMEMBERED) == 0)))) {
+                remember(instances_result);
             }
         }
         instances_count = instances_count + 1;
@@ -68,7 +68,7 @@ static void count_instance(oop o, void *d)
 /* ObjectPrimitives>>primAllInstances */
 void prim_all_instances(void)
 {
-    oop a;
+    uint64_t a;
     full_gc();
     instances_class = prim_base[0];
     instances_result = 0;
@@ -148,7 +148,7 @@ exit_index_of:;
         v_3 = (int64_t)v;
         v_4 = (uint64_t)((v_3 << 1) | 1);
     } else {
-        v_4 = large_int_from_u64(v, false);
+        v_4 = large_int_from(v, false);
     }
     v_4; });
         prim_result = v_5;
@@ -209,7 +209,7 @@ exit_index_of:;
     }
     v = prim_base[2];
     if (is_married(r)) {
-        if (context_slot_put(r, k, v)) {
+        if (interpreter_context(r, k, v)) {
             prim_result = v;
             prim_status = PS_OK;
             return;
@@ -222,7 +222,7 @@ exit_index_of:;
         i = fixed_fields(r) + (uint32_t)k;
         *(uint64_t *)(r + 16 + 8 * i) = v;
         if (((v & 7) == 0) && (((uint64_t)(v - young_lo) < young_hi - young_lo) && ((!((uint64_t)(r - young_lo) < young_hi - young_lo)) && (((*(uint64_t *)r) & H_REMEMBERED) == 0)))) {
-            vm_remember(r);
+            remember(r);
         }
     } else if (f == F_W64) {
         memset(&local, 0, sizeof local);
@@ -296,7 +296,7 @@ void prim_basic_new_size(void)
     memset(&local, 0, sizeof local);
     u = &local;
     if (!u64_of(n, u)) {
-        if (!(((n & 7) == 0) && (*(uint64_t *)(n + 8) == special(SO_LARGEPOS)))) {
+        if (!(((n & 7) == 0) && (*(uint64_t *)(n + 8) == object_memory_special(SO_LARGEPOS)))) {
             prim_status = PS_FAIL;
             prim_error_code = -1;
             return;
@@ -365,7 +365,7 @@ void prim_bytes_float32_at(void)
     oop i;
     uint64_t p;
     float d;
-    oop v;
+    uint64_t v;
     p = ({
     r = prim_base[0];
     if (!((r & 7) == 0)) {
@@ -477,7 +477,7 @@ void prim_bytes_float64_at(void)
     oop i;
     uint64_t p;
     double d;
-    oop v;
+    uint64_t v;
     p = ({
     r = prim_base[0];
     if (!((r & 7) == 0)) {
@@ -1036,7 +1036,7 @@ void prim_change_class_to(void)
     *(uint64_t *)(r + 8) = c;
     if ((uint64_t)(c - young_lo) < young_hi - young_lo) {
         if (((r & 7) == 0) && ((!((uint64_t)(r - young_lo) < young_hi - young_lo)) && (((*(uint64_t *)r) & H_REMEMBERED) == 0))) {
-            vm_remember(r);
+            remember(r);
         }
     }
     prim_result = r;
@@ -1134,7 +1134,7 @@ exit_index_of:;
         return;
     }
     if (is_married(r) && ((k <= CTX_STACKP) || (k >= CTX_FIXED))) {
-        v = k <= CTX_STACKP ? context_field(k, r) : context_slot(k - CTX_FIXED, r);
+        v = k <= CTX_STACKP ? interpreter_context_field(k, r) : context_slot(k - CTX_FIXED, r);
         if (v != 0) {
             prim_result = v;
             prim_status = PS_OK;
@@ -1183,7 +1183,7 @@ exit_index_of:;
     v = prim_base[2];
     if (is_married(r)) {
         if (k >= CTX_FIXED) {
-            if (context_slot_put(r, k - CTX_FIXED, v)) {
+            if (interpreter_context(r, k - CTX_FIXED, v)) {
                 prim_result = v;
                 prim_status = PS_OK;
                 return;
@@ -1196,7 +1196,7 @@ exit_index_of:;
     }
     *(uint64_t *)(r + 16 + 8 * k) = v;
     if (((v & 7) == 0) && (((uint64_t)(v - young_lo) < young_hi - young_lo) && ((!((uint64_t)(r - young_lo) < young_hi - young_lo)) && (((*(uint64_t *)r) & H_REMEMBERED) == 0)))) {
-        vm_remember(r);
+        remember(r);
     }
     prim_result = v;
     prim_status = PS_OK;
@@ -1319,7 +1319,7 @@ exit_element_kind_of_2:;
         fs = fixed_fields(src);
         memmove((oop *)(r + 16) + fr + start - 1, (oop *)(src + 16) + fs + rstart - 1, (uint64_t)n * 8);
         if (((r & 7) == 0) && ((!((uint64_t)(r - young_lo) < young_hi - young_lo)) && (((*(uint64_t *)r) & H_REMEMBERED) == 0))) {
-            vm_remember(r);
+            remember(r);
         }
     }
     if (kind == 2) {
@@ -1378,7 +1378,7 @@ void prim_set_immutable(void)
 void prim_shallow_copy(void)
 {
     oop r;
-    oop c;
+    uint64_t c;
     int32_t f;
     r = prim_base[0];
     if (!((r & 7) == 0)) {
@@ -1401,8 +1401,8 @@ void prim_shallow_copy(void)
     memcpy((oop *)(c + 16), (oop *)(r + 16), (uint64_t)(uint32_t)*(uint64_t *)r * 8);
     f = (int32_t)(((*(uint64_t *)r) >> H_FMT_SHIFT) & H_FMT_MASK);
     if ((f >= 1) && (f <= 4)) {
-        if (((c & 7) == 0) && ((!((uint64_t)(c - young_lo) < young_hi - young_lo)) && (((*(uint64_t *)c) & H_REMEMBERED) == 0))) {
-            vm_remember(c);
+        if (((c & 7) == 0) && ((!(c - young_lo < young_hi - young_lo)) && (((*(uint64_t *)c) & H_REMEMBERED) == 0))) {
+            remember(c);
         }
     }
     prim_result = c;
@@ -1419,13 +1419,13 @@ void prim_special_objects_array(void)
 /* ObjectPrimitives>>primStringAsLowercase */
 void prim_string_as_lowercase(void)
 {
-    prim_convert_case(false);
+    convert_case(false);
 }
 
 /* ObjectPrimitives>>primStringAsUppercase */
 void prim_string_as_uppercase(void)
 {
-    prim_convert_case(true);
+    convert_case(true);
 }
 
 /* ObjectPrimitives>>primStringAt */
@@ -1553,7 +1553,7 @@ void prim_string_case_insensitive_compare(void)
     uint64_t v_4;
     a = prim_base[0];
     b = prim_nargs > 0 ? prim_base[1] : nil_oop;
-    if (!(((a & 7) == 0) && ((*(uint64_t *)(a + 8) == cls_bytestring) || (*(uint64_t *)(a + 8) == special(SO_BYTESYMBOL))) && (((b & 7) == 0) && ((*(uint64_t *)(b + 8) == cls_bytestring) || (*(uint64_t *)(b + 8) == special(SO_BYTESYMBOL)))))) {
+    if (!(((a & 7) == 0) && ((*(uint64_t *)(a + 8) == cls_bytestring) || (*(uint64_t *)(a + 8) == object_memory_special(SO_BYTESYMBOL))) && (((b & 7) == 0) && ((*(uint64_t *)(b + 8) == cls_bytestring) || (*(uint64_t *)(b + 8) == object_memory_special(SO_BYTESYMBOL)))))) {
         prim_status = PS_FAIL;
         prim_error_code = -1;
         return;

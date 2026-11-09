@@ -117,13 +117,13 @@ headerAt: i
 !OptRuntime methodsFor: 'tiering'!
 initialCount: m
 	"The lower tier's count for m when its code is installed: entries and backward jumps before m is optimized."
-	<c: 'int32_t opt_initial_count(oop m)'>
+	<function>
 	(runtime flag: runtime eagerFlag) ifTrue: [^1].
 	^(runtime optThreshold max: 1) asInt32
 !
 tierUp: f loop: loop
 	"f's method ran out of its count at f's pc (synced), its entry or (loop ~= 0) a loop head: answer 0 to go on in the lower tier, 1 to leave, or where f continues in optimized code (at a loop head: on-stack replacement)."
-	<c: 'uint64_t opt_tier_up(Frame *f, int64_t loop)'>
+	<function>
 	<var: #o type: 'JitMethod *'>
 	| m h o s k |
 	m := f method.
@@ -171,7 +171,7 @@ makesClosures: m start: s
 !
 unitEntryOf: m start: s
 	"Where the block stub enters m's block at startpc s: its unit's entry (OptCodegen>>emitBaselineEntry), 0 if it has none that may run."
-	<c: 'uint64_t opt_unit_entry(oop m, int64_t s)'>
+	<function>
 	| o |
 	o := self unitOf: m start: s asInt32 osr: 0.
 	(o notNull and: [self isAlive: o]) ifFalse: [^0 asUInt64].
@@ -179,7 +179,7 @@ unitEntryOf: m start: s
 !
 unitOf: m start: s osr: t
 	"The optimized code of m's block at startpc s (0: m) entered at its start (t 0) or at loop head t - 1, alive or not; null if there is none."
-	<c: 'JitMethod *opt_unit_of(oop m, int32_t s, int32_t t)'>
+	<function>
 	| i h |
 	i := self unitHash: m start: s osr: t.
 	[(h := rtUnits at: i) notNull] whileTrue: [
@@ -218,7 +218,7 @@ unitHash: m start: s osr: t
 !
 blockCodeFor: m start: s
 	"Frame code of a new activation of m's block at s: its optimized code if it may run, else m's (lower tier, or counting)."
-	<c: 'uint64_t opt_block_code(oop m, int32_t s)'>
+	<function>
 	| o |
 	o := self unitOf: m start: s osr: 0.
 	(o notNull and: [self isAlive: o]) ifTrue: [^self cCoerce: o to: 'uint64_t'].
@@ -226,7 +226,7 @@ blockCodeFor: m start: s
 !
 optimizeUnit: m start: s osr: t depth: d lower: h previous: p
 	"Compile m's block at startpc s (0: m) entered at its start (t 0) or at loop head t - 1 with d slots as a unit of its own, in place of p (invalidated) if not null; null if it could not."
-	<c: 'JitMethod *opt_optimize_unit(oop m, int32_t s, int32_t t, int32_t d, JitMethod *h, JitMethod *p)'>
+	<function>
 	| o t0 i |
 	rtUnitCount >= ((OPT_MAX_UNITS quo: 4) * 3) ifTrue: [^self null].
 	rtUnitStart := s.
@@ -267,7 +267,7 @@ unitEntry
 !
 optimize: m lower: h
 	"Compile m with the optimizer, link it to its lower-tier header h and install it; null if it could not."
-	<c: 'JitMethod *opt_optimize(oop m, JitMethod *h)'>
+	<function>
 	| o t0 |
 	t0 := runtime nowUs.
 	o := runtime compile: m mode: runtime optMode notes: runtime notes.
@@ -290,7 +290,7 @@ optimize: m lower: h
 !
 compile: m
 	"Emit optimized code for m at the assembler's pc (JitRuntime>>compile:mode:notes:); answer whether it could."
-	<c: 'bool opt_compile(oop m)'>
+	<function>
 	| ok trace limit |
 	trace := (libc getenv: 'SAMALTAK_OPT_TRACE') notNull.
 	rtTrace := trace.
@@ -396,7 +396,7 @@ noteYoung: o
 !OptRuntime methodsFor: 'sends'!
 send: f index: k site: key
 	"Optimized code sends at safepoint k of f (its pc and sp set, receiver and arguments at slot slots; key: the site, for the interpreter's inline cache): answer 0 (the result is in that slot), 1 (leave) or the callee's entry (frame pushed)."
-	<c: 'uint64_t opt_send(Frame *f, int64_t k, uint64_t key)'>
+	<function>
 	| h rec info n kind sp sel base r cls e ns ok moved |
 	rtStatSends := rtStatSends + 1.
 	h := self cCoerce: f code to: 'JitMethod *'.
@@ -457,7 +457,7 @@ send: f index: k site: key
 !
 sendFrom: f ret: ret
 	"A call of f's optimized code (at the call safepoint return address ret is in; JitBaselineRuntime>>setTop:ret:mode: set its pc and sp) found no machine code it may call (not linked: what baseline code leaves to the interpreter for; or no room on the stack): the runtime sends. Answer where the call continues: the callee's entry (its frame pushed), the sent stub (the result is in the receiver's slot) or 1 (leave)."
-	<c: 'uint64_t opt_send_from(Frame *f, uint64_t ret)'>
+	<function>
 	| h r |
 	h := self cCoerce: f code to: 'JitMethod *'.
 	r := self send: f index: (f pc - h bcSize asInt32) asInt64 site: ret.
@@ -538,7 +538,7 @@ innermostMethodOf: rec h: h
 !
 leave: f after: after
 	"The runtime leaves to the interpreter while optimized frame f (on top) sends: before the send (it is executed again) or after it (its result pushed)."
-	<c: 'uint64_t opt_leave(Frame *f, bool after)'>
+	<function>
 	| h |
 	h := self cCoerce: f code to: 'JitMethod *'.
 	^self deoptFrame: f index: f pc - h bcSize asInt32 regs: self null mode: (after ifTrue: [2] ifFalse: [1])
@@ -549,7 +549,9 @@ leaveBefore: f index: k
 !
 stackFull: f
 	"No room for f's optimized frame at its entry: the interpreter runs it from pc 0 (f's pc and sp stored)."
-	<c: 'uint64_t opt_stack_full(Frame *f)'>
+	<function>
+	<var: #f type: 'Frame *'>
+	<returns: 'uint64_t'>
 	| h |
 	h := self cCoerce: f code to: 'JitMethod *'.
 	f code: h lower.
@@ -559,7 +561,10 @@ stackFull: f
 !OptRuntime methodsFor: 'deoptimization'!
 deoptGuard: f index: k
 	"A guard of f's code failed at safepoint k; the registers are in the JitState's dump. Rebuild f's activations as frames; the interpreter continues the top one."
-	<c: 'uint64_t opt_deopt_guard(Frame *f, int64_t k)'>
+	<function>
+	<var: #f type: 'Frame *'>
+	<var: #k type: 'int64_t'>
+	<returns: 'uint64_t'>
 	| h why r m pc fresh stressed sig |
 	runtime canonicalizeBelow: f.
 	h := self cCoerce: f code to: 'JitMethod *'.
@@ -653,7 +658,10 @@ flagsOf: v
 !
 returnBottom: f index: k
 	"Frame f (the bottom frame) returns into activeCtx at safepoint k (its state: the return bytecode, the result on top; the registers in the JitState's dump), as the interpreter's returnTop does; if activeCtx is dead the interpreter does it (deoptimize)."
-	<c: 'uint64_t opt_return_bottom(Frame *f, int64_t k)'>
+	<function>
+	<var: #f type: 'Frame *'>
+	<var: #k type: 'int64_t'>
+	<returns: 'uint64_t'>
 	| h ctx sp v |
 	h := self cCoerce: f code to: 'JitMethod *'.
 	ctx := interpreter activeCtx.
@@ -678,13 +686,17 @@ returnBottom: f index: k
 !
 deoptReturn: f index: k
 	"After the send of safepoint k (the result in slot slots): f's code was invalidated (or stress): rebuild its activations."
-	<c: 'uint64_t opt_deopt_return(Frame *f, int64_t k)'>
+	<function>
+	<var: #f type: 'Frame *'>
+	<var: #k type: 'int64_t'>
+	<returns: 'uint64_t'>
 	runtime canonicalizeBelow: f.
 	^self deoptFrame: f index: k regs: self null mode: 2
 !
 deoptFrame: f index: k regs: regs mode: mode
 	"Rebuild optimized frame f (the top frame) as the frames of its activations at safepoint k. mode 0: as recorded (a guard, an interrupt check), 1: before the send (it is executed again), 2: after it (its result pushed). Closures the code never made are made now, their outer activations' frames married. Answer 1 (leave: the interpreter continues the top frame)."
-	<c: 'uint64_t opt_deopt_frame(Frame *f, int64_t k, uint64_t *regs, int32_t mode)'>
+	<function>
+	<returns: 'uint64_t'>
 	| h fi g sunk |
 	h := self cCoerce: f code to: 'JitMethod *'.
 	rtStatDeopts := rtStatDeopts + 1.
@@ -729,7 +741,7 @@ writeFrames: fi from: fp0
 !
 makeSunk: s outer: ctx
 	"Make the closure of sunk entry s, its outerContext ctx; every value that was it becomes it."
-	<c: 'void opt_make_sunk(int32_t s, oop ctx)'>
+	<function>
 	| r b bc isize info o |
 	r := self local: 'oop'.
 	r value: ctx.
@@ -750,7 +762,7 @@ makeSunk: s outer: ctx
 !
 decode: h index: k frame: f regs: regs mode: mode
 	"Read safepoint k's record into the activation arrays, the values into deoptVals (GC roots), the closures never made into the sunk arrays (in the order of the activations that make them). mode 1 pushes the send's receiver and arguments (and goes back to the send), 2 its result."
-	<c: 'void opt_decode(JitMethod *h, int64_t k, Frame *f, uint64_t *regs, int32_t mode)'>
+	<function>
 	| rec p nacts d base sendPc argc op bcs ns t |
 	rec := self recordOf: h index: k.
 	sendPc := rec at: 1.
@@ -810,7 +822,7 @@ decode: h index: k frame: f regs: regs mode: mode
 		rtActPc at: nacts - 1 put: sendPc]
 !
 traceDeopt: h index: k mode: mode
-	<c: 'void opt_trace_deopt(JitMethod *h, int64_t k, int32_t mode)'>
+	<function>
 	libc fprintf: libc stderr format: 'deopt mode %d at %lld (unit loop %d), %d activations, ' with: mode with: k with: h osrPc with: rtActCount.
 	libc fprintf: libc stderr format: 'innermost pc %d depth %d: ' with: (rtActPc at: rtActCount - 1) with: (rtActDepth at: rtActCount - 1).
 	interpreter printActivation: h method receiver: memory nilOop closure: memory nilOop on: libc stderr
@@ -840,7 +852,7 @@ value: loc h: h frame: f regs: regs
 !
 materialize: f
 	"materializeAll meets optimized frame f: a Context for each of its activations (their senders chained from activeCtx), the last one activeCtx; and the closures never made."
-	<c: 'void opt_materialize(Frame *f)'>
+	<function>
 	<var: #mode type: 'int32_t'>
 	| h k mode top ctx n s first sunk c |
 	h := self cCoerce: f code to: 'JitMethod *'.
@@ -897,7 +909,7 @@ frameSizeOfAct: i
 !
 frameSizeOf: m closure: c
 	"frameSize of an activation of m or of block c (at least its arguments and temps), as Interpreter>>frameSize:."
-	<c: 'int64_t opt_frame_size_of(oop m, oop c)'>
+	<function>
 	| src fs min blk |
 	blk := c ~= memory nilOop.
 	src := blk ifTrue: [c] ifFalse: [m].
@@ -909,7 +921,7 @@ frameSizeOf: m closure: c
 !
 resume: f
 	"The interpreter returns into optimized frame f (on top; the result is in slot slots): answer where its code continues, 0 if it was deoptimized (the interpreter continues the top frame)."
-	<c: 'uint64_t opt_resume(Frame *f)'>
+	<function>
 	| h k off |
 	h := self cCoerce: f code to: 'JitMethod *'.
 	k := f pc - h bcSize asInt32.
@@ -926,7 +938,7 @@ resume: f
 
 !OptRuntime methodsFor: 'garbage collection'!
 youngRoots: fn
-	<c: 'void opt_young_roots(void (*fn)(oop *))'>
+	<function>
 	| n o |
 	self decodedRoots: fn.
 	rtOptYoungOverflow ifTrue: [^self allPools: fn].
@@ -954,7 +966,7 @@ stillYoung: o
 	^false
 !
 allRoots: fn
-	<c: 'void opt_all_roots(void (*fn)(oop *))'>
+	<function>
 	self decodedRoots: fn.
 	self allPools: fn
 !
@@ -966,7 +978,7 @@ allPools: fn
 !
 headerValid: o with: valid
 	"The GC verifier: o's method and pool."
-	<c: 'bool opt_header_valid(JitMethod *o, bool (*valid)(oop))'>
+	<function>
 	| pool |
 	(valid call: o method) ifFalse: [
 		libc fputs: 'optimized code: bad method
@@ -988,7 +1000,7 @@ roots: o fn: fn
 !
 flushed
 	"The code cache was flushed."
-	<c: 'void opt_flushed(void)'>
+	<function>
 	rtOptYoungCount := 0.
 	rtOptYoungOverflow := false.
 	rtAllCount := 0.
@@ -1014,13 +1026,13 @@ invalidate: o
 !
 invalidateSelector: sel
 	"A method for sel was added or removed: optimized code that inlined or speculated on a send of sel."
-	<c: 'void opt_invalidate_selector(oop sel)'>
+	<function>
 	| o |
 	0 to: rtAllCount - 1 do: [:i |
 		o := rtAll at: i.
 		0 to: o depCount asInt64 - 1 do: [:k | (self poolAt: (o deps at: k) of: o) = sel ifTrue: [self invalidate: o]]]
 !
 invalidateAll
-	<c: 'void opt_invalidate_all(void)'>
+	<function>
 	0 to: rtAllCount - 1 do: [:i | self invalidate: (rtAll at: i)]
 !

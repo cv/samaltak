@@ -4,10 +4,10 @@
 
 static bool opened;
 
-static bool display_ints(int n, int first);
+static bool ints(int n, int first);
 
 /* DisplayPrimitives>>ints:from: */
-static bool display_ints(int n, int first)
+static bool ints(int n, int first)
 {
     int i;
     oop v;
@@ -41,7 +41,7 @@ void prim_display_bits(void)
     oop o_11;
     oop o_12;
     oop v_2;
-    if (!(display_ints(5, 1) && ({
+    if (!(ints(5, 1) && ({
     o = prim_base[6];
     (({
     if (((int32_t)(((int64_t)o) >> 1) >= 0) && ({
@@ -91,7 +91,7 @@ void prim_display_copy(void)
     oop o_5;
     oop o_6;
     oop v;
-    if (!display_ints(6, 0)) {
+    if (!ints(6, 0)) {
         prim_status = PS_FAIL;
         prim_error_code = -1;
         return;
@@ -121,7 +121,7 @@ void prim_display_fill(void)
     oop o_7;
     oop o_8;
     oop v_2;
-    if (!(display_ints(5, 0) && ({
+    if (!(ints(5, 0) && ({
     o = prim_base[5];
     ({
     if (((int32_t)(((int64_t)o) >> 1) >= 0) && ({
@@ -205,7 +205,7 @@ void prim_display_open(void)
     int32_t *cell;
     oop o_7;
     oop o_8;
-    oop p;
+    uint64_t p;
     int32_t v;
     int32_t v_2;
     opened = false;
@@ -265,7 +265,7 @@ void prim_display_text(void)
     oop o_5;
     oop o_6;
     oop v_2;
-    if (!(display_ints(3, 1) && ({
+    if (!(ints(3, 1) && ({
     o = prim_base[4];
     ({
     if (((int32_t)(((int64_t)o) >> 1) >= 0) && ({

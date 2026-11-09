@@ -6,23 +6,23 @@ static int32_t armed_count;
 static sock_sems sems[1024];
 static pf_table table[1];
 
-static short events_of(int h);
-static int fd_of_kind(int h, int kind);
-static int64_t fd_read(int h, int kind, void *buf, size_t n);
-static struct addrinfo *socket_resolve(const char *host, int port, bool passive);
-static bool fd_semaphores(int h, int kind, int read_index, int write_index);
-static int socket_wrap(int fd);
-static int64_t fd_write(int h, int kind, const void *buf, size_t n);
+static int16_t events_of(int32_t h);
+static int32_t platform_sockets_fd_of(int32_t h, int kind);
+static ssize_t platform_sockets_read(int32_t h, int kind, void *buf, uint64_t n);
+static struct addrinfo *platform_sockets_resolve(char *host, int32_t port, bool passive);
+static bool platform_sockets_semaphores_kind_read_write(int32_t h, int kind, int32_t read_index, int32_t write_index);
+static int32_t wrap(int fd);
+static ssize_t platform_sockets_write(int32_t h, int kind, const void *buf, uint64_t n);
 
 /* PlatformSockets>>accept:wouldBlock: */
-int pf_socket_accept(int s, bool *would_block)
+int32_t platform_sockets_accept(int32_t s, bool *would_block)
 {
-    int fd;
+    int32_t fd;
     int c;
     int e;
     int local;
     int *one;
-    fd = fd_of_kind(s, PF_FD_SOCKET);
+    fd = platform_sockets_fd_of(s, PF_FD_SOCKET);
     *would_block = false;
     if (fd < 0) {
         return 0;
@@ -33,29 +33,29 @@ int pf_socket_accept(int s, bool *would_block)
         e = errno;
         if ((e == EAGAIN) || ((e == EWOULDBLOCK) || ((e == ECONNABORTED) || (e == EINTR)))) {
             *would_block = true;
-            pf_set_error("");
+            set_error("");
             return 0;
         }
-        pf_os_error("accept", errno);
+        platform_common_fail_os_code("accept", errno);
         return 0;
     }
     memset(&local, 0, sizeof local);
     one = &local;
     *one = 1;
     setsockopt(c, IPPROTO_TCP, TCP_NODELAY, one, (uint32_t)sizeof(int));
-    return socket_wrap(c);
+    return wrap(c);
 }
 
 /* PlatformSockets>>add:kind:pointer: */
-int pf_fd_add(int fd, int kind, void *ptr)
+int32_t platform_sockets_add(int fd, int kind, void *ptr)
 {
-    int h;
+    int32_t h;
     fcntl(fd, F_SETFL, fcntl(fd, F_GETFL) | O_NONBLOCK);
     fcntl(fd, F_SETFD, FD_CLOEXEC);
-    h = pf_table_add(table, kind, ptr);
+    h = platform_common_table_add_pointer(table, kind, ptr);
     if (h >= MAX_FDS) {
-        pf_table_remove(table, h);
-        pf_set_error("too many sockets and ptys");
+        platform_common_table_remove(table, h);
+        set_error("too many sockets and ptys");
         return 0;
     }
     (table->v + h)->i = fd;
@@ -64,36 +64,36 @@ int pf_fd_add(int fd, int kind, void *ptr)
 }
 
 /* PlatformSockets>>anyArmed */
-bool pf_socket_any_armed(void)
+bool any_armed(void)
 {
     return armed_count > 0;
 }
 
 /* PlatformSockets>>close: */
-bool pf_socket_close(int s)
+bool platform_sockets_close(int32_t s)
 {
-    return pf_fd_close(s, PF_FD_SOCKET);
+    return platform_sockets_close_kind(s, PF_FD_SOCKET);
 }
 
 /* PlatformSockets>>close:kind: */
-bool pf_fd_close(int h, int kind)
+bool platform_sockets_close_kind(int32_t h, int kind)
 {
-    int fd;
-    fd = fd_of_kind(h, kind);
+    int32_t fd;
+    fd = platform_sockets_fd_of(h, kind);
     if (fd < 0) {
         return false;
     }
-    fd_semaphores(h, kind, 0, 0);
-    pf_table_remove(table, h);
+    platform_sockets_semaphores_kind_read_write(h, kind, 0, 0);
+    platform_common_table_remove(table, h);
     if (close(fd) == 0) {
         return true;
     }
-    pf_os_error("close", errno);
+    platform_common_fail_os_code("close", errno);
     return false;
 }
 
 /* PlatformSockets>>connect:port: */
-int pf_socket_connect(const char *host, int port)
+int32_t platform_sockets_connect(char *host, int32_t port)
 {
     int fd;
     struct addrinfo *ai;
@@ -101,8 +101,8 @@ int pf_socket_connect(const char *host, int port)
     bool connected;
     int local;
     int *one;
-    platform_init();
-    ai = socket_resolve(host, port, false);
+    platform_interface_init();
+    ai = platform_sockets_resolve(host, port, false);
     if (ai == NULL) {
         return 0;
     }
@@ -122,7 +122,7 @@ int pf_socket_connect(const char *host, int port)
         }
     }
     if (fd < 0) {
-        pf_os_error("connect", errno);
+        platform_common_fail_os_code("connect", errno);
     }
     freeaddrinfo(ai);
     if (fd < 0) {
@@ -132,11 +132,11 @@ int pf_socket_connect(const char *host, int port)
     one = &local;
     *one = 1;
     setsockopt(fd, IPPROTO_TCP, TCP_NODELAY, one, (uint32_t)sizeof(int));
-    return socket_wrap(fd);
+    return wrap(fd);
 }
 
 /* PlatformSockets>>eventsOf: */
-static short events_of(int h)
+static int16_t events_of(int32_t h)
 {
     sock_sems *s;
     s = sems + h;
@@ -144,11 +144,11 @@ static short events_of(int h)
 }
 
 /* PlatformSockets>>fdGet:kind: */
-pf_obj *pf_fd_get(int h, int kind)
+pf_obj *fd_get(int32_t h, int kind)
 {
     pf_obj *o;
     char *a;
-    o = pf_table_get(table, h, kind);
+    o = platform_common_table_at_kind(table, h, kind);
     if (o == NULL) {
         a = kind == PF_FD_PTY ? "pty" : "socket";
         snprintf(last_error, LAST_ERROR_SIZE, "bad %s handle %d", a, h);
@@ -157,10 +157,10 @@ pf_obj *pf_fd_get(int h, int kind)
 }
 
 /* PlatformSockets>>fdOf:kind: */
-static int fd_of_kind(int h, int kind)
+static int32_t platform_sockets_fd_of(int32_t h, int kind)
 {
     pf_obj *o;
-    o = pf_fd_get(h, kind);
+    o = fd_get(h, kind);
     if (o == NULL) {
         return -1;
     }
@@ -168,27 +168,27 @@ static int fd_of_kind(int h, int kind)
 }
 
 /* PlatformSockets>>handleCount */
-int pf_socket_handle_count(void)
+int32_t platform_sockets_handle_count(void)
 {
-    return pf_table_count(table, PF_FD_SOCKET);
+    return platform_common_table_count(table, PF_FD_SOCKET);
 }
 
 /* PlatformSockets>>listen:port:backlog: */
-int pf_socket_listen(const char *host, int port, int backlog)
+int32_t platform_sockets_listen(char *host, int32_t port, int32_t backlog)
 {
     struct addrinfo *ai;
     int fd;
     int local;
     int *one;
-    platform_init();
-    ai = socket_resolve(host, port, true);
+    platform_interface_init();
+    ai = platform_sockets_resolve(host, port, true);
     if (ai == NULL) {
         return 0;
     }
     fd = socket(ai->ai_family, SOCK_STREAM, 0);
     if (fd < 0) {
         freeaddrinfo(ai);
-        pf_os_error("socket", errno);
+        platform_common_fail_os_code("socket", errno);
         return 0;
     }
     memset(&local, 0, sizeof local);
@@ -196,24 +196,24 @@ int pf_socket_listen(const char *host, int port, int backlog)
     *one = 1;
     setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, one, (uint32_t)sizeof(int));
     if ((bind(fd, ai->ai_addr, ai->ai_addrlen) != 0) || (listen(fd, backlog) != 0)) {
-        pf_os_error("bind/listen", errno);
+        platform_common_fail_os_code("bind/listen", errno);
         close(fd);
         freeaddrinfo(ai);
         return 0;
     }
     freeaddrinfo(ai);
-    return socket_wrap(fd);
+    return wrap(fd);
 }
 
 /* PlatformSockets>>localPort: */
-int pf_socket_local_port(int s)
+int local_port(int32_t s)
 {
-    int fd;
+    int32_t fd;
     struct sockaddr_storage local;
     struct sockaddr_storage *ss;
     socklen_t local_2;
     socklen_t *len;
-    fd = fd_of_kind(s, PF_FD_SOCKET);
+    fd = platform_sockets_fd_of(s, PF_FD_SOCKET);
     memset(&local, 0, sizeof local);
     ss = &local;
     memset(&local_2, 0, sizeof local_2);
@@ -223,14 +223,14 @@ int pf_socket_local_port(int s)
         return 0;
     }
     if (getsockname(fd, (struct sockaddr *)ss, len) != 0) {
-        pf_os_error("getsockname", errno);
+        platform_common_fail_os_code("getsockname", errno);
         return 0;
     }
     return ss->ss_family == AF_INET6 ? ntohs(((struct sockaddr_in6 *)ss)->sin6_port) : ntohs(((struct sockaddr_in *)ss)->sin_port);
 }
 
 /* PlatformSockets>>poll: */
-void pf_socket_poll(int timeout_ms)
+void platform_sockets_poll(int timeout_ms)
 {
     int n;
     struct pollfd local[256];
@@ -238,7 +238,7 @@ void pf_socket_poll(int timeout_ms)
     int local_2[256];
     int *hs;
     int32_t h;
-    short ev;
+    int16_t ev;
     int i;
     sock_sems *s;
     int16_t r;
@@ -284,12 +284,12 @@ void pf_socket_poll(int timeout_ms)
 }
 
 /* PlatformSockets>>pollFds:max: */
-int pf_socket_poll_fds(void *pollfds, int max)
+int poll_fds(void *pollfds, int max)
 {
     int n;
     struct pollfd *p;
     int32_t h;
-    short ev;
+    int16_t ev;
     p = (struct pollfd *)pollfds;
     n = 0;
     for (h = 1; h <= table->n - 1; h++) {
@@ -307,36 +307,36 @@ int pf_socket_poll_fds(void *pollfds, int max)
 }
 
 /* PlatformSockets>>ptyHandleCount */
-int pf_pty_handle_count(void)
+int32_t pty_handle_count(void)
 {
-    return pf_table_count(table, PF_FD_PTY);
+    return platform_common_table_count(table, PF_FD_PTY);
 }
 
 /* PlatformSockets>>ptyRead:into:count: */
-int64_t pf_pty_read(int p, void *buf, size_t n)
+ssize_t pty_read(int32_t p, void *buf, uint64_t n)
 {
-    return fd_read(p, PF_FD_PTY, buf, n);
+    return platform_sockets_read(p, PF_FD_PTY, buf, n);
 }
 
 /* PlatformSockets>>ptySemaphores:read:write: */
-bool pf_pty_semaphores(int p, int read_index, int write_index)
+bool pty_semaphores(int32_t p, int32_t read_index, int32_t write_index)
 {
-    return fd_semaphores(p, PF_FD_PTY, read_index, write_index);
+    return platform_sockets_semaphores_kind_read_write(p, PF_FD_PTY, read_index, write_index);
 }
 
 /* PlatformSockets>>ptyWrite:bytes:count: */
-int64_t pf_pty_write(int p, const void *buf, size_t n)
+ssize_t pty_write(int32_t p, const void *buf, uint64_t n)
 {
-    return fd_write(p, PF_FD_PTY, buf, n);
+    return platform_sockets_write(p, PF_FD_PTY, buf, n);
 }
 
 /* PlatformSockets>>read:kind:into:count: */
-static int64_t fd_read(int h, int kind, void *buf, size_t n)
+static ssize_t platform_sockets_read(int32_t h, int kind, void *buf, uint64_t n)
 {
-    int fd;
+    int32_t fd;
     ssize_t r;
     char *what;
-    fd = fd_of_kind(h, kind);
+    fd = platform_sockets_fd_of(h, kind);
     if (fd < 0) {
         return -2;
     }
@@ -357,18 +357,18 @@ static int64_t fd_read(int h, int kind, void *buf, size_t n)
         return 0;
     }
     what = kind == PF_FD_PTY ? "read" : "recv";
-    pf_os_error(what, errno);
+    platform_common_fail_os_code(what, errno);
     return -2;
 }
 
 /* PlatformSockets>>recv:into:count: */
-int64_t pf_socket_recv(int s, void *buf, size_t n)
+ssize_t platform_sockets_recv(int32_t s, void *buf, uint64_t n)
 {
-    return fd_read(s, PF_FD_SOCKET, buf, n);
+    return platform_sockets_read(s, PF_FD_SOCKET, buf, n);
 }
 
 /* PlatformSockets>>resolve:port:passive: */
-static struct addrinfo *socket_resolve(const char *host, int port, bool passive)
+static struct addrinfo *platform_sockets_resolve(char *host, int32_t port, bool passive)
 {
     struct addrinfo local;
     struct addrinfo *hints;
@@ -377,7 +377,7 @@ static struct addrinfo *socket_resolve(const char *host, int port, bool passive)
     char local_3[16];
     char *ps;
     int r;
-    const char *a;
+    char *a;
     const char *b;
     memset(&local, 0, sizeof local);
     hints = &local;
@@ -389,7 +389,7 @@ static struct addrinfo *socket_resolve(const char *host, int port, bool passive)
     hints->ai_socktype = SOCK_STREAM;
     hints->ai_flags = passive ? AI_PASSIVE : 0;
     snprintf(ps, 16, "%d", port);
-    r = getaddrinfo((host != NULL) && (host[0] != 0) ? host : (const char *)NULL, ps, hints, ai);
+    r = getaddrinfo((host != NULL) && (host[0] != 0) ? host : (char *)NULL, ps, hints, ai);
     if (r != 0) {
         a = host != NULL ? host : "";
         b = gai_strerror(r);
@@ -400,11 +400,11 @@ static struct addrinfo *socket_resolve(const char *host, int port, bool passive)
 }
 
 /* PlatformSockets>>semaphores:kind:read:write: */
-static bool fd_semaphores(int h, int kind, int read_index, int write_index)
+static bool platform_sockets_semaphores_kind_read_write(int32_t h, int kind, int32_t read_index, int32_t write_index)
 {
     sock_sems *s;
     bool had;
-    if (fd_of_kind(h, kind) < 0) {
+    if (platform_sockets_fd_of(h, kind) < 0) {
         return false;
     }
     s = sems + h;
@@ -414,28 +414,28 @@ static bool fd_semaphores(int h, int kind, int read_index, int write_index)
     s->read_armed = true;
     s->write_armed = false;
     armed_count = armed_count + ((read_index != 0) || (write_index != 0) ? 1 : 0) - (had ? 1 : 0);
-    pf_update_poll_interval();
+    update_poll_interval();
     return true;
 }
 
 /* PlatformSockets>>semaphores:read:write: */
-bool pf_socket_semaphores(int s, int read_index, int write_index)
+bool platform_sockets_semaphores_read_write(int32_t s, int32_t read_index, int32_t write_index)
 {
-    return fd_semaphores(s, PF_FD_SOCKET, read_index, write_index);
+    return platform_sockets_semaphores_kind_read_write(s, PF_FD_SOCKET, read_index, write_index);
 }
 
 /* PlatformSockets>>send:bytes:count: */
-int64_t pf_socket_send(int s, const void *buf, size_t n)
+ssize_t platform_sockets_send(int32_t s, const void *buf, uint64_t n)
 {
-    return fd_write(s, PF_FD_SOCKET, buf, n);
+    return platform_sockets_write(s, PF_FD_SOCKET, buf, n);
 }
 
 /* PlatformSockets>>wrap: */
-static int socket_wrap(int fd)
+static int32_t wrap(int fd)
 {
-    int h;
-    pf_host_socket_opened(fd);
-    h = pf_fd_add(fd, PF_FD_SOCKET, NULL);
+    int32_t h;
+    socket_opened(fd);
+    h = platform_sockets_add(fd, PF_FD_SOCKET, NULL);
     if (h == 0) {
         close(fd);
     }
@@ -443,12 +443,12 @@ static int socket_wrap(int fd)
 }
 
 /* PlatformSockets>>write:kind:bytes:count: */
-static int64_t fd_write(int h, int kind, const void *buf, size_t n)
+static ssize_t platform_sockets_write(int32_t h, int kind, const void *buf, uint64_t n)
 {
-    int fd;
+    int32_t fd;
     ssize_t r;
     char *what;
-    fd = fd_of_kind(h, kind);
+    fd = platform_sockets_fd_of(h, kind);
     if (fd < 0) {
         return -2;
     }
@@ -466,7 +466,7 @@ static int64_t fd_write(int h, int kind, const void *buf, size_t n)
         return -1;
     }
     what = kind == PF_FD_PTY ? "write" : "send";
-    pf_os_error(what, errno);
+    platform_common_fail_os_code(what, errno);
     return -2;
 }
 

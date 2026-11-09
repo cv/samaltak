@@ -1,5 +1,5 @@
 Object subclass: #TCodeGenerator
-	instanceVariableNames: 'translator function cModule locals usedNames block frame env labelCounter interpreterLoop opsTable nextExpression labelParameters'
+	instanceVariableNames: 'translator function cModule locals usedNames block frame env labelCounter interpreterLoop opsTable nextExpression labelParameters inferring'
 	classVariableNames: 'ControlSelectors'
 	package: 'VM-Translator'!
 
@@ -15,18 +15,19 @@ controlSelectors
 ! !
 
 !TCodeGenerator class methodsFor: 'instance creation'!
-translator: aTranslator
-	^self new setTranslator: aTranslator
+translator: aTranslator inferring: aBoolean
+	^self new setTranslator: aTranslator inferring: aBoolean
 ! !
 
 !TCodeGenerator methodsFor: 'initialization'!
-setTranslator: aTranslator
-	translator := aTranslator
+setTranslator: aTranslator inferring: aBoolean
+	translator := aTranslator.
+	inferring := aBoolean
 ! !
 
 !TCodeGenerator methodsFor: 'generating'!
 generate: aTFunction
-	"Answer the TCFunction of aTFunction (a #function)."
+	"Answer the TCFunction of aTFunction (a #function). Inferring, it only feeds the signatures (docs/lowtalk.md, Functions): a statement that cannot be translated yet is left out, the function runs again when something it depends on changes."
 	| body result |
 	function := aTFunction.
 	cModule := aTFunction module.
@@ -39,14 +40,17 @@ generate: aTFunction
 	frame returnType: aTFunction returnType.
 	env := frame env.
 	aTFunction arguments doWithIndex: [:arg :i |
-		| cName |
+		| cName type |
 		cName := self reserveName: (LowtalkNames snake: arg).
-		env at: arg put: (TBinding local: cName type: (aTFunction functionType parameterTypes at: i))].
+		type := aTFunction parameterTypeAt: i.
+		(inferring or: [type notNil]) ifFalse: [self error: 'nothing gives the type of parameter ' , arg , ': no call site (declare it with <var: #' , arg , ' type: ''T''>)' node: nil].
+		env at: arg put: (TBinding local: cName type: type)].
 	interpreterLoop ifTrue: [self declareRegisters].
 	body := CBlock new.
 	block := body.
 	self declareTemporariesOf: aTFunction in: frame.
 	aTFunction statements do: [:s | self statement: s].
+	inferring ifTrue: [^nil].
 	(aTFunction returnType isVoid not and: [body endsControlFlow not]) ifTrue: [
 		self error: 'missing return at the end of a function returning ' , aTFunction returnType name node: nil].
 	"A thread's endless loop at the end: say so, or gcc reports a function returning non-void without a return statement."
@@ -107,6 +111,10 @@ error: aString node: aNodeOrNil
 
 !TCodeGenerator methodsFor: 'statements'!
 statement: aNode
+	inferring ifFalse: [^self translateStatement: aNode].
+	[self translateStatement: aNode] on: Error do: [:e | e return: nil]
+!
+translateStatement: aNode
 	aNode isReturn ifTrue: [^self returnStatement: aNode].
 	aNode isAssignment ifTrue: [^self assignment: aNode valueWanted: false].
 	aNode isMessage ifTrue: [
@@ -151,6 +159,7 @@ returnStatement: aReturnNode
 !
 functionReturn: aNode
 	| e |
+	inferring ifTrue: [^self inferReturn: aNode].
 	frame returnType isVoid ifTrue: [
 		(aNode isVariable and: [aNode isSelf]) ifFalse: [
 			aNode isMessage
@@ -163,6 +172,14 @@ functionReturn: aNode
 	(aNode isVariable and: [aNode isSelf]) ifTrue: [^self error: 'a function returning ' , frame returnType name , ' answers self' node: aNode].
 	e := self coerce: (self expressionOrInline: aNode type: frame returnType) to: frame returnType node: aNode.
 	block add: (CReturn expression: e)
+!
+inferReturn: aNode
+	"While inferring: a ^expression's value joins the function's result; a ^ of no value (^self, the tail call of a void function: an error in expression:) leaves it as it is."
+	| e |
+	(aNode isVariable and: [aNode isSelf]) ifTrue: [^self].
+	e := self expression: aNode.
+	(function signature noteResultType: (self valueType: e) adaptive: (self isAdaptive: e) literal: (self literalValueOf: e)) ifFalse: [
+		self error: 'the ^expressions of a function have no common type' node: aNode]
 !
 inlineReturn: aNode frame: aTFrame
 	| e |
@@ -271,7 +288,7 @@ expression: aNode
 	aNode isMessage ifTrue: [
 		| e |
 		e := self send: aNode valueWanted: true.
-		e isNil ifTrue: [self error: aNode selector , ' has no value' node: aNode].
+		(e isNil or: [e type notNil and: [e type isVoid]]) ifTrue: [self error: aNode selector , ' has no value' node: aNode].
 		^e].
 	aNode isBlock ifTrue: [^self error: 'blocks are only arguments of control structures and inline methods' node: aNode].
 	^self error: 'not a Lowtalk expression' node: aNode
@@ -345,7 +362,7 @@ globalReference: aTGlobal
 		ifTrue: [
 			interpreterLoop ifFalse: [^self error: aTGlobal name , ' is a register of the interpreter loop' node: nil].
 			^CVarRef name: aTGlobal cName type: aTGlobal type].
-	aTGlobal noteUsedFrom: cModule.
+	inferring ifFalse: [aTGlobal noteUsedFrom: cModule].
 	^CVarRef name: aTGlobal cName type: aTGlobal type
 !
 constantNamed: aString ifAbsent: aBlock
@@ -394,19 +411,38 @@ send: aSelector to: aTModule arguments: argNodes node: aNode valueWanted: aBoole
 	^self error: aSelector , ' (' , f kind , ') is only a jump at the end of a handler: ^self ' , aSelector node: aNode
 !
 call: aTFunction arguments: argNodes node: aNode
-	| ftype args |
-	ftype := aTFunction functionType.
-	aTFunction noteCalledFrom: cModule.
+	| args |
+	inferring ifTrue: [aTFunction signature addDependent: function] ifFalse: [aTFunction noteCalledFrom: cModule].
 	args := OrderedCollection new.
 	argNodes doWithIndex: [:a :i |
 		| e t |
 		e := self expression: a.
-		t := ftype parameterTypes at: i.
-		self checkAssignable: e to: t node: a.
-		args add: (self coerce: e to: t node: a)].
-	^(CCall function: aTFunction cName arguments: args type: ftype returnType)
+		inferring ifTrue: [self note: e argument: i of: aTFunction signature node: a].
+		t := aTFunction parameterTypeAt: i.
+		t notNil ifTrue: [
+			self checkAssignable: e to: t node: a.
+			e := self coerce: e to: t node: a].
+		args add: e].
+	^(CCall function: aTFunction cName arguments: args type: aTFunction returnType)
 		noReturn: (aTFunction hasPragma: #noreturn);
 		yourself
+!
+note: aCExpr argument: anInteger of: aTSignature node: aNode
+	(aTSignature noteArgument: anInteger type: (self valueType: aCExpr) adaptive: (self isAdaptive: aCExpr) literal: (self literalValueOf: aCExpr)) ifFalse: [
+		self error: 'the arguments at the call sites have no common type (' , (aTSignature parameterTypeAt: anInteger) name , ' and ' , (self valueType: aCExpr) name , ')' node: aNode]
+!
+literalValueOf: aCExpr
+	"The integer an adaptive constant is; nil otherwise."
+	^(aCExpr isConstant and: [aCExpr value isInteger]) ifTrue: [aCExpr value] ifFalse: [nil]
+!
+isAdaptive: aCExpr
+	"A literal or named constant takes the type of whatever it joins with; one that is cast has its own."
+	| v |
+	aCExpr isConstant ifFalse: [^false].
+	v := aCExpr value.
+	v isNil ifTrue: [^true].
+	v isInteger ifTrue: [^aCExpr type == (self integerConstant: v hex: false) type].
+	^v isFloat
 !
 externSend: aSelector library: aLibraryClass arguments: argNodes node: aNode
 	| ext ftype args |
@@ -869,6 +905,9 @@ callPointer: aCExpr arguments: argNodes node: aNode
 	ftype := (self valueType: aCExpr) target.
 	args := argNodes collect: [:a | self expression: a].
 	args size = ftype parameterTypes size ifFalse: [^self error: 'wrong number of arguments for a function pointer' node: aNode].
+	(inferring and: [ftype isKindOf: TSignature]) ifTrue: [
+		ftype root addDependent: function.
+		argNodes doWithIndex: [:a :i | self note: (args at: i) argument: i of: ftype root node: a]].
 	^CCall function: aCExpr arguments: (args with: ftype parameterTypes collect: [:e :t | self coerce: e to: t node: aNode]) type: ftype returnType
 ! !
 
@@ -1100,6 +1139,10 @@ checkAssignable: aCExpr to: aCType node: aNode
 		(aCExpr isConstant and: [aCExpr value isNil]) ifTrue: [^self].
 		(aCExpr isConstant and: [aCExpr value isString]) ifTrue: [^self].
 		t isPointerLike ifFalse: [self error: 'a pointer (' , aCType name , ') is needed, not ' , t name node: aNode].
+		(t isPointer and: [t target isFunction and: [aCType target isFunction and: [(t target isKindOf: TSignature) or: [aCType target isKindOf: TSignature]]]]) ifTrue: [
+			"an inferred function pointer: it unifies with the other one"
+			inferring ifTrue: [(t target isKindOf: TSignature) ifTrue: [t target unifyWith: aCType target] ifFalse: [aCType target unifyWith: t target]].
+			^self].
 		(aCType sameAs: t) ifFalse: [self error: 'a ' , aCType name , ' is needed, not ' , t name node: aNode].
 		^self].
 	aCType isStruct ifTrue: [^self error: 'structs are assigned with value:' node: aNode]
@@ -1262,9 +1305,10 @@ functionPointer: aNode node: aMessageNode
 	(aNode isLiteral and: [aNode value isSymbol]) ifFalse: [^self error: 'functionPointer: needs a selector literal' node: aMessageNode].
 	f := translator lookup: aNode value in: frame module.
 	(f isNil or: [f kind ~~ #function]) ifTrue: [^self error: aNode value , ' is not a function of ' , frame module name node: aMessageNode].
-	f noteAddressTaken.
-	f noteCalledFrom: cModule.
-	^CVarRef name: f cName type: (CPointerType to: f functionType)
+	inferring ifFalse: [
+		f noteAddressTaken.
+		f noteCalledFrom: cModule].
+	^CVarRef name: f cName type: (CPointerType to: f signature)
 !
 atomicVariable: aNode
 	| g |

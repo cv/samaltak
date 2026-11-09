@@ -65,7 +65,7 @@ bail
 !OptBuilder methodsFor: 'building'!
 build: m start: s osr: t depth: d resident: res
 	"The IR of m (s 0), or of its block at startpc s, entered at its start (t -1) or at loop head t with d slots (res: in a married frame, the temps its closures reach stay in the frame); answer whether it could be built. A closure an inlined method makes that escapes would have to be made: build again without inlining that method. Marker methods (on:do:, ensure:) are not optimized: their frames, which the exception code reads and writes through their Contexts, stay plain."
-	<c: 'bool opt_build(oop m, int32_t s, int32_t t, int32_t d, bool res)'>
+	<function>
 	| e |
 	((self methodPrimitive: m) = PRIM_ENSURE_MARKER or: [(self methodPrimitive: m) = PRIM_ONDO_MARKER]) ifTrue: [^false].
 	obResident := res.
@@ -83,7 +83,7 @@ build: m start: s osr: t depth: d resident: res
 	 obNoInlineCount := obNoInlineCount + 1] repeat
 !
 buildOnce: m
-	<c: 'bool opt_build_once(oop m)'>
+	<function>
 	| a b |
 	ir reset.
 	obBailed := false.
@@ -200,7 +200,7 @@ noteClosureIn: i act: a
 !
 frameClosureOf: v numArgs: n pc: pc act: a
 	"The description of the closure v may be: v is what a frame slot that held one the frame made holds now (noteClosureIn:act:), and it takes n arguments; -1 if none, or if a guard of such a closure failed at pc before."
-	<c: 'int32_t opt_frame_closure_of(int32_t v, int32_t n, int32_t pc, int32_t a)'>
+	<function>
 	| x |
 	(runtime flag: runtime blocksFlag) ifFalse: [^-1].
 	((feedback flagsAt: (ir act: a) method pc: pc) bitAnd: feedback deoptOther) ~= 0 ifTrue: [^-1].
@@ -211,7 +211,7 @@ frameClosureOf: v numArgs: n pc: pc act: a
 !
 inlineFrameClosure: x info: d pc: pc act: a rcvSlot: r argc: argc
 	"x is a closure the frame made at d's startpc (its outerContext the frame's Context): guarded (class, startpc, outerContext; else deoptimize), its body inlined as if this code had made it."
-	<c: 'void opt_inline_frame_closure(int32_t x, int32_t d, int32_t pc, int32_t a, int32_t r, int32_t argc)'>
+	<function>
 	| s g |
 	s := self stateAct: a pc: pc depth: (self depthAt: pc act: a).
 	g := self guard: x class: memory clsBlock state: s.
@@ -268,7 +268,7 @@ validSlots
 !
 newActFor: m
 	"An activation of method m (not yet linked to a caller), its analysis and pc map; -1 if m cannot be compiled."
-	<c: 'int32_t opt_new_act_for(oop m)'>
+	<function>
 	| a ac ana fs |
 	ana := self analysisOf: m.
 	ana < 0 ifTrue: [^-1].
@@ -293,7 +293,7 @@ newActFor: m
 !
 newBlockActFor: m start: s
 	"The activation of m's block at startpc s, compiled as a unit: its closure the frame's, its outer temps through it (no outer activation), ^ deoptimizes; -1 if m cannot be compiled."
-	<c: 'int32_t opt_new_block_act_for(oop m, int32_t s)'>
+	<function>
 	| a ac fs |
 	a := self newActFor: m.
 	a < 0 ifTrue: [^-1].
@@ -325,7 +325,7 @@ allocPcBlocks: a
 !
 analysisOf: m
 	"The base of m's analysis in the arena (depth and flags per pc, the last backward jump to each loop head); -1 if m cannot be analyzed."
-	<c: 'int32_t opt_analysis_of(oop m)'>
+	<function>
 	| n base f t k |
 	0 to: obAnaCount - 1 do: [:i | (obAnaMethods at: i) = m ifTrue: [^obAnaBases at: i]].
 	obAnaCount >= OPT_MAX_ANA ifTrue: [^-1].
@@ -387,7 +387,7 @@ literal: i act: a
 !
 buildAct: a
 	"Scan a's bytecodes from startpc to endpc."
-	<c: 'void opt_build_act(int32_t a)'>
+	<function>
 	| pc b ac |
 	ac := ir act: a.
 	pc := ac startpc.
@@ -434,7 +434,7 @@ write: var value: v
 	self write: var value: v in: obCurBlock
 !
 write: var value: v in: b
-	<c: 'void opt_write(int32_t var, int32_t v, int32_t b)'>
+	<function>
 	| i |
 	i := self defIndex: var block: b.
 	(obDefKeys at: i) = 0 ifTrue: [
@@ -454,7 +454,7 @@ writeArg: var value: v
 	self write: var value: v
 !
 read: var in: b
-	<c: 'int32_t opt_read(int32_t var, int32_t b)'>
+	<function>
 	| i v bl phi |
 	(var < OPT_MAX_VARS and: [(obArgFlags at: var) = 2]) ifTrue: [
 		v := self add: O_LOADSLOT rep: R_OOP.
@@ -541,7 +541,7 @@ newPhi: b var: var
 	^n
 !
 addPhiOperands: phi var: var
-	<c: 'void opt_add_phi_operands(int32_t phi, int32_t var)'>
+	<function>
 	| b n args |
 	b := (ir node: phi) block.
 	n := (ir block: b) npreds.
@@ -552,7 +552,7 @@ addPhiOperands: phi var: var
 !
 seal: b
 	"All of b's predecessors are known: complete its phis."
-	<c: 'void opt_seal(int32_t b)'>
+	<function>
 	| bl k |
 	bl := ir block: b.
 	(bl flags bitAnd: BF_SEALED) ~= 0 ifTrue: [^self].
@@ -583,7 +583,7 @@ param: i
 !
 constant: v
 	"A constant oop (in the entry block, so that it dominates every use)."
-	<c: 'int32_t opt_constant(uint64_t v)'>
+	<function>
 	| n nd |
 	n := ir newNode: O_CONST rep: R_OOP.
 	nd := ir node: n.
@@ -613,7 +613,7 @@ binary: op a: x b: y
 !
 goto: b
 	"End the current block with a jump to b."
-	<c: 'void opt_goto(int32_t b)'>
+	<function>
 	self add: O_GOTO rep: R_NONE.
 	(ir block: obCurBlock) succ0: b.
 	self edgeTo: b.
@@ -626,7 +626,7 @@ edgeTo: b
 !
 blockAt: pc act: a
 	"The block that starts at a's pc."
-	<c: 'int32_t opt_block_at(int32_t pc, int32_t a)'>
+	<function>
 	| b |
 	b := obPcBlocks at: (ir act: a) pcb + pc.
 	b >= 0 ifTrue: [^b].
@@ -641,7 +641,7 @@ blockAt: pc act: a
 !OptBuilder methodsFor: 'frame states'!
 stateAct: a pc: pc depth: d
 	"The frame state of a continuing at pc with d slots, and its callers'."
-	<c: 'int32_t opt_make_state(int32_t a, int32_t pc, int32_t d)'>
+	<function>
 	| s st ac vals p |
 	ac := ir act: a.
 	s := ir newState.
@@ -682,7 +682,7 @@ checkInterruptAct: a pc: pc depth: d kind: k
 !OptBuilder methodsFor: 'bytecodes'!
 emit: pc act: a
 	"Build the instruction at a's pc; answer the next pc."
-	<c: 'int32_t opt_emit(int32_t pc, int32_t a)'>
+	<function>
 	| op d next v |
 	ir origin: a pc: pc.
 	op := self byteAt: pc act: a.
@@ -863,7 +863,7 @@ isClosure: v numArgs: n
 !
 inlineBlock: c info: d pc: pc act: a rcvSlot: r argc: argc
 	"Evaluate closure c here (made in this compilation, or by the frame: d describes it, an O_CLOSURE node): its body as an activation whose outer activation is the one that made it."
-	<c: 'void opt_inline_block(int32_t c, int32_t d, int32_t pc, int32_t a, int32_t r, int32_t argc)'>
+	<function>
 	| b ac def nd entry ret na nt fs size |
 	nd := ir node: d.
 	def := (nd aux2 >> 32) asInt32.
@@ -915,7 +915,7 @@ inlineBlock: c info: d pc: pc act: a rcvSlot: r argc: argc
 !
 escapingClosure
 	"A closure that something other than a frame state uses (it would have to be made): the activation that made it, -1 if there is none."
-	<c: 'int32_t opt_escaping_closure(void)'>
+	<function>
 	| nd |
 	0 to: ir nodeCount - 1 do: [:n |
 		nd := ir node: n.
@@ -934,7 +934,8 @@ usesClosure: v
 !
 closureOf: v depth: d
 	"The closure v is (through phis of it and themselves), -1 if none."
-	<c: 'int32_t opt_closure_of(int32_t v, int32_t d)'>
+	<function>
+	<returns: 'int32_t'>
 	| n nd c x |
 	n := ir resolve: v.
 	nd := ir node: n.
@@ -1156,7 +1157,7 @@ intArith: k x: x y: y pc: pc act: a rcvSlot: r
 !
 floatArith: k x: x y: y pc: pc act: a rcvSlot: r
 	"Float arithmetic or comparison k, speculated: SmallFloat64 or SmallInteger operands as doubles (two SmallIntegers: the SmallInteger operation), the result a SmallFloat64; anything else deoptimizes to the send."
-	<c: 'void opt_float_arith(int32_t k, int32_t x, int32_t y, int32_t pc, int32_t a, int32_t r)'>
+	<function>
 	<var: #merge type: 'int32_t'>
 	| s fx fy n merge t f test fl |
 	fl := feedback flagsAt: (ir act: a) method pc: pc.
@@ -1264,7 +1265,7 @@ sendSelector: sel argc: argc kind: kind special: k pc: pc act: a rcvSlot: r
 !
 inlineSend: sel argc: argc kind: kind special: k pc: pc act: a rcvSlot: r
 	"Inline the send for the receiver classes it is known or speculated to have; answer whether it did."
-	<c: 'bool opt_inline_send(uint64_t sel, int32_t argc, int32_t kind, int32_t k, int32_t pc, int32_t a, int32_t r)'>
+	<function>
 	| rcv cls site n merge s test next t g fl other |
 	rcv := self read: (self var: a slot: r).
 	kind = 1 ifTrue: [
@@ -1358,7 +1359,7 @@ performedAt: i act: a argc: n class: cls method: m
 !
 sendPerformed: sel to: rcv class: cls argc: n pc: pc act: a rcvSlot: r
 	"The receiver (of class cls) performs constant selector sel with n arguments: a send of sel, its arguments a slot down over the selector; frame states at the perform: keep its slots (deoptimization executes it again), sends made for it say so (SI_PERFORMED: their selector goes back)."
-	<c: 'bool opt_send_performed(uint64_t sel, int32_t rcv, uint64_t cls, int32_t n, int32_t pc, int32_t a, int32_t r)'>
+	<function>
 	0 to: n do: [:i | obPerformVals at: i put: (self read: (self var: a slot: r + 1 + i))].
 	0 to: n - 1 do: [:i | self write: (self var: a slot: r + 1 + i) value: (obPerformVals at: i + 1)].
 	obPerformAct := a.
@@ -1463,7 +1464,8 @@ primNamed: name kind: k
 !
 inlinePrimitive: p class: cls argc: argc pc: pc act: a rcvSlot: r
 	"The receiver (of class cls) is in a's slot r: inline primitive p if the optimizer knows it for cls (a failure deoptimizes to the send); answer whether it did."
-	<c: 'bool opt_inline_primitive(int64_t p, uint64_t cls, int32_t argc, int32_t pc, int32_t a, int32_t r)'>
+	<function>
+	<var: #p type: 'int64_t'>
 	| kind fmt spec fixed ek rcv s n idx val fl |
 	kind := self primKindOf: p.
 	kind = 0 ifTrue: [^false].
@@ -1577,7 +1579,7 @@ knownClassOf: v
 !
 canInline: m act: a
 	"m may be inlined into a: small, no primitive, only bytecodes the tier inlines, not too deep or recursive, within the budget."
-	<c: 'bool opt_can_inline(oop m, int32_t a)'>
+	<function>
 	| size bcs pc op depth p same |
 	(self loadRef: m at: CM_PRIMITIVE) ~= (self intOop: 0) ifTrue: [^false].
 	0 to: obNoInlineCount - 1 do: [:i | (obNoInline at: i) = m ifTrue: [^false]].
@@ -1603,7 +1605,7 @@ canInline: m act: a
 !
 inlineMethod: m receiverClass: cls pc: pc act: a rcvSlot: r argc: argc
 	"Build m's activation in place of the send at a's pc: its arguments are a's slots after the receiver; its returns go to a block where a continues with the result."
-	<c: 'void opt_inline_method(oop m, uint64_t cls, int32_t pc, int32_t a, int32_t r, int32_t argc)'>
+	<function>
 	| b ac entry ret |
 	b := self newActFor: m.
 	b < 0 ifTrue: [^self bail].

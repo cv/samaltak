@@ -218,7 +218,7 @@ primChangeClassTo
 	self answer: r
 !
 countInstance: o data: d
-	<c: 'void count_instance(oop o, void *d)'>
+	<function>
 	((self rawClass: o) = instancesClass and: [o ~= instancesResult]) ifTrue: [
 		(instancesResult ~= 0 and: [instancesCount >= (self numSlots: instancesResult)]) ifTrue: [^self].
 		instancesResult ~= 0 ifTrue: [self storeRef: instancesResult at: instancesCount put: o].
@@ -346,7 +346,7 @@ uppercase: c
 !
 convertCase: upper
 	"asUppercase (upper) or asLowercase of a ByteString or ByteSymbol: a new ByteString. Fails for others and for ÿ going up."
-	<c: 'void prim_convert_case(bool upper)'>
+	<function>
 	| r n s a b c |
 	r := self receiver.
 	(self isByteString: r) ifFalse: [^self fail].

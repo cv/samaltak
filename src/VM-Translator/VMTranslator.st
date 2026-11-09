@@ -1,5 +1,5 @@
 Object subclass: #VMTranslator
-	instanceVariableNames: 'registry moduleClasses modules externs functions errors headerName'
+	instanceVariableNames: 'registry moduleClasses modules externs functions errors headerName queue queued'
 	classVariableNames: ''
 	package: 'VM-Translator'!
 
@@ -7,6 +7,8 @@ VMTranslator comment: 'I translate Lowtalk modules (docs/lowtalk.md) into C: one
 
 	(VMTranslator modules: VMTranslator vmModules header: ''samaltak'') writeTo: ''vm/gen''.
 	VMTranslator generateVM	"what make translate runs"
+
+The C functions take their names from their selectors (assignCNames) and their signatures from their callers and returns (inferSignatures, TSignature).
 
 Errors (TranslationError) name the method and quote the source; translate collects them all before it fails.
 
@@ -125,10 +127,12 @@ translate
 	| cFunctions files |
 	cFunctions := OrderedCollection new.
 	self checkTargetOSes.
+	self assignCNames.
+	self inferSignatures.
 	self translatedModules do: [:m |
 		(m functions values asSortedCollection: [:a :b | a selector <= b selector]) do: [:f |
 			f isFunction ifTrue: [
-				[cFunctions add: ((TCodeGenerator translator: self) generate: f)]
+				[cFunctions add: ((TCodeGenerator translator: self inferring: false) generate: f)]
 					on: TranslationError
 					do: [:e | errors add: e messageText. e return: nil]]]].
 	errors notEmpty ifTrue: [^TranslationError signal: (errors inject: '' into: [:acc :e | acc , e , (String with: Character lf)])].
@@ -147,6 +151,88 @@ writeTo: aDirectory
 	(File exists: aDirectory) ifFalse: [Directory create: aDirectory].
 	files do: [:each | File writeText: each value to: aDirectory , '/' , each key].
 	^files collect: [:each | each key]
+!
+inferSignatures
+	"Every function's signature (TSignature): generate the functions as far as what is known allows (TCodeGenerator inferring), a function again whenever a signature it depends on changes, until none changes; the smallest first, since most of them return what a big caller wants to know. A function with parameters waits for a caller. Then literals alone give their own types, which may start another round. Answer how many generations it took."
+	| count |
+	queue := SortedCollection sortBlock: [:a :b | a ast source size <= b ast source size].
+	queued := IdentitySet new.
+	self translatedModules do: [:m |
+		(m functions values asSortedCollection: [:a :b | a selector <= b selector]) do: [:f |
+			(f isFunction and: [f parametersKnown]) ifTrue: [self enqueue: f]]].
+	count := 0.
+	[[queue isEmpty] whileFalse: [
+		| f |
+		f := queue removeFirst.
+		queued remove: f.
+		count := count + 1.
+		count > 20000 ifTrue: [^self error: 'the signatures do not settle'].
+		(TCodeGenerator translator: self inferring: true) generate: f].
+	 self adoptConstants] whileTrue.
+	queue := nil.
+	^count
+!
+adoptConstants
+	"Signatures that have seen nothing but literals take their types now; answer whether any did (the queue has work then)."
+	| any |
+	any := false.
+	self translatedModules do: [:m |
+		(m functions values asSortedCollection: [:a :b | a selector <= b selector]) do: [:f |
+			(f isFunction and: [f signature adoptConstants]) ifTrue: [any := true]]].
+	^any
+!
+enqueue: aTFunction
+	"To be generated (again): only inside inferSignatures, and only functions of the modules I translate."
+	queue isNil ifTrue: [^self].
+	((aTFunction isFunction and: [moduleClasses identityIncludes: aTFunction module moduleClass]) and: [(queued includes: aTFunction) not]) ifTrue: [
+		queued add: aTFunction.
+		queue add: aTFunction]
+! !
+
+!VMTranslator methodsFor: 'names'!
+assignCNames
+	"Every function's C name: the first keyword of its selector in snake case (TFunction>>baseName); one that another function or a C library, global, local or type name claims too takes its module's name in front, and if that still clashes (same module, same first keyword) its whole selector. An interface and its implementations are one function."
+	| functions names reserved |
+	self moduleClassesWithSuperclasses do: [:c | self moduleFor: c].
+	functions := self functionsSorted reject: [:f | f interface notNil].
+	names := IdentityDictionary new.
+	functions do: [:f | names at: f put: f baseName].
+	reserved := self reservedCNames.
+	#(moduleQualifiedName fullyQualifiedName) do: [:qualified |
+		| counts |
+		counts := Bag withAll: names values.
+		functions do: [:f |
+			((reserved includes: (names at: f)) or: [(counts occurrencesOf: (names at: f)) > 1])
+				ifTrue: [names at: f put: (f perform: qualified)]]].
+	(Set withAll: names values) size = functions size ifFalse: [^self error: 'two functions have the same C name'].
+	modules do: [:m |
+		m functions do: [:f |
+			f isFunction ifTrue: [f cName: (names at: (f interface ifNil: [f]))]]]
+!
+functionsSorted
+	"Every function, translated or an interface's, in a stable order."
+	| all |
+	all := OrderedCollection new.
+	(modules values asSortedCollection: [:a :b | a name <= b name]) do: [:m |
+		(m functions values asSortedCollection: [:a :b | a selector <= b selector]) do: [:f |
+			f isFunction ifTrue: [all add: f]]].
+	^all
+!
+reservedCNames
+	"The names a function may not take: C library names and what the system headers declare, globals, the names of types, and every name a local in the modules' code goes by (a local would hide the function)."
+	| names |
+	names := Set withAll: #('ops' 'local' 'stop' 'v' 'memset' 'vm_primitive_table' 'vm_primitive_count' 'system' 'semaphore_signal' 'semaphore_wait').
+	names addAll: registry typeNames.
+	CLibrary allSubclasses do: [:lib |
+		lib selectors do: [:sel |
+			| m |
+			m := lib compiledMethodAt: sel.
+			(m pragmas notNil and: [m pragmas anySatisfy: [:p | #(#c: #cVariable: #cMacro:) includes: p selector]]) ifTrue: [
+				names add: (self externFor: sel library: lib) cName]]].
+	modules do: [:m |
+		m globals do: [:g | g isModuleReference ifFalse: [names add: g cName]].
+		m functions do: [:f | names addAll: f localNames]].
+	^names
 ! !
 
 !VMTranslator methodsFor: 'operating systems'!

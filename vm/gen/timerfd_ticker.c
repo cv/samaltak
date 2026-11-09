@@ -6,10 +6,10 @@
 
 static int32_t fds[4] = {-1, -1, -1, -1};
 
-static void *timerfd_ticker(void *arg);
+static void *timerfd_ticker_run(void *arg);
 
 /* TimerfdTicker>>arm:microseconds:periodic: */
-void tick_arm(int ident, int64_t us, bool periodic)
+void arm(int ident, int64_t us, bool periodic)
 {
     int fd;
     pthread_t local;
@@ -36,7 +36,7 @@ void tick_arm(int ident, int64_t us, bool periodic)
         fds[ident] = fd;
         memset(&local, 0, sizeof local);
         t = &local;
-        if (pthread_create(t, (const pthread_attr_t *)NULL, timerfd_ticker, (void *)(int64_t)ident) != 0) {
+        if (pthread_create(t, (const pthread_attr_t *)NULL, timerfd_ticker_run, (void *)(int64_t)ident) != 0) {
             fatal_begin();
             fprintf(stderr, "cannot start a ticker thread");
             fatal_end();
@@ -58,7 +58,7 @@ void tick_arm(int ident, int64_t us, bool periodic)
 }
 
 /* TimerfdTicker>>run: */
-static void *timerfd_ticker(void *arg)
+static void *timerfd_ticker_run(void *arg)
 {
     int32_t ident;
     uint64_t local;
@@ -80,7 +80,7 @@ void ticker_start(void)
 }
 
 /* TimerfdTicker>>threadCycles */
-int64_t ticker_thread_cycles(void)
+int64_t thread_cycles(void)
 {
     return -1;
 }

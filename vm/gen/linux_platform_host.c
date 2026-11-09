@@ -11,22 +11,22 @@ static atomic_bool vsync_on;
 static atomic_int vsync_period_us;
 static bool vsync_started;
 
-static void *linux_vsync(void *arg);
+static void *vsync_run(void *arg);
 
 /* LinuxPlatformHost>>altKeymod */
-SDL_Keymod pf_host_alt_keymod(void)
+SDL_Keymod alt_keymod(void)
 {
     return SDL_KMOD_GUI;
 }
 
 /* LinuxPlatformHost>>cmdKeymod */
-SDL_Keymod pf_host_cmd_keymod(void)
+SDL_Keymod cmd_keymod(void)
 {
     return SDL_KMOD_ALT;
 }
 
 /* LinuxPlatformHost>>compileShader:stage:size: */
-void *pf_host_compile_shader(const char *source, int stage, size_t *size_out)
+void *compile_shader(char *source, int32_t stage, size_t *size_out)
 {
     shaderc_compile_options_t r_options_defining;
     shaderc_compile_options_t o;
@@ -56,24 +56,24 @@ void *pf_host_compile_shader(const char *source, int stage, size_t *size_out)
     r_options_defining_2; });
     }
     if ((compiler == NULL) || ((vertex_options == NULL) || (fragment_options == NULL))) {
-        pf_set_error("cannot initialize shaderc");
+        set_error("cannot initialize shaderc");
         return NULL;
     }
     fragment = stage == PF_STAGE_FRAGMENT;
     r = shaderc_compile_into_spv(compiler, source, strlen(source), fragment ? shaderc_fragment_shader : shaderc_vertex_shader, fragment ? "fragment" : "vertex", "main", fragment ? fragment_options : vertex_options);
     if (r == NULL) {
-        pf_set_error("shaderc: out of memory");
+        set_error("shaderc: out of memory");
         return NULL;
     }
     if (shaderc_result_get_compilation_status(r) != shaderc_compilation_status_success) {
-        pf_set_error(shaderc_result_get_error_message(r));
+        set_error(shaderc_result_get_error_message(r));
         shaderc_result_release(r);
         return NULL;
     }
     n = shaderc_result_get_length(r);
     code = malloc(n);
     if (code == NULL) {
-        pf_set_error("out of memory");
+        set_error("out of memory");
     } else {
         memcpy(code, shaderc_result_get_bytes(r), n);
         *size_out = n;
@@ -83,25 +83,25 @@ void *pf_host_compile_shader(const char *source, int stage, size_t *size_out)
 }
 
 /* LinuxPlatformHost>>environment */
-char **pf_host_environ(void)
+char **environment(void)
 {
     return environ;
 }
 
 /* LinuxPlatformHost>>shaderFormats */
-SDL_GPUShaderFormat pf_host_shader_formats(void)
+SDL_GPUShaderFormat shader_formats(void)
 {
     return SDL_GPU_SHADERFORMAT_SPIRV;
 }
 
 /* LinuxPlatformHost>>socketOpened: */
-void pf_host_socket_opened(int fd)
+void socket_opened(int fd)
 {
     signal(SIGPIPE, SIG_IGN);
 }
 
 /* LinuxPlatformHost>>vsyncRun: */
-static void *linux_vsync(void *arg)
+static void *vsync_run(void *arg)
 {
     struct timespec local;
     struct timespec *next;
@@ -131,7 +131,7 @@ static void *linux_vsync(void *arg)
                 *now = *next;
             }
             clock_nanosleep(CLOCK_MONOTONIC, TIMER_ABSTIME, next, (struct timespec *)NULL);
-            pf_vsync_refreshed();
+            refreshed();
         } else {
             nanosleep(nap, (struct timespec *)NULL);
             clock_gettime(CLOCK_MONOTONIC, next);
@@ -141,7 +141,7 @@ static void *linux_vsync(void *arg)
 }
 
 /* LinuxPlatformHost>>vsyncStart */
-bool pf_host_vsync_start(void)
+bool vsync_start(void)
 {
     const SDL_DisplayMode *mode;
     double rate;
@@ -154,8 +154,8 @@ bool pf_host_vsync_start(void)
     if (!vsync_started) {
         memset(&local, 0, sizeof local);
         t = &local;
-        if (pthread_create(t, (const pthread_attr_t *)NULL, linux_vsync, NULL) != 0) {
-            pf_set_error("cannot start the vsync thread");
+        if (pthread_create(t, (const pthread_attr_t *)NULL, vsync_run, NULL) != 0) {
+            set_error("cannot start the vsync thread");
             return false;
         }
         pthread_detach(*t);
@@ -165,7 +165,7 @@ bool pf_host_vsync_start(void)
 }
 
 /* LinuxPlatformHost>>vsyncStop */
-void pf_host_vsync_stop(void)
+void vsync_stop(void)
 {
     atomic_store_explicit(&vsync_on, false, memory_order_relaxed);
 }

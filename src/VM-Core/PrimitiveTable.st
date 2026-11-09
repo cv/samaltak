@@ -17,7 +17,7 @@ initialize
 
 !PrimitiveTable methodsFor: 'table'!
 initTable
-	<c: 'void init_prim_table(void)'>
+	<function>
 	| t e |
 	initialized ifTrue: [^self].
 	initialized := true.
@@ -31,7 +31,7 @@ initTable
 		flags at: e number put: e flags]
 !
 lookup: n
-	<c: 'prim_fn prim_lookup(int64_t n)'>
+	<function>
 	self initTable.
 	^(n > 0 and: [n < MAX_PRIM]) ifTrue: [byNumber at: n] ifFalse: [self null]
 !
@@ -40,16 +40,16 @@ flagsOf: n
 	^(n > 0 and: [n < MAX_PRIM]) ifTrue: [flags at: n] ifFalse: [0]
 !
 isLeaf: n
-	<c: 'bool prim_is_leaf(int64_t n)'>
+	<function>
 	^((self flagsOf: n) bitAnd: PRIM_LEAF) ~= 0
 !
 isTryable: n
-	<c: 'bool prim_tryable(int64_t n)'>
+	<function>
 	^((self flagsOf: n) bitAnd: PRIM_TRYABLE) ~= 0
 !
 namesArray
 	"Array: element n is the name of primitive n (nil for gaps)."
-	<c: 'oop primitive_names_array(void)'>
+	<function>
 	| t max a root s e |
 	t := self primitiveTable.
 	max := 0.

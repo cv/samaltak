@@ -100,6 +100,10 @@ at: aString put: aCType
 constantAt: aString ifAbsent: aBlock
 	^constants at: aString ifAbsent: aBlock
 !
+typeNames
+	"The C names of my types."
+	^types keys
+!
 structTypes
 	^(types values select: [:t | t isStruct]) asSet
 ! !

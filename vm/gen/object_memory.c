@@ -23,27 +23,27 @@ static uint64_t sample_mark;
 oop specials_oop;
 oop true_oop;
 
-static oop alloc_old_try(oop cls, int fmt, uint32_t n);
-static uint64_t alloc_slow(oop *cls, size_t bytes);
-static oop alloc_words32(oop cls, size_t n);
+static uint64_t alloc_old_try(oop cls, int32_t fmt, uint32_t n);
+static uint64_t alloc_slow(oop *cls, uint64_t bytes);
+static uint64_t alloc_words32(oop cls, uint64_t n);
 static bool large_magnitude(oop o, uint64_t *mag, bool *neg);
 static uint32_t next_hash(void);
 static size_t utf8_decode(uint8_t *s, size_t n, size_t *index);
 
 /* ObjectMemory>>allocBytes:count: */
-oop alloc_bytes(oop cls, size_t n)
+uint64_t alloc_bytes(oop cls, uint64_t n)
 {
     return alloc_obj(cls, F_BYTES + (int32_t)((8 - n % 8) % 8), (uint32_t)((n + 7) / 8));
 }
 
 /* ObjectMemory>>allocContext: */
-oop alloc_context(uint32_t n)
+uint64_t alloc_context(uint32_t n)
 {
     return alloc_obj(cls_context, F_FIXVAR, CTX_FIXED + n);
 }
 
 /* ObjectMemory>>allocObj:format:slots: */
-oop alloc_obj(oop cls, int fmt, uint32_t n)
+uint64_t alloc_obj(oop cls, int32_t fmt, uint32_t n)
 {
     uint64_t bytes;
     uint64_t p;
@@ -105,9 +105,9 @@ oop alloc_obj(oop cls, int fmt, uint32_t n)
 }
 
 /* ObjectMemory>>allocObjTry:format:slots: */
-oop alloc_obj_try(oop cls, int fmt, size_t n)
+uint64_t alloc_obj_try(oop cls, int32_t fmt, uint64_t n)
 {
-    size_t bytes;
+    uint64_t bytes;
     if (n > 0xFFFFFFFFLL) {
         return 0;
     }
@@ -122,9 +122,9 @@ oop alloc_obj_try(oop cls, int fmt, size_t n)
 }
 
 /* ObjectMemory>>allocOld:format:slots: */
-oop alloc_old(oop cls, int fmt, uint32_t n)
+uint64_t alloc_old(oop cls, int32_t fmt, uint32_t n)
 {
-    oop o;
+    uint64_t o;
     uint64_t a;
     o = alloc_old_try(cls, fmt, n);
     if (o == 0) {
@@ -137,7 +137,7 @@ oop alloc_old(oop cls, int fmt, uint32_t n)
 }
 
 /* ObjectMemory>>allocOldTry:format:slots: */
-static oop alloc_old_try(oop cls, int fmt, uint32_t n)
+static uint64_t alloc_old_try(oop cls, int32_t fmt, uint32_t n)
 {
     oop local;
     oop *cls_root;
@@ -178,7 +178,7 @@ static oop alloc_old_try(oop cls, int fmt, uint32_t n)
     if (((o & 7) == 0) && ({
     o_2 = *cls_root;
     (uint64_t)(o_2 - young_lo) < young_hi - young_lo; })) {
-        vm_remember(p);
+        remember(p);
     }
     return p;
 }
@@ -196,7 +196,7 @@ oop alloc_slots(oop cls, uint32_t n)
 }
 
 /* ObjectMemory>>allocSlow:bytes: */
-static uint64_t alloc_slow(oop *cls, size_t bytes)
+static uint64_t alloc_slow(oop *cls, uint64_t bytes)
 {
     int64_t n;
     int64_t n_2;
@@ -230,7 +230,7 @@ static uint64_t alloc_slow(oop *cls, size_t bytes)
 }
 
 /* ObjectMemory>>allocWords32:count: */
-static oop alloc_words32(oop cls, size_t n)
+static uint64_t alloc_words32(oop cls, uint64_t n)
 {
     return alloc_obj(cls, F_W32 + (int32_t)(n & 1), (uint32_t)((n + 1) / 2));
 }
@@ -292,11 +292,11 @@ uint32_t fixed_fields(oop o)
 }
 
 /* ObjectMemory>>floatOop: */
-oop float_oop(double d)
+uint64_t float_oop(double d)
 {
     uint64_t b;
     uint32_t e;
-    oop f;
+    uint64_t f;
     b = lt_bits_of_double(d);
     if ((b << 1) == 0) {
         return (b >> 63 << 3) | 4;
@@ -360,14 +360,14 @@ size_t indexable_size(oop o)
 }
 
 /* ObjectMemory>>instantiate:size:error: */
-oop instantiate(oop cls, size_t n, int *err)
+oop instantiate(oop cls, uint64_t n, int *err)
 {
     uint64_t fo;
     int64_t spec;
     int64_t isize;
     int fmt;
     uint64_t nslots;
-    oop o;
+    uint64_t o;
     *err = -1;
     if ((!((cls & 7) == 0)) || ((uint32_t)*(uint64_t *)cls <= BEH_FORMAT)) {
         return nil_oop;
@@ -434,12 +434,12 @@ bool int64_of(oop o, int64_t *out)
 }
 
 /* ObjectMemory>>int64Oop: */
-oop int64_oop(int64_t v)
+uint64_t int64_oop(int64_t v)
 {
     if ((v >= VM_INT_MIN) && (v <= VM_INT_MAX)) {
         return (uint64_t)((v << 1) | 1);
     }
-    return v < 0 ? large_int_from_u64((uint64_t)(0 - v), true) : large_int_from_u64((uint64_t)v, false);
+    return v < 0 ? large_int_from((uint64_t)(0 - v), true) : large_int_from((uint64_t)v, false);
 }
 
 /* ObjectMemory>>isFloat: */
@@ -456,15 +456,15 @@ bool is_kind_of_string(oop o)
         return false;
     }
     c = *(uint64_t *)(o + 8);
-    return (c == cls_bytestring) || ((c == special(SO_BYTESYMBOL)) || ((c == special(SO_WIDESTRING)) || (c == special(SO_WIDESYMBOL))));
+    return (c == cls_bytestring) || ((c == object_memory_special(SO_BYTESYMBOL)) || ((c == object_memory_special(SO_WIDESTRING)) || (c == object_memory_special(SO_WIDESYMBOL))));
 }
 
 /* ObjectMemory>>largeIntFrom:negative: */
-oop large_int_from_u64(uint64_t v, bool negative)
+uint64_t large_int_from(oop v, bool negative)
 {
     int64_t n;
-    uint64_t t;
-    oop o;
+    oop t;
+    uint64_t o;
     int64_t i;
     n = 0;
     t = v;
@@ -475,7 +475,7 @@ oop large_int_from_u64(uint64_t v, bool negative)
     if (n == 0) {
         n = 1;
     }
-    o = alloc_bytes(special(negative ? SO_LARGENEG : SO_LARGEPOS), (uint64_t)n);
+    o = alloc_bytes(object_memory_special(negative ? SO_LARGENEG : SO_LARGEPOS), (uint64_t)n);
     for (i = 0; i <= n - 1; i++) {
         ((uint8_t *)(o + 16))[i] = (uint8_t)((v >> (8 * i)) & 255);
     }
@@ -494,10 +494,10 @@ static bool large_magnitude(oop o, uint64_t *mag, bool *neg)
         return false;
     }
     c = *(uint64_t *)(o + 8);
-    if (c == special(SO_LARGEPOS)) {
+    if (c == object_memory_special(SO_LARGEPOS)) {
         *neg = false;
     } else {
-        if (!(c == special(SO_LARGENEG))) {
+        if (!(c == object_memory_special(SO_LARGENEG))) {
             return false;
         }
         *neg = true;
@@ -519,9 +519,9 @@ static bool large_magnitude(oop o, uint64_t *mag, bool *neg)
 }
 
 /* ObjectMemory>>memoryInit:maxHeap: */
-void memory_init(size_t eden_bytes, size_t max_heap)
+void memory_init(uint64_t eden_bytes, uint64_t max_heap)
 {
-    gc_init(eden_bytes, max_heap);
+    garbage_collector_init(eden_bytes, max_heap);
     large_object_bytes = eden_bytes / 8 > 65536 ? eden_bytes / 8 : 65536;
     reset_alloc_limit();
 }
@@ -594,7 +594,7 @@ void reset_alloc_limit(void)
 }
 
 /* ObjectMemory>>special: */
-oop special(int index)
+oop object_memory_special(int index)
 {
     if ((index < 0) || ((uint32_t)index >= (uint32_t)*(uint64_t *)specials_oop)) {
         return nil_oop;
@@ -603,7 +603,7 @@ oop special(int index)
 }
 
 /* ObjectMemory>>stringCharAt:index: */
-uint32_t string_char_at(oop s, size_t i)
+uint32_t string_char_at(oop s, uint64_t i)
 {
     if ((int32_t)(((*(uint64_t *)s) >> H_FMT_SHIFT) & H_FMT_MASK) >= F_BYTES) {
         return ((uint8_t *)(s + 16))[i];
@@ -612,7 +612,7 @@ uint32_t string_char_at(oop s, size_t i)
 }
 
 /* ObjectMemory>>stringFromUtf8:size: */
-oop string_from_utf8(const char *str, size_t n)
+uint64_t string_from_utf8(const char *str, size_t n)
 {
     uint8_t *s;
     uint64_t count;
@@ -620,7 +620,7 @@ oop string_from_utf8(const char *str, size_t n)
     size_t local;
     size_t *i;
     size_t cp;
-    oop r;
+    uint64_t r;
     uint8_t *b;
     uint32_t *w;
     s = (uint8_t *)str;
@@ -646,7 +646,7 @@ oop string_from_utf8(const char *str, size_t n)
         }
         return r;
     }
-    r = alloc_words32(special(SO_WIDESTRING), count);
+    r = alloc_words32(object_memory_special(SO_WIDESTRING), count);
     w = (uint32_t *)(r + 16);
     *i = 0;
     while (*i < n) {

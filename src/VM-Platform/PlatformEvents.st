@@ -3,7 +3,7 @@ VMPlatformModule subclass: #PlatformEvents
 	classVariableNames: ''
 	package: 'VM-Platform'!
 
-PlatformEvents comment: 'The event queue: one FIFO holds translated SDL events and injected ones, so remote input is indistinguishable from real input. The input semaphore is signaled once when events are pending and re-armed by every pf_event_next. The FIFO holds at most PF_EVENT_QUEUE_MAX events; further events are dropped and counted.'!
+PlatformEvents comment: 'The event queue: one FIFO holds translated SDL events and injected ones, so remote input is indistinguishable from real input. The input semaphore is signaled once when events are pending and re-armed by every platform_events_next. The FIFO holds at most PF_EVENT_QUEUE_MAX events; further events are dropped and counted.'!
 
 !PlatformEvents class methodsFor: 'declaring'!
 declarations
@@ -22,7 +22,6 @@ pending
 !PlatformEvents methodsFor: 'queue'!
 push: e
 	"Copies the text; drops the event if the queue is full."
-	<c: 'void pf_event_push(pf_event *e)'>
 	<export>
 	<var: #text type: 'char *'>
 	| cap n text d |
@@ -53,13 +52,11 @@ push: e
 !
 dropped
 	"Events dropped since startup."
-	<c: 'int64_t pf_event_dropped(void)'>
 	<export>
 	^qDropped
 !
 next: out
 	"The caller frees out text."
-	<c: 'bool pf_event_next(pf_event *out)'>
 	<export>
 	inputArmed := true.
 	qLen = 0 ifTrue: [^false].
@@ -70,14 +67,13 @@ next: out
 !
 setSemaphore: index
 	"0 = none."
-	<c: 'void pf_event_set_semaphore(int index)'>
 	<export>
 	inputSem := index.
 	inputArmed := true
 !
 signalReady
 	"Signal the vsync semaphore if a refresh is due, and the input semaphore if events are pending."
-	<c: 'void pf_signal_ready(void)'>
+	<function>
 	vsync poll.
 	(qLen ~= 0 and: [inputSem ~= 0 and: [inputArmed]]) ifTrue: [
 		inputArmed := false.
@@ -85,14 +81,13 @@ signalReady
 !
 updatePollInterval
 	"After video init or socket semaphore changes."
-	<c: 'void pf_update_poll_interval(void)'>
 	<export>
 	scheduler requestPeriodicPoll: ((windows videoInited or: [sockets anyArmed]) ifTrue: [PF_POLL_US] ifFalse: [0])
 ! !
 
 !PlatformEvents methodsFor: 'SDL events'!
 modsOf: m
-	<c: 'int mods_of(SDL_Keymod m)'>
+	<function>
 	^((((m bitAnd: sdl SDL_KMOD_SHIFT) ~= 0 ifTrue: [PF_MOD_SHIFT] ifFalse: [0])
 		bitOr: ((m bitAnd: sdl SDL_KMOD_CTRL) ~= 0 ifTrue: [PF_MOD_CTRL] ifFalse: [0]))
 		bitOr: ((m bitAnd: host altKeymod) ~= 0 ifTrue: [PF_MOD_ALT] ifFalse: [0]))
@@ -100,7 +95,7 @@ modsOf: m
 !
 translate: e
 	"Queue the pf_event of an SDL event (others, the wake event among them, are ignored)."
-	<c: 'void translate(SDL_Event *e)'>
+	<function>
 	| ev now age t |
 	ev := self local: 'pf_event'.
 	now := sdl getTicksNS.
@@ -155,7 +150,7 @@ translate: e
 		(keyMods bitAnd: host cmdKeymod) ~= 0 ifTrue: [^self].
 		ev type: PF_EV_TEXT_INPUT.
 		ev xkind: PF_X_TEXT.
-		"pf_event_push copies it"
+		"platform_events_push copies it"
 		ev text: (self cCoerce: e text text to: 'char *').
 		ev window: (windows fromSDLId: e text windowID).
 		^self push: ev].
@@ -187,7 +182,7 @@ translate: e
 !
 pump
 	"Translate the pending SDL events."
-	<c: 'void pf_pump(void)'>
+	<function>
 	| e |
 	windows videoInited ifFalse: [^self].
 	e := self local: 'SDL_Event'.

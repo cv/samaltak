@@ -16,7 +16,7 @@ testBuildCompilesTheEditedVM
 	tool := VMRebuilder openAt: 100 @ 100.
 	dir := self scratchDirectory , '/vm'.
 	original := VMMain compiledMethodAt: #banner.
-	VMMain compile: 'banner <c: ''const char *vm_banner(void)''> ^''Samaltak VM (test)''' classified: 'running'.
+	VMMain compile: 'banner <function> ^''Samaltak VM (test)''' classified: 'running'.
 	vm := [tool build: dir] ensure: [VMMain addSelector: #banner withMethod: original].
 	self assert: vm equals: dir , '/samaltak'.
 	tool window sync: [tool update].

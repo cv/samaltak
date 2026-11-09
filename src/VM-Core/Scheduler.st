@@ -83,24 +83,24 @@ statProcessSwitches
 
 !Scheduler methodsFor: 'time'!
 rawNowUs
-	<c: 'int64_t raw_now_us(void)'>
+	<function>
 	| ts |
 	ts := self local: 'Timespec'.
 	posix clockGettime: posix CLOCK_MONOTONIC into: ts.
 	^(ts tv_sec * 1000000) + (ts tv_nsec quo: 1000)
 !
 nowUs
-	<c: 'int64_t now_us(void)'>
+	<function>
 	workClockOn ifTrue: [^self workClockSync].
 	^self rawNowUs - startUs
 !
 nowMs
-	<c: 'int64_t now_ms(void)'>
+	<function>
 	^self nowUs quo: 1000
 !
 threadCpuUs
 	"The VM thread's CPU time, which Processes are charged: wall time would charge the running one while the OS runs other threads. While recording its cycles at the work clock's rate."
-	<c: 'int64_t thread_cpu_us(void)'>
+	<function>
 	workClockOn ifTrue: [^self workClockThreadCycles quo: WORK_CYCLES_PER_US].
 	^self realThreadCpuUs
 !
@@ -112,20 +112,19 @@ realThreadCpuUs
 !
 uncharge: us
 	"The running Process is not charged us of the VM's own work (the JIT compiling)."
-	<c: 'void sched_uncharge(int64_t us)'>
+	<function>
 	lastSwitchUs := lastSwitchUs + us
 ! !
 
 !Scheduler methodsFor: 'interrupts'!
 requestInterruptCheck
 	"Any thread."
-	<c: 'void request_interrupt_check(void)'>
+	<function>
 	self atomicStore: #interruptPending value: 1.
 	jit requestInterrupt
 !
 signalExternalSemaphore: index
 	"1-based index into externalObjects; VM thread only, queued."
-	<c: 'void signal_external_semaphore(int index)'>
 	<export>
 	pendingExtN = pendingExtCap ifTrue: [
 		pendingExtCap := pendingExtCap = 0 ifTrue: [64] ifFalse: [pendingExtCap * 2].
@@ -139,7 +138,7 @@ signalExternalSemaphore: index
 !Scheduler methodsFor: 'work clock'!
 workClockStart: fps semaphore: index
 	"From now on the clock is the work clock (see my comment), running. With fps > 0, external semaphore index is signaled when frame k is due, on the millisecond grid of the clock (the Delays'): ceiling(k × 1000 / fps) ms after frame 0, which is due at the next whole millisecond (kept if that semaphore is already armed). Answer when frame 0 is."
-	<c: 'int64_t work_clock_start(int64_t fps, int32_t index)'>
+	<function>
 	workClockOn ifFalse: [
 		workClockUs := self nowUs.
 		workClockUsesCycles := ticker threadCycles >= 0.
@@ -164,7 +163,7 @@ workClockStart: fps semaphore: index
 !
 workClockStop
 	"Back to the real clock, which goes on from the work clock's time."
-	<c: 'void work_clock_stop(void)'>
+	<function>
 	workClockOn ifFalse: [^self].
 	self workClockSync.
 	startUs := self rawNowUs - workClockUs.
@@ -175,12 +174,12 @@ workClockStop
 !
 workClockRunning: aBoolean
 	"Whether a command of the driver is in flight: the clock stands still between commands."
-	<c: 'void work_clock_set_running(bool running)'>
+	<function>
 	workClockOn ifTrue: [self workClockSetRunning: aBoolean paced: workClockPaced]
 !
 workClockPaced: aBoolean
 	"Whether an external program is running: the clock then moves at least as fast as real time, even between commands."
-	<c: 'void work_clock_set_paced(bool paced)'>
+	<function>
 	workClockOn ifTrue: [self workClockSetRunning: workClockRunning paced: aBoolean]
 !
 workClockSetRunning: running paced: paced
@@ -194,18 +193,18 @@ workClockSetRunning: running paced: paced
 !
 workClockNextFrame
 	"When the next frame is due (µs), < 0 while the work clock is off."
-	<c: 'int64_t work_clock_next_frame(void)'>
+	<function>
 	workClockOn ifFalse: [^-1].
 	^frameNextUs
 !
 workClockQuerying: aBoolean
 	"A query is being served with the clock standing still: Processes below the floor may run if it waits for one (it may hold a lock the query needs); the clock stays where it is."
-	<c: 'void work_clock_set_querying(bool querying)'>
+	<function>
 	workClockQuerying := aBoolean
 !
 workClockHold
 	"The Compositor's frame begins: its work does not move the clock (Compositor>>frameOnWorkClock)."
-	<c: 'void work_clock_hold(void)'>
+	<function>
 	workClockOn ifFalse: [^self].
 	self workClockSync.
 	workClockHeld := true.
@@ -213,7 +212,7 @@ workClockHold
 !
 workClockRelease
 	"The frame ended: answer its work, in µs at the clock's rate."
-	<c: 'int64_t work_clock_release(void)'>
+	<function>
 	| now |
 	workClockOn ifFalse: [^0].
 	now := self workClockThreadCycles.
@@ -224,13 +223,13 @@ workClockRelease
 !
 workClockHeldUs
 	"During a frame the clock stands still; this one, its time plus the frame's work so far, does not: for the times the frame reports, and how long a garbage collection in it took."
-	<c: 'int64_t work_clock_held_us(void)'>
+	<function>
 	workClockHeld ifFalse: [^self nowUs].
 	^workClockUs + ((self workClockThreadCycles - workClockHoldCycles) quo: WORK_CYCLES_PER_US)
 !
 workClockCharge: us
 	"A frame took longer than a tick: the clock passes the excess."
-	<c: 'void work_clock_charge(int64_t us)'>
+	<function>
 	workClockOn ifFalse: [^self].
 	workClockUs := workClockUs + us
 !
@@ -303,13 +302,13 @@ lowestRunList
 !Scheduler methodsFor: 'ticker'!
 tickFired: ident
 	"The Ticker's thread: timer ident (TICK_DEADLINE, TICK_POLL) fired; request an interrupt check."
-	<c: 'void tick_fired(int ident)'>
+	<function>
 	ident = TICK_DEADLINE ifTrue: [self atomicStore: #tickDeadlineFired value: true].
 	self requestInterruptCheck
 !
 tickUpdate
 	"A pending one-shot is not armed twice; one that fired before its deadline (clock skew) is armed again."
-	<c: 'void tick_update(void)'>
+	<function>
 	| due poll now |
 	due := 16r7FFFFFFFFFFFFFFF.
 	poll := tickIdle ifTrue: [0] ifFalse: [workClockOn ifTrue: [WORK_CLOCK_POLL_US] ifFalse: [tickPollUs]].
@@ -326,19 +325,19 @@ tickUpdate
 		tickArmedPoll := poll]
 !
 tickSetIdle: aBoolean
-	<c: 'void tick_set_idle(bool idle)'>
+	<function>
 	tickIdle := aBoolean.
 	self tickUpdate
 !
 requestPeriodicPoll: intervalUs
 	"While Smalltalk runs, check interrupts (and so poll the platform) at least every intervalUs; 0 = only on request."
-	<c: 'void request_periodic_poll(int64_t interval_us)'>
+	<var: #intervalUs type: 'int64_t'>
 	<export>
 	tickPollUs := intervalUs > 0 ifTrue: [intervalUs] ifFalse: [0].
 	self tickUpdate
 !
 init
-	<c: 'void sched_init(void)'>
+	<function>
 	startUs := self rawNowUs.
 	lastPreempted := memory nilOop.
 	allocSampleClass := memory nilOop.
@@ -348,7 +347,7 @@ init
 
 !Scheduler methodsFor: 'linked lists'!
 addLastLink: link to: list
-	<c: 'void add_last_link(oop list, oop link)'>
+	<function>
 	self storeRef: link at: PROC_NEXT put: memory nilOop.
 	(self loadRef: list at: LL_FIRST) = memory nilOop
 		ifTrue: [self storeRef: list at: LL_FIRST put: link]
@@ -357,7 +356,7 @@ addLastLink: link to: list
 	self storeRef: link at: PROC_MYLIST put: list
 !
 removeFirstLink: list
-	<c: 'oop remove_first_link(oop list)'>
+	<function>
 	| first next |
 	first := self loadRef: list at: LL_FIRST.
 	first = memory nilOop ifTrue: [^memory nilOop].
@@ -369,14 +368,14 @@ removeFirstLink: list
 	^first
 !
 addFirstLink: link to: list
-	<c: 'void add_first_link(oop list, oop link)'>
+	<function>
 	self storeRef: link at: PROC_NEXT put: (self loadRef: list at: LL_FIRST).
 	(self loadRef: list at: LL_FIRST) = memory nilOop ifTrue: [self storeRef: list at: LL_LAST put: link].
 	self storeRef: list at: LL_FIRST put: link.
 	self storeRef: link at: PROC_MYLIST put: list
 !
 removeLink: link from: list
-	<c: 'bool remove_link(oop list, oop link)'>
+	<function>
 	| prev cur next |
 	prev := memory nilOop.
 	cur := self loadRef: list at: LL_FIRST.
@@ -399,11 +398,11 @@ processor
 	^memory special: SO_PROCESSOR
 !
 activeProcess
-	<c: 'oop active_process(void)'>
+	<function>
 	^self loadRef: self processor at: SCHED_ACTIVE
 !
 priorityOf: p
-	<c: 'int64_t priority_of(oop p)'>
+	<function>
 	| v pr |
 	v := self loadRef: p at: PROC_PRIORITY.
 	pr := (self isInt: v) ifTrue: [self intVal: v] ifFalse: [1].
@@ -414,7 +413,7 @@ runList: pri
 !
 transferTo: aProcess
 	"Save the active context into the outgoing process and switch to aProcess."
-	<c: 'void transfer_to(oop proc)'>
+	<function>
 	| proc old now ct ctx |
 	proc := self local: 'oop'.
 	proc value: aProcess.
@@ -436,7 +435,7 @@ transferTo: aProcess
 	statProcessSwitches := statProcessSwitches + 1
 !
 idleWait
-	<c: 'void idle_wait(void)'>
+	<function>
 	| now wait |
 	inIdle := true.
 	(pendingExtN = 0 and: [allocSamplePending not]) ifTrue: [
@@ -455,7 +454,7 @@ idleWait
 	inIdle := false
 !
 transferToHighest
-	<c: 'void transfer_to_highest(void)'>
+	<function>
 	| lists l |
 	[lists := self loadRef: self processor at: SCHED_LISTS.
 	 (self numSlots: lists) asInt64 - 1 to: self lowestRunList by: -1 do: [:i |
@@ -466,7 +465,7 @@ transferToHighest
 	 self idleWait] repeat
 !
 resumeProcess: proc
-	<c: 'void resume_process(oop proc)'>
+	<function>
 	| active |
 	active := self activeProcess.
 	(inIdle not and: [(self priorityOf: proc) > (self priorityOf: active)])
@@ -480,11 +479,11 @@ resumeProcess: proc
 		ifFalse: [self addLastLink: proc to: (self runList: (self priorityOf: proc))]
 !
 suspendActive
-	<c: 'void suspend_active(void)'>
+	<function>
 	self transferToHighest
 !
 semaphoreSignal: sem
-	<c: 'void signal_semaphore(oop sem)'>
+	<function>
 	| ex |
 	(self loadRef: sem at: LL_FIRST) = memory nilOop
 		ifTrue: [
@@ -493,7 +492,7 @@ semaphoreSignal: sem
 		ifFalse: [self resumeProcess: (self removeFirstLink: sem)]
 !
 semaphoreWait: sem
-	<c: 'void wait_semaphore(oop sem)'>
+	<function>
 	| ex |
 	ex := self loadRef: sem at: SEM_EXCESS.
 	((self isInt: ex) and: [(self intVal: ex) > 0]) ifTrue: [
@@ -503,7 +502,7 @@ semaphoreWait: sem
 	self transferToHighest
 !
 processorYield
-	<c: 'void processor_yield(void)'>
+	<function>
 	| active l |
 	active := self activeProcess.
 	l := self runList: (self priorityOf: active).
@@ -517,7 +516,7 @@ isSemaphore: s
 	^(self isPtr: s) and: [s ~= memory nilOop and: [(self fmtHasPointers: (self formatOf: s)) and: [(self numSlots: s) > SEM_EXCESS]]]
 !
 signalIndex: index
-	<c: 'void signal_index(int index)'>
+	<function>
 	| ext s |
 	ext := memory special: SO_EXTERNAL_OBJECTS.
 	(index < 1 or: [(self isPtr: ext) not or: [ext = memory nilOop or: [index asUInt32 > (self numSlots: ext)]]]) ifTrue: [^self].
@@ -525,7 +524,7 @@ signalIndex: index
 	(self isSemaphore: s) ifTrue: [self semaphoreSignal: s]
 !
 handleInterrupts
-	<c: 'void handle_interrupts(void)'>
+	<function>
 	| now s |
 	self atomicStore: #interruptPending value: 0.
 	platform poll.
@@ -555,13 +554,13 @@ handleInterrupts
 	self tickUpdate
 !
 setTimer: ms
-	<c: 'void set_timer(int64_t ms)'>
+	<function>
 	timerMs := ms.
 	self tickUpdate
 !
 processCpuTimeUs: proc
 	"cpuTime, including the running slice if active."
-	<c: 'int64_t process_cpu_time_us(oop proc)'>
+	<function>
 	| ct t |
 	ct := self loadRef: proc at: PROC_CPUTIME.
 	t := (self isInt: ct) ifTrue: [self intVal: ct] ifFalse: [0].
@@ -569,14 +568,14 @@ processCpuTimeUs: proc
 	^t
 !
 setSampler: intervalUs semaphore: sema
-	<c: 'void set_sampler(int64_t interval_us, int sema)'>
+	<function>
 	samplerIntervalUs := intervalUs.
 	samplerSema := sema.
 	samplerNextUs := self nowUs + intervalUs.
 	self tickUpdate
 !
 allocSampleHit: aClass bytes: bytes
-	<c: 'void alloc_sample_hit(oop cls, size_t bytes)'>
+	<function>
 	allocSampleClass := aClass.
 	allocSampleSize := bytes asInt64.
 	allocSamplePending := true.
@@ -584,7 +583,7 @@ allocSampleHit: aClass bytes: bytes
 	self requestInterruptCheck
 !
 relinquish: microseconds
-	<c: 'void relinquish(int64_t us)'>
+	<function>
 	| us now |
 	(pendingExtN ~= 0 or: [allocSamplePending]) ifTrue: [^self].
 	workClockOn ifTrue: [

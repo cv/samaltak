@@ -193,7 +193,7 @@ primAllocationSampling
 	self answer: self receiver
 !
 allocationSampleInfo
-	<c: 'oop allocation_sample_info(void)'>
+	<function>
 	| a |
 	a := memory allocObj: memory clsArray format: F_VAR slots: 2.
 	self storeRef: a at: 0 put: scheduler allocSampleClass.

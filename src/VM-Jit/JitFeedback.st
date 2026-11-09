@@ -62,7 +62,8 @@ deoptOther
 !JitFeedback methodsFor: 'sites'!
 siteAt: m pc: pc
 	"m's site at pc, null if there is none."
-	<c: 'FeedbackSite *fb_site_at(oop m, int64_t pc)'>
+	<function>
+	<var: #pc type: 'int64_t'>
 	| i s |
 	i := ((self hashOf: m) asUInt64 * 31 + pc asUInt64) bitAnd: FB_MAX - 1.
 	[(s := fbSites + i) method ~= 0] whileTrue: [
@@ -72,7 +73,7 @@ siteAt: m pc: pc
 !
 siteFor: m pc: pc
 	"m's site at pc, made if there is none."
-	<c: 'FeedbackSite *fb_site_for(oop m, int64_t pc)'>
+	<function>
 	| i s |
 	i := ((self hashOf: m) asUInt64 * 31 + pc asUInt64) bitAnd: FB_MAX - 1.
 	[(s := fbSites + i) method ~= 0] whileTrue: [
@@ -90,7 +91,6 @@ siteFor: m pc: pc
 !
 noteSend: m pc: pc class: cls
 	"The send at m's pc saw a receiver of class cls."
-	<c: 'void jit_note_send(oop m, int64_t pc, oop cls)'>
 	<export>
 	| s |
 	s := self siteFor: m pc: pc.
@@ -111,14 +111,15 @@ floatBitAddressFor: m pc: pc
 !
 noteFlags: m pc: pc flags: f
 	"Profile bits for the instruction at m's pc."
-	<c: 'void jit_note_flags(oop m, int64_t pc, uint32_t f)'>
+	<var: #pc type: 'int64_t'>
 	<export>
 	| s |
 	s := self siteFor: m pc: pc.
 	s flags: (s flags bitOr: f)
 !
 flagsAt: m pc: pc
-	<c: 'uint32_t fb_flags_at(oop m, int64_t pc)'>
+	<function>
+	<var: #pc type: 'int64_t'>
 	| s f |
 	s := self siteAt: m pc: pc.
 	f := s isNull ifTrue: [0 asUInt32] ifFalse: [s flags].
@@ -127,7 +128,7 @@ flagsAt: m pc: pc
 	^f
 !
 clear
-	<c: 'void fb_clear(void)'>
+	<function>
 	libc memset: fbSites value: 0 size: (self sizeof: 'FeedbackSite') * FB_MAX.
 	fbCount := 0.
 	fbYoung := false
@@ -136,7 +137,7 @@ clear
 !JitFeedback methodsFor: 'garbage collection'!
 youngRoots: fn
 	"Scavenges: the sites' methods and classes while one of them may be young."
-	<c: 'void fb_young_roots(void (*fn)(oop *))'>
+	<function>
 	fbYoung ifFalse: [^self].
 	self allRoots: fn.
 	fbYoung := false.
@@ -146,7 +147,7 @@ youngRoots: fn
 			0 to: FB_CLASSES - 1 do: [:k | (self isYoung: ((fbSites + i) classes at: k)) ifTrue: [fbYoung := true]]]]
 !
 allRoots: fn
-	<c: 'void fb_all_roots(void (*fn)(oop *))'>
+	<function>
 	| s |
 	fbCount = 0 ifTrue: [^self].
 	0 to: FB_MAX - 1 do: [:i |

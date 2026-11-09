@@ -24,34 +24,34 @@ int32_t ra_slot_top;
 static int32_t ra_sort_count;
 static int32_t ra_sorted[16384];
 
-static bool opt_assign_slots(void);
-static void opt_build_intervals(void);
-static bool opt_linear_scan(void);
-static bool opt_liveness(void);
-static void opt_number_positions(void);
-static bool opt_record_safepoint_liveness(void);
-static void opt_transfer(int32_t b, int32_t out, int32_t in);
+static bool assign_slots(void);
+static void build_intervals(void);
+static bool linear_scan(void);
+static bool liveness(void);
+static void number_positions(void);
+static bool record_safepoint_liveness(void);
+static void transfer(int32_t b, int32_t out, int32_t in);
 
 /* OptRegalloc>>allocate: */
-bool opt_allocate(int32_t num_args)
+bool opt_regalloc_allocate(int32_t num_args)
 {
-    opt_number_positions();
-    if (!opt_liveness()) {
+    number_positions();
+    if (!liveness()) {
         return false;
     }
-    if (!opt_record_safepoint_liveness()) {
+    if (!record_safepoint_liveness()) {
         return false;
     }
-    opt_build_intervals();
-    if (!opt_linear_scan()) {
+    build_intervals();
+    if (!linear_scan()) {
         return false;
     }
     ra_slot_base = num_args;
-    return opt_assign_slots();
+    return assign_slots();
 }
 
 /* OptRegalloc>>assignSlots */
-static bool opt_assign_slots(void)
+static bool assign_slots(void)
 {
     int32_t i;
     int32_t v;
@@ -168,7 +168,7 @@ exit_crosses_call_2:;
 }
 
 /* OptRegalloc>>buildIntervals */
-static void opt_build_intervals(void)
+static void build_intervals(void)
 {
     int32_t i;
     int32_t b;
@@ -535,7 +535,7 @@ exit_is_value_11:;
 }
 
 /* OptRegalloc>>linearScan */
-static bool opt_linear_scan(void)
+static bool linear_scan(void)
 {
     int32_t i;
     int32_t n;
@@ -687,7 +687,7 @@ exit_reg_at:;
 }
 
 /* OptRegalloc>>liveness */
-static bool opt_liveness(void)
+static bool liveness(void)
 {
     int32_t words;
     bool changed;
@@ -833,14 +833,14 @@ exit_is_value_2:;
                 }
             }
             in = ra_live_in + b * words;
-            opt_transfer(b, out, in);
+            transfer(b, out, in);
         }
     }
     return true;
 }
 
 /* OptRegalloc>>numberPositions */
-static void opt_number_positions(void)
+static void number_positions(void)
 {
     int64_t pos;
     int32_t i;
@@ -886,7 +886,7 @@ static void opt_number_positions(void)
 }
 
 /* OptRegalloc>>recordSafepointLiveness */
-static bool opt_record_safepoint_liveness(void)
+static bool record_safepoint_liveness(void)
 {
     int32_t set;
     int32_t i;
@@ -1127,7 +1127,7 @@ exit_is_value_8:;
 }
 
 /* OptRegalloc>>transfer:out:into: */
-static void opt_transfer(int32_t b, int32_t out, int32_t in)
+static void transfer(int32_t b, int32_t out, int32_t in)
 {
     int32_t w;
     int32_t n;

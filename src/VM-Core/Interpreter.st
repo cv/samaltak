@@ -129,7 +129,7 @@ frameEpoch
 !Interpreter methodsFor: 'frames'!
 roots: fn
 	"The frames' methods, closures and Contexts and the live C stack slots are GC roots."
-	<c: 'void interp_roots(void (*fn)(oop *))'>
+	<function>
 	0 to: nframes - 1 do: [:i |
 		fn call: ((frames + i) fieldAddress: #method).
 		fn call: ((frames + i) fieldAddress: #closure).
@@ -141,7 +141,7 @@ methodBcs: m
 !
 beforeGC
 	"Frames hold raw pointers into their methods' bytecodes and literals: offsets while objects move."
-	<c: 'void interp_before_gc(void)'>
+	<function>
 	| f |
 	0 to: nframes - 1 do: [:i |
 		f := frames + i.
@@ -149,7 +149,7 @@ beforeGC
 !
 refreshTagClasses
 	"Classes of immediates by tag (low 3 bits); 0 = object pointer."
-	<c: 'void refresh_tag_classes(void)'>
+	<function>
 	1 to: 7 do: [:t |
 		tagClass at: t put: ((t bitAnd: 1) ~= 0
 			ifTrue: [memory clsSmallint]
@@ -159,7 +159,7 @@ receiverClass: r
 	^(r bitAnd: 7) ~= 0 ifTrue: [tagClass at: (r bitAnd: 7)] ifFalse: [self rawClass: r]
 !
 afterGC
-	<c: 'void interp_after_gc(void)'>
+	<function>
 	| f |
 	self refreshTagClasses.
 	self refreshPrimBase.
@@ -170,7 +170,7 @@ afterGC
 !
 frameSize: f
 	"frameSize of a frame's method or block (at least its args and temps)."
-	<c: 'int64_t frame_size(Frame *f)'>
+	<function>
 	| blk src fs min |
 	blk := f closure ~= memory nilOop.
 	src := blk ifTrue: [f closure] ifFalse: [f method].
@@ -181,7 +181,7 @@ frameSize: f
 	^fs > min ifTrue: [fs] ifFalse: [min]
 !
 framesValid: valid
-	<c: 'bool interp_frames_valid(bool (*valid)(oop))'>
+	<function>
 	0 to: nframes - 1 do: [:i |
 		((valid call: (frames + i) method) and: [(valid call: (frames + i) closure) and: [valid call: (frames + i) ctx]]) ifFalse: [^false].
 		"a married Context names its frame (materializeAll fills them one by one)"
@@ -200,7 +200,7 @@ framesValid: valid
 !
 materializeAll
 	"Flush every frame into a Context (bottom up, so senders exist first; a married frame fills its own); afterwards activeCtx is the top one. The caller has externalized the top frame."
-	<c: 'void materialize_all(void)'>
+	<function>
 	| n ctx f s byHeap |
 	nframes ~= 0 ifTrue: [
 		statFlushes := statFlushes + 1.
@@ -239,7 +239,7 @@ materializeAll
 !
 marry: f
 	"Frame f's Context, created if it has none: method, closure and receiver set, sender f's index (the mark of a married Context), stackp 0; pc, temps and stack stay in the frame. The caller has externalized."
-	<c: 'oop marry(Frame *f)'>
+	<function>
 	| n ctx s |
 	f ctx ~= memory nilOop ifTrue: [^f ctx].
 	n := (self frameSize: f) + CTX_SLACK.
@@ -257,17 +257,17 @@ marry: f
 !
 isMarried: o
 	"o is a Context married to a frame (its sender is the frame's index)."
-	<c: 'bool is_married(oop o)'>
+	<function>
 	^(self isPtr: o) and: [(self rawClass: o) = memory clsContext and: [self isInt: (self loadRef: o at: CTX_SENDER)]]
 !
 flushIfMarried: o
 	"Before reading o's slots: a married Context gets its frame's state (all frames are flushed). The caller has externalized."
-	<c: 'void flush_if_married(oop o)'>
+	<function>
 	(self isMarried: o) ifTrue: [self materializeAll]
 !
 widow: f
 	"Married frame f returns: its Context becomes a dead Context with the frame's slots (blocks that outlive it use them), as many as it holds: an optimized frame (a loop's unit entered married) may have more."
-	<c: 'void widow(Frame *f)'>
+	<function>
 	| ctx s n |
 	ctx := f ctx.
 	s := self slotsOf: ctx.
@@ -282,12 +282,13 @@ widow: f
 !
 widowFrom: k to: n
 	"Frames k to n are dropped (externalized)."
-	<c: 'void widow_from(int64_t k, int64_t n)'>
+	<function>
+	<var: #n type: 'int64_t'>
 	k to: n do: [:i | (frames + i) ctx ~= memory nilOop ifTrue: [self widow: frames + i]]
 !
 contextField: i of: c
 	"Field i (sender, pc or stackp) of Context c as Smalltalk sees it: a married one answers from its frame, its sender being the caller frame's Context, married now (activeCtx for frame 0). 0 if that would look into an optimized frame (the caller's; c's own for pc and stackp): the frames are flushed instead, and c holds the answer. The caller has externalized."
-	<c: 'oop context_field(int64_t i, oop c)'>
+	<function>
 	| f |
 	(self isMarried: c) ifFalse: [^(self slotsOf: c) at: i].
 	f := frames + (self intVal: (self loadRef: c at: CTX_SENDER)).
@@ -305,7 +306,7 @@ contextField: i of: c
 !
 contextSlot: k of: c
 	"Indexable slot k (0-based) of married Context c: its frame's below the frame's stack pointer, nil above. 0 if c's frame is optimized: the frames are flushed instead, and c holds it. The caller has externalized."
-	<c: 'oop context_slot(int64_t k, oop c)'>
+	<function>
 	| f |
 	f := frames + (self intVal: (self loadRef: c at: CTX_SENDER)).
 	(jit isOptFrame: f) ifTrue: [
@@ -316,7 +317,7 @@ contextSlot: k of: c
 !
 context: c slot: k put: v
 	"Store v into indexable slot k of married Context c, in its frame. false if k is above the frame's stack pointer or the frame is optimized: the frames are flushed instead, and the caller stores into c. The caller has externalized."
-	<c: 'bool context_slot_put(oop c, int64_t k, oop v)'>
+	<function>
 	| f |
 	f := frames + (self intVal: (self loadRef: c at: CTX_SENDER)).
 	((jit isOptFrame: f) or: [k >= f sp asInt64]) ifTrue: [
@@ -327,7 +328,8 @@ context: c slot: k put: v
 !
 senderOf: c marker: p upTo: stop
 	"The first activation among c's senders, before stop, of a method (not a block) whose primitive is marker p: frames from c's down, married then, followed by the Contexts below them; nil if there is none. The caller has externalized."
-	<c: 'oop sender_marked(oop c, int64_t p, oop stop)'>
+	<function>
+	<var: #p type: 'int64_t'>
 	| x j f |
 	x := c.
 	[(self isMarried: x)
@@ -346,7 +348,7 @@ senderOf: c marker: p upTo: stop
 !
 terminate: c to: target
 	"c terminateTo: target, for c married to the top frame and target married to a frame below it, neither optimized, or target a Context among activeCtx and its senders: the activations in between die (frames widowed, Contexts terminated) and the top frame moves down to just above target's frame (to frame 0, activeCtx being target). false otherwise: Smalltalk does it. The caller has externalized."
-	<c: 'bool terminate_to(oop c, oop target)'>
+	<function>
 	| t j x next |
 	t := nframes - 1.
 	(t >= 0 and: [(self isMarried: c) and: [(self loadRef: c at: CTX_SENDER) = (self intOop: t) and: [(jit isOptFrame: frames + t) not]]]) ifFalse: [^false].
@@ -389,7 +391,7 @@ moveTop: t to: k
 !
 stackOverflowDepth
 	"The active process's depth (frames + Contexts) if it is too deep: beyond stackLimit, or its Contexts take more than a quarter of the heap limit. Else 0."
-	<c: 'int64_t stack_overflow_depth(void)'>
+	<function>
 	| depth bytes c |
 	stackCheckDue := false.
 	stackLimit <= 0 ifTrue: [^0].
@@ -413,12 +415,12 @@ icacheIndexOf: site
 	^(s bitXor: s >> 12) bitAnd: ICACHE_SIZE - 1
 !
 flushMethodCache
-	<c: 'void flush_method_cache(void)'>
+	<function>
 	libc memset: cache value: 0 size: (self sizeof: 'CacheEntry') * CACHE_SIZE.
 	libc memset: icache value: 0 size: (self sizeof: 'CacheEntry') * ICACHE_SIZE
 !
 flushMethodCacheSelector: aSelector
-	<c: 'void flush_method_cache_selector(oop sel)'>
+	<function>
 	| e |
 	0 to: CACHE_SIZE - 1 do: [:i |
 		e := cache + i.
@@ -428,7 +430,7 @@ flushMethodCacheSelector: aSelector
 	libc memset: icache value: 0 size: (self sizeof: 'CacheEntry') * ICACHE_SIZE
 !
 lookupMethod: aClass selector: aSelector
-	<c: 'oop lookup_method(oop cls, oop sel)'>
+	<function>
 	| h c md keys vals cap mask i k n |
 	h := self hashOf: aSelector.
 	c := aClass.
@@ -459,7 +461,7 @@ methodPrim: m
 	^(self isInt: p) ifTrue: [self intVal: p] ifFalse: [0]
 !
 fillCache: aClass selector: aSelector
-	<c: 'CacheEntry *fill_cache(oop cls, oop sel)'>
+	<function>
 	| m e p pf bc na nt b n ok qc qv litsOop size |
 	m := self lookupMethod: aClass selector: aSelector.
 	m = 0 ifTrue: [^self null].
@@ -534,7 +536,8 @@ fillCache: aClass selector: aSelector
 	^e
 !
 selectorArgc: aSelector
-	<c: 'int selector_argc(oop sel)'>
+	<function>
+	<returns: 'int'>
 	| n b c |
 	((self isPtr: aSelector) not or: [(memory formatOf: aSelector) < F_BYTES]) ifTrue: [^-1].
 	n := memory byteSize: aSelector.
@@ -550,7 +553,7 @@ selectorArgc: aSelector
 !Interpreter methodsFor: 'interrupts'!
 interruptSafepoint
 	"At an interrupt check (registers externalized), before handleInterrupts can switch processes: if a depth check of the active process is due and it is too deep, its frames are flushed and the top Context sends stackOverflow: depth, as if its next instruction did (an activation above it; its own stack unchanged). The pending interrupts are then handled at the next safepoint."
-	<c: 'void interrupt_safepoint(void)'>
+	<function>
 	| depth sel m ntemps fsize ctx s |
 	depth := (stackCheckDue and: [(self hashOf: scheduler activeProcess) = stackCheckHash]) ifTrue: [self stackOverflowDepth] ifFalse: [0].
 	depth = 0 ifTrue: [^scheduler handleInterrupts].
@@ -579,15 +582,15 @@ interruptSafepoint
 
 !Interpreter methodsFor: 'the active activation'!
 ctxStackp: ctx
-	<c: 'int64_t ctx_stackp(oop ctx)'>
+	<function>
 	^self intVal: (self loadRef: ctx at: CTX_STACKP)
 !
 ctx: ctx setStackp: n
-	<c: 'void ctx_set_stackp(oop ctx, int64_t sp)'>
+	<function>
 	(self slotsOf: ctx) at: CTX_STACKP put: (self intOop: n)
 !
 ctxHome: aContext
-	<c: 'oop ctx_home(oop ctx)'>
+	<function>
 	| c cl |
 	c := aContext.
 	[(cl := self loadRef: c at: CTX_CLOSURE) ~= memory nilOop] whileTrue: [c := self loadRef: cl at: BC_OUTER].
@@ -595,15 +598,15 @@ ctxHome: aContext
 !
 activeSlots
 	"Args, temps and stack of the active frame or Context."
-	<c: 'oop *active_slots(void)'>
+	<function>
 	^nframes ~= 0 ifTrue: [(frames + (nframes - 1)) fp] ifFalse: [(self slotsOf: activeCtx) + CTX_FIXED]
 !
 activeStackp
-	<c: 'int64_t active_stackp(void)'>
+	<function>
 	^nframes ~= 0 ifTrue: [(frames + (nframes - 1)) sp asInt64] ifFalse: [self ctxStackp: activeCtx]
 !
 activeSetStackp: n
-	<c: 'void active_set_stackp(int64_t n)'>
+	<function>
 	| f |
 	nframes ~= 0
 		ifTrue: [
@@ -614,7 +617,7 @@ activeSetStackp: n
 !
 activeCapacity
 	"Indexable slots the active activation may use."
-	<c: 'int64_t active_capacity(void)'>
+	<function>
 	^nframes ~= 0
 		ifTrue: [(self frameSize: frames + (nframes - 1)) + CTX_SLACK]
 		ifFalse: [(self numSlots: activeCtx) asInt64 - CTX_FIXED]
@@ -636,13 +639,13 @@ primStackBase
 !
 setPrimBase: n
 	"The primitive's receiver is at the active stack top - n."
-	<c: 'void set_prim_base(int argc)'>
+	<function>
 	primNargs := n.
 	primBaseIndex := self activeStackp - 1 - n.
 	primBase := self activeSlots + primBaseIndex
 !
 refreshPrimBase
-	<c: 'void refresh_prim_base(void)'>
+	<function>
 	primBase := self activeSlots + primBaseIndex
 !
 primReturn: v
@@ -663,7 +666,7 @@ primFailed
 !
 primCommit: aResult
 	"Pop receiver and arguments, push aResult now, mark switched."
-	<c: 'void prim_commit(oop result)'>
+	<function>
 	primBase at: 0 put: aResult.
 	self activeSetStackp: self activeStackp - primNargs.
 	primNargs := 0.
@@ -688,7 +691,7 @@ primResend: aSelector argc: n
 !Interpreter methodsFor: 'blocks'!
 blockActivate: n fromArray: fromArray
 	"Push a frame for the closure at the stack base (n args above it, or one Array when fromArray). The caller has externalized."
-	<c: 'void block_activate(int argc, bool from_array)'>
+	<function>
 	| count base b cl arr ntemps fsize nfp outer m f |
 	count := n.
 	base := self activeStackp - 1 - (fromArray ifTrue: [1] ifFalse: [count]).
@@ -730,18 +733,18 @@ blockActivate: n fromArray: fromArray
 	cstackUsed := (nfp + count + ntemps - cstack) asUInt64
 !
 activateBlock: n
-	<c: 'void activate_block(int argc)'>
+	<function>
 	self blockActivate: n fromArray: false
 !
 activateBlockWithArray
-	<c: 'void activate_block_with_array(void)'>
+	<function>
 	self blockActivate: 0 fromArray: true
 ! !
 
 !Interpreter methodsFor: 'machine code'!
 syncFrame: f
 	"Machine code ran f and stored its pc and sp: f is the top frame."
-	<c: 'void interp_sync_frame(Frame *f)'>
+	<function>
 	nframes := (f - frames) asInt32 + 1.
 	f ip: (self methodBcs: f method) + f pc.
 	cstackUsed := (f fp + f sp - cstack) asUInt64
@@ -752,7 +755,7 @@ icacheAt: site
 !
 siteEntry: site class: aClass selector: aSelector
 	"As doSiteLookup: the inline cache entry of the send whose continuation is site; null if aClass does not understand aSelector."
-	<c: 'CacheEntry *site_entry(uint8_t *site, oop cls, oop sel)'>
+	<function>
 	| e g |
 	e := icache + (self icacheIndexOf: site).
 	(e cls = aClass and: [e sel = (self cCoerce: site to: 'oop')]) ifTrue: [^e].
@@ -766,7 +769,7 @@ siteEntry: site class: aClass selector: aSelector
 !
 callPrimitive: fn base: b argc: n
 	"Run primitive fn on the receiver and n arguments at b, the top of the top frame (externalized); answer primStatus."
-	<c: 'int32_t interp_call_primitive(prim_fn fn, oop *b, int32_t n)'>
+	<function>
 	primNargs := n.
 	primBase := b.
 	primBaseIndex := b - self activeSlots.
@@ -776,7 +779,7 @@ callPrimitive: fn base: b argc: n
 !
 pushFrame: m argc: n code: c ecode: ecode
 	"Activate m as activate does: its receiver and n arguments are the top of the top frame, whose ip the caller set. Answer the new frame, null if the stack is full."
-	<c: 'Frame *interp_push_frame(oop m, int32_t n, uint64_t c, int32_t ecode)'>
+	<function>
 	| f g nfp ntemps fsize |
 	f := frames + (nframes - 1).
 	ntemps := self intVal: (self loadRef: m at: CM_NUMTEMPS).
@@ -802,7 +805,7 @@ pushFrame: m argc: n code: c ecode: ecode
 !
 pushFrameEntry: e argc: n
 	"pushFrame:argc:code:ecode: for e's method and code, its shape from the cache entry."
-	<c: 'Frame *interp_push_frame_entry(CacheEntry *e, int32_t n)'>
+	<function>
 	| f g nfp ntemps |
 	f := frames + (nframes - 1).
 	ntemps := e ntemps.
@@ -825,7 +828,7 @@ pushFrameEntry: e argc: n
 !
 thawFor: code
 	"Under a JIT: activeCtx (no frames, registers saved) is married to frame 0, its sender the new base Context, so that its machine code (code) continues it. Answer the frame, null if activeCtx's sender is not a live Context."
-	<c: 'Frame *interp_thaw(uint64_t code)'>
+	<function>
 	| c s sender n m f |
 	c := activeCtx.
 	s := self slotsOf: c.
@@ -869,7 +872,7 @@ primBaseIndex: i
 !
 entryFor: aClass selector: aSelector
 	"The global method cache's entry for aClass and aSelector, filled if need be; null if aClass does not understand it."
-	<c: 'CacheEntry *entry_for(oop cls, oop sel)'>
+	<function>
 	| g |
 	g := cache + (self cacheIndexOf: aClass selector: aSelector).
 	(g cls = aClass and: [g sel = aSelector]) ifTrue: [^g].
@@ -878,30 +881,32 @@ entryFor: aClass selector: aSelector
 
 !Interpreter methodsFor: 'diagnostics'!
 printClassName: aClass on: f
-	<c: 'void print_class_name(oop cls, FILE *f)'>
+	<function>
 	| cc n t |
-	((self isPtr: aClass) not or: [aClass = memory nilOop]) ifTrue: [^libc fputs: 'nil' to: f].
+	((self isPtr: aClass) not or: [aClass = memory nilOop]) ifTrue: [libc fputs: 'nil' to: f. ^self].
 	cc := self rawClass: aClass.
 	(((self numSlots: aClass) > CLS_NAME and: [self isPtr: (self loadRef: aClass at: CLS_NAME)])
 		and: [(memory formatOf: (self loadRef: aClass at: CLS_NAME)) >= F_BYTES
 		and: [(self rawClass: (self loadRef: aClass at: CLS_NAME)) = (memory special: SO_BYTESYMBOL)]]) ifTrue: [
 			n := self loadRef: aClass at: CLS_NAME.
-			^libc fprintf: f format: '%.*s' with: (memory byteSize: n) asInt32 with: (self cCoerce: (self bytesOf: n) to: 'char *')].
+			libc fprintf: f format: '%.*s' with: (memory byteSize: n) asInt32 with: (self cCoerce: (self bytesOf: n) to: 'char *').
+			^self].
 	((self numSlots: aClass) > META_THISCLASS and: [(self isPtr: (self loadRef: aClass at: META_THISCLASS)) and: [cc ~= aClass]]) ifTrue: [
 		t := self loadRef: aClass at: META_THISCLASS.
 		(self numSlots: t) > CLS_NAME ifTrue: [
 			self printClassName: t on: f.
-			^libc fputs: ' class' to: f]].
+			libc fputs: ' class' to: f.
+			^self]].
 	libc fputs: '?' to: f
 !
 printSymbol: s on: f
-	<c: 'void print_symbol(oop s, FILE *f)'>
+	<function>
 	((self isPtr: s) and: [(memory formatOf: s) >= F_BYTES])
 		ifTrue: [libc fprintf: f format: '%.*s' with: (memory byteSize: s) asInt32 with: (self cCoerce: (self bytesOf: s) to: 'char *')]
 		ifFalse: [libc fputs: '?' to: f]
 !
 printActivation: m receiver: r closure: closure on: f
-	<c: 'void print_activation(oop m, oop r, oop closure, FILE *f)'>
+	<function>
 	| rc mc |
 	closure ~= memory nilOop ifTrue: [libc fputs: '[] in ' to: f].
 	rc := memory classOf: r.
@@ -917,7 +922,7 @@ printActivation: m receiver: r closure: closure on: f
 !
 printStack: aContext on: f
 	"The frames, then the sender chain; deep stacks show the top 40 and bottom 10 activations."
-	<c: 'void print_stack(oop ctx, FILE *f)'>
+	<function>
 	| depth i c fr2 |
 	depth := nframes asInt64.
 	i := 0.
@@ -942,12 +947,11 @@ printStack: aContext on: f
 		i := i + 1]
 !
 fatalBegin
-	<c: 'void fatal_begin(void)'>
+	<function>
 	libc fputs: 'samaltak: fatal: ' to: libc stderr
 !
 fatalEnd
 	"After a fatal message: the Smalltalk stack, then exit."
-	<c: 'void fatal_end(void)'>
 	<noreturn>
 	libc fputc: 10 to: libc stderr.
 	libc fflush: libc stdout.
@@ -1159,7 +1163,7 @@ ret1: v
 
 !Interpreter methodsFor: 'interpreter loop'!
 interpret
-	<c: 'void interpret(void)'>
+	<function>
 	| ss |
 	ss := memory special: SO_SPECIAL_SELECTORS.
 	0 to: 31 do: [:i |

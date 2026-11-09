@@ -52,12 +52,12 @@ primJitParameters
 	self answer: r value
 !
 stringFrom: s
-	<c: 'oop jit_string_from(const char *s)'>
+	<function>
 	^memory stringFromUtf8: s size: (libc strlen: s)
 !
 flagsString
 	"The flags that are on, comma-separated."
-	<c: 'oop jit_flags_string(void)'>
+	<function>
 	| buf n bit name len |
 	buf := self local: 'char[256]'.
 	n := 0.
@@ -138,7 +138,7 @@ primJitCode
 	scratch ifTrue: [jit codeResetTo: top]
 !
 listingOf: h mode: md
-	<c: 'oop jit_listing(JitMethod *h, int32_t md)'>
+	<function>
 	| r a n s |
 	r := self local: 'oop'.
 	r value: (memory allocObj: memory clsArray format: F_VAR slots: 6).

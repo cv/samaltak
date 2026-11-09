@@ -34,17 +34,17 @@ static void drain_pipe(void)
 }
 
 /* SDLPlatform>>init */
-void platform_init(void)
+void platform_interface_init(void)
 {
     if (init_done) {
         return;
     }
     init_done = true;
     signal(SIGPIPE, SIG_IGN);
-    pf_now_ms();
+    platform_common_now_ms();
     pthread_mutex_init(w_mu, (const pthread_mutexattr_t *)NULL);
     pthread_cond_init(w_cv, (const pthread_condattr_t *)NULL);
-    pf_gpu_init();
+    platform_gpu_init();
     if (pipe(w_pipe) == 0) {
         fcntl(w_pipe[0], F_SETFL, O_NONBLOCK);
         fcntl(w_pipe[1], F_SETFL, O_NONBLOCK);
@@ -52,29 +52,29 @@ void platform_init(void)
 }
 
 /* SDLPlatform>>poll */
-void platform_poll(void)
+void platform_interface_poll(void)
 {
-    if (pf_video_inited() && (SDL_GetTicksNS() - last_pump_ns >= 1000000)) {
-        pf_pump();
+    if (video_inited() && (SDL_GetTicksNS() - last_pump_ns >= 1000000)) {
+        pump();
     }
-    if (pf_socket_any_armed()) {
-        pf_socket_poll(0);
+    if (any_armed()) {
+        platform_sockets_poll(0);
     }
-    pf_signal_ready();
+    signal_ready();
 }
 
 /* SDLPlatform>>shutdown */
-void platform_shutdown(void)
+void platform_interface_shutdown(void)
 {
-    pf_gpu_shutdown();
-    pf_windows_shutdown();
-    if (pf_video_inited()) {
+    platform_gpu_shutdown();
+    platform_windows_shutdown();
+    if (video_inited()) {
         SDL_Quit();
     }
 }
 
 /* SDLPlatform>>wait: */
-void platform_wait(int64_t timeout_us)
+void platform_interface_wait(int64_t timeout_us)
 {
     int32_t ms;
     bool socks;
@@ -82,15 +82,15 @@ void platform_wait(int64_t timeout_us)
     struct pollfd local[129];
     struct pollfd *p;
     int n;
-    platform_init();
-    pf_pump();
-    if (pf_video_inited() && (atomic_load_explicit(&wake_event, memory_order_relaxed) == 0)) {
+    platform_interface_init();
+    pump();
+    if (video_inited() && (atomic_load_explicit(&wake_event, memory_order_relaxed) == 0)) {
         atomic_store_explicit(&wake_event, (int32_t)SDL_RegisterEvents(1), memory_order_relaxed);
     }
     atomic_store_explicit(&in_wait, true, memory_order_relaxed);
-    ms = (q_len != 0) || pf_vsync_pending() ? 0 : timeout_us < 0 ? -1 : (int32_t)((timeout_us + 999) / 1000);
-    socks = pf_socket_any_armed();
-    if (pf_video_inited()) {
+    ms = (q_len != 0) || platform_vsync_pending() ? 0 : timeout_us < 0 ? -1 : (int32_t)((timeout_us + 999) / 1000);
+    socks = any_armed();
+    if (video_inited()) {
         watching = socks && watcher_start();
         if (ms != 0) {
             SDL_WaitEventTimeout((SDL_Event *)NULL, ms);
@@ -98,13 +98,13 @@ void platform_wait(int64_t timeout_us)
         if (watching) {
             watcher_stop();
         }
-        pf_pump();
+        pump();
     } else {
         memset(&local, 0, sizeof local);
         p = local;
         p->fd = w_pipe[0];
         p->events = POLLIN;
-        n = socks ? 1 + pf_socket_poll_fds(p + 1, 128) : 1;
+        n = socks ? 1 + poll_fds(p + 1, 128) : 1;
         if (ms != 0) {
             poll(p, (uint32_t)n, ms);
         }
@@ -112,13 +112,13 @@ void platform_wait(int64_t timeout_us)
     atomic_store_explicit(&in_wait, false, memory_order_relaxed);
     drain_pipe();
     if (socks) {
-        pf_socket_poll(0);
+        platform_sockets_poll(0);
     }
-    pf_signal_ready();
+    signal_ready();
 }
 
 /* SDLPlatform>>wake */
-void pf_wake(void)
+void wake(void)
 {
     atomic_int t;
     SDL_Event local;
@@ -195,7 +195,7 @@ static bool watcher_start(void)
     w_fds->fd = w_pipe[0];
     w_fds->events = POLLIN;
     w_fds->revents = 0;
-    w_nfds = 1 + pf_socket_poll_fds(w_fds + 1, 128);
+    w_nfds = 1 + poll_fds(w_fds + 1, 128);
     atomic_store_explicit(&w_stop, false, memory_order_relaxed);
     pthread_mutex_lock(w_mu);
     w_state = 1;

@@ -45,29 +45,29 @@ static oop *weak_list;
 uint64_t young_hi;
 uint64_t young_lo;
 
-static void after_gc(void);
+static void garbage_collector_after_gc(void);
 static void become_root(oop *p);
 static void clear_weak_slots(bool (*is_dead)(oop *));
-static void discard(uint64_t p, size_t n);
+static void discard(uint64_t p, uint64_t n);
 static void for_each_root(void (*fn)(oop *));
-static oop full_copy(oop o);
+static uint64_t full_copy(oop o);
 static bool full_dead(oop *v);
 static void full_root(oop *p);
-static bool is_context(oop o);
-static void mark_starts(uint64_t lo, uint64_t hi);
+static bool garbage_collector_is_context(oop o);
+static void mark_starts_from(uint64_t lo, uint64_t hi);
 static bool refers_to_young(oop o);
 static uint64_t reserve(size_t n);
-static oop scav_copy(oop o);
+static uint64_t scav_copy(oop o);
 static bool scav_dead(oop *v);
 static void scav_root(oop *p);
 static bool scav_scan(oop o);
 static uint32_t traced_slots(oop o);
 static bool valid_ref(oop v);
 static void verify_heap(void);
-static void verify_space(uint64_t lo, uint64_t hi, bool is_old);
+static void verify_space_from(uint64_t lo, uint64_t hi, bool is_old);
 
 /* GarbageCollector>>afterGC */
-static void after_gc(void)
+static void garbage_collector_after_gc(void)
 {
     if (verify < 0) {
         verify = getenv("SAMALTAK_VERIFY_GC") != NULL ? 1 : 0;
@@ -78,8 +78,8 @@ static void after_gc(void)
     gc_epoch = gc_epoch + 1;
     refresh_specials();
     flush_method_cache();
-    interp_after_gc();
-    jit_after_gc();
+    interpreter_after_gc();
+    jit_runtime_after_gc();
     reset_alloc_limit();
 }
 
@@ -90,12 +90,12 @@ void become_forward(oop from, oop to)
     int32_t f;
     oop *s;
     int64_t i;
-    interp_before_gc();
+    before_gc();
     become_from = from;
     become_to = to;
-    jit_become(from);
+    become_method(from);
     for_each_root(become_root);
-    jit_all_roots(become_root);
+    jit_runtime_all_roots(become_root);
     p = old_lo;
     while (p < old_top) {
         become_root((oop *)(p + 8));
@@ -110,7 +110,7 @@ void become_forward(oop from, oop to)
         }
         p = p + (16 + 8 * (uint64_t)(uint32_t)*(uint64_t *)p);
     }
-    after_gc();
+    garbage_collector_after_gc();
 }
 
 /* GarbageCollector>>becomeRoot: */
@@ -151,7 +151,7 @@ static void clear_weak_slots(bool (*is_dead)(oop *))
 }
 
 /* GarbageCollector>>collectGarbage: */
-void collect_garbage(size_t need)
+void collect_garbage(uint64_t need)
 {
     uint64_t young_used;
     uint64_t old_used;
@@ -168,9 +168,9 @@ void collect_garbage(size_t need)
 }
 
 /* GarbageCollector>>discard:size: */
-static void discard(uint64_t p, size_t n)
+static void discard(uint64_t p, uint64_t n)
 {
-    size_t m;
+    uint64_t m;
     m = (n + 16383) & 18446744073709535232ULL;
     if (m != 0) {
         mmap((void *)p, m, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANON | MAP_FIXED, -1, 0);
@@ -220,11 +220,11 @@ static void for_each_root(void (*fn)(oop *))
     for (i_3 = 0; i_3 <= root_count - 1; i_3++) {
         fn(root_stack[i_3]);
     }
-    interp_roots(fn);
+    interpreter_roots(fn);
 }
 
 /* GarbageCollector>>fullCopy: */
-static oop full_copy(oop o)
+static uint64_t full_copy(oop o)
 {
     uint64_t h;
     uint64_t bytes;
@@ -279,7 +279,7 @@ void full_gc(void)
     uint64_t live;
     uint64_t a;
     size_t b;
-    interp_before_gc();
+    before_gc();
     t0 = work_clock_held_us();
     stat_full_gcs = stat_full_gcs + 1;
     stat_allocated = stat_allocated + (eden_box[0] - eden_lo);
@@ -293,7 +293,7 @@ void full_gc(void)
     o = *nl;
     nil_oop = o;
     for_each_root(full_root);
-    jit_all_roots(full_root);
+    jit_runtime_all_roots(full_root);
     scan = old_alt_lo;
     while (scan < ft_top) {
         class_slot = (oop *)(scan + 8);
@@ -323,9 +323,9 @@ void full_gc(void)
         old_budget = max_heap_bytes;
     }
     if (((active_ctx & 7) == 0) && ((!((uint64_t)(active_ctx - young_lo) < young_hi - young_lo)) && (((*(uint64_t *)active_ctx) & H_REMEMBERED) == 0))) {
-        vm_remember(active_ctx);
+        remember(active_ctx);
     }
-    after_gc();
+    garbage_collector_after_gc();
     stat_full_us = stat_full_us + (uint64_t)(work_clock_held_us() - t0);
     if (live > max_heap_bytes) {
         a = live >> 20;
@@ -347,10 +347,10 @@ static void full_root(oop *p)
 }
 
 /* GarbageCollector>>init:maxHeap: */
-void gc_init(size_t eden_bytes, size_t max_heap)
+void garbage_collector_init(uint64_t eden_bytes, uint64_t max_heap)
 {
-    size_t surv;
-    size_t young;
+    uint64_t surv;
+    uint64_t young;
     surv = eden_bytes / 4;
     young = eden_bytes + 2 * surv;
     young_lo = reserve(young);
@@ -373,7 +373,7 @@ void gc_init(size_t eden_bytes, size_t max_heap)
 }
 
 /* GarbageCollector>>isContext: */
-static bool is_context(oop o)
+static bool garbage_collector_is_context(oop o)
 {
     uint64_t c;
     oop ctx;
@@ -383,7 +383,7 @@ static bool is_context(oop o)
 }
 
 /* GarbageCollector>>markStartsFrom:to: */
-static void mark_starts(uint64_t lo, uint64_t hi)
+static void mark_starts_from(uint64_t lo, uint64_t hi)
 {
     uint64_t p;
     uint64_t k;
@@ -396,7 +396,7 @@ static void mark_starts(uint64_t lo, uint64_t hi)
 }
 
 /* GarbageCollector>>oldAllocTry: */
-uint64_t old_alloc_try(size_t bytes)
+uint64_t old_alloc_try(uint64_t bytes)
 {
     uint64_t want;
     uint64_t p;
@@ -438,7 +438,7 @@ static bool refers_to_young(oop o)
 }
 
 /* GarbageCollector>>remember: */
-void vm_remember(oop o)
+void remember(oop o)
 {
     uint64_t h;
     h = (*(uint64_t *)o) | H_REMEMBERED;
@@ -470,7 +470,7 @@ static uint64_t reserve(size_t n)
 }
 
 /* GarbageCollector>>scavCopy: */
-static oop scav_copy(oop o)
+static uint64_t scav_copy(oop o)
 {
     uint64_t h;
     uint64_t bytes;
@@ -576,7 +576,7 @@ void scavenge(void)
     uint64_t scan;
     int64_t k;
     oop w;
-    interp_before_gc();
+    before_gc();
     t0 = work_clock_held_us();
     stat_scavenges = stat_scavenges + 1;
     stat_allocated = stat_allocated + (eden_box[0] - eden_lo);
@@ -585,7 +585,7 @@ void scavenge(void)
     tenure_scan = old_top;
     weak_count = 0;
     for_each_root(scav_root);
-    jit_young_roots(scav_root);
+    jit_runtime_young_roots(scav_root);
     kept = 0;
     for (i = 0; i <= (int64_t)remset_count - 1; i++) {
         o = remset[i];
@@ -607,7 +607,7 @@ void scavenge(void)
         }
         while (tenure_scan < old_top) {
             if (scav_scan(tenure_scan) && (((*(uint64_t *)tenure_scan) & H_REMEMBERED) == 0)) {
-                vm_remember(tenure_scan);
+                remember(tenure_scan);
             }
             tenure_scan = tenure_scan + (16 + 8 * (uint64_t)(uint32_t)*(uint64_t *)tenure_scan);
         }
@@ -616,7 +616,7 @@ void scavenge(void)
     for (k = 0; k <= (int64_t)weak_count - 1; k++) {
         w = weak_list[k];
         if ((!((uint64_t)(w - young_lo) < young_hi - young_lo)) && ((((*(uint64_t *)w) & H_REMEMBERED) == 0) && refers_to_young(w))) {
-            vm_remember(w);
+            remember(w);
         }
     }
     surv_other_lo = surv_lo;
@@ -626,9 +626,9 @@ void scavenge(void)
     surv_hi = to_hi;
     eden_box[0] = eden_lo;
     if (((active_ctx & 7) == 0) && ((!((uint64_t)(active_ctx - young_lo) < young_hi - young_lo)) && (((*(uint64_t *)active_ctx) & H_REMEMBERED) == 0))) {
-        vm_remember(active_ctx);
+        remember(active_ctx);
     }
-    after_gc();
+    garbage_collector_after_gc();
     stat_scavenge_us = stat_scavenge_us + (uint64_t)(work_clock_held_us() - t0);
 }
 
@@ -644,7 +644,7 @@ static uint32_t traced_slots(oop o)
     if (!((f >= 1) && (f <= 4))) {
         return 0;
     }
-    if ((f == F_FIXVAR) && is_context(o)) {
+    if ((f == F_FIXVAR) && garbage_collector_is_context(o)) {
         sp = ((oop *)(o + 16))[CTX_STACKP];
         n = (uint32_t)*(uint64_t *)o;
         if ((!((sp & 1) != 0)) || (((((int64_t)sp) >> 1) < 0) || ((((int64_t)sp) >> 1) > (int64_t)(n - CTX_FIXED)))) {
@@ -712,21 +712,21 @@ static void verify_heap(void)
         fprintf(stderr, "verify: out of memory");
         fatal_end();
     }
-    mark_starts(old_lo, old_top);
-    mark_starts(surv_lo, surv_top);
-    verify_space(old_lo, old_top, true);
-    verify_space(surv_lo, surv_top, false);
+    mark_starts_from(old_lo, old_top);
+    mark_starts_from(surv_lo, surv_top);
+    verify_space_from(old_lo, old_top, true);
+    verify_space_from(surv_lo, surv_top, false);
     if (!(valid_ref(specials_oop) && valid_ref(active_ctx))) {
         fatal_begin();
         fprintf(stderr, "verify: bad root");
         fatal_end();
     }
-    if (!interp_frames_valid(valid_ref)) {
+    if (!frames_valid(valid_ref)) {
         fatal_begin();
         fprintf(stderr, "verify: bad frame slot");
         fatal_end();
     }
-    if (!jit_headers_valid(valid_ref)) {
+    if (!headers_valid(valid_ref)) {
         fatal_begin();
         fprintf(stderr, "verify: bad compiled method");
         fatal_end();
@@ -735,7 +735,7 @@ static void verify_heap(void)
 }
 
 /* GarbageCollector>>verifySpaceFrom:to:old: */
-static void verify_space(uint64_t lo, uint64_t hi, bool is_old)
+static void verify_space_from(uint64_t lo, uint64_t hi, bool is_old)
 {
     uint64_t p;
     void *a;
@@ -793,7 +793,7 @@ static void verify_space(uint64_t lo, uint64_t hi, bool is_old)
 }
 
 /* GarbageCollector>>walkOldSpace:data: */
-void walk_old_space(void (*fn)(oop, void *), void *data)
+void walk_old_space(void (*fn)(uint64_t, void *), void *data)
 {
     uint64_t end;
     uint64_t p;
@@ -806,7 +806,7 @@ void walk_old_space(void (*fn)(oop, void *), void *data)
 }
 
 /* GarbageCollector>>walkYoungSpace:data: */
-void walk_young_space(void (*fn)(oop, void *), void *data)
+void walk_young_space(void (*fn)(uint64_t, void *), void *data)
 {
     uint64_t p;
     p = surv_lo;

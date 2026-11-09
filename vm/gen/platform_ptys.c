@@ -4,17 +4,17 @@
 
 static int64_t hung_up[64];
 
-static pty_child *pty_child_of(int p);
-static char **pty_child_env(char **envp);
-static _Noreturn void pty_exec_child(char *path, char **argv, char **env, const char *cwd, int max_fd);
+static pty_child *platform_ptys_child(int32_t p);
+static char **child_environment(char **envp);
+static _Noreturn void exec_child(char *path, char **argv, char **env, char *cwd, int max_fd);
 static void reap_hung_up(void);
-static char *pty_resolve(const char *argv0, char **envp);
+static char *platform_ptys_resolve(char *argv0, char **envp);
 
 /* PlatformPtys>>child: */
-static pty_child *pty_child_of(int p)
+static pty_child *platform_ptys_child(int32_t p)
 {
     pf_obj *o;
-    o = pf_fd_get(p, PF_FD_PTY);
+    o = fd_get(p, PF_FD_PTY);
     if (o == NULL) {
         return (pty_child *)NULL;
     }
@@ -22,7 +22,7 @@ static pty_child *pty_child_of(int p)
 }
 
 /* PlatformPtys>>childEnvironment: */
-static char **pty_child_env(char **envp)
+static char **child_environment(char **envp)
 {
     char **src;
     uint64_t n;
@@ -30,7 +30,7 @@ static char **pty_child_env(char **envp)
     char **env;
     uint64_t k;
     int64_t i;
-    src = envp != NULL ? envp : pf_host_environ();
+    src = envp != NULL ? envp : environment();
     n = 0ULL;
     has_term = false;
     while (src[n] != NULL) {
@@ -59,17 +59,17 @@ static char **pty_child_env(char **envp)
 }
 
 /* PlatformPtys>>close: */
-bool pf_pty_close(int p)
+bool platform_ptys_close(int32_t p)
 {
     pty_child *c;
     bool ok;
     bool placed;
     int i;
-    c = pty_child_of(p);
+    c = platform_ptys_child(p);
     if (c == NULL) {
         return false;
     }
-    ok = pf_fd_close(p, PF_FD_PTY);
+    ok = platform_sockets_close_kind(p, PF_FD_PTY);
     if (!c->reaped) {
         kill(-c->pid, SIGHUP);
         kill(c->pid, SIGHUP);
@@ -89,7 +89,7 @@ bool pf_pty_close(int p)
 }
 
 /* PlatformPtys>>execChild:argv:environment:directory:maxFd: */
-static void pty_exec_child(char *path, char **argv, char **env, const char *cwd, int max_fd)
+static void exec_child(char *path, char **argv, char **env, char *cwd, int max_fd)
 {
     struct sigaction local;
     struct sigaction *dfl;
@@ -134,10 +134,10 @@ static void pty_exec_child(char *path, char **argv, char **env, const char *cwd,
 }
 
 /* PlatformPtys>>foreground: */
-int pf_pty_foreground(int p)
+pid_t foreground(int32_t p)
 {
     pf_obj *o;
-    o = pf_fd_get(p, PF_FD_PTY);
+    o = fd_get(p, PF_FD_PTY);
     if (o == NULL) {
         return -1;
     }
@@ -156,12 +156,12 @@ static void reap_hung_up(void)
 }
 
 /* PlatformPtys>>resize:rows:columns: */
-bool pf_pty_resize(int p, int rows, int cols)
+bool resize(int32_t p, int32_t rows, int32_t cols)
 {
     pf_obj *o;
     struct winsize local;
     struct winsize *ws;
-    o = pf_fd_get(p, PF_FD_PTY);
+    o = fd_get(p, PF_FD_PTY);
     if (o == NULL) {
         return false;
     }
@@ -172,12 +172,12 @@ bool pf_pty_resize(int p, int rows, int cols)
     if (ioctl((int32_t)o->i, TIOCSWINSZ, ws) == 0) {
         return true;
     }
-    pf_os_error("TIOCSWINSZ", errno);
+    platform_common_fail_os_code("TIOCSWINSZ", errno);
     return false;
 }
 
 /* PlatformPtys>>resolve:environment: */
-static char *pty_resolve(const char *argv0, char **envp)
+static char *platform_ptys_resolve(char *argv0, char **envp)
 {
     const char *path;
     const char *end;
@@ -188,12 +188,12 @@ static char *pty_resolve(const char *argv0, char **envp)
     uint64_t len;
     if (strchr(argv0, 47) != NULL) {
         if (access(argv0, X_OK) != 0) {
-            pf_os_error(argv0, errno);
+            platform_common_fail_os_code(argv0, errno);
             return (char *)NULL;
         }
         cand = strdup(argv0);
         if (cand == NULL) {
-            pf_os_error(argv0, errno);
+            platform_common_fail_os_code(argv0, errno);
         }
         return cand;
     }
@@ -218,7 +218,7 @@ static char *pty_resolve(const char *argv0, char **envp)
         len = end != NULL ? (uint64_t)(end - path) : strlen(path);
         cand = (char *)malloc(len + n + 2);
         if (cand == NULL) {
-            pf_os_error(argv0, errno);
+            platform_common_fail_os_code(argv0, errno);
             return (char *)NULL;
         }
         memcpy(cand, path, len);
@@ -234,12 +234,12 @@ static char *pty_resolve(const char *argv0, char **envp)
             path = end + 1;
         }
     }
-    pf_os_error(argv0, ENOENT);
+    platform_common_fail_os_code(argv0, ENOENT);
     return (char *)NULL;
 }
 
 /* PlatformPtys>>spawn:environment:directory:rows:columns:pid: */
-int pf_pty_spawn(char **argv, char **envp, const char *cwd, int rows, int cols, int64_t *pid_out)
+int32_t platform_ptys_spawn(char **argv, char **envp, char *cwd, int32_t rows, int32_t cols, int64_t *pid_out)
 {
     char *path;
     char **env;
@@ -251,20 +251,20 @@ int pf_pty_spawn(char **argv, char **envp, const char *cwd, int rows, int cols, 
     int *master;
     pid_t pid;
     int saved;
-    int h;
-    platform_init();
+    int32_t h;
+    platform_interface_init();
     reap_hung_up();
-    path = pty_resolve(argv[0], envp);
+    path = platform_ptys_resolve(argv[0], envp);
     if (path == NULL) {
         return 0;
     }
-    env = pty_child_env(envp);
+    env = child_environment(envp);
     child = (pty_child *)malloc(sizeof(pty_child));
     if ((env == NULL) || (child == NULL)) {
         free(path);
         free(env);
         free(child);
-        pf_set_error("out of memory");
+        set_error("out of memory");
         return 0;
     }
     memset(&local, 0, sizeof local);
@@ -279,19 +279,19 @@ int pf_pty_spawn(char **argv, char **envp, const char *cwd, int rows, int cols, 
     master = &local_2;
     pid = forkpty(master, (char *)NULL, (struct termios *)NULL, ws);
     if (pid == 0) {
-        pty_exec_child(path, argv, env, cwd, max_fd);
+        exec_child(path, argv, env, cwd, max_fd);
     }
     saved = errno;
     free(path);
     free(env);
     if (pid < 0) {
         free(child);
-        pf_os_error("forkpty", saved);
+        platform_common_fail_os_code("forkpty", saved);
         return 0;
     }
     child->pid = pid;
     child->reaped = false;
-    h = pf_fd_add(*master, PF_FD_PTY, child);
+    h = platform_sockets_add(*master, PF_FD_PTY, child);
     if (h == 0) {
         close(*master);
         kill(pid, SIGHUP);
@@ -304,18 +304,18 @@ int pf_pty_spawn(char **argv, char **envp, const char *cwd, int rows, int cols, 
 }
 
 /* PlatformPtys>>wait:block:status:done: */
-bool pf_pty_wait(int p, bool block, int *status, bool *done)
+bool platform_ptys_wait(int32_t p, bool block, int *status, bool *done)
 {
     pty_child *c;
-    c = pty_child_of(p);
+    c = platform_ptys_child(p);
     if (c == NULL) {
         return false;
     }
     if (c->reaped) {
-        pf_set_error("pty child already waited for");
+        set_error("pty child already waited for");
         return false;
     }
-    if (!pf_process_wait(c->pid, block, status, done)) {
+    if (!process_wait(c->pid, block, status, done)) {
         return false;
     }
     c->reaped = *done;
