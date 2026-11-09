@@ -19,7 +19,7 @@ int32_t opt_osr_entry;
 uint64_t opt_osr_numbers;
 int32_t opt_osr_state;
 int32_t opt_state_count;
-opt_state opt_states[4096];
+opt_state opt_states[16384];
 
 static void opt_print_node(int32_t n);
 

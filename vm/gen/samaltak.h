@@ -380,7 +380,7 @@ typedef void (*prim_fn)(void);
 #define OPT_MAX_NOINLINE 8
 #define OPT_MAX_OPERANDS 131072
 #define OPT_MAX_PRIM 1024
-#define OPT_MAX_STATES 4096
+#define OPT_MAX_STATES 16384
 #define OPT_MAX_UNITS 4096
 #define OPT_MAX_VARS 65536
 #define OPT_MAX_YOUNG 1024
@@ -1312,7 +1312,7 @@ extern int32_t opt_osr_entry;
 extern uint64_t opt_osr_numbers;
 extern int32_t opt_osr_state;
 extern int32_t opt_state_count;
-extern opt_state opt_states[4096];
+extern opt_state opt_states[16384];
 extern int32_t ps_order[2048];
 extern int32_t ps_order_count;
 extern bool ps_unbox_off;
