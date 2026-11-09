@@ -5,7 +5,7 @@
   },
   {
     "id": "race",
-    "caption": "Are We Fast Yet's Mandelbrot, 70 laps, the same source on both, run at once: Pharo 12 (Cog) on the left, Samaltak on the right. Each line: one lap, in ms of CPU time.",
+    "caption": "Are We Fast Yet's Mandelbrot, 120 laps, the same source on both, run at once: Pharo 12 (Cog) on the left, Samaltak on the right. Each line: one lap, in ms of CPU time. On screen the race runs at about {speed}× real speed.",
     "spoken": "Same benchmark, same source code: Pharo 12 on the left, Samaltak on the right. Each line is one lap, in milliseconds.",
     "cues": ["Each line is one lap"]
   },

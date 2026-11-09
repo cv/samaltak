@@ -115,8 +115,8 @@ const MENU = () => box('@menu');
 
 // ---------------------------------------------------------------- beats
 const beats = [
-  // The caption saying how the video was recorded.
-  ['clock', async () => { await sleep(3500); }],
+  // The caption saying how the video was recorded, over the start of the next step's narration.
+  ['clock', async () => {}],
   // Claude's Robot juggles at the bottom right, animated every frame in its window's Process.
   ['intro', async () => {
     await sleep(2500);
@@ -470,7 +470,8 @@ for (let t = 0; !text(`${W.workspace}.text`).includes(CHURN); t += 500) {
 act('select', `${W.workspace}.text`, 'start');
 await sleep(1500);
 S.startSegment();
-await sleep(300);
+S.preroll(1.4);
+await sleep(1500);
 for (const [id, beat] of beats) {
   if (only && !only.has(id) && id !== 'intro' && id !== 'outro') continue;
   await S.say(id);

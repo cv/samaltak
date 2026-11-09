@@ -7,7 +7,7 @@
 // The browser writes accepted methods into a scratch copy of the sources (--source-dir), not the repo. Every cue of
 // the narration (narration.json "cues") is spoken when its effect shows (S.cue).
 import { execFileSync } from 'node:child_process';
-import { readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { VideoSession, sleep } from '../video-lib.mjs';
@@ -37,7 +37,8 @@ Object.assign(S.env, { ZDOTDIR: zdot, SHELL: '/bin/zsh' });
 const ctl = (...a) => S.ctl(...a), act = (...a) => S.act(...a);
 const DESK = '1431,250';   // the desk at the right edge, never covered
 const W = { workspace: '@w1', transcript: '@w2', procs: '@w3', mandel: '@w4', inspector: '@w5', browser: '@w6' };
-const LAPS = 70;
+const LAPS = 120;
+const GO = { pharo: '/tmp/go-pharo', samaltak: '/tmp/go-samaltak' };   // the race's start gun (awfy.sh --go)
 const PHARO = '/tmp/pharo12';
 execFileSync('ln', ['-sfn', join(process.env.HOME, '.cache/pharo12'), PHARO]);
 Object.assign(S.env, { PHARO_VM: join(PHARO, 'vm/Pharo.app/Contents/MacOS/Pharo'), PHARO_IMAGE: join(PHARO, 'bench.image') });
@@ -126,7 +127,7 @@ async function browse(pkg, cls, selector) {
   act('select', `${W.browser}.protocols`, 'all'); await sleep(450);
   act('select', `${W.browser}.methods`, selector); await sleep(700);
 }
-let T1 = null, T2 = null, T3 = null, FB = null, MC = null, MO = null;
+let T1 = null, T2 = null, T3 = null, FB = null, MC = null, MO = null, raceStart = null;
 const pick = async (column, name, ms = 500) => { act('select', `${FB}.column-${column}`, name); await sleep(ms); };
 // A Terminal's race is over once awfy.sh printed its summary (--ms); a failed run stops the recording. The image sees
 // it in the right (Samaltak) or the left (Pharo) Terminal when SUMMARY is true.
@@ -142,21 +143,25 @@ const PRINTED = source => `[:t | | i | i := t indexOfSubCollection: ${quote(sour
 
 // ---------------------------------------------------------------- beats
 const beats = [
-  // The caption saying how the video was recorded.
-  ['clock', async () => { await sleep(3500); }],
-  // Two Terminals, the commands typed before the recording: Pharo 12 (left), Samaltak (right), the same AWFY sources
-  // (vm/tests/bench/awfy.sh files them in), each lap's CPU time in ms as it ends (--ms --cpu). Pharo first, Samaltak right after; the
-  // lines come as the narration gets to them (Samaltak's first lap about a second after Enter).
+  // The caption saying how the video was recorded, over the start of the next step's narration.
+  ['clock', async () => {}],
+  // Two Terminals: Pharo 12 (left), Samaltak (right), the same AWFY sources, each lap's CPU time in ms as it ends (--ms
+  // --cpu). Both started before the recording and wait, loaded, for the start gun (--go): the first laps show about 2 s
+  // in, the words "each line" a while later (the take says who is racing first).
   ['race', async () => {
-    await S.cue('Each line is one lap', null, () => {
-      act('key', 'Enter', `${T1}.terminal`);
-      act('key', 'Enter', `${T2}.terminal`);
-    }, { lead: 1.1, when: SHOWS(true, 'Mandelbrot lap 1:'), max: 10 });
+    await sleep(1400);
+    raceStart = { real: Date.now(), video: S.now() };
+    for (const f of Object.values(GO)) writeFileSync(f, '');
+    await S.cue('Each line is one lap', [730, 60, 680, 800], null, { frac: 0.02, max: 1 });
     await S.spoken();
   }],
   // Samaltak's summary, as its Terminal shows it: it is done; Pharo runs on.
   ['race-done', async () => {
     await S.cue("Samaltak's done", null, null, { when: SUMMARY(true), max: 30 });
+    const speed = (Date.now() - raceStart.real) / 1000 / (S.now() - raceStart.video);    // recorder waits: load dependent
+    console.log(`the race on screen: ${speed.toFixed(2)} x real speed`);
+    const caption = S.captions.find(c => c.id === 'race');
+    caption.text = caption.text.replace('{speed}', speed.toFixed(1));
     if (!lapsDone(`${T2}.terminal`)) throw new Error('Samaltak\'s laps are not done');
     lapsDone(`${T1}.terminal`);                       // Pharo's laps go on, not failed
     await S.spoken();
@@ -344,11 +349,17 @@ T1 = await openTool('terminal', /^window @w\d+ "Terminal"/);
 place(T1, 18, 41, 702, 843);
 T2 = await openTool('terminal', new RegExp(`^window @w(?!${T1.slice(2)} )\\d+ "Terminal"`));
 place(T2, 720, 41, 702, 843);
-act('type', `${T1}.terminal`, `vm/tests/bench/awfy.sh --ms --cpu --pharo -n ${LAPS} Mandelbrot`, '--delay', '0');
-act('type', `${T2}.terminal`, `vm/tests/bench/awfy.sh --ms --cpu -n ${LAPS} Mandelbrot`, '--delay', '0');
-await sleep(2500);
+for (const f of Object.values(GO)) for (const g of [f, `${f}.ready`]) rmSync(g, { force: true });
+act('type', `${T1}.terminal`, `vm/tests/bench/awfy.sh --ms --cpu --go ${GO.pharo} --pharo -n ${LAPS} Mandelbrot`, '--delay', '0');
+act('type', `${T2}.terminal`, `vm/tests/bench/awfy.sh --ms --cpu --go ${GO.samaltak} -n ${LAPS} Mandelbrot`, '--delay', '0');
+await sleep(1500);
+act('key', 'Enter', `${T1}.terminal`);
+act('key', 'Enter', `${T2}.terminal`);
+await until(() => Object.values(GO).every(f => existsSync(`${f}.ready`)), 120000, 'both racers at the start');
+await sleep(1500);                                 // the top bar's frame times settle
 S.startSegment();
-await sleep(300);
+S.preroll(1.4);
+await sleep(1500);
 for (const [id, beat] of beats) {
   await S.say(id);
   await beat();
