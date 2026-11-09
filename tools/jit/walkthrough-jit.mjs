@@ -37,7 +37,7 @@ Object.assign(S.env, { ZDOTDIR: zdot, SHELL: '/bin/zsh' });
 const ctl = (...a) => S.ctl(...a), act = (...a) => S.act(...a);
 const DESK = '1431,250';   // the desk at the right edge, never covered
 const W = { workspace: '@w1', transcript: '@w2', procs: '@w3', mandel: '@w4', inspector: '@w5', browser: '@w6' };
-const LAPS = 30;
+const LAPS = 70;
 const PHARO = '/tmp/pharo12';
 execFileSync('ln', ['-sfn', join(process.env.HOME, '.cache/pharo12'), PHARO]);
 Object.assign(S.env, { PHARO_VM: join(PHARO, 'vm/Pharo.app/Contents/MacOS/Pharo'), PHARO_IMAGE: join(PHARO, 'bench.image') });
@@ -74,8 +74,10 @@ function place(ref, x, y, w, h) {
 }
 const text = ref => ctl('snapshot', ref).split('\n').filter(l => l.startsWith('  | ')).map(l => l.slice(4)).join('\n');
 async function until(test, timeout, what) {
-  for (const t = Date.now(); !test(); await sleep(150))
-    if (Date.now() - t > timeout) throw new Error(`timed out waiting for ${what}`);
+  for (let t = 0; !test(); t += 150) {
+    if (t > timeout) throw new Error(`timed out waiting for ${what}`);
+    await sleep(150);
+  }
 }
 // Open a tool from the World menu; answer its window.
 async function openTool(item, re) {
@@ -140,14 +142,16 @@ const PRINTED = source => `[:t | | i | i := t indexOfSubCollection: ${quote(sour
 
 // ---------------------------------------------------------------- beats
 const beats = [
+  // The caption saying how the video was recorded.
+  ['clock', async () => { await sleep(3500); }],
   // Two Terminals, the commands typed before the recording: Pharo 12 (left), Samaltak (right), the same AWFY sources
-  // (vm/tests/bench/awfy.sh files them in), each lap in ms as it ends (--ms). Pharo first, Samaltak right after; the
+  // (vm/tests/bench/awfy.sh files them in), each lap's CPU time in ms as it ends (--ms --cpu). Pharo first, Samaltak right after; the
   // lines come as the narration gets to them (Samaltak's first lap about a second after Enter).
   ['race', async () => {
     await S.cue('Each line is one lap', null, () => {
       act('key', 'Enter', `${T1}.terminal`);
       act('key', 'Enter', `${T2}.terminal`);
-    }, { lead: 0.6, when: SHOWS(true, 'Mandelbrot lap 1:'), max: 10 });
+    }, { lead: 1.1, when: SHOWS(true, 'Mandelbrot lap 1:'), max: 10 });
     await S.spoken();
   }],
   // Samaltak's summary, as its Terminal shows it: it is done; Pharo runs on.
@@ -267,11 +271,11 @@ const beats = [
   ['why-switch', async () => {
     const baseline = await selected(DO.baselineOnly);
     S.busy = true;
-    await S.cue('switched to baseline only', null, baseline, { lead: 2, max: 15, when: PRINTED(DO.baselineOnly) });
+    await S.cue('switched to baseline only', null, baseline, { lead: 1.15, max: 15, when: PRINTED(DO.baselineOnly) });
     S.busy = false;
     const opt = await selected(DO.optAgain);
     S.busy = true;
-    await S.cue('back to opt', null, opt, { lead: 1, max: 15, when: PRINTED(DO.optAgain) });
+    await S.cue('back to opt', null, opt, { lead: 0.4, max: 15, when: PRINTED(DO.optAgain) });
     S.busy = false;
   }],
   // Which Cogit Pharo 12's VM was generated with (strings answers at once once the file is cached). Once that has been
@@ -299,7 +303,7 @@ const beats = [
     await pick(2, 'benchmarks.md', 300);
     const doc = readFileSync(join(root, 'docs/benchmarks.md'), 'utf8');
     const from = doc.indexOf('| geometric mean |', doc.indexOf('## Real-world workloads'));
-    const to = doc.indexOf('(0.73).', from) + '(0.73).'.length;
+    const to = doc.indexOf('PrintParse (0.85).', from) + 'PrintParse (0.85).'.length;
     if (from < 0 || to < from) throw new Error('no real-world result in docs/benchmarks.md');
     await S.cue('On sixteen real-world programs', VIEWER, () => act('select', `${FB}.viewer`, `${from}-${to}`));
     await S.spoken();
@@ -340,8 +344,8 @@ T1 = await openTool('terminal', /^window @w\d+ "Terminal"/);
 place(T1, 18, 41, 702, 843);
 T2 = await openTool('terminal', new RegExp(`^window @w(?!${T1.slice(2)} )\\d+ "Terminal"`));
 place(T2, 720, 41, 702, 843);
-act('type', `${T1}.terminal`, `vm/tests/bench/awfy.sh --ms --pharo -n ${LAPS} Mandelbrot`, '--delay', '0');
-act('type', `${T2}.terminal`, `vm/tests/bench/awfy.sh --ms -n ${LAPS} Mandelbrot`, '--delay', '0');
+act('type', `${T1}.terminal`, `vm/tests/bench/awfy.sh --ms --cpu --pharo -n ${LAPS} Mandelbrot`, '--delay', '0');
+act('type', `${T2}.terminal`, `vm/tests/bench/awfy.sh --ms --cpu -n ${LAPS} Mandelbrot`, '--delay', '0');
 await sleep(2500);
 S.startSegment();
 await sleep(300);

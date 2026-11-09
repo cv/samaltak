@@ -22,6 +22,7 @@ usage: $0 [options] [benchmark[:inner] ...]
   -i N              inner iterations for every benchmark (default: per benchmark, see inner())
   -o FILE           also write CSV and '#' lines to FILE
   --ms              show each lap and the summary in words and milliseconds (FILE gets the CSV)
+  --cpu             measure the CPU time of the thread running Smalltalk instead of wall time (load matters less)
   --summary FILE... only summarize result files (one invocation each; steady = median over files)
 EOF
     exit 2
@@ -42,10 +43,10 @@ inner() {
 # What is shown: as it is, or with --ms each lap and the summary in words and milliseconds.
 show() {
     if [ "$MS" = 1 ]; then
-        awk '/^[A-Za-z0-9]+,[0-9]+,-?[0-9]+$/ { split($0, a, ","); printf "%s lap %d: %.1f ms\n", a[1], a[2], a[3] / 1000; fflush(); next }
+        awk -v cpu="$CPU_LABEL" '/^[A-Za-z0-9]+,[0-9]+,-?[0-9]+$/ { split($0, a, ","); printf "%s lap %d: %.1f ms%s\n", a[1], a[2], a[3] / 1000, cpu; fflush(); next }
             /^# (run|stats|total|benchmark) / { next }
             /^# [A-Za-z0-9]+ +[0-9]+ +[0-9.]+ +[0-9.]+ +[0-9.]+$/ {
-                printf "%s: first lap %.1f ms, steady state %.1f ms a lap, total %.1f s\n", $2, $4, $5, $6 / 1000; fflush(); next }
+                printf "%s: first lap %.1f ms, steady state %.1f ms a lap, total %.1f s%s\n", $2, $4, $5, $6 / 1000, cpu; fflush(); next }
             { print; fflush() }'
     else
         cat
@@ -86,7 +87,7 @@ summarize() {
     }'
 }
 
-VM= IMAGE= VMARGS= PHARO=0 SUITE=awfy N=30 INNER= OUT= SUMMARY=0 MS=0
+VM= IMAGE= VMARGS= PHARO=0 SUITE=awfy N=30 INNER= OUT= SUMMARY=0 MS=0 CPU=0 CPU_LABEL=
 while [ $# -gt 0 ]; do
     case $1 in
     --vm) VM=$2; shift ;;
@@ -98,6 +99,7 @@ while [ $# -gt 0 ]; do
     -i) INNER=$2; shift ;;
     -o) OUT=$2; shift ;;
     --ms) MS=1 ;;
+    --cpu) CPU=1 CPU_LABEL=' of CPU' ;;
     --summary) SUMMARY=1 ;;
     -h|--help) usage ;;
     -*) usage ;;
@@ -155,9 +157,11 @@ for spec in "$@"; do
     files="'Harness' 'Core' '$(file_of "$b")'"
     run="(Smalltalk at: #Harness) new run: #('$b' '$N' '$in')"
     if [ $PHARO = 1 ]; then
+        [ $CPU = 1 ] && files="'PharoCPU' $files"
         expr="[#('Pharo' $files) do: [:n | ('$DIR/', n, '.st') asFileReference fileIn]. $run. ''] on: Error do: [:e | 'ERROR ', e class name, ': ', e messageText]"
         (cd "$WORK" && "$VM" --headless $VMARGS "$IMAGE" eval "$expr") 2>&1
     else
+        [ $CPU = 1 ] && files="'SamaltakCPU' $files"
         expr="[#('Samaltak' $files) do: [:n | Compiler fileIn: '$DIR/', n, '.st']. $run. ''] on: Error do: [:e | 'ERROR ', e class name, ': ', e messageText]"
         "$VM" $VMARGS "$IMAGE" --headless --eval "$expr" 2>&1
     fi | tee "$LOG" | tr -u '\r' '\n' | grep --line-buffered -E '^[A-Za-z0-9]+,[0-9]+,-?[0-9]+$|^# ' | tee -a "$ALL" | show

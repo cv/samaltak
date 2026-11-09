@@ -1,20 +1,24 @@
 [
   {
+    "id": "clock",
+    "caption": "Recorded on a work clock: times and frame stats shown inside Samaltak are its CPU work at a nominal 3.3 GHz, not wall time. The race's laps are each process's own CPU time."
+  },
+  {
     "id": "race",
-    "caption": "Are We Fast Yet's Mandelbrot, 30 laps, the same source on both, run at once: Pharo 12 (Cog) on the left, Samaltak on the right. Each line: one lap, in milliseconds.",
+    "caption": "Are We Fast Yet's Mandelbrot, 70 laps, the same source on both, run at once: Pharo 12 (Cog) on the left, Samaltak on the right. Each line: one lap, in ms of CPU time.",
     "spoken": "Same benchmark, same source code: Pharo 12 on the left, Samaltak on the right. Each line is one lap, in milliseconds.",
     "cues": ["Each line is one lap"]
   },
   {
     "id": "race-done",
-    "caption": "Samaltak is done: first lap, steady state (median of the second half) and total. Pharo is still running.",
+    "caption": "Samaltak is done: first lap, steady state (median of the second half) and total, in CPU time. Pharo is still running.",
     "spoken": "Samaltak's done. Pharo takes about three times as long.",
     "cues": ["Samaltak's done"]
   },
   {
     "id": "source",
-    "caption": "src/VM-Jit, 14,297 lines in 22 files: the baseline compiler, the optimizing one (Opt…), the runtime and assembler they share. Translated to C in vm/gen.",
-    "spoken": "The JIT's written in Smalltalk: a baseline compiler and an optimizing one, about fourteen thousand lines, translated to C like the rest of the VM.",
+    "caption": "src/VM-Jit, 15,090 lines in 23 files: the baseline compiler, the optimizing one (Opt…), the runtime and assembler they share. Translated to C in vm/gen.",
+    "spoken": "The JIT's written in Smalltalk: a baseline compiler and an optimizing one, about fifteen thousand lines, translated to C like the rest of the VM.",
     "cues": ["The JIT's written in Smalltalk", "a baseline compiler", "an optimizing one", "translated to C"]
   },
   {
@@ -54,7 +58,7 @@
   },
   {
     "id": "why-switch",
-    "caption": "Measured here, beside the UI and this recording: Mandelbrot in this system on baseline only, then on opt again (Smalltalk vm jitParameters:), the median of 7 runs each.",
+    "caption": "Measured here, on the work clock (CPU work at a nominal 3.3 GHz): Mandelbrot in this system on baseline only, then on opt again (Smalltalk vm jitParameters:), the median of 7 runs each.",
     "spoken": "Here's that benchmark in this system, switched to baseline only, and now back to opt.",
     "cues": ["switched to baseline only", "back to opt"]
   },
@@ -66,14 +70,14 @@
   },
   {
     "id": "why-table",
-    "caption": "docs/jit.md, Comparison: Are We Fast Yet, 14 benchmarks, headless, steady state: baseline 0.67 and opt 0.34 of Pharo 12's time, both faster on all 14. Compiling: 0.17 and 4.6 µs per bytecode.",
-    "spoken": "In headless runs of Are We Fast Yet, baseline takes sixty-seven percent of Pharo's time, and opt thirty-four.",
+    "caption": "docs/jit.md: Are We Fast Yet (14 benchmarks, headless, steady state): baseline 0.64 and opt 0.33 of Pharo 12's time, both faster on all 14. Compiling: baseline as fast as Cog; opt about 7× baseline per bytecode, inlined bytecode included.",
+    "spoken": "In headless runs of Are We Fast Yet, baseline takes sixty-four percent of Pharo's time, and opt thirty-three.",
     "cues": ["Are We Fast Yet"]
   },
   {
     "id": "realworld",
-    "caption": "docs/benchmarks.md, real-world workloads: 16 programs written against each system's own library. opt: 0.45 of Pharo 12's time, faster on all 16; baseline: 0.60, slower on Strings (1.19×) and Fasta (1.02×).",
-    "spoken": "On sixteen real-world programs using each system's own library, opt takes forty-five percent of Pharo's time, and wins all sixteen.",
+    "caption": "docs/benchmarks.md, real-world workloads: 16 programs written against each system's own library: opt 0.41 and baseline 0.52 of Pharo 12's time, both faster on all 16.",
+    "spoken": "On sixteen real-world programs using each system's own library, opt takes forty-one percent of Pharo's time, baseline fifty-two, and both win all sixteen.",
     "cues": ["On sixteen real-world programs"]
   },
   {
