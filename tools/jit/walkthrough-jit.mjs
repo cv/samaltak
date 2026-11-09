@@ -37,7 +37,7 @@ Object.assign(S.env, { ZDOTDIR: zdot, SHELL: '/bin/zsh' });
 const ctl = (...a) => S.ctl(...a), act = (...a) => S.act(...a);
 const DESK = '1431,250';   // the desk at the right edge, never covered
 const W = { workspace: '@w1', transcript: '@w2', procs: '@w3', mandel: '@w4', inspector: '@w5', browser: '@w6' };
-const LAPS = 160;
+const LAPS = 140;
 const GO = { pharo: '/tmp/go-pharo', samaltak: '/tmp/go-samaltak' };   // the race's start gun (awfy.sh --go)
 const PHARO = '/tmp/pharo12';
 execFileSync('ln', ['-sfn', join(process.env.HOME, '.cache/pharo12'), PHARO]);
@@ -166,14 +166,13 @@ const beats = [
   // The Terminals close over the File Browser (opened before the recording; Pharo's run with its Terminal): src ›
   // VM-Jit with each file's lines, the baseline compiler, the optimizer's first pass; vm › gen: the C translated from them.
   ['source', async () => {
-    await S.cue("The jit's written in Smalltalk", [730, 60, 680, 800], () => act('click', `${T2}.close`));
-    act('click', `${T1}.close`); await sleep(300);
+    act('click', `${T2}.close`);
+    act('click', `${T1}.close`);
     await S.cue('a baseline compiler', VIEWER, () => pick(3, 'JitBaselineCompiler.st', 0));
     await S.cue('an optimizing one', VIEWER, () => pick(3, 'OptBuilder.st', 0));
-    await sleep(600);
-    await pick(1, 'vm');
-    await pick(2, 'gen', 600);
-    await S.cue('translated to C', VIEWER, () => pick(3, 'opt_codegen.c', 0));
+    await pick(1, 'vm', 150);
+    await pick(2, 'gen', 250);
+    await pick(3, 'opt_codegen.c', 0);
     await S.spoken();
   }],
 

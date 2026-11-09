@@ -179,7 +179,7 @@ export class VideoSession {
     const at = this.cueAt(step.id, text);
     if (when && this.eval(`[${when}] value`) === 'true') throw new Error(`cue ${JSON.stringify(text)}: ${when} before it began`);
     lead = this.leads[`${step.id}|${text}`] ?? lead;
-    const needs = prepare ? this.leads[`${step.id}|${text}|prepare`] ?? 2 : 0;
+    const needs = prepare ? (this.leads[`${step.id}|${text}|prepare`] ?? 1.5) * 1.3 + 0.3 : 0;   // what it took last time, and a margin
     step.origin ??= Math.max(step.start, this.now() + needs + lead - at);
     const until = async s => { const wait = (s - this.now()) * 1000; if (wait > 0) await sleep(wait); };
     let prepared = null;
@@ -196,7 +196,9 @@ export class VideoSession {
     try { if (action) await action(); } finally { this.busy = busy; }
     if (when) this.waitUntil(when, max + 30);
     const shown = when ? this.now() : region == null ? t : null;
-    step.cues.push({ text, t, est: shown ?? Math.max(this.now(), t + lead), shown, max, frac, prepared,
+    const est = shown ?? Math.max(this.now(), t + lead);
+    step.origin = Math.max(step.origin, est - at);   // later than planned: the clip plays later (as compose-video.py will have it)
+    step.cues.push({ text, t, est, shown, max, frac, prepared,
       region: shown != null ? null : typeof region === 'function' ? region() : region });
   }
   // Select whole lines of a listing (the front TextView's text): from the line holding what (after the first after) to

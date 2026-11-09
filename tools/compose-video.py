@@ -5,15 +5,15 @@ default walkthrough.mp4, and <dir>/cues.json)
 
 A step's clip plays whole, at one start: its cues' words (video-lib.mjs cue, narration/times.json) are spoken SPOKEN_AFTER s
 after their effects show or later, never before; the walkthrough schedules its actions for that, from how long each
-took to show in the last pass (written here to <dir>/leads.json). A cue's effect that shows more than EARLY s before its
-words, or later, is an error. For each cue, the time its effect showed is known (the image's) or found: the first frame
+took to show in the last pass (written here to <dir>/leads.json). A cue's effect that shows more
+than EARLY s before its words, or later, is an error. For each cue, the time its effect showed is known (the image's) or found: the first frame
 after its action where its region of the screen changed. Clips never overlap (a clip that would run into the next
 loses its trailing silence, else the next comes later)."""
 import html, json, os, subprocess, sys
 import numpy as np
 
 SPOKEN_AFTER = 0.06   # a cue's words start this long after its effect shows (word times are good to about 50 ms)
-EARLY = 0.5           # the most a cue's effect may show before its words
+EARLY = 0.75          # the most a cue's effect may show before its words
 MIN_PAUSE = 0.15      # a shortened pause, from the end of the speech (+50 ms) to the next clip
 FPS = 30
 

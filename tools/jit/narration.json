@@ -1,7 +1,7 @@
 [
   {
     "id": "race",
-    "caption": "Are We Fast Yet's Mandelbrot, 160 laps, the same source on both, run at once: Pharo 12 (Cog) on the left, Samaltak on the right. Each line: one lap, in ms of CPU time. On screen the race runs at about {speed}× real speed.",
+    "caption": "Are We Fast Yet's Mandelbrot, 140 laps, the same source on both, run at once: Pharo 12 (Cog) on the left, Samaltak on the right. Each line: one lap, in ms of CPU time. On screen the race runs at about {speed}× real speed.",
     "spoken": "Same benchmark, same source code: Pharo 12 on the left, Samaltak on the right. Each line is one lap, in milliseconds."
   },
   {
@@ -14,7 +14,7 @@
     "id": "source",
     "caption": "src/VM-Jit, 15,090 lines in 23 files: the baseline compiler, the optimizing one (Opt…), the runtime and assembler they share. Translated to C in vm/gen.",
     "spoken": "The jit's written in Smalltalk: a baseline compiler and an optimizing one, about fifteen thousand lines, translated to C like the rest of the VM.",
-    "cues": ["The jit's written in Smalltalk", "a baseline compiler", "an optimizing one", "translated to C"]
+    "cues": ["a baseline compiler", "an optimizing one"]
   },
   {
     "id": "tiers",
