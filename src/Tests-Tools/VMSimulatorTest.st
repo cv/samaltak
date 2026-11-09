@@ -17,7 +17,7 @@ testRunShowsTheGuest
 		ensure: [window sync: [tool stop]]
 !
 testSmalltalk80RunsOnTheScreen
-	"The guest display shows in the screen pane, which has the keys: 3 + 4, cmd-P, and the guest's Compiler prints 7 (its Transcript writes the output pane)."
+	"The guest display shows in the screen pane, which has the keys: 3 + 4, cmd-P, and the guest's Compiler prints 7 (its Transcript writes the output, shown only for Run)."
 	| tool window |
 	window := VMSimulator openAt: 100 @ 100.
 	tool := window content.
@@ -29,5 +29,22 @@ testSmalltalk80RunsOnTheScreen
 	 self assert: (self waitFor: [tool output includesSubstring: '3 + 4 --> 7'] timeout: 60000).
 	 self assert: (self waitFor: [tool screen latency notNil]).
 	 self assert: ((window sync: [tool screen remoteState]) includes: 'size=640x400')]
+		ensure: [window sync: [tool stop]]
+!
+testSmalltalk80ShowsOnlyTheToolbarAndTheScreen
+	"With the guest display up only the toolbar and the screen show, and a window of 1404 by 873 gives it 2 points a pixel; Run brings the output back."
+	| tool window |
+	window := VMSimulator openAt: 100 @ 100.
+	tool := window content.
+	[window sync: [tool runSmalltalk80].
+	 self assert: (self waitFor: [tool screen frames > 1] timeout: 60000).
+	 self assert: (window sync: [tool isShowingScreen]).
+	 self assert: (window sync: [tool screen pixelSize]) equals: 1.
+	 window sync: [window bounds: (20 @ 27 extent: 1404 @ 873)].
+	 self assert: (self waitFor: [(window sync: [tool screen extent]) = (1402 @ 800)]).
+	 self assert: (window sync: [tool screen pixelSize]) equals: 2.
+	 window sync: [tool run].
+	 self deny: (window sync: [tool isShowingScreen]).
+	 self assert: (self waitFor: [tool output includesSubstring: 'Samaltak VM | tick 1 | 1 squared = 1'] timeout: 30000)]
 		ensure: [window sync: [tool stop]]
 ! !
