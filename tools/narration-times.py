@@ -172,7 +172,7 @@ def words(text):
 
 def main():
     d, steps_file = sys.argv[1], sys.argv[2]
-    steps = json.load(open(steps_file))
+    steps = [s for s in json.load(open(steps_file)) if s.get('spoken')]
     times, problems = {}, []
     for step in steps:
         sid, text = step['id'], step['spoken']

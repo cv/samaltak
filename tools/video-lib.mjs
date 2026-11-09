@@ -16,7 +16,7 @@ import { fileURLToPath } from 'node:url';
 const here = dirname(fileURLToPath(import.meta.url));
 const SEGMENT_GAP = 2;     // s of black between segments, the restart the video does not show
 let clock = null;          // the VideoSession on the recording clock: sleeping is letting its clock run
-export const sleep = ms => clock ? clock.advance(ms) : new Promise(r => setTimeout(r, ms));
+export const sleep = ms => clock ? clock.pass(ms) : new Promise(r => setTimeout(r, ms));
 const sleepSync = ms => Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms);
 const alive = pid => { try { process.kill(pid, 0); return true; } catch { return false; } };
 const probe = file => +execFileSync('ffprobe', ['-v', 'error', '-show_entries', 'format=duration', '-of', 'csv=p=0', file], { encoding: 'utf8' }).trim();
@@ -37,6 +37,7 @@ export class VideoSession {
     this.fps = 30;
     this.videoBefore = 0;   // video time at which the current (or last) segment began
     this.frames = 0;        // frames written to the current segment so far (the last count a query saw)
+    this.between = null;    // between segments (no image to ask): the video time so far
     this.recording = false;
     // Input commands wait at most 400 ms for the image to settle; with busy set they return at once (a busy image
     // never settles, and the script paces itself).
@@ -49,11 +50,14 @@ export class VideoSession {
   eval(source) { return this.run(['eval', source]); }
   // The video time: the frame the recording is at. The image may have quit (the frames then are all there are).
   now() {
+    if (this.between != null) return this.between;
     if (this.recording) try { this.frames = JSON.parse(this.run(['state'])).videoFrames ?? this.frames; } catch {}
     return this.videoBefore + this.frames / this.fps;
   }
   // Let the image's clock run for ms (at most 1 ms short).
   advance(ms) { return this.run(['advance', String(Math.max(1, Math.round(ms)))]); }
+  // Let ms of video pass: the clock's, or between segments only the video's.
+  pass(ms) { if (this.between != null) this.between += ms / 1000; else return this.advance(ms); }
 
   // Window ref by title, from a shallow snapshot; waits until the window exists.
   async win(re, timeout = 15000) {
@@ -97,28 +101,33 @@ export class VideoSession {
       try { this.run(['record', 'start', file, '--size', '1440x900', '--fps', String(this.fps)]); break; }
       catch (e) { if (Date.now() - t > 30000) throw e; }
     }
-    if (this.segments.length) this.videoBefore = this.now() + SEGMENT_GAP;
+    if (this.segments.length) {
+      const last = this.segments[this.segments.length - 1];
+      this.videoBefore = Math.max(last.start + last.dur + SEGMENT_GAP, this.between);
+    }
+    this.between = null;
     this.frames = 0;
     this.segments.push({ file, start: this.videoBefore });
     this.recording = true;
   }
-  // Wait until the recording ended by itself: the image quit, or its VM exec'd another (ffmpeg saw the end of the FIFO).
+  // Wait until the recording ended by itself: the image quit, or its VM exec'd another (ffmpeg saw the end of the FIFO):
+  // let the clock run until the image has gone, then real time. timeout: seconds of the clock, or real ones after that.
   async recordingEnded(timeout = 30000) {
     const session = join(process.env.TMPDIR || tmpdir(), 'samaltak-ctl', `${this.env.SAMALTAK_SESSION}.json`);
-    const t = Date.now();
-    for (;;) {
+    for (let t = 0; t <= timeout; t += 50) {
       let rec = null;
       try { rec = JSON.parse(readFileSync(session, 'utf8')).recording; } catch {}
       if (!rec || !alive(rec.pid)) return;
-      if (Date.now() - t > timeout) throw new Error('the recording did not end');
-      await sleep(50);
+      try { this.advance(50); } catch { sleepSync(50); }
     }
+    throw new Error('the recording did not end');
   }
   stopSegment() {
     console.log(this.ctl('record', 'stop'));
     this.recording = false;
     const seg = this.segments[this.segments.length - 1];
     seg.dur = probe(seg.file);
+    this.between = seg.start + seg.dur;
   }
   // Let the clock run until the Smalltalk expression when answers true (at most timeout s of it).
   waitUntil(when, timeout) { return this.run(['wait', JSON.stringify({ eval: when }), String(timeout * 1000)]); }
@@ -165,7 +174,9 @@ export class VideoSession {
     const wait = (earliest - lead - this.now()) * 1000;
     if (wait > 0) await sleep(wait);
     const t = this.now();
-    if (action) await action();
+    const busy = this.busy;
+    if (when) this.busy = true;      // the condition says when the effect shows: the action does not wait for it to settle
+    try { if (action) await action(); } finally { this.busy = busy; }
     if (when) this.waitUntil(when, max + 30);
     const shown = when ? this.now() : region == null ? t : null;
     step.cues.push({ text, t, est: shown ?? Math.max(this.now(), t + lead), shown, max, frac,
@@ -177,9 +188,9 @@ export class VideoSession {
     this.cueAt(step.id, text);
     step.cues.push({ text, t, est: t, shown: t, region: null });
   }
-  // Wait until the current step's narration is over.
-  async spoken() {
-    const wait = (this.narrationEnd(this.captions[this.captions.length - 1]) - this.now()) * 1000;
+  // Wait until the current step's narration is over (or before s earlier).
+  async spoken(before = 0) {
+    const wait = (this.narrationEnd(this.captions[this.captions.length - 1]) - before - this.now()) * 1000;
     if (wait > 0) await sleep(wait);
   }
 

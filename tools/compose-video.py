@@ -41,7 +41,7 @@ def region_frames(t0, seconds, region):
 def shown(cue, until):
     """Video time of the first frame after cue's action whose region changed by frac of its largest change (before
     until, the next action)."""
-    frames, t0 = region_frames(cue['t'] - 0.1, min(cue['max'], until - cue['t']) + 0.1, cue['region'])
+    frames, t0 = region_frames(cue['t'] - 0.1, min(cue['max'], until - cue['t'] - 1 / FPS) + 0.1, cue['region'])
     change = np.array([(np.abs(f - frames[0]).max(axis=2) > 16).mean() for f in frames])
     if change.max() < 0.002:
         return None, change.max()
@@ -95,7 +95,7 @@ for c in caps:
     pieces.append({'sid': sid, 'start': start0 - cut0, 'a': 0.0, 'b': cut0, 'cue': None})
     for k, (cut, start, r) in enumerate(places):
         pieces.append({'sid': sid, 'start': start, 'a': cut, 'b': places[k + 1][0] if k + 1 < len(places) else dur, 'cue': r})
-    c['start'] = min(c['start'], start0 - cut0)
+    c['start'] = start0 if cut0 < 0.1 else min(c['start'], start0 - cut0)   # a narration that begins with its effect brings its caption
 
 for prev, cur in zip(pieces, pieces[1:]):
     if prev['start'] + prev['b'] - prev['a'] > cur['start'] + 0.005:

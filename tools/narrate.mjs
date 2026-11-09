@@ -30,7 +30,7 @@ const VOICE = process.env.ELEVENLABS_VOICE || 'CwhRBWXzGAHq8TQ4Fs17'; // "Roger"
 const MODEL = 'eleven_v4'; // delivery via inline audio tags such as [warm], [pause]
 const { continuity, ...extra } = JSON.parse(process.env.ELEVENLABS_REQUEST || '{}');
 const stepsFile = resolve(process.argv[3] || join(here, 'narration.json'));
-const steps = JSON.parse(readFileSync(stepsFile, 'utf8'));
+const steps = JSON.parse(readFileSync(stepsFile, 'utf8')).filter(s => s.spoken);   // a step without spoken text is only a caption
 const durations = {};
 
 // A take of body with the start and end time of each character of its text.

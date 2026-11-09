@@ -392,8 +392,8 @@ showRestartSplash
 	self changed
 !
 leave
-	"Before the VM goes away (a quit, the exec of a rebuilt VM): the screen fades to black; answer once it was shown. Not when hidden."
-	(hidden or: [running not or: [compositor isNil]]) ifTrue: [^self].
+	"Before the VM goes away (a quit, the exec of a rebuilt VM): the screen fades to black; answer once it was shown. Not when nobody can see it (hidden and not recorded)."
+	(running not or: [compositor isNil or: [hidden and: [compositor recorder isNil]]]) ifTrue: [^self].
 	curtain := WorldCurtain leaving: self.
 	self changed.
 	Processor activeProcess == compositor process ifTrue: [^self].
