@@ -13,7 +13,7 @@ import html, json, os, subprocess, sys
 import numpy as np
 
 SPOKEN_AFTER = 0.06   # a cue's words start this long after its effect shows (word times are good to about 50 ms)
-EARLY = 0.75          # the most a cue's effect may show before its words
+EARLY = 1.8           # the most a cue's effect may show before its words
 MIN_PAUSE = 0.15      # a shortened pause, from the end of the speech (+50 ms) to the next clip
 FPS = 30
 

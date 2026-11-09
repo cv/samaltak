@@ -45,8 +45,6 @@
     "caption": "One setting slows the animation clock tenfold: the menu, a window opening.",
     "spoken": "There's a setting that slows everything down ten times, so you can actually see the animations. The menu... a window opening.",
     "cues": [
-      "a setting",
-      "The menu",
       "a window opening"
     ]
   },
@@ -81,7 +79,6 @@
     "caption": "A breakpoint in ballColor, only for the robot's Process: it freezes mid-throw, the rest of the system keeps running.",
     "spoken": "Next, a breakpoint in ball colour, just for the robot's process. It stops mid-throw, and everything else keeps going.",
     "cues": [
-      "a breakpoint in ball colour",
       "It stops mid-throw",
       "keeps going"
     ]
@@ -137,6 +134,14 @@
     ]
   },
   {
+    "id": "guest-debug",
+    "caption": "The Simulator's Debug: the simulated VM's Process in the debugger, Interpreter>>interpret and the interpreter's own methods on its stack. Proceed: it runs on.",
+    "spoken": "And if I hit Debug, there's the interpreter itself, stopped in the debugger, in its own bytecode loop.",
+    "cues": [
+      "the interpreter itself"
+    ]
+  },
+  {
     "id": "gc",
     "caption": "The GC is Smalltalk too: GarbageCollector class>>initialize. TENURE_AGE: how many scavenges an object survives before it is promoted to old space. Now 2.",
     "spoken": "The garbage collector's Smalltalk too, and this little constant says how many collections an object has to survive before it gets promoted to old space. Right now that's two.",
@@ -170,8 +175,8 @@
   },
   {
     "id": "gc-after",
-    "caption": "The new VM (TENURE_AGE 0), same image, same loop, same axes: every survivor promoted, old space climbs, full GCs pile up.",
-    "spoken": "And there's the new VM, same windows, same loop. Now every survivor gets promoted, so old space shoots up, and the full GCs just pile up.",
+    "caption": "The new VM (TENURE_AGE 0), same image, same loop, same axes: every survivor promoted, old space climbs, full GCs (dotted) clear it.",
+    "spoken": "And there's the new VM, same windows, same loop. Now every survivor gets promoted, so old space shoots up, and full GCs keep having to clean it out.",
     "cues": [
       "there's the new VM",
       "same loop"

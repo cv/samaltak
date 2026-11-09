@@ -88,6 +88,8 @@ function place(ref, x, y, w, h) {
   }
   moveTo(x, y);
 }
+// Place a window at once, without the pointer (a window that has just opened, in a tight beat), by part of its title.
+const setBounds = (title, x, y, w, h) => S.eval(`((Desktop current windows detect: [:w | w title includesSubstring: '${title}']) bounds: (${x}@${y} extent: ${w}@${h})) title`);
 // Select old in an editor and type new over it. A click first gives the editor focus (a later type or key into an
 // unfocused editor would click into it, moving the caret off the selection).
 async function replaceIn(ref, old, text, ms = 110) {
@@ -103,6 +105,7 @@ function expect(ref, part) {
 }
 let J = null;                     // the robot's window (Claude's Robot, a ShannonJuggler)
 let T = null;                     // the Tenure Test's window
+let SIM = null;                   // the VM Simulator's window
 const ROBOT = '(Tools windowsOf: ShannonJuggler) first content';
 const TENURE_DONE = '(Tools windowsOf: TenureTest) first content isRunning not';
 const GLYPH = '(Font code glyphFor: $g) inspect';
@@ -123,8 +126,8 @@ const beats = [
     await browse('UI-Widgets', 'Theme', 'initializeBlueBook');
     await S.cue('save', WORKSPACE(), save, { prepare: () => edit('16r1B3A8C', '16rC8102E', 140) });
     await S.spoken();
-    await edit('16rC8102E', '16r1B3A8C', 50);
-    save(); await sleep(1200);
+    await edit('16rC8102E', '16r1B3A8C', 30);
+    save(); await sleep(300);
   }],
 
   // 2. Live shader edit: Graphics-Canvas › Renderer class › shaderSource, the MSL uber-shader as a String. Layer images
@@ -134,7 +137,7 @@ const beats = [
     await S.cue('Save', WORKSPACE(), save, { prepare: () => edit('return tex.sample(s, in.uv / size) * in.color.a;',
       'return tex.sample(s, in.uv / size) * in.color.a * (((uint(in.pos.y) / 4u) & 1u) == 0u ? 1.0 : 0.88);', 35) });
     await S.cue('undo', WORKSPACE(), save, { prepare: () => edit(' * (((uint(in.pos.y) / 4u) & 1u) == 0u ? 1.0 : 0.88)', '', 0) });
-    await sleep(1200);
+    await sleep(300);
   }],
 
   // 3. The compositor (UI-Windows › Compositor › drawWindow:on:time:, run in its own Process every frame) draws the
@@ -151,7 +154,7 @@ const beats = [
     await S.spoken();
     await edit('* s * 24.', '* s.', 0);
     await edit('Color ultramarine.', 'Color black.', 0);
-    save(); await sleep(1200);
+    save(); await sleep(300);
   }],
 
   // 4. Live glyph rasterizer: Graphics-Canvas › GlyphRasterizer › coverage answers 255 minus the coverage: every glyph
@@ -169,16 +172,14 @@ const beats = [
     await sleep(1000);
     act('click', `${insp}.close`); await sleep(600);
     await S.cue('back', WORKSPACE(), save, { prepare: () => edit('255 - (v', '(v', 0) });
-    await sleep(1200);
+    await sleep(300);
   }],
 
   // 5. Slow motion: World menu › Slow motion (the animation clock 10× slower): the menu, a window opening.
   ['slowmo', async () => {
-    await S.cue('a setting', MENU, async () => { act('click', DESK); await sleep(300); });
-    await sleep(500);
-    act('click', '@menu.slow-motion'); await sleep(1000);
-    await S.cue('The menu', MENU, async () => { act('click', GAP); await sleep(300); }, { frac: 0.1, max: 3 });
-    await sleep(800);
+    act('click', DESK); await sleep(600);
+    act('click', '@menu.slow-motion'); await sleep(800);
+    act('click', GAP); await sleep(1300);
     let fresh = null;
     await S.cue('a window opening', () => box(fresh), async () => {
       act('click', '@menu.workspace');
@@ -219,19 +220,16 @@ const beats = [
   // the robot's Process stops in its next frame, the robot freezes mid-throw (the debugger opens); the rest of the
   // system is live (the Process Browser is dragged).
   ['freeze', async () => {
-    act('select', `${W.browser}.methods`, 'ballColor'); await sleep(700);
-    await S.cue('a breakpoint in ball colour', MENU, async () => { act('rightclick', `${W.browser}.methods.ballcolor`); await sleep(300); });
-    await sleep(500);
-    act('click', '@menu.break-in-window'); await sleep(800);
+    act('select', `${W.browser}.methods`, 'ballColor'); await sleep(500);
+    act('rightclick', `${W.browser}.methods.ballcolor`); await sleep(500);
+    act('click', '@menu.break-in-window'); await sleep(600);
     let dbg = null;
     await S.cue('It stops mid-throw', () => dbg, async () => {
       act('click', '@menu~2.claude-s-robot');
       const ref = await S.win(/Breakpoint: ShannonJuggler>>ballColor/);
       dbg = box(ref);
-      await sleep(600);
-      place(ref, 18, 41, 866, 843);
     });
-    await sleep(600);
+    setBounds('Breakpoint', 18, 41, 866, 843);
     await S.cue('keeps going', box(W.procs), async () => { act('drag', W.procs, '-60', '30'); await sleep(900); });
     act('drag', W.procs, '60', '-30'); await sleep(900);
   }],
@@ -287,10 +285,9 @@ const beats = [
       act('click', '@menu.machine-code');
       mc = await S.win(/Machine code: ShannonJuggler>>move:/);
       opened = box(mc);
-      await sleep(400);
-      place(mc, 18, 41, 866, 843);
     });
-    await sleep(600);
+    setBounds('Machine code', 18, 41, 866, 843);
+    await sleep(200);
     S.markLines(mc, 'send: #@', 'send: #@', 'send: #velocity');   // the send below scrolls to the bottom: the first is mid-pane
     const LISTING = box(`${mc}.text`);
     const SEND = 'send: #velocity numArgs: 0';
@@ -298,63 +295,77 @@ const beats = [
     await S.cue('It checks the class', LISTING, () => S.markLines(mc, 'guard: its class', 'b.ne', SEND));
     await S.cue('reads the field', LISTING, () => S.markLines(mc, 'inlined activation 1', 'its pc 0', SEND, 1));
     await S.spoken();
-    await sleep(2500);                                 // it stays up a while
+    await sleep(1800);                                 // it stays up a while
     act('click', `${mc}.close`); await sleep(600);
   }],
 
-  // 10. Smalltalk in Smalltalk: World menu › VM Simulator › Smalltalk-80 boots a small Smalltalk-80 image on the
-  // simulated VM (the VM's own Smalltalk classes, run as Smalltalk); its 640×400 1-bit screen is the tool's guest
-  // display. In its Workspace: 3 + 4 typed and printed, 100 factorial printString size printed; its ball window
-  // dragged. Guest pixels are addressed through the display (hover --at x,y answers the screen point).
+  // 10. Smalltalk in Smalltalk: World menu › VM Simulator, Smalltalk-80 boots a small Smalltalk-80 image on the simulated
+  // VM (the VM's own Smalltalk classes, run as Smalltalk, in a Process of this image); its 640×400 1-bit screen is the
+  // tool's guest display, two points a pixel. In its Workspace: 3 + 4 typed and printed, 100 factorial printString size
+  // printed; its ball window dragged. Guest pixels are addressed through the display (hover --at x,y answers the screen
+  // point).
   ['guest', async () => {
     act('click', DESK); await sleep(700);
     act('click', '@menu.vm-simulator');
-    const sim = await S.win(/VM Simulator/);
+    SIM = await S.win(/VM Simulator/);
     await sleep(400);
-    place(sim, 18, 41, 1404, 843);
-    await sleep(400);
-    const screen = `${sim}.screen`;
+    place(SIM, 18, 27, 1404, 873);                     // room for the guest at two points a pixel
+    await browseTo('VM-Core', 'GarbageCollector', 'class');   // behind it, ready for the GC beat
+    const screen = `${SIM}.screen`;
     // the guest display appears with the guest, its first frame a moment later
-    const shown = () => ctl('snapshot', sim, '--depth', '1').split('\n').some(l => l.includes('.screen ') && / frames=[1-9]/.test(l));
-    await S.cue("here's Smalltalk running inside Smalltalk", () => box(screen), async () => {
-      act('click', `${sim}.st80`);
+    const shown = () => ctl('snapshot', SIM, '--depth', '1').split('\n').some(l => l.includes('.screen ') && / frames=[1-9]/.test(l));
+    await S.cue("And it's booted", () => box(screen), async () => {
+      act('click', `${SIM}.st80`);
       for (let t = 0; !shown(); t += 100) {
         if (t > 15000) throw new Error('the Smalltalk-80 guest shows no frames');
         await sleep(100);
       }
     }, { lead: 2, max: 15 });
-    await sleep(1500);
     const pixel = (x, y) => JSON.parse(ctl('hover', screen, '--at', `${x},${y}`)).at.join(',');
     const at = pixel(220, 195);                        // the Workspace's empty last line, right of where 3 + 4 goes
-    // A line of the guest's Workspace from guest x 0 (guest pixels are 1.5 points here), where what is typed and printed
+    // A line of the guest's Workspace from guest x 0 (guest pixels are 2 points here), where what is typed and printed
     // shows, as a region: without the pointer (on the last line it clicks right of it) or the guest's ball window
     // (animated).
     const [ax, ay] = at.split(',').map(Number);
-    const lineAt = (y, w) => [Math.round(ax - 220.5 * 1.5), y - 14, w, 28];
-    const LINE = lineAt(ay, 240);
+    const lineAt = (y, w) => [Math.round(ax - 220.5 * 2), y - 18, w, 36];
+    const LINE = lineAt(ay, 320);
     await S.cue('Three plus four', LINE, async () => {
-      act('click', at); await sleep(300);
-      act('type', screen, '3 + 4', '--delay', '130'); await sleep(300);
+      act('click', at); await sleep(100);
+      act('type', screen, '3 + 4', '--delay', '70'); await sleep(100);
     }, { frac: 0.15, max: 6 });                        // the first character, not the caret
     await S.cue('seven', LINE, () => act('key', 'Meta+p', screen));
-    await sleep(800);
     const line = pixel(200, 115);
-    await S.cue('Something bigger', lineAt(Number(line.split(',')[1]), 440), async () => {
-      act('click', line); await sleep(300);            // the line 100 factorial printString size
+    await S.cue('Something bigger', lineAt(Number(line.split(',')[1]), 590), async () => {
+      act('click', line); await sleep(100);            // the line 100 factorial printString size
       act('key', 'Meta+p', screen);
     }, { lead: 0.3 });
-    await sleep(1000);
     const tab = pixel(390, 199);
     await S.cue('drag around', box(screen), () => act('drag', tab, '-230', '25'), { frac: 0.1 });   // the ball window, by its title tab
-    await sleep(2200);
+    await S.spoken();
+    await sleep(800);
+  }],
+  // Debug stops the simulated VM's Process (the debugger, or a notifier and its Debug): the full stack shows the
+  // interpreter's own method. Proceed: the guest goes on.
+  ['guest-debug', async () => {
+    let dbg = null;
+    await S.cue('the interpreter itself', () => box(dbg), async () => {
+      act('click', `${SIM}.debug`);
+      const stopped = await S.win(/"User interrupt"|Debugger/);       // a notifier if it was waiting, else the debugger
+      if (ctl('snapshot', stopped, '--depth', '0').includes('"User interrupt"')) act('click', `${stopped}.debug`);
+      dbg = await S.win(/Debugger/);
+      await sleep(400);
+      act('click', `${dbg}.full-stack`); await sleep(400);
+      act('select', `${dbg}.stack`, 'Interpreter>>interpret');
+    });
+    await S.spoken();
+    await sleep(1200);                                 // it stays up a while
+    act('click', `${dbg}.proceed`);
+    act('click', `${SIM}.close`); await sleep(300);
   }],
   // 11. The GC is Smalltalk too (VM-Core › GarbageCollector class › initialize): the constant TENURE_AGE. The Tenure Test
   // (a do-it in the Workspace; the right column): the same loop on the old VM and, after the rebuild, on the new one, in
   // lanes on the same axes.
   ['gc', async () => {
-    const sim = await S.win(/VM Simulator/, 1000).catch(() => null);
-    if (sim) { act('click', `${sim}.close`); await sleep(600); }
-    await browseTo('VM-Core', 'GarbageCollector', 'class');
     await S.cue('this little constant', CODE(), async () => {
       await pickMethod('initialize')();
       act('select', `${W.browser}.code`, 'TENURE_AGE := 2');
@@ -370,7 +381,7 @@ const beats = [
     await S.cue("here's a loop", box(`${T}.chart`), () => act('click', `${T}.run`), { frac: 0.02, max: 3 });
     await S.spoken();
     S.waitUntil(TENURE_DONE, 30);
-    await sleep(2000);                                 // the flat line stays up a while
+    await sleep(1200);                                 // the flat line stays up a while
   }],
   // TENURE_AGE 0, ⌘S.
   ['gc-edit', async () => {
@@ -396,13 +407,13 @@ const beats = [
     for (let t = 0; ; t += 15000) {                    // the new VM has resumed, its World composited
       try { S.run(['wait', 'rebooted in', '15000']); break; } catch (e) { if (t > 120000) throw e; }
     }
+    T = await S.win(/Tenure Test/);
     S.startSegment();
     await sleep(800);
   }],
   // The new VM, the Tenure Test restored with the image, its lane from the old VM: Run again.
   ['gc-after', async () => {
     S.mark("there's the new VM", S.videoBefore);
-    T = await S.win(/Tenure Test/);
     await S.cue('same loop', box(`${T}.chart`), () => act('click', `${T}.run`), { frac: 0.02, max: 3 });
     await S.spoken();
     S.waitUntil(TENURE_DONE, 30);
@@ -415,14 +426,13 @@ const beats = [
   ['core', async () => {
     for (const re of [/VM Rebuild/, /Tenure Test/]) {
       const w = await S.win(re, 1000).catch(() => null);
-      if (w) { act('click', `${w}.close`); await sleep(500); }
+      if (w) act('click', `${w}.close`);
     }
-    act('click', DESK); await sleep(700);
+    act('click', DESK); await sleep(500);
     act('click', '@menu.file-browser');
     const fb = await S.win(/File Browser/);
-    await sleep(400);
-    place(fb, 18, 41, 1404, 843);
-    await sleep(600);
+    setBounds('File Browser', 18, 41, 1404, 843);
+    await sleep(200);
     const pick = async (column, name, ms = 500) => { act('select', `${fb}.column-${column}`, name); await sleep(ms); };
     // a line of a file, centred in the viewer: select one further down (the viewer scrolls it to its bottom), then it
     const show = async (file, text) => {
@@ -431,18 +441,18 @@ const beats = [
       act('select', `${fb}.viewer`, text);
     };
     const VIEWER = [810, 100, 600, 760];   // the file viewer, right of three columns
-    await pick(1, 'vm');
-    await pick(2, 'gen', 1100);
+    await pick(1, 'vm', 200);
+    await pick(2, 'gen', 500);
     await S.cue("Here's the C", VIEWER, () => pick(3, 'interpreter.c', 300));
     await sleep(1200);
     await S.cue('the whole interpreter', VIEWER, () => show('vm/gen/interpreter.c', 'void interpret(void)'));
-    await sleep(1500);
-    await pick(1, 'src');
-    await pick(2, 'VM-Core');
     await S.cue("here's the Smalltalk it came from", VIEWER, async () => {
       await pick(3, 'Interpreter.st', 700);
       await show('src/VM-Core/Interpreter.st', 'ss := memory special: SO_SPECIAL_SELECTORS.');
-    }, { frac: 0.1 });
+    }, { frac: 0.1, prepare: async () => {
+      await pick(1, 'src', 300);
+      await pick(2, 'VM-Core', 300);
+    } });
     await S.spoken();
     await sleep(800);
     act('click', `${fb}.close`); await sleep(800);

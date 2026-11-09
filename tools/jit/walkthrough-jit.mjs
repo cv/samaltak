@@ -48,8 +48,8 @@ const PHARO_CORE = join(PHARO, 'vm/Pharo.app/Contents/MacOS/Plugins/libPharoVMCo
 const DO = {
   fresh: '(Complex >> #-) jitSendSites',
   calls: "| z | z := Complex real: 0.5 imaginary: 0.25. 1 to: 10 do: [:i | z - z]. ((Complex >> #-) jitSendSites reject: [:site | (site at: 3) isEmpty]) collect: [:site | (site at: 5), ' saw ', (site at: 3) first name]",
-  baseline: "TextView openOn: ((Complex >> #+) machineCodeFor: #baseline) title: 'Machine code: Complex>>+ (baseline)' near: nil",
-  opt: "TextView openOn: ((Complex >> #+) machineCodeFor: #opt) title: 'Machine code: Complex>>+ (opt)' near: nil",
+  baseline: "TextView openOn: ((Complex >> #+) machineCodeFor: #baseline) title: 'Machine code: Complex>>+ (baseline)' near: nil scanner: MachineCodeScanner",
+  opt: "TextView openOn: ((Complex >> #+) machineCodeFor: #opt) title: 'Machine code: Complex>>+ (opt)' near: nil scanner: MachineCodeScanner",
   before: "\"before\" | s | s := Smalltalk vm statistics. 'invalidations ', s optInvalidations printString, ', deoptimizations ', s optDeoptimizations printString",
   after: "\"after\" | s | s := Smalltalk vm statistics. 'invalidations ', s optInvalidations printString, ', deoptimizations ', s optDeoptimizations printString",
   baselineOnly: "| ms | Smalltalk vm jitParameters: {'baseline'. nil. nil. nil}. ms := ((1 to: 7) collect: [:i | [Mandelbrot new innerBenchmarkLoop: 500] timeToRun]) asSortedCollection asArray. 'baseline: ', (ms at: 4) printString, ' ms per Mandelbrot run (median of 7)'",
