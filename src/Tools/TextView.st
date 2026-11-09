@@ -3,9 +3,9 @@ ToolPane subclass: #TextView
 	classVariableNames: ''
 	package: 'Tools'!
 
-TextView comment: 'I show a text read-only, monospaced and unhighlighted: e.g. a method''s machine code (the System Browser''s method menu).
+TextView comment: 'I show a text read-only and monospaced, unhighlighted or, given a scanner (TextHighlighter scanner:), highlighted: e.g. a method''s machine code with MachineCodeScanner (the System Browser''s method menu).
 
-	TextView openOn: (Integer >> #factorial) machineCode title: ''Machine code: Integer>>factorial'' near: nil'!
+	TextView openOn: (Integer >> #factorial) machineCode title: ''Machine code: Integer>>factorial'' near: nil scanner: MachineCodeScanner'!
 
 !TextView methodsFor: 'initialization'!
 initialize
@@ -24,8 +24,12 @@ text
 
 !TextView class methodsFor: 'opening'!
 openOn: aString title: aTitle near: aWindowOrNil
+	^self openOn: aString title: aTitle near: aWindowOrNil scanner: nil
+!
+openOn: aString title: aTitle near: aWindowOrNil scanner: aScannerOrNil
 	| view |
 	view := self new.
+	aScannerOrNil isNil ifFalse: [view editor scanner: aScannerOrNil; highlighting: true].
 	view editor text: aString.
 	^view openIn: (Tools placeNear: aWindowOrNil extent: 760 @ 520) title: aTitle
 ! !

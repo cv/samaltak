@@ -222,7 +222,8 @@ testMethodMenuShowsMachineCode
 	listing := self windowTitled: 'Machine code: ToolsTestFixture>>answer'.
 	self assert: (self waitFor: [listing isOpen and: [listing queue isEmpty]]) description: 'the window did not settle'.
 	self assert: (listing content text includesSubstring: 'pc 0: ').
-	self assert: (listing content text includesSubstring: 'entry:')
+	self assert: (listing content text includesSubstring: 'entry:').
+	self assert: (listing content editor tokenTypeAt: (listing content text indexOfSubCollection: 'pc 0: ')) equals: #return
 !
 testAcceptWritesTheMethodAndRevertRestoresTheFile
 	| real scratch original path |

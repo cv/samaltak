@@ -108,6 +108,11 @@ highlighting: aBoolean
 	highlighter enabled: aBoolean.
 	self invalidate
 !
+scanner: aScanner
+	"What highlights my text (TextHighlighter scanner:): another language's scanner, nil for Smalltalk."
+	highlighter scanner: aScanner.
+	self invalidate
+!
 methodMode: aBoolean
 	"Highlight the first line as a method pattern (bold)."
 	highlighter methodMode: aBoolean.

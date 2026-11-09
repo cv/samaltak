@@ -213,6 +213,50 @@ testCSourceScanner
 	self assert: ((tokens reject: [:each | each key == #identifier]) collect: [:each | each value]) asArray
 		equals: {'int'. '// one'. '# define'. '"a /* b"'. '''\'''''. 'return'. '/* two */'}
 !
+testMachineCodeScanner
+	| lf source tokens typeOf |
+	lf := String with: Character lf.
+	source := 'Complex>>+  opt, 16 bytes at 16r100', lf, lf,
+		'pc 5: send: #+  -- real + aComplex real', lf,
+		'L3:', lf,
+		'  +0198  f240083f  tst x1, #0x7                     ; guard: its class', lf,
+		'                                                    ; its pc 0', lf,
+		'  +01b4  f9400885  ldr x5, [x4, #-0x10]!!', lf,
+		'  +01bc  a9bf7bfd  stp x29, x30, [sp, #-0x10]!!      ; frame', lf,
+		'  +01c0  97ff841d  bl 0x102bf0148 <baseline miss>   ; call', lf,
+		'  +01c4  54000121  b.ne L12', lf,
+		'  +01c8  9a960050  csel x16, x2, xzr, eq', lf,
+		'  +01cc  001a4b58  .word 0x001a4b58'.
+	tokens := OrderedCollection new.
+	MachineCodeScanner highlight: source do: [:type :start :stop | tokens add: type -> (source copyFrom: start to: stop)].
+	self assert: (tokens inject: '' into: [:all :each | all, each value]) equals: source.
+	typeOf := [:text | (tokens detect: [:each | each value = text]) key].
+	#(
+		'Complex>>+  opt, 16 bytes at 16r100' #pattern
+		'pc 5: send: #+' #return
+		'-- real + aComplex real' #global
+		'L3:' #keyword
+		'+0198' #self
+		'f240083f' #self
+		'tst' #keyword
+		'x1' #symbol
+		'#0x7' #global
+		'; guard: its class' #comment
+		'; its pc 0' #comment
+		'x4' #symbol
+		'#-0x10' #global
+		'sp' #symbol
+		'0x102bf0148' #global
+		'<baseline miss>' #global
+		'b.ne' #keyword
+		'L12' #global
+		'xzr' #symbol
+		'.word' #keyword
+		'0x001a4b58' #global)
+		pairsDo: [:text :type | self assert: (typeOf value: text) equals: type].
+	"The rest stays #identifier: condition codes and punctuation."
+	self assert: (typeOf value: ', ') equals: #identifier
+!
 testLargeFileOpensFastAndDrawsOnlyTheRowsShown
 	| ms canvas viewer |
 	self reveal: 'vm/gen'.

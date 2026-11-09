@@ -685,7 +685,7 @@ methodMenuFor: aSelector
 	(m add: 'senders' action: [Tools sendersOf: aSelector]) name: 'senders'.
 	(m add: 'implementors' action: [Tools implementorsOf: aSelector]) name: 'implementors'.
 	(m add: 'inspect method' action: [Tools inspect: (b compiledMethodAt: aSelector) near: self window]) name: 'inspect-method'.
-	(m add: 'machine code' action: [TextView openOn: (b compiledMethodAt: aSelector) machineCode title: 'Machine code: ', b name, '>>', aSelector near: self window]) name: 'machine-code'.
+	(m add: 'machine code' action: [TextView openOn: (b compiledMethodAt: aSelector) machineCode title: 'Machine code: ', b name, '>>', aSelector near: self window scanner: MachineCodeScanner]) name: 'machine-code'.
 	^m
 !
 windowProcessMenuFor: aSelector
