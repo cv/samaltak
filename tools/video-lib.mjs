@@ -7,7 +7,7 @@
 // A recording may have several segments (e.g. across a quit and relaunch of the image): each segment's last frame
 // (black, after a quit's fade) holds SEGMENT_GAP seconds until the next begins; <out>/raw.mp4 is the result, the
 // captions are timed on it.
-import { execFile, execFileSync } from 'node:child_process';
+import { execFileSync } from 'node:child_process';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
@@ -101,11 +101,6 @@ export class VideoSession {
     this.frames = 0;
     this.segments.push({ file, start: this.videoBefore });
     this.recording = true;
-  }
-  // Evaluate source without waiting: a Promise of its printString.
-  evalAsync(source, timeout = 30000) {
-    return new Promise((resolve, reject) => execFile(join(here, 'samaltak-ctl'), ['eval', source, '--timeout', String(timeout)],
-      { env: this.env, encoding: 'utf8' }, (err, out) => err ? reject(err) : resolve(out.trim())));
   }
   // Wait until the recording ended by itself: the image quit, or its VM exec'd another (ffmpeg saw the end of the FIFO).
   async recordingEnded(timeout = 30000) {
