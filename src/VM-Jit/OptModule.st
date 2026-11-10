@@ -97,7 +97,7 @@ initialize
 	NF_GUARD := 4.
 	NF_ALLOC := 8.
 	NF_BLOCKCALL := 16.
-	"a value in a register whose home slot only interrupt checks need: stored on their slow path, not where it is defined"
+	"a value in a register whose home slot only interrupt checks need: stored on their slow path, not where it is defined; or a guard whose input already holds it in the slot"
 	NF_LAZY := 32.
 	"block flags"
 	BF_SEALED := 1.

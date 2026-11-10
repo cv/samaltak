@@ -66,12 +66,23 @@ static bool assign_slots(void)
     bool r_crosses_safepoint_2;
     opt_node *nd_4;
     int32_t i_4;
-    int64_t j;
-    int32_t n;
-    int32_t n_2;
-    bool r_crosses_call_2;
+    bool r_is_guard;
+    int32_t op;
     opt_node *nd_5;
+    int32_t n;
+    opt_node *input;
+    int32_t j_2;
+    int32_t n_2;
+    opt_node *owner;
+    bool r_crosses_safepoint_3;
+    opt_node *nd_6;
     int32_t i_5;
+    int64_t j;
+    int32_t n_3;
+    int32_t n_4;
+    bool r_crosses_call_2;
+    opt_node *nd_7;
+    int32_t i_6;
     ra_slot_top = ra_slot_base;
     ra_slot_free_count = 0;
     ra_active_count = 0;
@@ -120,13 +131,44 @@ exit_crosses_safepoint:;
     }
     r_crosses_safepoint_2 = false;
 exit_crosses_safepoint_2:;
-    r_crosses_safepoint_2; })) && ((nd->slot < 0) && ((int32_t)nd->rep != R_DBL))) {
+    r_crosses_safepoint_2; })) && ((nd->slot < 0) && ({
+    op = (int32_t)nd->op;
+    r_is_guard = (op == O_GUARDCLASS) || ((op == O_GUARDINT) || (op == O_CAST));
+    r_is_guard; }))) {
+            nd_5 = opt_nodes + v;
+            n = nd_5->a;
+            input = opt_nodes + n;
+            if (!((input->slot >= 0) && (((int32_t)input->op != O_PHI) && ((input->flags & NF_LAZY) == 0)))) {
+                goto exit_share_slot_of;
+            }
+            nd_5->slot = input->slot;
+            nd_5->flags = nd_5->flags | NF_LAZY;
+            for (j_2 = 0; j_2 <= ra_active_count - 1; j_2++) {
+                n_2 = ra_active[j_2];
+                owner = opt_nodes + n_2;
+                if ((owner->slot == nd_5->slot) && (owner->lend < nd_5->lend)) {
+                    ra_active[j_2] = v;
+                }
+            }
+        exit_share_slot_of:;
+        }
+        if (((nd->reg < 0) || ({
+    nd_6 = opt_nodes + v;
+    for (i_5 = 0; i_5 <= ra_safe_count - 1; i_5++) {
+        if ((ra_safe_pos[i_5] >= nd_6->lstart) && (ra_safe_pos[i_5] < nd_6->lend)) {
+            r_crosses_safepoint_3 = true;
+            goto exit_crosses_safepoint_3;
+        }
+    }
+    r_crosses_safepoint_3 = false;
+exit_crosses_safepoint_3:;
+    r_crosses_safepoint_3; })) && ((nd->slot < 0) && ((int32_t)nd->rep != R_DBL))) {
             j = 0;
             while (j < ra_active_count) {
-                n = ra_active[j];
-                if ((opt_nodes + n)->lend < nd->lstart) {
-                    n_2 = ra_active[j];
-                    ra_slot_free[ra_slot_free_count] = (int32_t)(opt_nodes + n_2)->slot;
+                n_3 = ra_active[j];
+                if ((opt_nodes + n_3)->lend < nd->lstart) {
+                    n_4 = ra_active[j];
+                    ra_slot_free[ra_slot_free_count] = (int32_t)(opt_nodes + n_4)->slot;
                     ra_slot_free_count = ra_slot_free_count + 1;
                     ra_active_count = ra_active_count - 1;
                     ra_active[j] = ra_active[ra_active_count];
@@ -150,9 +192,9 @@ exit_crosses_safepoint_2:;
             ra_active[ra_active_count] = v;
             ra_active_count = ra_active_count + 1;
             if ((nd->reg >= 0) && (!({
-    nd_5 = opt_nodes + v;
-    for (i_5 = 0; i_5 <= ra_safe_count - 1; i_5++) {
-        if ((ra_safe_call[i_5] != 0) && ((ra_safe_pos[i_5] >= nd_5->lstart) && (ra_safe_pos[i_5] < nd_5->lend))) {
+    nd_7 = opt_nodes + v;
+    for (i_6 = 0; i_6 <= ra_safe_count - 1; i_6++) {
+        if ((ra_safe_call[i_6] != 0) && ((ra_safe_pos[i_6] >= nd_7->lstart) && (ra_safe_pos[i_6] < nd_7->lend))) {
             r_crosses_call_2 = true;
             goto exit_crosses_call_2;
         }

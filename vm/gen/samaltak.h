@@ -1373,7 +1373,7 @@ void note(const char *a_string, int64_t an_integer);
 bool patch_branch_at(uint64_t site, uint64_t target);
 void patch_mov64_at(uint64_t site, uint64_t value);
 void record_notes(bool a_boolean);
-uint64_t target_of(int32_t a_label);
+uint64_t arm64_assembler_target_of(int32_t a_label);
 bool analyze(oop m);
 uint64_t code_cache_allocate(uint64_t size);
 void code_cache_flush(void);

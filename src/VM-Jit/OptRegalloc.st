@@ -346,6 +346,24 @@ sortIntervals
 			raSortCount := raSortCount + 1.
 			v := raBucketNext at: v]]
 !
+isGuard: nd
+	"Its result is its operand."
+	| op |
+	op := nd op asInt32.
+	^op = O_GUARDCLASS or: [op = O_GUARDINT or: [op = O_CAST]]
+!
+shareSlotOf: v
+	"v's input already holds v in its home slot (unless it is a phi's, written on every edge, or lazy, written only on slow paths): v's too, kept until the later of their ends."
+	| nd input owner |
+	nd := ir node: v.
+	input := ir node: nd a.
+	(input slot >= 0 and: [input op asInt32 ~= O_PHI and: [(input flags bitAnd: NF_LAZY) = 0]]) ifFalse: [^self].
+	nd slot: input slot.
+	nd flags: (nd flags bitOr: NF_LAZY).
+	0 to: raActiveCount - 1 do: [:j |
+		owner := ir node: (raActive at: j).
+		(owner slot = nd slot and: [owner lend < nd lend]) ifTrue: [raActive at: j put: v]]
+!
 crossesSafepoint: v
 	"v is live after a safepoint inside its interval."
 	| nd |
@@ -374,6 +392,8 @@ assignSlots
 		(nd rep asInt32 = R_DBL and: [self crossesCall: v]) ifTrue: [^self fail: 'double v%d lives across a call' node: v].
 		"an argument (a unit's parameter) lives in its own slot, which the code never writes"
 		((nd reg < 0 or: [self crossesSafepoint: v]) and: [nd op asInt32 = O_PARAM and: [nd aux >= 0]]) ifTrue: [nd slot: nd aux asInt16].
+		"a guard's result is its input: in the same slot, if the input is in one"
+		((nd reg < 0 or: [self crossesSafepoint: v]) and: [nd slot < 0 and: [self isGuard: nd]]) ifTrue: [self shareSlotOf: v].
 		((nd reg < 0 or: [self crossesSafepoint: v]) and: [nd slot < 0 and: [nd rep asInt32 ~= R_DBL]]) ifTrue: [
 			j := 0.
 			[j < raActiveCount] whileTrue: [
