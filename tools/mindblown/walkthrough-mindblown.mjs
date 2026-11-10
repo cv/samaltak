@@ -273,7 +273,7 @@ const beats = [
     const SEND = 'send: #velocity numArgs: 0';
     await S.cue('This line is the send of the velocity getter', LISTING, () => S.markLines(mc, SEND));
     await S.cue('It checks the class', LISTING, () => S.markLines(mc, 'guard: its class', 'b.ne', SEND));
-    await S.cue('reads the field', LISTING, () => S.markLines(mc, 'inlined activation 1', 'its pc 0', SEND, 1));
+    await S.cue('reads the field', LISTING, () => S.markLines(mc, 'inlined activation 1', 'its pc 0', SEND));
     await S.spoken();
     await sleep(1800);                                 // it stays up a while
     act('click', `${mc}.close`); await sleep(600);
