@@ -1,11 +1,13 @@
 OptModule subclass: #OptCodegen
-	instanceVariableNames: 'cgScratchReg cgScratchSlot cgScratchPc cgTruePc ir passes regalloc cgCodeStart cgBcSize cgValidSlots cgEntryPc cgSlotTop cgMaxOut cgNeed cgExitPlainLabel cgExitSyncLabel cgDeoptLabel cgReturnLabel cgHeaderLabel cgChecksLabel cgBodyLabel cgInterruptLabel cgBarrierLabel cgDeoptReturnLabel cgStackFullLabel cgOuts cgOutCount cgPoolOops cgPoolLabels cgPoolCount cgMetaWords cgMetaCount cgSpOffsets cgSpCount cgMoveSrc cgMoveDst cgMoveLoc cgMoveCount cgRootAct cgLastPc cgLastAct builder cgDeps cgDepCount cgSunk cgSunkCount cgChainActs cgChainCount cgDoubles cgSiteBl cgSiteLit cgSiteInfo cgSiteIndex cgSiteSel cgSiteCount cgRetOff cgRetIndex cgRetArgc cgRetCount cgOrder cgPlaced'
-	classVariableNames: 'CG_MAX_META CG_MAX_MOVES CG_MAX_OUT CG_MAX_POOL CG_MAX_RETS CG_MAX_SITES CG_MAX_SP OUT_BARRIER OUT_BOTTOM OUT_DEOPT OUT_INTERRUPT OUT_LAZY OUT_RESUME OUT_SENT OUT_SITE OUT_STACK OUT_WIDOW'
+	instanceVariableNames: 'cgHeldSlot cgHeldReg cgHeldCount cgScanPc cgBinds ir passes regalloc cgCodeStart cgBcSize cgValidSlots cgEntryPc cgSlotTop cgMaxOut cgNeed cgExitPlainLabel cgExitSyncLabel cgDeoptLabel cgReturnLabel cgHeaderLabel cgChecksLabel cgBodyLabel cgInterruptLabel cgBarrierLabel cgDeoptReturnLabel cgStackFullLabel cgOuts cgOutCount cgPoolOops cgPoolLabels cgPoolCount cgMetaWords cgMetaCount cgSpOffsets cgSpCount cgMoveSrc cgMoveDst cgMoveLoc cgMoveCount cgRootAct cgLastPc cgLastAct builder cgDeps cgDepCount cgSunk cgSunkCount cgChainActs cgChainCount cgDoubles cgSiteBl cgSiteLit cgSiteInfo cgSiteIndex cgSiteSel cgSiteCount cgRetOff cgRetIndex cgRetArgc cgRetCount cgOrder cgPlaced'
+	classVariableNames: 'CG_MAX_META CG_MAX_MOVES CG_MAX_OUT CG_MAX_POOL CG_MAX_RETS CG_MAX_HELD CG_MAX_SITES CG_MAX_SP OUT_BARRIER OUT_BOTTOM OUT_DEOPT OUT_INTERRUPT OUT_LAZY OUT_RESUME OUT_SENT OUT_SITE OUT_STACK OUT_WIDOW'
 	package: 'VM-Jit'!
 
 OptCodegen comment: 'Emits arm64 code for the allocated IR (OptRegalloc) in block order, then the out-of-line paths (guard failures, interrupt checks, store barriers, deoptimization after a call, resumption after a call, the stack check), then the oop pool the code loads constants from (pc-relative; GC roots) and the inline caches'' literals. Records for every safepoint and guard the deoptimization metadata (OptRuntime decodes it): kind, continuation, the send, and for each activation its method, closure, receiver, pc and where each slot''s value is (LOC_*).
 
-Frame layout: slots 0..numArgs-1 the arguments, then home slots (OptRegalloc), slotTop of them; a send''s receiver and arguments go at slotTop..., the callee''s frame starts after them. Calls are baseline code''s (docs/jit.md, Calls between the tiers): the receiver in x0, x20 the callee''s fp, bl to a known method''s unchecked entry, to the block stub, or to an inline cache''s target (JitBaselineRuntime links it); the result comes back in x0, and in slot slotTop if the interpreter returns into the frame (a resumption stub loads it). A frame suspended in a call is lazy as baseline code''s: the return map (return offset, safepoint, argument count) gives its pc (bcSize + the safepoint''s index) and sp. Method and block units start with the entry baseline-style calls take (emitBaselineEntry: the frame built as baseline code builds it), then the prologue for callers that pushed the frame; x23-x25 stay baseline code''s nil, true and false. At a safepoint of its own (interrupt checks, deoptimization) the code stores the frame''s pc and sp, so GCs see every value saved there; the bytecode map has the continuation of each call under that pc.'!
+Frame layout: slots 0..numArgs-1 the arguments, then home slots (OptRegalloc), slotTop of them; a send''s receiver and arguments go at slotTop..., the callee''s frame starts after them. Calls are baseline code''s (docs/jit.md, Calls between the tiers): the receiver in x0, x20 the callee''s fp, bl to a known method''s unchecked entry, to the block stub, or to an inline cache''s target (JitBaselineRuntime links it); the result comes back in x0, and in slot slotTop if the interpreter returns into the frame (a resumption stub loads it). A frame suspended in a call is lazy as baseline code''s: the return map (return offset, safepoint, argument count) gives its pc (bcSize + the safepoint''s index) and sp. Method and block units start with the entry baseline-style calls take (emitBaselineEntry: the frame built as baseline code builds it), then the prologue for callers that pushed the frame; x23-x25 stay baseline code''s nil, true and false, and are where the code takes them from.
+
+What registers hold: the code generator knows which registers hold the values of which slots (cgHeldSlot and cgHeldReg: pairs of a slot''s offset and a register), from the code it emitted since the last label control may come to from elsewhere (catchUp decodes it): loads and stores of slots make their registers hold them, anything else that writes a register makes it hold nothing, calls and jumps everything. A slot a register holds is not loaded again (from another register: moved), nor stored again. At a safepoint of its own (interrupt checks, deoptimization) the code stores the frame''s pc and sp, so GCs see every value saved there; the bytecode map has the continuation of each call under that pc.'!
 
 !OptCodegen class methodsFor: 'declaring'!
 declarations
@@ -16,7 +18,7 @@ declarations
 		(cgOuts 'OptOut[CG_MAX_OUT]') (cgOutCount int32_t)
 		(cgPoolOops 'oop[CG_MAX_POOL]') (cgPoolLabels 'int32_t[CG_MAX_POOL]') (cgPoolCount int32_t)
 		(cgMetaWords 'int32_t[CG_MAX_META]') (cgMetaCount int32_t) (cgSpOffsets 'int32_t[CG_MAX_SP]') (cgSpCount int32_t)
-		(cgMoveSrc 'int32_t[CG_MAX_MOVES]') (cgMoveDst 'int32_t[CG_MAX_MOVES]') (cgMoveLoc 'int32_t[CG_MAX_MOVES]') (cgMoveCount int32_t) (cgRootAct int32_t) (cgLastPc int32_t) (cgLastAct int32_t) (cgScratchReg int32_t) (cgScratchSlot int32_t) (cgScratchPc uint64_t) (cgTruePc uint64_t)
+		(cgMoveSrc 'int32_t[CG_MAX_MOVES]') (cgMoveDst 'int32_t[CG_MAX_MOVES]') (cgMoveLoc 'int32_t[CG_MAX_MOVES]') (cgMoveCount int32_t) (cgRootAct int32_t) (cgLastPc int32_t) (cgLastAct int32_t) (cgHeldSlot 'int32_t[CG_MAX_HELD]') (cgHeldReg 'int32_t[CG_MAX_HELD]') (cgHeldCount int32_t) (cgScanPc uint64_t) (cgBinds int32_t)
 		(builder OptBuilder) (cgDeps 'int32_t[256]') (cgDepCount int32_t)
 		(cgSunk 'int32_t[64]') (cgSunkCount int32_t) (cgDoubles bool) (cgChainActs 'int32_t[512]') (cgChainCount int32_t)
 		(cgSiteBl 'uint32_t[CG_MAX_SITES]') (cgSiteLit 'int32_t[CG_MAX_SITES]') (cgSiteInfo 'uint32_t[CG_MAX_SITES]') (cgSiteIndex 'int32_t[CG_MAX_SITES]') (cgSiteSel 'int32_t[CG_MAX_SITES]') (cgSiteCount int32_t)
@@ -31,6 +33,7 @@ initialize
 	CG_MAX_MOVES := 256.
 	CG_MAX_SITES := 4096.
 	CG_MAX_RETS := 8192.
+	CG_MAX_HELD := 32.
 	OUT_DEOPT := 1.
 	OUT_INTERRUPT := 2.
 	OUT_BARRIER := 3.
@@ -108,8 +111,11 @@ retArgcAt: i
 generate: m act: a
 	"Emit the code at the assembler's pc; answer whether it could."
 	<function>
-	| b bl need |
+	| b need |
 	cgCodeStart := asm pc.
+	cgScanPc := asm pc.
+	cgBinds := asm labelsBound.
+	self forgetAll.
 	cgRootAct := a.
 	cgLastPc := -1.
 	cgLastAct := -1.
@@ -148,8 +154,7 @@ generate: m act: a
 	self order.
 	0 to: passes orderCount - 1 do: [:i |
 		b := cgOrder at: i.
-		bl := ir block: b.
-		asm bind: bl label.
+		self bindBlock: b after: (i > 0 ifTrue: [cgOrder at: i - 1] ifFalse: [-1]).
 		self emitBlock: b next: (self nextWithCode: i + 1)].
 	(self emitOuts) ifFalse: [^false].
 	cgDepCount := (builder depCount min: 256) asInt32.
@@ -254,8 +259,7 @@ emitEntry
 	asm b: s if: COND_NE.
 	cgSlotTop > cgValidSlots ifTrue: [
 		asm comment: 'home slots nil'.
-		asm ldr: X16 base: X22 offset: self nilOffset.
-		cgValidSlots to: cgSlotTop - 1 do: [:i | asm str: X16 base: X20 offset: 8 * i]].
+		cgValidSlots to: cgSlotTop - 1 do: [:i | asm str: X23 base: X20 offset: 8 * i]].
 	asm bind: cgBodyLabel
 !
 order
@@ -324,9 +328,16 @@ jumpTargetOf: t
 			hops := hops + 1].
 	^b
 !
+bindBlock: b after: prev
+	"b's label. Control that can only fall into b from prev, the block before it (its one predecessor, which neither branches to it nor is jumped through), keeps what registers hold."
+	| keep |
+	self catchUp.
+	keep := (ir block: b) npreds = 1 and: [prev >= 0 and: [(ir pred: 0 of: b) = prev and: [(self jumpTargetOf: prev) = prev and: [(asm hasBranchesTo: (ir block: b) label) not]]]].
+	asm bind: (ir block: b) label.
+	keep ifTrue: [cgBinds := asm labelsBound]
+!
 emitBlock: b next: nextBlock
 	| n nd |
-	(ir block: b) npreds = 1 ifFalse: [cgScratchPc := 0. cgTruePc := 0].
 	n := (ir block: b) first.
 	[n >= 0] whileTrue: [
 		nd := ir node: n.
@@ -344,16 +355,18 @@ emitBlock: b next: nextBlock
 
 !OptCodegen methodsFor: 'operands'!
 src: v into: scratch
-	"A register holding v: its own, or scratch loaded from its slot or with the constant."
+	"A register holding v, which the caller only reads: its own, x23-x25 for nil, true and false, or scratch loaded from its slot or with the constant."
 	| nd |
 	nd := ir node: v.
 	nd op asInt32 = O_CONST ifTrue: [
+		nd aux asUInt64 = memory nilOop ifTrue: [^X23].
+		nd aux asUInt64 = memory trueOop ifTrue: [^X24].
+		nd aux asUInt64 = memory falseOop ifTrue: [^X25].
 		self loadConstant: nd aux asUInt64 into: scratch.
 		^scratch].
 	nd reg >= 0 ifTrue: [^nd reg asInt32].
 	nd slot >= 0 ifTrue: [
-		(scratch = cgScratchReg and: [asm pc = cgScratchPc and: [nd slot asInt32 = cgScratchSlot]]) ifTrue: [^scratch].
-		asm ldr: scratch base: X20 offset: 8 * nd slot asInt32.
+		self load: scratch slot: nd slot asInt32.
 		^scratch].
 	asm fail: ASM_ERR_OPERAND.
 	^scratch
@@ -370,23 +383,15 @@ def: n from: r
 	| nd |
 	nd := ir node: n.
 	(nd reg >= 0 and: [nd reg asInt32 ~= r]) ifTrue: [asm mov: nd reg asInt32 with: r].
-	(nd slot >= 0 and: [(nd flags bitAnd: NF_LAZY) = 0]) ifTrue: [asm str: r base: X20 offset: 8 * nd slot asInt32].
-	self note: r holds: nd
-!
-note: r holds: nd
-	"A scratch register now holds what is in nd's slot: what reads that slot next need not load it."
-	(nd slot >= 0 and: [r = X14 or: [r = X15]]) ifTrue: [
-		cgScratchReg := r asInt32.
-		cgScratchSlot := nd slot asInt32.
-		cgScratchPc := asm pc]
+	(nd slot >= 0 and: [(nd flags bitAnd: NF_LAZY) = 0]) ifTrue: [self store: r slot: nd slot asInt32]
 !
 loadConstant: v into: r
 	(self isInt: v) ifTrue: [
 		(v asInt64 between: -16r80000000 and: 16r7FFFFFFF) ifTrue: [^asm mov: r imm: v asInt64].
 		^asm mov: r imm: v].
-	v = memory nilOop ifTrue: [^asm ldr: r base: X22 offset: self nilOffset].
-	v = memory trueOop ifTrue: [^asm ldr: r base: X22 offset: self trueOffset].
-	v = memory falseOop ifTrue: [^asm ldr: r base: X22 offset: self falseOffset].
+	v = memory nilOop ifTrue: [^asm mov: r with: X23].
+	v = memory trueOop ifTrue: [^asm mov: r with: X24].
+	v = memory falseOop ifTrue: [^asm mov: r with: X25].
 	(v bitAnd: 7) ~= 0 ifTrue: [^asm mov: r imm: v].
 	asm ldr: r label: (cgPoolLabels at: (self poolIndexOf: v))
 !
@@ -401,6 +406,145 @@ poolIndexOf: v
 	cgPoolLabels at: cgPoolCount put: asm newLabel.
 	cgPoolCount := cgPoolCount + 1.
 	^cgPoolCount - 1
+!
+load: r slot: s
+	"r := slot s: nothing if r holds it, a move if another register does."
+	<function>
+	| h |
+	self catchUp.
+	(self register: r holds: 8 * s) ifTrue: [^self].
+	h := self holderOf: 8 * s.
+	(r <= 30 and: [h >= 0])
+		ifTrue: [asm mov: r with: h]
+		ifFalse: [asm ldr: r base: X20 offset: 8 * s]
+!
+store: r slot: s
+	"Slot s := r, unless r holds it."
+	<function>
+	self catchUp.
+	(self register: r holds: 8 * s) ifFalse: [asm str: r base: X20 offset: 8 * s]
+!
+register: r holds: off
+	0 to: cgHeldCount - 1 do: [:i | ((cgHeldReg at: i) = r and: [(cgHeldSlot at: i) = off]) ifTrue: [^true]].
+	^false
+!
+holderOf: off
+	0 to: cgHeldCount - 1 do: [:i | (cgHeldSlot at: i) = off ifTrue: [^cgHeldReg at: i]].
+	^-1
+!
+forgetAll
+	cgHeldCount := 0
+!
+hold: off in: r
+	"r holds the slot at off (as well)."
+	(r < 31 and: [r ~= 20 and: [cgHeldCount < CG_MAX_HELD]]) ifTrue: [
+		cgHeldSlot at: cgHeldCount put: off.
+		cgHeldReg at: cgHeldCount put: r.
+		cgHeldCount := cgHeldCount + 1]
+!
+forgetSlot: off
+	| i |
+	i := 0.
+	[i < cgHeldCount] whileTrue: [
+		(cgHeldSlot at: i) = off
+			ifTrue: [
+				cgHeldCount := cgHeldCount - 1.
+				cgHeldSlot at: i put: (cgHeldSlot at: cgHeldCount).
+				cgHeldReg at: i put: (cgHeldReg at: cgHeldCount)]
+			ifFalse: [i := i + 1]]
+!
+catchUp
+	"What registers hold, for the code emitted up to here: decoded since the last time, from the last label on if one was bound since (control may come to it from elsewhere: nothing known there)."
+	<function>
+	asm labelsBound ~= cgBinds ifTrue: [
+		self forgetAll.
+		cgBinds := asm labelsBound.
+		cgScanPc := cgScanPc max: asm boundPc].
+	[cgScanPc < asm pc] whileTrue: [
+		self track: (self uint32At: cgScanPc).
+		cgScanPc := cgScanPc + 4]
+!
+track: w
+	"What instruction w does to what registers hold: ldr, str, ldur and stur of an X register at a slot make it hold the slot (a store makes the slot's other holders hold nothing), mov copies what a register holds; other writes make a register hold nothing; b.cond, cbz, cbnz, tbz and tbnz nothing; other branches (b, bl, br, blr, ret) and what is not decoded here, all registers."
+	<var: #w type: 'uint32_t'>
+	| rt rn |
+	rt := (w bitAnd: 31) asInt32.
+	rn := ((w >> 5) bitAnd: 31) asInt32.
+	(w bitAnd: 16rFFC00000) = 16rF9400000 ifTrue: [^self loaded: rt base: rn offset: ((w >> 10) bitAnd: 16rFFF) asInt32 * 8].
+	(w bitAnd: 16rFFC00000) = 16rF9000000 ifTrue: [^self stored: rt base: rn offset: ((w >> 10) bitAnd: 16rFFF) asInt32 * 8].
+	(w bitAnd: 16rFFE00C00) = 16rF8400000 ifTrue: [^self loaded: rt base: rn offset: (self imm9Of: w)].
+	(w bitAnd: 16rFFE00C00) = 16rF8000000 ifTrue: [^self stored: rt base: rn offset: (self imm9Of: w)].
+	(w bitAnd: 16rFFE0FFE0) = 16rAA0003E0 ifTrue: [^self copy: ((w >> 16) bitAnd: 31) asInt32 to: rt].
+	"other loads and stores (bit 27 set, 25 clear)"
+	(w bitAnd: 16r0A000000) = 16r08000000 ifTrue: [^self loadStore: w].
+	"data processing, immediate (bits 28:26 100) or register (27:25 101); floating point and SIMD (27:25 111) may write a general register"
+	((w bitAnd: 16r1C000000) = 16r10000000 or: [(w bitAnd: 16r0E000000) = 16r0A000000 or: [(w bitAnd: 16r0E000000) = 16r0E000000]]) ifTrue: [^self wrote: rt].
+	"b.cond; cbz, cbnz, tbz, tbnz"
+	((w bitAnd: 16rFF000010) = 16r54000000 or: [(w bitAnd: 16r7C000000) = 16r34000000]) ifTrue: [^self].
+	self forgetAll
+!
+loadStore: w
+	"Loads and stores other than track:'s: what they load into and the bases they write back hold nothing; a store into the frame, nothing holds anything. Exclusives, atomics and the like: not decoded."
+	<var: #w type: 'uint32_t'>
+	| rt rn |
+	rt := (w bitAnd: 31) asInt32.
+	rn := ((w >> 5) bitAnd: 31) asInt32.
+	"ldr literal (bits 29:27 011, 25:24 00)"
+	(w bitAnd: 16r3B000000) = 16r18000000 ifTrue: [^self wrote: rt].
+	"pairs (29:27 101): load bit 22, the second register bits 14:10, write-back bit 23"
+	(w bitAnd: 16r38000000) = 16r28000000 ifTrue: [
+		(w bitAnd: 16r400000) ~= 0
+			ifTrue: [
+				self wrote: rt.
+				self wrote: ((w >> 10) bitAnd: 31) asInt32]
+			ifFalse: [rn = 20 ifTrue: [self forgetAll]].
+		(w bitAnd: 16r800000) ~= 0 ifTrue: [self wrote: rn].
+		^self].
+	"one register (29:27 111): register offset (bit 21, bits 11:10 10) or none; a store: opc (23:22) 00, or 10 of a SIMD register (bit 26); write-back: bits 24 and 21 clear, bit 10 set"
+	((w bitAnd: 16r38000000) = 16r38000000 and: [(w bitAnd: 16r1200000) ~= 16r200000 or: [(w bitAnd: 16rC00) = 16r800]]) ifTrue: [
+		((w bitAnd: 16rC00000) = 0 or: [(w bitAnd: 16r4400000) = 16r4000000])
+			ifTrue: [rn = 20 ifTrue: [self forgetAll]]
+			ifFalse: [self wrote: rt].
+		((w bitAnd: 16r1200000) = 0 and: [(w bitAnd: 16r400) ~= 0]) ifTrue: [self wrote: rn].
+		^self].
+	self forgetAll
+!
+imm9Of: w
+	"The signed 9-bit offset of ldur and stur."
+	<var: #w type: 'uint32_t'>
+	| i |
+	i := ((w >> 12) bitAnd: 16r1FF) asInt32.
+	^i >= 256 ifTrue: [i - 512] ifFalse: [i]
+!
+loaded: rt base: rn offset: off
+	self wrote: rt.
+	(rn = 20 and: [rt ~= rn]) ifTrue: [self hold: off in: rt]
+!
+stored: rt base: rn offset: off
+	rn = 20 ifFalse: [^self].
+	(off bitAnd: 7) ~= 0 ifTrue: [^self forgetAll].
+	self forgetSlot: off.
+	self hold: off in: rt
+!
+copy: rm to: rd
+	"mov rd, rm: rd holds what rm holds."
+	| n |
+	self wrote: rd.
+	n := cgHeldCount.
+	0 to: n - 1 do: [:i | (cgHeldReg at: i) = rm ifTrue: [self hold: (cgHeldSlot at: i) in: rd]]
+!
+wrote: r
+	"r changed: it holds no slot; x20 changed: no register does."
+	| i |
+	r = 20 ifTrue: [^self forgetAll].
+	i := 0.
+	[i < cgHeldCount] whileTrue: [
+		(cgHeldReg at: i) = r
+			ifTrue: [
+				cgHeldCount := cgHeldCount - 1.
+				cgHeldSlot at: i put: (cgHeldSlot at: cgHeldCount).
+				cgHeldReg at: i put: (cgHeldReg at: cgHeldCount)]
+			ifFalse: [i := i + 1]]
 !
 emitPool
 	[(asm pc bitAnd: 7) ~= 0] whileTrue: [asm emit: 16rD503201F].
@@ -448,10 +592,10 @@ emitNode: n block: b next: nextBlock
 	op = O_HOMESLOT ifTrue: [^self].
 	op = O_LOADSLOT ifTrue: [
 		r := self dst: n.
-		asm ldr: r base: X20 offset: 8 * nd aux.
+		self load: r slot: nd aux asInt32.
 		^self def: n from: r].
 	op = O_STORESLOT ifTrue: [
-		asm str: (self src: nd a into: X14) base: X20 offset: 8 * nd aux.
+		self store: (self src: nd a into: X14) slot: nd aux asInt32.
 		^self].
 	op = O_PARAM ifTrue: [
 		(nd reg < 0 and: [nd slot < 0 or: [nd slot asInt64 = nd aux]]) ifTrue: [^self].
@@ -466,7 +610,7 @@ emitNode: n block: b next: nextBlock
 			ifFalse: [
 				nd aux = -3
 					ifTrue: [asm ldr: r base: X19 offset: self ctxOffset]
-					ifFalse: [asm ldr: r base: X20 offset: 8 * nd aux]].
+					ifFalse: [self load: r slot: nd aux asInt32]].
 		"an argument's home is its own slot"
 		nd slot asInt64 = nd aux ifTrue: [^self].
 		^self def: n from: r].
@@ -492,12 +636,8 @@ emitNode: n block: b next: nextBlock
 		(self isFused: n) ifTrue: [^self].
 		self emitCompare: n.
 		r := self dst: n.
-		asm ldr: X16 base: X22 offset: self trueOffset.
-		asm ldr: X17 base: X22 offset: self falseOffset.
-		asm csel: r with: X16 with: X17 cond: (self conditionOf: n).
-		self def: n from: r.
-		cgTruePc := asm pc.
-		^self].
+		asm csel: r with: X24 with: X25 cond: (self conditionOf: n).
+		^self def: n from: r].
 	op = O_GUARDCLASS ifTrue: [
 		s := self deoptLabelFor: n.
 		x := self src: nd a into: X15.
@@ -626,14 +766,11 @@ emitBranch: n block: b next: nextBlock
 				(f = nextBlock or: [(self jumpTargetOf: f) = nextBlock]) ifFalse: [asm b: fl]].
 		^self].
 	rv := self src: v into: X14.
-	"the compare that materialized v just left true in x16"
-	asm pc = cgTruePc ifFalse: [asm ldr: X16 base: X22 offset: self trueOffset].
-	asm cmp: rv with: X16.
+	asm cmp: rv with: X24.
 	asm b: tl if: COND_EQ.
 	vd tkind asInt32 ~= T_BOOL ifTrue: [
 		asm comment: 'neither true nor false: the interpreter sends mustBeBoolean'.
-		asm ldr: X16 base: X22 offset: self falseOffset.
-		asm cmp: rv with: X16.
+		asm cmp: rv with: X25.
 		asm b: s if: COND_NE].
 	(f = nextBlock or: [(self jumpTargetOf: f) = nextBlock]) ifFalse: [asm b: fl]
 !
@@ -1069,8 +1206,7 @@ emitReturn: n
 		w := self out: OUT_WIDOW node: n index: 0.
 		(cgOuts + (cgOutCount - 1)) resume: back.
 		asm ldr: X16 base: X19 offset: self ctxOffset.
-		asm ldr: X17 base: X22 offset: self nilOffset.
-		asm cmp: X16 with: X17.
+		asm cmp: X16 with: X23.
 		asm b: w if: COND_NE.
 		asm bind: back].
 	asm sub: X19 with: X19 imm: self frameBytes.
@@ -1160,7 +1296,8 @@ emitSend: n
 	asm comment: 'the result (x0)'.
 	self def: n from: X0.
 	self reloadAcross: n.
-	asm bind: done
+	"only the allocation's fast path jumps here (a label resets what registers are known to hold)"
+	(nd flags bitAnd: NF_ALLOC) ~= 0 ifTrue: [asm bind: done]
 !
 emitSiteCall: n index: k
 	"An inline cache: x9 its class (megamorphic: the selector) from its literal, bl to its target, the miss stub while unlinked."
@@ -1260,9 +1397,8 @@ emitAllocate: n slow: slow done: done
 	self loadConstant: nd tcls into: X17.
 	asm stp: X15 with: X17 base: X16 offset: 0.
 	asm comment: 'fields nil'.
-	asm ldr: X17 base: X22 offset: self nilOffset.
 	(k >= 0 and: [k <= 16])
-		ifTrue: [0 to: k - 1 do: [:i | asm str: X17 base: X16 offset: 16 + (8 * i)]]
+		ifTrue: [0 to: k - 1 do: [:i | asm str: X23 base: X16 offset: 16 + (8 * i)]]
 		ifFalse: [
 			loop := asm newLabel.
 			fill := asm newLabel.
@@ -1270,7 +1406,7 @@ emitAllocate: n slow: slow done: done
 			asm add: X14 with: X16 imm: 16.
 			asm b: fill.
 			asm bind: loop.
-			asm str: X17 base: X14 postIndex: 8.
+			asm str: X23 base: X14 postIndex: 8.
 			asm sub: W15 with: W15 imm: 1.
 			asm bind: fill.
 			asm cbnz: W15 to: loop].
@@ -1295,14 +1431,14 @@ saveAcross: n
 	(ir node: n) live to: (ir node: n) live + (ir node: n) nlive - 1 do: [:i |
 		v := regalloc safeLiveAt: i.
 		nd := ir node: v.
-		((nd flags bitAnd: NF_LAZY) ~= 0 and: [nd reg >= 0 and: [nd slot >= 0]]) ifTrue: [asm str: nd reg asInt32 base: X20 offset: 8 * nd slot asInt32]]
+		((nd flags bitAnd: NF_LAZY) ~= 0 and: [nd reg >= 0 and: [nd slot >= 0]]) ifTrue: [self store: nd reg asInt32 slot: nd slot asInt32]]
 !
 reloadAcross: n
 	| v nd |
 	(ir node: n) live to: (ir node: n) live + (ir node: n) nlive - 1 do: [:i |
 		v := regalloc safeLiveAt: i.
 		nd := ir node: v.
-		(nd reg >= 0 and: [nd slot >= 0]) ifTrue: [asm ldr: nd reg asInt32 base: X20 offset: 8 * nd slot asInt32]]
+		(nd reg >= 0 and: [nd slot >= 0]) ifTrue: [self load: nd reg asInt32 slot: nd slot asInt32]]
 ! !
 
 !OptCodegen methodsFor: 'phi moves'!
@@ -1411,7 +1547,7 @@ moveLoc: l toReg: r unless: d
 	l < 1000 ifTrue: [
 		d = -1 ifTrue: [asm mov: r with: l].
 		^self].
-	asm ldr: r base: X20 offset: 8 * (l - 1000)
+	self load: r slot: l - 1000
 !
 moveValue: v to: phi
 	| r |
@@ -1422,13 +1558,13 @@ moveValue: v to: phi
 moveLoc: l toReg: r
 	l < 1000
 		ifTrue: [asm mov: r with: l]
-		ifFalse: [asm ldr: r base: X20 offset: 8 * (l - 1000)]
+		ifFalse: [self load: r slot: l - 1000]
 !
 moveRegTo: phi from: r
 	| nd |
 	nd := ir node: phi.
 	(nd reg >= 0 and: [nd reg asInt32 ~= r]) ifTrue: [asm mov: nd reg asInt32 with: r].
-	(nd slot >= 0 and: [(nd flags bitAnd: NF_LAZY) = 0]) ifTrue: [asm str: r base: X20 offset: 8 * nd slot asInt32]
+	(nd slot >= 0 and: [(nd flags bitAnd: NF_LAZY) = 0]) ifTrue: [self store: r slot: nd slot asInt32]
 ! !
 
 !OptCodegen methodsFor: 'out of line'!

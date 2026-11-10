@@ -131,6 +131,7 @@ typedef void (*prim_fn)(void);
 #define CACHE_SPACE 134234112
 #define CD_INSTVARS 3
 #define CD_ORGANIZATION 4
+#define CG_MAX_HELD 32
 #define CG_MAX_META 262144
 #define CG_MAX_MOVES 256
 #define CG_MAX_OUT 4096
@@ -1116,7 +1117,10 @@ _Static_assert(sizeof(sock_sems) == 12, "the simulator lays out SockSems as C do
 extern primitive_entry vm_primitive_table[];
 extern int vm_primitive_count;
 
+extern int32_t asm_binds;
+extern uint64_t asm_bound_pc;
 extern int32_t asm_error;
+extern int32_t asm_label_fixups[16384];
 extern uint64_t asm_labels[16384];
 extern uint64_t asm_limit;
 extern int64_t asm_note_args[8192];

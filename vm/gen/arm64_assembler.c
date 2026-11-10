@@ -2,12 +2,14 @@
 /* Arm64Assembler (VM-Jit) */
 #include "samaltak.h"
 
+int32_t asm_binds;
+uint64_t asm_bound_pc;
 int32_t asm_error;
 static int32_t asm_fixup_count;
 static int32_t asm_fixup_next[65536];
 static uint64_t asm_fixup_sites[65536];
 static int32_t asm_label_count;
-static int32_t asm_label_fixups[16384];
+int32_t asm_label_fixups[16384];
 uint64_t asm_labels[16384];
 uint64_t asm_limit;
 int64_t asm_note_args[8192];
@@ -37,6 +39,8 @@ void arm64_assembler_bind(int32_t a_label)
 {
     int32_t f;
     asm_labels[a_label] = asm_pc;
+    asm_binds = asm_binds + 1;
+    asm_bound_pc = asm_pc;
     f = asm_label_fixups[a_label];
     while (f >= 0) {
         if (asm_fixup_sites[f] < asm_pc) {

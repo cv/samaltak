@@ -1,11 +1,11 @@
 Arm64Module subclass: #Arm64Assembler
-	instanceVariableNames: 'asmStart asmPc asmLimit asmError asmLabelCount asmLabels asmLabelFixups asmFixupCount asmFixupSites asmFixupNext asmUnresolved asmNoting asmNoteCount asmNoteOffsets asmNoteTexts asmNoteArgs'
+	instanceVariableNames: 'asmStart asmPc asmLimit asmError asmLabelCount asmLabels asmLabelFixups asmFixupCount asmFixupSites asmFixupNext asmUnresolved asmBinds asmBoundPc asmNoting asmNoteCount asmNoteOffsets asmNoteTexts asmNoteArgs'
 	classVariableNames: 'ASM_MAX_FIXUPS ASM_MAX_LABELS ASM_MAX_NOTES'
 	package: 'VM-Jit'!
 
 Arm64Assembler comment: 'I write arm64 instructions into a code buffer: beginAt:limit:, then one message per instruction, operands in assembly order (asm add: X0 with: X1 imm: 12), then finish (the error code, ASM_OK if all went well). The instruction methods are inline, so with constant operands each is a store of a constant word.
 
-Labels: newLabel, bind:, labelAt: anAddress (a label bound to an address outside the code, e.g. a runtime routine); branches to labels not bound yet are patched when they are. An immediate, offset or branch distance that does not encode sets the error (the first sticks; the code must not be run); the encoders logicalImmediate:width: and fmovImmediate: answer -1 for values that do not encode.
+Labels: newLabel, bind:, labelAt: anAddress (a label bound to an address outside the code, e.g. a runtime routine); branches to labels not bound yet are patched when they are. labelsBound counts the labels bound (where control may come from elsewhere), boundPc is where the last one is, hasBranchesTo: tells whether a label not bound yet has branches to it. An immediate, offset or branch distance that does not encode sets the error (the first sticks; the code must not be run); the encoders logicalImmediate:width: and fmovImmediate: answer -1 for values that do not encode.
 
 Notes, for annotated disassembly: with recordNotes: true, comment: (and comment:with:, a printf format and an integer) and bytecode: record what the code at pc does and which bytecode it implements; otherwise they cost a test of a flag.
 
@@ -13,7 +13,7 @@ Patching: patchBranchAt:to: and branchTargetAt: (b, bl, b.cond, cbz, cbnz, tbz, 
 
 !Arm64Assembler class methodsFor: 'declaring'!
 declarations
-	^#((asmStart uint64_t) (asmPc uint64_t) (asmLimit uint64_t) (asmError int32_t) (asmLabelCount int32_t) (asmLabels 'uint64_t[ASM_MAX_LABELS]') (asmLabelFixups 'int32_t[ASM_MAX_LABELS]') (asmFixupCount int32_t) (asmFixupSites 'uint64_t[ASM_MAX_FIXUPS]') (asmFixupNext 'int32_t[ASM_MAX_FIXUPS]') (asmUnresolved int32_t) (asmNoting bool) (asmNoteCount int32_t) (asmNoteOffsets 'uint32_t[ASM_MAX_NOTES]') (asmNoteTexts 'const char *[ASM_MAX_NOTES]') (asmNoteArgs 'int64_t[ASM_MAX_NOTES]'))
+	^#((asmStart uint64_t) (asmPc uint64_t) (asmLimit uint64_t) (asmError int32_t) (asmLabelCount int32_t) (asmLabels 'uint64_t[ASM_MAX_LABELS]') (asmLabelFixups 'int32_t[ASM_MAX_LABELS]') (asmFixupCount int32_t) (asmFixupSites 'uint64_t[ASM_MAX_FIXUPS]') (asmFixupNext 'int32_t[ASM_MAX_FIXUPS]') (asmUnresolved int32_t) (asmBinds int32_t) (asmBoundPc uint64_t) (asmNoting bool) (asmNoteCount int32_t) (asmNoteOffsets 'uint32_t[ASM_MAX_NOTES]') (asmNoteTexts 'const char *[ASM_MAX_NOTES]') (asmNoteArgs 'int64_t[ASM_MAX_NOTES]'))
 !
 initialize
 	ASM_MAX_LABELS := 16384.
@@ -91,6 +91,17 @@ newLabel
 	asmLabelCount := asmLabelCount + 1.
 	^asmLabelCount - 1
 !
+labelsBound
+	^asmBinds
+!
+boundPc
+	"Where the label bound last is."
+	^asmBoundPc
+!
+hasBranchesTo: aLabel
+	"aLabel, not bound yet, has branches to it."
+	^(asmLabelFixups at: aLabel) >= 0
+!
 labelAt: anAddress
 	"A label bound to anAddress."
 	<export>
@@ -105,6 +116,8 @@ bind: aLabel
 	<var: #aLabel type: 'int32_t'>
 	| f |
 	asmLabels at: aLabel put: asmPc.
+	asmBinds := asmBinds + 1.
+	asmBoundPc := asmPc.
 	f := asmLabelFixups at: aLabel.
 	[f >= 0] whileTrue: [
 		(asmFixupSites at: f) < asmPc ifTrue: [self patchBranchAt: (asmFixupSites at: f) to: asmPc].
