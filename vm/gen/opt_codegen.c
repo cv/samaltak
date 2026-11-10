@@ -1563,6 +1563,7 @@ static void emit_node(int32_t n, int32_t b, int32_t next_block)
     int32_t off_207;
     uint64_t a_word_549;
     uint64_t a_word_550;
+    char *a_string;
     uint64_t cls_2;
     int32_t enc_24;
     uint64_t a_word_551;
@@ -1689,6 +1690,7 @@ static void emit_node(int32_t n, int32_t b, int32_t next_block)
     int32_t off_227;
     uint64_t a_word_604;
     uint64_t a_word_605;
+    char *a_string_2;
     int64_t rd_39;
     int32_t enc_28;
     uint64_t a_word_606;
@@ -4119,6 +4121,9 @@ exit_dst_3:;
     k = ({
     op_2 = (int32_t)(opt_nodes + n)->op;
     why = (op_2 == O_GUARDCLASS) || (op_2 == O_DEOPT) ? FB_DEOPT_CLASS : op_2 == O_NOTINTS ? FB_INTS : (op_2 == O_GUARDINT) || ((op_2 == O_IADD) || ((op_2 == O_ISUB) || ((op_2 == O_IMUL) || ((op_2 == O_IMOD) || ((op_2 == O_IDIV) || (op_2 == O_ISHIFT)))))) ? FB_DEOPT_ARITH : FB_DEOPT_OTHER;
+    if (((opt_nodes + n)->flags & NF_HOISTED) != 0) {
+        why = FB_DEOPT_HOISTED;
+    }
     if (getenv("SAMALTAK_OPT_TRACE") != NULL) {
         fprintf(stderr, "guard safepoint %d: v%d\n", cg_sp_count, n);
     }
@@ -6294,6 +6299,9 @@ exit_offset_to_23:;
     k_3 = ({
     op_3 = (int32_t)(opt_nodes + n)->op;
     why_2 = (op_3 == O_GUARDCLASS) || (op_3 == O_DEOPT) ? FB_DEOPT_CLASS : op_3 == O_NOTINTS ? FB_INTS : (op_3 == O_GUARDINT) || ((op_3 == O_IADD) || ((op_3 == O_ISUB) || ((op_3 == O_IMUL) || ((op_3 == O_IMOD) || ((op_3 == O_IDIV) || (op_3 == O_ISHIFT)))))) ? FB_DEOPT_ARITH : FB_DEOPT_OTHER;
+    if (((opt_nodes + n)->flags & NF_HOISTED) != 0) {
+        why_2 = FB_DEOPT_HOISTED;
+    }
     if (getenv("SAMALTAK_OPT_TRACE") != NULL) {
         fprintf(stderr, "guard safepoint %d: v%d\n", cg_sp_count, n);
     }
@@ -7253,6 +7261,9 @@ exit_dst_5:;
     k_4 = ({
     op_4 = (int32_t)(opt_nodes + n)->op;
     why_3 = (op_4 == O_GUARDCLASS) || (op_4 == O_DEOPT) ? FB_DEOPT_CLASS : op_4 == O_NOTINTS ? FB_INTS : (op_4 == O_GUARDINT) || ((op_4 == O_IADD) || ((op_4 == O_ISUB) || ((op_4 == O_IMUL) || ((op_4 == O_IMOD) || ((op_4 == O_IDIV) || (op_4 == O_ISHIFT)))))) ? FB_DEOPT_ARITH : FB_DEOPT_OTHER;
+    if (((opt_nodes + n)->flags & NF_HOISTED) != 0) {
+        why_3 = FB_DEOPT_HOISTED;
+    }
     if (getenv("SAMALTAK_OPT_TRACE") != NULL) {
         fprintf(stderr, "guard safepoint %d: v%d\n", cg_sp_count, n);
     }
@@ -7372,6 +7383,9 @@ exit_emit_stress_at_3:;
     k_5 = ({
     op_5 = (int32_t)(opt_nodes + n)->op;
     why_4 = (op_5 == O_GUARDCLASS) || (op_5 == O_DEOPT) ? FB_DEOPT_CLASS : op_5 == O_NOTINTS ? FB_INTS : (op_5 == O_GUARDINT) || ((op_5 == O_IADD) || ((op_5 == O_ISUB) || ((op_5 == O_IMUL) || ((op_5 == O_IMOD) || ((op_5 == O_IDIV) || (op_5 == O_ISHIFT)))))) ? FB_DEOPT_ARITH : FB_DEOPT_OTHER;
+    if (((opt_nodes + n)->flags & NF_HOISTED) != 0) {
+        why_4 = FB_DEOPT_HOISTED;
+    }
     if (getenv("SAMALTAK_OPT_TRACE") != NULL) {
         fprintf(stderr, "guard safepoint %d: v%d\n", cg_sp_count, n);
     }
@@ -10614,6 +10628,9 @@ exit_src_14:;
     k_7 = ({
     op_7 = (int32_t)(opt_nodes + n)->op;
     why_5 = (op_7 == O_GUARDCLASS) || (op_7 == O_DEOPT) ? FB_DEOPT_CLASS : op_7 == O_NOTINTS ? FB_INTS : (op_7 == O_GUARDINT) || ((op_7 == O_IADD) || ((op_7 == O_ISUB) || ((op_7 == O_IMUL) || ((op_7 == O_IMOD) || ((op_7 == O_IDIV) || (op_7 == O_ISHIFT)))))) ? FB_DEOPT_ARITH : FB_DEOPT_OTHER;
+    if (((opt_nodes + n)->flags & NF_HOISTED) != 0) {
+        why_5 = FB_DEOPT_HOISTED;
+    }
     if (getenv("SAMALTAK_OPT_TRACE") != NULL) {
         fprintf(stderr, "guard safepoint %d: v%d\n", cg_sp_count, n);
     }
@@ -11016,6 +11033,9 @@ exit_offset_to_60:;
     k_8 = ({
     op_8 = (int32_t)(opt_nodes + n)->op;
     why_6 = (op_8 == O_GUARDCLASS) || (op_8 == O_DEOPT) ? FB_DEOPT_CLASS : op_8 == O_NOTINTS ? FB_INTS : (op_8 == O_GUARDINT) || ((op_8 == O_IADD) || ((op_8 == O_ISUB) || ((op_8 == O_IMUL) || ((op_8 == O_IMOD) || ((op_8 == O_IDIV) || (op_8 == O_ISHIFT)))))) ? FB_DEOPT_ARITH : FB_DEOPT_OTHER;
+    if (((opt_nodes + n)->flags & NF_HOISTED) != 0) {
+        why_6 = FB_DEOPT_HOISTED;
+    }
     if (getenv("SAMALTAK_OPT_TRACE") != NULL) {
         fprintf(stderr, "guard safepoint %d: v%d\n", cg_sp_count, n);
     }
@@ -11431,6 +11451,9 @@ exit_dsrc_4:;
     k_9 = ({
     op_9 = (int32_t)(opt_nodes + n)->op;
     why_7 = (op_9 == O_GUARDCLASS) || (op_9 == O_DEOPT) ? FB_DEOPT_CLASS : op_9 == O_NOTINTS ? FB_INTS : (op_9 == O_GUARDINT) || ((op_9 == O_IADD) || ((op_9 == O_ISUB) || ((op_9 == O_IMUL) || ((op_9 == O_IMOD) || ((op_9 == O_IDIV) || (op_9 == O_ISHIFT)))))) ? FB_DEOPT_ARITH : FB_DEOPT_OTHER;
+    if (((opt_nodes + n)->flags & NF_HOISTED) != 0) {
+        why_7 = FB_DEOPT_HOISTED;
+    }
     if (getenv("SAMALTAK_OPT_TRACE") != NULL) {
         fprintf(stderr, "guard safepoint %d: v%d\n", cg_sp_count, n);
     }
@@ -13128,6 +13151,9 @@ exit_condition_of:;
     k_11 = ({
     op_10 = (int32_t)(opt_nodes + n)->op;
     why_8 = (op_10 == O_GUARDCLASS) || (op_10 == O_DEOPT) ? FB_DEOPT_CLASS : op_10 == O_NOTINTS ? FB_INTS : (op_10 == O_GUARDINT) || ((op_10 == O_IADD) || ((op_10 == O_ISUB) || ((op_10 == O_IMUL) || ((op_10 == O_IMOD) || ((op_10 == O_IDIV) || (op_10 == O_ISHIFT)))))) ? FB_DEOPT_ARITH : FB_DEOPT_OTHER;
+    if (((opt_nodes + n)->flags & NF_HOISTED) != 0) {
+        why_8 = FB_DEOPT_HOISTED;
+    }
     if (getenv("SAMALTAK_OPT_TRACE") != NULL) {
         fprintf(stderr, "guard safepoint %d: v%d\n", cg_sp_count, n);
     }
@@ -13461,8 +13487,9 @@ exit_offset_to_72:;
     r_src_18 = X15;
 exit_src_18:;
     r_src_18; });
+        a_string = (nd->flags & NF_HOISTED) != 0 ? "guard: its class, once before the loop" : "guard: its class";
         if (asm_noting) {
-            note("guard: its class", 0);
+            note(a_string, 0);
         }
         cls_2 = (uint64_t)nd->aux;
         if (cls_2 == cls_smallint) {
@@ -14160,6 +14187,9 @@ exit_src_19:;
     k_12 = ({
     op_11 = (int32_t)(opt_nodes + n)->op;
     why_9 = (op_11 == O_GUARDCLASS) || (op_11 == O_DEOPT) ? FB_DEOPT_CLASS : op_11 == O_NOTINTS ? FB_INTS : (op_11 == O_GUARDINT) || ((op_11 == O_IADD) || ((op_11 == O_ISUB) || ((op_11 == O_IMUL) || ((op_11 == O_IMOD) || ((op_11 == O_IDIV) || (op_11 == O_ISHIFT)))))) ? FB_DEOPT_ARITH : FB_DEOPT_OTHER;
+    if (((opt_nodes + n)->flags & NF_HOISTED) != 0) {
+        why_9 = FB_DEOPT_HOISTED;
+    }
     if (getenv("SAMALTAK_OPT_TRACE") != NULL) {
         fprintf(stderr, "guard safepoint %d: v%d\n", cg_sp_count, n);
     }
@@ -14493,8 +14523,9 @@ exit_offset_to_77:;
     r_src_20 = X15;
 exit_src_20:;
     r_src_20; });
+        a_string_2 = (nd->flags & NF_HOISTED) != 0 ? "guard: a SmallInteger, once before the loop" : "guard: a SmallInteger";
         if (asm_noting) {
-            note("guard: a SmallInteger", 0);
+            note(a_string_2, 0);
         }
         rd_39 = (x & REG_W) | 31;
         enc_28 = logical_immediate(1ULL, (rd_39 & REG_W) == 0 ? 64 : 32);
@@ -14616,6 +14647,9 @@ exit_offset_to_78:;
     k_13 = ({
     op_12 = (int32_t)(opt_nodes + n)->op;
     why_10 = (op_12 == O_GUARDCLASS) || (op_12 == O_DEOPT) ? FB_DEOPT_CLASS : op_12 == O_NOTINTS ? FB_INTS : (op_12 == O_GUARDINT) || ((op_12 == O_IADD) || ((op_12 == O_ISUB) || ((op_12 == O_IMUL) || ((op_12 == O_IMOD) || ((op_12 == O_IDIV) || (op_12 == O_ISHIFT)))))) ? FB_DEOPT_ARITH : FB_DEOPT_OTHER;
+    if (((opt_nodes + n)->flags & NF_HOISTED) != 0) {
+        why_10 = FB_DEOPT_HOISTED;
+    }
     if (getenv("SAMALTAK_OPT_TRACE") != NULL) {
         fprintf(stderr, "guard safepoint %d: v%d\n", cg_sp_count, n);
     }
@@ -15389,6 +15423,9 @@ exit_offset_to_82:;
     k_14 = ({
     op_13 = (int32_t)(opt_nodes + n)->op;
     why_11 = (op_13 == O_GUARDCLASS) || (op_13 == O_DEOPT) ? FB_DEOPT_CLASS : op_13 == O_NOTINTS ? FB_INTS : (op_13 == O_GUARDINT) || ((op_13 == O_IADD) || ((op_13 == O_ISUB) || ((op_13 == O_IMUL) || ((op_13 == O_IMOD) || ((op_13 == O_IDIV) || (op_13 == O_ISHIFT)))))) ? FB_DEOPT_ARITH : FB_DEOPT_OTHER;
+    if (((opt_nodes + n)->flags & NF_HOISTED) != 0) {
+        why_11 = FB_DEOPT_HOISTED;
+    }
     if (getenv("SAMALTAK_OPT_TRACE") != NULL) {
         fprintf(stderr, "guard safepoint %d: v%d\n", cg_sp_count, n);
     }
@@ -16096,6 +16133,9 @@ exit_offset_to_86:;
     k_15 = ({
     op_15 = (int32_t)(opt_nodes + n)->op;
     why_12 = (op_15 == O_GUARDCLASS) || (op_15 == O_DEOPT) ? FB_DEOPT_CLASS : op_15 == O_NOTINTS ? FB_INTS : (op_15 == O_GUARDINT) || ((op_15 == O_IADD) || ((op_15 == O_ISUB) || ((op_15 == O_IMUL) || ((op_15 == O_IMOD) || ((op_15 == O_IDIV) || (op_15 == O_ISHIFT)))))) ? FB_DEOPT_ARITH : FB_DEOPT_OTHER;
+    if (((opt_nodes + n)->flags & NF_HOISTED) != 0) {
+        why_12 = FB_DEOPT_HOISTED;
+    }
     if (getenv("SAMALTAK_OPT_TRACE") != NULL) {
         fprintf(stderr, "guard safepoint %d: v%d\n", cg_sp_count, n);
     }
@@ -17531,6 +17571,9 @@ exit_dst_10:;
     k_16 = ({
     op_16 = (int32_t)(opt_nodes + n)->op;
     why_13 = (op_16 == O_GUARDCLASS) || (op_16 == O_DEOPT) ? FB_DEOPT_CLASS : op_16 == O_NOTINTS ? FB_INTS : (op_16 == O_GUARDINT) || ((op_16 == O_IADD) || ((op_16 == O_ISUB) || ((op_16 == O_IMUL) || ((op_16 == O_IMOD) || ((op_16 == O_IDIV) || (op_16 == O_ISHIFT)))))) ? FB_DEOPT_ARITH : FB_DEOPT_OTHER;
+    if (((opt_nodes + n)->flags & NF_HOISTED) != 0) {
+        why_13 = FB_DEOPT_HOISTED;
+    }
     if (getenv("SAMALTAK_OPT_TRACE") != NULL) {
         fprintf(stderr, "guard safepoint %d: v%d\n", cg_sp_count, n);
     }
@@ -17803,6 +17846,9 @@ exit_offset_to_102:;
     k_17 = ({
     op_17 = (int32_t)(opt_nodes + n)->op;
     why_14 = (op_17 == O_GUARDCLASS) || (op_17 == O_DEOPT) ? FB_DEOPT_CLASS : op_17 == O_NOTINTS ? FB_INTS : (op_17 == O_GUARDINT) || ((op_17 == O_IADD) || ((op_17 == O_ISUB) || ((op_17 == O_IMUL) || ((op_17 == O_IMOD) || ((op_17 == O_IDIV) || (op_17 == O_ISHIFT)))))) ? FB_DEOPT_ARITH : FB_DEOPT_OTHER;
+    if (((opt_nodes + n)->flags & NF_HOISTED) != 0) {
+        why_14 = FB_DEOPT_HOISTED;
+    }
     if (getenv("SAMALTAK_OPT_TRACE") != NULL) {
         fprintf(stderr, "guard safepoint %d: v%d\n", cg_sp_count, n);
     }
@@ -22352,6 +22398,9 @@ exit_is_fused_2:;
     k_22 = ({
     op_18 = (int32_t)(opt_nodes + n)->op;
     why_15 = (op_18 == O_GUARDCLASS) || (op_18 == O_DEOPT) ? FB_DEOPT_CLASS : op_18 == O_NOTINTS ? FB_INTS : (op_18 == O_GUARDINT) || ((op_18 == O_IADD) || ((op_18 == O_ISUB) || ((op_18 == O_IMUL) || ((op_18 == O_IMOD) || ((op_18 == O_IDIV) || (op_18 == O_ISHIFT)))))) ? FB_DEOPT_ARITH : FB_DEOPT_OTHER;
+    if (((opt_nodes + n)->flags & NF_HOISTED) != 0) {
+        why_15 = FB_DEOPT_HOISTED;
+    }
     if (getenv("SAMALTAK_OPT_TRACE") != NULL) {
         fprintf(stderr, "guard safepoint %d: v%d\n", cg_sp_count, n);
     }
@@ -24680,6 +24729,9 @@ exit_offset_to_145:;
     k_25 = ({
     op_19 = (int32_t)(opt_nodes + n)->op;
     why_16 = (op_19 == O_GUARDCLASS) || (op_19 == O_DEOPT) ? FB_DEOPT_CLASS : op_19 == O_NOTINTS ? FB_INTS : (op_19 == O_GUARDINT) || ((op_19 == O_IADD) || ((op_19 == O_ISUB) || ((op_19 == O_IMUL) || ((op_19 == O_IMOD) || ((op_19 == O_IDIV) || (op_19 == O_ISHIFT)))))) ? FB_DEOPT_ARITH : FB_DEOPT_OTHER;
+    if (((opt_nodes + n)->flags & NF_HOISTED) != 0) {
+        why_16 = FB_DEOPT_HOISTED;
+    }
     if (getenv("SAMALTAK_OPT_TRACE") != NULL) {
         fprintf(stderr, "guard safepoint %d: v%d\n", cg_sp_count, n);
     }
@@ -27246,6 +27298,9 @@ exit_offset_to_24:;
             value_8 = ({
     op = (int32_t)(opt_nodes + n_17)->op;
     why = (op == O_GUARDCLASS) || (op == O_DEOPT) ? FB_DEOPT_CLASS : op == O_NOTINTS ? FB_INTS : (op == O_GUARDINT) || ((op == O_IADD) || ((op == O_ISUB) || ((op == O_IMUL) || ((op == O_IMOD) || ((op == O_IDIV) || (op == O_ISHIFT)))))) ? FB_DEOPT_ARITH : FB_DEOPT_OTHER;
+    if (((opt_nodes + n_17)->flags & NF_HOISTED) != 0) {
+        why = FB_DEOPT_HOISTED;
+    }
     if (getenv("SAMALTAK_OPT_TRACE") != NULL) {
         fprintf(stderr, "guard safepoint %d: v%d\n", cg_sp_count, n_17);
     }
@@ -27494,48 +27549,52 @@ static int32_t record_state(int32_t s, int32_t kind, int32_t n, bool in_slots)
     int32_t w;
     int32_t w_2;
     int32_t w_3;
+    int32_t w_4;
+    int32_t a;
+    int32_t v;
+    int32_t w_5;
     int64_t nchain;
     int32_t t;
     int64_t i;
     int64_t i_2;
     opt_state *st;
-    int32_t a;
-    int32_t w_4;
     int32_t a_2;
+    int32_t w_6;
     int32_t a_3;
-    int32_t v;
+    int32_t a_4;
+    int32_t v_2;
     int64_t r_closure_loc_of;
     int64_t r_loc_of;
     opt_node *nd_2;
     int32_t r_sunk_index_of;
     int32_t j;
     uint64_t c;
-    int64_t v_2;
-    int64_t w_5;
+    int64_t v_3;
+    int64_t w_7;
     int32_t i_3;
-    int32_t v_3;
+    int32_t v_4;
     int64_t r_loc_of_2;
     opt_node *nd_3;
     int32_t r_sunk_index_of_2;
     int32_t j_2;
     uint64_t c_2;
-    int64_t w_6;
-    int32_t w_7;
-    int32_t w_8;
+    int64_t w_8;
+    int32_t w_9;
+    int32_t w_10;
     int32_t j_3;
     int32_t i_4;
-    int32_t v_4;
+    int32_t v_5;
     int64_t r_loc_of_3;
     opt_node *nd_4;
     int32_t r_sunk_index_of_3;
     int32_t j_4;
     uint64_t c_3;
-    int64_t w_9;
+    int64_t w_11;
     int32_t j_5;
     int32_t n_2;
     int64_t i_5;
-    int32_t w_10;
-    int32_t w_11;
+    int32_t w_12;
+    int32_t w_13;
     k = ({
     k_2 = cg_sp_count;
     if (cg_sp_count < CG_MAX_SP) {
@@ -27569,16 +27628,25 @@ static int32_t record_state(int32_t s, int32_t kind, int32_t n, bool in_slots)
         }
         cg_meta_count = cg_meta_count + 1;
     } else {
+        w_4 = (nd->flags & NF_HOISTED) != 0 ? nd->bcpc : -1;
         if (cg_meta_count < CG_MAX_META) {
-            cg_meta_words[cg_meta_count] = -1;
+            cg_meta_words[cg_meta_count] = w_4;
         }
         cg_meta_count = cg_meta_count + 1;
         if (cg_meta_count < CG_MAX_META) {
             cg_meta_words[cg_meta_count] = 0;
         }
         cg_meta_count = cg_meta_count + 1;
+        w_5 = ({
+    if ((nd->flags & NF_HOISTED) != 0) {
+        a = nd->bcact;
+        v = pool_index_of((opt_acts + a)->method);
+    } else {
+        v = 0;
+    }
+    v; });
         if (cg_meta_count < CG_MAX_META) {
-            cg_meta_words[cg_meta_count] = 0;
+            cg_meta_words[cg_meta_count] = w_5;
         }
         cg_meta_count = cg_meta_count + 1;
     }
@@ -27601,28 +27669,28 @@ static int32_t record_state(int32_t s, int32_t kind, int32_t n, bool in_slots)
         }
         st = opt_states + t;
         cg_chain_acts[nchain - 1 - i] = st->act;
-        a = st->act;
-        w_4 = pool_index_of((opt_acts + a)->method);
+        a_2 = st->act;
+        w_6 = pool_index_of((opt_acts + a_2)->method);
         if (cg_meta_count < CG_MAX_META) {
-            cg_meta_words[cg_meta_count] = w_4;
+            cg_meta_words[cg_meta_count] = w_6;
         }
         cg_meta_count = cg_meta_count + 1;
-        a_2 = st->act;
-        w_5 = ({
-    if ((opt_acts + a_2)->closure >= 0) {
         a_3 = st->act;
-        v = (opt_acts + a_3)->closure;
-        v_2 = ({
-    if ((int32_t)(opt_nodes + v)->op == O_PARAM) {
+        w_7 = ({
+    if ((opt_acts + a_3)->closure >= 0) {
+        a_4 = st->act;
+        v_2 = (opt_acts + a_4)->closure;
+        v_3 = ({
+    if ((int32_t)(opt_nodes + v_2)->op == O_PARAM) {
         r_closure_loc_of = -2;
         goto exit_closure_loc_of;
     }
     r_closure_loc_of = ({
-    nd_2 = opt_nodes + v;
+    nd_2 = opt_nodes + v_2;
     if ((int32_t)nd_2->op == O_CLOSURE) {
         r_loc_of = (((int64_t)({
     for (j = 0; j <= cg_sunk_count - 1; j++) {
-        if (cg_sunk[j] == v) {
+        if (cg_sunk[j] == v_2) {
             r_sunk_index_of = j;
             goto exit_sunk_index_of;
         }
@@ -27634,7 +27702,7 @@ static int32_t record_state(int32_t s, int32_t kind, int32_t n, bool in_slots)
         r_sunk_index_of = 0;
         goto exit_sunk_index_of;
     }
-    cg_sunk[cg_sunk_count] = v;
+    cg_sunk[cg_sunk_count] = v_2;
     cg_sunk_count = cg_sunk_count + 1;
     r_sunk_index_of = cg_sunk_count - 1;
 exit_sunk_index_of:;
@@ -27671,21 +27739,21 @@ exit_loc_of:;
 exit_closure_loc_of:;
     r_closure_loc_of; });
     } else {
-        v_2 = -1;
+        v_3 = -1;
     }
-    v_2; });
+    v_3; });
         if (cg_meta_count < CG_MAX_META) {
-            cg_meta_words[cg_meta_count] = (int32_t)w_5;
+            cg_meta_words[cg_meta_count] = (int32_t)w_7;
         }
         cg_meta_count = cg_meta_count + 1;
         i_3 = st->vals;
-        v_3 = opt_operands[i_3];
-        w_6 = ({
-    nd_3 = opt_nodes + v_3;
+        v_4 = opt_operands[i_3];
+        w_8 = ({
+    nd_3 = opt_nodes + v_4;
     if ((int32_t)nd_3->op == O_CLOSURE) {
         r_loc_of_2 = (((int64_t)({
     for (j_2 = 0; j_2 <= cg_sunk_count - 1; j_2++) {
-        if (cg_sunk[j_2] == v_3) {
+        if (cg_sunk[j_2] == v_4) {
             r_sunk_index_of_2 = j_2;
             goto exit_sunk_index_of_2;
         }
@@ -27697,7 +27765,7 @@ exit_closure_loc_of:;
         r_sunk_index_of_2 = 0;
         goto exit_sunk_index_of_2;
     }
-    cg_sunk[cg_sunk_count] = v_3;
+    cg_sunk[cg_sunk_count] = v_4;
     cg_sunk_count = cg_sunk_count + 1;
     r_sunk_index_of_2 = cg_sunk_count - 1;
 exit_sunk_index_of_2:;
@@ -27732,28 +27800,28 @@ exit_sunk_index_of_2:;
 exit_loc_of_2:;
     r_loc_of_2; });
         if (cg_meta_count < CG_MAX_META) {
-            cg_meta_words[cg_meta_count] = (int32_t)w_6;
+            cg_meta_words[cg_meta_count] = (int32_t)w_8;
         }
         cg_meta_count = cg_meta_count + 1;
-        w_7 = st->pc;
+        w_9 = st->pc;
         if (cg_meta_count < CG_MAX_META) {
-            cg_meta_words[cg_meta_count] = w_7;
+            cg_meta_words[cg_meta_count] = w_9;
         }
         cg_meta_count = cg_meta_count + 1;
-        w_8 = st->depth;
+        w_10 = st->depth;
         if (cg_meta_count < CG_MAX_META) {
-            cg_meta_words[cg_meta_count] = w_8;
+            cg_meta_words[cg_meta_count] = w_10;
         }
         cg_meta_count = cg_meta_count + 1;
         for (j_3 = 0; j_3 <= st->depth - 1; j_3++) {
             i_4 = st->vals + 1 + j_3;
-            v_4 = opt_operands[i_4];
-            w_9 = ({
-    nd_4 = opt_nodes + v_4;
+            v_5 = opt_operands[i_4];
+            w_11 = ({
+    nd_4 = opt_nodes + v_5;
     if ((int32_t)nd_4->op == O_CLOSURE) {
         r_loc_of_3 = (((int64_t)({
     for (j_4 = 0; j_4 <= cg_sunk_count - 1; j_4++) {
-        if (cg_sunk[j_4] == v_4) {
+        if (cg_sunk[j_4] == v_5) {
             r_sunk_index_of_3 = j_4;
             goto exit_sunk_index_of_3;
         }
@@ -27765,7 +27833,7 @@ exit_loc_of_2:;
         r_sunk_index_of_3 = 0;
         goto exit_sunk_index_of_3;
     }
-    cg_sunk[cg_sunk_count] = v_4;
+    cg_sunk[cg_sunk_count] = v_5;
     cg_sunk_count = cg_sunk_count + 1;
     r_sunk_index_of_3 = cg_sunk_count - 1;
 exit_sunk_index_of_3:;
@@ -27800,7 +27868,7 @@ exit_sunk_index_of_3:;
 exit_loc_of_3:;
     r_loc_of_3; });
             if (cg_meta_count < CG_MAX_META) {
-                cg_meta_words[cg_meta_count] = (int32_t)w_9;
+                cg_meta_words[cg_meta_count] = (int32_t)w_11;
             }
             cg_meta_count = cg_meta_count + 1;
         }
@@ -27827,14 +27895,14 @@ exit_loc_of_3:;
             cg_meta_words[cg_meta_count] = t;
         }
         cg_meta_count = cg_meta_count + 1;
-        w_10 = (int32_t)nd->aux;
+        w_12 = (int32_t)nd->aux;
         if (cg_meta_count < CG_MAX_META) {
-            cg_meta_words[cg_meta_count] = w_10;
+            cg_meta_words[cg_meta_count] = w_12;
         }
         cg_meta_count = cg_meta_count + 1;
-        w_11 = (int32_t)(nd->aux2 & 0xFFFFFF);
+        w_13 = (int32_t)(nd->aux2 & 0xFFFFFF);
         if (cg_meta_count < CG_MAX_META) {
-            cg_meta_words[cg_meta_count] = w_11;
+            cg_meta_words[cg_meta_count] = w_13;
         }
         cg_meta_count = cg_meta_count + 1;
     }

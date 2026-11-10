@@ -501,7 +501,7 @@ emitNode: n block: b next: nextBlock
 	op = O_GUARDCLASS ifTrue: [
 		s := self deoptLabelFor: n.
 		x := self src: nd a into: X15.
-		asm comment: 'guard: its class'.
+		asm comment: ((nd flags bitAnd: NF_HOISTED) ~= 0 ifTrue: ['guard: its class, once before the loop'] ifFalse: ['guard: its class']).
 		self emitClassTest: x class: nd aux asUInt64.
 		asm b: s if: COND_NE.
 		^self def: n from: x].
@@ -509,7 +509,7 @@ emitNode: n block: b next: nextBlock
 	op = O_GUARDINT ifTrue: [
 		s := self deoptLabelFor: n.
 		x := self src: nd a into: X15.
-		asm comment: 'guard: a SmallInteger'.
+		asm comment: ((nd flags bitAnd: NF_HOISTED) ~= 0 ifTrue: ['guard: a SmallInteger, once before the loop'] ifFalse: ['guard: a SmallInteger']).
 		asm tst: x imm: 1.
 		asm b: s if: COND_EQ.
 		^self def: n from: x].
@@ -1567,6 +1567,7 @@ recordGuard: n
 		ifTrue: [feedback deoptClass]
 		ifFalse: [op = O_NOTINTS ifTrue: [feedback sawInts] ifFalse: [
 			(op = O_GUARDINT or: [op = O_IADD or: [op = O_ISUB or: [op = O_IMUL or: [op = O_IMOD or: [op = O_IDIV or: [op = O_ISHIFT]]]]]]) ifTrue: [feedback deoptArith] ifFalse: [feedback deoptOther]]].
+	((ir node: n) flags bitAnd: NF_HOISTED) ~= 0 ifTrue: [why := feedback deoptHoisted].
 	(libc getenv: 'SAMALTAK_OPT_TRACE') notNull ifTrue: [libc fprintf: libc stderr format: 'guard safepoint %d: v%d
 ' with: cgSpCount with: n].
 	^self recordState: (ir node: n) state kind: (SP_GUARD bitOr: why asInt64 << 8) asInt32 node: n inSlots: false
@@ -1591,9 +1592,10 @@ recordState: s kind: kind node: n inSlots: inSlots
 			self meta: (nd aux2 bitAnd: 16rFFFFFFFF) asInt32.
 			self meta: (self poolIndexOf: nd aux asUInt64)]
 		ifFalse: [
-			self meta: -1.
+			"a guard moved before a loop: the site it came from"
+			self meta: ((nd flags bitAnd: NF_HOISTED) ~= 0 ifTrue: [nd bcpc] ifFalse: [-1]).
 			self meta: 0.
-			self meta: 0].
+			self meta: ((nd flags bitAnd: NF_HOISTED) ~= 0 ifTrue: [self poolIndexOf: (ir act: nd bcact) method] ifFalse: [0])].
 	"the chain of states, outermost first"
 	nchain := 0.
 	t := s.

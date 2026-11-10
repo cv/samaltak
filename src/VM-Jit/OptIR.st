@@ -122,6 +122,7 @@ newBlock
 	b loop: -1.
 	b act: -1.
 	b label: -1.
+	b entryState: -1.
 	optBlockCount := optBlockCount + 1.
 	^optBlockCount - 1
 !
@@ -381,13 +382,13 @@ VMStruct subclass: #OptBlock
 	classVariableNames: ''
 	package: 'VM-Jit'!
 
-OptBlock comment: 'An IR block (OptModule): its first and last node, predecessor edges (preds, a list of OptEdges, npreds of them), up to two successors (succ0 the taken or only one, succ1 the other of a branch), flags, the activation and pc it starts, its order, immediate dominator, innermost loop header, loop depth, linear positions from..to and its code label.'!
+OptBlock comment: 'An IR block (OptModule): its first and last node, predecessor edges (preds, a list of OptEdges, npreds of them), up to two successors (succ0 the taken or only one, succ1 the other of a branch), flags, the activation and pc it starts, its order, immediate dominator, innermost loop header, loop depth, linear positions from..to, its code label and, if it heads a loop, its frame state at the head.'!
 
 !OptBlock class methodsFor: 'declaring'!
 fields
 	^#((first int32_t) (last int32_t) (preds int32_t) (npreds int32_t) (succ0 int32_t) (succ1 int32_t)
 		(flags int32_t) (act int32_t) (pc int32_t) (rpo int32_t) (idom int32_t) (loop int32_t) (depth int32_t)
-		(from int32_t) (to int32_t) (label int32_t) (live int32_t) (loopEnd int32_t))
+		(from int32_t) (to int32_t) (label int32_t) (live int32_t) (loopEnd int32_t) (entryState int32_t))
 ! !
 
 VMStruct subclass: #OptEdge

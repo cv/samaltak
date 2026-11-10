@@ -493,6 +493,7 @@ static uint64_t deopt_frame(frame *f, int64_t k, uint64_t *regs, int mode)
 uint64_t deopt_guard(frame *f, int64_t k)
 {
     jit_method *h;
+    int32_t *rec;
     int32_t why;
     bool stressed;
     uint64_t r;
@@ -527,10 +528,11 @@ uint64_t deopt_guard(frame *f, int64_t k)
     bool fresh;
     oop m;
     int32_t pc;
+    int32_t i_3;
     int64_t r_signature_at;
     feedback_site *s_2;
     int64_t n_3;
-    int i_3;
+    int i_4;
     int64_t sig;
     uint64_t o_3;
     uint8_t *p_2;
@@ -541,7 +543,7 @@ uint64_t deopt_guard(frame *f, int64_t k)
     uint8_t op_4;
     int k_3;
     int k_4;
-    int64_t i_4;
+    int64_t i_5;
     oop r_2;
     oop r_3;
     oop r_4;
@@ -551,7 +553,7 @@ uint64_t deopt_guard(frame *f, int64_t k)
     int64_t r_signature_at_2;
     feedback_site *s_3;
     int64_t n_4;
-    int i_5;
+    int i_6;
     oop m_6;
     int32_t n_5;
     jit_method *h_3;
@@ -559,7 +561,8 @@ uint64_t deopt_guard(frame *f, int64_t k)
         canonicalize_below(f);
     }
     h = (jit_method *)f->code;
-    why = (h->meta + h->sp_table[k])[0] >> 8;
+    rec = h->meta + h->sp_table[k];
+    why = rec[0] >> 8;
     stressed = ((jit_flags & JIT_FLAG_DEOPT) != 0) && (state_block->stress <= 0);
     if (stressed) {
         why = 0;
@@ -672,6 +675,11 @@ exit_operand_flags_at:;
     if (why != 0) {
         m = rt_act_method[rt_act_count - 1];
         pc = rt_act_pc[rt_act_count - 1];
+        if (why == FB_DEOPT_HOISTED) {
+            i_3 = rec[3];
+            m = ((oop *)(h->code_start + h->pool_offset))[i_3];
+            pc = rec[1];
+        }
         sig = ({
     s_2 = site_at(m, pc);
     if (s_2 == NULL) {
@@ -679,8 +687,8 @@ exit_operand_flags_at:;
         goto exit_signature_at;
     }
     n_3 = 0;
-    for (i_3 = 0; i_3 <= 3; i_3++) {
-        if (s_2->classes[i_3] != 0) {
+    for (i_4 = 0; i_4 <= 3; i_4++) {
+        if (s_2->classes[i_4] != 0) {
             n_3 = n_3 + 1;
         }
     }
@@ -692,7 +700,7 @@ exit_signature_at:;
             o_3 = *(uint64_t *)(m + 16 + 24);
             p_2 = (uint8_t *)(o_3 + 16) + pc;
             g_2 = frames + (nframes - 1);
-            i_4 = ({
+            i_5 = ({
     op_3 = p_2[0];
     r_pushes_of_2 = ((op_3 >= 0x97) && (op_3 <= 0x9F)) || ((op_3 >= 0xF0) && (op_3 < 0xFC)) ? 2 : 0;
     r_pushes_of_2; }) > 0 ? (int64_t)p_2[1] : (int64_t)(g_2->sp - ({
@@ -722,13 +730,13 @@ exit_signature_at:;
     r_send_argc_of = 0;
 exit_send_argc_of:;
     r_send_argc_of; }) - 1);
-            if (i_4 >= 0) {
-                r_2 = g_2->fp[i_4];
+            if (i_5 >= 0) {
+                r_2 = g_2->fp[i_5];
                 note_send(m, pc, (r_2 & 7) != 0 ? tag_class[r_2 & 7] : *(uint64_t *)(r_2 + 8));
                 if (getenv("SAMALTAK_OPT_TRACE") != NULL) {
-                    r_3 = g_2->fp[i_4];
+                    r_3 = g_2->fp[i_5];
                     fprintf(stderr, "deopt receiver %lld (Array %lld): ", (unsigned long long)((r_3 & 7) != 0 ? tag_class[r_3 & 7] : *(uint64_t *)(r_3 + 8)), (unsigned long long)cls_array);
-                    r_4 = g_2->fp[i_4];
+                    r_4 = g_2->fp[i_5];
                     print_class_name((r_4 & 7) != 0 ? tag_class[r_4 & 7] : *(uint64_t *)(r_4 + 8), stderr);
                     fputc(10, stderr);
                 }
@@ -765,8 +773,8 @@ exit_special_index_of:;
         goto exit_signature_at_2;
     }
     n_4 = 0;
-    for (i_5 = 0; i_5 <= 3; i_5++) {
-        if (s_3->classes[i_5] != 0) {
+    for (i_6 = 0; i_6 <= 3; i_6++) {
+        if (s_3->classes[i_6] != 0) {
             n_4 = n_4 + 1;
         }
     }

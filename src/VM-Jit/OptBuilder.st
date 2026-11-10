@@ -400,7 +400,9 @@ buildAct: a
 				b >= 0 ifTrue: [
 					(obCurBlock >= 0 and: [obCurBlock ~= b]) ifTrue: [self goto: b].
 					obCurBlock := b.
-					(self isLoopHead: pc act: a) ifFalse: [self seal: b]].
+					(self isLoopHead: pc act: a)
+						ifTrue: [(ir block: b) entryState: (self stateAct: a pc: pc depth: (self depthAt: pc act: a))]
+						ifFalse: [self seal: b]].
 				obCurBlock < 0
 					ifTrue: [pc := self skip: pc act: a]
 					ifFalse: [pc := self emit: pc act: a]]]

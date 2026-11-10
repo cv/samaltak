@@ -19,11 +19,14 @@ static int32_t ps_work_list[16384];
 static void compute_order(int32_t entry);
 static void count_uses(void);
 static void dominators(int32_t entry);
+static void hoist_guards(void);
+static void hoist_out_of(int32_t h);
 static void remove_dead(void);
 static void remove_unreachable(void);
 static void resolve_operands(void);
 static void simplify_phis(void);
 static void split_critical_edges(void);
+static int32_t opt_passes_state(int32_t s, int64_t k, int32_t h);
 static void type_phis(void);
 static void unbox_phis(void);
 static void value_numbers(void);
@@ -42,13 +45,18 @@ void cleanup(int32_t entry)
         unbox_phis();
         resolve_operands();
     }
-    if ((jit_flags & JIT_FLAG_GVN) != 0) {
+    split_critical_edges();
+    compute_order(entry);
+    if (((jit_flags & JIT_FLAG_GVN) != 0) || ((jit_flags & JIT_FLAG_HOIST) != 0)) {
         dominators(entry);
+    }
+    if ((jit_flags & JIT_FLAG_GVN) != 0) {
         value_numbers();
         resolve_operands();
     }
-    split_critical_edges();
-    compute_order(entry);
+    if ((jit_flags & JIT_FLAG_HOIST) != 0) {
+        hoist_guards();
+    }
     count_uses();
     remove_dead();
     count_uses();
@@ -267,6 +275,130 @@ static void dominators(int32_t entry)
             ps_post[ps_work_list[sp - 2]] = n;
             n = n + 1;
             sp = sp - 2;
+        }
+    }
+}
+
+/* OptPasses>>hoistGuards */
+static void hoist_guards(void)
+{
+    int32_t i;
+    int32_t b;
+    for (i = ps_order_count - 1; i >= 0; i--) {
+        b = ps_order[i];
+        if (((opt_blocks + b)->flags & BF_LOOP) != 0) {
+            hoist_out_of(ps_order[i]);
+        }
+    }
+}
+
+/* OptPasses>>hoistOutOf: */
+static void hoist_out_of(int32_t h)
+{
+    int64_t entry;
+    int64_t latch;
+    int32_t e;
+    int64_t k;
+    int32_t p;
+    int32_t r_intersect;
+    int32_t x;
+    int64_t y;
+    int64_t index;
+    int64_t count;
+    int64_t b;
+    int64_t s;
+    int64_t i;
+    int32_t b_2;
+    int32_t n;
+    int32_t next;
+    bool r_is_hoistable;
+    opt_node *nd;
+    int32_t op;
+    int32_t n_2;
+    int32_t b_3;
+    int32_t a;
+    entry = -1;
+    latch = -1;
+    e = (opt_blocks + h)->preds;
+    k = 0;
+    while (e >= 0) {
+        p = (opt_edges + e)->from;
+        if ((ps_pre[h] <= ps_pre[p]) && (ps_post[p] <= ps_post[h])) {
+            latch = latch < 0 ? p : ({
+    x = p;
+    y = latch;
+    while (x != y) {
+        while ((opt_blocks + x)->rpo > (opt_blocks + y)->rpo) {
+            x = ps_idom[x];
+        }
+        while ((opt_blocks + y)->rpo > (opt_blocks + x)->rpo) {
+            y = ps_idom[y];
+        }
+    }
+    r_intersect = x;
+    r_intersect; });
+        } else {
+            if (entry >= 0) {
+                return;
+            }
+            entry = p;
+            index = k;
+        }
+        k = k + 1;
+        e = (opt_edges + e)->next;
+    }
+    if ((entry < 0) || ((latch < 0) || (((opt_blocks + entry)->succ1 >= 0) || ((opt_blocks + h)->entry_state < 0)))) {
+        return;
+    }
+    count = 0;
+    b = latch;
+    for (;;) {
+        ps_work_list[count] = b;
+        count = count + 1;
+        if (b == h) {
+            break;
+        }
+        b = ps_idom[b];
+    }
+    s = -1;
+    for (i = count - 1; i >= 0; i--) {
+        b_2 = ps_work_list[i];
+        n = (opt_blocks + b_2)->first;
+        while (n >= 0) {
+            next = (opt_nodes + n)->next;
+            if (({
+    nd = opt_nodes + n;
+    op = (int32_t)nd->op;
+    if (!((op == O_GUARDCLASS) || (op == O_GUARDINT))) {
+        r_is_hoistable = false;
+        goto exit_is_hoistable;
+    }
+    n_2 = nd->a;
+    b_3 = (opt_nodes + n_2)->block;
+    if (b_3 < 0) {
+        r_is_hoistable = false;
+        goto exit_is_hoistable;
+    }
+    if ((ps_pre[h] <= ps_pre[b_3]) && (ps_post[b_3] <= ps_post[h])) {
+        r_is_hoistable = false;
+        goto exit_is_hoistable;
+    }
+    a = nd->bcact;
+    r_is_hoistable = (flags_at((opt_acts + a)->method, nd->bcpc) & FB_DEOPT_HOISTED) == 0;
+exit_is_hoistable:;
+    r_is_hoistable; })) {
+                if (s < 0) {
+                    s = opt_passes_state((opt_blocks + h)->entry_state, index, h);
+                    if (opt_full) {
+                        return;
+                    }
+                }
+                opt_ir_unlink(n);
+                insert(n, (opt_blocks + entry)->last);
+                (opt_nodes + n)->state = s;
+                (opt_nodes + n)->flags = (opt_nodes + n)->flags | NF_HOISTED;
+            }
+            n = next;
         }
     }
 }
@@ -519,6 +651,50 @@ static void split_critical_edges(void)
             }
         }
     }
+}
+
+/* OptPasses>>state:enteredFrom:of: */
+static int32_t opt_passes_state(int32_t s, int64_t k, int32_t h)
+{
+    opt_state *st;
+    int32_t n;
+    int32_t vals;
+    opt_state *ns;
+    int32_t i;
+    int32_t i_2;
+    int32_t v;
+    int64_t i_3;
+    int32_t i_4;
+    if (s < 0) {
+        return -1;
+    }
+    st = opt_states + s;
+    n = new_state();
+    if (opt_full) {
+        return -1;
+    }
+    vals = alloc_operands(st->depth + 1);
+    if (opt_full) {
+        return -1;
+    }
+    ns = opt_states + n;
+    ns->act = st->act;
+    ns->pc = st->pc;
+    ns->depth = st->depth;
+    ns->flags = st->flags;
+    ns->vals = vals;
+    for (i = 0; i <= st->depth; i++) {
+        i_2 = st->vals + i;
+        v = opt_operands[i_2];
+        if ((v >= 0) && (((int32_t)(opt_nodes + v)->op == O_PHI) && ((opt_nodes + v)->block == h))) {
+            i_3 = (opt_nodes + v)->args + k;
+            v = opt_operands[i_3];
+        }
+        i_4 = vals + i;
+        opt_operands[i_4] = v;
+    }
+    ns->parent = opt_passes_state(st->parent, k, h);
+    return n;
 }
 
 /* OptPasses>>typePhis */

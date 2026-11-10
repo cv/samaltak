@@ -230,6 +230,7 @@ typedef void (*prim_fn)(void);
 #define FB_DEOPT_ARITH 32
 #define FB_DEOPT_BOUNDS 64
 #define FB_DEOPT_CLASS 16
+#define FB_DEOPT_HOISTED 512
 #define FB_DEOPT_OTHER 128
 #define FB_FLOAT 2
 #define FB_FLOAT_BITS 65536
@@ -271,9 +272,10 @@ typedef void (*prim_fn)(void);
 #define JIT_FLAG_FLOAT 2048
 #define JIT_FLAG_FUSE 2
 #define JIT_FLAG_GVN 131072
+#define JIT_FLAG_HOIST 1048576
 #define JIT_FLAG_IC 16
 #define JIT_FLAG_INLINE 16384
-#define JIT_FLAG_LAST 524288
+#define JIT_FLAG_LAST 1048576
 #define JIT_FLAG_MEGA 64
 #define JIT_FLAG_NOTES 8
 #define JIT_FLAG_PIC 32
@@ -339,6 +341,7 @@ typedef void (*prim_fn)(void);
 #define NF_BLOCKCALL 16
 #define NF_DEAD 2
 #define NF_GUARD 4
+#define NF_HOISTED 64
 #define NF_LAZY 32
 #define NF_PURE 1
 #define OA_BLOCK 8
@@ -952,8 +955,9 @@ struct opt_block {
     int32_t label;
     int32_t live;
     int32_t loop_end;
+    int32_t entry_state;
 };
-_Static_assert(sizeof(opt_block) == 72, "the simulator lays out OptBlock as C does");
+_Static_assert(sizeof(opt_block) == 76, "the simulator lays out OptBlock as C does");
 
 struct opt_edge {
     int32_t from;

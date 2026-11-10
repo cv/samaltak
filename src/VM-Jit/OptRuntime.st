@@ -565,10 +565,11 @@ deoptGuard: f index: k
 	<var: #f type: 'Frame *'>
 	<var: #k type: 'int64_t'>
 	<returns: 'uint64_t'>
-	| h why r m pc fresh stressed sig |
+	| h why r m pc fresh stressed sig rec |
 	runtime canonicalizeBelow: f.
 	h := self cCoerce: f code to: 'JitMethod *'.
-	why := ((self recordOf: h index: k) at: 0) >> 8.
+	rec := self recordOf: h index: k.
+	why := (rec at: 0) >> 8.
 	"--jit-flags deopt: no feedback from the stress"
 	stressed := (runtime flag: runtime deoptFlag) and: [runtime state stress <= 0].
 	stressed ifTrue: [why := 0].
@@ -585,6 +586,10 @@ deoptGuard: f index: k
 	why ~= 0 ifTrue: [
 		m := rtActMethod at: rtActCount - 1.
 		pc := rtActPc at: rtActCount - 1.
+		"a guard moved before a loop reports at the send it came from"
+		why = feedback deoptHoisted ifTrue: [
+			m := self poolAt: (rec at: 3) of: h.
+			pc := rec at: 1].
 		sig := self signatureAt: m pc: pc.
 		feedback noteFlags: m pc: pc flags: why asUInt32.
 		(why bitAnd: feedback deoptClass) ~= 0 ifTrue: [self noteReceiverAt: m pc: pc].

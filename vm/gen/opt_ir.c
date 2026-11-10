@@ -147,6 +147,7 @@ int32_t new_block(void)
     b->loop = -1;
     b->act = -1;
     b->label = -1;
+    b->entry_state = -1;
     opt_block_count = opt_block_count + 1;
     return opt_block_count - 1;
 }

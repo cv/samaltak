@@ -30,7 +30,7 @@ orderAt: i
 
 !OptPasses methodsFor: 'cleanup'!
 cleanup: entry
-	"After building: resolve, simplify phis, drop what is unreachable or unused, split critical edges, order the blocks."
+	"After building: resolve, simplify phis, split critical edges, number values, hoist guards out of loops, drop what is unreachable or unused, order the blocks."
 	<function>
 	self computeOrder: entry.
 	self removeUnreachable.
@@ -42,12 +42,13 @@ cleanup: entry
 	(psUnboxOff not and: [runtime flag: runtime unboxFlag]) ifTrue: [
 		self unboxPhis.
 		self resolveOperands].
-	(runtime flag: runtime gvnFlag) ifTrue: [
-		self dominators: entry.
-		self valueNumbers.
-		self resolveOperands].
 	self splitCriticalEdges.
 	self computeOrder: entry.
+	((runtime flag: runtime gvnFlag) or: [runtime flag: runtime hoistFlag]) ifTrue: [self dominators: entry].
+	(runtime flag: runtime gvnFlag) ifTrue: [
+		self valueNumbers.
+		self resolveOperands].
+	(runtime flag: runtime hoistFlag) ifTrue: [self hoistGuards].
 	self countUses.
 	self removeDead.
 	self countUses
@@ -313,6 +314,86 @@ valueNumbers
 						psHeads at: h put: n.
 						n := nd next]]
 				ifFalse: [n := nd next]]]
+!
+hoistGuards
+	"Innermost loops first: a guard that leaves a loop may leave the one around it too."
+	<function>
+	psOrderCount - 1 to: 0 by: -1 do: [:i |
+		((ir block: (psOrder at: i)) flags bitAnd: BF_LOOP) ~= 0 ifTrue: [self hoistOutOf: (psOrder at: i)]]
+!
+hoistOutOf: h
+	"A guard that every turn of loop h passes, of a value from before the loop, runs once instead, where the loop is entered, and deoptimizes to the loop's head. The loop must have one edge in (critical edges are split: its source only jumps here)."
+	<function>
+	| e k p entry index latch count b n next s |
+	entry := -1.
+	latch := -1.
+	e := (ir block: h) preds.
+	k := 0.
+	[e >= 0] whileTrue: [
+		p := (ir edge: e) from.
+		(self dominates: h block: p)
+			ifTrue: [latch := latch < 0 ifTrue: [p] ifFalse: [self intersect: p with: latch]]
+			ifFalse: [
+				entry >= 0 ifTrue: [^self].
+				entry := p.
+				index := k].
+		k := k + 1.
+		e := (ir edge: e) next].
+	(entry < 0 or: [latch < 0 or: [(ir block: entry) succ1 >= 0 or: [(ir block: h) entryState < 0]]]) ifTrue: [^self].
+	"the blocks on every turn, from the head down"
+	count := 0.
+	b := latch.
+	[psWorkList at: count put: b.
+	 count := count + 1.
+	 b = h] whileFalse: [b := psIdom at: b].
+	s := -1.
+	count - 1 to: 0 by: -1 do: [:i |
+		n := (ir block: (psWorkList at: i)) first.
+		[n >= 0] whileTrue: [
+			next := (ir node: n) next.
+			(self isHoistable: n outOf: h) ifTrue: [
+				s < 0 ifTrue: [
+					s := self state: (ir block: h) entryState enteredFrom: index of: h.
+					ir full ifTrue: [^self]].
+				ir unlink: n.
+				ir insert: n before: (ir block: entry) last.
+				(ir node: n) state: s.
+				(ir node: n) flags: ((ir node: n) flags bitOr: NF_HOISTED)].
+			n := next]]
+!
+isHoistable: n outOf: h
+	"n is a guard of a value from before loop h, and no guard moved out of a loop has failed at its site."
+	| nd op b |
+	nd := ir node: n.
+	op := nd op asInt32.
+	(op = O_GUARDCLASS or: [op = O_GUARDINT]) ifFalse: [^false].
+	b := (ir node: nd a) block.
+	b < 0 ifTrue: [^false].
+	(self dominates: h block: b) ifTrue: [^false].
+	^((feedback flagsAt: (ir act: nd bcact) method pc: nd bcpc) bitAnd: feedback deoptHoisted) = 0
+!
+state: s enteredFrom: k of: h
+	"State s at the head of loop h, and its parents, as they are where the loop is entered: h's phis are what they take from predecessor k."
+	<function>
+	| st n ns vals v |
+	s < 0 ifTrue: [^-1].
+	st := ir state: s.
+	n := ir newState.
+	ir full ifTrue: [^-1].
+	vals := ir allocOperands: st depth + 1.
+	ir full ifTrue: [^-1].
+	ns := ir state: n.
+	ns act: st act.
+	ns pc: st pc.
+	ns depth: st depth.
+	ns flags: st flags.
+	ns vals: vals.
+	0 to: st depth do: [:i |
+		v := ir operand: st vals + i.
+		(v >= 0 and: [(ir node: v) op asInt32 = O_PHI and: [(ir node: v) block = h]]) ifTrue: [v := ir operand: (ir node: v) args + k].
+		ir operand: vals + i put: v].
+	ns parent: (self state: st parent enteredFrom: k of: h).
+	^n
 !
 isNumbered: nd
 	| op |

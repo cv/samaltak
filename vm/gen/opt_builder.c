@@ -285,7 +285,9 @@ static void build_act(int32_t a)
                     goto_(b);
                 }
                 ob_cur_block = b;
-                if (!((ob_ana_flag[(opt_acts + a)->ana + pc] & OA_LOOP) != 0)) {
+                if ((ob_ana_flag[(opt_acts + a)->ana + pc] & OA_LOOP) != 0) {
+                    (opt_blocks + b)->entry_state = state_act(a, pc, (int32_t)ob_ana_depth[(opt_acts + a)->ana + pc]);
+                } else {
                     seal(b);
                 }
             }

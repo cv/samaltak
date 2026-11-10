@@ -312,6 +312,37 @@ testDisassemblyShowsInlinedActivations
 	self assert: (listing beginsWith: 'JitRuntimeTestSubject>>sumInc:  opt').
 	self assert: (listing includesSubstring: 'inlined activation 1')
 !
+testGuardsOfValuesFromBeforeALoopLeaveIt
+	"A guard every turn of a loop passes, of a value from before the loop, runs once before it, in the loop's own unit too, out of nested loops and inlined loops. A value of another kind fails it there, also before a loop that would not have turned at all: the interpreter goes on from the loop's head, and the guard stays in the loop from then on."
+	| o m before |
+	Smalltalk vm jitParameters: #(nil '-eager' nil nil).
+	self define: 'times: n sizeOf: x | s | s := 0. 1 to: n do: [:i | s := s + x size]. ^s'.
+	self define: 'times: n add: x | s | s := 0. 1 to: n do: [:i | s := s + x]. ^s'.
+	self define: 'times: n nested: x | s | s := 0. 1 to: n do: [:i | 1 to: n do: [:j | s := s + x size]]. ^s'.
+	self define: 'sumOver: a sizeOf: x | s | s := 0. a do: [:e | s := s + x size]. ^s'.
+	self define: 'while: n sizeOf: x | s i | s := 0. i := 0. [i < n] whileTrue: [s := s + x size. i := i + 1]. ^s'.
+	o := JitRuntimeTestSubject new.
+	self assert: (o times: 20000 sizeOf: #(1 2 3)) equals: 60000.
+	1 to: 3000 do: [:k |
+		self assert: (o times: 10 sizeOf: #(1 2 3)) equals: 30.
+		self assert: (o times: 10 add: 2) equals: 20.
+		self assert: (o times: 10 nested: #(1 2 3)) equals: 300.
+		self assert: (o sumOver: #(1 2 3 4) sizeOf: #(1 2 3)) equals: 12.
+		self assert: (o while: 10 sizeOf: #(1 2 3)) equals: 30].
+	m := JitRuntimeTestSubject >> #times:sizeOf:.
+	self assert: ((m machineCodeFor: #opt) includesSubstring: 'guard: its class, once before the loop').
+	self assert: (((JitRuntimeTestSubject >> #times:add:) machineCodeFor: #opt) includesSubstring: 'guard: a SmallInteger, once before the loop').
+	before := self statistics.
+	self assert: (o times: 10 sizeOf: 'abcd') equals: 40.
+	self assert: (o while: 0 sizeOf: 'abcd') equals: 0.
+	self assert: (o times: 10 add: 1.5) equals: 15.0.
+	self assert: (o times: 10 nested: 'abcd') equals: 400.
+	self assert: (o sumOver: #(1 2 3 4) sizeOf: 'abcd') equals: 16.
+	self stressed ifFalse: [
+		self assert: (self statistics - before) optDeoptimizations >= 5.
+		self deny: ((m machineCodeFor: #opt) includesSubstring: 'guard: its class, once before the loop')].
+	self assert: (o times: 10 sizeOf: #(1 2)) equals: 20
+!
 testDisassemblyLeavesFeedback
 	"A listing of code compiled without notes compiles a copy: the Float the method's baseline code saw stays feedback, its optimized code takes Floats. Feedback bytes are shared by hash and compiling another method may clear this one's, so a new method gets 3 tries; a listing that clears it fails all of them."
 	Smalltalk vm jitParameters: #(nil '-eager' nil nil).

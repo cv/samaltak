@@ -1,9 +1,9 @@
 VMCoreModule subclass: #JitFeedback
 	instanceVariableNames: 'fbSites fbCount fbYoung fbFloats'
-	classVariableNames: 'FB_CLASSES FB_FLOAT_BITS FB_INTS FB_DEOPT_ARITH FB_DEOPT_BOUNDS FB_DEOPT_CLASS FB_DEOPT_OTHER FB_FLOAT FB_MAX FB_MEGA FB_NONINT FB_OVERFLOW'
+	classVariableNames: 'FB_CLASSES FB_FLOAT_BITS FB_INTS FB_DEOPT_ARITH FB_DEOPT_BOUNDS FB_DEOPT_CLASS FB_DEOPT_HOISTED FB_DEOPT_OTHER FB_FLOAT FB_MAX FB_MEGA FB_NONINT FB_OVERFLOW'
 	package: 'VM-Jit'!
 
-JitFeedback comment: 'Type feedback for the optimizing tier, independent of the compiler that collects it: one FeedbackSite per (method, bytecode pc), in an open-addressed table keyed by the method''s identity hash and the pc. A site holds up to FB_CLASSES receiver classes with counts (FB_MEGA once more were seen) and profile bits: FB_FLOAT (an arithmetic or comparison saw a Float operand), FB_NONINT (one that was neither SmallInteger nor Float), FB_OVERFLOW (SmallInteger arithmetic overflowed), FB_DEOPT_* (optimized code deoptimized here: a class guard, an arithmetic guard, a bounds check, anything else).
+JitFeedback comment: 'Type feedback for the optimizing tier, independent of the compiler that collects it: one FeedbackSite per (method, bytecode pc), in an open-addressed table keyed by the method''s identity hash and the pc. A site holds up to FB_CLASSES receiver classes with counts (FB_MEGA once more were seen) and profile bits: FB_FLOAT (an arithmetic or comparison saw a Float operand), FB_NONINT (one that was neither SmallInteger nor Float), FB_OVERFLOW (SmallInteger arithmetic overflowed), FB_DEOPT_* (optimized code deoptimized here: a class guard, an arithmetic guard, a bounds check, anything else, a guard moved before a loop: it stays in the loop from then on).
 
 Lower tiers report into it (docs/jit.md, Optimizing tier): noteSend:pc:class: when a send site sees a class (baseline code on a miss of its inline cache), noteFlags:pc:flags: for profile bits; machine code sets FB_FLOAT without a call, in a byte of fbFloats (floatBitAddressFor:pc:, shared by hash). The optimizer reads sites with siteAt:pc: and flagsAt:pc:. Methods and classes are GC roots (all of them for full GCs and become, for scavenges only while one is young). A full table is cleared.'!
 
@@ -23,7 +23,8 @@ initialize
 	FB_DEOPT_ARITH := 32.
 	FB_DEOPT_BOUNDS := 64.
 	FB_DEOPT_OTHER := 128.
-	FB_INTS := 256
+	FB_INTS := 256.
+	FB_DEOPT_HOISTED := 512
 ! !
 
 !JitFeedback methodsFor: 'constants'!
@@ -57,6 +58,9 @@ deoptBounds
 !
 deoptOther
 	^FB_DEOPT_OTHER
+!
+deoptHoisted
+	^FB_DEOPT_HOISTED
 ! !
 
 !JitFeedback methodsFor: 'sites'!

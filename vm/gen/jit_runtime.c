@@ -731,7 +731,7 @@ uint64_t jit_runtime_context_field(frame *f)
 void defaults(void)
 {
     jit_mode = JIT_OPT;
-    jit_flags = 262135U;
+    jit_flags = 1310711U;
 }
 
 /* JitRuntime>>dispatch:frame:argc: */
@@ -1245,6 +1245,9 @@ char *flag_name(uint32_t bit)
     if (bit == JIT_FLAG_GVN) {
         return "gvn";
     }
+    if (bit == JIT_FLAG_HOIST) {
+        return "hoist";
+    }
     if (bit == JIT_FLAG_UNBOX) {
         return "unbox";
     }
@@ -1640,6 +1643,10 @@ bool parse_flags(char *s)
     }
     if ((strlen("gvn") == (uint64_t)n) && (memcmp(name, "gvn", (uint64_t)n) == 0)) {
         r_flag_named = JIT_FLAG_GVN;
+        goto exit_flag_named;
+    }
+    if ((strlen("hoist") == (uint64_t)n) && (memcmp(name, "hoist", (uint64_t)n) == 0)) {
+        r_flag_named = JIT_FLAG_HOIST;
         goto exit_flag_named;
     }
     if ((strlen("unbox") == (uint64_t)n) && (memcmp(name, "unbox", (uint64_t)n) == 0)) {
