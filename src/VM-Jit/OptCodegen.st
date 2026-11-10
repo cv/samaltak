@@ -1,5 +1,5 @@
 OptModule subclass: #OptCodegen
-	instanceVariableNames: 'cgScratchSlot cgScratchPc cgTruePc ir passes regalloc cgCodeStart cgBcSize cgValidSlots cgEntryPc cgSlotTop cgMaxOut cgNeed cgExitPlainLabel cgExitSyncLabel cgDeoptLabel cgReturnLabel cgHeaderLabel cgChecksLabel cgBodyLabel cgInterruptLabel cgBarrierLabel cgDeoptReturnLabel cgStackFullLabel cgOuts cgOutCount cgPoolOops cgPoolLabels cgPoolCount cgMetaWords cgMetaCount cgSpOffsets cgSpCount cgMoveSrc cgMoveDst cgMoveLoc cgMoveCount cgRootAct cgLastPc cgLastAct builder cgDeps cgDepCount cgSunk cgSunkCount cgChainActs cgChainCount cgDoubles cgSiteBl cgSiteLit cgSiteInfo cgSiteIndex cgSiteSel cgSiteCount cgRetOff cgRetIndex cgRetArgc cgRetCount cgOrder cgPlaced'
+	instanceVariableNames: 'cgScratchReg cgScratchSlot cgScratchPc cgTruePc ir passes regalloc cgCodeStart cgBcSize cgValidSlots cgEntryPc cgSlotTop cgMaxOut cgNeed cgExitPlainLabel cgExitSyncLabel cgDeoptLabel cgReturnLabel cgHeaderLabel cgChecksLabel cgBodyLabel cgInterruptLabel cgBarrierLabel cgDeoptReturnLabel cgStackFullLabel cgOuts cgOutCount cgPoolOops cgPoolLabels cgPoolCount cgMetaWords cgMetaCount cgSpOffsets cgSpCount cgMoveSrc cgMoveDst cgMoveLoc cgMoveCount cgRootAct cgLastPc cgLastAct builder cgDeps cgDepCount cgSunk cgSunkCount cgChainActs cgChainCount cgDoubles cgSiteBl cgSiteLit cgSiteInfo cgSiteIndex cgSiteSel cgSiteCount cgRetOff cgRetIndex cgRetArgc cgRetCount cgOrder cgPlaced'
 	classVariableNames: 'CG_MAX_META CG_MAX_MOVES CG_MAX_OUT CG_MAX_POOL CG_MAX_RETS CG_MAX_SITES CG_MAX_SP OUT_BARRIER OUT_BOTTOM OUT_DEOPT OUT_INTERRUPT OUT_LAZY OUT_RESUME OUT_SENT OUT_SITE OUT_STACK OUT_WIDOW'
 	package: 'VM-Jit'!
 
@@ -16,7 +16,7 @@ declarations
 		(cgOuts 'OptOut[CG_MAX_OUT]') (cgOutCount int32_t)
 		(cgPoolOops 'oop[CG_MAX_POOL]') (cgPoolLabels 'int32_t[CG_MAX_POOL]') (cgPoolCount int32_t)
 		(cgMetaWords 'int32_t[CG_MAX_META]') (cgMetaCount int32_t) (cgSpOffsets 'int32_t[CG_MAX_SP]') (cgSpCount int32_t)
-		(cgMoveSrc 'int32_t[CG_MAX_MOVES]') (cgMoveDst 'int32_t[CG_MAX_MOVES]') (cgMoveLoc 'int32_t[CG_MAX_MOVES]') (cgMoveCount int32_t) (cgRootAct int32_t) (cgLastPc int32_t) (cgLastAct int32_t) (cgScratchSlot int32_t) (cgScratchPc uint64_t) (cgTruePc uint64_t)
+		(cgMoveSrc 'int32_t[CG_MAX_MOVES]') (cgMoveDst 'int32_t[CG_MAX_MOVES]') (cgMoveLoc 'int32_t[CG_MAX_MOVES]') (cgMoveCount int32_t) (cgRootAct int32_t) (cgLastPc int32_t) (cgLastAct int32_t) (cgScratchReg int32_t) (cgScratchSlot int32_t) (cgScratchPc uint64_t) (cgTruePc uint64_t)
 		(builder OptBuilder) (cgDeps 'int32_t[256]') (cgDepCount int32_t)
 		(cgSunk 'int32_t[64]') (cgSunkCount int32_t) (cgDoubles bool) (cgChainActs 'int32_t[512]') (cgChainCount int32_t)
 		(cgSiteBl 'uint32_t[CG_MAX_SITES]') (cgSiteLit 'int32_t[CG_MAX_SITES]') (cgSiteInfo 'uint32_t[CG_MAX_SITES]') (cgSiteIndex 'int32_t[CG_MAX_SITES]') (cgSiteSel 'int32_t[CG_MAX_SITES]') (cgSiteCount int32_t)
@@ -311,7 +311,7 @@ isEmpty: b
 		n := (ir node: n) next].
 	^true
 !
-targetOf: t
+jumpTargetOf: t
 	"The block a branch to t ends up in: past blocks that only jump on, with no phi moves on the way."
 	<function>
 	| b nd hops |
@@ -352,17 +352,11 @@ src: v into: scratch
 		^scratch].
 	nd reg >= 0 ifTrue: [^nd reg asInt32].
 	nd slot >= 0 ifTrue: [
-		(scratch = X15 and: [asm pc = cgScratchPc and: [nd slot asInt32 = cgScratchSlot]]) ifTrue: [^X15].
+		(scratch = cgScratchReg and: [asm pc = cgScratchPc and: [nd slot asInt32 = cgScratchSlot]]) ifTrue: [^scratch].
 		asm ldr: scratch base: X20 offset: 8 * nd slot asInt32.
-		scratch = X15 ifTrue: [cgScratchSlot := nd slot asInt32].
 		^scratch].
 	asm fail: ASM_ERR_OPERAND.
 	^scratch
-!
-defGuard: n from: x
-	"n is its operand, in x: if that is the scratch register loaded from n's slot, what reads the slot next need not load it again."
-	self def: n from: x.
-	(x = X15 and: [(ir node: n) slot asInt32 = cgScratchSlot]) ifTrue: [cgScratchPc := asm pc]
 !
 dst: n
 	"Where n's result is computed: its register, or X14 if it lives in its slot."
@@ -376,7 +370,15 @@ def: n from: r
 	| nd |
 	nd := ir node: n.
 	(nd reg >= 0 and: [nd reg asInt32 ~= r]) ifTrue: [asm mov: nd reg asInt32 with: r].
-	(nd slot >= 0 and: [(nd flags bitAnd: NF_LAZY) = 0]) ifTrue: [asm str: r base: X20 offset: 8 * nd slot asInt32]
+	(nd slot >= 0 and: [(nd flags bitAnd: NF_LAZY) = 0]) ifTrue: [asm str: r base: X20 offset: 8 * nd slot asInt32].
+	self note: r holds: nd
+!
+note: r holds: nd
+	"A scratch register now holds what is in nd's slot: what reads that slot next need not load it."
+	(nd slot >= 0 and: [r = X14 or: [r = X15]]) ifTrue: [
+		cgScratchReg := r asInt32.
+		cgScratchSlot := nd slot asInt32.
+		cgScratchPc := asm pc]
 !
 loadConstant: v into: r
 	(self isInt: v) ifTrue: [
@@ -502,15 +504,15 @@ emitNode: n block: b next: nextBlock
 		asm comment: 'guard: its class'.
 		self emitClassTest: x class: nd aux asUInt64.
 		asm b: s if: COND_NE.
-		^self defGuard: n from: x].
-	op = O_CAST ifTrue: [^self defGuard: n from: (self src: nd a into: X15)].
+		^self def: n from: x].
+	op = O_CAST ifTrue: [^self def: n from: (self src: nd a into: X15)].
 	op = O_GUARDINT ifTrue: [
 		s := self deoptLabelFor: n.
 		x := self src: nd a into: X15.
 		asm comment: 'guard: a SmallInteger'.
 		asm tst: x imm: 1.
 		asm b: s if: COND_EQ.
-		^self defGuard: n from: x].
+		^self def: n from: x].
 	(op = O_IADD or: [op = O_ISUB]) ifTrue: [^self emitAddSub: n].
 	op = O_IMUL ifTrue: [^self emitMul: n].
 	(op = O_IMOD or: [op = O_IDIV or: [op = O_ISHIFT]]) ifTrue: [^self emitDivShift: n].
@@ -554,8 +556,8 @@ emitNode: n block: b next: nextBlock
 	(op = O_SEND or: [op = O_CALL]) ifTrue: [^self emitSend: n].
 	op = O_GOTO ifTrue: [
 		self emitMovesFrom: b to: (ir block: b) succ0.
-		((ir block: b) succ0 = nextBlock or: [(self targetOf: (ir block: b) succ0) = nextBlock]) ifFalse: [
-			asm b: (ir block: (self targetOf: (ir block: b) succ0)) label].
+		((ir block: b) succ0 = nextBlock or: [(self jumpTargetOf: (ir block: b) succ0) = nextBlock]) ifFalse: [
+			asm b: (ir block: (self jumpTargetOf: (ir block: b) succ0)) label].
 		^self].
 	op = O_BRANCH ifTrue: [^self emitBranch: n block: b next: nextBlock].
 	op = O_RETURN ifTrue: [^self emitReturn: n].
@@ -613,15 +615,15 @@ emitBranch: n block: b next: nextBlock
 	(vd tkind asInt32 ~= T_BOOL and: [(self isFused: v) not]) ifTrue: [s := self deoptLabelFor: n].
 	t := (ir block: b) succ0.
 	f := (ir block: b) succ1.
-	tl := (ir block: (self targetOf: t)) label.
-	fl := (ir block: (self targetOf: f)) label.
+	tl := (ir block: (self jumpTargetOf: t)) label.
+	fl := (ir block: (self jumpTargetOf: f)) label.
 	(self isFused: v) ifTrue: [
 		self emitCompare: v.
-		(t = nextBlock or: [(self targetOf: t) = nextBlock])
+		(t = nextBlock or: [(self jumpTargetOf: t) = nextBlock])
 			ifTrue: [asm b: fl if: ((self conditionOf: v) bitXor: 1)]
 			ifFalse: [
 				asm b: tl if: (self conditionOf: v).
-				(f = nextBlock or: [(self targetOf: f) = nextBlock]) ifFalse: [asm b: fl]].
+				(f = nextBlock or: [(self jumpTargetOf: f) = nextBlock]) ifFalse: [asm b: fl]].
 		^self].
 	rv := self src: v into: X14.
 	"the compare that materialized v just left true in x16"
@@ -633,7 +635,7 @@ emitBranch: n block: b next: nextBlock
 		asm ldr: X16 base: X22 offset: self falseOffset.
 		asm cmp: rv with: X16.
 		asm b: s if: COND_NE].
-	(f = nextBlock or: [(self targetOf: f) = nextBlock]) ifFalse: [asm b: fl]
+	(f = nextBlock or: [(self jumpTargetOf: f) = nextBlock]) ifFalse: [asm b: fl]
 !
 emitDouble: bits into: d
 	"d := the double with the IEEE bits bits: an fmov immediate where one encodes it."

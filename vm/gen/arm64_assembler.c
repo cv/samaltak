@@ -464,7 +464,7 @@ void record_notes(bool a_boolean)
 }
 
 /* Arm64Assembler>>targetOf: */
-uint64_t arm64_assembler_target_of(int32_t a_label)
+uint64_t target_of(int32_t a_label)
 {
     uint64_t a;
     a = asm_labels[a_label];

@@ -338,7 +338,7 @@ exit_length_of:;
     }
 exit_logical:;
     a_label = sl_label[s];
-    target = arm64_assembler_target_of(a_label);
+    target = target_of(a_label);
     a_word_2 = 0x54000000 | ((((uint64_t)({
     off = ((int64_t)(target - asm_pc)) >> 2;
     if (!((off >= -262144) && (off <= 262143))) {
@@ -401,7 +401,7 @@ exit_offset_to:;
             asm_error = ASM_ERR_FULL;
         }
         a_label_2 = sl_label[s];
-        target_2 = arm64_assembler_target_of(a_label_2);
+        target_2 = target_of(a_label_2);
         a_word_6 = 0x54000000 | ((((uint64_t)({
     off_3 = ((int64_t)(target_2 - asm_pc)) >> 2;
     if (!((off_3 >= -262144) && (off_3 <= 262143))) {
@@ -485,7 +485,7 @@ exit_offset_to_2:;
             asm_error = ASM_ERR_FULL;
         }
         a_label_3 = sl_label[s];
-        target_3 = arm64_assembler_target_of(a_label_3);
+        target_3 = target_of(a_label_3);
         a_word_11 = 0x54000000 | ((((uint64_t)({
     off_6 = ((int64_t)(target_3 - asm_pc)) >> 2;
     if (!((off_6 >= -262144) && (off_6 <= 262143))) {
@@ -599,7 +599,7 @@ exit_offset_to_3:;
                 asm_error = ASM_ERR_FULL;
             }
         exit_logical_3:;
-            target_4 = arm64_assembler_target_of(label);
+            target_4 = target_of(label);
             a_word_18 = 0x54000000 | ((((uint64_t)({
     off_7 = ((int64_t)(target_4 - asm_pc)) >> 2;
     if (!((off_7 >= -262144) && (off_7 <= 262143))) {
@@ -649,7 +649,7 @@ exit_offset_to_4:;
                 asm_error = ASM_ERR_FULL;
             }
             a_label_4 = sl_label[s];
-            target_5 = arm64_assembler_target_of(a_label_4);
+            target_5 = target_of(a_label_4);
             a_word_20 = 0x54000000 | ((((uint64_t)({
     off_8 = ((int64_t)(target_5 - asm_pc)) >> 2;
     if (!((off_8 >= -262144) && (off_8 <= 262143))) {
@@ -717,7 +717,7 @@ exit_offset_to_5:;
                     asm_error = ASM_ERR_FULL;
                 }
             exit_logical_4:;
-                target_6 = arm64_assembler_target_of(label_2);
+                target_6 = target_of(label_2);
                 a_word_24 = 0x54000000 | ((((uint64_t)({
     off_9 = ((int64_t)(target_6 - asm_pc)) >> 2;
     if (!((off_9 >= -262144) && (off_9 <= 262143))) {
@@ -1230,7 +1230,7 @@ exit_length_of:;
             note("/: Floats inline (out of line), anything else sends", 0);
         }
         a_label = sl_label[s];
-        target = arm64_assembler_target_of(a_label);
+        target = target_of(a_label);
         a_word = 0x14000000 | ({
     off = ((int64_t)(target - asm_pc)) >> 2;
     if (!((off >= -33554432) && (off <= 33554431))) {
@@ -1272,7 +1272,7 @@ exit_offset_to:;
                     asm_error = ASM_ERR_FULL;
                 }
             exit_logical:;
-                target_2 = arm64_assembler_target_of(label);
+                target_2 = target_of(label);
                 a_word_3 = 0x54000000 | ((((uint64_t)({
     off_2 = ((int64_t)(target_2 - asm_pc)) >> 2;
     if (!((off_2 >= -262144) && (off_2 <= 262143))) {
@@ -1310,7 +1310,7 @@ exit_offset_to_2:;
                 asm_error = ASM_ERR_FULL;
             }
         exit_logical_2:;
-            target_3 = arm64_assembler_target_of(label_2);
+            target_3 = target_of(label_2);
             a_word_5 = 0x54000000 | ((((uint64_t)({
     off_3 = ((int64_t)(target_3 - asm_pc)) >> 2;
     if (!((off_3 >= -262144) && (off_3 <= 262143))) {
@@ -1353,7 +1353,7 @@ exit_offset_to_3:;
                 asm_error = ASM_ERR_FULL;
             }
         exit_logical_3:;
-            target_4 = arm64_assembler_target_of(label_3);
+            target_4 = target_of(label_3);
             a_word_8 = 0x54000000 | ((((uint64_t)({
     off_4 = ((int64_t)(target_4 - asm_pc)) >> 2;
     if (!((off_4 >= -262144) && (off_4 <= 262143))) {
@@ -1694,7 +1694,7 @@ exit_emit_compare_result:;
         exit_add_sub_6:;
         }
         a_label_2 = sl_label[s];
-        target_5 = arm64_assembler_target_of(a_label_2);
+        target_5 = target_of(a_label_2);
         a_word_21 = 0x54000000 | ((((uint64_t)({
     off_5 = ((int64_t)(target_5 - asm_pc)) >> 2;
     if (!((off_5 >= -262144) && (off_5 <= 262143))) {
@@ -1818,7 +1818,7 @@ exit_offset_to_5:;
         exit_add_sub_10:;
         }
         a_label_3 = sl_label[s];
-        target_6 = arm64_assembler_target_of(a_label_3);
+        target_6 = target_of(a_label_3);
         a_word_29 = 0x54000000 | ((((uint64_t)({
     off_6 = ((int64_t)(target_6 - asm_pc)) >> 2;
     if (!((off_6 >= -262144) && (off_6 <= 262143))) {
@@ -1882,7 +1882,7 @@ exit_offset_to_6:;
             asm_error = ASM_ERR_FULL;
         }
         a_label_4 = sl_label[s];
-        target_7 = arm64_assembler_target_of(a_label_4);
+        target_7 = target_of(a_label_4);
         a_word_34 = 0x54000000 | ((((uint64_t)({
     off_7 = ((int64_t)(target_7 - asm_pc)) >> 2;
     if (!((off_7 >= -262144) && (off_7 <= 262143))) {
@@ -1947,7 +1947,7 @@ exit_offset_to_7:;
                 asm_error = ASM_ERR_FULL;
             }
         }
-        target_8 = arm64_assembler_target_of(slow);
+        target_8 = target_of(slow);
         a_word_38 = 3019898880LL | ((((uint64_t)({
     off_8 = ((int64_t)(target_8 - asm_pc)) >> 2;
     if (!((off_8 >= -262144) && (off_8 <= 262143))) {
@@ -1978,7 +1978,7 @@ exit_offset_to_8:;
         } else if (asm_error == ASM_OK) {
             asm_error = ASM_ERR_FULL;
         }
-        target_9 = arm64_assembler_target_of(exact);
+        target_9 = target_of(exact);
         a_word_39 = 3019898880LL | ((((uint64_t)({
     off_9 = ((int64_t)(target_9 - asm_pc)) >> 2;
     if (!((off_9 >= -262144) && (off_9 <= 262143))) {
@@ -2003,7 +2003,7 @@ exit_offset_to_9:;
         } else if (asm_error == ASM_OK) {
             asm_error = ASM_ERR_FULL;
         }
-        target_10 = arm64_assembler_target_of(exact);
+        target_10 = target_of(exact);
         a_word_40 = 3069706240ULL | ((((uint64_t)({
     off_10 = ((int64_t)(target_10 - asm_pc)) >> 2;
     if (!((off_10 >= -8192) && (off_10 <= 8191))) {
@@ -2077,7 +2077,7 @@ exit_offset_to_10:;
             } else if (asm_error == ASM_OK) {
                 asm_error = ASM_ERR_FULL;
             }
-            target_11 = arm64_assembler_target_of(slow);
+            target_11 = target_of(slow);
             a_word_44 = 0x54000000 | ((((uint64_t)({
     off_11 = ((int64_t)(target_11 - asm_pc)) >> 2;
     if (!((off_11 >= -262144) && (off_11 <= 262143))) {
@@ -2145,7 +2145,7 @@ exit_offset_to_11:;
             if (asm_noting) {
                 note("bitShift: by a variable: the slow path", 0);
             }
-            target_12 = arm64_assembler_target_of(slow_2);
+            target_12 = target_of(slow_2);
             a_word_48 = 0x14000000 | ({
     off_12 = ((int64_t)(target_12 - asm_pc)) >> 2;
     if (!((off_12 >= -33554432) && (off_12 <= 33554431))) {
@@ -2220,7 +2220,7 @@ exit_offset_to_12:;
                 asm_error = ASM_ERR_FULL;
             }
         exit_add_sub_16:;
-            target_13 = arm64_assembler_target_of(slow_2);
+            target_13 = target_of(slow_2);
             a_word_52 = 0x54000000 | ((((uint64_t)({
     off_13 = ((int64_t)(target_13 - asm_pc)) >> 2;
     if (!((off_13 >= -262144) && (off_13 <= 262143))) {
@@ -2475,7 +2475,7 @@ static int32_t jit_baseline_compiler_back_jump(int32_t t)
         note("count toward optimization", 0);
     }
     a_label = label_at(counter_addr);
-    off = ((int64_t)((arm64_assembler_target_of(a_label) & 18446744073709547520ULL) - (asm_pc & 18446744073709547520ULL))) >> 12;
+    off = ((int64_t)((target_of(a_label) & 18446744073709547520ULL) - (asm_pc & 18446744073709547520ULL))) >> 12;
     if (!((off >= -1048576) && (off <= 0xFFFFF))) {
         if (asm_error == ASM_OK) {
             asm_error = ASM_ERR_RANGE;
@@ -2551,7 +2551,7 @@ exit_add_sub:;
         }
     exit_load_store_2:;
     }
-    target = arm64_assembler_target_of(slow_label);
+    target = target_of(slow_label);
     a_word_6 = 0x54000000 | ((((uint64_t)({
     off_4 = ((int64_t)(target - asm_pc)) >> 2;
     if (!((off_4 >= -262144) && (off_4 <= 262143))) {
@@ -2587,7 +2587,7 @@ exit_emit_tier_up:;
     }
     r_label_for = pc_labels[t];
     r_label_for; });
-    target_2 = arm64_assembler_target_of(a_label_2);
+    target_2 = target_of(a_label_2);
     a_word_7 = 0x14000000 | ({
     off_5 = ((int64_t)(target_2 - asm_pc)) >> 2;
     if (!((off_5 >= -33554432) && (off_5 <= 33554431))) {
@@ -2723,7 +2723,7 @@ static void jit_baseline_compiler_barrier(int32_t obj, int hdr, int32_t v)
         } else if (asm_error == ASM_OK) {
             asm_error = ASM_ERR_FULL;
         }
-        target = arm64_assembler_target_of(remember_label);
+        target = target_of(remember_label);
         a_word_7 = 0x94000000LL | ({
     off = ((int64_t)(target - asm_pc)) >> 2;
     if (!((off >= -33554432) && (off <= 33554431))) {
@@ -2780,7 +2780,7 @@ exit_offset_to:;
         asm_error = ASM_ERR_FULL;
     }
 exit_logical:;
-    target_2 = arm64_assembler_target_of(done);
+    target_2 = target_of(done);
     a_word_9 = 0x54000000 | ((((uint64_t)({
     off_2 = ((int64_t)(target_2 - asm_pc)) >> 2;
     if (!((off_2 >= -262144) && (off_2 <= 262143))) {
@@ -2847,7 +2847,7 @@ exit_add_sub_3:;
     } else if (asm_error == ASM_OK) {
         asm_error = ASM_ERR_FULL;
     }
-    target_3 = arm64_assembler_target_of(done);
+    target_3 = target_of(done);
     a_word_13 = 0x54000000 | ((((uint64_t)({
     off_4 = ((int64_t)(target_3 - asm_pc)) >> 2;
     if (!((off_4 >= -262144) && (off_4 <= 262143))) {
@@ -2893,7 +2893,7 @@ exit_add_sub_4:;
     } else if (asm_error == ASM_OK) {
         asm_error = ASM_ERR_FULL;
     }
-    target_4 = arm64_assembler_target_of(done);
+    target_4 = target_of(done);
     a_word_16 = 0x54000000 | ((((uint64_t)({
     off_5 = ((int64_t)(target_4 - asm_pc)) >> 2;
     if (!((off_5 >= -262144) && (off_5 <= 262143))) {
@@ -2929,7 +2929,7 @@ exit_offset_to_4:;
     }
 exit_logical_2:;
     a_label = sl_label[s];
-    target_5 = arm64_assembler_target_of(a_label);
+    target_5 = target_of(a_label);
     a_word_18 = 0x54000000 | ((((uint64_t)({
     off_6 = ((int64_t)(target_5 - asm_pc)) >> 2;
     if (!((off_6 >= -262144) && (off_6 <= 262143))) {
@@ -3403,7 +3403,7 @@ static int32_t branch(int cond, int32_t t)
     }
     r_label_for = pc_labels[t];
     r_label_for; });
-        target = arm64_assembler_target_of(a_label);
+        target = target_of(a_label);
         a_word = 0x54000000 | ((((uint64_t)({
     off = ((int64_t)(target - asm_pc)) >> 2;
     if (!((off >= -262144) && (off <= 262143))) {
@@ -3431,7 +3431,7 @@ exit_offset_to:;
     }
     skip = new_label();
     c = cond ^ 1;
-    target_2 = arm64_assembler_target_of(skip);
+    target_2 = target_of(skip);
     a_word_2 = 0x54000000 | ((((uint64_t)({
     off_2 = ((int64_t)(target_2 - asm_pc)) >> 2;
     if (!((off_2 >= -262144) && (off_2 <= 262143))) {
@@ -3607,7 +3607,7 @@ exit_length_of:;
     }
     arm64_assembler_bind(exit_sync_label);
     a_label = label_at(bl_exit_sync);
-    target = arm64_assembler_target_of(a_label);
+    target = target_of(a_label);
     a_word = 0x14000000 | ({
     off = ((int64_t)(target - asm_pc)) >> 2;
     if (!((off >= -33554432) && (off <= 33554431))) {
@@ -3631,7 +3631,7 @@ exit_offset_to:;
     }
     arm64_assembler_bind(exit_plain_label);
     a_label_2 = label_at(exit_plain_addr);
-    target_2 = arm64_assembler_target_of(a_label_2);
+    target_2 = target_of(a_label_2);
     a_word_2 = 0x14000000 | ({
     off_2 = ((int64_t)(target_2 - asm_pc)) >> 2;
     if (!((off_2 >= -33554432) && (off_2 <= 33554431))) {
@@ -3837,7 +3837,7 @@ exit_constant_double:;
     int_ = new_label();
     obj = new_label();
     done = new_label();
-    target = arm64_assembler_target_of(int_);
+    target = target_of(int_);
     a_word_4 = 922746880ULL | ((((uint64_t)({
     off = ((int64_t)(target - asm_pc)) >> 2;
     if (!((off >= -8192) && (off <= 8191))) {
@@ -3882,7 +3882,7 @@ exit_logical:;
         asm_error = ASM_ERR_IMMEDIATE;
     }
 exit_add_sub:;
-    target_2 = arm64_assembler_target_of(obj);
+    target_2 = target_of(obj);
     a_word_6 = 0x54000000 | ((((uint64_t)({
     off_2 = ((int64_t)(target_2 - asm_pc)) >> 2;
     if (!((off_2 >= -262144) && (off_2 <= 262143))) {
@@ -3958,7 +3958,7 @@ exit_add_sub_2:;
             asm_error = ASM_ERR_FULL;
         }
     }
-    target_3 = arm64_assembler_target_of(done);
+    target_3 = target_of(done);
     a_word_10 = 0x14000000 | ({
     off_3 = ((int64_t)(target_3 - asm_pc)) >> 2;
     if (!((off_3 >= -33554432) && (off_3 <= 33554431))) {
@@ -3978,7 +3978,7 @@ exit_offset_to_3:;
         asm_error = ASM_ERR_FULL;
     }
     arm64_assembler_bind(obj);
-    target_4 = arm64_assembler_target_of(fail);
+    target_4 = target_of(fail);
     a_word_11 = 3036676096LL | ((((uint64_t)({
     off_4 = ((int64_t)(target_4 - asm_pc)) >> 2;
     if (!((off_4 >= -262144) && (off_4 <= 262143))) {
@@ -4038,7 +4038,7 @@ exit_offset_to_4:;
     } else if (asm_error == ASM_OK) {
         asm_error = ASM_ERR_FULL;
     }
-    target_5 = arm64_assembler_target_of(fail);
+    target_5 = target_of(fail);
     a_word_15 = 0x54000000 | ((((uint64_t)({
     off_6 = ((int64_t)(target_5 - asm_pc)) >> 2;
     if (!((off_6 >= -262144) && (off_6 <= 262143))) {
@@ -4077,7 +4077,7 @@ exit_offset_to_5:;
             asm_error = ASM_ERR_FULL;
         }
     }
-    target_6 = arm64_assembler_target_of(done);
+    target_6 = target_of(done);
     a_word_18 = 0x14000000 | ({
     off_7 = ((int64_t)(target_6 - asm_pc)) >> 2;
     if (!((off_7 >= -33554432) && (off_7 <= 33554431))) {
@@ -4847,7 +4847,7 @@ exit_can_thread_into:;
     }
     r_label_for_2 = pc_labels[t];
     r_label_for_2; });
-                target = arm64_assembler_target_of(a_label);
+                target = target_of(a_label);
                 a_word = 0x14000000 | ({
     off = ((int64_t)(target - asm_pc)) >> 2;
     if (!((off >= -33554432) && (off <= 33554431))) {
@@ -4944,7 +4944,7 @@ exit_add_sub:;
     }
 exit_add_sub_2:;
     a_label_2 = sl_label[s];
-    target_2 = arm64_assembler_target_of(a_label_2);
+    target_2 = target_of(a_label_2);
     a_word_6 = 0x54000000 | ((((uint64_t)({
     off_2 = ((int64_t)(target_2 - asm_pc)) >> 2;
     if (!((off_2 >= -262144) && (off_2 <= 262143))) {
@@ -4976,7 +4976,7 @@ exit_conditional_jump:;
     }
     r_label_for_3 = pc_labels[after];
     r_label_for_3; });
-                target_3 = arm64_assembler_target_of(a_label_3);
+                target_3 = target_of(a_label_3);
                 a_word_7 = 0x14000000 | ({
     off_3 = ((int64_t)(target_3 - asm_pc)) >> 2;
     if (!((off_3 >= -33554432) && (off_3 <= 33554431))) {
@@ -5704,7 +5704,7 @@ exit_dup:;
         asm_error = ASM_ERR_FULL;
     }
     a_label_4 = sl_label[s_9];
-    target_4 = arm64_assembler_target_of(a_label_4);
+    target_4 = target_of(a_label_4);
     a_word_34 = 0x54000000 | ((((uint64_t)({
     off_13 = ((int64_t)(target_4 - asm_pc)) >> 2;
     if (!((off_13 >= -262144) && (off_13 <= 262143))) {
@@ -5831,7 +5831,7 @@ exit_return_:;
         asm_error = ASM_ERR_FULL;
     }
     a_label_5 = sl_label[s_11];
-    target_5 = arm64_assembler_target_of(a_label_5);
+    target_5 = target_of(a_label_5);
     a_word_39 = 0x54000000 | ((((uint64_t)({
     off_15 = ((int64_t)(target_5 - asm_pc)) >> 2;
     if (!((off_15 >= -262144) && (off_15 <= 262143))) {
@@ -5951,7 +5951,7 @@ exit_return__2:;
         }
     exit_load_store_11:;
     }
-    target_6 = arm64_assembler_target_of(exit_sync_label);
+    target_6 = target_of(exit_sync_label);
     a_word_45 = 0x14000000 | ({
     off_17 = ((int64_t)(target_6 - asm_pc)) >> 2;
     if (!((off_17 >= -33554432) && (off_17 <= 33554431))) {
@@ -6014,7 +6014,7 @@ exit_offset_to_6:;
     } else if (asm_error == ASM_OK) {
         asm_error = ASM_ERR_FULL;
     }
-    target_7 = arm64_assembler_target_of(married);
+    target_7 = target_of(married);
     a_word_47 = 922746880ULL | ((((uint64_t)({
     off_18 = ((int64_t)(target_7 - asm_pc)) >> 2;
     if (!((off_18 >= -8192) && (off_18 <= 8191))) {
@@ -6083,7 +6083,7 @@ exit_offset_to_7:;
         }
     exit_load_store_13:;
     }
-    target_8 = arm64_assembler_target_of(done);
+    target_8 = target_of(done);
     a_word_52 = 0x14000000 | ({
     off_21 = ((int64_t)(target_8 - asm_pc)) >> 2;
     if (!((off_21 >= -33554432) && (off_21 <= 33554431))) {
@@ -6684,7 +6684,7 @@ exit_store_temp_2:;
         asm_error = ASM_ERR_FULL;
     }
 exit_logical_4:;
-    target_9 = arm64_assembler_target_of(label);
+    target_9 = target_of(label);
     a_word_76 = 0x54000000 | ((((uint64_t)({
     off_30 = ((int64_t)(target_9 - asm_pc)) >> 2;
     if (!((off_30 >= -262144) && (off_30 <= 262143))) {
@@ -6714,7 +6714,7 @@ exit_offset_to_9:;
             asm_error = ASM_ERR_FULL;
         }
         a_label_6 = sl_label[s_20];
-        target_10 = arm64_assembler_target_of(a_label_6);
+        target_10 = target_of(a_label_6);
         a_word_77 = 922746880ULL | ((((uint64_t)({
     off_31 = ((int64_t)(target_10 - asm_pc)) >> 2;
     if (!((off_31 >= -8192) && (off_31 <= 8191))) {
@@ -7306,7 +7306,7 @@ exit_store_temp_3:;
     }
     married_2 = new_label();
     done_2 = new_label();
-    target_11 = arm64_assembler_target_of(married_2);
+    target_11 = target_of(married_2);
     a_word_101 = 922746880ULL | ((((uint64_t)({
     off_41 = ((int64_t)(target_11 - asm_pc)) >> 2;
     if (!((off_41 >= -8192) && (off_41 <= 8191))) {
@@ -7401,7 +7401,7 @@ exit_offset_to_11:;
             jit_baseline_compiler_barrier(X10, X11, v_17);
         }
     }
-    target_12 = arm64_assembler_target_of(done_2);
+    target_12 = target_of(done_2);
     a_word_106 = 0x14000000 | ({
     off_44 = ((int64_t)(target_12 - asm_pc)) >> 2;
     if (!((off_44 >= -33554432) && (off_44 <= 33554431))) {
@@ -7802,7 +7802,7 @@ exit_length_of_2:;
     }
     r_label_for_6 = pc_labels[pc_19];
     r_label_for_6; });
-    target_13 = arm64_assembler_target_of(a_label_7);
+    target_13 = target_of(a_label_7);
     a_word_117 = 0x14000000 | ({
     off_50 = ((int64_t)(target_13 - asm_pc)) >> 2;
     if (!((off_50 >= -33554432) && (off_50 <= 33554431))) {
@@ -7837,7 +7837,7 @@ exit_offset_to_13:;
     }
     r_label_for_7 = pc_labels[pc_20];
     r_label_for_7; });
-    target_14 = arm64_assembler_target_of(a_label_8);
+    target_14 = target_of(a_label_8);
     a_word_118 = 0x14000000 | ({
     off_51 = ((int64_t)(target_14 - asm_pc)) >> 2;
     if (!((off_51 >= -33554432) && (off_51 <= 33554431))) {
@@ -7921,7 +7921,7 @@ exit_can_thread_into_2:;
     }
     r_label_for_8 = pc_labels[t_13];
     r_label_for_8; });
-                target_15 = arm64_assembler_target_of(a_label_9);
+                target_15 = target_of(a_label_9);
                 a_word_119 = 0x14000000 | ({
     off_52 = ((int64_t)(target_15 - asm_pc)) >> 2;
     if (!((off_52 >= -33554432) && (off_52 <= 33554431))) {
@@ -8018,7 +8018,7 @@ exit_add_sub_9:;
     }
 exit_add_sub_10:;
     a_label_10 = sl_label[s_31];
-    target_16 = arm64_assembler_target_of(a_label_10);
+    target_16 = target_of(a_label_10);
     a_word_124 = 0x54000000 | ((((uint64_t)({
     off_53 = ((int64_t)(target_16 - asm_pc)) >> 2;
     if (!((off_53 >= -262144) && (off_53 <= 262143))) {
@@ -8051,7 +8051,7 @@ exit_conditional_jump_2:;
     }
     r_label_for_9 = pc_labels[after_3];
     r_label_for_9; });
-        target_17 = arm64_assembler_target_of(a_label_11);
+        target_17 = target_of(a_label_11);
         a_word_125 = 0x14000000 | ({
     off_54 = ((int64_t)(target_17 - asm_pc)) >> 2;
     if (!((off_54 >= -33554432) && (off_54 <= 33554431))) {
@@ -8091,7 +8091,7 @@ exit_thread_into_2:;
     }
     r_label_for_10 = pc_labels[t_12];
     r_label_for_10; });
-        target_18 = arm64_assembler_target_of(a_label_12);
+        target_18 = target_of(a_label_12);
         a_word_126 = 0x14000000 | ({
     off_55 = ((int64_t)(target_18 - asm_pc)) >> 2;
     if (!((off_55 >= -33554432) && (off_55 <= 33554431))) {
@@ -8139,7 +8139,7 @@ exit_jump:;
     }
     r_label_for_11 = pc_labels[t_14];
     r_label_for_11; });
-                target_19 = arm64_assembler_target_of(a_label_13);
+                target_19 = target_of(a_label_13);
                 a_word_127 = 0x14000000 | ({
     off_56 = ((int64_t)(target_19 - asm_pc)) >> 2;
     if (!((off_56 >= -33554432) && (off_56 <= 33554431))) {
@@ -8236,7 +8236,7 @@ exit_add_sub_11:;
     }
 exit_add_sub_12:;
     a_label_14 = sl_label[s_32];
-    target_20 = arm64_assembler_target_of(a_label_14);
+    target_20 = target_of(a_label_14);
     a_word_132 = 0x54000000 | ((((uint64_t)({
     off_57 = ((int64_t)(target_20 - asm_pc)) >> 2;
     if (!((off_57 >= -262144) && (off_57 <= 262143))) {
@@ -8442,7 +8442,7 @@ exit_push_region:;
         note("count toward optimization", 0);
     }
     a_label = label_at(counter_addr);
-    off = ((int64_t)((arm64_assembler_target_of(a_label) & 18446744073709547520ULL) - (asm_pc & 18446744073709547520ULL))) >> 12;
+    off = ((int64_t)((target_of(a_label) & 18446744073709547520ULL) - (asm_pc & 18446744073709547520ULL))) >> 12;
     if (!((off >= -1048576) && (off <= 0xFFFFF))) {
         if (asm_error == ASM_OK) {
             asm_error = ASM_ERR_RANGE;
@@ -8518,7 +8518,7 @@ exit_add_sub:;
         }
     exit_load_store_2:;
     }
-    target = arm64_assembler_target_of(slow_label);
+    target = target_of(slow_label);
     a_word_6 = 0x54000000 | ((((uint64_t)({
     off_4 = ((int64_t)(target - asm_pc)) >> 2;
     if (!((off_4 >= -262144) && (off_4 <= 262143))) {
@@ -8620,7 +8620,7 @@ static void emit_box(int32_t d, int32_t r)
         asm_error = ASM_ERR_FULL;
     }
     a_label = sl_label[s];
-    target = arm64_assembler_target_of(a_label);
+    target = target_of(a_label);
     a_word_2 = 3019898880LL | ((((uint64_t)({
     off = ((int64_t)(target - asm_pc)) >> 2;
     if (!((off >= -262144) && (off <= 262143))) {
@@ -8668,7 +8668,7 @@ exit_add_sub:;
     }
 exit_add_sub_2:;
     a_label_2 = sl_label[s];
-    target_2 = arm64_assembler_target_of(a_label_2);
+    target_2 = target_of(a_label_2);
     a_word_3 = 0x54000000 | ((((uint64_t)({
     off_2 = ((int64_t)(target_2 - asm_pc)) >> 2;
     if (!((off_2 >= -262144) && (off_2 <= 262143))) {
@@ -8798,7 +8798,7 @@ static void emit_box_in_slow_path(int32_t d, int r, int32_t pc, int32_t depth)
         asm_error = ASM_ERR_FULL;
     }
     a_label = sl_label[s];
-    target = arm64_assembler_target_of(a_label);
+    target = target_of(a_label);
     a_word_2 = 3019898880LL | ((((uint64_t)({
     off = ((int64_t)(target - asm_pc)) >> 2;
     if (!((off >= -262144) && (off <= 262143))) {
@@ -8846,7 +8846,7 @@ exit_add_sub:;
     }
 exit_add_sub_2:;
     a_label_2 = sl_label[s];
-    target_2 = arm64_assembler_target_of(a_label_2);
+    target_2 = target_of(a_label_2);
     a_word_3 = 0x54000000 | ((((uint64_t)({
     off_2 = ((int64_t)(target_2 - asm_pc)) >> 2;
     if (!((off_2 >= -262144) && (off_2 <= 262143))) {
@@ -9032,7 +9032,7 @@ static void emit_float_primitive(int32_t op, int32_t fail)
     int_ = new_label();
     obj = new_label();
     done_2 = new_label();
-    target = arm64_assembler_target_of(int_);
+    target = target_of(int_);
     a_word = 922746880ULL | ((((uint64_t)({
     off = ((int64_t)(target - asm_pc)) >> 2;
     if (!((off >= -8192) && (off <= 8191))) {
@@ -9077,7 +9077,7 @@ exit_logical:;
         asm_error = ASM_ERR_IMMEDIATE;
     }
 exit_add_sub:;
-    target_2 = arm64_assembler_target_of(obj);
+    target_2 = target_of(obj);
     a_word_3 = 0x54000000 | ((((uint64_t)({
     off_2 = ((int64_t)(target_2 - asm_pc)) >> 2;
     if (!((off_2 >= -262144) && (off_2 <= 262143))) {
@@ -9141,7 +9141,7 @@ exit_add_sub_2:;
     } else if (asm_error == ASM_OK) {
         asm_error = ASM_ERR_FULL;
     }
-    target_3 = arm64_assembler_target_of(done_2);
+    target_3 = target_of(done_2);
     a_word_4 = 0x14000000 | ({
     off_3 = ((int64_t)(target_3 - asm_pc)) >> 2;
     if (!((off_3 >= -33554432) && (off_3 <= 33554431))) {
@@ -9161,7 +9161,7 @@ exit_offset_to_3:;
         asm_error = ASM_ERR_FULL;
     }
     arm64_assembler_bind(obj);
-    target_4 = arm64_assembler_target_of(fail);
+    target_4 = target_of(fail);
     a_word_5 = 3036676096LL | ((((uint64_t)({
     off_4 = ((int64_t)(target_4 - asm_pc)) >> 2;
     if (!((off_4 >= -262144) && (off_4 <= 262143))) {
@@ -9220,7 +9220,7 @@ exit_offset_to_4:;
     } else if (asm_error == ASM_OK) {
         asm_error = ASM_ERR_FULL;
     }
-    target_5 = arm64_assembler_target_of(fail);
+    target_5 = target_of(fail);
     a_word_8 = 0x54000000 | ((((uint64_t)({
     off_6 = ((int64_t)(target_5 - asm_pc)) >> 2;
     if (!((off_6 >= -262144) && (off_6 <= 262143))) {
@@ -9245,7 +9245,7 @@ exit_offset_to_5:;
     } else if (asm_error == ASM_OK) {
         asm_error = ASM_ERR_FULL;
     }
-    target_6 = arm64_assembler_target_of(done_2);
+    target_6 = target_of(done_2);
     a_word_9 = 0x14000000 | ({
     off_7 = ((int64_t)(target_6 - asm_pc)) >> 2;
     if (!((off_7 >= -33554432) && (off_7 <= 33554431))) {
@@ -9291,7 +9291,7 @@ exit_offset_to_6:;
         int__2 = new_label();
         obj_2 = new_label();
         done_3 = new_label();
-        target_7 = arm64_assembler_target_of(int__2);
+        target_7 = target_of(int__2);
         a_word_10 = 922746880ULL | ((((uint64_t)({
     off_8 = ((int64_t)(target_7 - asm_pc)) >> 2;
     if (!((off_8 >= -8192) && (off_8 <= 8191))) {
@@ -9336,7 +9336,7 @@ exit_offset_to_7:;
             asm_error = ASM_ERR_IMMEDIATE;
         }
     exit_add_sub_3:;
-        target_8 = arm64_assembler_target_of(obj_2);
+        target_8 = target_of(obj_2);
         a_word_12 = 0x54000000 | ((((uint64_t)({
     off_9 = ((int64_t)(target_8 - asm_pc)) >> 2;
     if (!((off_9 >= -262144) && (off_9 <= 262143))) {
@@ -9400,7 +9400,7 @@ exit_offset_to_8:;
         } else if (asm_error == ASM_OK) {
             asm_error = ASM_ERR_FULL;
         }
-        target_9 = arm64_assembler_target_of(done_3);
+        target_9 = target_of(done_3);
         a_word_13 = 0x14000000 | ({
     off_10 = ((int64_t)(target_9 - asm_pc)) >> 2;
     if (!((off_10 >= -33554432) && (off_10 <= 33554431))) {
@@ -9420,7 +9420,7 @@ exit_offset_to_9:;
             asm_error = ASM_ERR_FULL;
         }
         arm64_assembler_bind(obj_2);
-        target_10 = arm64_assembler_target_of(fail);
+        target_10 = target_of(fail);
         a_word_14 = 3036676096LL | ((((uint64_t)({
     off_11 = ((int64_t)(target_10 - asm_pc)) >> 2;
     if (!((off_11 >= -262144) && (off_11 <= 262143))) {
@@ -9479,7 +9479,7 @@ exit_offset_to_10:;
         } else if (asm_error == ASM_OK) {
             asm_error = ASM_ERR_FULL;
         }
-        target_11 = arm64_assembler_target_of(fail);
+        target_11 = target_of(fail);
         a_word_17 = 0x54000000 | ((((uint64_t)({
     off_13 = ((int64_t)(target_11 - asm_pc)) >> 2;
     if (!((off_13 >= -262144) && (off_13 <= 262143))) {
@@ -9504,7 +9504,7 @@ exit_offset_to_11:;
         } else if (asm_error == ASM_OK) {
             asm_error = ASM_ERR_FULL;
         }
-        target_12 = arm64_assembler_target_of(done_3);
+        target_12 = target_of(done_3);
         a_word_18 = 0x14000000 | ({
     off_14 = ((int64_t)(target_12 - asm_pc)) >> 2;
     if (!((off_14 >= -33554432) && (off_14 <= 33554431))) {
@@ -9552,7 +9552,7 @@ exit_offset_to_12:;
             } else if (asm_error == ASM_OK) {
                 asm_error = ASM_ERR_FULL;
             }
-            target_13 = arm64_assembler_target_of(fail);
+            target_13 = target_of(fail);
             a_word_19 = 0x54000000 | ((((uint64_t)({
     off_15 = ((int64_t)(target_13 - asm_pc)) >> 2;
     if (!((off_15 >= -262144) && (off_15 <= 262143))) {
@@ -9589,7 +9589,7 @@ exit_offset_to_13:;
             } else if (asm_error == ASM_OK) {
                 asm_error = ASM_ERR_FULL;
             }
-            target_14 = arm64_assembler_target_of(fail);
+            target_14 = target_of(fail);
             a_word_20 = 0x54000000 | ((((uint64_t)({
     off_16 = ((int64_t)(target_14 - asm_pc)) >> 2;
     if (!((off_16 >= -262144) && (off_16 <= 262143))) {
@@ -9706,7 +9706,7 @@ exit_offset_to_14:;
         } else if (asm_error == ASM_OK) {
             asm_error = ASM_ERR_FULL;
         }
-        target_15 = arm64_assembler_target_of(fail);
+        target_15 = target_of(fail);
         a_word_23 = 0x54000000 | ((((uint64_t)({
     off_17 = ((int64_t)(target_15 - asm_pc)) >> 2;
     if (!((off_17 >= -262144) && (off_17 <= 262143))) {
@@ -9757,7 +9757,7 @@ exit_offset_to_15:;
     } else if (asm_error == ASM_OK) {
         asm_error = ASM_ERR_FULL;
     }
-    target_16 = arm64_assembler_target_of(zero);
+    target_16 = target_of(zero);
     a_word_24 = 3019898880LL | ((((uint64_t)({
     off_18 = ((int64_t)(target_16 - asm_pc)) >> 2;
     if (!((off_18 >= -262144) && (off_18 <= 262143))) {
@@ -9804,7 +9804,7 @@ exit_add_sub_5:;
         asm_error = ASM_ERR_IMMEDIATE;
     }
 exit_add_sub_6:;
-    target_17 = arm64_assembler_target_of(fail);
+    target_17 = target_of(fail);
     a_word_25 = 0x54000000 | ((((uint64_t)({
     off_19 = ((int64_t)(target_17 - asm_pc)) >> 2;
     if (!((off_19 >= -262144) && (off_19 <= 262143))) {
@@ -9857,7 +9857,7 @@ exit_offset_to_17:;
         asm_error = ASM_ERR_FULL;
     }
 exit_logical_4:;
-    target_18 = arm64_assembler_target_of(done);
+    target_18 = target_of(done);
     a_word_27 = 0x14000000 | ({
     off_20 = ((int64_t)(target_18 - asm_pc)) >> 2;
     if (!((off_20 >= -33554432) && (off_20 <= 33554431))) {
@@ -9904,7 +9904,7 @@ exit_offset_to_18:;
         asm_error = ASM_ERR_FULL;
     }
 exit_logical_5:;
-    target_19 = arm64_assembler_target_of(done);
+    target_19 = target_of(done);
     a_word_29 = 0x14000000 | ({
     off_21 = ((int64_t)(target_19 - asm_pc)) >> 2;
     if (!((off_21 >= -33554432) && (off_21 <= 33554431))) {
@@ -9994,7 +9994,7 @@ static void emit_frame_for(bool is_block, int32_t na, int32_t nt)
         asm_error = ASM_ERR_IMMEDIATE;
     }
 exit_add_sub:;
-    off = (int64_t)(arm64_assembler_target_of(header_label) - asm_pc);
+    off = (int64_t)(target_of(header_label) - asm_pc);
     if (!((off >= -1048576) && (off <= 0xFFFFF))) {
         if (asm_error == ASM_OK) {
             asm_error = ASM_ERR_RANGE;
@@ -10265,7 +10265,7 @@ static void emit_indexed_primitive(int32_t k, int32_t fail)
         asm_error = ASM_ERR_FULL;
     }
 exit_logical:;
-    target = arm64_assembler_target_of(fail);
+    target = target_of(fail);
     a_word_2 = 0x54000000 | ((((uint64_t)({
     off = ((int64_t)(target - asm_pc)) >> 2;
     if (!((off >= -262144) && (off <= 262143))) {
@@ -10312,7 +10312,7 @@ exit_offset_to:;
         } else if (asm_error == ASM_OK) {
             asm_error = ASM_ERR_FULL;
         }
-        target_2 = arm64_assembler_target_of(fail);
+        target_2 = target_of(fail);
         a_word_3 = 905969664ULL | ((((uint64_t)({
     off_2 = ((int64_t)(target_2 - asm_pc)) >> 2;
     if (!((off_2 >= -8192) && (off_2 <= 8191))) {
@@ -10353,7 +10353,7 @@ exit_offset_to_2:;
         if (asm_noting) {
             note("not immutable", 0);
         }
-        target_3 = arm64_assembler_target_of(fail);
+        target_3 = target_of(fail);
         a_word_4 = 3084386304ULL | ((((uint64_t)({
     off_3 = ((int64_t)(target_3 - asm_pc)) >> 2;
     if (!((off_3 >= -8192) && (off_3 <= 8191))) {
@@ -10401,7 +10401,7 @@ exit_add_sub_2:;
         asm_error = ASM_ERR_IMMEDIATE;
     }
 exit_add_sub_3:;
-    target_4 = arm64_assembler_target_of(bytes);
+    target_4 = target_of(bytes);
     a_word_5 = 0x54000000 | ((((uint64_t)({
     off_4 = ((int64_t)(target_4 - asm_pc)) >> 2;
     if (!((off_4 >= -262144) && (off_4 <= 262143))) {
@@ -10459,7 +10459,7 @@ exit_offset_to_4:;
     } else if (asm_error == ASM_OK) {
         asm_error = ASM_ERR_FULL;
     }
-    target_5 = arm64_assembler_target_of(fail);
+    target_5 = target_of(fail);
     a_word_7 = 0x54000000 | ((((uint64_t)({
     off_5 = ((int64_t)(target_5 - asm_pc)) >> 2;
     if (!((off_5 >= -262144) && (off_5 <= 262143))) {
@@ -10520,7 +10520,7 @@ exit_emit_indexed:;
         asm_error = ASM_ERR_IMMEDIATE;
     }
 exit_add_sub_4:;
-    target_6 = arm64_assembler_target_of(words);
+    target_6 = target_of(words);
     a_word_8 = 0x54000000 | ((((uint64_t)({
     off_6 = ((int64_t)(target_6 - asm_pc)) >> 2;
     if (!((off_6 >= -262144) && (off_6 <= 262143))) {
@@ -10601,7 +10601,7 @@ exit_add_sub_5:;
     } else if (asm_error == ASM_OK) {
         asm_error = ASM_ERR_FULL;
     }
-    target_7 = arm64_assembler_target_of(fail);
+    target_7 = target_of(fail);
     a_word_10 = 0x54000000 | ((((uint64_t)({
     off_7 = ((int64_t)(target_7 - asm_pc)) >> 2;
     if (!((off_7 >= -262144) && (off_7 <= 262143))) {
@@ -10630,7 +10630,7 @@ exit_emit_indexed_2:;
         }
     }
     if (k == PK_AT_PUT) {
-        target_8 = arm64_assembler_target_of(fail);
+        target_8 = target_of(fail);
         a_word_11 = 905969664ULL | ((((uint64_t)({
     off_8 = ((int64_t)(target_8 - asm_pc)) >> 2;
     if (!((off_8 >= -8192) && (off_8 <= 8191))) {
@@ -10666,7 +10666,7 @@ exit_offset_to_8:;
             asm_error = ASM_ERR_IMMEDIATE;
         }
     exit_add_sub_6:;
-        target_9 = arm64_assembler_target_of(fail);
+        target_9 = target_of(fail);
         a_word_12 = 0x54000000 | ((((uint64_t)({
     off_9 = ((int64_t)(target_9 - asm_pc)) >> 2;
     if (!((off_9 >= -262144) && (off_9 <= 262143))) {
@@ -10741,7 +10741,7 @@ exit_offset_to_9:;
         asm_error = ASM_ERR_IMMEDIATE;
     }
 exit_add_sub_7:;
-    target_10 = arm64_assembler_target_of(fail);
+    target_10 = target_of(fail);
     a_word_14 = 0x54000000 | ((((uint64_t)({
     off_10 = ((int64_t)(target_10 - asm_pc)) >> 2;
     if (!((off_10 >= -262144) && (off_10 <= 262143))) {
@@ -10771,7 +10771,7 @@ exit_offset_to_10:;
         asm_error = ASM_ERR_IMMEDIATE;
     }
 exit_add_sub_8:;
-    target_11 = arm64_assembler_target_of(fail);
+    target_11 = target_of(fail);
     a_word_15 = 0x54000000 | ((((uint64_t)({
     off_11 = ((int64_t)(target_11 - asm_pc)) >> 2;
     if (!((off_11 >= -262144) && (off_11 <= 262143))) {
@@ -10852,7 +10852,7 @@ exit_add_sub_9:;
     } else if (asm_error == ASM_OK) {
         asm_error = ASM_ERR_FULL;
     }
-    target_12 = arm64_assembler_target_of(fail);
+    target_12 = target_of(fail);
     a_word_17 = 0x54000000 | ((((uint64_t)({
     off_12 = ((int64_t)(target_12 - asm_pc)) >> 2;
     if (!((off_12 >= -262144) && (off_12 <= 262143))) {
@@ -10881,7 +10881,7 @@ exit_emit_indexed_3:;
         }
     }
     if (k == PK_AT_PUT) {
-        target_13 = arm64_assembler_target_of(fail);
+        target_13 = target_of(fail);
         a_word_18 = 905969664ULL | ((((uint64_t)({
     off_13 = ((int64_t)(target_13 - asm_pc)) >> 2;
     if (!((off_13 >= -8192) && (off_13 <= 8191))) {
@@ -10912,7 +10912,7 @@ exit_offset_to_13:;
         } else if (asm_error == ASM_OK) {
             asm_error = ASM_ERR_FULL;
         }
-        target_14 = arm64_assembler_target_of(fail);
+        target_14 = target_of(fail);
         a_word_19 = 3036676096LL | ((((uint64_t)({
     off_14 = ((int64_t)(target_14 - asm_pc)) >> 2;
     if (!((off_14 >= -262144) && (off_14 <= 262143))) {
@@ -11125,7 +11125,7 @@ static void emit_inline_closure(int32_t pc, int32_t fail)
     } else if (asm_error == ASM_OK) {
         asm_error = ASM_ERR_FULL;
     }
-    target = arm64_assembler_target_of(have);
+    target = target_of(have);
     a_word_3 = 0x54000000 | ((((uint64_t)({
     off_2 = ((int64_t)(target - asm_pc)) >> 2;
     if (!((off_2 >= -262144) && (off_2 <= 262143))) {
@@ -11262,7 +11262,7 @@ exit_offset_to:;
     } else if (asm_error == ASM_OK) {
         asm_error = ASM_ERR_FULL;
     }
-    target_2 = arm64_assembler_target_of(full);
+    target_2 = target_of(full);
     a_word_10 = 0x54000000 | ((((uint64_t)({
     off_4 = ((int64_t)(target_2 - asm_pc)) >> 2;
     if (!((off_4 >= -262144) && (off_4 <= 262143))) {
@@ -11399,7 +11399,7 @@ exit_add_sub:;
     } else if (asm_error == ASM_OK) {
         asm_error = ASM_ERR_FULL;
     }
-    target_3 = arm64_assembler_target_of(after);
+    target_3 = target_of(after);
     a_word_14 = 0x14000000 | ({
     off_7 = ((int64_t)(target_3 - asm_pc)) >> 2;
     if (!((off_7 >= -33554432) && (off_7 <= 33554431))) {
@@ -11433,7 +11433,7 @@ exit_offset_to_3:;
         asm_error = ASM_ERR_IMMEDIATE;
     }
 exit_add_sub_2:;
-    target_4 = arm64_assembler_target_of(fail);
+    target_4 = target_of(fail);
     a_word_15 = 0x14000000 | ({
     off_8 = ((int64_t)(target_4 - asm_pc)) >> 2;
     if (!((off_8 >= -33554432) && (off_8 <= 33554431))) {
@@ -11479,7 +11479,7 @@ exit_add_sub_3:;
     } else if (asm_error == ASM_OK) {
         asm_error = ASM_ERR_FULL;
     }
-    target_5 = arm64_assembler_target_of(done);
+    target_5 = target_of(done);
     a_word_16 = 0x54000000 | ((((uint64_t)({
     off_9 = ((int64_t)(target_5 - asm_pc)) >> 2;
     if (!((off_9 >= -262144) && (off_9 <= 262143))) {
@@ -11504,7 +11504,7 @@ exit_offset_to_5:;
     } else if (asm_error == ASM_OK) {
         asm_error = ASM_ERR_FULL;
     }
-    target_6 = arm64_assembler_target_of(loop);
+    target_6 = target_of(loop);
     a_word_17 = 0x14000000 | ({
     off_10 = ((int64_t)(target_6 - asm_pc)) >> 2;
     if (!((off_10 >= -33554432) && (off_10 <= 33554431))) {
@@ -11588,7 +11588,7 @@ exit_logical:;
     } else if (asm_error == ASM_OK) {
         asm_error = ASM_ERR_FULL;
     }
-    off_12 = (int64_t)(arm64_assembler_target_of(header_label) - asm_pc);
+    off_12 = (int64_t)(target_of(header_label) - asm_pc);
     if (!((off_12 >= -1048576) && (off_12 <= 0xFFFFF))) {
         if (asm_error == ASM_OK) {
             asm_error = ASM_ERR_RANGE;
@@ -11806,7 +11806,7 @@ exit_adr:;
     } else if (asm_error == ASM_OK) {
         asm_error = ASM_ERR_FULL;
     }
-    target_7 = arm64_assembler_target_of(full_2);
+    target_7 = target_of(full_2);
     a_word_32 = 0x54000000 | ((((uint64_t)({
     off_16 = ((int64_t)(target_7 - asm_pc)) >> 2;
     if (!((off_16 >= -262144) && (off_16 <= 262143))) {
@@ -11943,7 +11943,7 @@ exit_add_sub_4:;
     } else if (asm_error == ASM_OK) {
         asm_error = ASM_ERR_FULL;
     }
-    target_8 = arm64_assembler_target_of(after_2);
+    target_8 = target_of(after_2);
     a_word_36 = 0x14000000 | ({
     off_19 = ((int64_t)(target_8 - asm_pc)) >> 2;
     if (!((off_19 >= -33554432) && (off_19 <= 33554431))) {
@@ -11977,7 +11977,7 @@ exit_offset_to_8:;
         asm_error = ASM_ERR_IMMEDIATE;
     }
 exit_add_sub_5:;
-    target_9 = arm64_assembler_target_of(fail);
+    target_9 = target_of(fail);
     a_word_37 = 0x14000000 | ({
     off_20 = ((int64_t)(target_9 - asm_pc)) >> 2;
     if (!((off_20 >= -33554432) && (off_20 <= 33554431))) {
@@ -12197,7 +12197,7 @@ static void emit_int_primitive(int32_t op, int32_t fail)
     if (asm_noting) {
         note("SmallInteger primitive: receiver and argument SmallIntegers", 0);
     }
-    target = arm64_assembler_target_of(fail);
+    target = target_of(fail);
     a_word = 905969664ULL | ((((uint64_t)({
     off = ((int64_t)(target - asm_pc)) >> 2;
     if (!((off >= -8192) && (off <= 8191))) {
@@ -12222,7 +12222,7 @@ exit_offset_to:;
     } else if (asm_error == ASM_OK) {
         asm_error = ASM_ERR_FULL;
     }
-    target_2 = arm64_assembler_target_of(fail);
+    target_2 = target_of(fail);
     a_word_2 = 905969664ULL | ((((uint64_t)({
     off_2 = ((int64_t)(target_2 - asm_pc)) >> 2;
     if (!((off_2 >= -8192) && (off_2 <= 8191))) {
@@ -12259,7 +12259,7 @@ exit_offset_to_2:;
         } else if (asm_error == ASM_OK) {
             asm_error = ASM_ERR_FULL;
         }
-        target_3 = arm64_assembler_target_of(fail);
+        target_3 = target_of(fail);
         a_word_3 = 0x54000000 | ((((uint64_t)({
     off_3 = ((int64_t)(target_3 - asm_pc)) >> 2;
     if (!((off_3 >= -262144) && (off_3 <= 262143))) {
@@ -12303,7 +12303,7 @@ exit_offset_to_3:;
         } else if (asm_error == ASM_OK) {
             asm_error = ASM_ERR_FULL;
         }
-        target_4 = arm64_assembler_target_of(fail);
+        target_4 = target_of(fail);
         a_word_4 = 0x54000000 | ((((uint64_t)({
     off_4 = ((int64_t)(target_4 - asm_pc)) >> 2;
     if (!((off_4 >= -262144) && (off_4 <= 262143))) {
@@ -12365,7 +12365,7 @@ exit_offset_to_4:;
         } else if (asm_error == ASM_OK) {
             asm_error = ASM_ERR_FULL;
         }
-        target_5 = arm64_assembler_target_of(fail);
+        target_5 = target_of(fail);
         a_word_5 = 0x54000000 | ((((uint64_t)({
     off_5 = ((int64_t)(target_5 - asm_pc)) >> 2;
     if (!((off_5 >= -262144) && (off_5 <= 262143))) {
@@ -12450,7 +12450,7 @@ exit_offset_to_5:;
         } else if (asm_error == ASM_OK) {
             asm_error = ASM_ERR_FULL;
         }
-        target_6 = arm64_assembler_target_of(right);
+        target_6 = target_of(right);
         a_word_8 = 3086483456ULL | ((((uint64_t)({
     off_6 = ((int64_t)(target_6 - asm_pc)) >> 2;
     if (!((off_6 >= -8192) && (off_6 <= 8191))) {
@@ -12480,7 +12480,7 @@ exit_offset_to_6:;
             asm_error = ASM_ERR_IMMEDIATE;
         }
     exit_add_sub_4:;
-        target_7 = arm64_assembler_target_of(fail);
+        target_7 = target_of(fail);
         a_word_9 = 0x54000000 | ((((uint64_t)({
     off_7 = ((int64_t)(target_7 - asm_pc)) >> 2;
     if (!((off_7 >= -262144) && (off_7 <= 262143))) {
@@ -12528,7 +12528,7 @@ exit_offset_to_7:;
         } else if (asm_error == ASM_OK) {
             asm_error = ASM_ERR_FULL;
         }
-        target_8 = arm64_assembler_target_of(fail);
+        target_8 = target_of(fail);
         a_word_10 = 0x54000000 | ((((uint64_t)({
     off_8 = ((int64_t)(target_8 - asm_pc)) >> 2;
     if (!((off_8 >= -262144) && (off_8 <= 262143))) {
@@ -12674,7 +12674,7 @@ exit_offset_to_8:;
         } else if (asm_error == ASM_OK) {
             asm_error = ASM_ERR_FULL;
         }
-        target_9 = arm64_assembler_target_of(fail);
+        target_9 = target_of(fail);
         a_word_14 = 3019898880LL | ((((uint64_t)({
     off_9 = ((int64_t)(target_9 - asm_pc)) >> 2;
     if (!((off_9 >= -262144) && (off_9 <= 262143))) {
@@ -12712,7 +12712,7 @@ exit_offset_to_9:;
                 note("floored: a remainder whose sign differs from the divisor's corrects quotient and remainder", 0);
             }
             exact = new_label();
-            target_10 = arm64_assembler_target_of(exact);
+            target_10 = target_of(exact);
             a_word_15 = 3019898880LL | ((((uint64_t)({
     off_10 = ((int64_t)(target_10 - asm_pc)) >> 2;
     if (!((off_10 >= -262144) && (off_10 <= 262143))) {
@@ -12737,7 +12737,7 @@ exit_offset_to_10:;
             } else if (asm_error == ASM_OK) {
                 asm_error = ASM_ERR_FULL;
             }
-            target_11 = arm64_assembler_target_of(exact);
+            target_11 = target_of(exact);
             a_word_16 = 3069706240ULL | ((((uint64_t)({
     off_11 = ((int64_t)(target_11 - asm_pc)) >> 2;
     if (!((off_11 >= -8192) && (off_11 <= 8191))) {
@@ -12798,7 +12798,7 @@ exit_offset_to_11:;
         } else if (asm_error == ASM_OK) {
             asm_error = ASM_ERR_FULL;
         }
-        target_12 = arm64_assembler_target_of(fail);
+        target_12 = target_of(fail);
         a_word_17 = 0x54000000 | ((((uint64_t)({
     off_12 = ((int64_t)(target_12 - asm_pc)) >> 2;
     if (!((off_12 >= -262144) && (off_12 <= 262143))) {
@@ -13018,7 +13018,7 @@ static bool emit_method_entry(void)
         asm_error = ASM_ERR_FULL;
     }
 exit_logical:;
-    target = arm64_assembler_target_of(imm);
+    target = target_of(imm);
     a_word_2 = 0x54000000 | ((((uint64_t)({
     off = ((int64_t)(target - asm_pc)) >> 2;
     if (!((off >= -262144) && (off <= 262143))) {
@@ -13063,7 +13063,7 @@ exit_offset_to:;
         note("not the cached class: the miss handler relinks", 0);
     }
     a_label = sl_target[s];
-    target_2 = arm64_assembler_target_of(a_label);
+    target_2 = target_of(a_label);
     a_word_3 = 0x54000000 | ((((uint64_t)({
     off_2 = ((int64_t)(target_2 - asm_pc)) >> 2;
     if (!((off_2 >= -262144) && (off_2 <= 262143))) {
@@ -13179,7 +13179,7 @@ exit_offset_to_2:;
         note("count toward optimization", 0);
     }
     a_label_2 = label_at(counter_addr);
-    off_5 = ((int64_t)((arm64_assembler_target_of(a_label_2) & 18446744073709547520ULL) - (asm_pc & 18446744073709547520ULL))) >> 12;
+    off_5 = ((int64_t)((target_of(a_label_2) & 18446744073709547520ULL) - (asm_pc & 18446744073709547520ULL))) >> 12;
     if (!((off_5 >= -1048576) && (off_5 <= 0xFFFFF))) {
         if (asm_error == ASM_OK) {
             asm_error = ASM_ERR_RANGE;
@@ -13255,7 +13255,7 @@ exit_add_sub:;
         }
     exit_load_store_4:;
     }
-    target_3 = arm64_assembler_target_of(slow_label);
+    target_3 = target_of(slow_label);
     a_word_13 = 0x54000000 | ((((uint64_t)({
     off_8 = ((int64_t)(target_3 - asm_pc)) >> 2;
     if (!((off_8 >= -262144) && (off_8 <= 262143))) {
@@ -13428,7 +13428,7 @@ static bool emit_perform_primitive(void)
             asm_error = ASM_ERR_FULL;
         }
     exit_logical:;
-        target = arm64_assembler_target_of(imm);
+        target = target_of(imm);
         a_word_2 = 3036676096LL | ((((uint64_t)({
     off = ((int64_t)(target - asm_pc)) >> 2;
     if (!((off >= -262144) && (off <= 262143))) {
@@ -13524,7 +13524,7 @@ exit_offset_to:;
         } else if (asm_error == ASM_OK) {
             asm_error = ASM_ERR_FULL;
         }
-        target_2 = arm64_assembler_target_of(slow);
+        target_2 = target_of(slow);
         a_word_6 = 0x54000000 | ((((uint64_t)({
     off_3 = ((int64_t)(target_2 - asm_pc)) >> 2;
     if (!((off_3 >= -262144) && (off_3 <= 262143))) {
@@ -13549,7 +13549,7 @@ exit_offset_to_2:;
         } else if (asm_error == ASM_OK) {
             asm_error = ASM_ERR_FULL;
         }
-        target_3 = arm64_assembler_target_of(slow);
+        target_3 = target_of(slow);
         a_word_7 = 0x54000000 | ((((uint64_t)({
     off_4 = ((int64_t)(target_3 - asm_pc)) >> 2;
     if (!((off_4 >= -262144) && (off_4 <= 262143))) {
@@ -13608,7 +13608,7 @@ exit_offset_to_3:;
         } else if (asm_error == ASM_OK) {
             asm_error = ASM_ERR_FULL;
         }
-        target_4 = arm64_assembler_target_of(slow);
+        target_4 = target_of(slow);
         a_word_10 = 0x54000000 | ((((uint64_t)({
     off_6 = ((int64_t)(target_4 - asm_pc)) >> 2;
     if (!((off_6 >= -262144) && (off_6 <= 262143))) {
@@ -13652,7 +13652,7 @@ exit_offset_to_4:;
                 asm_error = ASM_ERR_FULL;
             }
         exit_logical_3:;
-            target_5 = arm64_assembler_target_of(slow);
+            target_5 = target_of(slow);
             a_word_12 = 0x54000000 | ((((uint64_t)({
     off_7 = ((int64_t)(target_5 - asm_pc)) >> 2;
     if (!((off_7 >= -262144) && (off_7 <= 262143))) {
@@ -13708,7 +13708,7 @@ exit_offset_to_5:;
             } else if (asm_error == ASM_OK) {
                 asm_error = ASM_ERR_FULL;
             }
-            target_6 = arm64_assembler_target_of(slow);
+            target_6 = target_of(slow);
             a_word_15 = 0x54000000 | ((((uint64_t)({
     off_9 = ((int64_t)(target_6 - asm_pc)) >> 2;
     if (!((off_9 >= -262144) && (off_9 <= 262143))) {
@@ -13739,7 +13739,7 @@ exit_offset_to_6:;
             } else if (asm_error == ASM_OK) {
                 asm_error = ASM_ERR_FULL;
             }
-            target_7 = arm64_assembler_target_of(slow);
+            target_7 = target_of(slow);
             a_word_16 = 0x54000000 | ((((uint64_t)({
     off_10 = ((int64_t)(target_7 - asm_pc)) >> 2;
     if (!((off_10 >= -262144) && (off_10 <= 262143))) {
@@ -13769,7 +13769,7 @@ exit_offset_to_7:;
                 asm_error = ASM_ERR_IMMEDIATE;
             }
         exit_add_sub:;
-            target_8 = arm64_assembler_target_of(slow);
+            target_8 = target_of(slow);
             a_word_17 = 0x54000000 | ((((uint64_t)({
     off_11 = ((int64_t)(target_8 - asm_pc)) >> 2;
     if (!((off_11 >= -262144) && (off_11 <= 262143))) {
@@ -13788,7 +13788,7 @@ exit_offset_to_8:;
             } else if (asm_error == ASM_OK) {
                 asm_error = ASM_ERR_FULL;
             }
-            target_9 = arm64_assembler_target_of(go);
+            target_9 = target_of(go);
             a_word_18 = 3019898880LL | ((((uint64_t)({
     off_12 = ((int64_t)(target_9 - asm_pc)) >> 2;
     if (!((off_12 >= -262144) && (off_12 <= 262143))) {
@@ -13830,7 +13830,7 @@ exit_offset_to_9:;
                 asm_error = ASM_ERR_IMMEDIATE;
             }
         exit_add_sub_2:;
-            target_10 = arm64_assembler_target_of(go);
+            target_10 = target_of(go);
             a_word_19 = 0x54000000 | ((((uint64_t)({
     off_13 = ((int64_t)(target_10 - asm_pc)) >> 2;
     if (!((off_13 >= -262144) && (off_13 <= 262143))) {
@@ -13890,7 +13890,7 @@ exit_offset_to_10:;
                 asm_error = ASM_ERR_IMMEDIATE;
             }
         exit_add_sub_3:;
-            target_11 = arm64_assembler_target_of(slow);
+            target_11 = target_of(slow);
             a_word_22 = 0x54000000 | ((((uint64_t)({
     off_14 = ((int64_t)(target_11 - asm_pc)) >> 2;
     if (!((off_14 >= -262144) && (off_14 <= 262143))) {
@@ -14010,7 +14010,7 @@ exit_offset_to_11:;
         } else if (asm_error == ASM_OK) {
             asm_error = ASM_ERR_FULL;
         }
-        target_12 = arm64_assembler_target_of(have);
+        target_12 = target_of(have);
         a_word_29 = 0x14000000 | ({
     off_17 = ((int64_t)(target_12 - asm_pc)) >> 2;
     if (!((off_17 >= -33554432) && (off_17 <= 33554431))) {
@@ -14053,7 +14053,7 @@ exit_offset_to_12:;
     } else {
         mov_imm(X1, (uint64_t)value);
     }
-    off_18 = (int64_t)(arm64_assembler_target_of(fail) - asm_pc);
+    off_18 = (int64_t)(target_of(fail) - asm_pc);
     if (!((off_18 >= -1048576) && (off_18 <= 0xFFFFF))) {
         if (asm_error == ASM_OK) {
             asm_error = ASM_ERR_RANGE;
@@ -14068,7 +14068,7 @@ exit_offset_to_12:;
         asm_error = ASM_ERR_FULL;
     }
 exit_adr:;
-    target_13 = arm64_assembler_target_of(perform_label);
+    target_13 = target_of(perform_label);
     a_word_32 = 0x14000000 | ({
     off_19 = ((int64_t)(target_13 - asm_pc)) >> 2;
     if (!((off_19 >= -33554432) && (off_19 <= 33554431))) {
@@ -14156,7 +14156,7 @@ bool emit_pic_at(uint64_t pic)
         asm_error = ASM_ERR_FULL;
     }
 exit_logical:;
-    target = arm64_assembler_target_of(imm);
+    target = target_of(imm);
     a_word_2 = 3036676096LL | ((((uint64_t)({
     off = ((int64_t)(target - asm_pc)) >> 2;
     if (!((off >= -262144) && (off <= 262143))) {
@@ -14185,7 +14185,7 @@ exit_offset_to:;
     for (i = 0; i <= 5; i++) {
         next = new_label();
         a_label = label_at((uint64_t)&p->classes + 8 * i);
-        target_2 = arm64_assembler_target_of(a_label);
+        target_2 = target_of(a_label);
         a_word_3 = 0x58000000 | ((((uint64_t)({
     off_2 = ((int64_t)(target_2 - asm_pc)) >> 2;
     if (!((off_2 >= -262144) && (off_2 <= 262143))) {
@@ -14210,7 +14210,7 @@ exit_offset_to_2:;
         } else if (asm_error == ASM_OK) {
             asm_error = ASM_ERR_FULL;
         }
-        target_3 = arm64_assembler_target_of(next);
+        target_3 = target_of(next);
         a_word_4 = 0x54000000 | ((((uint64_t)({
     off_3 = ((int64_t)(target_3 - asm_pc)) >> 2;
     if (!((off_3 >= -262144) && (off_3 <= 262143))) {
@@ -14229,7 +14229,7 @@ exit_offset_to_3:;
         } else if (asm_error == ASM_OK) {
             asm_error = ASM_ERR_FULL;
         }
-        target_4 = arm64_assembler_target_of(miss);
+        target_4 = target_of(miss);
         a_word_5 = 0x14000000 | ({
     off_4 = ((int64_t)(target_4 - asm_pc)) >> 2;
     if (!((off_4 >= -33554432) && (off_4 <= 33554431))) {
@@ -14250,7 +14250,7 @@ exit_offset_to_4:;
         }
         arm64_assembler_bind(next);
     }
-    target_5 = arm64_assembler_target_of(miss);
+    target_5 = target_of(miss);
     a_word_6 = 0x14000000 | ({
     off_5 = ((int64_t)(target_5 - asm_pc)) >> 2;
     if (!((off_5 >= -33554432) && (off_5 <= 33554431))) {
@@ -14304,7 +14304,7 @@ exit_add_sub:;
     } else if (asm_error == ASM_OK) {
         asm_error = ASM_ERR_FULL;
     }
-    target_6 = arm64_assembler_target_of(cmp);
+    target_6 = target_of(cmp);
     a_word_9 = 0x14000000 | ({
     off_6 = ((int64_t)(target_6 - asm_pc)) >> 2;
     if (!((off_6 >= -33554432) && (off_6 <= 33554431))) {
@@ -14576,7 +14576,7 @@ static bool emit_primitive(void)
                 asm_error = ASM_ERR_IMMEDIATE;
             }
         exit_add_sub:;
-            target = arm64_assembler_target_of(fail);
+            target = target_of(fail);
             a_word = 0x54000000 | ((((uint64_t)({
     off = ((int64_t)(target - asm_pc)) >> 2;
     if (!((off >= -262144) && (off <= 262143))) {
@@ -14612,7 +14612,7 @@ exit_offset_to:;
                 asm_error = ASM_ERR_IMMEDIATE;
             }
         exit_add_sub_2:;
-            target_2 = arm64_assembler_target_of(fail);
+            target_2 = target_of(fail);
             a_word_2 = 0x54000000 | ((((uint64_t)({
     off_2 = ((int64_t)(target_2 - asm_pc)) >> 2;
     if (!((off_2 >= -262144) && (off_2 <= 262143))) {
@@ -14736,7 +14736,7 @@ exit_offset_to_2:;
             } else if (asm_error == ASM_OK) {
                 asm_error = ASM_ERR_FULL;
             }
-            target_3 = arm64_assembler_target_of(full);
+            target_3 = target_of(full);
             a_word_5 = 0x54000000 | ((((uint64_t)({
     off_4 = ((int64_t)(target_3 - asm_pc)) >> 2;
     if (!((off_4 >= -262144) && (off_4 <= 262143))) {
@@ -14873,7 +14873,7 @@ exit_offset_to_3:;
             } else if (asm_error == ASM_OK) {
                 asm_error = ASM_ERR_FULL;
             }
-            target_4 = arm64_assembler_target_of(after);
+            target_4 = target_of(after);
             a_word_9 = 0x14000000 | ({
     off_7 = ((int64_t)(target_4 - asm_pc)) >> 2;
     if (!((off_7 >= -33554432) && (off_7 <= 33554431))) {
@@ -14907,7 +14907,7 @@ exit_offset_to_4:;
                 asm_error = ASM_ERR_IMMEDIATE;
             }
         exit_add_sub_6:;
-            target_5 = arm64_assembler_target_of(fail);
+            target_5 = target_of(fail);
             a_word_10 = 0x14000000 | ({
     off_8 = ((int64_t)(target_5 - asm_pc)) >> 2;
     if (!((off_8 >= -33554432) && (off_8 <= 33554431))) {
@@ -14956,7 +14956,7 @@ exit_offset_to_5:;
             } else if (asm_error == ASM_OK) {
                 asm_error = ASM_ERR_FULL;
             }
-            target_6 = arm64_assembler_target_of(done);
+            target_6 = target_of(done);
             a_word_11 = 0x54000000 | ((((uint64_t)({
     off_9 = ((int64_t)(target_6 - asm_pc)) >> 2;
     if (!((off_9 >= -262144) && (off_9 <= 262143))) {
@@ -14981,7 +14981,7 @@ exit_offset_to_6:;
             } else if (asm_error == ASM_OK) {
                 asm_error = ASM_ERR_FULL;
             }
-            target_7 = arm64_assembler_target_of(loop);
+            target_7 = target_of(loop);
             a_word_12 = 0x14000000 | ({
     off_10 = ((int64_t)(target_7 - asm_pc)) >> 2;
     if (!((off_10 >= -33554432) && (off_10 <= 33554431))) {
@@ -15024,7 +15024,7 @@ exit_offset_to_7:;
             } else if (asm_error == ASM_OK) {
                 asm_error = ASM_ERR_FULL;
             }
-            target_8 = arm64_assembler_target_of(fail);
+            target_8 = target_of(fail);
             a_word_13 = 905969664ULL | ((((uint64_t)({
     off_11 = ((int64_t)(target_8 - asm_pc)) >> 2;
     if (!((off_11 >= -8192) && (off_11 <= 8191))) {
@@ -15061,7 +15061,7 @@ exit_offset_to_8:;
             } else if (asm_error == ASM_OK) {
                 asm_error = ASM_ERR_FULL;
             }
-            target_9 = arm64_assembler_target_of(fail);
+            target_9 = target_of(fail);
             a_word_14 = 0x54000000 | ((((uint64_t)({
     off_12 = ((int64_t)(target_9 - asm_pc)) >> 2;
     if (!((off_12 >= -262144) && (off_12 <= 262143))) {
@@ -15097,7 +15097,7 @@ exit_offset_to_9:;
                 asm_error = ASM_ERR_FULL;
             }
             bytes = new_label();
-            target_10 = arm64_assembler_target_of(bytes);
+            target_10 = target_of(bytes);
             a_word_15 = 0x54000000 | ((((uint64_t)({
     off_13 = ((int64_t)(target_10 - asm_pc)) >> 2;
     if (!((off_13 >= -262144) && (off_13 <= 262143))) {
@@ -15127,7 +15127,7 @@ exit_offset_to_10:;
                 asm_error = ASM_ERR_IMMEDIATE;
             }
         exit_add_sub_8:;
-            target_11 = arm64_assembler_target_of(fail);
+            target_11 = target_of(fail);
             a_word_16 = 0x54000000 | ((((uint64_t)({
     off_14 = ((int64_t)(target_11 - asm_pc)) >> 2;
     if (!((off_14 >= -262144) && (off_14 <= 262143))) {
@@ -15224,7 +15224,7 @@ exit_offset_to_11:;
             } else if (asm_error == ASM_OK) {
                 asm_error = ASM_ERR_FULL;
             }
-            target_12 = arm64_assembler_target_of(full_2);
+            target_12 = target_of(full_2);
             a_word_19 = 0x54000000 | ((((uint64_t)({
     off_16 = ((int64_t)(target_12 - asm_pc)) >> 2;
     if (!((off_16 >= -262144) && (off_16 <= 262143))) {
@@ -15361,7 +15361,7 @@ exit_offset_to_12:;
             } else if (asm_error == ASM_OK) {
                 asm_error = ASM_ERR_FULL;
             }
-            target_13 = arm64_assembler_target_of(after_2);
+            target_13 = target_of(after_2);
             a_word_23 = 0x14000000 | ({
     off_19 = ((int64_t)(target_13 - asm_pc)) >> 2;
     if (!((off_19 >= -33554432) && (off_19 <= 33554431))) {
@@ -15395,7 +15395,7 @@ exit_offset_to_13:;
                 asm_error = ASM_ERR_IMMEDIATE;
             }
         exit_add_sub_11:;
-            target_14 = arm64_assembler_target_of(fail);
+            target_14 = target_of(fail);
             a_word_24 = 0x14000000 | ({
     off_20 = ((int64_t)(target_14 - asm_pc)) >> 2;
     if (!((off_20 >= -33554432) && (off_20 <= 33554431))) {
@@ -15444,7 +15444,7 @@ exit_offset_to_14:;
             } else if (asm_error == ASM_OK) {
                 asm_error = ASM_ERR_FULL;
             }
-            target_15 = arm64_assembler_target_of(done_2);
+            target_15 = target_of(done_2);
             a_word_25 = 0x54000000 | ((((uint64_t)({
     off_21 = ((int64_t)(target_15 - asm_pc)) >> 2;
     if (!((off_21 >= -262144) && (off_21 <= 262143))) {
@@ -15469,7 +15469,7 @@ exit_offset_to_15:;
             } else if (asm_error == ASM_OK) {
                 asm_error = ASM_ERR_FULL;
             }
-            target_16 = arm64_assembler_target_of(loop_2);
+            target_16 = target_of(loop_2);
             a_word_26 = 0x14000000 | ({
     off_22 = ((int64_t)(target_16 - asm_pc)) >> 2;
     if (!((off_22 >= -33554432) && (off_22 <= 33554431))) {
@@ -15512,7 +15512,7 @@ exit_offset_to_16:;
             } else if (asm_error == ASM_OK) {
                 asm_error = ASM_ERR_FULL;
             }
-            target_17 = arm64_assembler_target_of(fail);
+            target_17 = target_of(fail);
             a_word_27 = 0x54000000 | ((((uint64_t)({
     off_23 = ((int64_t)(target_17 - asm_pc)) >> 2;
     if (!((off_23 >= -262144) && (off_23 <= 262143))) {
@@ -15648,7 +15648,7 @@ exit_offset_to_17:;
             } else if (asm_error == ASM_OK) {
                 asm_error = ASM_ERR_FULL;
             }
-            target_18 = arm64_assembler_target_of(full_3);
+            target_18 = target_of(full_3);
             a_word_30 = 0x54000000 | ((((uint64_t)({
     off_25 = ((int64_t)(target_18 - asm_pc)) >> 2;
     if (!((off_25 >= -262144) && (off_25 <= 262143))) {
@@ -15785,7 +15785,7 @@ exit_offset_to_18:;
             } else if (asm_error == ASM_OK) {
                 asm_error = ASM_ERR_FULL;
             }
-            target_19 = arm64_assembler_target_of(after_3);
+            target_19 = target_of(after_3);
             a_word_34 = 0x14000000 | ({
     off_28 = ((int64_t)(target_19 - asm_pc)) >> 2;
     if (!((off_28 >= -33554432) && (off_28 <= 33554431))) {
@@ -15819,7 +15819,7 @@ exit_offset_to_19:;
                 asm_error = ASM_ERR_IMMEDIATE;
             }
         exit_add_sub_17:;
-            target_20 = arm64_assembler_target_of(fail);
+            target_20 = target_of(fail);
             a_word_35 = 0x14000000 | ({
     off_29 = ((int64_t)(target_20 - asm_pc)) >> 2;
     if (!((off_29 >= -33554432) && (off_29 <= 33554431))) {
@@ -15868,7 +15868,7 @@ exit_offset_to_20:;
             } else if (asm_error == ASM_OK) {
                 asm_error = ASM_ERR_FULL;
             }
-            target_21 = arm64_assembler_target_of(done_3);
+            target_21 = target_of(done_3);
             a_word_36 = 0x54000000 | ((((uint64_t)({
     off_30 = ((int64_t)(target_21 - asm_pc)) >> 2;
     if (!((off_30 >= -262144) && (off_30 <= 262143))) {
@@ -15893,7 +15893,7 @@ exit_offset_to_21:;
             } else if (asm_error == ASM_OK) {
                 asm_error = ASM_ERR_FULL;
             }
-            target_22 = arm64_assembler_target_of(loop_3);
+            target_22 = target_of(loop_3);
             a_word_37 = 0x14000000 | ({
     off_31 = ((int64_t)(target_22 - asm_pc)) >> 2;
     if (!((off_31 >= -33554432) && (off_31 <= 33554431))) {
@@ -15975,7 +15975,7 @@ exit_offset_to_22:;
                 asm_error = ASM_ERR_FULL;
             }
         exit_logical:;
-            target_23 = arm64_assembler_target_of(imm);
+            target_23 = target_of(imm);
             a_word_39 = 0x54000000 | ((((uint64_t)({
     off_32 = ((int64_t)(target_23 - asm_pc)) >> 2;
     if (!((off_32 >= -262144) && (off_32 <= 262143))) {
@@ -16082,7 +16082,7 @@ exit_offset_to_23:;
                 asm_error = ASM_ERR_FULL;
             }
         exit_logical_3:;
-            target_24 = arm64_assembler_target_of(fail);
+            target_24 = target_of(fail);
             a_word_44 = 0x54000000 | ((((uint64_t)({
     off_33 = ((int64_t)(target_24 - asm_pc)) >> 2;
     if (!((off_33 >= -262144) && (off_33 <= 262143))) {
@@ -16138,7 +16138,7 @@ exit_offset_to_24:;
             } else if (asm_error == ASM_OK) {
                 asm_error = ASM_ERR_FULL;
             }
-            target_25 = arm64_assembler_target_of(fail);
+            target_25 = target_of(fail);
             a_word_47 = 0x54000000 | ((((uint64_t)({
     off_35 = ((int64_t)(target_25 - asm_pc)) >> 2;
     if (!((off_35 >= -262144) && (off_35 <= 262143))) {
@@ -16191,7 +16191,7 @@ exit_offset_to_25:;
                 asm_error = ASM_ERR_IMMEDIATE;
             }
         exit_add_sub_20:;
-            target_26 = arm64_assembler_target_of(fail);
+            target_26 = target_of(fail);
             a_word_50 = 0x54000000 | ((((uint64_t)({
     off_36 = ((int64_t)(target_26 - asm_pc)) >> 2;
     if (!((off_36 >= -262144) && (off_36 <= 262143))) {
@@ -16213,7 +16213,7 @@ exit_offset_to_26:;
             if (asm_noting) {
                 note("the block's code (x30 still returns to the send)", 0);
             }
-            target_27 = arm64_assembler_target_of(block_label);
+            target_27 = target_of(block_label);
             a_word_51 = 0x14000000 | ({
     off_37 = ((int64_t)(target_27 - asm_pc)) >> 2;
     if (!((off_37 >= -33554432) && (off_37 <= 33554431))) {
@@ -16269,7 +16269,7 @@ exit_offset_to_27:;
                 asm_error = ASM_ERR_IMMEDIATE;
             }
         exit_add_sub_21:;
-            target_28 = arm64_assembler_target_of(fail);
+            target_28 = target_of(fail);
             a_word_53 = 0x54000000 | ((((uint64_t)({
     off_38 = ((int64_t)(target_28 - asm_pc)) >> 2;
     if (!((off_38 >= -262144) && (off_38 <= 262143))) {
@@ -16332,7 +16332,7 @@ exit_offset_to_28:;
             } else if (asm_error == ASM_OK) {
                 asm_error = ASM_ERR_FULL;
             }
-            target_29 = arm64_assembler_target_of(fail);
+            target_29 = target_of(fail);
             a_word_55 = 905969664ULL | ((((uint64_t)({
     off_39 = ((int64_t)(target_29 - asm_pc)) >> 2;
     if (!((off_39 >= -8192) && (off_39 <= 8191))) {
@@ -16364,7 +16364,7 @@ exit_offset_to_29:;
             } else if (asm_error == ASM_OK) {
                 asm_error = ASM_ERR_FULL;
             }
-            target_30 = arm64_assembler_target_of(fail);
+            target_30 = target_of(fail);
             a_word_56 = 0x54000000 | ((((uint64_t)({
     off_40 = ((int64_t)(target_30 - asm_pc)) >> 2;
     if (!((off_40 >= -262144) && (off_40 <= 262143))) {
@@ -16445,7 +16445,7 @@ exit_offset_to_30:;
                 asm_error = ASM_ERR_FULL;
             }
         exit_logical_7:;
-            target_31 = arm64_assembler_target_of(fail);
+            target_31 = target_of(fail);
             a_word_59 = 0x54000000 | ((((uint64_t)({
     off_41 = ((int64_t)(target_31 - asm_pc)) >> 2;
     if (!((off_41 >= -262144) && (off_41 <= 262143))) {
@@ -16513,7 +16513,7 @@ exit_offset_to_31:;
         note("the primitive's C function: success returns to the sender, failure continues here", 0);
     }
     info = new_label();
-    off_42 = (int64_t)(arm64_assembler_target_of(info) - asm_pc);
+    off_42 = (int64_t)(target_of(info) - asm_pc);
     if (!((off_42 >= -1048576) && (off_42 <= 0xFFFFF))) {
         if (asm_error == ASM_OK) {
             asm_error = ASM_ERR_RANGE;
@@ -16609,7 +16609,7 @@ exit_move_wide_4:;
     } else {
         mov_imm(X3, (uint64_t)value_2);
     }
-    target_32 = arm64_assembler_target_of(prim_label);
+    target_32 = target_of(prim_label);
     a_word_67 = 0x14000000 | ({
     off_43 = ((int64_t)(target_32 - asm_pc)) >> 2;
     if (!((off_43 >= -33554432) && (off_43 <= 33554431))) {
@@ -16754,7 +16754,7 @@ exit_is_quick_method:;
         }
     exit_load_store:;
     }
-    target = arm64_assembler_target_of(framed);
+    target = target_of(framed);
     a_word_3 = 3019898880LL | ((((uint64_t)({
     off_2 = ((int64_t)(target - asm_pc)) >> 2;
     if (!((off_2 >= -262144) && (off_2 <= 262143))) {
@@ -16962,7 +16962,7 @@ exit_offset_to:;
     } else if (asm_error == ASM_OK) {
         asm_error = ASM_ERR_FULL;
     }
-    target_2 = arm64_assembler_target_of(s_2);
+    target_2 = target_of(s_2);
     a_word_11 = 3084386304ULL | ((((uint64_t)({
     off_4 = ((int64_t)(target_2 - asm_pc)) >> 2;
     if (!((off_4 >= -8192) && (off_4 <= 8191))) {
@@ -17130,7 +17130,7 @@ static void emit_runtime_call(int32_t stub_label, int32_t pc, int32_t d)
     } else if (asm_error == ASM_OK) {
         asm_error = ASM_ERR_FULL;
     }
-    target = arm64_assembler_target_of(stub_label);
+    target = target_of(stub_label);
     a_word_4 = 0x94000000LL | ({
     off_2 = ((int64_t)(target - asm_pc)) >> 2;
     if (!((off_2 >= -33554432) && (off_2 <= 33554431))) {
@@ -17149,7 +17149,7 @@ exit_offset_to:;
     } else if (asm_error == ASM_OK) {
         asm_error = ASM_ERR_FULL;
     }
-    target_2 = arm64_assembler_target_of(exit_plain_label);
+    target_2 = target_of(exit_plain_label);
     a_word_5 = 3036676096LL | ((((uint64_t)({
     off_3 = ((int64_t)(target_2 - asm_pc)) >> 2;
     if (!((off_3 >= -262144) && (off_3 <= 262143))) {
@@ -17318,7 +17318,7 @@ static void emit_site_call(int32_t pc, uint32_t info, int32_t ri)
         note("x9 := inline cache %d's class", site);
     }
     a_label = site_lit[site];
-    target = arm64_assembler_target_of(a_label);
+    target = target_of(a_label);
     a_word_4 = 0x58000000 | ((((uint64_t)({
     off_2 = ((int64_t)(target - asm_pc)) >> 2;
     if (!((off_2 >= -262144) && (off_2 <= 262143))) {
@@ -17341,7 +17341,7 @@ exit_offset_to:;
         note("call the inline cache's target (the miss stub while unlinked)", 0);
     }
     site_bl[site] = (uint32_t)(asm_pc - code_start);
-    target_2 = arm64_assembler_target_of(miss_label);
+    target_2 = target_of(miss_label);
     a_word_5 = 0x94000000LL | ({
     off_3 = ((int64_t)(target_2 - asm_pc)) >> 2;
     if (!((off_3 >= -33554432) && (off_3 <= 33554431))) {
@@ -17695,7 +17695,7 @@ static bool emit_slow_paths(void)
             emit_runtime_call(interrupt_label, sl_pc[i], sl_depth[i]);
             emit_load_loop_temps(sl_loop[i]);
             a_label = sl_cont[i];
-            target = arm64_assembler_target_of(a_label);
+            target = target_of(a_label);
             a_word = 0x14000000 | ({
     off = ((int64_t)(target - asm_pc)) >> 2;
     if (!((off >= -33554432) && (off <= 33554431))) {
@@ -17868,7 +17868,7 @@ exit_offset_to:;
                 }
             exit_load_store_3:;
             }
-            target_2 = arm64_assembler_target_of(intr);
+            target_2 = target_of(intr);
             a_word_10 = 889192448 | ((((uint64_t)({
     off_5 = ((int64_t)(target_2 - asm_pc)) >> 2;
     if (!((off_5 >= -262144) && (off_5 <= 262143))) {
@@ -17908,7 +17908,7 @@ exit_offset_to_2:;
         note("count toward optimization", 0);
     }
     a_label_2 = label_at(counter_addr);
-    off_6 = ((int64_t)((arm64_assembler_target_of(a_label_2) & 18446744073709547520ULL) - (asm_pc & 18446744073709547520ULL))) >> 12;
+    off_6 = ((int64_t)((target_of(a_label_2) & 18446744073709547520ULL) - (asm_pc & 18446744073709547520ULL))) >> 12;
     if (!((off_6 >= -1048576) && (off_6 <= 0xFFFFF))) {
         if (asm_error == ASM_OK) {
             asm_error = ASM_ERR_RANGE;
@@ -17984,7 +17984,7 @@ exit_add_sub_3:;
         }
     exit_load_store_5:;
     }
-    target_3 = arm64_assembler_target_of(slow_label);
+    target_3 = target_of(slow_label);
     a_word_16 = 0x54000000 | ((((uint64_t)({
     off_9 = ((int64_t)(target_3 - asm_pc)) >> 2;
     if (!((off_9 >= -262144) && (off_9 <= 262143))) {
@@ -18013,7 +18013,7 @@ exit_emit_tier_up:;
                 goto exit_emit_start;
             }
             a_label_3 = sl_cont[i];
-            target_4 = arm64_assembler_target_of(a_label_3);
+            target_4 = target_of(a_label_3);
             a_word_17 = 0x14000000 | ({
     off_10 = ((int64_t)(target_4 - asm_pc)) >> 2;
     if (!((off_10 >= -33554432) && (off_10 <= 33554431))) {
@@ -18041,7 +18041,7 @@ exit_offset_to_4:;
                 asm_error = ASM_ERR_FULL;
             }
             a_label_4 = sl_cont[i];
-            target_5 = arm64_assembler_target_of(a_label_4);
+            target_5 = target_of(a_label_4);
             a_word_18 = 0x14000000 | ({
     off_11 = ((int64_t)(target_5 - asm_pc)) >> 2;
     if (!((off_11 >= -33554432) && (off_11 <= 33554431))) {
@@ -18140,7 +18140,7 @@ exit_offset_to_5:;
             } else {
                 mov_imm(X1, (uint64_t)value_2);
             }
-            target_6 = arm64_assembler_target_of(tier_up_label);
+            target_6 = target_of(tier_up_label);
             a_word_23 = 0x94000000LL | ({
     off_13 = ((int64_t)(target_6 - asm_pc)) >> 2;
     if (!((off_13 >= -33554432) && (off_13 <= 33554431))) {
@@ -18160,7 +18160,7 @@ exit_offset_to_6:;
                 asm_error = ASM_ERR_FULL;
             }
             l = new_label();
-            target_7 = arm64_assembler_target_of(l);
+            target_7 = target_of(l);
             a_word_24 = 3019898880LL | ((((uint64_t)({
     off_14 = ((int64_t)(target_7 - asm_pc)) >> 2;
     if (!((off_14 >= -262144) && (off_14 <= 262143))) {
@@ -18190,7 +18190,7 @@ exit_offset_to_7:;
                 asm_error = ASM_ERR_IMMEDIATE;
             }
         exit_add_sub_4:;
-            target_8 = arm64_assembler_target_of(exit_plain_label);
+            target_8 = target_of(exit_plain_label);
             a_word_25 = 0x54000000 | ((((uint64_t)({
     off_15 = ((int64_t)(target_8 - asm_pc)) >> 2;
     if (!((off_15 >= -262144) && (off_15 <= 262143))) {
@@ -18267,7 +18267,7 @@ exit_offset_to_8:;
                 asm_error = ASM_ERR_FULL;
             }
             a_label_5 = sl_cont[i];
-            target_9 = arm64_assembler_target_of(a_label_5);
+            target_9 = target_of(a_label_5);
             a_word_29 = 0x14000000 | ({
     off_18 = ((int64_t)(target_9 - asm_pc)) >> 2;
     if (!((off_18 >= -33554432) && (off_18 <= 33554431))) {
@@ -18373,7 +18373,7 @@ exit_offset_to_9:;
                 }
             exit_load_store_9:;
             }
-            target_10 = arm64_assembler_target_of(exit_sync_label);
+            target_10 = target_of(exit_sync_label);
             a_word_35 = 0x14000000 | ({
     off_21 = ((int64_t)(target_10 - asm_pc)) >> 2;
     if (!((off_21 >= -33554432) && (off_21 <= 33554431))) {
@@ -18460,7 +18460,7 @@ exit_offset_to_10:;
                 asm_error = ASM_ERR_FULL;
             }
             a_label_6 = sl_cont[i];
-            target_11 = arm64_assembler_target_of(a_label_6);
+            target_11 = target_of(a_label_6);
             a_word_40 = 0x14000000 | ({
     off_24 = ((int64_t)(target_11 - asm_pc)) >> 2;
     if (!((off_24 >= -33554432) && (off_24 <= 33554431))) {
@@ -18552,7 +18552,7 @@ exit_offset_to_11:;
             } else if (asm_error == ASM_OK) {
                 asm_error = ASM_ERR_FULL;
             }
-            target_12 = arm64_assembler_target_of(remember_label);
+            target_12 = target_of(remember_label);
             a_word_47 = 0x94000000LL | ({
     off_25 = ((int64_t)(target_12 - asm_pc)) >> 2;
     if (!((off_25 >= -33554432) && (off_25 <= 33554431))) {
@@ -18578,7 +18578,7 @@ exit_offset_to_12:;
                 asm_error = ASM_ERR_FULL;
             }
             a_label_7 = sl_cont[i];
-            target_13 = arm64_assembler_target_of(a_label_7);
+            target_13 = target_of(a_label_7);
             a_word_48 = 0x14000000 | ({
     off_26 = ((int64_t)(target_13 - asm_pc)) >> 2;
     if (!((off_26 >= -33554432) && (off_26 <= 33554431))) {
@@ -18664,7 +18664,7 @@ exit_offset_to_13:;
             }
         exit_load_store_12:;
             a_label_8 = sl_cont[i];
-            target_14 = arm64_assembler_target_of(a_label_8);
+            target_14 = target_of(a_label_8);
             a_word_53 = 0x14000000 | ({
     off_27 = ((int64_t)(target_14 - asm_pc)) >> 2;
     if (!((off_27 >= -33554432) && (off_27 <= 33554431))) {
@@ -18744,7 +18744,7 @@ exit_offset_to_14:;
                 asm_error = ASM_ERR_FULL;
             }
             a_label_9 = sl_cont[i];
-            target_15 = arm64_assembler_target_of(a_label_9);
+            target_15 = target_of(a_label_9);
             a_word_57 = 0x54000000 | ((((uint64_t)({
     off_28 = ((int64_t)(target_15 - asm_pc)) >> 2;
     if (!((off_28 >= -262144) && (off_28 <= 262143))) {
@@ -18767,7 +18767,7 @@ exit_offset_to_15:;
             if (asm_noting) {
                 note("the miss stub (relinks the inline cache)", 0);
             }
-            target_16 = arm64_assembler_target_of(miss_label);
+            target_16 = target_of(miss_label);
             a_word_58 = 0x14000000 | ({
     off_29 = ((int64_t)(target_16 - asm_pc)) >> 2;
     if (!((off_29 >= -33554432) && (off_29 <= 33554431))) {
@@ -18792,7 +18792,7 @@ exit_offset_to_16:;
                 note("stack full or interrupt pending: the runtime (x11 the callee: our header, 1 a block), then retry", 0);
             }
             if (sl_pc[i] == 0) {
-                off_30 = (int64_t)(arm64_assembler_target_of(header_label) - asm_pc);
+                off_30 = (int64_t)(target_of(header_label) - asm_pc);
                 if (!((off_30 >= -1048576) && (off_30 <= 0xFFFFF))) {
                     if (asm_error == ASM_OK) {
                         asm_error = ASM_ERR_RANGE;
@@ -18814,7 +18814,7 @@ exit_offset_to_16:;
                 asm_error = ASM_ERR_FULL;
             }
             a_label_10 = sl_cont[i];
-            off_31 = (int64_t)(arm64_assembler_target_of(a_label_10) - asm_pc);
+            off_31 = (int64_t)(target_of(a_label_10) - asm_pc);
             if (!((off_31 >= -1048576) && (off_31 <= 0xFFFFF))) {
                 if (asm_error == ASM_OK) {
                     asm_error = ASM_ERR_RANGE;
@@ -18829,7 +18829,7 @@ exit_offset_to_16:;
                 asm_error = ASM_ERR_FULL;
             }
         exit_adr_2:;
-            target_17 = arm64_assembler_target_of(entry_slow_label);
+            target_17 = target_of(entry_slow_label);
             a_word_61 = 0x14000000 | ({
     off_32 = ((int64_t)(target_17 - asm_pc)) >> 2;
     if (!((off_32 >= -33554432) && (off_32 <= 33554431))) {
@@ -18870,7 +18870,7 @@ exit_offset_to_17:;
             } else if (asm_error == ASM_OK) {
                 asm_error = ASM_ERR_FULL;
             }
-            target_18 = arm64_assembler_target_of(big);
+            target_18 = target_of(big);
             a_word_63 = 3036676096LL | ((((uint64_t)({
     off_33 = ((int64_t)(target_18 - asm_pc)) >> 2;
     if (!((off_33 >= -262144) && (off_33 <= 262143))) {
@@ -18935,7 +18935,7 @@ exit_offset_to_18:;
             }
         exit_logical_3:;
             a_label_11 = sl_cont[i];
-            target_19 = arm64_assembler_target_of(a_label_11);
+            target_19 = target_of(a_label_11);
             a_word_66 = 0x14000000 | ({
     off_34 = ((int64_t)(target_19 - asm_pc)) >> 2;
     if (!((off_34 >= -33554432) && (off_34 <= 33554431))) {
@@ -19057,7 +19057,7 @@ exit_offset_to_19:;
             } else if (asm_error == ASM_OK) {
                 asm_error = ASM_ERR_FULL;
             }
-            target_20 = arm64_assembler_target_of(box_label);
+            target_20 = target_of(box_label);
             a_word_73 = 0x94000000LL | ({
     off_37 = ((int64_t)(target_20 - asm_pc)) >> 2;
     if (!((off_37 >= -33554432) && (off_37 <= 33554431))) {
@@ -19202,7 +19202,7 @@ exit_offset_to_20:;
                 asm_error = ASM_ERR_FULL;
             }
             a_label_12 = sl_cont[i];
-            target_21 = arm64_assembler_target_of(a_label_12);
+            target_21 = target_of(a_label_12);
             a_word_82 = 0x14000000 | ({
     off_41 = ((int64_t)(target_21 - asm_pc)) >> 2;
     if (!((off_41 >= -33554432) && (off_41 <= 33554431))) {
@@ -19267,7 +19267,7 @@ exit_offset_to_21:;
                 }
             }
             a_label_13 = sl_cont[i];
-            target_22 = arm64_assembler_target_of(a_label_13);
+            target_22 = target_of(a_label_13);
             a_word_85 = 0x14000000 | ({
     off_43 = ((int64_t)(target_22 - asm_pc)) >> 2;
     if (!((off_43 >= -33554432) && (off_43 <= 33554431))) {
@@ -19953,7 +19953,7 @@ static void emit_slow_send(int32_t i)
             note("Floats inline: not two SmallIntegers", 0);
         }
         if (rb == -2) {
-            target = arm64_assembler_target_of(send);
+            target = target_of(send);
             a_word = 922746880ULL | ((((uint64_t)({
     off = ((int64_t)(target - asm_pc)) >> 2;
     if (!((off >= -8192) && (off <= 8191))) {
@@ -19980,7 +19980,7 @@ exit_offset_to:;
             } else if (asm_error == ASM_OK) {
                 asm_error = ASM_ERR_FULL;
             }
-            target_2 = arm64_assembler_target_of(send);
+            target_2 = target_of(send);
             a_word_3 = 922746880ULL | ((((uint64_t)({
     off_2 = ((int64_t)(target_2 - asm_pc)) >> 2;
     if (!((off_2 >= -8192) && (off_2 <= 8191))) {
@@ -20000,7 +20000,7 @@ exit_offset_to_2:;
                 asm_error = ASM_ERR_FULL;
             }
         }
-        target_3 = arm64_assembler_target_of(ia);
+        target_3 = target_of(ia);
         a_word_4 = 922746880ULL | ((((uint64_t)({
     off_3 = ((int64_t)(target_3 - asm_pc)) >> 2;
     if (!((off_3 >= -8192) && (off_3 <= 8191))) {
@@ -20045,7 +20045,7 @@ exit_offset_to_3:;
             asm_error = ASM_ERR_IMMEDIATE;
         }
     exit_add_sub:;
-        target_4 = arm64_assembler_target_of(oa);
+        target_4 = target_of(oa);
         a_word_6 = 0x54000000 | ((((uint64_t)({
     off_4 = ((int64_t)(target_4 - asm_pc)) >> 2;
     if (!((off_4 >= -262144) && (off_4 <= 262143))) {
@@ -20145,7 +20145,7 @@ exit_offset_to_4:;
                 asm_error = ASM_ERR_FULL;
             }
         } else {
-            target_5 = arm64_assembler_target_of(ib);
+            target_5 = target_of(ib);
             a_word_9 = 922746880ULL | ((((uint64_t)({
     off_5 = ((int64_t)(target_5 - asm_pc)) >> 2;
     if (!((off_5 >= -8192) && (off_5 <= 8191))) {
@@ -20190,7 +20190,7 @@ exit_offset_to_5:;
                 asm_error = ASM_ERR_IMMEDIATE;
             }
         exit_add_sub_3:;
-            target_6 = arm64_assembler_target_of(ob);
+            target_6 = target_of(ob);
             a_word_11 = 0x54000000 | ((((uint64_t)({
     off_6 = ((int64_t)(target_6 - asm_pc)) >> 2;
     if (!((off_6 >= -262144) && (off_6 <= 262143))) {
@@ -20274,7 +20274,7 @@ exit_offset_to_6:;
                 asm_error = ASM_ERR_FULL;
             }
             a_label = label_at(a);
-            off_7 = ((int64_t)((arm64_assembler_target_of(a_label) & 18446744073709547520ULL) - (asm_pc & 18446744073709547520ULL))) >> 12;
+            off_7 = ((int64_t)((target_of(a_label) & 18446744073709547520ULL) - (asm_pc & 18446744073709547520ULL))) >> 12;
             if (!((off_7 >= -1048576) && (off_7 <= 0xFFFFF))) {
                 if (asm_error == ASM_OK) {
                     asm_error = ASM_ERR_RANGE;
@@ -20347,7 +20347,7 @@ exit_offset_to_6:;
                 a_label_2 = sl_target[i];
                 pc_2 = (int32_t)sl_x[i];
                 c = ana_bcs[pc_2] == 0x91 ? cond : cond ^ 1;
-                target_7 = arm64_assembler_target_of(a_label_2);
+                target_7 = target_of(a_label_2);
                 a_word_16 = 0x54000000 | ((((uint64_t)({
     off_9 = ((int64_t)(target_7 - asm_pc)) >> 2;
     if (!((off_9 >= -262144) && (off_9 <= 262143))) {
@@ -20367,7 +20367,7 @@ exit_offset_to_7:;
                     asm_error = ASM_ERR_FULL;
                 }
                 a_label_3 = sl_cont[i];
-                target_8 = arm64_assembler_target_of(a_label_3);
+                target_8 = target_of(a_label_3);
                 a_word_17 = 0x14000000 | ({
     off_10 = ((int64_t)(target_8 - asm_pc)) >> 2;
     if (!((off_10 >= -33554432) && (off_10 <= 33554431))) {
@@ -20397,7 +20397,7 @@ exit_offset_to_8:;
                 asm_error = ASM_ERR_FULL;
             }
             a_label_4 = sl_cont[i];
-            target_9 = arm64_assembler_target_of(a_label_4);
+            target_9 = target_of(a_label_4);
             a_word_19 = 0x14000000 | ({
     off_11 = ((int64_t)(target_9 - asm_pc)) >> 2;
     if (!((off_11 >= -33554432) && (off_11 <= 33554431))) {
@@ -20449,7 +20449,7 @@ exit_offset_to_9:;
             } else if (asm_error == ASM_OK) {
                 asm_error = ASM_ERR_FULL;
             }
-            target_10 = arm64_assembler_target_of(send);
+            target_10 = target_of(send);
             a_word_20 = 0x54000000 | ((((uint64_t)({
     off_12 = ((int64_t)(target_10 - asm_pc)) >> 2;
     if (!((off_12 >= -262144) && (off_12 <= 262143))) {
@@ -20476,7 +20476,7 @@ exit_offset_to_10:;
             }
         }
         if (!((k == 0) || ((k == 1) || ((k == 8) || (k == 9))))) {
-            target_11 = arm64_assembler_target_of(send);
+            target_11 = target_of(send);
             a_word_21 = 0x14000000 | ({
     off_13 = ((int64_t)(target_11 - asm_pc)) >> 2;
     if (!((off_13 >= -33554432) && (off_13 <= 33554431))) {
@@ -20515,7 +20515,7 @@ exit_offset_to_11:;
         } else if (asm_error == ASM_OK) {
             asm_error = ASM_ERR_FULL;
         }
-        target_12 = arm64_assembler_target_of(zero);
+        target_12 = target_of(zero);
         a_word_22 = 3019898880LL | ((((uint64_t)({
     off_14 = ((int64_t)(target_12 - asm_pc)) >> 2;
     if (!((off_14 >= -262144) && (off_14 <= 262143))) {
@@ -20562,7 +20562,7 @@ exit_offset_to_12:;
             asm_error = ASM_ERR_IMMEDIATE;
         }
     exit_add_sub_6:;
-        target_13 = arm64_assembler_target_of(send);
+        target_13 = target_of(send);
         a_word_23 = 0x54000000 | ((((uint64_t)({
     off_15 = ((int64_t)(target_13 - asm_pc)) >> 2;
     if (!((off_15 >= -262144) && (off_15 <= 262143))) {
@@ -20633,7 +20633,7 @@ exit_offset_to_13:;
             asm_error = ASM_ERR_FULL;
         }
     exit_logical_3:;
-        target_14 = arm64_assembler_target_of(cont);
+        target_14 = target_of(cont);
         a_word_26 = 0x14000000 | ({
     off_16 = ((int64_t)(target_14 - asm_pc)) >> 2;
     if (!((off_16 >= -33554432) && (off_16 <= 33554431))) {
@@ -20698,7 +20698,7 @@ exit_offset_to_14:;
             asm_error = ASM_ERR_FULL;
         }
     exit_logical_4:;
-        target_15 = arm64_assembler_target_of(cont);
+        target_15 = target_of(cont);
         a_word_29 = 0x14000000 | ({
     off_17 = ((int64_t)(target_15 - asm_pc)) >> 2;
     if (!((off_17 >= -33554432) && (off_17 <= 33554431))) {
@@ -20719,7 +20719,7 @@ exit_offset_to_15:;
         }
     exit_emit_float_result:;
         arm64_assembler_bind(oa);
-        target_16 = arm64_assembler_target_of(send);
+        target_16 = target_of(send);
         a_word_30 = 3036676096LL | ((((uint64_t)({
     off_18 = ((int64_t)(target_16 - asm_pc)) >> 2;
     if (!((off_18 >= -262144) && (off_18 <= 262143))) {
@@ -20779,7 +20779,7 @@ exit_offset_to_16:;
         } else if (asm_error == ASM_OK) {
             asm_error = ASM_ERR_FULL;
         }
-        target_17 = arm64_assembler_target_of(send);
+        target_17 = target_of(send);
         a_word_34 = 0x54000000 | ((((uint64_t)({
     off_20 = ((int64_t)(target_17 - asm_pc)) >> 2;
     if (!((off_20 >= -262144) && (off_20 <= 262143))) {
@@ -20805,7 +20805,7 @@ exit_offset_to_17:;
         } else if (asm_error == ASM_OK) {
             asm_error = ASM_ERR_FULL;
         }
-        target_18 = arm64_assembler_target_of(da);
+        target_18 = target_of(da);
         a_word_36 = 0x14000000 | ({
     off_21 = ((int64_t)(target_18 - asm_pc)) >> 2;
     if (!((off_21 >= -33554432) && (off_21 <= 33554431))) {
@@ -20841,7 +20841,7 @@ exit_offset_to_18:;
         } else if (asm_error == ASM_OK) {
             asm_error = ASM_ERR_FULL;
         }
-        target_19 = arm64_assembler_target_of(da);
+        target_19 = target_of(da);
         a_word_38 = 0x14000000 | ({
     off_22 = ((int64_t)(target_19 - asm_pc)) >> 2;
     if (!((off_22 >= -33554432) && (off_22 <= 33554431))) {
@@ -20864,7 +20864,7 @@ exit_offset_to_19:;
             goto exit_emit_float_path;
         }
         arm64_assembler_bind(ob);
-        target_20 = arm64_assembler_target_of(send);
+        target_20 = target_of(send);
         a_word_39 = 3036676096LL | ((((uint64_t)({
     off_23 = ((int64_t)(target_20 - asm_pc)) >> 2;
     if (!((off_23 >= -262144) && (off_23 <= 262143))) {
@@ -20924,7 +20924,7 @@ exit_offset_to_20:;
         } else if (asm_error == ASM_OK) {
             asm_error = ASM_ERR_FULL;
         }
-        target_21 = arm64_assembler_target_of(send);
+        target_21 = target_of(send);
         a_word_43 = 0x54000000 | ((((uint64_t)({
     off_25 = ((int64_t)(target_21 - asm_pc)) >> 2;
     if (!((off_25 >= -262144) && (off_25 <= 262143))) {
@@ -20950,7 +20950,7 @@ exit_offset_to_21:;
         } else if (asm_error == ASM_OK) {
             asm_error = ASM_ERR_FULL;
         }
-        target_22 = arm64_assembler_target_of(db);
+        target_22 = target_of(db);
         a_word_45 = 0x14000000 | ({
     off_26 = ((int64_t)(target_22 - asm_pc)) >> 2;
     if (!((off_26 >= -33554432) && (off_26 <= 33554431))) {
@@ -20986,7 +20986,7 @@ exit_offset_to_22:;
         } else if (asm_error == ASM_OK) {
             asm_error = ASM_ERR_FULL;
         }
-        target_23 = arm64_assembler_target_of(db);
+        target_23 = target_of(db);
         a_word_47 = 0x14000000 | ({
     off_27 = ((int64_t)(target_23 - asm_pc)) >> 2;
     if (!((off_27 >= -33554432) && (off_27 <= 33554431))) {
@@ -21030,7 +21030,7 @@ exit_offset_to_23:;
             asm_error = ASM_ERR_FULL;
         }
     exit_logical_5:;
-        target_24 = arm64_assembler_target_of(send);
+        target_24 = target_of(send);
         a_word_49 = 0x54000000 | ((((uint64_t)({
     off_28 = ((int64_t)(target_24 - asm_pc)) >> 2;
     if (!((off_28 >= -262144) && (off_28 <= 262143))) {
@@ -21087,7 +21087,7 @@ exit_offset_to_24:;
         } else if (asm_error == ASM_OK) {
             asm_error = ASM_ERR_FULL;
         }
-        target_25 = arm64_assembler_target_of(str);
+        target_25 = target_of(str);
         a_word_53 = 0x54000000 | ((((uint64_t)({
     off_30 = ((int64_t)(target_25 - asm_pc)) >> 2;
     if (!((off_30 >= -262144) && (off_30 <= 262143))) {
@@ -21138,7 +21138,7 @@ exit_offset_to_25:;
             } else if (asm_error == ASM_OK) {
                 asm_error = ASM_ERR_FULL;
             }
-            target_26 = arm64_assembler_target_of(str);
+            target_26 = target_of(str);
             a_word_56 = 0x54000000 | ((((uint64_t)({
     off_32 = ((int64_t)(target_26 - asm_pc)) >> 2;
     if (!((off_32 >= -262144) && (off_32 <= 262143))) {
@@ -21189,7 +21189,7 @@ exit_offset_to_26:;
         } else if (asm_error == ASM_OK) {
             asm_error = ASM_ERR_FULL;
         }
-        target_27 = arm64_assembler_target_of(send);
+        target_27 = target_of(send);
         a_word_59 = 0x54000000 | ((((uint64_t)({
     off_34 = ((int64_t)(target_27 - asm_pc)) >> 2;
     if (!((off_34 >= -262144) && (off_34 <= 262143))) {
@@ -21300,7 +21300,7 @@ exit_offset_to_27:;
             }
         exit_logical_6:;
             a_label_5 = sl_cont[i];
-            target_28 = arm64_assembler_target_of(a_label_5);
+            target_28 = target_of(a_label_5);
             a_word_64 = 0x14000000 | ({
     off_35 = ((int64_t)(target_28 - asm_pc)) >> 2;
     if (!((off_35 >= -33554432) && (off_35 <= 33554431))) {
@@ -21324,7 +21324,7 @@ exit_offset_to_28:;
         if (asm_noting) {
             note("a SmallInteger index within the bytes", 0);
         }
-        target_29 = arm64_assembler_target_of(send);
+        target_29 = target_of(send);
         a_word_65 = 905969664ULL | ((((uint64_t)({
     off_36 = ((int64_t)(target_29 - asm_pc)) >> 2;
     if (!((off_36 >= -8192) && (off_36 <= 8191))) {
@@ -21367,7 +21367,7 @@ exit_offset_to_29:;
         } else if (asm_error == ASM_OK) {
             asm_error = ASM_ERR_FULL;
         }
-        target_30 = arm64_assembler_target_of(send);
+        target_30 = target_of(send);
         a_word_67 = 0x54000000 | ((((uint64_t)({
     off_37 = ((int64_t)(target_30 - asm_pc)) >> 2;
     if (!((off_37 >= -262144) && (off_37 <= 262143))) {
@@ -21445,7 +21445,7 @@ exit_offset_to_30:;
             }
         exit_logical_7:;
             a_label_6 = sl_cont[i];
-            target_31 = arm64_assembler_target_of(a_label_6);
+            target_31 = target_of(a_label_6);
             a_word_71 = 0x14000000 | ({
     off_38 = ((int64_t)(target_31 - asm_pc)) >> 2;
     if (!((off_38 >= -33554432) && (off_38 <= 33554431))) {
@@ -21469,7 +21469,7 @@ exit_offset_to_31:;
         if (asm_noting) {
             note("not immutable, a byte value", 0);
         }
-        target_32 = arm64_assembler_target_of(send);
+        target_32 = target_of(send);
         a_word_72 = 3084386304ULL | ((((uint64_t)({
     off_39 = ((int64_t)(target_32 - asm_pc)) >> 2;
     if (!((off_39 >= -8192) && (off_39 <= 8191))) {
@@ -21488,7 +21488,7 @@ exit_offset_to_32:;
         } else if (asm_error == ASM_OK) {
             asm_error = ASM_ERR_FULL;
         }
-        target_33 = arm64_assembler_target_of(send);
+        target_33 = target_of(send);
         a_word_73 = 905969664ULL | ((((uint64_t)({
     off_40 = ((int64_t)(target_33 - asm_pc)) >> 2;
     if (!((off_40 >= -8192) && (off_40 <= 8191))) {
@@ -21525,7 +21525,7 @@ exit_offset_to_33:;
             asm_error = ASM_ERR_IMMEDIATE;
         }
     exit_add_sub_11:;
-        target_34 = arm64_assembler_target_of(send);
+        target_34 = target_of(send);
         a_word_75 = 0x54000000 | ((((uint64_t)({
     off_41 = ((int64_t)(target_34 - asm_pc)) >> 2;
     if (!((off_41 >= -262144) && (off_41 <= 262143))) {
@@ -21589,7 +21589,7 @@ exit_offset_to_34:;
         exit_logical_8:;
         }
         a_label_7 = sl_cont[i];
-        target_35 = arm64_assembler_target_of(a_label_7);
+        target_35 = target_of(a_label_7);
         a_word_79 = 0x14000000 | ({
     off_42 = ((int64_t)(target_35 - asm_pc)) >> 2;
     if (!((off_42 >= -33554432) && (off_42 <= 33554431))) {
@@ -21702,7 +21702,7 @@ exit_offset_to_35:;
             }
         exit_logical_9:;
             a_label_8 = sl_cont[i];
-            target_36 = arm64_assembler_target_of(a_label_8);
+            target_36 = target_of(a_label_8);
             a_word_84 = 0x14000000 | ({
     off_43 = ((int64_t)(target_36 - asm_pc)) >> 2;
     if (!((off_43 >= -33554432) && (off_43 <= 33554431))) {
@@ -21726,7 +21726,7 @@ exit_offset_to_36:;
         if (asm_noting) {
             note("a SmallInteger index within the bytes", 0);
         }
-        target_37 = arm64_assembler_target_of(send);
+        target_37 = target_of(send);
         a_word_85 = 905969664ULL | ((((uint64_t)({
     off_44 = ((int64_t)(target_37 - asm_pc)) >> 2;
     if (!((off_44 >= -8192) && (off_44 <= 8191))) {
@@ -21769,7 +21769,7 @@ exit_offset_to_37:;
         } else if (asm_error == ASM_OK) {
             asm_error = ASM_ERR_FULL;
         }
-        target_38 = arm64_assembler_target_of(send);
+        target_38 = target_of(send);
         a_word_87 = 0x54000000 | ((((uint64_t)({
     off_45 = ((int64_t)(target_38 - asm_pc)) >> 2;
     if (!((off_45 >= -262144) && (off_45 <= 262143))) {
@@ -21850,7 +21850,7 @@ exit_offset_to_38:;
             }
         exit_logical_10:;
             a_label_9 = sl_cont[i];
-            target_39 = arm64_assembler_target_of(a_label_9);
+            target_39 = target_of(a_label_9);
             a_word_91 = 0x14000000 | ({
     off_46 = ((int64_t)(target_39 - asm_pc)) >> 2;
     if (!((off_46 >= -33554432) && (off_46 <= 33554431))) {
@@ -21874,7 +21874,7 @@ exit_offset_to_39:;
         if (asm_noting) {
             note("not immutable, a byte value", 0);
         }
-        target_40 = arm64_assembler_target_of(send);
+        target_40 = target_of(send);
         a_word_92 = 3084386304ULL | ((((uint64_t)({
     off_47 = ((int64_t)(target_40 - asm_pc)) >> 2;
     if (!((off_47 >= -8192) && (off_47 <= 8191))) {
@@ -21919,7 +21919,7 @@ exit_offset_to_40:;
             asm_error = ASM_ERR_IMMEDIATE;
         }
     exit_add_sub_17:;
-        target_41 = arm64_assembler_target_of(send);
+        target_41 = target_of(send);
         a_word_94 = 0x54000000 | ((((uint64_t)({
     off_48 = ((int64_t)(target_41 - asm_pc)) >> 2;
     if (!((off_48 >= -262144) && (off_48 <= 262143))) {
@@ -21956,7 +21956,7 @@ exit_offset_to_41:;
             asm_error = ASM_ERR_IMMEDIATE;
         }
     exit_add_sub_18:;
-        target_42 = arm64_assembler_target_of(send);
+        target_42 = target_of(send);
         a_word_96 = 0x54000000 | ((((uint64_t)({
     off_49 = ((int64_t)(target_42 - asm_pc)) >> 2;
     if (!((off_49 >= -262144) && (off_49 <= 262143))) {
@@ -22020,7 +22020,7 @@ exit_offset_to_42:;
         exit_logical_12:;
         }
         a_label_10 = sl_cont[i];
-        target_43 = arm64_assembler_target_of(a_label_10);
+        target_43 = target_of(a_label_10);
         a_word_100 = 0x14000000 | ({
     off_50 = ((int64_t)(target_43 - asm_pc)) >> 2;
     if (!((off_50 >= -33554432) && (off_50 <= 33554431))) {
@@ -22714,7 +22714,7 @@ exit_length_of:;
             int_ = new_label();
             obj = new_label();
             done = new_label();
-            target_44 = arm64_assembler_target_of(int_);
+            target_44 = target_of(int_);
             a_word_139 = 922746880ULL | ((((uint64_t)({
     off_69 = ((int64_t)(target_44 - asm_pc)) >> 2;
     if (!((off_69 >= -8192) && (off_69 <= 8191))) {
@@ -22759,7 +22759,7 @@ exit_offset_to_44:;
                 asm_error = ASM_ERR_IMMEDIATE;
             }
         exit_add_sub_20:;
-            target_45 = arm64_assembler_target_of(obj);
+            target_45 = target_of(obj);
             a_word_141 = 0x54000000 | ((((uint64_t)({
     off_70 = ((int64_t)(target_45 - asm_pc)) >> 2;
     if (!((off_70 >= -262144) && (off_70 <= 262143))) {
@@ -22834,7 +22834,7 @@ exit_offset_to_45:;
                     asm_error = ASM_ERR_FULL;
                 }
             }
-            target_46 = arm64_assembler_target_of(done);
+            target_46 = target_of(done);
             a_word_144 = 0x14000000 | ({
     off_71 = ((int64_t)(target_46 - asm_pc)) >> 2;
     if (!((off_71 >= -33554432) && (off_71 <= 33554431))) {
@@ -22854,7 +22854,7 @@ exit_offset_to_46:;
                 asm_error = ASM_ERR_FULL;
             }
             arm64_assembler_bind(obj);
-            target_47 = arm64_assembler_target_of(leave_2);
+            target_47 = target_of(leave_2);
             a_word_145 = 3036676096LL | ((((uint64_t)({
     off_72 = ((int64_t)(target_47 - asm_pc)) >> 2;
     if (!((off_72 >= -262144) && (off_72 <= 262143))) {
@@ -22913,7 +22913,7 @@ exit_offset_to_47:;
             } else if (asm_error == ASM_OK) {
                 asm_error = ASM_ERR_FULL;
             }
-            target_48 = arm64_assembler_target_of(leave_2);
+            target_48 = target_of(leave_2);
             a_word_148 = 0x54000000 | ((((uint64_t)({
     off_74 = ((int64_t)(target_48 - asm_pc)) >> 2;
     if (!((off_74 >= -262144) && (off_74 <= 262143))) {
@@ -22952,7 +22952,7 @@ exit_offset_to_48:;
                     asm_error = ASM_ERR_FULL;
                 }
             }
-            target_49 = arm64_assembler_target_of(done);
+            target_49 = target_of(done);
             a_word_151 = 0x14000000 | ({
     off_75 = ((int64_t)(target_49 - asm_pc)) >> 2;
     if (!((off_75 >= -33554432) && (off_75 <= 33554431))) {
@@ -23025,7 +23025,7 @@ exit_offset_to_49:;
         int__2 = new_label();
         obj_2 = new_label();
         done_2 = new_label();
-        target_50 = arm64_assembler_target_of(int__2);
+        target_50 = target_of(int__2);
         a_word_155 = 922746880ULL | ((((uint64_t)({
     off_77 = ((int64_t)(target_50 - asm_pc)) >> 2;
     if (!((off_77 >= -8192) && (off_77 <= 8191))) {
@@ -23070,7 +23070,7 @@ exit_offset_to_50:;
             asm_error = ASM_ERR_IMMEDIATE;
         }
     exit_add_sub_22:;
-        target_51 = arm64_assembler_target_of(obj_2);
+        target_51 = target_of(obj_2);
         a_word_157 = 0x54000000 | ((((uint64_t)({
     off_78 = ((int64_t)(target_51 - asm_pc)) >> 2;
     if (!((off_78 >= -262144) && (off_78 <= 262143))) {
@@ -23145,7 +23145,7 @@ exit_offset_to_51:;
                 asm_error = ASM_ERR_FULL;
             }
         }
-        target_52 = arm64_assembler_target_of(done_2);
+        target_52 = target_of(done_2);
         a_word_160 = 0x14000000 | ({
     off_79 = ((int64_t)(target_52 - asm_pc)) >> 2;
     if (!((off_79 >= -33554432) && (off_79 <= 33554431))) {
@@ -23165,7 +23165,7 @@ exit_offset_to_52:;
             asm_error = ASM_ERR_FULL;
         }
         arm64_assembler_bind(obj_2);
-        target_53 = arm64_assembler_target_of(leave_2);
+        target_53 = target_of(leave_2);
         a_word_161 = 3036676096LL | ((((uint64_t)({
     off_80 = ((int64_t)(target_53 - asm_pc)) >> 2;
     if (!((off_80 >= -262144) && (off_80 <= 262143))) {
@@ -23224,7 +23224,7 @@ exit_offset_to_53:;
         } else if (asm_error == ASM_OK) {
             asm_error = ASM_ERR_FULL;
         }
-        target_54 = arm64_assembler_target_of(leave_2);
+        target_54 = target_of(leave_2);
         a_word_164 = 0x54000000 | ((((uint64_t)({
     off_82 = ((int64_t)(target_54 - asm_pc)) >> 2;
     if (!((off_82 >= -262144) && (off_82 <= 262143))) {
@@ -23263,7 +23263,7 @@ exit_offset_to_54:;
                 asm_error = ASM_ERR_FULL;
             }
         }
-        target_55 = arm64_assembler_target_of(done_2);
+        target_55 = target_of(done_2);
         a_word_167 = 0x14000000 | ({
     off_83 = ((int64_t)(target_55 - asm_pc)) >> 2;
     if (!((off_83 >= -33554432) && (off_83 <= 33554431))) {
@@ -23301,7 +23301,7 @@ exit_offset_to_55:;
         }
         arm64_assembler_bind(done_2);
         a_label_11 = sl_cont[i];
-        target_56 = arm64_assembler_target_of(a_label_11);
+        target_56 = target_of(a_label_11);
         a_word_169 = 0x14000000 | ({
     off_84 = ((int64_t)(target_56 - asm_pc)) >> 2;
     if (!((off_84 >= -33554432) && (off_84 <= 33554431))) {
@@ -23368,7 +23368,7 @@ exit_offset_to_56:;
             }
         exit_load_store_28:;
         }
-        target_57 = arm64_assembler_target_of(exit_sync_label);
+        target_57 = target_of(exit_sync_label);
         a_word_173 = 0x14000000 | ({
     off_86 = ((int64_t)(target_57 - asm_pc)) >> 2;
     if (!((off_86 >= -33554432) && (off_86 <= 33554431))) {
@@ -23458,7 +23458,7 @@ exit_offset_to_57:;
         int__3 = new_label();
         obj_3 = new_label();
         done_3 = new_label();
-        target_58 = arm64_assembler_target_of(int__3);
+        target_58 = target_of(int__3);
         a_word_178 = 922746880ULL | ((((uint64_t)({
     off_89 = ((int64_t)(target_58 - asm_pc)) >> 2;
     if (!((off_89 >= -8192) && (off_89 <= 8191))) {
@@ -23503,7 +23503,7 @@ exit_offset_to_58:;
             asm_error = ASM_ERR_IMMEDIATE;
         }
     exit_add_sub_24:;
-        target_59 = arm64_assembler_target_of(obj_3);
+        target_59 = target_of(obj_3);
         a_word_180 = 0x54000000 | ((((uint64_t)({
     off_90 = ((int64_t)(target_59 - asm_pc)) >> 2;
     if (!((off_90 >= -262144) && (off_90 <= 262143))) {
@@ -23578,7 +23578,7 @@ exit_offset_to_59:;
                 asm_error = ASM_ERR_FULL;
             }
         }
-        target_60 = arm64_assembler_target_of(done_3);
+        target_60 = target_of(done_3);
         a_word_183 = 0x14000000 | ({
     off_91 = ((int64_t)(target_60 - asm_pc)) >> 2;
     if (!((off_91 >= -33554432) && (off_91 <= 33554431))) {
@@ -23598,7 +23598,7 @@ exit_offset_to_60:;
             asm_error = ASM_ERR_FULL;
         }
         arm64_assembler_bind(obj_3);
-        target_61 = arm64_assembler_target_of(leave);
+        target_61 = target_of(leave);
         a_word_184 = 3036676096LL | ((((uint64_t)({
     off_92 = ((int64_t)(target_61 - asm_pc)) >> 2;
     if (!((off_92 >= -262144) && (off_92 <= 262143))) {
@@ -23657,7 +23657,7 @@ exit_offset_to_61:;
         } else if (asm_error == ASM_OK) {
             asm_error = ASM_ERR_FULL;
         }
-        target_62 = arm64_assembler_target_of(leave);
+        target_62 = target_of(leave);
         a_word_187 = 0x54000000 | ((((uint64_t)({
     off_94 = ((int64_t)(target_62 - asm_pc)) >> 2;
     if (!((off_94 >= -262144) && (off_94 <= 262143))) {
@@ -23696,7 +23696,7 @@ exit_offset_to_62:;
                 asm_error = ASM_ERR_FULL;
             }
         }
-        target_63 = arm64_assembler_target_of(done_3);
+        target_63 = target_of(done_3);
         a_word_190 = 0x14000000 | ({
     off_95 = ((int64_t)(target_63 - asm_pc)) >> 2;
     if (!((off_95 >= -33554432) && (off_95 <= 33554431))) {
@@ -23751,7 +23751,7 @@ exit_offset_to_63:;
             asm_error = ASM_ERR_FULL;
         }
         a_label_12 = sl_target[i];
-        target_64 = arm64_assembler_target_of(a_label_12);
+        target_64 = target_of(a_label_12);
         a_word_193 = 0x54000000 | ((((uint64_t)({
     off_96 = ((int64_t)(target_64 - asm_pc)) >> 2;
     if (!((off_96 >= -262144) && (off_96 <= 262143))) {
@@ -23779,7 +23779,7 @@ exit_offset_to_64:;
             asm_error = ASM_ERR_FULL;
         }
         a_label_13 = sl_cont[i];
-        target_65 = arm64_assembler_target_of(a_label_13);
+        target_65 = target_of(a_label_13);
         a_word_195 = 0x54000000 | ((((uint64_t)({
     off_97 = ((int64_t)(target_65 - asm_pc)) >> 2;
     if (!((off_97 >= -262144) && (off_97 <= 262143))) {
@@ -23874,7 +23874,7 @@ exit_offset_to_65:;
             }
         exit_load_store_33:;
         }
-        target_66 = arm64_assembler_target_of(exit_sync_label);
+        target_66 = target_of(exit_sync_label);
         a_word_201 = 0x14000000 | ({
     off_100 = ((int64_t)(target_66 - asm_pc)) >> 2;
     if (!((off_100 >= -33554432) && (off_100 <= 33554431))) {
@@ -24034,7 +24034,7 @@ exit_length_of_2:;
                 }
             exit_load_store_35:;
             }
-            target_67 = arm64_assembler_target_of(exit_sync_label);
+            target_67 = target_of(exit_sync_label);
             a_word_207 = 0x14000000 | ({
     off_103 = ((int64_t)(target_67 - asm_pc)) >> 2;
     if (!((off_103 >= -33554432) && (off_103 <= 33554431))) {
@@ -24098,7 +24098,7 @@ exit_offset_to_67:;
         }
     }
     a_label_14 = sl_cont[i];
-    target_68 = arm64_assembler_target_of(a_label_14);
+    target_68 = target_of(a_label_14);
     a_word_211 = 0x14000000 | ({
     off_104 = ((int64_t)(target_68 - asm_pc)) >> 2;
     if (!((off_104 >= -33554432) && (off_104 <= 33554431))) {
@@ -24258,7 +24258,7 @@ exit_length_of_3:;
             }
         exit_load_store_37:;
         }
-        target_69 = arm64_assembler_target_of(exit_sync_label);
+        target_69 = target_of(exit_sync_label);
         a_word_217 = 0x14000000 | ({
     off_107 = ((int64_t)(target_69 - asm_pc)) >> 2;
     if (!((off_107 >= -33554432) && (off_107 <= 33554431))) {
@@ -24335,7 +24335,7 @@ static bool emit_stack_check(int32_t pc)
     }
     sl_cont[s] = check;
     a_label = sl_label[s];
-    target = arm64_assembler_target_of(a_label);
+    target = target_of(a_label);
     a_word_3 = 0x54000000 | ((((uint64_t)({
     off_2 = ((int64_t)(target - asm_pc)) >> 2;
     if (!((off_2 >= -262144) && (off_2 <= 262143))) {
@@ -24422,7 +24422,7 @@ static void emit_string_compare_primitive(int32_t fail)
         asm_error = ASM_ERR_FULL;
     }
 exit_logical:;
-    target = arm64_assembler_target_of(fail);
+    target = target_of(fail);
     a_word_2 = 0x54000000 | ((((uint64_t)({
     off = ((int64_t)(target - asm_pc)) >> 2;
     if (!((off >= -262144) && (off <= 262143))) {
@@ -24464,7 +24464,7 @@ exit_offset_to:;
         asm_error = ASM_ERR_IMMEDIATE;
     }
 exit_add_sub:;
-    target_2 = arm64_assembler_target_of(fail);
+    target_2 = target_of(fail);
     a_word_3 = 0x54000000 | ((((uint64_t)({
     off_2 = ((int64_t)(target_2 - asm_pc)) >> 2;
     if (!((off_2 >= -262144) && (off_2 <= 262143))) {
@@ -24506,7 +24506,7 @@ exit_offset_to_2:;
         asm_error = ASM_ERR_IMMEDIATE;
     }
 exit_add_sub_2:;
-    target_3 = arm64_assembler_target_of(fail);
+    target_3 = target_of(fail);
     a_word_4 = 0x54000000 | ((((uint64_t)({
     off_3 = ((int64_t)(target_3 - asm_pc)) >> 2;
     if (!((off_3 >= -262144) && (off_3 <= 262143))) {
@@ -24621,7 +24621,7 @@ exit_add_sub_6:;
         note("the common bytes", 0);
     }
     arm64_assembler_bind(loop);
-    target_4 = arm64_assembler_target_of(sizes);
+    target_4 = target_of(sizes);
     a_word_5 = 3019898880LL | ((((uint64_t)({
     off_4 = ((int64_t)(target_4 - asm_pc)) >> 2;
     if (!((off_4 >= -262144) && (off_4 <= 262143))) {
@@ -24669,7 +24669,7 @@ exit_add_sub_7:;
     } else if (asm_error == ASM_OK) {
         asm_error = ASM_ERR_FULL;
     }
-    target_5 = arm64_assembler_target_of(loop);
+    target_5 = target_of(loop);
     a_word_6 = 0x54000000 | ((((uint64_t)({
     off_5 = ((int64_t)(target_5 - asm_pc)) >> 2;
     if (!((off_5 >= -262144) && (off_5 <= 262143))) {
@@ -24727,7 +24727,7 @@ exit_offset_to_5:;
     } else if (asm_error == ASM_OK) {
         asm_error = ASM_ERR_FULL;
     }
-    target_6 = arm64_assembler_target_of(differ);
+    target_6 = target_of(differ);
     a_word_7 = 0x54000000 | ((((uint64_t)({
     off_6 = ((int64_t)(target_6 - asm_pc)) >> 2;
     if (!((off_6 >= -262144) && (off_6 <= 262143))) {
@@ -24827,7 +24827,7 @@ static void emit_string_primitive(bool is_put, int32_t fail)
         asm_error = ASM_ERR_FULL;
     }
 exit_logical:;
-    target = arm64_assembler_target_of(fail);
+    target = target_of(fail);
     a_word_2 = 0x54000000 | ((((uint64_t)({
     off = ((int64_t)(target - asm_pc)) >> 2;
     if (!((off >= -262144) && (off <= 262143))) {
@@ -24873,7 +24873,7 @@ exit_offset_to:;
     } else if (asm_error == ASM_OK) {
         asm_error = ASM_ERR_FULL;
     }
-    target_2 = arm64_assembler_target_of(fail);
+    target_2 = target_of(fail);
     a_word_3 = 905969664ULL | ((((uint64_t)({
     off_2 = ((int64_t)(target_2 - asm_pc)) >> 2;
     if (!((off_2 >= -8192) && (off_2 <= 8191))) {
@@ -24913,7 +24913,7 @@ exit_add_sub:;
         if (asm_noting) {
             note("not immutable; a Character, its code in x12", 0);
         }
-        target_3 = arm64_assembler_target_of(fail);
+        target_3 = target_of(fail);
         a_word_4 = 3084386304ULL | ((((uint64_t)({
     off_3 = ((int64_t)(target_3 - asm_pc)) >> 2;
     if (!((off_3 >= -8192) && (off_3 <= 8191))) {
@@ -24964,7 +24964,7 @@ exit_offset_to_3:;
             asm_error = ASM_ERR_IMMEDIATE;
         }
     exit_add_sub_2:;
-        target_4 = arm64_assembler_target_of(fail);
+        target_4 = target_of(fail);
         a_word_6 = 0x54000000 | ((((uint64_t)({
     off_4 = ((int64_t)(target_4 - asm_pc)) >> 2;
     if (!((off_4 >= -262144) && (off_4 <= 262143))) {
@@ -25012,7 +25012,7 @@ exit_add_sub_3:;
         asm_error = ASM_ERR_IMMEDIATE;
     }
 exit_add_sub_4:;
-    target_5 = arm64_assembler_target_of(words);
+    target_5 = target_of(words);
     a_word_7 = 0x54000000 | ((((uint64_t)({
     off_5 = ((int64_t)(target_5 - asm_pc)) >> 2;
     if (!((off_5 >= -262144) && (off_5 <= 262143))) {
@@ -25063,7 +25063,7 @@ exit_add_sub_5:;
     } else if (asm_error == ASM_OK) {
         asm_error = ASM_ERR_FULL;
     }
-    target_6 = arm64_assembler_target_of(fail);
+    target_6 = target_of(fail);
     a_word_8 = 0x54000000 | ((((uint64_t)({
     off_6 = ((int64_t)(target_6 - asm_pc)) >> 2;
     if (!((off_6 >= -262144) && (off_6 <= 262143))) {
@@ -25094,7 +25094,7 @@ exit_offset_to_6:;
             asm_error = ASM_ERR_IMMEDIATE;
         }
     exit_add_sub_6:;
-        target_7 = arm64_assembler_target_of(fail);
+        target_7 = target_of(fail);
         a_word_9 = 0x54000000 | ((((uint64_t)({
     off_7 = ((int64_t)(target_7 - asm_pc)) >> 2;
     if (!((off_7 >= -262144) && (off_7 <= 262143))) {
@@ -25175,7 +25175,7 @@ exit_offset_to_7:;
         asm_error = ASM_ERR_IMMEDIATE;
     }
 exit_add_sub_7:;
-    target_8 = arm64_assembler_target_of(fail);
+    target_8 = target_of(fail);
     a_word_11 = 0x54000000 | ((((uint64_t)({
     off_8 = ((int64_t)(target_8 - asm_pc)) >> 2;
     if (!((off_8 >= -262144) && (off_8 <= 262143))) {
@@ -25205,7 +25205,7 @@ exit_offset_to_8:;
         asm_error = ASM_ERR_IMMEDIATE;
     }
 exit_add_sub_8:;
-    target_9 = arm64_assembler_target_of(fail);
+    target_9 = target_of(fail);
     a_word_12 = 0x54000000 | ((((uint64_t)({
     off_9 = ((int64_t)(target_9 - asm_pc)) >> 2;
     if (!((off_9 >= -262144) && (off_9 <= 262143))) {
@@ -25253,7 +25253,7 @@ exit_add_sub_9:;
     } else if (asm_error == ASM_OK) {
         asm_error = ASM_ERR_FULL;
     }
-    target_10 = arm64_assembler_target_of(fail);
+    target_10 = target_of(fail);
     a_word_13 = 0x54000000 | ((((uint64_t)({
     off_10 = ((int64_t)(target_10 - asm_pc)) >> 2;
     if (!((off_10 >= -262144) && (off_10 <= 262143))) {
@@ -25381,7 +25381,7 @@ static void emit_uint32_primitive(bool is_put, int32_t fail)
         asm_error = ASM_ERR_FULL;
     }
 exit_logical:;
-    target = arm64_assembler_target_of(fail);
+    target = target_of(fail);
     a_word_2 = 0x54000000 | ((((uint64_t)({
     off = ((int64_t)(target - asm_pc)) >> 2;
     if (!((off >= -262144) && (off <= 262143))) {
@@ -25423,7 +25423,7 @@ exit_offset_to:;
         asm_error = ASM_ERR_IMMEDIATE;
     }
 exit_add_sub:;
-    target_2 = arm64_assembler_target_of(fail);
+    target_2 = target_of(fail);
     a_word_3 = 0x54000000 | ((((uint64_t)({
     off_2 = ((int64_t)(target_2 - asm_pc)) >> 2;
     if (!((off_2 >= -262144) && (off_2 <= 262143))) {
@@ -25443,7 +25443,7 @@ exit_offset_to_2:;
         asm_error = ASM_ERR_FULL;
     }
     if (is_put) {
-        target_3 = arm64_assembler_target_of(fail);
+        target_3 = target_of(fail);
         a_word_4 = 3084386304ULL | ((((uint64_t)({
     off_3 = ((int64_t)(target_3 - asm_pc)) >> 2;
     if (!((off_3 >= -8192) && (off_3 <= 8191))) {
@@ -25501,7 +25501,7 @@ exit_add_sub_2:;
     } else if (asm_error == ASM_OK) {
         asm_error = ASM_ERR_FULL;
     }
-    target_4 = arm64_assembler_target_of(fail);
+    target_4 = target_of(fail);
     a_word_5 = 905969664ULL | ((((uint64_t)({
     off_4 = ((int64_t)(target_4 - asm_pc)) >> 2;
     if (!((off_4 >= -8192) && (off_4 <= 8191))) {
@@ -25537,7 +25537,7 @@ exit_offset_to_4:;
         asm_error = ASM_ERR_IMMEDIATE;
     }
 exit_add_sub_3:;
-    target_5 = arm64_assembler_target_of(fail);
+    target_5 = target_of(fail);
     a_word_6 = 3086483456ULL | ((((uint64_t)({
     off_5 = ((int64_t)(target_5 - asm_pc)) >> 2;
     if (!((off_5 >= -8192) && (off_5 <= 8191))) {
@@ -25573,7 +25573,7 @@ exit_add_sub_4:;
     } else if (asm_error == ASM_OK) {
         asm_error = ASM_ERR_FULL;
     }
-    target_6 = arm64_assembler_target_of(fail);
+    target_6 = target_of(fail);
     a_word_7 = 0x54000000 | ((((uint64_t)({
     off_6 = ((int64_t)(target_6 - asm_pc)) >> 2;
     if (!((off_6 >= -262144) && (off_6 <= 262143))) {
@@ -25645,7 +25645,7 @@ exit_add_sub_5:;
     } else if (asm_error == ASM_OK) {
         asm_error = ASM_ERR_FULL;
     }
-    target_7 = arm64_assembler_target_of(fail);
+    target_7 = target_of(fail);
     a_word_9 = 905969664ULL | ((((uint64_t)({
     off_7 = ((int64_t)(target_7 - asm_pc)) >> 2;
     if (!((off_7 >= -8192) && (off_7 <= 8191))) {
@@ -25676,7 +25676,7 @@ exit_offset_to_7:;
     } else if (asm_error == ASM_OK) {
         asm_error = ASM_ERR_FULL;
     }
-    target_8 = arm64_assembler_target_of(fail);
+    target_8 = target_of(fail);
     a_word_10 = 3036676096LL | ((((uint64_t)({
     off_8 = ((int64_t)(target_8 - asm_pc)) >> 2;
     if (!((off_8 >= -262144) && (off_8 <= 262143))) {
@@ -26071,7 +26071,7 @@ exit_emit_compare_result:;
             asm_error = ASM_ERR_FULL;
         }
         a_label = sl_label[s];
-        target = arm64_assembler_target_of(a_label);
+        target = target_of(a_label);
         a_word_4 = 0x54000000 | ((((uint64_t)({
     off = ((int64_t)(target - asm_pc)) >> 2;
     if (!((off >= -262144) && (off <= 262143))) {
@@ -26198,7 +26198,7 @@ static void head_check(int32_t h)
     exit_load_store:;
     }
     a_label = sl_label[s];
-    target = arm64_assembler_target_of(a_label);
+    target = target_of(a_label);
     a_word_3 = 889192448 | ((((uint64_t)({
     off_2 = ((int64_t)(target - asm_pc)) >> 2;
     if (!((off_2 >= -262144) && (off_2 <= 262143))) {
@@ -26245,7 +26245,7 @@ static void load_literal(int64_t i, int r)
     }
     r_literal_label = pool_labels[i_2];
     r_literal_label; });
-    target = arm64_assembler_target_of(a_label);
+    target = target_of(a_label);
     a_word = ((r & REG_D) != 0 ? 0x5C000000 : (r & REG_W) == 0 ? 0x58000000 : 0x18000000) | ((((uint64_t)({
     off = ((int64_t)(target - asm_pc)) >> 2;
     if (!((off >= -262144) && (off <= 262143))) {
@@ -26956,7 +26956,7 @@ exit_identical:;
     }
 exit_logical:;
     a_label = sl_label[s];
-    target = arm64_assembler_target_of(a_label);
+    target = target_of(a_label);
     a_word_7 = 0x54000000 | ((((uint64_t)({
     off = ((int64_t)(target - asm_pc)) >> 2;
     if (!((off >= -262144) && (off <= 262143))) {
@@ -28690,7 +28690,7 @@ exit_length_of:;
     }
 exit_logical:;
     a_label = sl_label[s];
-    target = arm64_assembler_target_of(a_label);
+    target = target_of(a_label);
     a_word_2 = 0x54000000 | ((((uint64_t)({
     off_2 = ((int64_t)(target - asm_pc)) >> 2;
     if (!((off_2 >= -262144) && (off_2 <= 262143))) {
@@ -28747,7 +28747,7 @@ exit_offset_to:;
         asm_error = ASM_ERR_FULL;
     }
     a_label_2 = sl_label[s];
-    target_2 = arm64_assembler_target_of(a_label_2);
+    target_2 = target_of(a_label_2);
     a_word_5 = 0x54000000 | ((((uint64_t)({
     off_4 = ((int64_t)(target_2 - asm_pc)) >> 2;
     if (!((off_4 >= -262144) && (off_4 <= 262143))) {
@@ -28801,7 +28801,7 @@ exit_offset_to_2:;
     }
 exit_add_sub:;
     a_label_3 = sl_label[s];
-    target_3 = arm64_assembler_target_of(a_label_3);
+    target_3 = target_of(a_label_3);
     a_word_8 = 0x54000000 | ((((uint64_t)({
     off_5 = ((int64_t)(target_3 - asm_pc)) >> 2;
     if (!((off_5 >= -262144) && (off_5 <= 262143))) {
@@ -28878,7 +28878,7 @@ exit_offset_to_3:;
             asm_error = ASM_ERR_FULL;
         }
     }
-    target_4 = arm64_assembler_target_of(block_label);
+    target_4 = target_of(block_label);
     a_word_12 = 0x94000000LL | ({
     off_6 = ((int64_t)(target_4 - asm_pc)) >> 2;
     if (!((off_6 >= -33554432) && (off_6 <= 33554431))) {
