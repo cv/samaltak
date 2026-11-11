@@ -1011,7 +1011,7 @@ emitAddSub: n
 	self def: n from: X16
 !
 emitDivShift: n
-	"SmallInteger modulo and division (floored, aux 1 truncated: rem: quo:; a zero divisor deoptimizes) and bitShift: (a result that does not fit deoptimizes)."
+	"SmallInteger modulo and division (floored, aux 1 truncated: rem: quo:, aux 2 exact: /, a remainder deoptimizes; a zero divisor deoptimizes) and bitShift: (a result that does not fit deoptimizes)."
 	| nd s op neg done |
 	nd := ir node: n.
 	op := nd op asInt32.
@@ -1044,7 +1044,10 @@ emitDivShift: n
 	asm cbz: X17 to: s.
 	asm sdiv: X15 with: X16 with: X17.
 	asm msub: X14 with: X15 with: X17 sub: X16.
-	nd aux = 1 ifTrue: [asm b: done].
+	nd aux = 2 ifTrue: [
+		asm comment: 'exact: a remainder deoptimizes (the interpreter makes the Fraction)'.
+		asm cbnz: X14 to: s].
+	nd aux >= 1 ifTrue: [asm b: done].
 	asm comment: 'floored: a remainder of the divisor''s other sign moves'.
 	asm cbz: X14 to: done.
 	asm eor: X16 with: X14 with: X17.

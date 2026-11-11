@@ -3344,7 +3344,7 @@ exit_saw_float_in:;
                 opt_builder_float_arith(k_4, x_2, y_2, pc, a, d_10);
                 goto exit_special;
             }
-            if ((k_4 != 9) && (((fl & 46) == 0) && ({
+            if (((fl & 46) == 0) && ({
     site_2 = site_at((opt_acts + a)->method, pc);
     if (site_2 == NULL) {
         r_saw_only_ints_at = true;
@@ -3358,7 +3358,7 @@ exit_saw_float_in:;
     }
     r_saw_only_ints_at = true;
 exit_saw_only_ints_at:;
-    r_saw_only_ints_at; }))) {
+    r_saw_only_ints_at; })) {
                 s_4 = state_act(a, pc, (int32_t)ob_ana_depth[(opt_acts + a)->ana + pc]);
                 gx = ({
     if ((int32_t)(opt_nodes + x_2)->tkind == T_SMI) {
@@ -3433,6 +3433,9 @@ exit_guard_int_4:;
                 case 8:
                     v_34 = O_IMUL;
                     break;
+                case 9:
+                    v_34 = O_IDIV;
+                    break;
                 case 10:
                     v_34 = O_IMOD;
                     break;
@@ -3472,7 +3475,10 @@ exit_guard_int_4:;
                 if (k_4 >= 16) {
                     (opt_nodes + n_141)->aux = 1;
                 }
-                if ((k_4 <= 1) || ((k_4 == 8) || ((k_4 == 10) || ((k_4 == 12) || ((k_4 == 13) || (k_4 >= 16)))))) {
+                if (k_4 == 9) {
+                    (opt_nodes + n_141)->aux = 2;
+                }
+                if ((k_4 <= 1) || (((k_4 >= 8) && (k_4 <= 10)) || ((k_4 == 12) || ((k_4 == 13) || (k_4 >= 16))))) {
                     (opt_nodes + n_141)->state = s_4;
                 }
                 var_51 = (opt_acts + a)->var_base + d_10;
@@ -4067,7 +4073,7 @@ exit_saw_float_in_2:;
                 opt_builder_float_arith(k_5, x_3, y_4, pc, a, r_4);
                 goto exit_special_2;
             }
-            if ((k_5 != 9) && (((fl_2 & 46) == 0) && ({
+            if (((fl_2 & 46) == 0) && ({
     site_4 = site_at((opt_acts + a)->method, pc);
     if (site_4 == NULL) {
         r_saw_only_ints_at_2 = true;
@@ -4081,7 +4087,7 @@ exit_saw_float_in_2:;
     }
     r_saw_only_ints_at_2 = true;
 exit_saw_only_ints_at_2:;
-    r_saw_only_ints_at_2; }))) {
+    r_saw_only_ints_at_2; })) {
                 s_7 = state_act(a, pc, (int32_t)ob_ana_depth[(opt_acts + a)->ana + pc]);
                 gx_2 = ({
     if ((int32_t)(opt_nodes + x_3)->tkind == T_SMI) {
@@ -4156,6 +4162,9 @@ exit_guard_int_8:;
                 case 8:
                     v_41 = O_IMUL;
                     break;
+                case 9:
+                    v_41 = O_IDIV;
+                    break;
                 case 10:
                     v_41 = O_IMOD;
                     break;
@@ -4195,7 +4204,10 @@ exit_guard_int_8:;
                 if (k_5 >= 16) {
                     (opt_nodes + n_196)->aux = 1;
                 }
-                if ((k_5 <= 1) || ((k_5 == 8) || ((k_5 == 10) || ((k_5 == 12) || ((k_5 == 13) || (k_5 >= 16)))))) {
+                if (k_5 == 9) {
+                    (opt_nodes + n_196)->aux = 2;
+                }
+                if ((k_5 <= 1) || (((k_5 >= 8) && (k_5 <= 10)) || ((k_5 == 12) || ((k_5 == 13) || (k_5 >= 16))))) {
                     (opt_nodes + n_196)->state = s_7;
                 }
                 var_67 = (opt_acts + a)->var_base + r_4;
@@ -4880,7 +4892,7 @@ static void opt_builder_float_arith(int32_t k, int32_t x, int32_t y, int32_t pc,
         seal(t);
         seal(f);
         ob_cur_block = t;
-        if ((k == 9) || ((fl & 40) != 0)) {
+        if ((fl & 40) != 0) {
             o = object_memory_special(SO_SPECIAL_SELECTORS);
             sel = *(uint64_t *)(o + 16 + 8 * k);
             if (getenv("SAMALTAK_OPT_TRACE") != NULL) {
@@ -5091,6 +5103,9 @@ exit_guard_int_2:;
             case 8:
                 v_2 = O_IMUL;
                 break;
+            case 9:
+                v_2 = O_IDIV;
+                break;
             case 10:
                 v_2 = O_IMOD;
                 break;
@@ -5130,7 +5145,10 @@ exit_guard_int_2:;
             if (k >= 16) {
                 (opt_nodes + n_20)->aux = 1;
             }
-            if ((k <= 1) || ((k == 8) || ((k == 10) || ((k == 12) || ((k == 13) || (k >= 16)))))) {
+            if (k == 9) {
+                (opt_nodes + n_20)->aux = 2;
+            }
+            if ((k <= 1) || (((k >= 8) && (k <= 10)) || ((k == 12) || ((k == 13) || (k >= 16))))) {
                 (opt_nodes + n_20)->state = s_2;
             }
             var_4 = (opt_acts + a)->var_base + r;
@@ -6480,6 +6498,9 @@ exit_guard_int_3:;
         case 8:
             v_4 = O_IMUL;
             break;
+        case 9:
+            v_4 = O_IDIV;
+            break;
         case 10:
             v_4 = O_IMOD;
             break;
@@ -6519,7 +6540,10 @@ exit_guard_int_3:;
         if (k >= 16) {
             (opt_nodes + n_29)->aux = 1;
         }
-        if ((k <= 1) || ((k == 8) || ((k == 10) || ((k == 12) || ((k == 13) || (k >= 16)))))) {
+        if (k == 9) {
+            (opt_nodes + n_29)->aux = 2;
+        }
+        if ((k <= 1) || (((k >= 8) && (k <= 10)) || ((k == 12) || ((k == 13) || (k >= 16))))) {
             (opt_nodes + n_29)->state = s_2;
         }
         var_13 = (opt_acts + a)->var_base + r;

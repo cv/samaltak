@@ -1114,8 +1114,8 @@ special: k pc: pc act: a rcvSlot: r
 		(k <= 9 and: [(runtime flag: runtime unboxFlag) and: [(fl bitAnd: (feedback sawNonInt bitOr: feedback deoptOther)) = 0 and: [
 			(self isFloat: x) or: [(self isFloat: y) or: [(self sawOnlyNumbersAt: pc act: a) and: [(fl bitAnd: feedback sawFloat) ~= 0 or: [self sawFloatIn: (ir act: a) method]]]]]]]) ifTrue: [
 				^self floatArith: k x: x y: y pc: pc act: a rcvSlot: r].
-		(k ~= 9 and: [(fl bitAnd: ((feedback sawFloat bitOr: feedback sawNonInt) bitOr: (feedback deoptArith bitOr: feedback overflowed))) = 0 and: [
-			(self sawOnlyIntsAt: pc act: a)]]) ifTrue: [
+		((fl bitAnd: ((feedback sawFloat bitOr: feedback sawNonInt) bitOr: (feedback deoptArith bitOr: feedback overflowed))) = 0 and: [
+			self sawOnlyIntsAt: pc act: a]) ifTrue: [
 				^self intArith: k x: x y: y pc: pc act: a rcvSlot: r]].
 	self sendSelector: (self loadRef: (memory special: SO_SPECIAL_SELECTORS) at: k) argc: argc kind: 2 special: k pc: pc act: a rcvSlot: r
 !
@@ -1150,11 +1150,12 @@ intArith: k x: x y: y pc: pc act: a rcvSlot: r
 		(ir node: n) tkind: T_BOOL.
 		self push: n act: a depth: r.
 		^self].
-	n := self binary: (k caseOf: {[0] -> [O_IADD]. [1] -> [O_ISUB]. [8] -> [O_IMUL]. [10] -> [O_IMOD]. [11] -> [O_IXOR]. [12] -> [O_ISHIFT]. [13] -> [O_IDIV]. [14] -> [O_IAND]. [16] -> [O_IDIV]. [17] -> [O_IMOD]} otherwise: [O_IOR]) a: gx b: gy.
+	n := self binary: (k caseOf: {[0] -> [O_IADD]. [1] -> [O_ISUB]. [8] -> [O_IMUL]. [9] -> [O_IDIV]. [10] -> [O_IMOD]. [11] -> [O_IXOR]. [12] -> [O_ISHIFT]. [13] -> [O_IDIV]. [14] -> [O_IAND]. [16] -> [O_IDIV]. [17] -> [O_IMOD]} otherwise: [O_IOR]) a: gx b: gy.
 	(ir node: n) tkind: T_SMI.
-	"quo: rem: truncate"
+	"quo: rem: truncate; / is exact (a Fraction deoptimizes)"
 	k >= 16 ifTrue: [(ir node: n) aux: 1].
-	(k <= 1 or: [k = 8 or: [k = 10 or: [k = 12 or: [k = 13 or: [k >= 16]]]]]) ifTrue: [(ir node: n) state: s].
+	k = 9 ifTrue: [(ir node: n) aux: 2].
+	(k <= 1 or: [(k between: 8 and: 10) or: [k = 12 or: [k = 13 or: [k >= 16]]]]) ifTrue: [(ir node: n) state: s].
 	self push: n act: a depth: r
 !
 floatArith: k x: x y: y pc: pc act: a rcvSlot: r
@@ -1185,7 +1186,7 @@ floatArith: k x: x y: y pc: pc act: a rcvSlot: r
 		self seal: t.
 		self seal: f.
 		obCurBlock := t.
-		(k = 9 or: [(fl bitAnd: (feedback deoptArith bitOr: feedback overflowed)) ~= 0])
+		(fl bitAnd: (feedback deoptArith bitOr: feedback overflowed)) ~= 0
 			ifTrue: [self callSelector: (self loadRef: (memory special: SO_SPECIAL_SELECTORS) at: k) argc: 1 kind: 2 special: k pc: pc act: a rcvSlot: r]
 			ifFalse: [self intArith: k x: (self cast: x class: memory clsSmallint) y: (self cast: y class: memory clsSmallint) pc: pc act: a rcvSlot: r].
 		self goto: merge.

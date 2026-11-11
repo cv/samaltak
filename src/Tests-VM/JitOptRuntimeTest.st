@@ -343,6 +343,26 @@ testGuardsOfValuesFromBeforeALoopLeaveIt
 		self deny: ((m machineCodeFor: #opt) includesSubstring: 'guard: its class, once before the loop')].
 	self assert: (o times: 10 sizeOf: #(1 2)) equals: 20
 !
+testSmallIntegerDivisionInline
+	"SmallInteger / inline while its quotients are exact, also beside Float arithmetic; a remainder deoptimizes to the send (a Fraction), as does a zero divisor (ZeroDivide)."
+	| o before |
+	Smalltalk vm jitParameters: #(nil '-eager' nil nil).
+	self define: 'sumOver: n by: d | s | s := 0. 1 to: n do: [:i | s := s + (i * d / d)]. ^s'.
+	self define: 'quotients: n by: d | s | s := 0. 1 to: n do: [:i | s := s + (i / d)]. ^s'.
+	self define: 'harmonic: n | s | s := 0.0. 1 to: n do: [:i | s := s + (1.0 / (i * 2 / 2))]. ^s'.
+	o := JitRuntimeTestSubject new.
+	1 to: 3000 do: [:k |
+		self assert: (o sumOver: 10 by: 3) equals: 55.
+		self assert: (o quotients: 10 by: 1) equals: 55.
+		self assert: (o harmonic: 10) equals: ((1 to: 10) inject: 0.0 into: [:sum :i | sum + (1.0 / i)])].
+	self assert: (((JitRuntimeTestSubject >> #sumOver:by:) machineCodeFor: #opt) includesSubstring: 'exact: a remainder deoptimizes').
+	self assert: (((JitRuntimeTestSubject >> #harmonic:) machineCodeFor: #opt) includesSubstring: 'exact: a remainder deoptimizes').
+	before := self statistics.
+	self assert: (o quotients: 10 by: 2) equals: 55 / 2.
+	self should: [o quotients: 3 by: 0] raise: ZeroDivide.
+	self stressed ifFalse: [self assert: (self statistics - before) optDeoptimizations > 0].
+	self assert: (o quotients: 10 by: 4) equals: 55 / 4
+!
 testDisassemblyLeavesFeedback
 	"A listing of code compiled without notes compiles a copy: the Float the method's baseline code saw stays feedback, its optimized code takes Floats. Feedback bytes are shared by hash and compiling another method may clear this one's, so a new method gets 3 tries; a listing that clears it fails all of them."
 	Smalltalk vm jitParameters: #(nil '-eager' nil nil).
