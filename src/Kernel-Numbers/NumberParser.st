@@ -74,8 +74,9 @@ skipMinus
 	^false
 !
 isDigit: aCharacter base: base
+	"Number syntax: ASCII digits and letters only."
 	| v |
-	aCharacter isNil ifTrue: [^false].
+	(aCharacter isNil or: [aCharacter value > 127]) ifTrue: [^false].
 	v := aCharacter digitValue.
 	^v >= 0 and: [v < base and: [aCharacter isLowercase not or: [base <= 10]]]
 !

@@ -93,10 +93,10 @@ readPackages
 		line := raw trimBoth.
 		(line isEmpty or: [line first = $#]) ifFalse: [
 			parts := line substrings.
-			(parts first = 'export' and: [parts size >= 4 and: [(parts at: 3) allSatisfy: [:c | c isDigit]]])
+			(parts first = 'export' and: [parts size >= 4 and: [(parts at: 3) allSatisfy: [:c | c between: $0 and: $9]]])
 				ifTrue: [(parts allButFirst: 3) do: [:g | exports at: (parts at: 2) , ' ' , g put: (parts at: 3) asNumber]]
 				ifFalse: [
-					(parts size >= 2 and: [((parts at: 2) allSatisfy: [:c | c isDigit or: [c = $-]]) and: [
+					(parts size >= 2 and: [((parts at: 2) allSatisfy: [:c | (c between: $0 and: $9) or: [c = $-]]) and: [
 						parts size = 2 or: [(parts at: 3) = 'uses' and: [parts size > 3]]]])
 						ifFalse: [self error: 'expected "Name layer [uses Package...]" or "export Package layer Global..."' file: path line: lineNumber].
 					packages add: (Array with: parts first with: (parts at: 2) asNumber).

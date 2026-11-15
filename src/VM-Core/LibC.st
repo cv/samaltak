@@ -220,7 +220,7 @@ parseInteger: aString
 	negative := false.
 	(in atEnd not and: [in peek = $- or: [in peek = $+]]) ifTrue: [negative := in next = $-].
 	v := 0.
-	[in atEnd not and: [in peek isDigit]] whileTrue: [v := v * 10 + in next digitValue].
+	[in atEnd not and: [in peek between: $0 and: $9]] whileTrue: [v := v * 10 + in next digitValue].
 	^negative ifTrue: [v negated] ifFalse: [v]
 !
 strdup: s

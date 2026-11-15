@@ -52,9 +52,9 @@ directive: s
 numberFrom: s
 	| n |
 	(s atEnd not and: [s peek = $*]) ifTrue: [s next. ^self nextArgument].
-	(s atEnd not and: [s peek isDigit]) ifFalse: [^nil].
+	(s atEnd not and: [s peek between: $0 and: $9]) ifFalse: [^nil].
 	n := 0.
-	[s atEnd not and: [s peek isDigit]] whileTrue: [n := n * 10 + s next digitValue].
+	[s atEnd not and: [s peek between: $0 and: $9]] whileTrue: [n := n * 10 + s next digitValue].
 	^n
 !
 convert: conv flags: flags precision: precision

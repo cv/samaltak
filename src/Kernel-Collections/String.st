@@ -254,13 +254,13 @@ asNumber
 	^Number readFrom: self ifFail: [nil]
 !
 asInteger
-	"Answer the integer formed by the first run of digits 0-9 (with a preceding minus), or nil."
+	"Answer the integer formed by the first run of decimal digits of any script (isDigit, as in Squeak and Pharo), with a preceding minus, or nil."
 	| start stop negative value |
-	start := self findFirst: [:c | c between: $0 and: $9].
+	start := self findFirst: [:c | c isDigit].
 	start = 0 ifTrue: [^nil].
 	negative := start > 1 and: [(self at: start - 1) = $-].
 	stop := start.
-	[stop < self size and: [(self at: stop + 1) between: $0 and: $9]] whileTrue: [stop := stop + 1].
+	[stop < self size and: [(self at: stop + 1) isDigit]] whileTrue: [stop := stop + 1].
 	value := 0.
 	start to: stop do: [:i | value := value * 10 + (self at: i) digitValue].
 	^negative ifTrue: [value negated] ifFalse: [value]

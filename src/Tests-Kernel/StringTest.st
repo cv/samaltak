@@ -211,7 +211,11 @@ testConversion
 	self assert: '42' asNumber = 42.
 	self assert: '3.5' asNumber = 3.5.
 	self assert: 'x12y' asInteger = 12.
-	self assert: '٣4' asInteger = 4.
+	self assert: '٣4' asInteger = 34.
+	self assert: 'x-١٢٣' asInteger = -123.
+	self assert: '٣' asNumber isNil.
+	self assert: (Number readFrom: '1٣') = 1.
+	self assert: (Integer readFrom: '٣' ifFail: [nil]) isNil.
 	self assert: 'none' asInteger isNil.
 	self assert: 'abc' asSymbol class == ByteSymbol.
 	self assert: #abc asString class == ByteString.

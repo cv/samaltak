@@ -19,6 +19,8 @@ latin1Properties: the words of U+0000-00FF, for direct indexing.
 Case mappings (simple, from UnicodeData.txt) and simple case folding (CaseFolding.txt status C and S) as runs
 {start. stop. stride. delta}: every stride-th code point from start to stop maps to itself + delta. titlecaseExceptions
 and caseFoldExceptions list only where titlecase differs from uppercase and the folding from lowercase.
+decimalDigitZeros: the code point of each decimal digit (Nd) zero; Nd digits come in runs of ten from 0 to 9, so a
+digit's value is its distance from the last zero at or below it (the generator checks this).
 usage: tools/unicode-tables.py   (from anywhere; Python 3, standard library only)
 """
 import os
@@ -70,7 +72,7 @@ def records(text):
 
 def unicode_data():
     category = ['Cn'] * N
-    upper, lower, title = {}, {}, {}
+    upper, lower, title, decimal = {}, {}, {}, {}
     first = None
     for line in fetch('UnicodeData.txt').splitlines():
         f = line.split(';')
@@ -82,6 +84,8 @@ def unicode_data():
         first = None
         for c in range(start, cp + 1):
             category[c] = f[2]
+        if f[2] == 'Nd':
+            decimal[cp] = int(f[6])
         if f[12]:
             upper[cp] = int(f[12], 16)
         if f[13]:
@@ -90,7 +94,7 @@ def unicode_data():
             title[cp] = int(f[14], 16)
     for c, u in upper.items():
         title.setdefault(c, u)
-    return category, upper, lower, title
+    return category, upper, lower, title, decimal
 
 
 def properties(category):
@@ -177,7 +181,7 @@ def method(selector, comment, body):
 
 
 def write_tables():
-    category, upper, lower, title = unicode_data()
+    category, upper, lower, title, decimal = unicode_data()
     words = properties(category)
     starts, values = [], []
     for c, w in enumerate(words):
@@ -189,6 +193,8 @@ def write_tables():
     fold = case_folding()
     fold_exceptions = {c: fold.get(c, c) for c in set(fold) | set(lower) if fold.get(c, c) != lower.get(c, c)}
     title_exceptions = {c: t for c, t in title.items() if t != upper.get(c, c)}
+    zeros = sorted(c for c, v in decimal.items() if v == 0)
+    assert len(decimal) == 10 * len(zeros) and all(decimal.get(z + i) == i for z in zeros for i in range(10))
     methods = [
         method('version', 'The version of the Unicode Character Database these tables come from.', "'%s'" % VERSION),
         method('categories', 'General categories, indexed by bits 0-4 of a property word.',
@@ -206,6 +212,8 @@ def write_tables():
                literal(mapping_runs(title_exceptions))),
         method('caseFoldExceptions', 'Simple case foldings (status C and S) that differ from the lowercase mappings, as runs.',
                literal(mapping_runs(fold_exceptions))),
+        method('decimalDigitZeros', 'The digits zero of the decimal digits (Nd), each the first of a run of ten from 0 to 9.',
+               literal(zeros)),
     ]
     src = ("Object subclass: #UnicodeTables\n\tinstanceVariableNames: ''\n\tclassVariableNames: ''\n"
            "\tpackage: 'Kernel-Collections'!\n\n"

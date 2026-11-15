@@ -215,16 +215,16 @@ strtod: s end: endp
 		ifFalse: [
 			mantissa := 0.
 			scale := 0.
-			[in atEnd not and: [in peek isDigit]] whileTrue: [mantissa := mantissa * 10 + in next digitValue].
+			[in atEnd not and: [in peek between: $0 and: $9]] whileTrue: [mantissa := mantissa * 10 + in next digitValue].
 			(in atEnd not and: [in peek = $.]) ifTrue: [
 				in next.
-				[in atEnd not and: [in peek isDigit]] whileTrue: [mantissa := mantissa * 10 + in next digitValue. scale := scale - 1]].
+				[in atEnd not and: [in peek between: $0 and: $9]] whileTrue: [mantissa := mantissa * 10 + in next digitValue. scale := scale - 1]].
 			exp := 0.
 			(in atEnd not and: [in peek = $e or: [in peek = $E]]) ifTrue: [
 				in next.
 				expNegative := false.
 				(in atEnd not and: [in peek = $- or: [in peek = $+]]) ifTrue: [expNegative := in next = $-].
-				[in atEnd not and: [in peek isDigit]] whileTrue: [exp := exp * 10 + in next digitValue].
+				[in atEnd not and: [in peek between: $0 and: $9]] whileTrue: [exp := exp * 10 + in next digitValue].
 				expNegative ifTrue: [exp := exp negated]].
 			v := (mantissa * (10 raisedTo: scale + exp)) asFloat.
 			negative ifTrue: [v := v negated]].

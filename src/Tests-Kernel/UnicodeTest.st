@@ -25,6 +25,20 @@ testGeneralCategories
 		self assert: (Unicode generalCategoryTagOf: cp) equals: category.
 		self assert: (self char: cp) generalCategory equals: category]
 !
+testDigitValues
+	"digitValue answers 0-9 for every decimal digit (Nd), as in Squeak and Pharo: Unicode assigns them in runs of ten; 10-35 only for ASCII letters, -1 for other numbers and letters."
+	UnicodeTables decimalDigitZeros do: [:zero |
+		0 to: 9 do: [:i |
+			self assert: (self char: zero + i) isDigit.
+			self assert: (self char: zero + i) digitValue equals: i]].
+	self assert: UnicodeTables decimalDigitZeros size * 10 equals: ((0 to: 16r1FFFF) count: [:cp | Unicode isDigitCode: cp]).
+	self assert: (self char: 1641) digitValue equals: 9.
+	self assert: (self char: 65303) digitValue equals: 7.
+	self assert: (self char: 120799) digitValue equals: 7.
+	#(8555 189 178 65313 945 32 47 58 64 91 96 123 1631) do: [:cp |
+		self assert: (self char: cp) digitValue equals: -1].
+	self assert: $z digitValue equals: 35
+!
 testCodeAndCharacterSelectors
 	"The ...Code: selectors take code points (Squeak); isLetter: isDigit: isUppercase: isLowercase: isMathSymbol: toUppercase: toLowercase: take Characters (Pharo)."
 	| alpha |
@@ -114,7 +128,7 @@ testScripts
 		self assert: (self char: cp) asUppercase value equals: cp].
 	self assert: (self char: 1635) isDigit.
 	self assert: (self char: 1635) isAlphaNumeric.
-	self assert: (self char: 1635) digitValue equals: -1.
+	self assert: (self char: 1635) digitValue equals: 3.
 	self deny: (self char: 8555) isDigit
 !
 testNonLetters

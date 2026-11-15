@@ -102,7 +102,8 @@ parseHex4
 	value := 0.
 	4 timesRepeat: [
 		self atEnd ifTrue: [^self error: 'bad \u escape'].
-		digit := self next asUppercase digitValue.
+		digit := self next.
+		digit := digit isAscii ifTrue: [digit digitValue] ifFalse: [-1].
 		(digit between: 0 and: 15) ifFalse: [^self error: 'bad \u escape'].
 		value := value * 16 + digit].
 	^value

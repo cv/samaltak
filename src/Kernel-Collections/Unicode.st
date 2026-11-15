@@ -23,6 +23,18 @@ generalCategoryTagOf: codePoint
 	"Answer the general category, a Symbol: #Lu #Ll #Lt #Lm #Lo #Mn #Mc #Me #Nd #Nl #No #Pc #Pd #Ps #Pe #Pi #Pf #Po #Sm #Sc #Sk #So #Zs #Zl #Zp #Cc #Cf #Cs #Co or #Cn (unassigned)."
 	^UnicodeTables categories at: ((self propertiesOf: codePoint) bitAnd: 31)
 !
+decimalDigitValueOf: codePoint
+	"Answer the value 0-9 of a decimal digit (general category Nd), -1 for other code points. Unicode assigns the decimal digits in runs of ten from 0 to 9, so the value is the distance from the last zero at or below codePoint."
+	| zeros lo hi mid |
+	(self isDigitCode: codePoint) ifFalse: [^-1].
+	zeros := UnicodeTables decimalDigitZeros.
+	lo := 1.
+	hi := zeros size.
+	[lo < hi] whileTrue: [
+		mid := lo + hi + 1 bitShift: -1.
+		(zeros at: mid) <= codePoint ifTrue: [lo := mid] ifFalse: [hi := mid - 1]].
+	^codePoint - (zeros at: lo)
+!
 displayWidthOf: codePoint
 	"Answer the columns a terminal or a monospaced editor gives codePoint, as wcwidth: 0 for nonspacing and enclosing marks, format characters (but the soft hyphen), controls and the Hangul medial vowels and final consonants (U+1160-11FF, U+D7B0-D7FF), which join the preceding character; 2 for East Asian Wide and Fullwidth characters (emoji presentation characters among them); 1 for the rest."
 	^((self propertiesOf: codePoint) bitShift: -12) bitAnd: 3

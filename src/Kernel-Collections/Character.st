@@ -3,7 +3,7 @@ Magnitude immediateSubclass: #Character
 	classVariableNames: ''
 	package: 'Kernel-Collections'!
 
-Character comment: 'I am a Unicode character, encoded in the object pointer (tag 010) with my code point. Equal characters are identical. Classification, case conversion and display width follow the Unicode Character Database (Unicode, which has the details): isLetter is the general category L*, isDigit Nd (decimal digits of any script; digitValue, for number literals, knows only ASCII digits and letters), isMark M*, isUppercase Lu, isLowercase Ll, isSeparator the White_Space property; asUppercase, asLowercase, asTitlecase and caseFolded are the simple one-to-one mappings.'!
+Character comment: 'I am a Unicode character, encoded in the object pointer (tag 010) with my code point. Equal characters are identical. Classification, case conversion and display width follow the Unicode Character Database (Unicode, which has the details): isLetter is the general category L*, isDigit Nd (decimal digits of any script, whose value digitValue answers; it answers 10-35 for the ASCII letters, and number syntax uses only ASCII digits), isMark M*, isUppercase Lu, isLowercase Ll, isSeparator the White_Space property; asUppercase, asLowercase, asTitlecase and caseFolded are the simple one-to-one mappings.'!
 
 !Character methodsFor: 'accessing'!
 value
@@ -21,13 +21,14 @@ asCharacter
 	^self
 !
 digitValue
-	"Answer 0-9 for $0-$9, 10-35 for $A-$Z and $a-$z, -1 otherwise."
+	"Answer 0-9 for $0-$9 and the other decimal digits (isDigit, as in Squeak and Pharo), 10-35 for $A-$Z and $a-$z, -1 otherwise."
 	| v |
 	v := self value.
 	(v between: 48 and: 57) ifTrue: [^v - 48].
 	(v between: 65 and: 90) ifTrue: [^v - 55].
 	(v between: 97 and: 122) ifTrue: [^v - 87].
-	^-1
+	v < 128 ifTrue: [^-1].
+	^Unicode decimalDigitValueOf: v
 !
 generalCategory
 	"Answer my general category, e.g. #Lu (see Unicode generalCategoryTagOf:)."

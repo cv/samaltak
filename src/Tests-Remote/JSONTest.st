@@ -45,7 +45,7 @@ testParseStructures
 	self assert: (v at: 'a') class equals: Array
 !
 testParseErrors
-	#('' '{' '[1,]' '[1 2]' '"abc' 'tru' '1 2' '{"a" 1}' '{a: 1}' '01' '-' '1.' '"\x"' '"\ud800"' 'nul')
+	#('' '{' '[1,]' '[1 2]' '"abc' 'tru' '1 2' '{"a" 1}' '{a: 1}' '01' '-' '1.' '"\x"' '"\ud800"' 'nul' '"\u٠٠٤١"' '٣' '[1٣]')
 		do: [:bad | self should: [JSON parse: bad] raise: JSONError]
 !
 testRenderScalars
