@@ -16,6 +16,29 @@ testUniqueness
 	self assert: (Symbol lookup: 'zzzNoSuchSymbolzzz') isNil.
 	self assert: (Symbol lookup: 'printString') == #printString
 !
+testEqualityWithStrings
+	"A Symbol equals a String with its characters both ways round (Squeak, Pharo), so they find each other in Sets and Dictionaries; two Symbols are equal only if identical."
+	| set dictionary |
+	self assert: #abc = 'abc'.
+	self assert: 'abc' = #abc.
+	self assert: #abc = 'abc' asWideString.
+	self deny: #abc = 'abd'.
+	self deny: #abc = #abd.
+	self deny: #abc = 3.
+	self assert: #abc hash equals: 'abc' hash.
+	set := Set new.
+	set add: #abc.
+	self assert: (set includes: 'abc').
+	set := Set new.
+	set add: 'abc'.
+	self assert: (set includes: #abc).
+	dictionary := Dictionary new.
+	dictionary at: #abc put: 1.
+	self assert: (dictionary at: 'abc' ifAbsent: [nil]) equals: 1.
+	dictionary := Dictionary new.
+	dictionary at: 'abc' put: 2.
+	self assert: (dictionary at: #abc ifAbsent: [nil]) equals: 2
+!
 testProperties
 	self assert: #at:put: numArgs = 2.
 	self assert: #+ numArgs = 1.

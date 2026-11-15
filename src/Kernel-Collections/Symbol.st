@@ -3,7 +3,7 @@ String subclass: #Symbol
 	classVariableNames: 'SymbolTable'
 	package: 'Kernel-Collections'!
 
-Symbol comment: 'I am a unique, read-only String used for selectors and names: two Symbols with the same characters are the same object, so they compare with ==. Symbol intern: (or asSymbol) finds or creates them via SymbolTable, a Set of all Symbols that is rebuilt from the existing instances at startup. ByteSymbol and WideSymbol are the two representations. Copies of a Symbol are Strings.'!
+Symbol comment: 'I am a unique, read-only String used for selectors and names: two Symbols with the same characters are the same object, so they compare with ==; a Symbol and a String with the same characters are equal, either way round. Symbol intern: (or asSymbol) finds or creates them via SymbolTable, a Set of all Symbols that is rebuilt from the existing instances at startup. ByteSymbol and WideSymbol are the two representations. Copies of a Symbol are Strings.'!
 
 !Symbol methodsFor: 'accessing'!
 at: index put: aCharacter
@@ -17,7 +17,10 @@ privateAt: index put: aCharacter
 
 !Symbol methodsFor: 'comparing'!
 = anObject
-	^self == anObject
+	"Another Symbol is equal only if identical; a String with my characters is equal, as I am to it (Squeak, Pharo)."
+	self == anObject ifTrue: [^true].
+	anObject isSymbol ifTrue: [^false].
+	^super = anObject
 ! !
 
 !Symbol methodsFor: 'testing'!
