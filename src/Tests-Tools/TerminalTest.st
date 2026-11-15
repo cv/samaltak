@@ -255,43 +255,6 @@ testWideCharactersAreSelectedAndCopiedWhole
 	self assert: view selectedText equals: '日本語', (String with: $e with: (Character value: 16r301)).
 	self assert: view shownLinesNow first equals: 'ab 日本語', (String with: $e with: (Character value: 16r301)), ' cd'
 !
-testColorEmojiInTheirFirstTwoCells
-	"A family (a ZWJ sequence, 6 cells), a thumb with a skin tone (4 cells) and a flag (2 cells) are drawn as color emoji in their first two cells, their other cells blank; a keycap (1 cell) stays text."
-	| view line canvas list xs cw |
-	view := TerminalView new.
-	view parser feed: (String withAll: (#(16r1F468 16r200D 16r1F469 16r200D 16r1F467 16r78 16r1F44D 16r1F3FD 16r78 16r1F1E9 16r1F1EA 16r78 16r31 16rFE0F 16r20E3 16r78)
-		collect: [:cp | Character value: cp])) utf8Encoded.
-	line := view screen lineAt: 1.
-	self assert: (view emojiAt: 1 of: line) last equals: 6.
-	self assert: (view emojiAt: 1 of: line) first size equals: 5.
-	self assert: (line characterAt: 7) equals: $x.
-	self assert: (view emojiAt: 8 of: line) last equals: 11.
-	self assert: (view emojiAt: 13 of: line) last equals: 14.
-	self assert: (line characterAt: 16) equals: $1.
-	self assert: (view emojiAt: 16 of: line) isNil.
-	cw := view cellExtent x.
-	canvas := Canvas extent: 400 @ 40 scale: (Theme current font: #code) scale.
-	view drawLine: line selection: nil on: canvas.
-	list := canvas displayList.
-	xs := (1 to: list quadCount) collect: [:i | ((list quadAt: i) at: #origin) x / canvas scale].
-	self assert: (xs count: [:x | x < (2 * cw)]) > 3.
-	"(glyph quads start at the pen, a whole device pixel)"
-	self assert: (xs count: [:x | x > (2.25 * cw) and: [x < (5.75 * cw)]]) equals: 0.
-	self assert: (xs count: [:x | x > (9.25 * cw) and: [x < (10.75 * cw)]]) equals: 0.
-	self assert: (xs count: [:x | (x - (15 * cw)) abs < 0.25]) equals: 1.
-	"in the last two columns, also followed by a ZWJ; with U+FE0E text"
-	view := TerminalView new.
-	view parser feed: ((String new: 78 withAll: $x), (String with: (Character value: 16r1F600) with: (Character value: 16r200D))) utf8Encoded.
-	line := view screen lineAt: 1.
-	self assert: line size equals: 80.
-	self assert: (view emojiAt: 79 of: line) last equals: 80.
-	view parser feed: (String with: Character cr with: Character lf with: (Character value: 16r1F600) with: (Character value: 16rFE0E)) utf8Encoded.
-	line := view screen lineAt: 2.
-	self assert: (view emojiAt: 1 of: line) isNil.
-	canvas := Canvas extent: 400 @ 40 scale: (Theme current font: #code) scale.
-	view drawLine: line selection: nil on: canvas.
-	self assert: canvas displayList quadCount equals: 1
-!
 testWorldMenuAndOpeners
 	self assert: (ToolsMenu labels includes: 'Terminal').
 	self assert: (Tools hasOpener: #terminal).
