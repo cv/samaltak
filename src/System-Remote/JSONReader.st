@@ -27,7 +27,7 @@ parseValue
 	c = ${ ifTrue: [^self parseObject].
 	c = $[ ifTrue: [^self parseArray].
 	c = $" ifTrue: [^self parseString].
-	(c = $- or: [c isDigit]) ifTrue: [^self parseNumber].
+	(c = $- or: [c between: $0 and: $9]) ifTrue: [^self parseNumber].
 	(self matches: 'true') ifTrue: [^true].
 	(self matches: 'false') ifTrue: [^false].
 	(self matches: 'null') ifTrue: [^nil].
@@ -111,16 +111,16 @@ parseNumber
 	"Integers stay exact (LargeIntegers included); a fraction part or an exponent makes a Float."
 	| negative mantissa fractionDigits exponent exponentNegative isFloat float |
 	negative := self peekFor: $-.
-	(self atEnd not and: [self peek isDigit]) ifFalse: [^self error: 'digit expected'].
+	(self atEnd not and: [self peek between: $0 and: $9]) ifFalse: [^self error: 'digit expected'].
 	mantissa := 0.
 	(self peekFor: $0)
-		ifFalse: [[self atEnd not and: [self peek isDigit]] whileTrue: [mantissa := mantissa * 10 + self next digitValue]].
+		ifFalse: [[self atEnd not and: [self peek between: $0 and: $9]] whileTrue: [mantissa := mantissa * 10 + self next digitValue]].
 	isFloat := false.
 	fractionDigits := 0.
 	(self peekFor: $.) ifTrue: [
 		isFloat := true.
-		(self atEnd not and: [self peek isDigit]) ifFalse: [^self error: 'digit expected after .'].
-		[self atEnd not and: [self peek isDigit]] whileTrue: [
+		(self atEnd not and: [self peek between: $0 and: $9]) ifFalse: [^self error: 'digit expected after .'].
+		[self atEnd not and: [self peek between: $0 and: $9]] whileTrue: [
 			mantissa := mantissa * 10 + self next digitValue.
 			fractionDigits := fractionDigits + 1]].
 	exponent := 0.
@@ -129,8 +129,8 @@ parseNumber
 		self next.
 		exponentNegative := self peekFor: $-.
 		exponentNegative ifFalse: [self peekFor: $+].
-		(self atEnd not and: [self peek isDigit]) ifFalse: [^self error: 'digit expected in exponent'].
-		[self atEnd not and: [self peek isDigit]] whileTrue: [
+		(self atEnd not and: [self peek between: $0 and: $9]) ifFalse: [^self error: 'digit expected in exponent'].
+		[self atEnd not and: [self peek between: $0 and: $9]] whileTrue: [
 			exponent := exponent * 10 + self next digitValue min: 100000].
 		exponentNegative ifTrue: [exponent := exponent negated]].
 	isFloat ifFalse: [^negative ifTrue: [mantissa negated] ifFalse: [mantissa]].

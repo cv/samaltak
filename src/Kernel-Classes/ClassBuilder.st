@@ -151,7 +151,7 @@ validateName: aSymbol instanceVariables: ivars superclass: aClass
 	(aSymbol isSymbol and: [aSymbol notEmpty and: [aSymbol first isUppercase]])
 		ifFalse: [^self error: 'Class names must be capitalized Symbols'].
 	ivars do: [:n |
-		(n first isLetter and: [n allSatisfy: [:c | c isAlphaNumeric or: [c = $_]]])
+		(n first isLetter and: [n allSatisfy: [:c | c isAlphaNumeric or: [c = $_ or: [c isMark]]]])
 			ifFalse: [^self error: 'Bad instance variable name: ', n].
 		(aClass notNil and: [aClass allInstVarNames includes: n])
 			ifTrue: [^self error: n, ' is already defined in a superclass']]

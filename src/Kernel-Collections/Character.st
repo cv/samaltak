@@ -3,7 +3,7 @@ Magnitude immediateSubclass: #Character
 	classVariableNames: ''
 	package: 'Kernel-Collections'!
 
-Character comment: 'I am a Unicode character, encoded in the object pointer (tag 010) with my code point. Equal characters are identical. Classification and case conversion cover ASCII and Latin-1; other code points are treated as letters without case.'!
+Character comment: 'I am a Unicode character, encoded in the object pointer (tag 010) with my code point. Equal characters are identical. Classification, case conversion and display width follow the Unicode Character Database (Unicode, which has the details): isLetter is the general category L*, isDigit Nd (decimal digits of any script; digitValue, for number literals, knows only ASCII digits and letters), isMark M*, isUppercase Lu, isLowercase Ll, isSeparator the White_Space property; asUppercase, asLowercase, asTitlecase and caseFolded are the simple one-to-one mappings.'!
 
 !Character methodsFor: 'accessing'!
 value
@@ -28,6 +28,14 @@ digitValue
 	(v between: 65 and: 90) ifTrue: [^v - 55].
 	(v between: 97 and: 122) ifTrue: [^v - 87].
 	^-1
+!
+generalCategory
+	"Answer my general category, e.g. #Lu (see Unicode generalCategoryOf:)."
+	^Unicode generalCategoryOf: self value
+!
+displayWidth
+	"Answer the columns I take in a terminal or a monospaced editor: 0, 1 or 2 (see Unicode displayWidthOf:)."
+	^Unicode displayWidthOf: self value
 ! !
 
 !Character methodsFor: 'comparing'!
@@ -59,48 +67,40 @@ isCharacter
 	^true
 !
 isLetter
-	| v |
-	v := self value.
-	(v between: 65 and: 90) ifTrue: [^true].
-	(v between: 97 and: 122) ifTrue: [^true].
-	v < 192 ifTrue: [^v = 170 or: [v = 181 or: [v = 186]]].
-	v < 256 ifTrue: [^v ~= 215 and: [v ~= 247]].
-	^true
+	^Unicode isLetter: self value
 !
 isDigit
-	^self value between: 48 and: 57
+	"Answer whether I am a decimal digit of any script (general category Nd); number syntax uses only $0-$9."
+	^Unicode isDigit: self value
+!
+isMark
+	"Answer whether I am a combining mark (general category M*)."
+	^Unicode isMark: self value
 !
 isAlphaNumeric
 	^self isLetter or: [self isDigit]
 !
 isUppercase
-	| v |
-	v := self value.
-	(v between: 65 and: 90) ifTrue: [^true].
-	^(v between: 192 and: 222) and: [v ~= 215]
+	^Unicode isUppercase: self value
 !
 isLowercase
-	| v |
-	v := self value.
-	(v between: 97 and: 122) ifTrue: [^true].
-	^(v between: 223 and: 255) and: [v ~= 247]
+	^Unicode isLowercase: self value
 !
 isVowel
 	"Answer whether I am one of aeiouAEIOU."
 	^'aeiouAEIOU' includes: self
 !
 isSeparator
-	"Answer whether I am space, tab, cr, lf or form feed."
-	| v |
-	v := self value.
-	^v = 32 or: [v = 9 or: [v = 13 or: [v = 10 or: [v = 12]]]]
+	"Answer whether I am white space (the White_Space property): space, tab, cr, lf, form feed, no-break spaces, U+3000..."
+	^Unicode isSeparator: self value
 !
 isPunctuation
 	^'.,:;!!?' includes: self
 !
 isSpecial
-	"Answer whether I can be part of a binary selector."
-	^'+-*/\<>=~@%|&?,' includes: self
+	"Answer whether I can be part of a binary selector: one of +-*/\<>=~@%|&?, or a non-ASCII math symbol (general category Sm: × ÷ ≠ ≤ → ...)."
+	self value < 128 ifTrue: [^'+-*/\<>=~@%|&?,' includes: self].
+	^Unicode isMathSymbol: self value
 !
 isOctetCharacter
 	^self value < 256
@@ -109,9 +109,8 @@ isAscii
 	^self value < 128
 !
 isPrintable
-	| v |
-	v := self value.
-	^v >= 32 and: [v ~= 127]
+	"Answer whether I am visible or a space: not a control, format character, surrogate, unassigned code point or line or paragraph separator."
+	^Unicode isPrintable: self value
 !
 isLiteral
 	^true
@@ -119,20 +118,17 @@ isLiteral
 
 !Character methodsFor: 'converting'!
 asUppercase
-	| v |
-	v := self value.
-	(v between: 97 and: 122) ifTrue: [^Character value: v - 32].
-	((v between: 224 and: 254) and: [v ~= 247]) ifTrue: [^Character value: v - 32].
-	v = 255 ifTrue: [^Character value: 376].
-	^self
+	^Character value: (Unicode toUppercase: self value)
 !
 asLowercase
-	| v |
-	v := self value.
-	(v between: 65 and: 90) ifTrue: [^Character value: v + 32].
-	((v between: 192 and: 222) and: [v ~= 215]) ifTrue: [^Character value: v + 32].
-	v = 376 ifTrue: [^Character value: 255].
-	^self
+	^Character value: (Unicode toLowercase: self value)
+!
+asTitlecase
+	^Character value: (Unicode toTitlecase: self value)
+!
+caseFolded
+	"Answer my simple case folding, for caseless comparison (mostly asLowercase; µ folds to Greek mu)."
+	^Character value: (Unicode caseFold: self value)
 !
 asString
 	^String with: self
@@ -150,7 +146,7 @@ printOn: aStream
 	| name |
 	name := self class constantNameFor: self.
 	name isNil ifFalse: [^aStream nextPutAll: 'Character '; nextPutAll: name].
-	self isPrintable ifFalse: [^aStream nextPutAll: '(Character value: '; print: self value; nextPut: $)].
+	(self isPrintable and: [self isSeparator not]) ifFalse: [^aStream nextPutAll: '(Character value: '; print: self value; nextPut: $)].
 	aStream nextPut: $$; nextPut: self
 !
 storeOn: aStream

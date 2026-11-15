@@ -97,4 +97,17 @@ testWordBoundaries
 	self assert: (b wordStartBefore: 7) equals: 4.
 	self assert: (b wordEndAfter: 3) equals: 6.
 	self assert: ((TextBuffer string: 'y:=1') wordRangeAt: 1) equals: #(0 1)
+!
+testUnicodeWordBoundaries
+	"Words are letters, digits and combining marks of any script; CJK punctuation, emoji and non-ASCII spaces separate them."
+	| b |
+	b := TextBuffer string: 'größe、日本語😀λ' , (String with: (Character value: 12288)) , 'e' , (String with: (Character value: 769)) , 'x'.
+	self assert: (b wordRangeAt: 1) equals: #(0 5).
+	self assert: (b wordRangeAt: 7) equals: #(6 9).
+	self assert: (b wordEndAfter: 0) equals: 5.
+	self assert: (b wordEndAfter: 5) equals: 9.
+	self assert: (b wordEndAfter: 9) equals: 11.
+	self assert: (b wordRangeAt: 13) equals: #(12 15).
+	self assert: (b wordStartBefore: 15) equals: 12.
+	self assert: (b wordStartBefore: 12) equals: 10
 ! !

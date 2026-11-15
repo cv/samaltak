@@ -109,8 +109,20 @@ min: aString
 	^self < aString ifTrue: [self] ifFalse: [aString]
 !
 caseInsensitiveCompare: aString
-	"Answer -1, 0 or 1 comparing the code points of our lowercase characters, as compare: does those of asLowercase copies."
+	"Answer -1, 0 or 1 comparing the code points of our case-folded characters, as compare: does those of caseFolded copies.
+	The primitive (byte strings) compares asLowercase code points instead: the same but for µ, which folds to U+03BC."
+	| result micro |
+	result := self lowercaseCompare: aString.
+	result = 0 ifTrue: [^0].
+	micro := Character value: 181.
+	((self includes: micro) or: [aString includes: micro]) ifFalse: [^result].
+	^self caseFoldedCompare: aString
+!
+lowercaseCompare: aString
 	<primitive: 'stringCaseInsensitiveCompare'>
+	^self caseFoldedCompare: aString
+!
+caseFoldedCompare: aString
 	| n |
 	n := self size min: aString size.
 	1 to: n do: [:i |
@@ -118,8 +130,8 @@ caseInsensitiveCompare: aString
 		a := self at: i.
 		b := aString at: i.
 		a == b ifFalse: [
-			a := a asLowercase value.
-			b := b asLowercase value.
+			a := a caseFolded value.
+			b := b caseFolded value.
 			a = b ifFalse: [^a < b ifTrue: [-1] ifFalse: [1]]]].
 	^(self size - aString size) sign
 !
@@ -135,7 +147,7 @@ includesSubstring: aString
 !
 includesSubstring: aString caseSensitive: aBoolean
 	aBoolean ifTrue: [^self includesSubstring: aString].
-	^self asLowercase includesSubstring: aString asLowercase
+	^self caseFolded includesSubstring: aString caseFolded
 !
 beginsWith: aString
 	^super beginsWith: aString
@@ -145,7 +157,7 @@ startsWith: aString
 !
 match: aString
 	"Answer whether aString matches the receiver as a pattern: * matches any sequence, # any one character; case-insensitive."
-	^self asLowercase matchPattern: 1 against: aString asLowercase at: 1
+	^self caseFolded matchPattern: 1 against: aString caseFolded at: 1
 !
 matchPattern: p against: aString at: s
 	| pi si |
@@ -228,18 +240,23 @@ asNumber
 	^Number readFrom: self ifFail: [nil]
 !
 asInteger
-	"Answer the integer formed by the first run of digits (with a preceding minus), or nil."
+	"Answer the integer formed by the first run of digits 0-9 (with a preceding minus), or nil."
 	| start stop negative value |
-	start := self findFirst: [:c | c isDigit].
+	start := self findFirst: [:c | c between: $0 and: $9].
 	start = 0 ifTrue: [^nil].
 	negative := start > 1 and: [(self at: start - 1) = $-].
 	stop := start.
-	[stop < self size and: [(self at: stop + 1) isDigit]] whileTrue: [stop := stop + 1].
+	[stop < self size and: [(self at: stop + 1) between: $0 and: $9]] whileTrue: [stop := stop + 1].
 	value := 0.
 	start to: stop do: [:i | value := value * 10 + (self at: i) digitValue].
 	^negative ifTrue: [value negated] ifFalse: [value]
 !
 asUppercase
+	"Answer a copy with each character's simple uppercase mapping. µ and ÿ go up to wide characters; the primitive (byte strings) fails for ÿ and leaves µ alone, so it is not asked about µ."
+	(self isByteString and: [(self includes: (Character value: 181)) not]) ifTrue: [^self byteStringAsUppercase].
+	^self collect: [:c | c asUppercase]
+!
+byteStringAsUppercase
 	<primitive: 'stringAsUppercase'>
 	^self collect: [:c | c asUppercase]
 !
@@ -251,8 +268,13 @@ capitalized
 	| copy |
 	self isEmpty ifTrue: [^self].
 	copy := self asString copy.
-	copy at: 1 put: (copy at: 1) asUppercase.
+	copy at: 1 put: (copy at: 1) asTitlecase.
 	^copy
+!
+caseFolded
+	"Answer a copy with each character's simple case folding (Character>>caseFolded), for caseless comparison and search."
+	(self isByteString and: [(self includes: (Character value: 181)) not]) ifTrue: [^self asLowercase].
+	^self collect: [:c | c caseFolded]
 !
 uncapitalized
 	| copy |
@@ -383,10 +405,93 @@ numArgs
 	(first isLetter or: [first = $_]) ifTrue: [
 		colons := self occurrencesOf: $:.
 		colons = 0 ifTrue: [
-			^(self allSatisfy: [:c | c isAlphaNumeric or: [c = $_]]) ifTrue: [0] ifFalse: [-1]].
+			^(self allSatisfy: [:c | c isAlphaNumeric or: [c = $_ or: [c isMark]]]) ifTrue: [0] ifFalse: [-1]].
 		self last = $: ifFalse: [^-1].
 		^colons].
 	^(self allSatisfy: [:c | c isSpecial]) ifTrue: [1] ifFalse: [-1]
+! !
+
+!String methodsFor: 'grapheme clusters'!
+isGraphemeClusterBoundaryAt: aPosition
+	"Answer whether an extended grapheme cluster (UAX #29: what a reader takes for one character, e.g. e + combining acute, an emoji ZWJ sequence, a flag) ends at aPosition, the gap after the character at aPosition (0 is before the first)."
+	| a b pa pb ga gb i n |
+	(aPosition <= 0 or: [aPosition >= self size]) ifTrue: [^true].
+	a := (self at: aPosition) value.
+	b := (self at: aPosition + 1) value.
+	(a bitOr: b) < 768 ifTrue: [^a ~= 13 or: [b ~= 10]].
+	pa := Unicode propertiesOf: a.
+	pb := Unicode propertiesOf: b.
+	ga := (pa bitShift: -5) bitAnd: 15.
+	gb := (pb bitShift: -5) bitAnd: 15.
+	"GB3-5: CR LF; controls"
+	(ga = 1 and: [gb = 2]) ifTrue: [^false].
+	((ga between: 1 and: 3) or: [gb between: 1 and: 3]) ifTrue: [^true].
+	"GB6-8: Hangul syllables (L 9, V 10, T 11, LV 12, LVT 13)"
+	(ga = 9 and: [gb = 9 or: [gb = 10 or: [gb >= 12]]]) ifTrue: [^false].
+	((ga = 10 or: [ga = 12]) and: [gb = 10 or: [gb = 11]]) ifTrue: [^false].
+	((ga = 11 or: [ga = 13]) and: [gb = 11]) ifTrue: [^false].
+	"GB9-9b: Extend, ZWJ, SpacingMark; Prepend"
+	(gb = 4 or: [gb = 5 or: [gb = 8 or: [ga = 7]]]) ifTrue: [^false].
+	"GB9c: Indic consonant [Extend Linker]* Linker [Extend Linker]* x consonant"
+	((pb bitShift: -10) bitAnd: 3) = 1 ifTrue: [
+		n := 0.
+		i := aPosition.
+		[i >= 1 and: [((pa := Unicode propertiesOf: (self at: i) value) bitAnd: 2048) ~= 0]] whileTrue: [
+			((pa bitShift: -10) bitAnd: 3) = 2 ifTrue: [n := n + 1].
+			i := i - 1].
+		(n > 0 and: [i >= 1 and: [((pa bitShift: -10) bitAnd: 3) = 1]]) ifTrue: [^false]].
+	"GB11: Extended_Pictographic Extend* ZWJ x Extended_Pictographic"
+	(ga = 5 and: [(pb bitAnd: 512) ~= 0]) ifTrue: [
+		i := aPosition - 1.
+		[i >= 1 and: [((pa := Unicode propertiesOf: (self at: i) value) bitAnd: 480) = 128]] whileTrue: [i := i - 1].
+		(i >= 1 and: [(pa bitAnd: 512) ~= 0]) ifTrue: [^false]].
+	"GB12-13: pairs of regional indicators"
+	(ga = 6 and: [gb = 6]) ifTrue: [
+		i := aPosition - 1.
+		[i >= 1 and: [((Unicode propertiesOf: (self at: i) value) bitAnd: 480) = 192]] whileTrue: [i := i - 1].
+		^(aPosition - i) even].
+	^true
+!
+graphemeClusterEndAfter: aPosition
+	"Answer the first grapheme cluster boundary after aPosition (positions are the gaps between characters, 0 to size), or size."
+	| p |
+	p := aPosition max: 0.
+	[p := p + 1.
+	 p < self size and: [(self isGraphemeClusterBoundaryAt: p) not]] whileTrue.
+	^p min: self size
+!
+graphemeClusterStartBefore: aPosition
+	"Answer the last grapheme cluster boundary before aPosition, or 0."
+	| p |
+	p := aPosition min: self size.
+	[p := p - 1.
+	 p > 0 and: [(self isGraphemeClusterBoundaryAt: p) not]] whileTrue.
+	^p max: 0
+!
+graphemeClustersDo: aBlock
+	"Evaluate aBlock with each extended grapheme cluster, a String."
+	| start stop |
+	start := 0.
+	[start < self size] whileTrue: [
+		stop := self graphemeClusterEndAfter: start.
+		aBlock value: (self copyFrom: start + 1 to: stop).
+		start := stop]
+!
+graphemeClusters
+	"Answer an Array of my extended grapheme clusters."
+	| clusters |
+	clusters := OrderedCollection new.
+	self graphemeClustersDo: [:each | clusters add: each].
+	^clusters asArray
+!
+graphemeClusterCount
+	| n p |
+	n := 0.
+	p := 0.
+	[p < self size] whileTrue: [
+		p := self graphemeClusterEndAfter: p.
+		n := n + 1].
+	^n
 ! !
 
 !String methodsFor: 'copying'!

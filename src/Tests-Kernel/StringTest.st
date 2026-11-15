@@ -31,12 +31,38 @@ testComparing
 	self assert: ('abc' max: 'abd') = 'abd'
 !
 testCaseInsensitiveCompare
-	"The primitive (byte strings and Symbols) and the loop (wide strings) answer what compare: answers for asLowercase copies: Latin-1 letters, × ÷ ß ÿ µ, and Ÿ (376), whose lowercase is ÿ."
+	"The primitive (byte strings and Symbols) and the loop (wide strings) answer what compare: answers for caseFolded copies: Latin-1 letters, × ÷ ß ÿ µ (folding to Greek mu), Ÿ (376), whose lowercase is ÿ, Greek."
 	| strings |
-	strings := #('' 'a' 'A' 'ab' 'AB' 'abc' 'ABD' 'abcd' 'Z' 'z' '[' '_' '`' '@' 'a_' 'B' 'über' 'ÜBER' 'Über' 'ü' 'Ü' 'À' 'à' 'Þ' 'þ' '×' '÷' 'ß' 'ÿ' 'µ' 'ab×' 'abÿ' #abc #ABC) asOrderedCollection.
+	strings := #('' 'a' 'A' 'ab' 'AB' 'abc' 'ABD' 'abcd' 'Z' 'z' '[' '_' '`' '@' 'a_' 'B' 'über' 'ÜBER' 'Über' 'ü' 'Ü' 'À' 'à' 'Þ' 'þ' '×' '÷' 'ß' 'ÿ' 'µ' 'aµ' 'aü' 'ab×' 'abÿ' #abc #ABC 'μ' 'Μ' 'ΟΔΟΣ' 'οδος' 'οδοσ') asOrderedCollection.
 	strings add: 'Ÿ'; add: 'aŸ'; add: (String with: (Character value: 300)); add: 'ÜBER' , (String with: (Character value: 300)).
 	strings do: [:a | strings do: [:b |
-		self assert: (a caseInsensitiveCompare: b) equals: (a asLowercase compare: b asLowercase)]]
+		self assert: (a caseInsensitiveCompare: b) equals: (a caseFolded compare: b caseFolded)]]
+!
+testUnicodeCase
+	"Simple (one-to-one) case mappings and caseless comparison by simple case folding, beyond Latin-1."
+	self assert: 'ΑΒΓ δ' asLowercase equals: 'αβγ δ'.
+	self assert: 'Привет, мир' asUppercase equals: 'ПРИВЕТ, МИР'.
+	self assert: 'Բարեւ' asUppercase equals: 'ԲԱՐԵՒ'.
+	self assert: 'straße' asUppercase equals: 'STRAßE'.
+	self assert: 'ǆemal' capitalized first value equals: 453.
+	self assert: 'µ' asUppercase equals: (String with: (Character value: 924)).
+	self assert: 'aµ' asUppercase class equals: WideString.
+	self assert: 'ÿ' asUppercase equals: (String with: (Character value: 376)).
+	self assert: 'aµ' asSymbol asUppercase class equals: WideString.
+	self assert: 'µ' caseFolded equals: 'μ'.
+	self assert: ('µ' sameAs: 'μ').
+	self assert: ('µ' sameAs: 'Μ').
+	self assert: ('µ' caseInsensitiveCompare: 'μ') equals: 0.
+	self assert: ('ΟΔΟΣ' sameAs: 'οδος').
+	self assert: ('ΟΔΟΣ' sameAs: 'οδοσ').
+	self assert: ('ПРИВЕТ' sameAs: 'привет').
+	self deny: ('ПРИВЕТ' sameAs: 'пока').
+	self assert: ('ſ' sameAs: 'S').
+	self assert: ('日本語' sameAs: '日本語').
+	self assert: ('Привет, мир' includesSubstring: 'МИР' caseSensitive: false).
+	self deny: ('Привет, мир' includesSubstring: 'МИР' caseSensitive: true).
+	self assert: ('*.ΤΧΤ' match: 'αβγ.τχτ').
+	self assert: ('ÜBER*' match: 'überall')
 !
 testCase
 	self assert: 'Hello World' asUppercase = 'HELLO WORLD'.
@@ -60,20 +86,23 @@ two' lines) = #('one' 'two').
 	self assert: 'size' numArgs = 0
 !
 testCasePrimitives
-	"asUppercase and asLowercase of byte strings and Symbols (the primitives) answer what the Character loop answers: every Latin-1 code, ÿ going up to the wide Ÿ, wide strings."
+	"asUppercase and asLowercase of byte strings and Symbols (the primitives) answer what the Character loop answers: every Latin-1 code, µ and ÿ going up to wide characters, wide strings."
 	| all wide |
 	all := String new: 256.
 	1 to: 256 do: [:i | all at: i put: (Character value: i - 1)].
 	self assert: all asUppercase equals: (all collect: [:c | c asUppercase]).
 	self assert: all asLowercase equals: (all collect: [:c | c asLowercase]).
-	self assert: (all copyFrom: 1 to: 255) asUppercase class equals: ByteString.
+	self assert: (all reject: [:c | c value = 181 or: [c value = 255]]) asUppercase class equals: ByteString.
 	self assert: all asUppercase class equals: WideString.
 	self assert: all asUppercase last value equals: 376.
+	self assert: (all asUppercase at: 182) value equals: 924.
+	self assert: all caseFolded equals: (all collect: [:c | c caseFolded]).
+	self assert: (all reject: [:c | c value = 181]) caseFolded class equals: ByteString.
 	self assert: #abcXYZ asUppercase equals: 'ABCXYZ'.
 	self assert: #abcXYZ asLowercase class equals: ByteString.
 	self assert: '' asUppercase equals: ''.
 	wide := String with: $a with: (Character value: 955) with: $Z.
-	self assert: wide asUppercase equals: (String with: $A with: (Character value: 955) with: $Z).
+	self assert: wide asUppercase equals: (String with: $A with: (Character value: 923) with: $Z).
 	self assert: wide asLowercase equals: (String with: $a with: (Character value: 955) with: $z)
 !
 testIndexOfPrimitives
@@ -165,6 +194,7 @@ testConversion
 	self assert: '42' asNumber = 42.
 	self assert: '3.5' asNumber = 3.5.
 	self assert: 'x12y' asInteger = 12.
+	self assert: '٣4' asInteger = 4.
 	self assert: 'none' asInteger isNil.
 	self assert: 'abc' asSymbol class == ByteSymbol.
 	self assert: #abc asString class == ByteString.

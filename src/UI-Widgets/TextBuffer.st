@@ -197,7 +197,7 @@ matchingOpenFor: anIndex
 	^nil
 !
 isWordCharacter: aCharacter
-	^aCharacter isLetter or: [aCharacter isDigit or: [aCharacter = $_]]
+	^aCharacter isLetter or: [aCharacter isDigit or: [aCharacter = $_ or: [aCharacter isMark]]]
 !
 wordStartBefore: aPosition
 	| p |
