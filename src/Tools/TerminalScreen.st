@@ -1,11 +1,11 @@
 Object subclass: #TerminalScreen
-	instanceVariableNames: 'rows cols lines mainLines row col pendingWrap attr top bottom autowrap originMode insertMode newlineMode cursorVisible appCursorKeys bracketedPaste mouseTracking saved savedMain tabStops scrollback maxScrollback scrolledTotal title titleSerial replies charsets activeCharset lastChar serial'
+	instanceVariableNames: 'rows cols lines mainLines row col pendingWrap attr top bottom autowrap originMode insertMode newlineMode cursorVisible appCursorKeys bracketedPaste mouseTracking saved savedMain tabStops scrollback maxScrollback scrolledTotal title titleSerial replies charsets activeCharset lastChar serial clusterRow clusterCol clusterSerial'
 	classVariableNames: 'BgShift Bold Dim FgMask Hidden Inverse Italic LineDrawing Strike Underline Widths'
 	package: 'Tools'!
 
 TerminalScreen comment: 'I am the screen of a terminal emulator (VT100/xterm): rows × columns of TerminalLines, the cursor, the scroll region, the modes, a second (alternate) screen for full-screen programs, and a bounded scrollback of the lines scrolled off the top of the main screen. A TerminalParser turns a program''s output into my operations; a TerminalView draws me.
 
-A character takes the cells of its display width (Unicode displayWidthOf:, as wcwidth, which programs assume): a wide one two (TerminalLine), a zero-width one none (it joins the character before the cursor).
+A character takes the cells of its display width (Unicode displayWidthOf:, as wcwidth, which programs assume): a wide one two (TerminalLine), a zero-width one none (it joins the character before the cursor). An emoji is one grapheme cluster in two cells (as kitty, WezTerm and ghostty, DEC mode 2027): a pictograph, emoji modifier or regional indicator that continues the cluster printed last (String>>isGraphemeClusterBoundaryAt:: after a ZWJ, a modifier, the second indicator of a flag) joins its cell like a zero-width character, if nothing else happened since and the cursor is right after it; a cluster in one cell that becomes an emoji (isEmojiCluster:: a pictograph with U+FE0F or a modifier, a keycap, a flag, a ZWJ sequence) takes the next cell too, at the right margin it wraps first (without autowrap it stays in one).
 
 Cursor positions are 1-based (row, col). pendingWrap: the last character went into the last column; the next one wraps first (xterm''s delayed autowrap).
 
@@ -216,36 +216,90 @@ putBytes: bytes from: start to: stop
 			ifTrue: [col := cols. pendingWrap := autowrap]
 			ifFalse: [col := c]].
 	lastChar := Character value: (bytes at: stop).
-	serial := serial + 1
+	clusterCol := c - 1.
+	self printedCluster
 !
 putCharacter: aCharacter
-	"Print one character at the cursor (charset mapping, insert mode, delayed autowrap). A wide character takes two cells: at the last column it wraps first (or, without autowrap, goes into the last two); a zero-width one joins the character before the cursor."
+	"Print one character at the cursor (charset mapping, insert mode, delayed autowrap). A wide character takes two cells: at the last column it wraps first (or, without autowrap, goes into the last two); a zero-width one, and a pictograph, emoji modifier or regional indicator that continues the cluster printed last, joins it (join:)."
 	| ch line w |
 	ch := aCharacter.
 	(ch value < 128 and: [(charsets at: activeCharset) == #lineDrawing]) ifTrue: [ch := self lineDrawing: ch].
 	w := ch value < 16r300 ifTrue: [1] ifFalse: [self class widthOf: ch value].
 	w = 0 ifTrue: [^self putMark: ch].
+	(ch value >= 16rA9 and: [((Unicode isExtendedPictographicCode: ch value)
+		or: [(ch value between: 16r1F3FB and: 16r1F3FF) or: [ch value between: 16r1F1E6 and: 16r1F1FF]]) and: [self joins: ch]])
+			ifTrue: [^self join: ch].
 	w > cols ifTrue: [^self].
 	pendingWrap ifTrue: [self wrap].
 	col + w - 1 > cols ifTrue: [autowrap ifTrue: [self wrap] ifFalse: [col := cols - w + 1]].
 	line := lines at: row.
 	insertMode ifTrue: [line insertBlanks: w at: col attribute: attr].
 	line put: ch at: col width: w attribute: attr.
+	clusterCol := col.
 	col + w <= cols
 		ifTrue: [col := col + w]
 		ifFalse: [col := cols. pendingWrap := autowrap].
 	lastChar := ch.
-	serial := serial + 1
+	self printedCluster
 !
 putMark: aCharacter
-	"A zero-width character (combining mark, joiner, variation selector): it goes with the character before the cursor."
+	"A zero-width character (combining mark, joiner, variation selector): it joins the cluster printed last (join:), else goes with the character before the cursor."
 	| c line |
+	self clusterCell isNil ifFalse: [^self join: aCharacter].
 	c := pendingWrap ifTrue: [col] ifFalse: [col - 1].
 	c < 1 ifTrue: [^self].
 	line := lines at: row.
 	(line isContinuationAt: c) ifTrue: [c := c - 1].
 	line addMark: aCharacter at: c.
 	serial := serial + 1
+!
+printedCluster
+	"A cluster was just printed into clusterCol of the cursor's row."
+	clusterRow := row.
+	serial := serial + 1.
+	clusterSerial := serial
+!
+clusterCell
+	"The column of the cluster printed last if nothing happened since and the cursor is right after it, else nil."
+	| end |
+	(clusterSerial = serial and: [clusterRow = row]) ifFalse: [^nil].
+	end := ((lines at: row) isWideAt: clusterCol) ifTrue: [clusterCol + 1] ifFalse: [clusterCol].
+	(end + 1 = col or: [end = cols and: [col = cols]]) ifFalse: [^nil].
+	^clusterCol
+!
+joins: aCharacter
+	"Whether aCharacter continues the cluster printed last (no grapheme cluster boundary before it)."
+	| c s |
+	c := self clusterCell.
+	c isNil ifTrue: [^false].
+	s := ((lines at: row) clusterAt: c), (String with: aCharacter).
+	^(s isGraphemeClusterBoundaryAt: s size - 1) not
+!
+join: aCharacter
+	"Add aCharacter to the cluster printed last; one in a cell that becomes an emoji takes two cells (at the right margin it wraps first, without autowrap it stays in one)."
+	| line c base marks a |
+	line := lines at: row.
+	c := clusterCol.
+	line addMark: aCharacter at: c.
+	((line isWideAt: c) or: [cols < 2 or: [(self class isEmojiCluster: (line clusterAt: c)) not]]) ifTrue: [^self printedCluster].
+	(c = cols and: [autowrap not]) ifTrue: [^self printedCluster].
+	base := line characterAt: c.
+	marks := line marksAt: c.
+	a := line attributeAt: c.
+	c = cols
+		ifTrue: [
+			line eraseFrom: c to: c attribute: self blank.
+			self wrap.
+			c := 1.
+			line := lines at: row]
+		ifFalse: [insertMode ifTrue: [line insertBlanks: 1 at: c + 1 attribute: a]].
+	line put: base at: c width: 2 attribute: a.
+	marks do: [:each | line addMark: each at: c].
+	clusterCol := c.
+	c + 2 <= cols
+		ifTrue: [col := c + 2. pendingWrap := false]
+		ifFalse: [col := cols. pendingWrap := autowrap].
+	self printedCluster
 !
 repeatLastCharacter: n
 	"REP"
@@ -684,6 +738,17 @@ widthOf: codePoint
 	w := Widths at: codePoint + 1.
 	w < 3 ifTrue: [^w].
 	^Widths at: codePoint + 1 put: (Unicode displayWidthOf: codePoint)
+!
+isEmojiCluster: aString
+	"Whether a grapheme cluster is an emoji and so two cells wide, from Unicode properties: a pictograph with U+FE0F, an emoji modifier, tags or a ZWJ and more after it; a keycap ([0-9#*] U+FE0F? U+20E3); two regional indicators. Not with U+FE0E."
+	| cps |
+	cps := (1 to: aString size) collect: [:i | (aString at: i) value].
+	(cps size < 2 or: [cps includes: 16rFE0E]) ifTrue: [^false].
+	(cps first between: 16r1F1E6 and: 16r1F1FF) ifTrue: [^(cps at: 2) between: 16r1F1E6 and: 16r1F1FF].
+	('0123456789#*' includes: aString first) ifTrue: [^cps includes: 16r20E3].
+	(Unicode isExtendedPictographicCode: cps first) ifFalse: [^false].
+	^(cps anySatisfy: [:cp | cp = 16rFE0F or: [(cp between: 16r1F3FB and: 16r1F3FF) or: [cp between: 16rE0020 and: 16rE007F]]])
+		or: [(cps indexOf: 16r200D) between: 2 and: cps size - 1]
 !
 foregroundOf: anAttribute
 	^anAttribute bitAnd: FgMask

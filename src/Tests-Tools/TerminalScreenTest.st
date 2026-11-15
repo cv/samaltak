@@ -3,7 +3,7 @@ TestCase subclass: #TerminalScreenTest
 	classVariableNames: ''
 	package: 'Tests-Tools'!
 
-TerminalScreenTest comment: 'I test the terminal emulator''s TerminalParser and TerminalScreen without a pty: byte strings as a program would print them (printf with escape sequences) and the cells, attributes, cursor, scroll region, scrollback, alternate screen, title and replies they produce; and which cells TerminalView draws color emoji in.'!
+TerminalScreenTest comment: 'I test the terminal emulator''s TerminalParser and TerminalScreen without a pty: byte strings as a program would print them (printf with escape sequences) and the cells, attributes, cursor, scroll region, scrollback, alternate screen, title and replies they produce; emoji clusters in their cells, and how TerminalView draws them.'!
 
 !TerminalScreenTest methodsFor: 'running'!
 setUp
@@ -48,45 +48,106 @@ attr: r col: c
 !
 cursor
 	^screen row @ screen col
+!
+u: codePoints
+	^String withAll: (codePoints collect: [:cp | Character value: cp])
 ! !
 
 !TerminalScreenTest methodsFor: 'tests'!
-testColorEmojiInTheirFirstTwoCells
-	"A family (a ZWJ sequence, 6 cells), a thumb with a skin tone (4 cells) and a flag (2 cells) are drawn as color emoji in their first two cells, their other cells blank; a keycap (1 cell) stays text."
-	| view line canvas list xs cw |
+testEmojiClustersTakeTwoCells
+	"Every emoji is one grapheme cluster in one wide cell (the rest of it marks): ZWJ sequences, modifiers, keycaps, U+FE0F, flags, tag sequences; bare ❤ and ©, a lone regional indicator stay one cell, an emoji with U+FE0E stays wide."
+	#(#(16r1F468 16r200D 16r1F469 16r200D 16r1F467) 2 #(16r1F44D 16r1F3FD) 2 #(16r261D 16r1F3FD) 2 #(16r31 16rFE0F 16r20E3) 2
+	  #(16r23 16r20E3) 2 #(16r2764 16rFE0F) 2 #(16rA9 16rFE0F) 2 #(16r1F1E9 16r1F1EA) 2 #(16r1F3F3 16rFE0F 16r200D 16r1F308) 2
+	  #(16r1F3F4 16rE0067 16rE0062 16rE0065 16rE006E 16rE0067 16rE007F) 2 #(16r2764) 1 #(16rA9) 1 #(16r1F1E9) 1 #(16r1F600 16rFE0E) 2
+	  #(16r1F600) 2 #(16r31) 1) pairsDo: [:cps :w | | line |
+		self setUp.
+		self feed: (self u: cps), 'x'.
+		line := screen lineAt: 1.
+		self assert: (line clusterAt: 1) equals: (self u: cps).
+		self assert: (line isWideAt: 1) equals: w = 2.
+		self assert: (line characterAt: w + 1) equals: $x.
+		self assert: self cursor equals: 1 @ (w + 2).
+		self assert: (self row: 1) equals: (self u: cps), 'x'].
+	"a third regional indicator starts a new cluster"
+	self setUp.
+	self feed: (self u: #(16r1F1E9 16r1F1EA 16r1F1EB)).
+	self assert: self cursor equals: 1 @ 4.
+	self assert: ((screen lineAt: 1) clusterAt: 3) equals: (self u: #(16r1F1EB))
+!
+testEmojiWidensAtTheMargin
+	"A cluster in the last column that becomes an emoji goes to the next line (as a wide character would); without autowrap it stays narrow. A ZWJ sequence goes on in its cell past the margin."
+	self feed: (String new: 19 withAll: $a), (self u: #(16r2764 16rFE0F)), 'x'.
+	self assert: (self row: 1) equals: (String new: 19 withAll: $a).
+	self assert: ((screen lineAt: 2) clusterAt: 1) equals: (self u: #(16r2764 16rFE0F)).
+	self assert: ((screen lineAt: 2) isWideAt: 1).
+	self assert: (self row: 2) equals: (self u: #(16r2764 16rFE0F)), 'x'.
+	self assert: self cursor equals: 2 @ 4.
+	self setUp.
+	self feed: '\e[?7l', (String new: 19 withAll: $a), (self u: #(16r2764 16rFE0F)).
+	self deny: ((screen lineAt: 1) isWideAt: 20).
+	self assert: ((screen lineAt: 1) clusterAt: 20) equals: (self u: #(16r2764 16rFE0F)).
+	self setUp.
+	self feed: (String new: 18 withAll: $a), (self u: #(16r1F468 16r200D 16r1F469)), 'x'.
+	self assert: ((screen lineAt: 1) clusterAt: 19) equals: (self u: #(16r1F468 16r200D 16r1F469)).
+	self assert: (self row: 2) equals: 'x'
+!
+testEmojiJoinsOnlyRightAfterPrinting
+	"A modifier or pictograph joins the cluster printed last only if the cursor is still right after it: not after a cursor move, an erase, a line feed or a carriage return."
+	self feed: (self u: #(16r1F44D)), '\e[D\e[C', (self u: #(16r1F3FD)).
+	self assert: self cursor equals: 1 @ 5.
+	self assert: ((screen lineAt: 1) clusterAt: 3) equals: (self u: #(16r1F3FD)).
+	self setUp.
+	self feed: (self u: #(16r1F468 16r200D)), '\e[K', (self u: #(16r1F469)).
+	self assert: self cursor equals: 1 @ 5.
+	self setUp.
+	self feed: (self u: #(16r1F1E9)), '\r\n', (self u: #(16r1F1EA)).
+	self assert: (self row: 2) equals: (self u: #(16r1F1EA)).
+	self setUp.
+	self feed: (self u: #(16r1F44D)), '\r', (self u: #(16r1F3FD)).
+	self assert: ((screen lineAt: 1) clusterAt: 1) equals: (self u: #(16r1F3FD))
+!
+testEditingEmojiClusters
+	"Overwriting either half, erasing, inserting and deleting characters take a joined cluster whole; copying gives it whole."
+	| family line |
+	family := self u: #(16r1F468 16r200D 16r1F469 16r200D 16r1F467).
+	self feed: family, 'x'.
+	line := screen lineAt: 1.
+	self assert: (line stringFrom: 1 to: 1) equals: family.
+	self assert: (line stringFrom: 2 to: 3) equals: family, 'x'.
+	self feed: '\e[1;1H\e[@'.
+	self assert: (self row: 1) equals: ' ', family, 'x'.
+	self assert: (line clusterAt: 2) equals: family.
+	self feed: '\e[P'.
+	self assert: (self row: 1) equals: family, 'x'.
+	self feed: '\e[1;2Hy'.
+	self assert: (self row: 1) equals: ' yx'.
+	self assert: line marks isNil.
+	self feed: '\r', family, '\e[1;1Hz'.
+	self assert: (self row: 1) equals: 'z x'.
+	self feed: '\r', family, '\e[1;1H\e[K'.
+	self assert: (self row: 1) equals: ''.
+	self assert: line marks isNil
+!
+testEmojiInTheirTwoCellsAndUnderTheCursor
+	"TerminalView draws a wide cell's cluster in its two cells, an emoji in color (several layer quads); with U+FE0E or a lone ❤ as text (one quad). The block cursor on either half covers both cells and draws the emoji in color, not its base as text."
+	| view line canvas list colors cw |
 	view := TerminalView new.
-	view parser feed: (String withAll: (#(16r1F468 16r200D 16r1F469 16r200D 16r1F467 16r78 16r1F44D 16r1F3FD 16r78 16r1F1E9 16r1F1EA 16r78 16r31 16rFE0F 16r20E3 16r78)
-		collect: [:cp | Character value: cp])) utf8Encoded.
-	line := view screen lineAt: 1.
-	self assert: (view emojiAt: 1 of: line) last equals: 6.
-	self assert: (view emojiAt: 1 of: line) first size equals: 5.
-	self assert: (line characterAt: 7) equals: $x.
-	self assert: (view emojiAt: 8 of: line) last equals: 11.
-	self assert: (view emojiAt: 13 of: line) last equals: 14.
-	self assert: (line characterAt: 16) equals: $1.
-	self assert: (view emojiAt: 16 of: line) isNil.
 	cw := view cellExtent x.
+	view parser feed: (self bytes: (self u: #(16r1F468 16r200D 16r1F469 16r200D 16r1F467)), 'x', (self u: #(16r1F600 16rFE0E)), (self u: #(16r2764)), '\e[1;2H').
+	line := view screen lineAt: 1.
 	canvas := Canvas extent: 400 @ 40 scale: (Theme current font: #code) scale.
 	view drawLine: line selection: nil on: canvas.
 	list := canvas displayList.
-	xs := (1 to: list quadCount) collect: [:i | ((list quadAt: i) at: #origin) x / canvas scale].
-	self assert: (xs count: [:x | x < (2 * cw)]) > 3.
-	"(glyph quads start at the pen, a whole device pixel)"
-	self assert: (xs count: [:x | x > (2.25 * cw) and: [x < (5.75 * cw)]]) equals: 0.
-	self assert: (xs count: [:x | x > (9.25 * cw) and: [x < (10.75 * cw)]]) equals: 0.
-	self assert: (xs count: [:x | (x - (15 * cw)) abs < 0.25]) equals: 1.
-	"in the last two columns, also followed by a ZWJ; with U+FE0E text"
-	view := TerminalView new.
-	view parser feed: ((String new: 78 withAll: $x), (String with: (Character value: 16r1F600) with: (Character value: 16r200D))) utf8Encoded.
-	line := view screen lineAt: 1.
-	self assert: line size equals: 80.
-	self assert: (view emojiAt: 79 of: line) last equals: 80.
-	view parser feed: (String with: Character cr with: Character lf with: (Character value: 16r1F600) with: (Character value: 16rFE0E)) utf8Encoded.
-	line := view screen lineAt: 2.
-	self assert: (view emojiAt: 1 of: line) isNil.
+	colors := ((1 to: list quadCount) select: [:i | ((list quadAt: i) at: #origin) x / canvas scale < (1.5 * cw)]) collect: [:i | (list quadAt: i) at: #color].
+	self assert: colors asSet size > 3.
+	self assert: list quadCount equals: colors size + 3.
+	self assert: view cursorColumn equals: 1.
+	self assert: view cursorRect width closeTo: 2 * cw.
 	canvas := Canvas extent: 400 @ 40 scale: (Theme current font: #code) scale.
-	view drawLine: line selection: nil on: canvas.
-	self assert: canvas displayList quadCount equals: 1
+	view drawBlockCursorOn: canvas.
+	list := canvas displayList.
+	self assert: list quadCount equals: colors size + 1.
+	self assert: ((2 to: list quadCount) collect: [:i | (list quadAt: i) at: #color]) asSet size > 3
 !
 testPrintingAndDelayedAutowrap
 	self feed: 'abc'.
@@ -396,9 +457,8 @@ testZeroWidthCharactersJoinTheCharacterBefore
 	self assert: (line marksAt: 1) equals: (String with: acute).
 	self assert: (self row: 1) equals: (String with: $e with: acute with: $z).
 	parser feed: (String with: (Character value: 16r1F468) with: zwj with: (Character value: 16r1F469) with: (Character value: 16rFE0F)) utf8Encoded.
-	self assert: self cursor equals: 1 @ 7.
-	self assert: (line marksAt: 3) equals: (String with: zwj).
-	self assert: (line marksAt: 5) equals: (String with: (Character value: 16rFE0F)).
+	self assert: self cursor equals: 1 @ 5.
+	self assert: (line marksAt: 3) equals: (String with: zwj with: (Character value: 16r1F469) with: (Character value: 16rFE0F)).
 	self assert: ((self row: 1) allButFirst: 3) equals: (String with: (Character value: 16r1F468) with: zwj with: (Character value: 16r1F469) with: (Character value: 16rFE0F)).
 	self feed: '\e[1;1Hx'.
 	self assert: (line marksAt: 1) isNil.

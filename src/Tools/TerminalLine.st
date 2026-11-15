@@ -5,7 +5,7 @@ Object subclass: #TerminalLine
 
 TerminalLine comment: 'I am one row of a TerminalScreen (or of its scrollback): a character and a packed attribute per column (TerminalScreen attribute encoding), whether the text continues on the next row (wrapped by autowrap, so copying joins the rows), and a serial number that grows with every change, so a TerminalView redraws only the rows that changed.
 
-A wide character (display width 2) takes two columns: the character, then a continuation cell holding NUL (which a program cannot print). Writing or erasing either half blanks the other. marks: nil, or column -> the zero-width characters (combining marks, joiners, variation selectors) that follow the character in that column; they are drawn over it and copied with it.'!
+A wide character (display width 2) takes two columns: the character, then a continuation cell holding NUL (which a program cannot print). Writing or erasing either half blanks the other. marks: nil, or column -> the characters that follow the one in that column in its grapheme cluster without a cell of their own (zero-width ones: combining marks, joiners, variation selectors; and those an emoji sequence joins: modifiers, the second regional indicator, the pictographs after a ZWJ); they are copied with it.'!
 
 !TerminalLine methodsFor: 'initialization'!
 setWidth: anInteger attribute: blankAttr
@@ -60,6 +60,13 @@ marksAt: col
 	"The zero-width characters drawn over col, or nil."
 	marks isNil ifTrue: [^nil].
 	^marks at: col ifAbsent: [nil]
+!
+clusterAt: col
+	"The character in col with its marks: a grapheme cluster."
+	| m |
+	m := self marksAt: col.
+	m isNil ifTrue: [^String with: (self characterAt: col)].
+	^(String with: (self characterAt: col)), m
 !
 string
 	"My text without trailing blanks."

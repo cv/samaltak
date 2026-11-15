@@ -3,7 +3,7 @@ Widget subclass: #TerminalView
 	classVariableNames: 'BoxArms Palette'
 	package: 'Tools'!
 
-TerminalView comment: 'I am the screen of a Terminal: I draw a TerminalScreen (JetBrains Mono on white, the 16 ANSI colors tuned to the Blue Book theme, 256 colors and truecolor), its scrollback (wheel; shift-page up/down), a blinking block cursor (the caret blink of the Theme) and a mouse selection (drag, double-click a word, triple-click a line; ⌘C copies, ⌘V pastes — bracketed when the program asked for it). A wide character is drawn centered across its two cells (smaller if its glyph is wider), and selected and copied whole; zero-width characters are drawn over the character they follow and copied with it. A color emoji cluster of two cells or more (emojiAt:of:: a ZWJ sequence, a skin tone, a flag) is drawn in its first two cells, its other cells left blank; one a cell wide (a keycap) is drawn as text. Keys become what an xterm sends: arrows (application cursor mode too), home/end, page up/down, delete, backspace (DEL), tab, return (CR), escape, control letters, ⌥ as meta (an ESC prefix; ⌥←/⌥→ move by words); typed text is sent as UTF-8.
+TerminalView comment: 'I am the screen of a Terminal: I draw a TerminalScreen (JetBrains Mono on white, the 16 ANSI colors tuned to the Blue Book theme, 256 colors and truecolor), its scrollback (wheel; shift-page up/down), a blinking block cursor (the caret blink of the Theme) and a mouse selection (drag, double-click a word, triple-click a line; ⌘C copies, ⌘V pastes — bracketed when the program asked for it). A wide character is drawn centered across its two cells (smaller if its glyph is wider), and selected and copied whole; zero-width characters are drawn over the character they follow and copied with it. A wide cell''s grapheme cluster is drawn whole in its two cells (an emoji in color when Twemoji has it, else as text), under the cursor too, which covers both cells. Keys become what an xterm sends: arrows (application cursor mode too), home/end, page up/down, delete, backspace (DEL), tab, return (CR), escape, control letters, ⌥ as meta (an ESC prefix; ⌥←/⌥→ move by words); typed text is sent as UTF-8.
 
 My size decides the screen''s rows and columns (onResize: tells the pty). onSend: [:bytes | …] receives what the user types; feed:from:to: interprets what the program wrote (TerminalParser); afterOutput updates the view and the title (onTitle:).
 
@@ -171,7 +171,7 @@ drawLine: aLine selection: sel on: aCanvas
 			color: (self theme color: #textSelection)]
 !
 drawRun: aLine from: start to: stop attribute: a on: aCanvas
-	| chars fg bg x0 x1 runFont last y wide i |
+	| chars fg bg x0 x1 runFont last y wide |
 	chars := aLine chars.
 	fg := TerminalScreen foregroundOf: a.
 	bg := TerminalScreen backgroundOf: a.
@@ -193,7 +193,8 @@ drawRun: aLine from: start to: stop attribute: a on: aCanvas
 	(TerminalScreen isStrike: a) ifTrue: [aCanvas fillRect: (x0 @ (cellHeight / 2) corner: x1 @ (cellHeight / 2 + 1)) color: fg].
 	runFont := (TerminalScreen isBold: a) ifTrue: [boldFont] ifFalse: [(TerminalScreen isItalic: a) ifTrue: [italicFont] ifFalse: [font]].
 	aLine marks isNil ifFalse: [
-		start to: stop do: [:i | (aLine marksAt: i) ifNotNil: [:m | self drawMarks: m over: i of: aLine font: runFont color: fg on: aCanvas]]].
+		start to: stop do: [:i | (aLine marksAt: i) ifNotNil: [:m |
+			(aLine isWideAt: i) ifFalse: [self drawMarks: m over: i of: aLine font: runFont color: fg on: aCanvas]]]].
 	last := stop.
 	[last >= start and: [(chars at: last) == $ ]] whileTrue: [last := last - 1].
 	last < start ifTrue: [^self].
@@ -201,64 +202,29 @@ drawRun: aLine from: start to: stop attribute: a on: aCanvas
 	wide := false.
 	start to: last do: [:i | | v | v := (chars at: i) value. (v > 255 or: [v = 0]) ifTrue: [wide := true]].
 	wide ifFalse: [^aCanvas drawString: chars from: start to: last at: x0 @ y font: runFont color: fg].
-	i := start.
-	[i <= last] whileTrue: [ | ch emoji |
+	start to: last do: [:i | | ch |
 		ch := chars at: i.
-		emoji := ch value > 255 ifTrue: [self emojiAt: i of: aLine] ifFalse: [nil].
-		emoji isNil
-			ifTrue: [
-				(ch == $  or: [ch value = 0]) ifFalse: [
+		(ch == $  or: [ch value = 0]) ifFalse: [
+			(aLine isWideAt: i)
+				ifTrue: [self drawWide: (aLine clusterAt: i) at: i - 1 * cellWidth cells: 2 font: runFont color: fg on: aCanvas]
+				ifFalse: [
 					ch value > 255
-						ifTrue: [self drawWide: ch at: i - 1 * cellWidth cells: ((aLine isWideAt: i) ifTrue: [2] ifFalse: [1]) font: runFont color: fg on: aCanvas]
-						ifFalse: [aCanvas drawString: chars from: i to: i at: (i - 1 * cellWidth) @ y font: runFont color: fg]].
-				i := i + 1]
-			ifFalse: [
-				self drawEmoji: emoji first at: i - 1 * cellWidth font: runFont color: fg on: aCanvas.
-				i := (emoji at: 2) + 1]]
+						ifTrue: [self drawWide: (String with: ch) at: i - 1 * cellWidth cells: 1 font: runFont color: fg on: aCanvas]
+						ifFalse: [aCanvas drawString: chars from: i to: i at: (i - 1 * cellWidth) @ y font: runFont color: fg]]]]
 !
-emojiAt: col of: aLine
-	"The color emoji cluster that starts in col, put together from the cells (a character and its marks; on into the next cell after a ZWJ, for an emoji modifier, for the second regional indicator of a flag): {its String. its last column}; nil if there is none or it takes one cell."
-	| cp s c next n |
-	cp := (aLine characterAt: col) value.
-	((Unicode isExtendedPictographicCode: cp) or: [cp between: 16r1F1E6 and: 16r1F1FF]) ifFalse: [^nil].
-	s := WriteStream on: (WideString new: 8).
-	c := col.
-	[s nextPut: (aLine characterAt: c).
-	 (aLine marksAt: c) ifNotNil: [:m | s nextPutAll: m].
-	 next := c + ((aLine isWideAt: c) ifTrue: [2] ifFalse: [1]).
-	 n := (aLine characterAt: next) value.
-	 next <= aLine size and: [((aLine marksAt: c) notNil and: [(aLine marksAt: c) last value = 16r200D])
-		or: [(n between: 16r1F3FB and: 16r1F3FF) or: [c = col and: [(cp between: 16r1F1E6 and: 16r1F1FF) and: [n between: 16r1F1E6 and: 16r1F1FF]]]]]]
-			whileTrue: [c := next].
-	(next - col < 2 or: [(font colorClusterEndAt: 1 in: (s := s contents) to: s size) < s size]) ifTrue: [^nil].
-	^Array with: s with: next - 1
-!
-drawEmoji: aString at: x font: aFont color: aColor on: aCanvas
-	"A color emoji cluster in the first two of its cells, as drawWide: draws a wide character; its other cells stay blank."
-	| f advance space |
-	f := aFont.
-	advance := f widthOf: aString.
-	space := 2 * cellWidth.
-	advance > space ifTrue: [
-		f := self font: aFont scaledTo: space / advance.
-		advance := f widthOf: aString].
-	aCanvas drawString: aString at: (x + (space - advance / 2)) @ (cellHeight - f lineHeight / 2) font: f color: aColor
-!
-drawWide: aCharacter at: x cells: w font: aFont color: aColor on: aCanvas
-	"A character beyond Latin-1 in its w cells: box drawing and blocks drawn as rectangles, else its glyph (from aFont's fallback faces if need be) centered in them, a wide one smaller if it is wider than its cells."
+drawWide: aString at: x cells: w font: aFont color: aColor on: aCanvas
+	"A character beyond Latin-1, or the grapheme cluster of a wide cell (with its marks), in its w cells: box drawing and blocks drawn as rectangles, else its glyphs (from aFont's fallback faces if need be; a color emoji if Font draws the cluster as one) centered in them, in two cells smaller if wider."
 	| cp f advance space |
-	cp := aCharacter value.
-	(cp between: 16r2500 and: 16r259F) ifTrue: [
+	cp := aString first value.
+	(aString size = 1 and: [cp between: 16r2500 and: 16r259F]) ifTrue: [
 		(self drawBox: cp at: x color: aColor on: aCanvas) ifTrue: [^self]].
 	f := aFont.
-	advance := f advanceOf: aCharacter.
+	advance := f widthOf: aString.
 	space := w * cellWidth.
 	(w = 2 and: [advance > space]) ifTrue: [
 		f := self font: aFont scaledTo: space / advance.
-		advance := f advanceOf: aCharacter].
-	"with U+FE0E: as text, not as color emoji (emojiAt:of: takes those)"
-	aCanvas drawString: (String with: aCharacter with: (Character value: 16rFE0E))
-		at: (x + (space - advance / 2)) @ (cellHeight - f lineHeight / 2) font: f color: aColor
+		advance := f widthOf: aString].
+	aCanvas drawString: aString at: (x + (space - advance / 2)) @ (cellHeight - f lineHeight / 2) font: f color: aColor
 !
 drawMarks: aString over: col of: aLine font: aFont color: aColor on: aCanvas
 	"Zero-width characters over the character in col: from where its glyph ends (so marks without advance, drawn left of the pen, sit over it); a mark with an advance centered in the cells."
@@ -324,25 +290,41 @@ drawBlock: cp at: x color: aColor on: aCanvas
 !
 drawOverlayOn: aCanvas
 	"The cursor: a block while I have the keys (blinking), a frame otherwise."
-	| p r c w rect line ch cursorFont |
 	(scrollOffset = 0 and: [screen isCursorVisible]) ifFalse: [^self].
+	self isFocused ifFalse: [^aCanvas strokeRect: self cursorRect color: self theme ink width: 1].
+	cursorOn ifTrue: [self drawBlockCursorOn: aCanvas]
+!
+cursorColumn
+	"The cursor's cell, the left one of a wide character on either half."
+	^((screen lineAt: screen row) isContinuationAt: screen col) ifTrue: [screen col - 1] ifFalse: [screen col]
+!
+cursorRect
+	"The cursor's cells (both of a wide character), local."
+	| p c w |
 	p := self padding.
-	r := screen row.
-	c := screen col.
-	line := screen lineAt: r.
+	c := self cursorColumn.
+	w := ((screen lineAt: screen row) isWideAt: c) ifTrue: [2] ifFalse: [1].
+	^(p x + (c - 1 * cellWidth)) @ (p y + (screen row - 1 * cellHeight)) extent: (w * cellWidth) @ cellHeight
+!
+drawBlockCursorOn: aCanvas
+	"The block cursor with the character on it in the paper color; a wide cell's whole cluster, an emoji in color as elsewhere."
+	| c w rect line ch cursorFont |
+	line := screen lineAt: screen row.
+	c := self cursorColumn.
 	w := (line isWideAt: c) ifTrue: [2] ifFalse: [1].
-	rect := (p x + (c - 1 * cellWidth)) @ (p y + (r - 1 * cellHeight)) extent: (w * cellWidth) @ cellHeight.
-	self isFocused ifFalse: [^aCanvas strokeRect: rect color: self theme ink width: 1].
-	cursorOn ifFalse: [^self].
+	rect := self cursorRect.
 	aCanvas fillRect: rect color: self theme ink.
 	ch := line characterAt: c.
 	cursorFont := (TerminalScreen isBold: (line attributeAt: c)) ifTrue: [boldFont] ifFalse: [font].
-	aCanvas translateBy: p x @ rect top during: [
+	aCanvas translateBy: self padding x @ rect top during: [
 		(ch == $  or: [ch value = 0]) ifFalse: [
-			ch value > 255
-				ifTrue: [self drawWide: ch at: c - 1 * cellWidth cells: w font: cursorFont color: self theme paper on: aCanvas]
-				ifFalse: [aCanvas drawString: (String with: ch) at: (c - 1 * cellWidth) @ (cellHeight - font lineHeight / 2) font: cursorFont color: self theme paper]].
-		(line marksAt: c) ifNotNil: [:m | self drawMarks: m over: c of: line font: cursorFont color: self theme paper on: aCanvas]]
+			w = 2
+				ifTrue: [self drawWide: (line clusterAt: c) at: c - 1 * cellWidth cells: 2 font: cursorFont color: self theme paper on: aCanvas]
+				ifFalse: [
+					ch value > 255
+						ifTrue: [self drawWide: (String with: ch) at: c - 1 * cellWidth cells: 1 font: cursorFont color: self theme paper on: aCanvas]
+						ifFalse: [aCanvas drawString: (String with: ch) at: (c - 1 * cellWidth) @ (cellHeight - font lineHeight / 2) font: cursorFont color: self theme paper]]].
+		(w = 1 and: [(line marksAt: c) notNil]) ifTrue: [self drawMarks: (line marksAt: c) over: c of: line font: cursorFont color: self theme paper on: aCanvas]]
 !
 colorFor: code default: aColor
 	"The Color of an attribute's color code (0: aColor)."
