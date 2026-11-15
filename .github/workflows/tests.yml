@@ -17,6 +17,7 @@ jobs:
     env:
       DEBIAN_FRONTEND: noninteractive
       SDL_VIDEODRIVER: x11
+      SDL_VIDEO_X11_SCALING_FACTOR: '2'
       VK_DRIVER_FILES: /usr/share/vulkan/icd.d/lvp_icd.x86_64.json
       XDG_RUNTIME_DIR: /tmp/samaltak-runtime
     steps:
@@ -24,7 +25,7 @@ jobs:
         run: |
           apt-get update
           apt-get install -y --no-install-recommends \
-            ca-certificates git build-essential nodejs python3 perl \
+            ca-certificates git build-essential nodejs python3 perl less \
             xvfb xauth mesa-vulkan-drivers \
             libx11-dev libxext-dev libxrandr-dev libxcursor-dev libxi-dev
       - uses: actions/checkout@v6
