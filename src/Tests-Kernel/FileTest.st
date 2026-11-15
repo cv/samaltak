@@ -44,6 +44,30 @@ testUTF8
 		self assert: (s next: 2) = 'hé'.
 		self assert: s position = 3]
 !
+testUTF8IllFormed
+	"FileStream decodes as ByteArray>>utf8Decoded: one U+FFFD per maximal ill-formed subpart, also across its 8 KB buffer's boundary and at the end of the file."
+	| path fffd check |
+	path := dir / 'bad.txt'.
+	fffd := Character value: 16rFFFD.
+	check := [:bytes :expected |
+		File writeBytes: bytes to: path.
+		self assert: (File readText: path) equals: expected.
+		FileStream readOnlyFileNamed: path do: [:s |
+			self assert: (s next: expected size + 1) equals: expected.
+			self assert: s atEnd]].
+	check value: #[16r61 16rE9 16r62 16rED 16rA0 16r80 16rF1 16r80 16r80] value: (String withAll: {$a. fffd. $b. fffd. fffd. fffd. fffd}).
+	check value: (ByteArray new: 8190 withAll: 16r61) , #[16rF0 16r9F 16r98 16r80 16r62]
+		value: (String new: 8190 withAll: $a) , (String with: (Character value: 16r1F600) with: $b).
+	check value: (ByteArray new: 8191 withAll: 16r61) , #[16rE2 16r82 16r41]
+		value: (String new: 8191 withAll: $a) , (String with: fffd with: $A).
+	check value: (ByteArray new: 8191 withAll: 16r61) , #[16rF0 16r9F 16r98]
+		value: (String new: 8191 withAll: $a) , (String with: fffd).
+	FileStream readOnlyFileNamed: path do: [:s |
+		s position: 8191.
+		self assert: s next equals: fffd.
+		self assert: s position equals: 8194.
+		self assert: s next isNil]
+!
 testNamesThatAreNotUTF8
 	"The VM decodes OS names with surrogateescape: each byte of an ill-formed sequence is U+DC80-DCFF, written back as that byte."
 	| raw name |

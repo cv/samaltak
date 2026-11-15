@@ -64,7 +64,10 @@ testRenderScalars
 testRenderStrings
 	self assert: (JSON render: 'a"b\c') equals: '"a\"b\\c"'.
 	self assert: (JSON render: (String with: Character lf with: Character tab with: (Character value: 1))) equals: '"\n\t\u0001"'.
-	self assert: (JSON render: (String with: (Character value: 955))) equals: (String with: $" with: (Character value: 955) with: $")
+	self assert: (JSON render: (String with: (Character value: 955))) equals: (String with: $" with: (Character value: 955) with: $").
+	"Surrogate code points, which UTF-8 cannot encode, are escaped."
+	self assert: (JSON render: (String with: $a with: (Character value: 16rDCFF))) equals: '"a\udcff"'.
+	self assert: (JSON render: (String with: (Character value: 16r1F600))) utf8Encoded equals: #[34 16rF0 16r9F 16r98 16r80 34]
 !
 testRenderStructures
 	| d |

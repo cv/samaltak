@@ -282,12 +282,13 @@ asByteArray
 	^bytes
 !
 utf8Encoded
-	"Answer a ByteArray with my UTF-8 encoding."
+	"Answer a ByteArray with my UTF-8 encoding, always well-formed: a surrogate code point (U+D800-DFFF), which has none, becomes U+FFFD."
 	| stream |
 	stream := WriteStream on: (ByteArray new: self size).
 	self do: [:c |
 		| cp |
 		cp := c value.
+		(cp between: 16rD800 and: 16rDFFF) ifTrue: [cp := 16rFFFD].
 		cp < 16r80
 			ifTrue: [stream nextPut: cp]
 			ifFalse: [

@@ -50,11 +50,12 @@ writeString: aString
 	stream nextPut: $"
 !
 writeCharacter: aCharacter
+	"Control characters and surrogate code points (which UTF-8 cannot encode) as \uXXXX."
 	| v |
 	v := aCharacter value.
 	v = 34 ifTrue: [^stream nextPutAll: '\"'].
 	v = 92 ifTrue: [^stream nextPutAll: '\\'].
-	v >= 32 ifTrue: [^stream nextPut: aCharacter].
+	(v >= 32 and: [(v between: 16rD800 and: 16rDFFF) not]) ifTrue: [^stream nextPut: aCharacter].
 	v = 10 ifTrue: [^stream nextPutAll: '\n'].
 	v = 13 ifTrue: [^stream nextPutAll: '\r'].
 	v = 9 ifTrue: [^stream nextPutAll: '\t'].

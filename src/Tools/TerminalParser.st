@@ -222,7 +222,7 @@ stringByte: b
 finishString
 	| text i code |
 	string isNil ifTrue: [^self].
-	text := [string contents utf8Decoded] on: Error do: [:e | e return: string contents asString].
+	text := string contents utf8Decoded.
 	string := nil.
 	i := text indexOf: $;.
 	i = 0 ifTrue: [^self].

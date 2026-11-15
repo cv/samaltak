@@ -3,7 +3,7 @@ Stream subclass: #FileStream
 	classVariableNames: ''
 	package: 'System-Files'!
 
-FileStream comment: 'I read and write a file through a platform handle. In text mode (ascii, the default) I read and write Characters, UTF-8 encoded; in binary mode bytes (SmallIntegers, ByteArrays). Reads go through readBuffer, writes collect in writeBuffer until flush, close, a seek or a read. Close me when done; the ...do: and contentsAndClose forms do it for you, even on errors. A FileStream that is garbage collected unclosed is flushed and closed by the finalization process (WeakRegistry).'!
+FileStream comment: 'I read and write a file through a platform handle. In text mode (ascii, the default) I read and write Characters, UTF-8 encoded (an ill-formed sequence reads as U+FFFD, as ByteArray>>utf8Decoded; positions count bytes); in binary mode bytes (SmallIntegers, ByteArrays). Reads go through readBuffer, writes collect in writeBuffer until flush, close, a seek or a read. Close me when done; the ...do: and contentsAndClose forms do it for you, even on errors. A FileStream that is garbage collected unclosed is flushed and closed by the finalization process (WeakRegistry).'!
 
 !FileStream methodsFor: 'initialization'!
 open: aPath mode: mode
@@ -219,18 +219,26 @@ nextBytes: anInteger
 	^result
 !
 decodeCharacterStartingWith: firstByte
-	| cp extra b |
+	"firstByte was just read: answer the Character of the UTF-8 sequence it begins, consumed, as ByteArray>>utf8Decoded decodes it (U+FFFD for an ill-formed one, a truncated one at the end of the file too)."
+	| start n |
 	firstByte < 16r80 ifTrue: [^Character value: firstByte].
-	firstByte < 16rE0
-		ifTrue: [cp := firstByte bitAnd: 16r1F. extra := 1]
-		ifFalse: [
-			firstByte < 16rF0
-				ifTrue: [cp := firstByte bitAnd: 16r0F. extra := 2]
-				ifFalse: [cp := firstByte bitAnd: 16r07. extra := 3]].
-	extra timesRepeat: [
-		b := self nextByte.
-		b isNil ifFalse: [cp := (cp bitShift: 6) + (b bitAnd: 16r3F)]].
-	^Character value: cp
+	readCount - readIndex < 2 ifTrue: [self keepReadBufferFrom: readIndex - 1].
+	start := readIndex - 1.
+	n := readBuffer utf8LengthAt: start to: readCount.
+	readIndex := start + n abs.
+	^readBuffer utf8CharacterAt: start length: n
+!
+keepReadBufferFrom: start
+	"Move the buffered bytes from start on to the front and read more after them, until 4 are buffered or the file ends: a UTF-8 sequence at start is then whole."
+	| count |
+	readBuffer replaceFrom: 1 to: readCount - start + 1 with: readBuffer startingAt: start.
+	readIndex := readIndex - start + 1.
+	readCount := readCount - start + 1.
+	[readCount < 4 and: [
+		count := File primRead: handle into: readBuffer startingAt: readCount + 1 count: readBuffer size - readCount.
+		count isNil ifTrue: [^File signalErrorFor: name].
+		readCount := readCount + count.
+		count > 0]] whileTrue
 !
 discardReadBuffer
 	"Before writing: move the OS position back to the logical position."

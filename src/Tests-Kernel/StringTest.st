@@ -203,6 +203,46 @@ testWideStrings
 	self assert: (String streamContents: [:stream | stream nextPutAll: 'ab'; nextPut: lambda]) class == WideString.
 	self assert: (String with: lambda) asUppercase size = 1
 !
+testUtf8DecodingIllFormed
+	"Each maximal ill-formed subpart (Unicode 3.9, as WHATWG) decodes to one U+FFFD."
+	#(
+		#[16r80] #(16rFFFD)
+		#[16rBF 16r41] #(16rFFFD 16r41)
+		#[16rC0 16rAF] #(16rFFFD 16rFFFD)
+		#[16rC1 16rBF] #(16rFFFD 16rFFFD)
+		#[16rE0 16r80 16rAF] #(16rFFFD 16rFFFD 16rFFFD)
+		#[16rF0 16r80 16r80] #(16rFFFD 16rFFFD 16rFFFD)
+		#[16rF1 16r80 16r80] #(16rFFFD)
+		#[16rF1 16r80 16r80 16r41] #(16rFFFD 16r41)
+		#[16rED 16rA0 16r80] #(16rFFFD 16rFFFD 16rFFFD)
+		#[16rED 16r9F 16rBF] #(16rD7FF)
+		#[16rF4 16r90 16r80 16r80] #(16rFFFD 16rFFFD 16rFFFD 16rFFFD)
+		#[16rF4 16r8F 16rBF 16rBF] #(16r10FFFF)
+		#[16rF5 16r80] #(16rFFFD 16rFFFD)
+		#[16rFE 16rFF] #(16rFFFD 16rFFFD)
+		#[16rF8 16r88 16r80 16r80 16r80] #(16rFFFD 16rFFFD 16rFFFD 16rFFFD 16rFFFD)
+		#[16rE9 16r61] #(16rFFFD 16r61)
+		#[16rC2 16rC2 16rA9] #(16rFFFD 16rA9)
+		#[16rE2 16r82] #(16rFFFD)
+		#[16rC3] #(16rFFFD)
+		#[16rE2 16r82 16rAC] #(16r20AC)
+		#[16r61 16rF0 16r9F 16r98 16r80 16r62] #(16r61 16r1F600 16r62))
+			pairsDo: [:bytes :codePoints |
+				self assert: (bytes utf8Decoded asArray collect: [:c | c value]) equals: codePoints].
+	self assert: #[16rC3 16rA9] utf8Decoded class == ByteString.
+	self assert: #[16r61 16r62] utf8Decoded equals: 'ab'.
+	self assert: #[] utf8Decoded equals: ''
+!
+testUtf8RoundTrips
+	#(0 16r7F 16r80 16r7FF 16r800 16rFFFF 16r10000 16r1F600 16r10FFFF) with: #(1 1 2 2 3 3 4 4 4) do: [:cp :n |
+		| s |
+		s := String with: (Character value: cp).
+		self assert: s utf8Encoded size equals: n.
+		self assert: s utf8Encoded utf8Decoded equals: s].
+	"A surrogate has no UTF-8: it is encoded as U+FFFD."
+	self assert: (String with: (Character value: 16rD800)) utf8Encoded equals: #[16rEF 16rBF 16rBD].
+	self assert: (String with: $a with: (Character value: 16rDCFF)) utf8Encoded equals: #[16r61 16rEF 16rBF 16rBD]
+!
 testCharacterValueRange
 	self assert: (Character value: 16r10FFFF) value equals: 16r10FFFF.
 	self assert: (Character value: 16rD800) value equals: 16rD800.

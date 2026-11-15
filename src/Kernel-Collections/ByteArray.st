@@ -73,26 +73,58 @@ asByteArray
 	^self
 !
 utf8Decoded
-	"Answer the String these UTF-8 bytes encode."
-	| stream i b n cp |
+	"Answer the String these UTF-8 bytes encode, a ByteString if all its code points are below 256. Each maximal ill-formed subpart becomes one U+FFFD (see utf8LengthAt:to:); nothing is signaled."
+	| stream i n |
+	(self allSatisfy: [:b | b < 16r80]) ifTrue: [^self asString].
 	stream := WriteStream on: (String new: self size).
 	i := 1.
 	[i <= self size] whileTrue: [
-		b := self at: i.
-		b < 16r80
-			ifTrue: [cp := b. n := 0]
+		(self at: i) < 16r80
+			ifTrue: [
+				stream nextPut: (Character value: (self at: i)).
+				i := i + 1]
 			ifFalse: [
-				b < 16rE0
-					ifTrue: [cp := b bitAnd: 16r1F. n := 1]
-					ifFalse: [
-						b < 16rF0
-							ifTrue: [cp := b bitAnd: 16r0F. n := 2]
-							ifFalse: [cp := b bitAnd: 16r07. n := 3]]].
-		1 to: n do: [:k |
-			i + k <= self size ifTrue: [cp := (cp bitShift: 6) + ((self at: i + k) bitAnd: 16r3F)]].
-		stream nextPut: (Character value: cp).
-		i := i + n + 1].
+				n := self utf8LengthAt: i to: self size.
+				stream nextPut: (self utf8CharacterAt: i length: n).
+				i := i + n abs]].
 	^stream contents
+!
+utf8LengthAt: start to: stop
+	"Answer the length of the well-formed UTF-8 sequence that begins at start and ends by stop, or, negated, that of the maximal ill-formed subpart there (Unicode 3.9, as WHATWG): an overlong form, a surrogate, a code point above 10FFFF, a stray continuation byte or a truncated sequence, each byte up to the one that cannot continue it."
+	| b n lo hi k c |
+	b := self at: start.
+	b < 16r80 ifTrue: [^1].
+	b < 16rC2 ifTrue: [^-1].
+	b < 16rE0
+		ifTrue: [n := 2. lo := 16r80. hi := 16rBF]
+		ifFalse: [
+			b < 16rF0
+				ifTrue: [
+					n := 3.
+					lo := b = 16rE0 ifTrue: [16rA0] ifFalse: [16r80].
+					hi := b = 16rED ifTrue: [16r9F] ifFalse: [16rBF]]
+				ifFalse: [
+					b > 16rF4 ifTrue: [^-1].
+					n := 4.
+					lo := b = 16rF0 ifTrue: [16r90] ifFalse: [16r80].
+					hi := b = 16rF4 ifTrue: [16r8F] ifFalse: [16rBF]]].
+	k := 1.
+	[k < n] whileTrue: [
+		start + k > stop ifTrue: [^k negated].
+		c := self at: start + k.
+		(c < lo or: [c > hi]) ifTrue: [^k negated].
+		lo := 16r80.
+		hi := 16rBF.
+		k := k + 1].
+	^n
+!
+utf8CharacterAt: start length: n
+	"The Character of the sequence utf8LengthAt:to: measured: U+FFFD for an ill-formed one (n negative)."
+	| cp |
+	n < 0 ifTrue: [^Character value: 16rFFFD].
+	cp := (self at: start) bitAnd: (#(16r7F 16r1F 16r0F 16r07) at: n).
+	start + 1 to: start + n - 1 do: [:i | cp := (cp bitShift: 6) + ((self at: i) bitAnd: 16r3F)].
+	^Character value: cp
 !
 hex
 	"Answer the bytes as a hexadecimal String."
