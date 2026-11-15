@@ -315,6 +315,52 @@ testWideStringsAreCreatedWide
 	self assert: (String streamContents: [:s | s nextPutAll: (Array with: $a with: lambda)]) size = 2.
 	self assert: (Time microsecondsToRun: [100 timesRepeat: [String with: lambda. String streamContents: [:s | s nextPut: lambda]]]) < 100000
 !
+testSqueakAndPharoProtocol
+	"Selectors Squeak and Pharo code uses, with their meaning."
+	| lambda |
+	lambda := Character value: 955.
+	self assert: $a asciiValue equals: 97.
+	self assert: lambda charCode equals: 955.
+	self assert: lambda asUnicode equals: 955.
+	self assert: ($a sameAs: $A).
+	self deny: ($a sameAs: $b).
+	self assert: ((Character value: 181) sameAs: (Character value: 924)).
+	self assert: Character nbsp value equals: 160.
+	self assert: Character allByteCharacters equals: (String withAll: ((0 to: 255) collect: [:v | Character value: v])).
+	self assert: Character allByteCharacters class equals: ByteString.
+	self assert: 'abc' isAsciiString.
+	self deny: 'abé' isAsciiString.
+	self assert: 'abc' asWideString asOctetString class equals: ByteString.
+	self assert: 'abc' asWideString asOctetString equals: 'abc'.
+	self assert: (String with: lambda) asOctetString equals: (String with: lambda).
+	self assert: 'abc' isLiteralSymbol.
+	self assert: 'at:put:' isLiteralSymbol.
+	self deny: 'hello world' isLiteralSymbol.
+	self assert: #+ isLiteralSymbol.
+	self assert: ('abc' <=> 'abd') equals: -1.
+	self assert: ('abc' <=> 'ABC') equals: 0.
+	self assert: ('b' <=> 'A') equals: 1.
+	self deny: ('abc' hasWideCharacterFrom: 1 to: 3).
+	self assert: (('ab' copyWith: lambda) hasWideCharacterFrom: 2 to: 3).
+	self deny: (('ab' copyWith: lambda) hasWideCharacterFrom: 1 to: 2).
+	self deny: (#abc hasWideCharacterFrom: 1 to: 3)
+!
+testEncodeAndDecodeWith
+	"encodeWith: and decodeWith: take the encoding names Pharo does, ignoring case and punctuation: UTF-8 and Latin-1."
+	| text |
+	text := 'Les élèves ' , (String with: (Character value: 955)).
+	self assert: (text encodeWith: #utf8) equals: text utf8Encoded.
+	self assert: (text encodeWith: 'UTF-8') equals: text utf8Encoded.
+	self assert: (text utf8Encoded decodeWith: #utf8) equals: text.
+	self assert: (text utf8Encoded decodeWith: 'utf-8') equals: text.
+	self assert: ('élève' encodeWith: #latin1) equals: #[233 108 232 118 101].
+	self assert: ('élève' encodeWith: 'ISO-8859-1') equals: #[233 108 232 118 101].
+	self assert: (#[233 108 232 118 101] decodeWith: #latin1) equals: 'élève'.
+	self assert: (#[233 108 232 118 101] decodeWith: 'iso-8859-1') equals: 'élève'.
+	self should: [text encodeWith: #latin1] raise: Error.
+	self should: ['abc' encodeWith: #koi8r] raise: Error.
+	self should: [#[97] decodeWith: 'utf-16'] raise: Error
+!
 testCharacters
 	self assert: $a value = 97.
 	self assert: (Character value: 65) = $A.

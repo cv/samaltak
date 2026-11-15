@@ -11,4 +11,7 @@ isByteString
 !
 isOctetString
 	^true
+!
+hasWideCharacterFrom: start to: stop
+	^false
 ! !

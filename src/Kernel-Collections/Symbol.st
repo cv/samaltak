@@ -85,22 +85,12 @@ deepCopy
 printOn: aStream
 	"Print as #foo, #at:put:, #+ or #'not a selector'."
 	aStream nextPut: $#.
-	self isValidLiteralSymbol
+	self isLiteralSymbol
 		ifTrue: [aStream nextPutAll: self]
 		ifFalse: [super printOn: aStream]
 !
 storeOn: aStream
 	self printOn: aStream
-!
-isValidLiteralSymbol
-	"Answer whether I can be written as #me without quotes, as the Scanner reads it: a letter or _, then letters, digits, marks, _ and colons (none or a final one); or binary selector characters."
-	| first |
-	self isEmpty ifTrue: [^false].
-	first := self first.
-	(first isLetter or: [first = $_]) ifTrue: [
-		^(self allSatisfy: [:c | c isAlphaNumeric or: [c = $_ or: [c = $: or: [c isMark]]]])
-			and: [(self includes: $:) not or: [self last = $:]]].
-	^self allSatisfy: [:c | c isSpecial]
 ! !
 
 !Symbol methodsFor: 'private'!

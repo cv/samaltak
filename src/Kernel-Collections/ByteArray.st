@@ -72,6 +72,14 @@ asString
 asByteArray
 	^self
 !
+decodeWith: anEncoding
+	"Answer the String these bytes encode in anEncoding, named as in Pharo (case and punctuation ignored): #utf8 or 'UTF-8' (utf8Decoded), #latin1 or 'ISO-8859-1'. Other encodings are an error."
+	| name |
+	name := String encodingNameOf: anEncoding.
+	name = 'utf8' ifTrue: [^self utf8Decoded].
+	(name = 'latin1' or: [name = 'iso88591']) ifTrue: [^self asString].
+	^self error: 'Unknown encoding: ', anEncoding printString
+!
 utf8Decoded
 	"Answer the String these UTF-8 bytes encode, a ByteString if all its code points are below 256. Each maximal ill-formed subpart becomes one U+FFFD (see utf8LengthAt:to:); nothing is signaled."
 	| stream i n |

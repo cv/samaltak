@@ -108,6 +108,13 @@ max: aString
 min: aString
 	^self < aString ifTrue: [self] ifFalse: [aString]
 !
+<=> aString
+	"Answer -1, 0 or 1 as I sort before, the same as or after aString; for a String ignoring case, as compare: (Squeak)."
+	aString isString ifTrue: [^(self compare: aString) - 2].
+	self = aString ifTrue: [^0].
+	self < aString ifTrue: [^-1].
+	^1
+!
 compare: aString
 	"Answer 1, 2 or 3 as I sort before, the same as or after aString, ignoring case (Squeak, Pharo): (a compare: b) <= 2 is a <= b ignoring case."
 	^self compare: aString caseSensitive: false
@@ -230,6 +237,25 @@ isOctetString
 !
 isValidSelector
 	^self numArgs >= 0
+!
+isLiteralSymbol
+	"Answer whether my characters can be written as a Symbol literal #me without quotes, as the Scanner reads it (Pharo): a letter or _, then letters, digits, marks, _ and colons (none or a final one); or binary selector characters."
+	| first |
+	self isEmpty ifTrue: [^false].
+	first := self first.
+	(first isLetter or: [first = $_]) ifTrue: [
+		^(self allSatisfy: [:c | c isAlphaNumeric or: [c = $_ or: [c = $: or: [c isMark]]]])
+			and: [(self includes: $:) not or: [self last = $:]]].
+	^self allSatisfy: [:c | c isSpecial]
+!
+isAsciiString
+	"Answer whether every code point is below 128."
+	^self allSatisfy: [:c | c value < 128]
+!
+hasWideCharacterFrom: start to: stop
+	"Answer whether a character from start to stop does not fit in a byte."
+	start to: stop do: [:i | (self at: i) value > 255 ifTrue: [^true]].
+	^false
 ! !
 
 !String methodsFor: 'enumerating'!
@@ -303,6 +329,13 @@ asWideString
 	1 to: self size do: [:i | w at: i put: (self at: i)].
 	^w
 !
+asOctetString
+	"Answer a ByteString with my characters if they all fit in a byte, else a WideString (Squeak, Pharo)."
+	| string |
+	string := String new: self size.
+	1 to: self size do: [:i | string at: i put: (self at: i)].
+	^string
+!
 asByteString
 	"Answer a ByteString with my characters; they must all fit in a byte."
 	| b |
@@ -316,6 +349,14 @@ asByteArray
 	bytes := ByteArray new: self size.
 	1 to: self size do: [:i | bytes at: i put: (self at: i) value].
 	^bytes
+!
+encodeWith: anEncoding
+	"Answer a ByteArray with my characters encoded in anEncoding, named as in Pharo (case and punctuation ignored): #utf8 or 'UTF-8' (utf8Encoded), #latin1 or 'ISO-8859-1' (each character must fit in a byte). Other encodings are an error."
+	| name |
+	name := String encodingNameOf: anEncoding.
+	name = 'utf8' ifTrue: [^self utf8Encoded].
+	(name = 'latin1' or: [name = 'iso88591']) ifTrue: [^self asByteArray].
+	^self error: 'Unknown encoding: ', anEncoding printString
 !
 utf8Encoded
 	"Answer a ByteArray with my UTF-8 encoding, always well-formed: a surrogate code point (U+D800-DFFF), which has none, becomes U+FFFD."
@@ -705,4 +746,10 @@ fromByteArray: aByteArray
 !
 fromUTF8: aByteArray
 	^aByteArray utf8Decoded
+! !
+
+!String class methodsFor: 'private'!
+encodingNameOf: anEncoding
+	"Answer the name of anEncoding (a String or Symbol) in lowercase without punctuation, as Pharo's ZnCharacterEncoder compares them: 'UTF-8' -> 'utf8'."
+	^(anEncoding asString select: [:c | c isAlphaNumeric]) asLowercase
 ! !

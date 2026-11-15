@@ -17,6 +17,16 @@ asInteger
 codePoint
 	^self value
 !
+asciiValue
+	"My code point (ASCII below 128), as in Squeak and Pharo."
+	^self value
+!
+charCode
+	^self value
+!
+asUnicode
+	^self value
+!
 asCharacter
 	^self
 !
@@ -55,6 +65,10 @@ displayWidth
 = aCharacter
 	<primitive: 'identical'>
 	^self == aCharacter
+!
+sameAs: aCharacter
+	"Answer whether aCharacter is the same character ignoring case: their simple case foldings are equal (String>>sameAs: does the same)."
+	^self == aCharacter or: [self caseFolded == aCharacter caseFolded]
 !
 hash
 	^self value
@@ -227,6 +241,10 @@ delete
 newPage
 	^self value: 12
 !
+nbsp
+	"The no-break space, U+00A0."
+	^self value: 160
+!
 arrowLeft
 	^self value: 28
 !
@@ -242,6 +260,10 @@ arrowDown
 separators
 	"Answer a String of the characters isSeparator answers true for."
 	^String with: self space with: self cr with: self tab with: self lf with: self newPage
+!
+allByteCharacters
+	"Answer a String of the characters that fit in a byte, code points 0 to 255."
+	^String withAll: ((0 to: 255) collect: [:v | self value: v])
 !
 constantNameFor: aCharacter
 	"Answer the selector naming aCharacter (e.g. 'space'), or nil."

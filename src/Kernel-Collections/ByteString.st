@@ -24,10 +24,16 @@ isByteString
 !
 isOctetString
 	^true
+!
+hasWideCharacterFrom: start to: stop
+	^false
 ! !
 
 !ByteString methodsFor: 'converting'!
 asByteString
+	^self
+!
+asOctetString
 	^self
 !
 asByteArray
