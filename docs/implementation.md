@@ -15,7 +15,7 @@ vm/gen/             the C translated from VM-Core, VM-Jit and VM-Platform (check
 vm/Makefile         → vm/build/samaltak (profile-guided with vm/pgo.profdata)
 boot/seed.image     the checked-in seed image that runs ImageBuilder (boot/build-image.sh)
 st80/               the VM Simulator's Smalltalk-80 guest: links to src/'s Kernel and Compiler packages, and ST80-UI
-fonts/              TTF files (OFL)
+fonts/              TTF files (OFL; Twemoji: Apache-2.0 and CC-BY-4.0, twemoji-LICENSE.md)
 tests/              integration tests (headless Smalltalk runs, samaltak-ctl UI scenarios)
 tools/              samaltak-ctl (Node ≥18, no deps), video scripts
 build/              generated, git-ignored

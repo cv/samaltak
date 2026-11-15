@@ -1,8 +1,10 @@
 #!/usr/bin/env python3
-"""Makes the Noto fallback faces in fonts/ from Google Fonts (github.com/google/fonts, ofl/, pinned commit below).
+"""Makes the Noto fallback faces in fonts/ from Google Fonts (github.com/google/fonts, ofl/, pinned commit below), and
+the color emoji face fonts/Twemoji.ttf from Mozilla's Twemoji release (github.com/mozilla/twemoji-colr, v0.7.0).
 
 Variable fonts are instanced at wght 400 (the CJK ones default to Thin); every face is then subset to all its code
-points (Noto Sans KR to Hangul only) without hinting, layout features or vertical metrics, names kept. The upstream
+points (Noto Sans KR to Hangul only) without hinting, layout features or vertical metrics, names kept. Twemoji keeps
+all its glyphs, its color tables (COLR, CPAL) and the ccmp ligatures of GSUB; only hinting and FFTM go. The upstream
 files are checked against their SHA-256; the outputs keep the upstream head.modified, so they come out the same each run.
 
 Usage (fontTools pinned: another version may write different bytes):
@@ -22,6 +24,8 @@ from fontTools.varLib import instancer
 
 COMMIT = 'cc39c4c2c304bc368c9b7c311ea2bcc6013299fe'
 BASE = 'https://raw.githubusercontent.com/google/fonts/%s/ofl/' % COMMIT
+TWEMOJI = ('https://github.com/mozilla/twemoji-colr/releases/download/v0.7.0/Twemoji.Mozilla.ttf',
+           '6d90152ee0d29e82fe2a87793af5aa4b7ad13e6538360889e141e81ed299ee8e')
 HANGUL = [(0x1100, 0x11FF), (0x3130, 0x318F), (0xA960, 0xA97F), (0xAC00, 0xD7AF), (0xD7B0, 0xD7FF)]
 
 # output, upstream path, upstream SHA-256, code points (None: all of the face's)
@@ -38,13 +42,13 @@ FACES = [
 ]
 
 
-def fetch(path, sha256, directory):
-    out = os.path.join(directory, os.path.basename(path))
-    urllib.request.urlretrieve(BASE + urllib.parse.quote(path), out)
+def fetch(url, sha256, directory):
+    out = os.path.join(directory, os.path.basename(url))
+    urllib.request.urlretrieve(url, out)
     with open(out, 'rb') as f:
         digest = hashlib.sha256(f.read()).hexdigest()
     if digest != sha256:
-        sys.exit('%s: SHA-256 %s, expected %s' % (path, digest, sha256))
+        sys.exit('%s: SHA-256 %s, expected %s' % (url, digest, sha256))
     return out
 
 
@@ -68,12 +72,31 @@ def make(source, output, unicodes):
     print('%s: %d bytes, %d code points' % (output, os.path.getsize(output), len(font.getBestCmap())))
 
 
+def make_twemoji(source, output):
+    font = TTFont(source, recalcTimestamp=False)
+    options = subset.Options()
+    options.layout_features = ['ccmp']
+    options.hinting = False
+    options.name_IDs = ['*']
+    options.name_languages = ['*']
+    options.notdef_outline = True
+    options.glyph_names = False
+    options.drop_tables += ['FFTM']
+    subsetter = subset.Subsetter(options)
+    subsetter.populate(gids=range(len(font.getGlyphOrder())))
+    subsetter.subset(font)
+    font.recalcTimestamp = False
+    font.save(output)
+    print('%s: %d bytes, %d glyphs' % (output, os.path.getsize(output), len(font.getGlyphOrder())))
+
+
 def main():
     if len(sys.argv) != 2:
         sys.exit(__doc__)
     with tempfile.TemporaryDirectory() as tmp:
         for output, path, sha256, unicodes in FACES:
-            make(fetch(path, sha256, tmp), os.path.join(sys.argv[1], output), unicodes)
+            make(fetch(BASE + urllib.parse.quote(path), sha256, tmp), os.path.join(sys.argv[1], output), unicodes)
+        make_twemoji(fetch(TWEMOJI[0], TWEMOJI[1], tmp), os.path.join(sys.argv[1], 'Twemoji.ttf'))
 
 
 if __name__ == '__main__':
