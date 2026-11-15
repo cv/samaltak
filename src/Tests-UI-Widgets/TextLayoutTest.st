@@ -18,6 +18,14 @@ advance
 ! !
 
 !TextLayoutTest methodsFor: 'tests'!
+testFontFollowsDeviceScale
+	| saved |
+	saved := Font deviceScale.
+	[Font deviceScale: saved * 2.
+	 self assert: layout font scale equals: saved * 2.
+	 self assert: (Theme current font: #code) scale equals: saved * 2]
+		ensure: [Font deviceScale: saved]
+!
 testColumnToX
 	self deny: layout monoAdvance == false.
 	self assert: (layout xOf: 0) equals: 0.

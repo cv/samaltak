@@ -27,6 +27,7 @@ theme
 !
 font
 	| spec |
+	(font notNil and: [font scale ~= Font deviceScale and: [fontSpec isNil or: [fontSpec isSymbol]]]) ifTrue: [self font: fontSpec].
 	font isNil ifFalse: [^font].
 	spec := fontSpec ifNil: [#code].
 	^font := spec isSymbol ifTrue: [self theme font: spec] ifFalse: [spec]

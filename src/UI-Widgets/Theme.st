@@ -9,7 +9,7 @@ Theme comment: 'I am the look of the widgets: named colors, fonts and metrics. "
 	Theme current font: #code.
 	Theme current metric: #rowHeight.
 
-Widgets ask me instead of hard-coding values, so a theme switch is "Theme current: aTheme" followed by a redraw. Fonts are created lazily (Font deviceScale: drops them via Theme reset). The current theme publishes its accent and inks as Color''s named colors, which the window system''s chrome draws with.
+Widgets ask me instead of hard-coding values, so a theme switch is "Theme current: aTheme" followed by a redraw. Fonts are created lazily, and again for another Font deviceScale. The current theme publishes its accent and inks as Color''s named colors, which the window system''s chrome draws with.
 
 Change me while the system runs: when a method of mine (or Color''s) is accepted, the current theme defines its colors and metrics again (refresh) and every window redraws (SystemChanges).'!
 
@@ -115,7 +115,10 @@ metric: aSymbol put: aNumber
 !
 font: aSymbol
 	"Answer a font by role: the standard ones (ui uiBold uiItalic code codeBold codeItalic header title small smallItalic) and the theme's own sizes (button buttonBold menuKey mono11 code12 code12Bold toast)."
-	^fonts at: aSymbol ifAbsent: [fonts at: aSymbol put: (self makeFont: aSymbol)]
+	| font |
+	font := fonts at: aSymbol ifAbsent: [nil].
+	(font isNil or: [font scale ~= Font deviceScale]) ifTrue: [font := fonts at: aSymbol put: (self makeFont: aSymbol)].
+	^font
 !
 makeFont: aSymbol
 	| spec font |

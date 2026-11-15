@@ -13,10 +13,7 @@ Drawing is retained per row: a row is drawn again only when its line changed, th
 initialize
 	super initialize.
 	name := 'terminal'.
-	font := self theme font: #code.
-	boldFont := self theme font: #codeBold.
-	italicFont := self theme font: #codeItalic.
-	cellWidth := font advanceOf: $M.
+	self resetFonts.
 	cellHeight := 17.
 	screen := TerminalScreen rows: 24 cols: 80.
 	parser := TerminalParser on: screen.
@@ -100,6 +97,16 @@ send: aStringOrBytes
 	bytes isEmpty ifFalse: [onSend value: bytes]
 ! !
 
+!TerminalView methodsFor: 'drawing'!
+resetFonts
+	"Take the theme's fonts (again, after the display scale changed)."
+	font := self theme font: #code.
+	boldFont := self theme font: #codeBold.
+	italicFont := self theme font: #codeItalic.
+	cellWidth := font advanceOf: $M.
+	rowDrawings := IdentityDictionary new
+! !
+
 !TerminalView methodsFor: 'layout'!
 layout
 	| grid |
@@ -125,6 +132,7 @@ topLineIndex
 !
 drawSelfOn: aCanvas
 	| p first drawn width |
+	font scale = Font deviceScale ifFalse: [self resetFonts].
 	aCanvas fillRect: self localBounds color: self theme paper.
 	p := self padding.
 	first := self topLineIndex.
