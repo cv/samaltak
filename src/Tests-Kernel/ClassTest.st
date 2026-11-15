@@ -7,7 +7,7 @@ ClassTest comment: 'Tests reflection on classes, metaclasses and methods, and cr
 
 !ClassTest methodsFor: 'running'!
 tearDown
-	#(#KernelTestTemporary #KernelTestTemporarySub) do: [:name |
+	#(#KernelTestTemporary #KernelTestTemporarySub #KernelTestTemporaryA #KernelTestTemporaryB) do: [:name |
 		(Smalltalk at: name ifAbsent: [nil]) ifNotNil: [:c | c removeFromSystem]]
 ! !
 
@@ -146,4 +146,21 @@ testCompileAndRedefine
 	class removeSelector: #a.
 	self deny: (class includesSelector: #a).
 	self should: [instance a] raise: MessageNotUnderstood
+!
+testChangeSuperclass
+	"Lookups cached before the superclass changes (method cache, inline caches) must not answer the old superclass's methods."
+	| a b class probe |
+	(Smalltalk includesKey: #Compiler) ifFalse: [^self skip: 'no compiler'].
+	a := Object subclass: #KernelTestTemporaryA instanceVariableNames: '' classVariableNames: '' package: 'Tests-Kernel'.
+	b := Object subclass: #KernelTestTemporaryB instanceVariableNames: '' classVariableNames: '' package: 'Tests-Kernel'.
+	a compile: 'kind ^#a' classified: 'testing'.
+	b compile: 'kind ^#b' classified: 'testing'.
+	a class compile: 'classKind ^#a' classified: 'testing'.
+	b class compile: 'classKind ^#b' classified: 'testing'.
+	class := a subclass: #KernelTestTemporary instanceVariableNames: '' classVariableNames: '' package: 'Tests-Kernel'.
+	probe := [:c | {c new kind. c classKind}].
+	5 timesRepeat: [self assert: (probe value: class) = #(#a #a)].
+	b subclass: #KernelTestTemporary instanceVariableNames: '' classVariableNames: '' package: 'Tests-Kernel'.
+	self assert: class superclass == b.
+	5 timesRepeat: [self assert: (probe value: class) = #(#b #b)]
 ! !

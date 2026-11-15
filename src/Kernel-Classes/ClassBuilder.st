@@ -57,7 +57,9 @@ redefine: aClass superclass: newSuperclass instanceVariables: ivars type: aType
 		aClass superclass isNil ifFalse: [aClass superclass removeSubclass: aClass].
 		newSuperclass isNil ifFalse: [newSuperclass addSubclass: aClass].
 		aClass superclass: newSuperclass.
-		aClass class superclass: (newSuperclass isNil ifTrue: [Class] ifFalse: [newSuperclass class])].
+		aClass class superclass: (newSuperclass isNil ifTrue: [Class] ifFalse: [newSuperclass class]).
+		"Cached lookups of any selector may have found a method of the old superclasses."
+		aClass flushCache].
 	aClass setInstanceVariables: ivars.
 	self reshape: aClass format: newFormat oldInstVarNames: oldNames
 !
