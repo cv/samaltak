@@ -17,6 +17,9 @@ testEqualObjectsHaveEqualHashes
 	self assert: #(1 2 3) hash = (Array with: 1 with: 2 with: 3) hash.
 	self assert: (1 -> 2) hash = (1 -> 2) hash.
 	self assert: (3 @ 4) hash = (3 @ 4) hash.
+	self assert: (1 @ 2) hash = (1.0 @ 2.0) hash.
+	self assert: (1 to: 3) hash = #(1 2 3) hash.
+	self assert: (1 @ 2 corner: 3 @ 4) hash = (1 @ 2 corner: 3 @ 4) hash.
 	self assert: (Set withAll: #(1 2)) hash = (Set withAll: #(2 1)) hash
 !
 testStringHash
@@ -247,6 +250,18 @@ testIdentityHashes
 	s := IdentitySet new.
 	10000 timesRepeat: [s add: Object new].
 	self assertSpread: s
+!
+testPoints
+	| d |
+	d := Dictionary new.
+	0 to: 119 do: [:x | 0 to: 119 do: [:y | d at: x @ y put: x * y]].
+	self assertSpread: d
+!
+testArrays
+	| d |
+	d := Dictionary new.
+	0 to: 99 do: [:x | 0 to: 99 do: [:y | d at: {x. y} put: x * y]].
+	self assertSpread: d
 ! !
 
 !HashingTest methodsFor: 'private'!
