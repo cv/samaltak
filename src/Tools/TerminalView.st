@@ -3,7 +3,7 @@ Widget subclass: #TerminalView
 	classVariableNames: 'BoxArms Palette'
 	package: 'Tools'!
 
-TerminalView comment: 'I am the screen of a Terminal: I draw a TerminalScreen (JetBrains Mono on white, the 16 ANSI colors tuned to the Blue Book theme, 256 colors and truecolor), its scrollback (wheel; shift-page up/down), a blinking block cursor (the caret blink of the Theme) and a mouse selection (drag, double-click a word, triple-click a line; ⌘C copies, ⌘V pastes — bracketed when the program asked for it). A wide character is drawn centered across its two cells (smaller if its glyph is wider), and selected and copied whole; zero-width characters are drawn over the character they follow and copied with it. Keys become what an xterm sends: arrows (application cursor mode too), home/end, page up/down, delete, backspace (DEL), tab, return (CR), escape, control letters, ⌥ as meta (an ESC prefix; ⌥←/⌥→ move by words); typed text is sent as UTF-8.
+TerminalView comment: 'I am the screen of a Terminal: I draw a TerminalScreen (JetBrains Mono on white, the 16 ANSI colors tuned to the Blue Book theme, 256 colors and truecolor), its scrollback (wheel; shift-page up/down), a blinking block cursor (the caret blink of the Theme) and a mouse selection (drag, double-click a word, triple-click a line; ⌘C copies, ⌘V pastes — bracketed when the program asked for it). A wide character is drawn centered across its two cells (smaller if its glyph is wider), and selected and copied whole; zero-width characters are drawn over the character they follow and copied with it. A color emoji cluster of two cells or more (emojiAt:of:: a ZWJ sequence, a skin tone, a flag) is drawn in its first two cells, its other cells left blank; one a cell wide (a keycap) is drawn as text. Keys become what an xterm sends: arrows (application cursor mode too), home/end, page up/down, delete, backspace (DEL), tab, return (CR), escape, control letters, ⌥ as meta (an ESC prefix; ⌥←/⌥→ move by words); typed text is sent as UTF-8.
 
 My size decides the screen''s rows and columns (onResize: tells the pty). onSend: [:bytes | …] receives what the user types; feed:from:to: interprets what the program wrote (TerminalParser); afterOutput updates the view and the title (onTitle:).
 
@@ -171,7 +171,7 @@ drawLine: aLine selection: sel on: aCanvas
 			color: (self theme color: #textSelection)]
 !
 drawRun: aLine from: start to: stop attribute: a on: aCanvas
-	| chars fg bg x0 x1 runFont last y wide |
+	| chars fg bg x0 x1 runFont last y wide i |
 	chars := aLine chars.
 	fg := TerminalScreen foregroundOf: a.
 	bg := TerminalScreen backgroundOf: a.
@@ -201,12 +201,48 @@ drawRun: aLine from: start to: stop attribute: a on: aCanvas
 	wide := false.
 	start to: last do: [:i | | v | v := (chars at: i) value. (v > 255 or: [v = 0]) ifTrue: [wide := true]].
 	wide ifFalse: [^aCanvas drawString: chars from: start to: last at: x0 @ y font: runFont color: fg].
-	start to: last do: [:i | | ch |
+	i := start.
+	[i <= last] whileTrue: [ | ch emoji |
 		ch := chars at: i.
-		(ch == $  or: [ch value = 0]) ifFalse: [
-			ch value > 255
-				ifTrue: [self drawWide: ch at: i - 1 * cellWidth cells: ((aLine isWideAt: i) ifTrue: [2] ifFalse: [1]) font: runFont color: fg on: aCanvas]
-				ifFalse: [aCanvas drawString: chars from: i to: i at: (i - 1 * cellWidth) @ y font: runFont color: fg]]]
+		emoji := ch value > 255 ifTrue: [self emojiAt: i of: aLine] ifFalse: [nil].
+		emoji isNil
+			ifTrue: [
+				(ch == $  or: [ch value = 0]) ifFalse: [
+					ch value > 255
+						ifTrue: [self drawWide: ch at: i - 1 * cellWidth cells: ((aLine isWideAt: i) ifTrue: [2] ifFalse: [1]) font: runFont color: fg on: aCanvas]
+						ifFalse: [aCanvas drawString: chars from: i to: i at: (i - 1 * cellWidth) @ y font: runFont color: fg]].
+				i := i + 1]
+			ifFalse: [
+				self drawEmoji: emoji first at: i - 1 * cellWidth font: runFont color: fg on: aCanvas.
+				i := (emoji at: 2) + 1]]
+!
+emojiAt: col of: aLine
+	"The color emoji cluster that starts in col, put together from the cells (a character and its marks; on into the next cell after a ZWJ, for an emoji modifier, for the second regional indicator of a flag): {its String. its last column}; nil if there is none or it takes one cell."
+	| cp s c next n |
+	cp := (aLine characterAt: col) value.
+	((Unicode isExtendedPictographicCode: cp) or: [cp between: 16r1F1E6 and: 16r1F1FF]) ifFalse: [^nil].
+	s := WriteStream on: (WideString new: 8).
+	c := col.
+	[s nextPut: (aLine characterAt: c).
+	 (aLine marksAt: c) ifNotNil: [:m | s nextPutAll: m].
+	 next := c + ((aLine isWideAt: c) ifTrue: [2] ifFalse: [1]).
+	 n := (aLine characterAt: next) value.
+	 next <= aLine size and: [((aLine marksAt: c) notNil and: [(aLine marksAt: c) last value = 16r200D])
+		or: [(n between: 16r1F3FB and: 16r1F3FF) or: [c = col and: [(cp between: 16r1F1E6 and: 16r1F1FF) and: [n between: 16r1F1E6 and: 16r1F1FF]]]]]]
+			whileTrue: [c := next].
+	(next - col < 2 or: [(font colorClusterEndAt: 1 in: (s := s contents) to: s size) < s size]) ifTrue: [^nil].
+	^Array with: s with: next - 1
+!
+drawEmoji: aString at: x font: aFont color: aColor on: aCanvas
+	"A color emoji cluster in the first two of its cells, as drawWide: draws a wide character; its other cells stay blank."
+	| f advance space |
+	f := aFont.
+	advance := f widthOf: aString.
+	space := 2 * cellWidth.
+	advance > space ifTrue: [
+		f := self font: aFont scaledTo: space / advance.
+		advance := f widthOf: aString].
+	aCanvas drawString: aString at: (x + (space - advance / 2)) @ (cellHeight - f lineHeight / 2) font: f color: aColor
 !
 drawWide: aCharacter at: x cells: w font: aFont color: aColor on: aCanvas
 	"A character beyond Latin-1 in its w cells: box drawing and blocks drawn as rectangles, else its glyph (from aFont's fallback faces if need be) centered in them, a wide one smaller if it is wider than its cells."
