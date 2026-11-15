@@ -30,7 +30,7 @@ PC=/usr/local/lib/pkgconfig/shaderc.pc
 WANT='Name: shaderc
 Description: shaderc with its static glslang and SPIRV-Tools dependencies (bookworm)
 Version: 2023.2.1
-Libs: -lshaderc -Wl,--start-group -lglslang -lSPIRV -lMachineIndependent -lGenericCodeGen -lOSDependent -lOGLCompiler -lglslang-default-resource-limits -lSPIRV-Tools-opt -lSPIRV-Tools -Wl,--end-group -lstdc++ -lpthread
+Libs: -lshaderc_combined -Wl,--start-group -lglslang -lSPIRV -lMachineIndependent -lGenericCodeGen -lOSDependent -lOGLCompiler -lglslang-default-resource-limits -lSPIRV-Tools-opt -lSPIRV-Tools -Wl,--end-group -lstdc++ -lpthread -lm
 Cflags:'
 if [ "$(cat "$PC" 2>/dev/null)" != "$WANT" ]; then
     $SUDO mkdir -p "${PC%/*}"
