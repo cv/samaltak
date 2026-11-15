@@ -3,7 +3,7 @@ Object subclass: #TrueTypeFont
 	classVariableNames: ''
 	package: 'Graphics-Canvas'!
 
-TrueTypeFont comment: 'I am a TrueType typeface parsed from the bytes of a .ttf file: the tables head, hhea, maxp, OS/2, hmtx, cmap (formats 4 and 12), loca and glyf (simple and composite glyphs). Everything is in font units (unitsPerEm per em, y up); Font scales me to a pixel size. Kerning and hinting are ignored.'!
+TrueTypeFont comment: 'I am a TrueType typeface parsed from the bytes of a .ttf file: the tables head, hhea, maxp, OS/2, hmtx, cmap (formats 4 and 12), loca and glyf (simple and composite glyphs). Everything is in font units (unitsPerEm per em, y up); Font scales me to a pixel size. Kerning and hinting are ignored. Faces kept in the image are compacted to the tables I read and the outlines the cmap reaches.'!
 
 !TrueTypeFont methodsFor: 'initialization'!
 setName: aString data: aByteArray
@@ -259,6 +259,29 @@ glyphDataOffset: glyphIndex
 	start = end ifTrue: [^nil].
 	^(self tableOffset: 'glyf') + start
 !
+glyphDataSize: glyphIndex
+	"Answer the byte size of the glyph's glyf record (0 for an empty glyph)."
+	| loca |
+	loca := self tableOffset: 'loca'.
+	indexToLocFormat = 0 ifTrue: [^((self u16: loca + (glyphIndex * 2) + 2) - (self u16: loca + (glyphIndex * 2))) * 2].
+	^(self u32: loca + (glyphIndex * 4) + 4) - (self u32: loca + (glyphIndex * 4))
+!
+componentsOf: glyphIndex
+	"Answer the glyph indices a composite glyph is made of (none for a simple or empty glyph)."
+	| g p flags result |
+	result := OrderedCollection new.
+	g := self glyphDataOffset: glyphIndex.
+	(g isNil or: [(self s16: g) >= 0]) ifTrue: [^result].
+	p := g + 10.
+	[flags := self u16: p.
+	 result add: (self u16: p + 2).
+	 p := p + 4 + ((flags bitAnd: 1) ~= 0 ifTrue: [4] ifFalse: [2]).
+	 (flags bitAnd: 8) ~= 0 ifTrue: [p := p + 2].
+	 (flags bitAnd: 16r40) ~= 0 ifTrue: [p := p + 4].
+	 (flags bitAnd: 16r80) ~= 0 ifTrue: [p := p + 8].
+	 (flags bitAnd: 16r20) ~= 0] whileTrue.
+	^result
+!
 boundsOf: glyphIndex
 	"Answer the glyph's box in font units as a Rectangle (left/right = xMin/xMax, top/bottom = yMin/yMax), or nil if it has no outline."
 	| g |
@@ -386,6 +409,67 @@ compose: inner with: outer
 	e := (outer at: 1) * (inner at: 5) + ((outer at: 3) * (inner at: 6)) + (outer at: 5).
 	f := (outer at: 2) * (inner at: 5) + ((outer at: 4) * (inner at: 6)) + (outer at: 6).
 	^Array with: a with: b with: c with: d with: e with: f
+! !
+
+!TrueTypeFont methodsFor: 'compacting'!
+compact
+	"Keep only the tables I read and the outlines of the glyphs the cmap reaches (the bytes of a face kept in the image: alternates that only GSUB reaches go). Glyph indices, metrics and mapped outlines stay."
+	| marks loca glyf pos size kept cmapStart |
+	marks := self mappedGlyphs.
+	loca := ByteArray new: numGlyphs + 1 * 4.
+	pos := 0.
+	0 to: numGlyphs do: [:i |
+		self bytes: loca at: i * 4 + 1 putU32: pos.
+		(i < numGlyphs and: [(marks at: i + 1) = 1]) ifTrue: [pos := pos + (self glyphDataSize: i)]].
+	glyf := ByteArray new: pos.
+	pos := 1.
+	0 to: numGlyphs - 1 do: [:i |
+		((marks at: i + 1) = 1 and: [(size := self glyphDataSize: i) > 0]) ifTrue: [
+			glyf replaceFrom: pos to: pos + size - 1 with: data startingAt: (self glyphDataOffset: i).
+			pos := pos + size]].
+	kept := OrderedCollection new.
+	#('head' 'hhea' 'maxp' 'OS/2' 'hmtx' 'cmap') do: [:tag |
+		(tables includesKey: tag) ifTrue: [
+			kept add: tag -> (data copyFrom: (self tableOffset: tag) to: (self tableOffset: tag) + ((tables at: tag) at: 2) - 1)]].
+	kept add: 'loca' -> loca; add: 'glyf' -> glyf.
+	cmapStart := self tableOffset: 'cmap'.
+	data := ByteArray new: (kept inject: 0 into: [:sum :each | sum + each value size]).
+	tables := Dictionary new.
+	pos := 0.
+	kept do: [:each |
+		data replaceFrom: pos + 1 to: pos + each value size with: each value startingAt: 1.
+		tables at: each key put: (Array with: pos with: each value size).
+		pos := pos + each value size].
+	cmapOffset := cmapOffset - cmapStart + (self tableOffset: 'cmap').
+	indexToLocFormat := 1
+!
+mappedGlyphs
+	"Answer a ByteArray with 1 at g + 1 for .notdef, every glyph g the cmap maps and their components."
+	| marks todo groups rec first segX2 end g |
+	marks := ByteArray new: numGlyphs.
+	todo := OrderedCollection with: 0.
+	cmapFormat = 12
+		ifTrue: [
+			groups := self u32: cmapOffset + 12.
+			0 to: groups - 1 do: [:i |
+				rec := cmapOffset + 16 + (i * 12).
+				first := self u32: rec + 8.
+				first to: first + (self u32: rec + 4) - (self u32: rec) do: [:each | todo add: each]]]
+		ifFalse: [
+			segX2 := self u16: cmapOffset + 6.
+			0 to: segX2 // 2 - 1 do: [:i |
+				end := (self u16: cmapOffset + 14 + (i * 2)) min: 16rFFFE.
+				(self u16: cmapOffset + 16 + segX2 + (i * 2)) to: end do: [:cp | todo add: (self format4GlyphIndexFor: cp)]]].
+	[todo isEmpty] whileFalse: [
+		g := todo removeLast.
+		(g < numGlyphs and: [(marks at: g + 1) = 0]) ifTrue: [
+			marks at: g + 1 put: 1.
+			todo addAll: (self componentsOf: g)]].
+	^marks
+!
+bytes: aByteArray at: offset putU32: anInteger
+	"Store anInteger big-endian at the 1-based offset."
+	0 to: 3 do: [:i | aByteArray at: offset + i put: ((anInteger bitShift: (3 - i) * -8) bitAnd: 255)]
 ! !
 
 !TrueTypeFont methodsFor: 'printing'!

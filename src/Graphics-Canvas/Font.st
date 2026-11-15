@@ -340,13 +340,15 @@ prerasterizedCharacters
 	^s contents
 !
 buildStandardFonts
-	"Stage 2: load the faces and pre-rasterize the standard fonts into the shared atlas."
-	| chars |
+	"Stage 2: load and compact the faces, pre-rasterize the standard fonts into the shared atlas."
+	| chars fonts |
 	Faces := nil.
 	Standard := nil.
 	GlyphAtlas reset.
 	chars := self prerasterizedCharacters.
-	self standardFonts do: [:font | font prerasterize: chars].
+	fonts := self standardFonts.
+	Faces do: [:each | each compact].
+	fonts do: [:font | font prerasterize: chars].
 	Transcript show: ' '; show: (GlyphAtlas default pages size) printString; show: ' atlas page(s)'
 ! !
 
