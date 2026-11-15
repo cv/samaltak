@@ -160,6 +160,18 @@ Against Pharo 12 on the same machine (its Linux x86-64 VM, Cog), all three suite
 
 `opt` wins 38 of the 39; it loses Megamorphic (1.14: Pharo's x86 VM takes 282 ms where its arm64 one takes 704, Samaltak 321 where it takes 107; a fifth of its samples are in the shared megamorphic stub; its table is not the cause: 1024 or 16384 entries instead of 4096 change nothing). `baseline` loses Json (1.98), Havlak, MicroBlocks and PrintParse (1.03–1.14). Pharo runs these benchmarks 1.43× slower here than on the M2 Max, `opt` 1.58× and `baseline` 1.61× (built here with gcc and no profile, there with clang and its profile). The machine is shared: every VM had invocations that ran up to twice as slow (Pharo's Bounce 44, 87 and 44 ms); the best of the 3 invocations instead of their median moves no geometric mean by more than 0.02.
 
+Pharo 14 (its Linux x86-64 download of 2026-11-14, `Pharo-14.0.0+SNAPSHOT.build.790`), the same way (`vm/tests/bench/results/pharo14-cog-x86{,-micro,-realworld}-2026-11-15-*.csv`), against the Samaltak medians above. Its Cog runs these benchmarks as fast as Pharo 12's (geometric mean 0.99 of Pharo 12's time; Json 1.17, Sorting and Enumeration 0.85, the rest within 12 %):
+
+| | `opt` / Pharo 14 | `baseline` / Pharo 14 | `opt` / Pharo 12 | `baseline` / Pharo 12 |
+|---|---|---|---|---|
+| Are We Fast Yet (14) | 0.43 | 0.82 | 0.43 | 0.82 |
+| Micro (9) | 0.25 | 0.44 | 0.25 | 0.44 |
+| CLBG (6) | 0.48 | 0.63 | 0.48 | 0.63 |
+| the other real-world workloads (10) | 0.47 | 0.60 | 0.46 | 0.58 |
+| all 39 | 0.40 | 0.63 | 0.39 | 0.62 |
+
+`opt` loses Megamorphic to Pharo 14 too (1.23); `baseline` Json (1.69), Havlak and Sorting (1.14), MicroBlocks, PrintParse, Megamorphic and NBody (1.01–1.07).
+
 ## Real-world workloads
 
 AWFY brings its own collections (`Vector`, `SomDictionary`, `SomSet` in `awfy/Core.st`), so it measures the compiler and VM, not the class library, its primitives or the GC at scale. These 16 workloads (`awfy/RealWorld.st`, `--suite realworld`, not part of `all`) are written once against each system's own class library; Pharo 12 runs the same source. Each answers a checksum that `verifyResult:` compares with one constant for both systems; at small sizes all 16 also answer the same on both. Sizes give 0.45–1 s per iteration on Pharo 12; an invocation takes 3 minutes under `opt`, 3.5 under `baseline`, 6 on Pharo.
