@@ -1,9 +1,11 @@
 Object subclass: #TextLayout
-	instanceVariableNames: 'buffer view fontSpec font lineHeight monoAdvance wrap rowStarts rowEnds layoutWidth offset gutter'
+	instanceVariableNames: 'buffer view fontSpec font lineHeight monoAdvance wrap rowStarts rowEnds layoutWidth rowWidth offset gutter'
 	classVariableNames: ''
 	package: 'UI-Widgets'!
 
-TextLayout comment: 'I lay out a TextBuffer in a view (an object answering width and height, the TextEditor): rows (lines soft-wrapped at white space to the view''s width less the padding and the gutter, and less the scroll bar when the text is taller than the view), each a line high in my font; x of a gap position in its row and the position nearest to an x (tabs to the Theme''s tab stops); the vertical scroll offset; and the rectangles of the caret and of character ranges in view coordinates. Rows are computed lazily and dropped on every buffer change or when the width changes.
+TextLayout comment: 'I lay out a TextBuffer in a view (an object answering width and height, the TextEditor): rows (lines soft-wrapped to the view''s width less the padding and the gutter, and less the scroll bar when the text is taller than the view), each a line high in my font; x of a gap position in its row and the position nearest to an x (tabs to the Theme''s tab stops); the vertical scroll offset; and the rectangles of the caret and of character ranges in view coordinates. Rows are computed lazily, dropped when the width changes; a buffer change lays out again only the lines it touched.
+
+x is the sum of the font''s advances, as Canvas>>drawString: draws (combining marks and joiners advance 0, CJK and emoji from the fallback faces more than a cell). A line of printable ASCII in a monospaced font takes the shortcut count × monoAdvance. Positions at an x and wrap breaks are grapheme cluster boundaries. A row breaks after white space, else next to a wide character (CJK, which has no spaces; not before closing punctuation nor after opening), else before the cluster that does not fit.
 
 	(TextLayout on: (TextBuffer string: ''abc'') in: (0 @ 0 extent: 200 @ 100)) xOf: 2   "the width of ab"'!
 
@@ -70,7 +72,21 @@ textReset
 	rowStarts := nil
 !
 textReplacedFrom: start to: stop with: aString
-	rowStarts := nil
+	"Lay out the lines the edit touched again; the rows after them move."
+	| delta k0 k1 first last starts ends |
+	rowStarts isNil ifTrue: [^self].
+	delta := aString size - (stop - start).
+	k0 := buffer lineIndexOf: start.
+	k1 := buffer lineIndexOf: start + aString size.
+	first := TextBuffer indexIn: rowStarts atOrBefore: (buffer lineStarts at: k0).
+	last := TextBuffer indexIn: rowStarts atOrBefore: (buffer lineEndAt: k1) - delta.
+	starts := OrderedCollection new.
+	ends := OrderedCollection new.
+	self rowsOfLines: k0 to: k1 width: rowWidth starts: starts ends: ends.
+	rowStarts := (rowStarts copyFrom: 1 to: first - 1) , starts asArray , ((rowStarts copyFrom: last + 1 to: rowStarts size) collect: [:each | each + delta]).
+	rowEnds := (rowEnds copyFrom: 1 to: first - 1) , ends asArray , ((rowEnds copyFrom: last + 1 to: rowEnds size) collect: [:each | each + delta]).
+	"The scroll bar came or went: all rows change width."
+	(rowWidth notNil and: [(self contentHeight > view height) ~= (rowWidth < layoutWidth)]) ifTrue: [rowStarts := nil]
 ! !
 
 !TextLayout methodsFor: 'geometry'!
@@ -98,19 +114,26 @@ availableTextWidth
 	^view width - (2 * self padX) - gutter
 !
 monoAdvance
-	"The advance of every character if my font is monospaced, else false."
+	"The advance of every printable ASCII character if my font has one for all, else false."
 	| f a |
 	monoAdvance isNil ifFalse: [^monoAdvance].
 	f := self font.
 	a := f advanceOf: $m.
-	^monoAdvance := ((f advanceOf: $i) = a and: [(f advanceOf: $W) = a]) ifTrue: [a] ifFalse: [false]
+	^monoAdvance := ((32 to: 126) allSatisfy: [:cp | (f advanceOf: (Character value: cp)) = a]) ifTrue: [a] ifFalse: [false]
+!
+isMonoLine: lineIndex
+	"Whether every character of the line advances monoAdvance (printable ASCII, no tabs, monospaced font)."
+	^self monoAdvance ~~ false and: [buffer isPlainLine: lineIndex]
 !
 xFrom: start to: stop startX: x
 	"x (relative to the text left) after the characters start + 1 .. stop (within one line), starting at x."
-	| tab f result mono text |
 	stop <= start ifTrue: [^x].
-	mono := self monoAdvance.
-	(mono ~~ false and: [(buffer tabCountOfLine: (buffer lineIndexOf: start)) = 0]) ifTrue: [^x + ((stop - start) * mono)].
+	(self isMonoLine: (buffer lineIndexOf: start)) ifTrue: [^x + ((stop - start) * monoAdvance)].
+	^self advanceFrom: start to: stop startX: x
+!
+advanceFrom: start to: stop startX: x
+	"xFrom:to:startX: character by character."
+	| tab f result text |
 	tab := Character tab.
 	f := self font.
 	text := buffer string.
@@ -128,20 +151,20 @@ xOf: aPosition
 	^self xOf: aPosition inRow: (self rowOf: aPosition)
 !
 positionInRow: r atX: x
-	"The gap position in row r nearest to x (relative to the text left)."
-	| rs re pen tab f text |
+	"The cluster boundary in row r nearest to x (relative to the text left)."
+	| rs re pen text i j next |
 	rs := self rowStart: r.
 	re := self rowEnd: r.
-	tab := Character tab.
-	f := self font.
+	(self isMonoLine: (buffer lineIndexOf: rs)) ifTrue: [^rs + ((x / monoAdvance + 0.5) floor max: 0) min: re].
 	text := buffer string.
 	pen := 0.
-	rs + 1 to: re do: [:i |
-		| c next |
-		c := text at: i.
-		next := c == tab ifTrue: [self nextTabStop: pen] ifFalse: [pen + (f advanceOf: c)].
-		x < (pen + next / 2) ifTrue: [^i - 1].
-		pen := next].
+	i := rs.
+	[i < re] whileTrue: [
+		j := (text graphemeClusterEndAfter: i) min: re.
+		next := self advanceFrom: i to: j startX: pen.
+		x < (pen + next / 2) ifTrue: [^i].
+		pen := next.
+		i := j].
 	^re
 !
 rowAtY: y
@@ -203,35 +226,48 @@ ensureRows
 	layoutWidth := w
 !
 computeRowsForWidth: w
-	| starts ends lineStarts lineTabs ls fast tabW |
+	| starts ends n |
+	n := buffer lineCount.
+	starts := OrderedCollection new: n.
+	ends := OrderedCollection new: n.
+	self rowsOfLines: 1 to: n width: w starts: starts ends: ends.
+	rowStarts := starts asArray.
+	rowEnds := ends asArray.
+	rowWidth := w
+!
+rowsOfLines: firstLine to: lastLine width: w starts: starts ends: ends
+	"Add the rows of the lines firstLine to lastLine, wrapped to w (nil: not wrapped)."
+	| lineStarts lineTabs lineOthers ls fast tabW |
 	lineStarts := buffer lineStarts.
 	lineTabs := buffer lineTabs.
-	starts := OrderedCollection new: lineStarts size.
-	ends := OrderedCollection new: lineStarts size.
+	lineOthers := buffer lineOthers.
 	fast := (self font advanceOf: $W) max: (self font advanceOf: $m).
 	tabW := self tabStopWidth.
-	1 to: lineStarts size do: [:k |
+	firstLine to: lastLine do: [:k |
 		| le |
 		ls := lineStarts at: k.
 		le := buffer lineEndAt: k.
-		(w isNil or: [((le - ls - (lineTabs at: k)) * fast) + ((lineTabs at: k) * tabW) <= w])
+		(w isNil or: [(lineOthers at: k) = 0
+				ifTrue: [((le - ls - (lineTabs at: k)) * fast) + ((lineTabs at: k) * tabW) <= w]
+				ifFalse: [(self advanceFrom: ls to: le startX: 0) <= w]])
 			ifTrue: [starts add: ls. ends add: le]
-			ifFalse: [self wrapFrom: ls to: le width: w starts: starts ends: ends]].
-	rowStarts := starts asArray.
-	rowEnds := ends asArray
+			ifFalse: [self wrapFrom: ls to: le width: w starts: starts ends: ends]]
 !
 wrapFrom: ls to: le width: w starts: starts ends: ends
-	| rs x i lastBreak c adv f tab brk text |
-	f := self font.
+	| rs x i j lastBreak c adv tab brk text wide prevWide prevOpen |
 	tab := Character tab.
 	text := buffer string.
 	rs := ls.
 	x := 0.
 	lastBreak := nil.
+	prevWide := prevOpen := false.
 	i := ls.
 	[i < le] whileTrue: [
 		c := text at: i + 1.
-		adv := c == tab ifTrue: [(self nextTabStop: x) - x] ifFalse: [f advanceOf: c].
+		j := (text graphemeClusterEndAfter: i) min: le.
+		adv := (self advanceFrom: i to: j startX: x) - x.
+		wide := c value >= 16r1100 and: [c displayWidth = 2].
+		((wide or: [prevWide]) and: [i > rs and: [prevOpen not and: [(self isClosingPunctuation: c) not]]]) ifTrue: [lastBreak := i].
 		(x + adv > w and: [i > rs])
 			ifTrue: [
 				brk := (lastBreak notNil and: [lastBreak > rs]) ifTrue: [lastBreak] ifFalse: [i].
@@ -240,13 +276,24 @@ wrapFrom: ls to: le width: w starts: starts ends: ends
 				rs := brk.
 				x := 0.
 				lastBreak := nil.
+				prevWide := prevOpen := false.
 				i := brk]
 			ifFalse: [
 				x := x + adv.
-				i := i + 1.
+				i := j.
+				prevWide := wide.
+				prevOpen := c value < 128 ifTrue: ['([{' includes: c] ifFalse: [self isOpeningPunctuation: c].
 				(c == $  or: [c == tab]) ifTrue: [lastBreak := i]]].
 	starts add: rs.
 	ends add: le
+!
+isClosingPunctuation: aCharacter
+	"No row starts with it (、。」 , . ))."
+	^aCharacter value > 32 and: [#(#Pe #Pf #Po) includes: (Unicode generalCategoryOf: aCharacter value)]
+!
+isOpeningPunctuation: aCharacter
+	"No row ends with it (「（)."
+	^#(#Ps #Pi) includes: (Unicode generalCategoryOf: aCharacter value)
 !
 rowCount
 	self ensureRows.

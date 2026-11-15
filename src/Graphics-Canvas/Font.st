@@ -145,13 +145,17 @@ widthOf: aString from: start to: stop
 	^sum / scale
 !
 indexAt: x in: aString
-	"Answer the index of the character boundary nearest to x points from the start of aString (0 = before the first character)."
-	| pen advance |
+	"Answer the grapheme cluster boundary nearest to x points from the start of aString (0 = before the first character)."
+	| pen advance i j |
 	pen := 0.0.
-	1 to: aString size do: [:i |
-		advance := self advanceOf: (aString at: i).
-		x < (pen + (advance / 2)) ifTrue: [^i - 1].
-		pen := pen + advance].
+	i := 0.
+	[i < aString size] whileTrue: [
+		j := aString graphemeClusterEndAfter: i.
+		advance := 0.
+		i + 1 to: j do: [:k | advance := advance + (self advanceOf: (aString at: k))].
+		x < (pen + (advance / 2)) ifTrue: [^i].
+		pen := pen + advance.
+		i := j].
 	^aString size
 ! !
 

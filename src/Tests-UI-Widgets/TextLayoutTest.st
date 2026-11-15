@@ -103,4 +103,58 @@ testRowsFollowBufferEdits
 	self assert: (layout rowStart: 2) equals: 6.
 	buffer string: ''.
 	self assert: layout rowCount equals: 1
+!
+testEditsLayOutOnlyTheirLines
+	"Rows after edits are the rows laid out from scratch, the scroll bar coming and going included."
+	| fresh line many |
+	line := 'word word word word word word 日本語の文 word', self lf.
+	many := String new: 20 streamContents: [:s | 10 timesRepeat: [s nextPut: $a; nextPut: Character lf]].
+	buffer string: line, line, 'short', self lf, line.
+	layout := TextLayout on: buffer in: (0 @ 0 extent: 160 @ 200).
+	layout rowCount.
+	{#(3 3 'x'). #(40 41 ''). #(10 10 'é漢字'). {0. 0. 'new', self lf}. #(50 70 ''). {5. 5. many}. #(0 30 '')} do: [:e |
+			buffer replaceFrom: ((e at: 1) min: buffer size) to: ((e at: 2) min: buffer size) with: (e at: 3).
+			fresh := TextLayout on: (TextBuffer string: buffer string) in: (0 @ 0 extent: 160 @ 200).
+			fresh rowCount.
+			layout ensureRows.
+			self assert: layout rowStarts equals: fresh rowStarts.
+			self assert: layout rowEnds equals: fresh rowEnds]
+!
+testPositionsFollowTheFontsAdvances
+	"On a row of CJK, a combining mark and emoji, x of a position is what Font>>widthOf: measures (as Canvas draws); the position at an x is the nearest cluster boundary, never inside é (e + U+0301) or 👍🏽."
+	| text f boundaries hits |
+	text := 'a日本e', (String with: (Character value: 16r301)), 'x', (String with: (Character value: 16r1F44D) with: (Character value: 16r1F3FD)), 'z'.
+	buffer string: text.
+	f := layout font.
+	self deny: (layout isMonoLine: 1).
+	self assert: (layout xOf: 4) equals: (layout xOf: 5).
+	boundaries := (0 to: text size) select: [:i | text isGraphemeClusterBoundaryAt: i].
+	self assert: boundaries asArray equals: #(0 1 2 3 5 6 8 9).
+	boundaries do: [:i |
+		self assert: ((layout xOf: i) - (f widthOf: (text first: i))) abs < 0.001.
+		self assert: (layout positionInRow: 1 atX: (f widthOf: (text first: i)) + 0.01) equals: i].
+	hits := ((0 to: ((f widthOf: text) + 10) * 4) collect: [:x | layout positionInRow: 1 atX: x / 4]) asSet.
+	self assert: hits asSortedCollection asArray equals: boundaries asArray.
+	self assert: ((layout rectsFrom: 1 to: 3) first width - (f widthOf: '日本')) abs < 0.001.
+	buffer string: 'hello'.
+	self assert: (layout isMonoLine: 1)
+!
+testWrapsCJKBetweenIdeographsAndClusters
+	"A line without spaces breaks between ideographs (not before 、), and between clusters (flags) where nothing else breaks."
+	| text flag w |
+	text := String new: 60 streamContents: [:s | 1 to: 30 do: [:i | s nextPut: (Character value: 16r6F22). i \\ 4 = 0 ifTrue: [s nextPut: (Character value: 16r3001)]]].
+	buffer string: text.
+	layout := TextLayout on: buffer in: (0 @ 0 extent: 150 @ 1000).
+	w := layout availableTextWidth.
+	self assert: layout rowCount > 3.
+	1 to: layout rowCount do: [:r |
+		self assert: (layout xOf: (layout rowEnd: r) inRow: r) <= w.
+		r > 1 ifTrue: [
+			self assert: (layout rowStart: r) equals: (layout rowEnd: r - 1).
+			self deny: (text at: (layout rowStart: r) + 1) value = 16r3001]].
+	flag := String with: (Character value: 16r1F1E9) with: (Character value: 16r1F1EA).
+	text := String new: 80 streamContents: [:s | 20 timesRepeat: [s nextPutAll: flag]].
+	buffer string: 'x', text.
+	self assert: layout rowCount > 1.
+	2 to: layout rowCount do: [:r | self assert: (layout rowStart: r) odd]
 ! !

@@ -446,7 +446,7 @@ remoteQuote: aString
 	"aString in double quotes (JSON style), cut to 60 characters, for state words like sel=..."
 	| s |
 	s := aString asString.
-	s size > 60 ifTrue: [s := (s first: 59), (String with: (Character value: 8230))].
+	s size > 60 ifTrue: [s := (s first: (s graphemeClusterStartBefore: 60)), (String with: (Character value: 8230))].
 	^String new: s size + 2 streamContents: [:out |
 		out nextPut: $".
 		s do: [:c |

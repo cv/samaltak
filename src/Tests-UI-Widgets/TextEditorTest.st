@@ -18,6 +18,69 @@ lf
 pointOf: aPosition
 	"The local point in the middle of the caret slot before aPosition."
 	^editor caretRect center
+!
+clusters
+	"é (e + U+0301), a ZWJ family, a flag, a thumb with a skin tone, a Hangul syllable of jamo, x: clusters of 2 5 2 2 3 1 characters."
+	^(String with: $e with: (Character value: 16r301)),
+		(String withAll: ((#(16r1F469 16r200D 16r1F469 16r200D 16r1F467) collect: [:cp | Character value: cp]))),
+		(String with: (Character value: 16r1F1E9) with: (Character value: 16r1F1EA)),
+		(String with: (Character value: 16r1F44D) with: (Character value: 16r1F3FD)),
+		(String with: (Character value: 16r1112) with: (Character value: 16r1161) with: (Character value: 16r11AB)), 'x'
+! !
+
+!TextEditorTest methodsFor: 'unicode'!
+testCaretMovesOverClusters
+	| stops |
+	editor text: self clusters.
+	stops := OrderedCollection new.
+	[editor caret < editor size] whileTrue: [self key: #right. stops add: editor caret].
+	self assert: stops asArray equals: #(2 7 9 11 14 15).
+	stops := OrderedCollection new.
+	[editor caret > 0] whileTrue: [self key: #left. stops add: editor caret].
+	self assert: stops asArray equals: #(14 11 9 7 2 0).
+	self key: #right modifiers: #(#shift).
+	self key: #right modifiers: #(#shift).
+	self assert: editor selectionInterval equals: (1 to: 7).
+	editor caret: 0.
+	self click: (editor caretRect center + (((editor xOf: 7) - (editor xOf: 2)) / 3 @ 0) + ((editor xOf: 2) @ 0)).
+	self assert: editor caret equals: 2
+!
+testBackspaceAndDeleteRemoveClusters
+	| text |
+	text := self clusters.
+	editor text: text.
+	editor caret: text size.
+	#(14 11 9 7 2 0) do: [:n |
+		self key: #backspace.
+		self assert: editor text equals: (text first: n)].
+	self cmd: $z.
+	self assert: editor text equals: text.
+	editor caret: 0.
+	self key: #delete.
+	self assert: editor text equals: (text allButFirst: 2).
+	self key: #delete.
+	self assert: editor text equals: (text allButFirst: 7)
+!
+testTypedControlsAreDropped
+	self type: 'a', (String with: (Character value: 127) with: (Character value: 16r85) with: (Character value: 7)), 'b', (String with: Character tab), (String with: (Character value: 16r200D)).
+	self assert: editor text equals: 'ab', (String with: Character tab with: (Character value: 16r200D))
+!
+testPasteNormalizesLineEnds
+	window world clipboard: 'a', (String with: Character cr with: Character lf), 'b', (String with: Character cr), 'c'.
+	self cmd: $v.
+	self assert: editor text equals: 'a', self lf, 'b', self lf, 'c'.
+	self assert: editor lineCount equals: 3
+!
+testRunsAreDrawnWhereTheyAreMeasured
+	"A styled run after CJK and a combining mark starts at its measured x, not at its character count times the cell."
+	| form text first last |
+	text := '"日本語é', (String with: (Character value: 16r301)), '"#bar'.
+	editor text: text.
+	form := self render.
+	first := (editor rectsFrom: text size - 4 to: text size - 3) first.
+	last := (editor rectsFrom: text size - 1 to: text size) first.
+	self assert: (self inkIn: first of: form) > 4.
+	self assert: (self inkIn: ((last right + 1) @ last top extent: 20 @ last height) of: form) equals: 0
 ! !
 
 !TextEditorTest methodsFor: 'typing'!

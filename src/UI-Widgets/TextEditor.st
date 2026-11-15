@@ -9,6 +9,8 @@ I am a facade over collaborators: a TextBuffer (the text, its lines and words), 
 
 Positions: caret and selection ends are gap positions (0 = before the first character, text size = after the last); selectionInterval and the mark API use 1-based character Intervals like the rest of Smalltalk.
 
+Characters are grapheme clusters (String>>graphemeClusterEndAfter:): the caret moves over a cluster (é as e + U+0301, 👩‍👩‍👧, 🇩🇪, 👍🏽, Hangul jamo) at once, backspace and delete remove the whole cluster, clicks land between clusters. Typed controls (DEL, C1) are dropped; line ends are normalized to line feeds (pasting CR LF).
+
 Tools plug in with blocks; each receives the text of the selection (or of the caret''s line, which gets selected), its Interval and me:
 	editor onDoIt: [:text :range | ...]; onPrintIt: [...]; onInspectIt: [...]; onBrowseIt: [...]   "⌘D ⌘P ⌘I ⌘B"
 	editor onAccept: [:text | ...]      "⌘S; answer false to stay dirty"
@@ -363,7 +365,7 @@ deleteBackward: unit
 	caret = 0 ifTrue: [^self].
 	target := unit == #word
 		ifTrue: [buffer wordStartBefore: caret]
-		ifFalse: [unit == #line ifTrue: [(self rowStart: (self rowOf: caret)) = caret ifTrue: [caret - 1] ifFalse: [self rowStart: (self rowOf: caret)]] ifFalse: [caret - 1]].
+		ifFalse: [unit == #line ifTrue: [(self rowStart: (self rowOf: caret)) = caret ifTrue: [caret - 1] ifFalse: [self rowStart: (self rowOf: caret)]] ifFalse: [buffer string graphemeClusterStartBefore: caret]].
 	self replaceFrom: target to: caret with: '' kind: #backspace
 !
 deleteForward: unit
@@ -373,7 +375,7 @@ deleteForward: unit
 	caret = buffer size ifTrue: [^self].
 	target := unit == #word
 		ifTrue: [buffer wordEndAfter: caret]
-		ifFalse: [unit == #line ifTrue: [(self rowEnd: (self rowOf: caret)) = caret ifTrue: [caret + 1] ifFalse: [self rowEnd: (self rowOf: caret)]] ifFalse: [caret + 1]].
+		ifFalse: [unit == #line ifTrue: [(self rowEnd: (self rowOf: caret)) = caret ifTrue: [caret + 1] ifFalse: [self rowEnd: (self rowOf: caret)]] ifFalse: [buffer string graphemeClusterEndAfter: caret]].
 	self replaceFrom: caret to: target with: '' kind: #forwardDelete
 !
 newline
@@ -697,7 +699,7 @@ rowShows: r y: y selectionColor: selColor
 		at: 4 put: shown asArray;
 		at: 5 put: sel;
 		at: 6 put: self font;
-		at: 7 put: (re > rs and: [(buffer tabCountOfLine: (buffer lineIndexOf: rs)) = 0]);
+		at: 7 put: (re > rs and: [textLayout isMonoLine: (buffer lineIndexOf: rs)]);
 		at: 8 put: highlighter isActive;
 		at: 9 put: self theme ink;
 		yourself
@@ -740,7 +742,7 @@ drawTextOfRow: r y: y overrides: overrides forcedColor: forced on: aCanvas
 	rs := textLayout rowStarts at: r.
 	re := textLayout rowEnds at: r.
 	re <= rs ifTrue: [^self].
-	mono := (buffer tabCountOfLine: (buffer lineIndexOf: rs)) = 0 ifTrue: [textLayout monoAdvance] ifFalse: [false].
+	mono := (textLayout isMonoLine: (buffer lineIndexOf: rs)) ifTrue: [textLayout monoAdvance] ifFalse: [false].
 	ov := forced isNil ifTrue: [overrides] ifFalse: [#()].
 	highlighter isActive ifFalse: [
 		^self drawRunFrom: rs to: re x: 0 y: y font: self font color: (forced ifNil: [self theme ink]) overrides: ov mono: mono on: aCanvas].
@@ -771,7 +773,7 @@ drawRunFrom: a to: b x: startX y: y font: aFont color: aColor overrides: overrid
 	^x
 !
 drawPlainFrom: a to: b x: startX y: y font: aFont color: aColor mono: mono on: aCanvas
-	"mono is the advance of every character when the row has no tabs and the font is monospaced, else false."
+	"mono is the advance of every character when the row is printable ASCII and the font is monospaced, else false."
 	| i j x tab left base text |
 	tab := Character tab.
 	left := textLayout textLeft.
@@ -904,7 +906,7 @@ wheel: anEvent
 textInput: anEvent
 	| s |
 	readOnly ifTrue: [^true].
-	s := anEvent string select: [:c | c value >= 32 or: [c == Character tab]].
+	s := anEvent string select: [:c | (c value >= 32 and: [c value < 127 or: [c value > 159]]) or: [c == Character tab]].
 	s isEmpty ifTrue: [^true].
 	self insert: s.
 	^true
@@ -965,14 +967,14 @@ moveTo: aPosition extend: shift
 moveLeft: unit extend: shift
 	| target |
 	(self hasSelection and: [shift not and: [unit == #character]]) ifTrue: [^self moveTo: self selectionStart extend: false].
-	target := unit == #character ifTrue: [caret - 1] ifFalse: [
+	target := unit == #character ifTrue: [buffer string graphemeClusterStartBefore: caret] ifFalse: [
 		unit == #word ifTrue: [buffer wordStartBefore: caret] ifFalse: [self rowStart: (self rowOf: caret)]].
 	^self moveTo: (target max: 0) extend: shift
 !
 moveRight: unit extend: shift
 	| target |
 	(self hasSelection and: [shift not and: [unit == #character]]) ifTrue: [^self moveTo: self selectionStop extend: false].
-	target := unit == #character ifTrue: [caret + 1] ifFalse: [
+	target := unit == #character ifTrue: [buffer string graphemeClusterEndAfter: caret] ifFalse: [
 		unit == #word ifTrue: [buffer wordEndAfter: caret] ifFalse: [self rowEnd: (self rowOf: caret)]].
 	^self moveTo: (target min: buffer size) extend: shift
 !
@@ -1036,7 +1038,7 @@ remoteChildren
 !
 cut: aString to: max
 	aString size <= max ifTrue: [^aString].
-	^(aString first: max - 1), (String with: (Character value: 8230))
+	^(aString first: (aString graphemeClusterStartBefore: max)), (String with: (Character value: 8230))
 !
 remoteText
 	^buffer string

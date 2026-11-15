@@ -36,6 +36,6 @@ valueTextOf: anItem
 	v := self valueOf: anItem.
 	s := v isString ifTrue: [v] ifFalse: [[v printStringLimitedTo: 200] on: Error do: [:e | e return: '<error printing>']].
 	s := s copyReplaceAll: (String with: Character lf) with: ' '.
-	s size > 60 ifTrue: [s := (s first: 59), (String with: (Character value: 8230))].
+	s size > 60 ifTrue: [s := (s first: (s graphemeClusterStartBefore: 60)), (String with: (Character value: 8230))].
 	^s
 ! !

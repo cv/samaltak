@@ -37,7 +37,13 @@ testLineIndex
 	self assert: b lines asArray equals: (Array with: 'ab' with: 'cd' with: self tab, 'x', self tab).
 	self assert: (b tabCountOfLine: 1) equals: 0.
 	self assert: (b tabCountOfLine: 3) equals: 2.
-	self assert: (b lineHasTab: 3)
+	self assert: (b lineHasTab: 3).
+	self assert: (b isPlainLine: 1).
+	self deny: (b isPlainLine: 3).
+	b := TextBuffer string: 'x', self lf, 'é', self tab, '日', self lf, (String with: (Character value: 127)).
+	self assert: b lineOthers asArray equals: #(0 2 1).
+	self assert: b lineTabs asArray equals: #(0 1 0).
+	self deny: (b isPlainLine: 2)
 !
 testPositionToLine
 	| b |
@@ -57,11 +63,13 @@ testEditsUpdateLinesIncrementally
 		with: (Array with: 3 with: 3 with: self lf, 'new', self tab)
 		with: (Array with: 0 with: 5 with: '')
 		with: (Array with: 2 with: 9 with: self tab, self lf, self lf)
+		with: (Array with: 1 with: 1 with: 'é日', self lf, (String with: (Character value: 127)))
 		with: (Array with: b size - 12 with: b size - 12 with: 'end')) do: [:e |
 			b replaceFrom: ((e at: 1) min: b size) to: ((e at: 2) min: b size) with: (e at: 3).
 			fresh := TextBuffer string: b string.
 			self assert: b lineStarts equals: fresh lineStarts.
-			self assert: b lineTabs equals: fresh lineTabs]
+			self assert: b lineTabs equals: fresh lineTabs.
+			self assert: b lineOthers equals: fresh lineOthers]
 !
 testReplaceAndListeners
 	| b |
@@ -110,4 +118,21 @@ testUnicodeWordBoundaries
 	self assert: (b wordRangeAt: 13) equals: #(12 15).
 	self assert: (b wordStartBefore: 15) equals: 12.
 	self assert: (b wordStartBefore: 12) equals: 10
+!
+testWordsAreRunsOfClustersOfOneKind
+	"CJK and Latin letters make separate words; NBSP, 、 and emoji separate words; a word never ends inside a cluster (❤ + VS16: the selector is a mark)."
+	| heart b |
+	heart := String with: (Character value: 16r2764) with: (Character value: 16rFE0F).
+	b := TextBuffer string: '日本語abc、x', (String with: (Character value: 160)), 'y', heart, 'z'.
+	self assert: (b wordRangeAt: 1) equals: #(0 3).
+	self assert: (b wordRangeAt: 3) equals: #(3 6).
+	self assert: (b wordRangeAt: 4) equals: #(3 6).
+	self assert: (b wordEndAfter: 0) equals: 3.
+	self assert: (b wordEndAfter: 3) equals: 6.
+	self assert: (b wordEndAfter: 6) equals: 8.
+	self assert: (b wordStartBefore: 6) equals: 3.
+	self assert: (b wordRangeAt: 9) equals: #(9 10).
+	self assert: (b wordEndAfter: 10) equals: 13.
+	self assert: (b wordStartBefore: 13) equals: 12.
+	self assert: (b wordStartBefore: 12) equals: 9
 ! !

@@ -830,7 +830,7 @@ truncate: aString to: width font: aFont
 	| s |
 	(aFont widthOf: aString) <= width ifTrue: [^aString].
 	s := aString.
-	[s size > 1 and: [(aFont widthOf: s, (String with: (Character value: 8230))) > width]] whileTrue: [s := s allButLast].
+	[(s graphemeClusterStartBefore: s size) > 0 and: [(aFont widthOf: s, (String with: (Character value: 8230))) > width]] whileTrue: [s := s first: (s graphemeClusterStartBefore: s size)].
 	^s, (String with: (Character value: 8230))
 ! !
 

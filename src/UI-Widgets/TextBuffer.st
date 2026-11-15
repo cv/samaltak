@@ -1,9 +1,11 @@
 Object subclass: #TextBuffer
-	instanceVariableNames: 'string lineStarts lineTabs listeners'
+	instanceVariableNames: 'string lineStarts lineTabs lineOthers listeners'
 	classVariableNames: ''
 	package: 'UI-Widgets'!
 
-TextBuffer comment: 'I am the text of a TextEditor: a String with line feeds only, its line index (the gap position where each line starts and the number of tabs on it, kept up to date incrementally) and word and bracket boundaries.
+TextBuffer comment: 'I am the text of a TextEditor: a String with line feeds only, its line index (the gap position where each line starts, the number of tabs on it and of other characters outside printable ASCII, kept up to date incrementally) and word and bracket boundaries.
+
+A word is a run of grapheme clusters of one class: letters, digits, _ and marks of any script; or wide letters (CJK ideographs, kana, Hangul), so 日本語abc is two words. A cluster belongs to the class of its first character; punctuation (、。), symbols, emoji and spaces (NBSP and U+3000 too) are outside words. Word boundaries are cluster boundaries.
 
 Positions are gap positions (0 = before the first character, size = after the last). replaceFrom:to:with: tells my listeners textReplacedFrom: start to: stop with: aString (after the change); string: tells them textReset.
 	(TextBuffer string: ''ab'', (String with: Character lf), ''cd'') lineIndexOf: 3   "2"'!
@@ -63,22 +65,29 @@ replaceFrom: start to: stop with: aString
 !TextBuffer methodsFor: 'lines'!
 lineStarts
 	"Gap positions where the lines start."
-	| starts tabs lf tab n |
+	| starts tabs others lf tab n m |
 	lineStarts isNil ifFalse: [^lineStarts].
 	starts := OrderedCollection new: string size // 30 + 4.
 	tabs := OrderedCollection new: string size // 30 + 4.
+	others := OrderedCollection new: string size // 30 + 4.
 	starts add: 0.
 	lf := Character lf.
 	tab := Character tab.
 	n := 0.
+	m := 0.
 	1 to: string size do: [:i |
-		| c |
+		| c v |
 		c := string at: i.
 		c == lf
-			ifTrue: [starts add: i. tabs add: n. n := 0]
-			ifFalse: [c == tab ifTrue: [n := n + 1]]].
+			ifTrue: [starts add: i. tabs add: n. others add: m. n := 0. m := 0]
+			ifFalse: [
+				c == tab
+					ifTrue: [n := n + 1]
+					ifFalse: [v := c value. (v > 126 or: [v < 32]) ifTrue: [m := m + 1]]]].
 	tabs add: n.
+	others add: m.
 	lineTabs := tabs asArray.
+	lineOthers := others asArray.
 	^lineStarts := starts asArray
 !
 lineCount
@@ -116,9 +125,19 @@ lineTabs
 	self lineStarts.
 	^lineTabs
 !
+isPlainLine: lineIndex
+	"Whether the line holds only printable ASCII (no tabs)."
+	self lineStarts.
+	^(lineTabs at: lineIndex) = 0 and: [(lineOthers at: lineIndex) = 0]
+!
+lineOthers
+	"The number of characters outside printable ASCII on each line, tabs aside."
+	self lineStarts.
+	^lineOthers
+!
 updateLinesFrom: start to: stop with: aString
-	"Update the line starts and tab counts after the characters start + 1 .. stop became aString."
-	| delta first last newStarts newTabs before after lf |
+	"Update the line starts and character counts after the characters start + 1 .. stop became aString."
+	| delta first last newStarts newTabs newOthers before after lf |
 	lineStarts isNil ifTrue: [^self].
 	delta := aString size - (stop - start).
 	lf := Character lf.
@@ -132,21 +151,32 @@ updateLinesFrom: start to: stop with: aString
 	after := (lineStarts copyFrom: last + 1 to: lineStarts size) collect: [:each | each + delta].
 	lineStarts := before , newStarts asArray , after.
 	newTabs := Array new: newStarts size.
-	1 to: newStarts size do: [:k | newTabs at: k put: (self countTabsInLine: first + k - 1)].
-	lineTabs := (lineTabs copyFrom: 1 to: first - 1) , newTabs , (lineTabs copyFrom: last + 1 to: lineTabs size)
+	newOthers := Array new: newStarts size.
+	1 to: newStarts size do: [:k | | counts |
+		counts := self countsInLine: first + k - 1.
+		newTabs at: k put: counts x.
+		newOthers at: k put: counts y].
+	lineTabs := (lineTabs copyFrom: 1 to: first - 1) , newTabs , (lineTabs copyFrom: last + 1 to: lineTabs size).
+	lineOthers := (lineOthers copyFrom: 1 to: first - 1) , newOthers , (lineOthers copyFrom: last + 1 to: lineOthers size)
 !
-countTabsInLine: lineIndex
-	| n tab |
+countsInLine: lineIndex
+	"tabs @ other characters outside printable ASCII"
+	| n m tab |
 	n := 0.
+	m := 0.
 	tab := Character tab.
-	(lineStarts at: lineIndex) + 1 to: (self lineEndAt: lineIndex) do: [:i | (string at: i) == tab ifTrue: [n := n + 1]].
-	^n
+	(lineStarts at: lineIndex) + 1 to: (self lineEndAt: lineIndex) do: [:i | | c |
+		c := string at: i.
+		c == tab
+			ifTrue: [n := n + 1]
+			ifFalse: [(c value > 126 or: [c value < 32]) ifTrue: [m := m + 1]]].
+	^n @ m
 ! !
 
 !TextBuffer methodsFor: 'words'!
 wordRangeAt: aPosition
 	"Answer {start. stop} gap positions of the word, bracket contents or whitespace run around aPosition."
-	| s e c before after |
+	| s e k before after |
 	before := aPosition > 0 ifTrue: [string at: aPosition] ifFalse: [nil].
 	after := aPosition < string size ifTrue: [string at: aPosition + 1] ifFalse: [nil].
 	(before notNil and: ['([{''"' includes: before]) ifTrue: [
@@ -155,15 +185,14 @@ wordRangeAt: aPosition
 	(after notNil and: [')]}''"' includes: after]) ifTrue: [
 		s := self matchingOpenFor: aPosition + 1.
 		s isNil ifFalse: [^Array with: s with: aPosition]].
-	c := (after notNil and: [self isWordCharacter: after]) ifTrue: [after] ifFalse: [before].
-	(c isNil or: [(self isWordCharacter: c) not]) ifTrue: [
+	k := after isNil ifTrue: [0] ifFalse: [self wordClassAt: aPosition + 1].
+	(k = 0 and: [before notNil]) ifTrue: [k := self wordClassAt: (string graphemeClusterStartBefore: aPosition) + 1].
+	k = 0 ifTrue: [
 		(aPosition = (self lineStarts at: (self lineIndexOf: aPosition)) or: [aPosition = (self lineEndAt: (self lineIndexOf: aPosition))])
 			ifTrue: [^self lineRangeAt: aPosition].
 		^Array with: aPosition with: aPosition].
-	s := aPosition.
-	[s > 0 and: [self isWordCharacter: (string at: s)]] whileTrue: [s := s - 1].
-	e := aPosition.
-	[e < string size and: [self isWordCharacter: (string at: e + 1)]] whileTrue: [e := e + 1].
+	s := self start: aPosition ofRunOf: k.
+	e := self end: aPosition ofRunOf: k.
 	(e < string size and: [(string at: e + 1) = $:]) ifTrue: [
 		(e + 1 < string size and: [(string at: e + 2) = $=]) ifFalse: [e := e + 1]].
 	^Array with: s with: e
@@ -199,19 +228,38 @@ matchingOpenFor: anIndex
 isWordCharacter: aCharacter
 	^aCharacter isLetter or: [aCharacter isDigit or: [aCharacter = $_ or: [aCharacter isMark]]]
 !
-wordStartBefore: aPosition
+wordClassAt: anIndex
+	"The word class of the cluster starting with the character at anIndex: 0 outside words, 1 letters, digits, _ and marks, 2 wide letters (CJK, Hangul)."
+	| c |
+	c := string at: anIndex.
+	(self isWordCharacter: c) ifFalse: [^0].
+	^(c value >= 16r1100 and: [c displayWidth = 2]) ifTrue: [2] ifFalse: [1]
+!
+start: aPosition ofRunOf: aClass
+	"The start of the run of clusters of word class aClass that ends at aPosition."
+	| p q |
+	p := aPosition.
+	[p > 0 and: [(self wordClassAt: (q := string graphemeClusterStartBefore: p) + 1) = aClass]] whileTrue: [p := q].
+	^p
+!
+end: aPosition ofRunOf: aClass
+	"The end of the run of clusters of word class aClass that starts at aPosition."
 	| p |
 	p := aPosition.
-	[p > 0 and: [(self isWordCharacter: (string at: p)) not]] whileTrue: [p := p - 1].
-	[p > 0 and: [self isWordCharacter: (string at: p)]] whileTrue: [p := p - 1].
+	[p < string size and: [(self wordClassAt: p + 1) = aClass]] whileTrue: [p := string graphemeClusterEndAfter: p].
 	^p
+!
+wordStartBefore: aPosition
+	| p |
+	p := self start: aPosition ofRunOf: 0.
+	p = 0 ifTrue: [^0].
+	^self start: p ofRunOf: (self wordClassAt: (string graphemeClusterStartBefore: p) + 1)
 !
 wordEndAfter: aPosition
 	| p |
-	p := aPosition.
-	[p < string size and: [(self isWordCharacter: (string at: p + 1)) not]] whileTrue: [p := p + 1].
-	[p < string size and: [self isWordCharacter: (string at: p + 1)]] whileTrue: [p := p + 1].
-	^p
+	p := self end: aPosition ofRunOf: 0.
+	p = string size ifTrue: [^p].
+	^self end: p ofRunOf: (self wordClassAt: p + 1)
 ! !
 
 !TextBuffer class methodsFor: 'instance creation'!
