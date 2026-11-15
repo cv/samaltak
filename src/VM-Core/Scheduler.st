@@ -117,10 +117,25 @@ realThreadCpuUs
 	posix clockGettime: posix CLOCK_THREAD_CPUTIME_ID into: ts.
 	^(ts tv_sec * 1000000) + (ts tv_nsec quo: 1000)
 !
-uncharge: us
-	"The running Process is not charged us of the VM's own work (the JIT compiling)."
+pauseCharging
+	"Charge the running Process its slice; until resumeCharging nothing is charged (the VM waits, or works for itself). Answer the thread clock."
 	<function>
-	lastSwitchUs := lastSwitchUs + us
+	| now |
+	now := self threadCpuUs.
+	self charge: self activeProcess us: now - lastSwitchUs.
+	lastSwitchUs := now.
+	^now
+!
+resumeCharging
+	"The running Process is charged again from now on. Answer the thread clock."
+	<function>
+	lastSwitchUs := self threadCpuUs.
+	^lastSwitchUs
+!
+charge: proc us: us
+	| ct |
+	ct := self loadRef: proc at: PROC_CPUTIME.
+	self storeRef: proc at: PROC_CPUTIME put: (self intOop: ((self isInt: ct) ifTrue: [self intVal: ct] ifFalse: [0]) + us)
 ! !
 
 !Scheduler methodsFor: 'interrupts'!
@@ -148,6 +163,7 @@ workClockStart: fps semaphore: index
 	"From now on the clock is the work clock (see my comment), running. With fps > 0, external semaphore index is signaled when frame k is due, on the millisecond grid of the clock (the Delays'): ceiling(k × 1000 / fps) ms after frame 0, which is due at the next whole millisecond (kept if that semaphore is already armed). Answer when frame 0 is."
 	<function>
 	workClockOn ifFalse: [
+		self pauseCharging.
 		workClockUs := self nowUs.
 		workClockUsesCycles := ticker threadCycles >= 0.
 		workClockUsesCycles ifFalse: [
@@ -158,7 +174,7 @@ workClockStart: fps semaphore: index
 		workClockPaced := false.
 		workClockCycles := self workClockThreadCycles.
 		workClockRaw := self rawNowUs.
-		lastSwitchUs := self threadCpuUs.
+		self resumeCharging.
 		self tickUpdate].
 	(fps > 0 and: [frameSema ~= index]) ifTrue: [
 		frameSema := index.
@@ -173,11 +189,12 @@ workClockStop
 	"Back to the real clock, which goes on from the work clock's time."
 	<function>
 	workClockOn ifFalse: [^self].
+	self pauseCharging.
 	self workClockSync.
 	startUs := self rawNowUs - workClockUs.
 	workClockOn := false.
 	frameSema := 0.
-	lastSwitchUs := self threadCpuUs.
+	self resumeCharging.
 	self tickUpdate
 !
 workClockRunning: aBoolean
@@ -306,7 +323,7 @@ workClockIdle
 workClockIdleWait
 	self workClockIdle.
 	self handleInterrupts.
-	lastSwitchUs := self threadCpuUs.
+	self resumeCharging.
 	inIdle := false
 !
 workClockFrameDue
@@ -362,7 +379,7 @@ init
 	startUs := self rawNowUs.
 	lastPreempted := memory nilOop.
 	allocSampleClass := memory nilOop.
-	lastSwitchUs := self threadCpuUs.
+	self resumeCharging.
 	ticker start
 ! !
 
@@ -435,7 +452,7 @@ runList: pri
 transferTo: aProcess
 	"Save the active context into the outgoing process and switch to aProcess."
 	<function>
-	| proc old now ct ctx |
+	| proc old now ctx |
 	proc := self local: 'oop'.
 	proc value: aProcess.
 	memory pushRoot: proc.
@@ -446,8 +463,7 @@ transferTo: aProcess
 	interpreter safepointAtEntry: false.
 	proc value = lastPreempted ifTrue: [lastPreemptedAtEntry := false].
 	now := self threadCpuUs.
-	ct := self loadRef: old at: PROC_CPUTIME.
-	self storeRef: old at: PROC_CPUTIME put: (self intOop: ((self isInt: ct) ifTrue: [self intVal: ct] ifFalse: [0]) + now - lastSwitchUs).
+	self charge: old us: now - lastSwitchUs.
 	lastSwitchUs := now.
 	self storeRef: old at: PROC_SUSPENDED put: interpreter activeCtx.
 	self storeRef: self processor at: SCHED_ACTIVE put: proc value.
@@ -465,6 +481,7 @@ idleWait
 	inIdle := true.
 	sliceDueUs := 0.
 	sliceExpired := false.
+	self pauseCharging.
 	(pendingExtN = 0 and: [allocSamplePending not]) ifTrue: [
 		workClockOn ifTrue: [^self workClockIdleWait].
 		now := self nowUs.
@@ -477,7 +494,7 @@ idleWait
 			ifFalse: [wait > 0 ifTrue: [platform wait: wait]].
 		self tickSetIdle: false].
 	self handleInterrupts.
-	lastSwitchUs := self threadCpuUs.
+	self resumeCharging.
 	inIdle := false
 !
 transferToHighest
@@ -662,16 +679,18 @@ relinquish: microseconds
 	<function>
 	| us now |
 	(pendingExtN ~= 0 or: [allocSamplePending]) ifTrue: [^self].
-	workClockOn ifTrue: [
-		self workClockIdle.
-		^self requestInterruptCheck].
-	us := microseconds.
-	now := self nowUs.
-	(timerMs >= 0 and: [(timerMs * 1000) - now < us]) ifTrue: [us := (timerMs * 1000) - now].
-	(samplerIntervalUs > 0 and: [samplerNextUs - now < us]) ifTrue: [us := samplerNextUs - now].
-	us > 0 ifTrue: [
-		self tickSetIdle: true.
-		platform wait: us.
-		self tickSetIdle: false].
+	self pauseCharging.
+	workClockOn
+		ifTrue: [self workClockIdle]
+		ifFalse: [
+			us := microseconds.
+			now := self nowUs.
+			(timerMs >= 0 and: [(timerMs * 1000) - now < us]) ifTrue: [us := (timerMs * 1000) - now].
+			(samplerIntervalUs > 0 and: [samplerNextUs - now < us]) ifTrue: [us := samplerNextUs - now].
+			us > 0 ifTrue: [
+				self tickSetIdle: true.
+				platform wait: us.
+				self tickSetIdle: false]].
+	self resumeCharging.
 	self requestInterruptCheck
 ! !

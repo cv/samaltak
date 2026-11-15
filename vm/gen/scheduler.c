@@ -58,6 +58,7 @@ static int64_t raw_now_us(void);
 static oop remove_first_link(oop list);
 static void signal_index(int32_t index);
 static void slice_check(void);
+static int64_t thread_cpu_us(void);
 static void tick_set_idle(bool a_boolean);
 static void tick_update(void);
 static void transfer_to(oop a_process);
@@ -230,6 +231,7 @@ static void idle_wait(void)
     in_idle = true;
     slice_due_us = 0;
     slice_expired = false;
+    pause_charging();
     if ((pending_ext_n == 0) && (!alloc_sample_pending)) {
         if (work_clock_on) {
             now_2 = ({
@@ -341,7 +343,7 @@ exit_work_clock_thread_cycles_2:;
     r_work_clock_thread_cycles_2; });
         exit_work_clock_idle:;
             handle_interrupts();
-            last_switch_us = thread_cpu_us();
+            resume_charging();
             in_idle = false;
             return;
         }
@@ -362,7 +364,7 @@ exit_work_clock_thread_cycles_2:;
         tick_set_idle(false);
     }
     handle_interrupts();
-    last_switch_us = thread_cpu_us();
+    resume_charging();
     in_idle = false;
 }
 
@@ -372,7 +374,7 @@ void scheduler_init(void)
     start_us = raw_now_us();
     last_preempted = nil_oop;
     alloc_sample_class = nil_oop;
-    last_switch_us = thread_cpu_us();
+    resume_charging();
     ticker_start();
 }
 
@@ -462,6 +464,29 @@ exit_work_clock_sync:;
     return raw_now_us() - start_us;
 }
 
+/* Scheduler>>pauseCharging */
+int64_t pause_charging(void)
+{
+    int64_t now;
+    uint64_t proc;
+    int64_t us;
+    uint64_t ct;
+    int64_t v;
+    uint64_t v_2;
+    now = thread_cpu_us();
+    proc = active_process();
+    us = now - last_switch_us;
+    ct = *(uint64_t *)(proc + 16 + 40);
+    v = ((ct & 1) != 0 ? ((int64_t)ct) >> 1 : 0) + us;
+    v_2 = (uint64_t)((v << 1) | 1);
+    *(uint64_t *)(proc + 16 + 40) = v_2;
+    if (((v_2 & 7) == 0) && ((v_2 - young_lo < young_hi - young_lo) && ((!(proc - young_lo < young_hi - young_lo)) && (((*(uint64_t *)proc) & H_REMEMBERED) == 0)))) {
+        remember(proc);
+    }
+    last_switch_us = now;
+    return now;
+}
+
 /* Scheduler>>priorityOf: */
 static int64_t priority_of(oop p)
 {
@@ -545,6 +570,7 @@ void relinquish(int64_t microseconds)
     if ((pending_ext_n != 0) || alloc_sample_pending) {
         return;
     }
+    pause_charging();
     if (work_clock_on) {
         now_2 = ({
     if (!((work_clock_running || work_clock_paced) && (!work_clock_held))) {
@@ -654,22 +680,22 @@ exit_work_clock_sync:;
 exit_work_clock_thread_cycles_2:;
     r_work_clock_thread_cycles_2; });
     exit_work_clock_idle:;
-        request_interrupt_check();
-        return;
+    } else {
+        us = microseconds;
+        now = now_us();
+        if ((timer_ms >= 0) && (timer_ms * 1000 - now < us)) {
+            us = timer_ms * 1000 - now;
+        }
+        if ((sampler_interval_us > 0) && (sampler_next_us - now < us)) {
+            us = sampler_next_us - now;
+        }
+        if (us > 0) {
+            tick_set_idle(true);
+            platform_interface_wait(us);
+            tick_set_idle(false);
+        }
     }
-    us = microseconds;
-    now = now_us();
-    if ((timer_ms >= 0) && (timer_ms * 1000 - now < us)) {
-        us = timer_ms * 1000 - now;
-    }
-    if ((sampler_interval_us > 0) && (sampler_next_us - now < us)) {
-        us = sampler_next_us - now;
-    }
-    if (us > 0) {
-        tick_set_idle(true);
-        platform_interface_wait(us);
-        tick_set_idle(false);
-    }
+    resume_charging();
     request_interrupt_check();
 }
 
@@ -761,6 +787,13 @@ void request_periodic_poll(int64_t interval_us)
 {
     tick_poll_us = interval_us > 0 ? interval_us : 0;
     tick_update();
+}
+
+/* Scheduler>>resumeCharging */
+int64_t resume_charging(void)
+{
+    last_switch_us = thread_cpu_us();
+    return last_switch_us;
 }
 
 /* Scheduler>>resumeProcess: */
@@ -960,7 +993,7 @@ void suspend_active(void)
 }
 
 /* Scheduler>>threadCpuUs */
-int64_t thread_cpu_us(void)
+static int64_t thread_cpu_us(void)
 {
     int64_t r_work_clock_thread_cycles;
     int64_t r_real_thread_cpu_us;
@@ -1048,6 +1081,7 @@ static void transfer_to(oop a_process)
     oop *proc;
     uint64_t old;
     int64_t now;
+    int64_t us;
     uint64_t ct;
     int64_t v;
     uint64_t v_2;
@@ -1068,8 +1102,9 @@ static void transfer_to(oop a_process)
         last_preempted_at_entry = false;
     }
     now = thread_cpu_us();
+    us = now - last_switch_us;
     ct = *(uint64_t *)(old + 16 + 40);
-    v = ((ct & 1) != 0 ? ((int64_t)ct) >> 1 : 0) + now - last_switch_us;
+    v = ((ct & 1) != 0 ? ((int64_t)ct) >> 1 : 0) + us;
     v_2 = (uint64_t)((v << 1) | 1);
     *(uint64_t *)(old + 16 + 40) = v_2;
     if (((v_2 & 7) == 0) && ((v_2 - young_lo < young_hi - young_lo) && ((!(old - young_lo < young_hi - young_lo)) && (((*(uint64_t *)old) & H_REMEMBERED) == 0)))) {
@@ -1125,12 +1160,6 @@ static void transfer_to_highest(void)
         }
         idle_wait();
     }
-}
-
-/* Scheduler>>uncharge: */
-void uncharge(int64_t us)
-{
-    last_switch_us = last_switch_us + us;
 }
 
 /* Scheduler>>workClockCharge: */
@@ -1538,6 +1567,7 @@ int64_t work_clock_start(int64_t fps, int32_t index)
     int64_t due_2;
     int64_t due;
     if (!work_clock_on) {
+        pause_charging();
         work_clock_us = now_us();
         work_clock_uses_cycles = thread_cycles() >= 0;
         if (!work_clock_uses_cycles) {
@@ -1560,7 +1590,7 @@ int64_t work_clock_start(int64_t fps, int32_t index)
 exit_work_clock_thread_cycles:;
     r_work_clock_thread_cycles; });
         work_clock_raw = raw_now_us();
-        last_switch_us = thread_cpu_us();
+        resume_charging();
         tick_update();
     }
     if ((fps > 0) && (frame_sema != index)) {
@@ -1650,6 +1680,7 @@ void work_clock_stop(void)
     if (!work_clock_on) {
         return;
     }
+    pause_charging();
     if (!((work_clock_running || work_clock_paced) && (!work_clock_held))) {
         goto exit_work_clock_sync;
     }
@@ -1710,7 +1741,7 @@ exit_work_clock_sync:;
     start_us = raw_now_us() - work_clock_us;
     work_clock_on = false;
     frame_sema = 0;
-    last_switch_us = thread_cpu_us();
+    resume_charging();
     tick_update();
 }
 
