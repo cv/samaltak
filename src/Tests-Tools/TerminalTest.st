@@ -278,7 +278,19 @@ testColorEmojiInTheirFirstTwoCells
 	"(glyph quads start at the pen, a whole device pixel)"
 	self assert: (xs count: [:x | x > (2.25 * cw) and: [x < (5.75 * cw)]]) equals: 0.
 	self assert: (xs count: [:x | x > (9.25 * cw) and: [x < (10.75 * cw)]]) equals: 0.
-	self assert: (xs count: [:x | (x - (15 * cw)) abs < 0.25]) equals: 1
+	self assert: (xs count: [:x | (x - (15 * cw)) abs < 0.25]) equals: 1.
+	"in the last two columns, also followed by a ZWJ; with U+FE0E text"
+	view := TerminalView new.
+	view parser feed: ((String new: 78 withAll: $x), (String with: (Character value: 16r1F600) with: (Character value: 16r200D))) utf8Encoded.
+	line := view screen lineAt: 1.
+	self assert: line size equals: 80.
+	self assert: (view emojiAt: 79 of: line) last equals: 80.
+	view parser feed: (String with: Character cr with: Character lf with: (Character value: 16r1F600) with: (Character value: 16rFE0E)) utf8Encoded.
+	line := view screen lineAt: 2.
+	self assert: (view emojiAt: 1 of: line) isNil.
+	canvas := Canvas extent: 400 @ 40 scale: (Theme current font: #code) scale.
+	view drawLine: line selection: nil on: canvas.
+	self assert: canvas displayList quadCount equals: 1
 !
 testWorldMenuAndOpeners
 	self assert: (ToolsMenu labels includes: 'Terminal').

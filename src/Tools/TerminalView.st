@@ -256,7 +256,8 @@ drawWide: aCharacter at: x cells: w font: aFont color: aColor on: aCanvas
 	(w = 2 and: [advance > space]) ifTrue: [
 		f := self font: aFont scaledTo: space / advance.
 		advance := f advanceOf: aCharacter].
-	aCanvas drawString: (String with: aCharacter)
+	"with U+FE0E: as text, not as color emoji (emojiAt:of: takes those)"
+	aCanvas drawString: (String with: aCharacter with: (Character value: 16rFE0E))
 		at: (x + (space - advance / 2)) @ (cellHeight - f lineHeight / 2) font: f color: aColor
 !
 drawMarks: aString over: col of: aLine font: aFont color: aColor on: aCanvas
