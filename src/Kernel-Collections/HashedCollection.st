@@ -70,8 +70,8 @@ removeIndex: index
 	array at: index put: nil.
 	tally := tally - 1.
 	i := index.
-	[element := array at: (i := i \\ array size + 1).
-	 element isNil] whileFalse: [
+	[(i := i + 1) > array size ifTrue: [i := 1].
+	 (element := array at: i) isNil] whileFalse: [
 		newIndex := self scanFor: (self keyOf: element).
 		newIndex = i ifFalse: [
 			array at: newIndex put: element.
