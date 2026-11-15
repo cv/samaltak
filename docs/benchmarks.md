@@ -238,7 +238,7 @@ Basic C versions of the eight Shootout (CLBG) programs the suites run (`vm/tests
 | Mandelbrot | 43.0 | 148.1 | 199.7 | 300.3 | 3.4 | 4.6 | 7.0 |
 | NBody | 33.0 | 224.2 | 503.9 | 517.4 | 6.8 | 15.3 | 15.7 |
 
-`opt` beats the C binary-trees: allocating from eden and scavenging costs less than `malloc` and `free`. At the benchmarks game's size (depth 21: 611 M nodes, `-DMAX_DEPTH=21 -DEXPECTED=611669342`, `BinaryTrees new run: 21 liveDepth: 20`) an iteration takes `opt` 13.4 s, 5.1 of them in 1149 scavenges and 26 full GCs; Pharo 12 23.5 s, 13.5 in its GCs; C 16.4 s.
+`opt` beats the C binary-trees: allocating from eden and scavenging costs less than `malloc` and `free`. At the benchmarks game's size (depth 21: 611 M nodes, `-DMAX_DEPTH=21 -DEXPECTED=611669342`, `BinaryTrees new run: 21 liveDepth: 20`) an iteration takes `opt` 13.4 s, 5.1 of them in 1149 scavenges and 26 full GCs; Pharo 12 23.5 s and Pharo 14 25.3 s, about 13 of them in their GCs; C 16.4 s.
 
 The listings of the optimized SpectralNorm and Fasta loops show where the rest goes. A Float result is encoded as a SmallFloat64 after every operation (about 15 instructions), even where the next operation takes the double from its register. In a method whose arithmetic saw Floats, SmallInteger operations get a Float path too, loop counters included (`j + 1`, `i + j - 2`, `last * 3877 + 29573 \\ 139968`): tag checks on every operand. Comparisons with a Float path make `true` or `false` and test it instead of branching on the flags. Loop variables come from their frame slots at every use.
 
