@@ -38,7 +38,7 @@ waitTimeoutMSecs: milliseconds
 			waiter suspend; resume]] newProcess.
 	watchdog priority: (Processor activePriority + 1 min: Processor timingPriority); name: 'timeout'.
 	watchdog resume.
-	self wait.
+	[self wait] ifCurtailed: [watchdog terminate].
 	done := true.
 	timedOut ifFalse: [watchdog terminate].
 	^timedOut

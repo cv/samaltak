@@ -302,7 +302,7 @@ const beats = [
     await pick(2, 'benchmarks.md', 300);
     const doc = readFileSync(join(root, 'docs/benchmarks.md'), 'utf8');
     const from = doc.indexOf('| geometric mean |', doc.indexOf('## Real-world workloads'));
-    const to = doc.indexOf('PrintParse (0.85).', from) + 'PrintParse (0.85).'.length;
+    const to = doc.indexOf('(0.70 and 0.81).', from) + '(0.70 and 0.81).'.length;
     if (from < 0 || to < from) throw new Error('no real-world result in docs/benchmarks.md');
     await S.cue('On sixteen real-world programs', VIEWER, () => act('select', `${FB}.viewer`, `${from}-${to}`));
     await S.spoken();

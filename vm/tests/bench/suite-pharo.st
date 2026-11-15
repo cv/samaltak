@@ -1,5 +1,5 @@
 | cls b out |
-cls := Object subclass: #Bench instanceVariableNames: '' classVariableNames: '' package: 'BenchPkg'.
+cls := (Object << #Bench) package: 'BenchPkg'; install.
 #('fib: n ^n < 2 ifTrue: [n] ifFalse: [(self fib: n - 1) + (self fib: n - 2)]'
   'loop | r | r := 0. 1 to: 30000000 do: [:i | r := r + i]. ^r'
   'floats | r | r := 0.0. 1 to: 3000000 do: [:i | r := r + (i * 1.5)]. ^r'

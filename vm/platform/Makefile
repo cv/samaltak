@@ -13,6 +13,14 @@ else
   OS_CFLAGS := -D_GNU_SOURCE -fsigned-char -Wno-type-limits -Wno-parentheses -Wno-maybe-uninitialized -Wno-format-truncation
   OS_LIBS := $(shell pkg-config --libs shaderc 2>/dev/null || echo -lshaderc_shared)
 endif
+# OpenSSL 3, as in ../Makefile
+SSL_CFLAGS := $(shell pkg-config --cflags openssl 2>/dev/null)
+SSL_LIBS := $(shell pkg-config --libs openssl 2>/dev/null)
+ifeq ($(SSL_LIBS),)
+  SSL_PREFIX := $(shell brew --prefix openssl@3 2>/dev/null)
+  SSL_CFLAGS := $(if $(SSL_PREFIX),-I$(SSL_PREFIX)/include)
+  SSL_LIBS := $(if $(SSL_PREFIX),-L$(SSL_PREFIX)/lib) -lssl -lcrypto
+endif
 BUILD := ../build/platform-test
 GEN := ../gen
 include $(GEN)/sources.mk
@@ -23,7 +31,7 @@ test: $(BUILD)/gpu_test
 
 $(BUILD)/gpu_test: tests/gpu_test.c $(INTERNALS) $(GEN)/samaltak.h
 	@mkdir -p $(BUILD)
-	$(CC) $(CFLAGS) $(OS_CFLAGS) -I$(GEN) $(SDL_CFLAGS) -o $@ tests/gpu_test.c $(INTERNALS) $(SDL_LIBS) $(OS_LIBS) -lpthread
+	$(CC) $(CFLAGS) $(OS_CFLAGS) -I$(GEN) $(SDL_CFLAGS) $(SSL_CFLAGS) -o $@ tests/gpu_test.c $(INTERNALS) $(SDL_LIBS) $(SSL_LIBS) $(OS_LIBS) -lpthread
 
 # Through the real VM (built into its own directory so it never clobbers vm/build/samaltak).
 st-test:

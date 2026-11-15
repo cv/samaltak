@@ -1,0 +1,580 @@
+# awfy 2026-11-15 20:43 vm=/workspace/home/.cache/pharo12/vm/pharo image=/workspace/home/.cache/pharo12/bench.image vm-args='' iterations=30
+# run AdvPointDict inner=1
+AdvPointDict,1,2029
+AdvPointDict,2,11387
+AdvPointDict,3,1979
+AdvPointDict,4,2063
+AdvPointDict,5,1951
+AdvPointDict,6,1905
+AdvPointDict,7,1911
+AdvPointDict,8,1892
+AdvPointDict,9,1934
+AdvPointDict,10,2065
+AdvPointDict,11,11439
+AdvPointDict,12,1947
+AdvPointDict,13,1936
+AdvPointDict,14,1929
+AdvPointDict,15,1906
+AdvPointDict,16,1929
+AdvPointDict,17,1896
+AdvPointDict,18,1935
+AdvPointDict,19,1914
+AdvPointDict,20,11704
+AdvPointDict,21,1904
+AdvPointDict,22,2026
+AdvPointDict,23,1980
+AdvPointDict,24,1938
+AdvPointDict,25,1925
+AdvPointDict,26,1932
+AdvPointDict,27,1896
+AdvPointDict,28,10909
+AdvPointDict,29,1970
+AdvPointDict,30,1906
+# stats AdvPointDict fullGCs=0 fullGCMilliseconds=0 scavenges=4 scavengeMilliseconds=37 bytesAllocated=53396760 cogMethods=145 cogMethodMs=0 cogBlocks=16 cogBlockMs=0 cogCompactions=0 cogCompactionMs=0
+# total AdvPointDict 96037 us
+# run AdvPackedKeys inner=1
+AdvPackedKeys,1,2174
+AdvPackedKeys,2,2155
+AdvPackedKeys,3,11414
+AdvPackedKeys,4,2031
+AdvPackedKeys,5,2049
+AdvPackedKeys,6,2012
+AdvPackedKeys,7,2060
+AdvPackedKeys,8,2001
+AdvPackedKeys,9,2015
+AdvPackedKeys,10,2165
+AdvPackedKeys,11,2000
+AdvPackedKeys,12,1983
+AdvPackedKeys,13,11552
+AdvPackedKeys,14,3355
+AdvPackedKeys,15,3116
+AdvPackedKeys,16,3124
+AdvPackedKeys,17,3166
+AdvPackedKeys,18,2000
+AdvPackedKeys,19,2058
+AdvPackedKeys,20,1953
+AdvPackedKeys,21,1999
+AdvPackedKeys,22,11344
+AdvPackedKeys,23,2035
+AdvPackedKeys,24,1978
+AdvPackedKeys,25,2084
+AdvPackedKeys,26,2013
+AdvPackedKeys,27,2024
+AdvPackedKeys,28,1967
+AdvPackedKeys,29,1996
+AdvPackedKeys,30,2012
+# stats AdvPackedKeys fullGCs=0 fullGCMilliseconds=0 scavenges=3 scavengeMilliseconds=27 bytesAllocated=47877888 cogMethods=176 cogMethodMs=1 cogBlocks=16 cogBlockMs=0 cogCompactions=0 cogCompactionMs=0
+# total AdvPackedKeys 93835 us
+# run AdvFloatSet inner=1
+AdvFloatSet,1,9931
+AdvFloatSet,2,9833
+AdvFloatSet,3,9826
+AdvFloatSet,4,9585
+AdvFloatSet,5,9621
+AdvFloatSet,6,9648
+AdvFloatSet,7,18955
+AdvFloatSet,8,9530
+AdvFloatSet,9,9562
+AdvFloatSet,10,9624
+AdvFloatSet,11,9544
+AdvFloatSet,12,9578
+AdvFloatSet,13,9562
+AdvFloatSet,14,9608
+AdvFloatSet,15,9716
+AdvFloatSet,16,10097
+AdvFloatSet,17,9659
+AdvFloatSet,18,9589
+AdvFloatSet,19,9551
+AdvFloatSet,20,9764
+AdvFloatSet,21,9536
+AdvFloatSet,22,9502
+AdvFloatSet,23,9605
+AdvFloatSet,24,9494
+AdvFloatSet,25,9575
+AdvFloatSet,26,9756
+AdvFloatSet,27,9657
+AdvFloatSet,28,9665
+AdvFloatSet,29,9709
+AdvFloatSet,30,9652
+# stats AdvFloatSet fullGCs=0 fullGCMilliseconds=0 scavenges=1 scavengeMilliseconds=9 bytesAllocated=17051040 cogMethods=174 cogMethodMs=0 cogBlocks=19 cogBlockMs=0 cogCompactions=0 cogCompactionMs=0
+# total AdvFloatSet 298934 us
+# run AdvArrayKeys inner=1
+AdvArrayKeys,1,3695
+AdvArrayKeys,2,3557
+AdvArrayKeys,3,13742
+AdvArrayKeys,4,3427
+AdvArrayKeys,5,3357
+AdvArrayKeys,6,3327
+AdvArrayKeys,7,3406
+AdvArrayKeys,8,3367
+AdvArrayKeys,9,3361
+AdvArrayKeys,10,3411
+AdvArrayKeys,11,3310
+AdvArrayKeys,12,3316
+AdvArrayKeys,13,13199
+AdvArrayKeys,14,3362
+AdvArrayKeys,15,3366
+AdvArrayKeys,16,3334
+AdvArrayKeys,17,3373
+AdvArrayKeys,18,3396
+AdvArrayKeys,19,3441
+AdvArrayKeys,20,3374
+AdvArrayKeys,21,3325
+AdvArrayKeys,22,3338
+AdvArrayKeys,23,12693
+AdvArrayKeys,24,3445
+AdvArrayKeys,25,3374
+AdvArrayKeys,26,3387
+AdvArrayKeys,27,3376
+AdvArrayKeys,28,3375
+AdvArrayKeys,29,3396
+AdvArrayKeys,30,3372
+# stats AdvArrayKeys fullGCs=0 fullGCMilliseconds=0 scavenges=3 scavengeMilliseconds=29 bytesAllocated=46750184 cogMethods=120 cogMethodMs=1 cogBlocks=16 cogBlockMs=0 cogCompactions=0 cogCompactionMs=0
+# total AdvArrayKeys 131202 us
+# run AdvAlignedInts inner=1
+AdvAlignedInts,1,3855
+AdvAlignedInts,2,12443
+AdvAlignedInts,3,3695
+AdvAlignedInts,4,3609
+AdvAlignedInts,5,3910
+AdvAlignedInts,6,3811
+AdvAlignedInts,7,11983
+AdvAlignedInts,8,3690
+AdvAlignedInts,9,3645
+AdvAlignedInts,10,3680
+AdvAlignedInts,11,3651
+AdvAlignedInts,12,12344
+AdvAlignedInts,13,3670
+AdvAlignedInts,14,3663
+AdvAlignedInts,15,3714
+AdvAlignedInts,16,3687
+AdvAlignedInts,17,12680
+AdvAlignedInts,18,3668
+AdvAlignedInts,19,3665
+AdvAlignedInts,20,3665
+AdvAlignedInts,21,3683
+AdvAlignedInts,22,12858
+AdvAlignedInts,23,3713
+AdvAlignedInts,24,3663
+AdvAlignedInts,25,3680
+AdvAlignedInts,26,3668
+AdvAlignedInts,27,13133
+AdvAlignedInts,28,3697
+AdvAlignedInts,29,3673
+AdvAlignedInts,30,3690
+# stats AdvAlignedInts fullGCs=0 fullGCMilliseconds=0 scavenges=6 scavengeMilliseconds=51 bytesAllocated=92161488 cogMethods=171 cogMethodMs=1 cogBlocks=16 cogBlockMs=0 cogCompactions=0 cogCompactionMs=0
+# total AdvAlignedInts 164186 us
+# run AdvHugePrint inner=1
+AdvHugePrint,1,95906
+AdvHugePrint,2,83150
+AdvHugePrint,3,82990
+AdvHugePrint,4,112310
+AdvHugePrint,5,91057
+AdvHugePrint,6,82780
+AdvHugePrint,7,82893
+AdvHugePrint,8,93199
+AdvHugePrint,9,82959
+AdvHugePrint,10,82953
+AdvHugePrint,11,91190
+AdvHugePrint,12,82615
+AdvHugePrint,13,82936
+AdvHugePrint,14,91786
+AdvHugePrint,15,82796
+AdvHugePrint,16,82767
+AdvHugePrint,17,91660
+AdvHugePrint,18,82858
+AdvHugePrint,19,86574
+AdvHugePrint,20,93761
+AdvHugePrint,21,82793
+AdvHugePrint,22,82659
+AdvHugePrint,23,91200
+AdvHugePrint,24,82935
+AdvHugePrint,25,83258
+AdvHugePrint,26,91430
+AdvHugePrint,27,82873
+AdvHugePrint,28,82800
+AdvHugePrint,29,91395
+AdvHugePrint,30,82783
+# stats AdvHugePrint fullGCs=0 fullGCMilliseconds=0 scavenges=11 scavengeMilliseconds=97 bytesAllocated=165251136 cogMethods=337 cogMethodMs=2 cogBlocks=64 cogBlockMs=0 cogCompactions=0 cogCompactionMs=0
+# total AdvHugePrint 2613266 us
+# run AdvBigPrint inner=1
+AdvBigPrint,1,42876
+AdvBigPrint,2,32490
+AdvBigPrint,3,41099
+AdvBigPrint,4,32650
+AdvBigPrint,5,40796
+AdvBigPrint,6,32553
+AdvBigPrint,7,41191
+AdvBigPrint,8,32676
+AdvBigPrint,9,32533
+AdvBigPrint,10,41588
+AdvBigPrint,11,32418
+AdvBigPrint,12,41023
+AdvBigPrint,13,32423
+AdvBigPrint,14,40842
+AdvBigPrint,15,32617
+AdvBigPrint,16,41318
+AdvBigPrint,17,34605
+AdvBigPrint,18,44179
+AdvBigPrint,19,32855
+AdvBigPrint,20,41615
+AdvBigPrint,21,32591
+AdvBigPrint,22,41499
+AdvBigPrint,23,32553
+AdvBigPrint,24,32549
+AdvBigPrint,25,41144
+AdvBigPrint,26,32506
+AdvBigPrint,27,41341
+AdvBigPrint,28,49203
+AdvBigPrint,29,32516
+AdvBigPrint,30,40847
+# stats AdvBigPrint fullGCs=0 fullGCMilliseconds=0 scavenges=15 scavengeMilliseconds=129 bytesAllocated=219860760 cogMethods=245 cogMethodMs=2 cogBlocks=43 cogBlockMs=0 cogCompactions=0 cogCompactionMs=0
+# total AdvBigPrint 1121096 us
+# run AdvPingPong inner=1
+AdvPingPong,1,23109
+AdvPingPong,2,22279
+AdvPingPong,3,21830
+AdvPingPong,4,26219
+AdvPingPong,5,22326
+AdvPingPong,6,21878
+AdvPingPong,7,21935
+AdvPingPong,8,21889
+AdvPingPong,9,22150
+AdvPingPong,10,21807
+AdvPingPong,11,21904
+AdvPingPong,12,51131
+AdvPingPong,13,22185
+AdvPingPong,14,22062
+AdvPingPong,15,22061
+AdvPingPong,16,22242
+AdvPingPong,17,22092
+AdvPingPong,18,22862
+AdvPingPong,19,22885
+AdvPingPong,20,22865
+AdvPingPong,21,25916
+AdvPingPong,22,22326
+AdvPingPong,23,22270
+AdvPingPong,24,22437
+AdvPingPong,25,22545
+AdvPingPong,26,22226
+AdvPingPong,27,22243
+AdvPingPong,28,22533
+AdvPingPong,29,22322
+AdvPingPong,30,22339
+# stats AdvPingPong fullGCs=0 fullGCMilliseconds=0 scavenges=1 scavengeMilliseconds=9 bytesAllocated=11258800 cogMethods=354 cogMethodMs=2 cogBlocks=66 cogBlockMs=1 cogCompactions=0 cogCompactionMs=0
+# total AdvPingPong 704868 us
+# run AdvDeepPingPong inner=1
+AdvDeepPingPong,1,4654
+AdvDeepPingPong,2,4415
+AdvDeepPingPong,3,4306
+AdvDeepPingPong,4,4424
+AdvDeepPingPong,5,4394
+AdvDeepPingPong,6,4266
+AdvDeepPingPong,7,4293
+AdvDeepPingPong,8,4451
+AdvDeepPingPong,9,4334
+AdvDeepPingPong,10,4390
+AdvDeepPingPong,11,4260
+AdvDeepPingPong,12,4317
+AdvDeepPingPong,13,4249
+AdvDeepPingPong,14,4313
+AdvDeepPingPong,15,4765
+AdvDeepPingPong,16,4333
+AdvDeepPingPong,17,4304
+AdvDeepPingPong,18,4266
+AdvDeepPingPong,19,4328
+AdvDeepPingPong,20,4305
+AdvDeepPingPong,21,4254
+AdvDeepPingPong,22,4310
+AdvDeepPingPong,23,4264
+AdvDeepPingPong,24,4327
+AdvDeepPingPong,25,4367
+AdvDeepPingPong,26,4258
+AdvDeepPingPong,27,4277
+AdvDeepPingPong,28,4272
+AdvDeepPingPong,29,4269
+AdvDeepPingPong,30,4258
+# stats AdvDeepPingPong fullGCs=0 fullGCMilliseconds=0 scavenges=0 scavengeMilliseconds=0 bytesAllocated=277992 cogMethods=203 cogMethodMs=1 cogBlocks=18 cogBlockMs=0 cogCompactions=0 cogCompactionMs=0
+# total AdvDeepPingPong 130223 us
+# run AdvYield inner=1
+AdvYield,1,10187
+AdvYield,2,9909
+AdvYield,3,9653
+AdvYield,4,9614
+AdvYield,5,9810
+AdvYield,6,9677
+AdvYield,7,9707
+AdvYield,8,9656
+AdvYield,9,9731
+AdvYield,10,9694
+AdvYield,11,9601
+AdvYield,12,9658
+AdvYield,13,9629
+AdvYield,14,9630
+AdvYield,15,9593
+AdvYield,16,9663
+AdvYield,17,9581
+AdvYield,18,9584
+AdvYield,19,9564
+AdvYield,20,9626
+AdvYield,21,9603
+AdvYield,22,9575
+AdvYield,23,9735
+AdvYield,24,9639
+AdvYield,25,9609
+AdvYield,26,9820
+AdvYield,27,9636
+AdvYield,28,9667
+AdvYield,29,9889
+AdvYield,30,9629
+# stats AdvYield fullGCs=0 fullGCMilliseconds=0 scavenges=0 scavengeMilliseconds=0 bytesAllocated=557992 cogMethods=198 cogMethodMs=1 cogBlocks=21 cogBlockMs=1 cogCompactions=0 cogCompactionMs=0
+# total AdvYield 290569 us
+# run AdvForkJoin inner=1
+AdvForkJoin,1,17506
+AdvForkJoin,2,8337
+AdvForkJoin,3,16517
+AdvForkJoin,4,8180
+AdvForkJoin,5,8220
+AdvForkJoin,6,16683
+AdvForkJoin,7,8152
+AdvForkJoin,8,16140
+AdvForkJoin,9,9725
+AdvForkJoin,10,17786
+AdvForkJoin,11,8267
+AdvForkJoin,12,8500
+AdvForkJoin,13,18826
+AdvForkJoin,14,8450
+AdvForkJoin,15,16386
+AdvForkJoin,16,8246
+AdvForkJoin,17,16787
+AdvForkJoin,18,8188
+AdvForkJoin,19,8180
+AdvForkJoin,20,16696
+AdvForkJoin,21,8175
+AdvForkJoin,22,36730
+AdvForkJoin,23,16837
+AdvForkJoin,24,8985
+AdvForkJoin,25,16606
+AdvForkJoin,26,8508
+AdvForkJoin,27,16327
+AdvForkJoin,28,8143
+AdvForkJoin,29,8155
+AdvForkJoin,30,16614
+# stats AdvForkJoin fullGCs=0 fullGCMilliseconds=0 scavenges=14 scavengeMilliseconds=116 bytesAllocated=210540888 cogMethods=351 cogMethodMs=1 cogBlocks=64 cogBlockMs=0 cogCompactions=0 cogCompactionMs=0
+# total AdvForkJoin 390852 us
+# run AdvFork inner=1
+AdvFork,1,19522
+AdvFork,2,8164
+AdvFork,3,16886
+AdvFork,4,7809
+AdvFork,5,8259
+AdvFork,6,7820
+AdvFork,7,8158
+AdvFork,8,8352
+AdvFork,9,7820
+AdvFork,10,8495
+AdvFork,11,7802
+AdvFork,12,8907
+AdvFork,13,7740
+AdvFork,14,8891
+AdvFork,15,7726
+AdvFork,16,8720
+AdvFork,17,7780
+AdvFork,18,8460
+AdvFork,19,8056
+AdvFork,20,8332
+AdvFork,21,8398
+AdvFork,22,7840
+AdvFork,23,8646
+AdvFork,24,7870
+AdvFork,25,8648
+AdvFork,26,7821
+AdvFork,27,8911
+AdvFork,28,7785
+AdvFork,29,8734
+AdvFork,30,7839
+# stats AdvFork fullGCs=0 fullGCMilliseconds=0 scavenges=16 scavengeMilliseconds=30 bytesAllocated=249340552 cogMethods=201 cogMethodMs=1 cogBlocks=18 cogBlockMs=0 cogCompactions=0 cogCompactionMs=0
+# total AdvFork 266191 us
+# run AdvBecome inner=1
+AdvBecome,1,935
+AdvBecome,2,961
+AdvBecome,3,857
+AdvBecome,4,868
+AdvBecome,5,868
+AdvBecome,6,867
+AdvBecome,7,859
+AdvBecome,8,843
+AdvBecome,9,839
+AdvBecome,10,861
+AdvBecome,11,894
+AdvBecome,12,865
+AdvBecome,13,851
+AdvBecome,14,853
+AdvBecome,15,867
+AdvBecome,16,842
+AdvBecome,17,860
+AdvBecome,18,852
+AdvBecome,19,885
+AdvBecome,20,871
+AdvBecome,21,840
+AdvBecome,22,955
+AdvBecome,23,852
+AdvBecome,24,895
+AdvBecome,25,848
+AdvBecome,26,856
+AdvBecome,27,853
+AdvBecome,28,841
+AdvBecome,29,923
+AdvBecome,30,849
+# stats AdvBecome fullGCs=0 fullGCMilliseconds=0 scavenges=0 scavengeMilliseconds=0 bytesAllocated=230024 cogMethods=118 cogMethodMs=0 cogBlocks=19 cogBlockMs=0 cogCompactions=0 cogCompactionMs=0
+# total AdvBecome 26110 us
+# run AdvValueWithArguments inner=1
+AdvValueWithArguments,1,145224
+AdvValueWithArguments,2,161998
+AdvValueWithArguments,3,142271
+AdvValueWithArguments,4,140911
+AdvValueWithArguments,5,146130
+AdvValueWithArguments,6,149886
+AdvValueWithArguments,7,141375
+AdvValueWithArguments,8,141017
+AdvValueWithArguments,9,162021
+AdvValueWithArguments,10,146071
+AdvValueWithArguments,11,143580
+AdvValueWithArguments,12,147664
+AdvValueWithArguments,13,142936
+AdvValueWithArguments,14,142166
+AdvValueWithArguments,15,149531
+AdvValueWithArguments,16,142424
+AdvValueWithArguments,17,143815
+AdvValueWithArguments,18,141893
+AdvValueWithArguments,19,148447
+AdvValueWithArguments,20,141863
+AdvValueWithArguments,21,150939
+AdvValueWithArguments,22,142208
+AdvValueWithArguments,23,142391
+AdvValueWithArguments,24,141929
+AdvValueWithArguments,25,145189
+AdvValueWithArguments,26,153757
+AdvValueWithArguments,27,140423
+AdvValueWithArguments,28,139990
+AdvValueWithArguments,29,140160
+AdvValueWithArguments,30,142088
+# stats AdvValueWithArguments fullGCs=0 fullGCMilliseconds=0 scavenges=156 scavengeMilliseconds=1293 bytesAllocated=2411090400 cogMethods=324 cogMethodMs=1 cogBlocks=66 cogBlockMs=1 cogCompactions=0 cogCompactionMs=0
+# total AdvValueWithArguments 4360297 us
+# run AdvBlocks inner=1
+AdvBlocks,1,82385
+AdvBlocks,2,81542
+AdvBlocks,3,80996
+AdvBlocks,4,100822
+AdvBlocks,5,81309
+AdvBlocks,6,82003
+AdvBlocks,7,73449
+AdvBlocks,8,81953
+AdvBlocks,9,81169
+AdvBlocks,10,80475
+AdvBlocks,11,85896
+AdvBlocks,12,73710
+AdvBlocks,13,81175
+AdvBlocks,14,80506
+AdvBlocks,15,80874
+AdvBlocks,16,81615
+AdvBlocks,17,72634
+AdvBlocks,18,81687
+AdvBlocks,19,81017
+AdvBlocks,20,81248
+AdvBlocks,21,73395
+AdvBlocks,22,81694
+AdvBlocks,23,82208
+AdvBlocks,24,87207
+AdvBlocks,25,81238
+AdvBlocks,26,73100
+AdvBlocks,27,81417
+AdvBlocks,28,82440
+AdvBlocks,29,81338
+AdvBlocks,30,81757
+# stats AdvBlocks fullGCs=0 fullGCMilliseconds=0 scavenges=55 scavengeMilliseconds=461 bytesAllocated=839087216 cogMethods=322 cogMethodMs=2 cogBlocks=69 cogBlockMs=1 cogCompactions=0 cogCompactionMs=0
+# total AdvBlocks 2432259 us
+# run AdvPerform3 inner=1
+AdvPerform3,1,106904
+AdvPerform3,2,103592
+AdvPerform3,3,132696
+AdvPerform3,4,106088
+AdvPerform3,5,141772
+AdvPerform3,6,115366
+AdvPerform3,7,103989
+AdvPerform3,8,103016
+AdvPerform3,9,102361
+AdvPerform3,10,109307
+AdvPerform3,11,103289
+AdvPerform3,12,102635
+AdvPerform3,13,102189
+AdvPerform3,14,102635
+AdvPerform3,15,111090
+AdvPerform3,16,104237
+AdvPerform3,17,103339
+AdvPerform3,18,103730
+AdvPerform3,19,111803
+AdvPerform3,20,104106
+AdvPerform3,21,104820
+AdvPerform3,22,106000
+AdvPerform3,23,105442
+AdvPerform3,24,113327
+AdvPerform3,25,105351
+AdvPerform3,26,103970
+AdvPerform3,27,104544
+AdvPerform3,28,104258
+AdvPerform3,29,107768
+AdvPerform3,30,104100
+# stats AdvPerform3 fullGCs=0 fullGCMilliseconds=0 scavenges=94 scavengeMilliseconds=802 bytesAllocated=1451078872 cogMethods=324 cogMethodMs=2 cogBlocks=64 cogBlockMs=1 cogCompactions=0 cogCompactionMs=0
+# total AdvPerform3 3233724 us
+# run AdvFractions inner=1
+AdvFractions,1,36439
+AdvFractions,2,27571
+AdvFractions,3,35740
+AdvFractions,4,27605
+AdvFractions,5,27607
+AdvFractions,6,35954
+AdvFractions,7,27813
+AdvFractions,8,36978
+AdvFractions,9,34582
+AdvFractions,10,64274
+AdvFractions,11,50903
+AdvFractions,12,40778
+AdvFractions,13,36282
+AdvFractions,14,27319
+AdvFractions,15,36496
+AdvFractions,16,27532
+AdvFractions,17,36227
+AdvFractions,18,27640
+AdvFractions,19,27724
+AdvFractions,20,35890
+AdvFractions,21,27560
+AdvFractions,22,36419
+AdvFractions,23,27559
+AdvFractions,24,36609
+AdvFractions,25,27727
+AdvFractions,26,36840
+AdvFractions,27,27517
+AdvFractions,28,27655
+AdvFractions,29,64134
+AdvFractions,30,27146
+# stats AdvFractions fullGCs=0 fullGCMilliseconds=0 scavenges=14 scavengeMilliseconds=125 bytesAllocated=211334080 cogMethods=341 cogMethodMs=1 cogBlocks=63 cogBlockMs=0 cogCompactions=0 cogCompactionMs=0
+# total AdvFractions 1040520 us
+# benchmark            runs   first_ms  steady_ms   total_ms
+# AdvPointDict            1        2.0        1.9       96.0
+# AdvPackedKeys           1        2.2        2.0       93.8
+# AdvFloatSet             1        9.9        9.7      298.9
+# AdvArrayKeys            1        3.7        3.4      131.2
+# AdvAlignedInts          1        3.9        3.7      164.2
+# AdvHugePrint            1       95.9       82.9     2613.3
+# AdvBigPrint             1       42.9       40.8     1121.1
+# AdvPingPong             1       23.1       22.3      704.9
+# AdvDeepPingPong         1        4.7        4.3      130.2
+# AdvYield                1       10.2        9.6      290.6
+# AdvForkJoin             1       17.5        9.0      390.9
+# AdvFork                 1       19.5        8.3      266.2
+# AdvBecome               1        0.9        0.9       26.1
+# AdvValueWithArguments      1      145.2      142.2     4360.3
+# AdvBlocks               1       82.4       81.4     2432.3
+# AdvPerform3             1      106.9      104.5     3233.7
+# AdvFractions            1       36.4       27.7     1040.5

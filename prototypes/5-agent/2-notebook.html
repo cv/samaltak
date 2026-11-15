@@ -1,0 +1,421 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Samaltak agent · 2 · Live Notebook</title>
+<link rel="stylesheet" href="../shared/pi-orb-fonts.css">
+<link rel="stylesheet" href="agent.css">
+<style>
+  /* ---------- notebook window ---------- */
+  #nb { left: 22px; top: 36px; width: 1104px; height: 800px; }
+  .toolbar {
+    flex: none; display: flex; align-items: center; gap: 6px; padding: 4px 8px; border-bottom: 1px solid #000;
+    font-size: 12.5px;
+  }
+  .toolbar .btn { font-size: 12.5px; padding: 0 8px 1px; }
+  .toolbar .vsep { width: 1px; height: 15px; background: #000; margin: 0 4px; }
+  .toolbar .right { margin-left: auto; display: flex; gap: 12px; align-items: baseline; color: var(--ink-2); }
+  .toolbar .right i { color: var(--ink-3); }
+  .toolbar .model { font-weight: 700; }
+  .toolbar .model::before {
+    content: ""; display: inline-block; width: 7px; height: 7px; border-radius: 50%; background: var(--ultra);
+    margin-right: 5px; vertical-align: 1px;
+  }
+  .meter { display: inline-block; width: 46px; height: 7px; border: 1px solid #000; vertical-align: 0; position: relative; }
+  .meter b { position: absolute; left: 0; top: 0; bottom: 0; width: 10%; background: #000; }
+
+  /* the notebook column: cells, prompt, gutter rule */
+  .nbcol { position: relative; }
+  .cells { flex: 1; min-height: 0; overflow: hidden; position: relative; }
+  .cells::before { /* the margin rule, full height */
+    content: ""; position: absolute; left: 56px; top: 0; bottom: 0; border-left: 1px solid #000;
+  }
+  .cell { display: grid; grid-template-columns: 57px 1fr; align-items: start; border-bottom: 1px solid #000; position: relative; }
+  .cell > .g { /* gutter label for the row beside it */
+    font: 12px/20px var(--code); text-align: right; padding: 0 9px 0 0; color: var(--ink-3); white-space: nowrap;
+  }
+  .cell > .g.who { font: italic 13px/20px var(--ui); }
+  .cell > .g.oid { color: var(--ultra); }
+  .cell > .g.oid.inv { color: #fff; background: var(--ultra); margin: 3px 0 0 10px; padding-right: 8px; }
+  .cell > .g.err { color: #000; font-weight: 700; }
+  .cell > .c { padding: 0 10px; min-width: 0; }
+  .cell > .g:first-child, .cell > .g:first-child + .c { padding-top: 4px; }
+  .cell > .g:nth-last-child(2), .cell > .c:last-child { padding-bottom: 5px; }
+
+  .msg { font: 13.5px/20px var(--ui); }
+  .msg.you { font-style: italic; }
+  .msg .oref { font-style: normal; }
+
+  /* a code cell is a live Workspace pane */
+  .src { position: relative; }
+  .src pre { padding-right: 230px; }
+  .src .meta {
+    position: absolute; right: 0; top: 0; font: italic 12px/20px var(--ui); color: var(--ink-3); white-space: nowrap;
+  }
+  .src .meta .tag { font-style: normal; }
+  .out { font: 13px/20px var(--code); display: flex; gap: 8px; align-items: baseline; border-top: 1px dotted var(--ink-4); margin-top: 3px; padding-top: 2px; }
+  .out .ps { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .out .r { font: italic 12px var(--ui); color: var(--ink-3); white-space: nowrap; }
+  .out.stale { color: var(--ink-3); }
+  .out.stale .ps { text-decoration: line-through; text-decoration-color: var(--ink-4); }
+  .id { color: var(--ultra); border-bottom: 1px solid var(--ultra); }
+  .t-sym { color: #000; }
+  .t-str { color: #000; }
+
+  /* the cell being edited: framed pane, header strip, caret */
+  .cell.editing { background: #fff; }
+  .editbox { border: 1px solid #000; margin: 0 0 0 -4px; padding: 0 0 0 3px; position: relative; box-shadow: 2px 2px 0 #000; }
+  .editbox .ehdr {
+    font: 700 10px/1 var(--ui); letter-spacing: .08em; text-transform: uppercase; display: flex; gap: 8px;
+    align-items: baseline; padding: 4px 6px 4px 3px; margin-left: -3px; border-bottom: 1px solid #000;
+    background: #000; color: #fff;
+  }
+  .editbox .ehdr .right { margin-left: auto; font: italic 400 11.5px var(--ui); letter-spacing: 0; text-transform: none; color: #ddd; }
+  .editbox pre { padding: 2px 0 2px; }
+  .ed { background: var(--ultra-soft); outline: 1px solid var(--ultra); color: var(--ultra); }
+  .was { color: var(--ink-4); text-decoration: line-through; margin-right: 4px; }
+  .caret { display: inline-block; width: 2px; height: 16px; background: #000; vertical-align: -3px; margin: 0 -1px; }
+
+  /* error */
+  .errbox { border-left: 3px solid #000; padding: 1px 0 1px 8px; margin-top: 4px; }
+  .errbox .head { font: 13px/20px var(--code); display: flex; gap: 10px; align-items: baseline; }
+  .errbox .head b { font-weight: 700; }
+  .errbox .head a { font: 12.5px var(--ui); color: var(--ultra); }
+  .errbox .fr { font: 12px/17px var(--code); color: var(--ink-2); }
+  .errbox .fr .muted { font: italic 12px var(--ui); }
+
+  /* show-object: bars */
+  .show-h { font: 700 10px/1 var(--ui); letter-spacing: .08em; text-transform: uppercase; display: flex; gap: 8px; align-items: baseline; padding: 3px 0 5px; }
+  .show-h .right { font: italic 400 12px var(--ui); letter-spacing: 0; text-transform: none; color: var(--ink-3); }
+  .bars { display: grid; grid-template-columns: 96px 380px 40px; row-gap: 2px; font: 12.5px/14px var(--code); align-items: center; }
+  .bars .k { text-align: right; padding-right: 8px; }
+  .bars .bar { height: 12px; border: 1px solid #000; }
+  .bars .bar.first { background: var(--ultra); border-color: var(--ultra); }
+  .bars .v { padding-left: 7px; }
+  .bars .k.first, .bars .v.first { color: var(--ultra); font-weight: 700; }
+
+  /* show-object: Form */
+  .formview { display: flex; gap: 18px; align-items: flex-start; }
+  .pix { display: grid; grid-template-columns: repeat(12, 6px); grid-auto-rows: 6px; border: 1px solid #000; gap: 0;
+    background-image: linear-gradient(var(--hair) 1px, transparent 1px), linear-gradient(90deg, var(--hair) 1px, transparent 1px);
+    background-size: 6px 6px; }
+  .pix i { display: block; }
+  .pix i.hov { outline: 2px solid var(--ultra); outline-offset: -1px; position: relative; z-index: 1; }
+  .formfacts { font: 12px/18px var(--code); color: var(--ink-2); width: 120px; }
+  .formfacts .k { font: 700 10px var(--ui); letter-spacing: .08em; text-transform: uppercase; color: #000; display: inline-block; width: 46px; }
+  .actual { border: 1px solid var(--hair); width: 30px; height: 30px; align-self: flex-end; display: flex; align-items: center; justify-content: center; font: 22px/1 var(--code); margin-top: 4px; }
+  .formbtns { margin-top: 6px; display: flex; gap: 5px; }
+  .formbtns .btn { font-size: 12px; padding: 0 6px 1px; }
+
+  .cell.withform { grid-template-columns: 57px 1fr auto; border-bottom: 0; }
+  .cell.withform .formview { grid-column: 3; grid-row: 1 / span 3; padding: 5px 12px 6px 0; }
+  .cell.withform .src pre { padding-right: 200px; }
+  .showline { font: italic 12px/18px var(--ui); color: var(--ink-3); padding-top: 4px; }
+  .showline .arr { font-style: normal; color: var(--ultra); }
+
+  /* prompt cell */
+  .prompt { flex: none; border-top: 1px solid #000; display: grid; grid-template-columns: 57px 1fr; }
+  .prompt .g { font: italic 13px/20px var(--ui); text-align: right; padding: 8px 9px 0 0; border-right: 1px solid #000; }
+  .prompt .c { padding: 6px 10px 6px; }
+  .prompt .field { border: 1px solid #000; padding: 4px 7px; font: 13.5px/20px var(--ui); }
+  .prompt .row2 { display: flex; gap: 8px; align-items: center; margin-top: 5px; font-size: 12px; color: var(--ink-3); }
+  .prompt .row2 .btn { font-size: 12.5px; }
+  .prompt .row2 .sp { flex: 1; }
+  .prompt .att { font: italic 12px var(--ui); color: var(--ultra); }
+
+  /* OBJECTS margin */
+  .objs { width: 214px; flex: none; }
+  .objs .li { font-size: 13px; padding: 3px 8px; align-items: baseline; }
+  .objs .li .oref { min-width: 22px; text-align: center; }
+  .objs .li.sel .oref { color: #fff; border-color: #fff; }
+  .objs .li .cls { overflow: hidden; text-overflow: ellipsis; }
+  .objs .li .you { font: 700 9px/1 var(--ui); letter-spacing: .08em; text-transform: uppercase; border: 1px solid currentColor; padding: 2px 3px 1px; }
+  .objs .sub { font: italic 11.5px/1.2 var(--ui); color: var(--ink-3); padding: 0 8px 4px 41px; margin-top: -2px; }
+  .objs .li.sel + .sub { background: #000; color: #ccc; padding-top: 0; }
+  .insp { font: 12px/18px var(--code); padding: 4px 0; }
+  .insp .f { display: flex; padding: 0 8px; gap: 6px; }
+  .insp .f .n { width: 18px; color: var(--ink-3); text-align: right; flex: none; }
+  .insp .f .v { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .insp .f.new .v { color: var(--ultra); }
+  .objs .foot { font: italic 12px/1.35 var(--ui); color: var(--ink-3); padding: 6px 8px; }
+  .procs .li { font-size: 12.5px; }
+  .procs .li .r { font-size: 12px; }
+
+  /* background windows */
+  #tr { left: 1112px; top: 52px; width: 318px; height: 214px; }
+  #pb { left: 1104px; top: 280px; width: 326px; height: 196px; }
+  #tr pre, #tr .code { font: 12px/17px var(--code); padding: 6px 8px 6px 24px; color: var(--ink-2); }
+  #pb .pane-h, #pb .li { padding-left: 30px; }
+  #pb .li { font-size: 12.5px; }
+  #pb .li .pri { font: 11.5px var(--code); color: var(--ink-3); width: 20px; }
+
+  .callout.a1 { left: 1146px; top: 500px; max-width: 272px; }
+  .callout.a2 { left: 1146px; top: 610px; max-width: 272px; }
+  .callout.a3 { left: 636px; top: 349px; max-width: 262px; }
+  .callout .arr { font-style: normal; }
+</style>
+</head>
+<body>
+<div id="desktop">
+
+  <div id="topbar">
+    <span class="brand">Samaltak</span><span class="sep"></span><span>nuuk.image</span>
+    <span class="hint">Click the desktop for the World menu</span>
+    <span class="lbl">Agent</span><span class="stat">Codex 6.1 Sol · idle</span><span class="sep"></span>
+    <span class="lbl">Compositor</span><span class="stat">16.7 ms 60 fps</span><span class="sep"></span>
+    <span class="stat">14 processes</span>
+  </div>
+
+  <!-- Transcript, peeking behind -->
+  <div class="win" id="tr">
+    <div class="titlebar"><span class="box"></span><span class="stripes"></span><span class="title">Transcript</span><span class="stripes"></span><span class="box small"></span><span class="box"></span></div>
+    <div class="win-body"><pre>Samaltak 0.1 (prototype)
+nuuk.image · 9 packages
+agent: signed in with ChatGPT
+  (mark@…) · Codex 6.1 Sol
+agent o1 · code-mode · 0.31 s
+agent o2 · code-mode · 0.04 s
+agent ⨯  MessageNotUnderstood
+  #keyBindings · Process kept
+agent o3 · code-mode · 0.02 s
+you   o4 · re-run cell 4 · 0.04 s
+you   o5 · new cell · 0.01 s</pre></div>
+  </div>
+
+  <!-- Process Browser, peeking behind -->
+  <div class="win" id="pb">
+    <div class="titlebar"><span class="box"></span><span class="stripes"></span><span class="title">Process Browser</span><span class="stripes"></span><span class="box small"></span><span class="box"></span></div>
+    <div class="win-body">
+      <div class="pane-h">Process<span class="right">14 · 0 busy</span></div>
+      <div class="list">
+        <div class="li"><span class="pri">70</span>compositor (vsync)<span class="r">waiting</span></div>
+        <div class="li"><span class="pri">60</span>input dispatcher<span class="r">waiting</span></div>
+        <div class="li"><span class="pri">40</span>Notebook<span class="r">running</span></div>
+        <div class="li"><span class="pri">40</span>Transcript<span class="r">waiting</span></div>
+        <div class="li"><span class="pri">30</span>agent http (sol)<span class="r">waiting</span></div>
+        <div class="li box"><span class="pri">30</span>agent e1 · keyBindings<span class="r">suspended</span></div>
+        <div class="li"><span class="pri">30</span>agent o5 (you)<span class="r">done</span></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- the notebook -->
+  <div class="win active" id="nb">
+    <div class="titlebar"><span class="box"></span><span class="stripes"></span><span class="title">Agent Notebook: UI-Widgets methods</span><span class="stripes"></span><span class="box small"></span><span class="box"></span></div>
+    <div class="toolbar">
+      <span class="btn default">Run cell ⌘D</span>
+      <span class="btn">+ Code</span>
+      <span class="btn">+ Note</span>
+      <span class="btn">Show object…</span>
+      <span class="vsep"></span>
+      <span class="btn">Stop agent</span>
+      <span class="right">
+        <span class="model">Codex 6.1 Sol</span>
+        <span>signed in as mark@…</span>
+        <span>context <span class="meter"><b></b></span> 41k / 400k</span>
+        <i>last turn 4.2 s</i>
+      </span>
+    </div>
+    <div class="win-body">
+      <div class="row grow">
+        <div class="col grow nbcol rule-r">
+          <div class="cells">
+
+            <!-- user message -->
+            <div class="cell">
+              <div class="g who">you</div>
+              <div class="c msg you">Which UI-Widgets classes have the most methods? Show me the top 5.</div>
+            </div>
+
+            <!-- agent message -->
+            <div class="cell">
+              <div class="g who ultra">Sol</div>
+              <div class="c msg">I’ll rank the classes in UI-Widgets by method count.</div>
+            </div>
+
+            <!-- code cell 1 -->
+            <div class="cell">
+              <div class="g">In</div>
+              <div class="c src">
+<pre>(<span class="t-g">Smalltalk</span> allClasses <span class="t-k">select:</span> [:c | c category = <span class="t-str">'UI-Widgets'</span>])
+    <span class="t-k">asSortedCollection:</span> [:a :b | a selectors size &gt;= b selectors size]</pre>
+                <span class="meta"><span class="tag">code-mode</span> &nbsp;Sol · 0.31 s · ‘agent o1’</span>
+              </div>
+              <div class="g oid">o1</div>
+              <div class="c"><div class="out" style="border-top:0;margin-top:0;padding-top:0"><span class="ps">a SortedCollection(TextEditor Widget ListView TextLayout MenuView ScrollPane Button Splitter ...)</span><span class="r">36 classes</span></div></div>
+            </div>
+
+            <!-- code cell 2: edited by the user, re-run -->
+            <div class="cell editing">
+              <div class="g">In</div>
+              <div class="c">
+                <div class="editbox">
+                  <div class="ehdr">Edited by you<span style="font-weight:400;letter-spacing:.04em">· re-run ⌘D → o4</span><span class="right">Sol wrote this cell · sees o4 next turn</span></div>
+<pre>(<span class="id">o1</span> <span class="t-k">first:</span> <span class="was">5</span><span class="ed">8</span><span class="caret" style="margin-left:2px"></span>) <span class="t-k">collect:</span> [:c | c -&gt; c selectors size]</pre>
+                </div>
+              </div>
+              <div class="g oid inv">o4</div>
+              <div class="c"><div class="out"><span class="ps">an Array(TextEditor-&gt;157 Widget-&gt;89 ListView-&gt;86 TextLayout-&gt;48 MenuView-&gt;38 ScrollPane-&gt;34 Button-&gt;29 Splitter-&gt;21)</span><span class="r"><span class="tag ultra">you</span> 0.04 s</span></div></div>
+              <div class="g oid" style="color:var(--ink-4)">o2</div>
+              <div class="c"><div class="out stale" style="border-top:0;margin-top:0;padding-top:0"><span class="ps">an Array(TextEditor-&gt;157 Widget-&gt;89 ListView-&gt;86 TextLayout-&gt;48 MenuView-&gt;38)</span><span class="r">Sol’s run, before your edit · kept</span></div></div>
+            </div>
+
+            <!-- show-object o2: bars -->
+            <div class="cell">
+              <div class="g">show</div>
+              <div class="c">
+                <div class="show-h"><span class="oref">o2</span> show-object · selectors per class <span class="right">live · an Array of 5 Associations</span></div>
+                <div class="bars">
+                  <span class="k first">TextEditor</span><span class="bar first" style="width:100%"></span><span class="v first">157</span>
+                  <span class="k">Widget</span><span class="bar halftone" style="width:56.7%"></span><span class="v">89</span>
+                  <span class="k">ListView</span><span class="bar halftone" style="width:54.8%"></span><span class="v">86</span>
+                  <span class="k">TextLayout</span><span class="bar halftone" style="width:30.6%"></span><span class="v">48</span>
+                  <span class="k">MenuView</span><span class="bar halftone" style="width:24.2%"></span><span class="v">38</span>
+                </div>
+              </div>
+            </div>
+
+            <!-- code cell 3: error -->
+            <div class="cell">
+              <div class="g">In</div>
+              <div class="c src">
+<pre>(<span class="id">o1</span> <span class="t-k">detect:</span> [:c | c name = <span class="t-sym">#TextEditor</span>]) keyBindings size</pre>
+                <span class="meta"><span class="tag">code-mode</span> &nbsp;Sol · 0.01 s · ‘agent e1’</span>
+              </div>
+              <div class="g err">error</div>
+              <div class="c">
+                <div class="errbox">
+                  <div class="head"><b>MessageNotUnderstood: TextEditor class&gt;&gt;keyBindings</b><a href="#">[Debug]</a><span class="muted" style="font:italic 12px var(--ui)">Process ‘agent e1’ kept, suspended</span></div>
+                  <div class="fr">TextEditor class(Object)&gt;&gt;doesNotUnderstand: #keyBindings <span class="muted">·</span> UndefinedObject&gt;&gt;DoIt</div>
+                </div>
+              </div>
+            </div>
+
+            <!-- code cell 4: retry -->
+            <div class="cell">
+              <div class="g">In</div>
+              <div class="c src">
+<pre>(<span class="t-g">TextEditor</span> selectors <span class="t-k">select:</span> [:s | s <span class="t-k">beginsWith:</span> <span class="t-str">'key'</span>]) size</pre>
+                <span class="meta"><span class="tag">code-mode</span> &nbsp;Sol · 0.02 s · ‘agent o3’</span>
+              </div>
+              <div class="g oid">o3</div>
+              <div class="c"><div class="out" style="border-top:0;margin-top:0;padding-top:0"><span class="ps">23</span><span class="r">a SmallInteger</span></div></div>
+            </div>
+
+            <!-- agent message -->
+            <div class="cell">
+              <div class="g who ultra">Sol</div>
+              <div class="c msg">TextEditor dominates: it is a facade over TextBuffer, TextLayout, TextHighlighter and TextUndoHistory, and still has 157 methods of its own — mostly key bindings (<span class="oref">o3</span>).</div>
+            </div>
+
+            <!-- the user's own code cell, with its Form shown beside it -->
+            <div class="cell withform">
+              <div class="g who">you</div>
+              <div class="c src">
+<pre>(<span class="t-g">Font</span> code <span class="t-k">glyphFor:</span> <span class="t-sym">$g</span>)</pre>
+                <span class="meta"><span class="tag ultra">your cell</span> &nbsp;0.01 s · ‘agent o5’</span>
+              </div>
+              <div class="formview">
+                <div class="formfacts">
+                  <div class="show-h" style="padding-top:2px"><span class="oref">o5</span> show-object</div>
+                  <div><span class="k">view</span>pixels</div>
+                  <div><span class="k">zoom</span>6 · grid</div>
+                  <div><span class="k">hover</span>9,12</div>
+                  <div><span class="k">value</span>255</div>
+                  <div class="formbtns"><span class="btn">−</span><span class="btn">+</span><span class="btn">0</span></div>
+                </div>
+                <div class="pix" id="pix"></div>
+                <div class="actual">g</div>
+              </div>
+              <div class="g oid inv">o5</div>
+              <div class="c"><div class="out" style="border-top:0;margin-top:0;padding-top:0"><span class="ps">a GlyphForm(12x20 JetBrains Mono 13 $g)</span><span class="r"><span class="tag ultra">you</span></span></div></div>
+              <div class="g"></div>
+              <div class="c showline">Sol has not seen this cell yet — it goes with your next message. <span class="arr">→</span></div>
+            </div>
+
+          </div>
+
+          <!-- prompt cell -->
+          <div class="prompt">
+            <div class="g">you</div>
+            <div class="c">
+              <div class="field">Why is TextLayout so small next to TextEditor? Use <span class="oref">o4</span>, not o2 — I widened it to the top 8.<span class="caret" style="margin-left:2px"></span></div>
+              <div class="row2">
+                <span class="att">will send: your edit of cell 4 (→ o4), your cell (→ o5)</span>
+                <span class="sp"></span>
+                <span><kbd>⌘⏎</kbd> new code cell</span>
+                <span class="btn ultra">Send ⏎</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- OBJECTS margin -->
+        <div class="col objs">
+          <div class="pane-h">Objects<span class="right">5 bound</span></div>
+          <div class="list">
+            <div class="li"><span class="oref">o1</span><span class="cls">SortedCollection</span><span class="r">36</span></div>
+            <div class="sub">Sol · In 1</div>
+            <div class="li"><span class="oref">o2</span><span class="cls">Array</span><span class="r">5</span></div>
+            <div class="sub">Sol · In 2 · shown</div>
+            <div class="li"><span class="oref">o3</span><span class="cls">SmallInteger</span><span class="r">23</span></div>
+            <div class="sub">Sol · In 4</div>
+            <div class="li sel"><span class="oref">o4</span><span class="cls">Array</span><span class="you">you</span><span class="r">8</span></div>
+            <div class="sub">your re-run of In 2</div>
+            <div class="li"><span class="oref">o5</span><span class="cls">GlyphForm</span><span class="you ultra">you</span><span class="r">12x20</span></div>
+            <div class="sub">your cell · shown</div>
+          </div>
+          <div class="pane-h rule-t">Inspect <span class="oref" style="letter-spacing:0">o4</span><span class="right">an Array</span></div>
+          <div class="insp">
+            <div class="f"><span class="n">1</span><span class="v">TextEditor-&gt;157</span></div>
+            <div class="f"><span class="n">2</span><span class="v">Widget-&gt;89</span></div>
+            <div class="f"><span class="n">3</span><span class="v">ListView-&gt;86</span></div>
+            <div class="f"><span class="n">4</span><span class="v">TextLayout-&gt;48</span></div>
+            <div class="f"><span class="n">5</span><span class="v">MenuView-&gt;38</span></div>
+            <div class="f new"><span class="n">6</span><span class="v">ScrollPane-&gt;34</span></div>
+            <div class="f new"><span class="n">7</span><span class="v">Button-&gt;29</span></div>
+            <div class="f new"><span class="n">8</span><span class="v">Splitter-&gt;21</span></div>
+          </div>
+          <div class="pane-h rule-t">Processes<span class="right">agent</span></div>
+          <div class="list procs">
+            <div class="li"><span>agent e1</span><span class="r">suspended</span></div>
+            <div class="li"><span>agent o5</span><span class="r">done</span></div>
+          </div>
+          <div class="grow"></div>
+          <div class="foot">Every ID is a variable in every cell — yours and Sol’s. Drag a chip into a cell to use it.</div>
+        </div>
+      </div>
+      <div class="status">Cell 4 <i>edited by you, re-run → o4</i><span style="margin-left:auto">2 changes Sol has not seen yet</span><i>⌘D run · ⌘P print · ⌘I inspect</i></div>
+    </div>
+  </div>
+
+  <div class="callout a1"><span class="arr">◂</span> <b>Every code-mode call is a live Workspace cell.</b> Edit Sol’s code and ⌘D: the re-run answers a new ID (o4), Sol’s o2 is kept, and Sol sees o4 in the next turn.</div>
+  <div class="callout a2"><span class="arr">◂</span> <b>Your own cells are first-class.</b> What you run gets an ID too (o5), marked YOU in the OBJECTS margin and bound for Sol exactly like its own.</div>
+  <div class="callout a3"><span class="arr">◂</span> <b>show-object embeds a live view</b>, not a picture of one: o2 as bars here, the GlyphForm o5 below as pixels.</div>
+
+  <div id="about">
+    <h1>2 · Live Notebook</h1>
+    <p>The transcript is a notebook: every agent call is an editable, re-runnable code cell, and you can add your own.</p>
+    <nav><a href="index.html">index</a><a href="1-workspace.html">1 workspace</a><a class="cur" href="2-notebook.html">2 notebook</a><a href="3-browser.html">3 browser</a><a href="4-desktop.html">4 desktop</a><a href="5-contextual.html">5 contextual</a></nav>
+  </div>
+</div>
+
+<script>
+  // GlyphForm o5: JetBrains Mono 'g', 12x20 coverage, drawn at zoom 6 like the Inspector's PixelView.
+  const rows = [
+    "            ", "            ", "            ", "            ", "            ", "            ",
+    "  .+#@@#+.#.", " .#@*::*@##.", " *@=    =@@.", " #@:    :@@.", " @@.    .@@.", " @@.    .@@.",
+    " #@:    :@@.", " *@=    =@@.", " .#@*::*@@@.", "  .+#@@#+@@.", "        .@@.", "  :.    =@#.",
+    "  *@*::*@#. ", "  .+#@@#+.  "];
+  const cov = { " ": 0, ".": .14, ":": .32, "=": .5, "+": .62, "*": .74, "#": .88, "@": 1 };
+  const pix = document.getElementById("pix");
+  rows.forEach((r, y) => [...r].forEach((ch, x) => {
+    const i = document.createElement("i");
+    const a = cov[ch];
+    if (a) i.style.background = `rgba(0,0,0,${a})`;
+    if (x === 9 && y === 12) i.className = "hov";
+    pix.appendChild(i);
+  }));
+</script>
+</body>
+</html>

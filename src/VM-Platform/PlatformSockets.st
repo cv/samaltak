@@ -3,9 +3,11 @@ VMPlatformModule subclass: #PlatformSockets
 	classVariableNames: 'MAX_FDS MAX_POLLED'
 	package: 'VM-Platform'!
 
-PlatformSockets comment: 'Non-blocking TCP sockets, and the table they share with pseudo-terminal masters (kinds PF_FD_SOCKET and PF_FD_PTY, i = the descriptor), so both are polled the same way.
+PlatformSockets comment: 'Non-blocking TCP sockets, and the table they share with pseudo-terminal masters and TLS connections (kinds PF_FD_SOCKET, PF_FD_PTY and PF_FD_TLS, i = the descriptor), so all are polled the same way.
 
-A descriptor with a read (write) semaphore is armed until it becomes readable or acceptable (writable); then the semaphore is signaled once. Read is re-armed by every recv/accept/read; write is armed by a send that would block or was partial.'!
+A descriptor with a read (write) semaphore is armed until it becomes readable or acceptable (writable); then the semaphore is signaled once (a TLS connection''s both: OpenSSL may read to write and write to read). Read is re-armed by every recv/accept/read; write is armed by a send that would block or was partial, and by a connect in progress.
+
+Nothing here blocks the VM thread: connect and listen take numeric addresses only, a connect completes in the background (connected:), and a host name is looked up by a thread of its own (lookup:) that writes its answer to a socket.'!
 
 !PlatformSockets class methodsFor: 'declaring'!
 declarations
@@ -42,7 +44,7 @@ noDelay: fd
 	posixSockets setsockopt: fd level: posixSockets IPPROTO_TCP option: posixSockets TCP_NODELAY value: one length: (self sizeof: 'int') asUInt32
 !
 resolve: host port: port passive: passive
-	"The addresses of host (any if NULL or empty) and port; NULL (and the error set) if there are none."
+	"The address of the numeric address host (any if NULL or empty) and port; NULL (and the error set) if it is none."
 	<function>
 	| hints ai ps r |
 	hints := self local: 'struct addrinfo'.
@@ -50,7 +52,7 @@ resolve: host port: port passive: passive
 	ps := self local: 'char[16]'.
 	hints ai_family: posixSockets AF_UNSPEC.
 	hints ai_socktype: posixSockets SOCK_STREAM.
-	hints ai_flags: (passive ifTrue: [posixSockets AI_PASSIVE] ifFalse: [0]).
+	hints ai_flags: ((passive ifTrue: [posixSockets AI_PASSIVE] ifFalse: [0]) bitOr: (posixSockets AI_NUMERICHOST bitOr: posixSockets AI_NUMERICSERV)).
 	libc snprintf: ps size: 16 format: '%d' with: port.
 	r := posixSockets getaddrinfo: ((host notNull and: [(host at: 0) ~= 0]) ifTrue: [host] ifFalse: [self null]) service: ps hints: hints result: ai.
 	r ~= 0 ifTrue: [
@@ -72,7 +74,7 @@ fdGet: h kind: kind
 	<export>
 	| o |
 	o := common table: table at: h kind: kind.
-	o isNull ifTrue: [common setError: 'bad %s handle %d' with: (kind = PF_FD_PTY ifTrue: ['pty'] ifFalse: ['socket']) with: h].
+	o isNull ifTrue: [common setError: 'bad %s handle %d' with: (kind = PF_FD_PTY ifTrue: ['pty'] ifFalse: [kind = PF_FD_TLS ifTrue: ['TLS'] ifFalse: ['socket']]) with: h].
 	^o
 !
 fdOf: h kind: kind
@@ -146,6 +148,16 @@ write: h kind: kind bytes: buf count: n
 	self failOS: (kind = PF_FD_PTY ifTrue: ['write'] ifFalse: ['send']).
 	^-2
 !
+armRead: h
+	"Wait for h to become readable (TLS: OpenSSL needs more bytes)."
+	<function>
+	(sems + h) readArmed: true
+!
+armWrite: h when: armed
+	"Wait for h to become writable, or not."
+	<function>
+	(sems + h) writeArmed: armed
+!
 semaphores: h kind: kind read: readIndex write: writeIndex
 	<function>
 	| s had |
@@ -185,29 +197,123 @@ listen: host port: port backlog: backlog
 	^self wrap: fd
 !
 connect: host port: port
-	"Blocking connect (meant for localhost), then non-blocking."
+	"Start a TCP connection (TCP_NODELAY) to the numeric address host and port; its handle at once (connected: tells when it is made), 0 (and the error set) on failure."
 	<export>
-	<var: #fd type: 'int'>
-	| ai a fd connected |
+	<var: #h type: 'int32_t'>
+	| ai fd h e |
 	platform init.
 	ai := self resolve: host port: port passive: false.
 	ai isNull ifTrue: [^0].
-	fd := -1.
-	a := ai.
-	connected := false.
-	[connected not and: [a notNull]] whileTrue: [
-		fd := posixSockets socket: a ai_family type: posixSockets SOCK_STREAM protocol: 0.
-		(fd >= 0 and: [(posixSockets connect: fd address: a ai_addr length: a ai_addrlen) = 0])
-			ifTrue: [connected := true]
-			ifFalse: [
-				fd >= 0 ifTrue: [posixIO close: fd].
-				fd := -1.
-				a := a ai_next]].
-	fd < 0 ifTrue: [self failOS: 'connect'].
+	fd := posixSockets socket: ai ai_family type: posixSockets SOCK_STREAM protocol: 0.
+	h := fd < 0 ifTrue: [0] ifFalse: [self wrap: fd].
+	fd < 0 ifTrue: [self failOS: 'socket'].
+	(h ~= 0 and: [(posixSockets connect: fd address: ai ai_addr length: ai ai_addrlen) ~= 0]) ifTrue: [
+		e := posixIO errno.
+		(e = posixIO EINPROGRESS or: [e = posixIO EINTR]) ifFalse: [
+			self close: h kind: PF_FD_SOCKET.
+			common failOS: 'connect' code: e.
+			h := 0]].
 	posixSockets freeaddrinfo: ai.
-	fd < 0 ifTrue: [^0].
-	self noDelay: fd.
-	^self wrap: fd
+	h ~= 0 ifTrue: [self noDelay: fd].
+	^h
+!
+connected: s
+	"1 once the connection socket s started is made, 0 while it is in progress (arming the write semaphore), -1 (and the error set) if it failed."
+	<export>
+	| fd p err len |
+	fd := self socketFd: s.
+	fd < 0 ifTrue: [^-1].
+	p := self local: 'struct pollfd'.
+	p fd: fd.
+	p events: posixIO POLLOUT.
+	(posixIO poll: p count: 1 timeout: 0) <= 0 ifTrue: [
+		(sems + s) writeArmed: true.
+		^0].
+	err := self local: 'int'.
+	len := self local: 'socklen_t'.
+	len value: (self sizeof: 'int') asUInt32.
+	(posixSockets getsockopt: fd level: posixSockets SOL_SOCKET option: posixSockets SO_ERROR value: err length: len) ~= 0 ifTrue: [
+		self failOS: 'getsockopt'.
+		^-1].
+	err value = 0 ifTrue: [^1].
+	common failOS: 'connect' code: err value.
+	^-1
+!
+lookup: hostName
+	"A socket that reads as the numeric addresses of hostName, a line each, or as one line of !! and the error, then ends; written by a thread of its own (lookupRun:). 0 (and the error set) if the lookup cannot be started."
+	<export>
+	<var: #h type: 'int32_t'>
+	| fds req h t |
+	platform init.
+	fds := self local: 'int[2]'.
+	(posixSockets socketpair: posixSockets AF_UNIX type: posixSockets SOCK_STREAM protocol: 0 pair: fds) ~= 0 ifTrue: [
+		self failOS: 'socketpair'.
+		^0].
+	"the thread's end: no SIGPIPE once the handle is closed, not inherited by children"
+	host socketOpened: (fds at: 1).
+	posixIO fcntl: (fds at: 1) command: posixIO F_SETFD value: posixIO FD_CLOEXEC.
+	req := self cCoerce: (libc calloc: 1 size: (self sizeof: 'lookup_request')) to: 'lookup_request *'.
+	req notNull ifTrue: [req host: (libc strdup: hostName)].
+	h := 0.
+	(req notNull and: [req host notNull])
+		ifTrue: [h := self wrap: (fds at: 0)]
+		ifFalse: [
+			common setError: 'out of memory'.
+			posixIO close: (fds at: 0)].
+	h ~= 0 ifTrue: [
+		req fd: (fds at: 1).
+		t := self local: 'pthread_t'.
+		(posix pthreadCreate: t attributes: self null start: (self functionPointer: #lookupRun:) argument: req) = 0 ifTrue: [
+			posix pthreadDetach: t value.
+			^h].
+		common setError: 'cannot start a lookup thread'.
+		self close: h kind: PF_FD_SOCKET].
+	posixIO close: (fds at: 1).
+	req notNull ifTrue: [libc free: req host].
+	libc free: req.
+	^0
+!
+lookupRun: arg
+	"A lookup's thread: getaddrinfo, the answer written to its end of the socket pair, then the end closed and its request (arg) freed. It touches nothing else."
+	<function>
+	| req hints ai a r name |
+	req := self cCoerce: arg to: 'lookup_request *'.
+	hints := self local: 'struct addrinfo'.
+	ai := self local: 'struct addrinfo *'.
+	name := self local: 'char[128]'.
+	hints ai_family: posixSockets AF_UNSPEC.
+	hints ai_socktype: posixSockets SOCK_STREAM.
+	r := posixSockets getaddrinfo: req host service: self null hints: hints result: ai.
+	r ~= 0
+		ifTrue: [self lookupWrite: req fd prefix: '!!' text: (posixSockets gaiStrerror: r)]
+		ifFalse: [
+			a := ai value.
+			[a notNull] whileTrue: [
+				(posixSockets getnameinfo: a ai_addr length: a ai_addrlen host: name size: 128 service: self null size: 0 flags: posixSockets NI_NUMERICHOST) = 0 ifTrue: [
+					self lookupWrite: req fd prefix: '' text: name].
+				a := a ai_next].
+			posixSockets freeaddrinfo: ai value].
+	posixIO close: req fd.
+	libc free: req host.
+	libc free: req.
+	^self null
+!
+lookupWrite: fd prefix: prefix text: text
+	"A line of prefix and text to fd (blocking: the lookup's thread)."
+	<function>
+	<var: #done type: 'size_t'>
+	| line n done r |
+	line := self local: 'char[256]'.
+	libc snprintf: line size: 255 format: '%s%s' with: prefix with: text.
+	n := libc strlen: line.
+	line at: n put: 10.
+	n := n + 1.
+	done := 0.
+	[done < n] whileTrue: [
+		r := posixIO write: fd bytes: line + done count: n - done.
+		r < 0
+			ifTrue: [posixIO errno = posixIO EINTR ifFalse: [^self]]
+			ifFalse: [done := done + r asUInt64]]
 !
 accept: s wouldBlock: wouldBlock
 	"0 and wouldBlock: none pending."
@@ -265,8 +371,9 @@ localPort: s
 		ifFalse: [posixSockets ntohs: (self cCoerce: ss to: 'struct sockaddr_in *') sin_port]
 !
 handleCount
+	"Sockets and TLS connections."
 	<export>
-	^common table: table count: PF_FD_SOCKET
+	^(common table: table count: PF_FD_SOCKET) + (common table: table count: PF_FD_TLS)
 ! !
 
 !PlatformSockets methodsFor: 'pseudo-terminals'!
@@ -318,7 +425,7 @@ poll: timeoutMs
 	"Signal the semaphores of the ready descriptors."
 	<export>
 	<var: #n type: 'int'>
-	| p hs n ev r s |
+	| p hs n ev r s both |
 	p := self local: 'struct pollfd[MAX_POLLED]'.
 	hs := self local: 'int[MAX_POLLED]'.
 	n := 0.
@@ -337,13 +444,18 @@ poll: timeoutMs
 	0 to: n - 1 do: [:i |
 		s := sems + (hs at: i).
 		r := (p at: i) revents.
+		both := r ~= 0 and: [(table v + (hs at: i)) kind = PF_FD_TLS].
 		r ~= 0 ifTrue: [
-			((r bitAnd: ((posixIO POLLIN bitOr: posixIO POLLHUP) bitOr: posixIO POLLERR)) ~= 0 and: [((p at: i) events bitAnd: posixIO POLLIN) ~= 0]) ifTrue: [
-				s readArmed: false.
-				scheduler signalExternalSemaphore: s readSem].
-			((r bitAnd: ((posixIO POLLOUT bitOr: posixIO POLLHUP) bitOr: posixIO POLLERR)) ~= 0 and: [((p at: i) events bitAnd: posixIO POLLOUT) ~= 0]) ifTrue: [
-				s writeArmed: false.
-				scheduler signalExternalSemaphore: s writeSem]]]
+			(both
+				ifTrue: [s readSem ~= 0]
+				ifFalse: [(r bitAnd: ((posixIO POLLIN bitOr: posixIO POLLHUP) bitOr: posixIO POLLERR)) ~= 0 and: [((p at: i) events bitAnd: posixIO POLLIN) ~= 0]]) ifTrue: [
+					s readArmed: false.
+					scheduler signalExternalSemaphore: s readSem].
+			(both
+				ifTrue: [s writeSem ~= 0]
+				ifFalse: [(r bitAnd: ((posixIO POLLOUT bitOr: posixIO POLLHUP) bitOr: posixIO POLLERR)) ~= 0 and: [((p at: i) events bitAnd: posixIO POLLOUT) ~= 0]]) ifTrue: [
+					s writeArmed: false.
+					scheduler signalExternalSemaphore: s writeSem]]]
 ! !
 
 VMStruct subclass: #SockSems
@@ -356,4 +468,16 @@ SockSems comment: 'The readiness semaphores of a socket or pty (external semapho
 !SockSems class methodsFor: 'declaring'!
 fields
 	^#((readSem int32_t) (writeSem int32_t) (readArmed bool) (writeArmed bool))
+! !
+
+VMStruct subclass: #LookupRequest
+	instanceVariableNames: ''
+	classVariableNames: ''
+	package: 'VM-Platform'!
+
+LookupRequest comment: 'A host name lookup''s thread''s own: the end of the socket pair it writes to, a copy of the name.'!
+
+!LookupRequest class methodsFor: 'declaring'!
+fields
+	^#((fd int32_t) (host 'char *'))
 ! !

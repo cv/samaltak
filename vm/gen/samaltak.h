@@ -31,6 +31,9 @@
 #include <sys/timerfd.h>
 #endif
 #ifndef SAMALTAK_NO_PLATFORM
+#include <openssl/ssl.h>
+#include <openssl/err.h>
+#include <openssl/x509.h>
 #include <fcntl.h>
 #include <sys/stat.h>
 #include <dirent.h>
@@ -488,6 +491,7 @@ typedef void (*prim_fn)(void);
 #define PF_EV_WINDOW_RESIZED 8
 #define PF_FD_PTY 2
 #define PF_FD_SOCKET 1
+#define PF_FD_TLS 3
 #define PF_FILE_APPEND 2
 #define PF_FILE_CREATE_TRUNCATE 3
 #define PF_FILE_READ 0
@@ -797,6 +801,7 @@ typedef struct primitive_entry primitive_entry;
 #ifndef SAMALTAK_NO_PLATFORM
 typedef struct fence_watch fence_watch;
 typedef struct gpu_dev gpu_dev;
+typedef struct lookup_request lookup_request;
 typedef struct pf_event pf_event;
 typedef struct pf_obj pf_obj;
 typedef struct pf_stat pf_stat;
@@ -1109,6 +1114,12 @@ struct gpu_dev {
     int32_t claimed[16];
 };
 _Static_assert(sizeof(gpu_dev) == 120, "the simulator lays out GpuDev as C does");
+
+struct lookup_request {
+    int32_t fd;
+    char *host;
+};
+_Static_assert(sizeof(lookup_request) == 16, "the simulator lays out LookupRequest as C does");
 
 struct pf_event {
     int32_t type;
@@ -2109,12 +2120,20 @@ void prim_set_cursor(void);
 void prim_socket_accept(void);
 void prim_socket_close(void);
 void prim_socket_connect(void);
+void prim_socket_connected(void);
 void prim_socket_listen(void);
 void prim_socket_local_port(void);
 void prim_socket_recv(void);
+void prim_socket_resolve(void);
 void prim_socket_semaphore(void);
 void prim_socket_send(void);
 void prim_spawn_process(void);
+void prim_tls_close(void);
+void prim_tls_handshake(void);
+void prim_tls_recv(void);
+void prim_tls_semaphore(void);
+void prim_tls_send(void);
+void prim_tls_start(void);
 void prim_vsync_semaphore(void);
 void prim_window_close(void);
 void prim_window_display_scale(void);
@@ -2134,13 +2153,17 @@ bool platform_ptys_wait(int32_t p, bool block, int *status, bool *done);
 int32_t platform_sockets_accept(int32_t s, bool *would_block);
 int32_t platform_sockets_add(int fd, int kind, void *ptr);
 bool any_armed(void);
+void arm_read(int32_t h);
+void arm_write(int32_t h, bool armed);
 bool platform_sockets_close(int32_t s);
 bool platform_sockets_close_kind(int32_t h, int kind);
 int32_t platform_sockets_connect(char *host, int32_t port);
+int connected(int32_t s);
 pf_obj *fd_get(int32_t h, int kind);
 int32_t platform_sockets_handle_count(void);
 int32_t platform_sockets_listen(char *host, int32_t port, int32_t backlog);
 int local_port(int32_t s);
+int32_t platform_sockets_lookup(char *host_name);
 void platform_sockets_poll(int timeout_ms);
 int poll_fds(void *pollfds, int max);
 int32_t pty_handle_count(void);
@@ -2148,8 +2171,15 @@ ssize_t pty_read(int32_t p, void *buf, uint64_t n);
 bool pty_semaphores(int32_t p, int32_t read_index, int32_t write_index);
 ssize_t pty_write(int32_t p, const void *buf, uint64_t n);
 ssize_t platform_sockets_recv(int32_t s, void *buf, uint64_t n);
+bool platform_sockets_semaphores_kind_read_write(int32_t h, int kind, int32_t read_index, int32_t write_index);
 bool platform_sockets_semaphores_read_write(int32_t s, int32_t read_index, int32_t write_index);
 ssize_t platform_sockets_send(int32_t s, const void *buf, uint64_t n);
+bool platform_tls_close(int32_t h);
+int handshake(int32_t h);
+int64_t platform_tls_recv(int32_t h, void *buf, uint64_t n);
+bool platform_tls_semaphores(int32_t h, int32_t read_index, int32_t write_index);
+int64_t platform_tls_send(int32_t h, const void *buf, uint64_t n);
+int32_t platform_tls_start(int32_t s, char *host_name);
 bool platform_vsync_pending(void);
 void platform_vsync_poll(void);
 void refreshed(void);

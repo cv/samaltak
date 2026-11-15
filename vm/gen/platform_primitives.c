@@ -2794,6 +2794,38 @@ void prim_socket_connect(void)
     }
 }
 
+/* PlatformPrimitives>>primSocketConnected */
+void prim_socket_connected(void)
+{
+    bool r_args;
+    int64_t s;
+    int r;
+    oop v;
+    if (!({
+    bad = false;
+    r_args = prim_nargs == 1;
+    r_args; })) {
+        prim_status = PS_FAIL;
+        prim_error_code = -1;
+        return;
+    }
+    s = int_arg(0);
+    if (bad) {
+        prim_status = PS_FAIL;
+        prim_error_code = -1;
+        return;
+    }
+    r = connected((int32_t)s);
+    if (r < 0) {
+        prim_status = PS_FAIL;
+        prim_error_code = -1;
+        return;
+    }
+    v = r > 0 ? true_oop : nil_oop;
+    prim_result = v;
+    prim_status = PS_OK;
+}
+
 /* PlatformPrimitives>>primSocketListen */
 void prim_socket_listen(void)
 {
@@ -2888,6 +2920,34 @@ void prim_socket_recv(void)
     prim_result = v;
     prim_status = PS_OK;
 exit_answer_count:;
+}
+
+/* PlatformPrimitives>>primSocketResolve */
+void prim_socket_resolve(void)
+{
+    bool r_args;
+    char *name;
+    int32_t h;
+    uint64_t v;
+    if (!({
+    bad = false;
+    r_args = prim_nargs == 1;
+    r_args; })) {
+        prim_status = PS_FAIL;
+        prim_error_code = -1;
+        return;
+    }
+    name = string_arg(0);
+    h = bad ? 0 : platform_sockets_lookup(name);
+    free(name);
+    if (h > 0) {
+        v = (uint64_t)((((int64_t)h) << 1) | 1);
+        prim_result = v;
+        prim_status = PS_OK;
+    } else {
+        prim_status = PS_FAIL;
+        prim_error_code = -1;
+    }
 }
 
 /* PlatformPrimitives>>primSocketSemaphore */
@@ -2986,6 +3046,197 @@ void prim_spawn_process(void)
     v = (uint64_t)((pid << 1) | 1);
     prim_result = v;
     prim_status = PS_OK;
+}
+
+/* PlatformPrimitives>>primTlsClose */
+void prim_tls_close(void)
+{
+    bool r_args;
+    int64_t h;
+    bool a_boolean;
+    oop v;
+    if (!({
+    bad = false;
+    r_args = prim_nargs == 1;
+    r_args; })) {
+        prim_status = PS_FAIL;
+        prim_error_code = -1;
+        return;
+    }
+    h = int_arg(0);
+    if (bad) {
+        prim_status = PS_FAIL;
+        prim_error_code = -1;
+        return;
+    }
+    a_boolean = platform_tls_close((int32_t)h);
+    if (a_boolean) {
+        v = prim_base[0];
+        prim_result = v;
+        prim_status = PS_OK;
+    } else {
+        prim_status = PS_FAIL;
+        prim_error_code = -1;
+    }
+}
+
+/* PlatformPrimitives>>primTlsHandshake */
+void prim_tls_handshake(void)
+{
+    bool r_args;
+    int64_t h;
+    int r;
+    oop v;
+    if (!({
+    bad = false;
+    r_args = prim_nargs == 1;
+    r_args; })) {
+        prim_status = PS_FAIL;
+        prim_error_code = -1;
+        return;
+    }
+    h = int_arg(0);
+    if (bad) {
+        prim_status = PS_FAIL;
+        prim_error_code = -1;
+        return;
+    }
+    r = handshake((int32_t)h);
+    if (r < 0) {
+        prim_status = PS_FAIL;
+        prim_error_code = -1;
+        return;
+    }
+    v = r > 0 ? true_oop : nil_oop;
+    prim_result = v;
+    prim_status = PS_OK;
+}
+
+/* PlatformPrimitives>>primTlsRecv */
+void prim_tls_recv(void)
+{
+    int64_t local;
+    int64_t *h;
+    int64_t local_2;
+    int64_t *n;
+    uint8_t *p;
+    int64_t r;
+    uint64_t v;
+    memset(&local, 0, sizeof local);
+    h = &local;
+    memset(&local_2, 0, sizeof local_2);
+    n = &local_2;
+    p = range_args(true, h, n);
+    r = p != NULL ? platform_tls_recv((int32_t)*h, p, (uint64_t)*n) : -2;
+    if (r == -1) {
+        prim_result = nil_oop;
+        prim_status = PS_OK;
+        goto exit_answer_count;
+    }
+    if (r < 0) {
+        prim_status = PS_FAIL;
+        prim_error_code = -1;
+        goto exit_answer_count;
+    }
+    v = (uint64_t)((r << 1) | 1);
+    prim_result = v;
+    prim_status = PS_OK;
+exit_answer_count:;
+}
+
+/* PlatformPrimitives>>primTlsSemaphore */
+void prim_tls_semaphore(void)
+{
+    int64_t h;
+    int64_t r;
+    int64_t w;
+    bool a_boolean;
+    oop v;
+    bad = false;
+    if (!((prim_nargs == 2) || (prim_nargs == 3))) {
+        prim_status = PS_FAIL;
+        prim_error_code = -1;
+        return;
+    }
+    h = int_arg(0);
+    r = int_arg(1);
+    w = prim_nargs == 3 ? int_arg(2) : 0;
+    if (bad) {
+        prim_status = PS_FAIL;
+        prim_error_code = -1;
+        return;
+    }
+    a_boolean = platform_tls_semaphores((int32_t)h, (int32_t)r, (int32_t)w);
+    if (a_boolean) {
+        v = prim_base[0];
+        prim_result = v;
+        prim_status = PS_OK;
+    } else {
+        prim_status = PS_FAIL;
+        prim_error_code = -1;
+    }
+}
+
+/* PlatformPrimitives>>primTlsSend */
+void prim_tls_send(void)
+{
+    int64_t local;
+    int64_t *h;
+    int64_t local_2;
+    int64_t *n;
+    uint8_t *p;
+    int64_t r;
+    uint64_t v;
+    memset(&local, 0, sizeof local);
+    h = &local;
+    memset(&local_2, 0, sizeof local_2);
+    n = &local_2;
+    p = range_args(false, h, n);
+    r = p != NULL ? platform_tls_send((int32_t)*h, p, (uint64_t)*n) : -2;
+    if (r == -1) {
+        prim_result = nil_oop;
+        prim_status = PS_OK;
+        goto exit_answer_count;
+    }
+    if (r < 0) {
+        prim_status = PS_FAIL;
+        prim_error_code = -1;
+        goto exit_answer_count;
+    }
+    v = (uint64_t)((r << 1) | 1);
+    prim_result = v;
+    prim_status = PS_OK;
+exit_answer_count:;
+}
+
+/* PlatformPrimitives>>primTlsStart */
+void prim_tls_start(void)
+{
+    bool r_args;
+    int64_t s;
+    char *host;
+    int32_t h;
+    uint64_t v;
+    if (!({
+    bad = false;
+    r_args = prim_nargs == 2;
+    r_args; })) {
+        prim_status = PS_FAIL;
+        prim_error_code = -1;
+        return;
+    }
+    s = int_arg(0);
+    host = string_arg(1);
+    h = bad ? 0 : platform_tls_start((int32_t)s, host);
+    free(host);
+    if (h > 0) {
+        v = (uint64_t)((((int64_t)h) << 1) | 1);
+        prim_result = v;
+        prim_status = PS_OK;
+    } else {
+        prim_status = PS_FAIL;
+        prim_error_code = -1;
+    }
 }
 
 /* PlatformPrimitives>>primVsyncSemaphore */

@@ -36,7 +36,11 @@ Tests-Profiling 0
 Tests-Debugging 0
 Tests-VM 0
 System-Remote 0
+System-Net 0
+System-Agent 0
 Tests-Remote 0
+Tests-Net 0
+Tests-Agent 0
 Graphics-GPU 1
 Graphics-Canvas 2
 Tests-Graphics 2
@@ -46,6 +50,8 @@ Demos 3
 UI-Widgets 4
 Tests-UI-Widgets 4 uses Graphics-Canvas
 Tools 5
+Tools-Agent 5
 Tests-Tools 5 uses UI-Windows Graphics-Canvas
 Tests-Tools-Profiler 5 uses Tests-UI-Windows UI-Windows
 Tests-Tools-Debugger 5 uses UI-Windows
+Tests-Tools-Agent 5

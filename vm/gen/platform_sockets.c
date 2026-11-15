@@ -8,9 +8,10 @@ static pf_table table[1];
 
 static int16_t events_of(int32_t h);
 static int32_t platform_sockets_fd_of(int32_t h, int kind);
+static void *lookup_run(void *arg);
+static void lookup_write(int32_t fd, char *prefix, const char *text);
 static ssize_t platform_sockets_read(int32_t h, int kind, void *buf, uint64_t n);
 static struct addrinfo *platform_sockets_resolve(char *host, int32_t port, bool passive);
-static bool platform_sockets_semaphores_kind_read_write(int32_t h, int kind, int32_t read_index, int32_t write_index);
 static int32_t wrap(int fd);
 static ssize_t platform_sockets_write(int32_t h, int kind, const void *buf, uint64_t n);
 
@@ -69,6 +70,18 @@ bool any_armed(void)
     return armed_count > 0;
 }
 
+/* PlatformSockets>>armRead: */
+void arm_read(int32_t h)
+{
+    (sems + h)->read_armed = true;
+}
+
+/* PlatformSockets>>armWrite:when: */
+void arm_write(int32_t h, bool armed)
+{
+    (sems + h)->write_armed = armed;
+}
+
 /* PlatformSockets>>close: */
 bool platform_sockets_close(int32_t s)
 {
@@ -95,10 +108,10 @@ bool platform_sockets_close_kind(int32_t h, int kind)
 /* PlatformSockets>>connect:port: */
 int32_t platform_sockets_connect(char *host, int32_t port)
 {
-    int fd;
+    int32_t h;
     struct addrinfo *ai;
-    struct addrinfo *a;
-    bool connected;
+    int fd;
+    int e;
     int local;
     int *one;
     platform_interface_init();
@@ -106,33 +119,65 @@ int32_t platform_sockets_connect(char *host, int32_t port)
     if (ai == NULL) {
         return 0;
     }
-    fd = -1;
-    a = ai;
-    connected = false;
-    while ((!connected) && (a != NULL)) {
-        fd = socket(a->ai_family, SOCK_STREAM, 0);
-        if ((fd >= 0) && (connect(fd, a->ai_addr, a->ai_addrlen) == 0)) {
-            connected = true;
-        } else {
-            if (fd >= 0) {
-                close(fd);
-            }
-            fd = -1;
-            a = a->ai_next;
+    fd = socket(ai->ai_family, SOCK_STREAM, 0);
+    h = fd < 0 ? 0 : wrap(fd);
+    if (fd < 0) {
+        platform_common_fail_os_code("socket", errno);
+    }
+    if ((h != 0) && (connect(fd, ai->ai_addr, ai->ai_addrlen) != 0)) {
+        e = errno;
+        if (!((e == EINPROGRESS) || (e == EINTR))) {
+            platform_sockets_close_kind(h, PF_FD_SOCKET);
+            platform_common_fail_os_code("connect", e);
+            h = 0;
         }
     }
-    if (fd < 0) {
-        platform_common_fail_os_code("connect", errno);
-    }
     freeaddrinfo(ai);
+    if (h != 0) {
+        memset(&local, 0, sizeof local);
+        one = &local;
+        *one = 1;
+        setsockopt(fd, IPPROTO_TCP, TCP_NODELAY, one, (uint32_t)sizeof(int));
+    }
+    return h;
+}
+
+/* PlatformSockets>>connected: */
+int connected(int32_t s)
+{
+    int32_t fd;
+    struct pollfd local;
+    struct pollfd *p;
+    int local_2;
+    int *err;
+    socklen_t local_3;
+    socklen_t *len;
+    fd = platform_sockets_fd_of(s, PF_FD_SOCKET);
     if (fd < 0) {
-        return 0;
+        return -1;
     }
     memset(&local, 0, sizeof local);
-    one = &local;
-    *one = 1;
-    setsockopt(fd, IPPROTO_TCP, TCP_NODELAY, one, (uint32_t)sizeof(int));
-    return wrap(fd);
+    p = &local;
+    p->fd = fd;
+    p->events = POLLOUT;
+    if (poll(p, 1, 0) <= 0) {
+        (sems + s)->write_armed = true;
+        return 0;
+    }
+    memset(&local_2, 0, sizeof local_2);
+    err = &local_2;
+    memset(&local_3, 0, sizeof local_3);
+    len = &local_3;
+    *len = (uint32_t)sizeof(int);
+    if (getsockopt(fd, SOL_SOCKET, SO_ERROR, err, len) != 0) {
+        platform_common_fail_os_code("getsockopt", errno);
+        return -1;
+    }
+    if (*err == 0) {
+        return 1;
+    }
+    platform_common_fail_os_code("connect", *err);
+    return -1;
 }
 
 /* PlatformSockets>>eventsOf: */
@@ -150,7 +195,7 @@ pf_obj *fd_get(int32_t h, int kind)
     char *a;
     o = platform_common_table_at_kind(table, h, kind);
     if (o == NULL) {
-        a = kind == PF_FD_PTY ? "pty" : "socket";
+        a = kind == PF_FD_PTY ? "pty" : kind == PF_FD_TLS ? "TLS" : "socket";
         snprintf(last_error, LAST_ERROR_SIZE, "bad %s handle %d", a, h);
     }
     return o;
@@ -170,7 +215,7 @@ static int32_t platform_sockets_fd_of(int32_t h, int kind)
 /* PlatformSockets>>handleCount */
 int32_t platform_sockets_handle_count(void)
 {
-    return platform_common_table_count(table, PF_FD_SOCKET);
+    return platform_common_table_count(table, PF_FD_SOCKET) + platform_common_table_count(table, PF_FD_TLS);
 }
 
 /* PlatformSockets>>listen:port:backlog: */
@@ -229,6 +274,121 @@ int local_port(int32_t s)
     return ss->ss_family == AF_INET6 ? ntohs(((struct sockaddr_in6 *)ss)->sin6_port) : ntohs(((struct sockaddr_in *)ss)->sin_port);
 }
 
+/* PlatformSockets>>lookup: */
+int32_t platform_sockets_lookup(char *host_name)
+{
+    int32_t h;
+    int local[2];
+    int *fds;
+    lookup_request *req;
+    pthread_t local_2;
+    pthread_t *t;
+    platform_interface_init();
+    memset(&local, 0, sizeof local);
+    fds = local;
+    if (socketpair(AF_UNIX, SOCK_STREAM, 0, fds) != 0) {
+        platform_common_fail_os_code("socketpair", errno);
+        return 0;
+    }
+    socket_opened(fds[1]);
+    fcntl(fds[1], F_SETFD, FD_CLOEXEC);
+    req = (lookup_request *)calloc(1, sizeof(lookup_request));
+    if (req != NULL) {
+        req->host = strdup(host_name);
+    }
+    h = 0;
+    if ((req != NULL) && (req->host != NULL)) {
+        h = wrap(fds[0]);
+    } else {
+        set_error("out of memory");
+        close(fds[0]);
+    }
+    if (h != 0) {
+        req->fd = fds[1];
+        memset(&local_2, 0, sizeof local_2);
+        t = &local_2;
+        if (pthread_create(t, (const pthread_attr_t *)NULL, lookup_run, req) == 0) {
+            pthread_detach(*t);
+            return h;
+        }
+        set_error("cannot start a lookup thread");
+        platform_sockets_close_kind(h, PF_FD_SOCKET);
+    }
+    close(fds[1]);
+    if (req != NULL) {
+        free(req->host);
+    }
+    free(req);
+    return 0;
+}
+
+/* PlatformSockets>>lookupRun: */
+static void *lookup_run(void *arg)
+{
+    lookup_request *req;
+    struct addrinfo local;
+    struct addrinfo *hints;
+    struct addrinfo *local_2;
+    struct addrinfo **ai;
+    char local_3[128];
+    char *name;
+    int r;
+    struct addrinfo *a;
+    req = (lookup_request *)arg;
+    memset(&local, 0, sizeof local);
+    hints = &local;
+    memset(&local_2, 0, sizeof local_2);
+    ai = &local_2;
+    memset(&local_3, 0, sizeof local_3);
+    name = local_3;
+    hints->ai_family = AF_UNSPEC;
+    hints->ai_socktype = SOCK_STREAM;
+    r = getaddrinfo(req->host, (const char *)NULL, hints, ai);
+    if (r != 0) {
+        lookup_write(req->fd, "!", gai_strerror(r));
+    } else {
+        a = *ai;
+        while (a != NULL) {
+            if (getnameinfo(a->ai_addr, a->ai_addrlen, name, 128, (char *)NULL, 0, NI_NUMERICHOST) == 0) {
+                lookup_write(req->fd, "", name);
+            }
+            a = a->ai_next;
+        }
+        freeaddrinfo(*ai);
+    }
+    close(req->fd);
+    free(req->host);
+    free(req);
+    return NULL;
+}
+
+/* PlatformSockets>>lookupWrite:prefix:text: */
+static void lookup_write(int32_t fd, char *prefix, const char *text)
+{
+    size_t done;
+    char local[256];
+    char *line;
+    size_t n;
+    ssize_t r;
+    memset(&local, 0, sizeof local);
+    line = local;
+    snprintf(line, 255, "%s%s", prefix, text);
+    n = strlen(line);
+    line[n] = 10;
+    n = n + 1;
+    done = 0;
+    while (done < n) {
+        r = write(fd, line + done, n - done);
+        if (r < 0) {
+            if (!(errno == EINTR)) {
+                return;
+            }
+        } else {
+            done = done + (uint64_t)r;
+        }
+    }
+}
+
 /* PlatformSockets>>poll: */
 void platform_sockets_poll(int timeout_ms)
 {
@@ -242,6 +402,7 @@ void platform_sockets_poll(int timeout_ms)
     int i;
     sock_sems *s;
     int16_t r;
+    bool both;
     memset(&local, 0, sizeof local);
     p = local;
     memset(&local_2, 0, sizeof local_2);
@@ -270,12 +431,13 @@ void platform_sockets_poll(int timeout_ms)
     for (i = 0; i <= n - 1; i++) {
         s = sems + hs[i];
         r = (p + i)->revents;
+        both = (r != 0) && ((table->v + hs[i])->kind == PF_FD_TLS);
         if (r != 0) {
-            if (((r & (POLLIN | POLLHUP | POLLERR)) != 0) && (((p + i)->events & POLLIN) != 0)) {
+            if (both ? s->read_sem != 0 : ((r & (POLLIN | POLLHUP | POLLERR)) != 0) && (((p + i)->events & POLLIN) != 0)) {
                 s->read_armed = false;
                 signal_external_semaphore(s->read_sem);
             }
-            if (((r & (POLLOUT | POLLHUP | POLLERR)) != 0) && (((p + i)->events & POLLOUT) != 0)) {
+            if (both ? s->write_sem != 0 : ((r & (POLLOUT | POLLHUP | POLLERR)) != 0) && (((p + i)->events & POLLOUT) != 0)) {
                 s->write_armed = false;
                 signal_external_semaphore(s->write_sem);
             }
@@ -387,7 +549,7 @@ static struct addrinfo *platform_sockets_resolve(char *host, int32_t port, bool 
     ps = local_3;
     hints->ai_family = AF_UNSPEC;
     hints->ai_socktype = SOCK_STREAM;
-    hints->ai_flags = passive ? AI_PASSIVE : 0;
+    hints->ai_flags = (passive ? AI_PASSIVE : 0) | (AI_NUMERICHOST | AI_NUMERICSERV);
     snprintf(ps, 16, "%d", port);
     r = getaddrinfo((host != NULL) && (host[0] != 0) ? host : (char *)NULL, ps, hints, ai);
     if (r != 0) {
@@ -400,7 +562,7 @@ static struct addrinfo *platform_sockets_resolve(char *host, int32_t port, bool 
 }
 
 /* PlatformSockets>>semaphores:kind:read:write: */
-static bool platform_sockets_semaphores_kind_read_write(int32_t h, int kind, int32_t read_index, int32_t write_index)
+bool platform_sockets_semaphores_kind_read_write(int32_t h, int kind, int32_t read_index, int32_t write_index)
 {
     sock_sems *s;
     bool had;

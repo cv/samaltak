@@ -6,7 +6,7 @@ A Smalltalk-80 system with green threads and a GPU-composited UI (SDL3 + SDL_GPU
 
 ## Build and run
 
-macOS on Apple Silicon (Homebrew `sdl3`), or Linux on arm64 or x86-64 (`sdl3` and `shaderc`; e.g. Asahi Linux, Vulkan). The JIT emits arm64 or x86-64 (docs/jit.md).
+macOS on Apple Silicon (Homebrew `sdl3` and `openssl@3`), or Linux on arm64 or x86-64 (`sdl3`, `shaderc` and OpenSSL 3, e.g. `libssl-dev`; e.g. Asahi Linux, Vulkan). The JIT emits arm64 or x86-64 (docs/jit.md).
 
     make            # VM (from vm/gen), seed image (ImageBuilder in boot/seed.image), stage 2 → build/samaltak.image
     make run        # start it (rebuilds the image first only if src/, boot/ or the VM changed since it was built or saved)

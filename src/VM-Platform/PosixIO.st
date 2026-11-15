@@ -306,6 +306,10 @@ EWOULDBLOCK
 ECONNABORTED
 	<cMacro: 'int ECONNABORTED'>
 	^53
+!
+EINPROGRESS
+	<cMacro: 'int EINPROGRESS'>
+	^36
 ! !
 
 !PosixIO methodsFor: 'strings'!

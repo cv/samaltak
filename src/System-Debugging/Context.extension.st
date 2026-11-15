@@ -86,9 +86,14 @@ tempSlots
 !
 evaluateInFrame: aString
 	"Evaluate aString with self bound to my receiver and my temporaries (and those of my outer contexts) as variables; assignments to them change this frame."
+	^self evaluateInFrame: aString bindings: Dictionary new
+!
+evaluateInFrame: aString bindings: aDictionary
+	"evaluateInFrame:, with aDictionary's variables (Symbol -> Association) visible too where no temporary has their name."
 	| slots bindings result |
 	slots := self tempSlots.
 	bindings := Dictionary new.
+	aDictionary keysAndValuesDo: [:name :assoc | bindings at: name put: assoc].
 	slots do: [:slot |
 		bindings at: (slot at: 1) asSymbol put: (slot at: 1) asSymbol -> ((slot at: 2) tempAt: (slot at: 3))].
 	result := Compiler evaluate: aString for: receiver bindings: bindings.

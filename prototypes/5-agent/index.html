@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Samaltak — Agent design proposals</title>
+<link rel="stylesheet" href="../shared/pi-orb-fonts.css">
+<link rel="stylesheet" href="agent.css">
+<style>
+  body { overflow: auto; }
+  main { max-width: 1180px; margin: 0 auto; padding: 36px 28px 60px; }
+  h1 { font: 700 12px var(--ui); letter-spacing: .08em; text-transform: uppercase; margin: 0 0 6px; }
+  .sub { color: var(--ink-2); margin: 0 0 24px; max-width: 760px; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(360px, 1fr)); gap: 22px; }
+  .card { display: block; border: 1px solid #000; color: #000; text-decoration: none; background: #fff; }
+  .card:hover { box-shadow: 2px 2px 0 #000; }
+  .shot { aspect-ratio: 1440 / 900; background: #fff center top / cover no-repeat; border-bottom: 1px solid #000; }
+  .card .body { padding: 9px 12px 11px; }
+  .card h2 { font: 700 14px var(--ui); margin: 0 0 4px; }
+  .card h2 .n { display: inline-block; background: #000; color: #fff; padding: 0 5px; margin-right: 8px; }
+  .card p { margin: 0; color: var(--ink-2); }
+  .card .tradeoff { margin-top: 6px; font-size: 12.5px; color: var(--ink-3); font-style: italic; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Samaltak — agent design proposals</h1>
+  <p class="sub">Five ways to put a coding agent (Codex 6.1 Sol, code-mode + show-object) into the system. Same conversation in each: rank UI-Widgets classes by method count, show the top five. Plan: <code>docs/agent.md</code>.</p>
+  <div class="grid">
+    <a class="card" href="6-chosen.html">
+      <div class="shot" style="background-image:url(shots/6-chosen.png)"></div>
+      <div class="body"><h2><span class="n">✓</span>Chosen: ⌘J opens an Agent window</h2>
+        <p>Proposal 5's context binding with proposal 1's conversation window.</p>
+        <p class="tradeoff">⌘J in any tool; self, thisContext, temps and the selection come along.</p></div>
+    </a>
+    <a class="card" href="1-workspace.html">
+      <div class="shot" style="background-image:url(shots/1-workspace.png)"></div>
+      <div class="body"><h2><span class="n">1</span>Agent Workspace</h2>
+        <p>One more classic tool: transcript with inline cells and objects, prompt below.</p>
+        <p class="tradeoff">Least new concepts; the object table is implicit.</p></div>
+    </a>
+    <a class="card" href="2-notebook.html">
+      <div class="shot" style="background-image:url(shots/2-notebook.png)"></div>
+      <div class="body"><h2><span class="n">2</span>Live Notebook</h2>
+        <p>Every code-mode call is an editable cell; the user's own cells feed the agent.</p>
+        <p class="tradeoff">Shared medium for user and agent; the transcript gets long.</p></div>
+    </a>
+    <a class="card" href="3-browser.html">
+      <div class="shot" style="background-image:url(shots/3-browser.png)"></div>
+      <div class="body"><h2><span class="n">3</span>Agent Browser</h2>
+        <p>Browser panes: conversations, transcript, the object table and an Inspector on it.</p>
+        <p class="tradeoff">Objects first-class; dense, needs a big window.</p></div>
+    </a>
+    <a class="card" href="4-desktop.html">
+      <div class="shot" style="background-image:url(shots/4-desktop.png)"></div>
+      <div class="body"><h2><span class="n">4</span>Desktop Agent</h2>
+        <p>Ask from the top bar; show-object opens real tools on the desk, tagged and linked.</p>
+        <p class="tradeoff">Reuses every tool; the desk fills up.</p></div>
+    </a>
+    <a class="card" href="5-contextual.html">
+      <div class="shot" style="background-image:url(shots/5-contextual.png)"></div>
+      <div class="body"><h2><span class="n">5</span>Agent in every tool</h2>
+        <p>⌘J in any Workspace, Inspector, Debugger or Browser, with the tool's context bound.</p>
+        <p class="tradeoff">Deepest integration; conversations scattered across tools.</p></div>
+    </a>
+  </div>
+</main>
+</body>
+</html>

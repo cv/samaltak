@@ -1,0 +1,47 @@
+# extremem 2026-11-15 03:32 system=java java=/workspace/ext/jdk/jdk-27.0.1.0.2+1/bin/java (openjdk version "27.0.1.0.2" 2026-10-21) vm-args='-XX:+UseShenandoahGC -XX:ShenandoahGCMode=generational -Xms1g -Xmx1g' params=' 'simulationMinutes=35' 'warmupMinutes=15''
+# setup 669796 us
+Extremem,1,477093
+Extremem,2,669556
+Extremem,3,362537
+Extremem,4,943055
+Extremem,5,662831
+Extremem,6,676290
+Extremem,7,633774
+Extremem,8,573117
+Extremem,9,543020
+Extremem,10,549534
+Extremem,11,691428
+Extremem,12,649495
+Extremem,13,619863
+Extremem,14,621626
+# measured from uptime_ms=10026
+Extremem,15,637446
+Extremem,16,613451
+Extremem,17,626900
+Extremem,18,602736
+Extremem,19,608795
+Extremem,20,574872
+Extremem,21,620668
+Extremem,22,607616
+Extremem,23,573706
+Extremem,24,610118
+Extremem,25,612299
+Extremem,26,600075
+Extremem,27,589586
+Extremem,28,641726
+Extremem,29,678180
+Extremem,30,572276
+Extremem,31,576424
+Extremem,32,610416
+Extremem,33,584075
+Extremem,34,561443
+Extremem,35,624185
+# measured until uptime_ms=22119
+# simulation 21404337 us
+# latency preparation 7200 486 425 681 1250 1839 4231 4231
+# latency decision 7200 1116 995 1682 3075 5146 7358 7358
+# latency server 24000 21 0 1 16 4137 5057 5826
+# tally sessions=12601 candidates=1657951 noChoices=0 purchases=4473 saves=4604 abandons=2324 sales=4472 expirations=2531 customerReplacements=5600 productReplacements=14976 purchaseHash=49614845
+# stats Extremem gcs=183 gcMilliseconds=213 concurrentCycles=64 concurrentMilliseconds=8715 bytesAllocated=20944600120
+# pauses us: 147 315 188 152 300 184 147 360 184 142 292 180 144 329 228 143 306 177 149 310 188 148 317 190 146 320 185 153 314 185 154 319 214 153 340 189 145 362 179 152 346 191 149 292 182 146 281 187 161 308 197 148 311 186 152 325 179 160 311 178 142 289 183 162 333 213 118 233 184 234 109 300 190 148 288 203 153 342 181 157 363 200 153 321 190 147 350 185 164 359 186 164 342 181 156 338 189 155 306 212
+# process wall_s=22.18 user_s=31.36 sys_s=0.43 maxrss_kb=1163968

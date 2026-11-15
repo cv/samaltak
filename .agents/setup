@@ -1,49 +1,43 @@
 #!/usr/bin/env bash
-# Prepare a Debian/Ubuntu orb to build and run Samaltak: SDL3 (built from source, the distribution has none),
-# shaderc, software Vulkan (lavapipe) and Xvfb for the UI tests, Node for tools/samaltak-ctl.
+# pi-orb setup hook: what `make` (VM and image) needs on Debian bookworm x86-64.
 set -euo pipefail
 
-SDL_VERSION=3.2.24
-SDL_BUILD="$HOME/.cache/samaltak-setup/sdl-$SDL_VERSION"
+if command -v sudo >/dev/null 2>&1 && [ "$(id -u)" != 0 ]; then SUDO=sudo; else SUDO=; fi
 
-command -v apt-get >/dev/null 2>&1 || { echo "setup: no apt-get, nothing done"; exit 0; }
-sudo() { if command -v /usr/bin/sudo >/dev/null 2>&1; then /usr/bin/sudo "$@"; else "$@"; fi; }
-
-packages=(build-essential git cmake ninja-build pkg-config glslc libshaderc-dev libvulkan-dev mesa-vulkan-drivers
-  xvfb libx11-dev libxext-dev libxrandr-dev libxcursor-dev libxi-dev libxss-dev libxtst-dev libxfixes-dev
-  libxkbcommon-dev libwayland-dev libegl-dev libgl-dev libdbus-1-dev libudev-dev ffmpeg)
-missing=()
-for p in "${packages[@]}"; do dpkg -s "$p" >/dev/null 2>&1 || missing+=("$p"); done
-if [ ${#missing[@]} -gt 0 ]; then
-  sudo apt-get update -qq
-  sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -qq "${missing[@]}"
+# shaderc (GLSL -> SPIR-V for SDL_GPU on Vulkan); OpenSSL 3 (TLS); cmake and ninja build SDL3
+PKGS="libshaderc-dev libssl-dev cmake ninja-build libvulkan-dev spirv-tools pkg-config git"
+# what CI's container installs before this hook: compilers, X11 for SDL3 (before it is built), Xvfb and
+# software Vulkan for the UI tests (.agents/resume starts the display), Node for tools/samaltak-ctl
+PKGS="$PKGS ca-certificates build-essential python3 perl less xvfb xauth mesa-vulkan-drivers
+    libx11-dev libxext-dev libxrandr-dev libxcursor-dev libxi-dev"
+if ! dpkg -s $PKGS >/dev/null 2>&1; then
+    $SUDO apt-get update
+    $SUDO env DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends $PKGS
 fi
-command -v node >/dev/null 2>&1 || sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -qq nodejs
+command -v node >/dev/null 2>&1 || $SUDO env DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends nodejs
 
-# SDL3: the build is kept in $HOME, so a new machine only installs it again.
-if ! pkg-config --exact-version="$SDL_VERSION" sdl3 2>/dev/null; then
-  if [ ! -f "$SDL_BUILD/build/build.ninja" ]; then
-    rm -rf "$SDL_BUILD"
-    git clone -q --depth 1 --branch "release-$SDL_VERSION" https://github.com/libsdl-org/SDL.git "$SDL_BUILD"
-    cmake -S "$SDL_BUILD" -B "$SDL_BUILD/build" -G Ninja -DCMAKE_BUILD_TYPE=Release -DSDL_TESTS=OFF -DSDL_EXAMPLES=OFF \
-      -DCMAKE_INSTALL_PREFIX=/usr/local
-  fi
-  ninja -C "$SDL_BUILD/build"
-  sudo ninja -C "$SDL_BUILD/build" install
-  sudo ldconfig
+# bookworm has no SDL3: build once into $HOME (persists), install to /usr/local on every incarnation
+SDL=$HOME/src/SDL
+if [ ! -f "$SDL/build/libSDL3.so" ]; then
+    [ -d "$SDL/.git" ] || git clone --depth 1 --branch release-3.2.24 https://github.com/libsdl-org/SDL.git "$SDL"
+    cmake -S "$SDL" -B "$SDL/build" -G Ninja -DCMAKE_BUILD_TYPE=Release \
+        -DSDL_TESTS=OFF -DSDL_EXAMPLES=OFF -DSDL_UNIX_CONSOLE_BUILD=ON
+    cmake --build "$SDL/build"
+fi
+if [ ! -f /usr/local/lib/pkgconfig/sdl3.pc ] || [ ! -e /usr/local/lib/libSDL3.so.0 ]; then
+    $SUDO cmake --install "$SDL/build"
+    $SUDO ldconfig
 fi
 
-# Debian's libshaderc.so does not link (it lacks glslang and SPIRV-Tools): a shaderc.pc in /usr/local, which
-# pkg-config prefers, names the static libraries instead, so vm/Makefile links as is.
-if compgen -G '/usr/lib/*/libshaderc_combined.a' >/dev/null; then
-  pc=/usr/local/lib/pkgconfig/shaderc.pc
-  sudo mkdir -p "$(dirname "$pc")"
-  sudo tee "$pc" >/dev/null <<'EOF'
-Name: shaderc
-Description: shaderc with glslang and SPIRV-Tools, statically
-Version: 2023.2
-Libs: -Wl,--start-group -lshaderc_combined -lglslang -lMachineIndependent -lGenericCodeGen -lOSDependent -lOGLCompiler -lHLSL -lSPIRV -lSPIRV-Tools-opt -lSPIRV-Tools -lglslang-default-resource-limits -Wl,--end-group -lstdc++ -lm -lpthread
-Cflags:
-EOF
+# bookworm's libshaderc.so leaves glslang/SPIRV-Tools symbols undefined and its shaderc.pc
+# says only -lshaderc: shadow it in /usr/local (searched first) with the full link line.
+PC=/usr/local/lib/pkgconfig/shaderc.pc
+WANT='Name: shaderc
+Description: shaderc with its static glslang and SPIRV-Tools dependencies (bookworm)
+Version: 2023.2.1
+Libs: -lshaderc_combined -Wl,--start-group -lglslang -lSPIRV -lMachineIndependent -lGenericCodeGen -lOSDependent -lOGLCompiler -lglslang-default-resource-limits -lSPIRV-Tools-opt -lSPIRV-Tools -Wl,--end-group -lstdc++ -lpthread -lm
+Cflags:'
+if [ "$(cat "$PC" 2>/dev/null)" != "$WANT" ]; then
+    $SUDO mkdir -p "${PC%/*}"
+    printf '%s\n' "$WANT" | $SUDO tee "$PC" >/dev/null
 fi
-echo "setup: done"

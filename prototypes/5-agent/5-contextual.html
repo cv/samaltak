@@ -1,0 +1,373 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Samaltak · 5 · Agent in every tool</title>
+<link rel="stylesheet" href="../shared/pi-orb-fonts.css">
+<link rel="stylesheet" href="agent.css">
+<style>
+/* ---------- top bar: Agents menu ---------- */
+#topbar .agents { font: 700 10.5px var(--ui); letter-spacing: .08em; text-transform: uppercase; padding: 3px 6px 3px; display: flex; gap: 6px; align-items: center; }
+#topbar .agents.open { background: #000; color: #fff; }
+#topbar .agents .n { font: 11px var(--code); letter-spacing: 0; border: 1px solid currentColor; padding: 0 3px; }
+#topbar .who { font: 12px var(--ui); color: var(--ink-2); }
+#topbar .who b { color: var(--ultra); font-weight: 700; }
+.menu {
+  position: absolute; z-index: 900; background: #fff; border: 1px solid #000; box-shadow: 2px 2px 0 #000;
+  font-size: 13px; padding: 3px 0;
+}
+.menu .mh { font: 700 10.5px var(--ui); letter-spacing: .08em; text-transform: uppercase; padding: 5px 10px 4px; display: flex; }
+.menu .mh .r { margin-left: auto; font: italic 400 11.5px var(--ui); letter-spacing: 0; text-transform: none; color: var(--ink-3); }
+.menu .mi { padding: 3px 10px 4px; display: flex; gap: 8px; align-items: baseline; white-space: nowrap; }
+.menu .mi .r { margin-left: auto; color: var(--ink-3); font-style: italic; font-size: 12px; }
+.menu .mi.sel { background: #000; color: #fff; }
+.menu .mi.sel .r, .menu .mi.sel .q { color: #ccc; }
+.menu .thr { display: block; }
+.menu .thr .l1 { display: flex; gap: 8px; align-items: baseline; }
+.menu .thr .q { display: block; overflow: hidden; text-overflow: ellipsis; font: italic 12px var(--ui); color: var(--ink-3); padding-left: 17px; }
+.menu .ico { width: 9px; height: 9px; border: 1px solid currentColor; flex: none; display: inline-block; vertical-align: -1px; }
+.menu .ico.live { background: var(--ultra); border-color: var(--ultra); }
+.menu .mi.sel .ico.live { background: #fff; border-color: #fff; }
+.menu .rule { border-top: 1px solid #000; margin: 3px 0; }
+.menu kbd { font-size: 11px; }
+
+/* ---------- generic bits ---------- */
+.mono { font-family: var(--code); }
+.ed { padding: 6px 10px; font: 12.5px/19px var(--code); white-space: pre; overflow: hidden; }
+.sel-soft { background: var(--ultra-soft); outline: 1px solid var(--ultra); }
+.hl-inv { background: #000; color: #fff; }
+
+/* ---------- Debugger ---------- */
+.dbg-head { display: flex; gap: 10px; align-items: center; padding: 6px 10px 6px; border-bottom: 1px solid #000; flex: none; }
+.dbg-head .icon { width: 20px; height: 20px; background: #000; color: #fff; font: 700 14px/20px var(--ui); text-align: center; flex: none; }
+.dbg-head b { font-size: 14px; }
+.dbg-head .msg { color: var(--ink-2); }
+.dbg-head .proc { margin-left: auto; font-size: 12px; color: var(--ink-3); font-style: italic; margin-right: 22px; }
+.bar { display: flex; gap: 4px; padding: 4px 8px; border-bottom: 1px solid #000; flex: none; align-items: center; }
+.bar .btn { font-size: 12.5px; padding: 0 8px 1px; }
+.bar .vsep { width: 1px; height: 14px; background: #000; margin: 0 3px; }
+.bar .sp { flex: 1; }
+.btn.ask { border-color: var(--ultra); color: var(--ultra); }
+.btn.ask.on { background: var(--ultra); color: #fff; }
+.btn.ask kbd { font-size: 10.5px; box-shadow: none; padding: 0 3px 1px; margin-left: 3px; border-color: currentColor; background: transparent; color: inherit; }
+
+.stack .li { font: 12px/17px var(--code); }
+.stack .li .muted { font: italic 11.5px var(--ui); }
+.stack .li.dim { color: var(--ink-3); }
+.src .ed { flex: 1; padding: 4px 10px 2px; font-size: 12.5px; line-height: 18px; }
+.pc { background: var(--ultra-soft); outline: 1px solid var(--ultra); outline-offset: 0; }
+.src .crumb { font: 600 12px var(--code); letter-spacing: 0; text-transform: none; }
+.fields .li { font: 12px/17px var(--code); gap: 10px; }
+.fields .li .v { margin-left: auto; color: var(--ink-3); font-size: 11.5px; overflow: hidden; text-overflow: ellipsis; }
+.fields .li.sel .v { color: #ccc; }
+.fields .li .arg { font: 10px var(--ui); color: var(--ink-4); }
+.fields .li.hot .t { color: var(--ultra); font-weight: 700; }
+.fields .li.hot .v { color: var(--ultra); }
+.ip-eval { border-top: 1px solid #000; font: italic 12px var(--ui); color: var(--ink-3); padding: 3px 8px 4px; flex: none; }
+
+/* agent thread docked as the Debugger's bottom pane */
+.askpane { border-top: 2px solid var(--ultra); }
+.askpane > .pane-h { color: var(--ultra); border-bottom-color: var(--ultra); }
+.askpane > .pane-h .chip { font: 11px/1 var(--code); letter-spacing: 0; text-transform: none; border: 1px solid var(--ultra); padding: 1px 4px 2px; font-weight: 400; }
+.thread { flex: 1; min-height: 0; padding: 6px 10px 4px; display: flex; flex-direction: column; gap: 5px; overflow: hidden; }
+.msg-u { align-self: flex-end; max-width: 70%; border: 1px solid #000; padding: 2px 8px 3px; background: #fff; box-shadow: 2px 2px 0 #000; }
+.msg-u .who, .msg-a .who { font: 700 9.5px var(--ui); letter-spacing: .08em; text-transform: uppercase; margin-right: 6px; }
+.msg-a { line-height: 1.38; }
+.msg-a .who { color: var(--ultra); }
+.msg-a code { font-size: 12px; }
+.cm { border: 1px solid #000; }
+.cm-h { font: 700 10px/1 var(--ui); letter-spacing: .08em; text-transform: uppercase; padding: 4px 7px 3px; border-bottom: 1px solid #000; display: flex; gap: 8px; align-items: baseline; }
+.cm-h .in { font: 600 11px var(--code); letter-spacing: 0; text-transform: none; }
+.cm-h .r { margin-left: auto; font: italic 400 11.5px var(--ui); letter-spacing: 0; text-transform: none; color: var(--ink-3); }
+.cm-call { display: grid; grid-template-columns: 18px 1fr; padding: 2px 7px 3px; font: 12px/17px var(--code); }
+.cm-call + .cm-call { border-top: 1px dotted var(--ink-4); }
+.cm-call .p { color: var(--ink-3); }
+.cm-call.one .res { display: inline-flex; margin-left: 14px; }
+.cm-call .res { grid-column: 2; display: flex; gap: 7px; align-items: baseline; color: var(--ink-2); }
+.cm-call .res .oref { flex: none; }
+
+.diff { border: 1px solid var(--ultra); }
+.diff-h { display: flex; gap: 8px; align-items: baseline; padding: 3px 7px 3px; border-bottom: 1px solid var(--ultra); color: var(--ultra); }
+.diff-h .t { font: 700 10px var(--ui); letter-spacing: .08em; text-transform: uppercase; }
+.diff-h .m { font: 600 12px var(--code); color: #000; }
+.diff-h .r { margin-left: auto; font: italic 11.5px var(--ui); color: var(--ink-3); }
+.dl { font: 12px/17px var(--code); white-space: pre; padding: 0 7px; display: flex; }
+.dl .g { width: 22px; flex: none; color: var(--ink-4); text-align: right; padding-right: 8px; }
+.dl .s { width: 12px; flex: none; }
+.dl.ctx { color: var(--ink-3); }
+.dl.del { color: var(--ink-3); background-image: radial-gradient(#000 0.5px, transparent 0.6px); background-size: 4px 4px; }
+.dl.del .g, .dl.del .s { background: #fff; color: #000; }
+.dl.del span.c { background: #fff; text-decoration: line-through; padding: 0 3px 0 0; }
+.dl.add { background: var(--ultra-soft); color: var(--ultra); font-weight: 600; }
+.diff-b { display: flex; gap: 6px; align-items: center; padding: 5px 7px; border-top: 1px solid var(--ultra); }
+.diff-b .note { margin-left: auto; font: italic 11.5px var(--ui); color: var(--ink-3); }
+
+.ask-in { flex: none; border-top: 1px solid #000; display: flex; align-items: center; gap: 8px; padding: 4px 8px; font-size: 12.5px; }
+.ask-in .ph { color: var(--ink-3); font-style: italic; flex: 1; }
+.ask-in .caret { display: inline-block; width: 1px; height: 14px; background: #000; vertical-align: -2px; margin-right: 2px; }
+.ask-in .st { font: 11px var(--code); color: var(--ink-3); }
+
+/* ---------- Workspace selection affordance ---------- */
+.wsel { background: var(--ultra-soft); box-shadow: 0 0 0 1px var(--ultra); }
+.float-ask {
+  position: absolute; z-index: 20; background: #fff; border: 1px solid var(--ultra); box-shadow: 2px 2px 0 var(--ultra);
+  color: var(--ultra); font: 12.5px var(--ui); padding: 2px 7px 3px; display: flex; gap: 6px; align-items: center; white-space: nowrap;
+}
+.float-ask kbd { font-size: 11px; border-color: var(--ultra); box-shadow: 1px 1px 0 var(--ultra); color: var(--ultra); }
+.float-ask .dot { width: 7px; height: 7px; background: var(--ultra); }
+
+/* ---------- Inspector on o2 ---------- */
+.bars { padding: 6px 10px 4px; display: grid; grid-template-columns: 74px 1fr 28px; gap: 4px 6px; align-items: center; font: 11.5px var(--code); }
+.bars .b { height: 10px; border: 1px solid #000; }
+.bars .b.u { background: var(--ultra); border-color: var(--ultra); }
+.bars .n { text-align: right; color: var(--ink-2); }
+.mini-ask { border-top: 2px solid var(--ultra); flex: none; }
+.mini-ask .q { display: flex; gap: 6px; align-items: baseline; padding: 4px 8px 3px; border-bottom: 1px dotted var(--ink-4); }
+.mini-ask .q .lab { font: 700 9.5px var(--ui); letter-spacing: .08em; text-transform: uppercase; color: var(--ultra); flex: none; }
+.mini-ask .a { padding: 3px 8px 5px; font-size: 12.5px; line-height: 1.35; }
+.mini-ask .a .run { font: 11.5px/16px var(--code); color: var(--ink-2); display: block; margin-bottom: 2px; }
+
+/* ---------- Process Browser (compact) ---------- */
+.pb .li { font-size: 12px; gap: 6px; padding: 1px 6px; }
+.pb .li .pri { font: 11px var(--code); color: var(--ink-3); width: 16px; text-align: right; flex: none; }
+.pb .li .r { font-size: 11.5px; }
+.pb .li.agent .nm { color: var(--ultra); }
+.pb .li.sel .pri { color: #ccc; }
+</style>
+</head>
+<body>
+<div id="desktop">
+
+<!-- ================= top bar ================= -->
+<div id="topbar">
+  <span class="brand">Samaltak</span>
+  <span class="sep"></span>
+  <span>nuuk.image</span>
+  <span class="hint"><kbd>⌘J</kbd>&nbsp; asks in the focused tool &middot; self, thisContext and the selection come along</span>
+  <span class="lbl">Compositor</span><span class="stat">16.7 ms 60 fps</span>
+  <span class="sep"></span>
+  <span class="who"><b>Codex 6.1 Sol</b> &middot; mark@…</span>
+  <span class="agents open">Agents ▾ <span class="n">3</span></span>
+</div>
+
+<!-- Agents ▾ menu (open) -->
+<div class="menu" style="left:1196px; top:26px; width:238px;">
+  <div class="mh">Open threads <span class="r">3</span></div>
+  <div class="mi thr sel">
+    <span class="l1"><span class="ico live"></span>Debugger — ZeroDivide <span class="r">diff</span></span>
+    <span class="q">“why is charWidth 0 here?”</span>
+  </div>
+  <div class="mi thr">
+    <span class="l1"><span class="ico"></span>Inspector on o2 <span class="r">answered</span></span>
+    <span class="q">“why is TextEditor so far ahead?”</span>
+  </div>
+  <div class="mi thr">
+    <span class="l1"><span class="ico"></span>Workspace <span class="r">draft</span></span>
+    <span class="q">selection: 3 lines, not sent</span>
+  </div>
+  <div class="rule"></div>
+  <div class="mi">Ask in focused tool <span class="r"><kbd>⌘J</kbd></span></div>
+  <div class="mi">Agent Processes…</div>
+  <div class="mi">Codex 6.1 Sol <span class="r">41k / 400k</span></div>
+</div>
+
+<!-- ================= Workspace (left top) ================= -->
+<div class="win" style="left:10px; top:38px; width:342px; height:356px;">
+  <div class="titlebar"><span class="box"></span><span class="stripes"></span><span class="title">Workspace</span><span class="stripes"></span><span class="box small"></span><span class="box"></span></div>
+  <div class="win-body">
+<div class="ed" style="flex:1"><span class="t-c">"Fonts — Theme switch check"</span>
+<span class="t-g">Theme</span> current name.
+(<span class="t-g">Theme</span> current font: <span class="t-k">#code</span>) glyphCount.
+<span class="t-g">Font</span> placeholder isEmpty.
+
+<span class="t-c">"reproduce: click in an empty editor"</span>
+ed := <span class="t-g">TextEditor</span> new.
+ed openIn: <span class="t-g">Desktop</span> newWindow.
+<span class="t-g">Theme</span> use: <span class="t-k">#readingRoom</span>.
+
+<span class="wsel">(<span class="t-g">TextLayout</span> allInstances select: [:l |
+    l font isEmpty]) size</span>
+
+
+<span class="t-g">Transcript</span> show: ed layout font printString
+</div>
+    <div class="status"><span>12 lines</span><i>Workspace · do it ⌘D · ask ⌘J</i></div>
+  </div>
+  <div class="float-ask" style="left:136px; top:262px;"><span class="dot"></span>Ask about selection <kbd>⌘J</kbd></div>
+</div>
+
+<!-- ================= Inspector on o2 (left bottom) ================= -->
+<div class="win" style="left:10px; top:406px; width:342px; height:450px;">
+  <div class="titlebar"><span class="box"></span><span class="stripes"></span><span class="title">Inspector on o2 · an Array</span><span class="stripes"></span><span class="box small"></span><span class="box"></span></div>
+  <div class="win-body">
+    <div class="row" style="height:162px;">
+      <div class="col rule-r" style="width:92px;">
+        <div class="pane-h">Fields</div>
+        <div class="list fields">
+          <div class="li sel"><span class="t">self</span></div>
+          <div class="li"><span class="t">class</span></div>
+          <div class="li"><span class="t">1</span></div>
+          <div class="li"><span class="t">2</span></div>
+          <div class="li"><span class="t">3</span></div>
+          <div class="li"><span class="t">4</span></div>
+          <div class="li"><span class="t">5</span></div>
+        </div>
+      </div>
+      <div class="col grow">
+        <div class="pane-h">Value <span class="right">as bars</span></div>
+        <div class="bars">
+          <span>TextEditor</span><span class="b u" style="width:100%"></span><span class="n">157</span>
+          <span>Widget</span><span class="b halftone" style="width:56.7%"></span><span class="n">89</span>
+          <span>ListView</span><span class="b halftone" style="width:54.8%"></span><span class="n">86</span>
+          <span>TextLayout</span><span class="b halftone" style="width:30.6%"></span><span class="n">48</span>
+          <span>MenuView</span><span class="b halftone" style="width:24.2%"></span><span class="n">38</span>
+        </div>
+      </div>
+    </div>
+    <div class="pane-h rule-t">Evaluate <i style="font:italic 400 12px var(--ui); letter-spacing:0; text-transform:none;">self</i> <span class="right">= o2 &middot; ⌘D ⌘P ⌘I</span></div>
+<div class="ed" style="height:62px; flex:none;">(self inject: 0 into: [:n :a | n + a value])
+<span class="muted">418</span></div>
+    <div class="mini-ask">
+      <div class="q"><span class="lab">Ask</span><span>why is TextEditor so far ahead?</span><span class="tag ultra" style="margin-left:auto">self = o2</span></div>
+      <div class="a">
+        <span class="run">› (TextEditor selectors select: [:s |<br>&nbsp;&nbsp;s beginsWith: 'key']) size &nbsp;<span class="oref">o3</span> 23</span>
+        TextEditor is a facade over TextBuffer, TextLayout, TextHighlighter and TextUndoHistory, and still has 157 methods of its own — mostly key bindings <span class="oref">o3</span>.
+      </div>
+    </div>
+    <div class="ask-in" style="border-top:1px dotted var(--ink-4)"><span class="ph">follow up on o2…</span><span class="st">⌘↵</span></div>
+  </div>
+</div>
+
+<!-- ================= Debugger (focused, centre) ================= -->
+<div class="win active" style="left:364px; top:36px; width:828px; height:822px;">
+  <div class="titlebar"><span class="box"></span><span class="stripes"></span><span class="title">Debugger — ZeroDivide</span><span class="stripes"></span><span class="box small"></span><span class="box"></span></div>
+  <div class="win-body">
+    <div class="dbg-head">
+      <span class="icon">!</span>
+      <span><b>ZeroDivide</b>&nbsp; <span class="msg">170 // 0 in <span class="mono" style="font-size:12px">TextLayout&gt;&gt;columnAt:</span></span></span>
+      <span class="proc">Process ‘Workspace’ · suspended</span>
+    </div>
+    <div class="bar">
+      <span class="btn default">Proceed</span>
+      <span class="btn">Restart</span>
+      <span class="btn">Into</span>
+      <span class="btn">Over</span>
+      <span class="btn">Through</span>
+      <span class="btn">Run to here</span>
+      <span class="vsep"></span>
+      <span class="btn">Where</span>
+      <span class="btn">Full stack</span>
+      <span class="sp"></span>
+      <span class="btn ask on">Ask<kbd>⌘J</kbd></span>
+    </div>
+
+    <!-- stack -->
+    <div class="col stack rule-b" style="height:104px; flex:none;">
+      <div class="pane-h">Stack <span class="right">9 of 23 frames</span></div>
+      <div class="list">
+        <div class="li dim"><span>ZeroDivide(Exception)&gt;&gt;signal</span></div>
+        <div class="li dim"><span>SmallInteger&gt;&gt;//</span><span class="muted">primitive failed</span></div>
+        <div class="li sel"><span>TextLayout&gt;&gt;columnAt:</span><span class="r">UI-Widgets</span></div>
+        <div class="li"><span>TextLayout&gt;&gt;positionAt:</span></div>
+      </div>
+    </div>
+
+    <!-- source -->
+    <div class="col src rule-b" style="height:138px; flex:none;">
+      <div class="pane-h"><span class="crumb">TextLayout&gt;&gt;columnAt:</span> <span class="right">accessing · src/UI-Widgets/TextLayout.st</span></div>
+<div class="ed"><span class="t-k">columnAt:</span> x
+	<span class="t-c">"The column under x in a monospaced row; the gutter is column 0."</span>
+	| charWidth left |
+	left := <span class="t-k">self</span> textLeft.
+	charWidth := <span class="t-k">self</span> font advanceOf: <span class="t-k">$m</span>.
+	^(x - left max: 0) <span class="pc">// charWidth</span></div>
+    </div>
+
+    <!-- receiver / context -->
+    <div class="row rule-b" style="height:130px; flex:none;">
+      <div class="col grow rule-r">
+        <div class="pane-h">Receiver <span class="right mono">a TextLayout</span></div>
+        <div class="list fields">
+          <div class="li"><span class="t">buffer</span><span class="v">a TextBuffer(0 chars)</span></div>
+          <div class="li"><span class="t">fontSpec</span><span class="v">#code</span></div>
+          <div class="li hot"><span class="t">font</span><span class="v">a Font(placeholder · 0 glyphs)</span></div>
+        </div>
+        <div class="ip-eval" style="margin-top:auto">evaluate with self bound · ⌘D ⌘P ⌘I</div>
+      </div>
+      <div class="col grow">
+        <div class="pane-h">Context <span class="right mono">columnAt: · pc 14</span></div>
+        <div class="list fields">
+          <div class="li"><span class="t">thisContext</span><span class="v">TextLayout&gt;&gt;columnAt:</span></div>
+          <div class="li"><span class="t">x <span class="arg">arg</span></span><span class="v">212</span></div>
+          <div class="li sel"><span class="t">charWidth</span><span class="v">0</span></div>
+          <div class="li"><span class="t">left</span><span class="v">42</span></div>
+        </div>
+        <div class="ip-eval" style="margin-top:auto">evaluate in this frame · temps are live</div>
+      </div>
+    </div>
+
+    <!-- agent thread docked in the Debugger -->
+    <div class="col grow askpane">
+      <div class="pane-h">Ask <span class="chip">self = a TextLayout</span><span class="chip">thisContext = columnAt:</span>
+        <span class="right">Codex 6.1 Sol · 41k / 400k · 4.2 s</span></div>
+      <div class="thread">
+        <div class="msg-u"><span class="who">You</span>why is charWidth 0 here?</div>
+        <div class="cm">
+          <div class="cm-h">Code-mode in <span class="in">TextLayout&gt;&gt;columnAt:</span> · thisContext bound <span class="r">Process ‘agent o6’ · done · 38 ms</span></div>
+          <div class="cm-call"><span class="p">›</span><span>{self font. self font isEmpty. thisContext sender method selector}</span>
+            <span class="res"><span class="oref">o4</span>{a Font(placeholder · 0 glyphs). true. #positionAt:}</span></div>
+          <div class="cm-call one"><span class="p">›</span><span>Theme current font: fontSpec<span class="res"><span class="oref">o5</span>a Font('JetBrains Mono' 12.5 · 1 812 glyphs)</span></span></div>
+          <div class="cm-call one"><span class="p">›</span><span>o4 first == Font placeholder<span class="res"><span class="oref">o6</span>true</span></span></div>
+        </div>
+        <div class="msg-a"><span class="who">Codex</span><code>self font</code> is the empty <code>Font placeholder</code> <span class="oref">o4</span> the Theme answered while the atlas loaded, so every advance is 0. The real font is there now <span class="oref">o5</span>, but <code>TextLayout&gt;&gt;font</code> cached the placeholder. Fetch again while it is empty:</div>
+        <div class="diff">
+          <div class="diff-h"><span class="t">Proposed edit</span><span class="m">TextLayout&gt;&gt;font</span><span class="r">src/UI-Widgets/TextLayout.st · line 30 · 1 line changed</span></div>
+          <div class="dl ctx"><span class="g">29</span><span class="s"> </span>	| spec |</div>
+          <div class="dl del"><span class="g">30</span><span class="s">−</span><span class="c">	font isNil ifFalse: [^font].</span></div>
+          <div class="dl add"><span class="g">30</span><span class="s">+</span>	(font isNil or: [font isEmpty]) ifFalse: [^font].</div>
+          <div class="diff-b">
+            <span class="btn">Accept</span>
+            <span class="btn ultra">Accept &amp; Restart frame</span>
+            <span class="btn">Discard</span>
+            <span class="note">Accept writes the .st file, as the Browser does</span>
+          </div>
+        </div>
+      </div>
+      <div class="ask-in"><span class="caret"></span><span class="ph">Ask about this frame… (temps, self and o4–o6 are bound)</span><span class="st">⌘↵ send · esc hide</span></div>
+    </div>
+  </div>
+</div>
+
+<!-- ================= Process Browser (right) ================= -->
+<div class="win pb" style="left:1204px; top:352px; width:226px; height:230px;">
+  <div class="titlebar"><span class="box"></span><span class="stripes"></span><span class="title">Process Browser</span><span class="stripes"></span><span class="box"></span></div>
+  <div class="win-body">
+    <div class="pane-h">Process <span class="right">13 · 0 busy</span></div>
+    <div class="list">
+      <div class="li"><span class="pri">80</span><span class="nm">timer interrupt</span><span class="r">waiting</span></div>
+      <div class="li"><span class="pri">70</span><span class="nm">compositor</span><span class="r">waiting</span></div>
+      <div class="li"><span class="pri">60</span><span class="nm">input dispatcher</span><span class="r">waiting</span></div>
+      <div class="li sel"><span class="pri">40</span><span class="nm">Workspace</span><span class="r">in Debugger</span></div>
+      <div class="li"><span class="pri">40</span><span class="nm">Debugger</span><span class="r">running</span></div>
+      <div class="li"><span class="pri">40</span><span class="nm">Inspector on o2</span><span class="r">waiting</span></div>
+      <div class="li agent"><span class="pri">30</span><span class="nm">agent o6</span><span class="r">done</span></div>
+      <div class="li agent"><span class="pri">30</span><span class="nm">agent o3</span><span class="r">done</span></div>
+      <div class="li"><span class="pri">10</span><span class="nm">idle</span><span class="r">ready</span></div>
+    </div>
+  </div>
+</div>
+
+<!-- ================= callouts ================= -->
+<div class="callout" style="left:1204px; top:268px; width:226px;"><b>Agents ▾</b> lists the open threads. Each lives with its tool and closes with it; there is no separate agent window.</div>
+<div class="callout" style="left:1204px; top:598px; width:226px;"><b>⌘J in any evaluator.</b> In the Debugger the thread docks as its bottom pane and code-mode runs in the selected frame: self, thisContext, x and charWidth are bound.</div>
+<div class="callout" style="left:1204px; top:740px; width:226px;"><b>Edits come back as a diff.</b> Accept writes the method to src/ like the Browser; Accept &amp; Restart frame re-runs columnAt: with the fix.</div>
+
+</div>
+
+<div id="about">
+  <h1>5 · Agent in every tool</h1>
+  <p>The agent is a mode of every evaluator: ⌘J asks right where you are, with self, thisContext and the selection already bound.</p>
+  <nav><a href="index.html">index</a><a href="1-workspace.html">1</a><a href="2-notebook.html">2</a><a href="3-browser.html">3</a><a href="4-desktop.html">4</a><a href="5-contextual.html" class="cur">5</a></nav>
+</div>
+</body>
+</html>
