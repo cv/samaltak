@@ -85,8 +85,10 @@ textReplacedFrom: start to: stop with: aString
 	self rowsOfLines: k0 to: k1 width: rowWidth starts: starts ends: ends.
 	rowStarts := (rowStarts copyFrom: 1 to: first - 1) , starts asArray , ((rowStarts copyFrom: last + 1 to: rowStarts size) collect: [:each | each + delta]).
 	rowEnds := (rowEnds copyFrom: 1 to: first - 1) , ends asArray , ((rowEnds copyFrom: last + 1 to: rowEnds size) collect: [:each | each + delta]).
-	"The scroll bar came or went: all rows change width."
-	(rowWidth notNil and: [(self contentHeight > view height) ~= (rowWidth < layoutWidth)]) ifTrue: [rowStarts := nil]
+	"The scroll bar came or went: all rows change width. Rows narrowed for it say only that the text is taller than the view at their width; at the full width it may not be, unless its lines alone are."
+	(rowWidth notNil and: [rowWidth < layoutWidth
+			ifTrue: [buffer lineCount * self lineHeight + (2 * self padY) <= view height]
+			ifFalse: [self contentHeight > view height]]) ifTrue: [rowStarts := nil]
 ! !
 
 !TextLayout methodsFor: 'geometry'!

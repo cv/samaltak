@@ -120,6 +120,28 @@ testEditsLayOutOnlyTheirLines
 			self assert: layout rowStarts equals: fresh rowStarts.
 			self assert: layout rowEnds equals: fresh rowEnds]
 !
+testRandomEditsMatchAFreshLayout
+	"Hundreds of seeded random edits (inserts, deletes and replacements of line feeds, tabs, CJK, combining marks, emoji and long words, at the ends and across lines), wrapped at a narrow width with the text growing taller than the view and shrinking back, and not wrapped: after each, the rows are those of a layout from scratch."
+	| view |
+	view := 0 @ 0 extent: 130 @ 160.
+	{true. false} do: [:wrapping |
+		| rng tall flips |
+		rng := Random seed: 4711.
+		buffer string: 'hello world'.
+		layout := TextLayout on: buffer in: view.
+		layout wrap: wrapping.
+		layout rowCount.
+		tall := false.
+		flips := 0.
+		400 timesRepeat: [
+			"one to three edits between layouts, as between frames"
+			(rng nextInt: 3) timesRepeat: [self randomEditWith: rng].
+			self assertRowsAreFreshIn: view wrap: wrapping.
+			(layout contentHeight > view height) = tall ifFalse: [
+				tall := tall not.
+				flips := flips + 1]].
+		self assert: flips >= 10]
+!
 testPositionsFollowTheFontsAdvances
 	"On a row of CJK, a combining mark and emoji, x of a position is what Font>>widthOf: measures (as Canvas draws); the position at an x is the nearest cluster boundary, never inside é (e + U+0301) or 👍🏽."
 	| text f boundaries hits |
@@ -157,4 +179,52 @@ testWrapsCJKBetweenIdeographsAndClusters
 	buffer string: 'x', text.
 	self assert: layout rowCount > 1.
 	2 to: layout rowCount do: [:r | self assert: (layout rowStart: r) odd]
+! !
+
+!TextLayoutTest methodsFor: 'support'!
+randomPieceWith: rng
+	"A short string: ASCII, a long word, white space, line feeds, CJK and its punctuation, combining marks, emoji, a flag, or several lines."
+	| c pieces |
+	c := [:cp | String with: (Character value: cp)].
+	pieces := {
+		'x'.
+		'word '.
+		'abcdefghijklmnopqrstuvwxyz'.
+		String with: Character tab.
+		self lf.
+		self lf , self lf.
+		(c value: 16r6F22) , (c value: 16r5B57) , (c value: 16r7DE8) , (c value: 16r8F2F).
+		(c value: 16r3001) , (c value: 16r300C) , (c value: 16r6E2C) , (c value: 16r300D).
+		'e' , (c value: 16r301) , (c value: 16r308).
+		(c value: 16rD55C) , (c value: 16rAE00) , ' '.
+		(c value: 16r1F600) , (c value: 16r1F44D) , (c value: 16r1F3FD).
+		(c value: 16r1F1E9) , (c value: 16r1F1EA).
+		'one ' , (c value: 16r65E5) , self lf , 'two' , (String with: Character tab) , 'three' , self lf.
+		'word word word word word word word word'}.
+	^pieces at: (rng nextInt: pieces size)
+!
+randomEditWith: rng
+	"Insert, delete or replace at a random place (often at either end); only delete once the text is long, so it grows and shrinks."
+	| size kind a b |
+	size := buffer size.
+	kind := size = 0 ifTrue: [1] ifFalse: [size > 400 ifTrue: [2] ifFalse: [#(1 1 2 3) at: (rng nextInt: 4)]].
+	a := #(0 0 1 1 1 1 1 2) at: (rng nextInt: 8).
+	a := a = 0 ifTrue: [0] ifFalse: [a = 2 ifTrue: [size] ifFalse: [(rng nextInt: size + 1) - 1]].
+	kind = 1 ifTrue: [^buffer replaceFrom: a to: a with: (self randomPieceWith: rng)].
+	a = size ifTrue: [a := (rng nextInt: size) - 1].
+	b := (rng nextInt: 4) = 1
+		ifTrue: [a + (rng nextInt: 120) min: size]
+		ifFalse: [a + (rng nextInt: 3) min: size].
+	kind = 2 ifTrue: [^buffer replaceFrom: a to: b with: ''].
+	buffer replaceFrom: a to: b with: (self randomPieceWith: rng)
+!
+assertRowsAreFreshIn: aRectangle wrap: aBoolean
+	"The layout's rows are those of a layout from scratch of the buffer's text."
+	| fresh |
+	fresh := TextLayout on: (TextBuffer string: buffer string) in: aRectangle.
+	fresh wrap: aBoolean.
+	fresh ensureRows.
+	layout ensureRows.
+	self assert: layout rowStarts equals: fresh rowStarts.
+	self assert: layout rowEnds equals: fresh rowEnds
 ! !
