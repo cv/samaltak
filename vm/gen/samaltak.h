@@ -76,6 +76,13 @@ typedef void (*prim_fn)(void);
 #define ANA_RESUME 16
 #define ANA_START 1
 #define ANA_TARGET 4
+#define ASM_EF_FORGET 5
+#define ASM_EF_LOAD 1
+#define ASM_EF_MOVE 3
+#define ASM_EF_NONE 0
+#define ASM_EF_STORE 2
+#define ASM_EF_WRITE 4
+#define ASM_ERR_FLAGS 6
 #define ASM_ERR_FULL 1
 #define ASM_ERR_IMMEDIATE 2
 #define ASM_ERR_LABEL 4
@@ -125,6 +132,9 @@ typedef void (*prim_fn)(void);
 #define BL_MEGA_CACHE 4096
 #define BL_MEGA_WORDS 16384
 #define BL_PIC_CASES 6
+#define BL_PIC_CASE_X64 14
+#define BL_PIC_HEAD_X64 14
+#define BL_PIC_JMP_X64 10
 #define BL_SITE_MEGA 1073741824
 #define BL_UENTRY 20
 #define CACHE_SIZE 4096
@@ -290,6 +300,7 @@ typedef void (*prim_fn)(void);
 #define JIT_NONE 0
 #define JIT_OPT 2
 #define JIT_PROLOGUE_BYTES 20
+#define JIT_PROLOGUE_BYTES_X64 12
 #define JIT_TABLE_SIZE 65536
 #define JM_DEAD 2
 #define JM_ENTRY 16
@@ -713,6 +724,49 @@ typedef void (*prim_fn)(void);
 #define X4 4
 #define X5 5
 #define X6 6
+#if defined(__x86_64__)
+#define X64_ARM_HI 795471451222181124LL
+#define X64_ARM_LO 303461249975049LL
+#define X64_FL_ADD 2
+#define X64_FL_BT 7
+#define X64_FL_CLOBBERED 5
+#define X64_FL_FP 4
+#define X64_FL_LOGIC 3
+#define X64_FL_MUL 6
+#define X64_FL_NONE 0
+#define X64_FL_READ 16
+#define X64_FL_SUB 1
+#define X64_FL_UNSEEN 15
+#define X64_K_FP 6
+#define X64_K_LR 7
+#define X64_K_MEM 1
+#define X64_K_PHYS 0
+#define X64_K_SP 5
+#define X64_K_STATE 2
+#define X64_K_STATEMEM 3
+#define X64_K_ZERO 4
+#define X64_MAP_HI 13848778
+#define X64_MAP_LO 279275963421287LL
+#define X64_NONE 17
+#define X64_PHYS 3870271
+#define X64_R10 10
+#define X64_R11 11
+#define X64_R12 12
+#define X64_R13 13
+#define X64_R14 14
+#define X64_R15 15
+#define X64_R8 8
+#define X64_R9 9
+#define X64_RAX 0
+#define X64_RBP 5
+#define X64_RBX 3
+#define X64_RCX 1
+#define X64_RDI 7
+#define X64_RDX 2
+#define X64_RIP 16
+#define X64_RSI 6
+#define X64_RSP 4
+#endif
 #define X7 7
 #define X8 8
 #define X9 9
@@ -1120,6 +1174,11 @@ extern int vm_primitive_count;
 extern int32_t asm_binds;
 extern uint64_t asm_bound_pc;
 extern int32_t asm_error;
+#if defined(__x86_64__)
+extern int32_t asm_flags;
+extern int32_t asm_flags_label;
+extern uint64_t asm_jump_end;
+#endif
 extern int32_t asm_label_fixups[16384];
 extern uint64_t asm_labels[16384];
 extern uint64_t asm_limit;
@@ -1129,7 +1188,13 @@ extern uint32_t asm_note_offsets[8192];
 extern const char *asm_note_texts[8192];
 extern bool asm_noting;
 extern uint64_t asm_pc;
+#if defined(__x86_64__)
+extern uint64_t asm_regs[32];
+#endif
 extern uint64_t asm_start;
+#if defined(__x86_64__)
+extern uint64_t asm_state;
+#endif
 extern uint8_t *ana_bcs;
 extern int16_t ana_depths[32768];
 extern uint8_t ana_flags[32768];
@@ -1367,21 +1432,102 @@ extern int32_t q_len;
 #endif
 #endif
 
+#if defined(__x86_64__)
+void add_any(int64_t rd, int64_t rn, int64_t imm);
+void adrp(int64_t rd, int32_t a_label);
+void alu(int32_t op, int32_t w, int64_t t, int64_t r);
+void arith_any(int32_t digit, int64_t rd, int64_t rn, int64_t imm);
+#endif
 void begin_at(uint64_t start, uint64_t limit);
+#if defined(__x86_64__)
+void binary_any(int32_t op, int64_t rd, int64_t rn, int64_t rm, bool a_boolean);
+void amd64_assembler_bind(int32_t a_label);
+#else
 void arm64_assembler_bind(int32_t a_label);
+#endif
 uint64_t branch_target_at(uint64_t site);
+#if defined(__x86_64__)
+void branch_to(int32_t a_label);
+void call_c(uint64_t function);
+int amd64_assembler_cc(int64_t c);
+void amd64_assembler_cmp_any_imm(int64_t rn, int64_t imm);
+void amd64_assembler_cmp_any_with(int64_t rn, int64_t rm);
+void amd64_assembler_cmp_any_with_shift_amount(int64_t rn, int64_t rm, int64_t type, int64_t n);
+void compare_zero(int64_t rt);
+void cond_branch(int64_t c, int32_t a_label);
+void csel(int64_t rd, int64_t rn, int64_t rm, int64_t c);
+void csel_by_branch(int64_t rd, int64_t rn, int64_t rm, int64_t c);
+void cset(int64_t rd, int64_t c);
+void cset_by_branch(int64_t rd, int64_t c);
+void csinc(int64_t rd, int64_t rn, int64_t rm, int64_t c);
+void csinc_by_branch(int64_t rd, int64_t rn, int64_t rm, int64_t c);
+int32_t amd64_assembler_dst(int64_t r);
+int64_t effect_at(uint64_t address);
+int32_t amd64_assembler_finish(void);
+int fmov_immediate(double a_double);
+void fop_aliased(int32_t op, int64_t d, int64_t n);
+int fp_pair(int64_t c);
+uint64_t home_of(int64_t r);
+void index_address(int64_t rn, int64_t rm, int64_t ext, int64_t n);
+void indexed_any(int32_t op, int32_t olen, int32_t pre, int32_t w, int64_t rt, int64_t rn, int64_t rm, int64_t ext, int64_t n, bool is_load);
+int amd64_assembler_kind(int64_t r);
+#else
 int32_t arm64_assembler_finish(void);
 int32_t fmov_immediate(double a_double);
+#endif
 int32_t label_at(uint64_t an_address);
+#if defined(__x86_64__)
+void amd64_assembler_load(int64_t r, int64_t t);
+void load_any(int32_t op, int32_t olen, int32_t w, int64_t rt, int64_t rn, int64_t off);
+void logical_any(int32_t digit, int32_t op, int64_t rd, int64_t rn, uint64_t imm);
+int logical_immediate(uint64_t value, int64_t width);
+void amd64_assembler_memory(int32_t op, int32_t olen, int32_t pre, int32_t w, int64_t reg, int64_t rn, int64_t off, bool is_byte);
+#else
 int32_t logical_immediate(uint64_t value, int width);
+#endif
 uint64_t mov64_at(uint64_t site);
+#if defined(__x86_64__)
+void amd64_assembler_move_any_from(int64_t rd, int64_t rm);
+void amd64_assembler_move_any_imm(int64_t rd, uint64_t value);
+void mul_any(int64_t rd, int64_t rn, int64_t rm);
+void multiply(int64_t rn, int64_t rm);
+void multiply_add(int64_t rd, bool is_sub, int64_t ra);
+#else
 void mov_imm(int64_t rd, uint64_t value);
+#endif
 int32_t new_label(void);
 void note(const char *a_string, int64_t an_integer);
+#if defined(__x86_64__)
+void amd64_assembler_op(int32_t op, int32_t olen, int32_t pre, int32_t w, int64_t reg, uint64_t address, int64_t imm, int32_t isz);
+#endif
 bool patch_branch_at(uint64_t site, uint64_t target);
 void patch_mov64_at(uint64_t site, uint64_t value);
+#if defined(__x86_64__)
+void amd64_assembler_pop(int64_t r);
+void amd64_assembler_push(int64_t r);
+#endif
 void record_notes(bool a_boolean);
+#if defined(__x86_64__)
+void sbfx(int64_t rd, int64_t rn, int64_t lsb, int64_t wd);
+void sdiv(int64_t rd, int64_t rn, int64_t rm);
+void set_state(uint64_t an_address);
+void amd64_assembler_shift(int32_t digit, int64_t rd, int64_t rn, int64_t rm);
+void shifted(int64_t rm, int64_t type, int64_t n, int64_t t);
+void shifted_op(int32_t op, int64_t rd, int64_t rn, int64_t rm, int64_t type, int64_t n);
+int64_t short_jump_at(uint64_t address, int64_t len, bool a_boolean);
+void amd64_assembler_store(int64_t t, int64_t r);
+void store_any(int32_t op, int32_t pre, int32_t w, int64_t rt, int64_t rn, int64_t off, bool is_byte);
+void store_indexed_word(int32_t op, int32_t pre, int32_t w, int64_t rt, int64_t rn, int64_t rm, int64_t ext, int64_t n);
+uint64_t target_of(int32_t a_label, uint64_t site);
+void amd64_assembler_test_any_imm(int64_t rn, uint64_t v);
+void amd64_assembler_test_any_with(int64_t rn, int64_t rm);
+void test_bit_any(int64_t n, int64_t rt);
+void ubfiz(int64_t rd, int64_t rn, int64_t lsb, int64_t wd);
+void ubfx_any(int64_t rd, int64_t rn, int64_t lsb, int64_t wd);
+void wide(int32_t digit, int64_t rd, int64_t rn, int64_t rm);
+#else
 uint64_t target_of(int32_t a_label);
+#endif
 bool analyze(oop m);
 uint64_t code_cache_allocate(uint64_t size);
 void code_cache_flush(void);

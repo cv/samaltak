@@ -107,6 +107,23 @@ retArgcAt: i
 	^cgRetArgc at: i
 ! !
 
+!OptCodegen methodsFor: 'registers'!
+scratchA
+	"The code generator's first scratch register for operands: x14 (on x86 x10: x14 has no x86 register)."
+	^asm isX64 ifTrue: [X10] ifFalse: [X14]
+!
+scratchB
+	^asm isX64 ifTrue: [X11] ifFalse: [X15]
+!
+dregBase
+	"The first d register OptRegalloc allocates: d16 (on x86 d2: xmm2-xmm15)."
+	^asm isX64 ifTrue: [D2] ifFalse: [D16]
+!
+dregPairs
+	"Pairs of d registers from dregBase saved around a call."
+	^asm isX64 ifTrue: [7] ifFalse: [8]
+! !
+
 !OptCodegen methodsFor: 'generating'!
 generate: m act: a
 	"Emit the code at the assembler's pc; answer whether it could."
@@ -171,7 +188,9 @@ generate: m act: a
 		asm bind: (cgSiteLit at: i).
 		asm emit64: 0].
 	"the header follows, 8-byte aligned (JitRuntime>>finish:code:mode:)"
-	[(asm pc bitAnd: 7) ~= 0] whileTrue: [asm emit: 16rD503201F].
+	asm isX64
+		ifTrue: [asm alignTo: 8]
+		ifFalse: [[(asm pc bitAnd: 7) ~= 0] whileTrue: [asm emit: 16rD503201F]].
 	asm bind: cgHeaderLabel.
 	(libc getenv: 'SAMALTAK_OPT_TRACE') notNull ifTrue: [
 		libc fprintf: libc stderr format: 'codegen: asm error %d, %d safepoints, %d metadata words
@@ -198,8 +217,11 @@ emitBaselineEntry
 	slow := asm newLabel.
 	asm bind: entry.
 	asm comment: 'entry from a call: room on the stack?'.
-	asm ldr: X16 base: X22 offset: self stackLimitNormalOffset.
-	asm cmp: X20 with: X16.
+	asm isX64
+		ifTrue: [asm cmp: X20 withStateWordAt: self stackLimitNormalOffset]
+		ifFalse: [
+			asm ldr: X16 base: X22 offset: self stackLimitNormalOffset.
+			asm cmp: X20 with: X16].
 	asm b: slow if: COND_HS.
 	asm comment: 'native frame record, our Frame: code, closure, ctx, fp, pc and sp 0 (lazy)'.
 	asm stp: X29 with: X30 base: SP preIndex: -16.
@@ -249,8 +271,11 @@ emitEntry
 	s := self out: OUT_STACK node: -1 index: 0.
 	asm mov: X16 imm: 8 * cgNeed.
 	asm add: X16 with: X20 with: X16.
-	asm ldr: X17 base: X22 offset: self cstackLimitOffset.
-	asm cmp: X16 with: X17.
+	asm isX64
+		ifTrue: [asm cmp: X16 withStateWordAt: self cstackLimitOffset]
+		ifFalse: [
+			asm ldr: X17 base: X22 offset: self cstackLimitOffset.
+			asm cmp: X16 with: X17].
 	asm b: s if: COND_HI.
 	asm comment: 'invalidated (entered from older code): the interpreter runs it'.
 	asm adr: X16 label: cgHeaderLabel.
@@ -376,7 +401,7 @@ dst: n
 	| nd |
 	nd := ir node: n.
 	nd reg >= 0 ifTrue: [^nd reg asInt32].
-	^X14
+	^self scratchA
 !
 def: n from: r
 	"n's result is in r: into its register, and into its home slot if it has one (a value lives in its slot across safepoints: stored once, where it is defined; one only interrupt checks need there by their slow path)."
@@ -460,9 +485,36 @@ catchUp
 		self forgetAll.
 		cgBinds := asm labelsBound.
 		cgScanPc := cgScanPc max: asm boundPc].
+	asm isX64 ifTrue: [^self catchUpX64].
 	[cgScanPc < asm pc] whileTrue: [
 		self track: (self uint32At: cgScanPc).
 		cgScanPc := cgScanPc + 4]
+!
+catchUpX64
+	"catchUp's decoding of x86 code: what each instruction does, as Amd64Assembler>>effectAt: tells; from one it does not know on, nothing is known."
+	<arch: #x86_64>
+	| e n k r |
+	[cgScanPc < asm pc] whileTrue: [
+		e := asm effectAt: cgScanPc.
+		n := e bitAnd: 255.
+		n = 0
+			ifTrue: [
+				self forgetAll.
+				cgScanPc := asm pc]
+			ifFalse: [
+				k := (e >> 8) bitAnd: 255.
+				r := ((e >> 16) bitAnd: 255) asInt32.
+				k = ASM_EF_LOAD ifTrue: [self loaded: r base: 20 offset: (e >> 32) asInt32].
+				k = ASM_EF_STORE ifTrue: [self stored: r base: 20 offset: (e >> 32) asInt32].
+				k = ASM_EF_MOVE ifTrue: [self copy: ((e >> 24) bitAnd: 255) asInt32 to: r].
+				k = ASM_EF_WRITE ifTrue: [
+					self wrote: r.
+					self wrote: ((e >> 24) bitAnd: 255) asInt32].
+				k = ASM_EF_FORGET ifTrue: [self forgetAll].
+				cgScanPc := cgScanPc + n]].
+	cgScanPc > asm pc ifTrue: [
+		self forgetAll.
+		cgScanPc := asm pc]
 !
 track: w
 	"What instruction w does to what registers hold: ldr, str, ldur and stur of an X register at a slot make it hold the slot (a store makes the slot's other holders hold nothing), mov copies what a register holds; other writes make a register hold nothing; b.cond, cbz, cbnz, tbz and tbnz nothing; other branches (b, bl, br, blr, ret) and what is not decoded here, all registers."
@@ -547,7 +599,9 @@ wrote: r
 			ifFalse: [i := i + 1]]
 !
 emitPool
-	[(asm pc bitAnd: 7) ~= 0] whileTrue: [asm emit: 16rD503201F].
+	asm isX64
+		ifTrue: [asm alignTo: 8]
+		ifFalse: [[(asm pc bitAnd: 7) ~= 0] whileTrue: [asm emit: 16rD503201F]].
 	0 to: cgPoolCount - 1 do: [:i |
 		asm bind: (cgPoolLabels at: i).
 		asm emit64: (cgPoolOops at: i)]
@@ -595,7 +649,7 @@ emitNode: n block: b next: nextBlock
 		self load: r slot: nd aux asInt32.
 		^self def: n from: r].
 	op = O_STORESLOT ifTrue: [
-		self store: (self src: nd a into: X14) slot: nd aux asInt32.
+		self store: (self src: nd a into: self scratchA) slot: nd aux asInt32.
 		^self].
 	op = O_PARAM ifTrue: [
 		(nd reg < 0 and: [nd slot < 0 or: [nd slot asInt64 = nd aux]]) ifTrue: [^self].
@@ -615,7 +669,7 @@ emitNode: n block: b next: nextBlock
 		nd slot asInt64 = nd aux ifTrue: [^self].
 		^self def: n from: r].
 	op = O_LOADFIELD ifTrue: [
-		x := self src: nd a into: X15.
+		x := self src: nd a into: self scratchB.
 		r := self dst: n.
 		asm ldr: r base: x offset: (self fieldOffset: nd aux).
 		^self def: n from: r].
@@ -624,7 +678,7 @@ emitNode: n block: b next: nextBlock
 	op = O_INDEXLOAD ifTrue: [^self emitIndexLoad: n].
 	op = O_INDEXSTORE ifTrue: [^self emitIndexStore: n].
 	op = O_SIZE ifTrue: [
-		x := self src: nd a into: X15.
+		x := self src: nd a into: self scratchB.
 		self emitSizeOf: x kind: nd aux asInt32 fixed: nd aux2 asInt32.
 		asm add: X16 with: X16 with: X16.
 		r := self dst: n.
@@ -640,15 +694,15 @@ emitNode: n block: b next: nextBlock
 		^self def: n from: r].
 	op = O_GUARDCLASS ifTrue: [
 		s := self deoptLabelFor: n.
-		x := self src: nd a into: X15.
+		x := self src: nd a into: self scratchB.
 		asm comment: ((nd flags bitAnd: NF_HOISTED) ~= 0 ifTrue: ['guard: its class, once before the loop'] ifFalse: ['guard: its class']).
 		self emitClassTest: x class: nd aux asUInt64.
 		asm b: s if: COND_NE.
 		^self def: n from: x].
-	op = O_CAST ifTrue: [^self def: n from: (self src: nd a into: X15)].
+	op = O_CAST ifTrue: [^self def: n from: (self src: nd a into: self scratchB)].
 	op = O_GUARDINT ifTrue: [
 		s := self deoptLabelFor: n.
-		x := self src: nd a into: X15.
+		x := self src: nd a into: self scratchB.
 		asm comment: ((nd flags bitAnd: NF_HOISTED) ~= 0 ifTrue: ['guard: a SmallInteger, once before the loop'] ifFalse: ['guard: a SmallInteger']).
 		asm tst: x imm: 1.
 		asm b: s if: COND_EQ.
@@ -657,7 +711,7 @@ emitNode: n block: b next: nextBlock
 	op = O_IMUL ifTrue: [^self emitMul: n].
 	(op = O_IMOD or: [op = O_IDIV or: [op = O_ISHIFT]]) ifTrue: [^self emitDivShift: n].
 	op = O_CHARCONV ifTrue: [
-		x := self src: nd a into: X14.
+		x := self src: nd a into: self scratchA.
 		r := self dst: n.
 		nd aux = 0 ifTrue: [
 			asm comment: 'a Character''s value'.
@@ -676,15 +730,15 @@ emitNode: n block: b next: nextBlock
 	op = O_NOTINTS ifTrue: [
 		s := self deoptLabelFor: n.
 		asm comment: 'guard: not two SmallIntegers'.
-		x := self src: nd a into: X14.
-		y := self src: nd b into: X15.
+		x := self src: nd a into: self scratchA.
+		y := self src: nd b into: self scratchB.
 		asm and: X16 with: x with: y.
 		asm tst: X16 imm: 1.
 		asm b: s if: COND_NE.
 		^self].
 	(op = O_IAND or: [op = O_IOR or: [op = O_IXOR]]) ifTrue: [
-		x := self src: nd a into: X14.
-		y := self src: nd b into: X15.
+		x := self src: nd a into: self scratchA.
+		y := self src: nd b into: self scratchB.
 		r := self dst: n.
 		op = O_IAND ifTrue: [asm and: r with: x with: y].
 		op = O_IOR ifTrue: [asm orr: r with: x with: y].
@@ -731,10 +785,10 @@ emitCompare: n
 	| nd x y |
 	nd := ir node: n.
 	nd op asInt32 = O_FCMP ifTrue: [^asm fcmp: (self dsrc: nd a) with: (self dsrc: nd b)].
-	x := self src: nd a into: X14.
+	x := self src: nd a into: self scratchA.
 	nd op asInt32 = O_CLASSIS ifTrue: [^self emitClassTest: x class: nd aux asUInt64].
 	nd op asInt32 = O_BOTHINT ifTrue: [
-		y := self src: nd b into: X15.
+		y := self src: nd b into: self scratchB.
 		asm and: X16 with: x with: y.
 		asm and: X16 with: X16 imm: 1.
 		^asm cmp: X16 imm: 1].
@@ -744,7 +798,7 @@ emitCompare: n
 				ifTrue: [asm cmp: x imm: (ir node: nd b) aux]
 				ifFalse: [asm cmn: x imm: (ir node: nd b) aux negated]]
 		ifFalse: [
-			y := self src: nd b into: X15.
+			y := self src: nd b into: self scratchB.
 			asm cmp: x with: y]
 !
 emitBranch: n block: b next: nextBlock
@@ -765,7 +819,7 @@ emitBranch: n block: b next: nextBlock
 				asm b: tl if: (self conditionOf: v).
 				(f = nextBlock or: [(self jumpTargetOf: f) = nextBlock]) ifFalse: [asm b: fl]].
 		^self].
-	rv := self src: v into: X14.
+	rv := self src: v into: self scratchA.
 	asm cmp: rv with: X24.
 	asm b: tl if: COND_EQ.
 	vd tkind asInt32 ~= T_BOOL ifTrue: [
@@ -796,7 +850,7 @@ emitFloat: n
 		r := self dsrc: n.
 		((ir node: nd a) op asInt32 = O_CONST and: [((ir node: nd a) aux bitAnd: 1) ~= 0 or: [((ir node: nd a) aux bitAnd: 7) = 4]]) ifTrue: [
 			^self emitDouble: (self constantDouble: (ir node: nd a) aux asUInt64) into: r].
-		x := self src: nd a into: X15.
+		x := self src: nd a into: self scratchB.
 		(ir node: nd a) tkind asInt32 = T_SMI ifTrue: [
 			asm comment: 'a SmallInteger''s double'.
 			asm asr: X16 with: x imm: 1.
@@ -842,13 +896,13 @@ emitFloat: n
 		asm fmov: X16 with: (self dsrc: nd a).
 		asm lsl: X17 with: X16 imm: 1.
 		asm cbz: X17 to: zero.
-		asm ubfx: X15 with: X16 lsb: 52 width: 11.
-		asm sub: X15 with: X15 imm: 897.
-		asm cmp: X15 imm: 253.
+		asm ubfx: self scratchB with: X16 lsb: 52 width: 11.
+		asm sub: self scratchB with: self scratchB imm: 897.
+		asm cmp: self scratchB imm: 253.
 		asm b: s if: COND_HI.
 		asm ror: X17 with: X16 imm: 63.
-		asm mov: X15 imm: 16r7000000000000000.
-		asm sub: X17 with: X17 with: X15.
+		asm mov: self scratchB imm: 16r7000000000000000.
+		asm sub: X17 with: X17 with: self scratchB.
 		asm b: store.
 		asm bind: zero.
 		asm lsr: X17 with: X16 imm: 63.
@@ -888,10 +942,10 @@ emitIndexCheck: n
 	| nd x i s |
 	nd := ir node: n.
 	s := self deoptLabelFor: n.
-	x := self src: nd a into: X14.
+	x := self src: nd a into: self scratchA.
 	asm comment: 'bounds check'.
 	self emitSizeOf: x kind: nd aux asInt32 fixed: nd aux2 asInt32.
-	i := self src: nd b into: X15.
+	i := self src: nd b into: self scratchB.
 	asm asr: X17 with: i imm: 1.
 	asm sub: X17 with: X17 imm: 1.
 	asm cmp: X17 with: X16.
@@ -930,7 +984,7 @@ emitIndexStore: n
 	asm b: s if: COND_NE.
 	asm add: X16 with: x imm: 16 + (8 * nd aux2).
 	asm add: X16 with: X16 with: X17 shift: SHIFT_LSL amount: (ek = E_PTR ifTrue: [3] ifFalse: [0]).
-	v := self src: nd c into: X15.
+	v := self src: nd c into: self scratchB.
 	ek ~= E_PTR ifTrue: [
 		ek = E_BYTE
 			ifTrue: [
@@ -994,7 +1048,7 @@ emitAddSub: n
 	nd := ir node: n.
 	s := self deoptLabelFor: n.
 	isAdd := nd op asInt32 = O_IADD.
-	x := self src: nd a into: X14.
+	x := self src: nd a into: self scratchA.
 	((ir node: nd b) op asInt32 = O_CONST and: [((ir node: nd b) aux asUInt64 - 1) asInt64 between: -4095 and: 4095])
 		ifTrue: [
 			c := ((ir node: nd b) aux asUInt64 - 1) asInt64.
@@ -1002,7 +1056,7 @@ emitAddSub: n
 				ifTrue: [asm adds: X16 with: x imm: (c < 0 ifTrue: [c negated] ifFalse: [c])]
 				ifFalse: [asm subs: X16 with: x imm: (c < 0 ifTrue: [c negated] ifFalse: [c])]]
 		ifFalse: [
-			y := self src: nd b into: X15.
+			y := self src: nd b into: self scratchB.
 			asm sub: X17 with: y imm: 1.
 			isAdd
 				ifTrue: [asm adds: X16 with: x with: X17]
@@ -1016,8 +1070,8 @@ emitDivShift: n
 	nd := ir node: n.
 	op := nd op asInt32.
 	s := self deoptLabelFor: n.
-	asm asr: X16 with: (self src: nd a into: X14) imm: 1.
-	asm asr: X17 with: (self src: nd b into: X15) imm: 1.
+	asm asr: X16 with: (self src: nd a into: self scratchA) imm: 1.
+	asm asr: X17 with: (self src: nd b into: self scratchB) imm: 1.
 	done := asm newLabel.
 	op = O_ISHIFT ifTrue: [
 		neg := asm newLabel.
@@ -1025,66 +1079,71 @@ emitDivShift: n
 		asm comment: 'left: back again or deoptimize'.
 		asm cmp: X17 imm: 62.
 		asm b: s if: COND_HI.
-		asm lsl: X15 with: X16 with: X17.
-		asm asr: X14 with: X15 with: X17.
-		asm cmp: X14 with: X16.
+		asm lsl: self scratchB with: X16 with: X17.
+		asm asr: self scratchA with: self scratchB with: X17.
+		asm cmp: self scratchA with: X16.
 		asm b: s if: COND_NE.
 		asm b: done.
 		asm bind: neg.
 		asm neg: X17 with: X17.
-		asm mov: X14 imm: 63.
-		asm cmp: X17 with: X14.
-		asm csel: X17 with: X17 with: X14 cond: COND_LS.
-		asm asr: X15 with: X16 with: X17.
+		asm mov: self scratchA imm: 63.
+		asm cmp: X17 with: self scratchA.
+		asm csel: X17 with: X17 with: self scratchA cond: COND_LS.
+		asm asr: self scratchB with: X16 with: X17.
 		asm bind: done.
-		asm adds: X15 with: X15 with: X15.
+		asm adds: self scratchB with: self scratchB with: self scratchB.
 		asm b: s if: COND_VS.
-		asm orr: X15 with: X15 imm: 1.
-		^self def: n from: X15].
+		asm orr: self scratchB with: self scratchB imm: 1.
+		^self def: n from: self scratchB].
 	asm cbz: X17 to: s.
-	asm sdiv: X15 with: X16 with: X17.
-	asm msub: X14 with: X15 with: X17 sub: X16.
+	asm sdiv: self scratchB with: X16 with: X17.
+	asm msub: self scratchA with: self scratchB with: X17 sub: X16.
 	nd aux = 2 ifTrue: [
 		asm comment: 'exact: a remainder deoptimizes (the interpreter makes the Fraction)'.
-		asm cbnz: X14 to: s].
+		asm cbnz: self scratchA to: s].
 	nd aux >= 1 ifTrue: [asm b: done].
 	asm comment: 'floored: a remainder of the divisor''s other sign moves'.
-	asm cbz: X14 to: done.
-	asm eor: X16 with: X14 with: X17.
+	asm cbz: self scratchA to: done.
+	asm eor: X16 with: self scratchA with: X17.
 	asm tbz: X16 bit: 63 to: done.
 	op = O_IMOD
-		ifTrue: [asm add: X14 with: X14 with: X17]
-		ifFalse: [asm sub: X15 with: X15 imm: 1].
+		ifTrue: [asm add: self scratchA with: self scratchA with: X17]
+		ifFalse: [asm sub: self scratchB with: self scratchB imm: 1].
 	asm bind: done.
 	op = O_IMOD
 		ifTrue: [
-			asm add: X14 with: X14 with: X14.
-			asm orr: X15 with: X14 imm: 1]
+			asm add: self scratchA with: self scratchA with: self scratchA.
+			asm orr: self scratchB with: self scratchA imm: 1]
 		ifFalse: [
-			asm adds: X15 with: X15 with: X15.
+			asm adds: self scratchB with: self scratchB with: self scratchB.
 			asm b: s if: COND_VS.
-			asm orr: X15 with: X15 imm: 1].
-	self def: n from: X15
+			asm orr: self scratchB with: self scratchB imm: 1].
+	self def: n from: self scratchB
 !
 emitMul: n
 	| nd x y s |
 	nd := ir node: n.
 	s := self deoptLabelFor: n.
-	x := self src: nd a into: X14.
-	y := self src: nd b into: X15.
+	x := self src: nd a into: self scratchA.
+	y := self src: nd b into: self scratchB.
 	asm asr: X16 with: x imm: 1.
 	asm sub: X17 with: y imm: 1.
-	asm mul: X15 with: X16 with: X17.
-	asm smulh: X16 with: X16 with: X17.
-	asm cmp: X16 with: X15 shift: SHIFT_ASR amount: 63.
-	asm b: s if: COND_NE.
-	asm orr: X16 with: X15 imm: 1.
+	asm isX64
+		ifTrue: [
+			asm muls: self scratchB with: X16 with: X17.
+			asm b: s if: COND_VS]
+		ifFalse: [
+			asm mul: self scratchB with: X16 with: X17.
+			asm smulh: X16 with: X16 with: X17.
+			asm cmp: X16 with: self scratchB shift: SHIFT_ASR amount: 63.
+			asm b: s if: COND_NE].
+	asm orr: X16 with: self scratchB imm: 1.
 	self def: n from: X16
 !
 emitClassOf: n
 	| nd x r imm done ch |
 	nd := ir node: n.
-	x := self src: nd a into: X15.
+	x := self src: nd a into: self scratchB.
 	r := self dst: n.
 	imm := asm newLabel.
 	done := asm newLabel.
@@ -1111,8 +1170,8 @@ emitStore: n
 	| nd o v s |
 	nd := ir node: n.
 	nd state >= 0 ifTrue: [s := self deoptLabelFor: n].
-	o := self src: nd a into: X14.
-	v := self src: nd b into: X15.
+	o := self src: nd a into: self scratchA.
+	v := self src: nd b into: self scratchB.
 	nd state >= 0 ifTrue: [
 		asm comment: 'immutable: the interpreter sends attemptToAssign:withIndex:'.
 		asm ldr: X16 base: o offset: 0.
@@ -1157,21 +1216,21 @@ emitOuterTemp: n
 	"A temp of the Context lv levels out of the unit's closure: in the frame it is married to (sender: the frame's index), else in it."
 	| nd v x married done r |
 	nd := ir node: n.
-	nd op asInt32 = O_OUTERSTORE ifTrue: [v := self src: nd b into: X14].
-	x := self src: nd a into: X15.
+	nd op asInt32 = O_OUTERSTORE ifTrue: [v := self src: nd b into: self scratchA].
+	x := self src: nd a into: self scratchB.
 	asm comment: 'outer temp %d' with: nd aux2.
-	asm ldr: X15 base: x offset: (self fieldOffset: BC_OUTER).
+	asm ldr: self scratchB base: x offset: (self fieldOffset: BC_OUTER).
 	2 to: nd aux asInt32 do: [:k |
-		asm ldr: X17 base: X15 offset: (self fieldOffset: CTX_CLOSURE).
-		asm ldr: X15 base: X17 offset: (self fieldOffset: BC_OUTER)].
-	asm ldr: X17 base: X15 offset: (self fieldOffset: CTX_SENDER).
+		asm ldr: X17 base: self scratchB offset: (self fieldOffset: CTX_CLOSURE).
+		asm ldr: self scratchB base: X17 offset: (self fieldOffset: BC_OUTER)].
+	asm ldr: X17 base: self scratchB offset: (self fieldOffset: CTX_SENDER).
 	married := asm newLabel.
 	done := asm newLabel.
 	asm tbnz: X17 bit: 0 to: married.
 	nd op asInt32 = O_OUTERLOAD
 		ifTrue: [
 			r := self dst: n.
-			asm ldr: r base: X15 offset: (self fieldOffset: CTX_FIXED + nd aux2).
+			asm ldr: r base: self scratchB offset: (self fieldOffset: CTX_FIXED + nd aux2).
 			asm b: done.
 			asm bind: married.
 			asm ldr: X16 base: X22 offset: self framesOffset.
@@ -1181,8 +1240,8 @@ emitOuterTemp: n
 			asm ldr: r base: X16 offset: 8 * nd aux2.
 			asm bind: done.
 			^self def: n from: r].
-	asm str: v base: X15 offset: (self fieldOffset: CTX_FIXED + nd aux2).
-	self emitBarrier: n object: X15 value: v.
+	asm str: v base: self scratchB offset: (self fieldOffset: CTX_FIXED + nd aux2).
+	self emitBarrier: n object: self scratchB value: v.
 	asm b: done.
 	asm bind: married.
 	asm ldr: X16 base: X22 offset: self framesOffset.
@@ -1195,7 +1254,7 @@ emitOuterTemp: n
 emitReturn: n
 	| nd x s back w |
 	nd := ir node: n.
-	x := self src: nd a into: X14.
+	x := self src: nd a into: self scratchA.
 	asm comment: 'the bottom frame returns into a Context: the interpreter does it'.
 	s := self out: OUT_BOTTOM node: n index: 0.
 	asm ldr: X16 base: X22 offset: self framesOffset.
@@ -1222,8 +1281,7 @@ emitCheckInterrupt: n
 	s := self out: OUT_INTERRUPT node: n index: 0.
 	(cgOuts + (cgOutCount - 1)) resume: back.
 	asm comment: 'interrupt check'.
-	asm ldr: W16 base: X22 offset: self interruptOffset.
-	asm cbnz: W16 to: s.
+	self emitInterruptTestTo: s.
 	self emitStressAt: n label: s.
 	asm bind: back
 !
@@ -1250,7 +1308,7 @@ emitSend: n
 	self saveAcross: n.
 	asm comment: 'receiver and arguments'.
 	0 to: argc do: [:i |
-		r := self src: (ir operand: nd args + i) into: X14.
+		r := self src: (ir operand: nd args + i) into: self scratchA.
 		asm str: r base: X20 offset: 8 * (cgSlotTop + i)].
 	r := self src: (ir operand: nd args) into: X0.
 	r ~= X0 ifTrue: [asm mov: X0 with: r].
@@ -1293,8 +1351,7 @@ emitSend: n
 		slow := self out: OUT_SENT node: n index: k.
 		(cgOuts + (cgOutCount - 1)) resume: cont.
 		asm comment: 'interrupt check (an allocation sample)'.
-		asm ldr: W16 base: X22 offset: self interruptOffset.
-		asm cbnz: W16 to: slow.
+		self emitInterruptTestTo: slow.
 		asm bind: cont].
 	asm comment: 'the result (x0)'.
 	self def: n from: X0.
@@ -1317,7 +1374,9 @@ noteSite: n index: k literal: lit
 	| nd |
 	nd := ir node: n.
 	cgSiteCount >= CG_MAX_SITES ifTrue: [^asm fail: ASM_ERR_FULL].
-	cgSiteBl at: cgSiteCount put: (asm pc - cgCodeStart) asUInt32.
+	asm isX64
+		ifTrue: [cgSiteBl at: cgSiteCount put: (asm pc + 1 - cgCodeStart) asUInt32]
+		ifFalse: [cgSiteBl at: cgSiteCount put: (asm pc - cgCodeStart) asUInt32].
 	cgSiteLit at: cgSiteCount put: lit.
 	cgSiteInfo at: cgSiteCount put: ((nd aux2 bitAnd: 255) bitOr: ((nd aux2 >> 8) bitAnd: 3) << 24) asUInt32.
 	cgSiteIndex at: cgSiteCount put: k.
@@ -1362,57 +1421,57 @@ emitAllocate: n slow: slow done: done
 			(sz op asInt32 = O_CONST and: [(self isInt: sz aux asUInt64) and: [(self intVal: sz aux asUInt64) between: 0 and: 4096]])
 				ifTrue: [k := isize + (self intVal: sz aux asUInt64) asInt32]
 				ifFalse: [
-					r := self src: (ir operand: nd args + 1) into: X15.
+					r := self src: (ir operand: nd args + 1) into: self scratchB.
 					asm tbz: r bit: 0 to: slow.
-					asm asr: X15 with: r imm: 1.
-					asm cmp: X15 imm: 4096.
+					asm asr: self scratchB with: r imm: 1.
+					asm cmp: self scratchB imm: 4096.
 					asm b: slow if: COND_HI.
-					isize > 0 ifTrue: [asm add: X15 with: X15 imm: isize]]].
-	k >= 0 ifTrue: [asm mov: X15 imm: k].
+					isize > 0 ifTrue: [asm add: self scratchB with: self scratchB imm: isize]]].
+	k >= 0 ifTrue: [asm mov: self scratchB imm: k].
 	asm comment: 'header: slots, format, a hash (the VM''s generator)'.
-	fmt ~= 0 ifTrue: [asm orr: X15 with: X15 imm: fmt asUInt64 << H_FMT_SHIFT].
+	fmt ~= 0 ifTrue: [asm orr: self scratchB with: self scratchB imm: fmt asUInt64 << H_FMT_SHIFT].
 	asm ldr: X16 base: X22 offset: self hashBoxOffset.
 	asm ldr: X17 base: X16 offset: 0.
-	asm mov: X14 imm: 6364136223846793005.
-	asm mul: X17 with: X17 with: X14.
-	asm mov: X14 imm: 1442695040888963407.
-	asm add: X17 with: X17 with: X14.
+	asm mov: self scratchA imm: 6364136223846793005.
+	asm mul: X17 with: X17 with: self scratchA.
+	asm mov: self scratchA imm: 1442695040888963407.
+	asm add: X17 with: X17 with: self scratchA.
 	asm str: X17 base: X16 offset: 0.
 	asm lsr: X17 with: X17 imm: 40.
 	asm and: X17 with: X17 imm: H_HASH_MASK.
 	asm cmp: X17 imm: 0.
 	asm csinc: X17 with: X17 with: XZR cond: COND_NE.
-	asm orr: X15 with: X15 with: X17 shift: SHIFT_LSL amount: H_HASH_SHIFT.
+	asm orr: self scratchB with: self scratchB with: X17 shift: SHIFT_LSL amount: H_HASH_SHIFT.
 	asm comment: 'room in eden'.
-	asm ubfx: X14 with: X15 lsb: 0 width: 32.
-	asm lsl: X14 with: X14 imm: 3.
-	asm add: X14 with: X14 imm: 16.
+	asm ubfx: self scratchA with: self scratchB lsb: 0 width: 32.
+	asm lsl: self scratchA with: self scratchA imm: 3.
+	asm add: self scratchA with: self scratchA imm: 16.
 	asm adrp: X17 label: (asm labelAt: gc edenBoxAddress).
 	asm add: X17 with: X17 imm: (gc edenBoxAddress bitAnd: 16rFFF) asInt64.
 	asm ldr: X16 base: X17 offset: 0.
-	asm add: X14 with: X16 with: X14.
+	asm add: self scratchA with: X16 with: self scratchA.
 	asm ldr: X17 base: X17 offset: 8.
-	asm cmp: X14 with: X17.
+	asm cmp: self scratchA with: X17.
 	asm b: slow if: COND_HI.
 	asm adrp: X17 label: (asm labelAt: gc edenBoxAddress).
 	asm add: X17 with: X17 imm: (gc edenBoxAddress bitAnd: 16rFFF) asInt64.
-	asm str: X14 base: X17 offset: 0.
+	asm str: self scratchA base: X17 offset: 0.
 	self loadConstant: nd tcls into: X17.
-	asm stp: X15 with: X17 base: X16 offset: 0.
+	asm stp: self scratchB with: X17 base: X16 offset: 0.
 	asm comment: 'fields nil'.
 	(k >= 0 and: [k <= 16])
 		ifTrue: [0 to: k - 1 do: [:i | asm str: X23 base: X16 offset: 16 + (8 * i)]]
 		ifFalse: [
 			loop := asm newLabel.
 			fill := asm newLabel.
-			asm ldr: W15 base: X16 offset: 0.
-			asm add: X14 with: X16 imm: 16.
+			asm ldr: (self scratchB bitOr: REG_W) base: X16 offset: 0.
+			asm add: self scratchA with: X16 imm: 16.
 			asm b: fill.
 			asm bind: loop.
-			asm str: X23 base: X14 postIndex: 8.
-			asm sub: W15 with: W15 imm: 1.
+			asm str: X23 base: self scratchA postIndex: 8.
+			asm sub: (self scratchB bitOr: REG_W) with: (self scratchB bitOr: REG_W) imm: 1.
 			asm bind: fill.
-			asm cbnz: W15 to: loop].
+			asm cbnz: (self scratchB bitOr: REG_W) to: loop].
 	r := self dst: n.
 	asm mov: r with: X16.
 	self def: n from: r.
@@ -1610,10 +1669,10 @@ emitOuts
 			self emitFramePc: cgBcSize + (self recordSafepoint: o node kind: (ir node: o node) aux asInt32) sp: cgSlotTop.
 			cgDoubles ifTrue: [
 				asm comment: 'the doubles around it'.
-				0 to: 7 do: [:i | asm stp: D16 + (2 * i) with: D16 + (2 * i) + 1 base: SP preIndex: -16]].
+				0 to: self dregPairs - 1 do: [:i | asm stp: self dregBase + (2 * i) with: self dregBase + (2 * i) + 1 base: SP preIndex: -16]].
 			asm mov: X0 with: X19.
 			asm bl: cgInterruptLabel.
-			cgDoubles ifTrue: [7 to: 0 by: -1 do: [:i | asm ldp: D16 + (2 * i) with: D16 + (2 * i) + 1 base: SP postIndex: 16]].
+			cgDoubles ifTrue: [self dregPairs - 1 to: 0 by: -1 do: [:i | asm ldp: self dregBase + (2 * i) with: self dregBase + (2 * i) + 1 base: SP postIndex: 16]].
 			asm cbnz: X0 to: cgExitPlainLabel.
 			self emitReloadPinned.
 			self reloadAcross: o node.
@@ -1675,13 +1734,13 @@ emitBarrierCall: o
 	obj := o index bitAnd: 255.
 	v := o index >> 8.
 	0 to: 7 do: [:i | asm stp: 2 * i with: 2 * i + 1 base: SP preIndex: -16].
-	cgDoubles ifTrue: [0 to: 7 do: [:i | asm stp: D16 + (2 * i) with: D16 + (2 * i) + 1 base: SP preIndex: -16]].
+	cgDoubles ifTrue: [0 to: self dregPairs - 1 do: [:i | asm stp: self dregBase + (2 * i) with: self dregBase + (2 * i) + 1 base: SP preIndex: -16]].
 	asm mov: X16 with: obj.
 	asm mov: X17 with: v.
 	asm mov: X0 with: X16.
 	asm mov: X1 with: X17.
 	asm bl: cgBarrierLabel.
-	cgDoubles ifTrue: [7 to: 0 by: -1 do: [:i | asm ldp: D16 + (2 * i) with: D16 + (2 * i) + 1 base: SP postIndex: 16]].
+	cgDoubles ifTrue: [self dregPairs - 1 to: 0 by: -1 do: [:i | asm ldp: self dregBase + (2 * i) with: self dregBase + (2 * i) + 1 base: SP postIndex: 16]].
 	7 to: 0 by: -1 do: [:i | asm ldp: 2 * i with: 2 * i + 1 base: SP postIndex: 16].
 	asm b: o resume
 ! !

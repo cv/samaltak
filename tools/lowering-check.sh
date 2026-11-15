@@ -1,0 +1,33 @@
+#!/bin/sh
+# Amd64Assembler against arm64: random programs of the code generators' instructions (Tests-VM/AsmLoweringFuzz),
+# built for x86-64 (run here) and for arm64 (run under qemu-aarch64), must leave the same registers and memory.
+# usage: tools/lowering-check.sh IMAGE [seed [count [length]]]   (needs aarch64-linux-gnu-gcc and qemu-aarch64)
+set -u
+cd "$(dirname "$0")/.."
+IMAGE=$1
+SEED=${2:-1}
+COUNT=${3:-2000}
+LEN=${4:-12}
+VM=${VM:-vm/build/samaltak}
+DIR=$(mktemp -d)
+trap 'rm -rf "$DIR"' EXIT
+$VM "$IMAGE" --headless --eval "[(VMTranslator modules: {AsmLoweringFuzz. Arm64Assembler. Amd64Assembler. CodeCache. DarwinJitPlatform. LinuxJitPlatform} header: 'fuzz') writeTo: '$DIR'. 'ok'] on: Error do: [:e | e messageText]" >"$DIR/translate.out" 2>&1
+grep -q "^'ok'$" "$DIR/translate.out" || { echo "lowering-check: translation failed"; cat "$DIR/translate.out"; exit 1; }
+cc -std=gnu11 -O1 -w -fsigned-char -o "$DIR/x86" "$DIR"/*.c || exit 1
+aarch64-linux-gnu-gcc -std=gnu11 -O1 -w -static -fsigned-char -o "$DIR/arm64" "$DIR"/*.c || exit 1
+"$DIR/x86" "$SEED" "$COUNT" "$LEN" >"$DIR/x86.out" || { echo "lowering-check: x86 run failed ($?)"; tail -3 "$DIR/x86.out"; exit 1; }
+qemu-aarch64 "$DIR/arm64" "$SEED" "$COUNT" "$LEN" >"$DIR/arm64.out" || { echo "lowering-check: arm64 run failed"; exit 1; }
+# programs either side skipped do not count
+awk 'NR==FNR { if ($2 == "skip") skip[$1] = 1; next } { if ($2 == "skip") skip[$1] = 1 } END { for (p in skip) print p }' "$DIR/x86.out" "$DIR/arm64.out" >"$DIR/skips"
+grep -v -w -F -f "$DIR/skips" "$DIR/x86.out" | grep '^p' >"$DIR/x86.cmp"
+grep -v -w -F -f "$DIR/skips" "$DIR/arm64.out" | grep '^p' >"$DIR/arm64.cmp"
+n=$(wc -l <"$DIR/x86.cmp")
+s=$(wc -l <"$DIR/skips")
+if cmp -s "$DIR/x86.cmp" "$DIR/arm64.cmp"; then
+  echo "lowering-check: $n programs the same on x86-64 and arm64 ($s skipped)"
+else
+  echo "lowering-check: FAILED: x86-64 and arm64 differ ($n programs, $s skipped):"
+  diff "$DIR/arm64.cmp" "$DIR/x86.cmp" | head -${DIFFLINES:-10}
+  [ -n "${KEEP:-}" ] && cp -r "$DIR" "$KEEP"
+  exit 1
+fi

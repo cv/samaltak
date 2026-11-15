@@ -4,6 +4,8 @@
 set -u
 ROOT=$(cd "$(dirname "$0")/../../.." && pwd)
 DIR=$ROOT/vm/tests/bench/awfy
+# unbuffered tr: BSD's -u; GNU tr has none (stdbuf where there is one)
+if tr -u x x </dev/null >/dev/null 2>&1; then TR="tr -u"; elif command -v stdbuf >/dev/null; then TR="stdbuf -o0 tr"; else TR=tr; fi
 
 AWFY="Bounce CD DeltaBlue Havlak Json List Mandelbrot NBody Permute Queens Richards Sieve Storage Towers"
 MICRO="MicroFib MicroLoop MicroFloats MicroSends MicroBlocks MicroDict MicroStrings MicroAlloc MicroFactorial"
@@ -168,7 +170,7 @@ for spec in "$@"; do
         [ -n "$GO" ] && run="(FileStream forceNewFileNamed: '$GO.ready') close. [File exists: '$GO'] whileFalse: [(Delay forMilliseconds: 2) wait]. $run"
         expr="[#('Samaltak' $files) do: [:n | Compiler fileIn: '$DIR/', n, '.st']. $run. ''] on: Error do: [:e | 'ERROR ', e class name, ': ', e messageText]"
         "$VM" $VMARGS "$IMAGE" --headless --eval "$expr" 2>&1
-    fi | tee "$LOG" | tr -u '\r' '\n' | grep --line-buffered -E '^[A-Za-z0-9]+,[0-9]+,-?[0-9]+$|^# ' | tee -a "$ALL" | show
+    fi | tee "$LOG" | $TR '\r' '\n' | grep --line-buffered -E '^[A-Za-z0-9]+,[0-9]+,-?[0-9]+$|^# ' | tee -a "$ALL" | show
     if grep -q "ERROR" "$LOG" || ! grep -q "^$b,$N," "$LOG"; then
         echo "# FAILED $b" | tee -a "$ALL" | show
         grep -v -E '^[A-Za-z0-9]+,[0-9]+,-?[0-9]+$|^# ' "$LOG" | head -20 >&2

@@ -169,9 +169,11 @@ testUnboxedTempChangedInASlowPath
 	self assert: ([self subject unboxed: w] on: MessageNotUnderstood do: [:e | e return: #dnu]) equals: #dnu
 !
 testLoopTempsInRegisters
-	"An innermost loop that sends nothing keeps its most used temps in registers: k is not reloaded from its slot on every turn."
+	"An innermost loop that sends nothing keeps its most used temps in registers (on arm64): k is not reloaded from its slot on every turn."
 	self define: 'sieve: flags size: n | count k | count := 0. 2 to: n do: [:i | (flags at: i) ifTrue: [count := count + 1. k := i + i. [k <= n] whileTrue: [flags at: k put: false. k := k + i]]]. ^count'.
 	self assert: (self subject sieve: (Array new: 1000 withAll: true) size: 1000) equals: 168.
+	"x86 has no registers to spare for them (Amd64Assembler: x26-x28 are words in memory)"
+	Smalltalk vm jitArchitecture = #x86_64 ifTrue: [^self].
 	self assert: (((JitBaselineTestSubject >> #sieve:size:) machineCodeFor: #baseline) includesSubstring: 'its loop register')
 !
 testLoopTempChangedInASlowPath

@@ -30,6 +30,14 @@ targetOS
 	"The operating system I am compiled for: nil (every one), #darwin or #linux. One implementation of an interface per OS: the build compiles the one for its OS (vm/gen/sources.mk), the C file and my prototypes are guarded by the OS's predefined macro."
 	^nil
 !
+targetArch
+	"The CPU I am compiled for: nil (every one), #arm64 or #x86_64 (VMTranslator class>>targetArchs). The build compiles the modules of its CPU (vm/gen/sources.mk); a module for every CPU reaches one for a CPU through an arch interface (isArchInterface)."
+	^nil
+!
+isArchInterface
+	"Whether I am the abstract class of modules for one CPU each (targetArch): a connection typed with me is, in the translation for a CPU, the subclass for that CPU (its inline methods expand there), so a module that uses me is translated once per CPU (VMTranslator, TArchMerge)."
+	^false
+!
 isSimulated
 	"Whether a simulation may run me. Where several modules implement an interface, a simulation connects one that is simulated."
 	^true

@@ -1,6 +1,6 @@
 JitCompiler subclass: #JitBaselineCompiler
 	instanceVariableNames: 'codeStart pcLabels pcMerge ssKind ssVal ssReg ssInSlot ssTop ssBase regOwner selfValid curArgs curTemps curFrameSize regionEnds regionArgs regionTemps regionSizes regionCount slKind slPc slDepth slLabel slCont slTarget slA slB slC slR slX slY slInfo slCount siteBl siteLit siteInfo sitePc siteDepth siteCount retOff retPc retDepth retInfo retCount poolLabels blockPcs blockLabels blockCount headerLabel missLabel blockLabel megaLabel performLabel exitSyncLabel exitPlainLabel interruptLabel closureLabel makeArrayLabel entrySlowLabel primLabel rememberLabel returnSlowLabel boxLabel fusedTarget uentryOffset dead curPc dregRefs tempD slDA slDB slSavedStart slSavedCount saved savedCount loopActive loopEnd loopId loopTable slLoop plainEntry tierUpLabel counterAddr curMethod'
-	classVariableNames: 'BL_MAX_BLOCKS BL_MAX_REGIONS BL_MAX_RETS BL_MAX_SITES BL_MAX_SLOW BL_UENTRY SL_ACCESS SL_BARRIER SL_CLASS SL_ENTRY_IMM SL_ENTRY_SLOW SL_FLOAT SL_FUSED SL_INTERRUPT SL_MUSTBEBOOLEAN SL_RESUME SL_RETURN SL_SEND SL_START SL_TIERUP SL_BOX SL_DOUBLES BL_MAX_SAVED BL_MAX_LOOPS SS_DREG SS_CONST SS_LIT SS_MAX SS_PINNED SS_REG SS_SELF SS_SLOT SS_TEMP'
+	classVariableNames: 'BL_MAX_BLOCKS BL_MAX_REGIONS BL_MAX_RETS BL_MAX_SITES BL_MAX_SLOW BL_PIC_CASE_X64 BL_PIC_HEAD_X64 BL_PIC_JMP_X64 BL_UENTRY SL_ACCESS SL_BARRIER SL_CLASS SL_ENTRY_IMM SL_ENTRY_SLOW SL_FLOAT SL_FUSED SL_INTERRUPT SL_MUSTBEBOOLEAN SL_RESUME SL_RETURN SL_SEND SL_START SL_TIERUP SL_BOX SL_DOUBLES BL_MAX_SAVED BL_MAX_LOOPS SS_DREG SS_CONST SS_LIT SS_MAX SS_PINNED SS_REG SS_SELF SS_SLOT SS_TEMP'
 	package: 'VM-Jit'!
 
 JitBaselineCompiler comment: 'The baseline compiler (--jit baseline), after Cog''s StackToRegisterMappingCogit: one pass over the bytecodes with a simulated operand stack (ssKind: in its slot, in a register, a constant, nil/true/false, self, a temp or a literal not loaded yet), so values go from producer to consumer in registers (x0-x8, x12-x15) and constants become immediates; the stack is written to its slots only at sends, calls into the runtime and merge points (jump targets, which start with everything in its slot). Before an instruction that may send or call the runtime everything below its operands is written back (as Cog), so its slow path only stores the operands.
@@ -41,6 +41,10 @@ initialize
 	BL_MAX_BLOCKS := 1024.
 	"the unchecked entry follows the checked one: tst, b.ne, ldr, cmp, b.ne"
 	BL_UENTRY := 20.
+	"x86 PICs: test, jnz, mov before the cases; each case cmp (7 bytes), jne rel8, jmp rel32 (its displacement 10 bytes in)"
+	BL_PIC_HEAD_X64 := 14.
+	BL_PIC_CASE_X64 := 14.
+	BL_PIC_JMP_X64 := 10.
 	"simulated stack entries"
 	SS_SLOT := 0.
 	SS_REG := 1.
@@ -272,6 +276,8 @@ beginLoopAt: head
 	"An innermost loop from head that makes no closures, Arrays or thisContext, entered only by falling in and by its back jumps: its most used temps (up to 3, each used more often than the loop sends) live in x26-x28 too, stored through to their slots. Loaded here, on the way in, and again after every call out of the loop (sends, slow paths: the callee and the collector change them)."
 	<function>
 	| end n p op t k best bestCount c sends |
+	"x86: x26-x28 have no x86 registers (Amd64Assembler)"
+	asm isX64 ifTrue: [^self].
 	"a jump threaded into the loop's head would skip the loads below"
 	(pcMerge at: head) = 1 ifTrue: [^self].
 	n := analysis size.
@@ -474,7 +480,10 @@ ssPop: n
 	ssBase > ssTop ifTrue: [ssBase := ssTop]
 !
 isPoolReg: r
-	^(r >= 0 and: [r <= 8]) or: [r >= 12 and: [r <= 15]]
+	"x0-x8, x12-x15; on x86 x0-x5 (the others have no x86 register: Amd64Assembler)"
+	^asm isX64
+		ifTrue: [r >= 0 and: [r <= 5]]
+		ifFalse: [(r >= 0 and: [r <= 8]) or: [r >= 12 and: [r <= 15]]]
 !
 freeReg: r
 	r >= 0 ifTrue: [(self isPoolReg: r) ifTrue: [regOwner at: r put: -1]]
@@ -694,7 +703,9 @@ loadLiteral: i into: r
 emitLiterals
 	"The pool: the method's literals, then the inline caches' classes; the JitMethod header follows (8-aligned)."
 	<function>
-	(asm pc bitAnd: 7) ~= 0 ifTrue: [asm nop].
+	asm isX64
+		ifTrue: [asm alignTo: 8]
+		ifFalse: [(asm pc bitAnd: 7) ~= 0 ifTrue: [asm nop]].
 	0 to: 255 do: [:i | (poolLabels at: i) >= 0 ifTrue: [
 		asm comment: 'literal %d' with: i.
 		asm bind: (poolLabels at: i).
@@ -770,8 +781,11 @@ emitMethodEntry
 	asm tst: X0 imm: 7.
 	asm b: imm if: COND_NE.
 	asm comment: 'an object: its class word'.
-	asm ldr: X16 base: X0 offset: 8.
-	asm cmp: X16 with: X9.
+	asm isX64
+		ifTrue: [asm cmp: X9 withWordAt: X0 offset: 8]
+		ifFalse: [
+			asm ldr: X16 base: X0 offset: 8.
+			asm cmp: X16 with: X9].
 	s := self slow: SL_ENTRY_IMM pc: 0 depth: 0.
 	s < 0 ifTrue: [^false].
 	slLabel at: s put: imm.
@@ -779,7 +793,7 @@ emitMethodEntry
 	slTarget at: s put: asm newLabel.
 	asm comment: 'not the cached class: the miss handler relinks'.
 	asm b: (slTarget at: s) if: COND_NE.
-	asm pc - codeStart = BL_UENTRY ifFalse: [^false].
+	asm isX64 ifFalse: [asm pc - codeStart = BL_UENTRY ifFalse: [^false]].
 	uentryOffset := (asm pc - codeStart) asInt32.
 	asm bind: uentry.
 	asm comment: 'unchecked entry (polymorphic caches, the megamorphic stub, super sends)'.
@@ -808,8 +822,11 @@ emitStackCheck: pc
 	check := asm newLabel.
 	asm bind: check.
 	asm comment: 'stack check (the limit is 0 while an interrupt is pending)'.
-	asm ldr: X16 base: X22 offset: self stackLimitOffset.
-	asm cmp: X20 with: X16.
+	asm isX64
+		ifTrue: [asm cmp: X20 withStateWordAt: self stackLimitOffset]
+		ifFalse: [
+			asm ldr: X16 base: X22 offset: self stackLimitOffset.
+			asm cmp: X20 with: X16].
 	s := self slow: SL_ENTRY_SLOW pc: pc depth: 0.
 	s < 0 ifTrue: [^false].
 	slCont at: s put: check.
@@ -820,6 +837,7 @@ emitFrameFor: isBlock args: na temps: nt
 	"Push the Frame and the native frame record: x0 the receiver (a block: the closure), x20 the fp."
 	<function>
 	| i |
+	asm isX64 ifTrue: [^self emitFrameForX64: isBlock args: na temps: nt].
 	asm comment: 'native frame record (x29, x30; x29 stays the C frame of jit_enter)'.
 	asm stp: X29 with: X30 base: SP preIndex: -16.
 	asm comment: 'x19 := our Frame: code (the header after the code; the runtime sets method from it), closure, ctx nil, fp, pc and sp 0 (lazy: derived from return addresses)'.
@@ -849,6 +867,30 @@ emitFrameFor: isBlock args: na temps: nt
 			ifFalse: [
 				asm str: X23 base: X20 offset: (self slot: i).
 				i := i + 1]]
+!
+emitFrameForX64: isBlock args: na temps: nt
+	"x86: the call pushed the native frame record (the return address); nil is a word of the JitState, loaded into x16 once."
+	<arch: #x86_64>
+	asm comment: 'native frame record: the return address the call pushed; x19 := our Frame: code (the header after the code; the runtime sets method from it), closure, ctx nil, fp, pc and sp 0 (lazy: derived from return addresses)'.
+	asm add: X19 with: X19 imm: self frameBytes.
+	asm adr: X17 label: headerLabel.
+	asm str: X17 base: X19 offset: self codeOffset.
+	asm ldr: X16 base: X22 offset: self nilOffset.
+	asm str: (isBlock ifTrue: [X0] ifFalse: [X16]) base: X19 offset: self closureOffset.
+	asm str: X16 base: X19 offset: self ctxOffset.
+	asm str: X20 base: X19 offset: self fpOffset.
+	asm str: XZR base: X19 offset: self pcOffset.
+	isBlock
+		ifTrue: [
+			asm comment: 'the receiver: the outer context''s, into the closure''s slot'.
+			asm ldr: X17 base: X0 offset: (self fieldOffset: BC_OUTER).
+			asm ldr: X21 base: X17 offset: (self fieldOffset: CTX_RECEIVER).
+			asm stur: X21 base: X20 offset: -8]
+		ifFalse: [
+			asm comment: 'x21 := the receiver'.
+			asm mov: X21 with: X0].
+	nt > 0 ifTrue: [asm comment: 'temps := nil'].
+	na to: na + nt - 1 do: [:i | asm str: X16 base: X20 offset: (self slot: i)]
 !
 emitBlockEntry: pc
 	"The block whose body starts at pc (after its 0x8F): entered from the block stub with x0 the closure and x20 the fp (args in place)."
@@ -887,8 +929,13 @@ emitQuickMethod
 	(self isQuickMethod) ifFalse: [^self].
 	framed := asm newLabel.
 	asm comment: 'quick method: an interrupt pending (stack limit 0)? then with a frame'.
-	asm ldr: X16 base: X22 offset: self stackLimitOffset.
-	asm cbz: X16 to: framed.
+	asm isX64
+		ifTrue: [
+			asm cmpStateWordAt: self stackLimitOffset imm: 0.
+			asm b: framed if: COND_EQ]
+		ifFalse: [
+			asm ldr: X16 base: X22 offset: self stackLimitOffset.
+			asm cbz: X16 to: framed].
 	self emitQuickBody.
 	asm bind: framed
 !
@@ -1019,8 +1066,11 @@ emitPerformPrimitive
 		asm b: slow if: COND_NE.
 		asm comment: 'its unchecked entry and argument count (-1: a perform method); room for its frame'.
 		asm ldp: X16 with: X17 base: X11 offset: 16.
-		asm ldr: X12 base: X22 offset: self stackLimitNormalOffset.
-		asm cmp: X20 with: X12.
+		asm isX64
+			ifTrue: [asm cmp: X20 withStateWordAt: self stackLimitNormalOffset]
+			ifFalse: [
+				asm ldr: X12 base: X22 offset: self stackLimitNormalOffset.
+				asm cmp: X20 with: X12].
 		asm b: slow if: COND_HS.
 		withArgs
 			ifTrue: [
@@ -1086,10 +1136,15 @@ emitIntPrimitive: op fail: fail
 	op = 2 ifTrue: [
 		asm asr: X16 with: X0 imm: 1.
 		asm sub: X17 with: X1 imm: 1.
-		asm mul: X9 with: X16 with: X17.
-		asm smulh: X10 with: X16 with: X17.
-		asm cmp: X10 with: X9 shift: SHIFT_ASR amount: 63.
-		asm b: fail if: COND_NE.
+		asm isX64
+			ifTrue: [
+				asm muls: X9 with: X16 with: X17.
+				asm b: fail if: COND_VS]
+			ifFalse: [
+				asm mul: X9 with: X16 with: X17.
+				asm smulh: X10 with: X16 with: X17.
+				asm cmp: X10 with: X9 shift: SHIFT_ASR amount: 63.
+				asm b: fail if: COND_NE].
 		asm orr: X0 with: X9 imm: 1].
 	op = 4 ifTrue: [asm and: X0 with: X0 with: X1].
 	op = 5 ifTrue: [asm orr: X0 with: X0 with: X1].
@@ -1864,7 +1919,9 @@ emitSiteCall: pc info: info receiver: ri
 	asm comment: 'x9 := inline cache %d''s class' with: site.
 	asm ldr: X9 label: (siteLit at: site).
 	asm comment: 'call the inline cache''s target (the miss stub while unlinked)'.
-	siteBl at: site put: (asm pc - codeStart) asUInt32.
+	asm isX64
+		ifTrue: [siteBl at: site put: (asm pc + 1 - codeStart) asUInt32]
+		ifFalse: [siteBl at: site put: (asm pc - codeStart) asUInt32].
 	asm bl: missLabel.
 	self noteRet: pc depth: (analysis depthAt: pc) info: info.
 	asm comment: 'back: x0 the result, x20 our fp again'.
@@ -1937,8 +1994,11 @@ headCheck: h
 	s < 0 ifTrue: [^asm fail: ASM_ERR_LABEL].
 	slCont at: s put: (self labelFor: h).
 	asm comment: 'loop head: interrupt check'.
-	asm ldr: W16 base: X22 offset: self interruptOffset.
-	asm cbnz: W16 to: (slLabel at: s)
+	asm isX64
+		ifTrue: [self emitInterruptTestTo: (slLabel at: s)]
+		ifFalse: [
+			asm ldr: W16 base: X22 offset: self interruptOffset.
+			asm cbnz: W16 to: (slLabel at: s)]
 !
 backJump: t
 	"A backward jump to the loop head t (which checks for interrupts), counting down toward optimization first (--jit opt); answer its label."
@@ -2640,10 +2700,15 @@ arith: k pc: pc pushes: pushes
 		asm comment: '*: a 128-bit product that does not fit goes to the slow path'.
 		asm asr: X16 with: ra imm: 1.
 		asm sub: X17 with: rb imm: 1.
-		asm mul: rr with: X16 with: X17.
-		asm smulh: X9 with: X16 with: X17.
-		asm cmp: X9 with: rr shift: SHIFT_ASR amount: 63.
-		asm b: (slLabel at: s) if: COND_NE.
+		asm isX64
+			ifTrue: [
+				asm muls: rr with: X16 with: X17.
+				asm b: (slLabel at: s) if: COND_VS]
+			ifFalse: [
+				asm mul: rr with: X16 with: X17.
+				asm smulh: X9 with: X16 with: X17.
+				asm cmp: X9 with: rr shift: SHIFT_ASR amount: 63.
+				asm b: (slLabel at: s) if: COND_NE].
 		asm orr: rr with: rr imm: 1].
 	(k = 10 or: [k = 13]) ifTrue: [self emitDivision: k a: ra b: rb into: rr slow: (slLabel at: s)].
 	k = 12 ifTrue: [self emitShift: ra by: rb constant: c immediate: imm into: rr slow: (slLabel at: s)].
@@ -3004,8 +3069,7 @@ emitStart: i
 		asm str: XZR base: X19 offset: self pcOffset].
 	intr := asm newLabel.
 	asm comment: 'resumption at the start: interrupt check'.
-	asm ldr: W16 base: X22 offset: self interruptOffset.
-	asm cbnz: W16 to: intr.
+	self emitInterruptTestTo: intr.
 	(self emitTierUp: (slPc at: i) depth: (slDepth at: i) loop: 0) ifFalse: [^asm fail: ASM_ERR_LABEL].
 	asm b: (slCont at: i).
 	asm bind: intr.
@@ -3407,16 +3471,20 @@ picCodeOffset
 	^self sizeof: 'BaselinePic'
 !
 picBytes
-	^(self sizeof: 'BaselinePic') + 128
+	"Its header and code (on x86: 14 bytes a case, 6 cases, the rest, and the assembler's 8 bytes of slack)."
+	^(self sizeof: 'BaselinePic') + (asm isX64 ifTrue: [192] ifFalse: [128])
 !
 picBranchOffset: i
-	"The b of case i (patched to its target's unchecked entry)."
-	^self picCodeOffset + 12 + (16 * i) + 12
+	"The b of case i (patched to its target's unchecked entry); on x86 its jmp's displacement."
+	^asm isX64
+		ifTrue: [self picCodeOffset + BL_PIC_HEAD_X64 + (BL_PIC_CASE_X64 * i) + BL_PIC_JMP_X64]
+		ifFalse: [self picCodeOffset + 12 + (16 * i) + 12]
 !
 emitPicAt: pic
 	"The code of the polymorphic inline cache whose header is at pic: up to brt picCases classes compared, each branching to its target (the miss stub until set); no match: the miss stub. The caller enabled writing."
 	<function>
 	| code imm cmp next p miss |
+	asm isX64 ifTrue: [^self emitPicX64At: pic].
 	code := pic + self picCodeOffset.
 	asm beginAt: code limit: pic + self picBytes.
 	asm recordNotes: false.
@@ -3441,6 +3509,32 @@ emitPicAt: pic
 	asm ldr: X16 base: X17 index: X16 extend: EXT_LSL shift: 3.
 	asm b: cmp.
 	^asm finish = ASM_OK
+!
+emitPicX64At: pic
+	"x86: as emitPicAt:, each case cmp r10, [classes + 8i] (rip-relative), jne over, jmp to its target: fixed lengths, so that picBranchOffset: finds the jmps."
+	<arch: #x86_64>
+	| code imm cmp p miss head |
+	code := pic + self picCodeOffset.
+	asm beginAt: code limit: pic + self picBytes.
+	asm recordNotes: false.
+	p := self cCoerce: pic to: 'BaselinePic *'.
+	miss := asm labelAt: stubs blMissStub.
+	imm := asm newLabel.
+	cmp := asm newLabel.
+	asm tst: X0 imm: 7.
+	asm b: imm if: COND_NE.
+	asm ldr: X16 base: X0 offset: 8.
+	asm bind: cmp.
+	head := asm pc - code.
+	0 to: brt picCases - 1 do: [:i |
+		asm picCaseX64: X16 classAt: (self cCoerce: (p fieldAddress: #classes) to: 'uint64_t') + (8 * i) target: miss].
+	asm b: miss.
+	asm bind: imm.
+	asm and: X16 with: X0 imm: 7.
+	asm add: X17 with: X22 imm: self tagClassesOffset.
+	asm ldr: X16 base: X17 index: X16 extend: EXT_LSL shift: 3.
+	asm b: cmp.
+	^asm finish = ASM_OK and: [head = BL_PIC_HEAD_X64]
 !
 patchBranchAt: site to: target
 	"A b or bl at site now goes to target (the caller enabled writing)."

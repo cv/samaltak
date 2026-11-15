@@ -17,7 +17,7 @@ Also: block:closure:ret: (the block stub''s miss), entrySlow:ret:callee: (a call
 
 !JitBaselineRuntime class methodsFor: 'declaring'!
 declarations
-	^#((compiler JitBaselineCompiler) (stubs JitStubs) (cache CodeCache) (asm Arm64Assembler) (analysis BytecodeAnalysis) (feedback JitFeedback)
+	^#((compiler JitBaselineCompiler) (stubs JitStubs) (cache CodeCache) (asm JitAssembler) (analysis BytecodeAnalysis) (feedback JitFeedback)
 		(oopSlots 'uint64_t[BL_MAX_OOP_SLOTS]') (oopSlotCount int64_t) (youngSlots 'uint64_t[BL_MAX_YOUNG_SLOTS]') (youngSlotCount int64_t) (youngSlotsOverflow bool)
 		(megaTable 'uint64_t[BL_MEGA_WORDS]') (blockTable 'uint64_t[BL_BLOCK_WORDS]')
 		(primKinds 'uint8_t[1024]') (primOps 'uint8_t[1024]') (primKindsReady bool) (nilScanned bool) (nilInline bool) (nilFound int32_t)
@@ -373,8 +373,14 @@ canonicalizeBelow: f
 	g := f - 1.
 	statWalks := statWalks + 1.
 	[g >= base] whileTrue: [
-		rec := jit state baseRecord - (16 * ((g + 1) - base)) asUInt64.
-		ret := self uint64At: rec + 8.
+		asm isX64
+			ifTrue: [
+				"x86: the record is the return address call pushed"
+				rec := jit state baseRecord - (8 * ((g + 1) - base)) asUInt64.
+				ret := self uint64At: rec]
+			ifFalse: [
+				rec := jit state baseRecord - (16 * ((g + 1) - base)) asUInt64.
+				ret := self uint64At: rec + 8].
 		e := self retEntry: ret of: g.
 		h := self cCoerce: g code to: 'JitMethod *'.
 		h mode = jit optMode
@@ -472,6 +478,9 @@ redirect: h to: o
 	(o ~= h and: [o blockStart ~= 0 or: [o osrPc ~= 0]]) ifTrue: [^self].
 	a := h uentry.
 	cache beginWriting.
+	asm isX64 ifTrue: [
+		self redirectX64: h at: a to: o.
+		^cache endWriting].
 	o = h
 		ifTrue: [
 			h entryWord ~= 0 ifTrue: [
@@ -482,6 +491,21 @@ redirect: h to: o
 			self uint32At: a put: (16r14000000 bitOr: ((o codeStart asInt64 - a asInt64) >> 2 bitAnd: 16r3FFFFFF)) asUInt32].
 	cache invalidate: a size: 4.
 	cache endWriting
+!
+redirectX64: h at: a to: o
+	"x86: a jmp rel32 over the first 5 bytes of the unchecked entry, whose first instruction is the stack check's cmp rbx, [rip + limit] (16r48, then the 4 bytes entryWord saves)."
+	<arch: #x86_64>
+	o = h
+		ifTrue: [
+			h entryWord ~= 0 ifTrue: [
+				self uint32At: a + 1 put: h entryWord.
+				self uint8At: a put: 16r48.
+				h entryWord: 0]]
+		ifFalse: [
+			h entryWord = 0 ifTrue: [h entryWord: (self uint32At: a + 1)].
+			self uint32At: a + 1 put: (o codeStart asInt64 - (a + 5) asInt64) asUInt32.
+			self uint8At: a put: 16rE9].
+	cache invalidate: a size: 5
 !
 link: s in: h class: cls selector: sel target: t super: isSuper
 	"Link site s for cls: unlinked -> monomorphic -> polymorphic -> megamorphic."

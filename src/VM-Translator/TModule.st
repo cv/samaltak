@@ -18,8 +18,9 @@ setClass: aModuleClass translator: aTranslator
 	moduleClass == VMModule ifFalse: [self declareGlobalsIn: aTranslator].
 	functions := Dictionary new.
 	moduleClass selectors do: [:sel |
-		(moduleClass ~~ VMModule or: [((moduleClass compiledMethodAt: sel) pragmas ifNil: [#()]) anySatisfy: [:p | p selector == #intrinsic]])
-			ifTrue: [functions at: sel put: (TFunction module: self selector: sel translator: aTranslator)]]
+		((moduleClass ~~ VMModule or: [((moduleClass compiledMethodAt: sel) pragmas ifNil: [#()]) anySatisfy: [:p | p selector == #intrinsic]])
+			and: [aTranslator includesMethod: (moduleClass compiledMethodAt: sel)])
+				ifTrue: [functions at: sel put: (TFunction module: self selector: sel translator: aTranslator)]]
 !
 declareGlobalsIn: aTranslator
 	"My declarations and the module connections my abstract superclasses declare."
@@ -96,7 +97,7 @@ setModule: aTModule declaration: anArray translator: aTranslator
 	usedOutside := false.
 	ref := Smalltalk at: typeName asSymbol ifAbsent: [nil].
 	(ref isBehavior and: [(ref inheritsFrom: VMModule) or: [ref inheritsFrom: CLibrary]])
-		ifTrue: [referencedModule := ref. ^self].
+		ifTrue: [referencedModule := aTranslator implementationOf: ref. ^self].
 	cName := LowtalkNames snake: name.
 	type := aTranslator registry parse: typeName
 ! !
@@ -118,7 +119,7 @@ initialValue
 	^initialValue
 !
 referencedModule
-	"The VMModule or CLibrary subclass I connect to, or nil."
+	"The VMModule or CLibrary subclass I connect to (for an arch interface, its subclass for the CPU translated for), or nil."
 	^referencedModule
 !
 isModuleReference

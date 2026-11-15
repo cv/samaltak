@@ -73,6 +73,30 @@ The micro suite (`--suite micro`: the first table's benchmarks as AWFY benchmark
 
 `opt` takes 0.33 of Pharo 12's time on AWFY (first iterations 0.43), `baseline` 0.64; on the micro suite 0.30 and 0.49. Both win every benchmark. `baseline` comes closest on NBody (0.93: Float arithmetic out of line, accessors sent), MicroBlocks (0.95) and MicroSends (0.97): a block call or a send per turn, the code Cog makes for them; `opt`'s first iteration on DeltaBlue (0.86), most of it compiling.
 
+### x86-64
+
+The same benchmarks on Linux x86-64: an AMD EPYC 7B13 (Zen 3) cloud VM with 2 vCPUs, the VM built with gcc -O2 (no profile); CPU time (`--cpu`), steady state as above, one invocation per mode, `none` 10 iterations, `baseline` and `opt` 30 (`vm/tests/bench/results/samaltak-x86-{none,baseline,opt}-2026-11-14.csv`), beside arm64's ratios from the table above (M2 Max):
+
+| benchmark | `none` | `baseline` | `opt` | `baseline` / `none` | `opt` / `none` | arm64 `baseline` / `none` | arm64 `opt` / `none` |
+|---|---|---|---|---|---|---|---|
+| Bounce | 309.9 | 42.3 | 14.4 | 0.14 | 0.05 | 0.19 | 0.09 |
+| CD | 728.1 | 178.3 | 97.8 | 0.24 | 0.13 | 0.26 | 0.14 |
+| DeltaBlue | 323.5 | 58.6 | 22.6 | 0.18 | 0.07 | 0.27 | 0.13 |
+| Havlak | 1310.4 | 414.6 | 128.3 | 0.32 | 0.10 | 0.26 | 0.10 |
+| Json | 171.3 | 70.3 | 20.5 | 0.41 | 0.12 | 0.37 | 0.09 |
+| List | 248.7 | 32.8 | 17.4 | 0.13 | 0.07 | 0.15 | 0.10 |
+| Mandelbrot | 745.9 | 199.6 | 146.5 | 0.27 | 0.20 | 0.39 | 0.22 |
+| NBody | 1601.7 | 503.7 | 223.7 | 0.31 | 0.14 | 0.43 | 0.19 |
+| Permute | 198.6 | 34.3 | 22.7 | 0.17 | 0.11 | 0.19 | 0.12 |
+| Queens | 199.0 | 35.7 | 17.8 | 0.18 | 0.09 | 0.17 | 0.11 |
+| Richards | 169.2 | 35.3 | 18.5 | 0.21 | 0.11 | 0.17 | 0.09 |
+| Sieve | 236.7 | 46.2 | 33.9 | 0.20 | 0.14 | 0.33 | 0.17 |
+| Storage | 213.1 | 54.3 | 31.9 | 0.25 | 0.15 | 0.31 | 0.21 |
+| Towers | 149.0 | 22.9 | 13.1 | 0.15 | 0.09 | 0.15 | 0.09 |
+| geometric mean | | | | 0.21 | 0.11 | 0.24 | 0.13 |
+
+Over its interpreter each JIT gains as much on x86-64 as on arm64; this machine runs the interpreter 1.9× slower than the M2 Max. Compiling (the runs' counters): `baseline` 10.1 µs a method, 0.45 µs per bytecode byte; `opt` 0.78 ms a unit, 8.6 KB of code (the M2 Max: 4.3 µs, 0.20 µs, 0.34 ms, 6.1 KB). x86-64's code is about a third bigger than arm64's: two-operand instructions take a `mov` more, branches to out-of-line paths 6 bytes, nil, true and false a pc-relative word, 64-bit constants 10 bytes.
+
 ## Real-world workloads
 
 AWFY brings its own collections (`Vector`, `SomDictionary`, `SomSet` in `awfy/Core.st`), so it measures the compiler and VM, not the class library, its primitives or the GC at scale. These 16 workloads (`awfy/RealWorld.st`, `--suite realworld`, not part of `all`) are written once against each system's own class library; Pharo 12 runs the same source. Each answers a checksum that `verifyResult:` compares with one constant for both systems; at small sizes all 16 also answer the same on both. Sizes give 0.45–1 s per iteration on Pharo 12; an invocation takes 3 minutes under `opt`, 3.5 under `baseline`, 6 on Pharo.

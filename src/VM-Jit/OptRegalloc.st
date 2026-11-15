@@ -28,7 +28,8 @@ slotCount
 	^raSlotTop
 !
 regAt: i
-	"Allocatable register i: x0-x13, x23-x28, then d16-d31 for doubles."
+	"Allocatable register i: x0-x13, x23-x28, then d16-d31 for doubles (on x86 x0-x5, x9, x21, then d2-d15: regAtX64:)."
+	asm isX64 ifTrue: [^self regAtX64: i].
 	i >= 20 ifTrue: [^D16 + (i - 20)].
 	^i < 14 ifTrue: [i] ifFalse: [i + 9]
 !
@@ -278,6 +279,10 @@ linearScan
 	0 to: RA_NREGS - 1 do: [:i | raFreeRegs at: i put: 1].
 	"x23-x25: nil, true and false, for the baseline code it calls and returns to"
 	14 to: 16 do: [:i | raFreeRegs at: i put: 0].
+	"x86: 8 general registers, 14 d registers (regAtX64:)"
+	asm isX64 ifTrue: [
+		8 to: 19 do: [:i | raFreeRegs at: i put: 0].
+		34 to: RA_NREGS - 1 do: [:i | raFreeRegs at: i put: 0]].
 	0 to: raSortCount - 1 do: [:i |
 		v := raSorted at: i.
 		nd := ir node: v.
@@ -325,7 +330,18 @@ fail: why node: v
 		libc fputc: 10 to: libc stderr].
 	^false
 !
+regAtX64: i
+	"x86: x0-x5 (rdi rsi rdx rcx r8 r9), x9 (rax), x21 (r13: optimized code does not keep the receiver there), then d2-d15; the others have no x86 register or are the code generator's (x10, x11, x16, x17)."
+	<arch: #x86_64>
+	i >= 20 ifTrue: [^D2 + (i - 20)].
+	i < 6 ifTrue: [^i].
+	^i = 6 ifTrue: [X9] ifFalse: [X21]
+!
 regIndexOf: reg
+	asm isX64 ifTrue: [
+		reg >= D0 ifTrue: [^reg - D2 + 20].
+		reg < 6 ifTrue: [^reg].
+		^reg = X9 ifTrue: [6] ifFalse: [7]].
 	reg >= D0 ifTrue: [^reg - D16 + 20].
 	^reg < 14 ifTrue: [reg] ifFalse: [reg - 9]
 !

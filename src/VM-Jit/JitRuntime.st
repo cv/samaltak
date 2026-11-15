@@ -1,6 +1,6 @@
 VMCoreModule subclass: #JitRuntime
 	instanceVariableNames: 'stubs baseline brt cache asm analysis jitMode jitFlags jitThreshold jitOsrThreshold jitCacheMB cacheOpened flushPending invalidations stateBlock methodTable tableCount methodCounts youngMethods youngCount youngOverflow mapPcs mapOffsets mapCount sendPushed performFn performArgsFn statCompiled statFailed statBytecodes statCompileUs statCodeBytes statCacheFlushes statEntries statExits statResumes statOsr feedback optimizer jitOptThreshold optCounts copying bottomReturned'
-	classVariableNames: 'JIT_BASELINE JIT_FLAG_ACCESS JIT_FLAG_ALLOC JIT_FLAG_ARITH JIT_FLAG_BARRIER JIT_FLAG_BLOCKS JIT_FLAG_CALLS JIT_FLAG_DEOPT JIT_FLAG_EAGER JIT_FLAG_FLOAT JIT_FLAG_FUSE JIT_FLAG_GVN JIT_FLAG_HOIST JIT_FLAG_IC JIT_FLAG_INLINE JIT_FLAG_LAST JIT_FLAG_MEGA JIT_FLAG_NOTES JIT_FLAG_PIC JIT_FLAG_PRIMS JIT_FLAG_QUICK JIT_FLAG_REGS JIT_FLAG_UNBOX JIT_MAX_COUNT JIT_MAX_MAP JIT_MAX_YOUNG JIT_NONE JIT_OPT JIT_PROLOGUE_BYTES JIT_TABLE_SIZE JM_DEAD JM_ENTRY JM_FAILED JM_NOTES JM_OSR'
+	classVariableNames: 'JIT_BASELINE JIT_FLAG_ACCESS JIT_FLAG_ALLOC JIT_FLAG_ARITH JIT_FLAG_BARRIER JIT_FLAG_BLOCKS JIT_FLAG_CALLS JIT_FLAG_DEOPT JIT_FLAG_EAGER JIT_FLAG_FLOAT JIT_FLAG_FUSE JIT_FLAG_GVN JIT_FLAG_HOIST JIT_FLAG_IC JIT_FLAG_INLINE JIT_FLAG_LAST JIT_FLAG_MEGA JIT_FLAG_NOTES JIT_FLAG_PIC JIT_FLAG_PRIMS JIT_FLAG_QUICK JIT_FLAG_REGS JIT_FLAG_UNBOX JIT_MAX_COUNT JIT_MAX_MAP JIT_MAX_YOUNG JIT_NONE JIT_OPT JIT_PROLOGUE_BYTES JIT_PROLOGUE_BYTES_X64 JIT_TABLE_SIZE JM_DEAD JM_ENTRY JM_FAILED JM_NOTES JM_OSR'
 	package: 'VM-Jit'!
 
 JitRuntime comment: 'The runtime every compiler''s machine code runs on (docs/jit.md, Shared runtime): configuration (--jit, --jit-threshold, --jit-osr, --jit-flags, --jit-cache), the compiled methods (JitMethod headers in the code cache, found by the method''s identity hash; their methods are GC roots, young ones listed for scavenges), the interpreter''s hooks (activated:, resume:, backJump:), the functions machine code calls (interrupt:, closure:, makeArray:, widow:, writeBarrier:value:), code cache flushes, statistics.
@@ -9,7 +9,7 @@ Machine code runs the interpreter''s frames: x19 the Frame, x20 its slots, x21 t
 
 !JitRuntime class methodsFor: 'declaring'!
 declarations
-	^#((stubs JitStubs) (baseline JitBaselineCompiler) (brt JitBaselineRuntime) (cache CodeCache) (asm Arm64Assembler) (analysis BytecodeAnalysis)
+	^#((stubs JitStubs) (baseline JitBaselineCompiler) (brt JitBaselineRuntime) (cache CodeCache) (asm JitAssembler) (analysis BytecodeAnalysis)
 		(feedback JitFeedback) (optimizer OptRuntime)
 		(jitMode int32_t) (jitFlags uint32_t) (jitThreshold int64_t 2) (jitOsrThreshold int64_t 50) (jitOptThreshold int64_t 1000) (jitCacheMB int64_t 64)
 		(cacheOpened bool) (flushPending bool) (invalidations uint64_t)
@@ -53,6 +53,8 @@ initialize
 	JIT_MAX_YOUNG := 4096.
 	JIT_MAX_MAP := 32768.
 	JIT_PROLOGUE_BYTES := 20.
+	"x86: lea, mov, mov (the call pushed the return address)"
+	JIT_PROLOGUE_BYTES_X64 := 12.
 	JIT_MAX_COUNT := 16rFFFF.
 	JM_FAILED := 1.
 	JM_DEAD := 2.
@@ -211,8 +213,12 @@ baselineCode
 	"Baseline code runs: --jit baseline, and --jit opt's lower tier."
 	^jitMode = JIT_BASELINE or: [jitMode = JIT_OPT]
 !
+isX64
+	"The code generators emit x86-64 (else arm64)."
+	^asm isX64
+!
 prologueBytes
-	^JIT_PROLOGUE_BYTES
+	^asm isX64 ifTrue: [JIT_PROLOGUE_BYTES_X64] ifFalse: [JIT_PROLOGUE_BYTES]
 !
 modeNamed: name
 	"The mode called name, -1 if there is none."
@@ -343,6 +349,7 @@ ensureOpen
 	(jitCacheMB < 1 or: [jitCacheMB > 128]) ifTrue: [^false].
 	(cache openWithSize: (jitCacheMB << 20) asUInt64) ifFalse: [^false].
 	self refreshState.
+	asm isX64 ifTrue: [asm setState: self stateAddress].
 	stubs generate ifFalse: [^false].
 	cache keep.
 	cacheOpened := true.
@@ -742,7 +749,7 @@ finish: m code: start mode: md
 	md = JIT_OPT ifTrue: [p := optimizer writeExtra: h at: p].
 	md = JIT_BASELINE ifTrue: [
 		p := baseline writeTables: h at: p.
-		baseline plainEntry ifTrue: [h flags: (h flags bitOr: JM_ENTRY)]].
+		(baseline plainEntry and: [asm isX64 not or: [(self uint8At: h uentry) = 16r48]]) ifTrue: [h flags: (h flags bitOr: JM_ENTRY)]].
 	self sortMap: h.
 	h start: start + (self mapOffsetOf: h pc: (md = JIT_OPT ifTrue: [optimizer unitEntry] ifFalse: [0])).
 	cache allocate: p - start.
@@ -1207,7 +1214,7 @@ dispatch: e frame: f argc: n
 		g := interpreter pushFrameEntry: e argc: n.
 		g isNull ifTrue: [^self leave: f pc: f pc sp: f sp - sendPushed].
 		g code: (self cCoerce: h to: 'uint64_t').
-		^h start - JIT_PROLOGUE_BYTES].
+		^h start - self prologueBytes].
 	kind = 0 ifTrue: [^self activate: m frame: f argc: n ecode: -1 code: 0].
 	(kind bitAnd: K_LEAF) ~= 0 ifTrue: [
 		status := interpreter callPrimitive: e prim base: base argc: n.
@@ -1272,7 +1279,7 @@ activate: m frame: f argc: n ecode: ecode code: hint
 	g := interpreter pushFrame: m argc: n code: ((self hasCode: h) ifTrue: [self cCoerce: h to: 'uint64_t'] ifFalse: [self frameCodeFor: m]) ecode: ecode.
 	g isNull ifTrue: [^self leave: f pc: f pc sp: f sp - sendPushed].
 	(self hasCode: h) ifFalse: [^1].
-	^h start - JIT_PROLOGUE_BYTES
+	^h start - self prologueBytes
 !
 entryOfTop
 	"A frame was pushed above the caller: its entry if it has code, else 1."
@@ -1281,7 +1288,7 @@ entryOfTop
 	top := interpreter frames + (interpreter nframes - 1).
 	a := self addressFor: top.
 	a = 0 ifTrue: [^1].
-	^a - JIT_PROLOGUE_BYTES
+	^a - self prologueBytes
 !
 interrupt: f
 	"An interrupt check at a method or block entry, a loop head or a backward jump; f's pc and sp are where the interpreter would continue."

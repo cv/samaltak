@@ -1,5 +1,5 @@
 Object subclass: #VMTranslator
-	instanceVariableNames: 'registry moduleClasses modules externs functions errors headerName queue queued'
+	instanceVariableNames: 'registry moduleClasses modules externs functions errors headerName queue queued arch'
 	classVariableNames: ''
 	package: 'VM-Translator'!
 
@@ -12,7 +12,9 @@ The C functions take their names from their selectors (assignCNames) and their s
 
 Errors (TranslationError) name the method and quote the source; translate collects them all before it fails.
 
-One vm/gen serves every OS: a module or C library whose targetOS is #darwin or #linux has its headers, prototypes and C file guarded by the OS''s predefined macro (targetOSes), and sources.mk lists its file under that OS (VM_CORE_SOURCES_LINUX ...), so the build picks the OS''s implementation of each interface. A module for every OS may not use one OS''s library or module.'!
+One vm/gen serves every OS: a module or C library whose targetOS is #darwin or #linux has its headers, prototypes and C file guarded by the OS''s predefined macro (targetOSes), and sources.mk lists its file under that OS (VM_CORE_SOURCES_LINUX ...), so the build picks the OS''s implementation of each interface. A module for every OS may not use one OS''s library or module.
+
+It serves every CPU too (targetArchs): a module whose targetArch is #arm64 or #x86_64 is translated only for that CPU and listed under it in sources.mk (VM_CORE_SOURCES_X86_64 ...); a connection typed with an arch interface (JitAssembler) is the interface''s module for the CPU translated for, and a method marked <arch: #x86_64> exists only there. Where that makes a difference, translate translates once per CPU and TArchMerge merges the results: what differs is guarded by the CPU''s macro, so each CPU''s compiler sees exactly its own translation.'!
 
 Error subclass: #TranslationError
 	instanceVariableNames: ''
@@ -33,6 +35,19 @@ guardFor: anOS
 	^((self targetOSes detect: [:e | (e at: 1) = anOS] ifNone: [self error: 'no such target OS: ' , anOS printString]) at: 2)
 ! !
 
+!VMTranslator class methodsFor: 'CPUs'!
+targetArchs
+	"#(arch makeSuffix): the CPUs a module can be for (targetArch), the suffix of their source lists in sources.mk (the build adds those of its uname -m). The first is the default: what is for x86_64 only is guarded by __x86_64__, what is for arm64 only is compiled everywhere else."
+	^#((arm64 'ARM64') (x86_64 'X86_64'))
+!
+archGuardFor: anArch
+	"The preprocessor condition under which anArch's code is compiled."
+	^anArch = #x86_64 ifTrue: ['defined(__x86_64__)'] ifFalse: ['!!defined(__x86_64__)']
+!
+archSuffixFor: anArch
+	^(self targetArchs detect: [:e | (e at: 1) = anArch] ifNone: [self error: 'no such target CPU: ' , anArch printString]) at: 2
+! !
+
 !VMTranslator class methodsFor: 'the VM'!
 vmModules
 	^VMModule vmModules
@@ -43,6 +58,10 @@ generateVM
 !
 generateVMInto: aDirectory
 	^(self modules: self vmModules header: 'samaltak') writeTo: aDirectory
+!
+generateVMInto: aDirectory for: anArch
+	"The VM for one CPU (targetArchs) only: C that builds there, translated in half the time."
+	^(self modules: self vmModules header: 'samaltak') setArch: anArch; writeTo: aDirectory
 ! !
 
 !VMTranslator methodsFor: 'initialization'!
@@ -123,10 +142,21 @@ snippetOf: aNode in: aTFunction
 
 !VMTranslator methodsFor: 'translating'!
 translate
-	"Answer the files: an OrderedCollection of name -> contents. Signals a TranslationError listing every error."
+	"Answer the files: an OrderedCollection of name -> contents. Signals a TranslationError listing every error. Modules that differ per CPU (targetArchs) are translated once per CPU, the results merged (TArchMerge)."
+	| archs |
+	arch notNil ifTrue: [^self translateForArch].
+	archs := self archs.
+	archs size = 1 ifTrue: [
+		self setArch: archs first.
+		^self translateForArch].
+	^TArchMerge new merge: (archs collect: [:a | a -> ((self class modules: moduleClasses header: headerName) setArch: a; translateForArch)])
+!
+translateForArch
+	"The files for one CPU (arch)."
 	| cFunctions files |
 	cFunctions := OrderedCollection new.
 	self checkTargetOSes.
+	self checkTargetArchs.
 	self assignCNames.
 	self inferSignatures.
 	self translatedModules do: [:m |
@@ -233,6 +263,67 @@ reservedCNames
 		m globals do: [:g | g isModuleReference ifFalse: [names add: g cName]].
 		m functions do: [:f | names addAll: f localNames]].
 	^names
+! !
+
+!VMTranslator methodsFor: 'CPUs'!
+arch
+	"The CPU I translate for (targetArchs), nil until translate picks it."
+	^arch
+!
+setArch: anArch
+	"Translate for anArch: its modules and those for every CPU, arch interfaces bound to their modules for anArch."
+	arch := anArch.
+	moduleClasses := moduleClasses select: [:c | c targetArch isNil or: [c targetArch = anArch]]
+!
+archs
+	"The CPUs to translate for: one if nothing differs between them (no module for one CPU, no connection to an arch interface, no method for one CPU), else every CPU for which each module's connections resolve."
+	| all |
+	(moduleClasses anySatisfy: [:c | self isArchDependent: c]) ifFalse: [^Array with: self class targetArchs first first].
+	all := self class targetArchs collect: [:spec | spec first].
+	^all select: [:a | self canTranslateFor: a]
+!
+isArchDependent: aModuleClass
+	aModuleClass targetArch notNil ifTrue: [^true].
+	(aModuleClass allDeclarations anySatisfy: [:decl |
+		| ref |
+		ref := Smalltalk at: (decl at: 2) asString asSymbol ifAbsent: [nil].
+		ref isBehavior and: [(ref inheritsFrom: VMModule) and: [ref isArchInterface or: [ref targetArch notNil]]]]) ifTrue: [^true].
+	^aModuleClass withAllSuperclasses anySatisfy: [:c |
+		(c inheritsFrom: VMModule) and: [c methodDict values anySatisfy: [:m | (m pragmas ifNil: [#()]) anySatisfy: [:p | p selector == #arch:]]]]
+!
+canTranslateFor: anArch
+	"Whether the modules for anArch connect only to modules for every CPU or for anArch, and every arch interface they use has its module for anArch among them."
+	| mine |
+	mine := moduleClasses select: [:c | c targetArch isNil or: [c targetArch = anArch]].
+	^mine allSatisfy: [:c |
+		c allDeclarations allSatisfy: [:decl |
+			| ref |
+			ref := Smalltalk at: (decl at: 2) asString asSymbol ifAbsent: [nil].
+			(ref isBehavior and: [ref inheritsFrom: VMModule]) not or: [
+				ref isArchInterface
+					ifTrue: [mine anySatisfy: [:m | (m inheritsFrom: ref) and: [m targetArch = anArch]]]
+					ifFalse: [ref targetArch isNil or: [ref targetArch = anArch]]]]]
+!
+implementationOf: aClass
+	"The module a connection typed aClass connects to: for an arch interface, its module for the CPU I translate for."
+	(aClass isBehavior and: [(aClass inheritsFrom: VMModule) and: [aClass isArchInterface and: [arch notNil]]]) ifFalse: [^aClass].
+	^moduleClasses detect: [:c | (c inheritsFrom: aClass) and: [c targetArch = arch]]
+		ifNone: [self error: 'no module for ' , arch , ' implements ' , aClass name]
+!
+includesMethod: aCompiledMethod
+	"Whether a method is translated: one marked <arch: #x86_64> only for that CPU."
+	| p |
+	p := (aCompiledMethod pragmas ifNil: [#()]) detect: [:each | each selector == #arch:] ifNone: [nil].
+	^p isNil or: [arch isNil or: [p arguments first = arch]]
+!
+checkTargetArchs
+	"A module may use the modules for every CPU and for its own (an arch interface is resolved already)."
+	self translatedModules do: [:m |
+		m globals do: [:g |
+			| other |
+			(g isModuleReference and: [(g referencedModule inheritsFrom: VMModule) and: [(other := g referencedModule targetArch) notNil and: [other ~= arch]]]) ifTrue: [
+				errors add: m name , ': ' , g name , ' is ' , g referencedModule name , ', for ' , other , ' only']]].
+	errors notEmpty ifTrue: [^TranslationError signal: (errors inject: '' into: [:acc :e | acc , e , (String with: Character lf)])]
 ! !
 
 !VMTranslator methodsFor: 'operating systems'!

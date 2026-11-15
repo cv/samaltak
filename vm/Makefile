@@ -1,12 +1,14 @@
 # Samaltak VM. `make` → build/samaltak. NO_PLATFORM=1 builds a headless-only VM.
 # The sources are gen/: C translated from the Lowtalk modules in src/VM-Core and src/VM-Platform (make translate at
 # the top level regenerates them); gen/sources.mk says which files make the core and which the platform layer, and
-# which of them are for one OS only (VM_CORE_SOURCES_LINUX ...: this build adds those of its uname -s).
+# which of them are for one OS only (VM_CORE_SOURCES_LINUX ...: this build adds those of its uname -s) or for one CPU
+# (VM_CORE_SOURCES_X86_64: this build adds those of its uname -m, arm64's on any CPU but x86-64).
 # macOS: Homebrew sdl3, clang. Linux: sdl3 and shaderc (GLSL → SPIR-V for SDL_GPU on Vulkan), gcc or clang.
 # Profile-guided: pgo.profdata (if present) steers optimization; `make pgo IMAGE=...` retrains it. NO_PGO=1 skips it.
 # BRIEF=1 prints one line per file instead of the commands.
 UNAME_S := $(shell uname -s)
 OS := $(shell echo $(UNAME_S) | tr a-z A-Z)
+ARCH := $(if $(filter x86_64 amd64,$(shell uname -m)),X86_64,ARM64)
 CC ?= cc
 IS_CLANG := $(shell $(CC) --version 2>/dev/null | grep -q clang && echo yes)
 ifeq ($(IS_CLANG),yes)
@@ -44,9 +46,9 @@ else ifeq ($(and $(wildcard $(PGO_PROFILE)),$(if $(NO_PGO),,yes)),yes)
   PGO_DEP := $(PGO_PROFILE)
 endif
 include gen/sources.mk
-CORE_SRCS := $(addprefix gen/,$(VM_CORE_SOURCES) $(VM_CORE_SOURCES_$(OS)))
-HEADLESS_SRCS := $(addprefix gen/,$(VM_HEADLESS_SOURCES) $(VM_HEADLESS_SOURCES_$(OS)))
-PLATFORM_SRCS := $(addprefix gen/,$(VM_PLATFORM_SOURCES) $(VM_PLATFORM_SOURCES_$(OS)))
+CORE_SRCS := $(addprefix gen/,$(VM_CORE_SOURCES) $(VM_CORE_SOURCES_$(OS)) $(VM_CORE_SOURCES_$(ARCH)))
+HEADLESS_SRCS := $(addprefix gen/,$(VM_HEADLESS_SOURCES) $(VM_HEADLESS_SOURCES_$(OS)) $(VM_HEADLESS_SOURCES_$(ARCH)))
+PLATFORM_SRCS := $(addprefix gen/,$(VM_PLATFORM_SOURCES) $(VM_PLATFORM_SOURCES_$(OS)) $(VM_PLATFORM_SOURCES_$(ARCH)))
 
 SDL_CFLAGS := $(shell pkg-config --cflags sdl3 2>/dev/null)
 SDL_LIBS := $(shell pkg-config --libs sdl3 2>/dev/null)

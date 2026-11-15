@@ -1,4 +1,4 @@
-Arm64Module subclass: #Arm64Assembler
+JitAssembler subclass: #Arm64Assembler
 	instanceVariableNames: 'asmStart asmPc asmLimit asmError asmLabelCount asmLabels asmLabelFixups asmFixupCount asmFixupSites asmFixupNext asmUnresolved asmBinds asmBoundPc asmNoting asmNoteCount asmNoteOffsets asmNoteTexts asmNoteArgs'
 	classVariableNames: 'ASM_MAX_FIXUPS ASM_MAX_LABELS ASM_MAX_NOTES'
 	package: 'VM-Jit'!
@@ -12,6 +12,9 @@ Notes, for annotated disassembly: with recordNotes: true, comment: (and comment:
 Patching: patchBranchAt:to: and branchTargetAt: (b, bl, b.cond, cbz, cbnz, tbz, tbnz, ldr literal, adr, adrp); mov:imm64: emits a fixed movz/movk sequence that patchMov64At:value: rewrites and mov64At: reads.'!
 
 !Arm64Assembler class methodsFor: 'declaring'!
+targetArch
+	^#arm64
+!
 declarations
 	^#((asmStart uint64_t) (asmPc uint64_t) (asmLimit uint64_t) (asmError int32_t) (asmLabelCount int32_t) (asmLabels 'uint64_t[ASM_MAX_LABELS]') (asmLabelFixups 'int32_t[ASM_MAX_LABELS]') (asmFixupCount int32_t) (asmFixupSites 'uint64_t[ASM_MAX_FIXUPS]') (asmFixupNext 'int32_t[ASM_MAX_FIXUPS]') (asmUnresolved int32_t) (asmBinds int32_t) (asmBoundPc uint64_t) (asmNoting bool) (asmNoteCount int32_t) (asmNoteOffsets 'uint32_t[ASM_MAX_NOTES]') (asmNoteTexts 'const char *[ASM_MAX_NOTES]') (asmNoteArgs 'int64_t[ASM_MAX_NOTES]'))
 !
@@ -52,6 +55,10 @@ codeSize
 !
 errorCode
 	^asmError
+!
+isX64
+	"The code generators emit arm64 through me."
+	^false
 !
 failed
 	^asmError ~= ASM_OK

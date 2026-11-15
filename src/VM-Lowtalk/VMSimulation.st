@@ -79,7 +79,11 @@ moduleOrLibrary: aTypeName
 	c := Smalltalk at: aTypeName asSymbol.
 	(c inheritsFrom: CLibrary) ifTrue: [^self library: c].
 	^modules at: c ifAbsent: [
-		modules detect: [:m | (m class includesBehavior: c) and: [m class isSimulated]] ifNone: [self error: 'the simulation has no module ' , aTypeName]]
+		| candidates |
+		candidates := modules values select: [:m | (m class includesBehavior: c) and: [m class isSimulated]].
+		candidates isEmpty ifTrue: [self error: 'the simulation has no module ' , aTypeName].
+		"an arch interface's module for arm64 (machine code does not run here)"
+		candidates detect: [:m | m class targetArch isNil or: [m class targetArch = #arm64]] ifNone: [candidates first]]
 !
 library: aLibraryClass
 	^libraries at: aLibraryClass ifAbsent: [

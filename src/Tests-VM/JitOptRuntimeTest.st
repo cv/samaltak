@@ -299,8 +299,8 @@ testReceiverStaysInX0
 	i := (1 to: lines size) detect: [:k | (lines at: k) beginsWith: 'pc 0:'].
 	first := OrderedCollection new.
 	[(i := i + 1) <= lines size and: [((lines at: i) beginsWith: 'pc ') not]] whileTrue: [first add: (lines at: i)].
-	self assert: (first anySatisfy: [:line | line includesSubstring: 'x0']).
-	self deny: (first anySatisfy: [:line | line includesSubstring: '[x20, #-0x8]'])
+	self assert: (first anySatisfy: [:line | line includesSubstring: (self isX64 ifTrue: ['rdi'] ifFalse: ['x0'])]).
+	self deny: (first anySatisfy: [:line | line includesSubstring: (self isX64 ifTrue: ['[rbx-0x8]'] ifFalse: ['[x20, #-0x8]'])])
 !
 testDisassemblyShowsInlinedActivations
 	| listing |
@@ -373,9 +373,13 @@ listingLeavesFeedback
 	self define: 'add: x to: y ^x + y'.
 	m := JitRuntimeTestSubject >> #add:to:.
 	3 timesRepeat: [self assert: (JitRuntimeTestSubject new add: 1.5 to: 2.5) equals: 4.0].
-	self assert: ((m machineCodeFor: #opt) includesSubstring: 'fadd').
+	self assert: ((m machineCodeFor: #opt) includesSubstring: self floatAdd).
 	self assert: ((m machineCodeFor: #baseline) beginsWith: 'JitRuntimeTestSubject>>add:to:  baseline').
-	^(m machineCodeFor: #opt) includesSubstring: 'fadd'
+	^(m machineCodeFor: #opt) includesSubstring: self floatAdd
+!
+floatAdd
+	"The mnemonic of a double add in a listing."
+	^self isX64 ifTrue: ['addsd'] ifFalse: ['fadd']
 !
 testCharacterValueGuardsItsArgumentFirst
 	"Character value: inlined (feedback) for a value not known to be a SmallInteger: the guard on it comes before the conversion, which reads the guard's result."

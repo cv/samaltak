@@ -6,13 +6,13 @@ A Smalltalk-80 system with green threads and a GPU-composited UI (SDL3 + SDL_GPU
 
 ## Build and run
 
-macOS on Apple Silicon (Homebrew `sdl3`), or Linux on arm64 (`sdl3` and `shaderc`; e.g. Asahi Linux, Vulkan). The JIT emits arm64.
+macOS on Apple Silicon (Homebrew `sdl3`), or Linux on arm64 or x86-64 (`sdl3` and `shaderc`; e.g. Asahi Linux, Vulkan). The JIT emits arm64 or x86-64 (docs/jit.md).
 
     make            # VM (from vm/gen), seed image (ImageBuilder in boot/seed.image), stage 2 → build/samaltak.image
     make run        # start it (rebuilds the image first only if src/, boot/ or the VM changed since it was built or saved)
     make translate  # after changing the VM's Lowtalk sources (src/VM-Core, src/VM-Platform): regenerate vm/gen
 
-One `vm/gen` serves both: what differs per OS is in modules for one OS (`targetOS`: the ticker, the code cache's memory, `PlatformHost`), which the build picks by `uname -s`. On Linux shaders are GLSL (compiled to SPIR-V with shaderc) where macOS uses MSL, and the Alt key is ⌘ (Super is the window manager's).
+One `vm/gen` serves all of them: what differs per OS is in modules for one OS (`targetOS`: the ticker, the code cache's memory, `PlatformHost`), which the build picks by `uname -s`; what differs per CPU (the assembler, and the code generators' functions that use it) by `uname -m` (`targetArch`, docs/lowtalk.md). On Linux shaders are GLSL (compiled to SPIR-V with shaderc) where macOS uses MSL, and the Alt key is ⌘ (Super is the window manager's).
 
 ## Test
 

@@ -9,7 +9,7 @@ x19 the Frame, x20 its slots (fp: slot k at [x20, #8k], the receiver at [x20, #-
 
 !JitCompiler class methodsFor: 'declaring'!
 declarations
-	^#((asm Arm64Assembler) (runtime JitRuntime) (analysis BytecodeAnalysis) (stubs JitStubs) (cache CodeCache) (brt JitBaselineRuntime))
+	^#((asm JitAssembler) (runtime JitRuntime) (analysis BytecodeAnalysis) (stubs JitStubs) (cache CodeCache) (brt JitBaselineRuntime))
 !
 isAbstractModule
 	^self == JitCompiler
@@ -77,6 +77,7 @@ fieldOffset: i
 !JitCompiler methodsFor: 'conventions'!
 emitPrologue
 	"The entry from a compiled caller: its frame is x19, ours the next one."
+	asm isX64 ifTrue: [^self emitPrologueX64].
 	asm comment: 'entry: x19 := the callee''s Frame, push x29/x30, x20 := fp, x21 := receiver'.
 	asm add: X19 with: X19 imm: self frameBytes.
 	asm stp: X29 with: X30 base: SP preIndex: -16.
@@ -84,11 +85,32 @@ emitPrologue
 	asm ldr: X20 base: X19 offset: self fpOffset.
 	asm ldr: X21 base: X20 offset: -8
 !
+emitPrologueX64
+	"x86: the call pushed the return address, the native frame record; JIT_PROLOGUE_BYTES_X64 long."
+	<arch: #x86_64>
+	| start |
+	start := asm pc.
+	asm comment: 'entry: x19 := the callee''s Frame, x20 := fp, x21 := receiver'.
+	asm add: X19 with: X19 imm: self frameBytes.
+	asm ldr: X20 base: X19 offset: self fpOffset.
+	asm ldr: X21 base: X20 offset: -8.
+	asm pc - start = runtime prologueBytes ifFalse: [asm fail: ASM_ERR_RANGE]
+!
 emitSync: pc depth: d
 	"The frame's pc and sp, for the runtime and for the interpreter if it takes over."
 	asm comment: 'spill: frame pc %d' with: pc.
 	asm mov: X16 imm: ((d asInt64 << 32) bitOr: pc).
 	asm str: X16 base: X19 offset: self pcOffset
+!
+emitInterruptTestTo: aLabel
+	"Branch to aLabel if an interrupt is pending (the JitState's interrupt word)."
+	asm isX64
+		ifTrue: [
+			asm cmpStateWord32At: self interruptOffset imm: 0.
+			asm b: aLabel if: COND_NE]
+		ifFalse: [
+			asm ldr: W16 base: X22 offset: self interruptOffset.
+			asm cbnz: W16 to: aLabel]
 !
 emitReloadReceiver
 	asm comment: 'reload the receiver (a GC may have moved it)'.
@@ -105,6 +127,10 @@ constantDouble: v
 !
 emitCountDown: address to: slowLabel
 	"Decrement the int32 counter at address (in the VM's data, within adrp's range of the code), branch to slowLabel when it is no longer positive (--jit opt: the lower tier counts method entries and backward jumps; the slow path calls the tier-up stub)."
+	asm isX64 ifTrue: [
+		asm comment: 'count toward optimization'.
+		asm decrement32At: address.
+		^asm b: slowLabel if: COND_LE].
 	asm comment: 'count toward optimization'.
 	asm adrp: X16 label: (asm labelAt: address).
 	asm ldr: W17 base: X16 offset: (address bitAnd: 16rFFF) asInt64.

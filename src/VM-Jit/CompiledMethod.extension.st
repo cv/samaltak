@@ -5,14 +5,20 @@ machineCode
 !
 machineCodeFor: aModeOrNil
 	"An annotated listing of my machine code from the compiler called aModeOrNil (#baseline, #opt): each bytecode with its source line, then its instructions, commented with what they do."
-	| code words notes text |
+	| code notes text |
 	code := self jitCode: aModeOrNil.
 	code isNil ifTrue: [^self printString , ': not compiled by ' , (aModeOrNil ifNil: ['the JIT']) asString].
-	words := (1 to: (code at: 2) size // 4) collect: [:i | (code at: 2) uint32At: i - 1 * 4 + 1].
 	notes := self jitAnnotationsFrom: code.
-	text := Arm64Disassembler new listingOfWords: words at: (code at: 1) annotations: notes.
+	text := self jitListingOf: (code at: 2) at: (code at: 1) annotations: notes.
 	^self printString , '  ' , (code at: 6) , ', ' , (code at: 2) size printString , ' bytes at 16r' , ((code at: 1) printStringBase: 16)
 		, (String with: Character lf) , (String with: Character lf) , text
+!
+jitListingOf: aByteArray at: anAddress annotations: notes
+	"The listing of machine code for the CPU the JIT emits code for (VirtualMachine>>jitArchitecture): x86-64 as its bytes, arm64 as its 32-bit words."
+	| words |
+	Smalltalk vm jitArchitecture = #x86_64 ifTrue: [^Amd64Disassembler new listingOfBytes: aByteArray at: anAddress annotations: notes].
+	words := (1 to: aByteArray size // 4) collect: [:i | aByteArray uint32At: i - 1 * 4 + 1].
+	^Arm64Disassembler new listingOfWords: words at: anAddress annotations: notes
 !
 jitSendSites
 	"What the inline caches of my baseline machine code saw: {pc. state. classes. methods. selector} per send site (state 0 unlinked, 1 monomorphic, 2 polymorphic, 3 megamorphic); nil if I have no baseline code."

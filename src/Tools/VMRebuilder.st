@@ -5,7 +5,7 @@ ToolPane subclass: #VMRebuilder
 
 VMRebuilder comment: 'I rebuild the VM from the image''s own Lowtalk (VM-Core and VM-Platform as the System Browser shows them, edits included) and restart the image on it:
 
-1. VMTranslator translates the VM into <dir>/gen; <dir> is build/vm beside the source directory (SourceFiler, --source-dir), never the checked-in vm/gen.
+1. VMTranslator translates the VM for this CPU into <dir>/gen; <dir> is build/vm beside the source directory (SourceFiler, --source-dir), never the checked-in vm/gen.
 2. make (vm/Makefile of the current directory) compiles it into <dir>/build/samaltak, its output streaming into my window; the binary is then renamed to <dir>/samaltak, so a VM running from there keeps its own file.
 3. The image is saved in place, the screen fades to black (World>>leave) and the VM''s process execs <dir>/samaltak on it with the image''s arguments, the control port pinned (File primExec:): same pid, standard streams and port, so a samaltak-ctl session carries on. The image resumes as from any snapshot (behind the restart splash), this window too, and logs how long it took.
 
@@ -65,7 +65,7 @@ build: aDirectory
 	t := Time millisecondClockValue.
 	self line: 'translate VM-Core and VM-Platform to C in ', aDirectory, '/gen'.
 	OSProcess run: 'mkdir -p ', (OSProcess quote: aDirectory).
-	VMTranslator generateVMInto: aDirectory, '/gen'.
+	VMTranslator generateVMInto: aDirectory, '/gen' for: Smalltalk vm jitArchitecture.
 	self line: '  ', (self secondsSince: t), ' s'.
 	phase := 'compiling'.
 	t := Time millisecondClockValue.

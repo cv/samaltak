@@ -26,6 +26,10 @@ timeLimitMilliseconds
 ! !
 
 !JitRuntimeTest methodsFor: 'helpers'!
+isX64
+	"The JIT emits x86-64 (listings name its registers and instructions)."
+	^Smalltalk vm jitArchitecture = #x86_64
+!
 disassemblyNotes
 	"What the listing of sum: says, besides the bytecodes and the entry."
 	^#('interrupt check' 'SmallInteger tag check' 'checked entry' 'return top')

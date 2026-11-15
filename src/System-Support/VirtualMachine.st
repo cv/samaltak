@@ -153,7 +153,7 @@ primStatistics
 
 !VirtualMachine methodsFor: 'jit'!
 jitParameters
-	"{mode. flags. threshold. osr. cache MB}: the JIT's settings (--jit, --jit-flags, --jit-threshold, --jit-osr, --jit-cache); mode and flags are Strings ('template', 'arith,fuse,barrier')."
+	"{mode. flags. threshold. osr. cache MB. CPU}: the JIT's settings (--jit, --jit-flags, --jit-threshold, --jit-osr, --jit-cache) and the CPU it emits code for; mode, flags and CPU are Strings ('template', 'arith,fuse,barrier', 'arm64' or 'x86_64')."
 	<primitive: 'jitParameters'>
 	^self primitiveFailed
 !
@@ -168,6 +168,10 @@ jitMode
 jitFlags
 	"The names of the JIT's flags that are on."
 	^(self jitParameters at: 2) substrings: ','
+!
+jitArchitecture
+	"#arm64 or #x86_64: the CPU the JIT emits code for (and machine code listings decode)."
+	^(self jitParameters at: 6) asSymbol
 !
 jitMode: aSymbol
 	"#none or #template; answer the previous mode."

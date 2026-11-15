@@ -3,7 +3,7 @@ Object subclass: #MachineCodeScanner
 	classVariableNames: ''
 	package: 'Tools'!
 
-MachineCodeScanner comment: 'I tokenize a machine code listing (CompiledMethod>>machineCode: Arm64Disassembler''s annotated format) for TextHighlighter scanner:, as Scanner does Smalltalk, in the Smalltalk highlighter''s types (Theme syntaxStyleFor:): #pattern the title (line 1); #return a bytecode''s header (pc 5: send: #+), #global the statement after its --; #self offsets and machine words; #keyword mnemonics and label lines (L12:); #symbol registers; #global immediates, targets (#0x58, #-0x10, 0x102bf0148, L12, <baseline miss>); #comment from ; to the end of the line. Everything between them, white space included, comes as one #identifier token (a listing of 20,000 lines: 180,000 tokens, 16 ms).
+MachineCodeScanner comment: 'I tokenize a machine code listing (CompiledMethod>>machineCode: Arm64Disassembler''s and Amd64Disassembler''s annotated format) for TextHighlighter scanner:, as Scanner does Smalltalk, in the Smalltalk highlighter''s types (Theme syntaxStyleFor:): #pattern the title (line 1); #return a bytecode''s header (pc 5: send: #+), #global the statement after its --; #self offsets and machine words (an instruction''s bytes on x86); #keyword mnemonics, label lines (L12:) and x86 operand sizes (QWORD PTR); #symbol registers (arm64''s and x86''s); #global immediates, displacements, targets (#0x58, #-0x10, 0x58, -0x10, 0x102bf0148, L12, <baseline miss>); #comment from ; to the end of the line. Everything between them, white space included, comes as one #identifier token (a listing of 20,000 lines: 180,000 tokens, 16 ms).
 
 	MachineCodeScanner highlight: ''pc 1: send: #+  -- 3 + 4'' do: [:type :start :stop | Transcript show: type; cr]'!
 
@@ -81,24 +81,57 @@ operand: s at: i to: z emit: emit
 		[j < z and: [(s at: j) ~~ $>]] whileTrue: [j := j + 1].
 		emit value: #global value: i value: j.
 		^j + 1].
-	(c == $# or: [c isDigit]) ifTrue: [
+	(c isDigit or: [(c == $# or: [c == $-]) and: [i < z and: [(s at: i + 1) ~~ $ ]]]) ifTrue: [
+		"#0x10 #-0x10 (arm64), 0x10 -0x10 (x86); objdump's '# 0x...' after a pc-relative operand is a space and an address"
 		j := self wordEnd: s from: i to: z.
 		emit value: #global value: i value: j.
 		^j + 1].
 	c isLetter ifTrue: [
-		j := self wordEnd: s from: i to: z.
+		j := self nameEnd: s from: i to: z.
 		(self isRegister: s from: i to: j)
 			ifTrue: [emit value: #symbol value: i value: j]
-			ifFalse: [(c == $L and: [j > i and: [self allDigits: s from: i + 1 to: j]]) ifTrue: [emit value: #global value: i value: j]].
+			ifFalse: [
+				(c == $L and: [j > i and: [self allDigits: s from: i + 1 to: j]]) ifTrue: [emit value: #global value: i value: j].
+				(c isUppercase and: [j + 4 <= z and: [(s copyFrom: j + 1 to: j + 4) = ' PTR']]) ifTrue: [
+					"x86 operand sizes: BYTE PTR ... XMMWORD PTR"
+					emit value: #keyword value: i value: j + 4.
+					^j + 5]].
 		^j + 1].
 	^i + 1
 !
 isRegister: s from: i to: j
-	"x0-x30, w0-w30, d0-d31, sp, wsp, xzr, wzr (Arm64Disassembler's names)."
+	"x0-x30, w0-w30, d0-d31, sp, wsp, xzr, wzr (Arm64Disassembler's names); x86's (Amd64Disassembler's: objdump's)."
 	| c |
 	c := s at: i.
 	((c == $x or: [c == $w or: [c == $d]]) and: [j > i and: [self allDigits: s from: i + 1 to: j]]) ifTrue: [^true].
-	^(j - i between: 1 and: 2) and: [#('sp' 'wsp' 'xzr' 'wzr') includes: (s copyFrom: i to: j)]
+	((j - i between: 1 and: 2) and: [#('sp' 'wsp' 'xzr' 'wzr') includes: (s copyFrom: i to: j)]) ifTrue: [^true].
+	^self isX86Register: s from: i to: j
+!
+isX86Register: s from: i to: j
+	"rax-r15, eax-r15d, ax-r15w, al-r15b (ah-bh, spl-dil), xmm0-xmm15, rip, riz (Amd64Disassembler's names: objdump's); not al after ', ', where arm64 has its condition al."
+	| c n last |
+	c := s at: i.
+	n := j - i + 1.
+	(c == $x and: [n > 3 and: [(s at: i + 1) == $m and: [(s at: i + 2) == $m and: [self allDigits: s from: i + 3 to: j]]]]) ifTrue: [^true].
+	(c == $r and: [n > 1 and: [(s at: i + 1) isDigit]]) ifTrue: [
+		last := s at: j.
+		last isDigit ifTrue: [^self allDigits: s from: i + 1 to: j].
+		^(last == $d or: [last == $w or: [last == $b]]) and: [n > 2 and: [self allDigits: s from: i + 1 to: j - 1]]].
+	last := s at: j.
+	n = 2 ifTrue: [
+		(last == $l or: [last == $h]) ifFalse: [^self isWordRegister: c with: last].
+		('abcd' includes: c) ifFalse: [^false].
+		^(c == $a and: [last == $l]) not or: [i < 3 or: [((s at: i - 1) == $  and: [(s at: i - 2) == $,]) not]]].
+	n = 3 ifFalse: [^false].
+	((c == $r or: [c == $e]) and: [self isWordRegister: (s at: i + 1) with: last]) ifTrue: [^true].
+	(c == $r and: [(s at: i + 1) == $i]) ifTrue: [^last == $p or: [last == $z]].
+	^last == $l and: [(s at: i + 1) ~~ $x and: [self isWordRegister: c with: (s at: i + 1)]]
+!
+isWordRegister: c with: d
+	"Whether cd is ax bx cx dx si di bp or sp (and so rcx, ecx, sil ...)."
+	d == $x ifTrue: [^'abcd' includes: c].
+	d == $i ifTrue: [^c == $s or: [c == $d]].
+	^d == $p and: [c == $b or: [c == $s]]
 !
 allDigits: s from: a to: b
 	a to: b do: [:k | (s at: k) isDigit ifFalse: [^false]].
@@ -109,6 +142,13 @@ wordEnd: s from: i to: z
 	| j c |
 	j := i.
 	[j < z and: [(c := s at: j + 1) isLetter or: [c isDigit or: [c == $. or: [c == $_ or: [c == $-]]]]]] whileTrue: [j := j + 1].
+	^j
+!
+nameEnd: s from: i to: z
+	"The position of the last character of the name at i: letters, digits and . _ (x86's displacements follow a register with - or +)."
+	| j c |
+	j := i.
+	[j < z and: [(c := s at: j + 1) isLetter or: [c isDigit or: [c == $. or: [c == $_]]]]] whileTrue: [j := j + 1].
 	^j
 !
 skipSpaces: s from: i to: z

@@ -3,11 +3,11 @@ Arm64Module subclass: #JitSample
 	classVariableNames: ''
 	package: 'Tests-VM'!
 
-JitSample comment: 'A small Lowtalk program for JitTest, compiled with cc: it assembles a few functions into the code cache and calls them. With the argument bench it measures how fast the assembler emits.'!
+JitSample comment: 'A small Lowtalk program for JitTest, compiled with cc: it assembles a few functions into the code cache and calls them, as arm64 or as x86-64 code (JitAssembler; on x86 a function answers in x9, rax, and the stack is aligned around a call into C). With the argument bench it measures how fast the assembler emits.'!
 
 !JitSample class methodsFor: 'declaring'!
 declarations
-	^#((asm Arm64Assembler) (cache CodeCache) (libc LibC) (posix Posix) (table 'int64_t[8]') (addFn uint64_t) (sumFn uint64_t) (callbackFn uint64_t) (fibFn uint64_t) (hypotFn uint64_t) (arrayFn uint64_t) (signFn uint64_t))
+	^#((asm JitAssembler) (cache CodeCache) (libc LibC) (posix Posix) (table 'int64_t[8]') (addFn uint64_t) (sumFn uint64_t) (callbackFn uint64_t) (fibFn uint64_t) (hypotFn uint64_t) (arrayFn uint64_t) (signFn uint64_t))
 ! !
 
 !JitSample methodsFor: 'running'!
@@ -54,7 +54,7 @@ callback: a with: b
 !JitSample methodsFor: 'compiling'!
 compile
 	<function>
-	| start loop done base |
+	| start loop done |
 	start := cache top.
 	cache beginWriting.
 	asm beginAt: start limit: cache limit.
@@ -63,7 +63,7 @@ compile
 	asm bytecode: 0.
 	asm comment: 'x0 + x1'.
 	asm add: X0 with: X0 with: X1.
-	asm ret.
+	self return.
 	"1 + 2 + ... + x0"
 	sumFn := asm pc.
 	loop := asm newLabel.
@@ -78,9 +78,81 @@ compile
 	asm sub: X1 with: X1 imm: 1.
 	asm b: loop.
 	asm bind: done.
-	asm ret.
+	self return.
 	"callback(x0, (double)x1) + 1"
 	callbackFn := asm pc.
+	asm isX64 ifTrue: [self compileX64] ifFalse: [self compileArm64].
+	"sqrt(d0 * d0 + d1 * d1)"
+	hypotFn := asm pc.
+	asm fmul: D0 with: D0 with: D0.
+	asm fmul: D1 with: D1 with: D1.
+	asm fadd: D0 with: D0 with: D1.
+	asm fsqrt: D0 with: D0.
+	asm ret.
+	"the sum of the x1 int64s at x0"
+	arrayFn := asm pc.
+	loop := asm newLabel.
+	done := asm newLabel.
+	asm mov: X2 imm: 0.
+	asm bind: loop.
+	asm cbz: X1 to: done.
+	asm ldr: X3 base: X0 postIndex: 8.
+	asm add: X2 with: X2 with: X3.
+	asm sub: X1 with: X1 imm: 1.
+	asm b: loop.
+	asm bind: done.
+	asm mov: X0 with: X2.
+	self return.
+	"the sign of x0: -1, 0 or 1"
+	signFn := asm pc.
+	asm cmp: X0 imm: 0.
+	asm cset: X1 cond: COND_GT.
+	asm csetm: X2 cond: COND_LT.
+	asm orr: X0 with: X1 with: X2.
+	self return.
+	asm finish = ASM_OK ifFalse: [
+		libc printf: 'assembler error %d
+' with: asm errorCode.
+		libc exit: 1].
+	cache allocate: asm codeSize.
+	cache endWritingFrom: start size: asm codeSize
+!
+return
+	"x0 answered: in x0 on arm64, in rax (x9) on x86."
+	asm isX64 ifTrue: [asm mov: X9 with: X0].
+	asm ret
+!
+compileX64
+	"callbackFn and fibFn as x86 code: the stack aligned for C (the call pushed 8 bytes), results in rax (x9)."
+	| base |
+	asm sub: SP with: SP imm: 8.
+	asm scvtf: D0 with: X1.
+	asm mov: X16 imm64: (self cCoerce: (self functionPointer: #callback:with:) to: 'uint64_t').
+	asm blr: X16.
+	asm add: SP with: SP imm: 8.
+	asm add: X9 with: X9 imm: 1.
+	asm ret.
+	"fib(x0), recursively"
+	fibFn := asm pc.
+	base := asm newLabel.
+	asm cmp: X0 imm: 2.
+	asm b: base if: COND_LT.
+	asm push: X19.
+	asm push: X20.
+	asm mov: X19 with: X0.
+	asm sub: X0 with: X0 imm: 1.
+	asm bl: (asm labelAt: fibFn).
+	asm mov: X20 with: X9.
+	asm sub: X0 with: X19 imm: 2.
+	asm bl: (asm labelAt: fibFn).
+	asm add: X0 with: X9 with: X20.
+	asm pop: X20.
+	asm pop: X19.
+	asm bind: base.
+	self return
+!
+compileArm64
+	| base |
 	asm stp: X29 with: X30 base: SP preIndex: -16.
 	asm mov: X29 with: SP.
 	asm scvtf: D0 with: X1.
@@ -107,41 +179,7 @@ compile
 	asm ldp: X19 with: X20 base: SP offset: 16.
 	asm ldp: X29 with: X30 base: SP postIndex: 32.
 	asm bind: base.
-	asm ret.
-	"sqrt(d0 * d0 + d1 * d1)"
-	hypotFn := asm pc.
-	asm fmul: D0 with: D0 with: D0.
-	asm fmul: D1 with: D1 with: D1.
-	asm fadd: D0 with: D0 with: D1.
-	asm fsqrt: D0 with: D0.
-	asm ret.
-	"the sum of the x1 int64s at x0"
-	arrayFn := asm pc.
-	loop := asm newLabel.
-	done := asm newLabel.
-	asm mov: X2 imm: 0.
-	asm bind: loop.
-	asm cbz: X1 to: done.
-	asm ldr: X3 base: X0 postIndex: 8.
-	asm add: X2 with: X2 with: X3.
-	asm sub: X1 with: X1 imm: 1.
-	asm b: loop.
-	asm bind: done.
-	asm mov: X0 with: X2.
-	asm ret.
-	"the sign of x0: -1, 0 or 1"
-	signFn := asm pc.
-	asm cmp: X0 imm: 0.
-	asm cset: X1 cond: COND_GT.
-	asm csetm: X2 cond: COND_LT.
-	asm orr: X0 with: X1 with: X2.
-	asm ret.
-	asm finish = ASM_OK ifFalse: [
-		libc printf: 'assembler error %d
-' with: asm errorCode.
-		libc exit: 1].
-	cache allocate: asm codeSize.
-	cache endWritingFrom: start size: asm codeSize
+	asm ret
 ! !
 
 !JitSample methodsFor: 'benchmarking'!
