@@ -20,6 +20,13 @@ testEqualObjectsHaveEqualHashes
 	self assert: (1 @ 2) hash = (1.0 @ 2.0) hash.
 	self assert: (1 to: 3) hash = #(1 2 3) hash.
 	self assert: (1 @ 2 corner: 3 @ 4) hash = (1 @ 2 corner: 3 @ 4) hash.
+	self assert: 1.5 hash = (3 / 2) hash.
+	self assert: -0.375 hash = (-3 / 8) hash.
+	self assert: 0.0 hash = -0.0 hash.
+	self assert: 0.0 hash = 0 hash.
+	self assert: (2 raisedTo: 80) negated hash = (2 raisedTo: 80) negated asFloat hash.
+	self assert: (2 raisedTo: 1000) hash = (2 raisedTo: 1000) asFloat hash.
+	self assert: (2 raisedTo: -1000) hash = (2 raisedTo: -1000) asFloat hash.
 	self assert: (Set withAll: #(1 2)) hash = (Set withAll: #(2 1)) hash
 !
 testStringHash
@@ -154,6 +161,18 @@ testRemovalAgainstAModel
 		self check: class with: rnd keys: ((1 to: capacity // 2) collect: [:i | capacity * i + capacity - 1]) operations: 2000.
 		self check: class with: rnd keys: (1 to: 300) asArray operations: 5000]
 !
+testFloatHash
+	"The primitive answers the fallback's function: murmur3's fmix64 of the bits, 30 of them; NaN and the infinities hash to constants."
+	| rnd |
+	self assert: Float nan hash = 16r7FF8.
+	self assert: Float infinity hash = 16r7FF0.
+	self assert: Float negativeInfinity hash = -16r7FF0.
+	self assert: 3.0 hash = 3.
+	self assert: 1.0e20 hash = 1.0e20 asExactFraction hash.
+	rnd := Random new seed: 99.
+	(#(0.1 -0.1 2.5 1.0e-300 -1.0e-310 123456.789) , ((1 to: 200) collect: [:i | rnd next * (10 raisedTo: i \\ 20)]))
+		do: [:x | x fractionPart = 0.0 ifFalse: [self assert: x hash = (self fmix64: x asIEEEBits)]]
+!
 testHashMultiply
 	self assert: 0 hashMultiply = 0.
 	self assert: 1 hashMultiply = 1664525.
@@ -258,6 +277,21 @@ testIdentityHashes
 	10000 timesRepeat: [s add: Object new].
 	self assertSpread: s
 !
+testFloats
+	| rnd s |
+	rnd := Random new seed: 777.
+	s := Set new.
+	50000 timesRepeat: [s add: (rnd nextInt: 5000000) + 0.5 / 100.0].
+	self assertSpread: s
+!
+testFractions
+	| s |
+	s := Set new.
+	1 to: 20000 do: [:i |
+		i \\ 7 = 0 ifFalse: [s add: i / 7].
+		i odd ifTrue: [s add: i / 1024]].
+	self assertSpread: s
+!
 testPoints
 	| d |
 	d := Dictionary new.
@@ -308,6 +342,16 @@ displacementsOf: aHashedCollection
 			total := total + d.
 			max := max max: d]].
 	^Array with: total / (aHashedCollection size max: 1) with: max
+!
+fmix64: bits
+	| h |
+	h := bits.
+	h := h bitXor: (h bitShift: -33).
+	h := h * 16rFF51AFD7ED558CCD bitAnd: 16rFFFFFFFFFFFFFFFF.
+	h := h bitXor: (h bitShift: -33).
+	h := h * 16rC4CEB9FE1A85EC53 bitAnd: 16rFFFFFFFFFFFFFFFF.
+	h := h bitXor: (h bitShift: -33).
+	^h bitAnd: 16r3FFFFFFF
 !
 shortestSquared: r modulo: p
 	"Answer the squared length of the shortest nonzero (c, a) with c * r = a (mod p), by Gauss's lattice reduction."
