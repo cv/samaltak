@@ -71,8 +71,8 @@
   },
   {
     "id": "realworld",
-    "caption": "docs/benchmarks.md, real-world workloads: 16 programs written against each system's own library: opt 0.41 and baseline 0.52 of Pharo 12's time, both faster on all 16.",
-    "spoken": "On sixteen real-world programs using each system's own library, opt takes forty-one percent of Pharo's time, baseline fifty-two, and both win all sixteen.",
+    "caption": "docs/benchmarks.md, real-world workloads: 16 programs written against each system's own library: opt 0.32 and baseline 0.41 of Pharo 14's time, both faster on all 16.",
+    "spoken": "On sixteen real-world programs using each system's own library, opt takes thirty-two percent of Pharo's time, baseline forty-one, and both win all sixteen.",
     "cues": ["On sixteen real-world programs"]
   },
   {

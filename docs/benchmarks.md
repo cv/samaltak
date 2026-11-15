@@ -1,30 +1,30 @@
 # Benchmarks
 
-Same suite in three systems, methods compiled normally in each (`vm/tests/bench/suite-*.st`), on an Apple M2 Max, best of five to seven runs. Milliseconds, lower is better.
+Same suite in three systems, methods compiled normally in each (`vm/tests/bench/suite-*.st`), on an Apple M2 Max, best of seven runs. Milliseconds, lower is better.
 
-| benchmark | Samaltak (interpreter) | GNU Smalltalk 3.2.5 (interpreter) | Pharo 12 (Cog JIT) |
+| benchmark | Samaltak (interpreter) | GNU Smalltalk 3.2.5 (interpreter) | Pharo 14 (Cog JIT) |
 |---|---|---|---|
-| `fib: 30` | 25 | 45 | 10 |
-| loop 30M (`r := r + i`) | 120 | 171 | 64 |
-| sends 10M (`self id: r`) | 102 | 167 | 22 |
-| blocks 10M (`b value: r`) | 118 | 172 | 30 |
-| floats 3M | 33 | 246 | 39 |
-| Dictionary 300k (`at:put:`, `at:`) | 102 | 1653 | 227 |
-| strings 300k (`printString` into a stream) | 150 | 222 | 63 |
-| allocation 3M (`Array new: 4`) | 64 | 992 | 24 |
-| `1000 factorial` ×30 | 2 | 6 | 7 |
+| `fib: 30` | 24 | 44 | 9 |
+| loop 30M (`r := r + i`) | 109 | 167 | 57 |
+| sends 10M (`self id: r`) | 103 | 164 | 21 |
+| blocks 10M (`b value: r`) | 122 | 169 | 29 |
+| floats 3M | 28 | 244 | 35 |
+| Dictionary 300k (`at:put:`, `at:`) | 113 | 1657 | 158 |
+| strings 300k (`printString` into a stream) | 145 | 220 | 69 |
+| allocation 3M (`Array new: 4`) | 70 | 983 | 23 |
+| `1000 factorial` ×30 | 1 | 5 | 6 |
 
 All three do large-integer arithmetic in C (GMP, LargeIntegersPlugin, Samaltak's LargeIntegerPrimitives). Pharo compiles to native code, so it is a ceiling rather than a peer.
 
 Run:
 
-    vm/build/samaltak build/samaltak.image --headless --eval "$(cat vm/tests/bench/suite-samaltak.st)"
+    vm/build/samaltak --jit none build/samaltak.image --headless --eval "$(cat vm/tests/bench/suite-samaltak.st)"
     gst vm/tests/bench/suite-gst.st
     Pharo --headless Pharo.image eval "$(cat vm/tests/bench/suite-pharo.st)"
 
 ## Are We Fast Yet
 
-The suite for comparing JIT variants ([jit.md](jit.md)): the 14 [Are We Fast Yet](https://github.com/smarr/are-we-fast-yet) benchmarks (Marr, Daloze, Mössenböck, DLS 2016; MIT, `awfy/LICENSE.md`), the micro suite above (`Micro*`) and two Samaltak workloads: `Recompile` (compile every method of Kernel-Collections without installing it; checks the bytecodes match) and `TextRendering` (40 lines of text on a 900×500 Canvas, then `displayList`). The sources in `vm/tests/bench/awfy/` are filed into a built image; each benchmark runs in its own VM process. Pharo 12 runs the same sources except the Samaltak workloads.
+The suite for comparing JIT variants ([jit.md](jit.md)): the 14 [Are We Fast Yet](https://github.com/smarr/are-we-fast-yet) benchmarks (Marr, Daloze, Mössenböck, DLS 2016; MIT, `awfy/LICENSE.md`), the micro suite above (`Micro*`) and two Samaltak workloads: `Recompile` (compile every method of Kernel-Collections without installing it; checks the bytecodes match) and `TextRendering` (40 lines of text on a 900×500 Canvas, then `displayList`). The sources in `vm/tests/bench/awfy/` are filed into a built image; each benchmark runs in its own VM process. Pharo 14 runs the same sources except the Samaltak workloads, each method under its own `methodsFor:` preamble (`pharo14.awk`), the form Pharo 14 files in.
 
     vm/tests/bench/awfy.sh [--suite awfy|micro|workloads|realworld|all] [-n 30] [--vm-args '--jit none|baseline|opt'] [Bench[:inner] ...]
     vm/tests/bench/awfy.sh --pharo ...                  # $PHARO_VM, $PHARO_IMAGE (default ~/.cache/pharo14)
@@ -36,46 +36,46 @@ Defaults: 30 iterations; inner iterations (`inner()` in `awfy.sh`) such that a s
 
 Changes from upstream (the Smalltalk variant, SOM class syntax with Pharo method bodies): class files converted to chunk format, class-side fields as class variables (as upstream's Pharo loader); `Scheduler` (Richards) and `Simulator` (CD) renamed `RBScheduler` and `CDSimulator`, Samaltak has those globals; Json's `isTrue || isFalse` (unused) written `isTrue | isFalse`; the harness prints CSV and VM statistics and does not exit; `awfy/Samaltak.st` adds the Pharo methods `Integer>>&` and `Number>>%`.
 
-Steady state (median of the last half of 30 iterations) and first iteration, ms, median of 3 invocations interleaved `opt`, `baseline` and Pharo 12, the interpreter (`none`) after them (`vm/tests/bench/results/{samaltak-opt,samaltak-baseline,pharo12-cog,samaltak-none}-2026-11-07-*.csv`), 1-minute load at most 3 before each invocation, M2 Max:
+Steady state (median of the last half of 30 iterations) and first iteration, ms, median of 3 invocations interleaved `opt`, `baseline` and Pharo 14 (VM 12.0.6), the interpreter (`none`) after them (`vm/tests/bench/results/{samaltak-opt,samaltak-baseline,pharo14-cog,samaltak-none}-2026-11-14-*.csv`), 1-minute load at most 3 before each invocation, M2 Max:
 
-| benchmark | `none` | `opt` | `baseline` | Pharo 12 | `opt` / Pharo | `baseline` / Pharo | first `opt` | first `baseline` | first Pharo | first `opt` / Pharo | first `baseline` / Pharo |
+| benchmark | `none` | `opt` | `baseline` | Pharo 14 | `opt` / Pharo | `baseline` / Pharo | first `opt` | first `baseline` | first Pharo | first `opt` / Pharo | first `baseline` / Pharo |
 |---|---|---|---|---|---|---|---|---|---|---|---|
-| Bounce | 115.6 | 10.3 | 22.1 | 33.2 | 0.31 | 0.67 | 12.2 | 22.5 | 33.2 | 0.37 | 0.68 |
-| CD | 351.8 | 50.3 | 90.0 | 210.0 | 0.24 | 0.43 | 72.6 | 92.4 | 218.8 | 0.33 | 0.42 |
-| DeltaBlue | 117.4 | 14.7 | 32.2 | 45.4 | 0.32 | 0.71 | 77.9 | 36.1 | 90.8 | 0.86 | 0.40 |
-| Havlak | 777.5 | 78.2 | 205.5 | 376.4 | 0.21 | 0.55 | 114.4 | 232.0 | 438.4 | 0.26 | 0.53 |
-| Json | 96.5 | 9.0 | 35.9 | 58.1 | 0.15 | 0.62 | 40.7 | 39.8 | 64.1 | 0.63 | 0.62 |
-| List | 123.4 | 12.1 | 17.9 | 24.3 | 0.50 | 0.74 | 12.8 | 18.4 | 24.3 | 0.53 | 0.76 |
-| Mandelbrot | 535.3 | 120.3 | 210.1 | 376.1 | 0.32 | 0.56 | 123.0 | 209.8 | 378.2 | 0.33 | 0.55 |
-| NBody | 780.9 | 147.2 | 332.8 | 357.4 | 0.41 | 0.93 | 150.1 | 332.2 | 393.9 | 0.38 | 0.84 |
-| Permute | 113.0 | 13.7 | 21.8 | 34.6 | 0.40 | 0.63 | 15.4 | 21.9 | 33.5 | 0.46 | 0.65 |
-| Queens | 116.3 | 12.3 | 19.9 | 44.3 | 0.28 | 0.45 | 14.2 | 20.8 | 43.5 | 0.33 | 0.48 |
-| Richards | 106.3 | 9.9 | 18.0 | 23.5 | 0.42 | 0.77 | 12.8 | 18.9 | 24.3 | 0.53 | 0.78 |
-| Sieve | 103.4 | 17.8 | 34.0 | 56.3 | 0.32 | 0.60 | 26.8 | 35.1 | 67.4 | 0.40 | 0.52 |
-| Storage | 121.1 | 25.3 | 37.4 | 58.2 | 0.43 | 0.64 | 29.4 | 38.5 | 72.4 | 0.41 | 0.53 |
-| Towers | 93.9 | 8.1 | 14.2 | 17.0 | 0.48 | 0.84 | 9.8 | 14.4 | 17.3 | 0.57 | 0.83 |
-| geometric mean | | | | | 0.33 | 0.64 | | | | 0.43 | 0.60 |
+| Bounce | 110.8 | 9.9 | 21.4 | 34.0 | 0.29 | 0.63 | 12.6 | 22.6 | 39.6 | 0.32 | 0.57 |
+| CD | 363.3 | 45.8 | 85.5 | 200.6 | 0.23 | 0.43 | 66.5 | 87.5 | 205.2 | 0.32 | 0.43 |
+| DeltaBlue | 107.2 | 10.9 | 26.7 | 78.3 | 0.14 | 0.34 | 88.3 | 29.6 | 86.3 | 1.02 | 0.34 |
+| Havlak | 731.7 | 66.7 | 203.0 | 396.0 | 0.17 | 0.51 | 95.3 | 207.6 | 408.2 | 0.23 | 0.51 |
+| Json | 97.4 | 8.0 | 32.9 | 55.8 | 0.14 | 0.59 | 42.5 | 34.9 | 53.7 | 0.79 | 0.65 |
+| List | 122.9 | 10.2 | 17.5 | 23.3 | 0.44 | 0.75 | 11.1 | 17.5 | 23.4 | 0.48 | 0.75 |
+| Mandelbrot | 512.3 | 100.4 | 191.0 | 348.7 | 0.29 | 0.55 | 103.8 | 189.4 | 348.9 | 0.30 | 0.54 |
+| NBody | 765.3 | 144.1 | 317.9 | 353.1 | 0.41 | 0.90 | 144.1 | 318.2 | 364.5 | 0.40 | 0.87 |
+| Permute | 114.9 | 13.4 | 21.7 | 33.5 | 0.40 | 0.65 | 13.4 | 21.4 | 33.1 | 0.40 | 0.65 |
+| Queens | 110.9 | 10.7 | 19.5 | 42.5 | 0.25 | 0.46 | 13.6 | 20.0 | 42.3 | 0.32 | 0.47 |
+| Richards | 97.3 | 8.9 | 17.3 | 22.6 | 0.40 | 0.77 | 10.8 | 17.6 | 23.2 | 0.47 | 0.76 |
+| Sieve | 95.6 | 16.7 | 32.4 | 54.9 | 0.30 | 0.59 | 26.4 | 34.7 | 58.1 | 0.45 | 0.60 |
+| Storage | 115.7 | 23.5 | 36.9 | 55.9 | 0.42 | 0.66 | 28.0 | 37.6 | 59.4 | 0.47 | 0.63 |
+| Towers | 91.1 | 7.3 | 14.1 | 16.5 | 0.45 | 0.85 | 8.2 | 14.1 | 16.6 | 0.49 | 0.85 |
+| geometric mean | | | | | 0.29 | 0.60 | | | | 0.43 | 0.60 |
 
-The micro suite (`--suite micro`: the first table's benchmarks as AWFY benchmarks), the same way (`...-micro-2026-11-07-*.csv`):
+The micro suite (`--suite micro`: the first table's benchmarks as AWFY benchmarks), the same way (`...-micro-2026-11-14-*.csv`):
 
-| benchmark | `opt` | `baseline` | Pharo 12 | `opt` / Pharo | `baseline` / Pharo | first `opt` | first `baseline` | first Pharo | first `opt` / Pharo | first `baseline` / Pharo |
+| benchmark | `opt` | `baseline` | Pharo 14 | `opt` / Pharo | `baseline` / Pharo | first `opt` | first `baseline` | first Pharo | first `opt` / Pharo | first `baseline` / Pharo |
 |---|---|---|---|---|---|---|---|---|---|---|
-| MicroFib | 4.4 | 5.2 | 10.2 | 0.43 | 0.51 | 4.5 | 5.2 | 10.2 | 0.44 | 0.51 |
-| MicroLoop | 27.7 | 32.7 | 64.4 | 0.43 | 0.51 | 27.8 | 33.0 | 64.6 | 0.43 | 0.51 |
-| MicroFloats | 5.7 | 20.7 | 38.8 | 0.15 | 0.53 | 6.1 | 20.8 | 38.3 | 0.16 | 0.54 |
-| MicroSends | 12.1 | 22.2 | 22.8 | 0.53 | 0.97 | 12.8 | 22.3 | 22.8 | 0.56 | 0.98 |
-| MicroBlocks | 14.7 | 29.3 | 30.7 | 0.48 | 0.95 | 15.9 | 29.5 | 30.4 | 0.52 | 0.97 |
-| MicroDict | 16.9 | 29.8 | 140.8 | 0.12 | 0.21 | 17.6 | 39.3 | 245.4 | 0.07 | 0.16 |
-| MicroStrings | 23.2 | 36.8 | 61.3 | 0.38 | 0.60 | 27.7 | 38.4 | 79.3 | 0.35 | 0.48 |
-| MicroAlloc | 12.4 | 21.1 | 35.1 | 0.35 | 0.60 | 16.6 | 23.6 | 64.1 | 0.26 | 0.37 |
-| MicroFactorial | 1.8 | 1.8 | 10.6 | 0.17 | 0.17 | 3.7 | 1.9 | 10.9 | 0.34 | 0.17 |
-| geometric mean | | | | 0.30 | 0.49 | | | | 0.30 | 0.44 |
+| MicroFib | 3.9 | 5.1 | 10.1 | 0.39 | 0.50 | 4.0 | 5.1 | 10.2 | 0.39 | 0.50 |
+| MicroLoop | 26.8 | 31.6 | 62.9 | 0.43 | 0.50 | 28.0 | 31.9 | 63.2 | 0.44 | 0.50 |
+| MicroFloats | 5.6 | 19.0 | 37.9 | 0.15 | 0.50 | 5.8 | 18.9 | 38.1 | 0.15 | 0.50 |
+| MicroSends | 8.6 | 21.7 | 21.9 | 0.40 | 0.99 | 8.8 | 21.7 | 21.8 | 0.40 | 1.00 |
+| MicroBlocks | 14.0 | 28.7 | 30.0 | 0.47 | 0.95 | 16.3 | 28.9 | 29.8 | 0.55 | 0.97 |
+| MicroDict | 15.9 | 28.1 | 132.1 | 0.12 | 0.21 | 15.6 | 38.7 | 190.3 | 0.08 | 0.20 |
+| MicroStrings | 22.5 | 35.0 | 74.2 | 0.30 | 0.47 | 27.6 | 36.4 | 78.3 | 0.35 | 0.46 |
+| MicroAlloc | 12.9 | 19.7 | 31.5 | 0.41 | 0.63 | 16.9 | 21.7 | 33.0 | 0.51 | 0.66 |
+| MicroFactorial | 1.7 | 1.7 | 7.8 | 0.21 | 0.22 | 2.9 | 1.8 | 8.3 | 0.35 | 0.22 |
+| geometric mean | | | | 0.29 | 0.49 | | | | 0.31 | 0.49 |
 
-`opt` takes 0.33 of Pharo 12's time on AWFY (first iterations 0.43), `baseline` 0.64; on the micro suite 0.30 and 0.49. Both win every benchmark. `baseline` comes closest on NBody (0.93: Float arithmetic out of line, accessors sent), MicroBlocks (0.95) and MicroSends (0.97): a block call or a send per turn, the code Cog makes for them; `opt`'s first iteration on DeltaBlue (0.86), most of it compiling.
+`opt` takes 0.29 of Pharo 14's time on AWFY (first iterations 0.43), `baseline` 0.60; on the micro suite 0.29 and 0.49. Both win every benchmark; of the first iterations `opt` loses DeltaBlue (1.02, most of it compiling) and `baseline` ties MicroSends (1.00). `baseline` comes closest on MicroSends (0.99) and MicroBlocks (0.95), a send or a block call per turn, the code Cog makes for them, and on NBody (0.90: Float arithmetic out of line, accessors sent). Pharo 14 runs these as fast as Pharo 12 (1.01 and 0.96 of its time, `results/pharo12-cog{,-micro}-2026-11-07-*.csv`) but DeltaBlue (1.72) and MicroStrings (1.21).
 
 ### x86-64
 
-The same benchmarks on Linux x86-64: an AMD EPYC 7B13 (Zen 3) cloud VM with 2 vCPUs, the VM built with gcc -O2 (no profile); CPU time (`--cpu`), steady state as above, one invocation per mode, `none` 10 iterations, `baseline` and `opt` 30 (`vm/tests/bench/results/samaltak-x86-{none,baseline,opt}-2026-11-14.csv`), beside arm64's ratios from the table above (M2 Max):
+The same benchmarks on Linux x86-64: an AMD EPYC 7B13 (Zen 3) cloud VM with 2 vCPUs, the VM built with gcc -O2 (no profile); CPU time (`--cpu`), steady state as above, one invocation per mode, `none` 10 iterations, `baseline` and `opt` 30 (`vm/tests/bench/results/samaltak-x86-{none,baseline,opt}-2026-11-14.csv`), beside arm64's ratios of 2026-11-07 (M2 Max, `results/samaltak-{none,baseline,opt}-2026-11-07-*.csv`):
 
 | benchmark | `none` | `baseline` | `opt` | `baseline` / `none` | `opt` / `none` | arm64 `baseline` / `none` | arm64 `opt` / `none` |
 |---|---|---|---|---|---|---|---|
@@ -97,7 +97,7 @@ The same benchmarks on Linux x86-64: an AMD EPYC 7B13 (Zen 3) cloud VM with 2 vC
 
 Over its interpreter each JIT gains as much on x86-64 as on arm64; this machine runs the interpreter 1.9× slower than the M2 Max. Compiling (the runs' counters): `baseline` 10.1 µs a method, 0.45 µs per bytecode byte; `opt` 0.78 ms a unit, 8.6 KB of code (the M2 Max: 4.3 µs, 0.20 µs, 0.34 ms, 6.1 KB). x86-64's code is about a third bigger than arm64's: two-operand instructions take a `mov` more, branches to out-of-line paths 6 bytes, nil, true and false a pc-relative word, 64-bit constants 10 bytes.
 
-Against Pharo 12 on the same machine (its Linux x86-64 VM, Cog), all three suites: CPU time (`--cpu`; `awfy/PharoCPU.st` reads the thread's clock as on macOS), steady state as above, median of 3 invocations interleaved `opt`, `baseline`, Pharo (`vm/tests/bench/results/{samaltak-x86-opt,samaltak-x86-baseline,pharo12-cog-x86}{,-micro,-realworld}-2026-11-15-*.csv`), beside arm64's ratios from the tables of this document (M2 Max). Geometric means:
+Against Pharo 12 on the same machine (its Linux x86-64 VM, Cog), all three suites: CPU time (`--cpu`; `awfy/PharoCPU.st` reads the thread's clock as on macOS), steady state as above, median of 3 invocations interleaved `opt`, `baseline`, Pharo (`vm/tests/bench/results/{samaltak-x86-opt,samaltak-x86-baseline,pharo12-cog-x86}{,-micro,-realworld}-2026-11-15-*.csv`), beside arm64's against Pharo 12 (M2 Max, `results/{samaltak-opt,samaltak-baseline,pharo12-cog}{,-micro,-realworld}-2026-11-07-*.csv`). Geometric means:
 
 | | x86-64 `opt` / Pharo | arm64 `opt` / Pharo | x86-64 `baseline` / Pharo | arm64 `baseline` / Pharo |
 |---|---|---|---|---|
@@ -174,7 +174,7 @@ Pharo 14 (its Linux x86-64 download of 2026-11-14, `Pharo-14.0.0+SNAPSHOT.build.
 
 ## Real-world workloads
 
-AWFY brings its own collections (`Vector`, `SomDictionary`, `SomSet` in `awfy/Core.st`), so it measures the compiler and VM, not the class library, its primitives or the GC at scale. These 16 workloads (`awfy/RealWorld.st`, `--suite realworld`, not part of `all`) are written once against each system's own class library; Pharo 12 runs the same source. Each answers a checksum that `verifyResult:` compares with one constant for both systems; at small sizes all 16 also answer the same on both. Sizes give 0.45–1 s per iteration on Pharo 12; an invocation takes 3 minutes under `opt`, 3.5 under `baseline`, 6 on Pharo.
+AWFY brings its own collections (`Vector`, `SomDictionary`, `SomSet` in `awfy/Core.st`), so it measures the compiler and VM, not the class library, its primitives or the GC at scale. These 16 workloads (`awfy/RealWorld.st`, `--suite realworld`, not part of `all`) are written once against each system's own class library; Pharo 14 runs the same source. Each answers a checksum that `verifyResult:` compares with one constant for both systems; at small sizes all 16 also answer the same on both. Sizes give 0.45–1 s per iteration on Pharo 12; an invocation takes 2.5 minutes under `opt`, 3.2 under `baseline`, 7.7 on Pharo 14.
 
 | workload | what |
 |---|---|
@@ -197,31 +197,31 @@ AWFY brings its own collections (`Vector`, `SomDictionary`, `SomSet` in `awfy/Co
 
 No shims: `RealWorld.st` runs unchanged on both, with the harness's platform files (`awfy/Samaltak.st`, `awfy/Pharo.st`) as for AWFY. Two Pharo 12 differences are avoided by selectors both have: `Character>>asInteger` (Pharo 12 has no `Character>>value`; `Object>>value` answers the Character) and `printStringBase:` (no `Integer>>printString:`). Pharo prints Floats from 10^6 on as `1.0e6`, Samaltak as `1000000.0`; PrintParse's Floats stay below 10^6. CLBG fannkuch-redux is left out: Array and SmallInteger code only, as AWFY's Permute.
 
-Steady state (median of the last half of 30 iterations) and first iteration, ms, median of 3 invocations interleaved `opt`, `baseline`, Pharo 12 (`vm/tests/bench/results/{samaltak-opt,samaltak-baseline,pharo12-cog}-realworld-2026-11-07-*.csv`; `baseline`'s second invocation run again: swapping had slowed half of its PrintParse iterations tenfold), 1-minute load at most 3 before each invocation, M2 Max.
+Steady state (median of the last half of 30 iterations) and first iteration, ms, median of 3 invocations interleaved `opt`, `baseline`, Pharo 14 (`vm/tests/bench/results/{samaltak-opt,samaltak-baseline,pharo14-cog}-realworld-2026-11-14-*.csv`), 1-minute load at most 3 before each invocation, M2 Max.
 
-| benchmark | `opt` | `baseline` | Pharo 12 | `opt` / Pharo | `baseline` / Pharo | first `opt` | first `baseline` | first Pharo | first `opt` / Pharo | first `baseline` / Pharo |
+| benchmark | `opt` | `baseline` | Pharo 14 | `opt` / Pharo | `baseline` / Pharo | first `opt` | first `baseline` | first Pharo | first `opt` / Pharo | first `baseline` / Pharo |
 |---|---|---|---|---|---|---|---|---|---|---|
-| BinaryTrees | 270.2 | 474.4 | 597.0 | 0.45 | 0.79 | 265.1 | 462.8 | 655.3 | 0.40 | 0.71 |
-| Fasta | 406.0 | 468.8 | 565.7 | 0.72 | 0.83 | 418.4 | 469.8 | 604.5 | 0.69 | 0.78 |
-| KNucleotide | 459.9 | 551.2 | 908.3 | 0.51 | 0.61 | 480.7 | 540.9 | 1598.8 | 0.30 | 0.34 |
-| ReverseComplement | 253.8 | 400.9 | 724.4 | 0.35 | 0.55 | 269.0 | 405.0 | 449.0 | 0.60 | 0.90 |
-| SpectralNorm | 405.6 | 589.4 | 731.4 | 0.55 | 0.81 | 409.6 | 590.7 | 732.8 | 0.56 | 0.81 |
-| Pidigits | 527.2 | 498.6 | 1102.3 | 0.48 | 0.45 | 537.8 | 529.5 | 1469.2 | 0.37 | 0.36 |
-| Strings | 258.0 | 322.5 | 695.2 | 0.37 | 0.46 | 271.6 | 321.9 | 806.3 | 0.34 | 0.40 |
-| Dictionaries | 312.2 | 426.1 | 981.1 | 0.32 | 0.43 | 539.2 | 721.0 | 2016.8 | 0.27 | 0.36 |
-| OrderedCollections | 187.3 | 218.6 | 678.8 | 0.28 | 0.32 | 203.7 | 231.6 | 771.7 | 0.26 | 0.30 |
-| Sorting | 590.6 | 657.5 | 849.3 | 0.70 | 0.77 | 601.0 | 648.2 | 870.6 | 0.69 | 0.74 |
-| Enumeration | 204.4 | 328.8 | 525.3 | 0.39 | 0.63 | 288.2 | 360.0 | 561.4 | 0.51 | 0.64 |
-| PrintParse | 495.1 | 740.4 | 868.0 | 0.57 | 0.85 | 536.2 | 749.2 | 879.1 | 0.61 | 0.85 |
-| Exceptions | 460.3 | 494.9 | 732.5 | 0.63 | 0.68 | 471.6 | 497.9 | 971.2 | 0.49 | 0.51 |
-| Megamorphic | 106.6 | 106.1 | 704.3 | 0.15 | 0.15 | 114.8 | 106.9 | 710.7 | 0.16 | 0.15 |
-| DeepRecursion | 251.9 | 285.2 | 785.6 | 0.32 | 0.36 | 263.4 | 297.7 | 1111.9 | 0.24 | 0.27 |
-| Perform | 263.4 | 310.9 | 804.3 | 0.33 | 0.39 | 265.8 | 311.7 | 763.9 | 0.35 | 0.41 |
-| geometric mean | | | | 0.41 | 0.52 | | | | 0.39 | 0.48 |
+| BinaryTrees | 262.3 | 451.0 | 1640.1 | 0.16 | 0.27 | 252.9 | 443.5 | 1700.2 | 0.15 | 0.26 |
+| Fasta | 395.8 | 457.1 | 562.5 | 0.70 | 0.81 | 399.7 | 467.7 | 608.4 | 0.66 | 0.77 |
+| KNucleotide | 285.9 | 384.6 | 1308.9 | 0.22 | 0.29 | 303.1 | 382.2 | 1200.1 | 0.25 | 0.32 |
+| ReverseComplement | 281.7 | 397.3 | 741.0 | 0.38 | 0.54 | 297.2 | 403.7 | 483.9 | 0.61 | 0.83 |
+| SpectralNorm | 391.5 | 577.6 | 789.0 | 0.50 | 0.73 | 392.5 | 578.2 | 825.3 | 0.48 | 0.70 |
+| Pidigits | 511.5 | 522.7 | 975.7 | 0.52 | 0.54 | 524.9 | 501.3 | 1279.9 | 0.41 | 0.39 |
+| Strings | 234.9 | 303.0 | 920.6 | 0.26 | 0.33 | 248.4 | 297.9 | 912.9 | 0.27 | 0.33 |
+| Dictionaries | 278.0 | 380.4 | 1482.8 | 0.19 | 0.26 | 308.6 | 476.4 | 1839.3 | 0.17 | 0.26 |
+| OrderedCollections | 198.1 | 238.0 | 1211.0 | 0.16 | 0.20 | 214.3 | 240.0 | 1229.9 | 0.17 | 0.20 |
+| Sorting | 469.9 | 555.3 | 702.4 | 0.67 | 0.79 | 478.8 | 556.0 | 732.7 | 0.65 | 0.76 |
+| Enumeration | 194.4 | 317.5 | 657.0 | 0.30 | 0.48 | 216.2 | 315.9 | 663.3 | 0.33 | 0.48 |
+| PrintParse | 464.4 | 701.2 | 1036.1 | 0.45 | 0.68 | 500.2 | 702.2 | 1056.1 | 0.47 | 0.66 |
+| Exceptions | 395.9 | 427.5 | 677.5 | 0.58 | 0.63 | 403.6 | 427.1 | 719.0 | 0.56 | 0.59 |
+| Megamorphic | 104.6 | 99.9 | 676.6 | 0.15 | 0.15 | 110.3 | 102.3 | 681.1 | 0.16 | 0.15 |
+| DeepRecursion | 241.6 | 276.1 | 840.2 | 0.29 | 0.33 | 247.2 | 270.2 | 1009.5 | 0.24 | 0.27 |
+| Perform | 251.7 | 302.1 | 771.4 | 0.33 | 0.39 | 255.2 | 302.5 | 755.1 | 0.34 | 0.40 |
+| geometric mean | | | | 0.32 | 0.41 | | | | 0.33 | 0.41 |
 
-`opt` takes 0.41 of Pharo 12's time (first iterations 0.39), `baseline` 0.52 (0.48). Both win all 16, `opt` Sorting by the least (0.70), `baseline` PrintParse (0.85). Part of the margin is GC: per iteration Pharo spends 430 ms in full GCs on ReverseComplement (its 10 MB Strings; Samaltak 10 ms), 552 ms in GC on DeepRecursion (56 ms), 261 ms on BinaryTrees (54 ms) and 282 ms scavenging on Pidigits (under 1 ms).
+`opt` takes 0.32 of Pharo 14's time (first iterations 0.33), `baseline` 0.41 (0.41). Both win all 16, both Fasta by the least (0.70 and 0.81). Part of the margin is GC: per iteration Pharo spends 423 ms in full GCs on ReverseComplement (its 10 MB Strings; Samaltak 15 ms), 482 ms in GC on DeepRecursion (60 ms), 414 ms on OrderedCollections (47 ms) and 285 ms scavenging on Pidigits (under 1 ms). Pharo 14 takes 1.19× Pharo 12's time on these (`results/pharo12-cog-realworld-2026-11-07-*.csv`): BinaryTrees 2.75×, OrderedCollections 1.78, Dictionaries 1.51, KNucleotide 1.44, Strings 1.32. Not in its GCs, which take as long as 12's, and not in its image: Pharo 12's image on Pharo 14's VM is as slow (BinaryTrees 1593 ms against 557 on its own VM, DeltaBlue 78 against 41).
 
-Pidigits is LargeInteger arithmetic in C. Its iterations take about 495 or about 528 ms, under either tier, switching within a run; `opt`'s invocations happened to spend more of their last 15 iterations at 528 (median 527 against `baseline`'s 499). Megamorphic ties (106.6 and 106.1 ms): every send is megamorphic, so `opt` inlines nothing.
+Pidigits is LargeInteger arithmetic in C. Its iterations take 490 to 535 ms under either tier, the level changing between invocations and within one (`baseline`'s second: 495, then 525). Megamorphic: `opt` 104.6 ms, `baseline` 99.9; every send is megamorphic, so `opt` inlines nothing.
 
 ## Against C
 
@@ -244,16 +244,16 @@ The listings of the optimized SpectralNorm and Fasta loops show where the rest g
 
 ## Compile speed
 
-How fast each JIT compiles the same code (`vm/tests/bench/compile-speed.sh`, `vm/tests/bench/results/compile-speed-2026-11-08.csv`; M2 Max, a fresh VM process per round, 1-minute load ≤ 3). Corpus: the 630 methods of the AWFY benchmark classes (`Core` and the 14 benchmarks), identical sources, each behind an early exit, `probeNil ifNil: [^0]. <the body>` (`compile_speed.py gen`): sent with nil it runs in O(1), while the JIT compiles every bytecode. The table is the 591 methods with no real block on either system, 30 rounds: Pharo's CompiledBlocks are compiled when they run, which here they do not. Bytes and instructions are each system's own bytecode. `opt` runs with `--jit-flags eager` and inlines only where a receiver's class is known statically (32 % more bytecode than the methods'; 57 of 593 units).
+How fast each JIT compiles the same code (`vm/tests/bench/compile-speed.sh`, `vm/tests/bench/results/compile-speed-2026-11-14.csv`; M2 Max, a fresh VM process per round, 1-minute load ≤ 3). Corpus: the 630 methods of the AWFY benchmark classes (`Core` and the 14 benchmarks), identical sources, each behind an early exit, `probeNil ifNil: [^0]. <the body>` (`compile_speed.py gen`): sent with nil it runs in O(1), while the JIT compiles every bytecode. The table is the 591 methods with no real block on either system, 30 rounds: Pharo's CompiledBlocks are compiled when they run, which here they do not. Bytes and instructions are each system's own bytecode. `opt` runs with `--jit-flags eager` and inlines only where a receiver's class is known statically (32 % more bytecode than the methods'; 57 of 593 units).
 
 | | µs / method | µs / bytecode byte | µs / instruction | machine-code bytes / bytecode byte |
 |---|---|---|---|---|
-| `baseline` | 3.08 | 0.118 | 0.158 | 32.3 |
-| Pharo 12 Cog | 3.26 | 0.133 | 0.140 | 20.7 |
-| `opt`, no feedback | 18.6 | 0.71 | 0.95 | 35.0 |
+| `baseline` | 2.85 | 0.109 | 0.146 | 32.3 |
+| Pharo 14 Cog | 3.14 | 0.128 | 0.135 | 20.4 |
+| `opt`, no feedback | 18.5 | 0.71 | 0.95 | 33.9 |
 
-`baseline` compiles as fast as Cog: 3.28 against 3.33 µs a method by the wall clock of the compiling send, 6 % less per method and 11 % less per bytecode byte by the counters (Cog's counts whole milliseconds), 13 % more per instruction (Samaltak has fewer, bigger instructions for the same source), and it emits 1.6× the machine code. Over all 630 methods: 3.46 against 3.63 µs a method. With real feedback (AWFY, default thresholds, 30 iterations, median of 3, `results/samaltak-opt-compile-2026-11-08-*.csv`) `opt` takes 170 ms for 507 units (methods, blocks, loops), 336 µs a unit: 56 bytecode bytes of its own and 330 inlined (a scratch VM build counted what the SSA builder translated, `results/compile-speed-2026-11-08-opt-units.txt`), so 6.0 µs per byte of the unit, 0.87 µs per byte with the inlined ones (about 7× `baseline`), 6.1 KB of machine code a unit, 16 bytes per byte with the inlined ones. Share of the AWFY first iteration (14 benchmarks, 5 rounds, the VMs' counters): `baseline` 3.3 of 1082 ms (0.3 %), Cog 4.0 of 1765 ms (0.2 %), `opt` 128 of 665 ms (19 %; DeltaBlue 72 %, Json 69 %).
+`baseline` compiles as fast as Cog: 3.40 against 3.33 µs a method by the wall clock of the compiling send, 9 % less per method and 15 % less per bytecode byte by the counters (Cog's counts whole milliseconds), 8 % more per instruction (Samaltak has fewer, bigger instructions for the same source), and it emits 1.6× the machine code. Over all 630 methods: 3.25 against 3.74 µs a method. With real feedback (AWFY, default thresholds, 30 iterations, median of 3, `results/samaltak-opt-compile-2026-11-08-*.csv`) `opt` takes 170 ms for 507 units (methods, blocks, loops), 336 µs a unit: 56 bytecode bytes of its own and 330 inlined (a scratch VM build counted what the SSA builder translated, `results/compile-speed-2026-11-08-opt-units.txt`), so 6.0 µs per byte of the unit, 0.87 µs per byte with the inlined ones (about 7× `baseline`), 6.1 KB of machine code a unit, 16 bytes per byte with the inlined ones. Share of the AWFY first iteration (14 benchmarks, 5 rounds, the VMs' counters): `baseline` 3.1 of 1043 ms (0.3 %), Cog 2.4 of 1722 ms (0.1 %), `opt` 158 of 662 ms (24 %; DeltaBlue 80 %, Json 72 %).
 
-Method. Samaltak: its counters around the compiler (`jitCompileMicroseconds`, `optCompileMicroseconds`). Cog: Pharo 12's own, `Smalltalk vm parameterAt:` 75–78 (methods and blocks, microseconds summed around `cogselector` and `cogFullBlockMethodnumCopied`, reported in whole milliseconds, so the mean of the rounds), with a 32 MB code zone (`--codeSize`) so that nothing compacts; the default 1.25 MB zone does. Probes are sent six times from interpreted drivers (Cog compiles at the second send, `baseline` and `opt` at the third). Two independent checks: the compiling send's wall clock, its time minus the last sends': Cog 3.33 µs a method against its counter's 3.26, `baseline` 3.28 against 3.08 (the send path and installing the code are outside its counter), `opt` 24.2 against 22.0 by its two compilers; native sampling (`sample`, 1 ms, thousands of rounds in one process, code dropped between rounds): `cogselector` 28.6 % of the samples against 28.3 % of the run by the counter, `jit_runtime_compile` 75.2 against 70.4 % (the counter leaves out its clock reads). These methods compile in a row; one at a time in the AWFY runs, with tier-up counters under `opt`, the lower tier took 4.3 µs a method, 0.20 µs per bytecode byte.
+Method. Samaltak: its counters around the compiler (`jitCompileMicroseconds`, `optCompileMicroseconds`). Cog: Pharo 14's own, `Smalltalk vm parameterAt:` 75–78 (methods and blocks, microseconds summed around `cogselector` and `cogFullBlockMethodnumCopied`, reported in whole milliseconds, so the mean of the rounds), with a 32 MB code zone (`--codeSize`) so that nothing compacts; the default 1.25 MB zone does. Probes are sent six times from interpreted drivers (Cog compiles at the second send, `baseline` and `opt` at the third). Two independent checks: the compiling send's wall clock, its time minus the last sends': Cog 3.33 µs a method against its counter's 3.14, `baseline` 3.40 against 2.85 (the send path and installing the code are outside its counter), `opt` 22.6 against 21.2 by its two compilers; native sampling (Pharo 12, 2026-11-08; `sample`, 1 ms, thousands of rounds in one process, code dropped between rounds): `cogselector` 28.6 % of the samples against 28.3 % of the run by the counter, `jit_runtime_compile` 75.2 against 70.4 % (the counter leaves out its clock reads). These methods compile in a row; one at a time in the AWFY runs, with tier-up counters under `opt`, the lower tier took 4.3 µs a method, 0.20 µs per bytecode byte.
 
     vm/tests/bench/compile-speed.sh [corpus|awfy|all] [-n 30] [-a 5] [-o results.csv]   # needs vm/build/samaltak, build/samaltak.image and Pharo 14 ($PHARO_VM, $PHARO_IMAGE)

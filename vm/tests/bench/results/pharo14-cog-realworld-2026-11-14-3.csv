@@ -1,0 +1,546 @@
+# awfy 2026-11-14 18:18 vm=/Users/schani/.cache/pharo14/vm/Pharo.app/Contents/MacOS/Pharo image=/Users/schani/.cache/pharo14/bench.image vm-args='' iterations=30
+# run BinaryTrees inner=1
+BinaryTrees,1,1700184
+BinaryTrees,2,1661247
+BinaryTrees,3,1611378
+BinaryTrees,4,1708257
+BinaryTrees,5,1611573
+BinaryTrees,6,1664242
+BinaryTrees,7,1636024
+BinaryTrees,8,1669789
+BinaryTrees,9,1617360
+BinaryTrees,10,1639618
+BinaryTrees,11,1668298
+BinaryTrees,12,1621692
+BinaryTrees,13,1671915
+BinaryTrees,14,1699860
+BinaryTrees,15,1644193
+BinaryTrees,16,1722438
+BinaryTrees,17,1639350
+BinaryTrees,18,1646374
+BinaryTrees,19,1707229
+BinaryTrees,20,1652515
+BinaryTrees,21,1629157
+BinaryTrees,22,1669237
+BinaryTrees,23,1670600
+BinaryTrees,24,1684816
+BinaryTrees,25,1640761
+BinaryTrees,26,1621554
+BinaryTrees,27,1711603
+BinaryTrees,28,1622930
+BinaryTrees,29,1678947
+BinaryTrees,30,1625637
+# stats BinaryTrees fullGCs=45 fullGCMilliseconds=3825 scavenges=1483 scavengeMilliseconds=3419 bytesAllocated=22921172272 cogMethods=317 cogMethodMs=1 cogBlocks=68 cogBlockMs=0 cogCompactions=0 cogCompactionMs=0
+# total BinaryTrees 49748778 us
+# run Fasta inner=1
+Fasta,1,608446
+Fasta,2,573750
+Fasta,3,585793
+Fasta,4,571889
+Fasta,5,574332
+Fasta,6,578421
+Fasta,7,575053
+Fasta,8,579001
+Fasta,9,580955
+Fasta,10,586323
+Fasta,11,574012
+Fasta,12,573222
+Fasta,13,576604
+Fasta,14,574634
+Fasta,15,578240
+Fasta,16,575995
+Fasta,17,573122
+Fasta,18,582765
+Fasta,19,572844
+Fasta,20,573655
+Fasta,21,575177
+Fasta,22,572922
+Fasta,23,577538
+Fasta,24,571967
+Fasta,25,572434
+Fasta,26,580339
+Fasta,27,577023
+Fasta,28,577581
+Fasta,29,581687
+Fasta,30,577589
+# stats Fasta fullGCs=30 fullGCMilliseconds=1320 scavenges=1 scavengeMilliseconds=2 bytesAllocated=1331819528 cogMethods=290 cogMethodMs=1 cogBlocks=69 cogBlockMs=0 cogCompactions=0 cogCompactionMs=0
+# total Fasta 17333313 us
+# run KNucleotide inner=1
+KNucleotide,1,1065089
+KNucleotide,2,1373077
+KNucleotide,3,1292247
+KNucleotide,4,1359250
+KNucleotide,5,1396814
+KNucleotide,6,1289460
+KNucleotide,7,1366481
+KNucleotide,8,1423352
+KNucleotide,9,1316405
+KNucleotide,10,1390806
+KNucleotide,11,1371757
+KNucleotide,12,1305030
+KNucleotide,13,1408520
+KNucleotide,14,1293970
+KNucleotide,15,1355340
+KNucleotide,16,1375387
+KNucleotide,17,1359738
+KNucleotide,18,1367347
+KNucleotide,19,1293404
+KNucleotide,20,1347795
+KNucleotide,21,1357195
+KNucleotide,22,1294127
+KNucleotide,23,1373912
+KNucleotide,24,1396905
+KNucleotide,25,1310380
+KNucleotide,26,1359707
+KNucleotide,27,1351882
+KNucleotide,28,1386174
+KNucleotide,29,1298138
+KNucleotide,30,1360438
+# stats KNucleotide fullGCs=21 fullGCMilliseconds=1178 scavenges=130 scavengeMilliseconds=955 bytesAllocated=2273298304 cogMethods=325 cogMethodMs=2 cogBlocks=63 cogBlockMs=0 cogCompactions=0 cogCompactionMs=0
+# total KNucleotide 40240127 us
+# run ReverseComplement inner=1
+ReverseComplement,1,496338
+ReverseComplement,2,821181
+ReverseComplement,3,790618
+ReverseComplement,4,794390
+ReverseComplement,5,804977
+ReverseComplement,6,785149
+ReverseComplement,7,793347
+ReverseComplement,8,801006
+ReverseComplement,9,798795
+ReverseComplement,10,799361
+ReverseComplement,11,796326
+ReverseComplement,12,800646
+ReverseComplement,13,795661
+ReverseComplement,14,795588
+ReverseComplement,15,800266
+ReverseComplement,16,797727
+ReverseComplement,17,806990
+ReverseComplement,18,783754
+ReverseComplement,19,811652
+ReverseComplement,20,799624
+ReverseComplement,21,794357
+ReverseComplement,22,798330
+ReverseComplement,23,796906
+ReverseComplement,24,790600
+ReverseComplement,25,808442
+ReverseComplement,26,798785
+ReverseComplement,27,803419
+ReverseComplement,28,798428
+ReverseComplement,29,797089
+ReverseComplement,30,751230
+# stats ReverseComplement fullGCs=323 fullGCMilliseconds=14050 scavenges=32 scavengeMilliseconds=69 bytesAllocated=6533838864 cogMethods=128 cogMethodMs=1 cogBlocks=30 cogBlockMs=0 cogCompactions=0 cogCompactionMs=0
+# total ReverseComplement 23610982 us
+# run SpectralNorm inner=1
+SpectralNorm,1,829870
+SpectralNorm,2,841605
+SpectralNorm,3,831823
+SpectralNorm,4,835273
+SpectralNorm,5,819630
+SpectralNorm,6,808435
+SpectralNorm,7,823337
+SpectralNorm,8,844965
+SpectralNorm,9,820545
+SpectralNorm,10,869055
+SpectralNorm,11,834650
+SpectralNorm,12,825304
+SpectralNorm,13,835218
+SpectralNorm,14,837687
+SpectralNorm,15,797170
+SpectralNorm,16,826037
+SpectralNorm,17,826411
+SpectralNorm,18,809374
+SpectralNorm,19,806076
+SpectralNorm,20,812000
+SpectralNorm,21,823951
+SpectralNorm,22,804732
+SpectralNorm,23,818387
+SpectralNorm,24,823336
+SpectralNorm,25,835217
+SpectralNorm,26,813910
+SpectralNorm,27,825103
+SpectralNorm,28,830026
+SpectralNorm,29,847364
+SpectralNorm,30,842704
+# stats SpectralNorm fullGCs=0 fullGCMilliseconds=0 scavenges=2 scavengeMilliseconds=10 bytesAllocated=30039448 cogMethods=282 cogMethodMs=2 cogBlocks=64 cogBlockMs=0 cogCompactions=0 cogCompactionMs=0
+# total SpectralNorm 24799195 us
+# run Pidigits inner=1
+Pidigits,1,1525313
+Pidigits,2,1533678
+Pidigits,3,997683
+Pidigits,4,981434
+Pidigits,5,979490
+Pidigits,6,973601
+Pidigits,7,1017058
+Pidigits,8,972611
+Pidigits,9,970336
+Pidigits,10,972252
+Pidigits,11,974060
+Pidigits,12,1014485
+Pidigits,13,974625
+Pidigits,14,989423
+Pidigits,15,976189
+Pidigits,16,972911
+Pidigits,17,1050770
+Pidigits,18,988997
+Pidigits,19,975747
+Pidigits,20,987314
+Pidigits,21,1028988
+Pidigits,22,997528
+Pidigits,23,974104
+Pidigits,24,966490
+Pidigits,25,968878
+Pidigits,26,1014992
+Pidigits,27,973307
+Pidigits,28,967706
+Pidigits,29,971667
+Pidigits,30,988287
+# stats Pidigits fullGCs=6 fullGCMilliseconds=265 scavenges=5335 scavengeMilliseconds=8789 bytesAllocated=82556111272 cogMethods=332 cogMethodMs=1 cogBlocks=69 cogBlockMs=0 cogCompactions=0 cogCompactionMs=0
+# total Pidigits 30679924 us
+# run Strings inner=1
+Strings,1,941414
+Strings,2,979659
+Strings,3,942380
+Strings,4,934716
+Strings,5,935443
+Strings,6,938471
+Strings,7,934650
+Strings,8,932440
+Strings,9,932246
+Strings,10,942504
+Strings,11,940306
+Strings,12,936182
+Strings,13,935307
+Strings,14,937687
+Strings,15,933716
+Strings,16,941875
+Strings,17,934354
+Strings,18,938875
+Strings,19,934489
+Strings,20,940094
+Strings,21,937059
+Strings,22,931997
+Strings,23,935633
+Strings,24,938528
+Strings,25,948214
+Strings,26,932259
+Strings,27,936161
+Strings,28,935644
+Strings,29,936475
+Strings,30,939108
+# stats Strings fullGCs=30 fullGCMilliseconds=1288 scavenges=842 scavengeMilliseconds=416 bytesAllocated=13967367768 cogMethods=388 cogMethodMs=2 cogBlocks=89 cogBlockMs=1 cogCompactions=1 cogCompactionMs=1
+# total Strings 28157886 us
+# run Dictionaries inner=1
+Dictionaries,1,2029269
+Dictionaries,2,1746266
+Dictionaries,3,1807062
+Dictionaries,4,1771068
+Dictionaries,5,1830545
+Dictionaries,6,1808233
+Dictionaries,7,1742025
+Dictionaries,8,1744666
+Dictionaries,9,1778039
+Dictionaries,10,1825141
+Dictionaries,11,1732006
+Dictionaries,12,1687358
+Dictionaries,13,1652015
+Dictionaries,14,1652238
+Dictionaries,15,1719315
+Dictionaries,16,1684265
+Dictionaries,17,1644916
+Dictionaries,18,1740889
+Dictionaries,19,1720577
+Dictionaries,20,1739233
+Dictionaries,21,1680337
+Dictionaries,22,1689421
+Dictionaries,23,1713592
+Dictionaries,24,1700609
+Dictionaries,25,1700523
+Dictionaries,26,1726528
+Dictionaries,27,1740565
+Dictionaries,28,1668207
+Dictionaries,29,1697972
+Dictionaries,30,1669810
+# stats Dictionaries fullGCs=32 fullGCMilliseconds=2701 scavenges=687 scavengeMilliseconds=4677 bytesAllocated=11225340008 cogMethods=354 cogMethodMs=1 cogBlocks=81 cogBlockMs=1 cogCompactions=0 cogCompactionMs=0
+# total Dictionaries 52042690 us
+# run OrderedCollections inner=1
+OrderedCollections,1,1308644
+OrderedCollections,2,1294960
+OrderedCollections,3,1290132
+OrderedCollections,4,1275681
+OrderedCollections,5,1277010
+OrderedCollections,6,1278952
+OrderedCollections,7,1295871
+OrderedCollections,8,1284395
+OrderedCollections,9,1282479
+OrderedCollections,10,1274021
+OrderedCollections,11,1267290
+OrderedCollections,12,1267794
+OrderedCollections,13,1298578
+OrderedCollections,14,1285038
+OrderedCollections,15,1295061
+OrderedCollections,16,1350280
+OrderedCollections,17,1278465
+OrderedCollections,18,1263724
+OrderedCollections,19,1306237
+OrderedCollections,20,1281978
+OrderedCollections,21,1292110
+OrderedCollections,22,1307608
+OrderedCollections,23,1255599
+OrderedCollections,24,1244466
+OrderedCollections,25,1289529
+OrderedCollections,26,1282009
+OrderedCollections,27,1315136
+OrderedCollections,28,1313634
+OrderedCollections,29,1295014
+OrderedCollections,30,1308175
+# stats OrderedCollections fullGCs=300 fullGCMilliseconds=13235 scavenges=239 scavengeMilliseconds=587 bytesAllocated=10465350568 cogMethods=274 cogMethodMs=1 cogBlocks=68 cogBlockMs=0 cogCompactions=0 cogCompactionMs=0
+# total OrderedCollections 38659870 us
+# run Sorting inner=1
+Sorting,1,815628
+Sorting,2,735203
+Sorting,3,805484
+Sorting,4,744324
+Sorting,5,732231
+Sorting,6,741155
+Sorting,7,819207
+Sorting,8,731981
+Sorting,9,743441
+Sorting,10,723510
+Sorting,11,792096
+Sorting,12,727553
+Sorting,13,735797
+Sorting,14,699495
+Sorting,15,788509
+Sorting,16,720638
+Sorting,17,736621
+Sorting,18,713317
+Sorting,19,819698
+Sorting,20,746421
+Sorting,21,742193
+Sorting,22,716239
+Sorting,23,799691
+Sorting,24,732920
+Sorting,25,734598
+Sorting,26,712348
+Sorting,27,799308
+Sorting,28,755459
+Sorting,29,759514
+Sorting,30,737880
+# stats Sorting fullGCs=37 fullGCMilliseconds=1973 scavenges=31 scavengeMilliseconds=387 bytesAllocated=1468139216 cogMethods=357 cogMethodMs=1 cogBlocks=95 cogBlockMs=1 cogCompactions=1 cogCompactionMs=1
+# total Sorting 22562459 us
+# run Enumeration inner=1
+Enumeration,1,769932
+Enumeration,2,809550
+Enumeration,3,761577
+Enumeration,4,745028
+Enumeration,5,750090
+Enumeration,6,744485
+Enumeration,7,768792
+Enumeration,8,774734
+Enumeration,9,753457
+Enumeration,10,747977
+Enumeration,11,741686
+Enumeration,12,745935
+Enumeration,13,744005
+Enumeration,14,764221
+Enumeration,15,747927
+Enumeration,16,742216
+Enumeration,17,774636
+Enumeration,18,767177
+Enumeration,19,751359
+Enumeration,20,751032
+Enumeration,21,754718
+Enumeration,22,778048
+Enumeration,23,774851
+Enumeration,24,789125
+Enumeration,25,775864
+Enumeration,26,776829
+Enumeration,27,768247
+Enumeration,28,768436
+Enumeration,29,766296
+Enumeration,30,772351
+# stats Enumeration fullGCs=90 fullGCMilliseconds=4359 scavenges=540 scavengeMilliseconds=1663 bytesAllocated=10889894480 cogMethods=351 cogMethodMs=1 cogBlocks=96 cogBlockMs=1 cogCompactions=0 cogCompactionMs=0
+# total Enumeration 22880581 us
+# run PrintParse inner=1
+PrintParse,1,1084555
+PrintParse,2,1095851
+PrintParse,3,1084379
+PrintParse,4,1079806
+PrintParse,5,1068694
+PrintParse,6,1115604
+PrintParse,7,1069097
+PrintParse,8,1070012
+PrintParse,9,1073936
+PrintParse,10,1075053
+PrintParse,11,1081458
+PrintParse,12,1081901
+PrintParse,13,1059355
+PrintParse,14,1056929
+PrintParse,15,1060258
+PrintParse,16,1043785
+PrintParse,17,1077818
+PrintParse,18,1037101
+PrintParse,19,1043726
+PrintParse,20,1075111
+PrintParse,21,1039388
+PrintParse,22,1107942
+PrintParse,23,1034203
+PrintParse,24,1029634
+PrintParse,25,1034966
+PrintParse,26,1045132
+PrintParse,27,1038546
+PrintParse,28,1024442
+PrintParse,29,1041717
+PrintParse,30,1032104
+# stats PrintParse fullGCs=0 fullGCMilliseconds=0 scavenges=509 scavengeMilliseconds=2266 bytesAllocated=7874399768 cogMethods=309 cogMethodMs=1 cogBlocks=66 cogBlockMs=0 cogCompactions=0 cogCompactionMs=0
+# total PrintParse 31862503 us
+# run Exceptions inner=1
+Exceptions,1,718952
+Exceptions,2,718739
+Exceptions,3,718092
+Exceptions,4,695492
+Exceptions,5,664765
+Exceptions,6,689141
+Exceptions,7,667252
+Exceptions,8,663789
+Exceptions,9,676372
+Exceptions,10,676878
+Exceptions,11,675051
+Exceptions,12,679481
+Exceptions,13,703901
+Exceptions,14,685647
+Exceptions,15,750840
+Exceptions,16,745517
+Exceptions,17,674623
+Exceptions,18,705791
+Exceptions,19,668287
+Exceptions,20,673651
+Exceptions,21,669676
+Exceptions,22,674059
+Exceptions,23,673167
+Exceptions,24,665466
+Exceptions,25,669413
+Exceptions,26,664509
+Exceptions,27,665575
+Exceptions,28,667519
+Exceptions,29,663274
+Exceptions,30,668948
+# stats Exceptions fullGCs=0 fullGCMilliseconds=0 scavenges=1821 scavengeMilliseconds=5269 bytesAllocated=28148203056 cogMethods=362 cogMethodMs=1 cogBlocks=103 cogBlockMs=0 cogCompactions=1 cogCompactionMs=0
+# total Exceptions 20533867 us
+# run Megamorphic inner=1
+Megamorphic,1,694388
+Megamorphic,2,688998
+Megamorphic,3,674800
+Megamorphic,4,689935
+Megamorphic,5,682634
+Megamorphic,6,678705
+Megamorphic,7,674007
+Megamorphic,8,671532
+Megamorphic,9,675754
+Megamorphic,10,692668
+Megamorphic,11,668913
+Megamorphic,12,669113
+Megamorphic,13,663626
+Megamorphic,14,663460
+Megamorphic,15,679734
+Megamorphic,16,679114
+Megamorphic,17,677049
+Megamorphic,18,681403
+Megamorphic,19,684549
+Megamorphic,20,675606
+Megamorphic,21,678820
+Megamorphic,22,676559
+Megamorphic,23,678024
+Megamorphic,24,664402
+Megamorphic,25,665507
+Megamorphic,26,668927
+Megamorphic,27,665566
+Megamorphic,28,674184
+Megamorphic,29,669594
+Megamorphic,30,678159
+# stats Megamorphic fullGCs=0 fullGCMilliseconds=0 scavenges=8 scavengeMilliseconds=44 bytesAllocated=128878272 cogMethods=388 cogMethodMs=2 cogBlocks=69 cogBlockMs=0 cogCompactions=0 cogCompactionMs=0
+# total Megamorphic 20285730 us
+# run DeepRecursion inner=1
+DeepRecursion,1,994802
+DeepRecursion,2,896519
+DeepRecursion,3,790369
+DeepRecursion,4,880564
+DeepRecursion,5,912123
+DeepRecursion,6,810531
+DeepRecursion,7,876338
+DeepRecursion,8,913608
+DeepRecursion,9,837576
+DeepRecursion,10,789083
+DeepRecursion,11,858241
+DeepRecursion,12,824851
+DeepRecursion,13,786467
+DeepRecursion,14,866117
+DeepRecursion,15,822998
+DeepRecursion,16,840183
+DeepRecursion,17,859719
+DeepRecursion,18,884113
+DeepRecursion,19,783978
+DeepRecursion,20,850567
+DeepRecursion,21,833354
+DeepRecursion,22,769869
+DeepRecursion,23,835536
+DeepRecursion,24,849479
+DeepRecursion,25,785491
+DeepRecursion,26,897021
+DeepRecursion,27,818633
+DeepRecursion,28,794780
+DeepRecursion,29,888796
+DeepRecursion,30,876229
+# stats DeepRecursion fullGCs=180 fullGCMilliseconds=11538 scavenges=1732 scavengeMilliseconds=2901 bytesAllocated=26770743584 cogMethods=237 cogMethodMs=1 cogBlocks=53 cogBlockMs=0 cogCompactions=0 cogCompactionMs=0
+# total DeepRecursion 25427935 us
+# run Perform inner=1
+Perform,1,747101
+Perform,2,742551
+Perform,3,742871
+Perform,4,777999
+Perform,5,739269
+Perform,6,748397
+Perform,7,744779
+Perform,8,740080
+Perform,9,745657
+Perform,10,781252
+Perform,11,764413
+Perform,12,786760
+Perform,13,892444
+Perform,14,787536
+Perform,15,779544
+Perform,16,780395
+Perform,17,795741
+Perform,18,789960
+Perform,19,767670
+Perform,20,749461
+Perform,21,750270
+Perform,22,778626
+Perform,23,792676
+Perform,24,788503
+Perform,25,777353
+Perform,26,771363
+Perform,27,769901
+Perform,28,756014
+Perform,29,752982
+Perform,30,735916
+# stats Perform fullGCs=0 fullGCMilliseconds=0 scavenges=920 scavengeMilliseconds=3063 bytesAllocated=14228293808 cogMethods=357 cogMethodMs=2 cogBlocks=71 cogBlockMs=0 cogCompactions=1 cogCompactionMs=1
+# total Perform 23077484 us
+# benchmark            runs   first_ms  steady_ms   total_ms
+# BinaryTrees             1     1700.2     1652.5    49748.8
+# Fasta                   1      608.4      576.0    17333.3
+# KNucleotide             1     1065.1     1359.7    40240.1
+# ReverseComplement       1      496.3      798.3    23611.0
+# SpectralNorm            1      829.9      824.0    24799.2
+# Pidigits                1     1525.3      975.7    30679.9
+# Strings                 1      941.4      936.5    28157.9
+# Dictionaries            1     2029.3     1700.5    52042.7
+# OrderedCollections      1     1308.6     1292.1    38659.9
+# Sorting                 1      815.6      737.9    22562.5
+# Enumeration             1      769.9      768.4    22880.6
+# PrintParse              1     1084.6     1039.4    31862.5
+# Exceptions              1      719.0      669.4    20533.9
+# Megamorphic             1      694.4      676.6    20285.7
+# DeepRecursion           1      994.8      840.2    25427.9
+# Perform                 1      747.1      771.4    23077.5
