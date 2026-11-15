@@ -3,7 +3,7 @@ ArrayedCollection subclass: #String
 	classVariableNames: ''
 	package: 'Kernel-Collections'!
 
-String comment: 'I am the abstract class of sequences of Characters. ByteString holds code points up to 255 in bytes, WideString any code point in 32-bit units; storing a wide Character into a ByteString turns it into a WideString. Strings compare by code points; = ignores the representation, and hash (FNV-1a over code points) is the same for equal Strings and Symbols. String new: answers a ByteString.'!
+String comment: 'I am the abstract class of sequences of Characters. ByteString holds code points up to 255 in bytes, WideString any code point in 32-bit units; storing a wide Character into a ByteString turns it into a WideString. Strings compare by code points (compareWith:, -1/0/1; compare: answers 1/2/3 ignoring case, as in Squeak and Pharo); = ignores the representation, and hash (FNV-1a over code points) is the same for equal Strings and Symbols. String new: answers a ByteString.'!
 
 !String methodsFor: 'accessing'!
 at: index
