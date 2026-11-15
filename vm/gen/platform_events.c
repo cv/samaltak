@@ -195,6 +195,16 @@ static void translate(SDL_Event *e)
         platform_events_push(ev);
         return;
     }
+    if (t == SDL_EVENT_TEXT_EDITING) {
+        ev->type = PF_EV_TEXT_EDITING;
+        ev->xkind = PF_X_TEXT;
+        ev->text = (char *)e->edit.text;
+        ev->x = (double)e->edit.start;
+        ev->y = (double)e->edit.length;
+        ev->window = from_sdl_id(e->edit.windowID);
+        platform_events_push(ev);
+        return;
+    }
     if (t == SDL_EVENT_QUIT) {
         ev->type = PF_EV_QUIT;
         platform_events_push(ev);

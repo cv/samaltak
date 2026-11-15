@@ -3220,6 +3220,48 @@ void prim_window_refresh_rate(void)
     }
 }
 
+/* PlatformPrimitives>>primWindowSetTextInputArea */
+void prim_window_set_text_input_area(void)
+{
+    bool r_args;
+    int64_t w;
+    int64_t x;
+    int64_t y;
+    int64_t wd;
+    int64_t h;
+    int64_t c;
+    bool a_boolean;
+    oop v;
+    if (!({
+    bad = false;
+    r_args = prim_nargs == 6;
+    r_args; })) {
+        prim_status = PS_FAIL;
+        prim_error_code = -1;
+        return;
+    }
+    w = int_arg(0);
+    x = int_arg(1);
+    y = int_arg(2);
+    wd = int_arg(3);
+    h = int_arg(4);
+    c = int_arg(5);
+    if (bad) {
+        prim_status = PS_FAIL;
+        prim_error_code = -1;
+        return;
+    }
+    a_boolean = set_text_input_area((int32_t)w, (int32_t)x, (int32_t)y, (int32_t)wd, (int32_t)h, (int32_t)c);
+    if (a_boolean) {
+        v = prim_base[0];
+        prim_result = v;
+        prim_status = PS_OK;
+    } else {
+        prim_status = PS_FAIL;
+        prim_error_code = -1;
+    }
+}
+
 /* PlatformPrimitives>>primWindowSetTitle */
 void prim_window_set_title(void)
 {

@@ -480,6 +480,7 @@ typedef void (*prim_fn)(void);
 #define PF_EV_MOUSE_MOVE 1
 #define PF_EV_MOUSE_UP 3
 #define PF_EV_QUIT 10
+#define PF_EV_TEXT_EDITING 16
 #define PF_EV_TEXT_INPUT 7
 #define PF_EV_WHEEL 4
 #define PF_EV_WINDOW_CLOSE_REQUEST 9
@@ -2121,6 +2122,7 @@ void prim_window_hide(void);
 void prim_window_open(void);
 void prim_window_pixel_size(void);
 void prim_window_refresh_rate(void);
+void prim_window_set_text_input_area(void);
 void prim_window_set_title(void);
 void prim_window_show(void);
 void prim_window_size(void);
@@ -2164,6 +2166,7 @@ bool pixel_size(int32_t win, int *w, int *h);
 double refresh_rate(int32_t win);
 SDL_Window *sdl_window(int32_t win);
 bool set_cursor(int32_t kind);
+bool set_text_input_area(int32_t win, int32_t x, int32_t y, int32_t w, int32_t h, int32_t cursor);
 bool set_title(int32_t win, char *title);
 bool platform_windows_show(int32_t win, bool show);
 void platform_windows_shutdown(void);

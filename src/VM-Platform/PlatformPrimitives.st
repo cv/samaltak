@@ -20,6 +20,7 @@ x, y: Floats in points (mouse position; for windowResized the new size; for disp
 	7 textInput	0	String (UTF-8 decoded)
 	8 windowResized	0	nil
 	9 windowCloseRequest, 10 quit, 11 focusGained, 12 focusLost, 13 displayScaleChanged, 14 mouseLeave, 15 windowExposed
+	16 textEditing	0	String: the input method''s composition (x = its cursor, y = the length of its selected part, in characters; -1 if not set)
 timeMs: platform monotonic ms (nil when injecting = now). windowId: window handle or nil.
 
 Keycodes (SDL): printable keys are their lowercase character code (''a'' = 97 ... ''z'' = 122, ''0'' = 48, space = 32), return 13, escape 27, backspace 8, tab 9, delete 127, right 16r4000004F, left 16r40000050, down 16r40000051, up 16r40000052, home 16r4000004A, end 16r4000004D, pageUp 16r4000004B, pageDown 16r4000004E, insert 16r40000049, F1 16r4000003A ... F12 16r40000045, keypad enter 16r40000058, lshift 16r400000E1, lctrl 16r400000E0, lalt 16r400000E2, lcmd 16r400000E3.'!
@@ -272,6 +273,20 @@ primWindowSetTitle
 	ok := bad not and: [windows setTitle: w asInt32 title: t].
 	libc free: t.
 	self answerOk: ok
+!
+primWindowSetTextInputArea
+	"win x y w h cursor (points; cursor: x of the caret within the rectangle)"
+	<vmPrimitive: 419 name: 'windowSetTextInputArea'>
+	| w x y wd h c |
+	(self args: 6) ifFalse: [^self fail].
+	w := self intArg: 0.
+	x := self intArg: 1.
+	y := self intArg: 2.
+	wd := self intArg: 3.
+	h := self intArg: 4.
+	c := self intArg: 5.
+	bad ifTrue: [^self fail].
+	self answerOk: (windows setTextInputArea: w asInt32 x: x asInt32 y: y asInt32 width: wd asInt32 height: h asInt32 cursor: c asInt32)
 !
 primWindowShow
 	<vmPrimitive: 406 name: 'windowShow'>

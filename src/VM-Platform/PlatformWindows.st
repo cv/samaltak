@@ -20,6 +20,8 @@ videoInit
 	videoOk ifTrue: [^true].
 	sdl setHint: sdl SDL_HINT_QUIT_ON_LAST_WINDOW_CLOSE value: '0'.
 	sdl setHint: sdl SDL_HINT_MOUSE_FOCUS_CLICKTHROUGH value: '1'.
+	"The image draws the input method's composition (PF_EV_TEXT_EDITING)."
+	sdl setHint: sdl SDL_HINT_IME_IMPLEMENTED_UI value: 'composition'.
 	(sdl init: sdl SDL_INIT_VIDEO) ifFalse: [
 		common setError: 'SDL_Init: %s' with: sdl getError.
 		^false].
@@ -115,6 +117,19 @@ setTitle: win title: title
 	| sw |
 	sw := self sdlWindow: win.
 	^sw notNull and: [sdl setWindowTitle: sw title: title]
+!
+setTextInputArea: win x: x y: y width: w height: h cursor: cursor
+	"Where the text being typed is (points): the input method puts its candidates next to it."
+	<export>
+	| sw r |
+	sw := self sdlWindow: win.
+	sw isNull ifTrue: [^false].
+	r := self local: 'SDL_Rect'.
+	r x: x.
+	r y: y.
+	r w: w.
+	r h: h.
+	^sdl setTextInputArea: sw rect: r cursor: cursor
 !
 show: win visible: show
 	<export>

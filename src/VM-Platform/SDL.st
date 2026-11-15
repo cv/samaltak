@@ -47,6 +47,10 @@ SDL_HINT_MOUSE_FOCUS_CLICKTHROUGH
 	<cMacro: 'const char *SDL_HINT_MOUSE_FOCUS_CLICKTHROUGH'>
 	^self notSimulated
 !
+SDL_HINT_IME_IMPLEMENTED_UI
+	<cMacro: 'const char *SDL_HINT_IME_IMPLEMENTED_UI'>
+	^self notSimulated
+!
 getError
 	<c: 'const char *SDL_GetError(void)'>
 	^self notSimulated
@@ -151,6 +155,10 @@ SDL_EVENT_TEXT_INPUT
 	<cMacro: 'Uint32 SDL_EVENT_TEXT_INPUT'>
 	^self notSimulated
 !
+SDL_EVENT_TEXT_EDITING
+	<cMacro: 'Uint32 SDL_EVENT_TEXT_EDITING'>
+	^self notSimulated
+!
 SDL_EVENT_WINDOW_RESIZED
 	<cMacro: 'Uint32 SDL_EVENT_WINDOW_RESIZED'>
 	^self notSimulated
@@ -211,6 +219,10 @@ startTextInput: window
 !
 stopTextInput: window
 	<c: 'bool SDL_StopTextInput(SDL_Window *window)'>
+	^self notSimulated
+!
+setTextInputArea: window rect: rect cursor: cursor
+	<c: 'bool SDL_SetTextInputArea(SDL_Window *window, const SDL_Rect *rect, int cursor)'>
 	^self notSimulated
 !
 getWindowID: window
@@ -424,6 +436,19 @@ fields
 	^#((type Uint32) (reserved Uint32) (timestamp Uint64) (windowID SDL_WindowID) (text 'const char *'))
 ! !
 
+ExternStruct subclass: #SDLTextEditingEvent
+	instanceVariableNames: ''
+	classVariableNames: ''
+	package: 'VM-Platform'!
+
+!SDLTextEditingEvent class methodsFor: 'declaring'!
+cName
+	^'SDL_TextEditingEvent'
+!
+fields
+	^#((type Uint32) (reserved Uint32) (timestamp Uint64) (windowID SDL_WindowID) (text 'const char *') (start Sint32) (length Sint32))
+! !
+
 ExternStruct subclass: #SDLWindowEvent
 	instanceVariableNames: ''
 	classVariableNames: ''
@@ -448,7 +473,7 @@ cName
 !
 fields
 	^#((union (type Uint32) (common SDL_CommonEvent) (motion SDL_MouseMotionEvent) (button SDL_MouseButtonEvent)
-		(wheel SDL_MouseWheelEvent) (key SDL_KeyboardEvent) (text SDL_TextInputEvent) (window SDL_WindowEvent) (padding 'Uint8[128]')))
+		(wheel SDL_MouseWheelEvent) (key SDL_KeyboardEvent) (edit SDL_TextEditingEvent) (text SDL_TextInputEvent) (window SDL_WindowEvent) (padding 'Uint8[128]')))
 ! !
 
 ExternStruct subclass: #SDLDisplayMode

@@ -209,6 +209,9 @@ primitive_entry vm_primitive_table[] = {
     {418, 2, "droppedEvents", prim_dropped_events},
 #endif
 #ifndef SAMALTAK_NO_PLATFORM
+    {419, 2, "windowSetTextInputArea", prim_window_set_text_input_area},
+#endif
+#ifndef SAMALTAK_NO_PLATFORM
     {430, 2, "gpuCreateDevice", prim_gpu_create_device},
 #endif
 #ifndef SAMALTAK_NO_PLATFORM

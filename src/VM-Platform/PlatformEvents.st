@@ -154,6 +154,15 @@ translate: e
 		ev text: (self cCoerce: e text text to: 'char *').
 		ev window: (windows fromSDLId: e text windowID).
 		^self push: ev].
+	t = sdl SDL_EVENT_TEXT_EDITING ifTrue: [
+		"The input method's composition; x and y carry the cursor and the length of its selected part."
+		ev type: PF_EV_TEXT_EDITING.
+		ev xkind: PF_X_TEXT.
+		ev text: (self cCoerce: e edit text to: 'char *').
+		ev x: e edit start asFloat.
+		ev y: e edit length asFloat.
+		ev window: (windows fromSDLId: e edit windowID).
+		^self push: ev].
 	t = sdl SDL_EVENT_QUIT ifTrue: [
 		ev type: PF_EV_QUIT.
 		^self push: ev].

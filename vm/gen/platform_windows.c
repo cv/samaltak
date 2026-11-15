@@ -215,6 +215,25 @@ bool set_cursor(int32_t kind)
     return SDL_SetCursor(cursors[kind]);
 }
 
+/* PlatformWindows>>setTextInputArea:x:y:width:height:cursor: */
+bool set_text_input_area(int32_t win, int32_t x, int32_t y, int32_t w, int32_t h, int32_t cursor)
+{
+    SDL_Window *sw;
+    SDL_Rect local;
+    SDL_Rect *r;
+    sw = sdl_window(win);
+    if (sw == NULL) {
+        return false;
+    }
+    memset(&local, 0, sizeof local);
+    r = &local;
+    r->x = x;
+    r->y = y;
+    r->w = w;
+    r->h = h;
+    return SDL_SetTextInputArea(sw, r, cursor);
+}
+
 /* PlatformWindows>>setTitle:title: */
 bool set_title(int32_t win, char *title)
 {
@@ -266,6 +285,7 @@ bool video_init(void)
     }
     SDL_SetHint(SDL_HINT_QUIT_ON_LAST_WINDOW_CLOSE, "0");
     SDL_SetHint(SDL_HINT_MOUSE_FOCUS_CLICKTHROUGH, "1");
+    SDL_SetHint(SDL_HINT_IME_IMPLEMENTED_UI, "composition");
     if (!SDL_Init(SDL_INIT_VIDEO)) {
         a = SDL_GetError();
         snprintf(last_error, LAST_ERROR_SIZE, "SDL_Init: %s", a);
