@@ -205,17 +205,13 @@ drawRun: chars from: start to: stop attribute: a on: aCanvas
 				ifFalse: [aCanvas drawString: chars from: i to: i at: (i - 1 * cellWidth) @ y font: runFont color: fg]]]
 !
 drawWide: aCharacter at: x font: aFont color: aColor on: aCanvas
-	"A character beyond Latin-1 in its cell: box drawing and blocks drawn as rectangles, else the glyph of the first font that has it (centered in the cell)."
-	| cp f |
+	"A character beyond Latin-1 in its cell: box drawing and blocks drawn as rectangles, else its glyph (from aFont's fallback faces if need be) centered in the cell."
+	| cp |
 	cp := aCharacter value.
 	(cp between: 16r2500 and: 16r259F) ifTrue: [
 		(self drawBox: cp at: x color: aColor on: aCanvas) ifTrue: [^self]].
-	f := aFont.
-	(f face includesCodePoint: cp) ifFalse: [
-		f := self theme font: #ui.
-		(f face includesCodePoint: cp) ifFalse: [f := aFont]].
 	aCanvas drawString: (String with: aCharacter)
-		at: (x + (cellWidth - (f advanceOf: aCharacter) / 2)) @ (cellHeight - f lineHeight / 2) font: f color: aColor
+		at: (x + (cellWidth - (aFont advanceOf: aCharacter) / 2)) @ (cellHeight - aFont lineHeight / 2) font: aFont color: aColor
 !
 drawBox: cp at: x color: aColor on: aCanvas
 	"Box drawing (U+2500-257F: light, heavy and double arms) and block elements (U+2580-259F); answer false for the ones I do not draw."
