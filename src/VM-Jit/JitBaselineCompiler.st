@@ -1436,7 +1436,7 @@ emitUint32Primitive: isPut fail: fail
 	asm ret
 !
 emitStringComparePrimitive: fail
-	"compare: of two byte strings: -1, 0 or 1 by bytes, then by size; anything else (wide strings) the C function."
+	"compareWith: of two byte strings: -1, 0 or 1 by bytes, then by size; anything else (wide strings) the C function."
 	<function>
 	| loop differ sizes |
 	loop := asm newLabel.

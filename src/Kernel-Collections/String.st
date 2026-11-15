@@ -64,7 +64,7 @@ streamAt: index put: aCharacter
 	self == aString ifTrue: [^true].
 	aString isString ifFalse: [^false].
 	self size = aString size ifFalse: [^false].
-	^(self compare: aString) = 0
+	^(self compareWith: aString) = 0
 !
 hash
 	"FNV-1a over the code points, the same function as Symbol>>hash."
@@ -74,8 +74,8 @@ hash
 	self do: [:c | h := ((h bitXor: c value) * 16777619) bitAnd: 16rFFFFFFFF].
 	^h bitAnd: 16r3FFFFFFF
 !
-compare: aString
-	"Answer -1, 0 or 1 comparing code points."
+compareWith: aString
+	"Answer -1, 0 or 1 comparing code points, case-sensitive (Squeak and Pharo promise only the sign: negative, 0 or positive). < <= > >= and = use it."
 	<primitive: 'stringCompare'>
 	| n |
 	aString isString ifFalse: [^self error: 'Can only compare with a String'].
@@ -91,16 +91,16 @@ compare: aString
 	^0
 !
 < aString
-	^(self compare: aString) < 0
+	^(self compareWith: aString) < 0
 !
 <= aString
-	^(self compare: aString) <= 0
+	^(self compareWith: aString) <= 0
 !
 > aString
-	^(self compare: aString) > 0
+	^(self compareWith: aString) > 0
 !
 >= aString
-	^(self compare: aString) >= 0
+	^(self compareWith: aString) >= 0
 !
 max: aString
 	^self > aString ifTrue: [self] ifFalse: [aString]
@@ -108,8 +108,18 @@ max: aString
 min: aString
 	^self < aString ifTrue: [self] ifFalse: [aString]
 !
+compare: aString
+	"Answer 1, 2 or 3 as I sort before, the same as or after aString, ignoring case (Squeak, Pharo): (a compare: b) <= 2 is a <= b ignoring case."
+	^self compare: aString caseSensitive: false
+!
+compare: aString caseSensitive: aBoolean
+	"Answer 1, 2 or 3 as I sort before, the same as or after aString (Squeak, Pharo)."
+	^(aBoolean
+		ifTrue: [self compareWith: aString]
+		ifFalse: [self caseInsensitiveCompare: aString]) sign + 2
+!
 caseInsensitiveCompare: aString
-	"Answer -1, 0 or 1 comparing the code points of our case-folded characters, as compare: does those of caseFolded copies.
+	"Answer -1, 0 or 1 comparing the code points of our case-folded characters, as compareWith: does those of caseFolded copies.
 	The primitive (byte strings) compares asLowercase code points instead: the same but for µ, which folds to U+03BC."
 	| result micro |
 	result := self lowercaseCompare: aString.
@@ -117,7 +127,9 @@ caseInsensitiveCompare: aString
 	micro := Character value: 181.
 	((self includes: micro) or: [aString includes: micro]) ifFalse: [^result].
 	^self caseFoldedCompare: aString
-!
+! !
+
+!String methodsFor: 'private'!
 lowercaseCompare: aString
 	<primitive: 'stringCaseInsensitiveCompare'>
 	^self caseFoldedCompare: aString
@@ -134,7 +146,9 @@ caseFoldedCompare: aString
 			b := b caseFolded value.
 			a = b ifFalse: [^a < b ifTrue: [-1] ifFalse: [1]]]].
 	^(self size - aString size) sign
-!
+! !
+
+!String methodsFor: 'comparing'!
 sameAs: aString
 	"Answer whether aString has the same characters, ignoring case."
 	^self size = aString size and: [(self caseInsensitiveCompare: aString) = 0]

@@ -30,13 +30,30 @@ testComparing
 	self deny: 'abc' = 3.
 	self assert: ('abc' max: 'abd') = 'abd'
 !
+testCompare
+	"compareWith: answers -1, 0 or 1 by code points; compare: (ignoring case) and compare:caseSensitive: answer 1, 2 or 3, as in Squeak and Pharo."
+	self assert: ('abc' compareWith: 'abd') equals: -1.
+	self assert: ('abc' compareWith: 'abc' asWideString) equals: 0.
+	self assert: ('abd' compareWith: #abc) equals: 1.
+	self assert: ('B' compareWith: 'a') equals: -1.
+	self assert: ('aa' compare: 'ab') equals: 1.
+	self assert: ('aa' compare: 'aa') equals: 2.
+	self assert: ('ab' compare: 'aa') equals: 3.
+	self assert: ('abc' compare: 'ABC') equals: 2.
+	self assert: ('B' compare: 'a') equals: 3.
+	self assert: ('ÜBER' compare: 'über') equals: 2.
+	self assert: ('abc' compare: 'ABC' caseSensitive: true) equals: 3.
+	self assert: ('abc' compare: 'ABC' caseSensitive: false) equals: 2.
+	self assert: ('B' compare: 'a' caseSensitive: true) equals: 1.
+	self assert: ('abc' compare: 'abc' caseSensitive: true) equals: 2
+!
 testCaseInsensitiveCompare
-	"The primitive (byte strings and Symbols) and the loop (wide strings) answer what compare: answers for caseFolded copies: Latin-1 letters, × ÷ ß ÿ µ (folding to Greek mu), Ÿ (376), whose lowercase is ÿ, Greek."
+	"The primitive (byte strings and Symbols) and the loop (wide strings) answer what compareWith: answers for caseFolded copies: Latin-1 letters, × ÷ ß ÿ µ (folding to Greek mu), Ÿ (376), whose lowercase is ÿ, Greek."
 	| strings |
 	strings := #('' 'a' 'A' 'ab' 'AB' 'abc' 'ABD' 'abcd' 'Z' 'z' '[' '_' '`' '@' 'a_' 'B' 'über' 'ÜBER' 'Über' 'ü' 'Ü' 'À' 'à' 'Þ' 'þ' '×' '÷' 'ß' 'ÿ' 'µ' 'aµ' 'aü' 'ab×' 'abÿ' #abc #ABC 'μ' 'Μ' 'ΟΔΟΣ' 'οδος' 'οδοσ') asOrderedCollection.
 	strings add: 'Ÿ'; add: 'aŸ'; add: (String with: (Character value: 300)); add: 'ÜBER' , (String with: (Character value: 300)).
 	strings do: [:a | strings do: [:b |
-		self assert: (a caseInsensitiveCompare: b) equals: (a caseFolded compare: b caseFolded)]]
+		self assert: (a caseInsensitiveCompare: b) equals: (a caseFolded compareWith: b caseFolded)]]
 !
 testUnicodeCase
 	"Simple (one-to-one) case mappings and caseless comparison by simple case folding, beyond Latin-1."

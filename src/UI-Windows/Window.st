@@ -541,7 +541,7 @@ retainedDrawingMismatchAfter: aBlock
 		surface release.
 		string := String new: bytes size.
 		string replaceFrom: 1 to: bytes size with: bytes startingAt: 1]].
-	(pixels first compare: pixels last) = 0 ifFalse: [^'the pixels differ'].
+	(pixels first compareWith: pixels last) = 0 ifFalse: [^'the pixels differ'].
 	^nil
 !
 drawErrorOn: aCanvas in: aRectangle
