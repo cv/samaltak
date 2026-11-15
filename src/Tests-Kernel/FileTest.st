@@ -68,6 +68,17 @@ testUTF8IllFormed
 		self assert: s position equals: 8194.
 		self assert: s next isNil]
 !
+testByteOrderMark
+	"File readText: and file-in drop a leading U+FEFF; a FileStream keeps it."
+	| path |
+	path := dir / 'bom.st'.
+	File writeBytes: #[16rEF 16rBB 16rBF] , 'Smalltalk at: #FileTestBomProbe put: 42!!' asByteArray to: path.
+	self assert: (File readText: path) equals: 'Smalltalk at: #FileTestBomProbe put: 42!!'.
+	self assert: (FileStream readOnlyFileNamed: path) contentsAndClose first value equals: 16rFEFF.
+	[Compiler fileIn: path.
+	 self assert: (Smalltalk at: #FileTestBomProbe) equals: 42]
+		ensure: [Smalltalk removeKey: #FileTestBomProbe ifAbsent: []]
+!
 testNamesThatAreNotUTF8
 	"The VM decodes OS names with surrogateescape: each byte of an ill-formed sequence is U+DC80-DCFF, written back as that byte."
 	| raw name |

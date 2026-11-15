@@ -43,8 +43,10 @@ readBytes: aPath
 	^(FileStream readOnlyFileNamed: aPath) binary; contentsAndClose
 !
 readText: aPath
-	"Answer the whole file decoded from UTF-8."
-	^(FileStream readOnlyFileNamed: aPath) contentsAndClose
+	"Answer the whole file decoded from UTF-8, without a leading byte order mark (U+FEFF)."
+	| text |
+	text := (FileStream readOnlyFileNamed: aPath) contentsAndClose.
+	^(text notEmpty and: [text first value = 16rFEFF]) ifTrue: [text allButFirst] ifFalse: [text]
 !
 writeBytes: aByteArray to: aPath
 	"Replace the file's contents with aByteArray."

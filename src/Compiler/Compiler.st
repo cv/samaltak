@@ -134,9 +134,9 @@ fileIn: aPath
 	^self fileInString: (self contentsOfFile: aPath)
 !
 contentsOfFile: aPath
-	| fileStream |
-	fileStream := Smalltalk at: #FileStream ifAbsent: [^self error: 'Compiler fileIn: needs the FileStream class'].
-	^(fileStream readOnlyFileNamed: aPath) contentsAndClose
+	| file |
+	file := Smalltalk at: #File ifAbsent: [^self error: 'Compiler fileIn: needs the File class'].
+	^file readText: aPath
 !
 fileInString: aString
 	"Evaluate the chunks of aString. An empty chunk is followed by a method-category header (X methodsFor: 'cat' or X class methodsFor: 'cat') and that category's method chunks, terminated by an empty chunk."

@@ -307,7 +307,7 @@ x: ax y: ay
 ! !
 ```
 
-Definition variants: `subclass:`, `variableSubclass:`, `variableByteSubclass:`, `variableWordSubclass:`, `weakSubclass:`, `immediateSubclass:`, and `nil subclass:` for roots. Files are UTF-8; strings with code points > 255 become WideStrings. Symbols are unique (`Symbol` interns them); `String>>hash` and `Symbol>>hash` are the same function: FNV-1a over code points (`h = 2166136261; for cp: h = ((h ^ cp) * 16777619) mod 2^32`), result `& 16r3FFFFFFF`, primitive `stringHash`.
+Definition variants: `subclass:`, `variableSubclass:`, `variableByteSubclass:`, `variableWordSubclass:`, `weakSubclass:`, `immediateSubclass:`, and `nil subclass:` for roots. Files are UTF-8 (a leading byte order mark is dropped, as by `File readText:`); strings with code points > 255 become WideStrings. Symbols are unique (`Symbol` interns them); `String>>hash` and `Symbol>>hash` are the same function: FNV-1a over code points (`h = 2166136261; for cp: h = ((h ^ cp) * 16777619) mod 2^32`), result `& 16r3FFFFFFF`, primitive `stringHash`.
 
 ## Seed startup
 

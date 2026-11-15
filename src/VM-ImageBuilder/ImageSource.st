@@ -87,7 +87,7 @@ readPackages
 	| path lineNumber |
 	path := directory , '/packages.txt'.
 	lineNumber := 0.
-	(File readText: path) lines do: [:raw |
+	(self readText: path) lines do: [:raw |
 		| line parts |
 		lineNumber := lineNumber + 1.
 		line := raw trimBoth.
@@ -104,6 +104,12 @@ readPackages
 					uses at: parts first put: (parts size > 3 ifTrue: [(parts allButFirst: 3) asArray] ifFalse: [#()])]]].
 	(uses values inject: Set new into: [:all :each | all addAll: each; yourself]) , (exports keys collect: [:k | k substrings first]) do: [:p |
 		(layers includesKey: p) ifFalse: [self error: 'unknown package ' , p file: path line: 0]]
+!
+readText: aPath
+	"File readText: without a leading byte order mark (the seed's File readText: may keep it)."
+	| text |
+	text := File readText: aPath.
+	^(text notEmpty and: [text first value = 16rFEFF]) ifTrue: [text allButFirst] ifFalse: [text]
 !
 readPackage: aName
 	| dir files |
@@ -143,7 +149,7 @@ chunksOf: aString
 readFile: aPath package: aPackageName
 	| mode |
 	mode := nil.
-	(self chunksOf: (File readText: aPath)) do: [:chunk |
+	(self chunksOf: (self readText: aPath)) do: [:chunk |
 		| raw stripped line body |
 		raw := chunk at: 1.
 		stripped := raw trimLeft.
