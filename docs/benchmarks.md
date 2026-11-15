@@ -295,6 +295,79 @@ Causes:
 
 Tried, and Samaltak won: large heaps, old→young stores, large objects, weak arrays, tenuring; strings, streams, sorting, deep copies; polymorphic sends to 4–8 classes, non-local returns, unwinding, context walks, reflection, LargeInteger hashing arithmetic.
 
+## Extremem
+
+[Extremem](https://github.com/corretto/heapothesys/tree/master/Extremem) (Amazon, Apache-2.0, `extremem/NOTICE`) is a GC workload modelled on an in-memory store. Simulated customers search 20 000 products by keyword, ponder a randomly written review of each match for 200 s, then buy (40 %), save for later (40 %, kept 10 minutes) or abandon. Server threads transact the sales, expire the saved products and every minute or so replace customers and products, which mutates the old generation. With its defaults, the 1440 customers' pending reviews are the bulk of a live set of ~110 MB (Java), refreshed at ~0.5–1 GB/s of allocation.
+
+The port (`extremem/Extremem.st`, one source for Samaltak and Pharo; `extremem/Extremem.java`, its twin with Extremem's own data structures: `TreeMap`, `HashSet<Long>`, `String +=`) is a discrete-event simulation in virtual time. Every customer and server thread is an actor whose sleeps advance a virtual clock, in one process that runs as fast as it can. Objects live across the same work as in Extremem, and every system does the same work: all three answer the same tally and purchase hash. Differences from Extremem:
+
+- One thread, virtual time; Extremem's locks, `PhasedUpdates` and `FastAndFurious` modes, and its memory accounting are left out. Decisions due after the end are not run.
+- The dictionary is 25 000 generated words, with letters drawn by English frequency, instead of `/usr/share/dict/words`.
+- Park-Miller random numbers (multiplier 48271), each actor its own stream, seeded from a second generator (multiplier 16807; consecutive outputs of one stream as seeds would make shifted copies of it).
+- Search results are sorted by product id, since hash order differs between systems and decides which product gets which review.
+- The fuzzy match of a review searches each substring once (Extremem twice) and multiplies Doubles (Extremem Floats).
+
+Each event's wall time is a latency: a customer's preparation (search, reviews) or decision (ranking reviews by substring search). A GC pause on Samaltak and Pharo is the GC time the VM counted across an event with a GC (Pharo counts whole milliseconds); on the JVM, a collector's safepoint (time to safepoint included) or a ZGC allocation stall, from `-Xlog:safepoint` and `-Xlog:gc`.
+
+    vm/tests/bench/extremem.sh [--pharo | --java PATH] [--vm-args ARGS] [-o FILE] [name=value ...]   # e.g. simulationMinutes=35 warmupMinutes=15
+    vm/tests/bench/extremem_summary.py LABEL=FILE[,FILE...] ...
+
+Linux x86-64, the AMD EPYC 7B13 cloud VM with 2 vCPUs as above; Samaltak built with gcc -O2 (no profile), Pharo 14 (`Pharo-14.0.0+SNAPSHOT.build.790`, VM 12.0.6), Temurin JDK 27.0.1 with fixed heaps of 256 MB, 512 MB and 1 GB (2.3, 4.7 and 9.3 times the live set; below ~120 MB Serial collects without end). Extremem's defaults; 35 simulated minutes, the first 15 a warmup: decisions start at minute 3, saved products expire from minute 10. Medians of 3 invocations, interleaved (`vm/tests/bench/results/extremem-*-2026-11-15-*.txt`). The JVM's collectors use both vCPUs; Samaltak and Pharo collect in their one thread. Measured s: the 20 measured minutes; CPU s and peak RSS: the whole process, setup and warmup included.
+
+| configuration | measured s | prep p50 | prep p99 | prep p99.9 | prep max | decision p50 | decision p99 | decision p99.9 | decision max | CPU s | peak RSS MB |
+|---|---|---|---|---|---|---|---|---|---|---|---|
+| Samaltak `opt` | 41.3 | 0.87 | 2.46 | 3.5 | 47.7 | 4.29 | 13.04 | 18.0 | 50.2 | 67.7 | 380 |
+| Samaltak `baseline` | 44.0 | 1.07 | 2.94 | 4.3 | 47.5 | 4.42 | 13.55 | 19.7 | 58.3 | 72.3 | 365 |
+| Pharo 14 | 71.6 | 1.20 | 5.07 | 7.7 | 186.6 | 7.41 | 22.90 | 31.6 | 204.1 | 117.3 | 200 |
+| JDK 27 Serial, 256 MB | 12.8 | 0.41 | 7.90 | 9.2 | 177.6 | 0.90 | 2.99 | 8.8 | 186.6 | 25.3 | 314 |
+| JDK 27 Parallel, 256 MB | 11.9 | 0.40 | 4.39 | 5.8 | 146.1 | 0.90 | 2.98 | 5.9 | 143.6 | 24.6 | 318 |
+| JDK 27 G1, 256 MB | 13.9 | 0.45 | 9.26 | 23.5 | 30.8 | 1.05 | 3.69 | 12.7 | 26.1 | 37.5 | 335 |
+| JDK 27 ZGC, 256 MB | 15.8 | 0.64 | 4.55 | 8.9 | 41.1 | 1.12 | 4.19 | 7.6 | 13.8 | 50.2 | 370 |
+| JDK 27 Shenandoah, 256 MB | 35.1 | 0.52 | 84.36 | 303.3 | 330.1 | 1.17 | 3.96 | 200.0 | 302.9 | 84.4 | 327 |
+| JDK 27 Shenandoah generational, 256 MB | 14.2 | 0.53 | 1.60 | 8.9 | 44.0 | 1.13 | 3.69 | 5.7 | 42.5 | 41.6 | 334 |
+| JDK 27 Serial, 512 MB | 12.2 | 0.42 | 1.66 | 15.8 | 210.3 | 0.90 | 2.82 | 14.8 | 17.8 | 24.1 | 568 |
+| JDK 27 Parallel, 512 MB | 11.2 | 0.39 | 1.34 | 8.8 | 148.3 | 0.90 | 2.85 | 8.2 | 10.6 | 23.9 | 579 |
+| JDK 27 G1, 512 MB | 12.1 | 0.38 | 1.23 | 22.3 | 39.4 | 0.94 | 3.04 | 20.0 | 29.6 | 27.2 | 592 |
+| JDK 27 ZGC, 512 MB | 12.7 | 0.49 | 1.46 | 7.7 | 13.2 | 0.98 | 3.14 | 5.6 | 11.4 | 34.4 | 577 |
+| JDK 27 Shenandoah, 512 MB | 16.0 | 0.54 | 1.65 | 20.0 | 298.2 | 1.23 | 4.13 | 10.0 | 36.5 | 54.9 | 597 |
+| JDK 27 Shenandoah generational, 512 MB | 12.6 | 0.45 | 1.33 | 2.0 | 4.1 | 1.03 | 3.37 | 5.0 | 8.2 | 34.7 | 600 |
+| JDK 27 Serial, 1 GB | 11.9 | 0.41 | 1.23 | 27.1 | 28.3 | 0.90 | 2.81 | 25.8 | 28.3 | 23.4 | 926 |
+| JDK 27 Parallel, 1 GB | 11.0 | 0.38 | 1.16 | 14.4 | 16.2 | 0.89 | 2.78 | 13.7 | 15.5 | 23.4 | 953 |
+| JDK 27 G1, 1 GB | 11.2 | 0.37 | 1.04 | 34.1 | 38.1 | 0.90 | 2.78 | 4.6 | 34.8 | 23.8 | 974 |
+| JDK 27 ZGC, 1 GB | 12.1 | 0.48 | 1.38 | 2.1 | 3.2 | 0.95 | 2.97 | 4.3 | 7.0 | 31.0 | 964 |
+| JDK 27 Shenandoah, 1 GB | 13.9 | 0.51 | 1.45 | 2.7 | 9.2 | 1.15 | 3.72 | 5.8 | 9.9 | 46.4 | 1121 |
+| JDK 27 Shenandoah generational, 1 GB | 12.1 | 0.42 | 1.25 | 2.0 | 4.2 | 0.99 | 3.15 | 5.1 | 11.4 | 32.2 | 1141 |
+
+GC pauses in the 20 measured minutes, per invocation; percentiles and maximum over the pauses of all 3, the last 9 columns how many pauses an invocation had per range of duration (ms):
+
+| configuration | pauses | sum ms | % of time | p50 ms | p90 ms | p99 ms | p99.9 ms | max ms | <0.5 | 0.5–1 | 1–2 | 2–5 | 5–10 | 10–20 | 20–50 | 50–100 | ≥100 |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| Samaltak `opt` | 702 | 396 | 1.0 | 0.34 | 0.54 | 0.87 | 46.63 | 48.5 | 590 | 106 | 3 | 0 | 0 | 0 | 3 | 0 | 0 |
+| Samaltak `baseline` | 738 | 393 | 0.9 | 0.32 | 0.51 | 0.61 | 46.39 | 47.7 | 656 | 79 | 0 | 0 | 0 | 0 | 3 | 0 | 0 |
+| Pharo 14 | 685 | 3019 | 4.1 | 3.00 | 3.00 | 5.00 | 186.00 | 191.0 | 0 | 0 | 0 | 677 | 2 | 0 | 0 | 0 | 6 |
+| JDK 27 Serial, 256 MB | 168 | 1866 | 14.5 | 7.17 | 7.95 | 184.18 | 187.78 | 187.8 | 0 | 0 | 1 | 5 | 158 | 0 | 0 | 0 | 4 |
+| JDK 27 Parallel, 256 MB | 151 | 1147 | 9.9 | 3.98 | 5.08 | 143.12 | 152.87 | 152.9 | 0 | 0 | 0.3 | 134 | 13 | 0 | 0 | 0 | 4 |
+| JDK 27 G1, 256 MB | 161 | 1399 | 9.9 | 8.91 | 20.29 | 27.59 | 30.42 | 30.4 | 27 | 7 | 20 | 0.7 | 52 | 38 | 17 | 0 | 0 |
+| JDK 27 ZGC, 256 MB | 1710 | 196 | 1.3 | 0.11 | 0.12 | 0.45 | 4.34 | 94.8 | 1647 | 5 | 4 | 6 | 0.7 | 0 | 0.3 | 0.3 | 0 |
+| JDK 27 Shenandoah, 256 MB | 289 | 20783 | 59.2 | 0.20 | 207.25 | 312.24 | 369.92 | 369.9 | 162 | 1 | 0 | 0 | 0.3 | 0.3 | 1 | 47 | 78 |
+| JDK 27 Shenandoah generational, 256 MB | 1239 | 450 | 3.1 | 0.13 | 0.18 | 0.23 | 41.85 | 60.5 | 1242 | 0 | 0 | 0.3 | 0 | 1 | 6 | 0.3 | 0 |
+| JDK 27 Serial, 512 MB | 84 | 1345 | 10.9 | 13.61 | 14.65 | 209.00 | 215.37 | 215.4 | 0 | 0 | 0 | 0 | 2 | 81 | 0 | 0 | 1 |
+| JDK 27 Parallel, 512 MB | 75 | 662 | 5.9 | 6.92 | 7.90 | 147.18 | 153.71 | 153.7 | 0 | 0 | 0 | 1 | 72 | 1 | 0 | 0 | 1 |
+| JDK 27 G1, 512 MB | 58 | 907 | 7.5 | 18.96 | 27.23 | 38.48 | 39.58 | 39.6 | 8 | 0.7 | 8 | 0 | 0 | 25 | 16 | 0 | 0 |
+| JDK 27 ZGC, 512 MB | 244 | 27 | 0.2 | 0.10 | 0.12 | 0.13 | 1.81 | 1.8 | 239 | 0 | 0.7 | 0 | 0 | 0 | 0 | 0 | 0 |
+| JDK 27 Shenandoah, 512 MB | 166 | 1135 | 7.1 | 0.32 | 12.19 | 288.28 | 313.83 | 313.8 | 131 | 2 | 0.3 | 4 | 7 | 13 | 5 | 0.3 | 2 |
+| JDK 27 Shenandoah generational, 512 MB | 271 | 55 | 0.4 | 0.18 | 0.30 | 0.34 | 0.42 | 0.4 | 275 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
+| JDK 27 Serial, 1 GB | 42 | 1072 | 9.1 | 25.46 | 26.60 | 27.70 | 28.05 | 28.0 | 0 | 0 | 0 | 0 | 0 | 0 | 42 | 0 | 0 |
+| JDK 27 Parallel, 1 GB | 37 | 478 | 4.3 | 12.86 | 13.94 | 15.29 | 15.36 | 15.4 | 0 | 0 | 0 | 0 | 0 | 37 | 0 | 0 | 0 |
+| JDK 27 G1, 1 GB | 20 | 668 | 5.9 | 33.15 | 34.02 | 39.46 | 39.46 | 39.5 | 0 | 0 | 0 | 0 | 0 | 0 | 20 | 0 | 0 |
+| JDK 27 ZGC, 1 GB | 69 | 7 | 0.1 | 0.10 | 0.12 | 0.15 | 0.17 | 0.2 | 75 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
+| JDK 27 Shenandoah, 1 GB | 119 | 24 | 0.2 | 0.17 | 0.28 | 0.33 | 0.70 | 0.7 | 119 | 0.3 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
+| JDK 27 Shenandoah generational, 1 GB | 100 | 22 | 0.2 | 0.19 | 0.32 | 0.38 | 0.43 | 0.4 | 102 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
+
+Samaltak's GC takes 1 % of the time and pauses 0.34 ms at the median, 0.87 ms at p99: a scavenge copies little, since what survives one (the pending reviews) is tenured. Its 3 full GCs (150 MB old space) take 47 ms each and are its longest latencies. Of the collectors that stop the world, none pauses less: at a heap the size of Samaltak's (380 MB RSS against 315–370 MB at 256 MB), Serial and Parallel collect the young generation in 4–8 ms and the old in 150–190 ms, G1 in 9–30 ms. Only the concurrent ones pause less: ZGC and generational Shenandoah stay below 2 ms from 512 MB on, for 1.3–1.5 times the CPU time of Parallel. Non-generational Shenandoah degenerates at 256 MB (59 % of the time in pauses, 330 ms latencies). Pharo's scavenges take ~3 ms, its full GCs ~190 ms (4 % of the time).
+
+Samaltak `opt` runs the measured minutes 1.7 times faster than Pharo 14 and 3.7 times slower than the JVM (Parallel, 1 GB). The difference is in the mutator, not the GC: the decisions, substring searches in short Strings, take 4.8 times as long (4.29 against 0.90 ms at the median), the preparations, hashing and catenating Strings, 2.3 times. `baseline` is only 7 % slower than `opt`: most of the time is in primitives and the library, not compiled code.
+
 ## Against C
 
 Basic C versions of the eight Shootout (CLBG) programs the suites run (`vm/tests/bench/clbg/*.c`: the six above and AWFY's Mandelbrot and NBody) do the Smalltalk versions' work, same sizes, same algorithm, same checksum: `malloc`/`free` per node in binary-trees, GMP in pidigits, a growing buffer where Smalltalk has a WriteStream, an open-addressing hash table of positions in k-nucleotide; inputs made before timing, as the benchmarks' `initialize`. `vm/tests/bench/clbg.sh [-n 10] [-o file] [program ...]` builds them with `cc -O2` and prints what `awfy.sh` prints. On the x86-64 machine above (gcc 12, CPU time, median of 3 invocations of 10 iterations, `vm/tests/bench/results/c-gcc-O2-x86-2026-11-15-*.csv`), against the Samaltak and Pharo 12 medians of the x86-64 tables:

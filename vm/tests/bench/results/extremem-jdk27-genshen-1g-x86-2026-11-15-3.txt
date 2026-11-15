@@ -1,0 +1,47 @@
+# extremem 2026-11-15 03:56 system=java java=/workspace/ext/jdk/jdk-27.0.1.0.2+1/bin/java (openjdk version "27.0.1.0.2" 2026-10-21) vm-args='-XX:+UseShenandoahGC -XX:ShenandoahGCMode=generational -Xms1g -Xmx1g' params=' 'simulationMinutes=35' 'warmupMinutes=15''
+# setup 788563 us
+Extremem,1,564403
+Extremem,2,558720
+Extremem,3,370681
+Extremem,4,1023925
+Extremem,5,731130
+Extremem,6,768223
+Extremem,7,656480
+Extremem,8,591906
+Extremem,9,606845
+Extremem,10,622411
+Extremem,11,688374
+Extremem,12,647970
+Extremem,13,670147
+Extremem,14,639375
+# measured from uptime_ms=10655
+Extremem,15,679274
+Extremem,16,625054
+Extremem,17,636569
+Extremem,18,665982
+Extremem,19,795135
+Extremem,20,675170
+Extremem,21,635453
+Extremem,22,617198
+Extremem,23,604123
+Extremem,24,630409
+Extremem,25,640870
+Extremem,26,607963
+Extremem,27,599164
+Extremem,28,694683
+Extremem,29,608302
+Extremem,30,592289
+Extremem,31,620955
+Extremem,32,593792
+Extremem,33,603618
+Extremem,34,650852
+Extremem,35,587558
+# measured until uptime_ms=23343
+# simulation 22509480 us
+# latency preparation 7200 551 474 784 1635 2886 11156 11156
+# latency decision 7200 1117 994 1665 3151 4966 25457 25457
+# latency server 24000 26 0 1 25 5169 8394 11649
+# tally sessions=12601 candidates=1657951 noChoices=0 purchases=4473 saves=4604 abandons=2324 sales=4472 expirations=2531 customerReplacements=5600 productReplacements=14976 purchaseHash=49614845
+# stats Extremem gcs=166 gcMilliseconds=218 concurrentCycles=59 concurrentMilliseconds=9088 bytesAllocated=20951754800
+# pauses us: 392 202 153 361 193 153 315 181 187 325 182 157 315 204 230 430 238 163 284 230 157 310 239 150 278 184 184 253 174 150 285 185 157 293 190 155 265 212 156 293 218 147 293 181 155 271 184 151 291 208 147 302 188 150 307 190 152 302 216 158 287 178 174 289 190 151 318 183 154 356 178 119 253 178 230 110 375 189 159 343 197 154 324 189 154 331 183 158 332 181 161 351 185 149 327 194 158 335 229 154 306 182 152 322 186 152
+# process wall_s=23.42 user_s=33.34 sys_s=0.36 maxrss_kb=1168832
