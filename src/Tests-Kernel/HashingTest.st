@@ -239,6 +239,13 @@ testExtremeKeys
 	self assert: s size = 1000.
 	self assert: d size = 1000
 !
+testLargeIntegers
+	| s base |
+	s := Set new.
+	base := 1 bitShift: 64.
+	1 to: 20000 do: [:i | s add: base + (i * 1000003); add: (i bitShift: 70); add: (i bitShift: 70) negated].
+	self assertSpread: s
+!
 testStrings
 	| s |
 	s := Set new.
