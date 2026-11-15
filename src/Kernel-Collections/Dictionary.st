@@ -119,7 +119,7 @@ remove: anObject ifAbsent: aBlock
 	^self shouldNotImplement
 !
 removeAll
-	self init: 8
+	self init: (self class capacityAtLeast: 0)
 ! !
 
 !Dictionary methodsFor: 'testing'!

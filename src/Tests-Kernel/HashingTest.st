@@ -3,7 +3,7 @@ TestCase subclass: #HashingTest
 	classVariableNames: ''
 	package: 'Tests-Kernel'!
 
-HashingTest comment: 'Tests hash consistency and the hashed collections (Set, IdentitySet, Dictionary, IdentityDictionary) under growth and removal.'!
+HashingTest comment: 'Tests hash consistency, the hashed collections (Set, IdentitySet, Dictionary, IdentityDictionary) under growth and removal, and how common keys spread over the slots: every element should lie close to its home slot, hash \\ capacity + 1.'!
 
 !HashingTest methodsFor: 'tests'!
 testEqualObjectsHaveEqualHashes
@@ -141,4 +141,160 @@ testMixedKeys
 	self assert: (d at: 'one' copy) == #string.
 	self assert: (d at: (2/6)) == #fraction.
 	self assert: (d at: nil) == #nil
+!
+testRemovalAgainstAModel
+	"Random adds and removes checked against an Array of flags, also with every key homed at the last slot so that clusters wrap around."
+	| rnd |
+	rnd := Random new seed: 4711.
+	{Set. IdentitySet. Dictionary. IdentityDictionary} do: [:class | | capacity |
+		capacity := class new capacity.
+		self check: class with: rnd keys: ((1 to: capacity // 2) collect: [:i | capacity * i + capacity - 1]) operations: 2000.
+		self check: class with: rnd keys: (1 to: 300) asArray operations: 5000]
+! !
+
+!HashingTest methodsFor: 'distribution'!
+testCapacities
+	| capacities |
+	capacities := HashedCollection capacities.
+	capacities do: [:p |
+		self assert: p isPrime.
+		1 to: 8 do: [:k | | r |
+			r := (256 raisedTo: k) \\ p.
+			p > 288 ifTrue: [self assert: (r > 32 and: [r < (p - 32)])].
+			(p > 1024 and: [(256 raisedTo: 2 * k) >= p]) ifTrue: [
+				self assert: (self shortestSquared: r modulo: p) * 4 >= p]]].
+	2 to: capacities size do: [:i |
+		self assert: (capacities at: i) > (capacities at: i - 1).
+		self assert: (capacities at: i) * 5 <= ((capacities at: i - 1) * 8)].
+	self assert: capacities last > (2 raisedTo: 31).
+	self assert: (HashedCollection capacityAtLeast: 0) = capacities first.
+	self assert: (HashedCollection capacityAtLeast: 12) = (capacities detect: [:p | p >= 12]).
+	self assert: (HashedCollection capacityAtLeast: capacities last + 1) odd.
+	self assert: (Set new: 100) capacity >= 200.
+	self assert: Set new capacity = capacities first.
+	self assert: Dictionary new capacity = capacities first
+!
+testConsecutiveIntegersStayHome
+	| s |
+	s := Set new.
+	1 to: 300000 do: [:i | s add: i].
+	self assert: (self displacementsOf: s) = #(0 0)
+!
+testAlignedIntegers
+	| s d |
+	s := Set new.
+	d := Dictionary new.
+	1 to: 20000 do: [:i | s add: i * 4096. d at: i * 4096 put: i].
+	self assertSpread: s.
+	self assertSpread: d
+!
+testPackedIntegers
+	| s d |
+	s := Set new.
+	d := Dictionary new.
+	0 to: 149 do: [:x | 0 to: 149 do: [:y | s add: x * 65536 + y. d at: x * 65536 + y put: x]].
+	self assertSpread: s.
+	self assertSpread: d
+!
+testHighBits
+	"SmallIntegers that differ only in their high bits, alone or packed with low ones, of either sign or next to the ends of the range."
+	#(31 32 40 47) do: [:shift | | s |
+		s := Set new.
+		1 to: 5000 do: [:i | s add: (i bitShift: shift); add: (i bitShift: shift) negated].
+		self assertSpread: s].
+	{32. 40} do: [:shift | | d |
+		d := Dictionary new.
+		0 to: 99 do: [:x | 0 to: 99 do: [:y | d at: (x bitShift: shift) + y put: x]].
+		self assertSpread: d].
+	self assertSpread: (Set withAll: ((1 to: 5000) collect: [:i | SmallInteger maxVal - (i bitShift: 33)])).
+	self assertSpread: (Set withAll: ((1 to: 5000) collect: [:i | SmallInteger minVal + (i bitShift: 40)]))
+!
+testExtremeKeys
+	"Negative keys, the ends of the SmallInteger range and the LargeIntegers next to them: found after growth, gone after removal."
+	| keys s d |
+	keys := {0. 1. -1. 16rFFFFFFFF. 16r100000000. -16r100000000. SmallInteger maxVal. SmallInteger minVal. SmallInteger maxVal + 1. SmallInteger minVal - 1. 2 raisedTo: 100. (2 raisedTo: 100) negated}.
+	s := Set new.
+	d := Dictionary new.
+	keys do: [:k | s add: k. d at: k put: k negated].
+	1 to: 1000 do: [:i | s add: i * 7919. d at: i * 7919 put: i].
+	keys do: [:k |
+		self assert: (s includes: k).
+		self assert: (d at: k) = k negated].
+	keys do: [:k | s remove: k. d removeKey: k].
+	keys do: [:k |
+		self deny: (s includes: k).
+		self deny: (d includesKey: k)].
+	self assert: s size = 1000.
+	self assert: d size = 1000
+!
+testStrings
+	| s |
+	s := Set new.
+	1 to: 20000 do: [:i | s add: i printString; add: 'key', i printString; add: (i printString: 16) asSymbol].
+	self assertSpread: s
+!
+testIdentityHashes
+	| s |
+	s := IdentitySet new.
+	10000 timesRepeat: [s add: Object new].
+	self assertSpread: s
+! !
+
+!HashingTest methodsFor: 'private'!
+check: aClass with: aRandom keys: keys operations: n
+	| c present isDictionary |
+	c := aClass new.
+	isDictionary := c isDictionary.
+	present := Array new: keys size withAll: false.
+	n timesRepeat: [| i k |
+		i := aRandom nextInt: keys size.
+		k := keys at: i.
+		(aRandom nextInt: 2) = 1
+			ifTrue: [
+				isDictionary ifTrue: [c at: k put: k negated] ifFalse: [c add: k].
+				present at: i put: true]
+			ifFalse: [
+				isDictionary ifTrue: [c removeKey: k ifAbsent: [nil]] ifFalse: [c remove: k ifAbsent: [nil]].
+				present at: i put: false].
+		self assert: c size = (present count: [:each | each]).
+		keys doWithIndex: [:each :j |
+			isDictionary
+				ifTrue: [self assert: (c at: each ifAbsent: [nil]) = ((present at: j) ifTrue: [each negated] ifFalse: [nil])]
+				ifFalse: [self assert: (c includes: each) = (present at: j)]]]
+!
+displacementsOf: aHashedCollection
+	"Answer the average and the largest distance of an element from its home slot."
+	| array size identity total max |
+	array := aHashedCollection array.
+	size := array size.
+	identity := (aHashedCollection isKindOf: IdentitySet) or: [aHashedCollection isKindOf: IdentityDictionary].
+	total := max := 0.
+	1 to: size do: [:i | | key d |
+		key := array at: i.
+		key isNil ifFalse: [
+			aHashedCollection isDictionary ifTrue: [key := key key].
+			d := i - 1 - ((identity ifTrue: [key identityHash] ifFalse: [key hash]) \\ size) \\ size.
+			total := total + d.
+			max := max max: d]].
+	^Array with: total / (aHashedCollection size max: 1) with: max
+!
+shortestSquared: r modulo: p
+	"Answer the squared length of the shortest nonzero (c, a) with c * r = a (mod p), by Gauss's lattice reduction."
+	| u1 u2 v1 v2 n m t |
+	u1 := 1. u2 := r. v1 := 0. v2 := p.
+	[(v1 * v1) + (v2 * v2) < ((u1 * u1) + (u2 * u2)) ifTrue: [
+		t := u1. u1 := v1. v1 := t.
+		t := u2. u2 := v2. v2 := t].
+	 n := (u1 * u1) + (u2 * u2).
+	 m := (u1 * v1) + (u2 * v2) + (n // 2) // n.
+	 m = 0] whileFalse: [
+		v1 := v1 - (m * u1).
+		v2 := v2 - (m * u2)].
+	^n
+!
+assertSpread: aHashedCollection
+	| displacements |
+	displacements := self displacementsOf: aHashedCollection.
+	self assert: displacements first <= 2.
+	self assert: displacements last <= 32
 ! !
