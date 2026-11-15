@@ -19,6 +19,7 @@ usage: $0 [options] [benchmark[:inner] ...]
   --image PATH      image (default build/samaltak.image; with --pharo \$PHARO_IMAGE)
   --vm-args ARGS    extra VM arguments, e.g. '--jit baseline'
   --pharo           run on Pharo 14 (all but the Samaltak workloads)
+  --pharo-init EXPR Smalltalk Pharo evaluates after the file-ins, before the benchmark
   --suite NAME      awfy (default), micro, workloads, realworld or all (all but realworld)
   -n N              iterations per benchmark (default 30)
   -i N              inner iterations for every benchmark (default: per benchmark, see inner())
@@ -90,13 +91,14 @@ summarize() {
     }'
 }
 
-VM= IMAGE= VMARGS= PHARO=0 SUITE=awfy N=30 INNER= OUT= SUMMARY=0 MS=0 CPU=0 CPU_LABEL= GO=
+VM= IMAGE= VMARGS= PHARO=0 SUITE=awfy N=30 INNER= OUT= SUMMARY=0 MS=0 CPU=0 CPU_LABEL= GO= PHARO_INIT=
 while [ $# -gt 0 ]; do
     case $1 in
     --vm) VM=$2; shift ;;
     --image) IMAGE=$2; shift ;;
     --vm-args) VMARGS=$2; shift ;;
     --pharo) PHARO=1 ;;
+    --pharo-init) PHARO_INIT=$2; shift ;;
     --suite) SUITE=$2; shift ;;
     -n) N=$2; shift ;;
     -i) INNER=$2; shift ;;
@@ -154,7 +156,7 @@ LOG=$(mktemp)
 ALL=$(mktemp)
 trap 'rm -rf "$LOG" "$ALL" ${WORK:+"$WORK"}' EXIT
 status=0
-echo "# awfy $(date '+%Y-%m-%d %H:%M') vm=$VM image=${SRCIMAGE:-$IMAGE} vm-args='$VMARGS' iterations=$N" | tee -a "$ALL" | show
+echo "# awfy $(date '+%Y-%m-%d %H:%M') vm=$VM image=${SRCIMAGE:-$IMAGE} vm-args='$VMARGS' iterations=$N${PHARO_INIT:+ pharo-init='$PHARO_INIT'}" | tee -a "$ALL" | show
 for spec in "$@"; do
     b=${spec%%:*}
     if [ "$b" != "$spec" ]; then in=${spec#*:}; else in=${INNER:-$(inner "$b")}; fi
@@ -167,6 +169,7 @@ for spec in "$@"; do
     run="(Smalltalk at: #Harness) new run: #('$b' '$N' '$in')"
     if [ $PHARO = 1 ]; then
         [ $CPU = 1 ] && files="'PharoCPU' $files"
+        [ -n "$PHARO_INIT" ] && run="$PHARO_INIT. $run"
         [ -n "$GO" ] && run="'$GO.ready' asFileReference ensureCreateFile. ['$GO' asFileReference exists] whileFalse: [(Delay forMilliseconds: 2) wait]. $run"
         expr="[#('Pharo' $files) do: [:n | ('$DIR/', n, '.st') asFileReference fileIn]. $run. ''] on: Error do: [:e | 'ERROR ', e class name, ': ', e messageText]"
         (cd "$WORK" && "$VM" --headless $VMARGS "$IMAGE" eval "$expr") 2>&1

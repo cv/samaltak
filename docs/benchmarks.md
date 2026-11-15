@@ -172,6 +172,16 @@ Pharo 14 (its Linux x86-64 download of 2026-11-14, `Pharo-14.0.0+SNAPSHOT.build.
 
 `opt` loses Megamorphic to Pharo 14 too (1.23); `baseline` Json (1.69), Havlak and Sorting (1.14), MicroBlocks, PrintParse, Megamorphic and NBody (1.01–1.07).
 
+Pharo 12 collects old space when it has grown by a third since the last full GC (`Smalltalk vm parameterAt: 55`, 0.333); Samaltak when it reaches twice what the last one left live, at least 64 MB (`GarbageCollector`); both have a 16 MB eden (Pharo's parameter 44). Pharo 12 with 1.0 (`--pharo-init 'Smalltalk vm parameterAt: 55 put: 1.0'`) against its default, 3 invocations interleaved (`vm/tests/bench/results/pharo12-cog-x86-{gcdefault,gcratio1}{,-micro,-realworld}-2026-11-15-*.csv`; the default's times are 1.04 of the published ones above, geometric mean), takes 0.85 of the time on CLBG and 0.92 on the other real-world workloads: ReverseComplement 0.54, DeepRecursion 0.82 (196–199 full GCs in 30 iterations become 82–83), Enumeration 0.83 (102, 41), OrderedCollections 0.84, KNucleotide 0.87 (24, 10), BinaryTrees 0.88 (42–53, 16–17), Sorting 0.89 (43, 15–17). ReverseComplement is bimodal: one invocation does 341 full GCs and takes 1262 ms, as the default (351, 1243–1323 ms), the other two 90 and 654–676 ms. Pidigits (1.0–1.2 s per iteration) and Exceptions spend their GC time scavenging, which the parameter leaves alone (0.99, 0.98). 19 of the 23 AWFY and Micro benchmarks do no full GC under either setting, DeltaBlue, Havlak, MicroDict and MicroStrings 5–16 in 30 iterations (1–6 with 1.0); their geometric means (AWFY 1.06, Micro 1.00) are noise: the 10 AWFY benchmarks without a full GC give 0.96, 1.01 and 1.04 by invocation. With Pharo 12's published time scaled per real-world workload by its 1.0 / default ratio (AWFY and Micro unscaled):
+
+| | `opt` / Pharo 12 | `opt` / Pharo 12 at 1.0 | `baseline` / Pharo 12 | `baseline` / Pharo 12 at 1.0 |
+|---|---|---|---|---|
+| CLBG (6) | 0.48 | 0.56 | 0.63 | 0.74 |
+| the other real-world workloads (10) | 0.46 | 0.49 | 0.58 | 0.63 |
+| all 39 | 0.39 | 0.41 | 0.62 | 0.65 |
+
+`--cpu` times Samaltak by its thread's clock too (`awfy/SamaltakCPU.st`, `Smalltalk vm threadCpuMicroseconds`: all Processes, GC, JIT and the profiler's sampling); the x86-64 Samaltak times above were taken with the benchmark Process's CPU time plus the JIT's compiling, which leaves out the profiler's sampling Process. The thread's clock reads 1.3 % more under `opt`, 1.5 % under `baseline` (geometric means of medians of 3 interleaved invocations; MicroAlloc +11 % under `opt`, BinaryTrees and Pidigits +8 %, Storage +6 %), so 0.39 and 0.62 of Pharo 12 become 0.40 and 0.63.
+
 ## Real-world workloads
 
 AWFY brings its own collections (`Vector`, `SomDictionary`, `SomSet` in `awfy/Core.st`), so it measures the compiler and VM, not the class library, its primitives or the GC at scale. These 16 workloads (`awfy/RealWorld.st`, `--suite realworld`, not part of `all`) are written once against each system's own class library; Pharo 14 runs the same source. Each answers a checksum that `verifyResult:` compares with one constant for both systems; at small sizes all 16 also answer the same on both. Sizes give 0.45–1 s per iteration on Pharo 12; an invocation takes 2.5 minutes under `opt`, 3.2 under `baseline`, 7.7 on Pharo 14.
