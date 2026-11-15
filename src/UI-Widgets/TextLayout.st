@@ -5,7 +5,7 @@ Object subclass: #TextLayout
 
 TextLayout comment: 'I lay out a TextBuffer in a view (an object answering width and height, the TextEditor): rows (lines soft-wrapped to the view''s width less the padding and the gutter, and less the scroll bar when the text is taller than the view), each a line high in my font; x of a gap position in its row and the position nearest to an x (tabs to the Theme''s tab stops); the vertical scroll offset; and the rectangles of the caret and of character ranges in view coordinates. Rows are computed lazily, dropped when the width changes; a buffer change lays out again only the lines it touched.
 
-x is the sum of the font''s advances, as Canvas>>drawString: draws (combining marks and joiners advance 0, CJK and emoji from the fallback faces more than a cell). A line of printable ASCII in a monospaced font takes the shortcut count × monoAdvance. Positions at an x and wrap breaks are grapheme cluster boundaries. A row breaks after white space, else next to a wide character (CJK, which has no spaces; not before closing punctuation nor after opening), else before the cluster that does not fit.
+x is the font''s width of the text between tabs, as Canvas>>drawString: draws (combining marks and joiners advance 0, CJK and emoji from the fallback faces more than a cell, a color emoji cluster one em per glyph). A line of printable ASCII in a monospaced font takes the shortcut count × monoAdvance. Positions at an x and wrap breaks are grapheme cluster boundaries. A row breaks after white space, else next to a wide character (CJK, which has no spaces; not before closing punctuation nor after opening), else before the cluster that does not fit.
 
 	(TextLayout on: (TextBuffer string: ''abc'') in: (0 @ 0 extent: 200 @ 100)) xOf: 2   "the width of ab"'!
 
@@ -134,16 +134,21 @@ xFrom: start to: stop startX: x
 	^self advanceFrom: start to: stop startX: x
 !
 advanceFrom: start to: stop startX: x
-	"xFrom:to:startX: character by character."
-	| tab f result text |
+	"xFrom:to:startX: measured by the font run by run between tabs, as TextEditor draws (color emoji clusters advance as one)."
+	| tab f result text i j |
 	tab := Character tab.
 	f := self font.
 	text := buffer string.
 	result := x.
-	start + 1 to: stop do: [:i |
-		| c |
-		c := text at: i.
-		result := c == tab ifTrue: [self nextTabStop: result] ifFalse: [result + (f advanceOf: c)]].
+	i := start.
+	[i < stop] whileTrue: [
+		j := i.
+		[j < stop and: [(text at: j + 1) ~~ tab]] whileTrue: [j := j + 1].
+		j > i ifTrue: [result := result + (f widthOf: text from: i + 1 to: j)].
+		j < stop ifTrue: [
+			result := self nextTabStop: result.
+			j := j + 1].
+		i := j].
 	^result
 !
 xOf: aPosition inRow: r

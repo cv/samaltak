@@ -61,10 +61,10 @@ fit: aString font: aFont width: points
 	hi := aString size.
 	[lo < hi] whileTrue: [
 		mid := lo + hi + 1 // 2.
-		(aFont widthOf: (aString copyFrom: 1 to: mid), ell) <= points
+		(aFont widthOf: (aString copyFrom: 1 to: (aString graphemeClusterStartBefore: mid + 1)), ell) <= points
 			ifTrue: [lo := mid]
 			ifFalse: [hi := mid - 1]].
-	^(aString copyFrom: 1 to: lo), ell
+	^(aString copyFrom: 1 to: (aString graphemeClusterStartBefore: lo + 1)), ell
 !
 fit: aString advance: charWidth width: points
 	"Like fit:font:width: for a monospaced font whose characters are charWidth wide (no measuring)."
@@ -72,5 +72,5 @@ fit: aString advance: charWidth width: points
 	aString size * charWidth <= points ifTrue: [^aString].
 	n := (points / charWidth) floor - 1.
 	n < 1 ifTrue: [^''].
-	^(aString copyFrom: 1 to: n), self ellipsis
+	^(aString copyFrom: 1 to: (aString graphemeClusterStartBefore: n + 1)), self ellipsis
 ! !

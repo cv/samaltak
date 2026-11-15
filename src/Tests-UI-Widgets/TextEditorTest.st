@@ -85,6 +85,35 @@ testRunsAreDrawnWhereTheyAreMeasured
 	self assert: (self inkIn: first of: form) > 4.
 	self assert: (self inkIn: ((last right + 1) @ last top extent: 20 @ last height) of: form) equals: 0
 !
+testColorEmojiDrawnWhereMeasuredAndSelected
+	"A family emoji (one color glyph) fills the one em the layout gives it, in color, selected too; the text after it starts there."
+	| text colorful form emoji after |
+	text := 'a', (String withAll: (#(16r1F468 16r200D 16r1F469 16r200D 16r1F467 16r200D 16r1F466) collect: [:cp | Character value: cp])), 'b'.
+	"one font, at the scale render reads back"
+	editor highlighting: false.
+	editor font: (Font face: Font code face size: 13 scale: 2).
+	editor text: text.
+	colorful := [:rect :aForm | | n |
+		n := 0.
+		(rect top * 2) floor to: (rect bottom * 2) ceiling - 1 do: [:y |
+			(rect left * 2) floor to: (rect right * 2) ceiling - 1 do: [:x | | v r g b |
+				v := aForm pixelValueAt: x @ y.
+				r := v bitAnd: 255. g := (v bitShift: -8) bitAnd: 255. b := (v bitShift: -16) bitAnd: 255.
+				((r max: (g max: b)) - (r min: (g min: b))) > 60 ifTrue: [n := n + 1]]].
+		n].
+	emoji := (editor rectsFrom: 1 to: 8) first.
+	after := (editor rectsFrom: 8 to: 9) first.
+	self assert: emoji width closeTo: editor font size.
+	self assert: after left closeTo: emoji right.
+	form := self render.
+	self assert: (colorful value: emoji value: form) > 40.
+	"the glyph may reach into the device pixel its advance ends in"
+	self assert: (colorful value: ((after left + 0.5) @ after top extent: 30 @ after height) value: form) equals: 0.
+	self assert: (self inkIn: after of: form) > 4.
+	editor selectFrom: 2 to: 8.
+	form := self render.
+	self assert: (colorful value: emoji value: form) > 40
+!
 testPreeditShowsAtTheCaretUntilCommitted
 	| form r x w |
 	editor text: 'ab'.

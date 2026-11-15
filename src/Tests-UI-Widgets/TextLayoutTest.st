@@ -179,11 +179,26 @@ testWrapsCJKBetweenIdeographsAndClusters
 	buffer string: 'x', text.
 	self assert: layout rowCount > 1.
 	2 to: layout rowCount do: [:r | self assert: (layout rowStart: r) odd]
+!
+testWrapsColorEmojiWhole
+	"A line of family emoji (ZWJ sequences of 7 characters, one color glyph each) breaks only between them; x is what the font measures, one em each."
+	| family f w |
+	family := String withAll: (#(16r1F468 16r200D 16r1F469 16r200D 16r1F467 16r200D 16r1F466) collect: [:cp | Character value: cp]).
+	buffer string: 'x', (String new: 140 streamContents: [:s | 20 timesRepeat: [s nextPutAll: family]]).
+	layout := TextLayout on: buffer in: (0 @ 0 extent: 150 @ 1000).
+	f := layout font.
+	w := layout availableTextWidth.
+	self assert: layout rowCount > 1.
+	2 to: layout rowCount do: [:r | self assert: (layout rowStart: r) - 1 \\ 7 equals: 0].
+	1 to: layout rowCount do: [:r | self assert: (layout xOf: (layout rowEnd: r) inRow: r) <= w].
+	self assert: (layout xOf: 8) closeTo: (f widthOf: 'x') + f size.
+	self assert: (layout positionInRow: 1 atX: (layout xOf: 1) + (f size * 0.4)) equals: 1.
+	self assert: (layout positionInRow: 1 atX: (layout xOf: 1) + (f size * 0.6)) equals: 8
 ! !
 
 !TextLayoutTest methodsFor: 'support'!
 randomPieceWith: rng
-	"A short string: ASCII, a long word, white space, line feeds, CJK and its punctuation, combining marks, emoji, a flag, or several lines."
+	"A short string: ASCII, a long word, white space, line feeds, CJK and its punctuation, combining marks, emoji (a ZWJ family among them), a flag, or several lines."
 	| c pieces |
 	c := [:cp | String with: (Character value: cp)].
 	pieces := {
@@ -197,7 +212,7 @@ randomPieceWith: rng
 		(c value: 16r3001) , (c value: 16r300C) , (c value: 16r6E2C) , (c value: 16r300D).
 		'e' , (c value: 16r301) , (c value: 16r308).
 		(c value: 16rD55C) , (c value: 16rAE00) , ' '.
-		(c value: 16r1F600) , (c value: 16r1F44D) , (c value: 16r1F3FD).
+		(c value: 16r1F600) , (c value: 16r1F44D) , (c value: 16r1F3FD) , (String withAll: (#(16r1F468 16r200D 16r1F469 16r200D 16r1F467 16r200D 16r1F466) collect: [:cp | Character value: cp])).
 		(c value: 16r1F1E9) , (c value: 16r1F1EA).
 		'one ' , (c value: 16r65E5) , self lf , 'two' , (String with: Character tab) , 'three' , self lf.
 		'word word word word word word word word'}.

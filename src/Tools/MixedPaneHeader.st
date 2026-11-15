@@ -31,7 +31,8 @@ truncate: aString to: width font: aFont
 			hi := aString size.
 			[lo < hi] whileTrue: [
 				mid := lo + hi + 1 // 2.
-				(aFont widthOf: aString from: 1 to: mid) + ew <= width ifTrue: [lo := mid] ifFalse: [hi := mid - 1]].
+				(aFont widthOf: aString from: 1 to: (aString graphemeClusterStartBefore: mid + 1)) + ew <= width ifTrue: [lo := mid] ifFalse: [hi := mid - 1]].
+			lo := aString graphemeClusterStartBefore: lo + 1.
 			result := WideString new: lo + 1.
 			1 to: lo do: [:i | result at: i put: (aString at: i)].
 			result at: lo + 1 put: ellipsis].
