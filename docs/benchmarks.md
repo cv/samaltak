@@ -223,6 +223,31 @@ Steady state (median of the last half of 30 iterations) and first iteration, ms,
 
 Pidigits is LargeInteger arithmetic in C. Its iterations take 490 to 535 ms under either tier, the level changing between invocations and within one (`baseline`'s second: 495, then 525). Megamorphic: `opt` 104.6 ms, `baseline` 99.9; every send is megamorphic, so `opt` inlines nothing.
 
+## The Benchmarks Game's Pharo programs
+
+The [Benchmarks Game](https://benchmarksgame-team.pages.debian.net/benchmarksgame/)'s own Pharo programs, unchanged (`vm/tests/bench/benchmarksgame/`, Revised BSD, `LICENSE.md`): the 13 of its 15 that run on Pharo (knucleotide-pharo-5 and regexredux-pharo-1 fail there). Samaltak files in `benchmarksgame/Samaltak.st` first (Pharo's `Stdio` streams, Zinc's stream wrappers, ScaledDecimal printing, `asciiValue`, `findString:`, the global `newline` revcomp-pharo-1 reads undeclared) and reads each program with `d` exponents written `e` and `StdioStream instance methodsFor:` as `StdioStream methodsFor:`; Pharo files in the program as `benchmarksgame/pharo14.py` writes it (one method per preamble, the package `BenchmarksGame`: Pharo 14 rejects `benchmarks game`, `newline` declared). Each run is a fresh process; run is `BenchmarksGame do: N` timed inside the image (JIT and GC included), process the whole process (start, image load, file-in, quit). knucleotide and revcomp read fasta 2,500,000 (25 MB). Median of 3 rounds, Pharo 14 and `opt` alternating first, 1-minute load below 3 before each run, M2 Max (`vm/tests/bench/results/benchmarksgame-2026-11-15.txt`), ms:
+
+| program | N | Pharo 14 run | Pharo 14 process | `opt` run | `opt` process | run `opt` / Pharo | process `opt` / Pharo |
+|---|---|---|---|---|---|---|---|
+| binarytrees-pharo-1 | 18 | 3873 | 4209 | 581 | 619 | 0.15 | 0.15 |
+| fannkuchredux-pharo-1 | 10 | 1260 | 1586 | 419 | 456 | 0.33 | 0.29 |
+| fasta-pharo-1 | 2,500,000 | 6340 | 6675 | 1099 | 1138 | 0.17 | 0.17 |
+| fasta-pharo-2 | 2,500,000 | 2563 | 2912 | 1081 | 1123 | 0.42 | 0.39 |
+| knucleotide-pharo-1 | | 29408 | 29787 | 8482 | 8533 | 0.29 | 0.29 |
+| knucleotide-pharo-2 | | 24146 | 24492 | 8281 | 8333 | 0.34 | 0.34 |
+| mandelbrot-pharo-1 | 4000 | 11725 | 12045 | 5162 | 5202 | 0.44 | 0.43 |
+| mandelbrot-pharo-2 | 4000 | 11380 | 11722 | 5138 | 5175 | 0.45 | 0.44 |
+| nbody-pharo-1 | 5,000,000 | 7118 | 7503 | 2946 | 2993 | 0.41 | 0.40 |
+| pidigits-pharo-1 | 10,000 | 6187 | 6512 | 3079 | 3115 | 0.50 | 0.48 |
+| revcomp-pharo-1 | | 9906 | 10250 | 1213 | 1253 | 0.12 | 0.12 |
+| revcomp-pharo-2 | | 1775 | 2088 | 891 | 929 | 0.50 | 0.44 |
+| spectralnorm-pharo-1 | 2000 | 2808 | 3130 | 1552 | 1587 | 0.55 | 0.51 |
+| geometric mean | | | | | | 0.33 | 0.31 |
+
+`opt` wins all 13 with the same output. Outside the timed run Pharo 14 spends about 330 ms (starting and quitting alone 230), Samaltak about 40 (16).
+
+    vm/tests/bench/benchmarksgame.sh [-n 3] [-o file] [--small] [program ...]   # --small: sizes for checking output; VM, IMAGE, VMARGS; PHARO_VM, PHARO_IMAGE
+
 ## Against C
 
 Basic C versions of the eight Shootout (CLBG) programs the suites run (`vm/tests/bench/clbg/*.c`: the six above and AWFY's Mandelbrot and NBody) do the Smalltalk versions' work, same sizes, same algorithm, same checksum: `malloc`/`free` per node in binary-trees, GMP in pidigits, a growing buffer where Smalltalk has a WriteStream, an open-addressing hash table of positions in k-nucleotide; inputs made before timing, as the benchmarks' `initialize`. `vm/tests/bench/clbg.sh [-n 10] [-o file] [program ...]` builds them with `cc -O2` and prints what `awfy.sh` prints. On the x86-64 machine above (gcc 12, CPU time, median of 3 invocations of 10 iterations, `vm/tests/bench/results/c-gcc-O2-x86-2026-11-15-*.csv`), against the Samaltak and Pharo 12 medians of the x86-64 tables:
