@@ -3,7 +3,8 @@
 # the top level regenerates them); gen/sources.mk says which files make the core and which the platform layer, and
 # which of them are for one OS only (VM_CORE_SOURCES_LINUX ...: this build adds those of its uname -s) or for one CPU
 # (VM_CORE_SOURCES_X86_64: this build adds those of its uname -m, arm64's on any CPU but x86-64).
-# macOS: Homebrew sdl3, clang. Linux: sdl3 and shaderc (GLSL → SPIR-V for SDL_GPU on Vulkan), gcc or clang.
+# macOS: Homebrew sdl3 and openssl@3, clang. Linux: sdl3, shaderc (GLSL → SPIR-V for SDL_GPU on Vulkan) and OpenSSL 3, gcc
+# or clang.
 # Profile-guided: pgo.profdata (if present) steers optimization; `make pgo IMAGE=...` retrains it. NO_PGO=1 skips it.
 # BRIEF=1 prints one line per file instead of the commands.
 UNAME_S := $(shell uname -s)
@@ -59,11 +60,20 @@ ifeq ($(SDL_LIBS),)
   endif
 endif
 
+# OpenSSL 3 (TLS): pkg-config, else Homebrew's keg-only openssl@3.
+SSL_CFLAGS := $(shell pkg-config --cflags openssl 2>/dev/null)
+SSL_LIBS := $(shell pkg-config --libs openssl 2>/dev/null)
+ifeq ($(SSL_LIBS),)
+  SSL_PREFIX := $(shell brew --prefix openssl@3 2>/dev/null)
+  SSL_CFLAGS := $(if $(SSL_PREFIX),-I$(SSL_PREFIX)/include)
+  SSL_LIBS := $(if $(SSL_PREFIX),-L$(SSL_PREFIX)/lib) -lssl -lcrypto
+endif
+
 ifneq ($(and $(PLATFORM_SRCS),$(SDL_LIBS),$(if $(NO_PLATFORM),,yes)),)
   VARIANT := platform
   SRCS := $(CORE_SRCS) $(PLATFORM_SRCS)
-  CFLAGS += $(SDL_CFLAGS)
-  LDLIBS += $(SDL_LIBS) $(OS_PLATFORM_LIBS)
+  CFLAGS += $(SDL_CFLAGS) $(SSL_CFLAGS)
+  LDLIBS += $(SDL_LIBS) $(SSL_LIBS) $(OS_PLATFORM_LIBS)
 else
   VARIANT := headless
   SRCS := $(CORE_SRCS) $(HEADLESS_SRCS)

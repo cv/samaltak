@@ -3,7 +3,7 @@ Object subclass: #RemoteSocket
 	classVariableNames: ''
 	package: 'System-Remote'!
 
-RemoteSocket comment: 'I am a TCP socket over the platform''s socket primitives (vm/platform/README.md), with blocking accept, receive and send that wait on my read and write Semaphores instead of spinning: the platform signals a Semaphore once when the socket becomes ready and re-arms it when a primitive answers "would block".
+RemoteSocket comment: 'I am a TCP socket over the platform''s socket primitives (vm/platform/README.md), with blocking connect, accept, receive and send that wait on my read and write Semaphores instead of spinning: the platform signals a Semaphore once when the socket becomes ready and re-arms it when a primitive answers "would block". No primitive blocks the VM: host names are looked up by a thread of the platform (resolve:), connecting tries each address in turn, and the whole connect gives up after connectTimeout. Terminating the Process that connects cancels it.
 
 My Semaphores occupy two slots of the VM''s external objects (Smalltalk vm registerExternalSemaphore:), freed by close. A socket that is garbage collected unclosed is closed by the finalization process (WeakRegistry).'!
 
@@ -134,6 +134,18 @@ finalize
 	self close
 ! !
 
+!RemoteSocket methodsFor: 'private'!
+awaitConnectionUntil: deadline
+	"Wait until my connect is done or deadline (a millisecondClockValue) passes; answer nil once connected, else why not."
+	| connected |
+	[handle isNil ifTrue: [^'closed'].
+	 connected := self class primConnected: handle.
+	 connected == false ifTrue: [^self class lastError].
+	 connected isNil] whileTrue: [
+		(writeSemaphore waitTimeoutMSecs: deadline - Time millisecondClockValue) ifTrue: [^'timed out']].
+	^nil
+! !
+
 !RemoteSocket methodsFor: 'printing'!
 printOn: aStream
 	aStream nextPutAll: 'a RemoteSocket'.
@@ -163,10 +175,56 @@ listenOn: port host: hostString backlog: anInteger
 	^self onHandle: h
 !
 connectTo: hostString port: port
-	| h |
-	h := self primConnect: hostString port: port.
-	h isNil ifTrue: [^RemoteError signal: 'cannot connect to ', hostString, ':', port printString, ': ', self lastError].
-	^self onHandle: h
+	^self connectTo: hostString port: port timeout: self connectTimeout
+!
+connectTo: hostString port: port timeout: milliseconds
+	"Connect to port of the host named (or numbered) hostString, trying its addresses in turn; answer or fail within milliseconds."
+	^self connectTo: hostString port: port until: Time millisecondClockValue + milliseconds
+!
+connectTo: hostString port: port until: deadline
+	"Look up, then try each address with an equal share of the time left before deadline (a millisecondClockValue); the last gets all of it."
+	| addresses reason h socket now |
+	addresses := self resolve: hostString until: deadline.
+	addresses withIndexDo: [:each :i |
+		h := self primConnect: each port: port.
+		h isNil
+			ifTrue: [reason := self lastError]
+			ifFalse: [
+				socket := self onHandle: h.
+				now := Time millisecondClockValue.
+				reason := [socket awaitConnectionUntil: now + ((deadline - now max: 0) // (addresses size - i + 1))] ifCurtailed: [socket close].
+				reason isNil ifTrue: [^socket].
+				socket close]].
+	^RemoteError signal: 'cannot connect to ', hostString, ':', port printString, ': ', reason
+!
+connectTimeout
+	"Milliseconds a whole connect (the lookup, the connect, a TLS handshake) may take."
+	^10000
+! !
+
+!RemoteSocket class methodsFor: 'host names'!
+resolve: hostString
+	^self resolve: hostString timeout: self connectTimeout
+!
+resolve: hostString timeout: milliseconds
+	"Answer the numeric addresses (Strings) of the host named hostString, looked up by the platform without blocking the VM."
+	^self resolve: hostString until: Time millisecondClockValue + milliseconds
+!
+resolve: hostString until: deadline
+	| h socket out buffer n lines |
+	h := self primResolve: hostString.
+	h isNil ifTrue: [^RemoteError signal: 'cannot resolve ', hostString, ': ', self lastError].
+	socket := RemoteSocket onHandle: h.
+	out := WriteStream on: (String new: 64).
+	buffer := ByteArray new: 1024.
+	[[(n := socket receiveInto: buffer timeout: (deadline - Time millisecondClockValue max: 0)) = 0] whileFalse: [
+		n isNil ifTrue: [^RemoteError signal: 'cannot resolve ', hostString, ': timed out'].
+		out nextPutAll: (buffer copyFrom: 1 to: n) asString]] ensure: [socket close].
+	lines := out contents lines reject: [:each | each isEmpty].
+	(lines notEmpty and: [lines first beginsWith: '!!']) ifTrue: [
+		^RemoteError signal: 'cannot resolve ', hostString, ': ', (lines first allButFirst)].
+	lines isEmpty ifTrue: [^RemoteError signal: 'cannot resolve ', hostString, ': no address'].
+	^lines asArray
 ! !
 
 !RemoteSocket class methodsFor: 'external semaphores'!
@@ -185,8 +243,19 @@ primListen: host port: port backlog: backlog
 	<primitive: 'socketListen'>
 	^nil
 !
-primConnect: host port: port
+primConnect: address port: port
+	"Start connecting to the numeric address; answer the handle at once (see primConnected:), nil on failure."
 	<primitive: 'socketConnect'>
+	^nil
+!
+primConnected: aHandle
+	"Answer true once connected, nil while connecting (the write Semaphore is armed), false on failure."
+	<primitive: 'socketConnected'>
+	^false
+!
+primResolve: hostName
+	"Answer a handle that reads as the numeric addresses of hostName, a line each, or as one line of !! and the error; nil on failure."
+	<primitive: 'socketResolve'>
 	^nil
 !
 primAccept: aHandle

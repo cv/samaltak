@@ -3,7 +3,7 @@ Column subclass: #ToolPane
 	classVariableNames: ''
 	package: 'Tools'!
 
-ToolPane comment: 'I am the abstract root widget of a tool window (System Browser, Workspace, Inspector, ...): a Column of panes that opens itself in a Window (openIn:title:), answers ? with the help overlay when no text editor has the keys, and offers helpers my subclasses share (pane headers, timers that stop when my window closes).'!
+ToolPane comment: 'I am the abstract root widget of a tool window (System Browser, Workspace, Inspector, ...): a Column of panes that opens itself in a Window (openIn:title:), answers ? with the help overlay when no text editor has the keys and ⌘J with my Agent window (Tools open: #agent), and offers helpers my subclasses share (pane headers, timers that stop when my window closes).'!
 
 !ToolPane methodsFor: 'opening'!
 openIn: aRectangle title: aString
@@ -51,6 +51,7 @@ every: milliseconds do: aBlock
 !ToolPane methodsFor: 'events'!
 keyDown: anEvent
 	(self isHelpKey: anEvent) ifTrue: [Tools showHelp. ^true].
+	(anEvent key = $j and: [anEvent modifiers commandKey]) ifTrue: [Tools open: #agent with: self. ^true].
 	^false
 !
 isHelpKey: anEvent

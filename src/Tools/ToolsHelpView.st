@@ -16,6 +16,7 @@ sections
 			#('⌘P' 'print it — result inserted, selected')
 			#('⌘I' 'inspect it — opens an Inspector')
 			#('⌘B' 'browse it — class or implementor')
+			#('⌘J' 'agent — a conversation on this tool''s context')
 			#('⌘S' 'accept — compile method in a Browser')
 			#('⌘F' 'filter a Browser by class and method names')
 			#('right-click' 'the same, as a menu')))
@@ -34,7 +35,7 @@ lede
 	^'Every window runs in its own green thread (Process). A busy window never freezes the others; the compositor keeps dragging smooth. The title-bar dot is the window''s Process.'
 !
 cardExtent
-	^560 @ 524
+	^560 @ 545
 !
 cardRect
 	^self localBounds

@@ -4,8 +4,8 @@ set -euo pipefail
 
 if command -v sudo >/dev/null 2>&1 && [ "$(id -u)" != 0 ]; then SUDO=sudo; else SUDO=; fi
 
-# shaderc (GLSL -> SPIR-V for SDL_GPU on Vulkan); cmake and ninja build SDL3
-PKGS="libshaderc-dev cmake ninja-build libvulkan-dev spirv-tools pkg-config git"
+# shaderc (GLSL -> SPIR-V for SDL_GPU on Vulkan); OpenSSL 3 (TLS); cmake and ninja build SDL3
+PKGS="libshaderc-dev libssl-dev cmake ninja-build libvulkan-dev spirv-tools pkg-config git"
 if ! dpkg -s $PKGS >/dev/null 2>&1; then
     $SUDO apt-get update
     $SUDO env DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends $PKGS

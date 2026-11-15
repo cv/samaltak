@@ -1,0 +1,358 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>3 · Agent Browser — Samaltak agent proposals</title>
+<link rel="stylesheet" href="../shared/pi-orb-fonts.css">
+<link rel="stylesheet" href="agent.css">
+<style>
+  /* ---- main Agent Browser ---- */
+  #ab { left: 12px; top: 36px; width: 1180px; height: 796px; }
+  #ab .titlebar .busy { margin-left: 2px; }
+  .c-conv { width: 216px; }
+  .c-tr { flex: 1; }
+  .c-obj { width: 444px; }
+
+  /* conversations */
+  .conv .li { display: block; padding: 3px 8px 4px; border-bottom: 1px solid var(--hair); }
+  .conv .li .t { display: flex; gap: 6px; font-size: 13px; }
+  .conv .li .t .n { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .conv .li .t .r { margin-left: auto; color: var(--ink-3); font-style: italic; font-size: 12px; }
+  .conv .li .m { font-size: 11.5px; color: var(--ink-3); font-style: italic; }
+  .conv .li.sel { border-bottom-color: #000; }
+  .conv .li.sel .m, .conv .li.sel .t .r { color: #cfcfcf; }
+  .conv .day { font: 700 9.5px var(--ui); letter-spacing: .08em; text-transform: uppercase; color: var(--ink-3); padding: 7px 8px 2px; border-bottom: 1px solid var(--hair); }
+  .kv { font: 12px/18px var(--code); padding: 4px 8px; }
+  .kv div { display: flex; gap: 8px; white-space: nowrap; }
+  .kv .k { width: 62px; color: var(--ink-3); font-style: italic; flex: none; }
+  .btnrow { display: flex; gap: 5px; padding: 6px 8px; flex: none; }
+  .btnrow .btn { font-size: 12px; padding: 0 7px 1px; }
+  .filter { display: flex; border-top: 1px solid #000; flex: none; }
+  .filter span { flex: 1; text-align: center; font-size: 12px; padding: 2px 0 3px; border-right: 1px solid #000; }
+  .filter span:last-child { border-right: 0; }
+  .filter span.on { background: #000; color: #fff; }
+
+  /* transcript */
+  .tr { padding: 8px 12px 0; overflow: hidden; }
+  .turn-h { font: 700 9.5px var(--ui); letter-spacing: .08em; text-transform: uppercase; color: var(--ink-3);
+    display: flex; gap: 8px; align-items: center; margin: 2px 0 7px; }
+  .turn-h::after { content: ""; flex: 1; border-top: 1px solid var(--hair); }
+  .turn-h b { color: #000; }
+  .u { border-left: 3px solid #000; padding: 1px 0 2px 8px; margin: 0 0 8px; font-weight: 600; }
+  .u .who, .a .who { font: 700 9.5px var(--ui); letter-spacing: .08em; text-transform: uppercase; color: var(--ink-3); display: block; font-weight: 700; }
+  .a { padding: 0 0 0 11px; margin: 0 0 7px; }
+  .a .who { color: var(--ultra); }
+  .call { margin: 0 0 4px 11px; border: 1px solid #000; }
+  .call .line { display: flex; align-items: center; gap: 7px; height: 22px; padding: 0 6px 0 4px; font: 12.5px var(--code); }
+  .call .tw { font: 9px var(--ui); width: 10px; text-align: center; flex: none; }
+  .call .tool { font: 700 9.5px var(--ui); letter-spacing: .07em; text-transform: uppercase; flex: none; color: var(--ink-2); }
+  .call .src { flex: 1; min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+  .call .res { flex: none; display: flex; gap: 5px; align-items: center; font: 12px var(--code); }
+  .call .res .ps { color: var(--ink-2); max-width: 150px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .call .ms { font: italic 11.5px var(--ui); color: var(--ink-3); flex: none; }
+  .call.open .line { border-bottom: 1px solid #000; background: #000; color: #fff; }
+  .call.open .line .tool, .call.open .line .ms { color: #ddd; }
+  .call.open .line .oref { color: #fff; border-color: #fff; }
+  .call .body { padding: 5px 8px 6px 21px; }
+  .call .body pre { font-size: 12.5px; line-height: 18px; }
+  .call .body .out { border-top: 1px dotted #000; margin-top: 5px; padding-top: 4px; display: flex; gap: 7px; align-items: baseline; font: 12.5px/18px var(--code); }
+  .call .body .out .lbl { font: 700 9.5px var(--ui); letter-spacing: .08em; text-transform: uppercase; color: var(--ink-3); }
+  .call.err .line .res { color: #000; }
+  .call.err { border-style: dashed; }
+  .call .errtag { font: 700 9.5px/1 var(--ui); letter-spacing: .07em; text-transform: uppercase; background: #000; color: #fff; padding: 2px 4px 1px; }
+  .call .lnk { font: 12px var(--ui); text-decoration: underline; color: var(--ultra); }
+  .show { margin: 0 0 6px 11px; border: 1px solid #000; }
+  .bars { padding: 6px 10px 7px 21px; font: 12px/1 var(--code); }
+  .bar { display: flex; align-items: center; gap: 8px; height: 17px; }
+  .bar .n { width: 82px; }
+  .bar .b { height: 10px; background: #000; }
+  .bar .b.h { border: 1px solid #000; }
+  .bar .b.u { background: var(--ultra); }
+  .bar .b.ht { background-color: #fff; background-image: radial-gradient(#000 0.7px, transparent 0.8px); background-size: 3px 3px; border: 1px solid #000; }
+  .bar .v { color: var(--ink-2); }
+  .prose { line-height: 1.42; }
+
+  /* prompt */
+  .prompt { flex: none; height: 118px; border-top: 1px solid #000; display: flex; flex-direction: column; }
+  .prompt .pane-h { border-bottom: 1px solid #000; }
+  .prompt .ed { flex: 1; padding: 8px 12px; font-size: 14.5px; position: relative; }
+  .prompt .ed .oref { font-size: 13px; padding: 1px 4px 2px; }
+  .caret { display: inline-block; width: 1.5px; height: 16px; background: #000; vertical-align: -3px; margin-left: 1px; }
+  .prompt .foot { display: flex; gap: 6px; padding: 0 8px 6px 12px; align-items: center; font-size: 12px; color: var(--ink-3); }
+  .prompt .foot .btn { font-size: 12.5px; }
+  .prompt .foot .sp { flex: 1; }
+
+  /* objects table */
+  .otab { font: 12px var(--code); border-collapse: collapse; width: 100%; table-layout: fixed; }
+  .otab th { font: 700 9.5px var(--ui); letter-spacing: .08em; text-transform: uppercase; text-align: left;
+    padding: 4px 6px 3px; border-bottom: 1px solid var(--hair); color: var(--ink-2); }
+  .otab td { padding: 2px 6px 3px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; height: 21px; }
+  .otab tr.sel td { background: #000; color: #fff; }
+  .otab tr.sel .oref { color: #fff; border-color: #fff; }
+  .otab tr.drag td { outline: 1px dashed #000; outline-offset: -2px; }
+  .otab .pin { text-align: center; font: 10px var(--ui); }
+  .otab .via { font: italic 11.5px var(--ui); color: var(--ink-3); }
+  .otab tr.sel .via { color: #ccc; }
+  .insp-fields .li { font: 12.5px/19px var(--code); padding: 0 8px; }
+  .insp-val { padding: 6px 10px; font: 12.5px/19px var(--code); }
+  .eval { padding: 6px 10px; font: 12.5px/19px var(--code); }
+  .eval .sel { background: #000; color: #fff; }
+  .eval-h .right { font-size: 11.5px; }
+
+  /* desk: small inspector + menu + process browser */
+  #insp { left: 1206px; top: 36px; width: 220px; height: 248px; }
+  #insp .li { font: 12px/18px var(--code); padding: 0 6px; }
+  .menu { position: absolute; z-index: 60; background: #fff; border: 1px solid #000; box-shadow: 2px 2px 0 #000; width: 158px; padding: 2px 0; font-size: 13px; }
+  .menu div { padding: 1px 10px 2px; display: flex; }
+  .menu div span { margin-left: auto; color: var(--ink-3); font-size: 11.5px; }
+  .menu hr { border: 0; border-top: 1px solid #000; margin: 2px 0; }
+  .menu .hot { background: var(--ultra); color: #fff; }
+  .menu .hot span { color: #dfe4f2; }
+  #pb { left: 1208px; top: 498px; width: 220px; height: 232px; }
+  #pb .li { font-size: 12px; padding: 0 6px; line-height: 18px; }
+  #pb .li .p { width: 18px; color: var(--ink-3); font: 11px/18px var(--code); }
+  #pb .li .r { font-size: 11.5px; }
+  .ghost { position: absolute; z-index: 70; font: 12px var(--code); background: #fff; border: 1px dashed #000; padding: 2px 6px 3px; box-shadow: 2px 2px 0 rgba(0,0,0,.0); }
+</style>
+</head>
+<body>
+<div id="desktop">
+  <div id="topbar">
+    <span class="brand">Samaltak</span><span class="sep"></span><span>nuuk.image</span>
+    <span class="hint">Drag any object into an agent prompt · Inspector ▸ Send to Agent</span>
+    <span class="lbl">Agent</span><span class="stat">Codex 6.1 Sol · 41k / 400k</span><span class="sep"></span>
+    <span class="stat">12 processes</span>
+  </div>
+
+  <!-- ===================== AGENT BROWSER ===================== -->
+  <div class="win active" id="ab">
+    <div class="titlebar"><span class="box"></span><span class="stripes"></span>
+      <span class="title">Agent Browser: UI-Widgets method counts</span>
+      <span class="stripes"></span><span class="box small"></span><span class="box"></span></div>
+    <div class="win-body">
+      <div class="row grow">
+
+        <!-- CONVERSATIONS -->
+        <div class="col c-conv rule-r">
+          <div class="pane-h">Conversations <span class="right">7 in image</span></div>
+          <div class="list conv" style="padding:0">
+            <div class="day">Today</div>
+            <div class="li sel"><div class="t"><span class="n">UI-Widgets method counts</span><span class="r">14:02</span></div>
+              <div class="m">1 turn · 4 objects · 41k</div></div>
+            <div class="li"><div class="t"><span class="n">Speed up Mandelbrot</span><span class="r">10:47</span></div>
+              <div class="m">6 turns · 11 objects · 118k</div></div>
+            <div class="day">Earlier</div>
+            <div class="li"><div class="t"><span class="n">Fix TextLayout wrap</span><span class="r">14 Nov</span></div>
+              <div class="m">9 turns · 17 objects · 1 debugger</div></div>
+            <div class="li"><div class="t"><span class="n">Flush lookups on superclass</span><span class="r">13 Nov</span></div>
+              <div class="m">4 turns · 6 objects</div></div>
+            <div class="li"><div class="t"><span class="n">Benchmarks vs Pharo 14</span><span class="r">12 Nov</span></div>
+              <div class="m">12 turns · 23 objects</div></div>
+            <div class="li"><div class="t"><span class="n">Why is finalization slow?</span><span class="r">9 Nov</span></div>
+              <div class="m">3 turns · 5 objects</div></div>
+            <div class="li"><div class="t"><span class="n">Sign in (device code)</span><span class="r">8 Nov</span></div>
+              <div class="m">1 turn · 0 objects</div></div>
+          </div>
+          <div class="grow"></div>
+          <div class="pane-h rule-t">Conversation <span class="right">inspect ↗</span></div>
+          <div class="kv">
+            <div><span class="k">class</span>AgentConversation</div>
+            <div><span class="k">model</span>Codex 6.1 Sol</div>
+            <div><span class="k">started</span>15 Nov 14:02</div>
+            <div><span class="k">turns</span>1</div>
+            <div><span class="k">objects</span>4 (2 pinned)</div>
+            <div><span class="k">context</span>41k / 400k</div>
+            <div><span class="k">process</span>'agent o3'</div>
+          </div>
+          <div class="btnrow"><span class="btn">New</span><span class="btn">Fork</span><span class="btn">Inspect</span></div>
+          <div class="filter"><span class="on">all</span><span>pinned</span><span>errors</span></div>
+        </div>
+
+        <!-- TRANSCRIPT + PROMPT -->
+        <div class="col c-tr rule-r">
+          <div class="pane-h">Transcript <span class="right">Codex 6.1 Sol · 6 tool calls · 4.2 s</span></div>
+          <div class="tr grow">
+            <div class="turn-h"><b>Turn 1</b> 14:02 · 4.2 s · 9.8k tokens</div>
+            <div class="u"><span class="who">mark</span>Which UI-Widgets classes have the most methods? Show me the top 5.</div>
+            <div class="a prose"><span class="who">Codex 6.1 Sol</span>I’ll rank the classes in UI-Widgets by method count.</div>
+
+            <div class="call">
+              <div class="line"><span class="tw">▸</span><span class="tool">code</span>
+                <span class="src">(Smalltalk allClasses select: [:c | c category = 'UI-Widgets']) asSortedCollection: [:a :b | a selectors size &gt;= b selectors size]</span>
+                <span class="res"><span class="oref">o1</span><span class="ps">a SortedCollection(TextEditor Widget ListView TextLayout MenuView ...)</span></span>
+                <span class="ms">36</span></div>
+            </div>
+
+            <div class="call open">
+              <div class="line"><span class="tw">▾</span><span class="tool">code</span>
+                <span class="src">(o1 first: 5) collect: [:c | c -&gt; c selectors size]</span>
+                <span class="res"><span class="oref">o2</span></span><span class="ms">3 ms</span></div>
+              <div class="body">
+                <pre>(<span class="oref">o1</span> <span class="t-k">first:</span> 5) <span class="t-k">collect:</span> [:c | c <span class="t-k">-&gt;</span> c selectors size]</pre>
+                <div class="out"><span class="lbl">→</span><span class="oref solid">o2</span><span>an Array(TextEditor-&gt;157 Widget-&gt;89 ListView-&gt;86 TextLayout-&gt;48 MenuView-&gt;38)</span></div>
+              </div>
+            </div>
+
+            <div class="show">
+              <div class="call" style="border:0;margin:0"><div class="line" style="border-bottom:1px solid #000"><span class="tw">▾</span><span class="tool">show</span>
+                <span class="src"><span class="oref">o2</span> <span class="muted" style="font-family:var(--ui);font-style:italic">as bars · live</span></span>
+                <span class="ms">open in Inspector ↗</span></div></div>
+              <div class="bars">
+                <div class="bar"><span class="n">TextEditor</span><span class="b u" style="width:236px"></span><span class="v">157</span></div>
+                <div class="bar"><span class="n">Widget</span><span class="b" style="width:134px"></span><span class="v">89</span></div>
+                <div class="bar"><span class="n">ListView</span><span class="b ht" style="width:129px"></span><span class="v">86</span></div>
+                <div class="bar"><span class="n">TextLayout</span><span class="b ht" style="width:72px"></span><span class="v">48</span></div>
+                <div class="bar"><span class="n">MenuView</span><span class="b ht" style="width:57px"></span><span class="v">38</span></div>
+              </div>
+            </div>
+
+            <div class="call err">
+              <div class="line"><span class="tw">▸</span><span class="tool">code</span>
+                <span class="src">(o1 detect: [:c | c name = #TextEditor]) keyBindings size</span>
+                <span class="res"><span class="errtag">MNU</span><span class="ps" style="max-width:118px">TextEditor class&gt;&gt;keyBindings</span><span class="lnk">Debug</span></span></div>
+            </div>
+            <div class="call">
+              <div class="line"><span class="tw">▸</span><span class="tool">code</span>
+                <span class="src">(TextEditor selectors select: [:s | s beginsWith: 'key']) size</span>
+                <span class="res"><span class="oref">o3</span><span class="ps">23</span></span></div>
+            </div>
+
+            <div class="a prose" style="margin-top:8px"><span class="who">Codex 6.1 Sol</span>TextEditor dominates: it is a facade over TextBuffer, TextLayout, TextHighlighter and TextUndoHistory, and still has 157 methods of its own — mostly key bindings (<span class="oref">o3</span>).</div>
+          </div>
+
+          <div class="prompt">
+            <div class="pane-h">Prompt <span class="right">drop objects here · ⌘↩ send</span></div>
+            <div class="ed">why is <span class="oref solid">o2</span> so skewed?<span class="caret"></span></div>
+            <div class="foot"><span>attached:</span><span class="oref">o2</span><span>an Array(5)</span><span class="sp"></span>
+              <span class="btn">Stop</span><span class="btn default">Send</span></div>
+          </div>
+        </div>
+
+        <!-- OBJECTS + INSPECTOR -->
+        <div class="col c-obj">
+          <div class="pane-h">Objects <span class="right">bound in every code-mode call</span></div>
+          <table class="otab">
+            <colgroup><col style="width:42px"><col style="width:112px"><col><col style="width:78px"><col style="width:22px"></colgroup>
+            <tr><th>id</th><th>class</th><th>printString</th><th>from</th><th class="pin">■</th></tr>
+            <tr><td><span class="oref">o1</span></td><td>SortedCollection</td><td>a SortedCollection(TextEditor Widget ListView ...)</td><td class="via">code</td><td class="pin"></td></tr>
+            <tr class="sel drag"><td><span class="oref">o2</span></td><td>Array</td><td>an Array(TextEditor-&gt;157 Widget-&gt;89 ...)</td><td class="via">code</td><td class="pin">■</td></tr>
+            <tr><td><span class="oref">o3</span></td><td>SmallInteger</td><td>23</td><td class="via">code</td><td class="pin"></td></tr>
+            <tr><td><span class="oref">o4</span></td><td>TextLayout</td><td>an Inspector field: self</td><td class="via">Inspector</td><td class="pin">■</td></tr>
+          </table>
+          <div class="btnrow rule-t" style="margin-top:4px"><span class="btn">Inspect</span><span class="btn">Explore</span><span class="btn">Browse class</span><span class="btn">Pin</span><span class="btn">Forget</span></div>
+
+          <div class="pane-h rule-t">Inspector <span class="oref" style="vertical-align:0">o2</span><span class="right">an Array · 5 elements</span></div>
+          <div class="row" style="height:212px">
+            <div class="col rule-r" style="width:140px">
+              <div class="pane-h" style="font-size:9.5px;padding:4px 8px">Fields</div>
+              <div class="list insp-fields">
+                <div class="li">self</div><div class="li">class</div><div class="li">size</div>
+                <div class="li sel">1</div><div class="li">2</div><div class="li">3</div><div class="li">4</div><div class="li">5</div>
+              </div>
+            </div>
+            <div class="col grow">
+              <div class="pane-h" style="font-size:9.5px;padding:4px 8px">Value <span class="right" style="font-size:11.5px">Association</span></div>
+              <div class="insp-val">TextEditor-&gt;157
+                <div class="muted" style="margin-top:8px;font:italic 12px/17px var(--ui)">key&nbsp;&nbsp;&nbsp;TextEditor<br>value&nbsp;157</div>
+              </div>
+            </div>
+          </div>
+          <div class="pane-h rule-t eval-h">Evaluate <i style="font-weight:400;text-transform:none;letter-spacing:0;font-family:var(--code);font-size:11.5px">self = o2</i><span class="right">⌘D · ⌘P · ⌘I</span></div>
+          <div class="eval grow">
+            <div>self <span class="t-k">collect:</span> [:a | a value]</div>
+            <div class="muted">&nbsp;#(157 89 86 48 38)</div>
+            <div style="margin-top:6px">(self first value / (self <span class="t-k">inject:</span> 0</div>
+            <div>&nbsp;&nbsp;<span class="t-k">into:</span> [:s :a | s + a value])) asFloat <span class="sel">0.3755980861244019</span></div>
+            <div style="margin-top:6px"><span class="t-g">TextEditor</span> superclass <span class="t-c">"Widget"</span></div>
+          </div>
+        </div>
+      </div>
+      <div class="status">
+        <b style="color:var(--ultra)">Codex 6.1 Sol</b><span>signed in as mark@…</span><span>context 41k / 400k</span>
+        <span>turn 4.2 s</span><span>process <i>'agent o3'</i> idle</span>
+        <span style="margin-left:auto">4 objects · 2 pinned</span><i>AgentConversation allInstances size → 7</i>
+      </div>
+    </div>
+  </div>
+
+  <!-- drag ghost: o2 row heading for the prompt -->
+
+  <!-- ===================== DESK: Inspector with Send to Agent ===================== -->
+  <div class="win" id="insp">
+    <div class="titlebar"><span class="box"></span><span class="title" style="flex:1;text-align:center">Inspector: a TextLayout</span><span class="box"></span></div>
+    <div class="win-body">
+      <div class="row grow">
+        <div class="col rule-r" style="width:86px">
+          <div class="pane-h" style="font-size:9.5px;padding:4px 6px">Fields</div>
+          <div class="list">
+            <div class="li box">self</div><div class="li">class</div><div class="li">buffer</div><div class="li">width</div>
+            <div class="li">lines</div><div class="li">wrap</div><div class="li">font</div>
+          </div>
+        </div>
+        <div class="col grow">
+          <div class="pane-h" style="font-size:9.5px;padding:4px 6px">Value</div>
+          <div style="padding:4px 6px;font:12px/17px var(--code)">a TextLayout(412@36 lines, wrap: #word)</div>
+        </div>
+      </div>
+      <div class="pane-h rule-t" style="font-size:9.5px;padding:4px 6px">Evaluate <span class="right" style="font-size:11px">⌘D · ⌘P</span></div>
+      <div style="height:30px;padding:3px 6px;font:12px var(--code)">self lines size</div>
+    </div>
+  </div>
+  <div class="menu" style="left:1262px;top:96px">
+    <div>inspect<span>⌘I</span></div>
+    <div>explore</div>
+    <div>browse class<span>⌘B</span></div>
+    <div>copy printString</div>
+    <hr>
+    <div class="hot">Send to Agent<span>⌘⇧A</span></div>
+    <div>Send to Agent as…</div>
+  </div>
+
+  <div class="callout" style="left:1208px;top:290px;max-width:220px">
+    <b>Send to Agent</b> from any Inspector, Explorer or Debugger field adds the live object to the current conversation’s table — here as <b>o4</b>, pinned.
+  </div>
+
+  <!-- Process Browser -->
+  <div class="win" id="pb">
+    <div class="titlebar"><span class="box"></span><span class="title" style="flex:1;text-align:center">Process Browser</span><span class="box"></span></div>
+    <div class="win-body">
+      <div class="pane-h" style="font-size:9.5px;padding:4px 6px">Process <span class="right" style="font-size:11px">12 · 0 busy</span></div>
+      <div class="list">
+        <div class="li"><span class="p">80</span>timer interrupt<span class="r">waiting</span></div>
+        <div class="li"><span class="p">70</span>compositor<span class="r">waiting</span></div>
+        <div class="li"><span class="p">60</span>input dispatcher<span class="r">waiting</span></div>
+        <div class="li"><span class="p">40</span>Agent Browser<span class="r">running</span></div>
+        <div class="li box"><span class="p">30</span>agent o3<span class="r">idle</span></div>
+        <div class="li"><span class="p">30</span>agent (MNU)<span class="r">suspended</span></div>
+        <div class="li"><span class="p">30</span>openai http<span class="r">waiting</span></div>
+        <div class="li"><span class="p">40</span>Inspector<span class="r">waiting</span></div>
+        <div class="li"><span class="p">40</span>Workspace<span class="r">waiting</span></div>
+      </div>
+      <div class="grow"></div>
+      <div class="status" style="font-size:11.5px"><span class="btn" style="font-size:11.5px;padding:0 5px">Debug</span><span class="btn" style="font-size:11.5px;padding:0 5px">Terminate</span></div>
+    </div>
+  </div>
+
+  <div class="callout" style="left:1208px;top:748px;max-width:220px">
+    Code-mode runs in its own <b>Process</b>; the failed call stays suspended for the real Debugger.
+  </div>
+
+  <!-- callouts inside the main window -->
+  <div class="callout" id="co-conv" style="left:24px;top:440px;max-width:190px">
+    <b>Conversations are objects</b> — AgentConversation instances saved with the image. Browse, fork or inspect them like classes.
+  </div>
+  <div class="callout" id="co-calls" style="left:250px;top:640px;max-width:470px">
+    Each <b>code-mode call is one line</b> with its result chip — ▸ expands source and printString; failures keep a Debug link.
+  </div>
+  <div class="callout" id="co-drag" style="left:940px;top:686px;max-width:236px">
+    ← <b>Drag a row into the prompt</b>: <span class="oref">o2</span> becomes a chip the model reads as the variable o2 — the real object.
+  </div>
+</div>
+
+<div id="about">
+  <h1>3 · Agent Browser</h1>
+  <p>A System Browser for the agent: conversations, transcript, live objects and an Inspector, side by side.</p>
+  <nav><a href="index.html">index</a><a href="1-workspace.html">1-workspace</a><a href="2-notebook.html">2-notebook</a><a class="cur" href="3-browser.html">3-browser</a><a href="4-desktop.html">4-desktop</a><a href="5-contextual.html">5-contextual</a></nav>
+</div>
+</body>
+</html>

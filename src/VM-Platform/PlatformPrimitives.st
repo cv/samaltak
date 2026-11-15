@@ -1085,7 +1085,7 @@ primSocketListen
 	self answerHandle: h
 !
 primSocketConnect
-	"host port -> socket"
+	"numeric address port -> socket (connecting: see socketConnected)"
 	<vmPrimitive: 541 name: 'socketConnect'>
 	| host port h |
 	(self args: 2) ifFalse: [^self fail].
@@ -1155,6 +1155,90 @@ primSocketLocalPort
 	s := self intArg: 0.
 	bad ifTrue: [^self fail].
 	self answerHandle: (sockets localPort: s asInt32)
+!
+primSocketResolve
+	"host name -> socket reading as its numeric addresses, a line each, or one line of !! and the error"
+	<vmPrimitive: 548 name: 'socketResolve'>
+	| name h |
+	(self args: 1) ifFalse: [^self fail].
+	name := self stringArg: 0.
+	h := bad ifTrue: [0] ifFalse: [sockets lookup: name].
+	libc free: name.
+	self answerHandle: h
+!
+primSocketConnected
+	"socket -> true once connected, nil while connecting (arms the write semaphore)"
+	<vmPrimitive: 549 name: 'socketConnected'>
+	| s r |
+	(self args: 1) ifFalse: [^self fail].
+	s := self intArg: 0.
+	bad ifTrue: [^self fail].
+	r := sockets connected: s asInt32.
+	r < 0 ifTrue: [^self fail].
+	self answer: (r > 0 ifTrue: [memory trueOop] ifFalse: [memory nilOop])
+! !
+
+!PlatformPrimitives methodsFor: 'TLS'!
+primTlsStart
+	"connected socket, host name -> connection (the same handle, no longer a socket; see tlsHandshake)"
+	<vmPrimitive: 550 name: 'tlsStart'>
+	| s host h |
+	(self args: 2) ifFalse: [^self fail].
+	s := self intArg: 0.
+	host := self stringArg: 1.
+	h := bad ifTrue: [0] ifFalse: [tls start: s asInt32 host: host].
+	libc free: host.
+	self answerHandle: h
+!
+primTlsRecv
+	"connection bytes start count -> count, 0 at EOF, nil would block"
+	<vmPrimitive: 551 name: 'tlsRecv'>
+	| h n p |
+	h := self local: 'int64_t'.
+	n := self local: 'int64_t'.
+	p := self rangeArgs: true handle: h count: n.
+	self answerCount: (p notNull ifTrue: [tls recv: h value asInt32 into: p count: n value asUInt64] ifFalse: [-2])
+!
+primTlsSend
+	"connection bytes start count -> count or nil"
+	<vmPrimitive: 552 name: 'tlsSend'>
+	| h n p |
+	h := self local: 'int64_t'.
+	n := self local: 'int64_t'.
+	p := self rangeArgs: false handle: h count: n.
+	self answerCount: (p notNull ifTrue: [tls send: h value asInt32 bytes: p count: n value asUInt64] ifFalse: [-2])
+!
+primTlsClose
+	"connection"
+	<vmPrimitive: 553 name: 'tlsClose'>
+	| h |
+	(self args: 1) ifFalse: [^self fail].
+	h := self intArg: 0.
+	bad ifTrue: [^self fail].
+	self answerOk: (tls close: h asInt32)
+!
+primTlsSemaphore
+	"connection readIndex [writeIndex]"
+	<vmPrimitive: 554 name: 'tlsSemaphore'>
+	| h r w |
+	bad := false.
+	(self argCount = 2 or: [self argCount = 3]) ifFalse: [^self fail].
+	h := self intArg: 0.
+	r := self intArg: 1.
+	w := self argCount = 3 ifTrue: [self intArg: 2] ifFalse: [0].
+	bad ifTrue: [^self fail].
+	self answerOk: (tls semaphores: h asInt32 read: r asInt32 write: w asInt32)
+!
+primTlsHandshake
+	"connection -> true once the handshake is done (the certificate verified for the host), nil while it waits (arms the semaphore it waits for)"
+	<vmPrimitive: 555 name: 'tlsHandshake'>
+	| h r |
+	(self args: 1) ifFalse: [^self fail].
+	h := self intArg: 0.
+	bad ifTrue: [^self fail].
+	r := tls handshake: h asInt32.
+	r < 0 ifTrue: [^self fail].
+	self answer: (r > 0 ifTrue: [memory trueOop] ifFalse: [memory nilOop])
 ! !
 
 !PlatformPrimitives methodsFor: 'pseudo-terminals'!

@@ -1,0 +1,291 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Samaltak agent · 1 · Agent Workspace</title>
+<link rel="stylesheet" href="../shared/pi-orb-fonts.css">
+<link rel="stylesheet" href="agent.css">
+<style>
+/* ---------- Agent window ---------- */
+#agent { left: 22px; top: 36px; width: 900px; height: 798px; }
+#agent .titlebar .busy { display: flex; align-items: center; gap: 5px; flex: none; }
+.spin { width: 9px; height: 9px; border: 1px solid var(--ultra); position: relative; flex: none; }
+.spin::after { content: ""; position: absolute; left: 0; top: 0; width: 4px; height: 4px; background: var(--ultra); }
+
+.tx { flex: 1; min-height: 0; overflow: hidden; position: relative; padding: 4px 18px 0 0; }
+.tx-inner { position: absolute; left: 0; right: 14px; bottom: 6px; }
+.vscroll { position: absolute; right: 0; top: 0; bottom: 0; width: 12px; border-left: 1px solid #000; background: #fff; }
+.vscroll .thumb { position: absolute; left: 2px; right: 2px; bottom: 2px; height: 78%; background: #000; }
+
+.turn { display: grid; grid-template-columns: 62px 1fr; column-gap: 0; }
+.gut { font: 700 13px/20px var(--ui); text-align: right; padding-right: 12px; }
+.gut.agent { font: italic 400 12px/20px var(--ui); color: var(--ink-3); }
+.gut .t { display: block; font: 400 10.5px/12px var(--code); color: var(--ink-4); }
+.say { font: 14px/20px var(--ui); margin: 0 0 7px; max-width: 760px; }
+.say.user { font-weight: 400; }
+.sep-line { display: flex; align-items: center; gap: 10px; margin: 0 0 9px 62px; font: italic 12px var(--ui); color: var(--ink-3); }
+.sep-line::before, .sep-line::after { content: ""; flex: 1; height: 1px; background: var(--hair); }
+.user-row { border-top: 1px solid #000; padding-top: 7px; margin-top: 2px; }
+
+/* code-mode call */
+.call { border: 1px solid #000; margin: 0 0 7px; }
+.call-h {
+  display: flex; gap: 8px; align-items: baseline; padding: 3px 7px 3px; border-bottom: 1px solid #000;
+  font: 700 9.5px/1.2 var(--ui); letter-spacing: .08em; text-transform: uppercase;
+}
+.call-h .who { font: 400 11.5px var(--ui); letter-spacing: 0; text-transform: none; }
+.call-h .right { margin-left: auto; font: italic 400 11.5px var(--ui); letter-spacing: 0; text-transform: none; color: var(--ink-3); }
+.call-h .right a { color: #000; }
+.call pre { font: 12.5px/18px var(--code); padding: 3px 9px 3px; }
+.call .res { border-top: 1px dotted #000; padding: 2px 9px 3px; font: 12.5px/18px var(--code); display: flex; gap: 7px; align-items: baseline; white-space: nowrap; overflow: hidden; }
+.call .res .arr { color: var(--ink-3); }
+.call .res .meta { margin-left: auto; font: italic 12px var(--ui); color: var(--ink-3); }
+.call.err { border-color: #000; }
+.call.err .call-h { background: #000; color: #fff; }
+.call.err .call-h .right { color: #ccc; }
+.errbox { border-top: 1px solid #000; padding: 3px 9px 4px; display: grid; grid-template-columns: 1fr auto; column-gap: 12px; }
+.errbox .msg { font: 700 12.5px/18px var(--code); }
+.errbox .frames { font: 12px/17px var(--code); color: var(--ink-2); }
+.errbox .frames div::before { content: "· "; color: var(--ink-4); }
+.errbox .acts { display: flex; gap: 6px; align-items: flex-start; }
+.errbox .acts .btn { font-size: 12.5px; }
+.kept { font: italic 11.5px var(--ui); color: var(--ink-3); grid-column: 1 / -1; }
+
+/* show-object card */
+.card { border: 1px solid var(--ultra); margin: 0 0 9px; box-shadow: 2px 2px 0 var(--ultra); width: 560px; }
+.card .call-h { color: var(--ultra); border-bottom-color: var(--ultra); }
+.card .call-h .right a { color: var(--ultra); font-style: normal; }
+.bars { padding: 6px 10px 6px; display: grid; grid-template-columns: 92px 1fr 34px; row-gap: 3px; column-gap: 8px; align-items: center; }
+.bars .k { font: 12.5px/15px var(--code); }
+.bars .v { font: 12.5px/15px var(--code); text-align: right; }
+.bar { height: 11px; border: 1px solid #000; }
+.bar.first { background: var(--ultra); border-color: var(--ultra); }
+.bar.solid { background: #000; }
+.bars .axis { grid-column: 2; display: flex; justify-content: space-between; font: 10.5px var(--code); color: var(--ink-3); border-top: 1px solid var(--hair); padding-top: 2px; }
+
+.stream .caret { display: inline-block; width: 7px; height: 15px; background: var(--ultra); vertical-align: -2px; margin-left: 2px; }
+
+/* ask pane */
+.ask { flex: none; height: 94px; border-top: 1px solid #000; display: flex; flex-direction: column; }
+.ask .ed { flex: 1; display: flex; gap: 10px; padding: 7px 10px 8px 0; min-height: 0; }
+.ask .ed .gut { width: 62px; flex: none; }
+.ask .ed .txt { flex: 1; font: 14px/20px var(--ui); }
+.ask .ed .txt .c { display: inline-block; width: 1px; height: 16px; background: #000; vertical-align: -3px; }
+.ask .ed .acts { display: flex; flex-direction: column; gap: 6px; align-items: stretch; width: 92px; }
+.ask .ed .acts .btn { text-align: center; }
+.ask .ed .acts .btn.off { color: var(--ink-4); border-color: var(--ink-4); }
+.ask .ed .acts kbd { font-size: 10.5px; margin-left: 5px; box-shadow: none; padding: 0 3px 1px; border-color: currentColor; background: transparent; color: inherit; }
+#agent .status { gap: 0; }
+#agent .status span + span::before { content: "·"; margin: 0 9px; color: var(--ink-4); }
+.meter { display: inline-block; width: 46px; height: 7px; border: 1px solid #000; vertical-align: 0; margin-right: 6px; position: relative; }
+.meter::after { content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 10%; background: #000; }
+
+/* ---------- Process Browser ---------- */
+#pb { left: 942px; top: 36px; width: 476px; height: 340px; }
+.pb-tools { display: flex; gap: 6px; padding: 5px 7px; border-bottom: 1px solid #000; align-items: center; }
+.pb-tools .right { margin-left: auto; font: italic 12px var(--ui); color: var(--ink-3); }
+.pt { font-size: 13px; }
+.pt .li { display: grid; grid-template-columns: 14px 26px 1fr 72px; gap: 6px; padding: 0 8px; line-height: 18px; }
+.pt .li .p { font: 11.5px/18px var(--code); text-align: right; }
+.pt .li .s { font-style: italic; color: var(--ink-3); text-align: right; }
+.pt .li.sel .s { color: #ccc; }
+.pt .li .dot { width: 6px; height: 6px; border: 1px solid #000; align-self: center; justify-self: center; }
+.pt .li.sel .dot { border-color: #fff; }
+.pt .li .dot.run { background: #000; }
+.pt .li .s.ultra { color: var(--ultra); font-style: italic; }
+.pt .hd { font: 700 9.5px var(--ui); letter-spacing: .08em; text-transform: uppercase; border-bottom: 1px solid #000; padding-bottom: 3px; padding-top: 3px; }
+.pt .hd .s { font-style: normal; color: #000; }
+.stack { font: 12px/17px var(--code); padding: 3px 0; }
+.stack .li { padding: 0 8px; }
+
+/* ---------- Sign in window ---------- */
+#signin { left: 958px; top: 398px; width: 400px; height: 248px; }
+.si { padding: 10px 14px 10px; display: flex; flex-direction: column; gap: 7px; }
+.si h2 { margin: 0; font: 700 15px var(--ui); }
+.si .step { font-size: 13px; color: var(--ink-2); }
+.si .step b { font-weight: 700; color: #000; }
+.si .url { font: 12.5px var(--code); border-bottom: 1px solid #000; }
+.si .codebox { align-self: flex-start; font: 700 28px/1 var(--code); letter-spacing: .12em; border: 1px solid #000; padding: 7px 14px 8px 18px; margin: 2px 0; }
+.si .acts { display: flex; gap: 8px; align-items: center; }
+.si .wait { font: italic 12.5px var(--ui); color: var(--ink-3); display: flex; gap: 6px; align-items: center; }
+.si .wait .spin { border-color: var(--ink-3); }
+.si .wait .spin::after { background: var(--ink-3); }
+
+/* ---------- Transcript (small) ---------- */
+#transcript { left: 942px; top: 676px; width: 476px; height: 158px; }
+#transcript pre { font: 12px/18px var(--code); padding: 6px 10px; color: var(--ink-2); }
+
+.callout.c1 { left: 636px; top: 86px; max-width: 268px; }
+.callout.c2 { left: 1196px; top: 520px; max-width: 200px; }
+.callout.c3 { left: 1182px; top: 716px; max-width: 228px; }
+.callout.c4 { left: 670px; top: 330px; max-width: 230px; }
+</style>
+</head>
+<body>
+<div id="desktop">
+
+<div id="topbar">
+  <span class="brand">Samaltak</span><span class="sep"></span><span>nuuk.image</span>
+  <span class="hint">Click the desktop for the World menu</span>
+  <span class="lbl">Agent</span><span class="stat ultra">working · 4.2 s</span><span class="sep"></span>
+  <span class="lbl">Compositor</span><span class="stat">16.7 ms 60 fps</span><span class="sep"></span><span class="stat">14 processes</span>
+</div>
+
+<!-- ================= Agent window ================= -->
+<div class="win active" id="agent">
+  <div class="titlebar">
+    <span class="box"></span><span class="stripes"></span>
+    <span class="title">Agent</span>
+    <span class="busy"><span class="spin"></span>answering… 4.2 s</span>
+    <span class="stripes"></span><span class="box small"></span><span class="box"></span>
+  </div>
+  <div class="win-body">
+    <div class="pane-h">Conversation <span class="right">UI-Widgets survey · 4 calls · o1…o3 live</span></div>
+    <div class="tx">
+      <div class="tx-inner">
+        <div class="turn user-row">
+          <div class="gut">You<span class="t">14:21</span></div>
+          <p class="say user">Which UI-Widgets classes have the most methods? Show me the top 5.</p>
+        </div>
+
+        <div class="turn">
+          <div class="gut agent">Agent</div>
+          <div>
+            <p class="say">I’ll rank the classes in UI-Widgets by method count.</p>
+
+            <div class="call">
+              <div class="call-h">Code-mode <span class="who">· agent o1 · 31 ms</span><span class="right"><a>Workspace</a> · <a>Re-run</a></span></div>
+<pre>(<span class="t-g">Smalltalk</span> allClasses <span class="t-k">select:</span> [:c | c category = <span class="t-s">'UI-Widgets'</span>])
+    <span class="t-k">asSortedCollection:</span> [:a :b | a selectors size &gt;= b selectors size]</pre>
+              <div class="res"><span class="arr">→</span><span class="oref">o1</span><span>a SortedCollection(TextEditor Widget ListView TextLayout MenuView ...)</span><span class="meta">36 classes</span></div>
+            </div>
+
+            <div class="call">
+              <div class="call-h">Code-mode <span class="who">· agent o2 · 12 ms</span><span class="right"><a>Workspace</a> · <a>Re-run</a></span></div>
+<pre>(<span class="t-g">o1</span> <span class="t-k">first:</span> 5) <span class="t-k">collect:</span> [:c | c -&gt; c selectors size]</pre>
+              <div class="res"><span class="arr">→</span><span class="oref">o2</span><span>an Array(TextEditor-&gt;157 Widget-&gt;89 ListView-&gt;86 TextLayout-&gt;48 MenuView-&gt;38)</span></div>
+            </div>
+
+            <div class="card">
+              <div class="call-h">Show-object <span class="who">· <span class="oref">o2</span> an Array (5 associations)</span><span class="right"><a>Inspect</a> · <a>Copy</a></span></div>
+              <div class="bars">
+                <span class="k">TextEditor</span><div><div class="bar first" style="width:100%"></div></div><span class="v">157</span>
+                <span class="k">Widget</span><div><div class="bar solid" style="width:56.7%"></div></div><span class="v">89</span>
+                <span class="k">ListView</span><div><div class="bar halftone" style="width:54.8%"></div></div><span class="v">86</span>
+                <span class="k">TextLayout</span><div><div class="bar halftone" style="width:30.6%"></div></div><span class="v">48</span>
+                <span class="k">MenuView</span><div><div class="bar halftone" style="width:24.2%"></div></div><span class="v">38</span>
+              </div>
+            </div>
+
+            <div class="call err">
+              <div class="call-h">Code-mode <span class="who">· agent o3 · stopped after 2 ms</span><span class="right">process kept</span></div>
+<pre>(<span class="t-g">o1</span> <span class="t-k">detect:</span> [:c | c name = <span class="t-s">#TextEditor</span>]) keyBindings size</pre>
+              <div class="errbox">
+                <div>
+                  <div class="msg">MessageNotUnderstood: TextEditor class&gt;&gt;keyBindings</div>
+                  <div class="frames"><div>TextEditor class(Object)&gt;&gt;doesNotUnderstand: #keyBindings</div><div>UndefinedObject&gt;&gt;DoIt</div></div>
+                </div>
+                <div class="acts"><span class="btn default">Debug</span><span class="btn">Terminate</span></div>
+              </div>
+            </div>
+
+            <div class="call">
+              <div class="call-h">Code-mode <span class="who">· agent o3 · 4 ms</span><span class="right">retry</span></div>
+<pre>(<span class="t-g">TextEditor</span> selectors <span class="t-k">select:</span> [:s | s <span class="t-k">beginsWith:</span> <span class="t-s">'key'</span>]) size</pre>
+              <div class="res"><span class="arr">→</span><span class="oref">o3</span><span>23</span></div>
+            </div>
+
+            <p class="say stream">TextEditor dominates: it is a facade over TextBuffer, TextLayout, TextHighlighter and TextUndoHistory, and still has 157 methods of its own — mostly key bindings (<span class="oref">o3</span>).<span class="caret"></span></p>
+          </div>
+        </div>
+      </div>
+      <div class="vscroll"><div class="thumb"></div></div>
+    </div>
+
+    <div class="ask">
+      <div class="pane-h">Ask <span class="right">⌘↩ send · ⌘. stop · o1…o3 are bound</span></div>
+      <div class="ed">
+        <div class="gut">You</div>
+        <div class="txt">Good. Now open a System Browser on <span class="t-g" style="font-family:var(--code);font-size:13px">o3</span>’s methods and group them by modifier key<span class="c"></span></div>
+        <div class="acts">
+          <span class="btn default">Stop<kbd>⌘.</kbd></span>
+          <span class="btn off">Send<kbd>⌘↩</kbd></span>
+        </div>
+      </div>
+    </div>
+    <div class="status">
+      <span><b>Codex 6.1 Sol</b></span>
+      <span>signed in as mark@…</span>
+      <span><span class="meter"></span>41k / 400k</span>
+      <span>4.2 s</span>
+      <i style="margin-left:auto">streaming · Process ‘agent http’</i>
+    </div>
+  </div>
+</div>
+
+<!-- ================= Process Browser ================= -->
+<div class="win" id="pb">
+  <div class="titlebar"><span class="box"></span><span class="stripes"></span><span class="title">Process Browser</span><span class="stripes"></span><span class="box small"></span><span class="box"></span></div>
+  <div class="win-body">
+    <div class="pb-tools"><span class="btn">Debug</span><span class="btn">Suspend</span><span class="btn">Terminate</span><span class="right">14 processes · 1 busy · ▪ live</span></div>
+    <div class="pt list">
+      <div class="li hd"><span></span><span class="p">Pri</span><span>Process</span><span class="s">State</span></div>
+      <div class="li"><span class="dot"></span><span class="p">80</span><span>timer interrupt watcher</span><span class="s">waiting</span></div>
+      <div class="li"><span class="dot"></span><span class="p">70</span><span>compositor (vsync)</span><span class="s">waiting</span></div>
+      <div class="li"><span class="dot"></span><span class="p">60</span><span>input dispatcher</span><span class="s">waiting</span></div>
+      <div class="li"><span class="dot"></span><span class="p">40</span><span>▭ Agent</span><span class="s">waiting</span></div>
+      <div class="li"><span class="dot run"></span><span class="p">40</span><span>agent http</span><span class="s ultra">reading</span></div>
+      <div class="li sel"><span class="dot"></span><span class="p">40</span><span>agent o3</span><span class="s">suspended</span></div>
+      <div class="li"><span class="dot"></span><span class="p">40</span><span>▭ Workspace</span><span class="s">waiting</span></div>
+      <div class="li"><span class="dot"></span><span class="p">40</span><span>▭ Transcript</span><span class="s">waiting</span></div>
+      <div class="li"><span class="dot"></span><span class="p">40</span><span>▭ Sign in to OpenAI</span><span class="s">waiting</span></div>
+    </div>
+    <div class="pane-h rule-t" style="margin-top:auto">Stack <span class="right">agent o3 · MessageNotUnderstood</span></div>
+    <div class="stack list">
+      <div class="li sel">TextEditor class(Object)&gt;&gt;doesNotUnderstand: #keyBindings</div>
+      <div class="li">UndefinedObject&gt;&gt;DoIt</div>
+      <div class="li muted">[] in AgentCodeMode&gt;&gt;run:as:</div>
+    </div>
+  </div>
+</div>
+
+<!-- ================= Sign in (unfocused, left over from before sign-in) ================= -->
+<div class="win" id="signin">
+  <div class="titlebar"><span class="box"></span><span class="stripes"></span><span class="title">Sign in to OpenAI</span><span class="stripes"></span><span class="box"></span></div>
+  <div class="win-body si">
+    <h2>Sign in with ChatGPT</h2>
+    <div class="step"><b>1</b> In a browser, visit <span class="url">https://auth.openai.com/codex/device</span></div>
+    <div class="step"><b>2</b> Enter this code:</div>
+    <div class="codebox">K7QF-9XWD</div>
+    <div class="acts"><span class="btn">Copy code</span><span class="btn">Open browser</span></div>
+    <div class="wait"><span class="spin"></span>waiting for approval… expires in 14:32</div>
+  </div>
+</div>
+
+<!-- ================= Transcript ================= -->
+<div class="win" id="transcript">
+  <div class="titlebar"><span class="box"></span><span class="stripes"></span><span class="title">Transcript</span><span class="stripes"></span><span class="box small"></span><span class="box"></span></div>
+  <div class="win-body">
+<pre>Samaltak 0.1 · nuuk.image
+Agent: code K7QF-9XWD issued
+Agent: signed in as mark@…
+Agent: model Codex 6.1 Sol
+agent o3: MessageNotUnderstood
+  #keyBindings (process kept)</pre>
+  </div>
+</div>
+
+<div class="callout c1"><b>Just another tool window,</b> next to Workspace and Transcript: one scrolling conversation.</div>
+<div class="callout c3"><b>Every call is a real Process.</b> The failed call’s Process is kept: Debug opens it in the real Debugger.</div>
+<div class="callout c2"><b>Sign-in is its own small window:</b> device code, no password in the image.</div>
+<div class="callout c4"><b>Results are live objects.</b> <span class="oref">o2</span> is the real Array, bound in your next prompt and in the next call.</div>
+
+</div>
+
+<div id="about">
+  <h1>1 · Agent Workspace</h1>
+  <p>The agent is one more tool window: prose, framed code-mode calls, live results, a prompt pane.</p>
+  <nav><a href="index.html">index</a><a class="cur" href="1-workspace.html">1-workspace</a><a href="2-notebook.html">2-notebook</a><a href="3-browser.html">3-browser</a><a href="4-desktop.html">4-desktop</a><a href="5-contextual.html">5-contextual</a></nav>
+</div>
+</body>
+</html>

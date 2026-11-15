@@ -1,0 +1,463 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Samaltak agent · 4 · Desktop Agent</title>
+<link rel="stylesheet" href="../shared/pi-orb-fonts.css">
+<link rel="stylesheet" href="agent.css">
+<style>
+/* ---------- top bar: the Ask field ---------- */
+#topbar .ask {
+  display: flex; align-items: center; gap: 7px; width: 430px; height: 19px; border: 1px solid #000;
+  padding: 0 4px 0 6px; margin-left: 18px; background: #fff;
+}
+#topbar .ask .q { font: 700 9.5px/1 var(--ui); letter-spacing: .08em; text-transform: uppercase; color: var(--ultra); }
+#topbar .ask .ph { flex: 1; font: italic 12.5px var(--ui); color: var(--ink-3); white-space: nowrap; overflow: hidden; }
+#topbar .ask kbd { font-size: 10.5px; box-shadow: none; padding: 0 3px 1px; }
+#topbar .grow { flex: 1; }
+
+/* ---------- agent tag in a title bar ---------- */
+.atag {
+  font: 700 9px/1 var(--ui); letter-spacing: .08em; color: #fff; background: var(--ultra); padding: 2px 4px 2px;
+  flex: none; white-space: nowrap;
+}
+.atag i { font: 400 10px/1 var(--code); letter-spacing: 0; font-style: normal; margin-left: 3px; }
+.win.agent { border-color: #000; }
+
+/* ---------- docked agent strip ---------- */
+#dock {
+  position: absolute; right: 0; top: 26px; bottom: 34px; width: 360px; background: #fff;
+  border-left: 1px solid #000; display: flex; flex-direction: column; z-index: 30;
+}
+.dock-h {
+  height: 23px; flex: none; display: flex; align-items: center; gap: 7px; padding: 0 6px 0 0;
+  border-bottom: 1px solid #000;
+}
+.dock-h .grip { width: 7px; align-self: stretch; border-right: 1px solid #000; }
+.dock-h .ttl { font: 700 10.5px/1 var(--ui); letter-spacing: .1em; background: #000; color: #fff; padding: 4px 7px 4px; }
+.dock-h .model { font: 13px var(--ui); }
+.dock-h .right { margin-left: auto; display: flex; gap: 6px; align-items: center; font: italic 12px var(--ui); color: var(--ink-3); }
+.dock-h .box { width: 11px; height: 11px; border: 1px solid #000; }
+.dock-s {
+  flex: none; display: flex; gap: 0; padding: 3px 8px 3px; border-bottom: 1px solid #000; font: 12px var(--ui); color: var(--ink-2);
+  white-space: nowrap;
+}
+.dock-s span + span::before { content: "·"; margin: 0 7px; color: var(--ink-4); }
+.meter { display: inline-block; width: 34px; height: 7px; border: 1px solid #000; position: relative; margin-right: 5px; vertical-align: 0; }
+.meter::after { content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 10%; background: #000; }
+
+.tx { flex: 1; min-height: 0; overflow: hidden; padding: 6px 0 0; position: relative; }
+.older {
+  margin: 0 10px 8px; font: italic 12px var(--ui); color: var(--ink-3); display: flex; gap: 8px; align-items: center;
+}
+.older::before, .older::after { content: ""; flex: 1; height: 1px; background: var(--hair); }
+.msg { padding: 0 12px 0 12px; margin: 0 0 8px; font: 13.5px/19px var(--ui); }
+.msg .who {
+  display: block; font: 700 9.5px/1 var(--ui); letter-spacing: .1em; text-transform: uppercase; margin: 0 0 3px;
+}
+.msg .who .t { font: 400 10.5px var(--code); letter-spacing: 0; color: var(--ink-4); margin-left: 6px; }
+.msg.user { border-left: 3px solid #000; padding-left: 9px; margin-left: 0; }
+.msg.agent .who { color: var(--ultra); }
+.msg .cls { border-bottom: 1px solid #000; }
+
+/* one-line tool calls */
+.call {
+  position: relative; margin: 0 8px 2px 8px; padding: 1px 4px 1px 4px; font: 12px/18px var(--code);
+  display: flex; gap: 5px; align-items: baseline; white-space: nowrap; overflow: hidden;
+}
+.call .tw { flex: none; width: 9px; font: 10px var(--ui); color: var(--ink-2); }
+.call .tool { flex: none; font: 700 9.5px/1 var(--ui); letter-spacing: .08em; text-transform: uppercase; }
+.call .arr { flex: none; color: var(--ink-3); }
+.call .val { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.call .ms { flex: none; font: italic 11px var(--ui); color: var(--ink-3); }
+.call .oref { font-size: 11px; padding: 0 3px 1px; }
+.call.linked { background: var(--ultra-soft); }
+.call.linked .val { color: var(--ultra); font-family: var(--ui); font-size: 12.5px; }
+.call.err .tool { background: #000; color: #fff; padding: 2px 3px 1px; }
+.call.err .val { font-weight: 700; }
+.call .dbg { flex: none; font: 11.5px/1 var(--ui); border: 1px solid #000; padding: 1px 5px 2px; }
+.callgrp { margin: 0 0 8px; }
+
+/* the one expanded call */
+.call-x { margin: 1px 8px 2px; border: 1px solid #000; }
+.call-x .call { margin: 0; border-bottom: 1px solid #000; }
+.call-x pre { font: 12px/17px var(--code); padding: 4px 8px 4px 18px; }
+.call-x .res { border-top: 1px dotted #000; font: 12px/17px var(--code); padding: 3px 8px 4px 18px; text-indent: -10px; }
+.call-x .res .arr { color: var(--ink-3); }
+
+/* leader-line ports on the strip edge */
+.port { position: absolute; left: -1px; width: 3px; height: 9px; background: var(--ultra); }
+
+.compose { flex: none; border-top: 1px solid #000; padding: 7px 8px 7px; display: flex; flex-direction: column; gap: 6px; }
+.compose .ed { border: 1px solid #000; height: 52px; padding: 4px 7px; font: 13.5px/19px var(--ui); color: var(--ink-3); font-style: italic; position: relative; }
+.compose .ed .c { display: inline-block; width: 1px; height: 15px; background: #000; vertical-align: -3px; margin-right: 1px; }
+.compose .row { gap: 6px; align-items: center; font: italic 12px var(--ui); color: var(--ink-3); }
+.compose .row .btn { font-style: normal; font-size: 12.5px; color: #000; }
+.compose .row .btn.ultra { color: #fff; }
+.compose .row .sp { flex: 1; }
+.compose .scope { display: flex; gap: 4px; flex-wrap: wrap; align-items: center; font: italic 12px var(--ui); color: var(--ink-3); }
+
+/* ---------- leader lines ---------- */
+#leaders { position: absolute; left: 0; top: 0; width: 1440px; height: 900px; z-index: 25; pointer-events: none; overflow: visible; }
+
+/* ---------- System Browser ---------- */
+#browser { left: 12px; top: 44px; width: 648px; height: 426px; }
+.cols { display: grid; grid-template-columns: 150px 156px 150px 1fr; height: 214px; border-bottom: 1px solid #000; flex: none; }
+.cols > .col + .col { border-left: 1px solid #000; }
+.cols .list { font-size: 13px; }
+.cols .li { line-height: 18px; padding: 0 7px; }
+.cols .li .n { font: 10px/1 var(--code); border: 1px solid #000; padding: 1px 2px 0; align-self: center; }
+.cols .li.sel .n { border-color: #fff; }
+.cols .li.ag { box-shadow: inset 3px 0 0 var(--ultra); }
+.cols .li.ag.sel { box-shadow: inset 3px 0 0 var(--ultra); }
+.toggles { display: flex; border-top: 1px solid #000; margin-top: auto; font-size: 12.5px; }
+.toggles span { flex: 1; text-align: center; padding: 1px 0; }
+.toggles span + span { border-left: 1px solid #000; }
+.toggles .on { background: #000; color: #fff; }
+.src { flex: 1; min-height: 0; padding: 6px 10px; overflow: hidden; }
+.src pre { font: 12.5px/19px var(--code); }
+.mark { outline: 1px solid var(--ultra); outline-offset: 0; }
+
+/* ---------- Workspace ---------- */
+#workspace { left: 12px; top: 486px; width: 648px; height: 364px; }
+#workspace pre { font: 12.5px/19px var(--code); padding: 7px 12px; color: #000; }
+
+/* ---------- Inspector ---------- */
+#inspector { left: 676px; top: 44px; width: 380px; height: 206px; }
+.ins { display: grid; grid-template-columns: 128px 1fr; flex: 1; min-height: 0; }
+.ins .list { font-size: 13px; }
+.ins .li { line-height: 17px; }
+.ins .val { padding: 4px 8px; font: 12px/17px var(--code); }
+#inspector .eval { border-top: 1px solid #000; display: flex; gap: 8px; align-items: baseline; padding: 3px 8px 4px; font: 12px var(--code); flex: none; }
+#inspector .eval .h { font: 700 9.5px var(--ui); letter-spacing: .08em; }
+
+/* ---------- Chart (show-object o2) ---------- */
+#chart { left: 676px; top: 266px; width: 380px; height: 210px; }
+.bars { padding: 9px 12px 4px; display: grid; grid-template-columns: 84px 1fr 30px; row-gap: 5px; column-gap: 8px; align-items: center; }
+.bars .k { font: 12px/14px var(--code); }
+.bars .v { font: 12px/14px var(--code); text-align: right; }
+.bar { height: 12px; border: 1px solid #000; }
+.bar.first { background: var(--ultra); border-color: var(--ultra); }
+.bars .axis { grid-column: 2; position: relative; height: 14px; border-top: 1px solid #000; font: 10px var(--code); color: var(--ink-3); }
+.bars .axis span { position: absolute; top: 2px; transform: translateX(-50%); }
+.bars .axis span::before { content: ""; position: absolute; left: 50%; top: -5px; height: 3px; width: 1px; background: #000; }
+
+/* ---------- Process Browser ---------- */
+#pb { left: 676px; top: 492px; width: 380px; height: 358px; }
+.pb-tools { display: flex; gap: 5px; padding: 4px 6px; border-bottom: 1px solid #000; align-items: center; flex: none; }
+.pb-tools .btn { font-size: 12.5px; padding: 0 7px 1px; }
+.pb-tools .right { margin-left: auto; font: italic 11.5px var(--ui); color: var(--ink-3); }
+.pt { font-size: 12.5px; padding: 0; }
+.pt .li { display: grid; grid-template-columns: 9px 20px 1fr 62px 34px; gap: 6px; padding: 0 7px; line-height: 17px; }
+.pt .li .p { font: 11px/17px var(--code); text-align: right; }
+.pt .li .s { font-style: italic; color: var(--ink-3); text-align: right; }
+.pt .li .c { font: 10.5px/17px var(--code); text-align: right; color: var(--ink-2); }
+.pt .li.sel .s, .pt .li.sel .c { color: #ddd; }
+.pt .li .dot { width: 7px; height: 7px; border: 1px solid #000; align-self: center; }
+.pt .li .dot.ag { background: var(--ultra); border-color: var(--ultra); }
+.pt .li.sel .dot.ag { outline: 1px solid #fff; }
+.pt .li .nm { overflow: hidden; text-overflow: ellipsis; }
+.pt .li .nm .w { font-size: 11px; margin-right: 4px; }
+.pt .li.agrow .nm { color: var(--ultra); }
+.pt .li.agrow.sel .nm { color: #fff; }
+.pt .li.agrow .s.u { color: var(--ultra); }
+.pt .hd { font: 700 9.5px var(--ui); letter-spacing: .08em; text-transform: uppercase; border-bottom: 1px solid #000; padding-top: 4px; padding-bottom: 2px; }
+.pt .hd .s, .pt .hd .c { font-style: normal; color: #000; font-family: var(--ui); font-size: 9.5px; }
+.pb-stack { display: block; border-top: 1px solid #000; flex: 1; min-height: 0; }
+.pb-stack .stack { font: 11px/16px var(--code); padding: 2px 0; }
+.pb-stack .stack .li { padding: 0 6px; line-height: 16px; }
+.pb-stack .why { padding: 4px 7px; font: italic 11.5px/15px var(--ui); color: var(--ink-2); }
+.pb-stack .why .btn { font-style: normal; font-size: 12px; margin-top: 5px; padding: 0 7px 1px; }
+
+
+.compose .btn { white-space: nowrap; }
+.msg.old { color: var(--ink-3); }
+.msg.old .who { color: var(--ink-3); }
+.sys { white-space: nowrap; margin: 0 12px 8px; font: italic 12px var(--ui); color: var(--ink-3); display: flex; gap: 6px; align-items: baseline; }
+.sys code { font: 11px var(--code); border: 1px solid var(--ink-4); padding: 0 3px; font-style: normal; }
+/* callouts */
+.callout.c1 { left: 1000px; top: 30px; max-width: 250px; z-index: 1001; display: none; }
+.callout.c-ask { left: 392px; top: 312px; max-width: 252px; }
+.callout.c-desk { left: 28px; top: 716px; max-width: 300px; }
+.callout.c-proc { left: 346px; top: 716px; max-width: 296px; }
+.callout.c-strip { left: 1100px; top: 722px; max-width: 320px; display: none; }
+.callout .arrow { font-style: normal; }
+#desktop pre, #desktop .call, #desktop .call *, #desktop .res, #desktop .stack { font-variant-ligatures: none !important; font-feature-settings: "calt" 0, "liga" 0 !important; }
+</style>
+</head>
+<body>
+<div id="desktop">
+
+<div id="topbar">
+  <span class="brand">Samaltak</span><span class="sep"></span><span>nuuk.image</span>
+  <span class="ask" id="askfield"><span class="q">Ask</span><span class="ph">the agent about anything on the desk…</span><kbd>⌘⇧Space</kbd></span>
+  <span class="grow"></span>
+  <span class="lbl">Agent</span><span class="stat ultra">Codex 6.1 Sol · 41k / 400k · 4.2 s</span><span class="sep"></span>
+  <span class="lbl">Compositor</span><span class="stat">16.7 ms 60 fps</span><span class="sep"></span><span class="stat">14 processes</span>
+  <span>Aa</span><span>◑</span><span>?</span>
+</div>
+
+<!-- ======================= System Browser (opened by the agent) ======================= -->
+<div class="win agent active" id="browser">
+  <div class="titlebar"><span class="box"></span><span class="stripes"></span><span class="title">System Browser: TextEditor</span><span class="stripes"></span><span class="atag" id="tag-browser">AGENT<i>TextEditor</i></span><span class="box small"></span><span class="box"></span></div>
+  <div class="win-body">
+    <div class="cols">
+      <div class="col">
+        <div class="pane-h">Packages <span class="right">by layer</span></div>
+        <div class="list">
+          <div class="li"><span class="n">5</span>Tools</div>
+          <div class="li sel"><span class="n">4</span>UI-Widgets</div>
+          <div class="li"><span class="n">3</span>UI-Windows</div>
+          <div class="li"><span class="n">2</span>Graphics-Canvas</div>
+          <div class="li"><span class="n">1</span>Graphics-GPU</div>
+          <div class="li"><span class="n">0</span>Kernel-Objects</div>
+          <div class="li" style="padding-left:30px">Kernel-Classes</div>
+          <div class="li" style="padding-left:30px">Kernel-Processes</div>
+          <div class="li"><span class="n">5</span>Agent</div>
+        </div>
+      </div>
+      <div class="col">
+        <div class="pane-h">Classes <span class="right">36</span></div>
+        <div class="list">
+          <div class="li">Splitter</div>
+          <div class="li">StatusBar</div>
+          <div class="li">Tabs</div>
+          <div class="li">TextBuffer</div>
+          <div class="li sel ag">TextEditor<span class="r">157</span></div>
+          <div class="li">TextHighlighter</div>
+          <div class="li">TextLayout</div>
+          <div class="li">TextUndoHistory</div>
+          <div class="li">Toast</div>
+        </div>
+        <div class="toggles"><span class="on">instance</span><span>?</span><span>class</span></div>
+      </div>
+      <div class="col">
+        <div class="pane-h">Protocols</div>
+        <div class="list">
+          <div class="li">-- all --</div>
+          <div class="li">initialize</div>
+          <div class="li">accessing</div>
+          <div class="li">editing</div>
+          <div class="li sel ag">keyboard<span class="r">23</span></div>
+          <div class="li">mouse</div>
+          <div class="li">selection</div>
+          <div class="li">marks</div>
+          <div class="li">drawing</div>
+        </div>
+      </div>
+      <div class="col">
+        <div class="pane-h">Methods <span class="right">o3 = 23</span></div>
+        <div class="list">
+          <div class="li sel">keyDown:</div>
+          <div class="li">keyBackspace:</div>
+          <div class="li">keyDelete:</div>
+          <div class="li">keyReturn:</div>
+          <div class="li">keyTab:</div>
+          <div class="li">keyWordLeft:</div>
+          <div class="li">keyWordRight:</div>
+          <div class="li">keySelectAll</div>
+          <div class="li">keySelectorFor:</div>
+        </div>
+      </div>
+    </div>
+    <div class="src"><pre><span class="t-k">keyDown:</span> anEvent
+    <span class="t-c">"Run the key's handler."</span>
+    | sel |
+    sel := <span class="t-k">self</span> <span class="t-k">keySelectorFor:</span> anEvent.
+    sel <span class="t-k">ifNil:</span> [^ <span class="t-k">false</span>].
+    buffer <span class="t-k">groupUndoDuring:</span>
+        [<span class="t-k">self</span> <span class="t-k">perform:</span> sel <span class="t-k">with:</span> anEvent].
+    ^ <span class="t-k">true</span></pre></div>
+    <div class="status"><span style="font:11px var(--code)">TextEditor&gt;&gt;keyDown:</span><span class="n" style="font:10px var(--code);border:1px solid #000;padding:0 2px">4</span><i>Widgets · UI-Widgets · keyboard</i><span style="margin-left:auto" class="ultra"><i style="color:var(--ultra)">opened by the agent</i></span></div>
+  </div>
+</div>
+
+<!-- ======================= Workspace (the user's own) ======================= -->
+<div class="win" id="workspace">
+  <div class="titlebar"><span class="box"></span><span class="stripes"></span><span class="title">Workspace</span><span class="stripes"></span><span class="box small"></span><span class="box"></span></div>
+  <div class="win-body">
+<pre><span class="t-c">"Agent results are variables here too: o1 o2 o3."</span>
+o2 <span class="t-k">first</span> key <span class="t-k">browse</span>.
+(o1 <span class="t-k">collect:</span> [:c | c selectors size]) <span class="t-k">inject:</span> 0 <span class="t-k">into:</span> [:a :b | a + b]
+<span class="t-g">TextEditor</span> <span class="t-k">organization</span> <span class="t-k">categories</span>
+
+<span class="t-c">"Green thread: fork a busy Process."</span>
+[1 <span class="t-k">to:</span> 300 <span class="t-k">do:</span> [:i | 999 factorial]] <span class="t-k">forkNamed:</span> 'crunch'
+(1 <span class="t-k">to:</span> 20) <span class="t-k">select:</span> [:i | i isPrime]
+<span class="t-g">Transcript</span> <span class="t-k">show:</span> 'hello, Samaltak'; cr</pre>
+  </div>
+</div>
+
+<!-- ======================= Inspector on o1 ======================= -->
+<div class="win agent" id="inspector">
+  <div class="titlebar"><span class="box"></span><span class="stripes"></span><span class="title">Inspector: a SortedCollection</span><span class="stripes"></span><span class="atag" id="tag-ins">AGENT<i>o1</i></span><span class="box small"></span><span class="box"></span></div>
+  <div class="win-body">
+    <div class="ins">
+      <div class="col rule-r">
+        <div class="pane-h">Fields</div>
+        <div class="list">
+          <div class="li box"><i>self</i></div>
+          <div class="li"><i>class</i></div>
+          <div class="li">sortBlock</div>
+          <div class="li">1<span class="r">TextEditor</span></div>
+          <div class="li">2<span class="r">Widget</span></div>
+          <div class="li">3<span class="r">ListView</span></div>
+        </div>
+      </div>
+      <div class="col">
+        <div class="pane-h">Value <span class="right">SortedCollection · 36</span></div>
+        <div class="val">a SortedCollection(TextEditor Widget ListView TextLayout MenuView Tabs Splitter ScrollPane Button Label TextBuffer …)</div>
+      </div>
+    </div>
+    <div class="eval"><span class="h">EVALUATE</span><i style="font-family:var(--ui)">self</i> size <span class="muted">→ 36</span></div>
+  </div>
+</div>
+
+<!-- ======================= Chart: show-object o2 ======================= -->
+<div class="win agent" id="chart">
+  <div class="titlebar"><span class="box"></span><span class="stripes"></span><span class="title">o2 — method counts</span><span class="stripes"></span><span class="atag" id="tag-chart">AGENT<i>o2</i></span><span class="box small"></span><span class="box"></span></div>
+  <div class="win-body">
+    <div class="pane-h">Selectors per class <span class="right">top 5 of 36 · UI-Widgets</span></div>
+    <div class="bars">
+      <span class="k">TextEditor</span><div><div class="bar first" style="width:100%"></div></div><span class="v ultra">157</span>
+      <span class="k">Widget</span><div><div class="bar halftone" style="width:56.7%"></div></div><span class="v">89</span>
+      <span class="k">ListView</span><div><div class="bar halftone" style="width:54.8%"></div></div><span class="v">86</span>
+      <span class="k">TextLayout</span><div><div class="bar halftone" style="width:30.6%"></div></div><span class="v">48</span>
+      <span class="k">MenuView</span><div><div class="bar halftone" style="width:24.2%"></div></div><span class="v">38</span>
+      <span></span><div class="axis"><span style="left:0">0</span><span style="left:31.8%">50</span><span style="left:63.7%">100</span><span style="left:95.5%">150</span></div><span></span>
+    </div>
+    <div class="status" style="margin-top:auto"><span style="font:11px var(--code)">an Array(5)</span><i>click a bar to browse</i></div>
+  </div>
+</div>
+
+<!-- ======================= Process Browser ======================= -->
+<div class="win" id="pb">
+  <div class="titlebar"><span class="box"></span><span class="stripes"></span><span class="title">Process Browser</span><span class="stripes"></span><span class="box small"></span><span class="box"></span></div>
+  <div class="win-body">
+    <div class="pb-tools"><span class="btn">Debug</span><span class="btn">Resume</span><span class="btn">Terminate</span><span class="right">14 · <span class="ultra">■</span> 2 agent</span></div>
+    <div class="pt list">
+      <div class="li hd"><span></span><span class="p" style="font:inherit">Pri</span><span>Process</span><span class="s">State</span><span class="c">CPU</span></div>
+      <div class="li"><span class="dot"></span><span class="p">80</span><span class="nm">timer interrupt watcher</span><span class="s">waiting</span><span class="c">0.0</span></div>
+      <div class="li"><span class="dot"></span><span class="p">70</span><span class="nm">compositor (vsync)</span><span class="s">waiting</span><span class="c">2.1</span></div>
+      <div class="li"><span class="dot"></span><span class="p">60</span><span class="nm">input dispatcher</span><span class="s">waiting</span><span class="c">0.0</span></div>
+      <div class="li agrow"><span class="dot ag"></span><span class="p">45</span><span class="nm">agent http</span><span class="s u">reading</span><span class="c">0.4</span></div>
+      <div class="li"><span class="dot"></span><span class="p">40</span><span class="nm"><span class="w">▭</span>Agent</span><span class="s">waiting</span><span class="c">0.0</span></div>
+      <div class="li"><span class="dot"></span><span class="p">40</span><span class="nm"><span class="w">▭</span>System Browser</span><span class="s">waiting</span><span class="c">0.0</span></div>
+      <div class="li"><span class="dot"></span><span class="p">40</span><span class="nm"><span class="w">▭</span>o2 — method counts</span><span class="s">waiting</span><span class="c">0.0</span></div>
+      <div class="li"><span class="dot"></span><span class="p">40</span><span class="nm"><span class="w">▭</span>Inspector on a SortedCollection</span><span class="s">waiting</span><span class="c">0.0</span></div>
+      <div class="li"><span class="dot"></span><span class="p">40</span><span class="nm"><span class="w">▭</span>Process Browser</span><span class="s">running</span><span class="c">0.6</span></div>
+      <div class="li agrow sel" id="row-o3"><span class="dot ag"></span><span class="p">30</span><span class="nm">agent o3</span><span class="s">suspended</span><span class="c">0.0</span></div>
+    </div>
+    <div class="pb-stack">
+      <div class="stack">
+        <div class="li box">TextEditor class(Object)&gt;&gt;doesNotUnderstand:</div>
+        <div class="li">UndefinedObject&gt;&gt;DoIt</div>
+        <div class="li">AgentCodeMode&gt;&gt;evaluate:binding:</div>
+        <div class="li">[] in AgentCodeMode&gt;&gt;run: <span class="r">kept for the Debugger</span></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ======================= Docked agent strip ======================= -->
+<div id="dock">
+  <div class="dock-h"><span class="grip halftone"></span><span class="ttl">AGENT</span><span class="model">Codex 6.1 Sol</span><span class="right">docked<span class="box"></span></span></div>
+  <div class="dock-s"><span>signed in as mark@…</span><span><span class="meter"></span>41k / 400k</span><span>4.2 s</span></div>
+  <div class="tx" id="tx">
+    <div class="sys">Signed in with ChatGPT <code>K7QF-9XWD</code> · 10:36</div>
+    <div class="msg user old"><span class="who">You<span class="t">10:38</span></span>Why is the desk grey up close but not when scaled?</div>
+    <div class="msg agent old"><span class="who">Codex 6.1 Sol</span>World&gt;&gt;drawDeskOn: fills it with the #halftone pattern, computed per device pixel in the fragment shader — so it never blurs.</div>
+    <div class="older">10:41</div>
+
+    <div class="msg user"><span class="who">You<span class="t">10:41</span></span>Which UI-Widgets classes have the most methods? Show me the top 5.</div>
+    <div class="msg agent"><span class="who">Codex 6.1 Sol</span>I'll rank the classes in UI-Widgets by method count.</div>
+
+    <div class="callgrp">
+      <div class="call linked" id="e-o1"><span class="port"></span><span class="tw">▸</span><span class="tool">code-mode</span><span class="arr">→</span><span class="oref solid">o1</span><span class="val" style="font-family:var(--code);font-size:12px">a SortedCollection(TextEditor Widget ListView…</span><span class="ms">36</span></div>
+
+      <div class="call-x">
+        <div class="call"><span class="tw">▾</span><span class="tool">code-mode</span><span class="arr">→</span><span class="oref solid">o2</span><span class="val" style="color:var(--ink-3);font-family:var(--ui);font-style:italic">an Array</span><span class="ms">0.02 s</span></div>
+        <pre>(o1 <span class="t-k">first:</span> 5) <span class="t-k">collect:</span>
+    [:c | c <span class="t-k">-&gt;</span> c selectors size]</pre>
+        <div class="res"><span class="arr">→ </span>an Array(TextEditor-&gt;157 Widget-&gt;89 ListView-&gt;86 TextLayout-&gt;48 MenuView-&gt;38)</div>
+      </div>
+
+      <div class="call linked" id="e-o2"><span class="port"></span><span class="tw">▸</span><span class="tool">show-object</span><span class="oref">o2</span><span class="arr">⇢</span><span class="val">chart window on the desk</span><span class="ms">bars</span></div>
+
+      <div class="call err linked" id="e-err"><span class="port"></span><span class="tw">▸</span><span class="tool">code-mode</span><span class="val">MessageNotUnderstood: #keyBindings</span><span class="dbg">Debug</span></div>
+      <div class="call"><span class="tw">▸</span><span class="tool">code-mode</span><span class="arr">→</span><span class="oref solid">o3</span><span class="val">23</span><span class="ms">0.01 s</span></div>
+      <div class="call linked" id="e-br"><span class="port"></span><span class="tw">▸</span><span class="tool">show-object</span><span class="oref">TextEditor</span><span class="arr">⇢</span><span class="val">System Browser, keyboard</span></div>
+    </div>
+
+    <div class="msg agent"><span class="who">Codex 6.1 Sol<span class="t">4.2 s</span></span><span class="cls">TextEditor</span> dominates: it is a facade over TextBuffer, TextLayout, TextHighlighter and TextUndoHistory, and still has 157 methods of its own — mostly key bindings <span class="oref">o3</span>.</div>
+  </div>
+  <div class="compose">
+    <div class="ed"><span class="c"></span>Reply, or ask about the focused window…</div>
+    <div class="row"><span class="scope">sees <span class="oref">o1</span><span class="oref">o2</span><span class="oref">o3</span></span><span class="sp"></span><span class="btn">Stop</span><span class="btn ultra">Send ⏎</span></div>
+  </div>
+</div>
+
+<svg id="leaders" xmlns="http://www.w3.org/2000/svg"></svg>
+
+<div class="callout c-ask"><b>↑ ⌘⇧Space, from anywhere.</b> The Ask field lives in the top bar; the answer streams into the strip docked at the right edge — no agent window to find, move or lose.</div>
+<div class="callout c-desk"><b>show-object opens real tools.</b> A chart, an Inspector on o1, a Browser on the class it talked about — each tagged <span class="atag" style="font-size:8.5px">AGENT<i>o2</i></span> and tied to its line by a leader.</div>
+<div class="callout c-proc"><b>Calls are one-liners.</b> Each runs in its own Process (<b>agent o3</b>); a failed one stays suspended in the Process Browser for the Debugger.</div>
+
+</div>
+
+<div id="about">
+  <h1>4 · Desktop Agent</h1>
+  <p>No agent window: ask from the top bar, read the docked strip, get results as real tools on the desk.</p>
+  <nav><a href="index.html">index</a><a href="1-workspace.html">1 workspace</a><a href="2-notebook.html">2 notebook</a><a href="3-browser.html">3 browser</a><a class="cur" href="4-desktop.html">4 desktop</a><a href="5-contextual.html">5 contextual</a></nav>
+</div>
+
+<script>
+/* Draw the leader lines: orthogonal ultramarine wires from the strip's ports, along a bus in the gutter
+   between the desk and the strip, to the window each line opened. */
+(function () {
+  var svg = document.getElementById('leaders');
+  var NS = 'http://www.w3.org/2000/svg';
+  var dock = document.getElementById('dock').getBoundingClientRect();
+  function box(id) { return document.getElementById(id).getBoundingClientRect(); }
+  function mid(r) { return Math.round(r.top + r.height / 2); }
+  // [entry, target window, title tag, lane x]
+  var links = [
+    ['e-o1',  'inspector', 'tag-ins',     1068],
+    ['e-o2',  'chart',     'tag-chart',   1062],
+    ['e-err', 'pb',        'row-o3',      1062],
+    ['e-br',  'browser',   'tag-browser', 1074]
+  ];
+  var paths = [];
+  links.forEach(function (l) {
+    var e = box(l[0]), w = box(l[1]), t = box(l[2]);
+    var sx = dock.left, sy = mid(e), lane = l[3], d, end;
+    if (w.right > 1040) {             // window next to the bus: enter at the tag's (or row's) height
+      var ty = mid(t);
+      d = 'M' + sx + ' ' + sy + ' H' + lane + ' V' + ty + ' H' + (w.right);
+      end = [w.right, ty];
+    } else {                          // window further left: run along the top gutter, drop onto the tag
+      var bus = 35, tx = Math.round(t.left + t.width / 2);
+      d = 'M' + sx + ' ' + sy + ' H' + lane + ' V' + bus + ' H' + tx + ' V' + w.top;
+      end = [tx, w.top];
+    }
+    paths.push([d, end]);
+  });
+  // white halos first, so crossings read as hops
+  paths.forEach(function (p) {
+    var h = document.createElementNS(NS, 'path');
+    h.setAttribute('d', p[0]); h.setAttribute('fill', 'none'); h.setAttribute('stroke', '#fff'); h.setAttribute('stroke-width', '5');
+    svg.appendChild(h);
+  });
+  paths.forEach(function (p) {
+    var a = document.createElementNS(NS, 'path');
+    a.setAttribute('d', p[0]); a.setAttribute('fill', 'none'); a.setAttribute('stroke', '#1b3a8c'); a.setAttribute('stroke-width', '1.5');
+    svg.appendChild(a);
+    var r = document.createElementNS(NS, 'rect');
+    r.setAttribute('x', p[1][0] - 2.5); r.setAttribute('y', p[1][1] - 2.5); r.setAttribute('width', 5); r.setAttribute('height', 5);
+    r.setAttribute('fill', '#1b3a8c');
+    svg.appendChild(r);
+  });
+})();
+</script>
+</body>
+</html>

@@ -47,8 +47,16 @@ send: s bytes: buf count: n flags: flags
 	<c: 'ssize_t send(int s, const void *buf, size_t n, int flags)'>
 	^self notSimulated
 !
+socketpair: domain type: type protocol: protocol pair: fds
+	<c: 'int socketpair(int domain, int type, int protocol, int *fds)'>
+	^self notSimulated
+!
 setsockopt: s level: level option: name value: value length: length
 	<c: 'int setsockopt(int s, int level, int name, const void *value, socklen_t length)'>
+	^self notSimulated
+!
+getsockopt: s level: level option: name value: value length: length
+	<c: 'int getsockopt(int s, int level, int name, void *value, socklen_t *length)'>
 	^self notSimulated
 !
 getsockname: s address: address length: length
@@ -62,6 +70,10 @@ ntohs: n
 AF_UNSPEC
 	<cMacro: 'int AF_UNSPEC'>
 	^0
+!
+AF_UNIX
+	<cMacro: 'int AF_UNIX'>
+	^1
 !
 AF_INET6
 	<cMacro: 'int AF_INET6'>
@@ -78,6 +90,10 @@ SOL_SOCKET
 SO_REUSEADDR
 	<cMacro: 'int SO_REUSEADDR'>
 	^4
+!
+SO_ERROR
+	<cMacro: 'int SO_ERROR'>
+	^16r1007
 !
 SO_NOSIGPIPE
 	<cMacro: 'int SO_NOSIGPIPE'>
@@ -101,6 +117,10 @@ freeaddrinfo: ai
 	<c: 'void freeaddrinfo(struct addrinfo *ai)'>
 	^self notSimulated
 !
+getnameinfo: address length: length host: host size: hostSize service: service size: serviceSize flags: flags
+	<c: 'int getnameinfo(const struct sockaddr *address, socklen_t length, char *host, socklen_t hostSize, char *service, socklen_t serviceSize, int flags)'>
+	^self notSimulated
+!
 gaiStrerror: code
 	<c: 'const char *gai_strerror(int code)'>
 	^self notSimulated
@@ -108,6 +128,18 @@ gaiStrerror: code
 AI_PASSIVE
 	<cMacro: 'int AI_PASSIVE'>
 	^1
+!
+AI_NUMERICHOST
+	<cMacro: 'int AI_NUMERICHOST'>
+	^4
+!
+AI_NUMERICSERV
+	<cMacro: 'int AI_NUMERICSERV'>
+	^16r1000
+!
+NI_NUMERICHOST
+	<cMacro: 'int NI_NUMERICHOST'>
+	^2
 ! !
 
 ExternStruct subclass: #AddrInfo

@@ -380,6 +380,30 @@ primitive_entry vm_primitive_table[] = {
     {547, 2, "socketLocalPort", prim_socket_local_port},
 #endif
 #ifndef SAMALTAK_NO_PLATFORM
+    {548, 2, "socketResolve", prim_socket_resolve},
+#endif
+#ifndef SAMALTAK_NO_PLATFORM
+    {549, 2, "socketConnected", prim_socket_connected},
+#endif
+#ifndef SAMALTAK_NO_PLATFORM
+    {550, 2, "tlsStart", prim_tls_start},
+#endif
+#ifndef SAMALTAK_NO_PLATFORM
+    {551, 2, "tlsRecv", prim_tls_recv},
+#endif
+#ifndef SAMALTAK_NO_PLATFORM
+    {552, 2, "tlsSend", prim_tls_send},
+#endif
+#ifndef SAMALTAK_NO_PLATFORM
+    {553, 2, "tlsClose", prim_tls_close},
+#endif
+#ifndef SAMALTAK_NO_PLATFORM
+    {554, 2, "tlsSemaphore", prim_tls_semaphore},
+#endif
+#ifndef SAMALTAK_NO_PLATFORM
+    {555, 2, "tlsHandshake", prim_tls_handshake},
+#endif
+#ifndef SAMALTAK_NO_PLATFORM
     {560, 2, "ptySpawn", prim_pty_spawn},
 #endif
 #ifndef SAMALTAK_NO_PLATFORM
