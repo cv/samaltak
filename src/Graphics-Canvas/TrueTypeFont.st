@@ -1,9 +1,9 @@
 Object subclass: #TrueTypeFont
-	instanceVariableNames: 'name data tables unitsPerEm bounds indexToLocFormat numGlyphs numberOfHMetrics ascender descender lineGap typoAscender typoDescender typoLineGap winAscent winDescent xHeight capHeight weightClass fsSelection cmapOffset cmapFormat cmapCache'
+	instanceVariableNames: 'name data tables unitsPerEm bounds indexToLocFormat numGlyphs numberOfHMetrics ascender descender lineGap typoAscender typoDescender typoLineGap winAscent winDescent xHeight capHeight weightClass fsSelection cmapOffset cmapFormat cmapCache palette ligatures'
 	classVariableNames: ''
 	package: 'Graphics-Canvas'!
 
-TrueTypeFont comment: 'I am a TrueType typeface parsed from the bytes of a .ttf file: the tables head, hhea, maxp, OS/2, hmtx, cmap (formats 4 and 12), loca and glyf (simple and composite glyphs). Everything is in font units (unitsPerEm per em, y up); Font scales me to a pixel size. Kerning and hinting are ignored. Faces kept in the image are compacted to the tables I read and the outlines the cmap reaches.'!
+TrueTypeFont comment: 'I am a TrueType typeface parsed from the bytes of a .ttf file: the tables head, hhea, maxp, OS/2, hmtx, cmap (formats 4 and 12), loca and glyf (simple and composite glyphs), and for color glyphs COLR (version 0), CPAL and the ligatures of GSUB''s ccmp feature. Everything is in font units (unitsPerEm per em, y up); Font scales me to a pixel size. Kerning and hinting are ignored. Faces kept in the image are compacted to the tables I read and the outlines the cmap reaches.'!
 
 !TrueTypeFont methodsFor: 'initialization'!
 setName: aString data: aByteArray
@@ -409,6 +409,99 @@ compose: inner with: outer
 	e := (outer at: 1) * (inner at: 5) + ((outer at: 3) * (inner at: 6)) + (outer at: 5).
 	f := (outer at: 2) * (inner at: 5) + ((outer at: 4) * (inner at: 6)) + (outer at: 6).
 	^Array with: a with: b with: c with: d with: e with: f
+! !
+
+!TrueTypeFont methodsFor: 'color glyphs'!
+colorBaseGlyphCount
+	"The number of COLR base glyphs (0 without COLR)."
+	(tables includesKey: 'COLR') ifFalse: [^0].
+	^self u16: (self tableOffset: 'COLR') + 2
+!
+colorLayersOf: glyphIndex
+	"Answer the layers of a COLR base glyph, bottom first, as a flat Array: layer glyph index, CPAL palette index (16rFFFF: the text color), ...; nil if glyphIndex is not a base glyph."
+	| c records lo hi mid rec g n layers result |
+	(tables includesKey: 'COLR') ifFalse: [^nil].
+	c := self tableOffset: 'COLR'.
+	records := c + (self u32: c + 4).
+	lo := 0.
+	hi := (self u16: c + 2) - 1.
+	[lo <= hi] whileTrue: [
+		mid := lo + hi // 2.
+		rec := records + (mid * 6).
+		g := self u16: rec.
+		g = glyphIndex ifTrue: [
+			n := self u16: rec + 4.
+			layers := c + (self u32: c + 8) + ((self u16: rec + 2) * 4).
+			result := Array new: n * 2.
+			0 to: n - 1 do: [:i |
+				result at: i * 2 + 1 put: (self u16: layers + (i * 4)).
+				result at: i * 2 + 2 put: (self u16: layers + (i * 4) + 2)].
+			^result].
+		g < glyphIndex ifTrue: [lo := mid + 1] ifFalse: [hi := mid - 1]].
+	^nil
+!
+palette
+	"CPAL palette 0: an Array of Colors (empty without CPAL)."
+	| c n records |
+	palette isNil ifFalse: [^palette].
+	(tables includesKey: 'CPAL') ifFalse: [^palette := #()].
+	c := self tableOffset: 'CPAL'.
+	n := self u16: c + 2.
+	records := c + (self u32: c + 8) + ((self u16: c + 12) * 4).
+	^palette := (0 to: n - 1) collect: [:i | | p |
+		p := records + (i * 4).
+		Color r: (data at: p + 2) / 255.0 g: (data at: p + 1) / 255.0 b: (data at: p) / 255.0 a: (data at: p + 3) / 255.0]
+!
+ligatures
+	"The ligatures of the lookups of GSUB's ccmp feature (type 4, also inside extension lookups, type 7): a Dictionary first glyph index -> Array of {the other components (an Array of glyph indices). the ligature glyph index}, longest first."
+	| g features lookups indices lookup type subtable result |
+	ligatures isNil ifFalse: [^ligatures].
+	result := Dictionary new.
+	(tables includesKey: 'GSUB') ifFalse: [^ligatures := result].
+	g := self tableOffset: 'GSUB'.
+	features := g + (self u16: g + 6).
+	lookups := g + (self u16: g + 8).
+	indices := Set new.
+	0 to: (self u16: features) - 1 do: [:i | | rec feature |
+		rec := features + 2 + (i * 6).
+		(data copyFrom: rec to: rec + 3) asString = 'ccmp' ifTrue: [
+			feature := features + (self u16: rec + 4).
+			0 to: (self u16: feature + 2) - 1 do: [:k | indices add: (self u16: feature + 4 + (k * 2))]]].
+	indices asSortedCollection do: [:index |
+		lookup := lookups + (self u16: lookups + 2 + (index * 2)).
+		0 to: (self u16: lookup + 4) - 1 do: [:k |
+			type := self u16: lookup.
+			subtable := lookup + (self u16: lookup + 6 + (k * 2)).
+			type = 7 ifTrue: [
+				type := self u16: subtable + 2.
+				subtable := subtable + (self u32: subtable + 4)].
+			type = 4 ifTrue: [self addLigaturesAt: subtable to: result]]].
+	result keysAndValuesDo: [:first :list |
+		result at: first put: (list asSortedCollection: [:a :b | a first size >= b first size]) asArray].
+	^ligatures := result
+!
+addLigaturesAt: subtable to: aDictionary
+	"A ligature substitution subtable (format 1): for each glyph of its coverage a set of ligatures."
+	| firsts set |
+	firsts := self coverageGlyphsAt: subtable + (self u16: subtable + 2).
+	1 to: (self u16: subtable + 4) do: [:i |
+		set := subtable + (self u16: subtable + 6 + (i - 1 * 2)).
+		0 to: (self u16: set) - 1 do: [:k | | lig components |
+			lig := set + (self u16: set + 2 + (k * 2)).
+			components := (1 to: (self u16: lig + 2) - 1) collect: [:c | self u16: lig + 2 + (c * 2)].
+			(aDictionary at: (firsts at: i) ifAbsentPut: [OrderedCollection new])
+				add: (Array with: components with: (self u16: lig))]]
+!
+coverageGlyphsAt: coverage
+	"The glyph indices of a coverage table (format 1: a list, 2: ranges), in coverage index order."
+	| result |
+	(self u16: coverage) = 1 ifTrue: [
+		^(1 to: (self u16: coverage + 2)) collect: [:i | self u16: coverage + 2 + (i * 2)]].
+	result := OrderedCollection new.
+	0 to: (self u16: coverage + 2) - 1 do: [:r | | rec |
+		rec := coverage + 4 + (r * 6).
+		(self u16: rec) to: (self u16: rec + 2) do: [:each | result add: each]].
+	^result asArray
 ! !
 
 !TrueTypeFont methodsFor: 'compacting'!

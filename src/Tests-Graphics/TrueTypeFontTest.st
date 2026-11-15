@@ -6,6 +6,42 @@ TestCase subclass: #TrueTypeFontTest
 TrueTypeFontTest comment: 'I check the TrueType parser against values read with fontTools from the files in fonts/.'!
 
 !TrueTypeFontTest methodsFor: 'tests'!
+testTwemojiColorLayers
+	"COLR v0 and CPAL of the bundled Twemoji: a base glyph's layers bottom first, each a glyph and a palette color."
+	| f layers |
+	f := Font faceNamed: 'Twemoji'.
+	self assert: f unitsPerEm equals: 512.
+	self assert: f colorBaseGlyphCount equals: 3689.
+	self assert: (f glyphIndexFor: 16r1F600) equals: 884.
+	self assert: (f colorLayersOf: 884) equals: #(3150 195 8287 823 8288 11).
+	self assert: (f colorLayersOf: 3150) isNil.
+	self assert: (f boundsOf: 884) isNil.
+	self assert: (f boundsOf: 3150) equals: (Rectangle left: 0 right: 512 top: -64 bottom: 448).
+	self assert: f palette size equals: 1063.
+	self assert: ((f palette first) hex) equals: 16rE6E7E8.
+	self assert: (f palette count: [:each | each alpha < 1]) equals: 15.
+	layers := f colorLayersOf: (f glyphIndexFor: 16r1F468).
+	self assert: layers size equals: 10.
+	self assert: (layers at: 1) equals: 5616
+!
+testTwemojiLigatures
+	"GSUB ccmp ligatures, longest first: the family ZWJ sequence, a flag, a keycap, a skin tone."
+	| f ligs glyphs find |
+	f := Font faceNamed: 'Twemoji'.
+	ligs := f ligatures.
+	self assert: (ligs inject: 0 into: [:sum :each | sum + each size]) equals: 2298.
+	self assert: (ligs inject: 0 into: [:max :each | max max: each first first size]) equals: 9.
+	ligs do: [:list | 1 to: list size - 1 do: [:i | self assert: (list at: i) first size >= (list at: i + 1) first size]].
+	glyphs := [:cps | cps collect: [:cp | f glyphIndexFor: cp]].
+	find := [:cps | | g | g := glyphs value: cps.
+		((ligs at: g first ifAbsent: [#()]) detect: [:each | each first = g allButFirst] ifNone: [nil]) ifNotNil: [:each | each last]].
+	self assert: (find value: #(16r1F468 16r200D 16r1F469 16r200D 16r1F467 16r200D 16r1F466)) equals: 6000.
+	self assert: (find value: #(16r1F1E9 16r1F1EA)) equals: 1900.
+	self assert: (f colorLayersOf: 1900) size equals: 6.
+	self assert: (find value: #(16r31 16rFE0F 16r20E3)) equals: 13695.
+	self assert: (find value: #(16r31 16r20E3)) isNil.
+	self assert: (find value: #(16r1F44D 16r1F3FD)) equals: 5137
+!
 testCompactKeepsMappedGlyphs
 	"A compacted face keeps the tables it reads and the outlines the cmap reaches (composites with their components); GSUB-only alternates go."
 	| f before contours |
