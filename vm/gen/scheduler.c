@@ -18,7 +18,9 @@ static bool in_idle;
 atomic_int interrupt_pending;
 oop last_preempted;
 bool last_preempted_at_entry;
-static int64_t last_switch_us;
+int32_t ledger_n;
+static int64_t ledger_ns[16];
+oop ledger_procs[16];
 static int32_t *pending_ext;
 static int32_t pending_ext_cap;
 static int32_t pending_ext_n;
@@ -30,15 +32,19 @@ bool sampler_tick_unread;
 static int64_t slice_due_us;
 static bool slice_expired;
 static int64_t slice_priority;
+static int64_t slice_start_ns;
 static int64_t slice_us;
 static int64_t start_us;
 uint64_t stat_process_switches;
+uint64_t stat_reconciles;
 static int64_t tick_armed_deadline = 9223372036854775807LL;
 static int64_t tick_armed_poll;
 static atomic_bool tick_deadline_fired;
 static bool tick_idle;
 static int64_t tick_poll_us;
 static int64_t timer_ms = -1LL;
+static int64_t window_cpu_us;
+static int64_t window_start_ns;
 static int64_t work_clock_cycles;
 static bool work_clock_held;
 static int64_t work_clock_hold_cycles;
@@ -54,7 +60,9 @@ static void add_first_link(uint64_t link, uint64_t list);
 static void add_last_link(oop link, oop list);
 static void idle_wait(void);
 static int64_t priority_of(oop p);
+static int64_t raw_now_ns(void);
 static int64_t raw_now_us(void);
+static int64_t reconcile(void);
 static oop remove_first_link(oop list);
 static void signal_index(int32_t index);
 static void slice_check(void);
@@ -467,24 +475,7 @@ exit_work_clock_sync:;
 /* Scheduler>>pauseCharging */
 int64_t pause_charging(void)
 {
-    int64_t now;
-    uint64_t proc;
-    int64_t us;
-    uint64_t ct;
-    int64_t v;
-    uint64_t v_2;
-    now = thread_cpu_us();
-    proc = active_process();
-    us = now - last_switch_us;
-    ct = *(uint64_t *)(proc + 16 + 40);
-    v = ((ct & 1) != 0 ? ((int64_t)ct) >> 1 : 0) + us;
-    v_2 = (uint64_t)((v << 1) | 1);
-    *(uint64_t *)(proc + 16 + 40) = v_2;
-    if (((v_2 & 7) == 0) && ((v_2 - young_lo < young_hi - young_lo) && ((!(proc - young_lo < young_hi - young_lo)) && (((*(uint64_t *)proc) & H_REMEMBERED) == 0)))) {
-        remember(proc);
-    }
-    last_switch_us = now;
-    return now;
+    return reconcile();
 }
 
 /* Scheduler>>priorityOf: */
@@ -500,14 +491,23 @@ static int64_t priority_of(oop p)
 /* Scheduler>>processCpuTimeUs: */
 int64_t process_cpu_time_us(oop proc)
 {
+    bool r_in_ledger;
+    int32_t i;
     uint64_t ct;
-    int64_t t;
-    ct = *(uint64_t *)(proc + 16 + 40);
-    t = (ct & 1) != 0 ? ((int64_t)ct) >> 1 : 0;
-    if ((proc == active_process()) && (!in_idle)) {
-        t = t + thread_cpu_us() - last_switch_us;
+    if ((!in_idle) && ((proc == active_process()) || ({
+    for (i = 0; i <= ledger_n - 1; i++) {
+        if (ledger_procs[i] == proc) {
+            r_in_ledger = true;
+            goto exit_in_ledger;
+        }
     }
-    return t;
+    r_in_ledger = false;
+exit_in_ledger:;
+    r_in_ledger; }))) {
+        reconcile();
+    }
+    ct = *(uint64_t *)(proc + 16 + 40);
+    return (ct & 1) != 0 ? ((int64_t)ct) >> 1 : 0;
 }
 
 /* Scheduler>>processorYield */
@@ -532,6 +532,17 @@ void processor_yield(void)
     transfer_to(remove_first_link(l));
 }
 
+/* Scheduler>>rawNowNs */
+static int64_t raw_now_ns(void)
+{
+    struct timespec local;
+    struct timespec *ts;
+    memset(&local, 0, sizeof local);
+    ts = &local;
+    clock_gettime(CLOCK_MONOTONIC, ts);
+    return ts->tv_sec * 1000000000 + ts->tv_nsec;
+}
+
 /* Scheduler>>rawNowUs */
 static int64_t raw_now_us(void)
 {
@@ -541,6 +552,74 @@ static int64_t raw_now_us(void)
     ts = &local;
     clock_gettime(CLOCK_MONOTONIC, ts);
     return ts->tv_sec * 1000000 + ts->tv_nsec / 1000;
+}
+
+/* Scheduler>>reconcile */
+static int64_t reconcile(void)
+{
+    int64_t now;
+    uint64_t proc;
+    int64_t ns;
+    int32_t i;
+    int64_t cpu;
+    int64_t t;
+    int64_t total;
+    int32_t i_2;
+    int64_t scale;
+    int64_t acc;
+    int64_t given;
+    int32_t i_3;
+    int64_t share;
+    oop proc_2;
+    int64_t us;
+    uint64_t ct;
+    int64_t v;
+    uint64_t v_2;
+    now = raw_now_ns();
+    proc = active_process();
+    ns = now - slice_start_ns;
+    for (i = 0; i <= ledger_n - 1; i++) {
+        if (ledger_procs[i] == proc) {
+            ledger_ns[i] = ledger_ns[i] + ns;
+            goto exit_ledger_add;
+        }
+    }
+    ledger_procs[ledger_n] = proc;
+    ledger_ns[ledger_n] = ns;
+    ledger_n = ledger_n + 1;
+exit_ledger_add:;
+    cpu = thread_cpu_us();
+    t = cpu - window_cpu_us;
+    total = 0;
+    for (i_2 = 0; i_2 <= ledger_n - 1; i_2++) {
+        total = total + ledger_ns[i_2];
+    }
+    scale = 0;
+    while ((total >> scale) > 0xFFFFFF) {
+        scale = scale + 1;
+    }
+    acc = 0;
+    given = 0;
+    for (i_3 = 0; i_3 <= ledger_n - 1; i_3++) {
+        acc = acc + ledger_ns[i_3];
+        share = total == 0 ? i_3 == ledger_n - 1 ? t : 0 : t * (acc >> scale) / (total >> scale);
+        proc_2 = ledger_procs[i_3];
+        us = share - given;
+        ct = *(uint64_t *)(proc_2 + 16 + 40);
+        v = ((ct & 1) != 0 ? ((int64_t)ct) >> 1 : 0) + us;
+        v_2 = (uint64_t)((v << 1) | 1);
+        *(uint64_t *)(proc_2 + 16 + 40) = v_2;
+        if (((v_2 & 7) == 0) && ((v_2 - young_lo < young_hi - young_lo) && ((!((uint64_t)(proc_2 - young_lo) < young_hi - young_lo)) && (((*(uint64_t *)proc_2) & H_REMEMBERED) == 0)))) {
+            remember(proc_2);
+        }
+        given = share;
+    }
+    ledger_n = 0;
+    slice_start_ns = now;
+    window_start_ns = now;
+    window_cpu_us = cpu;
+    stat_reconciles = stat_reconciles + 1;
+    return cpu;
 }
 
 /* Scheduler>>relinquish: */
@@ -792,8 +871,10 @@ void request_periodic_poll(int64_t interval_us)
 /* Scheduler>>resumeCharging */
 int64_t resume_charging(void)
 {
-    last_switch_us = thread_cpu_us();
-    return last_switch_us;
+    slice_start_ns = raw_now_ns();
+    window_start_ns = slice_start_ns;
+    window_cpu_us = thread_cpu_us();
+    return window_cpu_us;
 }
 
 /* Scheduler>>resumeProcess: */
@@ -1081,12 +1162,10 @@ static void transfer_to(oop a_process)
     oop *proc;
     uint64_t old;
     int64_t now;
-    int64_t us;
-    uint64_t ct;
-    int64_t v;
-    uint64_t v_2;
+    int64_t ns;
+    int32_t i;
     oop o;
-    oop v_3;
+    oop v;
     oop o_2;
     uint64_t ctx;
     oop o_3;
@@ -1101,24 +1180,30 @@ static void transfer_to(oop a_process)
     if (*proc == last_preempted) {
         last_preempted_at_entry = false;
     }
-    now = thread_cpu_us();
-    us = now - last_switch_us;
-    ct = *(uint64_t *)(old + 16 + 40);
-    v = ((ct & 1) != 0 ? ((int64_t)ct) >> 1 : 0) + us;
-    v_2 = (uint64_t)((v << 1) | 1);
-    *(uint64_t *)(old + 16 + 40) = v_2;
-    if (((v_2 & 7) == 0) && ((v_2 - young_lo < young_hi - young_lo) && ((!(old - young_lo < young_hi - young_lo)) && (((*(uint64_t *)old) & H_REMEMBERED) == 0)))) {
-        remember(old);
+    now = raw_now_ns();
+    ns = now - slice_start_ns;
+    for (i = 0; i <= ledger_n - 1; i++) {
+        if (ledger_procs[i] == old) {
+            ledger_ns[i] = ledger_ns[i] + ns;
+            goto exit_ledger_add;
+        }
     }
-    last_switch_us = now;
+    ledger_procs[ledger_n] = old;
+    ledger_ns[ledger_n] = ns;
+    ledger_n = ledger_n + 1;
+exit_ledger_add:;
+    slice_start_ns = now;
+    if ((ledger_n == LEDGER_SIZE) || (now - window_start_ns >= RECONCILE_NS)) {
+        reconcile();
+    }
     *(uint64_t *)(old + 16 + 8) = active_ctx;
     if (((active_ctx & 7) == 0) && (((uint64_t)(active_ctx - young_lo) < young_hi - young_lo) && ((!(old - young_lo < young_hi - young_lo)) && (((*(uint64_t *)old) & H_REMEMBERED) == 0)))) {
         remember(old);
     }
     o = object_memory_special(SO_PROCESSOR);
-    v_3 = *proc;
-    *(uint64_t *)(o + 16 + 8) = v_3;
-    if (((v_3 & 7) == 0) && (((uint64_t)(v_3 - young_lo) < young_hi - young_lo) && ((!((uint64_t)(o - young_lo) < young_hi - young_lo)) && (((*(uint64_t *)o) & H_REMEMBERED) == 0)))) {
+    v = *proc;
+    *(uint64_t *)(o + 16 + 8) = v;
+    if (((v & 7) == 0) && (((uint64_t)(v - young_lo) < young_hi - young_lo) && ((!((uint64_t)(o - young_lo) < young_hi - young_lo)) && (((*(uint64_t *)o) & H_REMEMBERED) == 0)))) {
         remember(o);
     }
     o_2 = *proc;

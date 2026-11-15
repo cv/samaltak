@@ -338,6 +338,7 @@ typedef void (*prim_fn)(void);
 #define K_TEX 4
 #define K_WINDOW 1
 #define LAST_ERROR_SIZE 1024
+#define LEDGER_SIZE 16
 #define LL_FIRST 0
 #define LL_LAST 1
 #define LOC_CONST 2
@@ -603,6 +604,7 @@ typedef void (*prim_fn)(void);
 #define RA_MAX_SAFELIST 262144
 #define RA_MAX_SLOTS 1024
 #define RA_NREGS 36
+#define RECONCILE_NS 200000
 #define REG_D 128
 #define REG_SP 32
 #define REG_W 64
@@ -1510,8 +1512,11 @@ extern bool alloc_sample_unread;
 extern atomic_int interrupt_pending;
 extern oop last_preempted;
 extern bool last_preempted_at_entry;
+extern int32_t ledger_n;
+extern oop ledger_procs[16];
 extern bool sampler_tick_unread;
 extern uint64_t stat_process_switches;
+extern uint64_t stat_reconciles;
 extern int32_t argc;
 extern int32_t args_start;
 extern char **argv;
