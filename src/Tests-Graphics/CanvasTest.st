@@ -14,7 +14,7 @@ setUp
 testColorEmojiQuads
 	"A color emoji is a quad per layer in its palette colors, whatever the text color, at a whole pixel; the text goes on where widthOf: says."
 	| s f list colors last other |
-	f := Font code.
+	f := Font face: Font code face size: 13 scale: 2.
 	s := 'a' , (String withAll: (#(16r1F468 16r200D 16r1F469 16r200D 16r1F467 16r200D 16r1F466) collect: [:cp | Character value: cp])) , 'x'.
 	canvas drawString: s at: 0.3 @ 0 font: f color: Color black.
 	list := canvas displayList.

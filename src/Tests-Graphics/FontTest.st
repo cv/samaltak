@@ -157,7 +157,7 @@ testColorEmojiClusters
 	| f s end |
 	f := Font code.
 	#(#(16r1F468 16r200D 16r1F469 16r200D 16r1F467 16r200D 16r1F466) 1 #(16r1F1E9 16r1F1EA) 1 #(16r31 16rFE0F 16r20E3) 1
-	  #(16r1F44D 16r1F3FD) 1 #(16r1F600) 1 #(16rA9 16rFE0F) 1 #(16r1F3F4 16rE0067 16rE0062 16rE0073 16rE0063 16rE0074 16rE007F) 1
+	  #(16r1F44D 16r1F3FD) 1 #(16r261D 16r1F3FD) 1 #(16r1F3F3 16rFE0F 16r200D 16r1F308) 1 #(16r1F600) 1 #(16rA9 16rFE0F) 1 #(16r1F3F4 16rE0067 16rE0062 16rE0073 16rE0063 16rE0074 16rE007F) 1
 	  #(16r1F468 16r200D 16r1F9B0 16r200D 16r1F9B0) 2
 	  #(16r1F600 16rFE0E) 0 #(16r31) 0 #(16r31 16rFE0F) 0 #(16rA9) 0 #(16r263A) 0 #(16r1FAE8) 0) pairsDo: [:cps :n |
 		s := self stringOf: cps.
@@ -169,6 +169,22 @@ testColorEmojiClusters
 	"a cluster cut by the end of the range is text"
 	s := self stringOf: #(16r1F44D 16r1F3FD).
 	self assert: (f colorClusterEndAt: 1 in: s to: 1) equals: 0
+!
+testSymbolsDoNotLookForEmojiClusters
+	"Box drawing, blocks, shapes and dingbats are measured and drawn without looking up their clusters, but for the few with an emoji presentation (U+25FD ...)."
+	| f s cache before |
+	f := Font code.
+	s := String withAll: ((16r2500 to: 16r27BF) collect: [:cp | Character value: cp]).
+	cache := Font emoji instVarNamed: 'clusters'.
+	before := cache size.
+	f widthOf: s.
+	(Canvas extent: 20000 @ 20 scale: f scale) drawString: s at: 0 @ 0 font: f color: Color black.
+	self assert: cache size - before <= ((s select: [:c | Unicode isEmojiPresentationCode: c value]) size).
+	s := String withAll: ((16r2500 to: 16r25FC) collect: [:cp | Character value: cp]).
+	before := cache size.
+	f widthOf: s.
+	(Canvas extent: 20000 @ 20 scale: f scale) drawString: s at: 0 @ 0 font: f color: Color black.
+	self assert: cache size equals: before
 !
 testColorEmojiWidthAndIndexAt
 	"An emoji cluster advances by its glyphs (one em here), its other characters nothing; positions at an x are never inside it."

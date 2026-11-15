@@ -275,13 +275,14 @@ prerasterize: aString
 
 !Font methodsFor: 'color emoji'!
 colorClusterEndAt: i in: aString to: stop
-	"Answer the end of the grapheme cluster at i if it ends by stop and is drawn as color emoji, else 0. Every emoji cluster has a code point from U+203C on, so callers ask only when the character at i or the next one has; here the first two code points must look like an emoji's before the cluster is found."
+	"Answer the end of the grapheme cluster at i if it ends by stop and is drawn as color emoji, else 0. Every emoji cluster has a code point from U+203C on, so callers ask only when the character at i or the next one has; here the cluster is looked for only when the next code point asks for emoji (FE0F, ZWJ, a keycap, a modifier, a tag) or the one at i is Emoji_Presentation."
 	| cp next j emoji |
 	cp := (aString at: i) value.
 	next := i < stop ifTrue: [(aString at: i + 1) value] ifFalse: [0].
-	((cp between: 16r231A and: 16r2B55) or: [(cp between: 16r1F004 and: 16r1FAFF)
-		or: [next = 16rFE0F or: [next = 16r200D or: [next = 16r20E3
-		or: [(next between: 16r1F3FB and: 16r1F3FF) or: [next between: 16rE0020 and: 16rE007F]]]]]]) ifFalse: [^0].
+	(next = 16rFE0F or: [next = 16r200D or: [next = 16r20E3
+		or: [(next between: 16r1F3FB and: 16r1F3FF) or: [next between: 16rE0020 and: 16rE007F]]]]) ifFalse: [
+			(((cp between: 16r231A and: 16r2B55) or: [cp between: 16r1F004 and: 16r1FAFF])
+				and: [Unicode isEmojiPresentationCode: cp]) ifFalse: [^0]].
 	(emoji := self class emoji) isNil ifTrue: [^0].
 	j := aString graphemeClusterEndAfter: i - 1.
 	(j > stop or: [(emoji glyphsOf: aString from: i to: j) isNil]) ifTrue: [^0].
