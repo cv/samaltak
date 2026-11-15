@@ -211,6 +211,25 @@ Steady state (median of the last half of 30 iterations) and first iteration, ms,
 
 Pidigits is LargeInteger arithmetic in C. Its iterations take about 495 or about 528 ms, under either tier, switching within a run; `opt`'s invocations happened to spend more of their last 15 iterations at 528 (median 527 against `baseline`'s 499). Megamorphic ties (106.6 and 106.1 ms): every send is megamorphic, so `opt` inlines nothing.
 
+## Against C
+
+Basic C versions of the eight Shootout (CLBG) programs the suites run (`vm/tests/bench/clbg/*.c`: the six above and AWFY's Mandelbrot and NBody) do the Smalltalk versions' work, same sizes, same algorithm, same checksum: `malloc`/`free` per node in binary-trees, GMP in pidigits, a growing buffer where Smalltalk has a WriteStream, an open-addressing hash table of positions in k-nucleotide; inputs made before timing, as the benchmarks' `initialize`. `vm/tests/bench/clbg.sh [-n 10] [-o file] [program ...]` builds them with `cc -O2` and prints what `awfy.sh` prints. On the x86-64 machine above (gcc 12, CPU time, median of 3 invocations of 10 iterations, `vm/tests/bench/results/c-gcc-O2-x86-2026-11-15-*.csv`), against the Samaltak and Pharo 12 medians of the x86-64 tables:
+
+| program | C | `opt` | `baseline` | Pharo 12 | `opt` / C | `baseline` / C | Pharo / C |
+|---|---|---|---|---|---|---|---|
+| BinaryTrees | 649.0 | 421.3 | 720.4 | 925.5 | 0.6 | 1.1 | 1.4 |
+| Fasta | 162.6 | 538.1 | 701.0 | 742.2 | 3.3 | 4.3 | 4.6 |
+| KNucleotide | 65.1 | 623.5 | 784.1 | 1210.7 | 9.6 | 12.0 | 18.6 |
+| ReverseComplement | 27.0 | 446.0 | 689.8 | 1235.0 | 16.5 | 25.5 | 45.7 |
+| SpectralNorm | 56.2 | 729.1 | 845.6 | 1008.9 | 13.0 | 15.1 | 18.0 |
+| Pidigits | 131.0 | 427.3 | 436.2 | 1579.0 | 3.3 | 3.3 | 12.1 |
+| Mandelbrot | 43.0 | 148.1 | 199.7 | 300.3 | 3.4 | 4.6 | 7.0 |
+| NBody | 33.0 | 224.2 | 503.9 | 517.4 | 6.8 | 15.3 | 15.7 |
+
+`opt` beats the C binary-trees: allocating from eden and scavenging costs less than `malloc` and `free`. At the benchmarks game's size (depth 21: 611 M nodes, `-DMAX_DEPTH=21 -DEXPECTED=611669342`, `BinaryTrees new run: 21 liveDepth: 20`) an iteration takes `opt` 13.4 s, 5.1 of them in 1149 scavenges and 26 full GCs; Pharo 12 23.5 s, 13.5 in its GCs; C 16.4 s.
+
+The listings of the optimized SpectralNorm and Fasta loops show where the rest goes. A Float result is encoded as a SmallFloat64 after every operation (about 15 instructions), even where the next operation takes the double from its register. In a method whose arithmetic saw Floats, SmallInteger operations get a Float path too, loop counters included (`j + 1`, `i + j - 2`, `last * 3877 + 29573 \\ 139968`): tag checks on every operand. Comparisons with a Float path make `true` or `false` and test it instead of branching on the flags. Loop variables come from their frame slots at every use.
+
 ## Compile speed
 
 How fast each JIT compiles the same code (`vm/tests/bench/compile-speed.sh`, `vm/tests/bench/results/compile-speed-2026-11-08.csv`; M2 Max, a fresh VM process per round, 1-minute load ≤ 3). Corpus: the 630 methods of the AWFY benchmark classes (`Core` and the 14 benchmarks), identical sources, each behind an early exit, `probeNil ifNil: [^0]. <the body>` (`compile_speed.py gen`): sent with nil it runs in O(1), while the JIT compiles every bytecode. The table is the 591 methods with no real block on either system, 30 rounds: Pharo's CompiledBlocks are compiled when they run, which here they do not. Bytes and instructions are each system's own bytecode. `opt` runs with `--jit-flags eager` and inlines only where a receiver's class is known statically (32 % more bytecode than the methods'; 57 of 593 units).

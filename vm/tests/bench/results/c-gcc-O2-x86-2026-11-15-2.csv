@@ -1,0 +1,90 @@
+# clbg 2026-11-15 00:51 cc=cc (Debian 12.2.0-14+deb12u1) 12.2.0 flags=-O2 iterations=10
+BinaryTrees,1,574986
+BinaryTrees,2,528069
+BinaryTrees,3,578345
+BinaryTrees,4,580505
+BinaryTrees,5,602181
+BinaryTrees,6,604818
+BinaryTrees,7,628522
+BinaryTrees,8,641710
+BinaryTrees,9,650489
+BinaryTrees,10,670645
+Fasta,1,167937
+Fasta,2,166200
+Fasta,3,162960
+Fasta,4,162777
+Fasta,5,162719
+Fasta,6,158515
+Fasta,7,160060
+Fasta,8,162756
+Fasta,9,158820
+Fasta,10,161347
+KNucleotide,1,123444
+KNucleotide,2,123677
+KNucleotide,3,112257
+KNucleotide,4,104442
+KNucleotide,5,72279
+KNucleotide,6,52065
+KNucleotide,7,63352
+KNucleotide,8,85438
+KNucleotide,9,75489
+KNucleotide,10,65139
+ReverseComplement,1,22519
+ReverseComplement,2,18204
+ReverseComplement,3,18116
+ReverseComplement,4,18322
+ReverseComplement,5,18325
+ReverseComplement,6,18068
+ReverseComplement,7,18076
+ReverseComplement,8,18009
+ReverseComplement,9,18009
+ReverseComplement,10,17914
+SpectralNorm,1,57442
+SpectralNorm,2,56259
+SpectralNorm,3,56333
+SpectralNorm,4,56058
+SpectralNorm,5,56203
+SpectralNorm,6,56117
+SpectralNorm,7,56179
+SpectralNorm,8,56095
+SpectralNorm,9,56050
+SpectralNorm,10,56156
+Pidigits,1,131850
+Pidigits,2,130924
+Pidigits,3,131121
+Pidigits,4,132185
+Pidigits,5,130928
+Pidigits,6,132953
+Pidigits,7,159492
+Pidigits,8,163968
+Pidigits,9,134560
+Pidigits,10,131760
+Mandelbrot,1,43332
+Mandelbrot,2,43056
+Mandelbrot,3,43034
+Mandelbrot,4,43008
+Mandelbrot,5,42949
+Mandelbrot,6,43024
+Mandelbrot,7,42982
+Mandelbrot,8,43161
+Mandelbrot,9,43024
+Mandelbrot,10,43043
+NBody,1,32876
+NBody,2,32902
+NBody,3,32754
+NBody,4,32717
+NBody,5,32766
+NBody,6,32666
+NBody,7,32668
+NBody,8,32693
+NBody,9,32744
+NBody,10,32752
+# benchmark             runs   first_ms  steady_ms   total_ms
+# BinaryTrees              1      575.0      641.7     6060.3
+# Fasta                    1      167.9      160.1     1624.1
+# KNucleotide              1      123.4       65.1      877.6
+# ReverseComplement        1       22.5       18.0      185.6
+# SpectralNorm             1       57.4       56.1      562.9
+# Pidigits                 1      131.8      134.6     1379.7
+# Mandelbrot               1       43.3       43.0      430.6
+# NBody                    1       32.9       32.7      327.5
