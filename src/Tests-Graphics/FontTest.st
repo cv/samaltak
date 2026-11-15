@@ -151,7 +151,58 @@ testInvisibleCharactersHaveNoWidth
 	self deny: (f glyphForCodePoint: 16r301 phase: 0) isBlank
 ! !
 
+!FontTest methodsFor: 'tests - color emoji'!
+testColorEmojiClusters
+	"Which clusters are drawn as color emoji, with how many glyphs (0: text). A ZWJ sequence Twemoji has no ligature for shows its parts; U+FE0E, a bare digit or ©, and a single code point without Emoji_Presentation stay text."
+	| f s end |
+	f := Font code.
+	#(#(16r1F468 16r200D 16r1F469 16r200D 16r1F467 16r200D 16r1F466) 1 #(16r1F1E9 16r1F1EA) 1 #(16r31 16rFE0F 16r20E3) 1
+	  #(16r1F44D 16r1F3FD) 1 #(16r1F600) 1 #(16rA9 16rFE0F) 1 #(16r1F3F4 16rE0067 16rE0062 16rE0073 16rE0063 16rE0074 16rE007F) 1
+	  #(16r1F468 16r200D 16r1F9B0 16r200D 16r1F9B0) 2
+	  #(16r1F600 16rFE0E) 0 #(16r31) 0 #(16r31 16rFE0F) 0 #(16rA9) 0 #(16r263A) 0 #(16r1FAE8) 0) pairsDo: [:cps :n |
+		s := self stringOf: cps.
+		end := f colorClusterEndAt: 1 in: s to: s size.
+		self assert: end equals: (n = 0 ifTrue: [0] ifFalse: [s size]).
+		n > 0 ifTrue: [self assert: (f colorGlyphsFrom: 1 to: end in: s) size equals: n]].
+	"Emoji 15 (shaking face): Twemoji lacks it, the monochrome fallback has it"
+	self assert: (f faceFor: 16r1FAE8) name equals: 'NotoEmoji-Regular.ttf'.
+	"a cluster cut by the end of the range is text"
+	s := self stringOf: #(16r1F44D 16r1F3FD).
+	self assert: (f colorClusterEndAt: 1 in: s to: 1) equals: 0
+!
+testColorEmojiWidthAndIndexAt
+	"An emoji cluster advances by its glyphs (one em here), its other characters nothing; positions at an x are never inside it."
+	| f family s w |
+	f := Font code.
+	family := self stringOf: #(16r1F468 16r200D 16r1F469 16r200D 16r1F467 16r200D 16r1F466).
+	s := 'a' , family , 'b' , (self stringOf: #(16r1F1E9 16r1F1EA 16r31 16rFE0F 16r20E3)).
+	self assert: (f widthOf: family) equals: f size.
+	w := f widthOf: s.
+	self assert: w closeTo: (f advanceOf: $a) + (f advanceOf: $b) + (3 * f size).
+	self assert: (f widthOf: s from: 2 to: 8) equals: f size.
+	0 to: w + 2 by: 0.25 do: [:x | self assert: (#(0 1 8 9 11 14) includes: (f indexAt: x in: s))].
+	self assert: (f indexAt: (f advanceOf: $a) + (f size * 0.4) in: s) equals: 1.
+	self assert: (f indexAt: (f advanceOf: $a) + (f size * 0.6) in: s) equals: 8
+!
+testColorEmojiLayersSitOnTheLine
+	"Layers are rasterized at the em size from Twemoji, centred on the ascent and descent: inside the line box."
+	| f layers info |
+	#(#ui #code #small) do: [:name |
+		f := Font named: name.
+		layers := f colorLayersOf: (f colorGlyphsFrom: 1 to: 1 in: (self stringOf: #(16r1F600))) first.
+		self assert: layers size equals: 6.
+		self assert: (layers select: [:each | each isKindOf: Color]) size equals: 3.
+		info := f colorLayerGlyph: layers first.
+		self assert: (info height between: f size * f scale - 1 and: f size * f scale + 2).
+		self assert: info top >= (f baselineOffset * f scale) floor negated.
+		self assert: info top + info height <= ((f lineHeight - f baselineOffset) * f scale) ceiling.
+		self assert: ((info top + (info height / 2)) - ((f descent - f ascent) * f scale / 2)) abs <= 1.5]
+! !
+
 !FontTest methodsFor: 'support'!
+stringOf: codePoints
+	^String withAll: (codePoints collect: [:cp | Character value: cp])
+!
 centroidX: info
 	| sum weighted |
 	sum := 0.

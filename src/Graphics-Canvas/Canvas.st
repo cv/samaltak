@@ -11,7 +11,7 @@ Canvas comment: 'I am the drawing API widgets see. Coordinates are points (Numbe
 	canvas drawString: ''Hello'' at: 10@10 font: Font ui color: Color black.
 	canvas displayList
 
-Text is drawn glyph by glyph from precomputed vertex templates (GlyphInfo), in Smalltalk; a new batch starts only when the texture source or the clip changes.
+Text is drawn glyph by glyph from precomputed vertex templates (GlyphInfo), in Smalltalk, a color emoji as a quad per layer of its color glyphs (Font>>colorClusterEndAt:in:to:); a new batch starts only when the texture source or the clip changes.
 
 Retained drawing: "record: aBlock" answers a DisplaySegment of what aBlock drew; "replay: aSegment" on a later canvas draws it again (copying its vertices, moved by whole device pixels) when the drawing state matches the recorded one, and answers false otherwise, so the caller draws anew. Segments recorded or replayed inside a record: become its parts. "drawFresh: aBlock" refuses every replay inside aBlock (redraw everything); "noteVolatile" marks the segments being recorded as never replayable (they show values computed while drawing). Canvas replaysSegments: false turns replaying off everywhere (to compare with drawing everything anew).'!
 
@@ -170,7 +170,7 @@ drawString: aString at: aPoint font: aFont color: aColor
 	self drawString: aString from: 1 to: aString size at: aPoint font: aFont color: aColor
 !
 drawString: aString from: start to: stop at: aPoint font: aFont color: aColor
-	| string baseline penX color glyphs advances phases b cp adv q xi phase info template p limit i |
+	| string baseline penX color glyphs advances phases b cp adv q xi phase info template p limit i j |
 	stop < start ifTrue: [^self].
 	string := aFont isUppercase ifTrue: [aString asUppercase] ifFalse: [aString].
 	baseline := self deviceY: aPoint y + aFont baselineOffset.
@@ -185,31 +185,60 @@ drawString: aString from: start to: stop at: aPoint font: aFont color: aColor
 	[i <= stop] whileTrue: [
 		penX >= limit ifTrue: [^self].
 		cp := (string at: i) value.
-		q := penX * phases + 0.5.
-		q := q >= 0 ifTrue: [q truncated] ifFalse: [q floor].
-		xi := q // phases.
-		phase := q - (xi * phases).
-		cp < 256
+		((cp >= 16r203C or: [i < stop and: [(string at: i + 1) value >= 16r203C]])
+				and: [(j := aFont colorClusterEndAt: i in: string to: stop) > 0])
 			ifTrue: [
-				adv := advances at: cp + 1.
-				(info := glyphs at: cp * phases + phase + 1) isNil ifTrue: [info := aFont glyphForCodePoint: cp phase: phase]]
+				penX := self drawColorGlyphs: (aFont colorGlyphsFrom: i to: j in: string) at: penX baseline: baseline font: aFont color: aColor.
+				i := j + 1]
 			ifFalse: [
-				adv := aFont deviceAdvanceOf: cp.
-				info := aFont glyphForCodePoint: cp phase: phase].
-		(template := info template) isNil ifFalse: [
-			info page == texture ifFalse: [self useTexture: info page].
-			(p := next) + 239 > bytes size ifTrue: [self grow].
-			b := bytes.
-			b replaceFrom: p to: p + 39 with: template startingAt: 1.
-			b uint32At: p + 24 put: color.
-			b float32At: p + 32 put: xi.
-			b float32At: p + 36 put: baseline.
-			b replaceFrom: p + 40 to: p + 79 with: b startingAt: p.
-			b replaceFrom: p + 80 to: p + 159 with: b startingAt: p.
-			b replaceFrom: p + 160 to: p + 239 with: b startingAt: p.
-			next := p + 240].
-		penX := penX + adv.
-		i := i + 1]
+				q := penX * phases + 0.5.
+				q := q >= 0 ifTrue: [q truncated] ifFalse: [q floor].
+				xi := q // phases.
+				phase := q - (xi * phases).
+				cp < 256
+					ifTrue: [
+						adv := advances at: cp + 1.
+						(info := glyphs at: cp * phases + phase + 1) isNil ifTrue: [info := aFont glyphForCodePoint: cp phase: phase]]
+					ifFalse: [
+						adv := aFont deviceAdvanceOf: cp.
+						info := aFont glyphForCodePoint: cp phase: phase].
+				(template := info template) isNil ifFalse: [
+					info page == texture ifFalse: [self useTexture: info page].
+					(p := next) + 239 > bytes size ifTrue: [self grow].
+					b := bytes.
+					b replaceFrom: p to: p + 39 with: template startingAt: 1.
+					b uint32At: p + 24 put: color.
+					b float32At: p + 32 put: xi.
+					b float32At: p + 36 put: baseline.
+					b replaceFrom: p + 40 to: p + 79 with: b startingAt: p.
+					b replaceFrom: p + 80 to: p + 159 with: b startingAt: p.
+					b replaceFrom: p + 160 to: p + 239 with: b startingAt: p.
+					next := p + 240].
+				penX := penX + adv.
+				i := i + 1]]
+!
+drawColorGlyphs: anArray at: x baseline: baseline font: aFont color: aColor
+	"Color emoji (Font>>colorClusterEndAt:in:to:) from the pen x (device pixels; at whole pixels): a quad per layer in its palette color with aColor's alpha, aColor itself for the text color layers. Answer the pen after them."
+	| penX text alpha xi layers info c p |
+	penX := x.
+	text := self pack: aColor.
+	alpha := aColor alpha * opacity.
+	anArray do: [:glyph |
+		xi := (penX + 0.5) floor.
+		layers := aFont colorLayersOf: glyph.
+		1 to: layers size by: 2 do: [:k |
+			info := aFont colorLayerGlyph: (layers at: k).
+			c := layers at: k + 1.
+			info isBlank ifFalse: [
+				info page == texture ifFalse: [self useTexture: info page].
+				p := self reserveQuad.
+				bytes replaceFrom: p to: p + 39 with: info template startingAt: 1.
+				bytes uint32At: p + 24 put: (c isNil ifTrue: [text] ifFalse: [c premultipliedRGBA8Times: alpha]).
+				bytes float32At: p + 32 put: xi.
+				bytes float32At: p + 36 put: baseline.
+				self replicateVertexAt: p]].
+		penX := penX + (aFont deviceAdvanceOfColorGlyph: glyph)].
+	^penX
 !
 drawString: aString in: aRectangle font: aFont color: aColor align: alignSymbol
 	"Draw aString in one line, vertically centered in aRectangle, aligned #left, #center or #right."

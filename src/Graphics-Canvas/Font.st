@@ -1,13 +1,15 @@
 Object subclass: #Font
 	instanceVariableNames: 'face size scale letterSpacing lineHeight baselineOffset uppercase pixelsPerUnit phases glyphTable wideGlyphs deviceAdvances wideAdvances atlas'
-	classVariableNames: 'DeviceScale Faces Fallbacks FontsDirectory RasterizeLock Standard SubpixelPhases'
+	classVariableNames: 'DeviceScale Emoji Faces Fallbacks FontsDirectory RasterizeLock Standard SubpixelPhases'
 	package: 'Graphics-Canvas'!
 
 Font comment: 'I am a TrueTypeFont at a pixel size (CSS px = points) for a device scale (2 on Retina), with optional letter spacing and capitals (for tracked-caps headers). I answer metrics in points (ascent, descent, lineHeight, widthOf:) and supply Canvas with rasterized glyphs: each glyph is rasterized lazily at device resolution for one of SubpixelPhases horizontal subpixel offsets and kept in the shared GlyphAtlas.
 
 The standard fonts (Font ui, uiBold, uiItalic, code, codeBold, codeItalic, header, title, small, smallItalic) follow docs/ui.md and the prototype''s blue-book/pi-orb styles. Stage 2 parses the faces from fonts/ and pre-rasterizes ASCII and the UI symbols, so the atlas lives in the image.
 
-A code point my face lacks is drawn from the first fallback face that has it (fallbackFaceNames), at the same em size on the same baseline, with that glyph''s advance. Fallback faces other than the standard ones are read from fonts/ on first use and dropped before a snapshot. Controls and invisible format characters (isInvisible:) draw nothing and advance 0; a code point no face has draws as a box with its hex digits.'!
+A code point my face lacks is drawn from the first fallback face that has it (fallbackFaceNames), at the same em size on the same baseline, with that glyph''s advance. Fallback faces other than the standard ones are read from fonts/ on first use and dropped before a snapshot. Controls and invisible format characters (isInvisible:) draw nothing and advance 0; a code point no face has draws as a box with its hex digits.
+
+A grapheme cluster that ColorEmoji (Font class>>emoji, the Twemoji face) takes for an emoji is drawn as its color glyphs instead: each glyph''s layers rasterized at my em size (subpixel phase 0) and centred on my ascent and descent, drawn in their palette colors; it advances by the glyphs'' advances. Width, hit-testing (widthOf:from:to:, indexAt:in:) and Canvas>>drawString: agree on it; colorClusterEndAt:in:to: finds such a cluster.'!
 
 !Font methodsFor: 'initialization'!
 setFace: aTrueTypeFont size: pixelSize scale: deviceScale
@@ -136,13 +138,34 @@ widthOf: aString
 	^self widthOf: aString from: 1 to: aString size
 !
 widthOf: aString from: start to: stop
-	| sum string cp |
+	"Below U+203C character by character; from the character before the first one beyond, cluster by cluster (color emoji)."
+	| sum last string cp |
 	string := uppercase ifTrue: [aString asUppercase] ifFalse: [aString].
-	sum := 0.0.
+	sum := last := 0.0.
 	start to: stop do: [:i |
 		cp := (string at: i) value.
+		cp >= 16r203C ifTrue: [
+			^(i > start ifTrue: [last] ifFalse: [sum]) + (self deviceWidthOf: string from: (i - 1 max: start) to: stop) / scale].
+		last := sum.
 		sum := sum + (cp < 256 ifTrue: [deviceAdvances at: cp + 1] ifFalse: [self deviceAdvanceOf: cp])].
 	^sum / scale
+!
+deviceWidthOf: string from: start to: stop
+	"Device pixels, as Canvas>>drawString: advances: a color emoji cluster by its glyphs, other characters by theirs."
+	| sum cp i j |
+	sum := 0.0.
+	i := start.
+	[i <= stop] whileTrue: [
+		cp := (string at: i) value.
+		((cp >= 16r203C or: [i < stop and: [(string at: i + 1) value >= 16r203C]])
+				and: [(j := self colorClusterEndAt: i in: string to: stop) > 0])
+			ifTrue: [
+				sum := sum + (self deviceAdvanceOfColorCluster: string from: i to: j).
+				i := j + 1]
+			ifFalse: [
+				sum := sum + (cp < 256 ifTrue: [deviceAdvances at: cp + 1] ifFalse: [self deviceAdvanceOf: cp]).
+				i := i + 1]].
+	^sum
 !
 indexAt: x in: aString
 	"Answer the grapheme cluster boundary nearest to x points from the start of aString (0 = before the first character)."
@@ -151,8 +174,7 @@ indexAt: x in: aString
 	i := 0.
 	[i < aString size] whileTrue: [
 		j := aString graphemeClusterEndAfter: i.
-		advance := 0.
-		i + 1 to: j do: [:k | advance := advance + (self advanceOf: (aString at: k))].
+		advance := self widthOf: aString from: i + 1 to: j.
 		x < (pen + (advance / 2)) ifTrue: [^i].
 		pen := pen + advance.
 		i := j].
@@ -172,12 +194,16 @@ glyphForCodePoint: codePoint phase: phase
 !
 rasterizeCodePoint: codePoint phase: phase
 	"Rasterize the glyph with its origin phase / phases device pixels right of a pixel boundary; answer a GlyphInfo."
-	| f ppu glyph box contours dx left top right bottom w h rasterizer |
+	| f |
 	(self class isInvisible: codePoint) ifTrue: [^GlyphInfo blank].
 	f := self faceFor: codePoint.
 	f isNil ifTrue: [^self rasterizeMissing: codePoint].
+	^self rasterizeGlyph: (f glyphIndexFor: codePoint) of: f phase: phase raisedBy: 0
+!
+rasterizeGlyph: glyph of: f phase: phase raisedBy: raise
+	"Rasterize glyph of the face f, its origin phase / phases device pixels right of a pixel boundary and raise device pixels above the baseline; answer a GlyphInfo."
+	| ppu box contours dx left top right bottom w h rasterizer |
 	ppu := self pixelsPerUnitOf: f.
-	glyph := f glyphIndexFor: codePoint.
 	box := f boundsOf: glyph.
 	box isNil ifTrue: [^GlyphInfo blank].
 	contours := f contoursOf: glyph.
@@ -192,7 +218,7 @@ rasterizeCodePoint: codePoint phase: phase
 	rasterizer := GlyphRasterizer width: w height: h.
 	contours do: [:each |
 		rasterizer addContour: each scale: ppu offsetX: dx - left offsetY: top negated].
-	^self glyphInfo: rasterizer coverage left: left top: top width: w height: h
+	^self glyphInfo: rasterizer coverage left: left top: top - raise width: w height: h
 !
 glyphInfo: coverage left: left top: top width: w height: h
 	"Store a w×h coverage in the atlas; answer its GlyphInfo (left, top: device pixels from the pen on the baseline)."
@@ -247,6 +273,52 @@ prerasterize: aString
 		0 to: phases - 1 do: [:phase | self glyphForCodePoint: ch value phase: phase]]
 ! !
 
+!Font methodsFor: 'color emoji'!
+colorClusterEndAt: i in: aString to: stop
+	"Answer the end of the grapheme cluster at i if it ends by stop and is drawn as color emoji, else 0. Every emoji cluster has a code point from U+203C on, so callers ask only when the character at i or the next one has; here the first two code points must look like an emoji's before the cluster is found."
+	| cp next j emoji |
+	cp := (aString at: i) value.
+	next := i < stop ifTrue: [(aString at: i + 1) value] ifFalse: [0].
+	((cp between: 16r231A and: 16r2B55) or: [(cp between: 16r1F004 and: 16r1FAFF)
+		or: [next = 16rFE0F or: [next = 16r200D or: [next = 16r20E3
+		or: [(next between: 16r1F3FB and: 16r1F3FF) or: [next between: 16rE0020 and: 16rE007F]]]]]]) ifFalse: [^0].
+	(emoji := self class emoji) isNil ifTrue: [^0].
+	j := aString graphemeClusterEndAfter: i - 1.
+	(j > stop or: [(emoji glyphsOf: aString from: i to: j) isNil]) ifTrue: [^0].
+	^j
+!
+colorGlyphsFrom: start to: stop in: aString
+	"The color glyphs of the emoji cluster start .. stop (see colorClusterEndAt:in:to:)."
+	^self class emoji glyphsOf: aString from: start to: stop
+!
+colorLayersOf: glyph
+	"A color glyph's layers: layer glyph, Color (nil: the text color), ..."
+	^self class emoji layersOf: glyph
+!
+deviceAdvanceOfColorGlyph: glyph
+	| f |
+	f := self class emoji face.
+	^(f advanceWidthOf: glyph) * (self pixelsPerUnitOf: f) + (letterSpacing * scale)
+!
+deviceAdvanceOfColorCluster: aString from: start to: stop
+	^(self colorGlyphsFrom: start to: stop in: aString) inject: 0 into: [:sum :each | sum + (self deviceAdvanceOfColorGlyph: each)]
+!
+colorLayerGlyph: layerGlyph
+	"Answer the GlyphInfo of a layer of a color glyph (subpixel phase 0), rasterizing it on first use; kept with my glyphs under a negative key."
+	| key |
+	key := (layerGlyph + 1) negated.
+	(wideGlyphs at: key ifAbsent: [nil]) ifNotNil: [:info | ^info].
+	^self class rasterizing: [
+		(wideGlyphs at: key ifAbsent: [nil]) ifNil: [wideGlyphs at: key put: (self rasterizeColorLayer: layerGlyph)]]
+!
+rasterizeColorLayer: layerGlyph
+	"At my em size, the middle of the emoji face's typographic box raised to the middle of my ascent and descent."
+	| f raise |
+	f := self class emoji face.
+	raise := ((face ascender + face descender) * pixelsPerUnit - ((f typoAscender + f typoDescender) * (self pixelsPerUnitOf: f))) / 2.
+	^self rasterizeGlyph: layerGlyph of: f phase: 0 raisedBy: raise rounded
+! !
+
 !Font methodsFor: 'inspecting'!
 glyphFor: aCharacter
 	"Answer aCharacter's glyph as Canvas draws it: a GlyphForm of its coverage."
@@ -289,6 +361,13 @@ subpixelPhases: anInteger
 ! !
 
 !Font class methodsFor: 'faces'!
+emoji
+	"Answer the ColorEmoji of fonts/Twemoji.ttf, or nil without it. Not a fallback face: it maps digits, joiners and tags to empty glyphs."
+	Emoji isNil ifTrue: [
+		self rasterizing: [
+			Emoji isNil ifTrue: [Emoji := (self fallbackFaceNamed: 'Twemoji') ifNil: [false] ifNotNil: [:f | ColorEmoji face: f]]]].
+	^Emoji == false ifTrue: [nil] ifFalse: [Emoji]
+!
 fontsDirectory
 	"Answer the directory with the .ttf files: fonts/ in the current directory, else next to the image's build directory."
 	| image |
@@ -445,6 +524,7 @@ buildStandardFonts
 	| chars fonts |
 	Faces := nil.
 	Fallbacks := nil.
+	Emoji := nil.
 	Standard := nil.
 	GlyphAtlas reset.
 	chars := self prerasterizedCharacters.
@@ -458,6 +538,7 @@ buildStandardFonts
 shutDown: quitting
 	"Drop the fallback faces read since startup (read again on use), so the image keeps only the standard faces' bytes. Glyphs rasterized from them stay in the atlas."
 	Fallbacks := nil.
+	Emoji := nil.
 	Faces isNil ifFalse: [
 		(Faces keys reject: [:each | self isStandardFace: each]) do: [:each | Faces removeKey: each]]
 ! !

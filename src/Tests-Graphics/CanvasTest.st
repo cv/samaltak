@@ -11,6 +11,24 @@ setUp
 ! !
 
 !CanvasTest methodsFor: 'tests'!
+testColorEmojiQuads
+	"A color emoji is a quad per layer in its palette colors, whatever the text color, at a whole pixel; the text goes on where widthOf: says."
+	| s f list colors last other |
+	f := Font code.
+	s := 'a' , (String withAll: (#(16r1F468 16r200D 16r1F469 16r200D 16r1F467 16r200D 16r1F466) collect: [:cp | Character value: cp])) , 'x'.
+	canvas drawString: s at: 0.3 @ 0 font: f color: Color black.
+	list := canvas displayList.
+	self assert: list quadCount equals: 2 + ((f colorLayersOf: (f colorGlyphsFrom: 2 to: 8 in: s) first) size // 2).
+	colors := (2 to: list quadCount - 1) collect: [:i | (list quadAt: i) at: #color].
+	self assert: colors asSet size > 3.
+	self assert: ((list quadAt: 2) at: #origin) x equals: ((0.3 + (f widthOf: 'a')) * 2) rounded.
+	last := list quadAt: list quadCount.
+	self assert: ((last at: #origin) x - ((0.3 + (f widthOf: s from: 1 to: 8)) * 2)) abs <= 0.5.
+	other := Canvas extent: 200 @ 100 scale: 2.
+	other drawString: s at: 0.3 @ 0 font: f color: Color red.
+	list := other displayList.
+	self assert: ((2 to: list quadCount - 1) collect: [:i | (list quadAt: i) at: #color]) equals: colors
+!
 testFillRectSnapsToDevicePixels
 	| list q |
 	canvas fillRect: (0.3 @ 0.3 extent: 10 @ 10) color: Color black.

@@ -91,6 +91,16 @@ testGlyphInk
 	self assert: (ink - info inkSum) abs <= (info width * info height).
 	self assert: ink > (255 * 20)
 !
+testColorEmojiPixels
+	"A color emoji draws pixels of several colors that are not grays (the smiley: yellow face, brown eyes and mouth)."
+	| form colors |
+	form := self render: [:c | c drawString: (String with: (Character value: 16r1F600)) at: 2 @ 2 font: Font code color: Color black] extent: 20 @ 20.
+	colors := Set new.
+	0 to: 39 do: [:y | 0 to: 39 do: [:x | | v |
+		v := self rgbaAt: x @ y in: form.
+		((v at: 1) - (v at: 2)) abs + ((v at: 2) - (v at: 3)) abs > 60 ifTrue: [colors add: (v at: 1) // 32 * 64 + ((v at: 2) // 32 * 8) + ((v at: 3) // 32)]]].
+	self assert: colors size >= 2
+!
 testColoredText
 	| form darkest |
 	form := self render: [:c | c drawString: 'l' at: 0 @ 0 font: Font codeBold color: Color ultramarine] extent: 20 @ 20.
