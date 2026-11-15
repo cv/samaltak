@@ -1924,6 +1924,7 @@ void prim_scavenge(void);
 void prim_snapshot(void);
 void prim_stderr_write(void);
 void prim_stdout_write(void);
+void prim_thread_cpu_time(void);
 void prim_utc_microseconds(void);
 void prim_vm_arguments(void);
 void prim_vm_banner(void);

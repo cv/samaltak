@@ -121,6 +121,7 @@ primitive_entry vm_primitive_table[] = {
     {150, 2, "millisecondClock", prim_millisecond_clock},
     {151, 2, "microsecondClock", prim_microsecond_clock},
     {152, 2, "utcMicroseconds", prim_utc_microseconds},
+    {153, 2, "threadCpuTime", prim_thread_cpu_time},
     {160, 0, "quit", prim_quit},
     {161, 0, "snapshot", prim_snapshot},
     {162, 2, "gc", prim_gc},

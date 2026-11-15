@@ -220,6 +220,25 @@ void prim_stdout_write(void)
 exit_write_to:;
 }
 
+/* SystemPrimitives>>primThreadCpuTime */
+void prim_thread_cpu_time(void)
+{
+    int64_t r_real_thread_cpu_us;
+    struct timespec local;
+    struct timespec *ts;
+    int64_t v;
+    uint64_t v_2;
+    v = ({
+    memset(&local, 0, sizeof local);
+    ts = &local;
+    clock_gettime(CLOCK_THREAD_CPUTIME_ID, ts);
+    r_real_thread_cpu_us = ts->tv_sec * 1000000 + ts->tv_nsec / 1000;
+    r_real_thread_cpu_us; });
+    v_2 = (uint64_t)((v << 1) | 1);
+    prim_result = v_2;
+    prim_status = PS_OK;
+}
+
 /* SystemPrimitives>>primUtcMicroseconds */
 void prim_utc_microseconds(void)
 {

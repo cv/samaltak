@@ -113,6 +113,17 @@ testTime
 	self assert: (Time millisecondsToRun: [(Delay forMilliseconds: 10) wait]) >= 9.
 	self assert: Time utcMicroseconds > 1700000000000000
 !
+testThreadCpuTime
+	"The VM thread's CPU time covers the active Process's."
+	| t0 p0 t1 p1 |
+	t0 := Smalltalk vm threadCpuMicroseconds.
+	p0 := Processor activeProcess cpuMicroseconds.
+	[Processor activeProcess cpuMicroseconds - p0 < 20000] whileTrue.
+	t1 := Smalltalk vm threadCpuMicroseconds.
+	p1 := Processor activeProcess cpuMicroseconds.
+	self assert: t1 - t0 >= (p1 - p0 - 1000).
+	self assert: t1 - t0 < 10000000
+!
 testDate
 	| d |
 	d := Date year: 2026 month: 10 day: 22.

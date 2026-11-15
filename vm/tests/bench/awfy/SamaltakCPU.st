@@ -2,6 +2,6 @@
 
 !AwfyPlatform class methodsFor: 'benchmarking'!
 microseconds
-	"The CPU time of my thread: what my Process used plus the JIT's compiling, which no Process is charged."
-	^Processor activeProcess cpuMicroseconds + Smalltalk vm statistics jitCompileMicroseconds
+	"The CPU time of the thread running Smalltalk, garbage collection, the JIT's compiling and other Processes (the profiler's sampling) included, as PharoCPU.st measures Pharo."
+	^Smalltalk vm threadCpuMicroseconds
 ! !

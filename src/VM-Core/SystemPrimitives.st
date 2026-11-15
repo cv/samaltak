@@ -23,6 +23,11 @@ primUtcMicroseconds
 	posix gettimeofday: tv zone: self null.
 	self answer: (self intOop: (tv tv_sec * 1000000) + tv tv_usec)
 !
+primThreadCpuTime
+	"The VM thread's CPU time (µs): every Process's, the GC's and the JIT's."
+	<vmPrimitive: 153 name: 'threadCpuTime'>
+	self answer: (self intOop: scheduler realThreadCpuUs)
+!
 primWorkClockStart
 	"(fps, semaphore index) The work clock starts: answer its time in µs."
 	<vmPrimitive: 567 name: 'workClockStart'>

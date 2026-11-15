@@ -149,6 +149,11 @@ primStatistics
 	"Answer the counters as an Array (see prims.def)."
 	<primitive: 'vmStats'>
 	^#()
+!
+threadCpuMicroseconds
+	"Answer the CPU time of the VM's thread: every Process's, the garbage collector's and the JIT's."
+	<primitive: 'threadCpuTime'>
+	^self primitiveFailed
 ! !
 
 !VirtualMachine methodsFor: 'jit'!
