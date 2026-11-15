@@ -150,6 +150,15 @@ testRemovalAgainstAModel
 		capacity := class new capacity.
 		self check: class with: rnd keys: ((1 to: capacity // 2) collect: [:i | capacity * i + capacity - 1]) operations: 2000.
 		self check: class with: rnd keys: (1 to: 300) asArray operations: 5000]
+!
+testHashMultiply
+	self assert: 0 hashMultiply = 0.
+	self assert: 1 hashMultiply = 1664525.
+	self assert: 2 hashMultiply = (1664525 * 2).
+	{-1. 16rFFFFFFF. 16r10000000. SmallInteger maxVal. SmallInteger minVal. 2 raisedTo: 100. (2 raisedTo: 100) negated} do: [:n |
+		self assert: (n hashMultiply between: 0 and: 16rFFFFFFF)].
+	self deny: 1 hashMultiply = (1 + (1 bitShift: 28)) hashMultiply.
+	self deny: 1 hashMultiply = (1 + (1 bitShift: 40)) hashMultiply
 ! !
 
 !HashingTest methodsFor: 'distribution'!

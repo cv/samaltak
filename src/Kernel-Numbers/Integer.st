@@ -96,6 +96,10 @@ hash
 	1 to: self digitLength do: [:i | h := (h * 31 + (self digitAt: i)) bitAnd: 16r3FFFFFFF].
 	^h
 !
+hashMultiply
+	"See SmallInteger>>hashMultiply; of me, only the low 60 bits count."
+	^(self bitAnd: 16rFFFFFFFFFFFFFFF) hashMultiply
+!
 compareInteger: anInteger
 	"Answer -1, 0 or 1 comparing the receiver with anInteger."
 	<primitive: 'largeCompare'>
