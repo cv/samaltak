@@ -170,6 +170,8 @@ void prim_snapshot(void)
 void prim_stderr_write(void)
 {
     oop s;
+    size_t local;
+    size_t *n;
     char *u;
     oop v;
     s = prim_nargs > 0 ? prim_base[1] : prim_base[0];
@@ -178,13 +180,15 @@ void prim_stderr_write(void)
         prim_error_code = -1;
         goto exit_write_to;
     }
-    u = utf8_of(s);
+    memset(&local, 0, sizeof local);
+    n = &local;
+    u = utf8_bytes_of(s, n);
     if (u == NULL) {
         prim_status = PS_FAIL;
         prim_error_code = PRIM_ERR_NO_MEMORY;
         goto exit_write_to;
     }
-    fputs(u, stderr);
+    fwrite(u, 1, *n, stderr);
     fflush(stderr);
     free(u);
     v = prim_base[0];
@@ -197,6 +201,8 @@ exit_write_to:;
 void prim_stdout_write(void)
 {
     oop s;
+    size_t local;
+    size_t *n;
     char *u;
     oop v;
     s = prim_nargs > 0 ? prim_base[1] : prim_base[0];
@@ -205,13 +211,15 @@ void prim_stdout_write(void)
         prim_error_code = -1;
         goto exit_write_to;
     }
-    u = utf8_of(s);
+    memset(&local, 0, sizeof local);
+    n = &local;
+    u = utf8_bytes_of(s, n);
     if (u == NULL) {
         prim_status = PS_FAIL;
         prim_error_code = PRIM_ERR_NO_MEMORY;
         goto exit_write_to;
     }
-    fputs(u, stdout);
+    fwrite(u, 1, *n, stdout);
     fflush(stdout);
     free(u);
     v = prim_base[0];

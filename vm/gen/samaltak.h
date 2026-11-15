@@ -1798,6 +1798,7 @@ uint64_t string_from_utf8(const char *str, size_t n);
 uint32_t string_hash(oop s);
 size_t string_size(oop s);
 bool u64_of(oop o, uint64_t *out);
+char *utf8_bytes_of(oop s, size_t *size);
 char *utf8_of(oop s);
 size_t word32_size(oop o);
 void prim_all_instances(void);

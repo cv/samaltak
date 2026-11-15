@@ -132,7 +132,11 @@ fread: buf size: size count: n file: f
 !
 fwrite: buf size: size count: n file: f
 	<c: 'size_t fwrite(const void *buf, size_t size, size_t n, FILE *f)'>
-	(self streamFor: f) nextPutAll: (self memory bytesAt: (self memory addressOf: buf) count: size * n).
+	| bytes |
+	bytes := self memory bytesAt: (self memory addressOf: buf) count: size * n.
+	((self fileFor: f) == sim stdoutFile or: [(self fileFor: f) == sim stderrFile])
+		ifTrue: [self write: bytes utf8Decoded to: f]
+		ifFalse: [(self streamFor: f) nextPutAll: bytes].
 	^n
 !
 fseek: f offset: offset whence: whence

@@ -191,12 +191,13 @@ primImagePath
 	self answer: (memory stringFromUtf8: p size: (libc strlen: p))
 !
 writeTo: f
-	| s u |
+	| s u n |
 	s := self argCount > 0 ifTrue: [self arg: 0] ifFalse: [self receiver].
 	((self isPtr: s) and: [(memory isKindOfString: s) or: [(self rawClass: s) = memory clsBytearray]]) ifFalse: [^self fail].
-	u := memory utf8Of: s.
+	n := self local: 'size_t'.
+	u := memory utf8BytesOf: s size: n.
 	u isNull ifTrue: [^self failCode: PRIM_ERR_NO_MEMORY].
-	libc fputs: u to: f.
+	libc fwrite: u size: 1 count: n value file: f.
 	libc fflush: f.
 	libc free: u.
 	self answer: self receiver

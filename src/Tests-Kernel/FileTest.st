@@ -44,6 +44,28 @@ testUTF8
 		self assert: (s next: 2) = 'hé'.
 		self assert: s position = 3]
 !
+testNamesThatAreNotUTF8
+	"The VM decodes OS names with surrogateescape: each byte of an ill-formed sequence is U+DC80-DCFF, written back as that byte."
+	| raw name |
+	raw := (dir , '/') utf8Encoded , #[16r62 16rFF 16rED 16rA0 16r80 16rC3 16rA9].
+	File writeBytes: #[1 2 3] to: raw.
+	name := String withAll: ({$b. 16rDCFF. 16rDCED. 16rDCA0. 16rDC80. 16rE9} collect: [:c | c isCharacter ifTrue: [c] ifFalse: [Character value: c]]).
+	self assert: (Directory entries: dir) asArray equals: {name}.
+	self assert: (File readBytes: dir / name) equals: #[1 2 3].
+	File delete: dir / name.
+	self deny: (File exists: raw).
+	"Other surrogates are written as U+FFFD."
+	File writeText: 'x' to: dir / (String with: $s with: (Character value: 16rD800)).
+	self assert: (Directory entries: dir) asArray equals: {String with: $s with: (Character value: 16rFFFD)}
+!
+testNulInPathIsRefused
+	| path |
+	path := dir / (String with: $a with: (Character value: 0) with: $b).
+	self should: [File writeText: 'x' to: path] raise: FileError.
+	self deny: (File exists: dir / 'a').
+	self should: [File writeText: 'x' to: (dir / 'a') utf8Encoded , #[0 16r62]] raise: FileError.
+	self deny: (File exists: dir / 'a')
+!
 testStreamOperations
 	| path |
 	path := dir / 'lines.txt'.

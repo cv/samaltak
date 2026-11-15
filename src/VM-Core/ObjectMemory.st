@@ -478,26 +478,36 @@ stringHash: s
 	^h bitAnd: 16r3FFFFFFF
 !
 utf8Decode: s size: n at: index
-	"Decode the code point at *index, advancing it; malformed bytes stand for themselves."
+	"Decode the code point at *index, advancing it. A byte that does not begin a well-formed sequence (an overlong form, a surrogate, above 10FFFF, truncated, a stray continuation byte) decodes alone, to U+DC80-DCFF (Python's surrogateescape: utf8Of: writes the byte back, so OS names that are not UTF-8 round-trip)."
 	<function>
 	<returns: 'size_t'>
-	| i c len cp d |
+	<var: #lo type: 'uint32_t'>
+	<var: #hi type: 'uint32_t'>
+	| i c len cp d lo hi |
 	i := index value.
 	c := (s at: i) asUInt32.
-	len := c < 16r80 ifTrue: [1] ifFalse: [
-		(c >> 5) = 6 ifTrue: [2] ifFalse: [
-			(c >> 4) = 14 ifTrue: [3] ifFalse: [
-				(c >> 3) = 30 ifTrue: [4] ifFalse: [0]]]].
-	(len <= 1 or: [i + len asUInt64 > n]) ifTrue: [
-		index value: i + 1.
-		^c].
+	index value: i + 1.
+	c < 16r80 ifTrue: [^c].
+	len := 0.
+	lo := 16r80.
+	hi := 16rBF.
+	(c >= 16rC2 and: [c <= 16rDF]) ifTrue: [len := 2].
+	(c >= 16rE0 and: [c <= 16rEF]) ifTrue: [
+		len := 3.
+		c = 16rE0 ifTrue: [lo := 16rA0].
+		c = 16rED ifTrue: [hi := 16r9F]].
+	(c >= 16rF0 and: [c <= 16rF4]) ifTrue: [
+		len := 4.
+		c = 16rF0 ifTrue: [lo := 16r90].
+		c = 16rF4 ifTrue: [hi := 16r8F]].
+	(len = 0 or: [i + len asUInt64 > n]) ifTrue: [^16rDC00 + c].
 	cp := c bitAnd: (16r7F >> len).
 	1 to: len - 1 do: [:k |
 		d := (s at: i + k asUInt64) asUInt32.
-		(d bitAnd: 16rC0) ~= 16r80 ifTrue: [
-			index value: i + 1.
-			^c].
-		cp := (cp << 6) bitOr: (d bitAnd: 16r3F)].
+		(d < lo or: [d > hi]) ifTrue: [^16rDC00 + c].
+		cp := (cp << 6) bitOr: (d bitAnd: 16r3F).
+		lo := 16r80.
+		hi := 16rBF].
 	index value: i + len asUInt64.
 	^cp
 !
@@ -531,12 +541,26 @@ stringFromUtf8: str size: n
 	^r
 !
 utf8Of: s
-	"malloc'd, NUL-terminated (NULL if out of memory); ByteString/Symbol/WideString/ByteArray."
+	"utf8BytesOf:size: as a C string: NULL also if s holds a U+0000 (a NUL byte), which would cut it short."
+	<function>
+	| n r |
+	n := self local: 'size_t'.
+	r := self utf8BytesOf: s size: n.
+	(r notNull and: [(libc strlen: r) ~= n value]) ifTrue: [
+		libc free: r.
+		^self null].
+	^r
+!
+utf8BytesOf: s size: size
+	"malloc'd, NUL-terminated (NULL if out of memory), its length in *size; ByteString/Symbol/WideString/ByteArray (its bytes). U+DC80-DCFF become the byte they escape (utf8Decode:), other surrogates and code points above 10FFFF U+FFFD."
 	<function>
 	| n r p c |
-	(self isPtr: s) ifFalse: [^libc strdup: ''].
+	(self isPtr: s) ifFalse: [
+		size value: 0.
+		^libc strdup: ''].
 	(self rawClass: s) = clsBytearray ifTrue: [
 		n := self byteSize: s.
+		size value: n.
 		r := self cCoerce: (libc malloc: n + 1) to: 'uint8_t *'.
 		r isNull ifTrue: [^self null].
 		libc memcpy: r from: (self bytesOf: s) size: n.
@@ -548,8 +572,9 @@ utf8Of: s
 	p := r.
 	0 to: n asInt64 - 1 do: [:i |
 		c := self stringCharAt: s index: i asUInt64.
-		c < 16r80
-			ifTrue: [p value: c asUInt8. p := p + 1]
+		(c > 16r10FFFF or: [c >= 16rD800 and: [c <= 16rDFFF and: [c < 16rDC80 or: [c > 16rDCFF]]]]) ifTrue: [c := 16rFFFD].
+		(c < 16r80 or: [c >= 16rDC80 and: [c <= 16rDCFF]])
+			ifTrue: [p value: (c bitAnd: 16rFF) asUInt8. p := p + 1]
 			ifFalse: [
 				c < 16r800
 					ifTrue: [
@@ -570,6 +595,7 @@ utf8Of: s
 								(p + 3) value: (16r80 bitOr: (c bitAnd: 16r3F)) asUInt8.
 								p := p + 4]]]].
 	p value: 0.
+	size value: (p - r) asUInt64.
 	^self cCoerce: r to: 'char *'
 ! !
 

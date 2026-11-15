@@ -701,37 +701,8 @@ bool u64_of(oop o, uint64_t *out)
     return large_magnitude(o, out, neg) && (!*neg);
 }
 
-/* ObjectMemory>>utf8Decode:size:at: */
-static size_t utf8_decode(uint8_t *s, size_t n, size_t *index)
-{
-    size_t i;
-    uint32_t c;
-    int len;
-    int64_t cp;
-    int k;
-    uint32_t d;
-    i = *index;
-    c = (uint32_t)s[i];
-    len = c < 0x80 ? 1 : (c >> 5) == 6 ? 2 : (c >> 4) == 14 ? 3 : (c >> 3) == 30 ? 4 : 0;
-    if ((len <= 1) || (i + (uint64_t)len > n)) {
-        *index = i + 1;
-        return c;
-    }
-    cp = c & (127LL >> len);
-    for (k = 1; k <= len - 1; k++) {
-        d = (uint32_t)s[i + (uint64_t)k];
-        if ((d & 0xC0) != 0x80) {
-            *index = i + 1;
-            return c;
-        }
-        cp = (cp << 6) | (d & 0x3F);
-    }
-    *index = i + (uint64_t)len;
-    return cp;
-}
-
-/* ObjectMemory>>utf8Of: */
-char *utf8_of(oop s)
+/* ObjectMemory>>utf8BytesOf:size: */
+char *utf8_bytes_of(oop s, size_t *size)
 {
     size_t n;
     uint8_t *r;
@@ -739,10 +710,12 @@ char *utf8_of(oop s)
     int64_t i;
     uint32_t c;
     if (!((s & 7) == 0)) {
+        *size = 0;
         return strdup("");
     }
     if (*(uint64_t *)(s + 8) == cls_bytearray) {
         n = byte_size(s);
+        *size = n;
         r = (uint8_t *)malloc(n + 1);
         if (r == NULL) {
             return (char *)NULL;
@@ -759,8 +732,11 @@ char *utf8_of(oop s)
     p = r;
     for (i = 0; i <= (int64_t)n - 1; i++) {
         c = string_char_at(s, (uint64_t)i);
-        if (c < 0x80) {
-            *p = (uint8_t)c;
+        if ((c > 0x10FFFF) || ((c >= 0xD800) && ((c <= 0xDFFF) && ((c < 0xDC80) || (c > 0xDCFF))))) {
+            c = 0xFFFD;
+        }
+        if ((c < 0x80) || ((c >= 0xDC80) && (c <= 0xDCFF))) {
+            *p = (uint8_t)(c & 0xFF);
             p = p + 1;
         } else if (c < 0x800) {
             *p = (uint8_t)(0xC0 | (c >> 6));
@@ -780,7 +756,82 @@ char *utf8_of(oop s)
         }
     }
     *p = 0;
+    *size = (uint64_t)(p - r);
     return (char *)r;
+}
+
+/* ObjectMemory>>utf8Decode:size:at: */
+static size_t utf8_decode(uint8_t *s, size_t n, size_t *index)
+{
+    uint32_t lo;
+    uint32_t hi;
+    size_t i;
+    uint32_t c;
+    int64_t len;
+    int64_t cp;
+    int64_t k;
+    uint32_t d;
+    i = *index;
+    c = (uint32_t)s[i];
+    *index = i + 1;
+    if (c < 0x80) {
+        return c;
+    }
+    len = 0;
+    lo = 0x80;
+    hi = 0xBF;
+    if ((c >= 0xC2) && (c <= 0xDF)) {
+        len = 2;
+    }
+    if ((c >= 0xE0) && (c <= 0xEF)) {
+        len = 3;
+        if (c == 0xE0) {
+            lo = 0xA0;
+        }
+        if (c == 0xED) {
+            hi = 0x9F;
+        }
+    }
+    if ((c >= 0xF0) && (c <= 0xF4)) {
+        len = 4;
+        if (c == 0xF0) {
+            lo = 0x90;
+        }
+        if (c == 0xF4) {
+            hi = 0x8F;
+        }
+    }
+    if ((len == 0) || (i + (uint64_t)len > n)) {
+        return 0xDC00 + c;
+    }
+    cp = c & (127LL >> len);
+    for (k = 1; k <= len - 1; k++) {
+        d = (uint32_t)s[i + (uint64_t)k];
+        if ((d < lo) || (d > hi)) {
+            return 0xDC00 + c;
+        }
+        cp = (cp << 6) | (d & 0x3F);
+        lo = 0x80;
+        hi = 0xBF;
+    }
+    *index = i + (uint64_t)len;
+    return cp;
+}
+
+/* ObjectMemory>>utf8Of: */
+char *utf8_of(oop s)
+{
+    size_t local;
+    size_t *n;
+    char *r;
+    memset(&local, 0, sizeof local);
+    n = &local;
+    r = utf8_bytes_of(s, n);
+    if ((r != NULL) && (strlen(r) != *n)) {
+        free(r);
+        return (char *)NULL;
+    }
+    return r;
 }
 
 /* ObjectMemory>>word32Size: */
