@@ -5,6 +5,8 @@ Object subclass: #Scanner
 
 Scanner comment: 'I split Smalltalk source into tokens. Each token has a type, a value and a 1-based inclusive interval (tokenStart to tokenStop).
 
+Identifiers start with a letter (any script: general category L*) or _ and go on with letters, digits (any script), combining marks and _; keywords and symbols likewise. Number literals use the ASCII digits. Binary selectors are made of +-*/\<>=~@%&?,!! and non-ASCII math symbols (general category Sm: × ÷ ≠ ≤ ...). White space is the ASCII tab, lf, ff, cr and space, the non-ASCII White_Space characters (no-break spaces, U+3000...) and U+FEFF. ASCII is classified by a table, the rest by Character (Unicode).
+
 Token types: #identifier #keyword #binary #bar #number #string #symbol #character #literalArrayStart (#() #byteArrayStart (#[) #assignment #return #colon #period #semicolon #leftParen #rightParen #leftBracket #rightBracket #leftBrace #rightBrace #eof #error (tokenValue is the message).
 
 For syntax highlighting use Scanner class>>highlight:do: or highlightTokens:, which never fail.'!
@@ -82,6 +84,10 @@ classOf: aCharacter
 	aCharacter isNil ifTrue: [^#eof].
 	v := aCharacter value.
 	v < 128 ifTrue: [^CharClasses at: v + 1].
+	aCharacter isLetter ifTrue: [^#letter].
+	(aCharacter isMark or: [aCharacter isDigit]) ifTrue: [^#letterPart].
+	aCharacter isSpecial ifTrue: [^#binary].
+	(aCharacter isSeparator or: [v = 16rFEFF]) ifTrue: [^#separator].
 	^#other
 !
 digitValueOf: aCharacter
@@ -161,7 +167,7 @@ scanIdentifier
 	| cls |
 	[mark := mark + 1.
 	 cls := self classOf: (self charAt: mark).
-	 cls == #letter or: [cls == #digit]] whileTrue.
+	 cls == #letter or: [cls == #digit or: [cls == #letterPart]]] whileTrue.
 	((self charAt: mark) == $: and: [(self charAt: mark + 1) ~~ $=]) ifTrue: [
 		mark := mark + 1.
 		^self setToken: #keyword value: (source copyFrom: tokenStart to: mark - 1)].
@@ -228,7 +234,7 @@ scanHash
 	cls == #letter ifTrue: [
 		mark := start.
 		[cls := self classOf: (self charAt: mark).
-		 cls == #letter or: [cls == #digit or: [(self charAt: mark) == $:]]]
+		 cls == #letter or: [cls == #digit or: [cls == #letterPart or: [(self charAt: mark) == $:]]]]
 			whileTrue: [mark := mark + 1].
 		^self setToken: #symbol value: (source copyFrom: start to: mark - 1) asSymbol].
 	(cls == #binary or: [c == $|]) ifTrue: [
@@ -339,7 +345,6 @@ highlightDo: aBlock
 				aBlock value: type value: tokenStart value: tokenStop]]
 !
 highlightTypeInLiteral: inLiteral
-	| first |
 	tokenType == #identifier ifTrue: [
 		tokenValue = 'true' ifTrue: [^#true].
 		tokenValue = 'false' ifTrue: [^#false].
@@ -348,8 +353,7 @@ highlightTypeInLiteral: inLiteral
 		tokenValue = 'self' ifTrue: [^#self].
 		tokenValue = 'super' ifTrue: [^#super].
 		tokenValue = 'thisContext' ifTrue: [^#thisContext].
-		first := (tokenValue at: 1) value.
-		(first >= 65 and: [first <= 90]) ifTrue: [^#global].
+		(tokenValue at: 1) isUppercase ifTrue: [^#global].
 		^#identifier].
 	tokenType == #keyword ifTrue: [inLiteral ifTrue: [^#symbol]. ^#keyword].
 	tokenType == #binary ifTrue: [inLiteral ifTrue: [^#symbol]. ^#binary].

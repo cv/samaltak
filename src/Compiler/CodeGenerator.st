@@ -186,9 +186,7 @@ globalBindingOf: aString
 	^undeclared associationAt: symbol ifAbsent: [nil]
 !
 isUppercaseName: aString
-	| v |
-	v := (aString at: 1) value.
-	^v >= 65 and: [v <= 90]
+	^(aString at: 1) isUppercase
 !
 emitVariable: aVariableNode
 	| name binding |

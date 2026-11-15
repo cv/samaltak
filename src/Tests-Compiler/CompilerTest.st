@@ -119,6 +119,25 @@ testSymbolLiterals
 	self assert: (self eval: '#''hello world''') == #'hello world'.
 	self assert: (self eval: '#Foo') == #Foo
 !
+testUnicodeNames
+	"Temporaries, keyword and binary selectors and symbols with non-ASCII names, in strings: these sources are compiled by the seed image's compiler."
+	| subject |
+	self assert: (self eval: '| größe | größe := 3. größe * 2') equals: 6.
+	self assert: (self eval: '| λ 日本 | λ := 2. 日本 := 5. λ * 日本') equals: 10.
+	self assert: (self eval: '#größe') == 'größe' asSymbol.
+	self assert: (self eval: '#(größe: × #λ)') equals: {'größe:' asSymbol. '×' asSymbol. 'λ' asSymbol}.
+	self assert: (self eval: '#größe:von: numArgs') equals: 2.
+	self assert: (self eval: 'Object' , (String with: (Character value: 160)) , 'name') equals: 'Object'.
+	self compile: 'größe: x von: y ^x - y'.
+	self compile: '× other ^42 + other'.
+	self compile: 'größe ^self größe: 10 von: (self × 1)'.
+	subject := CompilerTestSubject new.
+	self assert: (subject perform: 'größe:von:' asSymbol with: 5 with: 3) equals: 2.
+	self assert: (subject perform: '×' asSymbol with: 1) equals: 43.
+	self assert: (subject perform: 'größe' asSymbol) equals: -33.
+	self assert: (self errorIn: 'foo ^😀') notNil.
+	self assert: (self errorIn: 'foo | 😀 | ^1') notNil
+!
 testLiteralArrays
 	self assert: (self eval: '#(1 $a ''s'' #sym foo bar: #(2 3) (4 5) true false nil)')
 		equals: {1. $a. 's'. #sym. #foo. #bar:. #(2 3). #(4 5). true. false. nil}.

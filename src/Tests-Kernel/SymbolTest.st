@@ -34,7 +34,32 @@ testPrinting
 	self assert: #at:put: printString = '#at:put:'.
 	self assert: #+ printString = '#+'.
 	self assert: 'hello world' asSymbol printString = '#''hello world'''.
+	self assert: 'größe' asSymbol printString = '#größe'.
+	self assert: 'größe:von:' asSymbol printString = '#größe:von:'.
+	self assert: '×' asSymbol printString = '#×'.
+	self assert: '😀' asSymbol printString = '#''😀'''.
 	self assert: #foo displayString = 'foo'
+!
+testPrintStringReadsBack
+	"Every Symbol prints as a literal the compiler reads back as the same Symbol: unquoted where the Scanner allows, as names of any script, marks and digits included, or binary selectors with math symbols."
+	| symbols |
+	symbols := #('foo' 'at:put:' '+' '->' 'hello world' '' 'a:b' 'a:' '_x' 'x_1' 'größe' 'größe:' 'größe:von:' 'λ' 'λ1' '日本' 'Größe'
+		'×' '≠' '÷' '≤=' '+×' '😀' 'a😀' '٣x' 'x٣' '3x' 'é' 'e' ':' '#foo' 'a b:' 'ab:c:' '!!' '|' '||' '++' 'a-b') asOrderedCollection.
+	symbols add: 'e' , (String with: (Character value: 769)); add: (String with: (Character value: 769)) , 'e'; add: 'a' , (String with: (Character value: 160)) , 'b'.
+	symbols do: [:each |
+		| symbol |
+		symbol := each asSymbol.
+		self assert: (Compiler evaluate: symbol printString) == symbol].
+	#('größe' 'größe:' 'λ1' '日本' 'x٣' '×' '≠' '+×') do: [:each |
+		self assert: each asSymbol printString equals: '#' , each].
+	#('😀' 'a😀' '٣x' 'a b:') do: [:each |
+		self assert: (each asSymbol printString first: 2) equals: '#'''].
+	self assert: 'größe:' numArgs equals: 1.
+	self assert: 'größe:von:' numArgs equals: 2.
+	self assert: 'größe' numArgs equals: 0.
+	self assert: '×' numArgs equals: 1.
+	self assert: '😀' numArgs equals: -1.
+	self assert: '×' asSymbol isBinary
 !
 testImmutability
 	self assert: #foo isReadOnlyObject.

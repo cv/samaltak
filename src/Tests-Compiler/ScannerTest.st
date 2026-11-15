@@ -55,6 +55,27 @@ testHighlightTolerance
 	self assert: (self typesOf: '16r') equals: #(#error).
 	self assert: (self typesOf: '') equals: #()
 !
+testUnicodeNames
+	"Identifiers start with a letter of any script and go on with letters, digits and marks; non-ASCII math symbols are binary characters; non-ASCII White_Space and U+FEFF separate; emoji are errors outside strings and comments."
+	| nbsp acute arabicThree |
+	nbsp := String with: (Character value: 160).
+	acute := String with: (Character value: 769).
+	arabicThree := String with: (Character value: 1635).
+	self assert: (self tokensOf: 'größe := 3') equals: {{#identifier. 'größe'}. {#assignment. ':='}. {#number. 3}}.
+	self assert: (self tokensOf: 'λ 日本 _x Größe') equals: {{#identifier. 'λ'}. {#identifier. '日本'}. {#identifier. '_x'}. {#identifier. 'Größe'}}.
+	self assert: (self tokensOf: 'x größe: 1 von: 2') equals: {{#identifier. 'x'}. {#keyword. 'größe:'}. {#number. 1}. {#keyword. 'von:'}. {#number. 2}}.
+	self assert: (self tokensOf: '#größe #größe:von: #× #≠=') equals: {{#symbol. 'größe' asSymbol}. {#symbol. 'größe:von:' asSymbol}. {#symbol. '×' asSymbol}. {#symbol. '≠=' asSymbol}}.
+	self assert: (self tokensOf: '3 × 4 ≤ 5') equals: {{#number. 3}. {#binary. '×'}. {#number. 4}. {#binary. '≤'}. {#number. 5}}.
+	self assert: (self tokensOf: 'e' , acute , 'x x' , arabicThree) equals: {{#identifier. 'e' , acute , 'x'}. {#identifier. 'x' , arabicThree}}.
+	self assert: (self tokensOf: 'a' , nbsp , 'b' , (String with: (Character value: 12288)) , 'c' , (String with: (Character value: 65279)) , 'd')
+		equals: {{#identifier. 'a'}. {#identifier. 'b'}. {#identifier. 'c'}. {#identifier. 'd'}}.
+	self assert: (self typesOf: 'a := 😀') equals: #(#identifier #assignment #error).
+	self assert: (self typesOf: 'a😀') equals: #(#identifier #error).
+	self assert: (self typesOf: acute , 'a') equals: #(#error #identifier).
+	self assert: (self typesOf: arabicThree) equals: #(#error).
+	self assert: (self typesOf: '''😀'' "😀" $😀') equals: #(#string #comment #character).
+	self assert: (self typesOf: 'Größe größe Λ λ') equals: #(#global #identifier #global #identifier)
+!
 testNumbers
 	self assert: (self tokensOf: '16r1F 2r101 1e2 2.5 1.5e1') equals: {{#number. 31}. {#number. 5}. {#number. 100}. {#number. 2.5}. {#number. 15.0}}.
 	self assert: (self tokensOf: '1. 2') equals: {{#number. 1}. {#period. '.'}. {#number. 2}}
