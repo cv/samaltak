@@ -136,7 +136,10 @@ testStrings
 	'it''s' size printNl.
 	(Smalltalk packageList at: 1) printNl.
 	(Smalltalk primitiveNames at: 1) printNl.
-	(Smalltalk primitiveNames at: 198) printNl
+	(Smalltalk primitiveNames at: 198) printNl.
+	(Character value: 16r10FFFF) value printNl.
+	(Character value: 16r110000) printNl.
+	(Character value: -1) printNl
 ! !
 
 !MiniTests methodsFor: 'closures'!

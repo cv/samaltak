@@ -29,3 +29,8 @@ bang!
 #('Mini-Kernel' 0)
 'intAdd'
 'ensureMarker'
+1114111
+Error: bad code point
+nil
+Error: bad code point
+nil

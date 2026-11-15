@@ -1489,11 +1489,11 @@ emitStringComparePrimitive: fail
 	asm ret
 !
 emitCharFromValuePrimitive: fail
-	asm comment: 'primitive charFromValue: the Character of a code (0 to 16r3FFFFFFF)'.
+	asm comment: 'primitive charFromValue: the Character of a code point (0 to 16r10FFFF)'.
 	asm ldr: X1 base: X20 offset: (self slot: 0).
 	asm tbz: X1 bit: 0 to: fail.
 	asm asr: X16 with: X1 imm: 1.
-	asm mov: X17 imm: 16r3FFFFFFF.
+	asm mov: X17 imm: CHAR_VALUE_MAX.
 	asm cmp: X16 with: X17.
 	asm b: fail if: COND_HI.
 	asm lsl: X0 with: X16 imm: 3.

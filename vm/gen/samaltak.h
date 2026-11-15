@@ -149,6 +149,7 @@ typedef void (*prim_fn)(void);
 #define CG_MAX_RETS 8192
 #define CG_MAX_SITES 4096
 #define CG_MAX_SP 4096
+#define CHAR_VALUE_MAX 1114111
 #define CLS_CLASSPOOL 7
 #define CLS_INSTSIZE_MASK 65535
 #define CLS_NAME 6

@@ -719,9 +719,9 @@ emitNode: n block: b next: nextBlock
 			asm orr: r with: r imm: 1.
 			^self def: n from: r].
 		s := self deoptLabelFor: n.
-		asm comment: 'the Character of a SmallInteger (0 to 16r3FFFFFFF)'.
+		asm comment: 'the Character of a SmallInteger (0 to 16r10FFFF)'.
 		asm asr: X16 with: x imm: 1.
-		asm mov: X17 imm: 16r3FFFFFFF.
+		asm mov: X17 imm: CHAR_VALUE_MAX.
 		asm cmp: X16 with: X17.
 		asm b: s if: COND_HI.
 		asm lsl: r with: X16 imm: 3.

@@ -69291,7 +69291,7 @@ static bool emit_primitive(void)
         }
         if (k == PK_CHAR_FROM_VALUE) {
             if (asm_noting) {
-                note("primitive charFromValue: the Character of a code (0 to 16r3FFFFFFF)", 0);
+                note("primitive charFromValue: the Character of a code point (0 to 16r10FFFF)", 0);
             }
             v_351 = 0ULL;
             n_339 = 0;
@@ -69495,7 +69495,7 @@ static bool emit_primitive(void)
             amd64_assembler_store(t_10, X16);
         exit_shift_16:;
             if (asm_pc + 8 <= asm_limit) {
-                *(uint64_t *)asm_pc = 70368744160321ULL;
+                *(uint64_t *)asm_pc = 73014426689ULL;
                 asm_pc = asm_pc + 6;
             } else if (asm_error == ASM_OK) {
                 asm_error = ASM_ERR_FULL;
@@ -69509,7 +69509,7 @@ static bool emit_primitive(void)
             n_353 = n_353 + 1;
             v_361 = v_361 | (196LL << (8 * n_353));
             n_353 = n_353 + 1;
-            v_361 = v_361 | (1073741823LL << (8 * n_353));
+            v_361 = v_361 | (1114111LL << (8 * n_353));
             n_354 = n_353 + 4;
             if (asm_pc + 8 <= asm_limit) {
                 *(uint64_t *)asm_pc = v_361;
@@ -69525,14 +69525,14 @@ static bool emit_primitive(void)
                 asm_error = ASM_ERR_FULL;
             }
             if (asm_pc + 8 <= asm_limit) {
-                *(uint64_t *)asm_pc = 1073741823ULL;
+                *(uint64_t *)asm_pc = 1114111ULL;
                 asm_pc = asm_pc + 8;
             } else if (asm_error == ASM_OK) {
                 asm_error = ASM_ERR_FULL;
             }
         exit_mov_reg_4:;
             goto exit_mov_9;
-            amd64_assembler_move_any_imm(X17, 1073741823ULL);
+            amd64_assembler_move_any_imm(X17, 1114111ULL);
         exit_mov_9:;
             v_362 = 0ULL;
             n_355 = 0;
@@ -72303,7 +72303,7 @@ exit_offset_to_28:;
         }
         if (k == PK_CHAR_FROM_VALUE) {
             if (asm_noting) {
-                note("primitive charFromValue: the Character of a code (0 to 16r3FFFFFFF)", 0);
+                note("primitive charFromValue: the Character of a code point (0 to 16r10FFFF)", 0);
             }
             if (asm_pc < asm_limit) {
                 *(uint32_t *)asm_pc = 4181721729ULL;
@@ -72336,7 +72336,7 @@ exit_offset_to_29:;
             } else if (asm_error == ASM_OK) {
                 asm_error = ASM_ERR_FULL;
             }
-            mov_imm(X17, 1073741823ULL);
+            mov_imm(X17, 1114111ULL);
             if (asm_pc < asm_limit) {
                 *(uint32_t *)asm_pc = 3943760415ULL;
                 asm_pc = asm_pc + 4;

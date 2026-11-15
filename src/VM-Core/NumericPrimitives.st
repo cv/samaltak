@@ -375,6 +375,6 @@ primCharFromValue
 	<vmPrimitive: 91 name: 'charFromValue'>
 	| v |
 	v := self arg0.
-	((self isInt: v) and: [(self intVal: v) >= 0 and: [(self intVal: v) <= 16r3FFFFFFF]]) ifFalse: [^self fail].
+	((self isInt: v) and: [(self intVal: v) >= 0 and: [(self intVal: v) <= CHAR_VALUE_MAX]]) ifFalse: [^self fail].
 	self answer: (self charOop: (self intVal: v) asUInt32)
 ! !

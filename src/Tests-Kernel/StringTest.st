@@ -203,6 +203,13 @@ testWideStrings
 	self assert: (String streamContents: [:stream | stream nextPutAll: 'ab'; nextPut: lambda]) class == WideString.
 	self assert: (String with: lambda) asUppercase size = 1
 !
+testCharacterValueRange
+	self assert: (Character value: 16r10FFFF) value equals: 16r10FFFF.
+	self assert: (Character value: 16rD800) value equals: 16rD800.
+	self should: [Character value: 16r110000] raise: Error.
+	self should: [Character value: -1] raise: Error.
+	self should: [Character value: 16r3FFFFFFF] raise: Error
+!
 testWideStringsAreCreatedWide
 	"Constructors, copies and streams choose WideString up front instead of widening with becomeForward."
 	| lambda |

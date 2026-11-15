@@ -11,7 +11,7 @@ void prim_char_from_value(void)
     uint32_t code_point;
     uint64_t v_2;
     v = prim_nargs > 0 ? prim_base[1] : nil_oop;
-    if (!(((v & 1) != 0) && (((((int64_t)v) >> 1) >= 0) && ((((int64_t)v) >> 1) <= 0x3FFFFFFF)))) {
+    if (!(((v & 1) != 0) && (((((int64_t)v) >> 1) >= 0) && ((((int64_t)v) >> 1) <= CHAR_VALUE_MAX)))) {
         prim_status = PS_FAIL;
         prim_error_code = -1;
         return;

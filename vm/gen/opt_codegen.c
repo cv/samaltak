@@ -36275,7 +36275,7 @@ exit_emit_stress_at_13:;
     r_deopt_label_for_13 = l_13;
     r_deopt_label_for_13; });
         if (asm_noting) {
-            note("the Character of a SmallInteger (0 to 16r3FFFFFFF)", 0);
+            note("the Character of a SmallInteger (0 to 16r10FFFF)", 0);
         }
         if (((x & 160) == 0) && (((3870271LL >> (x & 31)) & 1) == 1)) {
             if (10 != ((x & REG_SP) != 0 ? X64_RSP : (int32_t)((((x & 16) == 0 ? X64_MAP_LO : X64_MAP_HI) >> (4 * (x & 15))) & 15))) {
@@ -36381,7 +36381,7 @@ exit_emit_stress_at_13:;
         amd64_assembler_store(t_34, X16);
     exit_shift_51:;
         if (asm_pc + 8 <= asm_limit) {
-            *(uint64_t *)asm_pc = 70368744160321ULL;
+            *(uint64_t *)asm_pc = 73014426689ULL;
             asm_pc = asm_pc + 6;
         } else if (asm_error == ASM_OK) {
             asm_error = ASM_ERR_FULL;
@@ -36395,7 +36395,7 @@ exit_emit_stress_at_13:;
         n_1314 = n_1314 + 1;
         v_1315 = v_1315 | (196LL << (8 * n_1314));
         n_1314 = n_1314 + 1;
-        v_1315 = v_1315 | (1073741823LL << (8 * n_1314));
+        v_1315 = v_1315 | (1114111LL << (8 * n_1314));
         n_1315 = n_1314 + 4;
         if (asm_pc + 8 <= asm_limit) {
             *(uint64_t *)asm_pc = v_1315;
@@ -36411,14 +36411,14 @@ exit_emit_stress_at_13:;
             asm_error = ASM_ERR_FULL;
         }
         if (asm_pc + 8 <= asm_limit) {
-            *(uint64_t *)asm_pc = 1073741823ULL;
+            *(uint64_t *)asm_pc = 1114111ULL;
             asm_pc = asm_pc + 8;
         } else if (asm_error == ASM_OK) {
             asm_error = ASM_ERR_FULL;
         }
     exit_mov_reg_100:;
         goto exit_mov_127;
-        amd64_assembler_move_any_imm(X17, 1073741823ULL);
+        amd64_assembler_move_any_imm(X17, 1114111ULL);
     exit_mov_127:;
         v_1316 = 0ULL;
         n_1316 = 0;
@@ -62733,7 +62733,7 @@ exit_emit_stress_at_13:;
     r_deopt_label_for_13 = l_13;
     r_deopt_label_for_13; });
         if (asm_noting) {
-            note("the Character of a SmallInteger (0 to 16r3FFFFFFF)", 0);
+            note("the Character of a SmallInteger (0 to 16r10FFFF)", 0);
         }
         a_word_498 = 2470445056LL | (130048ULL | ((((uint64_t)(x & 31)) << 5) | 16));
         if (asm_pc < asm_limit) {
@@ -62742,7 +62742,7 @@ exit_emit_stress_at_13:;
         } else if (asm_error == ASM_OK) {
             asm_error = ASM_ERR_FULL;
         }
-        mov_imm(X17, 1073741823ULL);
+        mov_imm(X17, 1114111ULL);
         if (asm_pc < asm_limit) {
             *(uint32_t *)asm_pc = 3943760415ULL;
             asm_pc = asm_pc + 4;
