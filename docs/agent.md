@@ -22,14 +22,29 @@ JSON: System-Remote's `JSON` (already layer 0).
 5. **OpenAIAccount** (`OpenAIAccount default`): device login, refresh before expiry and on a 401, account id and email from the id token, sign out.
 6. **CodexProvider**: builds the Responses request, streams it, decodes events into items and deltas. The one place that knows the backend; an API-key provider is a sibling class later.
 7. **AgentConversation**: the item list (developer instructions, messages, reasoning items echoed back, tool calls and outputs), its object table (`oN` ↔ object, strong references, an object keeps its ID), its context, the turn loop (send, run tool calls, send again until no tool call; Stop cancels), `onChange:` the window redraws from.
-8. **AgentContext**: what ⌘J bound — receiver, named bindings, optionally a frame — and how a cell compiles against it: `Compiler evaluate:for:bindings:`, or for a frame `Context>>evaluateInFrame:` (extended with bindings, for `oN`). Default: receiver nil.
+8. **AgentContext**: what ⌘J bound — receiver, named bindings, optionally a frame — and how a cell compiles against it: `Compiler evaluate:for:bindings:`, or for a frame `Context>>evaluateInFrame:` (extended with bindings, for `oN` and the context's variables; the frame's temps win on a name clash). Default: receiver nil.
 9. **AgentTool** (abstract: Responses spec, `run: aCall in: aConversation`) and two subclasses. New tools are subclasses.
    - **code-mode**: a freeform tool (raw Smalltalk, no JSON; the shape of Codex's own code mode). Runs in a fresh Process `agent code-mode` at the priority of a do-it, with `o1 … oN` and the context's bindings bound. Answers `oN` and the printString (cut to 4,000 characters). A syntax error answers the compiler's message; an error answers the exception, its message and the top 10 frames, and the Process ends. After 60 s the Process is terminated and the result says so.
    - **show-object** (`{"id": "o2"}`): adds a show item for the object to the conversation.
 10. **AgentInstructions**: one hand-written developer message — code-mode and `oN`, the context, layering (`src/packages.txt`), and that code changes go through `SourceFiler default writeMethod:` so they reach `src/`.
 
 ### Tools-Agent (new, layer 5)
-11. **⌘J** in `ToolPane` and the Debugger: `self agentContext`, then open the Agent window for that tool, or bring it back. Contexts in version 1: Workspace (its variables, shared; the selection), Inspector (the object), Debugger (the selected frame: `self` and temps). Other tools: the default context.
+11. **⌘J** in `ToolPane`, the Debugger, the Breakpoints window and the Profiler: `self agentContext`, then open the Agent window for that tool, or bring it back. `self` is the tool's subject when it is an object in the image; the selection and what is outside the image are named variables (omitted when nothing is selected); `describe` gives the model each variable's name, class and bounded printString. Contexts in version 1:
+    - Workspace: its receiver; its variables (shared); the selected text.
+    - Inspector: the object; `field` (the selected field's value).
+    - Debugger: the selected frame (cells run in it: `self` and temps).
+    - Notifier (`ToolsNotifier`): the selected frame, as the Debugger; `session`, `exception`.
+    - Process Browser: the selected Process; `context` (the selected frame, an object: cells do not run in it).
+    - System Browser: the selected class (the metaclass on the class side); `selector`, `method`, `package`; the selected text.
+    - Method Browser: `methods`, `method`; the selected text.
+    - Profiler: its `ProfilerData`; `range`, `bar`, `picked`, `process` (the filter).
+    - File Browser: `path`, `entry` (the selected file or folder); the text selected in the previewed file.
+    - Terminal: `terminal` (`terminal view send: 'ls', (String with: Character cr)` types into it), `text` (the screen); the selected text.
+    - Transcript: `text`; the selected text.
+    - VM Rebuild, VM Simulator: `output`; the selected text.
+    - Breakpoints: the breakpoints and watchpoints listed; `breakpoint` (the selected one).
+    - System Monitor: its samples (`SystemMonitorData`).
+    - Other tools: the default context (nothing bound).
 12. **AgentWindow** (proposal 1's layout): context strip, transcript, ASK prompt with Send and Stop, status bar (model, account, tokens, Sign out). Signed out, the transcript shows the login card (URL, code, Copy).
 13. Transcript items: message, code cell (highlighted source, result with its `oN`), error, show-object. Show-object draws a Form as an image, anything else as printString plus an Inspect button that opens the Inspector. Item views are found by `AgentItemView for: anItem`, the seam for richer views.
 
@@ -49,7 +64,7 @@ Each builds on a version 1 seam; none changes its shape.
 
 - **Cells**: keep a failed cell's Process suspended (per-process `DebugSession` opener), its session an object with an ID and a Debug button; yield after 10 s and answer the running cell as an object the model waits on or terminates (`o7 waitFor:`); capture the cell's Transcript output.
 - **Show-object kinds**: `anObject agentPresentationKind` (`#bars #table #source #flameGraph` …), declared by each package for its classes.
-- **Contexts**: System Browser, Process Browser, File Browser; an AGENT tag on the origin tool; top bar Agents ▾.
+- **Contexts**: an AGENT tag on the origin tool; top bar Agents ▾.
 - **Edits**: proposed edits as diff cells (Accept writes `src/`, Accept & Restart frame through `DebugSession>>recompile:inFrame:`); an approval mode that shows each cell before it runs.
 - **Platform**: `openURL` for the login card.
 - **Moves**: JSON to System-Support, `SourceFiler`/`ChunkFile` to layer 0, when the core needs them.

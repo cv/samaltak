@@ -551,6 +551,13 @@ layout
 	self children do: [:each | each bounds: self localBounds]
 ! !
 
+!ProfilerView methodsFor: 'events'!
+keyDown: anEvent
+	"⌘J: my Agent window (Tools open: #agent), as in a ToolPane."
+	(anEvent key = $j and: [anEvent modifiers commandKey]) ifTrue: [Tools open: #agent with: self. ^true].
+	^false
+! !
+
 !ProfilerView methodsFor: 'remote control'!
 remoteRole
 	^#profiler
