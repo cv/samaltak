@@ -1637,7 +1637,7 @@ static void value_numbers(void)
             }
             if (({
     op = (int32_t)nd->op;
-    r_changes_memory = (op == O_STOREFIELD) || ((op == O_INDEXSTORE) || ((op == O_OUTERSTORE) || ((op == O_SEND) || ((op == O_CALL) || (op == O_CHECKINT)))));
+    r_changes_memory = (op == O_STOREFIELD) || ((op == O_INDEXSTORE) || ((op == O_OUTERSTORE) || ((op == O_SEND) || ((op == O_CALL) || ((op == O_CHECKINT) || (op == O_MKARRAY))))));
     r_changes_memory; })) {
                 mem = mem + 1;
             }

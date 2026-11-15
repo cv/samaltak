@@ -82,6 +82,9 @@ deoptReturnFunction
 stackFullFunction
 	^self cCoerce: (self functionPointer: #stackFull:) to: 'uint64_t'
 !
+makeArrayFunction
+	^self cCoerce: (self functionPointer: #makeArray:count:) to: 'uint64_t'
+!
 returnFunction
 	^self cCoerce: (self functionPointer: #returnBottom:index:) to: 'uint64_t'
 ! !
@@ -664,6 +667,15 @@ leave: f after: after
 leaveBefore: f index: k
 	runtime sync: f.
 	^self deoptFrame: f index: k regs: self null mode: 1
+!
+makeArray: f count: n
+	"Optimized code's 0x94 at f's safepoint (pc and sp stored; eden full, or more than 64 elements): an Array of the n slots below f's sp. It may collect, it never switches processes nor deoptimizes."
+	<function>
+	<var: #f type: 'Frame *'>
+	<var: #n type: 'uint64_t'>
+	<returns: 'oop'>
+	runtime sync: f.
+	^runtime newArray: n asUInt32 from: f fp + (f sp asInt64 - n asInt64)
 !
 stackFull: f
 	"No room for f's optimized frame at its entry: the interpreter runs it from pc 0 (f's pc and sp stored)."

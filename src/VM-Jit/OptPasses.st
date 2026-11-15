@@ -735,7 +735,7 @@ changesMemory: nd
 	"A store, or a safepoint (anything may run there)."
 	| op |
 	op := nd op asInt32.
-	^op = O_STOREFIELD or: [op = O_INDEXSTORE or: [op = O_OUTERSTORE or: [op = O_SEND or: [op = O_CALL or: [op = O_CHECKINT]]]]]
+	^op = O_STOREFIELD or: [op = O_INDEXSTORE or: [op = O_OUTERSTORE or: [op = O_SEND or: [op = O_CALL or: [op = O_CHECKINT or: [op = O_MKARRAY]]]]]]
 !
 hashOf: nd
 	^(((((nd op asInt64 * 31 + nd a) * 31 + nd b) * 31 + nd aux) * 31 + nd aux2) * 31 + nd tcls asInt64) asUInt64 >> 3 bitAnd: 4095

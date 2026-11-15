@@ -981,7 +981,7 @@ static bool can_inline(uint64_t m, int32_t a)
     pc = 0;
     while (pc < size) {
         op = bcs[pc];
-        if ((op == 0x76) || ((op == 0x94) || ((op == 0x88) || (((op == 0x81) && (bcs[pc + 1] <= CTX_STACKP)) || ((!((jit_flags & JIT_FLAG_BLOCKS) != 0)) && ((op == 0x7C) || ((op == 0x8F) || ((op >= 0x8A) && (op <= 0x8C))))))))) {
+        if ((op == 0x76) || ((op == 0x88) || (((op == 0x81) && (bcs[pc + 1] <= CTX_STACKP)) || ((!((jit_flags & JIT_FLAG_BLOCKS) != 0)) && ((op == 0x7C) || ((op == 0x8F) || ((op >= 0x8A) && (op <= 0x8C)))))))) {
             return false;
         }
         pc = pc + ({
@@ -2102,6 +2102,25 @@ static int32_t emit(int32_t pc, int32_t a)
     int32_t r_add_97;
     int32_t n_285;
     int32_t n_279;
+    int32_t pc_33;
+    oop m_60;
+    uint64_t o_76;
+    int32_t k_7;
+    int32_t r_add_98;
+    int32_t n_287;
+    int32_t n_286;
+    int32_t args_4;
+    int32_t i_63;
+    int32_t i_64;
+    int32_t i_65;
+    int32_t var_89;
+    int32_t v_51;
+    int32_t d_20;
+    int32_t var_90;
+    int32_t r_add_99;
+    int32_t n_289;
+    int32_t n_288;
+    int32_t n_290;
     opt_cur_act = a;
     opt_cur_pc = pc;
     m = (opt_acts + a)->method;
@@ -5377,6 +5396,47 @@ exit_length_of_4:;
         (opt_nodes + n_279)->state = state_act(a, pc, d, pc);
         ob_cur_block = -1;
     exit_non_local_return:;
+        return next;
+    }
+    if (op == 0x94) {
+        pc_33 = pc + 1;
+        m_60 = (opt_acts + a)->method;
+        o_76 = *(uint64_t *)(m_60 + 16 + 24);
+        k_7 = (int32_t)((uint8_t *)(o_76 + 16))[pc_33];
+        n_286 = ({
+    n_287 = new_node(O_MKARRAY, R_OOP);
+    append(n_287, ob_cur_block);
+    r_add_98 = n_287;
+    r_add_98; });
+        ob_safe_epoch = ob_safe_epoch + 1;
+        args_4 = alloc_operands(k_7);
+        for (i_63 = 0; i_63 <= k_7 - 1; i_63++) {
+            i_64 = args_4 + i_63;
+            i_65 = d - k_7 + i_63;
+            var_89 = (opt_acts + a)->var_base + i_65;
+            v_51 = opt_builder_read(var_89, ob_cur_block);
+            opt_operands[i_64] = v_51;
+        }
+        (opt_nodes + n_286)->args = args_4;
+        (opt_nodes + n_286)->nargs = (uint16_t)k_7;
+        (opt_nodes + n_286)->tkind = T_OBJ;
+        (opt_nodes + n_286)->tcls = cls_array;
+        (opt_nodes + n_286)->state = state_act(a, pc, d, pc);
+        d_20 = d - k_7;
+        var_90 = (opt_acts + a)->var_base + d_20;
+        if ((var_90 < OPT_MAX_VARS) && (ob_arg_flags[var_90] == 2)) {
+            n_288 = ({
+    n_289 = new_node(O_STORESLOT, R_NONE);
+    append(n_289, ob_cur_block);
+    r_add_99 = n_289;
+    r_add_99; });
+            (opt_nodes + n_288)->a = n_286;
+            n_290 = ob_arg_vals[var_90];
+            (opt_nodes + n_288)->aux = (opt_nodes + n_290)->aux;
+            goto exit_write_47;
+        }
+        opt_builder_write(var_90, n_286, ob_cur_block);
+    exit_write_47:;
         return next;
     }
     if ((!ob_bailed) && (getenv("SAMALTAK_OPT_TRACE") != NULL)) {

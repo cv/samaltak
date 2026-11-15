@@ -419,6 +419,7 @@ typedef void (*prim_fn)(void);
 #define OPT_MAX_VARS 65536
 #define OPT_MAX_YOUNG 1024
 #define OPT_PCB_MAX 131072
+#define OUT_ARRAY 12
 #define OUT_BARRIER 3
 #define OUT_BOTTOM 6
 #define OUT_DEOPT 1
@@ -465,6 +466,7 @@ typedef void (*prim_fn)(void);
 #define O_LAST 53
 #define O_LOADFIELD 4
 #define O_LOADSLOT 40
+#define O_MKARRAY 43
 #define O_NE 8
 #define O_NOP 0
 #define O_NOTINTS 38
@@ -657,6 +659,7 @@ typedef void (*prim_fn)(void);
 #define SO_WIDESTRING 13
 #define SO_WIDESYMBOL 33
 #define SP 63
+#define SP_ALLOC 5
 #define SP_CALL 2
 #define SP_ENTRY 4
 #define SP_GUARD 1
@@ -1353,6 +1356,7 @@ extern uint64_t interrupt_stub;
 extern uint64_t make_array_stub;
 extern uint64_t opt_deopt_return_stub;
 extern uint64_t opt_deopt_stub;
+extern uint64_t opt_make_array_stub;
 extern uint64_t opt_return_stub;
 extern uint64_t opt_stack_full_stub;
 extern uint64_t symbol_addrs[48];
@@ -1735,7 +1739,7 @@ uint64_t interrupt_at_entry(frame *f);
 void jit_runtime_kill(jit_method *h);
 uint64_t jit_runtime_leave(frame *f, int64_t pc, int64_t n);
 jit_method *jit_runtime_lookup(oop m);
-uint64_t make_array(frame *f);
+uint64_t jit_runtime_make_array(frame *f);
 int64_t map_offset_of(jit_method *h, int64_t pc);
 void materialize_opt(frame *f);
 void methods_changed(void);
@@ -1743,6 +1747,7 @@ void methods_changed_for(oop sel);
 char *mode_name(int32_t m);
 int mode_named(char *name);
 void move(uint64_t dst, uint64_t src, uint64_t n);
+oop new_array(uint32_t n, oop *p);
 void opt_methods_changed(oop sel);
 int64_t opt_stat(int32_t i);
 bool parse_flags(char *s);
@@ -1918,6 +1923,7 @@ int32_t initial_count(oop m);
 void invalidate_all(void);
 void invalidate_selector(oop sel);
 uint64_t opt_runtime_leave(frame *f, bool after);
+oop opt_runtime_make_array(frame *f, uint64_t n);
 void materialize(frame *f);
 uint64_t opt_runtime_resume(frame *f);
 uint64_t return_bottom(frame *f, int64_t k);

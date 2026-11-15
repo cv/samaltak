@@ -477,6 +477,9 @@ optDeoptReturnFunction
 optStackFullFunction
 	^optimizer stackFullFunction
 !
+optMakeArrayFunction
+	^optimizer makeArrayFunction
+!
 optReturnFunction
 	^optimizer returnFunction
 !
@@ -1432,14 +1435,23 @@ makeArray: f
 	<function>
 	<var: #f type: 'Frame *'>
 	<returns: 'uint64_t'>
-	| n a |
+	| n |
 	self sync: f.
 	n := f ip at: 1.
-	a := memory allocObj: memory clsArray format: F_VAR slots: n.
-	libc memcpy: (self slotsOf: a) from: f fp + f sp - n size: n asUInt64 * 8.
-	gc rememberIfOld: a.
-	f fp at: f sp - n put: a.
+	f fp at: f sp - n put: (self newArray: n from: f fp + f sp - n).
 	^0
+!
+newArray: n from: p
+	"An Array of the n oops from p, slots the collector sees (it may run)."
+	<function>
+	<var: #n type: 'uint32_t'>
+	<var: #p type: 'oop *'>
+	<returns: 'oop'>
+	| a |
+	a := memory allocObj: memory clsArray format: F_VAR slots: n.
+	libc memcpy: (self slotsOf: a) from: p size: n asUInt64 * 8.
+	gc rememberIfOld: a.
+	^a
 !
 optSendFrom: f ret: ret
 	"A call of optimized code that no machine code takes (OptRuntime>>sendFrom:ret:)."

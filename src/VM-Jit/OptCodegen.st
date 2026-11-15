@@ -1,9 +1,9 @@
 OptModule subclass: #OptCodegen
 	instanceVariableNames: 'cgHeldSlot cgHeldReg cgHeldCount cgScanPc cgBinds ir passes regalloc cgCodeStart cgBcSize cgValidSlots cgEntryPc cgSlotTop cgRawBase cgMaxOut cgNeed cgExitPlainLabel cgExitSyncLabel cgDeoptLabel cgReturnLabel cgHeaderLabel cgChecksLabel cgBodyLabel cgInterruptLabel cgBarrierLabel cgDeoptReturnLabel cgStackFullLabel cgOuts cgOutCount cgPoolOops cgPoolLabels cgPoolCount cgMetaWords cgMetaCount cgSpOffsets cgSpCount cgMoveSrc cgMoveDst cgMoveLoc cgMoveCount cgRootAct cgLastPc cgLastAct builder cgDeps cgDepCount cgSunk cgSunkCount cgChainActs cgChainCount cgDoubles cgSiteBl cgSiteLit cgSiteInfo cgSiteIndex cgSiteSel cgSiteCount cgRetOff cgRetIndex cgRetArgc cgRetCount cgOrder cgPlaced'
-	classVariableNames: 'CG_MAX_META CG_MAX_MOVES CG_MAX_OUT CG_MAX_POOL CG_MAX_RETS CG_MAX_HELD CG_MAX_SITES CG_MAX_SP OUT_BARRIER OUT_BOTTOM OUT_DEOPT OUT_INTERRUPT OUT_LAZY OUT_NOTMADE OUT_RESUME OUT_SENT OUT_SITE OUT_STACK OUT_WIDOW'
+	classVariableNames: 'CG_MAX_META CG_MAX_MOVES CG_MAX_OUT CG_MAX_POOL CG_MAX_RETS CG_MAX_HELD CG_MAX_SITES CG_MAX_SP OUT_ARRAY OUT_BARRIER OUT_BOTTOM OUT_DEOPT OUT_INTERRUPT OUT_LAZY OUT_NOTMADE OUT_RESUME OUT_SENT OUT_SITE OUT_STACK OUT_WIDOW'
 	package: 'VM-Jit'!
 
-OptCodegen comment: 'Emits arm64 code for the allocated IR (OptRegalloc) in block order, then the out-of-line paths (guard failures, interrupt checks, store barriers, deoptimization after a call, resumption after a call, the stack check), then the oop pool the code loads constants from (pc-relative; GC roots) and the inline caches'' literals. Records for every safepoint and guard the deoptimization metadata (OptRuntime decodes it): kind, continuation, the send, and for each activation its method, closure, receiver, pc and where each slot''s value is (LOC_*).
+OptCodegen comment: 'Emits arm64 code for the allocated IR (OptRegalloc) in block order, then the out-of-line paths (guard failures, interrupt checks, brace Arrays the runtime makes, store barriers, deoptimization after a call, resumption after a call, the stack check), then the oop pool the code loads constants from (pc-relative; GC roots) and the inline caches'' literals. Records for every safepoint and guard the deoptimization metadata (OptRuntime decodes it): kind, continuation, the send, and for each activation its method, closure, receiver, pc and where each slot''s value is (LOC_*).
 
 Frame layout: slots 0..numArgs-1 the arguments, then home slots (OptRegalloc), then from rawBase raw ones (doubles'' IEEE bits; the collector skips them), slotTop of them; a send''s receiver and arguments go at slotTop..., the callee''s frame starts after them. Calls are baseline code''s (docs/jit.md, Calls between the tiers): the receiver in x0, x20 the callee''s fp, bl to a known method''s unchecked entry, to the block stub, or to an inline cache''s target (JitBaselineRuntime links it); the result comes back in x0, and in slot slotTop if the interpreter returns into the frame (a resumption stub loads it). A frame suspended in a call is lazy as baseline code''s: the return map (return offset, safepoint, argument count) gives its pc (bcSize + the safepoint''s index) and sp. Method and block units start with the entry baseline-style calls take (emitBaselineEntry: the frame built as baseline code builds it), then the prologue for callers that pushed the frame; x23-x25 stay baseline code''s nil, true and false, and are where the code takes them from.
 
@@ -44,7 +44,8 @@ initialize
 	OUT_WIDOW := 8.
 	OUT_RESUME := 9.
 	OUT_SENT := 10.
-	OUT_NOTMADE := 11
+	OUT_NOTMADE := 11.
+	OUT_ARRAY := 12
 ! !
 
 !OptCodegen methodsFor: 'accessing'!
@@ -207,7 +208,7 @@ maxOutgoing
 	| n |
 	n := 0.
 	0 to: ir nodeCount - 1 do: [:i |
-		((ir node: i) block >= 0 and: [((ir node: i) op asInt32 = O_SEND or: [(ir node: i) op asInt32 = O_CALL])]) ifTrue: [
+		((ir node: i) block >= 0 and: [((ir node: i) op asInt32 = O_SEND or: [(ir node: i) op asInt32 = O_CALL or: [(ir node: i) op asInt32 = O_MKARRAY]])]) ifTrue: [
 			n := n max: (ir node: i) nargs asInt32]].
 	^n
 !
@@ -753,6 +754,7 @@ emitNode: n block: b next: nextBlock
 			asm orr: r with: r imm: 1].
 		^self def: n from: r].
 	op = O_CHECKINT ifTrue: [^self emitCheckInterrupt: n].
+	op = O_MKARRAY ifTrue: [^self emitMakeArray: n].
 	(op = O_SEND or: [op = O_CALL]) ifTrue: [^self emitSend: n].
 	op = O_GOTO ifTrue: [
 		self emitMovesFrom: b to: (ir block: b) succ0.
@@ -1816,34 +1818,7 @@ emitAllocate: n slow: slow done: done
 					asm orr: self scratchB with: X16 with: X17 shift: SHIFT_LSL amount: H_FMT_SHIFT]
 				ifFalse: [asm orr: self scratchB with: self scratchB imm: fmt asUInt64 << H_FMT_SHIFT].
 			asm comment: 'header: slots, format, a hash (the VM''s generator)'].
-	asm ldr: X16 base: X22 offset: self hashBoxOffset.
-	asm ldr: X17 base: X16 offset: 0.
-	asm mov: self scratchA imm: 6364136223846793005.
-	asm mul: X17 with: X17 with: self scratchA.
-	asm mov: self scratchA imm: 1442695040888963407.
-	asm add: X17 with: X17 with: self scratchA.
-	asm str: X17 base: X16 offset: 0.
-	asm lsr: X17 with: X17 imm: 40.
-	asm and: X17 with: X17 imm: H_HASH_MASK.
-	asm cmp: X17 imm: 0.
-	asm csinc: X17 with: X17 with: XZR cond: COND_NE.
-	asm orr: self scratchB with: self scratchB with: X17 shift: SHIFT_LSL amount: H_HASH_SHIFT.
-	asm comment: 'room in eden'.
-	asm ubfx: self scratchA with: self scratchB lsb: 0 width: 32.
-	asm lsl: self scratchA with: self scratchA imm: 3.
-	asm add: self scratchA with: self scratchA imm: 16.
-	asm adrp: X17 label: (asm labelAt: gc edenBoxAddress).
-	asm add: X17 with: X17 imm: (gc edenBoxAddress bitAnd: 16rFFF) asInt64.
-	asm ldr: X16 base: X17 offset: 0.
-	asm add: self scratchA with: X16 with: self scratchA.
-	asm ldr: X17 base: X17 offset: 8.
-	asm cmp: self scratchA with: X17.
-	asm b: slow if: COND_HI.
-	asm adrp: X17 label: (asm labelAt: gc edenBoxAddress).
-	asm add: X17 with: X17 imm: (gc edenBoxAddress bitAnd: 16rFFF) asInt64.
-	asm str: self scratchA base: X17 offset: 0.
-	self loadConstant: nd tcls into: X17.
-	asm stp: self scratchB with: X17 base: X16 offset: 0.
+	self emitEdenObject: nd tcls slow: slow.
 	(shift > 0 and: [(fused := self fusedReplaceOf: n) >= 0]) ifTrue: [
 		self emitFill: n upTo: (ir operand: (ir node: fused) args + 2).
 		r := self dst: n.
@@ -1874,6 +1849,59 @@ emitAllocate: n slow: slow done: done
 	asm mov: r with: X16.
 	self def: n from: r.
 	asm b: done
+!
+emitEdenObject: cls slow: slow
+	"x16 := a new object of class cls in eden, its header the slots and format in scratchB with a hash (the VM's generator); no room, or the allocation sample's limit: slow. Uses scratchA, scratchB, x17."
+	asm ldr: X16 base: X22 offset: self hashBoxOffset.
+	asm ldr: X17 base: X16 offset: 0.
+	asm mov: self scratchA imm: 6364136223846793005.
+	asm mul: X17 with: X17 with: self scratchA.
+	asm mov: self scratchA imm: 1442695040888963407.
+	asm add: X17 with: X17 with: self scratchA.
+	asm str: X17 base: X16 offset: 0.
+	asm lsr: X17 with: X17 imm: 40.
+	asm and: X17 with: X17 imm: H_HASH_MASK.
+	asm cmp: X17 imm: 0.
+	asm csinc: X17 with: X17 with: XZR cond: COND_NE.
+	asm orr: self scratchB with: self scratchB with: X17 shift: SHIFT_LSL amount: H_HASH_SHIFT.
+	asm comment: 'room in eden'.
+	asm ubfx: self scratchA with: self scratchB lsb: 0 width: 32.
+	asm lsl: self scratchA with: self scratchA imm: 3.
+	asm add: self scratchA with: self scratchA imm: 16.
+	asm adrp: X17 label: (asm labelAt: gc edenBoxAddress).
+	asm add: X17 with: X17 imm: (gc edenBoxAddress bitAnd: 16rFFF) asInt64.
+	asm ldr: X16 base: X17 offset: 0.
+	asm add: self scratchA with: X16 with: self scratchA.
+	asm ldr: X17 base: X17 offset: 8.
+	asm cmp: self scratchA with: X17.
+	asm b: slow if: COND_HI.
+	asm adrp: X17 label: (asm labelAt: gc edenBoxAddress).
+	asm add: X17 with: X17 imm: (gc edenBoxAddress bitAnd: 16rFFF) asInt64.
+	asm str: self scratchA base: X17 offset: 0.
+	self loadConstant: cls into: X17.
+	asm stp: self scratchB with: X17 base: X16 offset: 0
+!
+emitMakeArray: n
+	"0x94: an Array of the operands in eden (young: no store barrier) if there are at most 64 and there is room; else the runtime makes it from the slots at slotTop (OUT_ARRAY)."
+	| nd k slow back x r |
+	nd := ir node: n.
+	k := nd nargs asInt32.
+	slow := self out: OUT_ARRAY node: n index: 0.
+	back := asm newLabel.
+	(cgOuts + (cgOutCount - 1)) resume: back.
+	r := self dst: n.
+	k <= 64
+		ifTrue: [
+			asm comment: 'make an Array in eden, the operands its elements'.
+			asm mov: self scratchB imm: (k asInt64 bitOr: F_VAR asInt64 << H_FMT_SHIFT).
+			self emitEdenObject: memory clsArray slow: slow.
+			0 to: k - 1 do: [:i |
+				x := self src: (ir operand: nd args + i) into: self scratchA.
+				asm str: x base: X16 offset: (self fieldOffset: i)].
+			asm mov: r with: X16]
+		ifFalse: [asm b: slow].
+	asm bind: back.
+	self def: n from: r
 !
 emitFill: n upTo: stop
 	"Allocation n (x16) of bytes or 32-bit words, its header stored, that the replace writing elements 1 to stop follows (fusedReplaceOf:): its slots zeroed from the one element stop + 1 starts in (all of them if stop is not a SmallInteger; none past the last); stop its size: the last slot (the format's unused elements)."
@@ -2138,6 +2166,7 @@ emitOuts
 			self emitReloadPinned.
 			self reloadAcross: o node.
 			asm b: o resume].
+		o kind = OUT_ARRAY ifTrue: [self emitMakeArraySlow: o].
 		o kind = OUT_BARRIER ifTrue: [
 			asm comment: 'remember the old object: call the runtime'.
 			self emitBarrierCall: o].
@@ -2189,6 +2218,26 @@ emitOuts
 			asm mov: W17 imm: (self recordGuard: o node).
 			asm b: cgReturnLabel]].
 	^true
+!
+emitMakeArraySlow: o
+	"Eden is full (or the Array is big): the runtime makes it from the operands at slotTop (it may collect; values live after it reloaded from their home slots)."
+	| nd k x |
+	nd := ir node: o node.
+	k := nd nargs asInt32.
+	asm comment: 'make the Array: call the runtime'.
+	self saveAcross: o node.
+	0 to: k - 1 do: [:i |
+		x := self src: (ir operand: nd args + i) into: self scratchA.
+		asm str: x base: X20 offset: 8 * (cgSlotTop + i)].
+	self emitFramePc: cgBcSize + (self recordSafepoint: o node kind: SP_ALLOC) sp: cgSlotTop + k.
+	asm mov: X0 with: X19.
+	asm mov: X1 imm: k.
+	asm bl: (asm labelAt: stubs optMakeArrayStub).
+	asm str: X0 base: X20 offset: 8 * cgSlotTop.
+	self emitReloadPinned.
+	self reloadAcross: o node.
+	asm ldr: (self dst: o node) base: X20 offset: 8 * cgSlotTop.
+	asm b: o resume
 !
 emitBarrierCall: o
 	"Save the scratch registers the C function may change, call the barrier, restore."

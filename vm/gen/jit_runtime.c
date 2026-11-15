@@ -1959,12 +1959,11 @@ jit_method *jit_runtime_lookup(oop m)
 }
 
 /* JitRuntime>>makeArray: */
-uint64_t make_array(frame *f)
+uint64_t jit_runtime_make_array(frame *f)
 {
     oop o;
     uint64_t o_2;
     uint8_t n;
-    uint64_t a;
     if ((jit_mode == JIT_BASELINE) || (jit_mode == JIT_OPT)) {
         f->method = ((jit_method *)f->code)->method;
         canonicalize_below(f);
@@ -1974,12 +1973,7 @@ uint64_t make_array(frame *f)
     o_2 = *(uint64_t *)(o + 16 + 16);
     f->lits = (oop *)(o_2 + 16);
     n = f->ip[1];
-    a = alloc_obj(cls_array, F_VAR, n);
-    memcpy((oop *)(a + 16), f->fp + f->sp - n, (uint64_t)n * 8);
-    if (((a & 7) == 0) && ((!(a - young_lo < young_hi - young_lo)) && (((*(uint64_t *)a) & H_REMEMBERED) == 0))) {
-        remember(a);
-    }
-    f->fp[f->sp - n] = a;
+    f->fp[f->sp - n] = new_array(n, f->fp + f->sp - n);
     return 0;
 }
 
@@ -2062,6 +2056,18 @@ int mode_named(char *name)
 void move(uint64_t dst, uint64_t src, uint64_t n)
 {
     memmove((void *)dst, (void *)src, n);
+}
+
+/* JitRuntime>>newArray:from: */
+oop new_array(uint32_t n, oop *p)
+{
+    uint64_t a;
+    a = alloc_obj(cls_array, F_VAR, n);
+    memcpy((oop *)(a + 16), p, (uint64_t)n * 8);
+    if (((a & 7) == 0) && ((!(a - young_lo < young_hi - young_lo)) && (((*(uint64_t *)a) & H_REMEMBERED) == 0))) {
+        remember(a);
+    }
+    return a;
 }
 
 /* JitRuntime>>noOptFrames */

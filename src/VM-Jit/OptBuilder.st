@@ -995,9 +995,26 @@ emit: pc act: a
 	op = 16r7C ifTrue: [
 		self nonLocalReturn: (self read: (self var: a slot: d - 1)) act: a pc: pc depth: d.
 		^next].
-	"thisContext, Arrays, Context's mediated fields (0x81 0-2, 0x88): not yet"
+	op = 16r94 ifTrue: [
+		self makeArray: (self byteAt: pc + 1 act: a) asInt32 pc: pc act: a depth: d.
+		^next].
+	"thisContext, Context's mediated fields (0x81 0-2, 0x88): not yet"
 	self bail.
 	^next
+!
+makeArray: k pc: pc act: a depth: d
+	"0x94 k: an Array of the top k slots (OptCodegen>>emitMakeArray:), a safepoint with the frame state before it."
+	| n args |
+	n := self add: O_MKARRAY rep: R_OOP.
+	obSafeEpoch := obSafeEpoch + 1.
+	args := ir allocOperands: k.
+	0 to: k - 1 do: [:i | ir operand: args + i put: (self read: (self var: a slot: d - k + i))].
+	(ir node: n) args: args.
+	(ir node: n) nargs: k asUInt16.
+	(ir node: n) tkind: T_OBJ.
+	(ir node: n) tcls: memory clsArray.
+	(ir node: n) state: (self stateAct: a pc: pc depth: d).
+	self push: n act: a depth: d - k
 !
 closureAt: pc act: a
 	"0x8F: a BlockClosure for the body after pc; as long as it is only evaluated by inlined value sends it is never made (its frame states describe it)."
@@ -1884,7 +1901,7 @@ canInline: m act: a
 	pc := 0.
 	[pc < size] whileTrue: [
 		op := bcs at: pc.
-		(op = 16r76 or: [op = 16r94 or: [op = 16r88 or: [(op = 16r81 and: [(bcs at: pc + 1) <= CTX_STACKP]) or: [((runtime flag: runtime blocksFlag) not and: [op = 16r7C or: [op = 16r8F or: [op >= 16r8A and: [op <= 16r8C]]]])]]]]) ifTrue: [^false].
+		(op = 16r76 or: [op = 16r88 or: [(op = 16r81 and: [(bcs at: pc + 1) <= CTX_STACKP]) or: [((runtime flag: runtime blocksFlag) not and: [op = 16r7C or: [op = 16r8F or: [op >= 16r8A and: [op <= 16r8C]]]])]]]) ifTrue: [^false].
 		pc := pc + (analysis lengthOf: op)].
 	^true
 !

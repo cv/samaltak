@@ -74,16 +74,16 @@ testInvalidationWhileRunning
 	self assert: (self statistics - before) optInvalidations > 0
 !
 testPerformInALoopStaysOptimized
-	"perform: and perform:with: of constant selectors are sends of them, perform:withArguments: (one and three arguments) calls its machine code: a loop of them neither deoptimizes nor sends through the runtime (unless --jit-flags deopt makes it)."
+	"perform: and perform:with: of constant selectors are sends of them, perform:withArguments: (one and three arguments, an Array made before the loop and one made by braces in it) calls its machine code: a loop of them neither deoptimizes nor sends through the runtime (unless --jit-flags deopt makes it)."
 	| o before |
 	self define: 'one ^1'.
 	self define: 'plus: x ^x + 1'.
 	self define: 'a: x b: y c: z ^x + y - z'.
-	self define: 'performs: n | s a b | s := 0. a := Array new: 1. b := Array new: 3. 1 to: n do: [:i | a at: 1 put: i. b at: 1 put: i; at: 2 put: 5; at: 3 put: 7. s := s + (self perform: #one) + (self perform: #plus: with: i) + (i perform: #+ with: 1) + (self perform: #plus: withArguments: a) + (self perform: #a:b:c: withArguments: b)]. ^s'.
+	self define: 'performs: n | s a b | s := 0. a := Array new: 1. b := Array new: 3. 1 to: n do: [:i | a at: 1 put: i. b at: 1 put: i; at: 2 put: 5; at: 3 put: 7. s := s + (self perform: #one) + (self perform: #plus: with: i) + (i perform: #+ with: 1) + (self perform: #plus: withArguments: a) + (self perform: #a:b:c: withArguments: b) + (self perform: #a:b:c: withArguments: {i. 5. 7})]. ^s'.
 	o := JitRuntimeTestSubject new.
-	self assert: (o performs: 100) equals: 20400.
+	self assert: (o performs: 100) equals: 25250.
 	before := self statistics.
-	self assert: (o performs: 10000) equals: 200040000.
+	self assert: (o performs: 10000) equals: 250025000.
 	self stressed ifFalse: [
 		self assert: (self statistics - before) optDeoptimizations < 1000.
 		self assert: (self statistics - before) optRuntimeSends < 50]
@@ -773,13 +773,44 @@ testClosurePassedToAMethodInALoop
 	self define: 'storeThroughCall | n b | n := 0. b := [n := n + 1]. 1 to: 3 do: [:i | self call: b]. ^n'.
 	3000 timesRepeat: [self assert: JitRuntimeTestSubject new storeThroughCall equals: 3]
 !
+testBraceArraysInOptimizedCode
+	"Brace Arrays are made in optimized code, in methods it inlines too: a loop of them across interrupt checks where a Process collects (eden full: the runtime makes them), and of more than 64 elements (always the runtime; a Float running sum, a double, lives across it), is optimized and not deoptimized (unless --jit-flags deopt makes it)."
+	| o done before big |
+	Smalltalk vm jitParameters: #(nil '-eager' nil nil).
+	self define: 'pair: x with: y ^{x. y}'.
+	self define: 'braces: n | s a b | s := 0. b := {}. 1 to: n do: [:i | a := self pair: i with: b. b := {a. i + 1. {}}. s := s + (a at: 1) + (b at: 2) + ((b at: 1) at: 1) + (b at: 3) size]. ^{s. b size. (b at: 1) size}'.
+	big := String new writeStream.
+	big nextPutAll: 'big: n | s | s := 0. 1 to: n do: [:i | s := s + ({i'.
+	2 to: 65 do: [:k | big nextPutAll: '. '; print: k].
+	big nextPutAll: '} at: 1) + ({i. 2} at: 2)]. ^s'.
+	self define: big contents.
+	big := String new writeStream.
+	big nextPutAll: 'bigFloat: n | f s | f := 0.0. s := 0. 1 to: n do: [:i | f := f + 0.5. s := s + ({i'.
+	2 to: 65 do: [:k | big nextPutAll: '. '; print: k].
+	big nextPutAll: '} at: 1). f := f * 1.0]. ^{f. s}'.
+	self define: big contents.
+	o := JitRuntimeTestSubject new.
+	self assert: (o braces: 1000) equals: #(1502500 3 2).
+	self assert: (o big: 1000) equals: 502500.
+	self assert: (o bigFloat: 1000) equals: #(500.0 500500).
+	done := false.
+	self fork: [[done] whileFalse: [Smalltalk vm scavenge. (Delay forMilliseconds: 1) wait]] at: Processor activePriority + 1.
+	before := self statistics.
+	1 to: 3 do: [:k |
+		self assert: (o braces: 200000) equals: #(60000500000 3 2).
+		self assert: (o big: 20000) equals: 200050000.
+		self assert: (o bigFloat: 20000) equals: #(10000.0 200010000)].
+	done := true.
+	self assert: (self statistics - before) optCompileFailures equals: 0.
+	self stressed ifFalse: [self assert: (self statistics - before) optDeoptimizations < 100]
+!
 testCountSharedWithAFailedMethod
-	"Methods count toward optimization in slots by identity hash (modulo 65536). One the optimizer cannot compile ({} is not compiled) leaves its slot counting: a method sharing it is still optimized."
+	"Methods count toward optimization in slots by identity hash (modulo 65536). One the optimizer cannot compile (thisContext is not compiled) leaves its slot counting: a method sharing it is still optimized."
 	| failing plain o before |
 	Smalltalk vm jitParameters: #(nil '-eager' nil nil).
-	self define: 'failing: x ^{x}'.
+	self define: 'failing: x thisContext. ^x'.
 	self define: 'plain: x ^x + 1'.
-	self define: 'plain: x times: n 1 to: n do: [:i | self plain: x]. ^{x}'.
+	self define: 'plain: x times: n 1 to: n do: [:i | self plain: x]. thisContext. ^x'.
 	failing := JitRuntimeTestSubject >> #failing:.
 	plain := JitRuntimeTestSubject >> #plain:.
 	"one slot, two hashes: failures are remembered by hash"
@@ -791,7 +822,7 @@ testCountSharedWithAFailedMethod
 	before := self statistics.
 	3000 timesRepeat: [o failing: 0].
 	self assert: (self statistics - before) optCompileFailures > 0.
-	"plain:times: fails too ({}): what is compiled is plain:"
+	"plain:times: fails too (thisContext): what is compiled is plain:"
 	before := self statistics.
 	o plain: 0 times: 3000.
 	self assert: (self statistics - before) optMethodsCompiled > 0

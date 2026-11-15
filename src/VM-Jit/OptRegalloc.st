@@ -48,7 +48,7 @@ isValue: n
 isSafepoint: n
 	| op |
 	op := (ir node: n) op asInt32.
-	^op = O_SEND or: [op = O_CALL or: [op = O_CHECKINT]]
+	^op = O_SEND or: [op = O_CALL or: [op = O_CHECKINT or: [op = O_MKARRAY]]]
 ! !
 
 !OptRegalloc methodsFor: 'allocation'!
@@ -84,7 +84,7 @@ numberPositions
 					nd pos: pos.
 					((self isSafepoint: n) and: [raSafeCount < RA_MAX_SAFE]) ifTrue: [
 						raSafePos at: raSafeCount put: pos.
-						raSafeCall at: raSafeCount put: (nd op asInt32 = O_CHECKINT ifTrue: [0] ifFalse: [1]).
+						raSafeCall at: raSafeCount put: ((nd op asInt32 = O_CHECKINT or: [nd op asInt32 = O_MKARRAY]) ifTrue: [0] ifFalse: [1]).
 						raSafeCount := raSafeCount + 1]].
 			nd lstart: 16r7FFFFFFF.
 			nd lend: -1.

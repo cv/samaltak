@@ -525,7 +525,7 @@ exit_is_value_9:;
                 }
                 after = ({
     op = (int32_t)(opt_nodes + n)->op;
-    r_is_safepoint = (op == O_SEND) || ((op == O_CALL) || (op == O_CHECKINT));
+    r_is_safepoint = (op == O_SEND) || ((op == O_CALL) || ((op == O_CHECKINT) || (op == O_MKARRAY)));
     r_is_safepoint; }) ? nd->pos + 1 : nd->pos;
                 s = nd->state;
                 while (s >= 0) {
@@ -1093,10 +1093,10 @@ static void number_positions(void)
                 nd->pos = pos;
                 if (({
     op = (int32_t)(opt_nodes + n)->op;
-    r_is_safepoint = (op == O_SEND) || ((op == O_CALL) || (op == O_CHECKINT));
+    r_is_safepoint = (op == O_SEND) || ((op == O_CALL) || ((op == O_CHECKINT) || (op == O_MKARRAY)));
     r_is_safepoint; }) && (ra_safe_count < RA_MAX_SAFE)) {
                     ra_safe_pos[ra_safe_count] = pos;
-                    ra_safe_call[ra_safe_count] = (int32_t)nd->op == O_CHECKINT ? 0 : 1;
+                    ra_safe_call[ra_safe_count] = ((int32_t)nd->op == O_CHECKINT) || ((int32_t)nd->op == O_MKARRAY) ? 0 : 1;
                     ra_safe_count = ra_safe_count + 1;
                 }
             }
@@ -1177,7 +1177,7 @@ static bool record_safepoint_liveness(void)
             nd = opt_nodes + n;
             if (({
     op = (int32_t)(opt_nodes + n)->op;
-    r_is_safepoint = (op == O_SEND) || ((op == O_CALL) || (op == O_CHECKINT));
+    r_is_safepoint = (op == O_SEND) || ((op == O_CALL) || ((op == O_CHECKINT) || (op == O_MKARRAY)));
     r_is_safepoint; })) {
                 nd->live = ra_safe_list_count;
                 for (v = 0; v <= opt_node_count - 1; v++) {

@@ -1279,6 +1279,22 @@ uint64_t opt_runtime_leave(frame *f, bool after)
     return deopt_frame(f, f->pc - (int32_t)h->bc_size, (uint64_t *)NULL, after ? 2 : 1);
 }
 
+/* OptRuntime>>makeArray:count: */
+oop opt_runtime_make_array(frame *f, uint64_t n)
+{
+    oop o;
+    uint64_t o_2;
+    if ((jit_mode == JIT_BASELINE) || (jit_mode == JIT_OPT)) {
+        f->method = ((jit_method *)f->code)->method;
+        canonicalize_below(f);
+    }
+    sync_frame(f);
+    o = f->method;
+    o_2 = *(uint64_t *)(o + 16 + 16);
+    f->lits = (oop *)(o_2 + 16);
+    return new_array((uint32_t)n, f->fp + ((int64_t)f->sp - (int64_t)n));
+}
+
 /* OptRuntime>>makeSunk:outer: */
 static void make_sunk(int32_t s, oop ctx)
 {
