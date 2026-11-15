@@ -258,6 +258,43 @@ The [Benchmarks Game](https://benchmarksgame-team.pages.debian.net/benchmarksgam
 
     vm/tests/bench/benchmarksgame.sh [-n 3] [-o file] [--small] [program ...]   # --small: sizes for checking output; VM, IMAGE, VMARGS; PHARO_VM, PHARO_IMAGE
 
+## Where Pharo is faster
+
+17 workloads chosen because Pharo 12 wins them (`awfy/Adverse.st`, `--suite adverse`, not part of `all`), the same source on both, each checksum one constant. On the x86-64 machine above: CPU time (`--cpu`), steady state, median of 3 invocations of 30 iterations interleaved `opt`, `baseline`, Pharo 12 (`vm/tests/bench/results/{samaltak-x86-opt,samaltak-x86-baseline,pharo12-cog-x86}-adverse-2026-11-15-*.csv`), ms. An invocation takes about 3 minutes under `opt`.
+
+| benchmark | what | `opt` | `baseline` | Pharo 12 | `opt` / Pharo | `baseline` / Pharo |
+|---|---|---|---|---|---|---|
+| AdvPointDict | 70×70 grid, Points as Dictionary keys | 394.4 | 651.0 | 1.9 | 205 | 339 |
+| AdvPackedKeys | 70×70 grid, `x * 65536 + y` as Dictionary keys and Set elements | 506.8 | 475.8 | 2.1 | 246 | 231 |
+| AdvFloatSet | 15,000 Floats in hundredths: `asSet`, a histogram Dictionary, misses | 560.7 | 510.7 | 9.8 | 57 | 52 |
+| AdvArrayKeys | 65×65 grid, `{x. y}` as Dictionary keys | 242.6 | 492.5 | 3.4 | 72 | 147 |
+| AdvAlignedInts | 9,000 multiples of 4096 in a Set and a Dictionary | 378.1 | 355.7 | 3.7 | 101 | 95 |
+| AdvHugePrint | `3 raisedTo: 100000` printed in decimal and hex | 282.3 | 282.8 | 84.0 | 3.36 | 3.37 |
+| AdvBigPrint | `3 raisedTo: 20000` printed and read back 4 times, 3,000 51-digit Integers printed | 71.6 | 76.0 | 32.7 | 2.19 | 2.33 |
+| AdvPingPong | 100,000 round trips between 2 Processes through 2 Semaphores | 224.1 | 221.4 | 22.1 | 10 | 10 |
+| AdvDeepPingPong | 20,000 round trips, each Process 50 calls deep | 44.7 | 44.5 | 4.4 | 10 | 10 |
+| AdvYield | 4 Processes, 25,000 `Processor yield` each | 103.1 | 102.5 | 9.8 | 11 | 11 |
+| AdvForkJoin | 3,000 times `fork`, then wait for it | 519.7 | 422.9 | 8.1 | 64 | 52 |
+| AdvFork | 3,000 Processes forked at once, a mutual-exclusion Semaphore | 439.7 | 430.0 | 8.2 | 53 | 52 |
+| AdvBecome | 50 `becomeForward:` | 634.3 | 583.7 | 0.9 | 741 | 682 |
+| AdvValueWithArguments | 2,000,000 `valueWithArguments:` of 1-argument blocks | 275.6 | 319.9 | 142.2 | 1.94 | 2.25 |
+| AdvBlocks | blocks of 0–4 arguments from an Array, 150,000 rounds: `value…`, `valueWithArguments:`, `numArgs`, `cull:` | 120.8 | 133.6 | 81.4 | 1.48 | 1.64 |
+| AdvPerform3 | 900,000 each of `perform:with:with:with:` and `perform:withArguments:` of 3 | 186.0 | 186.5 | 104.6 | 1.78 | 1.78 |
+| AdvFractions | 40 rounds: a harmonic sum of 120 terms, a continued fraction 60 deep | 33.9 | 37.6 | 28.3 | 1.20 | 1.33 |
+
+The hash-table workloads are quadratic on Samaltak and shrunk to 0.24–0.65 s an iteration; their ratios grow with size (a screening invocation, 3 iterations: AdvPointDict at 120×120 `opt` 5130 ms, Pharo 6.0, 855; AdvPackedKeys at 150×150 12,404 and 20.6, 602). `opt`'s steady states of AdvPointDict, AdvPackedKeys and AdvFloatSet range up to 1.7–1.8× between invocations (AdvPointDict 385–676 ms). AdvFractions' first iteration takes 101.4 ms under `opt` (2.71 of Pharo's 37.4): `opt` compiles 70–72 ms and deoptimizes 29 times in an invocation.
+
+Causes:
+
+- Hash tables: the capacity is a power of two and `scanFor:` probes linearly from `hash \\ size` without mixing (`Set.st:76-83`, `Dictionary.st:219-226`, `HashedCollection.st:6`), so hashes that share their low bits or fill a narrow range collide. From the hash functions (computed outside the VM): `Point>>hash` (`Point.st:68-69`) gives AdvPointDict's 4,900 Points 344 values; `SmallInteger>>hash` is the value (`SmallInteger.st:75-76`), so AdvPackedKeys' 4,900 keys start in 70 of 16,384 slots and AdvAlignedInts' 9,000 in 8 of 32,768; a non-integral Float hashes as its exact Fraction, numerator `bitXor:` denominator (`Float.st:65-69`, `Fraction.st:107-108`): AdvFloatSet's 12,840 start in 330 of 32,768; `SequenceableCollection>>hash` (`SequenceableCollection.st:178-182`) puts AdvArrayKeys' 4,225 `{x. y}` in 2,049 consecutive slots.
+- Huge Integers: `LargePositiveInteger>>printString:` (`LargePositiveInteger.st:40-55`) divides the whole number twice (`\\`, `//`) per 9 digits; `NumberParser>>parseDigitsBase:` (`NumberParser.st:65`) multiplies the whole value by 10 per digit.
+- Process switches: `Scheduler>>transferTo:` reads the thread's CPU clock at every switch (`Scheduler.st:424`, `threadCpuUs` `:101-110`, `CLOCK_THREAD_CPUTIME_ID`), a system call here: 825 ns against 26 for `CLOCK_MONOTONIC` (a C loop); AdvPingPong switches 200,000 times an iteration. With the clock shimmed to `CLOCK_MONOTONIC` (`LD_PRELOAD`; wall time, median of 7 runs) AdvPingPong takes 44 ms instead of 221, AdvDeepPingPong 8 instead of 44, AdvYield 22 instead of 103.
+- Forks: `Process class>>register:` (`Process.st:227-238`) scans the registry WeakArray from its first slot for a free one at every fork; a terminated Process's slot frees when a GC clears it (79,600–89,400 slots over AdvForkJoin's 30 iterations, all by scavenges). With `register:` recompiled to answer its argument (wall time, median of 7 runs) AdvForkJoin takes 10 ms instead of 386, AdvFork 8 instead of 396.
+- `becomeForward:` (`ObjectPrimitives.st:243-249`) does a full GC, then `GarbageCollector>>becomeForward:to:` (`GarbageCollector.st:529`) walks old space: 12.7 ms a call. Spur leaves a forwarder instead.
+- Leaving machine code: `valueWithArguments:` (`ControlPrimitives.st:52-61`) activates the block in the interpreter and machine code calling it leaves (`JitBaselineRuntime.st:808-851`): AdvValueWithArguments counts one exit per call. Machine code's `perform:withArguments:` takes an Array of up to 2 (`JitBaselineCompiler.st:1040`, `JitBaselineRuntime.st:742`): AdvPerform3 counts one exit per `perform:withArguments:`, none per `perform:with:with:with:`.
+
+Tried, and Samaltak won: large heaps, old→young stores, large objects, weak arrays, tenuring; strings, streams, sorting, deep copies; polymorphic sends to 4–8 classes, non-local returns, unwinding, context walks, reflection, LargeInteger hashing arithmetic.
+
 ## Against C
 
 Basic C versions of the eight Shootout (CLBG) programs the suites run (`vm/tests/bench/clbg/*.c`: the six above and AWFY's Mandelbrot and NBody) do the Smalltalk versions' work, same sizes, same algorithm, same checksum: `malloc`/`free` per node in binary-trees, GMP in pidigits, a growing buffer where Smalltalk has a WriteStream, an open-addressing hash table of positions in k-nucleotide; inputs made before timing, as the benchmarks' `initialize`. `vm/tests/bench/clbg.sh [-n 10] [-o file] [program ...]` builds them with `cc -O2` and prints what `awfy.sh` prints. On the x86-64 machine above (gcc 12, CPU time, median of 3 invocations of 10 iterations, `vm/tests/bench/results/c-gcc-O2-x86-2026-11-15-*.csv`), against the Samaltak and Pharo 12 medians of the x86-64 tables:

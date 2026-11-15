@@ -11,6 +11,7 @@ AWFY="Bounce CD DeltaBlue Havlak Json List Mandelbrot NBody Permute Queens Richa
 MICRO="MicroFib MicroLoop MicroFloats MicroSends MicroBlocks MicroDict MicroStrings MicroAlloc MicroFactorial"
 WORKLOADS="Recompile TextRendering"
 REALWORLD="BinaryTrees Fasta KNucleotide ReverseComplement SpectralNorm Pidigits Strings Dictionaries OrderedCollections Sorting Enumeration PrintParse Exceptions Megamorphic DeepRecursion Perform"
+ADVERSE="AdvPointDict AdvPackedKeys AdvFloatSet AdvArrayKeys AdvAlignedInts AdvHugePrint AdvBigPrint AdvPingPong AdvDeepPingPong AdvYield AdvForkJoin AdvFork AdvBecome AdvValueWithArguments AdvBlocks AdvPerform3 AdvFractions"
 
 usage() {
     cat <<EOF
@@ -20,7 +21,7 @@ usage: $0 [options] [benchmark[:inner] ...]
   --vm-args ARGS    extra VM arguments, e.g. '--jit baseline'
   --pharo           run on Pharo 14 (all but the Samaltak workloads)
   --pharo-init EXPR Smalltalk Pharo evaluates after the file-ins, before the benchmark
-  --suite NAME      awfy (default), micro, workloads, realworld or all (all but realworld)
+  --suite NAME      awfy (default), micro, workloads, realworld, adverse or all (all but realworld and adverse)
   -n N              iterations per benchmark (default 30)
   -i N              inner iterations for every benchmark (default: per benchmark, see inner())
   -o FILE           also write CSV and '#' lines to FILE
@@ -60,6 +61,7 @@ show() {
 file_of() {
     case $1 in
     Micro*) echo Micro ;;
+    Adv*) echo Adverse ;;
     Recompile|TextRendering) echo Workloads ;;
     *) case " $REALWORLD " in *" $1 "*) echo RealWorld ;; *) echo "$1" ;; esac ;;
     esac
@@ -127,6 +129,7 @@ if [ $# -eq 0 ]; then
     micro) set -- $MICRO ;;
     workloads) set -- $WORKLOADS ;;
     realworld) set -- $REALWORLD ;;
+    adverse) set -- $ADVERSE ;;
     all) set -- $AWFY $MICRO $WORKLOADS ;;
     *) usage ;;
     esac
