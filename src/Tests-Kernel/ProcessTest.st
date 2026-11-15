@@ -229,4 +229,97 @@ testCpuTime
 	p := [1 to: 20000 do: [:i | i * i]. sem signal] fork.
 	sem wait.
 	self assert: p cpuTime >= 0
+!
+testRegistryHasEveryProcess
+	| procs live |
+	procs := (1 to: 300) collect: [:i | [nil] newProcess].
+	live := Processor allProcesses asIdentitySet.
+	self assert: (procs allSatisfy: [:p | live includes: p]).
+	self assert: (live includes: Processor activeProcess).
+	procs do: [:p | p terminate]
+!
+testRegistryReusesCollectedSlots
+	| capacity procs |
+	procs := (1 to: 2000) collect: [:i | [nil] newProcess].
+	procs := nil.
+	Smalltalk vm garbageCollect.
+	capacity := self registryCapacity.
+	procs := (1 to: 2000) collect: [:i | [nil] newProcess].
+	self assert: self registryCapacity equals: capacity.
+	procs do: [:p | p terminate]
+!
+testRegistryStaysSmall
+	| sem |
+	sem := Semaphore new.
+	20000 timesRepeat: [[sem wait] forkAt: Processor activePriority + 1].
+	self assert: self registryCapacity <= 65536.
+	self assert: Processor allProcesses size > 20000.
+	20000 timesRepeat: [sem signal]
+!
+testRegistryShrinksAfterABurst
+	"A burst of processes gone and collected, the next allProcesses compacts the registry; it still has every process, and registers the next ones."
+	| kept sem later all |
+	kept := (1 to: 100) collect: [:i | [nil] newProcess].
+	sem := Semaphore new.
+	5000 timesRepeat: [[sem wait] forkAt: Processor activePriority + 1].
+	self assert: self registryCapacity >= 8192.
+	5000 timesRepeat: [sem signal].
+	Smalltalk vm garbageCollect.
+	Processor allProcesses.
+	self assert: self registryCapacity < 5000.
+	self assert: self registryCapacity <= (64 max: self registered * 4).
+	later := (1 to: 1000) collect: [:i | [nil] newProcess].
+	all := Processor allProcesses asIdentitySet.
+	self assert: (kept allSatisfy: [:p | all includes: p]).
+	self assert: (later allSatisfy: [:p | all includes: p]).
+	self assert: (all includes: Processor activeProcess).
+	kept do: [:p | p terminate].
+	later do: [:p | p terminate]
+!
+testRegistryShrinksWhileProcessesRegister
+	"A process of higher priority goes on registering processes while bursts come and go and the registry is compacted: none is lost."
+	| made done finished sem all |
+	made := OrderedCollection new.
+	done := false.
+	finished := Semaphore new.
+	[[done] whileFalse: [
+		made add: [nil] newProcess.
+		(Delay forMilliseconds: 1) wait].
+	 finished signal] forkAt: Processor activePriority + 1.
+	5 timesRepeat: [
+		sem := Semaphore new.
+		2000 timesRepeat: [[sem wait] forkAt: Processor activePriority + 1].
+		2000 timesRepeat: [sem signal].
+		Smalltalk vm garbageCollect.
+		Processor allProcesses.
+		self assert: self registryCapacity <= (64 max: self registered * 4)].
+	done := true.
+	finished wait.
+	all := Processor allProcesses asIdentitySet.
+	self assert: made notEmpty.
+	self assert: (made allSatisfy: [:p | all includes: p]).
+	made do: [:p | p terminate]
+!
+testRegistryAnswersNoCollectedProcess
+	| weak |
+	weak := self unreferencedProcesses: 100.
+	Smalltalk vm garbageCollect.
+	self assert: (weak allSatisfy: [:p | p isNil]).
+	self assert: (Processor allProcesses allSatisfy: [:p | p notNil and: [p isTerminated not]])
+! !
+
+!ProcessTest methodsFor: 'support'!
+unreferencedProcesses: anInteger
+	"Answer a WeakArray of anInteger new processes nothing else references."
+	| weak |
+	weak := WeakArray new: anInteger.
+	1 to: anInteger do: [:i | weak at: i put: [nil] newProcess].
+	^weak
+!
+registered
+	"How many processes the registry holds."
+	^(Process classPool at: #Registry) count: [:each | each notNil]
+!
+registryCapacity
+	^(Process classPool at: #Registry) size
 ! !
