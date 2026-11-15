@@ -212,10 +212,27 @@ testClosuresInMachineCode
 	self assert: walks < 10000 description: [walks printString , ' frame walks']
 !
 testAllocation
-	| arrays objects |
+	| arrays objects brace chain n |
 	self define: 'arrays ^(1 to: 100) collect: [:i | Array new: i \\ 7]'.
 	self define: 'objects ^(1 to: 100) collect: [:i | Object new]'.
 	self define: 'bytes ^(ByteArray new: 5) , (String new: 3) asByteArray'.
+	self define: 'braces: x ^{{}. {x}. {x. 2. x + 1}}'.
+	brace := [:k | 'brace' , k printString , ': x ^{' , (((1 to: k) collect: [:i | i = k ifTrue: ['x'] ifFalse: [i printString]]) inject: '' into: [:all :each | all isEmpty ifTrue: [each] ifFalse: [all , '. ' , each]]) , '}'].
+	self define: (brace value: 64).
+	self define: (brace value: 65).
+	self define: 'chain: k | a | a := nil. 1 to: k do: [:i | a := {i. a. i + 1}]. ^a'.
+	3 timesRepeat: [
+		self assert: (self subject braces: 7) equals: #(#() #(7) #(7 2 8)).
+		self assert: (self subject brace64: 0) equals: ((1 to: 64) collect: [:i | i \\ 64]) asArray.
+		self assert: (self subject brace65: 0) equals: ((1 to: 65) collect: [:i | i \\ 65]) asArray].
+	chain := self subject chain: 200000.
+	n := 0.
+	[chain isNil] whileFalse: [
+		self assert: (chain at: 3) equals: (chain at: 1) + 1.
+		n := n + 1.
+		self assert: (chain at: 1) equals: 200001 - n.
+		chain := chain at: 2].
+	self assert: n equals: 200000.
 	arrays := self subject arrays.
 	self assert: (arrays collect: [:each | each size]) asArray equals: ((1 to: 100) collect: [:i | i \\ 7]) asArray.
 	self assert: (arrays allSatisfy: [:each | each allSatisfy: [:x | x isNil]]).

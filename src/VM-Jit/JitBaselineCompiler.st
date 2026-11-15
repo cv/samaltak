@@ -2394,12 +2394,36 @@ emitReloadPinned
 	asm ldr: X25 base: X22 offset: self falseOffset
 !
 makeArray: pc
-	"0x94 n: the top n entries into a new Array."
-	| n |
+	"0x94 n: the top n entries into a new Array, made in eden (young: no store barrier) if n is at most 64; eden full or more: the runtime."
+	| n slow done loop |
 	n := (analysis byteAt: pc + 1) asInt32.
 	self ssFlushAll.
+	done := asm newLabel.
+	n <= 64 ifTrue: [
+		slow := asm newLabel.
+		asm comment: 'make an Array in eden, the entries its elements'.
+		self emitAlloc: n format: F_VAR classOffset: self arrayClassOffset fail: slow.
+		n <= 4
+			ifTrue: [
+				0 to: n - 1 do: [:i |
+					asm ldr: X10 base: X20 offset: (self slot: ssTop - n + i).
+					asm str: X10 base: X9 offset: (self fieldOffset: i)]]
+			ifFalse: [
+				asm add: X11 with: X20 imm: (self slot: ssTop - n).
+				asm add: X16 with: X9 imm: (self fieldOffset: 0).
+				asm mov: X17 imm: n.
+				loop := asm newLabel.
+				asm bind: loop.
+				asm ldr: X10 base: X11 postIndex: 8.
+				asm str: X10 base: X16 postIndex: 8.
+				asm subs: X17 with: X17 imm: 1.
+				asm b: loop if: COND_NE].
+		asm str: X9 base: X20 offset: (self slot: ssTop - n).
+		asm b: done.
+		asm bind: slow].
 	asm comment: 'make an Array: call the runtime'.
 	self emitRuntimeCall: makeArrayLabel pc: pc depth: ssTop.
+	asm bind: done.
 	self ssPop: n.
 	^self ssPush: SS_SLOT val: 0 reg: -1
 !
