@@ -55,7 +55,17 @@ void activate_block_with_array(void)
 /* Interpreter>>activeCapacity */
 int64_t active_capacity(void)
 {
-    return nframes != 0 ? frame_size(frames + (nframes - 1)) + CTX_SLACK : (int64_t)(uint32_t)*(uint64_t *)active_ctx - CTX_FIXED;
+    frame *f;
+    oop o;
+    if (nframes == 0) {
+        return (int64_t)(uint32_t)*(uint64_t *)active_ctx - CTX_FIXED;
+    }
+    f = frames + (nframes - 1);
+    if (f->ctx != nil_oop) {
+        o = f->ctx;
+        return (int64_t)(uint32_t)*(uint64_t *)o - CTX_FIXED;
+    }
+    return cstack + CSTACK_SLOTS - f->fp;
 }
 
 /* Interpreter>>activeSetStackp: */

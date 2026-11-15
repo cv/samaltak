@@ -161,22 +161,23 @@ testDisassembly
 
 !JitRuntimeTest methodsFor: 'tests: perform'!
 testPerform
-	"perform: with up to four arguments and perform:withArguments: with up to two, selectors the sends do not know: once their targets are cached no lookups (inline cache misses) and no sends through the runtime; three arguments in an Array go through the interpreter. The counters are the VM's, other Processes' included: the quietest of 3 rounds counts."
+	"perform: with up to four arguments and perform:withArguments: with up to seven, selectors the sends do not know: once their targets are cached no lookups (inline cache misses) and no sends through the runtime. The counters are the VM's, other Processes' included: the quietest of 3 rounds counts."
 	| o sels arrays deltas |
 	self define: 'zero ^0'.
 	self define: 'one: x ^x'.
 	self define: 'two: x with: y ^x * 10 + y'.
 	self define: 'three: x with: y with: z ^(x * 10 + y) * 10 + z'.
 	self define: 'four: x with: y with: z with: w ^((x * 10 + y) * 10 + z) * 10 + w'.
-	self define: 'performs: n with: s with: a | r | r := 0. 1 to: n do: [:i | r := r + (self perform: (s at: 1)) + (self perform: (s at: 2) with: 1) + (self perform: (s at: 3) with: 1 with: 2) + (self perform: (s at: 4) with: 1 with: 2 with: 3) + (self perform: (s at: 5) with: 1 with: 2 with: 3 with: 4) + (self perform: (s at: 1) withArguments: (a at: 1)) + (self perform: (s at: 2) withArguments: (a at: 2)) + (self perform: (s at: 3) withArguments: (a at: 3))]. ^r'.
+	self define: 'seven: a with: b with: c with: d with: e with: f with: g ^(((((a * 10 + b) * 10 + c) * 10 + d) * 10 + e) * 10 + f) * 10 + g'.
+	self define: 'performs: n with: s with: a | r | r := 0. 1 to: n do: [:i | r := r + (self perform: (s at: 1)) + (self perform: (s at: 2) with: 1) + (self perform: (s at: 3) with: 1 with: 2) + (self perform: (s at: 4) with: 1 with: 2 with: 3) + (self perform: (s at: 5) with: 1 with: 2 with: 3 with: 4) + (self perform: (s at: 1) withArguments: (a at: 1)) + (self perform: (s at: 2) withArguments: (a at: 2)) + (self perform: (s at: 3) withArguments: (a at: 3)) + (self perform: (s at: 4) withArguments: (a at: 4)) + (self perform: (s at: 5) withArguments: (a at: 5)) + (self perform: (s at: 6) withArguments: (a at: 6))]. ^r'.
 	self define: 'call: s withArguments: a ^self perform: s withArguments: a'.
 	o := JitRuntimeTestSubject new.
-	sels := #(#zero #one: #two:with: #three:with:with: #four:with:with:with:).
-	arrays := #(#() #(1) #(1 2)).
-	self assert: (o performs: 10 with: sels with: arrays) equals: 13830.
+	sels := #(#zero #one: #two:with: #three:with:with: #four:with:with:with: #seven:with:with:with:with:with:with:).
+	arrays := #(#() #(1) #(1 2) #(1 2 3) #(1 2 3 4) #(1 2 3 4 5 6 7)).
+	self assert: (o performs: 10 with: sels with: arrays) equals: 12373070.
 	deltas := (1 to: 3) collect: [:i | | before |
 		before := self statistics.
-		self assert: (o performs: 3000 with: sels with: arrays) equals: 4149000.
+		self assert: (o performs: 3000 with: sels with: arrays) equals: 3711921000.
 		self statistics - before].
 	self assert: (deltas collect: [:d | d jitInlineCacheMisses]) min < 300.
 	self assert: (deltas collect: [:d | d optRuntimeSends]) min < 300.
@@ -265,14 +266,35 @@ testPerformAfterRedefinition
 	self assert: (JitRuntimeTestSubject new sumPerforming: #answer) equals: 1111122222
 !
 testPerformDeepRecursion
-	"Recursion through perform:with: (a selector the send knows, and one it does not) deeper than the C stack: the frames become Contexts."
+	"Recursion through perform:with: (a selector the send knows, and one it does not) and perform:withArguments: deeper than the C stack: the frames become Contexts."
 	| before |
 	self define: 'depth: n ^n = 0 ifTrue: [0] ifFalse: [(self perform: #depth: with: n - 1) + 1]'.
 	self define: 'depth: n via: s ^n = 0 ifTrue: [0] ifFalse: [(self perform: s with: n - 1 with: s) + 1]'.
+	self define: 'depth: n via: s with: x ^n = 0 ifTrue: [0] ifFalse: [(self perform: s withArguments: (Array with: n - 1 with: s with: x)) + 1]'.
 	before := self statistics.
 	self assert: (JitRuntimeTestSubject new depth: 200000) equals: 200000.
 	self assert: (JitRuntimeTestSubject new depth: 200000 via: #depth:via:) equals: 200000.
+	self assert: (JitRuntimeTestSubject new depth: 200000 via: #depth:via:with: with: 3) equals: 200000.
 	self assert: (self statistics - before) frameFlushes > 0
+!
+testPerformFromAMarriedSender
+	"perform:withArguments: from a married frame, whose Context must hold the arguments (a C primitive target may flush the frames): a C primitive that switches to another Process, three and four arguments; seven answer right or the primitive fails (the Context is too small), as in the interpreter."
+	| o sem log seven |
+	self define: 'married: r perform: s with: a | b | b := [:x | x]. thisContext. ^b value: (r perform: s withArguments: a)'.
+	self define: 'three: x with: y with: z ^(x * 10 + y) * 10 + z'.
+	self define: 'four: x with: y with: z with: w ^((x * 10 + y) * 10 + z) * 10 + w'.
+	self define: 'seven: a with: b with: c with: d with: e with: f with: g ^(((((a * 10 + b) * 10 + c) * 10 + d) * 10 + e) * 10 + f) * 10 + g'.
+	o := JitRuntimeTestSubject new.
+	sem := Semaphore new.
+	log := OrderedCollection new.
+	self fork: [3 timesRepeat: [sem wait. log add: #woken]] at: Processor activePriority + 1.
+	1 to: 3 do: [:i |
+		self assert: (o married: sem perform: #signal with: #()) == sem.
+		self assert: log size equals: i.
+		self assert: (o married: o perform: #three:with:with: with: #(1 2 3)) equals: 123.
+		self assert: (o married: o perform: #four:with:with:with: with: #(1 2 3 4)) equals: 1234.
+		seven := [o married: o perform: #seven:with:with:with:with:with:with: with: #(1 2 3 4 5 6 7)] on: Error do: [:e | #failed].
+		self assert: (seven = 1234567 or: [seven = #failed])]
 !
 testPerformWithProcessSwitches
 	"A process wakes up every millisecond while perform: enters methods (their arguments moved down over the selector): interrupts at their entries switch to it, the results stay right."

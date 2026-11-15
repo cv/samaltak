@@ -1314,6 +1314,8 @@ uint64_t perform_miss(frame *f, oop rcv, uint64_t ret, uint64_t info)
     int64_t r_method_prim;
     uint64_t p;
     uint64_t c_2;
+    oop o_3;
+    uint64_t c_3;
     int64_t i_2;
     oop m_2;
     int64_t r_method_prim_2;
@@ -1366,9 +1368,13 @@ uint64_t perform_miss(frame *f, oop rcv, uint64_t ret, uint64_t info)
     (prim_kind_of((int32_t)(({
     p = *(uint64_t *)(m + 16 + 56);
     r_method_prim = (p & 1) != 0 ? ((int64_t)p) >> 1 : 0;
-    r_method_prim; }) & CM_PRIM_MASK)) == PK_PERFORM) || ((k > n) || ((uint64_t)fp >= state_block->stack_limit_normal)); })) {
-        c_2 = f->code;
-        return (c_2 > JIT_MAX_COUNT) && (((jit_method *)f->code)->mode == JIT_OPT) ? send_from(f, ret) : 1;
+    r_method_prim; }) & CM_PRIM_MASK)) == PK_PERFORM) || (((uint64_t)fp >= state_block->stack_limit_normal) || ((f->ctx != nil_oop) && ({
+    c_2 = f->code;
+    (!((c_2 > JIT_MAX_COUNT) && (((jit_method *)f->code)->mode == JIT_OPT))) && ({
+    o_3 = f->ctx;
+    fp - f->fp + k > (int64_t)(uint32_t)*(uint64_t *)o_3 - CTX_FIXED; }); }))); })) {
+        c_3 = f->code;
+        return (c_3 > JIT_MAX_COUNT) && (((jit_method *)f->code)->mode == JIT_OPT) ? send_from(f, ret) : 1;
     }
     if ((jit_flags & JIT_FLAG_IC) != 0) {
         i_2 = (int64_t)((((cls ^ sel) >> 3) & 4095) * 4);

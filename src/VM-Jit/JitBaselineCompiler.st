@@ -724,6 +724,9 @@ methodOffset
 codeOffset
 	^self cCoerce: ((self cCoerce: 0 to: 'Frame *') fieldAddress: #code) to: 'int64_t'
 !
+headerModeOffset
+	^self cCoerce: ((self cCoerce: 0 to: 'JitMethod *') fieldAddress: #mode) to: 'int64_t'
+!
 stackLimitOffset
 	^self cCoerce: ((self cCoerce: 0 to: 'JitState *') fieldAddress: #stackLimit) to: 'int64_t'
 !
@@ -1061,9 +1064,9 @@ emitLeafPrimitiveCall
 	^true
 !
 emitPerformPrimitive
-	"perform:, perform:with:... (the selector, then n - 1 arguments) and perform:withArguments: (an Array of up to 2): the target megamorphic sends of the selector to the receiver's class would take, from their table, if its argument count (the entry's fourth word) fits; the arguments one slot down, over the selector; its unchecked entry (x30 still returns to the send). Else the runtime, which fills the table, answers that the primitive failed (the frame and the body follow) or leaves."
+	"perform:, perform:with:... (the selector, then n - 1 arguments) and perform:withArguments: (an Array): the target megamorphic sends of the selector to the receiver's class would take, from their table, if its argument count (the entry's fourth word) fits; the arguments one slot down, over the selector; its unchecked entry (x30 still returns to the send). Else the runtime, which fills the table, answers that the primitive failed (the frame and the body follow) or leaves."
 	<function>
-	| n withArgs imm have go slow fail |
+	| n withArgs imm have go slow fail room loop |
 	n := curArgs.
 	withArgs := (brt primOpOf: analysis primitive) = 1.
 	slow := asm newLabel.
@@ -1098,26 +1101,44 @@ emitPerformPrimitive
 		asm b: slow if: COND_HS.
 		withArgs
 			ifTrue: [
-				asm comment: 'an Array of as many elements, up to 2: they replace the selector and the Array'.
-				asm ldr: X14 base: X20 offset: (self slot: 1).
-				asm tst: X14 imm: 7.
+				asm comment: 'an Array of as many elements: they replace the selector and the Array'.
+				asm ldr: X9 base: X20 offset: (self slot: 1).
+				asm tst: X9 imm: 7.
 				asm b: slow if: COND_NE.
-				asm ldr: X12 base: X14 offset: 8.
-				asm ldr: X13 base: X22 offset: self arrayClassOffset.
-				asm cmp: X12 with: X13.
+				asm ldr: X10 base: X9 offset: 8.
+				asm ldr: X11 base: X22 offset: self arrayClassOffset.
+				asm cmp: X10 with: X11.
 				asm b: slow if: COND_NE.
-				asm ldr: W12 base: X14 offset: 0.
-				asm cmp: X17 with: X12.
+				asm ldr: W10 base: X9 offset: 0.
+				asm cmp: X17 with: X10.
 				asm b: slow if: COND_NE.
-				asm cmp: X17 imm: 2.
+				asm comment: 'a married sender (not optimized) whose Context would not hold the arguments (a C primitive target may flush the frames): the runtime'.
+				room := asm newLabel.
+				asm ldr: X10 base: X19 offset: self ctxOffset.
+				asm cmp: X10 with: X23.
+				asm b: room if: COND_EQ.
+				asm ldr: X11 base: X19 offset: self codeOffset.
+				asm ldr: W11 base: X11 offset: self headerModeOffset.
+				asm cmp: X11 imm: runtime optMode.
+				asm b: room if: COND_EQ.
+				asm ldr: W10 base: X10 offset: 0.
+				asm sub: X10 with: X10 imm: CTX_FIXED.
+				asm ldr: X11 base: X19 offset: self fpOffset.
+				asm sub: X11 with: X20 with: X11.
+				asm lsr: X11 with: X11 imm: 3.
+				asm add: X11 with: X11 with: X17.
+				asm cmp: X11 with: X10.
 				asm b: slow if: COND_HI.
+				asm bind: room.
 				asm cbz: X17 to: go.
-				asm ldr: X12 base: X14 offset: (self fieldOffset: 0).
-				asm str: X12 base: X20 offset: (self slot: 0).
-				asm cmp: X17 imm: 1.
-				asm b: go if: COND_EQ.
-				asm ldr: X12 base: X14 offset: (self fieldOffset: 1).
-				asm str: X12 base: X20 offset: (self slot: 1)]
+				asm add: X9 with: X9 imm: (self fieldOffset: 0).
+				asm mov: X11 with: X20.
+				loop := asm newLabel.
+				asm bind: loop.
+				asm ldr: X10 base: X9 postIndex: 8.
+				asm str: X10 base: X11 postIndex: 8.
+				asm subs: X17 with: X17 imm: 1.
+				asm b: loop if: COND_NE]
 			ifFalse: [
 				asm cmp: X17 imm: n - 1.
 				asm b: slow if: COND_NE.

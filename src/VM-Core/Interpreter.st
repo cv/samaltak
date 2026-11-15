@@ -669,11 +669,13 @@ activeSetStackp: n
 		ifFalse: [self ctx: activeCtx setStackp: n]
 !
 activeCapacity
-	"Indexable slots the active activation may use."
+	"Indexable slots the active activation may use: a Context's; a frame's up to the end of the C stack, or as many as its Context holds if it is married (materializeAll copies them into it; Contexts made for frames hold all of theirs)."
 	<function>
-	^nframes ~= 0
-		ifTrue: [(self frameSize: frames + (nframes - 1)) + CTX_SLACK]
-		ifFalse: [(self numSlots: activeCtx) asInt64 - CTX_FIXED]
+	| f |
+	nframes = 0 ifTrue: [^(self numSlots: activeCtx) asInt64 - CTX_FIXED].
+	f := frames + (nframes - 1).
+	f ctx ~= memory nilOop ifTrue: [^(self numSlots: f ctx) asInt64 - CTX_FIXED].
+	^cstack + CSTACK_SLOTS - f fp
 ! !
 
 !Interpreter methodsFor: 'primitive plumbing'!

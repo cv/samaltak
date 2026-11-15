@@ -74,15 +74,16 @@ testInvalidationWhileRunning
 	self assert: (self statistics - before) optInvalidations > 0
 !
 testPerformInALoopStaysOptimized
-	"perform: and perform:with: of constant selectors are sends of them, perform:withArguments: calls its machine code: a loop of them neither deoptimizes nor sends through the runtime (unless --jit-flags deopt makes it)."
+	"perform: and perform:with: of constant selectors are sends of them, perform:withArguments: (one and three arguments) calls its machine code: a loop of them neither deoptimizes nor sends through the runtime (unless --jit-flags deopt makes it)."
 	| o before |
 	self define: 'one ^1'.
 	self define: 'plus: x ^x + 1'.
-	self define: 'performs: n | s a | s := 0. a := Array new: 1. 1 to: n do: [:i | a at: 1 put: i. s := s + (self perform: #one) + (self perform: #plus: with: i) + (i perform: #+ with: 1) + (self perform: #plus: withArguments: a)]. ^s'.
+	self define: 'a: x b: y c: z ^x + y - z'.
+	self define: 'performs: n | s a b | s := 0. a := Array new: 1. b := Array new: 3. 1 to: n do: [:i | a at: 1 put: i. b at: 1 put: i; at: 2 put: 5; at: 3 put: 7. s := s + (self perform: #one) + (self perform: #plus: with: i) + (i perform: #+ with: 1) + (self perform: #plus: withArguments: a) + (self perform: #a:b:c: withArguments: b)]. ^s'.
 	o := JitRuntimeTestSubject new.
-	self assert: (o performs: 100) equals: 15550.
+	self assert: (o performs: 100) equals: 20400.
 	before := self statistics.
-	self assert: (o performs: 10000) equals: 150055000.
+	self assert: (o performs: 10000) equals: 200040000.
 	self stressed ifFalse: [
 		self assert: (self statistics - before) optDeoptimizations < 1000.
 		self assert: (self statistics - before) optRuntimeSends < 50]

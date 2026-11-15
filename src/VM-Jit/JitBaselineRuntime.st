@@ -749,7 +749,7 @@ entryOfBlock: c
 	^entry
 !
 performMiss: f receiver: rcv ret: ret info: info
-	"A perform method's machine code (info: its argument count n, | 256 for perform:withArguments:) found no target in megaTable for rcv's class and the selector: look it up, fill the table, move the arguments down over the selector (perform:withArguments:: the Array's elements, up to 2) and answer the target's unchecked entry; 0: the primitive fails (the method's body runs); 1: leave, the interpreter sends (not understood, not compiled yet, perform: again, more arguments, no room; a sender in optimized code: the runtime sends, OptRuntime>>sendFrom:ret:)."
+	"A perform method's machine code (info: its argument count n, | 256 for perform:withArguments:) found no target in megaTable for rcv's class and the selector: look it up, fill the table, move the arguments down over the selector (perform:withArguments:: the Array's elements) and answer the target's unchecked entry; 0: the primitive fails (the method's body runs); 1: leave, the interpreter sends (not understood, not compiled yet, perform: again, no room; a sender in optimized code: the runtime sends, OptRuntime>>sendFrom:ret:)."
 	<function>
 	<var: #f type: 'Frame *'>
 	<var: #rcv type: 'oop'>
@@ -770,13 +770,18 @@ performMiss: f receiver: rcv ret: ret info: info
 	(k < 0 or: [(interpreter selectorArgc: sel) ~= k]) ifTrue: [^0].
 	cls := interpreter receiverClass: rcv.
 	t := self targetFor: cls selector: sel.
-	(t isNull or: [(self isPerform: t) or: [k > n or: [(self cCoerce: fp to: 'uint64_t') >= jit state stackLimitNormal]]]) ifTrue: [
+	(t isNull or: [(self isPerform: t) or: [(self cCoerce: fp to: 'uint64_t') >= jit state stackLimitNormal or: [(self married: f lacksRoomAt: fp argc: k)]]]) ifTrue: [
 		^(jit isOptFrame: f) ifTrue: [jit optSendFrom: f ret: ret] ifFalse: [1]].
 	jit ic ifTrue: [self megaFill: cls selector: sel target: t].
 	(info bitAnd: 256) ~= 0
 		ifTrue: [0 to: k - 1 do: [:i | fp at: i put: (self loadRef: arr at: i)]]
 		ifFalse: [libc memmove: fp from: fp + 1 size: k asUInt64 * 8].
 	^t uentry
+!
+married: f lacksRoomAt: fp argc: k
+	"f is married and not optimized, and its Context would not hold its slots up to k arguments from fp (a C primitive's, as prim:fp:fn:info: has them; materializeAll copies them into it)."
+	<var: #f type: 'Frame *'>
+	^f ctx ~= memory nilOop and: [(jit isOptFrame: f) not and: [(self cCoerce: fp to: 'oop *') - f fp + k > ((self numSlots: f ctx) asInt64 - CTX_FIXED)]]
 !
 entrySlow: f ret: ret callee: c
 	"A callee's stack check failed (f is its sender, at the send; c the callee's header, 1 at a block's entry): the C stack is full (the frames become Contexts and the interpreter sends again; a sender in optimized code: the runtime sends, answer where the call continues) or an interrupt is pending: taken with the callee's frame pushed, as at its first instruction (perform: may have moved the arguments: the send cannot be executed again), the frame popped again if no frames were flushed. 0: retry, 1: leave."
