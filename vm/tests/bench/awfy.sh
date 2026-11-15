@@ -18,7 +18,7 @@ usage: $0 [options] [benchmark[:inner] ...]
   --vm PATH         VM binary (default vm/build/samaltak; with --pharo \$PHARO_VM)
   --image PATH      image (default build/samaltak.image; with --pharo \$PHARO_IMAGE)
   --vm-args ARGS    extra VM arguments, e.g. '--jit baseline'
-  --pharo           run on Pharo 12 (all but the Samaltak workloads)
+  --pharo           run on Pharo 14 (all but the Samaltak workloads)
   --suite NAME      awfy (default), micro, workloads, realworld or all (all but realworld)
   -n N              iterations per benchmark (default 30)
   -i N              inner iterations for every benchmark (default: per benchmark, see inner())
@@ -132,9 +132,9 @@ fi
 
 if [ $PHARO = 1 ]; then
     # the VM's launcher: the app's on macOS, the zip's script on Linux
-    if [ "$(uname -s)" = Darwin ]; then PHARO_LAUNCHER=$HOME/.cache/pharo12/vm/Pharo.app/Contents/MacOS/Pharo; else PHARO_LAUNCHER=$HOME/.cache/pharo12/vm/pharo; fi
+    if [ "$(uname -s)" = Darwin ]; then PHARO_LAUNCHER=$HOME/.cache/pharo14/vm/Pharo.app/Contents/MacOS/Pharo; else PHARO_LAUNCHER=$HOME/.cache/pharo14/vm/pharo; fi
     VM=${VM:-${PHARO_VM:-$PHARO_LAUNCHER}}
-    IMAGE=${IMAGE:-${PHARO_IMAGE:-$HOME/.cache/pharo12/bench.image}}
+    IMAGE=${IMAGE:-${PHARO_IMAGE:-$HOME/.cache/pharo14/bench.image}}
     # Filing in writes to the image's .changes and pharo-local: work on a copy.
     WORK=$(mktemp -d)
     SRCIMAGE=$IMAGE src=$(dirname "$IMAGE")
@@ -142,6 +142,9 @@ if [ $PHARO = 1 ]; then
     [ -f "${IMAGE%.image}.changes" ] && cp "${IMAGE%.image}.changes" "$WORK/awfy.changes"
     for s in "$src"/*.sources; do [ -f "$s" ] && cp "$s" "$WORK/"; done
     IMAGE=$WORK/awfy.image
+    mkdir "$WORK/st"
+    for f in "$DIR"/*.st; do awk -f "$ROOT/vm/tests/bench/pharo14.awk" "$f" > "$WORK/st/${f##*/}"; done
+    DIR=$WORK/st
 else
     VM=${VM:-$ROOT/vm/build/samaltak}
     IMAGE=${IMAGE:-$ROOT/build/samaltak.image}

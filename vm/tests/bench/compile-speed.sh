@@ -1,5 +1,5 @@
 #!/bin/sh
-# Compile speed of Samaltak's two JITs and of Pharo 12's Cog, on the same corpus and in the AWFY first iterations
+# Compile speed of Samaltak's two JITs and of Pharo 14's Cog, on the same corpus and in the AWFY first iterations
 # (docs/benchmarks.md, Compile speed). Rounds are fresh VM processes, interleaved, each started on a quiet machine.
 # usage: compile-speed.sh [corpus|awfy|all] [-n rounds] [-a awfy-rounds] [-o results-file]
 set -u
@@ -8,9 +8,9 @@ DIR=$ROOT/vm/tests/bench
 AW=$DIR/awfy
 VM=${VM:-$ROOT/vm/build/samaltak}
 IMAGE=${IMAGE:-$ROOT/build/samaltak.image}
-if [ "$(uname -s)" = Darwin ]; then PHARO_LAUNCHER=$HOME/.cache/pharo12/vm/Pharo.app/Contents/MacOS/Pharo; else PHARO_LAUNCHER=$HOME/.cache/pharo12/vm/pharo; fi
+if [ "$(uname -s)" = Darwin ]; then PHARO_LAUNCHER=$HOME/.cache/pharo14/vm/Pharo.app/Contents/MacOS/Pharo; else PHARO_LAUNCHER=$HOME/.cache/pharo14/vm/pharo; fi
 PHARO_VM=${PHARO_VM:-$PHARO_LAUNCHER}
-PHARO_IMAGE=${PHARO_IMAGE:-$HOME/.cache/pharo12/bench.image}
+PHARO_IMAGE=${PHARO_IMAGE:-$HOME/.cache/pharo14/bench.image}
 FILES="'Core' 'Bounce' 'CD' 'DeltaBlue' 'Havlak' 'Json' 'List' 'Mandelbrot' 'NBody' 'Permute' 'Queens' 'Richards' 'Sieve' 'Storage' 'Towers'"
 WHAT=all ROUNDS=30 AWFY_ROUNDS=5 OUT=
 case ${1:-} in corpus|awfy|all) WHAT=$1; shift ;; esac
@@ -35,6 +35,8 @@ mkdir -p "$PDIR"
 cp "$PHARO_IMAGE" "$PDIR/bench.image"
 [ -f "${PHARO_IMAGE%.image}.changes" ] && cp "${PHARO_IMAGE%.image}.changes" "$PDIR/bench.changes"
 for s in "$(dirname "$PHARO_IMAGE")"/*.sources; do [ -f "$s" ] && cp "$s" "$PDIR/"; done
+mkdir "$PDIR/awfy"
+for f in "$AW"/*.st; do awk -f "$DIR/pharo14.awk" "$f" > "$PDIR/awfy/${f##*/}"; done
 
 # Wait until the 1-minute load is at most 3 (give up after 30 minutes).
 quiet() {
@@ -67,7 +69,7 @@ EOF
 pharo_expr() {
     cat <<EOF
 [ | d before |
-  #('Pharo' $FILES) do: [:n | ('$AW/', n, '.st') asFileReference fileIn].
+  #('Pharo' $FILES) do: [:n | ('$PDIR/awfy/', n, '.st') asFileReference fileIn].
   '$1/Probes.st' asFileReference fileIn.
   '$1/Pharo.st' asFileReference fileIn.
   d := Smalltalk at: #CompileSpeedDriver.
@@ -87,7 +89,8 @@ round() {
     case $2 in
     baseline) "$VM" --jit baseline "$IMAGE" --headless --eval "$(samaltak_expr "$1")" ;;
     opt) "$VM" --jit opt --jit-flags eager "$IMAGE" --headless --eval "$(samaltak_expr "$1")" ;;
-    cog) (cd "$PDIR" && "$PHARO_VM" --headless --codeSize=32M bench.image eval "$(pharo_expr "$1")") ;;
+    cog) for f in Probes Pharo; do awk -f "$DIR/pharo14.awk" "$1/$f.st" > "$PDIR/$f.st"; done
+        (cd "$PDIR" && "$PHARO_VM" --headless --codeSize=32M bench.image eval "$(pharo_expr "$PDIR")") ;;
     esac > "$3" 2>&1
     grep -q "done" "$3" && ! grep -q ERROR "$3" || { echo "FAILED round $2 ($3):" >&2; grep -v -E '^(probe|method|stat),' "$3" | head -20 >&2; exit 1; }
 }
