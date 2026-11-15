@@ -1670,7 +1670,8 @@ emitClassPrimitive
 	asm ret
 !
 emitClosureValuePrimitive: fail
-	"value, value: ... of a BlockClosure: the block stub enters its code (x0 the closure, x20 the fp with the arguments)."
+	"value, value: ... of a BlockClosure: the block stub enters its code (x0 the closure, x20 the fp with the arguments); valueWithArguments: (op 1) first copies the Array's elements over it, if there is room for the block's frame."
+	| loop go |
 	asm comment: 'primitive closure value: a BlockClosure with as many arguments'.
 	asm tst: X0 imm: 7.
 	asm b: fail if: COND_NE.
@@ -1679,8 +1680,41 @@ emitClosureValuePrimitive: fail
 	asm cmp: X16 with: X17.
 	asm b: fail if: COND_NE.
 	asm ldr: X16 base: X0 offset: (self fieldOffset: BC_NUMARGS).
-	asm cmp: X16 imm: (self intOop: curArgs).
-	asm b: fail if: COND_NE.
+	(brt primOpOf: analysis primitive) = 1
+		ifTrue: [
+			asm comment: 'an Array of as many elements; room for the block''s frame'.
+			asm ldr: X9 base: X20 offset: (self slot: 0).
+			asm tst: X9 imm: 7.
+			asm b: fail if: COND_NE.
+			asm ldr: X17 base: X9 offset: 8.
+			asm ldr: X10 base: X22 offset: self arrayClassOffset.
+			asm cmp: X17 with: X10.
+			asm b: fail if: COND_NE.
+			asm ldr: W17 base: X9 offset: 0.
+			asm lsr: X16 with: X16 imm: 1.
+			asm cmp: X16 with: X17.
+			asm b: fail if: COND_NE.
+			asm isX64
+				ifTrue: [asm cmp: X20 withStateWordAt: self stackLimitNormalOffset]
+				ifFalse: [
+					asm ldr: X10 base: X22 offset: self stackLimitNormalOffset.
+					asm cmp: X20 with: X10].
+			asm b: fail if: COND_HS.
+			asm comment: 'the elements replace the Array'.
+			loop := asm newLabel.
+			go := asm newLabel.
+			asm cbz: X17 to: go.
+			asm add: X9 with: X9 imm: (self fieldOffset: 0).
+			asm mov: X11 with: X20.
+			asm bind: loop.
+			asm ldr: X10 base: X9 postIndex: 8.
+			asm str: X10 base: X11 postIndex: 8.
+			asm subs: X17 with: X17 imm: 1.
+			asm b: loop if: COND_NE.
+			asm bind: go]
+		ifFalse: [
+			asm cmp: X16 imm: (self intOop: curArgs).
+			asm b: fail if: COND_NE].
 	asm comment: 'the block''s code (x30 still returns to the send)'.
 	asm b: blockLabel
 !

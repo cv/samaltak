@@ -189,6 +189,7 @@ initPrimKinds
 			(self named: e name is: 'identical') ifTrue: [k := PK_IDENTICAL].
 			(self named: e name is: 'class') ifTrue: [k := PK_CLASS].
 			(self named: e name is: 'closureValue') ifTrue: [k := PK_CLOSURE_VALUE].
+			(self named: e name is: 'closureValueWithArguments') ifTrue: [k := PK_CLOSURE_VALUE. op := 1].
 			(self named: e name is: 'charValue') ifTrue: [k := PK_CHAR_VALUE].
 			(self named: e name is: 'charFromValue') ifTrue: [k := PK_CHAR_FROM_VALUE].
 			(self named: e name is: 'at') ifTrue: [k := PK_AT].
@@ -245,7 +246,7 @@ primKindOf: p
 	^(primKinds at: p) asInt32
 !
 primOpOf: p
-	"The operation of a PK_INT_OP or PK_FLOAT_OP primitive (see initialize); 1: PK_PERFORM's perform:withArguments:."
+	"The operation of a PK_INT_OP or PK_FLOAT_OP primitive (see initialize); 1: PK_PERFORM's perform:withArguments:, PK_CLOSURE_VALUE's valueWithArguments:."
 	<function>
 	(p <= 0 or: [p >= 1024]) ifTrue: [^0].
 	^(primOps at: p) asInt32
@@ -706,7 +707,7 @@ feedbackTargetOf: m site: i case: j
 
 !JitBaselineRuntime methodsFor: 'called by machine code'!
 block: f closure: c ret: ret
-	"The block stub found no entry for closure c (its argument count checked): its home method's code, compiled if need be, and the block's entry, its optimized unit's if it has one; none: the block's frame pushed (f past the send), 1 (leave: the interpreter runs it)."
+	"The block stub found no entry for closure c (its argument count checked; f past the send, the arguments in the callee's slots: valueWithArguments: has put them there): its home method's code, compiled if need be, and the block's entry, its optimized unit's if it has one; none: the block's frame pushed, 1 (leave: the interpreter runs it)."
 	<function>
 	<var: #f type: 'Frame *'>
 	<var: #c type: 'oop'>
@@ -714,13 +715,12 @@ block: f closure: c ret: ret
 	<returns: 'uint64_t'>
 	| m startpc entry i n |
 	statBlockMisses := statBlockMisses + 1.
+	n := (self intVal: (self loadRef: c at: BC_NUMARGS)) asInt32.
 	self setTop: f ret: ret mode: 0.
+	self setTop: f ret: ret fp: (self calleeFp: f ret: ret) argc: n.
 	jit sync: f.
 	entry := self entryOfBlock: c.
 	entry = 0 ifTrue: [
-		n := (self intVal: (self loadRef: c at: BC_NUMARGS)) asInt32.
-		self setTop: f ret: ret fp: (self calleeFp: f ret: ret) argc: n.
-		interpreter syncFrame: f.
 		interpreter activateBlock: n.
 		^1].
 	jit blocks ifTrue: [

@@ -3,7 +3,7 @@ TestCase subclass: #JitRuntimeTest
 	classVariableNames: ''
 	package: 'Tests-VM'!
 
-JitRuntimeTest comment: 'The JIT runtime under the baseline compiler (JitOptRuntimeTest: under the optimizing tier), switched on for each test (Smalltalk vm jitParameters:, every method compiled on its first activation): on-stack replacement, methods redefined and become while their machine code runs, process switches in compiled loops, deep recursion, perform: (argument counts, failures, kinds of targets, many selectors at one site), code cache flushes (a VM with a 1 MB cache), the annotated disassembly. JitTest runs the JIT inside the simulator.'!
+JitRuntimeTest comment: 'The JIT runtime under the baseline compiler (JitOptRuntimeTest: under the optimizing tier), switched on for each test (Smalltalk vm jitParameters:, every method compiled on its first activation): on-stack replacement, methods redefined and become while their machine code runs, process switches in compiled loops, deep recursion, perform: (argument counts, failures, kinds of targets, many selectors at one site), valueWithArguments:, code cache flushes (a VM with a 1 MB cache), the annotated disassembly. JitTest runs the JIT inside the simulator.'!
 
 !JitRuntimeTest methodsFor: 'running'!
 mode
@@ -37,6 +37,10 @@ disassemblyNotes
 !
 define: aString
 	JitRuntimeTestSubject compile: aString
+!
+stressed
+	"Under --jit-flags deopt (JitOptRuntimeTest) optimized code leaves to the interpreter every so often."
+	^false
 !
 statistics
 	^Smalltalk vm statistics
@@ -601,4 +605,73 @@ testBranchesOnBooleans
 		self assert: ({o positive: 3. o positive: -3. o positive: 0} ) equals: #(#pos #neg #neg).
 		self assert: o folded equals: #right.
 		self assert: ([o either: false or: 3] on: Error do: [:e | #notBoolean]) equals: #notBoolean]
+! !
+
+!JitRuntimeTest methodsFor: 'tests: valueWithArguments'!
+testValueWithArguments
+	"valueWithArguments: of Arrays of 0, 1, 4 and 7 elements, literal and made by braces: the machine code copies the elements into the block's arguments and enters it, no C primitive and no exit to the interpreter (unless --jit-flags deopt makes it). The counters are the VM's, other Processes' included: the quietest of 3 rounds counts."
+	| o deltas |
+	self define: 'values: n | r b0 b1 b4 b7 | r := 0. b0 := [1]. b1 := [:x | x]. b4 := [:x :y :z :w | x + y + z + w]. b7 := [:x1 :x2 :x3 :x4 :x5 :x6 :x7 | x1 + x2 + x3 + x4 + x5 + x6 + x7]. 1 to: n do: [:i | r := r + (b0 valueWithArguments: #()) + (b1 valueWithArguments: #(2)) + (b4 valueWithArguments: #(1 2 3 4)) + (b7 valueWithArguments: #(1 2 3 4 5 6 7)) + (b0 valueWithArguments: {}) + (b1 valueWithArguments: {i}) + (b4 valueWithArguments: {i. 2. 3. 4}) + (b7 valueWithArguments: {i. 2. 3. 4. 5. 6. 7})]. ^r'.
+	o := JitRuntimeTestSubject new.
+	self assert: (o values: 10) equals: 945.
+	deltas := (1 to: 3) collect: [:i | | before |
+		before := self statistics.
+		self assert: (o values: 3000) equals: 13738500.
+		self statistics - before].
+	self stressed ifFalse: [
+		self assert: (deltas collect: [:d | d jitPrimitiveCalls]) min < 300.
+		self assert: (deltas collect: [:d | d jitExits]) min < 300]
+!
+testValueWithArgumentsFailures
+	"An Array of another size, or not an Array: the primitive fails, as in the interpreter."
+	| o |
+	self define: 'call: b withArguments: a ^b valueWithArguments: a'.
+	o := JitRuntimeTestSubject new.
+	3 timesRepeat: [
+		self should: [o call: [:x | x] withArguments: #(1 2)] raise: Error.
+		self should: [o call: [:x | x] withArguments: #()] raise: Error.
+		self should: [o call: [:x | x] withArguments: (OrderedCollection with: 1)] raise: Error.
+		self should: [o call: [:x | x] withArguments: nil] raise: Error.
+		self assert: (o call: [:x :y | x - y] withArguments: #(5 3)) equals: 2]
+!
+testValueWithArgumentsContexts
+	"A block entered by valueWithArguments: returns from its home with ^, runs inside ensure: and ensure: inside it, and has its sender's activation as its sender, as with value:."
+	| o log |
+	self define: 'nlr: x [:y | y > 0 ifTrue: [^#positive]. #other] valueWithArguments: {x}. ^#notReturned'.
+	self define: 'ensured: log ^[[:x | log add: x. x * 2] valueWithArguments: #(21)] ensure: [log add: #done]'.
+	self define: 'ensuredReturn: log [:x | [^x] ensure: [log add: x]] valueWithArguments: {7}. ^0'.
+	self define: 'blockSender ^[:x | thisContext sender] valueWithArguments: #(1)'.
+	o := JitRuntimeTestSubject new.
+	3 timesRepeat: [
+		self assert: (o nlr: 1) equals: #positive.
+		self assert: (o nlr: -1) equals: #notReturned.
+		log := OrderedCollection new.
+		self assert: (o ensured: log) equals: 42.
+		self assert: log asArray equals: #(21 #done).
+		log := OrderedCollection new.
+		self assert: (o ensuredReturn: log) equals: 7.
+		self assert: log asArray equals: #(7).
+		self assert: o blockSender method equals: JitRuntimeTestSubject >> #blockSender.
+		self assert: o blockSender receiver == o]
+!
+testValueWithArgumentsDeepRecursion
+	"Recursion through valueWithArguments: deeper than the C stack: the frames become Contexts."
+	| before |
+	self define: 'depth: n ^n = 0 ifTrue: [0] ifFalse: [([:k | self depth: k] valueWithArguments: {n - 1}) + 1]'.
+	before := self statistics.
+	self assert: (JitRuntimeTestSubject new depth: 200000) equals: 200000.
+	self assert: (self statistics - before) frameFlushes > 0
+!
+testValueWithArgumentsWithProcessSwitches
+	"A process wakes up every millisecond while a married frame calls a block through valueWithArguments: of four elements: interrupts at the block's entry switch to it, the results stay right."
+	| o result ticks stop |
+	self define: 'sum: n | t b | t := 0. b := [:w :x :y :z | w + x + y + z]. thisContext. 1 to: n do: [:i | t := t + (b valueWithArguments: {i. 1. 2. 3})]. ^t'.
+	o := JitRuntimeTestSubject new.
+	ticks := 0.
+	stop := false.
+	self fork: [[stop] whileFalse: [(Delay forMilliseconds: 1) wait. ticks := ticks + 1]] at: Processor activePriority + 1.
+	"a loaded machine may wake it late: until it has woken up during a run"
+	[[result := o sum: 1000000.
+	  self assert: result equals: 500006500000.
+	  ticks = 0] whileTrue] ensure: [stop := true]
 ! !
