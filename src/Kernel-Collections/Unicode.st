@@ -3,7 +3,7 @@ Object subclass: #Unicode
 	classVariableNames: ''
 	package: 'Kernel-Collections'!
 
-Unicode comment: 'I answer Unicode character properties, from UnicodeTables (generated from the Unicode Character Database, see Unicode version): the general category (#Lu #Ll ... #Cn) and the classifications built on it, simple case mappings and simple case folding, the display width a terminal or a monospaced editor gives a code point (as wcwidth), and the properties of extended grapheme clusters (UAX #29, String>>isGraphemeClusterBoundaryAt:). Character delegates its classification and case conversion to me.
+Unicode comment: 'I answer Unicode character properties, from UnicodeTables (generated from the Unicode Character Database, see Unicode version): the general category (#Lu #Ll ... #Cn) and the classifications built on it, simple case mappings and simple case folding, the display width a terminal or a monospaced editor gives a code point (as wcwidth), and the properties of extended grapheme clusters (UAX #29, String>>isGraphemeClusterBoundaryAt:), and Emoji_Presentation. Character delegates its classification and case conversion to me.
 
 As in Squeak, the selectors ending in Code: (isLetterCode: toUppercaseCode: ...), generalCategoryTagOf: and the ...Of: accessors take code points (Integers); as in Pharo, isLetter: isDigit: isUppercase: isLowercase: isMathSymbol: toUppercase: and toLowercase: take Characters (and the last two answer Characters).
 
