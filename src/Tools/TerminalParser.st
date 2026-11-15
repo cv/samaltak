@@ -79,8 +79,8 @@ ground: b
 !
 putCodePoint: cp
 	(cp > 16r10FFFF or: [cp between: 16rD800 and: 16rDFFF]) ifTrue: [^screen putCharacter: (Character value: 16rFFFD)].
-	"Zero-width combining marks and joiners: dropped (one cell per character)."
-	((cp between: 16r300 and: 16r36F) or: [(cp between: 16r200B and: 16r200F) or: [cp between: 16rFE00 and: 16rFE0F]]) ifTrue: [^self].
+	"C1 controls are ignored; an overlong encoding of ASCII is ill-formed."
+	cp < 16rA0 ifTrue: [^cp < 16r80 ifTrue: [screen putCharacter: (Character value: 16rFFFD)]].
 	screen putCharacter: (Character value: cp)
 !
 control: b

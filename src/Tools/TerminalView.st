@@ -1,9 +1,9 @@
 Widget subclass: #TerminalView
-	instanceVariableNames: 'screen parser font boldFont italicFont cellWidth cellHeight scrollOffset anchor point selection selectionSerials selecting rowDrawings colors cursorOn blinkTimer swallowText onSend onResize onTitle drawnTitleSerial lastScrolledTotal exitStatus'
+	instanceVariableNames: 'screen parser font boldFont italicFont cellWidth cellHeight scrollOffset anchor point selection selectionSerials selecting rowDrawings colors scaledFonts cursorOn blinkTimer swallowText onSend onResize onTitle drawnTitleSerial lastScrolledTotal exitStatus'
 	classVariableNames: 'BoxArms Palette'
 	package: 'Tools'!
 
-TerminalView comment: 'I am the screen of a Terminal: I draw a TerminalScreen (JetBrains Mono on white, the 16 ANSI colors tuned to the Blue Book theme, 256 colors and truecolor), its scrollback (wheel; shift-page up/down), a blinking block cursor (the caret blink of the Theme) and a mouse selection (drag, double-click a word, triple-click a line; ⌘C copies, ⌘V pastes — bracketed when the program asked for it). Keys become what an xterm sends: arrows (application cursor mode too), home/end, page up/down, delete, backspace (DEL), tab, return (CR), escape, control letters, ⌥ as meta (an ESC prefix; ⌥←/⌥→ move by words); typed text is sent as UTF-8.
+TerminalView comment: 'I am the screen of a Terminal: I draw a TerminalScreen (JetBrains Mono on white, the 16 ANSI colors tuned to the Blue Book theme, 256 colors and truecolor), its scrollback (wheel; shift-page up/down), a blinking block cursor (the caret blink of the Theme) and a mouse selection (drag, double-click a word, triple-click a line; ⌘C copies, ⌘V pastes — bracketed when the program asked for it). A wide character is drawn centered across its two cells (smaller if its glyph is wider), and selected and copied whole; zero-width characters are drawn over the character they follow and copied with it. Keys become what an xterm sends: arrows (application cursor mode too), home/end, page up/down, delete, backspace (DEL), tab, return (CR), escape, control letters, ⌥ as meta (an ESC prefix; ⌥←/⌥→ move by words); typed text is sent as UTF-8.
 
 My size decides the screen''s rows and columns (onResize: tells the pty). onSend: [:bytes | …] receives what the user types; feed:from:to: interprets what the program wrote (TerminalParser); afterOutput updates the view and the title (onTitle:).
 
@@ -104,6 +104,7 @@ resetFonts
 	boldFont := self theme font: #codeBold.
 	italicFont := self theme font: #codeItalic.
 	cellWidth := font advanceOf: $M.
+	scaledFonts := Dictionary new.
 	rowDrawings := IdentityDictionary new
 ! !
 
@@ -162,15 +163,16 @@ drawLine: aLine selection: sel on: aCanvas
 		a := attrs at: c.
 		j := c.
 		[j < n and: [(attrs at: j + 1) = a]] whileTrue: [j := j + 1].
-		self drawRun: chars from: c to: j attribute: a on: aCanvas.
+		self drawRun: aLine from: c to: j attribute: a on: aCanvas.
 		c := j + 1].
 	sel isNil ifFalse: [
 		aCanvas
 			fillRect: ((sel first - 1 * cellWidth) @ 0 corner: ((sel last min: screen cols) * cellWidth) @ cellHeight)
 			color: (self theme color: #textSelection)]
 !
-drawRun: chars from: start to: stop attribute: a on: aCanvas
-	| fg bg x0 x1 runFont last y wide |
+drawRun: aLine from: start to: stop attribute: a on: aCanvas
+	| chars fg bg x0 x1 runFont last y wide |
+	chars := aLine chars.
 	fg := TerminalScreen foregroundOf: a.
 	bg := TerminalScreen backgroundOf: a.
 	(TerminalScreen isInverse: a)
@@ -189,29 +191,55 @@ drawRun: chars from: start to: stop attribute: a on: aCanvas
 	(TerminalScreen isDim: a) ifTrue: [fg := fg mixed: 0.45 with: (bg ifNil: [self theme paper])].
 	(TerminalScreen isUnderline: a) ifTrue: [aCanvas fillRect: (x0 @ (cellHeight - 2.5) corner: x1 @ (cellHeight - 1.5)) color: fg].
 	(TerminalScreen isStrike: a) ifTrue: [aCanvas fillRect: (x0 @ (cellHeight / 2) corner: x1 @ (cellHeight / 2 + 1)) color: fg].
+	runFont := (TerminalScreen isBold: a) ifTrue: [boldFont] ifFalse: [(TerminalScreen isItalic: a) ifTrue: [italicFont] ifFalse: [font]].
+	aLine marks isNil ifFalse: [
+		start to: stop do: [:i | (aLine marksAt: i) ifNotNil: [:m | self drawMarks: m over: i of: aLine font: runFont color: fg on: aCanvas]]].
 	last := stop.
 	[last >= start and: [(chars at: last) == $ ]] whileTrue: [last := last - 1].
 	last < start ifTrue: [^self].
-	runFont := (TerminalScreen isBold: a) ifTrue: [boldFont] ifFalse: [(TerminalScreen isItalic: a) ifTrue: [italicFont] ifFalse: [font]].
 	y := cellHeight - runFont lineHeight / 2.
 	wide := false.
-	start to: last do: [:i | (chars at: i) value > 255 ifTrue: [wide := true]].
+	start to: last do: [:i | | v | v := (chars at: i) value. (v > 255 or: [v = 0]) ifTrue: [wide := true]].
 	wide ifFalse: [^aCanvas drawString: chars from: start to: last at: x0 @ y font: runFont color: fg].
 	start to: last do: [:i | | ch |
 		ch := chars at: i.
-		ch == $  ifFalse: [
+		(ch == $  or: [ch value = 0]) ifFalse: [
 			ch value > 255
-				ifTrue: [self drawWide: ch at: i - 1 * cellWidth font: runFont color: fg on: aCanvas]
+				ifTrue: [self drawWide: ch at: i - 1 * cellWidth cells: ((aLine isWideAt: i) ifTrue: [2] ifFalse: [1]) font: runFont color: fg on: aCanvas]
 				ifFalse: [aCanvas drawString: chars from: i to: i at: (i - 1 * cellWidth) @ y font: runFont color: fg]]]
 !
-drawWide: aCharacter at: x font: aFont color: aColor on: aCanvas
-	"A character beyond Latin-1 in its cell: box drawing and blocks drawn as rectangles, else its glyph (from aFont's fallback faces if need be) centered in the cell."
-	| cp |
+drawWide: aCharacter at: x cells: w font: aFont color: aColor on: aCanvas
+	"A character beyond Latin-1 in its w cells: box drawing and blocks drawn as rectangles, else its glyph (from aFont's fallback faces if need be) centered in them, a wide one smaller if it is wider than its cells."
+	| cp f advance space |
 	cp := aCharacter value.
 	(cp between: 16r2500 and: 16r259F) ifTrue: [
 		(self drawBox: cp at: x color: aColor on: aCanvas) ifTrue: [^self]].
+	f := aFont.
+	advance := f advanceOf: aCharacter.
+	space := w * cellWidth.
+	(w = 2 and: [advance > space]) ifTrue: [
+		f := self font: aFont scaledTo: space / advance.
+		advance := f advanceOf: aCharacter].
 	aCanvas drawString: (String with: aCharacter)
-		at: (x + (cellWidth - (aFont advanceOf: aCharacter) / 2)) @ (cellHeight - aFont lineHeight / 2) font: aFont color: aColor
+		at: (x + (space - advance / 2)) @ (cellHeight - f lineHeight / 2) font: f color: aColor
+!
+drawMarks: aString over: col of: aLine font: aFont color: aColor on: aCanvas
+	"Zero-width characters over the character in col: from where its glyph ends (so marks without advance, drawn left of the pen, sit over it); a mark with an advance centered in the cells."
+	| w x pen |
+	w := (aLine isWideAt: col) ifTrue: [2] ifFalse: [1].
+	x := col - 1 * cellWidth.
+	pen := x + (w * cellWidth + (aFont advanceOf: (aLine characterAt: col)) / 2).
+	aString do: [:mark | | advance |
+		(Font isInvisible: mark value) ifFalse: [
+			advance := aFont advanceOf: mark.
+			aCanvas drawString: (String with: mark)
+				at: (advance = 0 ifTrue: [pen] ifFalse: [x + (w * cellWidth - advance / 2)]) @ (cellHeight - aFont lineHeight / 2) font: aFont color: aColor]]
+!
+font: aFont scaledTo: aFraction
+	"aFont at aFraction of its size (in steps of 5 %), kept."
+	| percent |
+	percent := (aFraction * 20) floor * 5 max: 5.
+	^scaledFonts at: aFont -> percent ifAbsentPut: [Font face: aFont face size: aFont size * percent / 100 scale: aFont scale]
 !
 drawBox: cp at: x color: aColor on: aCanvas
 	"Box drawing (U+2500-257F: light, heavy and double arms) and block elements (U+2580-259F); answer false for the ones I do not draw."
@@ -259,20 +287,25 @@ drawBlock: cp at: x color: aColor on: aCanvas
 !
 drawOverlayOn: aCanvas
 	"The cursor: a block while I have the keys (blinking), a frame otherwise."
-	| p r rect line ch a |
+	| p r c w rect line ch cursorFont |
 	(scrollOffset = 0 and: [screen isCursorVisible]) ifFalse: [^self].
 	p := self padding.
 	r := screen row.
-	rect := (p x + (screen col - 1 * cellWidth)) @ (p y + (r - 1 * cellHeight)) extent: cellWidth @ cellHeight.
+	c := screen col.
+	line := screen lineAt: r.
+	w := (line isWideAt: c) ifTrue: [2] ifFalse: [1].
+	rect := (p x + (c - 1 * cellWidth)) @ (p y + (r - 1 * cellHeight)) extent: (w * cellWidth) @ cellHeight.
 	self isFocused ifFalse: [^aCanvas strokeRect: rect color: self theme ink width: 1].
 	cursorOn ifFalse: [^self].
 	aCanvas fillRect: rect color: self theme ink.
-	line := screen lineAt: r.
-	ch := line characterAt: screen col.
-	ch == $  ifTrue: [^self].
-	a := line attributeAt: screen col.
-	aCanvas drawString: (String with: ch) at: rect left @ (rect top + (cellHeight - font lineHeight / 2))
-		font: ((TerminalScreen isBold: a) ifTrue: [boldFont] ifFalse: [font]) color: self theme paper
+	ch := line characterAt: c.
+	cursorFont := (TerminalScreen isBold: (line attributeAt: c)) ifTrue: [boldFont] ifFalse: [font].
+	aCanvas translateBy: p x @ rect top during: [
+		(ch == $  or: [ch value = 0]) ifFalse: [
+			ch value > 255
+				ifTrue: [self drawWide: ch at: c - 1 * cellWidth cells: w font: cursorFont color: self theme paper on: aCanvas]
+				ifFalse: [aCanvas drawString: (String with: ch) at: (c - 1 * cellWidth) @ (cellHeight - font lineHeight / 2) font: cursorFont color: self theme paper]].
+		(line marksAt: c) ifNotNil: [:m | self drawMarks: m over: c of: line font: cursorFont color: self theme paper on: aCanvas]]
 !
 colorFor: code default: aColor
 	"The Color of an attribute's color code (0: aColor)."
@@ -356,14 +389,19 @@ selectionChanged
 !
 selectionColumnsOn: index
 	"The selected columns {first. last} of the line with absolute index, or nil."
-	| a b |
+	| a b first last line |
 	selection isNil ifTrue: [^nil].
 	a := selection first.
 	b := selection last.
 	(index between: (a at: 1) and: (b at: 1)) ifFalse: [^nil].
-	^Array
-		with: (index = (a at: 1) ifTrue: [a at: 2] ifFalse: [1])
-		with: (index = (b at: 1) ifTrue: [b at: 2] ifFalse: [screen cols])
+	first := index = (a at: 1) ifTrue: [a at: 2] ifFalse: [1].
+	last := index = (b at: 1) ifTrue: [b at: 2] ifFalse: [screen cols].
+	"A wide character is selected whole."
+	line := screen lineAtIndex: index.
+	line isNil ifFalse: [
+		(line isContinuationAt: first) ifTrue: [first := first - 1].
+		(line isWideAt: last) ifTrue: [last := last + 1]].
+	^Array with: first with: last
 !
 selectedText
 	"The selected text; rows joined with line feeds unless the line wrapped into the next."

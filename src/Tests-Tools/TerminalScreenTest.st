@@ -308,4 +308,89 @@ testRepeatAndAlignment
 	self assert: (self row: 1) equals: 'xxxx'.
 	self feed: '\e#8'.
 	self assert: (self row: 5) equals: (String new: 20 withAll: $E)
+!
+testWideCharactersTakeTwoCells
+	| line |
+	self feed: 'a日b\r\n😀x'.
+	line := screen lineAt: 1.
+	self assert: (self row: 1) equals: 'a日b'.
+	self assert: (line isWideAt: 2).
+	self assert: (line isContinuationAt: 3).
+	self assert: (line characterAt: 4) equals: $b.
+	self assert: (self row: 2) equals: '😀x'.
+	self assert: self cursor equals: 2 @ 4.
+	self feed: '\e[31m語'.
+	self assert: (self attr: 2 col: 5) equals: (self attr: 2 col: 4).
+	self assert: (TerminalScreen foregroundOf: (self attr: 2 col: 5)) equals: 2
+!
+testWideCharacterAtTheLastColumn
+	self feed: '\e[1;20H日'.
+	self assert: (self row: 1) equals: ''.
+	self assert: (screen lineAt: 1) isWrapped.
+	self assert: (self row: 2) equals: '日'.
+	self assert: self cursor equals: 2 @ 3.
+	self feed: '\e[3;19H語'.
+	self assert: self cursor equals: 3 @ 20.
+	self assert: screen pendingWrap.
+	self feed: 'x'.
+	self assert: (self row: 3) equals: (String new: 18 withAll: $ ), '語'.
+	self assert: (self row: 4) equals: 'x'.
+	self feed: '\e[?7l\e[5;20H本'.
+	self assert: (self row: 5) equals: (String new: 18 withAll: $ ), '本'.
+	self assert: self cursor equals: 5 @ 20
+!
+testOverwritingHalfAWideCharacterBlanksTheOther
+	self feed: '日本語\e[1;2Hx'.
+	self assert: (self row: 1) equals: ' x本語'.
+	self feed: '\e[1;3Hy'.
+	self assert: (self row: 1) equals: ' xy 語'.
+	self feed: '\e[1;4H日'.
+	self assert: (self row: 1) equals: ' xy日'.
+	self assert: ((screen lineAt: 1) isContinuationAt: 5).
+	self deny: ((screen lineAt: 1) isContinuationAt: 6)
+!
+testZeroWidthCharactersJoinTheCharacterBefore
+	| acute zwj line |
+	acute := Character value: 16r301.
+	zwj := Character value: 16r200D.
+	parser feed: (String with: $e with: acute with: $z) utf8Encoded.
+	self assert: self cursor equals: 1 @ 3.
+	line := screen lineAt: 1.
+	self assert: (line marksAt: 1) equals: (String with: acute).
+	self assert: (self row: 1) equals: (String with: $e with: acute with: $z).
+	parser feed: (String with: (Character value: 16r1F468) with: zwj with: (Character value: 16r1F469) with: (Character value: 16rFE0F)) utf8Encoded.
+	self assert: self cursor equals: 1 @ 7.
+	self assert: (line marksAt: 3) equals: (String with: zwj).
+	self assert: (line marksAt: 5) equals: (String with: (Character value: 16rFE0F)).
+	self assert: ((self row: 1) allButFirst: 3) equals: (String with: (Character value: 16r1F468) with: zwj with: (Character value: 16r1F469) with: (Character value: 16rFE0F)).
+	self feed: '\e[1;1Hx'.
+	self assert: (line marksAt: 1) isNil.
+	self feed: '\e[2;1H'.
+	parser feed: (String with: acute) utf8Encoded.
+	self assert: (self row: 2) equals: ''.
+	self feed: '\e[2;20Ha'.
+	parser feed: (String with: acute) utf8Encoded.
+	self assert: ((screen lineAt: 2) marksAt: 20) equals: (String with: acute).
+	self assert: screen pendingWrap
+!
+testEraseInsertDeleteOverWideCharacters
+	self feed: 'a日本b\e[1;3H\e[X'.
+	self assert: (self row: 1) equals: 'a  本b'.
+	self feed: '\e[2K\e[1Ga日本b\e[1;3H\e[@'.
+	self assert: (self row: 1) equals: 'a   本b'.
+	self assert: ((screen lineAt: 1) isWideAt: 5).
+	self feed: '\e[2K\e[1Ga日本b\e[1;2H\e[P'.
+	self assert: (self row: 1) equals: 'a 本b'.
+	self assert: ((screen lineAt: 1) isWideAt: 3).
+	self feed: '\e[2;19H日\e[2;1H\e[@'.
+	self assert: (self row: 2) equals: ''.
+	self deny: ((screen lineAt: 2) isContinuationAt: 20).
+	self feed: '\e[3;1Hx日y\e[3;3H\e[K'.
+	self assert: (self row: 3) equals: 'x'
+!
+testResizeCutsAWideCharacter
+	self feed: '\e[1;9H日'.
+	screen rows: 5 cols: 9.
+	self assert: (self row: 1) equals: ''.
+	self deny: ((screen lineAt: 1) isWideAt: 9)
 ! !

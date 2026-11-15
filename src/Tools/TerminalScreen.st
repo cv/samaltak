@@ -1,9 +1,11 @@
 Object subclass: #TerminalScreen
 	instanceVariableNames: 'rows cols lines mainLines row col pendingWrap attr top bottom autowrap originMode insertMode newlineMode cursorVisible appCursorKeys bracketedPaste mouseTracking saved savedMain tabStops scrollback maxScrollback scrolledTotal title titleSerial replies charsets activeCharset lastChar serial'
-	classVariableNames: 'BgShift Bold Dim FgMask Hidden Inverse Italic LineDrawing Strike Underline'
+	classVariableNames: 'BgShift Bold Dim FgMask Hidden Inverse Italic LineDrawing Strike Underline Widths'
 	package: 'Tools'!
 
 TerminalScreen comment: 'I am the screen of a terminal emulator (VT100/xterm): rows × columns of TerminalLines, the cursor, the scroll region, the modes, a second (alternate) screen for full-screen programs, and a bounded scrollback of the lines scrolled off the top of the main screen. A TerminalParser turns a program''s output into my operations; a TerminalView draws me.
+
+A character takes the cells of its display width (Unicode displayWidthOf:, as wcwidth, which programs assume): a wide one two (TerminalLine), a zero-width one none (it joins the character before the cursor).
 
 Cursor positions are 1-based (row, col). pendingWrap: the last character went into the last column; the next one wraps first (xterm''s delayed autowrap).
 
@@ -203,6 +205,7 @@ putBytes: bytes from: start to: stop
 		attrs := line attrs.
 		n := stop - i + 1 min: cols - col + 1.
 		c := col.
+		line overwriteFrom: c to: c + n - 1.
 		i to: i + n - 1 do: [:k |
 			chars at: c put: (Character value: (bytes at: k)).
 			attrs at: c put: a.
@@ -216,20 +219,32 @@ putBytes: bytes from: start to: stop
 	serial := serial + 1
 !
 putCharacter: aCharacter
-	"Print one character at the cursor (charset mapping, insert mode, delayed autowrap)."
-	| ch line |
+	"Print one character at the cursor (charset mapping, insert mode, delayed autowrap). A wide character takes two cells: at the last column it wraps first (or, without autowrap, goes into the last two); a zero-width one joins the character before the cursor."
+	| ch line w |
 	ch := aCharacter.
 	(ch value < 128 and: [(charsets at: activeCharset) == #lineDrawing]) ifTrue: [ch := self lineDrawing: ch].
+	w := ch value < 16r300 ifTrue: [1] ifFalse: [self class widthOf: ch value].
+	w = 0 ifTrue: [^self putMark: ch].
+	w > cols ifTrue: [^self].
 	pendingWrap ifTrue: [self wrap].
+	col + w - 1 > cols ifTrue: [autowrap ifTrue: [self wrap] ifFalse: [col := cols - w + 1]].
 	line := lines at: row.
-	insertMode ifTrue: [line insertBlanks: 1 at: col attribute: attr].
-	line chars at: col put: ch.
-	line attrs at: col put: attr.
-	line changed.
-	col < cols
-		ifTrue: [col := col + 1]
-		ifFalse: [pendingWrap := autowrap].
+	insertMode ifTrue: [line insertBlanks: w at: col attribute: attr].
+	line put: ch at: col width: w attribute: attr.
+	col + w <= cols
+		ifTrue: [col := col + w]
+		ifFalse: [col := cols. pendingWrap := autowrap].
 	lastChar := ch.
+	serial := serial + 1
+!
+putMark: aCharacter
+	"A zero-width character (combining mark, joiner, variation selector): it goes with the character before the cursor."
+	| c line |
+	c := pendingWrap ifTrue: [col] ifFalse: [col - 1].
+	c < 1 ifTrue: [^self].
+	line := lines at: row.
+	(line isContinuationAt: c) ifTrue: [c := c - 1].
+	line addMark: aCharacter at: c.
 	serial := serial + 1
 !
 repeatLastCharacter: n
@@ -424,7 +439,7 @@ deleteChars: n
 !
 fillWithE
 	"DECALN: the screen alignment test."
-	lines do: [:line | line chars atAllPut: $E. line attrs atAllPut: 0. line changed].
+	lines do: [:line | line clearWith: 0. line chars atAllPut: $E].
 	top := 1.
 	bottom := rows.
 	self moveTo: 1 col: 1
@@ -659,7 +674,16 @@ initialize
 	Underline := 1 << 53.
 	Inverse := 1 << 54.
 	Hidden := 1 << 55.
-	Strike := 1 << 56
+	Strike := 1 << 56.
+	Widths := ByteArray new: 16r10000 withAll: 3
+!
+widthOf: codePoint
+	"Unicode displayWidthOf: codePoint, kept for the BMP (Widths: 3 = not looked up yet)."
+	| w |
+	codePoint > 16rFFFF ifTrue: [^Unicode displayWidthOf: codePoint].
+	w := Widths at: codePoint + 1.
+	w < 3 ifTrue: [^w].
+	^Widths at: codePoint + 1 put: (Unicode displayWidthOf: codePoint)
 !
 foregroundOf: anAttribute
 	^anAttribute bitAnd: FgMask

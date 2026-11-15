@@ -198,7 +198,7 @@ testRetainedDrawingStaysValid
 	View verifyDrawing: true.
 	[self openShell.
 	 view := terminal view.
-	 self enter: 'i=0; while [ $i -lt 40 ]; do i=$((i+1)); printf "\033[3$((i % 8))m%s \033[7m%s\033[0m ─┼─\n" row-$i $i; done'.
+	 self enter: 'i=0; while [ $i -lt 40 ]; do i=$((i+1)); printf "\033[3$((i % 8))m%s \033[7m%s\033[0m ─┼─ 日本😀e\314\201\n" row-$i $i; done'.
 	 self waitForText: 'row-40'.
 	 self assert: (self waitFor: [(self screen textOfRow: self screen row) = '$']).
 	 self in: window do: [view scrollBy: 10].
@@ -240,6 +240,20 @@ testKeysTheProgramGets
 	view parser feed: ((String with: Character escape), '[?1h') asByteArray.
 	view keyDown: (KeyEvent type: #down keyCode: (UIEvent keyCodeFor: #up) key: #up repeat: false modifiers: Modifiers none time: 0).
 	self assert: sent asArray equals: {(String with: Character escape), 'OA'}
+!
+testWideCharactersAreSelectedAndCopiedWhole
+	| view cell word |
+	view := TerminalView new.
+	view parser feed: ('ab 日本語', (String with: $e with: (Character value: 16r301)), ' cd') utf8Encoded.
+	view select: #(1 5) to: #(1 6).
+	self assert: (view selectionColumnsOn: 1) equals: #(4 7).
+	self assert: view selectedText equals: '日本'.
+	cell := view cellAt: view padding + ((4.5 * view cellExtent x) @ 1).
+	self assert: cell equals: #(1 5).
+	word := view wordAt: cell.
+	view select: word first to: word last.
+	self assert: view selectedText equals: '日本語', (String with: $e with: (Character value: 16r301)).
+	self assert: view shownLinesNow first equals: 'ab 日本語', (String with: $e with: (Character value: 16r301)), ' cd'
 !
 testWorldMenuAndOpeners
 	self assert: (ToolsMenu labels includes: 'Terminal').
