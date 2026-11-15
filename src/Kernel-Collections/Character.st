@@ -3,7 +3,7 @@ Magnitude immediateSubclass: #Character
 	classVariableNames: ''
 	package: 'Kernel-Collections'!
 
-Character comment: 'I am a Unicode character, encoded in the object pointer (tag 010) with my code point. Equal characters are identical. Classification, case conversion and display width follow the Unicode Character Database (Unicode, which has the details): isLetter is the general category L*, isDigit Nd (decimal digits of any script, whose value digitValue answers; it answers 10-35 for the ASCII letters, and number syntax uses only ASCII digits), isMark M*, isUppercase Lu, isLowercase Ll, isSeparator the White_Space property; asUppercase, asLowercase, asTitlecase and caseFolded are the simple one-to-one mappings.'!
+Character comment: 'I am a Unicode character, encoded in the object pointer (tag 010) with my code point. Equal characters are identical. Classification, case conversion and display width follow the Unicode Character Database (Unicode, which has the details): isLetter is the general category L*, isDigit Nd (decimal digits of any script, whose value digitValue answers; it answers 10-35 for the ASCII letters, and number syntax uses only ASCII digits), isMark M*, isUppercase Lu, isLowercase Ll, isWhiteSpace the White_Space property (isSeparator, as in Squeak and Pharo, only space, tab, cr, lf and form feed); asUppercase, asLowercase, asTitlecase and caseFolded are the simple one-to-one mappings.'!
 
 !Character methodsFor: 'accessing'!
 value
@@ -92,7 +92,13 @@ isVowel
 	^'aeiouAEIOU' includes: self
 !
 isSeparator
-	"Answer whether I am white space (the White_Space property): space, tab, cr, lf, form feed, no-break spaces, U+3000..."
+	"Answer whether I am space, tab, cr, lf or form feed (as in Squeak and Pharo); isWhiteSpace answers for all of Unicode's white space."
+	| v |
+	v := self value.
+	^v = 32 or: [v = 9 or: [v = 13 or: [v = 10 or: [v = 12]]]]
+!
+isWhiteSpace
+	"Answer whether I am white space (the White_Space property): space, tab, cr, lf, vertical tab, form feed, U+0085, no-break spaces, U+3000..."
 	^Unicode isWhiteSpaceCode: self value
 !
 isPunctuation
@@ -147,7 +153,7 @@ printOn: aStream
 	| name |
 	name := self class constantNameFor: self.
 	name isNil ifFalse: [^aStream nextPutAll: 'Character '; nextPutAll: name].
-	(self isPrintable and: [self isSeparator not]) ifFalse: [^aStream nextPutAll: '(Character value: '; print: self value; nextPut: $)].
+	(self isPrintable and: [self isWhiteSpace not]) ifFalse: [^aStream nextPutAll: '(Character value: '; print: self value; nextPut: $)].
 	aStream nextPut: $$; nextPut: self
 !
 storeOn: aStream
@@ -234,7 +240,8 @@ arrowDown
 	^self value: 31
 !
 separators
-	^String with: self space with: self tab with: self cr with: self lf
+	"Answer a String of the characters isSeparator answers true for."
+	^String with: self space with: self cr with: self tab with: self lf with: self newPage
 !
 constantNameFor: aCharacter
 	"Answer the selector naming aCharacter (e.g. 'space'), or nil."

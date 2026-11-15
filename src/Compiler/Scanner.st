@@ -87,7 +87,7 @@ classOf: aCharacter
 	aCharacter isLetter ifTrue: [^#letter].
 	(aCharacter isMark or: [aCharacter isDigit]) ifTrue: [^#letterPart].
 	aCharacter isSpecial ifTrue: [^#binary].
-	(aCharacter isSeparator or: [v = 16rFEFF]) ifTrue: [^#separator].
+	(aCharacter isWhiteSpace or: [v = 16rFEFF]) ifTrue: [^#separator].
 	^#other
 !
 digitValueOf: aCharacter

@@ -463,7 +463,7 @@ moveSelection: delta
 textInput: anEvent
 	| now prefix start i |
 	anEvent string isEmpty ifTrue: [^false].
-	(anEvent string allSatisfy: [:c | c isSeparator]) ifTrue: [^false].
+	(anEvent string allSatisfy: [:c | c isWhiteSpace]) ifTrue: [^false].
 	now := Time millisecondClock.
 	now - typeAheadTime > 1000 ifTrue: [typeAhead := ''].
 	typeAheadTime := now.

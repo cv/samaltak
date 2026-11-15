@@ -73,7 +73,7 @@ install: aTextEditor
 evaluate: aString at: anInterval mode: aSymbol
 	"Compile aString here (syntax errors are marked inline), then run it in a new Process; answer that Process."
 	| receiver method before process |
-	(aString allSatisfy: [:c | c isSeparator]) ifTrue: [^nil].
+	(aString allSatisfy: [:c | c isWhiteSpace]) ifTrue: [^nil].
 	receiver := self receiver.
 	method := [Compiler compileDoIt: aString in: receiver class bindings: bindings]
 		on: SyntaxError do: [:e |
@@ -126,7 +126,7 @@ markSyntaxError: aSyntaxError at: anInterval
 	gap := anInterval first - 1 + ((aSyntaxError position ifNil: [1]) - 1).
 	gap := (gap max: 0) min: editor size.
 	text := '‹', aSyntaxError messageText asString, ' →›'.
-	(gap > 0 and: [(editor text at: gap) isSeparator not]) ifTrue: [text := ' ', text].
+	(gap > 0 and: [(editor text at: gap) isWhiteSpace not]) ifTrue: [text := ' ', text].
 	editor selectFrom: gap + 1 to: gap.
 	range := editor insertAfterSelection: text select: true.
 	editor addMark: range style: #error.

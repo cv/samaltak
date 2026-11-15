@@ -326,6 +326,12 @@ testCharacters
 	self assert: $F digitValue = 15.
 	self assert: (Character digitValue: 11) = $B.
 	self assert: Character space isSeparator.
+	self assert: ((0 to: 255) select: [:v | (Character value: v) isSeparator]) asArray equals: #(9 10 12 13 32).
+	self assert: Character separators asSet equals: (String with: Character space with: Character tab with: Character cr with: Character lf with: Character newPage) asSet.
+	self assert: ((0 to: 255) select: [:v | (Character value: v) isWhiteSpace]) asArray equals: #(9 10 11 12 13 32 133 160).
+	self assert: (String with: (Character value: 160) with: $a with: Character tab) trimBoth equals: (String with: (Character value: 160) with: $a).
+	self assert: (String with: (Character value: 12288)) isAllSeparators not.
+	self assert: (Character value: 160) printString equals: '(Character value: 160)'.
 	self assert: Character cr value = 13.
 	self assert: Character lf value = 10.
 	self assert: Character tab value = 9.

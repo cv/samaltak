@@ -24,7 +24,7 @@ record: kind position: pos removed: removed inserted: inserted before: before af
 	redoStack := OrderedCollection new.
 	last := undoStack isEmpty ifTrue: [nil] ifFalse: [undoStack last].
 	(last notNil and: [kind == #typing and: [(last at: 1) == #typing and: [removed isEmpty
-		and: [(last at: 2) + (last at: 4) size = pos and: [(inserted allSatisfy: [:c | c isSeparator]) not or: [(last at: 4) last isSeparator]]]]]])
+		and: [(last at: 2) + (last at: 4) size = pos and: [(inserted allSatisfy: [:c | c isWhiteSpace]) not or: [(last at: 4) last isWhiteSpace]]]]]])
 		ifTrue: [
 			last at: 4 put: (last at: 4) , inserted.
 			last at: 6 put: after.

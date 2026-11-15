@@ -421,11 +421,11 @@ wordAt: aCell
 	line := screen lineAtIndex: (aCell at: 1).
 	line isNil ifTrue: [^Array with: aCell with: aCell].
 	c := aCell at: 2.
-	blank := (line characterAt: c) isSeparator.
+	blank := (line characterAt: c) isWhiteSpace.
 	a := c.
-	[a > 1 and: [(line characterAt: a - 1) isSeparator = blank]] whileTrue: [a := a - 1].
+	[a > 1 and: [(line characterAt: a - 1) isWhiteSpace = blank]] whileTrue: [a := a - 1].
 	b := c.
-	[b < screen cols and: [(line characterAt: b + 1) isSeparator = blank]] whileTrue: [b := b + 1].
+	[b < screen cols and: [(line characterAt: b + 1) isWhiteSpace = blank]] whileTrue: [b := b + 1].
 	^Array with: (Array with: (aCell at: 1) with: a) with: (Array with: (aCell at: 1) with: b)
 !
 copySelection

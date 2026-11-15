@@ -236,7 +236,7 @@ selectorOf: aMethodSource
 	"The selector of a method's source, from its pattern (unary, binary or keywords)."
 	| s c word sel |
 	s := ReadStream on: aMethodSource.
-	[s atEnd not and: [s peek isSeparator]] whileTrue: [s next].
+	[s atEnd not and: [s peek isWhiteSpace]] whileTrue: [s next].
 	s atEnd ifTrue: [^#''].
 	c := s peek.
 	(c isLetter or: [c = $_]) ifFalse: [
@@ -249,9 +249,9 @@ selectorOf: aMethodSource
 		ifTrue: [
 			s next.
 			sel nextPutAll: word; nextPut: $:.
-			[s atEnd not and: [s peek isSeparator]] whileTrue: [s next].
+			[s atEnd not and: [s peek isWhiteSpace]] whileTrue: [s next].
 			self readWordFrom: s.
-			[s atEnd not and: [s peek isSeparator]] whileTrue: [s next].
+			[s atEnd not and: [s peek isWhiteSpace]] whileTrue: [s next].
 			s atEnd not and: [s peek isLetter and: [self keywordFollowsIn: s]]]
 		ifFalse: [
 			sel position = 0 ifTrue: [sel nextPutAll: word].

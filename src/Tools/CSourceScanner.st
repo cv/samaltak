@@ -90,7 +90,7 @@ classes
 	1 to: 128 do: [:i | | ch |
 		ch := Character value: i - 1.
 		(ch isLetter or: [ch isDigit or: [ch == $_]]) ifTrue: [t at: i put: 1].
-		ch isSeparator ifTrue: [t at: i put: 2]].
+		ch isWhiteSpace ifTrue: [t at: i put: 2]].
 	t at: 11 put: 3.
 	t at: $" value + 1 put: 4; at: $' value + 1 put: 4; at: $/ value + 1 put: 5; at: $# value + 1 put: 6.
 	^Classes := t

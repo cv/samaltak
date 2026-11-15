@@ -105,8 +105,10 @@ testLatin1
 	self assert: $ß isLowercase.
 	self assert: $Ä asLowercase equals: $ä.
 	self assert: $ä asUppercase equals: $Ä.
-	self assert: (self char: 160) isSeparator.
-	self assert: (self char: 133) isSeparator.
+	self assert: (self char: 160) isWhiteSpace.
+	self assert: (self char: 133) isWhiteSpace.
+	self deny: (self char: 160) isSeparator.
+	self deny: (self char: 133) isSeparator.
 	self deny: (self char: 133) isPrintable.
 	self deny: (self char: 173) isPrintable.
 	self assert: $é isPrintable
@@ -138,10 +140,11 @@ testNonLetters
 	self assert: (self char: 769) isMark.
 	self assert: (self char: 2307) isMark.
 	self deny: $a isMark.
-	self assert: (self char: 12288) isSeparator.
-	self assert: (self char: 8232) isSeparator.
-	self deny: (self char: 8203) isSeparator.
-	self deny: (self char: 65279) isSeparator.
+	self assert: (self char: 12288) isWhiteSpace.
+	self assert: (self char: 8232) isWhiteSpace.
+	self deny: (self char: 8203) isWhiteSpace.
+	self deny: (self char: 65279) isWhiteSpace.
+	self deny: (self char: 12288) isSeparator.
 	self assert: (self char: 128512) isPrintable.
 	self assert: (self char: 57344) isPrintable.
 	self deny: (self char: 8232) isPrintable.

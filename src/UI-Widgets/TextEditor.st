@@ -431,7 +431,7 @@ insertAfterSelection: aString select: aBoolean
 	pos := self selectionStop.
 	self basicInsertAt: pos string: aString.
 	lead := 0.
-	[lead < aString size and: [(aString at: lead + 1) isSeparator]] whileTrue: [lead := lead + 1].
+	[lead < aString size and: [(aString at: lead + 1) isWhiteSpace]] whileTrue: [lead := lead + 1].
 	aBoolean
 		ifTrue: [self setAnchor: pos + lead caret: pos + aString size]
 		ifFalse: [self invalidate].
@@ -1091,7 +1091,7 @@ collapsedText: max
 	lastSpace := true.
 	buffer string do: [:c |
 		out position >= max ifTrue: [^out contents trimRight].
-		c isSeparator
+		c isWhiteSpace
 			ifTrue: [lastSpace ifFalse: [out nextPut: $ ]. lastSpace := true]
 			ifFalse: [out nextPut: c. lastSpace := false]].
 	^out contents trimRight

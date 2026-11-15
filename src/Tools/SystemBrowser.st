@@ -599,7 +599,7 @@ markSyntaxError: aSyntaxError
 	| gap text range |
 	gap := ((aSyntaxError position ifNil: [1]) - 1 max: 0) min: code size.
 	text := '‹', aSyntaxError messageText asString, ' →›'.
-	(gap > 0 and: [(code text at: gap) isSeparator not]) ifTrue: [text := ' ', text].
+	(gap > 0 and: [(code text at: gap) isWhiteSpace not]) ifTrue: [text := ' ', text].
 	code selectFrom: gap + 1 to: gap.
 	range := code insertAfterSelection: text select: true.
 	code addMark: range style: #error.
