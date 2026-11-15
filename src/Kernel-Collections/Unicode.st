@@ -15,7 +15,7 @@ version
 	^UnicodeTables version
 !
 propertiesOf: codePoint
-	"Answer the property word of codePoint (its bits are described in tools/unicode-tables.py): general category, grapheme cluster break properties, display width, White_Space."
+	"Answer the property word of codePoint (its bits are described in tools/unicode-tables.py): general category, grapheme cluster break properties, display width, White_Space, Emoji_Presentation."
 	codePoint < 256 ifTrue: [^UnicodeTables latin1Properties at: codePoint + 1].
 	^self searchPropertiesOf: codePoint
 !
@@ -139,6 +139,10 @@ graphemeBreakPropertyOf: codePoint
 isExtendedPictographicCode: codePoint
 	"The Extended_Pictographic property (emoji and pictographs, assigned or reserved)."
 	^((self propertiesOf: codePoint) bitAnd: 512) ~= 0
+!
+isEmojiPresentationCode: codePoint
+	"The Emoji_Presentation property: shown as an emoji without a variation selector."
+	^((self propertiesOf: codePoint) bitAnd: 32768) ~= 0
 !
 indicConjunctBreakOf: codePoint
 	"Answer the Indic_Conjunct_Break property: #None #Consonant #Linker or #Extend."

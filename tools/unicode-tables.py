@@ -15,6 +15,7 @@ bits of a word:
   12-13 display width 0, 1 or 2 (as wcwidth): 0 for Mn Me Cf (but U+00AD) Cc and Hangul medial vowels and final
         consonants (U+1160-11FF, U+D7B0-D7FF); 2 for East_Asian_Width W and F; else 1
   14    White_Space
+  15    Emoji_Presentation
 latin1Properties: the words of U+0000-00FF, for direct indexing.
 Case mappings (simple, from UnicodeData.txt) and simple case folding (CaseFolding.txt status C and S) as runs
 {start. stop. stride. delta}: every stride-th code point from start to stop maps to itself + delta. titlecaseExceptions
@@ -103,10 +104,14 @@ def properties(category):
         for c in range(a, b + 1):
             gcb[c] = GCB.index(f[0])
     pict = [False] * N
+    presentation = [False] * N
     for a, b, f in records(fetch('emoji/emoji-data.txt')):
         if f[0] == 'Extended_Pictographic':
             for c in range(a, b + 1):
                 pict[c] = True
+        elif f[0] == 'Emoji_Presentation':
+            for c in range(a, b + 1):
+                presentation[c] = True
     incb = [0] * N
     for a, b, f in records(fetch('DerivedCoreProperties.txt')):
         if f[0] == 'InCB':
@@ -135,7 +140,7 @@ def properties(category):
         else:
             width = 1
         words.append((CATEGORIES.index(cat) + 1) | gcb[c] << 5 | pict[c] << 9 | incb[c] << 10 | width << 12
-                     | white[c] << 14)
+                     | white[c] << 14 | presentation[c] << 15)
     return words
 
 

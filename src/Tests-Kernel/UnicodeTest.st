@@ -189,6 +189,8 @@ testGraphemeBreakProperties
 	self assert: (Unicode isExtendedPictographicCode: 128512).
 	self assert: (Unicode isExtendedPictographicCode: 169).
 	self deny: (Unicode isExtendedPictographicCode: 97).
+	#(128512 127988 8987 127462 129392) do: [:cp | self assert: (Unicode isEmojiPresentationCode: cp)].
+	#(169 8482 35 49 9731 10084 97) do: [:cp | self deny: (Unicode isEmojiPresentationCode: cp)].
 	self assert: (Unicode indicConjunctBreakOf: 2325) equals: #Consonant.
 	self assert: (Unicode indicConjunctBreakOf: 2381) equals: #Linker.
 	self assert: (Unicode indicConjunctBreakOf: 769) equals: #Extend
