@@ -3,15 +3,16 @@ CLibrary subclass: #PosixProcesses
 	classVariableNames: ''
 	package: 'VM-Platform'!
 
-PosixProcesses comment: 'Child processes and pseudo-terminals: posix_spawnp, waitpid, kill, forkpty and what the forked child calls before execve; execvp. Not simulated.'!
+PosixProcesses comment: 'Child processes and pseudo-terminals: posix_spawnp, waitpid, kill, forkpty and what the forked child calls before execve; execvp. Not simulated. IUTF8 (not POSIX) is 0 where termios.h lacks it.'!
 
 !PosixProcesses class methodsFor: 'declaring'!
 headers
 	"forkpty is declared in util.h on macOS, in pty.h on Linux."
-	^#('<spawn.h>' '<sys/wait.h>' '<signal.h>' '<sys/ioctl.h>' '#ifdef __APPLE__' '<util.h>' '#else' '<pty.h>' '#endif' '<unistd.h>')
+	^#('<spawn.h>' '<sys/wait.h>' '<signal.h>' '<sys/ioctl.h>' '#ifdef __APPLE__' '<util.h>' '#else' '<pty.h>' '#endif' '<unistd.h>'
+		'<termios.h>' '#ifndef IUTF8' '#define IUTF8 0' '#endif')
 !
 typedefs
-	^#((posix_spawn_file_actions_t opaque) (posix_spawnattr_t opaque) (sigset_t uint32_t))
+	^#((posix_spawn_file_actions_t opaque) (posix_spawnattr_t opaque) (sigset_t uint32_t) (tcflag_t uint64_t))
 ! !
 
 !PosixProcesses methodsFor: 'simulation'!
@@ -76,6 +77,22 @@ getdtablesize
 ! !
 
 !PosixProcesses methodsFor: 'the forked child'!
+tcgetattr: fd termios: t
+	<c: 'int tcgetattr(int fd, struct termios *t)'>
+	^self notSimulated
+!
+tcsetattr: fd action: action termios: t
+	<c: 'int tcsetattr(int fd, int optional_actions, const struct termios *t)'>
+	^self notSimulated
+!
+TCSANOW
+	<cMacro: 'int TCSANOW'>
+	^0
+!
+IUTF8
+	<cMacro: 'tcflag_t IUTF8'>
+	^16r4000
+!
 sigaction: sig action: act old: oact
 	<c: 'int sigaction(int sig, const struct sigaction *act, struct sigaction *oact)'>
 	^self notSimulated
@@ -142,4 +159,17 @@ cName
 !
 fields
 	^#((ws_row 'unsigned short') (ws_col 'unsigned short') (ws_xpixel 'unsigned short') (ws_ypixel 'unsigned short'))
+! !
+
+ExternStruct subclass: #Termios
+	instanceVariableNames: ''
+	classVariableNames: ''
+	package: 'VM-Platform'!
+
+!Termios class methodsFor: 'declaring'!
+cName
+	^'struct termios'
+!
+fields
+	^#((c_iflag tcflag_t))
 ! !

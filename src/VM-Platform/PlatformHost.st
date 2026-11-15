@@ -3,7 +3,7 @@ VMPlatformModule subclass: #PlatformHost
 	classVariableNames: ''
 	package: 'VM-Platform'!
 
-PlatformHost comment: 'What the platform layer does differently on each operating system: the display-refresh thread behind PlatformVsync, the process environment, socket setup, which keys are cmd and alt, the shader formats asked of SDL_GPU and compiling GLSL for them. DarwinPlatformHost and LinuxPlatformHost implement me under the same C names; the build links the one of its OS (targetOS).'!
+PlatformHost comment: 'What the platform layer does differently on each operating system: the display-refresh thread behind PlatformVsync, the process environment and a UTF-8 locale in it, socket setup, which keys are cmd and alt, the shader formats asked of SDL_GPU and compiling GLSL for them. DarwinPlatformHost and LinuxPlatformHost implement me under the same C names; the build links the one of its OS (targetOS).'!
 
 !PlatformHost class methodsFor: 'declaring'!
 isAbstractModule
@@ -39,6 +39,10 @@ altKeymod
 !
 shaderFormats
 	"The shader formats a GPU device is created for."
+	self subclassResponsibility
+!
+utf8Ctype
+	"The environment entry LC_CTYPE=… of a UTF-8 locale every system has."
 	self subclassResponsibility
 !
 compileShader: source stage: stage size: sizeOut
@@ -112,6 +116,10 @@ altKeymod
 shaderFormats
 	<export>
 	^sdlGpu SDL_GPU_SHADERFORMAT_MSL
+!
+utf8Ctype
+	<export>
+	^'LC_CTYPE=UTF-8'
 !
 compileShader: source stage: stage size: sizeOut
 	<export>
@@ -201,6 +209,10 @@ altKeymod
 shaderFormats
 	<export>
 	^sdlGpu SDL_GPU_SHADERFORMAT_SPIRV
+!
+utf8Ctype
+	<export>
+	^'LC_CTYPE=C.UTF-8'
 !
 compileShader: source stage: stage size: sizeOut
 	<export>

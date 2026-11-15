@@ -48,6 +48,10 @@
 #else
 #include <pty.h>
 #endif
+#include <termios.h>
+#ifndef IUTF8
+#define IUTF8 0
+#endif
 #include <sys/socket.h>
 #include <netdb.h>
 #include <netinet/in.h>
@@ -2178,6 +2182,7 @@ void *compile_shader(char *source, int32_t stage, size_t *size_out);
 char **environment(void);
 SDL_GPUShaderFormat shader_formats(void);
 void socket_opened(int fd);
+char *utf8_ctype(void);
 bool vsync_start(void);
 void vsync_stop(void);
 #endif
@@ -2188,6 +2193,7 @@ void *compile_shader(char *source, int32_t stage, size_t *size_out);
 char **environment(void);
 SDL_GPUShaderFormat shader_formats(void);
 void socket_opened(int fd);
+char *utf8_ctype(void);
 bool vsync_start(void);
 void vsync_stop(void);
 #endif

@@ -100,6 +100,12 @@ void socket_opened(int fd)
     signal(SIGPIPE, SIG_IGN);
 }
 
+/* LinuxPlatformHost>>utf8Ctype */
+char *utf8_ctype(void)
+{
+    return "LC_CTYPE=C.UTF-8";
+}
+
 /* LinuxPlatformHost>>vsyncRun: */
 static void *vsync_run(void *arg)
 {

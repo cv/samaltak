@@ -3,7 +3,7 @@ VMPlatformModule subclass: #PlatformPtys
 	classVariableNames: 'HUNG_UP_MAX'
 	package: 'VM-Platform'!
 
-PlatformPtys comment: 'Pseudo-terminals: a child process (a shell) on the slave side of a new pty, the master in the socket table (kind PF_FD_PTY, ptr a pty_child), so reading, writing and the readiness semaphores work like a socket''s (PlatformSockets). The child gets its own session with the slave as controlling terminal, default signal dispositions (the VM ignores SIGPIPE) and no other inherited descriptors. Children closed before they ended are reaped later (hungUp).'!
+PlatformPtys comment: 'Pseudo-terminals: a child process (a shell) on the slave side of a new pty, the master in the socket table (kind PF_FD_PTY, ptr a pty_child), so reading, writing and the readiness semaphores work like a socket''s (PlatformSockets). The child gets its own session with the slave as controlling terminal (its input UTF-8: IUTF8, so erasing takes whole characters), default signal dispositions (the VM ignores SIGPIPE), no other inherited descriptors, and a UTF-8 locale for characters (the terminal speaks UTF-8). Children closed before they ended are reaped later (hungUp).'!
 
 !PlatformPtys class methodsFor: 'declaring'!
 declarations
@@ -61,27 +61,69 @@ resolve: argv0 environment: envp
 	^self null
 !
 childEnvironment: envp
-	"envp (or ours) with TERM=xterm-256color unless envp sets TERM; the strings are shared, the array malloc'd."
+	"envp (or ours) with TERM=xterm-256color unless envp sets TERM, and a UTF-8 LC_CTYPE (host utf8Ctype, in place of any other) unless the locale is UTF-8 already or LC_ALL is set; the strings are shared, the array malloc'd."
 	<function>
-	| src n hasTerm env k |
+	| src n hasTerm utf8 env k |
 	src := envp notNull ifTrue: [envp] ifFalse: [host environment].
 	n := 0 asUInt64.
 	hasTerm := false.
 	[(src at: n) notNull] whileTrue: [
 		(envp notNull and: [(posixIO strncmp: (src at: n) with: 'TERM=' size: 5) = 0]) ifTrue: [hasTerm := true].
 		n := n + 1].
-	env := self cCoerce: (libc malloc: (n + 2) * (self sizeof: 'char *')) to: 'char **'.
+	utf8 := (self variable: 'LC_ALL=' in: src) notNull or: [self isUtf8Locale: (self localeIn: src)].
+	env := self cCoerce: (libc malloc: (n + 3) * (self sizeof: 'char *')) to: 'char **'.
 	env isNull ifTrue: [^self null].
 	k := 0 asUInt64.
 	0 to: n asInt64 - 1 do: [:i |
-		(envp notNull or: [(posixIO strncmp: (src at: i) with: 'TERM=' size: 5) ~= 0]) ifTrue: [
-			env at: k put: (src at: i).
-			k := k + 1]].
+		((envp notNull or: [(posixIO strncmp: (src at: i) with: 'TERM=' size: 5) ~= 0])
+			and: [utf8 or: [(posixIO strncmp: (src at: i) with: 'LC_CTYPE=' size: 9) ~= 0]]) ifTrue: [
+				env at: k put: (src at: i).
+				k := k + 1]].
 	hasTerm ifFalse: [
 		env at: k put: 'TERM=xterm-256color'.
 		k := k + 1].
+	utf8 ifFalse: [
+		env at: k put: host utf8Ctype.
+		k := k + 1].
 	env at: k put: self null.
 	^env
+!
+variable: prefix in: envp
+	"The value of the first NAME= entry (prefix) of envp, NULL if there is none or it is empty."
+	<function>
+	| e n |
+	n := libc strlen: prefix.
+	e := envp.
+	[e value notNull] whileTrue: [
+		(posixIO strncmp: e value with: prefix size: n) = 0 ifTrue: [
+			(e value at: n) = 0 ifTrue: [^self null].
+			^e value + n].
+		e := e + 1].
+	^self null
+!
+localeIn: envp
+	"The locale of envp's characters (LC_CTYPE, else LANG), or NULL."
+	<function>
+	| name |
+	name := self variable: 'LC_CTYPE=' in: envp.
+	name isNull ifTrue: [name := self variable: 'LANG=' in: envp].
+	^name
+!
+isUtf8Locale: name
+	"Whether locale name's codeset (after the dot, else the whole name, up to an @) is UTF-8, in any case, with or without the hyphen."
+	<function>
+	| p k c |
+	name isNull ifTrue: [^false].
+	p := posixIO strchr: name char: $. value.
+	p := p isNull ifTrue: [name] ifFalse: [p + 1].
+	k := 0.
+	[(p value ~= 0 and: [p value ~= $@ value])] whileTrue: [
+		c := p value.
+		c ~= $- value ifTrue: [
+			(k >= 4 or: [(c bitOr: 32) ~= ((self cString: 'utf8') at: k)]) ifTrue: [^false].
+			k := k + 1].
+		p := p + 1].
+	^k = 4
 !
 writeError: message
 	"In the forked child: message and CR LF to stderr."
@@ -121,9 +163,9 @@ child: p
 
 !PlatformPtys methodsFor: 'pseudo-terminals'!
 spawn: argv environment: envp directory: cwd rows: rows columns: cols pid: pidOut
-	"argv first is looked up in PATH; envp NULL = inherit (TERM=xterm-256color is set either way unless envp has TERM); cwd NULL = inherit."
+	"argv first is looked up in PATH; envp NULL = inherit (TERM=xterm-256color is set either way unless envp has TERM, and a UTF-8 LC_CTYPE, see childEnvironment:); cwd NULL = inherit."
 	<export>
-	| path env child ws maxFd master pid saved h |
+	| path env child ws maxFd master pid saved h tio |
 	platform init.
 	self reapHungUp.
 	path := self resolve: (argv at: 0) environment: envp.
@@ -151,6 +193,11 @@ spawn: argv environment: envp directory: cwd rows: rows columns: cols pid: pidOu
 		libc free: child.
 		common failOS: 'forkpty' code: saved.
 		^0].
+	"The input is UTF-8 (set here, through the master: before anything is written to it)."
+	tio := self local: 'struct termios'.
+	(posixProcesses tcgetattr: master value termios: tio) = 0 ifTrue: [
+		tio c_iflag: (tio c_iflag bitOr: posixProcesses IUTF8).
+		posixProcesses tcsetattr: master value action: posixProcesses TCSANOW termios: tio].
 	child pid: pid.
 	child reaped: false.
 	h := sockets add: master value kind: PF_FD_PTY pointer: child.

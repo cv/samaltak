@@ -81,6 +81,25 @@ testInheritedEnvironmentGetsTerm
 	out := self outputUntil: ']'.
 	self assert: out equals: '[xterm-256color]'
 !
+testChildGetsAUtf8Locale
+	"Unless its locale (LC_ALL, else LC_CTYPE, else LANG) is UTF-8 already or LC_ALL is set, the child gets a UTF-8 LC_CTYPE."
+	#(#('LANG=C') '[UTF-8|C]'
+	  #('LANG=en_US.UTF-8') '[|en_US.UTF-8]'
+	  #('LC_CTYPE=POSIX' 'LANG=de_DE.utf8') '[UTF-8|de_DE.utf8]'
+	  #('LC_ALL=C' 'LC_CTYPE=C') '[C|]') pairsDo: [:env :expected | | out |
+		pty := PseudoTerminal spawn: #('sh' '-c' 'printf "[%s|%s]" "${LC_CTYPE#C.}" "$LANG"') environment: #('PATH=/bin:/usr/bin'), env directory: nil rows: 24 columns: 80.
+		out := self outputUntil: ']'.
+		self assert: out equals: expected.
+		pty close]
+!
+testErasingInCookedModeTakesWholeCharacters
+	"The terminal's input is UTF-8 (IUTF8): the erase character takes back all the bytes of the last character."
+	| out |
+	self spawn: #('sh' '-c' 'read line; printf "[%s]" "$line"').
+	pty nextPutAll: 'aé', (String with: (Character value: 127)), 'x', (String with: Character cr).
+	out := self outputUntil: 'x]'.
+	self assert: (out asByteArray utf8Decoded includesSubstring: '[ax]') description: out
+!
 testWriteIsEchoed
 	| crlf out |
 	crlf := String with: Character cr with: Character lf.

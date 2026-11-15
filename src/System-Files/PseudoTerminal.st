@@ -10,7 +10,7 @@ PseudoTerminal comment: 'I am the master side of a pseudo-terminal whose slave s
 	[(n := pty readInto: buffer) = 0] whileFalse: [n isNil ifTrue: [pty semaphore wait] ifFalse: [...]].
 	pty waitForExit; close.
 
-The child gets TERM=xterm-256color (environment nil: the VM''s environment). close hangs up the child unless it has ended. A PseudoTerminal garbage collected unclosed is closed by the finalization process (WeakRegistry); one saved in an image is dead when the image starts again.'!
+The child gets TERM=xterm-256color (environment nil: the VM''s environment), a UTF-8 LC_CTYPE unless its locale is UTF-8 already or LC_ALL is set, and a terminal whose input is UTF-8 (IUTF8). close hangs up the child unless it has ended. A PseudoTerminal garbage collected unclosed is closed by the finalization process (WeakRegistry); one saved in an image is dead when the image starts again.'!
 
 !PseudoTerminal methodsFor: 'initialization'!
 setHandle: aHandle pid: anInteger

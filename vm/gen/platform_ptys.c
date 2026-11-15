@@ -7,8 +7,11 @@ static int64_t hung_up[64];
 static pty_child *platform_ptys_child(int32_t p);
 static char **child_environment(char **envp);
 static _Noreturn void exec_child(char *path, char **argv, char **env, char *cwd, int max_fd);
+static bool is_utf8_locale(char *name);
+static char *locale_in(char **envp);
 static void reap_hung_up(void);
 static char *platform_ptys_resolve(char *argv0, char **envp);
+static char *variable(char *prefix, char **envp);
 
 /* PlatformPtys>>child: */
 static pty_child *platform_ptys_child(int32_t p)
@@ -27,6 +30,7 @@ static char **child_environment(char **envp)
     char **src;
     uint64_t n;
     bool has_term;
+    bool utf8;
     char **env;
     uint64_t k;
     int64_t i;
@@ -39,19 +43,24 @@ static char **child_environment(char **envp)
         }
         n = n + 1;
     }
-    env = (char **)malloc((n + 2) * sizeof(char *));
+    utf8 = (variable("LC_ALL=", src) != NULL) || is_utf8_locale(locale_in(src));
+    env = (char **)malloc((n + 3) * sizeof(char *));
     if (env == NULL) {
         return (char **)NULL;
     }
     k = 0ULL;
     for (i = 0; i <= (int64_t)n - 1; i++) {
-        if ((envp != NULL) || (strncmp(src[i], "TERM=", 5) != 0)) {
+        if (((envp != NULL) || (strncmp(src[i], "TERM=", 5) != 0)) && (utf8 || (strncmp(src[i], "LC_CTYPE=", 9) != 0))) {
             env[k] = src[i];
             k = k + 1;
         }
     }
     if (!has_term) {
         env[k] = "TERM=xterm-256color";
+        k = k + 1;
+    }
+    if (!utf8) {
+        env[k] = utf8_ctype();
         k = k + 1;
     }
     env[k] = (char *)NULL;
@@ -142,6 +151,42 @@ pid_t foreground(int32_t p)
         return -1;
     }
     return tcgetpgrp((int32_t)o->i);
+}
+
+/* PlatformPtys>>isUtf8Locale: */
+static bool is_utf8_locale(char *name)
+{
+    char *p;
+    int64_t k;
+    char c;
+    if (name == NULL) {
+        return false;
+    }
+    p = strchr(name, 46);
+    p = p == NULL ? name : p + 1;
+    k = 0;
+    while ((*p != 0) && (*p != 64)) {
+        c = *p;
+        if (c != 45) {
+            if ((k >= 4) || ((c | 32) != "utf8"[k])) {
+                return false;
+            }
+            k = k + 1;
+        }
+        p = p + 1;
+    }
+    return k == 4;
+}
+
+/* PlatformPtys>>localeIn: */
+static char *locale_in(char **envp)
+{
+    char *name;
+    name = variable("LC_CTYPE=", envp);
+    if (name == NULL) {
+        name = variable("LANG=", envp);
+    }
+    return name;
 }
 
 /* PlatformPtys>>reapHungUp */
@@ -251,6 +296,8 @@ int32_t platform_ptys_spawn(char **argv, char **envp, char *cwd, int32_t rows, i
     int *master;
     pid_t pid;
     int saved;
+    struct termios local_3;
+    struct termios *tio;
     int32_t h;
     platform_interface_init();
     reap_hung_up();
@@ -289,6 +336,12 @@ int32_t platform_ptys_spawn(char **argv, char **envp, char *cwd, int32_t rows, i
         platform_common_fail_os_code("forkpty", saved);
         return 0;
     }
+    memset(&local_3, 0, sizeof local_3);
+    tio = &local_3;
+    if (tcgetattr(*master, tio) == 0) {
+        tio->c_iflag = tio->c_iflag | IUTF8;
+        tcsetattr(*master, TCSANOW, tio);
+    }
     child->pid = pid;
     child->reaped = false;
     h = platform_sockets_add(*master, PF_FD_PTY, child);
@@ -301,6 +354,25 @@ int32_t platform_ptys_spawn(char **argv, char **envp, char *cwd, int32_t rows, i
     }
     *pid_out = pid;
     return h;
+}
+
+/* PlatformPtys>>variable:in: */
+static char *variable(char *prefix, char **envp)
+{
+    size_t n;
+    char **e;
+    n = strlen(prefix);
+    e = envp;
+    while (*e != NULL) {
+        if (strncmp(*e, prefix, n) == 0) {
+            if ((*e)[n] == 0) {
+                return (char *)NULL;
+            }
+            return *e + n;
+        }
+        e = e + 1;
+    }
+    return (char *)NULL;
 }
 
 /* PlatformPtys>>wait:block:status:done: */

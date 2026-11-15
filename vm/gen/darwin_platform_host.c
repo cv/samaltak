@@ -58,6 +58,12 @@ void socket_opened(int fd)
     setsockopt(fd, SOL_SOCKET, SO_NOSIGPIPE, one, (uint32_t)sizeof(int));
 }
 
+/* DarwinPlatformHost>>utf8Ctype */
+char *utf8_ctype(void)
+{
+    return "LC_CTYPE=UTF-8";
+}
+
 /* DarwinPlatformHost>>vsyncStart */
 bool vsync_start(void)
 {
