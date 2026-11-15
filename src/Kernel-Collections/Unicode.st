@@ -3,9 +3,11 @@ Object subclass: #Unicode
 	classVariableNames: ''
 	package: 'Kernel-Collections'!
 
-Unicode comment: 'I answer Unicode character properties of code points (Integers), from UnicodeTables (generated from the Unicode Character Database, see Unicode version): the general category (#Lu #Ll ... #Cn) and the classifications built on it, simple case mappings and simple case folding, the display width a terminal or a monospaced editor gives a code point (as wcwidth), and the properties of extended grapheme clusters (UAX #29, String>>isGraphemeClusterBoundaryAt:). Character delegates its classification and case conversion to me.
+Unicode comment: 'I answer Unicode character properties, from UnicodeTables (generated from the Unicode Character Database, see Unicode version): the general category (#Lu #Ll ... #Cn) and the classifications built on it, simple case mappings and simple case folding, the display width a terminal or a monospaced editor gives a code point (as wcwidth), and the properties of extended grapheme clusters (UAX #29, String>>isGraphemeClusterBoundaryAt:). Character delegates its classification and case conversion to me.
 
-isUppercase: and isLowercase: are the general categories Lu and Ll (not the Other_Uppercase/Other_Lowercase properties), isDigit: is Nd, isSeparator: the White_Space property. isPrintable: is everything with a visible rendering or space: not Cc Cf Cs Cn Zl Zp (private use characters count as printable). Code points below 256 are answered from a direct table, case mappings of ASCII by arithmetic.'!
+As in Squeak, the selectors ending in Code: (isLetterCode: toUppercaseCode: ...), generalCategoryTagOf: and the ...Of: accessors take code points (Integers); as in Pharo, isLetter: isDigit: isUppercase: isLowercase: isMathSymbol: toUppercase: and toLowercase: take Characters (and the last two answer Characters).
+
+isUppercaseCode: and isLowercaseCode: are the general categories Lu and Ll (not the Other_Uppercase/Other_Lowercase properties), isDigitCode: is Nd, isWhiteSpaceCode: the White_Space property. isPrintableCode: is everything with a visible rendering or space: not Cc Cf Cs Cn Zl Zp (private use characters count as printable). Code points below 256 are answered from a direct table, case mappings of ASCII by arithmetic.'!
 
 !Unicode class methodsFor: 'accessing'!
 version
@@ -17,7 +19,7 @@ propertiesOf: codePoint
 	codePoint < 256 ifTrue: [^UnicodeTables latin1Properties at: codePoint + 1].
 	^self searchPropertiesOf: codePoint
 !
-generalCategoryOf: codePoint
+generalCategoryTagOf: codePoint
 	"Answer the general category, a Symbol: #Lu #Ll #Lt #Lm #Lo #Mn #Mc #Me #Nd #Nl #No #Pc #Pd #Ps #Pe #Pi #Pf #Po #Sm #Sc #Sk #So #Zs #Zl #Zp #Cc #Cf #Cs #Co or #Cn (unassigned)."
 	^UnicodeTables categories at: ((self propertiesOf: codePoint) bitAnd: 31)
 !
@@ -27,69 +29,94 @@ displayWidthOf: codePoint
 ! !
 
 !Unicode class methodsFor: 'testing'!
-isLetter: codePoint
+isLetterCode: codePoint
 	"General category L*."
 	^((self propertiesOf: codePoint) bitAnd: 31) <= 5
 !
-isUppercase: codePoint
+isUppercaseCode: codePoint
 	"General category Lu."
 	^((self propertiesOf: codePoint) bitAnd: 31) = 1
 !
-isLowercase: codePoint
+isLowercaseCode: codePoint
 	"General category Ll."
 	^((self propertiesOf: codePoint) bitAnd: 31) = 2
 !
-isMark: codePoint
+isMarkCode: codePoint
 	"General category M* (combining marks)."
 	^((self propertiesOf: codePoint) bitAnd: 31) between: 6 and: 8
 !
-isDigit: codePoint
+isDigitCode: codePoint
 	"General category Nd (decimal digits of any script)."
 	^((self propertiesOf: codePoint) bitAnd: 31) = 9
 !
-isMathSymbol: codePoint
+isMathSymbolCode: codePoint
 	"General category Sm."
 	^((self propertiesOf: codePoint) bitAnd: 31) = 19
 !
-isSeparator: codePoint
+isWhiteSpaceCode: codePoint
 	"The White_Space property: tab, lf, vt, ff, cr, space, U+0085, no-break spaces, the Zs spaces and the line and paragraph separators."
 	^((self propertiesOf: codePoint) bitAnd: 16384) ~= 0
 !
-isPrintable: codePoint
+isPrintableCode: codePoint
 	"Not Cc Cf Cs Cn Zl or Zp."
 	| category |
 	category := (self propertiesOf: codePoint) bitAnd: 31.
 	^category < 24 or: [category = 29]
 ! !
 
+!Unicode class methodsFor: 'characters'!
+isLetter: aCharacter
+	^self isLetterCode: aCharacter value
+!
+isDigit: aCharacter
+	^self isDigitCode: aCharacter value
+!
+isUppercase: aCharacter
+	^self isUppercaseCode: aCharacter value
+!
+isLowercase: aCharacter
+	^self isLowercaseCode: aCharacter value
+!
+isMathSymbol: aCharacter
+	^self isMathSymbolCode: aCharacter value
+!
+toUppercase: aCharacter
+	"Answer the Character of aCharacter's simple uppercase mapping."
+	^Character value: (self toUppercaseCode: aCharacter value)
+!
+toLowercase: aCharacter
+	"Answer the Character of aCharacter's simple lowercase mapping."
+	^Character value: (self toLowercaseCode: aCharacter value)
+! !
+
 !Unicode class methodsFor: 'case'!
-toUppercase: codePoint
+toUppercaseCode: codePoint
 	"Answer the simple uppercase mapping of codePoint (itself if it has none)."
 	| mapped |
 	codePoint < 128 ifTrue: [^(codePoint between: 97 and: 122) ifTrue: [codePoint - 32] ifFalse: [codePoint]].
 	mapped := self map: codePoint runs: UnicodeTables uppercaseRuns.
 	^mapped isNil ifTrue: [codePoint] ifFalse: [mapped]
 !
-toLowercase: codePoint
+toLowercaseCode: codePoint
 	"Answer the simple lowercase mapping of codePoint (itself if it has none)."
 	| mapped |
 	codePoint < 128 ifTrue: [^(codePoint between: 65 and: 90) ifTrue: [codePoint + 32] ifFalse: [codePoint]].
 	mapped := self map: codePoint runs: UnicodeTables lowercaseRuns.
 	^mapped isNil ifTrue: [codePoint] ifFalse: [mapped]
 !
-toTitlecase: codePoint
+toTitlecaseCode: codePoint
 	"Answer the simple titlecase mapping of codePoint (itself if it has none)."
 	| mapped |
-	codePoint < 128 ifTrue: [^self toUppercase: codePoint].
+	codePoint < 128 ifTrue: [^self toUppercaseCode: codePoint].
 	mapped := self map: codePoint runs: UnicodeTables titlecaseExceptions.
-	^mapped isNil ifTrue: [self toUppercase: codePoint] ifFalse: [mapped]
+	^mapped isNil ifTrue: [self toUppercaseCode: codePoint] ifFalse: [mapped]
 !
-caseFold: codePoint
+caseFoldCode: codePoint
 	"Answer the simple case folding of codePoint (CaseFolding.txt, status C and S), for caseless comparison: mostly the lowercase mapping, but e.g. U+00B5 (micro sign) and U+03C2 (final sigma) fold to U+03BC and U+03C3, Cherokee lowercase letters to uppercase."
 	| mapped |
-	codePoint < 128 ifTrue: [^self toLowercase: codePoint].
+	codePoint < 128 ifTrue: [^self toLowercaseCode: codePoint].
 	mapped := self map: codePoint runs: UnicodeTables caseFoldExceptions.
-	^mapped isNil ifTrue: [self toLowercase: codePoint] ifFalse: [mapped]
+	^mapped isNil ifTrue: [self toLowercaseCode: codePoint] ifFalse: [mapped]
 ! !
 
 !Unicode class methodsFor: 'grapheme clusters'!
@@ -97,7 +124,7 @@ graphemeBreakPropertyOf: codePoint
 	"Answer the Grapheme_Cluster_Break property (UAX #29): #Other #CR #LF #Control #Extend #ZWJ #Regional_Indicator #Prepend #SpacingMark #L #V #T #LV or #LVT."
 	^UnicodeTables graphemeBreakProperties at: (((self propertiesOf: codePoint) bitShift: -5) bitAnd: 15) + 1
 !
-isExtendedPictographic: codePoint
+isExtendedPictographicCode: codePoint
 	"The Extended_Pictographic property (emoji and pictographs, assigned or reserved)."
 	^((self propertiesOf: codePoint) bitAnd: 512) ~= 0
 !

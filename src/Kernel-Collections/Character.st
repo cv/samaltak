@@ -30,8 +30,8 @@ digitValue
 	^-1
 !
 generalCategory
-	"Answer my general category, e.g. #Lu (see Unicode generalCategoryOf:)."
-	^Unicode generalCategoryOf: self value
+	"Answer my general category, e.g. #Lu (see Unicode generalCategoryTagOf:)."
+	^Unicode generalCategoryTagOf: self value
 !
 displayWidth
 	"Answer the columns I take in a terminal or a monospaced editor: 0, 1 or 2 (see Unicode displayWidthOf:)."
@@ -67,24 +67,24 @@ isCharacter
 	^true
 !
 isLetter
-	^Unicode isLetter: self value
+	^Unicode isLetterCode: self value
 !
 isDigit
 	"Answer whether I am a decimal digit of any script (general category Nd); number syntax uses only $0-$9."
-	^Unicode isDigit: self value
+	^Unicode isDigitCode: self value
 !
 isMark
 	"Answer whether I am a combining mark (general category M*)."
-	^Unicode isMark: self value
+	^Unicode isMarkCode: self value
 !
 isAlphaNumeric
 	^self isLetter or: [self isDigit]
 !
 isUppercase
-	^Unicode isUppercase: self value
+	^Unicode isUppercaseCode: self value
 !
 isLowercase
-	^Unicode isLowercase: self value
+	^Unicode isLowercaseCode: self value
 !
 isVowel
 	"Answer whether I am one of aeiouAEIOU."
@@ -92,7 +92,7 @@ isVowel
 !
 isSeparator
 	"Answer whether I am white space (the White_Space property): space, tab, cr, lf, form feed, no-break spaces, U+3000..."
-	^Unicode isSeparator: self value
+	^Unicode isWhiteSpaceCode: self value
 !
 isPunctuation
 	^'.,:;!!?' includes: self
@@ -100,7 +100,7 @@ isPunctuation
 isSpecial
 	"Answer whether I can be part of a binary selector: one of +-*/\<>=~@%|&?, or a non-ASCII math symbol (general category Sm: × ÷ ≠ ≤ → ...)."
 	self value < 128 ifTrue: [^'+-*/\<>=~@%|&?,' includes: self].
-	^Unicode isMathSymbol: self value
+	^Unicode isMathSymbolCode: self value
 !
 isOctetCharacter
 	^self value < 256
@@ -110,7 +110,7 @@ isAscii
 !
 isPrintable
 	"Answer whether I am visible or a space: not a control, format character, surrogate, unassigned code point or line or paragraph separator."
-	^Unicode isPrintable: self value
+	^Unicode isPrintableCode: self value
 !
 isLiteral
 	^true
@@ -118,17 +118,17 @@ isLiteral
 
 !Character methodsFor: 'converting'!
 asUppercase
-	^Character value: (Unicode toUppercase: self value)
+	^Character value: (Unicode toUppercaseCode: self value)
 !
 asLowercase
-	^Character value: (Unicode toLowercase: self value)
+	^Character value: (Unicode toLowercaseCode: self value)
 !
 asTitlecase
-	^Character value: (Unicode toTitlecase: self value)
+	^Character value: (Unicode toTitlecaseCode: self value)
 !
 caseFolded
 	"Answer my simple case folding, for caseless comparison (mostly asLowercase; µ folds to Greek mu)."
-	^Character value: (Unicode caseFold: self value)
+	^Character value: (Unicode caseFoldCode: self value)
 !
 asString
 	^String with: self

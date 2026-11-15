@@ -22,18 +22,49 @@ testGeneralCategories
 	  53 #Nd 1635 #Nd 8555 #Nl 189 #No 95 #Pc 45 #Pd 40 #Ps 41 #Pe 171 #Pi 187 #Pf 46 #Po 43 #Sm 36 #Sc 94 #Sk
 	  169 #So 128512 #So 32 #Zs 12288 #Zs 8232 #Zl 8233 #Zp 0 #Cc 133 #Cc 173 #Cf 8205 #Cf 55296 #Cs 57344 #Co
 	  888 #Cn 1114111 #Cn 26085 #Lo) pairsDo: [:cp :category |
-		self assert: (Unicode generalCategoryOf: cp) equals: category.
+		self assert: (Unicode generalCategoryTagOf: cp) equals: category.
 		self assert: (self char: cp) generalCategory equals: category]
+!
+testCodeAndCharacterSelectors
+	"The ...Code: selectors take code points (Squeak); isLetter: isDigit: isUppercase: isLowercase: isMathSymbol: toUppercase: toLowercase: take Characters (Pharo)."
+	| alpha |
+	alpha := self char: 945.
+	self assert: (Unicode isLetterCode: 945).
+	self assert: (Unicode isLetter: alpha).
+	self deny: (Unicode isLetter: $1).
+	self assert: (Unicode isDigitCode: 1635).
+	self assert: (Unicode isDigit: (self char: 1635)).
+	self deny: (Unicode isDigit: $a).
+	self assert: (Unicode isLowercaseCode: 945).
+	self assert: (Unicode isLowercase: alpha).
+	self assert: (Unicode isUppercaseCode: 913).
+	self assert: (Unicode isUppercase: (self char: 913)).
+	self deny: (Unicode isUppercase: alpha).
+	self assert: (Unicode isMathSymbolCode: 215).
+	self assert: (Unicode isMathSymbol: (self char: 8800)).
+	self deny: (Unicode isMathSymbol: $a).
+	self assert: (Unicode isMarkCode: 769).
+	self assert: (Unicode isWhiteSpaceCode: 12288).
+	self deny: (Unicode isPrintableCode: 0).
+	self assert: (Unicode isExtendedPictographicCode: 128512).
+	self assert: (Unicode toUppercaseCode: 945) equals: 913.
+	self assert: (Unicode toLowercaseCode: 913) equals: 945.
+	self assert: (Unicode toTitlecaseCode: 454) equals: 453.
+	self assert: (Unicode caseFoldCode: 181) equals: 956.
+	self assert: (Unicode toUppercase: alpha) equals: (self char: 913).
+	self assert: (Unicode toLowercase: (self char: 913)) equals: alpha.
+	self assert: (Unicode toUppercase: $a) equals: $A.
+	self assert: (Unicode toLowercase: $1) equals: $1
 !
 testLowCodePointsAgreeWithTables
 	"Below 256 the properties come from a direct table, ASCII case mappings from arithmetic, and grapheme cluster boundaries between code points below 768 from a shortcut; they agree with the runs."
 	0 to: 255 do: [:cp |
 		self assert: (Unicode propertiesOf: cp) equals: (Unicode searchPropertiesOf: cp)].
 	0 to: 127 do: [:cp |
-		self assert: (Unicode toUppercase: cp) equals: ((Unicode map: cp runs: UnicodeTables uppercaseRuns) ifNil: [cp]).
-		self assert: (Unicode toLowercase: cp) equals: ((Unicode map: cp runs: UnicodeTables lowercaseRuns) ifNil: [cp]).
-		self assert: (Unicode caseFold: cp) equals: (Unicode toLowercase: cp).
-		self assert: (Unicode toTitlecase: cp) equals: (Unicode toUppercase: cp)].
+		self assert: (Unicode toUppercaseCode: cp) equals: ((Unicode map: cp runs: UnicodeTables uppercaseRuns) ifNil: [cp]).
+		self assert: (Unicode toLowercaseCode: cp) equals: ((Unicode map: cp runs: UnicodeTables lowercaseRuns) ifNil: [cp]).
+		self assert: (Unicode caseFoldCode: cp) equals: (Unicode toLowercaseCode: cp).
+		self assert: (Unicode toTitlecaseCode: cp) equals: (Unicode toUppercaseCode: cp)].
 	0 to: 767 do: [:cp |
 		self assert: (#(#Other #CR #LF #Control) includes: (Unicode graphemeBreakPropertyOf: cp)).
 		self assert: (Unicode indicConjunctBreakOf: cp) equals: #None]
@@ -138,9 +169,9 @@ testGraphemeBreakProperties
 	#(13 #CR 10 #LF 0 #Control 769 #Extend 8205 #ZWJ 127462 #Regional_Indicator 1536 #Prepend 2307 #SpacingMark
 	  4352 #L 4449 #V 4520 #T 44032 #LV 44033 #LVT 97 #Other 128512 #Other) pairsDo: [:cp :property |
 		self assert: (Unicode graphemeBreakPropertyOf: cp) equals: property].
-	self assert: (Unicode isExtendedPictographic: 128512).
-	self assert: (Unicode isExtendedPictographic: 169).
-	self deny: (Unicode isExtendedPictographic: 97).
+	self assert: (Unicode isExtendedPictographicCode: 128512).
+	self assert: (Unicode isExtendedPictographicCode: 169).
+	self deny: (Unicode isExtendedPictographicCode: 97).
 	self assert: (Unicode indicConjunctBreakOf: 2325) equals: #Consonant.
 	self assert: (Unicode indicConjunctBreakOf: 2381) equals: #Linker.
 	self assert: (Unicode indicConjunctBreakOf: 769) equals: #Extend

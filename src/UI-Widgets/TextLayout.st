@@ -291,11 +291,11 @@ wrapFrom: ls to: le width: w starts: starts ends: ends
 !
 isClosingPunctuation: aCharacter
 	"No row starts with it (、。」 , . ))."
-	^aCharacter value > 32 and: [#(#Pe #Pf #Po) includes: (Unicode generalCategoryOf: aCharacter value)]
+	^aCharacter value > 32 and: [#(#Pe #Pf #Po) includes: aCharacter generalCategory]
 !
 isOpeningPunctuation: aCharacter
 	"No row ends with it (「（)."
-	^#(#Ps #Pi) includes: (Unicode generalCategoryOf: aCharacter value)
+	^#(#Ps #Pi) includes: aCharacter generalCategory
 !
 rowCount
 	self ensureRows.
