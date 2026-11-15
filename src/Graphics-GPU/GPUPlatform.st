@@ -176,6 +176,10 @@ window: window title: aString
 	<primitive: 'windowSetTitle'>
 	^self fail: 'windowSetTitle'
 !
+window: window textInputAreaX: x y: y width: w height: h cursor: cursorX
+	<primitive: 'windowSetTextInputArea'>
+	^self fail: 'windowSetTextInputArea'
+!
 showWindow: window
 	<primitive: 'windowShow'>
 	^self fail: 'windowShow'

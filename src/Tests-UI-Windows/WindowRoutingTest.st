@@ -77,6 +77,20 @@ testKeyboardFocusFollowsClickedWindow
 	self assert: ((b eventsOfType: #down) select: [:e | e isKey]) first modifiers shift.
 	self deny: a isFocused
 !
+testInputMethodCompositionGoesToTheKeyboardFocus
+	"A textEditing event (an input method's composition: x its cursor, y the length of its selection, -1 when not set) reaches the focused view; the text input area goes to the host window."
+	| a w e |
+	a := RecordingTestView new.
+	w := self open: a title: 'A' at: (100 @ 100 extent: 300 @ 200).
+	self click: w contentOrigin + (20 @ 20).
+	DisplayWindow injectEvent: {UIEvent evTextEditing. nil. 1. -1. 0. 0. 'にほ'. world displayWindow windowId}.
+	self settle.
+	e := (a eventsOfType: #editing) first.
+	self assert: e string equals: 'にほ'.
+	self assert: e cursor equals: 1.
+	self assert: e selectionSize isNil.
+	world displayWindow textInputArea: (120 @ 140 extent: 30 @ 20) cursor: 10
+!
 testRightClickAndControlClickAreButtonTwoAndOpenContextMenus
 	| v w menu |
 	v := RecordingTestView new handles: false; yourself.

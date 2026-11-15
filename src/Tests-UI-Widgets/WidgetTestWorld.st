@@ -1,9 +1,9 @@
 Object subclass: #WidgetTestWorld
-	instanceVariableNames: 'clipboard menus toasts windows'
+	instanceVariableNames: 'clipboard menus toasts windows textInputArea'
 	classVariableNames: ''
 	package: 'Tests-UI-Widgets'!
 
-WidgetTestWorld comment: 'I stand in for the World in widget tests: a clipboard, and the menus and toasts widgets opened.'!
+WidgetTestWorld comment: 'I stand in for the World in widget tests: a clipboard, the menus and toasts widgets opened, and the last text input area.'!
 
 !WidgetTestWorld methodsFor: 'world protocol'!
 clipboard
@@ -23,6 +23,9 @@ closeMenu: aView
 !
 toast: aString
 	self toasts add: aString
+!
+textInputArea: aRectangle cursor: x
+	textInputArea := Array with: aRectangle with: x
 ! !
 
 !WidgetTestWorld methodsFor: 'remote control'!
@@ -51,4 +54,8 @@ toasts
 !
 lastMenu
 	^self menus isEmpty ifTrue: [nil] ifFalse: [self menus last key]
+!
+textInputArea
+	"{rectangle. cursor x} of the last textInputArea:cursor:, or nil."
+	^textInputArea
 ! !

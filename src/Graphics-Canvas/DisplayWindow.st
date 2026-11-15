@@ -45,6 +45,9 @@ title: aString
 hidden: aBoolean
 	"Hidden or shown when my host window opens next (after an image restart)."
 	window hidden: aBoolean
+!
+textInputArea: aRectangle cursor: x
+	window textInputArea: aRectangle cursor: x
 ! !
 
 !DisplayWindow methodsFor: 'presenting'!

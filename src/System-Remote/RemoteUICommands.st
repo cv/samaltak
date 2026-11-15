@@ -64,7 +64,7 @@ hover: aRequest
 	^self job: aRequest play: (self device planner moveTo: point) answer: (Dictionary new at: 'at' put: (self pair: point); yourself)
 !
 type: aRequest
-	"Focus the target, position the caret (at: end/start, replace), then type the text: one textInput event per character, delay ms apart (default the planner's)."
+	"Focus the target, position the caret (at: end/start, replace), then type the text: one textInput event per character, delay ms apart (default the planner's); with preedit, one textEditing event instead (an input method composing the text; '' ends the composition)."
 	| text target at job delay |
 	text := aRequest stringAt: 'text'.
 	target := aRequest target.
@@ -78,9 +78,11 @@ type: aRequest
 		ifFalse: [
 			at = 'end' ifTrue: [self position: target spec: 'end' orKey: 'Meta+Down' in: job].
 			at = 'start' ifTrue: [self position: target spec: 'start' orKey: 'Meta+Up' in: job]].
-	job do: [:j | j play: (delay isNil
-		ifTrue: [self device planner typeText: text]
-		ifFalse: [self device planner typeText: text delay: delay])].
+	job do: [:j | j play: ((aRequest booleanAt: 'preedit')
+		ifTrue: [self device planner preeditText: text]
+		ifFalse: [delay isNil
+			ifTrue: [self device planner typeText: text]
+			ifFalse: [self device planner typeText: text delay: delay]])].
 	job settle: (self settleFor: aRequest).
 	^job
 !

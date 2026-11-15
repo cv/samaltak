@@ -1,5 +1,5 @@
 Widget subclass: #TextEditor
-	instanceVariableNames: 'buffer textLayout highlighter history caret anchor goalX granularity dragAnchorStart dragAnchorStop dragging scrollBar marks pcGlide pcAnimation readOnly dirty tracksDirty title caretOn blinkTimer onDoIt onPrintIt onInspectIt onBrowseIt onAccept onChange onKey rowDrawings rowsKey'
+	instanceVariableNames: 'buffer textLayout highlighter history caret anchor goalX granularity dragAnchorStart dragAnchorStop dragging scrollBar marks pcGlide pcAnimation readOnly dirty tracksDirty title caretOn blinkTimer onDoIt onPrintIt onInspectIt onBrowseIt onAccept onChange onKey rowDrawings rowsKey preedit'
 	classVariableNames: ''
 	package: 'UI-Widgets'!
 
@@ -10,6 +10,8 @@ I am a facade over collaborators: a TextBuffer (the text, its lines and words), 
 Positions: caret and selection ends are gap positions (0 = before the first character, text size = after the last); selectionInterval and the mark API use 1-based character Intervals like the rest of Smalltalk.
 
 Characters are grapheme clusters (String>>graphemeClusterEndAfter:): the caret moves over a cluster (é as e + U+0301, 👩‍👩‍👧, 🇩🇪, 👍🏽, Hangul jamo) at once, backspace and delete remove the whole cluster, clicks land between clusters. Typed controls (DEL, C1) are dropped; line ends are normalized to line feeds (pasting CR LF).
+
+Input methods: a TextEditingEvent''s composition (preedit) shows at the caret, underlined, the rest of the row moved right; it is not in the text nor in the undo history. The committed TextEvent replaces it, an empty one removes it, and while it shows, keys without ⌘ belong to the input method. I tell the window where the caret is (textInputArea:cursor:) whenever it moves, so the input method''s candidates appear there.
 
 Tools plug in with blocks; each receives the text of the selection (or of the caret''s line, which gets selected), its Interval and me:
 	editor onDoIt: [:text :range | ...]; onPrintIt: [...]; onInspectIt: [...]; onBrowseIt: [...]   "⌘D ⌘P ⌘I ⌘B"
@@ -50,6 +52,7 @@ contents
 !
 text: aString
 	"Replace the whole text: no undo, clean, caret at the start, marks removed."
+	preedit := nil.
 	buffer string: aString.
 	caret := 0.
 	anchor := 0.
@@ -191,7 +194,8 @@ caretMoved
 	caretOn := true.
 	self restartBlink.
 	self scrollToCaret.
-	self invalidate
+	self invalidate.
+	self updateTextInputArea
 !
 selectionOrLine
 	"Answer the selected text; with no selection, select the caret's line first."
@@ -295,7 +299,8 @@ scrollOffset: points
 	new := textLayout clampedOffset: points.
 	new = textLayout offset ifTrue: [^self].
 	textLayout offset: new.
-	self invalidate
+	self invalidate.
+	self updateTextInputArea
 !
 scrollToCaret
 	| r top bottom padY offset |
@@ -642,10 +647,10 @@ drawSelfOn: aCanvas
 	offset := textLayout offset.
 	drawn := Dictionary new.
 	"Nothing the rows show changed (a caret blink): replay them without comparing what each shows."
-	key := Array new: 13.
+	key := Array new: 14.
 	key at: 1 put: buffer string; at: 2 put: highlighter tokenTypes; at: 3 put: textLayout rowStarts; at: 4 put: textLayout rowEnds;
 		at: 5 put: offset; at: 6 put: first; at: 7 put: last; at: 8 put: caret; at: 9 put: anchor; at: 10 put: selColor;
-		at: 11 put: self font; at: 12 put: self visibleMarks asArray; at: 13 put: textArea corner.
+		at: 11 put: self font; at: 12 put: self visibleMarks asArray; at: 13 put: textArea corner; at: 14 put: preedit.
 	same := self rowsKey: key matches: rowsKey.
 	aCanvas clip: textArea during: [
 		first to: last do: [:r | | cached |
@@ -676,8 +681,34 @@ drawRow: r y: y selectionColor: selColor overrides: overrides on: aCanvas
 	cached := rowDrawings isNil ifFalse: [rowDrawings at: r ifAbsent: [nil]].
 	(cached notNil and: [cached first = shows and: [aCanvas replay: cached last]]) ifTrue: [^cached].
 	^Array with: shows with: (aCanvas record: [
+		(preedit notNil and: [(textLayout rowOf: caret) = r])
+			ifTrue: [self drawPreeditRow: r y: y selectionColor: selColor overrides: overrides on: aCanvas]
+			ifFalse: [
+				self drawBackgroundsOfRow: r y: y selectionColor: selColor on: aCanvas.
+				self drawTextOfRow: r y: y overrides: overrides forcedColor: nil on: aCanvas]])
+!
+drawPreeditRow: r y: y selectionColor: selColor overrides: overrides on: aCanvas
+	"Row r with the input method's composition at the caret, underlined (the part being converted thicker); the text after the caret moves right to make room."
+	| x w lh s font ink a b |
+	s := preedit string.
+	font := self font.
+	ink := self theme ink.
+	x := textLayout textLeft + (textLayout xOf: caret inRow: r).
+	w := font widthOf: s.
+	lh := self lineHeight.
+	aCanvas clip: (0 @ y corner: x @ (y + lh)) during: [
 		self drawBackgroundsOfRow: r y: y selectionColor: selColor on: aCanvas.
-		self drawTextOfRow: r y: y overrides: overrides forcedColor: nil on: aCanvas])
+		self drawTextOfRow: r y: y overrides: overrides forcedColor: nil on: aCanvas].
+	aCanvas translateBy: w @ 0 during: [
+		aCanvas clip: (x @ y corner: self width @ (y + lh)) during: [
+			self drawBackgroundsOfRow: r y: y selectionColor: selColor on: aCanvas.
+			self drawTextOfRow: r y: y overrides: overrides forcedColor: nil on: aCanvas]].
+	aCanvas drawString: s at: x @ y font: font color: ink.
+	aCanvas fillRect: (x @ (y + lh - 2) corner: (x + w) @ (y + lh - 1)) color: ink.
+	(preedit selectionSize notNil and: [preedit selectionSize > 0]) ifTrue: [
+		a := (preedit cursor ifNil: [0]) min: s size.
+		b := a + preedit selectionSize min: s size.
+		aCanvas fillRect: ((x + (font widthOf: s from: 1 to: a)) @ (y + lh - 3) corner: (x + (font widthOf: s from: 1 to: b)) @ (y + lh - 1)) color: ink]
 !
 rowShows: r y: y selectionColor: selColor
 	"Everything row r's drawing depends on, relative to its first character."
@@ -692,7 +723,7 @@ rowShows: r y: y selectionColor: selColor
 		(m stop >= rs and: [m start <= (re + 1)]) ifTrue: [shown add: m style; add: m start - rs; add: m stop - rs]].
 	sel := (self hasSelection and: [self selectionStop >= rs and: [self selectionStart <= (re + 1)]])
 		ifTrue: [Array with: self selectionStart - rs with: self selectionStop - rs with: selColor].
-	^(Array new: 9)
+	^(Array new: 10)
 		at: 1 put: y;
 		at: 2 put: (buffer string copyFrom: rs + 1 to: re);
 		at: 3 put: runs asArray;
@@ -702,6 +733,7 @@ rowShows: r y: y selectionColor: selColor
 		at: 7 put: (re > rs and: [textLayout isMonoLine: (buffer lineIndexOf: rs)]);
 		at: 8 put: highlighter isActive;
 		at: 9 put: self theme ink;
+		at: 10 put: ((preedit notNil and: [(textLayout rowOf: caret) = r]) ifTrue: [preedit]);
 		yourself
 !
 invalidate
@@ -809,7 +841,41 @@ drawGlideOn: aCanvas
 !
 drawCaretOn: aCanvas
 	(self isFocused and: [readOnly not and: [caretOn and: [self hasSelection not]]]) ifFalse: [^self].
-	aCanvas fillRect: self caretRect color: self theme ink
+	aCanvas fillRect: (self caretRect translateBy: self preeditCaretX @ 0) color: self theme ink
+! !
+
+!TextEditor methodsFor: 'input method'!
+preedit
+	"The input method's composition shown at the caret (a TextEditingEvent), or nil."
+	^preedit
+!
+preeditCaretX
+	"Points from the caret to the input method's cursor in its composition."
+	| s |
+	preedit isNil ifTrue: [^0].
+	s := preedit string.
+	^self font widthOf: s from: 1 to: ((preedit cursor ifNil: [s size]) min: s size)
+!
+textEditing: anEvent
+	"Show the composition at the caret (replacing a selection), or remove it (empty)."
+	readOnly ifTrue: [^true].
+	(anEvent string isEmpty and: [preedit isNil]) ifTrue: [^true].
+	(anEvent string notEmpty and: [preedit isNil]) ifTrue: [self deleteSelection].
+	preedit := anEvent string isEmpty ifFalse: [anEvent].
+	caretOn := true.
+	self restartBlink.
+	self invalidate.
+	self updateTextInputArea.
+	^true
+!
+updateTextInputArea
+	"Tell the input method where the caret and the composition are (screen points), for its candidates."
+	| w r |
+	(readOnly not and: [self isFocused]) ifFalse: [^self].
+	w := self window.
+	r := self caretRect.
+	w textInputArea: ((self screenPointFrom: r origin) extent: ((preedit isNil ifTrue: [0] ifFalse: [self font widthOf: preedit string]) max: r width) @ r height)
+		cursor: self preeditCaretX
 ! !
 
 !TextEditor methodsFor: 'caret blinking'!
@@ -832,11 +898,13 @@ isCaretOn
 focusGained
 	caretOn := true.
 	self restartBlink.
-	self invalidate
+	self invalidate.
+	self updateTextInputArea
 !
 focusLost
 	blinkTimer isNil ifFalse: [blinkTimer cancel. blinkTimer := nil].
 	dragging := false.
+	preedit := nil.
 	self invalidate
 ! !
 
@@ -906,6 +974,7 @@ wheel: anEvent
 textInput: anEvent
 	| s |
 	readOnly ifTrue: [^true].
+	preedit isNil ifFalse: [preedit := nil. self invalidate].
 	s := anEvent string select: [:c | (c value >= 32 and: [c value < 127 or: [c value > 159]]) or: [c == Character tab]].
 	s isEmpty ifTrue: [^true].
 	self insert: s.
@@ -913,6 +982,8 @@ textInput: anEvent
 !
 keyDown: anEvent
 	| key mods cmd opt shift |
+	"Keys typed while the input method composes are its own (they also come here on macOS)."
+	(preedit notNil and: [anEvent modifiers commandKey not]) ifTrue: [^true].
 	(onKey notNil and: [(onKey value: anEvent) == true]) ifTrue: [^true].
 	key := anEvent key.
 	mods := anEvent modifiers.

@@ -141,6 +141,10 @@ clipboard
 clipboard: aString
 	world clipboard: aString
 !
+textInputArea: aRectangle cursor: x
+	"Screen points (View>>screenPointFrom:)."
+	world isNil ifFalse: [world textInputArea: aRectangle cursor: x]
+!
 busyLabel
 	^busyLabel
 !
@@ -624,6 +628,9 @@ dispatchKey: anEvent
 !
 dispatchText: anEvent
 	^self bubbleFrom: (keyboardFocus ifNil: [content]) until: [:v | (v handleText: anEvent) == true]
+!
+dispatchTextEditing: anEvent
+	^self bubbleFrom: (keyboardFocus ifNil: [content]) until: [:v | (v handleTextEditing: anEvent) == true]
 !
 showTooltipAt: aContentPoint
 	| text |

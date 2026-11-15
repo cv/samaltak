@@ -7,7 +7,7 @@ Widget comment: 'I am the root of the widgets (docs/ui.md, UI-Widgets): a View w
 
 Drawing: drawOn: draws me (drawSelfOn:), then each visible child translated to its origin and clipped to its bounds, then drawOverlayOn:, so a Window only draws its content. Subclasses override drawSelfOn:. Drawing is retained (View): what drawSelfOn: and drawOverlayOn: drew is replayed until I change, and so is each child that did not change. invalidate when what I show changes (my whole subtree is drawn anew; invalidateOverlay redraws only drawOverlayOn:); a drawing that shows values computed while drawing calls Canvas>>noteVolatile.
 
-Events: handlePointer:, handleKey: and handleText: (the View contract) dispatch to mouseDown: rightMouseDown: mouseMove: mouseUp: wheel: mouseEnter: mouseLeave: keyDown: textInput:, which answer true when handled (false bubbles to the owner). An unhandled right-button down makes the Window open contextMenuAt: (a Menu or nil); the Window also gives keyboard focus to a widget that wantsKeyboardFocus.
+Events: handlePointer:, handleKey:, handleText: and handleTextEditing: (the View contract) dispatch to mouseDown: rightMouseDown: mouseMove: mouseUp: wheel: mouseEnter: mouseLeave: keyDown: textInput: textEditing:, which answer true when handled (false bubbles to the owner). An unhandled right-button down makes the Window open contextMenuAt: (a Menu or nil); the Window also gives keyboard focus to a widget that wantsKeyboardFocus.
 
 Layout: a container (Row, Column, Stack) sizes its children by their sizeSpec: "fixed: points", "flex: weight" (default flex: 1), "percent: p". Widgets that compute their own size answer preferredExtent.
 
@@ -267,6 +267,9 @@ handleKey: anEvent
 handleText: anEvent
 	^self textInput: anEvent
 !
+handleTextEditing: anEvent
+	^self textEditing: anEvent
+!
 mouseDown: anEvent
 	^false
 !
@@ -293,6 +296,10 @@ keyDown: anEvent
 	^false
 !
 textInput: anEvent
+	^false
+!
+textEditing: anEvent
+	"An input method's composition (TextEditingEvent)."
 	^false
 !
 cursorAt: aPoint

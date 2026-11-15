@@ -26,6 +26,9 @@ clusters
 		(String with: (Character value: 16r1F1E9) with: (Character value: 16r1F1EA)),
 		(String with: (Character value: 16r1F44D) with: (Character value: 16r1F3FD)),
 		(String with: (Character value: 16r1112) with: (Character value: 16r1161) with: (Character value: 16r11AB)), 'x'
+!
+preedit: aString cursor: anInteger
+	^window textEditing: (TextEditingEvent string: aString cursor: anInteger selectionSize: nil modifiers: Modifiers none time: Time millisecondClockValue)
 ! !
 
 !TextEditorTest methodsFor: 'unicode'!
@@ -81,6 +84,46 @@ testRunsAreDrawnWhereTheyAreMeasured
 	last := (editor rectsFrom: text size - 1 to: text size) first.
 	self assert: (self inkIn: first of: form) > 4.
 	self assert: (self inkIn: ((last right + 1) @ last top extent: 20 @ last height) of: form) equals: 0
+!
+testPreeditShowsAtTheCaretUntilCommitted
+	| form r x w |
+	editor text: 'ab'.
+	editor caret: 1.
+	r := editor caretRect.
+	self preedit: 'にほ' cursor: 2.
+	self assert: editor text equals: 'ab'.
+	self assert: editor preedit string equals: 'にほ'.
+	w := editor font widthOf: 'にほ'.
+	x := r left + 0.5.
+	form := self render.
+	self assert: (self inkIn: (x @ (r bottom - 2) extent: w @ 1) of: form) > (w * 2 * 0.8).
+	self assert: (self inkIn: ((x + w) @ r top extent: (editor font widthOf: 'b') @ r height) of: form) > 4.
+	self key: #return.
+	self key: #backspace.
+	self key: #left.
+	self assert: editor text equals: 'ab'.
+	self assert: editor caret equals: 1.
+	self assert: (window world textInputArea first left - (editor screenPointFrom: r origin) x) abs < 1.
+	self assert: window world textInputArea last equals: w.
+	self type: '日本'.
+	self assert: editor preedit isNil.
+	self assert: editor text equals: 'a日本b'.
+	self assert: editor caret equals: 3.
+	self cmd: $z.
+	self assert: editor text equals: 'ab'
+!
+testPreeditCancelledAndReplacingTheSelection
+	editor text: 'abc'.
+	editor selectFrom: 2 to: 2.
+	self preedit: 'x' cursor: 1.
+	self assert: editor text equals: 'ac'.
+	self preedit: '' cursor: 0.
+	self assert: editor preedit isNil.
+	self key: #right.
+	self assert: editor caret equals: 2.
+	self preedit: 'y' cursor: 1.
+	editor focusLost.
+	self assert: editor preedit isNil
 ! !
 
 !TextEditorTest methodsFor: 'typing'!

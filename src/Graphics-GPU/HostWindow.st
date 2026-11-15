@@ -53,6 +53,12 @@ title: aString
 hidden: aBoolean
 	"Open hidden (offscreen) or shown when my handle is created next (first use, new session)."
 	flags := (flags bitAnd: -2) + (aBoolean ifTrue: [1] ifFalse: [0])
+!
+textInputArea: aRectangle cursor: x
+	"Where text is being typed (points; x: the caret within aRectangle): the input method shows its candidates there."
+	self isOpen ifTrue: [
+		GPUPlatform window: handle textInputAreaX: aRectangle left rounded y: aRectangle top rounded
+			width: aRectangle width ceiling height: aRectangle height ceiling cursor: x rounded]
 ! !
 
 !HostWindow methodsFor: 'showing'!

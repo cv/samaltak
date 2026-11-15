@@ -306,6 +306,10 @@ clipboard: aString
 	clipboardText := aString.
 	[DisplayWindow clipboard: aString] on: Error do: [:e | e return: nil]
 !
+textInputArea: aRectangle cursor: x
+	"Where text is being typed (screen points; x: the caret within aRectangle), for the input method's candidates."
+	displayWindow isNil ifFalse: [[displayWindow textInputArea: aRectangle cursor: x] on: Error do: [:e | e return: nil]]
+!
 cursor: aSymbol
 	| name |
 	name := #(#arrow #arrow #ibeam #ibeam #hand #hand #resizeEW #ew #resizeNS #ns #resizeNWSE #nwse #resizeNESW #nesw #move #move #crosshair #crosshair #wait #wait #notAllowed #notAllowed).

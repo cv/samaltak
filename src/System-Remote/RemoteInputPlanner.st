@@ -172,6 +172,12 @@ addPress: keycode to: aPlan after: milliseconds
 !
 textEvent: aString
 	^self event: 7 at: (pointer ifNil: [0 @ 0]) key: 0 modifiers: 0 extra: aString
+!
+preeditText: aString
+	"One textEditing event: an input method composing aString, its cursor at the end ('' ends the composition)."
+	^RemoteInputPlan new
+		add: (self event: 16 at: aString size @ -1 key: 0 modifiers: 0 extra: aString) after: 0;
+		yourself
 ! !
 
 !RemoteInputPlanner class methodsFor: 'class initialization'!

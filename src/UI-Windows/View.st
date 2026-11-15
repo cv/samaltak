@@ -7,7 +7,7 @@ View comment: 'I am what a Window shows: a rectangle (bounds, in my owner''s coo
 
 Coordinates: drawOn: draws in local coordinates (0@0 is my top-left; the Window translates and clips); events arrive with position local to me. The content View''s owner is its Window; the Window''s content coordinates are 0@0 at the top-left of the area below the title bar.
 
-Protocol for subclasses: drawOn:, layout (after my extent changed), children, viewAt:, handlePointer: / handleKey: / handleText: (answer true when handled; the Window bubbles unhandled events to the owner), wantsKeyboardFocus, focusGained / focusLost, cursorAt:, tooltipAt:, contextMenuAt:, clickItemAt:, preferredExtent, invalidate, and the remote-control protocol (remoteRole remoteLabel remoteState remoteName remoteChildren remoteBounds).
+Protocol for subclasses: drawOn:, layout (after my extent changed), children, viewAt:, handlePointer: / handleKey: / handleText: / handleTextEditing: (answer true when handled; the Window bubbles unhandled events to the owner), wantsKeyboardFocus, focusGained / focusLost, cursorAt:, tooltipAt:, contextMenuAt:, clickItemAt:, preferredExtent, invalidate, and the remote-control protocol (remoteRole remoteLabel remoteState remoteName remoteChildren remoteBounds).
 
 Retained drawing: my owner draws me with drawRetainedOn:, which replays what I drew last time (a DisplaySegment, Canvas>>replay:) unless I changed since. invalidate redraws me and everything in me anew; a change of my bounds makes my owner draw me again (moved: replayed; resized: drawn again, my children replayed if they did not change). So a view whose drawing shows other objects'' state must invalidate when that state changes; a drawing computed while drawing (a clock) calls Canvas>>noteVolatile. drawState: nil (my drawing is valid), #dirty (draw me again, replaying my children where they are valid) or #stale (draw me and my children anew).'!
 
@@ -240,6 +240,10 @@ handleKey: aKeyEvent
 	^false
 !
 handleText: aTextEvent
+	^false
+!
+handleTextEditing: aTextEditingEvent
+	"An input method's composition (shown until a TextEvent commits it)."
 	^false
 !
 wantsKeyboardFocus

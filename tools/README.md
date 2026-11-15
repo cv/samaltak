@@ -5,7 +5,7 @@ Drives a running Samaltak image through its control service (`ControlServer`, `s
     open [--headless] [--hidden] [--image path] [--theme t] [--port n] [--window-size WxH] [--source-dir d]
     snapshot [ref] [--depth n] [--bounds]       find <text>
     click|dblclick|rightclick <ref|x,y> [--mods Shift+Meta]      hover <ref|x,y> [--at spec]   (--at: e.g. a PixelView pixel 4,7)
-    type <ref> <text> [--end|--start|--replace] [--delay ms]   (the image types one character every ms, default 45)
+    type <ref> <text> [--end|--start|--replace] [--delay ms] [--preedit]   (the image types one character every ms, default 45; --preedit: one input-method composition event, '' ends it)
     key <combo> [ref]   (Meta+p, Escape, Meta+.; Meta = platform modifier)
     drag <ref> <dx> <dy> | drag <ref> <ref>      resize <ref> <w> <h>      scroll <ref> [dy]
     select <ref> <text|all|end|from-to|line:n>  (editor selection, or list item by label)
@@ -39,7 +39,7 @@ JSON lines over TCP on 127.0.0.1. Request `{"id": 1, "cmd": "eval", "source": "3
 | `find` | `text` | `matches` [{ref, role, label}] |
 | `click` | `target`, `button` (left/middle/right), `count`, `mods`, `settle` (ms, all input commands) | `at`, `settled` |
 | `hover` | `target`, `at` (a spec the widget turns into a point: `remotePointAt:`) | `at` |
-| `type` | `target`, `text`, `at` (end/start), `replace`, `delay` (ms between characters) | `typed` |
+| `type` | `target`, `text`, `at` (end/start), `replace`, `delay` (ms between characters), `preedit` (an input method's composition instead) | `typed` |
 | `key` | `combo` (String or Array), `target` | |
 | `drag` | `target`, `to` or `dx`/`dy`, `mods` | `from`, `to` |
 | `resize` | `target`, `w`, `h` | `bounds` |

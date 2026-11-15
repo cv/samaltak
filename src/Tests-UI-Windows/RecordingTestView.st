@@ -84,6 +84,10 @@ handleText: anEvent
 	events add: anEvent.
 	^handles
 !
+handleTextEditing: anEvent
+	events add: anEvent.
+	^handles
+!
 wantsKeyboardFocus
 	^focusable
 !

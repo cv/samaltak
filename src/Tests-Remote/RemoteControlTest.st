@@ -251,6 +251,10 @@ testTypeKeyDragScrollResize
 	self assert: editor selectSpecs asArray equals: #('end').
 	self assert: ((events select: [:e | e first = 7]) collect: [:e | e at: 7]) asArray equals: #('h' 'i').
 	events removeAll.
+	r := self send: ((self cmd: 'type' with: 'target' with: '@w1.text') at: 'text' put: 'にほ'; at: 'preedit' put: true; yourself).
+	self assert: ((events select: [:e | e first = 16]) collect: [:e | e at: 7]) asArray equals: #('にほ').
+	self assert: (events count: [:e | e first = 7]) equals: 0.
+	events removeAll.
 	r := self send: (self cmd: 'key' with: 'combo' with: 'Meta+s').
 	self assert: (events collect: [:e | e first]) asArray equals: #(5 5 6 6).
 	events removeAll.

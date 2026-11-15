@@ -88,6 +88,9 @@ clipboard
 clipboard: aString
 	world clipboard: aString
 !
+textInputArea: aRectangle cursor: x
+	world textInputArea: aRectangle cursor: x
+!
 contentOrigin
 	^origin
 !
@@ -222,6 +225,14 @@ text: anEvent
 	v := keyboardFocus ifNil: [content].
 	[v notNil and: [v ~~ self]] whileTrue: [
 		(v handleText: anEvent) ifTrue: [^v].
+		v := v owner].
+	^nil
+!
+textEditing: anEvent
+	| v |
+	v := keyboardFocus ifNil: [content].
+	[v notNil and: [v ~~ self]] whileTrue: [
+		(v handleTextEditing: anEvent) ifTrue: [^v].
 		v := v owner].
 	^nil
 ! !

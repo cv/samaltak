@@ -117,6 +117,15 @@ testTypeText
 	self assert: (plan steps collect: [:s | s first]) asArray equals: #(0 8 8 0 8).
 	self assert: (planner typeText: '') isEmpty
 !
+testPreeditText
+	| plan |
+	plan := planner preeditText: 'にほ'.
+	self assert: plan types equals: #(16).
+	self assert: (plan events first at: 7) equals: 'にほ'.
+	self assert: (plan events first at: 3) equals: 2.0.
+	self assert: (plan events first at: 4) equals: -1.0.
+	self assert: ((planner preeditText: '') events first at: 7) equals: ''
+!
 testScroll
 	| plan |
 	plan := planner scroll: 5 @ 6 delta: 0 @ -3 modifiers: 0.
