@@ -193,7 +193,13 @@ testWrapsColorEmojiWhole
 	1 to: layout rowCount do: [:r | self assert: (layout xOf: (layout rowEnd: r) inRow: r) <= w].
 	self assert: (layout xOf: 8) closeTo: (f widthOf: 'x') + f size.
 	self assert: (layout positionInRow: 1 atX: (layout xOf: 1) + (f size * 0.4)) equals: 1.
-	self assert: (layout positionInRow: 1 atX: (layout xOf: 1) + (f size * 0.6)) equals: 8
+	self assert: (layout positionInRow: 1 atX: (layout xOf: 1) + (f size * 0.6)) equals: 8.
+	"a row exactly 5 em wide holds 5 of them"
+	buffer string: (String new: 70 streamContents: [:s | 10 timesRepeat: [s nextPutAll: family]]).
+	layout := TextLayout on: buffer in: (0 @ 0 extent: 5 * f size + (2 * layout padX) + 0.01 @ 1000).
+	self assert: layout rowCount equals: 2.
+	self assert: (layout rowStart: 2) equals: 35.
+	self assert: (layout xOf: 35 inRow: 1) closeTo: 5 * f size
 ! !
 
 !TextLayoutTest methodsFor: 'support'!
