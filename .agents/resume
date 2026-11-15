@@ -1,0 +1,6 @@
+#!/usr/bin/env bash
+# A virtual display (:99) for the UI tests and samaltak-ctl: DISPLAY=:99 make test.
+set -euo pipefail
+command -v Xvfb >/dev/null 2>&1 || exit 0
+pgrep -x Xvfb >/dev/null 2>&1 || setsid Xvfb :99 -screen 0 1600x1000x24 >/dev/null 2>&1 < /dev/null &
+exit 0
