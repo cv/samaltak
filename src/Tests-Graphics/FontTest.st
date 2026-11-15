@@ -101,35 +101,40 @@ testFallbackFaces
 	self assert: (Font ui faceFor: 16rE000) isNil
 !
 testFallbackGlyphMetrics
-	"Fallback glyphs at the font's em size on its baseline, with their own advances: a Han ideograph is 1 em wide, an emoji 1.27 em."
-	| f han emoji |
+	"Fallback glyphs at the font's em size on its baseline, with their own advances: a Han ideograph is 1 em wide, an emoji 1.27 em. Glyphs are in device pixels, at the font's scale."
+	| f s han emoji |
 	f := Font code.
+	s := f scale.
 	self assert: (f advanceOf: (Character value: 16r65E5)) closeTo: 13.
 	self assert: (f advanceOf: (Character value: 16r1F600)) closeTo: 2600 * 13 / 2048.
 	self assert: (f widthOf: (String with: $a with: (Character value: 16r65E5))) closeTo: 7.8 + 13.
 	han := f glyphForCodePoint: 16r65E5 phase: 0.
 	self assert: han inkSum > 0.
-	self assert: (han top between: f ascent * -2 and: f capHeight * -2).
-	self assert: (han top + han height between: 0 and: f descent * 2).
+	self assert: (han top between: f ascent * s negated and: f capHeight * s negated).
+	self assert: (han top + han height between: 0 and: f descent * s).
 	emoji := f glyphForCodePoint: 16r1F600 phase: 0.
 	self assert: emoji inkSum > 0.
-	self assert: (emoji height between: 13 * 2 * 0.9 and: 13 * 2 * 1.1).
-	self assert: (emoji top + emoji height between: 0 and: f descent * 2)
+	"rounded out to whole pixels: up to one more at each edge"
+	self assert: (emoji height between: 13 * s * 0.9 and: 13 * s * 1.1 + 2).
+	self assert: (emoji top + emoji height between: 0 and: f descent * s)
 !
 testMissingGlyphIsABox
-	"A code point no face has (unassigned, private use) draws as a hollow box with its hex digits, as tall as a capital."
+	"A code point no face has (unassigned, private use) draws as a hollow box as tall as a capital, with its hex digits inside when that is 15 device pixels or more (at 2×, not at 1×)."
 	| f box wide |
 	f := Font code.
 	#(16r378 16rE000) do: [:cp |
 		box := f glyphForCodePoint: cp phase: 0.
 		self deny: box isBlank.
-		self assert: box height equals: (f capHeight * 2) rounded.
+		self assert: box height equals: (f capHeight * f scale) rounded.
 		self assert: box top equals: box height negated.
 		self assert: (box coverageAtX: 0 y: 0) equals: 255.
 		self assert: (box coverageAtX: box width - 1 y: box height - 1) equals: 255.
 		self assert: (box coverageAtX: box width // 2 y: 1) equals: 0.
 		self assert: (f deviceAdvanceOf: cp) > box width].
-	self deny: (f glyphForCodePoint: 16r378 phase: 0) inkSum = (f glyphForCodePoint: 16rE000 phase: 0) inkSum.
+	"the digits, at 2× whatever the display's scale"
+	f := Font face: f face size: f size scale: 2.
+	box := f glyphForCodePoint: 16rE000 phase: 0.
+	self deny: (f glyphForCodePoint: 16r378 phase: 0) inkSum = box inkSum.
 	wide := f glyphForCodePoint: 16r10FFFD phase: 0.
 	self assert: wide width > box width
 !
