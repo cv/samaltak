@@ -867,8 +867,8 @@ prim: f fp: fp fn: fn info: info
 			^1].
 		jit state result: v.
 		^0].
-	"the primitive committed its result (a process primitive that did not switch): optimized code goes on with it (the interpreter cannot continue its frame)"
-	(status = PS_SWITCHED and: [(jit isOptFrame: f) and: [interpreter frameEpoch = moved and: [interpreter nframes = ((f - interpreter frames) + 1)]]]) ifTrue: [
+	"the primitive committed its result (a process primitive that did not switch): machine code goes on with it; invalidated baseline code leaves (the interpreter continues its frame), optimized code cannot"
+	(status = PS_SWITCHED and: [interpreter frameEpoch = moved and: [interpreter nframes = ((f - interpreter frames) + 1) and: [inv = jit invalidations or: [jit isOptFrame: f]]]]) ifTrue: [
 		inv ~= jit invalidations ifTrue: [^jit leaveAfter: f pc: f pc sp: f sp].
 		jit state result: (base at: 0).
 		^0].

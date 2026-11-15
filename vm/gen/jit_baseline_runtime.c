@@ -1608,9 +1608,9 @@ exit_leave_after:;
         state_block->result = v;
         return 0;
     }
-    if ((status == PS_SWITCHED) && ({
+    if ((status == PS_SWITCHED) && ((frame_epoch == moved) && ((nframes == f - frames + 1) && ((inv == invalidations) || ({
     c_3 = f->code;
-    (c_3 > JIT_MAX_COUNT) && (((jit_method *)f->code)->mode == JIT_OPT) && ((frame_epoch == moved) && (nframes == f - frames + 1)); })) {
+    (c_3 > JIT_MAX_COUNT) && (((jit_method *)f->code)->mode == JIT_OPT); }))))) {
         if (inv != invalidations) {
             pc_2 = f->pc;
             n_3 = f->sp;
