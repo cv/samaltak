@@ -8,7 +8,7 @@ if command -v sudo >/dev/null 2>&1 && [ "$(id -u)" != 0 ]; then SUDO=sudo; else 
 PKGS="libshaderc-dev cmake ninja-build libvulkan-dev spirv-tools pkg-config git"
 if ! dpkg -s $PKGS >/dev/null 2>&1; then
     $SUDO apt-get update
-    $SUDO DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends $PKGS
+    $SUDO env DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends $PKGS
 fi
 
 # bookworm has no SDL3: build once into $HOME (persists), install to /usr/local on every incarnation
