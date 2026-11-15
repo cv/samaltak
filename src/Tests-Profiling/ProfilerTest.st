@@ -23,7 +23,9 @@ compileLoop
 	[true] whileTrue: [Compiler evaluate: '(1 to: 10) inject: 0 into: [:a :b | a + (b printString: 16) size]']
 !
 allocateArrays
+	"The loop must not begin at the first bytecode: a sample taken at its backward jump would see the frame back at its start, which looks just activated, and count the allocation to the sender (ProfileSample>>allocationSite)."
 	| keep |
+	keep := nil.
 	[true] whileTrue: [keep := Array new: 1000]
 !
 busyFor: milliseconds
