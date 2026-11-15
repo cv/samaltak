@@ -1,11 +1,13 @@
 Object subclass: #Font
 	instanceVariableNames: 'face size scale letterSpacing lineHeight baselineOffset uppercase pixelsPerUnit phases glyphTable wideGlyphs deviceAdvances wideAdvances atlas'
-	classVariableNames: 'DeviceScale Faces FontsDirectory RasterizeLock Standard SubpixelPhases'
+	classVariableNames: 'DeviceScale Faces Fallbacks FontsDirectory RasterizeLock Standard SubpixelPhases'
 	package: 'Graphics-Canvas'!
 
 Font comment: 'I am a TrueTypeFont at a pixel size (CSS px = points) for a device scale (2 on Retina), with optional letter spacing and capitals (for tracked-caps headers). I answer metrics in points (ascent, descent, lineHeight, widthOf:) and supply Canvas with rasterized glyphs: each glyph is rasterized lazily at device resolution for one of SubpixelPhases horizontal subpixel offsets and kept in the shared GlyphAtlas.
 
-The standard fonts (Font ui, uiBold, uiItalic, code, codeBold, codeItalic, header, title, small, smallItalic) follow docs/ui.md and the prototype''s blue-book/pi-orb styles. Stage 2 parses the faces from fonts/ and pre-rasterizes ASCII and the UI symbols, so the atlas lives in the image.'!
+The standard fonts (Font ui, uiBold, uiItalic, code, codeBold, codeItalic, header, title, small, smallItalic) follow docs/ui.md and the prototype''s blue-book/pi-orb styles. Stage 2 parses the faces from fonts/ and pre-rasterizes ASCII and the UI symbols, so the atlas lives in the image.
+
+A code point my face lacks is drawn from the first fallback face that has it (fallbackFaceNames), at the same em size on the same baseline, with that glyph''s advance. Fallback faces other than the standard ones are read from fonts/ on first use and dropped before a snapshot. Controls and invisible format characters (isInvisible:) draw nothing and advance 0; a code point no face has draws as a box with its hex digits.'!
 
 !Font methodsFor: 'initialization'!
 setFace: aTrueTypeFont size: pixelSize scale: deviceScale
@@ -110,7 +112,20 @@ deviceAdvanceOf: codePoint
 	^wideAdvances at: codePoint ifAbsent: [wideAdvances at: codePoint put: (self computeDeviceAdvanceOf: codePoint)]
 !
 computeDeviceAdvanceOf: codePoint
-	^(face advanceWidthOfCodePoint: codePoint) * pixelsPerUnit + (letterSpacing * scale)
+	| f |
+	(self class isInvisible: codePoint) ifTrue: [^0].
+	f := self faceFor: codePoint.
+	f isNil ifTrue: [^(self missingBoxExtentOf: codePoint) x + (2 * self missingBoxMargin) + (letterSpacing * scale)].
+	^(f advanceWidthOfCodePoint: codePoint) * (self pixelsPerUnitOf: f) + (letterSpacing * scale)
+!
+faceFor: codePoint
+	"Answer the face that draws codePoint: mine, else the first fallback face that has it; nil if none has it."
+	(face includesCodePoint: codePoint) ifTrue: [^face].
+	^self class fallbackFaceFor: codePoint
+!
+pixelsPerUnitOf: aFace
+	aFace == face ifTrue: [^pixelsPerUnit].
+	^(size * scale / aFace unitsPerEm) asFloat
 !
 advanceOf: aCharacter
 	"Points the pen moves after aCharacter."
@@ -153,26 +168,72 @@ glyphForCodePoint: codePoint phase: phase
 !
 rasterizeCodePoint: codePoint phase: phase
 	"Rasterize the glyph with its origin phase / phases device pixels right of a pixel boundary; answer a GlyphInfo."
-	| glyph box contours dx left top right bottom w h rasterizer coverage slot template |
-	glyph := face glyphIndexFor: codePoint.
-	box := face boundsOf: glyph.
+	| f ppu glyph box contours dx left top right bottom w h rasterizer |
+	(self class isInvisible: codePoint) ifTrue: [^GlyphInfo blank].
+	f := self faceFor: codePoint.
+	f isNil ifTrue: [^self rasterizeMissing: codePoint].
+	ppu := self pixelsPerUnitOf: f.
+	glyph := f glyphIndexFor: codePoint.
+	box := f boundsOf: glyph.
 	box isNil ifTrue: [^GlyphInfo blank].
-	contours := face contoursOf: glyph.
+	contours := f contoursOf: glyph.
 	contours isEmpty ifTrue: [^GlyphInfo blank].
 	dx := phase / phases asFloat.
-	left := (box left * pixelsPerUnit + dx) floor.
-	right := (box right * pixelsPerUnit + dx) ceiling.
-	top := (box bottom * pixelsPerUnit) negated floor.
-	bottom := (box top * pixelsPerUnit) negated ceiling.
+	left := (box left * ppu + dx) floor.
+	right := (box right * ppu + dx) ceiling.
+	top := (box bottom * ppu) negated floor.
+	bottom := (box top * ppu) negated ceiling.
 	w := right - left max: 1.
 	h := bottom - top max: 1.
 	rasterizer := GlyphRasterizer width: w height: h.
 	contours do: [:each |
-		rasterizer addContour: each scale: pixelsPerUnit offsetX: dx - left offsetY: top negated].
-	coverage := rasterizer coverage.
+		rasterizer addContour: each scale: ppu offsetX: dx - left offsetY: top negated].
+	^self glyphInfo: rasterizer coverage left: left top: top width: w height: h
+!
+glyphInfo: coverage left: left top: top width: w height: h
+	"Store a w×h coverage in the atlas; answer its GlyphInfo (left, top: device pixels from the pen on the baseline)."
+	| slot |
 	slot := atlas add: coverage width: w height: h.
-	template := DisplayList glyphTemplateLeft: left top: top width: w height: h atlasX: (slot at: 2) atlasY: (slot at: 3).
-	^GlyphInfo template: template page: (slot at: 1) width: w height: h
+	^GlyphInfo
+		template: (DisplayList glyphTemplateLeft: left top: top width: w height: h atlasX: (slot at: 2) atlasY: (slot at: 3))
+		page: (slot at: 1) width: w height: h
+!
+rasterizeMissing: codePoint
+	"A code point no face has: a hollow box as tall as a capital with the code point in hex inside (two rows of 3×5 dots) when that fits."
+	| extent w h u b coverage n cols top bits x y |
+	extent := self missingBoxExtentOf: codePoint.
+	w := extent x.
+	h := extent y.
+	u := h // 15.
+	b := u max: 1.
+	coverage := ByteArray new: w * h.
+	0 to: h - 1 do: [:row | 0 to: w - 1 do: [:col |
+		(col < b or: [row < b or: [col >= (w - b) or: [row >= (h - b)]]]) ifTrue: [coverage at: row * w + col + 1 put: 255]]].
+	u > 0 ifTrue: [
+		n := codePoint > 16rFFFF ifTrue: [6] ifFalse: [4].
+		cols := n // 2.
+		top := h - (11 * u) // 2.
+		0 to: n - 1 do: [:i |
+			bits := self class hexDigitDots at: ((codePoint bitShift: (n - 1 - i) * -4) bitAnd: 15) + 1.
+			0 to: 14 do: [:k |
+				((bits bitShift: k - 14) bitAnd: 1) = 1 ifTrue: [
+					x := (i \\ cols * 4 + 2 + (k \\ 3)) * u.
+					y := top + ((i // cols * 6 + (k // 3)) * u).
+					y to: y + u - 1 do: [:row |
+						coverage replaceFrom: row * w + x + 1 to: row * w + x + u with: (ByteArray new: u withAll: 255) startingAt: 1]]]]].
+	^self glyphInfo: coverage left: self missingBoxMargin top: h negated width: w height: h
+!
+missingBoxExtentOf: codePoint
+	"Device pixels: as tall as a capital; wide enough for a frame around two rows of two (BMP) or three hex digits, or 0.6 of the height when too small for digits."
+	| h u |
+	h := (self capHeight * scale) rounded max: 3.
+	u := h // 15.
+	u = 0 ifTrue: [^((h * 0.6) rounded max: 3) @ h].
+	^((codePoint > 16rFFFF ifTrue: [3] ifFalse: [2]) * 4 + 3 * u) @ h
+!
+missingBoxMargin
+	"Device pixels left and right of a missing-glyph box."
+	^(self capHeight * scale / 10) rounded max: 1
 !
 prerasterize: aString
 	"Rasterize the characters of aString at every subpixel phase."
@@ -243,6 +304,42 @@ faceNamed: aString
 !
 faces
 	^Faces ifNil: [Dictionary new]
+!
+fallbackFaceNames
+	"Faces tried in order for a code point a font's face lacks: Iosevka Etoile (symbols, math, Greek and Cyrillic for the code font), monochrome emoji, symbols, CJK (Simplified Chinese glyph forms, kana), Hangul."
+	^#('IosevkaEtoile-Regular' 'NotoEmoji-Regular' 'NotoSansSymbols2-Regular' 'NotoSansSC-Regular' 'NotoSansKR-Hangul')
+!
+fallbackFaceFor: codePoint
+	"Answer the first fallback face that has codePoint, or nil; cached per code point."
+	Fallbacks isNil ifTrue: [Fallbacks := Dictionary new].
+	^Fallbacks at: codePoint ifAbsent: [
+		self rasterizing: [
+			Fallbacks at: codePoint put: (self fallbackFaceNames inject: nil into: [:found :each |
+				found ifNil: [(self fallbackFaceNamed: each) ifNotNil: [:f | (f includesCodePoint: codePoint) ifTrue: [f]]]])]]
+!
+fallbackFaceNamed: aString
+	"Answer the face, or nil when it is neither loaded nor in the fonts directory."
+	(self faces includesKey: aString) ifTrue: [^Faces at: aString].
+	(File exists: self fontsDirectory , '/' , aString , '.ttf') ifFalse: [^nil].
+	^self faceNamed: aString
+!
+isStandardFace: aString
+	^self standardSpecs anySatisfy: [:spec | (spec at: 2) = aString]
+!
+isInvisible: codePoint
+	"Controls and default-ignorable format characters (zero-width space and joiners, bidi controls, word joiner, variation selectors, BOM, tags): drawn as nothing, no advance."
+	codePoint < 16r20 ifTrue: [^true].
+	codePoint < 16r7F ifTrue: [^false].
+	codePoint < 16rA0 ifTrue: [^true].
+	codePoint < 16r34F ifTrue: [^false].
+	^codePoint = 16r34F or: [codePoint = 16r61C or: [(codePoint between: 16r180B and: 16r180F)
+		or: [(codePoint between: 16r200B and: 16r200F) or: [(codePoint between: 16r202A and: 16r202E)
+		or: [(codePoint between: 16r2060 and: 16r206F) or: [(codePoint between: 16rFE00 and: 16rFE0F)
+		or: [codePoint = 16rFEFF or: [codePoint between: 16rE0000 and: 16rE0FFF]]]]]]]]
+!
+hexDigitDots
+	"3×5 dot patterns of the hex digits 0-F (rows top to bottom, most significant bit first), for missing-glyph boxes."
+	^#(16r7B6F 16r2C97 16r73E7 16r73CF 16r5BC9 16r79CF 16r79EF 16r7249 16r7BEF 16r7BCF 16r7BED 16r6BAE 16r7927 16r6B6E 16r79E7 16r79E4)
 ! !
 
 !Font class methodsFor: 'standard fonts'!
@@ -343,6 +440,7 @@ buildStandardFonts
 	"Stage 2: load and compact the faces, pre-rasterize the standard fonts into the shared atlas."
 	| chars fonts |
 	Faces := nil.
+	Fallbacks := nil.
 	Standard := nil.
 	GlyphAtlas reset.
 	chars := self prerasterizedCharacters.
@@ -352,9 +450,18 @@ buildStandardFonts
 	Transcript show: ' '; show: (GlyphAtlas default pages size) printString; show: ' atlas page(s)'
 ! !
 
+!Font class methodsFor: 'snapshot'!
+shutDown: quitting
+	"Drop the fallback faces read since startup (read again on use), so the image keeps only the standard faces' bytes. Glyphs rasterized from them stay in the atlas."
+	Fallbacks := nil.
+	Faces isNil ifFalse: [
+		(Faces keys reject: [:each | self isStandardFace: each]) do: [:each | Faces removeKey: each]]
+! !
+
 !Font class methodsFor: 'class initialization'!
 initialize
 	RasterizeLock := Mutex new.
+	Smalltalk addToShutDownList: self.
 	Smalltalk addStage2Step: [self buildStandardFonts] named: 'Font atlases'.
 	SystemChanges subscribe: #Font do: [:change |
 		(change affectsAnyOf: self rasterizingClasses) ifTrue: [self regenerateGlyphs]]

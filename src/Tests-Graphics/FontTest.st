@@ -80,6 +80,72 @@ testSubpixelPhasesShiftInk
 	self assert: c2 - c0 closeTo: 0.5 precision: 0.05
 ! !
 
+!FontTest methodsFor: 'tests - coverage'!
+testStandardFacesCoverGreekCyrillicAndBoxDrawing
+	#(16r3B1 16r3A9 16r416 16r44F 16r2500 16r2510 16r2588) do: [:cp |
+		self assert: (Font ui face includesCodePoint: cp).
+		self assert: (Font code face includesCodePoint: cp)].
+	"Greek Extended: Iosevka only"
+	self assert: (Font ui face includesCodePoint: 16r1F00)
+!
+testFallbackFaces
+	"Code points the face lacks come from the first fallback face that has them."
+	self assert: (Font code faceFor: $a value) == Font code face.
+	self assert: (Font code faceFor: 16r1F00) name equals: 'IosevkaEtoile-Regular.ttf'.
+	self assert: (Font code faceFor: 16r65E5) name equals: 'NotoSansSC-Regular.ttf'.
+	self assert: (Font ui faceFor: 16r3042) name equals: 'NotoSansSC-Regular.ttf'.
+	self assert: (Font ui faceFor: 16rD55C) name equals: 'NotoSansKR-Hangul.ttf'.
+	self assert: (Font ui faceFor: 16r1F600) name equals: 'NotoEmoji-Regular.ttf'.
+	self assert: (Font codeBold faceFor: 16r1F389) name equals: 'NotoEmoji-Regular.ttf'.
+	self assert: (Font ui faceFor: 16r2654) name equals: 'NotoSansSymbols2-Regular.ttf'.
+	self assert: (Font ui faceFor: 16rE000) isNil
+!
+testFallbackGlyphMetrics
+	"Fallback glyphs at the font's em size on its baseline, with their own advances: a Han ideograph is 1 em wide, an emoji 1.27 em."
+	| f han emoji |
+	f := Font code.
+	self assert: (f advanceOf: (Character value: 16r65E5)) closeTo: 13.
+	self assert: (f advanceOf: (Character value: 16r1F600)) closeTo: 2600 * 13 / 2048.
+	self assert: (f widthOf: (String with: $a with: (Character value: 16r65E5))) closeTo: 7.8 + 13.
+	han := f glyphForCodePoint: 16r65E5 phase: 0.
+	self assert: han inkSum > 0.
+	self assert: (han top between: f ascent * -2 and: f capHeight * -2).
+	self assert: (han top + han height between: 0 and: f descent * 2).
+	emoji := f glyphForCodePoint: 16r1F600 phase: 0.
+	self assert: emoji inkSum > 0.
+	self assert: (emoji height between: 13 * 2 * 0.9 and: 13 * 2 * 1.1).
+	self assert: (emoji top + emoji height between: 0 and: f descent * 2)
+!
+testMissingGlyphIsABox
+	"A code point no face has (unassigned, private use) draws as a hollow box with its hex digits, as tall as a capital."
+	| f box wide |
+	f := Font code.
+	#(16r378 16rE000) do: [:cp |
+		box := f glyphForCodePoint: cp phase: 0.
+		self deny: box isBlank.
+		self assert: box height equals: (f capHeight * 2) rounded.
+		self assert: box top equals: box height negated.
+		self assert: (box coverageAtX: 0 y: 0) equals: 255.
+		self assert: (box coverageAtX: box width - 1 y: box height - 1) equals: 255.
+		self assert: (box coverageAtX: box width // 2 y: 1) equals: 0.
+		self assert: (f deviceAdvanceOf: cp) > box width].
+	self deny: (f glyphForCodePoint: 16r378 phase: 0) inkSum = (f glyphForCodePoint: 16rE000 phase: 0) inkSum.
+	wide := f glyphForCodePoint: 16r10FFFD phase: 0.
+	self assert: wide width > box width
+!
+testInvisibleCharactersHaveNoWidth
+	"Controls, zero-width characters, variation selectors and the BOM draw nothing and do not advance."
+	| f smiley |
+	f := Font ui.
+	#(0 9 16r7F 16r85 16r200B 16r200D 16r2060 16rFE0E 16rFE0F 16rFEFF 16rE0001) do: [:cp |
+		self assert: (f deviceAdvanceOf: cp) equals: 0.
+		self assert: (f glyphForCodePoint: cp phase: 0) isBlank].
+	smiley := String with: (Character value: 16r263A).
+	self assert: (f widthOf: smiley , (String with: (Character value: 16rFE0F))) equals: (f widthOf: smiley).
+	"combining marks have glyphs"
+	self deny: (f glyphForCodePoint: 16r301 phase: 0) isBlank
+! !
+
 !FontTest methodsFor: 'support'!
 centroidX: info
 	| sum weighted |
