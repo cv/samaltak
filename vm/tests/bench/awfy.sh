@@ -131,7 +131,9 @@ if [ $# -eq 0 ]; then
 fi
 
 if [ $PHARO = 1 ]; then
-    VM=${VM:-${PHARO_VM:-$HOME/.cache/pharo12/vm/Pharo.app/Contents/MacOS/Pharo}}
+    # the VM's launcher: the app's on macOS, the zip's script on Linux
+    if [ "$(uname -s)" = Darwin ]; then PHARO_LAUNCHER=$HOME/.cache/pharo12/vm/Pharo.app/Contents/MacOS/Pharo; else PHARO_LAUNCHER=$HOME/.cache/pharo12/vm/pharo; fi
+    VM=${VM:-${PHARO_VM:-$PHARO_LAUNCHER}}
     IMAGE=${IMAGE:-${PHARO_IMAGE:-$HOME/.cache/pharo12/bench.image}}
     # Filing in writes to the image's .changes and pharo-local: work on a copy.
     WORK=$(mktemp -d)

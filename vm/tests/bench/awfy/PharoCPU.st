@@ -9,8 +9,8 @@ microseconds
 	^((timespec unsignedLongLongAt: 1) * 1000000) + ((timespec unsignedLongLongAt: 9) // 1000)
 !
 threadCputimeClock
-	"CLOCK_THREAD_CPUTIME_ID on macOS."
-	^16
+	"CLOCK_THREAD_CPUTIME_ID: 16 on macOS, 3 on Linux."
+	^OSPlatform current isMacOS ifTrue: [16] ifFalse: [3]
 !
 clockGettime: clockId into: aByteArray
 	^self ffiCall: #(int clock_gettime(int clockId, void* aByteArray)) library: LibC

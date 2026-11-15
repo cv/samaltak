@@ -8,7 +8,8 @@ DIR=$ROOT/vm/tests/bench
 AW=$DIR/awfy
 VM=${VM:-$ROOT/vm/build/samaltak}
 IMAGE=${IMAGE:-$ROOT/build/samaltak.image}
-PHARO_VM=${PHARO_VM:-$HOME/.cache/pharo12/vm/Pharo.app/Contents/MacOS/Pharo}
+if [ "$(uname -s)" = Darwin ]; then PHARO_LAUNCHER=$HOME/.cache/pharo12/vm/Pharo.app/Contents/MacOS/Pharo; else PHARO_LAUNCHER=$HOME/.cache/pharo12/vm/pharo; fi
+PHARO_VM=${PHARO_VM:-$PHARO_LAUNCHER}
 PHARO_IMAGE=${PHARO_IMAGE:-$HOME/.cache/pharo12/bench.image}
 FILES="'Core' 'Bounce' 'CD' 'DeltaBlue' 'Havlak' 'Json' 'List' 'Mandelbrot' 'NBody' 'Permute' 'Queens' 'Richards' 'Sieve' 'Storage' 'Towers'"
 WHAT=all ROUNDS=30 AWFY_ROUNDS=5 OUT=

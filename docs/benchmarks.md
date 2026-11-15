@@ -97,6 +97,69 @@ The same benchmarks on Linux x86-64: an AMD EPYC 7B13 (Zen 3) cloud VM with 2 vC
 
 Over its interpreter each JIT gains as much on x86-64 as on arm64; this machine runs the interpreter 1.9× slower than the M2 Max. Compiling (the runs' counters): `baseline` 10.1 µs a method, 0.45 µs per bytecode byte; `opt` 0.78 ms a unit, 8.6 KB of code (the M2 Max: 4.3 µs, 0.20 µs, 0.34 ms, 6.1 KB). x86-64's code is about a third bigger than arm64's: two-operand instructions take a `mov` more, branches to out-of-line paths 6 bytes, nil, true and false a pc-relative word, 64-bit constants 10 bytes.
 
+Against Pharo 12 on the same machine (its Linux x86-64 VM, Cog), all three suites: CPU time (`--cpu`; `awfy/PharoCPU.st` reads the thread's clock as on macOS), steady state as above, median of 3 invocations interleaved `opt`, `baseline`, Pharo (`vm/tests/bench/results/{samaltak-x86-opt,samaltak-x86-baseline,pharo12-cog-x86}{,-micro,-realworld}-2026-11-15-*.csv`), beside arm64's ratios from the tables of this document (M2 Max). Geometric means:
+
+| | x86-64 `opt` / Pharo | arm64 `opt` / Pharo | x86-64 `baseline` / Pharo | arm64 `baseline` / Pharo |
+|---|---|---|---|---|
+| Are We Fast Yet (14) | 0.43 | 0.33 | 0.82 | 0.64 |
+| Micro (9) | 0.25 | 0.30 | 0.44 | 0.49 |
+| CLBG (6 of the real-world workloads) | 0.48 | 0.50 | 0.63 | 0.66 |
+| the other real-world workloads (10) | 0.46 | 0.37 | 0.58 | 0.46 |
+| all 39 | 0.39 | 0.35 | 0.62 | 0.55 |
+
+| Are We Fast Yet | `opt` | `baseline` | Pharo 12 | `opt` / Pharo | `baseline` / Pharo | arm64 `opt` / Pharo | arm64 `baseline` / Pharo |
+|---|---|---|---|---|---|---|---|
+| Bounce | 15.6 | 36.1 | 44.3 | 0.35 | 0.81 | 0.31 | 0.67 |
+| CD | 99.7 | 182.0 | 198.9 | 0.50 | 0.92 | 0.24 | 0.43 |
+| DeltaBlue | 21.8 | 57.3 | 59.3 | 0.37 | 0.97 | 0.32 | 0.71 |
+| Havlak | 137.9 | 418.2 | 404.4 | 0.34 | 1.03 | 0.21 | 0.55 |
+| Json | 20.5 | 71.3 | 36.1 | 0.57 | 1.98 | 0.15 | 0.62 |
+| List | 17.2 | 32.9 | 55.6 | 0.31 | 0.59 | 0.50 | 0.74 |
+| Mandelbrot | 148.1 | 199.7 | 300.3 | 0.49 | 0.67 | 0.32 | 0.56 |
+| NBody | 224.2 | 503.9 | 517.4 | 0.43 | 0.97 | 0.41 | 0.93 |
+| Permute | 29.5 | 34.4 | 52.3 | 0.57 | 0.66 | 0.40 | 0.63 |
+| Queens | 17.7 | 38.6 | 59.1 | 0.30 | 0.65 | 0.28 | 0.45 |
+| Richards | 30.9 | 34.8 | 37.8 | 0.82 | 0.92 | 0.42 | 0.77 |
+| Sieve | 33.3 | 46.3 | 88.7 | 0.38 | 0.52 | 0.32 | 0.60 |
+| Storage | 30.9 | 54.7 | 91.6 | 0.34 | 0.60 | 0.43 | 0.64 |
+| Towers | 12.9 | 24.4 | 27.9 | 0.46 | 0.87 | 0.48 | 0.84 |
+| geometric mean | | | | 0.43 | 0.82 | 0.33 | 0.64 |
+
+| Micro | `opt` | `baseline` | Pharo 12 | `opt` / Pharo | `baseline` / Pharo | arm64 `opt` / Pharo | arm64 `baseline` / Pharo |
+|---|---|---|---|---|---|---|---|
+| MicroFib | 6.2 | 8.3 | 10.8 | 0.58 | 0.77 | 0.43 | 0.51 |
+| MicroLoop | 29.1 | 38.7 | 115.0 | 0.25 | 0.34 | 0.43 | 0.51 |
+| MicroFloats | 10.7 | 18.9 | 60.6 | 0.18 | 0.31 | 0.15 | 0.53 |
+| MicroSends | 9.8 | 32.0 | 38.9 | 0.25 | 0.82 | 0.53 | 0.97 |
+| MicroBlocks | 19.3 | 54.3 | 47.4 | 0.41 | 1.14 | 0.48 | 0.95 |
+| MicroDict | 28.7 | 51.3 | 232.9 | 0.12 | 0.22 | 0.12 | 0.21 |
+| MicroStrings | 45.4 | 63.7 | 98.4 | 0.46 | 0.65 | 0.38 | 0.60 |
+| MicroAlloc | 16.9 | 35.3 | 82.7 | 0.20 | 0.43 | 0.35 | 0.60 |
+| MicroFactorial | 1.7 | 1.8 | 14.2 | 0.12 | 0.12 | 0.17 | 0.17 |
+| geometric mean | | | | 0.25 | 0.44 | 0.30 | 0.49 |
+
+| Real-world | `opt` | `baseline` | Pharo 12 | `opt` / Pharo | `baseline` / Pharo | arm64 `opt` / Pharo | arm64 `baseline` / Pharo |
+|---|---|---|---|---|---|---|---|
+| BinaryTrees | 421.3 | 720.4 | 925.5 | 0.46 | 0.78 | 0.45 | 0.79 |
+| Fasta | 538.1 | 701.0 | 742.2 | 0.73 | 0.94 | 0.72 | 0.83 |
+| KNucleotide | 623.5 | 784.1 | 1210.7 | 0.51 | 0.65 | 0.51 | 0.61 |
+| ReverseComplement | 446.0 | 689.8 | 1235.0 | 0.36 | 0.56 | 0.35 | 0.55 |
+| SpectralNorm | 729.1 | 845.6 | 1008.9 | 0.72 | 0.84 | 0.55 | 0.81 |
+| Pidigits | 427.3 | 436.2 | 1579.0 | 0.27 | 0.28 | 0.48 | 0.45 |
+| Strings | 431.7 | 559.4 | 1086.1 | 0.40 | 0.52 | 0.37 | 0.46 |
+| Dictionaries | 522.8 | 879.3 | 1735.5 | 0.30 | 0.51 | 0.32 | 0.43 |
+| OrderedCollections | 317.0 | 394.5 | 1140.9 | 0.28 | 0.35 | 0.28 | 0.32 |
+| Sorting | 819.2 | 1172.9 | 1214.5 | 0.67 | 0.97 | 0.70 | 0.77 |
+| Enumeration | 376.5 | 613.2 | 916.7 | 0.41 | 0.67 | 0.39 | 0.63 |
+| PrintParse | 1073.1 | 1556.8 | 1363.6 | 0.79 | 1.14 | 0.57 | 0.85 |
+| Exceptions | 823.7 | 818.4 | 1892.8 | 0.44 | 0.43 | 0.63 | 0.68 |
+| Megamorphic | 320.6 | 265.6 | 281.6 | 1.14 | 0.94 | 0.15 | 0.15 |
+| DeepRecursion | 346.2 | 405.2 | 1284.9 | 0.27 | 0.32 | 0.32 | 0.36 |
+| Perform | 512.4 | 606.7 | 1249.7 | 0.41 | 0.49 | 0.33 | 0.39 |
+| geometric mean | | | | 0.46 | 0.60 | 0.41 | 0.52 |
+
+`opt` wins 38 of the 39; it loses Megamorphic (1.14: Pharo's x86 VM takes 282 ms where its arm64 one takes 704, Samaltak 321 where it takes 107; a fifth of its samples are in the shared megamorphic stub; its table is not the cause: 1024 or 16384 entries instead of 4096 change nothing). `baseline` loses Json (1.98), Havlak, MicroBlocks and PrintParse (1.03–1.14). Pharo runs these benchmarks 1.43× slower here than on the M2 Max, `opt` 1.58× and `baseline` 1.61× (built here with gcc and no profile, there with clang and its profile). The machine is shared: every VM had invocations that ran up to twice as slow (Pharo's Bounce 44, 87 and 44 ms); the best of the 3 invocations instead of their median moves no geometric mean by more than 0.02.
+
 ## Real-world workloads
 
 AWFY brings its own collections (`Vector`, `SomDictionary`, `SomSet` in `awfy/Core.st`), so it measures the compiler and VM, not the class library, its primitives or the GC at scale. These 16 workloads (`awfy/RealWorld.st`, `--suite realworld`, not part of `all`) are written once against each system's own class library; Pharo 12 runs the same source. Each answers a checksum that `verifyResult:` compares with one constant for both systems; at small sizes all 16 also answer the same on both. Sizes give 0.45–1 s per iteration on Pharo 12; an invocation takes 3 minutes under `opt`, 3.5 under `baseline`, 6 on Pharo.
