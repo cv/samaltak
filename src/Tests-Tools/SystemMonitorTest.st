@@ -132,9 +132,9 @@ testUsesLittleCPU
 
 !SystemMonitorTest methodsFor: 'support'!
 bottomOf: aChart
-	"The pixel at the bottom of the newest column."
+	"The pixel at the bottom of the newest column painted (the monitor may have sampled since)."
 	| f x |
 	f := aChart form.
-	x := monitor data last time // aChart columnMicros \\ f width.
+	x := (aChart instVarNamed: 'right') \\ f width.
 	^f pixelValueAt: x @ (f height - 1)
 ! !
