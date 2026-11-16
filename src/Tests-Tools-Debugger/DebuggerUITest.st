@@ -262,20 +262,20 @@ testStackOverflowDebugProceedAbandon
 	nw := self waitForWindowOf: Notifier.
 	self assert: nw title equals: 'StackOverflow'.
 	process := nw content session process.
-	self assert: process isSuspended.
-	self assert: (nw content stackList items anySatisfy: [:ctx | ctx selector == #recurse:]).
+	self assert: process isSuspended description: 'the process is not suspended: ', process printString.
+	self assert: (nw content stackList items anySatisfy: [:ctx | ctx selector == #recurse:]) description: 'no recurse: in the notifier''s stack'.
 	deep := nw content session exception depth.
-	self assert: deep > 50000.
+	self assert: deep > 50000 description: 'overflow at depth ', deep printString.
 	self click: (self ref: nw at: '.debug').
 	dw := self waitForWindowOf: Debugger.
 	d := dw content.
 	self waitUntilReady: dw.
 	self assert: d stackList selection printString equals: 'DebuggerUITest>>recurse:'.
-	self assert: d stackList items last == #more.
+	self assert: d stackList items last == #more description: 'no more entry at the end of the short stack'.
 	self click: (self ref: dw at: '.full-stack').
 	self waitUntilReady: dw.
 	self assert: d stackList items size equals: Debugger fullStackPage + 1.
-	self assert: d stackList items last == #more.
+	self assert: d stackList items last == #more description: 'no more entry at the end of the full stack page'.
 	self click: (self ref: dw at: '.stack.more').
 	self waitUntilReady: dw.
 	self assert: d stackList items size equals: 2 * Debugger fullStackPage + 1.
@@ -283,12 +283,12 @@ testStackOverflowDebugProceedAbandon
 	self waitFor: [dw isClosed] description: 'the Debugger to close'.
 	nw := self waitForWindowOf: Notifier.
 	self assert: nw title equals: 'StackOverflow'.
-	self assert: nw content session process == process.
-	self assert: nw content session exception depth > (deep + 50000).
+	self assert: nw content session process == process description: 'the second notifier is on another process'.
+	self assert: nw content session exception depth > (deep + 50000) description: 'second overflow at depth ', nw content session exception depth printString, ', first at ', deep printString.
 	self click: (self ref: nw at: '.abandon').
 	self waitFor: [nw isClosed] description: 'the notifier to close'.
-	self assert: process isTerminated.
-	self assert: self oldBytesAfterGC - before < (4 * 1024 * 1024)
+	self assert: process isTerminated description: 'the process is not terminated after Abandon: ', process printString.
+	self assert: self oldBytesAfterGC - before < (4 * 1024 * 1024) description: [(self oldBytesAfterGC - before) printString, ' more bytes in old space after Abandon']
 ! !
 
 !DebuggerUITest methodsFor: 'tests'!
