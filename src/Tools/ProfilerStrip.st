@@ -1,9 +1,9 @@
 Object subclass: #ProfilerStrip
-	instanceVariableNames: 'timeline forms front width height q qChanged qNeed right renderedRight renderedNumber renderedNow renderedData renderedFirst key colors segments need'
+	instanceVariableNames: 'timeline forms front width height q qChanged qNeed right renderedRight renderedNumber renderedNow renderedData renderedFirst key colors segments'
 	classVariableNames: ''
 	package: 'Tools'!
 
-ProfilerStrip comment: 'I render the FRAMES overview strip of the Profiler window into a bitmap, one pixel per point, so that a refresh only paints what is new. Time is cut into columns of q µs at fixed positions (column k covers k*q .. (k+1)*q of the microsecond clock), so as time passes the strip scrolls by whole columns: the bitmap shifts left and only the columns of new frames (and the last ones, whose GPU times arrive late) are painted; q changes, and everything is painted again, only when the ring''s span grows by more than 3% (q then leaves 25% to grow into), stopped growing for 2 s 3% below the strip (q fits it exactly again), or when the strip''s size, the shaded Processes or the filter change. Each column shows the frame bar overlapping it that matters most (dropped first, then the longest): the frame time in light grey, stacked on it the CPU of the Processes, draw, raster, GPU and GC (ProfilerTimeline''s colors), the GC lane, the dotted budget line and the base line. Two bitmaps alternate, so the compositor never shows one half painted. The timeline draws me scaled by the display scale without filtering, and its marks and selection on top.'!
+ProfilerStrip comment: 'I render the FRAMES overview strip of the Profiler window into a bitmap, one pixel per point, so that a refresh only paints what is new. Time is cut into columns of q µs at fixed positions (column k covers k*q .. (k+1)*q of the microsecond clock), so as time passes the strip scrolls by whole columns: the bitmap shifts left and only the columns of new frames (and the last ones, whose GPU times arrive late) are painted; q changes, and everything is painted again, only when the ring''s span grows by more than 3% (q then leaves 25% to grow into), stopped growing for 2 s of the data''s time 3% below the strip (q fits it exactly again), or when the strip''s size, the shaded Processes or the filter change. Each column shows the frame bar overlapping it that matters most (dropped first, then the longest): the frame time in light grey, stacked on it the CPU of the Processes, draw, raster, GPU and GC (ProfilerTimeline''s colors), the GC lane, the dotted budget line and the base line. Two bitmaps alternate, so the compositor never shows one half painted. The timeline draws me scaled by the display scale without filtering, and its marks and selection on top.'!
 
 !ProfilerStrip methodsFor: 'accessing'!
 timeline: aProfilerTimeline
@@ -15,10 +15,10 @@ form
 
 !ProfilerStrip methodsFor: 'geometry'!
 windowFrom: t0 to: t1 columns: n
-	"Answer {start. stop} (µs) of the n whole columns ending with the one holding t1. My column width q stays while t0..t1 fits within 3%: a growing span (a ring filling up) gets 25% to grow into, a span 3% shorter that did not grow for 2 s gets an exact fit again."
-	| now |
+	"Answer {start. stop} (µs) of the n whole columns ending with the one holding t1. My column width q stays while t0..t1 fits within 3%: a growing span (a ring filling up) gets 25% to grow into, a span 3% shorter that did not grow for 2 s gets an exact fit again. The time is the data's (t1), not the clock's: the same data give the same columns whenever they are drawn."
+	| need now |
 	need := ((t1 - t0) max: n) asFloat / n.
-	now := Time millisecondClockValue.
+	now := t1 // 1000.
 	(q isNil or: [n ~= width]) ifTrue: [q := need. qChanged := now. qNeed := need. renderedRight := nil].
 	need > (q * 1.03) ifTrue: [q := need * 1.25. qChanged := now. qNeed := need. renderedRight := nil].
 	now - qChanged > 2000 ifTrue: [
@@ -28,12 +28,6 @@ windowFrom: t0 to: t1 columns: n
 		qNeed := need].
 	right := (t1 / q) floor.
 	^Array with: ((right + 1 - n) * q) rounded with: ((right + 1) * q) rounded
-! !
-
-!ProfilerStrip methodsFor: 'testing'!
-mayRefit
-	"Answer whether my column width can change with time alone: it is more than 3% too wide for the span, so it fits again once the span stopped growing for 2 s."
-	^q notNil and: [need notNil and: [need < (q / 1.03)]]
 ! !
 
 !ProfilerStrip methodsFor: 'rendering'!

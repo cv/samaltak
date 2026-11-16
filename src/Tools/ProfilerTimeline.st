@@ -116,10 +116,9 @@ drawSelfOn: aCanvas
 	self isDetailed ifTrue: [self drawAxisOn: aCanvas]
 !
 drawOverviewOn: aCanvas
-	"The strip's bitmap (painted incrementally), the marks and the selection on top. While the strip may refit its time scale as time passes, this is drawn anew every time."
+	"The strip's bitmap (painted incrementally), the marks and the selection on top."
 	| g ranks shades |
 	g := self computeGeometry.
-	self strip mayRefit ifTrue: [aCanvas noteVolatile].
 	(self strip needsUpdateFor: self data geometry: g) ifTrue: [
 		ranks := self data barTotals.
 		shades := self shadesFor: ranks target: self data filter.
