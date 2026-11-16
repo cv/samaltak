@@ -178,6 +178,52 @@ static bool number_of(uint64_t o, double *d)
     return false;
 }
 
+/* PlatformPrimitives>>primClipboardData */
+void prim_clipboard_data(void)
+{
+    bool r_args;
+    char *mime;
+    size_t local;
+    size_t *size;
+    void *data;
+    uint64_t result;
+    if (!({
+    bad = false;
+    r_args = prim_nargs == 1;
+    r_args; })) {
+        prim_status = PS_FAIL;
+        prim_error_code = -1;
+        return;
+    }
+    mime = string_arg(0);
+    if (bad) {
+        prim_status = PS_FAIL;
+        prim_error_code = -1;
+        return;
+    }
+    memset(&local, 0, sizeof local);
+    size = &local;
+    *size = 0;
+    data = clipboard_data(mime, size);
+    free(mime);
+    if (data == NULL) {
+        prim_result = nil_oop;
+        prim_status = PS_OK;
+        return;
+    }
+    if ((*size == 0) || (*size > 20971520)) {
+        free_clipboard_data(data);
+        prim_result = nil_oop;
+        prim_status = PS_OK;
+        return;
+    }
+    result = alloc_bytes(cls_bytearray, *size);
+    memcpy((uint8_t *)(result + 16), data, *size);
+    free_clipboard_data(data);
+    prim_result = result;
+    prim_status = PS_OK;
+}
+
 /* PlatformPrimitives>>primClipboardGet */
 void prim_clipboard_get(void)
 {

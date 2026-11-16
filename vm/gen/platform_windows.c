@@ -6,6 +6,15 @@ static SDL_Cursor *cursors[11];
 static pf_table table[1];
 static bool video_ok;
 
+/* PlatformWindows>>clipboardData:size: */
+void *clipboard_data(char *mime, size_t *size)
+{
+    if (!video_init()) {
+        return NULL;
+    }
+    return SDL_GetClipboardData(mime, size);
+}
+
 /* PlatformWindows>>clipboardGet */
 char *clipboard_get(void)
 {
@@ -64,6 +73,12 @@ double display_scale(int32_t win)
     }
     s = SDL_GetWindowDisplayScale(sw);
     return s > 0.0 ? s : 1.0;
+}
+
+/* PlatformWindows>>freeClipboardData: */
+void free_clipboard_data(void *data)
+{
+    SDL_free(data);
 }
 
 /* PlatformWindows>>fromSDLId: */
