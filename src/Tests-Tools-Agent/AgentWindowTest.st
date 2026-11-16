@@ -198,6 +198,17 @@ testClosingCancelsTheLogin
 	agent close.
 	self assert: (self waitFor: [account isLoginPending not]) description: 'the login was not cancelled'.
 	self deny: account isSignedIn
+!
+testCommandJInAnAgentWindow
+	| parent child context |
+	parent := self openAgent.
+	child := self open: [AgentWindow openFor: parent content].
+	self assert: child ~~ parent.
+	self assert: child content origin == parent content.
+	context := child content conversation context.
+	self assert: context receiver == parent content.
+	self assert: (context bindings at: #conversation) value == parent content conversation.
+	self assert: (AgentWindow openFor: parent content) == child
 ! !
 
 !AgentWindowTest methodsFor: 'tests - contexts'!

@@ -169,9 +169,8 @@ openOn: anAgentConversation origin: aToolOrNil in: aRectangle
 	^window
 !
 openFor: aTool
-	"⌘J in aTool: its Agent window, brought back if it is open. In an Agent window: back to its tool."
+	"⌘J opens the Agent for a tool, bringing it back if already open."
 	| existing |
-	(aTool isKindOf: self) ifTrue: [^aTool focusOrigin].
 	existing := (Tools windowsOf: self) detect: [:each | each content origin == aTool] ifNone: [nil].
 	existing isNil ifFalse: [existing focus. ^existing].
 	^self openOn: (AgentConversation on: aTool agentContext) origin: aTool in: (Tools placeNear: aTool window extent: 720 @ 640)
@@ -180,4 +179,15 @@ initialize
 	Tools registerOpener: #agent with: [:tool | self openFor: tool].
 	ToolsMenu register: 'Agent' description: '⌘J in a tool' order: 65 action: [:point |
 		self openOn: (AgentConversation on: (AgentContext new label: 'Desktop'; yourself)) origin: nil in: (Tools placeAt: point extent: 720 @ 640)]
+! !
+
+
+!AgentWindow methodsFor: 'context'!
+agentContext
+	"Expose this agent and its conversation to a second agent."
+	^AgentContext new
+		label: self window title;
+		receiver: self;
+		bind: #conversation to: conversation;
+		yourself
 ! !
