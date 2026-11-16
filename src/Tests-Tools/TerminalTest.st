@@ -3,7 +3,7 @@ ToolsTestCase subclass: #TerminalTest
 	classVariableNames: ''
 	package: 'Tests-Tools'!
 
-TerminalTest comment: 'I test the Terminal tool end to end: real programs on a real pty in a Terminal window of a hidden World, driven by injected key and text events (the path of real and remote input): colors from a real program, typing into /bin/sh (prompt "$ ") and ctrl-C, resizing, a full-screen program (less) and back, heavy output while another window stays responsive, the title from OSC, remote control (snapshot state and text, type and wait), retained drawing, and hanging up on close.'!
+TerminalTest comment: 'I test the Terminal tool end to end: real programs on a real pty in a Terminal window of a hidden World, driven by injected key and text events (the path of real and remote input): colors from a real program, typing into bash (prompt "$ ") and ctrl-C, resizing, a full-screen program (less) and back, heavy output while another window stays responsive, the title from OSC, remote control (snapshot state and text, type and wait), retained drawing, and hanging up on close.'!
 
 !TerminalTest methodsFor: 'running'!
 tearDown
@@ -22,8 +22,8 @@ openOn: argv
 	^window
 !
 openShell
-	"/bin/sh with the prompt '$ '."
-	self openOn: #('/bin/sh' '-c' 'PS1=''$ '' exec /bin/sh -i').
+	"bash with the prompt '$ ' and no startup files (readline's line editing; /bin/sh may be dash, which has none)."
+	self openOn: #('/bin/sh' '-c' 'PS1=''$ '' INPUTRC=/dev/null HISTFILE=/dev/null exec /bin/bash --norc --noprofile -i').
 	window focus.
 	self assert: (self waitFor: [self promptCount = 1] timeout: 20000) description: 'no prompt: ', self text printString.
 	^window
