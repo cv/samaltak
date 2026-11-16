@@ -3,7 +3,7 @@ UIWindowsTestCase subclass: #ProfilerViewTest
 	classVariableNames: ''
 	package: 'Tests-Tools-Profiler'!
 
-ProfilerViewTest comment: 'I run the Profiler window on real data: a factorial loop runs in a Process named crunch, the Profiler opens in a hidden World, and injected clicks, drags and keys drive it. The flame graph must contain the workload''s real methods, the process list filters, a click zooms (animated), a drag in the frame overview pins and filters a range, the tally has its MessageTally sections, ⌘P in the evaluator prints a real Dictionary. Live: the window refreshes ten times a second with the CPU-bound crunch running, using little CPU itself; a pinned range stays frozen; the filtered trees equal a rebuild from the samples.'!
+ProfilerViewTest comment: 'I run the Profiler window on real data: a factorial loop runs in a Process named crunch, the Profiler opens in a hidden World, and injected clicks, drags and keys drive it. The flame graph must contain the workload''s real methods, the process list filters, a click zooms (animated), a drag in the frame overview pins and filters a range, the tally has its MessageTally sections, ⌘P in the evaluator prints a real Dictionary. Live: the window refreshes ten times a second with the CPU-bound crunch running, using little CPU itself; a pinned range stays frozen; the filtered trees equal a rebuild from the samples. The tests drive the refreshes (refresh): the 10 Hz timer runs only where liveness is tested (goLive), and never while waiting for the World to settle, which a redraw every 100 ms would otherwise race with the GPU.'!
 
 !ProfilerViewTest methodsFor: 'running'!
 setUp
@@ -16,6 +16,7 @@ setUp
 	(Delay forMilliseconds: 1500) wait.
 	window := ProfilerView open.
 	view := window content.
+	self stopLive.
 	self settle.
 	self refresh
 !
@@ -29,6 +30,13 @@ timeLimitMilliseconds
 ! !
 
 !ProfilerViewTest methodsFor: 'support'!
+goLive
+	"Refresh ten times a second, as the window does when not under test."
+	window sync: [view scheduleTick]
+!
+stopLive
+	window sync: [view stop]
+!
 refresh
 	"Take a fresh snapshot in the window's Process and wait for the redraw."
 	window sync: [view refresh].
@@ -188,7 +196,9 @@ testTallyRowsToggle
 testLiveUpdatesMarkAndPause
 	| first pause |
 	first := view data.
+	self goLive.
 	self assert: (self waitFor: [view data ~~ first]) description: 'no live refresh'.
+	self stopLive.
 	self settle.
 	self assert: view data now > first now.
 	self click: (view widgetNamed: 'mark') screenPointFrom: (view widgetNamed: 'mark') localBounds center.
@@ -200,7 +210,9 @@ testLiveUpdatesMarkAndPause
 	self assert: (view widgetNamed: 'capture') text equals: '□ paused'.
 	first := view data.
 	"Paused: no refresh may happen in 600 ms (several refresh intervals)."
+	self goLive.
 	(Delay forMilliseconds: 600) wait.
+	self stopLive.
 	self assert: view data == first.
 	self click: (pause screenPointFrom: pause localBounds center) rounded.
 	self assert: Profiler default isRunning.
@@ -220,6 +232,7 @@ testRemoteNames
 testRefreshesTenTimesASecondUnderLoad
 	"With the CPU-bound crunch running and a full flame graph shown, the window refreshes at 10 Hz while its own Process uses little CPU. Measured once the first seconds are over, in which earlier tests' Processes leave the ring and the overview rescales while the ring grows."
 	| n0 c0 t0 n1 c1 t1 cpu |
+	self goLive.
 	(Delay forMilliseconds: 3000) wait.
 	n0 := view refreshCount.
 	c0 := window process cpuMicroseconds.
@@ -247,7 +260,9 @@ testPinnedRangeStaysFrozen
 	samples := data samples asArray.
 	self assert: (samples allSatisfy: [:s | s time between: view selectionRange first and: view selectionRange last]).
 	"Several refresh intervals: crunch keeps running, the pinned data must not move."
+	self goLive.
 	(Delay forMilliseconds: 700) wait.
+	self stopLive.
 	self assert: view data == data.
 	self assert: view data cpuTree weight equals: weight.
 	self assert: view data summary equals: rows.
@@ -255,6 +270,7 @@ testPinnedRangeStaysFrozen
 	self assert: view flame root weight equals: weight.
 	self click: (view statusBar clearButton screenPointFrom: view statusBar clearButton localBounds center).
 	self deny: view isPinned.
+	self goLive.
 	self assert: (self waitFor: [view data ~~ data and: [view data isFrozen not]]) description: 'not live again'
 !
 testFilteredTreesEqualARebuild
