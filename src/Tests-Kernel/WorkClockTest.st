@@ -140,6 +140,22 @@ testPacedKeepsUpWithRealTime
 	self assert: Time utcMicroseconds - real >= 45000.
 	Smalltalk vm workClockPaced: false
 !
+testSkippedRealTimeIsNotCounted
+	"Paced: 30 ms of real time go by while the clock is held (a recorded frame waiting for its reader). Skipped, they are not counted: a Delay of 20 ms then still takes its real time."
+	| real |
+	self start.
+	Smalltalk vm workClockPaced: true.
+	Smalltalk vm workClockHold.
+	real := Time utcMicroseconds.
+	[Time utcMicroseconds - real < 30000] whileTrue: [self spin: 1000].
+	Smalltalk vm workClockSkipRealTime.
+	Smalltalk vm workClockRelease.
+	real := Time utcMicroseconds.
+	(Delay forMilliseconds: 20) wait.
+	real := Time utcMicroseconds - real.
+	Smalltalk vm workClockPaced: false.
+	self assert: real >= 15000
+!
 testStopGoesOnFromTheClock
 	| before |
 	self start.

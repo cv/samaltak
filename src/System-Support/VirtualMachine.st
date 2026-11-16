@@ -43,6 +43,11 @@ workClockRelease
 	<primitive: 'workClockRelease'>
 	^self primitiveFailed
 !
+workClockSkipRealTime
+	"Paced: the real time gone by and not yet counted (a recorded frame's wait for the GPU and for the reader) is not counted."
+	<primitive: 'workClockSkipRealTime'>
+	^self primitiveFailed
+!
 workClockHeldMicros
 	"During a frame: the clock plus the frame's work so far (the times the frame reports); else the clock."
 	<primitive: 'workClockHeldMicros'>

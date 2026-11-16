@@ -242,6 +242,27 @@ testRecordingWaitsForASlowReader
 	self assert: (File sizeOf: out) equals: recorder framesWritten * 64 * 40 * 4.
 	OSProcess run: 'rm -rf ', dir
 !
+testRecordingWaitsForAReaderSlowerThanItsTicks
+	"A reader that takes three ticks of the recording clock for each frame (a frame is more than a pipe holds, so writing it waits for the reader), with the clock paced meanwhile (the reader is a program outside the image): the wait is not the clock's, so the Process that stops the recording runs on time and no frame is lost."
+	| dir fifo out reader recorder bytes |
+	dir := self scratchPath: 'slowfifo'.
+	OSProcess run: 'mkdir -p ', dir.
+	fifo := dir, '/video'.
+	out := dir, '/frames'.
+	File deleteIfExists: fifo.
+	File deleteIfExists: out.
+	OSProcess run: 'mkfifo ', fifo.
+	bytes := 160 * 120 * 4.
+	reader := (OSProcess command: 'while head -c ', bytes printString, ' >', dir, '/frame && [ -s ', dir, '/frame ]; do cat ', dir, '/frame >>', out, '; sleep 0.05; done <', fifo) start.
+	recorder := FrameRecorder path: fifo width: 160 height: 120 fps: 30.
+	world compositor startRecording: recorder.
+	(Delay forMilliseconds: 300) wait.
+	world compositor stopRecording.
+	reader wait.
+	self assert: (recorder framesWritten between: 9 and: 10).
+	self assert: (File sizeOf: out) equals: recorder framesWritten * bytes.
+	OSProcess run: 'rm -rf ', dir
+!
 testRecordingStepsOneFramePerTick
 	"Each tick of the recording clock is presented, whatever the display does; the video takes every second one at 30 fps."
 	| recorder path n |

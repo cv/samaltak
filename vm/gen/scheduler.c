@@ -1409,6 +1409,14 @@ exit_work_clock_thread_cycles_2:;
     }
 }
 
+/* Scheduler>>workClockSkipRealTime */
+void work_clock_skip_real_time(void)
+{
+    if (work_clock_on) {
+        work_clock_raw = raw_now_us();
+    }
+}
+
 /* Scheduler>>workClockStart:semaphore: */
 int64_t work_clock_start(int64_t fps, int32_t index)
 {

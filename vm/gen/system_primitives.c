@@ -427,6 +427,16 @@ void prim_work_clock_running(void)
     prim_status = PS_OK;
 }
 
+/* SystemPrimitives>>primWorkClockSkipRealTime */
+void prim_work_clock_skip_real_time(void)
+{
+    oop v;
+    work_clock_skip_real_time();
+    v = prim_base[0];
+    prim_result = v;
+    prim_status = PS_OK;
+}
+
 /* SystemPrimitives>>primWorkClockStart */
 void prim_work_clock_start(void)
 {

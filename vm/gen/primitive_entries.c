@@ -443,6 +443,7 @@ primitive_entry vm_primitive_table[] = {
     {575, 2, "workClockHeldMicros", prim_work_clock_held_micros},
     {576, 2, "workClockCharge", prim_work_clock_charge},
     {577, 2, "workClockQuerying", prim_work_clock_querying},
+    {578, 2, "workClockSkipRealTime", prim_work_clock_skip_real_time},
 };
 
 int vm_primitive_count = sizeof vm_primitive_table / sizeof vm_primitive_table[0];

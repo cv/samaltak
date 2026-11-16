@@ -226,6 +226,11 @@ workClockRelease
 	workClockPaced ifFalse: [workClockRaw := self rawNowUs].
 	^(now - workClockHoldCycles) quo: WORK_CYCLES_PER_US
 !
+workClockSkipRealTime
+	"Paced: the real time gone by and not yet counted is not counted (a recorded frame ends: its wait for the GPU and for the reader is not the clock's, Compositor>>frameOnWorkClock)."
+	<function>
+	workClockOn ifTrue: [workClockRaw := self rawNowUs]
+!
 workClockHeldUs
 	"During a frame the clock stands still; this one, its time plus the frame's work so far, does not: for the times the frame reports, and how long a garbage collection in it took."
 	<function>

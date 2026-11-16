@@ -224,8 +224,8 @@ sleep
 !
 frame
 	| t0 now animating needs |
-	"On the recording clock the GPU's frames, like an external program, take real time: while any are unfinished the clock moves with real time instead of jumping to the next deadline."
-	onWorkClock ifTrue: [Smalltalk vm workClockPaced: (OSProcess externalWork or: [gpuTimer inFlight > 0])].
+	"On the recording clock the GPU's frames, like an external program, take real time: while any are unfinished the clock moves with real time instead of jumping to the next deadline. Not while recording: the recorder waits for each frame, and every tick gets its own."
+	onWorkClock ifTrue: [Smalltalk vm workClockPaced: (OSProcess externalWork or: [recorder isNil and: [gpuTimer inFlight > 0]])].
 	(recorder isNil and: [requests isEmpty and: [gpuTimer inFlight >= self class maxFramesInFlight]]) ifTrue: [^self].
 	t0 := Time microsecondClockValue.
 	recorder isNil ifFalse: [t0 := recorder tickStartAt: t0].
@@ -245,12 +245,16 @@ frame
 	presenting := false
 !
 frameOnWorkClock
-	"A frame on the recording clock: its work does not move the clock (the time of the GPU driver's calls is noise, in every recording another one), unless the CPU work of the previous frame did not fit in a tick: that would have missed a refresh of a real screen, and the clock passes the excess. GPU time is reported only (the fences' latencies are milliseconds of queueing: no measure of a frame's GPU work)."
-	| excess |
+	"A frame on the recording clock: its work does not move the clock (the time of the GPU driver's calls is noise, in every recording another one), unless the CPU work of the previous frame did not fit in a tick: that would have missed a refresh of a real screen, and the clock passes the excess. GPU time is reported only (the fences' latencies are milliseconds of queueing: no measure of a frame's GPU work). The real time a recorded frame waits for the GPU and for the reader does not move the clock either, even while it keeps pace with real time: a reader slower than the ticks would otherwise leave the clock behind for good, each tick due as the frame before it ends, and no other Process would run."
+	| excess recording |
 	excess := lastFrameWork - (1000000 // FrameRecorder tickRate).
 	excess > 0 ifTrue: [Smalltalk vm workClockCharge: excess].
+	recording := recorder notNil.
 	Smalltalk vm workClockHold.
-	[self frame] ensure: [lastFrameWork := Smalltalk vm workClockRelease]
+	[self frame] ensure: [
+		"Skipped while the clock still stands: released, its next reading would count the wait."
+		recording ifTrue: [Smalltalk vm workClockSkipRealTime].
+		lastFrameWork := Smalltalk vm workClockRelease]
 !
 frameClock
 	"The clock of the times a frame reports: on the recording clock its work moves this one but not that (frameOnWorkClock)."

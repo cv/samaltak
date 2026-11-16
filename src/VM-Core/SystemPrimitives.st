@@ -63,6 +63,11 @@ primWorkClockRelease
 	<vmPrimitive: 574 name: 'workClockRelease'>
 	self answer: (self intOop: scheduler workClockRelease)
 !
+primWorkClockSkipRealTime
+	<vmPrimitive: 578 name: 'workClockSkipRealTime'>
+	scheduler workClockSkipRealTime.
+	self answer: self receiver
+!
 primWorkClockHeldMicros
 	<vmPrimitive: 575 name: 'workClockHeldMicros'>
 	self answer: (self intOop: scheduler workClockHeldUs)
