@@ -845,3 +845,15 @@ truncate: aString to: width font: aFont
 title: aString content: aView bounds: aRectangle
 	^self new title: aString; content: aView; bounds: aRectangle; yourself
 ! !
+
+!Window methodsFor: 'screenshots'!
+screenshot
+	"Capture my visible desktop bounds, including chrome and any occlusion."
+	self isOpen ifFalse: [self error: 'Cannot capture a closed window'].
+	^world screenshot: self bounds
+!
+screenshotContent
+	"Capture my visible content, excluding window chrome."
+	self isOpen ifFalse: [self error: 'Cannot capture a closed window'].
+	^world screenshot: self contentBounds
+! !

@@ -13,7 +13,7 @@ spec
 	^Dictionary new
 		at: 'type' put: 'function';
 		at: 'name' put: self name;
-		at: 'description' put: 'Show an object to the user in the transcript.';
+		at: 'description' put: 'Show an object in the transcript. Forms are also sent as PNG images to the agent. Capture with World current screenshot, World current screenshot: aRectangle (logical desktop coordinates), or aWindow screenshot. Captures use the last submitted frame; windows include visible occlusion.';
 		at: 'strict' put: false;
 		at: 'parameters' put: (Dictionary new
 			at: 'type' put: 'object';
@@ -28,18 +28,25 @@ spec
 
 !ShowObjectTool methodsFor: 'running'!
 run: aCallDictionary in: anAgentConversation
-	| id item found object |
+	| id item found object image message |
 	id := (self idIn: aCallDictionary) ifNil: [''].
 	found := true.
 	object := anAgentConversation objectAt: id ifAbsent: [found := false].
 	found
 		ifTrue: [
 			item := AgentItem call: aCallDictionary kind: #show text: id.
-			item object: object; objectId: id; output: 'shown']
+			item object: object; objectId: id; output: 'shown'.
+			(object isKindOf: Form) ifTrue: [
+				image := Dictionary new
+					at: 'type' put: 'input_image';
+					at: 'image_url' put: 'data:image/png;base64,', (Base64 encode: (PNGWriter bytesForForm: object));
+					yourself.
+				message := AgentItem user: 'Image shown from object ', id images: (Array with: image)]]
 		ifFalse: [
 			item := AgentItem call: aCallDictionary kind: #error text: 'no object ', id.
 			item failed: true; output: 'error: no object ', id].
 	anAgentConversation add: item.
+	message ifNotNil: [anAgentConversation add: message].
 	^item result
 !
 idIn: aCallDictionary

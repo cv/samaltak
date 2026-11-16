@@ -118,3 +118,20 @@ extent: aPoint
 width: w height: h bits: aBitmap
 	^self new setWidth: w height: h bits: aBitmap
 ! !
+
+!Form methodsFor: 'copying'!
+croppedTo: aRectangle
+	"Copy the enclosing pixel rectangle, clipped to my bounds."
+	| rect result left top right bottom |
+	left := aRectangle left floor max: 0.
+	top := aRectangle top floor max: 0.
+	right := aRectangle right ceiling min: width.
+	bottom := aRectangle bottom ceiling min: height.
+	(right <= left or: [bottom <= top]) ifTrue: [self error: 'Empty screenshot region'].
+	rect := left @ top corner: right @ bottom.
+	result := Form extent: rect extent.
+	0 to: result height - 1 do: [:y |
+		0 to: result width - 1 do: [:x |
+			result pixelValueAt: x @ y put: (self pixelValueAt: (x + left) @ (y + top))]].
+	^result
+! !

@@ -32,6 +32,19 @@ testRoundTripThroughPython
 	PNGWriter write: form to: path.
 	status := self python: self decoderScript arguments: {path. '120'. '600'. '5,5,27,58,140,255'. '119,599,255,255,255,255'}.
 	self assert: status equals: 0
+!
+testCropForm
+	| form crop |
+	form := Form width: 4 height: 3.
+	0 to: 2 do: [:y | 0 to: 3 do: [:x | form pixelValueAt: x@y put: y * 4 + x]].
+	crop := form croppedTo: (1@1 corner: 9@9).
+	self assert: crop extent equals: 3@2.
+	self assert: (crop pixelValueAt: 0@0) equals: 5.
+	self assert: (crop pixelValueAt: 2@1) equals: 11.
+	crop := form croppedTo: (-2@ -2 corner: 1.2@1.2).
+	self assert: crop extent equals: 2@2.
+	self should: [form croppedTo: (9@9 extent: 1@1)] raise: Error.
+	self assert: form extent equals: 4@3
 ! !
 
 !PNGWriterTest methodsFor: 'support'!

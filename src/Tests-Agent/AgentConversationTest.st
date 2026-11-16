@@ -194,6 +194,19 @@ testOnChange
 	self assert: (texts includes: 'Hello').
 	self assert: busy first.
 	self deny: busy last
+!
+testShowFormSendsImage
+	| message image |
+	provider reply: (Array with: (self code: 'Form width: 2 height: 3' call: 'c1')).
+	provider reply: (Array with: (ScriptedProvider show: 'o1' call: 'c2')).
+	provider reply: (Array with: (self message: 'seen')).
+	conversation ask: 'capture'; wait.
+	message := provider requests last last.
+	self assert: (message at: 'role') equals: 'user'.
+	image := (message at: 'content') last.
+	self assert: (image at: 'type') equals: 'input_image'.
+	self assert: (image at: 'image_url') equals: 'data:image/png;base64,', (Base64 encode: (PNGWriter bytesForForm: (conversation objectAt: 'o1'))).
+	self assert: ((provider requests last at: 6) at: 'output') equals: 'shown'
 ! !
 
 !AgentConversationTest methodsFor: 'tests - contexts'!

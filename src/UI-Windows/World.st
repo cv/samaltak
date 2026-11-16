@@ -549,3 +549,14 @@ openExtent: aPoint hidden: aBoolean
 openHidden: aPoint
 	^self openExtent: aPoint hidden: true
 ! !
+
+!World methodsFor: 'screenshots'!
+screenshot
+	"Capture the last submitted desktop frame in physical pixels."
+	displayWindow isNil ifTrue: [self error: 'No display window'].
+	^displayWindow surface readback
+!
+screenshot: aRectangle
+	"Capture a desktop region in logical coordinates, clipped to the display."
+	^self screenshot croppedTo: (aRectangle scaleBy: self displayScale)
+! !
