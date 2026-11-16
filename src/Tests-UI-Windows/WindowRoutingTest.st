@@ -255,6 +255,19 @@ testInputAfterWorldsStoppedOutOfOrder
 	 c stop.
 	 self assertDispatcherOf: world handlesMoveTo: 123 @ 45]
 		ensure: [b stop. c stop]
+!
+testInputWhileAnotherWorldRuns
+	| v w b |
+	v := RecordingTestView new.
+	w := self open: v title: 'A' at: (100 @ 100 extent: 300 @ 200).
+	b := World openHidden: 400 @ 300.
+	[self click: w contentOrigin + (10 @ 10).
+	 #($a $b $c) do: [:k | self key: k modifiers: 0].
+	 self settle.
+	 self assertDispatcherOf: b handlesMoveTo: 67 @ 89]
+		ensure: [b stop].
+	self assert: ((v pointerEvents collect: [:e | e type]) select: [:t | t == #down or: [t == #up]]) asArray equals: #(#down #up).
+	self assert: (((v eventsOfType: #down) select: [:e | e isKey]) collect: [:e | e key]) asArray equals: #($a $b $c)
 ! !
 
 !WindowRoutingTest methodsFor: 'support'!

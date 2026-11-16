@@ -1,6 +1,6 @@
 Object subclass: #InputDispatcher
-	instanceVariableNames: 'world displayWindow process running semaphore semaphoreIndex buffer pointer modifiers gesture pressed captureWindow hoverWindow cursor idle lastMove tooltipAsked services standIn lastPress'
-	classVariableNames: 'Running'
+	instanceVariableNames: 'world displayWindow process running semaphore semaphoreIndex buffer pointer modifiers gesture pressed captureWindow hoverWindow cursor idle lastMove tooltipAsked services standIn lastPress inbox'
+	classVariableNames: 'Running Routing'
 	package: 'UI-Windows'!
 
 InputDispatcher comment: 'I am the input dispatcher: a Process at priority 60 that drains the platform''s events (real ones and those injected by remote control arrive the same way), tracks the pointer and modifiers, counts multi-clicks (countClick:on:), and routes each event: pointer events to the window under the pointer (or the one that has the pointer since a press), keys and text to the topmost overlay or the active window. I do the window manager''s work myself — raise and activate on press, drag by the title bar, resize from the edges and the corner (with resize cursors), close and collapse boxes, double-click to collapse, clicks on the desk — so it stays live while a window''s Process is busy. ⌘. is reserved: it calls World>>userInterrupt. Other input sources share my Process (addService:): remote control''s sockets signal my Semaphore and I service them after the platform''s events.'!
@@ -17,7 +17,8 @@ setWorld: aWorld
 	cursor := #arrow.
 	lastMove := 0.
 	tooltipAsked := true.
-	services := #()
+	services := #().
+	inbox := SharedQueue new
 ! !
 
 !InputDispatcher methodsFor: 'accessing'!
@@ -34,7 +35,10 @@ semaphoreIndex
 	^semaphoreIndex
 !
 isIdle
-	^idle
+	^idle and: [inbox isEmpty]
+!
+windowId
+	^displayWindow windowId
 !
 gesture
 	"nil, or the WindowGesture in progress (a DragGesture or a ResizeGesture)."
@@ -134,10 +138,12 @@ run
 	self runWith: buffer
 !
 runWith: anArray
+	| event |
 	[running and: [self isLoopProcess]] whileTrue: [
 		idle := false.
-		[(DisplayWindow nextEventInto: anArray) notNil] whileTrue: [
-			[self handle: anArray] on: Error do: [:e |
+		self routeInto: anArray.
+		[(event := inbox nextOrNil) notNil] whileTrue: [
+			[self handle: event] on: Error do: [:e |
 				Transcript show: 'InputDispatcher error: ', (Smalltalk errorReportFor: e); cr.
 				e return: nil]].
 		"The platform's events are delivered: input services (remote control) may wait for the image to settle."
@@ -148,6 +154,20 @@ runWith: anArray
 				e return: nil]].
 		idle := true.
 		semaphore wait]
+!
+routeInto: anArray
+	"Move the pending platform events, in order, to the inboxes of the dispatchers of their windows (mine for other windows): one dispatcher at a time takes them."
+	Routing critical: [
+		[(DisplayWindow nextEventInto: anArray) notNil] whileTrue: [
+			(self dispatcherFor: (anArray at: 8)) receive: anArray copy]]
+!
+dispatcherFor: anId
+	anId isNil ifTrue: [^self].
+	^self class running detect: [:each | each windowId = anId] ifNone: [self]
+!
+receive: anArray
+	inbox nextPut: anArray.
+	self isLoopProcess ifFalse: [semaphore signal]
 !
 handle: anArray
 	"Decode a platform event Array of my host window and dispatch the event (UIEvent>>dispatchTo:)."
@@ -349,6 +369,11 @@ handleText: anEvent
 	modifiers := anEvent modifiers.
 	target := world keyTarget.
 	target isNil ifFalse: [target enqueueEvent: anEvent]
+! !
+
+!InputDispatcher class methodsFor: 'class initialization'!
+initialize
+	Routing := Semaphore forMutualExclusion
 ! !
 
 !InputDispatcher class methodsFor: 'accessing'!
