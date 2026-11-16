@@ -572,6 +572,7 @@ newPicFor: site class: c0 target: t0
 	pic site: site.
 	(compiler emitPicAt: p) ifFalse: [^0].
 	cache invalidate: p size: compiler picBytes asUInt64.
+	jit perfMapAt: p size: compiler picBytes asUInt64 name: 'pic'.
 	0 to: BL_PIC_CASES - 1 do: [:i | self registerSlot: (self cCoerce: (pic fieldAddress: #classes) to: 'uint64_t') + (8 * i) asUInt64].
 	(self addCaseTo: p class: c0 target: t0) ifFalse: [^0].
 	^p

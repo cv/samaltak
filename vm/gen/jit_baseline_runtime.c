@@ -1069,6 +1069,7 @@ static uint64_t new_pic_for(uint64_t site, uint64_t c0, jit_method *t0)
     }
     size = (uint64_t)(sizeof(baseline_pic) + 192);
     invalidate((void *)p, size);
+    perf_map_at(p, (uint64_t)(sizeof(baseline_pic) + 192), "pic");
     for (i = 0; i <= 5; i++) {
         register_slot((uint64_t)&pic->classes + (uint64_t)(8 * i));
     }
@@ -1125,6 +1126,7 @@ static uint64_t new_pic_for(uint64_t site, uint64_t c0, jit_method *t0)
     }
     size = (uint64_t)(sizeof(baseline_pic) + 128);
     invalidate((void *)p, size);
+    perf_map_at(p, (uint64_t)(sizeof(baseline_pic) + 128), "pic");
     for (i = 0; i <= 5; i++) {
         register_slot((uint64_t)&pic->classes + (uint64_t)(8 * i));
     }

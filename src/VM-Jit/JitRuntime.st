@@ -1,5 +1,5 @@
 VMCoreModule subclass: #JitRuntime
-	instanceVariableNames: 'stubs baseline brt cache asm analysis jitMode jitFlags jitThreshold jitOsrThreshold jitCacheMB cacheOpened flushPending invalidations stateBlock methodTable tableCount methodCounts youngMethods youngCount youngOverflow mapPcs mapOffsets mapCount sendPushed performFn performArgsFn statCompiled statFailed statBytecodes statCompileUs statCodeBytes statCacheFlushes statEntries statExits statResumes statOsr feedback optimizer jitOptThreshold optCounts copying bottomReturned'
+	instanceVariableNames: 'stubs baseline brt cache asm analysis jitMode jitFlags jitThreshold jitOsrThreshold jitCacheMB cacheOpened flushPending invalidations stateBlock methodTable tableCount methodCounts youngMethods youngCount youngOverflow mapPcs mapOffsets mapCount sendPushed performFn performArgsFn statCompiled statFailed statBytecodes statCompileUs statCodeBytes statCacheFlushes statEntries statExits statResumes statOsr feedback optimizer jitOptThreshold optCounts copying bottomReturned perfMap'
 	classVariableNames: 'JIT_BASELINE JIT_FLAG_ACCESS JIT_FLAG_ALLOC JIT_FLAG_ARITH JIT_FLAG_BARRIER JIT_FLAG_BLOCKS JIT_FLAG_CALLS JIT_FLAG_DEOPT JIT_FLAG_EAGER JIT_FLAG_FLOAT JIT_FLAG_FUSE JIT_FLAG_GVN JIT_FLAG_HOIST JIT_FLAG_IC JIT_FLAG_INLINE JIT_FLAG_LAST JIT_FLAG_LIVE JIT_FLAG_MEGA JIT_FLAG_NOTES JIT_FLAG_PIC JIT_FLAG_PRIMS JIT_FLAG_QUICK JIT_FLAG_REGS JIT_FLAG_UNBOX JIT_MAX_COUNT JIT_MAX_MAP JIT_MAX_YOUNG JIT_NONE JIT_OPT JIT_PROLOGUE_BYTES JIT_PROLOGUE_BYTES_X64 JIT_TABLE_SIZE JM_DEAD JM_ENTRY JM_FAILED JM_NOTES JM_OSR'
 	package: 'VM-Jit'!
 
@@ -20,7 +20,7 @@ declarations
 		(sendPushed int32_t)
 		(performFn prim_fn) (performArgsFn prim_fn)
 		(statCompiled uint64_t) (statFailed uint64_t) (statBytecodes uint64_t) (statCompileUs uint64_t) (statCodeBytes uint64_t) (statCacheFlushes uint64_t)
-		(statEntries uint64_t) (statExits uint64_t) (statResumes uint64_t) (statOsr uint64_t) (copying bool) (bottomReturned bool))
+		(statEntries uint64_t) (statExits uint64_t) (statResumes uint64_t) (statOsr uint64_t) (copying bool) (bottomReturned bool) (perfMap 'FILE *'))
 !
 initialize
 	JIT_NONE := 0.
@@ -359,7 +359,47 @@ ensureOpen
 	stubs generate ifFalse: [^false].
 	cache keep.
 	cacheOpened := true.
+	self openPerfMap.
 	^true
+!
+openPerfMap
+	"With SAMALTAK_PERF_MAP set, /tmp/perf-<pid>.map (perf's map of JIT code) names the stubs, then the code as it is made."
+	<function>
+	| path end |
+	(libc getenv: 'SAMALTAK_PERF_MAP') isNull ifTrue: [^self].
+	path := self local: 'char[64]'.
+	libc snprintf: path size: 64 format: '/tmp/perf-%d.map' with: posix getpid.
+	perfMap := libc fopen: path mode: 'w'.
+	perfMap isNull ifTrue: [^self].
+	0 to: stubs symbolCount - 1 do: [:i |
+		end := i + 1 < stubs symbolCount ifTrue: [stubs symbolAddressAt: i + 1] ifFalse: [cache top].
+		libc fprintf: perfMap format: '%llx %llx stub:%s
+' with: (stubs symbolAddressAt: i) with: end - (stubs symbolAddressAt: i) with: (stubs symbolNameAt: i)].
+	libc fflush: perfMap
+!
+perfMapCode: h mode: md
+	"h's code in the perf map: bl:Class>>selector, opt: for optimized code (a block's or a loop's unit with its pc)."
+	<function>
+	<var: #h type: 'JitMethod *'>
+	libc fprintf: perfMap format: '%llx %x ' with: h codeStart with: h codeSize.
+	libc fputs: (md = JIT_OPT ifTrue: ['opt:'] ifFalse: ['bl:']) to: perfMap.
+	interpreter printClassName: (self loadRef: h method at: CM_CLASS) on: perfMap.
+	libc fputs: '>>' to: perfMap.
+	interpreter printSymbol: (self loadRef: h method at: CM_SELECTOR) on: perfMap.
+	md = JIT_OPT ifTrue: [
+		optimizer unitOsr > 0 ifTrue: [libc fprintf: perfMap format: ' [loop %d]' with: optimizer unitEntry].
+		(optimizer unitOsr = 0 and: [optimizer unitEntry > 0]) ifTrue: [libc fprintf: perfMap format: ' [block %d]' with: optimizer unitEntry]].
+	libc fputc: 10 to: perfMap.
+	libc fflush: perfMap
+!
+perfMapAt: start size: n name: name
+	"Other code (a polymorphic inline cache) in the perf map."
+	<function>
+	<var: #name type: 'const char *'>
+	perfMap isNull ifTrue: [^self].
+	libc fprintf: perfMap format: '%llx %llx %s
+' with: start with: n with: name.
+	libc fflush: perfMap
 ! !
 
 !JitRuntime methodsFor: 'state'!
@@ -709,7 +749,8 @@ compile: m mode: md notes: wantNotes
 	(self hasCode: h) ifTrue: [
 		statCompiled := statCompiled + 1.
 		statBytecodes := statBytecodes + analysis size asUInt64.
-		statCodeBytes := statCodeBytes + h codeSize].
+		statCodeBytes := statCodeBytes + h codeSize.
+		(perfMap notNull and: [copying not]) ifTrue: [self perfMapCode: h mode: md]].
 	"CPU time, the VM's: not charged to the running Process"
 	dt := scheduler threadCpuUs - t0.
 	statCompileUs := statCompileUs + dt asUInt64.

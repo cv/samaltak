@@ -1735,6 +1735,7 @@ int mode_named(char *name);
 void opt_methods_changed(oop sel);
 int64_t opt_stat(int32_t i);
 bool parse_flags(char *s);
+void perf_map_at(uint64_t start, uint64_t n, const char *name);
 int64_t primitive_number_named(char *name);
 uint64_t push_context(frame *f);
 void jit_runtime_resume(frame *f);

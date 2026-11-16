@@ -19,6 +19,7 @@ uint32_t map_pcs[32768];
 static uint16_t method_counts[65536];
 jit_method *method_table[65536];
 int32_t opt_counts[65536];
+static FILE *perf_map;
 prim_fn perform_args_fn;
 prim_fn perform_fn;
 int32_t send_pushed;
@@ -45,6 +46,8 @@ static jit_method *jit_runtime_finish(oop m, uint64_t start, int32_t md);
 static void flush_code(void);
 static uint64_t interrupt_frame(frame *f, bool at_entry);
 static bool no_opt_frames(void);
+static void open_perf_map(void);
+static void perf_map_code(jit_method *h, int32_t md);
 static void refresh_state(void);
 static int64_t slot_of(oop m);
 
@@ -640,6 +643,9 @@ jit_method *jit_runtime_compile(oop m, int32_t md, bool want_notes)
         stat_compiled = stat_compiled + 1;
         stat_bytecodes = stat_bytecodes + (uint64_t)bc_size;
         stat_code_bytes = stat_code_bytes + h->code_size;
+        if ((perf_map != NULL) && (!copying)) {
+            perf_map_code(h, md);
+        }
     }
     dt = thread_cpu_us() - t0;
     stat_compile_us = stat_compile_us + (uint64_t)dt;
@@ -709,6 +715,9 @@ jit_method *jit_runtime_compile(oop m, int32_t md, bool want_notes)
         stat_compiled = stat_compiled + 1;
         stat_bytecodes = stat_bytecodes + (uint64_t)bc_size;
         stat_code_bytes = stat_code_bytes + h->code_size;
+        if ((perf_map != NULL) && (!copying)) {
+            perf_map_code(h, md);
+        }
     }
     dt = thread_cpu_us() - t0;
     stat_compile_us = stat_compile_us + (uint64_t)dt;
@@ -1286,6 +1295,7 @@ bool ensure_open(void)
     }
     cache_base = cache_top;
     cache_opened = true;
+    open_perf_map();
     return true;
 }
 
@@ -1308,6 +1318,7 @@ bool ensure_open(void)
     }
     cache_base = cache_top;
     cache_opened = true;
+    open_perf_map();
     return true;
 }
 
@@ -2063,6 +2074,39 @@ static bool no_opt_frames(void)
     return true;
 }
 
+/* JitRuntime>>openPerfMap */
+static void open_perf_map(void)
+{
+    char local[64];
+    char *path;
+    int32_t i;
+    int32_t i_2;
+    uint64_t v;
+    uint64_t end;
+    if (getenv("SAMALTAK_PERF_MAP") == NULL) {
+        return;
+    }
+    memset(&local, 0, sizeof local);
+    path = local;
+    snprintf(path, 64, "/tmp/perf-%d.map", getpid());
+    perf_map = fopen(path, "w");
+    if (perf_map == NULL) {
+        return;
+    }
+    for (i = 0; i <= symbol_count - 1; i++) {
+        end = ({
+    if (i + 1 < symbol_count) {
+        i_2 = i + 1;
+        v = symbol_addrs[i_2];
+    } else {
+        v = cache_top;
+    }
+    v; });
+        fprintf(perf_map, "%llx %llx stub:%s\n", (unsigned long long)symbol_addrs[i], (unsigned long long)(end - symbol_addrs[i]), symbol_names[i]);
+    }
+    fflush(perf_map);
+}
+
 /* JitRuntime>>optMethodsChanged: */
 void opt_methods_changed(oop sel)
 {
@@ -2241,6 +2285,64 @@ exit_flag_named:;
         }
     }
     return true;
+}
+
+/* JitRuntime>>perfMapAt:size:name: */
+void perf_map_at(uint64_t start, uint64_t n, const char *name)
+{
+    if (perf_map == NULL) {
+        return;
+    }
+    fprintf(perf_map, "%llx %llx %s\n", (unsigned long long)start, (unsigned long long)n, name);
+    fflush(perf_map);
+}
+
+/* JitRuntime>>perfMapCode:mode: */
+static void perf_map_code(jit_method *h, int32_t md)
+{
+    oop o;
+    oop o_2;
+    int32_t r_unit_entry;
+    int32_t r_unit_entry_2;
+    int32_t r_unit_entry_3;
+    fprintf(perf_map, "%llx %x ", (unsigned long long)h->code_start, h->code_size);
+    fputs(md == JIT_OPT ? "opt:" : "bl:", perf_map);
+    o = h->method;
+    print_class_name(*(uint64_t *)(o + 16 + 8), perf_map);
+    fputs(">>", perf_map);
+    o_2 = h->method;
+    print_symbol(*(uint64_t *)(o_2 + 16 + 0), perf_map);
+    if (md == JIT_OPT) {
+        if (rt_unit_osr > 0) {
+            fprintf(perf_map, " [loop %d]", ({
+    if (rt_unit_osr > 0) {
+        r_unit_entry = (rt_unit_osr & 0xFFFF) - 1;
+        goto exit_unit_entry;
+    }
+    r_unit_entry = rt_unit_start;
+exit_unit_entry:;
+    r_unit_entry; }));
+        }
+        if ((rt_unit_osr == 0) && (({
+    if (rt_unit_osr > 0) {
+        r_unit_entry_2 = (rt_unit_osr & 0xFFFF) - 1;
+        goto exit_unit_entry_2;
+    }
+    r_unit_entry_2 = rt_unit_start;
+exit_unit_entry_2:;
+    r_unit_entry_2; }) > 0)) {
+            fprintf(perf_map, " [block %d]", ({
+    if (rt_unit_osr > 0) {
+        r_unit_entry_3 = (rt_unit_osr & 0xFFFF) - 1;
+        goto exit_unit_entry_3;
+    }
+    r_unit_entry_3 = rt_unit_start;
+exit_unit_entry_3:;
+    r_unit_entry_3; }));
+        }
+    }
+    fputc(10, perf_map);
+    fflush(perf_map);
 }
 
 /* JitRuntime>>primitiveNumberNamed: */

@@ -377,6 +377,10 @@ unitEntry
 	rtUnitOsr > 0 ifTrue: [^(rtUnitOsr bitAnd: 16rFFFF) - 1].
 	^rtUnitStart
 !
+unitOsr
+	"Not 0 while a loop's unit is being compiled."
+	^rtUnitOsr
+!
 optimize: m lower: h
 	"Compile m with the optimizer, link it to its lower-tier header h and install it; null if it could not."
 	<function>

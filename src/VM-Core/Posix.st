@@ -102,6 +102,11 @@ pthreadDetach: thread
 	^0
 ! !
 
+!Posix methodsFor: 'processes'!
+getpid
+	<c: 'pid_t getpid(void)'>
+	^1
+! !
 
 !Posix methodsFor: 'files'!
 realpath: path into: resolved
