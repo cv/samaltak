@@ -64,7 +64,11 @@ check "wait unknown condition exit code" "1" "$code"
 pid=$(sed -n 's/.*"pid": *\([0-9]*\).*/\1/p' "${TMPDIR:-/tmp}/samaltak-ctl/$SAMALTAK_SESSION.json" 2>/dev/null || true)
 $CTL close >/dev/null; code=$?
 check "close exit code" "0" "$code"
-if [ -n "$pid" ] && kill -0 "$pid" 2>/dev/null; then fail "VM $pid still running after close"; else pass "VM exited"; fi
+# Exited: gone, or a zombie (in a container whose init does not reap, the detached VM's parent is gone); allow 5 s.
+running() { [ -r "/proc/$1/stat" ] && [ "$(sed 's/.*) //' "/proc/$1/stat" | cut -d' ' -f1)" != Z ]; }
+i=0
+while [ -n "$pid" ] && running "$pid" && [ $i -lt 50 ]; do sleep 0.1; i=$((i + 1)); done
+if [ -n "$pid" ] && running "$pid"; then fail "VM $pid still running after close"; else pass "VM exited"; fi
 out=$($CTL eval '1' 2>&1); code=$?
 check "eval after close exit code" "1" "$code"
 
