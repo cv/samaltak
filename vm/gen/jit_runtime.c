@@ -2058,6 +2058,12 @@ int mode_named(char *name)
     return -1;
 }
 
+/* JitRuntime>>move:from:size: */
+void move(uint64_t dst, uint64_t src, uint64_t n)
+{
+    memmove((void *)dst, (void *)src, n);
+}
+
 /* JitRuntime>>noOptFrames */
 static bool no_opt_frames(void)
 {

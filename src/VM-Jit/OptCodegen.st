@@ -1344,6 +1344,10 @@ emitSend: n
 		slow := asm newLabel.
 		self emitAllocate: n slow: slow done: done.
 		asm bind: slow].
+	(nd flags bitAnd: NF_REPLACE) ~= 0 ifTrue: [
+		slow := asm newLabel.
+		self emitReplace: n slow: slow done: done.
+		asm bind: slow].
 	self saveAcross: n.
 	asm comment: 'receiver and arguments'.
 	0 to: argc do: [:i |
@@ -1403,8 +1407,8 @@ emitSend: n
 	asm comment: 'the result (x0)'.
 	self def: n from: X0.
 	self reloadAcross: n.
-	"only the allocation's fast path jumps here (a label resets what registers are known to hold)"
-	(nd flags bitAnd: NF_ALLOC) ~= 0 ifTrue: [asm bind: done]
+	"only the fast paths jump here (a label resets what registers are known to hold)"
+	(nd flags bitAnd: (NF_ALLOC bitOr: NF_REPLACE)) ~= 0 ifTrue: [asm bind: done]
 !
 emitSiteCall: n index: k
 	"An inline cache: x9 its class (megamorphic: the selector) from its literal, bl to its target, the miss stub while unlinked."
@@ -1452,6 +1456,120 @@ subFp: off
 		ifFalse: [
 			asm mov: X16 imm: off.
 			asm sub: X20 with: X20 with: X16]
+!
+emitReplace: n slow: slow done: done
+	"replaceFrom:to:with:startingAt: (NF_REPLACE: the receiver's elements bytes, NF_W32 32-bit words, NF_PTRS pointers) as its primitive does it (JitBaselineCompiler>>emitReplacePrimitive:), in x16, x17 and the scratch registers, its arguments read again where needed: the copy stub, the receiver the result; anything else the call (slow)."
+	| nd s args d e young old skip r |
+	nd := ir node: n.
+	s := (nd flags bitAnd: NF_PTRS) ~= 0 ifTrue: [3] ifFalse: [(nd flags bitAnd: NF_W32) ~= 0 ifTrue: [2] ifFalse: [0]].
+	args := nd args.
+	asm comment: 'replaceFrom:to:with:startingAt: stop (x17), start - 1 (x16): not below 0, stop not below it'.
+	self untag: (ir operand: args + 2) into: X17 slow: slow.
+	self untag: (ir operand: args + 1) into: X16 slow: slow.
+	asm subs: X16 with: X16 imm: 1.
+	asm b: slow if: COND_LT.
+	asm cmp: X17 with: X16.
+	asm b: slow if: COND_LT.
+	asm comment: 'the receiver: of its kind, not immutable, stop within it'.
+	d := self src: (ir operand: args) into: self scratchA.
+	asm ldr: self scratchB base: d offset: 0.
+	asm tst: self scratchB imm: H_IMMUTABLE.
+	asm b: slow if: COND_NE.
+	asm ubfx: X16 with: self scratchB lsb: H_FMT_SHIFT width: 5.
+	self emitKindCheck: X16 shift: s slow: slow.
+	s = 3 ifTrue: [
+		asm comment: 'young or remembered'.
+		young := asm newLabel.
+		old := asm newLabel.
+		asm ldr: X16 base: X22 offset: self youngLoOffset.
+		asm cmp: d with: X16.
+		asm b: old if: COND_LO.
+		asm ldr: X16 base: X22 offset: self youngHiOffset.
+		asm cmp: d with: X16.
+		asm b: young if: COND_LO.
+		asm bind: old.
+		asm tst: self scratchB imm: H_REMEMBERED.
+		asm b: slow if: COND_EQ.
+		asm bind: young].
+	self emitElementsOf: d shift: s into: self scratchB temp: X16.
+	asm cmp: X17 with: self scratchB.
+	asm b: slow if: COND_GT.
+	asm comment: 'the replacement: an object of the receiver''s kind; its start - 1 (x16) not below 0, n from it within it'.
+	e := self src: (ir operand: args + 3) into: self scratchB.
+	asm tst: e imm: 7.
+	asm b: slow if: COND_NE.
+	asm ldr: X17 base: e offset: 0.
+	asm ubfx: X17 with: X17 lsb: H_FMT_SHIFT width: 5.
+	self emitKindCheck: X17 shift: s slow: slow.
+	self emitElementsOf: e shift: s into: X17 temp: X16.
+	self untag: (ir operand: args + 4) into: X16 slow: slow.
+	asm subs: X16 with: X16 imm: 1.
+	asm b: slow if: COND_LT.
+	asm sub: X17 with: X17 with: X16.
+	self untag: (ir operand: args + 2) into: X16 slow: slow.
+	asm sub: X17 with: X17 with: X16.
+	self untag: (ir operand: args + 1) into: X16 slow: slow.
+	asm add: X17 with: X17 with: X16.
+	asm subs: X17 with: X17 imm: 1.
+	asm b: slow if: COND_LT.
+	asm comment: 'the copy stub: x16 the receiver''s elements from start, x17 the replacement''s from its start, n << %d bytes' with: s.
+	skip := asm newLabel.
+	self untag: (ir operand: args + 4) into: X17 slow: slow.
+	asm add: X17 with: e with: X17 shift: SHIFT_LSL amount: s.
+	asm add: X17 with: X17 imm: 16 - (1 << s).
+	self untag: (ir operand: args + 2) into: self scratchB slow: slow.
+	self untag: (ir operand: args + 1) into: X16 slow: slow.
+	asm sub: self scratchB with: self scratchB with: X16.
+	asm adds: self scratchB with: self scratchB imm: 1.
+	d := self src: (ir operand: args) into: self scratchA.
+	asm add: X16 with: d with: X16 shift: SHIFT_LSL amount: s.
+	asm add: X16 with: X16 imm: 16 - (1 << s).
+	asm cbz: self scratchB to: skip.
+	s = 0
+		ifTrue: [asm mov: stubs copyCountRegister with: self scratchB]
+		ifFalse: [asm lsl: stubs copyCountRegister with: self scratchB imm: s].
+	asm bl: (asm labelAt: stubs blCopyStub).
+	self reloadDoublesAcross: n.
+	asm bind: skip.
+	asm comment: 'the receiver the result'.
+	r := self dst: n.
+	d := self src: (ir operand: args) into: r.
+	d ~= r ifTrue: [asm mov: r with: d].
+	self def: n from: r.
+	asm b: done
+!
+emitKindCheck: f shift: s slow: slow
+	"Unless format f is one of elements of 1 << s bytes (bytes, 32-bit words, pointers without fixed fields): slow."
+	s = 0 ifTrue: [
+		asm cmp: f imm: F_BYTES.
+		^asm b: slow if: COND_LO].
+	s = 2 ifTrue: [
+		asm cmp: f imm: F_W32.
+		asm b: slow if: COND_LO.
+		asm cmp: f imm: F_W32 + 1.
+		^asm b: slow if: COND_HI].
+	asm cmp: f imm: F_VAR.
+	asm b: slow if: COND_NE
+!
+untag: v into: r slow: slow
+	"r := the value of v, a SmallInteger; anything else: slow."
+	| nd x |
+	nd := ir node: v.
+	nd op asInt32 = O_CONST ifTrue: [
+		(self isInt: nd aux asUInt64) ifFalse: [^asm b: slow].
+		^asm mov: r imm: (self intVal: nd aux asUInt64)].
+	x := self src: v into: r.
+	nd tkind asInt32 = T_SMI ifFalse: [asm tbz: x bit: 0 to: slow].
+	asm asr: r with: x imm: 1
+!
+emitElementsOf: x shift: s into: r temp: t
+	"r := the elements of x, an object of 1 << s byte elements (bytes and 32-bit words: less the format's unused ones)."
+	asm ldr: (r bitOr: REG_W) base: x offset: 0.
+	s = 3 ifTrue: [^self].
+	asm lsl: r with: r imm: 3 - s.
+	asm ldrb: (t bitOr: REG_W) base: x offset: 4.
+	asm and: t with: t imm: (s = 0 ifTrue: [7] ifFalse: [1]).
+	asm sub: r with: r with: t
 !
 emitAllocate: n slow: slow done: done
 	"basicNew(:) in eden: header (slots, format, a hash from the JitState's seed), class, nil fields; no room, the sample's limit or an odd size: the send (slow)."
@@ -1548,6 +1666,14 @@ reloadAcross: n
 		v := regalloc safeLiveAt: i.
 		nd := ir node: v.
 		(nd reg >= 0 and: [nd slot >= 0]) ifTrue: [self load: nd reg asInt32 slot: nd slot asInt32]]
+!
+reloadDoublesAcross: n
+	"The doubles live after call n are in their d registers again, from their raw slots (stored where they are defined): its fast path called C, which keeps no d register."
+	| v nd |
+	(ir node: n) live to: (ir node: n) live + (ir node: n) nlive - 1 do: [:i |
+		v := regalloc safeLiveAt: i.
+		nd := ir node: v.
+		(nd reg >= D0 and: [nd slot >= 0]) ifTrue: [self load: nd reg asInt32 slot: nd slot asInt32]]
 ! !
 
 !OptCodegen methodsFor: 'phi moves'!

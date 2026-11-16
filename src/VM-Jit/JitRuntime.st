@@ -504,6 +504,9 @@ widowFunction
 writeBarrierFunction
 	^self cCoerce: (self functionPointer: #writeBarrier:value:) to: 'uint64_t'
 !
+moveFunction
+	^self cCoerce: (self functionPointer: #move:from:size:) to: 'uint64_t'
+!
 tierUpFunction
 	^self cCoerce: (self functionPointer: #tierUp:loop:) to: 'uint64_t'
 !
@@ -1479,6 +1482,14 @@ writeBarrier: o value: v
 	((self isPtr: v) and: [(self isYoung: v) and: [(self isYoung: o) not and: [((self header: o) bitAnd: H_REMEMBERED) = 0]]])
 		ifTrue: [gc remember: o].
 	^0
+!
+move: dst from: src size: n
+	"The copy stub's long copies: memmove."
+	<function>
+	<var: #dst type: 'uint64_t'>
+	<var: #src type: 'uint64_t'>
+	<var: #n type: 'uint64_t'>
+	libc memmove: (self ptr: dst) from: (self ptr: src) size: n
 ! !
 
 !JitRuntime methodsFor: 'statistics'!

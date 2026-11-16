@@ -1024,7 +1024,8 @@ emitPrimitive
 		(k = brt pkStringAt and: [curArgs = 1]) ifTrue: [self emitStringPrimitive: false fail: fail].
 		(k = brt pkStringAtPut and: [curArgs = 2]) ifTrue: [self emitStringPrimitive: true fail: fail].
 		k = brt pkStringCompare ifTrue: [self emitStringComparePrimitive: fail].
-		k = brt pkHash ifTrue: [self emitHashPrimitive: fail]].
+		k = brt pkHash ifTrue: [self emitHashPrimitive: fail].
+		(k = brt pkReplace and: [curArgs = 4]) ifTrue: [self emitReplacePrimitive: fail]].
 	k = brt pkMarker ifTrue: [^true].
 	asm bind: fail.
 	asm comment: 'the primitive''s C function: success returns to the sender, failure continues here'.
@@ -1486,6 +1487,120 @@ emitStringComparePrimitive: fail
 	asm mov: X0 imm: (self intOop: 0).
 	asm cmp: X10 with: X14.
 	asm b: differ if: COND_NE.
+	asm ret
+!
+emitReplacePrimitive: fail
+	"replaceFrom:to:with:startingAt: (start, stop, the replacement and its start in slots 0-3) of bytes, 32-bit words or indexable pointers without fixed fields from an object of the same kind, within both: the copy stub (memmove's semantics). An immutable receiver, an old pointer receiver not remembered yet (the C function remembers it), anything else: the C function."
+	<function>
+	| words ptrs young |
+	words := asm newLabel.
+	ptrs := asm newLabel.
+	young := asm newLabel.
+	asm comment: 'primitive replaceFrom:to:with:startingAt: the receiver not immutable, the replacement an object'.
+	asm tst: X0 imm: 7.
+	asm b: fail if: COND_NE.
+	asm ldr: X9 base: X0 offset: 0.
+	asm tbnz: X9 bit: 59 to: fail.
+	asm ldr: X1 base: X20 offset: (self slot: 2).
+	asm tst: X1 imm: 7.
+	asm b: fail if: COND_NE.
+	asm ldr: X2 base: X1 offset: 0.
+	asm comment: 'start, stop and the replacement''s start: SmallIntegers (x3, x4, x5)'.
+	asm ldr: X3 base: X20 offset: (self slot: 0).
+	asm tbz: X3 bit: 0 to: fail.
+	asm ldr: X4 base: X20 offset: (self slot: 1).
+	asm tbz: X4 bit: 0 to: fail.
+	asm ldr: X5 base: X20 offset: (self slot: 3).
+	asm tbz: X5 bit: 0 to: fail.
+	asm asr: X3 with: X3 imm: 1.
+	asm asr: X4 with: X4 imm: 1.
+	asm asr: X5 with: X5 imm: 1.
+	asm comment: 'formats (x10, x11) and sizes (x9, x2) of both'.
+	asm ubfx: X10 with: X9 lsb: H_FMT_SHIFT width: 5.
+	asm ubfx: X11 with: X2 lsb: H_FMT_SHIFT width: 5.
+	asm ubfx: X9 with: X9 lsb: 0 width: 32.
+	asm ubfx: X2 with: X2 lsb: 0 width: 32.
+	asm cmp: X10 imm: F_BYTES.
+	asm b: words if: COND_LO.
+	asm comment: 'bytes from bytes: slots * 8 - (format - 16)'.
+	asm cmp: X11 imm: F_BYTES.
+	asm b: fail if: COND_LO.
+	asm lsl: X9 with: X9 imm: 3.
+	asm sub: X9 with: X9 with: X10.
+	asm add: X9 with: X9 imm: F_BYTES.
+	asm lsl: X2 with: X2 imm: 3.
+	asm sub: X2 with: X2 with: X11.
+	asm add: X2 with: X2 imm: F_BYTES.
+	self emitReplaceShift: 0 fail: fail.
+	asm bind: words.
+	asm cmp: X10 imm: F_W32.
+	asm b: ptrs if: COND_LO.
+	asm cmp: X10 imm: F_W32 + 1.
+	asm b: fail if: COND_HI.
+	asm comment: '32-bit words from 32-bit words: slots * 2 - (format - 10)'.
+	asm cmp: X11 imm: F_W32.
+	asm b: fail if: COND_LO.
+	asm cmp: X11 imm: F_W32 + 1.
+	asm b: fail if: COND_HI.
+	asm lsl: X9 with: X9 imm: 1.
+	asm sub: X9 with: X9 with: X10.
+	asm add: X9 with: X9 imm: F_W32.
+	asm lsl: X2 with: X2 imm: 1.
+	asm sub: X2 with: X2 with: X11.
+	asm add: X2 with: X2 imm: F_W32.
+	self emitReplaceShift: 2 fail: fail.
+	asm bind: ptrs.
+	asm comment: 'pointers from pointers, no fixed fields'.
+	asm cmp: X10 imm: F_VAR.
+	asm b: fail if: COND_NE.
+	asm cmp: X11 imm: F_VAR.
+	asm b: fail if: COND_NE.
+	asm comment: 'a young receiver or a remembered one'.
+	asm ldp: X16 with: X17 base: X22 offset: self youngLoOffset.
+	asm sub: X10 with: X0 with: X16.
+	asm sub: X17 with: X17 with: X16.
+	asm cmp: X10 with: X17.
+	asm b: young if: COND_LO.
+	asm ldr: X16 base: X0 offset: 0.
+	asm tst: X16 imm: H_REMEMBERED.
+	asm b: fail if: COND_EQ.
+	asm bind: young.
+	self emitReplaceShift: 3 fail: fail
+!
+emitReplaceShift: s fail: fail
+	"The rest of replaceFrom:to:with:startingAt: for elements of 1 << s bytes: start, stop and the replacement's start in x3, x4, x5, the sizes of receiver and replacement in x9, x2."
+	| done |
+	done := asm newLabel.
+	asm comment: 'start >= 1; n := stop - start + 1 (x16): none, done; fewer, the C function'.
+	asm cmp: X3 imm: 1.
+	asm b: fail if: COND_LT.
+	asm sub: X16 with: X4 with: X3.
+	asm add: X16 with: X16 imm: 1.
+	asm cbz: X16 to: done.
+	asm tbnz: X16 bit: 63 to: fail.
+	asm comment: 'stop within the receiver, the replacement''s n from its start within it'.
+	asm cmp: X4 with: X9.
+	asm b: fail if: COND_GT.
+	asm cmp: X5 imm: 1.
+	asm b: fail if: COND_LT.
+	asm add: X17 with: X5 with: X16.
+	asm sub: X17 with: X17 imm: 1.
+	asm cmp: X17 with: X2.
+	asm b: fail if: COND_GT.
+	asm comment: 'the copy stub: x16 the destination, x17 the source, n << %d bytes' with: s.
+	s = 0
+		ifTrue: [asm mov: stubs copyCountRegister with: X16]
+		ifFalse: [asm lsl: stubs copyCountRegister with: X16 imm: s].
+	asm sub: X3 with: X3 imm: 1.
+	asm add: X16 with: X0 with: X3 shift: SHIFT_LSL amount: s.
+	asm add: X16 with: X16 imm: 16.
+	asm sub: X5 with: X5 imm: 1.
+	asm add: X17 with: X1 with: X5 shift: SHIFT_LSL amount: s.
+	asm add: X17 with: X17 imm: 16.
+	asm str: X30 base: SP preIndex: -16.
+	asm bl: (asm labelAt: stubs blCopyStub).
+	asm ldr: X30 base: SP postIndex: 16.
+	asm bind: done.
 	asm ret
 !
 emitCharFromValuePrimitive: fail

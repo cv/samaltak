@@ -368,7 +368,10 @@ typedef void (*prim_fn)(void);
 #define NF_GUARD 4
 #define NF_HOISTED 64
 #define NF_LAZY 32
+#define NF_PTRS 512
 #define NF_PURE 1
+#define NF_REPLACE 128
+#define NF_W32 256
 #define OA_BLOCK 8
 #define OA_LOOP 4
 #define OA_START 1
@@ -385,6 +388,7 @@ typedef void (*prim_fn)(void);
 #define OPK_INT 32
 #define OPK_NEW 9
 #define OPK_NEWSIZE 10
+#define OPK_REPLACE 14
 #define OPK_SIZE 3
 #define OPK_STRINGAT 4
 #define OPK_STRINGATPUT 5
@@ -554,6 +558,7 @@ typedef void (*prim_fn)(void);
 #define PK_MARKER 2
 #define PK_NONE 0
 #define PK_PERFORM 1
+#define PK_REPLACE 21
 #define PK_STRING_AT 19
 #define PK_STRING_AT_PUT 20
 #define PK_STRING_COMPARE 18
@@ -1328,6 +1333,7 @@ extern int64_t table_count;
 extern uint64_t barrier_stub;
 extern uint64_t bl_block;
 extern uint64_t bl_box;
+extern uint64_t bl_copy;
 extern uint64_t bl_enter;
 extern uint64_t bl_entry_slow;
 extern uint64_t bl_exit_sync;
@@ -1483,6 +1489,7 @@ uint64_t branch_target_at(uint64_t site);
 #if defined(__x86_64__)
 void branch_to(int32_t a_label);
 void call_c(uint64_t function);
+void call_c_from_send(uint64_t function);
 int amd64_assembler_cc(int64_t c);
 void amd64_assembler_cmp_any_imm(int64_t rn, int64_t imm);
 void amd64_assembler_cmp_any_with(int64_t rn, int64_t rm);
@@ -1733,6 +1740,7 @@ void methods_changed(void);
 void methods_changed_for(oop sel);
 char *mode_name(int32_t m);
 int mode_named(char *name);
+void move(uint64_t dst, uint64_t src, uint64_t n);
 void opt_methods_changed(oop sel);
 int64_t opt_stat(int32_t i);
 bool parse_flags(char *s);

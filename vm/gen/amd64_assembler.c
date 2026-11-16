@@ -1004,6 +1004,217 @@ exit_op_4:;
     asm_flags = X64_FL_NONE;
 }
 
+/* Amd64Assembler>>callCFromSend: */
+void call_c_from_send(uint64_t function)
+{
+    uint64_t v;
+    int64_t n;
+    int64_t n_2;
+    uint64_t v_2;
+    int64_t n_3;
+    int64_t n_4;
+    uint64_t v_3;
+    int64_t n_5;
+    int64_t n_6;
+    uint64_t v_4;
+    int64_t n_7;
+    uint64_t tail;
+    int64_t tn;
+    uint64_t v_5;
+    int64_t n_8;
+    uint64_t v_6;
+    int64_t n_9;
+    int64_t n_10;
+    uint64_t v_7;
+    int64_t n_11;
+    uint64_t tail_2;
+    int64_t tn_2;
+    uint64_t v_8;
+    int64_t n_12;
+    uint64_t v_9;
+    int64_t n_13;
+    int64_t n_14;
+    v = 0ULL;
+    n = 0;
+    v = v | (76LL << (8 * n));
+    n = n + 1;
+    v = v | (139LL << (8 * n));
+    n = n + 1;
+    v = v | (220LL << (8 * n));
+    n_2 = n + 1;
+    if (asm_pc + 8 <= asm_limit) {
+        *(uint64_t *)asm_pc = v;
+        asm_pc = asm_pc + n_2;
+    } else if (asm_error == ASM_OK) {
+        asm_error = ASM_ERR_FULL;
+    }
+    v_2 = 0ULL;
+    n_3 = 0;
+    v_2 = v_2 | (72LL << (8 * n_3));
+    n_3 = n_3 + 1;
+    v_2 = v_2 | (131LL << (8 * n_3));
+    n_3 = n_3 + 1;
+    v_2 = v_2 | (228LL << (8 * n_3));
+    n_3 = n_3 + 1;
+    v_2 = v_2 | (240LL << (8 * n_3));
+    n_4 = n_3 + 1;
+    if (asm_pc + 8 <= asm_limit) {
+        *(uint64_t *)asm_pc = v_2;
+        asm_pc = asm_pc + n_4;
+    } else if (asm_error == ASM_OK) {
+        asm_error = ASM_ERR_FULL;
+    }
+    v_3 = 0ULL;
+    n_5 = 0;
+    v_3 = v_3 | (72LL << (8 * n_5));
+    n_5 = n_5 + 1;
+    v_3 = v_3 | (131LL << (8 * n_5));
+    n_5 = n_5 + 1;
+    v_3 = v_3 | (236LL << (8 * n_5));
+    n_5 = n_5 + 1;
+    v_3 = v_3 | (16LL << (8 * n_5));
+    n_6 = n_5 + 1;
+    if (asm_pc + 8 <= asm_limit) {
+        *(uint64_t *)asm_pc = v_3;
+        asm_pc = asm_pc + n_6;
+    } else if (asm_error == ASM_OK) {
+        asm_error = ASM_ERR_FULL;
+    }
+    v_4 = 0ULL;
+    n_7 = 0;
+    v_4 = v_4 | (76LL << (8 * n_7));
+    n_7 = n_7 + 1;
+    v_4 = v_4 | (137LL << (8 * n_7));
+    n_7 = n_7 + 1;
+    v_4 = v_4 | (92LL << (8 * n_7));
+    n_7 = n_7 + 1;
+    v_4 = v_4 | (36LL << (8 * n_7));
+    n_7 = n_7 + 1;
+    tail = 0ULL;
+    tn = 0;
+    tail = 8ULL;
+    tn = 1;
+    if (tn == 0) {
+        if (asm_pc + 8 <= asm_limit) {
+            *(uint64_t *)asm_pc = v_4;
+            asm_pc = asm_pc + n_7;
+        } else if (asm_error == ASM_OK) {
+            asm_error = ASM_ERR_FULL;
+        }
+        goto exit_op;
+    }
+    if (n_7 + tn <= 8) {
+        v_5 = v_4 | (tail << (8 * n_7));
+        n_8 = n_7 + tn;
+        if (asm_pc + 8 <= asm_limit) {
+            *(uint64_t *)asm_pc = v_5;
+            asm_pc = asm_pc + n_8;
+        } else if (asm_error == ASM_OK) {
+            asm_error = ASM_ERR_FULL;
+        }
+    } else {
+        if (asm_pc + 8 <= asm_limit) {
+            *(uint64_t *)asm_pc = v_4;
+            asm_pc = asm_pc + n_7;
+        } else if (asm_error == ASM_OK) {
+            asm_error = ASM_ERR_FULL;
+        }
+        if (asm_pc + 8 <= asm_limit) {
+            *(uint64_t *)asm_pc = tail;
+            asm_pc = asm_pc + tn;
+        } else if (asm_error == ASM_OK) {
+            asm_error = ASM_ERR_FULL;
+        }
+    }
+exit_op:;
+    if (asm_pc + 8 <= asm_limit) {
+        *(uint64_t *)asm_pc = 47176ULL;
+        asm_pc = asm_pc + 2;
+    } else if (asm_error == ASM_OK) {
+        asm_error = ASM_ERR_FULL;
+    }
+    if (asm_pc + 8 <= asm_limit) {
+        *(uint64_t *)asm_pc = function;
+        asm_pc = asm_pc + 8;
+    } else if (asm_error == ASM_OK) {
+        asm_error = ASM_ERR_FULL;
+    }
+    v_6 = 0ULL;
+    n_9 = 0;
+    v_6 = v_6 | (255LL << (8 * n_9));
+    n_9 = n_9 + 1;
+    v_6 = v_6 | (208LL << (8 * n_9));
+    n_10 = n_9 + 1;
+    if (asm_pc + 8 <= asm_limit) {
+        *(uint64_t *)asm_pc = v_6;
+        asm_pc = asm_pc + n_10;
+    } else if (asm_error == ASM_OK) {
+        asm_error = ASM_ERR_FULL;
+    }
+    v_7 = 0ULL;
+    n_11 = 0;
+    v_7 = v_7 | (72LL << (8 * n_11));
+    n_11 = n_11 + 1;
+    v_7 = v_7 | (139LL << (8 * n_11));
+    n_11 = n_11 + 1;
+    v_7 = v_7 | (100LL << (8 * n_11));
+    n_11 = n_11 + 1;
+    v_7 = v_7 | (36LL << (8 * n_11));
+    n_11 = n_11 + 1;
+    tail_2 = 0ULL;
+    tn_2 = 0;
+    tail_2 = 8ULL;
+    tn_2 = 1;
+    if (tn_2 == 0) {
+        if (asm_pc + 8 <= asm_limit) {
+            *(uint64_t *)asm_pc = v_7;
+            asm_pc = asm_pc + n_11;
+        } else if (asm_error == ASM_OK) {
+            asm_error = ASM_ERR_FULL;
+        }
+        goto exit_op_2;
+    }
+    if (n_11 + tn_2 <= 8) {
+        v_8 = v_7 | (tail_2 << (8 * n_11));
+        n_12 = n_11 + tn_2;
+        if (asm_pc + 8 <= asm_limit) {
+            *(uint64_t *)asm_pc = v_8;
+            asm_pc = asm_pc + n_12;
+        } else if (asm_error == ASM_OK) {
+            asm_error = ASM_ERR_FULL;
+        }
+    } else {
+        if (asm_pc + 8 <= asm_limit) {
+            *(uint64_t *)asm_pc = v_7;
+            asm_pc = asm_pc + n_11;
+        } else if (asm_error == ASM_OK) {
+            asm_error = ASM_ERR_FULL;
+        }
+        if (asm_pc + 8 <= asm_limit) {
+            *(uint64_t *)asm_pc = tail_2;
+            asm_pc = asm_pc + tn_2;
+        } else if (asm_error == ASM_OK) {
+            asm_error = ASM_ERR_FULL;
+        }
+    }
+exit_op_2:;
+    v_9 = 0ULL;
+    n_13 = 0;
+    v_9 = v_9 | (72LL << (8 * n_13));
+    n_13 = n_13 + 1;
+    v_9 = v_9 | (139LL << (8 * n_13));
+    n_13 = n_13 + 1;
+    v_9 = v_9 | (248LL << (8 * n_13));
+    n_14 = n_13 + 1;
+    if (asm_pc + 8 <= asm_limit) {
+        *(uint64_t *)asm_pc = v_9;
+        asm_pc = asm_pc + n_14;
+    } else if (asm_error == ASM_OK) {
+        asm_error = ASM_ERR_FULL;
+    }
+    asm_flags = X64_FL_NONE;
+}
+
 /* Amd64Assembler>>cc: */
 int amd64_assembler_cc(int64_t c)
 {

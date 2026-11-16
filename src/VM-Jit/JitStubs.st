@@ -1,5 +1,5 @@
 JitCompiler subclass: #JitStubs
-	instanceVariableNames: 'exitPlainAddr interruptStub entryInterruptStub closureStub contextStub contextFieldStub makeArrayStub widowStub barrierStub tierUpStub optDeoptStub optDeoptReturnStub optStackFullStub optReturnStub blEnter blExitSync blMiss blBlock blMega blPerform blEntrySlow blPrim blRemember blReturnSlow blBox blSent symbolAddrs symbolNames symbolCount'
+	instanceVariableNames: 'exitPlainAddr interruptStub entryInterruptStub closureStub contextStub contextFieldStub makeArrayStub widowStub barrierStub tierUpStub optDeoptStub optDeoptReturnStub optStackFullStub optReturnStub blEnter blExitSync blMiss blBlock blMega blPerform blEntrySlow blPrim blRemember blReturnSlow blBox blSent blCopy symbolAddrs symbolNames symbolCount'
 	classVariableNames: 'STUB_MAX_SYMBOLS'
 	package: 'VM-Jit'!
 
@@ -14,7 +14,7 @@ declarations
 	^#((exitPlainAddr uint64_t)
 		(interruptStub uint64_t) (entryInterruptStub uint64_t) (closureStub uint64_t) (contextStub uint64_t) (contextFieldStub uint64_t) (makeArrayStub uint64_t)
 		(widowStub uint64_t) (barrierStub uint64_t) (tierUpStub uint64_t) (optDeoptStub uint64_t) (optDeoptReturnStub uint64_t) (optStackFullStub uint64_t) (optReturnStub uint64_t)
-		(blEnter uint64_t) (blExitSync uint64_t) (blMiss uint64_t) (blBlock uint64_t) (blMega uint64_t) (blPerform uint64_t) (blEntrySlow uint64_t) (blPrim uint64_t) (blRemember uint64_t) (blReturnSlow uint64_t) (blBox uint64_t) (blSent uint64_t)
+		(blEnter uint64_t) (blExitSync uint64_t) (blMiss uint64_t) (blBlock uint64_t) (blMega uint64_t) (blPerform uint64_t) (blEntrySlow uint64_t) (blPrim uint64_t) (blRemember uint64_t) (blReturnSlow uint64_t) (blBox uint64_t) (blSent uint64_t) (blCopy uint64_t)
 		(symbolAddrs 'uint64_t[STUB_MAX_SYMBOLS]') (symbolNames 'const char *[STUB_MAX_SYMBOLS]') (symbolCount int32_t))
 !
 initialize
@@ -90,6 +90,16 @@ blPrimStub
 !
 blRememberStub
 	^blRemember
+!
+blCopyStub
+	^blCopy
+!
+copyCountRegister
+	"The copy stub's byte count: the code generators' first scratch register (x14; on x86 x10, r14)."
+	^asm isX64 ifTrue: [X10] ifFalse: [X14]
+!
+copyTempRegister
+	^asm isX64 ifTrue: [X11] ifFalse: [X15]
 !
 blReturnSlowStub
 	^blReturnSlow
@@ -401,7 +411,7 @@ generateBaselineX64
 	asm str: X16 base: X22 offset: self primRetOffset.
 	asm mov: X1 with: X20.
 	asm mov: X0 with: X19.
-	asm callC: brt primFunction.
+	asm callCFromSend: brt primFunction.
 	asm cbnz: X0 to: lnot.
 	asm ldr: X0 base: X22 offset: self resultOffset.
 	asm ret.
@@ -423,6 +433,173 @@ generateBaselineX64
 	blReturnSlow := self stubX64: brt returnSlowFunction named: 'baseline return slow path'.
 	blBox := self stubX64: brt boxFunction named: 'baseline box Float'.
 	blSent := self symbol: 'sent by the runtime'.
+	asm ret.
+	self emitCopyStub
+!
+emitCopyStub
+	"memmove of x16 := the destination, x17 := the source and the count register's bytes (not 0; copyCountRegister, copyTempRegister): x16, x17, those two, the flags and the d registers C does not keep change, nothing else. Up to 16 bytes with two loads (the first and the last 8, 4, 2 bytes, overlapping), then two stores; up to 64 bytes in words (32 bytes a turn while they last), then the rest, from the end down if the destination overlaps the source from above; longer copies call memmove (its callers are primitives, entered by sends, and optimized code's calls, whose doubles are loaded again after it: on x86-64 xmm8-xmm15 are not kept either)."
+	| c t back long fwd32 fwd bwd32 bwd fwdTail backTail f2 f1 b2 b1 done medium |
+	c := self copyCountRegister.
+	t := self copyTempRegister.
+	medium := asm newLabel.
+	back := asm newLabel.
+	long := asm newLabel.
+	fwd32 := asm newLabel.
+	fwd := asm newLabel.
+	bwd32 := asm newLabel.
+	bwd := asm newLabel.
+	fwdTail := asm newLabel.
+	backTail := asm newLabel.
+	f2 := asm newLabel.
+	f1 := asm newLabel.
+	b2 := asm newLabel.
+	b1 := asm newLabel.
+	done := asm newLabel.
+	blCopy := self symbol: 'copy'.
+	asm cmp: c imm: 16.
+	asm b: medium if: COND_HI.
+	self emitSmallCopy.
+	asm bind: medium.
+	asm cmp: c imm: 64.
+	asm b: long if: COND_HI.
+	asm sub: t with: X16 with: X17.
+	asm cmp: t with: c.
+	asm b: back if: COND_LO.
+	asm add: c with: X17 with: c.
+	asm bind: fwd32.
+	asm sub: t with: c with: X17.
+	asm cmp: t imm: 32.
+	asm b: fwd if: COND_LO.
+	0 to: 3 do: [:i |
+		asm ldr: t base: X17 offset: 8 * i.
+		asm str: t base: X16 offset: 8 * i].
+	asm add: X17 with: X17 imm: 32.
+	asm add: X16 with: X16 imm: 32.
+	asm b: fwd32.
+	asm bind: fwd.
+	asm sub: t with: c with: X17.
+	asm cmp: t imm: 8.
+	asm b: fwdTail if: COND_LO.
+	asm ldr: t base: X17 postIndex: 8.
+	asm str: t base: X16 postIndex: 8.
+	asm b: fwd.
+	asm bind: fwdTail.
+	asm tbz: t bit: 2 to: f2.
+	asm ldr: (c bitOr: REG_W) base: X17 postIndex: 4.
+	asm str: (c bitOr: REG_W) base: X16 postIndex: 4.
+	asm bind: f2.
+	asm tbz: t bit: 1 to: f1.
+	asm ldrh: (c bitOr: REG_W) base: X17 offset: 0.
+	asm strh: (c bitOr: REG_W) base: X16 offset: 0.
+	asm add: X17 with: X17 imm: 2.
+	asm add: X16 with: X16 imm: 2.
+	asm bind: f1.
+	asm tbz: t bit: 0 to: done.
+	asm ldrb: (c bitOr: REG_W) base: X17 offset: 0.
+	asm strb: (c bitOr: REG_W) base: X16 offset: 0.
+	asm b: done.
+	asm bind: back.
+	asm mov: t with: X17.
+	asm add: X17 with: X17 with: c.
+	asm add: X16 with: X16 with: c.
+	asm mov: c with: t.
+	asm bind: bwd32.
+	asm sub: t with: X17 with: c.
+	asm cmp: t imm: 32.
+	asm b: bwd if: COND_LO.
+	1 to: 4 do: [:i |
+		asm ldr: t base: X17 offset: -8 * i.
+		asm str: t base: X16 offset: -8 * i].
+	asm sub: X17 with: X17 imm: 32.
+	asm sub: X16 with: X16 imm: 32.
+	asm b: bwd32.
+	asm bind: bwd.
+	asm sub: t with: X17 with: c.
+	asm cmp: t imm: 8.
+	asm b: backTail if: COND_LO.
+	asm ldr: t base: X17 preIndex: -8.
+	asm str: t base: X16 preIndex: -8.
+	asm b: bwd.
+	asm bind: backTail.
+	asm tbz: t bit: 2 to: b2.
+	asm ldr: (c bitOr: REG_W) base: X17 preIndex: -4.
+	asm str: (c bitOr: REG_W) base: X16 preIndex: -4.
+	asm bind: b2.
+	asm tbz: t bit: 1 to: b1.
+	asm sub: X17 with: X17 imm: 2.
+	asm sub: X16 with: X16 imm: 2.
+	asm ldrh: (c bitOr: REG_W) base: X17 offset: 0.
+	asm strh: (c bitOr: REG_W) base: X16 offset: 0.
+	asm bind: b1.
+	asm tbz: t bit: 0 to: done.
+	asm ldurb: (c bitOr: REG_W) base: X17 offset: -1.
+	asm sturb: (c bitOr: REG_W) base: X16 offset: -1.
+	asm bind: done.
+	asm ret.
+	asm bind: long.
+	asm isX64
+		ifTrue: [
+			"C keeps rbx, rbp, r12-r15 (x17, x10, x11 among them)"
+			0 to: 5 do: [:r | asm push: r].
+			asm push: X9.
+			asm mov: X0 with: X16.
+			asm mov: X1 with: X17.
+			asm mov: X2 with: c.
+			asm callCFromSend: runtime moveFunction.
+			asm pop: X9.
+			5 to: 0 by: -1 do: [:r | asm pop: r]]
+		ifFalse: [
+			asm stp: X29 with: X30 base: SP preIndex: -128.
+			0 to: 6 do: [:i | asm stp: 2 * i with: 2 * i + 1 base: SP offset: 16 + (16 * i)].
+			asm mov: X0 with: X16.
+			asm mov: X1 with: X17.
+			asm mov: X2 with: c.
+			asm mov: X16 imm64: runtime moveFunction.
+			asm blr: X16.
+			0 to: 6 do: [:i | asm ldp: 2 * i with: 2 * i + 1 base: SP offset: 16 + (16 * i)].
+			asm ldp: X29 with: X30 base: SP postIndex: 128].
+	asm ret
+!
+emitSmallCopy
+	"The copy stub's 1 to 16 bytes: the first and the last 8 (4, 2) bytes, which may overlap, loaded before either is stored (memmove's semantics whatever the overlap); one byte alone."
+	| c t lt8 lt4 one |
+	c := self copyCountRegister.
+	t := self copyTempRegister.
+	lt8 := asm newLabel.
+	lt4 := asm newLabel.
+	one := asm newLabel.
+	asm cmp: c imm: 8.
+	asm b: lt8 if: COND_LO.
+	asm ldr: t base: X17 offset: 0.
+	asm add: X17 with: X17 with: c.
+	asm ldr: X17 base: X17 offset: -8.
+	asm str: t base: X16 offset: 0.
+	asm add: X16 with: X16 with: c.
+	asm str: X17 base: X16 offset: -8.
+	asm ret.
+	asm bind: lt8.
+	asm cmp: c imm: 4.
+	asm b: lt4 if: COND_LO.
+	asm ldr: (t bitOr: REG_W) base: X17 offset: 0.
+	asm add: X17 with: X17 with: c.
+	asm ldr: (X17 bitOr: REG_W) base: X17 offset: -4.
+	asm str: (t bitOr: REG_W) base: X16 offset: 0.
+	asm add: X16 with: X16 with: c.
+	asm str: (X17 bitOr: REG_W) base: X16 offset: -4.
+	asm ret.
+	asm bind: lt4.
+	asm cmp: c imm: 2.
+	asm b: one if: COND_LO.
+	asm ldrh: (t bitOr: REG_W) base: X17 offset: 0.
+	asm add: X17 with: X17 with: c.
+	asm ldrh: (X17 bitOr: REG_W) base: X17 offset: -2.
+	asm strh: (t bitOr: REG_W) base: X16 offset: 0.
+	asm add: X16 with: X16 with: c.
+	asm strh: (X17 bitOr: REG_W) base: X16 offset: -2.
+	asm ret.
+	asm bind: one.
+	asm ldrb: (t bitOr: REG_W) base: X17 offset: 0.
+	asm strb: (t bitOr: REG_W) base: X16 offset: 0.
 	asm ret
 !
 dumpingStub: fn named: name
@@ -627,7 +804,8 @@ generateBaseline
 	blReturnSlow := self stub: brt returnSlowFunction named: 'baseline return slow path'.
 	blBox := self stub: brt boxFunction named: 'baseline box Float'.
 	blSent := self symbol: 'sent by the runtime'.
-	asm ret
+	asm ret.
+	self emitCopyStub
 !
 emitContinueOrExit: exit
 	"x0: 1 leave, else the code to continue at with the receiver in x0 again (x30 back to the send)."

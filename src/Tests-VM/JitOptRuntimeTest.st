@@ -789,4 +789,71 @@ testAllocationAnsweringSomethingElseIsSent
 	before := self statistics.
 	20 timesRepeat: [self assert: (o make: -1) isNil].
 	self assert: (self statistics - before) optDeoptimizations < 20
+!
+replaceFailureResults
+	"Copies through replace sites that each saw one receiver class (their fast paths in the code, listed), with what makes them fail: an immutable receiver, a replacement of another kind, ranges out of bounds, arguments that are not SmallIntegers; and a young object into an old Array (remembered). Their results or errors' class names."
+	| o r b w a old try |
+	self define: 'repB: d with: s from: i to: j at: k ^d replaceFrom: i to: j with: s startingAt: k'.
+	self define: 'repW: d with: s from: i to: j at: k ^d replaceFrom: i to: j with: s startingAt: k'.
+	self define: 'repA: d with: s from: i to: j at: k ^d replaceFrom: i to: j with: s startingAt: k'.
+	o := JitRuntimeTestSubject new.
+	1 to: 1200 do: [:i |
+		o repB: (ByteArray new: 4) with: #[1 2 3 4] from: 1 to: 4 at: 1.
+		o repW: (Bitmap new: 4) with: (Bitmap withAll: #(1 2 3 4)) from: 1 to: 4 at: 1.
+		o repA: (Array new: 4) with: #(1 2 3 4) from: 1 to: 4 at: 1].
+	r := OrderedCollection new.
+	try := [:blk | r add: ([blk value printString] on: Error do: [:e | e class name])].
+	#(#repB:with:from:to:at: #repW:with:from:to:at: #repA:with:from:to:at:) do: [:sel | r add: ((self listingOf: sel) includesSubstring: 'the copy stub')].
+	{{ByteArray new: 6. (1 to: 6) asByteArray. 'abcdef' copy. #(1 2 3 4 5 6)}. {Bitmap new: 6. Bitmap withAll: (1 to: 6). (1 to: 6) asByteArray. #(1 2 3 4 5 6)}. {Array new: 6. (1 to: 6) asArray. Bitmap withAll: (1 to: 6). 'abcdef'}} with: #(#repB:with:from:to:at: #repW:with:from:to:at: #repA:with:from:to:at:) do: [:objs :sel | | d same other wrong |
+		d := objs at: 1. same := objs at: 2. other := objs at: 3. wrong := objs at: 4.
+		#(#(1 6 1) #(2 4 3) #(3 2 1) #(0 3 1) #(1 7 1) #(5 6 2) #(1 3 0) #(1 3 5) #(4 6 4) #(1 nil 1) #(nil 3 1) #(1 3 1.5)) do: [:ijk |
+			try value: [o perform: sel withArguments: {d copy. same. ijk at: 1. ijk at: 2. ijk at: 3}].
+			try value: [o perform: sel withArguments: {d copy. other. ijk at: 1. ijk at: 2. ijk at: 3}].
+			try value: [o perform: sel withArguments: {d copy. wrong. ijk at: 1. ijk at: 2. ijk at: 3}].
+			try value: [o perform: sel withArguments: {d copy beReadOnlyObject; yourself. same. ijk at: 1. ijk at: 2. ijk at: 3}]].
+		try value: [| x | x := same copy. o perform: sel withArguments: {x. x. 2. 6. 1}].
+		try value: [| x | x := same copy. o perform: sel withArguments: {x. x. 1. 5. 2}]].
+	old := Array new: 6.
+	Smalltalk vm garbageCollect.
+	1 to: 3 do: [:i |
+		o repA: old with: ((1 to: 6) collect: [:k | (k * i) printString]) from: 1 to: 6 at: 1.
+		Smalltalk vm scavenge.
+		r add: old printString].
+	^r asArray
+!
+testDoublesAcrossAReplaceThatCallsC
+	"Floats live across a replaceFrom:to:with:startingAt: the code copies itself are doubles in d registers, which memmove (the copy stub's, beyond 64 bytes) does not keep: they are loaded from their raw slots again, in a loop too; a guard that fails after the copy has them in its frame state."
+	| o s d fill |
+	Smalltalk vm jitParameters: #(nil '-eager' nil nil).
+	self define: 'keep: x and: y from: s into: d then: c | a b | a := x * y. b := x + y. d replaceFrom: 1 to: s size with: s startingAt: 1. ^c size * 0 + a + b'.
+	self define: 'sum: n from: s into: d then: c | r x | r := 0.0. 1 to: n do: [:i | x := i * 0.5. d replaceFrom: 1 to: s size with: s startingAt: 1. r := r + x + c size]. ^r'.
+	o := JitRuntimeTestSubject new.
+	fill := [:n | | b | b := ByteArray new: n. 1 to: n do: [:i | b at: i put: i \\ 251]. b].
+	s := fill value: 200.
+	d := ByteArray new: 200.
+	1 to: 3000 do: [:k |
+		self assert: (o keep: 1.5 and: 2.0 from: s into: d then: #()) equals: 6.5.
+		self assert: (o sum: 10 from: s into: d then: #()) equals: 27.5].
+	#(64 65 100 129 200 257 1000 5000) do: [:n |
+		s := fill value: n.
+		d := ByteArray new: n.
+		self assert: (o keep: 1.5 and: 2.0 from: s into: d then: #()) equals: 6.5.
+		self assert: d equals: s.
+		d := ByteArray new: n.
+		self assert: (o sum: 10 from: s into: d then: #()) equals: 27.5.
+		self assert: d equals: s].
+	self assert: (o keep: 1.5 and: 2.0 from: s into: d then: 'ab') equals: 6.5.
+	self assert: (o sum: 10 from: s into: d then: 'ab') equals: 47.5
+!
+testReplaceFastPathAndItsFailures
+	"replaceFrom:to:with:startingAt: in optimized code (sites that saw one receiver class: the fast path and the copy stub) answers and fails as the call does (--jit-flags -prims): every way its checks fail goes to the call."
+	| on off |
+	Smalltalk vm jitParameters: #(nil '-eager' nil nil).
+	on := self replaceFailureResults.
+	self assert: (on first: 3) equals: #(true true true).
+	JitRuntimeTestSubject selectors do: [:each | JitRuntimeTestSubject removeSelector: each].
+	Smalltalk vm jitParameters: #(nil '-prims' nil nil).
+	[off := self replaceFailureResults] ensure: [Smalltalk vm jitParameters: #(nil 'prims' nil nil)].
+	self assert: (on allButFirst: 3) equals: (off allButFirst: 3).
+	self assert: (on last: 3) equals: #('#(''1'' ''2'' ''3'' ''4'' ''5'' ''6'')' '#(''2'' ''4'' ''6'' ''8'' ''10'' ''12'')' '#(''3'' ''6'' ''9'' ''12'' ''15'' ''18'')')
 ! !

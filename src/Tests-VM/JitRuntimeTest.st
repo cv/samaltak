@@ -285,6 +285,88 @@ testPerformWithProcessSwitches
 	  ticks = 0] whileTrue] ensure: [stop := true]
 ! !
 
+!JitRuntimeTest methodsFor: 'tests: copying'!
+replacements
+	"Results and receivers of replaceFrom:to:with:startingAt: (or the error) for fresh receivers of every element kind and other objects, replacements of every kind and the receiver itself, ranges within, overlapping either way, empty, out of bounds, and other arguments; long ones too."
+	| long wide dsts srcs ranges |
+	self define: 'replaceIn: dsts from: srcs ranges: ranges | r | r := OrderedCollection new. dsts do: [:b | srcs do: [:s0 | ranges do: [:t | | d s | d := b value. s := s0 == #self ifTrue: [d] ifFalse: [s0]. r add: ([d replaceFrom: (t at: 1) to: (t at: 2) with: s startingAt: (t at: 3)] on: Error do: [:e | e class name]) printString , '' '' , d printString]]]. ^r asArray'.
+	long := ((1 to: 700) collect: [:i | i \\ 251]) asByteArray.
+	wide := String with: (Character value: 955) with: $b with: $c with: $d with: $e with: $f.
+	dsts := {[#[1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20] copy]. ['abcdefghijklmnopqrst' copy]. [#abcdefghijklmnopqrst]. ['abcdefghijklmnopqrst' copy beReadOnlyObject; yourself].
+		[wide copy]. [Bitmap withAll: (1 to: 20)]. [(1 to: 20) asArray]. [WeakArray new: 20].
+		[(2 raisedTo: 160) + 12345]. [long copy]. [String new: 3]. [Array new: 0]. [OrderedCollection withAll: (1 to: 20)]}.
+	srcs := {#self. #[101 102 103 104 105 106 107 108 109 110 111 112]. 'ABCDEFGHIJKL'. #ABCDEFGHIJKL. String with: (Character value: 1000) with: $Y with: $Z.
+		Bitmap withAll: (100 to: 111). (101 to: 112) asArray. (101 to: 112) asOrderedCollection. long. 3. nil}.
+	ranges := #(#(1 5 1) #(3 10 1) #(1 8 3) #(2 2 1) #(1 0 1) #(5 4 1) #(0 -1 1) #(1 0 0) #(6 5 99) #(0 3 1) #(1 3 0) #(1 21 1) #(18 22 1) #(1 3 11) #(1 3 12) #(5 3 1) #(1 1 -1) #(1 20 1) #(13 20 1) #(1 700 1) #(5 700 1) #(1 690 11) #(1 3 nil) #(nil 3 1) #(1 3.0 1) #(1 4611686018427387903 1)).
+	^JitRuntimeTestSubject new replaceIn: dsts from: srcs ranges: ranges
+!
+testReplaceFromToWithStartingAt
+	"replaceFrom:to:with:startingAt: in machine code copies and answers what its C function does, failures included (see replacements); the copies it does call no C function (the VM's counter, other Processes' calls included: the quietest of 3 rounds counts)."
+	| on off calls |
+	on := self replacements.
+	Smalltalk vm jitParameters: #(nil '-prims' nil nil).
+	[off := self replacements] ensure: [Smalltalk vm jitParameters: #(nil 'prims' nil nil)].
+	self assert: on size equals: off size.
+	1 to: on size do: [:i | self assert: (on at: i) equals: (off at: i)].
+	self assert: (on includes: '#[1 2 1 2 3 4 5 6 7 8 11 12 13 14 15 16 17 18 19 20] #[1 2 1 2 3 4 5 6 7 8 11 12 13 14 15 16 17 18 19 20]').
+	self define: 'copies: n | s t | s := ''abcdefghij''. t := Array new: 3. 1 to: n do: [:i | (s copyFrom: 2 to: 9) , ''xyz''. t replaceFrom: 1 to: 3 with: #(1 2 3) startingAt: 1]. ^t'.
+	calls := (1 to: 3) collect: [:i | | before |
+		before := self statistics.
+		JitRuntimeTestSubject new copies: 1000.
+		(self statistics - before) jitPrimitiveCalls].
+	self assert: calls min < 1000
+!
+testReplaceRemembersAnOldReceiver
+	"Young objects copied into an old Array: it is remembered, the objects survive the scavenges (in their places)."
+	| old |
+	self define: 'fill: a times: n | young | 1 to: n do: [:i | young := (1 to: a size) collect: [:k | (k * i) printString]. a replaceFrom: 1 to: a size with: young startingAt: 1. Smalltalk vm scavenge. a replaceFrom: 2 to: a size with: a startingAt: 1. Smalltalk vm scavenge. a replaceFrom: 1 to: 1 with: young startingAt: 1. 1 to: a size do: [:k | (a at: k) = ((k - 1 max: 1) * i) printString ifFalse: [^k]]. Smalltalk vm garbageCollect]. ^0'.
+	old := Array new: 50.
+	Smalltalk vm garbageCollect.
+	self assert: (JitRuntimeTestSubject new fill: old times: 5) equals: 0
+! !
+
+!JitRuntimeTest methodsFor: 'tests: copying'!
+testReplaceKeepsItsSemantics
+	"What code relies on, in compiled code: a copy within one object as memmove does it (either way), bytes into bytes of another class (ByteArray, ByteString, from a Symbol), 32-bit words into 32-bit words; elements of another width are the fallback's (a ByteString takes a wide Character by widening)."
+	| expected |
+	self define: 'semantics | r b | r := OrderedCollection new.
+		b := ''hello world'' copy. b replaceFrom: 1 to: 5 with: b startingAt: 7. r add: b.
+		b := ''0123456789'' copy. b replaceFrom: 3 to: 10 with: b startingAt: 1. r add: b.
+		b := ((1 to: 300) collect: [:i | i \\ 256]) asByteArray. b replaceFrom: 1 to: 290 with: b startingAt: 11. r add: (b first: 3) asArray; add: (b last: 11) asArray.
+		b := ((1 to: 300) collect: [:i | i \\ 256]) asByteArray. b replaceFrom: 11 to: 300 with: b startingAt: 1. r add: (b first: 12) asArray; add: (b last: 2) asArray.
+		r add: ((ByteArray new: 3) replaceFrom: 1 to: 3 with: ''abc'' startingAt: 1).
+		r add: ((String new: 3) replaceFrom: 1 to: 3 with: #[104 105 33] startingAt: 1).
+		r add: ((String new: 4 withAll: $ ) replaceFrom: 2 to: 4 with: #symbol startingAt: 2).
+		r add: ((ByteArray new: 2) replaceFrom: 1 to: 2 with: #ab startingAt: 1).
+		r add: ((Bitmap new: 3) replaceFrom: 1 to: 3 with: (Bitmap withAll: #(7 8 9 10)) startingAt: 2) asArray.
+		b := String new: 2. b replaceFrom: 1 to: 2 with: (String with: (Character value: 955) with: $x) startingAt: 1. r add: b isWideString; add: (b asArray collect: [:c | c value]).
+		b := String with: (Character value: 955) with: $x with: $y. b replaceFrom: 2 to: 3 with: ''ab'' startingAt: 1. r add: (b asArray collect: [:c | c value]).
+		r add: ([(ByteArray new: 2) replaceFrom: 1 to: 2 with: (Bitmap new: 2) startingAt: 1. #copied] on: Error do: [:e | #failed]).
+		^r asArray'.
+	expected := {'world world'. '0101234567'. #(11 12 13). #(44 35 36 37 38 39 40 41 42 43 44). #(1 2 3 4 5 6 7 8 9 10 1 2). #(33 34). #[97 98 99]. 'hi!!'. ' ymb'. #[97 98]. #(8 9 10). true. #(955 120). #(955 97 98). #copied}.
+	3 timesRepeat: [self assert: JitRuntimeTestSubject new semantics equals: expected]
+! !
+
+!JitRuntimeTest methodsFor: 'tests: copying'!
+testCopiesOfEveryLengthAndOverlap
+	"replaceFrom:to:with:startingAt: in compiled code (the copy stub) against element by element copies: bytes, 32-bit words and pointers, every length up to 80 (40), within one object shifted either way by up to 9 elements (overlapping or not), and into another object between guard elements that stay."
+	self define: 'within: b n: n by: o | e |
+		e := b copy. 1 to: n do: [:i | e at: 40 + o + i - 1 put: (b at: 40 + i - 1)].
+		b replaceFrom: 40 + o to: 40 + o + n - 1 with: b startingAt: 40. ^b = e'.
+	self define: 'into: d from: s n: n at: k | e |
+		e := d copy. 1 to: n do: [:i | e at: k + i - 1 put: (s at: i + 3)].
+		d replaceFrom: k to: k + n - 1 with: s startingAt: 4. ^d = e'.
+	self define: 'copies: make n: max | bad |
+		bad := OrderedCollection new.
+		0 to: max do: [:n |
+			-9 to: 9 do: [:o | ((self within: (make value: 140) n: n by: o) and: [self into: (make value: 140) from: ((make value: 240) copyFrom: 101 to: 200) n: n at: 11 + o]) ifFalse: [bad add: n -> o]]].
+		^bad asArray'.
+	3 timesRepeat: [
+		self assert: (JitRuntimeTestSubject new copies: [:k | ((1 to: k) collect: [:i | i * 7 \\ 251]) asByteArray] n: 80) equals: #().
+		self assert: (JitRuntimeTestSubject new copies: [:k | Bitmap withAll: ((1 to: k) collect: [:i | i * 123457 \\ 16rFFFFFFFF])] n: 40) equals: #().
+		self assert: (JitRuntimeTestSubject new copies: [:k | (1 to: k) collect: [:i | i printString]] n: 40) equals: #()]
+! !
+
 !JitRuntimeTest methodsFor: 'tests: allocation'!
 testAllocationWhosePrimitiveFails
 	"An allocation whose primitive fails answers what its fallback answers (here nil, or a String), and sends to it go to that: compiled code does not take it for an instance of the class."
