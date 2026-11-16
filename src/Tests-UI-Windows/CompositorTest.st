@@ -77,6 +77,19 @@ testFrameRecordsAreRecorded
 	self assert: ((frames select: [:f | f gpu > 0]) allSatisfy: [:f | f gpu < 1000000]).
 	self assert: (world topBar statsText includesSubstring: 'fps')
 !
+testRequestsRunWhileFramesAreInFlight
+	"With maxFramesInFlight frames unfinished on the GPU (here fences that never complete) the compositor skips its ticks, but a request gets its frame at the next one."
+	| c ticks frames |
+	c := world compositor.
+	c sync: [:x | Compositor maxFramesInFlight timesRepeat: [x gpuTimer fence: UnfinishedTestFence new submittedAt: 0 record: nil]].
+	ticks := c tickCount.
+	frames := c frameCount.
+	world changed.
+	self assert: (self waitFor: [c tickCount >= (ticks + 3)]) description: 'the compositor does not tick'.
+	self assert: c frameCount equals: frames.
+	self assert: (c sync: [:x | x gpuTimer inFlight]) >= Compositor maxFramesInFlight.
+	self assert: c frameCount equals: frames + 1
+!
 testTopBarStatsAfterTheClockStartsAgain
 	"After a restart the microsecond clock starts again: the top bar forgets the frames before and its numbers go on (they were frozen until the new clock passed the old one)."
 	| bar now |

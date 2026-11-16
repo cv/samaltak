@@ -5,7 +5,7 @@ Object subclass: #Compositor
 
 Compositor comment: 'I am the compositor: a Process at priority 70 woken by the platform''s vsync semaphore, presenting at 60 Hz (every second refresh on a 120 Hz display). Each frame I step the layer animations (window open/close, focus cross-fades, menus), toasts and the remote pointer, post frame ticks to windows with animations, render every Layer whose DisplayList or chrome changed into its Surface, composite all layers (offset, scale about the center, opacity, hard shadows) over the halftone desk with the top bar and overlays onto the DisplayWindow, and record a FrameRecord (Profiler recordFrame:). I never wait for a window''s Process: a busy window keeps its last frame.
 
-While the World is on screen I present every tick (continuous composition: the screen always shows the current state of every layer, at a steady frame rate). A hidden World (tests) presents only when something changed: after 20 ticks without a change I stop the vsync semaphore and sleep until World>>changed wakes me (or 500 ms pass, for the top bar''s statistics). Each tick I also poll the GPUTimer for finished frames'' GPU times; while maxFramesInFlight frames are unfinished on the GPU I skip the tick (except when recording, which waits for each frame''s readback).
+While the World is on screen I present every tick (continuous composition: the screen always shows the current state of every layer, at a steady frame rate). A hidden World (tests) presents only when something changed: after 20 ticks without a change I stop the vsync semaphore and sleep until World>>changed wakes me (or 500 ms pass, for the top bar''s statistics). Each tick I also poll the GPUTimer for finished frames'' GPU times; while maxFramesInFlight frames are unfinished on the GPU I skip the tick (except when recording, which waits for each frame''s readback, and while a request waits: its caller is blocked until I ran it).
 
 GPU work of other Processes (screenshots, recording) runs in my Process between frames: do: aBlock / sync: aBlock.'!
 
@@ -226,7 +226,7 @@ frame
 	| t0 now animating needs |
 	"On the recording clock the GPU's frames, like an external program, take real time: while any are unfinished the clock moves with real time instead of jumping to the next deadline."
 	onWorkClock ifTrue: [Smalltalk vm workClockPaced: (OSProcess externalWork or: [gpuTimer inFlight > 0])].
-	(recorder isNil and: [gpuTimer inFlight >= self class maxFramesInFlight]) ifTrue: [^self].
+	(recorder isNil and: [requests isEmpty and: [gpuTimer inFlight >= self class maxFramesInFlight]]) ifTrue: [^self].
 	t0 := Time microsecondClockValue.
 	recorder isNil ifFalse: [t0 := recorder tickStartAt: t0].
 	now := Animation nowAt: t0 / 1000.0.
@@ -301,7 +301,7 @@ drawToastsOn: c
 
 !Compositor methodsFor: 'requests'!
 do: aBlock
-	"Run aBlock (with me as argument) in my Process after the next frame."
+	"Run aBlock (with me as argument) in my Process after the next frame, which I present at my next tick however many frames are in flight."
 	requests nextPut: aBlock.
 	world changed
 !
