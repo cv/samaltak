@@ -1105,13 +1105,16 @@ emitAddSub: n
 !
 emitDivShift: n
 	"SmallInteger modulo and division (floored, aux 1 truncated: rem: quo:, aux 2 exact: /, a remainder deoptimizes; a zero divisor deoptimizes) and bitShift: (a result that does not fit deoptimizes)."
-	| nd s op neg done |
+	| nd s op neg done d |
 	nd := ir node: n.
 	op := nd op asInt32.
 	s := self deoptLabelFor: n.
 	asm asr: X16 with: (self src: nd a into: self scratchA) imm: 1.
-	asm asr: X17 with: (self src: nd b into: self scratchB) imm: 1.
 	done := asm newLabel.
+	d := self constantDivisorOf: n.
+	d ~= 0 ifTrue: [
+		^self emitDivTail: n done: done floored: (self emitDivBy: d node: n)].
+	asm asr: X17 with: (self src: nd b into: self scratchB) imm: 1.
 	op = O_ISHIFT ifTrue: [
 		neg := asm newLabel.
 		asm tbnz: X17 bit: 63 to: neg.
@@ -1137,17 +1140,26 @@ emitDivShift: n
 	asm cbz: X17 to: s.
 	asm sdiv: self scratchB with: X16 with: X17.
 	asm msub: self scratchA with: self scratchB with: X17 sub: X16.
-	nd aux = 2 ifTrue: [
-		asm comment: 'exact: a remainder deoptimizes (the interpreter makes the Fraction)'.
-		asm cbnz: self scratchA to: s].
-	nd aux >= 1 ifTrue: [asm b: done].
-	asm comment: 'floored: a remainder of the divisor''s other sign moves'.
-	asm cbz: self scratchA to: done.
-	asm eor: X16 with: self scratchA with: X17.
-	asm tbz: X16 bit: 63 to: done.
-	op = O_IMOD
-		ifTrue: [asm add: self scratchA with: self scratchA with: X17]
-		ifFalse: [asm sub: self scratchB with: self scratchB imm: 1].
+	self emitDivTail: n done: done floored: false
+!
+emitDivTail: n done: done floored: floored
+	"After the division of x16 by x17: the truncated quotient in scratchB, the remainder in scratchA (floored: the floored ones); exact, floored, the result tagged."
+	| nd s op |
+	nd := ir node: n.
+	op := nd op asInt32.
+	s := self deoptLabelFor: n.
+	floored ifFalse: [
+		nd aux = 2 ifTrue: [
+			asm comment: 'exact: a remainder deoptimizes (the interpreter makes the Fraction)'.
+			asm cbnz: self scratchA to: s].
+		nd aux >= 1 ifTrue: [asm b: done].
+		asm comment: 'floored: a remainder of the divisor''s other sign moves'.
+		asm cbz: self scratchA to: done.
+		asm eor: X16 with: self scratchA with: X17.
+		asm tbz: X16 bit: 63 to: done.
+		op = O_IMOD
+			ifTrue: [asm add: self scratchA with: self scratchA with: X17]
+			ifFalse: [asm sub: self scratchB with: self scratchB imm: 1]].
 	asm bind: done.
 	op = O_IMOD
 		ifTrue: [
@@ -1158,6 +1170,94 @@ emitDivShift: n
 			asm b: s if: COND_VS.
 			asm orr: self scratchB with: self scratchB imm: 1].
 	self def: n from: self scratchB
+!
+constantDivisorOf: n
+	"The divisor of modulo or division n if it is a SmallInteger constant, else 0."
+	| b |
+	(ir node: n) op asInt32 = O_ISHIFT ifTrue: [^0].
+	b := ir node: (ir node: n) b.
+	(b op asInt32 = O_CONST and: [self isInt: b aux asUInt64]) ifFalse: [^0].
+	^self intVal: b aux asUInt64
+!
+emitDivBy: d node: n
+	"x16 by the constant d (not 0) without a division: the truncated quotient into scratchB, the remainder into scratchA and x17 := d; answer false. Floored by a power of two: the floored ones, and answer true. By 2^k with shifts; else multiplying by a magic number and shifting (Hacker's Delight, 10-1)."
+	| q r k ad m sh |
+	q := self scratchB.
+	r := self scratchA.
+	asm comment: 'division by the constant %d' with: d.
+	(d = 1 or: [d = -1]) ifTrue: [
+		d = 1 ifTrue: [asm mov: q with: X16] ifFalse: [asm neg: q with: X16].
+		asm mov: r imm: 0.
+		asm mov: X17 imm: d.
+		^false].
+	ad := d < 0 ifTrue: [0 - d] ifFalse: [d].
+	(d > 0 and: [(ad bitAnd: ad - 1) = 0]) ifTrue: [
+		k := 0.
+		[(1 asInt64 << k) < ad] whileTrue: [k := k + 1].
+		(ir node: n) aux = 0 ifTrue: [
+			asm asr: q with: X16 imm: k.
+			asm and: r with: X16 imm: ad - 1.
+			^true].
+		asm asr: q with: X16 imm: 63.
+		asm add: q with: X16 with: q shift: SHIFT_LSR amount: 64 - k.
+		asm asr: q with: q imm: k.
+		asm sub: r with: X16 with: q shift: SHIFT_LSL amount: k.
+		asm mov: X17 imm: d.
+		^false].
+	sh := self local: 'int64_t'.
+	m := self magic: d shift: sh.
+	asm mov: X17 imm: m.
+	asm smulh: q with: X16 with: X17.
+	(d > 0 and: [m < 0]) ifTrue: [asm add: q with: q with: X16].
+	(d < 0 and: [m > 0]) ifTrue: [asm sub: q with: q with: X16].
+	sh value > 0 ifTrue: [asm asr: q with: q imm: sh value].
+	asm add: q with: q with: q shift: SHIFT_LSR amount: 63.
+	asm mov: X17 imm: d.
+	asm msub: r with: q with: X17 sub: X16.
+	^false
+!
+magic: d shift: sh
+	"The magic number of signed 64-bit division by the constant d (|d| >= 2), its shift into sh: Hacker's Delight, 10-1."
+	<function>
+	<var: #d type: 'int64_t'>
+	<var: #sh type: 'int64_t *'>
+	<returns: 'int64_t'>
+	| ad t anc p q1 r1 q2 r2 delta two63 m |
+	<var: #ad type: 'uint64_t'>
+	<var: #t type: 'uint64_t'>
+	<var: #anc type: 'uint64_t'>
+	<var: #q1 type: 'uint64_t'>
+	<var: #r1 type: 'uint64_t'>
+	<var: #q2 type: 'uint64_t'>
+	<var: #r2 type: 'uint64_t'>
+	<var: #delta type: 'uint64_t'>
+	<var: #two63 type: 'uint64_t'>
+	<var: #m type: 'uint64_t'>
+	two63 := 1 asUInt64 << 63.
+	ad := d < 0 ifTrue: [(0 - d) asUInt64] ifFalse: [d asUInt64].
+	t := two63 + (d asUInt64 >> 63).
+	anc := t - 1 - (t rem: ad).
+	p := 63.
+	q1 := two63 quo: anc.
+	r1 := two63 - (q1 * anc).
+	q2 := two63 quo: ad.
+	r2 := two63 - (q2 * ad).
+	[p := p + 1.
+	q1 := q1 * 2.
+	r1 := r1 * 2.
+	r1 >= anc ifTrue: [
+		q1 := q1 + 1.
+		r1 := r1 - anc].
+	q2 := q2 * 2.
+	r2 := r2 * 2.
+	r2 >= ad ifTrue: [
+		q2 := q2 + 1.
+		r2 := r2 - ad].
+	delta := ad - r2.
+	q1 < delta or: [q1 = delta and: [r1 = 0]]] whileTrue.
+	sh value: p - 64.
+	m := q2 + 1.
+	^(d < 0 ifTrue: [0 asUInt64 - m] ifFalse: [m]) asInt64
 !
 emitMul: n
 	| nd x y s |

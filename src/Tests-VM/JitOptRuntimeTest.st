@@ -772,6 +772,16 @@ testFusedFillIsInTheCode
 	self assert: ((self listingOf: #selfB:at:) includesSubstring: 'the copy stub').
 	self deny: ((self listingOf: #selfB:at:) includesSubstring: 'the replace that follows')
 !
+testDivisionByAConstantIsInTheCode
+	"Division and modulo by constants make no division instruction."
+	| o |
+	Smalltalk vm jitParameters: #(nil '-eager' nil nil).
+	self define: 'byConstants: x ^(x // 7) + (x \\ 8) + (x rem: -3) + (x quo: 1000)'.
+	o := JitRuntimeTestSubject new.
+	1 to: 1200 do: [:i | self assert: (o byConstants: -12345 - i) equals: (-12345 - i // 7) + (-12345 - i \\ 8) + (-12345 - i rem: -3) + (-12345 - i quo: 1000)].
+	self assert: ((self listingOf: #byConstants:) includesSubstring: 'division by the constant 7').
+	self deny: ((self listingOf: #byConstants:) includesSubstring: (self isX64 ifTrue: ['idiv'] ifFalse: ['sdiv']))
+!
 testDoublesAcrossAnAllocationAnsweringSomethingElse
 	"Floats live across an allocation whose send answers something else (its primitive failed: the deoptimization after it) are what they were, in straight code and in a loop."
 	| o |

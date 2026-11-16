@@ -434,6 +434,50 @@ testCopiesOfEveryLengthAndOverlap
 		self assert: (JitRuntimeTestSubject new copies: [:k | (1 to: k) collect: [:i | i printString]] n: 40) equals: #()]
 ! !
 
+!JitRuntimeTest methodsFor: 'tests: arithmetic'!
+divisors
+	"Divisors for the constant division tests: 1 to 20, 2^k and 2^k +- 1 of either sign for every k SmallIntegers reach, others, the extremes and their neighbours."
+	| ds |
+	ds := OrderedCollection new.
+	ds addAll: (1 to: 20); addAll: #(25 641 1000 6700417 1000000007 1000000000000000000 3458764513820540928).
+	0 to: 61 do: [:k | | p | p := 1 bitShift: k. ds add: p; add: p - 1; add: p + 1].
+	ds addAll: {SmallInteger maxVal. SmallInteger maxVal - 1}.
+	ds := (ds collect: [:d | {d. d negated}]) inject: OrderedCollection new into: [:all :each | all addAll: each; yourself].
+	ds add: SmallInteger minVal; add: SmallInteger minVal + 1.
+	^(ds select: [:d | d ~= 0 and: [d class == SmallInteger]]) asSet asSortedCollection asArray
+!
+dividends
+	"Dividends: small ones, 2^k and its neighbours of either sign, SmallInteger's extremes and their neighbours, and others spread over the range (a fixed sequence)."
+	| xs x |
+	xs := OrderedCollection new.
+	xs addAll: (-9 to: 9); addAll: {SmallInteger maxVal. SmallInteger minVal. SmallInteger maxVal - 1. SmallInteger minVal + 1. SmallInteger maxVal // 2. SmallInteger minVal // 2}.
+	0 to: 61 do: [:k | | p | p := 1 bitShift: k. xs add: p - 1; add: p + 1; add: p negated; add: p negated - 1].
+	x := 12345.
+	1 to: 60 do: [:i | x := x * 1103515245 + 12345 \\ SmallInteger maxVal. xs add: (x bitShift: 0 - (i \\ 61)); add: (x bitShift: 0 - (i \\ 61)) negated].
+	^(xs select: [:e | e class == SmallInteger]) asArray
+!
+divisionMethodFor: d index: i
+	"A method dividing by the constant d every x and the multiples of d around it (q*d - 1, q*d, q*d + 1): its count of results unlike dividing by d in a variable."
+	| ds |
+	ds := d printString.
+	^'div' , i printString , ': xs v: dv | bad v m e | bad := 0. v := dv at: 1. xs do: [:x0 | m := x0 // v * v. {x0. m - 1. m. m + 1} do: [:x | x class == SmallInteger ifTrue: [
+		e := x - (x rem: v).
+		((x // ' , ds , ') = (x // v) and: [(x \\ ' , ds , ') = (x \\ v) and: [(x rem: ' , ds , ') = (x rem: v) and: [(x quo: ' , ds , ') = (x quo: v) and: [(e / ' , ds , ') = (e quo: v)]]]]) ifFalse: [bad := bad + 1]]]]. ^bad'
+!
+testDivisionByConstants
+	"Division and modulo (floored and truncated) and exact division by constants (shifts for powers of two, else a multiplication by a magic number) answer what they answer by the same divisor in a variable: every divisor of divisors, every dividend of dividends and the multiples around it, SmallInteger's extremes (the most negative by -1 overflows into a LargeInteger)."
+	| ds xs bad o |
+	ds := self divisors.
+	xs := self dividends.
+	ds doWithIndex: [:d :i | self define: (self divisionMethodFor: d index: i)].
+	o := JitRuntimeTestSubject new.
+	bad := OrderedCollection new.
+	ds doWithIndex: [:d :i | 1 to: 2 do: [:round | | n | n := o perform: ('div' , i printString , ':v:') asSymbol with: xs with: {d}. n > 0 ifTrue: [bad add: d -> n]]].
+	self assert: bad asArray equals: #().
+	self define: 'minByMinusOne: x ^x // -1'.
+	self assert: (o minByMinusOne: SmallInteger minVal) equals: SmallInteger maxVal + 1
+! !
+
 !JitRuntimeTest methodsFor: 'tests: copying'!
 garbageSource
 	"garbage leaves eden full of objects of 255s and 16rFFFFFFFFs (copies made and dropped): what is allocated next lands on them."
