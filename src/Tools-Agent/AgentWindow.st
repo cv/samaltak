@@ -26,7 +26,7 @@ setConversation: anAgentConversation origin: aToolOrNil account: anAccount
 	sendButton := (Button label: 'Send' action: [self send]) name: 'send'; beDefault; fixed: 26; yourself.
 	stopButton := (Button label: 'Stop' action: [self stop]) name: 'stop'; fixed: 22; yourself.
 	status := StatusBar new name: 'status'; flex: 1; yourself.
-	signOutButton := (Button label: 'Sign out' action: [self signOut]) name: 'sign-out'; font: #small; sizeToContent; yourself.
+	signOutButton := (AgentSignOutButton label: 'Sign out' action: [self signOut]) name: 'sign-out'; font: #small; sizeToContent; yourself.
 	self addAll: {
 		self contextStrip.
 		PaneHeader title: 'Conversation'.
