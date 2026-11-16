@@ -1,5 +1,5 @@
 Column subclass: #AgentLoginCard
-	instanceVariableNames: 'signInButton urlLabel codeRow codeLabel messageLabel'
+	instanceVariableNames: 'signInButton urlLabel codeRow codeLabel messageLabel urlCopyButton'
 	classVariableNames: ''
 	package: 'Tools-Agent'!
 
@@ -12,6 +12,8 @@ initialize
 	signInButton name: 'sign-in'; beDefault.
 	urlLabel := Label text: '' font: #ui.
 	urlLabel name: 'url'.
+	urlCopyButton := Button label: 'Copy URL'.
+	urlCopyButton name: 'copy-url'; sizeToContent.
 	codeLabel := Label text: '' font: (Font faceNamed: 'JetBrainsMono-Bold' size: 28).
 	codeLabel name: 'code'.
 	codeRow := Row with: (Array
@@ -24,7 +26,7 @@ initialize
 	self addAll: (Array
 		with: ((Label text: 'The agent needs your ChatGPT account.' font: #uiBold) fixed: 28; yourself)
 		with: ((Row with: (Array with: (signInButton sizeToContent; yourself) with: Widget new)) fixed: 30; padding: (0 @ 4 corner: 0 @ 4); yourself)
-		with: (urlLabel fixed: 24; yourself)
+		with: ((Row with: (Array with: (urlLabel sizeToContent; yourself) with: urlCopyButton with: Widget new)) spacing: 14; fixed: 30; yourself)
 		with: codeRow
 		with: (messageLabel fixed: 24; yourself)
 		with: Widget new).
@@ -47,22 +49,24 @@ message
 ! !
 
 !AgentLoginCard methodsFor: 'showing'!
-showButton: aStringOrNil
-	"Signed out: the button, and why the last attempt failed."
-	signInButton owner visible: true.
-	urlLabel visible: false.
-	codeRow visible: false.
-	messageLabel text: (aStringOrNil ifNil: [''])
-!
 showMessage: aString
 	signInButton owner visible: false.
 	messageLabel text: aString
 !
 showURL: aURL code: aCode
-	urlLabel text: 'Open ', aURL, ' and enter this code:'; visible: true.
+	urlLabel text: 'Open ', aURL, ' and enter this code:'.
+	urlCopyButton action: [self clipboardText: aURL].
+	urlLabel owner visible: true.
 	codeLabel text: aCode.
 	codeRow visible: true; layout.
 	messageLabel text: 'Waiting for you to approve the sign-in…'
+!
+showButton: aStringOrNil
+	"Signed out: the button, and why the last attempt failed."
+	signInButton owner visible: true.
+	urlLabel owner visible: false.
+	codeRow visible: false.
+	messageLabel text: (aStringOrNil ifNil: [''])
 ! !
 
 !AgentLoginCard methodsFor: 'remote control'!
