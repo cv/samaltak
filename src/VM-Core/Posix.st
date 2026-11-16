@@ -49,6 +49,10 @@ MAP_FIXED
 	<cMacro: 'int MAP_FIXED'>
 	^16r10
 !
+MAP_NORESERVE
+	<cMacro: 'int MAP_NORESERVE'>
+	^16r40
+!
 MAP_FAILED
 	<cMacro: 'void *MAP_FAILED'>
 	^CPointer memory: self memory address: 16rFFFFFFFFFFFFFFFF type: CVoidType new

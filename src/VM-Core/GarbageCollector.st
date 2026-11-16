@@ -121,10 +121,11 @@ statWeakCleared
 
 !GarbageCollector methodsFor: 'spaces'!
 reserve: n
+	"Address space for a space, not memory: unaccounted (MAP_NORESERVE), so that forking (a pty, an external program) needs no RAM and swap for the whole maximum heap."
 	<function>
 	<var: #n type: 'size_t'>
 	| p |
-	p := posix mmap: self null length: n protection: (posix PROT_READ bitOr: posix PROT_WRITE) flags: (posix MAP_PRIVATE bitOr: posix MAP_ANON) file: -1 offset: 0.
+	p := posix mmap: self null length: n protection: (posix PROT_READ bitOr: posix PROT_WRITE) flags: ((posix MAP_PRIVATE bitOr: posix MAP_ANON) bitOr: posix MAP_NORESERVE) file: -1 offset: 0.
 	p = posix MAP_FAILED ifTrue: [self fatal: 'cannot reserve %zu bytes' with: n].
 	^self cCoerce: p to: 'uint64_t'
 !
@@ -135,7 +136,7 @@ discard: p size: n
 	m := (n + 16383) bitClear: 16383.
 	m ~= 0 ifTrue: [
 		posix mmap: (self ptr: p) length: m protection: (posix PROT_READ bitOr: posix PROT_WRITE)
-			flags: ((posix MAP_PRIVATE bitOr: posix MAP_ANON) bitOr: posix MAP_FIXED) file: -1 offset: 0]
+			flags: (((posix MAP_PRIVATE bitOr: posix MAP_ANON) bitOr: posix MAP_FIXED) bitOr: posix MAP_NORESERVE) file: -1 offset: 0]
 !
 init: edenBytes maxHeap: maxHeap
 	<function>

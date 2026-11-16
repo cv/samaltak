@@ -173,7 +173,7 @@ static void discard(uint64_t p, uint64_t n)
     uint64_t m;
     m = (n + 16383) & 18446744073709535232ULL;
     if (m != 0) {
-        mmap((void *)p, m, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANON | MAP_FIXED, -1, 0);
+        mmap((void *)p, m, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANON | MAP_FIXED | MAP_NORESERVE, -1, 0);
     }
 }
 
@@ -460,7 +460,7 @@ void remember(oop o)
 static uint64_t reserve(size_t n)
 {
     void *p;
-    p = mmap(NULL, n, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANON, -1, 0);
+    p = mmap(NULL, n, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANON | MAP_NORESERVE, -1, 0);
     if (p == MAP_FAILED) {
         fatal_begin();
         fprintf(stderr, "cannot reserve %zu bytes", n);
