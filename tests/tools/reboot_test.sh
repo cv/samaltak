@@ -31,10 +31,15 @@ check "banner before" "'Samaltak VM'" "$($CTL eval 'Smalltalk vm banner')"
 $CTL eval "VMMain compile: 'banner <function> ^''Samaltak VM, rebooted''' classified: 'running'. 1" >/dev/null
 $CTL click 1000,893 >/dev/null
 $CTL click @menu.rebuild-vm-reboot >/dev/null
-# The image goes away for a moment; samaltak-ctl waits while the same pid comes back on the same port.
-i=0; until [ "$($CTL eval 'Smalltalk vm banner' 2>/dev/null)" = "'Samaltak VM, rebooted'" ] || [ $i -ge 60 ]; do i=$((i + 1)); sleep 0.5; done
+# The image goes away for a moment; samaltak-ctl waits while the same pid comes back on the same port. The whole VM
+# is compiled first, niced: 90 s on two idle cores, 10 min on two cores beside this desktop drawn by lavapipe; allow 30 min.
+i=0; until [ "$($CTL eval 'Smalltalk vm banner' 2>/dev/null)" = "'Samaltak VM, rebooted'" ] || [ $i -ge 3600 ]; do i=$((i + 1)); sleep 0.5; done
 check "the rebuilt VM answers the new banner" "'Samaltak VM, rebooted'" "$($CTL eval 'Smalltalk vm banner')"
-check "same process" "$pid" "$(pgrep -f "$SCRATCH/build/vm/samaltak" | head -1)"
+running() { # pid of the process whose command line has $1 (pgrep -f; /proc where there is no pgrep, as in a slim container)
+  if command -v pgrep >/dev/null 2>&1; then pgrep -f "$1" | head -1; return; fi
+  for d in /proc/[0-9]*; do case "$(tr '\0' ' ' <"$d/cmdline" 2>/dev/null)" in *"$1"*) echo "${d#/proc/}"; return ;; esac; done
+}
+check "same process" "$pid" "$(running "$SCRATCH/build/vm/samaltak")"
 $CTL wait 'rebooted in' 10000 >/dev/null || fail "the rebuild log says rebooted"
 check "every window back" "$before" "$(windows)"
 check "top bar shows it" 'topbar @top "reboot.image | Samaltak VM, rebooted"' "$($CTL snapshot --depth 0 | grep '^topbar' | sed 's/ compositor=.*//')"
