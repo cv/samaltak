@@ -235,4 +235,13 @@ testCancel
 	provider cancel.
 	self assert: (self waitFor: [outcome notNil]).
 	self assert: outcome equals: 'Cancelled'
+!
+testStablePromptCacheKey
+	| first second other |
+	first := provider bodyFor: {self userMessage: 'First'} tools: {self toolSpec}.
+	second := provider bodyFor: {self userMessage: 'Next'} tools: {self toolSpec}.
+	self assert: (first at: 'prompt_cache_key') equals: (provider headers at: 'session-id').
+	self assert: (second at: 'prompt_cache_key') equals: (first at: 'prompt_cache_key').
+	other := CodexProvider new bodyFor: #() tools: #().
+	self deny: (other at: 'prompt_cache_key') = (first at: 'prompt_cache_key')
 ! !

@@ -66,6 +66,7 @@ cancel
 bodyFor: inputItems tools: toolSpecs
 	^Dictionary new
 		at: 'model' put: self modelName;
+		at: 'prompt_cache_key' put: sessionId;
 		at: 'stream' put: true;
 		at: 'store' put: false;
 		at: 'input' put: inputItems asArray;
