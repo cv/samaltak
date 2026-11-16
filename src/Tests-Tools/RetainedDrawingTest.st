@@ -3,7 +3,7 @@ ToolsTestCase subclass: #RetainedDrawingTest
 	classVariableNames: ''
 	package: 'Tests-Tools'!
 
-RetainedDrawingTest comment: 'I check retained drawing (View>>drawRetainedOn:) in the real tools: in each scenario a window''s content drawn as its next redraw would (replaying the views that did not change) draws the same quads and, read back from a Surface, the same pixels as drawn all anew (Window>>retainedDrawingMismatch): the default layout, scrolling, a list selection gliding (in the middle of the glide), a live Profiler zooming its flame graph (in the middle of the zoom). View verifyDrawing: is on throughout, so every replay in every redraw is also compared with drawing anew.'!
+RetainedDrawingTest comment: 'I check retained drawing (View>>drawRetainedOn:) in the real tools: in each scenario a window''s content drawn as its next redraw would (replaying the views that did not change) draws the same quads and, read back from a Surface, the same pixels as drawn all anew (Window>>retainedDrawingMismatch): the default layout, scrolling, a list selection gliding (in the middle of the glide), a Profiler zooming its flame graph (in the middle of the zoom). View verifyDrawing: is on throughout, so every replay in every redraw is also compared with drawing anew.'!
 
 !RetainedDrawingTest methodsFor: 'running'!
 setUp
@@ -90,11 +90,11 @@ testProfilerZoomMidAnimation
 	(Delay forMilliseconds: 800) wait.
 	w := ProfilerView open.
 	view := w content.
-	[self settle.
+	[self in: w do: [view stop].
+	 self settle.
 	 self in: w do: [view refresh].
 	 self settle.
 	 self assertRetainedDrawingOf: w.
-	 self in: w do: [view stop].
 	 entry := view flame entries detect: [:e | (e at: 1) name = 'Integer>>factorial'] ifNone: [view flame entries last].
 	 self assertRetainedDrawingOf: w after: [
 		view flame zoomTo: (entry at: 1).
@@ -113,8 +113,9 @@ testProfilerProcessTerminating
 	(Delay forMilliseconds: 300) wait.
 	w := ProfilerView open.
 	view := w content.
-	[self settle.
-	 self in: w do: [view refresh. view stop].
+	[self in: w do: [view stop].
+	 self settle.
+	 self in: w do: [view refresh].
 	 self assert: (view processList items anySatisfy: [:row | row first == busy]).
 	 busy terminate.
 	 self assertRetainedDrawingOf: w after: [view flame invalidate].
