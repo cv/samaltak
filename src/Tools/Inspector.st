@@ -88,6 +88,17 @@ evaluateEditor
 !
 fieldNamed: aString
 	^fields items detect: [:f | f name = aString] ifNone: [nil]
+!
+agentContext
+	"The selected field is the receiver when the fields list has focus."
+	| field |
+	field := fields selection.
+	^super agentContext
+		receiver: ((field notNil and: [self window keyboardFocus == fields])
+			ifTrue: [self valueOf: field]
+			ifFalse: [object]);
+		bind: #field to: (field ifNotNil: [self valueOf: field]);
+		yourself
 ! !
 
 !Inspector methodsFor: 'printing'!
@@ -227,4 +238,16 @@ openOn: anObject near: aWindowOrNil bindings: aDictionaryOrNil
 !
 article: aString
 	^((aString notEmpty and: ['AEIOU' includes: aString first]) ifTrue: ['an '] ifFalse: ['a ']), aString
+! !
+
+!Inspector methodsFor: 'events'!
+keyDown: anEvent
+	| field key |
+	(self window keyboardFocus == fields and: [anEvent modifiers commandKey]) ifTrue: [
+		field := fields selection.
+		field ifNotNil: [
+			key := anEvent key.
+			key = $i ifTrue: [self dive: field. ^true].
+			key = $b ifTrue: [Tools browseClass: (self valueOf: field) class. ^true]]].
+	^super keyDown: anEvent
 ! !
