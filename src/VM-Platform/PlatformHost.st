@@ -58,10 +58,6 @@ PlatformHost subclass: #DarwinPlatformHost
 DarwinPlatformHost comment: 'The platform layer on macOS: a CVDisplayLink thread for the refreshes, _NSGetEnviron, SO_NOSIGPIPE, the command key as cmd, MSL shaders (SDL_GPU on Metal; GLSL is not compiled here).'!
 
 !DarwinPlatformHost class methodsFor: 'declaring'!
-cPreamble
-	"CVDisplayLink is deprecated (CADisplayLink needs a view)."
-	^'#pragma clang diagnostic ignored "-Wdeprecated-declarations"'
-!
 declarations
 	^#((coreVideo CoreVideo) (darwin DarwinPlatform) (displayLink CVDisplayLinkRef))
 !
@@ -392,7 +388,7 @@ shaderc_optimization_level_performance
 
 !DarwinPlatformHost class methodsFor: 'translation'!
 cPreamble
-	"Preserve event-local modifiers on shortcuts synthesized by clipboard managers."
+	"CVDisplayLink is deprecated (CADisplayLink needs a view). Preserve event-local modifiers on shortcuts synthesized by clipboard managers."
 	^'#pragma clang diagnostic ignored "-Wdeprecated-declarations"
 #ifdef __APPLE__
 #include <SDL3/SDL.h>
