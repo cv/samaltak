@@ -7,7 +7,8 @@ VMRebuilderTest comment: 'I test the VM Rebuild tool short of the reboot (tests/
 
 !VMRebuilderTest methodsFor: 'running'!
 timeLimitMilliseconds
-	^180000
+	"A whole VM build, niced: 235 s on two cores shared with other builds and tests."
+	^600000
 ! !
 
 !VMRebuilderTest methodsFor: 'tests'!
