@@ -49,6 +49,17 @@ add: anAgentItem
 	items add: anAgentItem.
 	self changed.
 	^anAgentItem
+!
+onChange: aBlock
+	"Set the default subscriber, or remove it with nil."
+	self onChange: aBlock for: self
+!
+onChange: aBlock for: anOwner
+	"Subscribe an owner to visible changes; nil removes its subscription."
+	changeBlock ifNil: [changeBlock := IdentityDictionary new].
+	aBlock
+		ifNil: [changeBlock removeKey: anOwner ifAbsent: []]
+		ifNotNil: [changeBlock at: anOwner put: aBlock]
 ! !
 
 !AgentConversation methodsFor: 'objects'!
@@ -176,15 +187,6 @@ endTurn
 	self changed
 ! !
 
-!AgentConversation methodsFor: 'notification'!
-onChange: aBlock
-	"aBlock [:conversation | ] is evaluated after every visible change."
-	changeBlock := aBlock
-!
-changed
-	changeBlock ifNotNil: [:block | block value: self]
-! !
-
 !AgentConversation class methodsFor: 'instance creation'!
 on: anAgentContext
 	^self new context: anAgentContext; yourself
@@ -200,4 +202,10 @@ ask: aString images: images
 	process priority: Processor userSchedulingPriority; name: 'agent turn'.
 	self changed.
 	process resume
+! !
+
+!AgentConversation methodsFor: 'private'!
+changed
+	changeBlock ifNotNil: [
+		changeBlock values copy do: [:block | block value: self]]
 ! !

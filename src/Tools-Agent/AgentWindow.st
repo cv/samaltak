@@ -36,7 +36,7 @@ setConversation: anAgentConversation origin: aToolOrNil account: anAccount
 		(Row with: {askEditor. (Column with: {sendButton. stopButton. Widget new}) spacing: 6; fixed: 92; padding: (0 @ 8 corner: 10 @ 8); yourself})
 			fixed: 72; yourself.
 		(Row with: {status. signOutButton}) fixed: (self theme metric: #statusBarHeight); yourself}.
-	conversation onChange: [:c | self conversationChanged]
+	conversation onChange: [:c | self conversationChanged] for: self
 !
 contextStrip
 	"A header with the context's label above the lines of its description."
@@ -146,11 +146,6 @@ runLogin
 		card showButton: (ok == true ifTrue: [nil] ifFalse: [ok == false ifTrue: ['The code expired or the sign-in was cancelled.'] ifFalse: [ok]]).
 		self update]
 !
-windowClosed
-	(login notNil and: [login isTerminated not]) ifTrue: [account cancelLogin].
-	conversation onChange: nil.
-	self stop
-!
 focusOrigin
 	(origin notNil and: [origin window notNil]) ifTrue: [origin window focus]
 ! !
@@ -193,4 +188,11 @@ agentContext
 		receiver: self;
 		bind: #conversation to: conversation;
 		yourself
+! !
+
+!AgentWindow methodsFor: 'events'!
+windowClosed
+	(login notNil and: [login isTerminated not]) ifTrue: [account cancelLogin].
+	conversation onChange: nil for: self.
+	self stop
 ! !
