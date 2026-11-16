@@ -231,6 +231,21 @@ testRingWraparound
 	self assert: ((profile samples select: [:s | s process == Processor activeProcess]) allSatisfy: [:s |
 		s stack anySatisfy: [:f | f selector == #busyFor: or: [f selector == #testRingWraparound]]])
 !
+testDroppedRecordIsNotDecoded
+	"The timer process may interrupt a reader that is about to decode a record, and drop the record: what starts there then is another record or the middle of one, and decodes to no sample. Here it is the byte size of an allocation sample, where a record has its flags, frame count and process."
+	| ring gate waiting |
+	ring := StackRing bytes: (StackRing bytes: 0 depth: 1) tableBytes + 16 + 1024 depth: 1.
+	"Records of 8 bytes: record 3 starts at 24, and the ring is full."
+	128 timesRepeat: [ring record: nil flags: 4].
+	self assert: (ring decodeAt: 24 serial: 3 frames: ProfileFrameTable new) notNil.
+	gate := Semaphore new.
+	waiting := [gate wait] forkAt: Processor activePriority + 1.
+	"At 0 a record of 12 bytes (one frame), then the allocation sample's 16 with its size in the last four."
+	[ring record: waiting flags: 0] ensure: [waiting terminate].
+	ring record: nil flags: 4 class: Object size: 16r7FFF0000.
+	self deny: (ring isValidSerial: 3).
+	self assert: (ring decodeAt: 24 serial: 3 frames: ProfileFrameTable new) isNil
+!
 testInlineStacksDecodeShared
 	"Each record holds its stack inline; equal stacks decode to the same Array (trees aggregate by identity)."
 	| fresh profile stacks factorials compiler |

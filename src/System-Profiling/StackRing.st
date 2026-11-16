@@ -14,7 +14,7 @@ StackRing comment: 'I am the profiler''s sample store: a ring of variable-length
 
 Frame ids index a frame table (method or block: CompiledMethod and the block''s startpc, 0 for the method; for allocation samples the class), interned with open addressing; process slots index a table of Processes, reused when no record in the ring references them any more. When a record does not fit before the end of the buffer a byte 255 marks the wrap and the record starts at offset 0; the oldest records are dropped as the head runs into them.
 
-count is the number of records ever written; record serial k is in the ring while k >= first. The single writer is the timer process (priority 80, never interrupted). Readers walk the records from the oldest one (or continue after the last one they read) and check after decoding that the record was not dropped meanwhile; they intern decoded stacks in a trie (decodeKeys / decodeStacks) so that equal stacks decode to the same Array, and look whole stacks up first in stackMemo, keyed by the record''s frame id bytes as a String (whose hash and comparison are primitives), so a deep stack seen before costs one lookup.'!
+count is the number of records ever written; record serial k is in the ring while k >= first. The single writer is the timer process (priority 80, never interrupted). Readers walk the records from the oldest one (or continue after the last one they read) and check after reading a record''s header and again after decoding it that the record was not dropped meanwhile (a dropped record''s bytes are overwritten); they intern decoded stacks in a trie (decodeKeys / decodeStacks) so that equal stacks decode to the same Array, and look whole stacks up first in stackMemo, keyed by the record''s frame id bytes as a String (whose hash and comparison are primitives), so a deep stack seen before costs one lookup.'!
 
 !StackRing methodsFor: 'initialization'!
 setBytes: totalBytes depth: maxDepth
@@ -251,10 +251,12 @@ recordsFrom: lastSerial at: lastOffset kind: aSymbol frames: aFrameTable do: aBl
 	^lastK isNil ifTrue: [nil] ifFalse: [Array with: lastK with: lastO]
 !
 decodeAt: o serial: k frames: aFrameTable
+	"The sample of record k, which starts at o; nil if the writer dropped it before its header was read (what is at o then is another record, or the middle of one)."
 	| flags n extra sample stack procSlot |
 	flags := data at: o + 1.
 	n := data at: o + 2.
 	procSlot := data uint16At: o + 3.
+	k < first ifTrue: [^nil].
 	extra := (flags bitAnd: 16) = 0 ifTrue: [0] ifFalse: [8].
 	stack := self stackAt: o + 8 + extra count: n frames: aFrameTable.
 	sample := ProfileSample new.
