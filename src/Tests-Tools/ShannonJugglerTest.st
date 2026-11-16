@@ -35,7 +35,7 @@ colorsIn: aForm
 !ShannonJugglerTest methodsFor: 'tests'!
 testRendersAndAnimates
 	| w juggler stage first frame halted |
-	w := self open: [ShannonJuggler openIn: (100 @ 100 extent: 504 @ 500)].
+	w := self open: [ShannonJuggler openIn: (100 @ 100 extent: 240 @ 220)].
 	juggler := w content.
 	stage := juggler widgetNamed: 'stage'.
 	self assert: (self waitFor: [juggler frame > 5]) description: 'the act does not run'.
