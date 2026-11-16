@@ -19,7 +19,8 @@ tearDown
 	flags := #('arith' 'fuse' 'barrier' 'notes') inject: '' into: [:all :each |
 		(all isEmpty ifTrue: [''] ifFalse: [all , ',']) , ((on includes: each) ifTrue: [each] ifFalse: ['-' , each])].
 	Smalltalk vm jitParameters: {saved at: 1. flags. saved at: 3. saved at: 4}.
-	JitRuntimeTestSubject selectors do: [:each | JitRuntimeTestSubject removeSelector: each]
+	JitRuntimeTestSubject selectors do: [:each | JitRuntimeTestSubject removeSelector: each].
+	JitRuntimeTestArray class selectors do: [:each | JitRuntimeTestArray class removeSelector: each]
 !
 timeLimitMilliseconds
 	^120000
@@ -282,4 +283,17 @@ testPerformWithProcessSwitches
 	[[result := o sum: 1000000 via: #add:to:.
 	  self assert: result equals: 500001500000.
 	  ticks = 0] whileTrue] ensure: [stop := true]
+! !
+
+!JitRuntimeTest methodsFor: 'tests: allocation'!
+testAllocationWhosePrimitiveFails
+	"An allocation whose primitive fails answers what its fallback answers (here nil, or a String), and sends to it go to that: compiled code does not take it for an instance of the class."
+	| o |
+	JitRuntimeTestArray class compile: 'make: n <primitive: ''basicNew:'' error: ec> ^n = -1 ifTrue: [nil] ifFalse: [''fallback'' , ec printString]'.
+	self define: 'make: n | x | x := JitRuntimeTestArray make: n. ^{x. x printString. x isNil}'.
+	o := JitRuntimeTestSubject new.
+	3 timesRepeat: [
+		self assert: (o make: 2) first class equals: JitRuntimeTestArray.
+		self assert: (o make: -1) equals: {nil. 'nil'. true}.
+		self assert: (o make: 1099511627776) equals: {'fallback1'. '''fallback1'''. false}]
 ! !

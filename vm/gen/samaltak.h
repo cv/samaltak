@@ -420,6 +420,7 @@ typedef void (*prim_fn)(void);
 #define OUT_DEOPT 1
 #define OUT_INTERRUPT 2
 #define OUT_LAZY 4
+#define OUT_NOTMADE 11
 #define OUT_RESUME 9
 #define OUT_SENT 10
 #define OUT_SITE 7
@@ -1900,7 +1901,7 @@ void opt_runtime_all_roots(void (*fn)(oop *));
 uint64_t opt_runtime_block_code_for(uint64_t m, int32_t s);
 bool opt_runtime_compile(oop m);
 uint64_t deopt_guard(frame *f, int64_t k);
-uint64_t deopt_return(frame *f, int64_t k);
+uint64_t deopt_return(frame *f, int64_t k, int64_t not_made);
 void opt_runtime_flushed(void);
 bool header_valid(jit_method *o, bool (*valid)(oop));
 int32_t initial_count(oop m);

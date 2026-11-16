@@ -1,6 +1,6 @@
 OptModule subclass: #OptCodegen
 	instanceVariableNames: 'cgHeldSlot cgHeldReg cgHeldCount cgScanPc cgBinds ir passes regalloc cgCodeStart cgBcSize cgValidSlots cgEntryPc cgSlotTop cgRawBase cgMaxOut cgNeed cgExitPlainLabel cgExitSyncLabel cgDeoptLabel cgReturnLabel cgHeaderLabel cgChecksLabel cgBodyLabel cgInterruptLabel cgBarrierLabel cgDeoptReturnLabel cgStackFullLabel cgOuts cgOutCount cgPoolOops cgPoolLabels cgPoolCount cgMetaWords cgMetaCount cgSpOffsets cgSpCount cgMoveSrc cgMoveDst cgMoveLoc cgMoveCount cgRootAct cgLastPc cgLastAct builder cgDeps cgDepCount cgSunk cgSunkCount cgChainActs cgChainCount cgDoubles cgSiteBl cgSiteLit cgSiteInfo cgSiteIndex cgSiteSel cgSiteCount cgRetOff cgRetIndex cgRetArgc cgRetCount cgOrder cgPlaced'
-	classVariableNames: 'CG_MAX_META CG_MAX_MOVES CG_MAX_OUT CG_MAX_POOL CG_MAX_RETS CG_MAX_HELD CG_MAX_SITES CG_MAX_SP OUT_BARRIER OUT_BOTTOM OUT_DEOPT OUT_INTERRUPT OUT_LAZY OUT_RESUME OUT_SENT OUT_SITE OUT_STACK OUT_WIDOW'
+	classVariableNames: 'CG_MAX_META CG_MAX_MOVES CG_MAX_OUT CG_MAX_POOL CG_MAX_RETS CG_MAX_HELD CG_MAX_SITES CG_MAX_SP OUT_BARRIER OUT_BOTTOM OUT_DEOPT OUT_INTERRUPT OUT_LAZY OUT_NOTMADE OUT_RESUME OUT_SENT OUT_SITE OUT_STACK OUT_WIDOW'
 	package: 'VM-Jit'!
 
 OptCodegen comment: 'Emits arm64 code for the allocated IR (OptRegalloc) in block order, then the out-of-line paths (guard failures, interrupt checks, store barriers, deoptimization after a call, resumption after a call, the stack check), then the oop pool the code loads constants from (pc-relative; GC roots) and the inline caches'' literals. Records for every safepoint and guard the deoptimization metadata (OptRuntime decodes it): kind, continuation, the send, and for each activation its method, closure, receiver, pc and where each slot''s value is (LOC_*).
@@ -43,7 +43,8 @@ initialize
 	OUT_SITE := 7.
 	OUT_WIDOW := 8.
 	OUT_RESUME := 9.
-	OUT_SENT := 10
+	OUT_SENT := 10.
+	OUT_NOTMADE := 11
 ! !
 
 !OptCodegen methodsFor: 'accessing'!
@@ -1384,6 +1385,14 @@ emitSend: n
 	asm b: lazy if: COND_NE.
 	self emitStressAt: n label: lazy.
 	(nd flags bitAnd: NF_ALLOC) ~= 0 ifTrue: [
+		asm comment: 'an instance of the class it makes (its primitive''s fallback may answer anything: deoptimize, and the site sends from then on)'.
+		lazy := self out: OUT_NOTMADE node: n index: k.
+		asm tst: X0 imm: 7.
+		asm b: lazy if: COND_NE.
+		asm ldr: X16 base: X0 offset: 8.
+		self loadConstant: nd tcls into: X17.
+		asm cmp: X16 with: X17.
+		asm b: lazy if: COND_NE.
 		"the allocation's slow path: an interrupt it requested (an allocation sample) is taken after it, as the runtime's send would"
 		cont := asm newLabel.
 		slow := self out: OUT_SENT node: n index: k.
@@ -1726,12 +1735,13 @@ emitOuts
 		o kind = OUT_BARRIER ifTrue: [
 			asm comment: 'remember the old object: call the runtime'.
 			self emitBarrierCall: o].
-		o kind = OUT_LAZY ifTrue: [
+		(o kind = OUT_LAZY or: [o kind = OUT_NOTMADE]) ifTrue: [
 			asm comment: 'deoptimize after the call: the runtime rebuilds the frames (the result in its slot)'.
 			asm str: X0 base: X20 offset: 8 * cgSlotTop.
 			self emitFramePc: cgBcSize + o index sp: cgSlotTop + 1.
 			asm mov: X0 with: X19.
 			asm mov: X1 imm: o index.
+			asm mov: X2 imm: (o kind = OUT_NOTMADE ifTrue: [1] ifFalse: [0]).
 			asm bl: cgDeoptReturnLabel.
 			asm b: cgExitPlainLabel].
 		o kind = OUT_RESUME ifTrue: [

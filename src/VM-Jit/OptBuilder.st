@@ -1594,6 +1594,8 @@ allocate: m selector: sel class: cls argc: argc pc: pc act: a rcvSlot: r
 	| kind inst fo spec isize fmt n |
 	kind := self primKindOf: (self methodPrimitive: m).
 	((kind = OPK_NEW and: [argc = 0]) or: [kind = OPK_NEWSIZE and: [argc = 1]]) ifFalse: [^false].
+	"its send answered something else (the primitive failed): a send"
+	((feedback flagsAt: (ir act: a) method pc: pc) bitAnd: feedback deoptOther) = 0 ifFalse: [^false].
 	inst := self loadRef: cls at: META_THISCLASS.
 	((self isPtr: inst) and: [(self classOf: inst) = cls]) ifFalse: [^false].
 	fo := self loadRef: inst at: BEH_FORMAT.

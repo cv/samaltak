@@ -753,3 +753,40 @@ testLoopUnitWithDeadTemps
 		self assert: (o osr: good) equals: (expected value: good).
 		self assert: (o osr: bad) equals: (expected value: bad)]
 ! !
+
+!JitOptRuntimeTest methodsFor: 'tests: fast paths'!
+listingOf: aSelector
+	^(JitRuntimeTestSubject >> aSelector) machineCodeFor: #opt
+!
+testDoublesAcrossAnAllocationAnsweringSomethingElse
+	"Floats live across an allocation whose send answers something else (its primitive failed: the deoptimization after it) are what they were, in straight code and in a loop."
+	| o |
+	Smalltalk vm jitParameters: #(nil '-eager' nil nil).
+	JitRuntimeTestArray class compile: 'make: n <primitive: ''basicNew:''> ^nil'.
+	self define: 'keep: x and: y make: n | a b z | a := x * y. b := x + y. z := JitRuntimeTestArray make: n. ^(z isNil ifTrue: [100] ifFalse: [z size]) + a + b'.
+	self define: 'sum: k make: n | r x | r := 0.0. 1 to: k do: [:i | x := i * 0.5. r := r + x + ((JitRuntimeTestArray make: n) isNil ifTrue: [100] ifFalse: [1])]. ^r'.
+	o := JitRuntimeTestSubject new.
+	1 to: 3000 do: [:i |
+		self assert: (o keep: 1.5 and: 2.0 make: 2) equals: 8.5.
+		self assert: (o sum: 10 make: 2) equals: 37.5].
+	self assert: ((self listingOf: #keep:and:make:) includesSubstring: 'allocate in eden').
+	self assert: ((self listingOf: #sum:make:) includesSubstring: 'allocate in eden').
+	3 timesRepeat: [
+		self assert: (o keep: 1.5 and: 2.0 make: -1) equals: 106.5.
+		self assert: (o sum: 10 make: -1) equals: 1027.5]
+!
+testAllocationAnsweringSomethingElseIsSent
+	"An allocation whose send answered something else (its primitive failed) deoptimizes, then the site sends: it does not deoptimize every time."
+	| o before |
+	Smalltalk vm jitParameters: #(nil '-eager' nil nil).
+	JitRuntimeTestArray class compile: 'make: n <primitive: ''basicNew:''> ^nil'.
+	self define: 'make: n ^JitRuntimeTestArray make: n'.
+	o := JitRuntimeTestSubject new.
+	1200 timesRepeat: [self assert: (o make: 2) size equals: 2].
+	self assert: ((self listingOf: #make:) includesSubstring: 'allocate in eden').
+	3 timesRepeat: [self assert: (o make: -1) isNil].
+	self deny: ((self listingOf: #make:) includesSubstring: 'allocate in eden').
+	before := self statistics.
+	20 timesRepeat: [self assert: (o make: -1) isNil].
+	self assert: (self statistics - before) optDeoptimizations < 20
+! !

@@ -77,7 +77,7 @@ deoptFunction
 	^self cCoerce: (self functionPointer: #deoptGuard:index:) to: 'uint64_t'
 !
 deoptReturnFunction
-	^self cCoerce: (self functionPointer: #deoptReturn:index:) to: 'uint64_t'
+	^self cCoerce: (self functionPointer: #deoptReturn:index:notMade:) to: 'uint64_t'
 !
 stackFullFunction
 	^self cCoerce: (self functionPointer: #stackFull:) to: 'uint64_t'
@@ -809,14 +809,21 @@ returnBottom: f index: k
 	runtime noteBottomReturn.
 	^1
 !
-deoptReturn: f index: k
-	"After the send of safepoint k (the result in slot slots): f's code was invalidated (or stress): rebuild its activations."
+deoptReturn: f index: k notMade: notMade
+	"After the send of safepoint k (the result in slot slots): f's code was invalidated (or stress), or (notMade 1) an allocation's send answered no instance of its class: rebuild its activations; for the allocation the send's feedback says so (the next compilation sends it) and the code goes."
 	<function>
 	<var: #f type: 'Frame *'>
 	<var: #k type: 'int64_t'>
+	<var: #notMade type: 'int64_t'>
 	<returns: 'uint64_t'>
+	| h r |
 	runtime canonicalizeBelow: f.
-	^self deoptFrame: f index: k regs: self null mode: 2
+	h := self cCoerce: f code to: 'JitMethod *'.
+	r := self deoptFrame: f index: k regs: self null mode: 2.
+	notMade ~= 0 ifTrue: [
+		feedback noteFlags: (rtActMethod at: rtActCount - 1) pc: ((self recordOf: h index: k) at: 1) flags: feedback deoptOther.
+		self invalidate: h].
+	^r
 !
 deoptFrame: f index: k regs: regs mode: mode
 	"Rebuild optimized frame f (the top frame) as the frames of its activations at safepoint k. mode 0: as recorded (a guard, an interrupt check), 1: before the send (it is executed again), 2: after it (its result pushed). Doubles that are no SmallFloat64s become BoxedFloat64s, closures the code never made are made now (their outer activations' frames married). Answer 1 (leave: the interpreter continues the top frame)."

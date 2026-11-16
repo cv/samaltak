@@ -1096,13 +1096,39 @@ exit_signature_at_2:;
     return r;
 }
 
-/* OptRuntime>>deoptReturn:index: */
-uint64_t deopt_return(frame *f, int64_t k)
+/* OptRuntime>>deoptReturn:index:notMade: */
+uint64_t deopt_return(frame *f, int64_t k, int64_t not_made)
 {
+    jit_method *h;
+    uint64_t r;
+    oop m;
+    int32_t n;
+    jit_method *h_2;
     if ((jit_mode == JIT_BASELINE) || (jit_mode == JIT_OPT)) {
         canonicalize_below(f);
     }
-    return deopt_frame(f, k, (uint64_t *)NULL, 2);
+    h = (jit_method *)f->code;
+    r = deopt_frame(f, k, (uint64_t *)NULL, 2);
+    if (not_made != 0) {
+        note_flags(rt_act_method[rt_act_count - 1], (h->meta + h->sp_table[k])[1], FB_DEOPT_OTHER);
+        if (!((h != NULL) && ((h->flags & JM_FAILED) == 0) && ((h->flags & 2) == 0))) {
+            goto exit_invalidate;
+        }
+        rt_stat_invalidations = rt_stat_invalidations + 1;
+        if ((h->block_start == 0) && (h->osr_pc == 0)) {
+            m = h->method;
+            n = initial_count(h->method);
+            opt_counts[((uint32_t)(((*(uint64_t *)m) >> H_HASH_SHIFT) & H_HASH_MASK)) & 65535] = n;
+            h_2 = (jit_method *)h->lower;
+            begin_writing();
+            h_2->opt = 0;
+            end_writing();
+            code_changed(h->method);
+        }
+        jit_runtime_kill(h);
+    exit_invalidate:;
+    }
+    return r;
 }
 
 /* OptRuntime>>flushed */
