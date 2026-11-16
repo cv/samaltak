@@ -45,9 +45,9 @@ open
 	stream binary
 !
 startAt: firstTick
-	"The recording clock's first tick is at firstTick (µs); the video begins at its next one."
+	"The recording clock's first tick is at firstTick (µs); the video begins at its next one: at that tick's exact time, not the whole millisecond its frame signal comes at, so that the slots hold the same ticks whichever tick is the first."
 	tickOrigin := firstTick.
-	startTime := self tickStart: (self tickAt: Time microsecondClockValue) + 1.
+	startTime := (self tickAt: Time microsecondClockValue) + 1 * 1000000 // self class tickRate + tickOrigin.
 	running := true
 !
 stop

@@ -289,6 +289,15 @@ testTheTickGridIsWholeMilliseconds
 		self assert: (recorder tickAt: (recorder tickStart: k)) equals: k.
 		self assert: (recorder tickAt: (recorder tickStart: k) + 900) equals: k]
 !
+testEverySecondTickBeginsASlotAt30Fps
+	"Whichever tick of the recording clock the video begins at, it takes every second tick from there on."
+	| recorder |
+	recorder := FrameRecorder path: 'unused' width: 16 height: 16 fps: 30.
+	recorder startAt: Time microsecondClockValue - 5000.
+	1 to: 60 do: [:k |
+		(recorder slotAt: (recorder tickStart: k)) >= 0 ifTrue: [
+			self assert: (recorder slotAt: (recorder tickStart: k + 2)) equals: (recorder slotAt: (recorder tickStart: k)) + 1]]
+!
 testPresentsWithoutDisplayRefreshes
 	"The display link stops while the display sleeps; macOS slows it to about 10 Hz while the VM runs in the background role. The compositor presents anyway."
 	| n |
