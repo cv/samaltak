@@ -212,7 +212,7 @@ testMethodMenuSetsLogpointMode
 	self assert: (browser breakpointModeOf: #answer) equals: #log
 !
 testMethodMenuShowsMachineCode
-	| menu item listing |
+	| menu item listing text |
 	self browseTo: ToolsTestFixture selector: #answer.
 	menu := self in: window do: [browser methodMenuFor: #answer].
 	item := menu itemLabeled: 'machine code'.
@@ -220,10 +220,11 @@ testMethodMenuShowsMachineCode
 	self in: window do: [item action value].
 	self assert: (self waitFor: [(self windowTitled: 'Machine code: ToolsTestFixture>>answer') notNil]) description: 'no machine code window'.
 	listing := self windowTitled: 'Machine code: ToolsTestFixture>>answer'.
-	self assert: (self waitFor: [listing isOpen and: [listing queue isEmpty]]) description: 'the window did not settle'.
-	self assert: (listing content text includesSubstring: 'pc 0: ').
-	self assert: (listing content text includesSubstring: 'entry:').
-	self assert: (listing content editor tokenTypeAt: (listing content text indexOfSubCollection: 'pc 0: ')) equals: #return
+	self assert: (self waitFor: [listing isOpen]) description: 'the machine code window did not open'.
+	text := self in: listing do: [listing content text].
+	self assert: (text includesSubstring: 'pc 0: ') description: 'no bytecode in the listing'.
+	self assert: (text includesSubstring: 'entry:') description: 'no entry in the listing'.
+	self assert: (self in: listing do: [listing content editor tokenTypeAt: (text indexOfSubCollection: 'pc 0: ')]) equals: #return
 !
 testAcceptWritesTheMethodAndRevertRestoresTheFile
 	| real scratch original path |
