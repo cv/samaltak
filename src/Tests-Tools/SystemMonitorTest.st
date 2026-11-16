@@ -127,7 +127,8 @@ testUsesLittleCPU
 	(Delay forMilliseconds: 3000) wait.
 	cpu := (window process cpuMicroseconds - c0) * 100.0 / (Time microsecondClockValue - t0).
 	self assert: monitor ticks - n0 >= 25 description: (monitor ticks - n0) printString, ' samples in 3 s'.
-	self assert: cpu < 2.0 description: 'the System Monitor used ', (cpu printShowingDecimalPlaces: 2), '% CPU'
+	self runsOnTheDefaultJit ifTrue: [
+		self assert: cpu < 2.0 description: 'the System Monitor used ', (cpu printShowingDecimalPlaces: 2), '% CPU']
 ! !
 
 !SystemMonitorTest methodsFor: 'support'!

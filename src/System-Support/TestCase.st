@@ -112,6 +112,12 @@ signalFailure: aString
 	TestFailure new signal: aString
 ! !
 
+!TestCase methodsFor: 'environment'!
+runsOnTheDefaultJit
+	"Whether the VM runs as usual: the optimizing JIT at its threshold, without stress flags. CPU and time budgets of the tools hold only then (the interpreter is slower; compiling every method at its first activation, or deoptimizing for the stress, takes the CPU)."
+	^Smalltalk vm jitMode == #opt and: [(Smalltalk vm jitParameters at: 3) > 0 and: [(Smalltalk vm jitFlags includes: 'deopt') not]]
+! !
+
 !TestCase methodsFor: 'waiting'!
 waitFor: aBlock
 	^self waitFor: aBlock timeout: 5000
