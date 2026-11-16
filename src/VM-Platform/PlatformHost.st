@@ -79,6 +79,7 @@ onRefresh: link now: now output: outputTime flags: flagsIn flagsOut: flagsOut co
 vsyncStart
 	<export>
 	| link |
+	darwin installPaste.
 	link := self local: 'CVDisplayLinkRef'.
 	(coreVideo createWithActiveCGDisplays: link) ~= coreVideo kCVReturnSuccess ifTrue: [
 		common setError: 'CVDisplayLinkCreateWithActiveCGDisplays failed'.
@@ -387,4 +388,52 @@ shaderc_compilation_status_success
 shaderc_optimization_level_performance
 	<cMacro: 'shaderc_optimization_level shaderc_optimization_level_performance'>
 	^2
+! !
+
+!DarwinPlatformHost class methodsFor: 'translation'!
+cPreamble
+	"Preserve event-local modifiers on shortcuts synthesized by clipboard managers."
+	^'#pragma clang diagnostic ignored "-Wdeprecated-declarations"
+#ifdef __APPLE__
+#include <SDL3/SDL.h>
+#include <objc/runtime.h>
+#include <objc/message.h>
+static IMP samaltak_application_send_event;
+static void samaltak_send_event(id receiver, SEL selector, id event)
+{
+    unsigned long type = ((unsigned long (*)(id, SEL))objc_msgSend)(event, sel_registerName("type"));
+    if (type == 10 || type == 11) { /* NSEventTypeKeyDown / KeyUp */
+        unsigned long flags = ((unsigned long (*)(id, SEL))objc_msgSend)(event, sel_registerName("modifierFlags"));
+        SDL_Keymod saved = SDL_GetModState();
+        SDL_Keymod mods = saved & ~(SDL_KMOD_SHIFT | SDL_KMOD_CTRL | SDL_KMOD_ALT | SDL_KMOD_GUI | SDL_KMOD_CAPS);
+        if (flags & (1UL << 16)) mods |= SDL_KMOD_CAPS;
+        if (flags & (1UL << 17)) mods |= (saved & SDL_KMOD_SHIFT) ? (saved & SDL_KMOD_SHIFT) : SDL_KMOD_LSHIFT;
+        if (flags & (1UL << 18)) mods |= (saved & SDL_KMOD_CTRL) ? (saved & SDL_KMOD_CTRL) : SDL_KMOD_LCTRL;
+        if (flags & (1UL << 19)) mods |= (saved & SDL_KMOD_ALT) ? (saved & SDL_KMOD_ALT) : SDL_KMOD_LALT;
+        if (flags & (1UL << 20)) mods |= (saved & SDL_KMOD_GUI) ? (saved & SDL_KMOD_GUI) : SDL_KMOD_LGUI;
+        SDL_SetModState(mods);
+        ((void (*)(id, SEL, id))samaltak_application_send_event)(receiver, selector, event);
+        SDL_SetModState(saved);
+    } else {
+        ((void (*)(id, SEL, id))samaltak_application_send_event)(receiver, selector, event);
+    }
+}
+static void samaltak_install_paste(void)
+{
+    static bool installed = false;
+    if (installed) return;
+    Class application = objc_getClass("SDL3Application");
+    Method method = application ? class_getInstanceMethod(application, sel_registerName("sendEvent:")) : NULL;
+    if (!!method) return;
+    samaltak_application_send_event = method_setImplementation(method, (IMP)samaltak_send_event);
+    installed = true;
+}
+#endif'
+! !
+
+
+!DarwinPlatform methodsFor: 'paste'!
+installPaste
+	<c: 'void samaltak_install_paste(void)'>
+	^self error: 'not simulated'
 ! !

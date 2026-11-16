@@ -102,7 +102,7 @@ user: aString images: images
 	content := (message at: 'content') asOrderedCollection.
 	content addAll: images.
 	message at: 'content' put: content asArray.
-	item text: aString, (aString isEmpty ifTrue: [''] ifFalse: [String lf]), '[', images size printString, ' attached images]'.
+	item text: aString, (aString isEmpty ifTrue: [''] ifFalse: [String lf]), (images size = 1 ifTrue: ['[attached image]'] ifFalse: ['[', images size printString, ' attached images]']).
 	^item
 ! !
 

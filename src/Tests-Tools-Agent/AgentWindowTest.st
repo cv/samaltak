@@ -221,6 +221,17 @@ testCommandJInAnAgentWindow
 	self assert: context receiver == parent content.
 	self assert: (context bindings at: #conversation) value == parent content conversation.
 	self assert: (AgentWindow openFor: parent content) == child
+!
+testRemovingImageAttachments
+	| editor |
+	editor := AgentInputEditor new.
+	editor text: 'Keep this text'.
+	editor attach: #[1 2 3] mime: 'image/png'.
+	editor attach: #[4 5 6] mime: 'image/png'.
+	self assert: editor images size equals: 2.
+	editor clearImages.
+	self assert: editor images isEmpty.
+	self assert: editor text equals: 'Keep this text'
 ! !
 
 !AgentWindowTest methodsFor: 'tests - contexts'!
