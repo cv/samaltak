@@ -106,17 +106,21 @@ testPipelinedRequests
 	self assert: (r2 at: 'printString') equals: '4'
 !
 testConcurrentClients
-	| slow fast start r |
-	slow := self connect.
-	fast := self connect.
-	start := Time millisecondClockValue.
-	self sendLine: (JSON render: (self eval: '(Delay forMilliseconds: 600) wait. #slow')) on: slow.
-	r := self request: (self eval: '#fast') on: fast.
-	self assert: (r at: 'printString') equals: '#fast'.
-	self assert: Time millisecondClockValue - start < 500.
-	r := JSON parse: (self readLineFrom: slow).
-	self assert: (r at: 'printString') equals: '#slow'.
-	self assert: Time millisecondClockValue - start >= 600
+	"A client gets its answer while another client's request is still being evaluated: that one's goes on only once this one has it."
+	| slow fast gate r |
+	gate := Semaphore new.
+	Smalltalk at: #ControlServerTestGate put: gate.
+	[slow := self connect.
+	 fast := self connect.
+	 self sendLine: (JSON render: (self eval: '(Smalltalk at: #ControlServerTestGate) wait. #slow')) on: slow.
+	 r := self request: (self eval: '#fast') on: fast.
+	 self assert: (r at: 'printString') equals: '#fast'.
+	 gate signal.
+	 r := JSON parse: (self readLineFrom: slow).
+	 self assert: (r at: 'printString') equals: '#slow']
+		ensure: [
+			gate signal.
+			Smalltalk removeKey: #ControlServerTestGate ifAbsent: [nil]]
 !
 testClientDisconnect
 	| c |
