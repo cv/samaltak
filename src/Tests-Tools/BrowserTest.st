@@ -311,4 +311,16 @@ testClassDefinitionAndComment
 	self assert: browser code text equals: ToolsTestFixture comment.
 	self in: window do: [browser selectSide: #class].
 	self assert: (browser code text beginsWith: 'ToolsTestFixture class')
+!
+testAgentContextUsesMostSpecificSelection
+	| context |
+	self browseTo: Integer selector: #gcd:.
+	context := browser agentContext.
+	self assert: context receiver equals: (Integer >> #gcd:).
+	browser selectProtocol: 'arithmetic'.
+	context := browser agentContext.
+	self assert: context receiver equals: 'arithmetic'.
+	self assert: (context bindings at: #behavior) value equals: Integer.
+	browser selectProtocol: nil.
+	self assert: browser agentContext receiver equals: Integer
 ! !
