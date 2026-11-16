@@ -76,19 +76,23 @@ testRunLongComputation
 	self assert: (self waitFor: [(self windowsOf: ProcessBrowser) notEmpty]) description: 'the Process Browser opens'
 !
 testProcessBrowserShowsTheMandelbrotRunning
-	| mb pb state |
+	| mb pb state cpu |
 	self openLayout.
 	mb := self mandelbrot.
 	self in: mb do: [mb content after: 0 do: [mb content render]].
 	self assert: (self waitFor: [mb content isRendering]).
 	pb := (self windowsOf: ProcessBrowser) first.
-	"The interval the CPU column measures."
-	(Delay forMilliseconds: 100) wait.
-	state := self in: pb do: [pb content refresh. pb content stateOf: mb process].
+	"The interval the CPU column measures: 100 ms between two refreshes, read at once (the browser's own 4 Hz refresh waits in its queue meanwhile, and measures anew after)."
+	state := self in: pb do: [
+		pb content refresh.
+		(Delay forMilliseconds: 100) wait.
+		pb content refresh.
+		cpu := pb content cpuOf: mb process.
+		pb content stateOf: mb process].
 	self assert: mb content isRendering.
 	self assert: state equals: 'running'.
 	self assert: (pb content table items includes: mb process).
-	self assert: (self in: pb do: [pb content cpuOf: mb process]) > 5.
+	self assert: cpu > 5.
 	self assert: mb isBusy
 !
 testMandelbrotQueuesClicksWhileBusy
