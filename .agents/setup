@@ -18,13 +18,18 @@ command -v node >/dev/null 2>&1 || $SUDO env DEBIAN_FRONTEND=noninteractive apt-
 
 # bookworm has no SDL3: build once into $HOME (persists), install to /usr/local on every incarnation
 SDL=$HOME/src/SDL
+SDL_CONFIG=$SDL/build/include-config-release/build_config/SDL_build_config.h
+if [ -f "$SDL/build/libSDL3.so" ] && ! grep -q '^#define SDL_VIDEO_DRIVER_X11 1' "$SDL_CONFIG" 2>/dev/null; then
+    rm -rf "$SDL/build"   # built before the X11 headers were installed: no window outside a console
+fi
 if [ ! -f "$SDL/build/libSDL3.so" ]; then
     [ -d "$SDL/.git" ] || git clone --depth 1 --branch release-3.2.24 https://github.com/libsdl-org/SDL.git "$SDL"
     cmake -S "$SDL" -B "$SDL/build" -G Ninja -DCMAKE_BUILD_TYPE=Release \
         -DSDL_TESTS=OFF -DSDL_EXAMPLES=OFF -DSDL_UNIX_CONSOLE_BUILD=ON
     cmake --build "$SDL/build"
 fi
-if [ ! -f /usr/local/lib/pkgconfig/sdl3.pc ] || [ ! -e /usr/local/lib/libSDL3.so.0 ]; then
+if [ ! -f /usr/local/lib/pkgconfig/sdl3.pc ] || [ ! -e /usr/local/lib/libSDL3.so.0 ] \
+    || ! grep -q libX11.so.6 /usr/local/lib/libSDL3.so.0; then
     $SUDO cmake --install "$SDL/build"
     $SUDO ldconfig
 fi
