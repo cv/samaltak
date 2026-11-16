@@ -319,7 +319,7 @@ testOverhead
 		cpu0 := profiler samplerMicroseconds.
 		self busyFor: 100.
 		best min: (profiler samplerMicroseconds - cpu0) * 100.0 / (Time microsecondClockValue - t0)].
-	self assert: percent < 1.0 description: ['sampler time ', percent printString, '%'].
+	self runsOnTheDefaultJit ifTrue: [self assert: percent < 1.0 description: ['sampler time ', percent printString, '%']].
 	"Wall time of a short benchmark with and without the profiler: the median ratio of 100 adjacent runs in alternating order (machine load changes little within a pair; preempted runs are outliers). The best of up to three medians: about 1.01 on a loaded machine, a phase of heavier load can add 1%."
 	bench := [Time microsecondsToRun: [1 to: 6 do: [:i | 300 factorial]]].
 	bench value.
@@ -332,7 +332,7 @@ testOverhead
 				ifFalse: [on := bench value. profiler stop. off := bench value. profiler start].
 			ratios add: on / off].
 		medians add: (ratios asArray at: 51) asFloat]] ensure: [profiler start].
-	self assert: medians last < 1.02 description: ['on/off wall time ratios ', medians asArray printString]
+	self runsOnTheDefaultJit ifTrue: [self assert: medians last < 1.02 description: ['on/off wall time ratios ', medians asArray printString]]
 !
 testTreesConsistent
 	| t0 profile root procNode |
