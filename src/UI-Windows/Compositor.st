@@ -1,5 +1,5 @@
 Object subclass: #Compositor
-	instanceVariableNames: 'world displayWindow renderer process running vsync vsyncIndex wake sleeping skip tickTimeout lastTick idleFrames frameCount presenting requests recorder lastFrameWork onWorkClock ownsWorkClock gpuTimer clock knownProcesses lastCpu lastScan lastRecord lastError lastErrorTime pipelineVersion standIn tickCount'
+	instanceVariableNames: 'world displayWindow renderer process running vsync vsyncIndex wake sleeping skip tickTimeout lastTick idleFrames frameCount presenting requests recorder lastFrameWork onWorkClock ownsWorkClock gpuTimer clock knownProcesses lastCpu lastScan lastRecord lastError lastErrorTime pipelineVersion standIn tickCount compositeBytes'
 	classVariableNames: 'Running'
 	package: 'UI-Windows'!
 
@@ -270,50 +270,6 @@ stepAt: now
 	world stepCurtain ifTrue: [any := true].
 	world dispatcher isNil ifFalse: [world dispatcher checkTooltipAt: now].
 	^any
-!
-present: t0 now: now
-	| scale toRender drawUs rasterUs t cmd list stats0 stats1 t1 shown gpuStart fence fenceAt |
-	scale := world displayScale.
-	stats0 := Smalltalk vm statistics.
-	t := self frameClock.
-	renderer updatePipeline.
-	pipelineVersion = renderer pipelineVersion ifFalse: [
-		pipelineVersion := renderer pipelineVersion.
-		(world windows, world closingWindows, world overlays) do: [:w | w layer markNeedsRender]].
-	toRender := OrderedCollection new.
-	(world windows, world closingWindows, world overlays) do: [:w |
-		| key |
-		key := w chromeKey.
-		key = w layer chromeKey ifFalse: [
-			w layer chromeList: (w chromeDisplayListScale: scale); chromeKey: key].
-		w layer needsRender ifTrue: [toRender add: w]].
-	drawUs := self frameClock - t.
-	t := self frameClock.
-	toRender isEmpty ifFalse: [
-		cmd := renderer device commandBuffer.
-		toRender do: [:w | w layer renderExtent: w extent scale: scale renderer: renderer commandBuffer: cmd].
-		gpuStart := self frameClock.
-		cmd submit].
-	rasterUs := self frameClock - t.
-	t := self frameClock.
-	list := self compositeListScale: scale pointer: true time: now.
-	drawUs := drawUs + (self frameClock - t).
-	t := self frameClock.
-	gpuStart isNil ifTrue: [gpuStart := t].
-	shown := displayWindow show: list clear: Color white.
-	fenceAt := self frameClock.
-	fence := renderer device commandBuffer submitWithFence.
-	rasterUs := rasterUs + (self frameClock - t).
-	recorder isNil ifFalse: [recorder captureFrom: displayWindow surface compositor: self].
-	self runRequests.
-	frameCount := frameCount + 1.
-	t1 := self frameClock.
-	stats1 := Smalltalk vm statistics.
-	self recordFrameStart: t0 end: t1 draw: drawUs raster: rasterUs
-		gcCount: stats1 gcCount - stats0 gcCount
-		gcMicros: stats1 gcMicroseconds - stats0 gcMicroseconds
-		dropped: (recorder isNil ifTrue: [shown not] ifFalse: [recorder missedTickBefore: t0]).
-	gpuTimer fence: fence submittedAt: fenceAt - gpuStart record: lastRecord
 ! !
 
 !Compositor methodsFor: 'compositing'!
@@ -340,21 +296,6 @@ drawToastsOn: c
 		t isDone ifFalse: [
 			t drawOn: c at: (world extent x / 2) @ y.
 			y := y + t extent y + 8]]
-!
-compositeListScale: aNumber pointer: showPointer time: now
-	"The whole screen as a DisplayList."
-	| c |
-	c := Canvas extent: world extent scale: aNumber.
-	world drawDeskOn: c.
-	world windowsInPaintOrder do: [:w | self drawWindow: w on: c time: now].
-	world topBar drawOn: c.
-	world overlays do: [:w | self drawWindow: w on: c time: now].
-	world closingWindows do: [:w | w isOverlay ifTrue: [self drawWindow: w on: c time: now]].
-	self drawToastsOn: c.
-	world tooltip isNil ifFalse: [world tooltip drawOn: c].
-	world curtain isNil ifFalse: [world curtain drawOn: c].
-	showPointer ifTrue: [world remotePointer drawOn: c time: now].
-	^c displayList
 ! !
 
 !Compositor methodsFor: 'requests'!
@@ -523,4 +464,72 @@ maxFramesInFlight
 !Compositor class methodsFor: 'instance creation'!
 world: aWorld
 	^self new setWorld: aWorld
+! !
+
+!Compositor methodsFor: 'drawing'!
+compositeOn: c pointer: showPointer time: now
+	"The whole screen as a DisplayList."
+	world drawDeskOn: c.
+	world windowsInPaintOrder do: [:w | self drawWindow: w on: c time: now].
+	world topBar drawOn: c.
+	world overlays do: [:w | self drawWindow: w on: c time: now].
+	world closingWindows do: [:w | w isOverlay ifTrue: [self drawWindow: w on: c time: now]].
+	self drawToastsOn: c.
+	world tooltip isNil ifFalse: [world tooltip drawOn: c].
+	world curtain isNil ifFalse: [world curtain drawOn: c].
+	showPointer ifTrue: [world remotePointer drawOn: c time: now].
+	^c displayList
+!
+compositeListScale: aNumber pointer: showPointer time: now
+	"The whole screen as an independently owned DisplayList."
+	^self compositeOn: (Canvas extent: world extent scale: aNumber) pointer: showPointer time: now
+! !
+
+!Compositor methodsFor: 'private'!
+present: t0 now: now
+	| scale toRender drawUs rasterUs t cmd list stats0 stats1 t1 shown gpuStart fence fenceAt |
+	scale := world displayScale.
+	stats0 := Smalltalk vm statistics.
+	t := self frameClock.
+	renderer updatePipeline.
+	pipelineVersion = renderer pipelineVersion ifFalse: [
+		pipelineVersion := renderer pipelineVersion.
+		(world windows, world closingWindows, world overlays) do: [:w | w layer markNeedsRender]].
+	toRender := OrderedCollection new.
+	(world windows, world closingWindows, world overlays) do: [:w |
+		| key |
+		key := w chromeKey.
+		key = w layer chromeKey ifFalse: [
+			w layer chromeList: (w chromeDisplayListScale: scale); chromeKey: key].
+		w layer needsRender ifTrue: [toRender add: w]].
+	drawUs := self frameClock - t.
+	t := self frameClock.
+	toRender isEmpty ifFalse: [
+		cmd := renderer device commandBuffer.
+		toRender do: [:w | w layer renderExtent: w extent scale: scale renderer: renderer commandBuffer: cmd].
+		gpuStart := self frameClock.
+		cmd submit].
+	rasterUs := self frameClock - t.
+	t := self frameClock.
+	compositeBytes isNil ifTrue: [compositeBytes := ByteArray new: 32768].
+	list := self compositeOn: (Canvas extent: world extent scale: scale buffer: compositeBytes) pointer: true time: now.
+	drawUs := drawUs + (self frameClock - t).
+	t := self frameClock.
+	gpuStart isNil ifTrue: [gpuStart := t].
+	shown := displayWindow show: list clear: Color white.
+	"The upload has copied these bytes; screenshots use independently owned lists."
+	compositeBytes := list vertices.
+	fenceAt := self frameClock.
+	fence := renderer device commandBuffer submitWithFence.
+	rasterUs := rasterUs + (self frameClock - t).
+	recorder isNil ifFalse: [recorder captureFrom: displayWindow surface compositor: self].
+	self runRequests.
+	frameCount := frameCount + 1.
+	t1 := self frameClock.
+	stats1 := Smalltalk vm statistics.
+	self recordFrameStart: t0 end: t1 draw: drawUs raster: rasterUs
+		gcCount: stats1 gcCount - stats0 gcCount
+		gcMicros: stats1 gcMicroseconds - stats0 gcMicroseconds
+		dropped: (recorder isNil ifTrue: [shown not] ifFalse: [recorder missedTickBefore: t0]).
+	gpuTimer fence: fence submittedAt: fenceAt - gpuStart record: lastRecord
 ! !

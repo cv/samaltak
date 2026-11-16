@@ -139,4 +139,45 @@ testCullsInvisibleText
 	canvas drawString: 'clipped at the right edge of the canvas, which is narrow' at: 180 @ 0 font: Font ui color: Color black.
 	list := canvas displayList.
 	self assert: list quadCount < 6
+!
+testRecordedVerticesStayCompactAfterReplay
+	| segment storage list |
+	segment := canvas record: [
+		canvas fillRect: (0 @ 0 extent: 10 @ 10) color: Color black].
+	self assert: segment vertices size equals: segment vertexCount * 40.
+	storage := segment vertices.
+	canvas := Canvas extent: 200 @ 100 scale: 2.
+	canvas append: segment dx: 0 dy: 0.
+	self assert: segment vertices identicalTo: storage.
+	list := canvas displayList.
+	self assert: ((list quadAt: 1) at: #rect) equals: (Rectangle left: 0 right: 20 top: 0 bottom: 20)
+!
+testNestedRecordingPacksSharedVertices
+	| inner outer list |
+	outer := canvas record: [
+		canvas fillRect: (0 @ 0 extent: 1 @ 1) color: Color black.
+		inner := canvas record: [
+			canvas fillRect: (2 @ 0 extent: 1 @ 1) color: Color black].
+		canvas fillRect: (4 @ 0 extent: 1 @ 1) color: Color black].
+	self assert: inner vertices size equals: 3 * inner vertexCount * 40.
+	canvas := Canvas extent: 200 @ 100 scale: 2.
+	canvas append: outer dx: 0 dy: 0.
+	list := canvas displayList.
+	self assert: ((list quadAt: 2) at: #rect) equals: (Rectangle left: 4 right: 6 top: 0 bottom: 2)
+!
+testScratchBufferCanBeReusedAfterConsumption
+	| storage first segment second |
+	storage := ByteArray new: 4096.
+	canvas := Canvas extent: 200 @ 100 scale: 2 buffer: storage.
+	segment := canvas record: [
+		canvas fillRect: (0 @ 0 extent: 1 @ 1) color: Color black].
+	first := canvas displayList.
+	self assert: first vertices identicalTo: storage.
+	canvas := Canvas extent: 200 @ 100 scale: 2 buffer: storage.
+	canvas fillRect: (10 @ 10 extent: 1 @ 1) color: Color black.
+	second := canvas displayList.
+	self assert: second vertices identicalTo: storage.
+	canvas := Canvas extent: 200 @ 100 scale: 2.
+	canvas append: segment dx: 0 dy: 0.
+	self assert: (((canvas displayList) quadAt: 1) at: #rect) equals: (Rectangle left: 0 right: 2 top: 0 bottom: 2)
 ! !

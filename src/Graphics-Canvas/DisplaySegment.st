@@ -72,6 +72,35 @@ vertices: aByteArray offset: byteIndex
 	"A leaf was replayed: its vertices are also there now (frozen once that Canvas is done), so the older bytes can go."
 	vertices := aByteArray.
 	byteOffset := byteIndex
+!
+compactVertices
+	"Pack the distinct leaves into one exact-sized buffer, without changing batches or moves."
+	| leaves seen visit size buffers capacity packed offset |
+	leaves := OrderedCollection new.
+	seen := IdentitySet new.
+	visit := [:segment |
+		segment isLeaf
+			ifTrue: [
+				(segment vertexCount > 0 and: [(seen includes: segment) not]) ifTrue: [
+					seen add: segment.
+					leaves add: segment]]
+			ifFalse: [segment partsDo: [:part :x :y | visit value: part]]].
+	visit value: self.
+	size := leaves inject: 0 into: [:sum :leaf | sum + (leaf vertexCount * 40)].
+	buffers := IdentitySet new.
+	leaves do: [:leaf | buffers add: leaf vertices].
+	capacity := buffers inject: 0 into: [:sum :buffer | sum + buffer size].
+	capacity <= size ifTrue: [^self].
+	packed := ByteArray new: size.
+	offset := 0.
+	leaves do: [:leaf | | count |
+		count := leaf vertexCount * 40.
+		packed replaceFrom: offset + 1 to: offset + count with: leaf vertices startingAt: leaf byteOffset + 1.
+		offset := offset + count].
+	offset := 0.
+	leaves do: [:leaf |
+		leaf vertices: packed offset: offset.
+		offset := offset + (leaf vertexCount * 40)]
 ! !
 
 !DisplaySegment methodsFor: 'accessing'!

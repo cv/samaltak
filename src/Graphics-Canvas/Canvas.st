@@ -17,9 +17,12 @@ Retained drawing: "record: aBlock" answers a DisplaySegment of what aBlock drew;
 
 !Canvas methodsFor: 'initialization'!
 setExtent: aPoint scale: aNumber capacity: byteCount
+	^self setExtent: aPoint scale: aNumber buffer: (ByteArray new: byteCount)
+!
+setExtent: aPoint scale: aNumber buffer: aByteArray
 	extent := aPoint.
 	scale := aNumber.
-	bytes := ByteArray new: byteCount.
+	bytes := aByteArray.
 	next := 1.
 	originX := 0.
 	originY := 0.
@@ -162,6 +165,24 @@ image: anImage from: sourceRect in: aRectangle
 	bytes uint32At: p + 24 put: (self pack: Color white).
 	bytes uint32At: p + 28 put: DisplayList modeImage.
 	self replicateVertexAt: p
+!
+record: aBlock
+	"Draw aBlock and answer a DisplaySegment of what it drew, for replay: on a later canvas."
+	| segment |
+	self closeRun.
+	segment := DisplaySegment scale: scale opacity: opacity deviceX: originX * scale deviceY: originY * scale
+		clipLeft: clipLeft top: clipTop right: clipRight bottom: clipBottom.
+	segment glyphGeneration: GlyphGeneration.
+	segment runStart: next - 1 // 40.
+	building addLast: segment.
+	aBlock ensure: [
+		self closeRun.
+		"Down to segment: an inner record:'s ensure block cut short (its Process terminated by another) leaves its segment on top."
+		[building removeLast == segment] whileFalse.
+		segment finish.
+		building isEmpty ifTrue: [segment compactVertices].
+		building isEmpty ifFalse: [building last addPart: segment dx: 0 dy: 0; runStart: next - 1 // 40]].
+	^segment
 ! !
 
 !Canvas methodsFor: 'text'!
@@ -292,23 +313,6 @@ alpha: aNumber during: aBlock
 ! !
 
 !Canvas methodsFor: 'retained drawing'!
-record: aBlock
-	"Draw aBlock and answer a DisplaySegment of what it drew, for replay: on a later canvas."
-	| segment |
-	self closeRun.
-	segment := DisplaySegment scale: scale opacity: opacity deviceX: originX * scale deviceY: originY * scale
-		clipLeft: clipLeft top: clipTop right: clipRight bottom: clipBottom.
-	segment glyphGeneration: GlyphGeneration.
-	segment runStart: next - 1 // 40.
-	building addLast: segment.
-	aBlock ensure: [
-		self closeRun.
-		"Down to segment: an inner record:'s ensure block cut short (its Process terminated by another) leaves its segment on top."
-		[building removeLast == segment] whileFalse.
-		segment finish.
-		building isEmpty ifFalse: [building last addPart: segment dx: 0 dy: 0; runStart: next - 1 // 40]].
-	^segment
-!
 replay: aSegment
 	"Draw aSegment again and answer true if it is valid here: recorded at my scale and opacity, in my clip relative to the origin, at an origin whole device pixels away from mine. Answer false (drawing nothing) otherwise, inside drawFresh:, for a volatile segment, or when replaying is off."
 	| x y |
@@ -439,7 +443,6 @@ append: aSegment dx: x dy: y
 				batch := DisplayBatch texture: texture scissor: s first: base + b first count: 0 dx: tx dy: ty]].
 	[next + (n * 40) - 1 > bytes size] whileTrue: [self grow].
 	bytes replaceFrom: next to: next + (n * 40) - 1 with: aSegment vertices startingAt: aSegment byteOffset + 1.
-	aSegment vertices: bytes offset: next - 1.
 	next := next + (n * 40).
 	"Go on drawing in the last batch if it is unmoved and has the current clip."
 	(batch dx = 0 and: [batch dy = 0 and: [batch scissor = scissor]]) ifFalse: [
@@ -552,4 +555,8 @@ extent: aPoint scale: aNumber capacity: byteCount
 !
 extent: aPoint
 	^self extent: aPoint scale: Font deviceScale
+!
+extent: aPoint scale: aNumber buffer: aByteArray
+	"Use exclusively owned scratch storage; the caller must not reuse it while the list is in use."
+	^self new setExtent: aPoint scale: aNumber buffer: aByteArray
 ! !
