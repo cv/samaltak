@@ -379,9 +379,11 @@ pack: aColor
 	^aColor premultipliedRGBA8Times: opacity
 !
 reserveQuad
-	"Answer the byte index of a fresh quad (zero bytes)."
+	"Answer the byte index of a fresh quad with no per-vertex translation."
 	| p |
 	(p := next) + 239 > bytes size ifTrue: [self grow].
+	bytes float32At: p + 32 put: 0.
+	bytes float32At: p + 36 put: 0.
 	next := p + 240.
 	^p
 !
@@ -458,17 +460,14 @@ replicateVertexAt: p
 !
 quadX0: x0 y0: y0 x1: x1 y1: y1 color: packedColor mode: mode
 	| p |
-	(p := next) + 239 > bytes size ifTrue: [self grow].
+	p := self reserveQuad.
 	bytes float32At: p put: x0.
 	bytes float32At: p + 4 put: y0.
 	bytes float32At: p + 8 put: x1.
 	bytes float32At: p + 12 put: y1.
 	bytes uint32At: p + 24 put: packedColor.
 	bytes uint32At: p + 28 put: mode.
-	bytes replaceFrom: p + 40 to: p + 79 with: bytes startingAt: p.
-	bytes replaceFrom: p + 80 to: p + 159 with: bytes startingAt: p.
-	bytes replaceFrom: p + 160 to: p + 239 with: bytes startingAt: p.
-	next := p + 240
+	self replicateVertexAt: p
 !
 antialiasedLineX0: x0 y0: y0 x1: x1 y1: y1 width: w color: packedColor
 	"A quad around the segment (device pixels), widened by one pixel on each side; each vertex carries its signed distance across the line and the half width, so the fragment shader computes exact coverage."
