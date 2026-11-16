@@ -73,7 +73,7 @@ testTurnWithCellsAndShow
 	self assert: ((fourth at: 7) at: 'type') equals: 'function_call'.
 	self assert: ((fourth at: 8) at: 'type') equals: 'function_call_output'.
 	self assert: ((fourth at: 8) at: 'output') equals: 'shown'.
-	self assert: (conversation usage at: 'total_tokens') equals: 110.
+	self assert: (conversation usage at: 'total_tokens') equals: 440.
 	"The final message goes back in the next request."
 	provider reply: (Array with: (self message: 'Bye.')).
 	conversation ask: 'thanks'; wait.

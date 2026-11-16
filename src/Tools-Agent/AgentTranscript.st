@@ -25,7 +25,7 @@ sync
 	self children do: [:each |
 		each refresh.
 		each children do: [:button |
-			button enabled: (conversation canRetry and: [each item == conversation items last])]].
+			button name = 'retry' ifTrue: [button enabled: (conversation canRetry and: [each item == conversation items last])]]].
 	self layout
 ! !
 
