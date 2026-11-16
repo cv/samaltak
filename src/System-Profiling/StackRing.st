@@ -1,5 +1,5 @@
 Object subclass: #StackRing
-	instanceVariableNames: 'data dataSize head tail count first lastTime depth processes processUses frameKeys framePcs frameHash frameMask frameCount lostFrames slotProcesses slotBuffers slotIds lastFlags decodeKeys decodeStacks decodedFrames epoch stackMemo'
+	instanceVariableNames: 'data dataSize head tail count first lastTime depth processes processUses frameKeys framePcs frameHash frameMask frameCount lostFrames frameMarks frameFree frameScan frameReclaimAt frameEpoch slotProcesses slotBuffers slotIds lastFlags decodeKeys decodeStacks decodedFrames decodeEpoch epoch stackMemo'
 	classVariableNames: ''
 	package: 'System-Profiling'!
 
@@ -12,9 +12,9 @@ StackRing comment: 'I am the profiler''s sample store: a ring of variable-length
 	allocation samples only: bytes 8-11 the class (a frame id), 12-15 the byte size
 	then n frame ids of 4 bytes, outermost first
 
-Frame ids index a frame table (method or block: CompiledMethod and the block''s startpc, 0 for the method; for allocation samples the class), interned with open addressing; process slots index a table of Processes, reused when no record in the ring references them any more. When a record does not fit before the end of the buffer a byte 255 marks the wrap and the record starts at offset 0; the oldest records are dropped as the head runs into them.
+Frame ids index a frame table (method or block: CompiledMethod and the block''s startpc, 0 for the method; for allocation samples the class), interned with open addressing. When the table is full, the ids that no record in the ring uses are reclaimed for new frames (frameEpoch counts how often: an id may mean another frame afterwards). Process slots index a table of Processes, reused when no record in the ring references them any more. When a record does not fit before the end of the buffer a byte 255 marks the wrap and the record starts at offset 0; the oldest records are dropped as the head runs into them.
 
-count is the number of records ever written; record serial k is in the ring while k >= first. The single writer is the timer process (priority 80, never interrupted). Readers walk the records from the oldest one (or continue after the last one they read) and check after reading a record''s header and again after decoding it that the record was not dropped meanwhile (a dropped record''s bytes are overwritten); they intern decoded stacks in a trie (decodeKeys / decodeStacks) so that equal stacks decode to the same Array, and look whole stacks up first in stackMemo, keyed by the record''s frame id bytes as a String (whose hash and comparison are primitives), so a deep stack seen before costs one lookup.'!
+count is the number of records ever written; record serial k is in the ring while k >= first. The single writer is the timer process (priority 80, never interrupted). Readers walk the records from the oldest one (or continue after the last one they read) and check after reading a record''s header and again after decoding it that the record was not dropped meanwhile (a dropped record''s bytes are overwritten, and its frame ids may be reclaimed); they intern decoded stacks in a trie (decodeKeys / decodeStacks) so that equal stacks decode to the same Array, and look whole stacks up first in stackMemo, keyed by the record''s frame id bytes as a String (whose hash and comparison are primitives), so a deep stack seen before costs one lookup. What they keep of decoded stacks they forget when frame ids were reclaimed and when they decoded a dropped record.'!
 
 !StackRing methodsFor: 'initialization'!
 setBytes: totalBytes depth: maxDepth
@@ -27,6 +27,7 @@ setBytes: totalBytes depth: maxDepth
 	framePcs := ByteArray new: 8192 * 2.
 	slots := 16384.
 	frameHash := ByteArray new: slots * 2.
+	frameMarks := ByteArray new: frameKeys size.
 	frameMask := slots - 1.
 	slotProcesses := Array new: 16.
 	slotBuffers := (1 to: 16) collect: [:i | Array new: maxDepth * 2 + 1].
@@ -44,6 +45,8 @@ reset
 	lastTime := 0.
 	lostFrames := 0.
 	frameCount := 0.
+	frameFree := frameScan := frameReclaimAt := 0.
+	frameEpoch := decodeEpoch := 0.
 	frameKeys atAllPut: nil.
 	frameHash atAllPut: 0.
 	processes atAllPut: nil.
@@ -128,7 +131,11 @@ record: aProcess flags: flagBits class: aClassOrNil size: byteCount
 		lastFlags := (r bitShift: -15) bitAnd: 2.
 		(r bitAnd: 16r20000) = 0 ifFalse: [lastFlags := lastFlags bitOr: 8].
 		ids := slotIds at: slot.
-		k + 1 to: n do: [:j | ids at: j put: (self frameIdOf: (buffer at: j * 2) pc: ((buffer at: j * 2 + 1) min: 16rFFFE))]].
+		k + 1 to: n do: [:j | | id |
+			id := self frameIdOf: (buffer at: j * 2) pc: ((buffer at: j * 2 + 1) min: 16rFFFE).
+			"A frame that got no id is looked up again with the next sample of the process."
+			id = 0 ifTrue: [buffer at: 1 put: nil].
+			ids at: j put: id]].
 	extra := aClassOrNil isNil ifTrue: [0] ifFalse: [8].
 	len := 8 + extra + (4 * n).
 	self makeRoom: len.
@@ -167,19 +174,68 @@ lengthAt: o
 	^8 + (((data at: o + 1) bitAnd: 16) = 0 ifTrue: [0] ifFalse: [8]) + (4 * (data at: o + 2))
 !
 frameIdOf: anObject pc: pc
-	"Intern (anObject, pc) in the frame table; answer its id (0 when the table is full)."
+	"Intern (anObject, pc) in the frame table; answer its id (0 when the table is full of frames that records in the ring use)."
 	| h id |
 	h := (anObject identityHash * 31) + pc bitAnd: frameMask.
 	[(id := frameHash uint16At: h * 2 + 1) = 0] whileFalse: [
 		((frameKeys at: id) == anObject and: [(framePcs uint16At: id * 2 - 1) = pc]) ifTrue: [^id].
 		h := h + 1 bitAnd: frameMask].
-	frameCount >= frameKeys size ifTrue: [lostFrames := lostFrames + 1. ^0].
-	frameCount := frameCount + 1.
-	id := frameCount.
+	frameCount < frameKeys size
+		ifTrue: [id := frameCount := frameCount + 1]
+		ifFalse: [
+			(id := self freeFrameId) = 0 ifTrue: [lostFrames := lostFrames + 1. ^0].
+			"Reclaiming rebuilds the hash table."
+			h := (anObject identityHash * 31) + pc bitAnd: frameMask.
+			[(frameHash uint16At: h * 2 + 1) = 0] whileFalse: [h := h + 1 bitAnd: frameMask]].
 	frameKeys at: id put: anObject.
 	framePcs uint16At: id * 2 - 1 put: pc.
 	frameHash uint16At: h * 2 + 1 put: id.
 	^id
+!
+freeFrameId
+	"With the frame table full: an id that no record in the ring uses, for a new frame; 0 if there is none. Finding out which are free walks the whole ring, so not again before a quarter of its records are replaced."
+	frameFree = 0 ifTrue: [
+		count < frameReclaimAt ifTrue: [^0].
+		self reclaimFrames.
+		frameFree = 0 ifTrue: [^0]].
+	[frameScan := frameScan + 1. (frameMarks at: frameScan) = 0] whileFalse.
+	frameMarks at: frameScan put: 1.
+	frameFree := frameFree - 1.
+	^frameScan
+!
+reclaimFrames
+	"Free the ids of the frames that neither a record in the ring uses nor the stack last recorded of a process (the next sample of the process records the frames both have in common by these ids). Never allocates."
+	| o p n id h |
+	1 to: frameMarks size do: [:i | frameMarks at: i put: 0].
+	1 to: slotIds size do: [:s | | ids |
+		ids := slotIds at: s.
+		1 to: ids size do: [:j |
+			((id := ids at: j) isNil or: [id = 0]) ifFalse: [frameMarks at: id put: 1]]].
+	o := tail.
+	first to: count - 1 do: [:k |
+		(o >= dataSize or: [(data at: o + 1) = 255]) ifTrue: [o := 0].
+		p := o + 8.
+		((data at: o + 1) bitAnd: 16) = 0 ifFalse: [
+			(id := data uint32At: o + 9) = 0 ifFalse: [frameMarks at: id put: 1].
+			p := p + 8].
+		n := data at: o + 2.
+		1 to: n do: [:j |
+			(id := data uint32At: p + (j - 1 * 4) + 1) = 0 ifFalse: [frameMarks at: id put: 1]].
+		o := p + (4 * n)].
+	1 to: frameHash size do: [:i | frameHash at: i put: 0].
+	frameFree := 0.
+	1 to: frameKeys size do: [:i |
+		(frameMarks at: i) = 0
+			ifTrue: [
+				frameKeys at: i put: nil.
+				frameFree := frameFree + 1]
+			ifFalse: [
+				h := ((frameKeys at: i) identityHash * 31) + (framePcs uint16At: i * 2 - 1) bitAnd: frameMask.
+				[(frameHash uint16At: h * 2 + 1) = 0] whileFalse: [h := h + 1 bitAnd: frameMask].
+				frameHash uint16At: h * 2 + 1 put: i]].
+	frameScan := 0.
+	frameEpoch := frameEpoch + 1.
+	frameReclaimAt := count + (count - first // 4)
 !
 slotOfProcess: aProcess
 	"The process table slot of aProcess (1-based), taking a free slot or one no record in the ring uses; 0 if none."
@@ -251,12 +307,16 @@ recordsFrom: lastSerial at: lastOffset kind: aSymbol frames: aFrameTable do: aBl
 	^lastK isNil ifTrue: [nil] ifFalse: [Array with: lastK with: lastO]
 !
 decodeAt: o serial: k frames: aFrameTable
-	"The sample of record k, which starts at o; nil if the writer dropped it before its header was read (what is at o then is another record, or the middle of one)."
-	| flags n extra sample stack procSlot |
+	"The sample of record k, which starts at o; nil if the writer dropped it meanwhile (what is at o then is another record, or the middle of one, and its frame ids may be other frames')."
+	| flags n extra sample stack procSlot e |
 	flags := data at: o + 1.
 	n := data at: o + 2.
 	procSlot := data uint16At: o + 3.
 	k < first ifTrue: [^nil].
+	e := frameEpoch.
+	decodeEpoch = e ifFalse: [
+		self forgetDecoded.
+		decodeEpoch := e].
 	extra := (flags bitAnd: 16) = 0 ifTrue: [0] ifFalse: [8].
 	stack := self stackAt: o + 8 + extra count: n frames: aFrameTable.
 	sample := ProfileSample new.
@@ -268,7 +328,13 @@ decodeAt: o serial: k frames: aFrameTable
 		stack: stack.
 	extra = 0 ifFalse: [
 		sample setAllocatedClass: (self keyOf: (data uint32At: o + 9)) size: (data uint32At: o + 13)].
+	k < first ifTrue: [
+		self forgetDecoded.
+		^nil].
 	^sample
+!
+forgetDecoded
+	decodeKeys := decodeStacks := decodedFrames := stackMemo := nil
 !
 stackAt: offset count: n frames: aFrameTable
 	"The ProfileFrames of the n frame ids at offset (outermost first), innermost first; equal stacks answer the same Array."
@@ -315,7 +381,7 @@ frameFor: id frames: aFrameTable
 	| frame key pc |
 	(id between: 1 and: frameCount) ifFalse: [^aFrameTable unknownFrame].
 	(frame := decodedFrames at: id) isNil ifFalse: [^frame].
-	key := frameKeys at: id.
+	(key := frameKeys at: id) isNil ifTrue: [^aFrameTable unknownFrame].
 	pc := framePcs uint16At: id * 2 - 1.
 	frame := aFrameTable frameFor: key startpc: (pc = 0 ifTrue: [nil] ifFalse: [pc]).
 	decodedFrames at: id put: frame.
@@ -324,7 +390,7 @@ frameFor: id frames: aFrameTable
 
 !StackRing methodsFor: 'statistics'!
 tableBytes
-	^(16 + (8 * processes size)) + (16 + (8 * processUses size)) + (16 + (8 * frameKeys size)) + (16 + framePcs size) + (16 + frameHash size)
+	^(16 + (8 * processes size)) + (16 + (8 * processUses size)) + (16 + (8 * frameKeys size)) + (16 + framePcs size) + (16 + frameHash size) + (16 + frameMarks size)
 		+ (16 + (8 * 16)) + (16 + (8 * 16)) + (16 * ((16 + (8 * (2 * depth + 1))) + (16 + (8 * depth))))
 !
 byteSize

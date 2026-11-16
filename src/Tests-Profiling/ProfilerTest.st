@@ -76,6 +76,10 @@ withProfiler: aProfiler do: aBlock
 		Profiler default: old.
 		old start]
 !
+smallRing
+	"A ring of 1024 bytes of records (64 allocation samples without a stack)."
+	^StackRing bytes: (StackRing bytes: 0 depth: 8) tableBytes + 16 + 1024 depth: 8
+!
 stackOf: aSample includes: aSelector
 	^aSample stack anySatisfy: [:f | f method selector == aSelector and: [f methodClass == ProfilerTest]]
 ! !
@@ -245,6 +249,80 @@ testDroppedRecordIsNotDecoded
 	ring record: nil flags: 4 class: Object size: 16r7FFF0000.
 	self deny: (ring isValidSerial: 3).
 	self assert: (ring decodeAt: 24 serial: 3 frames: ProfileFrameTable new) isNil
+!
+testFrameIdsAreReclaimedWhenTheTableIsFull
+	"The frame table holds 8192 frames. When it is full, a new frame gets the id of one that no record in the ring uses any more."
+	| ring class last |
+	ring := self smallRing.
+	10000 timesRepeat: [ring record: nil flags: 4 class: Object new size: 8].
+	self assert: ring frameCount equals: 8192.
+	class := Object new.
+	ring record: nil flags: 4 class: class size: 8.
+	ring recordsFrom: 0 kind: #allocation frames: ProfileFrameTable new do: [:s | last := s].
+	self assert: last allocatedClass == class.
+	self assert: ring lostFrames equals: 0
+!
+testReclaimingFrameIdsKeepsTheStacksLastRecorded
+	"The next sample of a process records the frames its stack still has in common with its last one by the ids they had then, also when the record of the last one is gone: those ids are not reclaimed."
+	| ring frames gate waiting before after |
+	ring := self smallRing.
+	frames := ProfileFrameTable new.
+	gate := Semaphore new.
+	waiting := [gate wait] forkAt: Processor activePriority + 1.
+	[ring record: waiting flags: 0.
+	 ring recordsFrom: 0 kind: #cpu frames: frames do: [:s | before := s stack].
+	 10000 timesRepeat: [ring record: nil flags: 4 class: Object new size: 8].
+	 ring record: waiting flags: 0.
+	 ring recordsFrom: 0 kind: #cpu frames: frames do: [:s | after := s stack]] ensure: [waiting terminate].
+	self assert: before notEmpty.
+	self assert: after = before
+!
+testFramesWithoutAnIdGetOneOnceIdsAreFree
+	"With the frame table full of frames that records in the ring use, the frames of a new stack are recorded as unknown; the next sample of the process after those records are gone has them."
+	| ring fresh frames gate waiting stack expected |
+	ring := StackRing bytes: (StackRing bytes: 0 depth: 8) tableBytes + 16 + (256 * 1024) depth: 8.
+	fresh := self smallRing.
+	frames := ProfileFrameTable new.
+	gate := Semaphore new.
+	waiting := [gate wait] forkAt: Processor activePriority + 1.
+	[8192 timesRepeat: [ring record: nil flags: 4 class: Object new size: 8].
+	 ring record: waiting flags: 0.
+	 ring recordsFrom: 0 kind: #cpu frames: frames do: [:s | stack := s stack].
+	 self assert: stack notEmpty.
+	 self assert: (stack allSatisfy: [:f | f == frames unknownFrame]).
+	 [ring isValidSerial: 8192] whileTrue: [ring record: nil flags: 4 class: Object size: 8].
+	 ring record: waiting flags: 0.
+	 ring recordsFrom: 0 kind: #cpu frames: frames do: [:s | stack := s stack].
+	 fresh record: waiting flags: 0.
+	 fresh recordsFrom: 0 kind: #cpu frames: frames do: [:s | expected := s stack]] ensure: [waiting terminate].
+	self assert: stack = expected
+!
+testReclaimedFrameIdsDecodeToTheirNewFrames
+	"A reader keeps the stacks it decoded by their frame ids. After ids were reclaimed the same ids can be another stack: it decodes as it does from a ring that never held the first one."
+	| ring fresh frames gate first others second stack expected |
+	ring := self smallRing.
+	fresh := self smallRing.
+	frames := ProfileFrameTable new.
+	gate := Semaphore new.
+	first := [gate wait. 1] forkAt: Processor activePriority + 1.
+	others := (1 to: 256) collect: [:i | [gate wait. 2] forkAt: Processor activePriority + 1].
+	second := [gate wait. 3] forkAt: Processor activePriority + 1.
+	[ring record: first flags: 0.
+	 ring recordsFrom: 0 kind: #cpu frames: frames do: [:s | stack := s stack].
+	 self assert: stack notEmpty.
+	 "The ring keeps the last stack of a process in one of 16 places, chosen by the process: with these it has forgotten the first one's."
+	 others do: [:each | ring record: each flags: 0].
+	 [ring frameCount < 8192] whileTrue: [ring record: nil flags: 4 class: Object new size: 8].
+	 "The block of the second process is a new frame: it gets the lowest free id, which the block of the first one had."
+	 ring record: second flags: 0.
+	 ring recordsFrom: 0 kind: #cpu frames: frames do: [:s | stack := s stack].
+	 fresh record: second flags: 0.
+	 fresh recordsFrom: 0 kind: #cpu frames: frames do: [:s | expected := s stack]]
+		ensure: [
+			first terminate.
+			second terminate.
+			others do: [:each | each terminate]].
+	self assert: stack = expected
 !
 testInlineStacksDecodeShared
 	"Each record holds its stack inline; equal stacks decode to the same Array (trees aggregate by identity)."
