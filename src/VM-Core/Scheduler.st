@@ -190,9 +190,10 @@ workClockSetRunning: running paced: paced
 	| moving |
 	moving := workClockRunning or: [workClockPaced].
 	moving ifTrue: [self workClockSync].
+	"Staying paced, the real time not yet counted (a frame's, while held) stays to be counted."
+	(workClockPaced and: [paced]) ifFalse: [workClockRaw := self rawNowUs].
 	workClockRunning := running.
 	workClockPaced := paced.
-	workClockRaw := self rawNowUs.
 	moving ifFalse: [workClockCycles := self workClockThreadCycles]
 !
 workClockNextFrame
@@ -215,14 +216,14 @@ workClockHold
 	workClockHoldCycles := self workClockThreadCycles
 !
 workClockRelease
-	"The frame ended: answer its work, in µs at the clock's rate."
+	"The frame ended: answer its work, in µs at the clock's rate. Paced, the real time the frame took still counts (the program outside ran meanwhile)."
 	<function>
 	| now |
 	workClockOn ifFalse: [^0].
 	now := self workClockThreadCycles.
 	workClockHeld := false.
 	workClockCycles := now.
-	workClockRaw := self rawNowUs.
+	workClockPaced ifFalse: [workClockRaw := self rawNowUs].
 	^(now - workClockHoldCycles) quo: WORK_CYCLES_PER_US
 !
 workClockHeldUs
@@ -257,15 +258,20 @@ workClockSync
 	((workClockRunning or: [workClockPaced]) and: [workClockHeld not]) ifFalse: [^workClockUs].
 	us := (self workClockThreadCycles - workClockCycles) quo: WORK_CYCLES_PER_US.
 	workClockCycles := workClockCycles + (us * WORK_CYCLES_PER_US).
+	raw := 0.
 	workClockPaced ifTrue: [
 		raw := self rawNowUs.
-		raw - workClockRaw > us ifTrue: [us := raw - workClockRaw].
-		workClockRaw := raw].
+		raw - workClockRaw > us ifTrue: [us := raw - workClockRaw]].
+	next := workClockUs.
 	us > 0 ifTrue: [
 		next := workClockUs + us.
 		due := self workClockDeadline.
-		next > due ifTrue: [next := due].
-		next > workClockUs ifTrue: [workClockUs := next]].
+		next > due ifTrue: [next := due]].
+	"Paced, real time past the deadline is counted after it (the next sync), not dropped."
+	workClockPaced ifTrue: [
+		workClockRaw := workClockRaw + (next - workClockUs max: 0).
+		workClockRaw > raw ifTrue: [workClockRaw := raw]].
+	next > workClockUs ifTrue: [workClockUs := next].
 	^workClockUs
 !
 workClockIdle

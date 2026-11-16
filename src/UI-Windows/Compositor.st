@@ -224,8 +224,9 @@ sleep
 !
 frame
 	| t0 now animating needs |
+	"On the recording clock the GPU's frames, like an external program, take real time: while any are unfinished the clock moves with real time instead of jumping to the next deadline."
+	onWorkClock ifTrue: [Smalltalk vm workClockPaced: (OSProcess externalWork or: [gpuTimer inFlight > 0])].
 	(recorder isNil and: [gpuTimer inFlight >= self class maxFramesInFlight]) ifTrue: [^self].
-	onWorkClock ifTrue: [Smalltalk vm workClockPaced: OSProcess externalWork].
 	t0 := Time microsecondClockValue.
 	recorder isNil ifFalse: [t0 := recorder tickStartAt: t0].
 	now := Animation nowAt: t0 / 1000.0.

@@ -232,13 +232,14 @@ static void idle_wait(void)
 exit_work_clock_thread_cycles:;
     r_work_clock_thread_cycles; }) - work_clock_cycles) / WORK_CYCLES_PER_US;
     work_clock_cycles = work_clock_cycles + us * WORK_CYCLES_PER_US;
+    raw = 0;
     if (work_clock_paced) {
         raw = raw_now_us();
         if (raw - work_clock_raw > us) {
             us = raw - work_clock_raw;
         }
-        work_clock_raw = raw;
     }
+    next = work_clock_us;
     if (us > 0) {
         next = work_clock_us + us;
         due_2 = ({
@@ -257,9 +258,15 @@ exit_work_clock_thread_cycles:;
         if (next > due_2) {
             next = due_2;
         }
-        if (next > work_clock_us) {
-            work_clock_us = next;
+    }
+    if (work_clock_paced) {
+        work_clock_raw = work_clock_raw + (next - work_clock_us > 0 ? next - work_clock_us : 0);
+        if (work_clock_raw > raw) {
+            work_clock_raw = raw;
         }
+    }
+    if (next > work_clock_us) {
+        work_clock_us = next;
     }
     r_work_clock_sync = work_clock_us;
 exit_work_clock_sync:;
@@ -384,13 +391,14 @@ int64_t now_us(void)
 exit_work_clock_thread_cycles:;
     r_work_clock_thread_cycles; }) - work_clock_cycles) / WORK_CYCLES_PER_US;
     work_clock_cycles = work_clock_cycles + us * WORK_CYCLES_PER_US;
+    raw = 0;
     if (work_clock_paced) {
         raw = raw_now_us();
         if (raw - work_clock_raw > us) {
             us = raw - work_clock_raw;
         }
-        work_clock_raw = raw;
     }
+    next = work_clock_us;
     if (us > 0) {
         next = work_clock_us + us;
         due = ({
@@ -409,9 +417,15 @@ exit_work_clock_thread_cycles:;
         if (next > due) {
             next = due;
         }
-        if (next > work_clock_us) {
-            work_clock_us = next;
+    }
+    if (work_clock_paced) {
+        work_clock_raw = work_clock_raw + (next - work_clock_us > 0 ? next - work_clock_us : 0);
+        if (work_clock_raw > raw) {
+            work_clock_raw = raw;
         }
+    }
+    if (next > work_clock_us) {
+        work_clock_us = next;
     }
     r_work_clock_sync = work_clock_us;
 exit_work_clock_sync:;
@@ -523,13 +537,14 @@ void relinquish(int64_t microseconds)
 exit_work_clock_thread_cycles:;
     r_work_clock_thread_cycles; }) - work_clock_cycles) / WORK_CYCLES_PER_US;
     work_clock_cycles = work_clock_cycles + us_2 * WORK_CYCLES_PER_US;
+    raw = 0;
     if (work_clock_paced) {
         raw = raw_now_us();
         if (raw - work_clock_raw > us_2) {
             us_2 = raw - work_clock_raw;
         }
-        work_clock_raw = raw;
     }
+    next = work_clock_us;
     if (us_2 > 0) {
         next = work_clock_us + us_2;
         due_2 = ({
@@ -548,9 +563,15 @@ exit_work_clock_thread_cycles:;
         if (next > due_2) {
             next = due_2;
         }
-        if (next > work_clock_us) {
-            work_clock_us = next;
+    }
+    if (work_clock_paced) {
+        work_clock_raw = work_clock_raw + (next - work_clock_us > 0 ? next - work_clock_us : 0);
+        if (work_clock_raw > raw) {
+            work_clock_raw = raw;
         }
+    }
+    if (next > work_clock_us) {
+        work_clock_us = next;
     }
     r_work_clock_sync = work_clock_us;
 exit_work_clock_sync:;
@@ -1090,13 +1111,14 @@ void work_clock_hold(void)
 exit_work_clock_thread_cycles:;
     r_work_clock_thread_cycles; }) - work_clock_cycles) / WORK_CYCLES_PER_US;
     work_clock_cycles = work_clock_cycles + us * WORK_CYCLES_PER_US;
+    raw = 0;
     if (work_clock_paced) {
         raw = raw_now_us();
         if (raw - work_clock_raw > us) {
             us = raw - work_clock_raw;
         }
-        work_clock_raw = raw;
     }
+    next = work_clock_us;
     if (us > 0) {
         next = work_clock_us + us;
         due = ({
@@ -1115,9 +1137,15 @@ exit_work_clock_thread_cycles:;
         if (next > due) {
             next = due;
         }
-        if (next > work_clock_us) {
-            work_clock_us = next;
+    }
+    if (work_clock_paced) {
+        work_clock_raw = work_clock_raw + (next - work_clock_us > 0 ? next - work_clock_us : 0);
+        if (work_clock_raw > raw) {
+            work_clock_raw = raw;
         }
+    }
+    if (next > work_clock_us) {
+        work_clock_us = next;
     }
 exit_work_clock_sync:;
     work_clock_held = true;
@@ -1183,13 +1211,14 @@ void scheduler_work_clock_paced(bool a_boolean)
 exit_work_clock_thread_cycles:;
     r_work_clock_thread_cycles; }) - work_clock_cycles) / WORK_CYCLES_PER_US;
             work_clock_cycles = work_clock_cycles + us * WORK_CYCLES_PER_US;
+            raw = 0;
             if (work_clock_paced) {
                 raw = raw_now_us();
                 if (raw - work_clock_raw > us) {
                     us = raw - work_clock_raw;
                 }
-                work_clock_raw = raw;
             }
+            next = work_clock_us;
             if (us > 0) {
                 next = work_clock_us + us;
                 due = ({
@@ -1208,15 +1237,23 @@ exit_work_clock_thread_cycles:;
                 if (next > due) {
                     next = due;
                 }
-                if (next > work_clock_us) {
-                    work_clock_us = next;
+            }
+            if (work_clock_paced) {
+                work_clock_raw = work_clock_raw + (next - work_clock_us > 0 ? next - work_clock_us : 0);
+                if (work_clock_raw > raw) {
+                    work_clock_raw = raw;
                 }
+            }
+            if (next > work_clock_us) {
+                work_clock_us = next;
             }
         exit_work_clock_sync:;
         }
+        if (!(work_clock_paced && a_boolean)) {
+            work_clock_raw = raw_now_us();
+        }
         work_clock_running = work_clock_running;
         work_clock_paced = a_boolean;
-        work_clock_raw = raw_now_us();
         if (!moving) {
             work_clock_cycles = ({
     if (work_clock_uses_cycles) {
@@ -1267,7 +1304,9 @@ exit_work_clock_thread_cycles:;
     r_work_clock_thread_cycles; });
     work_clock_held = false;
     work_clock_cycles = now;
-    work_clock_raw = raw_now_us();
+    if (!work_clock_paced) {
+        work_clock_raw = raw_now_us();
+    }
     return (now - work_clock_hold_cycles) / WORK_CYCLES_PER_US;
 }
 
@@ -1309,13 +1348,14 @@ void scheduler_work_clock_running(bool a_boolean)
 exit_work_clock_thread_cycles:;
     r_work_clock_thread_cycles; }) - work_clock_cycles) / WORK_CYCLES_PER_US;
             work_clock_cycles = work_clock_cycles + us * WORK_CYCLES_PER_US;
+            raw = 0;
             if (work_clock_paced) {
                 raw = raw_now_us();
                 if (raw - work_clock_raw > us) {
                     us = raw - work_clock_raw;
                 }
-                work_clock_raw = raw;
             }
+            next = work_clock_us;
             if (us > 0) {
                 next = work_clock_us + us;
                 due = ({
@@ -1334,15 +1374,23 @@ exit_work_clock_thread_cycles:;
                 if (next > due) {
                     next = due;
                 }
-                if (next > work_clock_us) {
-                    work_clock_us = next;
+            }
+            if (work_clock_paced) {
+                work_clock_raw = work_clock_raw + (next - work_clock_us > 0 ? next - work_clock_us : 0);
+                if (work_clock_raw > raw) {
+                    work_clock_raw = raw;
                 }
+            }
+            if (next > work_clock_us) {
+                work_clock_us = next;
             }
         exit_work_clock_sync:;
         }
+        if (!(work_clock_paced && work_clock_paced)) {
+            work_clock_raw = raw_now_us();
+        }
         work_clock_running = a_boolean;
         work_clock_paced = work_clock_paced;
-        work_clock_raw = raw_now_us();
         if (!moving) {
             work_clock_cycles = ({
     if (work_clock_uses_cycles) {
@@ -1427,13 +1475,14 @@ exit_work_clock_thread_cycles:;
 exit_work_clock_thread_cycles_2:;
     r_work_clock_thread_cycles_2; }) - work_clock_cycles) / WORK_CYCLES_PER_US;
     work_clock_cycles = work_clock_cycles + us * WORK_CYCLES_PER_US;
+    raw = 0;
     if (work_clock_paced) {
         raw = raw_now_us();
         if (raw - work_clock_raw > us) {
             us = raw - work_clock_raw;
         }
-        work_clock_raw = raw;
     }
+    next = work_clock_us;
     if (us > 0) {
         next = work_clock_us + us;
         due = ({
@@ -1452,9 +1501,15 @@ exit_work_clock_thread_cycles_2:;
         if (next > due) {
             next = due;
         }
-        if (next > work_clock_us) {
-            work_clock_us = next;
+    }
+    if (work_clock_paced) {
+        work_clock_raw = work_clock_raw + (next - work_clock_us > 0 ? next - work_clock_us : 0);
+        if (work_clock_raw > raw) {
+            work_clock_raw = raw;
         }
+    }
+    if (next > work_clock_us) {
+        work_clock_us = next;
     }
     r_work_clock_sync = work_clock_us;
 exit_work_clock_sync:;
@@ -1499,13 +1554,14 @@ void work_clock_stop(void)
 exit_work_clock_thread_cycles:;
     r_work_clock_thread_cycles; }) - work_clock_cycles) / WORK_CYCLES_PER_US;
     work_clock_cycles = work_clock_cycles + us * WORK_CYCLES_PER_US;
+    raw = 0;
     if (work_clock_paced) {
         raw = raw_now_us();
         if (raw - work_clock_raw > us) {
             us = raw - work_clock_raw;
         }
-        work_clock_raw = raw;
     }
+    next = work_clock_us;
     if (us > 0) {
         next = work_clock_us + us;
         due = ({
@@ -1524,9 +1580,15 @@ exit_work_clock_thread_cycles:;
         if (next > due) {
             next = due;
         }
-        if (next > work_clock_us) {
-            work_clock_us = next;
+    }
+    if (work_clock_paced) {
+        work_clock_raw = work_clock_raw + (next - work_clock_us > 0 ? next - work_clock_us : 0);
+        if (work_clock_raw > raw) {
+            work_clock_raw = raw;
         }
+    }
+    if (next > work_clock_us) {
+        work_clock_us = next;
     }
 exit_work_clock_sync:;
     start_us = raw_now_us() - work_clock_us;
