@@ -29,7 +29,7 @@ startWorkloads
 		(Delay forMilliseconds: 25) wait]] named: 'spawner' at: 31)
 !
 record: milliseconds with: aProfiler
-	"Run the workloads for milliseconds with aProfiler as the system profiler; answer aProfiler last."
+	"Run the workloads for milliseconds with aProfiler as the system profiler, and the short-lived Processes under way then to their end; answer aProfiler last."
 	| old |
 	old := Profiler default.
 	old stop.
@@ -39,7 +39,7 @@ record: milliseconds with: aProfiler
 	 (Delay forMilliseconds: milliseconds) wait.
 	 workers do: [:p | p terminate].
 	 workers := OrderedCollection new.
-	 (Delay forMilliseconds: 60) wait]
+	 self assert: (self waitFor: [Process allLive noneSatisfy: [:p | p name = 'burst']]) description: 'the bursts did not end']
 		ensure: [
 			aProfiler stop.
 			Profiler default: old.
@@ -207,17 +207,17 @@ testLiveFollowsAWrappingRing
 	 self startWorkloads.
 	 start := Time millisecondClockValue.
 	 "30 steps, and on a loaded machine (fewer samples a millisecond) on until the ring wrapped three times, at most 10 s."
-	 [steps < 30 or: [small buffer count <= (small buffer size * 3) and: [Time millisecondClockValue - start < 10000]]] whileTrue: [ | ring |
+	 [steps < 30 or: [small buffer count <= (small buffer size * 3) and: [Time millisecondClockValue - start < 10000]]] whileTrue: [ | oldest |
 		steps := steps + 1.
 		(Delay forMilliseconds: 5 + (random nextInt: 60)) wait.
+		oldest := small buffer firstSerial.
 		cpu update.
 		alloc update.
-		ring := small buffer.
-		"Everything still in the ring was folded in, nothing dropped stays."
+		"What the ring had dropped before the updates does not stay (it goes on dropping meanwhile)."
 		(Array with: cpu with: alloc) do: [:agg | | serials |
 			serials := agg samples asArray collect: [:s | s serial].
 			self assert: serials asSortedCollection asArray = serials description: 'samples out of order'.
-			self assert: (serials isEmpty or: [ring firstSerial - serials first < 50]) description: 'dropped samples were kept'].
+			self assert: (serials isEmpty or: [serials first >= oldest]) description: 'dropped samples were kept'].
 		(random nextInt: 3) = 1 ifTrue: [
 			checks := checks + 1.
 			self assert: cpu equalsRebuildOf: cpu samplesCopy.
