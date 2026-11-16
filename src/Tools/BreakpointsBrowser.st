@@ -114,13 +114,6 @@ windowClosed
 	Watchpoint removeListener: listener
 ! !
 
-!BreakpointsBrowser methodsFor: 'events'!
-keyDown: anEvent
-	"⌘J: my Agent window (Tools open: #agent), as in a ToolPane."
-	(anEvent key = $j and: [anEvent modifiers commandKey]) ifTrue: [Tools open: #agent with: self. ^true].
-	^false
-! !
-
 !BreakpointsBrowser methodsFor: 'remote control'!
 remoteRole
 	^#breakpoints

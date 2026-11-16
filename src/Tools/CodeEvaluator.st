@@ -16,6 +16,15 @@ initialize
 	processName := 'Workspace doIt'.
 	running := OrderedCollection new.
 	children := OrderedCollection new
+!
+install: aTextEditor
+	editor := aTextEditor.
+ ActionContext register: editor evaluator: self.
+	aTextEditor
+		onDoIt: [:text :range | self evaluate: text at: range mode: #do];
+		onPrintIt: [:text :range | self evaluate: text at: range mode: #print];
+		onInspectIt: [:text :range | self evaluate: text at: range mode: #inspect];
+		onBrowseIt: [:text :range | self browse: text]
 ! !
 
 !CodeEvaluator methodsFor: 'accessing'!
@@ -57,16 +66,6 @@ isRunning
 isComputing
 	"A do-it of mine is running or ready to run (not stopped in a debugger)."
 	^self running anySatisfy: [:p | p isSuspended not]
-! !
-
-!CodeEvaluator methodsFor: 'installing'!
-install: aTextEditor
-	editor := aTextEditor.
-	aTextEditor
-		onDoIt: [:text :range | self evaluate: text at: range mode: #do];
-		onPrintIt: [:text :range | self evaluate: text at: range mode: #print];
-		onInspectIt: [:text :range | self evaluate: text at: range mode: #inspect];
-		onBrowseIt: [:text :range | self browse: text]
 ! !
 
 !CodeEvaluator methodsFor: 'evaluating'!

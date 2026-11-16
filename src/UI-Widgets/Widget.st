@@ -292,8 +292,8 @@ mouseEnter: anEvent
 mouseLeave: anEvent
 	^false
 !
-keyDown: anEvent
-	^false
+keyDown: event
+ ^self contextualKeyDown: event
 !
 textInput: anEvent
 	^false
@@ -304,6 +304,24 @@ textEditing: anEvent
 !
 cursorAt: aPoint
 	^#arrow
+!
+contextualKeyDown: event
+ | context key |
+ event modifiers commandKey ifFalse: [^false].
+ (self respondsTo: #agentContext) ifFalse: [^false].
+ key := event key.
+ key isCharacter ifFalse: [^false].
+ key := key asLowercase.
+ (#($c $x $i $b $j) includes: key) ifFalse: [^false].
+ context := (Smalltalk at: #ActionContext) in: self agentContext.
+ ((key = $c) or: [key = $x]) ifTrue: [
+ (Smalltalk at: #ActionContext) copied: context.
+ self clipboardText: context value printString.
+ ^true].
+ key = $j ifTrue: [context agent. ^true].
+ key = $i ifTrue: [context inspect. ^true].
+ key = $b ifTrue: [context browse. ^true].
+ ^false
 ! !
 
 !Widget methodsFor: 'context menu'!

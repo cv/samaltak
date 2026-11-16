@@ -457,6 +457,11 @@ appendText: aString
 	self layout.
 	atEnd ifTrue: [self scrollToCaret].
 	self invalidate
+!
+copySelection
+ self hasSelection ifTrue: [
+ self clipboardText: self selectedText.
+ (Smalltalk at: #ActionContext) copied: ((Smalltalk at: #ActionContext) forEditor: self)]
 ! !
 
 !TextEditor methodsFor: 'undo'!
@@ -480,9 +485,6 @@ replay: start to: stop with: aString selection: selection
 ! !
 
 !TextEditor methodsFor: 'clipboard'!
-copySelection
-	self hasSelection ifTrue: [self clipboardText: self selectedText]
-!
 cut
 	self hasSelection ifFalse: [^self].
 	self copySelection.
@@ -509,12 +511,6 @@ doIt
 !
 printIt
 	^self runHook: onPrintIt
-!
-inspectIt
-	^self runHook: onInspectIt
-!
-browseIt
-	^self runHook: onBrowseIt
 !
 accept
 	"The handler sees me clean (a status it shows says accepted); answering false leaves me dirty."
@@ -1017,7 +1013,8 @@ keyDown: anEvent
 	^false
 !
 commandKey: aCharacter shift: shift
-	aCharacter = $a ifTrue: [self selectAll. ^true].
+	aCharacter = $j ifTrue: [((Smalltalk at: #ActionContext) forEditor: self) agent. ^true].
+ aCharacter = $a ifTrue: [self selectAll. ^true].
 	aCharacter = $c ifTrue: [self copySelection. ^true].
 	aCharacter = $x ifTrue: [self cut. ^true].
 	aCharacter = $v ifTrue: [self paste. ^true].
@@ -1157,4 +1154,14 @@ remoteSelectionAnswer
 !TextEditor class methodsFor: 'instance creation'!
 text: aString
 	^self new text: aString; yourself
+! !
+
+!TextEditor methodsFor: 'actions'!
+inspectIt
+ ((Smalltalk at: #ActionContext) forEditor: self) inspect.
+ ^true
+!
+browseIt
+ ((Smalltalk at: #ActionContext) forEditor: self) browse.
+ ^true
 ! !

@@ -118,17 +118,4 @@ mouseDown: anEvent
 	self wantsKeyboardFocus ifFalse: [^false].
 	self focus.
 	^true
-!
-keyDown: anEvent
-	| key |
-	self wantsKeyboardFocus ifFalse: [^false].
-	anEvent modifiers commandKey ifFalse: [^false].
-	key := anEvent key.
-	key isCharacter ifFalse: [^false].
-	key := key asLowercase.
-	key = $i ifTrue: [Tools inspect: item object. ^true].
-	key = $b ifTrue: [Tools browse: item object. ^true].
-	key = $j ifTrue: [Tools open: #agent with: self. ^true].
-	key = $c ifTrue: [self clipboardText: item result. ^true].
-	^false
 ! !

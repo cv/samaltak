@@ -143,9 +143,3 @@ openOn: aSession
 	DebuggerTools ignore: window.
 	^window
 ! !
-
-!Notifier methodsFor: 'events'!
-keyDown: anEvent
-	(anEvent key = $j and: [anEvent modifiers commandKey]) ifTrue: [Tools open: #agent with: self. ^true].
-	^super keyDown: anEvent
-! !

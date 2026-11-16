@@ -622,12 +622,6 @@ defaultFrame
 	^ic
 ! !
 
-!Debugger methodsFor: 'events'!
-keyDown: anEvent
-	(anEvent key = $j and: [anEvent modifiers commandKey]) ifTrue: [Tools open: #agent with: self. ^true].
-	^false
-! !
-
 !Debugger methodsFor: 'remote control'!
 remoteRole
 	^#debugger

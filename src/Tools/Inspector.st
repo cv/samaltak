@@ -239,15 +239,3 @@ openOn: anObject near: aWindowOrNil bindings: aDictionaryOrNil
 article: aString
 	^((aString notEmpty and: ['AEIOU' includes: aString first]) ifTrue: ['an '] ifFalse: ['a ']), aString
 ! !
-
-!Inspector methodsFor: 'events'!
-keyDown: anEvent
-	| field key |
-	(self window keyboardFocus == fields and: [anEvent modifiers commandKey]) ifTrue: [
-		field := fields selection.
-		field ifNotNil: [
-			key := anEvent key.
-			key = $i ifTrue: [self dive: field. ^true].
-			key = $b ifTrue: [Tools browseClass: (self valueOf: field) class. ^true]]].
-	^super keyDown: anEvent
-! !

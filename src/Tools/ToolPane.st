@@ -49,10 +49,9 @@ every: milliseconds do: aBlock
 ! !
 
 !ToolPane methodsFor: 'events'!
-keyDown: anEvent
-	(self isHelpKey: anEvent) ifTrue: [Tools showHelp. ^true].
-	(anEvent key = $j and: [anEvent modifiers commandKey]) ifTrue: [Tools open: #agent with: self. ^true].
-	^false
+keyDown: event
+ (self isHelpKey: event) ifTrue: [Tools showHelp. ^true].
+ ^super keyDown: event
 !
 isHelpKey: anEvent
 	| key focus |
