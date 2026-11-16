@@ -23,10 +23,11 @@ compileLoop
 	[true] whileTrue: [Compiler evaluate: '(1 to: 10) inject: 0 into: [:a :b | a + (b printString: 16) size]']
 !
 allocateArrays
-	"The loop must not begin at the first bytecode: a sample taken at its backward jump would see the frame back at its start, which looks just activated, and count the allocation to the sender (ProfileSample>>allocationSite)."
 	| keep |
-	keep := nil.
 	[true] whileTrue: [keep := Array new: 1000]
+!
+allocateInLoop
+	[true] whileTrue: [Array basicNew: 1000]
 !
 busyFor: milliseconds
 	"Keep this process busy (deep enough stacks) for milliseconds."
@@ -185,6 +186,21 @@ testAllocationSamples
 	self assertConsistent: profile allocationTree.
 	self assert: profile allocationTree weight = profile allocations totalWeight.
 	self assert: ((profile allocations groupBy: #class) at: Array) size = (profile allocations count: [:s | s allocatedClass == Array])
+!
+testLoopOnlyMethodSamples
+	"basicNew: is a primitive, so the allocation is sampled at the loop's backward jump: the frame is back at its first bytecode but was not just activated, and the allocation is the method's, not its sender's. So are the CPU samples."
+	| t0 p profile allocs cpu |
+	t0 := Time microsecondClockValue.
+	p := self fork: #allocateInLoop named: 'loop allocator'.
+	self sleep: 200 untilSamples: 50.
+	self stopWorkers.
+	profile := Profiler from: t0 to: Time microsecondClockValue.
+	allocs := profile allocationsFor: p.
+	self assert: allocs size >= 20.
+	self assert: (allocs count: [:s | s allocationSite method == (ProfilerTest >> #allocateInLoop)]) * 100 / allocs size >= 90.
+	cpu := profile samplesFor: p.
+	self assert: cpu size >= 20.
+	self assert: (cpu count: [:s | s leaf method == (ProfilerTest >> #allocateInLoop)]) * 100 / cpu size >= 90
 !
 testRingWraparound
 	| small ring t0 t1 profile serials |
