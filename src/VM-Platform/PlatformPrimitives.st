@@ -1363,7 +1363,7 @@ primPtyClose
 !PlatformPrimitives methodsFor: 'clipboard'!
 primClipboardData
 	"MIME type -> bytes, or nil when unavailable."
-	<vmPrimitive: 419 name: 'clipboardData'>
+	<vmPrimitive: 420 name: 'clipboardData'>
 	| mime size data result |
 	(self args: 1) ifFalse: [^self fail].
 	mime := self stringArg: 0.

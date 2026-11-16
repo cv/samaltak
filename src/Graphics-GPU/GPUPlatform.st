@@ -220,6 +220,6 @@ clipboardSet: aString
 
 !GPUPlatform class methodsFor: 'clipboard'!
 clipboardData: mime
-	<primitive: 419>
+	<primitive: 'clipboardData'>
 	^nil
 ! !
