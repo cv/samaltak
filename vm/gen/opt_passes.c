@@ -19,6 +19,7 @@ static int32_t ps_work_list[16384];
 static void compute_order(int32_t entry);
 static void count_uses(void);
 static void dominators(int32_t entry);
+static void forward_unboxes(void);
 static void hoist_guards(void);
 static void hoist_out_of(int32_t h);
 static void remove_dead(void);
@@ -29,6 +30,7 @@ static void split_critical_edges(void);
 static int32_t opt_passes_state(int32_t s, int64_t k, int32_t h);
 static void type_phis(void);
 static void unbox_phis(void);
+static void unbox_states(void);
 static void value_numbers(void);
 
 /* OptPasses>>cleanup: */
@@ -39,6 +41,8 @@ void cleanup(int32_t entry)
     simplify_phis();
     resolve_operands();
     type_phis();
+    resolve_operands();
+    forward_unboxes();
     resolve_operands();
     ps_unboxed = false;
     if ((!ps_unbox_off) && ((jit_flags & JIT_FLAG_UNBOX) != 0)) {
@@ -57,6 +61,7 @@ void cleanup(int32_t entry)
     if ((jit_flags & JIT_FLAG_HOIST) != 0) {
         hoist_guards();
     }
+    unbox_states();
     count_uses();
     remove_dead();
     count_uses();
@@ -275,6 +280,33 @@ static void dominators(int32_t entry)
             ps_post[ps_work_list[sp - 2]] = n;
             n = n + 1;
             sp = sp - 2;
+        }
+    }
+}
+
+/* OptPasses>>forwardUnboxes */
+static void forward_unboxes(void)
+{
+    int32_t n;
+    opt_node *nd;
+    int32_t v;
+    int32_t n_2;
+    int32_t n_3;
+    for (n = 0; n <= opt_node_count - 1; n++) {
+        nd = opt_nodes + n;
+        if (((int32_t)nd->op == O_UNBOXF) && ((nd->fwd < 0) && (nd->block >= 0))) {
+            v = opt_ir_resolve(nd->a);
+            if ((int32_t)(opt_nodes + v)->op == O_BOXF) {
+                nd->fwd = opt_ir_resolve((opt_nodes + v)->a);
+                opt_ir_unlink(n);
+            }
+        }
+        if (((int32_t)nd->op == O_NOTINTS) && ((nd->block >= 0) && ({
+    n_2 = opt_ir_resolve(nd->a);
+    ((int32_t)(opt_nodes + n_2)->tkind == T_FLOAT) || ({
+    n_3 = opt_ir_resolve(nd->b);
+    (int32_t)(opt_nodes + n_3)->tkind == T_FLOAT; }); }))) {
+            opt_ir_unlink(n);
         }
     }
 }
@@ -759,34 +791,31 @@ static void unbox_phis(void)
     int32_t e;
     int32_t b;
     int32_t b_2;
-    bool calls;
-    int64_t i;
-    int32_t b_3;
     int32_t n;
     opt_node *nd;
     bool ok;
     int64_t k;
-    int64_t i_2;
+    int64_t i;
     int32_t o;
     bool r_is_frame_number;
     opt_node *nd_2;
     int64_t uses;
-    int64_t i_3;
-    int32_t b_4;
+    int64_t i_2;
+    int32_t b_3;
     int32_t u;
     opt_node *nd_3;
     int32_t p2;
     int32_t e_2;
     int64_t k_2;
-    int64_t i_4;
+    int64_t i_3;
     int32_t o_2;
     int32_t g;
-    int32_t b_5;
+    int32_t b_4;
     int32_t v;
     int32_t x;
+    int64_t i_4;
     int64_t i_5;
-    int64_t i_6;
-    int32_t b_6;
+    int32_t b_5;
     int32_t u_2;
     int32_t nu;
     for (h = 0; h <= opt_block_count - 1; h++) {
@@ -803,18 +832,7 @@ static void unbox_phis(void)
                 }
                 e = (opt_edges + e)->next;
             }
-            calls = hi < 0;
-            for (i = lo; i <= hi; i++) {
-                b_3 = ps_order[i];
-                n = (opt_blocks + b_3)->first;
-                while (n >= 0) {
-                    if (((int32_t)(opt_nodes + n)->op == O_SEND) || ((int32_t)(opt_nodes + n)->op == O_CALL)) {
-                        calls = true;
-                    }
-                    n = (opt_nodes + n)->next;
-                }
-            }
-            if (!calls) {
+            if (hi >= 0) {
                 n = hb->first;
                 while ((n >= 0) && ((int32_t)(opt_nodes + n)->op == O_PHI)) {
                     nd = opt_nodes + n;
@@ -822,8 +840,8 @@ static void unbox_phis(void)
                     e = hb->preds;
                     k = 0;
                     while (ok && (e >= 0)) {
-                        i_2 = nd->args + k;
-                        o = opt_ir_resolve(opt_operands[i_2]);
+                        i = nd->args + k;
+                        o = opt_ir_resolve(opt_operands[i]);
                         ok = (o == n) || (((int32_t)(opt_nodes + o)->op == O_BOXF) || ((((int32_t)(opt_nodes + o)->op == O_CONST) && (((opt_nodes + o)->aux & 7) == 4)) || (((opt_edges + e)->from == opt_osr_entry) && ({
     nd_2 = opt_nodes + o;
     r_is_frame_number = (opt_osr_state >= 0) && (((int32_t)nd_2->op == O_PARAM) && ((nd_2->aux >= 0) && ((nd_2->aux < 64) && ((opt_osr_numbers & (1LL << nd_2->aux)) != 0))));
@@ -833,9 +851,9 @@ static void unbox_phis(void)
                     }
                     uses = 0;
                     if (ok) {
-                        for (i_3 = lo; i_3 <= hi; i_3++) {
-                            b_4 = ps_order[i_3];
-                            u = (opt_blocks + b_4)->first;
+                        for (i_2 = lo; i_2 <= hi; i_2++) {
+                            b_3 = ps_order[i_2];
+                            u = (opt_blocks + b_3)->first;
                             while (u >= 0) {
                                 if (((int32_t)(opt_nodes + u)->op == O_UNBOXF) && (opt_ir_resolve((opt_nodes + u)->a) == n)) {
                                     uses = uses + 1;
@@ -856,8 +874,8 @@ static void unbox_phis(void)
                         e_2 = (opt_blocks + h)->preds;
                         k_2 = 0;
                         while (e_2 >= 0) {
-                            i_4 = nd_3->args + k_2;
-                            o_2 = opt_ir_resolve(opt_operands[i_4]);
+                            i_3 = nd_3->args + k_2;
+                            o_2 = opt_ir_resolve(opt_operands[i_3]);
                             x = o_2 == n ? p2 : (int32_t)(opt_nodes + o_2)->op == O_BOXF ? opt_ir_resolve((opt_nodes + o_2)->a) : ({
     if (((int32_t)(opt_nodes + o_2)->op == O_CONST) && (((opt_nodes + o_2)->aux & 7) == 4)) {
         v = o_2;
@@ -868,19 +886,19 @@ static void unbox_phis(void)
         (opt_nodes + g)->flags = NF_GUARD;
         (opt_nodes + g)->bcact = nd_3->bcact;
         (opt_nodes + g)->bcpc = nd_3->bcpc;
-        b_5 = (opt_edges + e_2)->from;
-        insert(g, (opt_blocks + b_5)->last);
+        b_4 = (opt_edges + e_2)->from;
+        insert(g, (opt_blocks + b_4)->last);
         v = g;
     }
     v; });
-                            i_5 = (opt_nodes + p2)->args + k_2;
-                            opt_operands[i_5] = x;
+                            i_4 = (opt_nodes + p2)->args + k_2;
+                            opt_operands[i_4] = x;
                             k_2 = k_2 + 1;
                             e_2 = (opt_edges + e_2)->next;
                         }
-                        for (i_6 = lo; i_6 <= hi; i_6++) {
-                            b_6 = ps_order[i_6];
-                            u_2 = (opt_blocks + b_6)->first;
+                        for (i_5 = lo; i_5 <= hi; i_5++) {
+                            b_5 = ps_order[i_5];
+                            u_2 = (opt_blocks + b_5)->first;
                             while (u_2 >= 0) {
                                 nu = (opt_nodes + u_2)->next;
                                 if (((int32_t)(opt_nodes + u_2)->op == O_UNBOXF) && (opt_ir_resolve((opt_nodes + u_2)->a) == n)) {
@@ -894,6 +912,66 @@ static void unbox_phis(void)
                     }
                     n = nd->next;
                 }
+            }
+        }
+    }
+}
+
+/* OptPasses>>unboxStates */
+static void unbox_states(void)
+{
+    int32_t n;
+    int32_t n_2;
+    opt_node *nd;
+    int32_t i;
+    int32_t i_2;
+    int32_t i_3;
+    int32_t a;
+    int32_t s;
+    opt_state *st;
+    int32_t i_4;
+    int32_t i_5;
+    int32_t v;
+    int32_t i_6;
+    int32_t v_2;
+    for (n = 0; n <= opt_node_count - 1; n++) {
+        ps_work_list[n] = 0;
+    }
+    for (n_2 = 0; n_2 <= opt_node_count - 1; n_2++) {
+        nd = opt_nodes + n_2;
+        if (nd->block >= 0) {
+            if (nd->a >= 0) {
+                ps_work_list[nd->a] = 1;
+            }
+            if (nd->b >= 0) {
+                ps_work_list[nd->b] = 1;
+            }
+            if ((nd->c >= 0) && ((int32_t)nd->op != O_SEND)) {
+                ps_work_list[nd->c] = 1;
+            }
+            for (i = 0; i <= (int32_t)nd->nargs - 1; i++) {
+                i_2 = nd->args + i;
+                if (opt_operands[i_2] >= 0) {
+                    i_3 = nd->args + i;
+                    ps_work_list[opt_operands[i_3]] = 1;
+                }
+            }
+        }
+    }
+    for (a = 0; a <= opt_act_count - 1; a++) {
+        if ((opt_acts + a)->receiver >= 0) {
+            ps_work_list[(opt_acts + a)->receiver] = 1;
+        }
+    }
+    for (s = 0; s <= opt_state_count - 1; s++) {
+        st = opt_states + s;
+        for (i_4 = 0; i_4 <= st->depth; i_4++) {
+            i_5 = st->vals + i_4;
+            v = opt_operands[i_5];
+            if ((v >= 0) && (((int32_t)(opt_nodes + v)->op == O_BOXF) && (((opt_nodes + v)->block >= 0) && (ps_work_list[v] == 0)))) {
+                i_6 = st->vals + i_4;
+                v_2 = opt_ir_resolve((opt_nodes + v)->a);
+                opt_operands[i_6] = v_2;
             }
         }
     }
@@ -948,7 +1026,7 @@ static void value_numbers(void)
     r_is_numbered = (op_2 == O_CONST) || ((op_2 == O_IADD) || ((op_2 == O_ISUB) || ((op_2 == O_IMUL) || ((op_2 == O_ICMP) || ((op_2 == O_IAND) || ((op_2 == O_IOR) || ((op_2 == O_EQ) || ((op_2 == O_NE) || ((op_2 == O_CLASSOF) || ((op_2 == O_CLASSIS) || ((op_2 == O_BOTHINT) || ((op_2 == O_FARITH) || ((op_2 == O_FCMP) || ((op_2 == O_FSQRT) || ((op_2 == O_BOXF) || ((op_2 == O_UNBOXF) || ((op_2 == O_GUARDINT) || ((op_2 == O_GUARDCLASS) || ((op_2 == O_CAST) || ((op_2 == O_SIZE) || ((op_2 == O_LOADFIELD) || ((op_2 == O_IMOD) || ((op_2 == O_IDIV) || ((op_2 == O_ISHIFT) || ((op_2 == O_IXOR) || ((op_2 == O_NOTINTS) || (op_2 == O_CHARCONV)))))))))))))))))))))))))));
 exit_is_numbered:;
     r_is_numbered; })) {
-                if (((int32_t)nd->op == O_LOADFIELD) || ((int32_t)nd->rep == R_DBL)) {
+                if ((int32_t)nd->op == O_LOADFIELD) {
                     nd->aux2 = mem;
                 }
                 h = (((uint64_t)((((((int64_t)nd->op * 31 + nd->a) * 31 + nd->b) * 31 + nd->aux) * 31 + nd->aux2) * 31 + (int64_t)nd->tcls)) >> 3) & 4095;

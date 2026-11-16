@@ -1465,6 +1465,7 @@ static jit_method *jit_runtime_finish(oop m, uint64_t start, int32_t md)
     if (md == JIT_OPT) {
         p = ({
     h->slots = (uint32_t)cg_slot_top;
+    h->raw_base = (uint32_t)cg_raw_base;
     m_2 = h->method;
     h->bc_size = (uint32_t)(int32_t)byte_size(*(uint64_t *)(m_2 + 16 + 24));
     h->pool_offset = (uint32_t)({
@@ -1644,6 +1645,7 @@ static jit_method *jit_runtime_finish(oop m, uint64_t start, int32_t md)
     if (md == JIT_OPT) {
         p = ({
     h->slots = (uint32_t)cg_slot_top;
+    h->raw_base = (uint32_t)cg_raw_base;
     m_2 = h->method;
     h->bc_size = (uint32_t)(int32_t)byte_size(*(uint64_t *)(m_2 + 16 + 24));
     h->pool_offset = (uint32_t)({

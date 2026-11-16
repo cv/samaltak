@@ -134,13 +134,32 @@ safepointAtEntry: aBoolean
 
 !Interpreter methodsFor: 'frames'!
 roots: fn
-	"The frames' methods, closures and Contexts and the live C stack slots are GC roots."
+	"The frames' methods, closures and Contexts and the live C stack slots are GC roots (not optimized frames' raw slots: doubles' IEEE bits)."
 	<function>
+	<var: #w type: 'int64_t'>
+	<var: #lo type: 'int64_t'>
+	<var: #hi type: 'int64_t'>
+	| w n f lo hi |
 	0 to: nframes - 1 do: [:i |
 		fn call: ((frames + i) fieldAddress: #method).
 		fn call: ((frames + i) fieldAddress: #closure).
 		fn call: ((frames + i) fieldAddress: #ctx)].
-	0 to: cstackUsed asInt64 - 1 do: [:i | fn call: cstack + i]
+	w := 0.
+	n := 0.
+	[w < cstackUsed asInt64] whileTrue: [
+		"up to the next optimized frame's raw slots, lo to hi"
+		lo := cstackUsed asInt64.
+		hi := lo.
+		[n < nframes and: [hi = lo]] whileTrue: [
+			f := frames + n.
+			n := n + 1.
+			(jit isOptFrame: f) ifTrue: [
+				lo := (f fp - cstack) asInt64 + (jit rawBaseOf: f).
+				hi := (f fp - cstack) asInt64 + (jit rawTopOf: f)]].
+		[w < (lo min: cstackUsed asInt64)] whileTrue: [
+			fn call: cstack + w.
+			w := w + 1].
+		w := w max: hi]
 !
 methodBcs: m
 	^self bytesOf: (self loadRef: m at: CM_BYTECODES)
@@ -188,6 +207,10 @@ frameSize: f
 !
 framesValid: valid
 	<function>
+	<var: #w type: 'int64_t'>
+	<var: #lo type: 'int64_t'>
+	<var: #hi type: 'int64_t'>
+	| w n f lo hi |
 	0 to: nframes - 1 do: [:i |
 		((valid call: (frames + i) method) and: [(valid call: (frames + i) closure) and: [valid call: (frames + i) ctx]]) ifFalse: [^false].
 		"a married Context names its frame (materializeAll fills them one by one)"
@@ -195,13 +218,28 @@ framesValid: valid
 			libc fprintf: libc stderr format: 'frame %lld: its Context is married to another frame
 ' with: i asInt64.
 			^false]].
-	0 to: cstackUsed asInt64 - 1 do: [:i | (valid call: (cstack at: i)) ifFalse: [
-		libc fprintf: libc stderr format: 'slot %lld of %lld: %llx
-' with: i with: cstackUsed asInt64 with: (cstack at: i).
-		0 to: nframes - 1 do: [:k |
-			libc fprintf: libc stderr format: 'frame %d fp %lld sp %d pc %d ' with: k with: ((frames + k) fp - cstack) asInt64 with: (frames + k) sp with: (frames + k) pc.
-			self printActivation: (frames + k) method receiver: ((frames + k) fp at: -1) closure: (frames + k) closure on: libc stderr].
-		^false]].
+	w := 0.
+	n := 0.
+	[w < cstackUsed asInt64] whileTrue: [
+		"as roots:, not optimized frames' raw slots"
+		lo := cstackUsed asInt64.
+		hi := lo.
+		[n < nframes and: [hi = lo]] whileTrue: [
+			f := frames + n.
+			n := n + 1.
+			(jit isOptFrame: f) ifTrue: [
+				lo := (f fp - cstack) asInt64 + (jit rawBaseOf: f).
+				hi := (f fp - cstack) asInt64 + (jit rawTopOf: f)]].
+		[w < (lo min: cstackUsed asInt64)] whileTrue: [
+			(valid call: (cstack at: w)) ifFalse: [
+				libc fprintf: libc stderr format: 'slot %lld of %lld: %llx
+' with: w with: cstackUsed asInt64 with: (cstack at: w).
+				0 to: nframes - 1 do: [:k |
+					libc fprintf: libc stderr format: 'frame %d fp %lld sp %d pc %d ' with: k with: ((frames + k) fp - cstack) asInt64 with: (frames + k) sp with: (frames + k) pc.
+					self printActivation: (frames + k) method receiver: ((frames + k) fp at: -1) closure: (frames + k) closure on: libc stderr].
+				^false].
+			w := w + 1].
+		w := w max: hi].
 	^true
 !
 materializeAll
@@ -279,6 +317,8 @@ widow: f
 	s := self slotsOf: ctx.
 	n := (self numSlots: ctx) asInt64 - CTX_FIXED.
 	f sp < n ifTrue: [n := f sp].
+	"not an optimized frame's raw slots (doubles' IEEE bits)"
+	((jit isOptFrame: f) and: [(jit rawBaseOf: f) < (jit rawTopOf: f)]) ifTrue: [n := n min: (jit rawBaseOf: f)].
 	libc memcpy: s + CTX_FIXED from: f fp size: n asUInt64 * 8.
 	s at: CTX_SENDER put: memory nilOop.
 	s at: CTX_PC put: memory nilOop.

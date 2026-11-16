@@ -1,18 +1,18 @@
 OptModule subclass: #OptCodegen
-	instanceVariableNames: 'cgHeldSlot cgHeldReg cgHeldCount cgScanPc cgBinds ir passes regalloc cgCodeStart cgBcSize cgValidSlots cgEntryPc cgSlotTop cgMaxOut cgNeed cgExitPlainLabel cgExitSyncLabel cgDeoptLabel cgReturnLabel cgHeaderLabel cgChecksLabel cgBodyLabel cgInterruptLabel cgBarrierLabel cgDeoptReturnLabel cgStackFullLabel cgOuts cgOutCount cgPoolOops cgPoolLabels cgPoolCount cgMetaWords cgMetaCount cgSpOffsets cgSpCount cgMoveSrc cgMoveDst cgMoveLoc cgMoveCount cgRootAct cgLastPc cgLastAct builder cgDeps cgDepCount cgSunk cgSunkCount cgChainActs cgChainCount cgDoubles cgSiteBl cgSiteLit cgSiteInfo cgSiteIndex cgSiteSel cgSiteCount cgRetOff cgRetIndex cgRetArgc cgRetCount cgOrder cgPlaced'
+	instanceVariableNames: 'cgHeldSlot cgHeldReg cgHeldCount cgScanPc cgBinds ir passes regalloc cgCodeStart cgBcSize cgValidSlots cgEntryPc cgSlotTop cgRawBase cgMaxOut cgNeed cgExitPlainLabel cgExitSyncLabel cgDeoptLabel cgReturnLabel cgHeaderLabel cgChecksLabel cgBodyLabel cgInterruptLabel cgBarrierLabel cgDeoptReturnLabel cgStackFullLabel cgOuts cgOutCount cgPoolOops cgPoolLabels cgPoolCount cgMetaWords cgMetaCount cgSpOffsets cgSpCount cgMoveSrc cgMoveDst cgMoveLoc cgMoveCount cgRootAct cgLastPc cgLastAct builder cgDeps cgDepCount cgSunk cgSunkCount cgChainActs cgChainCount cgDoubles cgSiteBl cgSiteLit cgSiteInfo cgSiteIndex cgSiteSel cgSiteCount cgRetOff cgRetIndex cgRetArgc cgRetCount cgOrder cgPlaced'
 	classVariableNames: 'CG_MAX_META CG_MAX_MOVES CG_MAX_OUT CG_MAX_POOL CG_MAX_RETS CG_MAX_HELD CG_MAX_SITES CG_MAX_SP OUT_BARRIER OUT_BOTTOM OUT_DEOPT OUT_INTERRUPT OUT_LAZY OUT_RESUME OUT_SENT OUT_SITE OUT_STACK OUT_WIDOW'
 	package: 'VM-Jit'!
 
 OptCodegen comment: 'Emits arm64 code for the allocated IR (OptRegalloc) in block order, then the out-of-line paths (guard failures, interrupt checks, store barriers, deoptimization after a call, resumption after a call, the stack check), then the oop pool the code loads constants from (pc-relative; GC roots) and the inline caches'' literals. Records for every safepoint and guard the deoptimization metadata (OptRuntime decodes it): kind, continuation, the send, and for each activation its method, closure, receiver, pc and where each slot''s value is (LOC_*).
 
-Frame layout: slots 0..numArgs-1 the arguments, then home slots (OptRegalloc), slotTop of them; a send''s receiver and arguments go at slotTop..., the callee''s frame starts after them. Calls are baseline code''s (docs/jit.md, Calls between the tiers): the receiver in x0, x20 the callee''s fp, bl to a known method''s unchecked entry, to the block stub, or to an inline cache''s target (JitBaselineRuntime links it); the result comes back in x0, and in slot slotTop if the interpreter returns into the frame (a resumption stub loads it). A frame suspended in a call is lazy as baseline code''s: the return map (return offset, safepoint, argument count) gives its pc (bcSize + the safepoint''s index) and sp. Method and block units start with the entry baseline-style calls take (emitBaselineEntry: the frame built as baseline code builds it), then the prologue for callers that pushed the frame; x23-x25 stay baseline code''s nil, true and false, and are where the code takes them from.
+Frame layout: slots 0..numArgs-1 the arguments, then home slots (OptRegalloc), then from rawBase raw ones (doubles'' IEEE bits; the collector skips them), slotTop of them; a send''s receiver and arguments go at slotTop..., the callee''s frame starts after them. Calls are baseline code''s (docs/jit.md, Calls between the tiers): the receiver in x0, x20 the callee''s fp, bl to a known method''s unchecked entry, to the block stub, or to an inline cache''s target (JitBaselineRuntime links it); the result comes back in x0, and in slot slotTop if the interpreter returns into the frame (a resumption stub loads it). A frame suspended in a call is lazy as baseline code''s: the return map (return offset, safepoint, argument count) gives its pc (bcSize + the safepoint''s index) and sp. Method and block units start with the entry baseline-style calls take (emitBaselineEntry: the frame built as baseline code builds it), then the prologue for callers that pushed the frame; x23-x25 stay baseline code''s nil, true and false, and are where the code takes them from.
 
 What registers hold: the code generator knows which registers hold the values of which slots (cgHeldSlot and cgHeldReg: pairs of a slot''s offset and a register), from the code it emitted since the last label control may come to from elsewhere (catchUp decodes it): loads and stores of slots make their registers hold them, anything else that writes a register makes it hold nothing, calls and jumps everything. A slot a register holds is not loaded again (from another register: moved), nor stored again. At a safepoint of its own (interrupt checks, deoptimization) the code stores the frame''s pc and sp, so GCs see every value saved there; the bytecode map has the continuation of each call under that pc.'!
 
 !OptCodegen class methodsFor: 'declaring'!
 declarations
 	^#((ir OptIR) (passes OptPasses) (regalloc OptRegalloc)
-		(cgCodeStart uint64_t) (cgBcSize int32_t) (cgValidSlots int32_t) (cgEntryPc int32_t) (cgSlotTop int32_t) (cgMaxOut int32_t) (cgNeed int32_t)
+		(cgCodeStart uint64_t) (cgBcSize int32_t) (cgValidSlots int32_t) (cgEntryPc int32_t) (cgSlotTop int32_t) (cgRawBase int32_t) (cgMaxOut int32_t) (cgNeed int32_t)
 		(cgExitPlainLabel int32_t) (cgExitSyncLabel int32_t) (cgDeoptLabel int32_t) (cgReturnLabel int32_t) (cgHeaderLabel int32_t) (cgChecksLabel int32_t) (cgBodyLabel int32_t) (cgInterruptLabel int32_t)
 		(cgBarrierLabel int32_t) (cgDeoptReturnLabel int32_t) (cgStackFullLabel int32_t)
 		(cgOuts 'OptOut[CG_MAX_OUT]') (cgOutCount int32_t)
@@ -49,6 +49,10 @@ initialize
 !OptCodegen methodsFor: 'accessing'!
 slotTop
 	^cgSlotTop
+!
+rawBase
+	"The first raw slot (slotTop if none)."
+	^cgRawBase
 !
 maxOut
 	^cgMaxOut
@@ -141,6 +145,7 @@ generate: m act: a
 	cgEntryPc := builder entryPc.
 	cgSlotTop := regalloc slotCount.
 	cgSlotTop < cgValidSlots ifTrue: [cgSlotTop := cgValidSlots].
+	cgRawBase := cgSlotTop - regalloc rawCount.
 	cgMaxOut := self maxOutgoing asInt32.
 	"room for the frame's slots and outgoing calls, and for its activations' frames should it deoptimize"
 	need := 0.
@@ -238,7 +243,7 @@ emitBaselineEntry
 			asm stur: X16 base: X20 offset: -8].
 	asm stp: X20 with: XZR base: X19 offset: self fpOffset.
 	asm comment: 'temps nil'.
-	self emitNilFrom: n to: (far ifTrue: [cgValidSlots] ifFalse: [cgSlotTop]).
+	self emitNilFrom: n to: (far ifTrue: [cgValidSlots] ifFalse: [cgRawBase]).
 	asm b: (far ifTrue: [cgChecksLabel] ifFalse: [cgBodyLabel]).
 	asm bind: slow.
 	asm comment: 'no room: the entry slow path (x10 where to retry)'.
@@ -259,7 +264,7 @@ emitNilFrom: i0 to: i1
 				i := i + 1]]
 !
 emitEntry
-	"The prologue from callers that pushed the frame (the runtime, the interpreter), then start: room for the frame and for its activations' frames should it deoptimize, home slots nil, the arguments."
+	"The prologue from callers that pushed the frame (the runtime, the interpreter), then start: room for the frame and for its activations' frames should it deoptimize, home slots nil (not raw ones), the arguments."
 	| s |
 	self emitPrologue.
 	runtime noteResume: cgEntryPc at: asm pc - cgCodeStart.
@@ -282,9 +287,9 @@ emitEntry
 	asm ldr: W16 base: X16 offset: self headerFlagsOffset.
 	asm tst: W16 imm: 2.
 	asm b: s if: COND_NE.
-	cgSlotTop > cgValidSlots ifTrue: [
+	cgRawBase > cgValidSlots ifTrue: [
 		asm comment: 'home slots nil'.
-		cgValidSlots to: cgSlotTop - 1 do: [:i | asm str: X23 base: X20 offset: 8 * i]].
+		cgValidSlots to: cgRawBase - 1 do: [:i | asm str: X23 base: X20 offset: 8 * i]].
 	asm bind: cgBodyLabel
 !
 order
@@ -784,7 +789,10 @@ conditionOf: n
 emitCompare: n
 	| nd x y |
 	nd := ir node: n.
-	nd op asInt32 = O_FCMP ifTrue: [^asm fcmp: (self dsrc: nd a) with: (self dsrc: nd b)].
+	nd op asInt32 = O_FCMP ifTrue: [
+		x := self dsrc: nd a into: D0.
+		y := self dsrc: nd b into: D1.
+		^asm fcmp: x with: y].
 	x := self src: nd a into: self scratchA.
 	nd op asInt32 = O_CLASSIS ifTrue: [^self emitClassTest: x class: nd aux asUInt64].
 	nd op asInt32 = O_BOTHINT ifTrue: [
@@ -835,26 +843,48 @@ emitDouble: bits into: d
 	asm mov: X16 imm: bits.
 	asm fmov: d with: X16
 !
-dsrc: v
-	"v's D register (doubles always have one)."
-	(ir node: v) reg >= D0 ifTrue: [^(ir node: v) reg asInt32].
+dsrc: v into: d
+	"A d register holding double v, which the caller only reads: its own, or d (D0 or D1, the code generator's) loaded from its raw slot or with the Float constant."
+	| nd |
+	nd := ir node: v.
+	nd op asInt32 = O_CONST ifTrue: [
+		self emitDouble: (self constantDouble: nd aux asUInt64) into: d.
+		^d].
+	nd reg >= D0 ifTrue: [^nd reg asInt32].
+	nd slot >= 0 ifTrue: [
+		self load: d slot: nd slot asInt32.
+		^d].
 	asm fail: ASM_ERR_OPERAND.
+	^d
+!
+ddst: n
+	"Where double n is computed: its d register, or D0 if it lives in its raw slot."
+	(ir node: n) reg >= 0 ifTrue: [^(ir node: n) reg asInt32].
 	^D0
 !
+ddef: n from: d
+	"Double n is in d: into its d register, and into its raw slot if it lives there or has its home there (as def:from:)."
+	| nd |
+	nd := ir node: n.
+	(nd reg >= 0 and: [nd reg asInt32 ~= d]) ifTrue: [asm fmov: nd reg asInt32 with: d].
+	(nd slot >= 0 and: [nd reg < 0 or: [(nd flags bitAnd: NF_LAZY) = 0]]) ifTrue: [self store: d slot: nd slot asInt32]
+!
 emitFloat: n
-	"Unboxing (a SmallFloat64 or BoxedFloat64 decoded, a SmallInteger converted), boxing (as a SmallFloat64), arithmetic and sqrt on doubles; what does not fit deoptimizes."
-	| nd op s x r int boxed done zero store k |
+	"Unboxing (a SmallFloat64 or BoxedFloat64 decoded, a SmallInteger converted), boxing (as a SmallFloat64), arithmetic and sqrt on doubles; what does not fit deoptimizes. Doubles in raw slots are loaded into D0 and D1, results computed in D0 and stored."
+	| nd op s x y r int boxed done zero store k |
 	nd := ir node: n.
 	op := nd op asInt32.
 	op = O_UNBOXF ifTrue: [
-		r := self dsrc: n.
+		r := self ddst: n.
 		((ir node: nd a) op asInt32 = O_CONST and: [((ir node: nd a) aux bitAnd: 1) ~= 0 or: [((ir node: nd a) aux bitAnd: 7) = 4]]) ifTrue: [
-			^self emitDouble: (self constantDouble: (ir node: nd a) aux asUInt64) into: r].
+			self emitDouble: (self constantDouble: (ir node: nd a) aux asUInt64) into: r.
+			^self ddef: n from: r].
 		x := self src: nd a into: self scratchB.
 		(ir node: nd a) tkind asInt32 = T_SMI ifTrue: [
 			asm comment: 'a SmallInteger''s double'.
 			asm asr: X16 with: x imm: 1.
-			^asm scvtf: r with: X16].
+			asm scvtf: r with: X16.
+			^self ddef: n from: r].
 		(ir node: nd a) tkind asInt32 ~= T_FLOAT ifTrue: [
 			s := self deoptLabelFor: n.
 			int := asm newLabel.
@@ -887,13 +917,13 @@ emitFloat: n
 			asm asr: X16 with: x imm: 1.
 			asm scvtf: r with: X16.
 			asm bind: done].
-		^self].
+		^self ddef: n from: r].
 	op = O_BOXF ifTrue: [
 		s := self deoptLabelFor: n.
 		zero := asm newLabel.
 		store := asm newLabel.
 		asm comment: 'as a SmallFloat64 (out of its exponent range: deoptimize)'.
-		asm fmov: X16 with: (self dsrc: nd a).
+		asm fmov: X16 with: (self dsrc: nd a into: D0).
 		asm lsl: X17 with: X16 imm: 1.
 		asm cbz: X17 to: zero.
 		asm ubfx: self scratchB with: X16 lsb: 52 width: 11.
@@ -911,17 +941,25 @@ emitFloat: n
 		asm lsl: r with: X17 imm: 3.
 		asm orr: r with: r imm: 4.
 		^self def: n from: r].
-	op = O_FSQRT ifTrue: [^asm fsqrt: (self dsrc: n) with: (self dsrc: nd a)].
+	op = O_FSQRT ifTrue: [
+		x := self dsrc: nd a into: D0.
+		r := self ddst: n.
+		asm fsqrt: r with: x.
+		^self ddef: n from: r].
 	k := nd aux asInt32.
+	x := self dsrc: nd a into: D0.
+	y := self dsrc: nd b into: D1.
 	k = 9 ifTrue: [
 		s := self deoptLabelFor: n.
 		asm comment: 'division by zero: deoptimize'.
-		asm fcmpZero: (self dsrc: nd b).
+		asm fcmpZero: y.
 		asm b: s if: COND_EQ].
-	k = 0 ifTrue: [^asm fadd: (self dsrc: n) with: (self dsrc: nd a) with: (self dsrc: nd b)].
-	k = 1 ifTrue: [^asm fsub: (self dsrc: n) with: (self dsrc: nd a) with: (self dsrc: nd b)].
-	k = 8 ifTrue: [^asm fmul: (self dsrc: n) with: (self dsrc: nd a) with: (self dsrc: nd b)].
-	asm fdiv: (self dsrc: n) with: (self dsrc: nd a) with: (self dsrc: nd b)
+	r := self ddst: n.
+	k = 0 ifTrue: [asm fadd: r with: x with: y].
+	k = 1 ifTrue: [asm fsub: r with: x with: y].
+	k = 8 ifTrue: [asm fmul: r with: x with: y].
+	k = 9 ifTrue: [asm fdiv: r with: x with: y].
+	self ddef: n from: r
 !
 emitSizeOf: x kind: ek fixed: fixed
 	"X16 := the number of indexable elements of x (pointer slots after fixed fields, or bytes); uses X17."
@@ -1523,41 +1561,53 @@ emitMovesFrom: b to: s
 	self emitDoubleMovesFrom: k to: s
 !
 emitDoubleMovesFrom: k to: s
-	"The parallel moves into s's phis on doubles of their k-th operands: between d registers (a cycle through D0), then Float constants."
-	| n nd src d c blocked progress |
+	"The parallel moves into s's phis on doubles of their k-th operands, between d registers and raw slots (locOf:; a cycle through D0), then Float constants; a phi with a register and a home slot is stored there too (as moveRegTo:from:)."
+	| n nd d c blocked progress |
 	cgMoveCount := 0.
 	n := (ir block: s) first.
 	[n >= 0 and: [(ir node: n) op asInt32 = O_PHI]] whileTrue: [
 		nd := ir node: n.
 		((regalloc isValue: n) and: [nd rep asInt32 = R_DBL]) ifTrue: [
 			cgMoveCount >= CG_MAX_MOVES ifTrue: [^asm fail: ASM_ERR_FULL].
-			src := ir operand: nd args + k.
-			cgMoveDst at: cgMoveCount put: nd reg asInt32.
-			cgMoveSrc at: cgMoveCount put: src.
-			cgMoveLoc at: cgMoveCount put: ((ir node: src) op asInt32 = O_CONST ifTrue: [-1] ifFalse: [(ir node: src) reg asInt32]).
+			cgMoveDst at: cgMoveCount put: n.
+			cgMoveSrc at: cgMoveCount put: (ir operand: nd args + k).
+			cgMoveLoc at: cgMoveCount put: (self locOf: (ir operand: nd args + k)).
 			cgMoveCount := cgMoveCount + 1].
 		n := nd next].
 	[(self firstRegisterMove) >= 0] whileTrue: [
 		progress := false.
 		0 to: cgMoveCount - 1 do: [:i |
-			d := cgMoveDst at: i.
+			d := self locOf: (cgMoveDst at: i).
 			((cgMoveLoc at: i) >= 0 and: [progress not]) ifTrue: [
 				blocked := false.
 				0 to: cgMoveCount - 1 do: [:j | (j ~= i and: [(cgMoveLoc at: j) = d]) ifTrue: [blocked := true]].
 				blocked ifFalse: [
-					(cgMoveLoc at: i) ~= d ifTrue: [asm fmov: d with: (cgMoveLoc at: i)].
+					(cgMoveLoc at: i) ~= d ifTrue: [self moveDouble: (cgMoveDst at: i) from: (cgMoveLoc at: i)].
 					cgMoveLoc at: i put: -2.
 					progress := true]]].
 		progress ifFalse: [
 			"a cycle: the first pending destination's value goes to D0, its readers read D0"
 			c := self firstRegisterMove.
-			d := cgMoveDst at: c.
-			asm fmov: D0 with: d.
+			d := self locOf: (cgMoveDst at: c).
+			d < 1000
+				ifTrue: [asm fmov: D0 with: d]
+				ifFalse: [self load: D0 slot: d - 1000].
 			0 to: cgMoveCount - 1 do: [:j | (cgMoveLoc at: j) = d ifTrue: [cgMoveLoc at: j put: D0]]]].
 	0 to: cgMoveCount - 1 do: [:i |
 		(cgMoveLoc at: i) = -1 ifTrue: [
-			self emitDouble: (self constantDouble: (ir node: (cgMoveSrc at: i)) aux asUInt64) into: (cgMoveDst at: i)]].
+			d := (ir node: (cgMoveDst at: i)) reg >= 0 ifTrue: [(ir node: (cgMoveDst at: i)) reg asInt32] ifFalse: [D1].
+			self emitDouble: (self constantDouble: (ir node: (cgMoveSrc at: i)) aux asUInt64) into: d.
+			self ddef: (cgMoveDst at: i) from: d]].
 	cgMoveCount := 0
+!
+moveDouble: phi from: l
+	"Double phi := the double at location l (a d register below 1000, else a raw slot; a slot to a slot through D1)."
+	| r |
+	r := l.
+	l >= 1000 ifTrue: [
+		r := (ir node: phi) reg >= 0 ifTrue: [(ir node: phi) reg asInt32] ifFalse: [D1].
+		self load: r slot: l - 1000].
+	self ddef: phi from: r
 !
 locOf: v
 	"A location for the move resolver: register r, 1000 + slot, -1 for a constant."
@@ -1667,12 +1717,8 @@ emitOuts
 			asm comment: 'interrupt: call the runtime'.
 			self saveAcross: o node.
 			self emitFramePc: cgBcSize + (self recordSafepoint: o node kind: (ir node: o node) aux asInt32) sp: cgSlotTop.
-			cgDoubles ifTrue: [
-				asm comment: 'the doubles around it'.
-				0 to: self dregPairs - 1 do: [:i | asm stp: self dregBase + (2 * i) with: self dregBase + (2 * i) + 1 base: SP preIndex: -16]].
 			asm mov: X0 with: X19.
 			asm bl: ((ir node: o node) aux = SP_ENTRY ifTrue: [asm labelAt: stubs entryInterruptStub] ifFalse: [cgInterruptLabel]).
-			cgDoubles ifTrue: [self dregPairs - 1 to: 0 by: -1 do: [:i | asm ldp: self dregBase + (2 * i) with: self dregBase + (2 * i) + 1 base: SP postIndex: 16]].
 			asm cbnz: X0 to: cgExitPlainLabel.
 			self emitReloadPinned.
 			self reloadAcross: o node.
@@ -1842,9 +1888,14 @@ sunkIndexOf: v
 	^cgSunkCount - 1
 !
 locOf: v inSlots: inSlots
-	"Where deoptimization finds v: a constant, its register (not at a safepoint), its slot."
+	"Where deoptimization finds v: a constant, its register (not at a safepoint), its slot; a double: its d register (not at a safepoint), its raw slot."
 	| nd c |
 	nd := ir node: v.
+	nd rep asInt32 = R_DBL ifTrue: [
+		(inSlots not and: [nd reg >= 0]) ifTrue: [^((nd reg asInt64 - D0) << 3) bitOr: LOC_DREG].
+		nd slot >= 0 ifTrue: [^(nd slot asInt64 << 3) bitOr: LOC_RAW].
+		asm fail: ASM_ERR_OPERAND.
+		^0].
 	nd op asInt32 = O_CLOSURE ifTrue: [^((self sunkIndexOf: v) asInt64 << 3) bitOr: LOC_SUNK].
 	nd op asInt32 = O_HOMESLOT ifTrue: [^(nd aux << 3) bitOr: LOC_SLOT].
 	nd op asInt32 = O_CONST ifTrue: [

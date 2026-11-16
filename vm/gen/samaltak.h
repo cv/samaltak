@@ -342,6 +342,7 @@ typedef void (*prim_fn)(void);
 #define LOC_CONST 2
 #define LOC_DREG 5
 #define LOC_INT 4
+#define LOC_RAW 7
 #define LOC_REG 1
 #define LOC_SLOT 0
 #define LOC_SMI 3
@@ -933,8 +934,9 @@ struct jit_method {
     uint32_t generation;
     uint32_t stamp;
     uint32_t signature;
+    uint32_t raw_base;
 };
-_Static_assert(sizeof(jit_method) == 232, "the simulator lays out JitMethod as C does");
+_Static_assert(sizeof(jit_method) == 240, "the simulator lays out JitMethod as C does");
 
 struct jit_state {
     oop nil_oop;
@@ -1383,6 +1385,7 @@ extern int32_t cg_meta_count;
 extern int32_t cg_meta_words[262144];
 extern int32_t cg_pool_count;
 extern int32_t cg_pool_labels[1024];
+extern int32_t cg_raw_base;
 extern int32_t cg_ret_argc[8192];
 extern int32_t cg_ret_count;
 extern int32_t cg_ret_index[8192];
@@ -1415,6 +1418,8 @@ extern int32_t ps_order[2048];
 extern int32_t ps_order_count;
 extern bool ps_unbox_off;
 extern bool ps_unboxed;
+extern int32_t ra_raw_base;
+extern int32_t ra_raw_top;
 extern int32_t ra_safe_list[262144];
 extern int32_t ra_slot_top;
 extern jit_method *rt_all[16384];
@@ -1886,7 +1891,7 @@ void reset(void);
 int32_t opt_ir_resolve(int32_t n);
 void opt_ir_unlink(int32_t n);
 void cleanup(int32_t entry);
-bool opt_regalloc_allocate(int32_t num_args);
+bool opt_regalloc_allocate(int32_t num_args, int32_t n);
 void opt_runtime_all_roots(void (*fn)(oop *));
 uint64_t opt_runtime_block_code_for(uint64_t m, int32_t s);
 bool opt_runtime_compile(oop m);

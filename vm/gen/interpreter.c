@@ -564,11 +564,16 @@ static int64_t frame_size(frame *f)
 /* Interpreter>>framesValid: */
 bool frames_valid(bool (*valid)(oop))
 {
+    int64_t w;
+    int64_t lo;
+    int64_t hi;
     int32_t i;
     oop o;
     uint64_t o_2;
     oop o_3;
-    int64_t i_2;
+    int64_t n;
+    frame *f;
+    uint64_t c;
     int32_t k;
     for (i = 0; i <= nframes - 1; i++) {
         if (!(valid((frames + i)->method) && (valid((frames + i)->closure) && valid((frames + i)->ctx)))) {
@@ -584,15 +589,32 @@ bool frames_valid(bool (*valid)(oop))
             return false;
         }
     }
-    for (i_2 = 0; i_2 <= (int64_t)cstack_used - 1; i_2++) {
-        if (!valid(cstack[i_2])) {
-            fprintf(stderr, "slot %lld of %lld: %llx\n", (long long)i_2, (long long)(int64_t)cstack_used, (unsigned long long)cstack[i_2]);
-            for (k = 0; k <= nframes - 1; k++) {
-                fprintf(stderr, "frame %d fp %lld sp %d pc %d ", k, (long long)((frames + k)->fp - cstack), (frames + k)->sp, (frames + k)->pc);
-                print_activation((frames + k)->method, (frames + k)->fp[-1], (frames + k)->closure, stderr);
+    w = 0;
+    n = 0;
+    while (w < (int64_t)cstack_used) {
+        lo = (int64_t)cstack_used;
+        hi = lo;
+        while ((n < nframes) && (hi == lo)) {
+            f = frames + n;
+            n = n + 1;
+            c = f->code;
+            if ((c > JIT_MAX_COUNT) && (((jit_method *)f->code)->mode == JIT_OPT)) {
+                lo = f->fp - cstack + (int64_t)((jit_method *)f->code)->raw_base;
+                hi = f->fp - cstack + (int64_t)((jit_method *)f->code)->slots;
             }
-            return false;
         }
+        while (w < (lo < (int64_t)cstack_used ? lo : (int64_t)cstack_used)) {
+            if (!valid(cstack[w])) {
+                fprintf(stderr, "slot %lld of %lld: %llx\n", (long long)w, (long long)(int64_t)cstack_used, (unsigned long long)cstack[w]);
+                for (k = 0; k <= nframes - 1; k++) {
+                    fprintf(stderr, "frame %d fp %lld sp %d pc %d ", k, (long long)((frames + k)->fp - cstack), (frames + k)->sp, (frames + k)->pc);
+                    print_activation((frames + k)->method, (frames + k)->fp[-1], (frames + k)->closure, stderr);
+                }
+                return false;
+            }
+            w = w + 1;
+        }
+        w = w > hi ? w : hi;
     }
     return true;
 }
@@ -12637,15 +12659,37 @@ static void refresh_tag_classes(void)
 /* Interpreter>>roots: */
 void interpreter_roots(void (*fn)(oop *))
 {
+    int64_t w;
+    int64_t lo;
+    int64_t hi;
     int32_t i;
-    int64_t i_2;
+    int64_t n;
+    frame *f;
+    uint64_t c;
     for (i = 0; i <= nframes - 1; i++) {
         fn(&(frames + i)->method);
         fn(&(frames + i)->closure);
         fn(&(frames + i)->ctx);
     }
-    for (i_2 = 0; i_2 <= (int64_t)cstack_used - 1; i_2++) {
-        fn(cstack + i_2);
+    w = 0;
+    n = 0;
+    while (w < (int64_t)cstack_used) {
+        lo = (int64_t)cstack_used;
+        hi = lo;
+        while ((n < nframes) && (hi == lo)) {
+            f = frames + n;
+            n = n + 1;
+            c = f->code;
+            if ((c > JIT_MAX_COUNT) && (((jit_method *)f->code)->mode == JIT_OPT)) {
+                lo = f->fp - cstack + (int64_t)((jit_method *)f->code)->raw_base;
+                hi = f->fp - cstack + (int64_t)((jit_method *)f->code)->slots;
+            }
+        }
+        while (w < (lo < (int64_t)cstack_used ? lo : (int64_t)cstack_used)) {
+            fn(cstack + w);
+            w = w + 1;
+        }
+        w = w > hi ? w : hi;
     }
 }
 
@@ -12931,11 +12975,16 @@ void interpreter_widow(frame *f)
     oop ctx;
     oop *s;
     int64_t n;
+    uint64_t c;
     ctx = f->ctx;
     s = (oop *)(ctx + 16);
     n = (int64_t)(uint32_t)*(uint64_t *)ctx - CTX_FIXED;
     if (f->sp < n) {
         n = f->sp;
+    }
+    c = f->code;
+    if ((c > JIT_MAX_COUNT) && (((jit_method *)f->code)->mode == JIT_OPT) && ((int64_t)((jit_method *)f->code)->raw_base < (int64_t)((jit_method *)f->code)->slots)) {
+        n = n < (int64_t)((jit_method *)f->code)->raw_base ? n : (int64_t)((jit_method *)f->code)->raw_base;
     }
     memcpy(s + CTX_FIXED, f->fp, (uint64_t)n * 8);
     s[CTX_SENDER] = nil_oop;

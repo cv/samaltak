@@ -38,6 +38,8 @@ cleanup: entry
 	self resolveOperands.
 	self typePhis.
 	self resolveOperands.
+	self forwardUnboxes.
+	self resolveOperands.
 	psUnboxed := false.
 	(psUnboxOff not and: [runtime flag: runtime unboxFlag]) ifTrue: [
 		self unboxPhis.
@@ -49,6 +51,7 @@ cleanup: entry
 		self valueNumbers.
 		self resolveOperands].
 	(runtime flag: runtime hoistFlag) ifTrue: [self hoistGuards].
+	self unboxStates.
 	self countUses.
 	self removeDead.
 	self countUses
@@ -103,9 +106,9 @@ typePhis
 			ir unlink: n]]
 !
 unboxPhis
-	"A loop's Float phi gets a twin on doubles that the loop's arithmetic reads instead of unboxing the phi every time around, so the chain stays in d registers (the boxed phi stays for all else: frame states, sends, the exit): into it flow Float constants, the doubles of boxes, the twin itself, and from a loop unit's entry the frame's value, unboxed there once (a guard). Not in loops whose code calls: d registers do not survive a call."
+	"A loop's Float phi gets a twin on doubles that the loop's arithmetic reads instead of unboxing the phi every time around, so the chain stays on doubles (the boxed phi stays for all else: frame states, sends, the exit): into it flow Float constants, the doubles of boxes, the twin itself, and from a loop unit's entry the frame's value, unboxed there once (a guard). Across the loop's sends and interrupt checks the twin is in its raw home slot."
 	<function>
-	| hb lo hi e calls n nd k o u ok uses |
+	| hb lo hi e n nd k o u ok uses |
 	0 to: ir blockCount - 1 do: [:h |
 		hb := ir block: h.
 		(hb rpo >= 0 and: [(hb flags bitAnd: BF_LOOP) ~= 0]) ifTrue: [
@@ -116,13 +119,7 @@ unboxPhis
 			[e >= 0] whileTrue: [
 				(ir block: (ir edge: e) from) rpo >= lo ifTrue: [hi := hi max: (ir block: (ir edge: e) from) rpo].
 				e := (ir edge: e) next].
-			calls := hi < 0.
-			lo to: hi do: [:i |
-				n := (ir block: (psOrder at: i)) first.
-				[n >= 0] whileTrue: [
-					((ir node: n) op asInt32 = O_SEND or: [(ir node: n) op asInt32 = O_CALL]) ifTrue: [calls := true].
-					n := (ir node: n) next]].
-			calls ifFalse: [
+			hi >= 0 ifTrue: [
 				n := hb first.
 				[n >= 0 and: [(ir node: n) op asInt32 = O_PHI]] whileTrue: [
 					nd := ir node: n.
@@ -146,6 +143,39 @@ unboxPhis
 !
 isFloatConstant: v
 	^(ir node: v) op asInt32 = O_CONST and: [((ir node: v) aux bitAnd: 7) = 4]
+!
+forwardUnboxes
+	"A box's double unboxed again (in another block, after a safepoint) is that double; a guard that two values are not both SmallIntegers, one of them a SmallFloat64, goes (it would keep a box only frame states need otherwise)."
+	<function>
+	| nd v |
+	0 to: ir nodeCount - 1 do: [:n |
+		nd := ir node: n.
+		(nd op asInt32 = O_UNBOXF and: [nd fwd < 0 and: [nd block >= 0]]) ifTrue: [
+			v := ir resolve: nd a.
+			(ir node: v) op asInt32 = O_BOXF ifTrue: [
+				nd fwd: (ir resolve: (ir node: v) a).
+				ir unlink: n]].
+		(nd op asInt32 = O_NOTINTS and: [nd block >= 0 and: [(ir node: (ir resolve: nd a)) tkind asInt32 = T_FLOAT or: [(ir node: (ir resolve: nd b)) tkind asInt32 = T_FLOAT]]]) ifTrue: [ir unlink: n]]
+!
+unboxStates
+	"A box only frame states name: they name its double instead (deoptimization boxes it), and the box goes (removeDead). Operands (a phi's too) and activations' receivers are real uses: their boxes stay."
+	<function>
+	| nd st v |
+	0 to: ir nodeCount - 1 do: [:n | psWorkList at: n put: 0].
+	0 to: ir nodeCount - 1 do: [:n |
+		nd := ir node: n.
+		nd block >= 0 ifTrue: [
+			nd a >= 0 ifTrue: [psWorkList at: nd a put: 1].
+			nd b >= 0 ifTrue: [psWorkList at: nd b put: 1].
+			(nd c >= 0 and: [nd op asInt32 ~= O_SEND]) ifTrue: [psWorkList at: nd c put: 1].
+			0 to: nd nargs asInt32 - 1 do: [:i | (ir operand: nd args + i) >= 0 ifTrue: [psWorkList at: (ir operand: nd args + i) put: 1]]]].
+	0 to: ir actCount - 1 do: [:a | (ir act: a) receiver >= 0 ifTrue: [psWorkList at: (ir act: a) receiver put: 1]].
+	0 to: ir stateCount - 1 do: [:s |
+		st := ir state: s.
+		0 to: st depth do: [:i |
+			v := ir operand: st vals + i.
+			(v >= 0 and: [(ir node: v) op asInt32 = O_BOXF and: [(ir node: v) block >= 0 and: [(psWorkList at: v) = 0]]]) ifTrue: [
+				ir operand: st vals + i put: (ir resolve: (ir node: v) a)]]]
 !
 isFrameNumber: v
 	"v is a loop unit's parameter, a frame slot that held a number when the unit was compiled."
@@ -294,8 +324,8 @@ valueNumbers
 			nd b >= 0 ifTrue: [nd b: (ir resolve: nd b)].
 			(self changesMemory: nd) ifTrue: [mem := mem + 1].
 			(self isNumbered: nd) ifTrue: [
-				"loads, and doubles (they cannot live across a safepoint): only since the last store or safepoint"
-				(nd op asInt32 = O_LOADFIELD or: [nd rep asInt32 = R_DBL]) ifTrue: [nd aux2: mem].
+				"loads: only since the last store or safepoint"
+				nd op asInt32 = O_LOADFIELD ifTrue: [nd aux2: mem].
 				h := self hashOf: nd.
 				found := -1.
 				m := psHeads at: h.

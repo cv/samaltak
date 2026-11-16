@@ -1,9 +1,9 @@
 OptModule subclass: #OptRegalloc
-	instanceVariableNames: 'ir passes raLiveWords raLiveIn raLiveOut raLiveArena raSorted raSortCount raBucket raBucketNext raActive raActiveCount raFreeRegs raSafePos raSafeCall raSafeCount raSlotTop raSlotFree raSlotFreeCount raSlotBase raMaxPos raSafeList raSafeListCount'
+	instanceVariableNames: 'ir passes raLiveWords raLiveIn raLiveOut raLiveArena raSorted raSortCount raBucket raBucketNext raActive raActiveCount raFreeRegs raSafePos raSafeCall raSafeCount raSlotTop raSlotFree raSlotFreeCount raSlotBase raRawTop raRawFree raRawFreeCount raRawBase raValidSlots raMaxPos raSafeList raSafeListCount'
 	classVariableNames: 'RA_ARENA RA_MAX_ACTIVE RA_MAX_SAFE RA_MAX_SAFELIST RA_MAX_SLOTS RA_NREGS'
 	package: 'VM-Jit'!
 
-OptRegalloc comment: 'Register allocation for the optimizing tier (Poletto and Sarkar''s linear scan over one live interval per value). Blocks in OptPasses'' order get positions (two per node; a block''s phis at its start); block-level liveness (iterative, bit sets) gives each value the interval from its first to its last live position (a phi''s covers the ends of its predecessors, where the moves into it are; a frame state''s values at a safepoint stay live after it). Values get one of the 17 allocatable registers (x0-x13, x26-x28; x14-x17 are the code generator''s scratch, x23-x25 hold nil, true and false for baseline code) for their whole interval, or a frame slot if none is free (the interval ending last is spilled). Values live across a safepoint (a send, an interrupt check: everything there may run Smalltalk and move objects) also get a home slot: their registers are stored there before it and reloaded after. Constants get neither: the code generator materializes them where they are used.'!
+OptRegalloc comment: 'Register allocation for the optimizing tier (Poletto and Sarkar''s linear scan over one live interval per value). Blocks in OptPasses'' order get positions (two per node; a block''s phis at its start); block-level liveness (iterative, bit sets) gives each value the interval from its first to its last live position (a phi''s covers the ends of its predecessors, where the moves into it are; a frame state''s values at a safepoint stay live after it). Values get one of the 17 allocatable registers (x0-x13, x26-x28; x14-x17 are the code generator''s scratch, x23-x25 hold nil, true and false for baseline code) for their whole interval, or a frame slot if none is free (the interval ending last is spilled). Values live across a safepoint (a send, an interrupt check: everything there may run Smalltalk and move objects) also get a home slot: their registers are stored there before it and reloaded after. Doubles get d16-d31 and raw slots of their own (IEEE bits, which the collector does not read), after the others and the frame''s valid slots. Constants get neither: the code generator materializes them where they are used.'!
 
 !OptRegalloc class methodsFor: 'declaring'!
 declarations
@@ -11,7 +11,7 @@ declarations
 		(raSorted 'int32_t[OPT_MAX_NODES]') (raSortCount int32_t) (raBucket 'int32_t[OPT_MAX_NODES]') (raBucketNext 'int32_t[OPT_MAX_NODES]')
 		(raActive 'int32_t[RA_MAX_ACTIVE]') (raActiveCount int32_t) (raFreeRegs 'int32_t[RA_NREGS]')
 		(raSafePos 'int32_t[RA_MAX_SAFE]') (raSafeCall 'uint8_t[RA_MAX_SAFE]') (raSafeCount int32_t)
-		(raSlotTop int32_t) (raSlotFree 'int32_t[RA_MAX_SLOTS]') (raSlotFreeCount int32_t) (raSlotBase int32_t) (raMaxPos int32_t) (raSafeList 'int32_t[RA_MAX_SAFELIST]') (raSafeListCount int32_t))
+		(raSlotTop int32_t) (raSlotFree 'int32_t[RA_MAX_SLOTS]') (raSlotFreeCount int32_t) (raSlotBase int32_t) (raRawTop int32_t) (raRawFree 'int32_t[RA_MAX_SLOTS]') (raRawFreeCount int32_t) (raRawBase int32_t) (raValidSlots int32_t) (raMaxPos int32_t) (raSafeList 'int32_t[RA_MAX_SAFELIST]') (raSafeListCount int32_t))
 !
 initialize
 	RA_ARENA := 1048576.
@@ -24,8 +24,13 @@ initialize
 
 !OptRegalloc methodsFor: 'accessing'!
 slotCount
-	"Frame slots used: the outermost method's arguments, then home slots."
-	^raSlotTop
+	"Frame slots used: the outermost method's arguments, then home slots, then raw slots (rawCount of them)."
+	raRawTop = 0 ifTrue: [^raSlotTop].
+	^raRawBase + raRawTop
+!
+rawCount
+	"Raw slots: the last ones of the frame."
+	^raRawTop
 !
 regAt: i
 	"Allocatable register i: x0-x13, x23-x28, then d16-d31 for doubles (on x86 x0-x5, x9, x21, then d2-d15: regAtX64:)."
@@ -47,8 +52,8 @@ isSafepoint: n
 ! !
 
 !OptRegalloc methodsFor: 'allocation'!
-allocate: numArgs
-	"Allocate registers and slots for the ordered IR; answer whether it fit."
+allocate: numArgs valid: n
+	"Allocate registers and slots for the ordered IR (the frame's first n slots hold values at its entry); answer whether it fit."
 	<function>
 	self numberPositions.
 	(self liveness) ifFalse: [^false].
@@ -56,6 +61,7 @@ allocate: numArgs
 	self buildIntervals.
 	(self linearScan) ifFalse: [^false].
 	raSlotBase := numArgs.
+	raValidSlots := n.
 	^self assignSlots
 !
 numberPositions
@@ -295,13 +301,12 @@ linearScan
 					raActiveCount := raActiveCount - 1.
 					raActive at: j put: (raActive at: raActiveCount)]
 				ifFalse: [j := j + 1]].
-		"doubles: d16-d31, never spilled (a slot must hold an oop)"
+		"doubles: d16-d31, spilled as the others are (to raw slots)"
 		dbl := nd rep asInt32 = R_DBL.
 		lo := dbl ifTrue: [20] ifFalse: [0].
 		hi := dbl ifTrue: [RA_NREGS - 1] ifFalse: [19].
 		r := -1.
 		lo to: hi do: [:k | (r < 0 and: [(raFreeRegs at: k) = 1]) ifTrue: [r := k]].
-		(r < 0 and: [dbl]) ifTrue: [^self fail: 'no register for double v%d' node: v].
 		r >= 0
 			ifTrue: [
 				raFreeRegs at: r put: 0.
@@ -313,7 +318,7 @@ linearScan
 				victim := -1.
 				far := nd lend.
 				0 to: raActiveCount - 1 do: [:k |
-					((ir node: (raActive at: k)) lend > far and: [(ir node: (raActive at: k)) rep asInt32 ~= R_DBL]) ifTrue: [
+					((ir node: (raActive at: k)) lend > far and: [(ir node: (raActive at: k)) rep = nd rep]) ifTrue: [
 						far := (ir node: (raActive at: k)) lend.
 						victim := k]].
 				victim >= 0
@@ -323,12 +328,6 @@ linearScan
 						raActive at: victim put: v]
 					ifFalse: [nd reg: -1]]].
 	^true
-!
-fail: why node: v
-	(libc getenv: 'SAMALTAK_OPT_TRACE') notNull ifTrue: [
-		libc fprintf: libc stderr format: why with: v.
-		libc fputc: 10 to: libc stderr].
-	^false
 !
 regAtX64: i
 	"x86: x0-x5 (rdi rsi rdx rcx r8 r9), x9 (rax), x21 (r13: optimized code does not keep the receiver there), then d2-d15; the others have no x86 register or are the code generator's (x10, x11, x16, x17)."
@@ -378,7 +377,7 @@ shareSlotOf: v
 	nd flags: (nd flags bitOr: NF_LAZY).
 	0 to: raActiveCount - 1 do: [:j |
 		owner := ir node: (raActive at: j).
-		(owner slot = nd slot and: [owner lend < nd lend]) ifTrue: [raActive at: j put: v]]
+		(owner slot = nd slot and: [owner lend < nd lend and: [owner rep = nd rep]]) ifTrue: [raActive at: j put: v]]
 !
 crossesSafepoint: v
 	"v is live after a safepoint inside its interval."
@@ -395,43 +394,65 @@ crossesCall: v
 	^false
 !
 assignSlots
-	"Home slots for spilled values and values live across safepoints, reused when intervals no longer overlap."
+	"Home slots for spilled values and values live across safepoints, reused when intervals no longer overlap; doubles' are raw slots, numbered apart, after the others and the frame's valid slots."
 	<function>
 	| v nd j |
 	raSlotTop := raSlotBase.
 	raSlotFreeCount := 0.
+	raRawTop := 0.
+	raRawFreeCount := 0.
 	raActiveCount := 0.
 	0 to: raSortCount - 1 do: [:i |
 		v := raSorted at: i.
 		nd := ir node: v.
-		"doubles have no home slot: they live across interrupt checks only (their slow path saves the d registers)"
-		(nd rep asInt32 = R_DBL and: [self crossesCall: v]) ifTrue: [^self fail: 'double v%d lives across a call' node: v].
 		"an argument (a unit's parameter) lives in its own slot, which the code never writes"
 		((nd reg < 0 or: [self crossesSafepoint: v]) and: [nd op asInt32 = O_PARAM and: [nd aux >= 0]]) ifTrue: [nd slot: nd aux asInt16].
 		"a guard's result is its input: in the same slot, if the input is in one"
 		((nd reg < 0 or: [self crossesSafepoint: v]) and: [nd slot < 0 and: [self isGuard: nd]]) ifTrue: [self shareSlotOf: v].
-		((nd reg < 0 or: [self crossesSafepoint: v]) and: [nd slot < 0 and: [nd rep asInt32 ~= R_DBL]]) ifTrue: [
+		((nd reg < 0 or: [self crossesSafepoint: v]) and: [nd slot < 0]) ifTrue: [
 			j := 0.
 			[j < raActiveCount] whileTrue: [
 				(ir node: (raActive at: j)) lend < nd lstart
 					ifTrue: [
-						raSlotFree at: raSlotFreeCount put: (ir node: (raActive at: j)) slot asInt32.
-						raSlotFreeCount := raSlotFreeCount + 1.
+						(ir node: (raActive at: j)) rep asInt32 = R_DBL
+							ifTrue: [
+								raRawFree at: raRawFreeCount put: (ir node: (raActive at: j)) slot asInt32.
+								raRawFreeCount := raRawFreeCount + 1]
+							ifFalse: [
+								raSlotFree at: raSlotFreeCount put: (ir node: (raActive at: j)) slot asInt32.
+								raSlotFreeCount := raSlotFreeCount + 1].
 						raActiveCount := raActiveCount - 1.
 						raActive at: j put: (raActive at: raActiveCount)]
 					ifFalse: [j := j + 1]].
-			raSlotFreeCount > 0
+			nd rep asInt32 = R_DBL
 				ifTrue: [
-					raSlotFreeCount := raSlotFreeCount - 1.
-					nd slot: (raSlotFree at: raSlotFreeCount) asInt16]
+					raRawFreeCount > 0
+						ifTrue: [
+							raRawFreeCount := raRawFreeCount - 1.
+							nd slot: (raRawFree at: raRawFreeCount) asInt16]
+						ifFalse: [
+							raRawTop >= RA_MAX_SLOTS ifTrue: [^false].
+							nd slot: raRawTop asInt16.
+							raRawTop := raRawTop + 1]]
 				ifFalse: [
-					raSlotTop >= RA_MAX_SLOTS ifTrue: [^false].
-					nd slot: raSlotTop asInt16.
-					raSlotTop := raSlotTop + 1].
+					raSlotFreeCount > 0
+						ifTrue: [
+							raSlotFreeCount := raSlotFreeCount - 1.
+							nd slot: (raSlotFree at: raSlotFreeCount) asInt16]
+						ifFalse: [
+							raSlotTop >= RA_MAX_SLOTS ifTrue: [^false].
+							nd slot: raSlotTop asInt16.
+							raSlotTop := raSlotTop + 1]].
 			raActiveCount >= RA_MAX_ACTIVE ifTrue: [^false].
 			raActive at: raActiveCount put: v.
 			raActiveCount := raActiveCount + 1.
 			"only interrupt checks need it in its slot: their slow path stores it"
 			(nd reg >= 0 and: [(self crossesCall: v) not]) ifTrue: [nd flags: (nd flags bitOr: NF_LAZY)]]].
+	"the raw slots: after the others"
+	raRawBase := raSlotTop max: raValidSlots.
+	raRawBase + raRawTop > RA_MAX_SLOTS ifTrue: [^false].
+	0 to: raSortCount - 1 do: [:i |
+		nd := ir node: (raSorted at: i).
+		(nd rep asInt32 = R_DBL and: [nd slot >= 0]) ifTrue: [nd slot: (nd slot + raRawBase) asInt16]].
 	^true
 ! !

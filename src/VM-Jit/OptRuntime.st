@@ -1,5 +1,5 @@
 OptModule subclass: #OptRuntime
-	instanceVariableNames: 'ir builder passes regalloc codegen rtDeoptVals rtDeoptCount rtActMethod rtActClosure rtActRcv rtActPc rtActDepth rtActVals rtActCount rtOptYoung rtOptYoungCount rtOptYoungOverflow rtStatOptCompiled rtStatOptFailed rtStatOptBytecodes rtStatOptUs rtStatOptBytes rtStatDeopts rtStatOptOsr rtStatInvalidations rtAll rtAllCount rtSunkAct rtSunkStart rtSunkInfo rtSunkOrder rtSunkCount rtSunkUseVal rtSunkUseId rtSunkUseCount rtWritten rtUnitStart rtUnitOsr rtUnitDepth rtUnits rtUnitCount rtVariantCount rtFailed rtTrace rtTraceSends rtStamp rtStatSends rtUnitFrame rtUnitSignature rtSigCtx rtSigCount'
+	instanceVariableNames: 'ir builder passes regalloc codegen rtDeoptVals rtDeoptCount rtActMethod rtActClosure rtActRcv rtActPc rtActDepth rtActVals rtActCount rtOptYoung rtOptYoungCount rtOptYoungOverflow rtStatOptCompiled rtStatOptFailed rtStatOptBytecodes rtStatOptUs rtStatOptBytes rtStatDeopts rtStatOptOsr rtStatInvalidations rtAll rtAllCount rtSunkAct rtSunkStart rtSunkInfo rtSunkOrder rtSunkCount rtSunkUseVal rtSunkUseId rtSunkUseCount rtFloatVal rtFloatLoc rtFloatBits rtFloatCount rtWritten rtUnitStart rtUnitOsr rtUnitDepth rtUnits rtUnitCount rtVariantCount rtFailed rtTrace rtTraceSends rtStamp rtStatSends rtUnitFrame rtUnitSignature rtSigCtx rtSigCount'
 	classVariableNames: 'OPT_MAX_UNITS OPT_MAX_VARIANT_UNITS OPT_MAX_VARIANTS OPT_MAX_GENERATIONS OPT_MAX_DEOPTS OPT_MAX_DEOPT_ACTS OPT_MAX_DEOPT_VALS OPT_MAX_HEADERS OPT_MAX_YOUNG'
 	package: 'VM-Jit'!
 
@@ -18,7 +18,8 @@ declarations
 		(rtStatDeopts uint64_t) (rtStatOptOsr uint64_t) (rtStatInvalidations uint64_t)
 		(rtAll 'JitMethod *[OPT_MAX_HEADERS]') (rtAllCount int32_t)
 		(rtSunkAct 'int32_t[64]') (rtSunkStart 'int32_t[64]') (rtSunkInfo 'int32_t[64]') (rtSunkOrder 'int32_t[64]') (rtSunkCount int32_t)
-		(rtSunkUseVal 'int32_t[OPT_MAX_DEOPT_VALS]') (rtSunkUseId 'int32_t[OPT_MAX_DEOPT_VALS]') (rtSunkUseCount int32_t) (rtWritten int32_t)
+		(rtSunkUseVal 'int32_t[OPT_MAX_DEOPT_VALS]') (rtSunkUseId 'int32_t[OPT_MAX_DEOPT_VALS]') (rtSunkUseCount int32_t)
+		(rtFloatVal 'int32_t[OPT_MAX_DEOPT_VALS]') (rtFloatLoc 'int32_t[OPT_MAX_DEOPT_VALS]') (rtFloatBits 'uint64_t[OPT_MAX_DEOPT_VALS]') (rtFloatCount int32_t) (rtWritten int32_t)
 		(rtUnitStart int32_t) (rtUnitOsr int32_t) (rtUnitDepth int32_t) (rtUnits 'JitMethod *[OPT_MAX_UNITS]') (rtUnitCount int32_t) (rtVariantCount int32_t) (rtFailed 'uint64_t[OPT_MAX_UNITS]') (rtTrace bool) (rtTraceSends bool) (rtStamp uint32_t) (rtStatSends uint64_t) (rtUnitFrame 'Frame *') (rtUnitSignature uint32_t) (rtSigCtx 'oop[8]') (rtSigCount int32_t))
 !
 initialize
@@ -237,7 +238,9 @@ mix: h0 closure: c at: i depth: d frameContext: fc
 		(self isInt: s)
 			ifTrue: [
 				g := interpreter frames + (self intVal: s).
-				n := g sp min: 32]
+				n := g sp min: 32.
+				"not an optimized frame's raw slots"
+				(runtime isOptFrame: g) ifTrue: [n := n min: (self rawBaseOf: g) asInt32]]
 			ifFalse: [n := ((self numSlots: ctx) asInt32 - CTX_FIXED) min: 32].
 		0 to: n - 1 do: [:k |
 			v := (self isInt: s) ifTrue: [g fp at: k] ifFalse: [self loadRef: ctx at: CTX_FIXED + k].
@@ -413,7 +416,7 @@ compile: m
 	builder foreign: rtUnitSignature ~= 0.
 	passes unboxOff: false.
 	ok := self buildAndAllocate: m trace: trace.
-	"twins on doubles that do not fit the d registers or meet a call: again without them"
+	"twins on doubles that make the compilation fail: again without them"
 	(ok not and: [passes unboxed]) ifTrue: [
 		passes unboxOff: true.
 		ok := self buildAndAllocate: m trace: trace.
@@ -436,7 +439,7 @@ buildAndAllocate: m trace: trace
 	^(builder build: m start: rtUnitStart osr: (rtUnitOsr bitAnd: 16rFFFF) - 1 depth: rtUnitDepth resident: (rtUnitOsr bitAnd: 16r10000) ~= 0) and: [
 		passes cleanup: builder entryBlock.
 		trace ifTrue: [ir print].
-		regalloc allocate: builder paramSlots]
+		regalloc allocate: builder paramSlots valid: builder validSlots]
 !
 extraBytes
 	"What the optimized code's header needs after its notes: the safepoint table, the records, the dependencies, the inline caches and the return map."
@@ -450,6 +453,7 @@ writeExtra: h at: p
 	"Fill the optimized header h's own fields and write its tables at p; answer the address after them."
 	| q site |
 	h slots: codegen slotTop asUInt32.
+	h rawBase: codegen rawBase asUInt32.
 	h bcSize: (self methodSize: h method) asUInt32.
 	h poolOffset: codegen poolOffset asUInt32.
 	h poolCount: codegen poolCount asUInt32.
@@ -782,6 +786,8 @@ returnBottom: f index: k
 	ctx := interpreter activeCtx.
 	(self isInt: (self loadRef: ctx at: CTX_PC)) ifFalse: [^self deoptFrame: f index: k regs: runtime state dump mode: 0].
 	self decode: h index: k frame: f regs: runtime state dump mode: 0.
+	"a double that is no SmallFloat64 (a BoxedFloat64 to make): the interpreter does it"
+	rtFloatCount > 0 ifTrue: [^self deoptFrame: f index: k regs: runtime state dump mode: 0].
 	"return top: the stack's top; return self: the receiver"
 	v := ((self methodBytecodes: (rtActMethod at: 0)) at: (rtActPc at: 0)) = 16r7A
 		ifTrue: [rtDeoptVals at: (rtActRcv at: 0)]
@@ -809,7 +815,7 @@ deoptReturn: f index: k
 	^self deoptFrame: f index: k regs: self null mode: 2
 !
 deoptFrame: f index: k regs: regs mode: mode
-	"Rebuild optimized frame f (the top frame) as the frames of its activations at safepoint k. mode 0: as recorded (a guard, an interrupt check), 1: before the send (it is executed again), 2: after it (its result pushed). Closures the code never made are made now, their outer activations' frames married. Answer 1 (leave: the interpreter continues the top frame)."
+	"Rebuild optimized frame f (the top frame) as the frames of its activations at safepoint k. mode 0: as recorded (a guard, an interrupt check), 1: before the send (it is executed again), 2: after it (its result pushed). Doubles that are no SmallFloat64s become BoxedFloat64s, closures the code never made are made now (their outer activations' frames married). Answer 1 (leave: the interpreter continues the top frame)."
 	<function>
 	<returns: 'uint64_t'>
 	| h fi g sunk |
@@ -820,6 +826,9 @@ deoptFrame: f index: k regs: regs mode: mode
 	(libc getenv: 'SAMALTAK_OPT_TRACE') notNull ifTrue: [self traceDeopt: h index: k mode: mode].
 	fi := (f - interpreter frames) asInt32.
 	self writeFrames: fi from: f fp.
+	rtFloatCount > 0 ifTrue: [
+		self boxFloats.
+		self writeFrames: fi from: f fp].
 	0 to: rtSunkCount - 1 do: [:j |
 		sunk := rtSunkOrder at: j.
 		g := interpreter frames + fi + (rtSunkAct at: sunk).
@@ -876,7 +885,7 @@ makeSunk: s outer: ctx
 	0 to: rtSunkUseCount - 1 do: [:i | (rtSunkUseId at: i) = s ifTrue: [rtDeoptVals at: (rtSunkUseVal at: i) put: b]]
 !
 decode: h index: k frame: f regs: regs mode: mode
-	"Read safepoint k's record into the activation arrays, the values into deoptVals (GC roots), the closures never made into the sunk arrays (in the order of the activations that make them). mode 1 pushes the send's receiver and arguments (and goes back to the send), 2 its result."
+	"Read safepoint k's record into the activation arrays, the values into deoptVals (GC roots), the closures never made into the sunk arrays (in the order of the activations that make them), the doubles that are no SmallFloat64s into the float arrays (nil in deoptVals until boxFloats). mode 1 pushes the send's receiver and arguments (and goes back to the send), 2 its result."
 	<function>
 	| rec p nacts d base sendPc argc op bcs ns t |
 	rec := self recordOf: h index: k.
@@ -886,6 +895,7 @@ decode: h index: k frame: f regs: regs mode: mode
 	p := 5.
 	rtDeoptCount := 0.
 	rtSunkUseCount := 0.
+	rtFloatCount := 0.
 	rtWritten := 0.
 	rtActCount := nacts.
 	0 to: nacts - 1 do: [:j |
@@ -958,6 +968,8 @@ value: loc h: h frame: f regs: regs
 	kind = LOC_REG ifTrue: [v := regs at: payload].
 	kind = LOC_CONST ifTrue: [v := self poolAt: payload of: h].
 	kind = LOC_SMI ifTrue: [v := self intOop: payload].
+	kind = LOC_DREG ifTrue: [^self double: (regs at: 32 + payload) at: loc].
+	kind = LOC_RAW ifTrue: [^self double: (f fp at: payload) at: loc].
 	(kind = LOC_SUNK and: [rtSunkUseCount < OPT_MAX_DEOPT_VALS]) ifTrue: [
 		rtSunkUseVal at: rtSunkUseCount put: rtDeoptCount.
 		rtSunkUseId at: rtSunkUseCount put: payload asInt32.
@@ -965,8 +977,38 @@ value: loc h: h frame: f regs: regs
 	self push: v.
 	^rtDeoptCount - 1
 !
+double: b at: loc
+	"Append the double with IEEE bits b at location loc to deoptVals as a Float; answer its index. One that is no SmallFloat64 (ObjectMemory>>floatOop:) is nil there until boxFloats makes it."
+	<var: #b type: 'uint64_t'>
+	| e v |
+	v := memory nilOop.
+	e := ((b >> 52) bitAnd: 16r7FF) asUInt32.
+	(b << 1) asUInt64 = 0
+		ifTrue: [v := ((b >> 63) << 3) bitOr: 4]
+		ifFalse: [(e > 896 and: [e < 1151]) ifTrue: [v := ((((b << 1) asUInt64 bitOr: b >> 63) - (896 << 53)) << 3) bitOr: 4]].
+	(v = memory nilOop and: [rtFloatCount < OPT_MAX_DEOPT_VALS and: [rtDeoptCount < OPT_MAX_DEOPT_VALS]]) ifTrue: [
+		rtFloatVal at: rtFloatCount put: rtDeoptCount.
+		rtFloatLoc at: rtFloatCount put: loc.
+		rtFloatBits at: rtFloatCount put: b.
+		rtFloatCount := rtFloatCount + 1].
+	self push: v.
+	^rtDeoptCount - 1
+!
+boxFloats
+	"The decoded doubles that are no SmallFloat64s become BoxedFloat64s, one per location (values from one location are one object). Allocating may collect: the frames are valid, deoptVals are roots."
+	| i j |
+	i := 0.
+	[i < rtFloatCount] whileTrue: [
+		j := 0.
+		[j < i and: [(rtFloatLoc at: j) ~= (rtFloatLoc at: i)]] whileTrue: [j := j + 1].
+		j < i
+			ifTrue: [rtDeoptVals at: (rtFloatVal at: i) put: (rtDeoptVals at: (rtFloatVal at: j))]
+			ifFalse: [rtDeoptVals at: (rtFloatVal at: i) put: (memory floatOop: (self doubleFromBits: (rtFloatBits at: i)))].
+		i := i + 1].
+	rtFloatCount := 0
+!
 materialize: f
-	"materializeAll meets optimized frame f: a Context for each of its activations (their senders chained from activeCtx), the last one activeCtx; and the closures never made."
+	"materializeAll meets optimized frame f: a Context for each of its activations (their senders chained from activeCtx), the last one activeCtx; the BoxedFloat64s of its doubles and the closures never made."
 	<function>
 	<var: #mode type: 'int32_t'>
 	| h k mode top ctx n s first sunk c |
@@ -984,6 +1026,7 @@ materialize: f
 		interpreter primBaseIndex: (rtActDepth at: rtActCount - 1).
 		0 to: f sp - h slots asInt32 - 1 do: [:i | self push: ((f fp + h slots asInt64) at: i)].
 		rtActDepth at: rtActCount - 1 put: rtDeoptCount - (rtActVals at: rtActCount - 1)].
+	self boxFloats.
 	"the Contexts (kept in deoptVals), then the closures, then the Contexts' contents"
 	first := rtDeoptCount.
 	0 to: rtActCount - 1 do: [:i |
@@ -1033,6 +1076,13 @@ frameSizeOf: m closure: c
 		ifTrue: [(self intVal: (self loadRef: src at: BC_NUMARGS)) + (self intVal: (self loadRef: src at: BC_NUMTEMPS))]
 		ifFalse: [(self intVal: (self loadRef: src at: CM_NUMARGS)) + (self intVal: (self loadRef: src at: CM_NUMTEMPS))].
 	^fs > min ifTrue: [fs] ifFalse: [min]
+!
+rawBaseOf: f
+	"Optimized frame f's first raw slot (doubles' IEEE bits, no oops, up to its slots: rawTopOf:)."
+	^(self cCoerce: f code to: 'JitMethod *') rawBase asInt64
+!
+rawTopOf: f
+	^(self cCoerce: f code to: 'JitMethod *') slots asInt64
 !
 resume: f
 	"The interpreter returns into optimized frame f (on top; the result is in slot slots): answer where its code continues, 0 if it was deoptimized (the interpreter continues the top frame)."

@@ -14,6 +14,10 @@ int32_t rt_all_count;
 static int32_t rt_deopt_count;
 static oop rt_deopt_vals[8192];
 static uint64_t rt_failed[8192];
+static uint64_t rt_float_bits[8192];
+static int32_t rt_float_count;
+static int32_t rt_float_loc[8192];
+static int32_t rt_float_val[8192];
 static jit_method *rt_opt_young[1024];
 static int32_t rt_opt_young_count;
 static bool rt_opt_young_overflow;
@@ -164,7 +168,7 @@ bool opt_runtime_compile(oop m)
     if (trace) {
         print();
     }
-    opt_regalloc_allocate(ob_param_slots); });
+    opt_regalloc_allocate(ob_param_slots, ob_valid_slots); });
     if ((!ok) && ps_unboxed) {
         ps_unbox_off = true;
         ok = build(m, rt_unit_start, (rt_unit_osr & 0xFFFF) - 1, rt_unit_depth, (rt_unit_osr & 0x10000) != 0) && ({
@@ -172,7 +176,7 @@ bool opt_runtime_compile(oop m)
     if (trace) {
         print();
     }
-    opt_regalloc_allocate(ob_param_slots); });
+    opt_regalloc_allocate(ob_param_slots, ob_valid_slots); });
         ps_unbox_off = false;
     }
     ok = ok && ({
@@ -206,34 +210,56 @@ static void decode(jit_method *h, int64_t k, frame *f, uint64_t *regs, int mode)
     int32_t kind;
     int64_t payload;
     oop v;
-    int32_t v_2;
+    uint64_t b;
+    int32_t r_double_;
+    oop v_2;
+    uint32_t e;
+    oop b_2;
+    int32_t r_double__2;
     oop v_3;
+    uint32_t e_2;
+    int32_t v_4;
+    oop v_5;
     int32_t loc_2;
     int32_t r_value_2;
     int32_t kind_2;
     int64_t payload_2;
-    oop v_4;
+    oop v_6;
+    uint64_t b_3;
+    int32_t r_double__3;
+    oop v_7;
+    uint32_t e_3;
+    oop b_4;
+    int32_t r_double__4;
+    oop v_8;
+    uint32_t e_4;
     int32_t d;
     int32_t i_2;
     int32_t loc_3;
     int32_t kind_3;
     int64_t payload_3;
-    oop v_5;
+    oop v_9;
+    uint64_t b_5;
+    oop v_10;
+    uint32_t e_5;
+    oop b_6;
+    oop v_11;
+    uint32_t e_6;
     int32_t ns;
     int32_t j_2;
     int32_t j_3;
     int32_t t;
     oop *base;
-    oop v_6;
+    oop v_12;
     oop m;
     uint64_t o;
     uint8_t *bcs;
     uint8_t op;
-    oop v_7;
+    oop v_13;
     int32_t i_3;
-    oop v_8;
+    oop v_14;
     int32_t i_4;
-    oop v_9;
+    oop v_15;
     rec = h->meta + h->sp_table[k];
     send_pc = rec[1];
     argc = rec[2] & 255;
@@ -241,6 +267,7 @@ static void decode(jit_method *h, int64_t k, frame *f, uint64_t *regs, int mode)
     p = 5;
     rt_deopt_count = 0;
     rt_sunk_use_count = 0;
+    rt_float_count = 0;
     rt_written = 0;
     rt_act_count = nacts;
     for (j = 0; j <= nacts - 1; j++) {
@@ -248,10 +275,10 @@ static void decode(jit_method *h, int64_t k, frame *f, uint64_t *regs, int mode)
         rt_act_method[j] = ((oop *)(h->code_start + h->pool_offset))[i];
         rt_act_closure[j] = ({
     if (rec[p + 1] < 0) {
-        v_2 = -1;
+        v_4 = -1;
     } else {
         loc = rec[p + 1];
-        v_2 = ({
+        v_4 = ({
     kind = loc & 7;
     payload = ((int64_t)loc) >> 3;
     v = nil_oop;
@@ -267,6 +294,54 @@ static void decode(jit_method *h, int64_t k, frame *f, uint64_t *regs, int mode)
     if (kind == LOC_SMI) {
         v = (uint64_t)((payload << 1) | 1);
     }
+    if (kind == LOC_DREG) {
+        b = regs[32 + payload];
+        r_value = ({
+    v_2 = nil_oop;
+    e = (uint32_t)((b >> 52) & 0x7FF);
+    if ((b << 1) == 0) {
+        v_2 = (b >> 63 << 3) | 4;
+    } else if ((e > 896) && (e < 1151)) {
+        v_2 = ((((b << 1) | (b >> 63)) - 8070450532247928832LL) << 3) | 4;
+    }
+    if ((v_2 == nil_oop) && ((rt_float_count < OPT_MAX_DEOPT_VALS) && (rt_deopt_count < OPT_MAX_DEOPT_VALS))) {
+        rt_float_val[rt_float_count] = rt_deopt_count;
+        rt_float_loc[rt_float_count] = loc;
+        rt_float_bits[rt_float_count] = b;
+        rt_float_count = rt_float_count + 1;
+    }
+    if (rt_deopt_count < OPT_MAX_DEOPT_VALS) {
+        rt_deopt_vals[rt_deopt_count] = v_2;
+        rt_deopt_count = rt_deopt_count + 1;
+    }
+    r_double_ = rt_deopt_count - 1;
+    r_double_; });
+        goto exit_value;
+    }
+    if (kind == LOC_RAW) {
+        b_2 = f->fp[payload];
+        r_value = ({
+    v_3 = nil_oop;
+    e_2 = (uint32_t)((b_2 >> 52) & 0x7FF);
+    if ((uint64_t)(b_2 << 1) == 0) {
+        v_3 = (b_2 >> 63 << 3) | 4;
+    } else if ((e_2 > 896) && (e_2 < 1151)) {
+        v_3 = (((((uint64_t)(b_2 << 1)) | (b_2 >> 63)) - 8070450532247928832LL) << 3) | 4;
+    }
+    if ((v_3 == nil_oop) && ((rt_float_count < OPT_MAX_DEOPT_VALS) && (rt_deopt_count < OPT_MAX_DEOPT_VALS))) {
+        rt_float_val[rt_float_count] = rt_deopt_count;
+        rt_float_loc[rt_float_count] = loc;
+        rt_float_bits[rt_float_count] = b_2;
+        rt_float_count = rt_float_count + 1;
+    }
+    if (rt_deopt_count < OPT_MAX_DEOPT_VALS) {
+        rt_deopt_vals[rt_deopt_count] = v_3;
+        rt_deopt_count = rt_deopt_count + 1;
+    }
+    r_double__2 = rt_deopt_count - 1;
+    r_double__2; });
+        goto exit_value;
+    }
     if ((kind == LOC_SUNK) && (rt_sunk_use_count < OPT_MAX_DEOPT_VALS)) {
         rt_sunk_use_val[rt_sunk_use_count] = rt_deopt_count;
         rt_sunk_use_id[rt_sunk_use_count] = (int32_t)payload;
@@ -277,13 +352,14 @@ static void decode(jit_method *h, int64_t k, frame *f, uint64_t *regs, int mode)
         rt_deopt_count = rt_deopt_count + 1;
     }
     r_value = rt_deopt_count - 1;
+exit_value:;
     r_value; });
     }
-    v_2; });
+    v_4; });
         if (rec[p + 1] == -2) {
-            v_3 = f->closure;
+            v_5 = f->closure;
             if (rt_deopt_count < OPT_MAX_DEOPT_VALS) {
-                rt_deopt_vals[rt_deopt_count] = v_3;
+                rt_deopt_vals[rt_deopt_count] = v_5;
                 rt_deopt_count = rt_deopt_count + 1;
             }
             rt_act_closure[j] = rt_deopt_count - 1;
@@ -292,18 +368,66 @@ static void decode(jit_method *h, int64_t k, frame *f, uint64_t *regs, int mode)
         rt_act_rcv[j] = ({
     kind_2 = loc_2 & 7;
     payload_2 = ((int64_t)loc_2) >> 3;
-    v_4 = nil_oop;
+    v_6 = nil_oop;
     if (kind_2 == LOC_SLOT) {
-        v_4 = f->fp[payload_2];
+        v_6 = f->fp[payload_2];
     }
     if (kind_2 == LOC_REG) {
-        v_4 = regs[payload_2];
+        v_6 = regs[payload_2];
     }
     if (kind_2 == LOC_CONST) {
-        v_4 = ((oop *)(h->code_start + h->pool_offset))[payload_2];
+        v_6 = ((oop *)(h->code_start + h->pool_offset))[payload_2];
     }
     if (kind_2 == LOC_SMI) {
-        v_4 = (uint64_t)((payload_2 << 1) | 1);
+        v_6 = (uint64_t)((payload_2 << 1) | 1);
+    }
+    if (kind_2 == LOC_DREG) {
+        b_3 = regs[32 + payload_2];
+        r_value_2 = ({
+    v_7 = nil_oop;
+    e_3 = (uint32_t)((b_3 >> 52) & 0x7FF);
+    if ((b_3 << 1) == 0) {
+        v_7 = (b_3 >> 63 << 3) | 4;
+    } else if ((e_3 > 896) && (e_3 < 1151)) {
+        v_7 = ((((b_3 << 1) | (b_3 >> 63)) - 8070450532247928832LL) << 3) | 4;
+    }
+    if ((v_7 == nil_oop) && ((rt_float_count < OPT_MAX_DEOPT_VALS) && (rt_deopt_count < OPT_MAX_DEOPT_VALS))) {
+        rt_float_val[rt_float_count] = rt_deopt_count;
+        rt_float_loc[rt_float_count] = loc_2;
+        rt_float_bits[rt_float_count] = b_3;
+        rt_float_count = rt_float_count + 1;
+    }
+    if (rt_deopt_count < OPT_MAX_DEOPT_VALS) {
+        rt_deopt_vals[rt_deopt_count] = v_7;
+        rt_deopt_count = rt_deopt_count + 1;
+    }
+    r_double__3 = rt_deopt_count - 1;
+    r_double__3; });
+        goto exit_value_2;
+    }
+    if (kind_2 == LOC_RAW) {
+        b_4 = f->fp[payload_2];
+        r_value_2 = ({
+    v_8 = nil_oop;
+    e_4 = (uint32_t)((b_4 >> 52) & 0x7FF);
+    if ((uint64_t)(b_4 << 1) == 0) {
+        v_8 = (b_4 >> 63 << 3) | 4;
+    } else if ((e_4 > 896) && (e_4 < 1151)) {
+        v_8 = (((((uint64_t)(b_4 << 1)) | (b_4 >> 63)) - 8070450532247928832LL) << 3) | 4;
+    }
+    if ((v_8 == nil_oop) && ((rt_float_count < OPT_MAX_DEOPT_VALS) && (rt_deopt_count < OPT_MAX_DEOPT_VALS))) {
+        rt_float_val[rt_float_count] = rt_deopt_count;
+        rt_float_loc[rt_float_count] = loc_2;
+        rt_float_bits[rt_float_count] = b_4;
+        rt_float_count = rt_float_count + 1;
+    }
+    if (rt_deopt_count < OPT_MAX_DEOPT_VALS) {
+        rt_deopt_vals[rt_deopt_count] = v_8;
+        rt_deopt_count = rt_deopt_count + 1;
+    }
+    r_double__4 = rt_deopt_count - 1;
+    r_double__4; });
+        goto exit_value_2;
     }
     if ((kind_2 == LOC_SUNK) && (rt_sunk_use_count < OPT_MAX_DEOPT_VALS)) {
         rt_sunk_use_val[rt_sunk_use_count] = rt_deopt_count;
@@ -311,10 +435,11 @@ static void decode(jit_method *h, int64_t k, frame *f, uint64_t *regs, int mode)
         rt_sunk_use_count = rt_sunk_use_count + 1;
     }
     if (rt_deopt_count < OPT_MAX_DEOPT_VALS) {
-        rt_deopt_vals[rt_deopt_count] = v_4;
+        rt_deopt_vals[rt_deopt_count] = v_6;
         rt_deopt_count = rt_deopt_count + 1;
     }
     r_value_2 = rt_deopt_count - 1;
+exit_value_2:;
     r_value_2; });
         rt_act_pc[j] = rec[p + 3];
         d = rec[p + 4];
@@ -324,18 +449,60 @@ static void decode(jit_method *h, int64_t k, frame *f, uint64_t *regs, int mode)
             loc_3 = rec[p + 5 + i_2];
             kind_3 = loc_3 & 7;
             payload_3 = ((int64_t)loc_3) >> 3;
-            v_5 = nil_oop;
+            v_9 = nil_oop;
             if (kind_3 == LOC_SLOT) {
-                v_5 = f->fp[payload_3];
+                v_9 = f->fp[payload_3];
             }
             if (kind_3 == LOC_REG) {
-                v_5 = regs[payload_3];
+                v_9 = regs[payload_3];
             }
             if (kind_3 == LOC_CONST) {
-                v_5 = ((oop *)(h->code_start + h->pool_offset))[payload_3];
+                v_9 = ((oop *)(h->code_start + h->pool_offset))[payload_3];
             }
             if (kind_3 == LOC_SMI) {
-                v_5 = (uint64_t)((payload_3 << 1) | 1);
+                v_9 = (uint64_t)((payload_3 << 1) | 1);
+            }
+            if (kind_3 == LOC_DREG) {
+                b_5 = regs[32 + payload_3];
+                v_10 = nil_oop;
+                e_5 = (uint32_t)((b_5 >> 52) & 0x7FF);
+                if ((b_5 << 1) == 0) {
+                    v_10 = (b_5 >> 63 << 3) | 4;
+                } else if ((e_5 > 896) && (e_5 < 1151)) {
+                    v_10 = ((((b_5 << 1) | (b_5 >> 63)) - 8070450532247928832LL) << 3) | 4;
+                }
+                if ((v_10 == nil_oop) && ((rt_float_count < OPT_MAX_DEOPT_VALS) && (rt_deopt_count < OPT_MAX_DEOPT_VALS))) {
+                    rt_float_val[rt_float_count] = rt_deopt_count;
+                    rt_float_loc[rt_float_count] = loc_3;
+                    rt_float_bits[rt_float_count] = b_5;
+                    rt_float_count = rt_float_count + 1;
+                }
+                if (rt_deopt_count < OPT_MAX_DEOPT_VALS) {
+                    rt_deopt_vals[rt_deopt_count] = v_10;
+                    rt_deopt_count = rt_deopt_count + 1;
+                }
+                goto exit_value_3;
+            }
+            if (kind_3 == LOC_RAW) {
+                b_6 = f->fp[payload_3];
+                v_11 = nil_oop;
+                e_6 = (uint32_t)((b_6 >> 52) & 0x7FF);
+                if ((uint64_t)(b_6 << 1) == 0) {
+                    v_11 = (b_6 >> 63 << 3) | 4;
+                } else if ((e_6 > 896) && (e_6 < 1151)) {
+                    v_11 = (((((uint64_t)(b_6 << 1)) | (b_6 >> 63)) - 8070450532247928832LL) << 3) | 4;
+                }
+                if ((v_11 == nil_oop) && ((rt_float_count < OPT_MAX_DEOPT_VALS) && (rt_deopt_count < OPT_MAX_DEOPT_VALS))) {
+                    rt_float_val[rt_float_count] = rt_deopt_count;
+                    rt_float_loc[rt_float_count] = loc_3;
+                    rt_float_bits[rt_float_count] = b_6;
+                    rt_float_count = rt_float_count + 1;
+                }
+                if (rt_deopt_count < OPT_MAX_DEOPT_VALS) {
+                    rt_deopt_vals[rt_deopt_count] = v_11;
+                    rt_deopt_count = rt_deopt_count + 1;
+                }
+                goto exit_value_3;
             }
             if ((kind_3 == LOC_SUNK) && (rt_sunk_use_count < OPT_MAX_DEOPT_VALS)) {
                 rt_sunk_use_val[rt_sunk_use_count] = rt_deopt_count;
@@ -343,9 +510,10 @@ static void decode(jit_method *h, int64_t k, frame *f, uint64_t *regs, int mode)
                 rt_sunk_use_count = rt_sunk_use_count + 1;
             }
             if (rt_deopt_count < OPT_MAX_DEOPT_VALS) {
-                rt_deopt_vals[rt_deopt_count] = v_5;
+                rt_deopt_vals[rt_deopt_count] = v_9;
                 rt_deopt_count = rt_deopt_count + 1;
             }
+        exit_value_3:;
         }
         p = p + 5 + d;
     }
@@ -370,9 +538,9 @@ static void decode(jit_method *h, int64_t k, frame *f, uint64_t *regs, int mode)
     }
     base = f->fp + (int64_t)h->slots;
     if (mode == 2) {
-        v_6 = base[0];
+        v_12 = base[0];
         if (rt_deopt_count < OPT_MAX_DEOPT_VALS) {
-            rt_deopt_vals[rt_deopt_count] = v_6;
+            rt_deopt_vals[rt_deopt_count] = v_12;
             rt_deopt_count = rt_deopt_count + 1;
         }
         rt_act_depth[nacts - 1] = rt_act_depth[nacts - 1] + 1;
@@ -383,24 +551,24 @@ static void decode(jit_method *h, int64_t k, frame *f, uint64_t *regs, int mode)
         bcs = (uint8_t *)(o + 16);
         op = bcs[send_pc];
         if (!(((op >= 0x97) && (op < 0xA0)) || ((op >= 0xF0) && (op < 0xFC)))) {
-            v_7 = base[0];
+            v_13 = base[0];
             if (rt_deopt_count < OPT_MAX_DEOPT_VALS) {
-                rt_deopt_vals[rt_deopt_count] = v_7;
+                rt_deopt_vals[rt_deopt_count] = v_13;
                 rt_deopt_count = rt_deopt_count + 1;
             }
             if ((rec[2] & SI_PERFORMED) != 0) {
                 i_3 = rec[3];
-                v_8 = ((oop *)(h->code_start + h->pool_offset))[i_3];
+                v_14 = ((oop *)(h->code_start + h->pool_offset))[i_3];
                 if (rt_deopt_count < OPT_MAX_DEOPT_VALS) {
-                    rt_deopt_vals[rt_deopt_count] = v_8;
+                    rt_deopt_vals[rt_deopt_count] = v_14;
                     rt_deopt_count = rt_deopt_count + 1;
                 }
                 rt_act_depth[nacts - 1] = rt_act_depth[nacts - 1] + 1;
             }
             for (i_4 = 1; i_4 <= argc; i_4++) {
-                v_9 = base[i_4];
+                v_15 = base[i_4];
                 if (rt_deopt_count < OPT_MAX_DEOPT_VALS) {
-                    rt_deopt_vals[rt_deopt_count] = v_9;
+                    rt_deopt_vals[rt_deopt_count] = v_15;
                     rt_deopt_count = rt_deopt_count + 1;
                 }
             }
@@ -427,12 +595,11 @@ static uint64_t deopt_frame(frame *f, int64_t k, uint64_t *regs, int mode)
     uint64_t o_2;
     int32_t n;
     uint64_t n_2;
-    int32_t j;
-    int32_t sunk;
-    frame *g;
+    int64_t i_2;
+    int64_t j;
     oop *fp0_2;
     oop *fp_2;
-    int32_t i_2;
+    int32_t i_3;
     frame *g_3;
     oop m_2;
     int32_t d_2;
@@ -442,6 +609,21 @@ static uint64_t deopt_frame(frame *f, int64_t k, uint64_t *regs, int mode)
     uint64_t o_4;
     int32_t n_3;
     uint64_t n_4;
+    int32_t j_2;
+    int32_t sunk;
+    frame *g;
+    oop *fp0_3;
+    oop *fp_3;
+    int32_t i_4;
+    frame *g_4;
+    oop m_3;
+    int32_t d_3;
+    int32_t s_3;
+    oop cl_3;
+    uint64_t o_5;
+    uint64_t o_6;
+    int32_t n_5;
+    uint64_t n_6;
     h = (jit_method *)f->code;
     rt_stat_deopts = rt_stat_deopts + 1;
     if (state_block->stress <= 0) {
@@ -485,26 +667,36 @@ static uint64_t deopt_frame(frame *f, int64_t k, uint64_t *regs, int mode)
     nframes = n;
     n_2 = (uint64_t)(fp + rt_act_depth[rt_act_count - 1] - cstack);
     cstack_used = n_2;
-    for (j = 0; j <= rt_sunk_count - 1; j++) {
-        sunk = rt_sunk_order[j];
-        g = frames + fi + rt_sunk_act[sunk];
-        marry(g);
-        make_sunk(sunk, g->ctx);
-        fp0_2 = (frames + fi)->fp;
+    if (rt_float_count > 0) {
+        i_2 = 0;
+        while (i_2 < rt_float_count) {
+            j = 0;
+            while ((j < i_2) && (rt_float_loc[j] != rt_float_loc[i_2])) {
+                j = j + 1;
+            }
+            if (j < i_2) {
+                rt_deopt_vals[rt_float_val[i_2]] = rt_deopt_vals[rt_float_val[j]];
+            } else {
+                rt_deopt_vals[rt_float_val[i_2]] = float_oop(lt_double_from_bits(rt_float_bits[i_2]));
+            }
+            i_2 = i_2 + 1;
+        }
+        rt_float_count = 0;
+        fp0_2 = f->fp;
         fp_2 = fp0_2;
-        for (i_2 = 0; i_2 <= rt_act_count - 1; i_2++) {
-            g_3 = frames + (fi + i_2);
-            m_2 = rt_act_method[i_2];
-            d_2 = rt_act_depth[i_2];
-            if (i_2 > 0) {
-                fp_2 = fp_2 + rt_act_depth[i_2 - 1] + 1;
+        for (i_3 = 0; i_3 <= rt_act_count - 1; i_3++) {
+            g_3 = frames + (fi + i_3);
+            m_2 = rt_act_method[i_3];
+            d_2 = rt_act_depth[i_3];
+            if (i_3 > 0) {
+                fp_2 = fp_2 + rt_act_depth[i_3 - 1] + 1;
             }
-            fp_2[-1] = rt_deopt_vals[rt_act_rcv[i_2]];
+            fp_2[-1] = rt_deopt_vals[rt_act_rcv[i_3]];
             for (s_2 = 0; s_2 <= d_2 - 1; s_2++) {
-                fp_2[s_2] = rt_deopt_vals[rt_act_vals[i_2] + s_2];
+                fp_2[s_2] = rt_deopt_vals[rt_act_vals[i_3] + s_2];
             }
-            cl_2 = rt_act_closure[i_2] >= 0 ? rt_deopt_vals[rt_act_closure[i_2]] : nil_oop;
-            if ((i_2 >= rt_written) && (i_2 > 0)) {
+            cl_2 = rt_act_closure[i_3] >= 0 ? rt_deopt_vals[rt_act_closure[i_3]] : nil_oop;
+            if ((i_3 >= rt_written) && (i_3 > 0)) {
                 g_3->ctx = nil_oop;
             }
             g_3->method = m_2;
@@ -512,8 +704,8 @@ static uint64_t deopt_frame(frame *f, int64_t k, uint64_t *regs, int mode)
             g_3->code = jit_runtime_block_code_for(m_2);
             g_3->fp = fp_2;
             o_3 = *(uint64_t *)(m_2 + 16 + 24);
-            g_3->ip = (uint8_t *)(o_3 + 16) + rt_act_pc[i_2];
-            g_3->pc = rt_act_pc[i_2];
+            g_3->ip = (uint8_t *)(o_3 + 16) + rt_act_pc[i_3];
+            g_3->pc = rt_act_pc[i_3];
             o_4 = *(uint64_t *)(m_2 + 16 + 16);
             g_3->lits = (oop *)(o_4 + 16);
             g_3->sp = d_2;
@@ -523,6 +715,45 @@ static uint64_t deopt_frame(frame *f, int64_t k, uint64_t *regs, int mode)
         nframes = n_3;
         n_4 = (uint64_t)(fp_2 + rt_act_depth[rt_act_count - 1] - cstack);
         cstack_used = n_4;
+    }
+    for (j_2 = 0; j_2 <= rt_sunk_count - 1; j_2++) {
+        sunk = rt_sunk_order[j_2];
+        g = frames + fi + rt_sunk_act[sunk];
+        marry(g);
+        make_sunk(sunk, g->ctx);
+        fp0_3 = (frames + fi)->fp;
+        fp_3 = fp0_3;
+        for (i_4 = 0; i_4 <= rt_act_count - 1; i_4++) {
+            g_4 = frames + (fi + i_4);
+            m_3 = rt_act_method[i_4];
+            d_3 = rt_act_depth[i_4];
+            if (i_4 > 0) {
+                fp_3 = fp_3 + rt_act_depth[i_4 - 1] + 1;
+            }
+            fp_3[-1] = rt_deopt_vals[rt_act_rcv[i_4]];
+            for (s_3 = 0; s_3 <= d_3 - 1; s_3++) {
+                fp_3[s_3] = rt_deopt_vals[rt_act_vals[i_4] + s_3];
+            }
+            cl_3 = rt_act_closure[i_4] >= 0 ? rt_deopt_vals[rt_act_closure[i_4]] : nil_oop;
+            if ((i_4 >= rt_written) && (i_4 > 0)) {
+                g_4->ctx = nil_oop;
+            }
+            g_4->method = m_3;
+            g_4->closure = cl_3;
+            g_4->code = jit_runtime_block_code_for(m_3);
+            g_4->fp = fp_3;
+            o_5 = *(uint64_t *)(m_3 + 16 + 24);
+            g_4->ip = (uint8_t *)(o_5 + 16) + rt_act_pc[i_4];
+            g_4->pc = rt_act_pc[i_4];
+            o_6 = *(uint64_t *)(m_3 + 16 + 16);
+            g_4->lits = (oop *)(o_6 + 16);
+            g_4->sp = d_3;
+        }
+        rt_written = rt_act_count;
+        n_5 = fi + rt_act_count;
+        nframes = n_5;
+        n_6 = (uint64_t)(fp_3 + rt_act_depth[rt_act_count - 1] - cstack);
+        cstack_used = n_6;
     }
     rt_deopt_count = 0;
     return 1;
@@ -1078,8 +1309,10 @@ void materialize(frame *f)
     int32_t i;
     int32_t i_2;
     oop v;
+    int64_t i_3;
+    int64_t j;
     int32_t first;
-    int32_t i_3;
+    int32_t i_4;
     int64_t r_frame_size_of_act;
     int32_t u;
     int32_t info;
@@ -1087,14 +1320,14 @@ void materialize(frame *f)
     int64_t n;
     oop o;
     oop ctx;
-    int32_t j;
+    int32_t j_2;
     int32_t sunk;
-    int32_t i_4;
+    int32_t i_5;
     oop c;
     oop *s;
     int32_t v_2;
     int32_t v_3;
-    int32_t j_2;
+    int32_t j_3;
     h = (jit_method *)f->code;
     k = f->pc - (int32_t)h->bc_size;
     top = f == frames + (nframes - 1);
@@ -1119,28 +1352,42 @@ void materialize(frame *f)
         }
         rt_act_depth[rt_act_count - 1] = rt_deopt_count - rt_act_vals[rt_act_count - 1];
     }
+    i_3 = 0;
+    while (i_3 < rt_float_count) {
+        j = 0;
+        while ((j < i_3) && (rt_float_loc[j] != rt_float_loc[i_3])) {
+            j = j + 1;
+        }
+        if (j < i_3) {
+            rt_deopt_vals[rt_float_val[i_3]] = rt_deopt_vals[rt_float_val[j]];
+        } else {
+            rt_deopt_vals[rt_float_val[i_3]] = float_oop(lt_double_from_bits(rt_float_bits[i_3]));
+        }
+        i_3 = i_3 + 1;
+    }
+    rt_float_count = 0;
     first = rt_deopt_count;
-    for (i_3 = 0; i_3 <= rt_act_count - 1; i_3++) {
+    for (i_4 = 0; i_4 <= rt_act_count - 1; i_4++) {
         n = ({
-    if (rt_act_closure[i_3] < 0) {
-        r_frame_size_of_act = frame_size_of(rt_act_method[i_3], nil_oop);
+    if (rt_act_closure[i_4] < 0) {
+        r_frame_size_of_act = frame_size_of(rt_act_method[i_4], nil_oop);
         goto exit_frame_size_of_act;
     }
     for (u = 0; u <= rt_sunk_use_count - 1; u++) {
-        if (rt_sunk_use_val[u] == rt_act_closure[i_3]) {
+        if (rt_sunk_use_val[u] == rt_act_closure[i_4]) {
             info = rt_sunk_info[rt_sunk_use_id[u]];
             r_frame_size_of_act = ((info >> 16) & 255) > (info & 255) + ((info >> 8) & 255) ? (info >> 16) & 255 : (info & 255) + ((info >> 8) & 255);
             goto exit_frame_size_of_act;
         }
     }
-    c_2 = rt_deopt_vals[rt_act_closure[i_3]];
-    r_frame_size_of_act = frame_size_of(rt_act_method[i_3], c_2);
+    c_2 = rt_deopt_vals[rt_act_closure[i_4]];
+    r_frame_size_of_act = frame_size_of(rt_act_method[i_4], c_2);
 exit_frame_size_of_act:;
     r_frame_size_of_act; }) + CTX_SLACK;
-        if (n < rt_act_depth[i_3]) {
-            n = rt_act_depth[i_3];
+        if (n < rt_act_depth[i_4]) {
+            n = rt_act_depth[i_4];
         }
-        if ((i_3 == 0) && ((f->ctx != nil_oop) && ({
+        if ((i_4 == 0) && ((f->ctx != nil_oop) && ({
     o = f->ctx;
     (uint32_t)*(uint64_t *)o >= (uint32_t)(CTX_FIXED + n); }))) {
             ctx = f->ctx;
@@ -1152,23 +1399,23 @@ exit_frame_size_of_act:;
             rt_deopt_count = rt_deopt_count + 1;
         }
     }
-    for (j = 0; j <= rt_sunk_count - 1; j++) {
-        sunk = rt_sunk_order[j];
+    for (j_2 = 0; j_2 <= rt_sunk_count - 1; j_2++) {
+        sunk = rt_sunk_order[j_2];
         make_sunk(sunk, rt_deopt_vals[first + rt_sunk_act[sunk]]);
     }
-    for (i_4 = 0; i_4 <= rt_act_count - 1; i_4++) {
-        c = rt_deopt_vals[first + i_4];
+    for (i_5 = 0; i_5 <= rt_act_count - 1; i_5++) {
+        c = rt_deopt_vals[first + i_5];
         s = (oop *)(c + 16);
         s[CTX_SENDER] = active_ctx;
-        v_2 = rt_act_pc[i_4];
+        v_2 = rt_act_pc[i_5];
         s[CTX_PC] = (uint64_t)((((int64_t)v_2) << 1) | 1);
-        v_3 = rt_act_depth[i_4];
+        v_3 = rt_act_depth[i_5];
         s[CTX_STACKP] = (uint64_t)((((int64_t)v_3) << 1) | 1);
-        s[CTX_METHOD] = rt_act_method[i_4];
-        s[CTX_CLOSURE] = rt_act_closure[i_4] >= 0 ? rt_deopt_vals[rt_act_closure[i_4]] : nil_oop;
-        s[CTX_RECEIVER] = rt_deopt_vals[rt_act_rcv[i_4]];
-        for (j_2 = 0; j_2 <= rt_act_depth[i_4] - 1; j_2++) {
-            s[CTX_FIXED + j_2] = rt_deopt_vals[rt_act_vals[i_4] + j_2];
+        s[CTX_METHOD] = rt_act_method[i_5];
+        s[CTX_CLOSURE] = rt_act_closure[i_5] >= 0 ? rt_deopt_vals[rt_act_closure[i_5]] : nil_oop;
+        s[CTX_RECEIVER] = rt_deopt_vals[rt_act_rcv[i_5]];
+        for (j_3 = 0; j_3 <= rt_act_depth[i_5] - 1; j_3++) {
+            s[CTX_FIXED + j_3] = rt_deopt_vals[rt_act_vals[i_5] + j_3];
         }
         if (((c & 7) == 0) && ((!((uint64_t)(c - young_lo) < young_hi - young_lo)) && (((*(uint64_t *)c) & H_REMEMBERED) == 0))) {
             remember(c);
@@ -1205,6 +1452,7 @@ static uint64_t mix(uint64_t h0, oop c, int32_t i, int d, oop fc)
     uint64_t s;
     frame *g;
     int32_t n;
+    uint64_t c_2;
     int32_t k_2;
     int32_t i_2;
     oop v_2;
@@ -1260,6 +1508,10 @@ static uint64_t mix(uint64_t h0, oop c, int32_t i, int d, oop fc)
         if ((s & 1) != 0) {
             g = frames + (((int64_t)s) >> 1);
             n = g->sp < 32 ? g->sp : 32;
+            c_2 = g->code;
+            if ((c_2 > JIT_MAX_COUNT) && (((jit_method *)g->code)->mode == JIT_OPT)) {
+                n = n < (int32_t)(int64_t)((jit_method *)g->code)->raw_base ? n : (int32_t)(int64_t)((jit_method *)g->code)->raw_base;
+            }
         } else {
             n = (int32_t)(uint32_t)*(uint64_t *)ctx - CTX_FIXED < 32 ? (int32_t)(uint32_t)*(uint64_t *)ctx - CTX_FIXED : 32;
         }
@@ -1464,6 +1716,9 @@ uint64_t return_bottom(frame *f, int64_t k)
         return deopt_frame(f, k, state_block->dump, 0);
     }
     decode(h, k, f, state_block->dump, 0);
+    if (rt_float_count > 0) {
+        return deopt_frame(f, k, state_block->dump, 0);
+    }
     m = rt_act_method[0];
     o_2 = *(uint64_t *)(m + 16 + 24);
     v = ((uint8_t *)(o_2 + 16))[rt_act_pc[0]] == 0x7A ? rt_deopt_vals[rt_act_rcv[0]] : rt_deopt_vals[rt_deopt_count - 1];

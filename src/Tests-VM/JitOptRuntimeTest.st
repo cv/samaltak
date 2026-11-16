@@ -333,7 +333,7 @@ testLoopValuesAcrossInterruptChecks
 	done := true
 !
 testFloatLoopsKeepTheirSumsOnDoubles
-	"A loop's running Float stays on doubles (its phi's twin), across interrupt checks where Processes switch and the collector runs; a SmallInteger sum beside it stays one; a loop unit entered with a SmallInteger, a Fraction or nil where it was compiled with a Float answers what the interpreter answers; a loop that sends keeps its Float boxed; more running Floats than d registers compile without twins."
+	"A loop's running Float stays on doubles (its phi's twin), across interrupt checks where Processes switch and the collector runs; a SmallInteger sum beside it stays one; a loop unit entered with a SmallInteger, a Fraction or nil where it was compiled with a Float answers what the interpreter answers; a loop that sends keeps its Float on doubles too; more running Floats than d registers spill to raw slots."
 	| o done many |
 	Smalltalk vm jitParameters: #(nil '-eager' nil nil).
 	self define: 'fsum: n | r | r := 0.0. 1 to: n do: [:i | r := r + (i * 0.5)]. ^r'.
@@ -363,6 +363,130 @@ testFloatLoopsKeepTheirSumsOnDoubles
 	self assert: (o fsumFrom: 0.5 n: 100000) equals: 5000050000.5.
 	self assert: (o fsumSends: 100000) equals: 2500025000.0.
 	self assert: (o many: 100000) equals: 1000210.0
+!
+testDoublesInFrameStatesOfGuards
+	"A Float that only frame states name stays a double (its box goes): a guard that fails makes it a SmallFloat64, or a BoxedFloat64 (an infinity, a NaN, one too small or too large), as the interpreter has it; in a d register, or in its raw slot where more doubles live than there are registers."
+	| o many huge r before |
+	Smalltalk vm jitParameters: #(nil '-eager' nil nil).
+	self define: 'prod: x and: y then: o | d | d := x * y. ^(o size * 0) + d'.
+	many := String new writeStream.
+	many nextPutAll: 'twenty: x then: o | '.
+	1 to: 20 do: [:k | many nextPutAll: 'a'; print: k; space].
+	many nextPutAll: '| '.
+	1 to: 20 do: [:k | many nextPutAll: 'a'; print: k; nextPutAll: ' := x * '; print: k; nextPutAll: '.0. '].
+	many nextPutAll: '^(o size * 0) + '.
+	(1 to: 20) do: [:k | many nextPutAll: 'a'; print: k] separatedBy: [many nextPutAll: ' + '].
+	self define: many contents.
+	o := JitRuntimeTestSubject new.
+	1 to: 3000 do: [:k |
+		self assert: (o prod: 1.5 and: 2.0 then: #(1 2 3)) equals: 3.0.
+		self assert: (o twenty: 0.5 then: #(1 2 3)) equals: 105.0].
+	huge := (2 raisedTo: 1000) asFloat.
+	before := self statistics.
+	r := o prod: 1.5 and: 2.0 then: 'abcd'.
+	self assert: r equals: 3.0.
+	self assert: r class equals: SmallFloat64.
+	r := o prod: 1.0e300 and: 1.0e10 then: 'abcd'.
+	self assert: r equals: Float infinity.
+	self assert: r class equals: BoxedFloat64.
+	r := o prod: 1.0e-20 and: 1.0e-20 then: 'abcd'.
+	self assert: r equals: 1.0e-20 * 1.0e-20.
+	self assert: r class equals: BoxedFloat64.
+	r := o prod: Float nan and: 1.0 then: 'abcd'.
+	self assert: r isNaN.
+	self assert: r class equals: BoxedFloat64.
+	r := o twenty: huge then: 'abcd'.
+	self assert: r equals: huge * 210.
+	self assert: r class equals: BoxedFloat64.
+	self assert: (o twenty: 0.5 then: 'abcd') equals: 105.0.
+	self stressed ifFalse: [self assert: (self statistics - before) optDeoptimizations > 0].
+	"where no guard fails: the result's box is out of range"
+	self assert: (o prod: 1.0e300 and: 1.0e10 then: #(1 2)) equals: Float infinity.
+	self assert: (o twenty: huge then: #(1 2)) equals: huge * 210.
+	self assert: (o twenty: Float nan then: #(1 2)) isNaN
+!
+testDoublesInInlinedActivationsStates
+	"A guard of an inlined method fails: the caller's activation, rebuilt with it, has its Float, which only frame states named, as the interpreter has it."
+	| o r |
+	Smalltalk vm jitParameters: #(nil '-eager' nil nil).
+	self define: 'sizeOf: o ^o size'.
+	self define: 'outer: x and: y with: o | d | d := x * y. ^((self sizeOf: o) * 0) + d'.
+	o := JitRuntimeTestSubject new.
+	1 to: 3000 do: [:k | self assert: (o outer: 1.5 and: 2.0 with: #(1 2 3)) equals: 3.0].
+	r := o outer: 1.5 and: 2.0 with: 'abc'.
+	self assert: r equals: 3.0.
+	self assert: r class equals: SmallFloat64.
+	r := o outer: 1.0e300 and: 1.0e300 with: 'abc'.
+	self assert: r equals: Float infinity.
+	self assert: r class equals: BoxedFloat64.
+	r := o outer: 1.0e200 and: 2.0 with: 'abc'.
+	self assert: r equals: 2.0e200.
+	self assert: r class equals: BoxedFloat64
+!
+testDoublesAcrossSendsThatCollect
+	"Floats live across a send are doubles in raw slots of the frame, which neither scavenges nor full collections read; the send's callee collects."
+	| o r |
+	Smalltalk vm jitParameters: #(nil '-eager' nil nil).
+	self define: 'collect: k k = 1 ifTrue: [Smalltalk vm garbageCollect]. k = 2 ifTrue: [Smalltalk vm scavenge]. ^k * 0'.
+	self define: 'keep: x and: y collect: k | d e | d := x * y. e := x + y. ^(self collect: k) + d + e'.
+	o := JitRuntimeTestSubject new.
+	1 to: 3000 do: [:k | self assert: (o keep: 1.5 and: 2.0 collect: k \\ 100) equals: 6.5].
+	1 to: 3 do: [:k |
+		self assert: (o keep: 1.5 and: 2.0 collect: 1) equals: 6.5.
+		self assert: (o keep: 1.5 and: 2.0 collect: 2) equals: 6.5.
+		r := o keep: 1.0e300 and: 1.0e10 collect: 1.
+		self assert: r equals: Float infinity.
+		self assert: r class equals: BoxedFloat64.
+		r := o keep: 1.0e100 and: 1.0e100 collect: 2.
+		self assert: r equals: (1.0e100 * 1.0e100) + (1.0e100 + 1.0e100).
+		self assert: r class equals: BoxedFloat64]
+!
+testDoublesOfFramesMadeContexts
+	"Reading thisContext's sender makes the frames Contexts (materializeAll) while the optimized caller waits in a send with a Float in a raw slot: its Context has it as a SmallFloat64 or a BoxedFloat64."
+	| o r |
+	Smalltalk vm jitParameters: #(nil '-eager' nil nil).
+	self define: 'senderNow: k thisContext sender. ^k'.
+	self define: 'flush: x and: y | d | d := x * y. ^(self senderNow: 0) + d'.
+	o := JitRuntimeTestSubject new.
+	1 to: 3000 do: [:k | self assert: (o flush: 1.5 and: 2.0) equals: 3.0].
+	r := o flush: 1.5 and: 2.0.
+	self assert: r equals: 3.0.
+	self assert: r class equals: SmallFloat64.
+	r := o flush: 1.0e300 and: 1.0e10.
+	self assert: r equals: Float infinity.
+	self assert: r class equals: BoxedFloat64.
+	r := o flush: 1.0e-200 and: 1.0e100.
+	self assert: r equals: 1.0e-200 * 1.0e100.
+	self assert: r class equals: BoxedFloat64
+!
+testDoublesAcrossInterruptChecksAndSends
+	"A loop's running Float stays a double across the loop's sends and interrupt checks, in its raw slot there: a Process that scavenges and collects runs at the interrupt checks, switching to it makes the frames Contexts, the loop goes on with its sum. One that overflows to an infinity answers it."
+	| o done k |
+	Smalltalk vm jitParameters: #(nil '-eager' nil nil).
+	self define: 'big: x | a | a := x. ' , ((1 to: 150) inject: '' into: [:all :i | all , 'a := a. ']) , '^a'.
+	self define: 'sumSends: n by: p | r | r := 0.0. 1 to: n do: [:i | r := r + (i * p) + ((self big: i) * 0)]. ^r'.
+	o := JitRuntimeTestSubject new.
+	done := false.
+	k := 0.
+	self fork: [[done] whileFalse: [
+		k := k + 1.
+		k \\ 10 = 0 ifTrue: [Smalltalk vm garbageCollect] ifFalse: [Smalltalk vm scavenge].
+		(Delay forMilliseconds: 1) wait]] at: Processor activePriority + 1.
+	1 to: 5 do: [:i | self assert: (o sumSends: 100000 by: 0.5) equals: 2500025000.0].
+	done := true.
+	self assert: (o sumSends: 20000 by: 1.0e300) equals: Float infinity
+!
+testDoublePhisThatSwap
+	"Loop phis that take each other's values (a cycle of moves at the back edge), their running sum on doubles, and the same through Float arithmetic (twins on doubles)."
+	| o |
+	Smalltalk vm jitParameters: #(nil '-eager' nil nil).
+	self define: 'swap: n | a b t s | a := 1.5. b := 2.5. s := 0.0. 1 to: n do: [:i | s := s + a. t := a. a := b. b := t]. ^s'.
+	self define: 'swapScaled: n | a b t s | a := 1.5. b := 2.5. s := 0.0. 1 to: n do: [:i | s := s + a. t := a. a := b * 1.0. b := t * 1.0]. ^s'.
+	o := JitRuntimeTestSubject new.
+	3 timesRepeat: [
+		self assert: (o swap: 100000) equals: 200000.0.
+		self assert: (o swapScaled: 100000) equals: 200000.0.
+		self assert: (o swapScaled: 100001) equals: 200001.5]
 !
 testDeoptimizationStress
 	"--jit-flags deopt: optimized code deoptimizes every so often at its guards and safepoints; the compiler's tests still pass."

@@ -12,6 +12,10 @@ static int32_t ra_live_in;
 static int32_t ra_live_out;
 static int32_t ra_live_words;
 static int32_t ra_max_pos;
+int32_t ra_raw_base;
+static int32_t ra_raw_free[1024];
+static int32_t ra_raw_free_count;
+int32_t ra_raw_top;
 static uint8_t ra_safe_call[4096];
 static int32_t ra_safe_count;
 int32_t ra_safe_list[262144];
@@ -23,6 +27,7 @@ static int32_t ra_slot_free_count;
 int32_t ra_slot_top;
 static int32_t ra_sort_count;
 static int32_t ra_sorted[16384];
+static int32_t ra_valid_slots;
 
 static bool assign_slots(void);
 static void build_intervals(void);
@@ -32,8 +37,8 @@ static void number_positions(void);
 static bool record_safepoint_liveness(void);
 static void transfer(int32_t b, int32_t out, int32_t in);
 
-/* OptRegalloc>>allocate: */
-bool opt_regalloc_allocate(int32_t num_args)
+/* OptRegalloc>>allocate:valid: */
+bool opt_regalloc_allocate(int32_t num_args, int32_t n)
 {
     number_positions();
     if (!liveness()) {
@@ -47,6 +52,7 @@ bool opt_regalloc_allocate(int32_t num_args)
         return false;
     }
     ra_slot_base = num_args;
+    ra_valid_slots = n;
     return assign_slots();
 }
 
@@ -56,62 +62,45 @@ static bool assign_slots(void)
     int32_t i;
     int32_t v;
     opt_node *nd;
-    bool r_crosses_call;
+    bool r_crosses_safepoint;
     opt_node *nd_2;
     int32_t i_2;
-    bool r_fail;
-    bool r_crosses_safepoint;
+    bool r_crosses_safepoint_2;
     opt_node *nd_3;
     int32_t i_3;
-    bool r_crosses_safepoint_2;
-    opt_node *nd_4;
-    int32_t i_4;
     bool r_is_guard;
     int32_t op;
-    opt_node *nd_5;
+    opt_node *nd_4;
     int32_t n;
     opt_node *input;
     int32_t j_2;
     int32_t n_2;
     opt_node *owner;
     bool r_crosses_safepoint_3;
-    opt_node *nd_6;
-    int32_t i_5;
+    opt_node *nd_5;
+    int32_t i_4;
     int64_t j;
     int32_t n_3;
     int32_t n_4;
-    bool r_crosses_call_2;
-    opt_node *nd_7;
+    int32_t n_5;
+    int32_t n_6;
+    bool r_crosses_call;
+    opt_node *nd_6;
+    int32_t i_5;
     int32_t i_6;
+    int32_t n_7;
     ra_slot_top = ra_slot_base;
     ra_slot_free_count = 0;
+    ra_raw_top = 0;
+    ra_raw_free_count = 0;
     ra_active_count = 0;
     for (i = 0; i <= ra_sort_count - 1; i++) {
         v = ra_sorted[i];
         nd = opt_nodes + v;
-        if (((int32_t)nd->rep == R_DBL) && ({
+        if (((nd->reg < 0) || ({
     nd_2 = opt_nodes + v;
     for (i_2 = 0; i_2 <= ra_safe_count - 1; i_2++) {
-        if ((ra_safe_call[i_2] != 0) && ((ra_safe_pos[i_2] >= nd_2->lstart) && (ra_safe_pos[i_2] < nd_2->lend))) {
-            r_crosses_call = true;
-            goto exit_crosses_call;
-        }
-    }
-    r_crosses_call = false;
-exit_crosses_call:;
-    r_crosses_call; })) {
-            return ({
-    if (getenv("SAMALTAK_OPT_TRACE") != NULL) {
-        fprintf(stderr, "double v%d lives across a call", v);
-        fputc(10, stderr);
-    }
-    r_fail = false;
-    r_fail; });
-        }
-        if (((nd->reg < 0) || ({
-    nd_3 = opt_nodes + v;
-    for (i_3 = 0; i_3 <= ra_safe_count - 1; i_3++) {
-        if ((ra_safe_pos[i_3] >= nd_3->lstart) && (ra_safe_pos[i_3] < nd_3->lend)) {
+        if ((ra_safe_pos[i_2] >= nd_2->lstart) && (ra_safe_pos[i_2] < nd_2->lend)) {
             r_crosses_safepoint = true;
             goto exit_crosses_safepoint;
         }
@@ -122,9 +111,9 @@ exit_crosses_safepoint:;
             nd->slot = (int16_t)nd->aux;
         }
         if (((nd->reg < 0) || ({
-    nd_4 = opt_nodes + v;
-    for (i_4 = 0; i_4 <= ra_safe_count - 1; i_4++) {
-        if ((ra_safe_pos[i_4] >= nd_4->lstart) && (ra_safe_pos[i_4] < nd_4->lend)) {
+    nd_3 = opt_nodes + v;
+    for (i_3 = 0; i_3 <= ra_safe_count - 1; i_3++) {
+        if ((ra_safe_pos[i_3] >= nd_3->lstart) && (ra_safe_pos[i_3] < nd_3->lend)) {
             r_crosses_safepoint_2 = true;
             goto exit_crosses_safepoint_2;
         }
@@ -135,48 +124,66 @@ exit_crosses_safepoint_2:;
     op = (int32_t)nd->op;
     r_is_guard = (op == O_GUARDCLASS) || ((op == O_GUARDINT) || (op == O_CAST));
     r_is_guard; }))) {
-            nd_5 = opt_nodes + v;
-            n = nd_5->a;
+            nd_4 = opt_nodes + v;
+            n = nd_4->a;
             input = opt_nodes + n;
             if (!((input->slot >= 0) && (((int32_t)input->op != O_PHI) && ((input->flags & NF_LAZY) == 0)))) {
                 goto exit_share_slot_of;
             }
-            nd_5->slot = input->slot;
-            nd_5->flags = nd_5->flags | NF_LAZY;
+            nd_4->slot = input->slot;
+            nd_4->flags = nd_4->flags | NF_LAZY;
             for (j_2 = 0; j_2 <= ra_active_count - 1; j_2++) {
                 n_2 = ra_active[j_2];
                 owner = opt_nodes + n_2;
-                if ((owner->slot == nd_5->slot) && (owner->lend < nd_5->lend)) {
+                if ((owner->slot == nd_4->slot) && ((owner->lend < nd_4->lend) && (owner->rep == nd_4->rep))) {
                     ra_active[j_2] = v;
                 }
             }
         exit_share_slot_of:;
         }
         if (((nd->reg < 0) || ({
-    nd_6 = opt_nodes + v;
-    for (i_5 = 0; i_5 <= ra_safe_count - 1; i_5++) {
-        if ((ra_safe_pos[i_5] >= nd_6->lstart) && (ra_safe_pos[i_5] < nd_6->lend)) {
+    nd_5 = opt_nodes + v;
+    for (i_4 = 0; i_4 <= ra_safe_count - 1; i_4++) {
+        if ((ra_safe_pos[i_4] >= nd_5->lstart) && (ra_safe_pos[i_4] < nd_5->lend)) {
             r_crosses_safepoint_3 = true;
             goto exit_crosses_safepoint_3;
         }
     }
     r_crosses_safepoint_3 = false;
 exit_crosses_safepoint_3:;
-    r_crosses_safepoint_3; })) && ((nd->slot < 0) && ((int32_t)nd->rep != R_DBL))) {
+    r_crosses_safepoint_3; })) && (nd->slot < 0)) {
             j = 0;
             while (j < ra_active_count) {
                 n_3 = ra_active[j];
                 if ((opt_nodes + n_3)->lend < nd->lstart) {
                     n_4 = ra_active[j];
-                    ra_slot_free[ra_slot_free_count] = (int32_t)(opt_nodes + n_4)->slot;
-                    ra_slot_free_count = ra_slot_free_count + 1;
+                    if ((int32_t)(opt_nodes + n_4)->rep == R_DBL) {
+                        n_5 = ra_active[j];
+                        ra_raw_free[ra_raw_free_count] = (int32_t)(opt_nodes + n_5)->slot;
+                        ra_raw_free_count = ra_raw_free_count + 1;
+                    } else {
+                        n_6 = ra_active[j];
+                        ra_slot_free[ra_slot_free_count] = (int32_t)(opt_nodes + n_6)->slot;
+                        ra_slot_free_count = ra_slot_free_count + 1;
+                    }
                     ra_active_count = ra_active_count - 1;
                     ra_active[j] = ra_active[ra_active_count];
                 } else {
                     j = j + 1;
                 }
             }
-            if (ra_slot_free_count > 0) {
+            if ((int32_t)nd->rep == R_DBL) {
+                if (ra_raw_free_count > 0) {
+                    ra_raw_free_count = ra_raw_free_count - 1;
+                    nd->slot = (int16_t)ra_raw_free[ra_raw_free_count];
+                } else {
+                    if (ra_raw_top >= RA_MAX_SLOTS) {
+                        return false;
+                    }
+                    nd->slot = (int16_t)ra_raw_top;
+                    ra_raw_top = ra_raw_top + 1;
+                }
+            } else if (ra_slot_free_count > 0) {
                 ra_slot_free_count = ra_slot_free_count - 1;
                 nd->slot = (int16_t)ra_slot_free[ra_slot_free_count];
             } else {
@@ -192,18 +199,29 @@ exit_crosses_safepoint_3:;
             ra_active[ra_active_count] = v;
             ra_active_count = ra_active_count + 1;
             if ((nd->reg >= 0) && (!({
-    nd_7 = opt_nodes + v;
-    for (i_6 = 0; i_6 <= ra_safe_count - 1; i_6++) {
-        if ((ra_safe_call[i_6] != 0) && ((ra_safe_pos[i_6] >= nd_7->lstart) && (ra_safe_pos[i_6] < nd_7->lend))) {
-            r_crosses_call_2 = true;
-            goto exit_crosses_call_2;
+    nd_6 = opt_nodes + v;
+    for (i_5 = 0; i_5 <= ra_safe_count - 1; i_5++) {
+        if ((ra_safe_call[i_5] != 0) && ((ra_safe_pos[i_5] >= nd_6->lstart) && (ra_safe_pos[i_5] < nd_6->lend))) {
+            r_crosses_call = true;
+            goto exit_crosses_call;
         }
     }
-    r_crosses_call_2 = false;
-exit_crosses_call_2:;
-    r_crosses_call_2; }))) {
+    r_crosses_call = false;
+exit_crosses_call:;
+    r_crosses_call; }))) {
                 nd->flags = nd->flags | NF_LAZY;
             }
+        }
+    }
+    ra_raw_base = ra_slot_top > ra_valid_slots ? ra_slot_top : ra_valid_slots;
+    if (ra_raw_base + ra_raw_top > RA_MAX_SLOTS) {
+        return false;
+    }
+    for (i_6 = 0; i_6 <= ra_sort_count - 1; i_6++) {
+        n_7 = ra_sorted[i_6];
+        nd = opt_nodes + n_7;
+        if (((int32_t)nd->rep == R_DBL) && (nd->slot >= 0)) {
+            nd->slot = (int16_t)(nd->slot + ra_raw_base);
         }
     }
     return true;
@@ -604,7 +622,6 @@ static bool linear_scan(void)
     int hi;
     int64_t r;
     int k;
-    bool r_fail;
     int64_t r_reg_at;
     int64_t r_reg_at_x64;
     int64_t victim;
@@ -697,15 +714,6 @@ exit_reg_index_of:;
                 r = k;
             }
         }
-        if ((r < 0) && dbl) {
-            return ({
-    if (getenv("SAMALTAK_OPT_TRACE") != NULL) {
-        fprintf(stderr, "no register for double v%d", v);
-        fputc(10, stderr);
-    }
-    r_fail = false;
-    r_fail; });
-        }
         if (r >= 0) {
             ra_free_regs[r] = 0;
             nd->reg = (int16_t)({
@@ -741,7 +749,7 @@ exit_reg_at:;
                 n_4 = ra_active[k_2];
                 if (((opt_nodes + n_4)->lend > far) && ({
     n_5 = ra_active[k_2];
-    (int32_t)(opt_nodes + n_5)->rep != R_DBL; })) {
+    (opt_nodes + n_5)->rep == nd->rep; })) {
                     n_6 = ra_active[k_2];
                     far = (opt_nodes + n_6)->lend;
                     victim = k_2;
@@ -787,7 +795,6 @@ static bool linear_scan(void)
     int hi;
     int64_t r;
     int k;
-    bool r_fail;
     int64_t r_reg_at;
     int64_t victim;
     int32_t far;
@@ -863,15 +870,6 @@ exit_reg_index_of:;
                 r = k;
             }
         }
-        if ((r < 0) && dbl) {
-            return ({
-    if (getenv("SAMALTAK_OPT_TRACE") != NULL) {
-        fprintf(stderr, "no register for double v%d", v);
-        fputc(10, stderr);
-    }
-    r_fail = false;
-    r_fail; });
-        }
         if (r >= 0) {
             ra_free_regs[r] = 0;
             nd->reg = (int16_t)({
@@ -894,7 +892,7 @@ exit_reg_at:;
                 n_4 = ra_active[k_2];
                 if (((opt_nodes + n_4)->lend > far) && ({
     n_5 = ra_active[k_2];
-    (int32_t)(opt_nodes + n_5)->rep != R_DBL; })) {
+    (opt_nodes + n_5)->rep == nd->rep; })) {
                     n_6 = ra_active[k_2];
                     far = (opt_nodes + n_6)->lend;
                     victim = k_2;
