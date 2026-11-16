@@ -1,5 +1,5 @@
 Object subclass: #CodexProvider
-	instanceVariableNames: 'account baseURL effort sessionId client cancelled finished usage'
+	instanceVariableNames: 'account baseURL effort sessionId client cancelled finished usage requestDiagnostics previousRequestJSON'
 	classVariableNames: ''
 	package: 'System-Agent'!
 
@@ -91,13 +91,25 @@ headers
 	^headers
 !
 post: body onText: textBlock onItem: itemBlock
-	| reader |
+	| reader diagnostic response |
 	finished := false.
 	usage := nil.
+	diagnostic := self observeRequest: body.
 	reader := SSEReader do: [:name :data | self handle: (JSON parse: data) onText: textBlock onItem: itemBlock].
-	^[client post: baseURL, '/responses' json: body headers: self headers do: [:text | reader feed: text]]
-		on: HTTPError do: [:e |
-			AgentError signal: (cancelled ifTrue: ['Cancelled'] ifFalse: ['Lost the connection to ChatGPT: ', e messageText])]
+	[
+		response := client post: baseURL, '/responses' json: body headers: self headers do: [:text | reader feed: text].
+		diagnostic at: 'http_status' put: response status.
+		diagnostic at: 'state' put: (finished ifTrue: ['completed'] ifFalse: ['incomplete']).
+		usage ifNotNil: [
+			diagnostic at: 'input_tokens' put: (usage at: 'input_tokens' ifAbsent: [0]).
+			diagnostic at: 'cached_tokens' put: ((usage at: 'input_tokens_details' ifAbsent: [Dictionary new]) at: 'cached_tokens' ifAbsent: [0])].
+		^response
+	] on: Error do: [:e |
+		diagnostic at: 'state' put: 'error'.
+		diagnostic at: 'error_class' put: e class name.
+		(e isKindOf: HTTPError) ifTrue: [
+			AgentError signal: (cancelled ifTrue: ['Cancelled'] ifFalse: ['Lost the connection to ChatGPT: ', e messageText])].
+		e pass]
 !
 handle: event onText: textBlock onItem: itemBlock
 	| type response |
@@ -129,4 +141,38 @@ newSessionId
 		32 timesRepeat: [s nextPut: (Character digitValue: (random nextInt: 16) - 1) asLowercase]].
 	^(hex copyFrom: 1 to: 8), '-', (hex copyFrom: 9 to: 12), '-4', (hex copyFrom: 14 to: 16), '-',
 		(String with: ('89ab' at: (random nextInt: 4))), (hex copyFrom: 18 to: 20), '-', (hex copyFrom: 21 to: 32)
+! !
+
+!CodexProvider methodsFor: 'diagnostics'!
+requestDiagnostics
+	"Recent request summaries; no credentials or prompt text."
+	^requestDiagnostics ifNil: [#()] ifNotNil: [requestDiagnostics asArray]
+!
+observeRequest: body
+	"Compare serialized input items and settings with the preceding attempt."
+	| current settings inputs oldInputs common entry |
+	requestDiagnostics ifNil: [requestDiagnostics := OrderedCollection new].
+	inputs := (body at: 'input') collect: [:each | JSON render: each].
+	settings := body copy.
+	settings removeKey: 'input'.
+	current := Array with: (JSON render: settings) with: inputs.
+	common := 0.
+	previousRequestJSON ifNotNil: [
+		oldInputs := previousRequestJSON second.
+		[common < (oldInputs size min: inputs size)
+			and: [(oldInputs at: common + 1) = (inputs at: common + 1)]]
+			whileTrue: [common := common + 1]].
+	entry := Dictionary new
+		at: 'prompt_cache_key' put: (body at: 'prompt_cache_key' ifAbsent: [nil]);
+		at: 'input_items' put: inputs size;
+		at: 'matching_prefix_items' put: common;
+		at: 'previous_input_items' put: (previousRequestJSON ifNil: [0] ifNotNil: [previousRequestJSON second size]);
+		at: 'previous_input_is_prefix' put: (previousRequestJSON notNil and: [common = previousRequestJSON second size]);
+		at: 'settings_unchanged' put: (previousRequestJSON notNil and: [current first = previousRequestJSON first]);
+		at: 'state' put: 'sending';
+		yourself.
+	previousRequestJSON := current.
+	requestDiagnostics add: entry.
+	[requestDiagnostics size > 100] whileTrue: [requestDiagnostics removeFirst].
+	^entry
 ! !

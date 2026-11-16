@@ -232,6 +232,25 @@ testRemovingImageAttachments
 	editor clearImages.
 	self assert: editor images isEmpty.
 	self assert: editor text equals: 'Keep this text'
+!
+testCachePercentageUsesCumulativeTotalTokens
+	"Output tokens do not enter the cumulative cache percentage."
+	| c window |
+	c := AgentConversation new.
+	c accumulateUsage: (Dictionary new at: 'input_tokens' put: 10000; at: 'total_tokens' put: 20000; at: 'input_tokens_details' put: (Dictionary new at: 'cached_tokens' put: 8000; yourself); yourself).
+	c accumulateUsage: (Dictionary new at: 'input_tokens' put: 30000; at: 'total_tokens' put: 30000; at: 'input_tokens_details' put: (Dictionary new at: 'cached_tokens' put: 12000; yourself); yourself).
+	window := AgentWindow new.
+	self assert: (window cacheUsageText: c usage) = '50% cached'
+!
+testCachePercentageRequiresContextBeyondTenThousand
+	| c window |
+	c := AgentConversation new.
+	window := AgentWindow new.
+	self assert: (window cacheUsageText: c usage) isNil.
+	c accumulateUsage: (Dictionary new at: 'input_tokens' put: 10000; at: 'input_tokens_details' put: (Dictionary new at: 'cached_tokens' put: 5000; yourself); yourself).
+	self assert: (window cacheUsageText: c usage) isNil.
+	c accumulateUsage: (Dictionary new at: 'input_tokens' put: 10001; at: 'input_tokens_details' put: (Dictionary new at: 'cached_tokens' put: 5000; yourself); yourself).
+	self assert: (window cacheUsageText: c usage) = '50% cached'
 ! !
 
 !AgentWindowTest methodsFor: 'tests - contexts'!

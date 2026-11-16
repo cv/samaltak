@@ -216,6 +216,14 @@ testInputKeepsInitialInstructions
 	self assert: conversation input first == first.
 	self assert: conversation input size equals: 1.
 	self assert: conversation items isEmpty
+!
+testContextTokensUsesLatestRequest
+	| c |
+	c := AgentConversation new.
+	self assert: c contextTokens isNil.
+	c accumulateUsage: (Dictionary new at: 'input_tokens' put: 100; at: 'total_tokens' put: 120; yourself).
+	c accumulateUsage: (Dictionary new at: 'input_tokens' put: 150; at: 'total_tokens' put: 180; yourself).
+	self assert: c contextTokens = 150
 ! !
 
 !AgentConversationTest methodsFor: 'tests - contexts'!

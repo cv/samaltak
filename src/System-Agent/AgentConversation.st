@@ -60,6 +60,10 @@ onChange: aBlock for: anOwner
 	aBlock
 		ifNil: [changeBlock removeKey: anOwner ifAbsent: []]
 		ifNotNil: [changeBlock at: anOwner put: aBlock]
+!
+contextTokens
+	"Latest measured context size, as reported for the last completed request."
+	^usage ifNotNil: [usage at: 'context_tokens' ifAbsent: [nil]]
 ! !
 
 !AgentConversation methodsFor: 'objects'!
@@ -190,6 +194,7 @@ accumulateUsage: answer
 	"Sum token usage across every response in this conversation."
 	| details cached previous |
 	usage isNil ifTrue: [usage := Dictionary new].
+	usage at: 'context_tokens' put: (answer at: 'input_tokens' ifAbsent: [nil]).
 	#('input_tokens' 'output_tokens' 'total_tokens') do: [:key |
 		usage at: key put: (usage at: key ifAbsent: [0]) + (answer at: key ifAbsent: [0])].
 	details := answer at: 'input_tokens_details' ifAbsent: [nil].
@@ -197,6 +202,7 @@ accumulateUsage: answer
 		cached := details at: 'cached_tokens' ifAbsent: [0].
 		previous := usage at: 'input_tokens_details' ifAbsentPut: [Dictionary new].
 		previous at: 'cached_tokens' put: (previous at: 'cached_tokens' ifAbsent: [0]) + cached]
+
 
 !
 request

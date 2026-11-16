@@ -95,7 +95,7 @@ update
 	sendButton enabled: (signedIn and: [busy not]).
 	stopButton enabled: busy.
 	signOutButton visible: signedIn.
-	tokens := conversation usage ifNotNil: [:usage | usage at: 'total_tokens' ifAbsent: [nil]].
+	tokens := conversation contextTokens.
 	status clear.
 	status add: conversation provider modelName style: #strong.
 	status add: '│' style: #muted.
@@ -105,9 +105,10 @@ update
 	busy ifTrue: [status addRight: 'working…' style: #pillBusy]
 !
 cacheUsageText: usage
-	"Describe the cache split of the conversation's cumulative input tokens."
+	"Show cumulative input cache reuse once the latest context exceeds 10k tokens."
 	| input details cached percent |
 	usage isNil ifTrue: [^nil].
+	(usage at: 'context_tokens' ifAbsent: [0]) > 10000 ifFalse: [^nil].
 	input := usage at: 'input_tokens' ifAbsent: [^nil].
 	input > 0 ifFalse: [^nil].
 	details := usage at: 'input_tokens_details' ifAbsent: [^nil].
