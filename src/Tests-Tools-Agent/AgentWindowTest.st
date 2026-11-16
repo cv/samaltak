@@ -146,17 +146,17 @@ testATurnShowsItsItems
 	provider reply: {ScriptedProvider code: '3 zork' call: 'c5'}.
 	provider reply: #('Se' 'ven.') items: {ScriptedProvider message: 'Seven.'}.
 	self ask: 'show me' in: agent.
-	self assert: (self kindsIn: agent) equals: #(#user #code #code #show #show #code #assistant).
+	self assert: (self kindsIn: agent) equals: #(#user #code #code #show #user #show #code #assistant).
 	views := self in: agent do: [agent content transcript children asArray].
 	self assert: (views at: 2) item result equals: 'o1 a Form(40x20)'.
 	self assert: (views at: 4) isForm.
-	self deny: (views at: 5) isForm.
-	self assert: (views at: 5) remoteLabel equals: 'o2 7'.
-	self assert: (views at: 6) item failed.
+	self deny: (views at: 6) isForm.
+	self assert: (views at: 6) remoteLabel equals: 'o2 7'.
+	self assert: (views at: 7) item failed.
 	self assert: (views last remoteLabel) equals: 'Seven.'.
 	self assert: ((views collect: [:each | each height]) allSatisfy: [:h | h > 0]).
 	"Inspect opens the real Inspector on the shown object."
-	shown := views at: 5.
+	shown := views at: 6.
 	self in: agent do: [(self named: 'inspect' in: shown) click].
 	self assert: (self waitFor: [(self windowsOf: Inspector) notEmpty]) description: 'Inspect opened no Inspector'.
 	inspectors := self windowsOf: Inspector.
