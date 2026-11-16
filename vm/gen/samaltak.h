@@ -1683,6 +1683,7 @@ int64_t feedback_state_of(oop m, int64_t i);
 oop feedback_target_of(oop m, int64_t i, int64_t j);
 void jit_baseline_runtime_flushed(void);
 void forget_slots_from(uint64_t address);
+uint64_t leaf_prim(uint64_t fp, uint64_t fn, uint64_t n);
 uint64_t jit_baseline_runtime_miss(frame *f, oop rcv, uint64_t ret);
 void nil_tests_changed(oop sel);
 bool nil_tests_inlinable(void);

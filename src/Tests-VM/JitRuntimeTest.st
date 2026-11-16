@@ -376,6 +376,44 @@ testAllocationOfBytesAndWords
 	self assert: self statistics scavenges > scavenges
 ! !
 
+!JitRuntimeTest methodsFor: 'tests: primitives'!
+leafPrimitiveResults
+	"Leaf primitives (with no arguments up to four) that answer and that fail, through their methods (the fallback's result, or the error's class), and methods of the subject's whose leaf primitive fails on it (arguments and receiver intact in the body, the error code nil)."
+	self define: 'leafs | r try | r := OrderedCollection new. try := [:b | r add: (b on: Error do: [:e | e class name])].
+		try value: [''abcdefg'' indexOf: $d startingAt: 2]. try value: [''abcdefg'' indexOf: $d startingAt: 5]. try value: [''abcdefg'' indexOf: 100 startingAt: 1]. try value: [''abc'' indexOf: $a startingAt: 0]. try value: [(String with: (Character value: 955) with: $q) indexOf: $q startingAt: 1].
+		try value: [''abcdefg'' indexOfSubCollection: ''cde'' startingAt: 1]. try value: [''abcdefg'' indexOfSubCollection: ''cde'' startingAt: 4]. try value: [''abcdefg'' indexOfSubCollection: #(1 2) startingAt: 1]. try value: [''abcdefg'' indexOfSubCollection: ''a'' startingAt: nil]. try value: [''abcdefg'' includesSubstring: ''fg''].
+		try value: [''abc'' compareWith: ''abd'']. try value: [''abc'' compareWith: 3]. try value: [''abc'' lowercaseCompare: ''ABC'']. try value: [''abc'' hash]. try value: [#[1 2 3 4 5] uint16At: 2]. try value: [#[1 2 3 4 5] uint16At: 5]. try value: [#[1 2 3 4 5] uint16BigEndianAt: 1]. try value: [#[1 2 3 4 5] int16At: 4].
+		try value: [(ByteArray new: 8) uint32At: 2 put: 16r01020304; yourself]. try value: [(ByteArray new: 8) uint32At: 6 put: 1; yourself]. try value: [(ByteArray new: 8) float64At: 1 put: 2.5; yourself]. try value: [(ByteArray new: 8) float64At: 1 put: 3; yourself].
+		try value: [(2 raisedTo: 70) compareInteger: (2 raisedTo: 71)]. try value: [(2 raisedTo: 70) compareInteger: 7]. try value: [12 bitXor: 10]. try value: [12 bitXor: (2 raisedTo: 70)]. try value: [3.75 truncated]. try value: [1.0e300 truncated]. try value: [$a value].
+		try value: [(String new: 5) replaceFrom: 2 to: 4 with: ''xyz'' startingAt: 1; yourself]. try value: [(String new: 5) replaceFrom: 2 to: 6 with: ''xyzuv'' startingAt: 1; yourself].
+		r add: self hashed = self identityHash; add: (self plus: 3); add: (self cmp: ''x''); add: (self idx: $a from: 1); add: (self rep: 1 to: 2 with: ''ab'' from: 1).
+		^r asArray'.
+	self define: 'hashed <primitive: ''identityHash''> ^#failed'.
+	self define: 'plus: x <primitive: ''intAdd''> ^{#failed. x. self class name}'.
+	self define: 'cmp: x <primitive: ''stringCompare'' error: ec> ^{#failed. x. ec. self class name}'.
+	self define: 'idx: c from: s <primitive: ''stringIndexOf''> ^{#failed. c. s. self class name}'.
+	self define: 'rep: i to: j with: s from: k <primitive: ''replaceFromToWithStartingAt''> ^{#failed. i. j. s. k. self class name}'.
+	^JitRuntimeTestSubject new leafs
+!
+testLeafPrimitives
+	"Leaf C primitives, which machine code calls directly, answer and fail as through the runtime (--jit-flags -prims): every argument count, failures falling into the method's body with its receiver and arguments, the error code nil; the calls are counted (C primitive calls)."
+	| on off calls |
+	on := (1 to: 3) collect: [:i | self leafPrimitiveResults].
+	Smalltalk vm jitParameters: #(nil '-prims' nil nil).
+	[off := self leafPrimitiveResults] ensure: [Smalltalk vm jitParameters: #(nil 'prims' nil nil)].
+	on do: [:each | self assert: each equals: off].
+	self assert: (off first: 3) equals: #(4 0 0).
+	self assert: (off at: 5) equals: 2.
+	self assert: (off last: 5) equals: {true. {#failed. 3. #JitRuntimeTestSubject}. {#failed. 'x'. nil. #JitRuntimeTestSubject}. {#failed. $a. 1. #JitRuntimeTestSubject}. {#failed. 1. 2. 'ab'. 1. #JitRuntimeTestSubject}}.
+	self assert: (((JitRuntimeTestSubject >> #idx:from:) machineCodeFor: #baseline) includesSubstring: 'called directly').
+	self define: 'calls: n | s c | s := ''abcdefg''. c := 0. 1 to: n do: [:i | c := c + (s indexOf: $g startingAt: 1)]. ^c'.
+	calls := (1 to: 3) collect: [:i | | before |
+		before := self statistics.
+		self assert: (JitRuntimeTestSubject new calls: 1000) equals: 7000.
+		(self statistics - before) jitPrimitiveCalls].
+	self assert: calls max >= 1000
+! !
+
 !JitRuntimeTest methodsFor: 'tests: copying'!
 testCopiesOfEveryLengthAndOverlap
 	"replaceFrom:to:with:startingAt: in compiled code (the copy stub) against element by element copies: bytes, 32-bit words and pointers, every length up to 80 (40), within one object shifted either way by up to 9 elements (overlapping or not), and into another object between guard elements that stay."

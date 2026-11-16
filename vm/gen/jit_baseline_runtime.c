@@ -628,6 +628,51 @@ static jit_method *header_of(oop m)
     return h;
 }
 
+/* JitBaselineRuntime>>leafPrim:fn:argc: */
+uint64_t leaf_prim(uint64_t fp, uint64_t fn, uint64_t n)
+{
+    prim_fn fn_2;
+    oop *b;
+    int32_t n_2;
+    int32_t r_call_leaf_primitive;
+    int32_t status;
+    oop v;
+    int32_t code;
+    int64_t v_2;
+    uint64_t v_3;
+    stat_prim_calls = stat_prim_calls + 1;
+    fn_2 = (prim_fn)fn;
+    b = (oop *)fp - 1;
+    n_2 = (int32_t)n;
+    status = ({
+    prim_nargs = n_2;
+    prim_base = b;
+    prim_status = PS_NONE;
+    fn_2();
+    r_call_leaf_primitive = prim_status;
+    r_call_leaf_primitive; });
+    if (__builtin_expect(status == PS_OK, 1)) {
+        v = prim_result;
+        prim_result = nil_oop;
+        return v;
+    }
+    if (!(status == PS_FAIL)) {
+        fatal_begin();
+        fprintf(stderr, "a leaf primitive neither answered nor failed");
+        fatal_end();
+    }
+    code = prim_error_code;
+    state_block->ecode = (int64_t)({
+    if (code >= 0) {
+        v_2 = (int64_t)code;
+        v_3 = (uint64_t)((v_2 << 1) | 1);
+    } else {
+        v_3 = nil_oop;
+    }
+    v_3; });
+    return 0;
+}
+
 #if defined(__x86_64__)
 /* JitBaselineRuntime>>miss:receiver:ret: */
 uint64_t jit_baseline_runtime_miss(frame *f, oop rcv, uint64_t ret)

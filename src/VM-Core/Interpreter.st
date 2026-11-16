@@ -830,6 +830,14 @@ callPrimitive: fn base: b argc: n
 	fn call.
 	^primStatus
 !
+callLeafPrimitive: fn base: b argc: n
+	"Run the leaf primitive fn on the receiver and n arguments at b, as the interpreter does: nothing externalized; answer primStatus."
+	primNargs := n.
+	primBase := b.
+	primStatus := PS_NONE.
+	fn call.
+	^primStatus
+!
 pushFrame: m argc: n code: c ecode: ecode
 	"Activate m as activate does: its receiver and n arguments are the top of the top frame, whose ip the caller set. Answer the new frame, null if the stack is full."
 	<function>

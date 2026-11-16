@@ -106,6 +106,7 @@ static void emit_frame_for(bool is_block, int32_t na, int32_t nt);
 static void emit_indexed_primitive(int32_t k, int32_t fail);
 static void emit_inline_closure(int32_t pc, int32_t fail);
 static void emit_int_primitive(int32_t op, int32_t fail);
+static bool emit_leaf_primitive_call(void);
 static void emit_literals(void);
 static void emit_load_loop_temps(int32_t id);
 static bool emit_method_entry(void);
@@ -54369,6 +54370,401 @@ exit_offset_to_12:;
 
 #endif
 #if defined(__x86_64__)
+/* JitBaselineCompiler>>emitLeafPrimitiveCall */
+static bool emit_leaf_primitive_call(void)
+{
+    int32_t failed;
+    uint64_t v;
+    int64_t n;
+    int64_t n_2;
+    uint64_t value;
+    uint64_t v_2;
+    uint64_t v_3;
+    int64_t n_3;
+    int64_t n_4;
+    uint64_t v_4;
+    uint64_t v_5;
+    uint64_t v_6;
+    int64_t n_5;
+    int64_t n_6;
+    uint64_t v_7;
+    int64_t n_7;
+    int64_t n_8;
+    uint64_t a;
+    int64_t d;
+    uint64_t v_8;
+    uint64_t target;
+    int64_t disp;
+    uint64_t v_9;
+    uint64_t v_10;
+    int64_t n_9;
+    uint64_t tail;
+    int64_t tn;
+    uint64_t v_11;
+    int64_t n_10;
+    failed = new_label();
+    if (asm_noting) {
+        note("the leaf primitive's C function, called directly: its result (0 if it failed) back to the sender", 0);
+    }
+    v = 0ULL;
+    n = 0;
+    v = v | (72LL << (8 * n));
+    n = n + 1;
+    v = v | (139LL << (8 * n));
+    n = n + 1;
+    v = v | (251LL << (8 * n));
+    n_2 = n + 1;
+    if (asm_pc + 8 <= asm_limit) {
+        *(uint64_t *)asm_pc = v;
+        asm_pc = asm_pc + n_2;
+    } else if (asm_error == ASM_OK) {
+        asm_error = ASM_ERR_FULL;
+    }
+    goto exit_mov;
+    amd64_assembler_move_any_from(X0, X20);
+exit_mov:;
+    value = (uint64_t)primitive_table_lookup(prim_index);
+    if (value <= 0xFFFFFFFFLL) {
+        v_2 = 190ULL | ((value & 0xFFFFFFFFLL) << 8);
+        if (asm_pc + 8 <= asm_limit) {
+            *(uint64_t *)asm_pc = v_2;
+            asm_pc = asm_pc + 5;
+        } else if (asm_error == ASM_OK) {
+            asm_error = ASM_ERR_FULL;
+        }
+        goto exit_mov_reg;
+    }
+    if (((int64_t)value >= -2147483648) && ((int64_t)value <= 0x7FFFFFFF)) {
+        v_3 = 0ULL;
+        n_3 = 0;
+        v_3 = v_3 | (72LL << (8 * n_3));
+        n_3 = n_3 + 1;
+        v_3 = v_3 | (199LL << (8 * n_3));
+        n_3 = n_3 + 1;
+        v_3 = v_3 | (198LL << (8 * n_3));
+        n_3 = n_3 + 1;
+        v_3 = v_3 | ((value & 0xFFFFFFFFLL) << (8 * n_3));
+        n_4 = n_3 + 4;
+        if (asm_pc + 8 <= asm_limit) {
+            *(uint64_t *)asm_pc = v_3;
+            asm_pc = asm_pc + n_4;
+        } else if (asm_error == ASM_OK) {
+            asm_error = ASM_ERR_FULL;
+        }
+        goto exit_mov_reg;
+    }
+    if (asm_pc + 8 <= asm_limit) {
+        *(uint64_t *)asm_pc = 48712ULL;
+        asm_pc = asm_pc + 2;
+    } else if (asm_error == ASM_OK) {
+        asm_error = ASM_ERR_FULL;
+    }
+    if (asm_pc + 8 <= asm_limit) {
+        *(uint64_t *)asm_pc = value;
+        asm_pc = asm_pc + 8;
+    } else if (asm_error == ASM_OK) {
+        asm_error = ASM_ERR_FULL;
+    }
+exit_mov_reg:;
+    goto exit_mov_2;
+    amd64_assembler_move_any_imm(X1, value);
+exit_mov_2:;
+    v_4 = (uint64_t)cur_args;
+    if (v_4 <= 0xFFFFFFFFLL) {
+        v_5 = 186ULL | ((v_4 & 0xFFFFFFFFLL) << 8);
+        if (asm_pc + 8 <= asm_limit) {
+            *(uint64_t *)asm_pc = v_5;
+            asm_pc = asm_pc + 5;
+        } else if (asm_error == ASM_OK) {
+            asm_error = ASM_ERR_FULL;
+        }
+        goto exit_mov_reg_2;
+    }
+    if (((int64_t)v_4 >= -2147483648) && ((int64_t)v_4 <= 0x7FFFFFFF)) {
+        v_6 = 0ULL;
+        n_5 = 0;
+        v_6 = v_6 | (72LL << (8 * n_5));
+        n_5 = n_5 + 1;
+        v_6 = v_6 | (199LL << (8 * n_5));
+        n_5 = n_5 + 1;
+        v_6 = v_6 | (194LL << (8 * n_5));
+        n_5 = n_5 + 1;
+        v_6 = v_6 | ((v_4 & 0xFFFFFFFFLL) << (8 * n_5));
+        n_6 = n_5 + 4;
+        if (asm_pc + 8 <= asm_limit) {
+            *(uint64_t *)asm_pc = v_6;
+            asm_pc = asm_pc + n_6;
+        } else if (asm_error == ASM_OK) {
+            asm_error = ASM_ERR_FULL;
+        }
+        goto exit_mov_reg_2;
+    }
+    if (asm_pc + 8 <= asm_limit) {
+        *(uint64_t *)asm_pc = 47688ULL;
+        asm_pc = asm_pc + 2;
+    } else if (asm_error == ASM_OK) {
+        asm_error = ASM_ERR_FULL;
+    }
+    if (asm_pc + 8 <= asm_limit) {
+        *(uint64_t *)asm_pc = v_4;
+        asm_pc = asm_pc + 8;
+    } else if (asm_error == ASM_OK) {
+        asm_error = ASM_ERR_FULL;
+    }
+exit_mov_reg_2:;
+    goto exit_mov_3;
+    amd64_assembler_move_any_imm(X2, (uint64_t)cur_args);
+exit_mov_3:;
+    call_c_from_send((uint64_t)leaf_prim);
+    v_7 = 0ULL;
+    n_7 = 0;
+    v_7 = v_7 | (72LL << (8 * n_7));
+    n_7 = n_7 + 1;
+    v_7 = v_7 | (133LL << (8 * n_7));
+    n_7 = n_7 + 1;
+    v_7 = v_7 | (255LL << (8 * n_7));
+    n_8 = n_7 + 1;
+    if (asm_pc + 8 <= asm_limit) {
+        *(uint64_t *)asm_pc = v_7;
+        asm_pc = asm_pc + n_8;
+    } else if (asm_error == ASM_OK) {
+        asm_error = ASM_ERR_FULL;
+    }
+    if (asm_flags != X64_FL_NONE) {
+        asm_flags = X64_FL_CLOBBERED;
+    }
+    branch_to(failed);
+    a = asm_labels[failed];
+    if (a != 0) {
+        d = (int64_t)(a - (asm_pc + 2));
+        if ((d >= -128) && (d <= 127)) {
+            v_8 = 116ULL | ((((uint64_t)d) & 0xFF) << 8);
+            if (asm_pc + 8 <= asm_limit) {
+                *(uint64_t *)asm_pc = v_8;
+                asm_pc = asm_pc + 2;
+            } else if (asm_error == ASM_OK) {
+                asm_error = ASM_ERR_FULL;
+            }
+            goto exit_jcc;
+        }
+    }
+    if (asm_pc + 8 <= asm_limit) {
+        *(uint64_t *)asm_pc = 33807ULL;
+        asm_pc = asm_pc + 2;
+    } else if (asm_error == ASM_OK) {
+        asm_error = ASM_ERR_FULL;
+    }
+    target = target_of(failed, asm_pc);
+    disp = (int64_t)(target - (asm_pc + 4));
+    if (!((disp >= -2147483648) && (disp <= 0x7FFFFFFF))) {
+        if (asm_error == ASM_OK) {
+            asm_error = ASM_ERR_RANGE;
+        }
+        goto exit_emit_rel32_to;
+    }
+    v_9 = ((uint64_t)disp) & 0xFFFFFFFFLL;
+    if (asm_pc + 8 <= asm_limit) {
+        *(uint64_t *)asm_pc = v_9;
+        asm_pc = asm_pc + 4;
+    } else if (asm_error == ASM_OK) {
+        asm_error = ASM_ERR_FULL;
+    }
+exit_emit_rel32_to:;
+exit_jcc:;
+    if (asm_pc + 8 <= asm_limit) {
+        *(uint64_t *)asm_pc = 0xC3;
+        asm_pc = asm_pc + 1;
+    } else if (asm_error == ASM_OK) {
+        asm_error = ASM_ERR_FULL;
+    }
+    asm_jump_end = asm_pc;
+    amd64_assembler_bind(failed);
+    v_10 = 0ULL;
+    n_9 = 0;
+    v_10 = v_10 | (72LL << (8 * n_9));
+    n_9 = n_9 + 1;
+    v_10 = v_10 | (139LL << (8 * n_9));
+    n_9 = n_9 + 1;
+    v_10 = v_10 | (123LL << (8 * n_9));
+    n_9 = n_9 + 1;
+    tail = 0ULL;
+    tn = 0;
+    tail = 248ULL;
+    tn = 1;
+    if (tn == 0) {
+        if (asm_pc + 8 <= asm_limit) {
+            *(uint64_t *)asm_pc = v_10;
+            asm_pc = asm_pc + n_9;
+        } else if (asm_error == ASM_OK) {
+            asm_error = ASM_ERR_FULL;
+        }
+        goto exit_op;
+    }
+    if (n_9 + tn <= 8) {
+        v_11 = v_10 | (tail << (8 * n_9));
+        n_10 = n_9 + tn;
+        if (asm_pc + 8 <= asm_limit) {
+            *(uint64_t *)asm_pc = v_11;
+            asm_pc = asm_pc + n_10;
+        } else if (asm_error == ASM_OK) {
+            asm_error = ASM_ERR_FULL;
+        }
+    } else {
+        if (asm_pc + 8 <= asm_limit) {
+            *(uint64_t *)asm_pc = v_10;
+            asm_pc = asm_pc + n_9;
+        } else if (asm_error == ASM_OK) {
+            asm_error = ASM_ERR_FULL;
+        }
+        if (asm_pc + 8 <= asm_limit) {
+            *(uint64_t *)asm_pc = tail;
+            asm_pc = asm_pc + tn;
+        } else if (asm_error == ASM_OK) {
+            asm_error = ASM_ERR_FULL;
+        }
+    }
+exit_op:;
+    goto exit_ldr;
+    load_any(0x8B, 1, 1, X0, X20, -8LL);
+exit_ldr:;
+    return true;
+}
+
+#else
+/* JitBaselineCompiler>>emitLeafPrimitiveCall */
+static bool emit_leaf_primitive_call(void)
+{
+    int32_t failed;
+    uint64_t value;
+    uint64_t a_word;
+    uint64_t a_word_2;
+    uint64_t value_2;
+    uint64_t a_word_3;
+    uint64_t target;
+    int64_t r_offset_to;
+    int64_t off;
+    uint64_t a_word_4;
+    failed = new_label();
+    if (asm_noting) {
+        note("the leaf primitive's C function, called directly: its result (0 if it failed) back to the sender", 0);
+    }
+    if (asm_pc < asm_limit) {
+        *(uint32_t *)asm_pc = 4162785278ULL;
+        asm_pc = asm_pc + 4;
+    } else if (asm_error == ASM_OK) {
+        asm_error = ASM_ERR_FULL;
+    }
+    if (asm_pc < asm_limit) {
+        *(uint32_t *)asm_pc = 2853438432ULL;
+        asm_pc = asm_pc + 4;
+    } else if (asm_error == ASM_OK) {
+        asm_error = ASM_ERR_FULL;
+    }
+    value = (uint64_t)primitive_table_lookup(prim_index);
+    if (value <= 0xFFFF) {
+        if (!(value <= 0xFFFF)) {
+            if (asm_error == ASM_OK) {
+                asm_error = ASM_ERR_IMMEDIATE;
+            }
+            goto exit_move_wide;
+        }
+        a_word = 3531603968LL | (0ULL | (value << 5) | 1);
+        if (asm_pc < asm_limit) {
+            *(uint32_t *)asm_pc = a_word;
+            asm_pc = asm_pc + 4;
+        } else if (asm_error == ASM_OK) {
+            asm_error = ASM_ERR_FULL;
+        }
+    exit_move_wide:;
+    } else {
+        mov_imm(X1, value);
+    }
+    if ((cur_args >= 0) && (cur_args <= 0xFFFF)) {
+        if (!((cur_args >= 0) && (cur_args <= 0xFFFF))) {
+            if (asm_error == ASM_OK) {
+                asm_error = ASM_ERR_IMMEDIATE;
+            }
+            goto exit_move_wide_2;
+        }
+        a_word_2 = 3531603968LL | (0ULL | (((uint64_t)cur_args) << 5) | 2);
+        if (asm_pc < asm_limit) {
+            *(uint32_t *)asm_pc = a_word_2;
+            asm_pc = asm_pc + 4;
+        } else if (asm_error == ASM_OK) {
+            asm_error = ASM_ERR_FULL;
+        }
+    exit_move_wide_2:;
+    } else {
+        mov_imm(X2, (uint64_t)cur_args);
+    }
+    value_2 = (uint64_t)leaf_prim;
+    if (value_2 <= 0xFFFF) {
+        if (!(value_2 <= 0xFFFF)) {
+            if (asm_error == ASM_OK) {
+                asm_error = ASM_ERR_IMMEDIATE;
+            }
+            goto exit_move_wide_3;
+        }
+        a_word_3 = 3531603968LL | (0ULL | (value_2 << 5) | 16);
+        if (asm_pc < asm_limit) {
+            *(uint32_t *)asm_pc = a_word_3;
+            asm_pc = asm_pc + 4;
+        } else if (asm_error == ASM_OK) {
+            asm_error = ASM_ERR_FULL;
+        }
+    exit_move_wide_3:;
+    } else {
+        mov_imm(X16, value_2);
+    }
+    if (asm_pc < asm_limit) {
+        *(uint32_t *)asm_pc = 3594453504ULL;
+        asm_pc = asm_pc + 4;
+    } else if (asm_error == ASM_OK) {
+        asm_error = ASM_ERR_FULL;
+    }
+    if (asm_pc < asm_limit) {
+        *(uint32_t *)asm_pc = 4165011454ULL;
+        asm_pc = asm_pc + 4;
+    } else if (asm_error == ASM_OK) {
+        asm_error = ASM_ERR_FULL;
+    }
+    target = target_of(failed);
+    a_word_4 = 3019898880LL | ((((uint64_t)({
+    off = ((int64_t)(target - asm_pc)) >> 2;
+    if (!((off >= -262144) && (off <= 262143))) {
+        if (asm_error == ASM_OK) {
+            asm_error = ASM_ERR_RANGE;
+        }
+        r_offset_to = 0;
+        goto exit_offset_to;
+    }
+    r_offset_to = off & 524287;
+exit_offset_to:;
+    r_offset_to; })) << 5) | 0);
+    if (asm_pc < asm_limit) {
+        *(uint32_t *)asm_pc = a_word_4;
+        asm_pc = asm_pc + 4;
+    } else if (asm_error == ASM_OK) {
+        asm_error = ASM_ERR_FULL;
+    }
+    if (asm_pc < asm_limit) {
+        *(uint32_t *)asm_pc = 0xD65F03C0LL;
+        asm_pc = asm_pc + 4;
+    } else if (asm_error == ASM_OK) {
+        asm_error = ASM_ERR_FULL;
+    }
+    arm64_assembler_bind(failed);
+    if (asm_pc < asm_limit) {
+        *(uint32_t *)asm_pc = 4167008896ULL;
+        asm_pc = asm_pc + 4;
+    } else if (asm_error == ASM_OK) {
+        asm_error = ASM_ERR_FULL;
+    }
+    return true;
+}
+
+#endif
+#if defined(__x86_64__)
 /* JitBaselineCompiler>>emitLiterals */
 static void emit_literals(void)
 {
@@ -70121,6 +70517,9 @@ static bool emit_primitive(void)
         return true;
     }
     amd64_assembler_bind(fail);
+    if (((jit_flags & JIT_FLAG_PRIMS) != 0) && is_leaf(prim_index)) {
+        return emit_leaf_primitive_call();
+    }
     if (asm_noting) {
         note("the primitive's C function: success returns to the sender, failure continues here", 0);
     }
@@ -72495,6 +72894,9 @@ exit_offset_to_31:;
         return true;
     }
     arm64_assembler_bind(fail);
+    if (((jit_flags & JIT_FLAG_PRIMS) != 0) && is_leaf(prim_index)) {
+        return emit_leaf_primitive_call();
+    }
     if (asm_noting) {
         note("the primitive's C function: success returns to the sender, failure continues here", 0);
     }

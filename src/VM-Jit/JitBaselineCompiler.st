@@ -1028,6 +1028,7 @@ emitPrimitive
 		(k = brt pkReplace and: [curArgs = 4]) ifTrue: [self emitReplacePrimitive: fail]].
 	k = brt pkMarker ifTrue: [^true].
 	asm bind: fail.
+	(runtime prims and: [brt isLeafPrimitive: analysis primitive]) ifTrue: [^self emitLeafPrimitiveCall].
 	asm comment: 'the primitive''s C function: success returns to the sender, failure continues here'.
 	info := asm newLabel.
 	asm adr: X10 label: info.
@@ -1035,6 +1036,28 @@ emitPrimitive
 	asm mov: X3 imm: ((curArgs bitOr: ((brt isLeafPrimitive: analysis primitive) ifTrue: [256] ifFalse: [0])) bitOr: (analysis primitiveHasErrorCode ifTrue: [512] ifFalse: [0])).
 	asm b: primLabel.
 	asm bind: info.
+	^true
+!
+emitLeafPrimitiveCall
+	"A leaf primitive's C function, called directly (JitBaselineRuntime>>leafPrim:fn:argc:: nothing to make canonical, no safepoint): its result returns to the sender; failure (0) continues into the frame with the receiver in x0 again."
+	<function>
+	| failed |
+	failed := asm newLabel.
+	asm comment: 'the leaf primitive''s C function, called directly: its result (0 if it failed) back to the sender'.
+	asm isX64 ifFalse: [asm str: X30 base: SP preIndex: -16].
+	asm mov: X0 with: X20.
+	asm mov: X1 imm: (brt primFunctionOf: analysis primitive).
+	asm mov: X2 imm: curArgs.
+	asm isX64
+		ifTrue: [asm callCFromSend: brt leafPrimFunction]
+		ifFalse: [
+			asm mov: X16 imm: brt leafPrimFunction.
+			asm blr: X16.
+			asm ldr: X30 base: SP postIndex: 16].
+	asm cbz: X0 to: failed.
+	asm ret.
+	asm bind: failed.
+	asm ldur: X0 base: X20 offset: -8.
 	^true
 !
 emitPerformPrimitive

@@ -159,6 +159,9 @@ entrySlowFunction
 primFunction
 	^self cCoerce: (self functionPointer: #prim:fp:fn:info:) to: 'uint64_t'
 !
+leafPrimFunction
+	^self cCoerce: (self functionPointer: #leafPrim:fn:argc:) to: 'uint64_t'
+!
 returnSlowFunction
 	^self cCoerce: (self functionPointer: #returnSlow:) to: 'uint64_t'
 !
@@ -856,6 +859,25 @@ prim: f fp: fp fn: fn info: info
 		^2].
 	status = PS_RESEND ifTrue: [self fatal: 'a resending primitive called from baseline code'].
 	^1
+!
+leafPrim: fp fn: fn argc: n
+	"A compiled method's <leaf> C primitive, called directly by its machine code (the receiver below fp, n arguments from fp; nothing canonical: a leaf primitive neither allocates, collects, switches processes, looks at Contexts nor invalidates code): its result, or 0 (no oop) if it failed, the error code then in the state."
+	<function>
+	<var: #fp type: 'uint64_t'>
+	<var: #fn type: 'uint64_t'>
+	<var: #n type: 'uint64_t'>
+	<returns: 'uint64_t'>
+	| status v code |
+	statPrimCalls := statPrimCalls + 1.
+	status := interpreter callLeafPrimitive: (self cCoerce: fn to: 'prim_fn') base: (self cCoerce: fp to: 'oop *') - 1 argc: n asInt32.
+	(self likely: status = PS_OK) ifTrue: [
+		v := interpreter primResult.
+		interpreter primResult: memory nilOop.
+		^v].
+	status = PS_FAIL ifFalse: [self fatal: 'a leaf primitive neither answered nor failed'].
+	code := interpreter primErrorCode.
+	jit state ecode: (code >= 0 ifTrue: [self intOop: code asInt64] ifFalse: [memory nilOop]) asInt64.
+	^0
 !
 box: f bits: b
 	"A Float (IEEE bits b) that is not a SmallFloat64 (f's pc and sp stored): a BoxedFloat64, which may collect."
