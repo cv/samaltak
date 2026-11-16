@@ -281,4 +281,31 @@ testHostResize
 	DisplayWindow injectEvent: {UIEvent evWindowResized. nil. 1000. 700. 0. 0. nil. world displayWindow windowId}.
 	self settle.
 	self assert: world extent equals: world displayWindow extent
+!
+testVsyncWhileAnotherWorldRuns
+	| b |
+	self keepPresenting.
+	(self vsyncDrives: world) ifFalse: [^self].
+	b := World openHidden: 400 @ 300.
+	[self assert: (self vsyncDrives: world)] ensure: [b stop]
+!
+testVsyncAfterAnotherWorldStopped
+	self keepPresenting.
+	(self vsyncDrives: world) ifFalse: [^self].
+	(World openHidden: 400 @ 300) stop.
+	self assert: (self vsyncDrives: world)
+! !
+
+!CompositorTest methodsFor: 'support'!
+keepPresenting
+	"A window animating every frame: my World never sleeps, so it never re-arms vsync on waking."
+	(self open: RecordingTestView new title: 'Frames' at: (100 @ 100 extent: 300 @ 200)) requestAnimationFrames: [:ms | true].
+	world compositor tickTimeout: 10000
+!
+vsyncDrives: aWorld
+	"Ticking on its 10 s timeout, aWorld's compositor presents 5 frames within 2 s only on display refreshes. It has none while the display sleeps or an earlier World (a live image's) has them."
+	| n |
+	n := aWorld compositor frameCount.
+	aWorld waitForFrames: 5.
+	^aWorld compositor frameCount - n >= 5
 ! !

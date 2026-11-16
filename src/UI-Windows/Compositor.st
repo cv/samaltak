@@ -1,6 +1,6 @@
 Object subclass: #Compositor
 	instanceVariableNames: 'world displayWindow renderer process running vsync vsyncIndex wake sleeping skip tickTimeout lastTick idleFrames frameCount presenting requests recorder lastFrameWork onWorkClock ownsWorkClock gpuTimer clock knownProcesses lastCpu lastScan lastRecord lastError lastErrorTime pipelineVersion standIn'
-	classVariableNames: ''
+	classVariableNames: 'Running'
 	package: 'UI-Windows'!
 
 Compositor comment: 'I am the compositor: a Process at priority 70 woken by the platform''s vsync semaphore, presenting at 60 Hz (every second refresh on a 120 Hz display). Each frame I step the layer animations (window open/close, focus cross-fades, menus), toasts and the remote pointer, post frame ticks to windows with animations, render every Layer whose DisplayList or chrome changed into its Surface, composite all layers (offset, scale about the center, opacity, hard shadows) over the halftone desk with the top bar and overlays onto the DisplayWindow, and record a FrameRecord (Profiler recordFrame:). I never wait for a window''s Process: a busy window keeps its last frame.
@@ -73,6 +73,7 @@ start
 	wake := Semaphore new.
 	vsyncIndex := Smalltalk vm registerExternalSemaphore: vsync.
 	onWorkClock := Smalltalk vm isOnWorkClock.
+	Running := self class running copyWith: self.
 	self armVsync.
 	rate := [displayWindow refreshRate] on: Error do: [:e | e return: 60].
 	skip := rate > 61 ifTrue: [(rate / 60) rounded] ifFalse: [1].
@@ -86,7 +87,8 @@ start
 stop
 	running := false.
 	recorder isNil ifFalse: [self stopRecording].
-	DisplayWindow vsyncSemaphoreIndex: 0.
+	Running := self class running copyWithout: self.
+	self class armVsync.
 	Smalltalk vm unregisterExternalSemaphore: vsyncIndex.
 	vsyncIndex := nil.
 	gpuTimer isNil ifFalse: [gpuTimer stop].
@@ -96,6 +98,7 @@ stop
 !
 abandon
 	running := false.
+	Running := self class running copyWithout: self.
 	Smalltalk vm unregisterExternalSemaphore: vsyncIndex.
 	gpuTimer isNil ifFalse: [gpuTimer abandon].
 	process isNil ifFalse: [process terminate].
@@ -108,10 +111,10 @@ wake
 startRecording: aFrameRecorder
 	"Record on the work clock (the VM's Scheduler): its frame signal replaces the display's refreshes, so I present once per tick of that clock and the recorder gets every frame, whatever the machine does."
 	aFrameRecorder open.
-	DisplayWindow vsyncSemaphoreIndex: 0.
-	vsync consumeAllSignals.
 	ownsWorkClock := onWorkClock not.
 	onWorkClock := true.
+	self class armVsync.
+	vsync consumeAllSignals.
 	aFrameRecorder startAt: (Smalltalk vm workClockStart: FrameRecorder tickRate semaphore: vsyncIndex).
 	recorder := aFrameRecorder.
 	world changed
@@ -195,11 +198,17 @@ waitForTick
 armVsync
 	"Have the display link signal vsync on every refresh, the recording clock on each of its ticks. While the display sleeps there is none: waitForTick ticks on its timeout."
 	onWorkClock ifTrue: [^Smalltalk vm workClockStart: FrameRecorder tickRate semaphore: vsyncIndex].
-	[DisplayWindow vsyncSemaphoreIndex: vsyncIndex] on: Error do: [:e | e return: nil]
+	self class armVsync
+!
+wantsVsync
+	^sleeping not and: [onWorkClock not]
+!
+vsyncIndex
+	^vsyncIndex
 !
 sleep
 	sleeping := true.
-	DisplayWindow vsyncSemaphoreIndex: 0.
+	self class armVsync.
 	wake consumeAllSignals.
 	world needsFrame ifFalse: [wake waitTimeoutMSecs: 500].
 	sleeping := false.
@@ -487,6 +496,16 @@ lastError
 !Compositor class methodsFor: 'accessing'!
 priority
 	^70
+!
+running
+	"The running compositors in start order."
+	^Running ifNil: [#()]
+!
+armVsync
+	"The VM signals one vsync semaphore: the first running compositor that wants it gets it; the others tick on their timeout (waitForTick)."
+	| c |
+	c := self running detect: [:each | each wantsVsync] ifNone: [nil].
+	[DisplayWindow vsyncSemaphoreIndex: (c isNil ifTrue: [0] ifFalse: [c vsyncIndex])] on: Error do: [:e | e return: nil]
 ! !
 
 !Compositor class methodsFor: 'instance creation'!
