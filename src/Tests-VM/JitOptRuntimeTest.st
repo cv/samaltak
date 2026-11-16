@@ -718,25 +718,43 @@ testBlocksReadTempsTheirHomeDoesNot
 		self assert: (o real: bad) equals: (expected value: bad)]
 !
 testFramesMadeContextsHaveNilInDeadTemps
-	"Reading thisContext's sender makes the frames Contexts while the optimized caller waits in a send: its live temps are what it holds, its dead ones nil (with --jit-flags -live it keeps every temp); a method with a primitive keeps all of its temps."
-	| o r live |
+	"Reading thisContext's sender makes the frames Contexts while the optimized caller waits in a send: its live temps are what it holds, its dead ones nil (with --jit-flags -live it keeps every temp); a method with a primitive keeps all of its temps. The activation of temps: looked at ran without a process switch: one preempted at its entry goes on in baseline code, with every temp (JitBaselineRuntime>>entrySlow:ret:callee:)."
+	| o r live start before switched tries d |
 	Smalltalk vm jitParameters: #(nil '-eager' nil nil).
 	live := Smalltalk vm jitFlags includes: 'live'.
 	self define: 'senderTemp: k ^thisContext sender tempAt: k'.
-	self define: 'temps: x | d l | d := x * 3. l := d + 1. ^Array with: (self senderTemp: 2) with: (self senderTemp: 3) with: l'.
+	"temps: counts toward optimization in a slot of its own: in the one the loop below counts in, the loop would always be the one to reach zero"
+	[self define: 'temps: x | d l | d := x * 3. l := d + 1. ^Array with: (self senderTemp: 2) with: (self senderTemp: 3) with: l'.
+	 ((JitRuntimeTestSubject >> #temps:) identityHash bitAnd: 16rFFFF) = ((JitOptRuntimeTest >> #testFramesMadeContextsHaveNilInDeadTemps) identityHash bitAnd: 16rFFFF)] whileTrue.
 	self define: 'primTemps: x <primitive: ''intAdd'' error: ec> | d l | d := x * 3. l := d + 1. ^Array with: (self senderTemp: 3) with: (self senderTemp: 4) with: l'.
 	o := JitRuntimeTestSubject new.
+	start := self statistics.
 	1 to: 1500 do: [:k |
-		self assert: (o temps: k) last equals: k * 3 + 1.
-		self assert: (o primTemps: k) last equals: k * 3 + 1].
-	r := o temps: 5.
-	self assert: (r copyFrom: 2 to: 3) equals: #(16 16).
-	(self stressed not and: [live]) ifTrue: [self assert: r first isNil].
-	self assert: (o primTemps: 5) equals: #(15 16 16).
+		r := o temps: k.
+		r last = (k * 3 + 1) ifFalse: [self fail: 'temps: ' , k printString , ' answered ' , r printString].
+		r := o primTemps: k.
+		r last = (k * 3 + 1) ifFalse: [self fail: 'primTemps: ' , k printString , ' answered ' , r printString]].
+	tries := 0.
+	[before := self statistics.
+	 r := o temps: 5.
+	 switched := (self statistics - before) processSwitches > 0.
+	 switched and: [(tries := tries + 1) < 100]] whileTrue.
+	self deny: switched description: 'every activation of temps: saw a process switch'.
+	self assert: (r copyFrom: 2 to: 3) = #(16 16) description: 'the live temps of temps: ' , r printString.
+	(self stressed not and: [live]) ifTrue: [
+		d := self statistics - start.
+		self assert: r first isNil description: 'the dead temp of temps: is ' , r first printString , ' in an activation without a process switch (since the loop began: '
+			, d optMethodsCompiled printString , ' units optimized, ' , d optCompileFailures printString , ' failed, ' , d optDeoptimizations printString , ' deoptimizations, '
+			, d optInvalidations printString , ' invalidations, ' , d jitCacheFlushes printString , ' flushes)'].
+	r := o primTemps: 5.
+	self assert: r = #(15 16 16) description: 'the temps of primTemps: ' , r printString.
 	"code compiled before the flags change still runs until the pending flush (JitRuntime>>prepare)"
 	[Smalltalk vm jitParameters: #(nil '-live' nil nil).
-	 1 to: 1500 do: [:k | self assert: (o temps: k) last equals: k * 3 + 1].
-	 self assert: (o temps: 5) equals: #(15 16 16)]
+	 1 to: 1500 do: [:k |
+		r := o temps: k.
+		r last = (k * 3 + 1) ifFalse: [self fail: 'temps: ' , k printString , ' answered ' , r printString , ' without live']].
+	 r := o temps: 5.
+	 self assert: r = #(15 16 16) description: 'the temps of temps: without live ' , r printString]
 		ensure: [live ifTrue: [Smalltalk vm jitParameters: #(nil 'live' nil nil)]]
 !
 testLoopUnitWithDeadTemps
