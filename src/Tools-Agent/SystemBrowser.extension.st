@@ -1,10 +1,16 @@
 !SystemBrowser methodsFor: '*Tools-Agent'!
 agentContext
-	"The selected class (its metaclass on the class side) as self; the selected selector, method and package, and the selected text."
+	"The most specific selection is self; retain its browser context as bindings."
+	| method receiver |
+	method := self selectedMethod.
+	receiver := method ifNil: [
+		protocol ifNil: [self selectedBehavior]].
 	^super agentContext
-		receiver: self selectedBehavior;
+		receiver: receiver;
+		bind: #behavior to: self selectedBehavior;
+		bind: #protocol to: protocol;
 		bind: #selector to: selector;
-		bind: #method to: self selectedMethod;
+		bind: #method to: method;
 		bind: #package to: package;
 		selection: (code hasSelection ifTrue: [code selectedText]);
 		yourself

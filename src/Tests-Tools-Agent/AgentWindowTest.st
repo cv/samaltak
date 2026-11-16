@@ -302,7 +302,8 @@ testSystemBrowserContext
 	| browser context |
 	browser := self open: [SystemBrowser openIn: (40 @ 60 extent: 866 @ 468) onClass: OrderedCollection selector: #add:].
 	context := self in: browser do: [browser content code selectFrom: 1 to: 4. browser content agentContext].
-	self assert: context receiver == OrderedCollection.
+	self assert: context receiver == (OrderedCollection >> #add:).
+	self assert: (self valueOf: #behavior in: context) == OrderedCollection.
 	self assert: (self valueOf: #selector in: context) equals: #add:.
 	self assert: (self valueOf: #method in: context) == (OrderedCollection >> #add:).
 	self assert: (self valueOf: #package in: context) == browser content selectedPackage.
@@ -317,7 +318,7 @@ testCommandJInASystemBrowser
 	| browser context |
 	browser := self open: [SystemBrowser openIn: (40 @ 60 extent: 866 @ 468) onClass: OrderedCollection selector: #add:].
 	context := (self commandJIn: browser) content conversation context.
-	self assert: context receiver == OrderedCollection.
+	self assert: context receiver == (OrderedCollection >> #add:).
 	self assert: (self valueOf: #method in: context) == (OrderedCollection >> #add:)
 !
 testMethodBrowserContext
