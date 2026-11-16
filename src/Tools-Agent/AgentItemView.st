@@ -23,6 +23,12 @@ margin
 !
 contentWidth
 	^self width - self gutterWidth - self margin max: 40
+!
+agentContext
+	^AgentContext new
+		receiver: item object;
+		label: item objectId;
+		yourself
 ! !
 
 !AgentItemView methodsFor: 'updating'!
@@ -73,6 +79,10 @@ drawOref: anId at: aPoint on: aCanvas
 	aCanvas strokeRect: (aPoint extent: w @ font lineHeight) color: self theme ultramarine width: 1.
 	aCanvas drawString: anId at: aPoint + (4 @ 0) font: font color: self theme ultramarine.
 	^w
+!
+drawOverlayOn: aCanvas
+	self hasKeyboardFocus ifTrue: [
+		aCanvas strokeRect: ((self gutterWidth @ 0 corner: (self width - self margin) @ (self height - 8)) insetBy: 1) color: self theme ultramarine width: 2]
 ! !
 
 !AgentItemView methodsFor: 'remote control'!
@@ -98,4 +108,27 @@ for: anAgentItem
 		at: #show put: AgentShowView;
 		yourself.
 	^(class at: anAgentItem kind ifAbsent: [^nil]) new item: anAgentItem; yourself
+! !
+
+!AgentItemView methodsFor: 'events'!
+wantsKeyboardFocus
+	^item notNil and: [item objectId notNil and: [item failed not]]
+!
+mouseDown: anEvent
+	self wantsKeyboardFocus ifFalse: [^false].
+	self focus.
+	^true
+!
+keyDown: anEvent
+	| key |
+	self wantsKeyboardFocus ifFalse: [^false].
+	anEvent modifiers commandKey ifFalse: [^false].
+	key := anEvent key.
+	key isCharacter ifFalse: [^false].
+	key := key asLowercase.
+	key = $i ifTrue: [Tools inspect: item object. ^true].
+	key = $b ifTrue: [Tools browse: item object. ^true].
+	key = $j ifTrue: [Tools open: #agent with: self. ^true].
+	key = $c ifTrue: [self clipboardText: item result. ^true].
+	^false
 ! !
