@@ -26,6 +26,7 @@ build
 	samplingLabel := Label new font: #smallItalic; color: #ink3; align: #right; name: 'sampling'; yourself.
 	toolbar := Row with: {
 		spanToggle sizeToContent.
+		(Button label: 'GC' action: [Smalltalk vm garbageCollect]) name: 'gc'; sizeToContent.
 		samplingLabel flex: 1; yourself.
 		(Label text: '■ live' font: #uiBold) align: #right; fixed: 40; yourself}.
 	toolbar spacing: 6; padding: (8 @ 5 corner: 8 @ 5); fixed: 30.
