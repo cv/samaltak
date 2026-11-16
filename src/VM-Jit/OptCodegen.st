@@ -1459,24 +1459,26 @@ subFp: off
 !
 emitReplace: n slow: slow done: done
 	"replaceFrom:to:with:startingAt: (NF_REPLACE: the receiver's elements bytes, NF_W32 32-bit words, NF_PTRS pointers) as its primitive does it (JitBaselineCompiler>>emitReplacePrimitive:), in x16, x17 and the scratch registers, its arguments read again where needed: the copy stub, the receiver the result; anything else the call (slow)."
-	| nd s args d e young old skip r |
+	| nd s args d e young old skip r fail fused |
+	fused := self isFusedReplace: n.
+	fail := fused ifTrue: [asm newLabel] ifFalse: [slow].
 	nd := ir node: n.
 	s := (nd flags bitAnd: NF_PTRS) ~= 0 ifTrue: [3] ifFalse: [(nd flags bitAnd: NF_W32) ~= 0 ifTrue: [2] ifFalse: [0]].
 	args := nd args.
 	asm comment: 'replaceFrom:to:with:startingAt: stop (x17), start - 1 (x16): not below 0, stop not below it'.
-	self untag: (ir operand: args + 2) into: X17 slow: slow.
-	self untag: (ir operand: args + 1) into: X16 slow: slow.
+	self untag: (ir operand: args + 2) into: X17 slow: fail.
+	self untag: (ir operand: args + 1) into: X16 slow: fail.
 	asm subs: X16 with: X16 imm: 1.
-	asm b: slow if: COND_LT.
+	asm b: fail if: COND_LT.
 	asm cmp: X17 with: X16.
-	asm b: slow if: COND_LT.
+	asm b: fail if: COND_LT.
 	asm comment: 'the receiver: of its kind, not immutable, stop within it'.
 	d := self src: (ir operand: args) into: self scratchA.
 	asm ldr: self scratchB base: d offset: 0.
 	asm tst: self scratchB imm: H_IMMUTABLE.
-	asm b: slow if: COND_NE.
+	asm b: fail if: COND_NE.
 	asm ubfx: X16 with: self scratchB lsb: H_FMT_SHIFT width: 5.
-	self emitKindCheck: X16 shift: s slow: slow.
+	self emitKindCheck: X16 shift: s slow: fail.
 	s = 3 ifTrue: [
 		asm comment: 'young or remembered'.
 		young := asm newLabel.
@@ -1489,36 +1491,36 @@ emitReplace: n slow: slow done: done
 		asm b: young if: COND_LO.
 		asm bind: old.
 		asm tst: self scratchB imm: H_REMEMBERED.
-		asm b: slow if: COND_EQ.
+		asm b: fail if: COND_EQ.
 		asm bind: young].
 	self emitElementsOf: d shift: s into: self scratchB temp: X16.
 	asm cmp: X17 with: self scratchB.
-	asm b: slow if: COND_GT.
+	asm b: fail if: COND_GT.
 	asm comment: 'the replacement: an object of the receiver''s kind; its start - 1 (x16) not below 0, n from it within it'.
 	e := self src: (ir operand: args + 3) into: self scratchB.
 	asm tst: e imm: 7.
-	asm b: slow if: COND_NE.
+	asm b: fail if: COND_NE.
 	asm ldr: X17 base: e offset: 0.
 	asm ubfx: X17 with: X17 lsb: H_FMT_SHIFT width: 5.
-	self emitKindCheck: X17 shift: s slow: slow.
+	self emitKindCheck: X17 shift: s slow: fail.
 	self emitElementsOf: e shift: s into: X17 temp: X16.
-	self untag: (ir operand: args + 4) into: X16 slow: slow.
+	self untag: (ir operand: args + 4) into: X16 slow: fail.
 	asm subs: X16 with: X16 imm: 1.
-	asm b: slow if: COND_LT.
+	asm b: fail if: COND_LT.
 	asm sub: X17 with: X17 with: X16.
-	self untag: (ir operand: args + 2) into: X16 slow: slow.
+	self untag: (ir operand: args + 2) into: X16 slow: fail.
 	asm sub: X17 with: X17 with: X16.
-	self untag: (ir operand: args + 1) into: X16 slow: slow.
+	self untag: (ir operand: args + 1) into: X16 slow: fail.
 	asm add: X17 with: X17 with: X16.
 	asm subs: X17 with: X17 imm: 1.
-	asm b: slow if: COND_LT.
+	asm b: fail if: COND_LT.
 	asm comment: 'the copy stub: x16 the receiver''s elements from start, x17 the replacement''s from its start, n << %d bytes' with: s.
 	skip := asm newLabel.
-	self untag: (ir operand: args + 4) into: X17 slow: slow.
+	self untag: (ir operand: args + 4) into: X17 slow: fail.
 	asm add: X17 with: e with: X17 shift: SHIFT_LSL amount: s.
 	asm add: X17 with: X17 imm: 16 - (1 << s).
-	self untag: (ir operand: args + 2) into: self scratchB slow: slow.
-	self untag: (ir operand: args + 1) into: X16 slow: slow.
+	self untag: (ir operand: args + 2) into: self scratchB slow: fail.
+	self untag: (ir operand: args + 1) into: X16 slow: fail.
 	asm sub: self scratchB with: self scratchB with: X16.
 	asm adds: self scratchB with: self scratchB imm: 1.
 	d := self src: (ir operand: args) into: self scratchA.
@@ -1536,7 +1538,15 @@ emitReplace: n slow: slow done: done
 	d := self src: (ir operand: args) into: r.
 	d ~= r ifTrue: [asm mov: r with: d].
 	self def: n from: r.
-	asm b: done
+	asm b: done.
+	fused ifTrue: [
+		asm bind: fail.
+		asm comment: 'the receiver, just allocated: its elements zeroed before the call'.
+		d := self src: (ir operand: args) into: X16.
+		d ~= X16 ifTrue: [asm mov: X16 with: d].
+		asm ldr: (self scratchB bitOr: REG_W) base: X16 offset: 0.
+		asm mov: X17 imm: 0.
+		self emitZeroSlotsOf: X16 from: X17 count: self scratchB]
 !
 emitKindCheck: f shift: s slow: slow
 	"Unless format f is one of elements of 1 << s bytes (bytes, 32-bit words, pointers without fixed fields): slow."
@@ -1571,9 +1581,97 @@ emitElementsOf: x shift: s into: r temp: t
 	asm and: t with: t imm: (s = 0 ifTrue: [7] ifFalse: [1]).
 	asm sub: r with: r with: t
 !
+fusedReplaceOf: n
+	"The replaceFrom: 1 to: stop with:startingAt: (NF_REPLACE) of allocation n's elements (bytes or 32-bit words) that writes them before anything can see them, -1 if there is none: up to it no node deoptimizes, calls or uses n but for its size, through jumps into blocks only that way reaches and a branch on stop > 0 (else it has nothing to write), stop is n's size or defined before n, and so is the replacement (isBefore:node:: then it is another object, not n with its unwritten elements). n leaves elements from stop on zeroed only, the call the others if its fast path fails (emitFill:upTo:)."
+	<function>
+	| nd fmt x b t c xd stop r rd tested |
+	tested := -1.
+	nd := ir node: n.
+	fmt := (nd c bitAnd: 255) asInt32.
+	(fmt = F_BYTES or: [fmt = F_W32]) ifFalse: [^-1].
+	nd nargs asInt32 = 2 ifFalse: [^-1].
+	b := nd block.
+	x := nd next.
+	[true] whileTrue: [
+		x < 0 ifTrue: [^-1].
+		xd := ir node: x.
+		((xd op asInt32 = O_CALL or: [xd op asInt32 = O_SEND]) and: [(xd flags bitAnd: NF_REPLACE) ~= 0 and: [(ir resolve: (ir operand: xd args)) = n]]) ifTrue: [
+			r := x.
+			rd := xd.
+			((rd flags bitAnd: NF_PTRS) ~= 0 or: [((rd flags bitAnd: NF_W32) ~= 0) ~= (fmt = F_W32)]) ifTrue: [^-1].
+			(self isConstant: (ir operand: rd args + 1) value: 1) ifFalse: [^-1].
+			stop := self baseValueOf: (ir operand: rd args + 2).
+			(tested < 0 or: [tested = stop]) ifFalse: [^-1].
+			(stop = (self baseValueOf: (ir operand: nd args + 1)) or: [self isBefore: stop node: n]) ifFalse: [^-1].
+			(self isBefore: (self baseValueOf: (ir operand: rd args + 3)) node: n) ifFalse: [^-1].
+			^r].
+		xd op asInt32 = O_GOTO ifTrue: [
+			b := (ir block: b) succ0.
+			(ir block: b) npreds = 1 ifFalse: [^-1].
+			x := (ir block: b) first]
+		ifFalse: [
+			xd op asInt32 = O_BRANCH
+				ifTrue: [
+					t := (ir block: b) succ0.
+					((ir block: t) npreds = 1 and: [tested < 0 and: [self isPositiveTest: xd a]]) ifFalse: [^-1].
+					tested := self baseValueOf: (ir node: (ir resolve: xd a)) a.
+					b := t.
+					x := (ir block: b) first]
+				ifFalse: [
+					(self isQuiet: x for: n) ifFalse: [^-1].
+					x := xd next]]].
+	^-1
+!
+isBefore: v node: n
+	"Value v (past guards and casts: baseValueOf:) is a constant or defined before node n, which it dominates as both are operands of what follows n: it existed before n ran, so if n allocates, v is another object."
+	| vd |
+	vd := ir node: v.
+	^vd op asInt32 = O_CONST or: [vd pos < (ir node: n) pos]
+!
+isFusedReplace: n
+	"Replace n writes the elements of the allocation that is its receiver before anything sees them (fusedReplaceOf:): the allocation zeroed only the rest."
+	| a ad |
+	a := ir resolve: (ir operand: (ir node: n) args).
+	ad := ir node: a.
+	((ad op asInt32 = O_CALL or: [ad op asInt32 = O_SEND]) and: [(ad flags bitAnd: NF_ALLOC) ~= 0]) ifFalse: [^false].
+	^(self fusedReplaceOf: a) = n
+!
+isQuiet: x for: n
+	"Node x neither deoptimizes, calls, stores nor uses n but for its size."
+	| xd op |
+	xd := ir node: x.
+	op := xd op asInt32.
+	xd state >= 0 ifTrue: [^false].
+	(op = O_CONST or: [op = O_PHI or: [op = O_IADD or: [op = O_ISUB or: [op = O_ICMP or: [op = O_EQ or: [op = O_NE or: [op = O_SIZE or: [op = O_LOADFIELD or: [op = O_CAST or: [op = O_GUARDINT or: [op = O_HOMESLOT or: [op = O_PARAM or: [op = O_LOADSLOT]]]]]]]]]]]]]) ifFalse: [^false].
+	op = O_SIZE ifTrue: [^true].
+	op = O_PHI ifTrue: [
+		0 to: xd nargs asInt32 - 1 do: [:i | (ir resolve: (ir operand: xd args + i)) = n ifTrue: [^false]].
+		^true].
+	^(ir resolve: xd a) ~= n and: [(ir resolve: xd b) ~= n]
+!
+isPositiveTest: t
+	"t (a branch's condition) is x > 0 or x >= 1 (x the stop of the replace on its true side)."
+	| td |
+	td := ir node: (ir resolve: t).
+	td op asInt32 = O_ICMP ifFalse: [^false].
+	^(td aux = 3 and: [self isConstant: td b value: 0]) or: [td aux = 5 and: [self isConstant: td b value: 1]]
+!
+isConstant: v value: i
+	"v is the SmallInteger i."
+	| nd |
+	nd := ir node: (ir resolve: v).
+	^nd op asInt32 = O_CONST and: [nd aux asUInt64 = (self intOop: i)]
+!
+baseValueOf: v
+	"v, past guards and casts."
+	| r |
+	r := ir resolve: v.
+	[(ir node: r) op asInt32 = O_GUARDINT or: [(ir node: r) op asInt32 = O_CAST]] whileTrue: [r := ir resolve: (ir node: r) a].
+	^r
+!
 emitAllocate: n slow: slow done: done
 	"basicNew(:) in eden: header (slots, format, a hash from the JitState's seed), class, nil fields (bytes and 32-bit words zeroed, their slots and format from the size); no room, the sample's limit or more than 4096 slots: the send (slow)."
-	| nd fmt isize k e sz r loop fill even v shift max |
+	| nd fmt isize k e sz r loop fill even v shift max fused |
 	nd := ir node: n.
 	fmt := (nd c bitAnd: 255) asInt32.
 	isize := (nd c >> 8) asInt32.
@@ -1640,6 +1738,12 @@ emitAllocate: n slow: slow done: done
 	asm str: self scratchA base: X17 offset: 0.
 	self loadConstant: nd tcls into: X17.
 	asm stp: self scratchB with: X17 base: X16 offset: 0.
+	(shift > 0 and: [(fused := self fusedReplaceOf: n) >= 0]) ifTrue: [
+		self emitFill: n upTo: (ir operand: (ir node: fused) args + 2).
+		r := self dst: n.
+		asm mov: r with: X16.
+		self def: n from: r.
+		^asm b: done].
 	asm comment: (shift = 0 ifTrue: ['fields nil'] ifFalse: ['zeroed']).
 	v := shift = 0 ifTrue: [X23] ifFalse: [XZR].
 	(k >= 0 and: [k <= 16])
@@ -1664,6 +1768,53 @@ emitAllocate: n slow: slow done: done
 	asm mov: r with: X16.
 	self def: n from: r.
 	asm b: done
+!
+emitFill: n upTo: stop
+	"Allocation n (x16) of bytes or 32-bit words, its header stored, that the replace writing elements 1 to stop follows (fusedReplaceOf:): its slots zeroed from the one element stop + 1 starts in (all of them if stop is not a SmallInteger; none past the last); stop its size: the last slot (the format's unused elements)."
+	| s r zero all smi |
+	s := (((ir node: n) c bitAnd: 255) asInt32 = F_W32) ifTrue: [2] ifFalse: [0].
+	asm ldr: (self scratchB bitOr: REG_W) base: X16 offset: 0.
+	(self baseValueOf: stop) = (self baseValueOf: (ir operand: (ir node: n) args + 1)) ifTrue: [
+		zero := asm newLabel.
+		asm comment: 'the last slot zeroed (the replace that follows writes the elements)'.
+		asm cbz: self scratchB to: zero.
+		asm add: self scratchA with: X16 with: self scratchB shift: SHIFT_LSL amount: 3.
+		asm str: XZR base: self scratchA offset: 8.
+		^asm bind: zero].
+	asm comment: 'zeroed from the slot of the element after those the replace that follows writes'.
+	smi := (ir node: (self baseValueOf: stop)) tkind asInt32 = T_SMI.
+	zero := asm newLabel.
+	all := asm newLabel.
+	r := self src: stop into: X17.
+	smi ifFalse: [asm tbz: r bit: 0 to: all].
+	asm asr: X17 with: r imm: 1.
+	asm cmp: X17 imm: 0.
+	asm csel: X17 with: X17 with: XZR cond: COND_GT.
+	asm lsl: self scratchA with: self scratchB imm: 3 - s.
+	asm cmp: X17 with: self scratchA.
+	asm csel: X17 with: X17 with: self scratchA cond: COND_LO.
+	s > 0 ifTrue: [asm lsl: X17 with: X17 imm: s].
+	asm lsr: X17 with: X17 imm: 3.
+	smi ifFalse: [
+		asm b: zero.
+		asm bind: all.
+		asm mov: X17 imm: 0].
+	asm bind: zero.
+	self emitZeroSlotsOf: X16 from: X17 count: self scratchB
+!
+emitZeroSlotsOf: o from: w count: k
+	"Zero o's slots w (a register; changed) to k (a register) - 1; scratchA changes."
+	| loop done |
+	loop := asm newLabel.
+	done := asm newLabel.
+	asm bind: loop.
+	asm cmp: w with: k.
+	asm b: done if: COND_HS.
+	asm add: self scratchA with: o with: w shift: SHIFT_LSL amount: 3.
+	asm str: XZR base: self scratchA offset: 16.
+	asm add: w with: w imm: 1.
+	asm b: loop.
+	asm bind: done
 !
 emitReloadPinned
 	asm comment: 'nil, true, false again (a GC may have moved them)'.

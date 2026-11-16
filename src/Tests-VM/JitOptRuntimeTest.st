@@ -758,6 +758,20 @@ testLoopUnitWithDeadTemps
 listingOf: aSelector
 	^(JitRuntimeTestSubject >> aSelector) machineCodeFor: #opt
 !
+testFusedFillIsInTheCode
+	"A new object of bytes the copy that follows fills is zeroed from the end of the copy only; one copied from itself is zeroed in full, the copy taking its fast path."
+	| o |
+	Smalltalk vm jitParameters: #(nil '-eager' nil nil).
+	self define: self garbageSource.
+	self fillingSources do: [:each | self define: each].
+	o := JitRuntimeTestSubject new.
+	1 to: 1200 do: [:i |
+		self assert: (o fillB: 10 stop: 4 from: #[1 2 3 4]) equals: #[1 2 3 4 0 0 0 0 0 0].
+		self assert: (o selfB: 10 at: 2) equals: (ByteArray new: 10)].
+	self assert: ((self listingOf: #fillB:stop:from:) includesSubstring: 'zeroed from the slot of the element after those the replace that follows writes').
+	self assert: ((self listingOf: #selfB:at:) includesSubstring: 'the copy stub').
+	self deny: ((self listingOf: #selfB:at:) includesSubstring: 'the replace that follows')
+!
 testDoublesAcrossAnAllocationAnsweringSomethingElse
 	"Floats live across an allocation whose send answers something else (its primitive failed: the deoptimization after it) are what they were, in straight code and in a loop."
 	| o |

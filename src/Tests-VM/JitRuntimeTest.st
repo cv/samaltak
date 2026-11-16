@@ -434,6 +434,84 @@ testCopiesOfEveryLengthAndOverlap
 		self assert: (JitRuntimeTestSubject new copies: [:k | (1 to: k) collect: [:i | i printString]] n: 40) equals: #()]
 ! !
 
+!JitRuntimeTest methodsFor: 'tests: copying'!
+garbageSource
+	"garbage leaves eden full of objects of 255s and 16rFFFFFFFFs (copies made and dropped): what is allocated next lands on them."
+	^'garbage | b w | b := ByteArray new: 2000. b atAllPut: 255. w := Bitmap new: 500. w atAllPut: 16rFFFFFFFF. 1 to: 10 do: [:i | b copy. w copy]'
+!
+copyingSource
+	"copies: max answers the copyFrom:to: and , that do not answer what element by element copies answer: bytes, Strings, 32-bit words, sizes 0 to max and large ones, each made on garbage (garbageSource)."
+	^'copies: max | bad |
+		bad := OrderedCollection new.
+		((0 to: max) asArray , #(1000 4095 4096 4097 32767 32769 40000)) do: [:n | | b s w ws |
+			b := ByteArray new: n + 10. 1 to: n + 10 do: [:i | b at: i put: i * 7 \\ 251 + 1].
+			s := ByteString new: n + 10. 1 to: n + 10 do: [:i | s at: i put: (Character value: i * 7 \\ 90 + 33)].
+			w := Bitmap new: n + 10. 1 to: n + 10 do: [:i | w at: i put: i * 123457 + 1 \\ 16rFFFFFFFF].
+			ws := WideString new: n + 10. 1 to: n + 10 do: [:i | ws at: i put: (Character value: i * 7 + 300)].
+			{b. s. w. ws} do: [:x | | c d |
+				self garbage.
+				c := x copyFrom: 3 to: n + 2.
+				(c class == x class and: [c size = n and: [(1 to: n) allSatisfy: [:i | (c at: i) = (x at: i + 2)]]]) ifFalse: [bad add: x class name -> n].
+				self garbage.
+				d := (x copyFrom: 1 to: n) , (x copyFrom: 5 to: 9).
+				(d size = (n + 5) and: [((1 to: n) allSatisfy: [:i | (d at: i) = (x at: i)]) and: [(1 to: 5) allSatisfy: [:i | (d at: n + i) = (x at: i + 4)]]]) ifFalse: [bad add: x class name -> n negated]]].
+		^bad asArray'
+!
+fillingSources
+	"New objects that one copy fills (fusedReplaceOf:: stop a SmallInteger before the allocation, no guard in between): all of them, part of them (the rest zeroed), from themselves (nothing written yet: all zero)."
+	^#('fillB: k stop: s0 from: x | r s | s := s0 + 0. r := ByteArray new: k. s > 0 ifTrue: [r replaceFrom: 1 to: s with: x startingAt: 1]. ^r'
+		'fillW: k stop: s0 from: x | r s | s := s0 + 0. r := Bitmap new: k. s > 0 ifTrue: [r replaceFrom: 1 to: s with: x startingAt: 1]. ^r'
+		'selfB: k at: j | r n | n := k - j + 1. r := ByteArray new: k. r replaceFrom: 1 to: n with: r startingAt: j. ^r'
+		'selfW: k at: j | r n | n := k - j + 1. r := Bitmap new: k. r replaceFrom: 1 to: n with: r startingAt: j. ^r')
+!
+fillingResults
+	"What fillingSources answer that is not what they should (called often enough first to be optimized with the feedback they give), every size to 40, made on garbage."
+	| o bad src wsrc r |
+	self define: self garbageSource.
+	self fillingSources do: [:each | self define: each].
+	o := JitRuntimeTestSubject new.
+	bad := OrderedCollection new.
+	src := (1 to: 60) asByteArray.
+	wsrc := Bitmap withAll: (16rFFFFFF01 to: 16rFFFFFF3C).
+	1 to: 1200 do: [:i | o fillB: 8 stop: 3 from: src; fillW: 8 stop: 3 from: wsrc; selfB: 8 at: i \\ 2 + 1; selfW: 8 at: i \\ 2 + 1].
+	0 to: 40 do: [:k |
+		0 to: k do: [:s |
+			o garbage.
+			r := o fillB: k stop: s from: src.
+			r asArray = ((1 to: k) collect: [:i | i <= s ifTrue: [i] ifFalse: [0]]) asArray ifFalse: [bad add: {#fillB. k. s}].
+			o garbage.
+			r := o fillW: k stop: s from: wsrc.
+			r asArray = ((1 to: k) collect: [:i | i <= s ifTrue: [wsrc at: i] ifFalse: [0]]) asArray ifFalse: [bad add: {#fillW. k. s}]].
+		1 to: 2 do: [:j |
+			o garbage.
+			((o selfB: k at: j) allSatisfy: [:e | e = 0]) ifFalse: [bad add: {#selfB. k. j}].
+			o garbage.
+			((o selfW: k at: j) allSatisfy: [:e | e = 0]) ifFalse: [bad add: {#selfW. k. j}]]].
+	^bad asArray
+!
+testFusedAllocationAndCopy
+	"copyFrom:to: and , answer what element by element copies do (copyingSource), new objects filled in full or in part or from themselves are what they should be (fillingResults), all made on garbage, here and in a VM with a 1 MB eden under the heap verifier (at most 100 s; any error is its answer); a copy into a new object whose fast path fails (the replacement too short: the fallback copies until it fails) leaves the new object's other elements zeroed."
+	| child short r |
+	self mode = 'opt' ifTrue: [Smalltalk vm jitParameters: #(nil '-eager' nil nil)].
+	self define: self garbageSource.
+	self define: self copyingSource.
+	3 timesRepeat: [self assert: (JitRuntimeTestSubject new copies: 70) equals: #()].
+	self assert: self fillingResults equals: #().
+	short := #[1 2 3 4 5].
+	1 to: 40 do: [:n |
+		JitRuntimeTestSubject new garbage.
+		r := [JitRuntimeTestSubject new fillB: n stop: n from: short] on: Error do: [:e | | c |
+			c := e signalerContext.
+			[c method selector = #fillB:stop:from:] whileFalse: [c := c sender].
+			c tempAt: 4].
+		self assert: r size equals: n.
+		self assert: r asArray equals: ((1 to: n) collect: [:i | i <= 5 ifTrue: [i] ifFalse: [0]]) asArray].
+	child := (OSProcess command: (OSProcess commandFor: {'env'. 'SAMALTAK_VERIFY_GC=1'. 'vm/build/samaltak'. '--eden'. '1'. '--jit'. self mode. '--jit-threshold'. '0'. '--jit-flags'. (self mode = 'opt' ifTrue: ['eager'] ifFalse: ['notes']). Smalltalk vm imagePath. '--headless'. '--eval'.
+		'[JitRuntimeTestSubject compile: ' , self garbageSource printString , '. JitRuntimeTestSubject compile: ' , self copyingSource printString , '. (JitRuntimeTestSubject new copies: 40) , (JitRuntimeTestSubject new copies: 40)] on: Error do: [:e | ''failed: '' , e messageText]'})) start.
+	[self assert: (self waitFor: [child poll] timeout: 100000)] ensure: [child terminate].
+	self assert: child output trimBoth equals: '#()'
+! !
+
 !JitRuntimeTest methodsFor: 'tests: allocation'!
 testAllocationWhosePrimitiveFails
 	"An allocation whose primitive fails answers what its fallback answers (here nil, or a String), and sends to it go to that: compiled code does not take it for an instance of the class."
