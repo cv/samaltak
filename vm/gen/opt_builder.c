@@ -9170,11 +9170,11 @@ exit_class_of:;
         }
         fmt = isize != 0 ? F_FIXED : F_EMPTY;
     } else {
-        if (!((spec == 2) || (spec == 3))) {
+        if (!((spec == 2) || (spec == 3) || (((spec == F_BYTES) || (spec == F_W32)) && (isize == 0)))) {
             r_allocate = false;
             goto exit_allocate;
         }
-        fmt = (isize != 0) || (spec == 3) ? F_FIXVAR : F_VAR;
+        fmt = spec >= F_W32 ? (int32_t)spec : (isize != 0) || (spec == 3) ? F_FIXVAR : F_VAR;
     }
     n_7 = ({
     if (getenv("SAMALTAK_OPT_TRACE") != NULL) {
@@ -10522,11 +10522,11 @@ exit_class_of_4:;
         }
         fmt_2 = isize_2 != 0 ? F_FIXED : F_EMPTY;
     } else {
-        if (!((spec_3 == 2) || (spec_3 == 3))) {
+        if (!((spec_3 == 2) || (spec_3 == 3) || (((spec_3 == F_BYTES) || (spec_3 == F_W32)) && (isize_2 == 0)))) {
             r_allocate_2 = false;
             goto exit_allocate_2;
         }
-        fmt_2 = (isize_2 != 0) || (spec_3 == 3) ? F_FIXVAR : F_VAR;
+        fmt_2 = spec_3 >= F_W32 ? (int32_t)spec_3 : (isize_2 != 0) || (spec_3 == 3) ? F_FIXVAR : F_VAR;
     }
     n_42 = ({
     if (getenv("SAMALTAK_OPT_TRACE") != NULL) {
@@ -11881,11 +11881,11 @@ exit_class_of_5:;
         }
         fmt_3 = isize_3 != 0 ? F_FIXED : F_EMPTY;
     } else {
-        if (!((spec_5 == 2) || (spec_5 == 3))) {
+        if (!((spec_5 == 2) || (spec_5 == 3) || (((spec_5 == F_BYTES) || (spec_5 == F_W32)) && (isize_3 == 0)))) {
             r_allocate_3 = false;
             goto exit_allocate_3;
         }
-        fmt_3 = (isize_3 != 0) || (spec_5 == 3) ? F_FIXVAR : F_VAR;
+        fmt_3 = spec_5 >= F_W32 ? (int32_t)spec_5 : (isize_3 != 0) || (spec_5 == 3) ? F_FIXVAR : F_VAR;
     }
     n_81 = ({
     if (getenv("SAMALTAK_OPT_TRACE") != NULL) {
@@ -13238,11 +13238,11 @@ exit_class_of_6:;
         }
         fmt_4 = isize_4 != 0 ? F_FIXED : F_EMPTY;
     } else {
-        if (!((spec_7 == 2) || (spec_7 == 3))) {
+        if (!((spec_7 == 2) || (spec_7 == 3) || (((spec_7 == F_BYTES) || (spec_7 == F_W32)) && (isize_4 == 0)))) {
             r_allocate_4 = false;
             goto exit_allocate_4;
         }
-        fmt_4 = (isize_4 != 0) || (spec_7 == 3) ? F_FIXVAR : F_VAR;
+        fmt_4 = spec_7 >= F_W32 ? (int32_t)spec_7 : (isize_4 != 0) || (spec_7 == 3) ? F_FIXVAR : F_VAR;
     }
     n_124 = ({
     if (getenv("SAMALTAK_OPT_TRACE") != NULL) {
@@ -15758,11 +15758,11 @@ exit_class_of:;
         }
         fmt = isize != 0 ? F_FIXED : F_EMPTY;
     } else {
-        if (!((spec == 2) || (spec == 3))) {
+        if (!((spec == 2) || (spec == 3) || (((spec == F_BYTES) || (spec == F_W32)) && (isize == 0)))) {
             r_allocate = false;
             goto exit_allocate;
         }
-        fmt = (isize != 0) || (spec == 3) ? F_FIXVAR : F_VAR;
+        fmt = spec >= F_W32 ? (int32_t)spec : (isize != 0) || (spec == 3) ? F_FIXVAR : F_VAR;
     }
     n_10 = ({
     if (getenv("SAMALTAK_OPT_TRACE") != NULL) {

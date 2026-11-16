@@ -1572,29 +1572,46 @@ emitElementsOf: x shift: s into: r temp: t
 	asm sub: r with: r with: t
 !
 emitAllocate: n slow: slow done: done
-	"basicNew(:) in eden: header (slots, format, a hash from the JitState's seed), class, nil fields; no room, the sample's limit or an odd size: the send (slow)."
-	| nd fmt isize k sz r loop fill |
+	"basicNew(:) in eden: header (slots, format, a hash from the JitState's seed), class, nil fields (bytes and 32-bit words zeroed, their slots and format from the size); no room, the sample's limit or more than 4096 slots: the send (slow)."
+	| nd fmt isize k e sz r loop fill even v shift max |
 	nd := ir node: n.
 	fmt := (nd c bitAnd: 255) asInt32.
 	isize := (nd c >> 8) asInt32.
+	"elements per slot: 8 bytes, 2 words, a pointer"
+	shift := fmt = F_BYTES ifTrue: [3] ifFalse: [fmt = F_W32 ifTrue: [1] ifFalse: [0]].
+	max := 4096 << shift.
 	k := -1.
 	asm comment: 'allocate in eden'.
 	nd nargs asInt32 = 1
 		ifTrue: [k := isize]
 		ifFalse: [
 			sz := ir node: (ir operand: nd args + 1).
-			(sz op asInt32 = O_CONST and: [(self isInt: sz aux asUInt64) and: [(self intVal: sz aux asUInt64) between: 0 and: 4096]])
-				ifTrue: [k := isize + (self intVal: sz aux asUInt64) asInt32]
-				ifFalse: [
-					r := self src: (ir operand: nd args + 1) into: self scratchB.
-					asm tbz: r bit: 0 to: slow.
-					asm asr: self scratchB with: r imm: 1.
-					asm cmp: self scratchB imm: 4096.
-					asm b: slow if: COND_HI.
-					isize > 0 ifTrue: [asm add: self scratchB with: self scratchB imm: isize]]].
-	k >= 0 ifTrue: [asm mov: self scratchB imm: k].
-	asm comment: 'header: slots, format, a hash (the VM''s generator)'.
-	fmt ~= 0 ifTrue: [asm orr: self scratchB with: self scratchB imm: fmt asUInt64 << H_FMT_SHIFT].
+			(sz op asInt32 = O_CONST and: [(self isInt: sz aux asUInt64) and: [(self intVal: sz aux asUInt64) between: 0 and: max]]) ifTrue: [
+				e := (self intVal: sz aux asUInt64) asInt32.
+				k := isize + ((e + (1 << shift) - 1) >> shift).
+				shift > 0 ifTrue: [fmt := (fmt + ((k << shift) - e)) asInt32]]].
+	k >= 0
+		ifTrue: [
+			asm comment: 'header: slots, format, a hash (the VM''s generator)'.
+			asm mov: self scratchB imm: (k asInt64 bitOr: fmt asInt64 << H_FMT_SHIFT)]
+		ifFalse: [
+			r := self src: (ir operand: nd args + 1) into: self scratchB.
+			asm tbz: r bit: 0 to: slow.
+			asm asr: self scratchB with: r imm: 1.
+			asm cmp: self scratchB imm: max.
+			asm b: slow if: COND_HI.
+			isize > 0 ifTrue: [asm add: self scratchB with: self scratchB imm: isize].
+			shift > 0
+				ifTrue: [
+					asm comment: 'slots and the format''s unused elements'.
+					asm add: X16 with: self scratchB imm: (1 << shift) - 1.
+					asm lsr: X16 with: X16 imm: shift.
+					asm lsl: X17 with: X16 imm: shift.
+					asm sub: X17 with: X17 with: self scratchB.
+					asm add: X17 with: X17 imm: fmt.
+					asm orr: self scratchB with: X16 with: X17 shift: SHIFT_LSL amount: H_FMT_SHIFT]
+				ifFalse: [asm orr: self scratchB with: self scratchB imm: fmt asUInt64 << H_FMT_SHIFT].
+			asm comment: 'header: slots, format, a hash (the VM''s generator)'].
 	asm ldr: X16 base: X22 offset: self hashBoxOffset.
 	asm ldr: X17 base: X16 offset: 0.
 	asm mov: self scratchA imm: 6364136223846793005.
@@ -1623,17 +1640,23 @@ emitAllocate: n slow: slow done: done
 	asm str: self scratchA base: X17 offset: 0.
 	self loadConstant: nd tcls into: X17.
 	asm stp: self scratchB with: X17 base: X16 offset: 0.
-	asm comment: 'fields nil'.
+	asm comment: (shift = 0 ifTrue: ['fields nil'] ifFalse: ['zeroed']).
+	v := shift = 0 ifTrue: [X23] ifFalse: [XZR].
 	(k >= 0 and: [k <= 16])
-		ifTrue: [0 to: k - 1 do: [:i | asm str: X23 base: X16 offset: 16 + (8 * i)]]
+		ifTrue: [0 to: k - 1 do: [:i | asm str: v base: X16 offset: 16 + (8 * i)]]
 		ifFalse: [
 			loop := asm newLabel.
 			fill := asm newLabel.
+			even := asm newLabel.
 			asm ldr: (self scratchB bitOr: REG_W) base: X16 offset: 0.
 			asm add: self scratchA with: X16 imm: 16.
+			asm tbz: self scratchB bit: 0 to: even.
+			asm str: v base: self scratchA postIndex: 8.
+			asm bind: even.
+			asm lsr: (self scratchB bitOr: REG_W) with: (self scratchB bitOr: REG_W) imm: 1.
 			asm b: fill.
 			asm bind: loop.
-			asm str: X23 base: self scratchA postIndex: 8.
+			asm stp: v with: v base: self scratchA postIndex: 16.
 			asm sub: (self scratchB bitOr: REG_W) with: (self scratchB bitOr: REG_W) imm: 1.
 			asm bind: fill.
 			asm cbnz: (self scratchB bitOr: REG_W) to: loop].

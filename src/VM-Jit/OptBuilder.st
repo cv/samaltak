@@ -1598,7 +1598,7 @@ blockCall: sel argc: argc pc: pc act: a rcvSlot: r
 	^true
 !
 allocate: m selector: sel class: cls argc: argc pc: pc act: a rcvSlot: r
-	"m is basicNew or basicNew: and the receiver (of metaclass cls) a class whose instances have pointer slots: the send with a fast path that allocates in eden (NF_ALLOC; c: format and fixed fields); answer whether it is one."
+	"m is basicNew or basicNew: and the receiver (of metaclass cls) a class whose instances have pointer slots, bytes or 32-bit words: the send with a fast path that allocates in eden (NF_ALLOC; c: format and fixed fields, F_BYTES or F_W32 for bytes and words); answer whether it is one."
 	| kind inst fo spec isize fmt n |
 	kind := self primKindOf: (self methodPrimitive: m).
 	((kind = OPK_NEW and: [argc = 0]) or: [kind = OPK_NEWSIZE and: [argc = 1]]) ifFalse: [^false].
@@ -1615,8 +1615,10 @@ allocate: m selector: sel class: cls argc: argc pc: pc act: a rcvSlot: r
 			spec <= 1 ifFalse: [^false].
 			fmt := isize ~= 0 ifTrue: [F_FIXED] ifFalse: [F_EMPTY]]
 		ifFalse: [
-			(spec = 2 or: [spec = 3]) ifFalse: [^false].
-			fmt := (isize ~= 0 or: [spec = 3]) ifTrue: [F_FIXVAR] ifFalse: [F_VAR]].
+			((spec = 2 or: [spec = 3]) or: [(spec = F_BYTES or: [spec = F_W32]) and: [isize = 0]]) ifFalse: [^false].
+			fmt := spec >= F_W32
+				ifTrue: [spec asInt32]
+				ifFalse: [(isize ~= 0 or: [spec = 3]) ifTrue: [F_FIXVAR] ifFalse: [F_VAR]]].
 	n := self callSelector: sel argc: argc kind: 0 special: 0 pc: pc act: a rcvSlot: r.
 	(ir node: n) flags: ((ir node: n) flags bitOr: NF_ALLOC).
 	(ir node: n) c: (fmt bitOr: isize << 8) asInt32.

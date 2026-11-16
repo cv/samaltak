@@ -345,6 +345,35 @@ testReplaceKeepsItsSemantics
 		^r asArray'.
 	expected := {'world world'. '0101234567'. #(11 12 13). #(44 35 36 37 38 39 40 41 42 43 44). #(1 2 3 4 5 6 7 8 9 10 1 2). #(33 34). #[97 98 99]. 'hi!!'. ' ymb'. #[97 98]. #(8 9 10). true. #(955 120). #(955 97 98). #copied}.
 	3 timesRepeat: [self assert: JitRuntimeTestSubject new semantics equals: expected]
+!
+testAllocationOfBytesAndWords
+	"ByteArrays, ByteStrings, WideStrings and Bitmaps of sizes 0 to 70 and large ones come zeroed, of their size and class, with a hash; strings made of them compare and hash as literals do. Enough of them fill eden many times over (the slow path)."
+	| scavenges |
+	self define: 'allocs: n | r | r := OrderedCollection new. 0 to: n do: [:k | r add: (ByteArray new: k); add: (String new: k); add: (WideString new: k); add: (Bitmap new: k)]. #(4095 4096 4097 32767 32768 32769 100000) do: [:k | r add: (ByteArray new: k); add: (Bitmap new: k // 4)]. ^r'.
+	self define: 'filled: k ^(String new: k) atAllPut: $a; yourself'.
+	self define: 'churn: n | s | s := 0. 1 to: n do: [:i | s := s + (ByteArray new: i \\ 200) size + (String new: 3) size + (Bitmap new: i \\ 50) size]. ^s'.
+	3 timesRepeat: [| objs |
+		objs := JitRuntimeTestSubject new allocs: 70.
+		self assert: objs size equals: 71 * 4 + 14.
+		objs do: [:o |
+			self assert: (o allSatisfy: [:e | e = 0 or: [e = (Character value: 0)]]).
+			self assert: o identityHash > 0].
+		0 to: 70 do: [:k |
+			self assert: (objs at: 4 * k + 1) class equals: ByteArray.
+			self assert: (objs at: 4 * k + 1) size equals: k.
+			self assert: (objs at: 4 * k + 2) class equals: ByteString.
+			self assert: (objs at: 4 * k + 2) size equals: k.
+			self assert: (objs at: 4 * k + 3) class equals: WideString.
+			self assert: (objs at: 4 * k + 3) size equals: k.
+			self assert: (objs at: 4 * k + 4) class equals: Bitmap.
+			self assert: (objs at: 4 * k + 4) size equals: k].
+		self assert: ((objs last: 14) collect: [:o | o size]) asArray equals: #(4095 1023 4096 1024 4097 1024 32767 8191 32768 8192 32769 8192 100000 25000).
+		0 to: 20 do: [:k |
+			self assert: (JitRuntimeTestSubject new filled: k) equals: (String new: k withAll: $a).
+			self assert: (JitRuntimeTestSubject new filled: k) hash equals: (String new: k withAll: $a) hash]].
+	scavenges := self statistics scavenges.
+	self assert: (JitRuntimeTestSubject new churn: 300000) equals: 300000 * 3 + (1500 * 199 * 200 / 2) + (6000 * 49 * 50 / 2).
+	self assert: self statistics scavenges > scavenges
 ! !
 
 !JitRuntimeTest methodsFor: 'tests: copying'!

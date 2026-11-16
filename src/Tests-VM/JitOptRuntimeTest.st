@@ -845,6 +845,23 @@ testDoublesAcrossAReplaceThatCallsC
 	self assert: (o keep: 1.5 and: 2.0 from: s into: d then: 'ab') equals: 6.5.
 	self assert: (o sum: 10 from: s into: d then: 'ab') equals: 47.5
 !
+testDoublesAcrossAnAllocationOfBytes
+	"Floats live across an inline allocation of bytes are doubles: in their d registers after its fast path, loaded from their raw slots again after its send (eden full: a scavenge; beyond 4096 slots), in a loop too; a guard that fails after it has them in its frame state."
+	| o |
+	Smalltalk vm jitParameters: #(nil '-eager' nil nil).
+	self define: 'keep: x and: y bytes: n then: c | a b z | a := x * y. b := x + y. z := ByteArray new: n. ^z size * 0 + (c size * 0) + a + b'.
+	self define: 'sum: n bytes: k then: c | r x | r := 0.0. 1 to: n do: [:i | x := i * 0.5. r := r + x + (ByteArray new: k) size + c size]. ^r'.
+	o := JitRuntimeTestSubject new.
+	1 to: 3000 do: [:k |
+		self assert: (o keep: 1.5 and: 2.0 bytes: 100 then: #()) equals: 6.5.
+		self assert: (o sum: 10 bytes: 100 then: #()) equals: 1027.5].
+	#(0 1 100 32768 32769 40000) do: [:n |
+		1 to: 100 do: [:k |
+			self assert: (o keep: 1.5 and: 2.0 bytes: n then: #()) equals: 6.5.
+			self assert: (o sum: 10 bytes: n then: #()) equals: 27.5 + (10 * n)]].
+	self assert: (o keep: 1.5 and: 2.0 bytes: 40000 then: 'ab') equals: 6.5.
+	self assert: (o sum: 10 bytes: 40000 then: 'ab') equals: 400047.5
+!
 testReplaceFastPathAndItsFailures
 	"replaceFrom:to:with:startingAt: in optimized code (sites that saw one receiver class: the fast path and the copy stub) answers and fails as the call does (--jit-flags -prims): every way its checks fail goes to the call."
 	| on off |
