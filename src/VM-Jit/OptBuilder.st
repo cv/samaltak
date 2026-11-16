@@ -764,6 +764,17 @@ binary: op a: x b: y
 	(ir node: n) b: y.
 	^n
 !
+compare: op a: x b: y
+	"x == y (O_EQ) or x ~~ y (O_NE): a Boolean (a constant if both are)."
+	| n cx cy |
+	cx := ir node: (self liveValueOf: x).
+	cy := ir node: (self liveValueOf: y).
+	(cx op asInt32 = O_CONST and: [cy op asInt32 = O_CONST]) ifTrue: [
+		^self constant: ((cx aux = cy aux) = (op = O_EQ) ifTrue: [memory trueOop] ifFalse: [memory falseOop])].
+	n := self binary: op a: x b: y.
+	(ir node: n) tkind: T_BOOL.
+	^n
+!
 goto: b
 	"End the current block with a jump to b."
 	<function>
@@ -1216,9 +1227,9 @@ conditionalJump: pc act: a
 	back := t <= pc.
 	fall := self blockAt: pc + 3 act: a.
 	taken := self blockAt: t act: a.
-	k := (ir node: v) op asInt32.
+	k := (ir node: (self liveValueOf: v)) op asInt32.
 	k = O_CONST ifTrue: [
-		c := (ir node: v) aux asUInt64.
+		c := (ir node: (self liveValueOf: v)) aux asUInt64.
 		(c = memory trueOop or: [c = memory falseOop]) ifTrue: [
 			(c = memory trueOop) = (op = 16r91)
 				ifTrue: [self jumpTo: t from: pc act: a]
@@ -1289,7 +1300,7 @@ special: k pc: pc act: a rcvSlot: r
 	x := self read: (self var: a slot: r).
 	argc > 0 ifTrue: [y := self read: (self var: a slot: r + 1)].
 	(k = 19 or: [k = 20]) ifTrue: [
-		self push: (self binary: (k = 19 ifTrue: [O_EQ] ifFalse: [O_NE]) a: x b: y) act: a depth: r.
+		self push: (self compare: (k = 19 ifTrue: [O_EQ] ifFalse: [O_NE]) a: x b: y) act: a depth: r.
 		^self].
 	((k = 21 or: [k = 22 or: [k = 30]]) and: [(runtime flag: runtime blocksFlag) and: [self isClosure: x numArgs: argc]]) ifTrue: [
 		^self inlineBlock: (ir resolve: x) info: (ir resolve: x) pc: pc act: a rcvSlot: r argc: argc].
@@ -1309,7 +1320,7 @@ special: k pc: pc act: a rcvSlot: r
 		self write: (self var: a slot: r) value: (self guard: x class: memory clsBlock state: (self stateAct: a pc: pc depth: (self depthAt: pc act: a)))].
 	((k = 23 or: [k = 24]) and: [(runtime flag: runtime primsFlag) and: [runtime nilTestsInlinable]]) ifTrue: [
 		"isNil, notNil: no class but UndefinedObject and ProtoObject defines them (new definitions drop all code)"
-		self push: (self binary: (k = 23 ifTrue: [O_EQ] ifFalse: [O_NE]) a: x b: (self constant: memory nilOop)) act: a depth: r.
+		self push: (self compare: (k = 23 ifTrue: [O_EQ] ifFalse: [O_NE]) a: x b: (self constant: memory nilOop)) act: a depth: r.
 		^self].
 	(k <= 10 or: [k = 12 or: [k = 13 or: [k = 14 or: [k = 15]]]]) ifTrue: [
 		fl := feedback flagsAt: (ir act: a) method pc: pc.
@@ -1711,7 +1722,7 @@ inlinePrimitive: p class: cls argc: argc pc: pc act: a rcvSlot: r
 		self push: n act: a depth: r.
 		^true].
 	(kind = OPK_IDENTICAL and: [argc = 1]) ifTrue: [
-		self push: (self binary: O_EQ a: rcv b: (self read: (self var: a slot: r + 1))) act: a depth: r.
+		self push: (self compare: O_EQ a: rcv b: (self read: (self var: a slot: r + 1))) act: a depth: r.
 		^true].
 	(kind = OPK_CHARVALUE and: [argc = 0 and: [cls = memory clsChar]]) ifTrue: [
 		n := self add: O_CHARCONV rep: R_OOP.
@@ -1804,13 +1815,40 @@ inlinePrimitive: p class: cls argc: argc pc: pc act: a rcvSlot: r
 knownClassOf: v
 	"v's class if the IR knows it, else 0."
 	| nd |
-	nd := ir node: v.
+	nd := ir node: (self liveValueOf: v).
 	nd op asInt32 = O_CONST ifTrue: [^self classOf: nd aux asUInt64].
 	nd tkind asInt32 = T_SMI ifTrue: [^memory clsSmallint].
 	nd tkind asInt32 = T_FLOAT ifTrue: [^memory clsSmallfloat].
 	nd tkind asInt32 = T_NIL ifTrue: [^self classOf: memory nilOop].
 	(nd tkind asInt32 = T_OBJ and: [nd tcls ~= 0]) ifTrue: [^nd tcls].
 	^0
+!
+liveValueOf: v
+	"v, or the one value phi v (of a block whose predecessors are all known) has from the predecessors that can run (the scan builds code past a constant condition's dead branch, whose value a merge's phi takes too)."
+	<function>
+	| r nd b o same depth |
+	<var: #same type: 'int32_t'>
+	r := ir resolve: v.
+	depth := 0.
+	[nd := ir node: r.
+	 depth < 4 and: [nd op asInt32 = O_PHI and: [((ir block: nd block) flags bitAnd: BF_SEALED) ~= 0 and: [nd nargs asInt32 = (ir block: nd block) npreds]]]] whileTrue: [
+		b := nd block.
+		same := -1.
+		0 to: nd nargs asInt32 - 1 do: [:i |
+			(self cannotRun: (ir pred: i of: b)) ifFalse: [
+				o := ir resolve: (ir operand: nd args + i).
+				(o ~= r and: [o ~= same]) ifTrue: [
+					same < 0 ifTrue: [same := o] ifFalse: [^r]]]].
+		same < 0 ifTrue: [^r].
+		r := same.
+		depth := depth + 1].
+	^r
+!
+cannotRun: b
+	"b is not reachable (BF_LIVE) and, neither an entry nor a loop head (a backward jump may still come), never will be: all its predecessors are known (they come before it) and none is."
+	| bl |
+	bl := ir block: b.
+	^(bl flags bitAnd: BF_LIVE) = 0 and: [b ~= obEntryBlock and: [b ~= ir osrEntry and: [(bl flags bitAnd: BF_LOOP) = 0]]]
 !
 canInline: m act: a
 	"m may be inlined into a: small, no primitive, only bytecodes the tier inlines, not too deep or recursive, within the budget."

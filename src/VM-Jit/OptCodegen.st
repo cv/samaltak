@@ -767,12 +767,17 @@ emitNode: n block: b next: nextBlock
 	asm fail: ASM_ERR_OPERAND
 !
 isFused: n
-	"A comparison whose only use is the branch right after it: the branch compares."
-	| nd nx |
+	"A comparison whose only use is the branch right after it (or, after the jump that ends its block, the first node of the block that only that jump reaches: an inlined method answered it): the branch compares."
+	| nd nx c |
 	nd := ir node: n.
 	nd uses = 1 ifFalse: [^false].
 	nd next < 0 ifTrue: [^false].
 	nx := ir node: nd next.
+	(nx op asInt32 = O_BRANCH and: [nx a = n]) ifTrue: [^true].
+	nx op asInt32 = O_GOTO ifFalse: [^false].
+	c := ir block: (ir block: nd block) succ0.
+	(c npreds = 1 and: [c first >= 0]) ifFalse: [^false].
+	nx := ir node: c first.
 	^nx op asInt32 = O_BRANCH and: [nx a = n]
 !
 conditionOf: n

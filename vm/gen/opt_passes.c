@@ -28,6 +28,7 @@ static void resolve_operands(void);
 static void simplify_phis(void);
 static void split_critical_edges(void);
 static int32_t opt_passes_state(int32_t s, int64_t k, int32_t h);
+static void type_boolean_phis(void);
 static void type_phis(void);
 static void unbox_phis(void);
 static void unbox_states(void);
@@ -42,6 +43,7 @@ void cleanup(int32_t entry)
     resolve_operands();
     type_phis();
     resolve_operands();
+    type_boolean_phis();
     forward_unboxes();
     resolve_operands();
     ps_unboxed = false;
@@ -727,6 +729,45 @@ static int32_t opt_passes_state(int32_t s, int64_t k, int32_t h)
     }
     ns->parent = opt_passes_state(st->parent, k, h);
     return n;
+}
+
+/* OptPasses>>typeBooleanPhis */
+static void type_boolean_phis(void)
+{
+    int64_t count;
+    int32_t n;
+    opt_node *nd;
+    bool changed;
+    int64_t k;
+    int32_t n_2;
+    int32_t i;
+    int32_t i_2;
+    int32_t v;
+    count = 0;
+    for (n = 0; n <= opt_node_count - 1; n++) {
+        nd = opt_nodes + n;
+        if (((int32_t)nd->op == O_PHI) && ((nd->fwd < 0) && ((nd->block >= 0) && ((int32_t)nd->tkind == T_ANY)))) {
+            nd->tkind = T_BOOL;
+            ps_work_list[count] = n;
+            count = count + 1;
+        }
+    }
+    changed = true;
+    while (changed) {
+        changed = false;
+        for (k = 0; k <= count - 1; k++) {
+            n_2 = ps_work_list[k];
+            nd = opt_nodes + n_2;
+            for (i = 0; i <= (int32_t)nd->nargs - 1; i++) {
+                i_2 = nd->args + i;
+                v = opt_ir_resolve(opt_operands[i_2]);
+                if (((int32_t)nd->tkind == T_BOOL) && ((int32_t)(opt_nodes + v)->tkind != T_BOOL)) {
+                    nd->tkind = T_ANY;
+                    changed = true;
+                }
+            }
+        }
+    }
 }
 
 /* OptPasses>>typePhis */

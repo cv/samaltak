@@ -782,6 +782,22 @@ testDivisionByAConstantIsInTheCode
 	self assert: ((self listingOf: #byConstants:) includesSubstring: 'division by the constant 7').
 	self deny: ((self listingOf: #byConstants:) includesSubstring: (self isX64 ifTrue: ['idiv'] ifFalse: ['sdiv']))
 !
+testBranchesMakeNoBoolean
+	"A comparison an inlined method answers is branched on without a Boolean made, a phi of Booleans without a mustBeBoolean check."
+	| o |
+	Smalltalk vm jitParameters: #(nil '-eager' nil nil).
+	self define: 'positive: x ^(self isPositive: x) ifTrue: [#pos] ifFalse: [#neg]'.
+	self define: 'isPositive: x ^x > 0'.
+	self define: 'either: a or: b ^((a > 0) or: [b > 0]) ifTrue: [#yes] ifFalse: [#no]'.
+	o := JitRuntimeTestSubject new.
+	1 to: 1200 do: [:i |
+		self assert: (o positive: i) == #pos.
+		self assert: (o positive: 0 - i) == #neg.
+		self assert: (o either: 0 or: i) == #yes.
+		self assert: (o either: 0 - i or: 0) == #no].
+	self deny: ((self listingOf: #positive:) includesSubstring: (self isX64 ifTrue: ['cmovg'] ifFalse: [', gt'])).
+	self deny: ((self listingOf: #either:or:) includesSubstring: 'neither true nor false')
+!
 testDoublesAcrossAnAllocationAnsweringSomethingElse
 	"Floats live across an allocation whose send answers something else (its primitive failed: the deoptimization after it) are what they were, in straight code and in a loop."
 	| o |

@@ -568,3 +568,21 @@ testAllocationWhosePrimitiveFails
 		self assert: (o make: -1) equals: {nil. 'nil'. true}.
 		self assert: (o make: 1099511627776) equals: {'fallback1'. '''fallback1'''. false}]
 ! !
+
+!JitRuntimeTest methodsFor: 'tests: speculation'!
+testBranchesOnBooleans
+	"Branches on ==, ~~, isNil and on what and: and or: answer (phis of Booleans), on comparisons an inlined method answers, on constants; a value that is not a Boolean still sends mustBeBoolean."
+	| o |
+	self define: 'same: a as: b ^(a == b) ifTrue: [1] ifFalse: [(a ~~ b and: [a isNil]) ifTrue: [2] ifFalse: [3]]'.
+	self define: 'either: a or: b ^(a or: [b]) ifTrue: [#yes] ifFalse: [#no]'.
+	self define: 'positive: x ^(self isPositive: x) ifTrue: [#pos] ifFalse: [#neg]'.
+	self define: 'isPositive: x ^x > 0'.
+	self define: 'folded ^(#a == #a) ifTrue: [(3 == 4) ifTrue: [#wrong] ifFalse: [#right]] ifFalse: [#wrong]'.
+	o := JitRuntimeTestSubject new.
+	3 timesRepeat: [
+		self assert: ({o same: 1 as: 1. o same: nil as: 2. o same: 3 as: 4. o same: #a as: #a. o same: nil as: nil}) equals: #(1 2 3 1 1).
+		self assert: ({o either: true or: false. o either: false or: true. o either: false or: false}) equals: #(#yes #yes #no).
+		self assert: ({o positive: 3. o positive: -3. o positive: 0} ) equals: #(#pos #neg #neg).
+		self assert: o folded equals: #right.
+		self assert: ([o either: false or: 3] on: Error do: [:e | #notBoolean]) equals: #notBoolean]
+! !

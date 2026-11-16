@@ -38,6 +38,7 @@ cleanup: entry
 	self resolveOperands.
 	self typePhis.
 	self resolveOperands.
+	self typeBooleanPhis.
 	self forwardUnboxes.
 	self resolveOperands.
 	psUnboxed := false.
@@ -104,6 +105,28 @@ typePhis
 		(nd op asInt32 = O_GUARDINT and: [nd fwd < 0 and: [nd block >= 0 and: [(ir node: (ir resolve: nd a)) tkind asInt32 = T_SMI]]]) ifTrue: [
 			nd fwd: (ir resolve: nd a).
 			ir unlink: n]]
+!
+typeBooleanPhis
+	"A phi of Booleans (true, false, comparisons, such phis: and:, or:) is a Boolean, to a fixed point from all of them: a branch on it needs no mustBeBoolean check."
+	<function>
+	| changed nd v count |
+	count := 0.
+	0 to: ir nodeCount - 1 do: [:n |
+		nd := ir node: n.
+		(nd op asInt32 = O_PHI and: [nd fwd < 0 and: [nd block >= 0 and: [nd tkind asInt32 = T_ANY]]]) ifTrue: [
+			nd tkind: T_BOOL.
+			psWorkList at: count put: n.
+			count := count + 1]].
+	changed := true.
+	[changed] whileTrue: [
+		changed := false.
+		0 to: count - 1 do: [:k |
+			nd := ir node: (psWorkList at: k).
+			0 to: nd nargs asInt32 - 1 do: [:i |
+				v := ir resolve: (ir operand: nd args + i).
+				(nd tkind asInt32 = T_BOOL and: [(ir node: v) tkind asInt32 ~= T_BOOL]) ifTrue: [
+					nd tkind: T_ANY.
+					changed := true]]]]
 !
 unboxPhis
 	"A loop's Float phi gets a twin on doubles that the loop's arithmetic reads instead of unboxing the phi every time around, so the chain stays on doubles (the boxed phi stays for all else: frame states, sends, the exit): into it flow Float constants, the doubles of boxes, the twin itself, and from a loop unit's entry the frame's value, unboxed there once (a guard). Across the loop's sends and interrupt checks the twin is in its raw home slot."
