@@ -34,27 +34,43 @@ translate: image
 # time out, 2 MB still flushes hundreds of times).
 STRESS_CACHE_MB := $(if $(filter x86_64 amd64,$(shell uname -m)),2,1)
 test-jit: image
+	$(MAKE) test-jit-none
+	$(MAKE) test-jit-baseline
+	$(MAKE) test-jit-opt
+	$(MAKE) test-jit-deopt
+	$(MAKE) test-jit-cache
+test-jit-none: image
 	tests/st_suite.sh $(OUT)/samaltak.image --jit none
+test-jit-baseline: image
 	tests/st_suite.sh $(OUT)/samaltak.image --jit baseline --jit-threshold 0
+test-jit-opt: image
 	tests/st_suite.sh $(OUT)/samaltak.image --jit opt --jit-threshold 0 --jit-flags eager
+test-jit-deopt: image
 	tests/st_suite.sh $(OUT)/samaltak.image --jit opt --jit-threshold 0 --jit-flags eager,deopt
+test-jit-cache: image
 	tests/st_suite.sh $(OUT)/samaltak.image --jit opt --jit-threshold 0 --jit-cache $(STRESS_CACHE_MB) --jit-flags eager,notes -- Tests-Kernel
 
-# Everything; any failure, skipped test or headless-only VM fails it. The UI scripts use a hidden window.
-test: image test-vm
-	@[ -f vm/build/.variant-platform ] || { echo "make test: FAILED: the VM was built without the platform layer (SDL3), UI tests would not run"; exit 1; }
+# Everything, in stages (CI runs them as separate jobs); any failure, skipped test or headless-only VM fails it. The UI
+# scripts use a hidden window.
+test: test-core
+	$(MAKE) test-jit
+	$(MAKE) test-tools
+	@echo "make test: all passed"
+PLATFORM_CHECK = @[ -f vm/build/.variant-platform ] || { echo "make test: FAILED: the VM was built without the platform layer (SDL3), UI tests would not run"; exit 1; }
+test-core: image test-vm
+	$(PLATFORM_CHECK)
 	tests/vm/gen_test.sh $(OUT)/samaltak.image
 	tests/boot/layering_test.sh
 	tests/st_suite.sh $(OUT)/samaltak.image
 	SAMALTAK_VERIFY_GC=1 tests/st_suite.sh $(OUT)/samaltak.image --eden 1 -- Tests-Kernel Tests-Compiler
-	$(MAKE) test-jit
+test-tools: image
+	$(PLATFORM_CHECK)
 	$(MAKE) -C vm/platform test st-test
 	tests/remote/cli_test.sh $(OUT)/samaltak.image
 	tests/remote/recording_test.sh $(OUT)/samaltak.image
 	tests/tools/desktop_test.sh $(OUT)/samaltak.image
 	tests/tools/snapshot_test.sh $(OUT)/samaltak.image
 	tests/tools/reboot_test.sh $(OUT)/samaltak.image
-	@echo "make test: all passed"
 
 # The narrated walkthrough on the real system, from a copy of the image named nuuk.image like the prototype's (a visible window; needs ffmpeg, agent-browser for the captions and
 # ELEVENLABS_API_KEY in .env unless the clips in $(VIDEO)/narration are cached).
@@ -93,4 +109,4 @@ clean:
 	$(MAKE) -C vm clean
 	rm -rf build
 
-.PHONY: all vm seed image run translate test-vm test-jit test video mindblown-video jit-video clean
+.PHONY: all vm seed image run translate test-vm test-jit test-jit-none test-jit-baseline test-jit-opt test-jit-deopt test-jit-cache test-core test-tools test video mindblown-video jit-video clean
