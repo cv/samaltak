@@ -18,6 +18,7 @@ oop prim_result;
 int32_t prim_status;
 int32_t resend_argc;
 oop resend_selector;
+bool safepoint_at_entry;
 int32_t special_argc[32];
 uint64_t stack_check_at;
 static bool stack_check_due;
@@ -352,6 +353,14 @@ cache_entry *entry_for(oop a_class, oop a_selector)
         return g;
     }
     return fill_cache(a_class, a_selector);
+}
+
+/* Interpreter>>entrySafepoint */
+void entry_safepoint(void)
+{
+    safepoint_at_entry = true;
+    interrupt_safepoint();
+    safepoint_at_entry = false;
 }
 
 /* Interpreter>>fatalBegin */
@@ -10922,7 +10931,7 @@ op_bc_value_b5:;
                 v_379 = sp - fp + 1;
                 s_216[CTX_STACKP] = (uint64_t)((v_379 << 1) | 1);
             }
-            interrupt_safepoint();
+            entry_safepoint();
             if (nframes != 0) {
                 fr = frames + (nframes - 1);
                 lits = fr->lits;
@@ -11040,7 +11049,7 @@ op_bc_value_b6:;
                 v_385 = sp - fp + 1;
                 s_221[CTX_STACKP] = (uint64_t)((v_385 << 1) | 1);
             }
-            interrupt_safepoint();
+            entry_safepoint();
             if (nframes != 0) {
                 fr = frames + (nframes - 1);
                 lits = fr->lits;
@@ -11158,7 +11167,7 @@ op_bc_value_be:;
                 v_391 = sp - fp + 1;
                 s_226[CTX_STACKP] = (uint64_t)((v_391 << 1) | 1);
             }
-            interrupt_safepoint();
+            entry_safepoint();
             if (nframes != 0) {
                 fr = frames + (nframes - 1);
                 lits = fr->lits;
@@ -11606,7 +11615,7 @@ enter_frame:;
             v_403 = sp - fp + 1;
             s_241[CTX_STACKP] = (uint64_t)((v_403 << 1) | 1);
         }
-        interrupt_safepoint();
+        entry_safepoint();
         if (nframes != 0) {
             fr = frames + (nframes - 1);
             lits = fr->lits;

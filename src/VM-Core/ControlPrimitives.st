@@ -213,7 +213,7 @@ primProcessCpuTime
 	self answer: (self intOop: (scheduler processCpuTimeUs: p))
 !
 primProcessStackInto
-	"Profiler: aProcess (not active) stackInto: buffer maxDepth: n (n <= 255; buffer an Array of 2n + 1 slots). Writes the innermost n frames bottom-up as method, pc pairs (pc: the block's startpc, 0 for a method) after slot 1, which holds depth + (truncated << 16) of the stack written last. Answers k + (depth << 8) + (truncated << 16) + (innermost frame just activated << 17); k counts the bottom frames equal to the previous content (only if both are truncated or both are not)."
+	"Profiler: aProcess (not active) stackInto: buffer maxDepth: n (n <= 255; buffer an Array of 2n + 1 slots). Writes the innermost n frames bottom-up as method, pc pairs (pc: the block's startpc, 0 for a method) after slot 1, which holds depth + (truncated << 16) of the stack written last. Answers k + (depth << 8) + (truncated << 16) + (innermost frame just activated << 17: the process was preempted at an activation's interrupt check, see Scheduler>>resumeProcess:); k counts the bottom frames equal to the previous content (only if both are truncated or both are not)."
 	<vmPrimitive: 142 name: 'processStackInto'>
 	| proc buf max meths pcs n fresh ctx cl pc truncated prev k lim |
 	(self argCount < 2 or: [(self isInt: (self arg: 1)) not]) ifTrue: [^self fail].
@@ -225,12 +225,11 @@ primProcessStackInto
 	meths := self local: 'oop[255]'.
 	pcs := self local: 'int64_t[255]'.
 	n := 0.
-	fresh := 0.
+	fresh := (proc = scheduler lastPreempted and: [scheduler lastPreemptedAtEntry]) ifTrue: [1] ifFalse: [0].
 	ctx := self loadRef: proc at: PROC_SUSPENDED.
 	[(self isPtr: ctx) and: [ctx ~= memory nilOop and: [n < max]]] whileTrue: [
 		cl := self loadRef: ctx at: CTX_CLOSURE.
 		pc := ((self isPtr: cl) and: [cl ~= memory nilOop]) ifTrue: [self intVal: (self loadRef: cl at: BC_STARTPC)] ifFalse: [0].
-		n = 0 ifTrue: [fresh := (self loadRef: ctx at: CTX_PC) = (self intOop: pc) ifTrue: [1] ifFalse: [0]].
 		meths at: n put: (self loadRef: ctx at: CTX_METHOD).
 		pcs at: n put: pc.
 		n := n + 1.

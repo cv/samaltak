@@ -1,5 +1,5 @@
 JitCompiler subclass: #JitStubs
-	instanceVariableNames: 'exitPlainAddr interruptStub closureStub contextStub contextFieldStub makeArrayStub widowStub barrierStub tierUpStub optDeoptStub optDeoptReturnStub optStackFullStub optReturnStub blEnter blExitSync blMiss blBlock blMega blPerform blEntrySlow blPrim blRemember blReturnSlow blBox blSent symbolAddrs symbolNames symbolCount'
+	instanceVariableNames: 'exitPlainAddr interruptStub entryInterruptStub closureStub contextStub contextFieldStub makeArrayStub widowStub barrierStub tierUpStub optDeoptStub optDeoptReturnStub optStackFullStub optReturnStub blEnter blExitSync blMiss blBlock blMega blPerform blEntrySlow blPrim blRemember blReturnSlow blBox blSent symbolAddrs symbolNames symbolCount'
 	classVariableNames: 'STUB_MAX_SYMBOLS'
 	package: 'VM-Jit'!
 
@@ -12,7 +12,7 @@ One stub per runtime function (ldr x16, =function; br x16), so that compiled cod
 !JitStubs class methodsFor: 'declaring'!
 declarations
 	^#((exitPlainAddr uint64_t)
-		(interruptStub uint64_t) (closureStub uint64_t) (contextStub uint64_t) (contextFieldStub uint64_t) (makeArrayStub uint64_t)
+		(interruptStub uint64_t) (entryInterruptStub uint64_t) (closureStub uint64_t) (contextStub uint64_t) (contextFieldStub uint64_t) (makeArrayStub uint64_t)
 		(widowStub uint64_t) (barrierStub uint64_t) (tierUpStub uint64_t) (optDeoptStub uint64_t) (optDeoptReturnStub uint64_t) (optStackFullStub uint64_t) (optReturnStub uint64_t)
 		(blEnter uint64_t) (blExitSync uint64_t) (blMiss uint64_t) (blBlock uint64_t) (blMega uint64_t) (blPerform uint64_t) (blEntrySlow uint64_t) (blPrim uint64_t) (blRemember uint64_t) (blReturnSlow uint64_t) (blBox uint64_t) (blSent uint64_t)
 		(symbolAddrs 'uint64_t[STUB_MAX_SYMBOLS]') (symbolNames 'const char *[STUB_MAX_SYMBOLS]') (symbolCount int32_t))
@@ -33,6 +33,9 @@ exitPlainAddress
 !
 interruptStub
 	^interruptStub
+!
+entryInterruptStub
+	^entryInterruptStub
 !
 closureStub
 	^closureStub
@@ -176,6 +179,7 @@ generate
 	asm ldp: X29 with: X30 base: SP postIndex: 160.
 	asm ret.
 	interruptStub := self stub: runtime interruptFunction named: 'interrupt check'.
+	entryInterruptStub := self stub: runtime interruptAtEntryFunction named: 'interrupt check at entry'.
 	closureStub := self stub: runtime closureFunction named: 'closure'.
 	contextStub := self stub: runtime contextFunction named: 'thisContext'.
 	contextFieldStub := self stub: runtime contextFieldFunction named: 'married Context field'.
@@ -256,6 +260,7 @@ generateX64
 	asm popX64: 3.
 	asm ret.
 	interruptStub := self stubX64: runtime interruptFunction named: 'interrupt check'.
+	entryInterruptStub := self stubX64: runtime interruptAtEntryFunction named: 'interrupt check at entry'.
 	closureStub := self stubX64: runtime closureFunction named: 'closure'.
 	contextStub := self stubX64: runtime contextFunction named: 'thisContext'.
 	contextFieldStub := self stubX64: runtime contextFieldFunction named: 'married Context field'.

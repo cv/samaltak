@@ -76972,7 +76972,7 @@ exit_emit_tier_up:;
             asm_jump_end = asm_pc;
         exit_b_8:;
             amd64_assembler_bind(intr);
-            emit_runtime_call(interrupt_label, sl_pc[i], sl_depth[i]);
+            emit_runtime_call(label_at(entry_interrupt_stub), sl_pc[i], sl_depth[i]);
             v_44 = 0ULL;
             n_27 = 0;
             v_44 = v_44 | (76LL << (8 * n_27));
@@ -81088,7 +81088,7 @@ exit_offset_to_4:;
                 asm_error = ASM_ERR_FULL;
             }
             arm64_assembler_bind(intr);
-            emit_runtime_call(interrupt_label, sl_pc[i], sl_depth[i]);
+            emit_runtime_call(label_at(entry_interrupt_stub), sl_pc[i], sl_depth[i]);
             if (asm_pc < asm_limit) {
                 *(uint32_t *)asm_pc = 4167008917ULL;
                 asm_pc = asm_pc + 4;

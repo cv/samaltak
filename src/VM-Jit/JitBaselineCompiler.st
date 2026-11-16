@@ -3073,7 +3073,7 @@ emitStart: i
 	(self emitTierUp: (slPc at: i) depth: (slDepth at: i) loop: 0) ifFalse: [^asm fail: ASM_ERR_LABEL].
 	asm b: (slCont at: i).
 	asm bind: intr.
-	self emitRuntimeCall: interruptLabel pc: (slPc at: i) depth: (slDepth at: i).
+	self emitRuntimeCall: (asm labelAt: stubs entryInterruptStub) pc: (slPc at: i) depth: (slDepth at: i).
 	asm ldr: X21 base: X20 offset: -8.
 	asm b: (slCont at: i)
 !

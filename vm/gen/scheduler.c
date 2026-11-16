@@ -17,6 +17,7 @@ static int32_t frame_sema;
 static bool in_idle;
 atomic_int interrupt_pending;
 oop last_preempted;
+bool last_preempted_at_entry;
 static int64_t last_switch_us;
 static int32_t *pending_ext;
 static int32_t pending_ext_cap;
@@ -739,6 +740,7 @@ void resume_process(oop proc)
             add_last_link(active, *(uint64_t *)(o_4 + 16 + 8 * i_2));
         }
         last_preempted = active;
+        last_preempted_at_entry = safepoint_at_entry;
         transfer_to(proc);
     } else {
         pri_3 = priority_of(proc);
@@ -948,6 +950,10 @@ static void transfer_to(oop a_process)
     materialize_all();
     pop_root();
     old = active_process();
+    safepoint_at_entry = false;
+    if (*proc == last_preempted) {
+        last_preempted_at_entry = false;
+    }
     now = thread_cpu_us();
     ct = *(uint64_t *)(old + 16 + 40);
     v = ((ct & 1) != 0 ? ((int64_t)ct) >> 1 : 0) + now - last_switch_us;

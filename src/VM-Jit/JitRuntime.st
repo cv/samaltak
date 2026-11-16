@@ -3,7 +3,7 @@ VMCoreModule subclass: #JitRuntime
 	classVariableNames: 'JIT_BASELINE JIT_FLAG_ACCESS JIT_FLAG_ALLOC JIT_FLAG_ARITH JIT_FLAG_BARRIER JIT_FLAG_BLOCKS JIT_FLAG_CALLS JIT_FLAG_DEOPT JIT_FLAG_EAGER JIT_FLAG_FLOAT JIT_FLAG_FUSE JIT_FLAG_GVN JIT_FLAG_HOIST JIT_FLAG_IC JIT_FLAG_INLINE JIT_FLAG_LAST JIT_FLAG_MEGA JIT_FLAG_NOTES JIT_FLAG_PIC JIT_FLAG_PRIMS JIT_FLAG_QUICK JIT_FLAG_REGS JIT_FLAG_UNBOX JIT_MAX_COUNT JIT_MAX_MAP JIT_MAX_YOUNG JIT_NONE JIT_OPT JIT_PROLOGUE_BYTES JIT_PROLOGUE_BYTES_X64 JIT_TABLE_SIZE JM_DEAD JM_ENTRY JM_FAILED JM_NOTES JM_OSR'
 	package: 'VM-Jit'!
 
-JitRuntime comment: 'The runtime every compiler''s machine code runs on (docs/jit.md, Shared runtime): configuration (--jit, --jit-threshold, --jit-osr, --jit-flags, --jit-cache), the compiled methods (JitMethod headers in the code cache, found by the method''s identity hash; their methods are GC roots, young ones listed for scavenges), the interpreter''s hooks (activated:, resume:, backJump:), the functions machine code calls (interrupt:, closure:, makeArray:, widow:, writeBarrier:value:), code cache flushes, statistics.
+JitRuntime comment: 'The runtime every compiler''s machine code runs on (docs/jit.md, Shared runtime): configuration (--jit, --jit-threshold, --jit-osr, --jit-flags, --jit-cache), the compiled methods (JitMethod headers in the code cache, found by the method''s identity hash; their methods are GC roots, young ones listed for scavenges), the interpreter''s hooks (activated:, resume:, backJump:), the functions machine code calls (interrupt:, interruptAtEntry:, closure:, makeArray:, widow:, writeBarrier:value:), code cache flushes, statistics.
 
 Machine code runs the interpreter''s frames: x19 the Frame, x20 its slots, x21 the receiver, x22 the JitState. Before calling a function here that may allocate, collect, flush frames, switch processes or run Smalltalk, it stores the frame''s pc and sp (the bytecode it is at and the slots in use); the function makes the interpreter''s view canonical (sync:) and answers 0 to continue, 1 to leave to the interpreter (the native stack is dropped; the interpreter reloads the top frame or Context), or for a send the entry of the callee''s code (frame pushed, the caller calls it with blr). The compilers are Arm64Modules (they name registers); they ask me what they need through inline accessors.'!
 
@@ -436,6 +436,9 @@ optReturnFunction
 !
 interruptFunction
 	^self cCoerce: (self functionPointer: #interrupt:) to: 'uint64_t'
+!
+interruptAtEntryFunction
+	^self cCoerce: (self functionPointer: #interruptAtEntry:) to: 'uint64_t'
 !
 closureFunction
 	^self cCoerce: (self functionPointer: #closure:) to: 'uint64_t'
@@ -1291,9 +1294,23 @@ entryOfTop
 	^a - self prologueBytes
 !
 interrupt: f
-	"An interrupt check at a method or block entry, a loop head or a backward jump; f's pc and sp are where the interpreter would continue."
+	"An interrupt check at a loop head, a backward jump or after a send; f's pc and sp are where the interpreter would continue."
 	<function>
 	<var: #f type: 'Frame *'>
+	<returns: 'uint64_t'>
+	^self interruptFrame: f atEntry: false
+!
+interruptAtEntry: f
+	"An interrupt check at a method or block entry: f was just activated."
+	<function>
+	<var: #f type: 'Frame *'>
+	<returns: 'uint64_t'>
+	^self interruptFrame: f atEntry: true
+!
+interruptFrame: f atEntry: atEntry
+	<function>
+	<var: #f type: 'Frame *'>
+	<var: #atEntry type: 'bool'>
 	<returns: 'uint64_t'>
 	| moved inv |
 	self sync: f.
@@ -1301,7 +1318,7 @@ interrupt: f
 	self clearInterrupt.
 	moved := interpreter frameEpoch.
 	inv := invalidations.
-	interpreter interruptSafepoint.
+	atEntry ifTrue: [interpreter entrySafepoint] ifFalse: [interpreter interruptSafepoint].
 	(interpreter frameEpoch ~= moved or: [inv ~= invalidations]) ifTrue: [^1].
 	^0
 !

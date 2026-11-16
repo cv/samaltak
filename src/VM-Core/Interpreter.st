@@ -1,5 +1,5 @@
 VMCoreModule subclass: #Interpreter
-	instanceVariableNames: 'activeCtx tmpRoots primStatus primErrorCode primNargs primBase primBaseIndex primResult resendSelector resendArgc cstack frames nframes cstackUsed tagClass stackLimit stackCheckAt stackCheckDue stackCheckHash statMaterialized statFlushes frameEpoch cache icache specialArgc ip sp fp lits fr sel cls argc result epoch newMethod newBcs newLits newTemps newFsize newEcode newFp newCode'
+	instanceVariableNames: 'activeCtx tmpRoots primStatus primErrorCode primNargs primBase primBaseIndex primResult resendSelector resendArgc cstack frames nframes cstackUsed tagClass stackLimit stackCheckAt stackCheckDue stackCheckHash safepointAtEntry statMaterialized statFlushes frameEpoch cache icache specialArgc ip sp fp lits fr sel cls argc result epoch newMethod newBcs newLits newTemps newFsize newEcode newFp newCode'
 	classVariableNames: 'CACHE_SIZE CSTACK_SLOTS ICACHE_SIZE MAX_FRAMES'
 	package: 'VM-Core'!
 
@@ -18,7 +18,7 @@ declarations
 		(primResult oop) (resendSelector oop) (resendArgc int32_t)
 		(cstack 'oop[CSTACK_SLOTS]') (frames 'Frame[MAX_FRAMES]') (nframes int32_t) (cstackUsed size_t)
 		(tagClass 'oop[8]')
-		(stackLimit int64_t 1000000) (stackCheckAt uint64_t) (stackCheckDue bool) (stackCheckHash uint32_t)
+		(stackLimit int64_t 1000000) (stackCheckAt uint64_t) (stackCheckDue bool) (stackCheckHash uint32_t) (safepointAtEntry bool)
 		(statMaterialized uint64_t) (statFlushes uint64_t) (frameEpoch uint64_t)
 		(cache 'CacheEntry[CACHE_SIZE]') (icache 'CacheEntry[ICACHE_SIZE]')
 		(specialArgc 'int32_t[32]')
@@ -124,6 +124,12 @@ statFlushes
 frameEpoch
 	"Changes whenever frames are flushed or moved: machine code running on them must leave."
 	^frameEpoch
+!
+safepointAtEntry
+	^safepointAtEntry
+!
+safepointAtEntry: aBoolean
+	safepointAtEntry := aBoolean
 ! !
 
 !Interpreter methodsFor: 'frames'!
@@ -578,6 +584,13 @@ interruptSafepoint
 	s at: CTX_FIXED put: (self intOop: depth).
 	tmpRoots at: 0 put: memory nilOop.
 	activeCtx := ctx
+!
+entrySafepoint
+	"interruptSafepoint at an activation's first instruction: a process preempted here has its top frame just activated (Scheduler>>resumeProcess:)."
+	<function>
+	safepointAtEntry := true.
+	self interruptSafepoint.
+	safepointAtEntry := false
 ! !
 
 !Interpreter methodsFor: 'the active activation'!
@@ -1059,6 +1072,12 @@ checkInterrupts
 	(self unlikely: scheduler interruptPendingRelaxed ~= 0) ifTrue: [
 		self externalize.
 		self interruptSafepoint.
+		self reload]
+!
+checkInterruptsAtEntry
+	(self unlikely: scheduler interruptPendingRelaxed ~= 0) ifTrue: [
+		self externalize.
+		self entrySafepoint.
 		self reload]
 !
 jumpedBack
@@ -1752,7 +1771,7 @@ bcValue
 		(self unlikely: (jit isCode: fr code)) ifTrue: [
 			self jitResume.
 			^self].
-		self checkInterrupts.
+		self checkInterruptsAtEntry.
 		^self].
 	^self specialSend
 !
@@ -1978,7 +1997,7 @@ enterFrame
 		jit activated: fr.
 		self reload.
 		^self].
-	self checkInterrupts
+	self checkInterruptsAtEntry
 !
 sendDoesNotUnderstand
 	<label>

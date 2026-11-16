@@ -43,6 +43,7 @@ static uint64_t context_entry(bool looping);
 static jit_method *failed_header_for(oop m);
 static jit_method *jit_runtime_finish(oop m, uint64_t start, int32_t md);
 static void flush_code(void);
+static uint64_t interrupt_frame(frame *f, bool at_entry);
 static bool no_opt_frames(void);
 static void refresh_state(void);
 static int64_t slot_of(oop m);
@@ -1840,6 +1841,18 @@ bool headers_valid(bool (*valid)(oop))
 /* JitRuntime>>interrupt: */
 uint64_t interrupt(frame *f)
 {
+    return interrupt_frame(f, false);
+}
+
+/* JitRuntime>>interruptAtEntry: */
+uint64_t interrupt_at_entry(frame *f)
+{
+    return interrupt_frame(f, true);
+}
+
+/* JitRuntime>>interruptFrame:atEntry: */
+static uint64_t interrupt_frame(frame *f, bool at_entry)
+{
     oop o;
     uint64_t o_2;
     uint64_t moved;
@@ -1862,7 +1875,11 @@ uint64_t interrupt(frame *f)
     }
     moved = frame_epoch;
     inv = invalidations;
-    interrupt_safepoint();
+    if (at_entry) {
+        entry_safepoint();
+    } else {
+        interrupt_safepoint();
+    }
     if ((frame_epoch != moved) || (inv != invalidations)) {
         return 1;
     }

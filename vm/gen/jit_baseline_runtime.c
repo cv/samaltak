@@ -467,7 +467,7 @@ uint64_t entry_slow(frame *f, uint64_t ret, uint64_t c)
     if (state_block->interrupt != 0) {
         state_block->stack_limit = 0;
     }
-    interrupt_safepoint();
+    entry_safepoint();
     if ((frame_epoch != moved) || (inv != invalidations)) {
         return 1;
     }

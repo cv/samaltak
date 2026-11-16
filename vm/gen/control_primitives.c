@@ -276,7 +276,7 @@ void prim_process_stack_into(void)
     int64_t local_2[255];
     int64_t *pcs;
     int64_t n;
-    int64_t fresh;
+    int fresh;
     uint64_t ctx;
     uint64_t cl;
     uint64_t o_3;
@@ -325,7 +325,7 @@ void prim_process_stack_into(void)
     memset(&local_2, 0, sizeof local_2);
     pcs = local_2;
     n = 0;
-    fresh = 0;
+    fresh = (proc == last_preempted) && last_preempted_at_entry ? 1 : 0;
     ctx = *(uint64_t *)(proc + 16 + 8);
     while (((ctx & 7) == 0) && ((ctx != nil_oop) && (n < max))) {
         cl = *(uint64_t *)(ctx + 16 + 32);
@@ -337,9 +337,6 @@ void prim_process_stack_into(void)
         v = 0;
     }
     v; });
-        if (n == 0) {
-            fresh = *(uint64_t *)(ctx + 16 + 8) == (uint64_t)((pc << 1) | 1) ? 1 : 0;
-        }
         meths[n] = *(uint64_t *)(ctx + 16 + 24);
         pcs[n] = pc;
         n = n + 1;
@@ -380,7 +377,7 @@ void prim_process_stack_into(void)
     if (((v_7 & 7) == 0) && ((v_7 - young_lo < young_hi - young_lo) && ((!((uint64_t)(buf - young_lo) < young_hi - young_lo)) && (((*(uint64_t *)buf) & H_REMEMBERED) == 0)))) {
         remember(buf);
     }
-    v_8 = k | (n << 8) | (((int64_t)truncated) << 16) | (fresh << 17);
+    v_8 = k | (n << 8) | (((int64_t)truncated) << 16) | (((int64_t)fresh) << 17);
     v_9 = (uint64_t)((v_8 << 1) | 1);
     prim_result = v_9;
     prim_status = PS_OK;

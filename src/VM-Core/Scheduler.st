@@ -1,5 +1,5 @@
 VMCoreModule subclass: #Scheduler
-	instanceVariableNames: 'interruptPending lastPreempted allocSampleClass allocSampleSize allocSampleInterval allocSampleCountdown allocSampleSema statProcessSwitches allocSamplePending inIdle preemptToFront allocSampleUnread samplerTickUnread timerMs samplerIntervalUs samplerNextUs lastSwitchUs startUs samplerSema pendingExt pendingExtN pendingExtCap tickIdle tickPollUs tickArmedPoll tickArmedDeadline tickDeadlineFired ticker workClockOn workClockRunning workClockPaced workClockUsesCycles workClockUs workClockCycles workClockRaw workClockHeld workClockHoldCycles workClockQuerying frameSema frameFps frameOriginUs frameIndex frameNextUs'
+	instanceVariableNames: 'interruptPending lastPreempted lastPreemptedAtEntry allocSampleClass allocSampleSize allocSampleInterval allocSampleCountdown allocSampleSema statProcessSwitches allocSamplePending inIdle preemptToFront allocSampleUnread samplerTickUnread timerMs samplerIntervalUs samplerNextUs lastSwitchUs startUs samplerSema pendingExt pendingExtN pendingExtCap tickIdle tickPollUs tickArmedPoll tickArmedDeadline tickDeadlineFired ticker workClockOn workClockRunning workClockPaced workClockUsesCycles workClockUs workClockCycles workClockRaw workClockHeld workClockHoldCycles workClockQuerying frameSema frameFps frameOriginUs frameIndex frameNextUs'
 	classVariableNames: 'TICK_DEADLINE TICK_POLL WORK_CLOCK_FLOOR WORK_CLOCK_POLL_US WORK_CYCLES_PER_US'
 	package: 'VM-Core'!
 
@@ -11,7 +11,7 @@ While a video is recorded (workClockStart:semaphore:) my clock is the work clock
 
 !Scheduler class methodsFor: 'declaring'!
 declarations
-	^#((interruptPending atomic_int) (lastPreempted oop) (allocSampleClass oop) (allocSampleSize int64_t)
+	^#((interruptPending atomic_int) (lastPreempted oop) (lastPreemptedAtEntry bool) (allocSampleClass oop) (allocSampleSize int64_t)
 		(allocSampleInterval int64_t) (allocSampleCountdown int64_t) (allocSampleSema int32_t) (statProcessSwitches uint64_t)
 		(allocSamplePending bool) (inIdle bool) (preemptToFront bool) (allocSampleUnread bool) (samplerTickUnread bool)
 		(timerMs int64_t -1) (samplerIntervalUs int64_t) (samplerNextUs int64_t) (lastSwitchUs int64_t) (startUs int64_t)
@@ -40,6 +40,10 @@ lastPreempted
 !
 lastPreempted: o
 	lastPreempted := o
+!
+lastPreemptedAtEntry
+	"Whether lastPreempted was preempted at an activation's first instruction (and has not run since)."
+	^lastPreemptedAtEntry
 !
 allocSampleClass
 	^allocSampleClass
@@ -421,6 +425,9 @@ transferTo: aProcess
 	interpreter materializeAll.
 	memory popRoot.
 	old := self activeProcess.
+	"only the process that ran into the safepoint is at an entry"
+	interpreter safepointAtEntry: false.
+	proc value = lastPreempted ifTrue: [lastPreemptedAtEntry := false].
 	now := self threadCpuUs.
 	ct := self loadRef: old at: PROC_CPUTIME.
 	self storeRef: old at: PROC_CPUTIME put: (self intOop: ((self isInt: ct) ifTrue: [self intVal: ct] ifFalse: [0]) + now - lastSwitchUs).
@@ -475,6 +482,7 @@ resumeProcess: proc
 				ifTrue: [self addFirstLink: active to: (self runList: (self priorityOf: active))]
 				ifFalse: [self addLastLink: active to: (self runList: (self priorityOf: active))].
 			lastPreempted := active.
+			lastPreemptedAtEntry := interpreter safepointAtEntry.
 			self transferTo: proc]
 		ifFalse: [self addLastLink: proc to: (self runList: (self priorityOf: proc))]
 !

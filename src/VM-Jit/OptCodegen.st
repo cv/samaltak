@@ -1671,7 +1671,7 @@ emitOuts
 				asm comment: 'the doubles around it'.
 				0 to: self dregPairs - 1 do: [:i | asm stp: self dregBase + (2 * i) with: self dregBase + (2 * i) + 1 base: SP preIndex: -16]].
 			asm mov: X0 with: X19.
-			asm bl: cgInterruptLabel.
+			asm bl: ((ir node: o node) aux = SP_ENTRY ifTrue: [asm labelAt: stubs entryInterruptStub] ifFalse: [cgInterruptLabel]).
 			cgDoubles ifTrue: [self dregPairs - 1 to: 0 by: -1 do: [:i | asm ldp: self dregBase + (2 * i) with: self dregBase + (2 * i) + 1 base: SP postIndex: 16]].
 			asm cbnz: X0 to: cgExitPlainLabel.
 			self emitReloadPinned.

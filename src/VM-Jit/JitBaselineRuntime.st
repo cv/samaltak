@@ -799,7 +799,7 @@ entrySlow: f ret: ret callee: c
 				g fp at: n put: jit state ecode asUInt64]].
 	jit resetStress.
 	jit clearInterrupt.
-	interpreter interruptSafepoint.
+	interpreter entrySafepoint.
 	(interpreter frameEpoch ~= moved or: [inv ~= jit invalidations]) ifTrue: [^1].
 	c = 1 ifTrue: [nfp at: -1 put: (interpreter frames + (interpreter nframes - 1)) closure].
 	interpreter nframes: (f - interpreter frames) asInt32 + 1.
