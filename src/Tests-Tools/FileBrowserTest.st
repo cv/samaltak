@@ -273,7 +273,7 @@ testLargeFileOpensFastAndDrawsOnlyTheRowsShown
 			Time millisecondClockValue - t0])].
 	viewer := browser viewer.
 	self assert: viewer lineCount > 10000.
-	self assert: ms < 1000 description: 'interpreter.c opened in ', ms printString, ' ms'.
+	self runsOnTheDefaultJit ifTrue: [self assert: ms < 1000 description: 'interpreter.c opened in ', ms printString, ' ms'].
 	self in: window do: [viewer scrollOffset: viewer scrollTotal].
 	self assert: viewer topLine > 12000.
 	self assert: viewer remoteChildren size < 60.
