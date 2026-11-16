@@ -1359,3 +1359,25 @@ primPtyClose
 	bad ifTrue: [^self fail].
 	self answerOk: (ptys close: h asInt32)
 ! !
+
+!PlatformPrimitives methodsFor: 'clipboard'!
+primClipboardData
+	"MIME type -> bytes, or nil when unavailable."
+	<vmPrimitive: 419 name: 'clipboardData'>
+	| mime size data result |
+	(self args: 1) ifFalse: [^self fail].
+	mime := self stringArg: 0.
+	bad ifTrue: [^self fail].
+	size := self local: 'size_t'.
+	size value: 0.
+	data := windows clipboardData: mime size: size.
+	libc free: mime.
+	data isNull ifTrue: [^self answer: memory nilOop].
+	(size value = 0 or: [size value > 20971520]) ifTrue: [
+		windows freeClipboardData: data.
+		^self answer: memory nilOop].
+	result := memory allocBytes: memory clsBytearray count: size value.
+	libc memcpy: (self bytesOf: result) from: data size: size value.
+	windows freeClipboardData: data.
+	self answer: result
+! !

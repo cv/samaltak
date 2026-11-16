@@ -217,3 +217,9 @@ clipboardSet: aString
 	<primitive: 'clipboardSet'>
 	^self fail: 'clipboardSet'
 ! !
+
+!GPUPlatform class methodsFor: 'clipboard'!
+clipboardData: mime
+	<primitive: 419>
+	^nil
+! !

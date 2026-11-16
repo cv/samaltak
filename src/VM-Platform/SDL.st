@@ -352,6 +352,10 @@ getClipboardText
 setClipboardText: text
 	<c: 'bool SDL_SetClipboardText(const char *text)'>
 	^self notSimulated
+!
+getClipboardData: mime size: size
+	<c: 'void *SDL_GetClipboardData(const char *mime_type, size_t *size)'>
+	^self notSimulated
 ! !
 
 ExternStruct subclass: #SDLCommonEvent

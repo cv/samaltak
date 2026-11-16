@@ -80,14 +80,7 @@ objectBindings
 
 !AgentConversation methodsFor: 'asking'!
 ask: aString
-	"Add aString as the user's message and start a turn on it; answer me at once."
-	self isBusy ifTrue: [^self error: 'The agent is busy: wait for it or stop it first'].
-	items add: (AgentItem user: aString).
-	done := Semaphore new.
-	process := [self runTurn. self endTurn] newProcess.
-	process priority: Processor userSchedulingPriority; name: 'agent turn'.
-	self changed.
-	process resume
+	^self ask: aString images: #()
 !
 wait
 	"Block until the turn ends; answer the last assistant text, or the error that ended the turn."
@@ -195,4 +188,16 @@ changed
 !AgentConversation class methodsFor: 'instance creation'!
 on: anAgentContext
 	^self new context: anAgentContext; yourself
+! !
+
+!AgentConversation methodsFor: 'running'!
+ask: aString images: images
+	"Add a user message with image content and start a turn."
+	self isBusy ifTrue: [^self error: 'The agent is busy: wait for it or stop it first'].
+	items add: (AgentItem user: aString images: images).
+	done := Semaphore new.
+	process := [self runTurn. self endTurn] newProcess.
+	process priority: Processor userSchedulingPriority; name: 'agent turn'.
+	self changed.
+	process resume
 ! !

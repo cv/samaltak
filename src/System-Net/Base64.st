@@ -37,3 +37,22 @@ valueOf: aCharacter
 	(aCharacter = $= or: [aCharacter isSeparator]) ifTrue: [^nil].
 	^self error: 'not Base64: ', aCharacter printString
 ! !
+
+!Base64 class methodsFor: 'encoding'!
+encode: bytes
+	| out alphabet bits count |
+	alphabet := 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/'.
+	out := WriteStream on: (String new: (bytes size + 2 // 3 * 4)).
+	bits := 0.
+	count := 0.
+	bytes do: [:byte |
+		bits := (bits bitShift: 8) bitOr: byte.
+		count := count + 8.
+		[count >= 6] whileTrue: [
+			count := count - 6.
+			out nextPut: (alphabet at: ((bits bitShift: count negated) bitAnd: 63) + 1)].
+		bits := bits bitAnd: (1 bitShift: count) - 1].
+	count > 0 ifTrue: [out nextPut: (alphabet at: (bits bitShift: 6 - count) + 1)].
+	[out position \\ 4 ~= 0] whileTrue: [out nextPut: $=].
+	^out contents
+! !

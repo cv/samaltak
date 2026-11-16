@@ -203,3 +203,15 @@ clipboardSet: s
 		^false].
 	^true
 ! !
+
+!PlatformWindows methodsFor: 'clipboard'!
+clipboardData: mime size: size
+	"SDL-owned result; the caller frees it with SDL_free."
+	<export>
+	self videoInit ifFalse: [^self null].
+	^sdl getClipboardData: mime size: size
+!
+freeClipboardData: data
+	<export>
+	sdl free: data
+! !

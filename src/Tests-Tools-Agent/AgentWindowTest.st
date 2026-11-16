@@ -199,6 +199,18 @@ testClosingCancelsTheLogin
 	self assert: (self waitFor: [account isLoginPending not]) description: 'the login was not cancelled'.
 	self deny: account isSignedIn
 !
+testImageAttachment
+	| editor item content |
+	editor := AgentInputEditor new.
+	editor attach: #[1 2 3] mime: 'image/png'.
+	self assert: editor images size equals: 1.
+	item := AgentItem user: '' images: editor images.
+	content := item wire first at: 'content'.
+	self assert: (content last at: 'type') equals: 'input_image'.
+	self assert: (content last at: 'image_url') equals: 'data:image/png;base64,AQID'.
+	editor clearImages.
+	self assert: editor images isEmpty
+!
 testCommandJInAnAgentWindow
 	| parent child context |
 	parent := self openAgent.

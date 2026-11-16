@@ -93,6 +93,17 @@ user: aString
 call: aCallDictionary kind: aSymbol text: aString
 	"An item for a tool call, open until it gets its output:."
 	^(self kind: aSymbol text: aString) wire: (Array with: aCallDictionary); yourself
+!
+user: aString images: images
+	| item message content |
+	item := self user: aString.
+	images isEmpty ifTrue: [^item].
+	message := item wire first.
+	content := (message at: 'content') asOrderedCollection.
+	content addAll: images.
+	message at: 'content' put: content asArray.
+	item text: aString, (aString isEmpty ifTrue: [''] ifFalse: [String lf]), '[', images size printString, ' attached images]'.
+	^item
 ! !
 
 !AgentItem class methodsFor: 'wire'!

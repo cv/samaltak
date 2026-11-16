@@ -21,7 +21,7 @@ setConversation: anAgentConversation origin: aToolOrNil account: anAccount
 	pane := ScrollPane new content: transcript; yourself.
 	card := AgentLoginCard new name: 'login'; yourself.
 	card signInButton action: [self signIn].
-	askEditor := ToolTextEditor new name: 'ask'; title: 'ask'; highlighting: false; font: #ui; yourself.
+	askEditor := AgentInputEditor new name: 'ask'; title: 'ask'; highlighting: false; font: #ui; yourself.
 	askEditor onKey: [:event | self askKey: event].
 	sendButton := (Button label: 'Send' action: [self send]) name: 'send'; beDefault; fixed: 26; yourself.
 	stopButton := (Button label: 'Stop' action: [self stop]) name: 'stop'; fixed: 22; yourself.
@@ -112,11 +112,15 @@ askKey: anEvent
 	^true
 !
 send
-	| text |
+	| text attachments |
 	text := askEditor text trimBoth.
-	(text isEmpty or: [conversation isBusy or: [account isSignedIn not]]) ifTrue: [^self].
+	attachments := (askEditor respondsTo: #images)
+		ifTrue: [askEditor images asArray]
+		ifFalse: [#()].
+	((text isEmpty and: [attachments isEmpty]) or: [conversation isBusy or: [account isSignedIn not]]) ifTrue: [^self].
+	conversation ask: text images: attachments.
 	askEditor text: ''.
-	conversation ask: text.
+	(askEditor respondsTo: #clearImages) ifTrue: [askEditor clearImages].
 	pane scrollOffset: pane scrollTotal
 !
 stop
@@ -180,7 +184,6 @@ initialize
 	ToolsMenu register: 'Agent' description: '⌘J in a tool' order: 65 action: [:point |
 		self openOn: (AgentConversation on: (AgentContext new label: 'Desktop'; yourself)) origin: nil in: (Tools placeAt: point extent: 720 @ 640)]
 ! !
-
 
 !AgentWindow methodsFor: 'context'!
 agentContext
