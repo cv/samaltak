@@ -265,7 +265,7 @@ testRecordingWaitsForAReaderSlowerThanItsTicks
 !
 testRecordingStepsOneFramePerTick
 	"Each tick of the recording clock is presented, whatever the display does; the video takes every second one at 30 fps."
-	| recorder path n |
+	| recorder path n frames |
 	path := self scratchPath: 'ticks.rgba'.
 	File deleteIfExists: path.
 	recorder := FrameRecorder path: path width: 16 height: 16 fps: 30.
@@ -273,8 +273,10 @@ testRecordingStepsOneFramePerTick
 	world compositor startRecording: recorder.
 	(Delay forMilliseconds: 1000) wait.
 	world compositor stopRecording.
-	self assert: (world compositor frameCount - n between: 59 and: 61).
-	self assert: (recorder framesWritten between: 29 and: 30).
+	frames := world compositor frameCount - n.
+	"A second of the clock: 60 ticks, one more when the first came before the Delay started."
+	self assert: (frames between: 59 and: 61).
+	self assert: (recorder framesWritten between: frames // 2 and: frames + 1 // 2).
 	File delete: path
 !
 testTheTickGridIsWholeMilliseconds
