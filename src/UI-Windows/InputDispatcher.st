@@ -1,6 +1,6 @@
 Object subclass: #InputDispatcher
 	instanceVariableNames: 'world displayWindow process running semaphore semaphoreIndex buffer pointer modifiers gesture pressed captureWindow hoverWindow cursor idle lastMove tooltipAsked services standIn lastPress'
-	classVariableNames: ''
+	classVariableNames: 'Running'
 	package: 'UI-Windows'!
 
 InputDispatcher comment: 'I am the input dispatcher: a Process at priority 60 that drains the platform''s events (real ones and those injected by remote control arrive the same way), tracks the pointer and modifiers, counts multi-clicks (countClick:on:), and routes each event: pointer events to the window under the pointer (or the one that has the pointer since a press), keys and text to the topmost overlay or the active window. I do the window manager''s work myself — raise and activate on press, drag by the title bar, resize from the edges and the corner (with resize cursors), close and collapse boxes, double-click to collapse, clicks on the desk — so it stays live while a window''s Process is busy. ⌘. is reserved: it calls World>>userInterrupt. Other input sources share my Process (addService:): remote control''s sockets signal my Semaphore and I service them after the platform''s events.'!
@@ -29,6 +29,9 @@ modifiers
 !
 process
 	^process
+!
+semaphoreIndex
+	^semaphoreIndex
 !
 isIdle
 	^idle
@@ -59,6 +62,7 @@ start
 	running := true.
 	semaphore := Semaphore new.
 	semaphoreIndex := Smalltalk vm registerExternalSemaphore: semaphore.
+	Running := self class running copyWith: self.
 	DisplayWindow inputSemaphoreIndex: semaphoreIndex.
 	process := [self run] newProcess.
 	process priority: self class priority; name: 'input dispatcher'.
@@ -68,7 +72,8 @@ start
 stop
 	running := false.
 	services do: [:each | each unhost].
-	DisplayWindow inputSemaphoreIndex: 0.
+	Running := self class running copyWithout: self.
+	DisplayWindow inputSemaphoreIndex: (Running isEmpty ifTrue: [0] ifFalse: [Running last semaphoreIndex]).
 	Smalltalk vm unregisterExternalSemaphore: semaphoreIndex.
 	semaphoreIndex := nil.
 	(process notNil and: [process ~~ Processor activeProcess]) ifTrue: [process terminate].
@@ -78,6 +83,7 @@ stop
 abandon
 	running := false.
 	services := #().
+	Running := self class running copyWithout: self.
 	Smalltalk vm unregisterExternalSemaphore: semaphoreIndex.
 	process isNil ifFalse: [process terminate].
 	process := nil.
@@ -348,6 +354,10 @@ handleText: anEvent
 !InputDispatcher class methodsFor: 'accessing'!
 priority
 	^60
+!
+running
+	"The running dispatchers in start order: the VM signals the last one's Semaphore when platform events are pending."
+	^Running ifNil: [#()]
 !
 clickRadius
 	"How far (points) a further click of a multi-click may be from the previous press; macOS: about 4–5."

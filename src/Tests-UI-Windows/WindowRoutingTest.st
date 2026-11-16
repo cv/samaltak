@@ -241,4 +241,24 @@ testQueueItemsDeliverThemselves
 	self assert: (v pointerEvents collect: [:e | e type]) asArray equals: #(#down #up).
 	self assert: ((v events select: [:e | e isUIEvent and: [e isKey]]) collect: [:e | e key]) asArray equals: #($a).
 	self assert: ((v events select: [:e | e isUIEvent and: [e isText]]) collect: [:e | e string]) asArray equals: #('x')
+!
+testInputAfterAnotherWorldStopped
+	(World openHidden: 400 @ 300) stop.
+	self assertDispatcherOf: world handlesMoveTo: 123 @ 45
+!
+testInputAfterWorldsStoppedOutOfOrder
+	| b c |
+	b := World openHidden: 400 @ 300.
+	c := World openHidden: 400 @ 300.
+	[b stop.
+	 self assertDispatcherOf: c handlesMoveTo: 67 @ 89.
+	 c stop.
+	 self assertDispatcherOf: world handlesMoveTo: 123 @ 45]
+		ensure: [b stop. c stop]
+! !
+
+!WindowRoutingTest methodsFor: 'support'!
+assertDispatcherOf: aWorld handlesMoveTo: aPoint
+	DisplayWindow injectEvent: {UIEvent evMouseMove. nil. aPoint x. aPoint y. 0. 0. nil. aWorld displayWindow windowId}.
+	self assert: (self waitFor: [aWorld dispatcher pointer = aPoint] timeout: 2000)
 ! !
