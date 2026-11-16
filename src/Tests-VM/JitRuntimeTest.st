@@ -570,6 +570,22 @@ testAllocationWhosePrimitiveFails
 ! !
 
 !JitRuntimeTest methodsFor: 'tests: speculation'!
+testReassignedGlobalClass
+	"Code that reads a global holding a class sees the value the global holds when it runs: another class, something else, the class again."
+	| o |
+	Smalltalk at: #JitRuntimeTestGlobal put: Array.
+	[self define: 'makeGlobal ^JitRuntimeTestGlobal new: 2'.
+	self define: 'makeGlobals: n | r | r := OrderedCollection new. 1 to: n do: [:i | r add: self makeGlobal class]. ^r asArray'.
+	o := JitRuntimeTestSubject new.
+	3 timesRepeat: [self assert: (o makeGlobals: 3) equals: {Array. Array. Array}].
+	Smalltalk at: #JitRuntimeTestGlobal put: OrderedCollection.
+	3 timesRepeat: [self assert: (o makeGlobals: 2) equals: {OrderedCollection. OrderedCollection}].
+	Smalltalk at: #JitRuntimeTestGlobal put: 'ab'.
+	self assert: ([o makeGlobal] on: Error do: [:e | #failed]) equals: #failed.
+	Smalltalk at: #JitRuntimeTestGlobal put: ByteArray.
+	3 timesRepeat: [self assert: (o makeGlobals: 2) equals: {ByteArray. ByteArray}]]
+		ensure: [Smalltalk removeKey: #JitRuntimeTestGlobal ifAbsent: []]
+!
 testBranchesOnBooleans
 	"Branches on ==, ~~, isNil and on what and: and or: answer (phis of Booleans), on comparisons an inlined method answers, on constants; a value that is not a Boolean still sends mustBeBoolean."
 	| o |

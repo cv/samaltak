@@ -897,7 +897,7 @@ emit: pc act: a
 		self push: (self constant: (self literal: op - 16r20 act: a)) act: a depth: d.
 		^next].
 	op < 16r60 ifTrue: [
-		self push: (self loadField: ASSOC_VALUE of: (self constant: (self literal: op - 16r40 act: a))) act: a depth: d.
+		self push: (self global: (self literal: op - 16r40 act: a) pc: pc act: a depth: d) act: a depth: d.
 		^next].
 	op < 16r68 ifTrue: [
 		self write: (self var: a slot: op - 16r60) value: (self read: (self var: a slot: d - 1)).
@@ -941,7 +941,7 @@ emit: pc act: a
 		self push: (self constant: (self literal: (self byteAt: pc + 1 act: a) act: a)) act: a depth: d.
 		^next].
 	op = 16r83 ifTrue: [
-		self push: (self loadField: ASSOC_VALUE of: (self constant: (self literal: (self byteAt: pc + 1 act: a) act: a))) act: a depth: d.
+		self push: (self global: (self literal: (self byteAt: pc + 1 act: a) act: a) pc: pc act: a depth: d) act: a depth: d.
 		^next].
 	op = 16r84 ifTrue: [
 		self write: (self var: a slot: (self byteAt: pc + 1 act: a)) value: (self read: (self var: a slot: d - 1)).
@@ -1953,6 +1953,34 @@ deoptAct: a state: s
 	n := self add: O_DEOPT rep: R_NONE.
 	(ir node: n) state: s.
 	obCurBlock := -1
+!
+global: assoc pc: pc act: a depth: d
+	"The value of the literal variable assoc pushed at a's pc: a class it holds now is a constant, guarded (it changed: deoptimize to the push, where it is loaded from then on), else loaded."
+	| v c t f n |
+	v := self loadField: ASSOC_VALUE of: (self constant: assoc).
+	c := self loadRef: assoc at: ASSOC_VALUE.
+	((self isBehavior: c) and: [((feedback flagsAt: (ir act: a) method pc: pc) bitAnd: feedback deoptOther) = 0]) ifFalse: [^v].
+	t := ir newBlock.
+	(ir block: t) act: a.
+	f := ir newBlock.
+	(ir block: f) act: a.
+	self branch: (self compare: O_EQ a: v b: (self constant: c)) true: t false: f.
+	self seal: t.
+	self seal: f.
+	obCurBlock := f.
+	"aux 1: feedback says other, not class"
+	n := self add: O_DEOPT rep: R_NONE.
+	(ir node: n) state: (self stateAct: a pc: pc depth: d).
+	(ir node: n) aux: 1.
+	obCurBlock := t.
+	^self constant: c
+!
+isBehavior: o
+	"o is a class or a metaclass: its class's class is Metaclass (Metaclass class's class is Metaclass)."
+	| m |
+	(self isPtr: o) ifFalse: [^false].
+	m := self rawClass: (self rawClass: o).
+	^m = (self rawClass: (self rawClass: m))
 !
 noteDependency: sel
 	"The code depends on what sel finds (inlined or speculated): a method change for sel invalidates it."

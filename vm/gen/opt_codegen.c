@@ -11452,7 +11452,7 @@ exit_dst_3:;
             s_2 = ({
     k = ({
     op_2 = (int32_t)(opt_nodes + n)->op;
-    why = (op_2 == O_GUARDCLASS) || (op_2 == O_DEOPT) ? FB_DEOPT_CLASS : op_2 == O_NOTINTS ? FB_INTS : (op_2 == O_GUARDINT) || ((op_2 == O_IADD) || ((op_2 == O_ISUB) || ((op_2 == O_IMUL) || ((op_2 == O_IMOD) || ((op_2 == O_IDIV) || (op_2 == O_ISHIFT)))))) ? FB_DEOPT_ARITH : FB_DEOPT_OTHER;
+    why = (op_2 == O_GUARDCLASS) || ((op_2 == O_DEOPT) && ((opt_nodes + n)->aux == 0)) ? FB_DEOPT_CLASS : op_2 == O_NOTINTS ? FB_INTS : (op_2 == O_GUARDINT) || ((op_2 == O_IADD) || ((op_2 == O_ISUB) || ((op_2 == O_IMUL) || ((op_2 == O_IMOD) || ((op_2 == O_IDIV) || (op_2 == O_ISHIFT)))))) ? FB_DEOPT_ARITH : FB_DEOPT_OTHER;
     if (((opt_nodes + n)->flags & NF_HOISTED) != 0) {
         why = FB_DEOPT_HOISTED;
     }
@@ -16081,7 +16081,7 @@ exit_source_5:;
     s_3 = ({
     k_3 = ({
     op_3 = (int32_t)(opt_nodes + n)->op;
-    why_2 = (op_3 == O_GUARDCLASS) || (op_3 == O_DEOPT) ? FB_DEOPT_CLASS : op_3 == O_NOTINTS ? FB_INTS : (op_3 == O_GUARDINT) || ((op_3 == O_IADD) || ((op_3 == O_ISUB) || ((op_3 == O_IMUL) || ((op_3 == O_IMOD) || ((op_3 == O_IDIV) || (op_3 == O_ISHIFT)))))) ? FB_DEOPT_ARITH : FB_DEOPT_OTHER;
+    why_2 = (op_3 == O_GUARDCLASS) || ((op_3 == O_DEOPT) && ((opt_nodes + n)->aux == 0)) ? FB_DEOPT_CLASS : op_3 == O_NOTINTS ? FB_INTS : (op_3 == O_GUARDINT) || ((op_3 == O_IADD) || ((op_3 == O_ISUB) || ((op_3 == O_IMUL) || ((op_3 == O_IMOD) || ((op_3 == O_IDIV) || (op_3 == O_ISHIFT)))))) ? FB_DEOPT_ARITH : FB_DEOPT_OTHER;
     if (((opt_nodes + n)->flags & NF_HOISTED) != 0) {
         why_2 = FB_DEOPT_HOISTED;
     }
@@ -18252,7 +18252,7 @@ exit_dst_5:;
         s_4 = ({
     k_4 = ({
     op_4 = (int32_t)(opt_nodes + n)->op;
-    why_3 = (op_4 == O_GUARDCLASS) || (op_4 == O_DEOPT) ? FB_DEOPT_CLASS : op_4 == O_NOTINTS ? FB_INTS : (op_4 == O_GUARDINT) || ((op_4 == O_IADD) || ((op_4 == O_ISUB) || ((op_4 == O_IMUL) || ((op_4 == O_IMOD) || ((op_4 == O_IDIV) || (op_4 == O_ISHIFT)))))) ? FB_DEOPT_ARITH : FB_DEOPT_OTHER;
+    why_3 = (op_4 == O_GUARDCLASS) || ((op_4 == O_DEOPT) && ((opt_nodes + n)->aux == 0)) ? FB_DEOPT_CLASS : op_4 == O_NOTINTS ? FB_INTS : (op_4 == O_GUARDINT) || ((op_4 == O_IADD) || ((op_4 == O_ISUB) || ((op_4 == O_IMUL) || ((op_4 == O_IMOD) || ((op_4 == O_IDIV) || (op_4 == O_ISHIFT)))))) ? FB_DEOPT_ARITH : FB_DEOPT_OTHER;
     if (((opt_nodes + n)->flags & NF_HOISTED) != 0) {
         why_3 = FB_DEOPT_HOISTED;
     }
@@ -18432,7 +18432,7 @@ exit_emit_stress_at_3:;
     s_5 = ({
     k_5 = ({
     op_5 = (int32_t)(opt_nodes + n)->op;
-    why_4 = (op_5 == O_GUARDCLASS) || (op_5 == O_DEOPT) ? FB_DEOPT_CLASS : op_5 == O_NOTINTS ? FB_INTS : (op_5 == O_GUARDINT) || ((op_5 == O_IADD) || ((op_5 == O_ISUB) || ((op_5 == O_IMUL) || ((op_5 == O_IMOD) || ((op_5 == O_IDIV) || (op_5 == O_ISHIFT)))))) ? FB_DEOPT_ARITH : FB_DEOPT_OTHER;
+    why_4 = (op_5 == O_GUARDCLASS) || ((op_5 == O_DEOPT) && ((opt_nodes + n)->aux == 0)) ? FB_DEOPT_CLASS : op_5 == O_NOTINTS ? FB_INTS : (op_5 == O_GUARDINT) || ((op_5 == O_IADD) || ((op_5 == O_ISUB) || ((op_5 == O_IMUL) || ((op_5 == O_IMOD) || ((op_5 == O_IDIV) || (op_5 == O_ISHIFT)))))) ? FB_DEOPT_ARITH : FB_DEOPT_OTHER;
     if (((opt_nodes + n)->flags & NF_HOISTED) != 0) {
         why_4 = FB_DEOPT_HOISTED;
     }
@@ -26153,7 +26153,7 @@ exit_source_14:;
                 s_6 = ({
     k_7 = ({
     op_7 = (int32_t)(opt_nodes + n)->op;
-    why_5 = (op_7 == O_GUARDCLASS) || (op_7 == O_DEOPT) ? FB_DEOPT_CLASS : op_7 == O_NOTINTS ? FB_INTS : (op_7 == O_GUARDINT) || ((op_7 == O_IADD) || ((op_7 == O_ISUB) || ((op_7 == O_IMUL) || ((op_7 == O_IMOD) || ((op_7 == O_IDIV) || (op_7 == O_ISHIFT)))))) ? FB_DEOPT_ARITH : FB_DEOPT_OTHER;
+    why_5 = (op_7 == O_GUARDCLASS) || ((op_7 == O_DEOPT) && ((opt_nodes + n)->aux == 0)) ? FB_DEOPT_CLASS : op_7 == O_NOTINTS ? FB_INTS : (op_7 == O_GUARDINT) || ((op_7 == O_IADD) || ((op_7 == O_ISUB) || ((op_7 == O_IMUL) || ((op_7 == O_IMOD) || ((op_7 == O_IDIV) || (op_7 == O_ISHIFT)))))) ? FB_DEOPT_ARITH : FB_DEOPT_OTHER;
     if (((opt_nodes + n)->flags & NF_HOISTED) != 0) {
         why_5 = FB_DEOPT_HOISTED;
     }
@@ -27608,7 +27608,7 @@ exit_source_17:;
             s_6 = ({
     k_8 = ({
     op_8 = (int32_t)(opt_nodes + n)->op;
-    why_6 = (op_8 == O_GUARDCLASS) || (op_8 == O_DEOPT) ? FB_DEOPT_CLASS : op_8 == O_NOTINTS ? FB_INTS : (op_8 == O_GUARDINT) || ((op_8 == O_IADD) || ((op_8 == O_ISUB) || ((op_8 == O_IMUL) || ((op_8 == O_IMOD) || ((op_8 == O_IDIV) || (op_8 == O_ISHIFT)))))) ? FB_DEOPT_ARITH : FB_DEOPT_OTHER;
+    why_6 = (op_8 == O_GUARDCLASS) || ((op_8 == O_DEOPT) && ((opt_nodes + n)->aux == 0)) ? FB_DEOPT_CLASS : op_8 == O_NOTINTS ? FB_INTS : (op_8 == O_GUARDINT) || ((op_8 == O_IADD) || ((op_8 == O_ISUB) || ((op_8 == O_IMUL) || ((op_8 == O_IMOD) || ((op_8 == O_IDIV) || (op_8 == O_ISHIFT)))))) ? FB_DEOPT_ARITH : FB_DEOPT_OTHER;
     if (((opt_nodes + n)->flags & NF_HOISTED) != 0) {
         why_6 = FB_DEOPT_HOISTED;
     }
@@ -29546,7 +29546,7 @@ exit_dsrc_4:;
             s_6 = ({
     k_9 = ({
     op_9 = (int32_t)(opt_nodes + n)->op;
-    why_7 = (op_9 == O_GUARDCLASS) || (op_9 == O_DEOPT) ? FB_DEOPT_CLASS : op_9 == O_NOTINTS ? FB_INTS : (op_9 == O_GUARDINT) || ((op_9 == O_IADD) || ((op_9 == O_ISUB) || ((op_9 == O_IMUL) || ((op_9 == O_IMOD) || ((op_9 == O_IDIV) || (op_9 == O_ISHIFT)))))) ? FB_DEOPT_ARITH : FB_DEOPT_OTHER;
+    why_7 = (op_9 == O_GUARDCLASS) || ((op_9 == O_DEOPT) && ((opt_nodes + n)->aux == 0)) ? FB_DEOPT_CLASS : op_9 == O_NOTINTS ? FB_INTS : (op_9 == O_GUARDINT) || ((op_9 == O_IADD) || ((op_9 == O_ISUB) || ((op_9 == O_IMUL) || ((op_9 == O_IMOD) || ((op_9 == O_IDIV) || (op_9 == O_ISHIFT)))))) ? FB_DEOPT_ARITH : FB_DEOPT_OTHER;
     if (((opt_nodes + n)->flags & NF_HOISTED) != 0) {
         why_7 = FB_DEOPT_HOISTED;
     }
@@ -32911,7 +32911,7 @@ exit_condition_of:;
         s = ({
     k_11 = ({
     op_10 = (int32_t)(opt_nodes + n)->op;
-    why_8 = (op_10 == O_GUARDCLASS) || (op_10 == O_DEOPT) ? FB_DEOPT_CLASS : op_10 == O_NOTINTS ? FB_INTS : (op_10 == O_GUARDINT) || ((op_10 == O_IADD) || ((op_10 == O_ISUB) || ((op_10 == O_IMUL) || ((op_10 == O_IMOD) || ((op_10 == O_IDIV) || (op_10 == O_ISHIFT)))))) ? FB_DEOPT_ARITH : FB_DEOPT_OTHER;
+    why_8 = (op_10 == O_GUARDCLASS) || ((op_10 == O_DEOPT) && ((opt_nodes + n)->aux == 0)) ? FB_DEOPT_CLASS : op_10 == O_NOTINTS ? FB_INTS : (op_10 == O_GUARDINT) || ((op_10 == O_IADD) || ((op_10 == O_ISUB) || ((op_10 == O_IMUL) || ((op_10 == O_IMOD) || ((op_10 == O_IDIV) || (op_10 == O_ISHIFT)))))) ? FB_DEOPT_ARITH : FB_DEOPT_OTHER;
     if (((opt_nodes + n)->flags & NF_HOISTED) != 0) {
         why_8 = FB_DEOPT_HOISTED;
     }
@@ -34497,7 +34497,7 @@ exit_src_19:;
         s = ({
     k_12 = ({
     op_11 = (int32_t)(opt_nodes + n)->op;
-    why_9 = (op_11 == O_GUARDCLASS) || (op_11 == O_DEOPT) ? FB_DEOPT_CLASS : op_11 == O_NOTINTS ? FB_INTS : (op_11 == O_GUARDINT) || ((op_11 == O_IADD) || ((op_11 == O_ISUB) || ((op_11 == O_IMUL) || ((op_11 == O_IMOD) || ((op_11 == O_IDIV) || (op_11 == O_ISHIFT)))))) ? FB_DEOPT_ARITH : FB_DEOPT_OTHER;
+    why_9 = (op_11 == O_GUARDCLASS) || ((op_11 == O_DEOPT) && ((opt_nodes + n)->aux == 0)) ? FB_DEOPT_CLASS : op_11 == O_NOTINTS ? FB_INTS : (op_11 == O_GUARDINT) || ((op_11 == O_IADD) || ((op_11 == O_ISUB) || ((op_11 == O_IMUL) || ((op_11 == O_IMOD) || ((op_11 == O_IDIV) || (op_11 == O_ISHIFT)))))) ? FB_DEOPT_ARITH : FB_DEOPT_OTHER;
     if (((opt_nodes + n)->flags & NF_HOISTED) != 0) {
         why_9 = FB_DEOPT_HOISTED;
     }
@@ -35177,7 +35177,7 @@ exit_source_32:;
         s_7 = ({
     k_13 = ({
     op_12 = (int32_t)(opt_nodes + n)->op;
-    why_10 = (op_12 == O_GUARDCLASS) || (op_12 == O_DEOPT) ? FB_DEOPT_CLASS : op_12 == O_NOTINTS ? FB_INTS : (op_12 == O_GUARDINT) || ((op_12 == O_IADD) || ((op_12 == O_ISUB) || ((op_12 == O_IMUL) || ((op_12 == O_IMOD) || ((op_12 == O_IDIV) || (op_12 == O_ISHIFT)))))) ? FB_DEOPT_ARITH : FB_DEOPT_OTHER;
+    why_10 = (op_12 == O_GUARDCLASS) || ((op_12 == O_DEOPT) && ((opt_nodes + n)->aux == 0)) ? FB_DEOPT_CLASS : op_12 == O_NOTINTS ? FB_INTS : (op_12 == O_GUARDINT) || ((op_12 == O_IADD) || ((op_12 == O_ISUB) || ((op_12 == O_IMUL) || ((op_12 == O_IMOD) || ((op_12 == O_IDIV) || (op_12 == O_ISHIFT)))))) ? FB_DEOPT_ARITH : FB_DEOPT_OTHER;
     if (((opt_nodes + n)->flags & NF_HOISTED) != 0) {
         why_10 = FB_DEOPT_HOISTED;
     }
@@ -36367,7 +36367,7 @@ exit_src_22:;
         s_8 = ({
     k_14 = ({
     op_13 = (int32_t)(opt_nodes + n)->op;
-    why_11 = (op_13 == O_GUARDCLASS) || (op_13 == O_DEOPT) ? FB_DEOPT_CLASS : op_13 == O_NOTINTS ? FB_INTS : (op_13 == O_GUARDINT) || ((op_13 == O_IADD) || ((op_13 == O_ISUB) || ((op_13 == O_IMUL) || ((op_13 == O_IMOD) || ((op_13 == O_IDIV) || (op_13 == O_ISHIFT)))))) ? FB_DEOPT_ARITH : FB_DEOPT_OTHER;
+    why_11 = (op_13 == O_GUARDCLASS) || ((op_13 == O_DEOPT) && ((opt_nodes + n)->aux == 0)) ? FB_DEOPT_CLASS : op_13 == O_NOTINTS ? FB_INTS : (op_13 == O_GUARDINT) || ((op_13 == O_IADD) || ((op_13 == O_ISUB) || ((op_13 == O_IMUL) || ((op_13 == O_IMOD) || ((op_13 == O_IDIV) || (op_13 == O_ISHIFT)))))) ? FB_DEOPT_ARITH : FB_DEOPT_OTHER;
     if (((opt_nodes + n)->flags & NF_HOISTED) != 0) {
         why_11 = FB_DEOPT_HOISTED;
     }
@@ -37511,7 +37511,7 @@ exit_src_24:;
         s_9 = ({
     k_15 = ({
     op_15 = (int32_t)(opt_nodes + n)->op;
-    why_12 = (op_15 == O_GUARDCLASS) || (op_15 == O_DEOPT) ? FB_DEOPT_CLASS : op_15 == O_NOTINTS ? FB_INTS : (op_15 == O_GUARDINT) || ((op_15 == O_IADD) || ((op_15 == O_ISUB) || ((op_15 == O_IMUL) || ((op_15 == O_IMOD) || ((op_15 == O_IDIV) || (op_15 == O_ISHIFT)))))) ? FB_DEOPT_ARITH : FB_DEOPT_OTHER;
+    why_12 = (op_15 == O_GUARDCLASS) || ((op_15 == O_DEOPT) && ((opt_nodes + n)->aux == 0)) ? FB_DEOPT_CLASS : op_15 == O_NOTINTS ? FB_INTS : (op_15 == O_GUARDINT) || ((op_15 == O_IADD) || ((op_15 == O_ISUB) || ((op_15 == O_IMUL) || ((op_15 == O_IMOD) || ((op_15 == O_IDIV) || (op_15 == O_ISHIFT)))))) ? FB_DEOPT_ARITH : FB_DEOPT_OTHER;
     if (((opt_nodes + n)->flags & NF_HOISTED) != 0) {
         why_12 = FB_DEOPT_HOISTED;
     }
@@ -38873,7 +38873,7 @@ exit_emit_div_by:;
             s_11 = ({
     k_17 = ({
     op_17 = (int32_t)(opt_nodes + n)->op;
-    why_13 = (op_17 == O_GUARDCLASS) || (op_17 == O_DEOPT) ? FB_DEOPT_CLASS : op_17 == O_NOTINTS ? FB_INTS : (op_17 == O_GUARDINT) || ((op_17 == O_IADD) || ((op_17 == O_ISUB) || ((op_17 == O_IMUL) || ((op_17 == O_IMOD) || ((op_17 == O_IDIV) || (op_17 == O_ISHIFT)))))) ? FB_DEOPT_ARITH : FB_DEOPT_OTHER;
+    why_13 = (op_17 == O_GUARDCLASS) || ((op_17 == O_DEOPT) && ((opt_nodes + n)->aux == 0)) ? FB_DEOPT_CLASS : op_17 == O_NOTINTS ? FB_INTS : (op_17 == O_GUARDINT) || ((op_17 == O_IADD) || ((op_17 == O_ISUB) || ((op_17 == O_IMUL) || ((op_17 == O_IMOD) || ((op_17 == O_IDIV) || (op_17 == O_ISHIFT)))))) ? FB_DEOPT_ARITH : FB_DEOPT_OTHER;
     if (((opt_nodes + n)->flags & NF_HOISTED) != 0) {
         why_13 = FB_DEOPT_HOISTED;
     }
@@ -40827,7 +40827,7 @@ exit_src_26:;
         s_12 = ({
     k_18 = ({
     op_19 = (int32_t)(opt_nodes + n)->op;
-    why_14 = (op_19 == O_GUARDCLASS) || (op_19 == O_DEOPT) ? FB_DEOPT_CLASS : op_19 == O_NOTINTS ? FB_INTS : (op_19 == O_GUARDINT) || ((op_19 == O_IADD) || ((op_19 == O_ISUB) || ((op_19 == O_IMUL) || ((op_19 == O_IMOD) || ((op_19 == O_IDIV) || (op_19 == O_ISHIFT)))))) ? FB_DEOPT_ARITH : FB_DEOPT_OTHER;
+    why_14 = (op_19 == O_GUARDCLASS) || ((op_19 == O_DEOPT) && ((opt_nodes + n)->aux == 0)) ? FB_DEOPT_CLASS : op_19 == O_NOTINTS ? FB_INTS : (op_19 == O_GUARDINT) || ((op_19 == O_IADD) || ((op_19 == O_ISUB) || ((op_19 == O_IMUL) || ((op_19 == O_IMOD) || ((op_19 == O_IDIV) || (op_19 == O_ISHIFT)))))) ? FB_DEOPT_ARITH : FB_DEOPT_OTHER;
     if (((opt_nodes + n)->flags & NF_HOISTED) != 0) {
         why_14 = FB_DEOPT_HOISTED;
     }
@@ -42222,7 +42222,7 @@ exit_dst_10:;
         s = ({
     k_19 = ({
     op_20 = (int32_t)(opt_nodes + n)->op;
-    why_15 = (op_20 == O_GUARDCLASS) || (op_20 == O_DEOPT) ? FB_DEOPT_CLASS : op_20 == O_NOTINTS ? FB_INTS : (op_20 == O_GUARDINT) || ((op_20 == O_IADD) || ((op_20 == O_ISUB) || ((op_20 == O_IMUL) || ((op_20 == O_IMOD) || ((op_20 == O_IDIV) || (op_20 == O_ISHIFT)))))) ? FB_DEOPT_ARITH : FB_DEOPT_OTHER;
+    why_15 = (op_20 == O_GUARDCLASS) || ((op_20 == O_DEOPT) && ((opt_nodes + n)->aux == 0)) ? FB_DEOPT_CLASS : op_20 == O_NOTINTS ? FB_INTS : (op_20 == O_GUARDINT) || ((op_20 == O_IADD) || ((op_20 == O_ISUB) || ((op_20 == O_IMUL) || ((op_20 == O_IMOD) || ((op_20 == O_IDIV) || (op_20 == O_ISHIFT)))))) ? FB_DEOPT_ARITH : FB_DEOPT_OTHER;
     if (((opt_nodes + n)->flags & NF_HOISTED) != 0) {
         why_15 = FB_DEOPT_HOISTED;
     }
@@ -42867,7 +42867,7 @@ exit_emit_stress_at_15:;
         s = ({
     k_20 = ({
     op_21 = (int32_t)(opt_nodes + n)->op;
-    why_16 = (op_21 == O_GUARDCLASS) || (op_21 == O_DEOPT) ? FB_DEOPT_CLASS : op_21 == O_NOTINTS ? FB_INTS : (op_21 == O_GUARDINT) || ((op_21 == O_IADD) || ((op_21 == O_ISUB) || ((op_21 == O_IMUL) || ((op_21 == O_IMOD) || ((op_21 == O_IDIV) || (op_21 == O_ISHIFT)))))) ? FB_DEOPT_ARITH : FB_DEOPT_OTHER;
+    why_16 = (op_21 == O_GUARDCLASS) || ((op_21 == O_DEOPT) && ((opt_nodes + n)->aux == 0)) ? FB_DEOPT_CLASS : op_21 == O_NOTINTS ? FB_INTS : (op_21 == O_GUARDINT) || ((op_21 == O_IADD) || ((op_21 == O_ISUB) || ((op_21 == O_IMUL) || ((op_21 == O_IMOD) || ((op_21 == O_IDIV) || (op_21 == O_ISHIFT)))))) ? FB_DEOPT_ARITH : FB_DEOPT_OTHER;
     if (((opt_nodes + n)->flags & NF_HOISTED) != 0) {
         why_16 = FB_DEOPT_HOISTED;
     }
@@ -64550,7 +64550,7 @@ exit_is_fused_2:;
             s_20 = ({
     k_25 = ({
     op_22 = (int32_t)(opt_nodes + n)->op;
-    why_17 = (op_22 == O_GUARDCLASS) || (op_22 == O_DEOPT) ? FB_DEOPT_CLASS : op_22 == O_NOTINTS ? FB_INTS : (op_22 == O_GUARDINT) || ((op_22 == O_IADD) || ((op_22 == O_ISUB) || ((op_22 == O_IMUL) || ((op_22 == O_IMOD) || ((op_22 == O_IDIV) || (op_22 == O_ISHIFT)))))) ? FB_DEOPT_ARITH : FB_DEOPT_OTHER;
+    why_17 = (op_22 == O_GUARDCLASS) || ((op_22 == O_DEOPT) && ((opt_nodes + n)->aux == 0)) ? FB_DEOPT_CLASS : op_22 == O_NOTINTS ? FB_INTS : (op_22 == O_GUARDINT) || ((op_22 == O_IADD) || ((op_22 == O_ISUB) || ((op_22 == O_IMUL) || ((op_22 == O_IMOD) || ((op_22 == O_IDIV) || (op_22 == O_ISHIFT)))))) ? FB_DEOPT_ARITH : FB_DEOPT_OTHER;
     if (((opt_nodes + n)->flags & NF_HOISTED) != 0) {
         why_17 = FB_DEOPT_HOISTED;
     }
@@ -68640,10 +68640,15 @@ exit_out_28:;
         return;
     }
     if (op == O_DEOPT) {
+        if ((opt_nodes + n)->aux == 1) {
+            if (asm_noting) {
+                note("the global holds another value than the class speculated: deoptimize", 0);
+            }
+        }
         a_label_68 = ({
     k_28 = ({
     op_23 = (int32_t)(opt_nodes + n)->op;
-    why_18 = (op_23 == O_GUARDCLASS) || (op_23 == O_DEOPT) ? FB_DEOPT_CLASS : op_23 == O_NOTINTS ? FB_INTS : (op_23 == O_GUARDINT) || ((op_23 == O_IADD) || ((op_23 == O_ISUB) || ((op_23 == O_IMUL) || ((op_23 == O_IMOD) || ((op_23 == O_IDIV) || (op_23 == O_ISHIFT)))))) ? FB_DEOPT_ARITH : FB_DEOPT_OTHER;
+    why_18 = (op_23 == O_GUARDCLASS) || ((op_23 == O_DEOPT) && ((opt_nodes + n)->aux == 0)) ? FB_DEOPT_CLASS : op_23 == O_NOTINTS ? FB_INTS : (op_23 == O_GUARDINT) || ((op_23 == O_IADD) || ((op_23 == O_ISUB) || ((op_23 == O_IMUL) || ((op_23 == O_IMOD) || ((op_23 == O_IDIV) || (op_23 == O_ISHIFT)))))) ? FB_DEOPT_ARITH : FB_DEOPT_OTHER;
     if (((opt_nodes + n)->flags & NF_HOISTED) != 0) {
         why_18 = FB_DEOPT_HOISTED;
     }
@@ -72669,7 +72674,7 @@ exit_dst_3:;
             s_5 = ({
     k = ({
     op_2 = (int32_t)(opt_nodes + n)->op;
-    why = (op_2 == O_GUARDCLASS) || (op_2 == O_DEOPT) ? FB_DEOPT_CLASS : op_2 == O_NOTINTS ? FB_INTS : (op_2 == O_GUARDINT) || ((op_2 == O_IADD) || ((op_2 == O_ISUB) || ((op_2 == O_IMUL) || ((op_2 == O_IMOD) || ((op_2 == O_IDIV) || (op_2 == O_ISHIFT)))))) ? FB_DEOPT_ARITH : FB_DEOPT_OTHER;
+    why = (op_2 == O_GUARDCLASS) || ((op_2 == O_DEOPT) && ((opt_nodes + n)->aux == 0)) ? FB_DEOPT_CLASS : op_2 == O_NOTINTS ? FB_INTS : (op_2 == O_GUARDINT) || ((op_2 == O_IADD) || ((op_2 == O_ISUB) || ((op_2 == O_IMUL) || ((op_2 == O_IMOD) || ((op_2 == O_IDIV) || (op_2 == O_ISHIFT)))))) ? FB_DEOPT_ARITH : FB_DEOPT_OTHER;
     if (((opt_nodes + n)->flags & NF_HOISTED) != 0) {
         why = FB_DEOPT_HOISTED;
     }
@@ -74523,7 +74528,7 @@ exit_offset_to_23:;
     s_11 = ({
     k_3 = ({
     op_3 = (int32_t)(opt_nodes + n)->op;
-    why_2 = (op_3 == O_GUARDCLASS) || (op_3 == O_DEOPT) ? FB_DEOPT_CLASS : op_3 == O_NOTINTS ? FB_INTS : (op_3 == O_GUARDINT) || ((op_3 == O_IADD) || ((op_3 == O_ISUB) || ((op_3 == O_IMUL) || ((op_3 == O_IMOD) || ((op_3 == O_IDIV) || (op_3 == O_ISHIFT)))))) ? FB_DEOPT_ARITH : FB_DEOPT_OTHER;
+    why_2 = (op_3 == O_GUARDCLASS) || ((op_3 == O_DEOPT) && ((opt_nodes + n)->aux == 0)) ? FB_DEOPT_CLASS : op_3 == O_NOTINTS ? FB_INTS : (op_3 == O_GUARDINT) || ((op_3 == O_IADD) || ((op_3 == O_ISUB) || ((op_3 == O_IMUL) || ((op_3 == O_IMOD) || ((op_3 == O_IDIV) || (op_3 == O_ISHIFT)))))) ? FB_DEOPT_ARITH : FB_DEOPT_OTHER;
     if (((opt_nodes + n)->flags & NF_HOISTED) != 0) {
         why_2 = FB_DEOPT_HOISTED;
     }
@@ -75275,7 +75280,7 @@ exit_dst_5:;
         s_13 = ({
     k_4 = ({
     op_4 = (int32_t)(opt_nodes + n)->op;
-    why_3 = (op_4 == O_GUARDCLASS) || (op_4 == O_DEOPT) ? FB_DEOPT_CLASS : op_4 == O_NOTINTS ? FB_INTS : (op_4 == O_GUARDINT) || ((op_4 == O_IADD) || ((op_4 == O_ISUB) || ((op_4 == O_IMUL) || ((op_4 == O_IMOD) || ((op_4 == O_IDIV) || (op_4 == O_ISHIFT)))))) ? FB_DEOPT_ARITH : FB_DEOPT_OTHER;
+    why_3 = (op_4 == O_GUARDCLASS) || ((op_4 == O_DEOPT) && ((opt_nodes + n)->aux == 0)) ? FB_DEOPT_CLASS : op_4 == O_NOTINTS ? FB_INTS : (op_4 == O_GUARDINT) || ((op_4 == O_IADD) || ((op_4 == O_ISUB) || ((op_4 == O_IMUL) || ((op_4 == O_IMOD) || ((op_4 == O_IDIV) || (op_4 == O_ISHIFT)))))) ? FB_DEOPT_ARITH : FB_DEOPT_OTHER;
     if (((opt_nodes + n)->flags & NF_HOISTED) != 0) {
         why_3 = FB_DEOPT_HOISTED;
     }
@@ -75397,7 +75402,7 @@ exit_emit_stress_at_3:;
     s_14 = ({
     k_5 = ({
     op_5 = (int32_t)(opt_nodes + n)->op;
-    why_4 = (op_5 == O_GUARDCLASS) || (op_5 == O_DEOPT) ? FB_DEOPT_CLASS : op_5 == O_NOTINTS ? FB_INTS : (op_5 == O_GUARDINT) || ((op_5 == O_IADD) || ((op_5 == O_ISUB) || ((op_5 == O_IMUL) || ((op_5 == O_IMOD) || ((op_5 == O_IDIV) || (op_5 == O_ISHIFT)))))) ? FB_DEOPT_ARITH : FB_DEOPT_OTHER;
+    why_4 = (op_5 == O_GUARDCLASS) || ((op_5 == O_DEOPT) && ((opt_nodes + n)->aux == 0)) ? FB_DEOPT_CLASS : op_5 == O_NOTINTS ? FB_INTS : (op_5 == O_GUARDINT) || ((op_5 == O_IADD) || ((op_5 == O_ISUB) || ((op_5 == O_IMUL) || ((op_5 == O_IMOD) || ((op_5 == O_IDIV) || (op_5 == O_ISHIFT)))))) ? FB_DEOPT_ARITH : FB_DEOPT_OTHER;
     if (((opt_nodes + n)->flags & NF_HOISTED) != 0) {
         why_4 = FB_DEOPT_HOISTED;
     }
@@ -78188,7 +78193,7 @@ exit_src_14:;
                 s_17 = ({
     k_7 = ({
     op_7 = (int32_t)(opt_nodes + n)->op;
-    why_5 = (op_7 == O_GUARDCLASS) || (op_7 == O_DEOPT) ? FB_DEOPT_CLASS : op_7 == O_NOTINTS ? FB_INTS : (op_7 == O_GUARDINT) || ((op_7 == O_IADD) || ((op_7 == O_ISUB) || ((op_7 == O_IMUL) || ((op_7 == O_IMOD) || ((op_7 == O_IDIV) || (op_7 == O_ISHIFT)))))) ? FB_DEOPT_ARITH : FB_DEOPT_OTHER;
+    why_5 = (op_7 == O_GUARDCLASS) || ((op_7 == O_DEOPT) && ((opt_nodes + n)->aux == 0)) ? FB_DEOPT_CLASS : op_7 == O_NOTINTS ? FB_INTS : (op_7 == O_GUARDINT) || ((op_7 == O_IADD) || ((op_7 == O_ISUB) || ((op_7 == O_IMUL) || ((op_7 == O_IMOD) || ((op_7 == O_IDIV) || (op_7 == O_ISHIFT)))))) ? FB_DEOPT_ARITH : FB_DEOPT_OTHER;
     if (((opt_nodes + n)->flags & NF_HOISTED) != 0) {
         why_5 = FB_DEOPT_HOISTED;
     }
@@ -78617,7 +78622,7 @@ exit_offset_to_60:;
             s_17 = ({
     k_8 = ({
     op_8 = (int32_t)(opt_nodes + n)->op;
-    why_6 = (op_8 == O_GUARDCLASS) || (op_8 == O_DEOPT) ? FB_DEOPT_CLASS : op_8 == O_NOTINTS ? FB_INTS : (op_8 == O_GUARDINT) || ((op_8 == O_IADD) || ((op_8 == O_ISUB) || ((op_8 == O_IMUL) || ((op_8 == O_IMOD) || ((op_8 == O_IDIV) || (op_8 == O_ISHIFT)))))) ? FB_DEOPT_ARITH : FB_DEOPT_OTHER;
+    why_6 = (op_8 == O_GUARDCLASS) || ((op_8 == O_DEOPT) && ((opt_nodes + n)->aux == 0)) ? FB_DEOPT_CLASS : op_8 == O_NOTINTS ? FB_INTS : (op_8 == O_GUARDINT) || ((op_8 == O_IADD) || ((op_8 == O_ISUB) || ((op_8 == O_IMUL) || ((op_8 == O_IMOD) || ((op_8 == O_IDIV) || (op_8 == O_ISHIFT)))))) ? FB_DEOPT_ARITH : FB_DEOPT_OTHER;
     if (((opt_nodes + n)->flags & NF_HOISTED) != 0) {
         why_6 = FB_DEOPT_HOISTED;
     }
@@ -79336,7 +79341,7 @@ exit_dsrc_4:;
             s_17 = ({
     k_9 = ({
     op_9 = (int32_t)(opt_nodes + n)->op;
-    why_7 = (op_9 == O_GUARDCLASS) || (op_9 == O_DEOPT) ? FB_DEOPT_CLASS : op_9 == O_NOTINTS ? FB_INTS : (op_9 == O_GUARDINT) || ((op_9 == O_IADD) || ((op_9 == O_ISUB) || ((op_9 == O_IMUL) || ((op_9 == O_IMOD) || ((op_9 == O_IDIV) || (op_9 == O_ISHIFT)))))) ? FB_DEOPT_ARITH : FB_DEOPT_OTHER;
+    why_7 = (op_9 == O_GUARDCLASS) || ((op_9 == O_DEOPT) && ((opt_nodes + n)->aux == 0)) ? FB_DEOPT_CLASS : op_9 == O_NOTINTS ? FB_INTS : (op_9 == O_GUARDINT) || ((op_9 == O_IADD) || ((op_9 == O_ISUB) || ((op_9 == O_IMUL) || ((op_9 == O_IMOD) || ((op_9 == O_IDIV) || (op_9 == O_ISHIFT)))))) ? FB_DEOPT_ARITH : FB_DEOPT_OTHER;
     if (((opt_nodes + n)->flags & NF_HOISTED) != 0) {
         why_7 = FB_DEOPT_HOISTED;
     }
@@ -80717,7 +80722,7 @@ exit_condition_of:;
         s = ({
     k_11 = ({
     op_10 = (int32_t)(opt_nodes + n)->op;
-    why_8 = (op_10 == O_GUARDCLASS) || (op_10 == O_DEOPT) ? FB_DEOPT_CLASS : op_10 == O_NOTINTS ? FB_INTS : (op_10 == O_GUARDINT) || ((op_10 == O_IADD) || ((op_10 == O_ISUB) || ((op_10 == O_IMUL) || ((op_10 == O_IMOD) || ((op_10 == O_IDIV) || (op_10 == O_ISHIFT)))))) ? FB_DEOPT_ARITH : FB_DEOPT_OTHER;
+    why_8 = (op_10 == O_GUARDCLASS) || ((op_10 == O_DEOPT) && ((opt_nodes + n)->aux == 0)) ? FB_DEOPT_CLASS : op_10 == O_NOTINTS ? FB_INTS : (op_10 == O_GUARDINT) || ((op_10 == O_IADD) || ((op_10 == O_ISUB) || ((op_10 == O_IMUL) || ((op_10 == O_IMOD) || ((op_10 == O_IDIV) || (op_10 == O_ISHIFT)))))) ? FB_DEOPT_ARITH : FB_DEOPT_OTHER;
     if (((opt_nodes + n)->flags & NF_HOISTED) != 0) {
         why_8 = FB_DEOPT_HOISTED;
     }
@@ -81486,7 +81491,7 @@ exit_src_19:;
         s = ({
     k_12 = ({
     op_11 = (int32_t)(opt_nodes + n)->op;
-    why_9 = (op_11 == O_GUARDCLASS) || (op_11 == O_DEOPT) ? FB_DEOPT_CLASS : op_11 == O_NOTINTS ? FB_INTS : (op_11 == O_GUARDINT) || ((op_11 == O_IADD) || ((op_11 == O_ISUB) || ((op_11 == O_IMUL) || ((op_11 == O_IMOD) || ((op_11 == O_IDIV) || (op_11 == O_ISHIFT)))))) ? FB_DEOPT_ARITH : FB_DEOPT_OTHER;
+    why_9 = (op_11 == O_GUARDCLASS) || ((op_11 == O_DEOPT) && ((opt_nodes + n)->aux == 0)) ? FB_DEOPT_CLASS : op_11 == O_NOTINTS ? FB_INTS : (op_11 == O_GUARDINT) || ((op_11 == O_IADD) || ((op_11 == O_ISUB) || ((op_11 == O_IMUL) || ((op_11 == O_IMOD) || ((op_11 == O_IDIV) || (op_11 == O_ISHIFT)))))) ? FB_DEOPT_ARITH : FB_DEOPT_OTHER;
     if (((opt_nodes + n)->flags & NF_HOISTED) != 0) {
         why_9 = FB_DEOPT_HOISTED;
     }
@@ -81841,7 +81846,7 @@ exit_offset_to_78:;
         s_20 = ({
     k_13 = ({
     op_12 = (int32_t)(opt_nodes + n)->op;
-    why_10 = (op_12 == O_GUARDCLASS) || (op_12 == O_DEOPT) ? FB_DEOPT_CLASS : op_12 == O_NOTINTS ? FB_INTS : (op_12 == O_GUARDINT) || ((op_12 == O_IADD) || ((op_12 == O_ISUB) || ((op_12 == O_IMUL) || ((op_12 == O_IMOD) || ((op_12 == O_IDIV) || (op_12 == O_ISHIFT)))))) ? FB_DEOPT_ARITH : FB_DEOPT_OTHER;
+    why_10 = (op_12 == O_GUARDCLASS) || ((op_12 == O_DEOPT) && ((opt_nodes + n)->aux == 0)) ? FB_DEOPT_CLASS : op_12 == O_NOTINTS ? FB_INTS : (op_12 == O_GUARDINT) || ((op_12 == O_IADD) || ((op_12 == O_ISUB) || ((op_12 == O_IMUL) || ((op_12 == O_IMOD) || ((op_12 == O_IDIV) || (op_12 == O_ISHIFT)))))) ? FB_DEOPT_ARITH : FB_DEOPT_OTHER;
     if (((opt_nodes + n)->flags & NF_HOISTED) != 0) {
         why_10 = FB_DEOPT_HOISTED;
     }
@@ -82442,7 +82447,7 @@ exit_offset_to_82:;
         s_21 = ({
     k_14 = ({
     op_13 = (int32_t)(opt_nodes + n)->op;
-    why_11 = (op_13 == O_GUARDCLASS) || (op_13 == O_DEOPT) ? FB_DEOPT_CLASS : op_13 == O_NOTINTS ? FB_INTS : (op_13 == O_GUARDINT) || ((op_13 == O_IADD) || ((op_13 == O_ISUB) || ((op_13 == O_IMUL) || ((op_13 == O_IMOD) || ((op_13 == O_IDIV) || (op_13 == O_ISHIFT)))))) ? FB_DEOPT_ARITH : FB_DEOPT_OTHER;
+    why_11 = (op_13 == O_GUARDCLASS) || ((op_13 == O_DEOPT) && ((opt_nodes + n)->aux == 0)) ? FB_DEOPT_CLASS : op_13 == O_NOTINTS ? FB_INTS : (op_13 == O_GUARDINT) || ((op_13 == O_IADD) || ((op_13 == O_ISUB) || ((op_13 == O_IMUL) || ((op_13 == O_IMOD) || ((op_13 == O_IDIV) || (op_13 == O_ISHIFT)))))) ? FB_DEOPT_ARITH : FB_DEOPT_OTHER;
     if (((opt_nodes + n)->flags & NF_HOISTED) != 0) {
         why_11 = FB_DEOPT_HOISTED;
     }
@@ -82977,7 +82982,7 @@ exit_offset_to_86:;
         s_22 = ({
     k_15 = ({
     op_15 = (int32_t)(opt_nodes + n)->op;
-    why_12 = (op_15 == O_GUARDCLASS) || (op_15 == O_DEOPT) ? FB_DEOPT_CLASS : op_15 == O_NOTINTS ? FB_INTS : (op_15 == O_GUARDINT) || ((op_15 == O_IADD) || ((op_15 == O_ISUB) || ((op_15 == O_IMUL) || ((op_15 == O_IMOD) || ((op_15 == O_IDIV) || (op_15 == O_ISHIFT)))))) ? FB_DEOPT_ARITH : FB_DEOPT_OTHER;
+    why_12 = (op_15 == O_GUARDCLASS) || ((op_15 == O_DEOPT) && ((opt_nodes + n)->aux == 0)) ? FB_DEOPT_CLASS : op_15 == O_NOTINTS ? FB_INTS : (op_15 == O_GUARDINT) || ((op_15 == O_IADD) || ((op_15 == O_ISUB) || ((op_15 == O_IMUL) || ((op_15 == O_IMOD) || ((op_15 == O_IDIV) || (op_15 == O_ISHIFT)))))) ? FB_DEOPT_ARITH : FB_DEOPT_OTHER;
     if (((opt_nodes + n)->flags & NF_HOISTED) != 0) {
         why_12 = FB_DEOPT_HOISTED;
     }
@@ -83520,7 +83525,7 @@ exit_emit_div_by:;
             s_24 = ({
     k_17 = ({
     op_17 = (int32_t)(opt_nodes + n)->op;
-    why_13 = (op_17 == O_GUARDCLASS) || (op_17 == O_DEOPT) ? FB_DEOPT_CLASS : op_17 == O_NOTINTS ? FB_INTS : (op_17 == O_GUARDINT) || ((op_17 == O_IADD) || ((op_17 == O_ISUB) || ((op_17 == O_IMUL) || ((op_17 == O_IMOD) || ((op_17 == O_IDIV) || (op_17 == O_ISHIFT)))))) ? FB_DEOPT_ARITH : FB_DEOPT_OTHER;
+    why_13 = (op_17 == O_GUARDCLASS) || ((op_17 == O_DEOPT) && ((opt_nodes + n)->aux == 0)) ? FB_DEOPT_CLASS : op_17 == O_NOTINTS ? FB_INTS : (op_17 == O_GUARDINT) || ((op_17 == O_IADD) || ((op_17 == O_ISUB) || ((op_17 == O_IMUL) || ((op_17 == O_IMOD) || ((op_17 == O_IDIV) || (op_17 == O_ISHIFT)))))) ? FB_DEOPT_ARITH : FB_DEOPT_OTHER;
     if (((opt_nodes + n)->flags & NF_HOISTED) != 0) {
         why_13 = FB_DEOPT_HOISTED;
     }
@@ -84282,7 +84287,7 @@ exit_offset_to_101:;
         s_25 = ({
     k_18 = ({
     op_19 = (int32_t)(opt_nodes + n)->op;
-    why_14 = (op_19 == O_GUARDCLASS) || (op_19 == O_DEOPT) ? FB_DEOPT_CLASS : op_19 == O_NOTINTS ? FB_INTS : (op_19 == O_GUARDINT) || ((op_19 == O_IADD) || ((op_19 == O_ISUB) || ((op_19 == O_IMUL) || ((op_19 == O_IMOD) || ((op_19 == O_IDIV) || (op_19 == O_ISHIFT)))))) ? FB_DEOPT_ARITH : FB_DEOPT_OTHER;
+    why_14 = (op_19 == O_GUARDCLASS) || ((op_19 == O_DEOPT) && ((opt_nodes + n)->aux == 0)) ? FB_DEOPT_CLASS : op_19 == O_NOTINTS ? FB_INTS : (op_19 == O_GUARDINT) || ((op_19 == O_IADD) || ((op_19 == O_ISUB) || ((op_19 == O_IMUL) || ((op_19 == O_IMOD) || ((op_19 == O_IDIV) || (op_19 == O_ISHIFT)))))) ? FB_DEOPT_ARITH : FB_DEOPT_OTHER;
     if (((opt_nodes + n)->flags & NF_HOISTED) != 0) {
         why_14 = FB_DEOPT_HOISTED;
     }
@@ -84866,7 +84871,7 @@ exit_dst_10:;
         s = ({
     k_19 = ({
     op_20 = (int32_t)(opt_nodes + n)->op;
-    why_15 = (op_20 == O_GUARDCLASS) || (op_20 == O_DEOPT) ? FB_DEOPT_CLASS : op_20 == O_NOTINTS ? FB_INTS : (op_20 == O_GUARDINT) || ((op_20 == O_IADD) || ((op_20 == O_ISUB) || ((op_20 == O_IMUL) || ((op_20 == O_IMOD) || ((op_20 == O_IDIV) || (op_20 == O_ISHIFT)))))) ? FB_DEOPT_ARITH : FB_DEOPT_OTHER;
+    why_15 = (op_20 == O_GUARDCLASS) || ((op_20 == O_DEOPT) && ((opt_nodes + n)->aux == 0)) ? FB_DEOPT_CLASS : op_20 == O_NOTINTS ? FB_INTS : (op_20 == O_GUARDINT) || ((op_20 == O_IADD) || ((op_20 == O_ISUB) || ((op_20 == O_IMUL) || ((op_20 == O_IMOD) || ((op_20 == O_IDIV) || (op_20 == O_ISHIFT)))))) ? FB_DEOPT_ARITH : FB_DEOPT_OTHER;
     if (((opt_nodes + n)->flags & NF_HOISTED) != 0) {
         why_15 = FB_DEOPT_HOISTED;
     }
@@ -85109,7 +85114,7 @@ exit_offset_to_110:;
         s = ({
     k_20 = ({
     op_21 = (int32_t)(opt_nodes + n)->op;
-    why_16 = (op_21 == O_GUARDCLASS) || (op_21 == O_DEOPT) ? FB_DEOPT_CLASS : op_21 == O_NOTINTS ? FB_INTS : (op_21 == O_GUARDINT) || ((op_21 == O_IADD) || ((op_21 == O_ISUB) || ((op_21 == O_IMUL) || ((op_21 == O_IMOD) || ((op_21 == O_IDIV) || (op_21 == O_ISHIFT)))))) ? FB_DEOPT_ARITH : FB_DEOPT_OTHER;
+    why_16 = (op_21 == O_GUARDCLASS) || ((op_21 == O_DEOPT) && ((opt_nodes + n)->aux == 0)) ? FB_DEOPT_CLASS : op_21 == O_NOTINTS ? FB_INTS : (op_21 == O_GUARDINT) || ((op_21 == O_IADD) || ((op_21 == O_ISUB) || ((op_21 == O_IMUL) || ((op_21 == O_IMOD) || ((op_21 == O_IDIV) || (op_21 == O_ISHIFT)))))) ? FB_DEOPT_ARITH : FB_DEOPT_OTHER;
     if (((opt_nodes + n)->flags & NF_HOISTED) != 0) {
         why_16 = FB_DEOPT_HOISTED;
     }
@@ -93716,7 +93721,7 @@ exit_is_fused_2:;
             s_45 = ({
     k_25 = ({
     op_22 = (int32_t)(opt_nodes + n)->op;
-    why_17 = (op_22 == O_GUARDCLASS) || (op_22 == O_DEOPT) ? FB_DEOPT_CLASS : op_22 == O_NOTINTS ? FB_INTS : (op_22 == O_GUARDINT) || ((op_22 == O_IADD) || ((op_22 == O_ISUB) || ((op_22 == O_IMUL) || ((op_22 == O_IMOD) || ((op_22 == O_IDIV) || (op_22 == O_ISHIFT)))))) ? FB_DEOPT_ARITH : FB_DEOPT_OTHER;
+    why_17 = (op_22 == O_GUARDCLASS) || ((op_22 == O_DEOPT) && ((opt_nodes + n)->aux == 0)) ? FB_DEOPT_CLASS : op_22 == O_NOTINTS ? FB_INTS : (op_22 == O_GUARDINT) || ((op_22 == O_IADD) || ((op_22 == O_ISUB) || ((op_22 == O_IMUL) || ((op_22 == O_IMOD) || ((op_22 == O_IDIV) || (op_22 == O_ISHIFT)))))) ? FB_DEOPT_ARITH : FB_DEOPT_OTHER;
     if (((opt_nodes + n)->flags & NF_HOISTED) != 0) {
         why_17 = FB_DEOPT_HOISTED;
     }
@@ -95706,10 +95711,15 @@ exit_offset_to_216:;
         return;
     }
     if (op == O_DEOPT) {
+        if ((opt_nodes + n)->aux == 1) {
+            if (asm_noting) {
+                note("the global holds another value than the class speculated: deoptimize", 0);
+            }
+        }
         a_label_70 = ({
     k_28 = ({
     op_23 = (int32_t)(opt_nodes + n)->op;
-    why_18 = (op_23 == O_GUARDCLASS) || (op_23 == O_DEOPT) ? FB_DEOPT_CLASS : op_23 == O_NOTINTS ? FB_INTS : (op_23 == O_GUARDINT) || ((op_23 == O_IADD) || ((op_23 == O_ISUB) || ((op_23 == O_IMUL) || ((op_23 == O_IMOD) || ((op_23 == O_IDIV) || (op_23 == O_ISHIFT)))))) ? FB_DEOPT_ARITH : FB_DEOPT_OTHER;
+    why_18 = (op_23 == O_GUARDCLASS) || ((op_23 == O_DEOPT) && ((opt_nodes + n)->aux == 0)) ? FB_DEOPT_CLASS : op_23 == O_NOTINTS ? FB_INTS : (op_23 == O_GUARDINT) || ((op_23 == O_IADD) || ((op_23 == O_ISUB) || ((op_23 == O_IMUL) || ((op_23 == O_IMOD) || ((op_23 == O_IDIV) || (op_23 == O_ISHIFT)))))) ? FB_DEOPT_ARITH : FB_DEOPT_OTHER;
     if (((opt_nodes + n)->flags & NF_HOISTED) != 0) {
         why_18 = FB_DEOPT_HOISTED;
     }
@@ -103037,7 +103047,7 @@ exit_back_edge_after:;
             n_198 = o_2->node;
             value_9 = ({
     op = (int32_t)(opt_nodes + n_198)->op;
-    why = (op == O_GUARDCLASS) || (op == O_DEOPT) ? FB_DEOPT_CLASS : op == O_NOTINTS ? FB_INTS : (op == O_GUARDINT) || ((op == O_IADD) || ((op == O_ISUB) || ((op == O_IMUL) || ((op == O_IMOD) || ((op == O_IDIV) || (op == O_ISHIFT)))))) ? FB_DEOPT_ARITH : FB_DEOPT_OTHER;
+    why = (op == O_GUARDCLASS) || ((op == O_DEOPT) && ((opt_nodes + n_198)->aux == 0)) ? FB_DEOPT_CLASS : op == O_NOTINTS ? FB_INTS : (op == O_GUARDINT) || ((op == O_IADD) || ((op == O_ISUB) || ((op == O_IMUL) || ((op == O_IMOD) || ((op == O_IDIV) || (op == O_ISHIFT)))))) ? FB_DEOPT_ARITH : FB_DEOPT_OTHER;
     if (((opt_nodes + n_198)->flags & NF_HOISTED) != 0) {
         why = FB_DEOPT_HOISTED;
     }
@@ -105615,7 +105625,7 @@ exit_offset_to_24:;
             n_19 = o_5->node;
             value_9 = ({
     op = (int32_t)(opt_nodes + n_19)->op;
-    why = (op == O_GUARDCLASS) || (op == O_DEOPT) ? FB_DEOPT_CLASS : op == O_NOTINTS ? FB_INTS : (op == O_GUARDINT) || ((op == O_IADD) || ((op == O_ISUB) || ((op == O_IMUL) || ((op == O_IMOD) || ((op == O_IDIV) || (op == O_ISHIFT)))))) ? FB_DEOPT_ARITH : FB_DEOPT_OTHER;
+    why = (op == O_GUARDCLASS) || ((op == O_DEOPT) && ((opt_nodes + n_19)->aux == 0)) ? FB_DEOPT_CLASS : op == O_NOTINTS ? FB_INTS : (op == O_GUARDINT) || ((op == O_IADD) || ((op == O_ISUB) || ((op == O_IMUL) || ((op == O_IMOD) || ((op == O_IDIV) || (op == O_ISHIFT)))))) ? FB_DEOPT_ARITH : FB_DEOPT_OTHER;
     if (((opt_nodes + n_19)->flags & NF_HOISTED) != 0) {
         why = FB_DEOPT_HOISTED;
     }

@@ -798,6 +798,46 @@ testBranchesMakeNoBoolean
 	self deny: ((self listingOf: #positive:) includesSubstring: (self isX64 ifTrue: ['cmovg'] ifFalse: [', gt'])).
 	self deny: ((self listingOf: #either:or:) includesSubstring: 'neither true nor false')
 !
+testCopyOfAStringIsFused
+	"copyFrom:to: of a String (its species a global's class the code speculates on, isWideString folded) allocates and copies with only the new object's last slot zeroed."
+	| o |
+	Smalltalk vm jitParameters: #(nil '-eager' nil nil).
+	self define: 'cutB: x to: a ^x copyFrom: 2 to: a'.
+	o := JitRuntimeTestSubject new.
+	1 to: 1200 do: [:i | self assert: (o cutB: 'abcdef' to: 4) equals: 'bcd'].
+	self assert: ((self listingOf: #cutB:to:) includesSubstring: 'the last slot zeroed')
+!
+testSpeculatedGlobalClass
+	"A global holding a class is that class in the code, guarded; once the global changed, the push loads it."
+	| o |
+	Smalltalk at: #JitRuntimeTestGlobal put: Array.
+	[self define: 'makeGlobal ^JitRuntimeTestGlobal new: 2'.
+	o := JitRuntimeTestSubject new.
+	3 timesRepeat: [self assert: o makeGlobal class equals: Array].
+	self assert: ((self listingOf: #makeGlobal) includesSubstring: 'the global holds another value').
+	Smalltalk at: #JitRuntimeTestGlobal put: OrderedCollection.
+	3 timesRepeat: [self assert: o makeGlobal class equals: OrderedCollection].
+	self deny: ((self listingOf: #makeGlobal) includesSubstring: 'the global holds another value')]
+		ensure: [Smalltalk removeKey: #JitRuntimeTestGlobal ifAbsent: []]
+!
+testDoublesWhereAGlobalHoldsAnotherClass
+	"Floats live where a speculated global holds another class (the deoptimization) are what they were, in straight code and in a loop."
+	| o |
+	Smalltalk vm jitParameters: #(nil '-eager' nil nil).
+	Smalltalk at: #JitRuntimeTestGlobal put: Array.
+	[self define: 'keep: x and: y | a b z | a := x * y. b := x + y. z := JitRuntimeTestGlobal new: 2. ^z size + a + b'.
+	self define: 'sum: k | r x | r := 0.0. 1 to: k do: [:i | x := i * 0.5. r := r + x + (JitRuntimeTestGlobal new: 2) size]. ^r'.
+	o := JitRuntimeTestSubject new.
+	1 to: 3000 do: [:i |
+		self assert: (o keep: 1.5 and: 2.0) equals: 8.5.
+		self assert: (o sum: 10) equals: 47.5].
+	self assert: ((self listingOf: #keep:and:) includesSubstring: 'the global holds another value').
+	self assert: ((self listingOf: #sum:) includesSubstring: 'the global holds another value').
+	Smalltalk at: #JitRuntimeTestGlobal put: OrderedCollection.
+	self assert: (o keep: 1.5 and: 2.0) equals: 6.5.
+	self assert: (o sum: 10) equals: 27.5]
+		ensure: [Smalltalk removeKey: #JitRuntimeTestGlobal ifAbsent: []]
+!
 testDoublesAcrossAnAllocationAnsweringSomethingElse
 	"Floats live across an allocation whose send answers something else (its primitive failed: the deoptimization after it) are what they were, in straight code and in a loop."
 	| o |
@@ -901,6 +941,26 @@ testDoublesAcrossAnAllocationOfBytes
 			self assert: (o sum: 10 bytes: n then: #()) equals: 27.5 + (10 * n)]].
 	self assert: (o keep: 1.5 and: 2.0 bytes: 40000 then: 'ab') equals: 6.5.
 	self assert: (o sum: 10 bytes: 40000 then: 'ab') equals: 400047.5
+!
+testDoublesAcrossACopyThatCallsC
+	"Floats live across a copyFrom:to: of a String the code does itself (the allocation and the copy that fills it) are doubles in d registers, which memmove (beyond 64 bytes) does not keep: they are loaded from their raw slots again, in a loop too; a guard that fails after the copy has them in its frame state."
+	| o s |
+	Smalltalk vm jitParameters: #(nil '-eager' nil nil).
+	self define: 'keep: x and: y copy: s to: n then: c | a b z | a := x * y. b := x + y. z := s copyFrom: 1 to: n. ^(z at: n) value - (s at: n) value + (c size * 0) + a + b'.
+	self define: 'sum: n copy: s to: k then: c | r x | r := 0.0. 1 to: n do: [:i | x := i * 0.5. r := r + x + (s copyFrom: 1 to: k) size + c size]. ^r'.
+	o := JitRuntimeTestSubject new.
+	s := String new: 6000.
+	1 to: 6000 do: [:i | s at: i put: (Character value: i \\ 90 + 33)].
+	1 to: 3000 do: [:k |
+		self assert: (o keep: 1.5 and: 2.0 copy: s to: 200 then: #()) equals: 6.5.
+		self assert: (o sum: 10 copy: s to: 200 then: #()) equals: 2027.5].
+	self assert: ((self listingOf: #keep:and:copy:to:then:) includesSubstring: 'the copy stub').
+	self assert: ((self listingOf: #sum:copy:to:then:) includesSubstring: 'the copy stub').
+	#(1 64 65 100 129 200 257 1000 5000) do: [:n |
+		self assert: (o keep: 1.5 and: 2.0 copy: s to: n then: #()) equals: 6.5.
+		self assert: (o sum: 10 copy: s to: n then: #()) equals: 27.5 + (10 * n)].
+	self assert: (o keep: 1.5 and: 2.0 copy: s to: 5000 then: 'ab') equals: 6.5.
+	self assert: (o sum: 10 copy: s to: 5000 then: 'ab') equals: 50047.5
 !
 testReplaceFastPathAndItsFailures
 	"replaceFrom:to:with:startingAt: in optimized code (sites that saw one receiver class: the fast path and the copy stub) answers and fails as the call does (--jit-flags -prims): every way its checks fail goes to the call."
