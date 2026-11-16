@@ -42,7 +42,7 @@ provider: aProvider
 	provider := aProvider
 !
 usage
-	"The usage Dictionary of the last response (input_tokens output_tokens total_tokens), or nil."
+	"The cumulative token usage of all completed responses in this conversation, or nil."
 	^usage
 !
 add: anAgentItem
@@ -130,21 +130,6 @@ runTurn
 				ifFalse: [e class name asString, ': ', e messageText asString])).
 			e return: nil]
 !
-request
-	"Send everything so far, then record the response's items and run its tool calls; answer whether there were any."
-	| received called answer |
-	received := OrderedCollection new.
-	streaming := nil.
-	answer := self provider
-		send: self input
-		tools: (tools collect: [:each | each spec])
-		onText: [:delta | self grow: delta]
-		onItem: [:item | received add: item].
-	answer ifNotNil: [usage := answer].
-	called := false.
-	received do: [:item | (self record: item) ifTrue: [called := true]].
-	^called
-!
 input
 	"The request's input: the developer instructions, then every item's wire."
 	| input |
@@ -208,4 +193,32 @@ ask: aString images: images
 changed
 	changeBlock ifNotNil: [
 		changeBlock values copy do: [:block | block value: self]]
+!
+accumulateUsage: answer
+	"Sum token usage across every response in this conversation."
+	| details cached previous |
+	usage isNil ifTrue: [usage := Dictionary new].
+	#('input_tokens' 'output_tokens' 'total_tokens') do: [:key |
+		usage at: key put: (usage at: key ifAbsent: [0]) + (answer at: key ifAbsent: [0])].
+	details := answer at: 'input_tokens_details' ifAbsent: [nil].
+	details ifNotNil: [
+		cached := details at: 'cached_tokens' ifAbsent: [0].
+		previous := usage at: 'input_tokens_details' ifAbsentPut: [Dictionary new].
+		previous at: 'cached_tokens' put: (previous at: 'cached_tokens' ifAbsent: [0]) + cached]
+
+!
+request
+	"Send everything so far, then record the response's items and run its tool calls; answer whether there were any."
+	| received called answer |
+	received := OrderedCollection new.
+	streaming := nil.
+	answer := self provider
+		send: self input
+		tools: (tools collect: [:each | each spec])
+		onText: [:delta | self grow: delta]
+		onItem: [:item | received add: item].
+	answer ifNotNil: [self accumulateUsage: answer].
+	called := false.
+	received do: [:item | (self record: item) ifTrue: [called := true]].
+	^called
 ! !

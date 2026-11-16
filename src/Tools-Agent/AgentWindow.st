@@ -98,9 +98,26 @@ update
 	tokens := conversation usage ifNotNil: [:usage | usage at: 'total_tokens' ifAbsent: [nil]].
 	status clear.
 	status add: conversation provider modelName style: #strong.
+	status add: '│' style: #muted.
 	status add: (signedIn ifTrue: [account email ifNil: ['signed in']] ifFalse: ['signed out']).
-	tokens isNil ifFalse: [status add: tokens printString, ' tokens' style: #plain].
+	tokens isNil ifFalse: [status add: '│' style: #muted. status add: tokens printString, ' tokens' style: #plain].
+	(self cacheUsageText: conversation usage) ifNotNil: [:text | status add: '│' style: #muted. status add: text style: #plain].
 	busy ifTrue: [status addRight: 'working…' style: #pillBusy]
+!
+cacheUsageText: usage
+	"Describe the cache split of the conversation's cumulative input tokens."
+	| input details cached percent |
+	usage isNil ifTrue: [^nil].
+	input := usage at: 'input_tokens' ifAbsent: [^nil].
+	input > 0 ifFalse: [^nil].
+	details := usage at: 'input_tokens_details' ifAbsent: [^nil].
+	details isNil ifTrue: [^nil].
+	cached := details at: 'cached_tokens' ifAbsent: [^nil].
+	percent := (cached * 100 / input) rounded.
+	^percent printString, '% cached'
+
+
+
 ! !
 
 !AgentWindow methodsFor: 'actions'!
