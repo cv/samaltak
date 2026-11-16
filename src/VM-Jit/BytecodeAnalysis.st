@@ -1,5 +1,5 @@
 VMCoreModule subclass: #BytecodeAnalysis
-	instanceVariableNames: 'anaBcs anaLits bcSize numArgs numTemps numLits anaFrameSize primIndex primError hasClosures anaDepths anaFlags anaWork workCount maxDepth'
+	instanceVariableNames: 'anaBcs anaLits bcSize numArgs numTemps numLits anaFrameSize primIndex primError hasClosures anaDepths anaFlags anaWork workCount maxDepth anaLive'
 	classVariableNames: 'ANA_BLOCK ANA_INTERIOR ANA_LOOP ANA_MAX ANA_MAX_DEPTH ANA_RESUME ANA_START ANA_TARGET'
 	package: 'VM-Jit'!
 
@@ -8,7 +8,8 @@ BytecodeAnalysis comment: 'What every compiler needs to know about a method befo
 !BytecodeAnalysis class methodsFor: 'declaring'!
 declarations
 	^#((anaBcs 'uint8_t *') (anaLits 'oop *') (bcSize int32_t) (numArgs int32_t) (numTemps int32_t) (numLits int32_t) (anaFrameSize int32_t) (primIndex int32_t) (primError bool) (hasClosures bool)
-		(anaDepths 'int16_t[ANA_MAX]') (anaFlags 'uint8_t[ANA_MAX]') (anaWork 'int32_t[ANA_MAX]') (workCount int32_t) (maxDepth int32_t))
+		(anaDepths 'int16_t[ANA_MAX]') (anaFlags 'uint8_t[ANA_MAX]') (anaWork 'int32_t[ANA_MAX]') (workCount int32_t) (maxDepth int32_t)
+		(anaLive 'uint64_t[ANA_MAX]'))
 !
 initialize
 	ANA_MAX := 32768.
@@ -255,4 +256,77 @@ effectOf: pc depth: d
 	n := self sendArgcOf: anaBcs + pc.
 	n < 0 ifTrue: [^-2000].
 	^d < (n + 1) ifTrue: [-2000] ifFalse: [n negated]
+! !
+
+!BytecodeAnalysis methodsFor: 'liveness'!
+analyzeLiveness
+	"After analyze: (the optimizing tier asks): for each reachable pc the slots 0-63 of its frame (the method's, or its block's) that an instruction from there on may read before storing them, on some path (liveSlotsAt:). A slot an outer-temp instruction (0x8A-0x8C) names anywhere in the method counts as read everywhere, as does every slot of a method with a primitive (its error code; unwind markers) or with thisContext (its Context is read)."
+	<function>
+	<var: #keep type: 'uint64_t'>
+	<var: #all type: 'uint64_t'>
+	<var: #t type: 'uint64_t'>
+	| keep all changed pc op t |
+	all := 16rFFFFFFFFFFFFFFFF asUInt64.
+	keep := (primIndex ~= 0 or: [primError]) ifTrue: [all] ifFalse: [0 asUInt64].
+	0 to: bcSize - 1 do: [:p |
+		((anaFlags at: p) bitAnd: ANA_START) ~= 0
+			ifTrue: [
+				anaLive at: p put: 0 asUInt64.
+				op := anaBcs at: p.
+				(op >= 16r8A and: [op <= 16r8C]) ifTrue: [keep := keep bitOr: (self slotBit: (anaBcs at: p + 2))].
+				op = 16r76 ifTrue: [keep := all]]
+			ifFalse: [anaLive at: p put: all]].
+	changed := true.
+	[changed] whileTrue: [
+		changed := false.
+		pc := bcSize - 1.
+		[pc >= 0] whileTrue: [
+			((anaFlags at: pc) bitAnd: ANA_START) ~= 0 ifTrue: [
+				t := (self liveBefore: pc after: (self liveAfter: pc)) bitOr: keep.
+				t ~= (anaLive at: pc) ifTrue: [
+					anaLive at: pc put: t.
+					changed := true]].
+			pc := pc - 1]]
+!
+liveSlotsAt: pc
+	"The slots (0-63) an instruction from pc on may read before storing them (analyzeLiveness); all of them where no instruction starts."
+	<returns: 'uint64_t'>
+	(pc < 0 or: [pc >= bcSize]) ifTrue: [^16rFFFFFFFFFFFFFFFF asUInt64].
+	^anaLive at: pc
+!
+liveAfter: pc
+	"The slots live after the instruction at pc: live before one of its successors (none after a return; after 0x8F the instruction after the body, which runs in a frame of its own)."
+	<returns: 'uint64_t'>
+	| op next |
+	op := anaBcs at: pc.
+	(op >= 16r79 and: [op <= 16r7C]) ifTrue: [^0 asUInt64].
+	next := (pc + (self lengthOf: op)) asInt32.
+	op = 16r8F ifTrue: [^self liveSlotsAt: (next + (((anaBcs at: pc + 4) asInt64 << 8) bitOr: (anaBcs at: pc + 5))) asInt32].
+	op = 16r90 ifTrue: [^self liveSlotsAt: (self jumpTargetAt: pc)].
+	(op = 16r91 or: [op = 16r92]) ifTrue: [^(self liveSlotsAt: (self jumpTargetAt: pc)) bitOr: (self liveSlotsAt: next)].
+	^self liveSlotsAt: next
+!
+liveBefore: pc after: lo
+	"The slots live before the instruction at pc, lo those live after it: the temps it reads (a superinstruction its pushes), and those live after it that it does not store (Interpreter's bytecodes). Any instruction not listed reads every slot."
+	<var: #lo type: 'uint64_t'>
+	<returns: 'uint64_t'>
+	| op |
+	op := anaBcs at: pc.
+	op < 16r10 ifTrue: [^lo bitOr: (self slotBit: op)].
+	op < 16r60 ifTrue: [^lo].
+	op < 16r68 ifTrue: [^lo bitClear: (self slotBit: op - 16r60)].
+	(op >= 16r70 and: [op <= 16r7C and: [op ~= 16r76]]) ifTrue: [^lo].
+	op = 16r80 ifTrue: [^lo bitOr: (self slotBit: (anaBcs at: pc + 1))].
+	(op = 16r84 or: [op = 16r87]) ifTrue: [^lo bitClear: (self slotBit: (anaBcs at: pc + 1))].
+	((op >= 16r81 and: [op <= 16r86]) or: [op >= 16r89 and: [op <= 16r94]]) ifTrue: [^lo].
+	(op = 16r97 or: [op >= 16r9A and: [op <= 16r9F]]) ifTrue: [^(lo bitOr: (self slotBit: (anaBcs at: pc + 1))) bitOr: (self slotBit: (anaBcs at: pc + 2))].
+	((op >= 16r98 and: [op <= 16r99]) or: [op >= 16rF0 and: [op <= 16rFB]]) ifTrue: [^lo bitOr: (self slotBit: (anaBcs at: pc + 1))].
+	(op >= 16rA0 and: [op <= 16rEF]) ifTrue: [^lo].
+	^16rFFFFFFFFFFFFFFFF asUInt64
+!
+slotBit: i
+	"Slot i's bit in a liveness mask (none from 64 on)."
+	<returns: 'uint64_t'>
+	i < 64 ifTrue: [^1 asUInt64 << i].
+	^0 asUInt64
 ! !

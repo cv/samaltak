@@ -1,6 +1,6 @@
 VMCoreModule subclass: #JitRuntime
 	instanceVariableNames: 'stubs baseline brt cache asm analysis jitMode jitFlags jitThreshold jitOsrThreshold jitCacheMB cacheOpened flushPending invalidations stateBlock methodTable tableCount methodCounts youngMethods youngCount youngOverflow mapPcs mapOffsets mapCount sendPushed performFn performArgsFn statCompiled statFailed statBytecodes statCompileUs statCodeBytes statCacheFlushes statEntries statExits statResumes statOsr feedback optimizer jitOptThreshold optCounts copying bottomReturned'
-	classVariableNames: 'JIT_BASELINE JIT_FLAG_ACCESS JIT_FLAG_ALLOC JIT_FLAG_ARITH JIT_FLAG_BARRIER JIT_FLAG_BLOCKS JIT_FLAG_CALLS JIT_FLAG_DEOPT JIT_FLAG_EAGER JIT_FLAG_FLOAT JIT_FLAG_FUSE JIT_FLAG_GVN JIT_FLAG_HOIST JIT_FLAG_IC JIT_FLAG_INLINE JIT_FLAG_LAST JIT_FLAG_MEGA JIT_FLAG_NOTES JIT_FLAG_PIC JIT_FLAG_PRIMS JIT_FLAG_QUICK JIT_FLAG_REGS JIT_FLAG_UNBOX JIT_MAX_COUNT JIT_MAX_MAP JIT_MAX_YOUNG JIT_NONE JIT_OPT JIT_PROLOGUE_BYTES JIT_PROLOGUE_BYTES_X64 JIT_TABLE_SIZE JM_DEAD JM_ENTRY JM_FAILED JM_NOTES JM_OSR'
+	classVariableNames: 'JIT_BASELINE JIT_FLAG_ACCESS JIT_FLAG_ALLOC JIT_FLAG_ARITH JIT_FLAG_BARRIER JIT_FLAG_BLOCKS JIT_FLAG_CALLS JIT_FLAG_DEOPT JIT_FLAG_EAGER JIT_FLAG_FLOAT JIT_FLAG_FUSE JIT_FLAG_GVN JIT_FLAG_HOIST JIT_FLAG_IC JIT_FLAG_INLINE JIT_FLAG_LAST JIT_FLAG_LIVE JIT_FLAG_MEGA JIT_FLAG_NOTES JIT_FLAG_PIC JIT_FLAG_PRIMS JIT_FLAG_QUICK JIT_FLAG_REGS JIT_FLAG_UNBOX JIT_MAX_COUNT JIT_MAX_MAP JIT_MAX_YOUNG JIT_NONE JIT_OPT JIT_PROLOGUE_BYTES JIT_PROLOGUE_BYTES_X64 JIT_TABLE_SIZE JM_DEAD JM_ENTRY JM_FAILED JM_NOTES JM_OSR'
 	package: 'VM-Jit'!
 
 JitRuntime comment: 'The runtime every compiler''s machine code runs on (docs/jit.md, Shared runtime): configuration (--jit, --jit-threshold, --jit-osr, --jit-flags, --jit-cache), the compiled methods (JitMethod headers in the code cache, found by the method''s identity hash; their methods are GC roots, young ones listed for scavenges), the interpreter''s hooks (activated:, resume:, backJump:), the functions machine code calls (interrupt:, interruptAtEntry:, closure:, makeArray:, widow:, writeBarrier:value:), code cache flushes, statistics.
@@ -48,7 +48,8 @@ initialize
 	JIT_FLAG_EAGER := 262144.
 	JIT_FLAG_DEOPT := 524288.
 	JIT_FLAG_HOIST := 1048576.
-	JIT_FLAG_LAST := JIT_FLAG_HOIST.
+	JIT_FLAG_LIVE := 2097152.
+	JIT_FLAG_LAST := JIT_FLAG_LIVE.
 	JIT_TABLE_SIZE := 65536.
 	JIT_MAX_YOUNG := 4096.
 	JIT_MAX_MAP := 32768.
@@ -128,6 +129,9 @@ gvnFlag
 !
 hoistFlag
 	^JIT_FLAG_HOIST
+!
+liveFlag
+	^JIT_FLAG_LIVE
 !
 unboxFlag
 	^JIT_FLAG_UNBOX
@@ -253,6 +257,7 @@ flagNamed: name length: n
 	(self is: name length: n named: 'inline') ifTrue: [^JIT_FLAG_INLINE].
 	(self is: name length: n named: 'gvn') ifTrue: [^JIT_FLAG_GVN].
 	(self is: name length: n named: 'hoist') ifTrue: [^JIT_FLAG_HOIST].
+	(self is: name length: n named: 'live') ifTrue: [^JIT_FLAG_LIVE].
 	(self is: name length: n named: 'unbox') ifTrue: [^JIT_FLAG_UNBOX].
 	(self is: name length: n named: 'calls') ifTrue: [^JIT_FLAG_CALLS].
 	(self is: name length: n named: 'eager') ifTrue: [^JIT_FLAG_EAGER].
@@ -281,6 +286,7 @@ flagName: bit
 	bit = JIT_FLAG_INLINE ifTrue: [^'inline'].
 	bit = JIT_FLAG_GVN ifTrue: [^'gvn'].
 	bit = JIT_FLAG_HOIST ifTrue: [^'hoist'].
+	bit = JIT_FLAG_LIVE ifTrue: [^'live'].
 	bit = JIT_FLAG_UNBOX ifTrue: [^'unbox'].
 	bit = JIT_FLAG_CALLS ifTrue: [^'calls'].
 	bit = JIT_FLAG_EAGER ifTrue: [^'eager'].

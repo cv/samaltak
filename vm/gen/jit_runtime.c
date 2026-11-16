@@ -830,7 +830,7 @@ uint64_t jit_runtime_context_field(frame *f)
 void defaults(void)
 {
     jit_mode = JIT_OPT;
-    jit_flags = 1310711U;
+    jit_flags = 3407863U;
 }
 
 #if defined(__x86_64__)
@@ -1789,6 +1789,9 @@ char *flag_name(uint32_t bit)
     if (bit == JIT_FLAG_HOIST) {
         return "hoist";
     }
+    if (bit == JIT_FLAG_LIVE) {
+        return "live";
+    }
     if (bit == JIT_FLAG_UNBOX) {
         return "unbox";
     }
@@ -2204,6 +2207,10 @@ bool parse_flags(char *s)
     }
     if ((strlen("hoist") == (uint64_t)n) && (memcmp(name, "hoist", (uint64_t)n) == 0)) {
         r_flag_named = JIT_FLAG_HOIST;
+        goto exit_flag_named;
+    }
+    if ((strlen("live") == (uint64_t)n) && (memcmp(name, "live", (uint64_t)n) == 0)) {
+        r_flag_named = JIT_FLAG_LIVE;
         goto exit_flag_named;
     }
     if ((strlen("unbox") == (uint64_t)n) && (memcmp(name, "unbox", (uint64_t)n) == 0)) {

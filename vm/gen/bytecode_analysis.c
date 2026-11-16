@@ -7,6 +7,7 @@ int16_t ana_depths[32768];
 uint8_t ana_flags[32768];
 int32_t ana_frame_size;
 oop *ana_lits;
+uint64_t ana_live[32768];
 static int32_t ana_work[32768];
 int32_t bc_size;
 static bool has_closures;
@@ -461,5 +462,308 @@ exit_flow_to_6:;
         }
     }
     return true;
+}
+
+/* BytecodeAnalysis>>analyzeLiveness */
+void analyze_liveness(void)
+{
+    uint64_t keep;
+    uint64_t all;
+    uint64_t t;
+    int32_t p;
+    uint8_t op;
+    uint8_t i;
+    int64_t r_slot_bit;
+    bool changed;
+    int32_t pc;
+    uint64_t r_live_after;
+    uint8_t op_2;
+    int64_t r_length_of;
+    int32_t next;
+    int32_t pc_2;
+    uint64_t r_live_slots_at;
+    int32_t pc_3;
+    int32_t pc_4;
+    uint64_t r_live_slots_at_2;
+    int32_t pc_5;
+    int32_t pc_6;
+    uint64_t r_live_slots_at_3;
+    uint64_t r_live_slots_at_4;
+    uint64_t r_live_slots_at_5;
+    uint64_t lo;
+    uint64_t r_live_before;
+    uint8_t op_3;
+    int64_t r_slot_bit_2;
+    int i_2;
+    int64_t r_slot_bit_3;
+    uint8_t i_3;
+    int64_t r_slot_bit_4;
+    uint8_t i_4;
+    int64_t r_slot_bit_5;
+    uint8_t i_5;
+    int64_t r_slot_bit_6;
+    uint8_t i_6;
+    int64_t r_slot_bit_7;
+    uint8_t i_7;
+    int64_t r_slot_bit_8;
+    all = 18446744073709551615ULL;
+    keep = (prim_index != 0) || prim_error ? all : 0ULL;
+    for (p = 0; p <= bc_size - 1; p++) {
+        if ((ana_flags[p] & ANA_START) != 0) {
+            ana_live[p] = 0ULL;
+            op = ana_bcs[p];
+            if ((op >= 0x8A) && (op <= 0x8C)) {
+                i = ana_bcs[p + 2];
+                keep = keep | ({
+    if (i < 64) {
+        r_slot_bit = 1LL << i;
+        goto exit_slot_bit;
+    }
+    r_slot_bit = 0ULL;
+exit_slot_bit:;
+    r_slot_bit; });
+            }
+            if (op == 0x76) {
+                keep = all;
+            }
+        } else {
+            ana_live[p] = all;
+        }
+    }
+    changed = true;
+    while (changed) {
+        changed = false;
+        pc = bc_size - 1;
+        while (pc >= 0) {
+            if ((ana_flags[pc] & ANA_START) != 0) {
+                lo = ({
+    op_2 = ana_bcs[pc];
+    if ((op_2 >= 0x79) && (op_2 <= 0x7C)) {
+        r_live_after = 0ULL;
+        goto exit_live_after;
+    }
+    next = (int32_t)(pc + ({
+    if (op_2 < 0x68) {
+        r_length_of = 1;
+        goto exit_length_of;
+    }
+    if (op_2 < 0x70) {
+        r_length_of = 0;
+        goto exit_length_of;
+    }
+    if (op_2 < 0x7D) {
+        r_length_of = 1;
+        goto exit_length_of;
+    }
+    if (op_2 < 0x80) {
+        r_length_of = 0;
+        goto exit_length_of;
+    }
+    if (op_2 < 0x8A) {
+        r_length_of = 2;
+        goto exit_length_of;
+    }
+    if (op_2 < 0x8F) {
+        r_length_of = 3;
+        goto exit_length_of;
+    }
+    if (op_2 == 0x8F) {
+        r_length_of = 6;
+        goto exit_length_of;
+    }
+    if (op_2 < 0x94) {
+        r_length_of = 3;
+        goto exit_length_of;
+    }
+    if (op_2 == 0x94) {
+        r_length_of = 2;
+        goto exit_length_of;
+    }
+    if (op_2 < 0x97) {
+        r_length_of = 0;
+        goto exit_length_of;
+    }
+    if (op_2 < 0x9A) {
+        r_length_of = 4;
+        goto exit_length_of;
+    }
+    if (op_2 < 0xA0) {
+        r_length_of = 3;
+        goto exit_length_of;
+    }
+    if (op_2 < 0xF0) {
+        r_length_of = 1;
+        goto exit_length_of;
+    }
+    if (op_2 < 0xFC) {
+        r_length_of = 3;
+        goto exit_length_of;
+    }
+    r_length_of = 0;
+exit_length_of:;
+    r_length_of; }));
+    if (op_2 == 0x8F) {
+        pc_2 = (int32_t)(next + ((((int64_t)ana_bcs[pc + 4]) << 8) | ana_bcs[pc + 5]));
+        r_live_after = ({
+    if ((pc_2 < 0) || (pc_2 >= bc_size)) {
+        r_live_slots_at = 18446744073709551615ULL;
+        goto exit_live_slots_at;
+    }
+    r_live_slots_at = ana_live[pc_2];
+exit_live_slots_at:;
+    r_live_slots_at; });
+        goto exit_live_after;
+    }
+    if (op_2 == 0x90) {
+        pc_3 = pc + 1;
+        pc_4 = pc + 3 + (int32_t)(int16_t)(ana_bcs[pc_3] | (((int64_t)ana_bcs[pc_3 + 1]) << 8));
+        r_live_after = ({
+    if ((pc_4 < 0) || (pc_4 >= bc_size)) {
+        r_live_slots_at_2 = 18446744073709551615ULL;
+        goto exit_live_slots_at_2;
+    }
+    r_live_slots_at_2 = ana_live[pc_4];
+exit_live_slots_at_2:;
+    r_live_slots_at_2; });
+        goto exit_live_after;
+    }
+    if ((op_2 == 0x91) || (op_2 == 0x92)) {
+        pc_5 = pc + 1;
+        pc_6 = pc + 3 + (int32_t)(int16_t)(ana_bcs[pc_5] | (((int64_t)ana_bcs[pc_5 + 1]) << 8));
+        r_live_after = ({
+    if ((pc_6 < 0) || (pc_6 >= bc_size)) {
+        r_live_slots_at_3 = 18446744073709551615ULL;
+        goto exit_live_slots_at_3;
+    }
+    r_live_slots_at_3 = ana_live[pc_6];
+exit_live_slots_at_3:;
+    r_live_slots_at_3; }) | ({
+    if ((next < 0) || (next >= bc_size)) {
+        r_live_slots_at_4 = 18446744073709551615ULL;
+        goto exit_live_slots_at_4;
+    }
+    r_live_slots_at_4 = ana_live[next];
+exit_live_slots_at_4:;
+    r_live_slots_at_4; });
+        goto exit_live_after;
+    }
+    r_live_after = ({
+    if ((next < 0) || (next >= bc_size)) {
+        r_live_slots_at_5 = 18446744073709551615ULL;
+        goto exit_live_slots_at_5;
+    }
+    r_live_slots_at_5 = ana_live[next];
+exit_live_slots_at_5:;
+    r_live_slots_at_5; });
+exit_live_after:;
+    r_live_after; });
+                t = ({
+    op_3 = ana_bcs[pc];
+    if (op_3 < 0x10) {
+        r_live_before = lo | ({
+    if (op_3 < 64) {
+        r_slot_bit_2 = 1LL << op_3;
+        goto exit_slot_bit_2;
+    }
+    r_slot_bit_2 = 0ULL;
+exit_slot_bit_2:;
+    r_slot_bit_2; });
+        goto exit_live_before;
+    }
+    if (op_3 < 0x60) {
+        r_live_before = lo;
+        goto exit_live_before;
+    }
+    if (op_3 < 0x68) {
+        i_2 = op_3 - 0x60;
+        r_live_before = lo & (~({
+    if (i_2 < 64) {
+        r_slot_bit_3 = 1LL << i_2;
+        goto exit_slot_bit_3;
+    }
+    r_slot_bit_3 = 0ULL;
+exit_slot_bit_3:;
+    r_slot_bit_3; }));
+        goto exit_live_before;
+    }
+    if ((op_3 >= 0x70) && ((op_3 <= 0x7C) && (op_3 != 0x76))) {
+        r_live_before = lo;
+        goto exit_live_before;
+    }
+    if (op_3 == 0x80) {
+        i_3 = ana_bcs[pc + 1];
+        r_live_before = lo | ({
+    if (i_3 < 64) {
+        r_slot_bit_4 = 1LL << i_3;
+        goto exit_slot_bit_4;
+    }
+    r_slot_bit_4 = 0ULL;
+exit_slot_bit_4:;
+    r_slot_bit_4; });
+        goto exit_live_before;
+    }
+    if ((op_3 == 0x84) || (op_3 == 0x87)) {
+        i_4 = ana_bcs[pc + 1];
+        r_live_before = lo & (~({
+    if (i_4 < 64) {
+        r_slot_bit_5 = 1LL << i_4;
+        goto exit_slot_bit_5;
+    }
+    r_slot_bit_5 = 0ULL;
+exit_slot_bit_5:;
+    r_slot_bit_5; }));
+        goto exit_live_before;
+    }
+    if (((op_3 >= 0x81) && (op_3 <= 0x86)) || ((op_3 >= 0x89) && (op_3 <= 0x94))) {
+        r_live_before = lo;
+        goto exit_live_before;
+    }
+    if ((op_3 == 0x97) || ((op_3 >= 0x9A) && (op_3 <= 0x9F))) {
+        i_5 = ana_bcs[pc + 1];
+        i_6 = ana_bcs[pc + 2];
+        r_live_before = lo | ({
+    if (i_5 < 64) {
+        r_slot_bit_6 = 1LL << i_5;
+        goto exit_slot_bit_6;
+    }
+    r_slot_bit_6 = 0ULL;
+exit_slot_bit_6:;
+    r_slot_bit_6; }) | ({
+    if (i_6 < 64) {
+        r_slot_bit_7 = 1LL << i_6;
+        goto exit_slot_bit_7;
+    }
+    r_slot_bit_7 = 0ULL;
+exit_slot_bit_7:;
+    r_slot_bit_7; });
+        goto exit_live_before;
+    }
+    if (((op_3 >= 0x98) && (op_3 <= 0x99)) || ((op_3 >= 0xF0) && (op_3 <= 0xFB))) {
+        i_7 = ana_bcs[pc + 1];
+        r_live_before = lo | ({
+    if (i_7 < 64) {
+        r_slot_bit_8 = 1LL << i_7;
+        goto exit_slot_bit_8;
+    }
+    r_slot_bit_8 = 0ULL;
+exit_slot_bit_8:;
+    r_slot_bit_8; });
+        goto exit_live_before;
+    }
+    if ((op_3 >= 0xA0) && (op_3 <= 0xEF)) {
+        r_live_before = lo;
+        goto exit_live_before;
+    }
+    r_live_before = 18446744073709551615ULL;
+exit_live_before:;
+    r_live_before; }) | keep;
+                if (t != ana_live[pc]) {
+                    ana_live[pc] = t;
+                    changed = true;
+                }
+            }
+            pc = pc - 1;
+        }
+    }
 }
 

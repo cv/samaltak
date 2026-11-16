@@ -297,7 +297,8 @@ typedef void (*prim_fn)(void);
 #define JIT_FLAG_HOIST 1048576
 #define JIT_FLAG_IC 16
 #define JIT_FLAG_INLINE 16384
-#define JIT_FLAG_LAST 1048576
+#define JIT_FLAG_LAST 2097152
+#define JIT_FLAG_LIVE 2097152
 #define JIT_FLAG_MEGA 64
 #define JIT_FLAG_NOTES 8
 #define JIT_FLAG_PIC 32
@@ -1224,6 +1225,7 @@ extern int16_t ana_depths[32768];
 extern uint8_t ana_flags[32768];
 extern int32_t ana_frame_size;
 extern oop *ana_lits;
+extern uint64_t ana_live[32768];
 extern int32_t bc_size;
 extern int32_t num_args;
 extern int32_t num_lits;
@@ -1561,6 +1563,7 @@ uint64_t target_of(int32_t a_label);
 #endif
 int64_t index_of_bytes(uint8_t *b, int64_t m, uint8_t *a, int64_t n, int64_t start);
 bool analyze(oop m);
+void analyze_liveness(void);
 uint64_t code_cache_allocate(uint64_t size);
 void code_cache_flush(void);
 bool open_with_size(uint64_t size);

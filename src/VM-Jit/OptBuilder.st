@@ -1,5 +1,5 @@
 OptModule subclass: #OptBuilder
-	instanceVariableNames: 'ir obCurBlock obBailed obVarTop obDefKeys obDefVals obDefCount obIncPhis obIncVars obIncCount obAnaMethods obAnaBases obAnaCount obAnaTop obAnaDepth obAnaFlag obAnaBack obPcBlocks obPcbTop obEntryBlock obRootMethod obInlined obDeps obDepCount obPrimKinds obPrimsKnown obNoInline obNoInlineCount obArgVals obArgFlags obUnitStart obOsrPc obParamSlots obValidSlots obSafeEpoch obAnaFloat obResident obChecked obCheckedCount obCheckedBlock obCheckedEpoch obFrame obSpecParam obSpecInfo obSpecCount obForeign obForeignM obForeignS obForeignDepth obNoForeignM obNoForeignS obNoForeignCount obPerformAct obPerformPc obPerformSlot obPerformCount obPerformVals'
+	instanceVariableNames: 'ir obCurBlock obBailed obVarTop obDefKeys obDefVals obDefCount obIncPhis obIncVars obIncCount obAnaMethods obAnaBases obAnaCount obAnaTop obAnaDepth obAnaFlag obAnaBack obPcBlocks obPcbTop obEntryBlock obRootMethod obInlined obDeps obDepCount obPrimKinds obPrimsKnown obNoInline obNoInlineCount obArgVals obArgFlags obUnitStart obOsrPc obParamSlots obValidSlots obSafeEpoch obAnaFloat obResident obChecked obCheckedCount obCheckedBlock obCheckedEpoch obFrame obSpecParam obSpecInfo obSpecCount obForeign obForeignM obForeignS obForeignDepth obNoForeignM obNoForeignS obNoForeignCount obPerformAct obPerformPc obPerformSlot obPerformCount obPerformVals obAnaLive obNilConst'
 	classVariableNames: 'OA_BLOCK OA_LOOP OA_START OA_TARGET OPT_MAX_VARS OPT_MAX_NOINLINE OPT_MAX_PRIM OPK_AT OPK_FLOAT OPK_FSQRT OPK_NEW OPK_NEWSIZE OPK_CLOSURE OPK_ATPUT OPK_CLASS OPK_IDENTICAL OPK_INT OPK_SIZE OPK_STRINGAT OPK_STRINGATPUT OPT_INLINE_BUDGET OPT_INLINE_DEPTH OPT_INLINE_SIZE OPT_MAX_ANA OPT_MAX_DEPS OPT_MAX_INC OPK_CHARVALUE OPK_CHARFROM'
 	package: 'VM-Jit'!
 
@@ -15,7 +15,8 @@ declarations
 		(obPcBlocks 'int32_t[OPT_PCB_MAX]') (obPcbTop int32_t) (obEntryBlock int32_t) (obRootMethod oop)
 		(obInlined int32_t) (obDeps 'oop[OPT_MAX_DEPS]') (obDepCount int32_t) (obPrimKinds 'uint8_t[OPT_MAX_PRIM]') (obPrimsKnown bool)
 		(obNoInline 'oop[OPT_MAX_NOINLINE]') (obNoInlineCount int32_t) (obArgVals 'int32_t[OPT_MAX_VARS]') (obArgFlags 'uint8_t[OPT_MAX_VARS]') (obUnitStart int32_t) (obOsrPc int32_t) (obParamSlots int32_t) (obValidSlots int32_t) (obSafeEpoch int32_t) (obAnaFloat 'bool[OPT_MAX_ANA]') (obResident bool) (obChecked 'int32_t[8]') (obCheckedCount int32_t) (obCheckedBlock int32_t) (obCheckedEpoch int32_t) (obFrame 'Frame *') (obSpecParam 'int32_t[8]') (obSpecInfo 'int32_t[8]') (obSpecCount int32_t) (obForeign bool) (obForeignM 'oop[8]') (obForeignS 'int32_t[8]') (obForeignDepth int32_t) (obNoForeignM 'oop[8]') (obNoForeignS 'int32_t[8]') (obNoForeignCount int32_t)
-		(obPerformAct int32_t) (obPerformPc int32_t) (obPerformSlot int32_t) (obPerformCount int32_t) (obPerformVals 'int32_t[8]'))
+		(obPerformAct int32_t) (obPerformPc int32_t) (obPerformSlot int32_t) (obPerformCount int32_t) (obPerformVals 'int32_t[8]')
+		(obAnaLive 'uint64_t[OPT_ANA_MAX]') (obNilConst int32_t))
 !
 initialize
 	OPT_MAX_INC := 16384.
@@ -120,6 +121,7 @@ buildOnce: m
 	obSpecCount := 0.
 	obForeignDepth := 0.
 	obPerformAct := -1.
+	obNilConst := -1.
 	a := obUnitStart > 0 ifTrue: [self newBlockActFor: m start: obUnitStart] ifFalse: [self newActFor: m].
 	a < 0 ifTrue: [^false].
 	obEntryBlock := ir newBlock.
@@ -479,6 +481,7 @@ analysisOf: m
 	n := analysis size.
 	obAnaTop + n > OPT_ANA_MAX ifTrue: [^-1].
 	base := obAnaTop.
+	analysis analyzeLiveness.
 	0 to: n - 1 do: [:pc |
 		f := 0.
 		(analysis isStart: pc) ifTrue: [f := f bitOr: OA_START].
@@ -487,6 +490,7 @@ analysisOf: m
 		(analysis isBlockStart: pc) ifTrue: [f := f bitOr: OA_BLOCK].
 		obAnaFlag at: base + pc put: f asUInt8.
 		obAnaDepth at: base + pc put: (analysis depthAt: pc) asInt16.
+		obAnaLive at: base + pc put: (analysis liveSlotsAt: pc).
 		obAnaBack at: base + pc put: -1].
 	0 to: n - 1 do: [:pc |
 		((f := obAnaFlag at: base + pc) bitAnd: OA_START) ~= 0 ifTrue: [
@@ -789,8 +793,13 @@ blockAt: pc act: a
 !OptBuilder methodsFor: 'frame states'!
 stateAct: a pc: pc depth: d
 	"The frame state of a continuing at pc with d slots, and its callers'."
+	^self stateAct: a pc: pc depth: d livePc: pc
+!
+stateAct: a pc: pc depth: d livePc: lp
+	"The frame state of a continuing at pc with d slots, and its callers' (each at its own pc). A temp that no instruction from lp on reads before storing it (liveSlotsAt:act:) is nil there: no phi, no value kept for it."
 	<function>
-	| s st ac vals p |
+	<var: #live type: 'uint64_t'>
+	| s st ac vals p live |
 	ac := ir act: a.
 	s := ir newState.
 	st := ir state: s.
@@ -800,16 +809,45 @@ stateAct: a pc: pc depth: d
 	vals := ir allocOperands: d + 1.
 	st vals: vals.
 	ir operand: vals put: ac receiver.
+	live := 16rFFFFFFFFFFFFFFFF asUInt64.
+	(runtime flag: runtime liveFlag) ifTrue: [live := self liveSlotsAt: lp act: a].
 	0 to: d - 1 do: [:i |
 		((self var: a slot: i) < OPT_MAX_VARS and: [(obArgFlags at: (self var: a slot: i)) = 2])
 			ifTrue: [ir operand: vals + 1 + i put: (obArgVals at: (self var: a slot: i))]
 			ifFalse: [
 				(a = obPerformAct and: [i >= obPerformSlot and: [i < (obPerformSlot + obPerformCount)]])
 					ifTrue: [ir operand: vals + 1 + i put: (obPerformVals at: i - obPerformSlot)]
-					ifFalse: [ir operand: vals + 1 + i put: (self read: (self var: a slot: i))]]].
+					ifFalse: [
+						(i >= ac numArgs and: [i < (ac numArgs + ac numTemps) and: [i < 64 and: [(live bitAnd: 1 asUInt64 << i) = 0]]])
+							ifTrue: [ir operand: vals + 1 + i put: self nilConstant]
+							ifFalse: [ir operand: vals + 1 + i put: (self read: (self var: a slot: i))]]]].
 	p := ac parent.
 	p >= 0 ifTrue: [(ir state: s) parent: (self stateAct: p pc: (ac sendPc + (analysis lengthOf: (self byteAt: ac sendPc act: p))) asInt32 depth: (self receiverSlotAt: ac sendPc act: p))].
 	^s
+!
+liveSlotsAt: pc act: a
+	"The slots (0-63) of a's frame that an instruction from pc on may read before storing them (BytecodeAnalysis>>analyzeLiveness)."
+	<returns: 'uint64_t'>
+	(pc < 0 or: [pc >= (self methodSize: (ir act: a) method)]) ifTrue: [^16rFFFFFFFFFFFFFFFF asUInt64].
+	^obAnaLive at: (ir act: a) ana + pc
+!
+nilConstant
+	"nil for the dead temps of frame states: one constant for all of them."
+	obNilConst < 0 ifTrue: [obNilConst := self constant: memory nilOop].
+	^obNilConst
+!
+checkLive: i pc: pc act: a
+	"The instruction at a's pc reads temp i: the liveness must have it live there (frame states drop the dead ones); else report it and give up the compilation."
+	| ac |
+	ac := ir act: a.
+	((runtime flag: runtime liveFlag) and: [i >= ac numArgs and: [i < (ac numArgs + ac numTemps) and: [i < 64 and: [((self liveSlotsAt: pc act: a) bitAnd: 1 asUInt64 << i) = 0]]]]) ifFalse: [^self].
+	libc fputs: 'samaltak: liveness mismatch ' to: libc stderr.
+	interpreter printClassName: (self loadRef: ac method at: CM_CLASS) on: libc stderr.
+	libc fputs: '>>' to: libc stderr.
+	interpreter printSymbol: (self loadRef: ac method at: CM_SELECTOR) on: libc stderr.
+	libc fprintf: libc stderr format: ' pc %d slot %d
+' with: pc with: i.
+	self bail
 !
 receiverSlotAt: pc act: a
 	"The slot of the receiver of the send the instruction at pc makes."
@@ -837,6 +875,7 @@ emit: pc act: a
 	d := self depthAt: pc act: a.
 	next := (pc + (analysis lengthOf: op)) asInt32.
 	op < 16r10 ifTrue: [
+		self checkLive: op pc: pc act: a.
 		self push: (self read: (self var: a slot: op)) act: a depth: d.
 		^next].
 	op < 16r20 ifTrue: [
@@ -880,6 +919,7 @@ emit: pc act: a
 		self localReturn: (ir act: a) receiver act: a pc: pc depth: d.
 		^next].
 	op = 16r80 ifTrue: [
+		self checkLive: (self byteAt: pc + 1 act: a) pc: pc act: a.
 		self push: (self read: (self var: a slot: (self byteAt: pc + 1 act: a))) act: a depth: d.
 		^next].
 	(op = 16r81 and: [(self byteAt: pc + 1 act: a) > CTX_STACKP]) ifTrue: [
@@ -1226,9 +1266,12 @@ superinstruction: pc act: a
 	| op x y k d |
 	op := self byteAt: pc act: a.
 	d := self depthAt: pc act: a.
+	self checkLive: (self byteAt: pc + 1 act: a) pc: pc act: a.
 	x := self read: (self var: a slot: (self byteAt: pc + 1 act: a)).
 	(op = 16r97 or: [op >= 16r9A and: [op < 16rA0]])
-		ifTrue: [y := self read: (self var: a slot: (self byteAt: pc + 2 act: a))]
+		ifTrue: [
+			self checkLive: (self byteAt: pc + 2 act: a) pc: pc act: a.
+			y := self read: (self var: a slot: (self byteAt: pc + 2 act: a))]
 		ifFalse: [
 			(op = 16r98 or: [op >= 16rF0 and: [op < 16rF6]])
 				ifTrue: [y := self constant: (self literal: (self byteAt: pc + 2 act: a) act: a)]
@@ -1872,7 +1915,8 @@ callSelector: sel argc: argc kind: kind special: k pc: pc act: a rcvSlot: r
 	(ir node: n) aux: sel asInt64.
 	(ir node: n) aux2: (((argc asInt64 bitOr: kind asInt64 << 8) bitOr: k asInt64 << 16) bitOr: pc asInt64 << 32).
 	(a = obPerformAct and: [pc = obPerformPc]) ifTrue: [(ir node: n) aux2: ((ir node: n) aux2 bitOr: SI_PERFORMED)].
-	(ir node: n) state: (self stateAct: a pc: (pc + (analysis lengthOf: (self byteAt: pc act: a))) asInt32 depth: r).
+	"its temps as at the send: deoptimization before it executes the instruction again (a superinstruction reads its temps)"
+	(ir node: n) state: (self stateAct: a pc: (pc + (analysis lengthOf: (self byteAt: pc act: a))) asInt32 depth: r livePc: pc).
 	self push: n act: a depth: r.
 	^n
 ! !

@@ -659,4 +659,97 @@ testCountSharedWithAFailedMethod
 	before := self statistics.
 	o plain: 0 times: 3000.
 	self assert: (self statistics - before) optMethodsCompiled > 0
+!
+testDeoptimizationWithDeadTemps
+	"Frame states name nil for the temps that no bytecode reads again before storing them: guards that fail where such temps are dead (straight code, one branch of two, a loop that carries a temp around its back edge, one that stores its temps first on every turn) rebuild frames that answer what the interpreter answers."
+	| o good bad sizes before |
+	Smalltalk vm jitParameters: #(nil '-eager' nil nil).
+	self define: 'straight: x with: o | t u | t := x + 1. u := t * 2. ^u + o size'.
+	self define: 'branch: x flag: f with: o | t s | t := x + 1. f ifTrue: [s := o size + t] ifFalse: [s := o size]. ^s'.
+	self define: 'carried: arr | prev s | prev := 0. s := 0. 1 to: arr size do: [:i | s := s + (arr at: i) size + prev. prev := i]. ^s'.
+	self define: 'fresh: arr | t u s | s := 0. 1 to: arr size do: [:i | t := i * 2. u := i. s := s + u + (arr at: i) size + t]. ^s'.
+	o := JitRuntimeTestSubject new.
+	good := (1 to: 100) collect: [:i | Array new: i \\ 3].
+	bad := good copy.
+	bad at: 70 put: 'abcd'.
+	sizes := [:arr | arr inject: 0 into: [:sum :e | sum + e size]].
+	1 to: 3000 do: [:k |
+		self assert: (o straight: k with: #(1 2 3)) equals: k + 1 * 2 + 3.
+		self assert: (o branch: k flag: k \\ 2 = 1 with: #(1 2 3)) equals: (k \\ 2 = 1 ifTrue: [k + 4] ifFalse: [3]).
+		self assert: (o carried: good) equals: (sizes value: good) + 4950.
+		self assert: (o fresh: good) equals: (sizes value: good) + 15150].
+	before := self statistics.
+	self assert: (o straight: 5 with: 'abcd') equals: 16.
+	self assert: (o branch: 5 flag: true with: 'abcd') equals: 10.
+	self assert: (o branch: 5 flag: false with: 'abcd') equals: 4.
+	self assert: (o carried: bad) equals: (sizes value: bad) + 4950.
+	self assert: (o fresh: bad) equals: (sizes value: bad) + 15150.
+	self stressed ifFalse: [self assert: (self statistics - before) optDeoptimizations > 0]
+!
+testNestedFloatLoopsWithDeadTemps
+	"Nested loops whose turns store Float temps before they read them (dead at the loop heads: no phis there): a guard that fails inside rebuilds the frame, the sum is exact."
+	| o good bad expected |
+	Smalltalk vm jitParameters: #(nil '-eager' nil nil).
+	self define: 'nested: n with: arr | s d x | s := 0.0. 1 to: n do: [:i | 1 to: n do: [:j | d := i * 0.5. x := d * j. s := s + x + (arr at: j) size]]. ^s'.
+	o := JitRuntimeTestSubject new.
+	good := (1 to: 30) collect: [:i | Array new: i \\ 4].
+	bad := good copy.
+	bad at: 20 put: 'abcde'.
+	expected := [:arr | | s | s := 0.0. 1 to: 30 do: [:i | 1 to: 30 do: [:j | s := s + (i * 0.5 * j) + (arr at: j) size]]. s].
+	1 to: 300 do: [:k | self assert: (o nested: 30 with: good) equals: (expected value: good)].
+	self assert: (o nested: 30 with: bad) equals: (expected value: bad).
+	self assert: (o nested: 30 with: good) equals: (expected value: good)
+!
+testBlocksReadTempsTheirHomeDoesNot
+	"Temps that only blocks read or store are named in every frame state of their home: a guard that fails in an inlined block rebuilds the frames and makes the closure, which goes on with them; the same in a loop's unit that inlines a closure its frame made."
+	| o good bad expected |
+	Smalltalk vm jitParameters: #(nil '-eager' nil nil).
+	self define: 'inlined: arr | k t blk | k := 0. t := 5. blk := [:x | k := k + x size + t]. arr do: [:e | blk value: e]. ^k'.
+	self define: 'real: arr | k t blk | k := 0. t := 5. blk := [:x | k := k + x size + t]. 1 to: arr size do: [:i | blk value: (arr at: i)]. ^k'.
+	o := JitRuntimeTestSubject new.
+	good := (1 to: 30000) collect: [:i | Array new: i \\ 3].
+	bad := good copy.
+	bad at: 25000 put: 'abcd'.
+	expected := [:arr | (arr inject: 0 into: [:sum :e | sum + e size]) + (5 * arr size)].
+	1 to: 3000 do: [:k | self assert: (o inlined: (good copyFrom: 1 to: 10)) equals: (expected value: (good copyFrom: 1 to: 10))].
+	self assert: (o inlined: (bad copyFrom: 24991 to: 25000)) equals: (expected value: (bad copyFrom: 24991 to: 25000)).
+	3 timesRepeat: [
+		self assert: (o real: good) equals: (expected value: good).
+		self assert: (o real: bad) equals: (expected value: bad)]
+!
+testFramesMadeContextsHaveNilInDeadTemps
+	"Reading thisContext's sender makes the frames Contexts while the optimized caller waits in a send: its live temps are what it holds, its dead ones nil (with --jit-flags -live it keeps every temp); a method with a primitive keeps all of its temps."
+	| o r live |
+	Smalltalk vm jitParameters: #(nil '-eager' nil nil).
+	live := Smalltalk vm jitFlags includes: 'live'.
+	self define: 'senderTemp: k ^thisContext sender tempAt: k'.
+	self define: 'temps: x | d l | d := x * 3. l := d + 1. ^Array with: (self senderTemp: 2) with: (self senderTemp: 3) with: l'.
+	self define: 'primTemps: x <primitive: ''intAdd'' error: ec> | d l | d := x * 3. l := d + 1. ^Array with: (self senderTemp: 3) with: (self senderTemp: 4) with: l'.
+	o := JitRuntimeTestSubject new.
+	1 to: 1500 do: [:k |
+		self assert: (o temps: k) last equals: k * 3 + 1.
+		self assert: (o primTemps: k) last equals: k * 3 + 1].
+	r := o temps: 5.
+	self assert: (r copyFrom: 2 to: 3) equals: #(16 16).
+	(self stressed not and: [live]) ifTrue: [self assert: r first isNil].
+	self assert: (o primTemps: 5) equals: #(15 16 16).
+	"code compiled before the flags change still runs until the pending flush (JitRuntime>>prepare)"
+	[Smalltalk vm jitParameters: #(nil '-live' nil nil).
+	 1 to: 1500 do: [:k | self assert: (o temps: k) last equals: k * 3 + 1].
+	 self assert: (o temps: 5) equals: #(15 16 16)]
+		ensure: [live ifTrue: [Smalltalk vm jitParameters: #(nil 'live' nil nil)]]
+!
+testLoopUnitWithDeadTemps
+	"A loop's unit entered where temps are dead (stored before every read, or never read again): its entry names nil for them; a guard that fails in the loop rebuilds the frame, the result is exact."
+	| o good bad expected |
+	Smalltalk vm jitParameters: #(nil '-eager' nil nil).
+	self define: 'osr: arr | dead s t last | dead := arr size * 2. s := 0. 1 to: arr size do: [:i | t := i \\ 7. s := s + t + (arr at: i) size. last := i]. ^s + last'.
+	o := JitRuntimeTestSubject new.
+	good := (1 to: 30000) collect: [:i | Array new: i \\ 3].
+	bad := good copy.
+	bad at: 25000 put: 'abcd'.
+	expected := [:arr | ((1 to: arr size) inject: 0 into: [:sum :i | sum + (i \\ 7) + (arr at: i) size]) + arr size].
+	3 timesRepeat: [
+		self assert: (o osr: good) equals: (expected value: good).
+		self assert: (o osr: bad) equals: (expected value: bad)]
 ! !
