@@ -200,6 +200,7 @@ uint64At: anAddress
 	| s |
 	(anAddress bitAnd: 7) = 0 ifFalse: [^self unsignedAt: anAddress size: 8].
 	s := self segmentAt: anAddress.
+	(anAddress + 8 > s limit) ifTrue: [^self simulationError: 'load past the end of a segment'].
 	^s wordAt: anAddress - s base
 !
 uint64At: anAddress put: anInteger

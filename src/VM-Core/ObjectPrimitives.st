@@ -1,5 +1,5 @@
 VMPrimitiveModule subclass: #ObjectPrimitives
-	instanceVariableNames: 'instancesClass instancesResult instancesCount'
+	instanceVariableNames: 'instancesClass instancesResult instancesCount search'
 	classVariableNames: ''
 	package: 'VM-Core'!
 
@@ -7,7 +7,7 @@ ObjectPrimitives comment: 'Object, string and byte-access primitives. Indices ar
 
 !ObjectPrimitives class methodsFor: 'declaring'!
 declarations
-	^#((instancesClass oop) (instancesResult oop) (instancesCount size_t))
+	^#((instancesClass oop) (instancesResult oop) (instancesCount size_t) (search ByteSearch))
 ! !
 
 !ObjectPrimitives methodsFor: 'object'!
@@ -377,7 +377,7 @@ primStringIndexOf
 	"indexOf: aCharacter startingAt: start: the index of its first occurrence at or after start, 0 if none. Fails for a start below 1 or anything but a Character."
 	<vmPrimitive: 117 name: 'stringIndexOf'>
 	<leaf>
-	| r c s v b w |
+	| r c s v w |
 	r := self receiver.
 	c := self arg: 0.
 	s := self arg: 1.
@@ -385,10 +385,8 @@ primStringIndexOf
 	v := self charVal: c.
 	(self formatOf: r) >= F_BYTES
 		ifTrue: [
-			b := self bytesOf: r.
 			v < 256 ifTrue: [
-				(self intVal: s) - 1 to: (memory byteSize: r) asInt64 - 1 do: [:i |
-					(b at: i) asUInt32 = v ifTrue: [^self answer: (self intOop: i + 1)]]]]
+				^self answer: (self intOop: (search indexOfByte: v asUInt8 in: (self bytesOf: r) size: (memory byteSize: r) asInt64 from: (self intVal: s) - 1) + 1)]]
 		ifFalse: [
 			w := self words32Of: r.
 			(self intVal: s) - 1 to: (memory word32Size: r) asInt64 - 1 do: [:i |
@@ -399,7 +397,7 @@ primStringIndexOfSubstring
 	"indexOfSubCollection: aString startingAt: start: where aString next begins at or after start, 0 if it does not (start if it is empty). Fails for a start below 1 or anything but a String."
 	<vmPrimitive: 118 name: 'stringIndexOfSubstring'>
 	<leaf>
-	| r p s n m a b first k |
+	| r p s n m k w v |
 	r := self receiver.
 	p := self arg: 0.
 	s := self arg: 1.
@@ -408,11 +406,12 @@ primStringIndexOfSubstring
 	m := (memory stringSize: p) asInt64.
 	m = 0 ifTrue: [^self answer: s].
 	((self formatOf: r) >= F_BYTES and: [(self formatOf: p) >= F_BYTES]) ifTrue: [
-		a := self bytesOf: r.
-		b := self bytesOf: p.
-		first := b at: 0.
+		^self answer: (self intOop: (search indexOfBytes: (self bytesOf: p) size: m in: (self bytesOf: r) size: n from: (self intVal: s) - 1) + 1)].
+	((self formatOf: r) < F_BYTES and: [(self formatOf: p) < F_BYTES]) ifTrue: [
+		w := self words32Of: r.
+		v := self words32Of: p.
 		(self intVal: s) - 1 to: n - m do: [:i |
-			((a at: i) = first and: [(libc memcmp: a + i with: b size: m asUInt64) = 0]) ifTrue: [^self answer: (self intOop: i + 1)]].
+			((w at: i) = (v at: 0) and: [(libc memcmp: w + i with: v size: m asUInt64 * 4) = 0]) ifTrue: [^self answer: (self intOop: i + 1)]].
 		^self answer: (self intOop: 0)].
 	(self intVal: s) - 1 to: n - m do: [:i |
 		k := 0.

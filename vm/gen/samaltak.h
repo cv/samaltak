@@ -23,6 +23,9 @@
 #include <pthread.h>
 #include <unistd.h>
 #include <limits.h>
+#if defined(__x86_64__)
+#include <emmintrin.h>
+#endif
 #ifdef __APPLE__
 #include <libkern/OSCacheControl.h>
 #include <sys/event.h>
@@ -1551,6 +1554,7 @@ void wide(int32_t digit, int64_t rd, int64_t rn, int64_t rm);
 #else
 uint64_t target_of(int32_t a_label);
 #endif
+int64_t index_of_bytes(uint8_t *b, int64_t m, uint8_t *a, int64_t n, int64_t start);
 bool analyze(oop m);
 uint64_t code_cache_allocate(uint64_t size);
 void code_cache_flush(void);

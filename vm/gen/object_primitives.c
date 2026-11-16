@@ -1682,14 +1682,17 @@ void prim_string_index_of(void)
     bool r_is_string_like;
     int32_t f;
     uint32_t v;
-    uint8_t *b;
-    int64_t i;
-    int64_t stop;
+    uint8_t c_2;
+    uint8_t *a;
+    int64_t n;
+    int64_t start;
+    int64_t r_index_of_byte;
+    void *p;
     int64_t v_2;
     uint64_t v_3;
     uint32_t *w;
-    int64_t i_2;
-    int64_t stop_2;
+    int64_t i;
+    int64_t stop;
     int64_t v_4;
     uint64_t v_5;
     r = prim_base[0];
@@ -1710,25 +1713,35 @@ exit_is_string_like:;
     }
     v = (uint32_t)(c >> 3);
     if ((int32_t)(((*(uint64_t *)r) >> H_FMT_SHIFT) & H_FMT_MASK) >= F_BYTES) {
-        b = (uint8_t *)(r + 16);
         if (v < 256) {
-            stop = (int64_t)byte_size(r) - 1;
-            for (i = (((int64_t)s) >> 1) - 1; i <= stop; i++) {
-                if ((uint32_t)b[i] == v) {
-                    v_2 = i + 1;
-                    v_3 = (uint64_t)((v_2 << 1) | 1);
-                    prim_result = v_3;
-                    prim_status = PS_OK;
-                    return;
-                }
-            }
+            c_2 = (uint8_t)v;
+            a = (uint8_t *)(r + 16);
+            n = (int64_t)byte_size(r);
+            start = (((int64_t)s) >> 1) - 1;
+            v_2 = ({
+    if (start >= n) {
+        r_index_of_byte = -1;
+        goto exit_index_of_byte;
+    }
+    p = memchr(a + start, c_2, (uint64_t)(n - start));
+    if (p == NULL) {
+        r_index_of_byte = -1;
+        goto exit_index_of_byte;
+    }
+    r_index_of_byte = (uint8_t *)p - a;
+exit_index_of_byte:;
+    r_index_of_byte; }) + 1;
+            v_3 = (uint64_t)((v_2 << 1) | 1);
+            prim_result = v_3;
+            prim_status = PS_OK;
+            return;
         }
     } else {
         w = (uint32_t *)(r + 16);
-        stop_2 = (int64_t)word32_size(r) - 1;
-        for (i_2 = (((int64_t)s) >> 1) - 1; i_2 <= stop_2; i_2++) {
-            if (w[i_2] == v) {
-                v_4 = i_2 + 1;
+        stop = (int64_t)word32_size(r) - 1;
+        for (i = (((int64_t)s) >> 1) - 1; i <= stop; i++) {
+            if (w[i] == v) {
+                v_4 = i + 1;
                 v_5 = (uint64_t)((v_4 << 1) | 1);
                 prim_result = v_5;
                 prim_status = PS_OK;
@@ -1750,16 +1763,17 @@ void prim_string_index_of_substring(void)
     int32_t f;
     int64_t n;
     int64_t m;
-    uint8_t *a;
-    uint8_t *b;
-    uint8_t first;
+    int64_t v_2;
+    uint64_t v_3;
+    uint32_t *w;
+    uint32_t *v;
     int64_t i;
-    int64_t v;
-    uint64_t v_2;
+    int64_t v_4;
+    uint64_t v_5;
     int64_t i_2;
     int64_t k;
-    int64_t v_3;
-    uint64_t v_4;
+    int64_t v_6;
+    uint64_t v_7;
     r = prim_base[0];
     p = prim_base[1];
     s = prim_base[2];
@@ -1784,14 +1798,20 @@ exit_is_string_like:;
         return;
     }
     if (((int32_t)(((*(uint64_t *)r) >> H_FMT_SHIFT) & H_FMT_MASK) >= F_BYTES) && ((int32_t)(((*(uint64_t *)p) >> H_FMT_SHIFT) & H_FMT_MASK) >= F_BYTES)) {
-        a = (uint8_t *)(r + 16);
-        b = (uint8_t *)(p + 16);
-        first = b[0];
+        v_2 = index_of_bytes((uint8_t *)(p + 16), m, (uint8_t *)(r + 16), n, (((int64_t)s) >> 1) - 1) + 1;
+        v_3 = (uint64_t)((v_2 << 1) | 1);
+        prim_result = v_3;
+        prim_status = PS_OK;
+        return;
+    }
+    if (((int32_t)(((*(uint64_t *)r) >> H_FMT_SHIFT) & H_FMT_MASK) < F_BYTES) && ((int32_t)(((*(uint64_t *)p) >> H_FMT_SHIFT) & H_FMT_MASK) < F_BYTES)) {
+        w = (uint32_t *)(r + 16);
+        v = (uint32_t *)(p + 16);
         for (i = (((int64_t)s) >> 1) - 1; i <= n - m; i++) {
-            if ((a[i] == first) && (memcmp(a + i, b, (uint64_t)m) == 0)) {
-                v = i + 1;
-                v_2 = (uint64_t)((v << 1) | 1);
-                prim_result = v_2;
+            if ((w[i] == v[0]) && (memcmp(w + i, v, (uint64_t)m * 4) == 0)) {
+                v_4 = i + 1;
+                v_5 = (uint64_t)((v_4 << 1) | 1);
+                prim_result = v_5;
                 prim_status = PS_OK;
                 return;
             }
@@ -1806,9 +1826,9 @@ exit_is_string_like:;
             k = k + 1;
         }
         if (k == m) {
-            v_3 = i_2 + 1;
-            v_4 = (uint64_t)((v_3 << 1) | 1);
-            prim_result = v_4;
+            v_6 = i_2 + 1;
+            v_7 = (uint64_t)((v_6 << 1) | 1);
+            prim_result = v_7;
             prim_status = PS_OK;
             return;
         }

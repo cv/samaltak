@@ -191,6 +191,13 @@ memcmp: a with: b size: n
 	<c: 'int memcmp(const void *a, const void *b, size_t n)'>
 	^self memory compare: (self memory addressOf: a) with: (self memory addressOf: b) count: n
 !
+memchr: s value: c size: n
+	<c: 'void *memchr(const void *s, int c, size_t n)'>
+	| a |
+	a := self memory addressOf: s.
+	0 to: n - 1 do: [:i | (self memory uint8At: a + i) = (c bitAnd: 255) ifTrue: [^self memory pointerTo: CVoidType new at: a + i]].
+	^CPointer null
+!
 strlen: s
 	<c: 'size_t strlen(const char *s)'>
 	s isString ifTrue: [^s utf8Encoded size].
