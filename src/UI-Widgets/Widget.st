@@ -315,8 +315,8 @@ contextualKeyDown: event
  (#($c $x $i $b $j) includes: key) ifFalse: [^false].
  context := (Smalltalk at: #ActionContext) in: self agentContext.
  ((key = $c) or: [key = $x]) ifTrue: [
- (Smalltalk at: #ActionContext) copied: context.
  self clipboardText: context value printString.
+ (Smalltalk at: #ActionContext) copied: context.
  ^true].
  key = $j ifTrue: [context agent. ^true].
  key = $i ifTrue: [context inspect. ^true].
@@ -430,12 +430,6 @@ clipboardText
 	w isNil ifFalse: [^w clipboard ifNil: ['']].
 	^FallbackClipboard ifNil: ['']
 !
-clipboardText: aString
-	| w |
-	FallbackClipboard := aString.
-	w := self window.
-	w isNil ifFalse: [w clipboard: aString]
-!
 clipboardData: mime
 	| w |
 	w := self window.
@@ -491,4 +485,13 @@ remoteQuote: aString
 printOn: aStream
 	super printOn: aStream.
 	name isNil ifFalse: [aStream nextPut: $(; nextPutAll: name; nextPut: $)]
+! !
+
+!Widget methodsFor: 'clipboard'!
+clipboardText: aString
+ | w |
+ (Smalltalk at: #ActionContext) copied: nil.
+ FallbackClipboard := aString.
+ w := self window.
+ w isNil ifFalse: [w clipboard: aString]
 ! !

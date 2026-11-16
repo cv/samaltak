@@ -185,10 +185,17 @@ caret: aPosition
 	self setAnchor: aPosition caret: aPosition
 !
 setAnchor: a caret: c
-	anchor := (a max: 0) min: buffer size.
-	caret := (c max: 0) min: buffer size.
-	goalX := nil.
-	self caretMoved
+ | direction |
+ direction := c - caret.
+ a = c
+ ifTrue: [
+ caret := self snapPosition: c direction: direction.
+ anchor := caret]
+ ifFalse: [
+ anchor := self snapPosition: a direction: (a < c ifTrue: [-1] ifFalse: [1]).
+ caret := self snapPosition: c direction: (c < a ifTrue: [-1] ifFalse: [1])].
+ goalX := nil.
+ self caretMoved
 !
 caretMoved
 	caretOn := true.
@@ -204,6 +211,16 @@ selectionOrLine
 		line := self lineIndexOf: caret.
 		self setAnchor: (self lineStarts at: line) caret: (self lineEndAt: line)].
 	^self selectedText
+!
+snapPosition: position direction: direction
+ | p |
+ p := (position max: 0) min: buffer size.
+ marks do: [:m |
+ (m isAtomic and: [p > m start and: [p < m stop]]) ifTrue: [
+ p := direction < 0 ifTrue: [m start] ifFalse: [
+ direction > 0 ifTrue: [m stop] ifFalse: [
+ p - m start < (m stop - p) ifTrue: [m start] ifFalse: [m stop]]]]].
+ ^p
 ! !
 
 !TextEditor methodsFor: 'lines'!
@@ -332,17 +349,28 @@ replaceFrom: start to: stop with: aString
 	^self replaceFrom: start to: stop with: aString kind: #edit
 !
 replaceFrom: start to: stop with: aString kind: kind
-	| removed new before after |
-	removed := buffer copyFrom: start + 1 to: stop.
-	new := buffer normalize: aString.
-	before := Array with: anchor with: caret.
-	buffer replaceFrom: start to: stop with: new.
-	after := start + new size.
-	anchor := after.
-	caret := after.
-	history record: kind position: start removed: removed inserted: new before: before after: (Array with: anchor with: caret).
-	self edited.
-	^after
+ | removed new before after first last editKind |
+ first := start.
+ last := stop.
+ marks do: [:m |
+ (m isAtomic and: [
+ (m stop > first and: [m start < last]) or: [
+ first = last and: [first > m start and: [first < m stop]]]]) ifTrue: [
+ first := first min: m start.
+ last := last max: m stop]].
+ removed := buffer copyFrom: first + 1 to: last.
+ new := buffer normalize: aString.
+ before := Array with: anchor with: caret with: self atomicMarksSnapshot.
+ editKind := (marks anySatisfy: [:m | m isAtomic and: [m stop > first and: [m start < last]]])
+ ifTrue: [#atomic] ifFalse: [kind].
+ buffer replaceFrom: first to: last with: new.
+ after := first + new size.
+ anchor := after.
+ caret := after.
+ history record: editKind position: first removed: removed inserted: new before: before
+ after: (Array with: anchor with: caret with: self atomicMarksSnapshot).
+ self edited.
+ ^after
 !
 edited
 	dirty := true.
@@ -459,9 +487,35 @@ appendText: aString
 	self invalidate
 !
 copySelection
+ | w context |
  self hasSelection ifTrue: [
  self clipboardText: self selectedText.
- (Smalltalk at: #ActionContext) copied: ((Smalltalk at: #ActionContext) forEditor: self)]
+ (Smalltalk at: #ActionContext) copied: ((Smalltalk at: #ActionContext) forEditor: self).
+ ^self].
+ w := self window.
+ (w notNil and: [w content respondsTo: #agentContext]) ifTrue: [
+ context := (Smalltalk at: #ActionContext) in: w content agentContext.
+ self clipboardText: context value printString.
+ (Smalltalk at: #ActionContext) copied: context]
+!
+atomicMarksSnapshot
+ ^(marks select: [:m | m isAtomic]) collect: [:m | m copy]
+!
+replay: start to: stop with: aString selection: selection
+ buffer replaceFrom: start to: stop with: aString.
+ selection size >= 3 ifTrue: [
+ marks := marks reject: [:m | m isAtomic].
+ (selection at: 3) do: [:m | marks add: m copy]].
+ anchor := (selection at: 1) min: buffer size.
+ caret := (selection at: 2) min: buffer size.
+ self edited
+!
+insertAtomicText: aString style: style data: object
+ | stop |
+ readOnly ifTrue: [^self].
+ stop := self replaceFrom: self selectionStart to: self selectionStop with: aString kind: #atomic.
+ (self addMarkFrom: stop - aString size to: stop style: style) data: object.
+ history lastAfter: (Array with: anchor with: caret with: self atomicMarksSnapshot)
 ! !
 
 !TextEditor methodsFor: 'undo'!
@@ -476,12 +530,6 @@ undo
 !
 redo
 	history redoWith: [:start :stop :aString :selection | self replay: start to: stop with: aString selection: selection]
-!
-replay: start to: stop with: aString selection: selection
-	buffer replaceFrom: start to: stop with: aString.
-	anchor := (selection at: 1) min: buffer size.
-	caret := (selection at: 2) min: buffer size.
-	self edited
 ! !
 
 !TextEditor methodsFor: 'clipboard'!
@@ -947,16 +995,14 @@ mouseMove: anEvent
 	p y > self height ifTrue: [self scrollOffset: self scrollOffset + self lineHeight].
 	pos := self positionAt: p.
 	granularity == #character ifTrue: [
-		anchor := dragAnchorStart.
-		caret := pos.
-		self caretMoved.
+		self setAnchor: dragAnchorStart caret: pos.
 		^true].
 	range := granularity == #word ifTrue: [buffer wordRangeAt: pos] ifFalse: [buffer lineRangeAt: pos].
 	(granularity == #line and: [(range at: 2) < buffer size]) ifTrue: [range at: 2 put: (range at: 2) + 1].
 	pos < dragAnchorStart
 		ifTrue: [anchor := dragAnchorStop. caret := range at: 1]
 		ifFalse: [anchor := dragAnchorStart. caret := (range at: 2) max: dragAnchorStop].
-	self caretMoved.
+	self setAnchor: anchor caret: caret.
 	^true
 !
 mouseUp: anEvent

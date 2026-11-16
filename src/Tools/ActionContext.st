@@ -70,3 +70,8 @@ register: editor evaluator: evaluator
  Editors ifNil: [Editors := IdentityDictionary new].
  Editors at: editor put: evaluator
 ! !
+
+!ActionContext methodsFor: 'testing'!
+isObject
+ ^resolved == true
+! !

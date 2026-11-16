@@ -44,6 +44,10 @@ record: kind position: pos removed: removed inserted: inserted before: before af
 			^self].
 	undoStack add: (Array with: kind with: pos with: removed with: inserted with: before with: after).
 	undoStack size > 200 ifTrue: [undoStack removeFirst]
+!
+lastAfter: selection
+ "Complete an edit whose inserted content carries editor metadata."
+ undoStack isEmpty ifFalse: [undoStack last at: 6 put: selection]
 ! !
 
 !TextUndoHistory methodsFor: 'undoing'!

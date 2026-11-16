@@ -21,14 +21,21 @@ clearImages
 	self invalidate
 !
 paste
-	readOnly ifTrue: [^self].
-	#('image/png' 'image/jpeg' 'image/gif' 'image/webp') do: [:mime |
-		| bytes |
-		bytes := self clipboardData: mime.
-		(bytes notNil and: [bytes notEmpty]) ifTrue: [
-			self attach: bytes mime: mime.
-			^self]].
-	super paste
+ | copied agent reference start |
+ readOnly ifTrue: [^self].
+ copied := ActionContext copied.
+ (copied notNil and: [copied isObject and: [self clipboardText = copied value printString]]) ifTrue: [
+ agent := self window content.
+ reference := agent conversation idFor: copied value.
+ self insertAtomicText: reference style: #objectReference data: copied value.
+ ^self].
+ #('image/png' 'image/jpeg' 'image/gif' 'image/webp') do: [:mime |
+ | bytes |
+ bytes := self clipboardData: mime.
+ (bytes notNil and: [bytes notEmpty]) ifTrue: [
+ self attach: bytes mime: mime.
+ ^self]].
+ super paste
 ! !
 
 !AgentInputEditor methodsFor: 'accessing'!
@@ -45,11 +52,23 @@ attachmentLabel
 drawSelfOn: aCanvas
 	| badge |
 	super drawSelfOn: aCanvas.
+ self visibleMarks do: [:m |
+ m style == #objectReference ifTrue: [
+ (self rectsFrom: m start to: m stop) do: [:rect |
+ aCanvas strokeRect: rect color: self theme ultramarine width: 1]]].
 	self images isEmpty ifTrue: [^self].
 	badge := self attachmentBounds.
 	aCanvas fillRect: badge color: self theme paper.
 	aCanvas drawString: self attachmentLabel in: badge
 		font: (self theme font: #small) color: self theme ink align: #center
+!
+textColorOverrides
+ | result |
+ result := super textColorOverrides.
+ self visibleMarks do: [:m |
+ m style == #objectReference ifTrue: [
+ result add: (Array with: m start with: m stop with: self theme ultramarine)]].
+ ^result
 ! !
 
 !AgentInputEditor methodsFor: 'geometry'!

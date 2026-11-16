@@ -547,3 +547,46 @@ testRemoteSelect
 	self assert: editor selectedText equals: 'oo'.
 	self assert: (editor remoteState includes: 'sel=1-3')
 ! !
+
+!TextEditorTest methodsFor: 'tests'!
+testAtomicReferenceEditing
+ | object |
+ object := Object new.
+ editor text: 'a '.
+ editor caret: 2.
+ editor insertAtomicText: 'o13' style: #objectReference data: object.
+ editor moveLeft: #character extend: false.
+ self assert: editor caret equals: 2.
+ editor moveRight: #character extend: false.
+ self assert: editor caret equals: 5.
+ editor deleteBackward: #character.
+ self assert: editor text equals: 'a '.
+ editor undo.
+ self assert: editor text equals: 'a o13'.
+ self assert: (editor marks detect: [:m | m isAtomic]) data == object.
+ editor redo.
+ self assert: editor text equals: 'a '.
+ editor undo.
+ editor setAnchor: 3 caret: 4.
+ self assert: editor selectionStart equals: 2.
+ self assert: editor selectionStop equals: 5.
+ editor insert: 'x'.
+ self assert: editor text equals: 'a x'
+!
+testAtomicReferenceUndoInsertion
+ | object |
+ object := Object new.
+ editor insertAtomicText: 'o13' style: #objectReference data: object.
+ editor insert: '!!'.
+ editor undo.
+ self assert: editor text equals: 'o13'.
+ editor undo.
+ self assert: editor text equals: ''.
+ self deny: (editor marks anySatisfy: [:m | m isAtomic]).
+ editor redo.
+ self assert: editor text equals: 'o13'.
+ self assert: (editor marks detect: [:m | m isAtomic]) data == object.
+ editor caret: 0.
+ editor deleteForward: #character.
+ self assert: editor text equals: ''
+! !

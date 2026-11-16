@@ -69,3 +69,8 @@ printOn: aStream
 start: a stop: b style: aSymbol
 	^self new setStart: a stop: b style: aSymbol
 ! !
+
+!TextMark methodsFor: 'testing'!
+isAtomic
+ ^style == #objectReference
+! !
