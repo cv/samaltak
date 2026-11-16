@@ -468,10 +468,12 @@ scanProcesses: nowMicros
 	lastCpu keys do: [:p | (all includes: p) ifFalse: [lastCpu removeKey: p]]
 !
 processTimes: ownMicros
-	"Microseconds each Process ran since the previous frame."
-	| times |
+	"Microseconds each Process ran since the previous frame: of those the last scan found, and the windows' (a window opened since is not missed)."
+	| times all |
 	times := IdentityDictionary new.
-	knownProcesses do: [:p |
+	all := knownProcesses.
+	world windows do: [:w | (w process notNil and: [(all identityIncludes: w process) not]) ifTrue: [all := all copyWith: w process]].
+	all do: [:p |
 		| cpu old |
 		cpu := p cpuTime ifNil: [0].
 		old := lastCpu at: p ifAbsent: [cpu].
