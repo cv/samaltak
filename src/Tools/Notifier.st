@@ -62,6 +62,15 @@ headerTitle
 !
 isDone
 	^done
+!
+agentContext
+	"The selected frame, together with the exception and its suspended session."
+	^AgentContext new
+		frame: (stack selection ifNil: [session interruptedContext]);
+		label: session label;
+		bind: #session to: session;
+		bind: #exception to: session exception;
+		yourself
 ! !
 
 !Notifier methodsFor: 'actions'!
@@ -133,4 +142,10 @@ openOn: aSession
 	window open.
 	DebuggerTools ignore: window.
 	^window
+! !
+
+!Notifier methodsFor: 'events'!
+keyDown: anEvent
+	(anEvent key = $j and: [anEvent modifiers commandKey]) ifTrue: [Tools open: #agent with: self. ^true].
+	^super keyDown: anEvent
 ! !
