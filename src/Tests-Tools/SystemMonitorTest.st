@@ -103,19 +103,24 @@ testRemoteNames
 !
 testCarriesOnAfterARestart
 	"A restarted image (a resumed snapshot, a rebuilt VM) has fresh VM counters and a millisecond clock that started again: the data takes a new baseline instead of a sample with negative counts, and the monitor keeps sampling."
-	| data serial counters ticks |
+	| data serial sample added ticks last previous |
 	data := monitor data.
-	serial := data serial.
-	counters := data instVarNamed: 'lastCounters'.
+	"The monitor samples ten times a second in its window's Process: there no sample comes in between."
 	self in: window do: [
-		data instVarNamed: 'lastCounters' put: (counters collect: [:c | c + 1000000000000]).
-		self assert: data sample isNil].
-	self assert: data serial equals: serial.
-	self in: window do: [monitor instVarNamed: 'nextTick' put: Time millisecondClockValue + 100000000].
+		serial := data serial.
+		data instVarNamed: 'lastCounters' put: ((data instVarNamed: 'lastCounters') collect: [:c | c + 1000000000000]).
+		sample := data sample.
+		added := data serial - serial.
+		monitor instVarNamed: 'nextTick' put: Time millisecondClockValue + 100000000].
+	self assert: sample isNil.
+	self assert: added equals: 0.
 	ticks := monitor ticks.
 	self assert: (self waitFor: [monitor ticks >= (ticks + 5)] timeout: 3000) description: 'no samples after the clock went back'.
-	self assert: data last allocated >= 0.
-	self assert: data last time > (data sampleAt: data serial - 1) time
+	self in: window do: [
+		last := data last.
+		previous := data sampleAt: data serial - 1].
+	self assert: last allocated >= 0.
+	self assert: last time > previous time
 !
 testUsesLittleCPU
 	"With crunch running, ten samples a second (each painting the charts' new columns) cost the monitor's Process little."
