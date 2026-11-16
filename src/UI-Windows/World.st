@@ -1,5 +1,5 @@
 Object subclass: #World
-	instanceVariableNames: 'displayWindow extent scale windows overlays activeWindow compositor dispatcher topBar toasts tooltip lock windowCounter closingWindows needsFrame remotePointer hidden imageName clipboardText running curtain'
+	instanceVariableNames: 'displayWindow extent scale windows overlays activeWindow compositor dispatcher topBar toasts tooltip lock windowCounter closingWindows needsFrame remotePointer hidden imageName clipboardText running curtain closingFrontWindows'
 	classVariableNames: 'Current HelpHandler UserInterruptHandler WorldMenuBuilder QuitHandler'
 	package: 'UI-Windows'!
 
@@ -127,6 +127,8 @@ addWindow: aWindow
 !
 removeWindow: aWindow
 	| next |
+	closingFrontWindows isNil ifTrue: [closingFrontWindows := IdentityDictionary new].
+	closingFrontWindows at: aWindow put: (windows copyFrom: 1 to: (windows indexOf: aWindow) - 1).
 	lock critical: [
 		windows := windows copyWithout: aWindow.
 		closingWindows := closingWindows copyWith: aWindow].
@@ -142,6 +144,7 @@ removeWindow: aWindow
 dropClosing: aWindow
 	"Called by the compositor when the close animation ended."
 	lock critical: [closingWindows := closingWindows copyWithout: aWindow].
+	closingFrontWindows isNil ifFalse: [closingFrontWindows removeKey: aWindow ifAbsent: []].
 	aWindow layer release
 !
 raise: aWindow
@@ -186,6 +189,19 @@ nextWindowPosition: anExtent
 closeAllWindows
 	windows do: [:w | w close].
 	overlays do: [:o | o close]
+!
+windowsInPaintOrder
+	| order |
+	order := windows reversed asOrderedCollection.
+	closingWindows do: [:w |
+		w isOverlay ifFalse: [
+			| front index |
+			front := closingFrontWindows at: w ifAbsent: [#()].
+			index := order findFirst: [:each | front includes: each].
+			index = 0
+				ifTrue: [order add: w]
+				ifFalse: [order add: w beforeIndex: index]]].
+	^order
 ! !
 
 !World methodsFor: 'overlays'!

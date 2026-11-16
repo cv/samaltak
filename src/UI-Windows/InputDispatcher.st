@@ -227,8 +227,9 @@ pointerDown: anEvent
 		^self send: anEvent to: overlay].
 	world overlays isEmpty ifFalse: [world closeMenus].
 	w isNil ifTrue: [^world desktopClickedAt: p button: anEvent button].
+	zone == #close ifTrue: [^pressed := Array with: w with: zone].
 	world activate: w.
-	(zone == #close or: [zone == #collapse]) ifTrue: [^pressed := Array with: w with: zone].
+	zone == #collapse ifTrue: [^pressed := Array with: w with: zone].
 	zone == #title ifTrue: [
 		anEvent clickCount = 2 ifTrue: [^w toggleCollapse].
 		^gesture := DragGesture window: w grabOffset: p - w bounds origin].

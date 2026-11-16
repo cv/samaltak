@@ -317,22 +317,6 @@ present: t0 now: now
 ! !
 
 !Compositor methodsFor: 'compositing'!
-compositeListScale: aNumber pointer: showPointer time: now
-	"The whole screen as a DisplayList."
-	| c |
-	c := Canvas extent: world extent scale: aNumber.
-	world drawDeskOn: c.
-	world windows reverseDo: [:w | self drawWindow: w on: c time: now].
-	world closingWindows do: [:w | w isOverlay ifFalse: [self drawWindow: w on: c time: now]].
-	world topBar drawOn: c.
-	world overlays do: [:w | self drawWindow: w on: c time: now].
-	world closingWindows do: [:w | w isOverlay ifTrue: [self drawWindow: w on: c time: now]].
-	self drawToastsOn: c.
-	world tooltip isNil ifFalse: [world tooltip drawOn: c].
-	world curtain isNil ifFalse: [world curtain drawOn: c].
-	showPointer ifTrue: [world remotePointer drawOn: c time: now].
-	^c displayList
-!
 drawWindow: aWindow on: c time: now
 	| layer rect s shadow |
 	layer := aWindow layer.
@@ -356,6 +340,21 @@ drawToastsOn: c
 		t isDone ifFalse: [
 			t drawOn: c at: (world extent x / 2) @ y.
 			y := y + t extent y + 8]]
+!
+compositeListScale: aNumber pointer: showPointer time: now
+	"The whole screen as a DisplayList."
+	| c |
+	c := Canvas extent: world extent scale: aNumber.
+	world drawDeskOn: c.
+	world windowsInPaintOrder do: [:w | self drawWindow: w on: c time: now].
+	world topBar drawOn: c.
+	world overlays do: [:w | self drawWindow: w on: c time: now].
+	world closingWindows do: [:w | w isOverlay ifTrue: [self drawWindow: w on: c time: now]].
+	self drawToastsOn: c.
+	world tooltip isNil ifFalse: [world tooltip drawOn: c].
+	world curtain isNil ifFalse: [world curtain drawOn: c].
+	showPointer ifTrue: [world remotePointer drawOn: c time: now].
+	^c displayList
 ! !
 
 !Compositor methodsFor: 'requests'!

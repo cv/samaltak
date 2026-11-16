@@ -184,4 +184,19 @@ testNewWindowsCascadeAndGetRemoteNames
 	self assert: (world windowNamed: 'w1') == a.
 	self assert: (world windowNamed: 'Two') == b.
 	self assert: (world nextWindowPosition: 300 @ 200) y >= world topBar height
+!
+testBackgroundCloseDoesNotActivate
+	| back front p |
+	back := self open: RecordingTestView new title: 'Back' at: (100 @ 100 extent: 300 @ 200).
+	front := self open: RecordingTestView new title: 'Front' at: (200 @ 150 extent: 300 @ 200).
+	p := back bounds origin + back closeBoxRect center.
+	self moveTo: p; down: p.
+	self assert: back isOpen.
+	self assert: world windows first == front.
+	self assert: world activeWindow == front.
+	self deny: back isFocused.
+	self up: p.
+	self settle.
+	self assert: back isClosed.
+	self assert: world activeWindow == front
 ! !
