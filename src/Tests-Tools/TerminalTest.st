@@ -123,10 +123,11 @@ testFullScreenProgramAndBack
 	self assert: (self text includesSubstring: '$ less ', path)
 !
 testHeavyOutputKeepsOtherWindowsResponsive
-	| other first trips done frames gaps |
+	| other first trips done ticks t0 |
 	other := self openWorkspaceWith: '3 + 4'.
 	self openShell.
-	first := Profiler default frameCount.
+	first := world compositor tickCount.
+	t0 := Time millisecondClockValue.
 	trips := OrderedCollection new.
 	self enter: 'yes | head -200000; echo DONE-$((6*7))'.
 	done := false.
@@ -140,10 +141,10 @@ testHeavyOutputKeepsOtherWindowsResponsive
 	self assert: self screen scrollback size equals: self screen maxScrollback.
 	self assert: (self screen scrollback last string) equals: 'y'.
 	self assert: (trips inject: 0 into: [:a :b | a max: b]) < 1000 description: 'another window was slow to answer'.
-	frames := Profiler default framesAfter: first.
-	self assert: frames size > 3.
-	gaps := (2 to: frames size) collect: [:i | (frames at: i) start - (frames at: i - 1) start].
-	self assert: (gaps inject: 0 into: [:a :b | a + b]) / gaps size < 50000 description: 'the compositor fell behind while the terminal was busy'
+	"The compositor's ticks, not its frames: how many of those the GPU finishes is not the terminal's doing."
+	ticks := world compositor tickCount - first.
+	self assert: ticks > 3.
+	self assert: Time millisecondClockValue - t0 / ticks < 50 description: 'the compositor fell behind while the terminal was busy'
 !
 testTitleFromOsc
 	self openOn: #('/bin/sh' '-c' 'printf "\033]0;hello title\007"; exec cat').

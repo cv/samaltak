@@ -3,7 +3,7 @@ Object subclass: #GPUTimer
 	classVariableNames: ''
 	package: 'UI-Windows'!
 
-GPUTimer comment: 'I measure the GPU time of presented frames without blocking the Compositor and without a Process of my own. The compositor notes the time just before a frame''s first submit, then submits an empty command buffer with a fence after the frame''s last one (the queue runs command buffers in order, so the fence completes when the frame''s GPU work is done) and hands me the fence, the time from the first submit to the fence''s submit, and the FrameRecord. The platform''s fence watcher stamps when the fence completed; the compositor polls me at its next ticks (poll) and I store first submit to completion into the FrameRecord (gpu:). It is an upper bound on GPU execution time (it includes queueing behind earlier frames), to about 0.2 ms. The value arrives a tick after Profiler recordFrame: (0 until then); records whose fence takes longer than 1 s are left at 0.'!
+GPUTimer comment: 'I measure the GPU time of presented frames without blocking the Compositor and without a Process of my own. The compositor notes the time just before a frame''s first submit, then submits an empty command buffer with a fence after the frame''s last one (the queue runs command buffers in order, so the fence completes when the frame''s GPU work is done) and hands me the fence, the time from the first submit to the fence''s submit, and the FrameRecord. The platform''s fence watcher stamps when the fence completed; the compositor polls me at its next ticks (poll) and I store first submit to completion into the FrameRecord (gpu:). It is an upper bound on GPU execution time (it includes queueing behind earlier frames), to about 0.2 ms. The value arrives a tick after Profiler recordFrame: (0 until then); records whose fence takes longer than 1 s are left at 0. A frame stays pending until its fence completed (inFlight: the Compositor''s backpressure), or for at most 10 s.'!
 
 !GPUTimer methodsFor: 'initialization'!
 initialize
@@ -21,6 +21,10 @@ measured
 !
 isIdle
 	^pending isEmpty
+!
+inFlight
+	"How many frames the GPU has not finished."
+	^pending size
 ! !
 
 !GPUTimer methodsFor: 'running'!
@@ -44,8 +48,8 @@ poll
 	now := Time microsecondClockValue.
 	pending copy do: [:item | | elapsed |
 		elapsed := item first elapsedMicroseconds.
-		(elapsed notNil or: [now - (item at: 4) > 1000000]) ifTrue: [
-			elapsed isNil ifFalse: [
+		(elapsed notNil or: [now - (item at: 4) > 10000000]) ifTrue: [
+			(elapsed notNil and: [elapsed <= 1000000]) ifTrue: [
 				last := (item at: 2) + elapsed.
 				measured := measured + 1.
 				(item at: 3) isNil ifFalse: [(item at: 3) gpu: last]].

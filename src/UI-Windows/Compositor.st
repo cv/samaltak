@@ -1,11 +1,11 @@
 Object subclass: #Compositor
-	instanceVariableNames: 'world displayWindow renderer process running vsync vsyncIndex wake sleeping skip tickTimeout lastTick idleFrames frameCount presenting requests recorder lastFrameWork onWorkClock ownsWorkClock gpuTimer clock knownProcesses lastCpu lastScan lastRecord lastError lastErrorTime pipelineVersion standIn'
+	instanceVariableNames: 'world displayWindow renderer process running vsync vsyncIndex wake sleeping skip tickTimeout lastTick idleFrames frameCount presenting requests recorder lastFrameWork onWorkClock ownsWorkClock gpuTimer clock knownProcesses lastCpu lastScan lastRecord lastError lastErrorTime pipelineVersion standIn tickCount'
 	classVariableNames: 'Running'
 	package: 'UI-Windows'!
 
 Compositor comment: 'I am the compositor: a Process at priority 70 woken by the platform''s vsync semaphore, presenting at 60 Hz (every second refresh on a 120 Hz display). Each frame I step the layer animations (window open/close, focus cross-fades, menus), toasts and the remote pointer, post frame ticks to windows with animations, render every Layer whose DisplayList or chrome changed into its Surface, composite all layers (offset, scale about the center, opacity, hard shadows) over the halftone desk with the top bar and overlays onto the DisplayWindow, and record a FrameRecord (Profiler recordFrame:). I never wait for a window''s Process: a busy window keeps its last frame.
 
-While the World is on screen I present every tick (continuous composition: the screen always shows the current state of every layer, at a steady frame rate). A hidden World (tests) presents only when something changed: after 20 ticks without a change I stop the vsync semaphore and sleep until World>>changed wakes me (or 500 ms pass, for the top bar''s statistics). Each tick I also poll the GPUTimer for finished frames'' GPU times.
+While the World is on screen I present every tick (continuous composition: the screen always shows the current state of every layer, at a steady frame rate). A hidden World (tests) presents only when something changed: after 20 ticks without a change I stop the vsync semaphore and sleep until World>>changed wakes me (or 500 ms pass, for the top bar''s statistics). Each tick I also poll the GPUTimer for finished frames'' GPU times; while maxFramesInFlight frames are unfinished on the GPU I skip the tick (except when recording, which waits for each frame''s readback).
 
 GPU work of other Processes (screenshots, recording) runs in my Process between frames: do: aBlock / sync: aBlock.'!
 
@@ -19,6 +19,7 @@ setWorld: aWorld
 	sleeping := false.
 	idleFrames := 0.
 	frameCount := 0.
+	tickCount := 0.
 	presenting := false.
 	requests := SharedQueue new.
 	lastCpu := IdentityDictionary new.
@@ -36,6 +37,10 @@ process
 !
 frameCount
 	^frameCount
+!
+tickCount
+	"How many ticks I took, presenting or not."
+	^tickCount
 !
 clock
 	"The animation clock at the current frame (ms, Float)."
@@ -174,6 +179,7 @@ run
 	[running and: [self isLoopProcess]] whileTrue: [
 		self waitForTick.
 		(running and: [self isLoopProcess]) ifTrue: [
+			tickCount := tickCount + 1.
 			[gpuTimer poll.
 			 onWorkClock ifTrue: [self frameOnWorkClock] ifFalse: [self frame]] on: Error do: [:e |
 				self reportError: e.
@@ -218,6 +224,7 @@ sleep
 !
 frame
 	| t0 now animating needs |
+	(recorder isNil and: [gpuTimer inFlight >= self class maxFramesInFlight]) ifTrue: [^self].
 	onWorkClock ifTrue: [Smalltalk vm workClockPaced: OSProcess externalWork].
 	t0 := Time microsecondClockValue.
 	recorder isNil ifFalse: [t0 := recorder tickStartAt: t0].
@@ -506,6 +513,10 @@ armVsync
 	| c |
 	c := self running detect: [:each | each wantsVsync] ifNone: [nil].
 	[DisplayWindow vsyncSemaphoreIndex: (c isNil ifTrue: [0] ifFalse: [c vsyncIndex])] on: Error do: [:e | e return: nil]
+!
+maxFramesInFlight
+	"Frames submitted and not yet finished by the GPU before I skip ticks (the World's changes stay pending for the next one): the GPU works on one while I build the next; a hidden window has no swapchain to hold me back, and closing a window waits for all of them."
+	^2
 ! !
 
 !Compositor class methodsFor: 'instance creation'!
