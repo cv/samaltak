@@ -188,6 +188,7 @@ dispatch: final
 !
 dispatchPrivate: final
 	private = 63 "?" ifTrue: [
+		(intermediate = 36 "$" and: [final = 112 "p"]) ifTrue: [^screen reportMode: (self param: 1 default: 0) private: true].
 		final = 104 "h" ifTrue: [^self setModes: true private: true].
 		final = 108 "l" ifTrue: [^self setModes: false private: true].
 		final = 74 "J" ifTrue: [^screen eraseInDisplay: (self param: 1 default: 0)].
@@ -196,7 +197,8 @@ dispatchPrivate: final
 	(private = 62 ">" and: [final = 99 "c"]) ifTrue: [^screen reportAttributes: true]
 !
 dispatchIntermediate: final
-	(intermediate = 33 "exclamation mark" and: [final = 112 "p"]) ifTrue: [^self softReset]
+	(intermediate = 33 "exclamation mark" and: [final = 112 "p"]) ifTrue: [^self softReset].
+	(intermediate = 36 "$" and: [final = 112 "p"]) ifTrue: [^screen reportMode: (self param: 1 default: 0) private: false]
 !
 setModes: aBoolean private: isPrivate
 	1 to: count do: [:i | (params at: i) isNil ifFalse: [screen setMode: (params at: i) private: isPrivate to: aBoolean]]

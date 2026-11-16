@@ -371,6 +371,22 @@ testDeviceReports
 	self assert: screen takeReplies equals: (self bytes: '\e[2;3R\e[0n\e[?62;22c') asString.
 	self assert: screen takeReplies equals: ''
 !
+testModeQueries
+	self feed: '\e[?1$p\e[?6$p\e[?7$p\e[?25$p\e[?1049$p\e[?2004$p\e[4$p\e[20$p'.
+	self assert: screen takeReplies equals: (self bytes: '\e[?1;2$y\e[?6;2$y\e[?7;1$y\e[?25;1$y\e[?1049;2$y\e[?2004;2$y\e[4;2$y\e[20;2$y') asString.
+	self feed: '\e[?1h\e[?6h\e[?7l\e[?25l\e[?1049h\e[?2004h\e[4h\e[20h'.
+	self feed: '\e[?1$p\e[?6$p\e[?7$p\e[?25$p\e[?1049$p\e[?47$p\e[?2004$p\e[4$p\e[20$p'.
+	self assert: screen takeReplies equals: (self bytes: '\e[?1;1$y\e[?6;1$y\e[?7;2$y\e[?25;2$y\e[?1049;1$y\e[?47;1$y\e[?2004;1$y\e[4;1$y\e[20;1$y') asString.
+	self feed: '\e[?2027l\e[?2027$p\e[?2027h\e[?2027$p\e[?2026$p\e[?1000h\e[?1000$p\e[?9999$p\e[9999$p\e[?2004$p\e[2004$p'.
+	self assert: screen takeReplies equals: (self bytes: '\e[?2027;3$y\e[?2027;3$y\e[?2026;0$y\e[?1000;0$y\e[?9999;0$y\e[9999;0$y\e[?2004;1$y\e[2004;0$y') asString.
+	self feed: '\e[?2004;25$p'.
+	self assert: screen takeReplies equals: (self bytes: '\e[?2004;1$y') asString.
+	self feed: '\e[!!p\e[?25$p\e[?7$p\e[4$p'.
+	self assert: screen takeReplies equals: (self bytes: '\e[?25;1$y\e[?7;1$y\e[4;2$y') asString.
+	self feed: '\e[?1049l\e[2J\e[H\e[>1p\e[?5p\e[5p\e[1 p\e[?1"p'.
+	self assert: screen takeReplies equals: ''.
+	self assert: screen text equals: (String new: 4 withAll: Character lf)
+!
 testUnknownSequencesAreIgnored
 	self feed: '\eP1$r0m\e\\\e[>4;1m\e[ q\e[?u\e=\e>\e#3ok\e[1$p'.
 	self assert: (self row: 1) equals: 'ok'

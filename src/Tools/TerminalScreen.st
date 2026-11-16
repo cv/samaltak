@@ -11,7 +11,7 @@ Cursor positions are 1-based (row, col). pendingWrap: the last character went in
 
 Attributes are one SmallInteger per cell: the foreground in bits 0-24, the background in bits 25-49 (0 default, 1-256 palette index + 1, 16r1000000 + 16rRRGGBB truecolor), then the flags Bold Dim Italic Underline Inverse Hidden Strike. Erasing fills with the current background (xterm''s background color erase).
 
-Answers to the program (device status reports, device attributes) collect in replies, which my owner sends back to it (takeReplies). title is set by OSC 0/2; titleSerial grows when it changes. serial grows with every change.'!
+Answers to the program (device status reports, device attributes, mode reports) collect in replies, which my owner sends back to it (takeReplies). title is set by OSC 0/2; titleSerial grows when it changes. serial grows with every change.'!
 
 !TerminalScreen methodsFor: 'initialization'!
 setRows: r cols: c
@@ -594,6 +594,25 @@ setMode: anInteger private: isPrivate to: aBoolean
 	anInteger = 2004 ifTrue: [^bracketedPaste := aBoolean].
 	(#(9 1000 1002 1003) includes: anInteger) ifTrue: [^mouseTracking := aBoolean ifTrue: [anInteger] ifFalse: [0]]
 !
+stateOfMode: anInteger private: isPrivate
+	"DECRQM's Pm for a mode of setMode:private:to:: 1 set, 2 reset, 3 permanently set (2027: I always cluster emoji), 0 not recognised. The mouse modes answer 0: I record them but send no mouse reports."
+	| on |
+	isPrivate
+		ifFalse: [
+			anInteger = 4 ifTrue: [on := insertMode].
+			anInteger = 20 ifTrue: [on := newlineMode]]
+		ifTrue: [
+			anInteger = 1 ifTrue: [on := appCursorKeys].
+			anInteger = 6 ifTrue: [on := originMode].
+			anInteger = 7 ifTrue: [on := autowrap].
+			anInteger = 25 ifTrue: [on := cursorVisible].
+			(#(47 1047 1049) includes: anInteger) ifTrue: [on := self isAlternateScreen].
+			anInteger = 1048 ifTrue: [on := saved notNil].
+			anInteger = 2004 ifTrue: [on := bracketedPaste].
+			anInteger = 2027 ifTrue: [^3]].
+	on isNil ifTrue: [^0].
+	^on ifTrue: [1] ifFalse: [2]
+!
 alternateScreen: aBoolean saveCursor: save
 	"Enter (a fresh, blank) or leave the alternate screen; leaving shows the main screen as it was."
 	aBoolean = self isAlternateScreen ifTrue: [^self].
@@ -670,6 +689,10 @@ reportStatus: n
 reportAttributes: secondary
 	"DA: a VT220-ish terminal."
 	self reply: (String with: Character escape), (secondary ifTrue: ['[>0;10;0c'] ifFalse: ['[?62;22c'])
+!
+reportMode: n private: isPrivate
+	"DECRQM: CSI ? n ; Pm $ y for a DEC private mode, CSI n ; Pm $ y for an ANSI one."
+	self reply: (String with: Character escape), '[', (isPrivate ifTrue: ['?'] ifFalse: ['']), n printString, ';', (self stateOfMode: n private: isPrivate) printString, '$y'
 ! !
 
 !TerminalScreen methodsFor: 'resizing'!
