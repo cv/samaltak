@@ -29,9 +29,9 @@ signOut
 
 !AgentTestAccount methodsFor: 'login'!
 startLogin
+	approval := Semaphore new.
 	loginURL := 'https://auth.openai.com/codex/device'.
-	loginCode := 'TEST-1234'.
-	approval := Semaphore new
+	loginCode := 'TEST-1234'
 !
 finishLogin
 	approval wait.

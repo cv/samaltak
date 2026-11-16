@@ -21,10 +21,7 @@ tearDown
 
 !AgentWindowTest methodsFor: 'support'!
 openAgent
-	| w |
-	w := self open: [AgentWindow openOn: AgentConversation new origin: nil in: (100 @ 60 extent: 720 @ 700)].
-	w content conversation provider: provider.
-	^w
+	^self open: [AgentWindow openOn: (AgentConversation new provider: provider; yourself) origin: nil in: (100 @ 60 extent: 720 @ 700)]
 !
 ask: aString in: anAgentWindow
 	"Type aString into the ASK editor and press Return, as the user does; wait for the turn and the transcript."
@@ -104,7 +101,7 @@ testCommandJInAWorkspace
 	self assert: conversation context selection equals: 'p := 3 @ 4'.
 	provider reply: {ScriptedProvider code: 'p := p * 2' call: 'c1'}.
 	provider reply: {ScriptedProvider message: 'Doubled.'}.
-	conversation provider: provider.
+	self in: agent do: [conversation provider: provider].
 	self ask: 'double p' in: agent.
 	self assert: (ws content bindings at: #p) value equals: 6 @ 8.
 	"A second ⌘J in the Workspace brings the same window back."
