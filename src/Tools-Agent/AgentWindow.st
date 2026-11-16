@@ -32,7 +32,7 @@ setConversation: anAgentConversation origin: aToolOrNil account: anAccount
 		PaneHeader title: 'Conversation'.
 		pane.
 		card.
-		PaneHeader title: 'Ask' right: '↩ send · ⇧↩ new line'.
+		(PaneHeader title: '') fixed: 1; yourself.
 		(Row with: {askEditor. (Column with: {sendButton. stopButton. Widget new}) spacing: 6; fixed: 92; padding: (0 @ 8 corner: 10 @ 8); yourself})
 			fixed: 72; yourself.
 		(Row with: {status. signOutButton}) fixed: (self theme metric: #statusBarHeight); yourself}.
