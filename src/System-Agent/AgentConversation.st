@@ -1,5 +1,5 @@
 Object subclass: #AgentConversation
-	instanceVariableNames: 'context items objects tools provider process done streaming usage changeBlock'
+	instanceVariableNames: 'context items objects tools provider process done streaming usage changeBlock initialInstructions'
 	classVariableNames: ''
 	package: 'System-Agent'!
 
@@ -130,14 +130,6 @@ runTurn
 				ifFalse: [e class name asString, ': ', e messageText asString])).
 			e return: nil]
 !
-input
-	"The request's input: the developer instructions, then every item's wire."
-	| input |
-	input := OrderedCollection new.
-	input add: (AgentItem message: 'developer' text: (AgentInstructions textFor: context)).
-	items do: [:each | input addAll: each wire].
-	^input asArray
-!
 grow: aString
 	streaming isNil ifTrue: [streaming := self add: (AgentItem kind: #assistant text: '')].
 	streaming text: streaming text, aString.
@@ -221,4 +213,14 @@ request
 	called := false.
 	received do: [:item | (self record: item) ifTrue: [called := true]].
 	^called
+!
+input
+	"Snapshot initial instructions once. Never rewrite the prefix from live context."
+	| input |
+	initialInstructions ifNil: [
+		initialInstructions := AgentItem message: 'developer' text: (AgentInstructions textFor: context)].
+	input := OrderedCollection new.
+	input add: initialInstructions.
+	items do: [:each | input addAll: each wire].
+	^input asArray
 ! !

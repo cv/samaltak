@@ -207,6 +207,15 @@ testShowFormSendsImage
 	self assert: (image at: 'type') equals: 'input_image'.
 	self assert: (image at: 'image_url') equals: 'data:image/png;base64,', (Base64 encode: (conversation objectAt: 'o1') pngBytes).
 	self assert: ((provider requests last at: 6) at: 'output') equals: 'shown'
+!
+testInputKeepsInitialInstructions
+	| first |
+	conversation context: (AgentContext new receiver: 5; label: 'Original'; yourself).
+	first := conversation input first.
+	conversation context: (AgentContext new receiver: 99; label: 'Changed'; yourself).
+	self assert: conversation input first == first.
+	self assert: conversation input size equals: 1.
+	self assert: conversation items isEmpty
 ! !
 
 !AgentConversationTest methodsFor: 'tests - contexts'!
