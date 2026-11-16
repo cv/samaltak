@@ -120,4 +120,7 @@ clipboard
 !
 clipboard: aString
 	^GPUPlatform clipboardSet: aString
+!
+clipboardData: mime
+	^GPUPlatform clipboardData: mime
 ! !

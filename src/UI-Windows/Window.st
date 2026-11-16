@@ -141,6 +141,9 @@ clipboard
 clipboard: aString
 	world clipboard: aString
 !
+clipboardData: mime
+	^world clipboardData: mime
+!
 textInputArea: aRectangle cursor: x
 	"Screen points (View>>screenPointFrom:)."
 	world isNil ifFalse: [world textInputArea: aRectangle cursor: x]

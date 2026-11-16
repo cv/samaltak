@@ -24,7 +24,7 @@ paste
 	readOnly ifTrue: [^self].
 	#('image/png' 'image/jpeg' 'image/gif' 'image/webp') do: [:mime |
 		| bytes |
-		bytes := GPUPlatform clipboardData: mime.
+		bytes := self clipboardData: mime.
 		(bytes notNil and: [bytes notEmpty]) ifTrue: [
 			self attach: bytes mime: mime.
 			^self]].

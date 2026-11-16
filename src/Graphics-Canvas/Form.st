@@ -135,3 +135,8 @@ croppedTo: aRectangle
 			result pixelValueAt: x @ y put: (self pixelValueAt: (x + left) @ (y + top))]].
 	^result
 ! !
+
+!Form methodsFor: 'converting'!
+pngBytes
+	^PNGWriter bytesForForm: self
+! !

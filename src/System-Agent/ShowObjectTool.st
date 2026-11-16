@@ -28,7 +28,7 @@ spec
 
 !ShowObjectTool methodsFor: 'running'!
 run: aCallDictionary in: anAgentConversation
-	| id item found object image message |
+	| id item found object bytes image message |
 	id := (self idIn: aCallDictionary) ifNil: [''].
 	found := true.
 	object := anAgentConversation objectAt: id ifAbsent: [found := false].
@@ -36,10 +36,11 @@ run: aCallDictionary in: anAgentConversation
 		ifTrue: [
 			item := AgentItem call: aCallDictionary kind: #show text: id.
 			item object: object; objectId: id; output: 'shown'.
-			(object isKindOf: Form) ifTrue: [
+			bytes := object pngBytes.
+			bytes ifNotNil: [
 				image := Dictionary new
 					at: 'type' put: 'input_image';
-					at: 'image_url' put: 'data:image/png;base64,', (Base64 encode: (PNGWriter bytesForForm: object));
+					at: 'image_url' put: 'data:image/png;base64,', (Base64 encode: bytes);
 					yourself.
 				message := AgentItem user: 'Image shown from object ', id images: (Array with: image)]]
 		ifFalse: [

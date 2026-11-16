@@ -418,6 +418,11 @@ clipboardText: aString
 	w := self window.
 	w isNil ifFalse: [w clipboard: aString]
 !
+clipboardData: mime
+	| w |
+	w := self window.
+	^w isNil ifFalse: [w clipboardData: mime]
+!
 toast: aString
 	self worldDo: [:world | world toast: aString]
 ! !

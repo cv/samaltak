@@ -108,4 +108,7 @@ clipboard
 !
 clipboard: aString
 	^HostWindow clipboard: aString
+!
+clipboardData: mime
+	^HostWindow clipboardData: mime
 ! !

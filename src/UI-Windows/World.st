@@ -322,6 +322,10 @@ clipboard: aString
 	clipboardText := aString.
 	[DisplayWindow clipboard: aString] on: Error do: [:e | e return: nil]
 !
+clipboardData: mime
+	"The clipboard's contents as mime type mime (a ByteArray), or nil."
+	^[DisplayWindow clipboardData: mime] on: Error do: [:e | e return: nil]
+!
 textInputArea: aRectangle cursor: x
 	"Where text is being typed (screen points; x: the caret within aRectangle), for the input method's candidates."
 	displayWindow isNil ifFalse: [[displayWindow textInputArea: aRectangle cursor: x] on: Error do: [:e | e return: nil]]

@@ -205,7 +205,7 @@ testShowFormSendsImage
 	self assert: (message at: 'role') equals: 'user'.
 	image := (message at: 'content') last.
 	self assert: (image at: 'type') equals: 'input_image'.
-	self assert: (image at: 'image_url') equals: 'data:image/png;base64,', (Base64 encode: (PNGWriter bytesForForm: (conversation objectAt: 'o1'))).
+	self assert: (image at: 'image_url') equals: 'data:image/png;base64,', (Base64 encode: (conversation objectAt: 'o1') pngBytes).
 	self assert: ((provider requests last at: 6) at: 'output') equals: 'shown'
 ! !
 
