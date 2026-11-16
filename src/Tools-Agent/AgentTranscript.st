@@ -19,8 +19,13 @@ sync
 		count := count + 1.
 		(AgentItemView for: (items at: count)) ifNotNil: [:view |
 			view name: (items at: count) kind, '-', count printString.
+			((view isKindOf: AgentMessageView) and: [view hasRetry]) ifTrue: [
+				view addChild: ((Button label: 'Retry' action: [conversation retry]) name: 'retry'; yourself)].
 			self addChild: view]].
-	self children do: [:each | each refresh].
+	self children do: [:each |
+		each refresh.
+		each children do: [:button |
+			button enabled: (conversation canRetry and: [each item == conversation items last])]].
 	self layout
 ! !
 

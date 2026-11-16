@@ -16,7 +16,11 @@ top
 	^item kind == #user ifTrue: [9] ifFalse: [3]
 !
 computeHeightFor: aWidth
-	^self top + ((self wrap: item text font: self font width: aWidth - self gutterWidth - self margin) size * self font lineHeight) + 5
+	^self top + ((self wrap: item text font: self font width: aWidth - self gutterWidth - self margin) size * self font lineHeight) + 5 + (self hasRetry ifTrue: [30] ifFalse: [0])
+!
+layout
+	self children do: [:button |
+		button bounds: (self gutterWidth @ (self height - 30) extent: 70 @ 26)]
 ! !
 
 !AgentMessageView methodsFor: 'drawing'!
@@ -33,4 +37,9 @@ drawSelfOn: aCanvas
 	self lines do: [:line |
 		aCanvas drawString: line at: self gutterWidth @ y font: font color: color.
 		y := y + font lineHeight]
+! !
+
+!AgentMessageView methodsFor: 'testing'!
+hasRetry
+	^item kind = #error and: [item failed and: [item call isNil]]
 ! !

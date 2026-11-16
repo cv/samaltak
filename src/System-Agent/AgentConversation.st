@@ -64,6 +64,9 @@ onChange: aBlock for: anOwner
 contextTokens
 	"Latest measured context size, as reported for the last completed request."
 	^usage ifNotNil: [usage at: 'context_tokens' ifAbsent: [nil]]
+!
+canRetry
+	^self isBusy not and: [items notEmpty and: [items last kind = #error and: [items last failed and: [items last call isNil]]]]
 ! !
 
 !AgentConversation methodsFor: 'objects'!
@@ -129,9 +132,9 @@ lastText
 runTurn
 	[[self request] whileTrue]
 		on: Error do: [:e |
-			items add: (AgentItem kind: #error text: ((e isKindOf: AgentError)
+			items add: ((AgentItem kind: #error text: ((e isKindOf: AgentError)
 				ifTrue: [e messageText asString]
-				ifFalse: [e class name asString, ': ', e messageText asString])).
+				ifFalse: [e class name asString, ': ', e messageText asString])) failed: true; yourself).
 			e return: nil]
 !
 grow: aString
@@ -229,4 +232,16 @@ input
 	input add: initialInstructions.
 	items do: [:each | input addAll: each wire].
 	^input asArray
+! !
+
+!AgentConversation methodsFor: 'actions'!
+retry
+	"Resume the failed turn without adding another user message."
+	self canRetry ifFalse: [^self].
+	streaming := nil.
+	done := Semaphore new.
+	process := [self runTurn. self endTurn] newProcess.
+	process priority: Processor userSchedulingPriority; name: 'agent turn'.
+	self changed.
+	process resume
 ! !

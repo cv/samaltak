@@ -224,6 +224,16 @@ testContextTokensUsesLatestRequest
 	c accumulateUsage: (Dictionary new at: 'input_tokens' put: 100; at: 'total_tokens' put: 120; yourself).
 	c accumulateUsage: (Dictionary new at: 'input_tokens' put: 150; at: 'total_tokens' put: 180; yourself).
 	self assert: c contextTokens = 150
+!
+testRetryAfterProviderError
+	provider fail: 'The network is down'.
+	conversation ask: 'hi'; wait.
+	self assert: conversation canRetry.
+	provider fail: 'Still down'.
+	conversation retry; wait.
+	self assert: conversation canRetry.
+	self assert: (self itemsOfKind: #user) size equals: 1.
+	self assert: (self itemsOfKind: #error) size equals: 2
 ! !
 
 !AgentConversationTest methodsFor: 'tests - contexts'!
