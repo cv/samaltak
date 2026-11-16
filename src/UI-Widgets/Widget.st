@@ -313,7 +313,7 @@ contextualKeyDown: event
  key isCharacter ifFalse: [^false].
  key := key asLowercase.
  (#($c $x $i $b $j) includes: key) ifFalse: [^false].
- context := (Smalltalk at: #ActionContext) in: self agentContext.
+ context := (Smalltalk at: #ActionContext) for: self.
  ((key = $c) or: [key = $x]) ifTrue: [
  self clipboardText: context value printString.
  (Smalltalk at: #ActionContext) copied: context.

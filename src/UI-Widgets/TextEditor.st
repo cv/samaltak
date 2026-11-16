@@ -494,7 +494,7 @@ copySelection
  ^self].
  w := self window.
  (w notNil and: [w content respondsTo: #agentContext]) ifTrue: [
- context := (Smalltalk at: #ActionContext) in: w content agentContext.
+ context := (Smalltalk at: #ActionContext) for: w content.
  self clipboardText: context value printString.
  (Smalltalk at: #ActionContext) copied: context]
 !

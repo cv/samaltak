@@ -186,11 +186,14 @@ openOn: anAgentConversation origin: aToolOrNil in: aRectangle
 	^window
 !
 openFor: aTool
-	"⌘J opens the Agent for a tool, bringing it back if already open."
+	^self openFor: aTool context: aTool
+!
+openFor: aToolOrNil context: aContext
+	"⌘J opens the Agent for a tool on aContext's agentContext, bringing it back if already open."
 	| existing |
-	existing := (Tools windowsOf: self) detect: [:each | each content origin == aTool] ifNone: [nil].
+	existing := aToolOrNil isNil ifFalse: [(Tools windowsOf: self) detect: [:each | each content origin == aToolOrNil] ifNone: [nil]].
 	existing isNil ifFalse: [existing focus. ^existing].
-	^self openOn: (AgentConversation on: aTool agentContext) origin: aTool in: (Tools placeNear: aTool window extent: 720 @ 640)
+	^self openOn: (AgentConversation on: aContext agentContext) origin: aToolOrNil in: (Tools placeNear: aContext window extent: 720 @ 640)
 !
 initialize
 	Tools registerOpener: #agent with: [:tool | self openFor: tool].

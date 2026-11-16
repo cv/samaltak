@@ -1,10 +1,10 @@
-Object subclass: #ActionContext instanceVariableNames: 'environment text value resolved' classVariableNames: 'Copied Editors' package: 'Tools'!
+Object subclass: #ActionContext instanceVariableNames: 'environment text value resolved origin' classVariableNames: 'Copied Editors' package: 'Tools'!
 
 ActionContext comment: 'I am a contextual value, evaluated only when an action needs my object.'!
 
 !ActionContext methodsFor: 'actions'!
 agent
- ^AgentWindow openFor: self
+ ^AgentWindow openFor: origin context: self
 !
 browse
  | object |
@@ -25,7 +25,7 @@ value
  ^value
 !
 window
- ^nil
+ ^origin ifNotNil: [:tool | tool window]
 ! !
 
 !ActionContext methodsFor: 'initialization'!
@@ -34,6 +34,9 @@ environment: context text: string
 !
 object: object
  value := object. resolved := true. environment := AgentContext new
+!
+origin: aTool
+ origin := aTool
 !
 useEnvironment: anEnvironment
  environment := anEnvironment.
@@ -56,13 +59,13 @@ forEditor: editor
  Editors ifNil: [Editors := IdentityDictionary new].
  evaluator := Editors at: editor ifAbsent: [nil].
  evaluator ifNotNil: [env receiver: evaluator receiver; bindings: evaluator bindings].
- ^self new environment: env text: editor selectionOrLine
+ ^(self new environment: env text: editor selectionOrLine) origin: (editor window ifNotNil: [:w | w content]); yourself
 !
 on: object
  ^self new object: object
 !
-in: anEnvironment
- ^self new useEnvironment: anEnvironment
+for: aTool
+ ^(self new useEnvironment: aTool agentContext) origin: aTool; yourself
 ! !
 
 !ActionContext class methodsFor: 'registration'!
