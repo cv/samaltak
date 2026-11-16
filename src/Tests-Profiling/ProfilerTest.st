@@ -107,22 +107,26 @@ testAlwaysOn
 	self assert: ((profile samplesFor: Processor activeProcess) size * 100 / profile samples size) >= 80
 !
 testAttributionToProcesses
-	| a b t0 t1 profile as bs total |
+	| a b t0 t1 cpuA cpuB profile as bs total both samples cpu |
 	t0 := Time microsecondClockValue.
 	a := self fork: #factorialLoop named: 'factorials'.
 	b := self fork: #floatLoop named: 'floats'.
 	self sleep: 400 untilSamples: 200.
 	t1 := Time microsecondClockValue.
+	cpuA := a cpuMicroseconds.
+	cpuB := b cpuMicroseconds.
 	self stopWorkers.
 	profile := Profiler from: t0 to: t1.
 	total := profile samples size.
 	as := profile samplesFor: a.
 	bs := profile samplesFor: b.
 	self assert: total >= 200.
-	"Equal priorities take turns, so each gets about half."
-	self assert: (as size + bs size) * 100 / total >= 85.
-	self assert: ((profile percentFor: a) between: 30 and: 70).
-	self assert: ((profile percentFor: b) between: 30 and: 70).
+	both := (profile percentFor: a) + (profile percentFor: b).
+	self assert: both >= 85.
+	"Equal priorities take turns, but the OS may let the VM run less during the turns of one: of the samples of both each has the share that it has of their CPU time."
+	samples := (profile percentFor: a) * 100 / both.
+	cpu := cpuA * 100.0 / (cpuA + cpuB).
+	self assert: (samples - cpu) abs < 20 description: ['factorials: ', samples rounded printString, '% of the samples, ', cpu rounded printString, '% of the CPU time'].
 	self assert: (profile processes first: 2) asSet = (Set with: a with: b).
 	self assert: (profile processSummary first at: 2) = (profile processes first name).
 	"Right methods: the factorial worker multiplies (LargeInteger primitives, no frames) in the loop of its inject:into:, the float worker never is."
