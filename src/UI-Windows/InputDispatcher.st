@@ -54,7 +54,18 @@ addService: anObject
 removeService: anObject
 	(services includes: anObject) ifFalse: [^self].
 	services := services copyWithout: anObject.
-	anObject unhost
+	self unhost: anObject
+!
+unhost: anObject
+	"Stop hosting anObject: the last other running dispatcher that serves it hosts it, else it serves itself."
+	| other |
+	other := self class running reverse detect: [:each | each ~~ self and: [each services includes: anObject]] ifNone: [nil].
+	other isNil
+		ifTrue: [anObject unhost]
+		ifFalse: [other host: anObject]
+!
+host: anObject
+	anObject hostOn: semaphore index: semaphoreIndex by: self
 !
 services
 	^services
@@ -75,8 +86,8 @@ start
 !
 stop
 	running := false.
-	services do: [:each | each unhost].
 	Running := self class running copyWithout: self.
+	services do: [:each | self unhost: each].
 	DisplayWindow inputSemaphoreIndex: (Running isEmpty ifTrue: [0] ifFalse: [Running last semaphoreIndex]).
 	Smalltalk vm unregisterExternalSemaphore: semaphoreIndex.
 	semaphoreIndex := nil.

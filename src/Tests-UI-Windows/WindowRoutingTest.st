@@ -268,6 +268,19 @@ testInputWhileAnotherWorldRuns
 		ensure: [b stop].
 	self assert: ((v pointerEvents collect: [:e | e type]) select: [:t | t == #down or: [t == #up]]) asArray equals: #(#down #up).
 	self assert: (((v eventsOfType: #down) select: [:e | e isKey]) collect: [:e | e key]) asArray equals: #($a $b $c)
+!
+testServiceReturnsToTheDispatcherThatServedItBefore
+	| server b |
+	server := ControlServer new startOn: 0.
+	b := World openHidden: 400 @ 300.
+	[world dispatcher addService: server.
+	 b dispatcher addService: server.
+	 b dispatcher removeService: server.
+	 self assert: server host == world dispatcher.
+	 b dispatcher addService: server.
+	 b stop.
+	 self assert: server host == world dispatcher]
+		ensure: [b stop. world dispatcher removeService: server. server stop]
 ! !
 
 !WindowRoutingTest methodsFor: 'support'!
