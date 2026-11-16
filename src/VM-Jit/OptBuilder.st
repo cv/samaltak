@@ -1,5 +1,5 @@
 OptModule subclass: #OptBuilder
-	instanceVariableNames: 'ir obCurBlock obBailed obVarTop obDefKeys obDefVals obDefCount obIncPhis obIncVars obIncCount obAnaMethods obAnaBases obAnaCount obAnaTop obAnaDepth obAnaFlag obAnaBack obPcBlocks obPcbTop obEntryBlock obRootMethod obInlined obDeps obDepCount obPrimKinds obPrimsKnown obNoInline obNoInlineCount obArgVals obArgFlags obUnitStart obOsrPc obParamSlots obValidSlots obSafeEpoch obAnaFloat obResident obChecked obCheckedCount obCheckedBlock obCheckedEpoch obFrame obSpecParam obSpecInfo obSpecCount obPerformAct obPerformPc obPerformSlot obPerformCount obPerformVals'
+	instanceVariableNames: 'ir obCurBlock obBailed obVarTop obDefKeys obDefVals obDefCount obIncPhis obIncVars obIncCount obAnaMethods obAnaBases obAnaCount obAnaTop obAnaDepth obAnaFlag obAnaBack obPcBlocks obPcbTop obEntryBlock obRootMethod obInlined obDeps obDepCount obPrimKinds obPrimsKnown obNoInline obNoInlineCount obArgVals obArgFlags obUnitStart obOsrPc obParamSlots obValidSlots obSafeEpoch obAnaFloat obResident obChecked obCheckedCount obCheckedBlock obCheckedEpoch obFrame obSpecParam obSpecInfo obSpecCount obForeign obForeignM obForeignS obForeignDepth obNoForeignM obNoForeignS obNoForeignCount obPerformAct obPerformPc obPerformSlot obPerformCount obPerformVals'
 	classVariableNames: 'OA_BLOCK OA_LOOP OA_START OA_TARGET OPT_MAX_VARS OPT_MAX_NOINLINE OPT_MAX_PRIM OPK_AT OPK_FLOAT OPK_FSQRT OPK_NEW OPK_NEWSIZE OPK_CLOSURE OPK_ATPUT OPK_CLASS OPK_IDENTICAL OPK_INT OPK_SIZE OPK_STRINGAT OPK_STRINGATPUT OPT_INLINE_BUDGET OPT_INLINE_DEPTH OPT_INLINE_SIZE OPT_MAX_ANA OPT_MAX_DEPS OPT_MAX_INC OPK_CHARVALUE OPK_CHARFROM'
 	package: 'VM-Jit'!
 
@@ -14,7 +14,7 @@ declarations
 		(obAnaDepth 'int16_t[OPT_ANA_MAX]') (obAnaFlag 'uint8_t[OPT_ANA_MAX]') (obAnaBack 'int32_t[OPT_ANA_MAX]')
 		(obPcBlocks 'int32_t[OPT_PCB_MAX]') (obPcbTop int32_t) (obEntryBlock int32_t) (obRootMethod oop)
 		(obInlined int32_t) (obDeps 'oop[OPT_MAX_DEPS]') (obDepCount int32_t) (obPrimKinds 'uint8_t[OPT_MAX_PRIM]') (obPrimsKnown bool)
-		(obNoInline 'oop[OPT_MAX_NOINLINE]') (obNoInlineCount int32_t) (obArgVals 'int32_t[OPT_MAX_VARS]') (obArgFlags 'uint8_t[OPT_MAX_VARS]') (obUnitStart int32_t) (obOsrPc int32_t) (obParamSlots int32_t) (obValidSlots int32_t) (obSafeEpoch int32_t) (obAnaFloat 'bool[OPT_MAX_ANA]') (obResident bool) (obChecked 'int32_t[8]') (obCheckedCount int32_t) (obCheckedBlock int32_t) (obCheckedEpoch int32_t) (obFrame 'Frame *') (obSpecParam 'int32_t[8]') (obSpecInfo 'int32_t[8]') (obSpecCount int32_t)
+		(obNoInline 'oop[OPT_MAX_NOINLINE]') (obNoInlineCount int32_t) (obArgVals 'int32_t[OPT_MAX_VARS]') (obArgFlags 'uint8_t[OPT_MAX_VARS]') (obUnitStart int32_t) (obOsrPc int32_t) (obParamSlots int32_t) (obValidSlots int32_t) (obSafeEpoch int32_t) (obAnaFloat 'bool[OPT_MAX_ANA]') (obResident bool) (obChecked 'int32_t[8]') (obCheckedCount int32_t) (obCheckedBlock int32_t) (obCheckedEpoch int32_t) (obFrame 'Frame *') (obSpecParam 'int32_t[8]') (obSpecInfo 'int32_t[8]') (obSpecCount int32_t) (obForeign bool) (obForeignM 'oop[8]') (obForeignS 'int32_t[8]') (obForeignDepth int32_t) (obNoForeignM 'oop[8]') (obNoForeignS 'int32_t[8]') (obNoForeignCount int32_t)
 		(obPerformAct int32_t) (obPerformPc int32_t) (obPerformSlot int32_t) (obPerformCount int32_t) (obPerformVals 'int32_t[8]'))
 !
 initialize
@@ -59,6 +59,11 @@ bail
 	(obBailed not and: [(libc getenv: 'SAMALTAK_OPT_TRACE') notNull]) ifTrue: [
 		libc fprintf: libc stderr format: 'opt: bail at pc %d of act %d
 ' with: ir originPc with: ir originAct].
+	"in a closure another frame made: the next build calls it"
+	(obBailed not and: [obForeignDepth > 0 and: [obNoForeignCount < 8]]) ifTrue: [
+		obNoForeignM at: obNoForeignCount put: (obForeignM at: obForeignDepth - 1).
+		obNoForeignS at: obNoForeignCount put: (obForeignS at: obForeignDepth - 1).
+		obNoForeignCount := obNoForeignCount + 1].
 	obBailed := true
 ! !
 
@@ -66,21 +71,33 @@ bail
 build: m start: s osr: t depth: d resident: res
 	"The IR of m (s 0), or of its block at startpc s, entered at its start (t -1) or at loop head t with d slots (res: in a married frame, the temps its closures reach stay in the frame); answer whether it could be built. A closure an inlined method makes that escapes would have to be made: build again without inlining that method. Marker methods (on:do:, ensure:) are not optimized: their frames, which the exception code reads and writes through their Contexts, stay plain."
 	<function>
-	| e |
+	| e nf |
 	((self methodPrimitive: m) = PRIM_ENSURE_MARKER or: [(self methodPrimitive: m) = PRIM_ONDO_MARKER]) ifTrue: [^false].
 	obResident := res.
 	obNoInlineCount := 0.
+	obNoForeignCount := 0.
 	obUnitStart := s.
 	obOsrPc := t.
 	obValidSlots := d.
-	[(self buildOnce: m) ifFalse: [^false].
-	 e := self escapingClosure.
-	 e < 0 ifTrue: [^true].
-	 (libc getenv: 'SAMALTAK_OPT_TRACE') notNull ifTrue: [libc fprintf: libc stderr format: 'opt: a closure of act %d escapes
+	[nf := obNoForeignCount.
+	 (self buildOnce: m)
+		ifFalse: [
+			"it bailed in a closure another frame made: build again calling that one"
+			(obNoForeignCount > nf and: [obNoForeignCount < 8]) ifFalse: [^false]]
+		ifTrue: [
+			e := self escapingClosure.
+			e < 0 ifTrue: [^true].
+			(libc getenv: 'SAMALTAK_OPT_TRACE') notNull ifTrue: [libc fprintf: libc stderr format: 'opt: a closure of act %d escapes
 ' with: e].
-	 (e = 0 or: [obNoInlineCount >= OPT_MAX_NOINLINE]) ifTrue: [^false].
-	 obNoInline at: obNoInlineCount put: (ir act: e) method.
-	 obNoInlineCount := obNoInlineCount + 1] repeat
+			(self foreignActOf: e) >= 0
+				ifTrue: [
+					"made in a closure another frame made: build again calling that one"
+					obNoForeignCount >= 7 ifTrue: [^false].
+					self noForeign: (self foreignActOf: e)]
+				ifFalse: [
+					(e = 0 or: [obNoInlineCount >= OPT_MAX_NOINLINE]) ifTrue: [^false].
+					obNoInline at: obNoInlineCount put: (ir act: e) method.
+					obNoInlineCount := obNoInlineCount + 1]]] repeat
 !
 buildOnce: m
 	<function>
@@ -101,6 +118,7 @@ buildOnce: m
 	obSafeEpoch := 0.
 	obCheckedBlock := -1.
 	obSpecCount := 0.
+	obForeignDepth := 0.
 	obPerformAct := -1.
 	a := obUnitStart > 0 ifTrue: [self newBlockActFor: m start: obUnitStart] ifFalse: [self newActFor: m].
 	a < 0 ifTrue: [^false].
@@ -219,6 +237,130 @@ inlineFrameClosure: x info: d pc: pc act: a rcvSlot: r argc: argc
 	self deoptUnless: (self binary: O_EQ a: (self loadField: BC_OUTER of: g) b: (self param: -3)) act: a state: s.
 	self inlineBlock: g info: d pc: pc act: a rcvSlot: r argc: argc
 !
+foreignClosureOf: v numArgs: n pc: pc act: a
+	"On-stack replacement: the closure v is, as the frame shows it now (knownObject:), if another frame made it (a block passed in, or one such a block reaches), the unit may inline such closures (foreign:), it takes n arguments and its body may be inlined here; else nil."
+	<function>
+	| c ctx m sp size |
+	(obFrame isNull or: [obForeign not or: [(runtime flag: runtime blocksFlag) not]]) ifTrue: [^memory nilOop].
+	((feedback flagsAt: (ir act: a) method pc: pc) bitAnd: (feedback deoptOther bitOr: feedback deoptClass)) ~= 0 ifTrue: [^memory nilOop].
+	obForeignDepth >= 8 ifTrue: [^memory nilOop].
+	c := self knownObject: v.
+	(c ~= 0 and: [self inlinableClosure: c]) ifFalse: [^memory nilOop].
+	ctx := self loadRef: c at: BC_OUTER.
+	(ctx ~= obFrame ctx and: [(self intVal: (self loadRef: c at: BC_NUMARGS)) = n]) ifFalse: [^memory nilOop].
+	m := self loadRef: ctx at: CTX_METHOD.
+	sp := (self intVal: (self loadRef: c at: BC_STARTPC)) asInt32.
+	size := (((self methodBytecodes: m) at: sp - 2) asInt64 << 8 bitOr: ((self methodBytecodes: m) at: sp - 1)) asInt32.
+	obInlined + size > OPT_INLINE_BUDGET ifTrue: [^memory nilOop].
+	0 to: obNoForeignCount - 1 do: [:i | ((obNoForeignM at: i) = m and: [(obNoForeignS at: i) = sp]) ifTrue: [^memory nilOop]].
+	^c
+!
+inlinableClosure: c
+	"c is a closure whose body a loop's unit may inline where another frame made it (its code and shape: an outerContext with a method, the body's header in it, small, no bytecode the builder bails on there: ^, thisContext, Arrays, Context's mediated fields). OptRuntime>>closureSignatureOf: covers the closures this holds for."
+	<function>
+	| ctx m sp n size bcs pc end op len |
+	((self isPtr: c) and: [(self rawClass: c) = memory clsBlock]) ifFalse: [^false].
+	ctx := self loadRef: c at: BC_OUTER.
+	((self isPtr: ctx) and: [(self rawClass: ctx) = memory clsContext]) ifFalse: [^false].
+	m := self loadRef: ctx at: CTX_METHOD.
+	((self isPtr: m) and: [(self formatOf: m) = F_FIXED and: [(self numSlots: m) > CM_PRIMITIVE]]) ifFalse: [^false].
+	((self isPtr: (self loadRef: m at: CM_BYTECODES)) and: [(self formatOf: (self loadRef: m at: CM_BYTECODES)) >= F_BYTES]) ifFalse: [^false].
+	((self isPtr: (self loadRef: m at: CM_LITERALS)) and: [(self formatOf: (self loadRef: m at: CM_LITERALS)) <= F_WEAK]) ifFalse: [^false].
+	((self isInt: (self loadRef: c at: BC_STARTPC)) and: [self isInt: (self loadRef: c at: BC_NUMARGS)]) ifFalse: [^false].
+	sp := (self intVal: (self loadRef: c at: BC_STARTPC)) asInt32.
+	n := self intVal: (self loadRef: c at: BC_NUMARGS).
+	(sp >= 6 and: [sp <= (self methodSize: m)]) ifFalse: [^false].
+	bcs := self methodBytecodes: m.
+	((bcs at: sp - 6) = 16r8F and: [(bcs at: sp - 5) = n]) ifFalse: [^false].
+	size := ((bcs at: sp - 2) asInt64 << 8 bitOr: (bcs at: sp - 1)) asInt32.
+	end := sp + size.
+	(size > OPT_INLINE_SIZE or: [end > (self methodSize: m)]) ifTrue: [^false].
+	pc := sp.
+	[pc < end] whileTrue: [
+		op := bcs at: pc.
+		len := analysis lengthOf: op.
+		(len = 0 or: [pc + len > end]) ifTrue: [^false].
+		(op = 16r7C or: [op = 16r76 or: [op = 16r94 or: [op = 16r88 or: [op = 16r81 and: [(bcs at: pc + 1) <= CTX_STACKP]]]]]) ifTrue: [^false].
+		pc := (pc + len) asInt32].
+	^true
+!
+knownObject: v
+	"What v holds as the frame of the on-stack replacement shows it now: a slot of the frame, or an outer temp of a closure known so; 0 if it cannot tell."
+	<function>
+	<returns: 'oop'>
+	| n nd c |
+	obFrame isNull ifTrue: [^0].
+	n := ir resolve: v.
+	nd := ir node: n.
+	"the slots closureSignatureOf: covers"
+	(nd op asInt32 = O_PARAM and: [nd aux >= 0 and: [nd aux < (obValidSlots min: 64)]]) ifTrue: [^obFrame fp at: nd aux].
+	(nd op asInt32 = O_GUARDCLASS or: [nd op asInt32 = O_CAST]) ifTrue: [^self knownObject: nd a].
+	nd op asInt32 = O_OUTERLOAD ifTrue: [
+		c := self knownObject: nd a.
+		(c ~= 0 and: [(self isPtr: c) and: [(self rawClass: c) = memory clsBlock]]) ifFalse: [^0].
+		^self knownOuterTemp: nd aux2 levels: nd aux asInt32 of: c].
+	^0
+!
+knownOuterTemp: i levels: lv of: c
+	"Temp i of the Context lv levels out of closure c (O_OUTERLOAD's walk, done now): in the frame it is married to, else in it; 0 if the chain is not one of Contexts and closures, or i is not among the temps closureSignatureOf: covers (the first 32, below a married frame's sp)."
+	<function>
+	<returns: 'oop'>
+	| ctx cl s g |
+	i >= 32 ifTrue: [^0].
+	ctx := self loadRef: c at: BC_OUTER.
+	2 to: lv do: [:k |
+		((self isPtr: ctx) and: [(self rawClass: ctx) = memory clsContext]) ifFalse: [^0].
+		cl := self loadRef: ctx at: CTX_CLOSURE.
+		((self isPtr: cl) and: [(self rawClass: cl) = memory clsBlock]) ifFalse: [^0].
+		ctx := self loadRef: cl at: BC_OUTER].
+	((self isPtr: ctx) and: [(self rawClass: ctx) = memory clsContext]) ifFalse: [^0].
+	s := self loadRef: ctx at: CTX_SENDER.
+	(self isInt: s) ifTrue: [
+		g := interpreter frames + (self intVal: s).
+		i >= g sp ifTrue: [^0].
+		^g fp at: i].
+	CTX_FIXED + i < (self numSlots: ctx) ifFalse: [^0].
+	^self loadRef: ctx at: CTX_FIXED + i
+!
+inlineForeignClosure: x pc: pc act: a rcvSlot: r argc: argc
+	"If x is, as the frame shows it, a closure another frame made (foreignClosureOf:numArgs:pc:act:), evaluate it here and answer true: guarded (class, startpc, its outerContext's method; else deoptimize), its body inlined as an activation without its outer one: outer temps through x (O_OUTERLOAD, O_OUTERSTORE), self its outerContext's receiver; ^ or anything else this compilation cannot do in it makes the next build call it."
+	<function>
+	| c s g outer m sp d bcs |
+	c := self foreignClosureOf: x numArgs: argc pc: pc act: a.
+	c = memory nilOop ifTrue: [^false].
+	m := self loadRef: (self loadRef: c at: BC_OUTER) at: CTX_METHOD.
+	sp := (self intVal: (self loadRef: c at: BC_STARTPC)) asInt32.
+	bcs := self methodBytecodes: m.
+	d := ir newNode: O_CLOSURE rep: R_OOP.
+	(ir node: d) aux: sp.
+	(ir node: d) aux2: (((bcs at: sp - 5) asInt64 bitOr: (bcs at: sp - 4) asInt64 << 8) bitOr: (bcs at: sp - 3) asInt64 << 16).
+	s := self stateAct: a pc: pc depth: (self depthAt: pc act: a).
+	g := self guard: x class: memory clsBlock state: s.
+	self deoptUnless: (self binary: O_EQ a: (self loadField: BC_STARTPC of: g) b: (self constant: (self intOop: sp))) act: a state: s.
+	outer := self loadField: BC_OUTER of: g.
+	self deoptUnless: (self binary: O_EQ a: (self loadField: CTX_METHOD of: outer) b: (self constant: m)) act: a state: s.
+	obForeignM at: obForeignDepth put: m.
+	obForeignS at: obForeignDepth put: sp.
+	obForeignDepth := obForeignDepth + 1.
+	self inlineBody: g info: d method: m ana: (self analysisOf: m) outer: -2 home: -1 receiver: (self loadField: CTX_RECEIVER of: outer) pc: pc act: a rcvSlot: r argc: argc.
+	obForeignDepth := obForeignDepth - 1.
+	^true
+!
+foreignActOf: e
+	"The innermost activation that is a closure another frame made (inlineForeignClosure:...) and holds activation e (by its callers), -1 if none."
+	| t |
+	t := e.
+	[t >= 0] whileTrue: [
+		(ir act: t) outer = -2 ifTrue: [^t].
+		t := (ir act: t) parent].
+	^-1
+!
+noForeign: f
+	"The next build calls the closure that activation f inlined (another frame made it)."
+	obNoForeignM at: obNoForeignCount put: (ir act: f) method.
+	obNoForeignS at: obNoForeignCount put: (ir act: f) startpc.
+	obNoForeignCount := obNoForeignCount + 1
+!
 deoptUnless: test act: a state: s
 	"Go on if test (a comparison) is true, else deoptimize."
 	| t f |
@@ -257,6 +399,10 @@ isEntryUnit
 frame: f
 	"The frame a loop's unit is compiled for (on-stack replacement; null for others): closures it made may be inlined."
 	obFrame := f
+!
+foreign: b
+	"Whether the loop's unit may inline closures other frames made (a variant for their signature, OptRuntime>>tierUp:loop:)."
+	obForeign := b
 !
 paramSlots
 	"The frame's slots the code reads at its entry and keeps (home slots follow)."
@@ -814,17 +960,19 @@ outerTemp: pc act: a depth: d
 		t := (ir act: t) outer.
 		lv := lv - 1].
 	lv > 0 ifTrue: [
-		(t = 0 and: [obUnitStart > 0]) ifFalse: [^self bail].
-		^self outerTemp: op levels: lv index: (self byteAt: pc + 2 act: a) act: a depth: d].
+		"the unit's block (its closure the frame's), or a closure another frame made: through its outerContext chain"
+		(t = 0 and: [obUnitStart > 0]) ifTrue: [^self outerTemp: op levels: lv index: (self byteAt: pc + 2 act: a) closure: (ir act: 0) closure act: a depth: d].
+		(ir act: t) outer = -2 ifTrue: [^self outerTemp: op levels: lv index: (self byteAt: pc + 2 act: a) closure: (ir act: t) closure act: a depth: d].
+		^self bail].
 	op = 16r8A ifTrue: [^self push: (self read: (self var: t slot: (self byteAt: pc + 2 act: a))) act: a depth: d].
 	v := self read: (self var: a slot: d - 1).
 	self write: (self var: t slot: (self byteAt: pc + 2 act: a)) value: v
 !
-outerTemp: op levels: lv index: i act: a depth: d
-	"An outer temp of the block unit's closure, lv levels out: in its outerContext chain (or the frame it is married to)."
+outerTemp: op levels: lv index: i closure: c act: a depth: d
+	"An outer temp of closure c (the block unit's, or one another frame made), lv levels out: in its outerContext chain (or the frame it is married to)."
 	| n |
 	n := self add: (op = 16r8A ifTrue: [O_OUTERLOAD] ifFalse: [O_OUTERSTORE]) rep: (op = 16r8A ifTrue: [R_OOP] ifFalse: [R_NONE]).
-	(ir node: n) a: (ir act: 0) closure.
+	(ir node: n) a: c.
 	(ir node: n) aux: lv.
 	(ir node: n) aux2: i.
 	op = 16r8A ifTrue: [^self push: n act: a depth: d].
@@ -834,6 +982,8 @@ nonLocalReturn: v act: a pc: pc depth: d
 	"^ in a block: return from its home method, inlined here (or the method compiled); in a block unit the interpreter does it."
 	| h n |
 	h := (ir act: a) home.
+	"in a closure another frame made: the next build calls it"
+	(h < 0 and: [obForeignDepth > 0]) ifTrue: [^self bail].
 	(h < 0 and: [obUnitStart > 0]) ifTrue: [^self deoptAct: a state: (self stateAct: a pc: pc depth: d)].
 	(h < 0 or: [(ir act: h) closure >= 0]) ifTrue: [^self bail].
 	(ir act: h) parent >= 0 ifTrue: [
@@ -866,28 +1016,35 @@ isClosure: v numArgs: n
 inlineBlock: c info: d pc: pc act: a rcvSlot: r argc: argc
 	"Evaluate closure c here (made in this compilation, or by the frame: d describes it, an O_CLOSURE node): its body as an activation whose outer activation is the one that made it."
 	<function>
-	| b ac def nd entry ret na nt fs size |
+	| def |
+	def := ((ir node: d) aux2 >> 32) asInt32.
+	self inlineBody: c info: d method: (ir act: def) method ana: (ir act: def) ana outer: def home: (ir act: def) home receiver: (ir act: def) receiver pc: pc act: a rcvSlot: r argc: argc
+!
+inlineBody: c info: d method: m ana: ana outer: o home: h receiver: rcv pc: pc act: a rcvSlot: r argc: argc
+	"Evaluate closure c (d describes its body, an O_CLOSURE node) here, its body an activation of m whose outer activation is o (-2: not in this compilation, its outer temps through c), home h, receiver rcv."
+	<function>
+	| b ac nd entry ret na nt fs size |
 	nd := ir node: d.
-	def := (nd aux2 >> 32) asInt32.
 	na := (nd aux2 bitAnd: 255) asInt32.
 	nt := ((nd aux2 >> 8) bitAnd: 255) asInt32.
 	fs := ((nd aux2 >> 16) bitAnd: 255) asInt32.
+	ana < 0 ifTrue: [^self bail].
 	b := ir newAct.
 	b < 0 ifTrue: [^self bail].
 	ac := ir act: b.
-	ac method: (ir act: def) method.
-	ac ana: (ir act: def) ana.
+	ac method: m.
+	ac ana: ana.
 	ac numArgs: na.
 	ac numTemps: nt.
 	fs < (na + nt) ifTrue: [fs := na + nt].
 	ac nslots: fs + 4.
 	ac startpc: nd aux asInt32.
-	size := ((self byteAt: nd aux asInt32 - 2 act: def) asInt64 << 8 bitOr: (self byteAt: nd aux asInt32 - 1 act: def)) asInt32.
+	size := ((self byteAt: nd aux asInt32 - 2 act: b) asInt64 << 8 bitOr: (self byteAt: nd aux asInt32 - 1 act: b)) asInt32.
 	ac endpc: nd aux asInt32 + size.
 	ac closure: c.
-	ac outer: def.
-	ac home: (ir act: def) home.
-	ac receiver: (ir act: def) receiver.
+	ac outer: o.
+	ac home: h.
+	ac receiver: rcv.
 	ac parent: a.
 	ac sendPc: pc.
 	ac sendArgc: argc.
@@ -1094,6 +1251,7 @@ special: k pc: pc act: a rcvSlot: r
 		^self inlineBlock: (ir resolve: x) info: (ir resolve: x) pc: pc act: a rcvSlot: r argc: argc].
 	((k = 21 or: [k = 22 or: [k = 30]]) and: [(n := self frameClosureOf: x numArgs: argc pc: pc act: a) >= 0]) ifTrue: [
 		^self inlineFrameClosure: x info: n pc: pc act: a rcvSlot: r argc: argc].
+	((k = 21 or: [k = 22 or: [k = 30]]) and: [self inlineForeignClosure: x pc: pc act: a rcvSlot: r argc: argc]) ifTrue: [^self].
 	k = 29 ifTrue: [
 		n := self add: O_CLASSOF rep: R_OOP.
 		(ir node: n) a: x.
@@ -1263,6 +1421,7 @@ sendSelector: sel argc: argc kind: kind special: k pc: pc act: a rcvSlot: r
 	(((runtime flag: runtime blocksFlag) and: [self isValueSelector: sel]) and: [(d := self frameClosureOf: (self read: (self var: a slot: r)) numArgs: argc pc: pc act: a) >= 0]) ifTrue: [
 		self inlineFrameClosure: (self read: (self var: a slot: r)) info: d pc: pc act: a rcvSlot: r argc: argc.
 		^-1].
+	((self isValueSelector: sel) and: [self inlineForeignClosure: (self read: (self var: a slot: r)) pc: pc act: a rcvSlot: r argc: argc]) ifTrue: [^-1].
 	((runtime flag: runtime inlineFlag) and: [self inlineSend: sel argc: argc kind: kind special: k pc: pc act: a rcvSlot: r]) ifTrue: [^-1].
 	^self callSelector: sel argc: argc kind: kind special: k pc: pc act: a rcvSlot: r
 !

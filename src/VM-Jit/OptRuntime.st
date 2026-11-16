@@ -1,6 +1,6 @@
 OptModule subclass: #OptRuntime
-	instanceVariableNames: 'ir builder passes regalloc codegen rtDeoptVals rtDeoptCount rtActMethod rtActClosure rtActRcv rtActPc rtActDepth rtActVals rtActCount rtOptYoung rtOptYoungCount rtOptYoungOverflow rtStatOptCompiled rtStatOptFailed rtStatOptBytecodes rtStatOptUs rtStatOptBytes rtStatDeopts rtStatOptOsr rtStatInvalidations rtAll rtAllCount rtSunkAct rtSunkStart rtSunkInfo rtSunkOrder rtSunkCount rtSunkUseVal rtSunkUseId rtSunkUseCount rtWritten rtUnitStart rtUnitOsr rtUnitDepth rtUnits rtUnitCount rtFailed rtTrace rtTraceSends rtStamp rtStatSends rtUnitFrame'
-	classVariableNames: 'OPT_MAX_UNITS OPT_MAX_GENERATIONS OPT_MAX_DEOPTS OPT_MAX_DEOPT_ACTS OPT_MAX_DEOPT_VALS OPT_MAX_HEADERS OPT_MAX_YOUNG'
+	instanceVariableNames: 'ir builder passes regalloc codegen rtDeoptVals rtDeoptCount rtActMethod rtActClosure rtActRcv rtActPc rtActDepth rtActVals rtActCount rtOptYoung rtOptYoungCount rtOptYoungOverflow rtStatOptCompiled rtStatOptFailed rtStatOptBytecodes rtStatOptUs rtStatOptBytes rtStatDeopts rtStatOptOsr rtStatInvalidations rtAll rtAllCount rtSunkAct rtSunkStart rtSunkInfo rtSunkOrder rtSunkCount rtSunkUseVal rtSunkUseId rtSunkUseCount rtWritten rtUnitStart rtUnitOsr rtUnitDepth rtUnits rtUnitCount rtVariantCount rtFailed rtTrace rtTraceSends rtStamp rtStatSends rtUnitFrame rtUnitSignature rtSigCtx rtSigCount'
+	classVariableNames: 'OPT_MAX_UNITS OPT_MAX_VARIANT_UNITS OPT_MAX_VARIANTS OPT_MAX_GENERATIONS OPT_MAX_DEOPTS OPT_MAX_DEOPT_ACTS OPT_MAX_DEOPT_VALS OPT_MAX_HEADERS OPT_MAX_YOUNG'
 	package: 'VM-Jit'!
 
 OptRuntime comment: 'The optimizing tier''s side of the runtime (docs/jit.md, Optimizing tier): when to optimize (tierUp:), compiling (OptBuilder, OptPasses, OptRegalloc, OptCodegen), sends from optimized code, deoptimization (a guard failed: the registers are in the JitState; after a send: everything is in slots), rebuilding an optimized frame''s activations as frames (deoptimization) or Contexts (materializeAll), resuming an optimized frame the interpreter returns into, the GC roots of optimized code (its method and oop pool).
@@ -19,7 +19,7 @@ declarations
 		(rtAll 'JitMethod *[OPT_MAX_HEADERS]') (rtAllCount int32_t)
 		(rtSunkAct 'int32_t[64]') (rtSunkStart 'int32_t[64]') (rtSunkInfo 'int32_t[64]') (rtSunkOrder 'int32_t[64]') (rtSunkCount int32_t)
 		(rtSunkUseVal 'int32_t[OPT_MAX_DEOPT_VALS]') (rtSunkUseId 'int32_t[OPT_MAX_DEOPT_VALS]') (rtSunkUseCount int32_t) (rtWritten int32_t)
-		(rtUnitStart int32_t) (rtUnitOsr int32_t) (rtUnitDepth int32_t) (rtUnits 'JitMethod *[OPT_MAX_UNITS]') (rtUnitCount int32_t) (rtFailed 'uint64_t[OPT_MAX_UNITS]') (rtTrace bool) (rtTraceSends bool) (rtStamp uint32_t) (rtStatSends uint64_t) (rtUnitFrame 'Frame *'))
+		(rtUnitStart int32_t) (rtUnitOsr int32_t) (rtUnitDepth int32_t) (rtUnits 'JitMethod *[OPT_MAX_UNITS]') (rtUnitCount int32_t) (rtVariantCount int32_t) (rtFailed 'uint64_t[OPT_MAX_UNITS]') (rtTrace bool) (rtTraceSends bool) (rtStamp uint32_t) (rtStatSends uint64_t) (rtUnitFrame 'Frame *') (rtUnitSignature uint32_t) (rtSigCtx 'oop[8]') (rtSigCount int32_t))
 !
 initialize
 	OPT_MAX_DEOPT_VALS := 8192.
@@ -28,7 +28,9 @@ initialize
 	OPT_MAX_HEADERS := 16384.
 	OPT_MAX_DEOPTS := 8.
 	OPT_MAX_GENERATIONS := 32.
-	OPT_MAX_UNITS := 4096
+	OPT_MAX_VARIANTS := 16.
+	OPT_MAX_VARIANT_UNITS := 2048.
+	OPT_MAX_UNITS := 8192
 ! !
 
 !OptRuntime methodsFor: 'statistics'!
@@ -138,6 +140,8 @@ tierUp: f loop: loop
 	k := loop = 0 ifTrue: [0] ifFalse: [f pc + 1].
 	"a married frame's temps may change through its Context (blocks it made): a unit of its own keeps those in the frame"
 	(k ~= 0 and: [f ctx ~= memory nilOop and: [self makesClosures: m start: s]]) ifTrue: [k := k + 16r10000].
+	"the loop's variant for the closures other frames made that it may inline, or its plain unit"
+	k ~= 0 ifTrue: [k := self variantOf: f method: m start: s osr: k].
 	(s = 0 and: [k = 0])
 		ifTrue: [o := self optOf: h]
 		ifFalse: [
@@ -149,10 +153,107 @@ tierUp: f loop: loop
 				o := self optimizeUnit: m start: s osr: k depth: f sp lower: h previous: o.
 				rtUnitFrame := self null.
 				o isNull ifTrue: [self noteFailed: m start: s osr: k]]].
+	rtUnitSignature := 0.
 	(o isNull or: [(self isAlive: o) not]) ifTrue: [^0].
 	k ~= 0 ifTrue: [rtStatOptOsr := rtStatOptOsr + 1].
 	f code: (self cCoerce: o to: 'uint64_t').
 	^o start
+!
+variantOf: f method: m start: s osr: g
+	"The key of the unit f enters at loop key g: the variant (bits 17 and up: 1 to OPT_MAX_VARIANTS) whose signature is f's (closureSignatureOf:), a new one if there is room (OPT_MAX_VARIANT_UNITS in all, a free unit) and none failed to compile, else the loop's plain unit (variant 0, which inlines no closures other frames made). rtUnitSignature: the variant's signature, 0 for the plain unit."
+	<function>
+	<var: #f type: 'Frame *'>
+	<var: #o type: 'JitMethod *'>
+	| w t o |
+	rtUnitSignature := 0.
+	w := self closureSignatureOf: f.
+	w = 0 ifTrue: [^g].
+	1 to: OPT_MAX_VARIANTS do: [:v |
+		t := g + (v asInt64 << 17) asInt32.
+		o := self unitOf: m start: s osr: t.
+		o isNull
+			ifTrue: [
+				((self failed: m start: s osr: t) or: [rtVariantCount >= OPT_MAX_VARIANT_UNITS or: [self unitsFull]]) ifTrue: [^g].
+				rtUnitSignature := w.
+				^t]
+			ifFalse: [
+				o signature = w ifTrue: [
+					((runtime hasCode: o) and: [(self failed: m start: s osr: t) not and: [(self isAlive: o) or: [o generation < OPT_MAX_GENERATIONS]]]) ifFalse: [^g].
+					rtUnitSignature := w.
+					^t]]].
+	^g
+!
+closureSignatureOf: f
+	"The code of the closures other frames made that a loop's unit for f may inline (OptBuilder>>foreignClosureOf:numArgs:pc:act:), and where they are: those in f's slots (the first 64), and those in the temps (the first 32) of every Context out from such a closure (OptBuilder>>knownOuterTemp:levels:of:), hashed into 32 bits; 0 if there are none, or too many Contexts."
+	<function>
+	<var: #f type: 'Frame *'>
+	<returns: 'uint32_t'>
+	| h n v w |
+	h := 0 asUInt64.
+	n := 0.
+	rtSigCount := 0.
+	0 to: (f sp min: 64) - 1 do: [:i |
+		v := f fp at: i.
+		((builder inlinableClosure: v) and: [(self loadRef: v at: BC_OUTER) ~= f ctx]) ifTrue: [
+			h := self mix: h closure: v at: i depth: 0 frameContext: f ctx.
+			n := n + 1]].
+	(n = 0 or: [rtSigCount > 8]) ifTrue: [^0].
+	h := h bitXor: h >> 32.
+	w := (h bitAnd: 16rFFFFFFFF) asUInt32.
+	w = 0 ifTrue: [^1].
+	^w
+!
+mix: h with: x
+	<var: #h type: 'uint64_t'>
+	<var: #x type: 'uint64_t'>
+	<returns: 'uint64_t'>
+	| r |
+	r := (h bitXor: x) * 16r5851F42D4C957F2D asUInt64.
+	^r bitXor: r >> 29
+!
+mix: h0 closure: c at: i depth: d frameContext: fc
+	"h0 with closure c (in slot or temp i, d Contexts out from f's slots) mixed in: its code, then the Contexts out from it not visited yet (rtSigCtx; a ninth: rtSigCount 9) with the closures their temps hold, depth first."
+	<function>
+	<var: #h0 type: 'uint64_t'>
+	<returns: 'uint64_t'>
+	| h ctx cl lv j s g n v |
+	ctx := self loadRef: c at: BC_OUTER.
+	h := self mix: h0 with: ((1 bitOr: d asUInt64 << 8) bitOr: i asUInt64 << 16).
+	h := self mix: h with: (self hashOf: (self loadRef: ctx at: CTX_METHOD)) asUInt64.
+	h := self mix: h with: (self loadRef: c at: BC_STARTPC).
+	lv := 1.
+	[self isContext: ctx] whileTrue: [
+		"one visited already: the rest of its chain is in h"
+		j := -1.
+		0 to: rtSigCount - 1 do: [:k | (rtSigCtx at: k) = ctx ifTrue: [j := k]].
+		j >= 0 ifTrue: [^self mix: h with: ((3 bitOr: d asUInt64 << 8) bitOr: (j + 1) asUInt64 << 16)].
+		rtSigCount >= 8 ifTrue: [
+			rtSigCount := 9.
+			^h].
+		rtSigCtx at: rtSigCount put: ctx.
+		rtSigCount := rtSigCount + 1.
+		h := self mix: h with: ((2 bitOr: d asUInt64 << 8) bitOr: lv asUInt64 << 16).
+		s := self loadRef: ctx at: CTX_SENDER.
+		(self isInt: s)
+			ifTrue: [
+				g := interpreter frames + (self intVal: s).
+				n := g sp min: 32]
+			ifFalse: [n := ((self numSlots: ctx) asInt32 - CTX_FIXED) min: 32].
+		0 to: n - 1 do: [:k |
+			v := (self isInt: s) ifTrue: [g fp at: k] ifFalse: [self loadRef: ctx at: CTX_FIXED + k].
+			((builder inlinableClosure: v) and: [(self loadRef: v at: BC_OUTER) ~= fc]) ifTrue: [
+				h := self mix: h closure: v at: k depth: d + 1 frameContext: fc.
+				rtSigCount > 8 ifTrue: [^h]]].
+		cl := self loadRef: ctx at: CTX_CLOSURE.
+		ctx := (self isClosure: cl) ifTrue: [self loadRef: cl at: BC_OUTER] ifFalse: [memory nilOop].
+		lv := lv + 1].
+	^self mix: h with: (3 bitOr: d asUInt64 << 8)
+!
+isClosure: v
+	^(self isPtr: v) and: [(self rawClass: v) = memory clsBlock]
+!
+isContext: v
+	^(self isPtr: v) and: [(self rawClass: v) = memory clsContext]
 !
 makesClosures: m start: s
 	"The code of m (s 0) or of its block at startpc s makes BlockClosures that may reach its frame (through outer temps, ^, thisContext)."
@@ -188,7 +289,7 @@ unitOf: m start: s osr: t
 	^self null
 !
 failedKey: m start: s osr: t
-	^(((self hashOf: m) asUInt64 << 32) bitOr: ((s asUInt64 bitAnd: 16rFFFF) << 16)) bitOr: (t asUInt64 bitAnd: 16rFFFF)
+	^((((self hashOf: m) asUInt64 bitXor: t asUInt64 >> 16) << 32) bitOr: ((s asUInt64 bitAnd: 16rFFFF) << 16)) bitOr: (t asUInt64 bitAnd: 16rFFFF)
 !
 failed: m start: s osr: t
 	"Compiling this unit failed before (a hash table of keys; a collision only means it is not tried; noteFailed: probes as far)."
@@ -214,7 +315,8 @@ noteFailed: m start: s osr: t
 	rtFailed at: i put: key
 !
 unitHash: m start: s osr: t
-	^(((self hashOf: m) asUInt64 * 31 + s asUInt64) * 31 + t asUInt64) bitAnd: OPT_MAX_UNITS - 1
+	"a loop's variants (bits 17 and up) apart"
+	^((((self hashOf: m) asUInt64 * 31 + s asUInt64) * 31 + t asUInt64) + ((t asUInt64 >> 17) * 2654435761)) bitAnd: OPT_MAX_UNITS - 1
 !
 blockCodeFor: m start: s
 	"Frame code of a new activation of m's block at s: its optimized code if it may run, else m's (lower tier, or counting)."
@@ -228,7 +330,7 @@ optimizeUnit: m start: s osr: t depth: d lower: h previous: p
 	"Compile m's block at startpc s (0: m) entered at its start (t 0) or at loop head t - 1 with d slots as a unit of its own, in place of p (invalidated) if not null; null if it could not."
 	<function>
 	| o t0 i |
-	rtUnitCount >= ((OPT_MAX_UNITS quo: 4) * 3) ifTrue: [^self null].
+	self unitsFull ifTrue: [^self null].
 	rtUnitStart := s.
 	rtUnitOsr := t.
 	rtUnitDepth := d.
@@ -250,15 +352,22 @@ optimizeUnit: m start: s osr: t depth: d lower: h previous: p
 	o stamp: rtStamp.
 	p notNull ifTrue: [o generation: p generation + 1].
 	o methodHash: (self hashOf: m) asUInt32.
+	o signature: rtUnitSignature.
 	cache endWriting.
 	self noteYoung: o.
 	i := self unitHash: m start: s osr: t.
 	[(rtUnits at: i) notNull and: [(rtUnits at: i) ~= p]] whileTrue: [i := (i + 1) bitAnd: OPT_MAX_UNITS - 1].
-	(rtUnits at: i) isNull ifTrue: [rtUnitCount := rtUnitCount + 1].
+	(rtUnits at: i) isNull ifTrue: [
+		rtUnitCount := rtUnitCount + 1.
+		t >> 17 ~= 0 ifTrue: [rtVariantCount := rtVariantCount + 1]].
 	rtUnits at: i put: o.
 	"a block's unit: the block stub enters it from now on"
 	(s ~= 0 and: [t = 0]) ifTrue: [brt clearCaches].
 	^o
+!
+unitsFull
+	"No unit is installed any more until the code cache is flushed."
+	^rtUnitCount >= ((OPT_MAX_UNITS quo: 4) * 3)
 !
 unitEntry
 	"The pc the unit being compiled is entered at: 0 for a method, a block's startpc, a loop head."
@@ -301,6 +410,7 @@ compile: m
 		libc fprintf: libc stderr format: 'opt: (block %d, loop %d) ' with: rtUnitStart with: rtUnitOsr.
 		interpreter printActivation: m receiver: memory nilOop closure: memory nilOop on: libc stderr].
 	builder frame: rtUnitFrame.
+	builder foreign: rtUnitSignature ~= 0.
 	passes unboxOff: false.
 	ok := self buildAndAllocate: m trace: trace.
 	"twins on doubles that do not fit the d registers or meet a call: again without them"
@@ -323,7 +433,7 @@ compile: m
 !
 buildAndAllocate: m trace: trace
 	"The unit's IR built, cleaned up and allocated; answer whether it could be."
-	^(builder build: m start: rtUnitStart osr: (rtUnitOsr bitAnd: 16rFFFF) - 1 depth: rtUnitDepth resident: rtUnitOsr >= 16r10000) and: [
+	^(builder build: m start: rtUnitStart osr: (rtUnitOsr bitAnd: 16rFFFF) - 1 depth: rtUnitDepth resident: (rtUnitOsr bitAnd: 16r10000) ~= 0) and: [
 		passes cleanup: builder entryBlock.
 		trace ifTrue: [ir print].
 		regalloc allocate: builder paramSlots]
@@ -1011,7 +1121,8 @@ flushed
 	rtAllCount := 0.
 	libc memset: rtUnits value: 0 size: 8 * OPT_MAX_UNITS.
 	libc memset: rtFailed value: 0 size: 8 * OPT_MAX_UNITS.
-	rtUnitCount := 0
+	rtUnitCount := 0.
+	rtVariantCount := 0
 ! !
 
 !OptRuntime methodsFor: 'invalidation'!

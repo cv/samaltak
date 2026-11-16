@@ -13,10 +13,12 @@ jit_method *rt_all[16384];
 int32_t rt_all_count;
 static int32_t rt_deopt_count;
 static oop rt_deopt_vals[8192];
-static uint64_t rt_failed[4096];
+static uint64_t rt_failed[8192];
 static jit_method *rt_opt_young[1024];
 static int32_t rt_opt_young_count;
 static bool rt_opt_young_overflow;
+static int32_t rt_sig_count;
+static oop rt_sig_ctx[8];
 static uint32_t rt_stamp;
 uint64_t rt_stat_deopts;
 uint64_t rt_stat_invalidations;
@@ -41,19 +43,24 @@ static int32_t rt_unit_count;
 static int32_t rt_unit_depth;
 static frame *rt_unit_frame;
 int32_t rt_unit_osr;
+static uint32_t rt_unit_signature;
 int32_t rt_unit_start;
-static jit_method *rt_units[4096];
+static jit_method *rt_units[8192];
+static int32_t rt_variant_count;
 static int32_t rt_written;
 
+static uint32_t closure_signature_of(frame *f);
 static void decode(jit_method *h, int64_t k, frame *f, uint64_t *regs, int mode);
 static uint64_t deopt_frame(frame *f, int64_t k, uint64_t *regs, int mode);
 static int64_t frame_size_of(oop m, oop c);
 static void make_sunk(int32_t s, oop ctx);
+static uint64_t mix(uint64_t h0, oop c, int32_t i, int d, oop fc);
 static jit_method *optimize(oop m, jit_method *h);
 static jit_method *optimize_unit(oop m, int32_t s, int32_t t, int32_t d, jit_method *h, jit_method *p);
 static oop opt_runtime_send(frame *f, int64_t k, uint64_t key);
 static void trace_deopt(jit_method *h, int64_t k, int mode);
 static jit_method *unit_of(oop m, int32_t s, int32_t t);
+static int32_t variant_of(frame *f, oop m, int32_t s, int32_t g);
 
 /* OptRuntime>>allRoots: */
 void opt_runtime_all_roots(void (*fn)(oop *))
@@ -101,11 +108,41 @@ uint64_t opt_runtime_block_code_for(uint64_t m, int32_t s)
     return jit_runtime_block_code_for(m);
 }
 
+/* OptRuntime>>closureSignatureOf: */
+static uint32_t closure_signature_of(frame *f)
+{
+    uint64_t h;
+    int64_t n;
+    int32_t i;
+    oop v;
+    uint32_t w;
+    h = 0ULL;
+    n = 0;
+    rt_sig_count = 0;
+    for (i = 0; i <= (f->sp < 64 ? f->sp : 64) - 1; i++) {
+        v = f->fp[i];
+        if (inlinable_closure(v) && (*(uint64_t *)(v + 16 + 0) != f->ctx)) {
+            h = mix(h, v, i, 0, f->ctx);
+            n = n + 1;
+        }
+    }
+    if ((n == 0) || (rt_sig_count > 8)) {
+        return 0;
+    }
+    h = h ^ (h >> 32);
+    w = (uint32_t)(h & 0xFFFFFFFFLL);
+    if (w == 0) {
+        return 1;
+    }
+    return w;
+}
+
 /* OptRuntime>>compile: */
 bool opt_runtime_compile(oop m)
 {
     bool trace;
     char *limit;
+    bool b;
     bool ok;
     trace = getenv("SAMALTAK_OPT_TRACE") != NULL;
     rt_trace = trace;
@@ -119,8 +156,10 @@ bool opt_runtime_compile(oop m)
         print_activation(m, nil_oop, nil_oop, stderr);
     }
     ob_frame = rt_unit_frame;
+    b = rt_unit_signature != 0;
+    ob_foreign = b;
     ps_unbox_off = false;
-    ok = build(m, rt_unit_start, (rt_unit_osr & 0xFFFF) - 1, rt_unit_depth, rt_unit_osr >= 0x10000) && ({
+    ok = build(m, rt_unit_start, (rt_unit_osr & 0xFFFF) - 1, rt_unit_depth, (rt_unit_osr & 0x10000) != 0) && ({
     cleanup(ob_entry_block);
     if (trace) {
         print();
@@ -128,7 +167,7 @@ bool opt_runtime_compile(oop m)
     opt_regalloc_allocate(ob_param_slots); });
     if ((!ok) && ps_unboxed) {
         ps_unbox_off = true;
-        ok = build(m, rt_unit_start, (rt_unit_osr & 0xFFFF) - 1, rt_unit_depth, rt_unit_osr >= 0x10000) && ({
+        ok = build(m, rt_unit_start, (rt_unit_osr & 0xFFFF) - 1, rt_unit_depth, (rt_unit_osr & 0x10000) != 0) && ({
     cleanup(ob_entry_block);
     if (trace) {
         print();
@@ -575,15 +614,15 @@ uint64_t deopt_guard(frame *f, int64_t k)
             m_3 = h->method;
             s = (int32_t)h->block_start;
             t = (int32_t)h->osr_pc;
-            key = (((uint64_t)(uint32_t)(((*(uint64_t *)m_3) >> H_HASH_SHIFT) & H_HASH_MASK)) << 32) | ((((uint64_t)s) & 0xFFFF) << 16) | (((uint64_t)t) & 0xFFFF) | 9223372036854775808ULL;
-            i = (int32_t)((key ^ (key >> 29)) & 4095);
+            key = ((((uint64_t)(uint32_t)(((*(uint64_t *)m_3) >> H_HASH_SHIFT) & H_HASH_MASK)) ^ (((uint64_t)t) >> 16)) << 32) | ((((uint64_t)s) & 0xFFFF) << 16) | (((uint64_t)t) & 0xFFFF) | 9223372036854775808ULL;
+            i = (int32_t)((key ^ (key >> 29)) & 8191);
             n = 0;
             while (rt_failed[i] != 0) {
                 n = n + 1;
-                if (n >= 2048) {
+                if (n >= 4096) {
                     goto exit_note_failed;
                 }
-                i = (i + 1) & 4095;
+                i = (i + 1) & 8191;
             }
             rt_failed[i] = key;
         exit_note_failed:;
@@ -841,9 +880,10 @@ void opt_runtime_flushed(void)
     rt_opt_young_count = 0;
     rt_opt_young_overflow = false;
     rt_all_count = 0;
-    memset(rt_units, 0, 32768);
-    memset(rt_failed, 0, 32768);
+    memset(rt_units, 0, 65536);
+    memset(rt_failed, 0, 65536);
     rt_unit_count = 0;
+    rt_variant_count = 0;
 }
 
 /* OptRuntime>>frameSizeOf:closure: */
@@ -1138,6 +1178,118 @@ exit_frame_size_of_act:;
     rt_deopt_count = 0;
 }
 
+/* OptRuntime>>mix:closure:at:depth:frameContext: */
+static uint64_t mix(uint64_t h0, oop c, int32_t i, int d, oop fc)
+{
+    uint64_t ctx;
+    uint64_t x;
+    uint64_t r_mix;
+    uint64_t r;
+    uint64_t h;
+    uint64_t o;
+    uint64_t x_2;
+    uint64_t r_mix_2;
+    uint64_t r_2;
+    uint64_t x_3;
+    uint64_t r_mix_3;
+    uint64_t r_3;
+    int64_t lv;
+    int64_t j;
+    int32_t k;
+    uint64_t x_4;
+    uint64_t r_mix_4;
+    uint64_t r_4;
+    uint64_t x_5;
+    uint64_t r_mix_5;
+    uint64_t r_5;
+    uint64_t s;
+    frame *g;
+    int32_t n;
+    int32_t k_2;
+    int32_t i_2;
+    oop v_2;
+    oop v;
+    uint64_t cl;
+    uint64_t x_6;
+    uint64_t r_mix_6;
+    uint64_t r_6;
+    ctx = *(uint64_t *)(c + 16 + 0);
+    x = 1 | (((uint64_t)d) << 8) | (((uint64_t)i) << 16);
+    h = ({
+    r = (h0 ^ x) * 6364136223846793005ULL;
+    r_mix = r ^ (r >> 29);
+    r_mix; });
+    o = *(uint64_t *)(ctx + 16 + 24);
+    x_2 = (uint64_t)(uint32_t)(((*(uint64_t *)o) >> H_HASH_SHIFT) & H_HASH_MASK);
+    h = ({
+    r_2 = (h ^ x_2) * 6364136223846793005ULL;
+    r_mix_2 = r_2 ^ (r_2 >> 29);
+    r_mix_2; });
+    x_3 = *(uint64_t *)(c + 16 + 8);
+    h = ({
+    r_3 = (h ^ x_3) * 6364136223846793005ULL;
+    r_mix_3 = r_3 ^ (r_3 >> 29);
+    r_mix_3; });
+    lv = 1;
+    while (((ctx & 7) == 0) && (*(uint64_t *)(ctx + 8) == cls_context)) {
+        j = -1;
+        for (k = 0; k <= rt_sig_count - 1; k++) {
+            if (rt_sig_ctx[k] == ctx) {
+                j = k;
+            }
+        }
+        if (j >= 0) {
+            x_4 = 3 | (((uint64_t)d) << 8) | (((uint64_t)(j + 1)) << 16);
+            return ({
+    r_4 = (h ^ x_4) * 6364136223846793005ULL;
+    r_mix_4 = r_4 ^ (r_4 >> 29);
+    r_mix_4; });
+        }
+        if (rt_sig_count >= 8) {
+            rt_sig_count = 9;
+            return h;
+        }
+        rt_sig_ctx[rt_sig_count] = ctx;
+        rt_sig_count = rt_sig_count + 1;
+        x_5 = 2 | (((uint64_t)d) << 8) | (((uint64_t)lv) << 16);
+        h = ({
+    r_5 = (h ^ x_5) * 6364136223846793005ULL;
+    r_mix_5 = r_5 ^ (r_5 >> 29);
+    r_mix_5; });
+        s = *(uint64_t *)(ctx + 16 + 0);
+        if ((s & 1) != 0) {
+            g = frames + (((int64_t)s) >> 1);
+            n = g->sp < 32 ? g->sp : 32;
+        } else {
+            n = (int32_t)(uint32_t)*(uint64_t *)ctx - CTX_FIXED < 32 ? (int32_t)(uint32_t)*(uint64_t *)ctx - CTX_FIXED : 32;
+        }
+        for (k_2 = 0; k_2 <= n - 1; k_2++) {
+            v = ({
+    if ((s & 1) != 0) {
+        v_2 = g->fp[k_2];
+    } else {
+        i_2 = CTX_FIXED + k_2;
+        v_2 = *(uint64_t *)(ctx + 16 + 8 * i_2);
+    }
+    v_2; });
+            if (inlinable_closure(v) && (*(uint64_t *)(v + 16 + 0) != fc)) {
+                h = mix(h, v, k_2, d + 1, fc);
+                if (rt_sig_count > 8) {
+                    return h;
+                }
+            }
+        }
+        cl = *(uint64_t *)(ctx + 16 + 32);
+        ctx = ((cl & 7) == 0) && (*(uint64_t *)(cl + 8) == cls_block) ? *(uint64_t *)(cl + 16 + 0) : nil_oop;
+        lv = lv + 1;
+    }
+    x_6 = 3 | (((uint64_t)d) << 8);
+    return ({
+    r_6 = (h ^ x_6) * 6364136223846793005ULL;
+    r_mix_6 = r_6 ^ (r_6 >> 29);
+    r_mix_6; });
+}
+
 /* OptRuntime>>optimize:lower: */
 static jit_method *optimize(oop m, jit_method *h)
 {
@@ -1203,7 +1355,7 @@ static jit_method *optimize_unit(oop m, int32_t s, int32_t t, int32_t d, jit_met
     oop o_3;
     oop o_4;
     uint64_t i;
-    if (rt_unit_count >= 3072) {
+    if (rt_unit_count >= 6144) {
         return (jit_method *)NULL;
     }
     rt_unit_start = s;
@@ -1232,6 +1384,7 @@ static jit_method *optimize_unit(oop m, int32_t s, int32_t t, int32_t d, jit_met
         o->generation = p->generation + 1;
     }
     o->method_hash = (uint32_t)(((*(uint64_t *)m) >> H_HASH_SHIFT) & H_HASH_MASK);
+    o->signature = rt_unit_signature;
     end_writing();
     o_2 = o->method;
     young = (uint64_t)(o_2 - young_lo) < young_hi - young_lo;
@@ -1253,12 +1406,15 @@ static jit_method *optimize_unit(oop m, int32_t s, int32_t t, int32_t d, jit_met
         rt_opt_young_overflow = true;
     }
 exit_note_young:;
-    i = (((uint64_t)(uint32_t)(((*(uint64_t *)m) >> H_HASH_SHIFT) & H_HASH_MASK) * 31 + (uint64_t)s) * 31 + (uint64_t)t) & 4095;
+    i = (((uint64_t)(uint32_t)(((*(uint64_t *)m) >> H_HASH_SHIFT) & H_HASH_MASK) * 31 + (uint64_t)s) * 31 + (uint64_t)t + (((uint64_t)t) >> 17) * 2654435761LL) & 8191;
     while ((rt_units[i] != NULL) && (rt_units[i] != p)) {
-        i = (i + 1) & 4095;
+        i = (i + 1) & 8191;
     }
     if (rt_units[i] == NULL) {
         rt_unit_count = rt_unit_count + 1;
+        if ((t >> 17) != 0) {
+            rt_variant_count = rt_variant_count + 1;
+        }
     }
     rt_units[i] = o;
     if ((s != 0) && (t == 0)) {
@@ -1795,30 +1951,30 @@ uint64_t opt_runtime_tier_up(frame *f, int64_t loop)
     }
     v; });
     if ((s == 0) && ((h->opt == 0) && (!({
-    key = (((uint64_t)(uint32_t)(((*(uint64_t *)m) >> H_HASH_SHIFT) & H_HASH_MASK)) << 32) | 0ULL | 0ULL | 9223372036854775808ULL;
-    i = (int32_t)((key ^ (key >> 29)) & 4095);
+    key = ((((uint64_t)(uint32_t)(((*(uint64_t *)m) >> H_HASH_SHIFT) & H_HASH_MASK)) ^ 0ULL) << 32) | 0ULL | 0ULL | 9223372036854775808ULL;
+    i = (int32_t)((key ^ (key >> 29)) & 8191);
     n_2 = 0;
-    while ((rt_failed[i] != 0) && (n_2 < 2048)) {
+    while ((rt_failed[i] != 0) && (n_2 < 4096)) {
         if (rt_failed[i] == key) {
             r_failed = true;
             goto exit_failed;
         }
         n_2 = n_2 + 1;
-        i = (i + 1) & 4095;
+        i = (i + 1) & 8191;
     }
     r_failed = false;
 exit_failed:;
     r_failed; })))) {
         if (optimize(m, h) == NULL) {
-            key_2 = (((uint64_t)(uint32_t)(((*(uint64_t *)m) >> H_HASH_SHIFT) & H_HASH_MASK)) << 32) | 0ULL | 0ULL | 9223372036854775808ULL;
-            i_2 = (int32_t)((key_2 ^ (key_2 >> 29)) & 4095);
+            key_2 = ((((uint64_t)(uint32_t)(((*(uint64_t *)m) >> H_HASH_SHIFT) & H_HASH_MASK)) ^ 0ULL) << 32) | 0ULL | 0ULL | 9223372036854775808ULL;
+            i_2 = (int32_t)((key_2 ^ (key_2 >> 29)) & 8191);
             n_3 = 0;
             while (rt_failed[i_2] != 0) {
                 n_3 = n_3 + 1;
-                if (n_3 >= 2048) {
+                if (n_3 >= 4096) {
                     goto exit_note_failed;
                 }
-                i_2 = (i_2 + 1) & 4095;
+                i_2 = (i_2 + 1) & 8191;
             }
             rt_failed[i_2] = key_2;
         exit_note_failed:;
@@ -1905,6 +2061,9 @@ exit_length_of:;
     r_makes_closures; }))) {
         k = k + 0x10000;
     }
+    if (k != 0) {
+        k = variant_of(f, m, s, k);
+    }
     if ((s == 0) && (k == 0)) {
         o = (jit_method *)({
     if (h == NULL) {
@@ -1926,16 +2085,16 @@ exit_opt_of:;
     } else {
         o = unit_of(m, s, k);
         if (((o == NULL) || ((o != NULL) && ((o->flags & JM_FAILED) == 0) && ((!((o != NULL) && ((o->flags & JM_FAILED) == 0) && ((o->flags & 2) == 0))) && (o->generation < OPT_MAX_GENERATIONS)))) && (!({
-    key_3 = (((uint64_t)(uint32_t)(((*(uint64_t *)m) >> H_HASH_SHIFT) & H_HASH_MASK)) << 32) | ((((uint64_t)s) & 0xFFFF) << 16) | (((uint64_t)k) & 0xFFFF) | 9223372036854775808ULL;
-    i_3 = (int32_t)((key_3 ^ (key_3 >> 29)) & 4095);
+    key_3 = ((((uint64_t)(uint32_t)(((*(uint64_t *)m) >> H_HASH_SHIFT) & H_HASH_MASK)) ^ (((uint64_t)k) >> 16)) << 32) | ((((uint64_t)s) & 0xFFFF) << 16) | (((uint64_t)k) & 0xFFFF) | 9223372036854775808ULL;
+    i_3 = (int32_t)((key_3 ^ (key_3 >> 29)) & 8191);
     n_4 = 0;
-    while ((rt_failed[i_3] != 0) && (n_4 < 2048)) {
+    while ((rt_failed[i_3] != 0) && (n_4 < 4096)) {
         if (rt_failed[i_3] == key_3) {
             r_failed_2 = true;
             goto exit_failed_2;
         }
         n_4 = n_4 + 1;
-        i_3 = (i_3 + 1) & 4095;
+        i_3 = (i_3 + 1) & 8191;
     }
     r_failed_2 = false;
 exit_failed_2:;
@@ -1946,21 +2105,22 @@ exit_failed_2:;
             o = optimize_unit(m, s, k, f->sp, h, o);
             rt_unit_frame = (frame *)NULL;
             if (o == NULL) {
-                key_4 = (((uint64_t)(uint32_t)(((*(uint64_t *)m) >> H_HASH_SHIFT) & H_HASH_MASK)) << 32) | ((((uint64_t)s) & 0xFFFF) << 16) | (((uint64_t)k) & 0xFFFF) | 9223372036854775808ULL;
-                i_4 = (int32_t)((key_4 ^ (key_4 >> 29)) & 4095);
+                key_4 = ((((uint64_t)(uint32_t)(((*(uint64_t *)m) >> H_HASH_SHIFT) & H_HASH_MASK)) ^ (((uint64_t)k) >> 16)) << 32) | ((((uint64_t)s) & 0xFFFF) << 16) | (((uint64_t)k) & 0xFFFF) | 9223372036854775808ULL;
+                i_4 = (int32_t)((key_4 ^ (key_4 >> 29)) & 8191);
                 n_5 = 0;
                 while (rt_failed[i_4] != 0) {
                     n_5 = n_5 + 1;
-                    if (n_5 >= 2048) {
+                    if (n_5 >= 4096) {
                         goto exit_note_failed_2;
                     }
-                    i_4 = (i_4 + 1) & 4095;
+                    i_4 = (i_4 + 1) & 8191;
                 }
                 rt_failed[i_4] = key_4;
             exit_note_failed_2:;
             }
         }
     }
+    rt_unit_signature = 0;
     if ((o == NULL) || (!((o != NULL) && ((o->flags & JM_FAILED) == 0) && ((o->flags & 2) == 0)))) {
         return 0;
     }
@@ -1995,14 +2155,82 @@ static jit_method *unit_of(oop m, int32_t s, int32_t t)
 {
     uint64_t i;
     jit_method *h;
-    i = (((uint64_t)(uint32_t)(((*(uint64_t *)m) >> H_HASH_SHIFT) & H_HASH_MASK) * 31 + (uint64_t)s) * 31 + (uint64_t)t) & 4095;
+    i = (((uint64_t)(uint32_t)(((*(uint64_t *)m) >> H_HASH_SHIFT) & H_HASH_MASK) * 31 + (uint64_t)s) * 31 + (uint64_t)t + (((uint64_t)t) >> 17) * 2654435761LL) & 8191;
     while ((h = rt_units[i]) != NULL) {
         if ((h->method_hash == (uint32_t)(((*(uint64_t *)m) >> H_HASH_SHIFT) & H_HASH_MASK)) && ((h->block_start == (uint32_t)s) && ((h->osr_pc == (uint32_t)t) && ((h->method == m) || (!((h != NULL) && ((h->flags & JM_FAILED) == 0) && ((h->flags & 2) == 0))))))) {
             return h;
         }
-        i = (i + 1) & 4095;
+        i = (i + 1) & 8191;
     }
     return (jit_method *)NULL;
+}
+
+/* OptRuntime>>variantOf:method:start:osr: */
+static int32_t variant_of(frame *f, oop m, int32_t s, int32_t g)
+{
+    jit_method *o;
+    uint32_t w;
+    int v;
+    int32_t t;
+    bool r_failed;
+    uint64_t key;
+    int32_t i;
+    int64_t n;
+    bool r_failed_2;
+    uint64_t key_2;
+    int32_t i_2;
+    int64_t n_2;
+    rt_unit_signature = 0;
+    w = closure_signature_of(f);
+    if (w == 0) {
+        return g;
+    }
+    for (v = 1; v <= OPT_MAX_VARIANTS; v++) {
+        t = g + (int32_t)(((int64_t)v) << 17);
+        o = unit_of(m, s, t);
+        if (o == NULL) {
+            if (({
+    key = ((((uint64_t)(uint32_t)(((*(uint64_t *)m) >> H_HASH_SHIFT) & H_HASH_MASK)) ^ (((uint64_t)t) >> 16)) << 32) | ((((uint64_t)s) & 0xFFFF) << 16) | (((uint64_t)t) & 0xFFFF) | 9223372036854775808ULL;
+    i = (int32_t)((key ^ (key >> 29)) & 8191);
+    n = 0;
+    while ((rt_failed[i] != 0) && (n < 4096)) {
+        if (rt_failed[i] == key) {
+            r_failed = true;
+            goto exit_failed;
+        }
+        n = n + 1;
+        i = (i + 1) & 8191;
+    }
+    r_failed = false;
+exit_failed:;
+    r_failed; }) || ((rt_variant_count >= OPT_MAX_VARIANT_UNITS) || (rt_unit_count >= 6144))) {
+                return g;
+            }
+            rt_unit_signature = w;
+            return t;
+        } else if (o->signature == w) {
+            if (!((o != NULL) && ((o->flags & JM_FAILED) == 0) && ((!({
+    key_2 = ((((uint64_t)(uint32_t)(((*(uint64_t *)m) >> H_HASH_SHIFT) & H_HASH_MASK)) ^ (((uint64_t)t) >> 16)) << 32) | ((((uint64_t)s) & 0xFFFF) << 16) | (((uint64_t)t) & 0xFFFF) | 9223372036854775808ULL;
+    i_2 = (int32_t)((key_2 ^ (key_2 >> 29)) & 8191);
+    n_2 = 0;
+    while ((rt_failed[i_2] != 0) && (n_2 < 4096)) {
+        if (rt_failed[i_2] == key_2) {
+            r_failed_2 = true;
+            goto exit_failed_2;
+        }
+        n_2 = n_2 + 1;
+        i_2 = (i_2 + 1) & 8191;
+    }
+    r_failed_2 = false;
+exit_failed_2:;
+    r_failed_2; })) && (((o != NULL) && ((o->flags & JM_FAILED) == 0) && ((o->flags & 2) == 0)) || (o->generation < OPT_MAX_GENERATIONS))))) {
+                return g;
+            }
+            rt_unit_signature = w;
+            return t;
+        }
+    }
+    return g;
 }
 
 /* OptRuntime>>youngRoots: */

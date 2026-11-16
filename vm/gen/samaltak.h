@@ -404,7 +404,9 @@ typedef void (*prim_fn)(void);
 #define OPT_MAX_OPERANDS 131072
 #define OPT_MAX_PRIM 1024
 #define OPT_MAX_STATES 16384
-#define OPT_MAX_UNITS 4096
+#define OPT_MAX_UNITS 8192
+#define OPT_MAX_VARIANTS 16
+#define OPT_MAX_VARIANT_UNITS 2048
 #define OPT_MAX_VARS 65536
 #define OPT_MAX_YOUNG 1024
 #define OPT_PCB_MAX 131072
@@ -927,7 +929,7 @@ struct jit_method {
     uint32_t osr_pc;
     uint32_t generation;
     uint32_t stamp;
-    uint32_t pad3;
+    uint32_t signature;
 };
 _Static_assert(sizeof(jit_method) == 232, "the simulator lays out JitMethod as C does");
 
@@ -1365,6 +1367,7 @@ extern oop true_oop;
 extern int32_t ob_dep_count;
 extern oop ob_deps[256];
 extern int32_t ob_entry_block;
+extern bool ob_foreign;
 extern frame *ob_frame;
 extern int32_t ob_osr_pc;
 extern int32_t ob_param_slots;
@@ -1861,6 +1864,7 @@ void prim_string_hash(void);
 void prim_string_index_of(void);
 void prim_string_index_of_substring(void);
 bool build(oop m, int32_t s, int32_t t, int32_t d, bool res);
+bool inlinable_closure(oop c);
 bool opt_codegen_generate(oop m, int a);
 int32_t add_pred(int32_t from, int32_t to);
 int32_t alloc_operands(int32_t n);

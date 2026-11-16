@@ -24,11 +24,18 @@ static int32_t ob_def_vals[131072];
 int32_t ob_dep_count;
 oop ob_deps[256];
 int32_t ob_entry_block;
+bool ob_foreign;
+static int32_t ob_foreign_depth;
+static oop ob_foreign_m[8];
+static int32_t ob_foreign_s[8];
 frame *ob_frame;
 static int32_t ob_inc_count;
 static int32_t ob_inc_phis[16384];
 static int32_t ob_inc_vars[16384];
 static int32_t ob_inlined;
+static int32_t ob_no_foreign_count;
+static oop ob_no_foreign_m[8];
+static int32_t ob_no_foreign_s[8];
 static oop ob_no_inline[8];
 static int32_t ob_no_inline_count;
 int32_t ob_osr_pc;
@@ -63,13 +70,18 @@ static int32_t constant(oop v);
 static int32_t emit(int32_t pc, int32_t a);
 static int32_t escaping_closure(void);
 static void opt_builder_float_arith(int32_t k, int32_t x, int32_t y, int32_t pc, int32_t a, int32_t r);
+static oop foreign_closure_of(int32_t v, int32_t n, int32_t pc, int32_t a);
 static int32_t frame_closure_of(int32_t v, int32_t n, int32_t pc, int32_t a);
 static void goto_(int32_t b);
 static void inline_block(int32_t c, int32_t d, int32_t pc, int32_t a, int32_t r, int32_t argc);
+static void inline_body(int32_t c, int32_t d, oop m, int32_t ana, int32_t o, int32_t h, int32_t rcv, int32_t pc, int32_t a, int32_t r, int32_t argc);
+static bool inline_foreign_closure(int32_t x, int32_t pc, int32_t a, int32_t r, int32_t argc);
 static void inline_frame_closure(int32_t x, int32_t d, int32_t pc, int32_t a, int32_t r, int32_t argc);
 static void inline_method(uint64_t m, oop cls, int32_t pc, int32_t a, int32_t r, int32_t argc);
 static bool inline_primitive(int64_t p, oop cls, int32_t argc, int32_t pc, int32_t a, int32_t r);
 static bool inline_send(uint64_t sel, int32_t argc, int32_t kind, int32_t k, int32_t pc, int32_t a, int32_t r);
+static oop known_object(int32_t v);
+static oop known_outer_temp(int64_t i, int32_t lv, oop c);
 static int32_t new_act_for(oop m);
 static int32_t new_block_act_for(oop m, int32_t s);
 static int32_t opt_builder_read(int32_t var, int32_t b);
@@ -220,7 +232,13 @@ bool build(oop m, int32_t s, int32_t t, int32_t d, bool res)
     uint64_t p;
     int32_t r_method_primitive_2;
     uint64_t p_2;
+    int32_t nf;
     int32_t e;
+    int32_t r_foreign_act_of;
+    int32_t t_2;
+    int32_t r_foreign_act_of_2;
+    int32_t t_3;
+    int32_t f;
     if ((({
     p = *(uint64_t *)(m + 16 + 56);
     r_method_primitive = (p & 1) != 0 ? (int32_t)((((int64_t)p) >> 1) & CM_PRIM_MASK) : 0;
@@ -232,25 +250,60 @@ bool build(oop m, int32_t s, int32_t t, int32_t d, bool res)
     }
     ob_resident = res;
     ob_no_inline_count = 0;
+    ob_no_foreign_count = 0;
     ob_unit_start = s;
     ob_osr_pc = t;
     ob_valid_slots = d;
     for (;;) {
-        if (!build_once(m)) {
+        nf = ob_no_foreign_count;
+        if (build_once(m)) {
+            e = escaping_closure();
+            if (e < 0) {
+                return true;
+            }
+            if (getenv("SAMALTAK_OPT_TRACE") != NULL) {
+                fprintf(stderr, "opt: a closure of act %d escapes\n", e);
+            }
+            if (({
+    t_2 = e;
+    while (t_2 >= 0) {
+        if ((opt_acts + t_2)->outer == -2) {
+            r_foreign_act_of = t_2;
+            goto exit_foreign_act_of;
+        }
+        t_2 = (opt_acts + t_2)->parent;
+    }
+    r_foreign_act_of = -1;
+exit_foreign_act_of:;
+    r_foreign_act_of; }) >= 0) {
+                if (ob_no_foreign_count >= 7) {
+                    return false;
+                }
+                f = ({
+    t_3 = e;
+    while (t_3 >= 0) {
+        if ((opt_acts + t_3)->outer == -2) {
+            r_foreign_act_of_2 = t_3;
+            goto exit_foreign_act_of_2;
+        }
+        t_3 = (opt_acts + t_3)->parent;
+    }
+    r_foreign_act_of_2 = -1;
+exit_foreign_act_of_2:;
+    r_foreign_act_of_2; });
+                ob_no_foreign_m[ob_no_foreign_count] = (opt_acts + f)->method;
+                ob_no_foreign_s[ob_no_foreign_count] = (opt_acts + f)->startpc;
+                ob_no_foreign_count = ob_no_foreign_count + 1;
+            } else {
+                if ((e == 0) || (ob_no_inline_count >= OPT_MAX_NOINLINE)) {
+                    return false;
+                }
+                ob_no_inline[ob_no_inline_count] = (opt_acts + e)->method;
+                ob_no_inline_count = ob_no_inline_count + 1;
+            }
+        } else if (!((ob_no_foreign_count > nf) && (ob_no_foreign_count < 8))) {
             return false;
         }
-        e = escaping_closure();
-        if (e < 0) {
-            return true;
-        }
-        if (getenv("SAMALTAK_OPT_TRACE") != NULL) {
-            fprintf(stderr, "opt: a closure of act %d escapes\n", e);
-        }
-        if ((e == 0) || (ob_no_inline_count >= OPT_MAX_NOINLINE)) {
-            return false;
-        }
-        ob_no_inline[ob_no_inline_count] = (opt_acts + e)->method;
-        ob_no_inline_count = ob_no_inline_count + 1;
     }
     __builtin_unreachable();
 }
@@ -493,6 +546,7 @@ static bool build_once(oop m)
     ob_safe_epoch = 0;
     ob_checked_block = -1;
     ob_spec_count = 0;
+    ob_foreign_depth = 0;
     ob_perform_act = -1;
     a = ob_unit_start > 0 ? new_block_act_for(m, ob_unit_start) : new_act_for(m);
     if (a < 0) {
@@ -1375,24 +1429,29 @@ static int32_t emit(int32_t pc, int32_t a)
     int32_t var_35;
     int32_t d_9;
     int32_t var_36;
+    bool r_is_value_selector_3;
+    int64_t n_98;
+    uint8_t *b_6;
+    int64_t i_25;
+    int32_t var_37;
     int32_t r_add_37;
+    int32_t n_100;
     int32_t n_99;
-    int32_t n_98;
     int32_t args;
-    int32_t i_25;
     int32_t i_26;
     int32_t i_27;
-    int32_t var_37;
+    int32_t i_28;
+    int32_t var_38;
     int32_t v_28;
     oop m_28;
     uint64_t o_34;
     uint8_t op_4;
     int64_t r_length_of_2;
-    int32_t var_38;
+    int32_t var_39;
     int32_t r_add_38;
-    int32_t n_101;
-    int32_t n_100;
     int32_t n_102;
+    int32_t n_101;
+    int32_t n_103;
     oop m_29;
     uint64_t o_35;
     uint8_t op_5;
@@ -1400,36 +1459,36 @@ static int32_t emit(int32_t pc, int32_t a)
     int32_t pc_16;
     oop m_30;
     uint64_t o_36;
-    uint8_t i_28;
-    int32_t var_39;
+    uint8_t i_29;
+    int32_t var_40;
     int32_t x;
     int32_t pc_17;
     oop m_31;
     uint64_t o_37;
-    uint8_t i_29;
-    int32_t var_40;
+    uint8_t i_30;
+    int32_t var_41;
     int32_t y;
     int32_t pc_18;
     oop m_32;
     uint64_t o_38;
-    uint8_t i_30;
+    uint8_t i_31;
     oop m_33;
     uint64_t o_39;
     int32_t pc_19;
     oop m_34;
     uint64_t o_40;
     int8_t v_29;
-    int32_t var_41;
-    int32_t r_add_39;
-    int32_t n_104;
-    int32_t n_103;
-    int32_t n_105;
-    int32_t d_11;
     int32_t var_42;
-    int32_t r_add_40;
-    int32_t n_107;
+    int32_t r_add_39;
+    int32_t n_105;
+    int32_t n_104;
     int32_t n_106;
+    int32_t d_11;
+    int32_t var_43;
+    int32_t r_add_40;
     int32_t n_108;
+    int32_t n_107;
+    int32_t n_109;
     oop m_35;
     uint64_t o_41;
     uint8_t *p_4;
@@ -1437,332 +1496,342 @@ static int32_t emit(int32_t pc, int32_t a)
     uint8_t op_6;
     int32_t k_4;
     int32_t argc_2;
-    int32_t var_43;
-    int32_t x_2;
-    int32_t i_31;
     int32_t var_44;
+    int32_t x_2;
+    int32_t i_32;
+    int32_t var_45;
     int32_t y_2;
     int op_7;
     int32_t r_binary;
     int32_t r_add_41;
-    int32_t n_111;
-    int32_t n_110;
-    int32_t v_30;
-    int32_t var_45;
-    int32_t r_add_42;
-    int32_t n_113;
     int32_t n_112;
-    int32_t n_114;
-    bool r_is_closure_2;
-    int32_t n_115;
-    opt_node *nd_2;
-    int32_t n_109;
-    int32_t r_add_43;
-    int32_t n_116;
+    int32_t n_111;
+    int32_t v_30;
     int32_t var_46;
-    int32_t r_add_44;
-    int32_t n_118;
+    int32_t r_add_42;
+    int32_t n_114;
+    int32_t n_113;
+    int32_t n_115;
+    bool r_is_closure_2;
+    int32_t n_116;
+    opt_node *nd_2;
+    int32_t n_110;
+    int32_t r_add_43;
     int32_t n_117;
+    int32_t var_47;
+    int32_t r_add_44;
     int32_t n_119;
+    int32_t n_118;
+    int32_t n_120;
     oop r_known_class_of;
     opt_node *nd_3;
     uint64_t o_42;
     oop r_class_of;
     oop r_class_of_2;
-    int32_t var_47;
+    int32_t var_48;
     int32_t s_2;
     int32_t r_guard;
     int32_t r_guard_int;
     int32_t r_add_45;
-    int32_t n_122;
-    int32_t n_121;
-    int32_t r_add_46;
     int32_t n_123;
-    int32_t n_120;
+    int32_t n_122;
+    int32_t r_add_46;
+    int32_t n_124;
+    int32_t n_121;
     int32_t v_31;
     int32_t r_add_47;
-    int32_t n_125;
-    int32_t n_124;
     int32_t n_126;
+    int32_t n_125;
+    int32_t n_127;
     oop r_known_class_of_2;
     opt_node *nd_4;
     uint64_t o_43;
     oop r_class_of_3;
     oop r_class_of_4;
-    int32_t var_48;
+    int32_t var_49;
     int32_t s_3;
     int32_t r_guard_2;
     int32_t r_guard_int_2;
     int32_t r_add_48;
-    int32_t n_129;
-    int32_t n_128;
-    int32_t r_add_49;
     int32_t n_130;
-    int32_t n_127;
+    int32_t n_129;
+    int32_t r_add_49;
+    int32_t n_131;
+    int32_t n_128;
     int32_t v_32;
     int32_t r_add_50;
-    int32_t n_132;
-    int32_t n_131;
     int32_t n_133;
+    int32_t n_132;
+    int32_t n_134;
     int op_8;
     int32_t y_3;
     int32_t r_binary_2;
     int32_t r_add_51;
-    int32_t n_135;
-    int32_t n_134;
-    int32_t v_33;
-    int32_t var_49;
-    int32_t r_add_52;
-    int32_t n_137;
     int32_t n_136;
+    int32_t n_135;
+    int32_t v_33;
+    int32_t var_50;
+    int32_t r_add_52;
     int32_t n_138;
-    uint32_t fl;
+    int32_t n_137;
     int32_t n_139;
+    uint32_t fl;
     int32_t n_140;
+    int32_t n_141;
     bool r_saw_only_numbers_at;
     feedback_site *site;
-    int i_32;
+    int i_33;
     oop c_2;
     oop m_36;
     bool r_saw_float_in;
-    int32_t i_33;
+    int32_t i_34;
     bool r_saw_only_ints_at;
     feedback_site *site_2;
-    int i_34;
+    int i_35;
     int32_t s_4;
     int32_t r_guard_int_3;
     int32_t r_add_53;
+    int32_t n_144;
     int32_t n_143;
-    int32_t n_142;
     int32_t gx;
     int32_t r_guard_int_4;
     int32_t r_add_54;
+    int32_t n_146;
     int32_t n_145;
-    int32_t n_144;
     int32_t gy;
     int32_t r_binary_3;
     int32_t r_add_55;
-    int32_t n_147;
-    int32_t n_146;
-    int32_t n_141;
-    int32_t var_50;
-    int32_t r_add_56;
-    int32_t n_149;
     int32_t n_148;
+    int32_t n_147;
+    int32_t n_142;
+    int32_t var_51;
+    int32_t r_add_56;
     int32_t n_150;
+    int32_t n_149;
+    int32_t n_151;
     int v_34;
     int32_t r_binary_4;
     int32_t r_add_57;
-    int32_t n_152;
-    int32_t n_151;
-    int32_t var_51;
-    int32_t r_add_58;
-    int32_t n_154;
     int32_t n_153;
+    int32_t n_152;
+    int32_t var_52;
+    int32_t r_add_58;
     int32_t n_155;
+    int32_t n_154;
+    int32_t n_156;
     oop o_44;
     uint64_t sel_2;
-    bool r_is_value_selector_3;
-    int64_t n_156;
-    uint8_t *b_6;
-    int64_t i_35;
-    int32_t var_52;
-    int32_t v_35;
-    bool r_is_closure_3;
-    int32_t n_157;
-    opt_node *nd_5;
-    int32_t var_53;
-    int32_t var_54;
     bool r_is_value_selector_4;
-    int64_t n_158;
+    int64_t n_157;
     uint8_t *b_7;
     int64_t i_36;
+    int32_t var_53;
+    int32_t v_35;
+    bool r_is_closure_3;
+    int32_t n_158;
+    opt_node *nd_5;
+    int32_t var_54;
     int32_t var_55;
-    int32_t d_12;
+    bool r_is_value_selector_5;
+    int64_t n_159;
+    uint8_t *b_8;
+    int64_t i_37;
     int32_t var_56;
-    int32_t r_add_59;
-    int32_t n_160;
-    int32_t n_159;
-    int32_t args_2;
-    int32_t i_37;
-    int32_t i_38;
-    int32_t i_39;
+    int32_t d_12;
     int32_t var_57;
+    bool r_is_value_selector_6;
+    int64_t n_160;
+    uint8_t *b_9;
+    int64_t i_38;
+    int32_t var_58;
+    int32_t r_add_59;
+    int32_t n_162;
+    int32_t n_161;
+    int32_t args_2;
+    int32_t i_39;
+    int32_t i_40;
+    int32_t i_41;
+    int32_t var_59;
     int32_t v_36;
     oop m_37;
     uint64_t o_45;
     uint8_t op_9;
     int64_t r_length_of_3;
-    int32_t var_58;
+    int32_t var_60;
     int32_t r_add_60;
-    int32_t n_162;
-    int32_t n_161;
+    int32_t n_164;
     int32_t n_163;
+    int32_t n_165;
     int k_5;
     int k_6;
     int32_t r_4;
     int32_t argc_3;
-    int32_t var_59;
+    int32_t var_61;
     int32_t x_3;
-    int32_t i_40;
-    int32_t var_60;
+    int32_t i_42;
+    int32_t var_62;
     int32_t y_4;
     int op_10;
     int32_t r_binary_5;
     int32_t r_add_61;
-    int32_t n_166;
-    int32_t n_165;
-    int32_t v_37;
-    int32_t var_61;
-    int32_t r_add_62;
     int32_t n_168;
     int32_t n_167;
-    int32_t n_169;
-    bool r_is_closure_4;
+    int32_t v_37;
+    int32_t var_63;
+    int32_t r_add_62;
     int32_t n_170;
-    opt_node *nd_6;
-    int32_t n_164;
-    int32_t r_add_63;
+    int32_t n_169;
     int32_t n_171;
-    int32_t var_62;
-    int32_t r_add_64;
-    int32_t n_173;
+    bool r_is_closure_4;
     int32_t n_172;
+    opt_node *nd_6;
+    int32_t n_166;
+    int32_t r_add_63;
+    int32_t n_173;
+    int32_t var_64;
+    int32_t r_add_64;
+    int32_t n_175;
     int32_t n_174;
+    int32_t n_176;
     oop r_known_class_of_3;
     opt_node *nd_7;
     uint64_t o_46;
     oop r_class_of_5;
     oop r_class_of_6;
-    int32_t var_63;
+    int32_t var_65;
     int32_t s_5;
     int32_t r_guard_3;
     int32_t r_guard_int_5;
     int32_t r_add_65;
-    int32_t n_177;
-    int32_t n_176;
-    int32_t r_add_66;
+    int32_t n_179;
     int32_t n_178;
-    int32_t n_175;
+    int32_t r_add_66;
+    int32_t n_180;
+    int32_t n_177;
     int32_t v_38;
     int32_t r_add_67;
-    int32_t n_180;
-    int32_t n_179;
+    int32_t n_182;
     int32_t n_181;
+    int32_t n_183;
     oop r_known_class_of_4;
     opt_node *nd_8;
     uint64_t o_47;
     oop r_class_of_7;
     oop r_class_of_8;
-    int32_t var_64;
+    int32_t var_66;
     int32_t s_6;
     int32_t r_guard_4;
     int32_t r_guard_int_6;
     int32_t r_add_68;
-    int32_t n_184;
-    int32_t n_183;
-    int32_t r_add_69;
+    int32_t n_186;
     int32_t n_185;
-    int32_t n_182;
+    int32_t r_add_69;
+    int32_t n_187;
+    int32_t n_184;
     int32_t v_39;
     int32_t r_add_70;
-    int32_t n_187;
-    int32_t n_186;
+    int32_t n_189;
     int32_t n_188;
+    int32_t n_190;
     int op_11;
     int32_t y_5;
     int32_t r_binary_6;
     int32_t r_add_71;
-    int32_t n_190;
-    int32_t n_189;
-    int32_t v_40;
-    int32_t var_65;
-    int32_t r_add_72;
     int32_t n_192;
     int32_t n_191;
-    int32_t n_193;
-    uint32_t fl_2;
+    int32_t v_40;
+    int32_t var_67;
+    int32_t r_add_72;
     int32_t n_194;
+    int32_t n_193;
     int32_t n_195;
+    uint32_t fl_2;
+    int32_t n_196;
+    int32_t n_197;
     bool r_saw_only_numbers_at_2;
     feedback_site *site_3;
-    int i_41;
+    int i_43;
     oop c_3;
     oop m_38;
     bool r_saw_float_in_2;
-    int32_t i_42;
+    int32_t i_44;
     bool r_saw_only_ints_at_2;
     feedback_site *site_4;
-    int i_43;
+    int i_45;
     int32_t s_7;
     int32_t r_guard_int_7;
     int32_t r_add_73;
-    int32_t n_198;
-    int32_t n_197;
+    int32_t n_200;
+    int32_t n_199;
     int32_t gx_2;
     int32_t r_guard_int_8;
     int32_t r_add_74;
-    int32_t n_200;
-    int32_t n_199;
+    int32_t n_202;
+    int32_t n_201;
     int32_t gy_2;
     int32_t r_binary_7;
     int32_t r_add_75;
-    int32_t n_202;
-    int32_t n_201;
-    int32_t n_196;
-    int32_t var_66;
-    int32_t r_add_76;
     int32_t n_204;
     int32_t n_203;
+    int32_t n_198;
+    int32_t var_68;
+    int32_t r_add_76;
+    int32_t n_206;
     int32_t n_205;
+    int32_t n_207;
     int v_41;
     int32_t r_binary_8;
     int32_t r_add_77;
-    int32_t n_207;
-    int32_t n_206;
-    int32_t var_67;
-    int32_t r_add_78;
     int32_t n_209;
     int32_t n_208;
+    int32_t var_69;
+    int32_t r_add_78;
+    int32_t n_211;
     int32_t n_210;
+    int32_t n_212;
     oop o_48;
     uint64_t sel_3;
-    bool r_is_value_selector_5;
-    int64_t n_211;
-    uint8_t *b_8;
-    int64_t i_44;
-    int32_t var_68;
+    bool r_is_value_selector_7;
+    int64_t n_213;
+    uint8_t *b_10;
+    int64_t i_46;
+    int32_t var_70;
     int32_t v_42;
     bool r_is_closure_5;
-    int32_t n_212;
-    opt_node *nd_9;
-    int32_t var_69;
-    int32_t var_70;
-    bool r_is_value_selector_6;
-    int64_t n_213;
-    uint8_t *b_9;
-    int64_t i_45;
-    int32_t var_71;
-    int32_t d_13;
-    int32_t var_72;
-    int32_t r_add_79;
-    int32_t n_215;
     int32_t n_214;
-    int32_t args_3;
-    int32_t i_46;
-    int32_t i_47;
-    int32_t i_48;
+    opt_node *nd_9;
+    int32_t var_71;
+    int32_t var_72;
+    bool r_is_value_selector_8;
+    int64_t n_215;
+    uint8_t *b_11;
+    int64_t i_47;
     int32_t var_73;
+    int32_t d_13;
+    int32_t var_74;
+    bool r_is_value_selector_9;
+    int64_t n_216;
+    uint8_t *b_12;
+    int64_t i_48;
+    int32_t var_75;
+    int32_t r_add_79;
+    int32_t n_218;
+    int32_t n_217;
+    int32_t args_3;
+    int32_t i_49;
+    int32_t i_50;
+    int32_t i_51;
+    int32_t var_76;
     int32_t v_43;
     oop m_39;
     uint64_t o_49;
     uint8_t op_12;
     int64_t r_length_of_4;
-    int32_t var_74;
+    int32_t var_77;
     int32_t r_add_80;
-    int32_t n_217;
-    int32_t n_216;
-    int32_t n_218;
+    int32_t n_220;
+    int32_t n_219;
+    int32_t n_221;
     int32_t r_closure_at;
     int32_t pc_20;
     oop m_40;
@@ -1777,14 +1846,14 @@ static int32_t emit(int32_t pc, int32_t a)
     uint64_t o_52;
     uint8_t fs;
     int32_t r_add_81;
-    int32_t n_220;
-    int32_t n_219;
-    int32_t v;
-    int32_t var_75;
-    int32_t r_add_82;
-    int32_t n_222;
-    int32_t n_221;
     int32_t n_223;
+    int32_t n_222;
+    int32_t v;
+    int32_t var_78;
+    int32_t r_add_82;
+    int32_t n_225;
+    int32_t n_224;
+    int32_t n_226;
     int32_t pc_23;
     oop m_43;
     uint64_t o_53;
@@ -1802,58 +1871,76 @@ static int32_t emit(int32_t pc, int32_t a)
     int32_t pc_26;
     oop m_47;
     uint64_t o_57;
-    uint8_t i_49;
+    uint8_t i_52;
+    int32_t c_4;
     int op_14;
     int rep;
     int32_t r_add_83;
-    int32_t n_225;
-    int32_t n_224;
-    int32_t var_76;
-    int32_t r_add_84;
-    int32_t n_227;
-    int32_t n_226;
     int32_t n_228;
-    int32_t i_50;
-    int32_t var_77;
-    int32_t pc_27;
-    oop m_48;
-    uint64_t o_58;
-    uint8_t i_51;
-    int32_t var_78;
-    int32_t v_45;
+    int32_t n_227;
     int32_t var_79;
-    int32_t r_add_85;
+    int32_t r_add_84;
     int32_t n_230;
     int32_t n_229;
     int32_t n_231;
-    int32_t i_52;
+    int32_t i_53;
     int32_t var_80;
-    int32_t v_44;
+    int32_t pc_27;
+    oop m_48;
+    uint64_t o_58;
+    uint8_t i_54;
+    int32_t c_5;
+    int op_15;
+    int rep_2;
+    int32_t r_add_85;
+    int32_t n_233;
+    int32_t n_232;
+    int32_t var_81;
+    int32_t r_add_86;
+    int32_t n_235;
+    int32_t n_234;
+    int32_t n_236;
+    int32_t i_55;
+    int32_t var_82;
     int32_t pc_28;
     oop m_49;
     uint64_t o_59;
-    uint8_t i_53;
-    int32_t var_81;
-    int32_t r_add_86;
-    int32_t n_233;
-    int32_t n_232;
-    int32_t n_234;
-    int32_t i_54;
-    int32_t var_82;
+    uint8_t i_56;
+    int32_t var_83;
+    int32_t v_45;
+    int32_t var_84;
+    int32_t r_add_87;
+    int32_t n_238;
+    int32_t n_237;
+    int32_t n_239;
+    int32_t i_57;
+    int32_t var_85;
+    int32_t v_44;
+    int32_t pc_29;
+    oop m_50;
+    uint64_t o_60;
+    uint8_t i_58;
+    int32_t var_86;
+    int32_t r_add_88;
+    int32_t n_241;
+    int32_t n_240;
+    int32_t n_242;
+    int32_t i_59;
+    int32_t var_87;
     int32_t v_46;
     int32_t h;
     int32_t s_8;
-    int32_t r_add_87;
-    int32_t n_237;
-    int32_t n_236;
-    int32_t var_83;
-    int32_t r_add_88;
-    int32_t n_239;
-    int32_t n_238;
-    int32_t n_240;
     int32_t r_add_89;
-    int32_t n_241;
-    int32_t n_235;
+    int32_t n_245;
+    int32_t n_244;
+    int32_t var_88;
+    int32_t r_add_90;
+    int32_t n_247;
+    int32_t n_246;
+    int32_t n_248;
+    int32_t r_add_91;
+    int32_t n_249;
+    int32_t n_243;
     opt_cur_act = a;
     opt_cur_pc = pc;
     m = (opt_acts + a)->method;
@@ -2765,6 +2852,38 @@ exit_is_value_selector_2:;
             inline_frame_closure(opt_builder_read(var_36, ob_cur_block), d_9, pc, a, r_3, argc);
             goto exit_send_selector;
         }
+        if (({
+    if (!(((sel & 7) == 0) && ((int32_t)(((*(uint64_t *)sel) >> H_FMT_SHIFT) & H_FMT_MASK) >= F_BYTES))) {
+        r_is_value_selector_3 = false;
+        goto exit_is_value_selector_3;
+    }
+    n_98 = (int64_t)byte_size(sel);
+    b_6 = (uint8_t *)(sel + 16);
+    if (!((n_98 >= 5) && ((b_6[0] == 118) && ((b_6[1] == 97) && ((b_6[2] == 108) && ((b_6[3] == 117) && (b_6[4] == 101))))))) {
+        r_is_value_selector_3 = false;
+        goto exit_is_value_selector_3;
+    }
+    if (n_98 == 5) {
+        r_is_value_selector_3 = true;
+        goto exit_is_value_selector_3;
+    }
+    if (!(n_98 % 6 == 0)) {
+        r_is_value_selector_3 = false;
+        goto exit_is_value_selector_3;
+    }
+    for (i_25 = 0; i_25 <= n_98 / 6 - 1; i_25++) {
+        if (!((b_6[6 * i_25] == 118) && (b_6[6 * i_25 + 5] == 58))) {
+            r_is_value_selector_3 = false;
+            goto exit_is_value_selector_3;
+        }
+    }
+    r_is_value_selector_3 = true;
+exit_is_value_selector_3:;
+    r_is_value_selector_3; }) && ({
+    var_37 = (opt_acts + a)->var_base + r_3;
+    inline_foreign_closure(opt_builder_read(var_37, ob_cur_block), pc, a, r_3, argc); })) {
+            goto exit_send_selector;
+        }
         if (((jit_flags & JIT_FLAG_INLINE) != 0) && inline_send(sel, argc, kind, 0, pc, a, r_3)) {
             goto exit_send_selector;
         }
@@ -2773,31 +2892,31 @@ exit_is_value_selector_2:;
             print_symbol(sel, stderr);
             fputc(10, stderr);
         }
-        n_98 = ({
-    n_99 = new_node(O_SEND, R_OOP);
-    append(n_99, ob_cur_block);
-    r_add_37 = n_99;
+        n_99 = ({
+    n_100 = new_node(O_SEND, R_OOP);
+    append(n_100, ob_cur_block);
+    r_add_37 = n_100;
     r_add_37; });
         ob_safe_epoch = ob_safe_epoch + 1;
         args = alloc_operands(argc + 1);
-        for (i_25 = 0; i_25 <= argc; i_25++) {
-            i_26 = args + i_25;
-            i_27 = r_3 + i_25;
-            var_37 = (opt_acts + a)->var_base + i_27;
-            v_28 = opt_builder_read(var_37, ob_cur_block);
-            opt_operands[i_26] = v_28;
+        for (i_26 = 0; i_26 <= argc; i_26++) {
+            i_27 = args + i_26;
+            i_28 = r_3 + i_26;
+            var_38 = (opt_acts + a)->var_base + i_28;
+            v_28 = opt_builder_read(var_38, ob_cur_block);
+            opt_operands[i_27] = v_28;
         }
-        (opt_nodes + n_98)->args = args;
-        (opt_nodes + n_98)->nargs = (uint16_t)(argc + 1);
-        (opt_nodes + n_98)->aux = (int64_t)sel;
-        (opt_nodes + n_98)->aux2 = ((int64_t)argc) | (((int64_t)kind) << 8) | 0LL | (((int64_t)pc) << 32);
+        (opt_nodes + n_99)->args = args;
+        (opt_nodes + n_99)->nargs = (uint16_t)(argc + 1);
+        (opt_nodes + n_99)->aux = (int64_t)sel;
+        (opt_nodes + n_99)->aux2 = ((int64_t)argc) | (((int64_t)kind) << 8) | 0LL | (((int64_t)pc) << 32);
         if ((a == ob_perform_act) && (pc == ob_perform_pc)) {
-            (opt_nodes + n_98)->aux2 = (opt_nodes + n_98)->aux2 | SI_PERFORMED;
+            (opt_nodes + n_99)->aux2 = (opt_nodes + n_99)->aux2 | SI_PERFORMED;
         }
         m_28 = (opt_acts + a)->method;
         o_34 = *(uint64_t *)(m_28 + 16 + 24);
         op_4 = ((uint8_t *)(o_34 + 16))[pc];
-        (opt_nodes + n_98)->state = state_act(a, (int32_t)(pc + ({
+        (opt_nodes + n_99)->state = state_act(a, (int32_t)(pc + ({
     if (op_4 < 0x68) {
         r_length_of_2 = 1;
         goto exit_length_of_2;
@@ -2857,19 +2976,19 @@ exit_is_value_selector_2:;
     r_length_of_2 = 0;
 exit_length_of_2:;
     r_length_of_2; })), r_3);
-        var_38 = (opt_acts + a)->var_base + r_3;
-        if ((var_38 < OPT_MAX_VARS) && (ob_arg_flags[var_38] == 2)) {
-            n_100 = ({
-    n_101 = new_node(O_STORESLOT, R_NONE);
-    append(n_101, ob_cur_block);
-    r_add_38 = n_101;
+        var_39 = (opt_acts + a)->var_base + r_3;
+        if ((var_39 < OPT_MAX_VARS) && (ob_arg_flags[var_39] == 2)) {
+            n_101 = ({
+    n_102 = new_node(O_STORESLOT, R_NONE);
+    append(n_102, ob_cur_block);
+    r_add_38 = n_102;
     r_add_38; });
-            (opt_nodes + n_100)->a = n_98;
-            n_102 = ob_arg_vals[var_38];
-            (opt_nodes + n_100)->aux = (opt_nodes + n_102)->aux;
+            (opt_nodes + n_101)->a = n_99;
+            n_103 = ob_arg_vals[var_39];
+            (opt_nodes + n_101)->aux = (opt_nodes + n_103)->aux;
             goto exit_write_22;
         }
-        opt_builder_write(var_38, n_98, ob_cur_block);
+        opt_builder_write(var_39, n_99, ob_cur_block);
     exit_write_22:;
     exit_send_selector:;
         return next;
@@ -2882,24 +3001,24 @@ exit_length_of_2:;
         pc_16 = pc + 1;
         m_30 = (opt_acts + a)->method;
         o_36 = *(uint64_t *)(m_30 + 16 + 24);
-        i_28 = ((uint8_t *)(o_36 + 16))[pc_16];
-        var_39 = (opt_acts + a)->var_base + i_28;
-        x = opt_builder_read(var_39, ob_cur_block);
+        i_29 = ((uint8_t *)(o_36 + 16))[pc_16];
+        var_40 = (opt_acts + a)->var_base + i_29;
+        x = opt_builder_read(var_40, ob_cur_block);
         if ((op_5 == 0x97) || ((op_5 >= 0x9A) && (op_5 < 0xA0))) {
             pc_17 = pc + 2;
             m_31 = (opt_acts + a)->method;
             o_37 = *(uint64_t *)(m_31 + 16 + 24);
-            i_29 = ((uint8_t *)(o_37 + 16))[pc_17];
-            var_40 = (opt_acts + a)->var_base + i_29;
-            y = opt_builder_read(var_40, ob_cur_block);
+            i_30 = ((uint8_t *)(o_37 + 16))[pc_17];
+            var_41 = (opt_acts + a)->var_base + i_30;
+            y = opt_builder_read(var_41, ob_cur_block);
         } else if ((op_5 == 0x98) || ((op_5 >= 0xF0) && (op_5 < 0xF6))) {
             pc_18 = pc + 2;
             m_32 = (opt_acts + a)->method;
             o_38 = *(uint64_t *)(m_32 + 16 + 24);
-            i_30 = ((uint8_t *)(o_38 + 16))[pc_18];
+            i_31 = ((uint8_t *)(o_38 + 16))[pc_18];
             m_33 = (opt_acts + a)->method;
             o_39 = *(uint64_t *)(m_33 + 16 + 16);
-            y = constant(*(uint64_t *)(o_39 + 16 + 8 * i_30));
+            y = constant(*(uint64_t *)(o_39 + 16 + 8 * i_31));
         } else {
             pc_19 = pc + 2;
             m_34 = (opt_acts + a)->method;
@@ -2907,34 +3026,34 @@ exit_length_of_2:;
             v_29 = (int8_t)((uint8_t *)(o_40 + 16))[pc_19];
             y = constant((uint64_t)((((int64_t)v_29) << 1) | 1));
         }
-        var_41 = (opt_acts + a)->var_base + d_10;
-        if ((var_41 < OPT_MAX_VARS) && (ob_arg_flags[var_41] == 2)) {
-            n_103 = ({
-    n_104 = new_node(O_STORESLOT, R_NONE);
-    append(n_104, ob_cur_block);
-    r_add_39 = n_104;
+        var_42 = (opt_acts + a)->var_base + d_10;
+        if ((var_42 < OPT_MAX_VARS) && (ob_arg_flags[var_42] == 2)) {
+            n_104 = ({
+    n_105 = new_node(O_STORESLOT, R_NONE);
+    append(n_105, ob_cur_block);
+    r_add_39 = n_105;
     r_add_39; });
-            (opt_nodes + n_103)->a = x;
-            n_105 = ob_arg_vals[var_41];
-            (opt_nodes + n_103)->aux = (opt_nodes + n_105)->aux;
+            (opt_nodes + n_104)->a = x;
+            n_106 = ob_arg_vals[var_42];
+            (opt_nodes + n_104)->aux = (opt_nodes + n_106)->aux;
             goto exit_write_23;
         }
-        opt_builder_write(var_41, x, ob_cur_block);
+        opt_builder_write(var_42, x, ob_cur_block);
     exit_write_23:;
         d_11 = d_10 + 1;
-        var_42 = (opt_acts + a)->var_base + d_11;
-        if ((var_42 < OPT_MAX_VARS) && (ob_arg_flags[var_42] == 2)) {
-            n_106 = ({
-    n_107 = new_node(O_STORESLOT, R_NONE);
-    append(n_107, ob_cur_block);
-    r_add_40 = n_107;
+        var_43 = (opt_acts + a)->var_base + d_11;
+        if ((var_43 < OPT_MAX_VARS) && (ob_arg_flags[var_43] == 2)) {
+            n_107 = ({
+    n_108 = new_node(O_STORESLOT, R_NONE);
+    append(n_108, ob_cur_block);
+    r_add_40 = n_108;
     r_add_40; });
-            (opt_nodes + n_106)->a = y;
-            n_108 = ob_arg_vals[var_42];
-            (opt_nodes + n_106)->aux = (opt_nodes + n_108)->aux;
+            (opt_nodes + n_107)->a = y;
+            n_109 = ob_arg_vals[var_43];
+            (opt_nodes + n_107)->aux = (opt_nodes + n_109)->aux;
             goto exit_write_24;
         }
-        opt_builder_write(var_42, y, ob_cur_block);
+        opt_builder_write(var_43, y, ob_cur_block);
     exit_write_24:;
         m_35 = (opt_acts + a)->method;
         o_41 = *(uint64_t *)(m_35 + 16 + 24);
@@ -2961,73 +3080,76 @@ exit_length_of_2:;
 exit_special_index_of:;
     r_special_index_of; });
         argc_2 = (k_4 == 19) || (k_4 == 20) ? 1 : special_argc[k_4];
-        var_43 = (opt_acts + a)->var_base + d_10;
-        x_2 = opt_builder_read(var_43, ob_cur_block);
+        var_44 = (opt_acts + a)->var_base + d_10;
+        x_2 = opt_builder_read(var_44, ob_cur_block);
         if (argc_2 > 0) {
-            i_31 = d_10 + 1;
-            var_44 = (opt_acts + a)->var_base + i_31;
-            y_2 = opt_builder_read(var_44, ob_cur_block);
+            i_32 = d_10 + 1;
+            var_45 = (opt_acts + a)->var_base + i_32;
+            y_2 = opt_builder_read(var_45, ob_cur_block);
         }
         if ((k_4 == 19) || (k_4 == 20)) {
             op_7 = k_4 == 19 ? O_EQ : O_NE;
             v_30 = ({
-    n_110 = ({
-    n_111 = new_node(op_7, R_OOP);
-    append(n_111, ob_cur_block);
-    r_add_41 = n_111;
+    n_111 = ({
+    n_112 = new_node(op_7, R_OOP);
+    append(n_112, ob_cur_block);
+    r_add_41 = n_112;
     r_add_41; });
-    (opt_nodes + n_110)->a = x_2;
-    (opt_nodes + n_110)->b = y_2;
-    r_binary = n_110;
+    (opt_nodes + n_111)->a = x_2;
+    (opt_nodes + n_111)->b = y_2;
+    r_binary = n_111;
     r_binary; });
-            var_45 = (opt_acts + a)->var_base + d_10;
-            if ((var_45 < OPT_MAX_VARS) && (ob_arg_flags[var_45] == 2)) {
-                n_112 = ({
-    n_113 = new_node(O_STORESLOT, R_NONE);
-    append(n_113, ob_cur_block);
-    r_add_42 = n_113;
+            var_46 = (opt_acts + a)->var_base + d_10;
+            if ((var_46 < OPT_MAX_VARS) && (ob_arg_flags[var_46] == 2)) {
+                n_113 = ({
+    n_114 = new_node(O_STORESLOT, R_NONE);
+    append(n_114, ob_cur_block);
+    r_add_42 = n_114;
     r_add_42; });
-                (opt_nodes + n_112)->a = v_30;
-                n_114 = ob_arg_vals[var_45];
-                (opt_nodes + n_112)->aux = (opt_nodes + n_114)->aux;
+                (opt_nodes + n_113)->a = v_30;
+                n_115 = ob_arg_vals[var_46];
+                (opt_nodes + n_113)->aux = (opt_nodes + n_115)->aux;
                 goto exit_write_25;
             }
-            opt_builder_write(var_45, v_30, ob_cur_block);
+            opt_builder_write(var_46, v_30, ob_cur_block);
         exit_write_25:;
             goto exit_special;
         }
         if (((k_4 == 21) || ((k_4 == 22) || (k_4 == 30))) && (((jit_flags & JIT_FLAG_BLOCKS) != 0) && ({
-    n_115 = opt_ir_resolve(x_2);
-    nd_2 = opt_nodes + n_115;
+    n_116 = opt_ir_resolve(x_2);
+    nd_2 = opt_nodes + n_116;
     r_is_closure_2 = ((int32_t)nd_2->op == O_CLOSURE) && ((nd_2->aux2 & 255) == argc_2);
     r_is_closure_2; }))) {
             inline_block(opt_ir_resolve(x_2), opt_ir_resolve(x_2), pc, a, d_10, argc_2);
             goto exit_special;
         }
-        if (((k_4 == 21) || ((k_4 == 22) || (k_4 == 30))) && ((n_109 = frame_closure_of(x_2, argc_2, pc, a)) >= 0)) {
-            inline_frame_closure(x_2, n_109, pc, a, d_10, argc_2);
+        if (((k_4 == 21) || ((k_4 == 22) || (k_4 == 30))) && ((n_110 = frame_closure_of(x_2, argc_2, pc, a)) >= 0)) {
+            inline_frame_closure(x_2, n_110, pc, a, d_10, argc_2);
+            goto exit_special;
+        }
+        if (((k_4 == 21) || ((k_4 == 22) || (k_4 == 30))) && inline_foreign_closure(x_2, pc, a, d_10, argc_2)) {
             goto exit_special;
         }
         if (k_4 == 29) {
-            n_109 = ({
-    n_116 = new_node(O_CLASSOF, R_OOP);
-    append(n_116, ob_cur_block);
-    r_add_43 = n_116;
+            n_110 = ({
+    n_117 = new_node(O_CLASSOF, R_OOP);
+    append(n_117, ob_cur_block);
+    r_add_43 = n_117;
     r_add_43; });
-            (opt_nodes + n_109)->a = x_2;
-            var_46 = (opt_acts + a)->var_base + d_10;
-            if ((var_46 < OPT_MAX_VARS) && (ob_arg_flags[var_46] == 2)) {
-                n_117 = ({
-    n_118 = new_node(O_STORESLOT, R_NONE);
-    append(n_118, ob_cur_block);
-    r_add_44 = n_118;
+            (opt_nodes + n_110)->a = x_2;
+            var_47 = (opt_acts + a)->var_base + d_10;
+            if ((var_47 < OPT_MAX_VARS) && (ob_arg_flags[var_47] == 2)) {
+                n_118 = ({
+    n_119 = new_node(O_STORESLOT, R_NONE);
+    append(n_119, ob_cur_block);
+    r_add_44 = n_119;
     r_add_44; });
-                (opt_nodes + n_117)->a = n_109;
-                n_119 = ob_arg_vals[var_46];
-                (opt_nodes + n_117)->aux = (opt_nodes + n_119)->aux;
+                (opt_nodes + n_118)->a = n_110;
+                n_120 = ob_arg_vals[var_47];
+                (opt_nodes + n_118)->aux = (opt_nodes + n_120)->aux;
                 goto exit_write_26;
             }
-            opt_builder_write(var_46, n_109, ob_cur_block);
+            opt_builder_write(var_47, n_110, ob_cur_block);
         exit_write_26:;
             goto exit_special;
         }
@@ -3095,7 +3217,7 @@ exit_class_of_2:;
     r_known_class_of = 0;
 exit_known_class_of:;
     r_known_class_of; }) == 0) && (((jit_flags & JIT_FLAG_PRIMS) != 0) && (site_at((opt_acts + a)->method, pc) == NULL))))) {
-            var_47 = (opt_acts + a)->var_base + d_10;
+            var_48 = (opt_acts + a)->var_base + d_10;
             s_2 = state_act(a, pc, (int32_t)ob_ana_depth[(opt_acts + a)->ana + pc]);
             v_31 = ({
     if (cls_array == cls_smallint) {
@@ -3104,55 +3226,55 @@ exit_known_class_of:;
         r_guard_int = x_2;
         goto exit_guard_int;
     }
-    n_121 = ({
-    n_122 = new_node(O_GUARDINT, R_OOP);
-    append(n_122, ob_cur_block);
-    r_add_45 = n_122;
+    n_122 = ({
+    n_123 = new_node(O_GUARDINT, R_OOP);
+    append(n_123, ob_cur_block);
+    r_add_45 = n_123;
     r_add_45; });
-    (opt_nodes + n_121)->a = x_2;
-    (opt_nodes + n_121)->state = s_2;
-    (opt_nodes + n_121)->tkind = T_SMI;
-    (opt_nodes + n_121)->flags = NF_GUARD;
-    r_guard_int = n_121;
+    (opt_nodes + n_122)->a = x_2;
+    (opt_nodes + n_122)->state = s_2;
+    (opt_nodes + n_122)->tkind = T_SMI;
+    (opt_nodes + n_122)->flags = NF_GUARD;
+    r_guard_int = n_122;
 exit_guard_int:;
     r_guard_int; });
         goto exit_guard;
     }
-    n_120 = ({
-    n_123 = new_node(O_GUARDCLASS, R_OOP);
-    append(n_123, ob_cur_block);
-    r_add_46 = n_123;
+    n_121 = ({
+    n_124 = new_node(O_GUARDCLASS, R_OOP);
+    append(n_124, ob_cur_block);
+    r_add_46 = n_124;
     r_add_46; });
-    (opt_nodes + n_120)->a = x_2;
-    (opt_nodes + n_120)->aux = (int64_t)cls_array;
-    (opt_nodes + n_120)->state = s_2;
-    (opt_nodes + n_120)->flags = NF_GUARD;
+    (opt_nodes + n_121)->a = x_2;
+    (opt_nodes + n_121)->aux = (int64_t)cls_array;
+    (opt_nodes + n_121)->state = s_2;
+    (opt_nodes + n_121)->flags = NF_GUARD;
     if (cls_array == cls_smallfloat) {
-        (opt_nodes + n_120)->tkind = T_FLOAT;
+        (opt_nodes + n_121)->tkind = T_FLOAT;
         goto exit_type;
     }
     if (cls_array == cls_smallint) {
-        (opt_nodes + n_120)->tkind = T_SMI;
+        (opt_nodes + n_121)->tkind = T_SMI;
     } else {
-        (opt_nodes + n_120)->tkind = T_OBJ;
-        (opt_nodes + n_120)->tcls = cls_array;
+        (opt_nodes + n_121)->tkind = T_OBJ;
+        (opt_nodes + n_121)->tcls = cls_array;
     }
 exit_type:;
-    r_guard = n_120;
+    r_guard = n_121;
 exit_guard:;
     r_guard; });
-            if ((var_47 < OPT_MAX_VARS) && (ob_arg_flags[var_47] == 2)) {
-                n_124 = ({
-    n_125 = new_node(O_STORESLOT, R_NONE);
-    append(n_125, ob_cur_block);
-    r_add_47 = n_125;
+            if ((var_48 < OPT_MAX_VARS) && (ob_arg_flags[var_48] == 2)) {
+                n_125 = ({
+    n_126 = new_node(O_STORESLOT, R_NONE);
+    append(n_126, ob_cur_block);
+    r_add_47 = n_126;
     r_add_47; });
-                (opt_nodes + n_124)->a = v_31;
-                n_126 = ob_arg_vals[var_47];
-                (opt_nodes + n_124)->aux = (opt_nodes + n_126)->aux;
+                (opt_nodes + n_125)->a = v_31;
+                n_127 = ob_arg_vals[var_48];
+                (opt_nodes + n_125)->aux = (opt_nodes + n_127)->aux;
                 goto exit_write_27;
             }
-            opt_builder_write(var_47, v_31, ob_cur_block);
+            opt_builder_write(var_48, v_31, ob_cur_block);
         exit_write_27:;
         }
         if (((k_4 == 21) || ((k_4 == 22) || (k_4 == 30))) && ((({
@@ -3219,7 +3341,7 @@ exit_class_of_4:;
     r_known_class_of_2 = 0;
 exit_known_class_of_2:;
     r_known_class_of_2; }) == 0) && (((jit_flags & JIT_FLAG_CALLS) != 0) && (site_at((opt_acts + a)->method, pc) == NULL)))) {
-            var_48 = (opt_acts + a)->var_base + d_10;
+            var_49 = (opt_acts + a)->var_base + d_10;
             s_3 = state_act(a, pc, (int32_t)ob_ana_depth[(opt_acts + a)->ana + pc]);
             v_32 = ({
     if (cls_block == cls_smallint) {
@@ -3228,100 +3350,100 @@ exit_known_class_of_2:;
         r_guard_int_2 = x_2;
         goto exit_guard_int_2;
     }
-    n_128 = ({
-    n_129 = new_node(O_GUARDINT, R_OOP);
-    append(n_129, ob_cur_block);
-    r_add_48 = n_129;
+    n_129 = ({
+    n_130 = new_node(O_GUARDINT, R_OOP);
+    append(n_130, ob_cur_block);
+    r_add_48 = n_130;
     r_add_48; });
-    (opt_nodes + n_128)->a = x_2;
-    (opt_nodes + n_128)->state = s_3;
-    (opt_nodes + n_128)->tkind = T_SMI;
-    (opt_nodes + n_128)->flags = NF_GUARD;
-    r_guard_int_2 = n_128;
+    (opt_nodes + n_129)->a = x_2;
+    (opt_nodes + n_129)->state = s_3;
+    (opt_nodes + n_129)->tkind = T_SMI;
+    (opt_nodes + n_129)->flags = NF_GUARD;
+    r_guard_int_2 = n_129;
 exit_guard_int_2:;
     r_guard_int_2; });
         goto exit_guard_2;
     }
-    n_127 = ({
-    n_130 = new_node(O_GUARDCLASS, R_OOP);
-    append(n_130, ob_cur_block);
-    r_add_49 = n_130;
+    n_128 = ({
+    n_131 = new_node(O_GUARDCLASS, R_OOP);
+    append(n_131, ob_cur_block);
+    r_add_49 = n_131;
     r_add_49; });
-    (opt_nodes + n_127)->a = x_2;
-    (opt_nodes + n_127)->aux = (int64_t)cls_block;
-    (opt_nodes + n_127)->state = s_3;
-    (opt_nodes + n_127)->flags = NF_GUARD;
+    (opt_nodes + n_128)->a = x_2;
+    (opt_nodes + n_128)->aux = (int64_t)cls_block;
+    (opt_nodes + n_128)->state = s_3;
+    (opt_nodes + n_128)->flags = NF_GUARD;
     if (cls_block == cls_smallfloat) {
-        (opt_nodes + n_127)->tkind = T_FLOAT;
+        (opt_nodes + n_128)->tkind = T_FLOAT;
         goto exit_type_2;
     }
     if (cls_block == cls_smallint) {
-        (opt_nodes + n_127)->tkind = T_SMI;
+        (opt_nodes + n_128)->tkind = T_SMI;
     } else {
-        (opt_nodes + n_127)->tkind = T_OBJ;
-        (opt_nodes + n_127)->tcls = cls_block;
+        (opt_nodes + n_128)->tkind = T_OBJ;
+        (opt_nodes + n_128)->tcls = cls_block;
     }
 exit_type_2:;
-    r_guard_2 = n_127;
+    r_guard_2 = n_128;
 exit_guard_2:;
     r_guard_2; });
-            if ((var_48 < OPT_MAX_VARS) && (ob_arg_flags[var_48] == 2)) {
-                n_131 = ({
-    n_132 = new_node(O_STORESLOT, R_NONE);
-    append(n_132, ob_cur_block);
-    r_add_50 = n_132;
+            if ((var_49 < OPT_MAX_VARS) && (ob_arg_flags[var_49] == 2)) {
+                n_132 = ({
+    n_133 = new_node(O_STORESLOT, R_NONE);
+    append(n_133, ob_cur_block);
+    r_add_50 = n_133;
     r_add_50; });
-                (opt_nodes + n_131)->a = v_32;
-                n_133 = ob_arg_vals[var_48];
-                (opt_nodes + n_131)->aux = (opt_nodes + n_133)->aux;
+                (opt_nodes + n_132)->a = v_32;
+                n_134 = ob_arg_vals[var_49];
+                (opt_nodes + n_132)->aux = (opt_nodes + n_134)->aux;
                 goto exit_write_28;
             }
-            opt_builder_write(var_48, v_32, ob_cur_block);
+            opt_builder_write(var_49, v_32, ob_cur_block);
         exit_write_28:;
         }
         if (((k_4 == 23) || (k_4 == 24)) && (((jit_flags & JIT_FLAG_PRIMS) != 0) && nil_tests_inlinable())) {
             op_8 = k_4 == 23 ? O_EQ : O_NE;
             y_3 = constant(nil_oop);
             v_33 = ({
-    n_134 = ({
-    n_135 = new_node(op_8, R_OOP);
-    append(n_135, ob_cur_block);
-    r_add_51 = n_135;
+    n_135 = ({
+    n_136 = new_node(op_8, R_OOP);
+    append(n_136, ob_cur_block);
+    r_add_51 = n_136;
     r_add_51; });
-    (opt_nodes + n_134)->a = x_2;
-    (opt_nodes + n_134)->b = y_3;
-    r_binary_2 = n_134;
+    (opt_nodes + n_135)->a = x_2;
+    (opt_nodes + n_135)->b = y_3;
+    r_binary_2 = n_135;
     r_binary_2; });
-            var_49 = (opt_acts + a)->var_base + d_10;
-            if ((var_49 < OPT_MAX_VARS) && (ob_arg_flags[var_49] == 2)) {
-                n_136 = ({
-    n_137 = new_node(O_STORESLOT, R_NONE);
-    append(n_137, ob_cur_block);
-    r_add_52 = n_137;
+            var_50 = (opt_acts + a)->var_base + d_10;
+            if ((var_50 < OPT_MAX_VARS) && (ob_arg_flags[var_50] == 2)) {
+                n_137 = ({
+    n_138 = new_node(O_STORESLOT, R_NONE);
+    append(n_138, ob_cur_block);
+    r_add_52 = n_138;
     r_add_52; });
-                (opt_nodes + n_136)->a = v_33;
-                n_138 = ob_arg_vals[var_49];
-                (opt_nodes + n_136)->aux = (opt_nodes + n_138)->aux;
+                (opt_nodes + n_137)->a = v_33;
+                n_139 = ob_arg_vals[var_50];
+                (opt_nodes + n_137)->aux = (opt_nodes + n_139)->aux;
                 goto exit_write_29;
             }
-            opt_builder_write(var_49, v_33, ob_cur_block);
+            opt_builder_write(var_50, v_33, ob_cur_block);
         exit_write_29:;
             goto exit_special;
         }
         if ((k_4 <= 10) || ((k_4 == 12) || ((k_4 == 13) || ((k_4 == 14) || (k_4 == 15))))) {
             fl = flags_at((opt_acts + a)->method, pc);
             if ((k_4 <= 9) && (((jit_flags & JIT_FLAG_UNBOX) != 0) && (((fl & 132) == 0) && ({
-    n_139 = opt_ir_resolve(x_2);
-    ((int32_t)(opt_nodes + n_139)->tkind == T_FLOAT) || ({
-    n_140 = opt_ir_resolve(y_2);
-    ((int32_t)(opt_nodes + n_140)->tkind == T_FLOAT) || (({
+    n_140 = opt_ir_resolve(x_2);
+    ((int32_t)(opt_nodes + n_140)->tkind == T_FLOAT) || ({
+    n_141 = opt_ir_resolve(y_2);
+    ((int32_t)(opt_nodes + n_141)->tkind == T_FLOAT) || (({
     site = site_at((opt_acts + a)->method, pc);
     if (site == NULL) {
         r_saw_only_numbers_at = true;
         goto exit_saw_only_numbers_at;
     }
-    for (i_32 = 0; i_32 <= 3; i_32++) {
-        c_2 = site->classes[i_32];
+    for (i_33 = 0; i_33 <= 3; i_33++) {
+        c_2 = site->classes[i_33];
         if ((c_2 != 0) && ((c_2 != cls_smallint) && ((c_2 != cls_smallfloat) && (c_2 != cls_boxedfloat)))) {
             r_saw_only_numbers_at = false;
             goto exit_saw_only_numbers_at;
@@ -3332,9 +3454,9 @@ exit_saw_only_numbers_at:;
     r_saw_only_numbers_at; }) && (((fl & FB_FLOAT) != 0) || ({
     m_36 = (opt_acts + a)->method;
     ({
-    for (i_33 = 0; i_33 <= ob_ana_count - 1; i_33++) {
-        if (ob_ana_methods[i_33] == m_36) {
-            r_saw_float_in = ob_ana_float[i_33];
+    for (i_34 = 0; i_34 <= ob_ana_count - 1; i_34++) {
+        if (ob_ana_methods[i_34] == m_36) {
+            r_saw_float_in = ob_ana_float[i_34];
             goto exit_saw_float_in;
         }
     }
@@ -3350,8 +3472,8 @@ exit_saw_float_in:;
         r_saw_only_ints_at = true;
         goto exit_saw_only_ints_at;
     }
-    for (i_34 = 0; i_34 <= 3; i_34++) {
-        if ((site_2->classes[i_34] != 0) && (site_2->classes[i_34] != cls_smallint)) {
+    for (i_35 = 0; i_35 <= 3; i_35++) {
+        if ((site_2->classes[i_35] != 0) && (site_2->classes[i_35] != cls_smallint)) {
             r_saw_only_ints_at = false;
             goto exit_saw_only_ints_at;
         }
@@ -3365,16 +3487,16 @@ exit_saw_only_ints_at:;
         r_guard_int_3 = x_2;
         goto exit_guard_int_3;
     }
-    n_142 = ({
-    n_143 = new_node(O_GUARDINT, R_OOP);
-    append(n_143, ob_cur_block);
-    r_add_53 = n_143;
+    n_143 = ({
+    n_144 = new_node(O_GUARDINT, R_OOP);
+    append(n_144, ob_cur_block);
+    r_add_53 = n_144;
     r_add_53; });
-    (opt_nodes + n_142)->a = x_2;
-    (opt_nodes + n_142)->state = s_4;
-    (opt_nodes + n_142)->tkind = T_SMI;
-    (opt_nodes + n_142)->flags = NF_GUARD;
-    r_guard_int_3 = n_142;
+    (opt_nodes + n_143)->a = x_2;
+    (opt_nodes + n_143)->state = s_4;
+    (opt_nodes + n_143)->tkind = T_SMI;
+    (opt_nodes + n_143)->flags = NF_GUARD;
+    r_guard_int_3 = n_143;
 exit_guard_int_3:;
     r_guard_int_3; });
                 gy = ({
@@ -3382,44 +3504,44 @@ exit_guard_int_3:;
         r_guard_int_4 = y_2;
         goto exit_guard_int_4;
     }
-    n_144 = ({
-    n_145 = new_node(O_GUARDINT, R_OOP);
-    append(n_145, ob_cur_block);
-    r_add_54 = n_145;
+    n_145 = ({
+    n_146 = new_node(O_GUARDINT, R_OOP);
+    append(n_146, ob_cur_block);
+    r_add_54 = n_146;
     r_add_54; });
-    (opt_nodes + n_144)->a = y_2;
-    (opt_nodes + n_144)->state = s_4;
-    (opt_nodes + n_144)->tkind = T_SMI;
-    (opt_nodes + n_144)->flags = NF_GUARD;
-    r_guard_int_4 = n_144;
+    (opt_nodes + n_145)->a = y_2;
+    (opt_nodes + n_145)->state = s_4;
+    (opt_nodes + n_145)->tkind = T_SMI;
+    (opt_nodes + n_145)->flags = NF_GUARD;
+    r_guard_int_4 = n_145;
 exit_guard_int_4:;
     r_guard_int_4; });
                 if ((k_4 >= 2) && (k_4 <= 7)) {
-                    n_141 = ({
-    n_146 = ({
-    n_147 = new_node(O_ICMP, R_OOP);
-    append(n_147, ob_cur_block);
-    r_add_55 = n_147;
+                    n_142 = ({
+    n_147 = ({
+    n_148 = new_node(O_ICMP, R_OOP);
+    append(n_148, ob_cur_block);
+    r_add_55 = n_148;
     r_add_55; });
-    (opt_nodes + n_146)->a = gx;
-    (opt_nodes + n_146)->b = gy;
-    r_binary_3 = n_146;
+    (opt_nodes + n_147)->a = gx;
+    (opt_nodes + n_147)->b = gy;
+    r_binary_3 = n_147;
     r_binary_3; });
-                    (opt_nodes + n_141)->aux = k_4;
-                    (opt_nodes + n_141)->tkind = T_BOOL;
-                    var_50 = (opt_acts + a)->var_base + d_10;
-                    if ((var_50 < OPT_MAX_VARS) && (ob_arg_flags[var_50] == 2)) {
-                        n_148 = ({
-    n_149 = new_node(O_STORESLOT, R_NONE);
-    append(n_149, ob_cur_block);
-    r_add_56 = n_149;
+                    (opt_nodes + n_142)->aux = k_4;
+                    (opt_nodes + n_142)->tkind = T_BOOL;
+                    var_51 = (opt_acts + a)->var_base + d_10;
+                    if ((var_51 < OPT_MAX_VARS) && (ob_arg_flags[var_51] == 2)) {
+                        n_149 = ({
+    n_150 = new_node(O_STORESLOT, R_NONE);
+    append(n_150, ob_cur_block);
+    r_add_56 = n_150;
     r_add_56; });
-                        (opt_nodes + n_148)->a = n_141;
-                        n_150 = ob_arg_vals[var_50];
-                        (opt_nodes + n_148)->aux = (opt_nodes + n_150)->aux;
+                        (opt_nodes + n_149)->a = n_142;
+                        n_151 = ob_arg_vals[var_51];
+                        (opt_nodes + n_149)->aux = (opt_nodes + n_151)->aux;
                         goto exit_write_30;
                     }
-                    opt_builder_write(var_50, n_141, ob_cur_block);
+                    opt_builder_write(var_51, n_142, ob_cur_block);
                 exit_write_30:;
                     goto exit_int_arith;
                 }
@@ -3461,39 +3583,39 @@ exit_guard_int_4:;
                     v_34 = O_IOR;
                     break;
                 }
-                n_141 = ({
-    n_151 = ({
-    n_152 = new_node(v_34, R_OOP);
-    append(n_152, ob_cur_block);
-    r_add_57 = n_152;
+                n_142 = ({
+    n_152 = ({
+    n_153 = new_node(v_34, R_OOP);
+    append(n_153, ob_cur_block);
+    r_add_57 = n_153;
     r_add_57; });
-    (opt_nodes + n_151)->a = gx;
-    (opt_nodes + n_151)->b = gy;
-    r_binary_4 = n_151;
+    (opt_nodes + n_152)->a = gx;
+    (opt_nodes + n_152)->b = gy;
+    r_binary_4 = n_152;
     r_binary_4; });
-                (opt_nodes + n_141)->tkind = T_SMI;
+                (opt_nodes + n_142)->tkind = T_SMI;
                 if (k_4 >= 16) {
-                    (opt_nodes + n_141)->aux = 1;
+                    (opt_nodes + n_142)->aux = 1;
                 }
                 if (k_4 == 9) {
-                    (opt_nodes + n_141)->aux = 2;
+                    (opt_nodes + n_142)->aux = 2;
                 }
                 if ((k_4 <= 1) || (((k_4 >= 8) && (k_4 <= 10)) || ((k_4 == 12) || ((k_4 == 13) || (k_4 >= 16))))) {
-                    (opt_nodes + n_141)->state = s_4;
+                    (opt_nodes + n_142)->state = s_4;
                 }
-                var_51 = (opt_acts + a)->var_base + d_10;
-                if ((var_51 < OPT_MAX_VARS) && (ob_arg_flags[var_51] == 2)) {
-                    n_153 = ({
-    n_154 = new_node(O_STORESLOT, R_NONE);
-    append(n_154, ob_cur_block);
-    r_add_58 = n_154;
+                var_52 = (opt_acts + a)->var_base + d_10;
+                if ((var_52 < OPT_MAX_VARS) && (ob_arg_flags[var_52] == 2)) {
+                    n_154 = ({
+    n_155 = new_node(O_STORESLOT, R_NONE);
+    append(n_155, ob_cur_block);
+    r_add_58 = n_155;
     r_add_58; });
-                    (opt_nodes + n_153)->a = n_141;
-                    n_155 = ob_arg_vals[var_51];
-                    (opt_nodes + n_153)->aux = (opt_nodes + n_155)->aux;
+                    (opt_nodes + n_154)->a = n_142;
+                    n_156 = ob_arg_vals[var_52];
+                    (opt_nodes + n_154)->aux = (opt_nodes + n_156)->aux;
                     goto exit_write_31;
                 }
-                opt_builder_write(var_51, n_141, ob_cur_block);
+                opt_builder_write(var_52, n_142, ob_cur_block);
             exit_write_31:;
             exit_int_arith:;
                 goto exit_special;
@@ -3503,64 +3625,24 @@ exit_guard_int_4:;
         sel_2 = *(uint64_t *)(o_44 + 16 + 8 * k_4);
         if (((jit_flags & JIT_FLAG_BLOCKS) != 0) && (({
     if (!(((sel_2 & 7) == 0) && ((int32_t)(((*(uint64_t *)sel_2) >> H_FMT_SHIFT) & H_FMT_MASK) >= F_BYTES))) {
-        r_is_value_selector_3 = false;
-        goto exit_is_value_selector_3;
-    }
-    n_156 = (int64_t)byte_size(sel_2);
-    b_6 = (uint8_t *)(sel_2 + 16);
-    if (!((n_156 >= 5) && ((b_6[0] == 118) && ((b_6[1] == 97) && ((b_6[2] == 108) && ((b_6[3] == 117) && (b_6[4] == 101))))))) {
-        r_is_value_selector_3 = false;
-        goto exit_is_value_selector_3;
-    }
-    if (n_156 == 5) {
-        r_is_value_selector_3 = true;
-        goto exit_is_value_selector_3;
-    }
-    if (!(n_156 % 6 == 0)) {
-        r_is_value_selector_3 = false;
-        goto exit_is_value_selector_3;
-    }
-    for (i_35 = 0; i_35 <= n_156 / 6 - 1; i_35++) {
-        if (!((b_6[6 * i_35] == 118) && (b_6[6 * i_35 + 5] == 58))) {
-            r_is_value_selector_3 = false;
-            goto exit_is_value_selector_3;
-        }
-    }
-    r_is_value_selector_3 = true;
-exit_is_value_selector_3:;
-    r_is_value_selector_3; }) && ({
-    var_52 = (opt_acts + a)->var_base + d_10;
-    v_35 = opt_builder_read(var_52, ob_cur_block);
-    ({
-    n_157 = opt_ir_resolve(v_35);
-    nd_5 = opt_nodes + n_157;
-    r_is_closure_3 = ((int32_t)nd_5->op == O_CLOSURE) && ((nd_5->aux2 & 255) == argc_2);
-    r_is_closure_3; }); }))) {
-            var_53 = (opt_acts + a)->var_base + d_10;
-            var_54 = (opt_acts + a)->var_base + d_10;
-            inline_block(opt_ir_resolve(opt_builder_read(var_53, ob_cur_block)), opt_ir_resolve(opt_builder_read(var_54, ob_cur_block)), pc, a, d_10, argc_2);
-            goto exit_send_selector_2;
-        }
-        if (((jit_flags & JIT_FLAG_BLOCKS) != 0) && ({
-    if (!(((sel_2 & 7) == 0) && ((int32_t)(((*(uint64_t *)sel_2) >> H_FMT_SHIFT) & H_FMT_MASK) >= F_BYTES))) {
         r_is_value_selector_4 = false;
         goto exit_is_value_selector_4;
     }
-    n_158 = (int64_t)byte_size(sel_2);
+    n_157 = (int64_t)byte_size(sel_2);
     b_7 = (uint8_t *)(sel_2 + 16);
-    if (!((n_158 >= 5) && ((b_7[0] == 118) && ((b_7[1] == 97) && ((b_7[2] == 108) && ((b_7[3] == 117) && (b_7[4] == 101))))))) {
+    if (!((n_157 >= 5) && ((b_7[0] == 118) && ((b_7[1] == 97) && ((b_7[2] == 108) && ((b_7[3] == 117) && (b_7[4] == 101))))))) {
         r_is_value_selector_4 = false;
         goto exit_is_value_selector_4;
     }
-    if (n_158 == 5) {
+    if (n_157 == 5) {
         r_is_value_selector_4 = true;
         goto exit_is_value_selector_4;
     }
-    if (!(n_158 % 6 == 0)) {
+    if (!(n_157 % 6 == 0)) {
         r_is_value_selector_4 = false;
         goto exit_is_value_selector_4;
     }
-    for (i_36 = 0; i_36 <= n_158 / 6 - 1; i_36++) {
+    for (i_36 = 0; i_36 <= n_157 / 6 - 1; i_36++) {
         if (!((b_7[6 * i_36] == 118) && (b_7[6 * i_36 + 5] == 58))) {
             r_is_value_selector_4 = false;
             goto exit_is_value_selector_4;
@@ -3569,10 +3651,82 @@ exit_is_value_selector_3:;
     r_is_value_selector_4 = true;
 exit_is_value_selector_4:;
     r_is_value_selector_4; }) && ({
-    var_55 = (opt_acts + a)->var_base + d_10;
-    (d_12 = frame_closure_of(opt_builder_read(var_55, ob_cur_block), argc_2, pc, a)) >= 0; })) {
-            var_56 = (opt_acts + a)->var_base + d_10;
-            inline_frame_closure(opt_builder_read(var_56, ob_cur_block), d_12, pc, a, d_10, argc_2);
+    var_53 = (opt_acts + a)->var_base + d_10;
+    v_35 = opt_builder_read(var_53, ob_cur_block);
+    ({
+    n_158 = opt_ir_resolve(v_35);
+    nd_5 = opt_nodes + n_158;
+    r_is_closure_3 = ((int32_t)nd_5->op == O_CLOSURE) && ((nd_5->aux2 & 255) == argc_2);
+    r_is_closure_3; }); }))) {
+            var_54 = (opt_acts + a)->var_base + d_10;
+            var_55 = (opt_acts + a)->var_base + d_10;
+            inline_block(opt_ir_resolve(opt_builder_read(var_54, ob_cur_block)), opt_ir_resolve(opt_builder_read(var_55, ob_cur_block)), pc, a, d_10, argc_2);
+            goto exit_send_selector_2;
+        }
+        if (((jit_flags & JIT_FLAG_BLOCKS) != 0) && ({
+    if (!(((sel_2 & 7) == 0) && ((int32_t)(((*(uint64_t *)sel_2) >> H_FMT_SHIFT) & H_FMT_MASK) >= F_BYTES))) {
+        r_is_value_selector_5 = false;
+        goto exit_is_value_selector_5;
+    }
+    n_159 = (int64_t)byte_size(sel_2);
+    b_8 = (uint8_t *)(sel_2 + 16);
+    if (!((n_159 >= 5) && ((b_8[0] == 118) && ((b_8[1] == 97) && ((b_8[2] == 108) && ((b_8[3] == 117) && (b_8[4] == 101))))))) {
+        r_is_value_selector_5 = false;
+        goto exit_is_value_selector_5;
+    }
+    if (n_159 == 5) {
+        r_is_value_selector_5 = true;
+        goto exit_is_value_selector_5;
+    }
+    if (!(n_159 % 6 == 0)) {
+        r_is_value_selector_5 = false;
+        goto exit_is_value_selector_5;
+    }
+    for (i_37 = 0; i_37 <= n_159 / 6 - 1; i_37++) {
+        if (!((b_8[6 * i_37] == 118) && (b_8[6 * i_37 + 5] == 58))) {
+            r_is_value_selector_5 = false;
+            goto exit_is_value_selector_5;
+        }
+    }
+    r_is_value_selector_5 = true;
+exit_is_value_selector_5:;
+    r_is_value_selector_5; }) && ({
+    var_56 = (opt_acts + a)->var_base + d_10;
+    (d_12 = frame_closure_of(opt_builder_read(var_56, ob_cur_block), argc_2, pc, a)) >= 0; })) {
+            var_57 = (opt_acts + a)->var_base + d_10;
+            inline_frame_closure(opt_builder_read(var_57, ob_cur_block), d_12, pc, a, d_10, argc_2);
+            goto exit_send_selector_2;
+        }
+        if (({
+    if (!(((sel_2 & 7) == 0) && ((int32_t)(((*(uint64_t *)sel_2) >> H_FMT_SHIFT) & H_FMT_MASK) >= F_BYTES))) {
+        r_is_value_selector_6 = false;
+        goto exit_is_value_selector_6;
+    }
+    n_160 = (int64_t)byte_size(sel_2);
+    b_9 = (uint8_t *)(sel_2 + 16);
+    if (!((n_160 >= 5) && ((b_9[0] == 118) && ((b_9[1] == 97) && ((b_9[2] == 108) && ((b_9[3] == 117) && (b_9[4] == 101))))))) {
+        r_is_value_selector_6 = false;
+        goto exit_is_value_selector_6;
+    }
+    if (n_160 == 5) {
+        r_is_value_selector_6 = true;
+        goto exit_is_value_selector_6;
+    }
+    if (!(n_160 % 6 == 0)) {
+        r_is_value_selector_6 = false;
+        goto exit_is_value_selector_6;
+    }
+    for (i_38 = 0; i_38 <= n_160 / 6 - 1; i_38++) {
+        if (!((b_9[6 * i_38] == 118) && (b_9[6 * i_38 + 5] == 58))) {
+            r_is_value_selector_6 = false;
+            goto exit_is_value_selector_6;
+        }
+    }
+    r_is_value_selector_6 = true;
+exit_is_value_selector_6:;
+    r_is_value_selector_6; }) && ({
+    var_58 = (opt_acts + a)->var_base + d_10;
+    inline_foreign_closure(opt_builder_read(var_58, ob_cur_block), pc, a, d_10, argc_2); })) {
             goto exit_send_selector_2;
         }
         if (((jit_flags & JIT_FLAG_INLINE) != 0) && inline_send(sel_2, argc_2, 2, k_4, pc, a, d_10)) {
@@ -3583,31 +3737,31 @@ exit_is_value_selector_4:;
             print_symbol(sel_2, stderr);
             fputc(10, stderr);
         }
-        n_159 = ({
-    n_160 = new_node(O_SEND, R_OOP);
-    append(n_160, ob_cur_block);
-    r_add_59 = n_160;
+        n_161 = ({
+    n_162 = new_node(O_SEND, R_OOP);
+    append(n_162, ob_cur_block);
+    r_add_59 = n_162;
     r_add_59; });
         ob_safe_epoch = ob_safe_epoch + 1;
         args_2 = alloc_operands(argc_2 + 1);
-        for (i_37 = 0; i_37 <= argc_2; i_37++) {
-            i_38 = args_2 + i_37;
-            i_39 = d_10 + i_37;
-            var_57 = (opt_acts + a)->var_base + i_39;
-            v_36 = opt_builder_read(var_57, ob_cur_block);
-            opt_operands[i_38] = v_36;
+        for (i_39 = 0; i_39 <= argc_2; i_39++) {
+            i_40 = args_2 + i_39;
+            i_41 = d_10 + i_39;
+            var_59 = (opt_acts + a)->var_base + i_41;
+            v_36 = opt_builder_read(var_59, ob_cur_block);
+            opt_operands[i_40] = v_36;
         }
-        (opt_nodes + n_159)->args = args_2;
-        (opt_nodes + n_159)->nargs = (uint16_t)(argc_2 + 1);
-        (opt_nodes + n_159)->aux = (int64_t)sel_2;
-        (opt_nodes + n_159)->aux2 = ((int64_t)argc_2) | 512LL | (((int64_t)k_4) << 16) | (((int64_t)pc) << 32);
+        (opt_nodes + n_161)->args = args_2;
+        (opt_nodes + n_161)->nargs = (uint16_t)(argc_2 + 1);
+        (opt_nodes + n_161)->aux = (int64_t)sel_2;
+        (opt_nodes + n_161)->aux2 = ((int64_t)argc_2) | 512LL | (((int64_t)k_4) << 16) | (((int64_t)pc) << 32);
         if ((a == ob_perform_act) && (pc == ob_perform_pc)) {
-            (opt_nodes + n_159)->aux2 = (opt_nodes + n_159)->aux2 | SI_PERFORMED;
+            (opt_nodes + n_161)->aux2 = (opt_nodes + n_161)->aux2 | SI_PERFORMED;
         }
         m_37 = (opt_acts + a)->method;
         o_45 = *(uint64_t *)(m_37 + 16 + 24);
         op_9 = ((uint8_t *)(o_45 + 16))[pc];
-        (opt_nodes + n_159)->state = state_act(a, (int32_t)(pc + ({
+        (opt_nodes + n_161)->state = state_act(a, (int32_t)(pc + ({
     if (op_9 < 0x68) {
         r_length_of_3 = 1;
         goto exit_length_of_3;
@@ -3667,19 +3821,19 @@ exit_is_value_selector_4:;
     r_length_of_3 = 0;
 exit_length_of_3:;
     r_length_of_3; })), d_10);
-        var_58 = (opt_acts + a)->var_base + d_10;
-        if ((var_58 < OPT_MAX_VARS) && (ob_arg_flags[var_58] == 2)) {
-            n_161 = ({
-    n_162 = new_node(O_STORESLOT, R_NONE);
-    append(n_162, ob_cur_block);
-    r_add_60 = n_162;
+        var_60 = (opt_acts + a)->var_base + d_10;
+        if ((var_60 < OPT_MAX_VARS) && (ob_arg_flags[var_60] == 2)) {
+            n_163 = ({
+    n_164 = new_node(O_STORESLOT, R_NONE);
+    append(n_164, ob_cur_block);
+    r_add_60 = n_164;
     r_add_60; });
-            (opt_nodes + n_161)->a = n_159;
-            n_163 = ob_arg_vals[var_58];
-            (opt_nodes + n_161)->aux = (opt_nodes + n_163)->aux;
+            (opt_nodes + n_163)->a = n_161;
+            n_165 = ob_arg_vals[var_60];
+            (opt_nodes + n_163)->aux = (opt_nodes + n_165)->aux;
             goto exit_write_32;
         }
-        opt_builder_write(var_58, n_159, ob_cur_block);
+        opt_builder_write(var_60, n_161, ob_cur_block);
     exit_write_32:;
     exit_send_selector_2:;
     exit_special:;
@@ -3690,73 +3844,76 @@ exit_length_of_3:;
         k_6 = op - 0xA0;
         r_4 = d - ((k_6 == 19) || (k_6 == 20) ? 1 : special_argc[k_6]) - 1;
         argc_3 = (k_5 == 19) || (k_5 == 20) ? 1 : special_argc[k_5];
-        var_59 = (opt_acts + a)->var_base + r_4;
-        x_3 = opt_builder_read(var_59, ob_cur_block);
+        var_61 = (opt_acts + a)->var_base + r_4;
+        x_3 = opt_builder_read(var_61, ob_cur_block);
         if (argc_3 > 0) {
-            i_40 = r_4 + 1;
-            var_60 = (opt_acts + a)->var_base + i_40;
-            y_4 = opt_builder_read(var_60, ob_cur_block);
+            i_42 = r_4 + 1;
+            var_62 = (opt_acts + a)->var_base + i_42;
+            y_4 = opt_builder_read(var_62, ob_cur_block);
         }
         if ((k_5 == 19) || (k_5 == 20)) {
             op_10 = k_5 == 19 ? O_EQ : O_NE;
             v_37 = ({
-    n_165 = ({
-    n_166 = new_node(op_10, R_OOP);
-    append(n_166, ob_cur_block);
-    r_add_61 = n_166;
-    r_add_61; });
-    (opt_nodes + n_165)->a = x_3;
-    (opt_nodes + n_165)->b = y_4;
-    r_binary_5 = n_165;
-    r_binary_5; });
-            var_61 = (opt_acts + a)->var_base + r_4;
-            if ((var_61 < OPT_MAX_VARS) && (ob_arg_flags[var_61] == 2)) {
-                n_167 = ({
-    n_168 = new_node(O_STORESLOT, R_NONE);
+    n_167 = ({
+    n_168 = new_node(op_10, R_OOP);
     append(n_168, ob_cur_block);
-    r_add_62 = n_168;
+    r_add_61 = n_168;
+    r_add_61; });
+    (opt_nodes + n_167)->a = x_3;
+    (opt_nodes + n_167)->b = y_4;
+    r_binary_5 = n_167;
+    r_binary_5; });
+            var_63 = (opt_acts + a)->var_base + r_4;
+            if ((var_63 < OPT_MAX_VARS) && (ob_arg_flags[var_63] == 2)) {
+                n_169 = ({
+    n_170 = new_node(O_STORESLOT, R_NONE);
+    append(n_170, ob_cur_block);
+    r_add_62 = n_170;
     r_add_62; });
-                (opt_nodes + n_167)->a = v_37;
-                n_169 = ob_arg_vals[var_61];
-                (opt_nodes + n_167)->aux = (opt_nodes + n_169)->aux;
+                (opt_nodes + n_169)->a = v_37;
+                n_171 = ob_arg_vals[var_63];
+                (opt_nodes + n_169)->aux = (opt_nodes + n_171)->aux;
                 goto exit_write_33;
             }
-            opt_builder_write(var_61, v_37, ob_cur_block);
+            opt_builder_write(var_63, v_37, ob_cur_block);
         exit_write_33:;
             goto exit_special_2;
         }
         if (((k_5 == 21) || ((k_5 == 22) || (k_5 == 30))) && (((jit_flags & JIT_FLAG_BLOCKS) != 0) && ({
-    n_170 = opt_ir_resolve(x_3);
-    nd_6 = opt_nodes + n_170;
+    n_172 = opt_ir_resolve(x_3);
+    nd_6 = opt_nodes + n_172;
     r_is_closure_4 = ((int32_t)nd_6->op == O_CLOSURE) && ((nd_6->aux2 & 255) == argc_3);
     r_is_closure_4; }))) {
             inline_block(opt_ir_resolve(x_3), opt_ir_resolve(x_3), pc, a, r_4, argc_3);
             goto exit_special_2;
         }
-        if (((k_5 == 21) || ((k_5 == 22) || (k_5 == 30))) && ((n_164 = frame_closure_of(x_3, argc_3, pc, a)) >= 0)) {
-            inline_frame_closure(x_3, n_164, pc, a, r_4, argc_3);
+        if (((k_5 == 21) || ((k_5 == 22) || (k_5 == 30))) && ((n_166 = frame_closure_of(x_3, argc_3, pc, a)) >= 0)) {
+            inline_frame_closure(x_3, n_166, pc, a, r_4, argc_3);
+            goto exit_special_2;
+        }
+        if (((k_5 == 21) || ((k_5 == 22) || (k_5 == 30))) && inline_foreign_closure(x_3, pc, a, r_4, argc_3)) {
             goto exit_special_2;
         }
         if (k_5 == 29) {
-            n_164 = ({
-    n_171 = new_node(O_CLASSOF, R_OOP);
-    append(n_171, ob_cur_block);
-    r_add_63 = n_171;
-    r_add_63; });
-            (opt_nodes + n_164)->a = x_3;
-            var_62 = (opt_acts + a)->var_base + r_4;
-            if ((var_62 < OPT_MAX_VARS) && (ob_arg_flags[var_62] == 2)) {
-                n_172 = ({
-    n_173 = new_node(O_STORESLOT, R_NONE);
+            n_166 = ({
+    n_173 = new_node(O_CLASSOF, R_OOP);
     append(n_173, ob_cur_block);
-    r_add_64 = n_173;
+    r_add_63 = n_173;
+    r_add_63; });
+            (opt_nodes + n_166)->a = x_3;
+            var_64 = (opt_acts + a)->var_base + r_4;
+            if ((var_64 < OPT_MAX_VARS) && (ob_arg_flags[var_64] == 2)) {
+                n_174 = ({
+    n_175 = new_node(O_STORESLOT, R_NONE);
+    append(n_175, ob_cur_block);
+    r_add_64 = n_175;
     r_add_64; });
-                (opt_nodes + n_172)->a = n_164;
-                n_174 = ob_arg_vals[var_62];
-                (opt_nodes + n_172)->aux = (opt_nodes + n_174)->aux;
+                (opt_nodes + n_174)->a = n_166;
+                n_176 = ob_arg_vals[var_64];
+                (opt_nodes + n_174)->aux = (opt_nodes + n_176)->aux;
                 goto exit_write_34;
             }
-            opt_builder_write(var_62, n_164, ob_cur_block);
+            opt_builder_write(var_64, n_166, ob_cur_block);
         exit_write_34:;
             goto exit_special_2;
         }
@@ -3824,7 +3981,7 @@ exit_class_of_6:;
     r_known_class_of_3 = 0;
 exit_known_class_of_3:;
     r_known_class_of_3; }) == 0) && (((jit_flags & JIT_FLAG_PRIMS) != 0) && (site_at((opt_acts + a)->method, pc) == NULL))))) {
-            var_63 = (opt_acts + a)->var_base + r_4;
+            var_65 = (opt_acts + a)->var_base + r_4;
             s_5 = state_act(a, pc, (int32_t)ob_ana_depth[(opt_acts + a)->ana + pc]);
             v_38 = ({
     if (cls_array == cls_smallint) {
@@ -3833,55 +3990,55 @@ exit_known_class_of_3:;
         r_guard_int_5 = x_3;
         goto exit_guard_int_5;
     }
-    n_176 = ({
-    n_177 = new_node(O_GUARDINT, R_OOP);
-    append(n_177, ob_cur_block);
-    r_add_65 = n_177;
+    n_178 = ({
+    n_179 = new_node(O_GUARDINT, R_OOP);
+    append(n_179, ob_cur_block);
+    r_add_65 = n_179;
     r_add_65; });
-    (opt_nodes + n_176)->a = x_3;
-    (opt_nodes + n_176)->state = s_5;
-    (opt_nodes + n_176)->tkind = T_SMI;
-    (opt_nodes + n_176)->flags = NF_GUARD;
-    r_guard_int_5 = n_176;
+    (opt_nodes + n_178)->a = x_3;
+    (opt_nodes + n_178)->state = s_5;
+    (opt_nodes + n_178)->tkind = T_SMI;
+    (opt_nodes + n_178)->flags = NF_GUARD;
+    r_guard_int_5 = n_178;
 exit_guard_int_5:;
     r_guard_int_5; });
         goto exit_guard_3;
     }
-    n_175 = ({
-    n_178 = new_node(O_GUARDCLASS, R_OOP);
-    append(n_178, ob_cur_block);
-    r_add_66 = n_178;
+    n_177 = ({
+    n_180 = new_node(O_GUARDCLASS, R_OOP);
+    append(n_180, ob_cur_block);
+    r_add_66 = n_180;
     r_add_66; });
-    (opt_nodes + n_175)->a = x_3;
-    (opt_nodes + n_175)->aux = (int64_t)cls_array;
-    (opt_nodes + n_175)->state = s_5;
-    (opt_nodes + n_175)->flags = NF_GUARD;
+    (opt_nodes + n_177)->a = x_3;
+    (opt_nodes + n_177)->aux = (int64_t)cls_array;
+    (opt_nodes + n_177)->state = s_5;
+    (opt_nodes + n_177)->flags = NF_GUARD;
     if (cls_array == cls_smallfloat) {
-        (opt_nodes + n_175)->tkind = T_FLOAT;
+        (opt_nodes + n_177)->tkind = T_FLOAT;
         goto exit_type_3;
     }
     if (cls_array == cls_smallint) {
-        (opt_nodes + n_175)->tkind = T_SMI;
+        (opt_nodes + n_177)->tkind = T_SMI;
     } else {
-        (opt_nodes + n_175)->tkind = T_OBJ;
-        (opt_nodes + n_175)->tcls = cls_array;
+        (opt_nodes + n_177)->tkind = T_OBJ;
+        (opt_nodes + n_177)->tcls = cls_array;
     }
 exit_type_3:;
-    r_guard_3 = n_175;
+    r_guard_3 = n_177;
 exit_guard_3:;
     r_guard_3; });
-            if ((var_63 < OPT_MAX_VARS) && (ob_arg_flags[var_63] == 2)) {
-                n_179 = ({
-    n_180 = new_node(O_STORESLOT, R_NONE);
-    append(n_180, ob_cur_block);
-    r_add_67 = n_180;
+            if ((var_65 < OPT_MAX_VARS) && (ob_arg_flags[var_65] == 2)) {
+                n_181 = ({
+    n_182 = new_node(O_STORESLOT, R_NONE);
+    append(n_182, ob_cur_block);
+    r_add_67 = n_182;
     r_add_67; });
-                (opt_nodes + n_179)->a = v_38;
-                n_181 = ob_arg_vals[var_63];
-                (opt_nodes + n_179)->aux = (opt_nodes + n_181)->aux;
+                (opt_nodes + n_181)->a = v_38;
+                n_183 = ob_arg_vals[var_65];
+                (opt_nodes + n_181)->aux = (opt_nodes + n_183)->aux;
                 goto exit_write_35;
             }
-            opt_builder_write(var_63, v_38, ob_cur_block);
+            opt_builder_write(var_65, v_38, ob_cur_block);
         exit_write_35:;
         }
         if (((k_5 == 21) || ((k_5 == 22) || (k_5 == 30))) && ((({
@@ -3948,7 +4105,7 @@ exit_class_of_8:;
     r_known_class_of_4 = 0;
 exit_known_class_of_4:;
     r_known_class_of_4; }) == 0) && (((jit_flags & JIT_FLAG_CALLS) != 0) && (site_at((opt_acts + a)->method, pc) == NULL)))) {
-            var_64 = (opt_acts + a)->var_base + r_4;
+            var_66 = (opt_acts + a)->var_base + r_4;
             s_6 = state_act(a, pc, (int32_t)ob_ana_depth[(opt_acts + a)->ana + pc]);
             v_39 = ({
     if (cls_block == cls_smallint) {
@@ -3957,100 +4114,100 @@ exit_known_class_of_4:;
         r_guard_int_6 = x_3;
         goto exit_guard_int_6;
     }
-    n_183 = ({
-    n_184 = new_node(O_GUARDINT, R_OOP);
-    append(n_184, ob_cur_block);
-    r_add_68 = n_184;
+    n_185 = ({
+    n_186 = new_node(O_GUARDINT, R_OOP);
+    append(n_186, ob_cur_block);
+    r_add_68 = n_186;
     r_add_68; });
-    (opt_nodes + n_183)->a = x_3;
-    (opt_nodes + n_183)->state = s_6;
-    (opt_nodes + n_183)->tkind = T_SMI;
-    (opt_nodes + n_183)->flags = NF_GUARD;
-    r_guard_int_6 = n_183;
+    (opt_nodes + n_185)->a = x_3;
+    (opt_nodes + n_185)->state = s_6;
+    (opt_nodes + n_185)->tkind = T_SMI;
+    (opt_nodes + n_185)->flags = NF_GUARD;
+    r_guard_int_6 = n_185;
 exit_guard_int_6:;
     r_guard_int_6; });
         goto exit_guard_4;
     }
-    n_182 = ({
-    n_185 = new_node(O_GUARDCLASS, R_OOP);
-    append(n_185, ob_cur_block);
-    r_add_69 = n_185;
+    n_184 = ({
+    n_187 = new_node(O_GUARDCLASS, R_OOP);
+    append(n_187, ob_cur_block);
+    r_add_69 = n_187;
     r_add_69; });
-    (opt_nodes + n_182)->a = x_3;
-    (opt_nodes + n_182)->aux = (int64_t)cls_block;
-    (opt_nodes + n_182)->state = s_6;
-    (opt_nodes + n_182)->flags = NF_GUARD;
+    (opt_nodes + n_184)->a = x_3;
+    (opt_nodes + n_184)->aux = (int64_t)cls_block;
+    (opt_nodes + n_184)->state = s_6;
+    (opt_nodes + n_184)->flags = NF_GUARD;
     if (cls_block == cls_smallfloat) {
-        (opt_nodes + n_182)->tkind = T_FLOAT;
+        (opt_nodes + n_184)->tkind = T_FLOAT;
         goto exit_type_4;
     }
     if (cls_block == cls_smallint) {
-        (opt_nodes + n_182)->tkind = T_SMI;
+        (opt_nodes + n_184)->tkind = T_SMI;
     } else {
-        (opt_nodes + n_182)->tkind = T_OBJ;
-        (opt_nodes + n_182)->tcls = cls_block;
+        (opt_nodes + n_184)->tkind = T_OBJ;
+        (opt_nodes + n_184)->tcls = cls_block;
     }
 exit_type_4:;
-    r_guard_4 = n_182;
+    r_guard_4 = n_184;
 exit_guard_4:;
     r_guard_4; });
-            if ((var_64 < OPT_MAX_VARS) && (ob_arg_flags[var_64] == 2)) {
-                n_186 = ({
-    n_187 = new_node(O_STORESLOT, R_NONE);
-    append(n_187, ob_cur_block);
-    r_add_70 = n_187;
+            if ((var_66 < OPT_MAX_VARS) && (ob_arg_flags[var_66] == 2)) {
+                n_188 = ({
+    n_189 = new_node(O_STORESLOT, R_NONE);
+    append(n_189, ob_cur_block);
+    r_add_70 = n_189;
     r_add_70; });
-                (opt_nodes + n_186)->a = v_39;
-                n_188 = ob_arg_vals[var_64];
-                (opt_nodes + n_186)->aux = (opt_nodes + n_188)->aux;
+                (opt_nodes + n_188)->a = v_39;
+                n_190 = ob_arg_vals[var_66];
+                (opt_nodes + n_188)->aux = (opt_nodes + n_190)->aux;
                 goto exit_write_36;
             }
-            opt_builder_write(var_64, v_39, ob_cur_block);
+            opt_builder_write(var_66, v_39, ob_cur_block);
         exit_write_36:;
         }
         if (((k_5 == 23) || (k_5 == 24)) && (((jit_flags & JIT_FLAG_PRIMS) != 0) && nil_tests_inlinable())) {
             op_11 = k_5 == 23 ? O_EQ : O_NE;
             y_5 = constant(nil_oop);
             v_40 = ({
-    n_189 = ({
-    n_190 = new_node(op_11, R_OOP);
-    append(n_190, ob_cur_block);
-    r_add_71 = n_190;
-    r_add_71; });
-    (opt_nodes + n_189)->a = x_3;
-    (opt_nodes + n_189)->b = y_5;
-    r_binary_6 = n_189;
-    r_binary_6; });
-            var_65 = (opt_acts + a)->var_base + r_4;
-            if ((var_65 < OPT_MAX_VARS) && (ob_arg_flags[var_65] == 2)) {
-                n_191 = ({
-    n_192 = new_node(O_STORESLOT, R_NONE);
+    n_191 = ({
+    n_192 = new_node(op_11, R_OOP);
     append(n_192, ob_cur_block);
-    r_add_72 = n_192;
+    r_add_71 = n_192;
+    r_add_71; });
+    (opt_nodes + n_191)->a = x_3;
+    (opt_nodes + n_191)->b = y_5;
+    r_binary_6 = n_191;
+    r_binary_6; });
+            var_67 = (opt_acts + a)->var_base + r_4;
+            if ((var_67 < OPT_MAX_VARS) && (ob_arg_flags[var_67] == 2)) {
+                n_193 = ({
+    n_194 = new_node(O_STORESLOT, R_NONE);
+    append(n_194, ob_cur_block);
+    r_add_72 = n_194;
     r_add_72; });
-                (opt_nodes + n_191)->a = v_40;
-                n_193 = ob_arg_vals[var_65];
-                (opt_nodes + n_191)->aux = (opt_nodes + n_193)->aux;
+                (opt_nodes + n_193)->a = v_40;
+                n_195 = ob_arg_vals[var_67];
+                (opt_nodes + n_193)->aux = (opt_nodes + n_195)->aux;
                 goto exit_write_37;
             }
-            opt_builder_write(var_65, v_40, ob_cur_block);
+            opt_builder_write(var_67, v_40, ob_cur_block);
         exit_write_37:;
             goto exit_special_2;
         }
         if ((k_5 <= 10) || ((k_5 == 12) || ((k_5 == 13) || ((k_5 == 14) || (k_5 == 15))))) {
             fl_2 = flags_at((opt_acts + a)->method, pc);
             if ((k_5 <= 9) && (((jit_flags & JIT_FLAG_UNBOX) != 0) && (((fl_2 & 132) == 0) && ({
-    n_194 = opt_ir_resolve(x_3);
-    ((int32_t)(opt_nodes + n_194)->tkind == T_FLOAT) || ({
-    n_195 = opt_ir_resolve(y_4);
-    ((int32_t)(opt_nodes + n_195)->tkind == T_FLOAT) || (({
+    n_196 = opt_ir_resolve(x_3);
+    ((int32_t)(opt_nodes + n_196)->tkind == T_FLOAT) || ({
+    n_197 = opt_ir_resolve(y_4);
+    ((int32_t)(opt_nodes + n_197)->tkind == T_FLOAT) || (({
     site_3 = site_at((opt_acts + a)->method, pc);
     if (site_3 == NULL) {
         r_saw_only_numbers_at_2 = true;
         goto exit_saw_only_numbers_at_2;
     }
-    for (i_41 = 0; i_41 <= 3; i_41++) {
-        c_3 = site_3->classes[i_41];
+    for (i_43 = 0; i_43 <= 3; i_43++) {
+        c_3 = site_3->classes[i_43];
         if ((c_3 != 0) && ((c_3 != cls_smallint) && ((c_3 != cls_smallfloat) && (c_3 != cls_boxedfloat)))) {
             r_saw_only_numbers_at_2 = false;
             goto exit_saw_only_numbers_at_2;
@@ -4061,9 +4218,9 @@ exit_saw_only_numbers_at_2:;
     r_saw_only_numbers_at_2; }) && (((fl_2 & FB_FLOAT) != 0) || ({
     m_38 = (opt_acts + a)->method;
     ({
-    for (i_42 = 0; i_42 <= ob_ana_count - 1; i_42++) {
-        if (ob_ana_methods[i_42] == m_38) {
-            r_saw_float_in_2 = ob_ana_float[i_42];
+    for (i_44 = 0; i_44 <= ob_ana_count - 1; i_44++) {
+        if (ob_ana_methods[i_44] == m_38) {
+            r_saw_float_in_2 = ob_ana_float[i_44];
             goto exit_saw_float_in_2;
         }
     }
@@ -4079,8 +4236,8 @@ exit_saw_float_in_2:;
         r_saw_only_ints_at_2 = true;
         goto exit_saw_only_ints_at_2;
     }
-    for (i_43 = 0; i_43 <= 3; i_43++) {
-        if ((site_4->classes[i_43] != 0) && (site_4->classes[i_43] != cls_smallint)) {
+    for (i_45 = 0; i_45 <= 3; i_45++) {
+        if ((site_4->classes[i_45] != 0) && (site_4->classes[i_45] != cls_smallint)) {
             r_saw_only_ints_at_2 = false;
             goto exit_saw_only_ints_at_2;
         }
@@ -4094,16 +4251,16 @@ exit_saw_only_ints_at_2:;
         r_guard_int_7 = x_3;
         goto exit_guard_int_7;
     }
-    n_197 = ({
-    n_198 = new_node(O_GUARDINT, R_OOP);
-    append(n_198, ob_cur_block);
-    r_add_73 = n_198;
+    n_199 = ({
+    n_200 = new_node(O_GUARDINT, R_OOP);
+    append(n_200, ob_cur_block);
+    r_add_73 = n_200;
     r_add_73; });
-    (opt_nodes + n_197)->a = x_3;
-    (opt_nodes + n_197)->state = s_7;
-    (opt_nodes + n_197)->tkind = T_SMI;
-    (opt_nodes + n_197)->flags = NF_GUARD;
-    r_guard_int_7 = n_197;
+    (opt_nodes + n_199)->a = x_3;
+    (opt_nodes + n_199)->state = s_7;
+    (opt_nodes + n_199)->tkind = T_SMI;
+    (opt_nodes + n_199)->flags = NF_GUARD;
+    r_guard_int_7 = n_199;
 exit_guard_int_7:;
     r_guard_int_7; });
                 gy_2 = ({
@@ -4111,44 +4268,44 @@ exit_guard_int_7:;
         r_guard_int_8 = y_4;
         goto exit_guard_int_8;
     }
-    n_199 = ({
-    n_200 = new_node(O_GUARDINT, R_OOP);
-    append(n_200, ob_cur_block);
-    r_add_74 = n_200;
+    n_201 = ({
+    n_202 = new_node(O_GUARDINT, R_OOP);
+    append(n_202, ob_cur_block);
+    r_add_74 = n_202;
     r_add_74; });
-    (opt_nodes + n_199)->a = y_4;
-    (opt_nodes + n_199)->state = s_7;
-    (opt_nodes + n_199)->tkind = T_SMI;
-    (opt_nodes + n_199)->flags = NF_GUARD;
-    r_guard_int_8 = n_199;
+    (opt_nodes + n_201)->a = y_4;
+    (opt_nodes + n_201)->state = s_7;
+    (opt_nodes + n_201)->tkind = T_SMI;
+    (opt_nodes + n_201)->flags = NF_GUARD;
+    r_guard_int_8 = n_201;
 exit_guard_int_8:;
     r_guard_int_8; });
                 if ((k_5 >= 2) && (k_5 <= 7)) {
-                    n_196 = ({
-    n_201 = ({
-    n_202 = new_node(O_ICMP, R_OOP);
-    append(n_202, ob_cur_block);
-    r_add_75 = n_202;
-    r_add_75; });
-    (opt_nodes + n_201)->a = gx_2;
-    (opt_nodes + n_201)->b = gy_2;
-    r_binary_7 = n_201;
-    r_binary_7; });
-                    (opt_nodes + n_196)->aux = k_5;
-                    (opt_nodes + n_196)->tkind = T_BOOL;
-                    var_66 = (opt_acts + a)->var_base + r_4;
-                    if ((var_66 < OPT_MAX_VARS) && (ob_arg_flags[var_66] == 2)) {
-                        n_203 = ({
-    n_204 = new_node(O_STORESLOT, R_NONE);
+                    n_198 = ({
+    n_203 = ({
+    n_204 = new_node(O_ICMP, R_OOP);
     append(n_204, ob_cur_block);
-    r_add_76 = n_204;
+    r_add_75 = n_204;
+    r_add_75; });
+    (opt_nodes + n_203)->a = gx_2;
+    (opt_nodes + n_203)->b = gy_2;
+    r_binary_7 = n_203;
+    r_binary_7; });
+                    (opt_nodes + n_198)->aux = k_5;
+                    (opt_nodes + n_198)->tkind = T_BOOL;
+                    var_68 = (opt_acts + a)->var_base + r_4;
+                    if ((var_68 < OPT_MAX_VARS) && (ob_arg_flags[var_68] == 2)) {
+                        n_205 = ({
+    n_206 = new_node(O_STORESLOT, R_NONE);
+    append(n_206, ob_cur_block);
+    r_add_76 = n_206;
     r_add_76; });
-                        (opt_nodes + n_203)->a = n_196;
-                        n_205 = ob_arg_vals[var_66];
-                        (opt_nodes + n_203)->aux = (opt_nodes + n_205)->aux;
+                        (opt_nodes + n_205)->a = n_198;
+                        n_207 = ob_arg_vals[var_68];
+                        (opt_nodes + n_205)->aux = (opt_nodes + n_207)->aux;
                         goto exit_write_38;
                     }
-                    opt_builder_write(var_66, n_196, ob_cur_block);
+                    opt_builder_write(var_68, n_198, ob_cur_block);
                 exit_write_38:;
                     goto exit_int_arith_2;
                 }
@@ -4190,39 +4347,39 @@ exit_guard_int_8:;
                     v_41 = O_IOR;
                     break;
                 }
-                n_196 = ({
-    n_206 = ({
-    n_207 = new_node(v_41, R_OOP);
-    append(n_207, ob_cur_block);
-    r_add_77 = n_207;
+                n_198 = ({
+    n_208 = ({
+    n_209 = new_node(v_41, R_OOP);
+    append(n_209, ob_cur_block);
+    r_add_77 = n_209;
     r_add_77; });
-    (opt_nodes + n_206)->a = gx_2;
-    (opt_nodes + n_206)->b = gy_2;
-    r_binary_8 = n_206;
+    (opt_nodes + n_208)->a = gx_2;
+    (opt_nodes + n_208)->b = gy_2;
+    r_binary_8 = n_208;
     r_binary_8; });
-                (opt_nodes + n_196)->tkind = T_SMI;
+                (opt_nodes + n_198)->tkind = T_SMI;
                 if (k_5 >= 16) {
-                    (opt_nodes + n_196)->aux = 1;
+                    (opt_nodes + n_198)->aux = 1;
                 }
                 if (k_5 == 9) {
-                    (opt_nodes + n_196)->aux = 2;
+                    (opt_nodes + n_198)->aux = 2;
                 }
                 if ((k_5 <= 1) || (((k_5 >= 8) && (k_5 <= 10)) || ((k_5 == 12) || ((k_5 == 13) || (k_5 >= 16))))) {
-                    (opt_nodes + n_196)->state = s_7;
+                    (opt_nodes + n_198)->state = s_7;
                 }
-                var_67 = (opt_acts + a)->var_base + r_4;
-                if ((var_67 < OPT_MAX_VARS) && (ob_arg_flags[var_67] == 2)) {
-                    n_208 = ({
-    n_209 = new_node(O_STORESLOT, R_NONE);
-    append(n_209, ob_cur_block);
-    r_add_78 = n_209;
+                var_69 = (opt_acts + a)->var_base + r_4;
+                if ((var_69 < OPT_MAX_VARS) && (ob_arg_flags[var_69] == 2)) {
+                    n_210 = ({
+    n_211 = new_node(O_STORESLOT, R_NONE);
+    append(n_211, ob_cur_block);
+    r_add_78 = n_211;
     r_add_78; });
-                    (opt_nodes + n_208)->a = n_196;
-                    n_210 = ob_arg_vals[var_67];
-                    (opt_nodes + n_208)->aux = (opt_nodes + n_210)->aux;
+                    (opt_nodes + n_210)->a = n_198;
+                    n_212 = ob_arg_vals[var_69];
+                    (opt_nodes + n_210)->aux = (opt_nodes + n_212)->aux;
                     goto exit_write_39;
                 }
-                opt_builder_write(var_67, n_196, ob_cur_block);
+                opt_builder_write(var_69, n_198, ob_cur_block);
             exit_write_39:;
             exit_int_arith_2:;
                 goto exit_special_2;
@@ -4232,76 +4389,108 @@ exit_guard_int_8:;
         sel_3 = *(uint64_t *)(o_48 + 16 + 8 * k_5);
         if (((jit_flags & JIT_FLAG_BLOCKS) != 0) && (({
     if (!(((sel_3 & 7) == 0) && ((int32_t)(((*(uint64_t *)sel_3) >> H_FMT_SHIFT) & H_FMT_MASK) >= F_BYTES))) {
-        r_is_value_selector_5 = false;
-        goto exit_is_value_selector_5;
+        r_is_value_selector_7 = false;
+        goto exit_is_value_selector_7;
     }
-    n_211 = (int64_t)byte_size(sel_3);
-    b_8 = (uint8_t *)(sel_3 + 16);
-    if (!((n_211 >= 5) && ((b_8[0] == 118) && ((b_8[1] == 97) && ((b_8[2] == 108) && ((b_8[3] == 117) && (b_8[4] == 101))))))) {
-        r_is_value_selector_5 = false;
-        goto exit_is_value_selector_5;
+    n_213 = (int64_t)byte_size(sel_3);
+    b_10 = (uint8_t *)(sel_3 + 16);
+    if (!((n_213 >= 5) && ((b_10[0] == 118) && ((b_10[1] == 97) && ((b_10[2] == 108) && ((b_10[3] == 117) && (b_10[4] == 101))))))) {
+        r_is_value_selector_7 = false;
+        goto exit_is_value_selector_7;
     }
-    if (n_211 == 5) {
-        r_is_value_selector_5 = true;
-        goto exit_is_value_selector_5;
+    if (n_213 == 5) {
+        r_is_value_selector_7 = true;
+        goto exit_is_value_selector_7;
     }
-    if (!(n_211 % 6 == 0)) {
-        r_is_value_selector_5 = false;
-        goto exit_is_value_selector_5;
+    if (!(n_213 % 6 == 0)) {
+        r_is_value_selector_7 = false;
+        goto exit_is_value_selector_7;
     }
-    for (i_44 = 0; i_44 <= n_211 / 6 - 1; i_44++) {
-        if (!((b_8[6 * i_44] == 118) && (b_8[6 * i_44 + 5] == 58))) {
-            r_is_value_selector_5 = false;
-            goto exit_is_value_selector_5;
+    for (i_46 = 0; i_46 <= n_213 / 6 - 1; i_46++) {
+        if (!((b_10[6 * i_46] == 118) && (b_10[6 * i_46 + 5] == 58))) {
+            r_is_value_selector_7 = false;
+            goto exit_is_value_selector_7;
         }
     }
-    r_is_value_selector_5 = true;
-exit_is_value_selector_5:;
-    r_is_value_selector_5; }) && ({
-    var_68 = (opt_acts + a)->var_base + r_4;
-    v_42 = opt_builder_read(var_68, ob_cur_block);
+    r_is_value_selector_7 = true;
+exit_is_value_selector_7:;
+    r_is_value_selector_7; }) && ({
+    var_70 = (opt_acts + a)->var_base + r_4;
+    v_42 = opt_builder_read(var_70, ob_cur_block);
     ({
-    n_212 = opt_ir_resolve(v_42);
-    nd_9 = opt_nodes + n_212;
+    n_214 = opt_ir_resolve(v_42);
+    nd_9 = opt_nodes + n_214;
     r_is_closure_5 = ((int32_t)nd_9->op == O_CLOSURE) && ((nd_9->aux2 & 255) == argc_3);
     r_is_closure_5; }); }))) {
-            var_69 = (opt_acts + a)->var_base + r_4;
-            var_70 = (opt_acts + a)->var_base + r_4;
-            inline_block(opt_ir_resolve(opt_builder_read(var_69, ob_cur_block)), opt_ir_resolve(opt_builder_read(var_70, ob_cur_block)), pc, a, r_4, argc_3);
+            var_71 = (opt_acts + a)->var_base + r_4;
+            var_72 = (opt_acts + a)->var_base + r_4;
+            inline_block(opt_ir_resolve(opt_builder_read(var_71, ob_cur_block)), opt_ir_resolve(opt_builder_read(var_72, ob_cur_block)), pc, a, r_4, argc_3);
             goto exit_send_selector_3;
         }
         if (((jit_flags & JIT_FLAG_BLOCKS) != 0) && ({
     if (!(((sel_3 & 7) == 0) && ((int32_t)(((*(uint64_t *)sel_3) >> H_FMT_SHIFT) & H_FMT_MASK) >= F_BYTES))) {
-        r_is_value_selector_6 = false;
-        goto exit_is_value_selector_6;
+        r_is_value_selector_8 = false;
+        goto exit_is_value_selector_8;
     }
-    n_213 = (int64_t)byte_size(sel_3);
-    b_9 = (uint8_t *)(sel_3 + 16);
-    if (!((n_213 >= 5) && ((b_9[0] == 118) && ((b_9[1] == 97) && ((b_9[2] == 108) && ((b_9[3] == 117) && (b_9[4] == 101))))))) {
-        r_is_value_selector_6 = false;
-        goto exit_is_value_selector_6;
+    n_215 = (int64_t)byte_size(sel_3);
+    b_11 = (uint8_t *)(sel_3 + 16);
+    if (!((n_215 >= 5) && ((b_11[0] == 118) && ((b_11[1] == 97) && ((b_11[2] == 108) && ((b_11[3] == 117) && (b_11[4] == 101))))))) {
+        r_is_value_selector_8 = false;
+        goto exit_is_value_selector_8;
     }
-    if (n_213 == 5) {
-        r_is_value_selector_6 = true;
-        goto exit_is_value_selector_6;
+    if (n_215 == 5) {
+        r_is_value_selector_8 = true;
+        goto exit_is_value_selector_8;
     }
-    if (!(n_213 % 6 == 0)) {
-        r_is_value_selector_6 = false;
-        goto exit_is_value_selector_6;
+    if (!(n_215 % 6 == 0)) {
+        r_is_value_selector_8 = false;
+        goto exit_is_value_selector_8;
     }
-    for (i_45 = 0; i_45 <= n_213 / 6 - 1; i_45++) {
-        if (!((b_9[6 * i_45] == 118) && (b_9[6 * i_45 + 5] == 58))) {
-            r_is_value_selector_6 = false;
-            goto exit_is_value_selector_6;
+    for (i_47 = 0; i_47 <= n_215 / 6 - 1; i_47++) {
+        if (!((b_11[6 * i_47] == 118) && (b_11[6 * i_47 + 5] == 58))) {
+            r_is_value_selector_8 = false;
+            goto exit_is_value_selector_8;
         }
     }
-    r_is_value_selector_6 = true;
-exit_is_value_selector_6:;
-    r_is_value_selector_6; }) && ({
-    var_71 = (opt_acts + a)->var_base + r_4;
-    (d_13 = frame_closure_of(opt_builder_read(var_71, ob_cur_block), argc_3, pc, a)) >= 0; })) {
-            var_72 = (opt_acts + a)->var_base + r_4;
-            inline_frame_closure(opt_builder_read(var_72, ob_cur_block), d_13, pc, a, r_4, argc_3);
+    r_is_value_selector_8 = true;
+exit_is_value_selector_8:;
+    r_is_value_selector_8; }) && ({
+    var_73 = (opt_acts + a)->var_base + r_4;
+    (d_13 = frame_closure_of(opt_builder_read(var_73, ob_cur_block), argc_3, pc, a)) >= 0; })) {
+            var_74 = (opt_acts + a)->var_base + r_4;
+            inline_frame_closure(opt_builder_read(var_74, ob_cur_block), d_13, pc, a, r_4, argc_3);
+            goto exit_send_selector_3;
+        }
+        if (({
+    if (!(((sel_3 & 7) == 0) && ((int32_t)(((*(uint64_t *)sel_3) >> H_FMT_SHIFT) & H_FMT_MASK) >= F_BYTES))) {
+        r_is_value_selector_9 = false;
+        goto exit_is_value_selector_9;
+    }
+    n_216 = (int64_t)byte_size(sel_3);
+    b_12 = (uint8_t *)(sel_3 + 16);
+    if (!((n_216 >= 5) && ((b_12[0] == 118) && ((b_12[1] == 97) && ((b_12[2] == 108) && ((b_12[3] == 117) && (b_12[4] == 101))))))) {
+        r_is_value_selector_9 = false;
+        goto exit_is_value_selector_9;
+    }
+    if (n_216 == 5) {
+        r_is_value_selector_9 = true;
+        goto exit_is_value_selector_9;
+    }
+    if (!(n_216 % 6 == 0)) {
+        r_is_value_selector_9 = false;
+        goto exit_is_value_selector_9;
+    }
+    for (i_48 = 0; i_48 <= n_216 / 6 - 1; i_48++) {
+        if (!((b_12[6 * i_48] == 118) && (b_12[6 * i_48 + 5] == 58))) {
+            r_is_value_selector_9 = false;
+            goto exit_is_value_selector_9;
+        }
+    }
+    r_is_value_selector_9 = true;
+exit_is_value_selector_9:;
+    r_is_value_selector_9; }) && ({
+    var_75 = (opt_acts + a)->var_base + r_4;
+    inline_foreign_closure(opt_builder_read(var_75, ob_cur_block), pc, a, r_4, argc_3); })) {
             goto exit_send_selector_3;
         }
         if (((jit_flags & JIT_FLAG_INLINE) != 0) && inline_send(sel_3, argc_3, 2, k_5, pc, a, r_4)) {
@@ -4312,31 +4501,31 @@ exit_is_value_selector_6:;
             print_symbol(sel_3, stderr);
             fputc(10, stderr);
         }
-        n_214 = ({
-    n_215 = new_node(O_SEND, R_OOP);
-    append(n_215, ob_cur_block);
-    r_add_79 = n_215;
+        n_217 = ({
+    n_218 = new_node(O_SEND, R_OOP);
+    append(n_218, ob_cur_block);
+    r_add_79 = n_218;
     r_add_79; });
         ob_safe_epoch = ob_safe_epoch + 1;
         args_3 = alloc_operands(argc_3 + 1);
-        for (i_46 = 0; i_46 <= argc_3; i_46++) {
-            i_47 = args_3 + i_46;
-            i_48 = r_4 + i_46;
-            var_73 = (opt_acts + a)->var_base + i_48;
-            v_43 = opt_builder_read(var_73, ob_cur_block);
-            opt_operands[i_47] = v_43;
+        for (i_49 = 0; i_49 <= argc_3; i_49++) {
+            i_50 = args_3 + i_49;
+            i_51 = r_4 + i_49;
+            var_76 = (opt_acts + a)->var_base + i_51;
+            v_43 = opt_builder_read(var_76, ob_cur_block);
+            opt_operands[i_50] = v_43;
         }
-        (opt_nodes + n_214)->args = args_3;
-        (opt_nodes + n_214)->nargs = (uint16_t)(argc_3 + 1);
-        (opt_nodes + n_214)->aux = (int64_t)sel_3;
-        (opt_nodes + n_214)->aux2 = ((int64_t)argc_3) | 512LL | (((int64_t)k_5) << 16) | (((int64_t)pc) << 32);
+        (opt_nodes + n_217)->args = args_3;
+        (opt_nodes + n_217)->nargs = (uint16_t)(argc_3 + 1);
+        (opt_nodes + n_217)->aux = (int64_t)sel_3;
+        (opt_nodes + n_217)->aux2 = ((int64_t)argc_3) | 512LL | (((int64_t)k_5) << 16) | (((int64_t)pc) << 32);
         if ((a == ob_perform_act) && (pc == ob_perform_pc)) {
-            (opt_nodes + n_214)->aux2 = (opt_nodes + n_214)->aux2 | SI_PERFORMED;
+            (opt_nodes + n_217)->aux2 = (opt_nodes + n_217)->aux2 | SI_PERFORMED;
         }
         m_39 = (opt_acts + a)->method;
         o_49 = *(uint64_t *)(m_39 + 16 + 24);
         op_12 = ((uint8_t *)(o_49 + 16))[pc];
-        (opt_nodes + n_214)->state = state_act(a, (int32_t)(pc + ({
+        (opt_nodes + n_217)->state = state_act(a, (int32_t)(pc + ({
     if (op_12 < 0x68) {
         r_length_of_4 = 1;
         goto exit_length_of_4;
@@ -4396,19 +4585,19 @@ exit_is_value_selector_6:;
     r_length_of_4 = 0;
 exit_length_of_4:;
     r_length_of_4; })), r_4);
-        var_74 = (opt_acts + a)->var_base + r_4;
-        if ((var_74 < OPT_MAX_VARS) && (ob_arg_flags[var_74] == 2)) {
-            n_216 = ({
-    n_217 = new_node(O_STORESLOT, R_NONE);
-    append(n_217, ob_cur_block);
-    r_add_80 = n_217;
+        var_77 = (opt_acts + a)->var_base + r_4;
+        if ((var_77 < OPT_MAX_VARS) && (ob_arg_flags[var_77] == 2)) {
+            n_219 = ({
+    n_220 = new_node(O_STORESLOT, R_NONE);
+    append(n_220, ob_cur_block);
+    r_add_80 = n_220;
     r_add_80; });
-            (opt_nodes + n_216)->a = n_214;
-            n_218 = ob_arg_vals[var_74];
-            (opt_nodes + n_216)->aux = (opt_nodes + n_218)->aux;
+            (opt_nodes + n_219)->a = n_217;
+            n_221 = ob_arg_vals[var_77];
+            (opt_nodes + n_219)->aux = (opt_nodes + n_221)->aux;
             goto exit_write_40;
         }
-        opt_builder_write(var_74, n_214, ob_cur_block);
+        opt_builder_write(var_77, n_217, ob_cur_block);
     exit_write_40:;
     exit_send_selector_3:;
     exit_special_2:;
@@ -4428,31 +4617,31 @@ exit_length_of_4:;
     m_42 = (opt_acts + a)->method;
     o_52 = *(uint64_t *)(m_42 + 16 + 24);
     fs = ((uint8_t *)(o_52 + 16))[pc_22];
-    n_219 = ({
-    n_220 = new_node(O_CLOSURE, R_OOP);
-    append(n_220, ob_cur_block);
-    r_add_81 = n_220;
+    n_222 = ({
+    n_223 = new_node(O_CLOSURE, R_OOP);
+    append(n_223, ob_cur_block);
+    r_add_81 = n_223;
     r_add_81; });
-    (opt_nodes + n_219)->aux = pc + 6;
-    (opt_nodes + n_219)->aux2 = ((int64_t)na) | (((int64_t)nt) << 8) | (((int64_t)fs) << 16) | (((int64_t)a) << 32);
-    (opt_nodes + n_219)->tkind = T_OBJ;
-    (opt_nodes + n_219)->tcls = cls_block;
-    (opt_nodes + n_219)->flags = NF_PURE;
-    r_closure_at = n_219;
+    (opt_nodes + n_222)->aux = pc + 6;
+    (opt_nodes + n_222)->aux2 = ((int64_t)na) | (((int64_t)nt) << 8) | (((int64_t)fs) << 16) | (((int64_t)a) << 32);
+    (opt_nodes + n_222)->tkind = T_OBJ;
+    (opt_nodes + n_222)->tcls = cls_block;
+    (opt_nodes + n_222)->flags = NF_PURE;
+    r_closure_at = n_222;
     r_closure_at; });
-        var_75 = (opt_acts + a)->var_base + d;
-        if ((var_75 < OPT_MAX_VARS) && (ob_arg_flags[var_75] == 2)) {
-            n_221 = ({
-    n_222 = new_node(O_STORESLOT, R_NONE);
-    append(n_222, ob_cur_block);
-    r_add_82 = n_222;
+        var_78 = (opt_acts + a)->var_base + d;
+        if ((var_78 < OPT_MAX_VARS) && (ob_arg_flags[var_78] == 2)) {
+            n_224 = ({
+    n_225 = new_node(O_STORESLOT, R_NONE);
+    append(n_225, ob_cur_block);
+    r_add_82 = n_225;
     r_add_82; });
-            (opt_nodes + n_221)->a = v;
-            n_223 = ob_arg_vals[var_75];
-            (opt_nodes + n_221)->aux = (opt_nodes + n_223)->aux;
+            (opt_nodes + n_224)->a = v;
+            n_226 = ob_arg_vals[var_78];
+            (opt_nodes + n_224)->aux = (opt_nodes + n_226)->aux;
             goto exit_write_41;
         }
-        opt_builder_write(var_75, v, ob_cur_block);
+        opt_builder_write(var_78, v, ob_cur_block);
     exit_write_41:;
         pc_23 = pc + 4;
         m_43 = (opt_acts + a)->method;
@@ -4476,110 +4665,167 @@ exit_length_of_4:;
             lv = lv - 1;
         }
         if (lv > 0) {
-            if (!((t_3 == 0) && (ob_unit_start > 0))) {
-                if ((!ob_bailed) && (getenv("SAMALTAK_OPT_TRACE") != NULL)) {
-                    fprintf(stderr, "opt: bail at pc %d of act %d\n", opt_cur_pc, opt_cur_act);
-                }
-                ob_bailed = true;
-                goto exit_outer_temp;
-            }
-            pc_26 = pc + 2;
-            m_47 = (opt_acts + a)->method;
-            o_57 = *(uint64_t *)(m_47 + 16 + 24);
-            i_49 = ((uint8_t *)(o_57 + 16))[pc_26];
-            op_14 = op_13 == 0x8A ? O_OUTERLOAD : O_OUTERSTORE;
-            rep = op_13 == 0x8A ? R_OOP : R_NONE;
-            n_224 = ({
-    n_225 = new_node(op_14, rep);
-    append(n_225, ob_cur_block);
-    r_add_83 = n_225;
+            if ((t_3 == 0) && (ob_unit_start > 0)) {
+                pc_26 = pc + 2;
+                m_47 = (opt_acts + a)->method;
+                o_57 = *(uint64_t *)(m_47 + 16 + 24);
+                i_52 = ((uint8_t *)(o_57 + 16))[pc_26];
+                c_4 = (opt_acts + 0)->closure;
+                op_14 = op_13 == 0x8A ? O_OUTERLOAD : O_OUTERSTORE;
+                rep = op_13 == 0x8A ? R_OOP : R_NONE;
+                n_227 = ({
+    n_228 = new_node(op_14, rep);
+    append(n_228, ob_cur_block);
+    r_add_83 = n_228;
     r_add_83; });
-            (opt_nodes + n_224)->a = (opt_acts + 0)->closure;
-            (opt_nodes + n_224)->aux = lv;
-            (opt_nodes + n_224)->aux2 = i_49;
-            if (op_13 == 0x8A) {
-                var_76 = (opt_acts + a)->var_base + d;
-                if ((var_76 < OPT_MAX_VARS) && (ob_arg_flags[var_76] == 2)) {
-                    n_226 = ({
-    n_227 = new_node(O_STORESLOT, R_NONE);
-    append(n_227, ob_cur_block);
-    r_add_84 = n_227;
-    r_add_84; });
-                    (opt_nodes + n_226)->a = n_224;
-                    n_228 = ob_arg_vals[var_76];
-                    (opt_nodes + n_226)->aux = (opt_nodes + n_228)->aux;
-                    goto exit_write_42;
-                }
-                opt_builder_write(var_76, n_224, ob_cur_block);
-            exit_write_42:;
-                goto exit_outer_temp_2;
-            }
-            i_50 = d - 1;
-            var_77 = (opt_acts + a)->var_base + i_50;
-            (opt_nodes + n_224)->b = opt_builder_read(var_77, ob_cur_block);
-        exit_outer_temp_2:;
-            goto exit_outer_temp;
-        }
-        if (op_13 == 0x8A) {
-            pc_27 = pc + 2;
-            m_48 = (opt_acts + a)->method;
-            o_58 = *(uint64_t *)(m_48 + 16 + 24);
-            i_51 = ((uint8_t *)(o_58 + 16))[pc_27];
-            var_78 = (opt_acts + t_3)->var_base + i_51;
-            v_45 = opt_builder_read(var_78, ob_cur_block);
-            var_79 = (opt_acts + a)->var_base + d;
-            if ((var_79 < OPT_MAX_VARS) && (ob_arg_flags[var_79] == 2)) {
-                n_229 = ({
+                (opt_nodes + n_227)->a = c_4;
+                (opt_nodes + n_227)->aux = lv;
+                (opt_nodes + n_227)->aux2 = i_52;
+                if (op_13 == 0x8A) {
+                    var_79 = (opt_acts + a)->var_base + d;
+                    if ((var_79 < OPT_MAX_VARS) && (ob_arg_flags[var_79] == 2)) {
+                        n_229 = ({
     n_230 = new_node(O_STORESLOT, R_NONE);
     append(n_230, ob_cur_block);
-    r_add_85 = n_230;
-    r_add_85; });
-                (opt_nodes + n_229)->a = v_45;
-                n_231 = ob_arg_vals[var_79];
-                (opt_nodes + n_229)->aux = (opt_nodes + n_231)->aux;
-                goto exit_write_43;
+    r_add_84 = n_230;
+    r_add_84; });
+                        (opt_nodes + n_229)->a = n_227;
+                        n_231 = ob_arg_vals[var_79];
+                        (opt_nodes + n_229)->aux = (opt_nodes + n_231)->aux;
+                        goto exit_write_42;
+                    }
+                    opt_builder_write(var_79, n_227, ob_cur_block);
+                exit_write_42:;
+                    goto exit_outer_temp;
+                }
+                i_53 = d - 1;
+                var_80 = (opt_acts + a)->var_base + i_53;
+                (opt_nodes + n_227)->b = opt_builder_read(var_80, ob_cur_block);
+            exit_outer_temp:;
+                goto exit_outer_temp_2;
             }
-            opt_builder_write(var_79, v_45, ob_cur_block);
-        exit_write_43:;
-            goto exit_outer_temp;
-        }
-        i_52 = d - 1;
-        var_80 = (opt_acts + a)->var_base + i_52;
-        v_44 = opt_builder_read(var_80, ob_cur_block);
-        pc_28 = pc + 2;
-        m_49 = (opt_acts + a)->method;
-        o_59 = *(uint64_t *)(m_49 + 16 + 24);
-        i_53 = ((uint8_t *)(o_59 + 16))[pc_28];
-        var_81 = (opt_acts + t_3)->var_base + i_53;
-        if ((var_81 < OPT_MAX_VARS) && (ob_arg_flags[var_81] == 2)) {
-            n_232 = ({
-    n_233 = new_node(O_STORESLOT, R_NONE);
+            if ((opt_acts + t_3)->outer == -2) {
+                pc_27 = pc + 2;
+                m_48 = (opt_acts + a)->method;
+                o_58 = *(uint64_t *)(m_48 + 16 + 24);
+                i_54 = ((uint8_t *)(o_58 + 16))[pc_27];
+                c_5 = (opt_acts + t_3)->closure;
+                op_15 = op_13 == 0x8A ? O_OUTERLOAD : O_OUTERSTORE;
+                rep_2 = op_13 == 0x8A ? R_OOP : R_NONE;
+                n_232 = ({
+    n_233 = new_node(op_15, rep_2);
     append(n_233, ob_cur_block);
-    r_add_86 = n_233;
+    r_add_85 = n_233;
+    r_add_85; });
+                (opt_nodes + n_232)->a = c_5;
+                (opt_nodes + n_232)->aux = lv;
+                (opt_nodes + n_232)->aux2 = i_54;
+                if (op_13 == 0x8A) {
+                    var_81 = (opt_acts + a)->var_base + d;
+                    if ((var_81 < OPT_MAX_VARS) && (ob_arg_flags[var_81] == 2)) {
+                        n_234 = ({
+    n_235 = new_node(O_STORESLOT, R_NONE);
+    append(n_235, ob_cur_block);
+    r_add_86 = n_235;
     r_add_86; });
-            (opt_nodes + n_232)->a = v_44;
-            n_234 = ob_arg_vals[var_81];
-            (opt_nodes + n_232)->aux = (opt_nodes + n_234)->aux;
-            goto exit_write_44;
+                        (opt_nodes + n_234)->a = n_232;
+                        n_236 = ob_arg_vals[var_81];
+                        (opt_nodes + n_234)->aux = (opt_nodes + n_236)->aux;
+                        goto exit_write_43;
+                    }
+                    opt_builder_write(var_81, n_232, ob_cur_block);
+                exit_write_43:;
+                    goto exit_outer_temp_3;
+                }
+                i_55 = d - 1;
+                var_82 = (opt_acts + a)->var_base + i_55;
+                (opt_nodes + n_232)->b = opt_builder_read(var_82, ob_cur_block);
+            exit_outer_temp_3:;
+                goto exit_outer_temp_2;
+            }
+            if ((!ob_bailed) && (getenv("SAMALTAK_OPT_TRACE") != NULL)) {
+                fprintf(stderr, "opt: bail at pc %d of act %d\n", opt_cur_pc, opt_cur_act);
+            }
+            if ((!ob_bailed) && ((ob_foreign_depth > 0) && (ob_no_foreign_count < 8))) {
+                ob_no_foreign_m[ob_no_foreign_count] = ob_foreign_m[ob_foreign_depth - 1];
+                ob_no_foreign_s[ob_no_foreign_count] = ob_foreign_s[ob_foreign_depth - 1];
+                ob_no_foreign_count = ob_no_foreign_count + 1;
+            }
+            ob_bailed = true;
+            goto exit_outer_temp_2;
         }
-        opt_builder_write(var_81, v_44, ob_cur_block);
-    exit_write_44:;
-    exit_outer_temp:;
+        if (op_13 == 0x8A) {
+            pc_28 = pc + 2;
+            m_49 = (opt_acts + a)->method;
+            o_59 = *(uint64_t *)(m_49 + 16 + 24);
+            i_56 = ((uint8_t *)(o_59 + 16))[pc_28];
+            var_83 = (opt_acts + t_3)->var_base + i_56;
+            v_45 = opt_builder_read(var_83, ob_cur_block);
+            var_84 = (opt_acts + a)->var_base + d;
+            if ((var_84 < OPT_MAX_VARS) && (ob_arg_flags[var_84] == 2)) {
+                n_237 = ({
+    n_238 = new_node(O_STORESLOT, R_NONE);
+    append(n_238, ob_cur_block);
+    r_add_87 = n_238;
+    r_add_87; });
+                (opt_nodes + n_237)->a = v_45;
+                n_239 = ob_arg_vals[var_84];
+                (opt_nodes + n_237)->aux = (opt_nodes + n_239)->aux;
+                goto exit_write_44;
+            }
+            opt_builder_write(var_84, v_45, ob_cur_block);
+        exit_write_44:;
+            goto exit_outer_temp_2;
+        }
+        i_57 = d - 1;
+        var_85 = (opt_acts + a)->var_base + i_57;
+        v_44 = opt_builder_read(var_85, ob_cur_block);
+        pc_29 = pc + 2;
+        m_50 = (opt_acts + a)->method;
+        o_60 = *(uint64_t *)(m_50 + 16 + 24);
+        i_58 = ((uint8_t *)(o_60 + 16))[pc_29];
+        var_86 = (opt_acts + t_3)->var_base + i_58;
+        if ((var_86 < OPT_MAX_VARS) && (ob_arg_flags[var_86] == 2)) {
+            n_240 = ({
+    n_241 = new_node(O_STORESLOT, R_NONE);
+    append(n_241, ob_cur_block);
+    r_add_88 = n_241;
+    r_add_88; });
+            (opt_nodes + n_240)->a = v_44;
+            n_242 = ob_arg_vals[var_86];
+            (opt_nodes + n_240)->aux = (opt_nodes + n_242)->aux;
+            goto exit_write_45;
+        }
+        opt_builder_write(var_86, v_44, ob_cur_block);
+    exit_write_45:;
+    exit_outer_temp_2:;
         return next;
     }
     if (op == 0x7C) {
-        i_54 = d - 1;
-        var_82 = (opt_acts + a)->var_base + i_54;
-        v_46 = opt_builder_read(var_82, ob_cur_block);
+        i_59 = d - 1;
+        var_87 = (opt_acts + a)->var_base + i_59;
+        v_46 = opt_builder_read(var_87, ob_cur_block);
         h = (opt_acts + a)->home;
+        if ((h < 0) && (ob_foreign_depth > 0)) {
+            if ((!ob_bailed) && (getenv("SAMALTAK_OPT_TRACE") != NULL)) {
+                fprintf(stderr, "opt: bail at pc %d of act %d\n", opt_cur_pc, opt_cur_act);
+            }
+            if ((!ob_bailed) && ((ob_foreign_depth > 0) && (ob_no_foreign_count < 8))) {
+                ob_no_foreign_m[ob_no_foreign_count] = ob_foreign_m[ob_foreign_depth - 1];
+                ob_no_foreign_s[ob_no_foreign_count] = ob_foreign_s[ob_foreign_depth - 1];
+                ob_no_foreign_count = ob_no_foreign_count + 1;
+            }
+            ob_bailed = true;
+            goto exit_non_local_return;
+        }
         if ((h < 0) && (ob_unit_start > 0)) {
             s_8 = state_act(a, pc, d);
-            n_236 = ({
-    n_237 = new_node(O_DEOPT, R_NONE);
-    append(n_237, ob_cur_block);
-    r_add_87 = n_237;
-    r_add_87; });
-            (opt_nodes + n_236)->state = s_8;
+            n_244 = ({
+    n_245 = new_node(O_DEOPT, R_NONE);
+    append(n_245, ob_cur_block);
+    r_add_89 = n_245;
+    r_add_89; });
+            (opt_nodes + n_244)->state = s_8;
             ob_cur_block = -1;
             goto exit_non_local_return;
         }
@@ -4587,40 +4833,50 @@ exit_length_of_4:;
             if ((!ob_bailed) && (getenv("SAMALTAK_OPT_TRACE") != NULL)) {
                 fprintf(stderr, "opt: bail at pc %d of act %d\n", opt_cur_pc, opt_cur_act);
             }
+            if ((!ob_bailed) && ((ob_foreign_depth > 0) && (ob_no_foreign_count < 8))) {
+                ob_no_foreign_m[ob_no_foreign_count] = ob_foreign_m[ob_foreign_depth - 1];
+                ob_no_foreign_s[ob_no_foreign_count] = ob_foreign_s[ob_foreign_depth - 1];
+                ob_no_foreign_count = ob_no_foreign_count + 1;
+            }
             ob_bailed = true;
             goto exit_non_local_return;
         }
         if ((opt_acts + h)->parent >= 0) {
-            var_83 = (opt_acts + h)->ret_var;
-            if ((var_83 < OPT_MAX_VARS) && (ob_arg_flags[var_83] == 2)) {
-                n_238 = ({
-    n_239 = new_node(O_STORESLOT, R_NONE);
-    append(n_239, ob_cur_block);
-    r_add_88 = n_239;
-    r_add_88; });
-                (opt_nodes + n_238)->a = v_46;
-                n_240 = ob_arg_vals[var_83];
-                (opt_nodes + n_238)->aux = (opt_nodes + n_240)->aux;
-                goto exit_write_45;
+            var_88 = (opt_acts + h)->ret_var;
+            if ((var_88 < OPT_MAX_VARS) && (ob_arg_flags[var_88] == 2)) {
+                n_246 = ({
+    n_247 = new_node(O_STORESLOT, R_NONE);
+    append(n_247, ob_cur_block);
+    r_add_90 = n_247;
+    r_add_90; });
+                (opt_nodes + n_246)->a = v_46;
+                n_248 = ob_arg_vals[var_88];
+                (opt_nodes + n_246)->aux = (opt_nodes + n_248)->aux;
+                goto exit_write_46;
             }
-            opt_builder_write(var_83, v_46, ob_cur_block);
-        exit_write_45:;
+            opt_builder_write(var_88, v_46, ob_cur_block);
+        exit_write_46:;
             goto_((opt_acts + h)->ret_block);
             goto exit_non_local_return;
         }
-        n_235 = ({
-    n_241 = new_node(O_RETURN, R_NONE);
-    append(n_241, ob_cur_block);
-    r_add_89 = n_241;
-    r_add_89; });
-        (opt_nodes + n_235)->a = v_46;
-        (opt_nodes + n_235)->state = state_act(a, pc, d);
+        n_243 = ({
+    n_249 = new_node(O_RETURN, R_NONE);
+    append(n_249, ob_cur_block);
+    r_add_91 = n_249;
+    r_add_91; });
+        (opt_nodes + n_243)->a = v_46;
+        (opt_nodes + n_243)->state = state_act(a, pc, d);
         ob_cur_block = -1;
     exit_non_local_return:;
         return next;
     }
     if ((!ob_bailed) && (getenv("SAMALTAK_OPT_TRACE") != NULL)) {
         fprintf(stderr, "opt: bail at pc %d of act %d\n", opt_cur_pc, opt_cur_act);
+    }
+    if ((!ob_bailed) && ((ob_foreign_depth > 0) && (ob_no_foreign_count < 8))) {
+        ob_no_foreign_m[ob_no_foreign_count] = ob_foreign_m[ob_foreign_depth - 1];
+        ob_no_foreign_s[ob_no_foreign_count] = ob_foreign_s[ob_foreign_depth - 1];
+        ob_no_foreign_count = ob_no_foreign_count + 1;
     }
     ob_bailed = true;
     return next;
@@ -5277,6 +5533,55 @@ exit_unbox_float_2:;
     }
 }
 
+/* OptBuilder>>foreignClosureOf:numArgs:pc:act: */
+static oop foreign_closure_of(int32_t v, int32_t n, int32_t pc, int32_t a)
+{
+    oop c;
+    uint64_t ctx;
+    uint64_t o;
+    uint64_t m;
+    uint64_t o_2;
+    int32_t sp;
+    uint64_t o_3;
+    uint64_t o_4;
+    int32_t size;
+    int32_t i;
+    if ((ob_frame == NULL) || ((!ob_foreign) || (!((jit_flags & JIT_FLAG_BLOCKS) != 0)))) {
+        return nil_oop;
+    }
+    if ((flags_at((opt_acts + a)->method, pc) & 144) != 0) {
+        return nil_oop;
+    }
+    if (ob_foreign_depth >= 8) {
+        return nil_oop;
+    }
+    c = known_object(v);
+    if (!((c != 0) && inlinable_closure(c))) {
+        return nil_oop;
+    }
+    ctx = *(uint64_t *)(c + 16 + 0);
+    if (!((ctx != ob_frame->ctx) && ({
+    o = *(uint64_t *)(c + 16 + 16);
+    (((int64_t)o) >> 1) == n; }))) {
+        return nil_oop;
+    }
+    m = *(uint64_t *)(ctx + 16 + 24);
+    o_2 = *(uint64_t *)(c + 16 + 8);
+    sp = (int32_t)(((int64_t)o_2) >> 1);
+    o_3 = *(uint64_t *)(m + 16 + 24);
+    o_4 = *(uint64_t *)(m + 16 + 24);
+    size = (int32_t)((((int64_t)((uint8_t *)(o_3 + 16))[sp - 2]) << 8) | ((uint8_t *)(o_4 + 16))[sp - 1]);
+    if (ob_inlined + size > OPT_INLINE_BUDGET) {
+        return nil_oop;
+    }
+    for (i = 0; i <= ob_no_foreign_count - 1; i++) {
+        if ((ob_no_foreign_m[i] == m) && (ob_no_foreign_s[i] == sp)) {
+            return nil_oop;
+        }
+    }
+    return c;
+}
+
 /* OptBuilder>>frameClosureOf:numArgs:pc:act: */
 static int32_t frame_closure_of(int32_t v, int32_t n, int32_t pc, int32_t a)
 {
@@ -5316,26 +5621,176 @@ static void goto_(int32_t b)
     ob_cur_block = -1;
 }
 
+/* OptBuilder>>inlinableClosure: */
+bool inlinable_closure(oop c)
+{
+    uint64_t ctx;
+    uint64_t m;
+    uint64_t o;
+    uint64_t o_2;
+    uint64_t o_3;
+    uint64_t o_4;
+    uint64_t o_5;
+    uint64_t o_6;
+    uint64_t o_7;
+    int32_t sp;
+    uint64_t o_8;
+    int64_t n;
+    uint64_t o_9;
+    uint8_t *bcs;
+    int32_t size;
+    int32_t end;
+    int32_t pc;
+    uint8_t op;
+    int64_t r_length_of;
+    int64_t len;
+    if (!(((c & 7) == 0) && (*(uint64_t *)(c + 8) == cls_block))) {
+        return false;
+    }
+    ctx = *(uint64_t *)(c + 16 + 0);
+    if (!(((ctx & 7) == 0) && (*(uint64_t *)(ctx + 8) == cls_context))) {
+        return false;
+    }
+    m = *(uint64_t *)(ctx + 16 + 24);
+    if (!(((m & 7) == 0) && (((int32_t)(((*(uint64_t *)m) >> H_FMT_SHIFT) & H_FMT_MASK) == F_FIXED) && ((uint32_t)*(uint64_t *)m > CM_PRIMITIVE)))) {
+        return false;
+    }
+    o = *(uint64_t *)(m + 16 + 24);
+    if (!(((o & 7) == 0) && ({
+    o_2 = *(uint64_t *)(m + 16 + 24);
+    (int32_t)(((*(uint64_t *)o_2) >> H_FMT_SHIFT) & H_FMT_MASK) >= F_BYTES; }))) {
+        return false;
+    }
+    o_3 = *(uint64_t *)(m + 16 + 16);
+    if (!(((o_3 & 7) == 0) && ({
+    o_4 = *(uint64_t *)(m + 16 + 16);
+    (int32_t)(((*(uint64_t *)o_4) >> H_FMT_SHIFT) & H_FMT_MASK) <= F_WEAK; }))) {
+        return false;
+    }
+    o_5 = *(uint64_t *)(c + 16 + 8);
+    if (!(((o_5 & 1) != 0) && ({
+    o_6 = *(uint64_t *)(c + 16 + 16);
+    (o_6 & 1) != 0; }))) {
+        return false;
+    }
+    o_7 = *(uint64_t *)(c + 16 + 8);
+    sp = (int32_t)(((int64_t)o_7) >> 1);
+    o_8 = *(uint64_t *)(c + 16 + 16);
+    n = ((int64_t)o_8) >> 1;
+    if (!((sp >= 6) && (sp <= (int32_t)byte_size(*(uint64_t *)(m + 16 + 24))))) {
+        return false;
+    }
+    o_9 = *(uint64_t *)(m + 16 + 24);
+    bcs = (uint8_t *)(o_9 + 16);
+    if (!((bcs[sp - 6] == 0x8F) && (bcs[sp - 5] == n))) {
+        return false;
+    }
+    size = (int32_t)((((int64_t)bcs[sp - 2]) << 8) | bcs[sp - 1]);
+    end = sp + size;
+    if ((size > OPT_INLINE_SIZE) || (end > (int32_t)byte_size(*(uint64_t *)(m + 16 + 24)))) {
+        return false;
+    }
+    pc = sp;
+    while (pc < end) {
+        op = bcs[pc];
+        len = ({
+    if (op < 0x68) {
+        r_length_of = 1;
+        goto exit_length_of;
+    }
+    if (op < 0x70) {
+        r_length_of = 0;
+        goto exit_length_of;
+    }
+    if (op < 0x7D) {
+        r_length_of = 1;
+        goto exit_length_of;
+    }
+    if (op < 0x80) {
+        r_length_of = 0;
+        goto exit_length_of;
+    }
+    if (op < 0x8A) {
+        r_length_of = 2;
+        goto exit_length_of;
+    }
+    if (op < 0x8F) {
+        r_length_of = 3;
+        goto exit_length_of;
+    }
+    if (op == 0x8F) {
+        r_length_of = 6;
+        goto exit_length_of;
+    }
+    if (op < 0x94) {
+        r_length_of = 3;
+        goto exit_length_of;
+    }
+    if (op == 0x94) {
+        r_length_of = 2;
+        goto exit_length_of;
+    }
+    if (op < 0x97) {
+        r_length_of = 0;
+        goto exit_length_of;
+    }
+    if (op < 0x9A) {
+        r_length_of = 4;
+        goto exit_length_of;
+    }
+    if (op < 0xA0) {
+        r_length_of = 3;
+        goto exit_length_of;
+    }
+    if (op < 0xF0) {
+        r_length_of = 1;
+        goto exit_length_of;
+    }
+    if (op < 0xFC) {
+        r_length_of = 3;
+        goto exit_length_of;
+    }
+    r_length_of = 0;
+exit_length_of:;
+    r_length_of; });
+        if ((len == 0) || (pc + len > end)) {
+            return false;
+        }
+        if ((op == 0x7C) || ((op == 0x76) || ((op == 0x94) || ((op == 0x88) || ((op == 0x81) && (bcs[pc + 1] <= CTX_STACKP)))))) {
+            return false;
+        }
+        pc = (int32_t)(pc + len);
+    }
+    return true;
+}
+
 /* OptBuilder>>inlineBlock:info:pc:act:rcvSlot:argc: */
 static void inline_block(int32_t c, int32_t d, int32_t pc, int32_t a, int32_t r, int32_t argc)
 {
-    opt_node *nd;
     int32_t def;
+    def = (int32_t)((opt_nodes + d)->aux2 >> 32);
+    inline_body(c, d, (opt_acts + def)->method, (opt_acts + def)->ana, def, (opt_acts + def)->home, (opt_acts + def)->receiver, pc, a, r, argc);
+}
+
+/* OptBuilder>>inlineBody:info:method:ana:outer:home:receiver:pc:act:rcvSlot:argc: */
+static void inline_body(int32_t c, int32_t d, oop m, int32_t ana, int32_t o, int32_t h, int32_t rcv, int32_t pc, int32_t a, int32_t r, int32_t argc)
+{
+    opt_node *nd;
     int32_t na;
     int32_t nt;
     int32_t fs;
     int32_t b;
     opt_act *ac;
     int32_t pc_2;
-    oop m;
-    uint64_t o;
-    int32_t pc_3;
     oop m_2;
     uint64_t o_2;
+    int32_t pc_3;
+    oop m_3;
+    uint64_t o_3;
     int32_t size;
     bool r_alloc_pc_blocks;
     opt_act *ac_2;
-    oop m_3;
+    oop m_4;
     int32_t n;
     int32_t i;
     int32_t i_2;
@@ -5364,21 +5819,37 @@ static void inline_block(int32_t c, int32_t d, int32_t pc, int32_t a, int32_t r,
     int32_t n_8;
     int32_t n_10;
     nd = opt_nodes + d;
-    def = (int32_t)(nd->aux2 >> 32);
     na = (int32_t)(nd->aux2 & 255);
     nt = (int32_t)((nd->aux2 >> 8) & 255);
     fs = (int32_t)((nd->aux2 >> 16) & 255);
+    if (ana < 0) {
+        if ((!ob_bailed) && (getenv("SAMALTAK_OPT_TRACE") != NULL)) {
+            fprintf(stderr, "opt: bail at pc %d of act %d\n", opt_cur_pc, opt_cur_act);
+        }
+        if ((!ob_bailed) && ((ob_foreign_depth > 0) && (ob_no_foreign_count < 8))) {
+            ob_no_foreign_m[ob_no_foreign_count] = ob_foreign_m[ob_foreign_depth - 1];
+            ob_no_foreign_s[ob_no_foreign_count] = ob_foreign_s[ob_foreign_depth - 1];
+            ob_no_foreign_count = ob_no_foreign_count + 1;
+        }
+        ob_bailed = true;
+        return;
+    }
     b = new_act();
     if (b < 0) {
         if ((!ob_bailed) && (getenv("SAMALTAK_OPT_TRACE") != NULL)) {
             fprintf(stderr, "opt: bail at pc %d of act %d\n", opt_cur_pc, opt_cur_act);
         }
+        if ((!ob_bailed) && ((ob_foreign_depth > 0) && (ob_no_foreign_count < 8))) {
+            ob_no_foreign_m[ob_no_foreign_count] = ob_foreign_m[ob_foreign_depth - 1];
+            ob_no_foreign_s[ob_no_foreign_count] = ob_foreign_s[ob_foreign_depth - 1];
+            ob_no_foreign_count = ob_no_foreign_count + 1;
+        }
         ob_bailed = true;
         return;
     }
     ac = opt_acts + b;
-    ac->method = (opt_acts + def)->method;
-    ac->ana = (opt_acts + def)->ana;
+    ac->method = m;
+    ac->ana = ana;
     ac->num_args = na;
     ac->num_temps = nt;
     if (fs < na + nt) {
@@ -5387,27 +5858,32 @@ static void inline_block(int32_t c, int32_t d, int32_t pc, int32_t a, int32_t r,
     ac->nslots = fs + 4;
     ac->startpc = (int32_t)nd->aux;
     pc_2 = (int32_t)nd->aux - 2;
-    m = (opt_acts + def)->method;
-    o = *(uint64_t *)(m + 16 + 24);
-    pc_3 = (int32_t)nd->aux - 1;
-    m_2 = (opt_acts + def)->method;
+    m_2 = (opt_acts + b)->method;
     o_2 = *(uint64_t *)(m_2 + 16 + 24);
-    size = (int32_t)((((int64_t)((uint8_t *)(o + 16))[pc_2]) << 8) | ((uint8_t *)(o_2 + 16))[pc_3]);
+    pc_3 = (int32_t)nd->aux - 1;
+    m_3 = (opt_acts + b)->method;
+    o_3 = *(uint64_t *)(m_3 + 16 + 24);
+    size = (int32_t)((((int64_t)((uint8_t *)(o_2 + 16))[pc_2]) << 8) | ((uint8_t *)(o_3 + 16))[pc_3]);
     ac->endpc = (int32_t)nd->aux + size;
     ac->closure = c;
-    ac->outer = def;
-    ac->home = (opt_acts + def)->home;
-    ac->receiver = (opt_acts + def)->receiver;
+    ac->outer = o;
+    ac->home = h;
+    ac->receiver = rcv;
     ac->parent = a;
     ac->send_pc = pc;
     ac->send_argc = argc;
     if (!({
     ac_2 = opt_acts + b;
-    m_3 = ac_2->method;
-    n = (int32_t)byte_size(*(uint64_t *)(m_3 + 16 + 24));
+    m_4 = ac_2->method;
+    n = (int32_t)byte_size(*(uint64_t *)(m_4 + 16 + 24));
     if (ob_pcb_top + n > OPT_PCB_MAX) {
         if ((!ob_bailed) && (getenv("SAMALTAK_OPT_TRACE") != NULL)) {
             fprintf(stderr, "opt: bail at pc %d of act %d\n", opt_cur_pc, opt_cur_act);
+        }
+        if ((!ob_bailed) && ((ob_foreign_depth > 0) && (ob_no_foreign_count < 8))) {
+            ob_no_foreign_m[ob_no_foreign_count] = ob_foreign_m[ob_foreign_depth - 1];
+            ob_no_foreign_s[ob_no_foreign_count] = ob_foreign_s[ob_foreign_depth - 1];
+            ob_no_foreign_count = ob_no_foreign_count + 1;
         }
         ob_bailed = true;
         r_alloc_pc_blocks = false;
@@ -5500,6 +5976,267 @@ exit_alloc_pc_blocks:;
     }
     opt_builder_write(var_4, v_3, ob_cur_block);
 exit_write_3:;
+}
+
+/* OptBuilder>>inlineForeignClosure:pc:act:rcvSlot:argc: */
+static bool inline_foreign_closure(int32_t x, int32_t pc, int32_t a, int32_t r, int32_t argc)
+{
+    oop c;
+    uint64_t o;
+    uint64_t m;
+    uint64_t o_2;
+    int32_t sp;
+    uint64_t o_3;
+    uint8_t *bcs;
+    int32_t d;
+    int32_t s;
+    int32_t r_guard;
+    int32_t r_guard_int;
+    int32_t r_add;
+    int32_t n_3;
+    int32_t n_2;
+    int32_t r_add_2;
+    int32_t n_4;
+    int32_t n;
+    int32_t g;
+    int32_t r_load_field;
+    int32_t r_add_3;
+    int32_t n_6;
+    int32_t n_5;
+    int32_t x_2;
+    int32_t y;
+    int32_t r_binary;
+    int32_t r_add_4;
+    int32_t n_8;
+    int32_t n_7;
+    int32_t test;
+    int32_t t;
+    int32_t f;
+    int32_t r_add_5;
+    int32_t n_10;
+    int32_t n_9;
+    int32_t r_add_6;
+    int32_t n_12;
+    int32_t n_11;
+    int32_t r_load_field_2;
+    int32_t r_add_7;
+    int32_t n_14;
+    int32_t n_13;
+    int32_t outer;
+    int32_t r_load_field_3;
+    int32_t r_add_8;
+    int32_t n_16;
+    int32_t n_15;
+    int32_t x_3;
+    int32_t y_2;
+    int32_t r_binary_2;
+    int32_t r_add_9;
+    int32_t n_18;
+    int32_t n_17;
+    int32_t test_2;
+    int32_t t_2;
+    int32_t f_2;
+    int32_t r_add_10;
+    int32_t n_20;
+    int32_t n_19;
+    int32_t r_add_11;
+    int32_t n_22;
+    int32_t n_21;
+    int32_t r_load_field_4;
+    int32_t r_add_12;
+    int32_t n_24;
+    int32_t n_23;
+    c = foreign_closure_of(x, argc, pc, a);
+    if (c == nil_oop) {
+        return false;
+    }
+    o = *(uint64_t *)(c + 16 + 0);
+    m = *(uint64_t *)(o + 16 + 24);
+    o_2 = *(uint64_t *)(c + 16 + 8);
+    sp = (int32_t)(((int64_t)o_2) >> 1);
+    o_3 = *(uint64_t *)(m + 16 + 24);
+    bcs = (uint8_t *)(o_3 + 16);
+    d = new_node(O_CLOSURE, R_OOP);
+    (opt_nodes + d)->aux = sp;
+    (opt_nodes + d)->aux2 = ((int64_t)bcs[sp - 5]) | (((int64_t)bcs[sp - 4]) << 8) | (((int64_t)bcs[sp - 3]) << 16);
+    s = state_act(a, pc, (int32_t)ob_ana_depth[(opt_acts + a)->ana + pc]);
+    g = ({
+    if (cls_block == cls_smallint) {
+        r_guard = ({
+    if ((int32_t)(opt_nodes + x)->tkind == T_SMI) {
+        r_guard_int = x;
+        goto exit_guard_int;
+    }
+    n_2 = ({
+    n_3 = new_node(O_GUARDINT, R_OOP);
+    append(n_3, ob_cur_block);
+    r_add = n_3;
+    r_add; });
+    (opt_nodes + n_2)->a = x;
+    (opt_nodes + n_2)->state = s;
+    (opt_nodes + n_2)->tkind = T_SMI;
+    (opt_nodes + n_2)->flags = NF_GUARD;
+    r_guard_int = n_2;
+exit_guard_int:;
+    r_guard_int; });
+        goto exit_guard;
+    }
+    n = ({
+    n_4 = new_node(O_GUARDCLASS, R_OOP);
+    append(n_4, ob_cur_block);
+    r_add_2 = n_4;
+    r_add_2; });
+    (opt_nodes + n)->a = x;
+    (opt_nodes + n)->aux = (int64_t)cls_block;
+    (opt_nodes + n)->state = s;
+    (opt_nodes + n)->flags = NF_GUARD;
+    if (cls_block == cls_smallfloat) {
+        (opt_nodes + n)->tkind = T_FLOAT;
+        goto exit_type;
+    }
+    if (cls_block == cls_smallint) {
+        (opt_nodes + n)->tkind = T_SMI;
+    } else {
+        (opt_nodes + n)->tkind = T_OBJ;
+        (opt_nodes + n)->tcls = cls_block;
+    }
+exit_type:;
+    r_guard = n;
+exit_guard:;
+    r_guard; });
+    x_2 = ({
+    n_5 = ({
+    n_6 = new_node(O_LOADFIELD, R_OOP);
+    append(n_6, ob_cur_block);
+    r_add_3 = n_6;
+    r_add_3; });
+    (opt_nodes + n_5)->a = g;
+    (opt_nodes + n_5)->aux = BC_STARTPC;
+    r_load_field = n_5;
+    r_load_field; });
+    y = constant((uint64_t)((((int64_t)sp) << 1) | 1));
+    test = ({
+    n_7 = ({
+    n_8 = new_node(O_EQ, R_OOP);
+    append(n_8, ob_cur_block);
+    r_add_4 = n_8;
+    r_add_4; });
+    (opt_nodes + n_7)->a = x_2;
+    (opt_nodes + n_7)->b = y;
+    r_binary = n_7;
+    r_binary; });
+    (opt_nodes + test)->tkind = T_BOOL;
+    t = new_block();
+    (opt_blocks + t)->act = a;
+    f = new_block();
+    (opt_blocks + f)->act = a;
+    n_9 = ({
+    n_10 = new_node(O_BRANCH, R_NONE);
+    append(n_10, ob_cur_block);
+    r_add_5 = n_10;
+    r_add_5; });
+    (opt_nodes + n_9)->a = test;
+    (opt_blocks + ob_cur_block)->succ0 = t;
+    (opt_blocks + ob_cur_block)->succ1 = f;
+    add_pred(ob_cur_block, t);
+    if (((opt_blocks + ob_cur_block)->flags & BF_LIVE) != 0) {
+        (opt_blocks + t)->flags = (opt_blocks + t)->flags | BF_LIVE;
+    }
+    add_pred(ob_cur_block, f);
+    if (((opt_blocks + ob_cur_block)->flags & BF_LIVE) != 0) {
+        (opt_blocks + f)->flags = (opt_blocks + f)->flags | BF_LIVE;
+    }
+    ob_cur_block = -1;
+    seal(t);
+    seal(f);
+    ob_cur_block = f;
+    n_11 = ({
+    n_12 = new_node(O_DEOPT, R_NONE);
+    append(n_12, ob_cur_block);
+    r_add_6 = n_12;
+    r_add_6; });
+    (opt_nodes + n_11)->state = s;
+    ob_cur_block = -1;
+    ob_cur_block = t;
+    outer = ({
+    n_13 = ({
+    n_14 = new_node(O_LOADFIELD, R_OOP);
+    append(n_14, ob_cur_block);
+    r_add_7 = n_14;
+    r_add_7; });
+    (opt_nodes + n_13)->a = g;
+    (opt_nodes + n_13)->aux = BC_OUTER;
+    r_load_field_2 = n_13;
+    r_load_field_2; });
+    x_3 = ({
+    n_15 = ({
+    n_16 = new_node(O_LOADFIELD, R_OOP);
+    append(n_16, ob_cur_block);
+    r_add_8 = n_16;
+    r_add_8; });
+    (opt_nodes + n_15)->a = outer;
+    (opt_nodes + n_15)->aux = CTX_METHOD;
+    r_load_field_3 = n_15;
+    r_load_field_3; });
+    y_2 = constant(m);
+    test_2 = ({
+    n_17 = ({
+    n_18 = new_node(O_EQ, R_OOP);
+    append(n_18, ob_cur_block);
+    r_add_9 = n_18;
+    r_add_9; });
+    (opt_nodes + n_17)->a = x_3;
+    (opt_nodes + n_17)->b = y_2;
+    r_binary_2 = n_17;
+    r_binary_2; });
+    (opt_nodes + test_2)->tkind = T_BOOL;
+    t_2 = new_block();
+    (opt_blocks + t_2)->act = a;
+    f_2 = new_block();
+    (opt_blocks + f_2)->act = a;
+    n_19 = ({
+    n_20 = new_node(O_BRANCH, R_NONE);
+    append(n_20, ob_cur_block);
+    r_add_10 = n_20;
+    r_add_10; });
+    (opt_nodes + n_19)->a = test_2;
+    (opt_blocks + ob_cur_block)->succ0 = t_2;
+    (opt_blocks + ob_cur_block)->succ1 = f_2;
+    add_pred(ob_cur_block, t_2);
+    if (((opt_blocks + ob_cur_block)->flags & BF_LIVE) != 0) {
+        (opt_blocks + t_2)->flags = (opt_blocks + t_2)->flags | BF_LIVE;
+    }
+    add_pred(ob_cur_block, f_2);
+    if (((opt_blocks + ob_cur_block)->flags & BF_LIVE) != 0) {
+        (opt_blocks + f_2)->flags = (opt_blocks + f_2)->flags | BF_LIVE;
+    }
+    ob_cur_block = -1;
+    seal(t_2);
+    seal(f_2);
+    ob_cur_block = f_2;
+    n_21 = ({
+    n_22 = new_node(O_DEOPT, R_NONE);
+    append(n_22, ob_cur_block);
+    r_add_11 = n_22;
+    r_add_11; });
+    (opt_nodes + n_21)->state = s;
+    ob_cur_block = -1;
+    ob_cur_block = t_2;
+    ob_foreign_m[ob_foreign_depth] = m;
+    ob_foreign_s[ob_foreign_depth] = sp;
+    ob_foreign_depth = ob_foreign_depth + 1;
+    inline_body(g, d, m, analysis_of(m), -2, -1, ({
+    n_23 = ({
+    n_24 = new_node(O_LOADFIELD, R_OOP);
+    append(n_24, ob_cur_block);
+    r_add_12 = n_24;
+    r_add_12; });
+    (opt_nodes + n_23)->a = outer;
+    (opt_nodes + n_23)->aux = CTX_RECEIVER;
+    r_load_field_4 = n_23;
+    r_load_field_4; }), pc, a, r, argc);
+    ob_foreign_depth = ob_foreign_depth - 1;
+    return true;
 }
 
 /* OptBuilder>>inlineFrameClosure:info:pc:act:rcvSlot:argc: */
@@ -5758,6 +6495,11 @@ static void inline_method(uint64_t m, oop cls, int32_t pc, int32_t a, int32_t r,
     if (b < 0) {
         if ((!ob_bailed) && (getenv("SAMALTAK_OPT_TRACE") != NULL)) {
             fprintf(stderr, "opt: bail at pc %d of act %d\n", opt_cur_pc, opt_cur_act);
+        }
+        if ((!ob_bailed) && ((ob_foreign_depth > 0) && (ob_no_foreign_count < 8))) {
+            ob_no_foreign_m[ob_no_foreign_count] = ob_foreign_m[ob_foreign_depth - 1];
+            ob_no_foreign_s[ob_no_foreign_count] = ob_foreign_s[ob_foreign_depth - 1];
+            ob_no_foreign_count = ob_no_foreign_count + 1;
         }
         ob_bailed = true;
         return;
@@ -11846,6 +12588,74 @@ exit_length_of_18:;
     return true;
 }
 
+/* OptBuilder>>knownObject: */
+static oop known_object(int32_t v)
+{
+    int32_t n;
+    opt_node *nd;
+    oop c;
+    if (ob_frame == NULL) {
+        return 0;
+    }
+    n = opt_ir_resolve(v);
+    nd = opt_nodes + n;
+    if (((int32_t)nd->op == O_PARAM) && ((nd->aux >= 0) && (nd->aux < (ob_valid_slots < 64 ? ob_valid_slots : 64)))) {
+        return ob_frame->fp[nd->aux];
+    }
+    if (((int32_t)nd->op == O_GUARDCLASS) || ((int32_t)nd->op == O_CAST)) {
+        return known_object(nd->a);
+    }
+    if ((int32_t)nd->op == O_OUTERLOAD) {
+        c = known_object(nd->a);
+        if (!((c != 0) && (((c & 7) == 0) && (*(uint64_t *)(c + 8) == cls_block)))) {
+            return 0;
+        }
+        return known_outer_temp(nd->aux2, (int32_t)nd->aux, c);
+    }
+    return 0;
+}
+
+/* OptBuilder>>knownOuterTemp:levels:of: */
+static oop known_outer_temp(int64_t i, int32_t lv, oop c)
+{
+    uint64_t ctx;
+    int32_t k;
+    uint64_t cl;
+    uint64_t s;
+    frame *g;
+    int64_t i_2;
+    if (i >= 32) {
+        return 0;
+    }
+    ctx = *(uint64_t *)(c + 16 + 0);
+    for (k = 2; k <= lv; k++) {
+        if (!(((ctx & 7) == 0) && (*(uint64_t *)(ctx + 8) == cls_context))) {
+            return 0;
+        }
+        cl = *(uint64_t *)(ctx + 16 + 32);
+        if (!(((cl & 7) == 0) && (*(uint64_t *)(cl + 8) == cls_block))) {
+            return 0;
+        }
+        ctx = *(uint64_t *)(cl + 16 + 0);
+    }
+    if (!(((ctx & 7) == 0) && (*(uint64_t *)(ctx + 8) == cls_context))) {
+        return 0;
+    }
+    s = *(uint64_t *)(ctx + 16 + 0);
+    if ((s & 1) != 0) {
+        g = frames + (((int64_t)s) >> 1);
+        if (i >= g->sp) {
+            return 0;
+        }
+        return g->fp[i];
+    }
+    if (!(CTX_FIXED + i < (uint32_t)*(uint64_t *)ctx)) {
+        return 0;
+    }
+    i_2 = CTX_FIXED + i;
+    return *(uint64_t *)(ctx + 16 + 8 * i_2);
+}
+
 /* OptBuilder>>newActFor: */
 static int32_t new_act_for(oop m)
 {
@@ -11892,6 +12702,11 @@ static int32_t new_act_for(oop m)
     if (ob_pcb_top + n > OPT_PCB_MAX) {
         if ((!ob_bailed) && (getenv("SAMALTAK_OPT_TRACE") != NULL)) {
             fprintf(stderr, "opt: bail at pc %d of act %d\n", opt_cur_pc, opt_cur_act);
+        }
+        if ((!ob_bailed) && ((ob_foreign_depth > 0) && (ob_no_foreign_count < 8))) {
+            ob_no_foreign_m[ob_no_foreign_count] = ob_foreign_m[ob_foreign_depth - 1];
+            ob_no_foreign_s[ob_no_foreign_count] = ob_foreign_s[ob_foreign_depth - 1];
+            ob_no_foreign_count = ob_no_foreign_count + 1;
         }
         ob_bailed = true;
         r_alloc_pc_blocks = false;
@@ -12409,6 +13224,11 @@ exit_loop_keeps:;
         if (ob_inc_count >= OPT_MAX_INC) {
             if ((!ob_bailed) && (getenv("SAMALTAK_OPT_TRACE") != NULL)) {
                 fprintf(stderr, "opt: bail at pc %d of act %d\n", opt_cur_pc, opt_cur_act);
+            }
+            if ((!ob_bailed) && ((ob_foreign_depth > 0) && (ob_no_foreign_count < 8))) {
+                ob_no_foreign_m[ob_no_foreign_count] = ob_foreign_m[ob_foreign_depth - 1];
+                ob_no_foreign_s[ob_no_foreign_count] = ob_foreign_s[ob_foreign_depth - 1];
+                ob_no_foreign_count = ob_no_foreign_count + 1;
             }
             ob_bailed = true;
             return phi;
@@ -13826,6 +14646,11 @@ static void opt_builder_write(int32_t var, int32_t v, int32_t b)
         if (ob_def_count >= 98304) {
             if ((!ob_bailed) && (getenv("SAMALTAK_OPT_TRACE") != NULL)) {
                 fprintf(stderr, "opt: bail at pc %d of act %d\n", opt_cur_pc, opt_cur_act);
+            }
+            if ((!ob_bailed) && ((ob_foreign_depth > 0) && (ob_no_foreign_count < 8))) {
+                ob_no_foreign_m[ob_no_foreign_count] = ob_foreign_m[ob_foreign_depth - 1];
+                ob_no_foreign_s[ob_no_foreign_count] = ob_foreign_s[ob_foreign_depth - 1];
+                ob_no_foreign_count = ob_no_foreign_count + 1;
             }
             ob_bailed = true;
             return;

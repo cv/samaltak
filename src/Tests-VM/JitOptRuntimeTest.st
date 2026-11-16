@@ -149,6 +149,91 @@ testClosureTheFrameMadeInALoopUnit
 		self assert: (o find: 30000) equals: 30000.
 		self assert: (o switch: 30000) equals: 45001]
 !
+testClosuresOtherFramesMadeInALoopUnit
+	"A loop's unit inlines the closures other frames made that its frame holds (a block passed to a method whose loop evaluates it), guarded by their code; their outer temps and self through the closure: one that stores its home's temp and sends to self, one that a block passed on reaches (a fold), different blocks through the same loop, one with ^ (called, not inlined), one whose home has returned."
+	| o adder |
+	Smalltalk vm jitParameters: #(nil '-eager' nil nil).
+	self define: 'each: n do: aBlock 1 to: n do: [:i | aBlock value: i]'.
+	self define: 'twice: x ^x * 2'.
+	self define: 'sumTo: n | s | s := 0. self each: n do: [:i | s := s + (self twice: i)]. ^s'.
+	self define: 'fold: n from: init with: aBlock | acc | acc := init. self each: n do: [:i | acc := aBlock value: acc value: i]. ^acc'.
+	self define: 'foldSum: n ^self fold: n from: 0 with: [:a :b | a + b]'.
+	self define: 'foldMax: n ^self fold: n from: 0 with: [:a :b | a max: b \\ 1000]'.
+	self define: 'find: k in: n self each: n do: [:i | i = k ifTrue: [^i]]. ^0'.
+	self define: 'adder | total | total := 0. ^[:i | total := total + i. total]'.
+	o := JitRuntimeTestSubject new.
+	3 timesRepeat: [
+		self assert: (o sumTo: 30000) equals: 900030000.
+		self assert: (o foldSum: 30000) equals: 450015000.
+		self assert: (o foldMax: 30000) equals: 999.
+		self assert: (o foldSum: 20000) equals: 200010000.
+		self assert: (o find: 25000 in: 30000) equals: 25000.
+		self assert: (o find: 0 in: 30000) equals: 0.
+		adder := o adder.
+		o each: 30000 do: adder.
+		self assert: (adder value: 0) equals: 450015000]
+!
+testClosuresSeveralContextsOutInALoopUnit
+	"A loop's unit inlines a block passed on through two more blocks (sum:of: through a fold through each:do:): each such block gets a variant of the loop's unit, the second does not deoptimize in the first's; an object that is not a block in its place is sent value:. Each call waits once early in the loop: its frame goes on in baseline code and enters the loop's unit."
+	| o before |
+	Smalltalk vm jitParameters: #(nil '-eager' nil nil).
+	self define: 'pause (Delay forMilliseconds: 1) wait'.
+	self define: 'each: n do: aBlock 1 to: n do: [:i | i = 10 ifTrue: [self pause]. aBlock value: i]'.
+	self define: 'fold: n from: init with: aBlock | acc | acc := init. self each: n do: [:i | acc := aBlock value: acc value: i]. ^acc'.
+	self define: 'sum: n of: aBlock ^self fold: n from: 0 with: [:a :i | a + (aBlock value: i)]'.
+	self define: 'squares: n ^self sum: n of: [:i | i * i]'.
+	self define: 'cubes: n ^self sum: n of: [:i | i * i * i]'.
+	self define: 'value: i ^i + 1'.
+	o := JitRuntimeTestSubject new.
+	self assert: (o squares: 30000) equals: 9000450005000.
+	before := self statistics.
+	self assert: (o cubes: 30000) equals: 202513500225000000.
+	self stressed ifFalse: [self assert: (self statistics - before) optDeoptimizations equals: 0].
+	3 timesRepeat: [
+		self assert: (o squares: 30000) equals: 9000450005000.
+		self assert: (o cubes: 30000) equals: 202513500225000000.
+		self assert: (o sum: 30000 of: o) equals: 450045000]
+!
+testLoopUnitVariantsAreBounded
+	"A loop's unit has variants for at most 16 different blocks other frames made; frames holding others enter its plain unit, which inlines none: they do not deoptimize. Each call waits once early in the loop: its frame goes on in baseline code and enters the loop's unit."
+	| o before |
+	Smalltalk vm jitParameters: #(nil '-eager' nil nil).
+	self define: 'pause (Delay forMilliseconds: 1) wait'.
+	self define: 'each: n do: aBlock 1 to: n do: [:i | i = 10 ifTrue: [self pause]. aBlock value: i]'.
+	1 to: 20 do: [:k | self define: 'sum' , k printString , ': n | s | s := 0. self each: n do: [:i | s := s + (i \\ ' , k printString , ')]. ^s'].
+	o := JitRuntimeTestSubject new.
+	1 to: 20 do: [:k | | expected |
+		expected := 0.
+		1 to: 3000 do: [:i | expected := expected + (i \\ k)].
+		k = 17 ifTrue: [before := self statistics].
+		self assert: (o perform: ('sum' , k printString , ':') asSymbol with: 3000) equals: expected].
+	self stressed ifFalse: [self assert: (self statistics - before) optDeoptimizations equals: 0]
+!
+testMalformedClosuresALoopUnitDoesNotInline
+	"Malformed closures a loop's frame (or its block's outer Context) holds and never calls are not inlined, nor their outerContext's method read as one: no outerContext; a method that is nil, an Array, bytes, a CompiledMethod without bytecodes, one with a block's bytecodes but bytes for literals. Each call waits once early in the loop: its frame goes on in baseline code and enters the loop's unit."
+	| o junk bad real |
+	Smalltalk vm jitParameters: #(nil '-eager' nil nil).
+	self define: 'pause (Delay forMilliseconds: 1) wait'.
+	self define: 'each: n do: aBlock junk: j | a b c d e f | a := j at: 1. b := j at: 2. c := j at: 3. d := j at: 4. e := j at: 5. f := j at: 6. 1 to: n do: [:i | i = 10 ifTrue: [self pause]. i = 0 ifTrue: [a value. b value. c value. d value. e value. f value]. aBlock value: i]'.
+	self define: 'sumTo: n junk: j | s x | s := 0. x := j at: 3. self each: n do: [:i | s := s + i] junk: j. x yourself. ^s'.
+	self define: 'junk ^[3]'.
+	o := JitRuntimeTestSubject new.
+	real := o junk.
+	bad := [:method | | ctx blk |
+		ctx := Context basicNew.
+		ctx instVarAt: 4 put: method.
+		blk := BlockClosure basicNew.
+		blk instVarAt: 1 put: ctx; instVarAt: 2 put: (real instVarAt: 2); instVarAt: 3 put: 0.
+		blk].
+	junk := {
+		BlockClosure basicNew.
+		bad value: nil.
+		bad value: (Array new: 20).
+		bad value: (ByteArray new: 64).
+		bad value: CompiledMethod basicNew.
+		bad value: (CompiledMethod basicNew instVarAt: 3 put: (ByteArray new: 64); instVarAt: 4 put: (((real instVarAt: 1) instVarAt: 4) instVarAt: 4); yourself)}.
+	3 timesRepeat: [self assert: (o sumTo: 30000 junk: junk) equals: 450015000]
+!
 testProcessPrimitivesThatDoNotSwitch
 	"signal and wait that switch no process (their C primitives commit their results) return into the optimized code that called them."
 	| o s |
