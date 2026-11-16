@@ -45,7 +45,8 @@ open: aBlock
 	| w |
 	w := aBlock value.
 	self assert: (self waitFor: [w isOpen]) description: 'the window did not open'.
-	self assert: (self waitFor: [w queue isEmpty]) description: 'the window did not settle'.
+	"What opening queued has run (a window animating every frame may never have an empty queue)."
+	w sync: [].
 	^w
 !
 windowTitled: aString
