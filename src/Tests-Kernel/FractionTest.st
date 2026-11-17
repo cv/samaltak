@@ -35,6 +35,28 @@ testArithmetic
 	self assert: ((2 / 3) raisedTo: -2) = (9 / 4).
 	self assert: (1 / 2) squared = (1 / 4)
 !
+testArithmeticIsNormalized
+	"Each result as the definition gives it, reduced: an Integer, or a Fraction whose denominator is greater than 1 and coprime with its numerator."
+	| xs |
+	xs := OrderedCollection new.
+	-6 to: 6 do: [:n | 1 to: 6 do: [:d | xs add: n / d]].
+	xs add: (2 raisedTo: 80) / (3 raisedTo: 30); add: (6 raisedTo: 30) / (10 raisedTo: 25) negated; add: (2 raisedTo: 70); add: (15 raisedTo: 20) / (2 raisedTo: 64).
+	xs do: [:x |
+		xs do: [:y |
+			self check: x + y is: x numerator * y denominator + (y numerator * x denominator) over: x denominator * y denominator.
+			self check: x - y is: x numerator * y denominator - (y numerator * x denominator) over: x denominator * y denominator.
+			self check: x * y is: x numerator * y numerator over: x denominator * y denominator.
+			y = 0
+				ifTrue: [self should: [x / y] raise: ZeroDivide]
+				ifFalse: [self check: x / y is: x numerator * y denominator over: x denominator * y numerator]]]
+!
+check: aNumber is: n over: d
+	| expected |
+	expected := (Fraction numerator: n denominator: d) reduced.
+	self assert: aNumber class == expected class.
+	self assert: aNumber numerator = expected numerator.
+	self assert: aNumber denominator = expected denominator
+!
 testMixedWithFloats
 	self assert: (1 / 2) + 0.5 = 1.0.
 	self assert: 0.5 + (1 / 2) = 1.0.

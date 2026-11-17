@@ -39,33 +39,93 @@ reduced
 
 !Fraction methodsFor: 'arithmetic'!
 + aNumber
+	"Knuth, TAOCP 2, 4.5.1: the operands are normalized, so the gcds needed are of the denominators and of that with the sum's numerator, not of the products; coprime denominators need no other."
+	| n d n2 d2 g |
 	aNumber isInteger ifTrue: [
 		^Fraction numerator: numerator + (aNumber * denominator) denominator: denominator].
 	aNumber isFraction ifFalse: [^self retry: #+ coercing: aNumber].
-	^(Fraction
-		numerator: (numerator * aNumber denominator) + (aNumber numerator * denominator)
-		denominator: denominator * aNumber denominator) reduced
+	n2 := aNumber numerator.
+	d2 := aNumber denominator.
+	g := denominator gcd: d2.
+	g = 1 ifTrue: [
+		^Fraction numerator: (numerator * d2) + (n2 * denominator) denominator: denominator * d2].
+	d2 := d2 // g.
+	n := (numerator * d2) + (n2 * (denominator // g)).
+	d := denominator.
+	g := n gcd: g.
+	g = 1 ifFalse: [
+		n := n // g.
+		d := d // g].
+	d := d * d2.
+	d = 1 ifTrue: [^n].
+	^Fraction numerator: n denominator: d
 !
 - aNumber
+	| n d n2 d2 g |
 	aNumber isInteger ifTrue: [
 		^Fraction numerator: numerator - (aNumber * denominator) denominator: denominator].
 	aNumber isFraction ifFalse: [^self retry: #- coercing: aNumber].
-	^(Fraction
-		numerator: (numerator * aNumber denominator) - (aNumber numerator * denominator)
-		denominator: denominator * aNumber denominator) reduced
+	n2 := aNumber numerator.
+	d2 := aNumber denominator.
+	g := denominator gcd: d2.
+	g = 1 ifTrue: [
+		^Fraction numerator: (numerator * d2) - (n2 * denominator) denominator: denominator * d2].
+	d2 := d2 // g.
+	n := (numerator * d2) - (n2 * (denominator // g)).
+	d := denominator.
+	g := n gcd: g.
+	g = 1 ifFalse: [
+		n := n // g.
+		d := d // g].
+	d := d * d2.
+	d = 1 ifTrue: [^n].
+	^Fraction numerator: n denominator: d
 !
 * aNumber
+	"Knuth, TAOCP 2, 4.5.1: each numerator's common factors with the other denominator cancel before multiplying."
+	| n d n2 d2 g |
 	(aNumber isInteger or: [aNumber isFraction]) ifFalse: [^self retry: #* coercing: aNumber].
-	^(Fraction
-		numerator: numerator * aNumber numerator
-		denominator: denominator * aNumber denominator) reduced
+	n := numerator.
+	d := denominator.
+	n2 := aNumber numerator.
+	d2 := aNumber denominator.
+	g := d2 gcd: n.
+	g = 1 ifFalse: [
+		n := n // g.
+		d2 := d2 // g].
+	g := d gcd: n2.
+	g = 1 ifFalse: [
+		n2 := n2 // g.
+		d := d // g].
+	n := n * n2.
+	d := d * d2.
+	d = 1 ifTrue: [^n].
+	^Fraction numerator: n denominator: d
 !
 / aNumber
+	"As * by the reciprocal; the denominator takes the divisor's sign."
+	| n d n2 d2 g |
 	(aNumber isInteger or: [aNumber isFraction]) ifFalse: [^self retry: #/ coercing: aNumber].
-	aNumber = 0 ifTrue: [^ZeroDivide new dividend: self; signal].
-	^(Fraction
-		numerator: numerator * aNumber denominator
-		denominator: denominator * aNumber numerator) reduced
+	n := numerator.
+	d := denominator.
+	n2 := aNumber denominator.
+	d2 := aNumber numerator.
+	d2 = 0 ifTrue: [^ZeroDivide new dividend: self; signal].
+	g := n gcd: d2.
+	g = 1 ifFalse: [
+		n := n // g.
+		d2 := d2 // g].
+	g := n2 gcd: d.
+	g = 1 ifFalse: [
+		n2 := n2 // g.
+		d := d // g].
+	n := n * n2.
+	d := d * d2.
+	d < 0 ifTrue: [
+		n := n negated.
+		d := d negated].
+	d = 1 ifTrue: [^n].
+	^Fraction numerator: n denominator: d
 !
 negated
 	^Fraction numerator: numerator negated denominator: denominator
