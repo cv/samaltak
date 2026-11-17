@@ -752,6 +752,14 @@ testLoopUnitWithDeadTemps
 	3 timesRepeat: [
 		self assert: (o osr: good) equals: (expected value: good).
 		self assert: (o osr: bad) equals: (expected value: bad)]
+!
+testLoopUnitInsideALoop
+	"A loop's unit entered inside another loop: the outer loop's backward jump reaches the blocks before the entry, so what they store reaches the merge after it."
+	| o |
+	Smalltalk vm jitParameters: #(nil '-eager' nil nil).
+	self define: 'nested: n | type count | count := 0. 1 to: 6 do: [:i | type := nil. i odd ifTrue: [1 to: (i = 5 ifTrue: [n] ifFalse: [2]) do: [:j | count := count + 1]. type := #a]. type isNil ifFalse: [count := count + 1000000]]. ^count'.
+	o := JitRuntimeTestSubject new.
+	3 timesRepeat: [self assert: (o nested: 30000) equals: 3030004]
 ! !
 
 !JitOptRuntimeTest methodsFor: 'tests: fast paths'!

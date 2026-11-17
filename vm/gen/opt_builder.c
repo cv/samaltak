@@ -14880,8 +14880,13 @@ static int32_t live_value_of(int32_t v)
         for (i = 0; i <= (int32_t)nd->nargs - 1; i++) {
             b_4 = pred(i, b);
             if (!({
+    if (ob_osr_pc >= 0) {
+        r_cannot_run = false;
+        goto exit_cannot_run;
+    }
     bl = opt_blocks + b_4;
-    r_cannot_run = ((bl->flags & BF_LIVE) == 0) && ((b_4 != ob_entry_block) && ((b_4 != opt_osr_entry) && ((bl->flags & BF_LOOP) == 0)));
+    r_cannot_run = ((bl->flags & BF_LIVE) == 0) && ((b_4 != ob_entry_block) && ((bl->flags & BF_LOOP) == 0));
+exit_cannot_run:;
     r_cannot_run; })) {
                 i_2 = nd->args + i;
                 o = opt_ir_resolve(opt_operands[i_2]);

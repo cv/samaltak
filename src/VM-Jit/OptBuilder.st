@@ -1845,10 +1845,11 @@ liveValueOf: v
 	^r
 !
 cannotRun: b
-	"b is not reachable (BF_LIVE) and, neither an entry nor a loop head (a backward jump may still come), never will be: all its predecessors are known (they come before it) and none is."
+	"b is not reachable (BF_LIVE) and, neither an entry nor a loop head (a backward jump may still come), never will be: all its predecessors are known (they come before it) and none is. Not in a loop's unit: the backward jump of a loop around its entry reaches the blocks before it."
 	| bl |
+	obOsrPc >= 0 ifTrue: [^false].
 	bl := ir block: b.
-	^(bl flags bitAnd: BF_LIVE) = 0 and: [b ~= obEntryBlock and: [b ~= ir osrEntry and: [(bl flags bitAnd: BF_LOOP) = 0]]]
+	^(bl flags bitAnd: BF_LIVE) = 0 and: [b ~= obEntryBlock and: [(bl flags bitAnd: BF_LOOP) = 0]]
 !
 canInline: m act: a
 	"m may be inlined into a: small, no primitive, only bytecodes the tier inlines, not too deep or recursive, within the budget."
