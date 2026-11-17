@@ -119,6 +119,10 @@ specialArgc: k
 	"Arguments of special selector k (0-31)."
 	^(k = 19 or: [k = 20]) ifTrue: [1] ifFalse: [interpreter specialArgcAt: k]
 !
+specialInlinesIntegers: k
+	"Special selector k (0-31) is one machine code takes inline for SmallIntegers, without a send (so without feedback): + - * // \\ bitShift: bitAnd: bitOr: and the comparisons."
+	^k <= 8 or: [k = 10 or: [k >= 12 and: [k <= 15]]]
+!
 sendArgcOf: p
 	"Arguments of the send the instruction at p makes (a send, a special selector or a superinstruction)."
 	| op |

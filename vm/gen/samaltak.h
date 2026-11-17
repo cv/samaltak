@@ -1704,7 +1704,7 @@ void unlink_selector(oop sel);
 void jit_baseline_runtime_young_roots(void (*fn)(oop *));
 void jit_feedback_all_roots(void (*fn)(oop *));
 uint32_t flags_at(oop m, int64_t pc);
-void note_flags(oop m, int64_t pc, uint32_t f);
+void note_flags(oop m, int64_t pc, int64_t f);
 void note_send(oop m, int64_t pc, oop cls);
 feedback_site *site_at(oop m, int64_t pc);
 void jit_feedback_young_roots(void (*fn)(oop *));

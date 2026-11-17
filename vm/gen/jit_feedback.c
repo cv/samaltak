@@ -57,7 +57,7 @@ uint32_t flags_at(oop m, int64_t pc)
 }
 
 /* JitFeedback>>noteFlags:pc:flags: */
-void note_flags(oop m, int64_t pc, uint32_t f)
+void note_flags(oop m, int64_t pc, int64_t f)
 {
     feedback_site *s;
     s = site_for(m, pc);

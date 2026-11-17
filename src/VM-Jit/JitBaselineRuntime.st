@@ -441,7 +441,7 @@ miss: f receiver: rcv ret: ret
 	<var: #rcv type: 'oop'>
 	<var: #ret type: 'uint64_t'>
 	<returns: 'uint64_t'>
-	| h s kind sel cls t opt |
+	| h s kind sel cls t opt fl |
 	statMisses := statMisses + 1.
 	h := self cCoerce: f code to: 'JitMethod *'.
 	self setTop: f ret: ret mode: 0.
@@ -457,7 +457,12 @@ miss: f receiver: rcv ret: ret
 		ifTrue: [self loadRef: (self loadRef: h method at: CM_CLASS) at: BEH_SUPERCLASS]
 		ifFalse: [interpreter receiverClass: rcv].
 	"--jit opt: what the site saw is type feedback"
-	(jit tiering and: [kind ~= 1 and: [opt not]]) ifTrue: [feedback noteSend: h method pc: s pc asInt64 class: cls].
+	(jit tiering and: [kind ~= 1 and: [opt not]]) ifTrue: [
+		feedback noteSend: h method pc: s pc asInt64 class: cls.
+		"a SmallInteger sent arithmetic that has an inline SmallInteger path: the path did not apply"
+		(kind = 2 and: [cls = memory clsSmallint and: [compiler inlinesIntegers: ((s info >> 16) bitAnd: 255) asInt32]]) ifTrue: [
+			fl := feedback flagsOf: ((self calleeFp: f ret: ret) at: 0).
+			feedback noteFlags: h method pc: s pc asInt64 flags: (fl = 0 ifTrue: [feedback overflowed] ifFalse: [fl])]].
 	t := self targetFor: cls selector: sel.
 	t isNull ifTrue: [^opt ifTrue: [jit optSendFrom: f ret: ret] ifFalse: [1]].
 	jit ic ifTrue: [self link: s in: h class: cls selector: sel target: t super: kind = 1].

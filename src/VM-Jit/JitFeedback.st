@@ -121,6 +121,12 @@ noteFlags: m pc: pc flags: f
 	s := self siteFor: m pc: pc.
 	s flags: (s flags bitOr: f)
 !
+flagsOf: v
+	"The profile bits of v as an operand of arithmetic: FB_FLOAT, FB_NONINT, 0 for a SmallInteger."
+	((v bitAnd: 7) = 4 or: [(self isPtr: v) and: [(self rawClass: v) = memory clsBoxedfloat]]) ifTrue: [^FB_FLOAT].
+	(self isInt: v) ifFalse: [^FB_NONINT].
+	^0
+!
 flagsAt: m pc: pc
 	<function>
 	<var: #pc type: 'int64_t'>

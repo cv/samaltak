@@ -276,6 +276,18 @@ testIntegerArithmeticBesideFloats
 	self assert: (o mixed: a) equals: 833675000.0.
 	self stressed ifFalse: [self assert: (self statistics - before) optDeoptimizations < 2]
 !
+testArithmeticBaselineCodeSent
+	"A SmallInteger's arithmetic that baseline code sent (a LargeInteger argument, an overflow) is feedback: the optimized code sends it too, it does not speculate on SmallIntegers and deoptimize, site after site (unless --jit-flags deopt makes it)."
+	| o x expected before |
+	Smalltalk vm jitParameters: #(nil '-eager' nil nil).
+	self define: 'large: n by: x | s | s := 0. 1 to: n do: [:i | s := s + (i * x \\ 1000) + (i + SmallInteger maxVal \\ 7) + (i - x \\ 9)]. ^s'.
+	o := JitRuntimeTestSubject new.
+	x := 2 raisedTo: 70.
+	expected := (1 to: 20000) inject: 0 into: [:s :i | s + (i * x \\ 1000) + (i + SmallInteger maxVal \\ 7) + (i - x \\ 9)].
+	before := self statistics.
+	self assert: (o large: 20000 by: x) equals: expected.
+	self stressed ifFalse: [self assert: (self statistics - before) optDeoptimizations < 2]
+!
 testBoxedFloatsInFloatArithmetic
 	"BoxedFloat64s (the infinities, NaN) are decoded as SmallFloat64s are: comparing them does not deoptimize (unless --jit-flags deopt makes it); NaN compares false."
 	| o a before |

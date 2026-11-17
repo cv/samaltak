@@ -2493,11 +2493,15 @@ special: k pc: pc pushes: pushes
 	(k = 19 or: [k = 20]) ifTrue: [^self identical: k pc: pc].
 	k = 29 ifTrue: [^self classOf: pc].
 	((k = 23 or: [k = 24]) and: [runtime prims and: [brt nilTestsInlinable]]) ifTrue: [^self nilTest: k - 22 pc: pc].
-	(runtime arith and: [(k <= 8 or: [k = 10 or: [(k >= 12 and: [k <= 15])]]) and: [k ~= 11]]) ifTrue: [^self arith: k pc: pc pushes: pushes].
+	(self inlinesIntegers: k) ifTrue: [^self arith: k pc: pc pushes: pushes].
 	(runtime float and: [k = 9]) ifTrue: [^self arith: k pc: pc pushes: pushes].
 	(runtime access and: [k = 16 or: [k = 17]]) ifTrue: [^self access: k pc: pc pushes: pushes].
 	(runtime blocks and: [k = 21 or: [k = 22 or: [k = 30]]]) ifTrue: [^self value: k pc: pc pushes: pushes].
 	^self sendSpecial: k pc: pc pushes: pushes
+!
+inlinesIntegers: k
+	"Special selector k has an inline SmallInteger path (arith:pc:pushes:); what it does not take is sent."
+	^runtime arith and: [analysis specialInlinesIntegers: k]
 !
 sendSpecial: k pc: pc pushes: pushes
 	| n ri |

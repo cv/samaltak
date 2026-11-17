@@ -134460,7 +134460,7 @@ exit_emit_compare_result_2:;
 exit_nil_test:;
     r_nil_test; });
     }
-    if (((jit_flags & JIT_FLAG_ARITH) != 0) && (((k <= 8) || ((k == 10) || ((k >= 12) && (k <= 15)))) && (k != 11))) {
+    if (((jit_flags & JIT_FLAG_ARITH) != 0) && ((k <= 8) || ((k == 10) || ((k >= 12) && (k <= 15))))) {
         return arith(k, pc, pushes);
     }
     if (((jit_flags & JIT_FLAG_FLOAT) != 0) && (k == 9)) {
@@ -135128,7 +135128,7 @@ exit_emit_compare_result_2:;
 exit_nil_test:;
     r_nil_test; });
     }
-    if (((jit_flags & JIT_FLAG_ARITH) != 0) && (((k <= 8) || ((k == 10) || ((k >= 12) && (k <= 15)))) && (k != 11))) {
+    if (((jit_flags & JIT_FLAG_ARITH) != 0) && ((k <= 8) || ((k == 10) || ((k >= 12) && (k <= 15))))) {
         return arith(k, pc, pushes);
     }
     if (((jit_flags & JIT_FLAG_FLOAT) != 0) && (k == 9)) {

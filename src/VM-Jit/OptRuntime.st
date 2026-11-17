@@ -779,17 +779,12 @@ operandFlagsAt: m pc: pc
 	p := (self methodBytecodes: m) + pc.
 	op := p at: 0.
 	(analysis pushesOf: p) > 0 ifTrue: [
-		fl := self flagsOf: (g fp at: (p at: 1)).
-		(op = 16r97 or: [op >= 16r9A and: [op < 16rA0]]) ifTrue: [fl := fl bitOr: (self flagsOf: (g fp at: (p at: 2)))].
+		fl := feedback flagsOf: (g fp at: (p at: 1)).
+		(op = 16r97 or: [op >= 16r9A and: [op < 16rA0]]) ifTrue: [fl := fl bitOr: (feedback flagsOf: (g fp at: (p at: 2)))].
 		^fl].
 	fl := 0.
-	g sp - 2 to: g sp - 1 do: [:i | i >= 0 ifTrue: [fl := fl bitOr: (self flagsOf: (g fp at: i))]].
+	g sp - 2 to: g sp - 1 do: [:i | i >= 0 ifTrue: [fl := fl bitOr: (feedback flagsOf: (g fp at: i))]].
 	^fl
-!
-flagsOf: v
-	((v bitAnd: 7) = 4 or: [(self isPtr: v) and: [(self rawClass: v) = memory clsBoxedfloat]]) ifTrue: [^feedback sawFloat].
-	(self isInt: v) ifFalse: [^feedback sawNonInt].
-	^0
 !
 returnBottom: f index: k
 	"Frame f (the bottom frame) returns into activeCtx at safepoint k (its state: the return bytecode, the result on top; the registers in the JitState's dump), as the interpreter's returnTop does; if activeCtx is dead the interpreter does it (deoptimize)."
