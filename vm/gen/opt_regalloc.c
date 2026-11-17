@@ -235,11 +235,14 @@ static void build_intervals(void)
     opt_block *bl;
     int32_t in;
     int32_t out;
+    int32_t w;
+    uint64_t bits;
     int32_t v;
     int32_t pos;
     bool r_is_value;
     opt_node *nd_3;
     opt_node *nd_2;
+    int32_t v_2;
     int32_t pos_2;
     bool r_is_value_2;
     opt_node *nd_5;
@@ -259,29 +262,29 @@ static void build_intervals(void)
     opt_node *nd_9;
     opt_node *nd_8;
     int64_t i_2;
-    int32_t v_2;
+    int32_t v_3;
     int32_t pos_5;
     bool r_is_value_5;
     opt_node *nd_11;
     opt_node *nd_10;
-    int32_t v_3;
+    int32_t v_4;
     int32_t pos_6;
     bool r_is_value_6;
     opt_node *nd_13;
     opt_node *nd_12;
-    int32_t v_4;
+    int32_t v_5;
     int32_t pos_7;
     bool r_is_value_7;
     opt_node *nd_15;
     opt_node *nd_14;
-    int32_t v_5;
+    int32_t v_6;
     int32_t pos_8;
     bool r_is_value_8;
     opt_node *nd_17;
     opt_node *nd_16;
     int32_t j;
     int32_t i_3;
-    int32_t v_6;
+    int32_t v_7;
     int32_t pos_9;
     bool r_is_value_9;
     opt_node *nd_19;
@@ -293,14 +296,14 @@ static void build_intervals(void)
     opt_state *st;
     int32_t j_2;
     int32_t i_4;
-    int32_t v_7;
+    int32_t v_8;
     bool r_is_value_10;
     opt_node *nd_21;
     opt_node *nd_20;
     int64_t r_closure_of_state;
     int32_t a;
     int32_t c;
-    int64_t v_8;
+    int64_t v_9;
     bool r_is_value_11;
     opt_node *nd_23;
     opt_node *nd_22;
@@ -309,8 +312,10 @@ static void build_intervals(void)
         bl = opt_blocks + b;
         in = ra_live_in + b * ra_live_words;
         out = ra_live_out + b * ra_live_words;
-        for (v = 0; v <= opt_node_count - 1; v++) {
-            if ((ra_live_arena[in + (v >> 6)] & (1LL << (v & 63))) != 0) {
+        for (w = 0; w <= ra_live_words - 1; w++) {
+            bits = ra_live_arena[in + w];
+            while (bits != 0) {
+                v = w * 64 + __builtin_ctzll(bits);
                 pos = bl->from;
                 if (!({
     if (v < 0) {
@@ -331,21 +336,24 @@ exit_is_value:;
                     nd_2->lend = pos;
                 }
             exit_extend:;
+                bits = bits & (bits - 1);
             }
-            if ((ra_live_arena[out + (v >> 6)] & (1LL << (v & 63))) != 0) {
+            bits = ra_live_arena[out + w];
+            while (bits != 0) {
+                v_2 = w * 64 + __builtin_ctzll(bits);
                 pos_2 = bl->to;
                 if (!({
-    if (v < 0) {
+    if (v_2 < 0) {
         r_is_value_2 = false;
         goto exit_is_value_2;
     }
-    nd_5 = opt_nodes + v;
+    nd_5 = opt_nodes + v_2;
     r_is_value_2 = (nd_5->block >= 0) && (((int32_t)nd_5->rep != R_NONE) && (((int32_t)nd_5->op != O_CONST) && (((int32_t)nd_5->op != O_CLOSURE) && (((int32_t)nd_5->op != O_HOMESLOT) && ((nd_5->flags & NF_DEAD) == 0)))));
 exit_is_value_2:;
     r_is_value_2; })) {
                     goto exit_extend_2;
                 }
-                nd_4 = opt_nodes + v;
+                nd_4 = opt_nodes + v_2;
                 if (pos_2 < nd_4->lstart) {
                     nd_4->lstart = pos_2;
                 }
@@ -353,6 +361,7 @@ exit_is_value_2:;
                     nd_4->lend = pos_2;
                 }
             exit_extend_2:;
+                bits = bits & (bits - 1);
             }
         }
         n = bl->first;
@@ -405,20 +414,20 @@ exit_is_value_4:;
                     }
                 exit_extend_4:;
                     i_2 = nd->args + k;
-                    v_2 = opt_operands[i_2];
+                    v_3 = opt_operands[i_2];
                     pos_5 = p->to - 1;
                     if (!({
-    if (v_2 < 0) {
+    if (v_3 < 0) {
         r_is_value_5 = false;
         goto exit_is_value_5;
     }
-    nd_11 = opt_nodes + v_2;
+    nd_11 = opt_nodes + v_3;
     r_is_value_5 = (nd_11->block >= 0) && (((int32_t)nd_11->rep != R_NONE) && (((int32_t)nd_11->op != O_CONST) && (((int32_t)nd_11->op != O_CLOSURE) && (((int32_t)nd_11->op != O_HOMESLOT) && ((nd_11->flags & NF_DEAD) == 0)))));
 exit_is_value_5:;
     r_is_value_5; })) {
                         goto exit_extend_5;
                     }
-                    nd_10 = opt_nodes + v_2;
+                    nd_10 = opt_nodes + v_3;
                     if (pos_5 < nd_10->lstart) {
                         nd_10->lstart = pos_5;
                     }
@@ -431,20 +440,20 @@ exit_is_value_5:;
                 }
             } else {
                 if (nd->a >= 0) {
-                    v_3 = nd->a;
+                    v_4 = nd->a;
                     pos_6 = nd->pos;
                     if (!({
-    if (v_3 < 0) {
+    if (v_4 < 0) {
         r_is_value_6 = false;
         goto exit_is_value_6;
     }
-    nd_13 = opt_nodes + v_3;
+    nd_13 = opt_nodes + v_4;
     r_is_value_6 = (nd_13->block >= 0) && (((int32_t)nd_13->rep != R_NONE) && (((int32_t)nd_13->op != O_CONST) && (((int32_t)nd_13->op != O_CLOSURE) && (((int32_t)nd_13->op != O_HOMESLOT) && ((nd_13->flags & NF_DEAD) == 0)))));
 exit_is_value_6:;
     r_is_value_6; })) {
                         goto exit_extend_6;
                     }
-                    nd_12 = opt_nodes + v_3;
+                    nd_12 = opt_nodes + v_4;
                     if (pos_6 < nd_12->lstart) {
                         nd_12->lstart = pos_6;
                     }
@@ -454,20 +463,20 @@ exit_is_value_6:;
                 exit_extend_6:;
                 }
                 if (nd->b >= 0) {
-                    v_4 = nd->b;
+                    v_5 = nd->b;
                     pos_7 = nd->pos;
                     if (!({
-    if (v_4 < 0) {
+    if (v_5 < 0) {
         r_is_value_7 = false;
         goto exit_is_value_7;
     }
-    nd_15 = opt_nodes + v_4;
+    nd_15 = opt_nodes + v_5;
     r_is_value_7 = (nd_15->block >= 0) && (((int32_t)nd_15->rep != R_NONE) && (((int32_t)nd_15->op != O_CONST) && (((int32_t)nd_15->op != O_CLOSURE) && (((int32_t)nd_15->op != O_HOMESLOT) && ((nd_15->flags & NF_DEAD) == 0)))));
 exit_is_value_7:;
     r_is_value_7; })) {
                         goto exit_extend_7;
                     }
-                    nd_14 = opt_nodes + v_4;
+                    nd_14 = opt_nodes + v_5;
                     if (pos_7 < nd_14->lstart) {
                         nd_14->lstart = pos_7;
                     }
@@ -477,20 +486,20 @@ exit_is_value_7:;
                 exit_extend_7:;
                 }
                 if ((nd->c >= 0) && ((int32_t)nd->op != O_SEND)) {
-                    v_5 = nd->c;
+                    v_6 = nd->c;
                     pos_8 = nd->pos;
                     if (!({
-    if (v_5 < 0) {
+    if (v_6 < 0) {
         r_is_value_8 = false;
         goto exit_is_value_8;
     }
-    nd_17 = opt_nodes + v_5;
+    nd_17 = opt_nodes + v_6;
     r_is_value_8 = (nd_17->block >= 0) && (((int32_t)nd_17->rep != R_NONE) && (((int32_t)nd_17->op != O_CONST) && (((int32_t)nd_17->op != O_CLOSURE) && (((int32_t)nd_17->op != O_HOMESLOT) && ((nd_17->flags & NF_DEAD) == 0)))));
 exit_is_value_8:;
     r_is_value_8; })) {
                         goto exit_extend_8;
                     }
-                    nd_16 = opt_nodes + v_5;
+                    nd_16 = opt_nodes + v_6;
                     if (pos_8 < nd_16->lstart) {
                         nd_16->lstart = pos_8;
                     }
@@ -501,20 +510,20 @@ exit_is_value_8:;
                 }
                 for (j = 0; j <= (int32_t)nd->nargs - 1; j++) {
                     i_3 = nd->args + j;
-                    v_6 = opt_operands[i_3];
+                    v_7 = opt_operands[i_3];
                     pos_9 = nd->pos;
                     if (!({
-    if (v_6 < 0) {
+    if (v_7 < 0) {
         r_is_value_9 = false;
         goto exit_is_value_9;
     }
-    nd_19 = opt_nodes + v_6;
+    nd_19 = opt_nodes + v_7;
     r_is_value_9 = (nd_19->block >= 0) && (((int32_t)nd_19->rep != R_NONE) && (((int32_t)nd_19->op != O_CONST) && (((int32_t)nd_19->op != O_CLOSURE) && (((int32_t)nd_19->op != O_HOMESLOT) && ((nd_19->flags & NF_DEAD) == 0)))));
 exit_is_value_9:;
     r_is_value_9; })) {
                         goto exit_extend_9;
                     }
-                    nd_18 = opt_nodes + v_6;
+                    nd_18 = opt_nodes + v_7;
                     if (pos_9 < nd_18->lstart) {
                         nd_18->lstart = pos_9;
                     }
@@ -532,19 +541,19 @@ exit_is_value_9:;
                     st = opt_states + s;
                     for (j_2 = 0; j_2 <= st->depth; j_2++) {
                         i_4 = st->vals + j_2;
-                        v_7 = opt_operands[i_4];
+                        v_8 = opt_operands[i_4];
                         if (!({
-    if (v_7 < 0) {
+    if (v_8 < 0) {
         r_is_value_10 = false;
         goto exit_is_value_10;
     }
-    nd_21 = opt_nodes + v_7;
+    nd_21 = opt_nodes + v_8;
     r_is_value_10 = (nd_21->block >= 0) && (((int32_t)nd_21->rep != R_NONE) && (((int32_t)nd_21->op != O_CONST) && (((int32_t)nd_21->op != O_CLOSURE) && (((int32_t)nd_21->op != O_HOMESLOT) && ((nd_21->flags & NF_DEAD) == 0)))));
 exit_is_value_10:;
     r_is_value_10; })) {
                             goto exit_extend_10;
                         }
-                        nd_20 = opt_nodes + v_7;
+                        nd_20 = opt_nodes + v_8;
                         if (after < nd_20->lstart) {
                             nd_20->lstart = after;
                         }
@@ -553,7 +562,7 @@ exit_is_value_10:;
                         }
                     exit_extend_10:;
                     }
-                    v_8 = ({
+                    v_9 = ({
     a = st->act;
     c = (opt_acts + a)->closure;
     if (c < 0) {
@@ -568,17 +577,17 @@ exit_is_value_10:;
 exit_closure_of_state:;
     r_closure_of_state; });
                     if (!({
-    if (v_8 < 0) {
+    if (v_9 < 0) {
         r_is_value_11 = false;
         goto exit_is_value_11;
     }
-    nd_23 = opt_nodes + v_8;
+    nd_23 = opt_nodes + v_9;
     r_is_value_11 = (nd_23->block >= 0) && (((int32_t)nd_23->rep != R_NONE) && (((int32_t)nd_23->op != O_CONST) && (((int32_t)nd_23->op != O_CLOSURE) && (((int32_t)nd_23->op != O_HOMESLOT) && ((nd_23->flags & NF_DEAD) == 0)))));
 exit_is_value_11:;
     r_is_value_11; })) {
                         goto exit_extend_11;
                     }
-                    nd_22 = opt_nodes + v_8;
+                    nd_22 = opt_nodes + v_9;
                     if (after < nd_22->lstart) {
                         nd_22->lstart = after;
                     }
@@ -1123,6 +1132,8 @@ static bool record_safepoint_liveness(void)
     opt_node *nd;
     bool r_is_safepoint;
     int32_t op;
+    int32_t w_2;
+    uint64_t bits;
     int32_t v;
     int32_t s;
     opt_state *st;
@@ -1180,10 +1191,15 @@ static bool record_safepoint_liveness(void)
     r_is_safepoint = (op == O_SEND) || ((op == O_CALL) || ((op == O_CHECKINT) || (op == O_MKARRAY)));
     r_is_safepoint; })) {
                 nd->live = ra_safe_list_count;
-                for (v = 0; v <= opt_node_count - 1; v++) {
-                    if ((v != n) && ((ra_live_arena[set + (v >> 6)] & (1LL << (v & 63))) != 0) && (ra_safe_list_count < RA_MAX_SAFELIST)) {
-                        ra_safe_list[ra_safe_list_count] = v;
-                        ra_safe_list_count = ra_safe_list_count + 1;
+                for (w_2 = 0; w_2 <= ra_live_words - 1; w_2++) {
+                    bits = ra_live_arena[set + w_2];
+                    while (bits != 0) {
+                        v = w_2 * 64 + __builtin_ctzll(bits);
+                        if ((v != n) && (ra_safe_list_count < RA_MAX_SAFELIST)) {
+                            ra_safe_list[ra_safe_list_count] = v;
+                            ra_safe_list_count = ra_safe_list_count + 1;
+                        }
+                        bits = bits & (bits - 1);
                     }
                 }
                 s = nd->state;

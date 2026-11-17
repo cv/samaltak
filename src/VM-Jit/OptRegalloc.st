@@ -1,5 +1,5 @@
 OptModule subclass: #OptRegalloc
-	instanceVariableNames: 'ir passes raLiveWords raLiveIn raLiveOut raLiveArena raSorted raSortCount raBucket raBucketNext raActive raActiveCount raFreeRegs raSafePos raSafeCall raSafeCount raSlotTop raSlotFree raSlotFreeCount raSlotBase raRawTop raRawFree raRawFreeCount raRawBase raValidSlots raMaxPos raSafeList raSafeListCount'
+	instanceVariableNames: 'ir passes builtins raLiveWords raLiveIn raLiveOut raLiveArena raSorted raSortCount raBucket raBucketNext raActive raActiveCount raFreeRegs raSafePos raSafeCall raSafeCount raSlotTop raSlotFree raSlotFreeCount raSlotBase raRawTop raRawFree raRawFreeCount raRawBase raValidSlots raMaxPos raSafeList raSafeListCount'
 	classVariableNames: 'RA_ARENA RA_MAX_ACTIVE RA_MAX_SAFE RA_MAX_SAFELIST RA_MAX_SLOTS RA_NREGS'
 	package: 'VM-Jit'!
 
@@ -7,7 +7,7 @@ OptRegalloc comment: 'Register allocation for the optimizing tier (Poletto and S
 
 !OptRegalloc class methodsFor: 'declaring'!
 declarations
-	^#((ir OptIR) (passes OptPasses) (raLiveWords int32_t) (raLiveIn int32_t) (raLiveOut int32_t) (raLiveArena 'uint64_t[RA_ARENA]')
+	^#((ir OptIR) (passes OptPasses) (builtins Builtins) (raLiveWords int32_t) (raLiveIn int32_t) (raLiveOut int32_t) (raLiveArena 'uint64_t[RA_ARENA]')
 		(raSorted 'int32_t[OPT_MAX_NODES]') (raSortCount int32_t) (raBucket 'int32_t[OPT_MAX_NODES]') (raBucketNext 'int32_t[OPT_MAX_NODES]')
 		(raActive 'int32_t[RA_MAX_ACTIVE]') (raActiveCount int32_t) (raFreeRegs 'int32_t[RA_NREGS]')
 		(raSafePos 'int32_t[RA_MAX_SAFE]') (raSafeCall 'uint8_t[RA_MAX_SAFE]') (raSafeCount int32_t)
@@ -172,7 +172,7 @@ transfer: b out: out into: in
 recordSafepointLiveness
 	"For each safepoint, the values live after it (its frame state's among them): saved before it, reloaded after it."
 	<function>
-	| b n nd st s set sv |
+	| b n nd st s set sv bits v |
 	raSafeListCount := 0.
 	set := 2 * ir blockCount * raLiveWords.
 	0 to: passes orderCount - 1 do: [:i |
@@ -183,10 +183,14 @@ recordSafepointLiveness
 			nd := ir node: n.
 			(self isSafepoint: n) ifTrue: [
 				nd live: raSafeListCount.
-				0 to: ir nodeCount - 1 do: [:v |
-					((v ~= n and: [self isSet: v in: set]) and: [raSafeListCount < RA_MAX_SAFELIST]) ifTrue: [
-						raSafeList at: raSafeListCount put: v.
-						raSafeListCount := raSafeListCount + 1]].
+				0 to: raLiveWords - 1 do: [:w |
+					bits := raLiveArena at: set + w.
+					[bits ~= 0] whileTrue: [
+						v := w * 64 + (builtins ctz64: bits).
+						(v ~= n and: [raSafeListCount < RA_MAX_SAFELIST]) ifTrue: [
+							raSafeList at: raSafeListCount put: v.
+							raSafeListCount := raSafeListCount + 1].
+						bits := bits bitAnd: bits - 1]].
 				s := nd state.
 				[s >= 0] whileTrue: [
 					st := ir state: s.
@@ -237,15 +241,21 @@ extend: v to: pos
 !
 buildIntervals
 	<function>
-	| b bl in out n nd k e p s st after |
+	| b bl in out n nd k e p s st after bits |
 	0 to: passes orderCount - 1 do: [:i |
 		b := passes orderAt: i.
 		bl := ir block: b.
 		in := raLiveIn + (b * raLiveWords).
 		out := raLiveOut + (b * raLiveWords).
-		0 to: ir nodeCount - 1 do: [:v |
-			(self isSet: v in: in) ifTrue: [self extend: v to: bl from].
-			(self isSet: v in: out) ifTrue: [self extend: v to: bl to]].
+		0 to: raLiveWords - 1 do: [:w |
+			bits := raLiveArena at: in + w.
+			[bits ~= 0] whileTrue: [
+				self extend: w * 64 + (builtins ctz64: bits) to: bl from.
+				bits := bits bitAnd: bits - 1].
+			bits := raLiveArena at: out + w.
+			[bits ~= 0] whileTrue: [
+				self extend: w * 64 + (builtins ctz64: bits) to: bl to.
+				bits := bits bitAnd: bits - 1]].
 		n := bl first.
 		[n >= 0] whileTrue: [
 			nd := ir node: n.
