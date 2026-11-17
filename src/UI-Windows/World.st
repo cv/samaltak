@@ -312,7 +312,7 @@ displayScaleChanged: aNumber
 	scale := aNumber.
 	Font deviceScale: aNumber.
 	topBar resetFonts.
-	windows do: [:w | w layer markNeedsRender. w invalidate].
+	windows do: [:w | w layer chromeKey: nil. w layer markNeedsRender. w invalidate].
 	self changed
 !
 clipboard

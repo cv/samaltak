@@ -29,10 +29,10 @@ theme
 !
 font
 	| spec |
-	(font notNil and: [font scale ~= Font deviceScale and: [fontSpec isNil or: [fontSpec isSymbol]]]) ifTrue: [self font: fontSpec].
+	(font notNil and: [font scale ~= Font deviceScale]) ifTrue: [self font: fontSpec].
 	font isNil ifFalse: [^font].
 	spec := fontSpec ifNil: [#code].
-	^font := spec isSymbol ifTrue: [self theme font: spec] ifFalse: [spec]
+	^font := (spec isSymbol ifTrue: [self theme font: spec] ifFalse: [spec]) atScale: Font deviceScale
 !
 font: aFontOrSymbol
 	"A Font, or a Theme font role (default #code)."

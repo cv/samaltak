@@ -192,6 +192,8 @@ drawString: aString at: aPoint font: aFont color: aColor
 !
 drawString: aString from: start to: stop at: aPoint font: aFont color: aColor
 	| string baseline penX color glyphs advances phases b cp adv q xi phase info template p limit i j |
+	aFont scale = scale ifFalse: [
+		^self drawString: aString from: start to: stop at: aPoint font: (aFont atScale: scale) color: aColor].
 	stop < start ifTrue: [^self].
 	string := aFont isUppercase ifTrue: [aString asUppercase] ifFalse: [aString].
 	baseline := self deviceY: aPoint y + aFont baselineOffset.

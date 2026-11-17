@@ -77,6 +77,11 @@ deviceAdvances
 pixelsPerUnit
 	"Device pixels per font unit."
 	^pixelsPerUnit
+!
+atScale: aNumber
+	"Keep logical typography while matching the destination display density."
+	scale = aNumber ifTrue: [^self].
+	^self copy rescaleTo: aNumber
 ! !
 
 !Font methodsFor: 'metrics'!
@@ -551,4 +556,10 @@ initialize
 	Smalltalk addStage2Step: [self buildStandardFonts] named: 'Font atlases'.
 	SystemChanges subscribe: #Font do: [:change |
 		(change affectsAnyOf: self rasterizingClasses) ifTrue: [self regenerateGlyphs]]
+! !
+
+!Font methodsFor: 'private'!
+rescaleTo: aNumber
+	scale := aNumber.
+	self resetGlyphs
 ! !
