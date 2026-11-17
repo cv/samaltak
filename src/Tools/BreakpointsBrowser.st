@@ -13,7 +13,7 @@ Remote names: list breakpoints, buttons toggle remove remove-all.'!
 build
 	| status |
 	list := ListView new.
-	list name: 'breakpoints'; title: 'Breakpoints'; font: #code12; cellWidth: 9.
+	list name: 'breakpoints'; title: 'Breakpoints'; font: #codeSmall; cellWidth: 9.
 	list labelBlock: [:each | self titleOf: each].
 	list rightBlock: [:each | self descriptionOf: each].
 	list styleBlock: [:each | each isEnabled ifTrue: [nil] ifFalse: [#muted]].

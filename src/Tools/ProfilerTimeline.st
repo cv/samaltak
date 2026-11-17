@@ -179,7 +179,7 @@ drawBar: bar ranks: someRanks shades: shades on: aCanvas
 		profiler selectedBar == bar ifTrue: [
 			aCanvas strokeRect: ((x0 - 1) @ (top - 4) corner: (x0 + w + 1) @ base) color: self theme ultramarine width: 1.5].
 		hoverBar == bar ifTrue: [
-			aCanvas fillRect: (x0 @ (geometry at: 6) corner: (x0 + w) @ base) color: (Color black alpha: 0.06)]]
+			aCanvas fillRect: (x0 @ (geometry at: 6) corner: (x0 + w) @ base) color: (self theme color: #wash)]]
 !
 segmentsOf: aFrameRecord ranks: someRanks shades: shades
 	"Answer {µs. color} pairs bottom up: the Processes (busiest in view first; shaded ones in their shade, the others grey), draw, raster, GPU (#hatch) and GC; kept per record until its GPU time (it arrives after the frame) or the shaded Processes change."
@@ -301,7 +301,7 @@ drawSelectionOn: aCanvas
 	bottom := (g at: 5) + (g at: 7) + 2.
 	aCanvas fillRect: (left @ 0 corner: x0 @ bottom) color: (Color white alpha: 0.7).
 	aCanvas fillRect: (x1 @ 0 corner: right @ bottom) color: (Color white alpha: 0.7).
-	aCanvas fillRect: (x0 @ 0 corner: x1 @ bottom) color: (self theme ultramarine alpha: 0.10).
+	aCanvas fillRect: (x0 @ 0 corner: x1 @ bottom) color: (self theme color: #busySoft).
 	aCanvas fillRect: ((x0 rounded - 0.5) @ 0 extent: 1.5 @ bottom) color: self theme ultramarine.
 	aCanvas fillRect: ((x1 rounded - 1) @ 0 extent: 1.5 @ bottom) color: self theme ultramarine
 !
@@ -440,19 +440,19 @@ remoteChildren
 
 !ProfilerTimeline class methodsFor: 'colors'!
 processShade: rank
-	^Color hex: (#(16r1B3A8C 16r7D8FBF 16rC3CBE2) at: rank)
+	^Theme current color: (#(#l1 #l3 #l4) at: rank)
 !
 otherColor
-	^Color hex: 16rB8B8B8
+	^Theme current color: #ink4
 !
 drawColor
 	^Color black
 !
 rasterColor
-	^Color hex: 16r6B6B6B
+	^Theme current color: #ink3
 !
 idleColor
-	^Color hex: 16rE2E2E2
+	^Theme current color: #hair
 ! !
 
 !ProfilerTimeline class methodsFor: 'processes'!

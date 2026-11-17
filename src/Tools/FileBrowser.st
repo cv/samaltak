@@ -20,7 +20,7 @@ build
 	pathBar := FilePathBar new name: 'path'; fixed: 28; yourself.
 	pathBar onClick: [:path | self showFolder: path].
 	columns := FileColumns new.
-	header := DebuggerPaneHeader new titleFont: #code12Bold; name: 'file'; yourself.
+	header := DebuggerPaneHeader new titleFont: #codeSmallBold; name: 'file'; yourself.
 	viewer := FileViewer new name: 'viewer'; title: 'viewer'; yourself.
 	info := StatusBar new name: 'info'; yourself.
 	preview := Column with: (Array with: header with: viewer with: info).

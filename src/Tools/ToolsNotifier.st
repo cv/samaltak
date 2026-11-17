@@ -19,7 +19,7 @@ setSession: aDebugSession
 		with: ((Button label: 'Abandon' action: [self abandon]) sizeToContent; yourself)
 		with: (Widget new flex: 1)).
 	buttons spacing: 6; padding: (12 @ 5 corner: 12 @ 5); fixed: 32.
-	stack := ListView new name: 'stack'; title: 'Stack'; font: #code12; yourself.
+	stack := ListView new name: 'stack'; title: 'Stack'; font: #codeSmall; yourself.
 	stack items: (session stackOfSize: 12); onSelect: [:ctx | self showFrame: ctx].
 	code := ToolTextEditor new name: 'source'; title: 'source'; readOnly: true; methodMode: true; yourself.
 	self separators: true.

@@ -486,7 +486,7 @@ remoteLabel
 remoteState
 	| s |
 	s := OrderedCollection new.
-	s add: 'theme=blue-book'; add: 'type=pi-orb'.
+	s add: 'theme=blue-book'.
 	activeWindow isNil ifFalse: [s add: 'focus=@', activeWindow remoteName].
 	s add: 'processes=', topBar processCount printString.
 	s add: 'busy=', (windows count: [:w | w isBusy]) printString.

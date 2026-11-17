@@ -32,12 +32,11 @@ initializeBlueBook
 		at: #paper put: Color white;
 		at: #rule put: Color black;
 		at: #ultramarine put: ultra;
-		at: #accent put: ultra;
 		at: #accentSoft put: (ultra alpha: 0.12);
 		at: #textSelection put: (ultra alpha: 0.22);
 		at: #textSelectionInactive put: (Color black alpha: 0.07);
 		at: #busySoft put: (ultra alpha: 0.10);
-		at: #pcSoft put: (Color black alpha: 0.1);
+		at: #wash put: (Color black alpha: 0.06);
 		at: #inverseMuted put: (Color white alpha: 0.7);
 		at: #inverseKey put: (Color white alpha: 0.75);
 		at: #comment put: (Color hex: 16r5E5E5E);
@@ -71,7 +70,7 @@ initializeBlueBook
 		at: #menuPaddingX put: 12;
 		at: #menuTitleHeight put: 21;
 		at: #menuMinWidth put: 210;
-		at: #toastPaddingX put: 13;
+		at: #toastPaddingX put: 12;
 		at: #toastPaddingY put: 7;
 		at: #shadowOffset put: 2;
 		at: #caretWidth put: 1.5;
@@ -114,7 +113,7 @@ metric: aSymbol put: aNumber
 	metrics at: aSymbol put: aNumber
 !
 font: aSymbol
-	"Answer a font by role: the standard ones (ui uiBold uiItalic code codeBold codeItalic header title small smallItalic) and the theme's own sizes (button buttonBold menuKey mono11 code12 code12Bold toast)."
+	"Answer a font by role: the standard ones (ui uiBold uiItalic code codeBold codeItalic header title small smallItalic) and the theme's own sizes (button buttonBold menuKey mono11 codeSmall codeSmallBold toast chip readout)."
 	| font |
 	font := fonts at: aSymbol ifAbsent: [nil].
 	(font isNil or: [font scale ~= Font deviceScale]) ifTrue: [font := fonts at: aSymbol put: (self makeFont: aSymbol)].
@@ -135,8 +134,8 @@ extraFontSpecs
 		#(#buttonBold 'IosevkaEtoile-Bold' 12.5 16)
 		#(#menuKey 'IosevkaEtoile-Regular' 12.5 16)
 		#(#mono11 'JetBrainsMono-Regular' 11 14)
-		#(#code12 'JetBrainsMono-Regular' 12.5 18)
-		#(#code12Bold 'JetBrainsMono-Bold' 12.5 18)
+		#(#codeSmall 'JetBrainsMono-Regular' 12.5 18)
+		#(#codeSmallBold 'JetBrainsMono-Bold' 12.5 18)
 		#(#toast 'IosevkaEtoile-Italic' 13 17)
 		#(#chip 'JetBrainsMono-Bold' 10 12)
 		#(#readout 'IosevkaEtoile-Bold' 17 20))

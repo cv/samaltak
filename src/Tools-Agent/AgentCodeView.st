@@ -32,7 +32,7 @@ codeFont
 	^self theme font: #code
 !
 resultFont
-	^self theme font: #code12
+	^self theme font: #codeSmall
 ! !
 
 !AgentCodeView methodsFor: 'layout'!

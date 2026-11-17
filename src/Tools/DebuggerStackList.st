@@ -8,7 +8,7 @@ DebuggerStackList comment: 'I am the stack list of the Debugger and the Notifier
 !DebuggerStackList methodsFor: 'initialization'!
 initialize
 	super initialize.
-	self font: #code12.
+	self font: #codeSmall.
 	self cellWidth: 9.
 	self remoteNameBlock: [:item | item == #more ifTrue: ['more'] ifFalse: [self labelOf: item]]
 ! !

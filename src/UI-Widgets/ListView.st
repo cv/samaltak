@@ -391,7 +391,7 @@ drawItem: anItem in: r on: aCanvas inverted: inverted
 !
 labelFontFor: styles
 	styles isEmpty ifTrue: [^self font].
-	(styles includes: #code) ifTrue: [^self theme font: ((styles includes: #bold) ifTrue: [#code12Bold] ifFalse: [#code12])].
+	(styles includes: #code) ifTrue: [^self theme font: ((styles includes: #bold) ifTrue: [#codeSmallBold] ifFalse: [#codeSmall])].
 	(styles includes: #bold) ifTrue: [^self theme font: #uiBold].
 	(styles includes: #italic) ifTrue: [^self theme font: #uiItalic].
 	^self font

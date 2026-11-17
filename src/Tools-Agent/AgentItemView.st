@@ -74,7 +74,7 @@ wrap: aString font: aFont width: aWidth
 drawOref: anId at: aPoint on: aCanvas
 	"An object id boxed in ultramarine (the mock's .oref); answer its width."
 	| font w |
-	font := self theme font: #code12.
+	font := self theme font: #codeSmall.
 	w := (font widthOf: anId) + 8.
 	aCanvas strokeRect: (aPoint extent: w @ font lineHeight) color: self theme ultramarine width: 1.
 	aCanvas drawString: anId at: aPoint + (4 @ 0) font: font color: self theme ultramarine.

@@ -36,7 +36,7 @@ lineHeight
 	^17
 !
 font
-	^self theme font: #code12
+	^self theme font: #codeSmall
 !
 openGlyph
 	^'▾'
@@ -195,7 +195,7 @@ drawSelfOn: aCanvas
 	| font bold adv first last ink picked |
 	aCanvas fillRect: self localBounds color: self theme paper.
 	font := self font.
-	bold := self theme font: #code12Bold.
+	bold := self theme font: #codeSmallBold.
 	adv := font widthOf: 'M'.
 	ink := self theme ink.
 	picked := profiler isNil ifTrue: [nil] ifFalse: [profiler picked].

@@ -44,7 +44,7 @@ contextStrip
 	lines := (conversation context describe lines reject: [:each | each isEmpty]) asArray.
 	lines size > 4 ifTrue: [lines := (lines first: 4) copyWith: '…'].
 	^(Column with: (Array with: (PaneHeader title: 'Context' right: conversation context label)),
-		(lines collect: [:each | (Label text: each font: #code12) padding: (8 @ 0 corner: 8 @ 0); fixed: 18; yourself]))
+		(lines collect: [:each | (Label text: each font: #codeSmall) padding: (8 @ 0 corner: 8 @ 0); fixed: 18; yourself]))
 		background: #accentSoft;
 		fixed: 20 + (lines size * 18) + 4;
 		name: 'context';

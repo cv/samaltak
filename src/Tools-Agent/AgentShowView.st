@@ -23,7 +23,7 @@ headerHeight
 	^26
 !
 font
-	^self theme font: #code12
+	^self theme font: #codeSmall
 !
 textLinesFor: aWidth
 	| lines |

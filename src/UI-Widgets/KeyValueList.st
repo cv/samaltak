@@ -8,7 +8,7 @@ KeyValueList comment: 'I am a ListView of name / value pairs (inspector and debu
 !KeyValueList methodsFor: 'initialization'!
 initialize
 	super initialize.
-	self font: #code12.
+	self font: #codeSmall.
 	self rightFont: #mono11.
 	self labelBlock: [:item | (self keyOf: item) asString].
 	self rightBlock: [:item | self valueTextOf: item]

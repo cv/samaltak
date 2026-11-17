@@ -14,9 +14,9 @@ setTitle: aString placeholder: placeholderString
 	fields name: 'fields'; title: aString, ' fields'.
 	fields onSelect: [:field | self showValue].
 	valuePane := TextEditor new.
-	valuePane name: 'value'; title: aString, ' value'; readOnly: true; highlighting: false; font: #code12; wrap: true.
+	valuePane name: 'value'; title: aString, ' value'; readOnly: true; highlighting: false; font: #codeSmall; wrap: true.
 	evaluator := DebuggerEvaluator new.
-	evaluator name: 'evaluator'; title: aString, ' evaluator'; placeholder: placeholderString; font: #code12; fixed: 52.
+	evaluator name: 'evaluator'; title: aString, ' evaluator'; placeholder: placeholderString; font: #codeSmall; fixed: 52.
 	evaluator onDoIt: [:text :range | self evaluate: text printing: false inspecting: false].
 	evaluator onPrintIt: [:text :range | self evaluate: text printing: true inspecting: false].
 	evaluator onInspectIt: [:text :range | self evaluate: text printing: false inspecting: true].

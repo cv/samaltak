@@ -11,7 +11,7 @@ const os = require('os');
 
 const ROOT = path.resolve(__dirname, '..');
 const USAGE = `usage: samaltak-ctl [--session name] <command> [args]
-  open [--headless] [--hidden] [--work-clock] [--image path] [--theme t] [--port n] [--window-size WxH] [--source-dir d]   start an image with --control (--work-clock: on the recording clock from the start)
+  open [--headless] [--hidden] [--work-clock] [--image path] [--port n] [--window-size WxH] [--source-dir d]   start an image with --control (--work-clock: on the recording clock from the start)
   snapshot [ref] [--depth n] [--bounds]    widget tree with stable @refs
   find <text>                              refs whose label/ref contains text
   click <ref|x,y> [--right] [--mods Shift+Meta]
@@ -43,7 +43,7 @@ const pos = [];
 for (let i = 0; i < argv.length; i++) {
   const a = argv[i];
   if (a === '--session') session = argv[++i];
-  else if (/^--(theme|type|depth|mods|timeout|image|port|scale|size|fps|window-size|settle|delay|source-dir|at)$/.test(a)) flags[a.slice(2)] = argv[++i];
+  else if (/^--(depth|mods|timeout|image|port|scale|size|fps|window-size|settle|delay|source-dir|at)$/.test(a)) flags[a.slice(2)] = argv[++i];
   else if (/^--(headless|hidden|work-clock|raw|headed|bounds|right|end|start|replace|json|pointer|preedit)$/.test(a)) flags[a.slice(2)] = true;
   else if (a === '-h' || a === '--help') { console.log(USAGE); process.exit(0); }
   else pos.push(a);
@@ -148,7 +148,6 @@ async function open() {
   if (flags.headless) vmArgs.push('--headless');
   if (flags.hidden) vmArgs.push('--hidden');
   if (flags['work-clock']) vmArgs.push('--work-clock');
-  if (flags.theme) vmArgs.push('--theme', flags.theme);
   if (flags['window-size']) vmArgs.push('--window-size', flags['window-size']);
   if (flags['source-dir']) vmArgs.push('--source-dir', path.resolve(flags['source-dir']));
   const log = fs.openSync(logFile, 'w');

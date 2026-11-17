@@ -265,7 +265,7 @@ drawSelfOn: aCanvas
 	| font bold advance boldAdvance clip area picked fading px sm tm rh cl cr ct cb |
 	paper := self theme paper.
 	ink := self theme ink.
-	ancestorColor isNil ifTrue: [ancestorColor := Color hex: 16rF2F2F2. halftoneColor := Color black alpha: 0.12].
+	ancestorColor isNil ifTrue: [ancestorColor := paper mixed: (self theme color: #wash) alpha with: ink. halftoneColor := Color black alpha: 0.12].
 	aCanvas fillRect: self localBounds color: paper.
 	area := self sideMargin @ self topMargin corner: (self width - self sideMargin) @ self height.
 	aCanvas fillRect: (area origin extent: area width @ 1) color: ink.
@@ -275,7 +275,7 @@ drawSelfOn: aCanvas
 			at: (self sideMargin + 6) @ (self topMargin + 6) font: (self theme font: #smallItalic) color: self theme muted.
 		^self].
 	font := self theme font: #mono11.
-	bold := self theme font: #code12Bold.
+	bold := self theme font: #codeSmallBold.
 	advance := font widthOf: 'M'.
 	boldAdvance := bold widthOf: 'M'.
 	picked := profiler isNil ifTrue: [nil] ifFalse: [profiler picked].

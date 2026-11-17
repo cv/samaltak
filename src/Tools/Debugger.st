@@ -85,7 +85,7 @@ buildStack
 !
 buildSource
 	sourceHeader := DebuggerPaneHeader new.
-	sourceHeader titleFont: #code12Bold; name: 'header-source'.
+	sourceHeader titleFont: #codeSmallBold; name: 'header-source'.
 	source := TextEditor new.
 	source name: 'source'; title: 'Source'; methodMode: true.
 	source onAccept: [:text | self accept: text].

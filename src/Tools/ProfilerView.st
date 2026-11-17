@@ -526,7 +526,7 @@ tipLines
 drawOverlayOn: aCanvas
 	| bold italic w h x y r |
 	tipLines isNil ifTrue: [^self].
-	bold := self theme font: #code12Bold.
+	bold := self theme font: #codeSmallBold.
 	italic := self theme font: #smallItalic.
 	w := bold widthOf: tipLines first.
 	tipLines allButFirst do: [:l | w := w max: (italic widthOf: l)].
