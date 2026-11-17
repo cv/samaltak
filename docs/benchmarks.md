@@ -309,64 +309,78 @@ The port (`extremem/Extremem.st`, one source for Samaltak and Pharo; `extremem/E
 
 Each event's wall time is a latency: a customer's preparation (search, reviews) or decision (ranking reviews by substring search). A GC pause on Samaltak and Pharo is the GC time the VM counted across an event with a GC (Pharo counts whole milliseconds); on the JVM, a collector's safepoint (time to safepoint included) or a ZGC allocation stall, from `-Xlog:safepoint` and `-Xlog:gc`.
 
-    vm/tests/bench/extremem.sh [--pharo | --java PATH] [--vm-args ARGS] [-o FILE] [name=value ...]   # e.g. simulationMinutes=35 warmupMinutes=15
+    vm/tests/bench/extremem.sh [--pharo | --java PATH] [--vm-args ARGS] [--pharo-init EXPR] [-o FILE] [name=value ...]   # e.g. simulationMinutes=35 warmupMinutes=15
     vm/tests/bench/extremem_summary.py LABEL=FILE[,FILE...] ...
 
-Linux x86-64, the AMD EPYC 7B13 cloud VM with 2 vCPUs as above; Samaltak built with gcc -O2 (no profile), Pharo 14 (`Pharo-14.0.0+SNAPSHOT.build.790`, VM 12.0.6), Temurin JDK 27.0.1 with fixed heaps of 256 MB, 512 MB and 1 GB (2.3, 4.7 and 9.3 times the live set; below ~120 MB Serial collects without end). Extremem's defaults; 35 simulated minutes, the first 15 a warmup: decisions start at minute 3, saved products expire from minute 10. Medians of 3 invocations, interleaved (`vm/tests/bench/results/extremem-*-2026-11-15-*.txt`). The JVM's collectors use both vCPUs; Samaltak and Pharo collect in their one thread. Measured s: the 20 measured minutes; CPU s and peak RSS: the whole process, setup and warmup included.
+Linux x86-64, the AMD EPYC 7B13 cloud VM with 2 vCPUs as above; Samaltak built with gcc -O2 (no profile), Pharo 14 (`Pharo-14.0.0+SNAPSHOT.build.790`, VM 12.0.6), Temurin JDK 27.0.1 with fixed heaps: per collector the one at which its peak RSS is Samaltak's (275–328 MB), and 256 MB, 512 MB and 1 GB (2.3, 4.7 and 9.3 times the live set; below ~120 MB Serial collects without end). Samaltak does not get down to Pharo's 200 MB: its full GC copies the old space, and with `--max-heap 128` it still takes 294 MB and runs 189 full GCs instead of 7 (`--max-heap 96` is out of memory). So Pharo also runs with the full GC due when the old space has doubled, as on Samaltak, instead of grown by a third (`--pharo-init 'Smalltalk vm parameterAt: 55 put: 1.0'`). Extremem's defaults; 35 simulated minutes, the first 15 a warmup: decisions start at minute 3, saved products expire from minute 10. Medians of 3 invocations, interleaved (`vm/tests/bench/results/extremem-*-2026-11-17-*.txt`). The JVM's collectors use both vCPUs; Samaltak and Pharo collect in their one thread. Measured s: the 20 measured minutes; CPU s and peak RSS: the whole process, setup and warmup included.
 
 | configuration | measured s | prep p50 | prep p99 | prep p99.9 | prep max | decision p50 | decision p99 | decision p99.9 | decision max | CPU s | peak RSS MB |
 |---|---|---|---|---|---|---|---|---|---|---|---|
-| Samaltak `opt` | 41.3 | 0.87 | 2.46 | 3.5 | 47.7 | 4.29 | 13.04 | 18.0 | 50.2 | 67.7 | 380 |
-| Samaltak `baseline` | 44.0 | 1.07 | 2.94 | 4.3 | 47.5 | 4.42 | 13.55 | 19.7 | 58.3 | 72.3 | 365 |
-| Pharo 14 | 71.6 | 1.20 | 5.07 | 7.7 | 186.6 | 7.41 | 22.90 | 31.6 | 204.1 | 117.3 | 200 |
-| JDK 27 Serial, 256 MB | 12.8 | 0.41 | 7.90 | 9.2 | 177.6 | 0.90 | 2.99 | 8.8 | 186.6 | 25.3 | 314 |
-| JDK 27 Parallel, 256 MB | 11.9 | 0.40 | 4.39 | 5.8 | 146.1 | 0.90 | 2.98 | 5.9 | 143.6 | 24.6 | 318 |
-| JDK 27 G1, 256 MB | 13.9 | 0.45 | 9.26 | 23.5 | 30.8 | 1.05 | 3.69 | 12.7 | 26.1 | 37.5 | 335 |
-| JDK 27 ZGC, 256 MB | 15.8 | 0.64 | 4.55 | 8.9 | 41.1 | 1.12 | 4.19 | 7.6 | 13.8 | 50.2 | 370 |
-| JDK 27 Shenandoah, 256 MB | 35.1 | 0.52 | 84.36 | 303.3 | 330.1 | 1.17 | 3.96 | 200.0 | 302.9 | 84.4 | 327 |
-| JDK 27 Shenandoah generational, 256 MB | 14.2 | 0.53 | 1.60 | 8.9 | 44.0 | 1.13 | 3.69 | 5.7 | 42.5 | 41.6 | 334 |
-| JDK 27 Serial, 512 MB | 12.2 | 0.42 | 1.66 | 15.8 | 210.3 | 0.90 | 2.82 | 14.8 | 17.8 | 24.1 | 568 |
-| JDK 27 Parallel, 512 MB | 11.2 | 0.39 | 1.34 | 8.8 | 148.3 | 0.90 | 2.85 | 8.2 | 10.6 | 23.9 | 579 |
-| JDK 27 G1, 512 MB | 12.1 | 0.38 | 1.23 | 22.3 | 39.4 | 0.94 | 3.04 | 20.0 | 29.6 | 27.2 | 592 |
-| JDK 27 ZGC, 512 MB | 12.7 | 0.49 | 1.46 | 7.7 | 13.2 | 0.98 | 3.14 | 5.6 | 11.4 | 34.4 | 577 |
-| JDK 27 Shenandoah, 512 MB | 16.0 | 0.54 | 1.65 | 20.0 | 298.2 | 1.23 | 4.13 | 10.0 | 36.5 | 54.9 | 597 |
-| JDK 27 Shenandoah generational, 512 MB | 12.6 | 0.45 | 1.33 | 2.0 | 4.1 | 1.03 | 3.37 | 5.0 | 8.2 | 34.7 | 600 |
-| JDK 27 Serial, 1 GB | 11.9 | 0.41 | 1.23 | 27.1 | 28.3 | 0.90 | 2.81 | 25.8 | 28.3 | 23.4 | 926 |
-| JDK 27 Parallel, 1 GB | 11.0 | 0.38 | 1.16 | 14.4 | 16.2 | 0.89 | 2.78 | 13.7 | 15.5 | 23.4 | 953 |
-| JDK 27 G1, 1 GB | 11.2 | 0.37 | 1.04 | 34.1 | 38.1 | 0.90 | 2.78 | 4.6 | 34.8 | 23.8 | 974 |
-| JDK 27 ZGC, 1 GB | 12.1 | 0.48 | 1.38 | 2.1 | 3.2 | 0.95 | 2.97 | 4.3 | 7.0 | 31.0 | 964 |
-| JDK 27 Shenandoah, 1 GB | 13.9 | 0.51 | 1.45 | 2.7 | 9.2 | 1.15 | 3.72 | 5.8 | 9.9 | 46.4 | 1121 |
-| JDK 27 Shenandoah generational, 1 GB | 12.1 | 0.42 | 1.25 | 2.0 | 4.2 | 0.99 | 3.15 | 5.1 | 11.4 | 32.2 | 1141 |
+| Samaltak `opt` | 13.8 | 0.56 | 1.70 | 2.9 | 51.3 | 1.08 | 3.36 | 5.3 | 50.0 | 25.6 | 386 |
+| Samaltak `baseline` | 19.3 | 0.89 | 2.59 | 4.6 | 51.8 | 1.43 | 4.34 | 6.3 | 49.8 | 32.5 | 369 |
+| Pharo 14 | 74.1 | 1.49 | 5.68 | 8.6 | 195.0 | 7.50 | 23.47 | 37.7 | 216.9 | 120.8 | 202 |
+| Pharo 14, full GC at double | 73.4 | 1.61 | 6.31 | 8.9 | 254.3 | 7.30 | 22.82 | 36.4 | 63.7 | 119.9 | 280 |
+| JDK 27 Serial, 328 MB | 13.1 | 0.47 | 10.04 | 11.8 | 205.5 | 0.89 | 2.93 | 11.5 | 196.2 | 25.8 | 387 |
+| JDK 27 Parallel, 323 MB | 12.0 | 0.43 | 4.98 | 7.2 | 149.9 | 0.89 | 2.96 | 6.6 | 24.7 | 25.0 | 385 |
+| JDK 27 G1, 307 MB | 14.3 | 0.53 | 2.17 | 25.3 | 34.9 | 1.02 | 3.67 | 16.6 | 28.5 | 36.5 | 384 |
+| JDK 27 ZGC, 275 MB | 16.6 | 0.78 | 3.89 | 9.9 | 19.9 | 1.08 | 3.85 | 9.9 | 18.6 | 51.0 | 393 |
+| JDK 27 Shenandoah, 312 MB | 28.8 | 0.59 | 2.74 | 300.7 | 385.7 | 1.20 | 4.34 | 217.4 | 374.2 | 77.1 | 390 |
+| JDK 27 Shenandoah generational, 308 MB | 14.6 | 0.62 | 1.82 | 4.8 | 40.6 | 1.10 | 3.58 | 7.4 | 13.5 | 41.9 | 391 |
+| JDK 27 Serial, 256 MB | 13.3 | 0.45 | 8.36 | 10.1 | 194.6 | 0.90 | 3.03 | 9.4 | 192.4 | 26.1 | 315 |
+| JDK 27 Parallel, 256 MB | 12.4 | 0.45 | 4.59 | 6.6 | 158.0 | 0.90 | 3.04 | 6.1 | 147.3 | 25.5 | 319 |
+| JDK 27 G1, 256 MB | 14.7 | 0.55 | 9.57 | 24.7 | 29.6 | 1.04 | 3.73 | 12.9 | 26.2 | 38.9 | 329 |
+| JDK 27 ZGC, 256 MB | 17.7 | 0.86 | 4.71 | 10.5 | 25.8 | 1.15 | 4.56 | 9.8 | 21.3 | 56.6 | 372 |
+| JDK 27 Shenandoah, 256 MB | 38.7 | 0.64 | 96.30 | 324.7 | 366.3 | 1.15 | 3.89 | 211.5 | 341.4 | 91.2 | 335 |
+| JDK 27 Shenandoah generational, 256 MB | 15.4 | 0.68 | 2.14 | 9.1 | 45.7 | 1.12 | 3.75 | 6.0 | 12.9 | 44.7 | 337 |
+| JDK 27 Serial, 512 MB | 12.7 | 0.45 | 1.99 | 16.7 | 231.4 | 0.89 | 2.87 | 16.3 | 27.4 | 24.9 | 567 |
+| JDK 27 Parallel, 512 MB | 12.2 | 0.47 | 1.84 | 9.3 | 154.7 | 0.90 | 2.90 | 8.2 | 13.4 | 25.5 | 580 |
+| JDK 27 G1, 512 MB | 13.0 | 0.50 | 1.62 | 22.7 | 41.6 | 0.93 | 3.03 | 20.7 | 32.7 | 29.4 | 592 |
+| JDK 27 ZGC, 512 MB | 14.0 | 0.63 | 1.87 | 8.3 | 23.2 | 0.99 | 3.23 | 9.1 | 15.7 | 38.1 | 568 |
+| JDK 27 Shenandoah, 512 MB | 18.0 | 0.69 | 2.60 | 31.5 | 380.5 | 1.20 | 4.00 | 12.0 | 33.2 | 59.3 | 594 |
+| JDK 27 Shenandoah generational, 512 MB | 14.0 | 0.62 | 1.79 | 3.0 | 10.6 | 1.03 | 3.38 | 5.3 | 29.1 | 36.9 | 601 |
+| JDK 27 Serial, 1 GB | 12.9 | 0.50 | 1.66 | 29.1 | 41.3 | 0.90 | 2.80 | 27.0 | 30.9 | 25.2 | 925 |
+| JDK 27 Parallel, 1 GB | 11.9 | 0.48 | 1.47 | 14.8 | 22.3 | 0.90 | 2.83 | 14.2 | 25.9 | 25.1 | 956 |
+| JDK 27 G1, 1 GB | 12.0 | 0.46 | 1.37 | 34.4 | 36.2 | 0.91 | 2.80 | 5.2 | 37.3 | 24.8 | 972 |
+| JDK 27 ZGC, 1 GB | 12.9 | 0.57 | 1.66 | 3.7 | 12.5 | 0.94 | 2.96 | 4.8 | 20.6 | 33.3 | 954 |
+| JDK 27 Shenandoah, 1 GB | 15.1 | 0.67 | 1.95 | 2.8 | 12.9 | 1.13 | 3.74 | 8.1 | 11.7 | 49.9 | 1123 |
+| JDK 27 Shenandoah generational, 1 GB | 13.3 | 0.57 | 1.63 | 2.7 | 9.5 | 0.99 | 3.22 | 5.8 | 17.4 | 34.0 | 1134 |
 
 GC pauses in the 20 measured minutes, per invocation; percentiles and maximum over the pauses of all 3, the last 9 columns how many pauses an invocation had per range of duration (ms):
 
 | configuration | pauses | sum ms | % of time | p50 ms | p90 ms | p99 ms | p99.9 ms | max ms | <0.5 | 0.5–1 | 1–2 | 2–5 | 5–10 | 10–20 | 20–50 | 50–100 | ≥100 |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
-| Samaltak `opt` | 702 | 396 | 1.0 | 0.34 | 0.54 | 0.87 | 46.63 | 48.5 | 590 | 106 | 3 | 0 | 0 | 0 | 3 | 0 | 0 |
-| Samaltak `baseline` | 738 | 393 | 0.9 | 0.32 | 0.51 | 0.61 | 46.39 | 47.7 | 656 | 79 | 0 | 0 | 0 | 0 | 3 | 0 | 0 |
-| Pharo 14 | 685 | 3019 | 4.1 | 3.00 | 3.00 | 5.00 | 186.00 | 191.0 | 0 | 0 | 0 | 677 | 2 | 0 | 0 | 0 | 6 |
-| JDK 27 Serial, 256 MB | 168 | 1866 | 14.5 | 7.17 | 7.95 | 184.18 | 187.78 | 187.8 | 0 | 0 | 1 | 5 | 158 | 0 | 0 | 0 | 4 |
-| JDK 27 Parallel, 256 MB | 151 | 1147 | 9.9 | 3.98 | 5.08 | 143.12 | 152.87 | 152.9 | 0 | 0 | 0.3 | 134 | 13 | 0 | 0 | 0 | 4 |
-| JDK 27 G1, 256 MB | 161 | 1399 | 9.9 | 8.91 | 20.29 | 27.59 | 30.42 | 30.4 | 27 | 7 | 20 | 0.7 | 52 | 38 | 17 | 0 | 0 |
-| JDK 27 ZGC, 256 MB | 1710 | 196 | 1.3 | 0.11 | 0.12 | 0.45 | 4.34 | 94.8 | 1647 | 5 | 4 | 6 | 0.7 | 0 | 0.3 | 0.3 | 0 |
-| JDK 27 Shenandoah, 256 MB | 289 | 20783 | 59.2 | 0.20 | 207.25 | 312.24 | 369.92 | 369.9 | 162 | 1 | 0 | 0 | 0.3 | 0.3 | 1 | 47 | 78 |
-| JDK 27 Shenandoah generational, 256 MB | 1239 | 450 | 3.1 | 0.13 | 0.18 | 0.23 | 41.85 | 60.5 | 1242 | 0 | 0 | 0.3 | 0 | 1 | 6 | 0.3 | 0 |
-| JDK 27 Serial, 512 MB | 84 | 1345 | 10.9 | 13.61 | 14.65 | 209.00 | 215.37 | 215.4 | 0 | 0 | 0 | 0 | 2 | 81 | 0 | 0 | 1 |
-| JDK 27 Parallel, 512 MB | 75 | 662 | 5.9 | 6.92 | 7.90 | 147.18 | 153.71 | 153.7 | 0 | 0 | 0 | 1 | 72 | 1 | 0 | 0 | 1 |
-| JDK 27 G1, 512 MB | 58 | 907 | 7.5 | 18.96 | 27.23 | 38.48 | 39.58 | 39.6 | 8 | 0.7 | 8 | 0 | 0 | 25 | 16 | 0 | 0 |
-| JDK 27 ZGC, 512 MB | 244 | 27 | 0.2 | 0.10 | 0.12 | 0.13 | 1.81 | 1.8 | 239 | 0 | 0.7 | 0 | 0 | 0 | 0 | 0 | 0 |
-| JDK 27 Shenandoah, 512 MB | 166 | 1135 | 7.1 | 0.32 | 12.19 | 288.28 | 313.83 | 313.8 | 131 | 2 | 0.3 | 4 | 7 | 13 | 5 | 0.3 | 2 |
-| JDK 27 Shenandoah generational, 512 MB | 271 | 55 | 0.4 | 0.18 | 0.30 | 0.34 | 0.42 | 0.4 | 275 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
-| JDK 27 Serial, 1 GB | 42 | 1072 | 9.1 | 25.46 | 26.60 | 27.70 | 28.05 | 28.0 | 0 | 0 | 0 | 0 | 0 | 0 | 42 | 0 | 0 |
-| JDK 27 Parallel, 1 GB | 37 | 478 | 4.3 | 12.86 | 13.94 | 15.29 | 15.36 | 15.4 | 0 | 0 | 0 | 0 | 0 | 37 | 0 | 0 | 0 |
-| JDK 27 G1, 1 GB | 20 | 668 | 5.9 | 33.15 | 34.02 | 39.46 | 39.46 | 39.5 | 0 | 0 | 0 | 0 | 0 | 0 | 20 | 0 | 0 |
-| JDK 27 ZGC, 1 GB | 69 | 7 | 0.1 | 0.10 | 0.12 | 0.15 | 0.17 | 0.2 | 75 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
-| JDK 27 Shenandoah, 1 GB | 119 | 24 | 0.2 | 0.17 | 0.28 | 0.33 | 0.70 | 0.7 | 119 | 0.3 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
-| JDK 27 Shenandoah generational, 1 GB | 100 | 22 | 0.2 | 0.19 | 0.32 | 0.38 | 0.43 | 0.4 | 102 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
+| Samaltak `opt` | 701 | 418 | 3.0 | 0.37 | 0.58 | 0.83 | 52.77 | 65.3 | 566 | 131 | 1 | 0 | 0 | 0 | 2 | 1 | 0 |
+| Samaltak `baseline` | 736 | 416 | 2.2 | 0.35 | 0.55 | 0.74 | 50.17 | 51.6 | 621 | 113 | 0 | 0 | 0 | 0 | 2 | 1 | 0 |
+| Pharo 14 | 685 | 3147 | 4.3 | 3.00 | 4.00 | 6.00 | 215.00 | 222.0 | 0 | 0 | 0 | 672 | 7 | 0 | 0 | 0 | 6 |
+| Pharo 14, full GC at double | 685 | 2565 | 3.6 | 3.00 | 4.00 | 5.00 | 251.00 | 256.0 | 0 | 0 | 0 | 676 | 7 | 0 | 0 | 0 | 2 |
+| JDK 27 Serial, 328 MB | 131 | 1610 | 12.4 | 9.19 | 10.29 | 204.38 | 214.51 | 214.5 | 0 | 0 | 0 | 1 | 109 | 19 | 0 | 0 | 2 |
+| JDK 27 Parallel, 323 MB | 119 | 978 | 8.1 | 4.46 | 5.76 | 146.12 | 152.49 | 152.5 | 0 | 0 | 0 | 82 | 33 | 0 | 0 | 0 | 3 |
+| JDK 27 G1, 307 MB | 127 | 1286 | 9.0 | 11.07 | 22.11 | 30.13 | 47.86 | 47.9 | 23 | 1 | 21 | 0 | 11 | 52 | 19 | 0 | 0 |
+| JDK 27 ZGC, 275 MB | 1120 | 240 | 1.4 | 0.11 | 0.13 | 5.26 | 15.77 | 21.6 | 1079 | 4 | 4 | 3 | 9 | 2 | 0.3 | 0 | 0 |
+| JDK 27 Shenandoah, 312 MB | 226 | 13665 | 47.1 | 0.21 | 218.87 | 334.20 | 419.02 | 419.0 | 133 | 0.7 | 3 | 4 | 9 | 15 | 8 | 0.3 | 57 |
+| JDK 27 Shenandoah generational, 308 MB | 819 | 176 | 1.2 | 0.15 | 0.22 | 0.27 | 40.86 | 41.5 | 807 | 0.7 | 0 | 0 | 0 | 0 | 2 | 0 | 0 |
+| JDK 27 Serial, 256 MB | 168 | 1981 | 14.7 | 7.54 | 8.49 | 192.44 | 204.85 | 204.9 | 0 | 0 | 1 | 4 | 157 | 1 | 0.3 | 0 | 4 |
+| JDK 27 Parallel, 256 MB | 151 | 1184 | 9.5 | 3.99 | 5.10 | 148.31 | 172.13 | 172.1 | 0 | 0 | 0.7 | 132 | 14 | 0 | 0 | 0 | 4 |
+| JDK 27 G1, 256 MB | 161 | 1417 | 9.8 | 9.19 | 20.33 | 27.53 | 31.56 | 31.6 | 27 | 5 | 22 | 0.3 | 42 | 49 | 17 | 0 | 0 |
+| JDK 27 ZGC, 256 MB | 1556 | 312 | 1.8 | 0.11 | 0.13 | 2.46 | 10.43 | 36.6 | 1742 | 7 | 7 | 13 | 5 | 2 | 0.3 | 0 | 0 |
+| JDK 27 Shenandoah, 256 MB | 274 | 23478 | 60.7 | 0.20 | 246.52 | 342.17 | 365.15 | 365.1 | 145 | 0 | 0 | 0 | 0 | 0.3 | 2 | 39 | 87 |
+| JDK 27 Shenandoah generational, 256 MB | 1151 | 360 | 2.4 | 0.14 | 0.20 | 0.28 | 42.95 | 52.7 | 1157 | 0.7 | 0.3 | 0.7 | 0.7 | 2 | 3 | 0.3 | 0 |
+| JDK 27 Serial, 512 MB | 84 | 1423 | 10.9 | 14.50 | 16.52 | 229.28 | 257.87 | 257.9 | 0 | 0 | 0 | 0 | 2 | 81 | 0 | 0 | 1 |
+| JDK 27 Parallel, 512 MB | 75 | 674 | 5.4 | 6.99 | 8.18 | 153.76 | 162.94 | 162.9 | 0 | 0 | 0 | 0.3 | 73 | 0.3 | 0 | 0 | 1 |
+| JDK 27 G1, 512 MB | 54 | 932 | 7.1 | 19.48 | 28.39 | 40.74 | 43.06 | 43.1 | 6 | 0.3 | 6 | 0 | 0.3 | 22 | 20 | 0 | 0 |
+| JDK 27 ZGC, 512 MB | 239 | 30 | 0.2 | 0.11 | 0.13 | 0.72 | 17.98 | 18.0 | 239 | 0.7 | 0.3 | 0.7 | 1 | 0.3 | 0 | 0 | 0 |
+| JDK 27 Shenandoah, 512 MB | 164 | 2422 | 13.4 | 0.32 | 20.10 | 340.44 | 381.04 | 381.0 | 127 | 0 | 0.3 | 2 | 7 | 11 | 11 | 1 | 5 |
+| JDK 27 Shenandoah generational, 512 MB | 279 | 60 | 0.4 | 0.20 | 0.33 | 0.38 | 0.42 | 0.4 | 270 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
+| JDK 27 Serial, 1 GB | 42 | 1172 | 9.1 | 27.52 | 29.86 | 40.44 | 59.17 | 59.2 | 0 | 0 | 0 | 0 | 0 | 0 | 42 | 0.3 | 0 |
+| JDK 27 Parallel, 1 GB | 37 | 497 | 4.2 | 13.34 | 14.37 | 20.30 | 28.71 | 28.7 | 0 | 0 | 0 | 0 | 0 | 36 | 0.7 | 0 | 0 |
+| JDK 27 G1, 1 GB | 20 | 677 | 5.6 | 33.97 | 35.52 | 47.54 | 47.54 | 47.5 | 0 | 0 | 0 | 0 | 0 | 0 | 20 | 0 | 0 |
+| JDK 27 ZGC, 1 GB | 74 | 8 | 0.1 | 0.11 | 0.12 | 0.14 | 0.22 | 0.2 | 76 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
+| JDK 27 Shenandoah, 1 GB | 119 | 25 | 0.2 | 0.18 | 0.29 | 0.35 | 0.37 | 0.4 | 118 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
+| JDK 27 Shenandoah generational, 1 GB | 101 | 23 | 0.2 | 0.21 | 0.35 | 0.43 | 0.49 | 0.5 | 100 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
 
-Samaltak's GC takes 1 % of the time and pauses 0.34 ms at the median, 0.87 ms at p99: a scavenge copies little, since what survives one (the pending reviews) is tenured. Its 3 full GCs (150 MB old space) take 47 ms each and are its longest latencies. Of the collectors that stop the world, none pauses less: at a heap the size of Samaltak's (380 MB RSS against 315–370 MB at 256 MB), Serial and Parallel collect the young generation in 4–8 ms and the old in 150–190 ms, G1 in 9–30 ms. Only the concurrent ones pause less: ZGC and generational Shenandoah stay below 2 ms from 512 MB on, for 1.3–1.5 times the CPU time of Parallel. Non-generational Shenandoah degenerates at 256 MB (59 % of the time in pauses, 330 ms latencies). Pharo's scavenges take ~3 ms, its full GCs ~190 ms (4 % of the time).
+Samaltak's GC takes 3 % of the time and pauses 0.37 ms at the median, 0.83 ms at p99: a scavenge copies little, since what survives one (the pending reviews) is tenured. Its 3 full GCs (140 MB old space) take ~50 ms each and are its longest latencies. Of the collectors that stop the world, none pauses less: with the memory Samaltak takes, Serial and Parallel collect the young generation in 4–10 ms and the old in 150–215 ms, G1 in 11–48 ms, and spend 8–12 % of the time in pauses. The concurrent ones pause 0.11–0.15 ms at the median, for 1.7–2 times the CPU time of Parallel with that memory: ZGC up to 22 ms, generational Shenandoah 41 ms; they stay within 0.5 ms at 1 GB (generational Shenandoah from 512 MB on), for 1.3–1.5 times the CPU time. Non-generational Shenandoah degenerates below 512 MB (47–61 % of the time in pauses, 300 ms latencies). Pharo's scavenges take ~3 ms, its 6 full GCs ~200 ms (4 % of the time); with the full GC at double it runs 2, takes 280 MB and as long.
 
-Samaltak `opt` runs the measured minutes 1.7 times faster than Pharo 14 and 3.7 times slower than the JVM (Parallel, 1 GB). The difference is in the mutator, not the GC: the decisions, substring searches in short Strings, take 4.8 times as long (4.29 against 0.90 ms at the median), the preparations, hashing and catenating Strings, 2.3 times. `baseline` is only 7 % slower than `opt`: most of the time is in primitives and the library, not compiled code.
+Samaltak `opt` runs the measured minutes 5.4 times faster than Pharo 14. With the same memory it is 15 % slower than the JVM with Parallel and 5 % slower than with Serial, and faster than with G1, ZGC or either Shenandoah. Without the pauses, the mutator takes 13.4 s against 11.0 s under Parallel: the decisions, substring searches in short Strings, take 1.2 times as long (1.08 against 0.89 ms at the median), the preparations, hashing and catenating Strings, 1.3 times. `baseline` is 40 % slower than `opt`.
 
 ## Against C
 

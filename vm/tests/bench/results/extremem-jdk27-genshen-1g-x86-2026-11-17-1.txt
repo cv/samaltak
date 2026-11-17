@@ -1,0 +1,47 @@
+# extremem 2026-11-17 02:36 system=java java=/workspace/ext/jdk/jdk-27.0.1.0.2+1/bin/java (openjdk version "27.0.1.0.2" 2026-10-21) vm-args='-XX:+UseShenandoahGC -XX:ShenandoahGCMode=generational -Xms1g -Xmx1g' params=' 'simulationMinutes=35' 'warmupMinutes=15''
+# setup 861254 us
+Extremem,1,670359
+Extremem,2,663070
+Extremem,3,494702
+Extremem,4,999526
+Extremem,5,850696
+Extremem,6,803355
+Extremem,7,784845
+Extremem,8,876048
+Extremem,9,805306
+Extremem,10,691592
+Extremem,11,736136
+Extremem,12,662409
+Extremem,13,725556
+Extremem,14,720728
+# measured from uptime_ms=12125
+Extremem,15,727595
+Extremem,16,726616
+Extremem,17,748672
+Extremem,18,702548
+Extremem,19,693534
+Extremem,20,729544
+Extremem,21,746730
+Extremem,22,813241
+Extremem,23,781349
+Extremem,24,726817
+Extremem,25,757243
+Extremem,26,677134
+Extremem,27,780527
+Extremem,28,705340
+Extremem,29,691321
+Extremem,30,673671
+Extremem,31,676141
+Extremem,32,697744
+Extremem,33,700025
+Extremem,34,647483
+Extremem,35,727280
+# measured until uptime_ms=26536
+# simulation 25626576 us
+# latency preparation 7200 794 738 1105 2173 3382 9458 9458
+# latency decision 7200 1099 977 1628 3208 5822 17356 17356
+# latency server 24000 30 0 1 21 5659 13554 15962
+# tally sessions=12601 candidates=1657951 noChoices=0 purchases=4473 saves=4604 abandons=2324 sales=4472 expirations=2531 customerReplacements=5600 productReplacements=14976 purchaseHash=49614845
+# stats Extremem gcs=174 gcMilliseconds=24 concurrentCycles=59 concurrentMilliseconds=9598 bytesAllocated=20942455136
+# pauses us: 149 351 211 151 338 215 151 351 207 164 370 200 156 311 214 157 282 163 153 331 212 173 310 204 163 336 214 173 354 220 162 396 210 181 459 257 134 317 165 170 270 199 159 303 225 177 336 219 164 349 205 168 377 214 155 334 213 159 361 214 161 314 216 177 340 205 127 260 192 216 122 398 241 167 364 224 157 343 234 184 363 245 174 399 200 171 385 218 178 341 206 149 349 200 160 395 203 166 361 225 167
+# process wall_s=26.63 user_s=36.70 sys_s=0.40 maxrss_kb=1161724

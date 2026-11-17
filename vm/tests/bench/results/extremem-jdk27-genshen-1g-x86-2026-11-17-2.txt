@@ -1,0 +1,47 @@
+# extremem 2026-11-17 02:53 system=java java=/workspace/ext/jdk/jdk-27.0.1.0.2+1/bin/java (openjdk version "27.0.1.0.2" 2026-10-21) vm-args='-XX:+UseShenandoahGC -XX:ShenandoahGCMode=generational -Xms1g -Xmx1g' params=' 'simulationMinutes=35' 'warmupMinutes=15''
+# setup 851443 us
+Extremem,1,564419
+Extremem,2,571448
+Extremem,3,562643
+Extremem,4,979576
+Extremem,5,678186
+Extremem,6,716162
+Extremem,7,681777
+Extremem,8,676558
+Extremem,9,590702
+Extremem,10,667621
+Extremem,11,679442
+Extremem,12,669850
+Extremem,13,691076
+Extremem,14,670055
+# measured from uptime_ms=10980
+Extremem,15,679847
+Extremem,16,647923
+Extremem,17,780937
+Extremem,18,616377
+Extremem,19,598804
+Extremem,20,637874
+Extremem,21,625571
+Extremem,22,627017
+Extremem,23,621064
+Extremem,24,633660
+Extremem,25,620865
+Extremem,26,600978
+Extremem,27,636614
+Extremem,28,601983
+Extremem,29,752873
+Extremem,30,617136
+Extremem,31,601268
+Extremem,32,644179
+Extremem,33,694936
+Extremem,34,702904
+Extremem,35,626893
+# measured until uptime_ms=23879
+# simulation 22982180 us
+# latency preparation 7200 575 502 809 1595 2740 9698 9698
+# latency decision 7200 1121 996 1685 3302 5503 9393 9393
+# latency server 24000 26 0 1 18 4909 9583 13364
+# tally sessions=12601 candidates=1657951 noChoices=0 purchases=4473 saves=4604 abandons=2324 sales=4472 expirations=2531 customerReplacements=5600 productReplacements=14976 purchaseHash=49614845
+# stats Extremem gcs=183 gcMilliseconds=83 concurrentCycles=64 concurrentMilliseconds=8914 bytesAllocated=20942255544
+# pauses us: 154 334 217 187 388 211 140 284 194 182 332 186 136 286 195 133 302 221 164 346 192 139 303 163 154 317 208 148 320 193 140 351 194 154 347 195 154 334 191 155 322 205 154 309 185 151 325 196 141 333 212 146 319 182 150 315 202 147 333 217 158 362 191 159 327 202 140 314 190 155 356 164 148 269 195 249 127 370 208 170 370 217 160 339 191 152 343 220 162 428 243 220 356 211 146 326 152 147 335 203 156
+# process wall_s=23.99 user_s=33.46 sys_s=0.42 maxrss_kb=1169028

@@ -14,13 +14,14 @@ usage: $0 [options] [name=value ...]
   --vm PATH         Samaltak VM (default vm/build/samaltak)
   --image PATH      Samaltak image (default build/samaltak.image)
   --vm-args ARGS    extra VM arguments: Samaltak's, e.g. '--jit opt', Pharo's, or the JVM's, e.g. '-XX:+UseZGC -Xmx1g'
+  --pharo-init EXPR Smalltalk Pharo evaluates after the file-ins, before the run
   -o FILE           also write the output to FILE
 name=value overrides a parameter of XmConfig / Extremem.Config (times in microseconds), e.g. simulationMinutes=35.
 EOF
     exit 2
 }
 
-SYSTEM=samaltak VM= IMAGE= VMARGS= JAVA= OUT=
+SYSTEM=samaltak VM= IMAGE= VMARGS= JAVA= OUT= PHARO_INIT=
 while [ $# -gt 0 ]; do
     case $1 in
     --samaltak) SYSTEM=samaltak ;;
@@ -29,6 +30,7 @@ while [ $# -gt 0 ]; do
     --vm) VM=$2; shift ;;
     --image) IMAGE=$2; shift ;;
     --vm-args) VMARGS=$2; shift ;;
+    --pharo-init) PHARO_INIT=$2; shift ;;
     -o) OUT=$(cd "$(dirname "$2")" && pwd)/${2##*/}; shift ;;
     -h|--help|-*) usage ;;
     *) break ;;
@@ -61,7 +63,7 @@ pharo)
     [ -f "${IMAGE%.image}.changes" ] && cp "${IMAGE%.image}.changes" "$WORK/xm.changes"
     for s in "$(dirname "$IMAGE")"/*.sources; do [ -f "$s" ] && cp "$s" "$WORK/"; done
     for f in "$BENCH/awfy/Pharo.st" "$BENCH/extremem/XmPharo.st" "$BENCH/extremem/Extremem.st"; do awk -f "$BENCH/pharo14.awk" "$f" > "$WORK/${f##*/}"; done
-    expr="[#('Pharo' 'XmPharo' 'Extremem') do: [:n | ('$WORK/', n, '.st') asFileReference fileIn]. $RUN. ''] on: Error do: [:e | 'ERROR ', e class name, ': ', e messageText]"
+    expr="[#('Pharo' 'XmPharo' 'Extremem') do: [:n | ('$WORK/', n, '.st') asFileReference fileIn]. ${PHARO_INIT:+$PHARO_INIT. }$RUN. ''] on: Error do: [:e | 'ERROR ', e class name, ': ', e messageText]"
     cd "$WORK" || exit 1
     set -- $TIME "$VM" --headless $VMARGS "$WORK/xm.image" eval "$expr" ;;
 java)
@@ -84,7 +86,7 @@ java_pauses() {
 }
 
 {
-    echo "# extremem $(date '+%Y-%m-%d %H:%M') system=$SYSTEM $DESC vm-args='$VMARGS' params='$*'" | sed "s|params='.*|params='$ARGS'|"
+    echo "# extremem $(date '+%Y-%m-%d %H:%M') system=$SYSTEM $DESC vm-args='$VMARGS'${PHARO_INIT:+ pharo-init='$PHARO_INIT'} params='$*'" | sed "s|params='.*|params='$ARGS'|"
     "$@" 2>&1 | tr '\r' '\n' | grep -E '^Extremem,|^# |ERROR' | tee "$WORK/out"
     [ $SYSTEM = java ] && java_pauses
     sed -n 's/^#_process_/# process /; s/_\([a-z]*_[a-z]*=\)/ \1/gp' "$WORK/time"

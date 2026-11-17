@@ -1,0 +1,47 @@
+# extremem 2026-11-17 02:24 system=java java=/workspace/ext/jdk/jdk-27.0.1.0.2+1/bin/java (openjdk version "27.0.1.0.2" 2026-10-21) vm-args='-XX:+UseParallelGC -Xms323m -Xmx323m' params=' 'simulationMinutes=35' 'warmupMinutes=15''
+# setup 698762 us
+Extremem,1,464134
+Extremem,2,257512
+Extremem,3,242985
+Extremem,4,638070
+Extremem,5,678710
+Extremem,6,671050
+Extremem,7,602669
+Extremem,8,599993
+Extremem,9,708002
+Extremem,10,614949
+Extremem,11,639876
+Extremem,12,787621
+Extremem,13,617536
+Extremem,14,647038
+# measured from uptime_ms=9557
+Extremem,15,649508
+Extremem,16,597018
+Extremem,17,626028
+Extremem,18,630684
+Extremem,19,602850
+Extremem,20,745370
+Extremem,21,645632
+Extremem,22,655494
+Extremem,23,614016
+Extremem,24,638662
+Extremem,25,610797
+Extremem,26,681320
+Extremem,27,600059
+Extremem,28,714992
+Extremem,29,617949
+Extremem,30,612871
+Extremem,31,597983
+Extremem,32,596745
+Extremem,33,622558
+Extremem,34,566068
+Extremem,35,711579
+# measured until uptime_ms=22247
+# simulation 21509267 us
+# latency preparation 7200 699 525 811 4976 7248 153124 153124
+# latency decision 7200 994 892 1397 2961 6576 16711 16711
+# latency server 24000 19 0 1 18 3520 4041 4200
+# tally sessions=12601 candidates=1657951 noChoices=0 purchases=4473 saves=4604 abandons=2324 sales=4472 expirations=2531 customerReplacements=5600 productReplacements=14976 purchaseHash=49614845
+# stats Extremem gcs=215 gcMilliseconds=1747 concurrentCycles=0 concurrentMilliseconds=0 bytesAllocated=20943349648
+# pauses us: 6094 4775 5039 4460 4068 4181 4307 4223 4180 5508 3441 4667 4832 3934 4077 3993 4023 4450 4206 4366 4289 5332 4975 4761 4641 140275 2654 4013 4595 4311 4056 5986 5217 4447 5430 3932 4710 5281 4354 4434 5368 5860 5450 6358 3958 4110 4971 4171 6134 5494 4362 4404 4014 4246 3955 4398 5063 4775 4057 4224 8815 9868 5542 5181 4616 3998 4174 5760 4306 4511 4256 149590 2889 4371 4882 5196 4007 5670 4288 5424 4959 3930 4401 5409 4122 4187 5007 6711 5008 3824 4341 3961 4125 5226 4876 5271 5198 5188 4345 4033 4324 4824 4810 4087 4660 4139 4565 5247 5714 4585 4404 5868 5067 4444 5731 4856 4362 152485
+# process wall_s=22.29 user_s=26.06 sys_s=0.12 maxrss_kb=393660

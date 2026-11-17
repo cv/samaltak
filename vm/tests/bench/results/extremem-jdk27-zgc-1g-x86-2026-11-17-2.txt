@@ -1,0 +1,47 @@
+# extremem 2026-11-17 02:52 system=java java=/workspace/ext/jdk/jdk-27.0.1.0.2+1/bin/java (openjdk version "27.0.1.0.2" 2026-10-21) vm-args='-XX:+UseZGC -Xms1g -Xmx1g' params=' 'simulationMinutes=35' 'warmupMinutes=15''
+# setup 1137861 us
+Extremem,1,782617
+Extremem,2,675917
+Extremem,3,571579
+Extremem,4,904131
+Extremem,5,757640
+Extremem,6,654328
+Extremem,7,646020
+Extremem,8,637542
+Extremem,9,625978
+Extremem,10,669064
+Extremem,11,695124
+Extremem,12,662606
+Extremem,13,630916
+Extremem,14,673994
+# measured from uptime_ms=11772
+Extremem,15,669684
+Extremem,16,713523
+Extremem,17,655559
+Extremem,18,647428
+Extremem,19,631019
+Extremem,20,634688
+Extremem,21,655715
+Extremem,22,651244
+Extremem,23,617157
+Extremem,24,631313
+Extremem,25,620593
+Extremem,26,609131
+Extremem,27,595859
+Extremem,28,607990
+Extremem,29,601450
+Extremem,30,590241
+Extremem,31,606522
+Extremem,32,613859
+Extremem,33,885636
+Extremem,34,688532
+Extremem,35,641698
+# measured until uptime_ms=24672
+# simulation 23157249 us
+# latency preparation 7200 635 559 905 1623 3776 12984 12984
+# latency decision 7200 1056 942 1521 3000 9152 26897 26897
+# latency server 24000 27 0 1 31 5506 7260 12751
+# tally sessions=12601 candidates=1657951 noChoices=0 purchases=4473 saves=4604 abandons=2324 sales=4472 expirations=2531 customerReplacements=5600 productReplacements=14976 purchaseHash=49614845
+# stats Extremem gcs=152 gcMilliseconds=1 concurrentCycles=48 concurrentMilliseconds=8135 bytesAllocated=21121827448
+# pauses us: 109 102 91 115 114 94 126 105 97 118 105 101 115 100 93 116 117 88 118 112 91 121 114 92 122 110 90 122 108 94 126 117 95 123 110 92 117 107 90 119 103 93 120 107 94 119 106 92 119 109 115 116 101 102 119 102 91 122 115 97 115 100 94 121 130 106 112 104 72 130 125 128 145 126 114 102 117 120 105 94 124 113 90
+# process wall_s=24.94 user_s=32.27 sys_s=1.07 maxrss_kb=988496

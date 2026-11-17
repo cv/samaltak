@@ -1,0 +1,47 @@
+# extremem 2026-11-17 02:48 system=java java=/workspace/ext/jdk/jdk-27.0.1.0.2+1/bin/java (openjdk version "27.0.1.0.2" 2026-10-21) vm-args='-XX:+UseSerialGC -Xms512m -Xmx512m' params=' 'simulationMinutes=35' 'warmupMinutes=15''
+# setup 744445 us
+Extremem,1,418449
+Extremem,2,296169
+Extremem,3,296628
+Extremem,4,709469
+Extremem,5,784932
+Extremem,6,656034
+Extremem,7,595195
+Extremem,8,599143
+Extremem,9,598155
+Extremem,10,597788
+Extremem,11,680845
+Extremem,12,637281
+Extremem,13,711244
+Extremem,14,644034
+# measured from uptime_ms=9656
+Extremem,15,648486
+Extremem,16,610517
+Extremem,17,629130
+Extremem,18,652842
+Extremem,19,637977
+Extremem,20,632156
+Extremem,21,846239
+Extremem,22,636514
+Extremem,23,623242
+Extremem,24,614548
+Extremem,25,599416
+Extremem,26,590810
+Extremem,27,606440
+Extremem,28,611423
+Extremem,29,618005
+Extremem,30,691459
+Extremem,31,595233
+Extremem,32,630942
+Extremem,33,615468
+Extremem,34,609665
+Extremem,35,621587
+# measured until uptime_ms=22331
+# simulation 21548363 us
+# latency preparation 7200 667 445 744 1972 16749 231428 231428
+# latency decision 7200 1017 891 1378 2895 16336 17889 17889
+# latency server 24000 21 0 1 20 3646 5082 19415
+# tally sessions=12601 candidates=1657951 noChoices=0 purchases=4473 saves=4604 abandons=2324 sales=4472 expirations=2531 customerReplacements=5600 productReplacements=14976 purchaseHash=49614845
+# stats Extremem gcs=146 gcMilliseconds=2536 concurrentCycles=0 concurrentMilliseconds=0 bytesAllocated=20943396504
+# pauses us: 15888 14277 15820 15311 15084 15517 14274 15456 14702 14462 14268 15486 14973 14442 13914 14305 15293 14717 16104 14605 14694 13423 15160 14329 230414 8844 9728 13445 14186 14770 14477 13326 14698 13747 14689 14812 14699 15676 13434 15526 14705 13232 14851 15193 13003 13959 14820 15349 14286 14612 15496 14096 14556 13189 14402 13162 14101 15147 13097 14296 19691 13781 14503 12851 14256 12931 14568 14285 13778 16312 12925 13759 15015 14041 14081 13842 14337 14153 13600 14949 13215 13869 14946 14416
+# process wall_s=22.37 user_s=24.76 sys_s=0.11 maxrss_kb=580600

@@ -1,0 +1,47 @@
+# extremem 2026-11-17 03:09 system=java java=/workspace/ext/jdk/jdk-27.0.1.0.2+1/bin/java (openjdk version "27.0.1.0.2" 2026-10-21) vm-args='-XX:+UseShenandoahGC -Xms1g -Xmx1g' params=' 'simulationMinutes=35' 'warmupMinutes=15''
+# setup 699116 us
+Extremem,1,589695
+Extremem,2,449873
+Extremem,3,401503
+Extremem,4,1038269
+Extremem,5,833661
+Extremem,6,793532
+Extremem,7,817636
+Extremem,8,735227
+Extremem,9,710366
+Extremem,10,692957
+Extremem,11,782909
+Extremem,12,747934
+Extremem,13,767730
+Extremem,14,760504
+# measured from uptime_ms=11647
+Extremem,15,778324
+Extremem,16,735459
+Extremem,17,761294
+Extremem,18,751130
+Extremem,19,780896
+Extremem,20,727062
+Extremem,21,741341
+Extremem,22,860990
+Extremem,23,719466
+Extremem,24,720698
+Extremem,25,742290
+Extremem,26,714748
+Extremem,27,720502
+Extremem,28,709603
+Extremem,29,748642
+Extremem,30,748293
+Extremem,31,728539
+Extremem,32,734748
+Extremem,33,761429
+Extremem,34,707977
+Extremem,35,749833
+# measured until uptime_ms=26514
+# simulation 25767152 us
+# latency preparation 7200 681 617 924 1701 2822 10777 10777
+# latency decision 7200 1283 1151 1867 3798 8069 11557 11557
+# latency server 24000 27 0 1 30 5215 5819 7634
+# tally sessions=12601 candidates=1657951 noChoices=0 purchases=4473 saves=4604 abandons=2324 sales=4472 expirations=2531 customerReplacements=5600 productReplacements=14976 purchaseHash=49614845
+# stats Extremem gcs=207 gcMilliseconds=54 concurrentCycles=70 concurrentMilliseconds=22475 bytesAllocated=20944668528
+# pauses us: 249 182 140 253 168 149 274 174 134 269 189 156 270 194 140 295 174 155 282 179 155 295 184 164 276 174 161 261 231 146 280 189 150 263 217 151 289 183 154 259 254 159 286 177 154 277 197 149 275 183 157 289 183 155 286 191 166 319 211 160 288 178 155 277 177 150 315 214 153 283 184 151 278 181 143 278 182 158 278 181 158 284 177 154 330 187 159 298 181 157 277 172 143 275 182 157 291 188 155 273 189 154 289 193 168 290 181 149 311 180 169 272 181 167 298 184 173 359 197 167 302 183
+# process wall_s=26.58 user_s=48.64 sys_s=0.30 maxrss_kb=1149856

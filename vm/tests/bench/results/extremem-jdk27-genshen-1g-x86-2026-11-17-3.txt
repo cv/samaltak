@@ -1,0 +1,47 @@
+# extremem 2026-11-17 03:09 system=java java=/workspace/ext/jdk/jdk-27.0.1.0.2+1/bin/java (openjdk version "27.0.1.0.2" 2026-10-21) vm-args='-XX:+UseShenandoahGC -XX:ShenandoahGCMode=generational -Xms1g -Xmx1g' params=' 'simulationMinutes=35' 'warmupMinutes=15''
+# setup 759565 us
+Extremem,1,648358
+Extremem,2,527351
+Extremem,3,559059
+Extremem,4,935448
+Extremem,5,667750
+Extremem,6,683527
+Extremem,7,673443
+Extremem,8,629922
+Extremem,9,662365
+Extremem,10,655220
+Extremem,11,683725
+Extremem,12,648762
+Extremem,13,659379
+Extremem,14,691274
+# measured from uptime_ms=10868
+Extremem,15,733497
+Extremem,16,603967
+Extremem,17,682182
+Extremem,18,666460
+Extremem,19,650032
+Extremem,20,669296
+Extremem,21,642199
+Extremem,22,665805
+Extremem,23,653168
+Extremem,24,641080
+Extremem,25,686935
+Extremem,26,655994
+Extremem,27,643321
+Extremem,28,758112
+Extremem,29,655724
+Extremem,30,611915
+Extremem,31,678133
+Extremem,32,764991
+Extremem,33,641833
+Extremem,34,644526
+Extremem,35,644836
+# measured until uptime_ms=24137
+# simulation 23330478 us
+# latency preparation 7200 632 567 873 1629 2619 8942 8942
+# latency decision 7200 1115 989 1663 3224 5864 24894 24894
+# latency server 24000 26 0 1 19 5126 6074 6833
+# tally sessions=12601 candidates=1657951 noChoices=0 purchases=4473 saves=4604 abandons=2324 sales=4472 expirations=2531 customerReplacements=5600 productReplacements=14976 purchaseHash=49614845
+# stats Extremem gcs=166 gcMilliseconds=21 concurrentCycles=57 concurrentMilliseconds=9117 bytesAllocated=20942873496
+# pauses us: 145 326 214 160 328 205 156 344 249 150 333 192 140 288 196 140 353 195 146 322 200 163 363 217 162 338 197 150 315 198 153 318 189 149 327 209 213 331 208 159 332 213 160 333 217 164 344 206 158 334 209 159 316 200 167 307 240 159 323 175 129 249 192 246 114 328 217 147 346 208 162 378 210 157 377 212 184 491 201 154 298 192 162 333 197 163 316 171 159 314 487 178 317 250 161 323 162 157 321
+# process wall_s=24.19 user_s=33.58 sys_s=0.44 maxrss_kb=1161176
