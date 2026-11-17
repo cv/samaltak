@@ -1,5 +1,5 @@
 OptModule subclass: #OptBuilder
-	instanceVariableNames: 'ir obCurBlock obBailed obVarTop obDefKeys obDefVals obDefCount obIncPhis obIncVars obIncCount obAnaMethods obAnaBases obAnaCount obAnaTop obAnaDepth obAnaFlag obAnaBack obPcBlocks obPcbTop obEntryBlock obRootMethod obInlined obDeps obDepCount obPrimKinds obPrimsKnown obNoInline obNoInlineCount obArgVals obArgFlags obUnitStart obOsrPc obParamSlots obValidSlots obSafeEpoch obAnaFloat obResident obChecked obCheckedCount obCheckedBlock obCheckedEpoch obFrame obSpecParam obSpecInfo obSpecCount obForeign obForeignM obForeignS obForeignDepth obNoForeignM obNoForeignS obNoForeignCount obPerformAct obPerformPc obPerformSlot obPerformCount obPerformVals obAnaLive obNilConst'
+	instanceVariableNames: 'ir obCurBlock obBailed obVarTop obDefKeys obDefVals obDefCount obIncPhis obIncVars obIncCount obAnaMethods obAnaBases obAnaCount obAnaTop obAnaDepth obAnaFlag obAnaBack obPcBlocks obPcbTop obEntryBlock obRootMethod obInlined obDeps obDepCount obPrimKinds obPrimsKnown obNoInline obNoInlineCount obArgVals obArgFlags obUnitStart obOsrPc obParamSlots obValidSlots obSafeEpoch obAnaFloat obAnaInts obResident obChecked obCheckedCount obCheckedBlock obCheckedEpoch obFrame obSpecParam obSpecInfo obSpecCount obForeign obForeignM obForeignS obForeignDepth obNoForeignM obNoForeignS obNoForeignCount obPerformAct obPerformPc obPerformSlot obPerformCount obPerformVals obAnaLive obNilConst'
 	classVariableNames: 'OA_BLOCK OA_LOOP OA_START OA_TARGET OPT_MAX_VARS OPT_MAX_NOINLINE OPT_MAX_PRIM OPK_AT OPK_FLOAT OPK_FSQRT OPK_NEW OPK_NEWSIZE OPK_CLOSURE OPK_ATPUT OPK_CLASS OPK_IDENTICAL OPK_INT OPK_SIZE OPK_STRINGAT OPK_STRINGATPUT OPT_INLINE_BUDGET OPT_INLINE_DEPTH OPT_INLINE_SIZE OPT_MAX_ANA OPT_MAX_DEPS OPT_MAX_INC OPK_CHARVALUE OPK_CHARFROM OPK_REPLACE'
 	package: 'VM-Jit'!
 
@@ -14,7 +14,7 @@ declarations
 		(obAnaDepth 'int16_t[OPT_ANA_MAX]') (obAnaFlag 'uint8_t[OPT_ANA_MAX]') (obAnaBack 'int32_t[OPT_ANA_MAX]')
 		(obPcBlocks 'int32_t[OPT_PCB_MAX]') (obPcbTop int32_t) (obEntryBlock int32_t) (obRootMethod oop)
 		(obInlined int32_t) (obDeps 'oop[OPT_MAX_DEPS]') (obDepCount int32_t) (obPrimKinds 'uint8_t[OPT_MAX_PRIM]') (obPrimsKnown bool)
-		(obNoInline 'oop[OPT_MAX_NOINLINE]') (obNoInlineCount int32_t) (obArgVals 'int32_t[OPT_MAX_VARS]') (obArgFlags 'uint8_t[OPT_MAX_VARS]') (obUnitStart int32_t) (obOsrPc int32_t) (obParamSlots int32_t) (obValidSlots int32_t) (obSafeEpoch int32_t) (obAnaFloat 'bool[OPT_MAX_ANA]') (obResident bool) (obChecked 'int32_t[8]') (obCheckedCount int32_t) (obCheckedBlock int32_t) (obCheckedEpoch int32_t) (obFrame 'Frame *') (obSpecParam 'int32_t[8]') (obSpecInfo 'int32_t[8]') (obSpecCount int32_t) (obForeign bool) (obForeignM 'oop[8]') (obForeignS 'int32_t[8]') (obForeignDepth int32_t) (obNoForeignM 'oop[8]') (obNoForeignS 'int32_t[8]') (obNoForeignCount int32_t)
+		(obNoInline 'oop[OPT_MAX_NOINLINE]') (obNoInlineCount int32_t) (obArgVals 'int32_t[OPT_MAX_VARS]') (obArgFlags 'uint8_t[OPT_MAX_VARS]') (obUnitStart int32_t) (obOsrPc int32_t) (obParamSlots int32_t) (obValidSlots int32_t) (obSafeEpoch int32_t) (obAnaFloat 'bool[OPT_MAX_ANA]') (obAnaInts 'bool[OPT_MAX_ANA]') (obResident bool) (obChecked 'int32_t[8]') (obCheckedCount int32_t) (obCheckedBlock int32_t) (obCheckedEpoch int32_t) (obFrame 'Frame *') (obSpecParam 'int32_t[8]') (obSpecInfo 'int32_t[8]') (obSpecCount int32_t) (obForeign bool) (obForeignM 'oop[8]') (obForeignS 'int32_t[8]') (obForeignDepth int32_t) (obNoForeignM 'oop[8]') (obNoForeignS 'int32_t[8]') (obNoForeignCount int32_t)
 		(obPerformAct int32_t) (obPerformPc int32_t) (obPerformSlot int32_t) (obPerformCount int32_t) (obPerformVals 'int32_t[8]')
 		(obAnaLive 'uint64_t[OPT_ANA_MAX]') (obNilConst int32_t))
 !
@@ -512,11 +512,12 @@ analysisOf: m
 	obAnaMethods at: obAnaCount put: m.
 	obAnaBases at: obAnaCount put: base.
 	obAnaFloat at: obAnaCount put: false.
+	obAnaInts at: obAnaCount put: false.
 	"only m's arithmetic sites: the Float bytes of other pcs are other methods' (shared by hash)"
 	0 to: n - 1 do: [:pc |
-		(((obAnaFlag at: base + pc) bitAnd: OA_START) ~= 0 and: [
-			(k := analysis specialIndexOf: analysis bytecodes + pc) >= 0 and: [
-				k <= 9 and: [((feedback flagsAt: m pc: pc) bitAnd: feedback sawFloat) ~= 0]]]) ifTrue: [obAnaFloat at: obAnaCount put: true]].
+		(((obAnaFlag at: base + pc) bitAnd: OA_START) ~= 0 and: [(k := analysis specialIndexOf: analysis bytecodes + pc) >= 0]) ifTrue: [
+			(k <= 9 and: [((feedback flagsAt: m pc: pc) bitAnd: feedback sawFloat) ~= 0]) ifTrue: [obAnaFloat at: obAnaCount put: true].
+			((analysis specialInlinesIntegers: k) and: [self sawIntAt: m pc: pc]) ifTrue: [obAnaInts at: obAnaCount put: true]]].
 	obAnaCount := obAnaCount + 1.
 	obAnaTop := obAnaTop + n.
 	^base
@@ -1369,6 +1370,19 @@ sawOnlyIntsAt: pc act: a
 		((site classes at: i) ~= 0 and: [(site classes at: i) ~= memory clsSmallint]) ifTrue: [^false]].
 	^true
 !
+sawIntAt: m pc: pc
+	"The send at m's pc reported a SmallInteger receiver."
+	| site |
+	site := feedback siteAt: m pc: pc.
+	site isNull ifTrue: [^false].
+	0 to: feedback classSlots - 1 do: [:i | (site classes at: i) = memory clsSmallint ifTrue: [^true]].
+	^false
+!
+sawIntsIn: m
+	"Some arithmetic of m that the lower tier takes inline reported a SmallInteger (m's arithmetic mixes them with other numbers: its sites that reported other classes only may well take them too, unreported)."
+	0 to: obAnaCount - 1 do: [:i | (obAnaMethods at: i) = m ifTrue: [^obAnaInts at: i]].
+	^false
+!
 sawOnlyNumbersAt: pc act: a
 	"The send at a's pc reported no receiver class but SmallInteger and the Floats (a Point's arithmetic is a send)."
 	| site c |
@@ -1511,7 +1525,7 @@ sendSelector: sel argc: argc kind: kind special: k pc: pc act: a rcvSlot: r
 inlineSend: sel argc: argc kind: kind special: k pc: pc act: a rcvSlot: r
 	"Inline the send for the receiver classes it is known or speculated to have; answer whether it did."
 	<function>
-	| rcv cls site n merge s test next t g fl other |
+	| rcv cls site n merge s test next t g fl other andInts |
 	rcv := self read: (self var: a slot: r).
 	kind = 1 ifTrue: [
 		cls := self loadRef: (self loadRef: (ir act: a) method at: CM_CLASS) at: BEH_SUPERCLASS.
@@ -1531,15 +1545,18 @@ inlineSend: sel argc: argc kind: kind special: k pc: pc act: a rcvSlot: r
 	n = 0 ifTrue: [^false].
 	"the lower tier's inline Float paths report no class: an arithmetic site that saw Floats too sends what it has no class for"
 	other := kind = 2 and: [k <= 9 and: [((feedback flagsAt: (ir act: a) method pc: pc) bitAnd: feedback sawFloat) ~= 0]].
+	"nor does its inline SmallInteger path: SmallIntegers have a case where the method's arithmetic reported some, also at a site that reported none"
+	andInts := kind = 2 and: [(analysis specialInlinesIntegers: k) and: [(self sawIntsIn: (ir act: a) method) and: [(self sawIntAt: (ir act: a) method pc: pc) not]]].
 	s := self stateAct: a pc: pc depth: (self depthAt: pc act: a).
-	(n = 1 and: [other not]) ifTrue: [
+	(n = 1 and: [other not and: [andInts not]]) ifTrue: [
 		g := self guard: rcv class: (site classes at: 0) state: s.
 		^self send: sel to: g class: (site classes at: 0) argc: argc kind: kind pc: pc act: a rcvSlot: r].
 	"a type switch; any other class deoptimizes (is sent, see above)"
 	merge := ir newBlock.
 	(ir block: merge) act: a.
+	andInts ifTrue: [n := n + 1].
 	0 to: n - 1 do: [:i |
-		cls := site classes at: i.
+		cls := (andInts and: [i = (n - 1)]) ifTrue: [memory clsSmallint] ifFalse: [site classes at: i].
 		test := self add: O_CLASSIS rep: R_OOP.
 		(ir node: test) a: rcv.
 		(ir node: test) aux: cls asInt64.

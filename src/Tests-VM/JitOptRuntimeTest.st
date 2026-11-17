@@ -288,6 +288,24 @@ testArithmeticBaselineCodeSent
 	self assert: (o large: 20000 by: x) equals: expected.
 	self stressed ifFalse: [self assert: (self statistics - before) optDeoptimizations < 2]
 !
+testSmallIntegersWhereLargeIntegersWere
+	"Arithmetic that reported LargeIntegers only (baseline code takes SmallIntegers inline, unreported) takes SmallIntegers at all its sites once one of them deoptimized on one: the optimized code does not deoptimize and compile again, site after site (unless --jit-flags deopt makes it)."
+	| o f sum large small expectedLarge expectedSmall before |
+	Smalltalk vm jitParameters: #(nil '-eager' nil nil).
+	self define: 'sum: a | s x | s := 0. 1 to: a size do: [:i | x := a at: i. s := s + (x \\ 7) + (x // 3 \\ 5) + (x * 3 \\ 11) + (x - 1 \\ 13)]. ^s'.
+	o := JitRuntimeTestSubject new.
+	f := [:x | (x \\ 7) + (x // 3 \\ 5) + (x * 3 \\ 11) + (x - 1 \\ 13)].
+	sum := [:a | a inject: 0 into: [:s :x | s + (f value: x)]].
+	large := (1 to: 20000) asArray collect: [:i | (2 raisedTo: 70) + i].
+	small := (1 to: 20000) asArray.
+	expectedLarge := sum value: large.
+	expectedSmall := sum value: small.
+	before := self statistics.
+	2 timesRepeat: [
+		self assert: (o sum: large) equals: expectedLarge.
+		self assert: (o sum: small) equals: expectedSmall].
+	self stressed ifFalse: [self assert: (self statistics - before) optDeoptimizations < 4]
+!
 testBoxedFloatsInFloatArithmetic
 	"BoxedFloat64s (the infinities, NaN) are decoded as SmallFloat64s are: comparing them does not deoptimize (unless --jit-flags deopt makes it); NaN compares false."
 	| o a before |
