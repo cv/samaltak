@@ -160,7 +160,7 @@ testDecodesAStream
 	self assert: (request headerAt: 'session-id') size equals: 36.
 	self assert: (request headerAt: 'accept-encoding') isNil.
 	body := request json.
-	self assert: (body at: 'model') equals: 'gpt-6.1-sol'.
+	self assert: (body at: 'model') equals: 'gpt-6.2-sol'.
 	self assert: (body at: 'stream').
 	self deny: (body at: 'store').
 	self assert: (body at: 'input') equals: {self userMessage: 'What is 3 + 4?'}.

@@ -1,6 +1,6 @@
 # Agent
 
-A coding agent inside the image, written in Smalltalk, driving the image it lives in. ⌘J in a tool opens a conversation window on that tool's context. Model: OpenAI `gpt-6.1-sol` ("Codex 6.1 Sol"; the Codex catalog's slug) through a ChatGPT device-code login. Design: `prototypes/5-agent/6-chosen.html` (the target; version 1 is a subset).
+A coding agent inside the image, written in Smalltalk, driving the image it lives in. ⌘J in a tool opens a conversation window on that tool's context. Model: OpenAI `gpt-6.2-sol` ("Codex 6.2 Sol"; the Codex catalog's slug) through a ChatGPT device-code login. Design: `prototypes/5-agent/6-chosen.html` (the target; version 1 is a subset).
 
 No persistence code: the account and its tokens, conversations and their objects are ordinary objects, saved with the image.
 
@@ -96,7 +96,7 @@ Device login, issuer `https://auth.openai.com`, client id `app_EMoamEEZ73f0CkXaX
 4. Account id: id-token claim `"https://api.openai.com/auth".chatgpt_account_id`; email: `email`.
 5. Refresh: `POST /oauth/token`, JSON `{"client_id","grant_type":"refresh_token","refresh_token","refresh_reason"}` when `exp` is under 5 min away, and on a 401. Refresh tokens rotate (keep every token returned); `refresh_token_reused/expired/invalidated` or `invalid_grant` → signed out.
 
-Model call: `POST https://chatgpt.com/backend-api/codex/responses`, `Accept: text/event-stream`; headers `Authorization: Bearer`, `chatgpt-account-id`, `originator`, `version: 1.0.0` (older versions are refused the model), `session-id`, `User-Agent`. Body: `model:"gpt-6.1-sol"`, `stream:true`, `store:false`, `input` (first item a `developer` message with our instructions; there is no `instructions` field), `tools`, `tool_choice:"auto"`, `parallel_tool_calls:false`, `reasoning:{effort}`, `include:["reasoning.encrypted_content"]`. Events: `response.output_text.delta`, `response.output_item.done` (complete items, tool calls), `response.completed` (usage), `response.incomplete`, `response.failed`, `error`; others ignored.
+Model call: `POST https://chatgpt.com/backend-api/codex/responses`, `Accept: text/event-stream`; headers `Authorization: Bearer`, `chatgpt-account-id`, `originator`, `version: 1.0.0` (older versions are refused the model), `session-id`, `User-Agent`. Body: `model:"gpt-6.2-sol"`, `stream:true`, `store:false`, `input` (first item a `developer` message with our instructions; there is no `instructions` field), `tools`, `tool_choice:"auto"`, `parallel_tool_calls:false`, `reasoning:{effort}`, `include:["reasoning.encrypted_content"]`. Events: `response.output_text.delta`, `response.output_item.done` (complete items, tool calls), `response.completed` (usage), `response.incomplete`, `response.failed`, `error`; others ignored.
 
 Verified by hand (2026-11-15): HTTP/1.1 with a chunked event stream works; plain `tools` and our own developer message are accepted (Codex itself sends this model its tools in an `additional_tools` input item and a 63 KB instruction template). A code-mode call arrives as a `custom_tool_call` item (`input`: the source) and is answered with `custom_tool_call_output`; show-object as `function_call` / `function_call_output`. Output items are echoed back verbatim in the next request.
 
