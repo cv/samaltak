@@ -22,6 +22,9 @@ One `vm/gen` serves all of them: what differs per OS is in modules for one OS (`
 
 `tools/samaltak-ctl` drives the running image (snapshot, click, type, key, eval, screenshot, record). `make video` replays `tools/walkthrough.mjs` against the real system, records the compositor's frames, and adds captions and ElevenLabs narration (`ELEVENLABS_API_KEY` in `.env`) → `docs/media/walkthrough.mp4`.
 
+For Zed syntax highlighting, install the [Smalltalk extension](tools/zed-smalltalk/README.md).
+
+
 ## Docs
 
 - `docs/design.md` — decisions and why

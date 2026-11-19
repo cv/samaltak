@@ -1,0 +1,12 @@
+id = "smalltalk"
+name = "Smalltalk"
+version = "0.1.0"
+schema_version = 1
+description = "Smalltalk syntax highlighting for Samaltak and Pharo."
+authors = ["Mark Probst"]
+repository = "https://github.com/schani/samaltak"
+
+[grammars.smalltalk]
+repository = "https://github.com/schani/samaltak"
+rev = "14abb306875e730f6149c36b6172b78d7eaa34ba"
+path = "tools/zed-smalltalk/grammar"

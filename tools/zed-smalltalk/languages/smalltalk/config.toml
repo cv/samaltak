@@ -1,0 +1,4 @@
+name = "Smalltalk"
+grammar = "smalltalk"
+path_suffixes = ["st"]
+block_comment = ["\"", "\""]
