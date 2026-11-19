@@ -88,6 +88,47 @@ testAParameterNothingTypesIsAnError
 	 self should: [(VMTranslator modules: {LowtalkSample} header: 'sample') translate] raise: TranslationError]
 		ensure: [LowtalkSample removeSelector: #lonely:]
 !
+testAnOSWithoutTheLibraryGetsTheModule
+	"Translated for #uefi alone, the library's calls are sends to the module that implements it, and its header is not included."
+	| files h c |
+	files := (VMTranslator modules: {LowtalkLibraryUser} header: 'os') translate.
+	h := (files detect: [:each | each key = 'os.h']) value.
+	c := (files detect: [:each | each key = 'lowtalk_library_user.c']) value.
+	self assert: (h includesSubstring: '#include <sample_library.h>').
+	self assert: (c includesSubstring: 'sample_twice(21)').
+	files := (VMTranslator modules: {LowtalkLibraryUser. LowtalkLibraryOnUefi} header: 'os') setOS: #uefi; translate.
+	h := (files detect: [:each | each key = 'os.h']) value.
+	c := (files detect: [:each | each key = 'lowtalk_library_user.c']) value.
+	self deny: (h includesSubstring: 'sample_library.h').
+	self assert: (h includesSubstring: 'int twice(int x);').
+	self assert: (c includesSubstring: 'return twice(21);')
+!
+testCallingConventions
+	"<abi:> gives a function a calling convention; so does passing it where a function type has one."
+	| t c |
+	t := CTypeRegistry default parse: 'uint64_t (__attribute__((ms_abi)) *)(uint64_t)'.
+	self assert: t target abi equals: 'ms_abi'.
+	self assert: t name equals: 'uint64_t (__attribute__((ms_abi)) *)(uint64_t)'.
+	[LowtalkSample compile: 'entry: x <export> <abi: ''ms_abi''> <var: #x type: ''int64_t''> ^x' classified: 'abi'.
+	 LowtalkSample compile: 'callback: x <function> ^x + 1' classified: 'abi'.
+	 LowtalkSample compile: 'calls: fp <function> <var: #fp type: ''int64_t (__attribute__((ms_abi)) *)(int64_t)''> ^fp call: 41' classified: 'abi'.
+	 LowtalkSample compile: 'passes <export> ^self calls: (self functionPointer: #callback:)' classified: 'abi'.
+	 c := ((VMTranslator modules: {LowtalkSample} header: 'sample') translate detect: [:each | each key = 'lowtalk_sample.c']) value.
+	 self assert: (c includesSubstring: '__attribute__((ms_abi)) int64_t entry(int64_t x)').
+	 self assert: (c includesSubstring: 'static __attribute__((ms_abi)) int64_t callback(int64_t x);').
+	 self assert: (c includesSubstring: 'static int64_t calls(int64_t (__attribute__((ms_abi)) *fp)(int64_t));')]
+		ensure: [#(#entry: #callback: #calls: #passes) do: [:sel | LowtalkSample removeSelector: sel]]
+!
+testVarargBits
+	"What a variadic function reads: a double's bits, an integer widened."
+	| c |
+	self assert: (LowtalkSample new varargBits: 1.5) equals: 1.5 asIEEEBits.
+	self assert: (LowtalkSample new varargBits: -1) equals: 16rFFFFFFFFFFFFFFFF.
+	[LowtalkSample compile: 'bits: d and: i <export> <var: #d type: ''double''> <var: #i type: ''int32_t''> ^(self varargBits: d) + (self varargBits: i)' classified: 'varargs'.
+	 c := ((VMTranslator modules: {LowtalkSample} header: 'sample') translate detect: [:each | each key = 'lowtalk_sample.c']) value.
+	 self assert: (c includesSubstring: 'lt_bits_of_double(d) + (uint64_t)i')]
+		ensure: [LowtalkSample removeSelector: #bits:and:]
+!
 testNoModuleMethodHasACPrototype
 	"C prototypes are CLibrary's business: the foreign APIs. A VM function is plain Smalltalk."
 	VMModule allSubclasses do: [:c |

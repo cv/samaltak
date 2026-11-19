@@ -1,5 +1,5 @@
 Object subclass: #VMTranslator
-	instanceVariableNames: 'registry moduleClasses modules externs functions errors headerName queue queued arch'
+	instanceVariableNames: 'registry moduleClasses modules externs functions errors headerName queue queued arch os'
 	classVariableNames: ''
 	package: 'VM-Translator'!
 
@@ -29,7 +29,7 @@ modules: aCollectionOfClasses header: aString
 !VMTranslator class methodsFor: 'operating systems'!
 targetOSes
 	"#(os predefinedMacro makeSuffix): the operating systems a module or library can be for (targetOS), the C macro that is defined there, the suffix of their source lists in sources.mk (uname -s, upper case)."
-	^#((darwin '__APPLE__' 'DARWIN') (linux '__linux__' 'LINUX'))
+	^#((darwin '__APPLE__' 'DARWIN') (linux '__linux__' 'LINUX') (uefi 'SAMALTAK_UEFI' 'UEFI'))
 !
 guardFor: anOS
 	^((self targetOSes detect: [:e | (e at: 1) = anOS] ifNone: [self error: 'no such target OS: ' , anOS printString]) at: 2)
@@ -62,6 +62,17 @@ generateVMInto: aDirectory
 generateVMInto: aDirectory for: anArch
 	"The VM for one CPU (targetArchs) only: C that builds there, translated in half the time."
 	^(self modules: self vmModules header: 'samaltak') setArch: anArch; writeTo: aDirectory
+!
+generateVMInto: aDirectory os: anOS arch: anArch
+	"The headless VM for an OS without a C library (#uefi): its own translation, which takes the modules for anOS and those for every OS, and binds the libraries they implement to them (setOS:)."
+	^(self modules: (self modulesFor: anOS) header: 'samaltak') setOS: anOS; setArch: anArch; writeTo: aDirectory
+!
+modulesFor: anOS
+	"The concrete modules of the core packages and of anOS's package (VM-UEFI), for every OS or for anOS; the headless platform."
+	^((VMModule allSubclasses select: [:c |
+		(#('VM-Core' 'VM-Jit') , (Array with: 'VM-' , anOS asUppercase) includes: c packageName)
+			and: [c isAbstractModule not and: [c targetOS isNil or: [c targetOS = anOS]]]])
+		asSortedCollection: [:a :b | a name <= b name]) asArray
 ! !
 
 !VMTranslator methodsFor: 'initialization'!
@@ -252,8 +263,9 @@ reservedCNames
 	"The names a function may not take: C library names and what the system headers declare, globals, the names of types, and every name a local in the modules' code goes by (a local would hide the function)."
 	| names |
 	names := Set withAll: #('ops' 'local' 'stop' 'v' 'memset' 'vm_primitive_table' 'vm_primitive_count' 'system' 'semaphore_signal' 'semaphore_wait').
+	(self isReplacedLibrary: LibC) ifTrue: [names remove: 'memset'].
 	names addAll: registry typeNames.
-	CLibrary allSubclasses do: [:lib |
+	(CLibrary allSubclasses reject: [:lib | self isReplacedLibrary: lib]) do: [:lib |
 		lib selectors do: [:sel |
 			| m |
 			m := lib compiledMethodAt: sel.
@@ -305,7 +317,8 @@ canTranslateFor: anArch
 					ifFalse: [ref targetArch isNil or: [ref targetArch = anArch]]]]]
 !
 implementationOf: aClass
-	"The module a connection typed aClass connects to: for an arch interface, its module for the CPU I translate for."
+	"The module a connection typed aClass connects to: for an arch interface, its module for the CPU I translate for; for a C library, the module that implements it for the OS I translate for alone (setOS:)."
+	(aClass isBehavior and: [aClass inheritsFrom: CLibrary]) ifTrue: [^(self libraryModuleFor: aClass) ifNil: [aClass]].
 	(aClass isBehavior and: [(aClass inheritsFrom: VMModule) and: [aClass isArchInterface and: [arch notNil]]]) ifFalse: [^aClass].
 	^moduleClasses detect: [:c | (c inheritsFrom: aClass) and: [c targetArch = arch]]
 		ifNone: [self error: 'no module for ' , arch , ' implements ' , aClass name]
@@ -327,15 +340,32 @@ checkTargetArchs
 ! !
 
 !VMTranslator methodsFor: 'operating systems'!
+os
+	"The OS I translate for alone (setOS:), or nil: every one, in one vm/gen."
+	^os
+!
+setOS: anOS
+	"Translate for anOS only: its modules and those for every OS. A connection typed with a C library that one of them implements (implementsLibrary) is that module: the library's headers are not included and its names are free."
+	os := anOS.
+	moduleClasses := moduleClasses select: [:c | c targetOS isNil or: [c targetOS = anOS]]
+!
+libraryModuleFor: aLibraryClass
+	"The module that implements aLibraryClass in the translation for os, or nil."
+	os isNil ifTrue: [^nil].
+	^moduleClasses detect: [:c | c implementsLibrary == aLibraryClass] ifNone: [nil]
+!
+isReplacedLibrary: aLibraryClass
+	^(self libraryModuleFor: aLibraryClass) notNil
+!
 checkTargetOSes
-	"A module may use the libraries and modules of every OS and of its own."
+	"A module may use the libraries and modules of every OS and of its own; translated for one OS alone (setOS:), also that OS's, which implement its libraries."
 	self translatedModules do: [:m |
-		| os |
-		os := m moduleClass targetOS.
+		| mine |
+		mine := m moduleClass targetOS.
 		m globals do: [:g |
 			| other |
-			(g isModuleReference and: [(other := g referencedModule targetOS) notNil and: [other ~= os]]) ifTrue: [
-				errors add: m name , ': ' , g name , ' is ' , g referencedModule name , ', for ' , other , ' only, but ' , m name , ' is for ' , (os ifNil: ['every OS'])]]].
+			(g isModuleReference and: [(other := g referencedModule targetOS) notNil and: [other ~= mine and: [other ~= os]]]) ifTrue: [
+				errors add: m name , ': ' , g name , ' is ' , g referencedModule name , ', for ' , other , ' only, but ' , m name , ' is for ' , (mine ifNil: ['every OS'])]]].
 	errors notEmpty ifTrue: [^TranslationError signal: (errors inject: '' into: [:acc :e | acc , e , (String with: Character lf)])]
 !
 osGroups: aCollection key: aKeyBlock do: anEmitBlock on: aStream
@@ -423,12 +453,19 @@ header: cFunctions
 	s nextPutAll: self banner; lf.
 	s nextPutAll: '#ifndef '; nextPutAll: guard; lf; nextPutAll: '#define '; nextPutAll: guard; lf; lf.
 	included := Set new.
-	#('<stdatomic.h>' '<stdbool.h>' '<stddef.h>' '<stdint.h>' '<string.h>') do: [:h | self include: h on: s seen: included].
+	(os isNil ifTrue: [#('<stdatomic.h>' '<stdbool.h>' '<stddef.h>' '<stdint.h>' '<string.h>')] ifFalse: [#('<stdatomic.h>' '<stdbool.h>' '<stddef.h>' '<stdint.h>' '<limits.h>')])
+		do: [:h | self include: h on: s seen: included].
 	self includeLibraries: self coreLibraries on: s seen: included.
 	self platform: [self includeLibraries: self platformLibraries on: s seen: included] on: s.
 	s lf; nextPutAll: 'typedef uint64_t oop;'; lf.
+	os notNil ifTrue: [
+		"the registry's built-in types that a freestanding compiler's headers lack"
+		#(#(pid_t int32_t) #(off_t int64_t) #(ssize_t int64_t) #(time_t int64_t)) do: [:td |
+			s nextPutAll: 'typedef '; nextPutAll: (td at: 2); space; nextPutAll: (td at: 1); nextPut: $;; lf]].
 	self typedefs do: [:td |
-		s nextPutAll: 'typedef '; nextPutAll: ((registry parse: (td at: 2)) declare: (td at: 1) asString); nextPut: $;; lf].
+		(td at: 2) == #opaque
+			ifTrue: [s nextPutAll: 'typedef struct '; nextPutAll: (td at: 1); space; nextPutAll: (td at: 1); nextPut: $;; lf]
+			ifFalse: [s nextPutAll: 'typedef '; nextPutAll: ((registry parse: (td at: 2)) declare: (td at: 1) asString); nextPut: $;; lf]].
 	self platform: [
 		self platformTypedefs do: [:td |
 			s nextPutAll: 'typedef '; nextPutAll: ((registry parse: (td at: 2)) declare: (td at: 1) asString); nextPut: $;; lf]] on: s.
@@ -444,6 +481,7 @@ header: cFunctions
 	self platform: [self structClasses do: [:c | (self isPlatformClass: c) ifTrue: [s nextPutAll: 'typedef struct '; nextPutAll: c ctype name; space; nextPutAll: c ctype name; nextPut: $;; lf]]] on: s.
 	s lf.
 	self structClasses do: [:c | (self isPlatformClass: c) ifFalse: [self printStruct: c on: s]].
+	self definedExternStructs do: [:c | self printExternStruct: c on: s].
 	self platform: [self structClasses do: [:c | (self isPlatformClass: c) ifTrue: [self printStruct: c on: s]]] on: s.
 	(self primitives notEmpty) ifTrue: [
 		s nextPutAll: 'extern '; nextPutAll: (registry at: 'PrimitiveEntry') name; nextPutAll: ' vm_primitive_table[];'; lf.
@@ -548,6 +586,19 @@ printStruct: aStructClass on: s
 	s nextPutAll: '_Static_assert(sizeof('; nextPutAll: ctype name; nextPutAll: ') == '; print: ctype size;
 		nextPutAll: ', "the simulator lays out '; nextPutAll: aStructClass name; nextPutAll: ' as C does");'; lf; lf
 !
+definedExternStructs
+	| all |
+	all := OrderedCollection new.
+	moduleClasses do: [:c | c definedExternStructs do: [:each | (all includes: each) ifFalse: [all add: each]]].
+	^all
+!
+printExternStruct: anExternStructClass on: s
+	"The fields the VM uses, by their C names: all there is of the struct where no system header defines it."
+	s nextPutAll: anExternStructClass ctype name; nextPutAll: ' {'; lf.
+	anExternStructClass fields do: [:spec |
+		s nextPutAll: '    '; nextPutAll: ((registry parse: (spec at: 2)) declare: (anExternStructClass cNameOfField: (spec at: 1))); nextPut: $;; lf].
+	s nextPutAll: '};'; lf; lf
+!
 cFileFor: aTModule functions: cFunctions
 	| s globals |
 	s := WriteStream on: String new.
@@ -604,15 +655,15 @@ primitiveTableFile
 	s nextPutAll: '#include "'; nextPutAll: headerName; nextPutAll: '.h"'; lf; lf.
 	s nextPutAll: (registry at: 'PrimitiveEntry') name; nextPutAll: ' vm_primitive_table[] = {'; lf.
 	self primitives do: [:f |
-		| p platform os |
+		| p platform fos |
 		p := f primitive.
 		platform := self isPlatformModule: f module.
-		os := f module moduleClass targetOS.
+		fos := f module moduleClass targetOS.
 		platform ifTrue: [s nextPutAll: '#ifndef SAMALTAK_NO_PLATFORM'; lf].
-		os notNil ifTrue: [s nextPutAll: '#ifdef '; nextPutAll: (self class guardFor: os); lf].
+		fos notNil ifTrue: [s nextPutAll: '#ifdef '; nextPutAll: (self class guardFor: fos); lf].
 		s nextPutAll: '    {'; print: (p at: 1); nextPutAll: ', '; print: ((p at: 3) ifTrue: [1] ifFalse: [0]) + ((p at: 4) ifTrue: [2] ifFalse: [0]);
 			nextPutAll: ', '; nextPutAll: (CConst value: (p at: 2) type: nil) cString; nextPutAll: ', '; nextPutAll: f cName; nextPutAll: '},'; lf.
-		os notNil ifTrue: [s nextPutAll: '#endif'; lf].
+		fos notNil ifTrue: [s nextPutAll: '#endif'; lf].
 		platform ifTrue: [s nextPutAll: '#endif'; lf]].
 	s nextPutAll: '};'; lf; lf.
 	s nextPutAll: 'int vm_primitive_count = sizeof vm_primitive_table / sizeof vm_primitive_table[0];'; lf.
@@ -636,7 +687,8 @@ sourcesMakefile
 	s := WriteStream on: String new.
 	s nextPutAll: '# Generated by VMTranslator. Do not edit.'; lf.
 	#('VM_CORE_SOURCES' 'VM_HEADLESS_SOURCES' 'VM_PLATFORM_SOURCES') do: [:var |
-		(Array with: var) , (self class targetOSes collect: [:spec | var , '_' , (spec at: 3)]) do: [:name |
+		(Array with: var) , ((self class targetOSes select: [:spec | self translatedModules anySatisfy: [:m | m moduleClass targetOS = (spec at: 1)]])
+			collect: [:spec | var , '_' , (spec at: 3)]) do: [:name |
 			s nextPutAll: name; nextPutAll: ' :='.
 			((lists at: name ifAbsent: [#()]) asSortedCollection: [:a :b | a <= b]) do: [:f | s nextPutAll: ' '; nextPutAll: f].
 			s lf]].

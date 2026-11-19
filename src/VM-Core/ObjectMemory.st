@@ -325,6 +325,8 @@ allocContext: n
 allocSlots: cls count: n
 	"n = indexable slot count (0 for non-indexable classes); fields nil."
 	<export>
+	<var: #cls type: 'oop'>
+	<var: #n type: 'uint32_t'>
 	| err o |
 	err := self local: 'int'.
 	o := self instantiate: cls size: n asUInt64 error: err.
@@ -394,6 +396,7 @@ largeIntFrom: v negative: negative
 int64Oop: v
 	"SmallInteger or LargeInteger (may allocate)."
 	<export>
+	<var: #v type: 'int64_t'>
 	(self intFits: v) ifTrue: [^self intOop: v].
 	^v < 0
 		ifTrue: [self largeIntFrom: (0 - v) asUInt64 negative: true]
@@ -432,6 +435,8 @@ u64Of: o into: out
 int64Of: o into: out
 	"SmallInteger or LargeInteger fitting int64."
 	<export>
+	<var: #o type: 'oop'>
+	<var: #out type: 'int64_t *'>
 	| m neg |
 	(self isInt: o) ifTrue: [
 		out value: (self intVal: o).

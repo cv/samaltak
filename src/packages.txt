@@ -29,6 +29,7 @@ VM-Translator 0
 VM-Core 0
 VM-Jit 0
 VM-Platform 0
+VM-UEFI 0
 VM-ImageBuilder 0
 Tests-Kernel 0
 Tests-Compiler 0

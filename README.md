@@ -29,4 +29,5 @@ One `vm/gen` serves all of them: what differs per OS is in modules for one OS (`
 - `docs/lowtalk.md` — the Smalltalk subset the VM is written in, its translation to C and its simulation
 - `docs/ui.md` — the layers from GPU to tools
 - `docs/platform.md` — the platform layer and its primitives
+- `docs/uefi.md` — the headless VM as a UEFI application (bare metal, QEMU)
 - `prototypes/` — the HTML prototypes the UI started from

@@ -398,7 +398,7 @@ store: aValue in: aMemory at: anAddress
 ! !
 
 CType subclass: #CFunctionType
-	instanceVariableNames: 'returnType parameterTypes parameterNames variadic'
+	instanceVariableNames: 'returnType parameterTypes parameterNames variadic abi'
 	classVariableNames: ''
 	package: 'VM-Lowtalk'!
 
@@ -429,12 +429,29 @@ parameterNames
 isVariadic
 	^variadic
 !
+abi
+	"The calling convention's attribute (ms_abi: UEFI's on x86-64), or nil: the platform's."
+	^abi
+!
+abi: aStringOrNil
+	abi := aStringOrNil.
+	name := self declarator: ''
+!
 size
 	^8
 !
 declarator: aString
-	"With parameter names when declaring a function, without for a type."
-	^returnType declarator: aString , '(' , (self parameterListNamed: false) , ')'
+	"With parameter names when declaring a function, without for a type. A calling convention goes inside a pointer's parentheses, (__attribute__((ms_abi)) *f)(...), and before a function's name."
+	| d |
+	d := aString.
+	abi notNil ifTrue: [
+		d := (d beginsWith: '(*')
+			ifTrue: ['(' , self abiAttribute , ' ' , (d allButFirst: 1)]
+			ifFalse: [self abiAttribute , ' ' , d]].
+	^returnType declarator: d , '(' , (self parameterListNamed: false) , ')'
+!
+abiAttribute
+	^'__attribute__((' , abi , '))'
 !
 parameterListNamed: aBoolean
 	| s |
@@ -450,7 +467,9 @@ parameterListNamed: aBoolean
 !
 prototypeNamed: aString
 	"Answer a C prototype of a function aString with my type and parameter names."
-	^returnType declarator: aString , '(' , (self parameterListNamed: true) , ')'
+	| p |
+	p := returnType declarator: aString , '(' , (self parameterListNamed: true) , ')'.
+	^abi isNil ifTrue: [p] ifFalse: [self abiAttribute , ' ' , p]
 ! !
 
 !CFunctionType methodsFor: 'testing'!

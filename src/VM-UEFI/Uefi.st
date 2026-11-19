@@ -1,0 +1,345 @@
+VMCoreModule subclass: #UefiModule
+	instanceVariableNames: 'firmware'
+	classVariableNames: 'EFI_ALLOCATE_ANY_PAGES EFI_EVT_NOTIFY_SIGNAL EFI_EVT_TIMER EFI_FILE_MODE_CREATE EFI_FILE_MODE_READ EFI_FILE_MODE_WRITE EFI_LOADER_CODE EFI_LOADER_DATA EFI_RESET_SHUTDOWN EFI_TIMER_CANCEL EFI_TIMER_PERIODIC EFI_TIMER_RELATIVE EFI_TPL_CALLBACK'
+	package: 'VM-UEFI'!
+
+UefiModule comment: 'I am the abstract class of the modules of the VM on UEFI (VMTranslator generateVMInto:os:arch: with #uefi): a headless VM that is the firmware''s application, with no operating system and no C library under it. The firmware''s services are tables of function pointers (EfiSystemTable, EfiBootServices, ...) that take the Microsoft calling convention on x86-64 (EfiFn0 ... EfiFn6: every argument a 64-bit word); efi: fn with: ... calls one.
+
+UefiFirmware is the entry (efi_main), UefiLibC, UefiLibM and UefiPosix take the place of the C libraries the core calls (implementsLibrary), UefiTicker and UefiJitPlatform implement the core''s interfaces.'!
+
+!UefiModule class methodsFor: 'declaring'!
+declarations
+	^#((firmware UefiFirmware))
+!
+isAbstractModule
+	^self == UefiModule
+!
+targetOS
+	^#uefi
+!
+isSimulated
+	^false
+!
+typedefs
+	^#((EfiFn0 'uint64_t (__attribute__((ms_abi)) *)(void)')
+		(EfiFn1 'uint64_t (__attribute__((ms_abi)) *)(uint64_t)')
+		(EfiFn2 'uint64_t (__attribute__((ms_abi)) *)(uint64_t, uint64_t)')
+		(EfiFn3 'uint64_t (__attribute__((ms_abi)) *)(uint64_t, uint64_t, uint64_t)')
+		(EfiFn4 'uint64_t (__attribute__((ms_abi)) *)(uint64_t, uint64_t, uint64_t, uint64_t)')
+		(EfiFn5 'uint64_t (__attribute__((ms_abi)) *)(uint64_t, uint64_t, uint64_t, uint64_t, uint64_t)')
+		(EfiFn6 'uint64_t (__attribute__((ms_abi)) *)(uint64_t, uint64_t, uint64_t, uint64_t, uint64_t, uint64_t)'))
+!
+initialize
+	EFI_LOADER_CODE := 1.
+	EFI_LOADER_DATA := 2.
+	EFI_ALLOCATE_ANY_PAGES := 0.
+	EFI_EVT_TIMER := 16r80000000.
+	EFI_EVT_NOTIFY_SIGNAL := 16r200.
+	EFI_TPL_CALLBACK := 8.
+	EFI_TIMER_CANCEL := 0.
+	EFI_TIMER_PERIODIC := 1.
+	EFI_TIMER_RELATIVE := 2.
+	EFI_FILE_MODE_READ := 1.
+	EFI_FILE_MODE_WRITE := 2.
+	EFI_FILE_MODE_CREATE := 16r8000000000000000.
+	EFI_RESET_SHUTDOWN := 2
+! !
+
+!UefiModule methodsFor: 'calling the firmware'!
+efi: fn
+	^(self cCoerce: fn to: 'EfiFn0') call
+!
+efi: fn with: a
+	^(self cCoerce: fn to: 'EfiFn1') call: (self cCoerce: a to: 'uint64_t')
+!
+efi: fn with: a with: b
+	^(self cCoerce: fn to: 'EfiFn2') call: (self cCoerce: a to: 'uint64_t') with: (self cCoerce: b to: 'uint64_t')
+!
+efi: fn with: a with: b with: c
+	^(self cCoerce: fn to: 'EfiFn3') call: (self cCoerce: a to: 'uint64_t') with: (self cCoerce: b to: 'uint64_t') with: (self cCoerce: c to: 'uint64_t')
+!
+efi: fn with: a with: b with: c with: d
+	^(self cCoerce: fn to: 'EfiFn4') call: (self cCoerce: a to: 'uint64_t') with: (self cCoerce: b to: 'uint64_t') with: (self cCoerce: c to: 'uint64_t') with: (self cCoerce: d to: 'uint64_t')
+!
+efi: fn with: a with: b with: c with: d with: e
+	^(self cCoerce: fn to: 'EfiFn5') call: (self cCoerce: a to: 'uint64_t') with: (self cCoerce: b to: 'uint64_t') with: (self cCoerce: c to: 'uint64_t') with: (self cCoerce: d to: 'uint64_t') with: (self cCoerce: e to: 'uint64_t')
+!
+efiFailed: status
+	"EFI_ERROR: the high bit."
+	^(status >> 63) ~= 0
+!
+boot
+	^firmware bootServices
+!
+runtime
+	^firmware runtimeServices
+! !
+
+UefiModule subclass: #UefiFirmware
+	instanceVariableNames: 'imageHandle systemTable bootServices runtimeServices conOut root'
+	classVariableNames: ''
+	package: 'VM-UEFI'!
+
+UefiFirmware comment: 'The VM''s entry on UEFI, efi_main: keeps the system table, turns off the boot manager''s watchdog (it resets the machine after 5 minutes), opens the volume the VM was loaded from (its root directory is the current directory: fopen of a relative path), reads the command line from samaltak.args there (one argument a line; without it: samaltak.image --headless) and runs VMMain>>main:argv:. What it answers is the exit status (UefiLibC>>exit:).'!
+
+!UefiFirmware class methodsFor: 'declaring'!
+declarations
+	^#((imageHandle 'void *') (systemTable 'EfiSystemTable *') (bootServices 'EfiBootServices *') (runtimeServices 'EfiRuntimeServices *')
+		(conOut 'EfiTextOutput *') (root 'EfiFile *'))
+! !
+
+!UefiFirmware methodsFor: 'entry'!
+efiMain: anImageHandle systemTable: aSystemTable
+	"What the firmware calls (C's efi_main, the image's entry point)."
+	<export>
+	<abi: 'ms_abi'>
+	<returns: 'uint64_t'>
+	<var: #anImageHandle type: 'void *'>
+	<var: #aSystemTable type: 'EfiSystemTable *'>
+	| argv argc |
+	imageHandle := anImageHandle.
+	systemTable := aSystemTable.
+	bootServices := aSystemTable bootServices.
+	runtimeServices := aSystemTable runtimeServices.
+	conOut := aSystemTable conOut.
+	self efi: bootServices setWatchdogTimer with: 0 with: 0 with: 0 with: self null.
+	libc start.
+	posix start.
+	self openRoot.
+	argv := self local: 'char *[64]'.
+	argc := self arguments: argv max: 64.
+	libc exit: (vmMain main: argc argv: argv).
+	^0
+!
+openRoot
+	"The root directory of the volume the VM was loaded from."
+	| guid image fs dir |
+	guid := self local: 'EfiGuid'.
+	image := self local: 'EfiLoadedImage *'.
+	self guid: guid data1: 16r5B1B31A1 data2: 16r9562 data3: 16r11D2 data4: 16r8E3F00A0C969723B.
+	(self efiFailed: (self efi: bootServices handleProtocol with: imageHandle with: guid with: image)) ifTrue: [^self].
+	fs := self local: 'EfiFileSystem *'.
+	self guid: guid data1: 16r964E5B22 data2: 16r6459 data3: 16r11D2 data4: 16r8E3900A0C969723B.
+	(self efiFailed: (self efi: bootServices handleProtocol with: image value deviceHandle with: guid with: fs)) ifTrue: [^self].
+	dir := self local: 'EfiFile *'.
+	(self efiFailed: (self efi: fs value openVolume with: fs value with: dir)) ifTrue: [^self].
+	root := dir value
+!
+arguments: argv max: max
+	"Fill argv from samaltak.args in the root directory, one argument a line; answer argc."
+	<function>
+	<var: #argv type: 'char **'>
+	<var: #max type: 'int'>
+	<returns: 'int'>
+	| f buf n argc i start |
+	argv at: 0 put: 'samaltak'.
+	argc := 1.
+	f := libc fopen: 'samaltak.args' mode: 'rb'.
+	f isNull ifTrue: [
+		argv at: 1 put: 'samaltak.image'.
+		argv at: 2 put: '--headless'.
+		^3].
+	buf := self cCoerce: (libc malloc: 65536) to: 'char *'.
+	n := (libc fread: buf size: 1 count: 65535 file: f) asInt64.
+	libc fclose: f.
+	buf at: n put: 0.
+	i := 0.
+	start := 0.
+	[i <= n and: [argc < (max - 1)]] whileTrue: [
+		((buf at: i) = 0 or: [(buf at: i) = 10 or: [(buf at: i) = 13]]) ifTrue: [
+			buf at: i put: 0.
+			i > start ifTrue: [
+				argv at: argc put: buf + start.
+				argc := argc + 1].
+			start := i + 1].
+		i := i + 1].
+	argv at: argc put: self null.
+	^argc asInt32
+!
+guid: g data1: a data2: b data3: c data4: d
+	"d's bytes, most significant first, are data4[0..7]."
+	| bytes |
+	g data1: a.
+	g data2: b.
+	g data3: c.
+	bytes := self cCoerce: (g fieldAddress: #data4) to: 'uint8_t *'.
+	0 to: 7 do: [:k | bytes at: k put: ((d >> (56 - (8 * k))) bitAnd: 255)]
+! !
+
+!UefiFirmware methodsFor: 'accessing'!
+bootServices
+	^bootServices
+!
+runtimeServices
+	^runtimeServices
+!
+root
+	"The volume's root directory (EfiFile), null if there is none."
+	<function>
+	^root
+!
+outputString: aUcs2String
+	"Write a NUL-terminated UCS-2 string to the console (on QEMU with -nographic, the serial port)."
+	<function>
+	<var: #aUcs2String type: 'uint16_t *'>
+	conOut isNull ifTrue: [^self].
+	self efi: conOut outputString with: conOut with: aUcs2String
+!
+timerNotifying: notify context: context
+	"A timer event whose notification function (ms_abi) the firmware calls with context at TPL_CALLBACK; null if there is none."
+	<function>
+	<var: #notify type: 'void *'>
+	<var: #context type: 'void *'>
+	<returns: 'void *'>
+	| event |
+	event := self local: 'void *'.
+	(self efiFailed: (self efi: bootServices createEvent with: (EFI_EVT_TIMER bitOr: EFI_EVT_NOTIFY_SIGNAL) with: EFI_TPL_CALLBACK
+		with: notify with: context with: event)) ifTrue: [^self null].
+	^event value
+!
+setTimer: event microseconds: us periodic: periodic
+	"Signal event after us (every us if periodic); us < 0 cancels it."
+	<function>
+	<var: #event type: 'void *'>
+	<var: #us type: 'int64_t'>
+	<var: #periodic type: 'bool'>
+	us < 0 ifTrue: [
+		self efi: bootServices setTimer with: event with: EFI_TIMER_CANCEL with: 0.
+		^self].
+	self efi: bootServices setTimer with: event with: (periodic ifTrue: [EFI_TIMER_PERIODIC] ifFalse: [EFI_TIMER_RELATIVE])
+		with: (us < 1 ifTrue: [1] ifFalse: [us]) * 10
+!
+shutdown: status
+	"Power off (QEMU exits); status goes to ResetSystem."
+	<function>
+	<noreturn>
+	<var: #status type: 'int'>
+	self efi: runtimeServices resetSystem with: EFI_RESET_SHUTDOWN with: status asInt64 with: 0 with: self null.
+	[true] whileTrue
+! !
+
+VMStruct subclass: #EfiGuid
+	instanceVariableNames: ''
+	classVariableNames: ''
+	package: 'VM-UEFI'!
+
+!EfiGuid class methodsFor: 'declaring'!
+fields
+	^#((data1 uint32_t) (data2 uint16_t) (data3 uint16_t) (data4 'uint8_t[8]'))
+! !
+
+VMStruct subclass: #EfiTime
+	instanceVariableNames: ''
+	classVariableNames: ''
+	package: 'VM-UEFI'!
+
+!EfiTime class methodsFor: 'declaring'!
+fields
+	^#((year uint16_t) (month uint8_t) (day uint8_t) (hour uint8_t) (minute uint8_t) (second uint8_t) (pad1 uint8_t)
+		(nanosecond uint32_t) (timeZone int16_t) (daylight uint8_t) (pad2 uint8_t))
+! !
+
+VMStruct subclass: #EfiSystemTable
+	instanceVariableNames: ''
+	classVariableNames: ''
+	package: 'VM-UEFI'!
+
+EfiSystemTable comment: 'EFI_SYSTEM_TABLE (UEFI 2.10, 4.3).'!
+
+!EfiSystemTable class methodsFor: 'declaring'!
+fields
+	^#((hdrSignature uint64_t) (hdrRevision uint32_t) (hdrSize uint32_t) (hdrCrc32 uint32_t) (hdrReserved uint32_t)
+		(firmwareVendor 'uint16_t *') (firmwareRevision uint32_t) (conInHandle 'void *') (conIn 'void *')
+		(conOutHandle 'void *') (conOut 'EfiTextOutput *') (stdErrHandle 'void *') (stdErr 'EfiTextOutput *')
+		(runtimeServices 'EfiRuntimeServices *') (bootServices 'EfiBootServices *')
+		(tableEntries uint64_t) (configurationTable 'void *'))
+! !
+
+VMStruct subclass: #EfiBootServices
+	instanceVariableNames: ''
+	classVariableNames: ''
+	package: 'VM-UEFI'!
+
+EfiBootServices comment: 'EFI_BOOT_SERVICES (UEFI 2.10, 4.4), up to LocateProtocol: function pointers, each called with efi:with:...'!
+
+!EfiBootServices class methodsFor: 'declaring'!
+fields
+	^#((hdrSignature uint64_t) (hdrRevision uint32_t) (hdrSize uint32_t) (hdrCrc32 uint32_t) (hdrReserved uint32_t)
+		(raiseTpl 'void *') (restoreTpl 'void *') (allocatePages 'void *') (freePages 'void *') (getMemoryMap 'void *')
+		(allocatePool 'void *') (freePool 'void *') (createEvent 'void *') (setTimer 'void *') (waitForEvent 'void *')
+		(signalEvent 'void *') (closeEvent 'void *') (checkEvent 'void *') (installProtocolInterface 'void *')
+		(reinstallProtocolInterface 'void *') (uninstallProtocolInterface 'void *') (handleProtocol 'void *')
+		(reservedService 'void *') (registerProtocolNotify 'void *') (locateHandle 'void *') (locateDevicePath 'void *')
+		(installConfigurationTable 'void *') (loadImage 'void *') (startImage 'void *') (exitImage 'void *')
+		(unloadImage 'void *') (exitBootServices 'void *') (getNextMonotonicCount 'void *') (stall 'void *')
+		(setWatchdogTimer 'void *') (connectController 'void *') (disconnectController 'void *') (openProtocol 'void *')
+		(closeProtocol 'void *') (openProtocolInformation 'void *') (protocolsPerHandle 'void *')
+		(locateHandleBuffer 'void *') (locateProtocol 'void *'))
+! !
+
+VMStruct subclass: #EfiRuntimeServices
+	instanceVariableNames: ''
+	classVariableNames: ''
+	package: 'VM-UEFI'!
+
+EfiRuntimeServices comment: 'EFI_RUNTIME_SERVICES (UEFI 2.10, 4.5), up to ResetSystem.'!
+
+!EfiRuntimeServices class methodsFor: 'declaring'!
+fields
+	^#((hdrSignature uint64_t) (hdrRevision uint32_t) (hdrSize uint32_t) (hdrCrc32 uint32_t) (hdrReserved uint32_t)
+		(getTime 'void *') (setTime 'void *') (getWakeupTime 'void *') (setWakeupTime 'void *')
+		(setVirtualAddressMap 'void *') (convertPointer 'void *') (getVariable 'void *') (getNextVariableName 'void *')
+		(setVariable 'void *') (getNextHighMonotonicCount 'void *') (resetSystem 'void *'))
+! !
+
+VMStruct subclass: #EfiTextOutput
+	instanceVariableNames: ''
+	classVariableNames: ''
+	package: 'VM-UEFI'!
+
+EfiTextOutput comment: 'EFI_SIMPLE_TEXT_OUTPUT_PROTOCOL (UEFI 2.10, 12.4).'!
+
+!EfiTextOutput class methodsFor: 'declaring'!
+fields
+	^#((reset 'void *') (outputString 'void *') (testString 'void *') (queryMode 'void *') (setMode 'void *')
+		(setAttribute 'void *') (clearScreen 'void *') (setCursorPosition 'void *') (enableCursor 'void *') (mode 'void *'))
+! !
+
+VMStruct subclass: #EfiLoadedImage
+	instanceVariableNames: ''
+	classVariableNames: ''
+	package: 'VM-UEFI'!
+
+EfiLoadedImage comment: 'EFI_LOADED_IMAGE_PROTOCOL (UEFI 2.10, 9.1).'!
+
+!EfiLoadedImage class methodsFor: 'declaring'!
+fields
+	^#((revision uint32_t) (parentHandle 'void *') (systemTable 'void *') (deviceHandle 'void *') (filePath 'void *')
+		(reservedPointer 'void *') (loadOptionsSize uint32_t) (loadOptions 'void *') (imageBase 'void *') (imageSize uint64_t)
+		(imageCodeType uint32_t) (imageDataType uint32_t) (unload 'void *'))
+! !
+
+VMStruct subclass: #EfiFileSystem
+	instanceVariableNames: ''
+	classVariableNames: ''
+	package: 'VM-UEFI'!
+
+EfiFileSystem comment: 'EFI_SIMPLE_FILE_SYSTEM_PROTOCOL (UEFI 2.10, 13.4).'!
+
+!EfiFileSystem class methodsFor: 'declaring'!
+fields
+	^#((revision uint64_t) (openVolume 'void *'))
+! !
+
+VMStruct subclass: #EfiFile
+	instanceVariableNames: ''
+	classVariableNames: ''
+	package: 'VM-UEFI'!
+
+EfiFile comment: 'EFI_FILE_PROTOCOL (UEFI 2.10, 13.5), revision 1''s functions.'!
+
+!EfiFile class methodsFor: 'declaring'!
+fields
+	^#((revision uint64_t) (open 'void *') (close 'void *') (delete 'void *') (read 'void *') (write 'void *')
+		(getPosition 'void *') (setPosition 'void *') (getInfo 'void *') (setInfo 'void *') (flush 'void *'))
+! !

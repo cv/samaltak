@@ -22,6 +22,7 @@ jobs:
           - test-jit-baseline
           - test-jit-opt test-jit-cache
           - test-jit-deopt test-tools
+          - test-uefi
     runs-on: ubuntu-24.04
     container: debian:bookworm-slim
     timeout-minutes: 60

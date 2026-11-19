@@ -130,6 +130,7 @@ requestInterruptCheck
 signalExternalSemaphore: index
 	"1-based index into externalObjects; VM thread only, queued."
 	<export>
+	<var: #index type: 'int32_t'>
 	pendingExtN = pendingExtCap ifTrue: [
 		pendingExtCap := pendingExtCap = 0 ifTrue: [64] ifFalse: [pendingExtCap * 2].
 		pendingExt := self cCoerce: (libc realloc: pendingExt size: 4 * pendingExtCap asUInt64) to: 'int32_t *'.

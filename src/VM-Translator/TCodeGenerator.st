@@ -466,6 +466,15 @@ externSend: aSelector library: aLibraryClass arguments: argNodes node: aNode
 		noReturn: ext isNoReturn;
 		yourself
 !
+varargBits: aCExpr
+	"A double's bits, an integer or bool converted (C sign-extends a signed one), a pointer through uintptr_t."
+	| t u64 |
+	t := self valueType: aCExpr.
+	u64 := translator registry at: 'uint64_t'.
+	t isFloat ifTrue: [^CCall function: 'lt_bits_of_double' arguments: (Array with: (self cast: aCExpr to: (translator registry at: 'double'))) type: u64].
+	t isPointer ifTrue: [^self cast: (self cast: aCExpr to: (translator registry at: 'uintptr_t')) to: u64].
+	^self cast: aCExpr to: u64
+!
 variadicArgument: aCExpr
 	"A 64-bit integer passed to ... (printf's %lld, %llu, %llx) as long long: what int64_t is on macOS, while on Linux it is long."
 	| t |
@@ -809,7 +818,7 @@ valueSend: aMessageNode valueWanted: aBoolean
 	type := self valueType: rcv.
 	(sel == #ifNoOverflowAdd:do: or: [sel == #ifNoOverflowSub:do: or: [sel == #ifNoOverflowMul:do:]])
 		ifTrue: [self overflowCheck: aMessageNode receiver: rcv. ^nil].
-	((type isPointer and: [type target isFunction]) and: [#(#call #call: #call:with: #call:with:with: #call:with:with:with:) includes: sel])
+	((type isPointer and: [type target isFunction]) and: [#(#call #call: #call:with: #call:with:with: #call:with:with:with: #call:with:with:with:with: #call:with:with:with:with:with:) includes: sel])
 		ifTrue: [^self callPointer: rcv arguments: aMessageNode arguments node: aMessageNode].
 	((type isPointerLike and: [type target isStruct]) or: [type isStruct]) ifTrue: [
 		(self isFieldSelector: sel of: type) ifTrue: [^self field: aMessageNode receiver: rcv]].
@@ -1264,6 +1273,7 @@ intrinsic: aSelector arguments: argNodes node: aNode valueWanted: aBoolean
 	aSelector == #likely: ifTrue: [^CCall function: '__builtin_expect' arguments: (Array with: (self condition: argNodes first) with: (CConst value: 1 type: (registry at: 'int'))) type: self boolType].
 	aSelector == #unlikely: ifTrue: [^CCall function: '__builtin_expect' arguments: (Array with: (self condition: argNodes first) with: (CConst value: 0 type: (registry at: 'int'))) type: self boolType].
 	aSelector == #bitsOfDouble: ifTrue: [^CCall function: 'lt_bits_of_double' arguments: (Array with: (self expression: argNodes first)) type: (registry at: 'uint64_t')].
+	aSelector == #varargBits: ifTrue: [^self varargBits: (self expression: argNodes first)].
 	aSelector == #doubleFromBits: ifTrue: [^CCall function: 'lt_double_from_bits' arguments: (Array with: (self expression: argNodes first)) type: (registry at: 'double')].
 	aSelector == #atomicLoad: ifTrue: [
 		| g |
@@ -1466,7 +1476,7 @@ definitionPrototype
 	| ft names |
 	ft := function functionType.
 	names := function arguments collect: [:a | LowtalkNames snake: a].
-	^(CFunctionType returning: ft returnType parameters: ft parameterTypes names: names variadic: ft isVariadic) prototypeNamed: function cName
+	^(CFunctionType returning: ft returnType parameters: ft parameterTypes names: names variadic: ft isVariadic) abi: ft abi; prototypeNamed: function cName
 ! !
 
 !TCFunction methodsFor: 'printing'!

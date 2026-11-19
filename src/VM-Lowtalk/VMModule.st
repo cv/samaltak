@@ -27,8 +27,16 @@ isInterface
 	^false
 !
 targetOS
-	"The operating system I am compiled for: nil (every one), #darwin or #linux. One implementation of an interface per OS: the build compiles the one for its OS (vm/gen/sources.mk), the C file and my prototypes are guarded by the OS's predefined macro."
+	"The operating system I am compiled for: nil (every one), #darwin, #linux or #uefi. One implementation of an interface per OS: the build compiles the one for its OS (vm/gen/sources.mk), the C file and my prototypes are guarded by the OS's predefined macro."
 	^nil
+!
+implementsLibrary
+	"The CLibrary I take the place of in the translation for my targetOS (VMTranslator>>setOS:), where the OS has no C library: its calls are sends to me, under the same selectors. nil: none."
+	^nil
+!
+definedExternStructs
+	"The ExternStructs of the library I implement, which the translation for my targetOS defines (no system header does)."
+	^#()
 !
 targetArch
 	"The CPU I am compiled for: nil (every one), #arm64 or #x86_64 (VMTranslator class>>targetArchs). The build compiles the modules of its CPU (vm/gen/sources.mk); a module for every CPU reaches one for a CPU through an arch interface (isArchInterface)."
@@ -251,6 +259,14 @@ bitsOfDouble: aFloat
 doubleFromBits: anInteger
 	<intrinsic>
 	^Float fromIEEEBits: anInteger
+!
+varargBits: aValue
+	"aValue as the 64 bits a C variadic function would read: a double's IEEE bits, an integer widened (a signed one sign-extended), a pointer's address. What a Lowtalk printf takes for its ... (UefiLibC)."
+	<intrinsic>
+	aValue isFloat ifTrue: [^aValue asIEEEBits].
+	(aValue == true or: [aValue == false]) ifTrue: [^aValue ifTrue: [1] ifFalse: [0]].
+	aValue isInteger ifTrue: [^aValue bitAnd: 16rFFFFFFFFFFFFFFFF].
+	^sim memory addressOf: aValue
 !
 primitiveTable
 	"The VM's primitives: an array of PrimitiveEntry structs (number, flags: 1 leaf 2 tryable, name, function), sorted by number."

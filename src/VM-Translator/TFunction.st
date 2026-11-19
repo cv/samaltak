@@ -126,6 +126,7 @@ addFunction: aTFunction
 	aTFunction arguments doWithIndex: [:a :i |
 		(aTFunction declaredTypeOf: a) ifNotNil: [:t | (slots at: i) explicit: (translator registry parse: t)]].
 	(aTFunction pragmaAt: #returns:) ifNotNil: [:p | result explicit: (translator registry parse: p first)].
+	(aTFunction pragmaAt: #abi:) ifNotNil: [:p | abi := p first].
 	self refresh
 ! !
 
@@ -189,7 +190,7 @@ refresh
 	| void |
 	void := translator registry at: 'void'.
 	self setReturnType: (result type ifNil: [void]) parameterTypes: (slots collect: [:s | s type ifNil: [void]]) names: names variadic: false.
-	unified do: [:s | s setReturnType: returnType parameterTypes: parameterTypes names: names variadic: false]
+	unified do: [:s | s abi: abi; setReturnType: returnType parameterTypes: parameterTypes names: names variadic: false]
 !
 unifyWith: aSignature
 	"The functions behind a function pointer take one signature: that of a C library or a typedef (a plain CFunctionType), or the joined one of two inferred signatures."
@@ -220,6 +221,7 @@ unified
 adopt: aCFunctionType
 	aCFunctionType parameterTypes doWithIndex: [:t :i | (slots at: i) explicit: t].
 	result explicit: aCFunctionType returnType.
+	abi := aCFunctionType abi.
 	self refresh.
 	functions do: [:f | translator enqueue: f].
 	dependents do: [:f | translator enqueue: f]

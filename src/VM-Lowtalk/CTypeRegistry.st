@@ -241,12 +241,20 @@ parseDeclaratorOn: aBaseType
 		self next.
 		type := CPointerType to: type.
 		[self peek = 'const' or: [self peek = 'volatile']] whileTrue: [self next]].
-	(self peek = '(' and: [(self peekAt: 2) = '*' or: [(self peekAt: 2) = '(']])
+	(self peek = '(' and: [(self peekAt: 2) = '*' or: [(self peekAt: 2) = '(' or: [(self peekAt: 2) = '__attribute__']]])
 		ifTrue: [
+			| abi |
 			self next.
+			self peek = '__attribute__' ifTrue: [
+				self next; expect: '('; expect: '('.
+				abi := self next.
+				self expect: ')'; expect: ')'].
 			inner := position.
 			self skipToClosingParen.
 			type := self parseSuffixesOn: type.
+			abi notNil ifTrue: [
+				type isFunction ifFalse: [self error: 'a calling convention needs a function type'].
+				type abi: abi].
 			suffixStart := position.
 			position := inner.
 			decl := self parseDeclaratorOn: type.
