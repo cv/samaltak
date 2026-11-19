@@ -1,11 +1,11 @@
 VMCoreModule subclass: #UefiModule
 	instanceVariableNames: 'firmware'
-	classVariableNames: 'EFI_ALLOCATE_ANY_PAGES EFI_EVT_NOTIFY_SIGNAL EFI_EVT_TIMER EFI_FILE_MODE_CREATE EFI_FILE_MODE_READ EFI_FILE_MODE_WRITE EFI_LOADER_CODE EFI_LOADER_DATA EFI_RESET_SHUTDOWN EFI_TIMER_CANCEL EFI_TIMER_PERIODIC EFI_TIMER_RELATIVE EFI_TPL_CALLBACK'
+	classVariableNames: 'EFI_ALLOCATE_ANY_PAGES EFI_EVT_NOTIFY_SIGNAL EFI_EVT_TIMER EFI_FILE_MODE_CREATE EFI_FILE_MODE_READ EFI_FILE_MODE_WRITE EFI_LOADER_CODE EFI_LOADER_DATA EFI_MEMORY_RO EFI_MEMORY_WB EFI_MEMORY_XP EFI_RESET_SHUTDOWN EFI_TIMER_CANCEL EFI_TIMER_PERIODIC EFI_TIMER_RELATIVE EFI_TPL_CALLBACK STACK_BYTES'
 	package: 'VM-UEFI'!
 
-UefiModule comment: 'I am the abstract class of the modules of the VM on UEFI (VMTranslator generateVMInto:os:arch: with #uefi): a headless VM that is the firmware''s application, with no operating system and no C library under it. The firmware''s services are tables of function pointers (EfiSystemTable, EfiBootServices, ...) that take the Microsoft calling convention on x86-64 (EfiFn0 ... EfiFn6: every argument a 64-bit word); efi: fn with: ... calls one.
+UefiModule comment: 'I am the abstract class of the modules of the VM on UEFI (VMTranslator generateVMInto:os:arch: with #uefi): a headless VM that is the firmware''s application, with no operating system and no C library under it. The firmware''s services are tables of function pointers (EfiSystemTable, EfiBootServices, ...) that take the Microsoft calling convention on x86-64 and the standard one on AArch64, where ms_abi changes nothing (EfiFn0 ... EfiFn6: every argument a 64-bit word); efi: fn with: ... calls one.
 
-UefiFirmware is the entry (efi_main), UefiLibC, UefiLibM and UefiPosix take the place of the C libraries the core calls (implementsLibrary), UefiTicker and UefiJitPlatform implement the core''s interfaces.'!
+UefiFirmware is the entry (efi_main), UefiLibC, UefiLibM and UefiPosix take the place of the C libraries the core calls (implementsLibrary), UefiTicker and UefiJitPlatform implement the core''s interfaces, UefiCpu what differs between the CPUs.'!
 
 !UefiModule class methodsFor: 'declaring'!
 declarations
@@ -42,7 +42,11 @@ initialize
 	EFI_FILE_MODE_READ := 1.
 	EFI_FILE_MODE_WRITE := 2.
 	EFI_FILE_MODE_CREATE := 16r8000000000000000.
-	EFI_RESET_SHUTDOWN := 2
+	EFI_MEMORY_WB := 8.
+	EFI_MEMORY_XP := 16r4000.
+	EFI_MEMORY_RO := 16r20000.
+	EFI_RESET_SHUTDOWN := 2.
+	STACK_BYTES := 8 * 1024 * 1024
 ! !
 
 !UefiModule methodsFor: 'calling the firmware'!
@@ -76,16 +80,16 @@ runtime
 ! !
 
 UefiModule subclass: #UefiFirmware
-	instanceVariableNames: 'imageHandle systemTable bootServices runtimeServices conOut root store'
+	instanceVariableNames: 'imageHandle systemTable bootServices runtimeServices conOut root store cpu'
 	classVariableNames: ''
 	package: 'VM-UEFI'!
 
-UefiFirmware comment: 'The VM''s entry on UEFI, efi_main: keeps the system table, turns off the boot manager''s watchdog (it resets the machine after 5 minutes), opens the volume the VM was loaded from (its root directory is the current directory: fopen of a relative path), finds the image store (UefiImageStore), reads the command line from samaltak.args there (one argument a line; without it: disk: --headless, or samaltak.image --headless if there is no store) and runs VMMain>>main:argv:. What it answers is the exit status (UefiLibC>>exit:).'!
+UefiFirmware comment: 'The VM''s entry on UEFI, efi_main: makes its image writable and executable (unprotect:bootServices:), keeps the system table, turns off the boot manager''s watchdog (it resets the machine after 5 minutes), switches to a stack of STACK_BYTES (the firmware''s is 128 KB, and the JIT''s code keeps a native frame per activation), opens the volume the VM was loaded from (its root directory is the current directory: fopen of a relative path), finds the image store (UefiImageStore), reads the command line from samaltak.args there (one argument a line; without it: disk: --headless, or samaltak.image --headless if there is no store) and runs VMMain>>main:argv:. What it answers is the exit status (UefiLibC>>exit:).'!
 
 !UefiFirmware class methodsFor: 'declaring'!
 declarations
 	^#((imageHandle 'void *') (systemTable 'EfiSystemTable *') (bootServices 'EfiBootServices *') (runtimeServices 'EfiRuntimeServices *')
-		(conOut 'EfiTextOutput *') (root 'EfiFile *') (store UefiImageStore))
+		(conOut 'EfiTextOutput *') (root 'EfiFile *') (store UefiImageStore) (cpu UefiCpu))
 ! !
 
 !UefiFirmware methodsFor: 'entry'!
@@ -96,13 +100,25 @@ efiMain: anImageHandle systemTable: aSystemTable
 	<returns: 'uint64_t'>
 	<var: #anImageHandle type: 'void *'>
 	<var: #aSystemTable type: 'EfiSystemTable *'>
-	| argv argc |
+	| stack run |
+	self unprotect: anImageHandle bootServices: aSystemTable bootServices.
 	imageHandle := anImageHandle.
 	systemTable := aSystemTable.
 	bootServices := aSystemTable bootServices.
 	runtimeServices := aSystemTable runtimeServices.
 	conOut := aSystemTable conOut.
 	self efi: bootServices setWatchdogTimer with: 0 with: 0 with: 0 with: self null.
+	run := self cCoerce: (self functionPointer: #run) to: 'void *'.
+	stack := self local: 'uint64_t'.
+	(self efiFailed: (self efi: bootServices allocatePages with: EFI_ALLOCATE_ANY_PAGES with: EFI_LOADER_DATA with: STACK_BYTES >> 12 with: stack)) ifTrue: [
+		^(self cCoerce: run to: 'uint64_t (*)(void)') call].
+	^cpu call: run onStack: (self cCoerce: stack value + STACK_BYTES to: 'void *')
+!
+run
+	"The VM, on the stack efi_main gave it."
+	<function>
+	<returns: 'uint64_t'>
+	| argv argc |
 	libc start.
 	posix start.
 	self openRoot.
@@ -111,6 +127,28 @@ efiMain: anImageHandle systemTable: aSystemTable
 	argc := self arguments: argv max: 64.
 	libc exit: (vmMain main: argc argv: argv).
 	^0
+!
+unprotect: anImageHandle bootServices: services
+	"Make the VM's image writable and executable where the firmware protects it by its sections (edk2 on AArch64 makes the one section, code, read-only): with EFI_MEMORY_ATTRIBUTE_PROTOCOL, else (ArmVirtQemu uninstalls that) with the CPU architectural protocol's SetMemoryAttributes, as edk2 protects it, write-back and nothing else. Before anything writes a global."
+	<function>
+	<var: #anImageHandle type: 'void *'>
+	<var: #services type: 'EfiBootServices *'>
+	| guid image attributes base size cpuArch |
+	guid := self local: 'EfiGuid'.
+	image := self local: 'EfiLoadedImage *'.
+	self guid: guid data1: 16r5B1B31A1 data2: 16r9562 data3: 16r11D2 data4: 16r8E3F00A0C969723B.
+	(self efiFailed: (self efi: services handleProtocol with: anImageHandle with: guid with: image)) ifTrue: [^self].
+	base := image value imageBase.
+	size := image value imageSize + 4095 bitClear: 4095.
+	attributes := self local: 'EfiMemoryAttribute *'.
+	self guid: guid data1: 16rF4560CF6 data2: 16r40EC data3: 16r4B4A data4: 16rA192BF1D57D0B189.
+	(self efiFailed: (self efi: services locateProtocol with: guid with: self null with: attributes)) ifFalse: [
+		self efi: attributes value clearMemoryAttributes with: attributes value with: base with: size with: (EFI_MEMORY_RO bitOr: EFI_MEMORY_XP).
+		^self].
+	cpuArch := self local: 'EfiCpuArch *'.
+	self guid: guid data1: 16r26BACCB1 data2: 16r6F42 data3: 16r11D4 data4: 16rBCE70080C73C8881.
+	(self efiFailed: (self efi: services locateProtocol with: guid with: self null with: cpuArch)) ifTrue: [^self].
+	self efi: cpuArch value setMemoryAttributes with: cpuArch value with: base with: size with: EFI_MEMORY_WB
 !
 openRoot
 	"The root directory of the volume the VM was loaded from."
@@ -318,6 +356,31 @@ fields
 	^#((revision uint32_t) (parentHandle 'void *') (systemTable 'void *') (deviceHandle 'void *') (filePath 'void *')
 		(reservedPointer 'void *') (loadOptionsSize uint32_t) (loadOptions 'void *') (imageBase 'void *') (imageSize uint64_t)
 		(imageCodeType uint32_t) (imageDataType uint32_t) (unload 'void *'))
+! !
+
+VMStruct subclass: #EfiMemoryAttribute
+	instanceVariableNames: ''
+	classVariableNames: ''
+	package: 'VM-UEFI'!
+
+EfiMemoryAttribute comment: 'EFI_MEMORY_ATTRIBUTE_PROTOCOL (UEFI 2.10, 37.7).'!
+
+!EfiMemoryAttribute class methodsFor: 'declaring'!
+fields
+	^#((getMemoryAttributes 'void *') (setMemoryAttributes 'void *') (clearMemoryAttributes 'void *'))
+! !
+
+VMStruct subclass: #EfiCpuArch
+	instanceVariableNames: ''
+	classVariableNames: ''
+	package: 'VM-UEFI'!
+
+EfiCpuArch comment: 'EFI_CPU_ARCH_PROTOCOL (UEFI PI 1.8, volume 2, 12.3), up to SetMemoryAttributes.'!
+
+!EfiCpuArch class methodsFor: 'declaring'!
+fields
+	^#((flushDataCache 'void *') (enableInterrupt 'void *') (disableInterrupt 'void *') (getInterruptState 'void *')
+		(init 'void *') (registerInterruptHandler 'void *') (getTimerValue 'void *') (setMemoryAttributes 'void *'))
 ! !
 
 VMStruct subclass: #EfiFileSystem

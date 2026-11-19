@@ -73,27 +73,42 @@ test-tools: image
 	tests/tools/snapshot_test.sh $(OUT)/samaltak.image
 	tests/tools/reboot_test.sh $(OUT)/samaltak.image
 
-# The headless VM as a UEFI application for x86-64, translated from the same Lowtalk with VM-UEFI in place of the C
-# library (docs/uefi.md): $(UEFI)/esp is a boot volume with it (EFI/BOOT/BOOTX64.EFI) and samaltak.args (the command
-# line, an argument a line), $(UEFI)/image.disk a disk with the image (UefiImageStore: two slots, snapshots go to the
-# other). uefi-run boots them in QEMU with OVMF (KVM if there is /dev/kvm) and fails unless the VM exits 0; UEFI_ARGS
-# are its arguments after the image (disk:). test-uefi runs the tests there that need no platform layer (no files,
-# processes or ptys from Smalltalk).
-UEFI := $(OUT)/uefi
+# The headless VM as a UEFI application for x86-64 or arm64 (UEFI_ARCH, this machine's by default), translated from the
+# same Lowtalk with VM-UEFI in place of the C library (docs/uefi.md): $(UEFI)/esp is a boot volume with it
+# (EFI/BOOT/BOOTX64.EFI or BOOTAA64.EFI) and samaltak.args (the command line, an argument a line), $(UEFI)/image.disk a
+# disk with the image (UefiImageStore: two slots, snapshots go to the other). uefi-run boots them in QEMU with its UEFI
+# firmware, on this machine's CPU if it is UEFI_ARCH (KVM, or Hypervisor.framework on macOS), and fails unless the VM
+# exits 0; UEFI_ARGS are its arguments after the image (disk:). test-uefi runs the tests there that need no platform
+# layer (no files, processes or ptys from Smalltalk).
+UEFI_HOST_ARCH := $(if $(filter x86_64 amd64,$(shell uname -m)),x86_64,arm64)
+UEFI_ARCH ?= $(UEFI_HOST_ARCH)
+UEFI := $(OUT)/uefi-$(UEFI_ARCH)
 UEFI_ARGS ?= --headless --eval 'Smalltalk vmBanner'
 UEFI_HEAP_MB ?= 256
 UEFI_DISK_MB ?= 512
+UEFI_ACCEL := $(if $(filter $(UEFI_HOST_ARCH),$(UEFI_ARCH)),$(if $(wildcard /dev/kvm),-accel kvm -cpu host,$(if $(filter Darwin,$(shell uname -s)),-accel hvf -cpu host)))
+ifeq ($(UEFI_ARCH),arm64)
+UEFI_TARGET := aarch64
+UEFI_BOOT := BOOTAA64.EFI
+OVMF_CODE ?= $(firstword $(wildcard /usr/share/AAVMF/AAVMF_CODE.fd /opt/homebrew/share/qemu/edk2-aarch64-code.fd /usr/share/qemu/edk2-aarch64-code.fd))
+OVMF_VARS ?= $(firstword $(wildcard /usr/share/AAVMF/AAVMF_VARS.fd /opt/homebrew/share/qemu/edk2-arm-vars.fd /usr/share/qemu/edk2-arm-vars.fd))
+QEMU_UEFI_MACHINE := qemu-system-aarch64 -machine virt $(or $(UEFI_ACCEL),-cpu max)
+else
+UEFI_TARGET := x86_64
+UEFI_BOOT := BOOTX64.EFI
 OVMF_CODE ?= $(firstword $(wildcard /usr/share/OVMF/OVMF_CODE_4M.fd /usr/share/OVMF/OVMF_CODE.fd /opt/homebrew/share/qemu/edk2-x86_64-code.fd /usr/share/qemu/edk2-x86_64-code.fd))
 OVMF_VARS ?= $(firstword $(wildcard /usr/share/OVMF/OVMF_VARS_4M.fd /usr/share/OVMF/OVMF_VARS.fd /opt/homebrew/share/qemu/edk2-i386-vars.fd /usr/share/qemu/edk2-i386-vars.fd))
-QEMU_UEFI = qemu-system-x86_64 -machine q35 -m 2048 -nographic -net none -no-reboot $(if $(wildcard /dev/kvm),-accel kvm -cpu host) \
+QEMU_UEFI_MACHINE := qemu-system-x86_64 -machine q35 $(UEFI_ACCEL)
+endif
+QEMU_UEFI = $(QEMU_UEFI_MACHINE) -m 2048 -nographic -net none -no-reboot \
 	-drive if=pflash,format=raw,readonly=on,file=$(OVMF_CODE) -drive if=pflash,format=raw,file=$(UEFI)/vars.fd \
 	-drive format=raw,file=fat:rw:$(UEFI)/esp -drive format=raw,file=$(UEFI)/image.disk
 uefi: image
 	rm -rf $(UEFI)/gen
 	mkdir -p $(UEFI)/esp/EFI/BOOT
-	$(VM) $(OUT)/samaltak.image --headless --eval "[VMTranslator generateVMInto: '$(UEFI)/gen' os: #uefi arch: #x86_64. 'ok'] on: Error do: [:e | Transcript show: e messageText; cr. Smalltalk quit: 1]"
-	$(MAKE) -f vm/uefi.mk GEN=$(UEFI)/gen OBJ=$(UEFI)/obj
-	$(VM) $(OUT)/samaltak.image --headless --eval "UefiImageWriter new convert: '$(UEFI)/obj/samaltak.elf' to: '$(UEFI)/esp/EFI/BOOT/BOOTX64.EFI'"
+	$(VM) $(OUT)/samaltak.image --headless --eval "[VMTranslator generateVMInto: '$(UEFI)/gen' os: #uefi arch: #$(UEFI_ARCH). 'ok'] on: Error do: [:e | Transcript show: e messageText; cr. Smalltalk quit: 1]"
+	$(MAKE) -f vm/uefi.mk GEN=$(UEFI)/gen OBJ=$(UEFI)/obj UEFI_TARGET=$(UEFI_TARGET)
+	$(VM) $(OUT)/samaltak.image --headless --eval "UefiImageWriter new convert: '$(UEFI)/obj/samaltak.elf' to: '$(UEFI)/esp/EFI/BOOT/$(UEFI_BOOT)'"
 	$(VM) $(OUT)/samaltak.image --headless --eval "UefiImageDisk new write: '$(OUT)/samaltak.image' to: '$(UEFI)/image.disk'"
 	truncate -s $(UEFI_DISK_MB)M $(UEFI)/image.disk
 uefi-run: uefi

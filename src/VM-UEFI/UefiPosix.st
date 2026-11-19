@@ -188,22 +188,178 @@ realpath: path into: resolved
 	^libc strdup: path
 ! !
 
-CLibrary subclass: #UefiCpu
+VMModule subclass: #UefiCpu
 	instanceVariableNames: ''
 	classVariableNames: ''
 	package: 'VM-UEFI'!
 
-UefiCpu comment: 'The CPU''s cycle counter (the compiler''s builtin, no header): rdtsc on x86-64.'!
+UefiCpu comment: 'What differs between the CPUs under UEFI, where no C library has it: the cycle counter (UefiPosix''s clock), making the instruction cache current after the JIT wrote code (UefiJitPlatform), running on a stack of the VM''s own (UefiFirmware: the firmware''s is 128 KB). UefiX64Cpu and UefiArm64Cpu implement it, with what C has no builtin for in their C preambles.'!
 
 !UefiCpu class methodsFor: 'declaring'!
+isAbstractModule
+	^self == UefiCpu
+!
+isArchInterface
+	^self == UefiCpu
+!
+targetOS
+	^#uefi
+!
+isSimulated
+	^false
+! !
+
+!UefiCpu methodsFor: 'cpu'!
+cycles
+	"A counter that ticks at a constant rate."
+	self subclassResponsibility
+!
+invalidate: start size: size
+	"Code changed in [start, start + size)."
+	self subclassResponsibility
+!
+call: fn onStack: top
+	"The result of fn (a function of no arguments answering a uint64_t), called with the stack pointer at top (16-byte aligned)."
+	self subclassResponsibility
+! !
+
+UefiCpu subclass: #UefiX64Cpu
+	instanceVariableNames: 'instructions'
+	classVariableNames: ''
+	package: 'VM-UEFI'!
+
+UefiX64Cpu comment: 'x86-64: the time-stamp counter; the instruction cache follows stores by itself.'!
+
+!UefiX64Cpu class methodsFor: 'declaring'!
+declarations
+	^#((instructions UefiX64Instructions))
+!
+targetArch
+	^#x86_64
+!
+cPreamble
+	^'__UINT64_TYPE__ uefi_call_on_stack(void *fn, void *top);
+__asm__(".text\n\t.p2align 4\n\t.globl uefi_call_on_stack\nuefi_call_on_stack:\n\t"
+	"pushq %rbp\n\tmovq %rsp, %rbp\n\tmovq %rsi, %rsp\n\tcallq *%rdi\n\tmovq %rbp, %rsp\n\tpopq %rbp\n\tretq\n");'
+! !
+
+!UefiX64Cpu methodsFor: 'cpu'!
+cycles
+	^instructions rdtsc
+!
+invalidate: start size: size
+!
+call: fn onStack: top
+	<function>
+	<var: #fn type: 'void *'>
+	<var: #top type: 'void *'>
+	<returns: 'uint64_t'>
+	^instructions call: fn onStack: top
+! !
+
+UefiCpu subclass: #UefiArm64Cpu
+	instanceVariableNames: 'instructions'
+	classVariableNames: ''
+	package: 'VM-UEFI'!
+
+UefiArm64Cpu comment: 'AArch64: the virtual counter (cntvct_el0); over changed code the data cache cleaned to the point of unification, then the instruction cache invalidated.'!
+
+!UefiArm64Cpu class methodsFor: 'declaring'!
+declarations
+	^#((instructions UefiArm64Instructions))
+!
+targetArch
+	^#arm64
+!
+cPreamble
+	^'static inline unsigned long long uefi_cntvct(void)
+{
+	unsigned long long t;
+	__asm__ volatile("isb\n\tmrs %0, cntvct_el0" : "=r"(t) : : "memory");
+	return t;
+}
+static inline void uefi_sync_icache(void *start, unsigned long long size)
+{
+	unsigned long long ctr, dline, iline, a, end = (unsigned long long)start + size;
+	__asm__ volatile("mrs %0, ctr_el0" : "=r"(ctr));
+	dline = 4ull << ((ctr >> 16) & 15);
+	iline = 4ull << (ctr & 15);
+	for (a = (unsigned long long)start & ~(dline - 1); a < end; a += dline) __asm__ volatile("dc cvau, %0" : : "r"(a) : "memory");
+	__asm__ volatile("dsb ish" : : : "memory");
+	for (a = (unsigned long long)start & ~(iline - 1); a < end; a += iline) __asm__ volatile("ic ivau, %0" : : "r"(a) : "memory");
+	__asm__ volatile("dsb ish\n\tisb" : : : "memory");
+}
+__UINT64_TYPE__ uefi_call_on_stack(void *fn, void *top);
+__asm__(".text\n\t.p2align 2\n\t.globl uefi_call_on_stack\nuefi_call_on_stack:\n\t"
+	"sub sp, sp, #16\n\tstp x29, x30, [sp]\n\tmov x29, sp\n\tmov sp, x1\n\tblr x0\n\tmov sp, x29\n\tldp x29, x30, [sp]\n\tadd sp, sp, #16\n\tret\n");'
+! !
+
+!UefiArm64Cpu methodsFor: 'cpu'!
+cycles
+	<function>
+	<returns: 'uint64_t'>
+	^instructions cntvct
+!
+invalidate: start size: size
+	<function>
+	<var: #start type: 'void *'>
+	<var: #size type: 'uint64_t'>
+	instructions syncIcache: start size: size
+!
+call: fn onStack: top
+	<function>
+	<var: #fn type: 'void *'>
+	<var: #top type: 'void *'>
+	<returns: 'uint64_t'>
+	^instructions call: fn onStack: top
+! !
+
+CLibrary subclass: #UefiX64Instructions
+	instanceVariableNames: ''
+	classVariableNames: ''
+	package: 'VM-UEFI'!
+
+UefiX64Instructions comment: 'The time-stamp counter (the compiler''s builtin) and UefiX64Cpu''s C preamble.'!
+
+!UefiX64Instructions class methodsFor: 'declaring'!
 targetOS
 	^#uefi
 ! !
 
-!UefiCpu methodsFor: 'functions'!
-cycles
+!UefiX64Instructions methodsFor: 'functions'!
+rdtsc
 	<c: 'unsigned long long __builtin_ia32_rdtsc(void)'>
-	^Time primUTCMicrosecondsClock
+	^self error: 'not simulated'
+!
+call: fn onStack: top
+	<c: 'uint64_t uefi_call_on_stack(void *fn, void *top)'>
+	^self error: 'not simulated'
+! !
+
+CLibrary subclass: #UefiArm64Instructions
+	instanceVariableNames: ''
+	classVariableNames: ''
+	package: 'VM-UEFI'!
+
+UefiArm64Instructions comment: 'UefiArm64Cpu''s C preamble.'!
+
+!UefiArm64Instructions class methodsFor: 'declaring'!
+targetOS
+	^#uefi
+! !
+
+!UefiArm64Instructions methodsFor: 'functions'!
+cntvct
+	<c: 'unsigned long long uefi_cntvct(void)'>
+	^self error: 'not simulated'
+!
+syncIcache: start size: size
+	<c: 'void uefi_sync_icache(void *start, unsigned long long size)'>
+	^self error: 'not simulated'
+!
+call: fn onStack: top
+	<c: 'uint64_t uefi_call_on_stack(void *fn, void *top)'>
+	^self error: 'not simulated'
 ! !
 
 Ticker subclass: #UefiTicker
@@ -252,15 +408,15 @@ threadCycles
 ! !
 
 JitPlatform subclass: #UefiJitPlatform
-	instanceVariableNames: 'libc'
+	instanceVariableNames: 'libc cpu'
 	classVariableNames: ''
 	package: 'VM-UEFI'!
 
-UefiJitPlatform comment: 'The code cache on UEFI (x86-64): the zero-fill array the VM image reserves for it is already writable and executable (UefiImageWriter makes the image one read-write-execute section); x86 needs no instruction cache maintenance.'!
+UefiJitPlatform comment: 'The code cache on UEFI: the zero-fill array the VM image reserves for it is already writable and executable (UefiImageWriter makes the image one read-write-execute section); the CPU makes the instruction cache current (UefiCpu).'!
 
 !UefiJitPlatform class methodsFor: 'declaring'!
 declarations
-	^#((libc LibC))
+	^#((libc LibC) (cpu UefiCpu))
 !
 targetOS
 	^#uefi
@@ -287,4 +443,5 @@ endWriting
 !
 invalidate: start size: size
 	<export>
+	cpu invalidate: start size: size
 ! !
