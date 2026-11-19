@@ -20,8 +20,12 @@ handle
 	language := nil.
 	^handle
 !
+isSoftware
+	"Whether the CPU renders (UEFI): every frame costs the CPU the VM runs on."
+	^self shaderLanguage == #software
+!
 shaderLanguage
-	"#msl (Metal, macOS) or #glsl (Vulkan, Linux: GLSL 450 compiled to SPIR-V with SAMALTAK_VERTEX or SAMALTAK_FRAGMENT defined, so that one source can hold both stages; the entry point is main). Shader sources are in this language."
+	"#msl (Metal, macOS), #glsl (Vulkan, Linux: GLSL 450 compiled to SPIR-V with SAMALTAK_VERTEX or SAMALTAK_FRAGMENT defined, so that one source can hold both stages; the entry point is main) or #software (UEFI: the CPU runs the Renderer's shader, and no other). Shader sources are in this language."
 	| h |
 	h := self handle.
 	language isNil ifTrue: [language := (GPUPlatform shaderLanguage: h) asSymbol].

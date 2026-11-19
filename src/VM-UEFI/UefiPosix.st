@@ -9,7 +9,7 @@ UefiPosix comment: 'The POSIX functions the core calls (Posix), on UEFI. Memory 
 declarations
 	^#((ticksPerUs uint64_t) (bootEpochUs int64_t) (sleepEvent 'void *') (cpu UefiCpu))
 !
-implementsLibrary
+replaces
 	^Posix
 !
 typedefs
@@ -193,7 +193,7 @@ VMModule subclass: #UefiCpu
 	classVariableNames: ''
 	package: 'VM-UEFI'!
 
-UefiCpu comment: 'What differs between the CPUs under UEFI, where no C library has it: the cycle counter (UefiPosix''s clock), making the instruction cache current after the JIT wrote code (UefiJitPlatform), running on a stack of the VM''s own (UefiFirmware: the firmware''s is 128 KB). UefiX64Cpu and UefiArm64Cpu implement it, with what C has no builtin for in their C preambles.'!
+UefiCpu comment: 'What differs between the CPUs under UEFI, where no C library has it: the cycle counter (UefiPosix''s clock), a memory barrier (device rings), making the instruction cache current after the JIT wrote code (UefiJitPlatform), running on a stack of the VM''s own (UefiFirmware: the firmware''s is 128 KB). UefiX64Cpu and UefiArm64Cpu implement it, with what C has no builtin for in their C preambles.'!
 
 !UefiCpu class methodsFor: 'declaring'!
 isAbstractModule
@@ -221,6 +221,10 @@ invalidate: start size: size
 call: fn onStack: top
 	"The result of fn (a function of no arguments answering a uint64_t), called with the stack pointer at top (16-byte aligned)."
 	self subclassResponsibility
+!
+memoryBarrier
+	"A full barrier, for the compiler and the CPU (a device's rings: UefiVirtioInput)."
+	self subclassResponsibility
 ! !
 
 UefiCpu subclass: #UefiX64Cpu
@@ -246,6 +250,9 @@ __asm__(".text\n\t.p2align 4\n\t.globl uefi_call_on_stack\nuefi_call_on_stack:\n
 !UefiX64Cpu methodsFor: 'cpu'!
 cycles
 	^instructions rdtsc
+!
+memoryBarrier
+	instructions memoryBarrier
 !
 invalidate: start size: size
 !
@@ -295,6 +302,9 @@ __asm__(".text\n\t.p2align 2\n\t.globl uefi_call_on_stack\nuefi_call_on_stack:\n
 ! !
 
 !UefiArm64Cpu methodsFor: 'cpu'!
+memoryBarrier
+	instructions memoryBarrier
+!
 cycles
 	<function>
 	<returns: 'uint64_t'>
@@ -327,6 +337,10 @@ targetOS
 ! !
 
 !UefiX64Instructions methodsFor: 'functions'!
+memoryBarrier
+	<c: 'void __sync_synchronize(void)'>
+	^self error: 'not simulated'
+!
 rdtsc
 	<c: 'unsigned long long __builtin_ia32_rdtsc(void)'>
 	^self error: 'not simulated'
@@ -349,6 +363,10 @@ targetOS
 ! !
 
 !UefiArm64Instructions methodsFor: 'functions'!
+memoryBarrier
+	<c: 'void __sync_synchronize(void)'>
+	^self error: 'not simulated'
+!
 cntvct
 	<c: 'unsigned long long uefi_cntvct(void)'>
 	^self error: 'not simulated'

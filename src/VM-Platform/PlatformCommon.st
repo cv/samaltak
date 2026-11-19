@@ -36,11 +36,16 @@ setError: format with: a with: b with: c
 failOS: what code: code
 	"what: the strerror of code."
 	<function>
+	<var: #what type: 'char *'>
+	<var: #code type: 'int'>
 	self setError: '%s: %s' with: what with: (posixIO strerror: code)
 !
 failOS: what path: path code: code
 	"what path: the strerror of code; path may be NULL."
 	<function>
+	<var: #what type: 'char *'>
+	<var: #path type: 'char *'>
+	<var: #code type: 'int'>
 	self setError: '%s %s: %s' with: what with: (path notNull ifTrue: [path] ifFalse: ['']) with: (posixIO strerror: code)
 ! !
 
@@ -60,6 +65,9 @@ nowMs
 table: t add: kind pointer: ptr
 	"A new handle of kind for ptr (its other fields zero), 0 if out of memory."
 	<export>
+	<var: #t type: 'pf_table *'>
+	<var: #kind type: 'int'>
+	<var: #ptr type: 'void *'>
 	| h cap v o |
 	t freeHead ~= 0
 		ifTrue: [
@@ -84,6 +92,9 @@ table: t add: kind pointer: ptr
 table: t at: h kind: kind
 	"The live object of handle h, if it has kind (any kind if kind < 0); else NULL."
 	<export>
+	<var: #t type: 'pf_table *'>
+	<var: #h type: 'int32_t'>
+	<var: #kind type: 'int'>
 	| o |
 	(h <= 0 or: [h >= t n]) ifTrue: [^self null].
 	o := t v + h.
@@ -92,6 +103,8 @@ table: t at: h kind: kind
 !
 table: t remove: h
 	<export>
+	<var: #t type: 'pf_table *'>
+	<var: #h type: 'int32_t'>
 	| o |
 	(h <= 0 or: [h >= t n]) ifTrue: [^self].
 	o := t v + h.
@@ -104,6 +117,8 @@ table: t remove: h
 table: t count: kind
 	"Live handles of kind (any kind if kind < 0)."
 	<export>
+	<var: #t type: 'pf_table *'>
+	<var: #kind type: 'int'>
 	| n o |
 	n := 0.
 	1 to: t n - 1 do: [:h |

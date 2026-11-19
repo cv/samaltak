@@ -9,7 +9,7 @@ UefiLibC comment: 'The C library functions the core calls (LibC), on UEFI. stdou
 declarations
 	^#((files 'UefiFile[UEFI_FILES]') (consoleBuffer 'char[UEFI_CONSOLE_BUFFER]') (consoleUsed int64_t) (store UefiImageStore))
 !
-implementsLibrary
+replaces
 	^LibC
 !
 typedefs
@@ -308,10 +308,16 @@ fclose: f
 
 !UefiLibC methodsFor: 'console'!
 consoleFlush
-	"The console buffer (UTF-8) to the firmware's console (UCS-2, CR LF)."
+	"The console buffer (UTF-8) to the serial port, else to the firmware's console (UCS-2, CR LF) unless the VM draws on the screen."
 	<function>
 	| out i o c n |
 	consoleUsed = 0 ifTrue: [^self].
+	(firmware writeConsole: consoleBuffer count: consoleUsed) ifTrue: [
+		consoleUsed := 0.
+		^self].
+	firmware isScreenOwned ifTrue: [
+		consoleUsed := 0.
+		^self].
 	out := self local: 'uint16_t[2050]'.
 	i := 0.
 	o := 0.

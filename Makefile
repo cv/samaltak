@@ -73,13 +73,14 @@ test-tools: image
 	tests/tools/snapshot_test.sh $(OUT)/samaltak.image
 	tests/tools/reboot_test.sh $(OUT)/samaltak.image
 
-# The headless VM as a UEFI application for x86-64 or arm64 (UEFI_ARCH, this machine's by default), translated from the
+# The VM as a UEFI application for x86-64 or arm64 (UEFI_ARCH, this machine's by default), translated from the
 # same Lowtalk with VM-UEFI in place of the C library (docs/uefi.md): $(UEFI)/esp is a boot volume with it
 # (EFI/BOOT/BOOTX64.EFI or BOOTAA64.EFI) and samaltak.args (the command line, an argument a line), $(UEFI)/image.disk a
 # disk with the image (UefiImageStore: two slots, snapshots go to the other). uefi-run boots them in QEMU with its UEFI
 # firmware, on this machine's CPU if it is UEFI_ARCH (KVM, or Hypervisor.framework on macOS), and fails unless the VM
-# exits 0; UEFI_ARGS are its arguments after the image (disk:). test-uefi runs the tests there that need no platform
-# layer (no files, processes or ptys from Smalltalk).
+# exits 0; UEFI_ARGS are its arguments after the image (disk:). uefi-ui boots the World in a QEMU window (USB keyboard,
+# virtio tablet; the console on stdio). test-uefi runs the tests there that need no platform layer (no files, processes
+# or ptys from Smalltalk), opens the World on the firmware's screen, snapshots and resumes.
 UEFI_HOST_ARCH := $(if $(filter x86_64 amd64,$(shell uname -m)),x86_64,arm64)
 UEFI_ARCH ?= $(UEFI_HOST_ARCH)
 UEFI := $(OUT)/uefi-$(UEFI_ARCH)
@@ -92,7 +93,7 @@ UEFI_TARGET := aarch64
 UEFI_BOOT := BOOTAA64.EFI
 OVMF_CODE ?= $(firstword $(wildcard /usr/share/AAVMF/AAVMF_CODE.fd /opt/homebrew/share/qemu/edk2-aarch64-code.fd /usr/share/qemu/edk2-aarch64-code.fd))
 OVMF_VARS ?= $(firstword $(wildcard /usr/share/AAVMF/AAVMF_VARS.fd /opt/homebrew/share/qemu/edk2-arm-vars.fd /usr/share/qemu/edk2-arm-vars.fd))
-QEMU_UEFI_MACHINE := qemu-system-aarch64 -machine virt $(or $(UEFI_ACCEL),-cpu max)
+QEMU_UEFI_MACHINE := qemu-system-aarch64 -machine virt $(or $(UEFI_ACCEL),-cpu max) -device virtio-gpu-pci
 else
 UEFI_TARGET := x86_64
 UEFI_BOOT := BOOTX64.EFI
@@ -100,7 +101,7 @@ OVMF_CODE ?= $(firstword $(wildcard /usr/share/OVMF/OVMF_CODE_4M.fd /usr/share/O
 OVMF_VARS ?= $(firstword $(wildcard /usr/share/OVMF/OVMF_VARS_4M.fd /usr/share/OVMF/OVMF_VARS.fd /opt/homebrew/share/qemu/edk2-i386-vars.fd /usr/share/qemu/edk2-i386-vars.fd))
 QEMU_UEFI_MACHINE := qemu-system-x86_64 -machine q35 $(UEFI_ACCEL)
 endif
-QEMU_UEFI = $(QEMU_UEFI_MACHINE) -m 2048 -nographic -net none -no-reboot \
+QEMU_UEFI = $(QEMU_UEFI_MACHINE) -m 2048 -net none -no-reboot \
 	-drive if=pflash,format=raw,readonly=on,file=$(OVMF_CODE) -drive if=pflash,format=raw,file=$(UEFI)/vars.fd \
 	-drive format=raw,file=fat:rw:$(UEFI)/esp -drive format=raw,file=$(UEFI)/image.disk
 uefi: image
@@ -116,15 +117,22 @@ uefi-run: uefi
 uefi-boot:
 	printf '%s\n' --max-heap $(UEFI_HEAP_MB) disk: $(UEFI_ARGS) > $(UEFI)/esp/samaltak.args
 	cp $(OVMF_VARS) $(UEFI)/vars.fd
-	$(QEMU_UEFI) | tee $(UEFI)/console.log
+	$(QEMU_UEFI) -nographic | tee $(UEFI)/console.log
 	@grep -q 'samaltak: exit 0' $(UEFI)/console.log
+uefi-ui: uefi
+	printf '%s\n' --max-heap $(UEFI_HEAP_MB) disk: > $(UEFI)/esp/samaltak.args
+	cp $(OVMF_VARS) $(UEFI)/vars.fd
+	$(QEMU_UEFI) $(if $(filter x86_64,$(UEFI_ARCH)),-vga std) -device qemu-xhci -device usb-kbd -device virtio-tablet-pci -serial stdio
 UEFI_TESTS := CompilerTest ParserTest ScannerTest ClassTest CollectionTest ContextTest ExceptionTest FloatTest FractionTest \
 	HashingTest ImmutabilityTest IntegerTest LazyContextTest MarriedContextTest MessageNotUnderstoodTest ObjectTest ProcessTest \
 	StackOverflowTest StreamTest StringSearchTest StringTest SymbolTest SystemChangesTest SystemTest UnicodeTest WorkClockTest \
 	Amd64DisassemblerTest Arm64DisassemblerTest ByteSearchTest
+UEFI_WORLD := | w | w := UIWindows startUp. Smalltalk vm stderrWrite: 'world ', w extent printString, ' ', Renderer default device isSoftware printString, (String with: Character lf)
 UEFI_SNAPSHOT := Smalltalk at: 'UefiMark' asSymbol put: 42. (Smalltalk snapshot: Smalltalk vm imagePath) ifTrue: ['resumed ', (Smalltalk at: 'UefiMark' asSymbol) printString] ifFalse: ['saved']
 test-uefi:
 	$(MAKE) uefi-run UEFI_ARGS='--headless --test $(UEFI_TESTS)'
+	$(MAKE) uefi-boot UEFI_ARGS="--eval \"$(UEFI_WORLD)\""
+	grep -qE "^world [0-9]+@[0-9]+ true" $(UEFI)/console.log
 	$(MAKE) uefi-boot UEFI_ARGS="--headless --eval \"$(UEFI_SNAPSHOT)\""
 	grep -q "'saved'" $(UEFI)/console.log
 	$(MAKE) uefi-boot UEFI_ARGS=--headless
@@ -167,4 +175,4 @@ clean:
 	$(MAKE) -C vm clean
 	rm -rf build
 
-.PHONY: all vm seed image run translate uefi uefi-run uefi-boot test-uefi test-vm test-jit test-jit-none test-jit-baseline test-jit-opt test-jit-deopt test-jit-cache test-core test-tools test video mindblown-video jit-video clean
+.PHONY: all vm seed image run translate uefi uefi-run uefi-boot uefi-ui test-uefi test-vm test-jit test-jit-none test-jit-baseline test-jit-opt test-jit-deopt test-jit-cache test-core test-tools test video mindblown-video jit-video clean

@@ -1,11 +1,11 @@
 Object subclass: #Compositor
-	instanceVariableNames: 'world displayWindow renderer process running vsync vsyncIndex wake sleeping skip tickTimeout lastTick idleFrames frameCount presenting requests recorder lastFrameWork onWorkClock ownsWorkClock gpuTimer clock knownProcesses lastCpu lastScan lastRecord lastError lastErrorTime pipelineVersion standIn tickCount compositeBytes'
+	instanceVariableNames: 'world displayWindow renderer process running vsync vsyncIndex wake sleeping skip tickTimeout lastTick idleFrames frameCount presenting requests recorder lastFrameWork onWorkClock ownsWorkClock gpuTimer clock knownProcesses lastCpu lastScan lastRecord lastError lastErrorTime pipelineVersion standIn tickCount compositeBytes restMs'
 	classVariableNames: 'Running'
 	package: 'UI-Windows'!
 
 Compositor comment: 'I am the compositor: a Process at priority 70 woken by the platform''s vsync semaphore, presenting at 60 Hz (every second refresh on a 120 Hz display). Each frame I step the layer animations (window open/close, focus cross-fades, menus), toasts and the remote pointer, post frame ticks to windows with animations, render every Layer whose DisplayList or chrome changed into its Surface, composite all layers (offset, scale about the center, opacity, hard shadows) over the halftone desk with the top bar and overlays onto the DisplayWindow, and record a FrameRecord (Profiler recordFrame:). I never wait for a window''s Process: a busy window keeps its last frame.
 
-While the World is on screen I present every tick (continuous composition: the screen always shows the current state of every layer, at a steady frame rate). A hidden World (tests) presents only when something changed: after 20 ticks without a change I stop the vsync semaphore and sleep until World>>changed wakes me (or 500 ms pass, for the top bar''s statistics). Each tick I also poll the GPUTimer for finished frames'' GPU times; while maxFramesInFlight frames are unfinished on the GPU I skip the tick (except when recording, which waits for each frame''s readback, and while a request waits: its caller is blocked until I ran it).
+While the World is on screen I present every tick (continuous composition: the screen always shows the current state of every layer, at a steady frame rate). A hidden World (tests), and any World on a device that renders in software (UEFI: continuous composition would take all of its CPU), presents only when something changed, and after each frame rests as long as the frame took, so that the other Processes keep at least half of the CPU: after 20 ticks without a change I stop the vsync semaphore and sleep until World>>changed wakes me (or 500 ms pass, for the top bar''s statistics). Each tick I also poll the GPUTimer for finished frames'' GPU times; while maxFramesInFlight frames are unfinished on the GPU I skip the tick (except when recording, which waits for each frame''s readback, and while a request waits: its caller is blocked until I ran it).
 
 GPU work of other Processes (screenshots, recording) runs in my Process between frames: do: aBlock / sync: aBlock.'!
 
@@ -189,6 +189,9 @@ run
 waitForTick
 	"Wait for skip display refreshes, at most one and a half ticks after the previous tick: the display link may be missing (the display sleeps) or late (macOS throttles it to about 10 Hz while the VM runs in the background role), then I tick on that timeout."
 	| late |
+	(restMs notNil and: [restMs > 0]) ifTrue: [
+		(Delay forMilliseconds: restMs) wait.
+		restMs := 0].
 	(idleFrames >= 20 and: [gpuTimer isIdle and: [recorder isNil]]) ifTrue: [
 		self sleep.
 		lastTick := Time millisecondClockValue.
@@ -234,15 +237,16 @@ frame
 	animating := self stepAt: now.
 	t0 - lastScan > 1000000 ifTrue: [self scanProcesses: t0].
 	needs := world consumeNeedsFrame.
-	needs := (world topBar updateAt: t0) | needs | animating | requests isEmpty not | world isHidden not
-		| recorder notNil.
+	needs := (world topBar updateAt: t0) | needs | animating | requests isEmpty not
+		| (world isHidden not and: [renderer device isSoftware not]) | recorder notNil.
 	needs ifFalse: [
 		idleFrames := idleFrames + 1.
 		^self].
 	idleFrames := 0.
 	presenting := true.
 	self present: t0 now: now.
-	presenting := false
+	presenting := false.
+	renderer device isSoftware ifTrue: [restMs := Time microsecondClockValue - t0 // 1000]
 !
 frameOnWorkClock
 	"A frame on the recording clock: its work does not move the clock (the time of the GPU driver's calls is noise, in every recording another one), unless the CPU work of the previous frame did not fit in a tick: that would have missed a refresh of a real screen, and the clock passes the excess. GPU time is reported only (the fences' latencies are milliseconds of queueing: no measure of a frame's GPU work). The real time a recorded frame waits for the GPU and for the reader does not move the clock either, even while it keeps pace with real time: a reader slower than the ticks would otherwise leave the clock behind for good, each tick due as the frame before it ends, and no other Process would run."

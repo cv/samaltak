@@ -35,7 +35,7 @@ sin, cos, their argument reduction and atan are derived from fdlibm: Copyright (
 targetOS
 	^#uefi
 !
-implementsLibrary
+replaces
 	^LibM
 !
 declarations

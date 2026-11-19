@@ -3,9 +3,9 @@ VMCoreModule subclass: #UefiModule
 	classVariableNames: 'EFI_ALLOCATE_ANY_PAGES EFI_EVT_NOTIFY_SIGNAL EFI_EVT_TIMER EFI_FILE_MODE_CREATE EFI_FILE_MODE_READ EFI_FILE_MODE_WRITE EFI_LOADER_CODE EFI_LOADER_DATA EFI_MEMORY_RO EFI_MEMORY_WB EFI_MEMORY_XP EFI_RESET_SHUTDOWN EFI_TIMER_CANCEL EFI_TIMER_PERIODIC EFI_TIMER_RELATIVE EFI_TPL_CALLBACK STACK_BYTES'
 	package: 'VM-UEFI'!
 
-UefiModule comment: 'I am the abstract class of the modules of the VM on UEFI (VMTranslator generateVMInto:os:arch: with #uefi): a headless VM that is the firmware''s application, with no operating system and no C library under it. The firmware''s services are tables of function pointers (EfiSystemTable, EfiBootServices, ...) that take the Microsoft calling convention on x86-64 and the standard one on AArch64, where ms_abi changes nothing (EfiFn0 ... EfiFn6: every argument a 64-bit word); efi: fn with: ... calls one.
+UefiModule comment: 'I am the abstract class of the modules of the VM on UEFI (VMTranslator generateVMInto:os:arch: with #uefi): a VM that is the firmware''s application, with no operating system and no C library under it. The firmware''s services are tables of function pointers (EfiSystemTable, EfiBootServices, ...) that take the Microsoft calling convention on x86-64 and the standard one on AArch64, where ms_abi changes nothing (EfiFn0 ... EfiFn6: every argument a 64-bit word); efi: fn with: ... calls one.
 
-UefiFirmware is the entry (efi_main), UefiLibC, UefiLibM and UefiPosix take the place of the C libraries the core calls (implementsLibrary), UefiTicker and UefiJitPlatform implement the core''s interfaces, UefiCpu what differs between the CPUs.'!
+UefiFirmware is the entry (efi_main); UefiLibC, UefiLibM and UefiPosix take the place of the C libraries the core calls, UefiWindows, UefiEvents, UefiVsync, UefiGpu and UefiNoIO that of the platform layer''s SDL and POSIX modules (replaces); UefiTicker, UefiJitPlatform and UefiPlatform implement the core''s interfaces, UefiCpu what differs between the CPUs; UefiScreen, UefiInput, UefiVirtioInput and UefiImageStore drive the firmware''s devices.'!
 
 !UefiModule class methodsFor: 'declaring'!
 declarations
@@ -80,7 +80,7 @@ runtime
 ! !
 
 UefiModule subclass: #UefiFirmware
-	instanceVariableNames: 'imageHandle systemTable bootServices runtimeServices conOut root store cpu'
+	instanceVariableNames: 'imageHandle systemTable bootServices runtimeServices conOut root store cpu serial screenOwned'
 	classVariableNames: ''
 	package: 'VM-UEFI'!
 
@@ -89,7 +89,7 @@ UefiFirmware comment: 'The VM''s entry on UEFI, efi_main: makes its image writab
 !UefiFirmware class methodsFor: 'declaring'!
 declarations
 	^#((imageHandle 'void *') (systemTable 'EfiSystemTable *') (bootServices 'EfiBootServices *') (runtimeServices 'EfiRuntimeServices *')
-		(conOut 'EfiTextOutput *') (root 'EfiFile *') (store UefiImageStore) (cpu UefiCpu))
+		(conOut 'EfiTextOutput *') (root 'EfiFile *') (store UefiImageStore) (cpu UefiCpu) (serial 'EfiSerialIo *') (screenOwned bool))
 ! !
 
 !UefiFirmware methodsFor: 'entry'!
@@ -122,6 +122,7 @@ run
 	libc start.
 	posix start.
 	self openRoot.
+	self openSerial.
 	store start.
 	argv := self local: 'char *[64]'.
 	argc := self arguments: argv max: 64.
@@ -216,6 +217,55 @@ root
 	"The volume's root directory (EfiFile), null if there is none."
 	<function>
 	^root
+!
+conInHandle
+	^systemTable conInHandle
+!
+screenOwned: aBoolean
+	"Once the VM draws on the screen the firmware's console must not (UefiScreen)."
+	<function>
+	<var: #aBoolean type: 'bool'>
+	screenOwned := aBoolean
+!
+openSerial
+	"The first serial port, where the console goes when there is one."
+	<function>
+	| guid p |
+	guid := self local: 'EfiGuid'.
+	p := self local: 'void *'.
+	self guid: guid data1: 16rBB25CF6F data2: 16rF1D4 data3: 16r11D2 data4: 16r9A0C0090273FC1FD.
+	(self efiFailed: (self efi: bootServices locateProtocol with: guid with: self null with: p))
+		ifFalse: [serial := self cCoerce: p value to: 'EfiSerialIo *']
+!
+writeConsole: bytes count: n
+	"UTF-8 to the serial port (LF as CR LF); without one, nothing (the caller uses the console then); answer whether it went somewhere."
+	<function>
+	<var: #bytes type: 'const char *'>
+	<var: #n type: 'int64_t'>
+	<returns: 'bool'>
+	| crlf size start |
+	serial isNull ifTrue: [^false].
+	crlf := self local: 'char[2]'.
+	crlf at: 0 put: 13.
+	crlf at: 1 put: 10.
+	size := self local: 'uint64_t'.
+	start := 0.
+	0 to: n - 1 do: [:i |
+		(bytes at: i) = 10 ifTrue: [
+			size value: (i - start) asUInt64.
+			self efi: serial writeSerial with: serial with: size with: bytes + start.
+			size value: 2.
+			self efi: serial writeSerial with: serial with: size with: crlf.
+			start := i + 1]].
+	start < n ifTrue: [
+		size value: (n - start) asUInt64.
+		self efi: serial writeSerial with: serial with: size with: bytes + start].
+	^true
+!
+isScreenOwned
+	<function>
+	<returns: 'bool'>
+	^screenOwned
 !
 outputString: aUcs2String
 	"Write a NUL-terminated UCS-2 string to the console (on QEMU with -nographic, the serial port)."

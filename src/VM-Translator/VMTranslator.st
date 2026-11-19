@@ -1,5 +1,5 @@
 Object subclass: #VMTranslator
-	instanceVariableNames: 'registry moduleClasses modules externs functions errors headerName queue queued arch os'
+	instanceVariableNames: 'registry moduleClasses modules externs functions errors headerName queue queued arch os calledLibraries usedStructs'
 	classVariableNames: ''
 	package: 'VM-Translator'!
 
@@ -64,13 +64,13 @@ generateVMInto: aDirectory for: anArch
 	^(self modules: self vmModules header: 'samaltak') setArch: anArch; writeTo: aDirectory
 !
 generateVMInto: aDirectory os: anOS arch: anArch
-	"The headless VM for an OS without a C library (#uefi): its own translation, which takes the modules for anOS and those for every OS, and binds the libraries they implement to them (setOS:)."
+	"The VM for an OS without a C library (#uefi): its own translation, which takes the modules for anOS and those for every OS, and binds what they replace to them (setOS:)."
 	^(self modules: (self modulesFor: anOS) header: 'samaltak') setOS: anOS; setArch: anArch; writeTo: aDirectory
 !
 modulesFor: anOS
-	"The concrete modules of the core packages and of anOS's package (VM-UEFI), for every OS or for anOS; the headless platform."
+	"The concrete modules of the VM packages and of anOS's package (VM-UEFI), for every OS or for anOS."
 	^((VMModule allSubclasses select: [:c |
-		(#('VM-Core' 'VM-Jit') , (Array with: 'VM-' , anOS asUppercase) includes: c packageName)
+		(#('VM-Core' 'VM-Jit' 'VM-Platform') , (Array with: 'VM-' , anOS asUppercase) includes: c packageName)
 			and: [c isAbstractModule not and: [c targetOS isNil or: [c targetOS = anOS]]]])
 		asSortedCollection: [:a :b | a name <= b name]) asArray
 ! !
@@ -263,9 +263,9 @@ reservedCNames
 	"The names a function may not take: C library names and what the system headers declare, globals, the names of types, and every name a local in the modules' code goes by (a local would hide the function)."
 	| names |
 	names := Set withAll: #('ops' 'local' 'stop' 'v' 'memset' 'vm_primitive_table' 'vm_primitive_count' 'system' 'semaphore_signal' 'semaphore_wait').
-	(self isReplacedLibrary: LibC) ifTrue: [names remove: 'memset'].
+	(self isReplaced: LibC) ifTrue: [names remove: 'memset'].
 	names addAll: registry typeNames.
-	(CLibrary allSubclasses reject: [:lib | self isReplacedLibrary: lib]) do: [:lib |
+	(CLibrary allSubclasses reject: [:lib | self isReplaced: lib]) do: [:lib |
 		lib selectors do: [:sel |
 			| m |
 			m := lib compiledMethodAt: sel.
@@ -317,8 +317,9 @@ canTranslateFor: anArch
 					ifFalse: [ref targetArch isNil or: [ref targetArch = anArch]]]]]
 !
 implementationOf: aClass
-	"The module a connection typed aClass connects to: for an arch interface, its module for the CPU I translate for; for a C library, the module that implements it for the OS I translate for alone (setOS:)."
-	(aClass isBehavior and: [aClass inheritsFrom: CLibrary]) ifTrue: [^(self libraryModuleFor: aClass) ifNil: [aClass]].
+	"The module a connection typed aClass connects to: for an arch interface, its module for the CPU I translate for; for a C library or a module that a module for the OS I translate for alone replaces (setOS:), that one."
+	(aClass isBehavior and: [(aClass inheritsFrom: CLibrary) or: [aClass inheritsFrom: VMModule]]) ifTrue: [
+		(self replacementFor: aClass) ifNotNil: [:r | ^r]].
 	(aClass isBehavior and: [(aClass inheritsFrom: VMModule) and: [aClass isArchInterface and: [arch notNil]]]) ifFalse: [^aClass].
 	^moduleClasses detect: [:c | (c inheritsFrom: aClass) and: [c targetArch = arch]]
 		ifNone: [self error: 'no module for ' , arch , ' implements ' , aClass name]
@@ -345,17 +346,30 @@ os
 	^os
 !
 setOS: anOS
-	"Translate for anOS only: its modules and those for every OS. A connection typed with a C library that one of them implements (implementsLibrary) is that module: the library's headers are not included and its names are free."
+	"Translate for anOS only: its modules and those for every OS. A C library or module that one of them replaces (replaces) is that module: a connection typed with it connects to the replacement, a replaced module is not translated, a replaced library's names are free. An interface implemented for anOS is implemented by that module alone. Only the headers of the libraries the translation calls are included."
+	| mine |
 	os := anOS.
-	moduleClasses := moduleClasses select: [:c | c targetOS isNil or: [c targetOS = anOS]]
+	moduleClasses := moduleClasses select: [:c | c targetOS isNil or: [c targetOS = anOS]].
+	mine := moduleClasses select: [:c | c targetOS = anOS].
+	moduleClasses := moduleClasses reject: [:c |
+		(self isReplaced: c) or: [
+			c targetOS isNil and: [(self interfaceOf: c) notNil and: [mine anySatisfy: [:m | (self interfaceOf: m) == (self interfaceOf: c)]]]]]
 !
-libraryModuleFor: aLibraryClass
-	"The module that implements aLibraryClass in the translation for os, or nil."
+interfaceOf: aModuleClass
+	"The interface aModuleClass implements, or nil."
+	^aModuleClass allSuperclasses detect: [:c | (c inheritsFrom: VMModule) and: [c isInterface]] ifNone: [nil]
+!
+replacementFor: aClass
+	"The module that replaces aClass in the translation for os, or nil."
 	os isNil ifTrue: [^nil].
-	^moduleClasses detect: [:c | c implementsLibrary == aLibraryClass] ifNone: [nil]
+	^moduleClasses detect: [:c | c replacedClasses includes: aClass] ifNone: [nil]
 !
-isReplacedLibrary: aLibraryClass
-	^(self libraryModuleFor: aLibraryClass) notNil
+isReplaced: aClass
+	^(self replacementFor: aClass) notNil
+!
+noteLibraryCalled: aLibraryClass
+	calledLibraries isNil ifTrue: [calledLibraries := IdentitySet new].
+	calledLibraries add: aLibraryClass
 !
 checkTargetOSes
 	"A module may use the libraries and modules of every OS and of its own; translated for one OS alone (setOS:), also that OS's, which implement its libraries."
@@ -397,11 +411,46 @@ banner
 	^'/* Generated by VMTranslator from the Lowtalk sources (docs/lowtalk.md). Do not edit. */'
 !
 structClasses
+	"The structs of the translated packages; translated for one OS alone, those the translated code names (usedStructs)."
 	| structs |
 	structs := OrderedCollection new.
 	VMStruct allSubclasses do: [:c |
 		(c isExtern not and: [c ~~ ExternStruct and: [self isTranslatedPackage: c packageName]]) ifTrue: [structs add: c]].
+	usedStructs notNil ifTrue: [structs := structs select: [:c | usedStructs includes: c]].
 	^self sortStructs: structs
+!
+structsUsedBy: cFunctions
+	"The structs whose C names the functions, the globals and the typedefs use, and those these structs contain or point to."
+	| words s all used more |
+	s := WriteStream on: String new.
+	cFunctions do: [:f | f printOn: s].
+	self translatedModules do: [:m | m globals do: [:g | g isModuleReference ifFalse: [s nextPutAll: (g type declare: g cName); space]]].
+	self typedefs do: [:td | s nextPutAll: (td at: 2) asString; space].
+	self primitives notEmpty ifTrue: [s nextPutAll: (registry at: 'PrimitiveEntry') name].
+	words := self identifiersIn: s contents.
+	all := VMStruct allSubclasses reject: [:c | c isExtern or: [c == ExternStruct]].
+	used := IdentitySet new.
+	[more := all select: [:c | (used includes: c) not and: [(words includes: c ctype name) or: [words includes: c name asString]]].
+	 more notEmpty] whileTrue: [
+		used addAll: more.
+		more do: [:c | c fields do: [:spec |
+			spec first == #union
+				ifTrue: [spec allButFirst do: [:m | words addAll: (self identifiersIn: (m at: 2) asString)]]
+				ifFalse: [words addAll: (self identifiersIn: (spec at: 2) asString)]]]].
+	^used
+!
+identifiersIn: aString
+	| words w |
+	words := Set new.
+	w := WriteStream on: String new.
+	aString do: [:c |
+		(c isLetter or: [c isDigit or: [c = $_]])
+			ifTrue: [w nextPut: c]
+			ifFalse: [
+				w contents isEmpty ifFalse: [words add: w contents].
+				w := WriteStream on: String new]].
+	w contents isEmpty ifFalse: [words add: w contents].
+	^words
 !
 isTranslatedPackage: aString
 	^moduleClasses anySatisfy: [:m | m packageName = aString]
@@ -450,6 +499,7 @@ header: cFunctions
 	| s guard included |
 	s := WriteStream on: String new.
 	guard := headerName asUppercase , '_H'.
+	os notNil ifTrue: [usedStructs := self structsUsedBy: cFunctions].
 	s nextPutAll: self banner; lf.
 	s nextPutAll: '#ifndef '; nextPutAll: guard; lf; nextPutAll: '#define '; nextPutAll: guard; lf; lf.
 	included := Set new.
@@ -529,10 +579,12 @@ isPlatformClass: aClass
 	^aClass packageName = 'VM-Platform'
 !
 librariesOf: aCollectionOfTModules
+	"The libraries they connect to; translated for one OS alone, those they call."
 	| libs |
 	libs := Set new.
 	aCollectionOfTModules do: [:m |
 		m globals do: [:g | (g isModuleReference and: [g referencedModule inheritsFrom: CLibrary]) ifTrue: [libs add: g referencedModule]]].
+	os notNil ifTrue: [^libs select: [:lib | calledLibraries notNil and: [calledLibraries includes: lib]]].
 	^libs
 !
 coreLibraries

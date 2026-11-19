@@ -45,7 +45,7 @@ LowtalkLibraryOnUefi comment: 'LowtalkSampleLibrary in Lowtalk, for #uefi (Lowta
 targetOS
 	^#uefi
 !
-implementsLibrary
+replaces
 	^LowtalkSampleLibrary
 ! !
 

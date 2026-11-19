@@ -447,6 +447,7 @@ isAdaptive: aCExpr
 externSend: aSelector library: aLibraryClass arguments: argNodes node: aNode
 	| ext ftype args |
 	ext := translator externFor: aSelector library: aLibraryClass.
+	translator noteLibraryCalled: aLibraryClass.
 	ext kind == #variable ifTrue: [^CVarRef name: ext cName type: ext type].
 	ext kind == #macro ifTrue: [^(CRaw pureText: ext cName type: ext type)].
 	ftype := ext type.

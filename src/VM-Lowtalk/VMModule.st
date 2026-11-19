@@ -30,9 +30,15 @@ targetOS
 	"The operating system I am compiled for: nil (every one), #darwin, #linux or #uefi. One implementation of an interface per OS: the build compiles the one for its OS (vm/gen/sources.mk), the C file and my prototypes are guarded by the OS's predefined macro."
 	^nil
 !
-implementsLibrary
-	"The CLibrary I take the place of in the translation for my targetOS (VMTranslator>>setOS:), where the OS has no C library: its calls are sends to me, under the same selectors. nil: none."
+replaces
+	"The CLibrary or VMModule (or an Array of them) I take the place of in the translation for my targetOS alone (VMTranslator>>setOS:): calls to it are sends to me, under the same selectors. nil: none."
 	^nil
+!
+replacedClasses
+	| r |
+	r := self replaces.
+	r isNil ifTrue: [^#()].
+	^r isBehavior ifTrue: [Array with: r] ifFalse: [r]
 !
 definedExternStructs
 	"The ExternStructs of the library I implement, which the translation for my targetOS defines (no system header does)."
