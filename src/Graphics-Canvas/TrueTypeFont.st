@@ -3,7 +3,7 @@ Object subclass: #TrueTypeFont
 	classVariableNames: ''
 	package: 'Graphics-Canvas'!
 
-TrueTypeFont comment: 'I am a TrueType typeface parsed from the bytes of a .ttf file: the tables head, hhea, maxp, OS/2, hmtx, cmap (formats 4 and 12), loca and glyf (simple and composite glyphs), and for color glyphs COLR (version 0), CPAL and the ligatures of GSUB''s ccmp feature. Everything is in font units (unitsPerEm per em, y up); Font scales me to a pixel size. Kerning and hinting are ignored. Faces kept in the image are compacted to the tables I read and the outlines the cmap reaches.'!
+TrueTypeFont comment: 'I am a TrueType typeface parsed from the bytes of a .ttf file: the tables head, hhea, maxp, OS/2, hmtx, cmap (formats 4 and 12), loca and glyf (simple and composite glyphs), and for color glyphs COLR (version 0), CPAL and the ligatures of GSUB''s ccmp feature. Everything is in font units (unitsPerEm per em, y up); Font scales me to a pixel size. Kerning and hinting are ignored. Stage 2 compacts the faces it keeps in the image to the tables I read and the outlines the cmap reaches (compact), but for a face with color glyphs: its layers and ligatures are glyphs the cmap does not reach.'!
 
 !TrueTypeFont methodsFor: 'initialization'!
 setName: aString data: aByteArray

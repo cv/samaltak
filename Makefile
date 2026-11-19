@@ -74,27 +74,32 @@ test-tools: image
 	tests/tools/reboot_test.sh $(OUT)/samaltak.image
 
 # The headless VM as a UEFI application for x86-64, translated from the same Lowtalk with VM-UEFI in place of the C
-# library (docs/uefi.md): $(UEFI)/esp is a boot volume with it (EFI/BOOT/BOOTX64.EFI), the image and samaltak.args (the
-# command line, an argument a line). uefi-run boots it in QEMU with OVMF (KVM if there is /dev/kvm) and fails unless the
-# VM exits 0; UEFI_ARGS are its arguments. test-uefi runs the tests there that need no platform layer (no files,
+# library (docs/uefi.md): $(UEFI)/esp is a boot volume with it (EFI/BOOT/BOOTX64.EFI) and samaltak.args (the command
+# line, an argument a line), $(UEFI)/image.disk a disk with the image (UefiImageStore: two slots, snapshots go to the
+# other). uefi-run boots them in QEMU with OVMF (KVM if there is /dev/kvm) and fails unless the VM exits 0; UEFI_ARGS
+# are its arguments after the image (disk:). test-uefi runs the tests there that need no platform layer (no files,
 # processes or ptys from Smalltalk).
 UEFI := $(OUT)/uefi
 UEFI_ARGS ?= --headless --eval 'Smalltalk vmBanner'
 UEFI_HEAP_MB ?= 256
+UEFI_DISK_MB ?= 512
 OVMF_CODE ?= $(firstword $(wildcard /usr/share/OVMF/OVMF_CODE_4M.fd /usr/share/OVMF/OVMF_CODE.fd /opt/homebrew/share/qemu/edk2-x86_64-code.fd /usr/share/qemu/edk2-x86_64-code.fd))
 OVMF_VARS ?= $(firstword $(wildcard /usr/share/OVMF/OVMF_VARS_4M.fd /usr/share/OVMF/OVMF_VARS.fd /opt/homebrew/share/qemu/edk2-i386-vars.fd /usr/share/qemu/edk2-i386-vars.fd))
 QEMU_UEFI = qemu-system-x86_64 -machine q35 -m 2048 -nographic -net none -no-reboot $(if $(wildcard /dev/kvm),-accel kvm -cpu host) \
 	-drive if=pflash,format=raw,readonly=on,file=$(OVMF_CODE) -drive if=pflash,format=raw,file=$(UEFI)/vars.fd \
-	-drive format=raw,file=fat:rw:$(UEFI)/esp
+	-drive format=raw,file=fat:rw:$(UEFI)/esp -drive format=raw,file=$(UEFI)/image.disk
 uefi: image
 	rm -rf $(UEFI)/gen
 	mkdir -p $(UEFI)/esp/EFI/BOOT
 	$(VM) $(OUT)/samaltak.image --headless --eval "[VMTranslator generateVMInto: '$(UEFI)/gen' os: #uefi arch: #x86_64. 'ok'] on: Error do: [:e | Transcript show: e messageText; cr. Smalltalk quit: 1]"
 	$(MAKE) -f vm/uefi.mk GEN=$(UEFI)/gen OBJ=$(UEFI)/obj
 	$(VM) $(OUT)/samaltak.image --headless --eval "UefiImageWriter new convert: '$(UEFI)/obj/samaltak.elf' to: '$(UEFI)/esp/EFI/BOOT/BOOTX64.EFI'"
-	cp $(OUT)/samaltak.image $(UEFI)/esp/samaltak.image
+	$(VM) $(OUT)/samaltak.image --headless --eval "UefiImageDisk new write: '$(OUT)/samaltak.image' to: '$(UEFI)/image.disk'"
+	truncate -s $(UEFI_DISK_MB)M $(UEFI)/image.disk
 uefi-run: uefi
-	printf '%s\n' --max-heap $(UEFI_HEAP_MB) samaltak.image $(UEFI_ARGS) > $(UEFI)/esp/samaltak.args
+	$(MAKE) uefi-boot
+uefi-boot:
+	printf '%s\n' --max-heap $(UEFI_HEAP_MB) disk: $(UEFI_ARGS) > $(UEFI)/esp/samaltak.args
 	cp $(OVMF_VARS) $(UEFI)/vars.fd
 	$(QEMU_UEFI) | tee $(UEFI)/console.log
 	@grep -q 'samaltak: exit 0' $(UEFI)/console.log
@@ -102,8 +107,13 @@ UEFI_TESTS := CompilerTest ParserTest ScannerTest ClassTest CollectionTest Conte
 	HashingTest ImmutabilityTest IntegerTest LazyContextTest MarriedContextTest MessageNotUnderstoodTest ObjectTest ProcessTest \
 	StackOverflowTest StreamTest StringSearchTest StringTest SymbolTest SystemChangesTest SystemTest UnicodeTest WorkClockTest \
 	Amd64DisassemblerTest Arm64DisassemblerTest ByteSearchTest
+UEFI_SNAPSHOT := Smalltalk at: 'UefiMark' asSymbol put: 42. (Smalltalk snapshot: Smalltalk vm imagePath) ifTrue: ['resumed ', (Smalltalk at: 'UefiMark' asSymbol) printString] ifFalse: ['saved']
 test-uefi:
 	$(MAKE) uefi-run UEFI_ARGS='--headless --test $(UEFI_TESTS)'
+	$(MAKE) uefi-boot UEFI_ARGS="--headless --eval \"$(UEFI_SNAPSHOT)\""
+	grep -q "'saved'" $(UEFI)/console.log
+	$(MAKE) uefi-boot UEFI_ARGS=--headless
+	grep -q "'resumed 42'" $(UEFI)/console.log
 
 # The narrated walkthrough on the real system, from a copy of the image named nuuk.image like the prototype's (a visible window; needs ffmpeg, agent-browser for the captions and
 # ELEVENLABS_API_KEY in .env unless the clips in $(VIDEO)/narration are cached).
@@ -142,4 +152,4 @@ clean:
 	$(MAKE) -C vm clean
 	rm -rf build
 
-.PHONY: all vm seed image run translate uefi uefi-run test-uefi test-vm test-jit test-jit-none test-jit-baseline test-jit-opt test-jit-deopt test-jit-cache test-core test-tools test video mindblown-video jit-video clean
+.PHONY: all vm seed image run translate uefi uefi-run uefi-boot test-uefi test-vm test-jit test-jit-none test-jit-baseline test-jit-opt test-jit-deopt test-jit-cache test-core test-tools test video mindblown-video jit-video clean

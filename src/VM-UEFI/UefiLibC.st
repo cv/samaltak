@@ -1,13 +1,13 @@
 UefiModule subclass: #UefiLibC
-	instanceVariableNames: 'files consoleBuffer consoleUsed'
-	classVariableNames: 'UEFI_CONSOLE_BUFFER UEFI_FILES UEFI_FILE_CONSOLE UEFI_FILE_DISK UEFI_FILE_FREE'
+	instanceVariableNames: 'files consoleBuffer consoleUsed store'
+	classVariableNames: 'UEFI_CONSOLE_BUFFER UEFI_FILES UEFI_FILE_CONSOLE UEFI_FILE_DISK UEFI_FILE_FREE UEFI_FILE_STORE'
 	package: 'VM-UEFI'!
 
-UefiLibC comment: 'The C library functions the core calls (LibC), on UEFI. stdout and stderr are the console (a line at a time, UTF-8 to UCS-2); fopen opens files on the volume the VM was loaded from, relative to its root ("w" replaces a file: UEFI cannot truncate). malloc is the firmware''s pool, 16-byte aligned. printf and friends take their variadic arguments as 64-bit words (varargBits:) and format them with format:args:into:size: (d i u x X o c s p e f g, flags, width, precision, length modifiers); doubles by UefiLibM>>formatDouble:precision:conversion:into:size:.'!
+UefiLibC comment: 'The C library functions the core calls (LibC), on UEFI. stdout and stderr are the console (a line at a time, UTF-8 to UCS-2); fopen of disk: is the image in UefiImageStore (read: the newest slot, write: the other); fopen of any other path opens a file on the volume the VM was loaded from, relative to its root ("w" replaces a file: UEFI cannot truncate). malloc is the firmware''s pool, 16-byte aligned. printf and friends take their variadic arguments as 64-bit words (varargBits:) and format them with format:args:into:size: (d i u x X o c s p e f g, flags, width, precision, length modifiers); doubles by UefiLibM>>formatDouble:precision:conversion:into:size:.'!
 
 !UefiLibC class methodsFor: 'declaring'!
 declarations
-	^#((files 'UefiFile[UEFI_FILES]') (consoleBuffer 'char[UEFI_CONSOLE_BUFFER]') (consoleUsed int64_t))
+	^#((files 'UefiFile[UEFI_FILES]') (consoleBuffer 'char[UEFI_CONSOLE_BUFFER]') (consoleUsed int64_t) (store UefiImageStore))
 !
 implementsLibrary
 	^LibC
@@ -20,6 +20,7 @@ initialize
 	UEFI_FILE_FREE := 0.
 	UEFI_FILE_CONSOLE := 1.
 	UEFI_FILE_DISK := 2.
+	UEFI_FILE_STORE := 3.
 	UEFI_CONSOLE_BUFFER := 1024
 ! !
 
@@ -171,10 +172,16 @@ fopen: path mode: mode
 	<var: #mode type: 'const char *'>
 	<returns: 'FILE *'>
 	| slot name handle status m |
-	firmware root isNull ifTrue: [^self null].
 	slot := -1.
 	2 to: UEFI_FILES - 1 do: [:k | (slot < 0 and: [(files at: k) kind = UEFI_FILE_FREE]) ifTrue: [slot := k]].
 	slot < 0 ifTrue: [^self null].
+	(self strcmp: path with: 'disk:') = 0 ifTrue: [
+		((mode at: 0) = $r value
+			ifTrue: [store openForReading]
+			ifFalse: [(mode at: 0) = $w value and: [store openForWriting]]) ifFalse: [^self null].
+		(files at: slot) kind: UEFI_FILE_STORE.
+		^self cCoerce: (files at: slot) to: 'FILE *'].
+	firmware root isNull ifTrue: [^self null].
 	name := self local: 'uint16_t[512]'.
 	(self ucs2Path: path into: name size: 512) ifFalse: [^self null].
 	handle := self local: 'EfiFile *'.
@@ -225,7 +232,9 @@ fread: buf size: size count: n file: f
 	<returns: 'size_t'>
 	| file want got |
 	file := self fileOf: f.
-	(file kind ~= UEFI_FILE_DISK or: [size = 0]) ifTrue: [^0].
+	size = 0 ifTrue: [^0].
+	file kind = UEFI_FILE_STORE ifTrue: [^(store read: (self cCoerce: buf to: 'uint8_t *') count: size * n) quo: size].
+	file kind ~= UEFI_FILE_DISK ifTrue: [^0].
 	want := size * n.
 	got := self local: 'uint64_t'.
 	got value: want.
@@ -259,6 +268,7 @@ write: buf count: n to: f
 			consoleUsed := consoleUsed + 1.
 			(bytes at: i) = 10 ifTrue: [self consoleFlush]].
 		^n].
+	file kind = UEFI_FILE_STORE ifTrue: [^store write: (self cCoerce: buf to: 'const uint8_t *') count: n].
 	file kind ~= UEFI_FILE_DISK ifTrue: [^0].
 	done := self local: 'uint64_t'.
 	done value: n.
@@ -274,7 +284,9 @@ fseek: f offset: offset whence: whence
 	<returns: 'int'>
 	| file |
 	file := self fileOf: f.
-	(file kind ~= UEFI_FILE_DISK or: [whence ~= 0]) ifTrue: [^-1].
+	whence ~= 0 ifTrue: [^-1].
+	file kind = UEFI_FILE_STORE ifTrue: [^(store seek: offset asUInt64) ifTrue: [0] ifFalse: [-1]].
+	file kind ~= UEFI_FILE_DISK ifTrue: [^-1].
 	(self efiFailed: (self efi: file handle setPosition with: file handle with: offset)) ifTrue: [^-1].
 	^0
 !
@@ -284,6 +296,9 @@ fclose: f
 	<returns: 'int'>
 	| file |
 	file := self fileOf: f.
+	file kind = UEFI_FILE_STORE ifTrue: [
+		file kind: UEFI_FILE_FREE.
+		^store close ifTrue: [0] ifFalse: [-1]].
 	file kind ~= UEFI_FILE_DISK ifTrue: [^0].
 	self efi: file handle flush with: file handle.
 	self efi: file handle close with: file handle.

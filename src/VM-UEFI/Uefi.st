@@ -76,16 +76,16 @@ runtime
 ! !
 
 UefiModule subclass: #UefiFirmware
-	instanceVariableNames: 'imageHandle systemTable bootServices runtimeServices conOut root'
+	instanceVariableNames: 'imageHandle systemTable bootServices runtimeServices conOut root store'
 	classVariableNames: ''
 	package: 'VM-UEFI'!
 
-UefiFirmware comment: 'The VM''s entry on UEFI, efi_main: keeps the system table, turns off the boot manager''s watchdog (it resets the machine after 5 minutes), opens the volume the VM was loaded from (its root directory is the current directory: fopen of a relative path), reads the command line from samaltak.args there (one argument a line; without it: samaltak.image --headless) and runs VMMain>>main:argv:. What it answers is the exit status (UefiLibC>>exit:).'!
+UefiFirmware comment: 'The VM''s entry on UEFI, efi_main: keeps the system table, turns off the boot manager''s watchdog (it resets the machine after 5 minutes), opens the volume the VM was loaded from (its root directory is the current directory: fopen of a relative path), finds the image store (UefiImageStore), reads the command line from samaltak.args there (one argument a line; without it: disk: --headless, or samaltak.image --headless if there is no store) and runs VMMain>>main:argv:. What it answers is the exit status (UefiLibC>>exit:).'!
 
 !UefiFirmware class methodsFor: 'declaring'!
 declarations
 	^#((imageHandle 'void *') (systemTable 'EfiSystemTable *') (bootServices 'EfiBootServices *') (runtimeServices 'EfiRuntimeServices *')
-		(conOut 'EfiTextOutput *') (root 'EfiFile *'))
+		(conOut 'EfiTextOutput *') (root 'EfiFile *') (store UefiImageStore))
 ! !
 
 !UefiFirmware methodsFor: 'entry'!
@@ -106,6 +106,7 @@ efiMain: anImageHandle systemTable: aSystemTable
 	libc start.
 	posix start.
 	self openRoot.
+	store start.
 	argv := self local: 'char *[64]'.
 	argc := self arguments: argv max: 64.
 	libc exit: (vmMain main: argc argv: argv).
@@ -136,7 +137,7 @@ arguments: argv max: max
 	argc := 1.
 	f := libc fopen: 'samaltak.args' mode: 'rb'.
 	f isNull ifTrue: [
-		argv at: 1 put: 'samaltak.image'.
+		argv at: 1 put: (store isPresent ifTrue: ['disk:'] ifFalse: ['samaltak.image']).
 		argv at: 2 put: '--headless'.
 		^3].
 	buf := self cCoerce: (libc malloc: 65536) to: 'char *'.

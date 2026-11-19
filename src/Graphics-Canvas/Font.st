@@ -5,9 +5,9 @@ Object subclass: #Font
 
 Font comment: 'I am a TrueTypeFont at a pixel size (CSS px = points) for a device scale (2 on Retina), with optional letter spacing and capitals (for tracked-caps headers). I answer metrics in points (ascent, descent, lineHeight, widthOf:) and supply Canvas with rasterized glyphs: each glyph is rasterized lazily at device resolution for one of SubpixelPhases horizontal subpixel offsets and kept in the shared GlyphAtlas.
 
-The standard fonts (Font ui, uiBold, uiItalic, code, codeBold, codeItalic, header, title, small, smallItalic) follow docs/ui.md and the prototype''s blue-book/pi-orb styles. Stage 2 parses the faces from fonts/ and pre-rasterizes ASCII and the UI symbols, so the atlas lives in the image.
+The standard fonts (Font ui, uiBold, uiItalic, code, codeBold, codeItalic, header, title, small, smallItalic) follow docs/ui.md and the prototype''s blue-book/pi-orb styles. Stage 2 loads every face the system uses from fonts/ into the image (imageFaceNames: the standard faces, the fallback faces and Twemoji) and pre-rasterizes ASCII and the UI symbols, so faces and atlas live in the image and survive snapshots: the system never reads a font file at run time.
 
-A code point my face lacks is drawn from the first fallback face that has it (fallbackFaceNames), at the same em size on the same baseline, with that glyph''s advance. Fallback faces other than the standard ones are read from fonts/ on first use and dropped before a snapshot. Controls and invisible format characters (isInvisible:) draw nothing and advance 0; a code point no face has draws as a box with its hex digits.
+A code point my face lacks is drawn from the first fallback face that has it (fallbackFaceNames), at the same em size on the same baseline, with that glyph''s advance. Controls and invisible format characters (isInvisible:) draw nothing and advance 0; a code point no face has draws as a box with its hex digits.
 
 A grapheme cluster that ColorEmoji (Font class>>emoji, the Twemoji face) takes for an emoji is drawn as its color glyphs instead: each glyph''s layers rasterized at my em size (subpixel phase 0) and centred on my ascent and descent, drawn in their palette colors; it advances by the glyphs'' advances. Width, hit-testing (widthOf:from:to:, indexAt:in:) and Canvas>>drawString: agree on it; colorClusterEndAt:in:to: finds such a cluster.'!
 
@@ -368,14 +368,14 @@ subpixelPhases: anInteger
 
 !Font class methodsFor: 'faces'!
 emoji
-	"Answer the ColorEmoji of fonts/Twemoji.ttf, or nil without it. Not a fallback face: it maps digits, joiners and tags to empty glyphs."
+	"Answer the ColorEmoji of the Twemoji face in the image, or nil without it. Not a fallback face: it maps digits, joiners and tags to empty glyphs."
 	Emoji isNil ifTrue: [
 		self rasterizing: [
-			Emoji isNil ifTrue: [Emoji := (self fallbackFaceNamed: 'Twemoji') ifNil: [false] ifNotNil: [:f | ColorEmoji face: f]]]].
+			Emoji isNil ifTrue: [Emoji := (self imageFaceNamed: self emojiFaceName) ifNil: [false] ifNotNil: [:f | ColorEmoji face: f]]]].
 	^Emoji == false ifTrue: [nil] ifFalse: [Emoji]
 !
 fontsDirectory
-	"Answer the directory with the .ttf files: fonts/ in the current directory, else next to the image's build directory."
+	"Answer the directory with the .ttf files (read at stage 2): fonts/ in the current directory, else next to the image's build directory."
 	| image |
 	FontsDirectory isNil ifFalse: [^FontsDirectory].
 	(File exists: 'fonts/IosevkaEtoile-Regular.ttf') ifTrue: [^'fonts'].
@@ -386,7 +386,7 @@ fontsDirectory: aPath
 	FontsDirectory := aPath
 !
 faceNamed: aString
-	"Answer the TrueTypeFont of fonts/<aString>.ttf, loading it once."
+	"Answer the TrueTypeFont of fonts/<aString>.ttf: the one in the image, else read from the file once (the faces of imageFaceNames are in the image)."
 	Faces isNil ifTrue: [Faces := Dictionary new].
 	^Faces at: aString ifAbsent: [
 		Faces at: aString put: (TrueTypeFont fromFile: self fontsDirectory , '/' , aString , '.ttf')]
@@ -404,16 +404,27 @@ fallbackFaceFor: codePoint
 	^Fallbacks at: codePoint ifAbsent: [
 		self rasterizing: [
 			Fallbacks at: codePoint put: (self fallbackFaceNames inject: nil into: [:found :each |
-				found ifNil: [(self fallbackFaceNamed: each) ifNotNil: [:f | (f includesCodePoint: codePoint) ifTrue: [f]]]])]]
+				found ifNil: [(self imageFaceNamed: each) ifNotNil: [:f | (f includesCodePoint: codePoint) ifTrue: [f]]]])]]
 !
-fallbackFaceNamed: aString
-	"Answer the face, or nil when it is neither loaded nor in the fonts directory."
-	(self faces includesKey: aString) ifTrue: [^Faces at: aString].
-	(File exists: self fontsDirectory , '/' , aString , '.ttf') ifFalse: [^nil].
-	^self faceNamed: aString
+emojiFaceName
+	^'Twemoji'
 !
-isStandardFace: aString
-	^self standardSpecs anySatisfy: [:spec | (spec at: 2) = aString]
+imageFaceNames
+	"The faces stage 2 loads into the image: the standard faces, the fallback faces and the color emoji face."
+	| names |
+	names := OrderedCollection new.
+	self standardSpecs do: [:spec | (names includes: (spec at: 2)) ifFalse: [names add: (spec at: 2)]].
+	self fallbackFaceNames do: [:each | (names includes: each) ifFalse: [names add: each]].
+	names add: self emojiFaceName.
+	^names asArray
+!
+isOptionalFace: aString
+	"Not a standard face: stage 2 leaves it out when fonts/ lacks it."
+	^(self standardSpecs anySatisfy: [:spec | (spec at: 2) = aString]) not
+!
+imageFaceNamed: aString
+	"Answer the face as loaded into the image, or nil (it was missing from fonts/ at stage 2). Never reads a file."
+	^self faces at: aString ifAbsent: [nil]
 !
 isInvisible: codePoint
 	"Controls and default-ignorable format characters (zero-width space and joiners, bidi controls, word joiner, variation selectors, BOM, tags): drawn as nothing, no advance."
@@ -525,35 +536,28 @@ prerasterizedCharacters
 		do: [:cp | s nextPut: (Character value: cp)].
 	^s contents
 !
-buildStandardFonts
-	"Stage 2: load and compact the faces, pre-rasterize the standard fonts into the shared atlas."
+buildFonts
+	"Stage 2: load the faces of imageFaceNames into the image (a fallback or emoji face missing from fonts/ is left out) and compact them, but for a face with color glyphs (its layers and ligatures are glyphs the cmap does not reach); pre-rasterize the standard fonts into the shared atlas."
 	| chars fonts |
 	Faces := nil.
 	Fallbacks := nil.
 	Emoji := nil.
 	Standard := nil.
 	GlyphAtlas reset.
+	self imageFaceNames do: [:each |
+		((self isOptionalFace: each) not or: [File exists: self fontsDirectory , '/' , each , '.ttf'])
+			ifTrue: [self faceNamed: each]].
+	Faces do: [:each | each colorBaseGlyphCount = 0 ifTrue: [each compact]].
 	chars := self prerasterizedCharacters.
 	fonts := self standardFonts.
-	Faces do: [:each | each compact].
 	fonts do: [:font | font prerasterize: chars].
-	Transcript show: ' '; show: (GlyphAtlas default pages size) printString; show: ' atlas page(s)'
-! !
-
-!Font class methodsFor: 'snapshot'!
-shutDown: quitting
-	"Drop the fallback faces read since startup (read again on use), so the image keeps only the standard faces' bytes. Glyphs rasterized from them stay in the atlas."
-	Fallbacks := nil.
-	Emoji := nil.
-	Faces isNil ifFalse: [
-		(Faces keys reject: [:each | self isStandardFace: each]) do: [:each | Faces removeKey: each]]
+	Transcript show: ' '; show: Faces size printString; show: ' faces, '; show: (GlyphAtlas default pages size) printString; show: ' atlas page(s)'
 ! !
 
 !Font class methodsFor: 'class initialization'!
 initialize
 	RasterizeLock := Mutex new.
-	Smalltalk addToShutDownList: self.
-	Smalltalk addStage2Step: [self buildStandardFonts] named: 'Font atlases'.
+	Smalltalk addStage2Step: [self buildFonts] named: 'Fonts'.
 	SystemChanges subscribe: #Font do: [:change |
 		(change affectsAnyOf: self rasterizingClasses) ifTrue: [self regenerateGlyphs]]
 ! !

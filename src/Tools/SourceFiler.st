@@ -140,7 +140,7 @@ findSourceDirectory
 	image isNil ifFalse: [
 		dir := File directoryOf: image.
 		candidates add: dir, '/../../src'; add: dir, '/../src'; add: dir, '/src'].
-	candidates add: Directory current, '/src'.
+	File primCwd ifNotNil: [:cwd | candidates add: cwd, '/src'].
 	^candidates detect: [:each | File exists: each, '/packages.txt'] ifNone: [nil]
 ! !
 
