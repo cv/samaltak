@@ -15,9 +15,12 @@ seed: vm
 image: vm seed
 	$(VM) $(OUT)/seed.image --headless --stage2 $(OUT)/samaltak.image
 
-# Start the system. The image is rebuilt only if src/, boot/ or the VM are newer, so an image saved from the World menu stays.
-run: vm
+# The image, rebuilt only if src/, boot/ or the VM are newer, so an image saved from the World menu stays.
+fresh-image: vm
 	@[ -f $(OUT)/samaltak.image ] && [ -z "$$(find src boot $(VM) -newer $(OUT)/samaltak.image | head -1)" ] || $(MAKE) image
+
+# Start the system.
+run: fresh-image
 	$(VM) $(OUT)/samaltak.image
 
 test-vm: vm
@@ -76,7 +79,8 @@ test-tools: image
 # The VM as a UEFI application for x86-64 or arm64 (UEFI_ARCH, this machine's by default), translated from the
 # same Lowtalk with VM-UEFI in place of the C library (docs/uefi.md): $(UEFI)/esp is a boot volume with it
 # (EFI/BOOT/BOOTX64.EFI or BOOTAA64.EFI) and samaltak.args (the command line, an argument a line), $(UEFI)/image.disk a
-# disk with the image (UefiImageStore: two slots, snapshots go to the other). uefi-run boots them in QEMU with its UEFI
+# disk with the image (UefiImageStore: two slots, snapshots go to the other), each rebuilt only if the image is newer,
+# so a snapshot stays. uefi-run boots them in QEMU with its UEFI
 # firmware, on this machine's CPU if it is UEFI_ARCH (KVM, or Hypervisor.framework on macOS), and fails unless the VM
 # exits 0; UEFI_ARGS are its arguments after the image (disk:). uefi-ui boots the World in a QEMU window (USB keyboard,
 # virtio tablet; the console on stdio). test-uefi runs the tests there that need no platform layer (no files, processes
@@ -108,12 +112,15 @@ endif
 QEMU_UEFI = $(QEMU_UEFI_MACHINE) -m 2048 -net none -no-reboot \
 	-drive if=pflash,format=raw,readonly=on,file=$(OVMF_CODE) -drive if=pflash,format=raw,file=$(UEFI)/vars.fd \
 	-drive format=raw,file=fat:rw:$(UEFI)/esp -drive format=raw,file=$(UEFI)/image.disk
-uefi: image
+uefi: fresh-image
+	$(MAKE) $(UEFI)/esp/EFI/BOOT/$(UEFI_BOOT) $(UEFI)/image.disk
+$(UEFI)/esp/EFI/BOOT/$(UEFI_BOOT): $(OUT)/samaltak.image vm/uefi.mk
 	rm -rf $(UEFI)/gen
 	mkdir -p $(UEFI)/esp/EFI/BOOT
 	$(VM) $(OUT)/samaltak.image --headless --eval "[VMTranslator generateVMInto: '$(UEFI)/gen' os: #uefi arch: #$(UEFI_ARCH). 'ok'] on: Error do: [:e | Transcript show: e messageText; cr. Smalltalk quit: 1]"
 	$(MAKE) -f vm/uefi.mk GEN=$(UEFI)/gen OBJ=$(UEFI)/obj UEFI_TARGET=$(UEFI_TARGET)
 	$(VM) $(OUT)/samaltak.image --headless --eval "UefiImageWriter new convert: '$(UEFI)/obj/samaltak.elf' to: '$(UEFI)/esp/EFI/BOOT/$(UEFI_BOOT)'"
+$(UEFI)/image.disk: $(OUT)/samaltak.image
 	$(VM) $(OUT)/samaltak.image --headless --eval "UefiImageDisk new write: '$(OUT)/samaltak.image' to: '$(UEFI)/image.disk'"
 	truncate -s $(UEFI_DISK_MB)M $(UEFI)/image.disk
 uefi-run: uefi
@@ -134,6 +141,7 @@ UEFI_TESTS := CompilerTest ParserTest ScannerTest ClassTest CollectionTest Conte
 UEFI_WORLD := | w | w := UIWindows startUp. Smalltalk vm stderrWrite: 'world ', w extent printString, ' ', Renderer default device isSoftware printString, (String with: Character lf)
 UEFI_SNAPSHOT := Smalltalk at: 'UefiMark' asSymbol put: 42. (Smalltalk snapshot: Smalltalk vm imagePath) ifTrue: ['resumed ', (Smalltalk at: 'UefiMark' asSymbol) printString] ifFalse: ['saved']
 test-uefi:
+	rm -f $(UEFI)/image.disk
 	$(MAKE) uefi-run UEFI_ARGS='--headless --test $(UEFI_TESTS)'
 	$(MAKE) uefi-boot UEFI_ARGS="--eval \"$(UEFI_WORLD)\""
 	grep -qE "^world [0-9]+@[0-9]+ true" $(UEFI)/console.log
@@ -179,4 +187,4 @@ clean:
 	$(MAKE) -C vm clean
 	rm -rf build
 
-.PHONY: all vm seed image run translate uefi uefi-run uefi-boot uefi-ui test-uefi test-vm test-jit test-jit-none test-jit-baseline test-jit-opt test-jit-deopt test-jit-cache test-core test-tools test video mindblown-video jit-video clean
+.PHONY: all vm seed image fresh-image run translate uefi uefi-run uefi-boot uefi-ui test-uefi test-vm test-jit test-jit-none test-jit-baseline test-jit-opt test-jit-deopt test-jit-cache test-core test-tools test video mindblown-video jit-video clean
