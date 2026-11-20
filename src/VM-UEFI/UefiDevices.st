@@ -3,7 +3,7 @@ UefiModule subclass: #UefiScreen
 	classVariableNames: 'CURSOR_H CURSOR_W'
 	package: 'VM-UEFI'!
 
-UefiScreen comment: 'The display: the firmware''s graphics output (GOP) in the mode it booted with, written straight into its linear framebuffer. present:width:height: takes a whole frame (BGRA8 rows), keeps it in a shadow copy and draws the pointer over it; moving the pointer restores what was under it from the shadow copy, so it moves without a new frame.'!
+UefiScreen comment: 'The display: the firmware''s graphics output (GOP) in the mode of the size the window is opened with, else the mode it booted with, written straight into its linear framebuffer. present:width:height: takes a whole frame (BGRA8 rows), keeps it in a shadow copy and draws the pointer over it; moving the pointer restores what was under it from the shadow copy, so it moves without a new frame.'!
 
 !UefiScreen class methodsFor: 'declaring'!
 declarations
@@ -16,9 +16,11 @@ initialize
 ! !
 
 !UefiScreen methodsFor: 'starting'!
-start
-	"Find the graphics output; answer whether there is a framebuffer to draw into."
+start: w height: h
+	"Find the graphics output, in its mode of w x h if it has one; answer whether there is a framebuffer to draw into."
 	<function>
+	<var: #w type: 'int32_t'>
+	<var: #h type: 'int32_t'>
 	<returns: 'bool'>
 	| guid g info |
 	frameBuffer notNull ifTrue: [^true].
@@ -27,6 +29,7 @@ start
 	g := self local: 'EfiGraphicsOutput *'.
 	(self efiFailed: (self efi: self boot locateProtocol with: guid with: self null with: g)) ifTrue: [^false].
 	gop := g value.
+	self setMode: w height: h.
 	info := gop mode info.
 	(info pixelFormat > 1 or: [gop mode frameBufferBase = 0]) ifTrue: [^false].
 	rgb := info pixelFormat = 0.
@@ -42,6 +45,21 @@ start
 	cursorY := height quo: 2.
 	firmware screenOwned: true.
 	^true
+!
+setMode: w height: h
+	<function>
+	<var: #w type: 'int32_t'>
+	<var: #h type: 'int32_t'>
+	| size info found |
+	size := self local: 'uint64_t'.
+	info := self local: 'EfiGraphicsModeInfo *'.
+	0 to: gop mode maxMode asInt32 - 1 do: [:i |
+		(self efiFailed: (self efi: gop queryMode with: gop with: i with: size with: info)) ifFalse: [
+			found := info value horizontalResolution asInt32 = w and: [info value verticalResolution asInt32 = h].
+			self efi: self boot freePool with: info value.
+			found ifTrue: [
+				self efi: gop setMode with: gop with: i.
+				^self]]]
 !
 width
 	^width

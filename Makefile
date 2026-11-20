@@ -86,6 +86,10 @@ UEFI_ARCH ?= $(UEFI_HOST_ARCH)
 UEFI := $(OUT)/uefi-$(UEFI_ARCH)
 UEFI_ARGS ?= --headless --eval 'Smalltalk vmBanner'
 UEFI_HEAP_MB ?= 256
+UEFI_SCREEN ?= 1024x768
+ifeq ($(shell uname -s),Darwin)
+UEFI_DISPLAY := -display cocoa,zoom-to-fit=on
+endif
 UEFI_DISK_MB ?= 512
 UEFI_ACCEL := $(if $(filter $(UEFI_HOST_ARCH),$(UEFI_ARCH)),$(if $(wildcard /dev/kvm),-accel kvm -cpu host,$(if $(filter Darwin,$(shell uname -s)),-accel hvf -cpu host)))
 ifeq ($(UEFI_ARCH),arm64)
@@ -120,9 +124,9 @@ uefi-boot:
 	$(QEMU_UEFI) -nographic | tee $(UEFI)/console.log
 	@grep -q 'samaltak: exit 0' $(UEFI)/console.log
 uefi-ui: uefi
-	printf '%s\n' --max-heap $(UEFI_HEAP_MB) disk: > $(UEFI)/esp/samaltak.args
+	printf '%s\n' --max-heap $(UEFI_HEAP_MB) disk: --window-size $(UEFI_SCREEN) > $(UEFI)/esp/samaltak.args
 	cp $(OVMF_VARS) $(UEFI)/vars.fd
-	$(QEMU_UEFI) $(if $(filter x86_64,$(UEFI_ARCH)),-vga std) -device qemu-xhci -device usb-kbd -device virtio-tablet-pci -serial stdio
+	$(QEMU_UEFI) $(UEFI_DISPLAY) $(if $(filter x86_64,$(UEFI_ARCH)),-vga std) -device qemu-xhci -device usb-kbd -device virtio-tablet-pci -serial stdio
 UEFI_TESTS := CompilerTest ParserTest ScannerTest ClassTest CollectionTest ContextTest ExceptionTest FloatTest FractionTest \
 	HashingTest ImmutabilityTest IntegerTest LazyContextTest MarriedContextTest MessageNotUnderstoodTest ObjectTest ProcessTest \
 	StackOverflowTest StreamTest StringSearchTest StringTest SymbolTest SystemChangesTest SystemTest UnicodeTest WorkClockTest \

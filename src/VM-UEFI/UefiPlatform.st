@@ -87,7 +87,7 @@ open: w height: h title: title flags: flags
 	<var: #title type: 'char *'>
 	<var: #flags type: 'int32_t'>
 	<returns: 'int32_t'>
-	screen start ifFalse: [
+	(screen start: w height: h) ifFalse: [
 		common setError: 'no graphics output with a framebuffer'.
 		^0].
 	open ifFalse: [
