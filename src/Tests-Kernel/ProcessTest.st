@@ -3,7 +3,22 @@ TestCase subclass: #ProcessTest
 	classVariableNames: ''
 	package: 'Tests-Kernel'!
 
-ProcessTest comment: 'Tests processes, priorities, semaphores, mutexes, delays, shared queues, time slicing and termination with unwinding.'!
+ProcessTest comment: 'Tests processes, priorities, semaphores, mutexes, delays, shared queues, time slicing and termination with unwinding.
+
+The timer process preempts the running process every few milliseconds and sends it to the back of its run queue (time slicing), wherever it is: after a yield another process of the same priority need not have reached its wait, or anything else. So the tests wait for the state they need (waitUntil:waitsFor:, waitFor:); where the order of the processes itself is the subject, they run at the timing priority, which nothing preempts (atTimingPriority:).'!
+
+!ProcessTest methodsFor: 'helpers'!
+waitUntil: aProcess waitsFor: aSemaphore
+	self assert: (self waitFor: [aProcess suspendingList == aSemaphore]) description: [aProcess printString, ' does not wait for ', aSemaphore printString]
+!
+atTimingPriority: aBlock
+	"Evaluate aBlock at the highest priority, the timer process's: nothing preempts it or the processes it forks, they switch only where they yield or wait."
+	| active priority |
+	active := Processor activeProcess.
+	priority := active priority.
+	active priority: Processor timingPriority.
+	^aBlock ensure: [active priority: priority]
+! !
 
 !ProcessTest methodsFor: 'tests'!
 testForkRuns
@@ -28,43 +43,45 @@ testPriorityPreemption
 testYield
 	| log |
 	log := OrderedCollection new.
-	[log add: #other] fork.
-	log add: #first.
-	Processor yield.
-	log add: #second.
-	self assert: log asArray = #(#first #other #second)
+	self atTimingPriority: [
+		[log add: #other] fork.
+		log add: #first.
+		Processor yield.
+		log add: #second].
+	self assert: log asArray equals: #(#first #other #second)
 !
 testSemaphore
-	| sem log |
+	| sem log first second |
 	sem := Semaphore new.
 	log := OrderedCollection new.
-	[sem wait. log add: 1] fork.
-	[sem wait. log add: 2] fork.
-	Processor yield.
-	self assert: log isEmpty.
+	first := self fork: [sem wait. log add: 1].
+	self waitUntil: first waitsFor: sem.
+	second := self fork: [sem wait. log add: 2].
+	self waitUntil: second waitsFor: sem.
+	self assert: log asArray equals: #().
 	sem signal.
-	Processor yield.
-	self assert: log asArray = #(1).
+	self assert: (self waitFor: [log notEmpty]) description: [first printString, ' was not signaled'].
+	self assert: log asArray equals: #(1).
+	self assert: second suspendingList == sem description: [second printString, ' does not wait'].
 	sem signal; signal.
-	Processor yield.
-	self assert: log asArray = #(1 2).
-	self assert: sem excessSignals = 1.
+	self assert: (self waitFor: [log size = 2]) description: [second printString, ' was not signaled'].
+	self assert: log asArray equals: #(1 2).
+	self assert: sem excessSignals equals: 1.
 	sem wait.
-	self assert: sem excessSignals = 0
+	self assert: sem excessSignals equals: 0
 !
 testCritical
 	| mutex log p |
 	mutex := Semaphore forMutualExclusion.
 	log := OrderedCollection new.
-	p := [mutex critical: [log add: #p]].
 	mutex critical: [
-		p fork.
-		Processor yield.
+		p := self fork: [mutex critical: [log add: #p]].
+		self waitUntil: p waitsFor: mutex.
 		log add: #main].
-	Processor yield.
-	self assert: log asArray = #(#main #p).
+	self assert: (self waitFor: [p isTerminated]) description: [p printString, ' did not end'].
+	self assert: log asArray equals: #(#main #p).
 	self assert: (mutex critical: [42]) = 42.
-	self assert: mutex excessSignals = 1.
+	self assert: mutex excessSignals equals: 1.
 	self assert: ([mutex critical: [Error signal]] on: Error do: [:e | 1]) = 1.
 	self assert: mutex excessSignals = 1
 !
@@ -83,12 +100,15 @@ testDelay
 	self assert: elapsed < 1000
 !
 testDelaysWakeInOrder
-	| log sem |
+	"Delays wake in the order of their resumption times, whatever the order they were scheduled in. The waiting processes have the timing priority: nothing preempts one between its wakeup and its entry in the log."
+	| delays log sem |
+	delays := #(30 10 20) collect: [:ms | Delay forMilliseconds: ms].
 	log := OrderedCollection new.
 	sem := Semaphore new.
-	#(30 10 20) do: [:ms | [(Delay forMilliseconds: ms) wait. log add: ms. sem signal] fork].
+	delays do: [:each | self fork: [each wait. log add: each. sem signal] at: Processor timingPriority].
 	3 timesRepeat: [sem wait].
-	self assert: log asArray = #(10 20 30)
+	self assert: (log collect: [:each | each resumptionTime]) asArray
+		equals: (delays collect: [:each | each resumptionTime]) asSortedCollection asArray
 !
 testWaitTimeout
 	| sem start |
@@ -119,34 +139,33 @@ testSharedQueue
 	self assert: q next = 7
 !
 testRoundRobin
-	"Two busy processes of the same priority both make progress (time slicer)."
-	| counts stop procs |
+	"Two busy processes of the same priority both make progress (time slicer): neither waits or yields before both have counted, and this process waits for their signal, so only the time slicer can have switched between them."
+	| counts stop both procs |
 	counts := Array new: 2 withAll: 0.
 	stop := false.
+	both := Semaphore new.
 	procs := (1 to: 2) collect: [:i |
-		self fork: [[stop] whileFalse: [counts at: i put: (counts at: i) + 1]] at: Processor activePriority - 1].
-	"Only the time slicer can switch between them during this one sleep."
-	(Delay forMilliseconds: 200) wait.
+		self fork: [[stop] whileFalse: [
+			counts at: i put: (counts at: i) + 1.
+			((counts at: 1) > 0 and: [(counts at: 2) > 0]) ifTrue: [both signal]]] at: Processor activePriority - 1].
+	self deny: (both waitTimeoutMSecs: 5000) description: ['No time slice in 5 s: counts ', counts printString].
 	stop := true.
-	self assert: (self waitFor: [procs allSatisfy: [:p | p isTerminated]]).
-	self assert: (counts at: 1) > 0.
-	self assert: (counts at: 2) > 0
+	self assert: (self waitFor: [procs allSatisfy: [:p | p isTerminated]]) description: [procs printString, ' did not end']
 !
 testTerminateRunsUnwindBlocks
 	| sem log p |
 	sem := Semaphore new.
 	log := OrderedCollection new.
 	p := self fork: [[sem wait. log add: #notReached] ensure: [log add: #ensure]].
-	"one yield is not enough: the timer's Process may preempt p before it waits, and this one runs again first"
-	self assert: (self waitFor: [p isWaiting]).
+	self waitUntil: p waitsFor: sem.
 	self deny: p isTerminated.
 	p terminate.
-	self assert: log asArray = #(#ensure).
+	self assert: log asArray equals: #(#ensure).
 	self assert: p isTerminated.
 	sem signal.
 	Processor yield.
-	self assert: log asArray = #(#ensure).
-	self assert: sem excessSignals = 1
+	self assert: log asArray equals: #(#ensure).
+	self assert: sem excessSignals equals: 1
 !
 testTerminateActive
 	| log done p |
@@ -154,9 +173,8 @@ testTerminateActive
 	done := Semaphore new.
 	p := [[log add: #start. Processor activeProcess terminate. log add: #no] ensure: [log add: #ensure. done signal]] fork.
 	done wait.
-	Processor yield.
-	self assert: log asArray = #(#start #ensure).
-	self assert: p isTerminated
+	self assert: (self waitFor: [p isTerminated]) description: [p printString, ' did not end'].
+	self assert: log asArray equals: #(#start #ensure)
 !
 testSuspendResume
 	| p count |
@@ -169,8 +187,7 @@ testSuspendResume
 	Processor yield.
 	self assert: count = 0.
 	p resume.
-	Processor yield.
-	self assert: count > 0.
+	self assert: (self waitFor: [count > 0]) description: [p printString, ' does not run'].
 	p terminate.
 	self assert: p isTerminated
 !
@@ -197,14 +214,14 @@ testSignalException
 	done := Semaphore new.
 	caught := nil.
 	p := self fork: [[sem wait] on: ZeroDivide do: [:e | caught := e class]. done signal].
-	Processor yield.
+	self waitUntil: p waitsFor: sem.
 	p signalException: ZeroDivide new.
 	done wait.
 	self assert: caught == ZeroDivide
 !
 testValueWithin
 	self assert: ([3 + 4] valueWithin: 1000 onTimeout: [#timeout]) = 7.
-	self assert: ([(Delay forMilliseconds: 500) wait. 1] valueWithin: 20 onTimeout: [#timeout]) = #timeout
+	self assert: ([Semaphore new wait. 1] valueWithin: 20 onTimeout: [#timeout]) = #timeout
 !
 testCpuTime
 	| p sem |
