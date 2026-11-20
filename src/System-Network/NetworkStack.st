@@ -3,7 +3,7 @@ Object subclass: #NetworkStack
 	classVariableNames: 'Default LastError Probed'
 	package: 'System-Network'!
 
-NetworkStack comment: 'I am a TCP/IP stack (IPv4) in the image, over a NetworkInterface''s Ethernet frames: for a VM that gives frames instead of sockets (UEFI, the nic primitives), RemoteSocket''s sockets are mine (active), so ControlServer, HTTPClient and the rest work unchanged. I do Ethernet, ARP (a cache with aging; the last packet for an address being resolved waits for the answer; a gratuitous request when an address is bound), IPv4 (to the gateway unless for the subnet; fragments dropped, none sent; 127/8 and my own address loop back), ICMP (echo answered; a port unreachable fails a connection being made) and UDP; DhcpClient configures me, DnsResolver looks names up, TcpConnection is TCP, NetSocket the handles RemoteSocket knows.
+NetworkStack comment: 'I am a TCP/IP stack (IPv4) in the image, over a NetworkInterface''s Ethernet frames: where there are no sockets of an operating system (UEFI: the image''s driver of the NIC, or the VM''s nic primitives), RemoteSocket''s sockets are mine (active), so ControlServer, HTTPClient and the rest work unchanged. I do Ethernet, ARP (a cache with aging; the last packet for an address being resolved waits for the answer; a gratuitous request when an address is bound), IPv4 (to the gateway unless for the subnet; fragments dropped, none sent; 127/8 and my own address loop back), ICMP (echo answered; a port unreachable fails a connection being made) and UDP; DhcpClient configures me, DnsResolver looks names up, TcpConnection is TCP, NetSocket the handles RemoteSocket knows.
 
 My Process (priority 55: above user Processes and the remote-control service, below input and the compositor) waits for frames (the interface signals) and for my timer Process, which wakes it every 10 ms; each wakeup handles what arrived and runs every timer (pollAt:). Sockets work from their own Processes, under my lock (critical:), and wait on their Semaphores. Times are milliseconds of my clock (a block; tests give their own and drive me with pollAt:).'!
 
@@ -14,10 +14,10 @@ initialize
 
 !NetworkStack class methodsFor: 'the image''s stack'!
 active
-	"The stack RemoteSocket's sockets use: when the VM has a raw network interface instead of sockets (UEFI), started on first use; else nil (the platform's sockets)."
+	"The stack RemoteSocket's sockets use: when the machine has a network interface instead of the platform's sockets (UEFI: NetworkInterface open), started on first use; else nil (the platform's sockets)."
 	Probed == true ifFalse: [
 		Probed := true.
-		Default := VmNetworkInterface open ifNotNil: [:nic | (self on: nic) start; startDhcp; yourself]].
+		Default := NetworkInterface open ifNotNil: [:nic | (self on: nic) start; startDhcp; yourself]].
 	^Default
 !
 active: aStackOrNil

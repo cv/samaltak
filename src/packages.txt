@@ -21,6 +21,7 @@ Kernel-Exceptions 0
 Kernel-Processes 0
 System-Support 0
 System-Files 0
+System-Network 0
 System-Devices 0
 System-Profiling 0
 System-Debugging 0
@@ -37,7 +38,6 @@ Tests-Compiler 0
 Tests-Profiling 0
 Tests-Debugging 0
 Tests-VM 0
-System-Network 0
 Tests-Devices 0
 System-Remote 0
 System-Net 0

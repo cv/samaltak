@@ -3,7 +3,7 @@ TestCase subclass: #VirtqueueTest
 	classVariableNames: ''
 	package: 'Tests-Devices'!
 
-VirtqueueTest comment: 'A Virtqueue in a page of memory (Machine allocate:), the test playing the device: it reads the descriptors and the available ring the driver set up, writes events into buffers and puts them on the used ring; the driver takes them in order and makes the buffers available again. On a host, which has no device, as on UEFI.'!
+VirtqueueTest comment: 'A Virtqueue in a page of memory (Machine allocate:), the test playing the device: it reads the descriptors and the available ring the driver set up, writes events into buffers and puts them on the used ring; the driver takes them in order and makes the buffers available again. And one the device reads (sending): the driver fills free buffers and makes them available, the device puts them on the used ring, the driver takes them back. On a host, which has no device, as on UEFI.'!
 
 !VirtqueueTest methodsFor: 'running'!
 setUp
@@ -69,4 +69,50 @@ testTheIndicesWrap
 		self deviceUses: i \\ 8 event: 2 code: 0 value: i.
 		self assert: self taken equals: {{2. 0. i}}].
 	self assert: self availableIndex equals: (8 + 70000 bitAnd: 16rFFFF)
+!
+testTakeNextGivesTheLength
+	| got |
+	self deviceUses: 6 event: 1 code: 2 value: 3.
+	Machine uint32At: page + 2048 + 8 put: 5.
+	self assert: (queue takeNext: [:b :n | got := {b. n}]).
+	self assert: got equals: {page + 3072 + 48. 5}.
+	self deny: (queue takeNext: [:b :n | self fail])
+!
+testSendingFillsFreeBuffersAndTakesBackThoseRead
+	"The device reads the buffers made available (in order), puts them on the used ring; the driver reuses them, also after the 16-bit indices wrap."
+	| out avail used sentFrames |
+	out := Virtqueue ring: page device: page + 16r100000000 size: 8 bufferSize: 64 buffersAt: 3072.
+	out startSending.
+	self assert: (Machine uint16At: page + 1024 + 2) equals: 0.
+	0 to: 7 do: [:i | self assert: (Machine uint16At: page + (16 * i) + 12) equals: 0].
+	avail := used := 0.
+	1 to: 8 do: [:i | self assert: (out send: i with: [:b | Machine uint8At: b put: i])].
+	self deny: (out send: 1 with: [:b | self fail]).
+	1 to: 70000 do: [:k |
+		sentFrames := OrderedCollection new.
+		[avail ~= (Machine uint16At: page + 1024 + 2)] whileTrue: [| id |
+			id := Machine uint16At: page + 1024 + 4 + (2 * (avail \\ 8)).
+			sentFrames add: {Machine uint32At: page + (16 * id) + 8. Machine uint8At: (Machine uint64At: page + (16 * id)) - 16r100000000}.
+			Machine uint32At: page + 2048 + 4 + (8 * (used \\ 8)) put: id.
+			used := used + 1 bitAnd: 16rFFFF.
+			Machine uint16At: page + 2048 + 2 put: used.
+			avail := avail + 1 bitAnd: 16rFFFF].
+		k = 1
+			ifTrue: [self assert: sentFrames asArray equals: ((1 to: 8) collect: [:i | {i. i}])]
+			ifFalse: [self assert: sentFrames asArray equals: {{k - 1 \\ 50 + 1. k - 1 \\ 256}}].
+		self assert: (out send: k \\ 50 + 1 with: [:b | Machine uint8At: b put: k \\ 256])]
+!
+testKickUnlessTheDeviceSaysNot
+	| notify |
+	notify := Machine allocate: 8.
+	[queue notifyAt: notify + 2 queue: 5.
+	Machine uint16At: notify + 2 put: 16rFFFF.
+	Machine uint16At: page + 2048 put: 1.
+	queue kick.
+	self assert: (Machine uint16At: notify + 2) equals: 16rFFFF.
+	Machine uint16At: page + 2048 put: 0.
+	queue kick.
+	self assert: (Machine uint16At: notify + 2) equals: 5.
+	self assert: (Machine uint16At: page + 1024) equals: 1]
+		ensure: [Machine free: notify]
 ! !

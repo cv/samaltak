@@ -3,7 +3,7 @@ Object subclass: #Firmware
 	classVariableNames: 'Current'
 	package: 'System-Devices'!
 
-Firmware comment: 'I am the UEFI firmware''s boot services (UEFI 2.10, 7) for drivers in Smalltalk, over Machine: protocols by GUID, handles, events, pool memory. Firmware current is nil on an operating system. A status is an error if its high bit is set (isError:). Structures are read at their offsets (LP64, natural alignment, the same on x86-64 and AArch64).'!
+Firmware comment: 'I am the UEFI firmware''s boot services (UEFI 2.10, 7) for drivers in Smalltalk, over Machine: protocols by GUID, handles and the firmware''s drivers that manage them, events, pool memory. Firmware current is nil on an operating system. A status is an error if its high bit is set (isError:). Structures are read at their offsets (LP64, natural alignment, the same on x86-64 and AArch64).'!
 
 !Firmware methodsFor: 'initialization'!
 setSystemTable: anAddress
@@ -42,6 +42,9 @@ boot: offset with: a with: b
 !
 boot: offset with: a with: b with: c
 	^Machine call: (self function: bootServices at: offset) with: a with: b with: c
+!
+boot: offset with: a with: b with: c with: d
+	^Machine call: (self function: bootServices at: offset) with: a with: b with: c with: d
 !
 boot: offset with: a with: b with: c with: d with: e
 	^Machine call: (self function: bootServices at: offset) with: a with: b with: c with: d with: e
@@ -88,6 +91,43 @@ handlesSupporting: aGuidString
 !
 freePool: anAddress
 	self boot: 72 with: anAddress
+! !
+
+!Firmware methodsFor: 'drivers'!
+opensOf: aHandle do: aBlock
+	"aBlock value: the agent value: the controller value: the attributes of each open of each protocol on aHandle (ProtocolsPerHandle, OpenProtocolInformation)."
+	| words protocols entries |
+	words := Machine allocate: 16.
+	protocols := self outWord: [:p | self boot: 304 with: aHandle with: p with: words].
+	protocols notNil ifTrue: [
+		0 to: (Machine uint64At: words) - 1 do: [:i |
+			entries := self outWord: [:p | self boot: 296 with: aHandle with: (Machine uint64At: protocols + (8 * i)) with: p with: words + 8].
+			entries notNil ifTrue: [
+				0 to: (Machine uint64At: words + 8) - 1 do: [:k | | e |
+					e := entries + (24 * k).
+					aBlock value: (Machine uint64At: e) value: (Machine uint64At: e + 8) value: (Machine uint32At: e + 16)].
+				self freePool: entries]].
+		self freePool: protocols].
+	Machine free: words
+!
+childrenOf: aHandle
+	"The controllers the drivers of the controller aHandle made (they opened one of its protocols BY_CHILD_CONTROLLER)."
+	| children |
+	children := OrderedCollection new.
+	self opensOf: aHandle do: [:agent :controller :attributes |
+		((attributes bitAnd: 8) ~= 0 and: [(children includes: controller) not]) ifTrue: [children add: controller]].
+	^children asArray
+!
+isManaged: aHandle
+	"Has a driver (or an application) one of its protocols open BY_DRIVER or EXCLUSIVE?"
+	self opensOf: aHandle do: [:agent :controller :attributes | (attributes bitAnd: 16r30) = 0 ifFalse: [^true]].
+	^false
+!
+disconnect: aHandle
+	"Stop the drivers that manage the controller aHandle, those of the controllers they made first (DisconnectController). Answer whether none manages it any more (the status may say otherwise: iPXE's does)."
+	(self childrenOf: aHandle) do: [:child | self disconnect: child].
+	self boot: 272 with: aHandle with: 0 with: 0.
+	^(self isManaged: aHandle) not
 ! !
 
 !Firmware methodsFor: 'events'!

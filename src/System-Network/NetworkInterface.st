@@ -3,13 +3,19 @@ Object subclass: #NetworkInterface
 	classVariableNames: ''
 	package: 'System-Network'!
 
-NetworkInterface comment: 'I am the abstract class of the network interfaces a NetworkStack sends and receives Ethernet frames through: the VM''s raw NIC (VmNetworkInterface) or a virtual wire between two stacks (VirtualNetworkInterface).
+NetworkInterface comment: 'I am the abstract class of the network interfaces a NetworkStack sends and receives Ethernet frames through: the image''s driver of a network controller (PciNetworkInterface, System-Devices), the VM''s raw NIC (VmNetworkInterface) or a virtual wire between two stacks (VirtualNetworkInterface).
 
 	macAddress		6 bytes
 	send: frame count: n	a whole frame (without its checksum); false if it could not go
 	receiveInto: buffer	the length of the next frame received into buffer, nil if there is none
 	semaphore: aSemaphore	aSemaphore is signaled when a frame is waiting (once, until receiveInto: has answered nil)
 	close, forget (after a snapshot was resumed)'!
+
+!NetworkInterface class methodsFor: 'opening'!
+open
+	"The machine's network interface: the image's driver of a controller it supports, else the VM's; nil if there is neither."
+	^PciNetworkInterface open ifNil: [VmNetworkInterface open]
+! !
 
 !NetworkInterface methodsFor: 'interface'!
 macAddress
