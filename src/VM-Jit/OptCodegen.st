@@ -771,8 +771,10 @@ emitNode: n block: b next: nextBlock
 !
 isFused: n
 	"A comparison whose only use is the branch right after it (or, after the jump that ends its block, the first node of the block that only that jump reaches: an inlined method answered it): the branch compares."
-	| nd nx c |
+	| nd nx c op |
 	nd := ir node: n.
+	op := nd op asInt32.
+	(op = O_EQ or: [op = O_NE or: [op = O_ICMP or: [op = O_CLASSIS or: [op = O_FCMP or: [op = O_BOTHINT]]]]]) ifFalse: [^false].
 	nd uses = 1 ifFalse: [^false].
 	nd next < 0 ifTrue: [^false].
 	nx := ir node: nd next.

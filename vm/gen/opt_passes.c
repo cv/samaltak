@@ -22,6 +22,7 @@ static void compute_order(int32_t entry);
 static void count_uses(void);
 static void dominators(int32_t entry);
 static void drop_boxes(void);
+static void drop_int_checks(void);
 static void find_loops(void);
 static bool fold_int_tests(void);
 static void forward_unboxes(void);
@@ -56,6 +57,7 @@ void cleanup(int32_t entry)
         remove_unreachable();
         simplify_phis();
     }
+    drop_int_checks();
     resolve_operands();
     type_boolean_phis();
     type_float_phis();
@@ -544,6 +546,23 @@ exit_box_3:;
             t = ps_twin[n_6];
             (opt_nodes + n_6)->fwd = t;
             opt_ir_unlink(n_6);
+        }
+    }
+}
+
+/* OptPasses>>dropIntChecks */
+static void drop_int_checks(void)
+{
+    int32_t n;
+    opt_node *nd;
+    int32_t n_2;
+    for (n = 0; n <= opt_node_count - 1; n++) {
+        nd = opt_nodes + n;
+        if (((((int32_t)nd->op == O_GUARDINT) && ((nd->flags & NF_HOISTED) == 0)) || (((int32_t)nd->op == O_CAST) && ((int32_t)nd->tkind == T_SMI))) && ((nd->fwd < 0) && ((nd->block >= 0) && ({
+    n_2 = opt_ir_resolve(nd->a);
+    (int32_t)(opt_nodes + n_2)->tkind == T_SMI; })))) {
+            nd->fwd = opt_ir_resolve(nd->a);
+            opt_ir_unlink(n);
         }
     }
 }
@@ -1322,6 +1341,8 @@ static void type_boolean_phis(void)
     int32_t i;
     int32_t i_2;
     int32_t v;
+    int32_t b;
+    int32_t n_3;
     count = 0;
     for (n = 0; n <= opt_node_count - 1; n++) {
         nd = opt_nodes + n;
@@ -1345,6 +1366,14 @@ static void type_boolean_phis(void)
                     changed = true;
                 }
             }
+        }
+    }
+    for (b = 0; b <= opt_block_count - 1; b++) {
+        count = (opt_blocks + b)->last;
+        if ((count >= 0) && (((int32_t)(opt_nodes + count)->op == O_BRANCH) && ({
+    n_3 = opt_ir_resolve((opt_nodes + count)->a);
+    (int32_t)(opt_nodes + n_3)->tkind == T_BOOL; }))) {
+            (opt_nodes + count)->state = -1;
         }
     }
 }
@@ -1492,10 +1521,8 @@ static void type_phis(void)
     int32_t v_3;
     bool r_is_frame_int_3;
     opt_node *nd_4;
-    int32_t n_6;
-    int32_t n_7;
     int64_t k_2;
-    int32_t n_8;
+    int32_t n_6;
     int32_t i_3;
     int32_t i_4;
     int32_t v_4;
@@ -1569,18 +1596,9 @@ exit_never_runs:;
             }
         }
     }
-    for (n_6 = 0; n_6 <= opt_node_count - 1; n_6++) {
-        nd = opt_nodes + n_6;
-        if (((int32_t)nd->op == O_GUARDINT) && ((nd->fwd < 0) && ((nd->block >= 0) && ({
-    n_7 = opt_ir_resolve(nd->a);
-    (int32_t)(opt_nodes + n_7)->tkind == T_SMI; })))) {
-            nd->fwd = opt_ir_resolve(nd->a);
-            opt_ir_unlink(n_6);
-        }
-    }
     for (k_2 = 0; k_2 <= count - 1; k_2++) {
-        n_8 = ps_work_list[k_2];
-        nd = opt_nodes + n_8;
+        n_6 = ps_work_list[k_2];
+        nd = opt_nodes + n_6;
         if ((int32_t)nd->tkind == T_SMI) {
             for (i_3 = 0; i_3 <= (int32_t)nd->nargs - 1; i_3++) {
                 i_4 = nd->args + i_3;
