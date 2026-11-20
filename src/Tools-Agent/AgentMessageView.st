@@ -16,23 +16,31 @@ top
 	^item kind == #user ifTrue: [9] ifFalse: [3]
 !
 computeHeightFor: aWidth
-	^self top + ((self wrap: item text font: self font width: aWidth - self gutterWidth - self margin) size * self font lineHeight) + 5 + (self hasRetry ifTrue: [30] ifFalse: [0])
+	| textWidth |
+	textWidth := aWidth - self gutterWidth - self margin max: 40.
+	^self top + ((self wrap: item text font: self font width: textWidth) size * self font lineHeight)
+		+ (item kind == #user ifTrue: [9] ifFalse: [5]) + (self hasRetry ifTrue: [30] ifFalse: [0])
 !
 layout
 	self children do: [:button |
 		button bounds: (self gutterWidth @ (self height - 30) extent: 70 @ 26)]
+!
+gutterWidth
+	^item kind == #error ifTrue: [super gutterWidth] ifFalse: [self margin]
 ! !
 
 !AgentMessageView methodsFor: 'drawing'!
 drawSelfOn: aCanvas
-	| font y color who |
+	| font y color |
 	font := self font.
-	item kind == #user ifTrue: [aCanvas fillRect: (0 @ 0 extent: self width @ 1) color: self theme rule].
-	who := Dictionary new at: #user put: #('You' #uiBold #ink); at: #assistant put: #('Agent' #uiItalic #ink3); at: #error put: #('Error' #uiBold #ultramarine); yourself.
-	who := who at: item kind.
-	aCanvas drawString: who first in: (0 @ self top extent: (self gutterWidth - 12) @ font lineHeight)
-		font: (self theme font: (who at: 2)) color: (self theme color: who last) align: #right.
-	color := item kind == #error ifTrue: [self theme ultramarine] ifFalse: [self theme ink].
+	color := self theme ink.
+	item kind == #user ifTrue: [
+		aCanvas fillRect: (0 @ 0 extent: self width @ self height) color: Color black.
+		color := Color white].
+	item kind == #error ifTrue: [
+		color := self theme ultramarine.
+		aCanvas drawString: 'Error' in: (0 @ self top extent: (self gutterWidth - 12) @ font lineHeight)
+			font: (self theme font: #uiBold) color: color align: #right].
 	y := self top.
 	self lines do: [:line |
 		aCanvas drawString: line at: self gutterWidth @ y font: font color: color.

@@ -37,14 +37,22 @@ viewWidth
 preferredExtent
 	| w |
 	w := self viewWidth.
-	^w @ (self children inject: 12 into: [:sum :each | sum + (each heightFor: w)])
+	^w @ (self children inject: 12 into: [:sum :each | | inset |
+		inset := self insetFor: each.
+		sum + inset + (each heightFor: w - (2 * inset))])
 !
 layout
 	| w y |
 	w := self viewWidth.
 	y := 6.
-	self children do: [:each | | h |
-		h := each heightFor: w.
-		each bounds: (0 @ y extent: w @ h).
-		y := y + h]
+	self children do: [:each | | inset width h |
+		inset := self insetFor: each.
+		width := w - (2 * inset).
+		h := each heightFor: width.
+		each bounds: (inset @ (y + inset) extent: width @ h).
+		y := y + inset + h]
+!
+insetFor: aView
+	^((aView isKindOf: AgentCodeView) or: [aView isKindOf: AgentShowView])
+		ifTrue: [4] ifFalse: [0]
 ! !

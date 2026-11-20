@@ -48,6 +48,12 @@ layout
 	| e |
 	e := inspectButton preferredExtent.
 	inspectButton bounds: ((self width - self margin - 4 - e x) @ 3 extent: e)
+!
+gutterWidth
+	^0
+!
+margin
+	^0
 ! !
 
 !AgentShowView methodsFor: 'drawing'!

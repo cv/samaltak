@@ -38,6 +38,12 @@ resultFont
 !AgentCodeView methodsFor: 'layout'!
 computeHeightFor: aWidth
 	^self headerHeight + (self sourceLines size * self codeFont lineHeight) + 8 + (self resultLines size * self resultFont lineHeight) + 5 + 8
+!
+gutterWidth
+	^0
+!
+margin
+	^0
 ! !
 
 !AgentCodeView methodsFor: 'drawing'!
