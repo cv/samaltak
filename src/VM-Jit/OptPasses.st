@@ -38,6 +38,10 @@ cleanup: entry
 	self simplifyPhis.
 	self resolveOperands.
 	self typePhis.
+	self foldIntTests ifTrue: [
+		self computeOrder: entry.
+		self removeUnreachable.
+		self simplifyPhis].
 	self resolveOperands.
 	self typeBooleanPhis.
 	self typeFloatPhis.
@@ -85,9 +89,9 @@ simplifyPhis
 					changed := true]]]]
 !
 typePhis
-	"A phi of SmallIntegers (every operand one, or such a phi: a loop's counter, a running sum) is a SmallInteger, to a fixed point from all of them; guards of SmallIntegers go."
+	"A phi of SmallIntegers (every operand one, or such a phi: a loop's counter, a running sum) is a SmallInteger, to a fixed point from all of them; guards of SmallIntegers go. An operand counts only from where control can come (neverRuns:); a frame slot a loop's unit takes for a SmallInteger is one, guarded where a phi rests on it."
 	<function>
-	| changed nd v count |
+	| changed nd v count e |
 	count := 0.
 	0 to: ir nodeCount - 1 do: [:n |
 		nd := ir node: n.
@@ -101,16 +105,74 @@ typePhis
 		0 to: count - 1 do: [:k |
 			nd := ir node: (psWorkList at: k).
 			nd tkind asInt32 = T_SMI ifTrue: [
+				e := (ir block: nd block) preds.
 				0 to: nd nargs asInt32 - 1 do: [:i |
 					v := ir resolve: (ir operand: nd args + i).
-					((ir node: v) tkind asInt32 = T_SMI or: [nd tkind asInt32 ~= T_SMI]) ifFalse: [
+					((self isSmallInt: v) or: [nd tkind asInt32 ~= T_SMI or: [e >= 0 and: [self neverRuns: (ir edge: e) from]]]) ifFalse: [
 						nd tkind: T_ANY.
-						changed := true]]]]].
+						changed := true].
+					e >= 0 ifTrue: [e := (ir edge: e) next]]]]].
 	0 to: ir nodeCount - 1 do: [:n |
 		nd := ir node: n.
 		(nd op asInt32 = O_GUARDINT and: [nd fwd < 0 and: [nd block >= 0 and: [(ir node: (ir resolve: nd a)) tkind asInt32 = T_SMI]]]) ifTrue: [
 			nd fwd: (ir resolve: nd a).
-			ir unlink: n]]
+			ir unlink: n]].
+	0 to: count - 1 do: [:k |
+		nd := ir node: (psWorkList at: k).
+		nd tkind asInt32 = T_SMI ifTrue: [
+			0 to: nd nargs asInt32 - 1 do: [:i | self guardFrameInt: (ir resolve: (ir operand: nd args + i))]]]
+!
+foldIntTests
+	"Arithmetic on two SmallIntegers has no Float case (neverRuns:): its test goes, the SmallInteger case follows it, the frame's slots among the two are guarded. Answer whether any did (its Float case is unreachable now)."
+	<function>
+	| bl t folded |
+	folded := false.
+	0 to: ir blockCount - 1 do: [:b |
+		bl := ir block: b.
+		(bl rpo >= 0 and: [bl succ1 >= 0 and: [self neverRuns: bl succ1]]) ifTrue: [
+			t := ir node: (ir resolve: (ir node: bl last) a).
+			self guardFrameInt: (ir resolve: t a).
+			self guardFrameInt: (ir resolve: t b).
+			(ir node: bl last) op: O_GOTO asUInt16.
+			(ir node: bl last) a: -1.
+			bl succ1: -1.
+			folded := true]].
+	^folded
+!
+neverRuns: b
+	"Block b is the Float case of arithmetic on two values (OptBuilder>>floatArith:x:y:pc:act:rcvSlot:), both SmallIntegers: the test before it takes the other."
+	| bl p t |
+	bl := ir block: b.
+	bl npreds = 1 ifFalse: [^false].
+	p := ir block: (ir edge: bl preds) from.
+	(p succ1 = b and: [p last >= 0 and: [(ir node: p last) op asInt32 = O_BRANCH]]) ifFalse: [^false].
+	t := ir node: (ir resolve: (ir node: p last) a).
+	^t op asInt32 = O_BOTHINT and: [(self isSmallInt: (ir resolve: t a)) and: [self isSmallInt: (ir resolve: t b)]]
+!
+isSmallInt: v
+	"v is a SmallInteger, or a loop unit's parameter it takes for one."
+	^(ir node: v) tkind asInt32 = T_SMI or: [self isFrameInt: v]
+!
+isFrameInt: v
+	"v is a loop unit's parameter, a frame slot that held a SmallInteger when the unit was compiled (and no guard of such a slot failed at the loop's entry before: OptBuilder>>frameInts)."
+	| nd |
+	nd := ir node: v.
+	^ir osrState >= 0 and: [nd op asInt32 = O_PARAM and: [nd aux >= 0 and: [nd aux < 64 and: [(ir osrInts bitAnd: 1 asUInt64 << nd aux) ~= 0]]]]
+!
+guardFrameInt: v
+	"If v is a loop unit's parameter taken for a SmallInteger and not guarded yet: it is one from here on, guarded at the end of the entry block (failing, the loop's head continues in the interpreter, and the loop's units take no slot for a SmallInteger again)."
+	| g |
+	((ir node: v) tkind asInt32 ~= T_SMI and: [self isFrameInt: v]) ifFalse: [^self].
+	g := ir newNode: O_GUARDINT rep: R_OOP.
+	ir full ifTrue: [^self].
+	(ir node: v) tkind: T_SMI.
+	(ir node: g) a: v.
+	(ir node: g) state: ir osrState.
+	(ir node: g) flags: (NF_GUARD bitOr: NF_HOISTED).
+	(ir node: g) tkind: T_SMI.
+	(ir node: g) bcact: (ir state: ir osrState) act.
+	(ir node: g) bcpc: (ir state: ir osrState) pc.
+	ir insert: g before: (ir block: ir osrEntry) last
 !
 typeBooleanPhis
 	"A phi of Booleans (true, false, comparisons, such phis: and:, or:) is a Boolean, to a fixed point from all of them: a branch on it needs no mustBeBoolean check."

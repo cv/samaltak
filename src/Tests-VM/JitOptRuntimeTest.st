@@ -654,6 +654,38 @@ testLoopUnitEnteredWithAFloatOrNot
 	self assert: (o osrA: 0.5 n: 100000) equals: 5000050000.5.
 	self assert: (o osrB: 0.5 n: 100000) equals: 5000050000.5
 !
+testCountersBesideFloatsAreSmallIntegers
+	"A loop's counter beside Float arithmetic (its own arithmetic reported nothing, other arithmetic of the method Floats) is a SmallInteger: its sums and products have no Float case, the Float made of them is converted without a test of what they are. A sum that overflows deoptimizes to the send."
+	| o expected k0 |
+	Smalltalk vm jitParameters: #(nil '-eager' nil nil).
+	self define: 'ramp | s | s := 0.0. 1 to: 1000 do: [:i | s := s + (1.0 / (i * (i + 1) // 2 + i))]. ^s'.
+	self define: 'grow: k0 n: n | s k | s := 0.0. k := k0. 1 to: n do: [:i | s := s + 0.5. k := k + i]. ^k'.
+	o := JitRuntimeTestSubject new.
+	expected := (1 to: 1000) inject: 0.0 into: [:sum :i | sum + (1.0 / (i * (i + 1) // 2 + i))].
+	5 timesRepeat: [self assert: o ramp equals: expected].
+	self assert: ((self listingOf: #ramp) includesSubstring: 'a SmallInteger''s double').
+	self deny: ((self listingOf: #ramp) includesSubstring: 'a BoxedFloat64''s double').
+	k0 := SmallInteger maxVal - 2000000000.
+	3 timesRepeat: [self assert: (o grow: k0 n: 100000) equals: k0 + 5000050000]
+!
+testLoopUnitTakesTheFramesSmallIntegers
+	"A loop's unit takes the frame's slots that held SmallIntegers when it was compiled for SmallIntegers where that leaves its arithmetic no other case, guarded where it is entered: SmallIntegers again pass, a Float fails the guard (the interpreter goes on from the loop's head) and the loop's next unit takes both. The String makes the method's own unit deoptimize before the loop, so the loop's unit is entered."
+	| o before |
+	Smalltalk vm jitParameters: #(nil '-eager' nil nil).
+	self define: 'count: k0 to: n of: x | k s | k := k0 + x size. s := 0.0. [k < n] whileTrue: [s := s + 0.5. k := k + 1]. ^s + k'.
+	o := JitRuntimeTestSubject new.
+	3 timesRepeat: [self assert: (o count: 0 to: 100000 of: #()) equals: 150000.0].
+	before := self statistics.
+	self assert: (o count: 0.5 to: 100000 of: '') equals: 150000.5.
+	self stressed ifFalse: [self assert: (self statistics - before) optDeoptimizations > 0].
+	self assert: (o count: 0 to: 100000 of: #()) equals: 150000.0.
+	self assert: (o count: 0.5 to: 100000 of: #()) equals: 150000.5.
+	self assert: (o count: 1/2 to: 10 of: '') equals: 15.5.
+	before := self statistics.
+	self assert: (o count: 0 to: 100000 of: #()) equals: 150000.0.
+	self assert: (o count: 0.5 to: 100000 of: '') equals: 150000.5.
+	self stressed ifFalse: [self assert: (self statistics - before) optDeoptimizations equals: 0]
+!
 testDeoptimizationStress
 	"--jit-flags deopt: optimized code deoptimizes every so often at its guards and safepoints; the compiler's tests still pass."
 	| run |

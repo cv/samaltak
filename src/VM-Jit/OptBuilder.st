@@ -164,6 +164,7 @@ buildOsr: a
 		self noteClosureIn: i act: a].
 	ir osrEntry: obCurBlock state: (self stateAct: a pc: obOsrPc depth: obValidSlots) numbers: self frameNumbers.
 	ir osrFloats: self frameFloats.
+	ir osrInts: self frameInts.
 	b := self blockAt: obOsrPc act: a.
 	self goto: b.
 	self buildAct: a.
@@ -190,6 +191,15 @@ frameFloats
 	0 to: (obValidSlots min: 64) - 1 do: [:i |
 		v := obFrame fp at: i.
 		(v bitAnd: 7) = 4 ifTrue: [bits := bits bitOr: 1 asUInt64 << i]].
+	^bits
+!
+frameInts
+	"Bit i: the frame's slot i holds a SmallInteger (the first 64) that the unit may take for one, guarded at its entry: none once such a guard failed at this loop."
+	| bits |
+	bits := 0 asUInt64.
+	(obFrame isNull or: [((feedback flagsAt: obRootMethod pc: obOsrPc) bitAnd: feedback deoptHoisted) ~= 0]) ifTrue: [^bits].
+	0 to: (obValidSlots min: 64) - 1 do: [:i |
+		(self isInt: (obFrame fp at: i)) ifTrue: [bits := bits bitOr: 1 asUInt64 << i]].
 	^bits
 !
 markResident: a
