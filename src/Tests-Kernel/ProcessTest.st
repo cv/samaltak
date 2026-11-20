@@ -137,9 +137,9 @@ testTerminateRunsUnwindBlocks
 	sem := Semaphore new.
 	log := OrderedCollection new.
 	p := self fork: [[sem wait. log add: #notReached] ensure: [log add: #ensure]].
-	Processor yield.
+	"one yield is not enough: the timer's Process may preempt p before it waits, and this one runs again first"
+	self assert: (self waitFor: [p isWaiting]).
 	self deny: p isTerminated.
-	self assert: p isWaiting.
 	p terminate.
 	self assert: log asArray = #(#ensure).
 	self assert: p isTerminated.
