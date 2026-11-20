@@ -677,23 +677,34 @@ dominates: x block: y
 	^(psPre at: x) <= (psPre at: y) and: [(psPost at: y) <= (psPost at: x)]
 !
 valueNumbers
-	"Global value numbering over the dominator tree: a deterministic node (arithmetic, comparisons, guards, conversions, constants) with the same operation and operands as one in a dominating position is that one; a field load only within its block with no store or safepoint between."
+	"Global value numbering over the dominator tree: a deterministic node (arithmetic, comparisons, guards, conversions, constants) with the same operation and operands as one in a dominating position is that one; a field load only within its block, or blocks in a line, with no safepoint between, nor a store but into another field (the first 64)."
 	<function>
-	| b n nd h m md mem found |
+	| b n nd h m md mem found stamp fields |
 	0 to: 4095 do: [:i | psHeads at: i put: -1].
-	mem := 0.
+	fields := self local: 'int32_t[64]'.
+	0 to: 63 do: [:i | fields at: i put: 0].
+	stamp := 0.
 	0 to: psOrderCount - 1 do: [:i |
 		b := psOrder at: i.
-		mem := mem + 1.
+		"what the block before left holds on if only it leads here (an inlined method's blocks)"
+		((ir block: b) npreds = 1 and: [i > 0 and: [(ir edge: (ir block: b) preds) from = (psOrder at: i - 1)]]) ifFalse: [
+			stamp := stamp + 1.
+			mem := stamp].
 		n := (ir block: b) first.
 		[n >= 0] whileTrue: [
 			nd := ir node: n.
 			nd a >= 0 ifTrue: [nd a: (ir resolve: nd a)].
 			nd b >= 0 ifTrue: [nd b: (ir resolve: nd b)].
-			(self changesMemory: nd) ifTrue: [mem := mem + 1].
+			(self changesMemory: nd) ifTrue: [
+				stamp := stamp + 1.
+				"a store into a field leaves the other fields (of any object) as they are"
+				(nd op asInt32 = O_STOREFIELD and: [nd aux >= 0 and: [nd aux < 64]])
+					ifTrue: [fields at: nd aux put: stamp]
+					ifFalse: [mem := stamp]].
 			(self isNumbered: nd) ifTrue: [
-				"loads: only since the last store or safepoint"
-				nd op asInt32 = O_LOADFIELD ifTrue: [nd aux2: mem].
+				"loads: only since the last safepoint or store that may have written the field"
+				nd op asInt32 = O_LOADFIELD ifTrue: [
+					nd aux2: ((nd aux >= 0 and: [nd aux < 64 and: [(fields at: nd aux) > mem]]) ifTrue: [fields at: nd aux] ifFalse: [mem])].
 				h := self hashOf: nd.
 				found := -1.
 				m := psHeads at: h.

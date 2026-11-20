@@ -1851,9 +1851,14 @@ static void unbox_states(void)
 static void value_numbers(void)
 {
     int i;
-    int64_t mem;
-    int32_t i_2;
+    int32_t local[64];
+    int32_t *fields;
+    int i_2;
+    int64_t stamp;
+    int32_t i_3;
     int32_t b;
+    int32_t e;
+    int64_t mem;
     int32_t n;
     opt_node *nd;
     bool r_changes_memory;
@@ -1868,10 +1873,20 @@ static void value_numbers(void)
     for (i = 0; i <= 4095; i++) {
         ps_heads[i] = -1;
     }
-    mem = 0;
-    for (i_2 = 0; i_2 <= ps_order_count - 1; i_2++) {
-        b = ps_order[i_2];
-        mem = mem + 1;
+    memset(&local, 0, sizeof local);
+    fields = local;
+    for (i_2 = 0; i_2 <= 63; i_2++) {
+        fields[i_2] = 0;
+    }
+    stamp = 0;
+    for (i_3 = 0; i_3 <= ps_order_count - 1; i_3++) {
+        b = ps_order[i_3];
+        if (!(((opt_blocks + b)->npreds == 1) && ((i_3 > 0) && ({
+    e = (opt_blocks + b)->preds;
+    (opt_edges + e)->from == ps_order[i_3 - 1]; })))) {
+            stamp = stamp + 1;
+            mem = stamp;
+        }
         n = (opt_blocks + b)->first;
         while (n >= 0) {
             nd = opt_nodes + n;
@@ -1885,7 +1900,12 @@ static void value_numbers(void)
     op = (int32_t)nd->op;
     r_changes_memory = (op == O_STOREFIELD) || ((op == O_INDEXSTORE) || ((op == O_OUTERSTORE) || ((op == O_SEND) || ((op == O_CALL) || ((op == O_CHECKINT) || (op == O_MKARRAY))))));
     r_changes_memory; })) {
-                mem = mem + 1;
+                stamp = stamp + 1;
+                if (((int32_t)nd->op == O_STOREFIELD) && ((nd->aux >= 0) && (nd->aux < 64))) {
+                    fields[nd->aux] = stamp;
+                } else {
+                    mem = stamp;
+                }
             }
             if (({
     op_2 = (int32_t)nd->op;
@@ -1897,7 +1917,7 @@ static void value_numbers(void)
 exit_is_numbered:;
     r_is_numbered; })) {
                 if ((int32_t)nd->op == O_LOADFIELD) {
-                    nd->aux2 = mem;
+                    nd->aux2 = (nd->aux >= 0) && ((nd->aux < 64) && (fields[nd->aux] > mem)) ? fields[nd->aux] : mem;
                 }
                 h = (((uint64_t)((((((int64_t)nd->op * 31 + nd->a) * 31 + nd->b) * 31 + nd->aux) * 31 + nd->aux2) * 31 + (int64_t)nd->tcls)) >> 3) & 4095;
                 found = -1;
