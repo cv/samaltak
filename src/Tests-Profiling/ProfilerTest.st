@@ -35,6 +35,14 @@ busyFor: milliseconds
 	t := Time millisecondClockValue.
 	[Time millisecondClockValue - t < milliseconds] whileTrue: [300 factorial]
 !
+busyFor: milliseconds untilSamples: n
+	"Keep this process busy for milliseconds, and on a loaded machine (fewer samples a millisecond) until the running profiler has recorded n CPU samples meanwhile, at most 10 s."
+	| n0 t |
+	n0 := Profiler default cpuSampleCount.
+	t := Time millisecondClockValue.
+	self busyFor: milliseconds.
+	[Profiler default cpuSampleCount - n0 < n and: [Time millisecondClockValue - t < 10000]] whileTrue: [self busyFor: 1]
+!
 fork: aSelector named: aString
 	^workers add: (self fork: [self perform: aSelector] named: aString at: Processor userBackgroundPriority)
 !
@@ -141,13 +149,13 @@ testLabels
 	| t0 profile frames block method |
 	t0 := Time microsecondClockValue.
 	self fork: #floatLoop named: 'floats'.
-	self sleep: 100.
+	self sleep: 100 untilSamples: 50.
 	self stopWorkers.
 	profile := Profiler from: t0 to: Time microsecondClockValue.
 	frames := Set new.
 	profile samples do: [:s | frames addAll: s stack].
 	method := frames detect: [:f | f isBlock not and: [f method == (ProfilerTest >> #floatLoop)]] ifNone: [nil].
-	self assert: method notNil.
+	self assert: method notNil description: ['No frame of floatLoop in ', profile samples size printString, ' samples'].
 	self assert: method label = 'ProfilerTest>>floatLoop'.
 	block := frames detect: [:f | f isBlock and: [f method == (ProfilerTest >> #fork:named:)]] ifNone: [nil].
 	self assert: block notNil.
@@ -175,12 +183,12 @@ testAllocationSamples
 	| t0 p profile allocs sites |
 	t0 := Time microsecondClockValue.
 	p := self fork: #allocateArrays named: 'allocator'.
-	self sleep: 300.
+	self sleep: 300 untilSamples: 100.
 	self stopWorkers.
 	profile := Profiler from: t0 to: Time microsecondClockValue.
 	allocs := profile allocationsFor: p.
 	"Arrays of 1000 slots are 8 KB: hundreds of MB in 300 ms, one sample per MB."
-	self assert: allocs size >= 20.
+	self assert: allocs size >= 20 description: [allocs size printString, ' allocation samples, ', (profile samplesFor: p) size printString, ' CPU samples of the allocator'].
 	self assert: allocs unit = #bytes.
 	self assert: allocs totalWeight = (allocs size * Profiler default allocationInterval).
 	self assert: (allocs count: [:s | s allocatedClass == Array]) * 100 / allocs size >= 90.
@@ -362,11 +370,11 @@ testHistoryFitsInOneMegabyte
 	self withProfiler: fresh do: [
 		self fork: #factorialLoop named: 'factorials'.
 		self fork: #floatLoop named: 'floats'.
-		self sleep: 300.
+		self sleep: 300 untilSamples: 200.
 		self stopWorkers].
 	"The ring holds dataSize / (bytes recorded per second) seconds."
 	seconds := fresh buffer dataSize / (fresh buffer usedBytes / (fresh coverageMicroseconds / 1000000.0)).
-	self assert: seconds >= 10
+	self assert: seconds >= 10 description: [seconds printString, ' s: ', fresh buffer usedBytes printString, ' bytes of ', fresh buffer count printString, ' records in ', fresh coverageMicroseconds printString, ' us']
 !
 testStackPrimitiveMatchesFallback
 	"maxDepth > 255 makes the primitive fail, so the Smalltalk fallback runs; both must agree."
@@ -436,7 +444,7 @@ testTreesConsistent
 	t0 := Time microsecondClockValue.
 	self fork: #factorialLoop named: 'factorials'.
 	self fork: #allocateArrays named: 'allocator'.
-	self sleep: 200.
+	self sleep: 200 untilSamples: 100.
 	self stopWorkers.
 	profile := Profiler from: t0 to: Time microsecondClockValue.
 	root := profile tallyTree.
@@ -461,11 +469,11 @@ testRangeFiltering
 	| t0 mid t1 profile early late a b both |
 	t0 := Time microsecondClockValue.
 	a := self fork: #factorialLoop named: 'first'.
-	self sleep: 150.
+	self sleep: 150 untilSamples: 50.
 	self stopWorkers.
 	mid := Time microsecondClockValue.
 	b := self fork: #floatLoop named: 'second'.
-	self sleep: 150.
+	self sleep: 150 untilSamples: 50.
 	self stopWorkers.
 	t1 := Time microsecondClockValue.
 	profile := Profiler from: t0 to: t1.
@@ -474,8 +482,10 @@ testRangeFiltering
 	self assert: early samples size + late samples size = profile samples size.
 	self assert: (early samples allSatisfy: [:s | s time <= mid]).
 	self assert: (late samples allSatisfy: [:s | s time > mid]).
-	self assert: (early samplesFor: a) size * 100 / early samples size >= 85.
-	self assert: (late samplesFor: b) size * 100 / late samples size >= 85.
+	self assert: early samples size >= 50 description: [early samples size printString, ' samples before mid'].
+	self assert: late samples size >= 50 description: [late samples size printString, ' samples after mid'].
+	self assert: (early samplesFor: a) size * 100 / early samples size >= 85 description: [(early samplesFor: a) size printString, ' of ', early samples size printString, ' samples before mid are the first worker''s'].
+	self assert: (late samplesFor: b) size * 100 / late samples size >= 85 description: [(late samplesFor: b) size printString, ' of ', late samples size printString, ' samples after mid are the second worker''s'].
 	self assert: (early samplesFor: b) isEmpty.
 	both := profile for: a.
 	self assert: both process == a.
@@ -490,10 +500,10 @@ testFramesAndMarks
 	profiler := Profiler default.
 	first := profiler allFrames size.
 	mark := Profiler mark: 'before frames'.
-	self assert: mark printString = 'a ProfileMark(''before frames'')'.
+	self assert: mark printString equals: 'a ProfileMark(''before frames'')'.
 	records := (1 to: 5) collect: [:i | | start end |
 		start := Time microsecondClockValue.
-		self busyFor: i * 3.
+		self busyFor: i * 3 untilSamples: 1.
 		end := Time microsecondClockValue.
 		"The active process's cpuTime only advances at process switches, so use the wall time it ran."
 		Profiler recordFrame: (FrameRecord
@@ -501,27 +511,27 @@ testFramesAndMarks
 			processTimes: (IdentityDictionary new at: Processor activeProcess put: end - start; yourself)
 			draw: 100 raster: 200 gpu: 300 gcCount: 0 gcMicros: 0
 			dropped: end - start > FrameRecord budgetMicros)].
-	self assert: (records collect: [:r | r number]) asArray = ((1 to: 5) collect: [:i | records first number + i - 1]) asArray.
-	self assert: (records first marks includes: mark).
-	self assert: (records last marks includes: mark) not.
-	self assert: (records allSatisfy: [:r | r duration > 0 and: [r processTotal <= r duration]]).
+	self assert: (records collect: [:r | r number]) asArray equals: ((1 to: 5) collect: [:i | records first number + i - 1]) asArray.
+	self assert: (records first marks includes: mark) description: ['The first frame, ', records first printString, ', has the marks ', records first marks printString, ', not ', mark printString, ' of ', mark time printString].
+	self deny: (records last marks includes: mark) description: ['The last frame has the marks ', records last marks printString].
+	self assert: (records allSatisfy: [:r | r duration > 0 and: [r processTotal <= r duration]]) description: ['Durations ', (records collect: [:r | r duration]) printString, ', of the processes ', (records collect: [:r | r processTotal]) printString].
 	self assert: (records last timeFor: Processor activeProcess) > 0.
 	profile := Profiler from: records second start to: records fourth end.
-	self assert: (profile frames collect: [:f | f number]) asArray = ((records copyFrom: 2 to: 4) collect: [:f | f number]) asArray.
+	self assert: (profile frames collect: [:f | f number]) asArray equals: ((records copyFrom: 2 to: 4) collect: [:f | f number]) asArray.
 	worst := Profiler last frames detectMax: [:f | f duration].
-	self assert: worst duration >= records last duration.
-	self assert: (Profiler last marks includes: mark).
+	self assert: worst duration >= records last duration description: ['The longest frame took ', worst duration printString, ' us, the last one ', records last duration printString].
+	self assert: (Profiler last marks includes: mark) description: [mark printString, ' is not among ', Profiler last marks size printString, ' marks'].
 	frame := records third.
 	self assert: ((profile frame: frame) samples allSatisfy: [:s | frame includesTime: s time]).
-	self assert: ((profile frame: frame) samples) notEmpty.
-	self assert: (frame printString beginsWith: 'a FrameRecord(#').
-	self assert: profiler allFrames size >= (first + 5 min: 1024)
+	self assert: (profile frame: frame) samples notEmpty description: ['No sample in ', frame printString, ' from ', frame start printString, ' to ', frame end printString, '; the profile has ', profile samples size printString, ' from ', profile start printString, ' to ', profile stop printString].
+	self assert: (frame printString beginsWith: 'a FrameRecord(#') description: [frame printString].
+	self assert: profiler allFrames size >= (first + 5 min: 1024) description: [profiler allFrames size printString, ' frames, ', first printString, ' before']
 !
 testTallyReport
 	| t0 text p |
 	t0 := Time microsecondClockValue.
 	p := self fork: #factorialLoop named: 'factorials'.
-	self sleep: 150.
+	self sleep: 150 untilSamples: 50.
 	self stopWorkers.
 	text := (Profiler from: t0 to: Time microsecondClockValue) tallyString.
 	#('tallies' '**Tree**' '**Leaves**' '**Memory**' '**GCs**' 'Process: (30) ' ': factorials' 'ProfilerTest>>factorialLoop' 'scavenges')
