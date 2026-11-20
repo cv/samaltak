@@ -1,6 +1,6 @@
 VMCoreModule subclass: #UefiModule
 	instanceVariableNames: 'firmware'
-	classVariableNames: 'EFI_ALLOCATE_ANY_PAGES EFI_EVT_NOTIFY_SIGNAL EFI_EVT_TIMER EFI_FILE_MODE_CREATE EFI_FILE_MODE_READ EFI_FILE_MODE_WRITE EFI_LOADER_CODE EFI_LOADER_DATA EFI_MEMORY_RO EFI_MEMORY_WB EFI_MEMORY_XP EFI_RESET_SHUTDOWN EFI_TIMER_CANCEL EFI_TIMER_PERIODIC EFI_TIMER_RELATIVE EFI_TPL_CALLBACK STACK_BYTES'
+	classVariableNames: 'EFI_ALLOCATE_ANY_PAGES EFI_EVT_NOTIFY_SIGNAL EFI_EVT_TIMER EFI_FILE_MODE_CREATE EFI_FILE_MODE_READ EFI_FILE_MODE_WRITE EFI_LOADER_CODE EFI_LOADER_DATA EFI_MEMORY_RO EFI_MEMORY_WB EFI_MEMORY_XP EFI_NO_MAPPING EFI_RESET_SHUTDOWN EFI_TIMER_CANCEL EFI_TIMER_PERIODIC EFI_TIMER_RELATIVE EFI_TPL_CALLBACK STACK_BYTES'
 	package: 'VM-UEFI'!
 
 UefiModule comment: 'I am the abstract class of the modules of the VM on UEFI (VMTranslator generateVMInto:os:arch: with #uefi): a VM that is the firmware''s application, with no operating system and no C library under it. The firmware''s services are tables of function pointers (EfiSystemTable, EfiBootServices, ...) that take the Microsoft calling convention on x86-64 and the standard one on AArch64, where ms_abi changes nothing (EfiFn0 ... EfiFn6: every argument a 64-bit word); efi: fn with: ... calls one.
@@ -46,6 +46,7 @@ initialize
 	EFI_MEMORY_XP := 16r4000.
 	EFI_MEMORY_RO := 16r20000.
 	EFI_RESET_SHUTDOWN := 2.
+	EFI_NO_MAPPING := 16r8000000000000011.
 	STACK_BYTES := 8 * 1024 * 1024
 ! !
 

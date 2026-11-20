@@ -1,5 +1,5 @@
 PlatformInterface subclass: #UefiPlatform
-	instanceVariableNames: 'events windows vsync gpu input virtio initDone'
+	instanceVariableNames: 'events windows vsync gpu input virtio sockets initDone'
 	classVariableNames: ''
 	package: 'VM-UEFI'!
 
@@ -7,7 +7,7 @@ UefiPlatform comment: 'The platform on UEFI (in place of SDLPlatform and Headles
 
 !UefiPlatform class methodsFor: 'declaring'!
 declarations
-	^#((events UefiEvents) (windows UefiWindows) (vsync UefiVsync) (gpu PlatformGPU) (input UefiInput) (virtio UefiVirtioInput) (initDone bool))
+	^#((events UefiEvents) (windows UefiWindows) (vsync UefiVsync) (gpu PlatformGPU) (input UefiInput) (virtio UefiVirtioInput) (sockets UefiSockets) (initDone bool))
 !
 targetOS
 	^#uefi
@@ -27,24 +27,30 @@ init
 !
 poll
 	<export>
-	(windows videoInited and: [events sinceLastPumpNs >= 1000000]) ifTrue: [events pump].
+	(initDone and: [windows videoInited and: [events sinceLastPumpNs >= 1000000]]) ifTrue: [events pump].
+	sockets anyArmed ifTrue: [sockets poll: 0].
 	events signalReady
 !
 wait: timeoutUs
+	"Headless (no init) too: then a timer is all there is to wait for, but sockets."
 	<export>
-	| us |
-	initDone ifFalse: [
-		timeoutUs < 0 ifTrue: [self fatal: 'deadlock: no runnable process and no pending timer'].
-		posix usleep: (timeoutUs > 1000000 ifTrue: [1000000] ifFalse: [timeoutUs]) asUInt32.
-		^self].
-	events pump.
-	(events pending or: [vsync pending]) ifFalse: [
-		us := vsync microsecondsToNext.
-		(timeoutUs >= 0 and: [timeoutUs < us or: [us < 0]]) ifTrue: [us := timeoutUs].
-		"a virtio device signals nothing the firmware waits for: poll it every 10 ms"
-		(virtio isPresent and: [us < 0 or: [us > 10000]]) ifTrue: [us := 10000].
-		input wait: us.
-		events pump].
+	| us next |
+	us := timeoutUs.
+	initDone ifTrue: [
+		events pump.
+		(events pending or: [vsync pending]) ifTrue: [us := 0].
+		next := vsync microsecondsToNext.
+		(next >= 0 and: [us < 0 or: [next < us]]) ifTrue: [us := next]].
+	"sockets and a virtio device signal nothing the firmware waits for: poll them every 10 ms"
+	((sockets anyArmed or: [virtio isPresent]) and: [us < 0 or: [us > 10000]]) ifTrue: [us := 10000].
+	us ~= 0 ifTrue: [
+		initDone
+			ifTrue: [input wait: us]
+			ifFalse: [
+				us < 0 ifTrue: [self fatal: 'deadlock: no runnable process and no pending timer'].
+				posix usleep: (us > 1000000 ifTrue: [1000000] ifFalse: [us]) asUInt32]].
+	initDone ifTrue: [events pump].
+	sockets anyArmed ifTrue: [sockets poll: 0].
 	events signalReady
 !
 shutdown
@@ -92,7 +98,7 @@ open: w height: h title: title flags: flags
 		^0].
 	open ifFalse: [
 		open := true.
-		scheduler requestPeriodicPoll: PF_POLL_US].
+		events updatePollInterval].
 	^1
 !
 isWindow: win
@@ -320,8 +326,9 @@ signalReady
 		scheduler signalExternalSemaphore: inputSem]
 !
 updatePollInterval
-	"Sockets do not exist here; the window asks for polls when it opens."
+	"After the window opens or socket semaphores change: polls every PF_POLL_US while either wants them."
 	<function>
+	scheduler requestPeriodicPoll: ((windows videoInited or: [sockets anyArmed]) ifTrue: [PF_POLL_US] ifFalse: [0])
 !
 sinceLastPumpNs
 	<function>

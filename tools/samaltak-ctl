@@ -12,6 +12,7 @@ const os = require('os');
 const ROOT = path.resolve(__dirname, '..');
 const USAGE = `usage: samaltak-ctl [--session name] <command> [args]
   open [--headless] [--hidden] [--work-clock] [--image path] [--port n] [--window-size WxH] [--source-dir d]   start an image with --control (--work-clock: on the recording clock from the start)
+  open --uefi [--headless] [--port n] [--window-size WxH]   the VM on UEFI in QEMU (make uefi-control), its control port forwarded to n
   snapshot [ref] [--depth n] [--bounds]    widget tree with stable @refs
   find <text>                              refs whose label/ref contains text
   click <ref|x,y> [--right] [--mods Shift+Meta]
@@ -44,7 +45,7 @@ for (let i = 0; i < argv.length; i++) {
   const a = argv[i];
   if (a === '--session') session = argv[++i];
   else if (/^--(depth|mods|timeout|image|port|scale|size|fps|window-size|settle|delay|source-dir|at)$/.test(a)) flags[a.slice(2)] = argv[++i];
-  else if (/^--(headless|hidden|work-clock|raw|headed|bounds|right|end|start|replace|json|pointer|preedit)$/.test(a)) flags[a.slice(2)] = true;
+  else if (/^--(headless|hidden|work-clock|raw|headed|bounds|right|end|start|replace|json|pointer|preedit|uefi)$/.test(a)) flags[a.slice(2)] = true;
   else if (a === '-h' || a === '--help') { console.log(USAGE); process.exit(0); }
   else pos.push(a);
 }
@@ -136,6 +137,7 @@ async function open() {
     catch (_) { /* stale: start a new one */ }
   }
   fs.mkdirSync(DIR, { recursive: true });
+  if (flags.uefi) return openUefi();
   const vm = path.join(ROOT, 'vm/build/samaltak');
   const image = path.resolve(flags.image || path.join(ROOT, 'build/samaltak.image'));
   if (!fs.existsSync(vm)) die(`no VM at ${vm} (run: make vm)`);
@@ -172,13 +174,51 @@ async function open() {
   }
 }
 
+// The VM on UEFI: make uefi-control boots it in QEMU (building it first if needed), its control service on 0.0.0.0 in
+// the guest, forwarded from the host's 127.0.0.1:port. The session's pid is make's, the leader of the process group.
+async function openUefi() {
+  const logFile = path.join(DIR, `${session}.log`);
+  const port = flags.port || process.env.SAMALTAK_CONTROL_PORT || await freePort();
+  const vmArgs = [];
+  if (flags.headless) vmArgs.push('--headless');
+  if (flags['window-size']) vmArgs.push('--window-size', flags['window-size']);
+  const log = fs.openSync(logFile, 'w');
+  const child = spawn('make', ['-s', 'uefi-control', `UEFI_CONTROL_PORT=${port}`, `UEFI_CONTROL_ARGS=${vmArgs.join(' ')}`],
+    { cwd: ROOT, detached: true, stdio: ['ignore', log, log] });
+  child.unref();
+  let exited = null;
+  child.on('exit', (code, sig) => { exited = sig || code; });
+  const t0 = Date.now();
+  for (;;) {
+    try {
+      await request(+port, { cmd: 'ping' }, 2000);
+      fs.writeFileSync(SESSION_FILE, JSON.stringify({ pid: child.pid, group: true, port: +port, uefi: true, log: logFile, started: new Date().toISOString() }, null, 2));
+      console.log(`opened the VM on UEFI (session ${session}, pid ${child.pid}, port ${port})`);
+      return;
+    } catch (_) { /* QEMU forwards the port before the image listens */ }
+    if (exited !== null) die(`make uefi-control exited (${exited}) before the image listened; log ${logFile}:\n${fs.readFileSync(logFile, 'utf8').slice(-2000)}`);
+    if (Date.now() - t0 > 900000) { killGroup(child.pid); die(`the image did not start listening within 15 min; log ${logFile}`); }
+    await sleep(1000);
+  }
+}
+
+function freePort() {
+  return new Promise((resolve, reject) => {
+    const srv = net.createServer();
+    srv.on('error', reject);
+    srv.listen(0, '127.0.0.1', () => { const p = srv.address().port; srv.close(() => resolve(p)); });
+  });
+}
+
+function killGroup(pid) { try { process.kill(-pid, 'SIGKILL'); } catch (_) { try { process.kill(pid, 'SIGKILL'); } catch (_) {} } }
+
 async function close() {
   const s = readSession();
   if (!s) die(`no Samaltak in session ${session}`);
   try { await request(s.port, { cmd: 'quit' }, 5000); } catch (_) { /* already gone, or hung: killed below */ }
   const t0 = Date.now();
   while (alive(s.pid) && Date.now() - t0 < 5000) await sleep(50);
-  if (alive(s.pid)) { try { process.kill(s.pid, 'SIGKILL'); } catch (_) {} }
+  if (alive(s.pid)) { if (s.group) killGroup(s.pid); else { try { process.kill(s.pid, 'SIGKILL'); } catch (_) {} } }
   fs.rmSync(SESSION_FILE, { force: true });
   console.log(`closed session ${session}`);
 }
@@ -330,7 +370,10 @@ async function main() {
       if (args.length > 1) o.target = args[0];
       if (flags.scale) o.scale = +flags.scale;
       if (flags.pointer) o.pointer = true;
-      await call(o);
+      // An image on UEFI cannot write this machine's files: it answers the PNG.
+      if (readSession()?.uefi) o.inline = true;
+      const r = await call(o);
+      if (r.png) fs.writeFileSync(file, Buffer.from(r.png, 'base64'));
       return print(file);
     }
     case 'record': return record();

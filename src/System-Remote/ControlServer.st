@@ -5,7 +5,7 @@ Object subclass: #ControlServer
 
 ControlServer comment: 'I am the remote-control service: a TCP server on 127.0.0.1 speaking JSON lines. Each request is one JSON object on one line, {"id": 1, "cmd": "eval", "source": "3 + 4"}; each response is one line, {"id": 1, "ok": true, "printString": "7", ...} or {"id": 1, "ok": false, "error": "...", "code": 2}. Commands are RemoteControl''s.
 
-I start when the image is started with --control (from the startup list): port from --control-port N, else $SAMALTAK_CONTROL_PORT, else 7341 (0 picks a free one); --control-port-file path receives the port number. The listening socket and every client socket (ControlConnection) signal one Semaphore when they become readable. Without a UI my own Process, ''remote control'' (priority 50), waits on it; with one, remote control is an input device: hostOn: makes the sockets signal the input dispatcher''s Semaphore and the dispatcher calls service when it wakes, so no Process of mine exists. Each request runs in a transient Process (''remote request'') while it is handled. My Processes do not count as busy for wait idle. If no UI set a main action, the image keeps running until a quit command.'!
+I start when the image is started with --control (from the startup list): port from --control-port N, else $SAMALTAK_CONTROL_PORT, else 7341 (0 picks a free one); address from --control-host, else 127.0.0.1; --control-port-file path receives the port number. The listening socket and every client socket (ControlConnection) signal one Semaphore when they become readable. Without a UI my own Process, ''remote control'' (priority 50), waits on it; with one, remote control is an input device: hostOn: makes the sockets signal the input dispatcher''s Semaphore and the dispatcher calls service when it wakes, so no Process of mine exists. Each request runs in a transient Process (''remote request'') while it is handled. My Processes do not count as busy for wait idle. If no UI set a main action, the image keeps running until a quit command.'!
 
 !ControlServer methodsFor: 'starting and stopping'!
 startOn: aPort
@@ -13,7 +13,7 @@ startOn: aPort
 	connections := OrderedCollection new.
 	ready := ownReady := Semaphore new.
 	readyIndex := ownIndex := Smalltalk vm registerExternalSemaphore: ready.
-	socket := RemoteSocket listenOn: aPort host: '127.0.0.1' backlog: 16 readSemaphore: ready index: readyIndex.
+	socket := RemoteSocket listenOn: aPort host: self class configuredHost backlog: 16 readSemaphore: ready index: readyIndex.
 	port := socket localPort.
 	self startProcess
 !
@@ -149,8 +149,12 @@ startFromCommandLine
 		HoldClock := true].
 	file := Smalltalk argumentAfter: '--control-port-file'.
 	file isNil ifFalse: [server writePortTo: file].
-	Smalltalk vm stdoutWrite: 'control: listening on 127.0.0.1:', server port printString, (String with: Character lf).
+	Smalltalk vm stdoutWrite: 'control: listening on ', self configuredHost, ':', server port printString, (String with: Character lf).
 	self keepImageRunning
+!
+configuredHost
+	"--control-host address, else 127.0.0.1. 0.0.0.0 lets everyone on the network evaluate Smalltalk: for a VM with no loopback (UEFI) reached through a forwarded port."
+	^(Smalltalk argumentAfter: '--control-host') ifNil: ['127.0.0.1']
 !
 configuredPort
 	| value |

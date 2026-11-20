@@ -83,8 +83,12 @@ test-tools: image
 # so a snapshot stays. uefi-run boots them in QEMU with its UEFI
 # firmware, on this machine's CPU if it is UEFI_ARCH (KVM, or Hypervisor.framework on macOS), and fails unless the VM
 # exits 0; UEFI_ARGS are its arguments after the image (disk:). uefi-ui boots the World in a QEMU window (USB keyboard,
-# virtio tablet; the console on stdio). test-uefi runs the tests there that need no platform layer (no files, processes
-# or ptys from Smalltalk), opens the World on the firmware's screen, snapshots and resumes.
+# virtio tablet; the console on stdio). uefi-control boots it without a window, its control service (--control on
+# 0.0.0.0 in the guest) forwarded from 127.0.0.1:UEFI_CONTROL_PORT, UEFI_CONTROL_ARGS after it (samaltak-ctl open --uefi).
+# The guest's network is QEMU's user network (NAT, DHCP, DNS). test-uefi runs the tests there that need no platform layer (no files, processes
+# or ptys from Smalltalk), opens the World on the firmware's screen, drives the VM with samaltak-ctl and has it connect to
+# itself through the host (10.0.2.2: QEMU's host), snapshots and resumes.
+comma := ,
 UEFI_HOST_ARCH := $(if $(filter x86_64 amd64,$(shell uname -m)),x86_64,arm64)
 UEFI_ARCH ?= $(UEFI_HOST_ARCH)
 UEFI := $(OUT)/uefi-$(UEFI_ARCH)
@@ -110,7 +114,8 @@ OVMF_CODE ?= $(firstword $(wildcard /usr/share/OVMF/OVMF_CODE_4M.fd /usr/share/O
 OVMF_VARS ?= $(firstword $(wildcard /usr/share/OVMF/OVMF_VARS_4M.fd /usr/share/OVMF/OVMF_VARS.fd /opt/homebrew/share/qemu/edk2-i386-vars.fd /usr/share/qemu/edk2-i386-vars.fd))
 QEMU_UEFI_MACHINE := qemu-system-x86_64 -machine q35 $(UEFI_ACCEL)
 endif
-QEMU_UEFI = $(QEMU_UEFI_MACHINE) -m 2048 -net none -no-reboot \
+QEMU_UEFI = $(QEMU_UEFI_MACHINE) -m 2048 -no-reboot \
+	-netdev user,id=net0$(if $(UEFI_CONTROL_PORT),$(comma)hostfwd=tcp:127.0.0.1:$(UEFI_CONTROL_PORT)-:7341) -device virtio-net-pci,netdev=net0,romfile= \
 	-drive if=pflash,format=raw,readonly=on,file=$(OVMF_CODE) -drive if=pflash,format=raw,file=$(UEFI)/vars.fd \
 	-drive format=raw,file=fat:rw:$(UEFI)/esp -drive format=raw,file=$(UEFI)/image.disk
 uefi: fresh-image
@@ -135,17 +140,26 @@ uefi-ui: uefi
 	printf '%s\n' --max-heap $(UEFI_HEAP_MB) disk: --window-size $(UEFI_SCREEN) > $(UEFI)/esp/samaltak.args
 	cp $(OVMF_VARS) $(UEFI)/vars.fd
 	$(UEFI_WINDOW) $(QEMU_UEFI) $(UEFI_DISPLAY) $(if $(filter x86_64,$(UEFI_ARCH)),-vga std) -device qemu-xhci -device usb-kbd -device virtio-tablet-pci -serial stdio
+uefi-control: uefi
+	printf '%s\n' --max-heap $(UEFI_HEAP_MB) disk: --control --control-host 0.0.0.0 --control-port 7341 $(UEFI_CONTROL_ARGS) > $(UEFI)/esp/samaltak.args
+	cp $(OVMF_VARS) $(UEFI)/vars.fd
+	$(QEMU_UEFI) -display none $(if $(filter x86_64,$(UEFI_ARCH)),-vga std) -device qemu-xhci -device usb-kbd -device virtio-tablet-pci -serial stdio
 UEFI_TESTS := CompilerTest ParserTest ScannerTest ClassTest CollectionTest ContextTest ExceptionTest FloatTest FractionTest \
 	HashingTest ImmutabilityTest IntegerTest LazyContextTest MarriedContextTest MessageNotUnderstoodTest ObjectTest ProcessTest \
 	StackOverflowTest StreamTest StringSearchTest StringTest SymbolTest SystemChangesTest SystemTest UnicodeTest WorkClockTest \
 	Amd64DisassemblerTest Arm64DisassemblerTest ByteSearchTest
 UEFI_WORLD := | w | w := UIWindows startUp. Smalltalk vm stderrWrite: 'world ', w extent printString, ' ', Renderer default device isSoftware printString, (String with: Character lf)
+UEFI_NET := | s buf n | s := RemoteSocket connectTo: '10.0.2.2' port: $$P timeout: 20000. s sendAll: '{\"cmd\": \"ping\"}', (String with: Character lf). buf := ByteArray new: 200. n := s receiveInto: buf timeout: 20000. s close. (buf copyFrom: 1 to: n) asString
 UEFI_SNAPSHOT := Smalltalk at: 'UefiMark' asSymbol put: 42. (Smalltalk snapshot: Smalltalk vm imagePath) ifTrue: ['resumed ', (Smalltalk at: 'UefiMark' asSymbol) printString] ifFalse: ['saved']
 test-uefi:
 	rm -f $(UEFI)/image.disk
 	$(MAKE) uefi-run UEFI_ARGS='--headless --test $(UEFI_TESTS)'
 	$(MAKE) uefi-boot UEFI_ARGS="--eval \"$(UEFI_WORLD)\""
 	grep -qE "^world [0-9]+@[0-9]+ true" $(UEFI)/console.log
+	OUT=$(OUT) tools/samaltak-ctl --session uefi-test open --uefi --headless
+	P=$$(sed -n 's/.*"port": \([0-9]*\).*/\1/p' $${TMPDIR:-/tmp}/samaltak-ctl/uefi-test.json); \
+	tools/samaltak-ctl --session uefi-test eval "$(UEFI_NET)" > $(UEFI)/net.log; ok=$$?; \
+	tools/samaltak-ctl --session uefi-test close; cat $(UEFI)/net.log; [ $$ok = 0 ] && grep -q pong $(UEFI)/net.log
 	$(MAKE) uefi-boot UEFI_ARGS="--headless --eval \"$(UEFI_SNAPSHOT)\""
 	grep -q "'saved'" $(UEFI)/console.log
 	$(MAKE) uefi-boot UEFI_ARGS=--headless
@@ -188,4 +202,4 @@ clean:
 	$(MAKE) -C vm clean
 	rm -rf build
 
-.PHONY: all vm seed image fresh-image run translate uefi uefi-run uefi-boot uefi-ui test-uefi test-vm test-jit test-jit-none test-jit-baseline test-jit-opt test-jit-deopt test-jit-cache test-core test-tools test video mindblown-video jit-video clean
+.PHONY: all vm seed image fresh-image run translate uefi uefi-run uefi-boot uefi-ui uefi-control test-uefi test-vm test-jit test-jit-none test-jit-baseline test-jit-opt test-jit-deopt test-jit-cache test-core test-tools test video mindblown-video jit-video clean

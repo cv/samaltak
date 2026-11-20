@@ -82,12 +82,13 @@ windowOf: aNode
 
 !UIRemote class methodsFor: 'commands'!
 screenshot: aRequest
-	"Write a PNG; answer its path and pixel size."
-	| world path scale target node widget form rect |
+	"Write a PNG; answer its path and pixel size. With inline, answer the PNG instead, in base64 (png): for an image that cannot write the client's files (on UEFI)."
+	| world path scale target node widget form rect inline |
 	world := World current.
 	world isNil ifTrue: [^RemoteError signal: 'screenshot: no World is running'].
 	path := aRequest stringAt: 'path'.
-	path isNil ifTrue: [^RemoteError signal: 'screenshot: missing path'].
+	inline := aRequest booleanAt: 'inline'.
+	(path isNil and: [inline not]) ifTrue: [^RemoteError signal: 'screenshot: missing path'].
 	scale := aRequest numberAt: 'scale' ifAbsent: [world displayScale].
 	(aRequest booleanAt: 'now') ifFalse: [world waitUntilSettled: 1000].
 	target := aRequest at: 'target'.
@@ -102,6 +103,12 @@ screenshot: aRequest
 				ifFalse: [
 					rect := node bounds ifNil: [^RemoteError signal: node atRef, ' has no bounds'].
 					world compositor sync: [:c | c screenshotRect: rect scale: scale]]].
+	inline ifTrue: [
+		^Dictionary new
+			at: 'png' put: (Base64 encode: (PNGWriter bytesForForm: form));
+			at: 'w' put: form width;
+			at: 'h' put: form height;
+			yourself].
 	PNGWriter write: form to: path.
 	^Dictionary new
 		at: 'path' put: path;
