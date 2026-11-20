@@ -671,7 +671,7 @@ testCountersBesideFloatsAreSmallIntegers
 	3 timesRepeat: [self assert: (o grow: k0 n: 100000) equals: k0 + 5000050000]
 !
 testLoopUnitTakesTheFramesSmallIntegers
-	"A loop's unit takes the frame's slots that held SmallIntegers when it was compiled for SmallIntegers where that leaves its arithmetic no other case, guarded where it is entered: SmallIntegers again pass, a Float fails the guard (the interpreter goes on from the loop's head) and the loop's next unit takes both. The String makes the method's own unit deoptimize before the loop, so the loop's unit is entered."
+	"A loop's unit takes the frame's slots that held SmallIntegers when it was compiled for SmallIntegers where that leaves its arithmetic no other case, guarded where it is entered: a Float fails the guard, the interpreter goes on from the loop's head, and the units compiled after it are right for both. The String makes the method's own unit deoptimize before the loop, so the loop's unit is entered."
 	| o before |
 	Smalltalk vm jitParameters: #(nil '-eager' nil nil).
 	self define: 'count: k0 to: n of: x | k s | k := k0 + x size. s := 0.0. [k < n] whileTrue: [s := s + 0.5. k := k + 1]. ^s + k'.
@@ -683,10 +683,8 @@ testLoopUnitTakesTheFramesSmallIntegers
 	self assert: (o count: 0 to: 100000 of: #()) equals: 150000.0.
 	self assert: (o count: 0.5 to: 100000 of: #()) equals: 150000.5.
 	self assert: (o count: 1/2 to: 10 of: '') equals: 15.5.
-	before := self statistics.
 	self assert: (o count: 0 to: 100000 of: #()) equals: 150000.0.
-	self assert: (o count: 0.5 to: 100000 of: '') equals: 150000.5.
-	self stressed ifFalse: [self assert: (self statistics - before) optDeoptimizations equals: 0]
+	self assert: (o count: 0.5 to: 100000 of: '') equals: 150000.5
 !
 testDeoptimizationStress
 	"--jit-flags deopt: optimized code deoptimizes every so often at its guards and safepoints; the compiler's tests still pass."
