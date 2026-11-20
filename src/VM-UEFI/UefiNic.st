@@ -7,7 +7,7 @@ UefiSnp comment: 'The raw network interface on UEFI (in place of PlatformNic), t
 
 !UefiSnp class methodsFor: 'declaring'!
 declarations
-	^#((common PlatformCommon) (events UefiEvents) (snp 'EfiSimpleNetwork *') (mac 'uint8_t[6]') (txBuffers 'uint8_t *') (txBusy 'bool[64]') (started bool)
+	^#((common PlatformCommon) (events PlatformEvents) (snp 'EfiSimpleNetwork *') (mac 'uint8_t[6]') (txBuffers 'uint8_t *') (txBusy 'bool[64]') (started bool)
 		(queue 'uint8_t *') (queueLengths 'int32_t[256]') (queueHead int32_t) (queueCount int32_t) (sem int32_t) (armed bool)
 		(lastActiveNs int64_t) (received int64_t) (sent int64_t) (failed int64_t))
 !

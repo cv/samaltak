@@ -3,7 +3,7 @@ Object subclass: #GPUDevice
 	classVariableNames: 'Default Session'
 	package: 'Graphics-GPU'!
 
-GPUDevice comment: 'I am a GPU device (SDL_GPU on Metal or Vulkan) and the factory for every other GPU object. "GPUDevice default" is created lazily. Platform handles die with the VM process: on image startup a new session begins, and I and every object I created re-create our handles from the parameters we keep, on first use. Textures lose their contents then; their owners notice through GPUTexture>>generation.'!
+GPUDevice comment: 'I am a GPU device (SDL_GPU on Metal or Vulkan, or a SoftwareGPU on UEFI) and the factory for every other GPU object. "GPUDevice default" is created lazily. Platform handles die with the VM process: on image startup a new session begins, and I and every object I created re-create our handles from the parameters we keep, on first use. Textures lose their contents then; their owners notice through GPUTexture>>generation.'!
 
 !GPUDevice methodsFor: 'initialization'!
 setDebug: aBoolean
@@ -21,11 +21,11 @@ handle
 	^handle
 !
 isSoftware
-	"Whether the CPU renders (UEFI): every frame costs the CPU the VM runs on."
+	"Whether the CPU renders (SoftwareGPU, on UEFI): every frame costs the CPU the VM runs on."
 	^self shaderLanguage == #software
 !
 shaderLanguage
-	"#msl (Metal, macOS), #glsl (Vulkan, Linux: GLSL 450 compiled to SPIR-V with SAMALTAK_VERTEX or SAMALTAK_FRAGMENT defined, so that one source can hold both stages; the entry point is main) or #software (UEFI: the CPU runs the Renderer's shader, and no other). Shader sources are in this language."
+	"#msl (Metal, macOS), #glsl (Vulkan, Linux: GLSL 450 compiled to SPIR-V with SAMALTAK_VERTEX or SAMALTAK_FRAGMENT defined, so that one source can hold both stages; the entry point is main) or #software (SoftwareGPU: the CPU runs the Renderer's shader, and no other). Shader sources are in this language."
 	| h |
 	h := self handle.
 	language isNil ifTrue: [language := (GPUPlatform shaderLanguage: h) asSymbol].
@@ -113,6 +113,8 @@ initialize
 	Smalltalk addToStartUpList: self
 !
 startUp: resuming
-	"Handles of the previous VM process are gone: begin a new session."
-	resuming ifTrue: [Session := Object new]
+	"Handles of the previous VM process are gone: begin a new session, on the backends of this machine."
+	resuming ifTrue: [
+		Session := Object new.
+		GPUPlatform reset]
 ! !

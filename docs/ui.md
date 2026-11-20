@@ -11,7 +11,7 @@ Tools (5) never name `Window`, `World` or `UIWindows`: UI-Widgets' `Desktop` for
 
 ## Graphics-GPU (layer 1)
 
-Thin, WebGPU-shaped objects over the `gpu*` primitives, each holding a platform handle and releasing it when asked: `GPUDevice` (factory for everything below; `GPUDevice default`), `GPUShader`, `GPUPipeline`, `GPUTexture` (width, height, format), `GPUSampler`, `GPUBuffer`, `GPUCommandBuffer` (`beginPassOn:clear:` → `GPURenderPass`, `blit:to:`, `submit` → `GPUFence`), `GPURenderPass` (`pipeline:`, `vertexBuffer:`, `texture:sampler:slot:`, `uniforms:`, `scissor:`, `viewport:`, `draw:from:`, `end`), `GPUFence` (`wait`, `isDone`), `GPUSwapchain` (per window). Handles die with the process; on image startup every GPU object is re-created lazily (they hold their creation parameters).
+Thin, WebGPU-shaped objects over the `gpu*` primitives, each holding a platform handle and releasing it when asked (`GPUPlatform` is the gateway: the VM's primitives, `GPUPrimitives`, or where the image drives the machine itself, on UEFI, `FirmwareDisplay` for windows and events and `SoftwareGPU`, a GPU device in Smalltalk over the raster primitives; docs/uefi.md): `GPUDevice` (factory for everything below; `GPUDevice default`), `GPUShader`, `GPUPipeline`, `GPUTexture` (width, height, format), `GPUSampler`, `GPUBuffer`, `GPUCommandBuffer` (`beginPassOn:clear:` → `GPURenderPass`, `blit:to:`, `submit` → `GPUFence`), `GPURenderPass` (`pipeline:`, `vertexBuffer:`, `texture:sampler:slot:`, `uniforms:`, `scissor:`, `viewport:`, `draw:from:`, `end`), `GPUFence` (`wait`, `isDone`), `GPUSwapchain` (per window). Handles die with the process; on image startup every GPU object is re-created lazily (they hold their creation parameters).
 
 ## Graphics-Canvas (layer 2)
 

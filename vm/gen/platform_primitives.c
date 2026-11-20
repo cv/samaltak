@@ -4,21 +4,43 @@
 
 static bool bad;
 
+static uint8_t *address_arg(int i);
 static void answer_pair(bool ok, int a, int b);
 static void answer_string(char *s);
+static void answer_word(uint64_t w);
 static oop array_of(int64_t *v, int n);
 static bool bool_arg(int i);
 static uint8_t *bytes_of(oop o, size_t *n, bool writable);
 static double float_arg(int i);
+static double float_slot(oop a, int i);
 static void free_vector(char **v);
 static int64_t int_arg(int i);
 static bool is_text(oop o);
+static uint8_t *memory_arg(int i, int64_t offset, int64_t n, bool writable);
 static bool number_of(uint64_t o, double *d);
+static uint8_t *pointer_slot(oop a, int i);
 static uint8_t *range_args(bool writable, int64_t *h, int64_t *count);
 static bool rect(oop r, int *out);
+static int64_t platform_primitives_slot(oop a, int i);
 static char *string_arg(int i);
 static char **string_vector(oop a, bool non_empty);
+static bool surface(oop a, raster_state *s);
 static bool text_or_delta(uint64_t o, pf_event *e);
+static bool word_of(oop o, uint64_t *w);
+
+/* PlatformPrimitives>>addressArg: */
+static uint8_t *address_arg(int i)
+{
+    uint64_t local;
+    uint64_t *w;
+    memset(&local, 0, sizeof local);
+    w = &local;
+    if (!(u64_of(prim_base[1 + i], w) && (*w != 0))) {
+        bad = true;
+        return (uint8_t *)NULL;
+    }
+    return (uint8_t *)*w;
+}
 
 /* PlatformPrimitives>>answerPair:first:second: */
 static void answer_pair(bool ok, int a, int b)
@@ -52,6 +74,24 @@ static void answer_string(char *s)
     r = string_from_utf8(s, strlen(s));
     free(s);
     prim_result = r;
+    prim_status = PS_OK;
+}
+
+/* PlatformPrimitives>>answerWord: */
+static void answer_word(uint64_t w)
+{
+    int64_t v;
+    uint64_t v_2;
+    uint64_t v_3;
+    if (w <= 4611686018427387903ULL) {
+        v = (int64_t)w;
+        v_2 = (uint64_t)((v << 1) | 1);
+        prim_result = v_2;
+        prim_status = PS_OK;
+        return;
+    }
+    v_3 = large_int_from(w, false);
+    prim_result = v_3;
     prim_status = PS_OK;
 }
 
@@ -125,6 +165,19 @@ static double float_arg(int i)
     return 0.0;
 }
 
+/* PlatformPrimitives>>floatSlot:at: */
+static double float_slot(oop a, int i)
+{
+    double local;
+    double *d;
+    memset(&local, 0, sizeof local);
+    d = &local;
+    if (!number_of(*(uint64_t *)(a + 16 + 8 * i), d)) {
+        bad = true;
+    }
+    return *d;
+}
+
 /* PlatformPrimitives>>freeVector: */
 static void free_vector(char **v)
 {
@@ -164,6 +217,28 @@ static bool is_text(oop o)
     return (f >= F_BYTES) || ((f == 10) || (f == 11));
 }
 
+/* PlatformPrimitives>>memoryArg:offset:length:writable: */
+static uint8_t *memory_arg(int i, int64_t offset, int64_t n, bool writable)
+{
+    oop o;
+    uint8_t *p;
+    size_t local;
+    size_t *len;
+    o = prim_base[1 + i];
+    if (((o & 1) != 0) || (((o & 7) == 0) && (class_of(o) == object_memory_special(SO_LARGEPOS)))) {
+        p = address_arg(i);
+        return p == NULL ? p : p + offset;
+    }
+    memset(&local, 0, sizeof local);
+    len = &local;
+    p = bytes_of(o, len, writable);
+    if ((p == NULL) || ((offset < 0) || ((n < 0) || ((uint64_t)(offset + n) > *len)))) {
+        bad = true;
+        return (uint8_t *)NULL;
+    }
+    return p + offset;
+}
+
 /* PlatformPrimitives>>numberOf:into: */
 static bool number_of(uint64_t o, double *d)
 {
@@ -176,6 +251,19 @@ static bool number_of(uint64_t o, double *d)
         return true;
     }
     return false;
+}
+
+/* PlatformPrimitives>>pointerSlot:at: */
+static uint8_t *pointer_slot(oop a, int i)
+{
+    uint64_t local;
+    uint64_t *w;
+    memset(&local, 0, sizeof local);
+    w = &local;
+    if (!u64_of(*(uint64_t *)(a + 16 + 8 * i), w)) {
+        bad = true;
+    }
+    return (uint8_t *)*w;
 }
 
 /* PlatformPrimitives>>primClipboardData */
@@ -2130,6 +2218,318 @@ void prim_input_semaphore(void)
     prim_status = PS_OK;
 }
 
+/* PlatformPrimitives>>primMachineAllocate */
+void prim_machine_allocate(void)
+{
+    bool r_args;
+    int64_t n;
+    void *p;
+    if (!({
+    bad = false;
+    r_args = prim_nargs == 1;
+    r_args; })) {
+        prim_status = PS_FAIL;
+        prim_error_code = -1;
+        return;
+    }
+    n = int_arg(0);
+    if (bad || ((n <= 0) || (n > 0x1000000000LL))) {
+        prim_status = PS_FAIL;
+        prim_error_code = -1;
+        return;
+    }
+    p = calloc((uint64_t)n, 1);
+    if (p == NULL) {
+        prim_status = PS_FAIL;
+        prim_error_code = -1;
+        return;
+    }
+    answer_word((uint64_t)p);
+}
+
+/* PlatformPrimitives>>primMachineBarrier */
+void prim_machine_barrier(void)
+{
+    oop v;
+    __sync_synchronize();
+    v = prim_base[0];
+    prim_result = v;
+    prim_status = PS_OK;
+}
+
+/* PlatformPrimitives>>primMachineCall */
+void prim_machine_call(void)
+{
+    int32_t n;
+    uint64_t local;
+    uint64_t *fn;
+    uint64_t local_2[10];
+    uint64_t *args;
+    int32_t i;
+    bool local_3;
+    bool *ok;
+    uint64_t r;
+    n = prim_nargs - 1;
+    if ((n < 0) || (n > 10)) {
+        prim_status = PS_FAIL;
+        prim_error_code = -1;
+        return;
+    }
+    memset(&local, 0, sizeof local);
+    fn = &local;
+    memset(&local_2, 0, sizeof local_2);
+    args = local_2;
+    if (!word_of(prim_base[1], fn)) {
+        prim_status = PS_FAIL;
+        prim_error_code = -1;
+        return;
+    }
+    if (*fn == 0) {
+        prim_status = PS_FAIL;
+        prim_error_code = -1;
+        return;
+    }
+    for (i = 1; i <= n; i++) {
+        if (!word_of(prim_base[1 + i], args + (i - 1))) {
+            prim_status = PS_FAIL;
+            prim_error_code = -1;
+            return;
+        }
+    }
+    memset(&local_3, 0, sizeof local_3);
+    ok = &local_3;
+    r = call_firmware(*fn, args, n, ok);
+    if (!*ok) {
+        prim_status = PS_FAIL;
+        prim_error_code = -1;
+        return;
+    }
+    answer_word(r);
+}
+
+/* PlatformPrimitives>>primMachineCopy */
+void prim_machine_copy(void)
+{
+    bool r_args;
+    int64_t n;
+    uint8_t *s;
+    uint8_t *d;
+    oop v;
+    if (!({
+    bad = false;
+    r_args = prim_nargs == 5;
+    r_args; })) {
+        prim_status = PS_FAIL;
+        prim_error_code = -1;
+        return;
+    }
+    n = int_arg(0);
+    if (bad || (n < 0)) {
+        prim_status = PS_FAIL;
+        prim_error_code = -1;
+        return;
+    }
+    s = memory_arg(1, int_arg(2), n, false);
+    d = memory_arg(3, int_arg(4), n, true);
+    if (bad) {
+        prim_status = PS_FAIL;
+        prim_error_code = -1;
+        return;
+    }
+    if (n > 0) {
+        memmove(d, s, (uint64_t)n);
+    }
+    v = prim_base[0];
+    prim_result = v;
+    prim_status = PS_OK;
+}
+
+/* PlatformPrimitives>>primMachineFree */
+void prim_machine_free(void)
+{
+    bool r_args;
+    uint8_t *a;
+    oop v;
+    if (!({
+    bad = false;
+    r_args = prim_nargs == 1;
+    r_args; })) {
+        prim_status = PS_FAIL;
+        prim_error_code = -1;
+        return;
+    }
+    a = address_arg(0);
+    if (bad) {
+        prim_status = PS_FAIL;
+        prim_error_code = -1;
+        return;
+    }
+    free(a);
+    v = prim_base[0];
+    prim_result = v;
+    prim_status = PS_OK;
+}
+
+/* PlatformPrimitives>>primMachineRead */
+void prim_machine_read(void)
+{
+    bool r_args;
+    uint8_t *a;
+    int64_t n;
+    if (!({
+    bad = false;
+    r_args = prim_nargs == 2;
+    r_args; })) {
+        prim_status = PS_FAIL;
+        prim_error_code = -1;
+        return;
+    }
+    a = address_arg(0);
+    n = int_arg(1);
+    if (bad) {
+        prim_status = PS_FAIL;
+        prim_error_code = -1;
+        return;
+    }
+    if (n == 1) {
+        answer_word((uint64_t)*(uint8_t *)a);
+        return;
+    }
+    if (n == 2) {
+        answer_word((uint64_t)*(uint16_t *)a);
+        return;
+    }
+    if (n == 4) {
+        answer_word((uint64_t)*(uint32_t *)a);
+        return;
+    }
+    if (n == 8) {
+        answer_word(*(uint64_t *)a);
+        return;
+    }
+    prim_status = PS_FAIL;
+    prim_error_code = -1;
+}
+
+/* PlatformPrimitives>>primMachineSystemTable */
+void prim_machine_system_table(void)
+{
+    bool r_args;
+    uint64_t t;
+    if (!({
+    bad = false;
+    r_args = prim_nargs == 0;
+    r_args; })) {
+        prim_status = PS_FAIL;
+        prim_error_code = -1;
+        return;
+    }
+    t = firmware_system_table();
+    if (t == 0) {
+        prim_status = PS_FAIL;
+        prim_error_code = -1;
+        return;
+    }
+    answer_word(t);
+}
+
+/* PlatformPrimitives>>primMachineWatch */
+void prim_machine_watch(void)
+{
+    bool r_args;
+    uint64_t local;
+    uint64_t *e;
+    int64_t i;
+    bool a_boolean;
+    oop v;
+    if (!({
+    bad = false;
+    r_args = prim_nargs == 2;
+    r_args; })) {
+        prim_status = PS_FAIL;
+        prim_error_code = -1;
+        return;
+    }
+    memset(&local, 0, sizeof local);
+    e = &local;
+    i = int_arg(1);
+    if (bad || ((!u64_of(prim_base[1], e)) || ((*e == 0) || ((i < 0) || (i > 0x7FFFFFFF))))) {
+        prim_status = PS_FAIL;
+        prim_error_code = -1;
+        return;
+    }
+    a_boolean = watch_event(*e, (int32_t)i);
+    if (a_boolean) {
+        v = prim_base[0];
+        prim_result = v;
+        prim_status = PS_OK;
+    } else {
+        prim_status = PS_FAIL;
+        prim_error_code = -1;
+    }
+}
+
+/* PlatformPrimitives>>primMachineWrite */
+void prim_machine_write(void)
+{
+    bool r_args;
+    uint8_t *a;
+    int64_t n;
+    uint64_t local;
+    uint64_t *w;
+    oop v;
+    oop v_2;
+    oop v_3;
+    oop v_4;
+    if (!({
+    bad = false;
+    r_args = prim_nargs == 3;
+    r_args; })) {
+        prim_status = PS_FAIL;
+        prim_error_code = -1;
+        return;
+    }
+    a = address_arg(0);
+    n = int_arg(1);
+    memset(&local, 0, sizeof local);
+    w = &local;
+    if (bad || (!word_of(prim_base[3], w))) {
+        prim_status = PS_FAIL;
+        prim_error_code = -1;
+        return;
+    }
+    if (n == 1) {
+        *(uint8_t *)a = (uint8_t)*w;
+        v = prim_base[0];
+        prim_result = v;
+        prim_status = PS_OK;
+        return;
+    }
+    if (n == 2) {
+        *(uint16_t *)a = (uint16_t)*w;
+        v_2 = prim_base[0];
+        prim_result = v_2;
+        prim_status = PS_OK;
+        return;
+    }
+    if (n == 4) {
+        *(uint32_t *)a = (uint32_t)*w;
+        v_3 = prim_base[0];
+        prim_result = v_3;
+        prim_status = PS_OK;
+        return;
+    }
+    if (n == 8) {
+        *(uint64_t *)a = *w;
+        v_4 = prim_base[0];
+        prim_result = v_4;
+        prim_status = PS_OK;
+        return;
+    }
+    prim_status = PS_FAIL;
+    prim_error_code = -1;
+}
+
 /* PlatformPrimitives>>primMkfifo */
 void prim_mkfifo(void)
 {
@@ -2868,6 +3268,239 @@ void prim_pty_write(void)
     prim_result = v;
     prim_status = PS_OK;
 exit_answer_count:;
+}
+
+/* PlatformPrimitives>>primRasterBlit */
+void prim_raster_blit(void)
+{
+    bool r_args;
+    raster_state local;
+    raster_state *s;
+    raster_state local_2;
+    raster_state *d;
+    int64_t local_3[4];
+    int64_t *sr;
+    int64_t local_4[4];
+    int64_t *dr;
+    int local_5[4];
+    int *r;
+    int i;
+    int i_2;
+    oop v;
+    oop v_2;
+    if (!({
+    bad = false;
+    r_args = prim_nargs == 5;
+    r_args; })) {
+        prim_status = PS_FAIL;
+        prim_error_code = -1;
+        return;
+    }
+    bad = false;
+    memset(&local, 0, sizeof local);
+    s = &local;
+    memset(&local_2, 0, sizeof local_2);
+    d = &local_2;
+    memset(&local_3, 0, sizeof local_3);
+    sr = local_3;
+    memset(&local_4, 0, sizeof local_4);
+    dr = local_4;
+    memset(&local_5, 0, sizeof local_5);
+    r = local_5;
+    if (!(surface(prim_base[1], s) && surface(prim_base[3], d))) {
+        prim_status = PS_FAIL;
+        prim_error_code = -1;
+        return;
+    }
+    if (!rect(prim_base[2], r)) {
+        prim_status = PS_FAIL;
+        prim_error_code = -1;
+        return;
+    }
+    for (i = 0; i <= 3; i++) {
+        sr[i] = (int64_t)r[i];
+    }
+    if (!rect(prim_base[4], r)) {
+        prim_status = PS_FAIL;
+        prim_error_code = -1;
+        return;
+    }
+    for (i_2 = 0; i_2 <= 3; i_2++) {
+        dr[i_2] = (int64_t)r[i_2];
+    }
+    v = prim_base[5];
+    if (!((v == true_oop) || (v == false_oop))) {
+        prim_status = PS_FAIL;
+        prim_error_code = -1;
+        return;
+    }
+    blit_pixels(s->pixels, s->width, s->height, s->format, sr, d->pixels, d->width, d->height, d->format, dr, v == true_oop);
+    v_2 = prim_base[0];
+    prim_result = v_2;
+    prim_status = PS_OK;
+}
+
+/* PlatformPrimitives>>primRasterCopy */
+void prim_raster_copy(void)
+{
+    bool r_args;
+    int64_t ds;
+    int64_t ss;
+    int64_t w;
+    int64_t h;
+    int64_t bpp;
+    int64_t mode;
+    oop v;
+    uint8_t *d;
+    uint8_t *s;
+    oop v_2;
+    if (!({
+    bad = false;
+    r_args = prim_nargs == 8;
+    r_args; })) {
+        prim_status = PS_FAIL;
+        prim_error_code = -1;
+        return;
+    }
+    ds = int_arg(1);
+    ss = int_arg(3);
+    w = int_arg(4);
+    h = int_arg(5);
+    bpp = int_arg(6);
+    mode = int_arg(7);
+    if (bad || ((w < 0) || ((h < 0) || ((!((bpp == 1) || (bpp == 4))) || ((mode < 0) || ((mode > 3) || ((ds < w * bpp) || (ss < w * bpp)))))))) {
+        prim_status = PS_FAIL;
+        prim_error_code = -1;
+        return;
+    }
+    if ((w == 0) || (h == 0)) {
+        v = prim_base[0];
+        prim_result = v;
+        prim_status = PS_OK;
+        return;
+    }
+    d = memory_arg(0, 0, (h - 1) * ds + w * bpp, true);
+    s = memory_arg(2, 0, (h - 1) * ss + w * bpp, false);
+    if (bad) {
+        prim_status = PS_FAIL;
+        prim_error_code = -1;
+        return;
+    }
+    copy(d, ds, s, ss, w, h, bpp, mode);
+    v_2 = prim_base[0];
+    prim_result = v_2;
+    prim_status = PS_OK;
+}
+
+/* PlatformPrimitives>>primRasterDraw */
+void prim_raster_draw(void)
+{
+    bool r_args;
+    oop a;
+    raster_state local;
+    raster_state *st;
+    uint8_t *v;
+    int64_t first;
+    int64_t n;
+    int64_t n_2;
+    int64_t n_3;
+    int32_t f;
+    oop v_2;
+    if (!({
+    bad = false;
+    r_args = prim_nargs == 4;
+    r_args; })) {
+        prim_status = PS_FAIL;
+        prim_error_code = -1;
+        return;
+    }
+    a = prim_base[1];
+    if (!(((a & 7) == 0) && (((int32_t)(((*(uint64_t *)a) >> H_FMT_SHIFT) & H_FMT_MASK) == F_VAR) && ((uint32_t)*(uint64_t *)a == 23)))) {
+        prim_status = PS_FAIL;
+        prim_error_code = -1;
+        return;
+    }
+    memset(&local, 0, sizeof local);
+    st = &local;
+    if (!surface(a, st)) {
+        prim_status = PS_FAIL;
+        prim_error_code = -1;
+        return;
+    }
+    st->blend = (int32_t)platform_primitives_slot(a, 4);
+    st->scissor_x = platform_primitives_slot(a, 5);
+    st->scissor_y = platform_primitives_slot(a, 6);
+    st->scissor_w = platform_primitives_slot(a, 7);
+    st->scissor_h = platform_primitives_slot(a, 8);
+    st->viewport_x = float_slot(a, 9);
+    st->viewport_y = float_slot(a, 10);
+    st->viewport_w = float_slot(a, 11);
+    st->viewport_h = float_slot(a, 12);
+    st->view_size_x = float_slot(a, 13);
+    st->view_size_y = float_slot(a, 14);
+    st->translate_x = float_slot(a, 15);
+    st->translate_y = float_slot(a, 16);
+    st->texture = pointer_slot(a, 17);
+    st->texture_width = platform_primitives_slot(a, 18);
+    st->texture_height = platform_primitives_slot(a, 19);
+    st->texture_format = (int32_t)platform_primitives_slot(a, 20);
+    st->linear = *(uint64_t *)(a + 16 + 168) == true_oop;
+    st->wrap = *(uint64_t *)(a + 16 + 176) == true_oop;
+    v = address_arg(1);
+    first = int_arg(2);
+    n = int_arg(3);
+    if (bad || ((st->blend < PF_BLEND_NONE) || ((st->blend > PF_BLEND_PREMULTIPLIED) || ((first < 0) || (n < 0))))) {
+        prim_status = PS_FAIL;
+        prim_error_code = -1;
+        return;
+    }
+    if ((st->texture != NULL) && ({
+    n_2 = st->texture_width;
+    (!((n_2 > 0) && (n_2 <= 65536))) || ({
+    n_3 = st->texture_height;
+    (!((n_3 > 0) && (n_3 <= 65536))) || ({
+    f = st->texture_format;
+    !((f >= PF_TEX_R8) && (f <= PF_TEX_BGRA8)); }); }); })) {
+        prim_status = PS_FAIL;
+        prim_error_code = -1;
+        return;
+    }
+    rasterize(st, v, first, n);
+    v_2 = prim_base[0];
+    prim_result = v_2;
+    prim_status = PS_OK;
+}
+
+/* PlatformPrimitives>>primRasterFill */
+void prim_raster_fill(void)
+{
+    bool r_args;
+    uint8_t *p;
+    int64_t n;
+    int64_t bpp;
+    int64_t v;
+    oop v_2;
+    if (!({
+    bad = false;
+    r_args = prim_nargs == 4;
+    r_args; })) {
+        prim_status = PS_FAIL;
+        prim_error_code = -1;
+        return;
+    }
+    p = address_arg(0);
+    n = int_arg(1);
+    bpp = int_arg(2);
+    v = int_arg(3);
+    if (bad || ((n < 0) || ((!((bpp == 1) || (bpp == 4))) || ((v < 0) || (v > 0xFFFFFFFFLL))))) {
+        prim_status = PS_FAIL;
+        prim_error_code = -1;
+        return;
+    }
+    platform_raster_fill(p, n, (int32_t)bpp, (uint32_t)v);
+    v_2 = prim_base[0];
+    prim_result = v_2;
+    prim_status = PS_OK;
 }
 
 /* PlatformPrimitives>>primSetCursor */
@@ -3859,6 +4492,18 @@ static bool rect(oop r, int *out)
     return true;
 }
 
+/* PlatformPrimitives>>slot:at: */
+static int64_t platform_primitives_slot(oop a, int i)
+{
+    uint64_t o;
+    o = *(uint64_t *)(a + 16 + 8 * i);
+    if (!((o & 1) != 0)) {
+        bad = true;
+        return 0;
+    }
+    return ((int64_t)o) >> 1;
+}
+
 /* PlatformPrimitives>>stringArg: */
 static char *string_arg(int i)
 {
@@ -3904,6 +4549,28 @@ static char **string_vector(oop a, bool non_empty)
     return v;
 }
 
+/* PlatformPrimitives>>surface:into: */
+static bool surface(oop a, raster_state *s)
+{
+    int64_t n;
+    int64_t n_2;
+    int32_t f;
+    if (!(((a & 7) == 0) && (((int32_t)(((*(uint64_t *)a) >> H_FMT_SHIFT) & H_FMT_MASK) == F_VAR) && ((uint32_t)*(uint64_t *)a >= 4)))) {
+        return false;
+    }
+    s->pixels = pointer_slot(a, 0);
+    s->width = platform_primitives_slot(a, 1);
+    s->height = platform_primitives_slot(a, 2);
+    s->format = (int32_t)platform_primitives_slot(a, 3);
+    return (!bad) && ((s->pixels != NULL) && ({
+    n = s->width;
+    (n > 0) && (n <= 65536) && ({
+    n_2 = s->height;
+    (n_2 > 0) && (n_2 <= 65536) && ({
+    f = s->format;
+    (f >= PF_TEX_R8) && (f <= PF_TEX_BGRA8); }); }); }));
+}
+
 /* PlatformPrimitives>>textOrDelta:into: */
 static bool text_or_delta(uint64_t o, pf_event *e)
 {
@@ -3930,5 +4597,30 @@ static bool text_or_delta(uint64_t o, pf_event *e)
         return (e->text = utf8_of(o)) != NULL;
     }
     return false;
+}
+
+/* PlatformPrimitives>>wordOf:into: */
+static bool word_of(oop o, uint64_t *w)
+{
+    int64_t local;
+    int64_t *i;
+    if (o == nil_oop) {
+        *w = 0;
+        return true;
+    }
+    if ((o == true_oop) || (o == false_oop)) {
+        *w = o == true_oop ? 1 : 0;
+        return true;
+    }
+    if (u64_of(o, w)) {
+        return true;
+    }
+    memset(&local, 0, sizeof local);
+    i = &local;
+    if (!int64_of(o, i)) {
+        return false;
+    }
+    *w = (uint64_t)*i;
+    return true;
 }
 

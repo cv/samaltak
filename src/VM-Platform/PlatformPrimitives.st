@@ -1,5 +1,5 @@
 VMPlatformModule subclass: #PlatformPrimitives
-	instanceVariableNames: 'bad nic'
+	instanceVariableNames: 'bad nic builtins'
 	classVariableNames: ''
 	package: 'VM-Platform'!
 
@@ -27,7 +27,7 @@ Keycodes (SDL): printable keys are their lowercase character code (''a'' = 97 ..
 
 !PlatformPrimitives class methodsFor: 'declaring'!
 declarations
-	^#((bad bool) (nic PlatformNic))
+	^#((bad bool) (nic PlatformNic) (builtins Builtins))
 ! !
 
 !PlatformPrimitives methodsFor: 'arguments'!
@@ -1436,4 +1436,310 @@ primClipboardData
 	libc memcpy: (self bytesOf: result) from: data size: size value.
 	windows freeClipboardData: data.
 	self answer: result
+! !
+
+!PlatformPrimitives methodsFor: 'machine'!
+wordOf: o into: w
+	"A word of an Integer (two's complement if negative, at most 64 bits), nil (0) or a Boolean (1, 0)."
+	<function>
+	<var: #w type: 'uint64_t *'>
+	<returns: 'bool'>
+	| i |
+	o = memory nilOop ifTrue: [
+		w value: 0.
+		^true].
+	(o = memory trueOop or: [o = memory falseOop]) ifTrue: [
+		w value: (o = memory trueOop ifTrue: [1] ifFalse: [0]).
+		^true].
+	(memory u64Of: o into: w) ifTrue: [^true].
+	i := self local: 'int64_t'.
+	(memory int64Of: o into: i) ifFalse: [^false].
+	w value: i value asUInt64.
+	^true
+!
+answerWord: w
+	"w as a non-negative Integer."
+	<function>
+	<var: #w type: 'uint64_t'>
+	w <= VM_INT_MAX asUInt64 ifTrue: [^self answer: (self intOop: w asInt64)].
+	self answer: (memory largeIntFrom: w negative: false)
+!
+addressArg: i
+	"The address of an Integer argument (not 0); NULL, and bad set, otherwise."
+	<function>
+	<returns: 'uint8_t *'>
+	| w |
+	w := self local: 'uint64_t'.
+	((memory u64Of: (self arg: i) into: w) and: [w value ~= 0]) ifFalse: [
+		bad := true.
+		^self null].
+	^self cCoerce: w value to: 'uint8_t *'
+!
+memoryArg: i offset: offset length: n writable: writable
+	"Memory argument i: an Integer (an address) or a byte object or Bitmap (writable: not immutable), of which n bytes from offset are used (checked for an object); NULL, and bad set, if it is none or too small."
+	<function>
+	<var: #offset type: 'int64_t'>
+	<var: #n type: 'int64_t'>
+	<var: #writable type: 'bool'>
+	<returns: 'uint8_t *'>
+	| o len p |
+	o := self arg: i.
+	((self isInt: o) or: [(self isPtr: o) and: [(memory classOf: o) = (memory special: SO_LARGEPOS)]]) ifTrue: [
+		p := self addressArg: i.
+		^p isNull ifTrue: [p] ifFalse: [p + offset]].
+	len := self local: 'size_t'.
+	p := self bytesOf: o size: len writable: writable.
+	(p isNull or: [offset < 0 or: [n < 0 or: [(offset + n) asUInt64 > len value]]]) ifTrue: [
+		bad := true.
+		^self null].
+	^p + offset
+!
+primMachineSystemTable
+	"-> the address of the firmware's system table; fails without a firmware"
+	<vmPrimitive: 470 name: 'machineSystemTable'>
+	| t |
+	(self args: 0) ifFalse: [^self fail].
+	t := machine firmwareSystemTable.
+	t = 0 ifTrue: [^self fail].
+	self answerWord: t
+!
+primMachineCall
+	"fn [arg ...] (up to 10 words: Integers, nil 0, Booleans 1 and 0) -> the word the firmware function at the address fn answers, called in the firmware's convention (ms_abi on x86-64); fails without a firmware"
+	<vmPrimitive: 471 name: 'machineCall'>
+	| n fn args ok r |
+	n := self argCount - 1.
+	(n < 0 or: [n > 10]) ifTrue: [^self fail].
+	fn := self local: 'uint64_t'.
+	args := self local: 'uint64_t[10]'.
+	(self wordOf: (self arg: 0) into: fn) ifFalse: [^self fail].
+	fn value = 0 ifTrue: [^self fail].
+	1 to: n do: [:i | (self wordOf: (self arg: i) into: args + (i - 1)) ifFalse: [^self fail]].
+	ok := self local: 'bool'.
+	r := machine callFirmware: fn value arguments: args count: n asInt32 ok: ok.
+	ok value ifFalse: [^self fail].
+	self answerWord: r
+!
+primMachineRead
+	"address size (1, 2, 4 or 8) -> the unsigned Integer there"
+	<vmPrimitive: 472 name: 'machineRead'>
+	| a n |
+	(self args: 2) ifFalse: [^self fail].
+	a := self addressArg: 0.
+	n := self intArg: 1.
+	bad ifTrue: [^self fail].
+	n = 1 ifTrue: [^self answerWord: (self uint8At: a) asUInt64].
+	n = 2 ifTrue: [^self answerWord: (self uint16At: a) asUInt64].
+	n = 4 ifTrue: [^self answerWord: (self uint32At: a) asUInt64].
+	n = 8 ifTrue: [^self answerWord: (self uint64At: a)].
+	self fail
+!
+primMachineWrite
+	"address size (1, 2, 4 or 8) value (an Integer: its low size bytes)"
+	<vmPrimitive: 473 name: 'machineWrite'>
+	| a n w |
+	(self args: 3) ifFalse: [^self fail].
+	a := self addressArg: 0.
+	n := self intArg: 1.
+	w := self local: 'uint64_t'.
+	(bad or: [(self wordOf: (self arg: 2) into: w) not]) ifTrue: [^self fail].
+	n = 1 ifTrue: [
+		self uint8At: a put: w value asUInt8.
+		^self answerSelf].
+	n = 2 ifTrue: [
+		self uint16At: a put: w value asUInt16.
+		^self answerSelf].
+	n = 4 ifTrue: [
+		self uint32At: a put: w value asUInt32.
+		^self answerSelf].
+	n = 8 ifTrue: [
+		self uint64At: a put: w value.
+		^self answerSelf].
+	self fail
+!
+primMachineCopy
+	"count src srcOffset dst dstOffset: count bytes (they may overlap); src and dst are addresses or byte objects (Bitmaps), the offsets 0-based"
+	<vmPrimitive: 474 name: 'machineCopy'>
+	| n s d |
+	(self args: 5) ifFalse: [^self fail].
+	n := self intArg: 0.
+	(bad or: [n < 0]) ifTrue: [^self fail].
+	s := self memoryArg: 1 offset: (self intArg: 2) length: n writable: false.
+	d := self memoryArg: 3 offset: (self intArg: 4) length: n writable: true.
+	bad ifTrue: [^self fail].
+	n > 0 ifTrue: [libc memmove: d from: s size: n asUInt64].
+	self answerSelf
+!
+primMachineAllocate
+	"size -> the address of size zeroed bytes outside the object heap, which never move (on UEFI the firmware's pool: physical memory, which a device reads at that address); free them with machineFree"
+	<vmPrimitive: 475 name: 'machineAllocate'>
+	| n p |
+	(self args: 1) ifFalse: [^self fail].
+	n := self intArg: 0.
+	(bad or: [n <= 0 or: [n > 16r1000000000]]) ifTrue: [^self fail].
+	p := libc calloc: n asUInt64 size: 1.
+	p isNull ifTrue: [^self fail].
+	self answerWord: (self cCoerce: p to: 'uint64_t')
+!
+primMachineFree
+	"address (of machineAllocate)"
+	<vmPrimitive: 476 name: 'machineFree'>
+	| a |
+	(self args: 1) ifFalse: [^self fail].
+	a := self addressArg: 0.
+	bad ifTrue: [^self fail].
+	libc free: a.
+	self answerSelf
+!
+primMachineBarrier
+	"A full memory barrier (the compiler's and the CPU's): a device sees the stores before it before those after it."
+	<vmPrimitive: 477 name: 'machineBarrier'>
+	builtins memoryBarrier.
+	self answerSelf
+!
+primMachineWatch
+	"event index: signal external semaphore index whenever the firmware event at the address event is signaled (the VM's wait wakes for it); index 0 stops; fails without a firmware"
+	<vmPrimitive: 478 name: 'machineWatch'>
+	| e i |
+	(self args: 2) ifFalse: [^self fail].
+	e := self local: 'uint64_t'.
+	i := self intArg: 1.
+	(bad or: [(memory u64Of: (self arg: 0) into: e) not or: [e value = 0 or: [i < 0 or: [i > 16r7FFFFFFF]]]]) ifTrue: [^self fail].
+	self answerOk: (machine watchEvent: e value semaphore: i asInt32)
+! !
+
+!PlatformPrimitives methodsFor: 'raster'!
+slot: a at: i
+	"SmallInteger slot i of a (bad set if it is none)."
+	<function>
+	| o |
+	o := self loadRef: a at: i.
+	(self isInt: o) ifFalse: [
+		bad := true.
+		^0].
+	^self intVal: o
+!
+floatSlot: a at: i
+	<function>
+	<returns: 'double'>
+	| d |
+	d := self local: 'double'.
+	(self numberOf: (self loadRef: a at: i) into: d) ifFalse: [bad := true].
+	^d value
+!
+pointerSlot: a at: i
+	"An address slot (an Integer; 0 is NULL)."
+	<function>
+	<returns: 'uint8_t *'>
+	| w |
+	w := self local: 'uint64_t'.
+	(memory u64Of: (self loadRef: a at: i) into: w) ifFalse: [bad := true].
+	^self cCoerce: w value to: 'uint8_t *'
+!
+isFormat: f
+	^f >= PF_TEX_R8 and: [f <= PF_TEX_BGRA8]
+!
+isSide: n
+	^n > 0 and: [n <= 65536]
+!
+surface: a into: s
+	"{address. width. height. format ...} into the target fields of s."
+	<function>
+	<var: #s type: 'RasterState *'>
+	<returns: 'bool'>
+	((self isPtr: a) and: [(self formatOf: a) = F_VAR and: [(self numSlots: a) >= 4]]) ifFalse: [^false].
+	s pixels: (self pointerSlot: a at: 0).
+	s width: (self slot: a at: 1).
+	s height: (self slot: a at: 2).
+	s format: (self slot: a at: 3) asInt32.
+	^bad not and: [s pixels notNull and: [(self isSide: s width) and: [(self isSide: s height) and: [self isFormat: s format]]]]
+!
+primRasterDraw
+	"state vertices first count: the Renderer's vertices first .. first + count - 1 (40 bytes each) at the address vertices, drawn by its uber-shader. state: {target. width. height. format. blend. scissorX. scissorY. scissorW. scissorH. viewportX. viewportY. viewportW. viewportH. viewSizeX. viewSizeY. translateX. translateY. texture (0: none). textureWidth. textureHeight. textureFormat. linear. repeat}, addresses, pixels and codes as the gpu primitives take them (RasterState)"
+	<vmPrimitive: 480 name: 'rasterDraw'>
+	| a st v first n |
+	(self args: 4) ifFalse: [^self fail].
+	a := self arg: 0.
+	((self isPtr: a) and: [(self formatOf: a) = F_VAR and: [(self numSlots: a) = 23]]) ifFalse: [^self fail].
+	st := self local: 'RasterState'.
+	(self surface: a into: st) ifFalse: [^self fail].
+	st blend: (self slot: a at: 4) asInt32.
+	st scissorX: (self slot: a at: 5).
+	st scissorY: (self slot: a at: 6).
+	st scissorW: (self slot: a at: 7).
+	st scissorH: (self slot: a at: 8).
+	st viewportX: (self floatSlot: a at: 9).
+	st viewportY: (self floatSlot: a at: 10).
+	st viewportW: (self floatSlot: a at: 11).
+	st viewportH: (self floatSlot: a at: 12).
+	st viewSizeX: (self floatSlot: a at: 13).
+	st viewSizeY: (self floatSlot: a at: 14).
+	st translateX: (self floatSlot: a at: 15).
+	st translateY: (self floatSlot: a at: 16).
+	st texture: (self pointerSlot: a at: 17).
+	st textureWidth: (self slot: a at: 18).
+	st textureHeight: (self slot: a at: 19).
+	st textureFormat: (self slot: a at: 20) asInt32.
+	st linear: (self loadRef: a at: 21) = memory trueOop.
+	st wrap: (self loadRef: a at: 22) = memory trueOop.
+	v := self addressArg: 1.
+	first := self intArg: 2.
+	n := self intArg: 3.
+	(bad or: [st blend < PF_BLEND_NONE or: [st blend > PF_BLEND_PREMULTIPLIED or: [first < 0 or: [n < 0]]]]) ifTrue: [^self fail].
+	(st texture notNull and: [(self isSide: st textureWidth) not or: [(self isSide: st textureHeight) not or: [(self isFormat: st textureFormat) not]]]) ifTrue: [^self fail].
+	raster rasterize: st vertices: v first: first count: n.
+	self answerSelf
+!
+primRasterFill
+	"address count bytesPerPixel (1 or 4) value: count pixels set to value"
+	<vmPrimitive: 481 name: 'rasterFill'>
+	| p n bpp v |
+	(self args: 4) ifFalse: [^self fail].
+	p := self addressArg: 0.
+	n := self intArg: 1.
+	bpp := self intArg: 2.
+	v := self intArg: 3.
+	(bad or: [n < 0 or: [(bpp = 1 or: [bpp = 4]) not or: [v < 0 or: [v > 16rFFFFFFFF]]]]) ifTrue: [^self fail].
+	raster fill: p count: n bytesPerPixel: bpp asInt32 value: v asUInt32.
+	self answerSelf
+!
+primRasterBlit
+	"src {x. y. w. h} dst {x. y. w. h} linear: src and dst are {address. width. height. format}; as gpuBlit does"
+	<vmPrimitive: 482 name: 'rasterBlit'>
+	| s d sr dr r v |
+	(self args: 5) ifFalse: [^self fail].
+	bad := false.
+	s := self local: 'RasterState'.
+	d := self local: 'RasterState'.
+	sr := self local: 'int64_t[4]'.
+	dr := self local: 'int64_t[4]'.
+	r := self local: 'int[4]'.
+	((self surface: (self arg: 0) into: s) and: [self surface: (self arg: 2) into: d]) ifFalse: [^self fail].
+	(self rect: (self arg: 1) into: r) ifFalse: [^self fail].
+	0 to: 3 do: [:i | sr at: i put: (r at: i) asInt64].
+	(self rect: (self arg: 3) into: r) ifFalse: [^self fail].
+	0 to: 3 do: [:i | dr at: i put: (r at: i) asInt64].
+	v := self arg: 4.
+	(v = memory trueOop or: [v = memory falseOop]) ifFalse: [^self fail].
+	raster blitPixels: s pixels width: s width height: s height format: s format rect: sr
+		to: d pixels width: d width height: d height format: d format rect: dr linear: v = memory trueOop.
+	self answerSelf
+!
+primRasterCopy
+	"dst dstStride src srcStride width height bytesPerPixel mode: rows of pixels of 1 or 4 bytes; dst and src are addresses or byte objects (Bitmaps); mode bit 1 swaps red and blue, bit 2 copies only the pixels whose alpha is not 0 (4-byte pixels)"
+	<vmPrimitive: 483 name: 'rasterCopy'>
+	| ds ss w h bpp mode d s |
+	(self args: 8) ifFalse: [^self fail].
+	ds := self intArg: 1.
+	ss := self intArg: 3.
+	w := self intArg: 4.
+	h := self intArg: 5.
+	bpp := self intArg: 6.
+	mode := self intArg: 7.
+	(bad or: [w < 0 or: [h < 0 or: [(bpp = 1 or: [bpp = 4]) not or: [mode < 0 or: [mode > 3 or: [ds < (w * bpp) or: [ss < (w * bpp)]]]]]]]) ifTrue: [^self fail].
+	(w = 0 or: [h = 0]) ifTrue: [^self answerSelf].
+	d := self memoryArg: 0 offset: 0 length: ((h - 1) * ds) + (w * bpp) writable: true.
+	s := self memoryArg: 2 offset: 0 length: ((h - 1) * ss) + (w * bpp) writable: false.
+	bad ifTrue: [^self fail].
+	raster copy: d stride: ds from: s stride: ss width: w height: h bytesPerPixel: bpp mode: mode.
+	self answerSelf
 ! !

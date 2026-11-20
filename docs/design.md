@@ -92,7 +92,7 @@ Widgets draw on a `Canvas`; they never see `GPUDevice`.
 
 ## Deferred
 
-- Bare metal beyond UEFI's services (docs/uefi.md): own drivers, the display and input, a software rasterizer for the `gpu*` primitives, networking.
+- Bare metal beyond UEFI's services (docs/uefi.md): drivers of our own for what the firmware drives (the image drives the display and the input, through the firmware's protocols), networking.
 
 ## UI direction
 

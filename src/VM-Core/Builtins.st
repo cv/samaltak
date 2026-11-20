@@ -16,3 +16,10 @@ ctz64: x
 	<c: 'int __builtin_ctzll(unsigned long long x)'>
 	^x lowBit - 1
 ! !
+
+!Builtins methodsFor: 'memory'!
+memoryBarrier
+	"A full barrier, for the compiler and the CPU (the stores before it are seen before those after it, by other CPUs and by devices)."
+	<c: 'void __sync_synchronize(void)'>
+	^nil
+! !

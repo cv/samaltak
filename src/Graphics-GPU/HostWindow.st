@@ -3,7 +3,7 @@ Object subclass: #HostWindow
 	classVariableNames: ''
 	package: 'Graphics-GPU'!
 
-HostWindow comment: 'I am a native window of the host (SDL3). I am opened on first use in each session, with the size and title I keep, so I survive image restarts like the GPU objects do. Sizes are in points; pixelExtent and scale give the backing store.'!
+HostWindow comment: 'I am a native window of the host (SDL3; on UEFI the screen, FirmwareDisplay). I am opened on first use in each session, with the size and title I keep, so I survive image restarts like the GPU objects do. Sizes are in points; pixelExtent and scale give the backing store.'!
 
 !HostWindow methodsFor: 'private'!
 setWidth: w height: h title: aString flags: anInteger

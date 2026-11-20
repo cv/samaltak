@@ -221,10 +221,6 @@ invalidate: start size: size
 call: fn onStack: top
 	"The result of fn (a function of no arguments answering a uint64_t), called with the stack pointer at top (16-byte aligned)."
 	self subclassResponsibility
-!
-memoryBarrier
-	"A full barrier, for the compiler and the CPU (a device's rings: UefiVirtioInput)."
-	self subclassResponsibility
 ! !
 
 UefiCpu subclass: #UefiX64Cpu
@@ -250,9 +246,6 @@ __asm__(".text\n\t.p2align 4\n\t.globl uefi_call_on_stack\nuefi_call_on_stack:\n
 !UefiX64Cpu methodsFor: 'cpu'!
 cycles
 	^instructions rdtsc
-!
-memoryBarrier
-	instructions memoryBarrier
 !
 invalidate: start size: size
 !
@@ -302,9 +295,6 @@ __asm__(".text\n\t.p2align 2\n\t.globl uefi_call_on_stack\nuefi_call_on_stack:\n
 ! !
 
 !UefiArm64Cpu methodsFor: 'cpu'!
-memoryBarrier
-	instructions memoryBarrier
-!
 cycles
 	<function>
 	<returns: 'uint64_t'>
@@ -337,10 +327,6 @@ targetOS
 ! !
 
 !UefiX64Instructions methodsFor: 'functions'!
-memoryBarrier
-	<c: 'void __sync_synchronize(void)'>
-	^self error: 'not simulated'
-!
 rdtsc
 	<c: 'unsigned long long __builtin_ia32_rdtsc(void)'>
 	^self error: 'not simulated'
@@ -363,10 +349,6 @@ targetOS
 ! !
 
 !UefiArm64Instructions methodsFor: 'functions'!
-memoryBarrier
-	<c: 'void __sync_synchronize(void)'>
-	^self error: 'not simulated'
-!
 cntvct
 	<c: 'unsigned long long uefi_cntvct(void)'>
 	^self error: 'not simulated'

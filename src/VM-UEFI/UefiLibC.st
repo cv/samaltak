@@ -308,14 +308,11 @@ fclose: f
 
 !UefiLibC methodsFor: 'console'!
 consoleFlush
-	"The console buffer (UTF-8) to the serial port, else to the firmware's console (UCS-2, CR LF) unless the VM draws on the screen."
+	"The console buffer (UTF-8) to the serial port, else to the firmware's console (UCS-2, CR LF; FirmwareScreen silences it once the image draws on the screen)."
 	<function>
 	| out i o c n |
 	consoleUsed = 0 ifTrue: [^self].
 	(firmware writeConsole: consoleBuffer count: consoleUsed) ifTrue: [
-		consoleUsed := 0.
-		^self].
-	firmware isScreenOwned ifTrue: [
 		consoleUsed := 0.
 		^self].
 	out := self local: 'uint16_t[2050]'.

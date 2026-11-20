@@ -1,225 +1,198 @@
 Object subclass: #GPUPlatform
 	instanceVariableNames: ''
-	classVariableNames: ''
+	classVariableNames: 'Device Display'
 	package: 'Graphics-GPU'!
 
-GPUPlatform comment: 'I am the private gateway to the platform layer''s GPU and window primitives (vm/platform/README.md). Every method is a primitive; on failure I signal a GPUError carrying the platform''s last error message. Only the classes of Graphics-GPU use me.'!
+GPUPlatform comment: 'I am the private gateway of Graphics-GPU to the platform''s GPU and windows (docs/platform.md): every method forwards to a backend, the VM''s primitives (GPUPrimitives: SDL3, SDL_GPU) where it has them, else, where the image drives the machine itself (UEFI), the firmware''s display (FirmwareDisplay: windows and events) and a SoftwareGPU on it. They are chosen on first use after the image starts (reset). Failures signal a GPUError carrying the platform''s explanation. Only the classes of Graphics-GPU use me.'!
 
-!GPUPlatform class methodsFor: 'errors'!
-lastError
-	"Answer the platform''s message for the last failed primitive."
-	<primitive: 'platformLastError'>
-	^''
+!GPUPlatform class methodsFor: 'backends'!
+display
+	"The windows and events."
+	Display isNil ifTrue: [self chooseBackends].
+	^Display
 !
-fail: operation
-	^GPUError new operation: operation; platformLastError: self lastError; signal
+device
+	"The GPU."
+	Device isNil ifTrue: [self chooseBackends].
+	^Device
+!
+chooseBackends
+	FirmwareDisplay current
+		ifNil: [Display := Device := GPUPrimitives]
+		ifNotNil: [:d |
+			Display := d.
+			Device := SoftwareGPU on: d]
+!
+display: aDisplay device: aDevice
+	"Use other backends (tests); answer the ones in use, {display. device}."
+	| old |
+	old := {Display. Device}.
+	Display := aDisplay.
+	Device := aDevice.
+	^old
+!
+reset
+	"Choose again on next use (a new VM process)."
+	Display := Device := nil
 ! !
 
 !GPUPlatform class methodsFor: 'device'!
 createDevice: debug
-	<primitive: 'gpuCreateDevice'>
-	^self fail: 'gpuCreateDevice'
+	^self device createDevice: debug
 !
-shaderLanguage: device
+shaderLanguage: dev
 	"'msl' or 'glsl': the source gpuCreateShader takes on device."
-	<primitive: 'gpuShaderLanguage'>
-	^self fail: 'gpuShaderLanguage'
+	^self device shaderLanguage: dev
 !
-claim: device window: window
-	<primitive: 'gpuClaimWindow'>
-	^self fail: 'gpuClaimWindow'
+claim: dev window: window
+	^self device claim: dev window: window
 !
-swapchainFormat: device window: window
-	<primitive: 'gpuSwapchainFormat'>
-	^self fail: 'gpuSwapchainFormat'
+swapchainFormat: dev window: window
+	^self device swapchainFormat: dev window: window
 !
-waitIdle: device
-	<primitive: 'gpuWaitIdle'>
-	^self fail: 'gpuWaitIdle'
+waitIdle: dev
+	^self device waitIdle: dev
 !
 release: aHandle
-	<primitive: 'gpuRelease'>
-	^self fail: 'gpuRelease'
+	^self device release: aHandle
 ! !
 
 !GPUPlatform class methodsFor: 'resources'!
-createShader: device source: msl entry: entryName stage: stage samplers: samplers uniformBuffers: uniforms storageBuffers: storageBuffers storageTextures: storageTextures
-	<primitive: 'gpuCreateShader'>
-	^self fail: 'gpuCreateShader'
+createShader: dev source: msl entry: entryName stage: stage samplers: samplers uniformBuffers: uniforms storageBuffers: storageBuffers storageTextures: storageTextures
+	^self device createShader: dev source: msl entry: entryName stage: stage samplers: samplers uniformBuffers: uniforms storageBuffers: storageBuffers storageTextures: storageTextures
 !
-createPipeline: device vertex: vs fragment: fs stride: stride attributes: attributes primitive: primitiveType blend: blend format: targetFormat
-	<primitive: 'gpuCreatePipeline'>
-	^self fail: 'gpuCreatePipeline'
+createPipeline: dev vertex: vs fragment: fs stride: stride attributes: attributes primitive: primitiveType blend: blend format: targetFormat
+	^self device createPipeline: dev vertex: vs fragment: fs stride: stride attributes: attributes primitive: primitiveType blend: blend format: targetFormat
 !
-createTexture: device width: w height: h format: format usage: usage
-	<primitive: 'gpuCreateTexture'>
-	^self fail: 'gpuCreateTexture'
+createTexture: dev width: w height: h format: format usage: usage
+	^self device createTexture: dev width: w height: h format: format usage: usage
 !
-createSampler: device linear: linear repeat: repeat
-	<primitive: 'gpuCreateSampler'>
-	^self fail: 'gpuCreateSampler'
+createSampler: dev linear: linear repeat: repeat
+	^self device createSampler: dev linear: linear repeat: repeat
 !
-createBuffer: device usage: usage size: size
-	<primitive: 'gpuCreateBuffer'>
-	^self fail: 'gpuCreateBuffer'
+createBuffer: dev usage: usage size: size
+	^self device createBuffer: dev usage: usage size: size
 !
 uploadBuffer: buffer bytes: bytes count: byteCount offset: dstOffset
-	<primitive: 'gpuUploadBuffer'>
-	^self fail: 'gpuUploadBuffer'
+	^self device uploadBuffer: buffer bytes: bytes count: byteCount offset: dstOffset
 !
 uploadTexture: texture bytes: bytes x: x y: y width: w height: h bytesPerRow: bytesPerRow
-	<primitive: 'gpuUploadTexture'>
-	^self fail: 'gpuUploadTexture'
+	^self device uploadTexture: texture bytes: bytes x: x y: y width: w height: h bytesPerRow: bytesPerRow
 !
 download: texture x: x y: y width: w height: h into: bytes
-	<primitive: 'gpuDownload'>
-	^self fail: 'gpuDownload'
+	^self device download: texture x: x y: y width: w height: h into: bytes
 !
 textureSize: texture
-	<primitive: 'gpuTextureSize'>
-	^self fail: 'gpuTextureSize'
+	^self device textureSize: texture
 ! !
 
 !GPUPlatform class methodsFor: 'commands'!
-acquireCommandBuffer: device
-	<primitive: 'gpuAcquireCommandBuffer'>
-	^self fail: 'gpuAcquireCommandBuffer'
+acquireCommandBuffer: dev
+	^self device acquireCommandBuffer: dev
 !
 acquireSwapchain: commandBuffer window: window
 	"Answer {texture. width. height}, or nil when the window cannot be drawn now."
-	<primitive: 'gpuAcquireSwapchain'>
-	^self fail: 'gpuAcquireSwapchain'
+	^self device acquireSwapchain: commandBuffer window: window
 !
 beginPass: commandBuffer target: texture clear: rgbaOrNil
-	<primitive: 'gpuBeginPass'>
-	^self fail: 'gpuBeginPass'
+	^self device beginPass: commandBuffer target: texture clear: rgbaOrNil
 !
 setViewport: pass x: x y: y width: w height: h
-	<primitive: 'gpuSetViewport'>
-	^self fail: 'gpuSetViewport'
+	^self device setViewport: pass x: x y: y width: w height: h
 !
 setScissor: pass x: x y: y width: w height: h
-	<primitive: 'gpuSetScissor'>
-	^self fail: 'gpuSetScissor'
+	^self device setScissor: pass x: x y: y width: w height: h
 !
 bindPipeline: pass pipeline: pipeline
-	<primitive: 'gpuBindPipeline'>
-	^self fail: 'gpuBindPipeline'
+	^self device bindPipeline: pass pipeline: pipeline
 !
 bindVertexBuffer: pass slot: slot buffer: buffer offset: offset
-	<primitive: 'gpuBindVertexBuffer'>
-	^self fail: 'gpuBindVertexBuffer'
+	^self device bindVertexBuffer: pass slot: slot buffer: buffer offset: offset
 !
 bindTexture: pass slot: slot texture: texture sampler: sampler
-	<primitive: 'gpuBindTexture'>
-	^self fail: 'gpuBindTexture'
+	^self device bindTexture: pass slot: slot texture: texture sampler: sampler
 !
 pushUniforms: commandBufferOrPass stage: stage slot: slot bytes: bytes
-	<primitive: 'gpuPushUniforms'>
-	^self fail: 'gpuPushUniforms'
+	^self device pushUniforms: commandBufferOrPass stage: stage slot: slot bytes: bytes
 !
 draw: pass count: vertexCount first: firstVertex
-	<primitive: 'gpuDraw'>
-	^self fail: 'gpuDraw'
+	^self device draw: pass count: vertexCount first: firstVertex
 !
 endPass: pass
-	<primitive: 'gpuEndPass'>
-	^self fail: 'gpuEndPass'
+	^self device endPass: pass
 !
 blit: commandBuffer source: src rect: srcRect destination: dst rect: dstRect linear: linear
-	<primitive: 'gpuBlit'>
-	^self fail: 'gpuBlit'
+	^self device blit: commandBuffer source: src rect: srcRect destination: dst rect: dstRect linear: linear
 !
 submit: commandBuffer fence: wantFence
-	<primitive: 'gpuSubmit'>
-	^self fail: 'gpuSubmit'
+	^self device submit: commandBuffer fence: wantFence
 !
 waitFence: fence
-	<primitive: 'gpuWaitFence'>
-	^self fail: 'gpuWaitFence'
+	^self device waitFence: fence
 !
 fenceDone: fence
-	<primitive: 'gpuFenceDone'>
-	^self fail: 'gpuFenceDone'
+	^self device fenceDone: fence
 !
 fenceElapsed: fence
-	<primitive: 'gpuFenceElapsed'>
-	^self fail: 'gpuFenceElapsed'
+	^self device fenceElapsed: fence
 ! !
 
 !GPUPlatform class methodsFor: 'windows'!
 openWindow: w height: h title: title flags: flags
-	<primitive: 'windowOpen'>
-	^self fail: 'windowOpen'
+	^self display openWindow: w height: h title: title flags: flags
 !
 closeWindow: window
-	<primitive: 'windowClose'>
-	^self fail: 'windowClose'
+	self display closeWindow: window.
+	self device windowClosed: window
 !
 windowSize: window
-	<primitive: 'windowSize'>
-	^self fail: 'windowSize'
+	^self display windowSize: window
 !
 windowPixelSize: window
-	<primitive: 'windowPixelSize'>
-	^self fail: 'windowPixelSize'
+	^self display windowPixelSize: window
 !
 windowDisplayScale: window
-	<primitive: 'windowDisplayScale'>
-	^self fail: 'windowDisplayScale'
+	^self display windowDisplayScale: window
 !
 windowRefreshRate: window
-	<primitive: 'windowRefreshRate'>
-	^self fail: 'windowRefreshRate'
+	^self display windowRefreshRate: window
 !
 window: window title: aString
-	<primitive: 'windowSetTitle'>
-	^self fail: 'windowSetTitle'
+	^self display window: window title: aString
 !
 window: window textInputAreaX: x y: y width: w height: h cursor: cursorX
-	<primitive: 'windowSetTextInputArea'>
-	^self fail: 'windowSetTextInputArea'
+	^self display window: window textInputAreaX: x y: y width: w height: h cursor: cursorX
 !
 showWindow: window
-	<primitive: 'windowShow'>
-	^self fail: 'windowShow'
+	^self display showWindow: window
 !
 hideWindow: window
-	<primitive: 'windowHide'>
-	^self fail: 'windowHide'
+	^self display hideWindow: window
 !
 nextEvent: anArray
 	"Fill anArray (8 slots) with the next platform event and answer it, or answer nil."
-	<primitive: 'nextEvent'>
-	^self fail: 'nextEvent'
+	^self display nextEvent: anArray
 !
 injectEvent: anArray
-	<primitive: 'injectEvent'>
-	^self fail: 'injectEvent'
+	^self display injectEvent: anArray
 !
 inputSemaphore: externalIndex
-	<primitive: 'inputSemaphore'>
-	^self fail: 'inputSemaphore'
+	^self display inputSemaphore: externalIndex
 !
 vsyncSemaphore: externalIndex
-	<primitive: 'vsyncSemaphore'>
-	^self fail: 'vsyncSemaphore'
+	^self display vsyncSemaphore: externalIndex
 !
 setCursor: kind
-	<primitive: 'setCursor'>
-	^self fail: 'setCursor'
+	^self display setCursor: kind
 !
 clipboardGet
-	<primitive: 'clipboardGet'>
-	^self fail: 'clipboardGet'
+	^self display clipboardGet
 !
 clipboardSet: aString
-	<primitive: 'clipboardSet'>
-	^self fail: 'clipboardSet'
+	^self display clipboardSet: aString
 ! !
 
 !GPUPlatform class methodsFor: 'clipboard'!
 clipboardData: mime
-	<primitive: 'clipboardData'>
-	^nil
+	^self display clipboardData: mime
 ! !

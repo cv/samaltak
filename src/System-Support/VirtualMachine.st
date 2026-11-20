@@ -111,7 +111,11 @@ primPlatformHandleCounts
 	^nil
 !
 droppedEvents
-	"Answer how many platform events were dropped because the event queue was full; 0 without the platform layer."
+	"Answer how many platform events were dropped because the event queue was full: the image's where it drives the input devices (InputQueue), else the VM's; 0 without either."
+	InputQueue current isNil ifFalse: [^InputQueue droppedEvents].
+	^self primDroppedEvents
+!
+primDroppedEvents
 	<primitive: 'droppedEvents'>
 	^0
 !

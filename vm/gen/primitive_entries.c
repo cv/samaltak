@@ -308,6 +308,45 @@ primitive_entry vm_primitive_table[] = {
     {460, 2, "gpuShaderLanguage", prim_gpu_shader_language},
 #endif
 #ifndef SAMALTAK_NO_PLATFORM
+    {470, 2, "machineSystemTable", prim_machine_system_table},
+#endif
+#ifndef SAMALTAK_NO_PLATFORM
+    {471, 2, "machineCall", prim_machine_call},
+#endif
+#ifndef SAMALTAK_NO_PLATFORM
+    {472, 2, "machineRead", prim_machine_read},
+#endif
+#ifndef SAMALTAK_NO_PLATFORM
+    {473, 2, "machineWrite", prim_machine_write},
+#endif
+#ifndef SAMALTAK_NO_PLATFORM
+    {474, 2, "machineCopy", prim_machine_copy},
+#endif
+#ifndef SAMALTAK_NO_PLATFORM
+    {475, 2, "machineAllocate", prim_machine_allocate},
+#endif
+#ifndef SAMALTAK_NO_PLATFORM
+    {476, 2, "machineFree", prim_machine_free},
+#endif
+#ifndef SAMALTAK_NO_PLATFORM
+    {477, 2, "machineBarrier", prim_machine_barrier},
+#endif
+#ifndef SAMALTAK_NO_PLATFORM
+    {478, 2, "machineWatch", prim_machine_watch},
+#endif
+#ifndef SAMALTAK_NO_PLATFORM
+    {480, 2, "rasterDraw", prim_raster_draw},
+#endif
+#ifndef SAMALTAK_NO_PLATFORM
+    {481, 2, "rasterFill", prim_raster_fill},
+#endif
+#ifndef SAMALTAK_NO_PLATFORM
+    {482, 2, "rasterBlit", prim_raster_blit},
+#endif
+#ifndef SAMALTAK_NO_PLATFORM
+    {483, 2, "rasterCopy", prim_raster_copy},
+#endif
+#ifndef SAMALTAK_NO_PLATFORM
     {500, 2, "fileOpen", prim_file_open},
 #endif
 #ifndef SAMALTAK_NO_PLATFORM

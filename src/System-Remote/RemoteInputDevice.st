@@ -3,7 +3,7 @@ Object subclass: #RemoteInputDevice
 	classVariableNames: 'Default'
 	package: 'System-Remote'!
 
-RemoteInputDevice comment: 'I am the virtual input device: I play RemoteInputPlans by injecting their events into the platform''s input queue (primitive injectEvent:), the same path real input takes, and then wait for the image to settle (RemoteControl waitUntilIdleFor:). I remember where the virtual pointer is, so the next plan travels from there; the UI may set pointer (e.g. to the real mouse position) and windowId (the host window events belong to). A UI that draws the pointer sets arrivalBlock: a press, release or wheel event is injected only once the drawn pointer is at its position (waitsForPointer:), so nothing clicks before the pointer gets there. Tests replace the injector with a block that records the events.'!
+RemoteInputDevice comment: 'I am the virtual input device: I play RemoteInputPlans by injecting their events into the platform''s input queue (InputQueue where the image drives the input devices, else the primitive injectEvent:), the same path real input takes, and then wait for the image to settle (RemoteControl waitUntilIdleFor:). I remember where the virtual pointer is, so the next plan travels from there; the UI may set pointer (e.g. to the real mouse position) and windowId (the host window events belong to). A UI that draws the pointer sets arrivalBlock: a press, release or wheel event is injected only once the drawn pointer is at its position (waitsForPointer:), so nothing clicks before the pointer gets there. Tests replace the injector with a block that records the events.'!
 
 !RemoteInputDevice methodsFor: 'initialization'!
 initialize
@@ -83,6 +83,7 @@ injectAll: aPlan
 inject: anEvent
 	((anEvent first between: 1 and: 4)) ifTrue: [pointer := (anEvent at: 3) @ (anEvent at: 4)].
 	injector isNil ifFalse: [^injector value: anEvent].
+	(InputQueue inject: anEvent) ifTrue: [^self].
 	(self primInjectEvent: anEvent) == false ifTrue: [
 		^RemoteError signal: 'injectEvent failed: ', RemoteSocket lastError]
 !

@@ -1,13 +1,12 @@
-Object subclass: #UefiGpuTestWindows
-	instanceVariableNames: 'memory width height frames'
+Object subclass: #SoftwareGPUTestDisplay
+	instanceVariableNames: 'width height frames'
 	classVariableNames: ''
-	package: 'Tests-VM'!
+	package: 'Tests-Graphics'!
 
-UefiGpuTestWindows comment: 'The windows of a UefiGpuSimulation: window 1, width x height pixels; present:pixels:width:height: keeps the frames (BGRA8 ByteArrays).'!
+SoftwareGPUTestDisplay comment: 'The display of a SoftwareGPU under test: window 1, width x height pixels; presentWindow:pixels:width:height: keeps the frames ({window. width. height. BGRA8 bytes}).'!
 
-!UefiGpuTestWindows methodsFor: 'accessing'!
-setMemory: aSimulatedMemory
-	memory := aSimulatedMemory.
+!SoftwareGPUTestDisplay methodsFor: 'accessing'!
+initialize
 	width := 6.
 	height := 4.
 	frames := OrderedCollection new
@@ -20,101 +19,52 @@ frames
 	^frames
 ! !
 
-!UefiGpuTestWindows methodsFor: 'windows'!
-pixelSize: win width: w height: h
-	win = 1 ifFalse: [^false].
-	w value: width.
-	h value: height.
-	^true
+!SoftwareGPUTestDisplay methodsFor: 'windows'!
+openWindow: w height: h title: aString flags: flags
+	^1
 !
-present: win pixels: p width: w height: h
-	frames add: (Array with: win with: w with: h with: (memory bytesAt: (memory addressOf: p) count: w * h * 4))
+windowSize: window
+	window = 1 ifFalse: [^self error: 'no such window'].
+	^{width. height}
+!
+windowPixelSize: window
+	^self windowSize: window
+!
+windowDisplayScale: window
+	^1.0
+!
+presentWindow: window pixels: address width: w height: h
+	frames add: {window. w. h. Machine bytesAt: address count: w * h * 4}
 ! !
 
-VMSimulation subclass: #UefiGpuSimulation
-	instanceVariableNames: 'windows'
+TestCase subclass: #SoftwareGPUTest
+	instanceVariableNames: 'display gpu dev pipe nearest linear'
 	classVariableNames: ''
-	package: 'Tests-VM'!
+	package: 'Tests-Graphics'!
 
-UefiGpuSimulation comment: 'A simulation of UefiGpu with PlatformCommon (handle tables, the error string) and a UefiGpuTestWindows in place of the windows module; the modules connected to neither are nil.'!
-
-!UefiGpuSimulation methodsFor: 'accessing'!
-windows
-	^windows ifNil: [windows := UefiGpuTestWindows new setMemory: memory]
-!
-moduleOrLibrary: aTypeName
-	aTypeName asString = 'PlatformWindows' ifTrue: [^self windows].
-	^[super moduleOrLibrary: aTypeName] on: Error do: [:e | e return: nil]
-! !
-
-TestCase subclass: #UefiGpuTest
-	instanceVariableNames: 'sim gpu memory dev pipe nearest linear'
-	classVariableNames: ''
-	package: 'Tests-VM'!
-
-UefiGpuTest comment: 'UefiGpu, the software GPU of the VM on UEFI, run as Smalltalk (UefiGpuSimulation): coverage and the fill rule at fractional coordinates, scissor, glyph coverage, images 1:1 and scaled, the blend maths against exact fractions, triangles (bit 31 of mode) against the quads they split, the patterns against the shader''s formulas, antialiased lines, blits, downloads, the swapchain, the pipeline it refuses, handles; and real DisplayLists of a Canvas.
+SoftwareGPUTest comment: 'SoftwareGPU, the software GPU device (UEFI''s), on the raster primitives of this VM: coverage and the fill rule at fractional coordinates, scissor, glyph coverage, images 1:1 and scaled, the blend maths against exact fractions, triangles (bit 31 of mode) against the quads they split, the patterns against the shader''s formulas, antialiased lines, blits, downloads, the swapchain, the pipeline it refuses, handles; and real DisplayLists of a Canvas, through the Renderer too.
 
 Colors are RGBA8 words, red in the low byte (premultiplied, as the vertex format and RGBA8 textures have them).'!
 
-!UefiGpuTest methodsFor: 'running'!
+!SoftwareGPUTest methodsFor: 'running'!
 setUp
-	sim := UefiGpuSimulation modules: {UefiGpu. PlatformCommon}.
-	gpu := sim module: UefiGpu.
-	memory := sim memory.
+	display := SoftwareGPUTestDisplay new.
+	gpu := SoftwareGPU on: display.
 	dev := gpu createDevice: false.
 	pipe := self pipelineBlend: 2.
 	nearest := gpu createSampler: dev linear: false repeat: false.
 	linear := gpu createSampler: dev linear: true repeat: false
 !
-timeLimitMilliseconds
-	^300000
+tearDown
+	(gpu liveObjects includes: #device) ifTrue: [gpu release: dev]
 ! !
 
-!UefiGpuTest methodsFor: 'memory'!
-pointer: aTypeName to: aByteArray
-	"A pointer to a fresh copy of aByteArray in simulated memory."
-	| a |
-	a := memory allocate: (aByteArray size max: 1).
-	memory bytesAt: a put: aByteArray.
-	^memory pointerTo: (CTypeRegistry default parse: aTypeName) at: a
-!
-bytes: aByteArray
-	^self pointer: 'uint8_t' to: aByteArray
-!
-floats: anArray
-	| b |
-	b := ByteArray new: anArray size * 4.
-	anArray doWithIndex: [:f :i | b float32At: i * 4 - 3 put: f asFloat].
-	^self pointer: 'float' to: b
-!
-ints: anArray
-	| b |
-	b := ByteArray new: anArray size * 4.
-	anArray doWithIndex: [:v :i | b uint32At: i * 4 - 3 put: (v bitAnd: 16rFFFFFFFF)].
-	^self pointer: 'int' to: b
-!
-attributes: anArray
-	"pf_vattrs: format offset ..."
-	| b |
-	b := ByteArray new: (anArray size * 4 max: 8).
-	anArray doWithIndex: [:v :i | b uint32At: i * 4 - 3 put: v].
-	^self pointer: 'pf_vattr' to: b
-!
-graphics: aSymbol
-	"A class of Graphics-Canvas (a higher layer: late-bound)."
-	^Smalltalk at: aSymbol
-!
-lastError
-	^memory stringAt: (sim module: PlatformCommon) lastErrorString
-! !
-
-!UefiGpuTest methodsFor: 'objects'!
+!SoftwareGPUTest methodsFor: 'objects'!
 pipelineBlend: blend
 	| vs fs |
 	vs := gpu createShader: dev source: 'vertex' entry: 'vmain' stage: 0 samplers: 0 uniformBuffers: 1 storageBuffers: 0 storageTextures: 0.
 	fs := gpu createShader: dev source: 'fragment' entry: 'fmain' stage: 1 samplers: 1 uniformBuffers: 0 storageBuffers: 0 storageTextures: 0.
-	^gpu createPipeline: dev vertexShader: vs fragmentShader: fs stride: 40 attributes: (self attributes: #(4 0 7 16 7 20 5 24 7 28 2 32)) count: 6
-		primitive: 0 blend: blend targetFormat: 2
+	^gpu createPipeline: dev vertex: vs fragment: fs stride: 40 attributes: #(4 0 7 16 7 20 5 24 7 28 2 32) primitive: 0 blend: blend format: 2
 !
 textureWidth: w height: h format: f
 	| t |
@@ -125,7 +75,7 @@ textureWidth: w height: h format: f
 textureWidth: w height: h format: f pixels: aByteArray
 	| t |
 	t := self textureWidth: w height: h format: f.
-	self assert: (gpu uploadTexture: t data: (self bytes: aByteArray) length: aByteArray size x: 0 y: 0 width: w height: h bytesPerRow: aByteArray size // h).
+	gpu uploadTexture: t bytes: aByteArray x: 0 y: 0 width: w height: h bytesPerRow: aByteArray size // h.
 	^t
 !
 textureWidth: w height: h words: anArray
@@ -138,27 +88,30 @@ wordBytes: anArray
 	anArray doWithIndex: [:v :i | b uint32At: i * 4 - 3 put: v].
 	^b
 !
+floats: anArray
+	| b |
+	b := ByteArray new: anArray size * 4.
+	anArray doWithIndex: [:f :i | b float32At: i * 4 - 3 put: f asFloat].
+	^b
+!
 pixelsOf: tex
 	"The texture's pixels as RGBA words (or bytes for R8)."
-	| w h f n p ok bytes |
-	w := self pointer: 'int' to: (ByteArray new: 4).
-	h := self pointer: 'int' to: (ByteArray new: 4).
-	f := self pointer: 'int' to: (ByteArray new: 4).
-	self assert: (gpu textureSize: tex width: w height: h format: f).
-	n := w value * h value * (f value = 1 ifTrue: [1] ifFalse: [4]).
-	p := self bytes: (ByteArray new: n).
-	ok := gpu download: tex x: 0 y: 0 width: w value height: h value into: p length: n.
-	self assert: ok.
-	bytes := memory bytesAt: (memory addressOf: p) count: n.
-	f value = 1 ifTrue: [^bytes].
+	| size n bytes |
+	size := gpu textureSize: tex.
+	n := size first * (size at: 2) * (size last = 1 ifTrue: [1] ifFalse: [4]).
+	bytes := gpu download: tex x: 0 y: 0 width: size first height: (size at: 2) into: (ByteArray new: n).
+	size last = 1 ifTrue: [^bytes].
 	^(1 to: n by: 4) collect: [:i | bytes uint32At: i]
 !
 target: w height: h clear: aWordOrNil
 	"An RGBA8 target of w x h pixels, all aWordOrNil (or zero)."
 	^self textureWidth: w height: h words: (Array new: w * h withAll: (aWordOrNil ifNil: [0]))
+!
+failure: aBlock is: aString
+	self should: aBlock raise: GPUError withExceptionDo: [:e | self assert: e platformLastError equals: aString]
 ! !
 
-!UefiGpuTest methodsFor: 'vertices'!
+!SoftwareGPUTest methodsFor: 'vertices'!
 quadX0: x0 y0: y0 x1: x1 y1: y1 color: rgba mode: mode
 	^self quadX0: x0 y0: y0 x1: x1 y1: y1 uv0: 0 uv1: 0 color: rgba mode: mode
 !
@@ -200,7 +153,7 @@ uvX: x y: y
 	^x + (y bitShift: 16)
 ! !
 
-!UefiGpuTest methodsFor: 'drawing'!
+!SoftwareGPUTest methodsFor: 'drawing'!
 draw: vertexBytes on: tex
 	^self draw: vertexBytes on: tex scissor: nil texture: nil sampler: nil translation: 0 @ 0 pipeline: pipe
 !
@@ -209,44 +162,38 @@ draw: vertexBytes on: tex texture: t sampler: s
 !
 draw: vertexBytes on: tex scissor: anArrayOrNil texture: t sampler: s translation: aPoint pipeline: aPipeline
 	"One command buffer as the Renderer encodes it: the viewport uniform, a pass that loads, the scissor, the texture, one draw."
-	| w h f cmd buf pass ok |
-	w := self pointer: 'int' to: (ByteArray new: 4).
-	h := self pointer: 'int' to: (ByteArray new: 4).
-	f := self pointer: 'int' to: (ByteArray new: 4).
-	self assert: (gpu textureSize: tex width: w height: h format: f).
+	| size cmd buf pass |
+	size := gpu textureSize: tex.
 	cmd := gpu acquireCommandBuffer: dev.
 	buf := gpu createBuffer: dev usage: 1 size: vertexBytes size.
-	self assert: (gpu uploadBuffer: buf data: (self bytes: vertexBytes) count: vertexBytes size offset: 0).
-	self assert: (gpu pushUniforms: cmd stage: 0 slot: 0 data: (self floats: {w value. h value. aPoint x. aPoint y}) count: 16).
-	pass := gpu beginPass: cmd target: tex clear: CPointer null.
-	self assert: pass > 0.
-	self assert: (gpu bindPipeline: pass pipeline: aPipeline).
-	self assert: (gpu bindVertexBuffer: pass slot: 0 buffer: buf offset: 0).
+	gpu uploadBuffer: buf bytes: vertexBytes count: vertexBytes size offset: 0.
+	gpu pushUniforms: cmd stage: 0 slot: 0 bytes: (self floats: {size first. size at: 2. aPoint x. aPoint y}).
+	pass := gpu beginPass: cmd target: tex clear: nil.
+	gpu bindPipeline: pass pipeline: aPipeline.
+	gpu bindVertexBuffer: pass slot: 0 buffer: buf offset: 0.
 	anArrayOrNil isNil ifFalse: [
-		self assert: (gpu setScissor: pass x: anArrayOrNil first y: (anArrayOrNil at: 2) width: (anArrayOrNil at: 3) height: (anArrayOrNil at: 4))].
-	t isNil ifFalse: [self assert: (gpu bindTexture: pass slot: 0 texture: t sampler: s)].
-	self assert: (gpu draw: pass vertices: vertexBytes size // 40 first: 0).
-	self assert: (gpu endPass: pass).
-	ok := self pointer: 'bool' to: #[0].
-	gpu submit: cmd fence: false ok: ok.
-	self assert: ok value.
-	self assert: (gpu releaseHandle: buf)
+		gpu setScissor: pass x: anArrayOrNil first y: (anArrayOrNil at: 2) width: (anArrayOrNil at: 3) height: (anArrayOrNil at: 4)].
+	t isNil ifFalse: [gpu bindTexture: pass slot: 0 texture: t sampler: s].
+	gpu draw: pass count: vertexBytes size // 40 first: 0.
+	gpu endPass: pass.
+	self assert: (gpu submit: cmd fence: false) isNil.
+	gpu release: buf
 !
 render: aDisplayList width: w height: h clear: aColor
 	"Render aDisplayList as the Renderer does (one draw per batch, its texture, scissor and translation); answer the RGBA words."
-	| target cmd buf pass ok textures white uniforms tx ty |
+	| target cmd buf pass textures white uniforms tx ty |
 	target := self textureWidth: w height: h format: 2.
 	white := self textureWidth: 1 height: 1 words: #(16rFFFFFFFF).
 	textures := aDisplayList batches collect: [:b | self textureFor: b texture white: white].
 	cmd := gpu acquireCommandBuffer: dev.
 	buf := gpu createBuffer: dev usage: 1 size: (aDisplayList byteCount max: 40).
-	self assert: (gpu uploadBuffer: buf data: (self bytes: (aDisplayList vertices copyFrom: 1 to: aDisplayList byteCount)) count: aDisplayList byteCount offset: 0).
+	gpu uploadBuffer: buf bytes: aDisplayList vertices count: aDisplayList byteCount offset: 0.
 	uniforms := [:x :y | self floats: {w. h. x. y}].
 	tx := ty := 0.
-	self assert: (gpu pushUniforms: cmd stage: 0 slot: 0 data: (uniforms value: 0 value: 0) count: 16).
-	pass := gpu beginPass: cmd target: target clear: (self floats: aColor asArray).
-	self assert: (gpu bindPipeline: pass pipeline: pipe).
-	self assert: (gpu bindVertexBuffer: pass slot: 0 buffer: buf offset: 0).
+	gpu pushUniforms: cmd stage: 0 slot: 0 bytes: (uniforms value: 0 value: 0).
+	pass := gpu beginPass: cmd target: target clear: aColor asArray.
+	gpu bindPipeline: pass pipeline: pipe.
+	gpu bindVertexBuffer: pass slot: 0 buffer: buf offset: 0.
 	aDisplayList batches doWithIndex: [:b :i |
 		| s |
 		s := b scissor ifNil: [{0. 0. w. h}].
@@ -254,23 +201,27 @@ render: aDisplayList width: w height: h clear: aColor
 		(b dx = tx and: [b dy = ty]) ifFalse: [
 			tx := b dx.
 			ty := b dy.
-			gpu pushUniforms: pass stage: 0 slot: 0 data: (uniforms value: tx value: ty) count: 16].
+			gpu pushUniforms: pass stage: 0 slot: 0 bytes: (uniforms value: tx value: ty)].
 		gpu bindTexture: pass slot: 0 texture: (textures at: i) sampler: ((b texture isNil or: [b texture isLinearFiltered]) ifTrue: [linear] ifFalse: [nearest]).
-		self assert: (gpu draw: pass vertices: b count first: b first)].
-	self assert: (gpu endPass: pass).
-	ok := self pointer: 'bool' to: #[0].
-	gpu submit: cmd fence: false ok: ok.
-	self assert: ok value.
+		gpu draw: pass count: b count first: b first].
+	gpu endPass: pass.
+	gpu submit: cmd fence: false.
 	^self pixelsOf: target
 !
 textureFor: aTextureSource white: white
 	aTextureSource isNil ifTrue: [^white].
-	(aTextureSource isKindOf: (self graphics: #GlyphAtlasPage)) ifTrue: [
+	(aTextureSource isKindOf: GlyphAtlasPage) ifTrue: [
 		^self textureWidth: aTextureSource size height: aTextureSource size format: 1 pixels: aTextureSource pixels].
 	^self textureWidth: aTextureSource width height: aTextureSource height format: 2 pixels: aTextureSource asByteArray
+!
+blit: src rect: sr to: dst rect: dr linear: aBoolean
+	| cmd |
+	cmd := gpu acquireCommandBuffer: dev.
+	gpu blit: cmd source: src rect: sr destination: dst rect: dr linear: aBoolean.
+	gpu submit: cmd fence: false
 ! !
 
-!UefiGpuTest methodsFor: 'references'!
+!SoftwareGPUTest methodsFor: 'references'!
 over: d color: c k: k
 	"Premultiplied source-over of c * k / 255 on d, exactly, rounded once (the GPU's blend into unorm8)."
 	| ca |
@@ -312,7 +263,7 @@ bilinear: texels width: w height: h u: u v: v
 			bitShift: -16) bitShift: lane * 8)]
 ! !
 
-!UefiGpuTest methodsFor: 'tests'!
+!SoftwareGPUTest methodsFor: 'tests'!
 testAQuadCoversThePixelsWhoseCentresAreInside
 	| t px |
 	t := self target: 8 height: 6 clear: 0.
@@ -348,20 +299,19 @@ testScissorAndTranslation
 !
 testViewport
 	"The viewport maps the uniform's viewport (8 x 6 here) onto its rectangle, and clips."
-	| t cmd buf pass ok px |
+	| t cmd buf pass px |
 	t := self target: 8 height: 6 clear: 0.
 	cmd := gpu acquireCommandBuffer: dev.
 	buf := gpu createBuffer: dev usage: 1 size: 240.
-	gpu uploadBuffer: buf data: (self bytes: (self quadX0: -4 y0: 0 x1: 8 y1: 6 color: 16rFF0000FF mode: 0)) count: 240 offset: 0.
-	gpu pushUniforms: cmd stage: 0 slot: 0 data: (self floats: #(8 6 0 0)) count: 16.
-	pass := gpu beginPass: cmd target: t clear: CPointer null.
+	gpu uploadBuffer: buf bytes: (self quadX0: -4 y0: 0 x1: 8 y1: 6 color: 16rFF0000FF mode: 0) count: 240 offset: 0.
+	gpu pushUniforms: cmd stage: 0 slot: 0 bytes: (self floats: #(8 6 0 0)).
+	pass := gpu beginPass: cmd target: t clear: nil.
 	gpu bindPipeline: pass pipeline: pipe.
 	gpu bindVertexBuffer: pass slot: 0 buffer: buf offset: 0.
-	self assert: (gpu setViewport: pass x: 2.0 y: 1.0 width: 4.0 height: 3.0).
-	self assert: (gpu draw: pass vertices: 6 first: 0).
+	gpu setViewport: pass x: 2.0 y: 1.0 width: 4.0 height: 3.0.
+	gpu draw: pass count: 6 first: 0.
 	gpu endPass: pass.
-	ok := self pointer: 'bool' to: #[0].
-	gpu submit: cmd fence: false ok: ok.
+	gpu submit: cmd fence: false.
 	px := self pixelsOf: t.
 	0 to: 5 do: [:y |
 		0 to: 7 do: [:x |
@@ -369,12 +319,11 @@ testViewport
 !
 testGlyphCoverage
 	"Mode 1: the color times the R8 coverage, over what is there."
-	| cov atlas back t px c |
+	| cov atlas back t px |
 	cov := #[0 64 128 255 255 0 10 200 1 2 3 4].
 	atlas := self textureWidth: 4 height: 3 format: 1 pixels: cov.
 	back := self word: 50 g: 100 b: 150 a: 255.
-	#(16rFF000000 16r96143264) do: [:color |
-		c := color.
+	#(16rFF000000 16r96143264) do: [:c |
 		t := self target: 8 height: 5 clear: back.
 		self draw: (self quadX0: 2 y0: 1 x1: 6 y1: 4 uv0: 0 uv1: (self uvX: 4 y: 3) color: c mode: 1) on: t texture: atlas sampler: nearest.
 		px := self pixelsOf: t.
@@ -421,28 +370,41 @@ testImageScaled
 	self assert: (px at: 1) equals: (texels at: 1)
 !
 testPremultipliedBlendIsExact
-	"Over many colors, coverages and destinations, the blend rounds the exact result once (the SWAR path of a whole coverage too)."
-	| random c d k |
+	"Over many colors, coverages and destinations, the blend rounds the exact result once: a whole coverage (solid quads, two lanes at a time) and a partial one (glyph quads of one texel)."
+	| random n ds cs ks solid glyph atlas quads |
 	random := Random seed: 4711.
-	500 timesRepeat: [
-		| a |
+	n := 300.
+	ds := (1 to: n) collect: [:i | random nextInt: 16rFFFFFFFF].
+	cs := (1 to: n) collect: [:i | | a |
 		a := (random nextInt: 256) - 1.
-		c := self word: (random nextInt: a + 1) - 1 g: (random nextInt: a + 1) - 1 b: (random nextInt: a + 1) - 1 a: a.
-		d := random nextInt: 16rFFFFFFFF.
-		k := (random nextInt: 256) - 1.
-		self assert: (gpu over: d color: c k: k) equals: (self over: d color: c k: k).
-		self assert: (gpu over: d color: c) equals: (self over: d color: c k: 255)].
-	self assert: (gpu over: 16rFFFFFFFF color: 16r80FFFFFF) equals: 16rFFFFFFFF.
-	self assert: (gpu over: 16r12345678 color: 16rFF000000) equals: 16rFF000000
+		self word: (random nextInt: a + 1) - 1 g: (random nextInt: a + 1) - 1 b: (random nextInt: a + 1) - 1 a: a].
+	ks := (1 to: n) collect: [:i | (random nextInt: 256) - 1].
+	atlas := self textureWidth: n height: 1 format: 1 pixels: ks asByteArray.
+	solid := self textureWidth: n height: 1 words: ds.
+	glyph := self textureWidth: n height: 1 words: ds.
+	quads := ByteArray new: 0.
+	1 to: n do: [:i | quads := quads , (self quadX0: i - 1 y0: 0 x1: i y1: 1 color: (cs at: i) mode: 0)].
+	self draw: quads on: solid.
+	quads := ByteArray new: 0.
+	1 to: n do: [:i | quads := quads , (self quadX0: i - 1 y0: 0 x1: i y1: 1 uv0: (self uvX: i - 1 y: 0) uv1: (self uvX: i y: 1) color: (cs at: i) mode: 1)].
+	self draw: quads on: glyph texture: atlas sampler: nearest.
+	(self pixelsOf: solid) doWithIndex: [:p :i | self assert: p equals: (self over: (ds at: i) color: (cs at: i) k: 255)].
+	(self pixelsOf: glyph) doWithIndex: [:p :i |
+		self assert: p equals: ((ks at: i) = 0 ifTrue: [ds at: i] ifFalse: [self over: (ds at: i) color: (cs at: i) k: (ks at: i)])].
+	solid := self target: 2 height: 1 clear: 16rFFFFFFFF.
+	self draw: (self quadX0: 0 y0: 0 x1: 1 y1: 1 color: 16r80FFFFFF mode: 0) on: solid.
+	self assert: (self pixelsOf: solid) first equals: 16rFFFFFFFF
 !
 testOtherBlends
-	"none: the source itself; alpha: straight source alpha."
-	gpu instVarNamed: 'rsBlend' put: 0.
-	self assert: (gpu blend: 16r12345678 source: 16r80402010 k: 255) equals: 16r80402010.
-	self assert: (gpu blend: 16r12345678 source: 16r80402010 k: 0) equals: 0.
-	gpu instVarNamed: 'rsBlend' put: 1.
+	"none: the source itself (times the coverage); alpha: straight source alpha."
+	| t |
+	t := self target: 2 height: 1 clear: 16r12345678.
+	self draw: (self quadX0: 0 y0: 0 x1: 1 y1: 1 color: 16r80402010 mode: 0) on: t scissor: nil texture: nil sampler: nil translation: 0 @ 0 pipeline: (self pipelineBlend: 0).
+	self assert: (self pixelsOf: t) equals: {16r80402010. 16r12345678}.
+	t := self target: 1 height: 1 clear: (self word: 0 g: 0 b: 255 a: 255).
 	"s.rgb * s.a + d.rgb * (1 - s.a): (255, 0, 0) at 128/255 over (0, 0, 255, 255)"
-	self assert: (gpu blend: 16rFFFF0000 source: 16r800000FF k: 255) equals: (self word: 128 g: 0 b: 127 a: 255)
+	self draw: (self quadX0: 0 y0: 0 x1: 1 y1: 1 color: 16r800000FF mode: 0) on: t scissor: nil texture: nil sampler: nil translation: 0 @ 0 pipeline: (self pipelineBlend: 1).
+	self assert: (self pixelsOf: t) equals: {self word: 128 g: 0 b: 127 a: 255}
 !
 testTrianglesSplitTheirQuadExactly
 	"Explicitly positioned triangles (bit 31 of mode) cover what the quad covers, the shared diagonal once."
@@ -516,11 +478,10 @@ testPatterns
 !
 testAntialiasedLineCoverage
 	"Mode 5, a horizontal line at y = 4 one pixel wide as Canvas records it: half covers the rows above and below."
-	| canvas list px |
-	canvas := (self graphics: #Canvas) extent: 10 @ 8 scale: 1.
-	canvas line: 0 @ 4 to: 10 @ 4.001 color: (self graphics: #Color) black width: 1.
-	list := canvas displayList.
-	px := self render: list width: 10 height: 8 clear: (self graphics: #Color) white.
+	| canvas px |
+	canvas := Canvas extent: 10 @ 8 scale: 1.
+	canvas line: 0 @ 4 to: 10 @ 4.001 color: Color black width: 1.
+	px := self render: canvas displayList width: 10 height: 8 clear: Color white.
 	0 to: 7 do: [:y |
 		1 to: 8 do: [:x |
 			| v |
@@ -530,7 +491,7 @@ testAntialiasedLineCoverage
 				ifFalse: [self assert: v equals: 255]]]
 !
 testBlitConvertsAndScales
-	| texels src bgra r8 dst px ok |
+	| texels src bgra r8 dst px |
 	texels := {self word: 1 g: 2 b: 3 a: 4. self word: 5 g: 6 b: 7 a: 8. self word: 9 g: 10 b: 11 a: 12. self word: 13 g: 14 b: 15 a: 16}.
 	src := self textureWidth: 2 height: 2 words: texels.
 	bgra := self textureWidth: 2 height: 2 format: 3.
@@ -554,136 +515,112 @@ testBlitConvertsAndScales
 	self blit: src rect: #(1 0 1 2) to: dst rect: #(2 1 1 2) linear: false.
 	px := self pixelsOf: dst.
 	self assert: px equals: {0. 0. 0. 0. 0. texels at: 2. 0. 0. texels at: 4}.
-	ok := gpu blit: (gpu acquireCommandBuffer: dev) source: 999 rect: (self ints: #(0 0 1 1)) destination: dst rect: (self ints: #(0 0 1 1)) linear: false.
-	self deny: ok.
-	self assert: self lastError equals: 'bad texture handle 999'
-!
-blit: src rect: sr to: dst rect: dr linear: aBoolean
-	| cmd ok |
-	cmd := gpu acquireCommandBuffer: dev.
-	self assert: (gpu blit: cmd source: src rect: (self ints: sr) destination: dst rect: (self ints: dr) linear: aBoolean).
-	ok := self pointer: 'bool' to: #[0].
-	gpu submit: cmd fence: false ok: ok.
-	self assert: ok value
+	self failure: [gpu blit: (gpu acquireCommandBuffer: dev) source: 999 rect: #(0 0 1 1) destination: dst rect: #(0 0 1 1) linear: false]
+		is: 'bad texture handle 999'
 !
 testUploadAndDownloadRegions
-	| t p |
+	| t b |
 	t := self textureWidth: 4 height: 3 words: (1 to: 12) asArray.
-	self assert: (gpu uploadTexture: t data: (self bytes: (self wordBytes: #(100 101 0 102 103))) length: 20 x: 1 y: 1 width: 2 height: 2 bytesPerRow: 12).
+	gpu uploadTexture: t bytes: (self wordBytes: #(100 101 0 102 103)) x: 1 y: 1 width: 2 height: 2 bytesPerRow: 12.
 	self assert: (self pixelsOf: t) equals: #(1 2 3 4 5 100 101 8 9 102 103 12).
-	p := self bytes: (ByteArray new: 8).
-	self assert: (gpu download: t x: 2 y: 1 width: 2 height: 1 into: p length: 8).
-	self assert: (memory bytesAt: (memory addressOf: p) count: 8) equals: (self wordBytes: #(101 8)).
-	self deny: (gpu download: t x: 3 y: 1 width: 2 height: 1 into: p length: 8).
-	self assert: self lastError equals: 'bad download region'.
-	self deny: (gpu download: t x: 0 y: 0 width: 2 height: 1 into: p length: 7).
-	self deny: (gpu uploadTexture: t data: p length: 8 x: 0 y: 0 width: 3 height: 1 bytesPerRow: 12).
-	self assert: self lastError equals: 'bad texture upload region'
+	b := ByteArray new: 8.
+	gpu download: t x: 2 y: 1 width: 2 height: 1 into: b.
+	self assert: b equals: (self wordBytes: #(101 8)).
+	self failure: [gpu download: t x: 3 y: 1 width: 2 height: 1 into: b] is: 'bad download region'.
+	self failure: [gpu download: t x: 0 y: 0 width: 2 height: 1 into: (ByteArray new: 7)] is: 'bad download region'.
+	self failure: [gpu uploadTexture: t bytes: b x: 0 y: 0 width: 3 height: 1 bytesPerRow: 12] is: 'bad texture upload region'.
+	"a Form's Bitmap uploads as it is"
+	gpu uploadTexture: t bytes: (Bitmap new: 2 withAll: 7) x: 0 y: 2 width: 2 height: 1 bytesPerRow: 8.
+	self assert: (self pixelsOf: t) equals: #(1 2 3 4 5 100 101 8 7 7 103 12)
 !
 testClearAndAFence
-	| t cmd pass ok f |
+	| t cmd pass f |
 	t := self textureWidth: 2 height: 2 format: 2.
 	cmd := gpu acquireCommandBuffer: dev.
-	pass := gpu beginPass: cmd target: t clear: (self floats: #(1.0 0.5 0.0 1.0)).
-	self assert: (gpu endPass: pass).
-	ok := self pointer: 'bool' to: #[0].
-	f := gpu submit: cmd fence: true ok: ok.
-	self assert: ok value.
-	self assert: (gpu fenceDone: f) equals: 1.
-	self assert: (gpu waitFence: f).
+	pass := gpu beginPass: cmd target: t clear: #(1.0 0.5 0.0 1.0).
+	gpu endPass: pass.
+	f := gpu submit: cmd fence: true.
+	self assert: (gpu fenceDone: f).
+	gpu waitFence: f.
 	self assert: (gpu fenceElapsed: f) >= 0.
 	self assert: (self pixelsOf: t) equals: (Array new: 4 withAll: (self word: 255 g: 128 b: 0 a: 255)).
-	self assert: (gpu releaseHandle: f).
-	self assert: (gpu fenceDone: f) equals: -1.
-	self assert: (gpu fenceElapsed: f) equals: -2
+	gpu release: f.
+	self failure: [gpu fenceDone: f] is: 'bad fence handle ' , f printString
 !
 testTheSwapchainIsPresentedOnSubmit
-	| win cmd w h sw f pass buf ok frame |
-	win := sim windows.
-	self deny: (gpu claimWindow: dev window: 2).
-	self assert: (gpu claimWindow: dev window: 1).
-	self assert: (gpu claimWindow: dev window: 1).
+	| cmd sw pass buf frame |
+	self should: [gpu claim: dev window: 2] raise: Error.
+	gpu claim: dev window: 1.
+	gpu claim: dev window: 1.
 	self assert: (gpu swapchainFormat: dev window: 1) equals: 3.
 	cmd := gpu acquireCommandBuffer: dev.
-	w := self pointer: 'int' to: (ByteArray new: 4).
-	h := self pointer: 'int' to: (ByteArray new: 4).
-	sw := gpu acquireSwapchain: cmd window: 1 width: w height: h.
-	self assert: sw > 0.
-	self assert: w value equals: 6.
-	self assert: h value equals: 4.
-	f := self pointer: 'int' to: (ByteArray new: 4).
-	self assert: (gpu textureSize: sw width: w height: h format: f).
-	self assert: f value equals: 3.
+	sw := gpu acquireSwapchain: cmd window: 1.
+	self assert: (sw copyFrom: 2 to: 3) equals: #(6 4).
+	self assert: (gpu textureSize: sw first) equals: #(6 4 3).
 	"a draw into the BGRA8 back buffer"
 	buf := gpu createBuffer: dev usage: 1 size: 240.
-	gpu uploadBuffer: buf data: (self bytes: (self quadX0: 1 y0: 1 x1: 3 y1: 2 color: (self word: 10 g: 20 b: 30 a: 255) mode: 0)) count: 240 offset: 0.
-	gpu pushUniforms: cmd stage: 0 slot: 0 data: (self floats: #(6 4 0 0)) count: 16.
-	pass := gpu beginPass: cmd target: sw clear: (self floats: #(0.0 0.0 1.0 1.0)).
+	gpu uploadBuffer: buf bytes: (self quadX0: 1 y0: 1 x1: 3 y1: 2 color: (self word: 10 g: 20 b: 30 a: 255) mode: 0) count: 240 offset: 0.
+	gpu pushUniforms: cmd stage: 0 slot: 0 bytes: (self floats: #(6 4 0 0)).
+	pass := gpu beginPass: cmd target: sw first clear: #(0.0 0.0 1.0 1.0).
 	gpu bindPipeline: pass pipeline: pipe.
 	gpu bindVertexBuffer: pass slot: 0 buffer: buf offset: 0.
-	self assert: (gpu draw: pass vertices: 6 first: 0).
+	gpu draw: pass count: 6 first: 0.
 	gpu endPass: pass.
-	self assert: win frames isEmpty.
-	ok := self pointer: 'bool' to: #[0].
-	gpu submit: cmd fence: false ok: ok.
-	self assert: ok value.
-	self assert: win frames size equals: 1.
-	frame := win frames first.
+	self assert: display frames isEmpty.
+	gpu submit: cmd fence: false.
+	self assert: display frames size equals: 1.
+	frame := display frames first.
 	self assert: (frame copyFrom: 1 to: 3) equals: #(1 6 4).
 	"BGRA8: blue, then the quad's (30, 20, 10)"
 	self assert: ((frame at: 4) copyFrom: 1 to: 4) equals: #[255 0 0 255].
 	self assert: ((frame at: 4) copyFrom: 6 * 4 + 5 to: 6 * 4 + 12) equals: #[30 20 10 255 30 20 10 255].
 	"the swapchain texture ended with the command buffer; a minimized window has none (and no error)"
-	self deny: (gpu releaseHandle: sw).
-	win width: 0 height: 0.
+	self failure: [gpu release: sw first] is: 'bad GPU handle ' , sw first printString.
+	display width: 0 height: 0.
 	cmd := gpu acquireCommandBuffer: dev.
-	self assert: (gpu acquireSwapchain: cmd window: 1 width: w height: h) equals: 0.
-	self assert: self lastError equals: ''.
-	gpu windowClosing: 1.
-	self assert: (gpu acquireSwapchain: cmd window: 1 width: w height: h) equals: 0.
-	self assert: self lastError equals: 'the window is not claimed'
+	self assert: (gpu acquireSwapchain: cmd window: 1) isNil.
+	gpu windowClosed: 1.
+	self failure: [gpu acquireSwapchain: cmd window: 1] is: 'the window is not claimed'
 !
 testOnlyTheRenderersPipeline
 	| vs fs |
 	self assert: pipe > 0.
-	self assert: (memory stringAt: (gpu shaderLanguage: dev)) equals: 'software'.
+	self assert: (gpu shaderLanguage: dev) equals: 'software'.
 	vs := gpu createShader: dev source: 'v' entry: 'main' stage: 0 samplers: 0 uniformBuffers: 0 storageBuffers: 0 storageTextures: 0.
 	fs := gpu createShader: dev source: 'f' entry: 'main' stage: 1 samplers: 0 uniformBuffers: 1 storageBuffers: 0 storageTextures: 0.
-	self assert: (gpu createPipeline: dev vertexShader: vs fragmentShader: fs stride: 0 attributes: (self attributes: #()) count: 0 primitive: 0 blend: 0 targetFormat: 2) equals: 0.
-	self assert: self lastError equals: 'the software GPU runs the Renderer''s shader only'.
-	self assert: (gpu createPipeline: dev vertexShader: fs fragmentShader: vs stride: 40 attributes: (self attributes: #(4 0 7 16 7 20 5 24 7 28 2 32)) count: 6 primitive: 0 blend: 2 targetFormat: 2) equals: 0.
+	self failure: [gpu createPipeline: dev vertex: vs fragment: fs stride: 0 attributes: #() primitive: 0 blend: 0 format: 2]
+		is: 'the software GPU runs the Renderer''s shader only'.
+	self failure: [gpu createPipeline: dev vertex: fs fragment: vs stride: 40 attributes: #(4 0 7 16 7 20 5 24 7 28 2 32) primitive: 0 blend: 2 format: 2]
+		is: 'the software GPU runs the Renderer''s shader only'.
 	self assert: (self pipelineBlend: 0) > 0
 !
 testHandles
-	| counts t cmd pass |
-	counts := [| out | out := self pointer: 'int64_t' to: (ByteArray new: 56). gpu handleCounts: out. (0 to: 6) collect: [:i | out at: i]].
-	self assert: counts value equals: #(1 2 1 0 2 0 0).
+	| t cmd pass |
+	self assert: gpu liveObjects size equals: 6.
+	self assert: (#(#device #shader #pipeline #sampler) collect: [:k | gpu liveObjects occurrencesOf: k]) equals: #(1 2 1 2).
 	t := self textureWidth: 1 height: 1 format: 2.
 	cmd := gpu acquireCommandBuffer: dev.
-	pass := gpu beginPass: cmd target: t clear: CPointer null.
-	self assert: counts value equals: #(1 2 1 1 2 0 0).
-	self deny: (gpu releaseHandle: pass).
-	self assert: self lastError equals: 'pass/swapchain handles end with their command buffer'.
-	self assert: (gpu releaseHandle: cmd).
-	self deny: (gpu endPass: pass).
-	self assert: self lastError equals: 'bad render pass handle ' , pass printString.
-	self assert: (gpu releaseHandle: dev).
-	self assert: counts value equals: #(0 0 0 0 0 0 0).
-	self assert: (gpu createTexture: dev width: 1 height: 1 format: 2 usage: 1) equals: 0.
-	self assert: self lastError equals: 'bad device handle ' , dev printString
+	pass := gpu beginPass: cmd target: t clear: nil.
+	self assert: (gpu liveObjects occurrencesOf: #pass) equals: 1.
+	self failure: [gpu release: pass] is: 'pass/swapchain handles end with their command buffer'.
+	gpu release: cmd.
+	self failure: [gpu endPass: pass] is: 'bad pass handle ' , pass printString.
+	gpu release: dev.
+	self assert: gpu liveObjects isEmpty.
+	self failure: [gpu createTexture: dev width: 1 height: 1 format: 2 usage: 1] is: 'bad device handle ' , dev printString
 !
 testADisplayList
 	"Text, a rectangle, an image, a line from a Canvas, rendered as the Renderer would."
 	| canvas form px font dark |
-	font := (self graphics: #Font) ui.
-	form := (self graphics: #Form) width: 4 height: 4.
-	form fill: (self graphics: #Color) red.
-	canvas := (self graphics: #Canvas) extent: 60 @ 30 scale: 1.
-	canvas fillRect: (2 @ 2 extent: 10 @ 6) color: (self graphics: #Color) blue.
+	font := Font ui.
+	form := Form width: 4 height: 4.
+	form fill: Color red.
+	canvas := Canvas extent: 60 @ 30 scale: 1.
+	canvas fillRect: (2 @ 2 extent: 10 @ 6) color: Color blue.
 	canvas image: form in: (40 @ 2 extent: 8 @ 8).
-	canvas drawString: 'Hi' at: 2 @ 10 font: font color: (self graphics: #Color) black.
-	canvas line: 20 @ 25 to: 58 @ 12 color: (self graphics: #Color) black width: 1.
-	px := self render: canvas displayList width: 60 height: 30 clear: (self graphics: #Color) white.
+	canvas drawString: 'Hi' at: 2 @ 10 font: font color: Color black.
+	canvas line: 20 @ 25 to: 58 @ 12 color: Color black width: 1.
+	px := self render: canvas displayList width: 60 height: 30 clear: Color white.
 	self assert: (px at: 3 * 60 + 5 + 1) equals: 16rFFFF0000.
 	self assert: (px at: 1) equals: 16rFFFFFFFF.
 	self assert: (px at: 5 * 60 + 44 + 1) equals: 16rFF0000FF.
@@ -691,4 +628,34 @@ testADisplayList
 		n + ((2 to: 20) count: [:x | ((px at: y * 60 + x + 1) bitAnd: 255) < 128])]).
 	self assert: dark > 10.
 	self assert: ((20 to: 58) count: [:x | (0 to: 29) anySatisfy: [:y | ((px at: y * 60 + x + 1) bitAnd: 255) < 200]]) > 30
+!
+testTheGPULayerOnASoftwareDevice
+	"GPUPlatform's backends: a Renderer on a GPUDevice of a SoftwareGPU draws what the same DisplayList does here, into a Surface and through a swapchain onto the display, as DisplayWindow does."
+	| old device canvas form list renderer surface window swapchain cmd swap px frame |
+	old := GPUPlatform display: display device: gpu.
+	[device := GPUDevice new.
+	self assert: device isSoftware.
+	form := Form width: 4 height: 4.
+	form fill: Color red.
+	canvas := Canvas extent: 6 @ 4 scale: 1.
+	canvas fillRect: (1 @ 1 extent: 3 @ 2) color: Color blue.
+	canvas image: form in: (4 @ 0 extent: 2 @ 2).
+	canvas line: 0 @ 3.5 to: 6 @ 3.5 color: Color black width: 1.
+	list := canvas displayList.
+	renderer := Renderer on: device.
+	surface := Surface new setWidth: 6 height: 4 scale: 1 device: device.
+	window := HostWindow width: 6 height: 4 title: 'test' flags: 1.
+	swapchain := device swapchainFor: window.
+	cmd := device commandBuffer.
+	renderer render: list into: surface texture clear: Color white commandBuffer: cmd.
+	swap := cmd acquireSwapchainTexture: swapchain.
+	cmd blit: surface texture to: swap.
+	cmd submit.
+	px := surface texture download.
+	self assert: ((1 to: px size by: 4) collect: [:i | px uint32At: i]) equals: (self render: list width: 6 height: 4 clear: Color white).
+	self assert: display frames size equals: 1.
+	frame := display frames first last.
+	self assert: ((1 to: px size by: 4) collect: [:i | frame uint32At: i]) equals: ((1 to: px size by: 4) collect: [:i |
+		((px uint32At: i) bitAnd: 16rFF00FF00) + (((px uint32At: i) bitAnd: 16rFF) bitShift: 16) + (((px uint32At: i) bitShift: -16) bitAnd: 16rFF)])]
+		ensure: [GPUPlatform display: old first device: old last]
 ! !

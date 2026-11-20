@@ -819,7 +819,7 @@ valueSend: aMessageNode valueWanted: aBoolean
 	type := self valueType: rcv.
 	(sel == #ifNoOverflowAdd:do: or: [sel == #ifNoOverflowSub:do: or: [sel == #ifNoOverflowMul:do:]])
 		ifTrue: [self overflowCheck: aMessageNode receiver: rcv. ^nil].
-	((type isPointer and: [type target isFunction]) and: [#(#call #call: #call:with: #call:with:with: #call:with:with:with: #call:with:with:with:with: #call:with:with:with:with:with: #call:with:with:with:with:with:with:) includes: sel])
+	((type isPointer and: [type target isFunction]) and: [self isCallSelector: sel])
 		ifTrue: [^self callPointer: rcv arguments: aMessageNode arguments node: aMessageNode].
 	((type isPointerLike and: [type target isStruct]) or: [type isStruct]) ifTrue: [
 		(self isFieldSelector: sel of: type) ifTrue: [^self field: aMessageNode receiver: rcv]].
@@ -909,6 +909,16 @@ overflowCheck: aMessageNode receiver: rcv
 		op == #ifNoOverflowSub:do: ifTrue: ['__builtin_sub_overflow'] ifFalse: ['__builtin_mul_overflow']].
 	cond := CUnary operator: '!!' operand: (CCall function: builtin arguments: (Array with: (self cast: rcv to: int64) with: (self cast: arg to: int64) with: (CUnary operator: '&' operand: r type: int64 pointer)) type: (translator registry at: 'bool')) type: (translator registry at: 'bool').
 	block add: (CIf condition: cond then: (self blockBody: blk arguments: (Array with: r)) else: nil)
+!
+isCallSelector: aSymbol
+	"call, call:, call:with: ... up to ten arguments: a call through a function pointer."
+	| s |
+	aSymbol == #call ifTrue: [^true].
+	(aSymbol numArgs between: 1 and: 10) ifFalse: [^false].
+	s := WriteStream on: String new.
+	s nextPutAll: 'call:'.
+	aSymbol numArgs - 1 timesRepeat: [s nextPutAll: 'with:'].
+	^aSymbol asString = s contents
 !
 callPointer: aCExpr arguments: argNodes node: aNode
 	| ftype args |

@@ -3,9 +3,9 @@ VMCoreModule subclass: #UefiModule
 	classVariableNames: 'EFI_ALLOCATE_ANY_PAGES EFI_EVT_NOTIFY_SIGNAL EFI_EVT_TIMER EFI_FILE_MODE_CREATE EFI_FILE_MODE_READ EFI_FILE_MODE_WRITE EFI_LOADER_CODE EFI_LOADER_DATA EFI_MEMORY_RO EFI_MEMORY_WB EFI_MEMORY_XP EFI_RESET_SHUTDOWN EFI_TIMER_CANCEL EFI_TIMER_PERIODIC EFI_TIMER_RELATIVE EFI_TPL_CALLBACK STACK_BYTES'
 	package: 'VM-UEFI'!
 
-UefiModule comment: 'I am the abstract class of the modules of the VM on UEFI (VMTranslator generateVMInto:os:arch: with #uefi): a VM that is the firmware''s application, with no operating system and no C library under it. The firmware''s services are tables of function pointers (EfiSystemTable, EfiBootServices, ...) that take the Microsoft calling convention on x86-64 and the standard one on AArch64, where ms_abi changes nothing (EfiFn0 ... EfiFn7: every argument a 64-bit word); efi: fn with: ... calls one.
+UefiModule comment: 'I am the abstract class of the modules of the VM on UEFI (VMTranslator generateVMInto:os:arch: with #uefi): a VM that is the firmware''s application, with no operating system and no C library under it. The firmware''s services are tables of function pointers (EfiSystemTable, EfiBootServices, ...) that take the Microsoft calling convention on x86-64 and the standard one on AArch64, where ms_abi changes nothing (EfiFn0 ... EfiFn10: every argument a 64-bit word); efi: fn with: ... calls one.
 
-UefiFirmware is the entry (efi_main); UefiLibC, UefiLibM and UefiPosix take the place of the C libraries the core calls, UefiWindows, UefiEvents, UefiVsync, UefiGpu and UefiNoIO that of the platform layer''s SDL and POSIX modules (replaces); UefiTicker, UefiJitPlatform and UefiPlatform implement the core''s interfaces, UefiCpu what differs between the CPUs; UefiScreen, UefiInput, UefiVirtioInput, UefiSnp (in place of PlatformNic) and UefiImageStore drive the firmware''s devices.'!
+UefiFirmware is the entry (efi_main); UefiLibC, UefiLibM and UefiPosix take the place of the C libraries the core calls, UefiMachine, UefiSnp, UefiNoDisplay and UefiNoIO that of the platform layer''s modules (replaces); UefiTicker, UefiJitPlatform and UefiPlatform implement the core''s interfaces, UefiCpu what differs between the CPUs; UefiImageStore drives the disk the image is on. The screen and the input devices are the image''s (System-Devices).'!
 
 !UefiModule class methodsFor: 'declaring'!
 declarations
@@ -28,7 +28,10 @@ typedefs
 		(EfiFn4 'uint64_t (__attribute__((ms_abi)) *)(uint64_t, uint64_t, uint64_t, uint64_t)')
 		(EfiFn5 'uint64_t (__attribute__((ms_abi)) *)(uint64_t, uint64_t, uint64_t, uint64_t, uint64_t)')
 		(EfiFn6 'uint64_t (__attribute__((ms_abi)) *)(uint64_t, uint64_t, uint64_t, uint64_t, uint64_t, uint64_t)')
-		(EfiFn7 'uint64_t (__attribute__((ms_abi)) *)(uint64_t, uint64_t, uint64_t, uint64_t, uint64_t, uint64_t, uint64_t)'))
+		(EfiFn7 'uint64_t (__attribute__((ms_abi)) *)(uint64_t, uint64_t, uint64_t, uint64_t, uint64_t, uint64_t, uint64_t)')
+		(EfiFn8 'uint64_t (__attribute__((ms_abi)) *)(uint64_t, uint64_t, uint64_t, uint64_t, uint64_t, uint64_t, uint64_t, uint64_t)')
+		(EfiFn9 'uint64_t (__attribute__((ms_abi)) *)(uint64_t, uint64_t, uint64_t, uint64_t, uint64_t, uint64_t, uint64_t, uint64_t, uint64_t)')
+		(EfiFn10 'uint64_t (__attribute__((ms_abi)) *)(uint64_t, uint64_t, uint64_t, uint64_t, uint64_t, uint64_t, uint64_t, uint64_t, uint64_t, uint64_t)'))
 !
 initialize
 	EFI_LOADER_CODE := 1.
@@ -87,7 +90,7 @@ runtime
 ! !
 
 UefiModule subclass: #UefiFirmware
-	instanceVariableNames: 'imageHandle systemTable bootServices runtimeServices conOut root store cpu serial screenOwned'
+	instanceVariableNames: 'imageHandle systemTable bootServices runtimeServices conOut root store cpu serial'
 	classVariableNames: ''
 	package: 'VM-UEFI'!
 
@@ -96,7 +99,7 @@ UefiFirmware comment: 'The VM''s entry on UEFI, efi_main: makes its image writab
 !UefiFirmware class methodsFor: 'declaring'!
 declarations
 	^#((imageHandle 'void *') (systemTable 'EfiSystemTable *') (bootServices 'EfiBootServices *') (runtimeServices 'EfiRuntimeServices *')
-		(conOut 'EfiTextOutput *') (root 'EfiFile *') (store UefiImageStore) (cpu UefiCpu) (serial 'EfiSerialIo *') (screenOwned bool))
+		(conOut 'EfiTextOutput *') (root 'EfiFile *') (store UefiImageStore) (cpu UefiCpu) (serial 'EfiSerialIo *'))
 ! !
 
 !UefiFirmware methodsFor: 'entry'!
@@ -231,11 +234,8 @@ root
 conInHandle
 	^systemTable conInHandle
 !
-screenOwned: aBoolean
-	"Once the VM draws on the screen the firmware's console must not (UefiScreen)."
-	<function>
-	<var: #aBoolean type: 'bool'>
-	screenOwned := aBoolean
+systemTable
+	^systemTable
 !
 openSerial
 	"The first serial port, where the console goes when there is one."
@@ -271,11 +271,6 @@ writeConsole: bytes count: n
 		size value: (n - start) asUInt64.
 		self efi: serial writeSerial with: serial with: size with: bytes + start].
 	^true
-!
-isScreenOwned
-	<function>
-	<returns: 'bool'>
-	^screenOwned
 !
 outputString: aUcs2String
 	"Write a NUL-terminated UCS-2 string to the console (on QEMU with -nographic, the serial port)."
@@ -466,4 +461,16 @@ EfiFile comment: 'EFI_FILE_PROTOCOL (UEFI 2.10, 13.5), revision 1''s functions.'
 fields
 	^#((revision uint64_t) (open 'void *') (close 'void *') (delete 'void *') (read 'void *') (write 'void *')
 		(getPosition 'void *') (setPosition 'void *') (getInfo 'void *') (setInfo 'void *') (flush 'void *'))
+! !
+
+VMStruct subclass: #EfiSerialIo
+	instanceVariableNames: ''
+	classVariableNames: ''
+	package: 'VM-UEFI'!
+
+EfiSerialIo comment: 'EFI_SERIAL_IO_PROTOCOL (UEFI 2.10, 12.8), up to Write.'!
+
+!EfiSerialIo class methodsFor: 'declaring'!
+fields
+	^#((revision uint32_t) (resetSerial 'void *') (setAttributes 'void *') (setControl 'void *') (getControl 'void *') (writeSerial 'void *'))
 ! !

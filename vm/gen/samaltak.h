@@ -592,6 +592,8 @@ typedef void (*prim_fn)(void);
 #define REG_D 128
 #define REG_SP 32
 #define REG_W 64
+#define RS_MAX_COORD 1048576
+#define RS_STRIDE 40
 #define R_DBL 3
 #define R_INT 2
 #define R_NONE 0
@@ -824,6 +826,7 @@ typedef struct pf_stat pf_stat;
 typedef struct pf_table pf_table;
 typedef struct pf_vattr pf_vattr;
 typedef struct pty_child pty_child;
+typedef struct raster_state raster_state;
 typedef struct sock_sems sock_sems;
 #endif
 
@@ -1192,6 +1195,33 @@ struct pty_child {
     bool reaped;
 };
 _Static_assert(sizeof(pty_child) == 8, "the simulator lays out PtyChild as C does");
+
+struct raster_state {
+    uint8_t *pixels;
+    int64_t width;
+    int64_t height;
+    int32_t format;
+    int32_t blend;
+    int64_t scissor_x;
+    int64_t scissor_y;
+    int64_t scissor_w;
+    int64_t scissor_h;
+    double viewport_x;
+    double viewport_y;
+    double viewport_w;
+    double viewport_h;
+    double view_size_x;
+    double view_size_y;
+    double translate_x;
+    double translate_y;
+    uint8_t *texture;
+    int64_t texture_width;
+    int64_t texture_height;
+    int32_t texture_format;
+    bool linear;
+    bool wrap;
+};
+_Static_assert(sizeof(raster_state) == 160, "the simulator lays out RasterState as C does");
 
 struct sock_sems {
     int32_t read_sem;
@@ -2094,6 +2124,9 @@ bool upload_texture(int32_t tex, const void *data, size_t len, int32_t x, int32_
 bool wait_fence(int32_t fence);
 bool wait_idle(int32_t dev);
 void window_closing(int32_t win);
+uint64_t call_firmware(uint64_t fn, uint64_t *args, int32_t n, bool *ok);
+uint64_t firmware_system_table(void);
+bool watch_event(uint64_t event, int32_t index);
 bool platform_nic_counters(int64_t *v);
 bool frame_semaphore(int32_t index);
 bool platform_nic_open(uint8_t *mac);
@@ -2151,6 +2184,15 @@ void prim_gpu_wait_fence(void);
 void prim_gpu_wait_idle(void);
 void prim_inject_event(void);
 void prim_input_semaphore(void);
+void prim_machine_allocate(void);
+void prim_machine_barrier(void);
+void prim_machine_call(void);
+void prim_machine_copy(void);
+void prim_machine_free(void);
+void prim_machine_read(void);
+void prim_machine_system_table(void);
+void prim_machine_watch(void);
+void prim_machine_write(void);
 void prim_mkfifo(void);
 void prim_next_event(void);
 void prim_nic_open(void);
@@ -2169,6 +2211,10 @@ void prim_pty_semaphore(void);
 void prim_pty_spawn(void);
 void prim_pty_wait(void);
 void prim_pty_write(void);
+void prim_raster_blit(void);
+void prim_raster_copy(void);
+void prim_raster_draw(void);
+void prim_raster_fill(void);
 void prim_set_cursor(void);
 void prim_socket_accept(void);
 void prim_socket_close(void);
@@ -2203,6 +2249,10 @@ pid_t foreground(int32_t p);
 bool resize(int32_t p, int32_t rows, int32_t cols);
 int32_t platform_ptys_spawn(char **argv, char **envp, char *cwd, int32_t rows, int32_t cols, int64_t *pid_out);
 bool platform_ptys_wait(int32_t p, bool block, int *status, bool *done);
+void blit_pixels(uint8_t *src, int64_t src_w, int64_t src_h, int32_t src_fmt, int64_t *sr, uint8_t *dst, int64_t dst_w, int64_t dst_h, int32_t dst_fmt, int64_t *dr, bool linear);
+void copy(uint8_t *dst, int64_t dst_stride, uint8_t *src, int64_t src_stride, int64_t w, int64_t h, int64_t bpp, int64_t mode);
+void platform_raster_fill(uint8_t *pixels, int64_t n, int bpp, uint32_t v);
+void rasterize(raster_state *st, uint8_t *base, int64_t first, int64_t count);
 int32_t platform_sockets_accept(int32_t s, bool *would_block);
 int32_t platform_sockets_add(int fd, int kind, void *ptr);
 bool any_armed(void);
