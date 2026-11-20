@@ -1037,6 +1037,21 @@ testDivisionByAConstantIsInTheCode
 	self assert: ((self listingOf: #byConstants:) includesSubstring: 'division by the constant 7').
 	self deny: ((self listingOf: #byConstants:) includesSubstring: (self isX64 ifTrue: ['idiv'] ifFalse: ['sdiv']))
 !
+testFlooredDivisionByAPowerOfTwo
+	"x // 2^k and x \\ 2^k of a SmallInteger are a shift and a mask of the tagged value: what a divisor that is no constant gives, for both signs and at the ends of the range."
+	| o check |
+	Smalltalk vm jitParameters: #(nil '-eager' nil nil).
+	self define: 'halves: x ^{x // 2. x \\ 2. x // 16. x \\ 16. x // 1024. x \\ 1024}'.
+	self define: 'by: d of: x ^{x // d. x \\ d}'.
+	o := JitRuntimeTestSubject new.
+	check := [:x | | r |
+		r := o halves: x.
+		1 to: 3 do: [:i | self assert: (r copyFrom: i * 2 - 1 to: i * 2) equals: (o by: (#(2 16 1024) at: i) of: x)]].
+	-3000 to: 3000 do: [:x | check value: x].
+	{SmallInteger maxVal. SmallInteger maxVal - 1. SmallInteger minVal. SmallInteger minVal + 1} do: [:x | check value: x].
+	self assert: ((self listingOf: #halves:) includesSubstring: 'floored division by the constant 16').
+	self assert: ((self listingOf: #halves:) includesSubstring: 'modulo the constant 1024')
+!
 testBranchesMakeNoBoolean
 	"A comparison an inlined method answers is branched on without a Boolean made, a phi of Booleans without a mustBeBoolean check."
 	| o |

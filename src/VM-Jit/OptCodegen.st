@@ -1115,9 +1115,24 @@ emitAddSub: n
 !
 emitDivShift: n
 	"SmallInteger modulo and division (floored, aux 1 truncated: rem: quo:, aux 2 exact: /, a remainder deoptimizes; a zero divisor deoptimizes) and bitShift: (a result that does not fit deoptimizes)."
-	| nd s op neg done d |
+	| nd s op neg done d k r |
 	nd := ir node: n.
 	op := nd op asInt32.
+	d := self constantDivisorOf: n.
+	(nd aux = 0 and: [d > 1 and: [(d bitAnd: d - 1) = 0 and: [d < 16r40000000]]]) ifTrue: [
+		"floored by 2^k, on the tagged value 2x + 1: shifted right by k it is the quotient's 2q or 2q + 1, its low k + 1 bits are the remainder's 2r + 1"
+		k := 0.
+		[(1 asInt64 << k) < d] whileTrue: [k := k + 1].
+		r := self dst: n.
+		op = O_IDIV
+			ifTrue: [
+				asm comment: 'floored division by the constant %d' with: d.
+				asm asr: r with: (self src: nd a into: self scratchA) imm: k.
+				asm orr: r with: r imm: 1]
+			ifFalse: [
+				asm comment: 'modulo the constant %d' with: d.
+				asm and: r with: (self src: nd a into: self scratchA) imm: d + d - 1].
+		^self def: n from: r].
 	s := self deoptLabelFor: n.
 	asm asr: X16 with: (self src: nd a into: self scratchA) imm: 1.
 	done := asm newLabel.
