@@ -4,7 +4,7 @@ The VM runs as a UEFI application on x86-64 and arm64, with its UI on the firmwa
 
     make uefi                                       # $(OUT)/uefi-$(UEFI_ARCH)/esp: a boot volume; .../image.disk: the image
     make uefi-run UEFI_ARGS="--headless --eval '3 + 4'"   # boot it in QEMU with its UEFI firmware; fails unless the VM exits 0
-    make uefi-ui                                    # the World in a QEMU window
+    make uefi-ui                                    # the World in a QEMU window (macOS: UEFI_SCREEN points, in front; needs Accessibility)
     make test-uefi                                  # the tests that need no platform layer, the World, a snapshot
 
 `UEFI_ARCH` is `x86_64` or `arm64`, this machine's by default. Needs clang, ld.lld, `qemu-system-x86_64` or `qemu-system-aarch64` and the firmware for it, OVMF or AAVMF (`.agents/setup` installs x86-64's; Homebrew's `qemu` has both). For this machine's CPU QEMU runs the VM on it, with KVM where `/dev/kvm` is there, else on macOS with Hypervisor.framework (QEMU 11.0 fails at its start on macOS 26; 11.1 works); for another CPU it emulates (TCG), and the VM still boots in about 5 s.
