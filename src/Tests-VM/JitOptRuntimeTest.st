@@ -663,8 +663,10 @@ testCountersBesideFloatsAreSmallIntegers
 	o := JitRuntimeTestSubject new.
 	expected := (1 to: 1000) inject: 0.0 into: [:sum :i | sum + (1.0 / (i * (i + 1) // 2 + i))].
 	5 timesRepeat: [self assert: o ramp equals: expected].
-	self assert: ((self listingOf: #ramp) includesSubstring: 'a SmallInteger''s double').
-	self deny: ((self listingOf: #ramp) includesSubstring: 'a BoxedFloat64''s double').
+	"--jit-flags deopt: a guard that fails while the stress's count is spent gives no feedback, what was compiled on too little may stay"
+	self stressed ifFalse: [
+		self assert: ((self listingOf: #ramp) includesSubstring: 'a SmallInteger''s double').
+		self deny: ((self listingOf: #ramp) includesSubstring: 'a BoxedFloat64''s double')].
 	k0 := SmallInteger maxVal - 2000000000.
 	3 timesRepeat: [self assert: (o grow: k0 n: 100000) equals: k0 + 5000050000]
 !
