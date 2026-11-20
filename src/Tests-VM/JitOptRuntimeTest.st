@@ -863,7 +863,9 @@ testBraceArraysInOptimizedCode
 		self assert: (o big: 20000) equals: 200050000.
 		self assert: (o bigFloat: 20000) equals: #(10000.0 200010000)].
 	done := true.
-	self assert: (self statistics - before) optCompileFailures equals: 0.
+	"The VM counts the failed compilations of all Processes' methods, the timer process's too: what the optimizer compiles is asked of each method."
+	#(#pair:with: #braces: #big: #bigFloat:) do: [:each |
+		self assert: ((JitRuntimeTestSubject >> each) jitCode: #opt) notNil description: [each , ' is not compiled by the optimizer']].
 	self stressed ifFalse: [self assert: (self statistics - before) optDeoptimizations < 100]
 !
 testCountSharedWithAFailedMethod
