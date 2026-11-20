@@ -102,7 +102,7 @@ update
 	status add: (signedIn ifTrue: [account email ifNil: ['signed in']] ifFalse: ['signed out']).
 	tokens isNil ifFalse: [status add: '│' style: #muted. status add: tokens printString, ' tokens' style: #plain].
 	(self cacheUsageText: conversation usage) ifNotNil: [:text | status add: '│' style: #muted. status add: text style: #plain].
-	busy ifTrue: [status addRight: 'working…' style: #pillBusy]
+	busy ifTrue: [status addRight: 'working…' style: #muted]
 !
 cacheUsageText: usage
 	"Show cumulative input cache reuse once the latest context exceeds 10k tokens."

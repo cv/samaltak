@@ -35,24 +35,34 @@ viewWidth
 	^(owner isNil ifTrue: [self width] ifFalse: [owner width - (self theme metric: #scrollBarWidth)]) max: 200
 !
 preferredExtent
-	| w |
+	| w previous height |
 	w := self viewWidth.
-	^w @ (self children inject: 12 into: [:sum :each | | inset |
-		inset := self insetFor: each.
-		sum + inset + (each heightFor: w - (2 * inset))])
+	height := self children inject: 12 into: [:sum :each | | next |
+		next := sum + (self topGapFor: each after: previous)
+			+ (each heightFor: w - (2 * (self insetFor: each))).
+		previous := each.
+		next].
+	^w @ height
 !
 layout
-	| w y |
+	| w y previous |
 	w := self viewWidth.
 	y := 6.
 	self children do: [:each | | inset width h |
 		inset := self insetFor: each.
 		width := w - (2 * inset).
 		h := each heightFor: width.
-		each bounds: (inset @ (y + inset) extent: width @ h).
-		y := y + inset + h]
+		y := y + (self topGapFor: each after: previous).
+		each bounds: (inset @ y extent: width @ h).
+		y := y + h.
+		previous := each]
 !
 insetFor: aView
 	^((aView isKindOf: AgentCodeView) or: [aView isKindOf: AgentShowView])
 		ifTrue: [4] ifFalse: [0]
+!
+topGapFor: aView after: previousView
+	((aView isKindOf: AgentCodeView) and: [previousView isKindOf: AgentCodeView])
+		ifTrue: [^0].
+	^self insetFor: aView
 ! !
