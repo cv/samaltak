@@ -74,14 +74,17 @@ $CTL click @menu.run-long-computation >/dev/null
 $CTL wait 500 >/dev/null
 contains "crunch runs" "$($CTL snapshot @w3.processes | grep 'crunch')" 'running'
 
-# Mandelbrot: clicks while it renders are queued and counted
-$CTL click @w4.view --settle 0 >/dev/null
+# Mandelbrot: clicks while it renders are queued and counted. One rendering can end before the snapshots are taken:
+# the window renders again and again until they are.
+$CTL eval '| w | Smalltalk at: #DesktopTestLooked put: false. w := (Tools windowsOf: MandelbrotView) first. w do: [[Smalltalk at: #DesktopTestLooked] whileFalse: [w content render]]. 1' >/dev/null
+$CTL wait '{"eval": "(Tools windowsOf: MandelbrotView) first content isRendering"}' >/dev/null
 $CTL click @w4.view --settle 0 >/dev/null
 # a refresh of the Process Browser's CPU column
 $CTL wait 300 >/dev/null
 contains "Mandelbrot busy with a queued click" "$($CTL snapshot @w4.view)" 'queued=1'
 contains "Process Browser shows Mandelbrot running" "$($CTL snapshot @w3.processes | grep '"Mandelbrot"')" 'running'
 $CTL screenshot "$OUT/tools-test-desktop.png" >/dev/null
+$CTL eval 'Smalltalk at: #DesktopTestLooked put: true. 1' >/dev/null
 # crunch was adopted by the Workspace's evaluator
 $CTL eval '(Tools windowsOf: Workspace) first content evaluator children do: [:p | p terminate]. 1' >/dev/null
 
