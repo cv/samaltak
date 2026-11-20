@@ -175,6 +175,7 @@ test-uefi:
 	grep -q "'saved'" $(UEFI)/console.log
 	$(MAKE) uefi-boot UEFI_ARGS=--headless
 	grep -q "'resumed 42'" $(UEFI)/console.log
+	rm $(UEFI)/image.disk
 test-uefi-nic:
 	UEFI_NIC=$(UEFI_NIC) OUT=$(OUT) tools/samaltak-ctl --session uefi-test open --uefi --headless
 	P=$$(sed -n 's/.*"port": \([0-9]*\).*/\1/p' $${TMPDIR:-/tmp}/samaltak-ctl/uefi-test.json); \
