@@ -656,17 +656,26 @@ testLoopUnitEnteredWithAFloatOrNot
 !
 testCountersBesideFloatsAreSmallIntegers
 	"A loop's counter beside Float arithmetic (its own arithmetic reported nothing, other arithmetic of the method Floats) is a SmallInteger: its sums and products have no Float case, the Float made of them is converted without a test of what they are. A sum that overflows deoptimizes to the send."
-	| o expected k0 |
+	| o expected k0 method stressed active priority results listing |
 	Smalltalk vm jitParameters: #(nil '-eager' nil nil).
 	self define: 'ramp | s | s := 0.0. 1 to: 1000 do: [:i | s := s + (1.0 / (i * (i + 1) // 2 + i))]. ^s'.
 	self define: 'grow: k0 n: n | s k | s := 0.0. k := k0. 1 to: n do: [:i | s := s + 0.5. k := k + i]. ^k'.
 	o := JitRuntimeTestSubject new.
 	expected := (1 to: 1000) inject: 0.0 into: [:sum :i | sum + (1.0 / (i * (i + 1) // 2 + i))].
-	5 timesRepeat: [self assert: o ramp equals: expected].
+	method := JitRuntimeTestSubject >> #ramp.
 	"--jit-flags deopt: a guard that fails while the stress's count is spent gives no feedback, what was compiled on too little may stay"
-	self stressed ifFalse: [
-		self assert: ((self listingOf: #ramp) includesSubstring: 'a SmallInteger''s double').
-		self deny: ((self listingOf: #ramp) includesSubstring: 'a BoxedFloat64''s double')].
+	stressed := self stressed.
+	"That an instruction saw a Float is a byte the instructions of all methods share by hash, cleared when baseline code is compiled for one of them (a method's first activation). From ramp's runs to the compilation its listing shows there is none: no other method is activated first, and at the timing priority no other Process runs."
+	results := Array new: 5.
+	active := Processor activeProcess.
+	priority := active priority.
+	active priority: Processor timingPriority.
+	[1 to: 5 do: [:i | results at: i put: o ramp].
+	 stressed ifFalse: [listing := method machineCodeFor: #opt]] ensure: [active priority: priority].
+	results do: [:each | self assert: each equals: expected].
+	stressed ifFalse: [
+		self assert: (listing includesSubstring: 'a SmallInteger''s double').
+		self deny: (listing includesSubstring: 'a BoxedFloat64''s double')].
 	k0 := SmallInteger maxVal - 2000000000.
 	3 timesRepeat: [self assert: (o grow: k0 n: 100000) equals: k0 + 5000050000]
 !
