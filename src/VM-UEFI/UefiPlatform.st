@@ -1,13 +1,13 @@
 PlatformInterface subclass: #UefiPlatform
-	instanceVariableNames: 'events windows vsync gpu input virtio sockets initDone'
+	instanceVariableNames: 'events windows vsync gpu input virtio nic initDone'
 	classVariableNames: ''
 	package: 'VM-UEFI'!
 
-UefiPlatform comment: 'The platform on UEFI (in place of SDLPlatform and HeadlessPlatform): the firmware''s keyboard and pointer pumped at interrupt checks (at most once a millisecond) and while waiting, the refresh clock (UefiVsync), the software GPU (UefiGpu). Waiting waits for a key, the pointer or the timeout, whichever comes first (at most 10 ms with a virtio pointer, which is polled).'!
+UefiPlatform comment: 'The platform on UEFI (in place of SDLPlatform and HeadlessPlatform): the firmware''s keyboard and pointer pumped at interrupt checks (at most once a millisecond) and while waiting, the refresh clock (UefiVsync), the software GPU (UefiGpu). Waiting waits for a key, the pointer or the timeout, whichever comes first (at most 10 ms with a virtio pointer or the network, which are polled; while frames come and go, the NIC is polled without pause instead: UefiSnp>>spin:).'!
 
 !UefiPlatform class methodsFor: 'declaring'!
 declarations
-	^#((events UefiEvents) (windows UefiWindows) (vsync UefiVsync) (gpu PlatformGPU) (input UefiInput) (virtio UefiVirtioInput) (sockets UefiSockets) (initDone bool))
+	^#((events UefiEvents) (windows UefiWindows) (vsync UefiVsync) (gpu PlatformGPU) (input UefiInput) (virtio UefiVirtioInput) (nic UefiSnp) (initDone bool))
 !
 targetOS
 	^#uefi
@@ -28,11 +28,11 @@ init
 poll
 	<export>
 	(initDone and: [windows videoInited and: [events sinceLastPumpNs >= 1000000]]) ifTrue: [events pump].
-	sockets anyArmed ifTrue: [sockets poll: 0].
+	nic poll.
 	events signalReady
 !
 wait: timeoutUs
-	"Headless (no init) too: then a timer is all there is to wait for, but sockets."
+	"Headless (no init) too: then a timer is all there is to wait for, but the NIC."
 	<export>
 	| us next |
 	us := timeoutUs.
@@ -41,8 +41,9 @@ wait: timeoutUs
 		(events pending or: [vsync pending]) ifTrue: [us := 0].
 		next := vsync microsecondsToNext.
 		(next >= 0 and: [us < 0 or: [next < us]]) ifTrue: [us := next]].
-	"sockets and a virtio device signal nothing the firmware waits for: poll them every 10 ms"
-	((sockets anyArmed or: [virtio isPresent]) and: [us < 0 or: [us > 10000]]) ifTrue: [us := 10000].
+	"the NIC and a virtio device signal nothing the firmware waits for: poll them every 10 ms; a busy NIC without pause"
+	((nic wantsPolling or: [virtio isPresent]) and: [us < 0 or: [us > 10000]]) ifTrue: [us := 10000].
+	us ~= 0 ifTrue: [us := nic spin: us].
 	us ~= 0 ifTrue: [
 		initDone
 			ifTrue: [input wait: us]
@@ -50,7 +51,7 @@ wait: timeoutUs
 				us < 0 ifTrue: [self fatal: 'deadlock: no runnable process and no pending timer'].
 				posix usleep: (us > 1000000 ifTrue: [1000000] ifFalse: [us]) asUInt32]].
 	initDone ifTrue: [events pump].
-	sockets anyArmed ifTrue: [sockets poll: 0].
+	nic poll.
 	events signalReady
 !
 shutdown
@@ -235,7 +236,7 @@ freeClipboardData: data
 ! !
 
 VMPlatformModule subclass: #UefiEvents
-	instanceVariableNames: 'input virtio q qHead qLen qCap qDropped inputSem inputArmed lastPumpNs mouseX mouseY buttons lastZ downButton downMs downX downY clicks'
+	instanceVariableNames: 'input virtio nic q qHead qLen qCap qDropped inputSem inputArmed lastPumpNs mouseX mouseY buttons lastZ downButton downMs downX downY clicks'
 	classVariableNames: ''
 	package: 'VM-UEFI'!
 
@@ -243,7 +244,7 @@ UefiEvents comment: 'The event queue on UEFI (in place of PlatformEvents): the s
 
 !UefiEvents class methodsFor: 'declaring'!
 declarations
-	^#((input UefiInput) (virtio UefiVirtioInput) (q 'pf_event *') (qHead int32_t) (qLen int32_t) (qCap int32_t) (qDropped int64_t) (inputSem int32_t) (inputArmed bool true)
+	^#((input UefiInput) (virtio UefiVirtioInput) (nic UefiSnp) (q 'pf_event *') (qHead int32_t) (qLen int32_t) (qCap int32_t) (qDropped int64_t) (inputSem int32_t) (inputArmed bool true)
 		(lastPumpNs int64_t) (mouseX double) (mouseY double) (buttons int32_t) (lastZ int64_t) (downButton int32_t) (downMs int64_t)
 		(downX double) (downY double) (clicks int32_t))
 !
@@ -326,9 +327,9 @@ signalReady
 		scheduler signalExternalSemaphore: inputSem]
 !
 updatePollInterval
-	"After the window opens or socket semaphores change: polls every PF_POLL_US while either wants them."
+	"After the window opens or the NIC's semaphore changes: polls every PF_POLL_US while either wants them."
 	<function>
-	scheduler requestPeriodicPoll: ((windows videoInited or: [sockets anyArmed]) ifTrue: [PF_POLL_US] ifFalse: [0])
+	scheduler requestPeriodicPoll: ((windows videoInited or: [nic wantsPolling]) ifTrue: [PF_POLL_US] ifFalse: [0])
 !
 sinceLastPumpNs
 	<function>

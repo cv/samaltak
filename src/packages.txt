@@ -36,11 +36,13 @@ Tests-Compiler 0
 Tests-Profiling 0
 Tests-Debugging 0
 Tests-VM 0
+System-Network 0
 System-Remote 0
 System-Net 0
 System-Agent 0
 Tests-Remote 0
 Tests-Net 0
+Tests-Network 0
 Tests-Agent 0
 Graphics-GPU 1
 Graphics-Canvas 2

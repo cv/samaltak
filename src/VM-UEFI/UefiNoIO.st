@@ -3,14 +3,14 @@ VMPlatformModule subclass: #UefiNoIO
 	classVariableNames: ''
 	package: 'VM-UEFI'!
 
-UefiNoIO comment: 'Files, processes, TLS and pseudo-terminals on UEFI: none (in place of PlatformFiles, PlatformPtys, PlatformTLS and PosixIO; sockets are UefiSockets''). Every call fails with the error ''not on UEFI''; the image works without them (docs/uefi.md).'!
+UefiNoIO comment: 'Files, processes, sockets, TLS and pseudo-terminals on UEFI: none (in place of PlatformFiles, PlatformSockets, PlatformPtys, PlatformTLS and PosixIO). Every call fails with the error ''not on UEFI''; the image works without them (docs/uefi.md).'!
 
 !UefiNoIO class methodsFor: 'declaring'!
 targetOS
 	^#uefi
 !
 replaces
-	^{PlatformFiles. PlatformPtys. PlatformTLS. PosixIO}
+	^{PlatformFiles. PlatformSockets. PlatformPtys. PlatformTLS. PosixIO}
 !
 isSimulated
 	^false
@@ -23,12 +23,68 @@ strerror: code
 	<returns: 'char *'>
 	^'not on UEFI'
 !
+accept: s wouldBlock: wouldBlock
+	<function>
+	<var: #s type: 'int32_t'>
+	<var: #wouldBlock type: 'bool *'>
+	<returns: 'int32_t'>
+	common setError: 'not on UEFI'.
+	^0
+!
+add: fd kind: aKind pointer: ptr
+	<function>
+	<var: #fd type: 'int'>
+	<var: #aKind type: 'int'>
+	<var: #ptr type: 'void *'>
+	<returns: 'int32_t'>
+	common setError: 'not on UEFI'.
+	^0
+!
+anyArmed
+	<function>
+	<returns: 'bool'>
+	^false
+!
+armRead: h
+	<function>
+	<var: #h type: 'int32_t'>
+	common setError: 'not on UEFI'
+!
+armWrite: h when: armed
+	<function>
+	<var: #h type: 'int32_t'>
+	<var: #armed type: 'bool'>
+	common setError: 'not on UEFI'
+!
 close: f
 	<function>
 	<var: #f type: 'int32_t'>
 	<returns: 'bool'>
 	common setError: 'not on UEFI'.
 	^false
+!
+close: h kind: aKind
+	<function>
+	<var: #h type: 'int32_t'>
+	<var: #aKind type: 'int'>
+	<returns: 'bool'>
+	common setError: 'not on UEFI'.
+	^false
+!
+connect: aHost port: aPort
+	<function>
+	<var: #aHost type: 'char *'>
+	<var: #aPort type: 'int32_t'>
+	<returns: 'int32_t'>
+	common setError: 'not on UEFI'.
+	^0
+!
+connected: s
+	<function>
+	<var: #s type: 'int32_t'>
+	<returns: 'int'>
+	common setError: 'not on UEFI'.
+	^-1
 !
 cwd
 	<function>
@@ -63,6 +119,14 @@ exec: aArgv
 	<var: #aArgv type: 'char **'>
 	common setError: 'not on UEFI'
 !
+fdGet: h kind: aKind
+	<function>
+	<var: #h type: 'int32_t'>
+	<var: #aKind type: 'int'>
+	<returns: 'pf_obj *'>
+	common setError: 'not on UEFI'.
+	^self null
+!
 flush: f
 	<function>
 	<var: #f type: 'int32_t'>
@@ -89,6 +153,29 @@ handshake: h
 	common setError: 'not on UEFI'.
 	^-1
 !
+listen: aHost port: aPort backlog: backlog
+	<function>
+	<var: #aHost type: 'char *'>
+	<var: #aPort type: 'int32_t'>
+	<var: #backlog type: 'int32_t'>
+	<returns: 'int32_t'>
+	common setError: 'not on UEFI'.
+	^0
+!
+localPort: s
+	<function>
+	<var: #s type: 'int32_t'>
+	<returns: 'int'>
+	common setError: 'not on UEFI'.
+	^-1
+!
+lookup: hostName
+	<function>
+	<var: #hostName type: 'char *'>
+	<returns: 'int32_t'>
+	common setError: 'not on UEFI'.
+	^0
+!
 mkfifo: aPath
 	<function>
 	<var: #aPath type: 'char *'>
@@ -103,6 +190,19 @@ open: aPath mode: aMode
 	<returns: 'int32_t'>
 	common setError: 'not on UEFI'.
 	^0
+!
+poll: timeoutMs
+	<function>
+	<var: #timeoutMs type: 'int'>
+	common setError: 'not on UEFI'
+!
+pollFds: pollfds max: max
+	<function>
+	<var: #pollfds type: 'void *'>
+	<var: #max type: 'int'>
+	<returns: 'int'>
+	common setError: 'not on UEFI'.
+	^-1
 !
 position: f
 	<function>
@@ -120,6 +220,38 @@ processWait: aPid block: aBlock status: aStatus done: aDone
 	<returns: 'bool'>
 	common setError: 'not on UEFI'.
 	^false
+!
+ptyHandleCount
+	<function>
+	<returns: 'int32_t'>
+	^0
+!
+ptyRead: p into: buf count: n
+	<function>
+	<var: #p type: 'int32_t'>
+	<var: #buf type: 'void *'>
+	<var: #n type: 'uint64_t'>
+	<returns: 'int64_t'>
+	common setError: 'not on UEFI'.
+	^-1
+!
+ptySemaphores: p read: readIndex write: writeIndex
+	<function>
+	<var: #p type: 'int32_t'>
+	<var: #readIndex type: 'int32_t'>
+	<var: #writeIndex type: 'int32_t'>
+	<returns: 'bool'>
+	common setError: 'not on UEFI'.
+	^false
+!
+ptyWrite: p bytes: buf count: n
+	<function>
+	<var: #p type: 'int32_t'>
+	<var: #buf type: 'const void *'>
+	<var: #n type: 'uint64_t'>
+	<returns: 'int64_t'>
+	common setError: 'not on UEFI'.
+	^-1
 !
 read: f into: buf count: n
 	<function>
@@ -160,6 +292,16 @@ seek: f to: pos
 	<function>
 	<var: #f type: 'int32_t'>
 	<var: #pos type: 'int64_t'>
+	<returns: 'bool'>
+	common setError: 'not on UEFI'.
+	^false
+!
+semaphores: h kind: aKind read: readIndex write: writeIndex
+	<function>
+	<var: #h type: 'int32_t'>
+	<var: #aKind type: 'int'>
+	<var: #readIndex type: 'int32_t'>
+	<var: #writeIndex type: 'int32_t'>
 	<returns: 'bool'>
 	common setError: 'not on UEFI'.
 	^false

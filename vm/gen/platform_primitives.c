@@ -2317,6 +2317,171 @@ void prim_next_event(void)
     prim_status = PS_OK;
 }
 
+/* PlatformPrimitives>>primNicOpen */
+void prim_nic_open(void)
+{
+    bool r_args;
+    oop buf;
+    size_t local;
+    size_t *len;
+    uint8_t *p;
+    if (!({
+    bad = false;
+    r_args = prim_nargs == 1;
+    r_args; })) {
+        prim_status = PS_FAIL;
+        prim_error_code = -1;
+        return;
+    }
+    buf = prim_base[1];
+    memset(&local, 0, sizeof local);
+    len = &local;
+    p = bytes_of(buf, len, true);
+    if ((p == NULL) || ((*len < 6) || (!platform_nic_open(p)))) {
+        prim_status = PS_FAIL;
+        prim_error_code = -1;
+        return;
+    }
+    prim_result = buf;
+    prim_status = PS_OK;
+}
+
+/* PlatformPrimitives>>primNicReceive */
+void prim_nic_receive(void)
+{
+    bool r_args;
+    oop buf;
+    size_t local;
+    size_t *len;
+    uint8_t *p;
+    int64_t r;
+    uint64_t v;
+    if (!({
+    bad = false;
+    r_args = prim_nargs == 1;
+    r_args; })) {
+        prim_status = PS_FAIL;
+        prim_error_code = -1;
+        return;
+    }
+    buf = prim_base[1];
+    memset(&local, 0, sizeof local);
+    len = &local;
+    p = bytes_of(buf, len, true);
+    if (p == NULL) {
+        prim_status = PS_FAIL;
+        prim_error_code = -1;
+        return;
+    }
+    r = receive(p, (int64_t)*len);
+    if (r == 0) {
+        prim_result = nil_oop;
+        prim_status = PS_OK;
+        return;
+    }
+    if (r < 0) {
+        prim_status = PS_FAIL;
+        prim_error_code = -1;
+        goto exit_answer_size;
+    }
+    v = (uint64_t)((r << 1) | 1);
+    prim_result = v;
+    prim_status = PS_OK;
+exit_answer_size:;
+}
+
+/* PlatformPrimitives>>primNicSemaphore */
+void prim_nic_semaphore(void)
+{
+    bool r_args;
+    int64_t i;
+    bool a_boolean;
+    oop v;
+    if (!({
+    bad = false;
+    r_args = prim_nargs == 1;
+    r_args; })) {
+        prim_status = PS_FAIL;
+        prim_error_code = -1;
+        return;
+    }
+    i = int_arg(0);
+    if (bad) {
+        prim_status = PS_FAIL;
+        prim_error_code = -1;
+        return;
+    }
+    a_boolean = frame_semaphore((int32_t)i);
+    if (a_boolean) {
+        v = prim_base[0];
+        prim_result = v;
+        prim_status = PS_OK;
+    } else {
+        prim_status = PS_FAIL;
+        prim_error_code = -1;
+    }
+}
+
+/* PlatformPrimitives>>primNicSend */
+void prim_nic_send(void)
+{
+    bool r_args;
+    oop buf;
+    int64_t n;
+    size_t local;
+    size_t *len;
+    uint8_t *p;
+    oop v;
+    if (!({
+    bad = false;
+    r_args = prim_nargs == 2;
+    r_args; })) {
+        prim_status = PS_FAIL;
+        prim_error_code = -1;
+        return;
+    }
+    buf = prim_base[1];
+    n = int_arg(1);
+    memset(&local, 0, sizeof local);
+    len = &local;
+    p = bytes_of(buf, len, false);
+    if (bad || ((p == NULL) || ((n < 14) || ((uint64_t)n > *len)))) {
+        prim_status = PS_FAIL;
+        prim_error_code = -1;
+        return;
+    }
+    v = platform_nic_send(p, n) ? true_oop : false_oop;
+    prim_result = v;
+    prim_status = PS_OK;
+}
+
+/* PlatformPrimitives>>primNicStatus */
+void prim_nic_status(void)
+{
+    bool r_args;
+    int64_t local[4];
+    int64_t *v;
+    oop v_2;
+    if (!({
+    bad = false;
+    r_args = prim_nargs == 0;
+    r_args; })) {
+        prim_status = PS_FAIL;
+        prim_error_code = -1;
+        return;
+    }
+    memset(&local, 0, sizeof local);
+    v = local;
+    if (!platform_nic_counters(v)) {
+        prim_status = PS_FAIL;
+        prim_error_code = -1;
+        return;
+    }
+    v_2 = array_of(v, 4);
+    prim_result = v_2;
+    prim_status = PS_OK;
+}
+
 /* PlatformPrimitives>>primPlatformHandleCounts */
 void prim_platform_handle_counts(void)
 {

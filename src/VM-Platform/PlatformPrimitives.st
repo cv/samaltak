@@ -1,5 +1,5 @@
 VMPlatformModule subclass: #PlatformPrimitives
-	instanceVariableNames: 'bad'
+	instanceVariableNames: 'bad nic'
 	classVariableNames: ''
 	package: 'VM-Platform'!
 
@@ -27,7 +27,7 @@ Keycodes (SDL): printable keys are their lowercase character code (''a'' = 97 ..
 
 !PlatformPrimitives class methodsFor: 'declaring'!
 declarations
-	^#((bad bool))
+	^#((bad bool) (nic PlatformNic))
 ! !
 
 !PlatformPrimitives methodsFor: 'arguments'!
@@ -1191,6 +1191,62 @@ primSocketConnected
 	r := sockets connected: s asInt32.
 	r < 0 ifTrue: [^self fail].
 	self answer: (r > 0 ifTrue: [memory trueOop] ifFalse: [memory nilOop])
+! !
+
+!PlatformPrimitives methodsFor: 'raw network interface'!
+primNicOpen
+	"bytes (at least 6) -> bytes, the interface's MAC address in the first 6"
+	<vmPrimitive: 580 name: 'nicOpen'>
+	| buf len p |
+	(self args: 1) ifFalse: [^self fail].
+	buf := self arg: 0.
+	len := self local: 'size_t'.
+	p := self bytesOf: buf size: len writable: true.
+	(p isNull or: [len value < 6 or: [(nic open: p) not]]) ifTrue: [^self fail].
+	self answer: buf
+!
+primNicSend
+	"bytes count -> true, or false if the frame could not go (the transmit queue full)"
+	<vmPrimitive: 581 name: 'nicSend'>
+	| buf n len p |
+	(self args: 2) ifFalse: [^self fail].
+	buf := self arg: 0.
+	n := self intArg: 1.
+	len := self local: 'size_t'.
+	p := self bytesOf: buf size: len writable: false.
+	(bad or: [p isNull or: [n < 14 or: [n asUInt64 > len value]]]) ifTrue: [^self fail].
+	self answer: ((nic send: p length: n) ifTrue: [memory trueOop] ifFalse: [memory falseOop])
+!
+primNicReceive
+	"bytes -> the length of the next frame received into them, nil if none (arms the semaphore)"
+	<vmPrimitive: 582 name: 'nicReceive'>
+	| buf len p r |
+	(self args: 1) ifFalse: [^self fail].
+	buf := self arg: 0.
+	len := self local: 'size_t'.
+	p := self bytesOf: buf size: len writable: true.
+	p isNull ifTrue: [^self fail].
+	r := nic receive: p max: len value asInt64.
+	r = 0 ifTrue: [^self answer: memory nilOop].
+	self answerSize: r
+!
+primNicSemaphore
+	"index: signaled once when a frame is waiting, re-armed by a nicReceive that finds none; 0 = none"
+	<vmPrimitive: 583 name: 'nicSemaphore'>
+	| i |
+	(self args: 1) ifFalse: [^self fail].
+	i := self intArg: 0.
+	bad ifTrue: [^self fail].
+	self answerOk: (nic frameSemaphore: i asInt32)
+!
+primNicStatus
+	"-> {frames received. sent. sends that failed (the transmit queue full). frames waiting}"
+	<vmPrimitive: 584 name: 'nicStatus'>
+	| v |
+	(self args: 0) ifFalse: [^self fail].
+	v := self local: 'int64_t[4]'.
+	(nic counters: v) ifFalse: [^self fail].
+	self answer: (self arrayOf: v count: 4)
 ! !
 
 !PlatformPrimitives methodsFor: 'TLS'!

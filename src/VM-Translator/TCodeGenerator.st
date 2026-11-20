@@ -819,7 +819,7 @@ valueSend: aMessageNode valueWanted: aBoolean
 	type := self valueType: rcv.
 	(sel == #ifNoOverflowAdd:do: or: [sel == #ifNoOverflowSub:do: or: [sel == #ifNoOverflowMul:do:]])
 		ifTrue: [self overflowCheck: aMessageNode receiver: rcv. ^nil].
-	((type isPointer and: [type target isFunction]) and: [#(#call #call: #call:with: #call:with:with: #call:with:with:with: #call:with:with:with:with: #call:with:with:with:with:with:) includes: sel])
+	((type isPointer and: [type target isFunction]) and: [#(#call #call: #call:with: #call:with:with: #call:with:with:with: #call:with:with:with:with: #call:with:with:with:with:with: #call:with:with:with:with:with:with:) includes: sel])
 		ifTrue: [^self callPointer: rcv arguments: aMessageNode arguments node: aMessageNode].
 	((type isPointerLike and: [type target isStruct]) or: [type isStruct]) ifTrue: [
 		(self isFieldSelector: sel of: type) ifTrue: [^self field: aMessageNode receiver: rcv]].

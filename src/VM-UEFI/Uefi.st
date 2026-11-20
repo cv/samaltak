@@ -1,11 +1,11 @@
 VMCoreModule subclass: #UefiModule
 	instanceVariableNames: 'firmware'
-	classVariableNames: 'EFI_ALLOCATE_ANY_PAGES EFI_EVT_NOTIFY_SIGNAL EFI_EVT_TIMER EFI_FILE_MODE_CREATE EFI_FILE_MODE_READ EFI_FILE_MODE_WRITE EFI_LOADER_CODE EFI_LOADER_DATA EFI_MEMORY_RO EFI_MEMORY_WB EFI_MEMORY_XP EFI_NO_MAPPING EFI_RESET_SHUTDOWN EFI_TIMER_CANCEL EFI_TIMER_PERIODIC EFI_TIMER_RELATIVE EFI_TPL_CALLBACK STACK_BYTES'
+	classVariableNames: 'EFI_ALLOCATE_ANY_PAGES EFI_EVT_NOTIFY_SIGNAL EFI_EVT_TIMER EFI_FILE_MODE_CREATE EFI_FILE_MODE_READ EFI_FILE_MODE_WRITE EFI_LOADER_CODE EFI_LOADER_DATA EFI_MEMORY_RO EFI_MEMORY_WB EFI_MEMORY_XP EFI_RESET_SHUTDOWN EFI_TIMER_CANCEL EFI_TIMER_PERIODIC EFI_TIMER_RELATIVE EFI_TPL_CALLBACK STACK_BYTES'
 	package: 'VM-UEFI'!
 
-UefiModule comment: 'I am the abstract class of the modules of the VM on UEFI (VMTranslator generateVMInto:os:arch: with #uefi): a VM that is the firmware''s application, with no operating system and no C library under it. The firmware''s services are tables of function pointers (EfiSystemTable, EfiBootServices, ...) that take the Microsoft calling convention on x86-64 and the standard one on AArch64, where ms_abi changes nothing (EfiFn0 ... EfiFn6: every argument a 64-bit word); efi: fn with: ... calls one.
+UefiModule comment: 'I am the abstract class of the modules of the VM on UEFI (VMTranslator generateVMInto:os:arch: with #uefi): a VM that is the firmware''s application, with no operating system and no C library under it. The firmware''s services are tables of function pointers (EfiSystemTable, EfiBootServices, ...) that take the Microsoft calling convention on x86-64 and the standard one on AArch64, where ms_abi changes nothing (EfiFn0 ... EfiFn7: every argument a 64-bit word); efi: fn with: ... calls one.
 
-UefiFirmware is the entry (efi_main); UefiLibC, UefiLibM and UefiPosix take the place of the C libraries the core calls, UefiWindows, UefiEvents, UefiVsync, UefiGpu and UefiNoIO that of the platform layer''s SDL and POSIX modules (replaces); UefiTicker, UefiJitPlatform and UefiPlatform implement the core''s interfaces, UefiCpu what differs between the CPUs; UefiScreen, UefiInput, UefiVirtioInput and UefiImageStore drive the firmware''s devices.'!
+UefiFirmware is the entry (efi_main); UefiLibC, UefiLibM and UefiPosix take the place of the C libraries the core calls, UefiWindows, UefiEvents, UefiVsync, UefiGpu and UefiNoIO that of the platform layer''s SDL and POSIX modules (replaces); UefiTicker, UefiJitPlatform and UefiPlatform implement the core''s interfaces, UefiCpu what differs between the CPUs; UefiScreen, UefiInput, UefiVirtioInput, UefiSnp (in place of PlatformNic) and UefiImageStore drive the firmware''s devices.'!
 
 !UefiModule class methodsFor: 'declaring'!
 declarations
@@ -27,7 +27,8 @@ typedefs
 		(EfiFn3 'uint64_t (__attribute__((ms_abi)) *)(uint64_t, uint64_t, uint64_t)')
 		(EfiFn4 'uint64_t (__attribute__((ms_abi)) *)(uint64_t, uint64_t, uint64_t, uint64_t)')
 		(EfiFn5 'uint64_t (__attribute__((ms_abi)) *)(uint64_t, uint64_t, uint64_t, uint64_t, uint64_t)')
-		(EfiFn6 'uint64_t (__attribute__((ms_abi)) *)(uint64_t, uint64_t, uint64_t, uint64_t, uint64_t, uint64_t)'))
+		(EfiFn6 'uint64_t (__attribute__((ms_abi)) *)(uint64_t, uint64_t, uint64_t, uint64_t, uint64_t, uint64_t)')
+		(EfiFn7 'uint64_t (__attribute__((ms_abi)) *)(uint64_t, uint64_t, uint64_t, uint64_t, uint64_t, uint64_t, uint64_t)'))
 !
 initialize
 	EFI_LOADER_CODE := 1.
@@ -46,7 +47,6 @@ initialize
 	EFI_MEMORY_XP := 16r4000.
 	EFI_MEMORY_RO := 16r20000.
 	EFI_RESET_SHUTDOWN := 2.
-	EFI_NO_MAPPING := 16r8000000000000011.
 	STACK_BYTES := 8 * 1024 * 1024
 ! !
 
@@ -68,6 +68,12 @@ efi: fn with: a with: b with: c with: d
 !
 efi: fn with: a with: b with: c with: d with: e
 	^(self cCoerce: fn to: 'EfiFn5') call: (self cCoerce: a to: 'uint64_t') with: (self cCoerce: b to: 'uint64_t') with: (self cCoerce: c to: 'uint64_t') with: (self cCoerce: d to: 'uint64_t') with: (self cCoerce: e to: 'uint64_t')
+!
+efi: fn with: a with: b with: c with: d with: e with: f
+	^(self cCoerce: fn to: 'EfiFn6') call: (self cCoerce: a to: 'uint64_t') with: (self cCoerce: b to: 'uint64_t') with: (self cCoerce: c to: 'uint64_t') with: (self cCoerce: d to: 'uint64_t') with: (self cCoerce: e to: 'uint64_t') with: (self cCoerce: f to: 'uint64_t')
+!
+efi: fn with: a with: b with: c with: d with: e with: f with: g
+	^(self cCoerce: fn to: 'EfiFn7') call: (self cCoerce: a to: 'uint64_t') with: (self cCoerce: b to: 'uint64_t') with: (self cCoerce: c to: 'uint64_t') with: (self cCoerce: d to: 'uint64_t') with: (self cCoerce: e to: 'uint64_t') with: (self cCoerce: f to: 'uint64_t') with: (self cCoerce: g to: 'uint64_t')
 !
 efiFailed: status
 	"EFI_ERROR: the high bit."
@@ -210,6 +216,9 @@ guid: g data1: a data2: b data3: c data4: d
 !UefiFirmware methodsFor: 'accessing'!
 bootServices
 	^bootServices
+!
+imageHandle
+	^imageHandle
 !
 runtimeServices
 	^runtimeServices

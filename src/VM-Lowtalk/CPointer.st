@@ -155,6 +155,9 @@ call: a with: b with: c with: d with: e
 call: a with: b with: c with: d with: e with: f
 	^receiver perform: selector withArguments: {a. b. c. d. e. f}
 !
+call: a with: b with: c with: d with: e with: f with: g
+	^receiver perform: selector withArguments: {a. b. c. d. e. f. g}
+!
 callWithArguments: anArray
 	^receiver perform: selector withArguments: anArray
 ! !

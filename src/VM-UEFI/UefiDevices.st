@@ -373,9 +373,6 @@ initialize
 ! !
 
 !UefiVirtioInput methodsFor: 'PCI'!
-efi: fn with: a with: b with: c with: d with: e with: f
-	^(self cCoerce: fn to: 'EfiFn6') call: (self cCoerce: a to: 'uint64_t') with: (self cCoerce: b to: 'uint64_t') with: (self cCoerce: c to: 'uint64_t') with: (self cCoerce: d to: 'uint64_t') with: (self cCoerce: e to: 'uint64_t') with: (self cCoerce: f to: 'uint64_t')
-!
 config: offset width: w
 	"PCI configuration space, w bytes (1, 2, 4)."
 	<function>

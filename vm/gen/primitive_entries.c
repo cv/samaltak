@@ -444,6 +444,21 @@ primitive_entry vm_primitive_table[] = {
     {576, 2, "workClockCharge", prim_work_clock_charge},
     {577, 2, "workClockQuerying", prim_work_clock_querying},
     {578, 2, "workClockSkipRealTime", prim_work_clock_skip_real_time},
+#ifndef SAMALTAK_NO_PLATFORM
+    {580, 2, "nicOpen", prim_nic_open},
+#endif
+#ifndef SAMALTAK_NO_PLATFORM
+    {581, 2, "nicSend", prim_nic_send},
+#endif
+#ifndef SAMALTAK_NO_PLATFORM
+    {582, 2, "nicReceive", prim_nic_receive},
+#endif
+#ifndef SAMALTAK_NO_PLATFORM
+    {583, 2, "nicSemaphore", prim_nic_semaphore},
+#endif
+#ifndef SAMALTAK_NO_PLATFORM
+    {584, 2, "nicStatus", prim_nic_status},
+#endif
 };
 
 int vm_primitive_count = sizeof vm_primitive_table / sizeof vm_primitive_table[0];

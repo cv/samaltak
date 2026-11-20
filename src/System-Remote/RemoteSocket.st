@@ -3,7 +3,7 @@ Object subclass: #RemoteSocket
 	classVariableNames: ''
 	package: 'System-Remote'!
 
-RemoteSocket comment: 'I am a TCP socket over the platform''s socket primitives (vm/platform/README.md), with blocking connect, accept, receive and send that wait on my read and write Semaphores instead of spinning: the platform signals a Semaphore once when the socket becomes ready and re-arms it when a primitive answers "would block". No primitive blocks the VM: host names are looked up by a thread of the platform (resolve:), connecting tries each address in turn, and the whole connect gives up after connectTimeout. Terminating the Process that connects cancels it.
+RemoteSocket comment: 'I am a TCP socket over the platform''s socket primitives (docs/platform.md), or over the image''s TCP/IP stack where the VM gives raw frames instead (NetworkStack active: UEFI; its handles are negative), with blocking connect, accept, receive and send that wait on my read and write Semaphores instead of spinning: the platform signals a Semaphore once when the socket becomes ready and re-arms it when a primitive answers "would block". No primitive blocks the VM: host names are looked up by a thread of the platform (resolve:), connecting tries each address in turn, and the whole connect gives up after connectTimeout. Terminating the Process that connects cancels it.
 
 My Semaphores occupy two slots of the VM''s external objects (Smalltalk vm registerExternalSemaphore:), freed by close. A socket that is garbage collected unclosed is closed by the finalization process (WeakRegistry).'!
 
@@ -234,54 +234,102 @@ unregister: aSemaphore at: index
 		ifTrue: [Smalltalk vm unregisterExternalSemaphore: index]
 ! !
 
-!RemoteSocket class methodsFor: 'primitives'!
+!RemoteSocket class methodsFor: 'sockets'!
 lastError
-	<primitive: 'platformLastError'>
-	^'unknown error'
+	^NetworkStack takeLastError ifNil: [self platformLastError]
 !
 primListen: host port: port backlog: backlog
-	<primitive: 'socketListen'>
-	^nil
+	^NetworkStack active
+		ifNil: [self platformListen: host port: port backlog: backlog]
+		ifNotNil: [:stack | stack listen: host port: port backlog: backlog]
 !
 primConnect: address port: port
 	"Start connecting to the numeric address; answer the handle at once (see primConnected:), nil on failure."
-	<primitive: 'socketConnect'>
-	^nil
-!
-primConnected: aHandle
-	"Answer true once connected, nil while connecting (the write Semaphore is armed), false on failure."
-	<primitive: 'socketConnected'>
-	^false
+	^NetworkStack active
+		ifNil: [self platformConnect: address port: port]
+		ifNotNil: [:stack | stack connect: address port: port]
 !
 primResolve: hostName
 	"Answer a handle that reads as the numeric addresses of hostName, a line each, or as one line of !! and the error; nil on failure."
-	<primitive: 'socketResolve'>
-	^nil
+	^NetworkStack active
+		ifNil: [self platformResolve: hostName]
+		ifNotNil: [:stack | stack resolve: hostName]
+!
+primConnected: aHandle
+	"Answer true once connected, nil while connecting (the write Semaphore is armed), false on failure."
+	aHandle < 0 ifTrue: [^(NetSocket at: aHandle) ifNil: [false] ifNotNil: [:s | s connected]].
+	^self platformConnected: aHandle
 !
 primAccept: aHandle
 	"Answer a handle, nil if none is pending, false on failure."
-	<primitive: 'socketAccept'>
-	^false
+	aHandle < 0 ifTrue: [^(NetSocket at: aHandle) ifNil: [false] ifNotNil: [:s | s accept]].
+	^self platformAccept: aHandle
 !
 primRecv: aHandle into: bytes start: start count: count
 	"Answer the byte count, 0 at end of stream, nil if it would block, -1 on failure."
-	<primitive: 'socketRecv'>
-	^-1
+	aHandle < 0 ifTrue: [^(NetSocket at: aHandle) ifNil: [-1] ifNotNil: [:s | s receiveInto: bytes start: start count: count]].
+	^self platformRecv: aHandle into: bytes start: start count: count
 !
 primSend: aHandle from: bytes start: start count: count
 	"Answer the byte count sent, nil if it would block, -1 on failure."
+	aHandle < 0 ifTrue: [^(NetSocket at: aHandle) ifNil: [-1] ifNotNil: [:s | s send: bytes start: start count: count]].
+	^self platformSend: aHandle from: bytes start: start count: count
+!
+primClose: aHandle
+	aHandle < 0 ifTrue: [^(NetSocket at: aHandle) ifNotNil: [:s | s close]].
+	^self platformClose: aHandle
+!
+primSemaphore: aHandle read: readIndex write: writeIndex
+	aHandle < 0 ifTrue: [^(NetSocket at: aHandle) ifNotNil: [:s | s semaphoresRead: readIndex write: writeIndex]].
+	^self platformSemaphore: aHandle read: readIndex write: writeIndex
+!
+primLocalPort: aHandle
+	aHandle < 0 ifTrue: [^(NetSocket at: aHandle) ifNotNil: [:s | s localPort]].
+	^self platformLocalPort: aHandle
+! !
+
+!RemoteSocket class methodsFor: 'primitives'!
+platformLastError
+	<primitive: 'platformLastError'>
+	^'unknown error'
+!
+platformListen: host port: port backlog: backlog
+	<primitive: 'socketListen'>
+	^nil
+!
+platformConnect: address port: port
+	<primitive: 'socketConnect'>
+	^nil
+!
+platformConnected: aHandle
+	<primitive: 'socketConnected'>
+	^false
+!
+platformResolve: hostName
+	<primitive: 'socketResolve'>
+	^nil
+!
+platformAccept: aHandle
+	<primitive: 'socketAccept'>
+	^false
+!
+platformRecv: aHandle into: bytes start: start count: count
+	<primitive: 'socketRecv'>
+	^-1
+!
+platformSend: aHandle from: bytes start: start count: count
 	<primitive: 'socketSend'>
 	^-1
 !
-primClose: aHandle
+platformClose: aHandle
 	<primitive: 'socketClose'>
 	^nil
 !
-primSemaphore: aHandle read: readIndex write: writeIndex
+platformSemaphore: aHandle read: readIndex write: writeIndex
 	<primitive: 'socketSemaphore'>
 	^RemoteError signal: 'socketSemaphore failed: ', self lastError
 !
-primLocalPort: aHandle
+platformLocalPort: aHandle
 	<primitive: 'socketLocalPort'>
 	^nil
 ! !
