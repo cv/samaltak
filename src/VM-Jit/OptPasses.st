@@ -60,6 +60,8 @@ cleanup: entry
 	((runtime flag: runtime gvnFlag) or: [runtime flag: runtime hoistFlag]) ifTrue: [self dominators: entry].
 	(runtime flag: runtime gvnFlag) ifTrue: [
 		self valueNumbers.
+		"a load forwarded to the SmallInteger stored: its guard goes"
+		self dropIntChecks.
 		self resolveOperands].
 	self ranges.
 	(runtime flag: runtime hoistFlag) ifTrue: [self hoistGuards].
@@ -680,9 +682,10 @@ dominates: x block: y
 valueNumbers
 	"Global value numbering over the dominator tree: a deterministic node (arithmetic, comparisons, guards, conversions, constants) with the same operation and operands as one in a dominating position is that one; a field load only within its block, or blocks in a line, with no safepoint between, nor a store but into another field (the first 64)."
 	<function>
-	| b n nd h m md mem found stamp fields |
+	| b n nd h m md mem found stamp fields stores st |
 	0 to: 4095 do: [:i | psHeads at: i put: -1].
 	fields := self local: 'int32_t[64]'.
+	stores := self local: 'int32_t[64]'.
 	0 to: 63 do: [:i | fields at: i put: 0].
 	stamp := 0.
 	0 to: psOrderCount - 1 do: [:i |
@@ -700,7 +703,9 @@ valueNumbers
 				stamp := stamp + 1.
 				"a store into a field leaves the other fields (of any object) as they are"
 				(nd op asInt32 = O_STOREFIELD and: [nd aux >= 0 and: [nd aux < 64]])
-					ifTrue: [fields at: nd aux put: stamp]
+					ifTrue: [
+						fields at: nd aux put: stamp.
+						stores at: nd aux put: n]
 					ifFalse: [mem := stamp]].
 			(self isNumbered: nd) ifTrue: [
 				"loads: only since the last safepoint or store that may have written the field"
@@ -708,6 +713,10 @@ valueNumbers
 					nd aux2: ((nd aux >= 0 and: [nd aux < 64 and: [(fields at: nd aux) > mem]]) ifTrue: [fields at: nd aux] ifFalse: [mem])].
 				h := self hashOf: nd.
 				found := -1.
+				"a load of the field the last store wrote, into the same object, nothing that may write it between: the value stored"
+				(nd op asInt32 = O_LOADFIELD and: [nd aux >= 0 and: [nd aux < 64 and: [(fields at: nd aux) > mem]]]) ifTrue: [
+					st := ir node: (stores at: nd aux).
+					(ir resolve: st a) = (ir resolve: nd a) ifTrue: [found := ir resolve: st b]].
 				m := psHeads at: h.
 				[m >= 0 and: [found < 0]] whileTrue: [
 					md := ir node: m.

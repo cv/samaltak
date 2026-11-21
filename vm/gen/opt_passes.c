@@ -363,6 +363,7 @@ void cleanup(int32_t entry)
     }
     if ((jit_flags & JIT_FLAG_GVN) != 0) {
         value_numbers();
+        drop_int_checks();
         resolve_operands();
     }
     ranges();
@@ -2590,6 +2591,8 @@ static void value_numbers(void)
     int i;
     int32_t local[64];
     int32_t *fields;
+    int32_t local_2[64];
+    int32_t *stores;
     int i_2;
     int64_t stamp;
     int32_t i_3;
@@ -2604,6 +2607,8 @@ static void value_numbers(void)
     int32_t op_2;
     uint64_t h;
     int64_t found;
+    int32_t n_2;
+    opt_node *st;
     int32_t m;
     opt_node *md;
     int32_t x;
@@ -2612,6 +2617,8 @@ static void value_numbers(void)
     }
     memset(&local, 0, sizeof local);
     fields = local;
+    memset(&local_2, 0, sizeof local_2);
+    stores = local_2;
     for (i_2 = 0; i_2 <= 63; i_2++) {
         fields[i_2] = 0;
     }
@@ -2640,6 +2647,7 @@ static void value_numbers(void)
                 stamp = stamp + 1;
                 if (((int32_t)nd->op == O_STOREFIELD) && ((nd->aux >= 0) && (nd->aux < 64))) {
                     fields[nd->aux] = stamp;
+                    stores[nd->aux] = n;
                 } else {
                     mem = stamp;
                 }
@@ -2658,6 +2666,13 @@ exit_is_numbered:;
                 }
                 h = (((uint64_t)((((((int64_t)nd->op * 31 + nd->a) * 31 + nd->b) * 31 + nd->aux) * 31 + nd->aux2) * 31 + (int64_t)nd->tcls)) >> 3) & 4095;
                 found = -1;
+                if (((int32_t)nd->op == O_LOADFIELD) && ((nd->aux >= 0) && ((nd->aux < 64) && (fields[nd->aux] > mem)))) {
+                    n_2 = stores[nd->aux];
+                    st = opt_nodes + n_2;
+                    if (opt_ir_resolve(st->a) == opt_ir_resolve(nd->a)) {
+                        found = opt_ir_resolve(st->b);
+                    }
+                }
                 m = ps_heads[h];
                 while ((m >= 0) && (found < 0)) {
                     md = opt_nodes + m;
