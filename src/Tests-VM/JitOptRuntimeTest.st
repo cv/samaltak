@@ -1177,8 +1177,8 @@ testDivisionByAConstantIsInTheCode
 	self deny: (listing includesSubstring: (self isX64 ifTrue: ['idiv'] ifFalse: ['sdiv']))
 !
 testFlooredDivisionByAPowerOfTwo
-	"x // 2^k and x \\ 2^k of a SmallInteger are a shift and a mask of the tagged value: what a divisor that is no constant gives, for both signs and at the ends of the range."
-	| o check |
+	"x // 2^k and x \\ 2^k of a SmallInteger are a shift and a mask of the tagged value: what a divisor that is no constant gives, for both signs and at the ends of the range. The runs and the listing at the timing priority, as in testDivisionByAConstantIsInTheCode."
+	| o check active priority listing |
 	Smalltalk vm jitParameters: #(nil '-eager' nil nil).
 	self define: 'halves: x ^{x // 2. x \\ 2. x // 16. x \\ 16. x // 1024. x \\ 1024}'.
 	self define: 'by: d of: x ^{x // d. x \\ d}'.
@@ -1186,10 +1186,14 @@ testFlooredDivisionByAPowerOfTwo
 	check := [:x | | r |
 		r := o halves: x.
 		1 to: 3 do: [:i | self assert: (r copyFrom: i * 2 - 1 to: i * 2) equals: (o by: (#(2 16 1024) at: i) of: x)]].
-	-3000 to: 3000 do: [:x | check value: x].
-	{SmallInteger maxVal. SmallInteger maxVal - 1. SmallInteger minVal. SmallInteger minVal + 1} do: [:x | check value: x].
-	self assert: ((self listingOf: #halves:) includesSubstring: 'floored division by the constant 16').
-	self assert: ((self listingOf: #halves:) includesSubstring: 'modulo the constant 1024')
+	active := Processor activeProcess.
+	priority := active priority.
+	active priority: Processor timingPriority.
+	[-3000 to: 3000 do: [:x | check value: x].
+	 {SmallInteger maxVal. SmallInteger maxVal - 1. SmallInteger minVal. SmallInteger minVal + 1} do: [:x | check value: x].
+	 listing := self listingOf: #halves:] ensure: [active priority: priority].
+	self assert: (listing includesSubstring: 'floored division by the constant 16').
+	self assert: (listing includesSubstring: 'modulo the constant 1024')
 !
 testBranchesMakeNoBoolean
 	"A comparison an inlined method answers is branched on without a Boolean made, a phi of Booleans without a mustBeBoolean check."
