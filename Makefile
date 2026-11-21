@@ -122,7 +122,26 @@ endif
 QEMU_UEFI = $(QEMU_UEFI_MACHINE) -m 2048 -no-reboot \
 	-nic user,model=$(UEFI_NIC)$(if $(UEFI_CONTROL_PORT),$(comma)hostfwd=tcp:127.0.0.1:$(UEFI_CONTROL_PORT)-:7341) -global $(UEFI_NIC).romfile= \
 	-device virtio-rng-pci -drive if=pflash,format=raw,readonly=on,file=$(OVMF_CODE) -drive if=pflash,format=raw,file=$(UEFI)/vars.fd \
-	-drive format=raw,file=fat:rw:$(UEFI)/esp -drive format=raw,file=$(UEFI)/image.disk
+	-drive format=raw,file=fat:rw:$(UEFI)/esp -drive format=raw,file=$(UEFI)/image.disk \
+	$(if $(filter %@usb-storage,$(UEFI_DISKS)),-device qemu-xhci$(comma)id=disks) $(foreach disk,$(UEFI_DISKS),$(call UEFI_DISK,$(disk)))
+# More disks for the image's files (docs/files.md): UEFI_DISKS, raw disk images FILE@DEVICE, DEVICE nvme, virtio-blk-pci
+# or usb-storage, attached read-only. UEFI_EXT4_DISK is an ext4 file system of the fixture tests/uefi/ext4 (and a file
+# numbers.txt of 50000 lines) labeled fixture on a whole disk, UEFI_EXT4_GPT_DISK the same unlabeled in a GPT partition
+# named fixture-gpt from 1 MB; test-uefi reads them on NVMe and virtio.
+UEFI_DISKS ?=
+UEFI_DISK_FILE = $(word 1,$(subst @, ,$(1)))
+UEFI_DISK_ID = $(basename $(notdir $(call UEFI_DISK_FILE,$(1))))
+UEFI_DISK = -drive if=none,id=$(call UEFI_DISK_ID,$(1)),format=raw,readonly=on,file=$(call UEFI_DISK_FILE,$(1)) \
+	-device $(word 2,$(subst @, ,$(1))),drive=$(call UEFI_DISK_ID,$(1))$(if $(filter %@nvme,$(1)),$(comma)serial=$(call UEFI_DISK_ID,$(1)))$(if $(filter %@usb-storage,$(1)),$(comma)bus=disks.0)
+UEFI_EXT4_DISK := $(UEFI)/ext4.disk
+UEFI_EXT4_GPT_DISK := $(UEFI)/ext4-gpt.disk
+$(UEFI)/ext4-root: $(wildcard tests/uefi/ext4/* tests/uefi/ext4/*/* tests/uefi/ext4/*/*/*)
+	rm -rf $@ && mkdir -p $(UEFI) && cp -a tests/uefi/ext4 $@ && seq 1 50000 > $@/numbers.txt
+$(UEFI_EXT4_DISK): $(UEFI)/ext4-root
+	rm -f $@ && truncate -s 16M $@ && PATH=$$PATH:/sbin:/usr/sbin && mkfs.ext4 -q -F -L fixture -d $< $@
+$(UEFI_EXT4_GPT_DISK): $(UEFI)/ext4-root
+	rm -f $@ $@.part && truncate -s 16M $@.part && PATH=$$PATH:/sbin:/usr/sbin && mkfs.ext4 -q -F -d $< $@.part && truncate -s 20M $@ \
+		&& sgdisk -n 1:2048:+16M -c 1:fixture-gpt -t 1:8300 $@ >/dev/null && dd if=$@.part of=$@ bs=1M seek=1 conv=notrunc status=none && rm $@.part
 uefi: fresh-image
 	$(MAKE) $(UEFI)/esp/EFI/BOOT/$(UEFI_BOOT) $(UEFI)/image.disk
 $(UEFI)/esp/EFI/BOOT/$(UEFI_BOOT): $(OUT)/samaltak.image vm/uefi.mk
@@ -154,19 +173,24 @@ UEFI_TESTS := CompilerTest ParserTest ScannerTest ClassTest CollectionTest Conte
 	StackOverflowTest StreamTest StringSearchTest StringTest SymbolTest SystemChangesTest SystemTest UnicodeTest WorkClockTest \
 	Amd64DisassemblerTest Arm64DisassemblerTest ByteSearchTest \
 	SHA256Test SHA384Test SHA512Test HMACTest HKDFTest ChaCha20Test Poly1305Test ChaCha20Poly1305Test AesTest AesGcmTest SecureRandomTest WycheproofAeadTest \
-	X25519Test RsaPublicKeyTest EcPublicKeyTest EcPrivateKeyTest Asn1DerTest X509CertificateTest TrustStoreTest CertificateValidatorTest
+	X25519Test RsaPublicKeyTest EcPublicKeyTest EcPrivateKeyTest Asn1DerTest X509CertificateTest TrustStoreTest CertificateValidatorTest \
+	MountTableTest FirmwareVolumesTest
 UEFI_WORLD := | w t | w := UIWindows startUp. RemoteInputDevice default inject: {1. nil. 123. 45. 0. 0. nil. w displayWindow windowId}. t := Time millisecondClockValue. [w dispatcher pointer = (123 @ 45) or: [Time millisecondClockValue - t > 20000]] whileFalse: [(Delay forMilliseconds: 50) wait]. Smalltalk vm stderrWrite: 'world ', w extent printString, ' ', Renderer default device isSoftware printString, ' ', w dispatcher pointer rounded printString, (String with: Character lf)
 UEFI_NET := | s buf n | s := RemoteSocket connectTo: '10.0.2.2' port: $$P timeout: 20000. s sendAll: '{\"cmd\": \"ping\"}', (String with: Character lf). buf := ByteArray new: 200. n := s receiveInto: buf timeout: 20000. s close. (buf copyFrom: 1 to: n) asString
 UEFI_NET_BULK := | src req s buf n chunk out t ms resp ok more | src := String new: 1000000. 1 to: src size do: [:i | src at: i put: (Character value: 97 + (i * 7 rem: 26))]. req := '{\"cmd\": \"eval\", \"source\": \"''', src, ''' reverse\"}', (String with: Character lf). t := Time millisecondClockValue. s := RemoteSocket connectTo: '10.0.2.2' port: $$P timeout: 20000. s sendAll: req. out := WriteStream on: (String new: 1100000). buf := ByteArray new: 65536. more := true. [more] whileTrue: [n := s receiveInto: buf timeout: 60000. chunk := (buf copyFrom: 1 to: n) asString. out nextPutAll: chunk. more := n > 0 and: [(chunk includes: Character lf) not]]. ms := Time millisecondClockValue - t. s close. resp := out contents. ok := (resp includesSubstring: '\"ok\":true') and: [resp includesSubstring: src reverse]. 'bulk ', ok printString, ' ', (req size + resp size) printString, ' bytes in ', ms printString, ' ms'
 UEFI_NET_DRIVER := 'driver ', NetworkStack active interface class name
 UEFI_HTTPS := | s hs r | TLSSocket trustStore: (TrustStore new add: (ByteArray fromHex: '$$CA'); yourself). s := TLSSocket connectTo: '10.0.2.2' port: $$TP timeout: 20000. hs := s connection handshakeMilliseconds. s close. r := HTTPClient new get: 'https://10.0.2.2:$$TP/' headers: nil. TLSSocket trustStore: nil. 'https ', r status printString, ' ', s connection cipherSuite name, ' handshake ', hs printString, ' ms'
 UEFI_DRIVER = $(if $(filter e1000e,$(1)),E1000eInterface,VirtioNetInterface)
+UEFI_FILES := | f | f := [:x | Smalltalk vm stderrWrite: 'files ', x, (String with: Character lf)]. f value: 'mounts ', (FirmwareVolumes mounts collect: [:m | m key]) printString. f value: 'root ', (Directory entries: '/') printString. f value: 'mnt ', (Directory entries: '/mnt') printString. f value: 'hello ', (File readBytes: '/mnt/fixture/hello.txt') printString. f value: 'link ', (File readText: '/mnt/fixture-gpt/docs/hello-link') lines first. f value: 'numbers ', (File sizeOf: '/mnt/fixture-gpt/numbers.txt') printString, ' ', (FileStream readOnlyFileNamed: '/mnt/fixture/numbers.txt' do: [:s | s position: 288888. s upToEnd]) lines first. f value: 'write ', ([File writeText: 'x' to: '/mnt/fixture/x'. 'written'] on: FileError do: [:e | e messageText]). f value: 'store hidden ', (FirmwareBlockDevice all noneSatisfy: [:d | d isImageStore]) printString. f value: 'problems ', FirmwareVolumes problems size printString
 UEFI_SNAPSHOT := Smalltalk at: 'UefiMark' asSymbol put: 42. (Smalltalk snapshot: Smalltalk vm imagePath) ifTrue: ['resumed ', (Smalltalk at: 'UefiMark' asSymbol) printString] ifFalse: ['saved']
 test-uefi:
 	rm -f $(UEFI)/image.disk
 	$(MAKE) uefi-run UEFI_ARGS='--headless --test $(UEFI_TESTS)'
 	$(MAKE) uefi-boot UEFI_ARGS="--eval \"$(UEFI_WORLD)\""
 	grep -qE "^world [0-9]+@[0-9]+ true 123@45" $(UEFI)/console.log
+	$(MAKE) $(UEFI_EXT4_DISK) $(UEFI_EXT4_GPT_DISK)
+	$(MAKE) uefi-boot UEFI_DISKS="$(UEFI_EXT4_DISK)@nvme $(UEFI_EXT4_GPT_DISK)@virtio-blk-pci" UEFI_ARGS="--headless --eval \"$(UEFI_FILES)\""
+	while read -r line; do grep -qF "$$line" $(UEFI)/console.log || { echo "test-uefi: files: no line: $$line"; exit 1; }; done < tests/uefi/files.expected
 	OUT=$(OUT) tools/samaltak-ctl --session uefi-test open --uefi --headless
 	P=$$(sed -n 's/.*"port": \([0-9]*\).*/\1/p' $${TMPDIR:-/tmp}/samaltak-ctl/uefi-test.json); \
 	TP=$$(python3 -c 'import socket; s = socket.socket(); s.bind(("127.0.0.1", 0)); print(s.getsockname()[1])'); \

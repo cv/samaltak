@@ -10,7 +10,7 @@ Block devices and a read-only reader of ext2, ext3 and ext4 file systems, in Sma
 
 ## Block devices
 
-`BlockDevice` is the abstract device: `blockSize`, `blockCount`, `isReadOnly`, `read: count blocksAt: lba` (a ByteArray) and `read: count blocksAt: lba into: bytes startingAt: index`, each defined by the other, so a subclass implements one; `readBytes: count at: byteOffset [into:startingAt:]` reads any byte range, the partial blocks at its ends on their own and the whole blocks between in one call. Reading outside the device signals `FileError`. `FileBlockDevice on: path [blockSize: n]` reads a disk image file on the host (512-byte blocks by default) through System-Files' primitives, straight into the caller's buffer; `FirmwareBlockDevice` reads the firmware's Block I/O on UEFI.
+`BlockDevice` is the abstract device: `blockSize`, `blockCount`, `isReadOnly`, `read: count blocksAt: lba` (a ByteArray) and `read: count blocksAt: lba into: bytes startingAt: index`, each defined by the other, so a subclass implements one; `readBytes: count at: byteOffset [into:startingAt:]` reads any byte range, the partial blocks at its ends on their own and the whole blocks between in one call. Reading outside the device signals `FileError`. `FileBlockDevice on: path [blockSize: n]` reads a disk image file on the host (512-byte blocks by default) through System-Files' primitives, straight into the caller's buffer; `FirmwareBlockDevice` reads the firmware's Block I/O on UEFI, where `FirmwareVolumes` mounts the volumes for `File` (docs/files.md).
 
 ## Ext4Volume
 

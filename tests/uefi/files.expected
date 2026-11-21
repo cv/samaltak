@@ -1,0 +1,9 @@
+files mounts #('/' '/mnt/fixture' '/mnt/fixture-gpt')
+files root #('docs' 'hello.txt' 'lost+found' 'mnt' 'numbers.txt')
+files mnt #('fixture' 'fixture-gpt')
+files hello #[72 101 108 108 111 32 102 114 111 109 32 101 120 116 52 10]
+files link Hello from ext4
+files numbers 288894 50000
+files write Read-only file system: /mnt/fixture/x
+files store hidden true
+files problems 0
