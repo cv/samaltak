@@ -37,7 +37,7 @@ jobs:
         run: |
           apt-get update
           apt-get install -y --no-install-recommends \
-            ca-certificates git build-essential nodejs python3 perl less \
+            ca-certificates git build-essential nodejs python3 perl less e2fsprogs \
             xvfb xauth mesa-vulkan-drivers \
             libx11-dev libxext-dev libxrandr-dev libxcursor-dev libxi-dev
       - uses: actions/checkout@v6
