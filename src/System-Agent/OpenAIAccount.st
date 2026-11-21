@@ -31,6 +31,10 @@ isSignedIn
 email
 	^self claims at: 'email' ifAbsent: [nil]
 !
+statusLabel
+	"What the Agent window's status bar shows of me."
+	^self isSignedIn ifTrue: [self email ifNil: ['signed in']] ifFalse: ['signed out']
+!
 accountId
 	^self authClaims at: 'chatgpt_account_id' ifAbsent: [nil]
 !

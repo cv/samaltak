@@ -1,13 +1,15 @@
 Column subclass: #AgentLoginCard
-	instanceVariableNames: 'signInButton urlLabel codeRow codeLabel messageLabel urlCopyButton'
+	instanceVariableNames: 'titleLabel signInButton urlLabel codeRow codeLabel messageLabel urlCopyButton keyHelp'
 	classVariableNames: ''
 	package: 'Tools-Agent'!
 
-AgentLoginCard comment: 'I am what an AgentWindow shows instead of its transcript while signed out: a "Sign in with ChatGPT" button, then the device login''s URL and code (large, with a Copy button), and a line of news (waiting, why the last attempt failed). The window runs the login; I only show its state.'!
+AgentLoginCard comment: 'I am what an AgentWindow shows instead of its transcript while signed out: a "Sign in with ChatGPT" button, then the device login''s URL and code (large, with a Copy button), and a line of news (waiting, why the last attempt failed). The window runs the login; I only show its state. For an ApiKeyAccount without its key (showKeyHelp:) I say instead how the host sets it (samaltak-ctl agent-config --from-pi).'!
 
 !AgentLoginCard methodsFor: 'initialization'!
 initialize
 	super initialize.
+	titleLabel := Label text: '' font: #uiBold.
+	titleLabel name: 'title'.
 	signInButton := Button label: 'Sign in with ChatGPT'.
 	signInButton name: 'sign-in'; beDefault.
 	urlLabel := Label text: '' font: #ui.
@@ -24,7 +26,7 @@ initialize
 	messageLabel := Label text: '' font: #uiItalic.
 	messageLabel name: 'message'; color: #ink3.
 	self addAll: (Array
-		with: ((Label text: 'The agent needs your ChatGPT account.' font: #uiBold) fixed: 28; yourself)
+		with: (titleLabel fixed: 28; yourself)
 		with: ((Row with: (Array with: (signInButton sizeToContent; yourself) with: Widget new)) fixed: 30; padding: (0 @ 4 corner: 0 @ 4); yourself)
 		with: ((Row with: (Array with: (urlLabel sizeToContent; yourself) with: urlCopyButton with: Widget new)) spacing: 14; fixed: 30; yourself)
 		with: codeRow
@@ -46,6 +48,12 @@ code
 !
 message
 	^messageLabel text
+!
+title
+	^titleLabel text
+!
+isShowingKeyHelp
+	^keyHelp == true
 ! !
 
 !AgentLoginCard methodsFor: 'showing'!
@@ -55,7 +63,7 @@ showMessage: aString
 !
 showURL: aURL code: aCode
 	urlLabel text: 'Open ', aURL, ' and enter this code:'.
-	urlCopyButton action: [self clipboardText: aURL].
+	urlCopyButton label: 'Copy URL'; action: [self clipboardText: aURL]; sizeToContent.
 	urlLabel owner visible: true.
 	codeLabel text: aCode.
 	codeRow visible: true; layout.
@@ -63,10 +71,23 @@ showURL: aURL code: aCode
 !
 showButton: aStringOrNil
 	"Signed out: the button, and why the last attempt failed."
+	keyHelp := false.
+	titleLabel text: 'The agent needs your ChatGPT account.'.
 	signInButton owner visible: true.
 	urlLabel owner visible: false.
 	codeRow visible: false.
 	messageLabel text: (aStringOrNil ifNil: [''])
+!
+showKeyHelp: anApiKeyAccount
+	"An API-key account without its key: how the host sets it."
+	keyHelp := true.
+	titleLabel text: 'The agent needs the API key for ', anApiKeyAccount model, ' at ', (anApiKeyAccount providerName ifNil: [anApiKeyAccount baseURL]), '.'.
+	signInButton owner visible: false.
+	urlLabel text: 'On the host, run: samaltak-ctl agent-config --from-pi'.
+	urlCopyButton label: 'Copy'; action: [self clipboardText: 'samaltak-ctl agent-config --from-pi']; sizeToContent.
+	urlLabel owner visible: true.
+	codeRow visible: false.
+	messageLabel text: 'The key stays in memory: set it again after Save image or a restart.'
 ! !
 
 !AgentLoginCard methodsFor: 'remote control'!

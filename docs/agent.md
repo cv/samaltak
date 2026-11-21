@@ -1,8 +1,8 @@
 # Agent
 
-A coding agent inside the image, written in Smalltalk, driving the image it lives in. ⌘J in a tool opens a conversation window on that tool's context. Model: OpenAI `gpt-6.2-sol` ("Codex 6.2 Sol"; the Codex catalog's slug) through a ChatGPT device-code login. Design: `prototypes/5-agent/6-chosen.html` (the target; version 1 is a subset).
+A coding agent inside the image, written in Smalltalk, driving the image it lives in. ⌘J in a tool opens a conversation window on that tool's context. Model: OpenAI `gpt-6.2-sol` ("Codex 6.2 Sol"; the Codex catalog's slug) through a ChatGPT device-code login, or any model behind the Anthropic Messages API with an API key the host sends in (API-key accounts, below). Design: `prototypes/5-agent/6-chosen.html` (the target; version 1 is a subset).
 
-No persistence code: the account and its tokens, conversations and their objects are ordinary objects, saved with the image.
+No persistence code: the account and its tokens (but no API key), conversations and their objects are ordinary objects, saved with the image.
 
 ## Version 1
 
@@ -20,7 +20,7 @@ JSON: System-Remote's `JSON` (already layer 0).
 
 ### System-Agent (new, layer 0, no UI)
 5. **OpenAIAccount** (`OpenAIAccount default`): device login, refresh before expiry and on a 401, account id and email from the id token, sign out.
-6. **CodexProvider**: builds the Responses request, streams it, decodes events into items and deltas. The one place that knows the backend; an API-key provider is a sibling class later.
+6. **CodexProvider**: builds the Responses request, streams it, decodes events into items and deltas. The one place that knows the backend; **AnthropicProvider** is its sibling for API-key accounts.
 7. **AgentConversation**: the item list (developer instructions, messages, reasoning items echoed back, tool calls and outputs), its object table (`oN` ↔ object, strong references, an object keeps its ID), its context, the turn loop (send, run tool calls, send again until no tool call; Stop cancels), `onChange:` the window redraws from.
 8. **AgentContext**: what ⌘J bound — receiver, named bindings, optionally a frame — and how a cell compiles against it: `Compiler evaluate:for:bindings:`, or for a frame `Context>>evaluateInFrame:` (extended with bindings, for `oN` and the context's variables; the frame's temps win on a name clash). Default: receiver nil.
 9. **AgentTool** (abstract: Responses spec, `run: aCall in: aConversation`) and two subclasses. New tools are subclasses.
@@ -68,7 +68,7 @@ Each builds on a version 1 seam; none changes its shape.
 - **Edits**: proposed edits as diff cells (Accept writes `src/`, Accept & Restart frame through `DebugSession>>recompile:inFrame:`); an approval mode that shows each cell before it runs.
 - **Platform**: `openURL` for the login card.
 - **Moves**: JSON to System-Support, `SourceFiler`/`ChunkFile` to layer 0, when the core needs them.
-- **Provider**: API-key provider; context compaction; generated instructions (image facts, docs excerpts).
+- **Provider**: context compaction; generated instructions (image facts, docs excerpts).
 - **Remote control**: roles for the window, a `tests/remote` scenario.
 
 ## How it fits
@@ -85,7 +85,19 @@ Each builds on a version 1 seam; none changes its shape.
 
 **The provider is a risk.** `CodexProvider` uses an undocumented backend while presenting itself as the Codex CLI (its `client_id`, `originator`). It can break without notice and may not be allowed for third-party clients; decide before use beyond personal. Everything above it is the standard Responses API.
 
-**Secrets live in the image.** Saving the image saves the refresh token. `build/` is git-ignored, but anyone with the image file has the account. Sign out clears the tokens.
+**Secrets live in the image.** Saving the image saves the refresh token. `build/` is git-ignored, but anyone with the image file has the account. Sign out clears the tokens. An API key is the exception: it is never saved (below).
+
+## API-key accounts (Anthropic Messages)
+
+**ApiKeyAccount** (`ApiKeyAccount default`) holds a provider's name (a label), base URL, model, thinking effort, max_tokens and API key; once it has a base URL and a model (`isConfigured`), new conversations talk to an **AnthropicProvider** and the Agent window uses it instead of the OpenAI account. The host configures it: `samaltak-ctl agent-config --from-pi [--provider p] [--model id] [--thinking level]` reads pi's `~/.pi/agent/models.json` and `settings.json` (`$PI_CODING_AGENT_DIR`; the default provider, model and thinking level unless named; the model's `api`, else the provider's, must be `anthropic-messages`; effort through the model's `thinkingLevelMap`, `maxTokens` from the model), resolves the provider's `apiKey` on the host (`!command` runs under `/bin/sh`, its stdout is the key; `$NAME` and `${NAME}` interpolate the environment) and sends all of it in one `agent-config` request over the control connection. The key is in no argv and no log, and nothing prints it: the image answers its configuration with `hasKey`. `samaltak-ctl agent-config` shows that configuration, `--clear` forgets it. The same works for the VM on UEFI (`samaltak-ctl open --uefi`): the request goes through QEMU's forwarded control port.
+
+**The key is never saved.** It lives in the running image only: the account is on the shutdown list and overwrites and drops every key before a snapshot or quit (the full GC before a snapshot copies only live objects, so no stale copy remains; `ApiKeyAccountTest` uses a key for a request, snapshots, and searches the file). After Save image or Rebuild & reboot the window says how to set it again; Sign out forgets it.
+
+**Requests.** `POST {baseURL}/v1/messages`, headers `x-api-key`, `anthropic-version: 2023-06-01`, `Accept: text/event-stream`. Body: `model`, `max_tokens`, `stream:true`, `system` (the developer message), `messages`, `tools` (code-mode as a tool whose `input_schema` has one string, `input`; show-object with its parameters), `tool_choice:{type:auto, disable_parallel_tool_use:true}`, `thinking:{type:adaptive, display:summarized}` with `output_config:{effort}`, or neither when thinking is off (models with adaptive thinking refuse `thinking:{type:disabled}`). Prompt caching: `cache_control:{type:ephemeral}` on the system prompt and on the last block of the last message, so each request reads its predecessor's prefix. The conversation keeps speaking the Responses API's items; the provider translates both ways: assistant blocks of one response form one assistant message (thinking first), tool outputs and later user content one user message (`tool_result`, `is_error` for an output starting `error:` or `syntax error:`; images as base64 blocks). Each item the provider makes keeps its content block under `anthropic` and the message id under `response`, so thinking blocks go back verbatim with their signatures.
+
+**Stream.** `message_start` (id, input and cache counts), `content_block_start/delta/stop` (`text_delta` streamed to the window, `thinking_delta`, `signature_delta`, `input_json_delta`), `message_delta` (stop reason, output count), `message_stop`, `ping`, `error`. An item is handed over at its block's stop: text → `message`, thinking and redacted_thinking → `reasoning`, tool_use → `custom_tool_call` or `function_call`. Usage is reported as the Responses API counts it (input includes cache reads and writes; `cached_tokens` the reads). Errors: HTTP errors with the body's message (401/403 say how to set the key again), error events, a stream without `message_stop`, stop reasons `max_tokens`, `refusal` and `model_context_window_exceeded`. HTTP 408, 409, 429 and 5xx (529: overloaded), and overloaded, rate-limit and api error events before any output, are retried up to 4 times after `retry-after` (at most 60 s) or 1, 2, 4, 8 s; Stop ends the wait.
+
+Verified by hand (2026-11-21) against `azure/anthropic/claude-opus-5-5` at `https://inference-api.nvidia.com` (pi's `nvidia-internal`), HTTP/1.1 over OpenSSL: `samaltak-ctl agent-config --from-pi` into a hosted image, then a conversation that ran a code-mode cell and answered; thinking echoed with its signature in the next turn; cache reads from the second request on. The recorded streams are the fixtures of `AnthropicProviderTest`.
 
 ## Protocol (from `openai/codex` at `b7056f3`, 2026-11-15)
 
