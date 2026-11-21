@@ -1,19 +1,30 @@
-TestCase subclass: #SHA256Test
+CryptoHashTest subclass: #SHA256Test
 	instanceVariableNames: ''
 	classVariableNames: ''
 	package: 'Tests-Crypto'!
 
-SHA256Test comment: 'SHA256 against FIPS 180-4''s examples (one block, two blocks, a million a''s), messages of every length around the padding''s boundaries, incremental hashing split at every byte, digest that goes on, copy.'!
+SHA256Test comment: 'SHA256 (CryptoHashTest) against FIPS 180-4''s SHA-256 examples.'!
 
-!SHA256Test methodsFor: 'support'!
-bytesTo: n
-	| b |
-	b := ByteArray new: n.
-	1 to: n do: [:i | b at: i put: i - 1 \\ 256].
-	^b
+!SHA256Test methodsFor: 'vectors'!
+hashClass
+	^SHA256
+!
+oneBlockDigest
+	^'ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad'
+!
+twoBlockMessage
+	^'abcdbcdecdefdefgefghfghighijhijkijkljklmklmnlmnomnopnopq'
+!
+twoBlockDigest
+	^'248d6a61d20638b8e5c026930c3e6039a33ce45964ff2167f6ecedd419db06c1'
+!
+millionADigest
+	^'cdc76e5c9914fb9281a1c7e284d73e67f1809a48a497200e046d39ccc7112cd0'
+!
+emptyDigest
+	^'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855'
 !
 lengthVectors
-	"n and the digest of the bytes 0, 1, 2, ... (mod 256), n of them."
 	^#(
 		0 'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855'
 		1 '6e340b9cffb37a989ca544e6bb780a2c78901d3fb33738768511a30617afa01d'
@@ -28,65 +39,8 @@ lengthVectors
 		127 '92ca0fa6651ee2f97b884b7246a562fa71250fedefe5ebf270d31c546bfea976'
 		128 '471fb943aa23c511f6f72f8d1652d9c880cfa392ad80503120547703e56a2be5'
 		129 '5099c6a56203f9687f7d33f4bfdf576d31dc91f6b695ecea38b2770c87631135'
-		200 '1901da1c9f699b48f6b2636e65cbf73abf99d0441ef67f5c540a42f7051dec6f')
-! !
-
-!SHA256Test methodsFor: 'tests'!
-testFipsOneBlock
-	self assert: (SHA256 hash: 'abc') equals: (ByteArray fromHex: 'ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad')
+		197 '59a6aed6a44d5a52565289ccc377966b6a1ab41ac339e72475f49bb136befa91')
 !
-testFipsTwoBlocks
-	self assert: (SHA256 hash: 'abcdbcdecdefdefgefghfghighijhijkijkljklmklmnlmnomnopnopq') equals: (ByteArray fromHex: '248d6a61d20638b8e5c026930c3e6039a33ce45964ff2167f6ecedd419db06c1')
-!
-testFipsMillionA
-	| h chunk |
-	h := SHA256 new.
-	chunk := ByteArray new: 1000 withAll: $a value.
-	1000 timesRepeat: [h update: chunk].
-	self assert: h digest equals: (ByteArray fromHex: 'cdc76e5c9914fb9281a1c7e284d73e67f1809a48a497200e046d39ccc7112cd0')
-!
-testEmpty
-	self assert: (SHA256 hash: #[]) equals: (ByteArray fromHex: 'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855')
-!
-testSizes
-	self assert: SHA256 digestSize equals: 32.
-	self assert: SHA256 blockSize equals: 64
-!
-testLengthsAroundPadding
-	self lengthVectors pairsDo: [:n :hex |
-		self assert: (SHA256 hash: (self bytesTo: n)) equals: (ByteArray fromHex: hex)]
-!
-testIncrementalSplits
-	| m expected h |
-	m := self bytesTo: 200.
-	expected := SHA256 hash: m.
-	0 to: m size do: [:i |
-		h := SHA256 new.
-		h update: (m copyFrom: 1 to: i); update: m from: i + 1 to: m size.
-		self assert: h digest equals: expected]
-!
-testDigestGoesOn
-	| h a |
-	h := SHA256 new.
-	h update: 'ab'.
-	a := h digest.
-	self assert: a equals: (SHA256 hash: 'ab').
-	self assert: h digest equals: a.
-	h update: 'c'.
-	self assert: h digest equals: (SHA256 hash: 'abc')
-!
-testCopy
-	| h c |
-	h := SHA256 new update: (self bytesTo: 100); yourself.
-	c := h copy.
-	h update: 'x'.
-	c update: 'y'.
-	self assert: h digest equals: (SHA256 hash: (self bytesTo: 100), 'x' asByteArray).
-	self assert: c digest equals: (SHA256 hash: (self bytesTo: 100), 'y' asByteArray)
-!
-testReset
-	| h |
-	h := SHA256 new update: 'garbage'; yourself.
-	h reset.
-	self assert: (h update: 'abc'; digest) equals: (SHA256 hash: 'abc')
+sizes
+	^#(32 64)
 ! !
