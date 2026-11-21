@@ -42,9 +42,9 @@ Tests-VM 0
 Tests-Devices 0
 Tests-Storage 0
 System-Remote 0
-System-Net 0
 System-Crypto 0
 System-TLS 0
+System-Net 0
 System-Agent 0
 Tests-Remote 0
 Tests-Net 0
