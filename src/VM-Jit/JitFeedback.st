@@ -13,7 +13,8 @@ declarations
 !
 initialize
 	FB_MAX := 65536.
-	FB_FLOAT_BITS := 65536.
+	"a byte per instruction, shared by hash: one another method's Float arithmetic sets makes a SmallInteger instruction look like it saw Floats (it is sent then), so many more bytes than sites"
+	FB_FLOAT_BITS := 1048576.
 	FB_CLASSES := 4.
 	FB_MEGA := 1.
 	FB_FLOAT := 2.

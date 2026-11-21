@@ -3,7 +3,7 @@
 #include "samaltak.h"
 
 static int64_t fb_count;
-uint8_t fb_floats[65536];
+uint8_t fb_floats[1048576];
 static feedback_site fb_sites[65536];
 static bool fb_young;
 
@@ -48,7 +48,7 @@ uint32_t flags_at(oop m, int64_t pc)
     jit_method *h;
     s = site_at(m, pc);
     f = s == NULL ? 0U : s->flags;
-    if ((*(uint8_t *)(uint64_t)(fb_floats + (((uint64_t)(uint32_t)(((*(uint64_t *)m) >> H_HASH_SHIFT) & H_HASH_MASK) * 31 + (uint64_t)pc) & 65535)) != 0) && ({
+    if ((*(uint8_t *)(uint64_t)(fb_floats + (((uint64_t)(uint32_t)(((*(uint64_t *)m) >> H_HASH_SHIFT) & H_HASH_MASK) * 31 + (uint64_t)pc) & 1048575)) != 0) && ({
     h = jit_runtime_lookup(m);
     (h != NULL) && ((h->flags & JM_FAILED) == 0); })) {
         f = f | FB_FLOAT;

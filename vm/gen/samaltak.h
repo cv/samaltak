@@ -255,7 +255,7 @@ typedef void (*prim_fn)(void);
 #define FB_DEOPT_HOISTED 512
 #define FB_DEOPT_OTHER 128
 #define FB_FLOAT 2
-#define FB_FLOAT_BITS 65536
+#define FB_FLOAT_BITS 1048576
 #define FB_INTS 256
 #define FB_MAX 65536
 #define FB_MEGA 1
@@ -1337,7 +1337,7 @@ extern uint64_t stat_misses;
 extern uint64_t stat_pics;
 extern uint64_t stat_prim_calls;
 extern uint64_t stat_walks;
-extern uint8_t fb_floats[65536];
+extern uint8_t fb_floats[1048576];
 extern bool bottom_returned;
 extern bool copying;
 extern bool flush_pending;

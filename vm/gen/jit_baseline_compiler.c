@@ -104053,7 +104053,7 @@ exit_source_3:;
         k = (sl_info[i] >> 16) & 255;
         if (counter_addr != 0) {
             pc = sl_pc[i];
-            a_9 = (uint64_t)(fb_floats + (((uint64_t)(uint32_t)(((*(uint64_t *)cur_method) >> H_HASH_SHIFT) & H_HASH_MASK) * 31 + (uint64_t)pc) & 65535));
+            a_9 = (uint64_t)(fb_floats + (((uint64_t)(uint32_t)(((*(uint64_t *)cur_method) >> H_HASH_SHIFT) & H_HASH_MASK) * 31 + (uint64_t)pc) & 1048575));
             if (!copying) {
                 *(uint8_t *)a_9 = 0;
             }
@@ -118613,7 +118613,7 @@ exit_offset_to_6:;
         k = (sl_info[i] >> 16) & 255;
         if (counter_addr != 0) {
             pc = sl_pc[i];
-            a = (uint64_t)(fb_floats + (((uint64_t)(uint32_t)(((*(uint64_t *)cur_method) >> H_HASH_SHIFT) & H_HASH_MASK) * 31 + (uint64_t)pc) & 65535));
+            a = (uint64_t)(fb_floats + (((uint64_t)(uint32_t)(((*(uint64_t *)cur_method) >> H_HASH_SHIFT) & H_HASH_MASK) * 31 + (uint64_t)pc) & 1048575));
             if (!copying) {
                 *(uint8_t *)a = 0;
             }
