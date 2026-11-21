@@ -93,7 +93,7 @@ void append(int32_t n, int32_t b)
 }
 
 /* OptIR>>insert:before: */
-void insert(int32_t n, int32_t m)
+void insert(int64_t n, int32_t m)
 {
     opt_node *md;
     opt_node *nd;

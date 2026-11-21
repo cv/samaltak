@@ -395,10 +395,8 @@ inlineForeignClosure: x pc: pc act: a rcvSlot: r argc: argc
 	(ir node: d) aux: sp.
 	(ir node: d) aux2: (((bcs at: sp - 5) asInt64 bitOr: (bcs at: sp - 4) asInt64 << 8) bitOr: (bcs at: sp - 3) asInt64 << 16).
 	s := self stateAct: a pc: pc depth: (self depthAt: pc act: a).
-	g := self guard: x class: memory clsBlock state: s.
-	self deoptUnless: (self binary: O_EQ a: (self loadField: BC_STARTPC of: g) b: (self constant: (self intOop: sp))) act: a state: s.
+	g := self guard: (self guard: x class: memory clsBlock state: s) startpc: sp method: m state: s.
 	outer := self loadField: BC_OUTER of: g.
-	self deoptUnless: (self binary: O_EQ a: (self loadField: CTX_METHOD of: outer) b: (self constant: m)) act: a state: s.
 	obForeignM at: obForeignDepth put: m.
 	obForeignS at: obForeignDepth put: sp.
 	obForeignDepth := obForeignDepth + 1.
@@ -2027,6 +2025,18 @@ guard: v class: cls state: s
 	(ir node: n) state: s.
 	(ir node: n) flags: NF_GUARD.
 	self type: n class: cls.
+	^n
+!
+guard: v startpc: sp method: m state: s
+	"Closure v, deoptimizing unless its startpc is sp and its outerContext's method m."
+	| n |
+	n := self add: O_GUARDCLOSURE rep: R_OOP.
+	(ir node: n) a: v.
+	(ir node: n) b: (self constant: m).
+	(ir node: n) aux: sp.
+	(ir node: n) state: s.
+	(ir node: n) flags: NF_GUARD.
+	self type: n class: memory clsBlock.
 	^n
 !
 cast: v class: cls

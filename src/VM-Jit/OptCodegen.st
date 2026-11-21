@@ -682,6 +682,7 @@ emitNode: n block: b next: nextBlock
 		^self def: n from: r].
 	op = O_STOREFIELD ifTrue: [^self emitStore: n].
 	(op = O_OUTERLOAD or: [op = O_OUTERSTORE]) ifTrue: [^self emitOuterTemp: n].
+	op = O_OUTERSLOT ifTrue: [^self emitOuterSlot: n].
 	op = O_INDEXLOAD ifTrue: [^self emitIndexLoad: n].
 	op = O_INDEXSTORE ifTrue: [^self emitIndexStore: n].
 	op = O_SIZE ifTrue: [
@@ -704,6 +705,19 @@ emitNode: n block: b next: nextBlock
 		x := self src: nd a into: self scratchB.
 		asm comment: ((nd flags bitAnd: NF_HOISTED) ~= 0 ifTrue: ['guard: its class, once before the loop'] ifFalse: ['guard: its class']).
 		self emitClassTest: x class: nd aux asUInt64.
+		asm b: s if: COND_NE.
+		^self def: n from: x].
+	op = O_GUARDCLOSURE ifTrue: [
+		s := self deoptLabelFor: n.
+		x := self src: nd a into: self scratchB.
+		asm comment: ((nd flags bitAnd: NF_HOISTED) ~= 0 ifTrue: ['guard: the closure whose body is inline, once before the loop'] ifFalse: ['guard: the closure whose body is inline']).
+		asm ldr: X16 base: x offset: (self fieldOffset: BC_STARTPC).
+		asm mov: X17 imm: (self intOop: nd aux) asInt64.
+		asm cmp: X16 with: X17.
+		asm b: s if: COND_NE.
+		asm ldr: X16 base: x offset: (self fieldOffset: BC_OUTER).
+		asm ldr: X16 base: X16 offset: (self fieldOffset: CTX_METHOD).
+		asm cmp: X16 with: (self src: nd b into: self scratchA).
 		asm b: s if: COND_NE.
 		^self def: n from: x].
 	op = O_CAST ifTrue: [^self def: n from: (self src: nd a into: self scratchB)].
@@ -1401,6 +1415,7 @@ emitOuterTemp: n
 	| nd v x married done r |
 	nd := ir node: n.
 	nd op asInt32 = O_OUTERSTORE ifTrue: [v := self src: nd b into: self scratchA].
+	nd c >= 0 ifTrue: [^self emitOuterTemp: n value: v].
 	x := self src: nd a into: self scratchB.
 	asm comment: 'outer temp %d' with: nd aux2.
 	asm ldr: self scratchB base: x offset: (self fieldOffset: BC_OUTER).
@@ -1434,6 +1449,60 @@ emitOuterTemp: n
 	asm ldr: X16 base: X16 offset: self fpOffset.
 	asm str: v base: X16 offset: 8 * nd aux2.
 	asm bind: done
+!
+emitOuterTemp: n value: v
+	"emitOuterTemp: for one whose loop found where its Context's frame is, if any (O_OUTERSLOT, n's operand c): there, or in the Context."
+	| nd x married done r |
+	nd := ir node: n.
+	married := asm newLabel.
+	done := asm newLabel.
+	asm comment: 'outer temp %d: in the frame found before the loop, if any' with: nd aux2.
+	x := self src: nd c into: self scratchB.
+	nd op asInt32 = O_OUTERLOAD ifTrue: [r := self dst: n].
+	asm cmp: x imm: 1.
+	asm b: married if: COND_NE.
+	asm ldr: self scratchB base: (self src: nd a into: self scratchB) offset: (self fieldOffset: BC_OUTER).
+	2 to: nd aux asInt32 do: [:k |
+		asm ldr: X17 base: self scratchB offset: (self fieldOffset: CTX_CLOSURE).
+		asm ldr: self scratchB base: X17 offset: (self fieldOffset: BC_OUTER)].
+	nd op asInt32 = O_OUTERLOAD
+		ifTrue: [asm ldr: r base: self scratchB offset: (self fieldOffset: CTX_FIXED + nd aux2)]
+		ifFalse: [
+			asm str: v base: self scratchB offset: (self fieldOffset: CTX_FIXED + nd aux2).
+			self emitBarrier: n object: self scratchB value: v].
+	asm b: done.
+	asm bind: married.
+	asm sub: X16 with: x imm: 1.
+	nd op asInt32 = O_OUTERLOAD
+		ifTrue: [asm ldr: r base: X16 offset: 8 * nd aux2]
+		ifFalse: [asm str: v base: X16 offset: 8 * nd aux2].
+	asm bind: done.
+	nd op asInt32 = O_OUTERLOAD ifTrue: [self def: n from: r]
+!
+emitOuterSlot: n
+	"Where the slots are of the frame that the Context aux levels out of closure a is married to, plus 1 (emitOuterTemp:'s walk, once for a loop); the SmallInteger 0 if it is married to none."
+	| nd married done r |
+	nd := ir node: n.
+	married := asm newLabel.
+	done := asm newLabel.
+	asm comment: 'the frame of its outer temps, if any, once before the loop'.
+	asm ldr: self scratchB base: (self src: nd a into: self scratchB) offset: (self fieldOffset: BC_OUTER).
+	2 to: nd aux asInt32 do: [:k |
+		asm ldr: X17 base: self scratchB offset: (self fieldOffset: CTX_CLOSURE).
+		asm ldr: self scratchB base: X17 offset: (self fieldOffset: BC_OUTER)].
+	asm ldr: X17 base: self scratchB offset: (self fieldOffset: CTX_SENDER).
+	r := self dst: n.
+	asm tbnz: X17 bit: 0 to: married.
+	asm mov: r imm: 1.
+	asm b: done.
+	asm bind: married.
+	asm ldr: X16 base: X22 offset: self framesOffset.
+	asm asr: X17 with: X17 imm: 1.
+	asm add: X16 with: X16 with: X17 shift: SHIFT_LSL amount: 6.
+	asm ldr: X16 base: X16 offset: self fpOffset.
+	asm add: r with: X16 imm: 1.
+	asm bind: done.
+	self def: n from: r
 !
 emitReturn: n
 	| nd x s back w |
@@ -2309,7 +2378,7 @@ recordGuard: n
 	"Metadata for deoptimizing at guard n: its state with every value where it is now, and why (feedback for the next compilation)."
 	| op why |
 	op := (ir node: n) op asInt32.
-	why := (op = O_GUARDCLASS or: [op = O_DEOPT and: [(ir node: n) aux = 0]])
+	why := (op = O_GUARDCLASS or: [op = O_GUARDCLOSURE or: [op = O_DEOPT and: [(ir node: n) aux = 0]]])
 		ifTrue: [feedback deoptClass]
 		ifFalse: [op = O_NOTINTS ifTrue: [feedback sawInts] ifFalse: [
 			(op = O_GUARDINT or: [op = O_IADD or: [op = O_ISUB or: [op = O_IMUL or: [op = O_IMOD or: [op = O_IDIV or: [op = O_ISHIFT]]]]]]) ifTrue: [feedback deoptArith] ifFalse: [feedback deoptOther]]].

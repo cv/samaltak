@@ -727,6 +727,7 @@ valueNumbers
 hoistGuards
 	"Innermost loops first: a guard that leaves a loop may leave the one around it too."
 	<function>
+	self findLoops.
 	psOrderCount - 1 to: 0 by: -1 do: [:i |
 		((ir block: (psOrder at: i)) flags bitAnd: BF_LOOP) ~= 0 ifTrue: [self hoistOutOf: (psOrder at: i)]]
 !
@@ -768,8 +769,42 @@ hoistOutOf: h
 				ir insert: n before: (ir block: entry) last.
 				(ir node: n) state: s.
 				(ir node: n) flags: ((ir node: n) flags bitOr: NF_HOISTED)].
+			((self isInvariantOuterLoad: n of: h) or: [self isClosureLoad: n of: h]) ifTrue: [
+				ir unlink: n.
+				ir insert: n before: (ir block: entry) last].
 			n := next]].
+	self outerSlotsOutOf: h entry: entry.
 	self boundsOutOf: h entry: entry index: index
+!
+outerSlotsOutOf: h entry: entry
+	"Loop h, entered from block entry alone, sends nothing: whether the home Context of a closure from before the loop is married to a frame, and where that frame is, stays as it is while the loop runs (what else may run, at an interrupt check, runs when the code has left the unit). The loop's loads and stores of that closure's outer temps take it from a node where the loop is entered (O_OUTERSLOT, one for each closure and level)."
+	<function>
+	| b n nd op slot k slots |
+	(self loop: h changesOuterTemp: -1) ifTrue: [^self].
+	slots := self local: 'int32_t[8]'.
+	k := 0.
+	0 to: psOrderCount - 1 do: [:i |
+		b := psOrder at: i.
+		(self block: b isIn: h) ifTrue: [
+			n := (ir block: b) first.
+			[n >= 0] whileTrue: [
+				nd := ir node: n.
+				op := nd op asInt32.
+				((op = O_OUTERLOAD or: [op = O_OUTERSTORE]) and: [nd c < 0 and: [self isBefore: nd a loop: h]]) ifTrue: [
+					slot := -1.
+					0 to: k - 1 do: [:j |
+						((ir node: (slots at: j)) a = nd a and: [(ir node: (slots at: j)) aux = nd aux]) ifTrue: [slot := slots at: j]].
+					(slot < 0 and: [k < 8]) ifTrue: [
+						slot := ir newNode: O_OUTERSLOT rep: R_OOP.
+						ir full ifTrue: [^self].
+						nd := ir node: n.
+						(ir node: slot) a: nd a.
+						(ir node: slot) aux: nd aux.
+						ir insert: slot before: (ir block: entry) last.
+						slots at: k put: slot.
+						k := k + 1].
+					slot >= 0 ifTrue: [(ir node: n) c: slot]].
+				n := (ir node: n) next]]]
 !
 boundsOutOf: h entry: entry index: index
 	"Loop h, entered from block entry alone (h's predecessor index), counts a SmallInteger phi up by a constant and goes around again while the phi's next value is at most a limit from before the loop: wherever the phi is read it is between its start and that limit. An indexed load or store that takes it as the index of an object from before the loop (its class known there) checks no bounds if, once in entry, the start is at least 1 and at most the limit (the loop's head is reached so) and the limit at most the object's size. A check that fails there leaves at the loop's head and marks the access's send: it checks every time from then on."
@@ -856,11 +891,54 @@ isHoistable: n outOf: h
 	| nd op b |
 	nd := ir node: n.
 	op := nd op asInt32.
-	(op = O_GUARDCLASS or: [op = O_GUARDINT]) ifFalse: [^false].
+	(op = O_GUARDCLASS or: [op = O_GUARDINT or: [op = O_GUARDCLOSURE]]) ifFalse: [^false].
 	b := (ir node: nd a) block.
 	b < 0 ifTrue: [^false].
 	(self dominates: h block: b) ifTrue: [^false].
 	^((feedback flagsAt: (ir act: nd bcact) method pc: nd bcpc) bitAnd: feedback deoptHoisted) = 0
+!
+isClosureLoad: n of: h
+	"n loads, from before loop h, what never changes of a closure whose body is inline (O_GUARDCLOSURE): its outerContext, or that Context's receiver."
+	| nd x |
+	nd := ir node: n.
+	nd op asInt32 = O_LOADFIELD ifFalse: [^false].
+	x := ir node: nd a.
+	(x block < 0 or: [self dominates: h block: x block]) ifTrue: [^false].
+	x op asInt32 = O_GUARDCLOSURE ifTrue: [^nd aux = BC_OUTER].
+	^x op asInt32 = O_LOADFIELD and: [x aux = BC_OUTER and: [(ir node: x a) op asInt32 = O_GUARDCLOSURE and: [nd aux = CTX_RECEIVER]]]
+!
+isInvariantOuterLoad: n of: h
+	"n loads an outer temp of a closure from before loop h, and no turn of the loop changes that temp: the load may run once, where the loop is entered."
+	| nd b |
+	nd := ir node: n.
+	nd op asInt32 = O_OUTERLOAD ifFalse: [^false].
+	b := (ir node: nd a) block.
+	(b < 0 or: [self dominates: h block: b]) ifTrue: [^false].
+	^(self loop: h changesOuterTemp: nd aux2) not
+!
+loop: h changesOuterTemp: i
+	"A turn of loop h may store into an outer temp of index i: it has such a store, or a send (anything may run there; what else may run, at an interrupt check, runs when the code has left the unit)."
+	<function>
+	| b n nd op |
+	0 to: psOrderCount - 1 do: [:k |
+		b := psOrder at: k.
+		(self block: b isIn: h) ifTrue: [
+			n := (ir block: b) first.
+			[n >= 0] whileTrue: [
+				nd := ir node: n.
+				op := nd op asInt32.
+				(op = O_SEND or: [op = O_CALL or: [op = O_OUTERSTORE and: [nd aux2 = i]]]) ifTrue: [^true].
+				n := nd next]]].
+	^false
+!
+block: b isIn: h
+	"Block b is in loop h (findLoops)."
+	| l |
+	l := (ir block: b) loop.
+	[l >= 0] whileTrue: [
+		l = h ifTrue: [^true].
+		l := psLoopOuter at: l].
+	^false
 !
 state: s enteredFrom: k of: h
 	"State s at the head of loop h, and its parents, as they are where the loop is entered: h's phis are what they take from predecessor k."
@@ -891,8 +969,8 @@ isNumbered: nd
 	nd nargs asInt32 = 0 ifFalse: [^false].
 	^op = O_CONST or: [op = O_IADD or: [op = O_ISUB or: [op = O_IMUL or: [op = O_ICMP or: [op = O_IAND or: [op = O_IOR or: [op = O_EQ or: [op = O_NE
 		or: [op = O_CLASSOF or: [op = O_CLASSIS or: [op = O_BOTHINT or: [op = O_FARITH or: [op = O_FCMP or: [op = O_FSQRT or: [op = O_BOXF or: [op = O_UNBOXF
-		or: [op = O_GUARDINT or: [op = O_GUARDCLASS or: [op = O_CAST or: [op = O_SIZE or: [op = O_LOADFIELD
-		or: [op = O_IMOD or: [op = O_IDIV or: [op = O_ISHIFT or: [op = O_IXOR or: [op = O_NOTINTS or: [op = O_CHARCONV]]]]]]]]]]]]]]]]]]]]]]]]]]]
+		or: [op = O_GUARDINT or: [op = O_GUARDCLASS or: [op = O_GUARDCLOSURE or: [op = O_CAST or: [op = O_SIZE or: [op = O_LOADFIELD
+		or: [op = O_IMOD or: [op = O_IDIV or: [op = O_ISHIFT or: [op = O_IXOR or: [op = O_NOTINTS or: [op = O_CHARCONV]]]]]]]]]]]]]]]]]]]]]]]]]]]]
 !
 changesMemory: nd
 	"A store, or a safepoint (anything may run there)."

@@ -122,7 +122,7 @@ exit_crosses_safepoint:;
 exit_crosses_safepoint_2:;
     r_crosses_safepoint_2; })) && ((nd->slot < 0) && ({
     op = (int32_t)nd->op;
-    r_is_guard = (op == O_GUARDCLASS) || ((op == O_GUARDINT) || (op == O_CAST));
+    r_is_guard = (op == O_GUARDCLASS) || ((op == O_GUARDINT) || ((op == O_GUARDCLOSURE) || (op == O_CAST)));
     r_is_guard; }))) {
             nd_4 = opt_nodes + v;
             n = nd_4->a;

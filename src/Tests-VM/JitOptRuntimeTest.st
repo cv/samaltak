@@ -811,6 +811,26 @@ testCountedLoopsCheckBoundsOnce
 		self should: [o sum: a to: 101] raise: Error.
 		self should: [o fill: a to: 101] raise: Error]
 !
+testOuterTempsOfAClosureInlinedInALoop
+	"A loop's unit that inlines a closure another frame made guards it once, where the loop is entered; an outer temp the loop only reads is loaded there, one it stores into is stored into each time, in the frame its Context is married to or in the Context (the adder's home method has returned): what follows the loop sees the stores. A method's first long loop runs in such a unit: one method for each case."
+	| o a adder |
+	Smalltalk vm jitParameters: #(nil '-eager' nil nil).
+	#('eachA' 'eachB' 'eachC' 'eachD') do: [:each |
+		self define: each, ': x do: aBlock 1 to: x size do: [:i | aBlock value: (x at: i)]'].
+	self define: 'sumOf: x | sum | sum := 0. self eachA: x do: [:each | sum := sum + each]. ^sum'.
+	self define: 'sumOf: x times: k | sum | sum := 0. self eachB: x do: [:each | sum := sum + (each * k)]. ^sum'.
+	self define: 'nested: x | sum | sum := 0. #(1 2) do: [:k | self eachC: x do: [:each | sum := sum + (each * k)]]. ^sum'.
+	self define: 'adder | n | n := 0. ^[:each | n := n + each]'.
+	o := JitRuntimeTestSubject new.
+	a := (1 to: 30000) asArray.
+	4 timesRepeat: [
+		self assert: (o sumOf: a) equals: 450015000.
+		self assert: (o sumOf: a times: 3) equals: 1350045000.
+		self assert: (o nested: a) equals: 1350045000].
+	adder := o adder.
+	4 timesRepeat: [o eachD: a do: adder].
+	self assert: (adder value: 0) equals: 4 * 450015000
+!
 testLoopUnitsOfAnInheritedMethod
 	"A loop's unit of a method its receiver inherits is compiled for that receiver's class (a variant each: the sends to self are bound) and for the classes of what the frame holds in the slots it reads before the loop: receivers of several classes run it in turn, each right."
 	| a s y w |

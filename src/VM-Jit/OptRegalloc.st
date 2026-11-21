@@ -375,7 +375,7 @@ isGuard: nd
 	"Its result is its operand."
 	| op |
 	op := nd op asInt32.
-	^op = O_GUARDCLASS or: [op = O_GUARDINT or: [op = O_CAST]]
+	^op = O_GUARDCLASS or: [op = O_GUARDINT or: [op = O_GUARDCLOSURE or: [op = O_CAST]]]
 !
 shareSlotOf: v
 	"v's input already holds v in its home slot (unless it is a phi's, written on every edge, or lazy, written only on slow paths): v's too, kept until the later of their ends."

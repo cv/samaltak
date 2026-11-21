@@ -450,6 +450,7 @@ typedef void (*prim_fn)(void);
 #define O_FSQRT 33
 #define O_GOTO 50
 #define O_GUARDCLASS 15
+#define O_GUARDCLOSURE 45
 #define O_GUARDINT 16
 #define O_GUARDLE 44
 #define O_HOMESLOT 39
@@ -473,6 +474,7 @@ typedef void (*prim_fn)(void);
 #define O_NOP 0
 #define O_NOTINTS 38
 #define O_OUTERLOAD 26
+#define O_OUTERSLOT 46
 #define O_OUTERSTORE 27
 #define O_PARAM 2
 #define O_PHI 3
@@ -1932,7 +1934,7 @@ bool opt_codegen_generate(oop m, int a);
 int32_t add_pred(int32_t from, int32_t to);
 int32_t alloc_operands(int32_t n);
 void append(int32_t n, int32_t b);
-void insert(int32_t n, int32_t m);
+void insert(int64_t n, int32_t m);
 int32_t new_act(void);
 int32_t new_block(void);
 int32_t new_node(int op, int rep);
