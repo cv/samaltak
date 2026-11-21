@@ -32,6 +32,8 @@ const USAGE = `usage: samaltak-ctl [--session name] <command> [args]
   record start <out.mp4> [--size WxH] [--fps n] [--raw]   record the screen with ffmpeg (raw RGBA through a FIFO; --raw: <out> gets the RGBA frames, no ffmpeg)
   record stop
   state
+  agent-config --from-pi [--provider p] [--model id] [--thinking level]   the agent's model and API key from pi's models.json and settings.json (the key is resolved here and never printed)
+  agent-config [--clear]                   the agent's configuration (hasKey, never the key), or forget it
   close
 session: --session, $SAMALTAK_SESSION, default "samaltak"
 input commands wait until the image settles (at most 2 s); --settle ms changes that (0: return at once)
@@ -44,8 +46,8 @@ const pos = [];
 for (let i = 0; i < argv.length; i++) {
   const a = argv[i];
   if (a === '--session') session = argv[++i];
-  else if (/^--(depth|mods|timeout|image|port|scale|size|fps|window-size|settle|delay|source-dir|at)$/.test(a)) flags[a.slice(2)] = argv[++i];
-  else if (/^--(headless|hidden|work-clock|raw|headed|bounds|right|end|start|replace|json|pointer|preedit|uefi)$/.test(a)) flags[a.slice(2)] = true;
+  else if (/^--(depth|mods|timeout|image|port|scale|size|fps|window-size|settle|delay|source-dir|at|provider|model|thinking)$/.test(a)) flags[a.slice(2)] = argv[++i];
+  else if (/^--(headless|hidden|work-clock|raw|headed|bounds|right|end|start|replace|json|pointer|preedit|uefi|from-pi|clear)$/.test(a)) flags[a.slice(2)] = true;
   else if (a === '-h' || a === '--help') { console.log(USAGE); process.exit(0); }
   else pos.push(a);
 }
@@ -297,6 +299,61 @@ async function record() {
   console.log(`recording ${w}x${h} at ${r.fps} fps to ${out} (samaltak-ctl record stop)`);
 }
 
+// agent-config --from-pi: the in-image agent's API-key account (ApiKeyAccount, docs/agent.md) from pi's settings. The key
+// is resolved here on the host (a "!command" runs under /bin/sh, its stdout is the key; $NAME/${NAME} interpolate the
+// environment) and travels only in the request's JSON over the control connection: never in an argv, never printed.
+function piConfig() {
+  const dir = process.env.PI_CODING_AGENT_DIR || path.join(os.homedir(), '.pi', 'agent');
+  const readJSON = f => { try { return JSON.parse(fs.readFileSync(path.join(dir, f), 'utf8')); } catch (e) { die(`agent-config: cannot read ${path.join(dir, f)}: ${e.message}`); } };
+  const settings = fs.existsSync(path.join(dir, 'settings.json')) ? readJSON('settings.json') : {};
+  const providers = readJSON('models.json').providers || {};
+  const name = flags.provider || settings.defaultProvider;
+  if (!name || !providers[name]) die(`agent-config: no provider ${JSON.stringify(name)} in ${path.join(dir, 'models.json')} (have: ${Object.keys(providers).join(', ')})`);
+  const provider = providers[name];
+  const models = provider.models || [];
+  const api = m => m.api || provider.api;
+  const id = flags.model || (settings.defaultProvider === name && settings.defaultModel) || (models.find(m => api(m) === 'anthropic-messages') || {}).id;
+  const model = models.find(m => m.id === id) || { id };
+  if (!id) die(`agent-config: provider ${name} has no Anthropic Messages model; name one with --model`);
+  if (api(model) !== 'anthropic-messages') die(`agent-config: ${name}/${id} speaks ${api(model)}; the agent speaks anthropic-messages only`);
+  const level = flags.thinking || settings.defaultThinkingLevel || 'high';
+  const mapped = model.thinkingLevelMap && model.thinkingLevelMap[level];
+  const thinking = level === 'off' ? 'off' : typeof mapped === 'string' ? mapped
+    : ({ minimal: 'low', low: 'low', medium: 'medium', high: 'high' })[level] || 'high';
+  if (provider.apiKey == null) die(`agent-config: provider ${name} has no apiKey`);
+  return { provider: name, baseUrl: model.baseUrl || provider.baseUrl, model: id, thinking, maxTokens: model.maxTokens || 32000, apiKey: resolveSecret(String(provider.apiKey), name) };
+}
+
+function resolveSecret(spec, name) {
+  if (spec.startsWith('!')) {
+    let out;
+    try { out = require('child_process').execFileSync('/bin/sh', ['-c', spec.slice(1)], { stdio: ['ignore', 'pipe', 'inherit'], encoding: 'utf8', maxBuffer: 1 << 20 }); }
+    catch (e) { die(`agent-config: the apiKey command of provider ${name} failed (exit ${e.status ?? e.signal ?? '?'})`); }
+    const key = out.trim();
+    if (!key) die(`agent-config: the apiKey command of provider ${name} printed nothing`);
+    return key;
+  }
+  const key = spec.replace(/^\$!/, '!').replace(/\$\$|\$\{(\w+)\}|\$(\w+)/g, (m, a, b) => {
+    if (m === '$$') return '$';
+    const v = process.env[a || b];
+    if (v == null) die(`agent-config: the apiKey of provider ${name} names $${a || b}, which is not set`);
+    return v;
+  });
+  if (!key) die(`agent-config: the apiKey of provider ${name} is empty`);
+  return key;
+}
+
+async function agentConfig() {
+  if (flags.clear) return print(await call({ cmd: 'agent-config', clear: true }));
+  if (!flags['from-pi']) {
+    if (flags.provider || flags.model || flags.thinking) die('agent-config: --provider, --model and --thinking go with --from-pi');
+    return print(await call({ cmd: 'agent-config' }));
+  }
+  if (!readSession()) die(`no Samaltak in session ${session} (run: samaltak-ctl open)`);
+  // The answer is the image's configuration with hasKey, never the key.
+  return print(await call({ cmd: 'agent-config', ...piConfig() }));
+}
+
 async function main() {
   switch (cmd) {
     case 'open': return open();
@@ -377,6 +434,7 @@ async function main() {
       return print(file);
     }
     case 'record': return record();
+    case 'agent-config': return agentConfig();
     case undefined: console.log(USAGE); process.exit(1); break;
     default: die(`unknown command ${JSON.stringify(cmd)}\n${USAGE}`);
   }
