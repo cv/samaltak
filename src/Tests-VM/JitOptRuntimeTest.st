@@ -759,6 +759,18 @@ testGuardsOfValuesFromBeforeALoopLeaveIt
 		self deny: ((m machineCodeFor: #opt) includesSubstring: 'guard: its class, once before the loop')].
 	self assert: (o times: 10 sizeOf: #(1 2)) equals: 20
 !
+testAClassGuardMovedBeforeALoopReportsTheClass
+	"A class guard moved before a loop reports, when it fails, the class of the value it met, as a guard at its send does: the code compiled next has that class's case (and the Array's, which the lower tier takes inline unreported), not a send."
+	| o |
+	Smalltalk vm jitParameters: #(nil '-eager' nil nil).
+	self define: 'ats: x times: n | s | s := 0. 1 to: n do: [:i | (x at: 1) == nil ifFalse: [s := s + 1]]. ^s'.
+	o := JitRuntimeTestSubject new.
+	3 timesRepeat: [self assert: (o ats: #(1 2 3) times: 20000) equals: 20000].
+	3 timesRepeat: [
+		self assert: (o ats: 'abcd' times: 20000) equals: 20000.
+		self assert: (o ats: #(1 2 3) times: 20000) equals: 20000].
+	self stressed ifFalse: [self deny: ((self listingOf: #ats:times:) includesSubstring: 'inline cache')]
+!
 testSmallIntegerDivisionInline
 	"SmallInteger / inline while its quotients are exact, also beside Float arithmetic; a remainder deoptimizes to the send (a Fraction), as does a zero divisor (ZeroDivide)."
 	| o before |

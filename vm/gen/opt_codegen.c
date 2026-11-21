@@ -112506,51 +112506,59 @@ static int32_t record_state(int32_t s, int32_t kind, int32_t n, bool in_slots)
     int32_t w_2;
     int32_t w_3;
     int32_t w_4;
-    int32_t a;
     int32_t v;
-    int32_t w_5;
+    int64_t r_loc_of;
+    opt_node *nd_2;
+    int32_t r_sunk_index_of;
+    int32_t j;
+    uint64_t c;
+    int64_t v_2;
+    int64_t w_5;
+    int32_t a;
+    int32_t v_3;
+    int32_t w_6;
     int64_t nchain;
     int32_t t;
     int64_t i;
     int64_t i_2;
     opt_state *st;
     int32_t a_2;
-    int32_t w_6;
+    int32_t w_7;
     int32_t a_3;
     int32_t a_4;
-    int32_t v_2;
-    int64_t r_closure_loc_of;
-    int64_t r_loc_of;
-    opt_node *nd_2;
-    int32_t r_sunk_index_of;
-    int32_t j;
-    uint64_t c;
-    int64_t v_3;
-    int64_t w_7;
-    int32_t i_3;
     int32_t v_4;
+    int64_t r_closure_loc_of;
     int64_t r_loc_of_2;
     opt_node *nd_3;
     int32_t r_sunk_index_of_2;
     int32_t j_2;
     uint64_t c_2;
+    int64_t v_5;
     int64_t w_8;
-    int32_t w_9;
-    int32_t w_10;
-    int32_t j_3;
-    int32_t i_4;
-    int32_t v_5;
+    int32_t i_3;
+    int32_t v_6;
     int64_t r_loc_of_3;
     opt_node *nd_4;
     int32_t r_sunk_index_of_3;
-    int32_t j_4;
+    int32_t j_3;
     uint64_t c_3;
-    int64_t w_11;
+    int64_t w_9;
+    int32_t w_10;
+    int32_t w_11;
+    int32_t j_4;
+    int32_t i_4;
+    int32_t v_7;
+    int64_t r_loc_of_4;
+    opt_node *nd_5;
+    int32_t r_sunk_index_of_4;
     int32_t j_5;
+    uint64_t c_4;
+    int64_t w_12;
+    int32_t j_6;
     int32_t n_2;
     int64_t i_5;
-    int32_t w_12;
     int32_t w_13;
+    int32_t w_14;
     k = ({
     k_2 = cg_sp_count;
     if (cg_sp_count < CG_MAX_SP) {
@@ -112589,20 +112597,93 @@ static int32_t record_state(int32_t s, int32_t kind, int32_t n, bool in_slots)
             cg_meta_words[cg_meta_count] = w_4;
         }
         cg_meta_count = cg_meta_count + 1;
+        w_5 = ({
+    if (((nd->flags & NF_HOISTED) != 0) && ((int32_t)nd->op == O_GUARDCLASS)) {
+        v = nd->a;
+        v_2 = ({
+    nd_2 = opt_nodes + v;
+    if ((int32_t)nd_2->rep == R_DBL) {
+        if (nd_2->reg >= 0) {
+            r_loc_of = (((int64_t)nd_2->reg - D0) << 3) | LOC_DREG;
+            goto exit_loc_of;
+        }
+        if (nd_2->slot >= 0) {
+            r_loc_of = (((int64_t)nd_2->slot) << 3) | LOC_RAW;
+            goto exit_loc_of;
+        }
+        if (asm_error == ASM_OK) {
+            asm_error = ASM_ERR_OPERAND;
+        }
+        r_loc_of = 0;
+        goto exit_loc_of;
+    }
+    if ((int32_t)nd_2->op == O_CLOSURE) {
+        r_loc_of = (((int64_t)({
+    for (j = 0; j <= cg_sunk_count - 1; j++) {
+        if (cg_sunk[j] == v) {
+            r_sunk_index_of = j;
+            goto exit_sunk_index_of;
+        }
+    }
+    if (cg_sunk_count >= 64) {
+        if (asm_error == ASM_OK) {
+            asm_error = ASM_ERR_FULL;
+        }
+        r_sunk_index_of = 0;
+        goto exit_sunk_index_of;
+    }
+    cg_sunk[cg_sunk_count] = v;
+    cg_sunk_count = cg_sunk_count + 1;
+    r_sunk_index_of = cg_sunk_count - 1;
+exit_sunk_index_of:;
+    r_sunk_index_of; })) << 3) | LOC_SUNK;
+        goto exit_loc_of;
+    }
+    if ((int32_t)nd_2->op == O_HOMESLOT) {
+        r_loc_of = (nd_2->aux << 3) | LOC_SLOT;
+        goto exit_loc_of;
+    }
+    if ((int32_t)nd_2->op == O_CONST) {
+        c = (uint64_t)nd_2->aux;
+        if (((c & 1) != 0) && (((((int64_t)c) >> 1) >= -134217728) && ((((int64_t)c) >> 1) <= 0x7FFFFFF))) {
+            r_loc_of = (((int64_t)c) >> 1 << 3) | LOC_SMI;
+            goto exit_loc_of;
+        }
+        r_loc_of = (((int64_t)pool_index_of(c)) << 3) | LOC_CONST;
+        goto exit_loc_of;
+    }
+    if (nd_2->reg >= 0) {
+        r_loc_of = (((int64_t)nd_2->reg) << 3) | LOC_REG;
+        goto exit_loc_of;
+    }
+    if (nd_2->slot >= 0) {
+        r_loc_of = (((int64_t)nd_2->slot) << 3) | LOC_SLOT;
+        goto exit_loc_of;
+    }
+    if (asm_error == ASM_OK) {
+        asm_error = ASM_ERR_OPERAND;
+    }
+    r_loc_of = 0;
+exit_loc_of:;
+    r_loc_of; }) + 1;
+    } else {
+        v_2 = 0;
+    }
+    v_2; });
         if (cg_meta_count < CG_MAX_META) {
-            cg_meta_words[cg_meta_count] = 0;
+            cg_meta_words[cg_meta_count] = (int32_t)w_5;
         }
         cg_meta_count = cg_meta_count + 1;
-        w_5 = ({
+        w_6 = ({
     if ((nd->flags & NF_HOISTED) != 0) {
         a = nd->bcact;
-        v = pool_index_of((opt_acts + a)->method);
+        v_3 = pool_index_of((opt_acts + a)->method);
     } else {
-        v = 0;
+        v_3 = 0;
     }
-    v; });
+    v_3; });
         if (cg_meta_count < CG_MAX_META) {
-            cg_meta_words[cg_meta_count] = w_5;
+            cg_meta_words[cg_meta_count] = w_6;
         }
         cg_meta_count = cg_meta_count + 1;
     }
@@ -112626,100 +112707,22 @@ static int32_t record_state(int32_t s, int32_t kind, int32_t n, bool in_slots)
         st = opt_states + t;
         cg_chain_acts[nchain - 1 - i] = st->act;
         a_2 = st->act;
-        w_6 = pool_index_of((opt_acts + a_2)->method);
+        w_7 = pool_index_of((opt_acts + a_2)->method);
         if (cg_meta_count < CG_MAX_META) {
-            cg_meta_words[cg_meta_count] = w_6;
+            cg_meta_words[cg_meta_count] = w_7;
         }
         cg_meta_count = cg_meta_count + 1;
         a_3 = st->act;
-        w_7 = ({
+        w_8 = ({
     if ((opt_acts + a_3)->closure >= 0) {
         a_4 = st->act;
-        v_2 = (opt_acts + a_4)->closure;
-        v_3 = ({
-    if ((int32_t)(opt_nodes + v_2)->op == O_PARAM) {
+        v_4 = (opt_acts + a_4)->closure;
+        v_5 = ({
+    if ((int32_t)(opt_nodes + v_4)->op == O_PARAM) {
         r_closure_loc_of = -2;
         goto exit_closure_loc_of;
     }
     r_closure_loc_of = ({
-    nd_2 = opt_nodes + v_2;
-    if ((int32_t)nd_2->rep == R_DBL) {
-        if ((!in_slots) && (nd_2->reg >= 0)) {
-            r_loc_of = (((int64_t)nd_2->reg - D0) << 3) | LOC_DREG;
-            goto exit_loc_of;
-        }
-        if (nd_2->slot >= 0) {
-            r_loc_of = (((int64_t)nd_2->slot) << 3) | LOC_RAW;
-            goto exit_loc_of;
-        }
-        if (asm_error == ASM_OK) {
-            asm_error = ASM_ERR_OPERAND;
-        }
-        r_loc_of = 0;
-        goto exit_loc_of;
-    }
-    if ((int32_t)nd_2->op == O_CLOSURE) {
-        r_loc_of = (((int64_t)({
-    for (j = 0; j <= cg_sunk_count - 1; j++) {
-        if (cg_sunk[j] == v_2) {
-            r_sunk_index_of = j;
-            goto exit_sunk_index_of;
-        }
-    }
-    if (cg_sunk_count >= 64) {
-        if (asm_error == ASM_OK) {
-            asm_error = ASM_ERR_FULL;
-        }
-        r_sunk_index_of = 0;
-        goto exit_sunk_index_of;
-    }
-    cg_sunk[cg_sunk_count] = v_2;
-    cg_sunk_count = cg_sunk_count + 1;
-    r_sunk_index_of = cg_sunk_count - 1;
-exit_sunk_index_of:;
-    r_sunk_index_of; })) << 3) | LOC_SUNK;
-        goto exit_loc_of;
-    }
-    if ((int32_t)nd_2->op == O_HOMESLOT) {
-        r_loc_of = (nd_2->aux << 3) | LOC_SLOT;
-        goto exit_loc_of;
-    }
-    if ((int32_t)nd_2->op == O_CONST) {
-        c = (uint64_t)nd_2->aux;
-        if (((c & 1) != 0) && (((((int64_t)c) >> 1) >= -134217728) && ((((int64_t)c) >> 1) <= 0x7FFFFFF))) {
-            r_loc_of = (((int64_t)c) >> 1 << 3) | LOC_SMI;
-            goto exit_loc_of;
-        }
-        r_loc_of = (((int64_t)pool_index_of(c)) << 3) | LOC_CONST;
-        goto exit_loc_of;
-    }
-    if ((!in_slots) && (nd_2->reg >= 0)) {
-        r_loc_of = (((int64_t)nd_2->reg) << 3) | LOC_REG;
-        goto exit_loc_of;
-    }
-    if (nd_2->slot >= 0) {
-        r_loc_of = (((int64_t)nd_2->slot) << 3) | LOC_SLOT;
-        goto exit_loc_of;
-    }
-    if (asm_error == ASM_OK) {
-        asm_error = ASM_ERR_OPERAND;
-    }
-    r_loc_of = 0;
-exit_loc_of:;
-    r_loc_of; });
-exit_closure_loc_of:;
-    r_closure_loc_of; });
-    } else {
-        v_3 = -1;
-    }
-    v_3; });
-        if (cg_meta_count < CG_MAX_META) {
-            cg_meta_words[cg_meta_count] = (int32_t)w_7;
-        }
-        cg_meta_count = cg_meta_count + 1;
-        i_3 = st->vals;
-        v_4 = opt_operands[i_3];
-        w_8 = ({
     nd_3 = opt_nodes + v_4;
     if ((int32_t)nd_3->rep == R_DBL) {
         if ((!in_slots) && (nd_3->reg >= 0)) {
@@ -112785,25 +112788,20 @@ exit_sunk_index_of_2:;
     r_loc_of_2 = 0;
 exit_loc_of_2:;
     r_loc_of_2; });
+exit_closure_loc_of:;
+    r_closure_loc_of; });
+    } else {
+        v_5 = -1;
+    }
+    v_5; });
         if (cg_meta_count < CG_MAX_META) {
             cg_meta_words[cg_meta_count] = (int32_t)w_8;
         }
         cg_meta_count = cg_meta_count + 1;
-        w_9 = st->pc;
-        if (cg_meta_count < CG_MAX_META) {
-            cg_meta_words[cg_meta_count] = w_9;
-        }
-        cg_meta_count = cg_meta_count + 1;
-        w_10 = st->depth;
-        if (cg_meta_count < CG_MAX_META) {
-            cg_meta_words[cg_meta_count] = w_10;
-        }
-        cg_meta_count = cg_meta_count + 1;
-        for (j_3 = 0; j_3 <= st->depth - 1; j_3++) {
-            i_4 = st->vals + 1 + j_3;
-            v_5 = opt_operands[i_4];
-            w_11 = ({
-    nd_4 = opt_nodes + v_5;
+        i_3 = st->vals;
+        v_6 = opt_operands[i_3];
+        w_9 = ({
+    nd_4 = opt_nodes + v_6;
     if ((int32_t)nd_4->rep == R_DBL) {
         if ((!in_slots) && (nd_4->reg >= 0)) {
             r_loc_of_3 = (((int64_t)nd_4->reg - D0) << 3) | LOC_DREG;
@@ -112821,9 +112819,9 @@ exit_loc_of_2:;
     }
     if ((int32_t)nd_4->op == O_CLOSURE) {
         r_loc_of_3 = (((int64_t)({
-    for (j_4 = 0; j_4 <= cg_sunk_count - 1; j_4++) {
-        if (cg_sunk[j_4] == v_5) {
-            r_sunk_index_of_3 = j_4;
+    for (j_3 = 0; j_3 <= cg_sunk_count - 1; j_3++) {
+        if (cg_sunk[j_3] == v_6) {
+            r_sunk_index_of_3 = j_3;
             goto exit_sunk_index_of_3;
         }
     }
@@ -112834,7 +112832,7 @@ exit_loc_of_2:;
         r_sunk_index_of_3 = 0;
         goto exit_sunk_index_of_3;
     }
-    cg_sunk[cg_sunk_count] = v_5;
+    cg_sunk[cg_sunk_count] = v_6;
     cg_sunk_count = cg_sunk_count + 1;
     r_sunk_index_of_3 = cg_sunk_count - 1;
 exit_sunk_index_of_3:;
@@ -112868,8 +112866,91 @@ exit_sunk_index_of_3:;
     r_loc_of_3 = 0;
 exit_loc_of_3:;
     r_loc_of_3; });
+        if (cg_meta_count < CG_MAX_META) {
+            cg_meta_words[cg_meta_count] = (int32_t)w_9;
+        }
+        cg_meta_count = cg_meta_count + 1;
+        w_10 = st->pc;
+        if (cg_meta_count < CG_MAX_META) {
+            cg_meta_words[cg_meta_count] = w_10;
+        }
+        cg_meta_count = cg_meta_count + 1;
+        w_11 = st->depth;
+        if (cg_meta_count < CG_MAX_META) {
+            cg_meta_words[cg_meta_count] = w_11;
+        }
+        cg_meta_count = cg_meta_count + 1;
+        for (j_4 = 0; j_4 <= st->depth - 1; j_4++) {
+            i_4 = st->vals + 1 + j_4;
+            v_7 = opt_operands[i_4];
+            w_12 = ({
+    nd_5 = opt_nodes + v_7;
+    if ((int32_t)nd_5->rep == R_DBL) {
+        if ((!in_slots) && (nd_5->reg >= 0)) {
+            r_loc_of_4 = (((int64_t)nd_5->reg - D0) << 3) | LOC_DREG;
+            goto exit_loc_of_4;
+        }
+        if (nd_5->slot >= 0) {
+            r_loc_of_4 = (((int64_t)nd_5->slot) << 3) | LOC_RAW;
+            goto exit_loc_of_4;
+        }
+        if (asm_error == ASM_OK) {
+            asm_error = ASM_ERR_OPERAND;
+        }
+        r_loc_of_4 = 0;
+        goto exit_loc_of_4;
+    }
+    if ((int32_t)nd_5->op == O_CLOSURE) {
+        r_loc_of_4 = (((int64_t)({
+    for (j_5 = 0; j_5 <= cg_sunk_count - 1; j_5++) {
+        if (cg_sunk[j_5] == v_7) {
+            r_sunk_index_of_4 = j_5;
+            goto exit_sunk_index_of_4;
+        }
+    }
+    if (cg_sunk_count >= 64) {
+        if (asm_error == ASM_OK) {
+            asm_error = ASM_ERR_FULL;
+        }
+        r_sunk_index_of_4 = 0;
+        goto exit_sunk_index_of_4;
+    }
+    cg_sunk[cg_sunk_count] = v_7;
+    cg_sunk_count = cg_sunk_count + 1;
+    r_sunk_index_of_4 = cg_sunk_count - 1;
+exit_sunk_index_of_4:;
+    r_sunk_index_of_4; })) << 3) | LOC_SUNK;
+        goto exit_loc_of_4;
+    }
+    if ((int32_t)nd_5->op == O_HOMESLOT) {
+        r_loc_of_4 = (nd_5->aux << 3) | LOC_SLOT;
+        goto exit_loc_of_4;
+    }
+    if ((int32_t)nd_5->op == O_CONST) {
+        c_4 = (uint64_t)nd_5->aux;
+        if (((c_4 & 1) != 0) && (((((int64_t)c_4) >> 1) >= -134217728) && ((((int64_t)c_4) >> 1) <= 0x7FFFFFF))) {
+            r_loc_of_4 = (((int64_t)c_4) >> 1 << 3) | LOC_SMI;
+            goto exit_loc_of_4;
+        }
+        r_loc_of_4 = (((int64_t)pool_index_of(c_4)) << 3) | LOC_CONST;
+        goto exit_loc_of_4;
+    }
+    if ((!in_slots) && (nd_5->reg >= 0)) {
+        r_loc_of_4 = (((int64_t)nd_5->reg) << 3) | LOC_REG;
+        goto exit_loc_of_4;
+    }
+    if (nd_5->slot >= 0) {
+        r_loc_of_4 = (((int64_t)nd_5->slot) << 3) | LOC_SLOT;
+        goto exit_loc_of_4;
+    }
+    if (asm_error == ASM_OK) {
+        asm_error = ASM_ERR_OPERAND;
+    }
+    r_loc_of_4 = 0;
+exit_loc_of_4:;
+    r_loc_of_4; });
             if (cg_meta_count < CG_MAX_META) {
-                cg_meta_words[cg_meta_count] = (int32_t)w_11;
+                cg_meta_words[cg_meta_count] = (int32_t)w_12;
             }
             cg_meta_count = cg_meta_count + 1;
         }
@@ -112878,8 +112959,8 @@ exit_loc_of_3:;
         cg_meta_words[cg_meta_count] = cg_sunk_count;
     }
     cg_meta_count = cg_meta_count + 1;
-    for (j_5 = 0; j_5 <= cg_sunk_count - 1; j_5++) {
-        n_2 = cg_sunk[j_5];
+    for (j_6 = 0; j_6 <= cg_sunk_count - 1; j_6++) {
+        n_2 = cg_sunk[j_6];
         nd = opt_nodes + n_2;
         t = -1;
         for (i_5 = 0; i_5 <= nchain - 1; i_5++) {
@@ -112896,14 +112977,14 @@ exit_loc_of_3:;
             cg_meta_words[cg_meta_count] = t;
         }
         cg_meta_count = cg_meta_count + 1;
-        w_12 = (int32_t)nd->aux;
-        if (cg_meta_count < CG_MAX_META) {
-            cg_meta_words[cg_meta_count] = w_12;
-        }
-        cg_meta_count = cg_meta_count + 1;
-        w_13 = (int32_t)(nd->aux2 & 0xFFFFFF);
+        w_13 = (int32_t)nd->aux;
         if (cg_meta_count < CG_MAX_META) {
             cg_meta_words[cg_meta_count] = w_13;
+        }
+        cg_meta_count = cg_meta_count + 1;
+        w_14 = (int32_t)(nd->aux2 & 0xFFFFFF);
+        if (cg_meta_count < CG_MAX_META) {
+            cg_meta_words[cg_meta_count] = w_14;
         }
         cg_meta_count = cg_meta_count + 1;
     }

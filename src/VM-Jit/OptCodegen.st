@@ -2318,9 +2318,9 @@ recordState: s kind: kind node: n inSlots: inSlots
 			self meta: (nd aux2 bitAnd: 16rFFFFFFFF) asInt32.
 			self meta: (self poolIndexOf: nd aux asUInt64)]
 		ifFalse: [
-			"a guard moved before a loop: the site it came from"
+			"a guard moved before a loop: the site it came from, and where a class guard's value is (plus 1: its class is feedback there)"
 			self meta: ((nd flags bitAnd: NF_HOISTED) ~= 0 ifTrue: [nd bcpc] ifFalse: [-1]).
-			self meta: 0.
+			self meta: (((nd flags bitAnd: NF_HOISTED) ~= 0 and: [nd op asInt32 = O_GUARDCLASS]) ifTrue: [(self locOf: nd a inSlots: false) + 1] ifFalse: [0]).
 			self meta: ((nd flags bitAnd: NF_HOISTED) ~= 0 ifTrue: [self poolIndexOf: (ir act: nd bcact) method] ifFalse: [0])].
 	"the chain of states, outermost first"
 	nchain := 0.

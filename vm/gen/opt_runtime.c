@@ -766,65 +766,88 @@ uint64_t deopt_guard(frame *f, int64_t k)
     int32_t *rec;
     int32_t why;
     bool stressed;
-    uint64_t r;
+    int32_t i;
     oop m_2;
+    int32_t pc_2;
+    int32_t loc;
+    uint64_t *regs;
+    int32_t r_value;
+    int32_t kind;
+    int64_t payload;
+    oop v;
+    uint64_t b;
+    int32_t r_double_;
+    oop v_2;
+    uint32_t e;
+    oop b_2;
+    int32_t r_double__2;
+    oop v_3;
+    uint32_t e_2;
+    int32_t k_2;
+    oop r_2;
     uint64_t o;
+    uint8_t *p;
+    int32_t r_special_index_of;
+    uint8_t op;
+    uint64_t r;
     oop m_3;
+    uint64_t o_2;
+    oop m_4;
     int32_t s;
     int32_t t;
     uint64_t key;
-    int32_t i;
+    int32_t i_2;
     int64_t n;
-    oop m_4;
+    oop m_5;
     int32_t n_2;
     jit_method *h_2;
-    oop m_5;
-    int32_t pc_2;
+    oop m_6;
+    int32_t pc_3;
     int64_t r_operand_flags_at;
     frame *g;
-    uint64_t o_2;
-    uint8_t *p;
-    uint8_t op;
-    int r_pushes_of;
+    uint64_t o_3;
+    uint8_t *p_2;
     uint8_t op_2;
-    oop v;
+    int r_pushes_of;
+    uint8_t op_3;
+    oop v_4;
     int64_t r_flags_of;
     int64_t fl;
-    oop v_2;
+    oop v_5;
     int64_t r_flags_of_2;
-    int32_t i_2;
-    oop v_3;
+    int32_t i_3;
+    oop v_6;
     int64_t r_flags_of_3;
     bool fresh;
     oop m;
     int32_t pc;
-    int32_t i_3;
+    int32_t i_4;
     int64_t r_signature_at;
     feedback_site *s_2;
     int64_t n_3;
-    int i_4;
+    int i_5;
     int64_t sig;
-    uint64_t o_3;
-    uint8_t *p_2;
+    uint64_t o_4;
+    uint8_t *p_3;
     frame *g_2;
     int r_pushes_of_2;
-    uint8_t op_3;
-    int32_t r_send_argc_of;
     uint8_t op_4;
-    int k_3;
+    int32_t r_send_argc_of;
+    uint8_t op_5;
     int k_4;
-    int64_t i_5;
-    oop r_2;
+    int k_5;
+    int64_t i_6;
     oop r_3;
     oop r_4;
-    int32_t r_special_index_of;
-    uint8_t op_5;
-    int32_t k_2;
+    oop r_5;
+    int32_t r_special_index_of_2;
+    uint8_t op_6;
+    int32_t k_3;
     int64_t r_signature_at_2;
     feedback_site *s_3;
     int64_t n_4;
-    int i_6;
-    oop m_6;
+    int i_7;
+    oop m_7;
     int32_t n_5;
     jit_method *h_3;
     if ((jit_mode == JIT_BASELINE) || (jit_mode == JIT_OPT)) {
@@ -837,34 +860,146 @@ uint64_t deopt_guard(frame *f, int64_t k)
     if (stressed) {
         why = 0;
     }
+    if ((why == FB_DEOPT_HOISTED) && (rec[2] != 0)) {
+        i = rec[3];
+        m_2 = ((oop *)(h->code_start + h->pool_offset))[i];
+        pc_2 = rec[1];
+        rt_deopt_count = 0;
+        loc = rec[2] - 1;
+        regs = state_block->dump;
+        k_2 = ({
+    kind = loc & 7;
+    payload = ((int64_t)loc) >> 3;
+    v = nil_oop;
+    if (kind == LOC_SLOT) {
+        v = f->fp[payload];
+    }
+    if (kind == LOC_REG) {
+        v = regs[payload];
+    }
+    if (kind == LOC_CONST) {
+        v = ((oop *)(h->code_start + h->pool_offset))[payload];
+    }
+    if (kind == LOC_SMI) {
+        v = (uint64_t)((payload << 1) | 1);
+    }
+    if (kind == LOC_DREG) {
+        b = regs[32 + payload];
+        r_value = ({
+    v_2 = nil_oop;
+    e = (uint32_t)((b >> 52) & 0x7FF);
+    if ((b << 1) == 0) {
+        v_2 = (b >> 63 << 3) | 4;
+    } else if ((e > 896) && (e < 1151)) {
+        v_2 = ((((b << 1) | (b >> 63)) - 8070450532247928832LL) << 3) | 4;
+    }
+    if ((v_2 == nil_oop) && ((rt_float_count < OPT_MAX_DEOPT_VALS) && (rt_deopt_count < OPT_MAX_DEOPT_VALS))) {
+        rt_float_val[rt_float_count] = rt_deopt_count;
+        rt_float_loc[rt_float_count] = loc;
+        rt_float_bits[rt_float_count] = b;
+        rt_float_count = rt_float_count + 1;
+    }
+    if (rt_deopt_count < OPT_MAX_DEOPT_VALS) {
+        rt_deopt_vals[rt_deopt_count] = v_2;
+        rt_deopt_count = rt_deopt_count + 1;
+    }
+    r_double_ = rt_deopt_count - 1;
+    r_double_; });
+        goto exit_value;
+    }
+    if (kind == LOC_RAW) {
+        b_2 = f->fp[payload];
+        r_value = ({
+    v_3 = nil_oop;
+    e_2 = (uint32_t)((b_2 >> 52) & 0x7FF);
+    if ((uint64_t)(b_2 << 1) == 0) {
+        v_3 = (b_2 >> 63 << 3) | 4;
+    } else if ((e_2 > 896) && (e_2 < 1151)) {
+        v_3 = (((((uint64_t)(b_2 << 1)) | (b_2 >> 63)) - 8070450532247928832LL) << 3) | 4;
+    }
+    if ((v_3 == nil_oop) && ((rt_float_count < OPT_MAX_DEOPT_VALS) && (rt_deopt_count < OPT_MAX_DEOPT_VALS))) {
+        rt_float_val[rt_float_count] = rt_deopt_count;
+        rt_float_loc[rt_float_count] = loc;
+        rt_float_bits[rt_float_count] = b_2;
+        rt_float_count = rt_float_count + 1;
+    }
+    if (rt_deopt_count < OPT_MAX_DEOPT_VALS) {
+        rt_deopt_vals[rt_deopt_count] = v_3;
+        rt_deopt_count = rt_deopt_count + 1;
+    }
+    r_double__2 = rt_deopt_count - 1;
+    r_double__2; });
+        goto exit_value;
+    }
+    if ((kind == LOC_SUNK) && (rt_sunk_use_count < OPT_MAX_DEOPT_VALS)) {
+        rt_sunk_use_val[rt_sunk_use_count] = rt_deopt_count;
+        rt_sunk_use_id[rt_sunk_use_count] = (int32_t)payload;
+        rt_sunk_use_count = rt_sunk_use_count + 1;
+    }
+    if (rt_deopt_count < OPT_MAX_DEOPT_VALS) {
+        rt_deopt_vals[rt_deopt_count] = v;
+        rt_deopt_count = rt_deopt_count + 1;
+    }
+    r_value = rt_deopt_count - 1;
+exit_value:;
+    r_value; });
+        r_2 = rt_deopt_vals[k_2];
+        note_send(m_2, pc_2, (r_2 & 7) != 0 ? tag_class[r_2 & 7] : *(uint64_t *)(r_2 + 8));
+        o = *(uint64_t *)(m_2 + 16 + 24);
+        p = (uint8_t *)(o + 16) + pc_2;
+        k_2 = ({
+    op = p[0];
+    if ((op >= 0xA0) && (op < 0xC0)) {
+        r_special_index_of = (int32_t)(op - 0xA0);
+        goto exit_special_index_of;
+    }
+    if ((op >= 0x97) && (op <= 0x99)) {
+        r_special_index_of = (int32_t)(p[3] - 0xA0);
+        goto exit_special_index_of;
+    }
+    if ((op >= 0x9A) && (op < 0xA0)) {
+        r_special_index_of = (int32_t)(op - 0x9A);
+        goto exit_special_index_of;
+    }
+    if ((op >= 0xF0) && (op < 0xFC)) {
+        r_special_index_of = (int32_t)((op - 0xF0) % 6);
+        goto exit_special_index_of;
+    }
+    r_special_index_of = -1;
+exit_special_index_of:;
+    r_special_index_of; });
+        if ((k_2 >= 16) && (k_2 <= 18)) {
+            note_send(m_2, pc_2, cls_array);
+        }
+    }
     r = deopt_frame(f, k, state_block->dump, 0);
-    m_2 = rt_act_method[rt_act_count - 1];
-    o = *(uint64_t *)(m_2 + 16 + 24);
-    if (((uint8_t *)(o + 16))[rt_act_pc[rt_act_count - 1]] == 0x7C) {
+    m_3 = rt_act_method[rt_act_count - 1];
+    o_2 = *(uint64_t *)(m_3 + 16 + 24);
+    if (((uint8_t *)(o_2 + 16))[rt_act_pc[rt_act_count - 1]] == 0x7C) {
         if ((h != NULL) && ((h->flags & JM_FAILED) == 0) && ((h->flags & 2) == 0)) {
-            m_3 = h->method;
+            m_4 = h->method;
             s = (int32_t)h->block_start;
             t = (int32_t)h->osr_pc;
-            key = ((((uint64_t)(uint32_t)(((*(uint64_t *)m_3) >> H_HASH_SHIFT) & H_HASH_MASK)) ^ (((uint64_t)t) >> 16)) << 32) | ((((uint64_t)s) & 0xFFFF) << 16) | (((uint64_t)t) & 0xFFFF) | 9223372036854775808ULL;
-            i = (int32_t)((key ^ (key >> 29)) & 8191);
+            key = ((((uint64_t)(uint32_t)(((*(uint64_t *)m_4) >> H_HASH_SHIFT) & H_HASH_MASK)) ^ (((uint64_t)t) >> 16)) << 32) | ((((uint64_t)s) & 0xFFFF) << 16) | (((uint64_t)t) & 0xFFFF) | 9223372036854775808ULL;
+            i_2 = (int32_t)((key ^ (key >> 29)) & 8191);
             n = 0;
-            while (rt_failed[i] != 0) {
+            while (rt_failed[i_2] != 0) {
                 n = n + 1;
                 if (n >= 4096) {
                     goto exit_note_failed;
                 }
-                i = (i + 1) & 8191;
+                i_2 = (i_2 + 1) & 8191;
             }
-            rt_failed[i] = key;
+            rt_failed[i_2] = key;
         exit_note_failed:;
             if (!((h != NULL) && ((h->flags & JM_FAILED) == 0) && ((h->flags & 2) == 0))) {
                 goto exit_invalidate;
             }
             rt_stat_invalidations = rt_stat_invalidations + 1;
             if ((h->block_start == 0) && (h->osr_pc == 0)) {
-                m_4 = h->method;
+                m_5 = h->method;
                 n_2 = initial_count(h->method);
-                opt_counts[((uint32_t)(((*(uint64_t *)m_4) >> H_HASH_SHIFT) & H_HASH_MASK)) & 65535] = n_2;
+                opt_counts[((uint32_t)(((*(uint64_t *)m_5) >> H_HASH_SHIFT) & H_HASH_MASK)) & 65535] = n_2;
                 h_2 = (jit_method *)h->lower;
                 begin_writing();
                 h_2->opt = 0;
@@ -877,38 +1012,38 @@ uint64_t deopt_guard(frame *f, int64_t k)
         return r;
     }
     if ((why == FB_DEOPT_ARITH) || (why == FB_DEOPT_OTHER)) {
-        m_5 = rt_act_method[rt_act_count - 1];
-        pc_2 = rt_act_pc[rt_act_count - 1];
+        m_6 = rt_act_method[rt_act_count - 1];
+        pc_3 = rt_act_pc[rt_act_count - 1];
         why = why | ((int32_t)({
     g = frames + (nframes - 1);
-    o_2 = *(uint64_t *)(m_5 + 16 + 24);
-    p = (uint8_t *)(o_2 + 16) + pc_2;
-    op = p[0];
+    o_3 = *(uint64_t *)(m_6 + 16 + 24);
+    p_2 = (uint8_t *)(o_3 + 16) + pc_3;
+    op_2 = p_2[0];
     if (({
-    op_2 = p[0];
-    r_pushes_of = ((op_2 >= 0x97) && (op_2 <= 0x9F)) || ((op_2 >= 0xF0) && (op_2 < 0xFC)) ? 2 : 0;
+    op_3 = p_2[0];
+    r_pushes_of = ((op_3 >= 0x97) && (op_3 <= 0x9F)) || ((op_3 >= 0xF0) && (op_3 < 0xFC)) ? 2 : 0;
     r_pushes_of; }) > 0) {
-        v = g->fp[p[1]];
+        v_4 = g->fp[p_2[1]];
         fl = ({
-    if (((v & 7) == 4) || (((v & 7) == 0) && (*(uint64_t *)(v + 8) == cls_boxedfloat))) {
+    if (((v_4 & 7) == 4) || (((v_4 & 7) == 0) && (*(uint64_t *)(v_4 + 8) == cls_boxedfloat))) {
         r_flags_of = FB_FLOAT;
         goto exit_flags_of;
     }
-    if (!((v & 1) != 0)) {
+    if (!((v_4 & 1) != 0)) {
         r_flags_of = FB_NONINT;
         goto exit_flags_of;
     }
     r_flags_of = 0;
 exit_flags_of:;
     r_flags_of; });
-        if ((op == 0x97) || ((op >= 0x9A) && (op < 0xA0))) {
-            v_2 = g->fp[p[2]];
+        if ((op_2 == 0x97) || ((op_2 >= 0x9A) && (op_2 < 0xA0))) {
+            v_5 = g->fp[p_2[2]];
             fl = fl | ({
-    if (((v_2 & 7) == 4) || (((v_2 & 7) == 0) && (*(uint64_t *)(v_2 + 8) == cls_boxedfloat))) {
+    if (((v_5 & 7) == 4) || (((v_5 & 7) == 0) && (*(uint64_t *)(v_5 + 8) == cls_boxedfloat))) {
         r_flags_of_2 = FB_FLOAT;
         goto exit_flags_of_2;
     }
-    if (!((v_2 & 1) != 0)) {
+    if (!((v_5 & 1) != 0)) {
         r_flags_of_2 = FB_NONINT;
         goto exit_flags_of_2;
     }
@@ -920,15 +1055,15 @@ exit_flags_of_2:;
         goto exit_operand_flags_at;
     }
     fl = 0;
-    for (i_2 = g->sp - 2; i_2 <= g->sp - 1; i_2++) {
-        if (i_2 >= 0) {
-            v_3 = g->fp[i_2];
+    for (i_3 = g->sp - 2; i_3 <= g->sp - 1; i_3++) {
+        if (i_3 >= 0) {
+            v_6 = g->fp[i_3];
             fl = fl | ({
-    if (((v_3 & 7) == 4) || (((v_3 & 7) == 0) && (*(uint64_t *)(v_3 + 8) == cls_boxedfloat))) {
+    if (((v_6 & 7) == 4) || (((v_6 & 7) == 0) && (*(uint64_t *)(v_6 + 8) == cls_boxedfloat))) {
         r_flags_of_3 = FB_FLOAT;
         goto exit_flags_of_3;
     }
-    if (!((v_3 & 1) != 0)) {
+    if (!((v_6 & 1) != 0)) {
         r_flags_of_3 = FB_NONINT;
         goto exit_flags_of_3;
     }
@@ -946,8 +1081,8 @@ exit_operand_flags_at:;
         m = rt_act_method[rt_act_count - 1];
         pc = rt_act_pc[rt_act_count - 1];
         if (why == FB_DEOPT_HOISTED) {
-            i_3 = rec[3];
-            m = ((oop *)(h->code_start + h->pool_offset))[i_3];
+            i_4 = rec[3];
+            m = ((oop *)(h->code_start + h->pool_offset))[i_4];
             pc = rec[1];
         }
         sig = ({
@@ -957,8 +1092,8 @@ exit_operand_flags_at:;
         goto exit_signature_at;
     }
     n_3 = 0;
-    for (i_4 = 0; i_4 <= 3; i_4++) {
-        if (s_2->classes[i_4] != 0) {
+    for (i_5 = 0; i_5 <= 3; i_5++) {
+        if (s_2->classes[i_5] != 0) {
             n_3 = n_3 + 1;
         }
     }
@@ -967,72 +1102,72 @@ exit_signature_at:;
     r_signature_at; });
         note_flags(m, pc, (uint32_t)why);
         if ((why & FB_DEOPT_CLASS) != 0) {
-            o_3 = *(uint64_t *)(m + 16 + 24);
-            p_2 = (uint8_t *)(o_3 + 16) + pc;
+            o_4 = *(uint64_t *)(m + 16 + 24);
+            p_3 = (uint8_t *)(o_4 + 16) + pc;
             g_2 = frames + (nframes - 1);
-            i_5 = ({
-    op_3 = p_2[0];
-    r_pushes_of_2 = ((op_3 >= 0x97) && (op_3 <= 0x9F)) || ((op_3 >= 0xF0) && (op_3 < 0xFC)) ? 2 : 0;
-    r_pushes_of_2; }) > 0 ? (int64_t)p_2[1] : (int64_t)(g_2->sp - ({
-    op_4 = p_2[0];
-    if ((op_4 == 0x8D) || (op_4 == 0x8E)) {
-        r_send_argc_of = (int32_t)p_2[2];
+            i_6 = ({
+    op_4 = p_3[0];
+    r_pushes_of_2 = ((op_4 >= 0x97) && (op_4 <= 0x9F)) || ((op_4 >= 0xF0) && (op_4 < 0xFC)) ? 2 : 0;
+    r_pushes_of_2; }) > 0 ? (int64_t)p_3[1] : (int64_t)(g_2->sp - ({
+    op_5 = p_3[0];
+    if ((op_5 == 0x8D) || (op_5 == 0x8E)) {
+        r_send_argc_of = (int32_t)p_3[2];
         goto exit_send_argc_of;
     }
-    if (op_4 >= 0xC0) {
-        r_send_argc_of = op_4 < 0xF0 ? (int32_t)((op_4 - 0xC0) >> 4) : 1;
+    if (op_5 >= 0xC0) {
+        r_send_argc_of = op_5 < 0xF0 ? (int32_t)((op_5 - 0xC0) >> 4) : 1;
         goto exit_send_argc_of;
     }
-    if (op_4 >= 0xA0) {
-        k_3 = op_4 - 0xA0;
-        r_send_argc_of = (k_3 == 19) || (k_3 == 20) ? 1 : special_argc[k_3];
+    if (op_5 >= 0xA0) {
+        k_4 = op_5 - 0xA0;
+        r_send_argc_of = (k_4 == 19) || (k_4 == 20) ? 1 : special_argc[k_4];
         goto exit_send_argc_of;
     }
-    if (op_4 >= 0x9A) {
+    if (op_5 >= 0x9A) {
         r_send_argc_of = 1;
         goto exit_send_argc_of;
     }
-    if ((op_4 >= 0x97) && (op_4 <= 0x99)) {
-        k_4 = p_2[3] - 0xA0;
-        r_send_argc_of = (k_4 == 19) || (k_4 == 20) ? 1 : special_argc[k_4];
+    if ((op_5 >= 0x97) && (op_5 <= 0x99)) {
+        k_5 = p_3[3] - 0xA0;
+        r_send_argc_of = (k_5 == 19) || (k_5 == 20) ? 1 : special_argc[k_5];
         goto exit_send_argc_of;
     }
     r_send_argc_of = 0;
 exit_send_argc_of:;
     r_send_argc_of; }) - 1);
-            if (i_5 >= 0) {
-                r_2 = g_2->fp[i_5];
-                note_send(m, pc, (r_2 & 7) != 0 ? tag_class[r_2 & 7] : *(uint64_t *)(r_2 + 8));
+            if (i_6 >= 0) {
+                r_3 = g_2->fp[i_6];
+                note_send(m, pc, (r_3 & 7) != 0 ? tag_class[r_3 & 7] : *(uint64_t *)(r_3 + 8));
                 if (getenv("SAMALTAK_OPT_TRACE") != NULL) {
-                    r_3 = g_2->fp[i_5];
-                    fprintf(stderr, "deopt receiver %lld (Array %lld): ", (unsigned long long)((r_3 & 7) != 0 ? tag_class[r_3 & 7] : *(uint64_t *)(r_3 + 8)), (unsigned long long)cls_array);
-                    r_4 = g_2->fp[i_5];
-                    print_class_name((r_4 & 7) != 0 ? tag_class[r_4 & 7] : *(uint64_t *)(r_4 + 8), stderr);
+                    r_4 = g_2->fp[i_6];
+                    fprintf(stderr, "deopt receiver %lld (Array %lld): ", (unsigned long long)((r_4 & 7) != 0 ? tag_class[r_4 & 7] : *(uint64_t *)(r_4 + 8)), (unsigned long long)cls_array);
+                    r_5 = g_2->fp[i_6];
+                    print_class_name((r_5 & 7) != 0 ? tag_class[r_5 & 7] : *(uint64_t *)(r_5 + 8), stderr);
                     fputc(10, stderr);
                 }
             }
-            k_2 = ({
-    op_5 = p_2[0];
-    if ((op_5 >= 0xA0) && (op_5 < 0xC0)) {
-        r_special_index_of = (int32_t)(op_5 - 0xA0);
-        goto exit_special_index_of;
+            k_3 = ({
+    op_6 = p_3[0];
+    if ((op_6 >= 0xA0) && (op_6 < 0xC0)) {
+        r_special_index_of_2 = (int32_t)(op_6 - 0xA0);
+        goto exit_special_index_of_2;
     }
-    if ((op_5 >= 0x97) && (op_5 <= 0x99)) {
-        r_special_index_of = (int32_t)(p_2[3] - 0xA0);
-        goto exit_special_index_of;
+    if ((op_6 >= 0x97) && (op_6 <= 0x99)) {
+        r_special_index_of_2 = (int32_t)(p_3[3] - 0xA0);
+        goto exit_special_index_of_2;
     }
-    if ((op_5 >= 0x9A) && (op_5 < 0xA0)) {
-        r_special_index_of = (int32_t)(op_5 - 0x9A);
-        goto exit_special_index_of;
+    if ((op_6 >= 0x9A) && (op_6 < 0xA0)) {
+        r_special_index_of_2 = (int32_t)(op_6 - 0x9A);
+        goto exit_special_index_of_2;
     }
-    if ((op_5 >= 0xF0) && (op_5 < 0xFC)) {
-        r_special_index_of = (int32_t)((op_5 - 0xF0) % 6);
-        goto exit_special_index_of;
+    if ((op_6 >= 0xF0) && (op_6 < 0xFC)) {
+        r_special_index_of_2 = (int32_t)((op_6 - 0xF0) % 6);
+        goto exit_special_index_of_2;
     }
-    r_special_index_of = -1;
-exit_special_index_of:;
-    r_special_index_of; });
-            if ((k_2 >= 16) && (k_2 <= 18)) {
+    r_special_index_of_2 = -1;
+exit_special_index_of_2:;
+    r_special_index_of_2; });
+            if ((k_3 >= 16) && (k_3 <= 18)) {
                 note_send(m, pc, cls_array);
             }
         }
@@ -1043,8 +1178,8 @@ exit_special_index_of:;
         goto exit_signature_at_2;
     }
     n_4 = 0;
-    for (i_6 = 0; i_6 <= 3; i_6++) {
-        if (s_3->classes[i_6] != 0) {
+    for (i_7 = 0; i_7 <= 3; i_7++) {
+        if (s_3->classes[i_7] != 0) {
             n_4 = n_4 + 1;
         }
     }
@@ -1081,9 +1216,9 @@ exit_signature_at_2:;
         }
         rt_stat_invalidations = rt_stat_invalidations + 1;
         if ((h->block_start == 0) && (h->osr_pc == 0)) {
-            m_6 = h->method;
+            m_7 = h->method;
             n_5 = initial_count(h->method);
-            opt_counts[((uint32_t)(((*(uint64_t *)m_6) >> H_HASH_SHIFT) & H_HASH_MASK)) & 65535] = n_5;
+            opt_counts[((uint32_t)(((*(uint64_t *)m_7) >> H_HASH_SHIFT) & H_HASH_MASK)) & 65535] = n_5;
             h_3 = (jit_method *)h->lower;
             begin_writing();
             h_3->opt = 0;

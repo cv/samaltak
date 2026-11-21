@@ -246,9 +246,9 @@ frameClosureOf: v numArgs: n pc: pc act: a
 	| x |
 	(runtime flag: runtime blocksFlag) ifFalse: [^-1].
 	((feedback flagsAt: (ir act: a) method pc: pc) bitAnd: feedback deoptOther) ~= 0 ifTrue: [^-1].
-	x := ir resolve: v.
+	x := self liveValueOf: v.
 	0 to: obSpecCount - 1 do: [:i |
-		(((ir node: (obSpecInfo at: i)) aux2 bitAnd: 255) = n and: [(ir resolve: (self read: (obSpecParam at: i))) = x]) ifTrue: [^obSpecInfo at: i]].
+		(((ir node: (obSpecInfo at: i)) aux2 bitAnd: 255) = n and: [(self liveValueOf: (self read: (obSpecParam at: i))) = x]) ifTrue: [^obSpecInfo at: i]].
 	^-1
 !
 inlineFrameClosure: x info: d pc: pc act: a rcvSlot: r argc: argc
@@ -314,7 +314,8 @@ knownObject: v
 	<returns: 'oop'>
 	| n nd c |
 	obFrame isNull ifTrue: [^0].
-	n := ir resolve: v.
+	"past the phi of a merge whose paths all bring the same value (a type switch between where it was pushed and here)"
+	n := self liveValueOf: v.
 	nd := ir node: n.
 	"the slots closureSignatureOf: covers"
 	(nd op asInt32 = O_PARAM and: [nd aux >= 0 and: [nd aux < (obValidSlots min: 64)]]) ifTrue: [^obFrame fp at: nd aux].
@@ -1101,7 +1102,7 @@ isValueSelector: sel
 isClosure: v numArgs: n
 	"v is a closure this compilation made, taking n arguments."
 	| nd |
-	nd := ir node: (ir resolve: v).
+	nd := ir node: (self liveValueOf: v).
 	^nd op asInt32 = O_CLOSURE and: [(nd aux2 bitAnd: 255) = n]
 !
 inlineBlock: c info: d pc: pc act: a rcvSlot: r argc: argc
@@ -1342,7 +1343,7 @@ special: k pc: pc act: a rcvSlot: r
 		self push: (self compare: (k = 19 ifTrue: [O_EQ] ifFalse: [O_NE]) a: x b: y) act: a depth: r.
 		^self].
 	((k = 21 or: [k = 22 or: [k = 30]]) and: [(runtime flag: runtime blocksFlag) and: [self isClosure: x numArgs: argc]]) ifTrue: [
-		^self inlineBlock: (ir resolve: x) info: (ir resolve: x) pc: pc act: a rcvSlot: r argc: argc].
+		^self inlineBlock: (self liveValueOf: x) info: (self liveValueOf: x) pc: pc act: a rcvSlot: r argc: argc].
 	((k = 21 or: [k = 22 or: [k = 30]]) and: [(n := self frameClosureOf: x numArgs: argc pc: pc act: a) >= 0]) ifTrue: [
 		^self inlineFrameClosure: x info: n pc: pc act: a rcvSlot: r argc: argc].
 	((k = 21 or: [k = 22 or: [k = 30]]) and: [self inlineForeignClosure: x pc: pc act: a rcvSlot: r argc: argc]) ifTrue: [^self].
@@ -1523,7 +1524,7 @@ sendSelector: sel argc: argc kind: kind special: k pc: pc act: a rcvSlot: r
 	"A send: inlined (or called) for the receiver's class if it is known, for each class feedback saw (guarded), else through an inline cache."
 	| d |
 	((runtime flag: runtime blocksFlag) and: [(self isValueSelector: sel) and: [self isClosure: (self read: (self var: a slot: r)) numArgs: argc]]) ifTrue: [
-		self inlineBlock: (ir resolve: (self read: (self var: a slot: r))) info: (ir resolve: (self read: (self var: a slot: r))) pc: pc act: a rcvSlot: r argc: argc.
+		self inlineBlock: (self liveValueOf: (self read: (self var: a slot: r))) info: (self liveValueOf: (self read: (self var: a slot: r))) pc: pc act: a rcvSlot: r argc: argc.
 		^-1].
 	(((runtime flag: runtime blocksFlag) and: [self isValueSelector: sel]) and: [(d := self frameClosureOf: (self read: (self var: a slot: r)) numArgs: argc pc: pc act: a) >= 0]) ifTrue: [
 		self inlineFrameClosure: (self read: (self var: a slot: r)) info: d pc: pc act: a rcvSlot: r argc: argc.
@@ -1546,6 +1547,13 @@ inlineSend: sel argc: argc kind: kind special: k pc: pc act: a rcvSlot: r
 	(libc getenv: 'SAMALTAK_OPT_TRACE') notNull ifTrue: [
 		libc fprintf: libc stderr format: 'opt: send at pc %d of act %d: feedback %s ' with: pc with: a with: (site isNull ifTrue: ['none'] ifFalse: ['some']).
 		interpreter printSymbol: sel on: libc stderr.
+		site isNull ifFalse: [
+			libc fprintf: libc stderr format: ' (flags %d:' with: site flags.
+			0 to: feedback classSlots - 1 do: [:i |
+				(site classes at: i) ~= 0 ifTrue: [
+					libc fputc: 32 to: libc stderr.
+					interpreter printClassName: (site classes at: i) on: libc stderr]].
+			libc fputc: 41 to: libc stderr].
 		libc fputc: 10 to: libc stderr].
 	site isNull ifTrue: [^false].
 	fl := site flags.

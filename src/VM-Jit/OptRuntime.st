@@ -703,6 +703,7 @@ deoptGuard: f index: k
 	"--jit-flags deopt: no feedback from the stress"
 	stressed := (runtime flag: runtime deoptFlag) and: [runtime state stress <= 0].
 	stressed ifTrue: [why := 0].
+	(why = feedback deoptHoisted and: [(rec at: 2) ~= 0]) ifTrue: [self noteHoisted: rec of: h frame: f].
 	r := self deoptFrame: f index: k regs: runtime state dump mode: 0.
 	"a block unit's ^ (the interpreter does it every time): the unit is not optimized again"
 	((self methodBytecodes: (rtActMethod at: rtActCount - 1)) at: (rtActPc at: rtActCount - 1)) = 16r7C ifTrue: [
@@ -744,6 +745,17 @@ deoptGuard: f index: k
 	cache endWriting.
 	(fresh or: [h deopts > OPT_MAX_DEOPTS]) ifTrue: [self invalidate: h].
 	^r
+!
+noteHoisted: rec of: h frame: f
+	"A class guard moved before a loop failed (rec: its record): the class of its value, still where the code had it, is feedback for the send it came from, as noteReceiverAt:pc: has it of a guard at the send."
+	| m pc k |
+	m := self poolAt: (rec at: 3) of: h.
+	pc := rec at: 1.
+	rtDeoptCount := 0.
+	k := self value: (rec at: 2) - 1 h: h frame: f regs: runtime state dump.
+	feedback noteSend: m pc: pc class: (interpreter receiverClass: (rtDeoptVals at: k)).
+	k := analysis specialIndexOf: (self methodBytecodes: m) + pc.
+	(k >= 16 and: [k <= 18]) ifTrue: [feedback noteSend: m pc: pc class: memory clsArray]
 !
 signatureAt: m pc: pc
 	"What the site at m's pc reports: its flags and how many classes."
