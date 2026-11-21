@@ -261,7 +261,7 @@ post: body headers: headers onText: textBlock onItem: itemBlock
 	^[client post: self account baseURL, '/v1/messages' json: body headers: headers do: [:text | reader feed: text]]
 		on: Error do: [:e |
 			(e isKindOf: HTTPError) ifTrue: [
-				AgentError signal: (cancelled ifTrue: ['Cancelled'] ifFalse: ['Lost the connection to ', self serviceName, ': ', e messageText])].
+				AgentError signal: (cancelled ifTrue: ['Cancelled'] ifFalse: ['Lost the connection to ', self serviceName, ': ', (e messageText ifNil: [e class name])])].
 			((e isKindOf: AgentError) and: [streamError notNil and: [emitted not and: [cancelled not and: [self isRetryable: streamError]]]])
 				ifTrue: [e return: #retry].
 			e pass]
