@@ -18,6 +18,7 @@ bool ps_unboxed;
 static uint8_t ps_visit_mark[2048];
 static int32_t ps_work_list[16384];
 
+static void bounds_out_of(int32_t h, int64_t entry, int64_t index);
 static void compute_order(int32_t entry);
 static void count_uses(void);
 static void dominators(int32_t entry);
@@ -43,6 +44,193 @@ static void type_phis(void);
 static void unbox_phis(void);
 static void unbox_states(void);
 static void value_numbers(void);
+
+/* OptPasses>>boundsOutOf:entry:index: */
+static void bounds_out_of(int32_t h, int64_t entry, int64_t index)
+{
+    opt_block *hb;
+    int32_t e;
+    int32_t c;
+    int32_t prev;
+    int64_t steps;
+    int32_t e_2;
+    int32_t n_2;
+    int32_t n_3;
+    opt_node *cond;
+    int32_t limit;
+    bool r_is_before;
+    int32_t b;
+    int64_t phi;
+    int32_t n;
+    opt_node *nd;
+    int64_t i;
+    int64_t i_2;
+    int32_t i0;
+    int32_t n_4;
+    opt_node *i1;
+    int32_t n_5;
+    int64_t s;
+    int32_t m;
+    int32_t x;
+    bool r_is_before_2;
+    int32_t b_2;
+    int32_t a;
+    int32_t g;
+    int32_t g_2;
+    int32_t size;
+    int32_t g_3;
+    hb = opt_blocks + h;
+    if (!(hb->npreds == 2)) {
+        return;
+    }
+    e = hb->preds;
+    if (index == 0) {
+        e = (opt_edges + e)->next;
+    }
+    c = (opt_edges + e)->from;
+    prev = h;
+    steps = 0;
+    while (((opt_blocks + c)->succ1 < 0) && (((opt_blocks + c)->npreds == 1) && (steps < 4))) {
+        prev = c;
+        e_2 = (opt_blocks + c)->preds;
+        c = (opt_edges + e_2)->from;
+        steps = steps + 1;
+    }
+    if (!(((opt_blocks + c)->succ1 >= 0) && (((opt_blocks + c)->succ0 == prev) && ((opt_blocks + c)->last >= 0)))) {
+        return;
+    }
+    n_2 = (opt_blocks + c)->last;
+    n_3 = opt_ir_resolve((opt_nodes + n_2)->a);
+    cond = opt_nodes + n_3;
+    if (!(((int32_t)cond->op == O_ICMP) && (cond->aux == 4))) {
+        return;
+    }
+    limit = opt_ir_resolve(cond->b);
+    if (!(((int32_t)(opt_nodes + limit)->tkind == T_SMI) && ({
+    if ((int32_t)(opt_nodes + limit)->op == O_CONST) {
+        r_is_before = true;
+        goto exit_is_before;
+    }
+    b = (opt_nodes + limit)->block;
+    r_is_before = (b >= 0) && (!((ps_pre[h] <= ps_pre[b]) && (ps_post[b] <= ps_post[h])));
+exit_is_before:;
+    r_is_before; }))) {
+        return;
+    }
+    phi = -1;
+    n = hb->first;
+    while ((n >= 0) && ((int32_t)(opt_nodes + n)->op == O_PHI)) {
+        nd = opt_nodes + n;
+        if ((nd->fwd < 0) && (((int32_t)nd->tkind == T_SMI) && (((int32_t)nd->nargs == 2) && ({
+    i = nd->args + (1 - index);
+    opt_ir_resolve(opt_operands[i]) == opt_ir_resolve(cond->a); })))) {
+            phi = n;
+        }
+        n = nd->next;
+    }
+    if (phi < 0) {
+        return;
+    }
+    i_2 = (opt_nodes + phi)->args + index;
+    i0 = opt_ir_resolve(opt_operands[i_2]);
+    n_4 = opt_ir_resolve(cond->a);
+    i1 = opt_nodes + n_4;
+    n_5 = opt_ir_resolve(i1->b);
+    nd = opt_nodes + n_5;
+    if (!(((int32_t)i1->op == O_IADD) && ((opt_ir_resolve(i1->a) == phi) && (((int32_t)nd->op == O_CONST) && (((nd->aux & 1) == 1) && (nd->aux >= 3)))))) {
+        return;
+    }
+    nd = opt_nodes + i0;
+    if (!(((int32_t)nd->tkind == T_SMI) && (((int32_t)nd->op != O_CONST) || (nd->aux >= 3)))) {
+        return;
+    }
+    s = -1;
+    for (m = 0; m <= opt_node_count - 1; m++) {
+        nd = opt_nodes + m;
+        if ((((int32_t)nd->op == O_INDEXLOAD) || ((int32_t)nd->op == O_INDEXSTORE)) && ((nd->block >= 0) && (((nd->flags & NF_NOBOUNDS) == 0) && (opt_ir_resolve(nd->b) == phi)))) {
+            x = opt_ir_resolve(nd->a);
+            if (({
+    if ((int32_t)(opt_nodes + x)->op == O_CONST) {
+        r_is_before_2 = true;
+        goto exit_is_before_2;
+    }
+    b_2 = (opt_nodes + x)->block;
+    r_is_before_2 = (b_2 >= 0) && (!((ps_pre[h] <= ps_pre[b_2]) && (ps_post[b_2] <= ps_post[h])));
+exit_is_before_2:;
+    r_is_before_2; }) && (((int32_t)(opt_nodes + x)->tkind == T_OBJ) && ({
+    a = nd->bcact;
+    (flags_at((opt_acts + a)->method, nd->bcpc) & FB_DEOPT_HOISTED) == 0; }))) {
+                if (s < 0) {
+                    s = opt_passes_state(hb->entry_state, index, h);
+                    if (opt_full) {
+                        return;
+                    }
+                    if (!((int32_t)(opt_nodes + i0)->op == O_CONST)) {
+                        g = new_node(O_GUARDLE, R_NONE);
+                        if (opt_full) {
+                            goto exit_guard;
+                        }
+                        (opt_nodes + g)->a = -1;
+                        (opt_nodes + g)->aux = 3;
+                        (opt_nodes + g)->b = i0;
+                        (opt_nodes + g)->state = s;
+                        (opt_nodes + g)->flags = 68;
+                        (opt_nodes + g)->bcact = (opt_nodes + m)->bcact;
+                        (opt_nodes + g)->bcpc = (opt_nodes + m)->bcpc;
+                        insert(g, (opt_blocks + entry)->last);
+                    exit_guard:;
+                    }
+                    g_2 = new_node(O_GUARDLE, R_NONE);
+                    if (opt_full) {
+                        goto exit_guard_2;
+                    }
+                    (opt_nodes + g_2)->a = i0;
+                    if (i0 < 0) {
+                        (opt_nodes + g_2)->aux = 3;
+                    }
+                    (opt_nodes + g_2)->b = limit;
+                    (opt_nodes + g_2)->state = s;
+                    (opt_nodes + g_2)->flags = 68;
+                    (opt_nodes + g_2)->bcact = (opt_nodes + m)->bcact;
+                    (opt_nodes + g_2)->bcpc = (opt_nodes + m)->bcpc;
+                    insert(g_2, (opt_blocks + entry)->last);
+                exit_guard_2:;
+                }
+                size = new_node(O_SIZE, R_OOP);
+                if (opt_full) {
+                    return;
+                }
+                nd = opt_nodes + m;
+                (opt_nodes + size)->a = x;
+                (opt_nodes + size)->aux = nd->aux;
+                (opt_nodes + size)->aux2 = nd->aux2;
+                (opt_nodes + size)->tkind = T_SMI;
+                (opt_nodes + size)->bcact = nd->bcact;
+                (opt_nodes + size)->bcpc = nd->bcpc;
+                insert(size, (opt_blocks + entry)->last);
+                g_3 = new_node(O_GUARDLE, R_NONE);
+                if (opt_full) {
+                    goto exit_guard_3;
+                }
+                (opt_nodes + g_3)->a = limit;
+                if (limit < 0) {
+                    (opt_nodes + g_3)->aux = 3;
+                }
+                (opt_nodes + g_3)->b = size;
+                (opt_nodes + g_3)->state = s;
+                (opt_nodes + g_3)->flags = 68;
+                (opt_nodes + g_3)->bcact = (opt_nodes + m)->bcact;
+                (opt_nodes + g_3)->bcpc = (opt_nodes + m)->bcpc;
+                insert(g_3, (opt_blocks + entry)->last);
+            exit_guard_3:;
+                if (opt_full) {
+                    return;
+                }
+                (opt_nodes + m)->flags = (opt_nodes + m)->flags | NF_NOBOUNDS;
+            }
+        }
+    }
+}
 
 /* OptPasses>>cleanup: */
 void cleanup(int32_t entry)
@@ -881,6 +1069,7 @@ exit_is_hoistable:;
             n = next;
         }
     }
+    bounds_out_of(h, entry, index);
 }
 
 /* OptPasses>>loop:reaches:sp: */

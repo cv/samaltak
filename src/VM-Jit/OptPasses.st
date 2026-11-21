@@ -768,7 +768,88 @@ hoistOutOf: h
 				ir insert: n before: (ir block: entry) last.
 				(ir node: n) state: s.
 				(ir node: n) flags: ((ir node: n) flags bitOr: NF_HOISTED)].
-			n := next]]
+			n := next]].
+	self boundsOutOf: h entry: entry index: index
+!
+boundsOutOf: h entry: entry index: index
+	"Loop h, entered from block entry alone (h's predecessor index), counts a SmallInteger phi up by a constant and goes around again while the phi's next value is at most a limit from before the loop: wherever the phi is read it is between its start and that limit. An indexed load or store that takes it as the index of an object from before the loop (its class known there) checks no bounds if, once in entry, the start is at least 1 and at most the limit (the loop's head is reached so) and the limit at most the object's size. A check that fails there leaves at the loop's head and marks the access's send: it checks every time from then on."
+	<function>
+	| hb e c prev steps cond limit phi n nd i0 i1 x s size |
+	hb := ir block: h.
+	hb npreds = 2 ifFalse: [^self].
+	"the branch every way back passes: on the phi's next value <= limit, true to go around"
+	e := hb preds.
+	index = 0 ifTrue: [e := (ir edge: e) next].
+	c := (ir edge: e) from.
+	prev := h.
+	steps := 0.
+	[(ir block: c) succ1 < 0 and: [(ir block: c) npreds = 1 and: [steps < 4]]] whileTrue: [
+		prev := c.
+		c := (ir edge: (ir block: c) preds) from.
+		steps := steps + 1].
+	((ir block: c) succ1 >= 0 and: [(ir block: c) succ0 = prev and: [(ir block: c) last >= 0]]) ifFalse: [^self].
+	cond := ir node: (ir resolve: (ir node: (ir block: c) last) a).
+	(cond op asInt32 = O_ICMP and: [cond aux = 4]) ifFalse: [^self].
+	limit := ir resolve: cond b.
+	((ir node: limit) tkind asInt32 = T_SMI and: [self isBefore: limit loop: h]) ifFalse: [^self].
+	phi := -1.
+	n := hb first.
+	[n >= 0 and: [(ir node: n) op asInt32 = O_PHI]] whileTrue: [
+		nd := ir node: n.
+		(nd fwd < 0 and: [nd tkind asInt32 = T_SMI and: [nd nargs asInt32 = 2 and: [(ir resolve: (ir operand: nd args + (1 - index))) = (ir resolve: cond a)]]]) ifTrue: [phi := n].
+		n := nd next].
+	phi < 0 ifTrue: [^self].
+	i0 := ir resolve: (ir operand: (ir node: phi) args + index).
+	i1 := ir node: (ir resolve: cond a).
+	nd := ir node: (ir resolve: i1 b).
+	(i1 op asInt32 = O_IADD and: [(ir resolve: i1 a) = phi and: [nd op asInt32 = O_CONST and: [(nd aux bitAnd: 1) = 1 and: [nd aux >= 3]]]]) ifFalse: [^self].
+	nd := ir node: i0.
+	(nd tkind asInt32 = T_SMI and: [nd op asInt32 ~= O_CONST or: [nd aux >= 3]]) ifFalse: [^self].
+	s := -1.
+	0 to: ir nodeCount - 1 do: [:m |
+		nd := ir node: m.
+		((nd op asInt32 = O_INDEXLOAD or: [nd op asInt32 = O_INDEXSTORE]) and: [nd block >= 0 and: [(nd flags bitAnd: NF_NOBOUNDS) = 0 and: [(ir resolve: nd b) = phi]]]) ifTrue: [
+			x := ir resolve: nd a.
+			((self isBefore: x loop: h) and: [(ir node: x) tkind asInt32 = T_OBJ and: [((feedback flagsAt: (ir act: nd bcact) method pc: nd bcpc) bitAnd: feedback deoptHoisted) = 0]]) ifTrue: [
+				s < 0 ifTrue: [
+					s := self state: hb entryState enteredFrom: index of: h.
+					ir full ifTrue: [^self].
+					(ir node: i0) op asInt32 = O_CONST ifFalse: [self guard: -1 atMost: i0 for: m in: entry state: s].
+					self guard: i0 atMost: limit for: m in: entry state: s].
+				size := ir newNode: O_SIZE rep: R_OOP.
+				ir full ifTrue: [^self].
+				nd := ir node: m.
+				(ir node: size) a: x.
+				(ir node: size) aux: nd aux.
+				(ir node: size) aux2: nd aux2.
+				(ir node: size) tkind: T_SMI.
+				(ir node: size) bcact: nd bcact.
+				(ir node: size) bcpc: nd bcpc.
+				ir insert: size before: (ir block: entry) last.
+				self guard: limit atMost: size for: m in: entry state: s.
+				ir full ifTrue: [^self].
+				(ir node: m) flags: ((ir node: m) flags bitOr: NF_NOBOUNDS)]]]
+!
+isBefore: v loop: h
+	"Value v is from before loop h: a constant, or defined in a block h does not dominate."
+	| b |
+	(ir node: v) op asInt32 = O_CONST ifTrue: [^true].
+	b := (ir node: v) block.
+	^b >= 0 and: [(self dominates: h block: b) not]
+!
+guard: a atMost: b for: m in: entry state: s
+	"At the end of block entry: SmallInteger a (-1: the constant 1) is at most SmallInteger b, else leave at state s; for the bounds of indexed access m, whose send a failure marks."
+	| g |
+	g := ir newNode: O_GUARDLE rep: R_NONE.
+	ir full ifTrue: [^self].
+	(ir node: g) a: a.
+	a < 0 ifTrue: [(ir node: g) aux: 3].
+	(ir node: g) b: b.
+	(ir node: g) state: s.
+	(ir node: g) flags: (NF_GUARD bitOr: NF_HOISTED).
+	(ir node: g) bcact: (ir node: m) bcact.
+	(ir node: g) bcpc: (ir node: m) bcpc.
+	ir insert: g before: (ir block: entry) last
 !
 isHoistable: n outOf: h
 	"n is a guard of a value from before loop h, and no guard moved out of a loop has failed at its site."

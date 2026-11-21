@@ -778,6 +778,39 @@ testAClassGuardMovedBeforeALoopReportsTheClass
 		self assert: (o ats: #(1 2 3) times: 20000) equals: 20000].
 	self stressed ifFalse: [self deny: ((self listingOf: #ats:times:) includesSubstring: 'inline cache')]
 !
+testCountedLoopsCheckBoundsOnce
+	"A loop that counts up to a limit from before it checks once, where it is entered, that the indexed accesses its counter makes of an object from before it are within bounds: the accesses check none. A limit beyond the object's size leaves there: the lower tier runs the loop and fails at the element that is not, and the code compiled next checks at each access."
+	| o a |
+	Smalltalk vm jitParameters: #(nil '-eager' nil nil).
+	self define: 'sum: x to: n | s | s := 0. 1 to: n do: [:i | s := s + (x at: i)]. ^s'.
+	self define: 'fill: x to: n 1 to: n do: [:i | x at: i put: i]. ^x'.
+	self define: 'odds: x to: n | s | s := 0. 1 to: n by: 2 do: [:i | s := s + (x at: i)]. ^s'.
+	o := JitRuntimeTestSubject new.
+	a := Array new: 20000.
+	4 timesRepeat: [
+		self assert: (o fill: a to: 20000) == a.
+		self assert: (o sum: a to: 20000) equals: 200010000.
+		self assert: (o sum: a to: 0) equals: 0.
+		self assert: (o odds: a to: 20000) equals: 100000000].
+	self stressed ifFalse: [
+		#(#sum:to: #fill:to: #odds:to:) do: [:each |
+			self assert: ((self listingOf: each) includesSubstring: 'within bounds: checked once before the loop')]].
+	a := Array new: 100.
+	"thrice: a process switch at a method's entry runs it in the lower tier"
+	3 timesRepeat: [
+		self should: [o fill: a to: 101] raise: Error.
+		self assert: (a at: 100) equals: 100.
+		self should: [o sum: a to: 101] raise: Error.
+		self should: [o odds: a to: 102] raise: Error].
+	self stressed ifFalse: [
+		#(#sum:to: #fill:to: #odds:to:) do: [:each |
+			self deny: ((self listingOf: each) includesSubstring: 'within bounds: checked once before the loop')]].
+	3 timesRepeat: [
+		self assert: (o sum: a to: 100) equals: 5050.
+		self assert: (o odds: a to: 99) equals: 2500.
+		self should: [o sum: a to: 101] raise: Error.
+		self should: [o fill: a to: 101] raise: Error]
+!
 testLoopUnitsOfAnInheritedMethod
 	"A loop's unit of a method its receiver inherits is compiled for that receiver's class (a variant each: the sends to self are bound) and for the classes of what the frame holds in the slots it reads before the loop: receivers of several classes run it in turn, each right."
 	| a s y w |

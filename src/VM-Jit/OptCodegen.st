@@ -734,6 +734,19 @@ emitNode: n block: b next: nextBlock
 		asm lsl: r with: X16 imm: 3.
 		asm orr: r with: r imm: 2.
 		^self def: n from: r].
+	op = O_GUARDLE ifTrue: [
+		s := self deoptLabelFor: n.
+		asm comment: 'guard: at most the other, once before the loop (its indexed accesses check no bounds)'.
+		y := self src: nd b into: self scratchB.
+		nd a >= 0
+			ifTrue: [
+				x := self src: nd a into: self scratchA.
+				asm cmp: x with: y.
+				asm b: s if: COND_GT]
+			ifFalse: [
+				asm cmp: y imm: nd aux.
+				asm b: s if: COND_LT].
+		^self].
 	op = O_NOTINTS ifTrue: [
 		s := self deoptLabelFor: n.
 		asm comment: 'guard: not two SmallIntegers'.
@@ -990,6 +1003,13 @@ emitIndexCheck: n
 	"X17 := the 0-based element index of n's index operand (a SmallInteger) in its object, deoptimizing if it is out of bounds; answer the object's register."
 	| nd x i s |
 	nd := ir node: n.
+	(nd flags bitAnd: NF_NOBOUNDS) ~= 0 ifTrue: [
+		x := self src: nd a into: self scratchA.
+		asm comment: 'within bounds: checked once before the loop'.
+		i := self src: nd b into: self scratchB.
+		asm asr: X17 with: i imm: 1.
+		asm sub: X17 with: X17 imm: 1.
+		^x].
 	s := self deoptLabelFor: n.
 	x := self src: nd a into: self scratchA.
 	asm comment: 'bounds check'.
