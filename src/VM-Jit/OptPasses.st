@@ -770,7 +770,7 @@ hoistOutOf: h
 				ir insert: n before: (ir block: entry) last.
 				(ir node: n) state >= 0 ifTrue: [(ir node: n) state: s].
 				(ir node: n) flags: ((ir node: n) flags bitOr: NF_HOISTED)].
-			((self isInvariantOuterLoad: n of: h) or: [self isClosureLoad: n of: h]) ifTrue: [
+			((self isInvariantOuterLoad: n of: h) or: [(self isClosureLoad: n of: h) or: [self isInvariantFieldLoad: n of: h]]) ifTrue: [
 				ir unlink: n.
 				ir insert: n before: (ir block: entry) last].
 			n := next]].
@@ -963,6 +963,23 @@ isHoistable: n outOf: h
 			b < 0 ifTrue: [^false].
 			(self dominates: h block: b) ifTrue: [^false]].
 	^((feedback flagsAt: (ir act: nd bcact) method pc: nd bcpc) bitAnd: feedback deoptHoisted) = 0
+!
+isInvariantFieldLoad: n of: h
+	"n loads a field of an object from before loop h, and no turn of the loop writes that field of any object (a store into it; a send, or a store into an outer temp, may write anything)."
+	<function>
+	| nd b m md op |
+	nd := ir node: n.
+	(nd op asInt32 = O_LOADFIELD and: [self isBefore: (ir resolve: nd a) loop: h]) ifFalse: [^false].
+	0 to: psOrderCount - 1 do: [:k |
+		b := psOrder at: k.
+		(self block: b isIn: h) ifTrue: [
+			m := (ir block: b) first.
+			[m >= 0] whileTrue: [
+				md := ir node: m.
+				op := md op asInt32.
+				(op = O_SEND or: [op = O_CALL or: [op = O_OUTERSTORE or: [op = O_STOREFIELD and: [md aux = nd aux]]]]) ifTrue: [^false].
+				m := md next]]].
+	^true
 !
 isClosureLoad: n of: h
 	"n loads, from before loop h, what never changes of a closure whose body is inline (O_GUARDCLOSURE): its outerContext, or that Context's receiver."
