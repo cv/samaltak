@@ -1,11 +1,12 @@
 #!/usr/bin/env python3
 """Turn subsets of Wycheproof's test vectors (github.com/C2SP/wycheproof, testvectors_v1) into
-src/Tests-Crypto/WycheproofVectors.st, for X25519Test, RsaPublicKeyTest, EcPublicKeyTest and EcPrivateKeyTest.
+src/Tests-Crypto/WycheproofVectors.st, for X25519Test, RsaPublicKeyTest, EcPublicKeyTest, EcPrivateKeyTest and
+HmacHkdfWycheproofTest.
 
 usage: tools/wycheproof-subset.py DIR [OUTPUT]   DIR holds the JSON files named below.
 
 Of each file: the first test of every distinct set of flags and comment (so most kinds of malformed or edge case
-Wycheproof probes are there once) and the first few valid ones, at most PER_FILE; acceptable results (legacy encodings that
+Wycheproof probes are there once) and the first few valid ones, at most PER_FILE (HKDF outputs over 1 KB left out); acceptable results (legacy encodings that
 implementations may take or refuse) are left out. The whole files pass too (docs/crypto.md says how to run them).
 """
 import json, os, sys
@@ -25,6 +26,12 @@ FILES = [
     ('rsaPssRsa2048Sha256Salt32', 'rsa_pss_2048_sha256_mgf1_32_test', 'rsa'),
     ('rsaPssRsa4096Sha384Salt48', 'rsa_pss_4096_sha384_mgf1_48_test', 'rsa'),
     ('rsaPssRsa2048Sha256Salt0', 'rsa_pss_2048_sha256_mgf1_0_test', 'rsa'),
+    ('hmacSha256', 'hmac_sha256_test', 'hmac'),
+    ('hmacSha384', 'hmac_sha384_test', 'hmac'),
+    ('hmacSha512', 'hmac_sha512_test', 'hmac'),
+    ('hkdfSha256', 'hkdf_sha256_test', 'hkdf'),
+    ('hkdfSha384', 'hkdf_sha384_test', 'hkdf'),
+    ('hkdfSha512', 'hkdf_sha512_test', 'hkdf'),
 ]
 
 def st(s):
@@ -34,7 +41,7 @@ def select(data):
     seen, chosen, valid = set(), [], 0
     for g in data['testGroups']:
         for t in g['tests']:
-            if t['result'] == 'acceptable':
+            if t['result'] == 'acceptable' or (t['result'] == 'valid' and len(t.get('okm', '')) > 2048):
                 continue
             flags = (tuple(sorted(t.get('flags', []))), t.get('comment', ''))
             if t['result'] == 'valid' and valid < 4 and flags not in seen:
@@ -53,6 +60,12 @@ for selector, name, kind in FILES:
             row = [t['private'], t['public'], t['shared']]
         elif kind == 'ecdsa':
             row = [g['publicKey']['uncompressed'], t['msg'], t['sig']]
+        elif kind == 'aead':
+            row = [t['key'], t['iv'], t['aad'], t['msg'], t['ct'] + t['tag']]
+        elif kind == 'hmac':
+            row = [t['key'], t['msg'], t['tag']]
+        elif kind == 'hkdf':
+            row = [t['ikm'], t['salt'], t['info'], int(t['size']), t['okm']]
         else:
             n = g.get('n') or g['publicKey']['modulus']
             e = g.get('e') or g['publicKey']['publicExponent']
@@ -65,7 +78,9 @@ for selector, name, kind in FILES:
         doc = 'an Array of keys #(n e) and an Array of rows #(tcId keyIndex msg sig valid)'
     else:
         body = '#(\n%s)' % '\n'.join(rows)
-        doc = {'x25519': 'rows #(tcId private public shared valid)', 'ecdh': 'rows #(tcId private public shared valid)', 'ecdsa': 'rows #(tcId key msg sig valid)'}[kind]
+        doc = {'x25519': 'rows #(tcId private public shared valid)', 'ecdh': 'rows #(tcId private public shared valid)',
+               'aead': 'rows #(tcId key nonce aad plaintext ciphertextAndTag valid)', 'hmac': 'rows #(tcId key message tag valid; the tag may be truncated)',
+               'hkdf': 'rows #(tcId ikm salt info length okm valid)', 'ecdsa': 'rows #(tcId key msg sig valid)'}[kind]
     methods.append('%s\n\t"%s.json (%s): %s, hexadecimal."\n\t^%s' % (selector, name, data.get('algorithm', ''), doc, body))
 
 lines = ["Object subclass: #WycheproofVectors", "\tinstanceVariableNames: ''", "\tclassVariableNames: ''", "\tpackage: 'Tests-Crypto'!", "",

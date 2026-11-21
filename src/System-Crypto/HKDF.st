@@ -12,6 +12,7 @@ hash: aHashClass extract: salt ikm: ikm
 hash: aHashClass expand: prk info: info length: n
 	| okm t i mac |
 	n > (255 * aHashClass digestSize) ifTrue: [^CryptoError signal: 'HKDF: more than 255 blocks of output'].
+	n < 0 ifTrue: [^CryptoError signal: 'HKDF: a negative length'].
 	okm := ByteArray new: n.
 	t := #[].
 	i := 0.

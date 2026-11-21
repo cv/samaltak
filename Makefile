@@ -173,7 +173,7 @@ UEFI_TESTS := CompilerTest ParserTest ScannerTest ClassTest CollectionTest Conte
 	StackOverflowTest StreamTest StringSearchTest StringTest SymbolTest SystemChangesTest SystemTest UnicodeTest WorkClockTest \
 	Amd64DisassemblerTest Arm64DisassemblerTest ByteSearchTest \
 	SHA256Test SHA384Test SHA512Test HMACTest HKDFTest ChaCha20Test Poly1305Test ChaCha20Poly1305Test AesTest AesGcmTest SecureRandomTest WycheproofAeadTest \
-	X25519Test RsaPublicKeyTest EcPublicKeyTest EcPrivateKeyTest Asn1DerTest X509CertificateTest TrustStoreTest CertificateValidatorTest \
+	X25519Test RsaPublicKeyTest EcPublicKeyTest EcPrivateKeyTest HmacHkdfWycheproofTest Asn1DerTest X509CertificateTest TrustStoreTest CertificateValidatorTest \
 	MountTableTest FirmwareVolumesTest
 UEFI_WORLD := | w t | w := UIWindows startUp. RemoteInputDevice default inject: {1. nil. 123. 45. 0. 0. nil. w displayWindow windowId}. t := Time millisecondClockValue. [w dispatcher pointer = (123 @ 45) or: [Time millisecondClockValue - t > 20000]] whileFalse: [(Delay forMilliseconds: 50) wait]. Smalltalk vm stderrWrite: 'world ', w extent printString, ' ', Renderer default device isSoftware printString, ' ', w dispatcher pointer rounded printString, (String with: Character lf)
 UEFI_NET := | s buf n | s := RemoteSocket connectTo: '10.0.2.2' port: $$P timeout: 20000. s sendAll: '{\"cmd\": \"ping\"}', (String with: Character lf). buf := ByteArray new: 200. n := s receiveInto: buf timeout: 20000. s close. (buf copyFrom: 1 to: n) asString
