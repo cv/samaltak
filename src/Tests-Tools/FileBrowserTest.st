@@ -112,6 +112,27 @@ testListsFoldersFirstWithLines
 	self assert: browser pathBar labels equals: (Array with: (File baseName: dir)).
 	self assert: (browser pathBar remoteState includes: 'summary="2 folders · 4 files"')
 !
+testBrowsesAMountedVolume
+	"As on UEFI, where the files are mounted volumes' (MountTable)."
+	| saved volume lf list |
+	saved := File mountTable.
+	lf := String with: Character lf.
+	volume := MountTableTestVolume new.
+	volume directory: '/etc'; file: '/etc/hostname' text: 'spark', lf; file: '/Foo.st' text: 'Object subclass: #Foo', lf.
+	File mountTable: (MountTable new mount: volume at: '/samaltak-mount-test'; yourself).
+	[self in: window do: [browser browse: '/samaltak-mount-test'].
+	 self assert: (self namesIn: 1) equals: #('etc' 'Foo.st').
+	 list := browser listAt: 1.
+	 self assert: (list entryNamed: 'etc') isDirectory.
+	 self assert: (list entryNamed: 'Foo.st') kind equals: #smalltalk.
+	 self assert: (list entryNamed: 'Foo.st') lines equals: 1.
+	 self select: 'etc' in: 1.
+	 self assert: self directories equals: #('/samaltak-mount-test' '/samaltak-mount-test/etc').
+	 self select: 'hostname' in: 2.
+	 self assert: browser file name equals: 'hostname'.
+	 self assert: browser file text equals: 'spark', lf]
+		ensure: [File mountTable: saved]
+!
 testSelectingOpensAndClosesColumns
 	| root |
 	root := browser root.
