@@ -689,7 +689,10 @@ read: var in: b
 			v := phi]
 		ifFalse: [
 			bl npreds = 1
-				ifTrue: [v := self read: var in: (ir pred: 0 of: b)]
+				ifTrue: [
+					"nil while it reads on: a cycle of blocks of one predecessor each (a loop whose way in is dead, never run) comes back here"
+					self write: var value: self nilConstant in: b.
+					v := self read: var in: (ir pred: 0 of: b)]
 				ifFalse: [
 					bl npreds = 0
 						ifTrue: [v := self constant: memory nilOop]

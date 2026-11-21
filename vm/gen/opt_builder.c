@@ -18052,6 +18052,7 @@ static int32_t opt_builder_read(int32_t var, int32_t b)
     int32_t r_new_phi;
     int32_t n_4;
     int32_t phi;
+    int32_t r_nil_constant;
     int32_t r_new_phi_2;
     int32_t n_5;
     if ((var < OPT_MAX_VARS) && (ob_arg_flags[var] == 2)) {
@@ -18448,6 +18449,12 @@ exit_loop_keeps:;
         ob_inc_count = ob_inc_count + 1;
         v = phi;
     } else if (bl->npreds == 1) {
+        opt_builder_write(var, ({
+    if (ob_nil_const < 0) {
+        ob_nil_const = constant(nil_oop);
+    }
+    r_nil_constant = ob_nil_const;
+    r_nil_constant; }), b);
         v = opt_builder_read(var, pred(0, b));
     } else if (bl->npreds == 0) {
         v = constant(nil_oop);
