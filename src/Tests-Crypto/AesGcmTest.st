@@ -147,4 +147,12 @@ testSizes
 	self should: [AesGcm key: (ByteArray new: 20)] raise: CryptoError.
 	self should: [(AesGcm key: self key) encrypt: #[1] nonce: #[] aad: #[]] raise: CryptoError.
 	self assert: {AesGcm nonceSize. AesGcm tagSize} equals: #(12 16)
+!
+testLengthLimit
+	"At most 2^32 - 2 blocks (SP 800-38D), else the 32-bit counter wraps onto J0: refused before any work (an Interval is a cheap collection of that size)."
+	| gcm |
+	gcm := AesGcm key: (ByteArray new: 16).
+	self should: [gcm encrypt: (1 to: AesGcm maxPlaintextSize + 1) nonce: (ByteArray new: 12) aad: #[]] raise: CryptoError.
+	self should: [gcm decrypt: (1 to: AesGcm maxPlaintextSize + 17) nonce: (ByteArray new: 12) aad: #[]] raise: CryptoError.
+	self assert: AesGcm maxPlaintextSize equals: (1 bitShift: 32) - 2 * 16
 ! !

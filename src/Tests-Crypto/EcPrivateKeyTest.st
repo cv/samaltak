@@ -24,6 +24,13 @@ testAgreement
 		self assert: (a sharedSecret: b publicKeyBytes) size equals: a curve byteLength.
 		self assert: a publicKey curve equals: a curve]
 !
+testRandomKeys
+	#(#p256 #p384) do: [:name | | a b |
+		a := EcPrivateKey newOn: name.
+		b := EcPrivateKey newOn: name.
+		self deny: a publicKeyBytes = b publicKeyBytes.
+		self assert: (a sharedSecret: b publicKeyBytes) equals: (b sharedSecret: a publicKeyBytes)]
+!
 testBadKeys
 	| a |
 	self should: [EcPrivateKey curve: #p256 scalar: #[0]] raise: CryptoError.

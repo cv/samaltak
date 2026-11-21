@@ -28,6 +28,10 @@ nonceSize
 !
 tagSize
 	^16
+!
+maxPlaintextSize
+	"SP 800-38D, 5.2.1.1: at most 2^39 - 256 bits, 2^32 - 2 blocks, so that the 32-bit counter never wraps onto J0 and reuses the key stream."
+	^(1 bitShift: 36) - 32
 ! !
 
 !AesGcm methodsFor: 'initialization'!
@@ -61,6 +65,7 @@ encrypt: plaintext nonce: iv aad: aad
 	| j0 out n |
 	j0 := self counterBlock: iv.
 	n := plaintext size.
+	n > self class maxPlaintextSize ifTrue: [^CryptoError signal: 'AES-GCM: longer than 2^32 - 2 blocks'].
 	out := ByteArray new: n + 16.
 	self ctr: plaintext from: 1 to: n into: out at: 1 counter: j0 startingAt: 2.
 	out replaceFrom: n + 1 to: n + 16 with: (self tag: out size: n aad: aad counter: j0) startingAt: 1.
@@ -71,6 +76,7 @@ decrypt: data nonce: iv aad: aad
 	j0 := self counterBlock: iv.
 	data size < 16 ifTrue: [^CryptoError signal: 'AES-GCM: shorter than a tag'].
 	n := data size - 16.
+	n > self class maxPlaintextSize ifTrue: [^CryptoError signal: 'AES-GCM: longer than 2^32 - 2 blocks'].
 	((self tag: data size: n aad: aad counter: j0) constantTimeEquals: (data copyFrom: n + 1 to: data size)) ifFalse: [^CryptoError signal: 'AES-GCM: the tag does not verify'].
 	^self ctr: data from: 1 to: n into: (ByteArray new: n) at: 1 counter: j0 startingAt: 2
 ! !

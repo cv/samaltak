@@ -50,6 +50,14 @@ testSmallOrderPeer
 	self should: [X25519 sharedSecret: priv peer: (ByteArray new: 32)] raise: CryptoError.
 	self should: [X25519 sharedSecret: priv peer: ((ByteArray new: 32) at: 1 put: 1; yourself)] raise: CryptoError
 !
+testRandomKeys
+	| a b |
+	a := X25519 newPrivateKey.
+	b := X25519 newPrivateKey.
+	self assert: a size equals: 32.
+	self deny: a = b.
+	self assert: (X25519 sharedSecret: a peer: (X25519 publicKeyFor: b)) equals: (X25519 sharedSecret: b peer: (X25519 publicKeyFor: a))
+!
 testWrongSizes
 	self should: [X25519 scalar: (ByteArray new: 31) u: X25519 basePoint] raise: CryptoError.
 	self should: [X25519 scalar: (ByteArray new: 32) u: (ByteArray new: 33)] raise: CryptoError
