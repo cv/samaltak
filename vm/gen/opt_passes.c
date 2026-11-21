@@ -33,6 +33,7 @@ static void hoist_out_of(int32_t h);
 static bool is_invariant_field_load(int32_t n, int32_t h);
 static bool opt_passes_loop_changes_outer_temp(int32_t h, int64_t i);
 static int64_t opt_passes_loop_reaches_sp(int32_t h, int32_t b, int64_t sp);
+static void mutability_out_of(int32_t h, int64_t entry, int64_t index);
 static void outer_slots_out_of(int32_t h, int64_t entry);
 static void promote_outer_temps_of(int32_t h, int64_t entry, int64_t index, int64_t latch);
 static void range_bounds_out_of(int32_t h, int64_t entry, int64_t index);
@@ -1479,6 +1480,7 @@ exit_is_closure_load:;
     bounds_out_of(h, entry, index);
     head_bounds_out_of(h, entry, index);
     range_bounds_out_of(h, entry, index);
+    mutability_out_of(h, entry, index);
 }
 
 /* OptPasses>>isInvariantFieldLoad:of: */
@@ -1681,6 +1683,106 @@ static int64_t opt_passes_loop_reaches_sp(int32_t h, int32_t b, int64_t sp)
     ps_loop_outer[x] = h;
     ps_heads[sp] = x;
     return sp + 1;
+}
+
+/* OptPasses>>mutabilityOutOf:entry:index: */
+static void mutability_out_of(int32_t h, int64_t entry, int64_t index)
+{
+    int32_t local[8];
+    int32_t *objs;
+    int32_t local_2[8];
+    int32_t *guards;
+    int64_t k;
+    int64_t s;
+    int32_t m;
+    opt_node *nd;
+    int32_t op;
+    int32_t b;
+    bool r_block;
+    int32_t l;
+    int32_t a;
+    int32_t x;
+    bool r_is_before;
+    int32_t b_2;
+    int64_t g;
+    int64_t j;
+    if (opt_passes_loop_changes_outer_temp(h, -1)) {
+        return;
+    }
+    memset(&local, 0, sizeof local);
+    objs = local;
+    memset(&local_2, 0, sizeof local_2);
+    guards = local_2;
+    k = 0;
+    s = -1;
+    for (m = 0; m <= opt_node_count - 1; m++) {
+        nd = opt_nodes + m;
+        op = (int32_t)nd->op;
+        if ((((op == O_INDEXSTORE) && ((nd->flags & NF_MUTABLE) == 0)) || ((op == O_STOREFIELD) && (nd->state >= 0))) && ((nd->block >= 0) && ({
+    b = nd->block;
+    ({
+    l = (opt_blocks + b)->loop;
+    while (l >= 0) {
+        if (l == h) {
+            r_block = true;
+            goto exit_block;
+        }
+        l = ps_loop_outer[l];
+    }
+    r_block = false;
+exit_block:;
+    r_block; }) && ({
+    a = nd->bcact;
+    (flags_at((opt_acts + a)->method, nd->bcpc) & FB_DEOPT_HOISTED) == 0; }); }))) {
+            x = opt_ir_resolve(nd->a);
+            if (({
+    if ((int32_t)(opt_nodes + x)->op == O_CONST) {
+        r_is_before = true;
+        goto exit_is_before;
+    }
+    b_2 = (opt_nodes + x)->block;
+    r_is_before = (b_2 >= 0) && (!((ps_pre[h] <= ps_pre[b_2]) && (ps_post[b_2] <= ps_post[h])));
+exit_is_before:;
+    r_is_before; }) && ((int32_t)(opt_nodes + x)->tkind == T_OBJ)) {
+                g = -1;
+                for (j = 0; j <= k - 1; j++) {
+                    if (objs[j] == x) {
+                        g = guards[j];
+                    }
+                }
+                if ((g < 0) && (k < 8)) {
+                    if (s < 0) {
+                        s = opt_passes_state((opt_blocks + h)->entry_state, index, h);
+                        if (opt_full) {
+                            return;
+                        }
+                    }
+                    g = new_node(O_GUARDMUTABLE, R_NONE);
+                    if (opt_full) {
+                        return;
+                    }
+                    nd = opt_nodes + m;
+                    (opt_nodes + g)->a = x;
+                    (opt_nodes + g)->state = s;
+                    (opt_nodes + g)->flags = 68;
+                    (opt_nodes + g)->bcact = nd->bcact;
+                    (opt_nodes + g)->bcpc = nd->bcpc;
+                    insert(g, (opt_blocks + entry)->last);
+                    objs[k] = x;
+                    guards[k] = g;
+                    k = k + 1;
+                }
+                if (g >= 0) {
+                    nd = opt_nodes + m;
+                    if (op == O_INDEXSTORE) {
+                        nd->flags = nd->flags | NF_MUTABLE;
+                    } else {
+                        nd->state = -1;
+                    }
+                }
+            }
+        }
+    }
 }
 
 /* OptPasses>>outerSlotsOutOf:entry: */

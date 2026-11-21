@@ -791,7 +791,47 @@ hoistOutOf: h
 	self promoteOuterTempsOf: h entry: entry index: index latch: latch.
 	self boundsOutOf: h entry: entry index: index.
 	self headBoundsOutOf: h entry: entry index: index.
-	self rangeBoundsOutOf: h entry: entry index: index
+	self rangeBoundsOutOf: h entry: entry index: index.
+	self mutabilityOutOf: h entry: entry index: index
+!
+mutabilityOutOf: h entry: entry index: index
+	"Loop h, entered from block entry alone (h's predecessor index), sends nothing: its stores into an object from before the loop (its class known) check once, in entry, that it is not immutable (only a primitive changes that; what else may run, at an interrupt check, runs when the code has left the unit). Failing, the interpreter goes on from the loop's head and the store's send is marked: it checks every time from then on."
+	<function>
+	| s nd op x g k objs guards |
+	(self loop: h changesOuterTemp: -1) ifTrue: [^self].
+	objs := self local: 'int32_t[8]'.
+	guards := self local: 'int32_t[8]'.
+	k := 0.
+	s := -1.
+	0 to: ir nodeCount - 1 do: [:m |
+		nd := ir node: m.
+		op := nd op asInt32.
+		(((op = O_INDEXSTORE and: [(nd flags bitAnd: NF_MUTABLE) = 0]) or: [op = O_STOREFIELD and: [nd state >= 0]]) and: [nd block >= 0 and: [(self block: nd block isIn: h) and: [((feedback flagsAt: (ir act: nd bcact) method pc: nd bcpc) bitAnd: feedback deoptHoisted) = 0]]]) ifTrue: [
+			x := ir resolve: nd a.
+			((self isBefore: x loop: h) and: [(ir node: x) tkind asInt32 = T_OBJ]) ifTrue: [
+				g := -1.
+				0 to: k - 1 do: [:j | (objs at: j) = x ifTrue: [g := guards at: j]].
+				(g < 0 and: [k < 8]) ifTrue: [
+					s < 0 ifTrue: [
+						s := self state: (ir block: h) entryState enteredFrom: index of: h.
+						ir full ifTrue: [^self]].
+					g := ir newNode: O_GUARDMUTABLE rep: R_NONE.
+					ir full ifTrue: [^self].
+					nd := ir node: m.
+					(ir node: g) a: x.
+					(ir node: g) state: s.
+					(ir node: g) flags: (NF_GUARD bitOr: NF_HOISTED).
+					(ir node: g) bcact: nd bcact.
+					(ir node: g) bcpc: nd bcpc.
+					ir insert: g before: (ir block: entry) last.
+					objs at: k put: x.
+					guards at: k put: g.
+					k := k + 1].
+				g >= 0 ifTrue: [
+					nd := ir node: m.
+					op = O_INDEXSTORE
+						ifTrue: [nd flags: (nd flags bitOr: NF_MUTABLE)]
+						ifFalse: [nd state: -1]]]]]
 !
 headBoundsOutOf: h entry: entry index: index
 	"Loop h, entered from block entry alone (h's predecessor index), tests at its head that a SmallInteger phi is below a limit from before the loop, going on into the loop when it is, and counts the phi up by a constant: past the test the phi is between its start and the limit less one. An indexed load or store there at the phi plus 1, of an object from before the loop (its class known), checks no bounds if, once in entry, the start is at least 0 and the limit at most the object's size (boundsOutOf:entry:index: for a loop tested at its bottom)."
