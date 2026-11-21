@@ -86,7 +86,7 @@ test-tools: image
 # virtio tablet; the console on stdio). uefi-control boots it without a window, its control service (--control on
 # 0.0.0.0 in the guest) forwarded from 127.0.0.1:UEFI_CONTROL_PORT, UEFI_CONTROL_ARGS after it (samaltak-ctl open --uefi).
 # The guest's network is QEMU's user network (NAT, DHCP, DNS) on a UEFI_NIC without its option ROM, which the image
-# drives: e1000e on x86-64 (q35's default), virtio-net-pci on arm64 (virt's). test-uefi runs the tests there that need no platform layer (no files, processes
+# drives: e1000e on x86-64 (q35's default), virtio-net-pci on arm64 (virt's); a virtio-rng, so that the firmware offers EFI_RNG_PROTOCOL (SecureRandom's entropy). test-uefi runs the tests there that need no platform layer (no files, processes
 # or ptys from Smalltalk), opens the World on the firmware's screen and moves its pointer by remote input, drives the VM with
 # samaltak-ctl and has it connect to itself through the host (10.0.2.2: QEMU's host), once to ping, once to move a megabyte
 # each way (test-uefi-nic: on a virtio-net-pci too if UEFI_NIC is another, once to ping), snapshots and resumes.
@@ -120,7 +120,7 @@ UEFI_NIC ?= e1000e
 endif
 QEMU_UEFI = $(QEMU_UEFI_MACHINE) -m 2048 -no-reboot \
 	-nic user,model=$(UEFI_NIC)$(if $(UEFI_CONTROL_PORT),$(comma)hostfwd=tcp:127.0.0.1:$(UEFI_CONTROL_PORT)-:7341) -global $(UEFI_NIC).romfile= \
-	-drive if=pflash,format=raw,readonly=on,file=$(OVMF_CODE) -drive if=pflash,format=raw,file=$(UEFI)/vars.fd \
+	-device virtio-rng-pci -drive if=pflash,format=raw,readonly=on,file=$(OVMF_CODE) -drive if=pflash,format=raw,file=$(UEFI)/vars.fd \
 	-drive format=raw,file=fat:rw:$(UEFI)/esp -drive format=raw,file=$(UEFI)/image.disk
 uefi: fresh-image
 	$(MAKE) $(UEFI)/esp/EFI/BOOT/$(UEFI_BOOT) $(UEFI)/image.disk
@@ -152,6 +152,7 @@ UEFI_TESTS := CompilerTest ParserTest ScannerTest ClassTest CollectionTest Conte
 	HashingTest ImmutabilityTest IntegerTest LazyContextTest MarriedContextTest MessageNotUnderstoodTest ObjectTest ProcessTest \
 	StackOverflowTest StreamTest StringSearchTest StringTest SymbolTest SystemChangesTest SystemTest UnicodeTest WorkClockTest \
 	Amd64DisassemblerTest Arm64DisassemblerTest ByteSearchTest \
+	SHA256Test SHA384Test SHA512Test HMACTest HKDFTest ChaCha20Test Poly1305Test ChaCha20Poly1305Test AesTest AesGcmTest SecureRandomTest \
 	X25519Test RsaPublicKeyTest EcPublicKeyTest EcPrivateKeyTest Asn1DerTest X509CertificateTest TrustStoreTest CertificateValidatorTest
 UEFI_WORLD := | w t | w := UIWindows startUp. RemoteInputDevice default inject: {1. nil. 123. 45. 0. 0. nil. w displayWindow windowId}. t := Time millisecondClockValue. [w dispatcher pointer = (123 @ 45) or: [Time millisecondClockValue - t > 20000]] whileFalse: [(Delay forMilliseconds: 50) wait]. Smalltalk vm stderrWrite: 'world ', w extent printString, ' ', Renderer default device isSoftware printString, ' ', w dispatcher pointer rounded printString, (String with: Character lf)
 UEFI_NET := | s buf n | s := RemoteSocket connectTo: '10.0.2.2' port: $$P timeout: 20000. s sendAll: '{\"cmd\": \"ping\"}', (String with: Character lf). buf := ByteArray new: 200. n := s receiveInto: buf timeout: 20000. s close. (buf copyFrom: 1 to: n) asString

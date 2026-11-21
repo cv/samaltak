@@ -8,8 +8,10 @@
 - **HMAC** (RFC 2104): `HMAC hash: SHA256 key: k message: m`, or incremental `(HMAC hash: SHA256 key: k) update: m; digest`.
 - **HKDF** (RFC 5869): `HKDF hash: SHA256 extract: salt ikm: ikm` → the PRK, `HKDF hash: SHA256 expand: prk info: info length: n` (n at most 255 blocks).
 - **AEAD**: `(ChaCha20Poly1305 key: k) encrypt: plaintext nonce: n aad: a` → the ciphertext with the 16-byte tag appended; `decrypt:nonce:aad:` → the plaintext, or `CryptoError` if the tag does not verify (checked in constant time before anything is decrypted). Class side `keySize`, `nonceSize`, `tagSize`.
-- **Primitives under the AEAD**: `ChaCha20 key: k nonce: n counter: c` (`xor:`, `xor:from:to:into:at:`, `nextBlock`), `Poly1305 key: k message: m` (incremental as HMAC).
-- **Errors**: `CryptoError` (an Error): a tag that does not verify, keys and nonces of the wrong size, a ChaCha20 counter that wraps, HKDF beyond its limit.
+- **AEAD with AES**: `(AesGcm key: k) encrypt:nonce:aad:` and `decrypt:nonce:aad:` the same way (NIST SP 800-38D), keys of 16, 24 or 32 bytes; a 12-byte nonce as TLS uses (others are hashed into the first counter block).
+- **Primitives under the AEADs**: `ChaCha20 key: k nonce: n counter: c` (`xor:`, `xor:from:to:into:at:`, `nextBlock`), `Poly1305 key: k message: m` (incremental as HMAC), `Aes key: k` (`encryptBlock:`, `decryptBlock:`).
+- **Randomness**: `SecureRandom default nextBytes: n`; `SecureRandom platformEntropy: n` for the raw source.
+- **Errors**: `CryptoError` (an Error): a tag that does not verify, keys and nonces of the wrong size, a ChaCha20 counter that wraps, HKDF beyond its limit, no source of entropy.
 - **Bytes**: `ByteArray>>constantTimeEquals:` compares MACs and tags in time that depends on their sizes only; `ByteArray fromHex:` reads test vectors.
 
 ## How
@@ -19,11 +21,24 @@ Everything is SmallInteger arithmetic, no LargeInteger in any loop: SmallInteger
 - SHA-256 and ChaCha20 work on 32-bit words. A 32-bit word shifted left by up to 30 bits still is a SmallInteger, so a rotation is a shift right ored (or xored) with a shift left masked to 32 bits; SHA-256 xors the three left shifts of Σ0 and Σ1 first and masks once, and masks sums of up to five words once. ChaCha20's twenty rounds are unrolled over sixteen temps; its key stream is xored a 32-bit word at a time (`uint32At:`, little-endian as ChaCha20).
 - SHA-512's 64-bit words do not fit: each is two 32-bit halves, a rotation by n < 32 takes each half's top bits from the other half (by n ≥ 32 they swap first), and a sum carries the low halves' bits above 32 into the high one.
 - Poly1305's accumulator and r are five 26-bit limbs (poly1305-donna's 32-bit layout): a product of limbs is below 2^56 and a sum of five below 2^60. The final reduction modulo 2^130 - 5 picks h or h - p by masks, not by a branch.
-- Nothing here is hardened against timing beyond the tag comparison and Poly1305's last step: the JIT may branch where the source does not.
+- AES works on little-endian column words, as `uint32At:` reads them and as GCM's counter mode xors them: each round is sixteen lookups in four tables of 256 words (SubBytes, ShiftRows and MixColumns of a column at once), built from the S-box, itself computed from GF(2^8)'s inverses, when the class initializes; decryption is the equivalent inverse cipher. GHASH multiplies by H with Shoup's 8-bit tables: b·H for every byte b, four big-endian words each (4 KB per key, made in about 12 µs), and what a shift by a byte reduces back in at the top, so a block is sixteen lookups, shifts and xors.
+- `SecureRandom` is a ChaCha20 DRBG with fast key erasure: each request is ChaCha20's key stream under the current key, whose first 32 bytes become the next key. It seeds from 32 bytes of the platform's entropy, mixes in 32 more (SHA-256) after each MB, and reseeds when the image starts, since a resumed snapshot holds its key. The entropy: on an operating system `/dev/urandom` (FileStream); on UEFI the firmware's `EFI_RNG_PROTOCOL` (`Firmware`, docs/uefi.md), which QEMU's AAVMF offers only over a virtio-rng device: QEMU_UEFI has one (`-device virtio-rng-pci`). With no source it signals CryptoError; it never falls back to anything weaker. The VM has no primitive for the CPU's own generator (RNDR, RDRAND): with one, firmware without the protocol would still have entropy.
+- Nothing here is hardened against timing beyond the tag comparisons and Poly1305's last step: the JIT may branch where the source does not, and table-driven AES leaks through the cache, as table AES does everywhere.
 
 ## Performance
 
-4 MB at once, `--jit opt` (the default), hosted on arm64 (an NVIDIA GB10, Linux): SHA-256 50 MB/s (79 ms), SHA-512 27 MB/s (149 ms), ChaCha20-Poly1305 68 MB/s encrypting (59 ms; ChaCha20 49 ms, Poly1305 7 ms of it) and decrypting; 1000 TLS-sized records of 100 bytes in 7 ms.
+4 MB at once, `--jit opt` (the default), on arm64 (an NVIDIA GB10), hosted on Linux and on UEFI under QEMU with KVM (`make uefi-run`): the same within 10 %.
+
+| | hosted | UEFI (QEMU, KVM) |
+|---|---|---|
+| SHA-256 | 45 MB/s (89 ms) | 47 MB/s (85 ms) |
+| SHA-512 | 27–42 MB/s (95–149 ms) | 39 MB/s (102 ms) |
+| ChaCha20-Poly1305, either way | 69 MB/s (58 ms; ChaCha20 49 ms, Poly1305 7 ms) | 69 MB/s (58 ms) |
+| AES-128-GCM, either way | 38 MB/s (105 ms; CTR 52, GHASH 51) | 35 MB/s (114 ms) |
+| AES-256-GCM, either way | 33 MB/s (120 ms) | 30 MB/s (132 ms) |
+| SecureRandom | 77 MB/s (1 MB in 13 ms) | 77 MB/s |
+
+A TLS record of 100 bytes takes about 7 µs with either AEAD, a new AES-GCM key 12 µs. An HTTPS session of a few MB spends well under a second in its symmetric cryptography, so none of it calls for a primitive in the VM; one would buy most for AES-GCM (the CPU's AES and polynomial multiplication instructions: tens of times faster) and SHA-256 (its SHA instructions), little for ChaCha20-Poly1305, whose code is already a few native instructions per operation.
 
 ## Public-key cryptography
 
