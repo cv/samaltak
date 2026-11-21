@@ -762,7 +762,7 @@ emitNode: n block: b next: nextBlock
 			ifTrue: [
 				x := self src: nd a into: self scratchA.
 				asm cmp: x with: y.
-				asm b: s if: COND_GT]
+				asm b: s if: (nd aux2 = 1 ifTrue: [COND_GE] ifFalse: [COND_GT])]
 			ifFalse: [
 				nd aux <= 4095
 					ifTrue: [asm cmp: y imm: nd aux]

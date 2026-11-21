@@ -785,15 +785,17 @@ testCountedLoopsCheckBoundsOnce
 	self define: 'sum: x to: n | s | s := 0. 1 to: n do: [:i | s := s + (x at: i)]. ^s'.
 	self define: 'fill: x to: n 1 to: n do: [:i | x at: i put: i]. ^x'.
 	self define: 'odds: x to: n | s | s := 0. 1 to: n by: 2 do: [:i | s := s + (x at: i)]. ^s'.
+	self define: 'back: x to: n | s | s := 0. 1 to: n do: [:i | s := s + ((x at: n + 1 - i) * i)]. ^s'.
 	o := JitRuntimeTestSubject new.
 	a := Array new: 20000.
 	4 timesRepeat: [
 		self assert: (o fill: a to: 20000) == a.
 		self assert: (o sum: a to: 20000) equals: 200010000.
 		self assert: (o sum: a to: 0) equals: 0.
-		self assert: (o odds: a to: 20000) equals: 100000000].
+		self assert: (o odds: a to: 20000) equals: 100000000.
+		self assert: (o back: a to: 20000) equals: ((1 to: 20000) inject: 0 into: [:s :i | s + (20001 - i * i)])].
 	self stressed ifFalse: [
-		#(#sum:to: #fill:to: #odds:to:) do: [:each |
+		#(#sum:to: #fill:to: #odds:to: #back:to:) do: [:each |
 			self assert: ((self listingOf: each) includesSubstring: 'within bounds: checked once before the loop')]].
 	a := Array new: 100.
 	"thrice: a process switch at a method's entry runs it in the lower tier"
@@ -801,15 +803,18 @@ testCountedLoopsCheckBoundsOnce
 		self should: [o fill: a to: 101] raise: Error.
 		self assert: (a at: 100) equals: 100.
 		self should: [o sum: a to: 101] raise: Error.
-		self should: [o odds: a to: 102] raise: Error].
+		self should: [o odds: a to: 102] raise: Error.
+		self should: [o back: a to: 101] raise: Error].
 	self stressed ifFalse: [
-		#(#sum:to: #fill:to: #odds:to:) do: [:each |
+		#(#sum:to: #fill:to: #odds:to: #back:to:) do: [:each |
 			self deny: ((self listingOf: each) includesSubstring: 'within bounds: checked once before the loop')]].
 	3 timesRepeat: [
 		self assert: (o sum: a to: 100) equals: 5050.
 		self assert: (o odds: a to: 99) equals: 2500.
 		self should: [o sum: a to: 101] raise: Error.
-		self should: [o fill: a to: 101] raise: Error]
+		self should: [o fill: a to: 101] raise: Error.
+		self assert: (o back: a to: 100) equals: ((1 to: 100) inject: 0 into: [:s :i | s + (101 - i * i)]).
+		self should: [o back: a to: 101] raise: Error]
 !
 testOuterTempsOfAClosureInlinedInALoop
 	"A loop's unit that inlines a closure another frame made guards it once, where the loop is entered; an outer temp the loop only reads is loaded there, one it stores into is stored into each time, in the frame its Context is married to or in the Context (the adder's home method has returned): what follows the loop sees the stores. A method's first long loop runs in such a unit: one method for each case."

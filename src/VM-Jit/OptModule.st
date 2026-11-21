@@ -71,7 +71,7 @@ initialize
 	O_CHARCONV := 42.
 	"0x94: an Array of the operands (args); a safepoint: eden full, the runtime makes it"
 	O_MKARRAY := 43.
-	"a guard: SmallInteger a (or, without one, the constant aux) is at most SmallInteger b; before a loop for the bounds of its indexed accesses (OptPasses>>boundsOutOf:entry:index:)"
+	"a guard: SmallInteger a (or, without one, the constant aux) is at most SmallInteger b (aux2 1: below it); before a loop for the bounds of its indexed accesses (OptPasses>>boundsOutOf:entry:index:)"
 	O_GUARDLE := 44.
 	"a guard: closure a's startpc is aux and its outerContext's method the constant b, neither of which ever changes; its result is a (the closure another frame made whose body follows inline: OptBuilder>>inlineForeignClosure:pc:act:rcvSlot:argc:)"
 	O_GUARDCLOSURE := 45.

@@ -7467,6 +7467,7 @@ static void emit_node(int32_t n, int32_t b, int32_t next_block)
     uint64_t v_1858;
     int64_t n_1879;
     int64_t n_1880;
+    int c_3;
     int cc_68;
     uint64_t a_160;
     int64_t d_273;
@@ -11008,7 +11009,7 @@ static void emit_node(int32_t n, int32_t b, int32_t next_block)
     int64_t n_2858;
     int32_t r_first_register_move_4;
     int32_t i_46;
-    int32_t c_3;
+    int32_t c_4;
     int32_t v_2934;
     int64_t r_loc_of_6;
     opt_node *nd_175;
@@ -11119,7 +11120,7 @@ static void emit_node(int32_t n, int32_t b, int32_t next_block)
     opt_node *nx_2;
     int32_t b_15;
     int32_t b_16;
-    opt_block *c_4;
+    opt_block *c_5;
     int32_t n_2892;
     int32_t r_deopt_label_for_19;
     int32_t r_record_guard_19;
@@ -11165,7 +11166,7 @@ static void emit_node(int32_t n, int32_t b, int32_t next_block)
     opt_node *nx_3;
     int32_t b_19;
     int32_t b_20;
-    opt_block *c_5;
+    opt_block *c_6;
     int32_t n_2898;
     opt_node *nd_180;
     int32_t v_2964;
@@ -11499,7 +11500,7 @@ static void emit_node(int32_t n, int32_t b, int32_t next_block)
     int32_t k_32;
     int v_3068;
     int v_3069;
-    int64_t c_6;
+    int64_t c_7;
     int cc_104;
     uint64_t a_264;
     int64_t d_466;
@@ -11519,7 +11520,7 @@ static void emit_node(int32_t n, int32_t b, int32_t next_block)
     int32_t k_33;
     int v_3075;
     int v_3076;
-    int64_t c_7;
+    int64_t c_8;
     int cc_105;
     uint64_t a_266;
     int64_t d_468;
@@ -52675,7 +52676,8 @@ exit_src_40:;
             }
             asm_flags = X64_FL_SUB;
             asm_flags_label = -1;
-            cc_68 = amd64_assembler_cc(COND_GT);
+            c_3 = nd->aux2 == 1 ? COND_GE : COND_GT;
+            cc_68 = amd64_assembler_cc(c_3);
             if (cc_68 >= 0) {
                 branch_to(s);
                 a_160 = asm_labels[s];
@@ -52763,7 +52765,7 @@ exit_src_40:;
                 goto exit_b_147;
             }
             if (cc_68 == -1) {
-                cond_branch(COND_GT, s);
+                cond_branch(c_3, s);
                 goto exit_b_147;
             }
             if (asm_error == ASM_OK) {
@@ -76144,7 +76146,7 @@ exit_source_38:;
                 }
             }
             if (!progress_2) {
-                c_3 = ({
+                c_4 = ({
     for (i_46 = 0; i_46 <= cg_move_count - 1; i_46++) {
         if (cg_move_loc[i_46] >= 0) {
             r_first_register_move_4 = i_46;
@@ -76154,7 +76156,7 @@ exit_source_38:;
     r_first_register_move_4 = -1;
 exit_first_register_move_4:;
     r_first_register_move_4; });
-                v_2934 = cg_move_dst[c_3];
+                v_2934 = cg_move_dst[c_4];
                 d_461 = ({
     nd_175 = opt_nodes + v_2934;
     if ((int32_t)nd_175->op == O_CONST) {
@@ -76665,12 +76667,12 @@ exit_source_41:;
     }
     b_15 = nd_178->block;
     b_16 = (opt_blocks + b_15)->succ0;
-    c_4 = opt_blocks + b_16;
-    if (!((c_4->npreds == 1) && (c_4->first >= 0))) {
+    c_5 = opt_blocks + b_16;
+    if (!((c_5->npreds == 1) && (c_5->first >= 0))) {
         r_is_fused_2 = false;
         goto exit_is_fused_2;
     }
-    n_2892 = c_4->first;
+    n_2892 = c_5->first;
     nx_2 = opt_nodes + n_2892;
     r_is_fused_2 = ((int32_t)nx_2->op == O_BRANCH) && (nx_2->a == v_2956);
 exit_is_fused_2:;
@@ -76887,12 +76889,12 @@ exit_emit_stress_at_21:;
     }
     b_19 = nd_179->block;
     b_20 = (opt_blocks + b_19)->succ0;
-    c_5 = opt_blocks + b_20;
-    if (!((c_5->npreds == 1) && (c_5->first >= 0))) {
+    c_6 = opt_blocks + b_20;
+    if (!((c_6->npreds == 1) && (c_6->first >= 0))) {
         r_is_fused_3 = false;
         goto exit_is_fused_3;
     }
-    n_2898 = c_5->first;
+    n_2898 = c_6->first;
     nx_3 = opt_nodes + n_2898;
     r_is_fused_3 = ((int32_t)nx_3->op == O_BRANCH) && (nx_3->a == v_2956);
 exit_is_fused_3:;
@@ -79039,7 +79041,7 @@ exit_src_66:;
             }
         exit_emit_compare_2:;
             if ((t_81 == next_block) || (jump_target_of(t_81) == next_block)) {
-                c_6 = ({
+                c_7 = ({
     nd_186 = opt_nodes + v_2956;
     if ((int32_t)nd_186->op == O_EQ) {
         r_condition_of_2 = COND_EQ;
@@ -79105,7 +79107,7 @@ exit_src_66:;
     r_condition_of_2 = v_3069;
 exit_condition_of_2:;
     r_condition_of_2; }) ^ 1;
-                cc_104 = amd64_assembler_cc(c_6);
+                cc_104 = amd64_assembler_cc(c_7);
                 if (cc_104 >= 0) {
                     branch_to(fl);
                     a_264 = asm_labels[fl];
@@ -79193,7 +79195,7 @@ exit_condition_of_2:;
                     goto exit_b_236;
                 }
                 if (cc_104 == -1) {
-                    cond_branch(c_6, fl);
+                    cond_branch(c_7, fl);
                     goto exit_b_236;
                 }
                 if (asm_error == ASM_OK) {
@@ -79201,7 +79203,7 @@ exit_condition_of_2:;
                 }
             exit_b_236:;
             } else {
-                c_7 = ({
+                c_8 = ({
     nd_187 = opt_nodes + v_2956;
     if ((int32_t)nd_187->op == O_EQ) {
         r_condition_of_3 = COND_EQ;
@@ -79267,7 +79269,7 @@ exit_condition_of_2:;
     r_condition_of_3 = v_3076;
 exit_condition_of_3:;
     r_condition_of_3; });
-                cc_105 = amd64_assembler_cc(c_7);
+                cc_105 = amd64_assembler_cc(c_8);
                 if (cc_105 >= 0) {
                     branch_to(tl);
                     a_266 = asm_labels[tl];
@@ -79355,7 +79357,7 @@ exit_condition_of_3:;
                     goto exit_b_238;
                 }
                 if (cc_105 == -1) {
-                    cond_branch(c_7, tl);
+                    cond_branch(c_8, tl);
                     goto exit_b_238;
                 }
                 if (asm_error == ASM_OK) {
@@ -83146,6 +83148,7 @@ static void emit_node(int32_t n, int32_t b, int32_t next_block)
     int ext_14;
     uint64_t a_word_687;
     uint64_t a_word_688;
+    int c_4;
     uint64_t target_138;
     int64_t r_offset_to_138;
     int64_t off_199;
@@ -84338,7 +84341,7 @@ static void emit_node(int32_t n, int32_t b, int32_t next_block)
     uint64_t a_word_1050;
     int32_t r_first_register_move_4;
     int32_t i_46;
-    int32_t c_4;
+    int32_t c_5;
     int32_t v_301;
     int64_t r_loc_of_6;
     opt_node *nd_175;
@@ -84381,7 +84384,7 @@ static void emit_node(int32_t n, int32_t b, int32_t next_block)
     opt_node *nx_2;
     int32_t b_15;
     int32_t b_16;
-    opt_block *c_5;
+    opt_block *c_6;
     int32_t n_51;
     int32_t r_deopt_label_for_19;
     int32_t r_record_guard_19;
@@ -84415,7 +84418,7 @@ static void emit_node(int32_t n, int32_t b, int32_t next_block)
     opt_node *nx_3;
     int32_t b_19;
     int32_t b_20;
-    opt_block *c_6;
+    opt_block *c_7;
     int32_t n_53;
     opt_node *nd_180;
     int32_t v_306;
@@ -84537,7 +84540,7 @@ static void emit_node(int32_t n, int32_t b, int32_t next_block)
     int32_t k_32;
     int v_322;
     int v_323;
-    int64_t c_7;
+    int64_t c_8;
     uint64_t target_240;
     int64_t r_offset_to_240;
     int64_t off_325;
@@ -84547,7 +84550,7 @@ static void emit_node(int32_t n, int32_t b, int32_t next_block)
     int32_t k_33;
     int v_324;
     int v_325;
-    int64_t c_8;
+    int64_t c_9;
     uint64_t target_241;
     int64_t r_offset_to_241;
     int64_t off_326;
@@ -101215,6 +101218,7 @@ exit_src_40:;
                 asm_error = ASM_ERR_FULL;
             }
         exit_add_sub_107:;
+            c_4 = nd->aux2 == 1 ? COND_GE : COND_GT;
             target_138 = target_of(s);
             a_word_689 = 0x54000000 | ((((uint64_t)({
     off_199 = ((int64_t)(target_138 - asm_pc)) >> 2;
@@ -101227,7 +101231,7 @@ exit_src_40:;
     }
     r_offset_to_138 = off_199 & 524287;
 exit_offset_to_138:;
-    r_offset_to_138; })) << 5) | 12);
+    r_offset_to_138; })) << 5) | (c_4 & 15));
             if (asm_pc < asm_limit) {
                 *(uint32_t *)asm_pc = a_word_689;
                 asm_pc = asm_pc + 4;
@@ -110448,7 +110452,7 @@ exit_loc_of_5:;
                 }
             }
             if (!progress_2) {
-                c_4 = ({
+                c_5 = ({
     for (i_46 = 0; i_46 <= cg_move_count - 1; i_46++) {
         if (cg_move_loc[i_46] >= 0) {
             r_first_register_move_4 = i_46;
@@ -110458,7 +110462,7 @@ exit_loc_of_5:;
     r_first_register_move_4 = -1;
 exit_first_register_move_4:;
     r_first_register_move_4; });
-                v_301 = cg_move_dst[c_4];
+                v_301 = cg_move_dst[c_5];
                 d_4 = ({
     nd_175 = opt_nodes + v_301;
     if ((int32_t)nd_175->op == O_CONST) {
@@ -110661,12 +110665,12 @@ exit_offset_to_234:;
     }
     b_15 = nd_178->block;
     b_16 = (opt_blocks + b_15)->succ0;
-    c_5 = opt_blocks + b_16;
-    if (!((c_5->npreds == 1) && (c_5->first >= 0))) {
+    c_6 = opt_blocks + b_16;
+    if (!((c_6->npreds == 1) && (c_6->first >= 0))) {
         r_is_fused_2 = false;
         goto exit_is_fused_2;
     }
-    n_51 = c_5->first;
+    n_51 = c_6->first;
     nx_2 = opt_nodes + n_51;
     r_is_fused_2 = ((int32_t)nx_2->op == O_BRANCH) && (nx_2->a == v_304);
 exit_is_fused_2:;
@@ -110825,12 +110829,12 @@ exit_emit_stress_at_21:;
     }
     b_19 = nd_179->block;
     b_20 = (opt_blocks + b_19)->succ0;
-    c_6 = opt_blocks + b_20;
-    if (!((c_6->npreds == 1) && (c_6->first >= 0))) {
+    c_7 = opt_blocks + b_20;
+    if (!((c_7->npreds == 1) && (c_7->first >= 0))) {
         r_is_fused_3 = false;
         goto exit_is_fused_3;
     }
-    n_53 = c_6->first;
+    n_53 = c_7->first;
     nx_3 = opt_nodes + n_53;
     r_is_fused_3 = ((int32_t)nx_3->op == O_BRANCH) && (nx_3->a == v_304);
 exit_is_fused_3:;
@@ -111831,7 +111835,7 @@ exit_src_66:;
             }
         exit_emit_compare_2:;
             if ((t == next_block) || (jump_target_of(t) == next_block)) {
-                c_7 = ({
+                c_8 = ({
     nd_186 = opt_nodes + v_304;
     if ((int32_t)nd_186->op == O_EQ) {
         r_condition_of_2 = COND_EQ;
@@ -111909,7 +111913,7 @@ exit_condition_of_2:;
     }
     r_offset_to_240 = off_325 & 524287;
 exit_offset_to_240:;
-    r_offset_to_240; })) << 5) | (c_7 & 15));
+    r_offset_to_240; })) << 5) | (c_8 & 15));
                 if (asm_pc < asm_limit) {
                     *(uint32_t *)asm_pc = a_word_1098;
                     asm_pc = asm_pc + 4;
@@ -111917,7 +111921,7 @@ exit_offset_to_240:;
                     asm_error = ASM_ERR_FULL;
                 }
             } else {
-                c_8 = ({
+                c_9 = ({
     nd_187 = opt_nodes + v_304;
     if ((int32_t)nd_187->op == O_EQ) {
         r_condition_of_3 = COND_EQ;
@@ -111995,7 +111999,7 @@ exit_condition_of_3:;
     }
     r_offset_to_241 = off_326 & 524287;
 exit_offset_to_241:;
-    r_offset_to_241; })) << 5) | (c_8 & 15));
+    r_offset_to_241; })) << 5) | (c_9 & 15));
                 if (asm_pc < asm_limit) {
                     *(uint32_t *)asm_pc = a_word_1099;
                     asm_pc = asm_pc + 4;
