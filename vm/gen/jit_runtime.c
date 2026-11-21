@@ -456,6 +456,14 @@ exit_best:;
     r_best; }) : 0;
 }
 
+/* JitRuntime>>classChanged */
+void class_changed(void)
+{
+    if (jit_mode == JIT_OPT) {
+        invalidate_all();
+    }
+}
+
 /* JitRuntime>>closure: */
 uint64_t jit_runtime_closure(frame *f)
 {

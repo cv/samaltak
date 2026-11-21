@@ -215,6 +215,7 @@ primChangeClassTo
 	self header: r put: (((self header: r) bitClear: 16r1F asUInt64 << H_FMT_SHIFT) bitOr: nf asUInt64 << H_FMT_SHIFT).
 	self rawClass: r put: c.
 	(self isYoung: c) ifTrue: [gc rememberIfOld: r].
+	jit classChanged.
 	self answer: r
 !
 countInstance: o data: d

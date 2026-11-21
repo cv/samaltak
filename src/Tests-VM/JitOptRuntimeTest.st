@@ -63,6 +63,13 @@ testActivationsFindOptimizedCodeThroughAnEntryOfBaselineCode
 	self assert: (self statistics - before) optMethodsCompiled > 0.
 	self stressed ifFalse: [self assert: (self statistics - before) optDeoptimizations > 0]
 !
+testChangeClassToLeavesOptimizedCode
+	"changeClassTo: gives an object another class in place. Optimized code that knew the old one (it made the object) is invalidated and does not go on with it: the sends after it find the new class's methods."
+	| o |
+	self define: 'recast | p | p := 3 @ 4. p changeClassTo: Fraction. ^{p class. p isFraction. p isPoint. p numerator}'.
+	o := JitRuntimeTestSubject new.
+	5 timesRepeat: [self assert: o recast equals: {Fraction. true. false. 3}]
+!
 testInvalidationWhileRunning
 	"A method inlined into running optimized code (a loop's unit, from feedback) is redefined: the code is invalidated, the running activation continues with the new method."
 	| before |

@@ -983,6 +983,11 @@ afterGC
 				n := n + 1]].
 		youngCount := n asInt32]
 !
+classChanged
+	"An object got another class in place (changeClassTo:). Optimized code may know the old one (it made the object, or guarded it before): all of it is invalidated, and frames in it leave where they next return or check."
+	<function>
+	jitMode = JIT_OPT ifTrue: [optimizer invalidateAll]
+!
 optMethodsChanged: sel
 	"Smalltalk changed a method dictionary (for selector sel; nil: any): optimized code relying on it is invalidated."
 	<function>

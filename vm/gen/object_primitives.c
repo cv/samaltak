@@ -1039,6 +1039,7 @@ void prim_change_class_to(void)
             remember(r);
         }
     }
+    class_changed();
     prim_result = r;
     prim_status = PS_OK;
 }

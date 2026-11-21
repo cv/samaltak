@@ -1751,6 +1751,7 @@ uint64_t baseline_stat(int32_t i);
 void become_method(oop from);
 uint64_t jit_runtime_block_code_for(oop m);
 uint64_t cache_code_for(uint64_t m);
+void class_changed(void);
 uint64_t jit_runtime_closure(frame *f);
 bool code_address_of(uint64_t m);
 void code_changed(oop m);
