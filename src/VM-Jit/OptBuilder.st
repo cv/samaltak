@@ -1856,6 +1856,11 @@ inlinePrimitive: p class: cls argc: argc pc: pc act: a rcvSlot: r
 		self push: n act: a depth: r.
 		^true].
 	(kind = OPK_CHARFROM and: [argc = 1]) ifTrue: [
+		"of a code point that is a constant: a constant"
+		n := self liveValueOf: (self read: (self var: a slot: r + 1)).
+		((ir node: n) op asInt32 = O_CONST and: [(self isInt: (ir node: n) aux asUInt64) and: [(self intVal: (ir node: n) aux asUInt64) between: 0 and: CHAR_VALUE_MAX]]) ifTrue: [
+			self push: (self constant: ((self intVal: (ir node: n) aux asUInt64) asUInt64 << 3 bitOr: 2)) act: a depth: r.
+			^true].
 		s := self stateAct: a pc: pc depth: (self depthAt: pc act: a).
 		idx := self guardInt: (self read: (self var: a slot: r + 1)) state: s.
 		n := self add: O_CHARCONV rep: R_OOP.
@@ -2101,23 +2106,15 @@ deoptAct: a state: s
 !
 global: assoc pc: pc act: a depth: d
 	"The value of the literal variable assoc pushed at a's pc: a class it holds now is a constant, guarded (it changed: deoptimize to the push, where it is loaded from then on), else loaded."
-	| v c t f n |
+	| v c n |
 	v := self loadField: ASSOC_VALUE of: (self constant: assoc).
 	c := self loadRef: assoc at: ASSOC_VALUE.
 	((self isBehavior: c) and: [((feedback flagsAt: (ir act: a) method pc: pc) bitAnd: feedback deoptOther) = 0]) ifFalse: [^v].
-	t := ir newBlock.
-	(ir block: t) act: a.
-	f := ir newBlock.
-	(ir block: f) act: a.
-	self branch: (self compare: O_EQ a: v b: (self constant: c)) true: t false: f.
-	self seal: t.
-	self seal: f.
-	obCurBlock := f.
-	"aux 1: feedback says other, not class"
-	n := self add: O_DEOPT rep: R_NONE.
+	n := self add: O_GUARDEQ rep: R_NONE.
+	(ir node: n) a: v.
+	(ir node: n) b: (self constant: c).
 	(ir node: n) state: (self stateAct: a pc: pc depth: d).
-	(ir node: n) aux: 1.
-	obCurBlock := t.
+	(ir node: n) flags: NF_GUARD.
 	^self constant: c
 !
 isBehavior: o
