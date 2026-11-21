@@ -766,6 +766,7 @@ uint64_t deopt_guard(frame *f, int64_t k)
     int32_t *rec;
     int32_t why;
     bool stressed;
+    bool r_note_hoisted;
     int32_t i;
     oop m_2;
     int32_t pc_2;
@@ -784,18 +785,28 @@ uint64_t deopt_guard(frame *f, int64_t k)
     oop v_3;
     uint32_t e_2;
     int32_t k_2;
+    int64_t r_signature_at;
+    feedback_site *s;
+    int64_t n;
+    int i_2;
+    int64_t sig_2;
     oop r_2;
+    int64_t r_signature_at_2;
+    feedback_site *s_2;
+    int64_t n_2;
+    int i_3;
+    bool met;
     uint64_t r;
     oop m_3;
     uint64_t o;
     oop m_4;
-    int32_t s;
+    int32_t s_3;
     int32_t t;
     uint64_t key;
-    int32_t i_2;
-    int64_t n;
+    int32_t i_4;
+    int64_t n_3;
     oop m_5;
-    int32_t n_2;
+    int32_t n_4;
     jit_method *h_2;
     oop m_6;
     int32_t pc_3;
@@ -811,17 +822,17 @@ uint64_t deopt_guard(frame *f, int64_t k)
     int64_t fl;
     oop v_5;
     int64_t r_flags_of_2;
-    int32_t i_3;
+    int32_t i_5;
     oop v_6;
     int64_t r_flags_of_3;
     bool fresh;
     oop m;
     int32_t pc;
-    int32_t i_4;
-    int64_t r_signature_at;
-    feedback_site *s_2;
-    int64_t n_3;
-    int i_5;
+    int32_t i_6;
+    int64_t r_signature_at_3;
+    feedback_site *s_4;
+    int64_t n_5;
+    int i_7;
     int64_t sig;
     uint64_t o_3;
     uint8_t *p_2;
@@ -832,16 +843,16 @@ uint64_t deopt_guard(frame *f, int64_t k)
     uint8_t op_4;
     int k_3;
     int k_4;
-    int64_t i_6;
+    int64_t i_8;
     oop r_3;
     oop r_4;
     oop r_5;
-    int64_t r_signature_at_2;
-    feedback_site *s_3;
-    int64_t n_4;
-    int i_7;
+    int64_t r_signature_at_4;
+    feedback_site *s_5;
+    int64_t n_6;
+    int i_9;
     oop m_7;
-    int32_t n_5;
+    int32_t n_7;
     jit_method *h_3;
     if ((jit_mode == JIT_BASELINE) || (jit_mode == JIT_OPT)) {
         canonicalize_below(f);
@@ -853,14 +864,14 @@ uint64_t deopt_guard(frame *f, int64_t k)
     if (stressed) {
         why = 0;
     }
-    if ((why == FB_DEOPT_HOISTED) && (rec[2] != 0)) {
-        i = rec[3];
-        m_2 = ((oop *)(h->code_start + h->pool_offset))[i];
-        pc_2 = rec[1];
-        rt_deopt_count = 0;
-        loc = rec[2] - 1;
-        regs = state_block->dump;
-        k_2 = ({
+    met = (why == FB_DEOPT_HOISTED) && (rec[2] != 0) && ({
+    i = rec[3];
+    m_2 = ((oop *)(h->code_start + h->pool_offset))[i];
+    pc_2 = rec[1];
+    rt_deopt_count = 0;
+    loc = rec[2] - 1;
+    regs = state_block->dump;
+    k_2 = ({
     kind = loc & 7;
     payload = ((int64_t)loc) >> 3;
     v = nil_oop;
@@ -936,28 +947,58 @@ uint64_t deopt_guard(frame *f, int64_t k)
     r_value = rt_deopt_count - 1;
 exit_value:;
     r_value; });
-        r_2 = rt_deopt_vals[k_2];
-        note_send(m_2, pc_2, (r_2 & 7) != 0 ? tag_class[r_2 & 7] : *(uint64_t *)(r_2 + 8));
+    sig_2 = ({
+    s = site_at(m_2, pc_2);
+    if (s == NULL) {
+        r_signature_at = -1;
+        goto exit_signature_at;
     }
+    n = 0;
+    for (i_2 = 0; i_2 <= 3; i_2++) {
+        if (s->classes[i_2] != 0) {
+            n = n + 1;
+        }
+    }
+    r_signature_at = (int64_t)s->flags + (n << 32);
+exit_signature_at:;
+    r_signature_at; });
+    r_2 = rt_deopt_vals[k_2];
+    note_send(m_2, pc_2, (r_2 & 7) != 0 ? tag_class[r_2 & 7] : *(uint64_t *)(r_2 + 8));
+    r_note_hoisted = (({
+    s_2 = site_at(m_2, pc_2);
+    if (s_2 == NULL) {
+        r_signature_at_2 = -1;
+        goto exit_signature_at_2;
+    }
+    n_2 = 0;
+    for (i_3 = 0; i_3 <= 3; i_3++) {
+        if (s_2->classes[i_3] != 0) {
+            n_2 = n_2 + 1;
+        }
+    }
+    r_signature_at_2 = (int64_t)s_2->flags + (n_2 << 32);
+exit_signature_at_2:;
+    r_signature_at_2; }) != sig_2) || (site_at(m_2, pc_2)->stamp > h->stamp);
+    r_note_hoisted; });
     r = deopt_frame(f, k, state_block->dump, 0);
     m_3 = rt_act_method[rt_act_count - 1];
     o = *(uint64_t *)(m_3 + 16 + 24);
     if (((uint8_t *)(o + 16))[rt_act_pc[rt_act_count - 1]] == 0x7C) {
         if ((h != NULL) && ((h->flags & JM_FAILED) == 0) && ((h->flags & 2) == 0)) {
             m_4 = h->method;
-            s = (int32_t)h->block_start;
+            s_3 = (int32_t)h->block_start;
             t = (int32_t)h->osr_pc;
-            key = ((((uint64_t)(uint32_t)(((*(uint64_t *)m_4) >> H_HASH_SHIFT) & H_HASH_MASK)) ^ (((uint64_t)t) >> 16)) << 32) | ((((uint64_t)s) & 0xFFFF) << 16) | (((uint64_t)t) & 0xFFFF) | 9223372036854775808ULL;
-            i_2 = (int32_t)((key ^ (key >> 29)) & 8191);
-            n = 0;
-            while (rt_failed[i_2] != 0) {
-                n = n + 1;
-                if (n >= 4096) {
+            key = ((((uint64_t)(uint32_t)(((*(uint64_t *)m_4) >> H_HASH_SHIFT) & H_HASH_MASK)) ^ (((uint64_t)t) >> 16)) << 32) | ((((uint64_t)s_3) & 0xFFFF) << 16) | (((uint64_t)t) & 0xFFFF) | 9223372036854775808ULL;
+            i_4 = (int32_t)((key ^ (key >> 29)) & 8191);
+            n_3 = 0;
+            while (rt_failed[i_4] != 0) {
+                n_3 = n_3 + 1;
+                if (n_3 >= 4096) {
                     goto exit_note_failed;
                 }
-                i_2 = (i_2 + 1) & 8191;
+                i_4 = (i_4 + 1) & 8191;
             }
-            rt_failed[i_2] = key;
+            rt_failed[i_4] = key;
         exit_note_failed:;
             if (!((h != NULL) && ((h->flags & JM_FAILED) == 0) && ((h->flags & 2) == 0))) {
                 goto exit_invalidate;
@@ -965,8 +1006,8 @@ exit_value:;
             rt_stat_invalidations = rt_stat_invalidations + 1;
             if ((h->block_start == 0) && (h->osr_pc == 0)) {
                 m_5 = h->method;
-                n_2 = initial_count(h->method);
-                opt_counts[((uint32_t)(((*(uint64_t *)m_5) >> H_HASH_SHIFT) & H_HASH_MASK)) & 65535] = n_2;
+                n_4 = initial_count(h->method);
+                opt_counts[((uint32_t)(((*(uint64_t *)m_5) >> H_HASH_SHIFT) & H_HASH_MASK)) & 65535] = n_4;
                 h_2 = (jit_method *)h->lower;
                 begin_writing();
                 h_2->opt = 0;
@@ -1022,9 +1063,9 @@ exit_flags_of_2:;
         goto exit_operand_flags_at;
     }
     fl = 0;
-    for (i_3 = g->sp - 2; i_3 <= g->sp - 1; i_3++) {
-        if (i_3 >= 0) {
-            v_6 = g->fp[i_3];
+    for (i_5 = g->sp - 2; i_5 <= g->sp - 1; i_5++) {
+        if (i_5 >= 0) {
+            v_6 = g->fp[i_5];
             fl = fl | ({
     if (((v_6 & 7) == 4) || (((v_6 & 7) == 0) && (*(uint64_t *)(v_6 + 8) == cls_boxedfloat))) {
         r_flags_of_3 = FB_FLOAT;
@@ -1048,31 +1089,33 @@ exit_operand_flags_at:;
         m = rt_act_method[rt_act_count - 1];
         pc = rt_act_pc[rt_act_count - 1];
         if (why == FB_DEOPT_HOISTED) {
-            i_4 = rec[3];
-            m = ((oop *)(h->code_start + h->pool_offset))[i_4];
+            i_6 = rec[3];
+            m = ((oop *)(h->code_start + h->pool_offset))[i_6];
             pc = rec[1];
         }
         sig = ({
-    s_2 = site_at(m, pc);
-    if (s_2 == NULL) {
-        r_signature_at = -1;
-        goto exit_signature_at;
+    s_4 = site_at(m, pc);
+    if (s_4 == NULL) {
+        r_signature_at_3 = -1;
+        goto exit_signature_at_3;
     }
-    n_3 = 0;
-    for (i_5 = 0; i_5 <= 3; i_5++) {
-        if (s_2->classes[i_5] != 0) {
-            n_3 = n_3 + 1;
+    n_5 = 0;
+    for (i_7 = 0; i_7 <= 3; i_7++) {
+        if (s_4->classes[i_7] != 0) {
+            n_5 = n_5 + 1;
         }
     }
-    r_signature_at = (int64_t)s_2->flags + (n_3 << 32);
-exit_signature_at:;
-    r_signature_at; });
-        note_flags(m, pc, (uint32_t)why);
+    r_signature_at_3 = (int64_t)s_4->flags + (n_5 << 32);
+exit_signature_at_3:;
+    r_signature_at_3; });
+        if (!met) {
+            note_flags(m, pc, (uint32_t)why);
+        }
         if ((why & FB_DEOPT_CLASS) != 0) {
             o_3 = *(uint64_t *)(m + 16 + 24);
             p_2 = (uint8_t *)(o_3 + 16) + pc;
             g_2 = frames + (nframes - 1);
-            i_6 = ({
+            i_8 = ({
     op_3 = p_2[0];
     r_pushes_of_2 = ((op_3 >= 0x97) && (op_3 <= 0x9F)) || ((op_3 >= 0xF0) && (op_3 < 0xFC)) ? 2 : 0;
     r_pushes_of_2; }) > 0 ? (int64_t)p_2[1] : (int64_t)(g_2->sp - ({
@@ -1102,33 +1145,33 @@ exit_signature_at:;
     r_send_argc_of = 0;
 exit_send_argc_of:;
     r_send_argc_of; }) - 1);
-            if (i_6 >= 0) {
-                r_3 = g_2->fp[i_6];
+            if (i_8 >= 0) {
+                r_3 = g_2->fp[i_8];
                 note_send(m, pc, (r_3 & 7) != 0 ? tag_class[r_3 & 7] : *(uint64_t *)(r_3 + 8));
                 if (getenv("SAMALTAK_OPT_TRACE") != NULL) {
-                    r_4 = g_2->fp[i_6];
+                    r_4 = g_2->fp[i_8];
                     fprintf(stderr, "deopt receiver %lld (Array %lld): ", (unsigned long long)((r_4 & 7) != 0 ? tag_class[r_4 & 7] : *(uint64_t *)(r_4 + 8)), (unsigned long long)cls_array);
-                    r_5 = g_2->fp[i_6];
+                    r_5 = g_2->fp[i_8];
                     print_class_name((r_5 & 7) != 0 ? tag_class[r_5 & 7] : *(uint64_t *)(r_5 + 8), stderr);
                     fputc(10, stderr);
                 }
             }
         }
-        fresh = ({
-    s_3 = site_at(m, pc);
-    if (s_3 == NULL) {
-        r_signature_at_2 = -1;
-        goto exit_signature_at_2;
+        fresh = met || (({
+    s_5 = site_at(m, pc);
+    if (s_5 == NULL) {
+        r_signature_at_4 = -1;
+        goto exit_signature_at_4;
     }
-    n_4 = 0;
-    for (i_7 = 0; i_7 <= 3; i_7++) {
-        if (s_3->classes[i_7] != 0) {
-            n_4 = n_4 + 1;
+    n_6 = 0;
+    for (i_9 = 0; i_9 <= 3; i_9++) {
+        if (s_5->classes[i_9] != 0) {
+            n_6 = n_6 + 1;
         }
     }
-    r_signature_at_2 = (int64_t)s_3->flags + (n_4 << 32);
-exit_signature_at_2:;
-    r_signature_at_2; }) != sig;
+    r_signature_at_4 = (int64_t)s_5->flags + (n_6 << 32);
+exit_signature_at_4:;
+    r_signature_at_4; }) != sig);
         if (fresh) {
             rt_stamp = rt_stamp + 1;
             site_at(m, pc)->stamp = rt_stamp;
@@ -1160,8 +1203,8 @@ exit_signature_at_2:;
         rt_stat_invalidations = rt_stat_invalidations + 1;
         if ((h->block_start == 0) && (h->osr_pc == 0)) {
             m_7 = h->method;
-            n_5 = initial_count(h->method);
-            opt_counts[((uint32_t)(((*(uint64_t *)m_7) >> H_HASH_SHIFT) & H_HASH_MASK)) & 65535] = n_5;
+            n_7 = initial_count(h->method);
+            opt_counts[((uint32_t)(((*(uint64_t *)m_7) >> H_HASH_SHIFT) & H_HASH_MASK)) & 65535] = n_7;
             h_3 = (jit_method *)h->lower;
             begin_writing();
             h_3->opt = 0;
