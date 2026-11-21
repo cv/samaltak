@@ -33,6 +33,23 @@ testBinary
 	self assert: (File readBytes: path) = bytes.
 	self assert: (File sizeOf: path) = bytes size
 !
+testLargeReadsAfterSmallOnes
+	"A rest of at least the buffer's size is read past the buffer; positions stay right."
+	| path bytes |
+	path := dir / 'large.bin'.
+	bytes := ((1 to: 100000) collect: [:i | i * 31 \\ 251]) asByteArray.
+	File writeBytes: bytes to: path.
+	FileStream readOnlyFileNamed: path do: [:s |
+		s binary.
+		self assert: (s next: 10) = (bytes copyFrom: 1 to: 10).
+		self assert: (s next: 30000) = (bytes copyFrom: 11 to: 30010).
+		self assert: s position = 30010.
+		self assert: (s next: 5) = (bytes copyFrom: 30011 to: 30015).
+		self assert: (s next: 200000) = (bytes copyFrom: 30016 to: 100000).
+		self assert: s atEnd.
+		s position: 99990.
+		self assert: s upToEnd = (bytes copyFrom: 99991 to: 100000)]
+!
 testUTF8
 	| path text |
 	path := dir / 'utf8.txt'.

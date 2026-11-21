@@ -204,19 +204,33 @@ fillReadBuffer
 	^count > 0
 !
 nextBytes: anInteger
-	"Answer a ByteArray with up to anInteger next bytes."
+	"Answer a ByteArray with up to anInteger next bytes. Once the buffer is empty, a rest of at least its size is read straight into the result."
 	| result filled available n |
 	result := ByteArray new: anInteger.
 	filled := 0.
 	[filled < anInteger] whileTrue: [
-		readIndex > readCount ifTrue: [
+		(readIndex > readCount and: [anInteger - filled >= readBuffer size]) ifTrue: [
+			n := self readInto: result startingAt: filled + 1 count: anInteger - filled.
+			n = 0 ifTrue: [^result copyFrom: 1 to: filled].
+			filled := filled + n].
+		(filled < anInteger and: [readIndex > readCount]) ifTrue: [
 			self fillReadBuffer ifFalse: [^result copyFrom: 1 to: filled]].
+		filled < anInteger ifFalse: [^result].
 		available := readCount - readIndex + 1.
 		n := available min: anInteger - filled.
 		result replaceFrom: filled + 1 to: filled + n with: readBuffer startingAt: readIndex.
 		readIndex := readIndex + n.
 		filled := filled + n].
 	^result
+!
+readInto: aByteArray startingAt: start count: count
+	"Read up to count bytes past the (empty) buffer into aByteArray; answer how many (0 at the end of the file)."
+	| n |
+	self checkOpen.
+	self flushWriteBuffer.
+	n := File primRead: handle into: aByteArray startingAt: start count: count.
+	n isNil ifTrue: [^File signalErrorFor: name].
+	^n
 !
 decodeCharacterStartingWith: firstByte
 	"firstByte was just read: answer the Character of the UTF-8 sequence it begins, consumed, as ByteArray>>utf8Decoded decodes it (U+FFFD for an ill-formed one, a truncated one at the end of the file too)."
