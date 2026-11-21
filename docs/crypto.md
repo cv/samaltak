@@ -12,6 +12,7 @@
 - **Primitives under the AEADs**: `ChaCha20 key: k nonce: n counter: c` (`xor:`, `xor:from:to:into:at:`, `nextBlock`), `Poly1305 key: k message: m` (incremental as HMAC), `Aes key: k` (`encryptBlock:`, `decryptBlock:`).
 - **Randomness**: `SecureRandom default nextBytes: n`; `SecureRandom platformEntropy: n` for the raw source.
 - **Errors**: `CryptoError` (an Error): a tag that does not verify, keys and nonces of the wrong size, a ChaCha20 counter that wraps, HKDF beyond its limit, no source of entropy.
+- **Tests**: FIPS 180-4, RFC 4231, RFC 5869, RFC 8439 (every vector of 2.x and A.1–A.5), FIPS 197, McGrew and Viega's 18 GCM test cases, and Project Wycheproof's AES-GCM and ChaCha20-Poly1305 vectors with short messages (`WycheproofAeadTest`: 244 and 173, a third of them invalid: modified tags, wrapped counters, nonces of other sizes); tampering with any part signals CryptoError.
 - **Bytes**: `ByteArray>>constantTimeEquals:` compares MACs and tags in time that depends on their sizes only; `ByteArray fromHex:` reads test vectors.
 
 ## How
