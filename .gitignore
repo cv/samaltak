@@ -6,3 +6,7 @@ build/
 vm/build/
 vm/platform/build/
 __pycache__/
+# pi: share only the project functions (.pi/functions), even where a global ignore excludes .pi/
+!/.pi/
+/.pi/*
+!/.pi/functions/
