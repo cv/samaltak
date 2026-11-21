@@ -767,7 +767,7 @@ testGuardsOfValuesFromBeforeALoopLeaveIt
 	self assert: (o times: 10 sizeOf: #(1 2)) equals: 20
 !
 testAClassGuardMovedBeforeALoopReportsTheClass
-	"A class guard moved before a loop reports, when it fails, the class of the value it met, as a guard at its send does: the code compiled next has that class's case (and the Array's, which the lower tier takes inline unreported), not a send."
+	"A class guard moved before a loop reports, when it fails, the class of the value it met, as a guard at its send does: the code compiled next has that class's case, not a send."
 	| o |
 	Smalltalk vm jitParameters: #(nil '-eager' nil nil).
 	self define: 'ats: x times: n | s | s := 0. 1 to: n do: [:i | (x at: 1) == nil ifFalse: [s := s + 1]]. ^s'.

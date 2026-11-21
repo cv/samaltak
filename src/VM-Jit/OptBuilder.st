@@ -827,6 +827,9 @@ compare: op a: x b: y
 	cy := ir node: (self liveValueOf: y).
 	(cx op asInt32 = O_CONST and: [cy op asInt32 = O_CONST]) ifTrue: [
 		^self constant: ((cx aux = cy aux) = (op = O_EQ) ifTrue: [memory trueOop] ifFalse: [memory falseOop])].
+	"values of two classes are not one object (T_FLOAT is a SmallFloat64 or a BoxedFloat64)"
+	((self knownClassOf: x) ~= 0 and: [(self knownClassOf: y) ~= 0 and: [(self knownClassOf: x) ~= (self knownClassOf: y) and: [cx tkind asInt32 ~= T_FLOAT and: [cy tkind asInt32 ~= T_FLOAT]]]]) ifTrue: [
+		^self constant: (op = O_EQ ifTrue: [memory falseOop] ifFalse: [memory trueOop])].
 	n := self binary: op a: x b: y.
 	(ir node: n) tkind: T_BOOL.
 	^n
@@ -1390,8 +1393,8 @@ special: k pc: pc act: a rcvSlot: r
 		self push: n act: a depth: r.
 		^self].
 	(k >= 16 and: [k <= 18 and: [(self knownClassOf: x) = 0 and: [(self frameClassOf: x) = 0 and: [(runtime flag: runtime primsFlag) and: [(feedback siteAt: (ir act: a) method pc: pc) isNull]]]]]) ifTrue: [
-		"no feedback: the lower tier's Array fast path took them all"
-		self write: (self var: a slot: r) value: (self guard: x class: memory clsArray state: (self stateAct: a pc: pc depth: (self depthAt: pc act: a)))].
+		"no feedback: the lower tier took them all inline"
+		self write: (self var: a slot: r) value: (self guard: x class: (self guessedClassOf: x) state: (self stateAct: a pc: pc depth: (self depthAt: pc act: a)))].
 	((k = 21 or: [k = 22 or: [k = 30]]) and: [(self knownClassOf: x) = 0 and: [(runtime flag: runtime callsFlag) and: [(feedback siteAt: (ir act: a) method pc: pc) isNull]]]) ifTrue: [
 		"no feedback: the lower tier's closure fast path took them all"
 		self write: (self var: a slot: r) value: (self guard: x class: memory clsBlock state: (self stateAct: a pc: pc depth: (self depthAt: pc act: a)))].
@@ -1408,6 +1411,20 @@ special: k pc: pc act: a rcvSlot: r
 			self sawOnlyIntsAt: pc act: a]) ifTrue: [
 				^self intArith: k x: x y: y pc: pc act: a rcvSlot: r]].
 	self sendSelector: (self loadRef: (memory special: SO_SPECIAL_SELECTORS) at: k) argc: argc kind: 2 special: k pc: pc act: a rcvSlot: r
+!
+guessedClassOf: x
+	"The class to take x for where at:, at:put: or size reported none (the lower tier takes Arrays and Strings inline): the class of what an outer temp holds now, of a closure the frame shows; else the class the latest guard of x in this compilation took it for; else Array."
+	<function>
+	<returns: 'oop'>
+	| n o nd |
+	n := self liveValueOf: x.
+	(ir node: n) op asInt32 = O_OUTERLOAD ifTrue: [
+		o := self knownObject: n.
+		(o ~= 0 and: [(self isPtr: o) and: [(self rawClass: o) ~= memory clsBlock and: [(self rawClass: o) ~= memory clsContext]]]) ifTrue: [^self rawClass: o]].
+	ir nodeCount - 1 to: (ir nodeCount - 512 max: 0) by: -1 do: [:i |
+		nd := ir node: i.
+		(nd op asInt32 = O_GUARDCLASS and: [nd block >= 0 and: [nd a = n or: [nd a = x]]]) ifTrue: [^nd aux asUInt64]].
+	^memory clsArray
 !
 sawOnlyIntsAt: pc act: a
 	"The send at a's pc reported no receiver class but SmallInteger (the lower tier's inline paths report none)."
@@ -1913,6 +1930,10 @@ inlinePrimitive: p class: cls argc: argc pc: pc act: a rcvSlot: r
 		(ir node: n) aux: ek.
 		(ir node: n) aux2: fixed.
 		(ir node: n) state: s.
+		(ek = E_CHAR and: [(self knownClassOf: val) = 0]) ifTrue: [
+			"stored: a Character"
+			val := self cast: val class: memory clsChar.
+			(ir node: val) tkind: T_CHAR].
 		self push: val act: a depth: r.
 		^true].
 	^false

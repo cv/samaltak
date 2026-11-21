@@ -765,9 +765,7 @@ noteHoisted: rec of: h frame: f
 	pc := rec at: 1.
 	rtDeoptCount := 0.
 	k := self value: (rec at: 2) - 1 h: h frame: f regs: runtime state dump.
-	feedback noteSend: m pc: pc class: (interpreter receiverClass: (rtDeoptVals at: k)).
-	k := analysis specialIndexOf: (self methodBytecodes: m) + pc.
-	(k >= 16 and: [k <= 18]) ifTrue: [feedback noteSend: m pc: pc class: memory clsArray]
+	feedback noteSend: m pc: pc class: (interpreter receiverClass: (rtDeoptVals at: k))
 !
 signatureAt: m pc: pc
 	"What the site at m's pc reports: its flags and how many classes."
@@ -780,7 +778,7 @@ signatureAt: m pc: pc
 !
 noteReceiverAt: m pc: pc
 	"A class guard of the send at m's pc failed: its receiver (on the rebuilt top frame; a superinstruction's is the temp it pushes first) is feedback, the next type switch takes its class too."
-	| p g i k |
+	| p g i |
 	p := (self methodBytecodes: m) + pc.
 	g := interpreter frames + (interpreter nframes - 1).
 	i := (analysis pushesOf: p) > 0
@@ -791,10 +789,7 @@ noteReceiverAt: m pc: pc
 		(libc getenv: 'SAMALTAK_OPT_TRACE') notNull ifTrue: [
 			libc fprintf: libc stderr format: 'deopt receiver %lld (Array %lld): ' with: (interpreter receiverClass: (g fp at: i)) with: memory clsArray.
 			interpreter printClassName: (interpreter receiverClass: (g fp at: i)) on: libc stderr.
-			libc fputc: 10 to: libc stderr]].
-	"at: at:put: size: the lower tier takes Arrays inline, without feedback"
-	k := analysis specialIndexOf: p.
-	(k >= 16 and: [k <= 18]) ifTrue: [feedback noteSend: m pc: pc class: memory clsArray]
+			libc fputc: 10 to: libc stderr]]
 !
 operandFlagsAt: m pc: pc
 	"An arithmetic guard of the instruction at m's pc failed: its operands (on top of the rebuilt top frame, or the temps a superinstruction pushes) were Floats, or something neither a Float nor a SmallInteger (feedback)."
