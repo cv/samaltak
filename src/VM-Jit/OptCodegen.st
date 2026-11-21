@@ -707,6 +707,14 @@ emitNode: n block: b next: nextBlock
 		self emitClassTest: x class: nd aux asUInt64.
 		asm b: s if: COND_NE.
 		^self def: n from: x].
+	op = O_GUARDMUTABLE ifTrue: [
+		s := self deoptLabelFor: n.
+		x := self src: nd a into: self scratchA.
+		asm comment: 'guard: not immutable, once before the loop (its stores into it check nothing)'.
+		asm ldr: X16 base: x offset: 0.
+		asm tst: X16 imm: H_IMMUTABLE.
+		asm b: s if: COND_NE.
+		^self].
 	op = O_GUARDEQ ifTrue: [
 		s := self deoptLabelFor: n.
 		asm comment: ((nd flags bitAnd: NF_HOISTED) ~= 0 ifTrue: ['guard, once before the loop: the global holds another value than the class speculated: deoptimize'] ifFalse: ['guard: the global holds another value than the class speculated: deoptimize']).
@@ -1079,9 +1087,10 @@ emitIndexStore: n
 	ek := nd aux asInt32.
 	s := self deoptLabelFor: n.
 	x := self emitIndexCheck: n.
-	asm ldr: X16 base: x offset: 0.
-	asm tst: X16 imm: H_IMMUTABLE.
-	asm b: s if: COND_NE.
+	(nd flags bitAnd: NF_MUTABLE) = 0 ifTrue: [
+		asm ldr: X16 base: x offset: 0.
+		asm tst: X16 imm: H_IMMUTABLE.
+		asm b: s if: COND_NE].
 	asm add: X16 with: x imm: 16 + (8 * nd aux2).
 	asm add: X16 with: X16 with: X17 shift: SHIFT_LSL amount: (ek = E_PTR ifTrue: [3] ifFalse: [0]).
 	v := self src: nd c into: self scratchB.

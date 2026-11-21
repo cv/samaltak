@@ -369,6 +369,7 @@ typedef void (*prim_fn)(void);
 #define NF_HOISTED 64
 #define NF_INRANGE 2048
 #define NF_LAZY 32
+#define NF_MUTABLE 4096
 #define NF_NOBOUNDS 1024
 #define NF_PTRS 512
 #define NF_PURE 1
@@ -455,6 +456,7 @@ typedef void (*prim_fn)(void);
 #define O_GUARDEQ 47
 #define O_GUARDINT 16
 #define O_GUARDLE 44
+#define O_GUARDMUTABLE 48
 #define O_HOMESLOT 39
 #define O_IADD 9
 #define O_IAND 13
