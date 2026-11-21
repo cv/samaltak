@@ -185,6 +185,10 @@ testCopying
 	self assert: ('hello' copyFrom: 2 to: 4) = 'ell'.
 	self assert: ('hello' copyWithout: $l) = 'heo'.
 	self assert: ('abc' collect: [:c | c asUppercase]) = 'ABC'.
+	self assert: (#abc collect: [:c | c asUppercase]) class equals: ByteString.
+	self assert: ('abc' collect: [:c | c = $b ifTrue: [Character value: 16r3B2] ifFalse: [c]]) equals: (String with: $a with: (Character value: 16r3B2) with: $c).
+	self assert: ('abc' collect: [:c | c = $b ifTrue: [Character value: 16r3B2] ifFalse: [c]]) isWideString.
+	self should: ['abc' collect: [:c | c value]] raise: Error.
 	self assert: ('a1b2' select: [:c | c isDigit]) = '12'.
 	self assert: ('7' padLeftTo: 3 with: $0) = '007'.
 	self assert: ('7' padLeftTo: 3) = '  7'.

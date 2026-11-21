@@ -260,11 +260,15 @@ hasWideCharacterFrom: start to: stop
 
 !String methodsFor: 'enumerating'!
 collect: aBlock
-	"Answer a String of the Characters aBlock answers (widening if needed)."
-	| stream |
-	stream := WriteStream on: (String new: self size).
-	1 to: self size do: [:i | stream nextPut: (aBlock value: (self at: i))].
-	^stream contents
+	"Answer a String of the Characters aBlock answers: a ByteString until one of them does not fit a byte, a WideString from there on (a copy: no becomeForward:)."
+	| result c |
+	result := String new: self size.
+	1 to: self size do: [:i |
+		c := aBlock value: (self at: i).
+		(result streamAt: i put: c) == nil ifTrue: [
+			result := result asWideString.
+			result at: i put: c]].
+	^result
 ! !
 
 !String methodsFor: 'converting'!
