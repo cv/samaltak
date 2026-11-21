@@ -15521,7 +15521,7 @@ static oop known_object(int32_t v)
     if (((int32_t)nd->op == O_PARAM) && ((nd->aux >= 0) && (nd->aux < (ob_valid_slots < 64 ? ob_valid_slots : 64)))) {
         return ob_frame->fp[nd->aux];
     }
-    if (((int32_t)nd->op == O_GUARDCLASS) || ((int32_t)nd->op == O_CAST)) {
+    if (((int32_t)nd->op == O_GUARDCLASS) || (((int32_t)nd->op == O_GUARDCLOSURE) || ((int32_t)nd->op == O_CAST))) {
         return known_object(nd->a);
     }
     if ((int32_t)nd->op == O_OUTERLOAD) {

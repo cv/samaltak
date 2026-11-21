@@ -354,7 +354,7 @@ knownObject: v
 	nd := ir node: n.
 	"the slots closureSignatureOf: covers"
 	(nd op asInt32 = O_PARAM and: [nd aux >= 0 and: [nd aux < (obValidSlots min: 64)]]) ifTrue: [^obFrame fp at: nd aux].
-	(nd op asInt32 = O_GUARDCLASS or: [nd op asInt32 = O_CAST]) ifTrue: [^self knownObject: nd a].
+	(nd op asInt32 = O_GUARDCLASS or: [nd op asInt32 = O_GUARDCLOSURE or: [nd op asInt32 = O_CAST]]) ifTrue: [^self knownObject: nd a].
 	nd op asInt32 = O_OUTERLOAD ifTrue: [
 		c := self knownObject: nd a.
 		(c ~= 0 and: [(self isPtr: c) and: [(self rawClass: c) = memory clsBlock]]) ifFalse: [^0].
