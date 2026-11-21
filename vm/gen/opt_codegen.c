@@ -112598,7 +112598,7 @@ static int32_t record_state(int32_t s, int32_t kind, int32_t n, bool in_slots)
         }
         cg_meta_count = cg_meta_count + 1;
         w_5 = ({
-    if (((nd->flags & NF_HOISTED) != 0) && ((int32_t)nd->op == O_GUARDCLASS)) {
+    if (((nd->flags & NF_HOISTED) != 0) && (((int32_t)nd->op == O_GUARDCLASS) && (nd->state != opt_osr_state))) {
         v = nd->a;
         v_2 = ({
     nd_2 = opt_nodes + v;

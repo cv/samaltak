@@ -778,6 +778,28 @@ testAClassGuardMovedBeforeALoopReportsTheClass
 		self assert: (o ats: #(1 2 3) times: 20000) equals: 20000].
 	self stressed ifFalse: [self deny: ((self listingOf: #ats:times:) includesSubstring: 'inline cache')]
 !
+testLoopUnitsOfAnInheritedMethod
+	"A loop's unit of a method its receiver inherits is compiled for that receiver's class (a variant each: the sends to self are bound) and for the classes of what the frame holds in the slots it reads before the loop: receivers of several classes run it in turn, each right."
+	| a s y w |
+	Smalltalk vm jitParameters: #(nil '-eager' nil nil).
+	a := (1 to: 30000) asArray.
+	s := String new: 30000 withAll: $x.
+	s at: 1 put: $a.
+	y := ByteArray new: 30000.
+	y at: 1 put: 7.
+	w := (String new: 30000 withAll: $y) asWideString.
+	w at: 1 put: (Character value: 16r3B2).
+	4 timesRepeat: [
+		self assert: a reversed first equals: 30000.
+		self assert: a reversed last equals: 1.
+		self assert: s reversed last equals: $a.
+		self assert: s reversed first equals: $x.
+		self assert: (y reversed at: 30000) equals: 7.
+		self assert: w reversed last equals: (Character value: 16r3B2).
+		self assert: w reversed class equals: WideString.
+		self assert: (s inject: 0 into: [:sum :c | sum + c value]) equals: 29999 * 120 + 97.
+		self assert: (a inject: 0 into: [:sum :x | sum + x]) equals: 450015000]
+!
 testSmallIntegerDivisionInline
 	"SmallInteger / inline while its quotients are exact, also beside Float arithmetic; a remainder deoptimizes to the send (a Fraction), as does a zero divisor (ZeroDivide)."
 	| o before |

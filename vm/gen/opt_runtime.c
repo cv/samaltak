@@ -2601,6 +2601,14 @@ static jit_method *unit_of(oop m, int32_t s, int32_t t)
 static int32_t variant_of(frame *f, oop m, int32_t s, int32_t g)
 {
     jit_method *o;
+    uint32_t r_signature_of;
+    uint32_t w_2;
+    oop r;
+    oop c;
+    uint64_t h;
+    uint64_t x;
+    uint64_t r_mix;
+    uint64_t r_2;
     uint32_t w;
     int v;
     int32_t t;
@@ -2613,7 +2621,27 @@ static int32_t variant_of(frame *f, oop m, int32_t s, int32_t g)
     int32_t i_2;
     int64_t n_2;
     rt_unit_signature = 0;
-    w = closure_signature_of(f);
+    w = ({
+    w_2 = closure_signature_of(f);
+    r = f->fp[-1];
+    c = (r & 7) != 0 ? tag_class[r & 7] : *(uint64_t *)(r + 8);
+    if (c == *(uint64_t *)(m + 16 + 8)) {
+        r_signature_of = w_2;
+        goto exit_signature_of;
+    }
+    h = (uint64_t)w_2;
+    x = (uint64_t)(uint32_t)(((*(uint64_t *)c) >> H_HASH_SHIFT) & H_HASH_MASK) + 1;
+    w_2 = (uint32_t)(({
+    r_2 = (h ^ x) * 6364136223846793005ULL;
+    r_mix = r_2 ^ (r_2 >> 29);
+    r_mix; }) & 0xFFFFFFFFLL);
+    if (w_2 == 0) {
+        r_signature_of = 1;
+        goto exit_signature_of;
+    }
+    r_signature_of = w_2;
+exit_signature_of:;
+    r_signature_of; });
     if (w == 0) {
         return g;
     }

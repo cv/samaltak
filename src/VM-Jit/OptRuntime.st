@@ -164,13 +164,13 @@ tierUp: f loop: loop
 	^o start
 !
 variantOf: f method: m start: s osr: g
-	"The key of the unit f enters at loop key g: the variant (bits 17 and up: 1 to OPT_MAX_VARIANTS) whose signature is f's (closureSignatureOf:), a new one if there is room (OPT_MAX_VARIANT_UNITS in all, a free unit) and none failed to compile, else the loop's plain unit (variant 0, which inlines no closures other frames made). rtUnitSignature: the variant's signature, 0 for the plain unit."
+	"The key of the unit f enters at loop key g: the variant (bits 17 and up: 1 to OPT_MAX_VARIANTS) whose signature is f's (signatureOf:method:), a new one if there is room (OPT_MAX_VARIANT_UNITS in all, a free unit) and none failed to compile, else the loop's plain unit (variant 0, which inlines no closures other frames made). rtUnitSignature: the variant's signature, 0 for the plain unit."
 	<function>
 	<var: #f type: 'Frame *'>
 	<var: #o type: 'JitMethod *'>
 	| w t o |
 	rtUnitSignature := 0.
-	w := self closureSignatureOf: f.
+	w := self signatureOf: f method: m.
 	w = 0 ifTrue: [^g].
 	1 to: OPT_MAX_VARIANTS do: [:v |
 		t := g + (v asInt64 << 17) asInt32.
@@ -186,6 +186,18 @@ variantOf: f method: m start: s osr: g
 					rtUnitSignature := w.
 					^t]]].
 	^g
+!
+signatureOf: f method: m
+	"What a variant of a loop's unit for f is compiled for: the closures other frames made (closureSignatureOf:) and, where m is inherited, the class of the receiver (OptBuilder>>guardReceiverClass:: its sends to self find their methods); 0: nothing, the plain unit."
+	<var: #f type: 'Frame *'>
+	<returns: 'uint32_t'>
+	| w c |
+	w := self closureSignatureOf: f.
+	c := interpreter receiverClass: (f fp at: -1).
+	c = (self loadRef: m at: CM_CLASS) ifTrue: [^w].
+	w := ((self mix: w asUInt64 with: (self hashOf: c) asUInt64 + 1) bitAnd: 16rFFFFFFFF) asUInt32.
+	w = 0 ifTrue: [^1].
+	^w
 !
 closureSignatureOf: f
 	"The code of the closures other frames made that a loop's unit for f may inline (OptBuilder>>foreignClosureOf:numArgs:pc:act:), and where they are: those in f's slots (the first 64), and those in the temps (the first 32) of every Context out from such a closure (OptBuilder>>knownOuterTemp:levels:of:), hashed into 32 bits; 0 if there are none, or too many Contexts."

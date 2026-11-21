@@ -165,12 +165,47 @@ buildOsr: a
 	ir osrEntry: obCurBlock state: (self stateAct: a pc: obOsrPc depth: obValidSlots) numbers: self frameNumbers.
 	ir osrFloats: self frameFloats.
 	ir osrInts: self frameInts.
+	self guardReceiverClass: a.
 	b := self blockAt: obOsrPc act: a.
 	self goto: b.
 	self buildAct: a.
 	self bailed ifTrue: [^false].
 	0 to: ir blockCount - 1 do: [:k | ((ir block: k) flags bitAnd: BF_SEALED) = 0 ifTrue: [self seal: k]].
 	^self bailed not
+!
+guardReceiverClass: a
+	"A variant of a loop's unit whose method the frame's receiver inherits (OptRuntime>>signatureOf:method:: the variant is that class's): the receiver is of that class, guarded once at the entry, so the sends to self are bound."
+	| cls |
+	(obFrame isNull or: [obForeign not]) ifTrue: [^self].
+	cls := interpreter receiverClass: (obFrame fp at: -1).
+	cls = (self loadRef: obRootMethod at: CM_CLASS) ifTrue: [^self].
+	(ir act: a) receiver: (self guard: (ir act: a) receiver class: cls state: ir osrState)
+!
+frameClassOf: v
+	"v is a loop unit's parameter, a frame slot (v reaches here as it was at the entry): the class of the object the frame holds there now, which the unit takes it for from here on, guarded once at the end of the entry block (as OptPasses>>guardFrameInt: guards a SmallInteger: failing, the loop's head continues in the interpreter and the loop's units take no slot for anything again). 0: not one, not an object, a closure or Context (they have their own ways), or that failed before."
+	<function>
+	| n nd o cls g |
+	(obFrame isNull or: [obOsrPc < 0 or: [ir osrState < 0]]) ifTrue: [^0 asUInt64].
+	n := self liveValueOf: v.
+	nd := ir node: n.
+	(nd op asInt32 = O_PARAM and: [nd tkind asInt32 = T_ANY and: [nd aux >= 0 and: [nd aux < (obValidSlots min: 64)]]]) ifFalse: [^0 asUInt64].
+	o := obFrame fp at: nd aux.
+	(self isPtr: o) ifFalse: [^0 asUInt64].
+	cls := self rawClass: o.
+	(cls = memory clsBlock or: [cls = memory clsContext]) ifTrue: [^0 asUInt64].
+	((feedback flagsAt: obRootMethod pc: obOsrPc) bitAnd: feedback deoptHoisted) ~= 0 ifTrue: [^0 asUInt64].
+	g := ir newNode: O_GUARDCLASS rep: R_OOP.
+	ir full ifTrue: [^0 asUInt64].
+	(ir node: g) a: n.
+	(ir node: g) aux: cls asInt64.
+	(ir node: g) state: ir osrState.
+	(ir node: g) flags: (NF_GUARD bitOr: NF_HOISTED).
+	(ir node: g) bcact: (ir state: ir osrState) act.
+	(ir node: g) bcpc: (ir state: ir osrState) pc.
+	self type: g class: cls.
+	ir insert: g before: (ir block: obEntryBlock) last.
+	self type: n class: cls.
+	^cls
 !
 frameNumbers
 	"Bit i: the frame's slot i holds a SmallInteger or a Float (the first 64)."
@@ -1348,11 +1383,15 @@ special: k pc: pc act: a rcvSlot: r
 		^self inlineFrameClosure: x info: n pc: pc act: a rcvSlot: r argc: argc].
 	((k = 21 or: [k = 22 or: [k = 30]]) and: [self inlineForeignClosure: x pc: pc act: a rcvSlot: r argc: argc]) ifTrue: [^self].
 	k = 29 ifTrue: [
+		"the class of a value of a known class: a constant"
+		(self knownClassOf: x) ~= 0 ifTrue: [
+			self push: (self constant: (self knownClassOf: x)) act: a depth: r.
+			^self].
 		n := self add: O_CLASSOF rep: R_OOP.
 		(ir node: n) a: x.
 		self push: n act: a depth: r.
 		^self].
-	(k >= 16 and: [k <= 18 and: [(self knownClassOf: x) = 0 and: [(runtime flag: runtime primsFlag) and: [(feedback siteAt: (ir act: a) method pc: pc) isNull]]]]) ifTrue: [
+	(k >= 16 and: [k <= 18 and: [(self knownClassOf: x) = 0 and: [(self frameClassOf: x) = 0 and: [(runtime flag: runtime primsFlag) and: [(feedback siteAt: (ir act: a) method pc: pc) isNull]]]]]) ifTrue: [
 		"no feedback: the lower tier's Array fast path took them all"
 		self write: (self var: a slot: r) value: (self guard: x class: memory clsArray state: (self stateAct: a pc: pc depth: (self depthAt: pc act: a)))].
 	((k = 21 or: [k = 22 or: [k = 30]]) and: [(self knownClassOf: x) = 0 and: [(runtime flag: runtime callsFlag) and: [(feedback siteAt: (ir act: a) method pc: pc) isNull]]]) ifTrue: [
@@ -1542,6 +1581,7 @@ inlineSend: sel argc: argc kind: kind special: k pc: pc act: a rcvSlot: r
 		cls := self loadRef: (self loadRef: (ir act: a) method at: CM_CLASS) at: BEH_SUPERCLASS.
 		^self send: sel to: rcv class: cls argc: argc kind: kind pc: pc act: a rcvSlot: r].
 	cls := self knownClassOf: rcv.
+	cls = 0 ifTrue: [cls := self frameClassOf: rcv].
 	cls ~= 0 ifTrue: [^self send: sel to: rcv class: cls argc: argc kind: kind pc: pc act: a rcvSlot: r].
 	site := feedback siteAt: (ir act: a) method pc: pc.
 	(libc getenv: 'SAMALTAK_OPT_TRACE') notNull ifTrue: [
@@ -1780,6 +1820,10 @@ inlinePrimitive: p class: cls argc: argc pc: pc act: a rcvSlot: r
 	kind = 0 ifTrue: [^false].
 	rcv := self read: (self var: a slot: r).
 	(kind = OPK_CLASS and: [argc = 0]) ifTrue: [
+		"of a value of a known class: a constant (cls may be where a super send looks)"
+		(self knownClassOf: rcv) ~= 0 ifTrue: [
+			self push: (self constant: (self knownClassOf: rcv)) act: a depth: r.
+			^true].
 		n := self add: O_CLASSOF rep: R_OOP.
 		(ir node: n) a: rcv.
 		self push: n act: a depth: r.
@@ -1883,6 +1927,7 @@ knownClassOf: v
 	nd tkind asInt32 = T_SMI ifTrue: [^memory clsSmallint].
 	nd tkind asInt32 = T_FLOAT ifTrue: [^memory clsSmallfloat].
 	nd tkind asInt32 = T_NIL ifTrue: [^self classOf: memory nilOop].
+	nd tkind asInt32 = T_CHAR ifTrue: [^memory clsChar].
 	(nd tkind asInt32 = T_OBJ and: [nd tcls ~= 0]) ifTrue: [^nd tcls].
 	^0
 !
