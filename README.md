@@ -33,9 +33,6 @@ For Zed syntax highlighting, install the [Smalltalk extension](tools/zed-smallta
 - `docs/ui.md` — the layers from GPU to tools
 - `docs/platform.md` — the platform layer and its primitives
 - `docs/uefi.md` — the headless VM as a UEFI application (bare metal, QEMU)
-<<<<<<< HEAD
 - `docs/crypto.md` — hashes, MACs, ciphers and randomness in Smalltalk (System-Crypto)
-=======
 - `docs/agent.md` — the in-image coding agent: conversations, tools, the OpenAI and Anthropic Messages providers, API keys from the host
->>>>>>> 56c8541 (Agent: the Agent window uses a configured API-key account and says how to set its key)
 - `prototypes/` — the HTML prototypes the UI started from
