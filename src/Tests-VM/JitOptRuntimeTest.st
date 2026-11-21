@@ -1163,14 +1163,18 @@ testFusedFillIsInTheCode
 	self deny: ((self listingOf: #selfB:at:) includesSubstring: 'the replace that follows')
 !
 testDivisionByAConstantIsInTheCode
-	"Division and modulo by constants make no division instruction."
-	| o |
+	"Division and modulo by constants make no division instruction. That an instruction saw a Float is a byte the instructions of all methods share by hash (testCountersBesideFloatsAreSmallIntegers): at the timing priority no other Process runs and sets the division's between the method's runs and its listing, which would make it a send."
+	| o active priority listing |
 	Smalltalk vm jitParameters: #(nil '-eager' nil nil).
 	self define: 'byConstants: x ^(x // 7) + (x \\ 8) + (x rem: -3) + (x quo: 1000)'.
 	o := JitRuntimeTestSubject new.
-	1 to: 1200 do: [:i | self assert: (o byConstants: -12345 - i) equals: (-12345 - i // 7) + (-12345 - i \\ 8) + (-12345 - i rem: -3) + (-12345 - i quo: 1000)].
-	self assert: ((self listingOf: #byConstants:) includesSubstring: 'division by the constant 7').
-	self deny: ((self listingOf: #byConstants:) includesSubstring: (self isX64 ifTrue: ['idiv'] ifFalse: ['sdiv']))
+	active := Processor activeProcess.
+	priority := active priority.
+	active priority: Processor timingPriority.
+	[1 to: 1200 do: [:i | self assert: (o byConstants: -12345 - i) equals: (-12345 - i // 7) + (-12345 - i \\ 8) + (-12345 - i rem: -3) + (-12345 - i quo: 1000)].
+	 listing := self listingOf: #byConstants:] ensure: [active priority: priority].
+	self assert: (listing includesSubstring: 'division by the constant 7').
+	self deny: (listing includesSubstring: (self isX64 ifTrue: ['idiv'] ifFalse: ['sdiv']))
 !
 testFlooredDivisionByAPowerOfTwo
 	"x // 2^k and x \\ 2^k of a SmallInteger are a shift and a mask of the tagged value: what a divisor that is no constant gives, for both signs and at the ends of the range."
