@@ -1,5 +1,5 @@
 Object subclass: #AgentConversation
-	instanceVariableNames: 'context items objects tools provider process done streaming usage changeBlock initialInstructions'
+	instanceVariableNames: 'context items objects tools provider defaultProvider process done streaming usage changeBlock initialInstructions'
 	classVariableNames: ''
 	package: 'System-Agent'!
 
@@ -9,7 +9,7 @@ AgentConversation comment: 'I am a conversation with the coding agent (docs/agen
 
 ask: runs a turn in a Process of its own (''agent turn''): send the developer instructions and every item''s wire to the provider, show the streamed text, record the completed output items in order and run each tool call; while there were tool calls, send again. Any error ends the turn with an #error item. ask: while a turn runs is an error; I am busy (isBusy) from before the turn''s user message is among my items. stop ends a turn from another Process: the provider is cancelled, the turn''s Process and its running cell terminated, every tool call left without output answered ''error: stopped by the user'', so the next request is valid.
 
-The provider (late-bound, default a new CodexProvider) answers send:tools:onText:onItem: (blocking; the usage Dictionary or nil; AgentError on failure), cancel and modelName. My onChange: block is evaluated after every visible change: an item added, streaming text grown, a turn begun or ended.'!
+The provider (provider:, else a default one: an AnthropicProvider while ApiKeyAccount default isConfigured, else a CodexProvider, chosen again when that changes) answers send:tools:onText:onItem: (blocking; the usage Dictionary or nil; AgentError on failure), cancel and modelName. My onChange: block is evaluated after every visible change: an item added, streaming text grown, a turn begun or ended.'!
 
 !AgentConversation methodsFor: 'initialization'!
 initialize
@@ -36,7 +36,14 @@ toolNamed: aString
 	^tools detect: [:each | each name = aString] ifNone: [nil]
 !
 provider
-	^provider ifNil: [provider := (Smalltalk at: #CodexProvider ifAbsent: [AgentError signal: 'No provider: CodexProvider is not in this image']) new]
+	"The provider set, else the default one for ApiKeyAccount default (see my comment)."
+	| class |
+	provider isNil ifFalse: [^provider].
+	class := ApiKeyAccount default isConfigured
+		ifTrue: [AnthropicProvider]
+		ifFalse: [Smalltalk at: #CodexProvider ifAbsent: [AgentError signal: 'No provider: CodexProvider is not in this image']].
+	defaultProvider class == class ifFalse: [defaultProvider := class new].
+	^defaultProvider
 !
 provider: aProvider
 	provider := aProvider
@@ -117,7 +124,7 @@ stop
 	turn isNil ifTrue: [^self].
 	process := nil.
 	turn terminate.
-	provider ifNotNil: [:p | p cancel].
+	(provider ifNil: [defaultProvider]) ifNotNil: [:p | p cancel].
 	items do: [:each | each isOpen ifTrue: [each failed: true; output: 'error: stopped by the user']].
 	items add: (AgentItem kind: #error text: 'Stopped.').
 	self endTurn
