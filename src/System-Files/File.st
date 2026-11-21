@@ -1,9 +1,11 @@
 Object subclass: #File
 	instanceVariableNames: ''
-	classVariableNames: ''
+	classVariableNames: 'Mounts'
 	package: 'System-Files'!
 
-File comment: 'I am the facade for the platform''s file primitives; everything is on my class side. Paths are Strings (UTF-8 on the OS side), joined with /. Handles are SmallIntegers owned by FileStream. Failures signal FileError with the platform''s reason.'!
+File comment: 'I am the facade for the platform''s file primitives; everything is on my class side. Paths are Strings (UTF-8 on the OS side), joined with /. Handles are SmallIntegers owned by FileStream. Failures signal FileError with the platform''s reason.
+
+A mount table (File mountTable:, a MountTable) takes over the paths it covers: they are its volumes'' (stat:, open:mode:, Directory entries:), and a file opened on one is a VolumeFile where a handle would be, which the handle primitives'' fallbacks (they fail for it) send the operation to. On UEFI, which has no files of its own, FirmwareVolumes installs one that covers every path; on an operating system there is none unless one is set (tests, an ext4 image mounted in a directory), and paths it does not cover are the platform''s.'!
 
 !File class methodsFor: 'testing'!
 exists: aPath
@@ -21,6 +23,7 @@ isFile: aPath
 !File class methodsFor: 'accessing'!
 stat: aPath
 	"Answer {exists. isDirectory. size. modification time in UTC microseconds}."
+	(self mountTableFor: aPath) ifNotNil: [:mounts | ^mounts stat: aPath].
 	^self primStat: aPath
 !
 sizeOf: aPath
@@ -63,13 +66,34 @@ lineCountOf: aPath
 
 !File class methodsFor: 'file operations'!
 delete: aPath
+	(self mountTableFor: aPath) ifNotNil: [:mounts | ^mounts delete: aPath].
 	(self primDelete: aPath) isNil ifTrue: [^self signalErrorFor: aPath]
 !
 deleteIfExists: aPath
 	(self exists: aPath) ifTrue: [self delete: aPath]
 !
 rename: oldPath to: newPath
+	(self mountTableFor: oldPath) ifNotNil: [:mounts | ^mounts rename: oldPath to: newPath].
+	(self mountTableFor: newPath) ifNotNil: [:mounts | ^mounts rename: oldPath to: newPath].
 	(self primRename: oldPath to: newPath) isNil ifTrue: [^self signalErrorFor: oldPath]
+! !
+
+!File class methodsFor: 'mounting'!
+mountTable
+	"The MountTable that takes over the paths it covers, or nil."
+	^Mounts
+!
+mountTable: aMountTableOrNil
+	Mounts := aMountTableOrNil
+!
+mountTableFor: aPath
+	"The mount table if it covers aPath, else nil (the platform's)."
+	^(Mounts notNil and: [Mounts covers: aPath]) ifTrue: [Mounts] ifFalse: [nil]
+!
+open: aPath mode: mode
+	"A handle for FileStream: the platform's (nil if it cannot open aPath), or a mounted volume's VolumeFile (it signals FileError if it cannot)."
+	(self mountTableFor: aPath) ifNotNil: [:mounts | ^mounts open: aPath mode: mode].
+	^self primOpen: aPath mode: mode
 ! !
 
 !File class methodsFor: 'paths'!
@@ -117,33 +141,34 @@ primOpen: aPath mode: mode
 	^nil
 !
 primClose: handle
+	"A handle that is not an Integer is a VolumeFile (open:mode:); the primitive fails for it."
 	<primitive: 'fileClose'>
-	^nil
+	^handle isInteger ifTrue: [nil] ifFalse: [handle close]
 !
 primRead: handle into: aByteArray startingAt: start count: count
 	"Answer the number of bytes read (0 at the end of the file), or nil."
 	<primitive: 'fileRead'>
-	^nil
+	^handle isInteger ifTrue: [nil] ifFalse: [handle readInto: aByteArray startingAt: start count: count]
 !
 primWrite: handle from: aByteArray startingAt: start count: count
 	<primitive: 'fileWrite'>
-	^nil
+	^handle isInteger ifTrue: [nil] ifFalse: [handle writeFrom: aByteArray startingAt: start count: count]
 !
 primSize: handle
 	<primitive: 'fileSize'>
-	^nil
+	^handle isInteger ifTrue: [nil] ifFalse: [handle size]
 !
 primPosition: handle
 	<primitive: 'filePosition'>
-	^nil
+	^handle isInteger ifTrue: [nil] ifFalse: [handle position]
 !
 primSeek: handle to: position
 	<primitive: 'fileSeek'>
-	^nil
+	^handle isInteger ifTrue: [nil] ifFalse: [handle position: position]
 !
 primFlush: handle
 	<primitive: 'fileFlush'>
-	^nil
+	^handle isInteger ifTrue: [nil] ifFalse: [handle flush]
 !
 primDelete: aPath
 	<primitive: 'fileDelete'>

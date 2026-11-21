@@ -3,12 +3,12 @@ Stream subclass: #FileStream
 	classVariableNames: ''
 	package: 'System-Files'!
 
-FileStream comment: 'I read and write a file through a platform handle. In text mode (ascii, the default) I read and write Characters, UTF-8 encoded (an ill-formed sequence reads as U+FFFD, as ByteArray>>utf8Decoded; positions count bytes); in binary mode bytes (SmallIntegers, ByteArrays). Reads go through readBuffer, writes collect in writeBuffer until flush, close, a seek or a read. Close me when done; the ...do: and contentsAndClose forms do it for you, even on errors. A FileStream that is garbage collected unclosed is flushed and closed by the finalization process (WeakRegistry).'!
+FileStream comment: 'I read and write a file through a platform handle (or a mounted volume''s VolumeFile, File open:mode:). In text mode (ascii, the default) I read and write Characters, UTF-8 encoded (an ill-formed sequence reads as U+FFFD, as ByteArray>>utf8Decoded; positions count bytes); in binary mode bytes (SmallIntegers, ByteArrays). Reads go through readBuffer, writes collect in writeBuffer until flush, close, a seek or a read. Close me when done; the ...do: and contentsAndClose forms do it for you, even on errors. A FileStream that is garbage collected unclosed is flushed and closed by the finalization process (WeakRegistry).'!
 
 !FileStream methodsFor: 'initialization'!
 open: aPath mode: mode
 	name := aPath.
-	handle := File primOpen: aPath mode: mode.
+	handle := File open: aPath mode: mode.
 	handle isNil ifTrue: [
 		^(mode = 0 and: [(File exists: aPath) not])
 			ifTrue: [FileDoesNotExist signal: 'No such file: ', aPath path: aPath]
