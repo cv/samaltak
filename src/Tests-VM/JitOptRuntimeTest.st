@@ -831,6 +831,31 @@ testOuterTempsOfAClosureInlinedInALoop
 	4 timesRepeat: [o eachD: a do: adder].
 	self assert: (adder value: 0) equals: 4 * 450015000
 !
+testRangesOfBytesAndCharacters
+	"A byte or a Character loaded from bytes or a string is below 256: stored into bytes or a string it is not checked, the index it makes with a constant added is checked once, where the loop is entered, against the size of the table it reads. A table too small fails that check: the loop runs in the lower tier, which fails at the element out of bounds, and the code compiled next checks every access."
+	| o s t short expected b |
+	Smalltalk vm jitParameters: #(nil '-eager' nil nil).
+	self define: 'map: s with: t | r | r := String new: s size. 1 to: s size do: [:i | r at: i put: (t at: (s at: i) asInteger + 1)]. ^r'.
+	self define: 'sumBytes: b | sum | sum := 0. 1 to: b size do: [:i | sum := sum + ((b at: i) + 1)]. ^sum'.
+	o := JitRuntimeTestSubject new.
+	t := String new: 256.
+	1 to: 256 do: [:i | t at: i put: (Character value: 256 - i)].
+	s := String new: 20000.
+	1 to: s size do: [:i | s at: i put: (Character value: i \\ 256)].
+	expected := s collect: [:c | Character value: 255 - c asInteger].
+	b := ByteArray new: 20000.
+	1 to: b size do: [:i | b at: i put: i \\ 256].
+	4 timesRepeat: [
+		self assert: (o map: s with: t) equals: expected.
+		self assert: (o sumBytes: b) equals: (b inject: 0 into: [:sum :each | sum + each + 1])].
+	self stressed ifFalse: [
+		self assert: ((self listingOf: #map:with:) includesSubstring: 'a byte or a Character below 256: unchecked').
+		self assert: ((self listingOf: #map:with:) includesSubstring: 'within bounds: checked once before the loop')].
+	short := t copyFrom: 1 to: 100.
+	3 timesRepeat: [
+		self should: [o map: s with: short] raise: Error.
+		self assert: (o map: s with: t) equals: expected]
+!
 testLoopUnitsOfAnInheritedMethod
 	"A loop's unit of a method its receiver inherits is compiled for that receiver's class (a variant each: the sends to self are bound) and for the classes of what the frame holds in the slots it reads before the loop: receivers of several classes run it in turn, each right."
 	| a s y w |

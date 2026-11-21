@@ -32,6 +32,8 @@ static void hoist_out_of(int32_t h);
 static bool opt_passes_loop_changes_outer_temp(int32_t h, int64_t i);
 static int64_t opt_passes_loop_reaches_sp(int32_t h, int32_t b, int64_t sp);
 static void outer_slots_out_of(int32_t h, int64_t entry);
+static void range_bounds_out_of(int32_t h, int64_t entry, int64_t index);
+static void ranges(void);
 static void remove_dead(void);
 static void remove_unreachable(void);
 static void resolve_operands(void);
@@ -173,7 +175,7 @@ exit_is_before_2:;
                             goto exit_guard;
                         }
                         (opt_nodes + g)->a = -1;
-                        (opt_nodes + g)->aux = 3;
+                        (opt_nodes + g)->aux = 3LL;
                         (opt_nodes + g)->b = i0;
                         (opt_nodes + g)->state = s;
                         (opt_nodes + g)->flags = 68;
@@ -188,7 +190,7 @@ exit_is_before_2:;
                     }
                     (opt_nodes + g_2)->a = i0;
                     if (i0 < 0) {
-                        (opt_nodes + g_2)->aux = 3;
+                        (opt_nodes + g_2)->aux = 3LL;
                     }
                     (opt_nodes + g_2)->b = limit;
                     (opt_nodes + g_2)->state = s;
@@ -216,7 +218,7 @@ exit_is_before_2:;
                 }
                 (opt_nodes + g_3)->a = limit;
                 if (limit < 0) {
-                    (opt_nodes + g_3)->aux = 3;
+                    (opt_nodes + g_3)->aux = 3LL;
                 }
                 (opt_nodes + g_3)->b = size;
                 (opt_nodes + g_3)->state = s;
@@ -274,6 +276,7 @@ void cleanup(int32_t entry)
         value_numbers();
         resolve_operands();
     }
+    ranges();
     if ((jit_flags & JIT_FLAG_HOIST) != 0) {
         hoist_guards();
     }
@@ -1124,6 +1127,7 @@ exit_is_closure_load:;
     }
     outer_slots_out_of(h, entry);
     bounds_out_of(h, entry, index);
+    range_bounds_out_of(h, entry, index);
 }
 
 /* OptPasses>>loop:changesOuterTemp: */
@@ -1270,6 +1274,193 @@ exit_is_before:;
                 }
                 n = (opt_nodes + n)->next;
             }
+        }
+    }
+}
+
+/* OptPasses>>rangeBoundsOutOf:entry:index: */
+static void range_bounds_out_of(int32_t h, int64_t entry, int64_t index)
+{
+    int64_t s;
+    int32_t m;
+    opt_node *nd;
+    int32_t b;
+    bool r_block;
+    int32_t l;
+    int32_t n;
+    opt_node *i;
+    int32_t x;
+    bool r_is_before;
+    int32_t b_2;
+    int32_t a;
+    int32_t size;
+    int32_t n_2;
+    int64_t k;
+    int32_t g;
+    s = -1;
+    for (m = 0; m <= opt_node_count - 1; m++) {
+        nd = opt_nodes + m;
+        if ((((int32_t)nd->op == O_INDEXLOAD) || ((int32_t)nd->op == O_INDEXSTORE)) && ((nd->block >= 0) && (((nd->flags & NF_NOBOUNDS) == 0) && ({
+    b = nd->block;
+    ({
+    l = (opt_blocks + b)->loop;
+    while (l >= 0) {
+        if (l == h) {
+            r_block = true;
+            goto exit_block;
+        }
+        l = ps_loop_outer[l];
+    }
+    r_block = false;
+exit_block:;
+    r_block; }); })))) {
+            n = opt_ir_resolve(nd->b);
+            i = opt_nodes + n;
+            x = opt_ir_resolve(nd->a);
+            if ((i->lo >= 1) && ((i->hi < 0x40000000) && (({
+    if ((int32_t)(opt_nodes + x)->op == O_CONST) {
+        r_is_before = true;
+        goto exit_is_before;
+    }
+    b_2 = (opt_nodes + x)->block;
+    r_is_before = (b_2 >= 0) && (!((ps_pre[h] <= ps_pre[b_2]) && (ps_post[b_2] <= ps_post[h])));
+exit_is_before:;
+    r_is_before; }) && (((int32_t)(opt_nodes + x)->tkind == T_OBJ) && ({
+    a = nd->bcact;
+    (flags_at((opt_acts + a)->method, nd->bcpc) & FB_DEOPT_HOISTED) == 0; }))))) {
+                if (s < 0) {
+                    s = opt_passes_state((opt_blocks + h)->entry_state, index, h);
+                    if (opt_full) {
+                        return;
+                    }
+                }
+                size = new_node(O_SIZE, R_OOP);
+                if (opt_full) {
+                    return;
+                }
+                nd = opt_nodes + m;
+                (opt_nodes + size)->a = x;
+                (opt_nodes + size)->aux = nd->aux;
+                (opt_nodes + size)->aux2 = nd->aux2;
+                (opt_nodes + size)->tkind = T_SMI;
+                (opt_nodes + size)->bcact = nd->bcact;
+                (opt_nodes + size)->bcpc = nd->bcpc;
+                insert(size, (opt_blocks + entry)->last);
+                n_2 = opt_ir_resolve(nd->b);
+                k = (opt_nodes + n_2)->hi;
+                g = new_node(O_GUARDLE, R_NONE);
+                if (opt_full) {
+                    goto exit_guard;
+                }
+                (opt_nodes + g)->a = -1;
+                (opt_nodes + g)->aux = (int64_t)(uint64_t)((k << 1) | 1);
+                (opt_nodes + g)->b = size;
+                (opt_nodes + g)->state = s;
+                (opt_nodes + g)->flags = 68;
+                (opt_nodes + g)->bcact = (opt_nodes + m)->bcact;
+                (opt_nodes + g)->bcpc = (opt_nodes + m)->bcpc;
+                insert(g, (opt_blocks + entry)->last);
+            exit_guard:;
+                if (opt_full) {
+                    return;
+                }
+                (opt_nodes + m)->flags = (opt_nodes + m)->flags | NF_NOBOUNDS;
+            }
+        }
+    }
+}
+
+/* OptPasses>>ranges */
+static void ranges(void)
+{
+    int32_t i;
+    int32_t b;
+    int32_t n;
+    opt_node *nd;
+    int32_t op;
+    int32_t n_2;
+    opt_node *x;
+    int32_t n_3;
+    int32_t n_4;
+    int32_t n_5;
+    opt_node *y;
+    int64_t lo;
+    int64_t hi;
+    int32_t n_6;
+    int32_t n_7;
+    int32_t n_8;
+    int32_t n_9;
+    for (i = 0; i <= ps_order_count - 1; i++) {
+        b = ps_order[i];
+        n = (opt_blocks + b)->first;
+        while (n >= 0) {
+            nd = opt_nodes + n;
+            op = (int32_t)nd->op;
+            if ((op == O_INDEXLOAD) && (nd->aux != E_PTR)) {
+                nd->lo = 0;
+                nd->hi = 255;
+            }
+            if ((op == O_CAST) || ((op == O_GUARDINT) || (op == O_GUARDCLASS))) {
+                n_2 = opt_ir_resolve(nd->a);
+                x = opt_nodes + n_2;
+                nd->lo = nd->lo > x->lo ? nd->lo : x->lo;
+                nd->hi = nd->hi < x->hi ? nd->hi : x->hi;
+            }
+            if (op == O_CHARCONV) {
+                n_3 = opt_ir_resolve(nd->a);
+                x = opt_nodes + n_3;
+                if ((nd->aux != 0) && ((x->lo >= 0) && (x->hi <= CHAR_VALUE_MAX))) {
+                    nd->flags = nd->flags | NF_INRANGE;
+                    nd->state = -1;
+                }
+                nd->lo = x->lo > 0 ? x->lo : 0;
+                nd->hi = x->hi < CHAR_VALUE_MAX ? x->hi : CHAR_VALUE_MAX;
+            }
+            if ((op == O_IADD) || (op == O_ISUB)) {
+                n_4 = opt_ir_resolve(nd->a);
+                x = opt_nodes + n_4;
+                n_5 = opt_ir_resolve(nd->b);
+                y = opt_nodes + n_5;
+                if (op == O_IADD) {
+                    lo = x->lo + y->lo;
+                    hi = x->hi + y->hi;
+                } else {
+                    lo = x->lo - y->hi;
+                    hi = x->hi - y->lo;
+                }
+                if ((lo >= VM_INT_MIN) && (hi <= VM_INT_MAX)) {
+                    nd->flags = nd->flags | NF_INRANGE;
+                    nd->state = -1;
+                    nd->lo = lo;
+                    nd->hi = hi;
+                }
+            }
+            if (op == O_IAND) {
+                n_6 = opt_ir_resolve(nd->a);
+                x = opt_nodes + n_6;
+                n_7 = opt_ir_resolve(nd->b);
+                y = opt_nodes + n_7;
+                if ((x->lo >= 0) || (y->lo >= 0)) {
+                    nd->lo = 0;
+                    nd->hi = (x->lo >= 0 ? x->hi : VM_INT_MAX) < (y->lo >= 0 ? y->hi : VM_INT_MAX) ? x->lo >= 0 ? x->hi : VM_INT_MAX : y->lo >= 0 ? y->hi : VM_INT_MAX;
+                }
+            }
+            if ((op == O_IMOD) && (nd->aux == 0)) {
+                n_8 = opt_ir_resolve(nd->b);
+                y = opt_nodes + n_8;
+                if ((y->lo == y->hi) && (y->lo > 0)) {
+                    nd->lo = 0;
+                    nd->hi = y->lo - 1;
+                }
+            }
+            if ((op == O_INDEXSTORE) && (nd->aux != E_PTR)) {
+                n_9 = opt_ir_resolve(nd->c);
+                x = opt_nodes + n_9;
+                if (((int32_t)x->tkind == (nd->aux == E_CHAR ? T_CHAR : T_SMI)) && ((x->lo >= 0) && (x->hi <= 255))) {
+                    nd->flags = nd->flags | NF_INRANGE;
+                }
+            }
+            n = nd->next;
         }
     }
 }

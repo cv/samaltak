@@ -367,6 +367,7 @@ typedef void (*prim_fn)(void);
 #define NF_DEAD 2
 #define NF_GUARD 4
 #define NF_HOISTED 64
+#define NF_INRANGE 2048
 #define NF_LAZY 32
 #define NF_NOBOUNDS 1024
 #define NF_PTRS 512

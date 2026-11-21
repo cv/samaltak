@@ -10870,6 +10870,8 @@ exit_type:;
     r_cast = n_70;
     r_cast; });
             (opt_nodes + val)->tkind = T_CHAR;
+            (opt_nodes + val)->lo = 0;
+            (opt_nodes + val)->hi = 255;
         }
         var_20 = (opt_acts + a)->var_base + r;
         if ((var_20 < OPT_MAX_VARS) && (ob_arg_flags[var_20] == 2)) {

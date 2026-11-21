@@ -1931,9 +1931,11 @@ inlinePrimitive: p class: cls argc: argc pc: pc act: a rcvSlot: r
 		(ir node: n) aux2: fixed.
 		(ir node: n) state: s.
 		(ek = E_CHAR and: [(self knownClassOf: val) = 0]) ifTrue: [
-			"stored: a Character"
+			"stored: a Character below 256"
 			val := self cast: val class: memory clsChar.
-			(ir node: val) tkind: T_CHAR].
+			(ir node: val) tkind: T_CHAR.
+			(ir node: val) lo: 0.
+			(ir node: val) hi: 255].
 		self push: val act: a depth: r.
 		^true].
 	^false

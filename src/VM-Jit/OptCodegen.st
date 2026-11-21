@@ -739,6 +739,12 @@ emitNode: n block: b next: nextBlock
 			asm lsr: r with: x imm: 2.
 			asm orr: r with: r imm: 1.
 			^self def: n from: r].
+		(nd flags bitAnd: NF_INRANGE) ~= 0 ifTrue: [
+			asm comment: 'the Character of a code point'.
+			asm asr: X16 with: x imm: 1.
+			asm lsl: r with: X16 imm: 3.
+			asm orr: r with: r imm: 2.
+			^self def: n from: r].
 		s := self deoptLabelFor: n.
 		asm comment: 'the Character of a SmallInteger (0 to 16r10FFFF)'.
 		asm asr: X16 with: x imm: 1.
@@ -758,7 +764,11 @@ emitNode: n block: b next: nextBlock
 				asm cmp: x with: y.
 				asm b: s if: COND_GT]
 			ifFalse: [
-				asm cmp: y imm: nd aux.
+				nd aux <= 4095
+					ifTrue: [asm cmp: y imm: nd aux]
+					ifFalse: [
+						asm mov: X17 imm: nd aux.
+						asm cmp: y with: X17].
 				asm b: s if: COND_LT].
 		^self].
 	op = O_NOTINTS ifTrue: [
@@ -1069,6 +1079,11 @@ emitIndexStore: n
 	asm add: X16 with: X16 with: X17 shift: SHIFT_LSL amount: (ek = E_PTR ifTrue: [3] ifFalse: [0]).
 	v := self src: nd c into: self scratchB.
 	ek ~= E_PTR ifTrue: [
+		(nd flags bitAnd: NF_INRANGE) ~= 0 ifTrue: [
+			asm comment: 'a byte or a Character below 256: unchecked'.
+			asm lsr: X17 with: v imm: (ek = E_BYTE ifTrue: [1] ifFalse: [3]).
+			asm strb: W17 base: X16 offset: 0.
+			^self].
 		ek = E_BYTE
 			ifTrue: [
 				asm tst: v imm: 1.
@@ -1127,9 +1142,11 @@ emitClassTest: x class: cls
 	asm cmp: X16 with: X17
 !
 emitAddSub: n
-	| nd x y c isAdd s |
+	| nd x y c isAdd s checked |
 	nd := ir node: n.
-	s := self deoptLabelFor: n.
+	"no overflow check where the operands' ranges rule it out"
+	checked := (nd flags bitAnd: NF_INRANGE) = 0.
+	checked ifTrue: [s := self deoptLabelFor: n].
 	isAdd := nd op asInt32 = O_IADD.
 	x := self src: nd a into: self scratchA.
 	((ir node: nd b) op asInt32 = O_CONST and: [((ir node: nd b) aux asUInt64 - 1) asInt64 between: -4095 and: 4095])
@@ -1144,7 +1161,7 @@ emitAddSub: n
 			isAdd
 				ifTrue: [asm adds: X16 with: x with: X17]
 				ifFalse: [asm subs: X16 with: x with: X17]].
-	asm b: s if: COND_VS.
+	checked ifTrue: [asm b: s if: COND_VS].
 	self def: n from: X16
 !
 emitDivShift: n

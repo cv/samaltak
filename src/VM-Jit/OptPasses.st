@@ -61,6 +61,7 @@ cleanup: entry
 	(runtime flag: runtime gvnFlag) ifTrue: [
 		self valueNumbers.
 		self resolveOperands].
+	self ranges.
 	(runtime flag: runtime hoistFlag) ifTrue: [self hoistGuards].
 	ir full ifTrue: [^self].
 	self unboxStates.
@@ -774,7 +775,36 @@ hoistOutOf: h
 				ir insert: n before: (ir block: entry) last].
 			n := next]].
 	self outerSlotsOutOf: h entry: entry.
-	self boundsOutOf: h entry: entry index: index
+	self boundsOutOf: h entry: entry index: index.
+	self rangeBoundsOutOf: h entry: entry index: index
+!
+rangeBoundsOutOf: h entry: entry index: index
+	"Loop h, entered from block entry alone (h's predecessor index): an indexed load or store in it, of an object from before the loop (its class known there), at an index whose range is known and starts at 1 or above (ranges), checks no bounds if, once in entry, the range's top is at most the object's size. A check that fails there leaves at the loop's head and marks the access's send: it checks every time from then on."
+	<function>
+	| s nd i x size |
+	s := -1.
+	0 to: ir nodeCount - 1 do: [:m |
+		nd := ir node: m.
+		((nd op asInt32 = O_INDEXLOAD or: [nd op asInt32 = O_INDEXSTORE]) and: [nd block >= 0 and: [(nd flags bitAnd: NF_NOBOUNDS) = 0 and: [self block: nd block isIn: h]]]) ifTrue: [
+			i := ir node: (ir resolve: nd b).
+			x := ir resolve: nd a.
+			(i lo >= 1 and: [i hi < 16r40000000 and: [(self isBefore: x loop: h) and: [(ir node: x) tkind asInt32 = T_OBJ and: [((feedback flagsAt: (ir act: nd bcact) method pc: nd bcpc) bitAnd: feedback deoptHoisted) = 0]]]]) ifTrue: [
+				s < 0 ifTrue: [
+					s := self state: (ir block: h) entryState enteredFrom: index of: h.
+					ir full ifTrue: [^self]].
+				size := ir newNode: O_SIZE rep: R_OOP.
+				ir full ifTrue: [^self].
+				nd := ir node: m.
+				(ir node: size) a: x.
+				(ir node: size) aux: nd aux.
+				(ir node: size) aux2: nd aux2.
+				(ir node: size) tkind: T_SMI.
+				(ir node: size) bcact: nd bcact.
+				(ir node: size) bcpc: nd bcpc.
+				ir insert: size before: (ir block: entry) last.
+				self guard: -1 or: (ir node: (ir resolve: nd b)) hi atMost: size for: m in: entry state: s.
+				ir full ifTrue: [^self].
+				(ir node: m) flags: ((ir node: m) flags bitOr: NF_NOBOUNDS)]]]
 !
 outerSlotsOutOf: h entry: entry
 	"Loop h, entered from block entry alone, sends nothing: whether the home Context of a closure from before the loop is married to a frame, and where that frame is, stays as it is while the loop runs (what else may run, at an interrupt check, runs when the code has left the unit). The loop's loads and stores of that closure's outer temps take it from a node where the loop is entered (O_OUTERSLOT, one for each closure and level)."
@@ -874,11 +904,15 @@ isBefore: v loop: h
 !
 guard: a atMost: b for: m in: entry state: s
 	"At the end of block entry: SmallInteger a (-1: the constant 1) is at most SmallInteger b, else leave at state s; for the bounds of indexed access m, whose send a failure marks."
+	self guard: a or: 1 atMost: b for: m in: entry state: s
+!
+guard: a or: k atMost: b for: m in: entry state: s
+	"guard:atMost:for:in:state:, a -1 for the constant SmallInteger k."
 	| g |
 	g := ir newNode: O_GUARDLE rep: R_NONE.
 	ir full ifTrue: [^self].
 	(ir node: g) a: a.
-	a < 0 ifTrue: [(ir node: g) aux: 3].
+	a < 0 ifTrue: [(ir node: g) aux: (self intOop: k) asInt64].
 	(ir node: g) b: b.
 	(ir node: g) state: s.
 	(ir node: g) flags: (NF_GUARD bitOr: NF_HOISTED).
@@ -906,6 +940,63 @@ isClosureLoad: n of: h
 	(x block < 0 or: [self dominates: h block: x block]) ifTrue: [^false].
 	x op asInt32 = O_GUARDCLOSURE ifTrue: [^nd aux = BC_OUTER].
 	^x op asInt32 = O_LOADFIELD and: [x aux = BC_OUTER and: [(ir node: x a) op asInt32 = O_GUARDCLOSURE and: [nd aux = CTX_RECEIVER]]]
+!
+ranges
+	"Integer ranges (lo..hi; a Character's are its code point's), forward in order: a byte or a Character loaded from bytes or a string is 0 to 255, a Character's code point 0 to 16r10FFFF; sums and differences of ranges, bitAnd: with a non-negative value, \\ by a positive constant, and what guards and casts pass on. What is known in range checks nothing (NF_INRANGE; its frame state dropped): a sum or difference that stays a SmallInteger, the Character of a code point, a store of a byte or of a Character below 256 into bytes or a string."
+	<function>
+	| n nd op x y lo hi |
+	0 to: psOrderCount - 1 do: [:i |
+		n := (ir block: (psOrder at: i)) first.
+		[n >= 0] whileTrue: [
+			nd := ir node: n.
+			op := nd op asInt32.
+			(op = O_INDEXLOAD and: [nd aux ~= E_PTR]) ifTrue: [
+				nd lo: 0.
+				nd hi: 255].
+			(op = O_CAST or: [op = O_GUARDINT or: [op = O_GUARDCLASS]]) ifTrue: [
+				x := ir node: (ir resolve: nd a).
+				nd lo: (nd lo max: x lo).
+				nd hi: (nd hi min: x hi)].
+			op = O_CHARCONV ifTrue: [
+				x := ir node: (ir resolve: nd a).
+				(nd aux ~= 0 and: [x lo >= 0 and: [x hi <= CHAR_VALUE_MAX]]) ifTrue: [self inRange: nd].
+				nd lo: (x lo max: 0).
+				nd hi: (x hi min: CHAR_VALUE_MAX)].
+			(op = O_IADD or: [op = O_ISUB]) ifTrue: [
+				x := ir node: (ir resolve: nd a).
+				y := ir node: (ir resolve: nd b).
+				op = O_IADD
+					ifTrue: [
+						lo := x lo + y lo.
+						hi := x hi + y hi]
+					ifFalse: [
+						lo := x lo - y hi.
+						hi := x hi - y lo].
+				(lo >= VM_INT_MIN and: [hi <= VM_INT_MAX]) ifTrue: [
+					self inRange: nd.
+					nd lo: lo.
+					nd hi: hi]].
+			op = O_IAND ifTrue: [
+				x := ir node: (ir resolve: nd a).
+				y := ir node: (ir resolve: nd b).
+				(x lo >= 0 or: [y lo >= 0]) ifTrue: [
+					nd lo: 0.
+					nd hi: ((x lo >= 0 ifTrue: [x hi] ifFalse: [VM_INT_MAX]) min: (y lo >= 0 ifTrue: [y hi] ifFalse: [VM_INT_MAX]))]].
+			(op = O_IMOD and: [nd aux = 0]) ifTrue: [
+				y := ir node: (ir resolve: nd b).
+				(y lo = y hi and: [y lo > 0]) ifTrue: [
+					nd lo: 0.
+					nd hi: y lo - 1]].
+			(op = O_INDEXSTORE and: [nd aux ~= E_PTR]) ifTrue: [
+				x := ir node: (ir resolve: nd c).
+				(x tkind asInt32 = (nd aux = E_CHAR ifTrue: [T_CHAR] ifFalse: [T_SMI]) and: [x lo >= 0 and: [x hi <= 255]]) ifTrue: [
+					nd flags: (nd flags bitOr: NF_INRANGE)]].
+			n := nd next]]
+!
+inRange: nd
+	"nd (an add or subtract, the Character of a code point) cannot fail: it checks nothing."
+	nd flags: (nd flags bitOr: NF_INRANGE).
+	nd state: -1
 !
 isInvariantOuterLoad: n of: h
 	"n loads an outer temp of a closure from before loop h, and no turn of the loop changes that temp: the load may run once, where the loop is entered."
