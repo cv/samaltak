@@ -33,6 +33,7 @@ static bool is_invariant_field_load(int32_t n, int32_t h);
 static bool opt_passes_loop_changes_outer_temp(int32_t h, int64_t i);
 static int64_t opt_passes_loop_reaches_sp(int32_t h, int32_t b, int64_t sp);
 static void outer_slots_out_of(int32_t h, int64_t entry);
+static void promote_outer_temps_of(int32_t h, int64_t entry, int64_t index, int64_t latch);
 static void range_bounds_out_of(int32_t h, int64_t entry, int64_t index);
 static void ranges(void);
 static void remove_dead(void);
@@ -369,6 +370,8 @@ void cleanup(int32_t entry)
     ranges();
     if ((jit_flags & JIT_FLAG_HOIST) != 0) {
         hoist_guards();
+        drop_int_checks();
+        resolve_operands();
     }
     if (opt_full) {
         return;
@@ -1250,6 +1253,7 @@ exit_is_closure_load:;
         }
     }
     outer_slots_out_of(h, entry);
+    promote_outer_temps_of(h, entry, index, latch);
     bounds_out_of(h, entry, index);
     range_bounds_out_of(h, entry, index);
 }
@@ -1453,6 +1457,205 @@ exit_is_before:;
                     }
                 }
                 n = (opt_nodes + n)->next;
+            }
+        }
+    }
+}
+
+/* OptPasses>>promoteOuterTempsOf:entry:index:latch: */
+static void promote_outer_temps_of(int32_t h, int64_t entry, int64_t index, int64_t latch)
+{
+    int64_t s;
+    int32_t m;
+    opt_node *nd;
+    int32_t b;
+    int32_t x;
+    int32_t st;
+    bool ok;
+    int64_t ld;
+    int32_t j;
+    opt_node *u;
+    int32_t b_2;
+    bool r_block;
+    int32_t l;
+    int32_t b_3;
+    int32_t x_2;
+    int32_t y;
+    int32_t x_3;
+    int32_t y_2;
+    bool r_is_before;
+    int32_t k;
+    bool r_is_before_2;
+    int32_t k_2;
+    int32_t a;
+    int32_t e;
+    int32_t n;
+    int32_t g;
+    int32_t p;
+    int64_t i;
+    int64_t i_2;
+    int32_t v;
+    int32_t j_2;
+    int32_t b_4;
+    int32_t x_4;
+    int32_t y_3;
+    bool r_is_before_3;
+    int32_t k_3;
+    int32_t nu;
+    if (!(((opt_blocks + h)->npreds == 2) && (!opt_passes_loop_changes_outer_temp(h, -1)))) {
+        return;
+    }
+    s = -1;
+    for (m = 0; m <= opt_node_count - 1; m++) {
+        nd = opt_nodes + m;
+        if (((int32_t)nd->op == O_OUTERSTORE) && ((nd->block >= 0) && ((nd->c >= 0) && ({
+    b = nd->block;
+    ((opt_blocks + b)->loop == h) && ({
+    x = nd->block;
+    (ps_pre[x] <= ps_pre[latch]) && (ps_post[latch] <= ps_post[x]); }); })))) {
+            st = m;
+            ok = true;
+            ld = -1;
+            for (j = 0; j <= opt_node_count - 1; j++) {
+                u = opt_nodes + j;
+                if ((u->block >= 0) && ((j != st) && ((((int32_t)u->op == O_OUTERSTORE) || ((int32_t)u->op == O_OUTERLOAD)) && ((u->aux2 == nd->aux2) && ({
+    b_2 = u->block;
+    ({
+    l = (opt_blocks + b_2)->loop;
+    while (l >= 0) {
+        if (l == h) {
+            r_block = true;
+            goto exit_block;
+        }
+        l = ps_loop_outer[l];
+    }
+    r_block = false;
+exit_block:;
+    r_block; }); }))))) {
+                    if ((int32_t)u->op == O_OUTERSTORE) {
+                        ok = false;
+                    }
+                    if (((int32_t)u->op == O_OUTERLOAD) && ((opt_ir_resolve(u->a) == opt_ir_resolve(nd->a)) && ((u->aux == nd->aux) && ((u->c >= 0) && ({
+    b_3 = u->block;
+    (opt_blocks + b_3)->loop == h; }))))) {
+                        x_2 = u->block;
+                        y = nd->block;
+                        if (!(((ps_pre[x_2] <= ps_pre[y]) && (ps_post[y] <= ps_post[x_2])) || ({
+    x_3 = nd->block;
+    y_2 = u->block;
+    (ps_pre[x_3] <= ps_pre[y_2]) && (ps_post[y_2] <= ps_post[x_3]); }))) {
+                            ok = false;
+                        }
+                        if ((u->block == nd->block) && ((!({
+    k = (opt_nodes + j)->next;
+    while (k >= 0) {
+        if (k == st) {
+            r_is_before = true;
+            goto exit_is_before;
+        }
+        k = (opt_nodes + k)->next;
+    }
+    r_is_before = false;
+exit_is_before:;
+    r_is_before; })) && (!({
+    k_2 = (opt_nodes + st)->next;
+    while (k_2 >= 0) {
+        if (k_2 == j) {
+            r_is_before_2 = true;
+            goto exit_is_before_2;
+        }
+        k_2 = (opt_nodes + k_2)->next;
+    }
+    r_is_before_2 = false;
+exit_is_before_2:;
+    r_is_before_2; })))) {
+                            ok = false;
+                        }
+                        if (ld < 0) {
+                            ld = j;
+                        }
+                    } else if ((int32_t)u->op == O_OUTERLOAD) {
+                        ok = false;
+                    }
+                }
+            }
+            if (ok && ((ld >= 0) && ({
+    a = (opt_nodes + ld)->bcact;
+    (flags_at((opt_acts + a)->method, (opt_nodes + ld)->bcpc) & FB_DEOPT_HOISTED) == 0; }))) {
+                if (s < 0) {
+                    s = opt_passes_state((opt_blocks + h)->entry_state, index, h);
+                    if (opt_full) {
+                        return;
+                    }
+                }
+                e = new_node(O_OUTERLOAD, R_OOP);
+                if (opt_full) {
+                    return;
+                }
+                nd = opt_nodes + st;
+                (opt_nodes + e)->a = opt_ir_resolve(nd->a);
+                (opt_nodes + e)->c = opt_ir_resolve(nd->c);
+                (opt_nodes + e)->aux = nd->aux;
+                (opt_nodes + e)->aux2 = nd->aux2;
+                (opt_nodes + e)->bcact = (opt_nodes + ld)->bcact;
+                (opt_nodes + e)->bcpc = (opt_nodes + ld)->bcpc;
+                insert(e, (opt_blocks + entry)->last);
+                n = opt_ir_resolve(nd->b);
+                if ((int32_t)(opt_nodes + n)->tkind == T_SMI) {
+                    g = new_node(O_GUARDINT, R_OOP);
+                    if (opt_full) {
+                        return;
+                    }
+                    (opt_nodes + g)->a = e;
+                    (opt_nodes + g)->state = s;
+                    (opt_nodes + g)->flags = 68;
+                    (opt_nodes + g)->tkind = T_SMI;
+                    (opt_nodes + g)->bcact = (opt_nodes + ld)->bcact;
+                    (opt_nodes + g)->bcpc = (opt_nodes + ld)->bcpc;
+                    insert(g, (opt_blocks + entry)->last);
+                    e = g;
+                }
+                p = new_node(O_PHI, R_OOP);
+                if (opt_full) {
+                    return;
+                }
+                (opt_nodes + p)->nargs = 2;
+                (opt_nodes + p)->args = alloc_operands(2);
+                if (opt_full) {
+                    return;
+                }
+                (opt_nodes + p)->tkind = (opt_nodes + e)->tkind;
+                (opt_nodes + p)->bcact = (opt_nodes + ld)->bcact;
+                (opt_nodes + p)->bcpc = (opt_nodes + ld)->bcpc;
+                i = (opt_nodes + p)->args + index;
+                opt_operands[i] = e;
+                i_2 = (opt_nodes + p)->args + (1 - index);
+                v = opt_ir_resolve((opt_nodes + st)->b);
+                opt_operands[i_2] = v;
+                insert(p, (opt_blocks + h)->first);
+                for (j_2 = 0; j_2 <= opt_node_count - 1; j_2++) {
+                    u = opt_nodes + j_2;
+                    if ((u->block >= 0) && ((j_2 != e) && (((int32_t)u->op == O_OUTERLOAD) && ((u->aux2 == (opt_nodes + st)->aux2) && ((opt_ir_resolve(u->a) == opt_ir_resolve((opt_nodes + st)->a)) && ({
+    b_4 = u->block;
+    (opt_blocks + b_4)->loop == h; })))))) {
+                        x_4 = (opt_nodes + st)->block;
+                        y_3 = u->block;
+                        nu = (ps_pre[x_4] <= ps_pre[y_3]) && (ps_post[y_3] <= ps_post[x_4]) && ((u->block != (opt_nodes + st)->block) || ({
+    k_3 = (opt_nodes + st)->next;
+    while (k_3 >= 0) {
+        if (k_3 == j_2) {
+            r_is_before_3 = true;
+            goto exit_is_before_3;
+        }
+        k_3 = (opt_nodes + k_3)->next;
+    }
+    r_is_before_3 = false;
+exit_is_before_3:;
+    r_is_before_3; })) ? opt_ir_resolve((opt_nodes + st)->b) : p;
+                        u->fwd = nu;
+                        opt_ir_unlink(j_2);
+                    }
+                }
             }
         }
     }

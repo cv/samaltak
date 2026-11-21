@@ -64,7 +64,11 @@ cleanup: entry
 		self dropIntChecks.
 		self resolveOperands].
 	self ranges.
-	(runtime flag: runtime hoistFlag) ifTrue: [self hoistGuards].
+	(runtime flag: runtime hoistFlag) ifTrue: [
+		self hoistGuards.
+		"what loops' phis replaced, and the guards of SmallIntegers that leaves"
+		self dropIntChecks.
+		self resolveOperands].
 	ir full ifTrue: [^self].
 	self unboxStates.
 	self countUses.
@@ -784,6 +788,7 @@ hoistOutOf: h
 				ir insert: n before: (ir block: entry) last].
 			n := next]].
 	self outerSlotsOutOf: h entry: entry.
+	self promoteOuterTempsOf: h entry: entry index: index latch: latch.
 	self boundsOutOf: h entry: entry index: index.
 	self rangeBoundsOutOf: h entry: entry index: index
 !
@@ -814,6 +819,85 @@ rangeBoundsOutOf: h entry: entry index: index
 				self guard: -1 or: (ir node: (ir resolve: nd b)) hi atMost: size for: m in: entry state: s.
 				ir full ifTrue: [^self].
 				(ir node: m) flags: ((ir node: m) flags bitOr: NF_NOBOUNDS)]]]
+!
+promoteOuterTempsOf: h entry: entry index: index latch: latch
+	"Loop h, entered from block entry alone (h's predecessor index), latch its block back, sends nothing: an outer temp that one store on every turn writes (and no other store of an outer temp of that index) is a phi of h, what it holds where the loop is entered and what the store wrote; the store stays. Loads of it before the store read the phi, loads after it the value stored. A SmallInteger stored makes the phi one, the value at the entry guarded there (failing, the interpreter goes on from the loop's head, and the load's send is marked: no phi for it again)."
+	<function>
+	| nd st s e g p u nu ok ld |
+	((ir block: h) npreds = 2 and: [(self loop: h changesOuterTemp: -1) not]) ifFalse: [^self].
+	s := -1.
+	0 to: ir nodeCount - 1 do: [:m |
+		nd := ir node: m.
+		(nd op asInt32 = O_OUTERSTORE and: [nd block >= 0 and: [nd c >= 0 and: [(ir block: nd block) loop = h and: [self dominates: nd block block: latch]]]]) ifTrue: [
+			"the store, alone among the loop's of that index; loads of it all in h's own blocks, before or after it"
+			st := m.
+			ok := true.
+			ld := -1.
+			0 to: ir nodeCount - 1 do: [:j |
+				u := ir node: j.
+				(u block >= 0 and: [j ~= st and: [(u op asInt32 = O_OUTERSTORE or: [u op asInt32 = O_OUTERLOAD]) and: [u aux2 = nd aux2 and: [self block: u block isIn: h]]]]) ifTrue: [
+					u op asInt32 = O_OUTERSTORE ifTrue: [ok := false].
+					(u op asInt32 = O_OUTERLOAD and: [(ir resolve: u a) = (ir resolve: nd a) and: [u aux = nd aux and: [u c >= 0 and: [(ir block: u block) loop = h]]]])
+						ifTrue: [
+							((self dominates: u block block: nd block) or: [self dominates: nd block block: u block]) ifFalse: [ok := false].
+							(u block = nd block and: [(self isBefore: j node: st) not and: [(self isBefore: st node: j) not]]) ifTrue: [ok := false].
+							ld < 0 ifTrue: [ld := j]]
+						ifFalse: [u op asInt32 = O_OUTERLOAD ifTrue: [ok := false]]]].
+			(ok and: [ld >= 0 and: [((feedback flagsAt: (ir act: (ir node: ld) bcact) method pc: (ir node: ld) bcpc) bitAnd: feedback deoptHoisted) = 0]]) ifTrue: [
+				s < 0 ifTrue: [
+					s := self state: (ir block: h) entryState enteredFrom: index of: h.
+					ir full ifTrue: [^self]].
+				"what the temp holds where the loop is entered"
+				e := ir newNode: O_OUTERLOAD rep: R_OOP.
+				ir full ifTrue: [^self].
+				nd := ir node: st.
+				(ir node: e) a: (ir resolve: nd a).
+				(ir node: e) c: (ir resolve: nd c).
+				(ir node: e) aux: nd aux.
+				(ir node: e) aux2: nd aux2.
+				(ir node: e) bcact: (ir node: ld) bcact.
+				(ir node: e) bcpc: (ir node: ld) bcpc.
+				ir insert: e before: (ir block: entry) last.
+				(ir node: (ir resolve: nd b)) tkind asInt32 = T_SMI ifTrue: [
+					g := ir newNode: O_GUARDINT rep: R_OOP.
+					ir full ifTrue: [^self].
+					(ir node: g) a: e.
+					(ir node: g) state: s.
+					(ir node: g) flags: (NF_GUARD bitOr: NF_HOISTED).
+					(ir node: g) tkind: T_SMI.
+					(ir node: g) bcact: (ir node: ld) bcact.
+					(ir node: g) bcpc: (ir node: ld) bcpc.
+					ir insert: g before: (ir block: entry) last.
+					e := g].
+				p := ir newNode: O_PHI rep: R_OOP.
+				ir full ifTrue: [^self].
+				(ir node: p) nargs: 2.
+				(ir node: p) args: (ir allocOperands: 2).
+				ir full ifTrue: [^self].
+				(ir node: p) tkind: (ir node: e) tkind.
+				(ir node: p) bcact: (ir node: ld) bcact.
+				(ir node: p) bcpc: (ir node: ld) bcpc.
+				ir operand: (ir node: p) args + index put: e.
+				ir operand: (ir node: p) args + (1 - index) put: (ir resolve: (ir node: st) b).
+				ir insert: p before: (ir block: h) first.
+				"the loads: the phi before the store, the value stored after it"
+				0 to: ir nodeCount - 1 do: [:j |
+					u := ir node: j.
+					(u block >= 0 and: [j ~= e and: [u op asInt32 = O_OUTERLOAD and: [u aux2 = (ir node: st) aux2 and: [(ir resolve: u a) = (ir resolve: (ir node: st) a) and: [(ir block: u block) loop = h]]]]]) ifTrue: [
+						nu := ((self dominates: (ir node: st) block block: u block) and: [u block ~= (ir node: st) block or: [self isBefore: st node: j]])
+							ifTrue: [ir resolve: (ir node: st) b]
+							ifFalse: [p].
+						u fwd: nu.
+						ir unlink: j]]]]]
+!
+isBefore: m node: n
+	"Node m comes before node n in their block."
+	| k |
+	k := (ir node: m) next.
+	[k >= 0] whileTrue: [
+		k = n ifTrue: [^true].
+		k := (ir node: k) next].
+	^false
 !
 outerSlotsOutOf: h entry: entry
 	"Loop h, entered from block entry alone, sends nothing: whether the home Context of a closure from before the loop is married to a frame, and where that frame is, stays as it is while the loop runs (what else may run, at an interrupt check, runs when the code has left the unit). The loop's loads and stores of that closure's outer temps take it from a node where the loop is entered (O_OUTERSLOT, one for each closure and level)."

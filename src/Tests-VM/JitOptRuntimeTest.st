@@ -861,6 +861,28 @@ testRangesOfBytesAndCharacters
 		self should: [o map: s with: short] raise: Error.
 		self assert: (o map: s with: t) equals: expected]
 !
+testAnOuterTempALoopWritesIsItsValue
+	"An outer temp that one store on every turn of a loop that sends nothing writes is a value of the loop (a phi), stored every turn: reads after the store, the loop's later turns and the block's home see the right value, whatever the temp held when the loop began (a Float fails the SmallInteger guard at the loop's entry, a sum beyond SmallIntegers its add); not one another closure also reads."
+	| o a big |
+	Smalltalk vm jitParameters: #(nil '-eager' nil nil).
+	#('eachE' 'eachF' 'eachG') do: [:each |
+		self define: each, ': x do: aBlock 1 to: x size do: [:i | aBlock value: (x at: i)]'].
+	self define: 'sumFrom: s0 of: x | sum | sum := s0. self eachE: x do: [:each | sum := sum + each]. ^sum'.
+	self define: 'lastOf: x | sum last | sum := 0. last := 0. self eachF: x do: [:each | sum := sum + each. last := sum * 2]. ^last'.
+	self define: 'shared: x | sum reader | sum := 0. reader := [sum]. self eachG: x do: [:each | sum := reader value + each]. ^sum'.
+	o := JitRuntimeTestSubject new.
+	a := (1 to: 30000) asArray.
+	4 timesRepeat: [
+		self assert: (o sumFrom: 0 of: a) equals: 450015000.
+		self assert: (o lastOf: a) equals: 900030000.
+		self assert: (o shared: a) equals: 450015000].
+	self assert: (o sumFrom: 0.5 of: a) equals: 450015000.5.
+	big := SmallInteger maxVal - 1000.
+	self assert: (o sumFrom: big of: a) equals: big + 450015000.
+	3 timesRepeat: [
+		self assert: (o sumFrom: 0 of: a) equals: 450015000.
+		self assert: (o sumFrom: 0.5 of: a) equals: 450015000.5]
+!
 testLoopUnitsOfAnInheritedMethod
 	"A loop's unit of a method its receiver inherits is compiled for that receiver's class (a variant each: the sends to self are bound) and for the classes of what the frame holds in the slots it reads before the loop: receivers of several classes run it in turn, each right."
 	| a s y w |
