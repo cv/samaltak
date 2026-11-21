@@ -707,6 +707,13 @@ emitNode: n block: b next: nextBlock
 		self emitClassTest: x class: nd aux asUInt64.
 		asm b: s if: COND_NE.
 		^self def: n from: x].
+	op = O_GUARDEQ ifTrue: [
+		s := self deoptLabelFor: n.
+		asm comment: ((nd flags bitAnd: NF_HOISTED) ~= 0 ifTrue: ['guard, once before the loop: the global holds another value than the class speculated: deoptimize'] ifFalse: ['guard: the global holds another value than the class speculated: deoptimize']).
+		x := self src: nd a into: self scratchA.
+		asm cmp: x with: (self src: nd b into: self scratchB).
+		asm b: s if: COND_NE.
+		^self].
 	op = O_GUARDCLOSURE ifTrue: [
 		s := self deoptLabelFor: n.
 		x := self src: nd a into: self scratchB.

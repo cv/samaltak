@@ -452,6 +452,7 @@ typedef void (*prim_fn)(void);
 #define O_GOTO 50
 #define O_GUARDCLASS 15
 #define O_GUARDCLOSURE 45
+#define O_GUARDEQ 47
 #define O_GUARDINT 16
 #define O_GUARDLE 44
 #define O_HOMESLOT 39
