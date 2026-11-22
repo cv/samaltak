@@ -143,6 +143,14 @@ pngBytes
 pngBytesScaledToFit: maxEdge pixels: maxPixels
 	"PNG bytes of me, scaled down to at most maxEdge pixels on the longer side and maxPixels in area (scaledToFit:pixels:)."
 	^(self scaledToFit: maxEdge pixels: maxPixels) pngBytes
+!
+isAgentPicture
+	"Larger than my agentThumbnail."
+	^(width max: height) > 480
+!
+agentThumbnail
+	"A copy of me at most 480 pixels on the longer side, for the agent's transcript once its conversation no longer keeps me (AgentConversation>>releasePictures)."
+	^self scaledToFit: 480 pixels: 480 * 480
 ! !
 
 !Form methodsFor: 'scaling'!

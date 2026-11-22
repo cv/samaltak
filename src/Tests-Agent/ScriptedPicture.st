@@ -3,7 +3,7 @@ Object subclass: #ScriptedPicture
 	classVariableNames: ''
 	package: 'Tests-Agent'!
 
-ScriptedPicture comment: 'I stand in for a Form in AgentImageTest: an incompressible picture. pngBytesScaledToFit:pixels: answers three bytes per pixel allowed, and I record each request (maxEdge -> maxPixels).'!
+ScriptedPicture comment: 'I stand in for a Form in AgentImageTest and AgentConversationTest: an incompressible picture. pngBytesScaledToFit:pixels: answers three bytes per pixel allowed, and I record each request (maxEdge -> maxPixels). I am a large picture (isAgentPicture); my agentThumbnail is the String ''thumbnail''.'!
 
 !ScriptedPicture methodsFor: 'accessing'!
 requests
@@ -12,4 +12,10 @@ requests
 pngBytesScaledToFit: maxEdge pixels: maxPixels
 	self requests add: maxEdge -> maxPixels.
 	^ByteArray new: maxPixels * 3
+!
+isAgentPicture
+	^true
+!
+agentThumbnail
+	^'thumbnail'
 ! !

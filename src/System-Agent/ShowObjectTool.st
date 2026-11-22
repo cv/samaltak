@@ -39,8 +39,8 @@ run: aCallDictionary in: anAgentConversation
 			image := AgentImage partFor: object.
 			image ifNotNil: [message := AgentItem user: 'Image shown from object ', id images: (Array with: image)]]
 		ifFalse: [
-			item := AgentItem call: aCallDictionary kind: #error text: 'no object ', id.
-			item failed: true; output: 'error: no object ', id].
+			item := AgentItem call: aCallDictionary kind: #error text: (anAgentConversation describeMissing: id).
+			item failed: true; output: 'error: ', (anAgentConversation describeMissing: id)].
 	anAgentConversation add: item.
 	message ifNotNil: [anAgentConversation add: message].
 	^item result

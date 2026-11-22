@@ -60,6 +60,14 @@ testScaledToFitKeepsAspect
 	self assert: (form scaledToFit: 3000 pixels: 10000000) == form.
 	self assert: form extent equals: 1920 @ 1080
 !
+testAgentThumbnail
+	| form |
+	form := Form width: 1920 height: 1080.
+	self assert: form isAgentPicture.
+	self assert: form agentThumbnail extent equals: 480 @ 270.
+	self deny: (Form width: 480 height: 300) isAgentPicture.
+	self deny: 3 isAgentPicture
+!
 testScaledToAverages
 	| form scaled |
 	form := Form width: 3 height: 1.

@@ -77,9 +77,13 @@ limit: inputItems
 							total := total + (self sizeOf: part)]
 						ifFalse: [
 							copied isNil ifTrue: [copied := content copy].
-							copied at: k put: (self omitted: 'an older image, no longer sent; show it again to see it')]]].
+							copied at: k put: self olderImage]]].
 			copied isNil ifFalse: [result at: i put: (item copy at: 'content' put: copied; yourself)]]].
 	^result
+!
+olderImage
+	"The placeholder for an image limit: no longer sends."
+	^self omitted: 'an older image, no longer sent; show it again to see it'
 !
 imagePart: aURL
 	^Dictionary new at: 'type' put: 'input_image'; at: 'image_url' put: aURL; yourself
