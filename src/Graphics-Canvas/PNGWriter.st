@@ -1,6 +1,6 @@
 Object subclass: #PNGWriter
 	instanceVariableNames: ''
-	classVariableNames: 'CRCTable'
+	classVariableNames: ''
 	package: 'Graphics-Canvas'!
 
 PNGWriter comment: 'I encode 8-bit RGBA images as PNG: IHDR, PLTE and tRNS for indexed color, one IDAT with a zlib stream (ZLib compress:), IEND; every chunk with its CRC-32. The color type is the smallest that holds the pixels exactly: indexed (type 3, filter None) when there are at most 256 distinct pixels, else RGB (type 2) when every pixel is opaque, else RGBA (type 6); RGB and RGBA rows each take the filter (None, Sub, Up, Average, Paeth) with the smallest sum of absolute differences. Pixels are written as given (pass straight alpha; opaque renders need no conversion). PNGReader reads them back.
@@ -224,23 +224,7 @@ crc32Of: bytes
 	^self crc32Of: bytes from: 1 to: bytes size
 !
 crc32Of: bytes from: start to: stop
-	| table crc |
-	table := self crcTable.
-	crc := 16rFFFFFFFF.
-	start to: stop do: [:i |
-		crc := (table at: ((crc bitXor: (bytes at: i)) bitAnd: 255) + 1) bitXor: (crc bitShift: -8)].
-	^crc bitXor: 16rFFFFFFFF
-!
-crcTable
-	^CRCTable ifNil: [
-		CRCTable := (0 to: 255) asArray collect: [:n |
-			| c |
-			c := n.
-			8 timesRepeat: [
-				c := (c bitAnd: 1) = 1
-					ifTrue: [16rEDB88320 bitXor: (c bitShift: -1)]
-					ifFalse: [c bitShift: -1]].
-			c]]
+	^Crc32 checksumOf: bytes from: start to: stop
 !
 adler32Of: bytes
 	^ZLib adler32Of: bytes

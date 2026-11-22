@@ -1,9 +1,9 @@
 Object subclass: #Aes
-	instanceVariableNames: 'rounds encryptionKeys decryptionKeys words'
+	instanceVariableNames: 'rounds encryptionKeys decryptionKeys words roundKeys'
 	classVariableNames: 'Sbox InverseSbox Te0 Te1 Te2 Te3 Td0 Td1 Td2 Td3'
 	package: 'System-Crypto'!
 
-Aes comment: 'I am the AES block cipher (FIPS 197) with a 16-, 24- or 32-byte key (AES-128, -192, -256; another size signals CryptoError): (Aes key: k) encryptBlock: sixteenBytes and decryptBlock: answer 16 new bytes; encrypt:at:into:at: works in place of the caller''s buffers; encryptWords:with:with:with:into: is what counter modes (AesGcm) call, on the block as four little-endian 32-bit words (each column''s first row in the low byte, as uint32At: reads them), the result into an Array of four. Rounds are table lookups (Te0-Te3, Td0-Td3: SubBytes, ShiftRows and MixColumns of a column in one word, the S-box''s multiples by MixColumns'' coefficients), computed with the S-box when the class initializes; decryption is the equivalent inverse cipher (its round keys through InvMixColumns). The words are SmallIntegers. Table lookups indexed by secret bytes take time that depends on the cache, as in every table-driven AES.'!
+Aes comment: 'I am the AES block cipher (FIPS 197) with a 16-, 24- or 32-byte key (AES-128, -192, -256; another size signals CryptoError): (Aes key: k) encryptBlock: sixteenBytes and decryptBlock: answer 16 new bytes; encrypt:at:into:at: works in place of the caller''s buffers; encryptWords:with:with:with:into: is what counter modes (AesGcm) call, on the block as four little-endian 32-bit words (each column''s first row in the low byte, as uint32At: reads them), the result into an Array of four. Rounds are table lookups (Te0-Te3, Td0-Td3: SubBytes, ShiftRows and MixColumns of a column in one word, the S-box''s multiples by MixColumns'' coefficients), computed with the S-box when the class initializes; decryption is the equivalent inverse cipher (its round keys through InvMixColumns). The words are SmallIntegers. Table lookups indexed by secret bytes take time that depends on the cache, as in every table-driven AES. Encryption goes to the VM''s primitive first (NativeCrypto, with roundKeys: the CPU''s AES instructions, else C), counter mode too (AesGcm); this is the fallback and the reference.'!
 
 !Aes class methodsFor: 'class initialization'!
 initialize
@@ -91,6 +91,8 @@ setKey: key
 			ifFalse: [(nk > 6 and: [(i - 1) \\ nk = 4]) ifTrue: [t := self subWord: t]].
 		w at: i put: ((w at: i - nk) bitXor: t)].
 	encryptionKeys := w.
+	roundKeys := ByteArray new: total * 4.
+	1 to: total do: [:i | roundKeys uint32At: i * 4 - 3 put: (w at: i)].
 	decryptionKeys := Array new: total.
 	0 to: rounds do: [:r |
 		1 to: 4 do: [:c | | k |
@@ -109,6 +111,12 @@ subWord: w
 		bitOr: ((Sbox at: (w bitShift: -24) + 1) bitShift: 24)
 ! !
 
+!Aes methodsFor: 'accessing'!
+roundKeys
+	"The encryption round keys as bytes, in FIPS 197's order (NativeCrypto)."
+	^roundKeys
+! !
+
 !Aes methodsFor: 'encrypting'!
 encryptBlock: bytes
 	^self encrypt: bytes at: 1 into: (ByteArray new: 16) at: 1
@@ -119,6 +127,7 @@ decryptBlock: bytes
 encrypt: input at: start into: output at: outStart
 	"Encrypt the 16 bytes of input from start into output from outStart; answer output."
 	| w |
+	(NativeCrypto aes: roundKeys encrypt: input from: start into: output at: outStart blocks: 1) ifTrue: [^output].
 	w := words.
 	self encryptWords: (input uint32At: start) with: (input uint32At: start + 4) with: (input uint32At: start + 8) with: (input uint32At: start + 12) into: w.
 	output uint32At: outStart put: (w at: 1); uint32At: outStart + 4 put: (w at: 2); uint32At: outStart + 8 put: (w at: 3); uint32At: outStart + 12 put: (w at: 4).

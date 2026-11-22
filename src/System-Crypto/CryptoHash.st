@@ -3,7 +3,7 @@ Object subclass: #CryptoHash
 	classVariableNames: ''
 	package: 'System-Crypto'!
 
-CryptoHash comment: 'I am the abstract Merkle-Damgård hash function of FIPS 180-4 (SHA256, SHA384, SHA512): the bytes given so far, a block at a time. Class side: hash: bytes (the digest, a ByteArray), digestSize and blockSize in bytes. Instance side: new, update: (a ByteArray, or a String as UTF-8; also update:from:to:), digest. digest finishes a copy, so the receiver goes on: more update:s, then digest again (the running hash of a TLS transcript); copy forks the state. A subclass holds its chaining state, processes a block of bytes at a 0-based offset (processBlock:at:), answers its digest bytes (digestBytes) and says how many bytes the message length takes in the padding (lengthSize).'!
+CryptoHash comment: 'I am the abstract Merkle-Damgård hash function of FIPS 180-4 (SHA256, SHA384, SHA512): the bytes given so far, a block at a time. Class side: hash: bytes (the digest, a ByteArray), digestSize and blockSize in bytes. Instance side: new, update: (a ByteArray, or a String as UTF-8; also update:from:to:), digest. digest finishes a copy, so the receiver goes on: more update:s, then digest again (the running hash of a TLS transcript); copy forks the state. A subclass holds its chaining state, processes a block of bytes at a 0-based offset (processBlock:at:; processBlocks:at:count: does several, in Smalltalk one at a time), answers its digest bytes (digestBytes) and says how many bytes the message length takes in the padding (lengthSize).'!
 
 !CryptoHash class methodsFor: 'hashing'!
 hash: bytes
@@ -65,11 +65,12 @@ update: bytes from: start to: stop
 		bufferCount := bufferCount + n.
 		i := i + n.
 		bufferCount = blockSize ifTrue: [
-			self processBlock: buffer at: 0.
+			self processBlocks: buffer at: 0 count: 1.
 			bufferCount := 0]].
-	[stop - i + 1 >= blockSize] whileTrue: [
-		self processBlock: bytes at: i - 1.
-		i := i + blockSize].
+	n := stop - i + 1 // blockSize.
+	n > 0 ifTrue: [
+		self processBlocks: bytes at: i - 1 count: n.
+		i := i + (n * blockSize)].
 	i <= stop ifTrue: [
 		buffer replaceFrom: 1 to: stop - i + 1 with: bytes startingAt: i.
 		bufferCount := stop - i + 1]
@@ -95,6 +96,12 @@ finish
 processBlock: bytes at: offset
 	"Hash the block of bytes offset + 1 to offset + blockSize."
 	^self subclassResponsibility
+!
+processBlocks: bytes at: offset count: n
+	"Hash the n blocks of bytes from offset + 1 on (a subclass may hash them all at once: NativeCrypto)."
+	| blockSize |
+	blockSize := buffer size.
+	0 to: n - 1 do: [:k | self processBlock: bytes at: offset + (k * blockSize)]
 !
 digestBytes
 	^self subclassResponsibility

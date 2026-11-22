@@ -64,6 +64,9 @@ postCopy
 ! !
 
 !SHA512 methodsFor: 'private'!
+processBlocks: bytes at: offset count: n
+	(NativeCrypto sha512: state bytes: bytes from: offset + 1 blocks: n) ifFalse: [super processBlocks: bytes at: offset count: n]
+!
 processBlock: bytes at: offset
 	| wh wl kh kl i xh xl s0h s0l s1h s1l ah al bh bl ch cl dh dl eh el fh fl gh gl hh hl t1h t1l t2h t2l |
 	wh := high.

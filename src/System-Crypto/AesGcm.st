@@ -1,11 +1,11 @@
 Object subclass: #AesGcm
-	instanceVariableNames: 'aes table words'
+	instanceVariableNames: 'aes table words hashKey'
 	classVariableNames: 'Reduction'
 	package: 'System-Crypto'!
 
 AesGcm comment: 'I am AES in Galois/Counter Mode (NIST SP 800-38D), TLS 1.3''s TLS_AES_128_GCM_SHA256 and TLS_AES_256_GCM_SHA384: (AesGcm key: k) with a 16-, 24- or 32-byte key; encrypt: plaintext nonce: iv aad: a answers the ciphertext with the 16-byte tag appended; decrypt: data nonce: iv aad: a answers the plaintext, or signals CryptoError if the tag does not verify (compared in constant time, before anything is decrypted). The nonce is 12 bytes in TLS; any other non-empty size is hashed into the first counter block, as the standard says. Class side: nonceSize (12), tagSize (16).
 
-GHASH multiplies by H with Shoup''s 8-bit tables: table holds b·H for every byte b, four big-endian 32-bit words each (the key''s, 4 KB as SmallIntegers), Reduction what the 8 bits a shift by a byte drops add back at the top (x^128 = x^7 + x^2 + x + 1), so a block is 16 lookups, shifts and xors. CTR mode''s counter blocks go through Aes>>encryptWords:with:with:with:into: as little-endian words; the counter, big-endian in the last word, is byte-swapped.'!
+GHASH multiplies by H with Shoup''s 8-bit tables: table holds b·H for every byte b, four big-endian 32-bit words each (the key''s, 4 KB as SmallIntegers), Reduction what the 8 bits a shift by a byte drops add back at the top (x^128 = x^7 + x^2 + x + 1), so a block is 16 lookups, shifts and xors. CTR mode''s counter blocks go through Aes>>encryptWords:with:with:with:into: as little-endian words; the counter, big-endian in the last word, is byte-swapped. Both go to the VM''s primitives first (NativeCrypto: the CPU''s AES and carry-less multiplication instructions, else C; then the table is never made); this is the fallback and the reference.'!
 
 !AesGcm class methodsFor: 'class initialization'!
 initialize
@@ -36,16 +36,24 @@ maxPlaintextSize
 
 !AesGcm methodsFor: 'initialization'!
 setKey: aByteArray
-	| h v0 v1 v2 v3 carry i j |
 	aes := Aes key: aByteArray.
 	words := Array new: 4.
-	h := aes encryptBlock: (ByteArray new: 16).
-	table := Array new: 1024 withAll: 0.
+	hashKey := aes encryptBlock: (ByteArray new: 16).
+	table := nil
+!
+table
+	"Shoup's table of H, made when the Smalltalk GHASH first needs it."
+	^table ifNil: [table := self makeTable]
+!
+makeTable
+	| h t v0 v1 v2 v3 carry i j |
+	h := hashKey.
+	t := Array new: 1024 withAll: 0.
 	"b = 128 (the coefficient of x^0 alone) is H; halving b is multiplying by x: a shift right with reduction."
 	v0 := h netUint32At: 1. v1 := h netUint32At: 5. v2 := h netUint32At: 9. v3 := h netUint32At: 13.
 	i := 128.
 	[i > 0] whileTrue: [
-		table at: i * 4 + 1 put: v0; at: i * 4 + 2 put: v1; at: i * 4 + 3 put: v2; at: i * 4 + 4 put: v3.
+		t at: i * 4 + 1 put: v0; at: i * 4 + 2 put: v1; at: i * 4 + 3 put: v2; at: i * 4 + 4 put: v3.
 		carry := v3 bitAnd: 1.
 		v3 := (v3 bitShift: -1) bitOr: ((v2 bitAnd: 1) bitShift: 31).
 		v2 := (v2 bitShift: -1) bitOr: ((v1 bitAnd: 1) bitShift: 31).
@@ -56,8 +64,9 @@ setKey: aByteArray
 	[i < 256] whileTrue: [
 		1 to: i - 1 do: [:k |
 			j := i + k.
-			1 to: 4 do: [:w | table at: j * 4 + w put: ((table at: i * 4 + w) bitXor: (table at: k * 4 + w))]].
-		i := i * 2]
+			1 to: 4 do: [:w | t at: j * 4 + w put: ((t at: i * 4 + w) bitXor: (t at: k * 4 + w))]].
+		i := i * 2].
+	^t
 ! !
 
 !AesGcm methodsFor: 'encrypting'!
@@ -100,7 +109,10 @@ counterBlock: iv
 !
 ctr: input from: start to: stop into: output at: outStart counter: j0 startingAt: first
 	"Xor input from start to stop with E(K, inc32^k(J0)), k from first - 1 on, into output; answer output."
-	| w c0 c1 c2 counter i o e |
+	| w c0 c1 c2 counter i o e block |
+	block := j0 copy.
+	block netUint32At: 13 put: ((j0 netUint32At: 13) + first - 1 bitAnd: 16rFFFFFFFF).
+	(NativeCrypto aes: aes roundKeys ctr: block input: input from: start to: stop into: output at: outStart) ifTrue: [^output].
 	w := words.
 	c0 := j0 uint32At: 1.
 	c1 := j0 uint32At: 5.
@@ -143,7 +155,8 @@ tag: ciphertext size: n aad: aad counter: j0
 ghash: y with: bytes from: start to: stop
 	"y := (y xor each block of bytes from start to stop, the last padded with zeros) times H, block by block."
 	| m r i b z0 z1 z2 z3 x |
-	m := table.
+	(NativeCrypto ghash: y key: hashKey bytes: bytes from: start to: stop) ifTrue: [^y].
+	m := self table.
 	r := Reduction.
 	i := start.
 	[i <= stop] whileTrue: [

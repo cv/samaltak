@@ -521,6 +521,14 @@ primitive_entry vm_primitive_table[] = {
 #ifndef SAMALTAK_NO_PLATFORM
     {595, 2, "deviceConstants", prim_device_constants},
 #endif
+    {640, 3, "cryptoFeatures", prim_features},
+    {641, 3, "cryptoSha256", prim_sha256},
+    {642, 3, "cryptoSha512", prim_sha512},
+    {643, 3, "cryptoAesEncrypt", prim_aes_encrypt},
+    {644, 3, "cryptoAesCtr", prim_aes_ctr},
+    {645, 3, "cryptoGhash", prim_ghash},
+    {646, 3, "cryptoCrc32", prim_crc32},
+    {647, 3, "cryptoCrc32c", prim_crc32c},
 };
 
 int vm_primitive_count = sizeof vm_primitive_table / sizeof vm_primitive_table[0];

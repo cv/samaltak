@@ -3,7 +3,7 @@ CryptoHash subclass: #SHA256
 	classVariableNames: 'K'
 	package: 'System-Crypto'!
 
-SHA256 comment: 'I am SHA-256 (FIPS 180-4, 6.2): a 32-byte digest of 64-byte blocks. SHA256 hash: bytes; SHA256 new update: bytes; update: more; digest (CryptoHash). The eight 32-bit words of state and the message schedule are SmallIntegers (63-bit signed: a 32-bit word shifted left by up to 30 bits still is one), so a rotation is two shifts, the left one masked to 32 bits (Σ0''s three left shifts are xored first, then masked once), and sums of up to five words are masked once.'!
+SHA256 comment: 'I am SHA-256 (FIPS 180-4, 6.2): a 32-byte digest of 64-byte blocks. SHA256 hash: bytes; SHA256 new update: bytes; update: more; digest (CryptoHash). The eight 32-bit words of state and the message schedule are SmallIntegers (63-bit signed: a 32-bit word shifted left by up to 30 bits still is one), so a rotation is two shifts, the left one masked to 32 bits (Σ0''s three left shifts are xored first, then masked once), and sums of up to five words are masked once. Whole blocks go to the VM''s primitive first (NativeCrypto: the CPU''s SHA-256 instructions, else C); this is the fallback and the reference.'!
 
 !SHA256 class methodsFor: 'class initialization'!
 initialize
@@ -44,6 +44,9 @@ postCopy
 ! !
 
 !SHA256 methodsFor: 'private'!
+processBlocks: bytes at: offset count: n
+	(NativeCrypto sha256: state bytes: bytes from: offset + 1 blocks: n) ifFalse: [super processBlocks: bytes at: offset count: n]
+!
 processBlock: bytes at: offset
 	| w k i x s0 s1 a b c d e f g h t1 t2 |
 	w := words.

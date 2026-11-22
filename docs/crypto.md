@@ -14,6 +14,7 @@
 - **Errors**: `CryptoError` (an Error): a tag that does not verify, keys and nonces of the wrong size, a ChaCha20 counter that wraps, HKDF beyond its limit, no source of entropy.
 - **Tests**: FIPS 180-4, RFC 4231, RFC 5869, RFC 8439 (every vector of 2.x and A.1–A.5), FIPS 197, McGrew and Viega's 18 GCM test cases, and Project Wycheproof's AES-GCM and ChaCha20-Poly1305 vectors with short messages (`WycheproofAeadTest`: 244 and 173, a third of them invalid: modified tags, wrapped counters, nonces of other sizes); tampering with any part signals CryptoError.
 - **Bytes**: `ByteArray>>constantTimeEquals:` compares MACs and tags in time that depends on their sizes only; `ByteArray fromHex:` reads test vectors.
+- **Primitives in the VM** (`NativeCrypto`, the VM's `CryptoPrimitives`): SHA-256 and SHA-512 compression of whole blocks, AES encryption of blocks and in counter mode (GCM's 32-bit counter), GHASH; `SHA256`, `SHA384`, `SHA512`, `Aes` and `AesGcm` (so HMAC, HKDF and TLS) call them first, and their Smalltalk, the fallback and the reference, runs where a primitive fails (a VM without them, arguments they refuse) or after `NativeCrypto enabled: false`. `NativeCrypto features` → the bits of `featureNames` (`#aes #ghash #sha256 #sha512 #crc32 #crc32c`) whose work the CPU's instructions do, the rest being portable C; `NativeCrypto useFeatures: mask` limits them (0: the portable C alone) and answers the previous mask. `Crc32` and `Crc32c` (System-Storage; PNG's chunks, ext4's checksums) use the CRC primitives the same way (`tableUpdate:bytes:from:to:` is the Smalltalk). `NativeCryptoTest` runs the vectors' test classes again each way (Smalltalk, portable C, instructions) and compares the ways on random inputs.
 
 ## How
 
@@ -25,21 +26,25 @@ Everything is SmallInteger arithmetic, no LargeInteger in any loop: SmallInteger
 - AES works on little-endian column words, as `uint32At:` reads them and as GCM's counter mode xors them: each round is sixteen lookups in four tables of 256 words (SubBytes, ShiftRows and MixColumns of a column at once), built from the S-box, itself computed from GF(2^8)'s inverses, when the class initializes; decryption is the equivalent inverse cipher. GHASH multiplies by H with Shoup's 8-bit tables: b·H for every byte b, four big-endian words each (4 KB per key, made in about 12 µs), and what a shift by a byte reduces back in at the top, so a block is sixteen lookups, shifts and xors.
 - `SecureRandom` is a ChaCha20 DRBG with fast key erasure: each request is ChaCha20's key stream under the current key, whose first 32 bytes become the next key. It seeds from 32 bytes of the platform's entropy, mixes in 32 more (SHA-256) after each MB, and reseeds when the image starts, since a resumed snapshot holds its key. The entropy: on an operating system `/dev/urandom` (FileStream); on UEFI the firmware's `EFI_RNG_PROTOCOL` (`Firmware`, docs/uefi.md), which QEMU's AAVMF offers only over a virtio-rng device: QEMU_UEFI has one (`-device virtio-rng-pci`). With no source it signals CryptoError; it never falls back to anything weaker. The VM has no primitive for the CPU's own generator (RNDR, RDRAND): with one, firmware without the protocol would still have entropy.
 - Nothing here is hardened against timing beyond the tag comparisons and Poly1305's last step: the JIT may branch where the source does not, and table-driven AES leaks through the cache, as table AES does everywhere.
+- The primitives' kernels are C in `CryptoPrimitives class>>cPreamble`: portable (SHA-256 and SHA-512 as FIPS 180-4 writes them, AES with one table of SubBytes and MixColumns, GHASH by Karatsuba with BearSSL's constant-time 64-bit carry-less multiplication, CRCs by slicing-by-8), and with the CPU's instructions where it has them: on arm64 the Armv8 cryptographic extensions (AESE/AESMC eight blocks at a time in CTR, PMULL, SHA256H/H2/SU0/SU1, SHA512H/H2/SU0/SU1, CRC32X and CRC32CX), on x86-64 AES-NI, PCLMULQDQ, SHA-NI and SSE4.2's CRC32 (CRC-32C only). Each such kernel enables its instructions for itself alone (a target attribute: the VM's default target, and UEFI's, has none) and runs once the CPU says it has them: the auxiliary vector on Linux, `ID_AA64ISAR0_EL1` on UEFI, CPUID on x86-64; every Apple arm64 CPU has them. GHASH works on each byte's bits reversed, so that a block is a 128-bit little-endian polynomial, reduced modulo x^128 + x^7 + x^2 + x + 1 by two multiplications by 16r87. With the instructions AES and GHASH no longer leak through the cache.
 
 ## Performance
 
-4 MB at once, `--jit opt` (the default), on arm64 (an NVIDIA GB10), hosted on Linux and on UEFI under QEMU with KVM (`make uefi-run`): the same within 10 %.
+32 MB at once (the Smalltalk 4 MB), `--jit opt` (the default), on arm64 (an NVIDIA GB10: Armv9.2, every instruction above), hosted on Linux (gcc) and on UEFI under QEMU with KVM (clang), best of four; "Smalltalk" is `NativeCrypto enabled: false`, as before the primitives (the same within 2 %), "C" `NativeCrypto useFeatures: 0`.
 
-| | hosted | UEFI (QEMU, KVM) |
-|---|---|---|
-| SHA-256 | 45 MB/s (89 ms) | 47 MB/s (85 ms) |
-| SHA-512 | 27–42 MB/s (95–149 ms) | 39 MB/s (102 ms) |
-| ChaCha20-Poly1305, either way | 69 MB/s (58 ms; ChaCha20 49 ms, Poly1305 7 ms) | 69 MB/s (58 ms) |
-| AES-128-GCM, either way | 38 MB/s (105 ms; CTR 52, GHASH 51) | 35 MB/s (114 ms) |
-| AES-256-GCM, either way | 33 MB/s (120 ms) | 30 MB/s (132 ms) |
-| SecureRandom | 77 MB/s (1 MB in 13 ms) | 77 MB/s |
+| | Smalltalk hosted | C hosted | instructions hosted | Smalltalk UEFI | C UEFI | instructions UEFI |
+|---|---|---|---|---|---|---|
+| SHA-256 | 51 MB/s | 313 MB/s | 1.9 GB/s | 46 MB/s | 367 MB/s | 1.9 GB/s |
+| SHA-512 | 41 MB/s | 470 MB/s | 1.2 GB/s | 37 MB/s | 561 MB/s | 1.1 GB/s |
+| AES-128-GCM, either way | 36 MB/s (CTR and GHASH about half each) | 264 MB/s | 1.1 GB/s | 34 MB/s | 313 MB/s | 2 GB/s |
+| AES-256-GCM, either way | 31 MB/s | 219 MB/s | 1.1 GB/s | 30 MB/s | 248 MB/s | 2 GB/s |
+| CRC-32, CRC-32C | 307 MB/s | 2.7 GB/s | 32 GB/s | | 2.3 GB/s | 32 GB/s |
+| ChaCha20-Poly1305, either way | 67 MB/s (ChaCha20 49 ms of 58, Poly1305 7) | | | 69 MB/s | | |
+| SecureRandom | 77 MB/s (1 MB in 13 ms) | | | 77 MB/s | | |
 
-A TLS record of 100 bytes takes about 7 µs with either AEAD, a new AES-GCM key 12 µs. An HTTPS session of a few MB spends well under a second in its symmetric cryptography, so none of it calls for a primitive in the VM; one would buy most for AES-GCM (the CPU's AES and polynomial multiplication instructions: tens of times faster) and SHA-256 (its SHA instructions), little for ChaCha20-Poly1305, whose code is already a few native instructions per operation.
+Hosted AES-GCM's 32 MB answer is new memory, whose first touches cost as much as the cryptography (UEFI's heap is touched already). The kernels alone (a C harness, 4 MB): SHA-256 1.9 GB/s, SHA-512 1.2 GB/s, AES-128-CTR 3.5 GB/s, GHASH 2.5 GB/s (a block at a time; aggregating four before reducing would do more), CRC-32C 22 GB/s.
+
+HTTPS through the Smalltalk TLS client (`TLSSocket useSmalltalkTLS: true`, 64 MB from openssl s_server -WWW on the same machine): hosted AES-128-GCM 36 → 570 MB/s, AES-256-GCM 31 → 557 MB/s, ChaCha20-Poly1305 65 MB/s either way; on UEFI (from the host, through the image's own TCP over virtio-net) AES-128-GCM 31 → 240 MB/s. A TLS record of 100 bytes takes about 7 µs with ChaCha20-Poly1305 in Smalltalk; with the primitives AES-GCM's is a few primitive calls, and a new AES-GCM key no longer builds GHASH's 4 KB table (made only if the Smalltalk GHASH runs). The client still prefers AES-128-GCM, then ChaCha20-Poly1305, then AES-256-GCM.
 
 ## Public-key cryptography
 
