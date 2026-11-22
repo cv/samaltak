@@ -14,6 +14,8 @@ My store is the local source directory (a SourceDirectoryStore): --source-dir <d
 	SourceFiler default commit: ''Kernel: gcd: handles 0''.   "GitHub: a GitHubPullRequest (number, url, branch, commitSha)"
 	SourceFiler default commit: ''...'' pullRequest: false.   "the commit on its branch only"
 	SourceFiler default discardChanges
+	SourceFiler default docs.   "the documents in docs/ beside src/: #(''agent.md'' ...)"
+	SourceFiler default doc: ''agent''.   "docs/agent.md''s text, nil if there is none"
 
 commit: makes the branch <branchPrefix><yyyymmdd-hhmmss>-<slug> at a new commit whose parent is the base commit the change set started from, and opens a pull request into the base branch, titled by the message''s first line, its body the rest and the methods, definitions and comments written; it ends the change set. A failed commit keeps it and signals GitHubError. Nothing ever updates the base branch or a ref outside branchPrefix. A change set survives a snapshot and restart (the token does not).'!
 
@@ -89,6 +91,13 @@ packageOfExtensionCategory: aString
 !
 labelOf: aBehavior
 	^aBehavior theNonMetaClass name, (aBehavior isMeta ifTrue: [' class'] ifFalse: [''])
+!
+docsDirectory
+	"The docs/ beside the store's source directory, or nil without a store."
+	| parent |
+	self store isNil ifTrue: [^nil].
+	parent := File directoryOf: self root.
+	^parent = '.' ifTrue: ['docs'] ifFalse: [parent, '/docs']
 ! !
 
 !SourceFiler methodsFor: 'files'!
@@ -103,6 +112,16 @@ edit: aPath note: aString with: aBlock
 		ifFalse: [store at: aPath putText: file text].
 	store noteChange: aString.
 	^aPath
+!
+docs
+	"The names of the documents in docs/ (doc: reads one)."
+	^self store ifNil: [#()] ifNotNil: [:store | store fileNamesIn: self docsDirectory]
+!
+doc: aName
+	"The text of the document aName in docs/ ('agent' or 'agent.md'), or nil."
+	| name |
+	name := (aName includes: $.) ifTrue: [aName] ifFalse: [aName, '.md'].
+	^self store ifNotNil: [:store | store textAt: self docsDirectory, '/', name]
 ! !
 
 !SourceFiler methodsFor: 'writing'!
