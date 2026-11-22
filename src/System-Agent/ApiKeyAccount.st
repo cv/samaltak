@@ -1,16 +1,16 @@
 Object subclass: #ApiKeyAccount
-	instanceVariableNames: 'providerName baseURL model thinking maxTokens apiKey changeBlocks'
+	instanceVariableNames: 'providerName baseURL model thinking maxTokens apiKey changeBlocks contextWindow'
 	classVariableNames: 'Default'
 	package: 'System-Agent'!
 
-ApiKeyAccount comment: 'I am an API-key account for a model behind the Anthropic Messages API, which AnthropicProvider talks to: the provider''s name (a label, e.g. ''nvidia-internal''), the base URL (requests go to baseURL, ''/v1/messages''), the model id, the thinking effort (''low'' ''medium'' ''high'' ''xhigh'' ''max''; nil turns thinking off), the max_tokens of a response, and the API key.
+ApiKeyAccount comment: 'I am an API-key account for a model behind the Anthropic Messages API, which AnthropicProvider talks to: the provider''s name (a label, e.g. ''nvidia-internal''), the base URL (requests go to baseURL, ''/v1/messages''), the model id, the thinking effort (''low'' ''medium'' ''high'' ''xhigh'' ''max''; nil turns thinking off), the max_tokens of a response, the model''s context window in tokens (nil when unknown; another model forgets it), and the API key.
 
 The key lives in memory only: I never print it, and it is forgotten before every snapshot and quit (I am on the shutdown list), so no image file contains it; the rest of my configuration is saved with the image. After Save image or Rebuild & reboot the key is set again. The host sends it over the control connection with samaltak-ctl agent-config --from-pi (docs/agent.md), which is the agent-config command I register with RemoteControl:
 
-	{"cmd": "agent-config", "provider": "nvidia-internal", "baseUrl": "https://inference-api.nvidia.com", "model": "azure/anthropic/claude-opus-5-5", "thinking": "high", "maxTokens": 128000, "apiKey": "..."}
+	{"cmd": "agent-config", "provider": "nvidia-internal", "baseUrl": "https://inference-api.nvidia.com", "model": "azure/anthropic/claude-opus-5-5", "thinking": "high", "maxTokens": 128000, "contextWindow": 200000, "apiKey": "..."}
 	{"cmd": "agent-config"}   "the configuration"
 	{"cmd": "agent-config", "clear": true}   "forget it all"
-each answering the configuration (configuration: provider, baseUrl, model, thinking, maxTokens, hasKey; never the key).
+each answering the configuration (configuration: provider, baseUrl, model, thinking, maxTokens, contextWindow, hasKey; never the key).
 
 	account := ApiKeyAccount default.
 	account isConfigured.   "a base URL and a model: new conversations use an AnthropicProvider"
@@ -62,8 +62,19 @@ configuration
 		at: 'model' put: model;
 		at: 'thinking' put: thinking;
 		at: 'maxTokens' put: maxTokens;
+		at: 'contextWindow' put: contextWindow;
 		at: 'hasKey' put: apiKey notNil;
 		yourself
+!
+contextWindow
+	"The model's context window in tokens, nil when not told."
+	^contextWindow
+!
+contextWindow: anIntegerOrNil
+	(anIntegerOrNil isNil or: [anIntegerOrNil isInteger and: [anIntegerOrNil > 0]])
+		ifFalse: [^AgentError signal: 'contextWindow must be a positive integer'].
+	contextWindow := anIntegerOrNil.
+	self changed
 ! !
 
 !ApiKeyAccount methodsFor: 'configuring'!
@@ -89,16 +100,23 @@ apiKey: aString
 	self changed
 !
 configure: aDictionary
-	"Apply an agent-config request's settings (JSON names: provider baseUrl model thinking maxTokens apiKey); a missing setting keeps its value, thinking ''off'' turns thinking off."
-	| effort |
+	"Apply an agent-config request's settings (JSON names: provider baseUrl model thinking maxTokens contextWindow apiKey); a missing setting keeps its value, but another model forgets the context window; thinking 'off' turns thinking off."
+	| effort newModel window previous |
 	effort := aDictionary at: 'thinking' ifAbsent: [thinking].
 	effort = 'off' ifTrue: [effort := nil].
-	self
+	newModel := aDictionary at: 'model' ifAbsent: [model].
+	window := aDictionary at: 'contextWindow' ifAbsent: [newModel = model ifTrue: [contextWindow]].
+	(window isNil or: [window isInteger and: [window > 0]])
+		ifFalse: [^AgentError signal: 'contextWindow must be a positive integer'].
+	previous := contextWindow.
+	contextWindow := window.
+	[self
 		providerName: (aDictionary at: 'provider' ifAbsent: [providerName])
 		baseURL: (aDictionary at: 'baseUrl' ifAbsent: [baseURL])
-		model: (aDictionary at: 'model' ifAbsent: [model])
+		model: newModel
 		thinking: effort
-		maxTokens: (aDictionary at: 'maxTokens' ifAbsent: [maxTokens]).
+		maxTokens: (aDictionary at: 'maxTokens' ifAbsent: [maxTokens])]
+			ifCurtailed: [contextWindow := previous].
 	(aDictionary includesKey: 'apiKey') ifTrue: [self apiKey: (aDictionary at: 'apiKey')]
 !
 signOut
@@ -109,7 +127,7 @@ signOut
 forget
 	"Forget the key and the configuration."
 	self forgetKey.
-	providerName := baseURL := model := thinking := nil.
+	providerName := baseURL := model := thinking := contextWindow := nil.
 	maxTokens := 32000.
 	self changed
 !
@@ -177,7 +195,7 @@ agentConfig: aRemoteRequest
 	(arguments at: 'clear' ifAbsent: [false]) == true
 		ifTrue: [self default forget]
 		ifFalse: [
-			(arguments keys anySatisfy: [:each | #('provider' 'baseUrl' 'model' 'thinking' 'maxTokens' 'apiKey') includes: each])
+			(arguments keys anySatisfy: [:each | #('provider' 'baseUrl' 'model' 'thinking' 'maxTokens' 'contextWindow' 'apiKey') includes: each])
 				ifTrue: [[self default configure: arguments] on: AgentError do: [:e | RemoteError signal: e messageText]]].
 	^self default configuration
 ! !

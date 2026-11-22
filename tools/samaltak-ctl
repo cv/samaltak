@@ -323,7 +323,7 @@ function piConfig() {
   const thinking = level === 'off' ? 'off' : typeof mapped === 'string' ? mapped
     : ({ minimal: 'low', low: 'low', medium: 'medium', high: 'high' })[level] || 'high';
   if (provider.apiKey == null) die(`agent-config: provider ${name} has no apiKey`);
-  return { provider: name, baseUrl: model.baseUrl || provider.baseUrl, model: id, thinking, maxTokens: model.maxTokens || 32000, apiKey: resolveSecret(String(provider.apiKey), name) };
+  return { provider: name, baseUrl: model.baseUrl || provider.baseUrl, model: id, thinking, maxTokens: model.maxTokens || 32000, contextWindow: model.contextWindow, apiKey: resolveSecret(String(provider.apiKey), name) };
 }
 
 function resolveSecret(spec, name) {

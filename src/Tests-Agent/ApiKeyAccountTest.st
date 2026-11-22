@@ -132,4 +132,22 @@ testConversationsPickTheProvider
 	self assert: (AgentConversation new provider isKindOf: AnthropicProvider).
 	self assert: AgentConversation new provider account == account.
 	self assert: AgentConversation new provider modelName equals: 'claude-test'
+!
+testContextWindow
+	| response |
+	response := self agentConfig: self settings.
+	self assert: (response at: 'contextWindow') isNil.
+	response := self agentConfig: (self settings at: 'contextWindow' put: 1000000; yourself).
+	self assert: (response at: 'contextWindow') equals: 1000000.
+	self assert: account contextWindow equals: 1000000.
+	response := self agentConfig: (Dictionary new at: 'thinking' put: 'low'; yourself).
+	self assert: (response at: 'contextWindow') equals: 1000000.
+	response := self agentConfig: (Dictionary new at: 'model' put: 'claude-other'; yourself).
+	self assert: (response at: 'contextWindow') isNil.
+	response := self agentConfig: (Dictionary new at: 'contextWindow' put: 0; yourself).
+	self deny: (response at: 'ok').
+	self assert: account contextWindow isNil.
+	self assert: account model equals: 'claude-other'.
+	response := self agentConfig: (Dictionary new at: 'clear' put: true; yourself).
+	self assert: (response at: 'contextWindow') isNil
 ! !
