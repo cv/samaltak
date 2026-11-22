@@ -3,7 +3,7 @@ TestCase subclass: #SourceFilerGitHubTest
 	classVariableNames: ''
 	package: 'Tests-Tools'!
 
-SourceFilerGitHubTest comment: 'I test SourceFiler''s stores: its GitHub store against a fake GitHub (GitHubTestServer, Tests-Net) holding a copy of ToolsTestFixture''s source that differs from the image''s, and its local directory store. A write changes only its chunk; commits carry new files, removed files (sha null), extension files and two edits to one file; a failed commit keeps the change set; discard; large files; which store is used; and the token never shows.'!
+SourceFilerGitHubTest comment: 'I test SourceFiler''s stores: its GitHub store against a fake GitHub (GitHubTestServer, Tests-Net) holding a copy of ToolsTestFixture''s source that differs from the image''s. A write changes only its chunk; commits carry new files, removed files (sha null), extension files and two edits to one file; a failed commit keeps the change set; discard; large files; which store is used; and the token never shows. SourceDirectoryStoreTest tests the local store.'!
 
 !SourceFilerGitHubTest methodsFor: 'running'!
 setUp
@@ -294,23 +294,6 @@ testWhichStore
 	other useGitHub: true.
 	self assert: other usesGitHub.
 	self assert: other store == store
-!
-testLocalDirectory
-	| dir local path |
-	dir := [self scratchDirectory] on: Error do: [:e | ^self skip: 'no writable directory (UEFI)'].
-	path := dir, '/Tests-Net/ToolsTestFixture.extension.st'.
-	Directory create: dir, '/Tests-Net'.
-	File writeText: self extensionText to: path.
-	local := SourceFiler new sourceDirectory: dir; useGitHub: false; yourself.
-	self assert: (local writeSource: 'fixtureNew
-	^2' selector: #fixtureNew class: ToolsTestFixture category: '*Tests-Net') equals: path.
-	self assert: ((File readText: path) includesSubstring: 'fixtureNew').
-	self assert: local pendingChanges isEmpty.
-	self should: [local commit: 'x'] raise: Error.
-	local removeMethod: #fixtureNew class: ToolsTestFixture category: '*Tests-Net'.
-	self assert: (File readText: path) equals: self extensionText.
-	self assert: (local removeMethod: #fixtureOld class: ToolsTestFixture category: '*Tests-Net') equals: path.
-	self deny: (File exists: path)
 !
 testTokenIsNeverPrinted
 	| texts pr bad badStore error |
