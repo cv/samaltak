@@ -22,10 +22,12 @@ oop *root_stack[1024];
 static uint64_t sample_mark;
 oop specials_oop;
 oop true_oop;
+bool word_hash = true;
 
 static uint64_t alloc_old_try(oop cls, int32_t fmt, uint32_t n);
 static uint64_t alloc_slow(oop *cls, uint64_t bytes);
 static uint64_t alloc_words32(oop cls, uint64_t n);
+static uint32_t fnv_hash(oop s);
 static bool large_magnitude(oop o, uint64_t *mag, bool *neg);
 static uint32_t next_hash(void);
 static size_t utf8_decode(uint8_t *s, size_t n, size_t *index);
@@ -331,6 +333,20 @@ double float_val(oop o)
         b = ((oop *)(o + 16))[0];
     }
     return lt_double_from_bits(b);
+}
+
+/* ObjectMemory>>fnvHash: */
+static uint32_t fnv_hash(oop s)
+{
+    uint32_t f;
+    int64_t k;
+    int64_t stop;
+    f = 2166136261LL;
+    stop = (int64_t)string_size(s) - 1;
+    for (k = 0; k <= stop; k++) {
+        f = (f ^ string_char_at(s, (uint64_t)k)) * 16777619;
+    }
+    return f & 0x3FFFFFFF;
 }
 
 /* ObjectMemory>>indexableSize: */
@@ -659,15 +675,42 @@ uint64_t string_from_utf8(const char *str, size_t n)
 /* ObjectMemory>>stringHash: */
 uint32_t string_hash(oop s)
 {
-    int64_t h;
-    size_t n;
-    int64_t i;
-    h = 2166136261LL;
+    uint64_t n;
+    uint64_t i;
+    uint64_t h;
+    uint64_t w;
+    int64_t j;
     n = string_size(s);
-    for (i = 0; i <= (int64_t)n - 1; i++) {
-        h = (uint32_t)((h ^ string_char_at(s, (uint64_t)i)) * 16777619);
+    if ((!word_hash) || (n <= 8)) {
+        return fnv_hash(s);
     }
-    return h & 0x3FFFFFFF;
+    i = 0;
+    h = n;
+    if ((int32_t)(((*(uint64_t *)s) >> H_FMT_SHIFT) & H_FMT_MASK) >= F_BYTES) {
+        while (i + 8 <= n) {
+            h = (h ^ (*(uint64_t *)(s + 16 + i))) * 0x5851F42D4C957F2DLL;
+            i = i + 8;
+        }
+    } else {
+        for (j = 0; j <= (int64_t)n - 1; j++) {
+            if (string_char_at(s, (uint64_t)j) > 255) {
+                return fnv_hash(s);
+            }
+        }
+    }
+    w = 0;
+    while (i < n) {
+        w = w | (((uint64_t)string_char_at(s, i)) << (8 * (i & 7)));
+        i = i + 1;
+        if (((i & 7) == 0) || (i == n)) {
+            h = (h ^ w) * 0x5851F42D4C957F2DLL;
+            w = 0;
+        }
+    }
+    h = h ^ (h >> 32);
+    h = h * 0x2545F4914F6CDD1DLL;
+    h = h ^ (h >> 29);
+    return (uint32_t)(h & 0x3FFFFFFF);
 }
 
 /* ObjectMemory>>stringSize: */

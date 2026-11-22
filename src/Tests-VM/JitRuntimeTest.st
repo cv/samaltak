@@ -442,13 +442,35 @@ testLeafPrimitives
 
 !JitRuntimeTest methodsFor: 'tests: primitives'!
 testStringHashAndCompare
-	"String>>hash, compareWith: (also where only = 0 uses it) and = in compiled code answer what their definitions in Smalltalk do: Strings of every size to 40, each with its first, middle or last byte changed up or down or to one above 127 (compared unsigned), against each other and against Symbols, a WideString and a ByteArray (bytes: the primitive takes them)."
-	| strings others o fnv cmp |
+	"String>>hash (FNV-1a, or 8 bytes a word past 8 code points all below 256), compareWith: (also where only = 0 uses it) and = in compiled code answer what their definitions in Smalltalk do: Strings of every size to 40, each with its first, middle or last byte changed up or down or to one above 127 (compared unsigned), against each other and against Symbols, a WideString and a ByteArray (bytes: the primitive takes them)."
+	| strings others o def cmp |
 	self define: 'hashOf: s ^s hash'.
 	self define: 'compare: a with: b ^a compareWith: b'.
 	self define: 'equal: a to: b ^a = b'.
 	self define: 'bytes: a equal: b ^(a compareWith: b) = 0'.
-	fnv := [:s | | h | h := 2166136261. s do: [:c | h := ((h bitXor: c asInteger) * 16777619) bitAnd: 16rFFFFFFFF]. h bitAnd: 16r3FFFFFFF].
+	def := [:s | | m h w k |
+		(s size <= 8 or: [s anySatisfy: [:c | c asInteger > 255]])
+			ifTrue: [
+				h := 2166136261.
+				s do: [:c | h := ((h bitXor: c asInteger) * 16777619) bitAnd: 16rFFFFFFFF].
+				h bitAnd: 16r3FFFFFFF]
+			ifFalse: [
+				m := 16rFFFFFFFFFFFFFFFF.
+				h := s size.
+				w := 0.
+				k := 0.
+				s do: [:c |
+					w := w bitOr: (c asInteger bitShift: 8 * k).
+					k := k + 1.
+					k = 8 ifTrue: [
+						h := ((h bitXor: w) * 16r5851F42D4C957F2D) bitAnd: m.
+						w := 0.
+						k := 0]].
+				k > 0 ifTrue: [h := ((h bitXor: w) * 16r5851F42D4C957F2D) bitAnd: m].
+				h := h bitXor: (h bitShift: -32).
+				h := (h * 16r2545F4914F6CDD1D) bitAnd: m.
+				h := h bitXor: (h bitShift: -29).
+				h bitAnd: 16r3FFFFFFF]].
 	cmp := [:a :b | | r |
 		r := nil.
 		1 to: (a size min: b size) do: [:i | (r isNil and: [(a at: i) asInteger ~= (b at: i) asInteger]) ifTrue: [r := (a at: i) asInteger < (b at: i) asInteger ifTrue: [-1] ifFalse: [1]]].
@@ -466,13 +488,13 @@ testStringHashAndCompare
 	others := {#abc. #abcdefghijklmnop. 'abd' asWideString. #[97 98 99]}.
 	o := JitRuntimeTestSubject new.
 	strings do: [:a |
-		self assert: (o hashOf: a) equals: (fnv value: a).
+		self assert: (o hashOf: a) equals: (def value: a).
 		(strings , others) do: [:b |
 			(a size - b size) abs <= 1 ifTrue: [
 				self assert: (o compare: a with: b) equals: (cmp value: a value: b).
 				self assert: (o bytes: a equal: b) equals: (cmp value: a value: b) = 0.
 				self assert: (o equal: a to: b) equals: (b isString and: [(cmp value: a value: b) = 0])]]].
-	others do: [:a | a isString ifTrue: [self assert: (o hashOf: a) equals: (fnv value: a)]].
+	others do: [:a | a isString ifTrue: [self assert: (o hashOf: a) equals: (def value: a)]].
 	self assert: (o compare: #abc with: 'abc') equals: 0.
 	self assert: (o equal: #abc to: 'abc')
 ! !

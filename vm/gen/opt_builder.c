@@ -10033,7 +10033,7 @@ exit_guard_int_3:;
     }
     var_17 = (opt_acts + a)->var_base + r;
     rcv_2 = opt_builder_read(var_17, ob_cur_block);
-    if ((kind == OPK_STRHASH) && (argc == 0)) {
+    if ((kind == OPK_STRHASH) && ((argc == 0) && word_hash)) {
         n_59 = ({
     n_60 = new_node(O_STRHASH, R_OOP);
     append(n_60, ob_cur_block);

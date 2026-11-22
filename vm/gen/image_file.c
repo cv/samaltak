@@ -22,6 +22,7 @@ void load_image(char *path)
     oop o_2;
     uint64_t o_3;
     uint64_t an_integer;
+    bool a_boolean;
     uint64_t budget;
     uint64_t n;
     f = fopen(path, "rb");
@@ -75,6 +76,8 @@ void load_image(char *path)
     specials_oop = o_3;
     an_integer = h->hash_seed;
     hash_box[0] = an_integer;
+    a_boolean = h->string_hash == 1;
+    word_hash = a_boolean;
     budget = 2 * h->heap_bytes;
     if (budget > old_budget) {
         n = budget < max_heap_bytes ? budget : max_heap_bytes;
@@ -109,6 +112,7 @@ bool write_snapshot(char *path)
     h->base = old_lo;
     h->specials = specials_oop;
     h->hash_seed = hash_box[0];
+    h->string_hash = word_hash ? 1 : 0;
     f = fopen(path, "wb");
     if (f == NULL) {
         return false;

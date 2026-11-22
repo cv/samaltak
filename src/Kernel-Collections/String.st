@@ -3,7 +3,7 @@ ArrayedCollection subclass: #String
 	classVariableNames: ''
 	package: 'Kernel-Collections'!
 
-String comment: 'I am the abstract class of sequences of Characters. ByteString holds code points up to 255 in bytes, WideString any code point in 32-bit units; storing a wide Character into a ByteString turns it into a WideString. Strings compare by code points (compareWith:, -1/0/1; compare: answers 1/2/3 ignoring case, as in Squeak and Pharo); = ignores the representation, and hash (FNV-1a over code points) is the same for equal Strings and Symbols. String new: answers a ByteString.'!
+String comment: 'I am the abstract class of sequences of Characters. ByteString holds code points up to 255 in bytes, WideString any code point in 32-bit units; storing a wide Character into a ByteString turns it into a WideString. Strings compare by code points (compareWith:, -1/0/1; compare: answers 1/2/3 ignoring case, as in Squeak and Pharo); = ignores the representation, and hash (over code points: FNV-1a, or 8 at a time where there are more than 8, all below 256) is the same for equal Strings and Symbols. String new: answers a ByteString.'!
 
 !String methodsFor: 'accessing'!
 at: index
@@ -67,11 +67,28 @@ streamAt: index put: aCharacter
 	^(self compareWith: aString) = 0
 !
 hash
-	"FNV-1a over the code points, the same function as Symbol>>hash."
+	"The same for equal Strings and Symbols. Of more than 8 code points all below 256: them as bytes in 64-bit little-endian words, the last zero-padded; from h := the size, h := (h bitXor: word) * 16r5851F42D4C957F2D for each word, then h := h bitXor: h >> 32, h := h * 16r2545F4914F6CDD1D, h := h bitXor: h >> 29 (modulo 2^64), the low 30 bits. Else (up to 8, or code points above 255) FNV-1a over the code points, the low 30 bits."
 	<primitive: 'stringHash'>
-	| h |
-	h := 2166136261.
-	self do: [:c | h := ((h bitXor: c value) * 16777619) bitAnd: 16rFFFFFFFF].
+	| m h w k |
+	(self size <= 8 or: [self anySatisfy: [:c | c value > 255]]) ifTrue: [
+		h := 2166136261.
+		self do: [:c | h := ((h bitXor: c value) * 16777619) bitAnd: 16rFFFFFFFF].
+		^h bitAnd: 16r3FFFFFFF].
+	m := 16rFFFFFFFFFFFFFFFF.
+	h := self size.
+	w := 0.
+	k := 0.
+	self do: [:c |
+		w := w bitOr: (c value bitShift: 8 * k).
+		k := k + 1.
+		k = 8 ifTrue: [
+			h := ((h bitXor: w) * 16r5851F42D4C957F2D) bitAnd: m.
+			w := 0.
+			k := 0]].
+	k > 0 ifTrue: [h := ((h bitXor: w) * 16r5851F42D4C957F2D) bitAnd: m].
+	h := h bitXor: (h bitShift: -32).
+	h := (h * 16r2545F4914F6CDD1D) bitAnd: m.
+	h := h bitXor: (h bitShift: -29).
 	^h bitAnd: 16r3FFFFFFF
 !
 compareWith: aString

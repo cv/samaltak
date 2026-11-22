@@ -915,7 +915,7 @@ struct image_header {
     uint64_t base;
     uint64_t specials;
     uint64_t hash_seed;
-    uint64_t reserved;
+    uint64_t string_hash;
 };
 _Static_assert(sizeof(image_header) == 64, "the simulator lays out ImageHeader as C does");
 
@@ -1428,6 +1428,7 @@ extern int32_t root_count;
 extern oop *root_stack[1024];
 extern oop specials_oop;
 extern oop true_oop;
+extern bool word_hash;
 extern int32_t ob_dep_count;
 extern oop ob_deps[256];
 extern int32_t ob_entry_block;

@@ -619,24 +619,60 @@ emitSmallCopy
 !
 emitStringStubs
 	"String>>hash and compareWith: of byte objects (their primitives' work) for optimized code (O_STRHASH, O_STRCMP): x16 the receiver, x17 the argument, the result in x16 (a SmallInteger); x16, x17, the copy stub's two registers and the flags change, nothing else (compare keeps x0 and x9 on the stack)."
-	| c t loop done words tail sizes |
+	| c t loop done words tail sizes fnv |
 	c := self copyCountRegister.
 	t := self copyTempRegister.
 	loop := asm newLabel.
 	done := asm newLabel.
+	tail := asm newLabel.
+	words := asm newLabel.
+	fnv := asm newLabel.
 	blStrHash := self symbol: 'string hash'.
-	asm comment: 'FNV-1a of the bytes (ObjectMemory>>stringHash:)'.
+	asm comment: 'ObjectMemory>>stringHash: of the bytes: up to 8 FNV-1a, a byte at a time'.
 	self emitBytesOf: X16 into: c temp: t.
+	asm cmp: c imm: 8.
+	asm b: words if: COND_HI.
 	asm add: X17 with: X16 imm: 16.
 	asm mov: t imm: 2166136261.
 	asm cbz: c to: done.
-	asm bind: loop.
+	asm bind: fnv.
 	asm ldrb: (X16 bitOr: REG_W) base: X17 postIndex: 1.
 	asm eor: (t bitOr: REG_W) with: (t bitOr: REG_W) with: (X16 bitOr: REG_W).
 	asm mov: X16 imm: 16777619.
 	asm mul: (t bitOr: REG_W) with: (t bitOr: REG_W) with: (X16 bitOr: REG_W).
 	asm subs: c with: c imm: 1.
-	asm b: loop if: COND_NE.
+	asm b: fnv if: COND_NE.
+	asm b: done.
+	asm bind: words.
+	asm comment: 'more: from h := their count, h := (h ^ word) * K1 8 bytes at a time, then the last word without its unused bytes, then h ^= h >> 32, h *= K2, h ^= h >> 29'.
+	asm mov: t with: c.
+	asm add: X16 with: X16 imm: 16.
+	asm bind: loop.
+	asm ldr: X17 base: X16 postIndex: 8.
+	asm eor: t with: t with: X17.
+	asm mov: X17 imm: 16r5851F42D4C957F2D.
+	asm mul: t with: t with: X17.
+	asm sub: c with: c imm: 8.
+	asm cmp: c imm: 8.
+	asm b: loop if: COND_HS.
+	asm cbz: c to: tail.
+	asm comment: 'the last word: its count bytes (the slot holds them)'.
+	asm ldr: X17 base: X16 offset: 0.
+	asm lsl: c with: c imm: 3.
+	asm mov: X16 imm: 1.
+	asm lsl: X16 with: X16 with: c.
+	asm sub: X16 with: X16 imm: 1.
+	asm and: X17 with: X17 with: X16.
+	asm eor: t with: t with: X17.
+	asm mov: X17 imm: 16r5851F42D4C957F2D.
+	asm mul: t with: t with: X17.
+	asm bind: tail.
+	asm lsr: X17 with: t imm: 32.
+	asm eor: t with: t with: X17.
+	asm mov: X17 imm: 16r2545F4914F6CDD1D.
+	asm mul: t with: t with: X17.
+	asm lsr: X17 with: t imm: 29.
+	asm eor: t with: t with: X17.
 	asm bind: done.
 	asm and: t with: t imm: 16r3FFFFFFF.
 	asm add: X16 with: t with: t.

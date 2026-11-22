@@ -1843,7 +1843,8 @@ stringPrimitive: kind spec: spec argc: argc pc: pc act: a rcvSlot: r
 	| rcv x n s |
 	spec >= F_BYTES ifFalse: [^false].
 	rcv := self read: (self var: a slot: r).
-	(kind = OPK_STRHASH and: [argc = 0]) ifTrue: [
+	"the stub hashes by words of 8 bytes: an image hashed by FNV-1a calls the primitive"
+	(kind = OPK_STRHASH and: [argc = 0 and: [memory wordHash]]) ifTrue: [
 		n := self add: O_STRHASH rep: R_OOP.
 		(ir node: n) a: rcv.
 		(ir node: n) flags: NF_PURE.
