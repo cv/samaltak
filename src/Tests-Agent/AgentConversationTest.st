@@ -340,6 +340,20 @@ testLongElementsAreCutEach
 	self assert: ((outputs at: 1) beginsWith: 'o1 #(''aaa').
 	self assert: ((outputs at: 1) endsWith: '... [cut: 25002 characters; o1 at: 1] ''short'' 42)').
 	self assert: ((outputs at: 2) endsWith: 'the next part: o2 printString copyFrom: 10001 to: 20000]')
+!
+testTurnUsageCountsRequestsOfTheTurn
+	| c |
+	c := AgentConversation new.
+	self assert: c turnUsage isNil.
+	c accumulateUsage: (Dictionary new at: 'input_tokens' put: 100; at: 'output_tokens' put: 20; at: 'input_tokens_details' put: (Dictionary new at: 'cached_tokens' put: 80; yourself); yourself).
+	c accumulateUsage: (Dictionary new at: 'input_tokens' put: 150; at: 'output_tokens' put: 30; yourself).
+	c accumulateUsage: Dictionary new.
+	self assert: (c turnUsage at: 'requests') = 3.
+	self assert: (c turnUsage at: 'input_tokens') = 250.
+	self assert: (c turnUsage at: 'output_tokens') = 50.
+	self assert: ((c turnUsage at: 'input_tokens_details') at: 'cached_tokens') = 80.
+	self assert: c contextTokens = 150.
+	self assert: (c usage at: 'output_tokens') = 50
 ! !
 
 !AgentConversationTest methodsFor: 'tests - contexts'!

@@ -108,6 +108,7 @@ update
 	status add: self account statusLabel.
 	tokens isNil ifFalse: [status add: '│' style: #muted. status add: tokens printString, ' tokens' style: #plain].
 	(self cacheUsageText: conversation usage) ifNotNil: [:text | status add: '│' style: #muted. status add: text style: #plain].
+	(self turnUsageText: conversation turnUsage) ifNotNil: [:text | status add: '│' style: #muted. status add: text style: #plain].
 	busy ifTrue: [status addRight: 'working…' style: #muted]
 !
 cacheUsageText: usage
@@ -125,6 +126,15 @@ cacheUsageText: usage
 
 
 
+!
+turnUsageText: turnUsage
+	"Show the running or last turn's requests and output tokens."
+	| requests |
+	turnUsage isNil ifTrue: [^nil].
+	requests := turnUsage at: 'requests' ifAbsent: [^nil].
+	^String streamContents: [:s |
+		s print: requests; nextPutAll: (requests = 1 ifTrue: [' request, '] ifFalse: [' requests, ']);
+			print: (turnUsage at: 'output_tokens' ifAbsent: [0]); nextPutAll: ' out']
 ! !
 
 !AgentWindow methodsFor: 'actions'!
