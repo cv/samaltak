@@ -78,6 +78,25 @@ testOpenCloseMenusAndToasts
 	self settle.
 	self assertNoMismatches
 !
+testOpaqueWindowAboveHidesDamage
+	"Lines streamed into a window under an opaque one damage nothing of the screen where that one covers them; uncovered, they do."
+	| a b hidden |
+	a := self open: (DamageTestView new color: Color white; yourself) title: 'Under' at: (100 @ 100 extent: 400 @ 300).
+	b := self open: (RecordingTestView new color: Color ultramarine; yourself) title: 'Over' at: (60 @ 60 extent: 500 @ 250).
+	self settle.
+	hidden := self presentedDuring: [
+		1 to: 4 do: [:i |
+			a content add: 'hidden line ', i printString.
+			self settle]].
+	self assert: a layer lastDamage notNil description: 'the window under was rendered in part'.
+	"At most the top bar's readout, refreshed twice a second."
+	self assert: hidden <= 2.
+	b close.
+	self settle.
+	self assert: (self presentedDuring: [a content add: 'seen line']) > 0.
+	self assert: check frames > 3.
+	self assertNoMismatches
+!
 testForcesFullDrawsWhole
 	| v |
 	DamageCheck forcesFull: true.

@@ -543,26 +543,32 @@ compositeListScale: aNumber pointer: showPointer time: now
 !Compositor methodsFor: 'damage'!
 damageOf: aDisplayList items: newItems rendered: toRender
 	"What aDisplayList (the screen, drawn item by item: newItems) changes of the last frame presented: a DamageRegion of device pixels (full when there is no last frame to compare with, at a new size, after redrawAll, and with DamageCheck forcesFull)."
-	| region old newKeys common oldCommon |
+	| region old oldPlaces newKeys common oldCommon occluders scratch |
 	region := DamageRegion extent: aDisplayList pixelExtent.
 	(fullNext or: [previousList isNil or: [DamageCheck forcesFull
 		or: [previousList pixelExtent ~= aDisplayList pixelExtent or: [displayWindow needsFullFrame]]]])
 			ifTrue: [region beFull. ^region].
 	differ region: region; stableSurfaces: true.
 	old := IdentityDictionary new: previousItems size * 2.
-	previousItems do: [:each | old at: each first put: each].
+	oldPlaces := IdentityDictionary new: previousItems size * 2.
+	previousItems doWithIndex: [:each :i | old at: each first put: each. oldPlaces at: each first put: i].
 	newKeys := IdentitySet new: newItems size * 2.
-	newItems do: [:each | | o |
-		newKeys add: each first.
+	newItems do: [:each | newKeys add: each first].
+	occluders := self occludersIn: newItems old: oldPlaces.
+	scratch := DamageRegion bounds: region bounds.
+	newItems doWithIndex: [:each :k | | o |
 		o := old at: each first ifAbsent: [nil].
-		o isNil
-			ifTrue: [differ damageAll: aDisplayList stamps: nil from: (each at: 2) count: (each at: 3)]
-			ifFalse: [
-				differ diff: previousList stamps: previousStamps from: (o at: 2) count: (o at: 3)
-					to: aDisplayList stamps: nil from: (each at: 2) count: (each at: 3)].
-		(each at: 5) isNil ifFalse: [self addLayerDamageOf: each in: aDisplayList rendered: toRender]].
-	previousItems do: [:o |
-		(newKeys includes: o first) ifFalse: [differ damageAll: previousList stamps: previousStamps from: (o at: 2) count: (o at: 3)]].
+		self damageInto: region using: scratch below: k old: (oldPlaces at: each first ifAbsent: [nil]) occluders: occluders during: [
+			o isNil
+				ifTrue: [differ damageAll: aDisplayList stamps: nil from: (each at: 2) count: (each at: 3)]
+				ifFalse: [
+					differ diff: previousList stamps: previousStamps from: (o at: 2) count: (o at: 3)
+						to: aDisplayList stamps: nil from: (each at: 2) count: (each at: 3)].
+			(each at: 5) isNil ifFalse: [self addLayerDamageOf: each in: aDisplayList rendered: toRender]]].
+	previousItems doWithIndex: [:o :k |
+		(newKeys includes: o first) ifFalse: [
+			self damageInto: region using: scratch below: nil old: k occluders: occluders during: [
+				differ damageAll: previousList stamps: previousStamps from: (o at: 2) count: (o at: 3)]]].
 	"Raised or lowered: an item whose place among the others changed damages its old and its new bounds (any two that changed order overlap only inside one of them)."
 	common := newItems select: [:each | old includesKey: each first].
 	oldCommon := previousItems select: [:each | newKeys includes: each first].
@@ -571,6 +577,44 @@ damageOf: aDisplayList items: newItems rendered: toRender
 			differ damageAll: aDisplayList stamps: nil from: (n at: 2) count: (n at: 3).
 			differ damageAll: previousList stamps: previousStamps from: (o at: 2) count: (o at: 3)]].
 	^region
+!
+occludersIn: newItems old: oldPlaces
+	"The windows that hide what they cover, {new place. old place. device rectangle} each: drawn 1:1, fully opaque (opacity 1 over a surface cleared with an opaque color: premultiplied blending keeps it opaque), in the last frame too. A pixel one covers is its own in both frames wherever it stood above (damageInto:using:below:old:occluders:during:), so what changes there is its own damage. Inset by a pixel (filtered edges)."
+	| result |
+	result := OrderedCollection new.
+	newItems doWithIndex: [:each :k | | layer rect place |
+		layer := each at: 5.
+		rect := each at: 4.
+		place := oldPlaces at: each first ifAbsent: [nil].
+		(layer notNil and: [rect notNil and: [place notNil and: [layer opacity = 1 and: [layer scale = 1
+			and: [layer clearColorOrPaper alpha = 1 and: [layer isRendered]]]]]]) ifTrue: [
+				rect := rect insetBy: 1.
+				(rect width > 0 and: [rect height > 0]) ifTrue: [result add: (Array with: k with: place with: rect)]]].
+	^result
+!
+damageInto: aDamageRegion using: scratch below: newPlace old: oldPlace occluders: occluders during: aBlock
+	"Damage what aBlock damages through differ, less what the occluders above it in every frame it is in (newPlace, oldPlace: its place among the items, nil when absent) hide: those pixels show that window, before and after. scratch: a DamageRegion of the same bounds to collect it in first."
+	| above |
+	occluders isEmpty ifTrue: [^aBlock value].
+	above := occluders select: [:o |
+		(newPlace isNil or: [(o at: 1) > newPlace]) and: [oldPlace isNil or: [(o at: 2) > oldPlace]]].
+	above isEmpty ifTrue: [^aBlock value].
+	scratch clear.
+	differ region: scratch.
+	[aBlock value] ensure: [differ region: aDamageRegion].
+	scratch isEmpty ifTrue: [^self].
+	scratch rects do: [:r | (self parts: r outside: above) do: [:p | aDamageRegion add: p]]
+!
+parts: aRectangle outside: occluders
+	"aRectangle less the occluders' rectangles, as rectangles (aRectangle itself if that takes more than 16)."
+	| parts |
+	parts := OrderedCollection with: aRectangle.
+	occluders do: [:o | | next |
+		next := OrderedCollection new.
+		parts do: [:p | (p intersects: (o at: 3)) ifTrue: [next addAll: (p areasOutside: (o at: 3))] ifFalse: [next add: p]].
+		parts := next.
+		parts size > 16 ifTrue: [^Array with: aRectangle]].
+	^parts
 !
 addLayerDamageOf: anItem in: aDisplayList rendered: toRender
 	"A window's layer rendered this frame damages the screen where its changed pixels land: moved by where it is drawn when drawn 1:1 (with a pixel around, for filtering), else everywhere it is drawn."

@@ -54,6 +54,11 @@ scissors
 ! !
 
 !DamageRegion methodsFor: 'adding'!
+clear
+	"Nothing damaged again."
+	full := false.
+	rects isEmpty ifFalse: [rects := OrderedCollection new]
+!
 beFull
 	full := true.
 	rects := OrderedCollection new
