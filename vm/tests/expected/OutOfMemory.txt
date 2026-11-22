@@ -11,8 +11,8 @@ Error: basicNew: failed nil
 nil
 Error: basicNew: failed 1
 nil
-30000000
+25000000
 Error: shallowCopy failed 1
 nil
-40000000
+30000000
 200000

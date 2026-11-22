@@ -29,6 +29,7 @@ uint64_t stat_materialized;
 oop tag_class[8];
 oop tmp_roots[4];
 
+static int64_t active_depth(void);
 static void block_activate(int32_t n, bool from_array);
 static void interpreter_ctx(oop ctx, int64_t n);
 static oop ctx_home(oop a_context);
@@ -66,6 +67,20 @@ int64_t active_capacity(void)
         return (int64_t)(uint32_t)*(uint64_t *)o - CTX_FIXED;
     }
     return cstack + CSTACK_SLOTS - f->fp;
+}
+
+/* Interpreter>>activeDepth */
+static int64_t active_depth(void)
+{
+    int64_t depth;
+    oop c;
+    depth = (int64_t)nframes;
+    c = active_ctx;
+    while (((c & 7) == 0) && (c != nil_oop)) {
+        depth = depth + 1;
+        c = *(uint64_t *)(c + 16 + 0);
+    }
+    return depth;
 }
 
 /* Interpreter>>activeSetStackp: */
@@ -12268,6 +12283,14 @@ void interrupt_safepoint(void)
     depth = stack_check_due && ({
     o = active_process();
     (uint32_t)(((*(uint64_t *)o) >> H_HASH_SHIFT) & H_HASH_MASK) == stack_check_hash; }) ? stack_overflow_depth() : 0;
+    if (low_space_pending) {
+        low_space_pending = false;
+        depth = active_depth();
+        if (depth < 1) {
+            depth = 1;
+        }
+        depth = 0 - depth;
+    }
     if (depth == 0) {
         handle_interrupts();
         return;

@@ -435,6 +435,17 @@ moveTop: t to: k
 	gc gcEpoch: gc gcEpoch + 1.
 	frameEpoch := frameEpoch + 1
 !
+activeDepth
+	"The active process's activations: frames and Contexts."
+	<function>
+	| depth c |
+	depth := nframes asInt64.
+	c := activeCtx.
+	[(self isPtr: c) and: [c ~= memory nilOop]] whileTrue: [
+		depth := depth + 1.
+		c := self loadRef: c at: CTX_SENDER].
+	^depth
+!
 stackOverflowDepth
 	"The active process's depth (frames + Contexts) if it is too deep: beyond stackLimit, or its Contexts take more than a quarter of the heap limit. Else 0."
 	<function>
@@ -598,10 +609,15 @@ selectorArgc: aSelector
 
 !Interpreter methodsFor: 'interrupts'!
 interruptSafepoint
-	"At an interrupt check (registers externalized), before handleInterrupts can switch processes: if a depth check of the active process is due and it is too deep, its frames are flushed and the top Context sends stackOverflow: depth, as if its next instruction did (an activation above it; its own stack unchanged). The pending interrupts are then handled at the next safepoint."
+	"At an interrupt check (registers externalized), before handleInterrupts can switch processes: if a depth check of the active process is due and it is too deep, its frames are flushed and the top Context sends stackOverflow: depth, as if its next instruction did (an activation above it; its own stack unchanged). If a full GC found the heap nearly full (GarbageCollector lowSpacePending), it sends stackOverflow: with the depth negated instead (Context>>stackOverflow: signals StackOverflow or OutOfMemory). The pending interrupts are then handled at the next safepoint."
 	<function>
 	| depth sel m ntemps fsize ctx s |
 	depth := (stackCheckDue and: [(self hashOf: scheduler activeProcess) = stackCheckHash]) ifTrue: [self stackOverflowDepth] ifFalse: [0].
+	gc lowSpacePending ifTrue: [
+		gc lowSpacePending: false.
+		depth := self activeDepth.
+		depth < 1 ifTrue: [depth := 1].
+		depth := 0 - depth].
 	depth = 0 ifTrue: [^scheduler handleInterrupts].
 	self materializeAll.
 	"these flushed frames must not trigger a check of the stack being handled"

@@ -332,8 +332,10 @@ cannotReturn: result to: aContext
 		signal: 'Block cannot return'
 !
 stackOverflow: depth
-	"Sent by the VM at a safepoint of mine (between two instructions) when my process is depth activations deep, beyond Process maxStackDepth. Let the process signal StackOverflow, then continue me where I was: a return would push a value onto my stack."
-	Processor activeProcess stackOverflowIn: self depth: depth.
+	"Sent by the VM at a safepoint of mine (between two instructions) when my process is depth activations deep, beyond Process maxStackDepth, or with the depth negated when a full GC found the heap nearly full (its reserve in use: GarbageCollector, VMStatistics heapReserve). Let the process signal StackOverflow (or OutOfMemory), then continue me where I was: a return would push a value onto my stack."
+	depth < 0
+		ifTrue: [Processor activeProcess lowSpaceIn: self depth: depth negated]
+		ifFalse: [Processor activeProcess stackOverflowIn: self depth: depth].
 	stackp > 0 ifTrue: [^self jump].
 	Processor activeProcess continueAt: self
 !

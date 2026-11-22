@@ -179,6 +179,14 @@ stackOverflowIn: aContext depth: anInteger
 	overflowLimit := anInteger + Process maxStackDepth.
 	^StackOverflow new context: aContext depth: anInteger; signal
 !
+lowSpaceIn: aContext depth: anInteger
+	"Sent by Context>>stackOverflow: when a full GC found the heap nearly full (the VM signals it once per level: the reserve in use, then three quarters of it; again after a full GC with the reserve free). My stack is anInteger activations deep, aContext on top. If it is deep (beyond Process lowSpaceDepth), likely what filled the heap, signal StackOverflow, else OutOfMemory; neither is resumable, so a handler unwinds what filled the heap. The idle process ignores it."
+	priority <= Processor lowestPriority ifTrue: [^self].
+	anInteger > self class lowSpaceDepth ifTrue: [
+		overflowContext := nil.
+		^StackOverflow new context: aContext depth: anInteger; beHeapFull; signal].
+	^OutOfMemory new beHeapFull; signal
+!
 continueAt: aContext
 	"Abandon my current stack and continue aContext exactly as it is. A return (or jump) would push a value onto aContext, so a process switch does it: a helper sets my suspendedContext once I am suspended and resumes me."
 	[[self isSuspended or: [self isTerminated]] whileFalse: [Processor yield].
@@ -202,6 +210,10 @@ forContext: aContext priority: anInteger
 ! !
 
 !Process class methodsFor: 'stack depth'!
+lowSpaceDepth
+	"Activations beyond which a process the heap ran nearly full in gets a StackOverflow rather than an OutOfMemory (lowSpaceIn:depth:)."
+	^10000
+!
 maxStackDepth
 	"Answer how many activations (frames) a process may have before it signals StackOverflow; 0: no limit. The VM counts them every maxStackDepth / 8 activations it turns into Contexts, so the signal comes somewhat later; it also comes once a stack takes a quarter of the heap limit."
 	<primitive: 'stackLimit'>

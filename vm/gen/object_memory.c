@@ -23,6 +23,7 @@ static uint64_t sample_mark;
 oop specials_oop;
 oop true_oop;
 
+static uint64_t object_memory_alloc_old_format_slots_limit(oop cls, int32_t fmt, uint32_t n, size_t limit);
 static uint64_t alloc_old_try(oop cls, int32_t fmt, uint32_t n);
 static uint64_t alloc_slow(oop *cls, uint64_t bytes);
 static uint64_t alloc_words32(oop cls, uint64_t n);
@@ -64,7 +65,7 @@ uint64_t alloc_obj(oop cls, int32_t fmt, uint32_t n)
         if (alloc_sample_interval > 0) {
             alloc_sample_hit(cls, bytes);
         }
-        return alloc_old(cls, fmt, n);
+        return object_memory_alloc_old_format_slots(cls, fmt, n);
     }
     p = eden_box[0];
     if (p + bytes > eden_box[1]) {
@@ -122,11 +123,11 @@ uint64_t alloc_obj_try(oop cls, int32_t fmt, uint64_t n)
 }
 
 /* ObjectMemory>>allocOld:format:slots: */
-uint64_t alloc_old(oop cls, int32_t fmt, uint32_t n)
+uint64_t object_memory_alloc_old_format_slots(oop cls, int32_t fmt, uint32_t n)
 {
     uint64_t o;
     uint64_t a;
-    o = alloc_old_try(cls, fmt, n);
+    o = object_memory_alloc_old_format_slots_limit(cls, fmt, n, max_heap_bytes);
     if (o == 0) {
         a = 16 + 8 * (uint64_t)n;
         fatal_begin();
@@ -136,8 +137,8 @@ uint64_t alloc_old(oop cls, int32_t fmt, uint32_t n)
     return o;
 }
 
-/* ObjectMemory>>allocOldTry:format:slots: */
-static uint64_t alloc_old_try(oop cls, int32_t fmt, uint32_t n)
+/* ObjectMemory>>allocOld:format:slots:limit: */
+static uint64_t object_memory_alloc_old_format_slots_limit(oop cls, int32_t fmt, uint32_t n, size_t limit)
 {
     oop local;
     oop *cls_root;
@@ -154,7 +155,7 @@ static uint64_t alloc_old_try(oop cls, int32_t fmt, uint32_t n)
     cls_root = &local;
     *cls_root = cls;
     push_root(cls_root);
-    p = old_alloc_try(16 + 8 * (uint64_t)n);
+    p = old_alloc_try(16 + 8 * (uint64_t)n, limit);
     pop_root();
     if (p == 0) {
         return 0;
@@ -181,6 +182,12 @@ static uint64_t alloc_old_try(oop cls, int32_t fmt, uint32_t n)
         remember(p);
     }
     return p;
+}
+
+/* ObjectMemory>>allocOldTry:format:slots: */
+static uint64_t alloc_old_try(oop cls, int32_t fmt, uint32_t n)
+{
+    return object_memory_alloc_old_format_slots_limit(cls, fmt, n, max_heap_bytes - heap_reserve);
 }
 
 /* ObjectMemory>>allocSlots:count: */

@@ -45,7 +45,7 @@ loadImage: path
 	memory specialsOop: (h specials + delta) asUInt64.
 	memory hashSeed: h hashSeed.
 	budget := 2 * h heapBytes.
-	budget > gc oldBudget ifTrue: [gc oldBudget: (budget < gc maxHeapBytes ifTrue: [budget] ifFalse: [gc maxHeapBytes])].
+	budget > gc oldBudget ifTrue: [gc oldBudget: (budget < gc softLimit ifTrue: [budget] ifFalse: [gc softLimit])].
 	imagePath := posix realpath: path into: self null.
 	imagePath isNull ifTrue: [imagePath := libc strdup: path].
 	imagePath isNull ifTrue: [self fatal: 'out of memory'].
