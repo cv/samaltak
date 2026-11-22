@@ -69,9 +69,12 @@ test-core: image test-vm
 	SAMALTAK_VERIFY_GC=1 tests/st_suite.sh $(OUT)/samaltak.image --eden 1 -- Tests-Kernel Tests-Compiler
 	tests/st_suite.sh $(OUT)/samaltak.image -- Weather --load apps/Weather
 # System-NV on a real NVIDIA GPU (hosted Linux, /dev/nvidiactl; the GB10): not part of make test, which runs where
-# there is none. Fails, saying so, without a GPU. NvGpuMeasure reports launch latency and copy bandwidth.
+# there is none. Fails, saying so, without a GPU. NvGpuMeasure reports launch latency and copy bandwidth. Then the
+# raster kernels (gpu/nv, docs/nv-kernels.md) on the GPU against PlatformRaster (tests/nv/run.sh: needs the driver,
+# not nvcc).
 test-nv: image
 	tests/st_suite.sh $(OUT)/samaltak.image -- NvGpuTest
+	tests/nv/run.sh $(OUT)
 test-tools: image
 	$(PLATFORM_CHECK)
 	$(MAKE) -C vm/platform test st-test
@@ -81,13 +84,10 @@ test-tools: image
 	tests/tools/snapshot_test.sh $(OUT)/samaltak.image
 	tests/tools/reboot_test.sh $(OUT)/samaltak.image
 
-# The Renderer's raster work as CUDA kernels for the NVIDIA GB10 (gpu/nv, docs/nv-kernels.md). nv-kernels rebuilds the
-# cubin with nvcc and regenerates src/System-Devices/NvRasterKernels.st; test-nv runs the checked-in cubin on this
-# machine's NVIDIA GPU against PlatformRaster (needs the GPU and its driver, not nvcc). Neither is part of test or CI.
+# The Renderer's raster work as CUDA kernels for the NVIDIA GB10 (gpu/nv, docs/nv-kernels.md): rebuild the cubin with
+# nvcc and regenerate src/System-Devices/NvRasterKernels.st. Not part of test or CI.
 nv-kernels:
 	tools/nv-kernels.py build
-test-nv: image
-	tests/nv/run.sh $(OUT)
 
 # The VM as a UEFI application for x86-64 or arm64 (UEFI_ARCH, this machine's by default), translated from the
 # same Lowtalk with VM-UEFI in place of the C library (docs/uefi.md): $(UEFI)/esp is a boot volume with it
