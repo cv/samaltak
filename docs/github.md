@@ -1,6 +1,6 @@
 # GitHub
 
-The image turns its own source changes into a branch, a commit and a pull request on GitHub through the REST API, with no files, processes or git: hosted, and on UEFI over the Smalltalk TLS client (docs/tls.md). The in-image agent (docs/agent.md) uses it: it changes code, runs the tests in the image, commits, and reports the pull request's URL; a person reviews and merges, and nothing in the image updates the base branch.
+The image turns its own source changes into a branch, a commit and a pull request on GitHub through the REST API, with no files, processes or git: hosted, and on UEFI over the Smalltalk TLS client (docs/tls.md). The in-image agent (docs/agent.md) uses it: it changes code, runs the tests in the image, commits, and reports the pull request's URL; a person reviews and merges, and nothing in the image updates the base branch. The other way, a running image updates itself to the base branch after merges, without a restart (below: Updating a running image).
 
 ## Flow
 
@@ -44,6 +44,32 @@ GitHubClient's ref guard keeps even a broad token off the base branch and every 
 
 AgentInstructions tells the agent: after changing code, run the affected tests in the image, then `SourceFiler default commit: 'Area: one sentence.'` and report the pull request's url; never push to the base branch. Its `sourceState`, a line of every request, says where changes go in this image: to GitHub (repository, prefix, base), to a local checkout (the user commits with git), collected for GitHub without a token, or nowhere; in the last two the agent tells the user to run `samaltak-ctl github-config --from-gh` on the host.
 
+## Updating a running image
+
+A long-lived image (the UEFI World with an agent whose state lives only in memory) takes what was merged to main, by its own pull requests or anyone's, without a restart:
+
+    SourceFiler default previewUpdateFrom: 'main'.   "what it would do"
+    SourceFiler default updateFrom: 'main'.          "a SourceUpdate: its summary says what it did"
+
+or from the host, through the control channel (github-config first):
+
+    samaltak-ctl update --dry-run
+    samaltak-ctl update [--ref main] [--theirs] [--json]
+
+**The base commit.** `make image` passes `git rev-parse HEAD` to stage 2 (`--base-commit`, and `--base-dirty` when `git status -- src` shows uncommitted changes), which records it: `SourceFiler baseCommit`, `SourceFiler baseDirty`. Hosted and UEFI images (made from the same image) know it alike; an update moves it to the head it applied, and a saved image keeps it.
+
+**What it does** (SourceUpdate, Tools): the head of the branch (`git/ref/heads/main`), `compare/<base>...<head>` (the commit count, and a note when the image's commit is not an ancestor of the branch), both commits' trees (the changed paths, all of them: no 300-file limit), the old and new blobs of each changed source file. Each file is cut into chunks (ChunkFile) and the chunks matched across files by class and selector: class definitions, class-side instance variables, comments, methods added, changed and removed (a method moving to an extension file is a category change). Then:
+
+1. **Compile first.** Every new or changed method compiles against shadow classes (unregistered copies with the new definitions); when a class's instance variables or superclass change, its other methods and its subclasses' methods compile on the new shape too, and a removed class must have no subclass left. One failure and nothing is installed: the summary says what failed (`nothing applied: Foo>>bar: Undeclared variable zork`).
+2. **Install**, at user-interrupt priority so no other Process runs half-updated code: new packages (packages.txt order), class definitions (superclass first; ClassBuilder reshapes the class and migrates its instances, as the browser does), class-side instance variables, comments, methods added and changed, methods removed, removed classes last; then each new class's class-side `initialize`. A changed `initialize` of an existing class is not run (a note says so): run it by hand if its state needs it.
+3. **Base commit** := the head.
+
+**Conflicts.** A change applies where the image has the base's version and is skipped where it already has the head's. Where the image has neither (a method changed here, or in the SourceFiler's pending change set, and upstream), it is kept as it is and listed under conflicts; `updateFrom: 'main' takeTheirs: true` (`--theirs`) overwrites. A conflicting class definition holds back all of its class's changes. Methods changed here and not upstream stay as they are.
+
+**What needs a restart, or is not the image's.** Changes under `src/VM-*` and `vm/` are the VM: listed as *needs restart* (they take effect in an image built and booted anew; `SourceFiler needsRestart` remembers them across updates). Changes outside `src/` (Makefile, tools/, boot/, docs/, tests/) are the host's checkout: listed as *host side*. Other files in `src/`, packages not in this image and do-it chunks are listed as *not applied*. Example: `applied 37 methods in 9 classes, 1 new class (abc1234..def5678, 5 commits); needs restart for: src/VM-Core/Posix.st; host side, not in the image: Makefile, tools/samaltak-ctl`.
+
+**When.** After a pull request is merged, when the image is to keep running (the in-image agent is told to; AgentInstructions). Hosted with a local checkout, update the checkout with git too, or the SourceFiler writes the image's next edits into the old files. Restart instead after VM changes, or when an update reports *partial* (installing stopped at an error: what was installed stays, the base commit does not move).
+
 ## Tests
 
-`GitHubTestServer` (Tests-Net) is a fake GitHub over plain HTTP in the image: one repository in memory, the git data API and pulls, checking every request's headers. `GitHubClientTest` and `GitHubAccountTest` test the client and the account; `SourceFilerGitHubTest` (Tests-Tools) the store: one chunk changes and every other byte stays, new and removed files, extension files, two edits to one file, a failed commit, discard, a 3 MB file, which store is used, the token never printed. They run hosted and in the UEFI test boot (`UEFI_TESTS`); `SourceDirectoryStoreTest`, the local store, needs a writable directory and runs hosted only.
+`GitHubTestServer` (Tests-Net) is a fake GitHub over plain HTTP in the image: one repository in memory, the git data API and pulls, checking every request's headers. `GitHubClientTest` and `GitHubAccountTest` test the client and the account; `SourceFilerGitHubTest` (Tests-Tools) the store: one chunk changes and every other byte stays, new and removed files, extension files, two edits to one file, a failed commit, discard, a 3 MB file, which store is used, the token never printed. `SourceUpdateTest` (Tests-Tools) updates fixture classes the test files into the image between two commits of the fake GitHub: methods added, changed and removed, a new instance variable on a class with a live instance, a new class in a new package, a removed class, an extension file, VM and host files (reported, not applied), conflicts with the image and with the pending change set, `takeTheirs`, a head that does not compile (nothing applied), a dry run and the update command. They run hosted and in the UEFI test boot (`UEFI_TESTS`); `SourceDirectoryStoreTest`, the local store, needs a writable directory and runs hosted only.
