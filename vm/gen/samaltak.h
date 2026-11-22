@@ -1013,9 +1013,9 @@ struct jit_state {
     uint64_t cstack_limit;
     int64_t stress;
     uint64_t dump[64];
-    oop class_table[256];
+    oop oop_table[2048];
 };
-_Static_assert(sizeof(jit_state) == 2880, "the simulator lays out JitState as C does");
+_Static_assert(sizeof(jit_state) == 17216, "the simulator lays out JitState as C does");
 
 struct large_operand {
     uint32_t *limbs;

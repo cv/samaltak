@@ -259,9 +259,9 @@ void jit_runtime_all_roots(void (*fn)(oop *))
     int i;
     int i_2;
     jit_method *h;
-    for (i = 0; i <= 255; i++) {
-        if (state_block->class_table[i] != 0) {
-            fn(state_block->class_table + i);
+    for (i = 0; i <= 2047; i++) {
+        if (state_block->oop_table[i] != 0) {
+            fn(state_block->oop_table + i);
         }
     }
     jit_feedback_all_roots(fn);
@@ -1853,8 +1853,8 @@ static void flush_code(void)
     if (cache_opened) {
         code_cache_flush();
     }
-    for (i_2 = 0; i_2 <= 255; i_2++) {
-        state_block->class_table[i_2] = 0;
+    for (i_2 = 0; i_2 <= 2047; i_2++) {
+        state_block->oop_table[i_2] = 0;
     }
     opt_runtime_flushed();
     jit_baseline_runtime_flushed();
@@ -3252,9 +3252,9 @@ void jit_runtime_young_roots(void (*fn)(oop *))
     int i_2;
     jit_method *h;
     int32_t i_3;
-    for (i = 0; i <= 255; i++) {
-        if (state_block->class_table[i] != 0) {
-            fn(state_block->class_table + i);
+    for (i = 0; i <= 2047; i++) {
+        if (state_block->oop_table[i] != 0) {
+            fn(state_block->oop_table + i);
         }
     }
     jit_feedback_young_roots(fn);

@@ -418,6 +418,7 @@ def: n from: r
 	(nd slot >= 0 and: [(nd flags bitAnd: NF_LAZY) = 0]) ifTrue: [self store: r slot: nd slot asInt32]
 !
 loadConstant: v into: r
+	| i |
 	(self isInt: v) ifTrue: [
 		(v asInt64 between: -16r80000000 and: 16r7FFFFFFF) ifTrue: [^asm mov: r imm: v asInt64].
 		^asm mov: r imm: v].
@@ -425,7 +426,21 @@ loadConstant: v into: r
 	v = memory trueOop ifTrue: [^asm mov: r with: X24].
 	v = memory falseOop ifTrue: [^asm mov: r with: X25].
 	(v bitAnd: 7) ~= 0 ifTrue: [^asm mov: r imm: v].
+	(asm isX64 not and: [(i := self oopSlotOf: v) >= 0]) ifTrue: [^self loadTableEntry: i into: r].
 	self loadPoolEntry: (self poolIndexOf: v) into: r
+!
+loadTableEntry: i into: r
+	"r := the JitState's oopTable entry i (one load from x22): nothing if r holds it since the last label, a move if another register does."
+	| key h |
+	key := 16r60000000 + i.
+	self catchUp.
+	(self register: r holds: key) ifTrue: [^self].
+	h := self holderOf: key.
+	(h >= 0 and: [r <= 30])
+		ifTrue: [asm mov: r with: h]
+		ifFalse: [asm ldr: r base: X22 offset: self oopTableOffset + (8 * i)].
+	self catchUp.
+	self hold: key in: r
 !
 loadPoolEntry: i into: r
 	"r := the pool's entry i: nothing if r holds it since the last label, a move if another register does (on arm64), else a pc-relative load."
@@ -1190,35 +1205,33 @@ emitClassTest: x class: cls
 	self compareX16WithClass: cls
 !
 compareX16WithClass: cls
-	"Flags EQ if X16 is cls: a class from the JitState's classTable (one load from x22; on x86 a compare with the word), else from the pool."
+	"Flags EQ if X16 is cls: a class from the JitState's oopTable (one load from x22; on x86 a compare with the word), else from the pool."
 	| i key |
-	i := self classSlotOf: cls.
+	i := self oopSlotOf: cls.
 	i < 0 ifTrue: [
 		self loadConstant: cls into: X17.
 		^asm cmp: X16 with: X17].
-	asm isX64 ifTrue: [^asm cmp: X16 withStateWordAt: self classTableOffset + (8 * i)].
-	key := 16r60000000 + i.
-	self catchUp.
-	(self register: X17 holds: key) ifFalse: [
-		asm ldr: X17 base: X22 offset: self classTableOffset + (8 * i).
-		self catchUp.
-		self hold: key in: X17].
+	asm isX64 ifTrue: [^asm cmp: X16 withStateWordAt: self oopTableOffset + (8 * i)].
+	self loadTableEntry: i into: X17.
 	asm cmp: X16 with: X17
 !
-classSlotOf: cls
-	"The index of class cls in the JitState's classTable (entered if it is not there; entries, GC roots, stay until the code cache is flushed), -1 if the table is full."
-	| st c |
+oopSlotOf: cls
+	"The index of object cls in the JitState's oopTable (entered if it is not there; entries, GC roots, stay until the code cache is flushed), -1 if the table is full."
+	| st c i |
 	st := runtime state.
-	0 to: 255 do: [:i |
-		c := st classTable at: i.
+	"open addressing by identity hash (stable where the object moves)"
+	i := ((self hashOf: cls) bitAnd: 2047) asInt32.
+	1 to: 64 do: [:k |
+		c := st oopTable at: i.
 		c = cls ifTrue: [^i].
 		c = 0 ifTrue: [
-			st classTable at: i put: cls.
-			^i]].
+			st oopTable at: i put: cls.
+			^i].
+		i := (i + 1) bitAnd: 2047].
 	^-1
 !
-classTableOffset
-	^self cCoerce: ((self cCoerce: 0 to: 'JitState *') fieldAddress: #classTable) to: 'int64_t'
+oopTableOffset
+	^self cCoerce: ((self cCoerce: 0 to: 'JitState *') fieldAddress: #oopTable) to: 'int64_t'
 !
 emitAddSub: n
 	| nd x y c isAdd s checked |
