@@ -1008,6 +1008,7 @@ flushCode
 	youngCount := 0.
 	youngOverflow := false.
 	cacheOpened ifTrue: [cache flush].
+	0 to: 255 do: [:i | stateBlock classTable at: i put: 0].
 	optimizer flushed.
 	brt flushed.
 	interpreter flushMethodCache.
@@ -1032,8 +1033,9 @@ noOptFrames
 
 !JitRuntime methodsFor: 'garbage collection'!
 youngRoots: fn
-	"Scavenges: the methods of headers compiled while their method was young, the young objects baseline code refers to."
+	"Scavenges: the methods of headers compiled while their method was young, the young objects baseline code refers to, the classes optimized code's class checks read from the JitState."
 	<function>
+	0 to: 255 do: [:i | (stateBlock classTable at: i) ~= 0 ifTrue: [fn call: stateBlock classTable + i]].
 	feedback youngRoots: fn.
 	optimizer youngRoots: fn.
 	cacheOpened ifFalse: [^self].
@@ -1051,8 +1053,9 @@ methodRoots: fn
 		h notNull ifTrue: [fn call: (h fieldAddress: #method)]]
 !
 allRoots: fn
-	"Full GCs and become: every header's method and every object in the code."
+	"Full GCs and become: every header's method and every object in the code, the classes optimized code's class checks read from the JitState."
 	<function>
+	0 to: 255 do: [:i | (stateBlock classTable at: i) ~= 0 ifTrue: [fn call: stateBlock classTable + i]].
 	feedback allRoots: fn.
 	optimizer allRoots: fn.
 	cacheOpened ifFalse: [^self].
@@ -1674,7 +1677,7 @@ VMStruct subclass: #JitState
 	classVariableNames: ''
 	package: 'VM-Jit'!
 
-JitState comment: 'What machine code reads through x22: nil, true and false and the classes inline paths check (refreshed after every GC; tagClasses by the low 3 bits of an immediate), the interrupt flag (set with the scheduler''s, cleared by the runtime''s interrupt check), the frames array, the native stack pointer jit_enter left (exits reset it), the young space''s bounds (the store barrier). Baseline code also uses: stackLimit (a callee''s fp at or above it takes the entry''s slow path: the C stack is nearly full, or an interrupt is pending, which sets it to 0; stackLimitNormal is its value otherwise), baseFrame and baseRecord (the first Frame and native frame record of the activations since jit_enter: frame f''s record is baseRecord - (f - baseFrame) / 4), the addresses of eden''s top and limit (edenBox) and of the identity hash generator (hashBox, with its multiplier and increment), the megamorphic and block caches (JitBaselineRuntime), and words the runtime answers through (result, ecode) or reads (primRet: where a C primitive returns to). Optimized code also uses: cstackLimit (the highest slot address a frame may use), the deoptimization stress counter, where a guard that fails saves the registers (dump: x0-x31, then d0-d31).'!
+JitState comment: 'What machine code reads through x22: nil, true and false and the classes inline paths check (refreshed after every GC; tagClasses by the low 3 bits of an immediate), the interrupt flag (set with the scheduler''s, cleared by the runtime''s interrupt check), the frames array, the native stack pointer jit_enter left (exits reset it), the young space''s bounds (the store barrier). Baseline code also uses: stackLimit (a callee''s fp at or above it takes the entry''s slow path: the C stack is nearly full, or an interrupt is pending, which sets it to 0; stackLimitNormal is its value otherwise), baseFrame and baseRecord (the first Frame and native frame record of the activations since jit_enter: frame f''s record is baseRecord - (f - baseFrame) / 4), the addresses of eden''s top and limit (edenBox) and of the identity hash generator (hashBox, with its multiplier and increment), the megamorphic and block caches (JitBaselineRuntime), and words the runtime answers through (result, ecode) or reads (primRet: where a C primitive returns to). Optimized code also uses: cstackLimit (the highest slot address a frame may use), the deoptimization stress counter, where a guard that fails saves the registers (dump: x0-x31, then d0-d31), and classTable: the classes its class checks compare with (OptCodegen>>classSlotOf:; one load from x22 where a pc-relative literal is two operations on some cores), filled as code is generated, GC roots, emptied when the code cache is flushed.'!
 
 !JitState class methodsFor: 'declaring'!
 fields
@@ -1684,7 +1687,7 @@ fields
 		(edenBox uint64_t) (hashBox uint64_t) (lcgMul uint64_t) (lcgAdd uint64_t)
 		(tagClasses 'oop[8]') (blockClass oop) (byteStringClass oop) (byteArrayClass oop) (boxedFloatClass oop) (wordArrayClass oop) (byteSymbolClass oop) (contextClass oop)
 		(megaCache uint64_t) (blockCache uint64_t) (result oop) (ecode int64_t) (primRet uint64_t)
-		(cstackLimit uint64_t) (stress int64_t) (dump 'uint64_t[64]'))
+		(cstackLimit uint64_t) (stress int64_t) (dump 'uint64_t[64]') (classTable 'oop[256]'))
 ! !
 
 VMStruct subclass: #JitMethod

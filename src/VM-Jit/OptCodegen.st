@@ -1187,8 +1187,38 @@ emitClassTest: x class: cls
 		x ~= X16 ifTrue: [
 			self catchUp.
 			self hold: (self classWordKey: x) in: X16]].
-	self loadConstant: cls into: X17.
+	self compareX16WithClass: cls
+!
+compareX16WithClass: cls
+	"Flags EQ if X16 is cls: a class from the JitState's classTable (one load from x22; on x86 a compare with the word), else from the pool."
+	| i key |
+	i := self classSlotOf: cls.
+	i < 0 ifTrue: [
+		self loadConstant: cls into: X17.
+		^asm cmp: X16 with: X17].
+	asm isX64 ifTrue: [^asm cmp: X16 withStateWordAt: self classTableOffset + (8 * i)].
+	key := 16r60000000 + i.
+	self catchUp.
+	(self register: X17 holds: key) ifFalse: [
+		asm ldr: X17 base: X22 offset: self classTableOffset + (8 * i).
+		self catchUp.
+		self hold: key in: X17].
 	asm cmp: X16 with: X17
+!
+classSlotOf: cls
+	"The index of class cls in the JitState's classTable (entered if it is not there; entries, GC roots, stay until the code cache is flushed), -1 if the table is full."
+	| st c |
+	st := runtime state.
+	0 to: 255 do: [:i |
+		c := st classTable at: i.
+		c = cls ifTrue: [^i].
+		c = 0 ifTrue: [
+			st classTable at: i put: cls.
+			^i]].
+	^-1
+!
+classTableOffset
+	^self cCoerce: ((self cCoerce: 0 to: 'JitState *') fieldAddress: #classTable) to: 'int64_t'
 !
 emitAddSub: n
 	| nd x y c isAdd s checked |

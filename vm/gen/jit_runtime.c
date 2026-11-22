@@ -257,7 +257,13 @@ void jit_runtime_after_gc(void)
 void jit_runtime_all_roots(void (*fn)(oop *))
 {
     int i;
+    int i_2;
     jit_method *h;
+    for (i = 0; i <= 255; i++) {
+        if (state_block->class_table[i] != 0) {
+            fn(state_block->class_table + i);
+        }
+    }
     jit_feedback_all_roots(fn);
     opt_runtime_all_roots(fn);
     if (!cache_opened) {
@@ -269,8 +275,8 @@ void jit_runtime_all_roots(void (*fn)(oop *))
         end_writing();
         return;
     }
-    for (i = 0; i <= 65535; i++) {
-        h = method_table[i];
+    for (i_2 = 0; i_2 <= 65535; i_2++) {
+        h = method_table[i_2];
         if (h != NULL) {
             fn(&h->method);
         }
@@ -1834,6 +1840,7 @@ static void flush_code(void)
 {
     uint64_t used;
     int32_t i;
+    int i_2;
     used = cache_opened ? cache_top : 0;
     for (i = 0; i <= nframes - 1; i++) {
         (frames + i)->code = jit_mode == JIT_NONE ? 0 : 1;
@@ -1845,6 +1852,9 @@ static void flush_code(void)
     young_overflow = false;
     if (cache_opened) {
         code_cache_flush();
+    }
+    for (i_2 = 0; i_2 <= 255; i_2++) {
+        state_block->class_table[i_2] = 0;
     }
     opt_runtime_flushed();
     jit_baseline_runtime_flushed();
@@ -3239,8 +3249,14 @@ uint64_t write_barrier(oop o, oop v)
 void jit_runtime_young_roots(void (*fn)(oop *))
 {
     int i;
+    int i_2;
     jit_method *h;
-    int32_t i_2;
+    int32_t i_3;
+    for (i = 0; i <= 255; i++) {
+        if (state_block->class_table[i] != 0) {
+            fn(state_block->class_table + i);
+        }
+    }
     jit_feedback_young_roots(fn);
     opt_runtime_young_roots(fn);
     if (!cache_opened) {
@@ -3248,15 +3264,15 @@ void jit_runtime_young_roots(void (*fn)(oop *))
     }
     begin_writing();
     if (young_overflow) {
-        for (i = 0; i <= 65535; i++) {
-            h = method_table[i];
+        for (i_2 = 0; i_2 <= 65535; i_2++) {
+            h = method_table[i_2];
             if (h != NULL) {
                 fn(&h->method);
             }
         }
     } else {
-        for (i_2 = 0; i_2 <= young_count - 1; i_2++) {
-            fn(&young_methods[i_2]->method);
+        for (i_3 = 0; i_3 <= young_count - 1; i_3++) {
+            fn(&young_methods[i_3]->method);
         }
     }
     jit_baseline_runtime_young_roots(fn);
