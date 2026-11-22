@@ -117,9 +117,9 @@ The agent shrinks its own context with messages to the conversation, which every
 - `outline` (`outlineFrom:to:`): a line per item: index, kind, estimated tokens (four characters of JSON a token, an image 1,600), edit, the start of its text and result.
 - `elide: indexes reason: aString`: a finished tool call keeps its call and output, with code-mode's source and the output replaced by stubs saying where the originals are (`(thisConversation items at: 4) text` and `result`; its `oN` stays bound). Anthropic's stored tool_use block is dropped so the stub is sent. A show-object's picture goes with it. Not the response being run, nor an item no larger than its stub.
 - `summarize: first to: last as: aString`: the agent's items of a finished turn (no user message, note or notice; reasoning just before the range joins it) become one assistant message carrying the summary, which must be smaller. AnthropicProvider joins consecutive assistant blocks into one message.
-- `note: key put: aStringOrNil`, `notes`: a keyed working note appended as a user message `<note key="…">`; a new version supersedes the old ones, which are still sent (the cached prefix stays) until an elide or summarize rewrites the context or the notes exceed `noteBudget` (4,096 tokens or a tenth of the window).
+- `note: key put: aStringOrNil`, `notes`: a keyed working note appended as a user message `<note key="…" by="you, not the user">` (a note, like a notice, travels as a user message and says it is not the user's); a new version supersedes the old ones, which are still sent (the cached prefix stays) until an elide or summarize rewrites the context or the notes exceed `noteBudget` (4,096 tokens or a tenth of the window).
 - Edits are staged and applied when the turn ends (Stop discards them), or before the next request after `applyNow`; with no turn running they apply at once. `discardEdits` forgets them.
-- When the last request first reaches 50% or 75% of `contextWindow` (default 200,000), a `#notice` item tells the agent; after the context falls below half, the thresholds notice again.
+- When the last request first reaches 50% or 75% of `contextWindow` (default 200,000), a `#notice` item tells the agent (`[Notice from Samaltak, not the user: Context: …]`); after the context falls below half, the thresholds notice again.
 
 ## Commits and pull requests
 
