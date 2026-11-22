@@ -1490,9 +1490,10 @@ emitUint32Primitive: isPut fail: fail
 	asm ret
 !
 emitStringComparePrimitive: fail
-	"compareWith: of two byte strings: -1, 0 or 1 by bytes, then by size; anything else (wide strings) the C function."
+	"compareWith: of two byte strings: -1, 0 or 1 by bytes (8 at a time while they are equal, then one by one), then by size; anything else (wide strings) the C function."
 	<function>
-	| loop differ sizes |
+	| words loop differ sizes |
+	words := asm newLabel.
 	loop := asm newLabel.
 	differ := asm newLabel.
 	sizes := asm newLabel.
@@ -1521,7 +1522,19 @@ emitStringComparePrimitive: fail
 	asm csel: X15 with: X10 with: X14 cond: COND_LO.
 	asm add: X16 with: X0 imm: 16.
 	asm add: X17 with: X1 imm: 16.
-	asm comment: 'the common bytes'.
+	asm comment: 'the common bytes, 8 at a time until two words differ or fewer than 8 are left'.
+	asm bind: words.
+	asm cmp: X15 imm: 8.
+	asm b: loop if: COND_LO.
+	asm ldr: X9 base: X16 offset: 0.
+	asm ldr: X13 base: X17 offset: 0.
+	asm cmp: X9 with: X13.
+	asm b: loop if: COND_NE.
+	asm add: X16 with: X16 imm: 8.
+	asm add: X17 with: X17 imm: 8.
+	asm sub: X15 with: X15 imm: 8.
+	asm b: words.
+	asm comment: 'then one by one'.
 	asm bind: loop.
 	asm cbz: X15 to: sizes.
 	asm ldrb: W9 base: X16 postIndex: 1.

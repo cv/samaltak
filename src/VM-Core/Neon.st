@@ -10,7 +10,7 @@ headers
 	^#('<arm_neon.h>')
 !
 typedefs
-	^#((uint8x16_t opaque) (uint8x8_t opaque) (uint16x8_t opaque) (uint32x4_t opaque))
+	^#((uint8x16_t opaque) (uint8x8_t opaque) (uint16x8_t opaque) (uint32x4_t opaque) (uint64x1_t opaque))
 ! !
 
 !Neon class methodsFor: 'simulation'!
@@ -130,4 +130,64 @@ tbl: t index: idx
 	"Byte i is t's byte idx[i], 0 if idx[i] > 15."
 	<c: 'uint8x16_t vqtbl1q_u8(uint8x16_t t, uint8x16_t idx)'>
 	^(idx asArray collect: [:k | k < 16 ifTrue: [t at: k + 1] ifFalse: [0]]) asByteArray
+! !
+
+!Neon methodsFor: 'bytes'!
+eq: a with: b
+	"Each byte 255 where a's equals b's, else 0."
+	<c: 'uint8x16_t vceqq_u8(uint8x16_t a, uint8x16_t b)'>
+	^((1 to: 16) collect: [:i | (a at: i) = (b at: i) ifTrue: [255] ifFalse: [0]]) asByteArray
+!
+lt: a with: b
+	"Each byte 255 where a's is below b's (unsigned), else 0."
+	<c: 'uint8x16_t vcltq_u8(uint8x16_t a, uint8x16_t b)'>
+	^((1 to: 16) collect: [:i | (a at: i) < (b at: i) ifTrue: [255] ifFalse: [0]]) asByteArray
+!
+and: a with: b
+	<c: 'uint8x16_t vandq_u8(uint8x16_t a, uint8x16_t b)'>
+	^((1 to: 16) collect: [:i | (a at: i) bitAnd: (b at: i)]) asByteArray
+!
+or: a with: b
+	<c: 'uint8x16_t vorrq_u8(uint8x16_t a, uint8x16_t b)'>
+	^((1 to: 16) collect: [:i | (a at: i) bitOr: (b at: i)]) asByteArray
+!
+bic: a with: b
+	"a's bits that are not b's."
+	<c: 'uint8x16_t vbicq_u8(uint8x16_t a, uint8x16_t b)'>
+	^((1 to: 16) collect: [:i | (a at: i) bitClear: (b at: i)]) asByteArray
+!
+add: a with: b
+	"The sums of the bytes, modulo 256."
+	<c: 'uint8x16_t vaddq_u8(uint8x16_t a, uint8x16_t b)'>
+	^((1 to: 16) collect: [:i | (a at: i) + (b at: i) bitAnd: 255]) asByteArray
+!
+sub: a with: b
+	"The differences of the bytes, modulo 256."
+	<c: 'uint8x16_t vsubq_u8(uint8x16_t a, uint8x16_t b)'>
+	^((1 to: 16) collect: [:i | (a at: i) - (b at: i) bitAnd: 255]) asByteArray
+!
+max: a
+	"The largest byte."
+	<c: 'uint8_t vmaxvq_u8(uint8x16_t a)'>
+	^a inject: 0 into: [:m :x | m max: x]
+!
+u16FromU8: v
+	"The same bits as 16-bit lanes."
+	<c: 'uint16x8_t vreinterpretq_u16_u8(uint8x16_t v)'>
+	^v
+!
+shrn: a shift: n
+	"Each 16-bit lane of a shifted right by n, as a byte (its low 8 bits). With n = 4, of bytes that are 0 or 255: 4 bits a byte."
+	<c: 'uint8x8_t vshrn_n_u16(uint16x8_t a, const int n)'>
+	^((Neon halves: a) collect: [:h | (h bitShift: n negated) bitAnd: 255]) asByteArray
+!
+u64FromU8x8: v
+	"The same bits as one 64-bit lane."
+	<c: 'uint64x1_t vreinterpret_u64_u8(uint8x8_t v)'>
+	^v
+!
+lane: v at: k
+	"Lane k of a vector of one 64-bit lane (k = 0)."
+	<c: 'uint64_t vget_lane_u64(uint64x1_t v, const int k)'>
+	^(1 to: 8) inject: 0 into: [:w :i | w + ((v at: i) bitShift: (i - 1) * 8)]
 ! !

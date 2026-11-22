@@ -24,6 +24,9 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <math.h>
+#if !defined(__x86_64__)
+#include <arm_neon.h>
+#endif
 #include <sys/mman.h>
 #include <sys/time.h>
 #include <time.h>
@@ -41,9 +44,6 @@
 #include <sys/timerfd.h>
 #endif
 #ifndef SAMALTAK_NO_PLATFORM
-#if !defined(__x86_64__)
-#include <arm_neon.h>
-#endif
 #include <openssl/ssl.h>
 #include <openssl/err.h>
 #include <openssl/x509.h>
@@ -1632,7 +1632,9 @@ void wide(int32_t digit, int64_t rd, int64_t rn, int64_t rm);
 #else
 uint64_t target_of(int32_t a_label);
 #endif
+bool byte_search_convert_case(uint8_t *a, uint8_t *b, int64_t n, bool upper);
 int64_t index_of_bytes(uint8_t *b, int64_t m, uint8_t *a, int64_t n, int64_t start);
+int64_t mismatch_of(uint8_t *a, uint8_t *b, int64_t start, int64_t n);
 bool analyze(oop m);
 void analyze_liveness(void);
 uint64_t code_cache_allocate(uint64_t size);

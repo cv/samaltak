@@ -154,3 +154,25 @@ shuffleHigh16: a select: imm
 	x := Sse2 lanes: a width: 2.
 	^Sse2 bytesOfLanes: ((1 to: 8) collect: [:i | i > 4 ifTrue: [x at: ((imm bitShift: (i - 5) * -2) bitAnd: 3) + 5] ifFalse: [x at: i]]) width: 2
 ! !
+
+!Sse2 methodsFor: 'bytes'!
+add8: a with: b
+	"The sums of the bytes, modulo 256."
+	<c: '__m128i _mm_add_epi8(__m128i a, __m128i b)'>
+	^((1 to: 16) collect: [:i | (a at: i) + (b at: i) bitAnd: 255]) asByteArray
+!
+sub8: a with: b
+	"The differences of the bytes, modulo 256."
+	<c: '__m128i _mm_sub_epi8(__m128i a, __m128i b)'>
+	^((1 to: 16) collect: [:i | (a at: i) - (b at: i) bitAnd: 255]) asByteArray
+!
+minU8: a with: b
+	"The smaller of each pair of bytes, unsigned."
+	<c: '__m128i _mm_min_epu8(__m128i a, __m128i b)'>
+	^((1 to: 16) collect: [:i | (a at: i) min: (b at: i)]) asByteArray
+!
+andNot: a with: b
+	"b's bits that are not a's."
+	<c: '__m128i _mm_andnot_si128(__m128i a, __m128i b)'>
+	^((1 to: 16) collect: [:i | (b at: i) bitClear: (a at: i)]) asByteArray
+! !
