@@ -7,7 +7,9 @@ Notifier comment: 'I am the small window that first reports an error, a halt, a 
 
 	Notifier openOn: aDebugSession
 
-Remote names: buttons proceed abandon debug create, list stack.'!
+Save report writes the error, the Process and its stack, the VM and the heap to samaltak-crash-<n>.txt (CrashReport: on UEFI the boot volume, /esp) and says where.
+
+Remote names: buttons proceed abandon debug create save-report, list stack.'!
 
 !Notifier methodsFor: 'initialization'!
 setSession: aSession
@@ -33,6 +35,7 @@ setSession: aSession
 			self button: 'Abandon' named: 'abandon' action: [self abandon].
 			self button: 'Debug' named: 'debug' action: [self debug].
 			(self button: 'Create' named: 'create' action: [self openCreateMenu]) visible: aSession kind == #dnu; yourself.
+			self button: 'Save report' named: 'save-report' action: [self saveReport].
 			note})
 				spacing: 5; padding: (12 @ 6 corner: 12 @ 6); background: #paper; fixed: 32; yourself.
 		DebuggerRule new.
@@ -74,6 +77,12 @@ agentContext
 ! !
 
 !Notifier methodsFor: 'actions'!
+saveReport
+	"Write a CrashReport of the stopped Process; say where."
+	| path |
+	path := [(CrashReport forSession: session) write] on: Error do: [:e | ^self toast: 'No report: ', e messageText asString].
+	self toast: 'Report saved: ', path
+!
 proceed
 	done ifTrue: [^self].
 	done := true.

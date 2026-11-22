@@ -9,7 +9,7 @@ I run in my window''s own Process, which breakpoints ignore; the debugged Proces
 
 	Debugger openOn: aDebugSession
 
-Remote names: buttons proceed restart into over through run-to-here where full-stack create unwatch remove-breakpoint breakpoints, link process, list stack, editor source, status status, inspectors receiver and context (fields value evaluator).'!
+Remote names: buttons proceed restart into over through run-to-here where full-stack save-report create unwatch remove-breakpoint breakpoints, link process, list stack, editor source, status status, inspectors receiver and context (fields value evaluator).'!
 
 !Debugger methodsFor: 'initialization'!
 setSession: aSession
@@ -59,6 +59,7 @@ buildBar
 		DebuggerSeparator new.
 		self button: 'Where' named: 'where' tip: 'Select the active frame and show its current statement' action: [self where].
 		self button: 'Full stack' named: 'full-stack' tip: 'Show every frame down to the Process root' action: [self toggleFullStack].
+		self button: 'Save report' named: 'save-report' tip: 'Write the error, the stack, the VM and the heap to samaltak-crash-<n>.txt (on UEFI the boot volume, /esp)' action: [self saveReport].
 		spacer.
 		self button: 'Create' named: 'create' tip: 'Define the missing method in a class you choose and continue in it' action: [self openCreateMenu].
 		self button: 'Unwatch' named: 'unwatch' tip: 'Remove the watchpoint that stopped this Process' action: [self removeBreakpoint].
@@ -276,6 +277,12 @@ where
 	source pcMark: interval style: #search.
 	self afterAnimationTime: 260 do: [
 		(done not and: [selected == ctx]) ifTrue: [self updatePcMark]]
+!
+saveReport
+	"Write a CrashReport of the debugged Process; say where."
+	| path |
+	path := [(CrashReport forSession: session) write] on: Error do: [:e | ^self toast: 'No report: ', e messageText asString].
+	self toast: 'Report saved: ', path
 !
 toggleFullStack
 	fullStack := fullStack not.
