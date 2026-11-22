@@ -3,7 +3,7 @@ Object subclass: #NvStruct
 	classVariableNames: ''
 	package: 'System-NV'!
 
-NvStruct comment: 'I am a C struct as bytes, for the parameter blocks of the NVIDIA driver''s ioctls and of its resource manager (RM) calls (NvRm builds them). Offsets are 0-based byte offsets as in the C headers (docs/nv-rm.md lists the layouts); integers are little-endian and unsigned.
+NvStruct comment: 'I am a C struct as bytes, for the parameter blocks of the NVIDIA driver''s ioctls and of its resource manager (RM) calls (NvRm builds them). Offsets are 0-based byte offsets as in the C headers (docs/nv.md lists the layouts); integers are little-endian and unsigned.
 
 	(NvStruct new: 16) u32At: 4 put: 7; u64At: 8 put: 16r123456789; bytes
 

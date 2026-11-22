@@ -3,7 +3,7 @@ Object subclass: #NvDevice
 	classVariableNames: ''
 	package: 'System-NV'!
 
-NvDevice comment: 'I am an NVIDIA GPU driven from Smalltalk through the open kernel module''s resource manager (RM) API: ioctls on /dev/nvidiactl and /dev/nvidiaN (PosixDevice), with parameter blocks NvRm builds (docs/nv-rm.md). Hosted Linux only: without devices (UEFI, macOS) or a GPU, open signals an error.
+NvDevice comment: 'I am an NVIDIA GPU driven from Smalltalk through the open kernel module''s resource manager (RM) API: ioctls on /dev/nvidiactl and /dev/nvidiaN (PosixDevice), with parameter blocks NvRm builds (docs/nv.md). Hosted Linux only: without devices (UEFI, macOS) or a GPU, open signals an error.
 
 	NvDevice during: [:gpu | | m |
 		m := gpu allocate: 4096.            "an NvMemory: system memory the GPU and the CPU both reach"

@@ -18,6 +18,9 @@ initialize
 bytes
 	^bytes
 !
+setBytes: aByteArray
+	bytes := aByteArray
+!
 at: name
 	| f |
 	f := self class field: name.
@@ -44,6 +47,9 @@ bitsFrom: lo to: hi
 bitsFrom: lo to: hi put: anInteger
 	(anInteger < 0 or: [anInteger >= (1 bitShift: hi - lo + 1)])
 		ifTrue: [^self error: 'QMD field of ', (hi - lo + 1) printString, ' bits cannot hold ', anInteger printString].
+	(lo \\ 8 = 0 and: [hi + 1 \\ 8 = 0]) ifTrue: [
+		lo // 8 to: hi // 8 do: [:i | bytes at: i + 1 put: ((anInteger bitShift: (lo // 8 - i) * 8) bitAnd: 255)].
+		^self].
 	lo to: hi do: [:bit | | i mask |
 		i := bit // 8 + 1.
 		mask := 1 bitShift: bit \\ 8.
@@ -77,6 +83,12 @@ release: index address: gpuAddress payload: value
 	self at: 'release_semaphore', index printString, '_payload_lower' and: 'release_semaphore', index printString, '_payload_upper' put: value.
 	self at: 'release', index printString, '_enable' put: 1.
 	self at: 'release_structure_size_', index printString put: 2
+! !
+
+!NvQmd class methodsFor: 'instance creation'!
+fromBytes: aByteArray
+	"A QMD on aByteArray (384 bytes), not a copy."
+	^self basicNew setBytes: aByteArray
 ! !
 
 !NvQmd class methodsFor: 'fields'!

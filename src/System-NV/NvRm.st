@@ -3,7 +3,7 @@ Object subclass: #NvRm
 	classVariableNames: ''
 	package: 'System-NV'!
 
-NvRm comment: 'I am the vocabulary of the NVIDIA open kernel module''s resource manager (RM) API, driver 580.178.04 (open-gpu-kernel-modules at that tag): ioctl request numbers, escape codes, RM classes, control commands and flags, and the parameter blocks as NvStructs (layouts in docs/nv-rm.md, checked against the C headers on arm64 and x86-64, which agree). I only build and read bytes; NvDevice makes the calls.
+NvRm comment: 'I am the vocabulary of the NVIDIA open kernel module''s resource manager (RM) API, driver 580.178.04 (open-gpu-kernel-modules at that tag): ioctl request numbers, escape codes, RM classes, control commands and flags, and the parameter blocks as NvStructs (layouts in docs/nv.md, checked against the C headers on arm64; x86-64 agrees). I only build and read bytes; NvDevice makes the calls.
 
 	NvRm request: NvRm escRmAlloc size: 32          "the ioctl request of NV_ESC_RM_ALLOC"
 	NvRm allocRoot: 0 parent: 0 handle: 0 class: NvRm classRootClient params: 0 size: 0

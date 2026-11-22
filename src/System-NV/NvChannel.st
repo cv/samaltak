@@ -1,10 +1,10 @@
 Object subclass: #NvChannel
-	instanceVariableNames: 'device group contextShare gpfifo computeObject computeClass ring errors pushBuffer semaphore token entries put pbOffset fenceValue'
+	instanceVariableNames: 'device group contextShare gpfifo computeObject computeClass ring errors pushBuffer semaphore token entries put pbOffset fenceValue syncedPut'
 	classVariableNames: ''
 	package: 'System-NV'!
 
 NvChannel comment: 'I am a GPU channel: a channel group with one GPFIFO channel in the device''s VA space, the compute class bound to it, and what feeds it:
-- ring: the GPFIFO (entries 8-byte entries, each pointing at pushbuffer words) and, at 16r2000 in the same memory, the channel''s USERD, where GPPut (16r8C) tells the GPU how far the ring is filled and GPGet (16r88) how far it has fetched;
+- ring: the GPFIFO (entries 8-byte entries, each pointing at pushbuffer words) and, at 16r2000 in the same memory, the channel''s USERD, where GPPut (16r8C) tells the GPU how far the ring is filled (GPGet, 16r88, is not kept up to date on the GB10: I wait for a fence before the ring could overflow);
 - pushBuffer: 64 KB the pushbuffers I submit are copied into, used as a ring;
 - semaphore: a 64-bit word the channel writes fence values to;
 - token: the work submit token; writing it to the device''s doorbell (16r90 in the usermode page) makes the GPU look at GPPut.
@@ -15,13 +15,14 @@ NvChannel comment: 'I am a GPU channel: a channel group with one GPFIFO channel 
 	c submit: pb.
 	c wait: c fence             "returns once the GPU has run all of it"
 
-submit: is asynchronous; fence submits a semaphore release and answers its value, wait: polls for it (an error after a timeout names GPGet and GPPut), sync is both. close waits for the work submitted, then frees the channel''s RM objects and memory (NvDevice close does it for channels left open).'!
+submit: is asynchronous; submitWithFence: adds a semaphore release to a pushbuffer and answers its value; fence submits a semaphore release and answers its value, wait: polls for it (an error after a timeout names GPGet and GPPut), sync is both. close waits for the work submitted, then frees the channel''s RM objects and memory (NvDevice close does it for channels left open).'!
 
 !NvChannel methodsFor: 'initialization'!
 device: anNvDevice
 	device := anNvDevice.
 	entries := 1024.
 	put := 0.
+	syncedPut := 0.
 	pbOffset := 0.
 	fenceValue := 0.
 	[ring := device allocate: 16r3000.
@@ -82,11 +83,21 @@ submit: anNvPushBuffer
 !
 push: bytes
 	"Copy bytes into the pushbuffer at pbOffset and queue a GPFIFO entry for them."
-	| deadline |
 	gpfifo isNil ifTrue: [^self error: 'closed channel'].
-	deadline := Time millisecondClockValue + 5000.
-	[(put + 1) \\ entries = self gpGet] whileTrue: [
-		Time millisecondClockValue > deadline ifTrue: [^self error: 'GPFIFO full: GPGet ', self gpGet printString, ', GPPut ', self gpPut printString]].
+	put - syncedPut >= (entries - 2) ifTrue: [self drain].
+	self pushEntry: bytes
+!
+drain
+	"Wait until the GPU has run every entry in the ring (one more entry, a fence, is always free for it)."
+	| pb |
+	pb := NvPushBuffer new.
+	fenceValue := fenceValue + 1.
+	pb semaphoreRelease: semaphore gpuAddress payload: fenceValue.
+	self pushEntry: pb bytes.
+	self wait: fenceValue.
+	syncedPut := put
+!
+pushEntry: bytes
 	pushBuffer bytesAt: pbOffset put: bytes.
 	ring uint64At: put \\ entries * 8 put: (NvPushBuffer gpfifoEntry: pushBuffer gpuAddress + pbOffset words: bytes size // 4).
 	put := put + 1.
@@ -98,22 +109,19 @@ push: bytes
 !
 wrapPushBuffer
 	"Wait until the GPU has run everything in the pushbuffer, then start again at its beginning."
-	| pb |
-	pb := NvPushBuffer new.
-	fenceValue := fenceValue + 1.
-	pb semaphoreRelease: semaphore gpuAddress payload: fenceValue.
-	self push: pb bytes.
-	self wait: fenceValue.
+	self drain.
 	pbOffset := 0
+!
+submitWithFence: anNvPushBuffer
+	"Submit anNvPushBuffer followed by a semaphore release; answer the value it writes."
+	fenceValue := fenceValue + 1.
+	anNvPushBuffer semaphoreRelease: semaphore gpuAddress payload: fenceValue.
+	self submit: anNvPushBuffer.
+	^fenceValue
 !
 fence
 	"Submit a semaphore release after the work submitted so far; answer the value it writes."
-	| pb |
-	pb := NvPushBuffer new.
-	fenceValue := fenceValue + 1.
-	pb semaphoreRelease: semaphore gpuAddress payload: fenceValue.
-	self submit: pb.
-	^fenceValue
+	^self submitWithFence: NvPushBuffer new
 !
 wait: value
 	self wait: value timeoutMilliseconds: 5000

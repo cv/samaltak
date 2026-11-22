@@ -60,7 +60,7 @@ wait: aFence
 !
 launch: aKernel grid: grid block: block arguments: values
 	"Queue a launch of aKernel; answer its fence value."
-	| g b program params cbuf slot qmdOffset q shared smemConfig bank0 pb fence |
+	| g b program params cbuf slot qmdOffset q pb fence |
 	g := self triple: grid.
 	b := self triple: block.
 	(b inject: 1 into: [:p :x | p * x]) > (aKernel maxThreads ifNil: [1024])
@@ -70,57 +70,32 @@ launch: aKernel grid: grid block: block arguments: values
 	(aKernel relocations isEmpty) ifFalse: [^self error: aKernel name, ' has relocations, which I cannot apply'].
 	program := self programFor: aKernel.
 	params := aKernel parameterBytes: values.
-	shared := self roundUp: 16r400 + aKernel sharedSize to: 128.
-	bank0 := aKernel constantBanks at: 0 ifAbsent: [ByteArray new].
-	cbuf := ByteArray new: (self roundUp: ((bank0 size max: aKernel parameterOffset + params size) max: 16r380) to: 16).
-	cbuf replaceFrom: 1 to: bank0 size with: bank0 startingAt: 1.
-	cbuf uint32At: 16r16C + 1 put: shared.
-	cbuf uint32At: 16r2F0 + 1 put: (self class sharedWindow bitAnd: 16rFFFFFFFF).
-	cbuf uint32At: 16r2F4 + 1 put: (self class sharedWindow bitShift: -32).
-	cbuf uint32At: 16r2F8 + 1 put: (self class localWindow bitAnd: 16rFFFFFFFF).
-	cbuf uint32At: 16r2FC + 1 put: (self class localWindow bitShift: -32).
+	cbuf := (program at: 4) copy.
 	1 to: 3 do: [:i |
 		cbuf uint32At: 16r360 + (i * 4) - 3 put: (b at: i).
 		cbuf uint32At: 16r370 + (i * 4) - 3 put: (g at: i)].
-	cbuf uint32At: 16r37C + 1 put: 16rFFFDC0.
 	cbuf replaceFrom: aKernel parameterOffset + 1 to: aKernel parameterOffset + params size with: params startingAt: 1.
-	cbuf size > 16rE00 ifTrue: [^self error: 'constant bank 0 of ', cbuf size printString, ' bytes too big'].
 	slot := nextSlot.
 	nextSlot := nextSlot + 1 \\ slotFences size.
 	channel wait: (slotFences at: slot + 1).
 	qmdOffset := slot * 16r1000.
-	smemConfig := ((#(32 64 100) detect: [:kb | kb * 1024 >= shared] ifNone: [^self error: 'too much shared memory']) * 1024) // 4096 + 1.
-	q := NvQmd new.
-	q at: 'qmd_group_id' put: 16r3F; at: 'qmd_type' put: 2; at: 'qmd_major_version' put: 5;
-		at: 'sass_version' put: device sassVersion; at: 'api_visible_call_limit' put: 1; at: 'sampler_index' put: 1;
-		at: 'invalidate_texture_header_cache' put: 1; at: 'invalidate_texture_sampler_cache' put: 1;
-		at: 'invalidate_texture_data_cache' put: 1; at: 'invalidate_shader_data_cache' put: 1;
-		at: 'cwd_membar_type' put: 1; at: 'register_count' put: aKernel registerCount; at: 'barrier_count' put: 1;
-		at: 'shared_memory_size_shifted7' put: shared // 128;
-		at: 'min_sm_config_shared_mem_size' put: smemConfig; at: 'target_sm_config_shared_mem_size' put: smemConfig;
-		at: 'max_sm_config_shared_mem_size' put: 16r1A;
-		at: 'shader_local_memory_high_size_shifted4' put: 16r240 // 16;
-		at: 'program_prefetch_size' put: (aKernel code size // 256 min: 16r1FF).
-	q programAddress: program first gpuAddress.
+	q := NvQmd fromBytes: (program at: 3) copy.
 	q grid: g block: b.
 	q constantBuffer: 0 address: qmds gpuAddress + qmdOffset + 16r200 size: cbuf size.
-	q at: 'constant_buffer_invalidate_0' put: 1.
-	program second keysAndValuesDo: [:index :memory |
-		q constantBuffer: index address: memory gpuAddress size: (aKernel constantBanks at: index) size].
 	qmds bytesAt: qmdOffset put: q bytes.
 	qmds bytesAt: qmdOffset + 16r200 put: cbuf.
 	pb := NvPushBuffer new.
 	pb method: 16r1698 subchannel: 1 value: 16r1011.
 	pb method: 16r2B4 subchannel: 1 value: (qmds gpuAddress + qmdOffset bitShift: -8).
 	pb method: 16r2C0 subchannel: 1 value: 9.
-	channel submit: pb.
-	fence := channel fence.
+	fence := channel submitWithFence: pb.
 	slotFences at: slot + 1 put: fence.
 	^fence
 !
 programFor: aKernel
-	"(code memory, bank index -> memory) of aKernel, uploaded on first use."
-	^programs at: aKernel ifAbsentPut: [| code banks |
+	"(code memory, bank index -> memory, QMD template, constant bank 0 template) of aKernel, made on first use; a
+	launch copies the templates and fills in its grid, block, parameters and constant bank 0 address."
+	^programs at: aKernel ifAbsentPut: [| code banks shared bank0 cbuf smemConfig q |
 		code := device allocate: aKernel code size + 16r1000.
 		code bytesAt: 0 put: aKernel code.
 		banks := Dictionary new.
@@ -129,7 +104,34 @@ programFor: aKernel
 				m := device allocate: bytes size.
 				m bytesAt: 0 put: bytes.
 				banks at: index put: m]].
-		Array with: code with: banks]
+		shared := self roundUp: 16r400 + aKernel sharedSize to: 128.
+		bank0 := aKernel constantBanks at: 0 ifAbsent: [ByteArray new].
+		cbuf := ByteArray new: (self roundUp: ((bank0 size max: aKernel parameterOffset + aKernel parameterSize) max: 16r380) to: 16).
+		cbuf size > 16rE00 ifTrue: [^self error: 'constant bank 0 of ', cbuf size printString, ' bytes too big'].
+		cbuf replaceFrom: 1 to: bank0 size with: bank0 startingAt: 1.
+		cbuf uint32At: 16r16C + 1 put: shared.
+		cbuf uint32At: 16r2F0 + 1 put: (self class sharedWindow bitAnd: 16rFFFFFFFF).
+		cbuf uint32At: 16r2F4 + 1 put: (self class sharedWindow bitShift: -32).
+		cbuf uint32At: 16r2F8 + 1 put: (self class localWindow bitAnd: 16rFFFFFFFF).
+		cbuf uint32At: 16r2FC + 1 put: (self class localWindow bitShift: -32).
+		cbuf uint32At: 16r37C + 1 put: 16rFFFDC0.
+		smemConfig := ((#(32 64 100) detect: [:kb | kb * 1024 >= shared] ifNone: [^self error: 'too much shared memory']) * 1024) // 4096 + 1.
+		q := NvQmd new.
+		q at: 'qmd_group_id' put: 16r3F; at: 'qmd_type' put: 2; at: 'qmd_major_version' put: 5;
+			at: 'sass_version' put: device sassVersion; at: 'api_visible_call_limit' put: 1; at: 'sampler_index' put: 1;
+			at: 'invalidate_texture_header_cache' put: 1; at: 'invalidate_texture_sampler_cache' put: 1;
+			at: 'invalidate_texture_data_cache' put: 1; at: 'invalidate_shader_data_cache' put: 1;
+			at: 'cwd_membar_type' put: 1; at: 'register_count' put: aKernel registerCount; at: 'barrier_count' put: 1;
+			at: 'shared_memory_size_shifted7' put: shared // 128;
+			at: 'min_sm_config_shared_mem_size' put: smemConfig; at: 'target_sm_config_shared_mem_size' put: smemConfig;
+			at: 'max_sm_config_shared_mem_size' put: 16r1A;
+			at: 'shader_local_memory_high_size_shifted4' put: 16r240 // 16;
+			at: 'program_prefetch_size' put: (aKernel code size // 256 min: 16r1FF);
+			at: 'constant_buffer_invalidate_0' put: 1.
+		q programAddress: code gpuAddress.
+		banks keysAndValuesDo: [:index :memory |
+			q constantBuffer: index address: memory gpuAddress size: (aKernel constantBanks at: index) size].
+		Array with: code with: banks with: q bytes with: cbuf]
 !
 triple: anIntegerOrArray
 	| t |

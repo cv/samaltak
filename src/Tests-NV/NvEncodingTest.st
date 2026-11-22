@@ -3,7 +3,7 @@ TestCase subclass: #NvEncodingTest
 	classVariableNames: ''
 	package: 'Tests-NV'!
 
-NvEncodingTest comment: 'Tests what System-NV encodes without a GPU: NvStruct, the RM parameter blocks of NvRm at the offsets of the C headers of driver 580.178.04 (docs/nv-rm.md), ioctl request numbers, NvPushBuffer''s method headers and GPFIFO entries (as tinygrad''s ops_nv.py makes them), and NvQmd''s bit fields.'!
+NvEncodingTest comment: 'Tests what System-NV encodes without a GPU: NvStruct, the RM parameter blocks of NvRm at the offsets of the C headers of driver 580.178.04 (docs/nv.md), ioctl request numbers, NvPushBuffer''s method headers and GPFIFO entries (as tinygrad''s ops_nv.py makes them), and NvQmd''s bit fields.'!
 
 !NvEncodingTest methodsFor: 'tests'!
 testStruct
