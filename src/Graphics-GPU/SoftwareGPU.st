@@ -5,7 +5,9 @@ Object subclass: #SoftwareGPU
 
 SoftwareGPU comment: 'I am a GPU in software: GPUPlatform''s device where the VM has no GPU (UEFI), with the gpu primitives'' protocol, handles and errors (docs/platform.md). I keep the objects; the pixel work is SoftwareRaster''s (the raster primitives). I run the Renderer''s uber-shader and nothing else: a pipeline of another vertex layout fails (user FragmentShaders show their error); shaders are not compiled (shaderLanguage: ''software'').
 
-Everything executes when it is called: uploads, clears, draws, blits and downloads; a command buffer only groups them (its vertex uniforms, the swapchain textures it acquired, the time its work took); fences are done when they are made (fenceElapsed: that time, µs). Textures and buffers are memory outside the heap (Machine allocate:), freed when released: R8, RGBA8 or BGRA8 rows, tightly packed. A claimed window has a back buffer (BGRA8, the window''s pixel size), the swapchain texture acquireSwapchain:window: answers; submitting the command buffer that acquired it presents it on my display (presentWindow:pixels:width:height:).'!
+Everything executes when it is called: uploads, clears, draws, blits and downloads; a command buffer only groups them (its vertex uniforms, the swapchain textures it acquired, the time its work took); fences are done when they are made (fenceElapsed: that time, µs). Textures and buffers are memory outside the heap (Machine allocate:), freed when released: R8, RGBA8 or BGRA8 rows, tightly packed. A claimed window has a back buffer (BGRA8, the window''s pixel size), the swapchain texture acquireSwapchain:window: answers; submitting the command buffer that acquired it presents it on my display (presentWindow:pixels:width:height:).
+
+A subclass on other memory or another rasterizer (NvComputeGPU: GPU memory, the raster kernels) overrides the methods of ''memory and pixels'': allocate: and free:, touch: (the CPU is about to read or write that memory), fill/draw/blit, present:.'!
 
 !SoftwareGPU methodsFor: 'initialization'!
 setDisplay: aDisplay
@@ -56,7 +58,7 @@ drop: h
 	"Remove handle h, freeing the memory it owns."
 	| o |
 	o := objects at: h.
-	((o kind == #texture or: [o kind == #buffer]) and: [o address notNil]) ifTrue: [Machine free: o address].
+	((o kind == #texture or: [o kind == #buffer]) and: [o address notNil]) ifTrue: [self free: o address].
 	objects at: h put: nil.
 	free addLast: h
 !
@@ -117,13 +119,14 @@ waitIdle: dev
 	self device: dev for: 'gpuWaitIdle'
 !
 windowClosed: window
-	"Release window from the device that claimed it, and its back buffer."
-	(claims removeKey: window ifAbsent: [nil]) ifNotNil: [:c | self unclaim: c]
+	"Release window from the device that claimed it, and its back buffer; tell my display."
+	(claims removeKey: window ifAbsent: [nil]) ifNotNil: [:c | self unclaim: c].
+	(display respondsTo: #windowClosed:) ifTrue: [display windowClosed: window]
 !
 unclaim: aClaim
 	aClaim address isNil ifTrue: [^self].
 	objects doWithIndex: [:o :h | (o notNil and: [o kind == #swapchain and: [o address = aClaim address]]) ifTrue: [self drop: h]].
-	Machine free: aClaim address.
+	self free: aClaim address.
 	aClaim address: nil
 !
 release: h
@@ -169,7 +172,7 @@ createTexture: dev width: w height: h format: format usage: usage
 	((w between: 1 and: 16384) and: [(h between: 1 and: 16384) and: [(format between: 1 and: 3) and: [(usage bitAnd: 3) ~= 0]]])
 		ifFalse: [^self fail: 'gpuCreateTexture' because: 'bad texture parameters'].
 	^self add: ((SoftwareGPUObject kind: #texture) device: dev; width: w; height: h; format: format;
-		address: (Machine allocate: w * h * (self bytesPerPixel: format)); yourself)
+		address: (self allocate: w * h * (self bytesPerPixel: format)); yourself)
 !
 createSampler: dev linear: linear repeat: repeat
 	self device: dev for: 'gpuCreateSampler'.
@@ -178,7 +181,7 @@ createSampler: dev linear: linear repeat: repeat
 createBuffer: dev usage: usage size: size
 	self device: dev for: 'gpuCreateBuffer'.
 	(usage = 1 and: [size > 0]) ifFalse: [^self fail: 'gpuCreateBuffer' because: 'bad buffer parameters'].
-	^self add: ((SoftwareGPUObject kind: #buffer) device: dev; size: size; address: (Machine allocate: size); yourself)
+	^self add: ((SoftwareGPUObject kind: #buffer) device: dev; size: size; address: (self allocate: size); yourself)
 !
 uploadBuffer: buffer bytes: bytes count: byteCount offset: dstOffset
 	| b |
@@ -186,6 +189,7 @@ uploadBuffer: buffer bytes: bytes count: byteCount offset: dstOffset
 	(byteCount between: 0 and: (self byteSizeOf: bytes)) ifFalse: [^self fail: 'gpuUploadBuffer' because: 'bad byte count'].
 	byteCount = 0 ifTrue: [^self].
 	(dstOffset >= 0 and: [dstOffset + byteCount <= b size]) ifFalse: [^self fail: 'gpuUploadBuffer' because: 'upload out of buffer bounds'].
+	self touch: b address.
 	Machine copy: byteCount from: bytes at: 0 to: b address at: dstOffset
 !
 uploadTexture: texture bytes: bytes x: x y: y width: w height: h bytesPerRow: bytesPerRow
@@ -195,6 +199,7 @@ uploadTexture: texture bytes: bytes x: x y: y width: w height: h bytesPerRow: by
 	(x >= 0 and: [y >= 0 and: [w > 0 and: [h > 0 and: [x + w <= t width and: [y + h <= t height
 		and: [bytesPerRow >= (w * bpp) and: [(self byteSizeOf: bytes) >= ((h - 1) * bytesPerRow + (w * bpp))]]]]]]])
 			ifFalse: [^self fail: 'gpuUploadTexture' because: 'bad texture upload region'].
+	self touch: t address.
 	SoftwareRaster copy: t address + ((y * t width + x) * bpp) stride: t width * bpp from: bytes stride: bytesPerRow
 		width: w height: h bytesPerPixel: bpp mode: 0
 !
@@ -205,6 +210,7 @@ download: texture x: x y: y width: w height: h into: bytes
 	bpp := self bytesPerPixel: t format.
 	(x >= 0 and: [y >= 0 and: [w > 0 and: [h > 0 and: [x + w <= t width and: [y + h <= t height and: [(self byteSizeOf: bytes) >= (w * h * bpp)]]]]]])
 		ifFalse: [^self fail: 'gpuDownload' because: 'bad download region'].
+	self touch: t address.
 	SoftwareRaster copy: bytes stride: w * bpp from: t address + ((y * t width + x) * bpp) stride: t width * bpp
 		width: w height: h bytesPerPixel: bpp mode: (t format = 3 ifTrue: [1] ifFalse: [0]).
 	^bytes
@@ -232,7 +238,7 @@ acquireSwapchain: cmd window: window
 	(w > 0 and: [h > 0]) ifFalse: [^nil].
 	(claim address isNil or: [claim width ~= w or: [claim height ~= h]]) ifTrue: [
 		self unclaim: claim.
-		claim address: (Machine allocate: w * h * 4); width: w; height: h].
+		claim address: (self allocate: w * h * 4); width: w; height: h].
 	^{self add: ((SoftwareGPUObject kind: #swapchain) device: c device; address: claim address; width: w; height: h; format: 3; command: cmd; extra: window; yourself) ownedBy: cmd.
 		w. h}
 !
@@ -253,7 +259,7 @@ beginPass: cmd target: texture clear: rgbaOrNil
 					ifTrue: [(v at: 3) + ((v at: 2) << 8) + ((v at: 1) << 16) + ((v at: 4) << 24)]
 					ifFalse: [(v at: 1) + ((v at: 2) << 8) + ((v at: 3) << 16) + ((v at: 4) << 24)]].
 		t0 := Time microsecondClockValue.
-		SoftwareRaster fill: t address count: t width * t height bytesPerPixel: bpp value: v.
+		self fill: t address count: t width * t height bytesPerPixel: bpp value: v.
 		self charge: cmd since: t0].
 	^self add: pass ownedBy: cmd
 !
@@ -304,9 +310,9 @@ draw: pass count: vertexCount first: firstVertex
 	p offset + (firstVertex + vertexCount * 40) > b size ifTrue: [^self fail: 'gpuDraw' because: 'the draw reads beyond the vertex buffer'].
 	(self at: p targetHandle) == p target ifFalse: [^self].
 	t0 := Time microsecondClockValue.
-	SoftwareRaster
+	self
 		draw: (p stateWith: (self at: p command) extra texture: (p texture notNil and: [(self at: p textureHandle) == p texture]))
-		vertices: b address + p offset first: firstVertex count: vertexCount.
+		buffer: b offset: p offset first: firstVertex count: vertexCount.
 	self charge: p command since: t0
 !
 endPass: pass
@@ -320,7 +326,7 @@ blit: cmd source: src rect: srcRect destination: dst rect: dstRect linear: aBool
 	s := self at: src kind: #texture for: 'gpuBlit'.
 	d := self target: dst for: 'gpuBlit'.
 	t0 := Time microsecondClockValue.
-	SoftwareRaster blit: s surface rect: srcRect asArray to: d surface rect: dstRect asArray linear: aBoolean.
+	self blit: s surface rect: srcRect asArray to: d surface rect: dstRect asArray linear: aBoolean.
 	self charge: cmd since: t0
 !
 submit: cmd fence: wantFence
@@ -332,7 +338,7 @@ submit: cmd fence: wantFence
 		o := each value.
 		((objects at: each key) == o and: [o kind == #swapchain]) ifTrue: [
 			(claims at: o extra ifAbsent: [nil]) ifNotNil: [:claim |
-				claim address = o address ifTrue: [display presentWindow: o extra pixels: o address width: o width height: o height]]]].
+				claim address = o address ifTrue: [self present: o]]]].
 	self dropPassesOf: cmd.
 	self drop: cmd.
 	wantFence ifFalse: [^nil].
@@ -350,7 +356,36 @@ fenceElapsed: fence
 	^(self at: fence kind: #fence for: 'gpuFenceElapsed') size
 ! !
 
+!SoftwareGPU methodsFor: 'memory and pixels'!
+allocate: byteCount
+	"The address of byteCount bytes of zeroed memory for a texture, a buffer or a back buffer."
+	^Machine allocate: byteCount
+!
+free: address
+	Machine free: address
+!
+touch: address
+	"The CPU is about to read or write the memory at address (allocate:'s): here it is never busy."
+!
+fill: address count: n bytesPerPixel: bpp value: anInteger
+	SoftwareRaster fill: address count: n bytesPerPixel: bpp value: anInteger
+!
+draw: aState buffer: aBuffer offset: byteOffset first: first count: count
+	"The Renderer's shader on vertices first .. first + count - 1 of aBuffer (a #buffer object) from byteOffset; aState as SoftwareRaster takes it."
+	SoftwareRaster draw: aState vertices: aBuffer address + byteOffset first: first count: count
+!
+blit: sourceSurface rect: sourceRect to: destinationSurface rect: destinationRect linear: aBoolean
+	SoftwareRaster blit: sourceSurface rect: sourceRect to: destinationSurface rect: destinationRect linear: aBoolean
+!
+present: aSwapchainTexture
+	"Show the back buffer aSwapchainTexture (a #swapchain object) on my display."
+	display presentWindow: aSwapchainTexture extra pixels: aSwapchainTexture address width: aSwapchainTexture width height: aSwapchainTexture height
+! !
+
 !SoftwareGPU methodsFor: 'accessing'!
+display
+	^display
+!
 liveObjects
 	"How many objects of each kind live (a Bag of kinds)."
 	^(objects reject: [:o | o isNil]) asBag collect: [:o | o kind]

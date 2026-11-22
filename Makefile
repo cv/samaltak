@@ -73,7 +73,7 @@ test-core: image test-vm
 # raster kernels (gpu/nv, docs/nv-kernels.md) on the GPU against PlatformRaster (tests/nv/run.sh: needs the driver,
 # not nvcc).
 test-nv: image
-	tests/st_suite.sh $(OUT)/samaltak.image -- NvGpuTest
+	tests/st_suite.sh $(OUT)/samaltak.image -- NvGpuTest NvComputeGPUTest
 	tests/nv/run.sh $(OUT)
 test-tools: image
 	$(PLATFORM_CHECK)

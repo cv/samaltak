@@ -92,5 +92,7 @@ swapchain) takes about 0.55 ms of GPU time, against 3.2 ms for the C reference o
 window's layer costs about 20 µs a draw, mostly the two launches' fixed cost (a pass of 180 small draws: 4 ms), which
 batching a pass's draws into one launch pair would remove.
 
+`NvComputeGPU` (docs/nv-gpu.md) launches them from the image through System-NV, as Graphics-GPU's device (`--gpu nv`).
+
 The checks that need no GPU run in test-core: `NvRasterKernelsTest` (the cubin decodes to what was checked in, the ABI
 is consistent, params:with: lays out a struct) and `SoftwareGPURecorderTest`.

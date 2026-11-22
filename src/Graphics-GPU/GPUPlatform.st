@@ -3,7 +3,9 @@ Object subclass: #GPUPlatform
 	classVariableNames: 'Device Display'
 	package: 'Graphics-GPU'!
 
-GPUPlatform comment: 'I am the private gateway of Graphics-GPU to the platform''s GPU and windows (docs/platform.md): every method forwards to a backend, the VM''s primitives (GPUPrimitives: SDL3, SDL_GPU) where it has them, else, where the image drives the machine itself (UEFI), the firmware''s display (FirmwareDisplay: windows and events) and a SoftwareGPU on it. They are chosen on first use after the image starts (reset). Failures signal a GPUError carrying the platform''s explanation. Only the classes of Graphics-GPU use me.'!
+GPUPlatform comment: 'I am the private gateway of Graphics-GPU to the platform''s GPU and windows (docs/platform.md): every method forwards to a backend, the VM''s primitives (GPUPrimitives: SDL3, SDL_GPU) where it has them, else, where the image drives the machine itself (UEFI), the firmware''s display (FirmwareDisplay: windows and events) and a SoftwareGPU on it. They are chosen on first use after the image starts (reset). Failures signal a GPUError carrying the platform''s explanation. Only the classes of Graphics-GPU use me.
+
+Another GPU is opt-in: --gpu NAME on the command line, else the environment''s SAMALTAK_GPU. nv is an NvComputeGPU (Graphics-NV: the raster kernels on an NVIDIA GPU, docs/nv-gpu.md), software a SoftwareGPU; hosted they present through a HostFramePresenter in the VM''s windows, on UEFI on the firmware''s display. Where it cannot be made (no NVIDIA GPU, it does not open) the default is used, with a line on stderr.'!
 
 !GPUPlatform class methodsFor: 'backends'!
 display
@@ -17,11 +19,28 @@ device
 	^Device
 !
 chooseBackends
-	FirmwareDisplay current
-		ifNil: [Display := Device := GPUPrimitives]
-		ifNotNil: [:d |
-			Display := d.
-			Device := SoftwareGPU on: d]
+	| firmware |
+	firmware := FirmwareDisplay current.
+	Display := firmware ifNil: [GPUPrimitives].
+	Device := self device: self requestedGPU on: (firmware ifNil: [HostFramePresenter new]) nv: (Smalltalk at: #NvComputeGPU ifAbsent: [nil]).
+	Device isNil ifTrue: [Device := firmware isNil ifTrue: [GPUPrimitives] ifFalse: [SoftwareGPU on: firmware]]
+!
+requestedGPU
+	"What --gpu NAME, else the environment's SAMALTAK_GPU, asks for ('nv', 'software'), or nil: the default."
+	^(Smalltalk argumentAfter: '--gpu') ifNil: [Smalltalk vm getenv: 'SAMALTAK_GPU']
+!
+device: aName on: aDisplay nv: nvClass
+	"The device aName asks for, presenting on aDisplay; nil for the default (no name, an unknown one, or one that cannot be made here). nvClass: NvComputeGPU, or nil without Graphics-NV."
+	(aName isNil or: [aName isEmpty]) ifTrue: [^nil].
+	aName = 'software' ifTrue: [^SoftwareGPU on: aDisplay].
+	aName = 'nv' ifFalse: [^self note: 'unknown GPU ', aName printString].
+	(nvClass notNil and: [nvClass isAvailable]) ifFalse: [^self note: 'no NVIDIA GPU here'].
+	^[nvClass on: aDisplay] on: Error do: [:e | e return: (self note: 'the NVIDIA GPU did not open (', e messageText asString, ')')]
+!
+note: aString
+	"Say on stderr why the default GPU is used; answer nil."
+	Smalltalk vm stderrWrite: 'Samaltak: --gpu: ', aString, ': the default GPU instead', (String with: Character lf).
+	^nil
 !
 display: aDisplay device: aDevice
 	"Use other backends (tests); answer the ones in use, {display. device}."

@@ -49,7 +49,7 @@ Colors are RGBA8 words, red in the low byte (premultiplied, as the vertex format
 !SoftwareGPUTest methodsFor: 'running'!
 setUp
 	display := SoftwareGPUTestDisplay new.
-	gpu := SoftwareGPU on: display.
+	gpu := self gpuOn: display.
 	dev := gpu createDevice: false.
 	pipe := self pipelineBlend: 2.
 	nearest := gpu createSampler: dev linear: false repeat: false.
@@ -60,6 +60,14 @@ tearDown
 ! !
 
 !SoftwareGPUTest methodsFor: 'objects'!
+gpuOn: aDisplay
+	"The device under test (subclasses: another SoftwareGPU)."
+	^SoftwareGPU on: aDisplay
+!
+shaderLanguage
+	"What the device under test answers for shaderLanguage:."
+	^'software'
+!
 pipelineBlend: blend
 	| vs fs |
 	vs := gpu createShader: dev source: 'vertex' entry: 'vmain' stage: 0 samplers: 0 uniformBuffers: 1 storageBuffers: 0 storageTextures: 0.
@@ -585,7 +593,7 @@ testTheSwapchainIsPresentedOnSubmit
 testOnlyTheRenderersPipeline
 	| vs fs |
 	self assert: pipe > 0.
-	self assert: (gpu shaderLanguage: dev) equals: 'software'.
+	self assert: (gpu shaderLanguage: dev) equals: self shaderLanguage.
 	vs := gpu createShader: dev source: 'v' entry: 'main' stage: 0 samplers: 0 uniformBuffers: 0 storageBuffers: 0 storageTextures: 0.
 	fs := gpu createShader: dev source: 'f' entry: 'main' stage: 1 samplers: 0 uniformBuffers: 1 storageBuffers: 0 storageTextures: 0.
 	self failure: [gpu createPipeline: dev vertex: vs fragment: fs stride: 0 attributes: #() primitive: 0 blend: 0 format: 2]
@@ -634,7 +642,7 @@ testTheGPULayerOnASoftwareDevice
 	| old device canvas form list renderer surface window swapchain cmd swap px frame |
 	old := GPUPlatform display: display device: gpu.
 	[device := GPUDevice new.
-	self assert: device isSoftware.
+	self assert: device isSoftware equals: self shaderLanguage = 'software'.
 	form := Form width: 4 height: 4.
 	form fill: Color red.
 	canvas := Canvas extent: 6 @ 4 scale: 1.
