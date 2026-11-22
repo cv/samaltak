@@ -70,17 +70,18 @@ testClientHello
 	hello := hellos first.
 	self assert: (socket sent copyFrom: 1 to: 3) equals: #[22 3 1].
 	self assert: hello serverName equals: 'example.com'.
-	self assert: hello cipherSuites equals: #(16r1301 16r1303 16r1302).
+	self assert: hello cipherSuites equals: #(16r1301 16r1303 16r1302 16rC02B 16rC02F 16rCCA9 16rCCA8 16rC02C 16rC030).
+	self assert: hello versions equals: #(16r0304 16r0303).
 	self assert: hello groups first equals: 16r1D.
 	self assert: hello keyShares size equals: 1.
 	self assert: hello keyShares first first equals: 16r1D.
 	self assert: hello keyShares first last size equals: 32.
-	self assert: hello signatureSchemes equals: #(16r0804 16r0805 16r0403 16r0503 16r0401 16r0501).
+	self assert: hello signatureSchemes equals: #(16r0804 16r0805 16r0806 16r0403 16r0503 16r0401 16r0501 16r0601).
 	self assert: hello protocols equals: #('http/1.1').
 	self assert: hello sessionId size equals: 32.
 	self assert: hello random size equals: 32.
 	self assert: hello cookie isNil.
-	self assert: ((TLSClientHello fromBytes: hello bytes) extensionTypes asSet) equals: #(0 10 13 16 43 51) asSet.
+	self assert: ((TLSClientHello fromBytes: hello bytes) extensionTypes asSet) equals: #(0 10 11 13 16 23 43 51 16rFF01) asSet.
 	self assert: (TLSClientHello fromBytes: hello bytes) bytes equals: hello bytes
 !
 testClientHelloEncodingRoundTrips
@@ -114,6 +115,8 @@ testNotTLS
 	self assertAlert: #unexpectedMessage
 !
 testTLS12Server
+	"Offering TLS 1.3 only."
+	connection versions: #(16r0304).
 	self respond: [:h | self serverHello: h extensions: #()].
 	self assert: (self failure messageText includesSubstring: 'TLS 1.2').
 	self assertAlert: #protocolVersion
@@ -279,4 +282,65 @@ testUnexpectedChangeCipherSpecContent
 	self respond: [:h | self record: #[2] type: 20].
 	self failure.
 	self assertAlert: #unexpectedMessage
+!
+newSession
+	"A TLS 1.2 server's ServerHello for a session it does not resume: an empty session id."
+	^TLSClientHello new sessionId: #[]; yourself
+!
+tls12Extensions
+	^{16rFF01 -> #[0]. 23 -> #[]}
+!
+testDowngradeSentinel
+	"A server that speaks TLS 1.3 says so in its TLS 1.2 ServerHello (RFC 8446, section 4.1.3): someone in between removed it from our offer."
+	self respond: [:h | self serverHello: self newSession random: (ByteArray new: 24), 'DOWNGRD' asByteArray, #[1] suite: 16rC02F extensions: self tls12Extensions].
+	self assert: (self failure messageText includesSubstring: 'downgrade').
+	self assertAlert: #illegalParameter
+!
+testDowngradeSentinelBelowTLS12
+	self respond: [:h | self serverHello: self newSession random: (ByteArray new: 24), 'DOWNGRD' asByteArray, #[0] suite: 16rC02F extensions: self tls12Extensions].
+	self assert: (self failure messageText includesSubstring: 'downgrade').
+	self assertAlert: #illegalParameter
+!
+testDowngradeSentinelWithoutTLS13Offered
+	"Offering TLS 1.2 only, the sentinel is what a TLS 1.3 server must send: the handshake goes on (and then the server has nothing more)."
+	connection versions: #(16r0303).
+	self respond: [:h | self serverHello: self newSession random: (ByteArray new: 24), 'DOWNGRD' asByteArray, #[1] suite: 16rC02F extensions: self tls12Extensions].
+	self assert: (self failure messageText includesSubstring: 'closed').
+	self assert: hellos first versions equals: #(16r0303).
+	self deny: (hellos first cipherSuites includes: 16r1301).
+	self assertNoAlert
+!
+testTLS12WithoutSecureRenegotiation
+	"OpenSSL 3 refuses servers without renegotiation_info (RFC 5746), and so do we."
+	self respond: [:h | self serverHello: self newSession random: (ByteArray new: 32) suite: 16rC02F extensions: #()].
+	self assert: (self failure messageText includesSubstring: 'secure renegotiation').
+	self assertAlert: #handshakeFailure
+!
+testTLS12SuiteNotOffered
+	"ECDHE-RSA-AES128-SHA (CBC): never offered."
+	self respond: [:h | self serverHello: self newSession random: (ByteArray new: 32) suite: 16rC013 extensions: self tls12Extensions].
+	self assert: (self failure messageText includesSubstring: 'not offered for TLS 1.2').
+	self assertAlert: #illegalParameter
+!
+testTLS13SuiteInTLS12
+	self respond: [:h | self serverHello: self newSession random: (ByteArray new: 32) suite: 16r1301 extensions: self tls12Extensions].
+	self assert: (self failure messageText includesSubstring: 'not offered for TLS 1.2').
+	self assertAlert: #illegalParameter
+!
+testTLS12SuiteInTLS13
+	self respond: [:h | self serverHello: h random: (ByteArray new: 32) suite: 16rC02F extensions: {self version13. self keyShare: (ByteArray new: 32 withAll: 9)}].
+	self failure.
+	self assertAlert: #illegalParameter
+!
+testTLS12ResumptionNeverOffered
+	"A TLS 1.2 server that echoes our (random, middlebox compatibility) session id claims to resume a session we never had."
+	self respond: [:h | self serverHello: h random: (ByteArray new: 32) suite: 16rC02F extensions: self tls12Extensions].
+	self assert: (self failure messageText includesSubstring: 'resumes a session').
+	self assertAlert: #illegalParameter
+!
+testTLS10Server
+	self respond: [:h | self record: (TLSWriter new u8: 2; vector24Do: [:w |
+		w u16: 16r0301; bytes: (ByteArray new: 32); vector8: h sessionId; u16: 16rC013; u8: 0]; contents) type: 22].
+	self assert: (self failure messageText includesSubstring: 'TLS 1.0').
+	self assertAlert: #protocolVersion
 ! !

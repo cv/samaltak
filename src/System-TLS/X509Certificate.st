@@ -1,5 +1,5 @@
 Object subclass: #X509Certificate
-	instanceVariableNames: 'der tbs version serialNumber signatureAlgorithm signatureHash pssSaltLength signature issuer subject notBefore notAfter publicKeyAlgorithm publicKey extensions isCA pathLength keyUsage extKeyUsage dnsNames ipAddresses subjectKeyId authorityKeyId unhandledCriticalExtensions'
+	instanceVariableNames: 'der tbs version serialNumber signatureAlgorithm signatureAlgorithmOid signatureHash pssSaltLength signature issuer subject notBefore notAfter publicKeyAlgorithm publicKey extensions isCA pathLength keyUsage extKeyUsage dnsNames ipAddresses subjectKeyId authorityKeyId unhandledCriticalExtensions'
 	classVariableNames: ''
 	package: 'System-TLS'!
 
@@ -37,6 +37,24 @@ signatureAlgorithm
 signatureHash
 	"The hash class of my signature (SHA256, SHA384, SHA512), nil if unsupported."
 	^signatureHash
+!
+signatureAlgorithmOid
+	^signatureAlgorithmOid
+!
+signatureAlgorithmName
+	"My signature algorithm's name, also for one I do not support (sha1WithRSAEncryption, ecdsa-with-SHA1, md5WithRSAEncryption, Ed25519...: its OID if I do not know it)."
+	| pairs |
+	signatureAlgorithm == #unsupported ifFalse: [^signatureAlgorithm asString].
+	pairs := #('1.2.840.113549.1.1.5' 'sha1WithRSAEncryption' '1.2.840.113549.1.1.4' 'md5WithRSAEncryption'
+		'1.2.840.113549.1.1.2' 'md2WithRSAEncryption' '1.2.840.10045.4.1' 'ecdsa-with-SHA1' '1.2.840.10040.4.3' 'dsa-with-SHA1'
+		'1.2.840.113549.1.1.10' 'RSASSA-PSS with SHA-1 or unsupported parameters' '1.3.101.112' 'Ed25519' '1.3.101.113' 'Ed448'
+		'1.2.840.113549.1.1.14' 'sha224WithRSAEncryption' '1.2.840.10045.4.3.1' 'ecdsa-with-SHA224').
+	1 to: pairs size by: 2 do: [:i | (pairs at: i) = signatureAlgorithmOid ifTrue: [^pairs at: i + 1]].
+	^signatureAlgorithmOid
+!
+usesWeakHash
+	"Is my signature made with SHA-1, MD5 or MD2, which no one accepts any more?"
+	^#('1.2.840.113549.1.1.5' '1.2.840.113549.1.1.4' '1.2.840.113549.1.1.2' '1.2.840.10045.4.1' '1.2.840.10040.4.3') includes: signatureAlgorithmOid
 !
 signature
 	^signature
@@ -199,6 +217,7 @@ parseSignatureAlgorithm: bytes
 	| r oid params |
 	r := (Asn1Der on: bytes) readSequence.
 	oid := r readOid.
+	signatureAlgorithmOid := oid.
 	signatureAlgorithm := #unsupported.
 	oid = '1.2.840.113549.1.1.10' ifTrue: [
 		params := r readSequence.

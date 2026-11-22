@@ -248,6 +248,40 @@ testServerKeyUpdate
 	sent := socket sent.
 	self assert: (self open: sent with: (ks cipherFor: (ks nextTrafficSecret: self clientApplicationSecret))) equals: {23. 'x' asByteArray}
 !
+testTruncatedStream
+	"The server's input ends between records without close_notify: an error (as OpenSSL 3 has it), not the end."
+	| socket connection buffer |
+	socket := TLSTestSocket new.
+	socket deliver: self serverHelloRecord, self serverHandshakeRecord, self newSessionTicketRecord, self serverApplicationRecord.
+	connection := self connectionOver: socket.
+	connection handshakeUntil: Time millisecondClockValue + 5000.
+	buffer := ByteArray new: 100.
+	self assert: (connection receiveInto: buffer timeout: 1000) equals: 50.
+	self should: [connection receiveInto: buffer timeout: 1000] raise: TLSError withExceptionDo: [:e |
+		self assert: (e messageText includesSubstring: 'close_notify').
+		self assert: e alert isNil].
+	self deny: connection isOpen.
+	self assert: (connection receiveInto: buffer timeout: 1000) equals: 0
+!
+testTruncatedRecord
+	| socket connection buffer record |
+	record := self serverApplicationRecord.
+	socket := TLSTestSocket new.
+	socket deliver: self serverHelloRecord, self serverHandshakeRecord, self newSessionTicketRecord, (record copyFrom: 1 to: record size - 5).
+	connection := self connectionOver: socket.
+	connection handshakeUntil: Time millisecondClockValue + 5000.
+	buffer := ByteArray new: 100.
+	self should: [connection receiveInto: buffer timeout: 1000] raise: TLSError withExceptionDo: [:e |
+		self assert: (e messageText includesSubstring: 'inside a record')].
+	self deny: connection isOpen
+!
+testTruncatedHandshake
+	| outcome record |
+	record := self serverHandshakeRecord.
+	outcome := self failureOfHandshakeWith: self serverHelloRecord, (record copyFrom: 1 to: 100).
+	self assert: (outcome first messageText includesSubstring: 'inside a record').
+	self assert: outcome first alert isNil
+!
 testClientKeyUpdate
 	| socket connection ks |
 	ks := TLSKeySchedule suite: self suite.

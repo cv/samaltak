@@ -1,0 +1,147 @@
+# Hosts for tools/tls-survey: host[:port], then an optional note. Popular and diverse HTTPS servers: CDNs, clouds,
+# code hosting, package registries, inference APIs, CAs (RSA and ECDSA chains, cross-signed roots), sites known for
+# long chains, large certificates or HelloRetryRequests, and a few known-bad ones (expected to fail everywhere).
+# CDNs
+www.cloudflare.com
+cdnjs.cloudflare.com
+www.akamai.com
+www.fastly.com
+cdn.jsdelivr.net
+unpkg.com
+ajax.googleapis.com
+fonts.gstatic.com
+d1.awsstatic.com	CloudFront
+bunny.net
+www.imperva.com
+# clouds and hosting
+aws.amazon.com
+s3.amazonaws.com
+azure.microsoft.com
+login.microsoftonline.com
+cloud.google.com
+storage.googleapis.com
+www.digitalocean.com
+www.oracle.com
+www.ibm.com
+www.hetzner.com
+www.ovhcloud.com
+vercel.com
+www.netlify.com
+fly.io
+render.com
+www.heroku.com
+# code hosting and packages
+github.com
+api.github.com
+raw.githubusercontent.com
+objects.githubusercontent.com
+codeload.github.com
+gitlab.com
+bitbucket.org
+pypi.org
+files.pythonhosted.org
+registry.npmjs.org
+crates.io
+static.crates.io
+proxy.golang.org
+rubygems.org
+registry-1.docker.io
+ghcr.io
+quay.io
+deb.debian.org
+www.kernel.org
+www.python.org
+nodejs.org
+go.dev
+www.rust-lang.org
+# inference endpoints
+api.openai.com
+api.anthropic.com
+generativelanguage.googleapis.com
+inference-api.nvidia.com
+integrate.api.nvidia.com
+api.mistral.ai
+api.groq.com
+api.together.xyz
+api.fireworks.ai
+openrouter.ai
+api.deepseek.com
+api.cohere.com
+huggingface.co
+api.x.ai
+api.perplexity.ai
+# popular sites
+www.google.com
+www.youtube.com
+www.facebook.com
+www.instagram.com
+www.wikipedia.org
+en.wikipedia.org
+www.amazon.com
+www.apple.com
+www.microsoft.com
+www.bing.com
+www.reddit.com
+x.com
+www.linkedin.com
+www.netflix.com
+www.yahoo.com
+duckduckgo.com
+www.baidu.com
+www.qq.com
+yandex.ru
+vk.com
+www.bbc.co.uk
+www.nytimes.com
+www.theguardian.com
+stackoverflow.com
+news.ycombinator.com
+www.paypal.com
+www.ebay.com
+www.dropbox.com
+zoom.us
+slack.com
+discord.com
+www.spotify.com
+www.twitch.tv
+www.whatsapp.com
+# governments and banks (older stacks, EV and long chains)
+www.irs.gov
+www.usa.gov
+www.gov.uk
+www.bankofamerica.com
+www.chase.com
+www.wellsfargo.com
+www.hsbc.com
+www.bund.de
+www.gov.br
+# certificate authorities and roots (RSA, ECDSA, cross-signed)
+letsencrypt.org
+valid-isrgrootx1.letsencrypt.org	ISRG Root X1 (RSA)
+valid-isrgrootx2.letsencrypt.org	ISRG Root X2 (ECDSA P-384)
+www.digicert.com
+www.sectigo.com
+www.globalsign.com
+www.entrust.com
+www.ssl.com
+www.godaddy.com
+www.amazontrust.com
+pki.goog
+www.certum.pl
+www.actalis.it
+www.harica.gr
+www.buypass.no
+# known bad (expected to fail with both)
+expired-isrgrootx1.letsencrypt.org	expired
+revoked-isrgrootx1.letsencrypt.org	revoked (OpenSSL does not check revocation)
+expired.badssl.com	expired
+wrong.host.badssl.com	wrong host
+self-signed.badssl.com	self-signed
+untrusted-root.badssl.com	untrusted root
+incomplete-chain.badssl.com	incomplete chain
+sha256.badssl.com	good (TLS 1.2)
+ecc256.badssl.com	good (TLS 1.2)
+rsa4096.badssl.com	good (TLS 1.2)
+1000-sans.badssl.com	large certificate (TLS 1.2)
+tls-v1-2.badssl.com:1012	TLS 1.2 only
+tls-v1-0.badssl.com:1010	TLS 1.0 only (OpenSSL 3 refuses too)

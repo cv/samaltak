@@ -1,5 +1,5 @@
 Object subclass: #TLSClientConnection
-	instanceVariableNames: 'socket host validator protocols suites groups shareGroups schemes padding state hello privateKeys suite schedule transcript readCipher writeCipher input inStart scratch handshakeBuffer data dataStart inputClosed sendLock sentChangeCipherSpec retried certificateRequest certificates protocol failure handshakeMilliseconds'
+	instanceVariableNames: 'socket host validator protocols suites groups shareGroups schemes padding state hello privateKeys suite keyGroup version versions serverRandom extendedMasterSecret pendingReadCipher schedule transcript readCipher writeCipher input inStart scratch handshakeBuffer data dataStart inputClosed sendLock sentChangeCipherSpec retried certificateRequest certificates protocol failure handshakeMilliseconds'
 	classVariableNames: ''
 	package: 'System-TLS'!
 
@@ -25,6 +25,7 @@ setSocket: aSocket host: aString
 	state := #start.
 	protocols := #('http/1.1').
 	suites := TLSCipherSuite all.
+	versions := #(16r0304 16r0303).
 	groups := self class supportedGroups.
 	schemes := self class signatureSchemes.
 	padding := 0.
@@ -55,6 +56,10 @@ cipherSuites: aCollection
 keyShareGroups: codes
 	shareGroups := codes asArray
 !
+versions: codes
+	"The versions to offer: 16r0304 (TLS 1.3), 16r0303 (TLS 1.2); both by default."
+	versions := codes asArray
+!
 recordPadding: anInteger
 	padding := anInteger
 ! !
@@ -78,6 +83,14 @@ peerCertificates
 !
 handshakeMilliseconds
 	^handshakeMilliseconds
+!
+version
+	"The version negotiated: 16r0304 (TLS 1.3) or 16r0303 (TLS 1.2); nil before the ServerHello."
+	^version
+!
+keyExchangeGroup
+	"The group of the (EC)DHE key exchange (16r1D x25519, 16r17 secp256r1), nil before the ServerHello."
+	^keyGroup
 !
 wasRetried
 	"Did the server send a HelloRetryRequest?"
@@ -103,9 +116,13 @@ handshakeUntil: deadline
 	| start |
 	state == #start ifFalse: [^TLSError signal: 'the handshake has begun already' alert: nil].
 	start := Time millisecondClockValue.
-	[self runHandshakeUntil: deadline] on: TLSError do: [:e |
-		self abort: e.
-		e pass].
+	[[self runHandshakeUntil: deadline] on: Error do: [:e |
+		(e isKindOf: TLSError) ifTrue: [e pass].
+		"a bug of ours, or of what we rest on: fail the handshake (internal_error) rather than leave the socket open"
+		TLSError signal: 'internal error: ', e class name, ': ', e messageText asString alert: #internalError]]
+			on: TLSError do: [:e |
+				self abort: e.
+				e pass].
 	handshakeMilliseconds := Time millisecondClockValue - start
 !
 runHandshakeUntil: deadline
@@ -119,6 +136,9 @@ runHandshakeUntil: deadline
 		message := self expect: 2 until: deadline.
 		serverHello := TLSServerHello fromBody: (message at: 2).
 		serverHello isHelloRetryRequest ifTrue: [^TLSError signal: 'a second HelloRetryRequest' alert: #unexpectedMessage]].
+	(self isTls12: serverHello) ifTrue: [
+		self acceptTls12ServerHello: serverHello message: message last.
+		^self runTls12HandshakeUntil: deadline].
 	self acceptServerHello: serverHello message: message last.
 	message := self expect: 8 until: deadline.
 	self acceptEncryptedExtensions: (message at: 2).
@@ -148,7 +168,8 @@ sendClientHello
 		hello := TLSClientHello new
 			random: (SecureRandom default nextBytes: 32);
 			sessionId: (SecureRandom default nextBytes: 32);
-			cipherSuites: (suites collect: [:each | each code]);
+			versions: self offeredVersions;
+			cipherSuites: ((suites select: [:each | self offeredVersions includes: each version]) collect: [:each | each code]);
 			serverName: (self class serverNameFor: host);
 			groups: groups;
 			keyShares: (self keySharesFor: (shareGroups ifNil: [groups copyFrom: 1 to: 1]));
@@ -159,22 +180,22 @@ sendClientHello
 !
 acceptHelloRetryRequest: serverHello message: bytes
 	"Answer the HelloRetryRequest with a second ClientHello (section 4.1.4)."
-	| group hash |
+	| asked hash |
 	self checkServerHello: serverHello allowing: #(43 44 51).
-	group := serverHello selectedGroup.
-	(group isNil and: [serverHello cookie isNil]) ifTrue: [^TLSError signal: 'a HelloRetryRequest that changes nothing' alert: #illegalParameter].
-	(group notNil and: [(groups includes: group) not or: [privateKeys includesKey: group]]) ifTrue: [
-		^TLSError signal: 'a HelloRetryRequest for the group ', group printString, ', not offered or with a share already' alert: #illegalParameter].
+	asked := serverHello selectedGroup.
+	(asked isNil and: [serverHello cookie isNil]) ifTrue: [^TLSError signal: 'a HelloRetryRequest that changes nothing' alert: #illegalParameter].
+	(asked notNil and: [(groups includes: asked) not or: [privateKeys includesKey: asked]]) ifTrue: [
+		^TLSError signal: 'a HelloRetryRequest for the group ', asked printString, ', not offered or with a share already' alert: #illegalParameter].
 	suite := TLSCipherSuite withCode: serverHello cipherSuite.
 	retried := true.
 	hash := suite hashClass hash: transcript contents.
 	transcript := WriteStream on: (ByteArray new: 4096).
 	transcript nextPutAll: (TLSWriter new u8: 254; vector24: hash; contents).
 	self addToTranscript: bytes.
-	group isNil ifFalse: [
+	asked isNil ifFalse: [
 		privateKeys := Dictionary new.
-		privateKeys at: group put: (self newPrivateKeyFor: group).
-		hello keyShares: (self keySharesFor: {group})].
+		privateKeys at: asked put: (self newPrivateKeyFor: asked).
+		hello keyShares: (self keySharesFor: {asked})].
 	hello cookie: serverHello cookie.
 	self sendChangeCipherSpec.
 	self addToTranscript: hello bytes.
@@ -186,10 +207,12 @@ acceptServerHello: serverHello message: bytes
 	(suite notNil and: [suite code ~= serverHello cipherSuite]) ifTrue: [
 		^TLSError signal: 'the ServerHello''s cipher suite is not the HelloRetryRequest''s' alert: #illegalParameter].
 	suite := TLSCipherSuite withCode: serverHello cipherSuite.
+	version := 16r0304.
 	share := serverHello keyShare.
 	share isNil ifTrue: [^TLSError signal: 'the ServerHello has no key share' alert: #missingExtension].
 	key := privateKeys at: share first ifAbsent: [
 		^TLSError signal: 'the server''s key share is for the group ', share first printString, ', which has none of ours' alert: #illegalParameter].
+	keyGroup := share first.
 	self addToTranscript: bytes.
 	handshakeBuffer isEmpty ifFalse: [^TLSError signal: 'a message after ServerHello in its record' alert: #unexpectedMessage].
 	schedule := TLSKeySchedule suite: suite.
@@ -201,12 +224,12 @@ acceptServerHello: serverHello message: bytes
 checkServerHello: serverHello allowing: types
 	"What a ServerHello and a HelloRetryRequest must both be: TLS 1.3, our session id, a suite we offered."
 	serverHello selectedVersion isNil ifTrue: [
-		^TLSError signal: 'the server does not speak TLS 1.3 (it chose ', (self class versionName: serverHello version), ')' alert: #protocolVersion].
+		^TLSError signal: 'the server does not speak ', ((hello versions includes: 16r0303) ifTrue: ['TLS 1.3 or 1.2'] ifFalse: ['TLS 1.3']), ' (it chose ', (self class versionName: serverHello version), ')' alert: #protocolVersion].
 	serverHello selectedVersion = 16r0304 ifFalse: [^TLSError signal: 'the server chose the version ', serverHello selectedVersion printString, ', not TLS 1.3' alert: #illegalParameter].
 	serverHello version = 16r0303 ifFalse: [^TLSError signal: 'a ServerHello with the legacy version ', serverHello version printString alert: #illegalParameter].
 	serverHello sessionId = hello sessionId ifFalse: [^TLSError signal: 'the server did not echo the session id' alert: #illegalParameter].
 	serverHello compression = 0 ifFalse: [^TLSError signal: 'the server chose compression' alert: #illegalParameter].
-	(suites anySatisfy: [:each | each code = serverHello cipherSuite]) ifFalse: [
+	(suites anySatisfy: [:each | each code = serverHello cipherSuite and: [each isTLS13]]) ifFalse: [
 		^TLSError signal: 'the server chose the cipher suite ', serverHello cipherSuite printString, ', not offered' alert: #illegalParameter].
 	serverHello extensions keysDo: [:each |
 		(types includes: each) ifFalse: [
@@ -215,7 +238,7 @@ checkServerHello: serverHello allowing: types
 				ifFalse: [TLSError signal: 'the extension ', each printString, ', not offered' alert: #unsupportedExtension]]]
 !
 acceptEncryptedExtensions: body
-	| r extensions list name |
+	| r extensions |
 	r := TLSReader on: body.
 	extensions := r extensions.
 	r expectEnd.
@@ -223,14 +246,19 @@ acceptEncryptedExtensions: body
 		(hello extensionTypes includes: each) ifFalse: [^TLSError signal: 'the extension ', each printString, ', not offered' alert: #unsupportedExtension].
 		(#(13 41 43 44 45 51) includes: each) ifTrue: [^TLSError signal: 'the extension ', each printString, ' in EncryptedExtensions' alert: #illegalParameter]].
 	(extensions at: 0 ifAbsent: [#()]) isEmpty ifFalse: [^TLSError signal: 'decode error: server_name not empty' alert: #decodeError].
-	(extensions at: 16 ifAbsent: [nil]) ifNotNil: [:data |
-		r := TLSReader on: data.
-		list := r reader16.
-		r expectEnd.
-		name := list vector8 asString.
-		list expectEnd.
-		(protocols includes: name) ifFalse: [^TLSError signal: 'the server chose the protocol ', name printString, ', not offered' alert: #illegalParameter].
-		protocol := name]
+	self acceptProtocol: (extensions at: 16 ifAbsent: [nil])
+!
+acceptProtocol: data
+	"The server's ALPN extension (nil if none): one protocol, one of ours."
+	| r list name |
+	data isNil ifTrue: [^self].
+	r := TLSReader on: data.
+	list := r reader16.
+	r expectEnd.
+	name := list vector8 asString.
+	list expectEnd.
+	(protocols includes: name) ifFalse: [^TLSError signal: 'the server chose the protocol ', name printString, ', not offered' alert: #illegalParameter].
+	protocol := name
 !
 acceptCertificateRequest: body
 	| r |
@@ -252,6 +280,10 @@ acceptCertificate: body
 		extensions := (TLSReader on: (TLSWriter new vector16: list vector16; contents)) extensions.
 		extensions isEmpty ifFalse: [^TLSError signal: 'a certificate extension, not offered' alert: #unsupportedExtension].
 		ders add: der].
+	self acceptCertificates: ders
+!
+acceptCertificates: ders
+	"Parse and validate the server's certificates (DERs, the leaf first)."
 	ders isEmpty ifTrue: [^TLSError signal: 'the server sent no certificate' alert: #decodeError].
 	certificates := ders asArray collect: [:each |
 		[X509Certificate fromDer: each] on: Error do: [:e |
@@ -277,9 +309,9 @@ acceptCertificateVerify: body
 verify: signature scheme: scheme content: content
 	| key |
 	key := certificates first publicKey.
-	(scheme = 16r0804 or: [scheme = 16r0805]) ifTrue: [
+	(#(16r0804 16r0805 16r0806) includes: scheme) ifTrue: [
 		(key isKindOf: RsaPublicKey) ifFalse: [^TLSError signal: 'an RSA signature but no RSA key' alert: #illegalParameter].
-		^key verifyPss: signature message: content hash: (scheme = 16r0804 ifTrue: [SHA256] ifFalse: [SHA384])].
+		^key verifyPss: signature message: content hash: (scheme = 16r0804 ifTrue: [SHA256] ifFalse: [scheme = 16r0805 ifTrue: [SHA384] ifFalse: [SHA512]])].
 	(scheme = 16r0403 or: [scheme = 16r0503]) ifTrue: [
 		((key isKindOf: EcPublicKey) and: [key curve name = (scheme = 16r0403 ifTrue: [#p256] ifFalse: [#p384])]) ifFalse: [
 			^TLSError signal: 'an ECDSA signature but no key on its curve' alert: #illegalParameter].
@@ -304,6 +336,154 @@ sendFinished
 	self sendRecord: finished type: 22.
 	readCipher := schedule cipherFor: schedule serverApplicationSecret.
 	writeCipher := schedule cipherFor: schedule clientApplicationSecret
+! !
+
+!TLSClientConnection methodsFor: 'TLS 1.2'!
+offeredVersions
+	"The versions to offer: those of versions that a suite of ours is for."
+	^versions select: [:v | suites anySatisfy: [:each | each version = v]]
+!
+isTls12: serverHello
+	"Did the server choose TLS 1.2 (no supported_versions, legacy version 1.2), which we offered (and no HelloRetryRequest came)?"
+	^serverHello selectedVersion isNil and: [serverHello version = 16r0303 and: [(hello versions includes: 16r0303) and: [retried ~~ true]]]
+!
+acceptTls12ServerHello: serverHello message: bytes
+	"A TLS 1.2 ServerHello (RFC 5246, section 7.4.1.3): a suite we offered for it, no downgrade from TLS 1.3 (RFC 8446, section 4.1.3), secure renegotiation (RFC 5746, required as OpenSSL 3 does), extended_master_secret if the server has it (RFC 7627)."
+	| extensions formats |
+	((hello versions includes: 16r0304) and: [(serverHello random copyFrom: 25 to: 32) = self class downgradeSentinel12 or: [(serverHello random copyFrom: 25 to: 32) = self class downgradeSentinel11]]) ifTrue: [
+		^TLSError signal: 'the server signals a downgrade from TLS 1.3 (an attacker or a broken middlebox in between)' alert: #illegalParameter].
+	serverHello compression = 0 ifFalse: [^TLSError signal: 'the server chose compression' alert: #illegalParameter].
+	suite := suites detect: [:each | each code = serverHello cipherSuite and: [each isTLS13 not]] ifNone: [
+		^TLSError signal: 'the server chose the cipher suite ', serverHello cipherSuite printString, ', not offered for TLS 1.2' alert: #illegalParameter].
+	(serverHello sessionId notEmpty and: [serverHello sessionId = hello sessionId]) ifTrue: [
+		^TLSError signal: 'the server resumes a session we never had' alert: #illegalParameter].
+	extensions := serverHello extensions.
+	extensions keysDo: [:each |
+		(hello extensionTypes includes: each) ifFalse: [^TLSError signal: 'the extension ', each printString, ', not offered' alert: #unsupportedExtension].
+		(#(0 11 16 23 16rFF01) includes: each) ifFalse: [^TLSError signal: 'the extension ', each printString, ' in a TLS 1.2 ServerHello' alert: #illegalParameter]].
+	(extensions at: 0 ifAbsent: [#()]) isEmpty ifFalse: [^TLSError signal: 'decode error: server_name not empty' alert: #decodeError].
+	(extensions at: 16rFF01 ifAbsent: [^TLSError signal: 'the server does not support secure renegotiation (RFC 5746)' alert: #handshakeFailure]) = #[0]
+		ifFalse: [^TLSError signal: 'a renegotiation_info that is not empty' alert: #handshakeFailure].
+	(extensions at: 23 ifAbsent: [#()]) isEmpty ifFalse: [^TLSError signal: 'decode error: extended_master_secret not empty' alert: #decodeError].
+	extendedMasterSecret := extensions includesKey: 23.
+	(extensions at: 11 ifAbsent: [nil]) ifNotNil: [:data |
+		formats := TLSReader on: data.
+		((formats vector8 includes: 0) and: [formats atEnd]) ifFalse: [^TLSError signal: 'the server does not take uncompressed points' alert: #illegalParameter]].
+	self acceptProtocol: (extensions at: 16 ifAbsent: [nil]).
+	version := 16r0303.
+	serverRandom := serverHello random.
+	self addToTranscript: bytes
+!
+runTls12HandshakeUntil: deadline
+	"Certificate, ServerKeyExchange, CertificateRequest perhaps, ServerHelloDone; our Certificate (empty, if asked), ClientKeyExchange, change_cipher_spec and Finished; the server's change_cipher_spec and Finished."
+	| message share key premaster finished |
+	message := self expect: 11 until: deadline.
+	self acceptTls12Certificate: (message at: 2).
+	self addToTranscript: message last.
+	message := self expect: 12 until: deadline.
+	share := self acceptServerKeyExchange: (message at: 2).
+	self addToTranscript: message last.
+	message := self nextHandshakeMessageUntil: deadline.
+	message first = 13 ifTrue: [
+		self acceptTls12CertificateRequest: (message at: 2).
+		self addToTranscript: message last.
+		message := self nextHandshakeMessageUntil: deadline].
+	self check: message is: 14.
+	(message at: 2) isEmpty ifFalse: [^TLSError signal: 'decode error: ServerHelloDone not empty' alert: #decodeError].
+	self addToTranscript: message last.
+	handshakeBuffer isEmpty ifFalse: [^TLSError signal: 'a message after ServerHelloDone in its record' alert: #unexpectedMessage].
+	keyGroup := share first.
+	key := self newPrivateKeyFor: keyGroup.
+	premaster := self sharedSecretFor: keyGroup private: key peer: share last.
+	privateKeys := nil.
+	certificateRequest isNil ifFalse: [
+		message := TLSWriter new u8: 11; vector24: #[0 0 0]; contents.
+		self addToTranscript: message.
+		self sendPlaintext: message type: 22 version: 16r0303].
+	message := TLSWriter new u8: 16; vector24Do: [:w | w vector8: (self publicKeyFor: keyGroup private: key)]; contents.
+	self addToTranscript: message.
+	self sendPlaintext: message type: 22 version: 16r0303.
+	schedule := TLS12KeySchedule suite: suite.
+	extendedMasterSecret
+		ifTrue: [schedule extendedMasterSecret: premaster sessionHash: self transcriptHash]
+		ifFalse: [schedule masterSecret: premaster clientRandom: hello random serverRandom: serverRandom].
+	schedule deriveKeysClientRandom: hello random serverRandom: serverRandom.
+	self sendPlaintext: #[1] type: 20 version: 16r0303.
+	writeCipher := schedule clientCipher.
+	finished := TLSWriter new u8: 20; vector24: (schedule verifyData: 'client finished' transcriptHash: self transcriptHash); contents.
+	self addToTranscript: finished.
+	self sendRecord: finished type: 22.
+	pendingReadCipher := schedule serverCipher.
+	message := self expect: 20 until: deadline.
+	((message at: 2) constantTimeEquals: (schedule verifyData: 'server finished' transcriptHash: self transcriptHash)) ifFalse: [
+		^TLSError signal: 'the server''s Finished does not verify' alert: #decryptError].
+	self addToTranscript: message last.
+	handshakeBuffer isEmpty ifFalse: [^TLSError signal: 'a message after Finished in its record' alert: #unexpectedMessage].
+	state := #connected
+!
+acceptTls12Certificate: body
+	| r list ders key |
+	r := TLSReader on: body.
+	list := r reader24.
+	r expectEnd.
+	ders := OrderedCollection new.
+	[list atEnd] whileFalse: [| der |
+		der := list vector24.
+		der isEmpty ifTrue: [^TLSError signal: 'decode error: an empty certificate' alert: #decodeError].
+		ders add: der].
+	self acceptCertificates: ders.
+	key := certificates first publicKey.
+	(suite keyExchange == #rsa ifTrue: [key isKindOf: RsaPublicKey] ifFalse: [key isKindOf: EcPublicKey]) ifFalse: [
+		^TLSError signal: 'the server''s certificate has no ', (suite keyExchange == #rsa ifTrue: ['RSA'] ifFalse: ['ECDSA']), ' key for ', suite name alert: #unsupportedCertificate]
+!
+acceptServerKeyExchange: body
+	"The server's ECDHE share, signed with its certificate's key over both randoms and the parameters (RFC 8422, section 5.4): answer {group. public key}."
+	| r group point params scheme signature |
+	r := TLSReader on: body.
+	r u8 = 3 ifFalse: [^TLSError signal: 'a ServerKeyExchange without a named curve' alert: #illegalParameter].
+	group := r u16.
+	point := r vector8.
+	params := body copyFrom: 1 to: 4 + point size.
+	scheme := r u16.
+	signature := r vector16.
+	r expectEnd.
+	(groups includes: group) ifFalse: [^TLSError signal: 'the server chose the group ', group printString, ', not offered' alert: #illegalParameter].
+	(schemes includes: scheme) ifFalse: [^TLSError signal: 'the server signed with the scheme ', scheme printString, ', not offered' alert: #illegalParameter].
+	(self verifyTls12: signature scheme: scheme content: hello random, serverRandom, params) ifFalse: [
+		^TLSError signal: 'the server''s ServerKeyExchange signature does not verify' alert: #decryptError].
+	^{group. point}
+!
+verifyTls12: signature scheme: scheme content: content
+	"TLS 1.2 signature schemes: RSA PKCS #1 v1.5 or PSS, or ECDSA on any curve, with SHA-256, -384 or -512."
+	| key hash |
+	key := certificates first publicKey.
+	hash := self class hashOfScheme: scheme.
+	(#(16r0401 16r0501 16r0601) includes: scheme) ifTrue: [
+		(key isKindOf: RsaPublicKey) ifFalse: [^TLSError signal: 'an RSA signature but no RSA key' alert: #illegalParameter].
+		^key verifyPkcs1: signature message: content hash: hash].
+	(#(16r0804 16r0805 16r0806) includes: scheme) ifTrue: [
+		(key isKindOf: RsaPublicKey) ifFalse: [^TLSError signal: 'an RSA signature but no RSA key' alert: #illegalParameter].
+		^key verifyPss: signature message: content hash: hash].
+	(#(16r0403 16r0503 16r0603) includes: scheme) ifTrue: [
+		(key isKindOf: EcPublicKey) ifFalse: [^TLSError signal: 'an ECDSA signature but no EC key' alert: #illegalParameter].
+		^key verify: signature message: content hash: hash].
+	^false
+!
+acceptTls12CertificateRequest: body
+	"The server asks for a client certificate (RFC 5246, section 7.4.4); we send none."
+	| r |
+	r := TLSReader on: body.
+	r vector8.
+	r vector16.
+	r vector16.
+	r expectEnd.
+	certificateRequest := #[]
+!
+acceptTls12PostHandshake: message
+	"TLS 1.2 after the handshake: a HelloRequest gets a no_renegotiation warning (we do not renegotiate); anything else is unexpected."
+	message first = 0 ifFalse: [^TLSError signal: 'an unexpected handshake message of type ', message first printString alert: #unexpectedMessage].
+	(message at: 2) isEmpty ifFalse: [^TLSError signal: 'decode error: HelloRequest' alert: #decodeError].
+	sendLock critical: [socket sendAll: (writeCipher seal: #[1 100] type: 21 padding: 0)]
 ! !
 
 !TLSClientConnection methodsFor: 'application data'!
@@ -339,8 +519,8 @@ sendAll: bytes
 		ok]
 !
 updateKeys
-	"Send a KeyUpdate that asks the server to update its keys too."
-	state == #connected ifFalse: [^self].
+	"Send a KeyUpdate that asks the server to update its keys too (TLS 1.3; TLS 1.2 has none)."
+	(state == #connected and: [version = 16r0304]) ifFalse: [^self].
 	self sendKeyUpdate: 1
 !
 close
@@ -366,6 +546,9 @@ readApplicationDataUntil: deadline
 	record == #end ifTrue: [
 		inputClosed := true.
 		^true].
+	record == #eof ifTrue: [
+		"as OpenSSL 3 does: an attacker can cut a connection short, only close_notify ends it for sure"
+		^TLSError signal: 'the server closed the connection without close_notify (the data may be truncated)' alert: nil].
 	record first = 23 ifTrue: [
 		handshakeBuffer isEmpty ifFalse: [^TLSError signal: 'application data inside a handshake message' alert: #unexpectedMessage].
 		data := record last.
@@ -378,6 +561,7 @@ readApplicationDataUntil: deadline
 !
 acceptPostHandshake: message
 	| request |
+	version = 16r0303 ifTrue: [^self acceptTls12PostHandshake: message].
 	message first = 4 ifTrue: [^self].
 	message first = 24 ifFalse: [^TLSError signal: 'an unexpected handshake message of type ', message first printString alert: #unexpectedMessage].
 	(message at: 2) size = 1 ifFalse: [^TLSError signal: 'decode error: KeyUpdate' alert: #decodeError].
@@ -411,7 +595,7 @@ nextHandshakeMessageUntil: deadline
 	[(message := self takeHandshakeMessage) isNil] whileTrue: [
 		record := self readRecordUntil: deadline.
 		record isNil ifTrue: [^TLSError signal: 'timed out' alert: nil].
-		record == #end ifTrue: [^TLSError signal: 'the server closed the connection' alert: nil].
+		(record == #end or: [record == #eof]) ifTrue: [^TLSError signal: 'the server closed the connection' alert: nil].
 		record first = 22 ifFalse: [^TLSError signal: 'unexpected ', (record first = 23 ifTrue: ['application data'] ifFalse: [record first printString]), ' during the handshake' alert: #unexpectedMessage].
 		handshakeBuffer := handshakeBuffer, record last].
 	^message
@@ -428,18 +612,18 @@ takeHandshakeMessage
 	^{message first. message copyFrom: 5 to: message size. message}
 !
 readRecordUntil: deadline
-	"The next record that is not a change_cipher_spec, decrypted: {content type. content}; #end at the end of the stream or after close_notify; nil if deadline passed."
+	"The next record that is not a change_cipher_spec, decrypted: {content type. content}; #end after close_notify, #eof at the end of the stream between records (TLSError inside one); nil if deadline passed."
 	| available type length record header |
 	[available := self fill: 5 until: deadline.
-	 available == true ifFalse: [^available ifNil: [nil] ifNotNil: [#end]].
+	 available == true ifFalse: [^available ifNil: [nil] ifNotNil: [self endOfStream]].
 	 type := input at: inStart.
 	 (type between: 20 and: 23) ifFalse: [^TLSError signal: 'not a TLS record (content type ', type printString, ')' alert: #unexpectedMessage].
 	 (input at: inStart + 1) = 3 ifFalse: [^TLSError signal: 'not a TLS record (version ', (input at: inStart + 1) printString, ')' alert: #decodeError].
 	 length := ((input at: inStart + 3) bitShift: 8) + (input at: inStart + 4).
-	 length > (readCipher isNil ifTrue: [16384] ifFalse: [16384 + 256]) ifTrue: [
+	 length > (readCipher isNil ifTrue: [16384] ifFalse: [16384 + (version = 16r0303 ifTrue: [2048] ifFalse: [256])]) ifTrue: [
 		^TLSError signal: 'a record of ', length printString, ' bytes' alert: #recordOverflow].
 	 available := self fill: 5 + length until: deadline.
-	 available == true ifFalse: [^available ifNil: [nil] ifNotNil: [#end]].
+	 available == true ifFalse: [^available ifNil: [nil] ifNotNil: [self endOfStream]].
 	 header := input copyFrom: inStart to: inStart + 4.
 	 record := self unprotect: (input copyFrom: inStart + 5 to: inStart + 4 + length) type: type header: header.
 	 inStart := inStart + 5 + length.
@@ -450,8 +634,23 @@ unprotect: body type: type header: header
 	"{content type. content} of a record; nil for one to skip."
 	| record |
 	type = 20 ifTrue: [
+		version = 16r0303 ifTrue: [
+			"TLS 1.2: the server's change_cipher_spec turns its keys on, right before its Finished."
+			(pendingReadCipher notNil and: [body = #[1] and: [handshakeBuffer isEmpty]]) ifFalse: [
+				^TLSError signal: 'an unexpected change_cipher_spec' alert: #unexpectedMessage].
+			readCipher := pendingReadCipher.
+			pendingReadCipher := nil.
+			^nil].
 		(state == #handshake and: [body = #[1]]) ifTrue: [^nil].
 		^TLSError signal: 'an unexpected change_cipher_spec' alert: #unexpectedMessage].
+	version = 16r0303 ifTrue: [
+		readCipher isNil ifTrue: [
+			type = 23 ifTrue: [^TLSError signal: 'application data before the keys' alert: #unexpectedMessage].
+			(type = 22 and: [pendingReadCipher notNil]) ifTrue: [
+				^TLSError signal: 'a handshake message before the server''s change_cipher_spec' alert: #unexpectedMessage].
+			^self content: body type: type].
+		record := readCipher open: body header: header.
+		^self content: record last type: record first].
 	(readCipher isNil or: [type = 21]) ifTrue: [
 		type = 23 ifTrue: [^TLSError signal: 'application data before the keys' alert: #unexpectedMessage].
 		^self content: body type: type].
@@ -469,7 +668,16 @@ receiveAlert: bytes
 	bytes size = 2 ifFalse: [^TLSError signal: 'decode error: an alert of ', bytes size printString, ' bytes' alert: #decodeError].
 	(bytes at: 2) = 0 ifTrue: [^#end].
 	(bytes at: 2) = 90 ifTrue: [^nil].
+	"TLS 1.2: a warning (no_renegotiation, unrecognized_name...) is not fatal."
+	(version = 16r0303 and: [bytes first = 1]) ifTrue: [^nil].
 	^TLSError peerAlert: (bytes at: 2)
+!
+endOfStream
+	"The socket's input ended: between records (#eof) or inside one (truncated: TLSError); #end if we closed it (from another Process)."
+	state == #closed ifTrue: [^#end].
+	inStart <= input size ifTrue: [
+		^TLSError signal: 'the connection closed inside a record (', (input size - inStart + 1) printString, ' bytes of it came)' alert: nil].
+	^#eof
 !
 fill: count until: deadline
 	"Have count unread bytes in input: answer true, nil if deadline passed first, false at the end of the stream."
@@ -574,11 +782,28 @@ supportedGroups
 	^#(16r1D 16r17)
 !
 signatureSchemes
-	"rsa_pss_rsae_sha256, rsa_pss_rsae_sha384, ecdsa_secp256r1_sha256, ecdsa_secp384r1_sha384, rsa_pkcs1_sha256, rsa_pkcs1_sha384 (the last two for certificates only)."
-	^#(16r0804 16r0805 16r0403 16r0503 16r0401 16r0501)
+	"rsa_pss_rsae_sha256, rsa_pss_rsae_sha384, rsa_pss_rsae_sha512, ecdsa_secp256r1_sha256, ecdsa_secp384r1_sha384, rsa_pkcs1_sha256, rsa_pkcs1_sha384, rsa_pkcs1_sha512 (the last three for certificates only in TLS 1.3)."
+	^#(16r0804 16r0805 16r0806 16r0403 16r0503 16r0401 16r0501 16r0601)
 !
 certificateOnlySchemes
-	^#(16r0401 16r0501)
+	"In TLS 1.3, for certificates only (TLS 1.2 also signs with them)."
+	^#(16r0401 16r0501 16r0601)
+!
+hashOfScheme: scheme
+	"The hash of a signature scheme: its high byte 4, 5, 6 (PKCS #1, ECDSA) or, for 16r08xx (PSS), its low byte."
+	| n |
+	n := (scheme bitShift: -8) = 8 ifTrue: [scheme bitAnd: 255] ifFalse: [scheme bitShift: -8].
+	n = 4 ifTrue: [^SHA256].
+	n = 5 ifTrue: [^SHA384].
+	n = 6 ifTrue: [^SHA512].
+	^nil
+!
+downgradeSentinel12
+	"The end of a TLS 1.2 ServerHello's random from a server that speaks TLS 1.3 (RFC 8446, section 4.1.3): DOWNGRD 1."
+	^#[16r44 16r4F 16r57 16r4E 16r47 16r52 16r44 16r01]
+!
+downgradeSentinel11
+	^#[16r44 16r4F 16r57 16r4E 16r47 16r52 16r44 16r00]
 !
 maxHandshakeMessage
 	"The longest handshake message accepted: certificate chains run to a few kilobytes."

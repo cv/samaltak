@@ -65,8 +65,48 @@ testAlerts
 		self assert: e messageText equals: 'the server sent the alert unknown_ca']
 !
 testCipherSuites
-	self assert: (TLSCipherSuite all collect: [:each | each code]) equals: #(16r1301 16r1303 16r1302).
+	self assert: (TLSCipherSuite all collect: [:each | each code]) equals: #(16r1301 16r1303 16r1302 16rC02B 16rC02F 16rCCA9 16rCCA8 16rC02C 16rC030).
+	self assert: (TLSCipherSuite tls13 allSatisfy: [:each | each isTLS13]).
+	self assert: (TLSCipherSuite tls12 noneSatisfy: [:each | each isTLS13]).
 	self assert: (TLSCipherSuite withCode: 16r1302) hashSize equals: 48.
 	self assert: (TLSCipherSuite withCode: 16r1302) keySize equals: 32.
 	self assert: (TLSCipherSuite withCode: 16r1304) isNil
+!
+bytesFrom: first to: last
+	| bytes |
+	bytes := ByteArray new: last - first + 1.
+	1 to: bytes size do: [:i | bytes at: i put: first + i - 1].
+	^bytes
+!
+testTls12Prf
+	"The master secret (RFC 5246, section 8.1) as openssl kdf TLS1-PRF computes it."
+	| ks |
+	ks := TLS12KeySchedule suite: TLSCipherSuite ecdheRsaAes128GcmSha256.
+	ks masterSecret: (self bytesFrom: 0 to: 47) clientRandom: (ByteArray new: 32 withAll: 16rAA) serverRandom: (ByteArray new: 32 withAll: 16rBB).
+	self assert: ks masterSecret equals: (ByteArray fromHex: '44e5f0258adc3771e2041e1d3cc9f6033bfd16bd5982e25fb155e8338d76f17aaff929c218e691a5de6aeb3ee36a8df7').
+	ks := TLS12KeySchedule suite: TLSCipherSuite ecdheRsaAes256GcmSha384.
+	ks masterSecret: (self bytesFrom: 0 to: 47) clientRandom: (ByteArray new: 32 withAll: 16rAA) serverRandom: (ByteArray new: 32 withAll: 16rBB).
+	self assert: ks masterSecret equals: (ByteArray fromHex: '4d579bbfd34de90f4f44157a715f581dcc7d6d38876335e97bea6a9711d15bc92f34f95bacb16ca294f70d31562f6adb')
+!
+testTls12RecordCiphers
+	"AES-GCM with its explicit nonce (RFC 5288) and ChaCha20-Poly1305 (RFC 7905), the sixth record (sequence number 5), as Python's cryptography seals it."
+	| gcm chacha record |
+	gcm := [TLS12RecordCipher aead: (AesGcm key: (self bytesFrom: 0 to: 15)) iv: #[16rA0 16rA1 16rA2 16rA3] explicitNonce: true].
+	chacha := [TLS12RecordCipher aead: (ChaCha20Poly1305 key: (self bytesFrom: 0 to: 31)) iv: (self bytesFrom: 16r40 to: 16r4B) explicitNonce: false].
+	{gcm. '0000000000000005b97bffd249f365b2c605cef51c7ce1daae808c1c503c73b9b6bbbc2fb047'.
+	 chacha. '2d41a6c8780a82fb3bd48350b53502b683462f54b507d007907392dc245c'} pairsDo: [:make :hex | | sealer opener expected tampered |
+		sealer := make value.
+		5 timesRepeat: [sealer seal: #[] type: 23 padding: 0].
+		expected := ByteArray fromHex: hex.
+		record := sealer seal: 'hello, TLS 1.2' type: 23 padding: 0.
+		self assert: record equals: #[23 3 3 0], (ByteArray with: expected size), expected.
+		opener := make value.
+		5 timesRepeat: [opener seal: #[] type: 23 padding: 0].
+		self assert: (opener open: (record copyFrom: 6 to: record size) header: (record copyFrom: 1 to: 5)) equals: {23. 'hello, TLS 1.2' asByteArray}.
+		opener := make value.
+		5 timesRepeat: [opener seal: #[] type: 23 padding: 0].
+		tampered := record copy.
+		tampered at: tampered size put: ((tampered at: tampered size) bitXor: 1).
+		self should: [opener open: (tampered copyFrom: 6 to: tampered size) header: (tampered copyFrom: 1 to: 5)] raise: TLSError withExceptionDo: [:e |
+			self assert: e alert equals: #badRecordMac]]
 ! !
