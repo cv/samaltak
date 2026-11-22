@@ -137,8 +137,10 @@ testPrintStringFails
 !
 testLongPrintStringIsCut
 	| outputs |
-	outputs := self run: #('String new: 10000 withAll: $a').
-	self assert: (outputs at: 1) size < 4100
+	outputs := self run: #('String new: 25000 withAll: $a' 'String new: 9998 withAll: $a').
+	self assert: (outputs at: 1) size < 10200.
+	self assert: ((outputs at: 1) endsWith: '... [cut: 25002 characters in all; the next part: o1 printString copyFrom: 10001 to: 20000]').
+	self assert: (outputs at: 2) size equals: 10003
 !
 testTimeout
 	| outputs |

@@ -156,3 +156,22 @@ removeFromSystem
 	superclass isNil ifFalse: [superclass removeSubclass: self].
 	Smalltalk removeKey: name ifAbsent: []
 ! !
+
+!Class methodsFor: 'printing'!
+overview
+	"Answer a summary of me: superclass, package, variables, comment, then the selectors of each method category, instance side and class side."
+	^String new: 1000 streamContents: [:s |
+		s nextPutAll: self name; nextPutAll: ' (superclass: '; nextPutAll: (superclass ifNil: ['nil'] ifNotNil: [:c | c name]);
+			nextPutAll: ', package: '; nextPutAll: (self packageName ifNil: ['none']); nextPut: $).
+		#(('instance variables' instVarNames) ('class variables' classVarNames) ('class-side instance variables' classInstVarNames)) do: [:each | | names |
+			names := each last == #classInstVarNames ifTrue: [self class instVarNames] ifFalse: [self perform: each last].
+			names isEmpty ifFalse: [
+				s nextPut: Character lf; nextPutAll: each first; nextPut: $:.
+				(names asSortedCollection: [:a :b | a <= b]) do: [:n | s space; nextPutAll: n]]].
+		s nextPut: Character lf; nextPutAll: (self comment ifNil: ['(no comment)']).
+		(Array with: self with: self class) do: [:b |
+			s nextPut: Character lf; nextPutAll: (b isMeta ifTrue: ['class side:'] ifFalse: ['instance side:']).
+			b categories do: [:cat |
+				s nextPut: Character lf; nextPutAll: '  '; nextPutAll: cat; nextPut: $:.
+				((b selectorsInCategory: cat) asSortedCollection: [:x :y | x <= y]) do: [:sel | s space; nextPutAll: sel]]]]
+! !

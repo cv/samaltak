@@ -1669,6 +1669,118 @@ cinc: rd with: rn cond: c
 	self csinc: rd with: rn with: rn cond: (c bitXor: 1)
 ! !
 
+!Amd64Assembler methodsFor: 'conditional compare'!
+ccmp: rn with: rm nzcv: f cond: c
+	"j(not c) over [cmp rn, rm; jmp over]; the flags that read as nzcv f (nzcv:kind:)."
+	self condCompare: rn with: rm imm: 0 form: 0 nzcv: f cond: c
+!
+ccmn: rn with: rm nzcv: f cond: c
+	"As ccmp, with r11 := rn + rm (an add's flags: f as an addition's)."
+	self condCompare: rn with: rm imm: 0 form: 2 nzcv: f cond: c
+!
+ccmp: rn imm: imm nzcv: f cond: c
+	(imm between: -31 and: 31) ifFalse: [^self fail: ASM_ERR_IMMEDIATE].
+	self condCompare: rn with: XZR imm: imm asInt64 form: 1 nzcv: f cond: c
+!
+ccmn: rn imm: imm nzcv: f cond: c
+	"The flags of rn - -imm (the same as arm64's rn + imm but for 0, whose carry an add makes: r11 := rn + 0)."
+	imm = 0 ifTrue: [^self condCompare: rn with: XZR imm: 0 form: 2 nzcv: f cond: c].
+	self ccmp: rn imm: imm negated nzcv: f cond: c
+!
+condCompare: rn with: rm imm: imm form: form nzcv: f cond: c
+	"form 0: cmp rn, rm; 1: cmp rn, imm; 2: r11 := rn + rm. If c does not hold, flags that read as nzcv f instead: of the kind the compare leaves (a subtraction's, an addition's for form 2)."
+	<export>
+	<var: #rn type: 'int64_t'>
+	<var: #rm type: 'int64_t'>
+	<var: #imm type: 'int64_t'>
+	<var: #form type: 'int32_t'>
+	<var: #f type: 'int64_t'>
+	<var: #c type: 'int64_t'>
+	| cc kind skip over taken done |
+	kind := form = 2 ifTrue: [X64_FL_ADD] ifFalse: [X64_FL_SUB].
+	(self nzcvGiven: f kind: kind) ifFalse: [^self fail: ASM_ERR_OPERAND].
+	cc := self cc: c.
+	cc = -2 ifTrue: [^self fail: ASM_ERR_FLAGS].
+	cc = -3 ifTrue: [^self compare: rn with: rm imm: imm form: form].
+	cc = -1 ifTrue: [
+		"two tests: through labels"
+		taken := self newLabel.
+		done := self newLabel.
+		self b: taken if: c.
+		self nzcv: f kind: kind.
+		self setFlags: kind.
+		self b: done.
+		self bind: taken.
+		self compare: rn with: rm imm: imm form: form.
+		self bind: done.
+		^self setFlags: kind].
+	"j(not c) over the compare; jmp over the constant flags (short jumps over code of mine)"
+	self emitBytes: (16r70 + (cc bitXor: 1)) asUInt64 count: 2.
+	skip := asmPc.
+	self compare: rn with: rm imm: imm form: form.
+	self emitBytes: 16rEB count: 2.
+	over := asmPc.
+	self uint8At: skip - 1 put: (asmPc - skip) asUInt8.
+	self nzcv: f kind: kind.
+	self uint8At: over - 1 put: (asmPc - over) asUInt8.
+	self setFlags: kind
+!
+compare: rn with: rm imm: imm form: form
+	form = 0 ifTrue: [^self cmp: rn with: rm].
+	form = 1 ifTrue: [^self cmp: rn imm: imm].
+	self load: rn into: X64_R11.
+	self alu: 16r03 w: (self wide: rn) dst: X64_R11 src: rm
+!
+nzcvGiven: f kind: kind
+	"Whether a subtraction (kind X64_FL_SUB) or an addition gives flags that read as nzcv f: not Z with N, C with V and N, nor, after a subtraction, Z without C."
+	(f = 0 or: [f = 2 or: [f = 3 or: [f = 6 or: [f = 8 or: [f = 9 or: [f = 10]]]]]]) ifTrue: [^true].
+	^f = 4 and: [kind = X64_FL_ADD]
+!
+nzcvValue: f kind: kind
+	"r11's value for nzcv: (its operand is nzcvOperand:kind:): a, with a - b (kind X64_FL_SUB) or a + b (X64_FL_ADD) giving the flags that read as nzcv f (nzcvGiven:kind:)."
+	kind = X64_FL_SUB ifTrue: [
+		f = 0 ifTrue: [^16r100].
+		f = 2 ifTrue: [^1].
+		f = 3 ifTrue: [^-16r8000000000000000].
+		f = 6 ifTrue: [^16r100].
+		f = 8 ifTrue: [^16r100].
+		f = 9 ifTrue: [^16r7FFFFFFFFFFFFFFF].
+		f = 10 ifTrue: [^-1].
+		^0].
+	f = 0 ifTrue: [^16r100].
+	f = 2 ifTrue: [^-1].
+	f = 3 ifTrue: [^-16r8000000000000000].
+	f = 4 ifTrue: [^0].
+	f = 6 ifTrue: [^-1].
+	f = 8 ifTrue: [^16r100].
+	f = 9 ifTrue: [^16r7FFFFFFFFFFFFFFF].
+	f = 10 ifTrue: [^-1].
+	^0
+!
+nzcvOperand: f kind: kind
+	"The immediate b of nzcvValue:kind:."
+	kind = X64_FL_SUB ifTrue: [
+		f = 0 ifTrue: [^-16r7FFFFF00].
+		f = 2 ifTrue: [^0].
+		f = 3 ifTrue: [^1].
+		f = 6 ifTrue: [^16r100].
+		f = 8 ifTrue: [^16r101].
+		f = 9 ifTrue: [^-1].
+		^0].
+	f = 0 ifTrue: [^1].
+	f = 2 ifTrue: [^2].
+	f = 3 ifTrue: [^-1].
+	f = 4 ifTrue: [^0].
+	f = 6 ifTrue: [^1].
+	f = 8 ifTrue: [^-16r101].
+	f = 9 ifTrue: [^1].
+	^-1
+!
+nzcv: f kind: kind
+	"x86 flags that read as nzcv f after a subtraction or an addition (kind): mov r11, a; cmp (add) r11, b (the flags only: r11 is mine)."
+	self movReg: X64_R11 imm: (self nzcvValue: f kind: kind).
+	self alu: (kind = X64_FL_SUB ifTrue: [7] ifFalse: [0]) w: 1 dst: X64_R11 imm: (self nzcvOperand: f kind: kind)
+! !
 
 !Amd64Assembler methodsFor: 'loads and stores'!
 ldr: rt base: rn offset: off

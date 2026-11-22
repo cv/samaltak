@@ -302,7 +302,12 @@ arithmetic
 	self case: '{load} mov r11, rcx|sar r11, 1|{load} cmp rdi, r11' emit: [asm cmp: X0 with: X3 shift: SHIFT_ASR amount: 1].
 	self case: '{load} mov rdi, rsi|neg rdi' emit: [asm neg: X0 with: X1].
 	self case: 'neg r10' emit: [asm neg: X16 with: X16].
-	self case: '{load} mov r11, rdi|{load} add r11, rsi' emit: [asm cmn: X0 with: X1]
+	self case: '{load} mov r11, rdi|{load} add r11, rsi' emit: [asm cmn: X0 with: X1].
+	self case: '{load} cmp rdi, rsi|jne 1f|{load} cmp rdx, rcx|jmp 2f|1:|mov r11d, 0x100|cmp r11, -0x7fffff00|2:' emit: [asm cmp: X0 with: X1. asm ccmp: X2 with: X3 nzcv: 0 cond: COND_EQ].
+	self case: '{load} cmp rdi, rsi|jb 1f|cmp rdx, 0x1f|jmp 2f|1:|mov r11d, 0x100|cmp r11, 0x100|2:' emit: [asm cmp: X0 with: X1. asm ccmp: X2 imm: 31 nzcv: 6 cond: COND_HS].
+	self case: '{load} cmp rdi, rsi|jge 1f|{load} mov r11, rdx|{load} add r11, rcx|jmp 2f|1:|mov r11d, 0x0|add r11, 0x0|2:' emit: [asm cmp: X0 with: X1. asm ccmn: X2 with: X3 nzcv: 4 cond: COND_LT].
+	self case: '{load} cmp rdi, rsi|jle 1f|cmp edx, -0x3|jmp 2f|1:|mov r11, -0x1|cmp r11, 0x0|2:' emit: [asm cmp: X0 with: X1. asm ccmn: W2 imm: 3 nzcv: 10 cond: COND_GT].
+	self case: '{load} cmp rdi, rsi|cmp rdx, 0x1' emit: [asm cmp: X0 with: X1. asm ccmp: X2 imm: 1 nzcv: 0 cond: COND_AL]
 !
 logical
 	<function>

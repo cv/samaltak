@@ -21,4 +21,11 @@
   `SoftwareGPURecorder` (Tests-Graphics; its comment has the record format) into `$OUT/nv/world.nvrec` (about
   150 MB for 6 frames).
 
-Fails if the GPU differs from the reference without contraction anywhere, or a recorded frame equals neither reference.
+- `replay.st`: the same record replayed by the image itself (`SoftwareGPUReplay`) on an `NvComputeGPU` (Graphics-NV:
+  the kernels launched through System-NV, docs/nv-gpu.md) and on a `SoftwareGPU`: every pass end and frame must equal the
+  record, byte for byte.
+- `world_test.sh`: the World hosted on a private Xvfb at 1920x1080 on the recording clock with `SAMALTAK_GPU=nv` and then
+  `software`; `world_compare.st` checks the devices, that the compositor had no error, and that the screenshots are equal
+  outside the live statistics (top bar, the Process Browser's CPU column).
+
+`make test-nv` also runs `NvComputeGPUTest` (SoftwareGPUTest on an NvComputeGPU) with NvGpuTest. Fails if the GPU differs from the reference without contraction anywhere, or a recorded frame equals neither reference.

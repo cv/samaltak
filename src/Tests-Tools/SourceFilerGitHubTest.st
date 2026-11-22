@@ -313,4 +313,14 @@ testTokenIsNeverPrinted
 	texts do: [:each |
 		self deny: (each includesSubstring: self token).
 		self deny: (each includesSubstring: 'ghp_WrongStoreToken')]
+!
+testDocs
+	self serve: (self files
+		at: 'docs/guide.md' put: '# guide';
+		at: 'docs/images/a.png' put: 'png';
+		yourself).
+	self assert: filer docs equals: #('guide.md').
+	self assert: (filer doc: 'guide') equals: '# guide'.
+	self assert: (filer doc: 'guide.md') equals: '# guide'.
+	self assert: (filer doc: 'missing') isNil
 ! !

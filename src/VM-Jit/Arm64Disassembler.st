@@ -24,6 +24,7 @@ decoders
 		16r7FE00000 16r5AC00000 dataProcessing1
 		16r7F000000 16r1B000000 dataProcessing3
 		16r3FE00000 16r1A800000 conditionalSelect
+		16r3FE00410 16r3A400000 conditionalCompare
 		16r3B000000 16r39000000 loadStoreUnsigned
 		16r3B200000 16r38000000 loadStoreImmediate
 		16r3B200C00 16r38200800 loadStoreRegister
@@ -334,6 +335,15 @@ conditionalSelect
 		^self op: (#('cinc' 'cinv' 'cneg') at: kind) with: {rd. self r: rn. inverse}].
 	^self op: (#('csel' 'csinc' 'csinv' 'csneg') at: kind + 1)
 		with: {rd. self r: rn. self r: rm. self condition: cond}
+!
+conditionalCompare
+	| m |
+	m := self field: 16 width: 5.
+	^self op: ((self bit: 30) = 1 ifTrue: ['ccmp'] ifFalse: ['ccmn'])
+		with: {self r: (self field: 5 width: 5).
+			(self bit: 11) = 1 ifTrue: [self imm: m] ifFalse: [self r: m].
+			self imm: (self field: 0 width: 4).
+			self condition: (self field: 12 width: 4)}
 ! !
 
 !Arm64Disassembler methodsFor: 'memory'!

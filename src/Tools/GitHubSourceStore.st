@@ -55,6 +55,14 @@ removeFileAt: aPath
 noteChange: aString
 	notes isNil ifTrue: [notes := OrderedCollection new].
 	(notes includes: aString) ifFalse: [notes add: aString]
+!
+fileNamesIn: aPath
+	"The names of the files directly in the directory aPath (a repository path), sorted."
+	| prefix |
+	self isStarted ifFalse: [self start].
+	prefix := aPath, '/'.
+	^((entries keys select: [:p | (p beginsWith: prefix) and: [(p indexOf: $/ startingAt: prefix size + 1) = 0]])
+		collect: [:p | p copyFrom: prefix size + 1 to: p size]) asSortedCollection asArray
 ! !
 
 !GitHubSourceStore methodsFor: 'changes'!

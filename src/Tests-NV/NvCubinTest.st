@@ -83,6 +83,13 @@ testParameterBytes
 	self should: [k parameterBytes: #(1 2 3)] raise: Error.
 	self assert: (((cubin kernelNamed: 'fill') parameterBytes: (Array with: 0 with: 1.5 with: 2)) float32At: 9) equals: 1.5
 !
+testAKernelsOwnConstantBank
+	"raster_tiles' .nv.constant2.raster_tiles (a switch's jump table) is its bank 2; no other raster kernel has one."
+	| raster |
+	raster := NvCubin on: NvRasterKernels cubin.
+	self assert: ((raster kernelNamed: 'raster_tiles') constantBanks at: 2) equals: ((NvRasterKernels kernel: 'raster_tiles') at: #constantBank2).
+	self assert: ((raster kernelNamed: 'raster_prims') constantBanks keys asArray) equals: #(0)
+!
 testNotACubin
 	self should: [NvCubin on: (ByteArray new: 100)] raise: Error.
 	self should: [NvCubin on: #[1 2 3]] raise: Error

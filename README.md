@@ -41,6 +41,7 @@ For Zed syntax highlighting, install the [Smalltalk extension](tools/zed-smallta
 - `docs/platform.md` — the platform layer and its primitives
 - `docs/apps.md` — applications as Linux windows, run from source (AppWorld, Application, OmarchyTheme, apps/Weather)
 - `docs/uefi.md` — the headless VM as a UEFI application (bare metal, QEMU)
+- `docs/nv-gpu.md` — NvComputeGPU (`--gpu nv`): the World rendered on the NVIDIA GB10 by the raster kernels through System-NV, presented through SDL_GPU; tests and frame times
 - `docs/nv-kernels.md` — the Renderer's raster work as CUDA kernels for the NVIDIA GB10, their ABI, make test-nv
 - `docs/tls.md` — the TLS 1.3 client in Smalltalk (HTTPS on UEFI)
 - `docs/crypto.md` — hashes, MACs, ciphers and randomness in Smalltalk (System-Crypto)

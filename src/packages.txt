@@ -55,6 +55,7 @@ Tests-TLS 0
 Tests-Agent 0
 Tests-NV 0
 Graphics-GPU 1
+Graphics-NV 1
 Graphics-Canvas 2
 Tests-Graphics 2
 UI-Windows 3

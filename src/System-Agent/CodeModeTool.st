@@ -1,15 +1,16 @@
 AgentTool subclass: #CodeModeTool
-	instanceVariableNames: 'timeout'
+	instanceVariableNames: 'timeout limit'
 	classVariableNames: ''
 	package: 'System-Agent'!
 
 CodeModeTool comment: 'I am the code-mode tool: the call''s input is Smalltalk source, run as a do-it against the conversation''s AgentContext with the conversation''s objects bound as o1 … oN. It runs in a fresh Process (''agent code-mode'', the priority of a Workspace do-it); the turn waits for it at most timeout seconds (default 60), then terminates it.
 
-The output is the value''s id and printString (cut to 4,000 characters), e.g. ''o2 an Array(3 4)''; ''syntax error: <message>''; ''error: <class>: <messageText>'' and the top 10 frames of the signaling stack (an unhandled error, halt or breakpoint ends the cell''s Process, no debugger opens); or ''error: terminated after 60 s''.'!
+The output is the value''s id and printString, e.g. ''o2 an Array(3 4)''; a printString longer than limit (default 10,000 characters) is cut and ends with ''... [cut: <size> characters in all; the next part: o2 printString copyFrom: 10001 to: 20000]''; ''syntax error: <message>''; ''error: <class>: <messageText>'' and the top 10 frames of the signaling stack (an unhandled error, halt or breakpoint ends the cell''s Process, no debugger opens); or ''error: terminated after 60 s''.'!
 
 !CodeModeTool methodsFor: 'initialization'!
 initialize
-	timeout := 60
+	timeout := 60.
+	limit := 10000
 ! !
 
 !CodeModeTool methodsFor: 'accessing'!
@@ -30,6 +31,13 @@ timeout
 !
 timeout: seconds
 	timeout := seconds
+!
+limit
+	"The most characters of a printString the output shows."
+	^limit ifNil: [10000]
+!
+limit: characters
+	limit := characters
 ! !
 
 !CodeModeTool methodsFor: 'running'!
@@ -61,10 +69,10 @@ evaluate: anAgentItem in: anAgentConversation
 		anAgentItem failed: true.
 		^anAgentItem output: error].
 	anAgentItem object: value; objectId: (anAgentConversation idFor: value).
-	anAgentItem output: anAgentItem objectId, ' ', text
+	anAgentItem output: (self output: text id: anAgentItem objectId)
 !
 printStringOf: anObject
-	^[anObject printStringLimitedTo: 4000] on: Error do: [:e |
+	^[anObject printString] on: Error do: [:e |
 		e return: 'a ', anObject class name, ' (printString failed: ', e messageText asString, ')']
 !
 describeError: anException
@@ -78,4 +86,16 @@ describeError: anException
 			s nextPut: Character lf; nextPutAll: '  '; nextPutAll: ([ctx printString] on: Error do: [:e | e return: '?']).
 			ctx := ctx sender.
 			count := count + 1]]
+!
+output: aString id: anId
+	"anId and aString, cut to limit characters with a note saying how to read the rest."
+	| max rest |
+	max := self limit.
+	aString size <= max ifTrue: [^anId, ' ', aString].
+	rest := max + 1.
+	^String new: max + 200 streamContents: [:s |
+		s nextPutAll: anId; space; nextPutAll: (aString copyFrom: 1 to: max);
+			nextPutAll: '... [cut: '; print: aString size; nextPutAll: ' characters in all; the next part: ';
+			nextPutAll: anId; nextPutAll: ' printString copyFrom: '; print: rest; nextPutAll: ' to: ';
+			print: (aString size min: rest + max - 1); nextPut: $]]
 ! !

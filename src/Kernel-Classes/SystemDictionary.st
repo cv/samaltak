@@ -136,6 +136,13 @@ referencesTo: aGlobalName
 		(m literals anySatisfy: [:lit | lit class == Association and: [lit key == aGlobalName]])
 			ifTrue: [result add: m]].
 	^result asArray
+!
+methodsContaining: aString
+	"Answer the methods whose source includes aString."
+	| result |
+	result := OrderedCollection new.
+	self allMethodsDo: [:m | (m source notNil and: [m source includesSubstring: aString]) ifTrue: [result add: m]].
+	^result asArray
 ! !
 
 !SystemDictionary methodsFor: 'printing'!
