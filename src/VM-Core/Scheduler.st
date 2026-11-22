@@ -457,6 +457,8 @@ transferTo: aProcess
 	interpreter activeCtx: ctx.
 	gc rememberIfOld: ctx.
 	statProcessSwitches := statProcessSwitches + 1.
+	"a low-space signal waits for its process (Interpreter>>interruptSafepoint): check when one runs"
+	gc lowSpacePending ifTrue: [self requestInterruptCheck].
 	self sliceCheck
 !
 idleWait

@@ -93,6 +93,21 @@ testDeepRecursionInAFullHeapSignalsStackOverflow
 	self assert: ('Stack overflow: * frames deep, the heap nearly full' match: e messageText).
 	self assert: (self depth: 1000) equals: 1000
 !
+testDeepRecursionWhileAHigherProcessWakes
+	"A process waking every millisecond above the deep one: a switch to it flushes the deep stack into Contexts, and the full GC that flush runs finds the heap nearly full. The signal still goes to the deep process, when it runs again, not to the one active at the next safepoint (it went to the timer process, and the deep one grew the heap past its limit: fatal)."
+	| e |
+	self isSmallHeap ifFalse: [^self].
+	self fillWithLargeObjects.
+	4 timesRepeat: [keep removeLast].
+	Process maxStackDepth: 0.
+	self fork: [[(Delay forMilliseconds: 1) wait] repeat] at: Processor lowIOPriority.
+	10 timesRepeat: [
+		e := [self recurse: 1] on: StackOverflow do: [:ex | ex return: ex].
+		self assert: (e isKindOf: StackOverflow).
+		self assert: e isHeapFull.
+		e := nil.
+		Smalltalk vm garbageCollect]
+!
 testResumingAHeapFullStackOverflowFails
 	| e |
 	self isSmallHeap ifFalse: [^self].

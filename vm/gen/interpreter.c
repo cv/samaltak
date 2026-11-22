@@ -12271,13 +12271,14 @@ void interrupt_safepoint(void)
 {
     uint64_t o;
     int64_t depth;
+    uint64_t o_2;
     oop sel;
     uint64_t m;
     int64_t r_method_prim;
     uint64_t p;
-    uint64_t o_2;
-    int64_t ntemps;
     uint64_t o_3;
+    int64_t ntemps;
+    uint64_t o_4;
     int64_t fsize;
     uint64_t ctx;
     oop *s;
@@ -12285,7 +12286,9 @@ void interrupt_safepoint(void)
     depth = stack_check_due && ({
     o = active_process();
     (uint32_t)(((*(uint64_t *)o) >> H_HASH_SHIFT) & H_HASH_MASK) == stack_check_hash; }) ? stack_overflow_depth() : 0;
-    if (low_space_pending) {
+    if (low_space_pending && ({
+    o_2 = active_process();
+    (uint32_t)(((*(uint64_t *)o_2) >> H_HASH_SHIFT) & H_HASH_MASK) == low_space_hash; })) {
         low_space_pending = false;
         depth = active_depth();
         if (depth < 1) {
@@ -12308,10 +12311,10 @@ void interrupt_safepoint(void)
         handle_interrupts();
         return;
     }
-    o_2 = *(uint64_t *)(m + 16 + 40);
-    ntemps = ((int64_t)o_2) >> 1;
-    o_3 = *(uint64_t *)(m + 16 + 48);
-    fsize = ((int64_t)o_3) >> 1;
+    o_3 = *(uint64_t *)(m + 16 + 40);
+    ntemps = ((int64_t)o_3) >> 1;
+    o_4 = *(uint64_t *)(m + 16 + 48);
+    fsize = ((int64_t)o_4) >> 1;
     if (fsize < 1 + ntemps) {
         fsize = 1 + ntemps;
     }

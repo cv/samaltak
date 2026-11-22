@@ -1103,6 +1103,9 @@ static void transfer_to(oop a_process)
         remember(ctx);
     }
     stat_process_switches = stat_process_switches + 1;
+    if (low_space_pending) {
+        request_interrupt_check();
+    }
     slice_check();
 }
 

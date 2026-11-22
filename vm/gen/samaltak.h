@@ -1353,6 +1353,7 @@ extern uint64_t eden_lo;
 extern bool finalization_pending;
 extern uint64_t gc_epoch;
 extern size_t heap_reserve;
+extern uint32_t low_space_hash;
 extern bool low_space_pending;
 extern size_t max_heap_bytes;
 extern size_t old_budget;

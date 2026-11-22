@@ -609,11 +609,11 @@ selectorArgc: aSelector
 
 !Interpreter methodsFor: 'interrupts'!
 interruptSafepoint
-	"At an interrupt check (registers externalized), before handleInterrupts can switch processes: if a depth check of the active process is due and it is too deep, its frames are flushed and the top Context sends stackOverflow: depth, as if its next instruction did (an activation above it; its own stack unchanged). If a full GC found the heap nearly full (GarbageCollector lowSpacePending), it sends stackOverflow: with the depth negated instead (Context>>stackOverflow: signals StackOverflow or OutOfMemory). The pending interrupts are then handled at the next safepoint."
+	"At an interrupt check (registers externalized), before handleInterrupts can switch processes: if a depth check of the active process is due and it is too deep, its frames are flushed and the top Context sends stackOverflow: depth, as if its next instruction did (an activation above it; its own stack unchanged). If a full GC found the heap nearly full (GarbageCollector lowSpacePending) while the active process ran (lowSpaceHash: not a process that preempted it since, the timer's, whose OutOfMemory would leave a deep one growing past the heap limit), it sends stackOverflow: with the depth negated instead (Context>>stackOverflow: signals StackOverflow or OutOfMemory). The pending interrupts are then handled at the next safepoint."
 	<function>
 	| depth sel m ntemps fsize ctx s |
 	depth := (stackCheckDue and: [(self hashOf: scheduler activeProcess) = stackCheckHash]) ifTrue: [self stackOverflowDepth] ifFalse: [0].
-	gc lowSpacePending ifTrue: [
+	(gc lowSpacePending and: [(self hashOf: scheduler activeProcess) = gc lowSpaceHash]) ifTrue: [
 		gc lowSpacePending: false.
 		depth := self activeDepth.
 		depth < 1 ifTrue: [depth := 1].

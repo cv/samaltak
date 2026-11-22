@@ -1,18 +1,18 @@
 VMCoreModule subclass: #GarbageCollector
-	instanceVariableNames: 'youngLo youngHi edenLo edenHi edenBox survLo survTop survHi survOtherLo survOtherHi oldLo oldTop oldHi oldAltLo oldAltHi oldBudget maxHeapBytes heapReserve lowSpaceLevel lowSpacePending oldReserve gcEpoch statScavenges statFullGcs statScavengeUs statFullUs statAllocated statTenured remset remsetCount remsetCap startBits vlo verify toLo toTop toHi weakList weakCount weakCap finalizationPending statWeakCleared ftTop becomeFrom becomeTo'
+	instanceVariableNames: 'youngLo youngHi edenLo edenHi edenBox survLo survTop survHi survOtherLo survOtherHi oldLo oldTop oldHi oldAltLo oldAltHi oldBudget maxHeapBytes heapReserve lowSpaceLevel lowSpacePending lowSpaceHash oldReserve gcEpoch statScavenges statFullGcs statScavengeUs statFullUs statAllocated statTenured remset remsetCount remsetCap startBits vlo verify toLo toTop toHi weakList weakCount weakCap finalizationPending statWeakCleared ftTop becomeFrom becomeTo'
 	classVariableNames: 'MIN_BUDGET TENURE_AGE'
 	package: 'VM-Core'!
 
 GarbageCollector comment: 'Generational GC: eden and two survivor spaces scavenged with a remembered set, copying full GC between two old-space reservations. Weak objects (format 4) have their indexable slots cleared when their referents die. Addresses of the spaces are plain integers.
 
-The heap limit (maxHeapBytes) keeps back a reserve (heapReserve, an eighth of it, at most 128 MB) so that a program that fills the heap gets a catchable error and its handlers and the UI can still run: allocations Smalltalk asks for in old space (large objects: oldAllocTry:limit: with softLimit) fail with PRIM_ERR_NO_MEMORY beyond maxHeapBytes - heapReserve; small objects and Contexts may use the reserve. A full GC that leaves more than that live raises lowSpaceLevel to 1, more than maxHeapBytes - heapReserve / 4 to 2, and sets lowSpacePending: the interpreter''s next safepoint signals it in the active process (Interpreter>>interruptSafepoint). The old space''s budget stops at the next level''s limit, so a full GC notices each level; one that leaves no more than softLimit live re-arms them. Only a full GC with more than maxHeapBytes live is fatal.'!
+The heap limit (maxHeapBytes) keeps back a reserve (heapReserve, an eighth of it, at most 128 MB) so that a program that fills the heap gets a catchable error and its handlers and the UI can still run: allocations Smalltalk asks for in old space (large objects: oldAllocTry:limit: with softLimit) fail with PRIM_ERR_NO_MEMORY beyond maxHeapBytes - heapReserve; small objects and Contexts may use the reserve. A full GC that leaves more than that live raises lowSpaceLevel to 1, more than maxHeapBytes - heapReserve / 4 to 2, and sets lowSpacePending: the interpreter''s next safepoint in the process that was running then (lowSpaceHash, its identity hash: the one whose allocation, or whose stack flushed at a switch, ran the GC) signals it there (Interpreter>>interruptSafepoint); a process that preempts it does not get it. The old space''s budget stops at the next level''s limit, so a full GC notices each level; one that leaves no more than softLimit live re-arms them. Only a full GC with more than maxHeapBytes live is fatal.'!
 
 !GarbageCollector class methodsFor: 'declaring'!
 declarations
 	^#((youngLo uint64_t) (youngHi uint64_t) (edenLo uint64_t) (edenHi uint64_t) (edenBox 'uint64_t[2]')
 		(survLo uint64_t) (survTop uint64_t) (survHi uint64_t) (survOtherLo uint64_t) (survOtherHi uint64_t)
 		(oldLo uint64_t) (oldTop uint64_t) (oldHi uint64_t) (oldAltLo uint64_t) (oldAltHi uint64_t)
-		(oldBudget size_t) (maxHeapBytes size_t) (heapReserve size_t) (lowSpaceLevel int32_t) (lowSpacePending bool) (oldReserve size_t) (gcEpoch uint64_t)
+		(oldBudget size_t) (maxHeapBytes size_t) (heapReserve size_t) (lowSpaceLevel int32_t) (lowSpacePending bool) (lowSpaceHash uint32_t) (oldReserve size_t) (gcEpoch uint64_t)
 		(statScavenges uint64_t) (statFullGcs uint64_t) (statScavengeUs uint64_t) (statFullUs uint64_t) (statAllocated uint64_t) (statTenured uint64_t)
 		(remset 'oop *') (remsetCount size_t) (remsetCap size_t)
 		(startBits 'uint8_t *') (vlo uint64_t) (verify int32_t -1)
@@ -100,6 +100,10 @@ lowSpacePending
 !
 lowSpacePending: aBoolean
 	lowSpacePending := aBoolean
+!
+lowSpaceHash
+	"The identity hash of the process that gets the pending signal."
+	^lowSpaceHash
 !
 lowSpaceLevel
 	^lowSpaceLevel
@@ -563,7 +567,8 @@ noteLive: live
 		ifFalse: [
 			[lowSpaceLevel < 2 and: [live > (self lowSpaceLimit: lowSpaceLevel)]] whileTrue: [
 				lowSpaceLevel := lowSpaceLevel + 1.
-				lowSpacePending := true].
+				lowSpacePending := true.
+				lowSpaceHash := self hashOf: scheduler activeProcess].
 			lowSpacePending ifTrue: [scheduler requestInterruptCheck]]
 !
 oldAllocTry: bytes limit: limit

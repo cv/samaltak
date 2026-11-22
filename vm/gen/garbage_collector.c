@@ -11,6 +11,7 @@ bool finalization_pending;
 static uint64_t ft_top;
 uint64_t gc_epoch;
 size_t heap_reserve;
+uint32_t low_space_hash;
 static int32_t low_space_level;
 bool low_space_pending;
 size_t max_heap_bytes;
@@ -419,6 +420,7 @@ static void mark_starts_from(uint64_t lo, uint64_t hi)
 /* GarbageCollector>>noteLive: */
 static void note_live(uint64_t live)
 {
+    uint64_t o;
     if (live <= low_space_limit(0)) {
         low_space_level = 0;
         low_space_pending = false;
@@ -426,6 +428,8 @@ static void note_live(uint64_t live)
         while ((low_space_level < 2) && (live > low_space_limit(low_space_level))) {
             low_space_level = low_space_level + 1;
             low_space_pending = true;
+            o = active_process();
+            low_space_hash = (uint32_t)(((*(uint64_t *)o) >> H_HASH_SHIFT) & H_HASH_MASK);
         }
         if (low_space_pending) {
             request_interrupt_check();
