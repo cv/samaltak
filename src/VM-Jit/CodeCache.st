@@ -92,4 +92,8 @@ endWriting
 invalidate: start size: size
 	"Code changed in [start, start + size)."
 	jit invalidate: (self cCoerce: start to: 'void *') size: size
+!
+mapForPerf: path
+	"The jitdump's marker mapping (JitPlatform)."
+	jit mapForPerf: path
 ! !

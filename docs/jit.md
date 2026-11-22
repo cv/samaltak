@@ -37,7 +37,7 @@ The interpreter's frames are the canonical state. Machine code runs on the same 
 
 **Disassembly.** The machine code of any method can be shown from the image, for either compiler (compiling it if needed, `CompiledMethod>>machineCode`, `machineCodeFor: #baseline`, the System Browser's method menu): every instruction, grouped under the bytecode it implements (with the source line), and commented with what it does (tag check, overflow branch, spill, call into the runtime by name...). Compilers record the comments as they emit (always for a disassembly, for all code with `--jit-flags notes`; a copy compiled for a disassembly is dropped and leaves the feedback alone); `jitCode` answers code, address, bytecode map, notes and stub names; `Arm64Disassembler` or `Amd64Disassembler` (by `Smalltalk vm jitArchitecture`) prints them.
 
-**Profiling.** With `SAMALTAK_PERF_MAP` set, the runtime writes perf's map of JIT code, `/tmp/perf-<pid>.map`: the stubs, then each method's code as it is compiled (`bl:Class>>selector`, `opt:Class>>selector`, a block's or loop's unit with its pc) and each polymorphic inline cache (`JitRuntime>>openPerfMap`).
+**Profiling.** With `SAMALTAK_PERF_MAP` set, the runtime writes perf's map of JIT code, `/tmp/perf-<pid>.map`: the stubs, then each method's code as it is compiled (`bl:Class>>selector`, `opt:Class>>selector`, a block's or loop's unit with its pc) and each polymorphic inline cache (`JitRuntime>>openPerfMap`); `perf report` names samples in machine code by it. With `SAMALTAK_PERF_MAP=jitdump` it also writes perf's jitdump, `/tmp/jit-<pid>.dump` (each piece of code with its bytes and the time it was made; mapped executable on Linux, `JitPlatform>>mapForPerf:`, so that perf notes it): record with `perf record -k mono`, then `perf inject --jit` makes an ELF file of each and `perf annotate` disassembles them with the samples per instruction. Code is dumped as it was made: inline caches linked and PIC cases added later are not in it. Measurements: Where the time goes.
 
 **Statistics** (`vmStats`, `VMStatistics`): methods and bytecodes compiled, microseconds compiling, code bytes, cache flushes, entries into machine code, exits, resumptions, on-stack replacements, methods that could not be compiled.
 
@@ -150,3 +150,55 @@ Every design measured on the same benchmarks (`vm/tests/bench/results`): AWFY ge
 
 - Removing the interpreter's dispatch alone (template) gives 0.75×; a call per bytecode (threaded) costs more than the dispatch; the stencils (1.16× template) keep the operand stack's top in a register where the template knows every slot's offset. `baseline` beats Pharo 12 on every benchmark, in the steady state (NBody by 7 %) and in the first iteration (0.60); `opt` (0.51× `baseline`) more so (first iterations 0.43).
 - Ablations (one flag off, AWFY geometric mean of the steady state relative to all on; `samaltak-jit-baseline-no-FLAG-2026-10-28-*.csv`, `samaltak-opt-no-FLAG-2026-10-28-*.csv`): `baseline` `ic` 5.54, `arith` 1.39, `regs` 1.32, `barrier` 1.22, `mega` 1.22, `prims` 1.21, `blocks` 1.13, `float` 1.09, `access` 1.07, `quick` 1.06, `fuse` 1.02, `pic` 1.00; `opt` `prims` 3.94, `inline` 2.49, `blocks` 1.58, `unbox` 1.21, `gvn` 1.06, `alloc` 1.04, `calls` 1.02.
+
+## Where the time goes
+
+AWFY under `opt` on a Cortex-X925 (above, docs/benchmarks.md arm64 Linux), measured by `vm/tests/bench/perf-awfy.sh`: the benchmark is filed in, then perf (as root, `sudo perf`) attaches to that VM process alone for its laps (100 iterations): `stat` counts (the X925's PMU, `armv8_pmuv3_1`), `record` samples cycles, retired mispredictions, L1I refills and frontend stalls, named by the jitdump, `spe` samples every 4096th operation with its exact pc (Arm's Statistical Profiling Extension, no skid) and `perf_mix.py` sorts the sampled instructions of machine code by what they do.
+
+| benchmark | IPC | mispredicts / 1000 instr. | L1I refills / 1000 | frontend stall | backend stall | backend memory stall | L2D refills / 1000 | cycles in `opt` code | in `baseline` code | stubs | VM (C) |
+|---|---|---|---|---|---|---|---|---|---|---|---|
+| Bounce | 7.63 | 0.02 | 0.14 | 0.5 % | 19 % | 0.8 % | 0.21 | 97.9 % | 0.1 % | 0.4 % | 0.9 % |
+| CD | 5.41 | 0.23 | 4.32 | 2.8 % | 30 % | 1.7 % | 1.24 | 94.2 % | 1.0 % | 0.2 % | 2.8 % |
+| DeltaBlue | 5.66 | 0.14 | 0.43 | 3.3 % | 29 % | 8.0 % | 6.96 | 77.8 % | 4.5 % | 1.2 % | 12.0 % |
+| Havlak | 4.56 | 0.10 | 0.81 | 4.0 % | 41 % | 11.8 % | 7.12 | 74.4 % | 9.7 % | 0.6 % | 9.2 % |
+| Json | 6.65 | 0.20 | 9.07 | 4.6 % | 16 % | 2.5 % | 1.34 | 81.6 % | 11.0 % | 0.2 % | 5.2 % |
+| List | 6.73 | 0.02 | 0.16 | 0.4 % | 20 % | 0.5 % | 0.05 | 98.1 % | 0.3 % | 0.0 % | 0.5 % |
+| Mandelbrot | 2.73 | 0.14 | 0.23 | 0.3 % | 63 % | 0.1 % | 0.01 | 97.2 % | 2.5 % | 0.0 % | 0.1 % |
+| NBody | 5.94 | 0.00 | 0.12 | 0.2 % | 39 % | 0.1 % | 0.00 | 99.6 % | 0.2 % | 0.0 % | 0.1 % |
+| Permute | 8.45 | 0.05 | 0.11 | 0.4 % | 7 % | 0.2 % | 0.00 | 99.0 % | 0.5 % | 0.0 % | 0.2 % |
+| Queens | 8.70 | 0.01 | 0.12 | 0.4 % | 4 % | 0.9 % | 0.12 | 98.4 % | 0.2 % | 0.0 % | 0.5 % |
+| Richards | 6.75 | 0.38 | 0.18 | 2.1 % | 12 % | 0.2 % | 0.01 | 84.1 % | 1.1 % | 13.5 % | 0.4 % |
+| Sieve | 7.21 | 0.07 | 0.23 | 2.2 % | 18 % | 1.3 % | 0.17 | 90.5 % | 0.1 % | 0.1 % | 7.9 % |
+| Storage | 5.29 | 0.10 | 0.56 | 1.4 % | 36 % | 1.8 % | 4.90 | 91.0 % | 0.5 % | 0.1 % | 5.0 % |
+| Towers | 6.26 | 0.04 | 0.18 | 0.4 % | 30 % | 0.3 % | 0.01 | 98.2 % | 0.5 % | 0.0 % | 0.7 % |
+
+The X925 runs optimized code at 4.5 to 8.7 instructions a cycle: it hardly mispredicts (at most 0.4 per 1000 instructions, Richards) and its frontend hardly waits (at most 5 % of cycles; L1I misses matter only in Json, 9 per 1000, and CD, 4, the benchmarks with the most code). So time is instructions: what makes `opt` faster on this core is executing fewer of them. The exceptions: Mandelbrot (IPC 2.7, 63 % backend stalls) waits on its Float chain `zr := zrzr - zizi + cr. zi := 2.0 * zr * zi + ci. zrzr := zr * zr. zizi := zi * zi`, about 15 cycles an iteration of fmul and fadd latency; NBody's stalls are its Float divisions and square roots; Havlak, DeltaBlue and Storage wait on memory (7, 7 and 5 L2D refills per 1000 instructions: allocation and the young space).
+
+What the sampled instructions of machine code do (SPE, share of the operations in machine code; a class check is `tst #7; csel; ldr` the class, a literal pool load of the expected class, `cmp`, `b.ne`; frame traffic is the stores of values into their frame slots, the reloads after calls, and storing nil into every temp at entry):
+
+| benchmark | class checks | SmallInteger tag checks | overflow checks | frame stores, reloads, nil | interrupt polls | register moves | other arithmetic | hottest code (of all samples) |
+|---|---|---|---|---|---|---|---|---|
+| Bounce | 9 % | 12 % | 5 % | 3 % | 3 % | 13 % | 20 % | `Bounce>>benchmark` 87 % |
+| CD | 12 % | 2 % | 0 % | 9 % | 1 % | 7 % | 35 % | `CollisionDetector>>isInVoxel:motion:` 34 % |
+| DeltaBlue | 31 % | 3 % | 1 % | 10 % | 2 % | 4 % | 12 % | `Plan>>execute` 18 % |
+| Havlak | 21 % | 5 % | 2 % | 12 % | 2 % | 3 % | 21 % | `HavlakLoopFinder>>findLoops` (a loop) 10 % |
+| Json | 12 % | 2 % | 1 % | 10 % | 1 % | 3 % | 35 % | `JsonParser>>readString` 19 % |
+| List | 51 % | 0 % | 0 % | 7 % | 8 % | 10 % | 1 % | `List>>tailWithX:withY:withZ:` 98 % |
+| Mandelbrot | 0 % | 0 % | 3 % | 19 % | 6 % | 20 % | 11 % | `Mandelbrot>>mandelbrot:` (inner loop) 92 % |
+| NBody | 4 % | 1 % | 1 % | 3 % | 1 % | 7 % | 52 % | `NBodySystem>>advance:` 99 % |
+| Permute | 17 % | 2 % | 2 % | 17 % | 2 % | 3 % | 19 % | `Permute>>permute:` 99 % |
+| Queens | 27 % | 1 % | 4 % | 5 % | 3 % | 6 % | 22 % | `Queens>>placeQueen:` 95 % |
+| Richards | 30 % | 1 % | 0 % | 8 % | 2 % | 4 % | 6 % | `RBScheduler>>schedule` 26 % |
+| Sieve | 0 % | 0 % | 11 % | 0 % | 12 % | 9 % | 43 % | `Sieve>>benchmark` 76 % |
+| Storage | 6 % | 2 % | 2 % | 12 % | 2 % | 3 % | 38 % | `Storage>>buildTreeDepth:with:` 95 % |
+| Towers | 25 % | 6 % | 1 % | 11 % | 1 % | 3 % | 15 % | `Towers>>move:disksFrom:to:` 99 % |
+
+The rest: loads and stores of fields, branches, calls and returns, the check after every call that the caller's code is still valid (`ldr` of its header's flags, `tst`, `b.ne`: 1–3 %), the stack check at entry (under 1 %). Where to gain, by the evidence:
+
+1. **Class checks**: the commonest instruction kind in machine code of List (51 %), DeltaBlue (31 %), Richards (30 %), Queens (27 %), Towers (25 %) and Havlak (21 %): six instructions with a load of the expected class from the literal pool, again for a receiver checked before a call (its value reloaded from the frame loses what was known about it) and for each field send to the same object. Keeping the known class of values across calls and reloads, checking an object once, and cheaper checks would remove most of them. (Where an object is first touched, as in List's walks, the check also takes the blame for the load's latency.)
+2. **Frame traffic**: every value is stored into its frame slot as it is computed, all of them reloaded after each call, and every temp set to nil at entry: 17 % of Permute's and 19 % of Mandelbrot's instructions (the inner loop stores its three Floats and three integers into the frame every iteration), 10–12 % in Towers, Havlak, DeltaBlue, Json, Storage. Only the values live at a safepoint need slots, and only when it is reached (deoptimization metadata saying which register holds which slot instead).
+3. **Float decoding**: NBody's 52 % arithmetic is mostly turning immediate Floats read from instance variables into doubles: per field read a SmallInteger test, the tag test, then `lsr`, a 64-bit constant, `add`, `cmp`, `csel`, `ror`, `fmov`, about 12 instructions (and encoding them back on stores). Keeping the bodies' coordinates unboxed across the loop, a constant hoisted into a register, and decoding only the Float case when the feedback saw only Floats would cut most of it.
+4. **Loop overhead**: Sieve's inner loop spends 12 % of its instructions polling for interrupts (`ldr` of the flag, `cbnz` every iteration), 11 % on overflow checks of its index and 9 % on register moves (a constant materialized again each iteration, the result computed into x16 and then moved to its register); Mandelbrot 6 % polls and 20 % moves (`fmov` of its loop-carried doubles at the back edge). Range analysis for induction variables (no overflow check, no bounds check), polling once per many iterations of a counted loop, and coalescing the moves of loop-carried values.
+5. **Code that is not optimized**: Richards spends 13.5 % of its cycles in the `baseline block value` stub (blocks the optimizer did not inline, called through the runtime's stub); Json 11 % in `baseline` code (`String>>compareWith:` 8.4 %), Havlak 9.7 % (`Behavior>>basicNew` 4.3 %); Sieve 6.8 % in the VM's `alloc_obj` (its `Array new: n` allocated in C); DeltaBlue 12 % in the VM, part of it still compiling after 100 iterations (the register allocator 1.8 %).
+
+Smaller: `2.0 * x` as `x + x` (exact) would take a cycle off Mandelbrot's 15-cycle chain; code placement changes run times by up to a third between invocations (docs/benchmarks.md arm64 Linux).

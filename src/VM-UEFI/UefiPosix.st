@@ -444,4 +444,8 @@ endWriting
 invalidate: start size: size
 	<export>
 	cpu invalidate: start size: size
+!
+mapForPerf: path
+	<export>
+	<var: #path type: 'const char *'>
 ! !

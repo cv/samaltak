@@ -8,6 +8,8 @@ bool copying;
 bool flush_pending;
 uint64_t invalidations;
 int64_t jit_cache_mb = 64LL;
+static FILE *jit_dump;
+static uint64_t jit_dump_index;
 uint32_t jit_flags;
 int32_t jit_mode;
 int64_t jit_opt_threshold = 1000LL;
@@ -47,6 +49,9 @@ static void flush_code(void);
 static uint64_t interrupt_frame(frame *f, bool at_entry);
 static bool no_opt_frames(void);
 static void open_perf_map(void);
+static int64_t perf_append(const char *s, int64_t size, char *name, int64_t n);
+static int64_t perf_append_class_name(uint64_t a_class, char *name, int64_t n);
+static int64_t perf_append_symbol(uint64_t s, char *name, int64_t n);
 static void perf_map_code(jit_method *h, int32_t md);
 static void refresh_state(void);
 static int64_t slot_of(oop m);
@@ -2094,16 +2099,26 @@ static bool no_opt_frames(void)
     return true;
 }
 
+#if defined(__x86_64__)
 /* JitRuntime>>openPerfMap */
 static void open_perf_map(void)
 {
+    char *v;
     char local[64];
     char *path;
+    uint64_t local_2[5];
+    uint64_t *hd;
+    uint64_t r_perf_now_ns;
+    struct timespec local_3;
+    struct timespec *ts;
+    char local_4[64];
+    char *sname;
     int32_t i;
     int32_t i_2;
-    uint64_t v;
+    uint64_t v_2;
     uint64_t end;
-    if (getenv("SAMALTAK_PERF_MAP") == NULL) {
+    v = getenv("SAMALTAK_PERF_MAP");
+    if (v == NULL) {
         return;
     }
     memset(&local, 0, sizeof local);
@@ -2113,20 +2128,110 @@ static void open_perf_map(void)
     if (perf_map == NULL) {
         return;
     }
+    if (strcmp(v, "jitdump") == 0) {
+        snprintf(path, 64, "/tmp/jit-%d.dump", getpid());
+        jit_dump = fopen(path, "w+");
+        if (jit_dump != NULL) {
+            memset(&local_2, 0, sizeof local_2);
+            hd = local_2;
+            hd[0] = 5543384132LL;
+            hd[1] = 266287972392LL;
+            hd[2] = ((uint64_t)getpid()) << 32;
+            hd[3] = ({
+    memset(&local_3, 0, sizeof local_3);
+    ts = &local_3;
+    clock_gettime(CLOCK_MONOTONIC, ts);
+    r_perf_now_ns = (uint64_t)(ts->tv_sec * 1000000000) + (uint64_t)ts->tv_nsec;
+    r_perf_now_ns; });
+            hd[4] = 0;
+            fwrite(hd, 8, 5, jit_dump);
+            fflush(jit_dump);
+            map_for_perf(path);
+        }
+    }
+    memset(&local_4, 0, sizeof local_4);
+    sname = local_4;
     for (i = 0; i <= symbol_count - 1; i++) {
         end = ({
     if (i + 1 < symbol_count) {
         i_2 = i + 1;
-        v = symbol_addrs[i_2];
+        v_2 = symbol_addrs[i_2];
     } else {
-        v = cache_top;
+        v_2 = cache_top;
     }
-    v; });
-        fprintf(perf_map, "%llx %llx stub:%s\n", (unsigned long long)symbol_addrs[i], (unsigned long long)(end - symbol_addrs[i]), symbol_names[i]);
+    v_2; });
+        snprintf(sname, 64, "stub:%s", symbol_names[i]);
+        perf_map_at(symbol_addrs[i], end - symbol_addrs[i], sname);
     }
-    fflush(perf_map);
 }
 
+#else
+/* JitRuntime>>openPerfMap */
+static void open_perf_map(void)
+{
+    char *v;
+    char local[64];
+    char *path;
+    uint64_t local_2[5];
+    uint64_t *hd;
+    uint64_t r_perf_now_ns;
+    struct timespec local_3;
+    struct timespec *ts;
+    char local_4[64];
+    char *sname;
+    int32_t i;
+    int32_t i_2;
+    uint64_t v_2;
+    uint64_t end;
+    v = getenv("SAMALTAK_PERF_MAP");
+    if (v == NULL) {
+        return;
+    }
+    memset(&local, 0, sizeof local);
+    path = local;
+    snprintf(path, 64, "/tmp/perf-%d.map", getpid());
+    perf_map = fopen(path, "w");
+    if (perf_map == NULL) {
+        return;
+    }
+    if (strcmp(v, "jitdump") == 0) {
+        snprintf(path, 64, "/tmp/jit-%d.dump", getpid());
+        jit_dump = fopen(path, "w+");
+        if (jit_dump != NULL) {
+            memset(&local_2, 0, sizeof local_2);
+            hd = local_2;
+            hd[0] = 5543384132LL;
+            hd[1] = 785979015208LL;
+            hd[2] = ((uint64_t)getpid()) << 32;
+            hd[3] = ({
+    memset(&local_3, 0, sizeof local_3);
+    ts = &local_3;
+    clock_gettime(CLOCK_MONOTONIC, ts);
+    r_perf_now_ns = (uint64_t)(ts->tv_sec * 1000000000) + (uint64_t)ts->tv_nsec;
+    r_perf_now_ns; });
+            hd[4] = 0;
+            fwrite(hd, 8, 5, jit_dump);
+            fflush(jit_dump);
+            map_for_perf(path);
+        }
+    }
+    memset(&local_4, 0, sizeof local_4);
+    sname = local_4;
+    for (i = 0; i <= symbol_count - 1; i++) {
+        end = ({
+    if (i + 1 < symbol_count) {
+        i_2 = i + 1;
+        v_2 = symbol_addrs[i_2];
+    } else {
+        v_2 = cache_top;
+    }
+    v_2; });
+        snprintf(sname, 64, "stub:%s", symbol_names[i]);
+        perf_map_at(symbol_addrs[i], end - symbol_addrs[i], sname);
+    }
+}
+
+#endif
 /* JitRuntime>>optMethodsChanged: */
 void opt_methods_changed(oop sel)
 {
@@ -2307,34 +2412,120 @@ exit_flag_named:;
     return true;
 }
 
+/* JitRuntime>>perfAppend:size:to:at: */
+static int64_t perf_append(const char *s, int64_t size, char *name, int64_t n)
+{
+    int64_t k;
+    k = size < 0 ? (int64_t)strlen(s) : size;
+    if (k > 255 - n) {
+        k = 255 - n;
+    }
+    memcpy(name + n, s, (uint64_t)k);
+    name[n + k] = 0;
+    return n + k;
+}
+
+/* JitRuntime>>perfAppendClassName:to:at: */
+static int64_t perf_append_class_name(uint64_t a_class, char *name, int64_t n)
+{
+    uint64_t o;
+    uint64_t o_2;
+    uint64_t o_3;
+    uint64_t o_4;
+    uint64_t t;
+    if ((!((a_class & 7) == 0)) || (a_class == nil_oop)) {
+        return perf_append("nil", -1, name, n);
+    }
+    if (((uint32_t)*(uint64_t *)a_class > CLS_NAME) && ({
+    o = *(uint64_t *)(a_class + 16 + 48);
+    (o & 7) == 0; }) && ({
+    o_2 = *(uint64_t *)(a_class + 16 + 48);
+    ((int32_t)(((*(uint64_t *)o_2) >> H_FMT_SHIFT) & H_FMT_MASK) >= F_BYTES) && ({
+    o_3 = *(uint64_t *)(a_class + 16 + 48);
+    *(uint64_t *)(o_3 + 8) == object_memory_special(SO_BYTESYMBOL); }); })) {
+        return perf_append_symbol(*(uint64_t *)(a_class + 16 + 48), name, n);
+    }
+    if (((uint32_t)*(uint64_t *)a_class > META_THISCLASS) && ({
+    o_4 = *(uint64_t *)(a_class + 16 + 40);
+    ((o_4 & 7) == 0) && (*(uint64_t *)(a_class + 8) != a_class); })) {
+        t = *(uint64_t *)(a_class + 16 + 40);
+        if ((uint32_t)*(uint64_t *)t > CLS_NAME) {
+            return perf_append(" class", -1, name, perf_append_class_name(t, name, n));
+        }
+    }
+    return perf_append("?", -1, name, n);
+}
+
+/* JitRuntime>>perfAppendSymbol:to:at: */
+static int64_t perf_append_symbol(uint64_t s, char *name, int64_t n)
+{
+    if (!(((s & 7) == 0) && ((int32_t)(((*(uint64_t *)s) >> H_FMT_SHIFT) & H_FMT_MASK) >= F_BYTES))) {
+        return perf_append("?", -1, name, n);
+    }
+    return perf_append((const char *)(uint8_t *)(s + 16), (int64_t)byte_size(s), name, n);
+}
+
 /* JitRuntime>>perfMapAt:size:name: */
 void perf_map_at(uint64_t start, uint64_t n, const char *name)
 {
+    size_t len;
+    uint64_t local[7];
+    uint64_t *r;
+    uint64_t r_perf_now_ns;
+    struct timespec local_2;
+    struct timespec *ts;
     if (perf_map == NULL) {
         return;
     }
     fprintf(perf_map, "%llx %llx %s\n", (unsigned long long)start, (unsigned long long)n, name);
     fflush(perf_map);
+    if (jit_dump == NULL) {
+        return;
+    }
+    len = strlen(name) + 1;
+    memset(&local, 0, sizeof local);
+    r = local;
+    r[0] = (56 + len + n) << 32;
+    r[1] = ({
+    memset(&local_2, 0, sizeof local_2);
+    ts = &local_2;
+    clock_gettime(CLOCK_MONOTONIC, ts);
+    r_perf_now_ns = (uint64_t)(ts->tv_sec * 1000000000) + (uint64_t)ts->tv_nsec;
+    r_perf_now_ns; });
+    r[2] = (uint64_t)getpid() + (((uint64_t)getpid()) << 32);
+    r[3] = start;
+    r[4] = start;
+    r[5] = n;
+    r[6] = jit_dump_index;
+    jit_dump_index = jit_dump_index + 1;
+    fwrite(r, 8, 7, jit_dump);
+    fwrite(name, 1, len, jit_dump);
+    fwrite((void *)start, 1, n, jit_dump);
+    fflush(jit_dump);
 }
 
 /* JitRuntime>>perfMapCode:mode: */
 static void perf_map_code(jit_method *h, int32_t md)
 {
+    char local[256];
+    char *name;
+    int64_t n;
     oop o;
     oop o_2;
     int32_t r_unit_entry;
     int32_t r_unit_entry_2;
     int32_t r_unit_entry_3;
-    fprintf(perf_map, "%llx %x ", (unsigned long long)h->code_start, h->code_size);
-    fputs(md == JIT_OPT ? "opt:" : "bl:", perf_map);
+    memset(&local, 0, sizeof local);
+    name = local;
+    n = perf_append(md == JIT_OPT ? "opt:" : "bl:", -1, name, 0);
     o = h->method;
-    print_class_name(*(uint64_t *)(o + 16 + 8), perf_map);
-    fputs(">>", perf_map);
+    n = perf_append_class_name(*(uint64_t *)(o + 16 + 8), name, n);
+    n = perf_append(">>", -1, name, n);
     o_2 = h->method;
-    print_symbol(*(uint64_t *)(o_2 + 16 + 0), perf_map);
+    n = perf_append_symbol(*(uint64_t *)(o_2 + 16 + 0), name, n);
     if (md == JIT_OPT) {
         if (rt_unit_osr > 0) {
-            fprintf(perf_map, " [loop %d]", ({
+            snprintf(name + n, (uint64_t)(256 - n), " [loop %d]", ({
     if (rt_unit_osr > 0) {
         r_unit_entry = (rt_unit_osr & 0xFFFF) - 1;
         goto exit_unit_entry;
@@ -2351,7 +2542,7 @@ exit_unit_entry:;
     r_unit_entry_2 = rt_unit_start;
 exit_unit_entry_2:;
     r_unit_entry_2; }) > 0)) {
-            fprintf(perf_map, " [block %d]", ({
+            snprintf(name + n, (uint64_t)(256 - n), " [block %d]", ({
     if (rt_unit_osr > 0) {
         r_unit_entry_3 = (rt_unit_osr & 0xFFFF) - 1;
         goto exit_unit_entry_3;
@@ -2361,8 +2552,7 @@ exit_unit_entry_3:;
     r_unit_entry_3; }));
         }
     }
-    fputc(10, perf_map);
-    fflush(perf_map);
+    perf_map_at(h->code_start, (uint64_t)h->code_size, name);
 }
 
 /* JitRuntime>>primitiveNumberNamed: */

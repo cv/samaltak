@@ -26,6 +26,8 @@ usage: $0 [options] [benchmark[:inner] ...]
   -i N              inner iterations for every benchmark (default: per benchmark, see inner())
   -o FILE           also write CSV and '#' lines to FILE
   --ms              show each lap and the summary in words and milliseconds (FILE gets the CSV)
+  --cpus LIST|big   run pinned (taskset -c LIST); big: the cores of the highest maximum frequency (Linux;
+                    a big.LITTLE machine runs an unpinned VM on either kind of core, e.g. half as fast on an A725)
   --cpu             measure the CPU time of the thread running Smalltalk instead of wall time (load matters less)
   --go FILE         a start gun: once loaded, create FILE.ready and wait for FILE before the first lap
   --summary FILE... only summarize result files (one invocation each; steady = median over files)
@@ -93,7 +95,14 @@ summarize() {
     }'
 }
 
-VM= IMAGE= VMARGS= PHARO=0 SUITE=awfy N=30 INNER= OUT= SUMMARY=0 MS=0 CPU=0 CPU_LABEL= GO= PHARO_INIT=
+# The logical CPUs of the highest cpuinfo_max_freq, comma-separated (the big cores).
+big_cpus() {
+    grep -H . /sys/devices/system/cpu/cpu[0-9]*/cpufreq/cpuinfo_max_freq 2>/dev/null | awk -F: '
+        { n = split($1, p, "/"); c = substr(p[n - 2], 4); f[c] = $2 + 0; if ($2 + 0 > m) m = $2 + 0 }
+        END { for (c in f) if (f[c] == m) s = s (s == "" ? "" : ",") c; print s }'
+}
+
+VM= IMAGE= VMARGS= PHARO=0 CPUS= PIN= SUITE=awfy N=30 INNER= OUT= SUMMARY=0 MS=0 CPU=0 CPU_LABEL= GO= PHARO_INIT=
 while [ $# -gt 0 ]; do
     case $1 in
     --vm) VM=$2; shift ;;
@@ -106,9 +115,12 @@ while [ $# -gt 0 ]; do
     -i) INNER=$2; shift ;;
     -o) OUT=$2; shift ;;
     --ms) MS=1 ;;
+    --cpus) CPUS=$2; shift ;;
     --cpu) CPU=1 CPU_LABEL=' of CPU' ;;
     --go) GO=$2; shift ;;
     --summary) SUMMARY=1 ;;
+    --inner) inner "$2"; exit 0 ;;
+    --file-of) file_of "$2"; exit 0 ;;
     -h|--help) usage ;;
     -*) usage ;;
     *) break ;;
@@ -155,11 +167,17 @@ else
     IMAGE=${IMAGE:-$ROOT/build/samaltak.image}
 fi
 
+if [ -n "$CPUS" ]; then
+    [ "$CPUS" = big ] && CPUS=$(big_cpus)
+    [ -n "$CPUS" ] && command -v taskset >/dev/null || { echo "$0: --cpus needs taskset and Linux's cpufreq" >&2; exit 2; }
+    PIN="taskset -c $CPUS"
+fi
+
 LOG=$(mktemp)
 ALL=$(mktemp)
 trap 'rm -rf "$LOG" "$ALL" ${WORK:+"$WORK"}' EXIT
 status=0
-echo "# awfy $(date '+%Y-%m-%d %H:%M') vm=$VM image=${SRCIMAGE:-$IMAGE} vm-args='$VMARGS' iterations=$N${PHARO_INIT:+ pharo-init='$PHARO_INIT'}" | tee -a "$ALL" | show
+echo "# awfy $(date '+%Y-%m-%d %H:%M') vm=$VM image=${SRCIMAGE:-$IMAGE} vm-args='$VMARGS' iterations=$N${CPUS:+ cpus=$CPUS}${PHARO_INIT:+ pharo-init='$PHARO_INIT'}" | tee -a "$ALL" | show
 for spec in "$@"; do
     b=${spec%%:*}
     if [ "$b" != "$spec" ]; then in=${spec#*:}; else in=${INNER:-$(inner "$b")}; fi
@@ -175,12 +193,12 @@ for spec in "$@"; do
         [ -n "$PHARO_INIT" ] && run="$PHARO_INIT. $run"
         [ -n "$GO" ] && run="'$GO.ready' asFileReference ensureCreateFile. ['$GO' asFileReference exists] whileFalse: [(Delay forMilliseconds: 2) wait]. $run"
         expr="[#('Pharo' $files) do: [:n | ('$DIR/', n, '.st') asFileReference fileIn]. $run. ''] on: Error do: [:e | 'ERROR ', e class name, ': ', e messageText]"
-        (cd "$WORK" && "$VM" --headless $VMARGS "$IMAGE" eval "$expr") 2>&1
+        (cd "$WORK" && $PIN "$VM" --headless $VMARGS "$IMAGE" eval "$expr") 2>&1
     else
         [ $CPU = 1 ] && files="'SamaltakCPU' $files"
         [ -n "$GO" ] && run="(FileStream forceNewFileNamed: '$GO.ready') close. [File exists: '$GO'] whileFalse: [(Delay forMilliseconds: 2) wait]. $run"
         expr="[#('Samaltak' $files) do: [:n | Compiler fileIn: '$DIR/', n, '.st']. $run. ''] on: Error do: [:e | 'ERROR ', e class name, ': ', e messageText]"
-        "$VM" $VMARGS "$IMAGE" --headless --eval "$expr" 2>&1
+        $PIN "$VM" $VMARGS "$IMAGE" --headless --eval "$expr" 2>&1
     fi | tee "$LOG" | $TR '\r' '\n' | grep --line-buffered -E '^[A-Za-z0-9]+,[0-9]+,-?[0-9]+$|^# ' | tee -a "$ALL" | show
     if grep -q "ERROR" "$LOG" || ! grep -q "^$b,$N," "$LOG"; then
         echo "# FAILED $b" | tee -a "$ALL" | show

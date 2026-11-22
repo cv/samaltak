@@ -35,4 +35,9 @@ void *map(void *near, uint64_t size)
     return mmap(near, size, PROT_READ | PROT_WRITE | PROT_EXEC, MAP_PRIVATE | MAP_ANON | MAP_JIT, -1, 0);
 }
 
+/* DarwinJitPlatform>>mapForPerf: */
+void map_for_perf(const char *path)
+{
+}
+
 #endif

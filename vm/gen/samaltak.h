@@ -41,6 +41,7 @@
 #include <sys/event.h>
 #endif
 #ifdef __linux__
+#include <fcntl.h>
 #include <sys/timerfd.h>
 #endif
 #ifndef SAMALTAK_NO_PLATFORM
@@ -2067,6 +2068,7 @@ bool can_run_code(void);
 void end_writing(void);
 void invalidate(void *start, uint64_t size);
 void *map(void *near, uint64_t size);
+void map_for_perf(const char *path);
 void arm(int ident, int64_t us, bool periodic);
 void ticker_start(void);
 int64_t thread_cycles(void);
@@ -2077,6 +2079,7 @@ bool can_run_code(void);
 void end_writing(void);
 void invalidate(void *start, uint64_t size);
 void *map(void *near, uint64_t size);
+void map_for_perf(const char *path);
 void arm(int ident, int64_t us, bool periodic);
 void ticker_start(void);
 int64_t thread_cycles(void);
