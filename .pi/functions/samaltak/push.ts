@@ -10,7 +10,8 @@ async function push(
   // then git push origin HEAD:main, retrying (fetch, rebase, checks) if someone pushed in between. skipGateReason
   // pushes without a matching gate run (say why). autostash: keep uncommitted work out of the way during the rebase
   // (git rebase --autostash) instead of refusing; it is never pushed, and comes back afterwards (a conflict leaves it
-  // in git stash, reported).
+  // in git stash, reported). HEAD already on top of origin/main is pushed as it is (no rebase, so merge commits such
+  // as an upstream sync stay merges); otherwise the rebase keeps merges (--rebase-merges).
   const sh = async (c: string) => {
     const r = await exec(c, { timeoutMs: 120000 });
     return { code: r.code, out: (r.stdout + r.stderr).trim() };
@@ -42,7 +43,10 @@ async function push(
     const ahead = Number((await sh("git rev-list --count origin/main..HEAD")).out);
     if (!ahead)
       return { ok: true, pushed: false, reason: "nothing to push: HEAD is on origin/main" };
-    const rb = await sh(`git rebase -q${input.autostash ? " --autostash" : ""} origin/main`);
+    const onTop = (await sh("git merge-base --is-ancestor origin/main HEAD")).code === 0;
+    const rb = onTop
+      ? { code: 0, out: "" }
+      : await sh(`git rebase -q --rebase-merges${input.autostash ? " --autostash" : ""} origin/main`);
     if (rb.code !== 0) {
       const files = (await sh("git diff --name-only --diff-filter=U")).out;
       await sh("git rebase --abort");
