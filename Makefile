@@ -12,8 +12,14 @@ vm:
 seed: vm
 	boot/build-image.sh src $(OUT)/seed.image
 
+# The commit the image's sources are at (SourceFiler baseCommit, for updates from GitHub: docs/github.md), and whether
+# src/ had uncommitted changes.
+BASE_COMMIT = $(shell git rev-parse HEAD 2>/dev/null)
+BASE_DIRTY = $(shell git status --porcelain -- src 2>/dev/null | head -1)
+BASE_ARGS = $(if $(BASE_COMMIT),--base-commit $(BASE_COMMIT)) $(if $(BASE_DIRTY),--base-dirty)
+
 image: vm seed
-	$(VM) $(OUT)/seed.image --headless --stage2 $(OUT)/samaltak.image
+	$(VM) $(OUT)/seed.image --headless --stage2 $(OUT)/samaltak.image $(BASE_ARGS)
 
 # The runtime image applications run on (bin/samaltak run, docs/apps.md): the packages of src/runtime.txt, lean on fonts.
 runtime: vm
@@ -220,7 +226,7 @@ UEFI_TESTS := CompilerTest ParserTest ScannerTest ClassTest CollectionTest Conte
 	Amd64DisassemblerTest Arm64DisassemblerTest ByteSearchTest \
 	SHA256Test SHA384Test SHA512Test HMACTest HKDFTest ChaCha20Test Poly1305Test ChaCha20Poly1305Test AesTest AesGcmTest SecureRandomTest WycheproofAeadTest NativeCryptoTest \
 	X25519Test RsaPublicKeyTest EcPublicKeyTest EcPrivateKeyTest HmacHkdfWycheproofTest Asn1DerTest X509CertificateTest TrustStoreTest CertificateValidatorTest \
-	MountTableTest FirmwareVolumesTest GitHubClientTest SourceFilerGitHubTest PosixDeviceTest ZLibTest PNGCodecTest AgentImageTest
+	MountTableTest FirmwareVolumesTest GitHubClientTest SourceFilerGitHubTest SourceUpdateTest PosixDeviceTest ZLibTest PNGCodecTest AgentImageTest
 UEFI_WORLD := | w t | w := UIWindows startUp. RemoteInputDevice default inject: {1. nil. 123. 45. 0. 0. nil. w displayWindow windowId}. t := Time millisecondClockValue. [w dispatcher pointer = (123 @ 45) or: [Time millisecondClockValue - t > 20000]] whileFalse: [(Delay forMilliseconds: 50) wait]. Smalltalk vm stderrWrite: 'world ', w extent printString, ' ', Renderer default device isSoftware printString, ' ', w dispatcher pointer rounded printString, (String with: Character lf)
 UEFI_NET := | s buf n | s := RemoteSocket connectTo: '10.0.2.2' port: $$P timeout: 20000. s sendAll: '{\"cmd\": \"ping\"}', (String with: Character lf). buf := ByteArray new: 200. n := s receiveInto: buf timeout: 20000. s close. (buf copyFrom: 1 to: n) asString
 UEFI_NET_BULK := | src req s buf n chunk out t ms resp ok more | src := String new: 1000000. 1 to: src size do: [:i | src at: i put: (Character value: 97 + (i * 7 rem: 26))]. req := '{\"cmd\": \"eval\", \"source\": \"''', src, ''' reverse\"}', (String with: Character lf). t := Time millisecondClockValue. s := RemoteSocket connectTo: '10.0.2.2' port: $$P timeout: 20000. s sendAll: req. out := WriteStream on: (String new: 1100000). buf := ByteArray new: 65536. more := true. [more] whileTrue: [n := s receiveInto: buf timeout: 60000. chunk := (buf copyFrom: 1 to: n) asString. out nextPutAll: chunk. more := n > 0 and: [(chunk includes: Character lf) not]]. ms := Time millisecondClockValue - t. s close. resp := out contents. ok := (resp includesSubstring: '\"ok\":true') and: [resp includesSubstring: src reverse]. 'bulk ', ok printString, ' ', (req size + resp size) printString, ' bytes in ', ms printString, ' ms'

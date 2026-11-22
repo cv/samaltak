@@ -134,6 +134,23 @@ isInSection: k
 	^sections anySatisfy: [:s | k >= (s at: 4) and: [(s at: 5) isNil or: [k <= (s at: 5)]]]
 ! !
 
+!ChunkFile methodsFor: 'enumerating'!
+methodsDo: aBlock
+	"aBlock gets {className. isMeta. selector. category. source} of each method, in file order."
+	methods do: [:m |
+		| s |
+		s := sections at: (m at: 2).
+		aBlock value: {s first. s at: 2. m first. s at: 3. self chunkBody: m last}]
+!
+topLevelChunksDo: aBlock
+	"aBlock gets the body of each non-empty chunk outside the method sections: class definitions, comments, other do-its."
+	1 to: chunks size do: [:k |
+		| body |
+		(self isInSection: k) ifFalse: [
+			body := self chunkBody: k.
+			body isEmpty ifFalse: [aBlock value: body]]]
+! !
+
 !ChunkFile methodsFor: 'editing'!
 replaceChunk: index with: aString
 	"Replace the chunk's body by aString (escaped), keeping the white space around it."

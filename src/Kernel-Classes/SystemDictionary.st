@@ -106,6 +106,10 @@ addPackageNamed: aString layer: anInteger
 	existing := Package named: aString layer: anInteger.
 	Packages := Packages copyWith: existing.
 	^existing
+!
+removePackageNamed: aString
+	"Forget the package (its classes stay)."
+	Packages := self packages reject: [:p | p name = aString]
 ! !
 
 !SystemDictionary methodsFor: 'queries'!
