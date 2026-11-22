@@ -37,6 +37,6 @@ testEncode
 testEncodeHi
 	self assert: (Base64 encode: #[104 105]) equals: 'aGk='
 !
-testBadLength
+testBadLengthRaises
 	self should: [Base64 decode: 'a'] raise: Error
 ! !
