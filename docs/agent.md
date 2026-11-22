@@ -14,7 +14,7 @@ The smallest agent that works end to end. Each item names the seam later work ex
 ### System-Net (new, layer 0)
 2. `HTTPClient`: HTTP/1.1 over TLS or plain TCP, keep-alive, `Content-Length` and chunked bodies, no compression; `post:json:headers:`, `post:form:headers:`, and a streaming variant handing body chunks to a block. Cancelled by closing from another Process.
 3. `SSEReader`: `text/event-stream` chunks → `{event. data}`.
-4. `Base64` (decoding, URL alphabet: JWT claims).
+4. `Base64` (decoding, URL alphabet: JWT claims; bad input raises Error).
 
 JSON: System-Remote's `JSON` (already layer 0).
 

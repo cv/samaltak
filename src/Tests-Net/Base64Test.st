@@ -3,7 +3,7 @@ TestCase subclass: #Base64Test
 	classVariableNames: ''
 	package: 'Tests-Net'!
 
-Base64Test comment: 'Tests Base64 decoding and encoding: both alphabets, padding or none.'!
+Base64Test comment: 'Tests Base64 decoding and encoding (both alphabets, padding or none) and bad input.'!
 
 !Base64Test methodsFor: 'tests'!
 testDecode
@@ -36,4 +36,7 @@ testEncode
 !
 testEncodeHi
 	self assert: (Base64 encode: #[104 105]) equals: 'aGk='
+!
+testBadLength
+	self should: [Base64 decode: 'a'] raise: Error
 ! !
