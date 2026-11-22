@@ -12,7 +12,7 @@ Check with `context.get().projectFunctions`.
 | Function | For | Typical calls |
 | --- | --- | --- |
 | `samaltak.build` | `make` (target `all`, `image`, `vm`, `uefi`, `translate`) into OUT with a timeout; ok, seconds, image builder warnings (undeclared variables, layering), errors; translate also the translator's result and the vm/gen files that changed | `build()`, `build({ target: "uefi" })`, `build({ out: "build/dev" })`, `build({ target: "translate" })` after changing src/VM-* or a rebase that did |
-| `samaltak.suite` | `tests/st_suite.sh` on packages or classes, optionally after a build; summary and FAIL/ERROR lines | `suite({ tests: ["Tests-Crypto"], build: true })`, `suite({ tests: ["JitOptRuntimeTest"], vmArgs: ["--jit", "opt", "--jit-threshold", "0"] })` |
+| `samaltak.suite` | `tests/st_suite.sh` on packages or classes (sharded over VMs: SAMALTAK_TEST_JOBS), optionally after a build; summary and FAIL/ERROR lines | `suite({ tests: ["Tests-Crypto"], build: true })`, `suite({ tests: ["JitOptRuntimeTest"], vmArgs: ["--jit", "opt", "--jit-threshold", "0"] })` |
 | `samaltak.evalImage` | one headless `--eval`, errors caught and returned as `error` (an uncaught error hangs a headless VM) | `evalImage({ expr: "SHA256 hash: 'abc'" })`, `evalImage({ expr, build: true, timeoutS: 120 })` |
 | `samaltak.uefiEval` | boot the image on UEFI in QEMU (`make uefi-run`) with an expression or VM args, optional ext4 disks; console and the VM's exit status | `uefiEval({ expr: "SecureRandom default nextBytes: 4" })`, `uefiEval({ args: "--headless --test FileTest" })`, `uefiEval({ expr, disks: [{ dir: "/tmp/notes" }] })` |
 | `samaltak.ctlSession` | drive an image through `tools/samaltak-ctl`: open (hosted, windowed on a private Xvfb, or `--uefi`), steps, close | `ctlSession({ open: ["--headless"], steps: [["eval", "3 + 4"]] })`, `ctlSession({ open: ["--uefi", "--headless"], disks: [{ dir: "/tmp/notes" }], steps: [["agent-config", "--from-pi"], ["eval", "..."]] })` |
@@ -31,9 +31,14 @@ Check with `context.get().projectFunctions`.
   `wait` returns after at most 280 s, call it again).
 - Build directories: OUT (`out`) defaults to `build`. A second build directory such as `build/dev` keeps a dev build
   from replacing an image something else is using. `vm/build` is shared and incremental.
-- The gate: test-core takes about 6.5 min, test-core and test-uefi about 7.5 min, plus about 30 s to build in its
-  fresh worktree. It tests HEAD's committed tree only (not uncommitted or untracked files) and runs one at a time per
-  directory. A failure blocks only if the test passes on origin/main: rerun it alone with `suite` before suspecting
+- The gate builds once in its fresh worktree, then runs its stages at once (`tests/stages.sh`: each stage a make
+  process with its own log, printed when it ends with a line `stage <target>: passed|FAILED (exit N) in N s`, then
+  `stages: all passed|FAILED: ...`), and every Smalltalk suite sharded over several VMs (`tests/st_suite.sh`,
+  SAMALTAK_TEST_JOBS, default min(nproc / 2, 8); 1: one VM), each VM on an Xvfb of its own. Shards are balanced by the
+  class times in this directory's `build/test-times` (the gate's runs keep them up to date). All test VMs on the
+  machine share SAMALTAK_TEST_SLOTS slots (default nproc / 2, flock files in `/tmp/samaltak-test-slots-<uid>`), so
+  concurrent gates wait for each other's VMs instead of each starting 8 per stage. It tests HEAD's committed tree only
+  (not uncommitted or untracked files) and runs one at a time per directory. A failure blocks only if the test passes on origin/main: rerun it alone with `suite` before suspecting
   your change (JIT tests have failed under load). `push` accepts a passed run of the same tree, or of the same change
   when the commits that landed since touch none of your files.
 - Rebase conflicts usually come from shared lists (README's docs list, `src/packages.txt`, the Makefile's UEFI_TESTS):

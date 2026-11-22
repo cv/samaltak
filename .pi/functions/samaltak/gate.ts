@@ -56,7 +56,7 @@ async function gate(
   const summarize = async (rec: any) => {
     const log = `${dir}/${rec.id}.log`;
     const s = await exec(
-      `grep -a -E '^[0-9]+ run, |^st_suite: |^(FAIL |ERROR )|: all passed|passed, [0-9]+ failed|make(\\[[0-9]+\\])?: \\*\\*\\*|^make test: FAILED|^make test-nv: |^replay: |^fuzz: |^test-uefi: |^qemu-system[^ ]*: ' ${log} 2>/dev/null | tr -d '\\r' | tail -25; echo "@@"; tail -n 4 ${log} 2>/dev/null | tr -d '\\r'`,
+      `grep -a -E '^[0-9]+ run, |^st_suite: |^(FAIL |ERROR )|: all passed|passed, [0-9]+ failed|make(\\[[0-9]+\\])?: \\*\\*\\*|^make test: FAILED|^make test-nv: |^replay: |^fuzz: |^test-uefi: |^qemu-system[^ ]*: |^stage test-[^ ]*: (passed|FAILED)|^stages: (all passed|FAILED)' ${log} 2>/dev/null | tr -d '\\r' | tail -25; echo "@@"; tail -n 4 ${log} 2>/dev/null | tr -d '\\r'`,
     );
     const [hits, tail] = s.stdout.split("@@\n");
     const targets: string[] = rec.targets.split(" ");
@@ -148,11 +148,14 @@ async function gate(
       if (r.workdir)
         await exec(`[ -d ${q(r.workdir)} ] && git worktree remove --force ${q(r.workdir)}; true`);
     await exec("git worktree prune");
-    // runner: $1 runs dir, $2 id, $3 runtime dir, $4 private TMPDIR, $5 tree to test, $6 this directory, then make args
+    // runner: $1 runs dir, $2 id, $3 runtime dir, $4 private TMPDIR, $5 tree to test, $6 this directory, then make args.
+    // The targets run at once after one build (tests/stages.sh; make, one after another, in a tree without it), their
+    // suites sharded over the machine's test slots, with the class timings of this directory's build/test-times.
     const runner = `D=$1; I=$2; R=$3; T=$4; W=$5; O=$6; shift 6
 echo $$ > "$D/$I.pid"
 cd "$W" || exit 1
-VK_DRIVER_FILES=/usr/share/vulkan/icd.d/lvp_icd.json SDL_VIDEODRIVER=x11 SDL_VIDEO_X11_SCALING_FACTOR=2 XDG_RUNTIME_DIR="$R" TMPDIR="$T" xvfb-run -a -s "-screen 0 1280x1024x24" make "$@" > "$D/$I.log" 2>&1
+if [ -x tests/stages.sh ]; then set -- tests/stages.sh "$@"; else set -- make "$@"; fi
+VK_DRIVER_FILES=/usr/share/vulkan/icd.d/lvp_icd.json SDL_VIDEODRIVER=x11 SDL_VIDEO_X11_SCALING_FACTOR=2 XDG_RUNTIME_DIR="$R" TMPDIR="$T" SAMALTAK_TEST_TIMES_DIR="$O/build/test-times" xvfb-run -a -s "-screen 0 1280x1024x24" "$@" > "$D/$I.log" 2>&1
 e=$?
 echo $e > "$D/$I.exit.tmp"; mv "$D/$I.exit.tmp" "$D/$I.exit"
 rm -rf "$T"

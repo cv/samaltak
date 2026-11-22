@@ -300,12 +300,21 @@ run
 !
 runAll
 	"Run all tests that run by default (runsByDefault), print failures, errors and a summary, and answer the TestResult."
-	^TestResult new runClasses: (self allTestClasses select: [:c | c runsByDefault]) asArray; yourself
+	^TestResult new runClasses: (self classesNamed: #()) asArray; yourself
 !
 runNamed: names
 	"Run the test classes named in names, and those of the packages named in names."
-	| classes |
-	classes := self allTestClasses select: [:c |
-		(names includes: c name asString) or: [names includes: c packageName]].
-	^TestResult new runClasses: classes asArray; yourself
+	^TestResult new runClasses: (self classesNamed: names) asArray; yourself
+!
+classesNamed: names
+	"Answer the test classes --test names runs, sorted by name: those named in names and those of the packages named in names; with no names, all that run by default (runsByDefault)."
+	^names isEmpty
+		ifTrue: [self allTestClasses select: [:c | c runsByDefault]]
+		ifFalse: [self allTestClasses select: [:c | (names includes: c name asString) or: [names includes: c packageName]]]
+!
+printClassesNamed: names
+	"Print a line 'test-class <class> <package> <number of tests>' for each class --test names runs (--test-list: tests/st_suite.sh shards them)."
+	(self classesNamed: names) do: [:c |
+		Transcript show: 'test-class '; show: c name asString; show: ' '; show: c packageName asString; show: ' ';
+			show: c testSelectors size printString; cr]
 ! !

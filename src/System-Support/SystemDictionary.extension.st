@@ -139,10 +139,14 @@ evaluateAndQuit: aString
 	self quit: 0
 !
 runTestsAndQuit
-	"Run the TestCases (all, or those of the classes and packages named after --test) and quit with 0 if all passed, else 1."
+	"Run the TestCases (all, or those of the classes and packages named after --test) and quit with 0 if all passed, else 1. With --test-list, only list those classes; with --test-times, print each class's time (tests/st_suite.sh shards with them)."
 	| names result |
 	RunningTests := true.
 	names := self argumentsAfter: '--test'.
+	(self vm arguments includes: '--test-list') ifTrue: [
+		TestCase printClassesNamed: names.
+		^self quit: 0].
+	TestResult printsClassTimes: (self vm arguments includes: '--test-times').
 	result := names isEmpty
 		ifTrue: [TestCase runAll]
 		ifFalse: [TestCase runNamed: names].

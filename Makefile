@@ -3,6 +3,9 @@
 OUT ?= build
 
 VM := vm/build/samaltak
+# What the test targets build first: image (always rebuilt), or fresh-image (only when src/, boot/ or the VM are newer:
+# tests/stages.sh builds once, then runs stages at once).
+TEST_IMAGE ?= image
 
 all: vm seed image runtime
 
@@ -50,32 +53,34 @@ translate: image
 # again and again (x86-64's code is a third bigger than arm64's: in 1 MB it thrashes so hard that the slowest tests
 # time out, 2 MB still flushes hundreds of times).
 STRESS_CACHE_MB := $(if $(filter x86_64 amd64,$(shell uname -m)),2,1)
-test-jit: image
+test-jit: $(TEST_IMAGE)
 	$(MAKE) test-jit-none
 	$(MAKE) test-jit-baseline
 	$(MAKE) test-jit-opt
 	$(MAKE) test-jit-deopt
 	$(MAKE) test-jit-cache
-test-jit-none: image
+test-jit-none: $(TEST_IMAGE)
 	tests/st_suite.sh $(OUT)/samaltak.image --jit none
-test-jit-baseline: image
+test-jit-baseline: $(TEST_IMAGE)
 	tests/st_suite.sh $(OUT)/samaltak.image --jit baseline --jit-threshold 0
-test-jit-opt: image
+test-jit-opt: $(TEST_IMAGE)
 	tests/st_suite.sh $(OUT)/samaltak.image --jit opt --jit-threshold 0 --jit-flags eager
-test-jit-deopt: image
+test-jit-deopt: $(TEST_IMAGE)
 	tests/st_suite.sh $(OUT)/samaltak.image --jit opt --jit-threshold 0 --jit-flags eager,deopt
-test-jit-cache: image
+test-jit-cache: $(TEST_IMAGE)
 	tests/st_suite.sh $(OUT)/samaltak.image --jit opt --jit-threshold 0 --jit-cache $(STRESS_CACHE_MB) --jit-flags eager,notes -- Tests-Kernel
 
 # Everything, in stages (CI runs them as separate jobs); any failure, skipped test or headless-only VM fails it. The UI
-# scripts use a hidden window.
+# scripts use a hidden window. tests/stages.sh builds once and runs stages at once (the gate); tests/st_suite.sh shards
+# each Smalltalk suite over SAMALTAK_TEST_JOBS VMs (default min(nproc / 2, 8); 1: one VM). TEST_IMAGE: what the test
+# targets build first (TEST_IMAGE, at the top).
 test: test-core
 	$(MAKE) test-jit
 	$(MAKE) test-tools
 	$(MAKE) test-uefi
 	@echo "make test: all passed"
 PLATFORM_CHECK = @[ -f vm/build/.variant-platform ] || { echo "make test: FAILED: the VM was built without the platform layer (SDL3), UI tests would not run"; exit 1; }
-test-core: image test-vm
+test-core: $(TEST_IMAGE) test-vm
 	$(PLATFORM_CHECK)
 	tests/vm/gen_test.sh $(OUT)/samaltak.image
 	tests/boot/layering_test.sh
@@ -88,10 +93,10 @@ test-core: image test-vm
 # there is none. Fails, saying so, without a GPU. NvGpuMeasure reports launch latency and copy bandwidth. Then the
 # raster kernels (gpu/nv, docs/nv-kernels.md) on the GPU against PlatformRaster (tests/nv/run.sh: needs the driver,
 # not nvcc).
-test-nv: image
+test-nv: $(TEST_IMAGE)
 	tests/st_suite.sh $(OUT)/samaltak.image -- NvGpuTest NvComputeGPUTest
 	tests/nv/run.sh $(OUT)
-test-tools: image
+test-tools: $(TEST_IMAGE)
 	$(PLATFORM_CHECK)
 	$(MAKE) -C vm/platform test st-test
 	tests/remote/cli_test.sh $(OUT)/samaltak.image

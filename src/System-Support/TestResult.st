@@ -1,9 +1,15 @@
 Object subclass: #TestResult
 	instanceVariableNames: 'passed failures errors skipped'
-	classVariableNames: ''
+	classVariableNames: 'PrintsClassTimes'
 	package: 'System-Support'!
 
 TestResult comment: 'I run TestCases and collect their outcomes: passed tests, failures and errors (each with its message), and skipped tests. Failures and errors are reported on the Transcript as they happen, with a short stack for errors; runClasses: ends with a summary line.'!
+
+!TestResult class methodsFor: 'settings'!
+printsClassTimes: aBoolean
+	"Whether runClasses: prints a line 'test-time <class> <ms>' after each class's tests (--test-times: tests/st_suite.sh records them to balance its shards)."
+	PrintsClassTimes := aBoolean
+! !
 
 !TestResult methodsFor: 'initialization'!
 initialize
@@ -37,9 +43,14 @@ hasPassed
 
 !TestResult methodsFor: 'running'!
 runClasses: testClasses
-	| start |
+	| start classStart |
 	start := Time millisecondClockValue.
-	testClasses do: [:class | class suite do: [:test | self runCase: test]].
+	testClasses do: [:class |
+		classStart := Time millisecondClockValue.
+		class suite do: [:test | self runCase: test].
+		PrintsClassTimes == true ifTrue: [
+			Transcript show: 'test-time '; show: class name asString; show: ' ';
+				show: (Time millisecondClockValue - classStart) printString; cr]].
 	Transcript
 		show: self summary;
 		show: ' in ';
