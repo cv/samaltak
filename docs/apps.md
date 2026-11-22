@@ -34,15 +34,14 @@ The weather app, measured on Asahi (16 KB pages) 8 s after it started, idle, aga
 
 | | RSS | private dirty |
 |---|---|---|
-| samaltak (runtime image, idle) | 52 MB | 28 MB |
+| samaltak (runtime image, idle) | 58 MB | 32 MB |
 | samaltak right after its startup burst | 71 MB | 47 MB |
 | C | 46 MB | 13 MB |
 | QML card in quickshell | 156 MB | 49 MB |
 
-What made the difference (from 200 MB RSS, 168 MB private, on the desktop image):
+What made the difference (from 200 MB RSS, 168 MB private, on the desktop image; another 7 MB is glslang's static tables, see the follow-ups):
 
 - **No shader compiler at run time** (‑71 MB): glslang keeps its symbol tables and pools for the life of a process that compiled once. Stage 2 compiles the shaders to SPIR-V, which the image keeps (`GPUShader`); `gpuCompileShader` still serves changed shader source.
-- **shaderc loaded when first needed** (‑7 MB): linked, its static constructors fill 7 MB as it loads (`LinuxPlatformHost`, dlopen).
 - **The runtime image** (‑25 MB): `make runtime` builds `build/runtime.image` from the packages of `src/runtime.txt` (7.7 MB, the desktop image 50 MB); it keeps no font faces, nothing pre-rasterized, and smaller glyph atlas pages (1 MB).
 - **Font files read as needed**: a face read at run time (`TrueTypeFont fromFile:`, the Omarchy fonts fontconfig names) reads its file 4 KB at a time (`FileBytes`), as a C program maps it: of the 2.5 MB JetBrainsMono Nerd Font the card reads 86 KB.
 - **Memory given back when idle** (‑20 MB): after the startup burst (filing in, compiling, fetching, drawing) eden's touched pages, 9 MB of machine code, the type feedback table and the optimizer's arenas are released.
@@ -52,6 +51,7 @@ What remains beyond C is mostly the object memory (the image and the app, 8 MB, 
 ## Follow-ups
 
 - **inotify** (`fileWatch`): a file descriptor in the socket table that signals a Semaphore. It would replace the once-a-second checks of the theme and the weather settings, most of the remaining wakeups.
+- **shaderc out of the VM**: linked, glslang's static constructors fill about 7 MB in every process, compiling or not. Loading it when first needed (dlopen) does not work where only static libraries are usable (Debian bookworm, CI); compiling with the `glslc` tool, run by the image, would take it out of the VM altogether.
 - **wlr-layer-shell**, to sit on the desktop below the windows as the QML card does. This needs an SDL window with a custom Wayland role and `zwlr_layer_shell_v1` through libwayland-client in `PlatformWayland`, a Linux-only Lowtalk module.
 - **More than one host window per image.** A debugger or a second app window would get a host window of its own; today a Notifier opens inside the app's window.
 - **`--watch`**: file in an app's source again when it is saved, so the running window changes as you edit.

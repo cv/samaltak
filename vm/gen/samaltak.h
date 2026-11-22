@@ -69,7 +69,6 @@
 #include <crt_externs.h>
 #endif
 #ifdef __linux__
-#include <dlfcn.h>
 #include <shaderc/shaderc.h>
 #endif
 #endif
@@ -77,15 +76,6 @@
 typedef uint64_t oop;
 typedef void (*prim_fn)(void);
 #ifndef SAMALTAK_NO_PLATFORM
-typedef void *(*ShadercCompilerInitializeFn)(void);
-typedef void *(*ShadercOptionsInitializeFn)(void);
-typedef void (*ShadercSetOptimizationFn)(void *, int32_t);
-typedef void (*ShadercAddMacroFn)(void *, const char *, size_t, const char *, size_t);
-typedef void *(*ShadercCompileFn)(void *, const char *, size_t, int32_t, const char *, const char *, void *);
-typedef int32_t (*ShadercResultStatusFn)(void *);
-typedef size_t (*ShadercResultLengthFn)(void *);
-typedef const char *(*ShadercResultBytesFn)(void *);
-typedef void (*ShadercResultReleaseFn)(void *);
 #endif
 
 #define ANA_BLOCK 32
