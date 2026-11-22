@@ -498,6 +498,24 @@ primitive_entry vm_primitive_table[] = {
 #ifndef SAMALTAK_NO_PLATFORM
     {584, 2, "nicStatus", prim_nic_status},
 #endif
+#ifndef SAMALTAK_NO_PLATFORM
+    {590, 2, "deviceOpen", prim_device_open},
+#endif
+#ifndef SAMALTAK_NO_PLATFORM
+    {591, 2, "deviceClose", prim_device_close},
+#endif
+#ifndef SAMALTAK_NO_PLATFORM
+    {592, 2, "deviceIoctl", prim_device_ioctl},
+#endif
+#ifndef SAMALTAK_NO_PLATFORM
+    {593, 2, "deviceMap", prim_device_map},
+#endif
+#ifndef SAMALTAK_NO_PLATFORM
+    {594, 2, "deviceUnmap", prim_device_unmap},
+#endif
+#ifndef SAMALTAK_NO_PLATFORM
+    {595, 2, "deviceConstants", prim_device_constants},
+#endif
 };
 
 int vm_primitive_count = sizeof vm_primitive_table / sizeof vm_primitive_table[0];

@@ -3,14 +3,14 @@ VMPlatformModule subclass: #UefiNoIO
 	classVariableNames: ''
 	package: 'VM-UEFI'!
 
-UefiNoIO comment: 'Files, processes, sockets, TLS and pseudo-terminals on UEFI: none (in place of PlatformFiles, PlatformSockets, PlatformPtys, PlatformTLS and PosixIO). Every call fails with the error ''not on UEFI''; the image works without them (docs/uefi.md).'!
+UefiNoIO comment: 'Files, processes, sockets, TLS, pseudo-terminals and devices of an operating system on UEFI: none (in place of PlatformFiles, PlatformSockets, PlatformPtys, PlatformTLS, PosixIO and PlatformDevices). Every call fails with the error ''not on UEFI''; the image works without them (docs/uefi.md).'!
 
 !UefiNoIO class methodsFor: 'declaring'!
 targetOS
 	^#uefi
 !
 replaces
-	^{PlatformFiles. PlatformSockets. PlatformPtys. PlatformTLS. PosixIO}
+	^{PlatformFiles. PlatformSockets. PlatformPtys. PlatformTLS. PosixIO. PlatformDevices}
 !
 isSimulated
 	^false
@@ -383,5 +383,57 @@ write: f bytes: buf count: n
 	<var: #n type: 'uint64_t'>
 	<returns: 'int64_t'>
 	common setError: 'not on UEFI'.
-	^-1
+	^-1!
+
+!UefiNoIO methodsFor: 'devices'!
+deviceOpen: path flags: flags
+	<function>
+	<var: #path type: 'char *'>
+	<var: #flags type: 'int32_t'>
+	<returns: 'int64_t'>
+	common setError: 'not on UEFI'.
+	^PF_NO_DEVICES
+!
+deviceClose: fd
+	<function>
+	<var: #fd type: 'int32_t'>
+	<returns: 'int64_t'>
+	common setError: 'not on UEFI'.
+	^PF_NO_DEVICES
+!
+deviceIoctl: fd request: request argument: argument
+	<function>
+	<var: #fd type: 'int32_t'>
+	<var: #request type: 'uint64_t'>
+	<var: #argument type: 'uint64_t'>
+	<returns: 'int64_t'>
+	common setError: 'not on UEFI'.
+	^PF_NO_DEVICES
+!
+deviceMap: length protection: prot flags: flags fd: fd offset: offset
+	<function>
+	<var: #length type: 'uint64_t'>
+	<var: #prot type: 'int32_t'>
+	<var: #flags type: 'int32_t'>
+	<var: #fd type: 'int32_t'>
+	<var: #offset type: 'int64_t'>
+	<returns: 'int64_t'>
+	common setError: 'not on UEFI'.
+	^PF_NO_DEVICES
+!
+deviceUnmap: address length: length
+	<function>
+	<var: #address type: 'uint64_t'>
+	<var: #length type: 'uint64_t'>
+	<returns: 'int64_t'>
+	common setError: 'not on UEFI'.
+	^PF_NO_DEVICES
+!
+deviceConstants: v
+	"No devices: the device primitives fail (deviceConstants first)."
+	<function>
+	<var: #v type: 'int64_t *'>
+	<returns: 'bool'>
+	common setError: 'not on UEFI'.
+	^false
 ! !

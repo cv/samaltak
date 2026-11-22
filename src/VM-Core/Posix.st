@@ -37,6 +37,10 @@ munmap: addr length: n
 	<c: 'int munmap(void *addr, size_t n)'>
 	^0
 !
+MAP_SHARED
+	<cMacro: 'int MAP_SHARED'>
+	^1
+!
 MAP_PRIVATE
 	<cMacro: 'int MAP_PRIVATE'>
 	^2

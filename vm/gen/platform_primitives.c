@@ -370,6 +370,274 @@ void prim_cwd(void)
     answer_string(platform_files_cwd());
 }
 
+/* PlatformPrimitives>>primDeviceClose */
+void prim_device_close(void)
+{
+    bool r_args;
+    int32_t r_fd_arg;
+    int64_t fd_2;
+    int32_t fd;
+    int64_t r;
+    uint64_t v;
+    if (!({
+    bad = false;
+    r_args = prim_nargs == 1;
+    r_args; })) {
+        prim_status = PS_FAIL;
+        prim_error_code = -1;
+        return;
+    }
+    fd = ({
+    fd_2 = int_arg(0);
+    if ((fd_2 < -2147483648) || (fd_2 > 0x7FFFFFFF)) {
+        bad = true;
+    }
+    r_fd_arg = (int32_t)fd_2;
+    r_fd_arg; });
+    if (bad) {
+        prim_status = PS_FAIL;
+        prim_error_code = -1;
+        return;
+    }
+    r = device_close(fd);
+    if (r == PF_NO_DEVICES) {
+        prim_status = PS_FAIL;
+        prim_error_code = -1;
+        goto exit_answer_device_result;
+    }
+    v = int64_oop(r);
+    prim_result = v;
+    prim_status = PS_OK;
+exit_answer_device_result:;
+}
+
+/* PlatformPrimitives>>primDeviceConstants */
+void prim_device_constants(void)
+{
+    bool r_args;
+    int64_t local[13];
+    int64_t *v;
+    oop v_2;
+    if (!({
+    bad = false;
+    r_args = prim_nargs == 0;
+    r_args; })) {
+        prim_status = PS_FAIL;
+        prim_error_code = -1;
+        return;
+    }
+    memset(&local, 0, sizeof local);
+    v = local;
+    if (!device_constants(v)) {
+        prim_status = PS_FAIL;
+        prim_error_code = -1;
+        return;
+    }
+    v_2 = array_of(v, PF_DEVICE_CONSTANTS);
+    prim_result = v_2;
+    prim_status = PS_OK;
+}
+
+/* PlatformPrimitives>>primDeviceIoctl */
+void prim_device_ioctl(void)
+{
+    bool r_args;
+    int32_t r_fd_arg;
+    int64_t fd_2;
+    int32_t fd;
+    uint64_t local;
+    uint64_t *request;
+    uint64_t local_2;
+    uint64_t *argument;
+    int64_t r;
+    uint64_t v;
+    if (!({
+    bad = false;
+    r_args = prim_nargs == 3;
+    r_args; })) {
+        prim_status = PS_FAIL;
+        prim_error_code = -1;
+        return;
+    }
+    fd = ({
+    fd_2 = int_arg(0);
+    if ((fd_2 < -2147483648) || (fd_2 > 0x7FFFFFFF)) {
+        bad = true;
+    }
+    r_fd_arg = (int32_t)fd_2;
+    r_fd_arg; });
+    memset(&local, 0, sizeof local);
+    request = &local;
+    memset(&local_2, 0, sizeof local_2);
+    argument = &local_2;
+    if (bad || ((!word_of(prim_base[2], request)) || (!word_of(prim_base[3], argument)))) {
+        prim_status = PS_FAIL;
+        prim_error_code = -1;
+        return;
+    }
+    r = device_ioctl(fd, *request, *argument);
+    if (r == PF_NO_DEVICES) {
+        prim_status = PS_FAIL;
+        prim_error_code = -1;
+        goto exit_answer_device_result;
+    }
+    v = int64_oop(r);
+    prim_result = v;
+    prim_status = PS_OK;
+exit_answer_device_result:;
+}
+
+/* PlatformPrimitives>>primDeviceMap */
+void prim_device_map(void)
+{
+    bool r_args;
+    int64_t length;
+    int32_t r_fd_arg;
+    int64_t fd_2;
+    int32_t prot;
+    int32_t r_fd_arg_2;
+    int64_t fd_3;
+    int32_t flags;
+    int32_t r_fd_arg_3;
+    int64_t fd_4;
+    int32_t fd;
+    int64_t offset;
+    int64_t r;
+    uint64_t v;
+    if (!({
+    bad = false;
+    r_args = prim_nargs == 5;
+    r_args; })) {
+        prim_status = PS_FAIL;
+        prim_error_code = -1;
+        return;
+    }
+    length = int_arg(0);
+    prot = ({
+    fd_2 = int_arg(1);
+    if ((fd_2 < -2147483648) || (fd_2 > 0x7FFFFFFF)) {
+        bad = true;
+    }
+    r_fd_arg = (int32_t)fd_2;
+    r_fd_arg; });
+    flags = ({
+    fd_3 = int_arg(2);
+    if ((fd_3 < -2147483648) || (fd_3 > 0x7FFFFFFF)) {
+        bad = true;
+    }
+    r_fd_arg_2 = (int32_t)fd_3;
+    r_fd_arg_2; });
+    fd = ({
+    fd_4 = int_arg(3);
+    if ((fd_4 < -2147483648) || (fd_4 > 0x7FFFFFFF)) {
+        bad = true;
+    }
+    r_fd_arg_3 = (int32_t)fd_4;
+    r_fd_arg_3; });
+    offset = int_arg(4);
+    if (bad || ((length < 0) || (offset < 0))) {
+        prim_status = PS_FAIL;
+        prim_error_code = -1;
+        return;
+    }
+    r = device_map((uint64_t)length, prot, flags, fd, offset);
+    if (r == PF_NO_DEVICES) {
+        prim_status = PS_FAIL;
+        prim_error_code = -1;
+        goto exit_answer_device_result;
+    }
+    v = int64_oop(r);
+    prim_result = v;
+    prim_status = PS_OK;
+exit_answer_device_result:;
+}
+
+/* PlatformPrimitives>>primDeviceOpen */
+void prim_device_open(void)
+{
+    bool r_args;
+    int32_t r_fd_arg;
+    int64_t fd;
+    int32_t flags;
+    char *path;
+    int64_t r;
+    uint64_t v;
+    if (!({
+    bad = false;
+    r_args = prim_nargs == 2;
+    r_args; })) {
+        prim_status = PS_FAIL;
+        prim_error_code = -1;
+        return;
+    }
+    flags = ({
+    fd = int_arg(1);
+    if ((fd < -2147483648) || (fd > 0x7FFFFFFF)) {
+        bad = true;
+    }
+    r_fd_arg = (int32_t)fd;
+    r_fd_arg; });
+    if (bad) {
+        prim_status = PS_FAIL;
+        prim_error_code = -1;
+        return;
+    }
+    path = string_arg(0);
+    if (bad) {
+        prim_status = PS_FAIL;
+        prim_error_code = -1;
+        return;
+    }
+    r = device_open(path, flags);
+    free(path);
+    if (r == PF_NO_DEVICES) {
+        prim_status = PS_FAIL;
+        prim_error_code = -1;
+        goto exit_answer_device_result;
+    }
+    v = int64_oop(r);
+    prim_result = v;
+    prim_status = PS_OK;
+exit_answer_device_result:;
+}
+
+/* PlatformPrimitives>>primDeviceUnmap */
+void prim_device_unmap(void)
+{
+    bool r_args;
+    uint64_t local;
+    uint64_t *a;
+    int64_t length;
+    int64_t r;
+    uint64_t v;
+    if (!({
+    bad = false;
+    r_args = prim_nargs == 2;
+    r_args; })) {
+        prim_status = PS_FAIL;
+        prim_error_code = -1;
+        return;
+    }
+    memset(&local, 0, sizeof local);
+    a = &local;
+    length = int_arg(1);
+    if (bad || ((length < 0) || (!u64_of(prim_base[1], a)))) {
+        prim_status = PS_FAIL;
+        prim_error_code = -1;
+        return;
+    }
+    r = device_unmap(*a, (uint64_t)length);
+    if (r == PF_NO_DEVICES) {
+        prim_status = PS_FAIL;
+        prim_error_code = -1;
+        goto exit_answer_device_result;
+    }
+    v = int64_oop(r);
+    prim_result = v;
+    prim_status = PS_OK;
+exit_answer_device_result:;
+}
+
 /* PlatformPrimitives>>primDirCreate */
 void prim_dir_create(void)
 {

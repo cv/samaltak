@@ -494,6 +494,7 @@ typedef void (*prim_fn)(void);
 #define PF_BUFUSE_INDEX 2
 #define PF_BUFUSE_STORAGE 4
 #define PF_BUFUSE_VERTEX 1
+#define PF_DEVICE_CONSTANTS 13
 #define PF_EVENT_QUEUE_MAX 4096
 #define PF_EV_DISPLAY_SCALE_CHANGED 13
 #define PF_EV_FOCUS_GAINED 11
@@ -523,6 +524,7 @@ typedef void (*prim_fn)(void);
 #define PF_MOD_CMD 8
 #define PF_MOD_CTRL 2
 #define PF_MOD_SHIFT 1
+#define PF_NO_DEVICES -1073741824
 #define PF_POLL_US 1000
 #define PF_PRIM_LINES 2
 #define PF_PRIM_LINE_STRIP 3
@@ -2071,6 +2073,12 @@ int32_t platform_common_table_add_pointer(pf_table *t, int kind, void *ptr);
 pf_obj *platform_common_table_at_kind(pf_table *t, int32_t h, int kind);
 int32_t platform_common_table_count(pf_table *t, int kind);
 void platform_common_table_remove(pf_table *t, int32_t h);
+int64_t device_close(int32_t fd);
+bool device_constants(int64_t *v);
+int64_t device_ioctl(int32_t fd, uint64_t request, uint64_t argument);
+int64_t device_map(uint64_t length, int32_t prot, int32_t flags, int32_t fd, int64_t offset);
+int64_t device_open(char *path, int32_t flags);
+int64_t device_unmap(uint64_t address, uint64_t length);
 int64_t dropped(void);
 bool platform_events_next(pf_event *out);
 void pump(void);
@@ -2145,6 +2153,12 @@ void prim_clipboard_data(void);
 void prim_clipboard_get(void);
 void prim_clipboard_set(void);
 void prim_cwd(void);
+void prim_device_close(void);
+void prim_device_constants(void);
+void prim_device_ioctl(void);
+void prim_device_map(void);
+void prim_device_open(void);
+void prim_device_unmap(void);
 void prim_dir_create(void);
 void prim_dir_entries(void);
 void prim_dropped_events(void);

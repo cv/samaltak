@@ -1607,6 +1607,86 @@ primMachineWatch
 	self answerOk: (machine watchEvent: e value semaphore: i asInt32)
 ! !
 
+!PlatformPrimitives methodsFor: 'devices'!
+answerDeviceResult: r
+	"A device call's result: an Integer, negative (minus errno) where the call failed; fail where there are no devices."
+	<var: #r type: 'int64_t'>
+	r = PF_NO_DEVICES ifTrue: [^self fail].
+	self answer: (memory int64Oop: r)
+!
+fdArg: i
+	"A descriptor argument (a SmallInteger fitting an int; bad set otherwise)."
+	| fd |
+	fd := self intArg: i.
+	(fd < -16r80000000 or: [fd > 16r7FFFFFFF]) ifTrue: [bad := true].
+	^fd asInt32
+!
+primDeviceOpen
+	"path flags (the host's open flags) -> the descriptor, or minus errno"
+	<vmPrimitive: 590 name: 'deviceOpen'>
+	| path flags r |
+	(self args: 2) ifFalse: [^self fail].
+	flags := self fdArg: 1.
+	bad ifTrue: [^self fail].
+	path := self stringArg: 0.
+	bad ifTrue: [^self fail].
+	r := devices deviceOpen: path flags: flags.
+	libc free: path.
+	self answerDeviceResult: r
+!
+primDeviceClose
+	"fd -> 0, or minus errno"
+	<vmPrimitive: 591 name: 'deviceClose'>
+	| fd |
+	(self args: 1) ifFalse: [^self fail].
+	fd := self fdArg: 0.
+	bad ifTrue: [^self fail].
+	self answerDeviceResult: (devices deviceClose: fd)
+!
+primDeviceIoctl
+	"fd request argument (a word: an Integer, an address, nil 0) -> ioctl's result, or minus errno"
+	<vmPrimitive: 592 name: 'deviceIoctl'>
+	| fd request argument |
+	(self args: 3) ifFalse: [^self fail].
+	fd := self fdArg: 0.
+	request := self local: 'uint64_t'.
+	argument := self local: 'uint64_t'.
+	(bad or: [(self wordOf: (self arg: 1) into: request) not or: [(self wordOf: (self arg: 2) into: argument) not]]) ifTrue: [^self fail].
+	self answerDeviceResult: (devices deviceIoctl: fd request: request value argument: argument value)
+!
+primDeviceMap
+	"length protection flags fd offset (the host's PROT_ and MAP_ values) -> the address of the mapping, or minus errno"
+	<vmPrimitive: 593 name: 'deviceMap'>
+	| length prot flags fd offset |
+	(self args: 5) ifFalse: [^self fail].
+	length := self intArg: 0.
+	prot := self fdArg: 1.
+	flags := self fdArg: 2.
+	fd := self fdArg: 3.
+	offset := self intArg: 4.
+	(bad or: [length < 0 or: [offset < 0]]) ifTrue: [^self fail].
+	self answerDeviceResult: (devices deviceMap: length asUInt64 protection: prot flags: flags fd: fd offset: offset)
+!
+primDeviceUnmap
+	"address length -> 0, or minus errno"
+	<vmPrimitive: 594 name: 'deviceUnmap'>
+	| a length |
+	(self args: 2) ifFalse: [^self fail].
+	a := self local: 'uint64_t'.
+	length := self intArg: 1.
+	(bad or: [length < 0 or: [(memory u64Of: (self arg: 0) into: a) not]]) ifTrue: [^self fail].
+	self answerDeviceResult: (devices deviceUnmap: a value length: length asUInt64)
+!
+primDeviceConstants
+	"-> {O_RDONLY. O_WRONLY. O_RDWR. O_CLOEXEC. O_NONBLOCK. O_NOCTTY. PROT_READ. PROT_WRITE. MAP_SHARED. MAP_PRIVATE. FIONREAD. TIOCGWINSZ. TIOCSWINSZ}, the host's values; fails where there are no devices (UEFI)"
+	<vmPrimitive: 595 name: 'deviceConstants'>
+	| v |
+	(self args: 0) ifFalse: [^self fail].
+	v := self local: 'int64_t[PF_DEVICE_CONSTANTS]'.
+	(devices deviceConstants: v) ifFalse: [^self fail].
+	self answer: (self arrayOf: v count: PF_DEVICE_CONSTANTS)
+! !
+
 !PlatformPrimitives methodsFor: 'raster'!
 slot: a at: i
 	"SmallInteger slot i of a (bad set if it is none)."

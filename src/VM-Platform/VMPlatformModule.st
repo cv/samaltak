@@ -1,6 +1,6 @@
 VMPrimitiveModule subclass: #VMPlatformModule
-	instanceVariableNames: 'common events windows gpu files sockets ptys tls vsync host sdlPlatform sdl sdlGpu posixIO posixProcesses posixSockets posixThreads machine raster'
-	classVariableNames: 'PF_BLEND_ALPHA PF_BLEND_NONE PF_BLEND_PREMULTIPLIED PF_BUFUSE_INDEX PF_BUFUSE_STORAGE PF_BUFUSE_VERTEX PF_EVENT_QUEUE_MAX PF_EV_DISPLAY_SCALE_CHANGED PF_EV_FOCUS_GAINED PF_EV_FOCUS_LOST PF_EV_KEY_DOWN PF_EV_KEY_UP PF_EV_MOUSE_DOWN PF_EV_MOUSE_LEAVE PF_EV_MOUSE_MOVE PF_EV_MOUSE_UP PF_EV_QUIT PF_EV_TEXT_EDITING PF_EV_TEXT_INPUT PF_EV_WHEEL PF_EV_WINDOW_CLOSE_REQUEST PF_EV_WINDOW_EXPOSED PF_EV_WINDOW_RESIZED PF_FD_PTY PF_FD_SOCKET PF_FD_TLS PF_FILE_APPEND PF_FILE_CREATE_TRUNCATE PF_FILE_READ PF_FILE_READ_WRITE PF_HANDLE_COUNTS PF_MOD_ALT PF_MOD_CMD PF_MOD_CTRL PF_MOD_SHIFT PF_POLL_US PF_PRIM_LINES PF_PRIM_LINE_STRIP PF_PRIM_POINTS PF_PRIM_TRIANGLES PF_PRIM_TRIANGLE_STRIP PF_STAGE_FRAGMENT PF_STAGE_VERTEX PF_TEXUSE_COLOR_TARGET PF_TEXUSE_SAMPLER PF_TEX_BGRA8 PF_TEX_R8 PF_TEX_RGBA8 PF_VA_FLOAT PF_VA_FLOAT2 PF_VA_FLOAT3 PF_VA_FLOAT4 PF_VA_INT PF_VA_UBYTE4 PF_VA_UBYTE4_NORM PF_VA_UINT PF_WIN_HIDDEN PF_WIN_HIGH_DENSITY PF_WIN_RESIZABLE PF_X_BOOL PF_X_INT PF_X_NIL PF_X_POINT PF_X_TEXT'
+	instanceVariableNames: 'common events windows gpu files sockets ptys tls vsync host sdlPlatform sdl sdlGpu posixIO posixProcesses posixSockets posixThreads machine raster devices'
+	classVariableNames: 'PF_BLEND_ALPHA PF_BLEND_NONE PF_BLEND_PREMULTIPLIED PF_BUFUSE_INDEX PF_BUFUSE_STORAGE PF_BUFUSE_VERTEX PF_DEVICE_CONSTANTS PF_EVENT_QUEUE_MAX PF_NO_DEVICES PF_EV_DISPLAY_SCALE_CHANGED PF_EV_FOCUS_GAINED PF_EV_FOCUS_LOST PF_EV_KEY_DOWN PF_EV_KEY_UP PF_EV_MOUSE_DOWN PF_EV_MOUSE_LEAVE PF_EV_MOUSE_MOVE PF_EV_MOUSE_UP PF_EV_QUIT PF_EV_TEXT_EDITING PF_EV_TEXT_INPUT PF_EV_WHEEL PF_EV_WINDOW_CLOSE_REQUEST PF_EV_WINDOW_EXPOSED PF_EV_WINDOW_RESIZED PF_FD_PTY PF_FD_SOCKET PF_FD_TLS PF_FILE_APPEND PF_FILE_CREATE_TRUNCATE PF_FILE_READ PF_FILE_READ_WRITE PF_HANDLE_COUNTS PF_MOD_ALT PF_MOD_CMD PF_MOD_CTRL PF_MOD_SHIFT PF_POLL_US PF_PRIM_LINES PF_PRIM_LINE_STRIP PF_PRIM_POINTS PF_PRIM_TRIANGLES PF_PRIM_TRIANGLE_STRIP PF_STAGE_FRAGMENT PF_STAGE_VERTEX PF_TEXUSE_COLOR_TARGET PF_TEXUSE_SAMPLER PF_TEX_BGRA8 PF_TEX_R8 PF_TEX_RGBA8 PF_VA_FLOAT PF_VA_FLOAT2 PF_VA_FLOAT3 PF_VA_FLOAT4 PF_VA_INT PF_VA_UBYTE4 PF_VA_UBYTE4_NORM PF_VA_UINT PF_WIN_HIDDEN PF_WIN_HIGH_DENSITY PF_WIN_RESIZABLE PF_X_BOOL PF_X_INT PF_X_NIL PF_X_POINT PF_X_TEXT'
 	package: 'VM-Platform'!
 
 VMPlatformModule comment: 'I am the abstract class of the platform layer''s modules (SDL3 windows and input, SDL_GPU, files, sockets, TLS, pseudo-terminals): I connect them to each other and to their C libraries and hold the constants of their C interface (the PF_ names). The internals use handles, small positive ints (0 = failure, see last_error_string), and run on the VM thread unless their comment says otherwise. PlatformPrimitives wraps them as primitives; SDLPlatform implements PlatformInterface with them; PlatformHost holds what differs between operating systems.
@@ -12,7 +12,7 @@ declarations
 	^#((common PlatformCommon) (events PlatformEvents) (windows PlatformWindows) (gpu PlatformGPU) (files PlatformFiles)
 		(sockets PlatformSockets) (ptys PlatformPtys) (tls PlatformTLS) (vsync PlatformVsync) (host PlatformHost) (sdlPlatform SDLPlatform)
 		(sdl SDL) (sdlGpu SDLGPU) (posixIO PosixIO) (posixProcesses PosixProcesses)
-		(posixSockets PosixSockets) (posixThreads PosixThreads) (machine PlatformMachine) (raster PlatformRaster))
+		(posixSockets PosixSockets) (posixThreads PosixThreads) (machine PlatformMachine) (raster PlatformRaster) (devices PlatformDevices))
 !
 isAbstractModule
 	^self == VMPlatformModule
@@ -87,5 +87,9 @@ initialize
 	"platform_interface_poll cadence while Smalltalk runs and OS events or sockets may arrive"
 	PF_POLL_US := 1000.
 	"live handles: files sockets windows gpuDevices shaders pipelines textures samplers buffers fences ptys"
-	PF_HANDLE_COUNTS := 11
+	PF_HANDLE_COUNTS := 11.
+	"devices: the host constants PlatformDevices>>deviceConstants: fills"
+	PF_DEVICE_CONSTANTS := 13.
+	"what a device call answers where there are no devices (UEFI): no errno"
+	PF_NO_DEVICES := -16r40000000
 ! !

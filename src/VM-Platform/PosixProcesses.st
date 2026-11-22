@@ -71,6 +71,14 @@ TIOCSWINSZ
 	<cMacro: 'unsigned long TIOCSWINSZ'>
 	^self notSimulated
 !
+TIOCGWINSZ
+	<cMacro: 'unsigned long TIOCGWINSZ'>
+	^self notSimulated
+!
+FIONREAD
+	<cMacro: 'unsigned long FIONREAD'>
+	^self notSimulated
+!
 getdtablesize
 	<c: 'int getdtablesize(void)'>
 	^self notSimulated

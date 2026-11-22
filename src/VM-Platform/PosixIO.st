@@ -178,6 +178,10 @@ O_CLOEXEC
 	<cMacro: 'int O_CLOEXEC'>
 	^16r1000000
 !
+O_NOCTTY
+	<cMacro: 'int O_NOCTTY'>
+	^16r20000
+!
 SEEK_SET
 	<cMacro: 'int SEEK_SET'>
 	^0
