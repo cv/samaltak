@@ -74,6 +74,10 @@ shaderLanguage
 	"What the device under test answers for shaderLanguage:."
 	^'software'
 !
+isSynchronous
+	"Whether the device under test has done the work when submit answers (a SoftwareGPU)."
+	^true
+!
 pipelineBlend: blend
 	| vs fs |
 	vs := gpu createShader: dev source: 'vertex' entry: 'vmain' stage: 0 samplers: 0 uniformBuffers: 1 storageBuffers: 0 storageTextures: 0.
@@ -554,8 +558,9 @@ testClearAndAFence
 	pass := gpu beginPass: cmd target: t clear: #(1.0 0.5 0.0 1.0).
 	gpu endPass: pass.
 	f := gpu submit: cmd fence: true.
-	self assert: (gpu fenceDone: f).
+	self isSynchronous ifTrue: [self assert: (gpu fenceDone: f)].
 	gpu waitFence: f.
+	self assert: (gpu fenceDone: f).
 	self assert: (gpu fenceElapsed: f) >= 0.
 	self assert: (self pixelsOf: t) equals: (Array new: 4 withAll: (self word: 255 g: 128 b: 0 a: 255)).
 	gpu release: f.

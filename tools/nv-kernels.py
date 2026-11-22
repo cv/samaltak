@@ -24,7 +24,8 @@ FLAGS = ['-cubin', '-arch=sm_121', '-O3', '-fmad=false']
 # kernel -> (parameter struct, threads per block it is written for)
 KERNELS = [('raster_prims', 'RasterDrawParams', 256), ('raster_tiles', 'RasterDrawParams', 256),
            ('raster_fill', 'RasterFillParams', 256), ('raster_copy', 'RasterCopyParams', 256),
-           ('raster_blit', 'RasterBlitParams', 256)]
+           ('raster_blit', 'RasterBlitParams', 256), ('raster_batch_prims', 'RasterBatchParams', 256),
+           ('raster_batch_tiles', 'RasterBatchParams', 256)]
 TYPES = {'uint64_t': ('uint64', 8), 'int64_t': ('int64', 8), 'double': ('float64', 8), 'int32_t': ('int32', 4),
          'uint32_t': ('uint32', 4)}
 CHUNK = 4096  # Base64 characters per string literal (a multiple of 4: each decodes on its own)

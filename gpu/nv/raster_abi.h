@@ -100,4 +100,26 @@ typedef struct {
 	int32_t pad;
 } RasterDrawParams;
 
+/* raster_batch_prims then raster_batch_tiles, with the same parameters: drawCount draws into one target, in order (a
+ * pass's), drawn as each one's raster_prims and raster_tiles after the other would draw them.
+ * draws: drawCount RasterDrawParams (prims unused; pixels, width, height and format the same in all).
+ * slotStarts: drawCount + 1 int64, draw d's primitive slots (count / 3) being slotStarts[d] .. slotStarts[d + 1] - 1
+ * of the batch's, slots = slotStarts[drawCount].
+ * prims: scratch of RASTER_BATCH_SLOT_BYTES * slots bytes, written by raster_batch_prims, read by raster_batch_tiles.
+ * clipX0 clipY0 clipX1 clipY1: a rectangle that holds every draw's clip (the union of their scissors within the target).
+ * raster_batch_prims: any grid, x over the slots, block 256. raster_batch_tiles: block RASTER_TILE_THREADS, any grid: x
+ * over the 16 x 16 tiles of the clip rectangle. */
+#define RASTER_BATCH_SLOT_BYTES 408
+typedef struct {
+	uint64_t draws;
+	uint64_t slotStarts;
+	uint64_t prims;
+	int64_t drawCount;
+	int64_t slots;
+	int64_t clipX0;
+	int64_t clipY0;
+	int64_t clipX1;
+	int64_t clipY1;
+} RasterBatchParams;
+
 #endif

@@ -13,6 +13,8 @@
     targets, the three blends, nearest/linear, clamp/repeat, quads at any position and scale and the 1:1 ones, triangles
     positioned explicitly or by quad corner, scissors, viewports, translations), blits, copies and fills; the GPU must
     equal the reference without contraction, byte for byte. It prints how many primitives took each path.
+  - `replay fuzzbatch <cubin> <cases> [seed]`: the same draws, 1 to 6 a case into one target, launched as one batch
+    (`raster_batch_prims`, `raster_batch_tiles`) against the reference applying them one after another.
   - `replay replay <cubin> <record> [timing passes]`: replays a record of what a SoftwareGPU got and produced (textures,
     buffers, uploads, clears, draws, blits, each pass's target at its end, each presented frame) on the GPU and on both
     references; at each pass end and frame it compares the GPU, the references and the recorded pixels (then carries on

@@ -21,6 +21,7 @@ for m in off fma; do
 done
 $CXX -O2 -std=c++17 -I"$CUDA/include" tests/nv/replay.cpp "$NV/ref_off.o" "$NV/ref_fma.o" -o "$NV/replay" -lcuda
 "$NV/replay" fuzz "$NV/raster.cubin" "${NV_FUZZ:-20000}"
+"$NV/replay" fuzzbatch "$NV/raster.cubin" "${NV_FUZZ:-20000}"
 NV_RECORD="$NV/world.nvrec" NV_FRAMES="${NV_FRAMES:-6}" vm/build/samaltak "$OUT/samaltak.image" --headless --eval "$(cat tests/nv/record.st)"
 "$NV/replay" replay "$NV/raster.cubin" "$NV/world.nvrec" 3
 # the same frames through the image's NvComputeGPU (Graphics-NV: System-NV launching the kernels) and its SoftwareGPU

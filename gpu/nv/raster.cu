@@ -13,6 +13,9 @@
  *                 primitives whose rectangle meets the tile, then each thread applies them to its pixel, held in a
  *                 register, in that order. A pixel sees the same sequence of operations as in the reference, so the
  *                 result is the same (every path's value for a pixel depends only on that pixel and the primitive).
+ * raster_batch_prims and raster_batch_tiles do the same for a pass's draws into one target at once (RasterBatchParams):
+ * the slots of all draws in order, each record with its draw, one tile pass over all of them, each primitive applied
+ * with its own draw's state; a pixel still sees the same sequence of operations.
  * No globals, constants or device-side runtime calls: everything comes in the parameter struct, so a launcher needs
  * only the cubin, the entry names and the parameter layouts. */
 #include "raster_abi.h"
@@ -451,6 +454,18 @@ __device__ __forceinline__ Prim *slot_prim(const RasterDrawParams &st, i64 nslot
 	return (Prim *)((u8 *)st.prims + RASTER_SCRATCH_HEADER + nslots * 16 + n * PRIM_RECORD_BYTES);
 }
 
+/* Slot n of a draw (prepared into c): its record in p and the rectangle it covers (all 0: nothing). */
+__device__ __forceinline__ int4 prim_slot(const RasterDrawParams &st, const Ctx &c, i64 n, Prim &p)
+{
+	i64 k = st.first + 3 * n, last = st.first + st.count;
+	p.kind = K_NONE;
+	if (k % 6 == 0 && k + 6 <= last && is_quad(vertex(st, k)))
+		setup_quad(c, vertex(st, k), p);
+	else if (!(k % 6 == 3 && k - 3 >= st.first && k + 3 <= last && is_quad(vertex(st, k - 3))))
+		setup_triangle(c, st, k, p);
+	return p.kind != K_NONE ? make_int4(p.x0, p.y0, p.x1, p.y1) : make_int4(0, 0, 0, 0);
+}
+
 extern "C" __global__ void __launch_bounds__(256) raster_prims(const RasterDrawParams st)
 {
 	Ctx c;
@@ -461,24 +476,53 @@ extern "C" __global__ void __launch_bounds__(256) raster_prims(const RasterDrawP
 		clip[0] = ok ? c.cx0 : 0; clip[1] = ok ? c.cy0 : 0; clip[2] = ok ? c.cx1 : 0; clip[3] = ok ? c.cy1 : 0;
 	}
 	if (!ok) return;
-	i64 nslots = st.count / 3, last = st.first + st.count;
+	i64 nslots = st.count / 3;
 	for (i64 n = (i64)blockIdx.x * blockDim.x + threadIdx.x; n < nslots; n += (i64)gridDim.x * blockDim.x) {
-		i64 k = st.first + 3 * n;
 		Prim p;
-		p.kind = K_NONE;
-		if (k % 6 == 0 && k + 6 <= last && is_quad(vertex(st, k)))
-			setup_quad(c, vertex(st, k), p);
-		else if (!(k % 6 == 3 && k - 3 >= st.first && k + 3 <= last && is_quad(vertex(st, k - 3))))
-			setup_triangle(c, st, k, p);
-		int4 box = make_int4(0, 0, 0, 0);
-		if (p.kind != K_NONE) box = make_int4(p.x0, p.y0, p.x1, p.y1);
-		slot_boxes(st)[n] = box;
+		slot_boxes(st)[n] = prim_slot(st, c, n, p);
 		*slot_prim(st, nslots, n) = p;
 	}
 }
 
+/* A batch's scratch: each slot's rectangle, each slot's draw, each slot's record. */
+__device__ __forceinline__ int4 *batch_boxes(const RasterBatchParams &b) { return (int4 *)b.prims; }
+__device__ __forceinline__ int *batch_draws(const RasterBatchParams &b) { return (int *)((u8 *)b.prims + b.slots * 16); }
+__device__ __forceinline__ Prim *batch_prim(const RasterBatchParams &b, i64 n)
+{
+	return (Prim *)((u8 *)b.prims + b.slots * 16 + ((b.slots * 4 + 7) & ~7LL) + n * PRIM_RECORD_BYTES);
+}
+
+/* The draw slot n belongs to: the last d with slotStarts[d] <= n (draws without slots start where the next does). */
+__device__ __forceinline__ i64 draw_of_slot(const i64 *starts, i64 drawCount, i64 n)
+{
+	i64 lo = 0, hi = drawCount - 1;
+	while (lo < hi) {
+		i64 mid = (lo + hi + 1) >> 1;
+		if (starts[mid] <= n) lo = mid; else hi = mid - 1;
+	}
+	return lo;
+}
+
+extern "C" __global__ void __launch_bounds__(256) raster_batch_prims(const RasterBatchParams b)
+{
+	const RasterDrawParams *draws = (const RasterDrawParams *)b.draws;
+	const i64 *starts = (const i64 *)b.slotStarts;
+	for (i64 n = (i64)blockIdx.x * blockDim.x + threadIdx.x; n < b.slots; n += (i64)gridDim.x * blockDim.x) {
+		i64 d = draw_of_slot(starts, b.drawCount, n);
+		const RasterDrawParams st = draws[d];
+		Ctx c;
+		Prim p;
+		p.kind = K_NONE;
+		int4 box = make_int4(0, 0, 0, 0);
+		if (prepare(st, c)) box = prim_slot(st, c, n - starts[d], p);
+		batch_boxes(b)[n] = box;
+		batch_draws(b)[n] = (int)d;
+		*batch_prim(b, n) = p;
+	}
+}
+
 /* The new value of pixel d at (px, py), inside primitive p's rectangle. */
-__device__ u32 apply(const Ctx &c, const Prim *__restrict__ pp, i64 px, i64 py, u32 d)
+__device__ __forceinline__ u32 apply(const Ctx &c, const Prim *__restrict__ pp, i64 px, i64 py, u32 d)
 {
 	int kind = pp->kind;
 	u32 color = pp->color;
@@ -651,6 +695,68 @@ extern "C" __global__ void __launch_bounds__(RASTER_TILE_THREADS) raster_tiles(c
 					if (px >= bb.x && px < bb.z && py >= bb.y && py < bb.w) {
 						if (!touched) { d = *dp; touched = true; }
 						d = apply(c, slot_prim(st, nslots, list[q]), px, py, d);
+					}
+				}
+			__syncthreads();
+		}
+		if (touched) *dp = d;
+	}
+}
+
+extern "C" __global__ void __maxnreg__(128) raster_batch_tiles(const RasterBatchParams b)
+{
+	__shared__ int list[RASTER_TILE_THREADS];
+	__shared__ int listDraws[RASTER_TILE_THREADS];
+	__shared__ int4 boxes[RASTER_TILE_THREADS];
+	__shared__ int counts[RASTER_TILE_THREADS / 32];
+	if (b.slots <= 0 || !(b.clipX0 < b.clipX1 && b.clipY0 < b.clipY1)) return;
+	const RasterDrawParams *draws = (const RasterDrawParams *)b.draws;
+	u8 *pixels = (u8 *)draws[0].pixels;
+	i64 width = draws[0].width;
+	i64 nslots = b.slots;
+	int tid = threadIdx.x, lane = tid & 31, warp = tid >> 5;
+	i64 tilesX = (b.clipX1 - b.clipX0 + RASTER_TILE - 1) / RASTER_TILE, tilesY = (b.clipY1 - b.clipY0 + RASTER_TILE - 1) / RASTER_TILE;
+	const int4 *slotBoxes = batch_boxes(b);
+	const int *slotDraws = batch_draws(b);
+	for (i64 tile = blockIdx.x; tile < tilesX * tilesY; tile += gridDim.x) {
+		int tx0 = (int)(b.clipX0 + (tile % tilesX) * RASTER_TILE), ty0 = (int)(b.clipY0 + (tile / tilesX) * RASTER_TILE);
+		int tx1 = min(tx0 + RASTER_TILE, (int)b.clipX1), ty1 = min(ty0 + RASTER_TILE, (int)b.clipY1);
+		int px = tx0 + (tid % RASTER_TILE), py = ty0 + (tid / RASTER_TILE);
+		bool inside = px < tx1 && py < ty1;
+		u32 *dp = (u32 *)(pixels + ((i64)py * width + px) * 4);
+		u32 d = 0;
+		bool touched = false;
+		for (i64 base = 0; base < nslots; base += RASTER_TILE_THREADS) {
+			i64 s = base + tid;
+			int4 bx = make_int4(0, 0, 0, 0);
+			bool hit = false;
+			if (s < nslots) {
+				bx = slotBoxes[s];
+				hit = bx.x < tx1 && bx.z > tx0 && bx.y < ty1 && bx.w > ty0;
+			}
+			unsigned ballot = __ballot_sync(0xFFFFFFFFu, hit);
+			if (lane == 0) counts[warp] = __popc(ballot);
+			__syncthreads();
+			int off = 0, total = 0;
+			for (int w = 0; w < RASTER_TILE_THREADS / 32; w++) {
+				if (w < warp) off += counts[w];
+				total += counts[w];
+			}
+			if (hit) {
+				int at = off + __popc(ballot & ((1u << lane) - 1u));
+				list[at] = (int)s;
+				listDraws[at] = slotDraws[s];
+				boxes[at] = bx;
+			}
+			__syncthreads();
+			if (inside)
+				for (int q = 0; q < total; q++) {
+					int4 bb = boxes[q];
+					if (px >= bb.x && px < bb.z && py >= bb.y && py < bb.w) {
+						if (!touched) { d = *dp; touched = true; }
+						Ctx c;
+						prepare_target(draws[listDraws[q]], c);
+						d = apply(c, batch_prim(b, list[q]), px, py, d);
 					}
 				}
 			__syncthreads();
