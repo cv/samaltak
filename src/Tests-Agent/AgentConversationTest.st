@@ -46,6 +46,16 @@ frameOf: x
 	y := x + 1.
 	Processor activeProcess suspend.
 	frameResult := y
+!
+tests: names call: anId
+	^Dictionary new
+		at: 'type' put: 'function_call';
+		at: 'id' put: 'fc_', anId;
+		at: 'call_id' put: anId;
+		at: 'name' put: 'run-tests';
+		at: 'arguments' put: (JSON render: (Dictionary new at: 'names' put: names; yourself));
+		at: 'status' put: 'completed';
+		yourself
 ! !
 
 !AgentConversationTest methodsFor: 'tests'!
@@ -87,7 +97,7 @@ testTurnWithCellsAndShow
 	self assert: provider requests size equals: 4.
 	self assert: (provider requests first collect: [:each | each at: 'role']) equals: #('developer' 'user').
 	self assert: ((provider requests first first at: 'content') first at: 'text') equals: (AgentInstructions textFor: conversation context).
-	self assert: (provider toolSpecs collect: [:each | each at: 'name']) equals: #('code-mode' 'show-object').
+	self assert: (provider toolSpecs collect: [:each | each at: 'name']) equals: #('code-mode' 'show-object' 'run-tests').
 	second := provider requests at: 2.
 	self assert: second size equals: 4.
 	self assert: ((second at: 3) at: 'call_id') equals: 'c1'.
@@ -354,6 +364,46 @@ testTurnUsageCountsRequestsOfTheTurn
 	self assert: ((c turnUsage at: 'input_tokens_details') at: 'cached_tokens') = 80.
 	self assert: c contextTokens = 150.
 	self assert: (c usage at: 'output_tokens') = 50
+!
+testRunTests
+	| item |
+	provider reply: (Array with: (self tests: #('JSONTest') call: 'c1')).
+	provider reply: (Array with: (self message: 'Green.')).
+	self assert: (conversation ask: 'run the JSON tests'; wait) equals: 'Green.'.
+	self assert: (conversation items collect: [:each | each kind]) asArray equals: #(#user #tests #assistant).
+	item := conversation items at: 2.
+	self assert: item text equals: 'TestCase runNamed: #(''JSONTest'')'.
+	self assert: (item object isKindOf: TestResult).
+	self assert: item object hasPassed.
+	self assert: item objectId equals: 'o1'.
+	self assert: item result equals: 'o1 ', item object printString.
+	self deny: item failed.
+	self assert: ((provider requests last at: 4) at: 'type') equals: 'function_call_output'
+!
+testRunTestsUnknownName
+	| item |
+	provider reply: (Array with: (self tests: #('JSONTest' 'NoSuchTest') call: 'c1')).
+	provider reply: (Array with: (self message: 'ok')).
+	conversation ask: 'run them'; wait.
+	item := conversation items at: 2.
+	self assert: item failed.
+	self assert: item result equals: 'error: no test class or package of test classes named NoSuchTest'
+!
+testRunTestsReportsFailuresAndErrors
+	| result tool output |
+	result := TestResult new.
+	result record: #passed -> nil for: (AgentConversationTest selector: #testBusy).
+	result record: #failure -> 'Expected 1 but was 2' for: (AgentConversationTest selector: #testFrame).
+	result record: #error -> 'ZeroDivide' for: (AgentConversationTest selector: #testTimeout).
+	tool := RunTestsTool new.
+	output := tool output: result id: 'o3' timedOut: false.
+	self assert: output lines asArray equals: {
+		'o3 a TestResult(3 run, 1 passed, 1 failed, 1 errors)'.
+		'FAIL ', (AgentConversationTest selector: #testFrame) printString, ': Expected 1 but was 2'.
+		'ERROR ', (AgentConversationTest selector: #testTimeout) printString, ': ZeroDivide'}.
+	self assert: ((tool output: result id: 'o3' timedOut: true) lines first endsWith: '(stopped after 300 s; the rest did not run)').
+	tool limit: 20.
+	self assert: ((tool output: result id: 'o3' timedOut: false) endsWith: 'characters in all; o3 failures and o3 errors hold every one]')
 ! !
 
 !AgentConversationTest methodsFor: 'tests - contexts'!

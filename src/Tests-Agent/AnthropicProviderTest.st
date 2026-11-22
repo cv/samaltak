@@ -394,7 +394,7 @@ testToolRoundTripThroughAConversation
 		at: 'text' put: (AgentInstructions textFor: conversation context);
 		at: 'cache_control' put: (Dictionary new at: 'type' put: 'ephemeral'; yourself);
 		yourself}.
-	self assert: ((first at: 'tools') collect: [:each | each at: 'name']) equals: #('code-mode' 'show-object').
+	self assert: ((first at: 'tools') collect: [:each | each at: 'name']) equals: #('code-mode' 'show-object' 'run-tests').
 	second := self requests last json.
 	self assert: (second at: 'system') equals: (first at: 'system').
 	self assert: (second at: 'messages') equals: (JSON parse: '[

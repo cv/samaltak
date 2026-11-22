@@ -285,6 +285,13 @@ testTurnUsageText
 	self assert: (window turnUsageText: nil) isNil.
 	self assert: (window turnUsageText: (Dictionary new at: 'requests' put: 1; at: 'output_tokens' put: 42; yourself)) = '1 request, 42 out'.
 	self assert: (window turnUsageText: (Dictionary new at: 'requests' put: 3; yourself)) = '3 requests, 0 out'
+!
+testRunTestsItemIsShownAsACell
+	| view |
+	view := AgentItemView for: (AgentItem kind: #tests text: 'TestCase runNamed: #(''JSONTest'')').
+	self assert: (view isKindOf: AgentCodeView).
+	self assert: view title equals: 'Run-tests'.
+	self assert: (AgentItemView for: (AgentItem kind: #code text: '3')) title equals: 'Code-mode'
 ! !
 
 !AgentWindowTest methodsFor: 'tests - contexts'!
