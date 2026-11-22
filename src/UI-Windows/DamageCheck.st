@@ -1,5 +1,5 @@
 Object subclass: #DamageCheck
-	instanceVariableNames: 'frames frameMismatches layers layerMismatches log dumpDirectory staleReadbacks'
+	instanceVariableNames: 'frames frameMismatches layers layerMismatches log dumpDirectory staleReadbacks presents presentMismatches'
 	classVariableNames: 'Current ForcesFull'
 	package: 'UI-Windows'!
 
@@ -13,7 +13,7 @@ DamageCheck forcesFull: true has every frame and layer drawn whole (the composit
 
 !DamageCheck methodsFor: 'initialization'!
 initialize
-	frames := frameMismatches := layers := layerMismatches := 0.
+	frames := frameMismatches := layers := layerMismatches := staleReadbacks := presents := presentMismatches := 0.
 	log := OrderedCollection new
 ! !
 
@@ -33,7 +33,14 @@ layerMismatches
 	^layerMismatches
 !
 mismatches
-	^frameMismatches + layerMismatches
+	^frameMismatches + layerMismatches + presentMismatches
+!
+presents
+	"Presents of damaged rectangles checked (the firmware's screen, an uploaded frame)."
+	^presents
+!
+presentMismatches
+	^presentMismatches
 !
 staleReadbacks
 	"Differences that a second readback did not confirm."
@@ -48,7 +55,8 @@ dumpTo: aDirectoryPathOrNil
 !
 report
 	^'damage check: ', frames printString, ' frames (', frameMismatches printString, ' mismatched), ',
-		layers printString, ' layer renders (', layerMismatches printString, ' mismatched)',
+		layers printString, ' layer renders (', layerMismatches printString, ' mismatched), ',
+		presents printString, ' presents (', presentMismatches printString, ' mismatched)',
 		(log isEmpty ifTrue: [''] ifFalse: ['; first: ', log first])
 ! !
 
@@ -84,6 +92,13 @@ checkLayer: aLayer named: aString renderer: aRenderer
 	difference isNil ifTrue: [^self].
 	layerMismatches := layerMismatches + 1.
 	self note: 'layer of ', aString, ': ', difference, ' (damage ', aLayer lastDamage printString, ')'
+!
+notePresent: aString same: aBoolean
+	"A present of damaged rectangles (HostFramePresenter, FirmwareScreen) compared what it shows with the whole frame."
+	presents := presents + 1.
+	aBoolean ifTrue: [^self].
+	presentMismatches := presentMismatches + 1.
+	self note: aString, ' after present ', presents printString, ' differs from the frame'
 !
 differenceOf: aSurface and: wholeSurface extent: aPoint
 	"nil if aPoint pixels at the top left of both surfaces are equal, else where they differ. A difference is read back once more before it counts: the first download of a texture can show what it held before the frame (the GB10's Vulkan driver under Xvfb), and staleReadbacks counts those."

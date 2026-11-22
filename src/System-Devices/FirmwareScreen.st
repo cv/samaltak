@@ -103,7 +103,23 @@ present: pixels width: w height: h rects: anArray
 		s isNil ifFalse: [t := s add: #'screen.shadow' since: t bytes: area * 4].
 		rects do: [:r | self copyToScreen: r].
 		s isNil ifFalse: [s add: #'screen.blt' since: t bytes: area * 4].
-		(rects anySatisfy: [:r | r intersects: (cursor extent: Arrow first size @ Arrow size)]) ifTrue: [self drawCursor]]
+		(rects anySatisfy: [:r | r intersects: (cursor extent: Arrow first size @ Arrow size)]) ifTrue: [self drawCursor].
+		self checkShadowAgainst: pixels width: w height: h]
+!
+checkShadowAgainst: pixels width: w height: h
+	"While a DamageCheck runs (UI-Windows): the shadow copy, which took only the damaged rectangles, must be the whole frame."
+	| check a b same |
+	check := (Smalltalk at: #DamageCheck ifAbsent: [nil]) ifNotNil: [:c | c current].
+	check isNil ifTrue: [^self].
+	a := ByteArray new: (w min: width) * 4.
+	b := ByteArray new: a size.
+	same := true.
+	0 to: (h min: height) - 1 do: [:y |
+		same ifTrue: [
+			SoftwareRaster copy: a stride: a size from: shadow + (y * width * 4) stride: width * 4 width: (w min: width) height: 1 bytesPerPixel: 4 mode: 0.
+			SoftwareRaster copy: b stride: b size from: pixels + (y * w * 4) stride: w * 4 width: (w min: width) height: 1 bytesPerPixel: 4 mode: 0.
+			same := (a compareBytes: b) = 0]].
+	check notePresent: 'the firmware screen''s shadow copy' same: same
 !
 copyToScreen: aRectangle
 	"Shadow pixels of aRectangle (clipped) to the screen."

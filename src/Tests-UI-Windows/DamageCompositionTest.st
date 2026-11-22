@@ -11,7 +11,7 @@ setUp
 	check := DamageCheck start
 !
 tearDown
-	DamageCheck stop.
+	DamageCheck stop ifNotNil: [:c | Transcript show: testSelector, ' ', c report; cr].
 	DamageCheck forcesFull: false.
 	super tearDown
 ! !

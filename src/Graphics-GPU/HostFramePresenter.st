@@ -42,6 +42,7 @@ presentWindow: window pixels: address width: w height: h rects: scissorsOrNil
 					GPUPrimitives uploadTexture: f first bytes: address + ((y * w + x) * 4) x: x y: y width: rw height: rh bytesPerRow: w * 4.
 					bytes := bytes + (rw * rh * 4)]]].
 	s isNil ifFalse: [t := s add: #'host.upload' since: t bytes: bytes].
+	rects isNil ifFalse: [self check: f first pixels: address width: w height: h].
 	cmd := GPUPrimitives acquireCommandBuffer: device.
 	swap := GPUPrimitives acquireSwapchain: cmd window: window.
 	swap isNil ifFalse: [
@@ -55,6 +56,17 @@ windowClosed: window
 ! !
 
 !HostFramePresenter methodsFor: 'private'!
+check: texture pixels: address width: w height: h
+	"While a DamageCheck runs (UI-Windows): the texture that took only the damaged rectangles must hold the whole frame."
+	| check frame shown |
+	check := (Smalltalk at: #DamageCheck ifAbsent: [nil]) ifNotNil: [:c | c current].
+	check isNil ifTrue: [^self].
+	frame := ByteArray new: w * h * 4.
+	SoftwareRaster copy: frame stride: w * 4 from: address stride: w * 4 width: w height: h bytesPerPixel: 4 mode: 1.
+	shown := ByteArray new: w * h * 4.
+	GPUPrimitives download: texture x: 0 y: 0 width: w height: h into: shown.
+	check notePresent: 'the host texture' same: (frame compareBytes: shown) = 0
+!
 frameFor: window width: w height: h
 	"{texture. nil. width. height} for frames of window of w x h pixels; my device made and the window claimed on first use."
 	| f |
