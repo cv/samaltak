@@ -81,6 +81,14 @@ test-tools: image
 	tests/tools/snapshot_test.sh $(OUT)/samaltak.image
 	tests/tools/reboot_test.sh $(OUT)/samaltak.image
 
+# The Renderer's raster work as CUDA kernels for the NVIDIA GB10 (gpu/nv, docs/nv-kernels.md). nv-kernels rebuilds the
+# cubin with nvcc and regenerates src/System-Devices/NvRasterKernels.st; test-nv runs the checked-in cubin on this
+# machine's NVIDIA GPU against PlatformRaster (needs the GPU and its driver, not nvcc). Neither is part of test or CI.
+nv-kernels:
+	tools/nv-kernels.py build
+test-nv: image
+	tests/nv/run.sh $(OUT)
+
 # The VM as a UEFI application for x86-64 or arm64 (UEFI_ARCH, this machine's by default), translated from the
 # same Lowtalk with VM-UEFI in place of the C library (docs/uefi.md): $(UEFI)/esp is a boot volume with it
 # (EFI/BOOT/BOOTX64.EFI or BOOTAA64.EFI) and samaltak.args (the command line, an argument a line), $(UEFI)/image.disk a
@@ -271,4 +279,4 @@ clean:
 	$(MAKE) -C vm clean
 	rm -rf build
 
-.PHONY: all vm seed image fresh-image run translate uefi uefi-run uefi-boot uefi-ui uefi-control test-uefi test-uefi-nic test-vm test-jit test-jit-none test-jit-baseline test-jit-opt test-jit-deopt test-jit-cache test-core test-tools test video mindblown-video jit-video clean
+.PHONY: all vm seed image fresh-image run translate uefi uefi-run uefi-boot uefi-ui uefi-control test-uefi test-uefi-nic test-vm test-jit test-jit-none test-jit-baseline test-jit-opt test-jit-deopt test-jit-cache test-core test-tools test-nv nv-kernels test video mindblown-video jit-video clean

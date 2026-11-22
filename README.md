@@ -41,6 +41,7 @@ For Zed syntax highlighting, install the [Smalltalk extension](tools/zed-smallta
 - `docs/platform.md` — the platform layer and its primitives
 - `docs/apps.md` — applications as Linux windows, run from source (AppWorld, Application, OmarchyTheme, apps/Weather)
 - `docs/uefi.md` — the headless VM as a UEFI application (bare metal, QEMU)
+- `docs/nv-kernels.md` — the Renderer's raster work as CUDA kernels for the NVIDIA GB10, their ABI, make test-nv
 - `docs/tls.md` — the TLS 1.3 client in Smalltalk (HTTPS on UEFI)
 - `docs/crypto.md` — hashes, MACs, ciphers and randomness in Smalltalk (System-Crypto)
 - `docs/agent.md` — the in-image coding agent: conversations, tools, the OpenAI and Anthropic Messages providers, API keys from the host
