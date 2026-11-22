@@ -14,6 +14,7 @@ const os = require('os');
 const ROOT = path.resolve(__dirname, '..');
 const USAGE = `usage: samaltak-ctl [--session name] <command> [args]
   open [--headless] [--hidden] [--work-clock] [--image path] [--port n] [--window-size WxH] [--source-dir d]   start an image with --control (--work-clock: on the recording clock from the start)
+       [--display-port n [--display-password-file f]]   and its remote display (RFB, --display) on 127.0.0.1:n (0: a free port, in <session>.display-port), VNC authentication with f's password
   open --uefi [--headless] [--port n] [--window-size WxH] [--affinity big|LIST|none] [--cpus n]   the VM on UEFI in QEMU (make uefi-control), its control port forwarded to n; its host CPUs (UEFI_AFFINITY, default big) and vCPUs (UEFI_CPUS)
        [--vnc n [--vnc-server qemu|image] [--vnc-password-file f]]   its screen on VNC at 127.0.0.1:5900+n: QEMU's server (default; UEFI_VNC, password file ~/.samaltak-vnc) or the image's own (RFB; UEFI_DISPLAY: QEMU without a display), its password f's or, for the image's, one made for the session in <session>.vnc-password (0600)
   connect [--host h] --port n --token-file f   a session for an image someone else started (a bare-metal machine: the token it showed at boot, in f; - reads stdin); default host 127.0.0.1 (an SSH tunnel)
@@ -53,7 +54,7 @@ const pos = [];
 for (let i = 0; i < argv.length; i++) {
   const a = argv[i];
   if (a === '--session') session = argv[++i];
-  else if (/^--(depth|mods|timeout|image|port|scale|size|fps|window-size|affinity|cpus|settle|delay|source-dir|at|provider|model|thinking|token-command|repo|base|prefix|ref|host|token-file|vnc|vnc-server|vnc-password-file)$/.test(a)) flags[a.slice(2)] = argv[++i];
+  else if (/^--(depth|mods|timeout|image|port|scale|size|fps|window-size|affinity|cpus|settle|delay|source-dir|at|provider|model|thinking|token-command|repo|base|prefix|ref|host|token-file|vnc|vnc-server|vnc-password-file|display-port|display-password-file)$/.test(a)) flags[a.slice(2)] = argv[++i];
   else if (/^--(headless|hidden|work-clock|raw|headed|bounds|right|end|start|replace|json|pointer|preedit|uefi|from-pi|from-gh|clear|dry-run|theirs|force|quit)$/.test(a)) flags[a.slice(2)] = true;
   else if (a === '-h' || a === '--help') { console.log(USAGE); process.exit(0); }
   else pos.push(a);
@@ -181,6 +182,12 @@ async function open() {
   if (flags['work-clock']) vmArgs.push('--work-clock');
   if (flags['window-size']) vmArgs.push('--window-size', flags['window-size']);
   if (flags['source-dir']) vmArgs.push('--source-dir', path.resolve(flags['source-dir']));
+  const displayPortFile = path.join(DIR, `${session}.display-port`);
+  if (flags['display-port'] !== undefined) {
+    fs.rmSync(displayPortFile, { force: true });
+    vmArgs.push('--display', '--display-port', String(flags['display-port']), '--display-port-file', displayPortFile);
+    if (flags['display-password-file']) vmArgs.push('--display-vnc-auth', '--display-password-file', path.resolve(flags['display-password-file']));
+  }
   const log = fs.openSync(logFile, 'w');
   const child = spawn(vm, vmArgs, { cwd: ROOT, detached: true, stdio: ['ignore', log, log] });
   child.unref();
@@ -191,7 +198,16 @@ async function open() {
     let p = NaN;
     try { p = parseInt(fs.readFileSync(portFile, 'utf8'), 10); } catch (_) { /* not yet */ }
     if (p > 0) {
-      writeSession({ pid: child.pid, port: p, token, tokenFile, image, log: logFile, started: new Date().toISOString() });
+      let displayPort;
+      if (flags['display-port'] !== undefined) {
+        // the remote display starts after the control service, in the same startup list
+        for (let i = 0; i < 100 && !(displayPort > 0); i++) {
+          try { displayPort = parseInt(fs.readFileSync(displayPortFile, 'utf8'), 10); } catch (_) { await sleep(50); }
+        }
+        if (!(displayPort > 0)) die(`the image did not start its remote display; log ${logFile}`);
+      }
+      writeSession({ pid: child.pid, port: p, token, tokenFile, image, log: logFile, started: new Date().toISOString(), ...(displayPort ? { displayPort } : {}) });
+      if (displayPort) console.log(`its screen: RFB on 127.0.0.1:${displayPort}`);
       // On the work clock nothing runs between commands: this command lets the image start.
       if (flags['work-clock']) await call({ cmd: 'wait', idle: true, eval: 'World current notNil', timeout: 120000 }, HOUR);
       console.log(`opened ${image} (session ${session}, pid ${child.pid}, port ${p})`);
@@ -326,6 +342,7 @@ async function close() {
   if (alive(s.pid)) { if (s.group) killGroup(s.pid); else { try { process.kill(s.pid, 'SIGKILL'); } catch (_) {} } }
   fs.rmSync(SESSION_FILE, { force: true });
   if (s.tokenFile) fs.rmSync(s.tokenFile, { force: true });
+  if (s.displayPort) fs.rmSync(path.join(DIR, `${session}.display-port`), { force: true });
   if (s.vnc?.made) fs.rmSync(s.vnc.passwordFile, { force: true });
   console.log(`closed session ${session}`);
 }

@@ -103,6 +103,7 @@ test-tools: $(TEST_IMAGE)
 	tests/remote/cli_test.sh $(OUT)/samaltak.image
 	tests/remote/auth_test.sh $(OUT)/samaltak.image
 	tests/remote/recording_test.sh $(OUT)/samaltak.image
+	tests/remote/rfb_test.sh $(OUT)/samaltak.image
 	tests/tools/desktop_test.sh $(OUT)/samaltak.image
 	tests/tools/snapshot_test.sh $(OUT)/samaltak.image
 	tests/tools/reboot_test.sh $(OUT)/samaltak.image
@@ -294,6 +295,7 @@ test-uefi:
 	$(MAKE) uefi-boot UEFI_DISKS="$(UEFI_EXT4_DISK)@nvme $(UEFI_EXT4_GPT_DISK)@virtio-blk-pci" UEFI_ARGS="--headless --eval \"$(UEFI_FILES)\""
 	while read -r line; do grep -qF "$$line" $(UEFI)/console.log || { echo "test-uefi: files: no line: $$line"; exit 1; }; done < tests/uefi/files.expected
 	$(MAKE) test-uefi-fat
+	UEFI_AFFINITY=$(UEFI_AFFINITY) OUT=$(OUT) tests/remote/rfb_test.sh --uefi
 	UEFI_AFFINITY=$(UEFI_AFFINITY) OUT=$(OUT) tools/samaltak-ctl --session uefi-test open --uefi --headless
 	P=$$(sed -n 's/.*"port": \([0-9]*\).*/\1/p' $${TMPDIR:-/tmp}/samaltak-ctl/uefi-test.json); \
 	TP=$$(python3 -c 'import socket; s = socket.socket(); s.bind(("127.0.0.1", 0)); print(s.getsockname()[1])'); \
