@@ -10,6 +10,10 @@
 #include <time.h>
 #include <unistd.h>
 
+/* GLSL or MSL source, as the device's shader_language says. */
+#define create_shader \
+    platform_gpu_create_shader_source_entry_stage_samplers_uniform_buffers_storage_buffers_storage_textures
+
 static int failures, checks;
 #define CHECK(c, ...)                                                        \
     do {                                                                     \

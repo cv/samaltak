@@ -120,6 +120,15 @@ claimWindow: dev window: win
 	common setError: 'not on UEFI'.
 	^false
 !
+compileShader: source stage: stage size: sizeOut
+	<function>
+	<var: #source type: 'char *'>
+	<var: #stage type: 'int32_t'>
+	<var: #sizeOut type: 'size_t *'>
+	<returns: 'void *'>
+	common setError: 'not on UEFI'.
+	^self null
+!
 createBuffer: dev usage: usage size: size
 	<function>
 	<var: #dev type: 'int32_t'>
@@ -164,6 +173,21 @@ createShader: dev source: source entry: entry stage: stage samplers: samplers un
 	<function>
 	<var: #dev type: 'int32_t'>
 	<var: #source type: 'char *'>
+	<var: #entry type: 'char *'>
+	<var: #stage type: 'int32_t'>
+	<var: #samplers type: 'int32_t'>
+	<var: #uniformBuffers type: 'int32_t'>
+	<var: #storageBuffers type: 'int32_t'>
+	<var: #storageTextures type: 'int32_t'>
+	<returns: 'int32_t'>
+	common setError: 'not on UEFI'.
+	^0
+!
+createShader: dev spirv: code size: n entry: entry stage: stage samplers: samplers uniformBuffers: uniformBuffers storageBuffers: storageBuffers storageTextures: storageTextures
+	<function>
+	<var: #dev type: 'int32_t'>
+	<var: #code type: 'const uint8_t *'>
+	<var: #n type: 'size_t'>
 	<var: #entry type: 'char *'>
 	<var: #stage type: 'int32_t'>
 	<var: #samplers type: 'int32_t'>
