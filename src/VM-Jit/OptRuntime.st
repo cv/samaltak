@@ -1048,16 +1048,20 @@ boxFloats
 	rtFloatCount := 0
 !
 materialize: f
-	"materializeAll meets optimized frame f: a Context for each of its activations (their senders chained from activeCtx), the last one activeCtx; the BoxedFloat64s of its doubles and the closures never made."
+	"materializeAll meets optimized frame f: a Context for each of its activations (their senders chained from activeCtx), the last one activeCtx; the BoxedFloat64s of its doubles and the closures never made. The outermost activation's method counts --jit-osr backward jumps in the lower tier."
 	<function>
 	<var: #mode type: 'int32_t'>
-	| h k mode top ctx n s first sunk c |
+	| h k mode top ctx n s first sunk c count full |
 	h := self cCoerce: f code to: 'JitMethod *'.
 	k := f pc - h bcSize asInt32.
 	top := f = (interpreter frames + (interpreter nframes - 1)).
 	mode := 0.
 	(top and: [f sp = (h slots + 1) asInt32 and: [((self recordOf: h index: k) at: 0) = SP_CALL]]) ifTrue: [mode := 2].
 	self decode: h index: k frame: f regs: self null mode: mode.
+	"its method resumes in the lower tier: after as many backward jumps there as an interpreted loop makes before it is compiled (not a full count), it enters optimized code again (a loop that turns once per wake-up of its process stays in the lower tier, which these flushes cost less)"
+	count := runtime osrThreshold.
+	full := self initialCount: (rtActMethod at: 0).
+	runtime counterFor: (rtActMethod at: 0) put: ((count max: 1) min: full).
 	rtTrace ifTrue: [
 		libc fprintf: libc stderr format: 'materialize top %d sp %d: ' with: (top ifTrue: [1] ifFalse: [0]) with: f sp.
 		self traceDeopt: h index: k mode: mode].

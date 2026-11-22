@@ -1469,6 +1469,10 @@ void materialize(frame *f)
     jit_method *h;
     int32_t k;
     bool top;
+    int64_t count;
+    int32_t full;
+    oop m;
+    int64_t n_2;
     int32_t i;
     int32_t i_2;
     oop v;
@@ -1499,6 +1503,11 @@ void materialize(frame *f)
         mode = 2;
     }
     decode(h, k, f, (uint64_t *)NULL, mode);
+    count = jit_osr_threshold;
+    full = initial_count(rt_act_method[0]);
+    m = rt_act_method[0];
+    n_2 = (count > 1 ? count : 1) < full ? count > 1 ? count : 1 : full;
+    opt_counts[((uint32_t)(((*(uint64_t *)m) >> H_HASH_SHIFT) & H_HASH_MASK)) & 65535] = (int32_t)n_2;
     if (rt_trace) {
         fprintf(stderr, "materialize top %d sp %d: ", top ? 1 : 0, f->sp);
         trace_deopt(h, k, mode);
