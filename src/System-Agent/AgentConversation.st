@@ -1,5 +1,5 @@
 Object subclass: #AgentConversation
-	instanceVariableNames: 'context items objects tools provider defaultProvider process done streaming usage changeBlock initialInstructions'
+	instanceVariableNames: 'context items objects tools provider defaultProvider process done streaming usage turnUsage changeBlock initialInstructions'
 	classVariableNames: ''
 	package: 'System-Agent'!
 
@@ -11,7 +11,7 @@ Images (docs/agent.md, Images): what is sent stays within AgentImage''s limits. 
 
 ask: runs a turn in a Process of its own (''agent turn''): send the developer instructions and every item''s wire to the provider, show the streamed text, record the completed output items in order and run each tool call; while there were tool calls, send again. Any error ends the turn with an #error item. ask: while a turn runs is an error; I am busy (isBusy) from before the turn''s user message is among my items. stop ends a turn from another Process: the provider is cancelled, the turn''s Process and its running cell terminated, every tool call left without output answered ''error: stopped by the user'', so the next request is valid.
 
-The provider (provider:, else a default one: an AnthropicProvider while ApiKeyAccount default isConfigured, else a CodexProvider, chosen again when that changes) answers send:tools:onText:onItem: (blocking; the usage Dictionary or nil; AgentError on failure), cancel and modelName. My onChange: block is evaluated after every visible change: an item added, streaming text grown, a turn begun or ended.'!
+The provider (provider:, else a default one: an AnthropicProvider while ApiKeyAccount default isConfigured, else a CodexProvider, chosen again when that changes) answers send:tools:onText:onItem: (blocking; the usage Dictionary or nil; AgentError on failure), cancel and modelName. usage sums the usage of every response, turnUsage that of the running or last turn with its number of requests (''requests''); contextTokens is the last request''s input. My onChange: block is evaluated after every visible change: an item added, streaming text grown, a turn begun or ended.'!
 
 !AgentConversation class methodsFor: 'limits'!
 keptPictures
@@ -82,6 +82,10 @@ contextTokens
 !
 canRetry
 	^self isBusy not and: [items notEmpty and: [items last kind = #error and: [items last failed and: [items last call isNil]]]]
+!
+turnUsage
+	"The token usage of the running or last turn's responses with their number ('requests'), or nil before its first response."
+	^turnUsage
 ! !
 
 !AgentConversation methodsFor: 'objects'!
@@ -231,6 +235,7 @@ ask: aString images: images
 	self isBusy ifTrue: [^self error: 'The agent is busy: wait for it or stop it first'].
 	message := AgentItem user: aString images: (images collect: [:each | AgentImage fit: each]).
 	done := Semaphore new.
+	turnUsage := nil.
 	process := [self runTurn. self endTurn] newProcess.
 	process priority: Processor userSchedulingPriority; name: 'agent turn'.
 	self add: message.
@@ -243,17 +248,11 @@ changed
 		changeBlock values copy do: [:block | block value: self]]
 !
 accumulateUsage: answer
-	"Sum token usage across every response in this conversation."
-	| details cached previous |
-	usage isNil ifTrue: [usage := Dictionary new].
-	usage at: 'context_tokens' put: (answer at: 'input_tokens' ifAbsent: [nil]).
-	#('input_tokens' 'output_tokens' 'total_tokens') do: [:key |
-		usage at: key put: (usage at: key ifAbsent: [0]) + (answer at: key ifAbsent: [0])].
-	details := answer at: 'input_tokens_details' ifAbsent: [nil].
-	details ifNotNil: [
-		cached := details at: 'cached_tokens' ifAbsent: [0].
-		previous := usage at: 'input_tokens_details' ifAbsentPut: [Dictionary new].
-		previous at: 'cached_tokens' put: (previous at: 'cached_tokens' ifAbsent: [0]) + cached]
+	"Add a response's token usage to the conversation's and the turn's sums; count the turn's requests."
+	usage := self sum: answer into: usage.
+	(answer includesKey: 'input_tokens') ifTrue: [usage at: 'context_tokens' put: (answer at: 'input_tokens')].
+	turnUsage := self sum: answer into: turnUsage.
+	turnUsage at: 'requests' put: (turnUsage at: 'requests' ifAbsent: [0]) + 1
 
 
 !
@@ -269,7 +268,7 @@ request
 	refused ifTrue: [
 		received := OrderedCollection new.
 		answer := self send: received].
-	answer ifNotNil: [self accumulateUsage: answer].
+	self accumulateUsage: (answer ifNil: [Dictionary new]).
 	called := false.
 	received do: [:item | (self record: item) ifTrue: [called := true]].
 	^called
@@ -314,6 +313,18 @@ releaseImagesNotIn: inputItems
 	sent := AgentImage imagesIn: inputItems.
 	items do: [:each |
 		each mapImages: [:part | (sent anySatisfy: [:s | s == part]) ifTrue: [part] ifFalse: [AgentImage olderImage]]]
+!
+sum: answer into: aDictionaryOrNil
+	"aDictionaryOrNil, or a new Dictionary, with answer's token counts added."
+	| sums details previous |
+	sums := aDictionaryOrNil ifNil: [Dictionary new].
+	#('input_tokens' 'output_tokens' 'total_tokens') do: [:key |
+		sums at: key put: (sums at: key ifAbsent: [0]) + (answer at: key ifAbsent: [0])].
+	details := answer at: 'input_tokens_details' ifAbsent: [nil].
+	details ifNotNil: [
+		previous := sums at: 'input_tokens_details' ifAbsentPut: [Dictionary new].
+		previous at: 'cached_tokens' put: (previous at: 'cached_tokens' ifAbsent: [0]) + (details at: 'cached_tokens' ifAbsent: [0])].
+	^sums
 ! !
 
 !AgentConversation methodsFor: 'actions'!

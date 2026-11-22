@@ -278,6 +278,13 @@ testCachePercentageRequiresContextBeyondTenThousand
 	self assert: (window cacheUsageText: c usage) isNil.
 	c accumulateUsage: (Dictionary new at: 'input_tokens' put: 10001; at: 'input_tokens_details' put: (Dictionary new at: 'cached_tokens' put: 5000; yourself); yourself).
 	self assert: (window cacheUsageText: c usage) = '50% cached'
+!
+testTurnUsageText
+	| window |
+	window := AgentWindow new.
+	self assert: (window turnUsageText: nil) isNil.
+	self assert: (window turnUsageText: (Dictionary new at: 'requests' put: 1; at: 'output_tokens' put: 42; yourself)) = '1 request, 42 out'.
+	self assert: (window turnUsageText: (Dictionary new at: 'requests' put: 3; yourself)) = '3 requests, 0 out'
 ! !
 
 !AgentWindowTest methodsFor: 'tests - contexts'!
