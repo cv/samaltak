@@ -68,6 +68,7 @@ uploadBuffer: buffer bytes: bytes count: byteCount offset: dstOffset
 	^self fail: 'gpuUploadBuffer'
 !
 uploadTexture: texture bytes: bytes x: x y: y width: w height: h bytesPerRow: bytesPerRow
+	"bytes: a ByteArray (Bitmap), or the address of h rows of bytesPerRow bytes outside the heap."
 	<primitive: 'gpuUploadTexture'>
 	^self fail: 'gpuUploadTexture'
 !
