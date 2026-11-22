@@ -75,6 +75,10 @@ width: w height: h title: aString hidden: aBoolean
 	"A resizable high-density window; hidden ones render offscreen only (tests, readback)."
 	^self new setWindow: (HostWindow width: w height: h title: aString flags: (aBoolean ifTrue: [7] ifFalse: [6]))
 !
+width: w height: h title: aString flags: anInteger
+	"flags: 1 hidden, 2 resizable, 4 highDensity (HostWindow)."
+	^self new setWindow: (HostWindow width: w height: h title: aString flags: anInteger)
+!
 on: aHostWindow
 	^self new setWindow: aHostWindow
 ! !

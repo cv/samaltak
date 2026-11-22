@@ -1,0 +1,38 @@
+# Applications: Samaltak programs as Linux windows
+
+A Samaltak application is a package directory of Smalltalk source that runs as a window of the host's window manager (Hyprland on Omarchy) instead of on the Samaltak desktop. It still draws through the same Canvas → Renderer → SDL_GPU (Vulkan) path as the World, and it runs straight from its source: the base image files it in at startup. The first one is `apps/Weather`, the Omarchy desktop weather card as a window of its own.
+
+    bin/samaltak run apps/Weather         # file in apps/Weather, run its Application in a floating window
+    bin/samaltak test apps/Weather        # its tests, headless
+    bin/samaltak install apps/Weather     # an XDG .desktop entry, so the app launcher lists it
+    bin/samaltak run apps/Weather --control --control-port 4711   # drive it with samaltak-ctl, as the World
+
+## Principles
+
+- **The Window stays the unit.** An app's window is a `Window` (`AppWindow`) with its own Process, retained drawing, Widgets, events and animations. What differs is where it is placed: in an `AppWorld`, a World whose host window shows that one window, chromeless and filling it. The window manager decorates, places and closes it. The Compositor, InputDispatcher and Canvas are the World's own.
+- **The platform does mechanism, the image does policy.** Nothing in the VM changed. The Wayland `app_id` comes from SDL (`SDL_APP_ID`, set by `bin/samaltak` to `org.samaltak.<name>`). The window has a fixed size, so Hyprland floats it. Omarchy, TOML and XDG are Smalltalk.
+- **Source is the truth.** An app directory has the format of `src/<package>/`: a class per file, plus `Class.extension.st` for methods on other packages' classes. `Compiler fileInPackage:` evaluates every class definition first (superclasses first, whatever the file names), then the rest of each file, then the class-side `initialize` methods. The base image is `build/samaltak.image`; filing in the weather app (about 600 lines) adds about 85 ms to the VM's 20 ms start.
+- **Linux citizenship.** The app uses the XDG base directories (`XDG`), an `app_id` and a `.desktop` entry, and reads Omarchy's own files for its look (`OmarchyTheme`).
+- **Idle costs (almost) nothing.** An AppWorld presents a frame only when something changed. Applications pause the always-on sampling profiler (`--profile` keeps it), because it woke the VM every millisecond. An idle app now uses about 0.1–0.3 % of a core; see the follow-ups.
+
+## The pieces
+
+| Where | What |
+|---|---|
+| `Compiler fileInPackage:` (Compiler) | Loads a package directory, as described above. |
+| `--load <path>...`, `--app <dir>` (System-Support) | `--load` files in package directories or chunk files before `--test`/`--eval`/the main action, and may be given several times. `--app` loads a directory and remembers its classes (`Smalltalk appClasses`). |
+| `UIWindows runApp` | With `--app`, runs the package's subclass of `Application` instead of the World. |
+| `AppWorld`, `AppWindow` (UI-Windows) | An AppWorld has no desk and no top bar (`showsTopBar`), presents only changes (`presentsContinuously`) and has no opening animation. It quits when its window closes, or when the window manager closes the host window; a hidden one (in tests) stops instead. |
+| `Application` (UI-Widgets) | The base class. Subclasses answer `content` (a View) and may override `title`, `extent` (default: the content's `preferredExtent`), `backgroundColor`, `prepare`, `started` and `stopped`. Run one with `MyApp run`, or `runHidden` in tests. |
+| `XDG` (System-Files), `TOMLReader` (System-Support) | The base directories, and the configuration format of Omarchy, Alacritty and many other Linux programs. |
+| `OmarchyTheme` (UI-Omarchy) | Reads `~/.local/state/omarchy/current/theme/{colors,shell}.toml`, the user's `~/.config/omarchy/shell.toml` and fontconfig's `monospace`, and resolves surface colors the way the shell's `Color.qml` does (roles, references to other keys, `-alpha` companions). Its type scale is `#caption` … `#displayLarge` from `[font] base-size`, and `space:` is `Style.space`. `install` makes it current and checks the files once a second. After `omarchy theme set`, `omarchy font set` or an edit of `shell.toml`, every window restyles. Standard widgets map onto it (`#ink` is foreground, `#paper` background, `#ultramarine` accent). |
+| `apps/Weather` | `WeatherService` is a Process that reads `~/.local/state/omarchy/settings/weather.json`, detects the place through geo.omarchy.org or looks up a bare name with Open-Meteo's geocoding, and fetches Open-Meteo's forecast every 15 minutes (a minute after a failure). It checks the wall clock every 2 s, so suspend can't stall it. `WeatherReport` and `WeatherDay` hold the forecast, `WeatherIcons` holds the shell's Nerd Font glyphs, and `WeatherCard` draws the card's layout. A click opens the bar's weather panel, a middle click fetches again. |
+
+## Follow-ups
+
+- **The time slicer wakes an idle VM.** Its 10 ms slice deadline is armed even when nothing but the idle Process can run: about 100 wakeups a second, which is most of an idle app's cost.
+- **inotify** (`fileWatch`): a file descriptor in the socket table that signals a Semaphore. It would replace the once-a-second checks of the theme and the weather settings.
+- **wlr-layer-shell**, to sit on the desktop below the windows as the QML card does. This needs an SDL window with a custom Wayland role and `zwlr_layer_shell_v1` through libwayland-client in `PlatformWayland`, a Linux-only Lowtalk module.
+- **More than one host window per image.** A debugger or a second app window would get a host window of its own; today a Notifier opens inside the app's window.
+- **A slim runtime image** (no Tools, Tests or VM-* packages), or an app image cached per source hash, if start time or memory make it worth it. The app's RSS is about 200 MB with the full image.
+- **`--watch`**: file in an app's source again when it is saved, so the running window changes as you edit.

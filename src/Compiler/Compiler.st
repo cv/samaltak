@@ -11,6 +11,7 @@ Compiler comment: 'I am the facade of the Smalltalk compiler.
 	Compiler new bindings: aDictionary; evaluate: ''3 + 4'' for: anObject	"as in Smalltalk-80: the do-it runs called from Compiler>>evaluate:for:"
 	Compiler recompileAll	"stage 2"
 	Compiler fileIn: ''path/to/File.st''	"chunk format"
+	Compiler fileInPackage: ''apps/Weather''	"a directory in the format of src/<package>/"
 
 Errors are signaled as SyntaxError.'!
 
@@ -140,6 +141,10 @@ contentsOfFile: aPath
 !
 fileInString: aString
 	"Evaluate the chunks of aString. An empty chunk is followed by a method-category header (X methodsFor: 'cat' or X class methodsFor: 'cat') and that category's method chunks, terminated by an empty chunk."
+	^self fileInString: aString except: [:chunk | false]
+!
+fileInString: aString except: aBlock
+	"Evaluate the chunks of aString (fileInString:) but the top-level ones for which aBlock answers true."
 	| reader chunk |
 	reader := ChunkReader on: aString.
 	[(chunk := reader nextChunk) notNil] whileTrue: [
@@ -147,7 +152,46 @@ fileInString: aString
 			ifTrue: [
 				chunk := reader nextChunk.
 				chunk notNil ifTrue: [self fileInMethodsFor: chunk from: reader]]
-			ifFalse: [self evaluate: chunk]]
+			ifFalse: [(aBlock value: chunk) ifFalse: [self evaluate: chunk]]]
+!
+fileInPackage: aDirectory
+	"File in a package directory in the format of src/<package>/ (a class a file, Class.extension.st for methods added to other packages' classes, read after the others) and answer the classes it defines, in definition order. Every class definition is evaluated first, a superclass before its subclasses, so methods compile against all of them; then the rest of each file; then each defined class that has a class-side initialize gets it, in definition order."
+	| directory sources definitions classes pending ready |
+	directory := Smalltalk at: #Directory ifAbsent: [^self error: 'Compiler fileInPackage: needs the Directory class'].
+	sources := (((directory fileNames: aDirectory) select: [:f | f endsWith: '.st']) asSortedCollection: [:a :b |
+		(a endsWith: '.extension.st') = (b endsWith: '.extension.st')
+			ifTrue: [a <= b]
+			ifFalse: [b endsWith: '.extension.st']]) asArray
+		collect: [:f | self contentsOfFile: aDirectory, '/', f].
+	definitions := OrderedCollection new.
+	sources do: [:source |
+		| reader chunk |
+		reader := ChunkReader on: source.
+		[(chunk := reader nextChunk) notNil] whileTrue: [
+			(self classDefinitionIn: chunk) ifNotNil: [:pair | definitions add: (Array with: chunk with: pair first with: pair last)]]].
+	classes := OrderedCollection new.
+	pending := definitions.
+	[pending isEmpty] whileFalse: [
+		ready := pending select: [:d | (pending anySatisfy: [:other | (other at: 3) = (d at: 2)]) not].
+		ready isEmpty ifTrue: [^self error: 'Circular superclasses in ', aDirectory].
+		ready do: [:d | classes add: (self evaluate: d first)].
+		pending := pending reject: [:d | ready includes: d]].
+	sources do: [:source | self fileInString: source except: [:chunk | definitions anySatisfy: [:d | d first == chunk or: [d first = chunk]]]].
+	classes do: [:c | (c class includesSelector: #initialize) ifTrue: [c initialize]].
+	^classes asArray
+!
+classDefinitionIn: aChunk
+	"Answer {superclass name. class name} if aChunk is a class definition (Superclass subclass: #Name ...), else nil."
+	| node statement keyword |
+	(aChunk includesSubstring: 'ubclass:') ifFalse: [^nil].
+	node := [Parser new parseExpression: aChunk] on: SyntaxError do: [:e | ^nil].
+	node body statements size = 1 ifFalse: [^nil].
+	statement := node body statements first.
+	statement isMessage ifFalse: [^nil].
+	keyword := statement selector keywords first.
+	(#('subclass:' 'variableSubclass:' 'variableByteSubclass:' 'variableWordSubclass:' 'variableDoubleWordSubclass:' 'weakSubclass:' 'immediateSubclass:') includes: keyword) ifFalse: [^nil].
+	(statement receiver isVariable and: [statement arguments first isLiteral]) ifFalse: [^nil].
+	^Array with: statement receiver name asString with: statement arguments first value asString
 !
 fileInMethodsFor: aHeader from: aChunkReader
 	| target category chunk |

@@ -57,10 +57,22 @@ shutDown: quitting
 
 !UIWindows class methodsFor: 'starting'!
 runMainAction
-	"The kernel's main action. The World runs in its own Processes, so the main Process ends after the startup action."
+	"The kernel's main action. The World runs in its own Processes, so the main Process ends after the startup action. With --app the application runs instead of the World."
 	Smalltalk isHeadless ifTrue: [^self runHeadless].
+	Smalltalk appClasses isEmpty ifFalse: [^self runApp].
 	self startUp.
 	self runStartupAction
+!
+runApp
+	"--app <directory>: run the application its package defines (a subclass of Application, UI-Widgets) in a window of the host's window manager (AppWorld)."
+	| base app |
+	base := Smalltalk at: #Application ifAbsent: [nil].
+	app := base isNil ifFalse: [Smalltalk appClasses detect: [:c | c ~~ base and: [c inheritsFrom: base]] ifNone: [nil]].
+	app isNil ifTrue: [
+		Smalltalk vm stderrWrite: 'Samaltak: the --app package defines no Application', (String with: Character lf).
+		^Smalltalk quit: 1].
+	app run.
+	ControlServer current isNil ifFalse: [UIRemote installOn: World current]
 !
 runHeadless
 	"No display: keep serving remote control if it runs, else explain and quit."

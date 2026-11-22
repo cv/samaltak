@@ -1,0 +1,65 @@
+#!/bin/sh
+# Samaltak from the command line: the system, or an application run from its source.
+#
+#   samaltak                         the Samaltak desktop (the World)
+#   samaltak run <app dir> [opt...]  file in the package <app dir> (e.g. apps/Weather) and run its Application
+#                                    in a window of its own; options go to the image (--control, --profile ...)
+#   samaltak test <app dir> [name...]  run the app's tests headless (default: all of its package)
+#   samaltak install <app dir>       add the app to the desktop's launcher (an XDG .desktop entry)
+#
+# The base image is build/samaltak.image next to this script (make builds it), or $SAMALTAK_IMAGE; the VM
+# vm/build/samaltak, or $SAMALTAK_VM. An app's Wayland app_id (Hyprland's window class) is org.samaltak.<name>
+# (SDL_APP_ID). This script may be symlinked, e.g. into ~/.local/bin.
+set -eu
+root=$(cd "$(dirname "$(readlink -f "$0")")/.." && pwd)
+vm=${SAMALTAK_VM:-$root/vm/build/samaltak}
+image=${SAMALTAK_IMAGE:-$root/build/samaltak.image}
+
+die() { echo "samaltak: $*" >&2; exit 1; }
+[ -x "$vm" ] || die "no VM at $vm (run make in $root)"
+[ -f "$image" ] || die "no image at $image (run make in $root)"
+
+app_dir() {
+	[ $# -ge 1 ] || die "usage: samaltak $cmd <app dir>"
+	[ -d "$1" ] || die "$1: no such directory"
+	(cd "$1" && pwd)
+}
+
+# The app's name: its directory's (= its package's).
+app_name() { basename "$1"; }
+app_id() { echo "org.samaltak.$(app_name "$1" | tr '[:upper:]' '[:lower:]')"; }
+
+cmd=${1:-}
+[ $# -gt 0 ] && shift
+case "$cmd" in
+'')
+	exec "$vm" "$image" ;;
+run)
+	dir=$(app_dir "$@"); shift
+	SDL_APP_ID=${SDL_APP_ID:-$(app_id "$dir")}
+	export SDL_APP_ID
+	exec "$vm" "$image" --app "$dir" "$@" ;;
+test)
+	dir=$(app_dir "$@"); shift
+	[ $# -gt 0 ] || set -- "$(app_name "$dir")"
+	exec "$vm" "$image" --headless --load "$dir" --test "$@" ;;
+install)
+	dir=$(app_dir "$@")
+	name=$(app_name "$dir")
+	id=$(app_id "$dir")
+	target=${XDG_DATA_HOME:-$HOME/.local/share}/applications/$id.desktop
+	mkdir -p "$(dirname "$target")"
+	cat > "$target" <<EOF
+[Desktop Entry]
+Type=Application
+Name=$name
+Comment=$name (Samaltak, from $dir)
+Exec="$root/bin/samaltak" run "$dir"
+Terminal=false
+StartupWMClass=$id
+Categories=Utility;
+EOF
+	echo "samaltak: installed $target" ;;
+*)
+	die "unknown command $cmd (run, test, install)" ;;
+esac

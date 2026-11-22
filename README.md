@@ -14,6 +14,13 @@ macOS on Apple Silicon (Homebrew `sdl3` and `openssl@3`), or Linux on arm64 or x
 
 One `vm/gen` serves all of them: what differs per OS is in modules for one OS (`targetOS`: the ticker, the code cache's memory, `PlatformHost`), which the build picks by `uname -s`; what differs per CPU (the assembler, and the code generators' functions that use it) by `uname -m` (`targetArch`, docs/lowtalk.md). On Linux shaders are GLSL (compiled to SPIR-V with shaderc) where macOS uses MSL, and the Alt key is ⌘ (Super is the window manager's).
 
+## Applications
+
+Samaltak programs can also run as windows of the desktop's window manager, straight from their source (docs/apps.md). The first is the Omarchy weather card:
+
+    bin/samaltak run apps/Weather     # a floating Hyprland window in the Omarchy theme
+    bin/samaltak test apps/Weather
+
 ## Test
 
     make test       # everything: VM suite, all Smalltalk tests, GC-verified pass, platform tests, samaltak-ctl scenarios
@@ -32,6 +39,7 @@ For Zed syntax highlighting, install the [Smalltalk extension](tools/zed-smallta
 - `docs/lowtalk.md` — the Smalltalk subset the VM is written in, its translation to C and its simulation
 - `docs/ui.md` — the layers from GPU to tools
 - `docs/platform.md` — the platform layer and its primitives
+- `docs/apps.md` — applications as Linux windows, run from source (AppWorld, Application, OmarchyTheme, apps/Weather)
 - `docs/uefi.md` — the headless VM as a UEFI application (bare metal, QEMU)
 - `docs/tls.md` — the TLS 1.3 client in Smalltalk (HTTPS on UEFI)
 - `docs/crypto.md` — hashes, MACs, ciphers and randomness in Smalltalk (System-Crypto)

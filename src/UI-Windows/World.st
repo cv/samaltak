@@ -112,6 +112,16 @@ keyTarget
 	^activeWindow
 ! !
 
+!World methodsFor: 'kind'!
+showsTopBar
+	"Whether the top bar shows (an AppWorld has none)."
+	^true
+!
+presentsContinuously
+	"Whether the compositor presents on every tick, changed or not: on screen, so the top bar's frame times stay live and a frame is always in flight. An AppWorld presents only what changed."
+	^hidden not
+! !
+
 !World methodsFor: 'windows'!
 addWindow: aWindow
 	lock critical: [

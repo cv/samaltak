@@ -60,6 +60,8 @@ Tests-UI-Windows 3
 Demos 3
 UI-Widgets 4
 Tests-UI-Widgets 4 uses Graphics-Canvas
+UI-Omarchy 4
+Tests-UI-Omarchy 4
 Tools 5
 Tools-Agent 5
 Tests-Tools 5 uses UI-Windows Graphics-Canvas

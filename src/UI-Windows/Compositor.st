@@ -238,7 +238,7 @@ frame
 	t0 - lastScan > 1000000 ifTrue: [self scanProcesses: t0].
 	needs := world consumeNeedsFrame.
 	needs := (world topBar updateAt: t0) | needs | animating | requests isEmpty not
-		| (world isHidden not and: [renderer device isSoftware not]) | recorder notNil.
+		| (world presentsContinuously and: [renderer device isSoftware not]) | recorder notNil.
 	needs ifFalse: [
 		idleFrames := idleFrames + 1.
 		^self].

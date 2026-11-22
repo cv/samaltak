@@ -34,14 +34,41 @@ startBackgroundProcesses
 	Processor startTimeSlicer
 !
 processCommandLine
-	"Act on the command line: --stage2 <out>, --test [names], --eval <expression>; otherwise run the main action. Never returns."
+	"Act on the command line: --stage2 <out>; else first file in the sources of --load <path>... and --app <directory>, then --test [names], --eval <expression>, or run the main action. Never returns."
 	| value |
 	value := self argumentAfter: '--stage2'.
 	value isNil ifFalse: [^self stage2: value].
+	self loadCommandLineSources.
 	(self vm arguments includes: '--test') ifTrue: [^self runTestsAndQuit].
 	value := self argumentAfter: '--eval'.
 	value isNil ifFalse: [^self evaluateAndQuit: value].
 	^self runMainAction
+!
+loadCommandLineSources
+	"File in each path after --load (a package directory or a chunk-format file), then the package directory after --app, whose classes appClasses answers (the window system runs its application instead of the World). A source that does not load quits with its error on stderr."
+	| compiler paths app |
+	paths := self argumentsAfterEach: '--load'.
+	app := self argumentAfter: '--app'.
+	(paths isEmpty and: [app isNil]) ifTrue: [^self].
+	compiler := self at: #Compiler ifAbsent: [nil].
+	compiler isNil ifTrue: [
+		self vm stderrWrite: 'Samaltak: --load and --app need the Compiler package', (String with: Character lf).
+		^self quit: 1].
+	[paths do: [:each | self fileInSource: each with: compiler].
+	 app isNil ifFalse: [AppClasses := self fileInSource: app with: compiler]]
+		on: Error do: [:e |
+			self vm stderrWrite: 'Samaltak: loading failed: ', e messageText asString, (String with: Character lf).
+			self quit: 1]
+!
+fileInSource: aPath with: aCompiler
+	"File in a package directory or a chunk-format file; answer the classes a directory defined."
+	((self at: #File) isDirectory: aPath) ifTrue: [^aCompiler fileInPackage: aPath].
+	aCompiler fileIn: aPath.
+	^#()
+!
+appClasses
+	"The classes of the package directory after --app (none without one)."
+	^AppClasses ifNil: [#()]
 !
 argumentAfter: aString
 	"Answer the command-line argument following aString, or nil."
@@ -61,6 +88,18 @@ argumentsAfter: aString
 	index + 1 to: args size do: [:i |
 		((args at: i) beginsWith: '--') ifTrue: [^result].
 		result add: (args at: i)].
+	^result
+!
+argumentsAfterEach: aString
+	"Answer the command-line arguments following each occurrence of aString, each run up to the next option."
+	| args result taking |
+	args := self vm arguments.
+	result := OrderedCollection new.
+	taking := false.
+	args do: [:each |
+		(each beginsWith: '--')
+			ifTrue: [taking := each = aString]
+			ifFalse: [taking ifTrue: [result add: each]]].
 	^result
 !
 isHeadless

@@ -21,8 +21,8 @@ setWorld: aWorld
 
 !TopBar methodsFor: 'accessing'!
 height
-	"26 points and the rule."
-	^27
+	"26 points and the rule; none in a World without a top bar (an AppWorld)."
+	^world showsTopBar ifTrue: [27] ifFalse: [0]
 !
 processCount
 	^processCount
@@ -72,7 +72,7 @@ updateAt: nowMicros
 	"Refresh the texts at most twice a second; answer whether they changed."
 	| n sum fps old recent tag |
 	tag := Array with: (self remoteSince: nowMicros // 1000) with: Animation timeScale.
-	tag = tagState ifFalse: [tagState := tag. ^true].
+	tag = tagState ifFalse: [tagState := tag. ^world showsTopBar].
 	nowMicros - lastUpdate < 500000 ifTrue: [^false].
 	lastUpdate := nowMicros.
 	old := self statsText.
@@ -84,13 +84,14 @@ updateAt: nowMicros
 	msText := n = 0 ifTrue: ['– ms'] ifFalse: [((sum / n) printShowingDecimalPlaces: 1), ' ms'].
 	fpsText := fps printString, ' fps'.
 	procText := processCount printString, ' processes'.
-	^old ~= self statsText
+	^old ~= self statsText and: [world showsTopBar]
 ! !
 
 !TopBar methodsFor: 'drawing'!
 drawOn: c
 	"The brand and, at the right, ? and the tags always; the rest while it fits, in the order of importance: the process count, the image name, fps, ms, the sparkline, its label, the banner, the hint (the first to go when the World is narrow)."
 	| x font mono monoBold label banner hint keep pieces avail |
+	world showsTopBar ifFalse: [^self].
 	c fillRect: (0 @ 0 extent: world extent x @ 26) color: Color white.
 	c fillRect: (0 @ 26 extent: world extent x @ 1) color: Color black.
 	c image: (UIIcons orbScale: c scale) in: (14 @ 5 extent: 16 @ 16).

@@ -394,6 +394,10 @@ faceNamed: aString
 faces
 	^Faces ifNil: [Dictionary new]
 !
+faceFromFile: aPath
+	"A face read from a .ttf file outside fonts/, e.g. a system font fontconfig names (not kept in faces)."
+	^TrueTypeFont fromFile: aPath
+!
 fallbackFaceNames
 	"Faces tried in order for a code point a font's face lacks: Iosevka Etoile (symbols, math, Greek and Cyrillic for the code font), monochrome emoji, symbols, CJK (Simplified Chinese glyph forms, kana), Hangul."
 	^#('IosevkaEtoile-Regular' 'NotoEmoji-Regular' 'NotoSansSymbols2-Regular' 'NotoSansSC-Regular' 'NotoSansKR-Hangul')
