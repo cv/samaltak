@@ -3,7 +3,7 @@ Object subclass: #ToolsMenu
 	classVariableNames: 'Entries'
 	package: 'Tools'!
 
-ToolsMenu comment: 'I build the World menu (a click on the desk). Tools register what they open in its "open…" section, sorted by order; the rest of the menu (long computation, user interrupt, arrange, slow motion (every animation 10× slower), save, rebuild the VM and reboot, help, quit) is mine.
+ToolsMenu comment: 'I build the World menu (a click on the desk). Tools register what they open in its "open…" section, sorted by order; the rest of the menu (long computation, user interrupt, arrange, slow motion (every animation 10× slower), save, rebuild the VM and reboot, on UEFI the firmware''s: install Samaltak onto the machine''s disk and reboot into Ubuntu, Samaltak or the firmware''s setup (FirmwareBoot: BootNext, once), help, quit) is mine.
 
 	ToolsMenu register: ''Profiler'' description: ''samples · frames'' order: 60 action: [:aPoint | ...]
 	ToolsMenu unregister: ''Profiler''
@@ -52,9 +52,19 @@ worldMenuAt: aPoint
 	menu add: 'Slow motion' checked: Desktop animationTimeScale > 1 action: [Desktop animationTimeScale: (Desktop animationTimeScale > 1 ifTrue: [1] ifFalse: [10])].
 	menu add: 'Save image' description: Tools imageName action: [self run: [Tools saveImage]].
 	menu add: 'Rebuild VM & reboot' description: 'translate · cc · exec' action: [self run: [VMRebuilder openAndRebuild]].
+	Machine hasFirmware ifTrue: [self addFirmwareItemsTo: menu].
 	menu add: 'Help…' key: '?' action: [self run: [Tools showHelp]].
 	menu add: 'Quit' action: [self run: [Tools quit]].
 	^menu
+!
+addFirmwareItemsTo: aMenu
+	"On UEFI: the installer and the reboots into each system (docs/uefi.md, Installing)."
+	aMenu addSeparator.
+	aMenu add: 'Install Samaltak…' description: 'onto this machine''s disk' action: [self run: [Tools openInstaller]].
+	aMenu add: 'Reboot into Ubuntu' description: 'BootNext, once' action: [self run: [Tools rebootInto: #ubuntu]].
+	aMenu add: 'Reboot into Samaltak' description: 'from the disk' action: [self run: [Tools rebootInto: #samaltak]].
+	aMenu add: 'Reboot to firmware setup' action: [self run: [Tools rebootToFirmwareSetup]].
+	aMenu addSeparator
 !
 run: aBlock
 	"Run a World menu action in a Process of its own: the menu's invoker window may be busy."
