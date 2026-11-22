@@ -1462,7 +1462,7 @@ exit_is_before_2:;
             goto exit_is_hoistable;
         }
     } else {
-        if (!((op == O_GUARDCLASS) || ((op == O_GUARDINT) || ((op == O_GUARDCLOSURE) || (op == O_GUARDEQ))))) {
+        if (!((op == O_GUARDCLASS) || ((op == O_GUARDINT) || ((op == O_GUARDCLOSURE) || ((op == O_GUARDEQ) || (op == O_UNBOXF)))))) {
             r_is_hoistable = false;
             goto exit_is_hoistable;
         }

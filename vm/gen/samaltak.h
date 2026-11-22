@@ -446,6 +446,7 @@ typedef void (*prim_fn)(void);
 #define OUT_ARRAY 12
 #define OUT_BARRIER 3
 #define OUT_BOTTOM 6
+#define OUT_BOX 14
 #define OUT_DEOPT 1
 #define OUT_INTERRUPT 2
 #define OUT_LAZY 4
@@ -454,6 +455,7 @@ typedef void (*prim_fn)(void);
 #define OUT_SENT 10
 #define OUT_SITE 7
 #define OUT_STACK 5
+#define OUT_UNBOX 13
 #define OUT_WIDOW 8
 #define O_BOTHINT 32
 #define O_BOXF 29
@@ -1125,8 +1127,9 @@ struct opt_out {
     int32_t label;
     int32_t resume;
     int32_t pos;
+    int32_t aux;
 };
-_Static_assert(sizeof(opt_out) == 24, "the simulator lays out OptOut as C does");
+_Static_assert(sizeof(opt_out) == 28, "the simulator lays out OptOut as C does");
 
 struct opt_state {
     int32_t parent;
