@@ -128,8 +128,10 @@ runMainAction
 	Processor terminateActive
 !
 evaluateAndQuit: aString
-	"Evaluate aString with the Smalltalk compiler and print the result."
+	"--eval: evaluate aString with the Smalltalk compiler, print the result and quit. Only an image started with --eval does; in any other an Error says what to use, and nothing is evaluated."
 	| compiler result |
+	(self vm arguments includes: '--eval') ifFalse: [
+		^self error: 'Smalltalk evaluateAndQuit: quits the VM: it is for --eval on the command line. Here evaluate the expression itself (Compiler evaluate:), which does not quit.'].
 	compiler := self at: #Compiler ifAbsent: [nil].
 	compiler isNil ifTrue: [
 		self vm stderrWrite: 'Samaltak: --eval needs the Compiler package', (String with: Character lf).
@@ -139,8 +141,10 @@ evaluateAndQuit: aString
 	self quit: 0
 !
 runTestsAndQuit
-	"Run the TestCases (all, or those of the classes and packages named after --test) and quit with 0 if all passed, else 1. With --test-list, only list those classes; with --test-times, print each class's time (tests/st_suite.sh shards with them)."
+	"--test: run the TestCases (all, or those of the classes and packages named after --test) and quit with 0 if all passed, else 1. With --test-list, only list those classes; with --test-times, print each class's time (tests/st_suite.sh shards with them). Only an image that runs only the tests does (TestCase runsInThrowawayImage); in one someone works in an Error says what to use, and no test runs."
 	| names result |
+	TestCase runsInThrowawayImage ifFalse: [
+		^self error: 'Smalltalk runTestsAndQuit quits the VM: it is for images started with --test. Here use the run-tests tool, or TestCase run, runNamed: or runAll, which answer a TestResult and do not quit.'].
 	RunningTests := true.
 	names := self argumentsAfter: '--test'.
 	(self vm arguments includes: '--test-list') ifTrue: [
@@ -247,8 +251,10 @@ stage2Steps
 	^Stage2Steps ifNil: [#()]
 !
 stage2: outPath
-	"Run the stage-2 steps, then snapshot to outPath and quit. When the written image is started, continue with its command line."
+	"Run the stage-2 steps, then snapshot to outPath and quit. When the written image is started, continue with its command line. Only an image started with --stage2 does; in any other an Error says so, and no step runs."
 	| start |
+	(self vm arguments includes: '--stage2') ifFalse: [
+		^self error: 'Smalltalk stage2: rebuilds this image, writes it and quits the VM: it is for --stage2 on the command line (make image).'].
 	self stage2Steps do: [:step |
 		start := Time millisecondClockValue.
 		Transcript show: 'stage 2: '; show: step key; show: ' ...'; flush.

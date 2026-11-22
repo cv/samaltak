@@ -44,6 +44,18 @@ testVirtualMachine
 	self assert: Smalltalk vm garbageCollect > 0.
 	self assert: Smalltalk vm droppedEvents >= 0
 !
+testQuittingEntryPointsRefuseInALiveImage
+	"The command line's entry points that quit (--test, --eval, --stage2) raise an Error in an image someone works in (here made to look like one), saying what to use instead; nothing runs and the VM goes on."
+	| message |
+	self replace: #runsInThrowawayImage of: TestCase with: false.
+	self should: [Smalltalk runTestsAndQuit] raise: Error withExceptionDo: [:e | message := e messageText].
+	self assert: (message includesSubstring: 'run-tests tool').
+	self assert: (message includesSubstring: 'TestCase run').
+	self should: [Smalltalk evaluateAndQuit: '3 + 4'] raise: Error withExceptionDo: [:e | message := e messageText].
+	self assert: (message includesSubstring: '--eval').
+	self should: [Smalltalk stage2: 'never-written.image'] raise: Error withExceptionDo: [:e | message := e messageText].
+	self assert: (message includesSubstring: '--stage2')
+!
 testExternalSemaphores
 	| vm a b i j |
 	vm := Smalltalk vm.

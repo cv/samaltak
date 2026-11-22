@@ -84,6 +84,7 @@ test-core: $(TEST_IMAGE) test-vm
 	$(PLATFORM_CHECK)
 	tests/vm/gen_test.sh $(OUT)/samaltak.image
 	tests/boot/layering_test.sh
+	tests/boot/cli_quit_test.sh $(OUT)/samaltak.image
 	tests/st_suite.sh $(OUT)/samaltak.image
 	SAMALTAK_VERIFY_GC=1 tests/st_suite.sh $(OUT)/samaltak.image --eden 1 -- Tests-Kernel Tests-Compiler
 	tests/st_suite.sh $(OUT)/samaltak.image --max-heap 128 -- LowSpaceTest StackOverflowTest
