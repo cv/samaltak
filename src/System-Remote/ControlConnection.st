@@ -3,7 +3,7 @@ Object subclass: #ControlConnection
 	classVariableNames: ''
 	package: 'System-Remote'!
 
-ControlConnection comment: 'I serve one remote-control client for the ControlServer: when my socket is readable the server (in its host''s Process, the input dispatcher, or its own) lets me read (pump) without waiting; I split the bytes into lines. With a host, input commands run right there (RemoteControl begin:; an input command''s RemoteInputJob is stepped by my host without waiting, stepJob); eval, wait, screenshot, record and quit, and every request without a host, run in a Process of their own (''remote request'', priority 50). Each response is one JSON line. My further requests wait meanwhile, so the requests of one client are answered in order; other clients are not held up.'!
+ControlConnection comment: 'I serve one remote-control client for the ControlServer: when my socket is readable the server (in its host''s Process, the input dispatcher, or its own) lets me read (pump) without waiting; I split the bytes into lines. With a host, input commands run right there (RemoteControl begin:; an input command''s RemoteInputJob is stepped by my host without waiting, stepJob); eval, wait, screenshot, record and quit, and every request without a host, run in a Process of their own (''remote request'', priority 50). Each response is one JSON line. A request without the server''s token (auth) is answered with an error, code 4, and runs nothing; auth is taken out of every request before a command sees it. My further requests wait meanwhile, so the requests of one client are answered in order; other clients are not held up.'!
 
 !ControlConnection methodsFor: 'initialization'!
 setServer: aServer socket: aSocket
@@ -80,12 +80,21 @@ respond: aDictionary to: aRequestOrNil
 	(aRequestOrNil notNil and: [aRequestOrNil afterResponse notNil]) ifTrue: [aRequestOrNil afterResponse value]
 !
 requestFrom: aByteArray
-	"Answer a RemoteRequest, or an error response Dictionary for a malformed line."
-	| json |
+	"Answer a RemoteRequest, or an error response Dictionary for a malformed line or a request without the server's token."
+	| json auth |
 	json := [JSON parse: (String fromUTF8: aByteArray)] on: Error do: [:e |
 		^RemoteControl errorResponse: 'bad request: ', e messageText code: 1].
 	json isDictionary ifFalse: [^RemoteControl errorResponse: 'bad request: not a JSON object' code: 1].
+	auth := json removeKey: 'auth' ifAbsent: [nil].
+	(server isNil or: [server authorizes: auth]) ifFalse: [^self unauthorized: json].
 	^RemoteRequest on: json connection: self
+!
+unauthorized: aDictionary
+	"The answer to a request without the right token; it says neither what came nor what was expected."
+	| r |
+	r := RemoteControl errorResponse: 'unauthorized: no control token, or the wrong one (samaltak-ctl sends its session''s: open makes one, connect --token-file reads one; docs/remote.md)' code: 4.
+	(aDictionary includesKey: 'id') ifTrue: [r at: 'id' put: (aDictionary at: 'id')].
+	^r
 !
 close
 	socket close.

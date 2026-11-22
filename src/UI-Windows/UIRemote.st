@@ -27,6 +27,9 @@ installOn: aWorld
 	RemoteControl registerWaitCondition: 'frames' with: [:n :r | self frames: n for: r].
 	"Remote control is an input device: the input dispatcher serves its sockets."
 	(ControlServer current notNil and: [aWorld dispatcher notNil]) ifTrue: [aWorld dispatcher addService: ControlServer current].
+	"A token the control service made at start, once, for an operator at the screen (on a firmware console the World draws over it): five minutes."
+	ControlServer takeAnnouncement ifNotNil: [:t |
+		aWorld toast: 'Remote control token: ', t, ' (samaltak-ctl connect --token-file)' duration: 300000].
 	RemoteInputDevice default
 		windowId: aWorld displayWindow windowId;
 		timeScaleBlock: [Animation timeScale];

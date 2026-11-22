@@ -112,6 +112,12 @@ waitForKeyOrSeconds: seconds saying: aString
 ! !
 
 !FirmwareDiagnostics methodsFor: 'output'!
+echoOnScreen: aString
+	"aString also on the firmware's text console (the screen) where the VM's output goes to a serial port only (ControlServer: a token it made)."
+	firmware := Firmware current.
+	firmware isNil ifTrue: [^self].
+	((self locate: #serialIo) notNil and: [firmware conOut ~= 0]) ifTrue: [self conOut: aString]
+!
 line: aString
 	| text |
 	text := 'diag ', aString.

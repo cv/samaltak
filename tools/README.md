@@ -1,9 +1,10 @@
 # samaltak-ctl
 
-Drives a running Samaltak image through its control service (`ControlServer`, `src/System-Remote/`). Node ≥ 18, no deps. Session: `--session` / `$SAMALTAK_SESSION`, default `samaltak`; session info lives in `$TMPDIR/samaltak-ctl/<session>.json`, the image's output in `<session>.log`.
+Drives a running Samaltak image through its control service (`ControlServer`, `src/System-Remote/`). Node ≥ 18, no deps. Session: `--session` / `$SAMALTAK_SESSION`, default `samaltak`; session info (with the session's control token: mode 0600) lives in `$TMPDIR/samaltak-ctl/<session>.json`, the image's output in `<session>.log`.
 
     open [--headless] [--hidden] [--image path] [--port n] [--window-size WxH] [--source-dir d]
     open --uefi [--headless] [--port n] [--window-size WxH]   # the VM on UEFI in QEMU (make uefi-control, docs/uefi.md)
+    connect [--host h] --port n --token-file f   # an image started elsewhere (a bare-metal Spark: docs/remote.md); close forgets it, close --quit quits it
     snapshot [ref] [--depth n] [--bounds]       find <text>
     click|dblclick|rightclick <ref|x,y> [--mods Shift+Meta]      hover <ref|x,y> [--at spec]   (--at: e.g. a PixelView pixel 4,7)
     type <ref> <text> [--end|--start|--replace] [--delay ms] [--preedit]   (the image types one character every ms, default 45; --preedit: one input-method composition event, '' ends it)
@@ -16,7 +17,7 @@ Drives a running Samaltak image through its control service (`ControlServer`, `s
 
 Input commands (click, hover, type, key, drag, select, scroll, resize) wait until the image has settled — no user Process runnable, the UI idle — for at most 2 s; `--settle ms` changes that limit (`--settle 0`: return at once; useful while a window computes for a long time, as nothing settles then). A target in an inactive window gets focus through a click on that window's title bar, so the caret and the selection stay where they are.
 
-`open` starts `vm/build/samaltak <image> --control --control-port <n> --control-port-file <tmp>` (default image `build/samaltak.image`, default port: a free one) and waits until it listens. Commands the image has not registered (without a UI only ping, commands, eval, wait, state and quit exist) fail with a clear message. Exit codes: 1 error, 2 not found / wait timed out, 3 Smalltalk error (the error JSON, with stack, on stdout). While the session's process lives but its port refuses (World menu › Rebuild VM & reboot execs a new VM in the same process, on the same port), commands retry for up to 60 s.
+`open` starts `vm/build/samaltak <image> --control --control-port <n> --control-port-file <tmp> --control-token-file <session>.token` (a fresh token, mode 0600; docs/remote.md) (default image `build/samaltak.image`, default port: a free one) and waits until it listens. Commands the image has not registered (without a UI only ping, commands, eval, wait, state and quit exist) fail with a clear message. Exit codes: 1 error, 2 not found / wait timed out, 3 Smalltalk error (the error JSON, with stack, on stdout). While the session's process lives but its port refuses (World menu › Rebuild VM & reboot execs a new VM in the same process, on the same port), commands retry for up to 60 s.
 
     export SAMALTAK_SESSION=remote
     samaltak-ctl open --headless
@@ -27,7 +28,7 @@ Input commands (click, hover, type, key, drag, select, scroll, resize) wait unti
 
 ## Protocol
 
-JSON lines over TCP on 127.0.0.1. Request `{"id": 1, "cmd": "eval", "source": "3+4"}`, response `{"id": 1, "ok": true, "printString": "7", "className": "SmallInteger"}` or `{"id": 1, "ok": false, "error": "…", "code": 2}`. One connection may carry many requests; they are answered in order. Commands and their arguments:
+JSON lines over TCP on 127.0.0.1. Every request carries the session's token as `auth`; without it, or with another, the answer is `{"ok": false, "code": 4, "error": "unauthorized: …"}` and nothing runs (docs/remote.md). Request `{"id": 1, "cmd": "eval", "source": "3+4", "auth": "…"}`, response `{"id": 1, "ok": true, "printString": "7", "className": "SmallInteger"}` or `{"id": 1, "ok": false, "error": "…", "code": 2}`. One connection may carry many requests; they are answered in order. Commands and their arguments:
 
 | cmd | arguments | answer |
 |---|---|---|

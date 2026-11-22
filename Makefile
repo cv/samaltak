@@ -101,6 +101,7 @@ test-tools: $(TEST_IMAGE)
 	$(PLATFORM_CHECK)
 	$(MAKE) -C vm/platform test st-test
 	tests/remote/cli_test.sh $(OUT)/samaltak.image
+	tests/remote/auth_test.sh $(OUT)/samaltak.image
 	tests/remote/recording_test.sh $(OUT)/samaltak.image
 	tests/tools/desktop_test.sh $(OUT)/samaltak.image
 	tests/tools/snapshot_test.sh $(OUT)/samaltak.image
@@ -120,7 +121,9 @@ nv-kernels:
 # firmware, on this machine's CPU if it is UEFI_ARCH (KVM, or Hypervisor.framework on macOS), and fails unless the VM
 # exits 0; UEFI_ARGS are its arguments after the image (disk:). uefi-ui boots the World in a QEMU window (USB keyboard,
 # virtio tablet; the console on stdio). uefi-control boots it without a window, its control service (--control on
-# 0.0.0.0 in the guest) forwarded from 127.0.0.1:UEFI_CONTROL_PORT, UEFI_CONTROL_ARGS after it (samaltak-ctl open --uefi).
+# 0.0.0.0 in the guest) forwarded from 127.0.0.1:UEFI_CONTROL_PORT, UEFI_CONTROL_ARGS after it (samaltak-ctl open --uefi);
+# its token from the environment's UEFI_CONTROL_TOKEN, written into samaltak.args (mode 0600) and never on a command
+# line, else one the image makes and shows on the console (docs/remote.md).
 # The guest's network is QEMU's user network (NAT, DHCP, DNS) on a UEFI_NIC without its option ROM, which the image
 # drives: e1000e on x86-64 (q35's default), virtio-net-pci on arm64 (virt's); a virtio-rng, so that the firmware offers EFI_RNG_PROTOCOL (SecureRandom's entropy). test-uefi runs the tests there that need no platform layer (no files, processes
 # or ptys from Smalltalk), LowSpaceTest and StackOverflowTest in a 128 MB heap, opens the World on the firmware's screen and moves its pointer by remote input, drives the VM with
@@ -233,7 +236,8 @@ uefi-ui: uefi
 	cp $(OVMF_VARS) $(UEFI)/vars.fd
 	$(if $(UEFI_VNC),,$(UEFI_WINDOW)) tools/qemu-pin.sh '$(UEFI_PIN)' $(QEMU_UEFI) $(if $(UEFI_VNC),$(UEFI_VNC_DISPLAY),$(UEFI_DISPLAY)) $(UEFI_VGA) -device qemu-xhci -device usb-kbd -device virtio-tablet-pci -serial stdio
 uefi-control: uefi
-	printf '%s\n' --max-heap $(UEFI_HEAP) disk: --control --control-host 0.0.0.0 --control-port 7341 $(UEFI_CONTROL_ARGS) > $(UEFI)/esp/samaltak.args
+	rm -f $(UEFI)/esp/samaltak.args && umask 077 && printf '%s\n' --max-heap $(UEFI_HEAP) disk: --control --control-host 0.0.0.0 --control-port 7341 \
+		$${UEFI_CONTROL_TOKEN:+--control-token "$$UEFI_CONTROL_TOKEN"} $(UEFI_CONTROL_ARGS) > $(UEFI)/esp/samaltak.args
 	cp $(OVMF_VARS) $(UEFI)/vars.fd
 	tools/qemu-pin.sh '$(UEFI_PIN)' $(QEMU_UEFI) $(if $(UEFI_VNC),$(UEFI_VNC_DISPLAY),-display none) $(UEFI_VGA) -device qemu-xhci -device usb-kbd -device virtio-tablet-pci -serial stdio
 UEFI_TESTS := CompilerTest ParserTest ScannerTest ClassTest CollectionTest ContextTest ExceptionTest FloatTest FractionTest \
@@ -245,8 +249,8 @@ UEFI_TESTS := CompilerTest ParserTest ScannerTest ClassTest CollectionTest Conte
 	MountTableTest FirmwareVolumesTest GitHubClientTest SourceFilerGitHubTest SourceUpdateTest PosixDeviceTest ZLibTest PNGCodecTest AgentImageTest \
 	SoftwareGPUTest SoftwareGPUBandsTest JitOptBackgroundTest
 UEFI_WORLD := | w t | w := UIWindows startUp. RemoteInputDevice default inject: {1. nil. 123. 45. 0. 0. nil. w displayWindow windowId}. t := Time millisecondClockValue. [w dispatcher pointer = (123 @ 45) or: [Time millisecondClockValue - t > 20000]] whileFalse: [(Delay forMilliseconds: 50) wait]. Smalltalk vm stderrWrite: 'world ', w extent printString, ' ', Renderer default device isSoftware printString, ' ', w dispatcher pointer rounded printString, (String with: Character lf)
-UEFI_NET := | s buf n | s := RemoteSocket connectTo: '10.0.2.2' port: $$P timeout: 20000. s sendAll: '{\"cmd\": \"ping\"}', (String with: Character lf). buf := ByteArray new: 200. n := s receiveInto: buf timeout: 20000. s close. (buf copyFrom: 1 to: n) asString
-UEFI_NET_BULK := | src req s buf n chunk out t ms resp ok more | src := String new: 1000000. 1 to: src size do: [:i | src at: i put: (Character value: 97 + (i * 7 rem: 26))]. req := '{\"cmd\": \"eval\", \"source\": \"''', src, ''' reverse\"}', (String with: Character lf). t := Time millisecondClockValue. s := RemoteSocket connectTo: '10.0.2.2' port: $$P timeout: 20000. s sendAll: req. out := WriteStream on: (String new: 1100000). buf := ByteArray new: 65536. more := true. [more] whileTrue: [n := s receiveInto: buf timeout: 60000. chunk := (buf copyFrom: 1 to: n) asString. out nextPutAll: chunk. more := n > 0 and: [(chunk includes: Character lf) not]]. ms := Time millisecondClockValue - t. s close. resp := out contents. ok := (resp includesSubstring: '\"ok\":true') and: [resp includesSubstring: src reverse]. 'bulk ', ok printString, ' ', (req size + resp size) printString, ' bytes in ', ms printString, ' ms'
+UEFI_NET := | s buf n | s := RemoteSocket connectTo: '10.0.2.2' port: $$P timeout: 20000. s sendAll: '{\"cmd\": \"ping\", \"auth\": \"', ControlServer current token, '\"}', (String with: Character lf). buf := ByteArray new: 200. n := s receiveInto: buf timeout: 20000. s close. (buf copyFrom: 1 to: n) asString
+UEFI_NET_BULK := | src req s buf n chunk out t ms resp ok more | src := String new: 1000000. 1 to: src size do: [:i | src at: i put: (Character value: 97 + (i * 7 rem: 26))]. req := '{\"cmd\": \"eval\", \"auth\": \"', ControlServer current token, '\", \"source\": \"''', src, ''' reverse\"}', (String with: Character lf). t := Time millisecondClockValue. s := RemoteSocket connectTo: '10.0.2.2' port: $$P timeout: 20000. s sendAll: req. out := WriteStream on: (String new: 1100000). buf := ByteArray new: 65536. more := true. [more] whileTrue: [n := s receiveInto: buf timeout: 60000. chunk := (buf copyFrom: 1 to: n) asString. out nextPutAll: chunk. more := n > 0 and: [(chunk includes: Character lf) not]]. ms := Time millisecondClockValue - t. s close. resp := out contents. ok := (resp includesSubstring: '\"ok\":true') and: [resp includesSubstring: src reverse]. 'bulk ', ok printString, ' ', (req size + resp size) printString, ' bytes in ', ms printString, ' ms'
 UEFI_NET_DRIVER := 'driver ', NetworkStack active interface class name
 UEFI_HTTPS := | s hs r | TLSSocket trustStore: (TrustStore new add: (ByteArray fromHex: '$$CA'); yourself). s := TLSSocket connectTo: '10.0.2.2' port: $$TP timeout: 20000. hs := s connection handshakeMilliseconds. s close. r := HTTPClient new get: 'https://10.0.2.2:$$TP/' headers: nil. TLSSocket trustStore: nil. 'https ', r status printString, ' ', s connection cipherSuite name, ' handshake ', hs printString, ' ms'
 UEFI_DRIVER = $(if $(filter e1000e,$(1)),E1000eInterface,VirtioNetInterface)
@@ -273,6 +277,7 @@ test-uefi:
 	P=$$(sed -n 's/.*"port": \([0-9]*\).*/\1/p' $${TMPDIR:-/tmp}/samaltak-ctl/uefi-test.json); \
 	TP=$$(python3 -c 'import socket; s = socket.socket(); s.bind(("127.0.0.1", 0)); print(s.getsockname()[1])'); \
 	tools/samaltak-ctl --session uefi-test eval "$(UEFI_NET_DRIVER)" > $(UEFI)/net.log; ok=$$?; \
+	[ $$ok = 0 ] && { tests/remote/auth_test.sh --session uefi-test >> $(UEFI)/net.log; ok=$$?; }; \
 	[ $$ok = 0 ] && { tools/samaltak-ctl --session uefi-test eval "$(UEFI_NET)" >> $(UEFI)/net.log; ok=$$?; }; \
 	[ $$ok = 0 ] && { tools/samaltak-ctl --session uefi-test eval "$(UEFI_NET_BULK)" >> $(UEFI)/net.log; ok=$$?; }; \
 	[ $$ok = 0 ] && { tools/tls-test-server.sh $(UEFI)/tls $$TP; ok=$$?; }; \
@@ -303,7 +308,8 @@ test-uefi-nic:
 # firmware's mode). USB_DIAG=1 first runs FirmwareDiagnostics (firmware, SMBIOS, ACPI and CPUs, memory map and protection,
 # timer, RNG, GOP modes, PCI, disks, volumes, NICs, DHCP: on the console and in samaltak-diag.txt on the stick's ESP), then
 # the World after a key or 30 s; USB_DIAG=key powers off after a key instead, USB_DIAG=quit at once. usb-run boots
-# USB_IMAGE in QEMU as USB_DEVICE (usb-storage on xHCI, or nvme), its console on stdio (UEFI_VNC=N: its screen on VNC).
+# USB_IMAGE in QEMU as USB_DEVICE (usb-storage on xHCI, or nvme), its console on stdio (UEFI_VNC=N: its screen on VNC;
+# UEFI_CONTROL_PORT=N: host 127.0.0.1:N forwarded to its port 7341, for USB_CONTROL).
 # test-usb-image makes one (usb-test.img) and boots that very file as a USB stick and as NVMe: the diagnostics (the
 # store, the ext4 volume, DHCP, the file on the ESP), then a snapshot into the stick's store and its resume.
 USB_IMAGE ?= $(UEFI)/usb.img
@@ -317,11 +323,18 @@ USB_SCREEN ?=
 USB_DIAG ?=
 USB_DIAG_RUN = $(if $(filter key,$(USB_DIAG)),runThenWaitForKey,$(if $(filter quit,$(USB_DIAG)),runThenQuit,runThenWorld))
 USB_ARGS ?= $(if $(USB_SCREEN),--window-size $(USB_SCREEN)) $(if $(USB_DIAG),--eval 'FirmwareDiagnostics $(USB_DIAG_RUN)')
+# USB_CONTROL=1: the control service on every address, port 7341, for samaltak-ctl connect from another machine
+# (docs/remote.md); its token the contents of USB_CONTROL_TOKEN_FILE (e.g. openssl rand -hex 16 > F; written into
+# samaltak.args, never on a command line, and the stick's file made 0600), else one the image makes at boot and shows
+# on the screen.
+USB_CONTROL ?=
+USB_CONTROL_TOKEN_FILE ?=
+USB_CONTROL_ARGS = $(if $(USB_CONTROL),--control --control-host 0.0.0.0 --control-port 7341)
 USB_DEVICE ?= usb-storage
 USB_STORE_TYPE := 5aa3a57f-0f7e-4c2b-9b5e-53414d53544f
 USB_PARTS = $(USB_IMAGE).parts
 MTOOLS := MTOOLS_SKIP_CHECK=1
-QEMU_USB = $(QEMU_UEFI_MACHINE) -m $(or $(UEFI_RAM_MB),$(USB_RAM_MB),2048) -no-reboot -nic user,model=$(UEFI_NIC) -global $(UEFI_NIC).romfile= \
+QEMU_USB = $(QEMU_UEFI_MACHINE) -m $(or $(UEFI_RAM_MB),$(USB_RAM_MB),2048) -no-reboot -nic user,model=$(UEFI_NIC)$(if $(UEFI_CONTROL_PORT),$(comma)hostfwd=tcp:127.0.0.1:$(UEFI_CONTROL_PORT)-:7341) -global $(UEFI_NIC).romfile= \
 	-device virtio-rng-pci -drive if=pflash,format=raw,readonly=on,file=$(OVMF_CODE) -drive if=pflash,format=raw,file=$(UEFI)/usb-vars.fd \
 	-device qemu-xhci -drive if=none,id=stick,format=raw,file=$(USB_IMAGE) \
 	$(if $(filter nvme,$(USB_DEVICE)),-device nvme$(comma)serial=stick$(comma)drive=stick,-device usb-storage$(comma)drive=stick)
@@ -329,7 +342,8 @@ usb-image: uefi
 	$(MAKE) usb-disk
 usb-disk: $(filter $(UEFI)/ext4-root,$(USB_FILES))
 	rm -rf $(USB_IMAGE) $(USB_PARTS) && mkdir -p $(USB_PARTS)
-	printf '%s\n' --max-heap $(USB_HEAP_MB) disk: $(USB_ARGS) > $(USB_PARTS)/samaltak.args
+	umask 077 && printf '%s\n' --max-heap $(USB_HEAP_MB) disk: $(USB_CONTROL_ARGS) $(USB_ARGS) > $(USB_PARTS)/samaltak.args
+	$(if $(USB_CONTROL_TOKEN_FILE),printf '%s\n' --control-token "$$(tr -d ' \n' < $(USB_CONTROL_TOKEN_FILE))" >> $(USB_PARTS)/samaltak.args)
 	truncate -s $(USB_ESP_MB)M $(USB_PARTS)/esp && $(MTOOLS) mformat -i $(USB_PARTS)/esp -F -v SAMALTAK :: \
 		&& $(MTOOLS) mmd -i $(USB_PARTS)/esp ::/EFI ::/EFI/BOOT && $(MTOOLS) mcopy -i $(USB_PARTS)/esp $(UEFI)/esp/EFI/BOOT/$(UEFI_BOOT) ::/EFI/BOOT/ \
 		&& $(MTOOLS) mcopy -i $(USB_PARTS)/esp $(USB_PARTS)/samaltak.args ::/
@@ -343,7 +357,8 @@ usb-disk: $(filter $(UEFI)/ext4-root,$(USB_FILES))
 		&& dd if=$(USB_PARTS)/esp of=$(USB_IMAGE) bs=1M seek=1 conv=notrunc status=none \
 		&& dd if=$(USB_PARTS)/store of=$(USB_IMAGE) bs=1M seek=$$(( 1 + E )) conv=notrunc status=none \
 		$(if $(USB_FILES),&& dd if=$(USB_PARTS)/files of=$(USB_IMAGE) bs=1M seek=$$(( 1 + E + S )) conv=notrunc status=none)
-	@echo "$(USB_IMAGE): $$(( $$(wc -c < $(USB_IMAGE)) / 1048576 )) MB, samaltak.args: $$(tr '\n' ' ' < $(USB_PARTS)/samaltak.args)"
+	@echo "$(USB_IMAGE): $$(( $$(wc -c < $(USB_IMAGE)) / 1048576 )) MB, samaltak.args: $$(awk 'p { print "<token>"; p = 0; next } /^--control-token$$/ { p = 1 } { print }' $(USB_PARTS)/samaltak.args | tr '\n' ' ')"
+	$(if $(USB_CONTROL_TOKEN_FILE),chmod 600 $(USB_IMAGE))
 	rm -rf $(USB_PARTS)
 usb-run: USB_RAM_MB = $(shell expr $(USB_HEAP_MB) \* 4)
 usb-run:

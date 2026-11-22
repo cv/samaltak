@@ -48,6 +48,10 @@ Check with `context.get().projectFunctions`.
   ended three gates' test runs at once: a VM with a display quits on SIGTERM, with status 143 and a line naming the sender).
 - `agent-config --from-pi` resolves pi's API key, through 1Password's `op` where pi's config says so; that can wait
   for the operator's approval (`authorization timeout`). `ctlSession` notifies the operator first. Never print a key.
+- The control service runs only requests with the session's token (docs/remote.md): `samaltak-ctl open` makes it and
+  keeps it in the session file (0600); an image started elsewhere (a bare-metal Spark) needs a first step
+  `["connect", "--host", H, "--port", P, "--token-file", F]`. `ctlSession` and `crashLog` redact the token (and a
+  `control: token ...` line an image printed); never print one.
 - `github-config --from-gh` sends `gh auth token` (no approval needed) as the image's GitHub token (docs/github.md);
   `ctlSession` redacts GitHub tokens (`ghp_`, `gho_`, `ghu_`, `ghs_`, `ghr_`, `github_pat_`) as it does API keys.
 - AgentItems: print `item text`, not `printString` (cut short).

@@ -11,6 +11,8 @@ async function crashLog(
   // the lines before the first fatal line (contextLines, default 25) and the stack after it with consecutive repeats
   // collapsed ("StackOverflowTest>>depth: (x192418)"), the last ERROR/FAIL lines of tests, and the collapsed tail.
   // Escape sequences and carriage returns are stripped; the last 4 MB of a longer log are read. Nothing is sent anywhere.
+  // The session's control token (docs/remote.md) and a token an image showed (control: token ...) are redacted; meta never
+  // has the token. A connected session (samaltak-ctl connect: an image on another machine) has no log here.
   const session = input.session ?? "samaltak";
   if (!/^[A-Za-z0-9_-]+$/.test(session)) throw new Error("crashLog: bad session name");
   const ctx = Math.min(Math.max(input.contextLines ?? 25, 0), 200);
@@ -24,13 +26,15 @@ async function crashLog(
       `crashLog: no log ${file}${input.file ? "" : ` (no samaltak-ctl session "${session}" here)`}`,
     );
   let alive: boolean | null = null;
-  let meta: { pid?: number; port?: number; uefi?: boolean; started?: string } | undefined;
+  let meta: { pid?: number; port?: number; host?: string; remote?: boolean; uefi?: boolean; started?: string } | undefined;
+  let token = "";
   if (!input.file) {
     const j = await exec(`cat ${q(`${dir}/${session}.json`)} 2>/dev/null`);
     if (j.stdout.trim()) {
       try {
         const m = JSON.parse(j.stdout);
-        meta = { pid: m.pid, port: m.port, uefi: m.uefi, started: m.started };
+        meta = { pid: m.pid, port: m.port, host: m.host, remote: m.remote, uefi: m.uefi, started: m.started };
+        if (typeof m.token === "string" && m.token.length >= 16) token = m.token;
         alive = typeof m.pid === "number" && (await exec(`kill -0 ${m.pid}`)).code === 0;
       } catch {
         meta = undefined;
@@ -41,7 +45,10 @@ async function crashLog(
     `tail -c 3900000 ${q(file)} | sed -e 's/\\x1b\\[[0-9;=?]*[A-Za-z]//g' | tr -d '\\r'`,
     { maxBytes: 4000000, truncate: "tail", timeoutMs: 30000 },
   );
-  const lines = r.stdout.split("\n");
+  const grouped = token.replace(/(.{4})(?!$)/g, "$1-");
+  const lines = (token ? r.stdout.split(token).join("<redacted>").split(grouped).join("<redacted>") : r.stdout)
+    .replace(/(control: token )[0-9A-Fa-f-]{16,}/g, "$1<redacted>")
+    .split("\n");
   const collapse = (xs: string[]) => {
     const outL: string[] = [];
     for (let i = 0; i < xs.length;) {

@@ -71,6 +71,7 @@ The whole UI must be drivable by an agent (Claude) without a human, at no cost w
   - `eval`: run a Smalltalk expression, return its printString;
   - `screenshot`;
   - `wait`: until a condition holds (widget exists, Process idle, frame presented).
+- Every request carries a per-session token, as `eval` reaches everything in the image, its secrets too (docs/remote.md).
 - A small CLI (`samaltak-ctl`) wraps the socket, modeled on `agent-browser`.
 - Same channel later serves automated UI tests.
 

@@ -26,13 +26,17 @@ cleanup() {
 }
 trap cleanup EXIT
 
-# The VM is this shell's child, so that wait sees its exit status; samaltak-ctl reaches it through a session file.
-vm/build/samaltak "$IMAGE" --hidden --control --control-port 0 --control-port-file "$TMP/port" >"$TMP/log" 2>&1 &
+# The VM is this shell's child, so that wait sees its exit status; samaltak-ctl reaches it through a session file
+# with the token the VM reads from a file (docs/remote.md).
+umask 077
+token=$(od -An -tx1 -N16 /dev/urandom | tr -d ' \n')
+printf '%s\n' "$token" >"$TMP/token"
+vm/build/samaltak "$IMAGE" --hidden --control --control-port 0 --control-port-file "$TMP/port" --control-token-file "$TMP/token" >"$TMP/log" 2>&1 &
 pid=$!
 i=0; until [ -s "$TMP/port" ] || [ $i -ge 600 ]; do i=$((i + 1)); sleep 0.1; done
 [ -s "$TMP/port" ] || { cat "$TMP/log"; echo "FAIL the VM did not start"; exit 1; }
 mkdir -p "$SESSIONS"
-printf '{"pid": %s, "port": %s}\n' "$pid" "$(cat "$TMP/port")" >"$SESSIONS/$SAMALTAK_SESSION.json"
+printf '{"pid": %s, "port": %s, "token": "%s"}\n' "$pid" "$(cat "$TMP/port")" "$token" >"$SESSIONS/$SAMALTAK_SESSION.json"
 # the ref condition fails at once until the World registers its snapshot root
 i=0; until $CTL wait '@w6' 10000 >/dev/null 2>&1 || [ $i -ge 100 ]; do i=$((i + 1)); sleep 0.1; done
 check "the World is up" "6" "$($CTL snapshot --depth 1 | grep -c '^window')"

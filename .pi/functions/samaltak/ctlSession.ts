@@ -31,7 +31,10 @@ async function ctlSession(
   // agent-config --from-pi resolves pi's API key, through 1Password's op when pi's config says so, which may wait for
   // the operator's approval: the operator is notified first, and a failure comes back with a hint. github-config --from-gh (gh auth token)
   // needs no approval. Output that looks like an API key or a GitHub token (ghp_, gho_, ghu_, ghs_, ghr_, github_pat_) is
-  // redacted. In evals, print an AgentItem's text (item text), not its printString (cut short).
+  // redacted, as is the session's control token (in the session file, 0600; every request carries it, docs/remote.md)
+  // and a token an image made and showed (control: token ...). A session of an image this machine did not start (a
+  // bare-metal Spark): a first step ["connect", "--host", H, "--port", P, "--token-file", F]; close then only forgets it.
+  // In evals, print an AgentItem's text (item text), not its printString (cut short).
   const session = input.session ?? `pit-${Date.now().toString(36)}`;
   if (!/^[A-Za-z0-9_-]+$/.test(session)) throw new Error("bad session name");
   const stepTimeoutS = Math.min(Math.max(input.stepTimeoutS ?? 60, 5), 280);
@@ -77,8 +80,20 @@ async function ctlSession(
     }
     env.UEFI_DISKS = specs.join(" ");
   }
+  let token = "";
+  const readToken = async () => {
+    const j = await execFile("sh", ["-c", 'cat "${TMPDIR:-/tmp}/samaltak-ctl/$1.json" 2>/dev/null', "sh", session]);
+    try {
+      const t = JSON.parse(j.stdout).token;
+      if (typeof t === "string" && t.length >= 16) token = t;
+    } catch {
+      /* no session (yet) */
+    }
+  };
+  const grouped = (t: string) => t.replace(/(.{4})(?!$)/g, "$1-");
   const redact = (s: string) =>
-    s
+    (token ? s.split(token).join("<redacted>").split(grouped(token)).join("<redacted>") : s)
+      .replace(/(control: token )[0-9A-Fa-f-]{16,}/g, "$1<redacted>")
       .replace(/\b(sk-[A-Za-z0-9_-]{16,}|nvapi-[A-Za-z0-9_-]{16,}|gh[pousr]_[A-Za-z0-9]{16,}|github_pat_[A-Za-z0-9_]{16,})/g, "<redacted>")
       .replace(/("?(api[_-]?key|authorization|x-api-key|token)"?\s*[:=]\s*"?)(Bearer )?[^\s",}]{12,}/gi, "$1<redacted>");
   let display = "";
@@ -95,6 +110,7 @@ async function ctlSession(
         truncate: "tail",
       },
     );
+    await readToken(); // a new session's (open, connect); after close the last one's stays
     return {
       code: r.code,
       out: redact((r.stdout + (r.stderr ? "\n" + r.stderr : "")).trim()).slice(-3000),
@@ -117,7 +133,7 @@ async function ctlSession(
       const o = await run(["open", ...input.open], Math.min(Math.max(input.openTimeoutS ?? 240, 10), 285));
       // samaltak-ctl open on a live session says "already open" and succeeds: that VM is someone else's (the
       // operator's World, session vnc): run the steps in it, but never close (quit) it.
-      if (/already open/.test(o.out)) closeIt = false;
+      if (/already (open|connected)/.test(o.out)) closeIt = false;
       results.push({ step: ["open", ...input.open], ...o, ...(closeIt ? {} : { note: "the session was already open: left open" }) });
       if (o.code !== 0) return { ok: false, session, display: display || undefined, made, results };
     }
