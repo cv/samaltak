@@ -6,7 +6,11 @@ static int32_t ps_chain[16384];
 static int32_t ps_child[2048];
 static int32_t ps_heads[4096];
 static int32_t ps_idom[2048];
+#if defined(__x86_64__)
+int32_t ps_loop_outer[2048];
+#else
 static int32_t ps_loop_outer[2048];
+#endif
 int32_t ps_order[2048];
 int32_t ps_order_count;
 static int32_t ps_post[2048];

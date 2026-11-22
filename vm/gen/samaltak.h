@@ -1467,6 +1467,9 @@ extern uint64_t opt_osr_numbers;
 extern int32_t opt_osr_state;
 extern int32_t opt_state_count;
 extern opt_state opt_states[16384];
+#if defined(__x86_64__)
+extern int32_t ps_loop_outer[2048];
+#endif
 extern int32_t ps_order[2048];
 extern int32_t ps_order_count;
 extern bool ps_unbox_off;

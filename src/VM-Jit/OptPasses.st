@@ -1297,6 +1297,17 @@ loop: h changesOuterTemp: i
 				n := nd next]]].
 	^false
 !
+loopDepthOf: b
+	"How many loops (findLoops) hold block b."
+	<arch: #x86_64>
+	| l d |
+	d := 0.
+	l := (ir block: b) loop.
+	[l >= 0 and: [d < 16]] whileTrue: [
+		d := d + 1.
+		l := psLoopOuter at: l].
+	^d
+!
 block: b isIn: h
 	"Block b is in loop h (findLoops)."
 	| l |
