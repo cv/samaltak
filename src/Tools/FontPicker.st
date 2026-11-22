@@ -194,7 +194,7 @@ open
 openAt: aPoint
 	"Open (or focus) the picker; the keyboard focus of the active window, when it takes a font, becomes its target."
 	| window focus |
-	window := World current activeWindow.
+	window := Tools world isNil ifTrue: [nil] ifFalse: [Tools world activeWindow].
 	focus := window ifNotNil: [window keyboardFocus].
 	(focus notNil and: [(focus respondsTo: #font:) and: [(window content isKindOf: self) not]]) ifFalse: [focus := nil].
 	^self openAt: aPoint for: focus
