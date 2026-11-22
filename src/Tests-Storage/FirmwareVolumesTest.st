@@ -41,6 +41,21 @@ testLayout
 	self assert: table mounts isEmpty.
 	self assert: (table entries: '/') isEmpty
 !
+testLayoutWithFileSystems
+	"The boot volume at /esp, the file systems after the ext4 volumes at /mnt/<name>, names unique among all; with no ext4 volume nothing at /."
+	| table a b esp |
+	a := Object new.
+	b := Object new.
+	esp := Object new.
+	table := MountTable new coversEverything: true; yourself.
+	FirmwareVolumes mount: {a -> 'data'} fileSystems: {b -> 'data'} boot: esp on: table.
+	self assert: (table mounts collect: [:m | m key]) = #('/' '/esp' '/mnt/data' '/mnt/data-2').
+	self assert: (table volumeAt: '/esp') == esp.
+	self assert: (table volumeAt: '/mnt/data-2') == b.
+	table := MountTable new coversEverything: true; yourself.
+	FirmwareVolumes mount: #() fileSystems: {b -> nil} boot: nil on: table.
+	self assert: (table mounts collect: [:m | m key]) = #('/mnt/volume1')
+!
 testNoFirmware
 	Machine hasFirmware ifTrue: [^self].
 	self assert: FirmwareBlockDevice all = #()

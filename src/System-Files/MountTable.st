@@ -5,11 +5,14 @@ Object subclass: #MountTable
 
 MountTable comment: 'I put volumes into the file name space for File, FileStream and Directory (File mountTable:): each at a mount point, an absolute path. A path under a mount point is that volume''s, the rest of it the path within the volume (from its /); the deepest mount point wins. The directories above mount points exist (the mount points are their entries, with the entries of a volume mounted above them). Covering everything (coversEverything: true, as FirmwareVolumes does on UEFI) every path is mine: a relative one is relative to /, and / is a directory even with nothing mounted; else only the paths under my mount points are, the others the platform''s.
 
-Volumes are read-only: opening for writing, deleting, renaming and creating directories signal FileError (Read-only file system). Paths are resolved lexically first (. and .. against their names, so .. of a mount point is the directory it is in), then by the volume, which follows its symbolic links (an absolute one from its own root). A loader block (loader:) runs once, before the first lookup: FirmwareVolumes looks for the disks then.
+A volume that answers the writing protocol (FirmwareFileSystem: FAT through the firmware) is opened, written, deleted from, renamed in and has directories created by it; the others (Ext4Volume) are read-only: opening for writing, deleting, renaming and creating directories signal FileError (Read-only file system), as do paths no volume is mounted at. A rename stays on one volume. Paths are resolved lexically first (. and .. against their names, so .. of a mount point is the directory it is in), then by the volume, which follows its symbolic links (an absolute one from its own root). A loader block (loader:) runs once, before the first lookup: FirmwareVolumes looks for the disks then.
 
 A volume answers (Ext4Volume does; paths are absolute within it):
 	stat: path			the file, symbolic links followed: an object (Ext4Inode) answering isDirectory, size, modificationTime (UTC microseconds) and readFrom: offset count: n (up to n of its bytes from the 0-based offset); FileError (FileDoesNotExist) if there is none
 	entriesAt: path		the names in a directory
+and, if it can be written (all optional):
+	open: path mode: mode	a file for FileStream (as VolumeFile answers readInto:startingAt:count:, writeFrom:startingAt:count:, size, position, position:, flush, close), mode as File open:mode:; then I open every mode through it
+	delete: path	rename: path to: path	createDirectory: path
 
 	| t | t := MountTable new. t mount: (Ext4Volume on: (FileBlockDevice on: ''disk.img'')) at: ''/tmp/disk''. File mountTable: t'!
 
@@ -100,8 +103,15 @@ entries: aPath
 	^names asSortedCollection asArray
 !
 open: aPath mode: mode
-	"A VolumeFile to read aPath (mode 0); FileError for any other mode."
-	| found |
+	"The volume's file if it opens files (open:mode:), else a VolumeFile to read aPath (mode 0) and FileError for any other mode."
+	| found m comps |
+	comps := self componentsOf: aPath.
+	m := self mountFor: comps.
+	(m notNil and: [m value respondsTo: #open:mode:]) ifTrue: [| inner file |
+		inner := self innerPath: comps of: m.
+		file := self path: aPath for: inner do: [m value open: inner mode: mode].
+		(file respondsTo: #name:) ifTrue: [file name: aPath].
+		^file].
 	mode = 0 ifFalse: [^self readOnly: aPath].
 	found := self locate: (self componentsOf: aPath).
 	found isNil ifTrue: [
@@ -112,13 +122,19 @@ open: aPath mode: mode
 	^VolumeFile on: found third name: aPath
 !
 delete: aPath
-	^self readOnly: aPath
+	^self writable: aPath with: #delete: do: [:volume :inner | volume delete: inner]
 !
 rename: oldPath to: newPath
-	^self readOnly: oldPath
+	"On one volume only."
+	| comps m |
+	comps := self componentsOf: newPath.
+	m := self mountFor: comps.
+	^self writable: oldPath with: #rename:to: do: [:volume :inner |
+		(m notNil and: [m value == volume]) ifFalse: [^FileError signal: 'Cannot move to another volume: ', oldPath, ' to ', newPath path: oldPath].
+		self path: oldPath for: inner do: [volume rename: inner to: (self innerPath: comps of: m)]]
 !
 createDirectory: aPath
-	^self readOnly: aPath
+	^self writable: aPath with: #createDirectory: do: [:volume :inner | volume createDirectory: inner]
 ! !
 
 !MountTable methodsFor: 'private'!
@@ -130,6 +146,26 @@ table
 !
 readOnly: aPath
 	^FileError signal: 'Read-only file system: ', aPath path: aPath
+!
+writable: aPath with: aSelector do: aBlock
+	"aBlock value: the volume aPath is on value: the path within it, if that volume answers aSelector; else Read-only file system."
+	| comps m |
+	comps := self componentsOf: aPath.
+	m := self mountFor: comps.
+	(m notNil and: [m value respondsTo: aSelector]) ifFalse: [^self readOnly: aPath].
+	^self path: aPath for: (self innerPath: comps of: m) do: [aBlock value: m value value: (self innerPath: comps of: m)]
+!
+path: aPath for: inner do: aBlock
+	"aBlock's value; a FileError it signals for the path within the volume, inner, is signaled again for aPath."
+	^aBlock on: FileError do: [:e | | text |
+		text := e messageText asString.
+		(e path = inner and: [text endsWith: inner])
+			ifTrue: [e class signal: (text copyFrom: 1 to: text size - inner size), aPath path: aPath]
+			ifFalse: [e pass]]
+!
+innerPath: comps of: aMount
+	"The path within aMount's volume of the path comps."
+	^self pathOf: (comps copyFrom: aMount key size + 1 to: comps size)
 !
 componentsOf: aPath
 	"aPath's names from /, without . and .. (a relative path is relative to /)."

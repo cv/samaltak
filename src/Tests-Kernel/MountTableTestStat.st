@@ -25,6 +25,12 @@ readFrom: offset count: n
 !
 reads
 	^reads
+!
+bytes
+	^data
+!
+bytes: aByteArray
+	data := aByteArray
 ! !
 
 !MountTableTestStat class methodsFor: 'instance creation'!

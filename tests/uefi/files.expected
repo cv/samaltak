@@ -1,5 +1,5 @@
-files mounts #('/' '/mnt/fixture' '/mnt/fixture-gpt')
-files root #('docs' 'hello.txt' 'lost+found' 'mnt' 'numbers.txt')
+files mounts #('/' '/esp' '/mnt/fixture' '/mnt/fixture-gpt')
+files root #('docs' 'esp' 'hello.txt' 'lost+found' 'mnt' 'numbers.txt')
 files mnt #('fixture' 'fixture-gpt')
 files hello #[72 101 108 108 111 32 102 114 111 109 32 101 120 116 52 10]
 files link Hello from ext4

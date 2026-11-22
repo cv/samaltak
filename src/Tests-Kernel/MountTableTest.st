@@ -87,6 +87,33 @@ testReadOnly
 	check value: [Directory create: self root / 'new'].
 	self assert: (File readText: self root / 'docs/deep/note.txt') = 'deep'
 !
+testWritableVolume
+	"A volume with the writing protocol: written, appended to, overwritten in place, truncated, renamed, deleted; a rename stays on one volume; the read-only volume stays read-only."
+	| p |
+	p := '/samaltak-mount-rw'.
+	File mountTable mount: (MountTableTestWritableVolume new directory: '/d'; yourself) at: p.
+	File writeText: 'hello' to: p / 'a.txt'.
+	self assert: (File readText: p / 'a.txt') = 'hello'.
+	FileStream withStream: (FileStream appendingFileNamed: p / 'a.txt') do: [:s | s nextPutAll: ' world'].
+	FileStream fileNamed: p / 'a.txt' do: [:s | s position: 6. s nextPutAll: 'W'].
+	self assert: (File readText: p / 'a.txt') = 'hello World'.
+	self assert: (File sizeOf: p / 'a.txt') = 11.
+	File rename: p / 'a.txt' to: p / 'd/b.txt'.
+	self deny: (File exists: p / 'a.txt').
+	self assert: (File readText: p / 'd/b.txt') = 'hello World'.
+	File writeText: 'x' to: p / 'd/b.txt'.
+	self assert: (File readText: p / 'd/b.txt') = 'x'.
+	self should: [File rename: p / 'd/b.txt' to: self root / 'b.txt'] raise: FileError withExceptionDo: [:e |
+		self assert: (e messageText beginsWith: 'Cannot move to another volume: ')].
+	self should: [File writeText: 'x' to: p / 'missing/c.txt'] raise: FileDoesNotExist.
+	self should: [File delete: p / 'd'] raise: FileError.
+	Directory create: p / 'e'.
+	self should: [Directory create: p / 'e'] raise: FileExists.
+	File delete: p / 'd/b.txt'.
+	File delete: p / 'd'.
+	self assert: (Directory entries: p) = #('e').
+	self should: [File writeText: 'x' to: self root / 'new.txt'] raise: FileError
+!
 testOverlay
 	"Only the paths under a mount point are the table's."
 	self assert: (File mountTableFor: self root / 'x') notNil.
