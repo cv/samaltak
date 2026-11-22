@@ -142,6 +142,7 @@ typedef void (*prim_fn)(void);
 #define BF_SEALED 1
 #define BG_DONE 2
 #define BG_IDLE 0
+#define BG_MIN_NODES 256
 #define BG_QUEUED 1
 #define BL_BLOCK_CACHE 1024
 #define BL_BLOCK_WORDS 4096

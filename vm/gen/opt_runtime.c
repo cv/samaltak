@@ -322,8 +322,18 @@ exit_mentions_young:;
     r_mentions_young; });
 exit_bg_mentions_young:;
     r_bg_mentions_young; });
-    rt_stat_bg_jobs = rt_stat_bg_jobs + 1;
     ps_unbox_off = false;
+    if ((opt_node_count < BG_MIN_NODES) && (getenv("SAMALTAK_OPT_BG_INLINE") == NULL)) {
+        t0 = now_us();
+        rt_bg_ok = back_end(false);
+        rt_stat_opt_us = rt_stat_opt_us + (uint64_t)(now_us() - t0);
+        rt_bg_unboxed = ps_unboxed;
+        rt_bg_worker_us = 0;
+        atomic_store_explicit(&rt_bg_state, BG_DONE, memory_order_relaxed);
+        bg_poll();
+        return;
+    }
+    rt_stat_bg_jobs = rt_stat_bg_jobs + 1;
     n_6 = ({
     n_5 = initial_count(m);
     r_bg_retry_count_2 = n_5 < 64 ? n_5 : 64;
@@ -427,7 +437,7 @@ exit_bg_valid:;
         return;
     }
     if (getenv("SAMALTAK_OPT_BG_TRACE") != NULL) {
-        fprintf(stderr, "opt bg: install (block %d, loop %d) ", rt_bg_start, rt_bg_osr);
+        fprintf(stderr, "opt bg: install (block %d, loop %d, %d nodes, %d us) ", rt_bg_start, rt_bg_osr, opt_node_count, (long long)(int64_t)rt_bg_worker_us);
         print_activation(rt_bg_method, nil_oop, nil_oop, stderr);
     }
     rt_unit_signature = rt_bg_signature;
@@ -3038,6 +3048,7 @@ exit_failed_2:;
 exit_bg_redo_2:;
     r_bg_redo_2; }))) {
                 bg_optimize(m, s, k, f->sp, h, o);
+                o = unit_of(m, s, k);
             } else {
                 o = optimize_unit(m, s, k, f->sp, h, o);
                 if (o == NULL) {

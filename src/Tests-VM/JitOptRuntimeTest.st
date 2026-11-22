@@ -40,15 +40,23 @@ waitForBackground
 	[(Smalltalk vm jitParameters at: 7) = 1 and: [Time millisecondClockValue - t < 2000]] whileTrue: [(Delay forMilliseconds: 1) wait]
 !
 defineBackgroundSum
+	"bgSum: is big enough (its IR) for the helper to compile it, not the VM's thread at once"
 	self define: 'bgPlus: x ^x + 3'.
-	self define: 'bgSum: n | s | s := 0. 1 to: n do: [:i | s := s + (self bgPlus: i)]. ^s'
+	self define: (String new: 2000 streamContents: [:s |
+		s nextPutAll: 'bgSum: n | s | s := 0. 1 to: n do: [:i | '.
+		0 to: 59 do: [:j | s nextPutAll: 's := s + (self bgPlus: i + '; print: j; nextPutAll: '). '].
+		s nextPutAll: ']. ^s'])
+!
+backgroundSum: c
+	"What bgSum: 100 answers while bgPlus: adds c."
+	^(1 to: 100) inject: 0 into: [:a :i | (0 to: 59) inject: a into: [:b :j | b + i + j + c]]
 !
 heldJob: aBlock
 	"Run aBlock while finished background jobs are held (not installed), after a tier-up has given the helper a job and it finished it."
 	| o |
 	o := JitRuntimeTestSubject new.
 	Smalltalk vm jitParameters: #(nil nil nil nil true).
-	[self assert: (o bgSum: 100) equals: 5350.
+	[self assert: (o bgSum: 100) equals: (self backgroundSum: 3).
 	 self waitForBackground.
 	 self assert: (Smalltalk vm jitParameters at: 7) equals: 2.
 	 aBlock value] ensure: [Smalltalk vm jitParameters: #(nil nil nil nil false)]
@@ -64,12 +72,12 @@ testBackgroundCompilationInstallsCode
 	before := self statistics.
 	n := 0.
 	[n < 500 and: [(self statistics - before) optMethodsCompiled = 0 or: [(self statistics - before) optBackgroundJobs = 0]]] whileTrue: [
-		self assert: (o bgSum: 100) equals: 5350.
+		self assert: (o bgSum: 100) equals: (self backgroundSum: 3).
 		self waitForBackground.
 		n := n + 1].
 	self assert: (self statistics - before) optBackgroundJobs > 0.
 	self assert: (self statistics - before) optMethodsCompiled > 0.
-	self assert: (o bgSum: 100) equals: 5350
+	self assert: (o bgSum: 100) equals: (self backgroundSum: 3)
 !
 testBackgroundJobDroppedWhenAMethodChanges
 	"A method changes while a background job waits to be installed (it may have inlined it): the job is dropped, and the code compiled later runs the new method."
@@ -79,10 +87,10 @@ testBackgroundJobDroppedWhenAMethodChanges
 	o := JitRuntimeTestSubject new.
 	before := self statistics.
 	self heldJob: [self define: 'bgPlus: x ^x + 4'].
-	self assert: (o bgSum: 100) equals: 5450.
+	self assert: (o bgSum: 100) equals: (self backgroundSum: 4).
 	self assert: (self statistics - before) optBackgroundDiscarded > 0.
 	10 timesRepeat: [
-		self assert: (o bgSum: 100) equals: 5450.
+		self assert: (o bgSum: 100) equals: (self backgroundSum: 4).
 		self waitForBackground]
 !
 testBackgroundJobDroppedByAFullGC
@@ -93,10 +101,10 @@ testBackgroundJobDroppedByAFullGC
 	o := JitRuntimeTestSubject new.
 	before := self statistics.
 	self heldJob: [Smalltalk vm garbageCollect].
-	self assert: (o bgSum: 100) equals: 5350.
+	self assert: (o bgSum: 100) equals: (self backgroundSum: 3).
 	self assert: (self statistics - before) optBackgroundDiscarded > 0.
 	10 timesRepeat: [
-		self assert: (o bgSum: 100) equals: 5350.
+		self assert: (o bgSum: 100) equals: (self backgroundSum: 3).
 		self waitForBackground]
 !
 testBackgroundJobDroppedByAFlush
@@ -107,7 +115,7 @@ testBackgroundJobDroppedByAFlush
 	o := JitRuntimeTestSubject new.
 	before := self statistics.
 	self heldJob: [Smalltalk vm jitParameters: #(nil 'bg' nil nil)].
-	self assert: (o bgSum: 100) equals: 5350.
+	self assert: (o bgSum: 100) equals: (self backgroundSum: 3).
 	self assert: (self statistics - before) optBackgroundDiscarded > 0
 !
 testBackgroundDeoptimization

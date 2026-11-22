@@ -1,6 +1,6 @@
 OptModule subclass: #OptRuntime
 	instanceVariableNames: 'ir builder passes regalloc codegen rtDeoptVals rtDeoptCount rtActMethod rtActClosure rtActRcv rtActPc rtActDepth rtActVals rtActCount rtOptYoung rtOptYoungCount rtOptYoungOverflow rtStatOptCompiled rtStatOptFailed rtStatOptBytecodes rtStatOptUs rtStatOptBytes rtStatDeopts rtStatOptOsr rtStatInvalidations rtAll rtAllCount rtSunkAct rtSunkStart rtSunkInfo rtSunkOrder rtSunkCount rtSunkUseVal rtSunkUseId rtSunkUseCount rtFloatVal rtFloatLoc rtFloatBits rtFloatCount rtWritten rtUnitStart rtUnitOsr rtUnitDepth rtUnits rtUnitCount rtVariantCount rtFailed rtTrace rtTraceSends rtStamp rtStatSends rtUnitFrame rtUnitSignature rtSigCtx rtSigCount threads rtBgThread rtBgState rtBgOk rtBgUnboxed rtBgWorkerUs rtBgInstalling rtBgHold rtBgStale rtBgGcStale rtBgFlushed rtBgYoung rtBgMethod rtBgLower rtBgPrev rtBgStart rtBgOsr rtBgDepth rtBgSignature rtBgStamp rtBgKey rtBgRedoKey rtStatBgJobs rtStatBgDiscarded rtStatBgUs rtStatBgDeferred'
-	classVariableNames: 'BG_DONE BG_IDLE BG_QUEUED OPT_MAX_UNITS OPT_MAX_VARIANT_UNITS OPT_MAX_VARIANTS OPT_MAX_GENERATIONS OPT_MAX_DEOPTS OPT_MAX_DEOPT_ACTS OPT_MAX_DEOPT_VALS OPT_MAX_HEADERS OPT_MAX_YOUNG'
+	classVariableNames: 'BG_DONE BG_IDLE BG_MIN_NODES BG_QUEUED OPT_MAX_UNITS OPT_MAX_VARIANT_UNITS OPT_MAX_VARIANTS OPT_MAX_GENERATIONS OPT_MAX_DEOPTS OPT_MAX_DEOPT_ACTS OPT_MAX_DEOPT_VALS OPT_MAX_HEADERS OPT_MAX_YOUNG'
 	package: 'VM-Jit'!
 
 OptRuntime comment: 'The optimizing tier''s side of the runtime (docs/jit.md, Optimizing tier): when to optimize (tierUp:), compiling (OptBuilder, OptPasses, OptRegalloc, OptCodegen), sends from optimized code, deoptimization (a guard failed: the registers are in the JitState; after a send: everything is in slots), rebuilding an optimized frame''s activations as frames (deoptimization) or Contexts (materializeAll), resuming an optimized frame the interpreter returns into, the GC roots of optimized code (its method and oop pool).
@@ -39,7 +39,9 @@ initialize
 	"background compilation: the helper waits, works on a job, or its result waits for the VM's thread"
 	BG_IDLE := 0.
 	BG_QUEUED := 1.
-	BG_DONE := 2
+	BG_DONE := 2.
+	"smaller IRs are cleaned up and allocated at once (some 15 µs on an X925): waiting for a later tier-up would cost more"
+	BG_MIN_NODES := 256
 ! !
 
 !OptRuntime methodsFor: 'background compilation'!
@@ -113,8 +115,17 @@ bgOptimize: m start: s osr: t depth: d lower: h previous: p
 	rtBgGcStale := false.
 	rtBgFlushed := false.
 	rtBgYoung := self bgMentionsYoung.
-	rtStatBgJobs := rtStatBgJobs + 1.
 	passes unboxOff: false.
+	"a small IR: the back end and the install now"
+	(ir nodeCount < BG_MIN_NODES and: [(libc getenv: 'SAMALTAK_OPT_BG_INLINE') isNull]) ifTrue: [
+		t0 := runtime nowUs.
+		rtBgOk := self backEnd: false.
+		rtStatOptUs := rtStatOptUs + (runtime nowUs - t0) asUInt64.
+		rtBgUnboxed := passes unboxed.
+		rtBgWorkerUs := 0.
+		self atomicStore: #rtBgState value: BG_DONE.
+		^self bgPoll].
+	rtStatBgJobs := rtStatBgJobs + 1.
 	"come back soon: the code may be ready"
 	runtime counterFor: m put: (self bgRetryCount: m).
 	"SAMALTAK_OPT_BG_INLINE: the back end here, the install deferred as in the background (debugging)"
@@ -196,7 +207,7 @@ bgInstall
 	"Generate the job's code from its allocated IR and install it as a synchronous compilation would (optimize:lower:, optimizeUnit:start:osr:depth:lower:previous:)."
 	| o |
 	(libc getenv: 'SAMALTAK_OPT_BG_TRACE') notNull ifTrue: [
-		libc fprintf: libc stderr format: 'opt bg: install (block %d, loop %d) ' with: rtBgStart with: rtBgOsr.
+		libc fprintf: libc stderr format: 'opt bg: install (block %d, loop %d, %d nodes, %d us) ' with: rtBgStart with: rtBgOsr with: ir nodeCount with: rtBgWorkerUs asInt64.
 		interpreter printActivation: rtBgMethod receiver: memory nilOop closure: memory nilOop on: libc stderr].
 	rtUnitSignature := rtBgSignature.
 	rtBgInstalling := true.
@@ -365,7 +376,10 @@ tierUp: f loop: loop
 				"a loop's unit may inline closures this frame made"
 				k ~= 0 ifTrue: [rtUnitFrame := f].
 				(self background and: [(self bgRedo: m start: s osr: k) not])
-					ifTrue: [self bgOptimize: m start: s osr: k depth: f sp lower: h previous: o]
+					ifTrue: [
+						self bgOptimize: m start: s osr: k depth: f sp lower: h previous: o.
+						"a small one is installed already"
+						o := self unitOf: m start: s osr: k]
 					ifFalse: [
 						o := self optimizeUnit: m start: s osr: k depth: f sp lower: h previous: o.
 						o isNull ifTrue: [self noteFailed: m start: s osr: k]].
