@@ -1233,6 +1233,19 @@ testBranchesMakeNoBoolean
 	self deny: ((self listingOf: #positive:) includesSubstring: (self isX64 ifTrue: ['cmovg'] ifFalse: [', gt'])).
 	self deny: ((self listingOf: #either:or:) includesSubstring: 'neither true nor false')
 !
+testLoopFlushedByASwitchEntersItsUnitAgain
+	"A loop whose optimized frame a process switch made Contexts counts only --jit-osr backward jumps in the lower tier before it enters its unit again, not an optimization's full count: about one entry per switch (with the full count, one per five)."
+	| o helper before osr |
+	Smalltalk vm jitParameters: #(nil '-eager' nil nil).
+	self define: 'spin: n every: k | s | s := 0. 1 to: n do: [:i | s := s + i. i \\ k = 0 ifTrue: [Processor yield]]. ^s'.
+	o := JitRuntimeTestSubject new.
+	helper := [[Processor yield] repeat] forkAt: Processor activePriority.
+	[3 timesRepeat: [self assert: (o spin: 100000 every: 200) equals: 5000050000].
+	 before := self statistics.
+	 self assert: (o spin: 100000 every: 200) equals: 5000050000.
+	 osr := (self statistics - before) optOsrEntries] ensure: [helper terminate].
+	self stressed ifFalse: [self assert: osr >= 250]
+!
 testStringHashAndCompareCallStubs
 	"String>>hash and compareWith: of bytes call stubs, not their methods; compareWith:'s argument, of a class the code does not know, is checked to be bytes; once a WideString failed that check, the site calls."
 	| o |
