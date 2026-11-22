@@ -1,13 +1,13 @@
 UefiModule subclass: #UefiLibC
-	instanceVariableNames: 'files consoleBuffer consoleUsed store'
+	instanceVariableNames: 'files consoleBuffer consoleUsed store crash'
 	classVariableNames: 'UEFI_CONSOLE_BUFFER UEFI_FILES UEFI_FILE_CONSOLE UEFI_FILE_DISK UEFI_FILE_FREE UEFI_FILE_STORE'
 	package: 'VM-UEFI'!
 
-UefiLibC comment: 'The C library functions the core calls (LibC), on UEFI. stdout and stderr are the console (a line at a time, UTF-8 to UCS-2); fopen of disk: is the image in UefiImageStore (read: the newest slot, write: the other); fopen of any other path opens a file on the volume the VM was loaded from, relative to its root ("w" replaces a file: UEFI cannot truncate). malloc is the firmware''s pool, 16-byte aligned. printf and friends take their variadic arguments as 64-bit words (varargBits:) and format them with format:args:into:size: (d i u x X o c s p e f g, flags, width, precision, length modifiers); doubles by UefiLibM>>formatDouble:precision:conversion:into:size:.'!
+UefiLibC comment: 'The C library functions the core calls (LibC), on UEFI. stdout and stderr are the console (a line at a time, UTF-8 to UCS-2; UefiCrash keeps what it needs for a crash report); fopen of disk: is the image in UefiImageStore (read: the newest slot, write: the other); fopen of any other path opens a file on the volume the VM was loaded from, relative to its root ("w" replaces a file: UEFI cannot truncate). malloc is the firmware''s pool, 16-byte aligned. printf and friends take their variadic arguments as 64-bit words (varargBits:) and format them with format:args:into:size: (d i u x X o c s p e f g, flags, width, precision, length modifiers); doubles by UefiLibM>>formatDouble:precision:conversion:into:size:.'!
 
 !UefiLibC class methodsFor: 'declaring'!
 declarations
-	^#((files 'UefiFile[UEFI_FILES]') (consoleBuffer 'char[UEFI_CONSOLE_BUFFER]') (consoleUsed int64_t) (store UefiImageStore))
+	^#((files 'UefiFile[UEFI_FILES]') (consoleBuffer 'char[UEFI_CONSOLE_BUFFER]') (consoleUsed int64_t) (store UefiImageStore) (crash UefiCrash))
 !
 replaces
 	^LibC
@@ -262,6 +262,7 @@ write: buf count: n to: f
 	file := self fileOf: f.
 	file kind = UEFI_FILE_CONSOLE ifTrue: [
 		bytes := self cCoerce: buf to: 'const char *'.
+		crash note: bytes count: n.
 		0 to: (n asInt64) - 1 do: [:i |
 			consoleUsed >= (UEFI_CONSOLE_BUFFER - 1) ifTrue: [self consoleFlush].
 			consoleBuffer at: consoleUsed put: (bytes at: i).
@@ -701,10 +702,11 @@ getenv: name
 
 !UefiLibC methodsFor: 'exiting'!
 exit: status
-	"Say the status on the console, power off."
+	"After a fatal error the crash report (UefiCrash), then: say the status on the console, power off."
 	<function>
 	<noreturn>
 	<var: #status type: 'int'>
+	crash report: status.
 	self fprintf: self stdout format: '
 samaltak: exit %d
 ' with: status.

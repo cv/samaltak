@@ -7,9 +7,12 @@ OBJ ?= build/uefi
 UEFI_CC ?= clang
 UEFI_LD ?= ld.lld
 UEFI_TARGET ?= x86_64
+# UEFI_COMMIT: what the build is of (git describe), in the crash reports (UefiCrash: SAMALTAK_COMMIT).
+UEFI_COMMIT ?=
 UEFI_CFLAGS := -target $(UEFI_TARGET)-unknown-none-elf -ffreestanding -fno-builtin -fno-stack-protector -fPIE -mno-red-zone \
 	-fno-math-errno -ffp-contract=off -ftls-model=local-exec -O2 -std=gnu11 -fsigned-char -DSAMALTAK_UEFI -I$(GEN) -MMD -MP \
-	-Wall -Wextra -Wno-unused-parameter -Wno-unused-function -Wno-type-limits -Wno-parentheses -Wno-unused-value -Wno-self-assign
+	-Wall -Wextra -Wno-unused-parameter -Wno-unused-function -Wno-type-limits -Wno-parentheses -Wno-unused-value -Wno-self-assign \
+	$(if $(UEFI_COMMIT),-DSAMALTAK_COMMIT='"$(UEFI_COMMIT)"')
 OBJS := $(patsubst $(GEN)/%.c,$(OBJ)/%.o,$(wildcard $(GEN)/*.c))
 
 $(OBJ)/samaltak.elf: $(OBJS)
