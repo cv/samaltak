@@ -496,6 +496,19 @@ testCopiesOfEveryLengthAndOverlap
 ! !
 
 !JitRuntimeTest methodsFor: 'tests: arithmetic'!
+testModuloByAVariable
+	"x \\ d of SmallIntegers in compiled code is the truncated remainder, floored: divisors that are positive powers of two (a mask) and others, negative ones, the ends of the range, dividends of both signs."
+	| o xs ds |
+	self define: 'mod: x by: d ^x \\ d'.
+	o := JitRuntimeTestSubject new.
+	xs := #(0 1 -1 7 -7 8 -8 1000 -1000 12345 -12345) , {SmallInteger maxVal. SmallInteger maxVal - 1. SmallInteger minVal. SmallInteger minVal + 1}.
+	ds := #(1 2 3 4 7 8 16 1024 1000 -1 -2 -3 -4 -8 -16) , {SmallInteger maxVal. SmallInteger minVal. 1 bitShift: 40. (1 bitShift: 40) negated. (1 bitShift: 40) + 1}.
+	3 timesRepeat: [
+		xs do: [:x | ds do: [:d | | r |
+			r := x rem: d.
+			(r ~= 0 and: [r < 0 ~= (d < 0)]) ifTrue: [r := r + d].
+			self assert: (o mod: x by: d) equals: r]]]
+!
 divisors
 	"Divisors for the constant division tests: 1 to 20, 2^k and 2^k +- 1 of either sign for every k SmallIntegers reach, others, the extremes and their neighbours."
 	| ds |
