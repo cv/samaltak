@@ -157,7 +157,7 @@ renderExtent: aPoint scale: aNumber renderer: aRenderer commandBuffer: aCommandB
 	^self renderExtent: aPoint scale: aNumber renderer: aRenderer commandBuffer: aCommandBuffer differ: nil
 !
 renderExtent: aPoint scale: aNumber renderer: aRenderer commandBuffer: aCommandBuffer differ: aDisplayListDiffOrNil
-	"Render my lists for a frame of aPoint points at aNumber device pixels per point: only what they changed when aDisplayListDiffOrNil (the Compositor's, with its scratch buffers) finds that little, else all of them. Answer lastDamage (layer.render while StageTimes measures, with the bytes drawn)."
+	"Render my lists for a frame of aPoint points at aNumber device pixels per point: only what they changed when aDisplayListDiffOrNil (the Compositor's) finds that little, else all of them. Answer lastDamage (layer.render while StageTimes measures, with the bytes drawn; the diff in it also as layer.diff)."
 	| pixels list s t old region scissors |
 	s := StageTimes current.
 	s isNil ifFalse: [t := Time microsecondClockValue].
@@ -165,7 +165,10 @@ renderExtent: aPoint scale: aNumber renderer: aRenderer commandBuffer: aCommandB
 	old := surface.
 	self ensureSurface: pixels scale: aNumber.
 	list := contentList ifNil: [(Canvas extent: aPoint scale: aNumber) displayList].
-	region := (aDisplayListDiffOrNil isNil or: [old ~~ surface]) ifFalse: [self damageFor: list pixels: pixels differ: aDisplayListDiffOrNil].
+	(aDisplayListDiffOrNil isNil or: [old ~~ surface]) ifFalse: [| d |
+		s isNil ifFalse: [d := Time microsecondClockValue].
+		region := self damageFor: list pixels: pixels differ: aDisplayListDiffOrNil.
+		s isNil ifFalse: [s add: #'layer.diff' since: d bytes: 0]].
 	region isNil
 		ifTrue: [
 			aRenderer render: list into: surface texture clear: self clearColorOrPaper commandBuffer: aCommandBuffer.

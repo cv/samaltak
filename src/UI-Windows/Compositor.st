@@ -549,9 +549,9 @@ damageOf: aDisplayList items: newItems rendered: toRender
 		or: [previousList pixelExtent ~= aDisplayList pixelExtent or: [displayWindow needsFullFrame]]]])
 			ifTrue: [region beFull. ^region].
 	differ region: region; stableSurfaces: true.
-	old := IdentityDictionary new.
+	old := IdentityDictionary new: previousItems size * 2.
 	previousItems do: [:each | old at: each first put: each].
-	newKeys := IdentitySet new.
+	newKeys := IdentitySet new: newItems size * 2.
 	newItems do: [:each | | o |
 		newKeys add: each first.
 		o := old at: each first ifAbsent: [nil].
@@ -597,7 +597,7 @@ checkDamage: aDamageRegion list: aDisplayList previous: olderList rendered: toRe
 
 !Compositor methodsFor: 'private'!
 present: t0 now: now
-	| scale toRender drawUs rasterUs t cmd list stats0 stats1 t1 shown gpuStart fence fenceAt probe before layerUs showUs newItems damage older |
+	| scale toRender drawUs rasterUs t cmd list stats0 stats1 t1 shown gpuStart fence fenceAt probe before layerUs showUs newItems damage older s d |
 	scale := world displayScale.
 	stats0 := Smalltalk vm statistics.
 	t := self frameClock.
@@ -630,7 +630,10 @@ present: t0 now: now
 	items := OrderedCollection new.
 	list := [self compositeOn: (Canvas extent: world extent scale: scale buffer: compositeBytes) pointer: true time: now]
 		ensure: [newItems := items. items := nil].
+	s := StageTimes current.
+	s isNil ifFalse: [d := Time microsecondClockValue].
 	damage := self damageOf: list items: newItems rendered: toRender.
+	s isNil ifFalse: [s add: #'composite.diff' since: d bytes: 0].
 	lastDamage := damage.
 	drawUs := drawUs + (self frameClock - t).
 	(damage isEmpty and: [recorder isNil and: [world presentsContinuously not]]) ifTrue: [

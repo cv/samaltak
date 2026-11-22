@@ -1,11 +1,11 @@
 Object subclass: #DisplayListDiff
-	instanceVariableNames: 'region quadLimit stableSurfaces scratch oldList oldFirst oldRuns newList newFirst newRuns changed'
+	instanceVariableNames: 'region quadLimit stableSurfaces oldList oldFirst oldRuns newList newFirst newRuns changed px0 py0 px1 py1 flushArea'
 	classVariableNames: ''
 	package: 'Graphics-Canvas'!
 
 DisplayListDiff comment: 'I find where two drawings of the same target differ, as damage (a DamageRegion of device pixels): the quads of one DisplayList range that the other does not draw the same, in the same place and order, with the same texture, clip and move. Damage-limited rendering then draws only there (Renderer>>render:into:clear:commandBuffer:within:), with identical pixels.
 
-Quads are compared by their vertex bytes, 64 quads at a time (a copy into scratch ByteArrays and the stringCompare primitive, which compares any two byte objects), narrowed down by halves where they differ. The equal quads at the start and at the end are skipped; if what is left has as many quads in both, they are compared place by place (a scrolled list, recolored text, a moved pointer: only the quads that differ damage their old and new bounds), otherwise every quad left damages its bounds in its list (text appended in the middle of a transcript). More than quadLimit (512) such quads: the whole target is damaged instead (drawing it whole is cheaper then than bounding them).
+Quads are compared by their vertex bytes in place, a whole run of them at once (ByteArray>>indexOfMismatchAt:with:at:size: and lastIndexOfMismatchAt:with:at:size:, primitives comparing 16 bytes at a time): the first or last byte that differs names the quad. The bounds of quads damaged one after the other are joined while their union wastes little (DamageRegion''s rule: the glyphs of a line), and only then added to the region; a run of batches is found by halves (a composite list''s item is a few of its many batches). The equal quads at the start and at the end are skipped; if what is left has as many quads in both, they are compared place by place (a scrolled list, recolored text, a moved pointer: only the quads that differ damage their old and new bounds), otherwise every quad left damages its bounds in its list (text appended in the middle of a transcript). More than quadLimit (512) such quads: the whole target is damaged instead (drawing it whole is cheaper then than bounding them).
 
 A quad''s texture counts by identity and, for a Form, its version at the time its list was drawn (stampsOf:, kept with the list): a Form changed in place damages every quad that shows it (glyphs and images; a solid quad batched with them does not sample it). A Surface''s pixels can change without anything in the list saying so: its quads are always damaged, unless stableSurfaces (the compositor: its layers'' surfaces report their own damage).
 
@@ -16,10 +16,9 @@ A quad''s texture counts by identity and, for a Form, its version at the time it
 
 !DisplayListDiff methodsFor: 'initialization'!
 setRegion: aDamageRegion
-	region := aDamageRegion.
+	self region: aDamageRegion.
 	quadLimit := 512.
-	stableSurfaces := false.
-	scratch := Dictionary new
+	stableSurfaces := false
 ! !
 
 !DisplayListDiff methodsFor: 'accessing'!
@@ -27,8 +26,9 @@ region
 	^region
 !
 region: aDamageRegion
-	"Damage into aDamageRegion from now on (my scratch buffers stay)."
-	region := aDamageRegion
+	"Damage into aDamageRegion from now on."
+	region := aDamageRegion.
+	flushArea := region bounds area // 16
 !
 quadLimit: anInteger
 	quadLimit := anInteger
@@ -45,6 +45,29 @@ diff: anOldList stamps: oldStamps to: aNewList stamps: newStamps
 !
 diff: anOldList stamps: oldStamps from: oq count: on to: aNewList stamps: newStamps from: nq count: nn
 	"Damage where quads nq .. nq + nn - 1 of aNewList draw differently from quads oq .. oq + on - 1 of anOldList."
+	self compare: anOldList stamps: oldStamps from: oq count: on to: aNewList stamps: newStamps from: nq count: nn.
+	self flush
+!
+damageAll: aList stamps: stamps from: q count: n
+	"Damage the bounds of quads q .. q + n - 1 of aList (drawn or gone)."
+	| runs |
+	region isFull ifTrue: [^self].
+	n > quadLimit ifTrue: [^region beFull].
+	runs := self runsOf: aList stamps: stamps from: q count: n.
+	changed := 0.
+	self damage: n quadsOf: aList runs: runs first: q from: 0.
+	self flush
+!
+boundsOf: aList from: q count: n into: aDamageRegion
+	"Add the bounds of quads q .. q + n - 1 of aList (each, merged) to aDamageRegion."
+	| saved |
+	saved := region.
+	region := aDamageRegion.
+	[self damageAll: aList stamps: nil from: q count: n] ensure: [region := saved]
+! !
+
+!DisplayListDiff methodsFor: 'private'!
+compare: anOldList stamps: oldStamps from: oq count: on to: aNewList stamps: newStamps from: nq count: nn
 	| prefix suffix mo mn |
 	region isFull ifTrue: [^self].
 	oldList := anOldList. oldFirst := oq. oldRuns := self runsOf: anOldList stamps: oldStamps from: oq count: on.
@@ -59,43 +82,59 @@ diff: anOldList stamps: oldStamps from: oq count: on to: aNewList stamps: newSta
 	self damage: mo quadsOf: oldList runs: oldRuns first: oldFirst from: prefix.
 	self damage: mn quadsOf: newList runs: newRuns first: newFirst from: prefix
 !
-damageAll: aList stamps: stamps from: q count: n
-	"Damage the bounds of quads q .. q + n - 1 of aList (drawn or gone)."
-	| runs |
-	region isFull ifTrue: [^self].
-	n > quadLimit ifTrue: [^region beFull].
-	runs := self runsOf: aList stamps: stamps from: q count: n.
-	changed := 0.
-	self damage: n quadsOf: aList runs: runs first: q from: 0
-!
-boundsOf: aList from: q count: n into: aDamageRegion
-	"Add the bounds of quads q .. q + n - 1 of aList (each, merged) to aDamageRegion."
-	| saved |
-	saved := region.
-	region := aDamageRegion.
-	[self damageAll: aList stamps: nil from: q count: n] ensure: [region := saved]
-! !
-
-!DisplayListDiff methodsFor: 'private'!
 runsOf: aList stamps: stamps from: q count: n
-	"The batches drawing quads q .. q + n - 1 of aList: {first. end (quads, relative to q). batch. stamp} each."
-	| runs end |
+	"The batches drawing quads q .. q + n - 1 of aList: {first. end (quads, relative to q). batch. stamp} each. Batches are in drawing order: the first is found by halves (a composite list's items are a few of its many batches)."
+	| runs end batches lo hi |
 	runs := OrderedCollection new.
 	(aList isNil or: [n = 0]) ifTrue: [^runs].
 	end := q + n.
-	aList batches doWithIndex: [:b :i | | s e |
+	batches := aList batches.
+	lo := 1.
+	hi := batches size + 1.
+	[lo < hi] whileTrue: [| mid b |
+		mid := lo + hi // 2.
+		b := batches at: mid.
+		b first + b count // 6 > q ifTrue: [hi := mid] ifFalse: [lo := mid + 1]].
+	lo to: batches size do: [:i | | b s e |
+		b := batches at: i.
 		s := b first // 6 max: q.
+		s >= end ifTrue: [^runs].
 		e := b first + b count // 6 min: end.
 		s < e ifTrue: [
 			runs add: (Array with: s - q with: e - q with: b with: (stamps isNil ifTrue: [self class stampOf: b texture] ifFalse: [stamps at: i]))]].
 	^runs
+!
+pendLeft: l top: t right: r bottom: b
+	"Damage l t r b (integers): joined to the pending rectangle while that wastes little (DamageRegion's rule: the glyphs of a line, a quad's old and new place), else after it; flush hands it to the region."
+	| ux0 uy0 ux1 uy1 ow oh covered |
+	(l < r and: [t < b]) ifFalse: [^self].
+	px0 isNil ifFalse: [
+		(l <= (px1 + 16) and: [px0 <= (r + 16) and: [t <= (py1 + 16) and: [py0 <= (b + 16)]]]) ifTrue: [
+			px0 < l ifTrue: [ux0 := px0. ow := l] ifFalse: [ux0 := l. ow := px0].
+			py0 < t ifTrue: [uy0 := py0. oh := t] ifFalse: [uy0 := t. oh := py0].
+			px1 > r ifTrue: [ux1 := px1. ow := r - ow] ifFalse: [ux1 := r. ow := px1 - ow].
+			py1 > b ifTrue: [uy1 := py1. oh := b - oh] ifFalse: [uy1 := b. oh := py1 - oh].
+			covered := (px1 - px0) * (py1 - py0) + ((r - l) * (b - t)) - ((ow > 0 and: [oh > 0]) ifTrue: [ow * oh] ifFalse: [0]).
+			covered * 4 >= ((ux1 - ux0) * (uy1 - uy0) * 3) ifTrue: [
+				px0 := ux0. py0 := uy0. px1 := ux1. py1 := uy1.
+				"A large one goes now: the region tells when it is full (and the diff can stop)."
+				(px1 - px0) * (py1 - py0) > flushArea ifTrue: [self flush].
+				^self]].
+		self flush].
+	px0 := l. py0 := t. px1 := r. py1 := b
+!
+flush
+	"The pending rectangle into the region."
+	px0 isNil ifTrue: [^self].
+	region addLeft: px0 top: py0 right: px1 bottom: py1.
+	px0 := nil
 !
 run: a matches: b
 	"How the quads of runs a and b compare: #same (equal bytes draw alike), #untextured (only those that do not sample the texture do: it is another, or changed), nil (none: another clip or move)."
 	| ba bb t |
 	ba := a at: 3.
 	bb := b at: 3.
-	(ba dx = bb dx and: [ba dy = bb dy and: [ba scissor = bb scissor]]) ifFalse: [^nil].
+	(ba dx = bb dx and: [ba dy = bb dy and: [ba scissor == bb scissor or: [ba scissor = bb scissor]]]) ifFalse: [^nil].
 	t := ba texture.
 	t == bb texture ifFalse: [^#untextured].
 	(stableSurfaces not and: [t isKindOf: Surface]) ifTrue: [^#untextured].
@@ -186,28 +225,33 @@ comparePlacesFrom: start count: n
 				rn := newRuns at: b.
 				span := (((ro at: 2) min: (rn at: 2)) min: end) - i.
 				m := self run: ro matches: rn.
-				m == #same ifTrue: [self compareSpanFrom: i count: span].
+				m == #same ifTrue: [self compareSpanFrom: i count: span old: ro new: rn].
 				m == #untextured ifTrue: [
-					i to: i + span - 1 do: [:q | (self sameUntextured: q) ifFalse: [self damageQuad: q side: true; damageQuad: q side: false]]].
-				m isNil ifTrue: [i to: i + span - 1 do: [:q | self damageQuad: q side: true; damageQuad: q side: false]].
+					i to: i + span - 1 do: [:q | (self sameUntextured: q) ifFalse: [self damagePlace: q old: ro new: rn]]].
+				m isNil ifTrue: [i to: i + span - 1 do: [:q | self damagePlace: q old: ro new: rn]].
 				i := i + span].
 		region isFull ifTrue: [^self]]
 !
-compareSpanFrom: start count: n
-	"Quads alike in texture, clip and move: compare their bytes 16 at a time, then one by one."
-	| i c ov nv |
+compareSpanFrom: start count: n old: oldRun new: newRun
+	"Quads of oldRun and newRun, alike in texture, clip and move: from each one that differs to the next."
+	| i end ov nv |
 	ov := oldList vertices.
 	nv := newList vertices.
 	i := start.
-	[i < (start + n)] whileTrue: [
-		c := 16 min: start + n - i.
-		(self equal: ov at: oldFirst + i * 240 with: nv at: newFirst + i * 240 bytes: c * 240)
-			ifFalse: [
-				i to: i + c - 1 do: [:q |
-					(self equal: ov at: oldFirst + q * 240 with: nv at: newFirst + q * 240 bytes: 240)
-						ifFalse: [self damageQuad: q side: true; damageQuad: q side: false]].
-				region isFull ifTrue: [^self]].
-		i := i + c]
+	end := start + n.
+	[i < end] whileTrue: [
+		i := i + (self firstMismatchIn: ov at: oldFirst + i * 240 with: nv at: newFirst + i * 240 quads: end - i).
+		i < end ifTrue: [
+			self damagePlace: i old: oldRun new: newRun.
+			region isFull ifTrue: [^self].
+			i := i + 1]]
+!
+damagePlace: i old: oldRun new: newRun
+	"Damage the bounds of quad i (relative) of both lists, drawn by oldRun's and newRun's batches."
+	changed := changed + 2.
+	changed > quadLimit ifTrue: [^region beFull].
+	self damageQuad: oldFirst + i of: oldList batch: (oldRun at: 3).
+	self damageQuad: newFirst + i of: newList batch: (newRun at: 3)
 !
 damageQuad: i side: isOld
 	"Damage the bounds of quad i (relative) of the old or the new list."
@@ -266,55 +310,28 @@ damageQuad: q of: aList batch: aBatch
 		y0 := y0 max: (s at: 2).
 		x1 := x1 min: (s at: 1) + (s at: 3).
 		y1 := y1 min: (s at: 2) + (s at: 4)].
-	region addLeft: x0 top: y0 right: x1 bottom: y1
+	self pendLeft: x0 floor top: y0 floor right: x1 ceiling bottom: y1 ceiling
 !
 firstMismatchIn: a at: ao with: b at: bo quads: n
 	"The first of n quads (bytes from 0-based ao in a, bo in b) that differ; n if none does."
-	| i c |
-	i := 0.
-	[i < n] whileTrue: [
-		c := self chunkFor: n - i.
-		(self equal: a at: ao + (i * 240) with: b at: bo + (i * 240) bytes: c * 240)
-			ifTrue: [i := i + c]
-			ifFalse: [
-				[c > 1] whileTrue: [
-					c := c // 2.
-					(self equal: a at: ao + (i * 240) with: b at: bo + (i * 240) bytes: c * 240) ifTrue: [i := i + c]].
-				^i]].
-	^n
+	| k |
+	(n = 0 or: [a == b and: [ao = bo]]) ifTrue: [^n].
+	k := a indexOfMismatchAt: ao + 1 with: b at: bo + 1 size: n * 240.
+	k = 0 ifTrue: [^n].
+	^k - 1 // 240
 !
 equalQuadsBefore: ao in: a and: bo in: b quads: n
 	"How many of the n quads before the 0-based byte offsets ao in a and bo in b are equal, counted from there backwards."
-	| j c |
-	j := 0.
-	[j < n] whileTrue: [
-		c := self chunkFor: n - j.
-		(self equal: a at: ao - ((j + c) * 240) with: b at: bo - ((j + c) * 240) bytes: c * 240)
-			ifTrue: [j := j + c]
-			ifFalse: [
-				[c > 1] whileTrue: [
-					c := c // 2.
-					(self equal: a at: ao - ((j + c) * 240) with: b at: bo - ((j + c) * 240) bytes: c * 240) ifTrue: [j := j + c]].
-				^j]].
-	^n
-!
-chunkFor: n
-	"The largest power of two up to 64 and n."
-	| c |
-	c := 64.
-	[c > n] whileTrue: [c := c // 2].
-	^c
+	| k |
+	(n = 0 or: [a == b and: [ao = bo]]) ifTrue: [^n].
+	k := a lastIndexOfMismatchAt: ao - (n * 240) + 1 with: b at: bo - (n * 240) + 1 size: n * 240.
+	k = 0 ifTrue: [^n].
+	^n - 1 - (k - 1 // 240)
 !
 equal: a at: ao with: b at: bo bytes: n
 	"Whether the n bytes of a from 0-based offset ao are those of b from bo."
-	| pair x y |
 	(a == b and: [ao = bo]) ifTrue: [^true].
-	pair := scratch at: n ifAbsent: [scratch at: n put: (Array with: (ByteArray new: n) with: (ByteArray new: n))].
-	x := pair first.
-	y := pair last.
-	x replaceFrom: 1 to: n with: a startingAt: ao + 1.
-	y replaceFrom: 1 to: n with: b startingAt: bo + 1.
-	^(x compareBytes: y) = 0
+	^(a indexOfMismatchAt: ao + 1 with: b at: bo + 1 size: n) = 0
 ! !
 
 !DisplayListDiff class methodsFor: 'instance creation'!
