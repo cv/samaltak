@@ -55,14 +55,16 @@ testZOrderFollowsRaise
 !
 testFrameRecordsAreRecorded
 	| v w before frames rec |
-	before := Profiler default allFrames size.
+	before := Profiler default frameCount.
 	v := RecordingTestView new.
 	w := self open: v title: 'Frames' at: (100 @ 100 extent: 300 @ 200).
 	self click: w contentOrigin + (10 @ 10).
+	"The window's Process changes what it draws: a frame then presents it and counts its time (one without damage is not presented, nor recorded)."
+	w sync: [v color: Color red].
 	w invalidate.
 	self settle.
 	frames := Profiler default allFrames.
-	self assert: frames size > before.
+	self assert: Profiler default frameCount > before.
 	rec := frames last.
 	self assert: rec end >= rec start.
 	self assert: rec draw >= 0.
