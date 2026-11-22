@@ -163,4 +163,11 @@ testChangeSuperclass
 	b subclass: #KernelTestTemporary instanceVariableNames: '' classVariableNames: '' package: 'Tests-Kernel'.
 	self assert: class superclass == b.
 	5 timesRepeat: [self assert: (probe value: class) = #(#b #b)]
+!
+testMethodsContaining
+	| found |
+	found := Smalltalk methodsContaining: 'printOn: aStream'.
+	self assert: (found includes: Object >> #printOn:).
+	self deny: (found includes: Point >> #x).
+	self assert: (Smalltalk methodsContaining: 'no method contains this ', 'string') isEmpty
 ! !
