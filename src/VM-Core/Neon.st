@@ -191,3 +191,75 @@ lane: v at: k
 	<c: 'uint64_t vget_lane_u64(uint64x1_t v, const int k)'>
 	^(1 to: 8) inject: 0 into: [:w :i | w + ((v at: i) bitShift: (i - 1) * 8)]
 ! !
+
+!Neon class methodsFor: 'simulation'!
+words: aByteArray
+	"The 32-bit lanes of aByteArray."
+	^(1 to: aByteArray size // 4) collect: [:i | (1 to: 4) inject: 0 into: [:w :k | w + ((aByteArray at: 4 * i - 4 + k) bitShift: (k - 1) * 8)]]
+!
+bytesOfWords: anArray
+	| b |
+	b := ByteArray new: anArray size * 4.
+	anArray doWithIndex: [:w :i | 1 to: 4 do: [:k | b at: 4 * i - 4 + k put: ((w bitShift: (k - 1) * -8) bitAnd: 255)]].
+	^b
+! !
+
+!Neon methodsFor: 'lanes'!
+dupU16: aHalf
+	"Each 16-bit lane aHalf."
+	<c: 'uint16x8_t vdupq_n_u16(uint16_t v)'>
+	^Neon bytesOfHalves: (Array new: 8 withAll: (aHalf bitAnd: 16rFFFF))
+! !
+
+!Neon methodsFor: 'filtering'!
+hadd: a with: b
+	"(a + b) >> 1 of each pair of bytes, without overflow."
+	<c: 'uint8x16_t vhaddq_u8(uint8x16_t a, uint8x16_t b)'>
+	^((1 to: 16) collect: [:i | (a at: i) + (b at: i) bitShift: -1]) asByteArray
+!
+abd: a with: b
+	"|a - b| of each pair of bytes."
+	<c: 'uint8x16_t vabdq_u8(uint8x16_t a, uint8x16_t b)'>
+	^((1 to: 16) collect: [:i | ((a at: i) - (b at: i)) abs]) asByteArray
+!
+min: a with: b
+	"The smaller of each pair of bytes."
+	<c: 'uint8x16_t vminq_u8(uint8x16_t a, uint8x16_t b)'>
+	^((1 to: 16) collect: [:i | (a at: i) min: (b at: i)]) asByteArray
+!
+le: a with: b
+	"Each byte 255 where a's is at most b's (unsigned), else 0."
+	<c: 'uint8x16_t vcleq_u8(uint8x16_t a, uint8x16_t b)'>
+	^((1 to: 16) collect: [:i | (a at: i) <= (b at: i) ifTrue: [255] ifFalse: [0]]) asByteArray
+!
+ge: a with: b
+	"Each byte 255 where a's is at least b's (unsigned), else 0."
+	<c: 'uint8x16_t vcgeq_u8(uint8x16_t a, uint8x16_t b)'>
+	^((1 to: 16) collect: [:i | (a at: i) >= (b at: i) ifTrue: [255] ifFalse: [0]]) asByteArray
+!
+xor: a with: b
+	<c: 'uint8x16_t veorq_u8(uint8x16_t a, uint8x16_t b)'>
+	^((1 to: 16) collect: [:i | (a at: i) bitXor: (b at: i)]) asByteArray
+!
+bsl: mask with: a with: b
+	"a's bits where mask has ones, b's where it has zeros."
+	<c: 'uint8x16_t vbslq_u8(uint8x16_t mask, uint8x16_t a, uint8x16_t b)'>
+	^((1 to: 16) collect: [:i | ((mask at: i) bitAnd: (a at: i)) bitOr: ((mask at: i) bitInvert bitAnd: (b at: i))]) asByteArray
+!
+padal: a with: b
+	"Each 16-bit lane of a plus the two bytes of b in it (modulo 2^16)."
+	<c: 'uint16x8_t vpadalq_u8(uint16x8_t a, uint8x16_t b)'>
+	^Neon bytesOfHalves: ((Neon halves: a) collectWithIndex: [:h :i | h + (b at: 2 * i - 1) + (b at: 2 * i) bitAnd: 16rFFFF])
+!
+padalU16: a with: b
+	"Each 32-bit lane of a plus the two 16-bit lanes of b in it (modulo 2^32)."
+	<c: 'uint32x4_t vpadalq_u16(uint32x4_t a, uint16x8_t b)'>
+	| h |
+	h := Neon halves: b.
+	^Neon bytesOfWords: ((Neon words: a) collectWithIndex: [:w :i | w + (h at: 2 * i - 1) + (h at: 2 * i) bitAnd: 16rFFFFFFFF])
+!
+addvU32: a
+	"The sum of the 32-bit lanes (modulo 2^32)."
+	<c: 'uint32_t vaddvq_u32(uint32x4_t a)'>
+	^(Neon words: a) inject: 0 into: [:s :w | s + w bitAnd: 16rFFFFFFFF]
+! !

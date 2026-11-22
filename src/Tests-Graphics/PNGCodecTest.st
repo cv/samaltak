@@ -42,6 +42,15 @@ testReadsStoredPNG
 	form := self gradient: 50 by: 40 alpha: [:x :y | x * 5].
 	self assert: (PNGReader formFrom: (PNGWriter storedBytesFor: form asByteArray width: 50 height: 40)) bits equals: form bits
 !
+testFilterPrimitiveMatchesSmalltalk
+	"The VM's pngFilter primitive (NEON or SSE2) gives PNGWriter's Smalltalk loop's rows, RGB and RGBA: random bytes, a gradient and the screen-sized Form."
+	| random |
+	random := Random seed: 2718.
+	#(1 2 5 6 17 33 100) do: [:w | #(1 3) do: [:h |
+		self assertFilterOf: ((1 to: w * h * 4) collect: [:i | (random nextInt: 256) - 1]) asByteArray width: w height: h]].
+	self assertFilterOf: (self gradient: 300 by: 200 alpha: [:x :y | x + y \\ 256]) asByteArray width: 300 height: 200.
+	self assertFilterOf: self screenForm asByteArray width: 1920 height: 1080
+!
 testCorruptPNGIsRefused
 	| png |
 	png := (self gradient: 20 by: 10 alpha: [:x :y | 255]) pngBytes.
@@ -81,6 +90,12 @@ testScaledToAverages
 ! !
 
 !PNGCodecTest methodsFor: 'support'!
+assertFilterOf: rgba width: w height: h
+	#(3 4) do: [:n | | raw |
+		raw := ByteArray new: (w * n + 1) * h.
+		self assert: (PNGWriter primFilter: rgba width: w height: h channels: n into: raw) == raw.
+		self assert: raw equals: (PNGWriter filteredInSmalltalk: rgba width: w height: h channels: n)]
+!
 assertRoundTrip: aForm
 	| back |
 	back := PNGReader formFrom: aForm pngBytes.

@@ -66,6 +66,38 @@ testCropForm
 	self assert: form extent equals: 4@3
 ! !
 
+!PNGWriterTest methodsFor: 'filtering'!
+assertFilterOf: rgba width: w height: h
+	"The VM's pngFilter primitive and the Smalltalk loop give the same rows, RGB and RGBA."
+	#(3 4) do: [:n | | raw |
+		raw := ByteArray new: (w * n + 1) * h.
+		self assert: (PNGWriter primFilter: rgba width: w height: h channels: n into: raw) == raw.
+		self assert: raw equals: (PNGWriter filteredInSmalltalk: rgba width: w height: h channels: n).
+		self assert: (PNGWriter filtered: rgba width: w height: h channels: n) equals: raw]
+!
+testFilterPrimitiveOnRandomBytes
+	| random |
+	random := Random seed: 1618.
+	#(1 2 3 5 6 16 17 21 64 101) do: [:w | #(1 2 7) do: [:h | | rgba mode |
+		mode := random nextInt: 3.
+		rgba := ((1 to: w * h * 4) collect: [:i |
+			mode = 1
+				ifTrue: [#(0 1 127 128 254 255) at: (random nextInt: 6)]
+				ifFalse: [mode = 2 ifTrue: [random nextInt: 4] ifFalse: [(random nextInt: 256) - 1]]]) asByteArray.
+		self assertFilterOf: rgba width: w height: h]]
+!
+testFilterPrimitiveOnRenderedScreen
+	"A rendered screen: text, fills, translucent strokes."
+	| form |
+	form := self render: [:c |
+		c fillRect: (0 @ 0 extent: 640 @ 30) color: Color ultramarine.
+		c drawString: 'PNG rows, filtered 16 bytes at a time' at: 12 @ 6 font: Font ui color: Color white.
+		0 to: 40 do: [:i |
+			c fillRect: (i * 15 @ 60 extent: 12 @ 200) color: (Color r: i / 40 g: 0.5 b: 1 - (i / 40) a: 0.6).
+			c drawString: i printString at: i * 15 @ 280 font: Font ui color: Color black]] extent: 640 @ 360.
+	self assertFilterOf: form asByteArray width: form width height: form height
+! !
+
 !PNGWriterTest methodsFor: 'support'!
 slowAdler32: bytes
 	| a b |

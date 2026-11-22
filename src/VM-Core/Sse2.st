@@ -176,3 +176,40 @@ andNot: a with: b
 	<c: '__m128i _mm_andnot_si128(__m128i a, __m128i b)'>
 	^((1 to: 16) collect: [:i | (b at: i) bitClear: (a at: i)]) asByteArray
 ! !
+
+!Sse2 methodsFor: 'filtering'!
+subsU8: a with: b
+	"a - b of each pair of bytes, saturated at 0."
+	<c: '__m128i _mm_subs_epu8(__m128i a, __m128i b)'>
+	^((1 to: 16) collect: [:i | (a at: i) - (b at: i) max: 0]) asByteArray
+!
+avgU8: a with: b
+	"(a + b + 1) >> 1 of each pair of bytes."
+	<c: '__m128i _mm_avg_epu8(__m128i a, __m128i b)'>
+	^((1 to: 16) collect: [:i | (a at: i) + (b at: i) + 1 bitShift: -1]) asByteArray
+!
+xor: a with: b
+	<c: '__m128i _mm_xor_si128(__m128i a, __m128i b)'>
+	^((1 to: 16) collect: [:i | (a at: i) bitXor: (b at: i)]) asByteArray
+!
+sadU8: a with: b
+	"The sums of |a - b| of each 8 bytes, in the two 64-bit lanes."
+	<c: '__m128i _mm_sad_epu8(__m128i a, __m128i b)'>
+	^Sse2 bytesOfLanes: ((0 to: 1) collect: [:h | (1 to: 8) inject: 0 into: [:s :i | s + ((a at: 8 * h + i) - (b at: 8 * h + i)) abs]]) width: 8
+!
+add64: a with: b
+	<c: '__m128i _mm_add_epi64(__m128i a, __m128i b)'>
+	^Sse2 lanesOf: a and: b width: 8 collect: [:x :y | x + y]
+!
+unpackHigh64: a with: b
+	"The last 64-bit lane of a, then b's."
+	<c: '__m128i _mm_unpackhi_epi64(__m128i a, __m128i b)'>
+	^(a copyFrom: 9 to: 16) , (b copyFrom: 9 to: 16)
+!
+low64: a
+	"The first 64-bit lane, signed."
+	<c: 'int64_t _mm_cvtsi128_si64(__m128i a)'>
+	| v |
+	v := (Sse2 lanes: a width: 8) first.
+	^v >= (1 bitShift: 63) ifTrue: [v - (1 bitShift: 64)] ifFalse: [v]
+! !

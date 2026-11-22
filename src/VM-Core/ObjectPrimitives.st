@@ -1,5 +1,5 @@
 VMPrimitiveModule subclass: #ObjectPrimitives
-	instanceVariableNames: 'instancesClass instancesResult instancesCount search'
+	instanceVariableNames: 'instancesClass instancesResult instancesCount search png'
 	classVariableNames: ''
 	package: 'VM-Core'!
 
@@ -7,7 +7,7 @@ ObjectPrimitives comment: 'Object, string and byte-access primitives. Indices ar
 
 !ObjectPrimitives class methodsFor: 'declaring'!
 declarations
-	^#((instancesClass oop) (instancesResult oop) (instancesCount size_t) (search ByteSearch))
+	^#((instancesClass oop) (instancesResult oop) (instancesCount size_t) (search ByteSearch) (png PngFilter))
 ! !
 
 !ObjectPrimitives methodsFor: 'object'!
@@ -575,4 +575,30 @@ primBytesUint32BigEndianAt
 	p := self byteAt: 4 put: false.
 	p = 0 ifTrue: [^self fail].
 	self answer: (self intOop: ((((self uint8At: p) asUInt64 << 24 bitOr: (self uint8At: p + 1) asUInt64 << 16) bitOr: (self uint8At: p + 2) asUInt64 << 8) bitOr: (self uint8At: p + 3)))
+! !
+
+!ObjectPrimitives methodsFor: 'images'!
+isBytes: o size: n
+	"Whether o is a byte object of n bytes."
+	| f |
+	(self isPtr: o) ifFalse: [^false].
+	f := self formatOf: o.
+	^f >= F_BYTES and: [f < (F_BYTES + 8) and: [(memory byteSize: o) = n asUInt64]]
+!
+primPngFilter
+	"(rgba, w, h, n, raw): raw := the PNG rows of rgba (w * h pixels, 4 bytes each, rows top to bottom), each its filter type byte and its pixels packed to n channels (3: alpha dropped, 4), filtered with the filter of the smallest cost (PngFilter; PNGWriter class>>filtered:width:height:channels:); answers raw. rgba and raw are distinct byte objects of w * h * 4 and (w * n + 1) * h bytes, raw mutable; 1 <= w, h <= 2^22."
+	<vmPrimitive: 207 name: 'pngFilter'>
+	<leaf>
+	| rgba raw w h n |
+	self argCount = 5 ifFalse: [^self fail].
+	((self isInt: (self arg: 1)) and: [(self isInt: (self arg: 2)) and: [self isInt: (self arg: 3)]]) ifFalse: [^self fail].
+	w := self intVal: (self arg: 1).
+	h := self intVal: (self arg: 2).
+	n := self intVal: (self arg: 3).
+	((w >= 1 and: [w <= 16r400000]) and: [(h >= 1 and: [h <= 16r400000]) and: [n = 3 or: [n = 4]]]) ifFalse: [^self fail].
+	rgba := self arg: 0.
+	raw := self arg: 4.
+	(rgba ~= raw and: [(self isBytes: rgba size: w * h * 4) and: [(self isBytes: raw size: (w * n + 1) * h) and: [(self isImmutable: raw) not]]]) ifFalse: [^self fail].
+	png filterPng: (self bytesOf: rgba) width: w height: h channels: n into: (self bytesOf: raw).
+	self answer: raw
 ! !

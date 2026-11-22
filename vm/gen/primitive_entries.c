@@ -153,6 +153,7 @@ primitive_entry vm_primitive_table[] = {
     {204, 3, "displayBits", prim_display_bits},
     {205, 3, "displayNextEvent", prim_display_next_event},
     {206, 3, "displayFlush", prim_display_flush},
+    {207, 3, "pngFilter", prim_png_filter},
 #ifndef SAMALTAK_NO_PLATFORM
     {400, 2, "windowOpen", prim_window_open},
 #endif

@@ -1201,6 +1201,84 @@ void prim_is_immutable(void)
     prim_status = PS_OK;
 }
 
+/* ObjectPrimitives>>primPngFilter */
+void prim_png_filter(void)
+{
+    oop o;
+    oop o_2;
+    oop o_3;
+    oop o_4;
+    int64_t w;
+    oop o_5;
+    int64_t h;
+    oop o_6;
+    int64_t n;
+    oop rgba;
+    oop raw;
+    int64_t n_2;
+    bool r_is_bytes;
+    int32_t f;
+    int64_t n_3;
+    bool r_is_bytes_2;
+    int32_t f_2;
+    if (!(prim_nargs == 5)) {
+        prim_status = PS_FAIL;
+        prim_error_code = -1;
+        return;
+    }
+    o = prim_base[2];
+    if (!(((o & 1) != 0) && ({
+    o_2 = prim_base[3];
+    ((o_2 & 1) != 0) && ({
+    o_3 = prim_base[4];
+    (o_3 & 1) != 0; }); }))) {
+        prim_status = PS_FAIL;
+        prim_error_code = -1;
+        return;
+    }
+    o_4 = prim_base[2];
+    w = ((int64_t)o_4) >> 1;
+    o_5 = prim_base[3];
+    h = ((int64_t)o_5) >> 1;
+    o_6 = prim_base[4];
+    n = ((int64_t)o_6) >> 1;
+    if (!((w >= 1) && (w <= 0x400000) && ((h >= 1) && (h <= 0x400000) && ((n == 3) || (n == 4))))) {
+        prim_status = PS_FAIL;
+        prim_error_code = -1;
+        return;
+    }
+    rgba = prim_base[1];
+    raw = prim_base[5];
+    if (!((rgba != raw) && ({
+    n_2 = w * h * 4;
+    ({
+    if (!((rgba & 7) == 0)) {
+        r_is_bytes = false;
+        goto exit_is_bytes;
+    }
+    f = (int32_t)(((*(uint64_t *)rgba) >> H_FMT_SHIFT) & H_FMT_MASK);
+    r_is_bytes = (f >= F_BYTES) && ((f < 24) && (byte_size(rgba) == (uint64_t)n_2));
+exit_is_bytes:;
+    r_is_bytes; }) && ({
+    n_3 = (w * n + 1) * h;
+    ({
+    if (!((raw & 7) == 0)) {
+        r_is_bytes_2 = false;
+        goto exit_is_bytes_2;
+    }
+    f_2 = (int32_t)(((*(uint64_t *)raw) >> H_FMT_SHIFT) & H_FMT_MASK);
+    r_is_bytes_2 = (f_2 >= F_BYTES) && ((f_2 < 24) && (byte_size(raw) == (uint64_t)n_3));
+exit_is_bytes_2:;
+    r_is_bytes_2; }) && (!(((*(uint64_t *)raw) & H_IMMUTABLE) != 0)); }); }))) {
+        prim_status = PS_FAIL;
+        prim_error_code = -1;
+        return;
+    }
+    filter_png((uint8_t *)(rgba + 16), w, h, n, (uint8_t *)(raw + 16));
+    prim_result = raw;
+    prim_status = PS_OK;
+}
+
 /* ObjectPrimitives>>primReplaceFromTo */
 void prim_replace_from_to(void)
 {
