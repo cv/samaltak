@@ -1,5 +1,5 @@
 JitCompiler subclass: #JitStubs
-	instanceVariableNames: 'exitPlainAddr interruptStub entryInterruptStub closureStub contextStub contextFieldStub makeArrayStub widowStub barrierStub tierUpStub optDeoptStub optDeoptReturnStub optStackFullStub optMakeArrayStub optReturnStub blEnter blExitSync blMiss blBlock blMega blPerform blEntrySlow blPrim blRemember blReturnSlow blBox blSent blCopy symbolAddrs symbolNames symbolCount'
+	instanceVariableNames: 'exitPlainAddr interruptStub entryInterruptStub closureStub contextStub contextFieldStub makeArrayStub widowStub barrierStub tierUpStub optDeoptStub optDeoptReturnStub optStackFullStub optMakeArrayStub optReturnStub blEnter blExitSync blMiss blBlock blMega blPerform blEntrySlow blPrim blRemember blReturnSlow blBox blSent blCopy blStrHash blStrCmp symbolAddrs symbolNames symbolCount'
 	classVariableNames: 'STUB_MAX_SYMBOLS'
 	package: 'VM-Jit'!
 
@@ -14,7 +14,7 @@ declarations
 	^#((exitPlainAddr uint64_t)
 		(interruptStub uint64_t) (entryInterruptStub uint64_t) (closureStub uint64_t) (contextStub uint64_t) (contextFieldStub uint64_t) (makeArrayStub uint64_t)
 		(widowStub uint64_t) (barrierStub uint64_t) (tierUpStub uint64_t) (optDeoptStub uint64_t) (optDeoptReturnStub uint64_t) (optStackFullStub uint64_t) (optMakeArrayStub uint64_t) (optReturnStub uint64_t)
-		(blEnter uint64_t) (blExitSync uint64_t) (blMiss uint64_t) (blBlock uint64_t) (blMega uint64_t) (blPerform uint64_t) (blEntrySlow uint64_t) (blPrim uint64_t) (blRemember uint64_t) (blReturnSlow uint64_t) (blBox uint64_t) (blSent uint64_t) (blCopy uint64_t)
+		(blEnter uint64_t) (blExitSync uint64_t) (blMiss uint64_t) (blBlock uint64_t) (blMega uint64_t) (blPerform uint64_t) (blEntrySlow uint64_t) (blPrim uint64_t) (blRemember uint64_t) (blReturnSlow uint64_t) (blBox uint64_t) (blSent uint64_t) (blCopy uint64_t) (blStrHash uint64_t) (blStrCmp uint64_t)
 		(symbolAddrs 'uint64_t[STUB_MAX_SYMBOLS]') (symbolNames 'const char *[STUB_MAX_SYMBOLS]') (symbolCount int32_t))
 !
 initialize
@@ -96,6 +96,12 @@ blRememberStub
 !
 blCopyStub
 	^blCopy
+!
+blStringHashStub
+	^blStrHash
+!
+blStringCompareStub
+	^blStrCmp
 !
 copyCountRegister
 	"The copy stub's byte count: the code generators' first scratch register (x14; on x86 x10, r14)."
@@ -439,7 +445,8 @@ generateBaselineX64
 	blBox := self stubX64: brt boxFunction named: 'baseline box Float'.
 	blSent := self symbol: 'sent by the runtime'.
 	asm ret.
-	self emitCopyStub
+	self emitCopyStub.
+	self emitStringStubs
 !
 emitCopyStub
 	"memmove of x16 := the destination, x17 := the source and the count register's bytes (not 0; copyCountRegister, copyTempRegister): x16, x17, those two, the flags and the d registers C does not keep change, nothing else. Up to 16 bytes with two loads (the first and the last 8, 4, 2 bytes, overlapping), then two stores; up to 64 bytes in words (32 bytes a turn while they last), then the rest, from the end down if the destination overlaps the source from above; longer copies call memmove (its callers are primitives, entered by sends, and optimized code's calls, whose doubles are loaded again after it: on x86-64 xmm8-xmm15 are not kept either)."
@@ -606,6 +613,97 @@ emitSmallCopy
 	asm ldrb: (t bitOr: REG_W) base: X17 offset: 0.
 	asm strb: (t bitOr: REG_W) base: X16 offset: 0.
 	asm ret
+!
+emitStringStubs
+	"String>>hash and compareWith: of byte objects (their primitives' work) for optimized code (O_STRHASH, O_STRCMP): x16 the receiver, x17 the argument, the result in x16 (a SmallInteger); x16, x17, the copy stub's two registers and the flags change, nothing else (compare keeps x0 and x9 on the stack)."
+	| c t loop done words tail sizes |
+	c := self copyCountRegister.
+	t := self copyTempRegister.
+	loop := asm newLabel.
+	done := asm newLabel.
+	blStrHash := self symbol: 'string hash'.
+	asm comment: 'FNV-1a of the bytes (ObjectMemory>>stringHash:)'.
+	self emitBytesOf: X16 into: c temp: t.
+	asm add: X17 with: X16 imm: 16.
+	asm mov: t imm: 2166136261.
+	asm cbz: c to: done.
+	asm bind: loop.
+	asm ldrb: (X16 bitOr: REG_W) base: X17 postIndex: 1.
+	asm eor: (t bitOr: REG_W) with: (t bitOr: REG_W) with: (X16 bitOr: REG_W).
+	asm mov: X16 imm: 16777619.
+	asm mul: (t bitOr: REG_W) with: (t bitOr: REG_W) with: (X16 bitOr: REG_W).
+	asm subs: c with: c imm: 1.
+	asm b: loop if: COND_NE.
+	asm bind: done.
+	asm and: t with: t imm: 16r3FFFFFFF.
+	asm add: X16 with: t with: t.
+	asm orr: X16 with: X16 imm: 1.
+	asm ret.
+	words := asm newLabel.
+	tail := asm newLabel.
+	sizes := asm newLabel.
+	done := asm newLabel.
+	blStrCmp := self symbol: 'string compare'.
+	asm comment: '-1, 0 or 1 by the first different byte (8 at a time while they last), then by size'.
+	asm isX64
+		ifTrue: [
+			asm push: X0.
+			asm push: X9]
+		ifFalse: [asm stp: X0 with: X9 base: SP preIndex: -16].
+	self emitBytesOf: X16 into: c temp: t.
+	self emitBytesOf: X17 into: t temp: X9.
+	asm sub: X0 with: c with: t.
+	asm cmp: c with: t.
+	asm csel: c with: c with: t cond: COND_LO.
+	asm add: X16 with: X16 imm: 16.
+	asm add: X17 with: X17 imm: 16.
+	asm bind: words.
+	asm cmp: c imm: 8.
+	asm b: tail if: COND_LO.
+	asm ldr: t base: X16 offset: 0.
+	asm ldr: X9 base: X17 offset: 0.
+	asm cmp: t with: X9.
+	asm b: tail if: COND_NE.
+	asm add: X16 with: X16 imm: 8.
+	asm add: X17 with: X17 imm: 8.
+	asm sub: c with: c imm: 8.
+	asm b: words.
+	asm bind: tail.
+	asm cbz: c to: sizes.
+	asm ldrb: (t bitOr: REG_W) base: X16 postIndex: 1.
+	asm ldrb: (X9 bitOr: REG_W) base: X17 postIndex: 1.
+	asm sub: c with: c imm: 1.
+	asm cmp: t with: X9.
+	asm b: tail if: COND_EQ.
+	asm comment: 'a byte differs: 1, or -1 if the receiver''s is lower'.
+	asm cset: t cond: COND_LO.
+	asm lsl: t with: t imm: 2.
+	asm mov: X16 imm: 3.
+	asm sub: X16 with: X16 with: t.
+	asm b: done.
+	asm bind: sizes.
+	asm comment: 'the common bytes are equal: by size'.
+	asm cmp: X0 imm: 0.
+	asm cset: t cond: COND_GT.
+	asm cset: X9 cond: COND_LT.
+	asm sub: t with: t with: X9.
+	asm add: X16 with: t with: t.
+	asm orr: X16 with: X16 imm: 1.
+	asm bind: done.
+	asm isX64
+		ifTrue: [
+			asm pop: X9.
+			asm pop: X0]
+		ifFalse: [asm ldp: X0 with: X9 base: SP postIndex: 16].
+	asm ret
+!
+emitBytesOf: x into: r temp: t
+	"r := the number of bytes of x, a byte object (its slots' bytes less the format's unused ones)."
+	asm ldr: (r bitOr: REG_W) base: x offset: 0.
+	asm lsl: r with: r imm: 3.
+	asm ldrb: (t bitOr: REG_W) base: x offset: 4.
+	asm and: t with: t imm: 7.
+	asm sub: r with: r with: t
 !
 dumpingStub: fn named: name
 	"Optimized code branches here with a safepoint in w17 (a guard failed, the bottom frame returns): the registers into the JitState's dump, then the runtime function fn(frame, safepoint) does the rest, then the interpreter continues."
@@ -810,7 +908,8 @@ generateBaseline
 	blBox := self stub: brt boxFunction named: 'baseline box Float'.
 	blSent := self symbol: 'sent by the runtime'.
 	asm ret.
-	self emitCopyStub
+	self emitCopyStub.
+	self emitStringStubs
 !
 emitContinueOrExit: exit
 	"x0: 1 leave, else the code to continue at with the receiver in x0 again (x30 back to the send)."

@@ -393,6 +393,8 @@ typedef void (*prim_fn)(void);
 #define OPK_NEWSIZE 10
 #define OPK_REPLACE 14
 #define OPK_SIZE 3
+#define OPK_STRCMP 16
+#define OPK_STRHASH 15
 #define OPK_STRINGAT 4
 #define OPK_STRINGATPUT 5
 #define OPT_ANA_MAX 65536
@@ -470,7 +472,7 @@ typedef void (*prim_fn)(void);
 #define O_ISHIFT 36
 #define O_ISUB 10
 #define O_IXOR 37
-#define O_LAST 53
+#define O_LAST 54
 #define O_LOADFIELD 4
 #define O_LOADSLOT 40
 #define O_MKARRAY 43
@@ -487,6 +489,8 @@ typedef void (*prim_fn)(void);
 #define O_SIZE 24
 #define O_STOREFIELD 5
 #define O_STORESLOT 41
+#define O_STRCMP 54
+#define O_STRHASH 49
 #define O_UNBOXF 28
 #define PF_BLEND_ALPHA 1
 #define PF_BLEND_NONE 0
@@ -1385,6 +1389,8 @@ extern uint64_t bl_prim;
 extern uint64_t bl_remember;
 extern uint64_t bl_return_slow;
 extern uint64_t bl_sent;
+extern uint64_t bl_str_cmp;
+extern uint64_t bl_str_hash;
 extern uint64_t closure_stub;
 extern uint64_t context_field_stub;
 extern uint64_t context_stub;

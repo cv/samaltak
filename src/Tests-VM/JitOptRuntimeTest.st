@@ -1233,6 +1233,21 @@ testBranchesMakeNoBoolean
 	self deny: ((self listingOf: #positive:) includesSubstring: (self isX64 ifTrue: ['cmovg'] ifFalse: [', gt'])).
 	self deny: ((self listingOf: #either:or:) includesSubstring: 'neither true nor false')
 !
+testStringHashAndCompareCallStubs
+	"String>>hash and compareWith: of bytes call stubs, not their methods; compareWith:'s argument, of a class the code does not know, is checked to be bytes; once a WideString failed that check, the site calls."
+	| o |
+	Smalltalk vm jitParameters: #(nil '-eager' nil nil).
+	self define: 'hashOf: s ^s hash'.
+	self define: 'compare: a with: b ^a compareWith: b'.
+	o := JitRuntimeTestSubject new.
+	1 to: 1200 do: [:i |
+		self assert: (o hashOf: 'abc') equals: 'abc' hash.
+		self assert: (o compare: 'abc' with: 'abd') equals: -1].
+	self assert: ((self listingOf: #hashOf:) includesSubstring: 'the string hash stub').
+	self assert: ((self listingOf: #compare:with:) includesSubstring: 'guard: the argument is bytes').
+	1 to: 1200 do: [:i | self assert: (o compare: 'abc' with: 'abb' asWideString) equals: 1].
+	self stressed ifFalse: [self deny: ((self listingOf: #compare:with:) includesSubstring: 'the string compare stub')]
+!
 testCopyOfAStringIsFused
 	"copyFrom:to: of a String (its species a global's class the code speculates on, isWideString folded) allocates and copies with only the new object's last slot zeroed."
 	| o |

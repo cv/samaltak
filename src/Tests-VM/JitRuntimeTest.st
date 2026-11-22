@@ -440,6 +440,41 @@ testLeafPrimitives
 	self assert: calls max >= 1000
 ! !
 
+!JitRuntimeTest methodsFor: 'tests: primitives'!
+testStringHashAndCompare
+	"String>>hash, compareWith: and = in compiled code answer what their definitions in Smalltalk do: Strings of every size to 40, each with its first, middle or last byte changed up or down or to one above 127 (compared unsigned), against each other and against Symbols, a WideString and a ByteArray (bytes: the primitive takes them)."
+	| strings others o fnv cmp |
+	self define: 'hashOf: s ^s hash'.
+	self define: 'compare: a with: b ^a compareWith: b'.
+	self define: 'equal: a to: b ^a = b'.
+	fnv := [:s | | h | h := 2166136261. s do: [:c | h := ((h bitXor: c asInteger) * 16777619) bitAnd: 16rFFFFFFFF]. h bitAnd: 16r3FFFFFFF].
+	cmp := [:a :b | | r |
+		r := nil.
+		1 to: (a size min: b size) do: [:i | (r isNil and: [(a at: i) asInteger ~= (b at: i) asInteger]) ifTrue: [r := (a at: i) asInteger < (b at: i) asInteger ifTrue: [-1] ifFalse: [1]]].
+		r ifNil: [(a size - b size) sign]].
+	strings := OrderedCollection new.
+	0 to: 40 do: [:n | | base |
+		base := String new: n.
+		1 to: n do: [:i | base at: i put: (Character value: 97 + (i \\ 26))].
+		strings add: base.
+		n > 0 ifTrue: [
+			{1. n // 2 + 1. n} do: [:p | #(1 -1 200) do: [:d | | v |
+				v := base copy.
+				v at: p put: (Character value: (d = 200 ifTrue: [200] ifFalse: [(v at: p) asInteger + d])).
+				strings add: v]]]].
+	others := {#abc. #abcdefghijklmnop. 'abd' asWideString. #[97 98 99]}.
+	o := JitRuntimeTestSubject new.
+	strings do: [:a |
+		self assert: (o hashOf: a) equals: (fnv value: a).
+		(strings , others) do: [:b |
+			(a size - b size) abs <= 1 ifTrue: [
+				self assert: (o compare: a with: b) equals: (cmp value: a value: b).
+				self assert: (o equal: a to: b) equals: (b isString and: [(cmp value: a value: b) = 0])]]].
+	others do: [:a | a isString ifTrue: [self assert: (o hashOf: a) equals: (fnv value: a)]].
+	self assert: (o compare: #abc with: 'abc') equals: 0.
+	self assert: (o equal: #abc to: 'abc')
+! !
+
 !JitRuntimeTest methodsFor: 'tests: copying'!
 testCopiesOfEveryLengthAndOverlap
 	"replaceFrom:to:with:startingAt: in compiled code (the copy stub) against element by element copies: bytes, 32-bit words and pointers, every length up to 80 (40), within one object shifted either way by up to 9 elements (overlapping or not), and into another object between guard elements that stay."

@@ -1,6 +1,6 @@
 OptModule subclass: #OptBuilder
 	instanceVariableNames: 'ir obCurBlock obBailed obVarTop obDefKeys obDefVals obDefCount obIncPhis obIncVars obIncCount obAnaMethods obAnaBases obAnaCount obAnaTop obAnaDepth obAnaFlag obAnaBack obPcBlocks obPcbTop obEntryBlock obRootMethod obInlined obDeps obDepCount obPrimKinds obPrimsKnown obNoInline obNoInlineCount obArgVals obArgFlags obUnitStart obOsrPc obParamSlots obValidSlots obSafeEpoch obAnaFloat obAnaInts obResident obChecked obCheckedCount obCheckedBlock obCheckedEpoch obFrame obSpecParam obSpecInfo obSpecCount obForeign obForeignM obForeignS obForeignDepth obNoForeignM obNoForeignS obNoForeignCount obPerformAct obPerformPc obPerformSlot obPerformCount obPerformVals obAnaLive obNilConst'
-	classVariableNames: 'OA_BLOCK OA_LOOP OA_START OA_TARGET OPT_MAX_VARS OPT_MAX_NOINLINE OPT_MAX_PRIM OPK_AT OPK_FLOAT OPK_FSQRT OPK_NEW OPK_NEWSIZE OPK_CLOSURE OPK_ATPUT OPK_CLASS OPK_IDENTICAL OPK_INT OPK_SIZE OPK_STRINGAT OPK_STRINGATPUT OPT_INLINE_BUDGET OPT_INLINE_DEPTH OPT_INLINE_SIZE OPT_MAX_ANA OPT_MAX_DEPS OPT_MAX_INC OPK_CHARVALUE OPK_CHARFROM OPK_REPLACE'
+	classVariableNames: 'OA_BLOCK OA_LOOP OA_START OA_TARGET OPT_MAX_VARS OPT_MAX_NOINLINE OPT_MAX_PRIM OPK_AT OPK_FLOAT OPK_FSQRT OPK_NEW OPK_NEWSIZE OPK_CLOSURE OPK_ATPUT OPK_CLASS OPK_IDENTICAL OPK_INT OPK_SIZE OPK_STRINGAT OPK_STRINGATPUT OPT_INLINE_BUDGET OPT_INLINE_DEPTH OPT_INLINE_SIZE OPT_MAX_ANA OPT_MAX_DEPS OPT_MAX_INC OPK_CHARVALUE OPK_CHARFROM OPK_REPLACE OPK_STRHASH OPK_STRCMP'
 	package: 'VM-Jit'!
 
 OptBuilder comment: 'Builds the IR (OptIR) of a method from its bytecodes: an abstract interpretation of each activation''s bytecodes in pc order, its slots (arguments, temps, operand stack: the depths BytecodeAnalysis computed) SSA variables, phis made on demand (Braun et al., Simple and Efficient Construction of Static Single Assignment Form, CC 2013: a block is sealed once all its predecessors are known; jump targets when the scan reaches them, loop heads after their last backward jump). Sends, guards and interrupt checks get frame states (OptState) for deoptimization. bail abandons the method (a bytecode the tier does not compile).'!
@@ -41,6 +41,8 @@ initialize
 	OPK_CHARVALUE := 12.
 	OPK_CHARFROM := 13.
 	OPK_REPLACE := 14.
+	OPK_STRHASH := 15.
+	OPK_STRCMP := 16.
 	OPT_INLINE_SIZE := 200.
 	OPT_INLINE_BUDGET := 3000.
 	OPT_INLINE_DEPTH := 8.
@@ -1820,9 +1822,52 @@ primKindOf: p
 		self primNamed: 'basicNew' kind: OPK_NEW.
 		self primNamed: 'basicNew:' kind: OPK_NEWSIZE.
 		self primNamed: 'closureValue' kind: OPK_CLOSURE.
-		self primNamed: 'replaceFromToWithStartingAt' kind: OPK_REPLACE].
+		self primNamed: 'replaceFromToWithStartingAt' kind: OPK_REPLACE.
+		self primNamed: 'stringHash' kind: OPK_STRHASH.
+		self primNamed: 'stringCompare' kind: OPK_STRCMP].
 	(p <= 0 or: [p >= OPT_MAX_PRIM]) ifTrue: [^0].
 	^(obPrimKinds at: p) asInt32
+!
+stringPrimitive: kind spec: spec argc: argc pc: pc act: a rcvSlot: r
+	"String>>hash (OPK_STRHASH) or compareWith: (OPK_STRCMP) of a receiver whose class has bytes (spec), as their primitives do it (they take any bytes): O_STRHASH, O_STRCMP; compareWith:'s argument known to be bytes, else, unless its class is known, checked (deoptimize, and the site calls from then on). Answer whether it did."
+	| rcv x n s |
+	spec >= F_BYTES ifFalse: [^false].
+	rcv := self read: (self var: a slot: r).
+	(kind = OPK_STRHASH and: [argc = 0]) ifTrue: [
+		n := self add: O_STRHASH rep: R_OOP.
+		(ir node: n) a: rcv.
+		(ir node: n) flags: NF_PURE.
+		(ir node: n) tkind: T_SMI.
+		(ir node: n) lo: 0.
+		(ir node: n) hi: 16r3FFFFFFF.
+		self push: n act: a depth: r.
+		^true].
+	(kind = OPK_STRCMP and: [argc = 1]) ifFalse: [^false].
+	x := self read: (self var: a slot: r + 1).
+	s := -1.
+	(self hasBytes: (self knownClassOf: x)) ifFalse: [
+		(self knownClassOf: x) ~= 0 ifTrue: [^false].
+		((feedback flagsAt: (ir act: a) method pc: pc) bitAnd: feedback deoptOther) ~= 0 ifTrue: [^false].
+		s := self stateAct: a pc: pc depth: (self depthAt: pc act: a)].
+	n := self add: O_STRCMP rep: R_OOP.
+	(ir node: n) a: rcv.
+	(ir node: n) b: x.
+	s >= 0
+		ifTrue: [
+			(ir node: n) state: s.
+			(ir node: n) flags: NF_GUARD]
+		ifFalse: [(ir node: n) flags: NF_PURE].
+	(ir node: n) tkind: T_SMI.
+	(ir node: n) lo: -1.
+	(ir node: n) hi: 1.
+	self push: n act: a depth: r.
+	^true
+!
+hasBytes: cls
+	"Instances of cls (0: not known) are bytes."
+	cls = 0 ifTrue: [^false].
+	(self isInt: (self loadRef: cls at: BEH_FORMAT)) ifFalse: [^false].
+	^(self intVal: (self loadRef: cls at: BEH_FORMAT)) >> 16 >= F_BYTES
 !
 primNamed: name kind: k
 	| p |
@@ -1896,6 +1941,7 @@ inlinePrimitive: p class: cls argc: argc pc: pc act: a rcvSlot: r
 		^true].
 	fmt := self intVal: (self loadRef: cls at: BEH_FORMAT).
 	spec := fmt >> 16.
+	(kind = OPK_STRHASH or: [kind = OPK_STRCMP]) ifTrue: [^self stringPrimitive: kind spec: spec argc: argc pc: pc act: a rcvSlot: r].
 	fixed := fmt bitAnd: CLS_INSTSIZE_MASK.
 	ek := -1.
 	(spec = F_VAR or: [spec = F_FIXVAR]) ifTrue: [ek := E_PTR].
