@@ -1,5 +1,5 @@
 OptModule subclass: #OptRegalloc
-	instanceVariableNames: 'ir passes builtins raLiveWords raLiveIn raLiveOut raLiveArena raSorted raSortCount raBucket raBucketNext raActive raActiveCount raFreeRegs raSafePos raSafeCall raSafeCount raSlotTop raSlotFree raSlotFreeCount raSlotBase raRawTop raRawFree raRawFreeCount raRawBase raValidSlots raMaxPos raSafeList raSafeListCount'
+	instanceVariableNames: 'ir passes builtins raLiveWords raLiveIn raLiveOut raLiveArena raSorted raSortCount raBucket raBucketNext raActive raActiveCount raFreeRegs raSafePos raSafeCall raSafeCount raSlotTop raSlotFree raSlotFreeCount raSlotBase raRawTop raRawFree raRawFreeCount raRawBase raValidSlots raMaxPos raSafeList raSafeListCount raCost'
 	classVariableNames: 'RA_ARENA RA_MAX_ACTIVE RA_MAX_SAFE RA_MAX_SAFELIST RA_MAX_SLOTS RA_NREGS'
 	package: 'VM-Jit'!
 
@@ -11,7 +11,7 @@ declarations
 		(raSorted 'int32_t[OPT_MAX_NODES]') (raSortCount int32_t) (raBucket 'int32_t[OPT_MAX_NODES]') (raBucketNext 'int32_t[OPT_MAX_NODES]')
 		(raActive 'int32_t[RA_MAX_ACTIVE]') (raActiveCount int32_t) (raFreeRegs 'int32_t[RA_NREGS]')
 		(raSafePos 'int32_t[RA_MAX_SAFE]') (raSafeCall 'uint8_t[RA_MAX_SAFE]') (raSafeCount int32_t)
-		(raSlotTop int32_t) (raSlotFree 'int32_t[RA_MAX_SLOTS]') (raSlotFreeCount int32_t) (raSlotBase int32_t) (raRawTop int32_t) (raRawFree 'int32_t[RA_MAX_SLOTS]') (raRawFreeCount int32_t) (raRawBase int32_t) (raValidSlots int32_t) (raMaxPos int32_t) (raSafeList 'int32_t[RA_MAX_SAFELIST]') (raSafeListCount int32_t))
+		(raSlotTop int32_t) (raSlotFree 'int32_t[RA_MAX_SLOTS]') (raSlotFreeCount int32_t) (raSlotBase int32_t) (raRawTop int32_t) (raRawFree 'int32_t[RA_MAX_SLOTS]') (raRawFreeCount int32_t) (raRawBase int32_t) (raCost 'int32_t[OPT_MAX_NODES]') (raValidSlots int32_t) (raMaxPos int32_t) (raSafeList 'int32_t[RA_MAX_SAFELIST]') (raSafeListCount int32_t))
 !
 initialize
 	RA_ARENA := 1048576.
@@ -232,6 +232,22 @@ usesOf: n into: set
 		self set: (self closureOfState: st) in: set.
 		s := st parent]
 !
+is: x cheaperThan: y
+	"x86: interval x costs less per position than y kept in its slot (cost:plus:), or as much and ends later."
+	<arch: #x86_64>
+	| cx cy lx ly |
+	cx := (raCost at: x) asInt64.
+	cy := (raCost at: y) asInt64.
+	lx := ((ir node: x) lend - (ir node: x) lstart + 1) asInt64.
+	ly := ((ir node: y) lend - (ir node: y) lstart + 1) asInt64.
+	cx * ly < (cy * lx) ifTrue: [^true].
+	^cx * ly = (cy * lx) and: [(ir node: x) lend > (ir node: y) lend]
+!
+cost: v plus: w
+	"x86: v costs w more kept in its slot."
+	<arch: #x86_64>
+	(self isValue: v) ifTrue: [raCost at: v put: (raCost at: v) + w]
+!
 extend: v to: pos
 	| nd |
 	(self isValue: v) ifFalse: [^self].
@@ -241,7 +257,9 @@ extend: v to: pos
 !
 buildIntervals
 	<function>
-	| b bl in out n nd k e p s st after bits |
+	| b bl in out n nd k e p s st after bits weight depth |
+	"x86: what keeping a value in its slot costs, for linearScan: its definition and uses, 8 times for each loop around them (a frame state's uses cost nothing)"
+	asm isX64 ifTrue: [0 to: ir nodeCount - 1 do: [:i | raCost at: i put: 0]].
 	0 to: passes orderCount - 1 do: [:i |
 		b := passes orderAt: i.
 		bl := ir block: b.
@@ -256,10 +274,14 @@ buildIntervals
 			[bits ~= 0] whileTrue: [
 				self extend: w * 64 + (builtins ctz64: bits) to: bl to.
 				bits := bits bitAnd: bits - 1]].
+		asm isX64 ifTrue: [
+			depth := passes loopDepthOf: b.
+			weight := 1 << (3 * (depth min: 3))].
 		n := bl first.
 		[n >= 0] whileTrue: [
 			nd := ir node: n.
 			self extend: n to: nd pos.
+			asm isX64 ifTrue: [self cost: n plus: weight].
 			nd op asInt32 = O_PHI
 				ifTrue: [
 					"the moves into a phi are at the ends of its predecessors"
@@ -269,6 +291,9 @@ buildIntervals
 						p := ir block: (ir edge: e) from.
 						self extend: n to: p to - 1.
 						self extend: (ir operand: nd args + k) to: p to - 1.
+						asm isX64 ifTrue: [
+							depth := passes loopDepthOf: (ir edge: e) from.
+							self cost: (ir operand: nd args + k) plus: 1 << (3 * (depth min: 3))].
 						k := k + 1.
 						e := (ir edge: e) next]]
 				ifFalse: [
@@ -276,6 +301,11 @@ buildIntervals
 					nd b >= 0 ifTrue: [self extend: nd b to: nd pos].
 					(nd c >= 0 and: [nd op asInt32 ~= O_SEND]) ifTrue: [self extend: nd c to: nd pos].
 					0 to: nd nargs asInt32 - 1 do: [:j | self extend: (ir operand: nd args + j) to: nd pos].
+					asm isX64 ifTrue: [
+						nd a >= 0 ifTrue: [self cost: nd a plus: weight].
+						nd b >= 0 ifTrue: [self cost: nd b plus: weight].
+						(nd c >= 0 and: [nd op asInt32 ~= O_SEND]) ifTrue: [self cost: nd c plus: weight].
+						0 to: nd nargs asInt32 - 1 do: [:j | self cost: (ir operand: nd args + j) plus: weight]].
 					"a safepoint's state is read while it runs: its values outlive it"
 					after := (self isSafepoint: n) ifTrue: [nd pos + 1] ifFalse: [nd pos].
 					s := nd state.
@@ -289,7 +319,7 @@ buildIntervals
 linearScan
 	"Registers in order of interval start; spill the interval that ends last when none is free."
 	<function>
-	| v nd j r victim far lo hi dbl |
+	| v nd j r victim far lo hi dbl best |
 	self sortIntervals.
 	raActiveCount := 0.
 	0 to: RA_NREGS - 1 do: [:i | raFreeRegs at: i put: 1].
@@ -327,10 +357,19 @@ linearScan
 			ifFalse: [
 				victim := -1.
 				far := nd lend.
-				0 to: raActiveCount - 1 do: [:k |
-					((ir node: (raActive at: k)) lend > far and: [(ir node: (raActive at: k)) rep = nd rep]) ifTrue: [
-						far := (ir node: (raActive at: k)) lend.
-						victim := k]].
+				asm isX64
+					ifTrue: [
+						"x86, few registers: the one that costs least per position it is live kept in its slot (cost:plus:), at a tie the one ending last; maybe this one"
+						best := v.
+						0 to: raActiveCount - 1 do: [:k |
+							((ir node: (raActive at: k)) rep = nd rep and: [self is: (raActive at: k) cheaperThan: best]) ifTrue: [
+								best := raActive at: k.
+								victim := k]]]
+					ifFalse: [
+						0 to: raActiveCount - 1 do: [:k |
+							((ir node: (raActive at: k)) lend > far and: [(ir node: (raActive at: k)) rep = nd rep]) ifTrue: [
+								far := (ir node: (raActive at: k)) lend.
+								victim := k]]].
 				victim >= 0
 					ifTrue: [
 						nd reg: (ir node: (raActive at: victim)) reg.
