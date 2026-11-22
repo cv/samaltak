@@ -1,6 +1,6 @@
 JitCompiler subclass: #JitBaselineCompiler
 	instanceVariableNames: 'codeStart pcLabels pcMerge ssKind ssVal ssReg ssInSlot ssTop ssBase regOwner selfValid curArgs curTemps curFrameSize regionEnds regionArgs regionTemps regionSizes regionCount slKind slPc slDepth slLabel slCont slTarget slA slB slC slR slX slY slInfo slCount siteBl siteLit siteInfo sitePc siteDepth siteCount retOff retPc retDepth retInfo retCount poolLabels blockPcs blockLabels blockCount headerLabel missLabel blockLabel megaLabel performLabel exitSyncLabel exitPlainLabel interruptLabel closureLabel makeArrayLabel entrySlowLabel primLabel rememberLabel returnSlowLabel boxLabel fusedTarget uentryOffset dead curPc dregRefs tempD slDA slDB slSavedStart slSavedCount saved savedCount loopActive loopEnd loopId loopTable slLoop plainEntry tierUpLabel counterAddr curMethod'
-	classVariableNames: 'BL_MAX_BLOCKS BL_MAX_REGIONS BL_MAX_RETS BL_MAX_SITES BL_MAX_SLOW BL_PIC_CASE_X64 BL_PIC_HEAD_X64 BL_PIC_JMP_X64 BL_UENTRY SL_ACCESS SL_BARRIER SL_CLASS SL_ENTRY_IMM SL_ENTRY_SLOW SL_FLOAT SL_FUSED SL_INTERRUPT SL_MUSTBEBOOLEAN SL_RESUME SL_RETURN SL_SEND SL_START SL_TIERUP SL_BOX SL_DOUBLES BL_MAX_SAVED BL_MAX_LOOPS SS_DREG SS_CONST SS_LIT SS_MAX SS_PINNED SS_REG SS_SELF SS_SLOT SS_TEMP'
+	classVariableNames: 'BL_MAX_BLOCKS BL_MAX_REGIONS BL_MAX_RETS BL_MAX_SITES BL_MAX_SLOW BL_PIC_CASE_X64 BL_PIC_HEAD_X64 BL_PIC_JMP_X64 BL_UENTRY SL_ACCESS SL_BARRIER SL_CLASS SL_ENTRY_IMM SL_ENTRY_SLOW SL_FLOAT SL_FUSED SL_INTERRUPT SL_MUSTBEBOOLEAN SL_RESUME SL_RETURN SL_SEND SL_START SL_TIERUP SL_BOX SL_DOUBLES BL_MAX_SAVED BL_LOOP_WORDS BL_MAX_LOOPS SS_DREG SS_CONST SS_LIT SS_MAX SS_PINNED SS_REG SS_SELF SS_SLOT SS_TEMP'
 	package: 'VM-Jit'!
 
 JitBaselineCompiler comment: 'The baseline compiler (--jit baseline), after Cog''s StackToRegisterMappingCogit: one pass over the bytecodes with a simulated operand stack (ssKind: in its slot, in a register, a constant, nil/true/false, self, a temp or a literal not loaded yet), so values go from producer to consumer in registers (x0-x8, x12-x15) and constants become immediates; the stack is written to its slots only at sends, calls into the runtime and merge points (jump targets, which start with everything in its slot). Before an instruction that may send or call the runtime everything below its operands is written back (as Cog), so its slow path only stores the operands.
@@ -56,8 +56,9 @@ initialize
 	"an unboxed Float in d8-d15 (C calls preserve them; sends do not: everything is boxed before one)"
 	SS_DREG := 7.
 	BL_MAX_SAVED := 65536.
-	"loops with temps in x26-x28: 4 words each (count, temps)"
-	BL_MAX_LOOPS := 4096.
+	"loops with temps in x26-x28 and x18: 5 words each (count, temps)"
+	BL_LOOP_WORDS := 5.
+	BL_MAX_LOOPS := 5120.
 	"slow paths"
 	SL_INTERRUPT := 1.
 	SL_SEND := 2.
@@ -273,7 +274,7 @@ popRegion
 
 !JitBaselineCompiler methodsFor: 'loop temps'!
 beginLoopAt: head
-	"An innermost loop from head that makes no closures, Arrays or thisContext, entered only by falling in and by its back jumps: its most used temps (up to 3, each used more often than the loop sends) live in x26-x28 too, stored through to their slots. Loaded here, on the way in, and again after every call out of the loop (sends, slow paths: the callee and the collector change them)."
+	"An innermost loop from head that makes no closures, Arrays or thisContext, entered only by falling in and by its back jumps: its most used temps (up to 4, each used more often than the loop sends) live in x26-x28 and x18 (loopReg:) too, stored through to their slots. Loaded here, on the way in, and again after every call out of the loop (sends, slow paths: the callee and the collector change them)."
 	<function>
 	| end n p op t k best bestCount c sends |
 	"x86: x26-x28 have no x86 registers (Amd64Assembler)"
@@ -310,10 +311,10 @@ beginLoopAt: head
 					((op >= 16r90 and: [op <= 16r92]) and: [(analysis jumpTargetAt: p) >= head and: [(analysis jumpTargetAt: p) <= end]]) ifTrue: [^self]].
 			p := (p + (analysis lengthAt: p)) asInt32]
 			ifFalse: [p := (p + 1) asInt32]].
-	loopId + 1 >= (BL_MAX_LOOPS quo: 4) ifTrue: [^self].
+	loopId + 1 >= (BL_MAX_LOOPS quo: BL_LOOP_WORDS) ifTrue: [^self].
 	"the most used temps"
 	c := 0.
-	1 to: 3 do: [:round |
+	1 to: self loopRegCount do: [:round |
 		best := -1.
 		bestCount := sends max: 1.
 		0 to: curArgs + curTemps - 1 do: [:tt |
@@ -323,18 +324,18 @@ beginLoopAt: head
 					best := tt.
 					bestCount := t]]].
 		best >= 0 ifTrue: [
-			loopTable at: 4 * (loopId + 1) + 1 + c put: best.
+			loopTable at: BL_LOOP_WORDS * (loopId + 1) + 1 + c put: best.
 			c := c + 1]].
 	c = 0 ifTrue: [^self].
 	loopId := loopId + 1.
-	loopTable at: 4 * loopId put: c.
+	loopTable at: BL_LOOP_WORDS * loopId put: c.
 	loopActive := true.
 	loopEnd := end asInt32.
-	asm comment: 'the loop''s temps into x26-x28'.
+	asm comment: 'the loop''s temps into their registers'.
 	self emitLoadLoopTemps: loopId
 !
 isLoopTemp: t among: c
-	0 to: c - 1 do: [:i | (loopTable at: 4 * (loopId + 1) + 1 + i) = t ifTrue: [^true]].
+	0 to: c - 1 do: [:i | (loopTable at: BL_LOOP_WORDS * (loopId + 1) + 1 + i) = t ifTrue: [^true]].
 	^false
 !
 uses: t from: head to: end
@@ -370,17 +371,25 @@ loopRegOf: t
 	"The register holding temp t in the current loop, -1 if none."
 	| c |
 	loopActive ifFalse: [^-1 asInt32].
-	c := loopTable at: 4 * loopId.
-	0 to: c - 1 do: [:i | (loopTable at: 4 * loopId + 1 + i) = t ifTrue: [^(X26 + i) asInt32]].
+	c := loopTable at: BL_LOOP_WORDS * loopId.
+	0 to: c - 1 do: [:i | (loopTable at: BL_LOOP_WORDS * loopId + 1 + i) = t ifTrue: [^(self loopReg: i) asInt32]].
 	^-1 asInt32
 !
+loopRegCount
+	"Registers for a loop's temps: x26-x28, and x18 where code may use it (Arm64Assembler>>hasX18: Linux, UEFI)."
+	^asm hasX18 ifTrue: [4] ifFalse: [3]
+!
+loopReg: i
+	"The register of a loop's temp i: x26-x28, then x18 (a temporary of C's, so reloaded after every call as the others are; the stubs that preserve registers keep it)."
+	^i < 3 ifTrue: [X26 + i] ifFalse: [X18]
+!
 emitLoadLoopTemps: id
-	"Loop id's temps from their slots into x26-x28 (entering, or after a call)."
+	"Loop id's temps from their slots into their registers (entering, or after a call)."
 	<function>
 	id < 0 ifTrue: [^self].
-	0 to: (loopTable at: 4 * id) - 1 do: [:i |
-		asm comment: 'x%d := temp %d' with: 26 + i.
-		asm ldr: X26 + i base: X20 offset: (self slot: (loopTable at: 4 * id + 1 + i))]
+	0 to: (loopTable at: BL_LOOP_WORDS * id) - 1 do: [:i |
+		asm comment: 'x%d := a loop temp' with: (self loopReg: i).
+		asm ldr: (self loopReg: i) base: X20 offset: (self slot: (loopTable at: BL_LOOP_WORDS * id + 1 + i))]
 !
 noteLoopResume: pc
 	"The interpreter may continue at a loop head: through a stub that loads the loop's temps if it has some."

@@ -3,7 +3,7 @@ OptModule subclass: #OptRegalloc
 	classVariableNames: 'RA_ARENA RA_MAX_ACTIVE RA_MAX_SAFE RA_MAX_SAFELIST RA_MAX_SLOTS RA_NREGS'
 	package: 'VM-Jit'!
 
-OptRegalloc comment: 'Register allocation for the optimizing tier (Poletto and Sarkar''s linear scan over one live interval per value). Blocks in OptPasses'' order get positions (two per node; a block''s phis at its start); block-level liveness (iterative, bit sets) gives each value the interval from its first to its last live position (a phi''s covers the ends of its predecessors, where the moves into it are; a frame state''s values at a safepoint stay live after it). Values get one of the 17 allocatable registers (x0-x13, x26-x28; x14-x17 are the code generator''s scratch, x23-x25 hold nil, true and false for baseline code) for their whole interval, or a frame slot if none is free (the interval ending last is spilled). Values live across a safepoint (a send, an interrupt check: everything there may run Smalltalk and move objects) also get a home slot: their registers are stored there before it and reloaded after. Doubles get d16-d31 and raw slots of their own (IEEE bits, which the collector does not read), after the others and the frame''s valid slots. Constants get neither: the code generator materializes them where they are used.'!
+OptRegalloc comment: 'Register allocation for the optimizing tier (Poletto and Sarkar''s linear scan over one live interval per value). Blocks in OptPasses'' order get positions (two per node; a block''s phis at its start); block-level liveness (iterative, bit sets) gives each value the interval from its first to its last live position (a phi''s covers the ends of its predecessors, where the moves into it are; a frame state''s values at a safepoint stay live after it). Values get one of the 18 allocatable registers (x0-x13, x18, x26-x28; x18 only where code may use it, Linux and UEFI: Arm64Assembler>>hasX18; x14-x17 are the code generator''s scratch, x23-x25 hold nil, true and false for baseline code) for their whole interval, or a frame slot if none is free (the interval ending last is spilled). Values live across a safepoint (a send, an interrupt check: everything there may run Smalltalk and move objects) also get a home slot: their registers are stored there before it and reloaded after. Doubles get d16-d31 and raw slots of their own (IEEE bits, which the collector does not read), after the others and the frame''s valid slots. Constants get neither: the code generator materializes them where they are used.'!
 
 !OptRegalloc class methodsFor: 'declaring'!
 declarations
@@ -33,9 +33,10 @@ rawCount
 	^raRawTop
 !
 regAt: i
-	"Allocatable register i: x0-x13, x23-x28, then d16-d31 for doubles (on x86 x0-x5, x9, x21, then d2-d15: regAtX64:)."
+	"Allocatable register i: x0-x13, x18, x24-x28 (x24 and x25 never free), then d16-d31 for doubles (on x86 x0-x5, x9, x21, then d2-d15: regAtX64:)."
 	asm isX64 ifTrue: [^self regAtX64: i].
 	i >= 20 ifTrue: [^D16 + (i - 20)].
+	i = 14 ifTrue: [^X18].
 	^i < 14 ifTrue: [i] ifFalse: [i + 9]
 !
 isValue: n
@@ -323,8 +324,9 @@ linearScan
 	self sortIntervals.
 	raActiveCount := 0.
 	0 to: RA_NREGS - 1 do: [:i | raFreeRegs at: i put: 1].
-	"x23-x25: nil, true and false, for the baseline code it calls and returns to"
-	14 to: 16 do: [:i | raFreeRegs at: i put: 0].
+	"x24-x25: true and false, for the baseline code it calls and returns to (x23, nil, has no index); x18 where code may not use it (macOS)"
+	15 to: 16 do: [:i | raFreeRegs at: i put: 0].
+	asm hasX18 ifFalse: [raFreeRegs at: 14 put: 0].
 	"x86: 8 general registers, 14 d registers (regAtX64:)"
 	asm isX64 ifTrue: [
 		8 to: 19 do: [:i | raFreeRegs at: i put: 0].
@@ -391,6 +393,7 @@ regIndexOf: reg
 		reg < 6 ifTrue: [^reg].
 		^reg = X9 ifTrue: [6] ifFalse: [7]].
 	reg >= D0 ifTrue: [^reg - D16 + 20].
+	reg = X18 ifTrue: [^14].
 	^reg < 14 ifTrue: [reg] ifFalse: [reg - 9]
 !
 sortIntervals

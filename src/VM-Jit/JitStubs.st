@@ -554,15 +554,17 @@ emitCopyStub
 			asm pop: X9.
 			5 to: 0 by: -1 do: [:r | asm pop: r]]
 		ifFalse: [
-			asm stp: X29 with: X30 base: SP preIndex: -128.
+			asm stp: X29 with: X30 base: SP preIndex: -144.
 			0 to: 6 do: [:i | asm stp: 2 * i with: 2 * i + 1 base: SP offset: 16 + (16 * i)].
+			asm hasX18 ifTrue: [asm str: X18 base: SP offset: 128].
 			asm mov: X0 with: X16.
 			asm mov: X1 with: X17.
 			asm mov: X2 with: c.
 			asm mov: X16 imm64: runtime moveFunction.
 			asm blr: X16.
+			asm hasX18 ifTrue: [asm ldr: X18 base: SP offset: 128].
 			0 to: 6 do: [:i | asm ldp: 2 * i with: 2 * i + 1 base: SP offset: 16 + (16 * i)].
-			asm ldp: X29 with: X30 base: SP postIndex: 128].
+			asm ldp: X29 with: X30 base: SP postIndex: 144].
 	asm ret
 !
 emitSmallCopy
@@ -782,8 +784,8 @@ generateBaseline
 	asm ldur: X0 base: X20 offset: -8.
 	asm br: X10.
 	blRemember := self symbol: 'baseline remember'.
-	"x16 an old object, x17 the young value stored into it: every register but x16, x17 preserved"
-	asm stp: X0 with: X1 base: SP preIndex: -144.
+	"x16 an old object, x17 the young value stored into it: every register but x16, x17 preserved (x18 too where code uses it)"
+	asm stp: X0 with: X1 base: SP preIndex: -160.
 	asm stp: X2 with: X3 base: SP offset: 16.
 	asm stp: X4 with: X5 base: SP offset: 32.
 	asm stp: X6 with: X7 base: SP offset: 48.
@@ -792,10 +794,12 @@ generateBaseline
 	asm stp: X12 with: X13 base: SP offset: 96.
 	asm stp: X14 with: X15 base: SP offset: 112.
 	asm stp: X29 with: X30 base: SP offset: 128.
+	asm hasX18 ifTrue: [asm str: X18 base: SP offset: 144].
 	asm mov: X0 with: X16.
 	asm mov: X1 with: X17.
 	asm mov: X16 imm64: runtime writeBarrierFunction.
 	asm blr: X16.
+	asm hasX18 ifTrue: [asm ldr: X18 base: SP offset: 144].
 	asm ldp: X29 with: X30 base: SP offset: 128.
 	asm ldp: X14 with: X15 base: SP offset: 112.
 	asm ldp: X12 with: X13 base: SP offset: 96.
@@ -804,7 +808,7 @@ generateBaseline
 	asm ldp: X6 with: X7 base: SP offset: 48.
 	asm ldp: X4 with: X5 base: SP offset: 32.
 	asm ldp: X2 with: X3 base: SP offset: 16.
-	asm ldp: X0 with: X1 base: SP postIndex: 144.
+	asm ldp: X0 with: X1 base: SP postIndex: 160.
 	asm ret.
 	blReturnSlow := self stub: brt returnSlowFunction named: 'baseline return slow path'.
 	blBox := self stub: brt boxFunction named: 'baseline box Float'.

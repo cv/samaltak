@@ -1,5 +1,5 @@
 JitAssembler subclass: #Arm64Assembler
-	instanceVariableNames: 'asmStart asmPc asmLimit asmError asmLabelCount asmLabels asmLabelFixups asmFixupCount asmFixupSites asmFixupNext asmUnresolved asmBinds asmBoundPc asmNoting asmNoteCount asmNoteOffsets asmNoteTexts asmNoteArgs'
+	instanceVariableNames: 'abi asmStart asmPc asmLimit asmError asmLabelCount asmLabels asmLabelFixups asmFixupCount asmFixupSites asmFixupNext asmUnresolved asmBinds asmBoundPc asmNoting asmNoteCount asmNoteOffsets asmNoteTexts asmNoteArgs'
 	classVariableNames: 'ASM_MAX_FIXUPS ASM_MAX_LABELS ASM_MAX_NOTES'
 	package: 'VM-Jit'!
 
@@ -16,7 +16,7 @@ targetArch
 	^#arm64
 !
 declarations
-	^#((asmStart uint64_t) (asmPc uint64_t) (asmLimit uint64_t) (asmError int32_t) (asmLabelCount int32_t) (asmLabels 'uint64_t[ASM_MAX_LABELS]') (asmLabelFixups 'int32_t[ASM_MAX_LABELS]') (asmFixupCount int32_t) (asmFixupSites 'uint64_t[ASM_MAX_FIXUPS]') (asmFixupNext 'int32_t[ASM_MAX_FIXUPS]') (asmUnresolved int32_t) (asmBinds int32_t) (asmBoundPc uint64_t) (asmNoting bool) (asmNoteCount int32_t) (asmNoteOffsets 'uint32_t[ASM_MAX_NOTES]') (asmNoteTexts 'const char *[ASM_MAX_NOTES]') (asmNoteArgs 'int64_t[ASM_MAX_NOTES]'))
+	^#((abi Arm64Abi) (asmStart uint64_t) (asmPc uint64_t) (asmLimit uint64_t) (asmError int32_t) (asmLabelCount int32_t) (asmLabels 'uint64_t[ASM_MAX_LABELS]') (asmLabelFixups 'int32_t[ASM_MAX_LABELS]') (asmFixupCount int32_t) (asmFixupSites 'uint64_t[ASM_MAX_FIXUPS]') (asmFixupNext 'int32_t[ASM_MAX_FIXUPS]') (asmUnresolved int32_t) (asmBinds int32_t) (asmBoundPc uint64_t) (asmNoting bool) (asmNoteCount int32_t) (asmNoteOffsets 'uint32_t[ASM_MAX_NOTES]') (asmNoteTexts 'const char *[ASM_MAX_NOTES]') (asmNoteArgs 'int64_t[ASM_MAX_NOTES]'))
 !
 initialize
 	ASM_MAX_LABELS := 16384.
@@ -59,6 +59,10 @@ errorCode
 isX64
 	"The code generators emit arm64 through me."
 	^false
+!
+hasX18
+	"Whether code may use x18: a temporary of C's on Linux and UEFI, the platform register on macOS (the kernel may change it at any time). A constant of the C compiler's (Arm64Abi): the generators' code for macOS is the same as without it."
+	^abi x18Free ~= 0
 !
 failed
 	^asmError ~= ASM_OK
@@ -654,6 +658,7 @@ cneg: rd with: rn cond: c
 	self select: 16r40000400 rd: rd rn: rn rm: rn cond: (c bitXor: 1)
 ! !
 
+
 !Arm64Assembler methodsFor: 'loads and stores'!
 loadStore: bits rt: rt base: rn offset: off scale: s
 	"The unsigned scaled offset form if off fits it, else the unscaled one (ldur, stur). bits: size, V and opc."
@@ -1137,4 +1142,22 @@ mov64At: site
 	v := 0 asUInt64.
 	0 to: 3 do: [:i | v := v bitOr: (((self uint32At: site + (4 * i)) >> 5) bitAnd: 16rFFFF) asUInt64 << (16 * i)].
 	^v
+! !
+
+CLibrary subclass: #Arm64Abi
+	instanceVariableNames: ''
+	classVariableNames: ''
+	package: 'VM-Jit'!
+
+Arm64Abi comment: 'What the platform''s arm64 ABI leaves to machine code, as constants of the C compiler (one vm/gen serves macOS and Linux; UEFI has a translation of its own): x18 is the platform register on macOS (Apple reserves it; the kernel may change it), a temporary on Linux and UEFI (Arm64Assembler>>hasX18). Simulated as on macOS.'!
+
+!Arm64Abi class methodsFor: 'declaring'!
+headers
+	^#('#ifdef __APPLE__' '#define SAMALTAK_X18_FREE 0' '#else' '#define SAMALTAK_X18_FREE 1' '#endif')
+! !
+
+!Arm64Abi methodsFor: 'constants'!
+x18Free
+	<cMacro: 'int SAMALTAK_X18_FREE'>
+	^0
 ! !

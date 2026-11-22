@@ -112,6 +112,10 @@ isX64
 	"The code generators emit x86-64 through me."
 	^true
 !
+hasX18
+	"x18 is a word of asmRegs (no x86 register): no more registers for the generators."
+	^false
+!
 setState: anAddress
 	"Where the JitState is (x22, and nil, true, false in it): the code reaches it pc-relative."
 	<export>
@@ -1664,6 +1668,7 @@ csincByBranch: rd with: rn with: rm cond: c
 cinc: rd with: rn cond: c
 	self csinc: rd with: rn with: rn cond: (c bitXor: 1)
 ! !
+
 
 !Amd64Assembler methodsFor: 'loads and stores'!
 ldr: rt base: rn offset: off

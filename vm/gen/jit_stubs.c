@@ -8974,7 +8974,7 @@ exit_source_23:;
         n_285 = n_285 + 1;
         tail_59 = 0ULL;
         tn_59 = 0;
-        tail_59 = 4294967152ULL;
+        tail_59 = 4294967136ULL;
         tn_59 = 4;
         if (tn_59 == 0) {
             if (asm_pc + 8 <= asm_limit) {
@@ -9011,7 +9011,7 @@ exit_source_23:;
     exit_op_59:;
         goto exit_add_15;
     }
-    add_any(SP, SP, -144LL);
+    add_any(SP, SP, -160LL);
 exit_add_15:;
     v_279 = 0ULL;
     n_287 = 0;
@@ -10027,7 +10027,7 @@ exit_ldr_46:;
         n_329 = n_329 + 1;
         tail_78 = 0ULL;
         tn_78 = 0;
-        tail_78 = 144ULL;
+        tail_78 = 160ULL;
         tn_78 = 4;
         if (tn_78 == 0) {
             if (asm_pc + 8 <= asm_limit) {
@@ -10064,7 +10064,7 @@ exit_ldr_46:;
     exit_op_78:;
         goto exit_add_16;
     }
-    add_any(SP, SP, 144LL);
+    add_any(SP, SP, 160LL);
 exit_add_16:;
     if (asm_pc + 8 <= asm_limit) {
         *(uint64_t *)asm_pc = 0xC3;
@@ -21302,7 +21302,7 @@ exit_offset_to_25:;
     r_symbol_18 = asm_pc;
     r_symbol_18; });
     if (asm_pc < asm_limit) {
-        *(uint32_t *)asm_pc = 2847344608ULL;
+        *(uint32_t *)asm_pc = 2847279072ULL;
         asm_pc = asm_pc + 4;
     } else if (asm_error == ASM_OK) {
         asm_error = ASM_ERR_FULL;
@@ -21354,6 +21354,14 @@ exit_offset_to_25:;
         asm_pc = asm_pc + 4;
     } else if (asm_error == ASM_OK) {
         asm_error = ASM_ERR_FULL;
+    }
+    if (SAMALTAK_X18_FREE != 0) {
+        if (asm_pc < asm_limit) {
+            *(uint32_t *)asm_pc = 4177546226ULL;
+            asm_pc = asm_pc + 4;
+        } else if (asm_error == ASM_OK) {
+            asm_error = ASM_ERR_FULL;
+        }
     }
     if (asm_pc < asm_limit) {
         *(uint32_t *)asm_pc = 2853176288ULL;
@@ -21435,6 +21443,14 @@ exit_move_wide_32:;
     } else if (asm_error == ASM_OK) {
         asm_error = ASM_ERR_FULL;
     }
+    if (SAMALTAK_X18_FREE != 0) {
+        if (asm_pc < asm_limit) {
+            *(uint32_t *)asm_pc = 4181740530ULL;
+            asm_pc = asm_pc + 4;
+        } else if (asm_error == ASM_OK) {
+            asm_error = ASM_ERR_FULL;
+        }
+    }
     if (asm_pc < asm_limit) {
         *(uint32_t *)asm_pc = 2840099837ULL;
         asm_pc = asm_pc + 4;
@@ -21484,7 +21500,7 @@ exit_move_wide_32:;
         asm_error = ASM_ERR_FULL;
     }
     if (asm_pc < asm_limit) {
-        *(uint32_t *)asm_pc = 2831747040ULL;
+        *(uint32_t *)asm_pc = 2831812576ULL;
         asm_pc = asm_pc + 4;
     } else if (asm_error == ASM_OK) {
         asm_error = ASM_ERR_FULL;
@@ -22660,7 +22676,7 @@ exit_offset_to_48:;
     }
     arm64_assembler_bind(long_);
     if (asm_pc < asm_limit) {
-        *(uint32_t *)asm_pc = 2847439869ULL;
+        *(uint32_t *)asm_pc = 2847374333ULL;
         asm_pc = asm_pc + 4;
     } else if (asm_error == ASM_OK) {
         asm_error = ASM_ERR_FULL;
@@ -22684,6 +22700,14 @@ exit_offset_to_48:;
             asm_error = ASM_ERR_FULL;
         }
     exit_pair_8:;
+    }
+    if (SAMALTAK_X18_FREE != 0) {
+        if (asm_pc < asm_limit) {
+            *(uint32_t *)asm_pc = 4177544178ULL;
+            asm_pc = asm_pc + 4;
+        } else if (asm_error == ASM_OK) {
+            asm_error = ASM_ERR_FULL;
+        }
     }
     if (asm_pc < asm_limit) {
         *(uint32_t *)asm_pc = 2853176288ULL;
@@ -22771,6 +22795,14 @@ exit_move_wide_36:;
     } else if (asm_error == ASM_OK) {
         asm_error = ASM_ERR_FULL;
     }
+    if (SAMALTAK_X18_FREE != 0) {
+        if (asm_pc < asm_limit) {
+            *(uint32_t *)asm_pc = 4181738482ULL;
+            asm_pc = asm_pc + 4;
+        } else if (asm_error == ASM_OK) {
+            asm_error = ASM_ERR_FULL;
+        }
+    }
     for (i_4 = 0; i_4 <= 6; i_4++) {
         rt_2 = 2 * i_4;
         rt2_2 = 2 * i_4 + 1;
@@ -22792,7 +22824,7 @@ exit_move_wide_36:;
     exit_pair_9:;
     }
     if (asm_pc < asm_limit) {
-        *(uint32_t *)asm_pc = 2831711229ULL;
+        *(uint32_t *)asm_pc = 2831776765ULL;
         asm_pc = asm_pc + 4;
     } else if (asm_error == ASM_OK) {
         asm_error = ASM_ERR_FULL;

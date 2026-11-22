@@ -1193,9 +1193,10 @@ exit_is_value:;
     for (i_3 = 0; i_3 <= 35; i_3++) {
         ra_free_regs[i_3] = 1;
     }
-    for (i_4 = 14; i_4 <= 16; i_4++) {
+    for (i_4 = 15; i_4 <= 16; i_4++) {
         ra_free_regs[i_4] = 0;
     }
+    ra_free_regs[14] = 0;
     for (i_5 = 8; i_5 <= 19; i_5++) {
         ra_free_regs[i_5] = 0;
     }
@@ -1224,6 +1225,10 @@ exit_is_value:;
     goto exit_reg_index_of;
     if (reg >= D0) {
         r_reg_index_of = reg - D16 + 20;
+        goto exit_reg_index_of;
+    }
+    if (reg == X18) {
+        r_reg_index_of = 14;
         goto exit_reg_index_of;
     }
     r_reg_index_of = reg < 14 ? reg : reg - 9;
@@ -1262,6 +1267,10 @@ exit_reg_at_x64:;
     goto exit_reg_at;
     if (r >= 20) {
         r_reg_at = D16 + (r - 20);
+        goto exit_reg_at;
+    }
+    if (r == 14) {
+        r_reg_at = X18;
         goto exit_reg_at;
     }
     r_reg_at = r < 14 ? r : r + 9;
@@ -1376,8 +1385,11 @@ exit_is_value:;
     for (i_3 = 0; i_3 <= 35; i_3++) {
         ra_free_regs[i_3] = 1;
     }
-    for (i_4 = 14; i_4 <= 16; i_4++) {
+    for (i_4 = 15; i_4 <= 16; i_4++) {
         ra_free_regs[i_4] = 0;
+    }
+    if (!(SAMALTAK_X18_FREE != 0)) {
+        ra_free_regs[14] = 0;
     }
     for (i_5 = 0; i_5 <= ra_sort_count - 1; i_5++) {
         v = ra_sorted[i_5];
@@ -1391,6 +1403,10 @@ exit_is_value:;
                 ra_free_regs[({
     if (reg >= D0) {
         r_reg_index_of = reg - D16 + 20;
+        goto exit_reg_index_of;
+    }
+    if (reg == X18) {
+        r_reg_index_of = 14;
         goto exit_reg_index_of;
     }
     r_reg_index_of = reg < 14 ? reg : reg - 9;
@@ -1416,6 +1432,10 @@ exit_reg_index_of:;
             nd->reg = (int16_t)({
     if (r >= 20) {
         r_reg_at = D16 + (r - 20);
+        goto exit_reg_at;
+    }
+    if (r == 14) {
+        r_reg_at = X18;
         goto exit_reg_at;
     }
     r_reg_at = r < 14 ? r : r + 9;

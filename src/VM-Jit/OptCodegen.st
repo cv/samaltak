@@ -2384,6 +2384,7 @@ emitBarrierCall: o
 	obj := o index bitAnd: 255.
 	v := o index >> 8.
 	0 to: 7 do: [:i | asm stp: 2 * i with: 2 * i + 1 base: SP preIndex: -16].
+	asm hasX18 ifTrue: [asm str: X18 base: SP preIndex: -16].
 	cgDoubles ifTrue: [0 to: self dregPairs - 1 do: [:i | asm stp: self dregBase + (2 * i) with: self dregBase + (2 * i) + 1 base: SP preIndex: -16]].
 	asm mov: X16 with: obj.
 	asm mov: X17 with: v.
@@ -2391,6 +2392,7 @@ emitBarrierCall: o
 	asm mov: X1 with: X17.
 	asm bl: cgBarrierLabel.
 	cgDoubles ifTrue: [self dregPairs - 1 to: 0 by: -1 do: [:i | asm ldp: self dregBase + (2 * i) with: self dregBase + (2 * i) + 1 base: SP postIndex: 16]].
+	asm hasX18 ifTrue: [asm ldr: X18 base: SP postIndex: 16].
 	7 to: 0 by: -1 do: [:i | asm ldp: 2 * i with: 2 * i + 1 base: SP postIndex: 16].
 	asm b: o resume
 ! !

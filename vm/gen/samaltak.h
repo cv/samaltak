@@ -7,6 +7,13 @@
 #include <stddef.h>
 #include <stdint.h>
 #include <string.h>
+#if !defined(__x86_64__)
+#ifdef __APPLE__
+#define SAMALTAK_X18_FREE 0
+#else
+#define SAMALTAK_X18_FREE 1
+#endif
+#endif
 #define guest_display_open(w, h, cell) ((void)(w), (void)(h), (void)(cell), false)
 #define guest_display_fill(x, y, w, h, rule) ((void)(x), (void)(y), (void)(w), (void)(h), (void)(rule))
 #define guest_display_copy(x, y, w, h, to_x, to_y) ((void)(x), (void)(y), (void)(w), (void)(h), (void)(to_x), (void)(to_y))
@@ -130,8 +137,9 @@ typedef void (*prim_fn)(void);
 #define BF_SEALED 1
 #define BL_BLOCK_CACHE 1024
 #define BL_BLOCK_WORDS 4096
+#define BL_LOOP_WORDS 5
 #define BL_MAX_BLOCKS 1024
-#define BL_MAX_LOOPS 4096
+#define BL_MAX_LOOPS 5120
 #define BL_MAX_OOP_SLOTS 262144
 #define BL_MAX_REGIONS 256
 #define BL_MAX_RETS 8192

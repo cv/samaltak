@@ -26,7 +26,7 @@ static int32_t interrupt_label;
 static bool loop_active;
 static int32_t loop_end;
 static int32_t loop_id;
-static int32_t loop_table[4096];
+static int32_t loop_table[5120];
 static int32_t make_array_label;
 static int32_t mega_label;
 static int32_t miss_label;
@@ -12603,7 +12603,7 @@ exit_length_of_2:;
         for (tt = 0; tt <= cur_args + cur_temps - 1; tt++) {
             if (!({
     for (i = 0; i <= c - 1; i++) {
-        if (loop_table[4 * (loop_id + 1) + 1 + i] == tt) {
+        if (loop_table[BL_LOOP_WORDS * (loop_id + 1) + 1 + i] == tt) {
             r_is_loop_temp = true;
             goto exit_is_loop_temp;
         }
@@ -12716,7 +12716,7 @@ exit_length_of_3:;
             }
         }
         if (best >= 0) {
-            loop_table[4 * (loop_id + 1) + 1 + c] = best;
+            loop_table[BL_LOOP_WORDS * (loop_id + 1) + 1 + c] = best;
             c = c + 1;
         }
     }
@@ -12724,11 +12724,11 @@ exit_length_of_3:;
         return;
     }
     loop_id = loop_id + 1;
-    loop_table[4 * loop_id] = c;
+    loop_table[BL_LOOP_WORDS * loop_id] = c;
     loop_active = true;
     loop_end = (int32_t)end;
     if (asm_noting) {
-        note("the loop's temps into x26-x28", 0);
+        note("the loop's temps into their registers", 0);
     }
     emit_load_loop_temps(loop_id);
 }
@@ -13026,13 +13026,13 @@ exit_length_of_2:;
         return;
     }
     c = 0;
-    for (round = 1; round <= 3; round++) {
+    for (round = 1; round <= (SAMALTAK_X18_FREE != 0 ? 4 : 3); round++) {
         best = -1;
         best_count = sends > 1 ? sends : 1;
         for (tt = 0; tt <= cur_args + cur_temps - 1; tt++) {
             if (!({
     for (i = 0; i <= c - 1; i++) {
-        if (loop_table[4 * (loop_id + 1) + 1 + i] == tt) {
+        if (loop_table[BL_LOOP_WORDS * (loop_id + 1) + 1 + i] == tt) {
             r_is_loop_temp = true;
             goto exit_is_loop_temp;
         }
@@ -13145,7 +13145,7 @@ exit_length_of_3:;
             }
         }
         if (best >= 0) {
-            loop_table[4 * (loop_id + 1) + 1 + c] = best;
+            loop_table[BL_LOOP_WORDS * (loop_id + 1) + 1 + c] = best;
             c = c + 1;
         }
     }
@@ -13153,11 +13153,11 @@ exit_length_of_3:;
         return;
     }
     loop_id = loop_id + 1;
-    loop_table[4 * loop_id] = c;
+    loop_table[BL_LOOP_WORDS * loop_id] = c;
     loop_active = true;
     loop_end = (int32_t)end;
     if (asm_noting) {
-        note("the loop's temps into x26-x28", 0);
+        note("the loop's temps into their registers", 0);
     }
     emit_load_loop_temps(loop_id);
 }
@@ -18485,10 +18485,10 @@ exit_ldr_3:;
         r_loop_reg_of = -1;
         goto exit_loop_reg_of;
     }
-    c = loop_table[4 * loop_id];
+    c = loop_table[BL_LOOP_WORDS * loop_id];
     for (i_5 = 0; i_5 <= c - 1; i_5++) {
-        if (loop_table[4 * loop_id + 1 + i_5] == t_2) {
-            r_loop_reg_of = X26 + i_5;
+        if (loop_table[BL_LOOP_WORDS * loop_id + 1 + i_5] == t_2) {
+            r_loop_reg_of = i_5 < 3 ? X26 + i_5 : X18;
             goto exit_loop_reg_of;
         }
     }
@@ -18503,10 +18503,10 @@ exit_loop_reg_of:;
         r_loop_reg_of_2 = -1;
         goto exit_loop_reg_of_2;
     }
-    c_2 = loop_table[4 * loop_id];
+    c_2 = loop_table[BL_LOOP_WORDS * loop_id];
     for (i_7 = 0; i_7 <= c_2 - 1; i_7++) {
-        if (loop_table[4 * loop_id + 1 + i_7] == t_2) {
-            r_loop_reg_of_2 = X26 + i_7;
+        if (loop_table[BL_LOOP_WORDS * loop_id + 1 + i_7] == t_2) {
+            r_loop_reg_of_2 = i_7 < 3 ? X26 + i_7 : X18;
             goto exit_loop_reg_of_2;
         }
     }
@@ -21323,10 +21323,10 @@ exit_ldr_13:;
         r_loop_reg_of_3 = -1;
         goto exit_loop_reg_of_3;
     }
-    c_3 = loop_table[4 * loop_id];
+    c_3 = loop_table[BL_LOOP_WORDS * loop_id];
     for (i_14 = 0; i_14 <= c_3 - 1; i_14++) {
-        if (loop_table[4 * loop_id + 1 + i_14] == t_6) {
-            r_loop_reg_of_3 = X26 + i_14;
+        if (loop_table[BL_LOOP_WORDS * loop_id + 1 + i_14] == t_6) {
+            r_loop_reg_of_3 = i_14 < 3 ? X26 + i_14 : X18;
             goto exit_loop_reg_of_3;
         }
     }
@@ -21341,10 +21341,10 @@ exit_loop_reg_of_3:;
         r_loop_reg_of_4 = -1;
         goto exit_loop_reg_of_4;
     }
-    c_4 = loop_table[4 * loop_id];
+    c_4 = loop_table[BL_LOOP_WORDS * loop_id];
     for (i_16 = 0; i_16 <= c_4 - 1; i_16++) {
-        if (loop_table[4 * loop_id + 1 + i_16] == t_6) {
-            r_loop_reg_of_4 = X26 + i_16;
+        if (loop_table[BL_LOOP_WORDS * loop_id + 1 + i_16] == t_6) {
+            r_loop_reg_of_4 = i_16 < 3 ? X26 + i_16 : X18;
             goto exit_loop_reg_of_4;
         }
     }
@@ -23109,10 +23109,10 @@ exit_str_18:;
         r_loop_reg_of_5 = -1;
         goto exit_loop_reg_of_5;
     }
-    c_5 = loop_table[4 * loop_id];
+    c_5 = loop_table[BL_LOOP_WORDS * loop_id];
     for (i_20 = 0; i_20 <= c_5 - 1; i_20++) {
-        if (loop_table[4 * loop_id + 1 + i_20] == t_9) {
-            r_loop_reg_of_5 = X26 + i_20;
+        if (loop_table[BL_LOOP_WORDS * loop_id + 1 + i_20] == t_9) {
+            r_loop_reg_of_5 = i_20 < 3 ? X26 + i_20 : X18;
             goto exit_loop_reg_of_5;
         }
     }
@@ -23127,10 +23127,10 @@ exit_loop_reg_of_5:;
         r_loop_reg_of_6 = -1;
         goto exit_loop_reg_of_6;
     }
-    c_6 = loop_table[4 * loop_id];
+    c_6 = loop_table[BL_LOOP_WORDS * loop_id];
     for (i_22 = 0; i_22 <= c_6 - 1; i_22++) {
-        if (loop_table[4 * loop_id + 1 + i_22] == t_9) {
-            r_loop_reg_of_6 = X26 + i_22;
+        if (loop_table[BL_LOOP_WORDS * loop_id + 1 + i_22] == t_9) {
+            r_loop_reg_of_6 = i_22 < 3 ? X26 + i_22 : X18;
             goto exit_loop_reg_of_6;
         }
     }
@@ -29463,10 +29463,10 @@ exit_push_literal:;
         r_loop_reg_of = -1;
         goto exit_loop_reg_of;
     }
-    c = loop_table[4 * loop_id];
+    c = loop_table[BL_LOOP_WORDS * loop_id];
     for (i_5 = 0; i_5 <= c - 1; i_5++) {
-        if (loop_table[4 * loop_id + 1 + i_5] == t_2) {
-            r_loop_reg_of = X26 + i_5;
+        if (loop_table[BL_LOOP_WORDS * loop_id + 1 + i_5] == t_2) {
+            r_loop_reg_of = i_5 < 3 ? X26 + i_5 : X18;
             goto exit_loop_reg_of;
         }
     }
@@ -29481,10 +29481,10 @@ exit_loop_reg_of:;
         r_loop_reg_of_2 = -1;
         goto exit_loop_reg_of_2;
     }
-    c_2 = loop_table[4 * loop_id];
+    c_2 = loop_table[BL_LOOP_WORDS * loop_id];
     for (i_7 = 0; i_7 <= c_2 - 1; i_7++) {
-        if (loop_table[4 * loop_id + 1 + i_7] == t_2) {
-            r_loop_reg_of_2 = X26 + i_7;
+        if (loop_table[BL_LOOP_WORDS * loop_id + 1 + i_7] == t_2) {
+            r_loop_reg_of_2 = i_7 < 3 ? X26 + i_7 : X18;
             goto exit_loop_reg_of_2;
         }
     }
@@ -30524,10 +30524,10 @@ exit_push_literal_2:;
         r_loop_reg_of_3 = -1;
         goto exit_loop_reg_of_3;
     }
-    c_3 = loop_table[4 * loop_id];
+    c_3 = loop_table[BL_LOOP_WORDS * loop_id];
     for (i_14 = 0; i_14 <= c_3 - 1; i_14++) {
-        if (loop_table[4 * loop_id + 1 + i_14] == t_6) {
-            r_loop_reg_of_3 = X26 + i_14;
+        if (loop_table[BL_LOOP_WORDS * loop_id + 1 + i_14] == t_6) {
+            r_loop_reg_of_3 = i_14 < 3 ? X26 + i_14 : X18;
             goto exit_loop_reg_of_3;
         }
     }
@@ -30542,10 +30542,10 @@ exit_loop_reg_of_3:;
         r_loop_reg_of_4 = -1;
         goto exit_loop_reg_of_4;
     }
-    c_4 = loop_table[4 * loop_id];
+    c_4 = loop_table[BL_LOOP_WORDS * loop_id];
     for (i_16 = 0; i_16 <= c_4 - 1; i_16++) {
-        if (loop_table[4 * loop_id + 1 + i_16] == t_6) {
-            r_loop_reg_of_4 = X26 + i_16;
+        if (loop_table[BL_LOOP_WORDS * loop_id + 1 + i_16] == t_6) {
+            r_loop_reg_of_4 = i_16 < 3 ? X26 + i_16 : X18;
             goto exit_loop_reg_of_4;
         }
     }
@@ -31131,10 +31131,10 @@ exit_store_inst_var:;
         r_loop_reg_of_5 = -1;
         goto exit_loop_reg_of_5;
     }
-    c_5 = loop_table[4 * loop_id];
+    c_5 = loop_table[BL_LOOP_WORDS * loop_id];
     for (i_20 = 0; i_20 <= c_5 - 1; i_20++) {
-        if (loop_table[4 * loop_id + 1 + i_20] == t_9) {
-            r_loop_reg_of_5 = X26 + i_20;
+        if (loop_table[BL_LOOP_WORDS * loop_id + 1 + i_20] == t_9) {
+            r_loop_reg_of_5 = i_20 < 3 ? X26 + i_20 : X18;
             goto exit_loop_reg_of_5;
         }
     }
@@ -31149,10 +31149,10 @@ exit_loop_reg_of_5:;
         r_loop_reg_of_6 = -1;
         goto exit_loop_reg_of_6;
     }
-    c_6 = loop_table[4 * loop_id];
+    c_6 = loop_table[BL_LOOP_WORDS * loop_id];
     for (i_22 = 0; i_22 <= c_6 - 1; i_22++) {
-        if (loop_table[4 * loop_id + 1 + i_22] == t_9) {
-            r_loop_reg_of_6 = X26 + i_22;
+        if (loop_table[BL_LOOP_WORDS * loop_id + 1 + i_22] == t_9) {
+            r_loop_reg_of_6 = i_22 < 3 ? X26 + i_22 : X18;
             goto exit_loop_reg_of_6;
         }
     }
@@ -57774,13 +57774,13 @@ static void emit_load_loop_temps(int32_t id)
     if (id < 0) {
         return;
     }
-    for (i = 0; i <= loop_table[4 * id] - 1; i++) {
-        an_integer = 26 + i;
+    for (i = 0; i <= loop_table[BL_LOOP_WORDS * id] - 1; i++) {
+        an_integer = i < 3 ? X26 + i : X18;
         if (asm_noting) {
-            note("x%d := temp %d", an_integer);
+            note("x%d := a loop temp", an_integer);
         }
-        rt = X26 + i;
-        k = loop_table[4 * id + 1 + i];
+        rt = i < 3 ? X26 + i : X18;
+        k = loop_table[BL_LOOP_WORDS * id + 1 + i];
         off = 8 * k;
         if (((rt & 160) == 0) && (((3870271LL >> (rt & 31)) & 1) == 1)) {
             w = (rt & REG_W) == 0 ? 1 : 0;
@@ -57937,13 +57937,13 @@ static void emit_load_loop_temps(int32_t id)
     if (id < 0) {
         return;
     }
-    for (i = 0; i <= loop_table[4 * id] - 1; i++) {
-        an_integer = 26 + i;
+    for (i = 0; i <= loop_table[BL_LOOP_WORDS * id] - 1; i++) {
+        an_integer = i < 3 ? X26 + i : X18;
         if (asm_noting) {
-            note("x%d := temp %d", an_integer);
+            note("x%d := a loop temp", an_integer);
         }
-        rt = X26 + i;
-        k = loop_table[4 * id + 1 + i];
+        rt = i < 3 ? X26 + i : X18;
+        k = loop_table[BL_LOOP_WORDS * id + 1 + i];
         off = 8 * k;
         bits = (rt & REG_D) != 0 ? 0xC4400000LL : (rt & REG_W) == 0 ? 0xC0400000LL : 0x80400000LL;
         s = (rt & REG_W) == 0 ? 3 : 2;
@@ -135813,10 +135813,10 @@ static int32_t jit_baseline_compiler_ss_materialize(int32_t i)
         r_loop_reg_of = -1;
         goto exit_loop_reg_of;
     }
-    c = loop_table[4 * loop_id];
+    c = loop_table[BL_LOOP_WORDS * loop_id];
     for (i_2 = 0; i_2 <= c - 1; i_2++) {
-        if (loop_table[4 * loop_id + 1 + i_2] == t) {
-            r_loop_reg_of = X26 + i_2;
+        if (loop_table[BL_LOOP_WORDS * loop_id + 1 + i_2] == t) {
+            r_loop_reg_of = i_2 < 3 ? X26 + i_2 : X18;
             goto exit_loop_reg_of;
         }
     }
@@ -135829,10 +135829,10 @@ exit_loop_reg_of:;
         r_loop_reg_of_2 = -1;
         goto exit_loop_reg_of_2;
     }
-    c_2 = loop_table[4 * loop_id];
+    c_2 = loop_table[BL_LOOP_WORDS * loop_id];
     for (i_3 = 0; i_3 <= c_2 - 1; i_3++) {
-        if (loop_table[4 * loop_id + 1 + i_3] == t_2) {
-            r_loop_reg_of_2 = X26 + i_3;
+        if (loop_table[BL_LOOP_WORDS * loop_id + 1 + i_3] == t_2) {
+            r_loop_reg_of_2 = i_3 < 3 ? X26 + i_3 : X18;
             goto exit_loop_reg_of_2;
         }
     }
@@ -136284,10 +136284,10 @@ static int32_t jit_baseline_compiler_ss_materialize(int32_t i)
         r_loop_reg_of = -1;
         goto exit_loop_reg_of;
     }
-    c = loop_table[4 * loop_id];
+    c = loop_table[BL_LOOP_WORDS * loop_id];
     for (i_2 = 0; i_2 <= c - 1; i_2++) {
-        if (loop_table[4 * loop_id + 1 + i_2] == t) {
-            r_loop_reg_of = X26 + i_2;
+        if (loop_table[BL_LOOP_WORDS * loop_id + 1 + i_2] == t) {
+            r_loop_reg_of = i_2 < 3 ? X26 + i_2 : X18;
             goto exit_loop_reg_of;
         }
     }
@@ -136300,10 +136300,10 @@ exit_loop_reg_of:;
         r_loop_reg_of_2 = -1;
         goto exit_loop_reg_of_2;
     }
-    c_2 = loop_table[4 * loop_id];
+    c_2 = loop_table[BL_LOOP_WORDS * loop_id];
     for (i_3 = 0; i_3 <= c_2 - 1; i_3++) {
-        if (loop_table[4 * loop_id + 1 + i_3] == t_2) {
-            r_loop_reg_of_2 = X26 + i_3;
+        if (loop_table[BL_LOOP_WORDS * loop_id + 1 + i_3] == t_2) {
+            r_loop_reg_of_2 = i_3 < 3 ? X26 + i_3 : X18;
             goto exit_loop_reg_of_2;
         }
     }
@@ -137059,10 +137059,10 @@ static void jit_baseline_compiler_ss_materialize_into(int32_t i, int32_t r)
         r_loop_reg_of = -1;
         goto exit_loop_reg_of;
     }
-    c = loop_table[4 * loop_id];
+    c = loop_table[BL_LOOP_WORDS * loop_id];
     for (i_2 = 0; i_2 <= c - 1; i_2++) {
-        if (loop_table[4 * loop_id + 1 + i_2] == t) {
-            r_loop_reg_of = X26 + i_2;
+        if (loop_table[BL_LOOP_WORDS * loop_id + 1 + i_2] == t) {
+            r_loop_reg_of = i_2 < 3 ? X26 + i_2 : X18;
             goto exit_loop_reg_of;
         }
     }
@@ -137079,10 +137079,10 @@ exit_loop_reg_of:;
         r_loop_reg_of_2 = -1;
         goto exit_loop_reg_of_2;
     }
-    c_2 = loop_table[4 * loop_id];
+    c_2 = loop_table[BL_LOOP_WORDS * loop_id];
     for (i_3 = 0; i_3 <= c_2 - 1; i_3++) {
-        if (loop_table[4 * loop_id + 1 + i_3] == t_2) {
-            r_loop_reg_of_2 = X26 + i_3;
+        if (loop_table[BL_LOOP_WORDS * loop_id + 1 + i_3] == t_2) {
+            r_loop_reg_of_2 = i_3 < 3 ? X26 + i_3 : X18;
             goto exit_loop_reg_of_2;
         }
     }
@@ -137560,10 +137560,10 @@ static void jit_baseline_compiler_ss_materialize_into(int32_t i, int32_t r)
         r_loop_reg_of = -1;
         goto exit_loop_reg_of;
     }
-    c = loop_table[4 * loop_id];
+    c = loop_table[BL_LOOP_WORDS * loop_id];
     for (i_2 = 0; i_2 <= c - 1; i_2++) {
-        if (loop_table[4 * loop_id + 1 + i_2] == t) {
-            r_loop_reg_of = X26 + i_2;
+        if (loop_table[BL_LOOP_WORDS * loop_id + 1 + i_2] == t) {
+            r_loop_reg_of = i_2 < 3 ? X26 + i_2 : X18;
             goto exit_loop_reg_of;
         }
     }
@@ -137580,10 +137580,10 @@ exit_loop_reg_of:;
         r_loop_reg_of_2 = -1;
         goto exit_loop_reg_of_2;
     }
-    c_2 = loop_table[4 * loop_id];
+    c_2 = loop_table[BL_LOOP_WORDS * loop_id];
     for (i_3 = 0; i_3 <= c_2 - 1; i_3++) {
-        if (loop_table[4 * loop_id + 1 + i_3] == t_2) {
-            r_loop_reg_of_2 = X26 + i_3;
+        if (loop_table[BL_LOOP_WORDS * loop_id + 1 + i_3] == t_2) {
+            r_loop_reg_of_2 = i_3 < 3 ? X26 + i_3 : X18;
             goto exit_loop_reg_of_2;
         }
     }
@@ -138517,10 +138517,10 @@ static void ss_spill(int32_t i)
         r_loop_reg_of = -1;
         goto exit_loop_reg_of;
     }
-    c = loop_table[4 * loop_id];
+    c = loop_table[BL_LOOP_WORDS * loop_id];
     for (i_2 = 0; i_2 <= c - 1; i_2++) {
-        if (loop_table[4 * loop_id + 1 + i_2] == t) {
-            r_loop_reg_of = X26 + i_2;
+        if (loop_table[BL_LOOP_WORDS * loop_id + 1 + i_2] == t) {
+            r_loop_reg_of = i_2 < 3 ? X26 + i_2 : X18;
             goto exit_loop_reg_of;
         }
     }
@@ -138533,10 +138533,10 @@ exit_loop_reg_of:;
         r_loop_reg_of_2 = -1;
         goto exit_loop_reg_of_2;
     }
-    c_2 = loop_table[4 * loop_id];
+    c_2 = loop_table[BL_LOOP_WORDS * loop_id];
     for (i_3 = 0; i_3 <= c_2 - 1; i_3++) {
-        if (loop_table[4 * loop_id + 1 + i_3] == t_2) {
-            r_loop_reg_of_2 = X26 + i_3;
+        if (loop_table[BL_LOOP_WORDS * loop_id + 1 + i_3] == t_2) {
+            r_loop_reg_of_2 = i_3 < 3 ? X26 + i_3 : X18;
             goto exit_loop_reg_of_2;
         }
     }
@@ -139202,10 +139202,10 @@ static void ss_spill(int32_t i)
         r_loop_reg_of = -1;
         goto exit_loop_reg_of;
     }
-    c = loop_table[4 * loop_id];
+    c = loop_table[BL_LOOP_WORDS * loop_id];
     for (i_2 = 0; i_2 <= c - 1; i_2++) {
-        if (loop_table[4 * loop_id + 1 + i_2] == t) {
-            r_loop_reg_of = X26 + i_2;
+        if (loop_table[BL_LOOP_WORDS * loop_id + 1 + i_2] == t) {
+            r_loop_reg_of = i_2 < 3 ? X26 + i_2 : X18;
             goto exit_loop_reg_of;
         }
     }
@@ -139218,10 +139218,10 @@ exit_loop_reg_of:;
         r_loop_reg_of_2 = -1;
         goto exit_loop_reg_of_2;
     }
-    c_2 = loop_table[4 * loop_id];
+    c_2 = loop_table[BL_LOOP_WORDS * loop_id];
     for (i_3 = 0; i_3 <= c_2 - 1; i_3++) {
-        if (loop_table[4 * loop_id + 1 + i_3] == t_2) {
-            r_loop_reg_of_2 = X26 + i_3;
+        if (loop_table[BL_LOOP_WORDS * loop_id + 1 + i_3] == t_2) {
+            r_loop_reg_of_2 = i_3 < 3 ? X26 + i_3 : X18;
             goto exit_loop_reg_of_2;
         }
     }
@@ -139414,10 +139414,10 @@ static void ss_temp_changing(int t)
         r_loop_reg_of = -1;
         goto exit_loop_reg_of;
     }
-    c = loop_table[4 * loop_id];
+    c = loop_table[BL_LOOP_WORDS * loop_id];
     for (i_2 = 0; i_2 <= c - 1; i_2++) {
-        if (loop_table[4 * loop_id + 1 + i_2] == t) {
-            r_loop_reg_of = X26 + i_2;
+        if (loop_table[BL_LOOP_WORDS * loop_id + 1 + i_2] == t) {
+            r_loop_reg_of = i_2 < 3 ? X26 + i_2 : X18;
             goto exit_loop_reg_of;
         }
     }
@@ -139430,10 +139430,10 @@ exit_loop_reg_of:;
         r_loop_reg_of_2 = -1;
         goto exit_loop_reg_of_2;
     }
-    c_2 = loop_table[4 * loop_id];
+    c_2 = loop_table[BL_LOOP_WORDS * loop_id];
     for (i_3 = 0; i_3 <= c_2 - 1; i_3++) {
-        if (loop_table[4 * loop_id + 1 + i_3] == t) {
-            r_loop_reg_of_2 = X26 + i_3;
+        if (loop_table[BL_LOOP_WORDS * loop_id + 1 + i_3] == t) {
+            r_loop_reg_of_2 = i_3 < 3 ? X26 + i_3 : X18;
             goto exit_loop_reg_of_2;
         }
     }
@@ -139524,10 +139524,10 @@ static void ss_temp_changing(int t)
         r_loop_reg_of = -1;
         goto exit_loop_reg_of;
     }
-    c = loop_table[4 * loop_id];
+    c = loop_table[BL_LOOP_WORDS * loop_id];
     for (i_2 = 0; i_2 <= c - 1; i_2++) {
-        if (loop_table[4 * loop_id + 1 + i_2] == t) {
-            r_loop_reg_of = X26 + i_2;
+        if (loop_table[BL_LOOP_WORDS * loop_id + 1 + i_2] == t) {
+            r_loop_reg_of = i_2 < 3 ? X26 + i_2 : X18;
             goto exit_loop_reg_of;
         }
     }
@@ -139540,10 +139540,10 @@ exit_loop_reg_of:;
         r_loop_reg_of_2 = -1;
         goto exit_loop_reg_of_2;
     }
-    c_2 = loop_table[4 * loop_id];
+    c_2 = loop_table[BL_LOOP_WORDS * loop_id];
     for (i_3 = 0; i_3 <= c_2 - 1; i_3++) {
-        if (loop_table[4 * loop_id + 1 + i_3] == t) {
-            r_loop_reg_of_2 = X26 + i_3;
+        if (loop_table[BL_LOOP_WORDS * loop_id + 1 + i_3] == t) {
+            r_loop_reg_of_2 = i_3 < 3 ? X26 + i_3 : X18;
             goto exit_loop_reg_of_2;
         }
     }
