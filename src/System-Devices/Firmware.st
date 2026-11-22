@@ -3,7 +3,7 @@ Object subclass: #Firmware
 	classVariableNames: 'Current'
 	package: 'System-Devices'!
 
-Firmware comment: 'I am the UEFI firmware''s boot services (UEFI 2.10, 7) for drivers in Smalltalk, over Machine: protocols by GUID, handles and the firmware''s drivers that manage them, events, pool memory. Firmware current is nil on an operating system. A status is an error if its high bit is set (isError:). Structures are read at their offsets (LP64, natural alignment, the same on x86-64 and AArch64).'!
+Firmware comment: 'I am the UEFI firmware''s boot services (UEFI 2.10, 7) for drivers in Smalltalk, over Machine: protocols by GUID, handles and the firmware''s drivers that manage them, events, pool memory; and of its runtime services ResetSystem (Firmware powerOff, restart, warmRestart: the World menu''s Power off, Restart, Warm restart). Firmware current is nil on an operating system. A status is an error if its high bit is set (isError:). Structures are read at their offsets (LP64, natural alignment, the same on x86-64 and AArch64).'!
 
 !Firmware methodsFor: 'initialization'!
 setSystemTable: anAddress
@@ -141,6 +141,40 @@ current
 	"The firmware, or nil on an operating system."
 	Current isNil ifTrue: [Machine systemTable ifNotNil: [:t | Current := self new setSystemTable: t]].
 	^Current
+! !
+
+!Firmware methodsFor: 'runtime services'!
+runtimeServices
+	^Machine uint64At: systemTable + 88
+!
+resetSystem: type
+	"The firmware's ResetSystem (UEFI 2.10, 8.5.1) of type: 0 cold, 1 warm, 2 shutdown (power off), status 0. It does not return."
+	^Machine call: (self function: self runtimeServices at: 104) with: type with: 0 with: 0 with: 0
+! !
+
+!Firmware class methodsFor: 'resetting'!
+powerOff
+	"Power the machine off (QEMU exits)."
+	^self reset: 2
+!
+restart
+	"A cold reset: the machine boots again (QEMU with -no-reboot exits)."
+	^self reset: 0
+!
+warmRestart
+	"A warm reset where the platform has one (else as cold)."
+	^self reset: 1
+!
+reset: type
+	"Leave as Smalltalk quit: does (the shutdown list), then the firmware's ResetSystem of type (0 cold, 1 warm, 2 shutdown) in place of the VM's exit, which powers off; on an operating system an error."
+	| firmware |
+	firmware := self current.
+	firmware isNil ifTrue: [^self error: 'no firmware to reset'].
+	Transcript flush.
+	[Smalltalk processShutDownList: true] on: Error do: [:e | e return: nil].
+	Smalltalk vm stderrWrite: 'samaltak: reset ', (#('cold' 'warm' 'shutdown') at: type + 1), (String with: Character lf).
+	firmware resetSystem: type.
+	Smalltalk primQuit: 0
 ! !
 
 !Firmware class methodsFor: 'system startup'!

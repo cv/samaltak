@@ -129,7 +129,7 @@ nv-kernels:
 # or ptys from Smalltalk), LowSpaceTest and StackOverflowTest in a 128 MB heap, opens the World on the firmware's screen and moves its pointer by remote input, drives the VM with
 # samaltak-ctl and has it connect to itself through the host (10.0.2.2: QEMU's host), once to ping, once to move a megabyte
 # each way, gets https://10.0.2.2 from tools/tls-test-server.sh with its test CA (docs/tls.md) (test-uefi-nic: on a virtio-net-pci too
-# if UEFI_NIC is another, once to ping), snapshots and resumes.
+# if UEFI_NIC is another, once to ping), snapshots and resumes, and restarts by the firmware's ResetSystem (Firmware restart, the World menu's Restart).
 comma := ,
 UEFI_HOST_ARCH := $(if $(filter x86_64 amd64,$(shell uname -m)),x86_64,arm64)
 UEFI_ARCH ?= $(UEFI_HOST_ARCH)
@@ -256,6 +256,7 @@ UEFI_HTTPS := | s hs r | TLSSocket trustStore: (TrustStore new add: (ByteArray f
 UEFI_DRIVER = $(if $(filter e1000e,$(1)),E1000eInterface,VirtioNetInterface)
 UEFI_FILES := | f | f := [:x | Smalltalk vm stderrWrite: 'files ', x, (String with: Character lf)]. f value: 'mounts ', (FirmwareVolumes mounts collect: [:m | m key]) printString. f value: 'root ', (Directory entries: '/') printString. f value: 'mnt ', (Directory entries: '/mnt') printString. f value: 'hello ', (File readBytes: '/mnt/fixture/hello.txt') printString. f value: 'link ', (File readText: '/mnt/fixture-gpt/docs/hello-link') lines first. f value: 'numbers ', (File sizeOf: '/mnt/fixture-gpt/numbers.txt') printString, ' ', (FileStream readOnlyFileNamed: '/mnt/fixture/numbers.txt' do: [:s | s position: 288888. s upToEnd]) lines first. f value: 'write ', ([File writeText: 'x' to: '/mnt/fixture/x'. 'written'] on: FileError do: [:e | e messageText]). f value: 'store hidden ', (FirmwareBlockDevice all noneSatisfy: [:d | d isImageStore]) printString. f value: 'problems ', FirmwareVolumes problems size printString
 UEFI_MP := 1 to: 300 do: [:i | Compiler evaluate: '3 + 4 * ', i printString]. Smalltalk vm stderrWrite: 'mp bg jobs ', Smalltalk vm statistics optBackgroundJobs printString, (String with: Character lf)
+UEFI_RESET := Smalltalk vm stderrWrite: 'menu ', ((ToolsMenu worldMenuAt: nil) selectableItems collect: [:i | i label]) asArray printString, (String with: Character lf). Firmware restart
 UEFI_SNAPSHOT := Smalltalk at: 'UefiMark' asSymbol put: 42. (Smalltalk snapshot: Smalltalk vm imagePath) ifTrue: ['resumed ', (Smalltalk at: 'UefiMark' asSymbol) printString] ifFalse: ['saved']
 test-uefi:
 	rm -f $(UEFI)/image.disk
@@ -266,6 +267,8 @@ test-uefi:
 	$(if $(filter-out 1,$(UEFI_CPUS)),grep -qE "^mp bg jobs [1-9]" $(UEFI)/console.log)
 	$(MAKE) uefi-boot UEFI_CPUS=1 UEFI_ARGS='--headless --test SoftwareGPUTest SoftwareGPUBandsTest JitOptBackgroundTest'
 	grep -q "^samaltak: 1 CPUs" $(UEFI)/console.log
+	-$(MAKE) uefi-boot UEFI_ARGS="--headless --eval \"$(UEFI_RESET)\""
+	grep -q "^samaltak: reset cold" $(UEFI)/console.log && grep -q "'Restart' 'Warm restart' 'Power off'" $(UEFI)/console.log
 	$(MAKE) uefi-boot UEFI_ARGS="--eval \"$(UEFI_WORLD)\""
 	grep -qE "^world [0-9]+@[0-9]+ true 123@45" $(UEFI)/console.log
 	$(MAKE) uefi-boot UEFI_GPU=virtio-gpu-pci UEFI_ARGS="--window-size 1920x1080 --eval \"$(UEFI_WORLD)\""
