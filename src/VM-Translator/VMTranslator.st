@@ -663,6 +663,9 @@ cFileFor: aTModule functions: cFunctions
 		asSortedCollection: [:a :b | a name <= b name].
 	globals do: [:g |
 		g isUsedOutside ifFalse: [s nextPutAll: 'static '].
+		(os = #uefi and: [aTModule moduleClass threadLocalVariables includes: g name asSymbol]) ifTrue: [
+			(g isUsedOutside or: [g initialValue notNil]) ifTrue: [self error: aTModule name, ': a thread-local variable must be private and zero-initialized: ', g name].
+			s nextPutAll: '_Thread_local '].
 		s nextPutAll: (g type declare: g cName).
 		g initialValue notNil ifTrue: [s nextPutAll: ' = '; nextPutAll: (self initializer: g initialValue type: g type)].
 		s nextPut: $;; lf].

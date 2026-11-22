@@ -46,7 +46,7 @@ initialize
 
 !OptRuntime methodsFor: 'background compilation'!
 background
-	"Whether the unit a tier-up asks for is compiled in the background (docs/jit.md, Background compilation): the flag bg, no SAMALTAK_OPT_TRACE, and a helper thread, started the first time (none on UEFI, nor when the VM may run on one CPU only: then, as with -bg, the VM's thread compiles)."
+	"Whether the unit a tier-up asks for is compiled in the background (docs/jit.md, Background compilation): the flag bg, no SAMALTAK_OPT_TRACE, and a helper thread, started the first time (on UEFI an application processor; none where there is no second CPU, nor when the VM may run on one CPU only: then, as with -bg, the VM's thread compiles)."
 	<function>
 	(runtime flag: runtime bgFlag) ifFalse: [^false].
 	rtBgThread = 0 ifTrue: [

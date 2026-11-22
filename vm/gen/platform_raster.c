@@ -2,6 +2,9 @@
 /* PlatformRaster (VM-Platform) */
 #include "samaltak.h"
 
+static int64_t forced_bands;
+static int64_t rs_band_y0;
+static int64_t rs_band_y1;
 static int32_t rs_blend;
 static int64_t rs_clip_x0;
 static int64_t rs_clip_x1;
@@ -28,12 +31,21 @@ static double rs_tx;
 static double rs_ty;
 static int64_t rs_w;
 
+static int64_t bands_of(raster_job *j);
 static uint32_t bilinear(uint32_t a, uint32_t b, uint32_t c, uint32_t d, int64_t fx, int64_t fy);
 static uint32_t platform_raster_blend(uint32_t d, uint32_t c, int64_t k);
+static void blit_band(void *job, int64_t i);
+static void blit_rows(uint8_t *src, int64_t src_w, int64_t src_h, int32_t src_fmt, int64_t *sr, uint8_t *dst, int64_t dst_w, int64_t dst_h, int32_t dst_fmt, int64_t *dr, bool linear);
 static void convert(uint8_t *d, int32_t df, uint8_t *s, int32_t sf, int64_t n);
+static void copy_band(void *job, int64_t i);
+static void copy_rows(uint8_t *dst, int64_t dst_stride, uint8_t *src, int64_t src_stride, int64_t w, int64_t h, int64_t bpp, int64_t mode);
+static void draw_band(void *job, int64_t i);
 static void draw_quad(uint8_t *v);
 static void draw_triangle(uint8_t *base, int64_t k);
+static void draw_vertices(uint8_t *base, int64_t first, int64_t count);
 static uint32_t fetch(uint8_t *r, int64_t tx, int64_t conv);
+static void fill_band(void *job, int64_t i);
+static void fill_run(uint8_t *pixels, int64_t n, int bpp, uint32_t v);
 static int64_t floor_div(int64_t a, int64_t b);
 static int64_t floor_of(double x);
 static void glyph_row(uint32_t *d, uint8_t *cov, int64_t step, int64_t n);
@@ -57,6 +69,122 @@ static uint32_t texel_x(int64_t x, int64_t y);
 static bool textured_x(int64_t x, int64_t y, int64_t w, int64_t h, double u0, double v0, double du, double dv);
 static void triangle_span(int64_t py, int64_t xl, int64_t xr, double *at, double *dx, double *dy, double fx0, double fy0, bool flat);
 static int64_t unorm8(double x);
+
+/* PlatformRaster>>bandsOf: */
+static int64_t bands_of(raster_job *j)
+{
+    double xl;
+    double xh;
+    double yl;
+    double yh;
+    int64_t k;
+    int64_t last;
+    float *f;
+    uint32_t *u;
+    double x;
+    double y;
+    int64_t a;
+    int64_t b;
+    int64_t x0;
+    int64_t x1;
+    int64_t y0;
+    int64_t y1;
+    int64_t rows;
+    int64_t w;
+    int64_t r_row_bands;
+    int64_t n;
+    int64_t bands_2;
+    int64_t bands;
+    if ((forced_bands == 0) && (parallel_workers() == 0)) {
+        return 1;
+    }
+    xl = 1000000000000000019884624838656.0;
+    xh = -1000000000000000019884624838656.0;
+    yl = 1000000000000000019884624838656.0;
+    yh = -1000000000000000019884624838656.0;
+    k = j->first;
+    last = j->first + j->count;
+    while (k < last) {
+        f = (float *)(j->base + k * RS_STRIDE);
+        u = (uint32_t *)(j->base + k * RS_STRIDE);
+        x = (double)f[0] + (double)f[8];
+        y = (double)f[1] + (double)f[9];
+        if (x < xl) {
+            xl = x;
+        }
+        if (x > xh) {
+            xh = x;
+        }
+        if (y < yl) {
+            yl = y;
+        }
+        if (y > yh) {
+            yh = y;
+        }
+        if ((u[7] >> 31) == 0) {
+            x = (double)f[2] + (double)f[8];
+            y = (double)f[3] + (double)f[9];
+            if (x < xl) {
+                xl = x;
+            }
+            if (x > xh) {
+                xh = x;
+            }
+            if (y < yl) {
+                yl = y;
+            }
+            if (y > yh) {
+                yh = y;
+            }
+        }
+        k = k + 1;
+    }
+    if (!((xl <= xh) && (yl <= yh))) {
+        return 1;
+    }
+    a = floor_of(rs_ox + (xl + rs_tx) * rs_sx);
+    b = floor_of(rs_ox + (xh + rs_tx) * rs_sx);
+    x0 = (a < b ? a : b) > rs_clip_x0 ? a < b ? a : b : rs_clip_x0;
+    x1 = (a > b ? a : b) + 1 < rs_clip_x1 ? (a > b ? a : b) + 1 : rs_clip_x1;
+    a = floor_of(rs_oy + (yl + rs_ty) * rs_sy);
+    b = floor_of(rs_oy + (yh + rs_ty) * rs_sy);
+    y0 = (a < b ? a : b) > rs_clip_y0 ? a < b ? a : b : rs_clip_y0;
+    y1 = (a > b ? a : b) + 1 < rs_clip_y1 ? (a > b ? a : b) + 1 : rs_clip_y1;
+    if (!((x0 < x1) && (y0 < y1))) {
+        return 1;
+    }
+    rows = y1 - y0;
+    w = x1 - x0;
+    bands = ({
+    if (rows < 2) {
+        r_row_bands = 1;
+        goto exit_row_bands;
+    }
+    if (forced_bands > 0) {
+        r_row_bands = forced_bands < rows ? forced_bands : rows;
+        goto exit_row_bands;
+    }
+    n = parallel_workers();
+    if (n == 0) {
+        r_row_bands = 1;
+        goto exit_row_bands;
+    }
+    if (rows * w < RS_PARALLEL_PIXELS) {
+        r_row_bands = 1;
+        goto exit_row_bands;
+    }
+    bands_2 = n + 1 < rows / 8 ? n + 1 : rows / 8;
+    r_row_bands = bands_2 < 2 ? 1 : bands_2;
+exit_row_bands:;
+    r_row_bands; });
+    if (bands < 2) {
+        return 1;
+    }
+    j->y0 = y0;
+    j->y1 = y1;
+    j->bands = bands;
+    return bands;
+}
 
 /* PlatformRaster>>bilinear:with:with:with:fx:fy: */
 static uint32_t bilinear(uint32_t a, uint32_t b, uint32_t c, uint32_t d, int64_t fx, int64_t fy)
@@ -130,8 +258,89 @@ static uint32_t platform_raster_blend(uint32_t d, uint32_t c, int64_t k)
     return (uint32_t)(r | (ch << 24));
 }
 
+/* PlatformRaster>>blitBand:index: */
+static void blit_band(void *job, int64_t i)
+{
+    raster_job *j;
+    j = (raster_job *)job;
+    rs_band_y0 = i == 0 ? -1099511627776LL : j->y0 + (j->y1 - j->y0) * i / j->bands;
+    rs_band_y1 = i == j->bands - 1 ? RS_BAND_ALL : j->y0 + (j->y1 - j->y0) * (i + 1) / j->bands;
+    blit_rows(j->src, j->src_w, j->src_h, j->src_fmt, j->sr, j->dst, j->dst_w, j->dst_h, j->dst_fmt, j->dr, j->linear);
+}
+
 /* PlatformRaster>>blitPixels:width:height:format:rect:to:width:height:format:rect:linear: */
 void blit_pixels(uint8_t *src, int64_t src_w, int64_t src_h, int32_t src_fmt, int64_t *sr, uint8_t *dst, int64_t dst_w, int64_t dst_h, int32_t dst_fmt, int64_t *dr, bool linear)
+{
+    int64_t y0;
+    int64_t y1;
+    int64_t rows;
+    int64_t w;
+    int64_t r_row_bands;
+    int64_t n;
+    int64_t bands_2;
+    int64_t v;
+    int64_t bands;
+    raster_job local;
+    raster_job *j;
+    y0 = dr[1] > 0 ? dr[1] : 0;
+    y1 = dr[1] + dr[3] < dst_h ? dr[1] + dr[3] : dst_h;
+    bands = ({
+    if (y1 > y0) {
+        rows = y1 - y0;
+        w = dr[2];
+        v = ({
+    if (rows < 2) {
+        r_row_bands = 1;
+        goto exit_row_bands;
+    }
+    if (forced_bands > 0) {
+        r_row_bands = forced_bands < rows ? forced_bands : rows;
+        goto exit_row_bands;
+    }
+    n = parallel_workers();
+    if (n == 0) {
+        r_row_bands = 1;
+        goto exit_row_bands;
+    }
+    if (rows * w < RS_PARALLEL_PIXELS) {
+        r_row_bands = 1;
+        goto exit_row_bands;
+    }
+    bands_2 = n + 1 < rows / 8 ? n + 1 : rows / 8;
+    r_row_bands = bands_2 < 2 ? 1 : bands_2;
+exit_row_bands:;
+    r_row_bands; });
+    } else {
+        v = 1;
+    }
+    v; });
+    if (bands > 1) {
+        memset(&local, 0, sizeof local);
+        j = &local;
+        j->src = src;
+        j->src_w = src_w;
+        j->src_h = src_h;
+        j->src_fmt = src_fmt;
+        j->sr = sr;
+        j->dst = dst;
+        j->dst_w = dst_w;
+        j->dst_h = dst_h;
+        j->dst_fmt = dst_fmt;
+        j->dr = dr;
+        j->linear = linear;
+        j->y0 = y0;
+        j->y1 = y1;
+        j->bands = bands;
+        parallel_run(blit_band, j, bands);
+        return;
+    }
+    rs_band_y0 = -1099511627776LL;
+    rs_band_y1 = RS_BAND_ALL;
+    blit_rows(src, src_w, src_h, src_fmt, sr, dst, dst_w, dst_h, dst_fmt, dr, linear);
+}
+
+/* PlatformRaster>>blitRows:width:height:format:rect:to:width:height:format:rect:linear: */
+static void blit_rows(uint8_t *src, int64_t src_w, int64_t src_h, int32_t src_fmt, int64_t *sr, uint8_t *dst, int64_t dst_w, int64_t dst_h, int32_t dst_fmt, int64_t *dr, bool linear)
 {
     int64_t sx;
     int64_t sy;
@@ -181,7 +390,7 @@ void blit_pixels(uint8_t *src, int64_t src_w, int64_t src_h, int32_t src_fmt, in
     rs_repeat = false;
     rs_fmt = PF_TEX_RGBA8;
     same = (sw == dw) && ((sh == dh) && ((sx >= 0) && ((sy >= 0) && ((sx + sw <= rs_tex_w) && (sy + sh <= rs_tex_h)))));
-    for (py = y0; py <= y1 - 1; py++) {
+    for (py = y0 > rs_band_y0 ? y0 : rs_band_y0; py <= (y1 < rs_band_y1 ? y1 : rs_band_y1) - 1; py++) {
         d = dst + (uint64_t)((py * dst_w + x0) * tbpp);
         if (same) {
             convert(d, dst_fmt, rs_tex + (uint64_t)(((py - dy + sy) * rs_tex_w + (x0 - dx + sx)) * sbpp), src_fmt, x1 - x0);
@@ -330,9 +539,70 @@ static void convert(uint8_t *d, int32_t df, uint8_t *s, int32_t sf, int64_t n)
 }
 
 #endif
+/* PlatformRaster>>copy:stride:from:stride:width:height:bytesPerPixel:mode:parallel: */
+void copy(uint8_t *dst, int64_t dst_stride, uint8_t *src, int64_t src_stride, int64_t w, int64_t h, int64_t bpp, int64_t mode, bool parallel)
+{
+    int64_t r_row_bands;
+    int64_t n;
+    int64_t bands_2;
+    int64_t bands;
+    raster_job local;
+    raster_job *j;
+    bands = parallel ? ({
+    if (h < 2) {
+        r_row_bands = 1;
+        goto exit_row_bands;
+    }
+    if (forced_bands > 0) {
+        r_row_bands = forced_bands < h ? forced_bands : h;
+        goto exit_row_bands;
+    }
+    n = parallel_workers();
+    if (n == 0) {
+        r_row_bands = 1;
+        goto exit_row_bands;
+    }
+    if (h * w < RS_PARALLEL_PIXELS) {
+        r_row_bands = 1;
+        goto exit_row_bands;
+    }
+    bands_2 = n + 1 < h / 8 ? n + 1 : h / 8;
+    r_row_bands = bands_2 < 2 ? 1 : bands_2;
+exit_row_bands:;
+    r_row_bands; }) : 1;
+    if (bands > 1) {
+        memset(&local, 0, sizeof local);
+        j = &local;
+        j->dst = dst;
+        j->dst_stride = dst_stride;
+        j->src = src;
+        j->src_stride = src_stride;
+        j->w = w;
+        j->h = h;
+        j->bpp = bpp;
+        j->mode = mode;
+        j->bands = bands;
+        parallel_run(copy_band, j, bands);
+        return;
+    }
+    copy_rows(dst, dst_stride, src, src_stride, w, h, bpp, mode);
+}
+
+/* PlatformRaster>>copyBand:index: */
+static void copy_band(void *job, int64_t i)
+{
+    raster_job *j;
+    int64_t a;
+    int64_t b;
+    j = (raster_job *)job;
+    a = j->h * i / j->bands;
+    b = j->h * (i + 1) / j->bands;
+    copy_rows(j->dst + a * j->dst_stride, j->dst_stride, j->src + a * j->src_stride, j->src_stride, j->w, b - a, j->bpp, j->mode);
+}
+
 #if defined(__x86_64__)
-/* PlatformRaster>>copy:stride:from:stride:width:height:bytesPerPixel:mode: */
-void copy(uint8_t *dst, int64_t dst_stride, uint8_t *src, int64_t src_stride, int64_t w, int64_t h, int64_t bpp, int64_t mode)
+/* PlatformRaster>>copyRows:stride:from:stride:width:height:bytesPerPixel:mode: */
+static void copy_rows(uint8_t *dst, int64_t dst_stride, uint8_t *src, int64_t src_stride, int64_t w, int64_t h, int64_t bpp, int64_t mode)
 {
     int64_t y;
     bool swap;
@@ -390,8 +660,8 @@ void copy(uint8_t *dst, int64_t dst_stride, uint8_t *src, int64_t src_stride, in
 }
 
 #else
-/* PlatformRaster>>copy:stride:from:stride:width:height:bytesPerPixel:mode: */
-void copy(uint8_t *dst, int64_t dst_stride, uint8_t *src, int64_t src_stride, int64_t w, int64_t h, int64_t bpp, int64_t mode)
+/* PlatformRaster>>copyRows:stride:from:stride:width:height:bytesPerPixel:mode: */
+static void copy_rows(uint8_t *dst, int64_t dst_stride, uint8_t *src, int64_t src_stride, int64_t w, int64_t h, int64_t bpp, int64_t mode)
 {
     int64_t y;
     bool swap;
@@ -438,6 +708,19 @@ void copy(uint8_t *dst, int64_t dst_stride, uint8_t *src, int64_t src_stride, in
 }
 
 #endif
+/* PlatformRaster>>drawBand:index: */
+static void draw_band(void *job, int64_t i)
+{
+    raster_job *j;
+    j = (raster_job *)job;
+    if (!prepare(j->st)) {
+        return;
+    }
+    rs_band_y0 = i == 0 ? -1099511627776LL : j->y0 + (j->y1 - j->y0) * i / j->bands;
+    rs_band_y1 = i == j->bands - 1 ? RS_BAND_ALL : j->y0 + (j->y1 - j->y0) * (i + 1) / j->bands;
+    draw_vertices(j->base, j->first, j->count);
+}
+
 /* PlatformRaster>>drawQuad: */
 static void draw_quad(uint8_t *v)
 {
@@ -501,6 +784,9 @@ static void draw_quad(uint8_t *v)
     px1 = px1 < rs_clip_x1 ? px1 : rs_clip_x1;
     py1 = py1 < rs_clip_y1 ? py1 : rs_clip_y1;
     if (!((px0 < px1) && (py0 < py1))) {
+        return;
+    }
+    if ((py1 <= rs_band_y0) || (py0 >= rs_band_y1)) {
         return;
     }
     m = rs_mode & 255;
@@ -681,9 +967,9 @@ static void draw_triangle(uint8_t *base, int64_t k)
     y0 = (min_y + 127) >> 8;
     y1 = ((max_y + 127) >> 8) + 1;
     x0 = x0 > rs_clip_x0 ? x0 : rs_clip_x0;
-    y0 = y0 > rs_clip_y0 ? y0 : rs_clip_y0;
+    y0 = (y0 > rs_clip_y0 ? y0 : rs_clip_y0) > rs_band_y0 ? y0 > rs_clip_y0 ? y0 : rs_clip_y0 : rs_band_y0;
     x1 = x1 < rs_clip_x1 ? x1 : rs_clip_x1;
-    y1 = y1 < rs_clip_y1 ? y1 : rs_clip_y1;
+    y1 = (y1 < rs_clip_y1 ? y1 : rs_clip_y1) < rs_band_y1 ? y1 < rs_clip_y1 ? y1 : rs_clip_y1 : rs_band_y1;
     if (!((x0 < x1) && (y0 < y1))) {
         return;
     }
@@ -727,6 +1013,24 @@ static void draw_triangle(uint8_t *base, int64_t k)
     }
 }
 
+/* PlatformRaster>>drawVertices:first:count: */
+static void draw_vertices(uint8_t *base, int64_t first, int64_t count)
+{
+    int64_t k;
+    int64_t last;
+    k = first;
+    last = first + count;
+    while (k + 3 <= last) {
+        if ((k % 6 == 0) && ((k + 6 <= last) && is_quad(base + k * RS_STRIDE))) {
+            draw_quad(base + k * RS_STRIDE);
+            k = k + 6;
+        } else {
+            draw_triangle(base, k);
+            k = k + 3;
+        }
+    }
+}
+
 /* PlatformRaster>>fetch:x:conversion: */
 static uint32_t fetch(uint8_t *r, int64_t tx, int64_t conv)
 {
@@ -744,9 +1048,68 @@ static uint32_t fetch(uint8_t *r, int64_t tx, int64_t conv)
     return ((uint32_t)(((uint64_t)r[tx]) << 16)) | 0xFF000000LL;
 }
 
-#if defined(__x86_64__)
 /* PlatformRaster>>fill:count:bytesPerPixel:value: */
 void platform_raster_fill(uint8_t *pixels, int64_t n, int bpp, uint32_t v)
+{
+    int64_t rows;
+    int64_t r_row_bands;
+    int64_t n_2;
+    int64_t bands_2;
+    int64_t bands;
+    raster_job local;
+    raster_job *j;
+    rows = n / 1024;
+    bands = ({
+    if (rows < 2) {
+        r_row_bands = 1;
+        goto exit_row_bands;
+    }
+    if (forced_bands > 0) {
+        r_row_bands = forced_bands < rows ? forced_bands : rows;
+        goto exit_row_bands;
+    }
+    n_2 = parallel_workers();
+    if (n_2 == 0) {
+        r_row_bands = 1;
+        goto exit_row_bands;
+    }
+    if (rows * 1024 < RS_PARALLEL_PIXELS) {
+        r_row_bands = 1;
+        goto exit_row_bands;
+    }
+    bands_2 = n_2 + 1 < rows / 8 ? n_2 + 1 : rows / 8;
+    r_row_bands = bands_2 < 2 ? 1 : bands_2;
+exit_row_bands:;
+    r_row_bands; });
+    if (bands > 1) {
+        memset(&local, 0, sizeof local);
+        j = &local;
+        j->dst = pixels;
+        j->count = n;
+        j->bpp = (int64_t)bpp;
+        j->fill_value = v;
+        j->bands = bands;
+        parallel_run(fill_band, j, bands);
+        return;
+    }
+    fill_run(pixels, n, bpp, v);
+}
+
+/* PlatformRaster>>fillBand:index: */
+static void fill_band(void *job, int64_t i)
+{
+    raster_job *j;
+    int64_t a;
+    int64_t b;
+    j = (raster_job *)job;
+    a = j->count * i / j->bands;
+    b = j->count * (i + 1) / j->bands;
+    fill_run(j->dst + a * j->bpp, b - a, (int32_t)j->bpp, j->fill_value);
+}
+
+#if defined(__x86_64__)
+/* PlatformRaster>>fillRun:count:bytesPerPixel:value: */
+static void fill_run(uint8_t *pixels, int64_t n, int bpp, uint32_t v)
 {
     uint32_t *p;
     int64_t r_fill;
@@ -789,8 +1152,8 @@ void platform_raster_fill(uint8_t *pixels, int64_t n, int bpp, uint32_t v)
 }
 
 #else
-/* PlatformRaster>>fill:count:bytesPerPixel:value: */
-void platform_raster_fill(uint8_t *pixels, int64_t n, int bpp, uint32_t v)
+/* PlatformRaster>>fillRun:count:bytesPerPixel:value: */
+static void fill_run(uint8_t *pixels, int64_t n, int bpp, uint32_t v)
 {
     uint32_t *p;
     int64_t r_fill;
@@ -846,6 +1209,15 @@ static int64_t floor_of(double x)
     }
     t = (int64_t)x;
     return (double)t > x ? t - 1 : t;
+}
+
+/* PlatformRaster>>forcedBands: */
+int64_t platform_raster_forced_bands(int64_t n)
+{
+    int64_t old;
+    old = forced_bands;
+    forced_bands = n;
+    return old;
 }
 
 /* PlatformRaster>>glyphRow:coverage:step:count: */
@@ -1476,7 +1848,7 @@ static void pattern_x(int64_t x, int64_t y, int64_t w, int64_t h)
         return;
     }
     dx = floor_of((double)x + 0.5 - rs_org_x);
-    for (py = y; py <= y + h - 1; py++) {
+    for (py = y > rs_band_y0 ? y : rs_band_y0; py <= (y + h < rs_band_y1 ? y + h : rs_band_y1) - 1; py++) {
         d = platform_raster_row(py, x);
         dy = floor_of((double)py + 0.5 - rs_org_y);
         iy = (dy > 0 ? dy : 0) / cell;
@@ -1743,7 +2115,7 @@ static void pattern_x(int64_t x, int64_t y, int64_t w, int64_t h)
         return;
     }
     dx = floor_of((double)x + 0.5 - rs_org_x);
-    for (py = y; py <= y + h - 1; py++) {
+    for (py = y > rs_band_y0 ? y : rs_band_y0; py <= (y + h < rs_band_y1 ? y + h : rs_band_y1) - 1; py++) {
         d = platform_raster_row(py, x);
         dy = floor_of((double)py + 0.5 - rs_org_y);
         iy = (dy > 0 ? dy : 0) / cell;
@@ -1967,25 +2339,29 @@ static bool prepare(raster_state *st)
 /* PlatformRaster>>rasterize:vertices:first:count: */
 void rasterize(raster_state *st, uint8_t *base, int64_t first, int64_t count)
 {
-    int64_t k;
-    int64_t last;
+    raster_job local;
+    raster_job *j;
+    int64_t bands;
     if (count < 3) {
         return;
     }
     if (!prepare(st)) {
         return;
     }
-    k = first;
-    last = first + count;
-    while (k + 3 <= last) {
-        if ((k % 6 == 0) && ((k + 6 <= last) && is_quad(base + k * RS_STRIDE))) {
-            draw_quad(base + k * RS_STRIDE);
-            k = k + 6;
-        } else {
-            draw_triangle(base, k);
-            k = k + 3;
-        }
+    memset(&local, 0, sizeof local);
+    j = &local;
+    j->st = st;
+    j->base = base;
+    j->first = first;
+    j->count = count;
+    bands = bands_of(j);
+    if (bands > 1) {
+        parallel_run(draw_band, j, bands);
+        return;
     }
+    rs_band_y0 = -1099511627776LL;
+    rs_band_y1 = RS_BAND_ALL;
+    draw_vertices(base, first, count);
 }
 
 /* PlatformRaster>>row:x: */
@@ -2100,7 +2476,7 @@ static bool scaled_x(int64_t x, int64_t y, int64_t w, int64_t h, double u0, doub
     if ((m == 2) && (ca == 0)) {
         return true;
     }
-    for (j = 0; j <= h - 1; j++) {
+    for (j = rs_band_y0 - y > 0 ? rs_band_y0 - y : 0; j <= (rs_band_y1 - y < h ? rs_band_y1 - y : h) - 1; j++) {
         d = platform_raster_row(y + j, x);
         v = v0 + dv * (double)j;
         if (lin) {
@@ -2257,7 +2633,7 @@ static void shade_x(int64_t x, int64_t y, int64_t w, int64_t h, double u0, doubl
     uint32_t *d;
     double v;
     int64_t i;
-    for (j = 0; j <= h - 1; j++) {
+    for (j = rs_band_y0 - y > 0 ? rs_band_y0 - y : 0; j <= (rs_band_y1 - y < h ? rs_band_y1 - y : h) - 1; j++) {
         d = platform_raster_row(y + j, x);
         v = v0 + dv * (double)j;
         for (i = 0; i <= w - 1; i++) {
@@ -2327,7 +2703,7 @@ static void solid_x(int64_t x, int64_t y, int64_t w, int64_t h)
     c = rs_color;
     ca = c >> 24;
     if ((rs_blend == PF_BLEND_NONE) || (ca == 255)) {
-        for (py = y; py <= y + h - 1; py++) {
+        for (py = y > rs_band_y0 ? y : rs_band_y0; py <= (y + h < rs_band_y1 ? y + h : rs_band_y1) - 1; py++) {
             d = platform_raster_row(py, x);
             for (i_2 = ({
     x_2 = _mm_set1_epi32((int32_t)c);
@@ -2356,7 +2732,7 @@ static void solid_x(int64_t x, int64_t y, int64_t w, int64_t h)
         return;
     }
     if (!(rs_blend == PF_BLEND_PREMULTIPLIED)) {
-        for (py_2 = y; py_2 <= y + h - 1; py_2++) {
+        for (py_2 = y > rs_band_y0 ? y : rs_band_y0; py_2 <= (y + h < rs_band_y1 ? y + h : rs_band_y1) - 1; py_2++) {
             d = platform_raster_row(py_2, x);
             for (i_3 = 0; i_3 <= w - 1; i_3++) {
                 d[i_3] = platform_raster_blend(d[i_3], c, 255);
@@ -2367,7 +2743,7 @@ static void solid_x(int64_t x, int64_t y, int64_t w, int64_t h)
     if (c == 0) {
         return;
     }
-    for (py_3 = y; py_3 <= y + h - 1; py_3++) {
+    for (py_3 = y > rs_band_y0 ? y : rs_band_y0; py_3 <= (y + h < rs_band_y1 ? y + h : rs_band_y1) - 1; py_3++) {
         d = platform_raster_row(py_3, x);
         for (i_5 = ({
     cv = _mm_set1_epi32((int32_t)c);
@@ -2446,7 +2822,7 @@ static void solid_x(int64_t x, int64_t y, int64_t w, int64_t h)
     c = rs_color;
     ca = c >> 24;
     if ((rs_blend == PF_BLEND_NONE) || (ca == 255)) {
-        for (py = y; py <= y + h - 1; py++) {
+        for (py = y > rs_band_y0 ? y : rs_band_y0; py <= (y + h < rs_band_y1 ? y + h : rs_band_y1) - 1; py++) {
             d = platform_raster_row(py, x);
             for (i_2 = ({
     x_2 = vdupq_n_u32(c);
@@ -2470,7 +2846,7 @@ static void solid_x(int64_t x, int64_t y, int64_t w, int64_t h)
         return;
     }
     if (!(rs_blend == PF_BLEND_PREMULTIPLIED)) {
-        for (py_2 = y; py_2 <= y + h - 1; py_2++) {
+        for (py_2 = y > rs_band_y0 ? y : rs_band_y0; py_2 <= (y + h < rs_band_y1 ? y + h : rs_band_y1) - 1; py_2++) {
             d = platform_raster_row(py_2, x);
             for (i_3 = 0; i_3 <= w - 1; i_3++) {
                 d[i_3] = platform_raster_blend(d[i_3], c, 255);
@@ -2481,7 +2857,7 @@ static void solid_x(int64_t x, int64_t y, int64_t w, int64_t h)
     if (c == 0) {
         return;
     }
-    for (py_3 = y; py_3 <= y + h - 1; py_3++) {
+    for (py_3 = y > rs_band_y0 ? y : rs_band_y0; py_3 <= (y + h < rs_band_y1 ? y + h : rs_band_y1) - 1; py_3++) {
         d = platform_raster_row(py_3, x);
         for (i_5 = ({
     cv = vreinterpretq_u8_u32(vdupq_n_u32(c));
@@ -2591,7 +2967,7 @@ static bool textured_x(int64_t x, int64_t y, int64_t w, int64_t h, double u0, do
     }
     m = rs_mode & 255;
     bpp = rs_tex_fmt == PF_TEX_R8 ? 1 : 4;
-    for (j = 0; j <= h - 1; j++) {
+    for (j = rs_band_y0 - y > 0 ? rs_band_y0 - y : 0; j <= (rs_band_y1 - y < h ? rs_band_y1 - y : h) - 1; j++) {
         if (m == 1) {
             glyph_row(platform_raster_row(y + j, x), rs_tex + (uint64_t)(((ty + j) * rs_tex_w + tx) * bpp + (rs_tex_fmt == PF_TEX_BGRA8 ? 2 : 0)), bpp, w);
         } else {

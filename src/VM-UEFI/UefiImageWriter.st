@@ -9,7 +9,7 @@ UefiImageWriter comment: 'I convert a statically linked ELF64 executable (a stat
 
 Layout. All PT_LOAD segments go into one section, .text, that is readable, writable and executable (the JIT writes and runs code in a zero-filled array in the BSS), whose VirtualSize includes the BSS and whose raw data stops at the last file-backed byte, so the BSS costs nothing in the file. The segments keep their distances: an ELF address v is at RVA v + shift. A PE image''s headers sit at RVA 0 and a static PIE''s first segment (its ELF headers, .dynsym, .rela.dyn, .rodata) starts at address 0 as well, so for one linked at base 0 the shift is one page; for an image linked higher (ET_EXEC, or a PIE with --image-base) ImageBase is chosen so that ImageBase + RVA is the linked address. The preferred ImageBase of a PIE linked at 0 is 16r10000000 (imageBase: changes it).
 
-Relocations. The dynamic relocations (PT_DYNAMIC''s DT_RELA and DT_JMPREL tables, or without PT_DYNAMIC the allocated SHT_RELA sections) must be R_X86_64_RELATIVE or R_AARCH64_RELATIVE (R_*_NONE are skipped): each word is written as ImageBase + RVA of its addend and listed in .reloc as an IMAGE_REL_BASED_DIR64 entry, so the firmware can load the image anywhere. An ET_EXEC has no such list and is marked RELOCS_STRIPPED (it loads only at its ImageBase). Anything else (other relocation types, DT_REL, DT_RELR, DT_NEEDED, PT_INTERP, PT_TLS, 32-bit or big-endian ELF, other CPUs) signals an Error saying what it is.
+Relocations. The dynamic relocations (PT_DYNAMIC''s DT_RELA and DT_JMPREL tables, or without PT_DYNAMIC the allocated SHT_RELA sections) must be R_X86_64_RELATIVE or R_AARCH64_RELATIVE (R_*_NONE are skipped): each word is written as ImageBase + RVA of its addend and listed in .reloc as an IMAGE_REL_BASED_DIR64 entry, so the firmware can load the image anywhere. An ET_EXEC has no such list and is marked RELOCS_STRIPPED (it loads only at its ImageBase). Anything else (other relocation types, DT_REL, DT_RELR, DT_NEEDED, PT_INTERP, PT_TLS with initialized data or more than 4096 bytes, 32-bit or big-endian ELF, other CPUs) signals an Error saying what it is.
 
 The headers are what EDK2''s PeCoffLoader checks: a DOS header and stub with e_lfanew, machine 16r8664 or 16rAA64, EXECUTABLE_IMAGE | LARGE_ADDRESS_AWARE, subsystem 10 (EFI application), SectionAlignment 4096, FileAlignment 512, 16 data directories (5, the base relocation table, points at .reloc), no NX_COMPAT, checksum 0.'!
 
@@ -49,6 +49,11 @@ readHeader
 	entry := self u64: 24.
 	(self u16: 54) = 56 ifFalse: [self fail: 'unexpected program header size ', (self u16: 54) printString]
 !
+checkTls: ph
+	"Thread-local storage (PT_TLS): only zero-initialized, at most 4096 bytes aligned to at most 64: each CPU's block of it is UefiMp's (MP_TLS_BYTES), its thread pointer set by UefiCpu>>setThreadBlock:size:, the code compiled for the local-exec model."
+	((self u64: ph + 32) ~= 0) ifTrue: [self fail: 'initialized thread-local storage (PT_TLS with p_filesz > 0) is not supported'].
+	((self u64: ph + 40) > 4096 or: [(self u64: ph + 48) > 64]) ifTrue: [self fail: 'PT_TLS larger than 4096 bytes or aligned to more than 64 is not supported']
+!
 readSegments
 	"Collect the PT_LOAD segments as {vaddr. file offset. filesz. memsz}, sorted by address."
 	| phoff phnum |
@@ -65,7 +70,7 @@ readSegments
 		filesz := self u64: ph + 32.
 		memsz := self u64: ph + 40.
 		type = 3 ifTrue: [self fail: 'the ELF has a PT_INTERP (a dynamic loader): link with --no-dynamic-linker'].
-		type = 7 ifTrue: [self fail: 'thread-local storage (PT_TLS) is not supported'].
+		type = 7 ifTrue: [self checkTls: ph].
 		(type = 1 and: [memsz > 0]) ifTrue: [
 			filesz > memsz ifTrue: [self fail: 'PT_LOAD at ', (self hex: vaddr), ' has p_filesz > p_memsz'].
 			offset + filesz > elf size ifTrue: [self fail: 'PT_LOAD at ', (self hex: vaddr), ' extends past the end of the file'].

@@ -1524,6 +1524,12 @@ addressArg: i
 		^self null].
 	^self cCoerce: w value to: 'uint8_t *'
 !
+isAddressArg: i
+	"Whether argument i is an address (memory outside the heap), not an object."
+	| o |
+	o := self arg: i.
+	^(self isInt: o) or: [(self isPtr: o) and: [(memory classOf: o) = (memory special: SO_LARGEPOS)]]
+!
 memoryArg: i offset: offset length: n writable: writable
 	"Memory argument i: an Integer (an address) or a byte object or Bitmap (writable: not immutable), of which n bytes from offset are used (checked for an object); NULL, and bad set, if it is none or too small."
 	<function>
@@ -1853,6 +1859,15 @@ primRasterBlit
 		to: d pixels width: d width height: d height format: d format rect: dr linear: v = memory trueOop.
 	self answerSelf
 !
+primRasterBands
+	"n: the raster's work split into n bands, run on the CPUs there are (CpuWorkers), whatever its size (tests: they must draw what one band does); 0: as many as there are CPUs, for work of enough pixels. Answers the previous n."
+	<vmPrimitive: 484 name: 'rasterBands'>
+	| n |
+	(self args: 1) ifFalse: [^self fail].
+	n := self intArg: 0.
+	(bad or: [n < 0 or: [n > 64]]) ifTrue: [^self fail].
+	self answer: (self intOop: (raster forcedBands: n))
+!
 primRasterCopy
 	"dst dstStride src srcStride width height bytesPerPixel mode: rows of pixels of 1 or 4 bytes; dst and src are addresses or byte objects (Bitmaps); mode bit 1 swaps red and blue, bit 2 copies only the pixels whose alpha is not 0 (4-byte pixels)"
 	<vmPrimitive: 483 name: 'rasterCopy'>
@@ -1869,6 +1884,7 @@ primRasterCopy
 	d := self memoryArg: 0 offset: 0 length: ((h - 1) * ds) + (w * bpp) writable: true.
 	s := self memoryArg: 2 offset: 0 length: ((h - 1) * ss) + (w * bpp) writable: false.
 	bad ifTrue: [^self fail].
-	raster copy: d stride: ds from: s stride: ss width: w height: h bytesPerPixel: bpp mode: mode.
+	raster copy: d stride: ds from: s stride: ss width: w height: h bytesPerPixel: bpp mode: mode
+		parallel: ((self isAddressArg: 0) and: [self isAddressArg: 2]).
 	self answerSelf
 ! !

@@ -21,6 +21,11 @@ blit: sourceSurface rect: sourceRect to: destinationSurface rect: destinationRec
 	<primitive: 'rasterBlit'>
 	^self error: 'bad blit'
 !
+bands: n
+	"Split the work into n bands whatever its size (0: one per CPU where it is large enough, the default); answer the previous n. Bands draw what one CPU does, to the bit (SoftwareGPUBandsTest)."
+	<primitive: 'rasterBands'>
+	^self error: 'bad band count'
+!
 copy: destination stride: destinationStride from: source stride: sourceStride width: w height: h bytesPerPixel: bpp mode: mode
 	"h rows of w pixels of bpp bytes (1 or 4); destination and source are addresses or byte objects (Bitmaps). mode bit 1 swaps red and blue, bit 2 copies only the pixels whose alpha is not 0."
 	<primitive: 'rasterCopy'>

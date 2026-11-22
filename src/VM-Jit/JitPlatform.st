@@ -3,7 +3,7 @@ VMModule subclass: #JitPlatform
 	classVariableNames: ''
 	package: 'VM-Jit'!
 
-JitPlatform comment: 'What the code cache needs from the operating system: an executable mapping, write access to it, instruction cache maintenance; and what the optimizing tier''s background compilation needs (OptRuntime, docs/jit.md Background compilation): one helper thread, a mutex and a condition it waits on. DarwinJitPlatform (MAP_JIT, per-thread write protection) and LinuxJitPlatform (a plain read-write-execute mapping) implement it under the same C names; the build links the one of its OS (targetOS). UefiJitPlatform has no threads: compilation stays on the VM''s thread.'!
+JitPlatform comment: 'What the code cache needs from the operating system: an executable mapping, write access to it, instruction cache maintenance; and what the optimizing tier''s background compilation needs (OptRuntime, docs/jit.md Background compilation): one helper thread, a mutex and a condition it waits on. DarwinJitPlatform (MAP_JIT, per-thread write protection) and LinuxJitPlatform (a plain read-write-execute mapping) implement it under the same C names; the build links the one of its OS (targetOS). UefiJitPlatform''s helper is an application processor (UefiMp), its mutex a spin lock; without one compilation stays on the VM''s thread.'!
 
 !JitPlatform class methodsFor: 'declaring'!
 declarations

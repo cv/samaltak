@@ -3617,6 +3617,33 @@ void prim_pty_write(void)
 exit_answer_count:;
 }
 
+/* PlatformPrimitives>>primRasterBands */
+void prim_raster_bands(void)
+{
+    bool r_args;
+    int64_t n;
+    int64_t v;
+    uint64_t v_2;
+    if (!({
+    bad = false;
+    r_args = prim_nargs == 1;
+    r_args; })) {
+        prim_status = PS_FAIL;
+        prim_error_code = -1;
+        return;
+    }
+    n = int_arg(0);
+    if (bad || ((n < 0) || (n > 64))) {
+        prim_status = PS_FAIL;
+        prim_error_code = -1;
+        return;
+    }
+    v = platform_raster_forced_bands(n);
+    v_2 = (uint64_t)((v << 1) | 1);
+    prim_result = v_2;
+    prim_status = PS_OK;
+}
+
 /* PlatformPrimitives>>primRasterBlit */
 void prim_raster_blit(void)
 {
@@ -3700,6 +3727,10 @@ void prim_raster_copy(void)
     oop v;
     uint8_t *d;
     uint8_t *s;
+    bool r_is_address_arg;
+    oop o;
+    bool r_is_address_arg_2;
+    oop o_2;
     oop v_2;
     if (!({
     bad = false;
@@ -3733,7 +3764,13 @@ void prim_raster_copy(void)
         prim_error_code = -1;
         return;
     }
-    copy(d, ds, s, ss, w, h, bpp, mode);
+    copy(d, ds, s, ss, w, h, bpp, mode, ({
+    o = prim_base[1];
+    r_is_address_arg = ((o & 1) != 0) || (((o & 7) == 0) && (class_of(o) == object_memory_special(SO_LARGEPOS)));
+    r_is_address_arg; }) && ({
+    o_2 = prim_base[3];
+    r_is_address_arg_2 = ((o_2 & 1) != 0) || (((o_2 & 7) == 0) && (class_of(o_2) == object_memory_special(SO_LARGEPOS)));
+    r_is_address_arg_2; }));
     v_2 = prim_base[0];
     prim_result = v_2;
     prim_status = PS_OK;

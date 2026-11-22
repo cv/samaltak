@@ -55,6 +55,10 @@ isArchInterface
 isSimulated
 	"Whether a simulation may run me. Where several modules implement an interface, a simulation connects one that is simulated."
 	^true
+!
+threadLocalVariables
+	"Those of my instance variables that each CPU has a copy of where the VM runs code on more than one (UEFI: _Thread_local in its translation, docs/uefi.md, More than one CPU); elsewhere plain globals. Module-private and zero-initialized."
+	^#()
 ! !
 
 !VMModule methodsFor: 'simulation'!

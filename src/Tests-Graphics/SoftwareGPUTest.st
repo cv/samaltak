@@ -689,3 +689,20 @@ testTheGPULayerOnASoftwareDevice
 		((px uint32At: i) bitAnd: 16rFF00FF00) + (((px uint32At: i) bitAnd: 16rFF) bitShift: 16) + (((px uint32At: i) bitShift: -16) bitAnd: 16rFF)])]
 		ensure: [GPUPlatform display: old first device: old last]
 ! !
+
+SoftwareGPUTest subclass: #SoftwareGPUBandsTest
+	instanceVariableNames: 'previousBands'
+	classVariableNames: ''
+	package: 'Tests-Graphics'!
+
+SoftwareGPUBandsTest comment: 'SoftwareGPUTest with the raster''s work split into 3 bands whatever its size (SoftwareRaster bands:): run on the CPUs there are (on UEFI the application processors, docs/uefi.md), one after the other elsewhere, the bands must draw what one CPU does, to the bit.'!
+
+!SoftwareGPUBandsTest methodsFor: 'running'!
+setUp
+	previousBands := SoftwareRaster bands: 3.
+	super setUp
+!
+tearDown
+	SoftwareRaster bands: previousBands.
+	super tearDown
+! !

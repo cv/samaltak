@@ -90,7 +90,7 @@ runtime
 ! !
 
 UefiModule subclass: #UefiFirmware
-	instanceVariableNames: 'imageHandle systemTable bootServices runtimeServices conOut root store cpu serial'
+	instanceVariableNames: 'imageHandle systemTable bootServices runtimeServices conOut root store cpu serial mp'
 	classVariableNames: ''
 	package: 'VM-UEFI'!
 
@@ -99,7 +99,7 @@ UefiFirmware comment: 'The VM''s entry on UEFI, efi_main: makes its image writab
 !UefiFirmware class methodsFor: 'declaring'!
 declarations
 	^#((imageHandle 'void *') (systemTable 'EfiSystemTable *') (bootServices 'EfiBootServices *') (runtimeServices 'EfiRuntimeServices *')
-		(conOut 'EfiTextOutput *') (root 'EfiFile *') (store UefiImageStore) (cpu UefiCpu) (serial 'EfiSerialIo *'))
+		(conOut 'EfiTextOutput *') (root 'EfiFile *') (store UefiImageStore) (cpu UefiCpu) (serial 'EfiSerialIo *') (mp UefiMp))
 ! !
 
 !UefiFirmware methodsFor: 'entry'!
@@ -133,6 +133,7 @@ run
 	posix start.
 	self openRoot.
 	self openSerial.
+	mp start.
 	store start.
 	argv := self local: 'char *[64]'.
 	argc := self arguments: argv max: 64.
