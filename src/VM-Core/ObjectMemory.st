@@ -1,5 +1,5 @@
 VMCoreModule subclass: #ObjectMemory
-	instanceVariableNames: 'nilOop trueOop falseOop specialsOop clsSmallint clsChar clsSmallfloat clsBoxedfloat clsArray clsContext clsBlock clsPoint clsBytestring clsBytearray clsMessage hashBox rootStack rootCount largeObjectBytes sampleMark'
+	instanceVariableNames: 'nilOop trueOop falseOop specialsOop clsSmallint clsChar clsSmallfloat clsBoxedfloat clsArray clsContext clsBlock clsPoint clsBytestring clsBytearray clsMessage hashBox rootStack rootCount largeObjectBytes sampleMark wordHash'
 	classVariableNames: 'MAX_ROOTS'
 	package: 'VM-Core'!
 
@@ -13,7 +13,8 @@ declarations
 		(hashBox 'uint64_t[1]' #(16r5A4D414C54414B))
 		(rootStack 'oop *[MAX_ROOTS]') (rootCount int32_t)
 		(largeObjectBytes size_t 262144)
-		(sampleMark uint64_t))
+		(sampleMark uint64_t)
+		(wordHash bool true))
 !
 initialize
 	MAX_ROOTS := 1024
@@ -76,6 +77,13 @@ hashSeed
 !
 hashSeed: anInteger
 	hashBox at: 0 put: anInteger
+!
+wordHash
+	"String>>hash of this image: 8 bytes a word (true), or FNV-1a over the code points, as images saved before it have their hashed collections (ImageHeader's stringHash)."
+	^wordHash
+!
+wordHash: aBoolean
+	wordHash := aBoolean
 !
 hashBoxAddress
 	"Where the identity hash generator's state is (machine code allocates too)."
@@ -479,13 +487,48 @@ stringCharAt: s index: i
 	^(self words32Of: s) at: i
 !
 stringHash: s
+	"String>>hash, the same for equal Strings and Symbols. Of more than 8 code points all below 256 (bytes, or 32-bit units that hold none above): them as bytes in 64-bit little-endian words, the last zero-padded; from h := their count, h := (h bitXor: word) * 16r5851F42D4C957F2D for each word, then h := h bitXor: h >> 32, h := h * 16r2545F4914F6CDD1D, h := h bitXor: h >> 29 (modulo 2^64), the low 30 bits. Else (up to 8, one word: a byte at a time keeps keys that differ in their last code point's low bits apart in small tables; code points above 255, which no byte string has; an image saved before this hash, wordHash false) FNV-1a over them, the low 30 bits. The optimizing tier's string hash stub does the same for bytes, String>>hash's fallback and ImageBuilder>>stringHash: in Smalltalk."
 	<function>
 	<returns: 'uint32_t'>
-	| h n |
-	h := 2166136261 asUInt32.
+	<var: #n type: 'uint64_t'>
+	<var: #i type: 'uint64_t'>
+	<var: #h type: 'uint64_t'>
+	<var: #w type: 'uint64_t'>
+	| n i h w |
 	n := self stringSize: s.
-	0 to: n asInt64 - 1 do: [:i | h := ((h bitXor: (self stringCharAt: s index: i asUInt64)) * 16777619) asUInt32].
-	^h bitAnd: 16r3FFFFFFF
+	(wordHash not or: [n <= 8]) ifTrue: [^self fnvHash: s].
+	i := 0.
+	h := n.
+	(self formatOf: s) >= F_BYTES
+		ifTrue: [
+			[i + 8 <= n] whileTrue: [
+				h := ((h bitXor: (self uint64At: s + 16 + i)) * 16r5851F42D4C957F2D) asUInt64.
+				i := i + 8]]
+		ifFalse: [
+			0 to: n asInt64 - 1 do: [:j |
+				(self stringCharAt: s index: j asUInt64) > 255 ifTrue: [^self fnvHash: s]]].
+	"what is left (bytes after the whole words, or 32-bit units below 256): up to 8 a word"
+	w := 0.
+	[i < n] whileTrue: [
+		w := w bitOr: ((self stringCharAt: s index: i) asUInt64 << (8 * (i bitAnd: 7))).
+		i := i + 1.
+		((i bitAnd: 7) = 0 or: [i = n]) ifTrue: [
+			h := ((h bitXor: w) * 16r5851F42D4C957F2D) asUInt64.
+			w := 0]].
+	h := h bitXor: h >> 32.
+	h := (h * 16r2545F4914F6CDD1D) asUInt64.
+	h := h bitXor: h >> 29.
+	^(h bitAnd: 16r3FFFFFFF) asUInt32
+!
+fnvHash: s
+	"FNV-1a over s's code points, the low 30 bits (stringHash:)."
+	<function>
+	<returns: 'uint32_t'>
+	<var: #f type: 'uint32_t'>
+	| f |
+	f := 2166136261 asUInt32.
+	0 to: (self stringSize: s) asInt64 - 1 do: [:k | f := ((f bitXor: (self stringCharAt: s index: k asUInt64)) * 16777619) asUInt32].
+	^f bitAnd: 16r3FFFFFFF
 !
 utf8Decode: s size: n at: index
 	"Decode the code point at *index, advancing it. A byte that does not begin a well-formed sequence (an overlong form, a surrogate, above 10FFFF, truncated, a stray continuation byte) decodes alone, to U+DC80-DCFF (Python's surrogateescape: utf8Of: writes the byte back, so OS names that are not UTF-8 round-trip)."

@@ -447,10 +447,30 @@ compileChunk: chunk
 ! !
 
 !ImageBuilder methodsFor: 'finishing'!
-fnv: aString
-	| h |
-	h := 2166136261.
-	aString do: [:c | h := ((h bitXor: c value) * 16777619) bitAnd: 16rFFFFFFFF].
+stringHash: aString
+	"String>>hash of aString as ObjectMemory>>stringHash: computes it, with what the seed image the builder runs in has."
+	| byBytes m h w k |
+	byBytes := aString size <= 8.
+	aString do: [:c | c value > 255 ifTrue: [byBytes := true]].
+	byBytes ifTrue: [
+		h := 2166136261.
+		aString do: [:c | h := ((h bitXor: c value) * 16777619) bitAnd: 16rFFFFFFFF].
+		^h bitAnd: 16r3FFFFFFF].
+	m := 16rFFFFFFFFFFFFFFFF.
+	h := aString size.
+	w := 0.
+	k := 0.
+	aString do: [:c |
+		w := w bitOr: (c value bitShift: 8 * k).
+		k := k + 1.
+		k = 8 ifTrue: [
+			h := ((h bitXor: w) * 16r5851F42D4C957F2D) bitAnd: m.
+			w := 0.
+			k := 0]].
+	k > 0 ifTrue: [h := ((h bitXor: w) * 16r5851F42D4C957F2D) bitAnd: m].
+	h := h bitXor: (h bitShift: -32).
+	h := (h * 16r2545F4914F6CDD1D) bitAnd: m.
+	h := h bitXor: (h bitShift: -29).
 	^h bitAnd: 16r3FFFFFFF
 !
 hashed: aClassName items: items hash: aBlock
@@ -473,7 +493,7 @@ dictionary: aClassName bindings: aCollection
 	| keys |
 	keys := Dictionary new.
 	aCollection do: [:b | keys at: b oop put: b key].
-	^self hashed: aClassName items: (aCollection collect: [:b | b oop]) asArray hash: [:assoc | self fnv: (keys at: assoc)]
+	^self hashed: aClassName items: (aCollection collect: [:b | b oop]) asArray hash: [:assoc | self stringHash: (keys at: assoc)]
 !
 methodDictionary: aDictionary
 	| cap keys values |
@@ -599,7 +619,7 @@ finish
 		syms := Dictionary new.
 		symbols keysAndValuesDo: [:k :v | syms at: v put: k].
 		b := holder pool at: 'SymbolTable'.
-		b value: (self hashed: setClass items: ((symbols keys asSortedCollection: [:a :b2 | a <= b2]) collect: [:k | symbols at: k]) asArray hash: [:s | self fnv: (syms at: s)]).
+		b value: (self hashed: setClass items: ((symbols keys asSortedCollection: [:a :b2 | a <= b2]) collect: [:k | symbols at: k]) asArray hash: [:s | self stringHash: (syms at: s)]).
 		self slotOf: b oop at: 1 put: b value]
 !
 copyHashedSlotsOf: aDictionaryOop into: aSystemDictionaryOop
@@ -624,7 +644,8 @@ writeTo: aPath
 	self put64: lo in: bytes at: 33.
 	self put64: memory specialsOop in: bytes at: 41.
 	self put64: memory hashSeed in: bytes at: 49.
-	self put64: 0 in: bytes at: 57.
+	"its symbols and bindings are hashed by words of 8 bytes (stringHash:)"
+	self put64: 1 in: bytes at: 57.
 	bytes replaceFrom: 65 to: 64 + n with: (sim memory bytesAt: lo count: n) startingAt: 1.
 	File writeBytes: bytes to: aPath.
 	^n

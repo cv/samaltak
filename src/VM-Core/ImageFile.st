@@ -44,6 +44,8 @@ loadImage: path
 		p := p + (self objBytes: o)].
 	memory specialsOop: (h specials + delta) asUInt64.
 	memory hashSeed: h hashSeed.
+	"its hashed collections are by the String hash it was saved with (0: FNV-1a, images from before the other)"
+	memory wordHash: h stringHash = 1.
 	budget := 2 * h heapBytes.
 	budget > gc oldBudget ifTrue: [gc oldBudget: (budget < gc softLimit ifTrue: [budget] ifFalse: [gc softLimit])].
 	imagePath := posix realpath: path into: self null.
@@ -65,6 +67,7 @@ writeSnapshot: path
 	h base: gc oldLo.
 	h specials: memory specialsOop.
 	h hashSeed: memory hashSeed.
+	h stringHash: (memory wordHash ifTrue: [1] ifFalse: [0]).
 	f := libc fopen: path mode: 'wb'.
 	f isNull ifTrue: [^false].
 	ok := (libc fwrite: h size: (self sizeof: 'ImageHeader') count: 1 file: f) = 1
@@ -77,9 +80,9 @@ VMStruct subclass: #ImageHeader
 	classVariableNames: ''
 	package: 'VM-Core'!
 
-ImageHeader comment: 'The 64 bytes at the start of an image file: magic SAMALTK1, version 1, header size, heap bytes, the address the heap was saved at, the special objects array''s address, the identity hash seed.'!
+ImageHeader comment: 'The 64 bytes at the start of an image file: magic SAMALTK1, version 1, header size, heap bytes, the address the heap was saved at, the special objects array''s address, the identity hash seed, the String hash its hashed collections are by (ObjectMemory>>stringHash:: 1 words of 8 bytes, 0 FNV-1a, as images saved before had).'!
 
 !ImageHeader class methodsFor: 'declaring'!
 fields
-	^#((magic 'char[8]') (version uint64_t) (headerSize uint64_t) (heapBytes uint64_t) (base uint64_t) (specials uint64_t) (hashSeed uint64_t) (reserved uint64_t))
+	^#((magic 'char[8]') (version uint64_t) (headerSize uint64_t) (heapBytes uint64_t) (base uint64_t) (specials uint64_t) (hashSeed uint64_t) (stringHash uint64_t))
 ! !

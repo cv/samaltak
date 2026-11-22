@@ -292,7 +292,7 @@ drawWindow: aWindow on: c time: now
 	rect := rect translateBy: layer offset.
 	shadow := (aWindow isOverlay ifTrue: [2] ifFalse: [1 + aWindow focusAmount]) * s.
 	c alpha: layer opacity during: [
-		c fillRect: (rect translateBy: shadow @ shadow) color: Color black.
+		c fillRect: (rect translateBy: shadow @ shadow) color: Color shadow.
 		c image: layer surface from: (0 @ 0 extent: layer pixelExtent) in: rect.
 		(s = 1 and: [aWindow isOpen and: [aWindow needsDecorations: now]]) ifTrue: [
 			c translateBy: rect origin during: [
@@ -345,7 +345,7 @@ renderScreenPointer: aBoolean
 	full := Surface extent: world extent scale: world displayScale.
 	cmd := renderer device commandBuffer.
 	renderer render: (self compositeListScale: world displayScale pointer: aBoolean time: self clock)
-		into: full texture clear: Color white commandBuffer: cmd.
+		into: full texture clear: Color paper commandBuffer: cmd.
 	cmd submit.
 	^full
 !
@@ -381,7 +381,7 @@ readbackList: aDisplayList extent: anExtent scale: aNumber
 	| target cmd form |
 	target := Surface extent: anExtent scale: aNumber.
 	cmd := renderer device commandBuffer.
-	renderer render: aDisplayList into: target texture clear: Color white commandBuffer: cmd.
+	renderer render: aDisplayList into: target texture clear: Color paper commandBuffer: cmd.
 	cmd submit.
 	form := target readback.
 	target release.
@@ -525,7 +525,7 @@ present: t0 now: now
 	drawUs := drawUs + (self frameClock - t).
 	t := self frameClock.
 	gpuStart isNil ifTrue: [gpuStart := t].
-	shown := displayWindow show: list clear: Color white.
+	shown := displayWindow show: list clear: Color desk.
 	"The upload has copied these bytes; screenshots use independently owned lists."
 	compositeBytes := list vertices.
 	fenceAt := self frameClock.

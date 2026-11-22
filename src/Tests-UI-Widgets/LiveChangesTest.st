@@ -94,6 +94,6 @@ testDeskIsSmalltalk
 	| desk |
 	desk := 900 @ 600.
 	self deny: (self pixel: desk is: Color ultramarine).
-	self edit: World selector: #drawDeskOn: replacing: 'pattern: #halftone in: self bounds color: Color black' with: 'fillRect: self bounds color: Color ultramarine'.
+	self edit: World selector: #drawDeskOn: replacing: 'pattern: #halftone in: self bounds color: Color deskDots' with: 'fillRect: self bounds color: Color ultramarine'.
 	self assert: (self waitFor: [self pixel: desk is: Color ultramarine])
 ! !

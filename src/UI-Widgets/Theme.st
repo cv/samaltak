@@ -1,5 +1,5 @@
 Object subclass: #Theme
-	instanceVariableNames: 'name colors fonts metrics syntax'
+	instanceVariableNames: 'name colors fonts metrics syntax terminal'
 	classVariableNames: 'Current'
 	package: 'UI-Widgets'!
 
@@ -45,7 +45,10 @@ initializeBlueBook
 		at: #l2 put: (Color hex: 16r4A63A6);
 		at: #l3 put: (Color hex: 16r7D8FBF);
 		at: #l4 put: (Color hex: 16rB4BDD8);
-		at: #l5 put: (Color hex: 16rDDE1EC).
+		at: #l5 put: (Color hex: 16rDDE1EC);
+		at: #shadow put: Color black;
+		at: #desk put: Color white;
+		at: #deskDots put: Color black.
 	metrics
 		at: #rowHeight put: 19;
 		at: #groupRowHeight put: 20;
@@ -85,6 +88,7 @@ refresh
 	"My definition changed: define my colors and metrics again (fonts are kept), forget the syntax styles and publish the palette."
 	self initializeBlueBook.
 	syntax := nil.
+	terminal := nil.
 	self publishPalette
 !
 publishPalette
@@ -171,6 +175,15 @@ muted
 !
 layerColor: anInteger
 	^self color: (#(#l0 #l1 #l2 #l3 #l4 #l5) at: ((anInteger max: 0) min: 5) + 1)
+!
+ansiColors
+	"The 16 ANSI colors of the Terminal (kept until my colors change)."
+	^terminal ifNil: [terminal := self terminalPalette]
+!
+terminalPalette
+	"The 16 ANSI colors: tuned for black on white with ultramarine as blue."
+	^#(16r000000 16rB3261E 16r2E7D32 16r8A6A00 16r1B3A8C 16r8E3B8E 16r1E7A84 16rB8B8B8
+		16r6B6B6B 16rD7372C 16r3C9A46 16rB08A00 16r4A63A6 16rB052B0 16r2A9AA8 16rFFFFFF) collect: [:hex | Color hex: hex]
 ! !
 
 !Theme methodsFor: 'syntax'!

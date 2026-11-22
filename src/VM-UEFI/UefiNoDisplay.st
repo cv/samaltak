@@ -120,6 +120,15 @@ claimWindow: dev window: win
 	common setError: 'not on UEFI'.
 	^false
 !
+compileShader: source stage: stage size: sizeOut
+	<function>
+	<var: #source type: 'char *'>
+	<var: #stage type: 'int32_t'>
+	<var: #sizeOut type: 'size_t *'>
+	<returns: 'void *'>
+	common setError: 'not on UEFI'.
+	^self null
+!
 createBuffer: dev usage: usage size: size
 	<function>
 	<var: #dev type: 'int32_t'>
@@ -188,15 +197,6 @@ createShader: dev spirv: code size: n entry: entry stage: stage samplers: sample
 	<returns: 'int32_t'>
 	common setError: 'not on UEFI'.
 	^0
-!
-compileShader: source stage: stage size: sizeOut
-	<function>
-	<var: #source type: 'char *'>
-	<var: #stage type: 'int32_t'>
-	<var: #sizeOut type: 'size_t *'>
-	<returns: 'void *'>
-	common setError: 'not on UEFI'.
-	^self null
 !
 createTexture: dev width: w height: h format: format usage: usage
 	<function>

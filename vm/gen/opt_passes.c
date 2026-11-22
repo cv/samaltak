@@ -31,6 +31,7 @@ static void count_uses(void);
 static void dominators(int32_t entry);
 static void drop_boxes(void);
 static void drop_int_checks(void);
+static void equality_compares(void);
 static void find_loops(void);
 static bool fold_int_tests(void);
 static void forward_unboxes(void);
@@ -408,6 +409,11 @@ void cleanup(int32_t entry)
         hoist_guards();
         drop_int_checks();
         resolve_operands();
+        if ((jit_flags & JIT_FLAG_GVN) != 0) {
+            value_numbers();
+            drop_int_checks();
+            resolve_operands();
+        }
     }
     if (opt_full) {
         return;
@@ -416,6 +422,7 @@ void cleanup(int32_t entry)
     count_uses();
     remove_dead();
     count_uses();
+    equality_compares();
 }
 
 /* OptPasses>>computeOrder: */
@@ -885,6 +892,35 @@ static void drop_int_checks(void)
     (int32_t)(opt_nodes + n_2)->tkind == T_SMI; })))) {
             nd->fwd = opt_ir_resolve(nd->a);
             opt_ir_unlink(n);
+        }
+    }
+}
+
+/* OptPasses>>equalityCompares */
+static void equality_compares(void)
+{
+    int32_t n;
+    opt_node *nd;
+    int32_t n_2;
+    opt_node *x;
+    int32_t n_3;
+    opt_node *y;
+    int32_t n_4;
+    for (n = 0; n <= opt_node_count - 1; n++) {
+        nd = opt_nodes + n;
+        if ((nd->block >= 0) && (((int32_t)nd->op == O_ICMP) && ((nd->aux == 6) || (nd->aux == 7)))) {
+            n_2 = opt_ir_resolve(nd->a);
+            x = opt_nodes + n_2;
+            n_3 = opt_ir_resolve(nd->b);
+            y = opt_nodes + n_3;
+            if (!((int32_t)x->op == O_STRCMP)) {
+                y = x;
+                n_4 = opt_ir_resolve(nd->b);
+                x = opt_nodes + n_4;
+            }
+            if (((int32_t)x->op == O_STRCMP) && ((x->uses == 1) && (((int32_t)y->op == O_CONST) && (y->aux == 1LL)))) {
+                x->flags = x->flags | NF_EQONLY;
+            }
         }
     }
 }

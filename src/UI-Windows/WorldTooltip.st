@@ -31,10 +31,10 @@ bounds
 drawOn: c
 	| box |
 	box := self bounds.
-	c fillRect: (box translateBy: 1 @ 1) color: Color black.
-	c fillRect: box color: Color white.
-	c strokeRect: box color: Color black width: 1.
-	c drawString: text at: box origin + (6 @ 3) font: self font color: Color black
+	c fillRect: (box translateBy: 1 @ 1) color: Color shadow.
+	c fillRect: box color: Color paper.
+	c strokeRect: box color: Color ink width: 1.
+	c drawString: text at: box origin + (6 @ 3) font: self font color: Color ink
 ! !
 
 !WorldTooltip methodsFor: 'remote control'!

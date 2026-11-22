@@ -116,7 +116,7 @@ line: startPoint to: endPoint color: aColor width: lineWidth
 		width: lineWidth * scale color: (self pack: aColor)
 !
 pattern: aSymbol in: aRectangle
-	self pattern: aSymbol in: aRectangle color: Color black
+	self pattern: aSymbol in: aRectangle color: Color ink
 !
 pattern: aSymbol in: aRectangle color: aColor
 	"Fill aRectangle with a procedural pattern, computed per device pixel from the rectangle's top-left: #halftone (the Blue Book desk: a 1-point dot in every 2×2-point cell), #stripes (1-point horizontal lines, 1 point apart: focused title bars), #verticalStripes, #diagonalStripes (4-point bands at 45 degrees: busy bars), #checkerboard."

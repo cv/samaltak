@@ -1880,7 +1880,7 @@ emitReplace: n slow: slow done: done
 		self emitZeroSlotsOf: X16 from: X17 count: self scratchB]
 !
 emitString: n
-	"String>>hash (O_STRHASH) or compareWith: (O_STRCMP) of bytes: compareWith:'s argument checked to be bytes (NF_GUARD: else deoptimize), then the string hash or compare stub (x16 the receiver, x17 the argument, the result in x16)."
+	"String>>hash (O_STRHASH) or compareWith: (O_STRCMP) of bytes: compareWith:'s argument checked to be bytes (NF_GUARD: else deoptimize), then the string hash, compare or, where only = 0 uses it (NF_EQONLY), equal stub (x16 the receiver, x17 the argument, the result in x16)."
 	| nd s x |
 	nd := ir node: n.
 	(nd flags bitAnd: NF_GUARD) ~= 0 ifTrue: [
@@ -1901,8 +1901,13 @@ emitString: n
 		ifFalse: [
 			x := self src: nd b into: X17.
 			x ~= X17 ifTrue: [asm mov: X17 with: x].
-			asm comment: 'compareWith: of bytes: the string compare stub'.
-			asm bl: (asm labelAt: stubs blStringCompareStub)].
+			(nd flags bitAnd: NF_EQONLY) ~= 0
+				ifTrue: [
+					asm comment: 'compareWith: of bytes, only = 0 used: the string equal stub'.
+					asm bl: (asm labelAt: stubs blStringEqualStub)]
+				ifFalse: [
+					asm comment: 'compareWith: of bytes: the string compare stub'.
+					asm bl: (asm labelAt: stubs blStringCompareStub)]].
 	self def: n from: X16
 !
 emitKindCheck: f shift: s slow: slow

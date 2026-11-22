@@ -1,5 +1,5 @@
 OptModule subclass: #OptBuilder
-	instanceVariableNames: 'ir obCurBlock obBailed obVarTop obDefKeys obDefVals obDefCount obIncPhis obIncVars obIncCount obAnaMethods obAnaBases obAnaCount obAnaTop obAnaDepth obAnaFlag obAnaBack obPcBlocks obPcbTop obEntryBlock obRootMethod obInlined obDeps obDepCount obPrimKinds obPrimsKnown obNoInline obNoInlineCount obArgVals obArgFlags obUnitStart obOsrPc obParamSlots obValidSlots obSafeEpoch obAnaFloat obAnaInts obResident obChecked obCheckedCount obCheckedBlock obCheckedEpoch obFrame obSpecParam obSpecInfo obSpecCount obForeign obForeignM obForeignS obForeignDepth obNoForeignM obNoForeignS obNoForeignCount obPerformAct obPerformPc obPerformSlot obPerformCount obPerformVals obAnaLive obNilConst'
+	instanceVariableNames: 'ir obCurBlock obBailed obVarTop obDefKeys obDefVals obDefCount obIncPhis obIncVars obIncCount obAnaMethods obAnaBases obAnaCount obAnaTop obAnaDepth obAnaFlag obAnaBack obPcBlocks obPcbTop obEntryBlock obRootMethod obInlined obDeps obDepCount obPrimKinds obPrimsKnown obNoInline obNoInlineCount obArgVals obArgFlags obUnitStart obOsrPc obParamSlots obValidSlots obSafeEpoch obAnaFloat obAnaInts obResident obChecked obCheckedCount obCheckedBlock obCheckedEpoch obFrame obSpecParam obSpecInfo obSpecCount obForeign obForeignM obForeignS obForeignDepth obNoForeignM obNoForeignS obNoForeignCount obPerformAct obPerformPc obPerformSlot obPerformCount obPerformVals obAnaLive obNilConst obConstVals obConstNodes'
 	classVariableNames: 'OA_BLOCK OA_LOOP OA_START OA_TARGET OPT_MAX_VARS OPT_MAX_NOINLINE OPT_MAX_PRIM OPK_AT OPK_FLOAT OPK_FSQRT OPK_NEW OPK_NEWSIZE OPK_CLOSURE OPK_ATPUT OPK_CLASS OPK_IDENTICAL OPK_INT OPK_SIZE OPK_STRINGAT OPK_STRINGATPUT OPT_INLINE_BUDGET OPT_INLINE_DEPTH OPT_INLINE_SIZE OPT_MAX_ANA OPT_MAX_DEPS OPT_MAX_INC OPK_CHARVALUE OPK_CHARFROM OPK_REPLACE OPK_STRHASH OPK_STRCMP'
 	package: 'VM-Jit'!
 
@@ -16,7 +16,7 @@ declarations
 		(obInlined int32_t) (obDeps 'oop[OPT_MAX_DEPS]') (obDepCount int32_t) (obPrimKinds 'uint8_t[OPT_MAX_PRIM]') (obPrimsKnown bool)
 		(obNoInline 'oop[OPT_MAX_NOINLINE]') (obNoInlineCount int32_t) (obArgVals 'int32_t[OPT_MAX_VARS]') (obArgFlags 'uint8_t[OPT_MAX_VARS]') (obUnitStart int32_t) (obOsrPc int32_t) (obParamSlots int32_t) (obValidSlots int32_t) (obSafeEpoch int32_t) (obAnaFloat 'bool[OPT_MAX_ANA]') (obAnaInts 'bool[OPT_MAX_ANA]') (obResident bool) (obChecked 'int32_t[8]') (obCheckedCount int32_t) (obCheckedBlock int32_t) (obCheckedEpoch int32_t) (obFrame 'Frame *') (obSpecParam 'int32_t[8]') (obSpecInfo 'int32_t[8]') (obSpecCount int32_t) (obForeign bool) (obForeignM 'oop[8]') (obForeignS 'int32_t[8]') (obForeignDepth int32_t) (obNoForeignM 'oop[8]') (obNoForeignS 'int32_t[8]') (obNoForeignCount int32_t)
 		(obPerformAct int32_t) (obPerformPc int32_t) (obPerformSlot int32_t) (obPerformCount int32_t) (obPerformVals 'int32_t[8]')
-		(obAnaLive 'uint64_t[OPT_ANA_MAX]') (obNilConst int32_t))
+		(obAnaLive 'uint64_t[OPT_ANA_MAX]') (obNilConst int32_t) (obConstVals 'uint64_t[256]') (obConstNodes 'int32_t[256]'))
 !
 initialize
 	OPT_MAX_INC := 16384.
@@ -125,6 +125,7 @@ buildOnce: m
 	obForeignDepth := 0.
 	obPerformAct := -1.
 	obNilConst := -1.
+	0 to: 255 do: [:i | obConstNodes at: i put: -1].
 	a := obUnitStart > 0 ifTrue: [self newBlockActFor: m start: obUnitStart] ifFalse: [self newActFor: m].
 	a < 0 ifTrue: [^false].
 	obEntryBlock := ir newBlock.
@@ -805,9 +806,15 @@ param: i
 	^n
 !
 constant: v
-	"A constant oop (in the entry block, so that it dominates every use)."
+	"A constant oop (in the entry block, so that it dominates every use): one node per value (up to 256 values a unit), so that the values merged of equal constants are that constant (a branch on it folds where it is built)."
 	<function>
-	| n nd |
+	| n nd i k |
+	i := ((v * 2654435761) >> 8 bitAnd: 255) asInt32.
+	k := 0.
+	[k < 256 and: [(obConstNodes at: i) >= 0 and: [(obConstVals at: i) ~= v]]] whileTrue: [
+		i := i + 1 bitAnd: 255.
+		k := k + 1].
+	(k < 256 and: [(obConstNodes at: i) >= 0 and: [(ir node: (obConstNodes at: i)) block >= 0]]) ifTrue: [^obConstNodes at: i].
 	n := ir newNode: O_CONST rep: R_OOP.
 	nd := ir node: n.
 	nd aux: v asInt64.
@@ -825,6 +832,9 @@ constant: v
 				ifTrue: [ir insert: n before: (ir block: obEntryBlock) last]
 				ifFalse: [ir append: n to: obEntryBlock]]
 		ifFalse: [ir append: n to: obEntryBlock].
+	(k < 256 and: [(obConstNodes at: i) < 0]) ifTrue: [
+		obConstVals at: i put: v.
+		obConstNodes at: i put: n].
 	^n
 !
 binary: op a: x b: y
@@ -1858,7 +1868,8 @@ stringPrimitive: kind spec: spec argc: argc pc: pc act: a rcvSlot: r
 	| rcv x n s |
 	spec >= F_BYTES ifFalse: [^false].
 	rcv := self read: (self var: a slot: r).
-	(kind = OPK_STRHASH and: [argc = 0]) ifTrue: [
+	"the stub hashes by words of 8 bytes: an image hashed by FNV-1a calls the primitive"
+	(kind = OPK_STRHASH and: [argc = 0 and: [memory wordHash]]) ifTrue: [
 		n := self add: O_STRHASH rep: R_OOP.
 		(ir node: n) a: rcv.
 		(ir node: n) flags: NF_PURE.

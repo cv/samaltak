@@ -1,6 +1,6 @@
 Object subclass: #Font
 	instanceVariableNames: 'face size scale letterSpacing lineHeight baselineOffset uppercase pixelsPerUnit phases glyphTable wideGlyphs deviceAdvances wideAdvances atlas'
-	classVariableNames: 'DeviceScale Emoji Faces Fallbacks FontsDirectory RasterizeLock Standard SubpixelPhases'
+	classVariableNames: 'DeviceScale Emoji Faces Fallbacks FontsDirectory RasterizeLock Standard SubpixelPhases Substitutes'
 	package: 'Graphics-Canvas'!
 
 Font comment: 'I am a TrueTypeFont at a pixel size (CSS px = points) for a device scale (2 on Retina), with optional letter spacing and capitals (for tracked-caps headers). I answer metrics in points (ascent, descent, lineHeight, widthOf:) and supply Canvas with rasterized glyphs: each glyph is rasterized lazily at device resolution for one of SubpixelPhases horizontal subpixel offsets and kept in the shared GlyphAtlas.
@@ -399,13 +399,26 @@ fontsDirectory: aPath
 	FontsDirectory := aPath
 !
 faceNamed: aString
-	"Answer the TrueTypeFont of fonts/<aString>.ttf: the one in the image, else the file's, read as it is needed (the faces of imageFaceNames are in the image; the runtime image has none)."
+	"Answer the TrueTypeFont of fonts/<aString>.ttf: the face substituted for it (substituteFace:with:), else the one in the image, else the file's, read as it is needed (the faces of imageFaceNames are in the image; the runtime image has none)."
+	(Substitutes notNil and: [Substitutes includesKey: aString]) ifTrue: [^Substitutes at: aString].
 	Faces isNil ifTrue: [Faces := Dictionary new].
 	^Faces at: aString ifAbsent: [
 		Faces at: aString put: (TrueTypeFont fromFile: self fontsDirectory , '/' , aString , '.ttf')]
 !
 faces
 	^Faces ifNil: [Dictionary new]
+!
+substituteFace: aFaceName with: aTrueTypeFontOrNil
+	"Draw the face aFaceName (a standard one: JetBrainsMono-Regular ...) in aTrueTypeFontOrNil from now on, e.g. a theme's typeface; nil: in its own again. The standard fonts are made anew."
+	Substitutes isNil ifTrue: [Substitutes := Dictionary new].
+	aTrueTypeFontOrNil isNil
+		ifTrue: [Substitutes removeKey: aFaceName ifAbsent: []]
+		ifFalse: [Substitutes at: aFaceName put: aTrueTypeFontOrNil].
+	Standard := nil
+!
+substitutes
+	"The substituted faces by name."
+	^Substitutes ifNil: [Dictionary new]
 !
 faceFromFile: aPath
 	"A face from a .ttf file outside fonts/, e.g. a system font fontconfig names, read as it is needed (not kept in faces)."

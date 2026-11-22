@@ -383,6 +383,7 @@ typedef void (*prim_fn)(void);
 #define NF_ALLOC 8
 #define NF_BLOCKCALL 16
 #define NF_DEAD 2
+#define NF_EQONLY 8192
 #define NF_GUARD 4
 #define NF_HOISTED 64
 #define NF_INRANGE 2048
@@ -937,7 +938,7 @@ struct image_header {
     uint64_t base;
     uint64_t specials;
     uint64_t hash_seed;
-    uint64_t reserved;
+    uint64_t string_hash;
 };
 _Static_assert(sizeof(image_header) == 64, "the simulator lays out ImageHeader as C does");
 
@@ -1417,6 +1418,7 @@ extern uint64_t bl_remember;
 extern uint64_t bl_return_slow;
 extern uint64_t bl_sent;
 extern uint64_t bl_str_cmp;
+extern uint64_t bl_str_eq;
 extern uint64_t bl_str_hash;
 extern uint64_t closure_stub;
 extern uint64_t context_field_stub;
@@ -1453,6 +1455,7 @@ extern int32_t root_count;
 extern oop *root_stack[1024];
 extern oop specials_oop;
 extern oop true_oop;
+extern bool word_hash;
 extern int32_t ob_ana_count;
 extern oop ob_ana_methods[256];
 extern int32_t ob_dep_count;

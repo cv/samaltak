@@ -35,8 +35,8 @@ drawSelfOn: aCanvas
 	font := self font.
 	color := self theme ink.
 	item kind == #user ifTrue: [
-		aCanvas fillRect: (0 @ 0 extent: self width @ self height) color: Color black.
-		color := Color white].
+		aCanvas fillRect: (0 @ 0 extent: self width @ self height) color: self theme ink.
+		color := self theme paper].
 	item kind == #error ifTrue: [
 		color := self theme ultramarine.
 		aCanvas drawString: 'Error' in: (0 @ self top extent: (self gutterWidth - 12) @ font lineHeight)

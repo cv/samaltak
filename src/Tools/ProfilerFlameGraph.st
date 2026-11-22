@@ -265,7 +265,8 @@ drawSelfOn: aCanvas
 	| font bold advance boldAdvance clip area picked fading px sm tm rh cl cr ct cb |
 	paper := self theme paper.
 	ink := self theme ink.
-	ancestorColor isNil ifTrue: [ancestorColor := paper mixed: (self theme color: #wash) alpha with: ink. halftoneColor := Color black alpha: 0.12].
+	ancestorColor := paper mixed: (self theme color: #wash) alpha with: ink.
+	halftoneColor := ink alpha: 0.12.
 	aCanvas fillRect: self localBounds color: paper.
 	area := self sideMargin @ self topMargin corner: (self width - self sideMargin) @ self height.
 	aCanvas fillRect: (area origin extent: area width @ 1) color: ink.

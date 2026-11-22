@@ -1,6 +1,6 @@
 Widget subclass: #TerminalView
 	instanceVariableNames: 'screen parser font boldFont italicFont cellWidth cellHeight scrollOffset anchor point selection selectionSerials selecting rowDrawings colors scaledFonts cursorOn blinkTimer swallowText onSend onResize onTitle drawnTitleSerial lastScrolledTotal exitStatus'
-	classVariableNames: 'BoxArms Palette'
+	classVariableNames: 'BoxArms'
 	package: 'Tools'!
 
 TerminalView comment: 'I am the screen of a Terminal: I draw a TerminalScreen (JetBrains Mono on white, the 16 ANSI colors tuned to the Blue Book theme, 256 colors and truecolor), its scrollback (wheel; shift-page up/down), a blinking block cursor (the caret blink of the Theme) and a mouse selection (drag, double-click a word, triple-click a line; ⌘C copies, ⌘V pastes — bracketed when the program asked for it). A wide character is drawn centered across its two cells (smaller if its glyph is wider), and selected and copied whole; zero-width characters are drawn over the character they follow and copied with it. A wide cell''s grapheme cluster is drawn whole in its two cells (an emoji in color when Twemoji has it, else as text), under the cursor too, which covers both cells. Keys become what an xterm sends: arrows (application cursor mode too), home/end, page up/down, delete, backspace (DEL), tab, return (CR), escape, control letters, ⌥ as meta (an ESC prefix; ⌥←/⌥→ move by words); typed text is sent as UTF-8.
@@ -727,9 +727,8 @@ boxArms
 
 !TerminalView class methodsFor: 'colors'!
 palette
-	"The 16 ANSI colors, tuned for black on white with ultramarine as blue."
-	^Palette ifNil: [Palette := #(16r000000 16rB3261E 16r2E7D32 16r8A6A00 16r1B3A8C 16r8E3B8E 16r1E7A84 16rB8B8B8
-		16r6B6B6B 16rD7372C 16r3C9A46 16rB08A00 16r4A63A6 16rB052B0 16r2A9AA8 16rFFFFFF) collect: [:hex | Color hex: hex]]
+	"The 16 ANSI colors: the current theme's (Theme>>ansiColors; the Blue Book's are tuned for black on white with ultramarine as blue)."
+	^Theme current ansiColors
 !
 colorOf: code
 	"The Color of a TerminalScreen color code (1-256: palette index + 1, else 16r1000000 + RGB)."

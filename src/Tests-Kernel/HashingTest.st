@@ -19,6 +19,42 @@ testEqualObjectsHaveEqualHashes
 	self assert: (3 @ 4) hash = (3 @ 4) hash.
 	self assert: (Set withAll: #(1 2)) hash = (Set withAll: #(2 1)) hash
 !
+testStringHash
+	"String>>hash (the primitive) is its definition in Smalltalk (its fallback, the image builder's): of more than 8 code points all below 256 8 to a 64-bit word, else FNV-1a; equal for a ByteString, a WideString holding the same code points and a Symbol, every size to 40; and spread over the low bits, which hashed collections use."
+	| def strings low |
+	def := [:str | | m h w k |
+		(str size <= 8 or: [str anySatisfy: [:c | c value > 255]])
+			ifTrue: [
+				h := 2166136261.
+				str do: [:c | h := ((h bitXor: c value) * 16777619) bitAnd: 16rFFFFFFFF].
+				h bitAnd: 16r3FFFFFFF]
+			ifFalse: [
+				m := 16rFFFFFFFFFFFFFFFF.
+				h := str size.
+				w := 0.
+				k := 0.
+				str do: [:c |
+					w := w bitOr: (c value bitShift: 8 * k).
+					k := k + 1.
+					k = 8 ifTrue: [
+						h := ((h bitXor: w) * 16r5851F42D4C957F2D) bitAnd: m.
+						w := 0.
+						k := 0]].
+				k > 0 ifTrue: [h := ((h bitXor: w) * 16r5851F42D4C957F2D) bitAnd: m].
+				h := h bitXor: (h bitShift: -32).
+				h := (h * 16r2545F4914F6CDD1D) bitAnd: m.
+				h := h bitXor: (h bitShift: -29).
+				h bitAnd: 16r3FFFFFFF]].
+	strings := (0 to: 40) collect: [:n | (String new: n) collect: [:x | Character value: 200 + n \\ 50]].
+	strings := strings , ((0 to: 40) collect: [:n | String withAll: ((1 to: n) collect: [:i | Character value: 97 + (i * 7 \\ 26)])]).
+	strings := strings , {String with: (Character value: 955). (String new: 9 withAll: $a) , (String with: (Character value: 300))}.
+	strings do: [:str |
+		self assert: str hash equals: (def value: str).
+		self assert: str asWideString hash equals: str hash.
+		self assert: str asSymbol hash equals: str hash].
+	low := (1 to: 4096) collect: [:i | i printString hash bitAnd: 4095].
+	self assert: low asSet size > 2400
+!
 testSet
 	| s |
 	s := Set new.
