@@ -7,7 +7,10 @@ AgentWindowTest comment: 'I test the Agent window in a real World without a netw
 
 !AgentWindowTest methodsFor: 'running'!
 setUp
+	| saved |
 	super setUp.
+	saved := AgentWindow accountSetting.
+	self addCleanup: [AgentWindow account: saved].
 	account := AgentTestAccount new.
 	AgentWindow account: account.
 	provider := ScriptedProvider new
@@ -15,7 +18,6 @@ setUp
 tearDown
 	(self windowsOf: AgentWindow) do: [:w | w content conversation stop].
 	debugged isNil ifFalse: [debugged terminate].
-	AgentWindow account: nil.
 	super tearDown
 ! !
 

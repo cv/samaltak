@@ -1,29 +1,32 @@
 TestCase subclass: #ToolsTestCase
-	instanceVariableNames: 'world previous previousFiler previousMenu previousInterrupt'
+	instanceVariableNames: 'world breakpoints watchpoints'
 	classVariableNames: ''
 	package: 'Tests-Tools'!
 
-ToolsTestCase comment: 'I am the abstract superclass of the tools'' integration tests: each test runs a real World on a hidden 1440×900 host window, opens real tool windows (each with its own Process), drives them with injected platform events (the path real and remote input take) or with the widgets'' own protocol run in the window''s Process (Window>>sync:), and checks the real effects: compiled methods, Breakpoints, Watchpoints, Processes. Source writing is off unless a test points SourceFiler at a scratch copy.'!
+ToolsTestCase comment: 'I am the abstract superclass of the tools'' integration tests: each test runs a real World on a hidden 1440×900 host window, opens real tool windows (each with its own Process), drives them with injected platform events (the path real and remote input take) or with the widgets'' own protocol run in the window''s Process (Window>>sync:), and checks the real effects: compiled methods, Breakpoints, Watchpoints, Processes. Source writing is off unless a test points SourceFiler at a scratch copy. What a test replaces (World current, SourceFiler default, the World menu and interrupt handler) comes back after it, and only the breakpoints and watchpoints it set are removed.'!
 
 !ToolsTestCase methodsFor: 'running'!
 setUp
-	previous := World current.
-	previousFiler := SourceFiler default.
-	SourceFiler default: (SourceFiler new sourceDirectory: nil; yourself).
-	previousMenu := World worldMenuBuilder.
-	previousInterrupt := World userInterruptHandler.
+	self keep: #current of: World.
+	self replace: #default of: SourceFiler with: (SourceFiler new sourceDirectory: nil; yourself).
+	self keep: #worldMenuBuilder of: World.
+	self keep: #userInterruptHandler of: World.
+	breakpoints := Breakpoint all.
+	watchpoints := Watchpoint all.
 	Tools installHooks.
 	world := World openHidden: 1440 @ 900
 !
 tearDown
-	Breakpoint removeAll.
-	Watchpoint removeAll.
-	self terminateForkedProcesses.
-	self terminateDoIts.
-	world isNil ifFalse: [world stop].
-	World current: previous.
-	World worldMenuBuilder: previousMenu; userInterruptHandler: previousInterrupt.
-	SourceFiler default: previousFiler
+	[self removeBreakpoints.
+	 self terminateForkedProcesses.
+	 self terminateDoIts]
+		ensure: [world isNil ifFalse: [world stop]]
+!
+removeBreakpoints
+	"Remove the breakpoints and watchpoints this test set; those the image had before it stay."
+	breakpoints isNil ifTrue: [^self].
+	(Breakpoint all reject: [:each | breakpoints includes: each]) do: [:each | each remove].
+	(Watchpoint all reject: [:each | watchpoints includes: each]) do: [:each | each unwatch]
 !
 timeLimitMilliseconds
 	^60000

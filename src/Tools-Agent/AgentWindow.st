@@ -8,7 +8,7 @@ AgentWindow comment: 'I am the Agent window (docs/agent.md, prototypes/5-agent/6
 The conversation notifies me in its turn''s Process; I redraw in my window''s Process, at most one update queued at a time. The account and the provider block on the network: I call them from other Processes only. Closing me stops a running turn and cancels a pending login.
 
 	AgentWindow openFor: aWorkspace
-	AgentWindow account: anAccountDouble   "tests; nil: ApiKeyAccount default if configured, else OpenAIAccount default"
+	AgentWindow account: anAccountDouble   "tests: for the windows opened afterwards; nil: ApiKeyAccount default if configured, else OpenAIAccount default (defaultAccount)"
 
 Remote names: transcript (items user-3, code-4, show-5 with its inspect button …), login (sign-in url code copy message), ask, send, stop, status, sign-out.'!
 
@@ -65,8 +65,8 @@ origin
 	^origin
 !
 account
-	"The account set, else the one AgentWindow account answers now."
-	^account ifNil: [self class account]
+	"The account set (the one a test set when I opened), else the image's now (AgentWindow defaultAccount)."
+	^account ifNil: [self class defaultAccount]
 !
 transcript
 	^transcript
@@ -187,11 +187,20 @@ focusOrigin
 
 !AgentWindow class methodsFor: 'accessing'!
 account
-	"The account windows use: the one a test set, else ApiKeyAccount default while it isConfigured, else OpenAIAccount default."
-	^Account ifNil: [ApiKeyAccount default isConfigured ifTrue: [ApiKeyAccount default] ifFalse: [OpenAIAccount default]]
+	"The account windows opened now use: the one a test set, else defaultAccount."
+	^Account ifNil: [self defaultAccount]
 !
 account: anAccountOrNil
+	"Make the windows opened from now on use anAccountOrNil (tests); windows already open keep theirs."
 	Account := anAccountOrNil
+!
+accountSetting
+	"What account: set (tests put it back)."
+	^Account
+!
+defaultAccount
+	"The image's: ApiKeyAccount default while it isConfigured, else OpenAIAccount default."
+	^ApiKeyAccount default isConfigured ifTrue: [ApiKeyAccount default] ifFalse: [OpenAIAccount default]
 ! !
 
 !AgentWindow class methodsFor: 'opening'!

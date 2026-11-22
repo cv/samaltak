@@ -11,8 +11,7 @@ setUp
 	world := World openHidden: 1000 @ 700
 !
 tearDown
-	world isNil ifFalse: [world stop].
-	World current: previous
+	[world isNil ifFalse: [world stop]] ensure: [World current: previous]
 !
 timeLimitMilliseconds
 	^30000
