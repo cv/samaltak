@@ -290,6 +290,47 @@ testLargeCertificate
 	self assert: connection peerCertificates first dnsNames size equals: 1501.
 	self assert: ((self get: '/' over: connection) asString beginsWith: 'HTTP/1.0 200 ok')
 !
+testManySequentialConnections
+	"100 connections in a row, TLS 1.3 and 1.2 in turn, each a GET: no handle is left open."
+	| port12 port13 before |
+	port13 := self startServer: '-cert ec.pem -key ec.key -www -naccept 100'.
+	port12 := self startServer12: '-cert ec.pem -key ec.key -www -naccept 100'.
+	before := Smalltalk vm platformHandleCounts at: #sockets.
+	1 to: 100 do: [:i | | connection |
+		connection := self handshake: (self connect: (i odd ifTrue: [port13] ifFalse: [port12]) host: 'localhost').
+		self assert: connection version equals: (i odd ifTrue: [16r0304] ifFalse: [16r0303]).
+		self assert: ((self get: '/' over: connection) asString beginsWith: 'HTTP/1.0 200 ok')].
+	self assert: (Smalltalk vm platformHandleCounts at: #sockets) equals: before
+!
+testCloseWhileReceiving
+	"Another Process closes the connection while one waits to receive (cancelling it): the receiver sees the end (0) at once, not an error or its timeout."
+	| port connection outcome start |
+	port := self startServer: self rsa, '-rev'.
+	connection := self handshake: (self connect: port host: 'localhost').
+	self fork: [
+		outcome := [connection receiveInto: (ByteArray new: 100) timeout: 10000] on: TLSError do: [:e | e messageText]].
+	(Delay forMilliseconds: 100) wait.
+	self assert: outcome isNil.
+	start := Time millisecondClockValue.
+	connection close.
+	self assert: (self waitFor: [outcome notNil]).
+	self assert: outcome equals: 0.
+	self assert: Time millisecondClockValue - start < 5000
+!
+testReceiveTimeout
+	"Nothing to read within the timeout answers nil and leaves the connection usable."
+	| port connection buffer start n |
+	port := self startServer: self rsa, '-rev'.
+	connection := self handshake: (self connect: port host: 'localhost').
+	buffer := ByteArray new: 100.
+	start := Time millisecondClockValue.
+	self assert: (connection receiveInto: buffer timeout: 200) isNil.
+	self assert: Time millisecondClockValue - start >= 200.
+	self assert: (connection sendAll: 'abc', String lf).
+	n := connection receiveInto: buffer timeout: 5000.
+	self assert: ((buffer copyFrom: 1 to: n) asString includesSubstring: 'cba').
+	connection close
+!
 testHTTPClient
 	| port response |
 	port := self startServer: self rsa, '-www'.

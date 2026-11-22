@@ -3,20 +3,20 @@ Object subclass: #TLSClientConnection
 	classVariableNames: ''
 	package: 'System-TLS'!
 
-TLSClientConnection comment: 'I am the client of a TLS 1.3 connection (RFC 8446; no TLS 1.2, no PSK or 0-RTT, no client certificate) over a connected byte socket: anything that answers sendAll: (a Boolean), receiveInto:timeout: (bytes received, 0 at the end of the stream, nil after the timeout), isOpen and close, like a RemoteSocket, so on UEFI over the image''s TCP/IP stack.
+TLSClientConnection comment: 'I am the client of a TLS 1.3 connection (RFC 8446; no PSK or 0-RTT, no client certificate), or of a TLS 1.2 one with a server that has no TLS 1.3 (RFC 5246: ECDHE with ECDSA or RSA and an AEAD; extended master secret, secure renegotiation required, no resumption or renegotiation) over a connected byte socket: anything that answers sendAll: (a Boolean), receiveInto:timeout: (bytes received, 0 at the end of the stream, nil after the timeout), isOpen and close, like a RemoteSocket, so on UEFI over the image''s TCP/IP stack.
 
 	c := TLSClientConnection on: (RemoteSocket connectTo: ''example.com'' port: 443) host: ''example.com''.
 	c handshakeUntil: Time millisecondClockValue + 10000.
 	c sendAll: ''GET / HTTP/1.1'' ... ; receiveInto: buffer timeout: 5000.
 	c close
 
-Before the handshake: trustStore: (the roots the server''s certificate must chain to; TrustStore default unless set) or certificateValidator: (anything that answers validate:host:at:, signalling TLSError), protocols: (ALPN; #(''http/1.1'') by default, empty for none), cipherSuites: (TLSCipherSuites; all by default), keyShareGroups: (the groups the first ClientHello has key shares for, the first of the supported groups by default; empty forces a HelloRetryRequest), recordPadding: (pad the content of protected records to a multiple of that many bytes).
+Before the handshake: trustStore: (the roots the server''s certificate must chain to; TrustStore default unless set) or certificateValidator: (anything that answers validate:host:at:, signalling TLSError), protocols: (ALPN; #(''http/1.1'') by default, empty for none), cipherSuites: (TLSCipherSuites; all by default), keyShareGroups: (the groups the first ClientHello has key shares for, the first of the supported groups by default; empty forces a HelloRetryRequest), recordPadding: (pad the content of protected records to a multiple of that many bytes; TLS 1.3), versions: (16r0304 and 16r0303 by default: TLS 1.2 is offered with its suites, and a TLS 1.2 ServerHello carrying TLS 1.3''s downgrade sentinel is refused).
 
 handshakeUntil: deadline (a millisecondClockValue, nil for none) does the handshake: ClientHello with SNI (unless host is an IP address), supported groups (x25519, secp256r1), a key share (x25519), signature algorithms, ALPN and a session id (middlebox compatibility: a change_cipher_spec before the second flight); a HelloRetryRequest; ServerHello; the key schedule; EncryptedExtensions; Certificate, validated for host; CertificateVerify; Finished both ways (an empty Certificate first if the server asked for one). It signals TLSError if anything fails, after sending the alert that says why and closing the socket.
 
-Then: sendAll: (records of at most 2^14 bytes; false once the connection is gone), receiveInto:timeout: and receiveInto: (as a socket''s: 0 at the end, after the server''s close_notify, nil after the timeout; TLSError if the connection fails, closed), updateKeys (a KeyUpdate asking the server for one too; the server''s KeyUpdates are followed, NewSessionTickets ignored), close (close_notify, then the socket closes). One Process receives at a time; sending is mutually exclusive, also with the KeyUpdates receiving answers.
+Then: sendAll: (records of at most 2^14 bytes; false once the connection is gone), receiveInto:timeout: and receiveInto: (as a socket''s: 0 at the end, after the server''s close_notify, or once closed from another Process; nil after the timeout; TLSError if the connection fails, closed, also when the stream ends without close_notify: the data may have been cut short), updateKeys (a KeyUpdate asking the server for one too; the server''s KeyUpdates are followed, NewSessionTickets ignored), close (close_notify, then the socket closes). One Process receives at a time; sending is mutually exclusive, also with the KeyUpdates receiving answers.
 
-After it: cipherSuite, protocol (the one ALPN chose, or nil), peerCertificates (X509Certificates, the server''s first), wasRetried (whether the server sent a HelloRetryRequest), handshakeMilliseconds, failure (why it failed, or nil).'!
+After it: version (16r0304 or 16r0303), cipherSuite, keyExchangeGroup, protocol (the one ALPN chose, or nil), peerCertificates (X509Certificates, the server''s first), wasRetried (whether the server sent a HelloRetryRequest), handshakeMilliseconds, failure (why it failed, or nil).'!
 
 !TLSClientConnection methodsFor: 'initialization'!
 setSocket: aSocket host: aString

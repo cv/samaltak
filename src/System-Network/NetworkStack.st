@@ -1,6 +1,6 @@
 Object subclass: #NetworkStack
 	instanceVariableNames: 'interface mac address netmask gateway nameServers clock now wakeup process ticker running arp ipId random nextPort connections sockets dhcp resolver rxBuffer loopback counters arpCheck'
-	classVariableNames: 'Default LastError Probed'
+	classVariableNames: 'Default LastError ProbeLock Probed'
 	package: 'System-Network'!
 
 NetworkStack comment: 'I am a TCP/IP stack (IPv4) in the image, over a NetworkInterface''s Ethernet frames: where there are no sockets of an operating system (UEFI: the image''s driver of the NIC, or the VM''s nic primitives), RemoteSocket''s sockets are mine (active), so ControlServer, HTTPClient and the rest work unchanged. I do Ethernet, ARP (a cache with aging; the last packet for an address being resolved waits for the answer; a gratuitous request when an address is bound), IPv4 (to the gateway unless for the subnet; fragments dropped, none sent; 127/8 and my own address loop back), ICMP (echo answered; a port unreachable fails a connection being made) and UDP; DhcpClient configures me, DnsResolver looks names up, TcpConnection is TCP, NetSocket the handles RemoteSocket knows.
@@ -14,11 +14,14 @@ initialize
 
 !NetworkStack class methodsFor: 'the image''s stack'!
 active
-	"The stack RemoteSocket's sockets use: when the machine has a network interface instead of the platform's sockets (UEFI: NetworkInterface open), started on first use; else nil (the platform's sockets)."
-	Probed == true ifFalse: [
-		Probed := true.
-		Default := NetworkInterface open ifNotNil: [:nic | (self on: nic) start; startDhcp; yourself]].
-	^Default
+	"The stack RemoteSocket's sockets use: when the machine has a network interface instead of the platform's sockets (UEFI: NetworkInterface open), started on first use; else nil (the platform's sockets). Processes that ask while the first one opens the interface wait for it (they used to get nil: the platform's sockets, which UEFI has not)."
+	Probed == true ifTrue: [^Default].
+	ProbeLock isNil ifTrue: [ProbeLock := Semaphore forMutualExclusion].
+	^ProbeLock critical: [
+		Probed == true ifFalse: [
+			Default := NetworkInterface open ifNotNil: [:nic | (self on: nic) start; startDhcp; yourself].
+			Probed := true].
+		Default]
 !
 active: aStackOrNil
 	"Let RemoteSocket use aStackOrNil (tests); nil: whatever the VM has, asked again."
