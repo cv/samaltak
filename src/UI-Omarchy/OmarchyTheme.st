@@ -1,5 +1,5 @@
 Theme subclass: #OmarchyTheme
-	instanceVariableNames: 'directory userShellPath palette shell regular bold sized stamp'
+	instanceVariableNames: 'directory userShellPath palette shell regular bold italic sized stamp'
 	classVariableNames: 'Watcher'
 	package: 'UI-Omarchy'!
 
@@ -33,7 +33,8 @@ load
 	palette := self readTOML: directory, '/colors.toml'.
 	shell := self mergedShell.
 	stamp := self currentStamp.
-	regular := bold := nil.
+	regular := bold := italic := nil.
+	terminal := nil.
 	sized := Dictionary new.
 	fonts := IdentityDictionary new.
 	syntax := nil.
@@ -85,10 +86,22 @@ defineColors
 		at: #rule put: fg;
 		at: #ultramarine put: accent;
 		at: #accentSoft put: (accent alpha: 0.12);
-		at: #textSelection put: (accent alpha: 0.22);
+		at: #textSelection put: ((self paletteColor: 'selection') ifNil: [accent alpha: 0.22]);
+		at: #textSelectionInactive put: (fg alpha: 0.07);
 		at: #busySoft put: (accent alpha: 0.10);
 		at: #wash put: (fg alpha: 0.06);
+		at: #inverseMuted put: (bg alpha: 0.7);
+		at: #inverseKey put: (bg alpha: 0.75);
 		at: #comment put: (fg mixed: 0.4 with: bg);
+		at: #l0 put: fg;
+		at: #l1 put: accent;
+		at: #l2 put: (accent mixed: 0.3 with: bg);
+		at: #l3 put: (accent mixed: 0.5 with: bg);
+		at: #l4 put: (accent mixed: 0.7 with: bg);
+		at: #l5 put: (accent mixed: 0.85 with: bg);
+		at: #shadow put: (self isDark ifTrue: [Color black] ifFalse: [fg]);
+		at: #desk put: ((self paletteColor: 'dark_background') ifNil: [bg]);
+		at: #deskDots put: self muted;
 		at: #popupBackground put: (self composed: 'popups.background' alpha: 'popups.background-alpha' default: bg alpha: 1.0);
 		at: #popupText put: (self flatColor: (self shellValue: 'popups.text') default: fg);
 		at: #popupBorder put: (self composed: 'popups.border' alpha: 'popups.border-alpha' default: accent alpha: 1.0);
@@ -100,7 +113,9 @@ defineColors
 refresh
 	"My definition or my files changed: read them again (fonts too: the typeface may have changed)."
 	self load.
-	Theme current == self ifTrue: [self publishPalette]
+	Theme current == self ifTrue: [
+		self publishPalette.
+		self applyFonts]
 ! !
 
 !OmarchyTheme methodsFor: 'accessing'!
@@ -214,6 +229,28 @@ regularFace
 boldFace
 	^bold ifNil: [bold := self class fontconfigFace: 'monospace:bold' fallback: 'JetBrainsMono-Bold']
 !
+italicFace
+	^italic ifNil: [italic := self class fontconfigFace: 'monospace:italic' fallback: 'JetBrainsMono-Italic']
+!
+applyFonts
+	"Code is drawn in the Omarchy typeface (omarchy font set): it takes the place of Samaltak's code face, JetBrains Mono, wherever that is drawn; the UI face (Iosevka Etoile) stays."
+	Font substituteFace: 'JetBrainsMono-Regular' with: self regularFace.
+	Font substituteFace: 'JetBrainsMono-Bold' with: self boldFace.
+	Font substituteFace: 'JetBrainsMono-Italic' with: self italicFace
+!
+terminalPalette
+	"The 16 ANSI colors as Omarchy's terminals have them (default/themed/alacritty.toml.tpl): black the background, white the foreground, bright black muted."
+	| bg fg |
+	bg := self background.
+	fg := self foreground.
+	^#('background' 'red' 'green' 'yellow' 'blue' 'magenta' 'cyan' 'foreground'
+		'muted' 'bright_red' 'bright_green' 'bright_yellow' 'bright_blue' 'bright_magenta' 'bright_cyan' 'bright_foreground')
+		collect: [:key |
+			key = 'background' ifTrue: [bg] ifFalse: [
+				key = 'foreground' ifTrue: [fg] ifFalse: [
+					key = 'muted' ifTrue: [self muted] ifFalse: [
+						(self paletteColor: key) ifNil: [(self paletteColor: (key copyReplaceAll: 'bright_' with: '')) ifNil: [fg]]]]]]
+!
 fontOfSize: pixels bold: aBoolean
 	"The Omarchy typeface at pixels, regular or bold."
 	^self fontOfSize: pixels bold: aBoolean letterSpacing: 0
@@ -229,14 +266,12 @@ fontOfSize: pixels bold: aBoolean letterSpacing: points
 		sized at: key put: font]
 !
 makeFont: aSymbol
-	"The shell's tokens (#title, #titleBold ...) in the Omarchy typeface; any other font (the standard widgets') at its Blue Book size in that typeface."
+	"The shell's tokens (#title, #titleBold ...) in the Omarchy typeface; the standard fonts as the Blue Book has them (the UI in Iosevka Etoile, code in the Omarchy typeface: applyFonts)."
 	| token isBold size |
 	isBold := aSymbol endsWith: 'Bold'.
 	token := isBold ifTrue: [(aSymbol allButLast: 4) asSymbol] ifFalse: [aSymbol].
 	size := self pixelsOf: token.
-	size isNil ifTrue: [
-		size := (super makeFont: aSymbol) size.
-		isBold := isBold or: [aSymbol == #header or: [aSymbol == #chip or: [aSymbol == #readout]]]].
+	size isNil ifTrue: [^super makeFont: aSymbol].
 	^Font face: (isBold ifTrue: [self boldFace] ifFalse: [self regularFace]) size: size
 ! !
 
@@ -279,12 +314,41 @@ isAvailable
 	^File exists: self defaultDirectory, '/colors.toml'
 !
 install
-	"Make the Omarchy theme current (where there is one) and keep it current with the desktop; answer the current theme."
+	"Make the Omarchy theme current (where there is one) and keep it current with the desktop: every window redraws in it; answer the current theme."
 	self isAvailable ifFalse: [^Theme current].
 	(Theme current isKindOf: self) ifFalse: [Theme current: (self new setDirectory: self defaultDirectory userShell: self defaultUserShell)].
-	Theme current publishPalette.
+	Theme current publishPalette; applyFonts.
 	self startWatching.
+	World current ifNotNil: [:world | world restyle].
 	^Theme current
+!
+uninstall
+	"Back to the Blue Book."
+	self stopWatching.
+	(Theme current isKindOf: self) ifFalse: [^self].
+	#('JetBrainsMono-Regular' 'JetBrainsMono-Bold' 'JetBrainsMono-Italic') do: [:each | Font substituteFace: each with: nil].
+	Theme current: Theme blueBook.
+	Theme current publishPalette.
+	World current ifNotNil: [:world | world restyle]
+!
+wanted
+	"Whether this image should follow the desktop's theme: on an Omarchy desktop, with a display, not running tests, and not told otherwise (--theme blue-book)."
+	| choice |
+	choice := Smalltalk argumentAfter: '--theme'.
+	choice = 'blue-book' ifTrue: [^false].
+	(Smalltalk isHeadless or: [Smalltalk vm arguments includes: '--test']) ifTrue: [^false].
+	^self isAvailable
+! !
+
+!OmarchyTheme class methodsFor: 'system startup'!
+startUp: resuming
+	"Every start: follow the Omarchy theme where it is wanted, else the Blue Book (an image saved on an Omarchy desktop and started elsewhere)."
+	self wanted ifTrue: [self install] ifFalse: [self uninstall]
+! !
+
+!OmarchyTheme class methodsFor: 'class initialization'!
+initialize
+	Smalltalk addToStartUpList: self
 !
 startWatching
 	(Watcher notNil and: [Watcher isTerminated not]) ifTrue: [^self].

@@ -1,5 +1,5 @@
 ToolPane subclass: #MandelbrotView
-	instanceVariableNames: 'image status form centerX centerY span maxIterations escapeMagnitude palette rendering progress renderStart lastSeconds lastPublish queued pendingRender'
+	instanceVariableNames: 'image status form centerX centerY span maxIterations escapeMagnitude palette paletteKey inside rendering progress renderStart lastSeconds lastPublish queued pendingRender'
 	classVariableNames: ''
 	package: 'Tools'!
 
@@ -18,7 +18,7 @@ initialize
 	progress := 0.
 	queued := 0.
 	lastPublish := 0.
-	palette := self class bluePalette.
+	self updatePalette.
 	image := MandelbrotImage new name: 'view'; yourself.
 	image mandelbrot: self.
 	status := StatusBar new name: 'status'; yourself.
@@ -77,13 +77,14 @@ prepareForm
 	h := (image height * s) rounded max: 1.
 	(form isNil or: [form width ~= w or: [form height ~= h]]) ifTrue: [
 		form := Form width: w height: h.
-		form fill: Color white]
+		form fill: self theme paper]
 !
 render
 	"Runs in my window's Process: compute every row, publishing as I go. The compositor keeps showing my last published DisplayList, so the rest of the world stays smooth."
 	| w |
 	pendingRender := nil.
 	image width < 1 ifTrue: [^self].
+	self updatePalette.
 	self prepareForm.
 	w := self window.
 	rendering := true.
@@ -137,7 +138,7 @@ escapeTimeAt: c
 pixelFor: n
 	"Premultiplied RGBA8 of an escape time (black inside), smoothed like the prototype."
 	| smooth index |
-	n >= maxIterations ifTrue: [^16rFF000000].
+	n >= maxIterations ifTrue: [^inside].
 	smooth := n + 1 - ((escapeMagnitude ln / 2.0) ln / 2.0 ln).
 	index := ((smooth max: 0) sqrt * 34) floor \\ 256.
 	^palette at: index + 1
@@ -196,6 +197,21 @@ updateStatus
 ! !
 
 !MandelbrotView methodsFor: 'layout'!
+updatePalette
+	"The colors of the current theme (the Blue Book's: white through ultramarine to deep blue, black inside); answer whether they changed."
+	| key |
+	key := Array with: self theme paper hex with: self theme ink hex with: self theme ultramarine hex.
+	key = paletteKey ifTrue: [^false].
+	paletteKey := key.
+	palette := self class paletteFrom: self theme paper accent: self theme ultramarine ink: self theme ink.
+	inside := self class pixelOf: self theme ink.
+	^true
+!
+drawSelfOn: aCanvas
+	"The theme changed (every window draws anew): render in its colors."
+	super drawSelfOn: aCanvas.
+	(form notNil and: [rendering not and: [self updatePalette]]) ifTrue: [self scheduleRender]
+!
 layout
 	| old |
 	old := image isNil ifTrue: [nil] ifFalse: [image extent].
@@ -213,8 +229,20 @@ periodicityTolerance
 !MandelbrotView class methodsFor: 'palette'!
 bluePalette
 	"256 premultiplied RGBA8 words interpolated through the Blue Book stops (themes/blue-book.css --fractal-stops)."
-	| stops lut |
-	stops := #(#(255 255 255) #(232 234 240) #(176 184 206) #(27 58 140) #(6 12 36) #(120 120 120) #(255 255 255)).
+	^self lutThrough: #(#(255 255 255) #(232 234 240) #(176 184 206) #(27 58 140) #(6 12 36) #(120 120 120) #(255 255 255))
+!
+paletteFrom: paper accent: accent ink: ink
+	"The Blue Book's stops in a theme's colors: from paper through the accent to it deepened toward ink, a grey, back to paper."
+	^self lutThrough: ({paper. paper mixed: 0.09 with: accent. paper mixed: 0.3 with: accent. accent.
+		accent mixed: 0.8 with: ink. ink mixed: 0.5 with: paper. paper} collect: [:c |
+			Array with: (c red * 255) rounded with: (c green * 255) rounded with: (c blue * 255) rounded])
+!
+pixelOf: aColor
+	"The opaque RGBA8 word of aColor."
+	^(aColor red * 255) rounded + ((aColor green * 255) rounded bitShift: 8) + ((aColor blue * 255) rounded bitShift: 16) + 16rFF000000
+!
+lutThrough: stops
+	| lut |
 	lut := Array new: 256.
 	0 to: 255 do: [:i |
 		| t k f rgb |

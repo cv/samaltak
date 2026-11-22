@@ -92,12 +92,12 @@ drawOn: c
 	"The brand and, at the right, ? and the tags always; the rest while it fits, in the order of importance: the process count, the image name, fps, ms, the sparkline, its label, the banner, the hint (the first to go when the World is narrow)."
 	| x font mono monoBold label banner hint keep pieces avail |
 	world showsTopBar ifFalse: [^self].
-	c fillRect: (0 @ 0 extent: world extent x @ 26) color: Color white.
-	c fillRect: (0 @ 26 extent: world extent x @ 1) color: Color black.
+	c fillRect: (0 @ 0 extent: world extent x @ 26) color: Color paper.
+	c fillRect: (0 @ 26 extent: world extent x @ 1) color: Color ink.
 	c image: (UIIcons orbScale: c scale) in: (14 @ 5 extent: 16 @ 16).
 	font := self font: #brand.
-	c drawString: 'Samaltak' at: 37 @ (26 - font lineHeight / 2) rounded font: font color: Color black.
-	c drawString: 'Samaltak' at: 37.5 @ (26 - font lineHeight / 2) rounded font: font color: Color black.
+	c drawString: 'Samaltak' at: 37 @ (26 - font lineHeight / 2) rounded font: font color: Color ink.
+	c drawString: 'Samaltak' at: 37.5 @ (26 - font lineHeight / 2) rounded font: font color: Color ink.
 	x := 37 + (font widthOf: 'Samaltak') + 14.
 	font := self font: #regular.
 	mono := self font: #mono.
@@ -131,13 +131,13 @@ drawOn: c keeping: keep from: left font: font banner: banner hint: hint
 	x := left.
 	hintLeft := x.
 	(keep includes: #name) ifTrue: [
-		c fillRect: (x @ 7 extent: 1 @ 13) color: Color black.
+		c fillRect: (x @ 7 extent: 1 @ 13) color: Color ink.
 		x := x + 15.
-		c drawString: world imageName at: x @ (26 - font lineHeight / 2) rounded font: font color: Color black.
+		c drawString: world imageName at: x @ (26 - font lineHeight / 2) rounded font: font color: Color ink.
 		hintLeft := x + (font widthOf: world imageName) + 14].
 	(keep includes: #banner) ifTrue: [
-		c fillRect: (hintLeft @ 7 extent: 1 @ 13) color: Color black.
-		c drawString: banner at: (hintLeft + 15) @ (26 - font lineHeight / 2) rounded font: font color: Color black.
+		c fillRect: (hintLeft @ 7 extent: 1 @ 13) color: Color ink.
+		c drawString: banner at: (hintLeft + 15) @ (26 - font lineHeight / 2) rounded font: font color: Color ink.
 		hintLeft := hintLeft + 15 + (font widthOf: banner) + 14].
 	"right to left"
 	y := (26 - mono lineHeight / 2) rounded.
@@ -153,21 +153,21 @@ drawOn: c keeping: keep from: left font: font banner: banner hint: hint
 		right := right - 10].
 	(keep includes: #procs) ifTrue: [
 		right := right - (mono widthOf: procText).
-		c drawString: procText at: right @ y font: mono color: Color black.
+		c drawString: procText at: right @ y font: mono color: Color ink.
 		right := right - 8].
 	(keep includes: #fps) ifTrue: [
-		c fillRect: (right @ 7 extent: 1 @ 13) color: Color black.
+		c fillRect: (right @ 7 extent: 1 @ 13) color: Color ink.
 		right := right - 7 - (mono widthOf: fpsText).
-		c drawString: fpsText at: right @ y font: mono color: Color black].
+		c drawString: fpsText at: right @ y font: mono color: Color ink].
 	(keep includes: #ms) ifTrue: [
 		right := right - 7 - (monoBold widthOf: msText).
-		c drawString: msText at: right @ y font: monoBold color: Color black].
+		c drawString: msText at: right @ y font: monoBold color: Color ink].
 	(keep includes: #spark) ifTrue: [
 		right := right - 7 - 64.
 		self drawSparkOn: c in: (right @ 5 extent: 64 @ 16)].
 	(keep includes: #label) ifTrue: [
 		right := right - 7 - (label widthOf: 'compositor').
-		c drawString: 'compositor' at: right @ (26 - label lineHeight / 2) rounded font: label color: Color black].
+		c drawString: 'compositor' at: right @ (26 - label lineHeight / 2) rounded font: label color: Color ink].
 	(keep includes: #hint) ifTrue: [
 		c drawString: hint
 			in: (hintLeft @ 0 corner: (right - 14) @ 26) font: (self font: #italic) color: (Color named: #ink3) align: #center]
@@ -212,7 +212,7 @@ drawRemoteTagOn: c right: right flash: aBoolean
 	label := 'REMOTE'.
 	w := self remoteTagWidth.
 	r := (right - w) @ 4 extent: w @ 18.
-	ink := aBoolean ifTrue: [Color white] ifFalse: [Color ultramarine].
+	ink := aBoolean ifTrue: [Color paper] ifFalse: [Color ultramarine].
 	aBoolean ifTrue: [c fillRect: r color: Color ultramarine].
 	c strokeRect: r color: Color ultramarine width: 1.
 	c fillRect: ((r left + 6) @ (r top + 6) extent: 6 @ 6) color: ink.
@@ -227,7 +227,7 @@ drawSlowTagOn: c right: right
 	w := self slowTagWidth.
 	r := (right - w) @ 4 extent: w @ 18.
 	c fillRect: r color: Color ultramarine.
-	c drawString: label at: (r left + 6) @ (r top + (18 - font lineHeight / 2) rounded) font: font color: Color white.
+	c drawString: label at: (r left + 6) @ (r top + (18 - font lineHeight / 2) rounded) font: font color: Color paper.
 	^r left
 !
 remoteTagWidth
@@ -244,7 +244,7 @@ drawHelpOn: c right: right
 	| r font |
 	font := self font: #regular.
 	r := (right - 20) @ 3 extent: 20 @ 20.
-	c drawString: '?' in: r font: font color: Color black align: #center.
+	c drawString: '?' in: r font: font color: Color ink align: #center.
 	^r left
 !
 helpRect

@@ -118,12 +118,17 @@ named: aSymbol put: aColor
 	self namedColors at: aSymbol put: aColor
 !
 namedColors
-	"The palette of the Blue Book theme (docs/ui.md, themes/blue-book.css)."
+	"The palette of the Blue Book theme (docs/ui.md, themes/blue-book.css). Besides the colors by name, the roles the window system draws with, which the current Theme publishes (Theme>>publishPalette): ink (text, rules, frames, inverted selection) on paper, the accent (ultramarine), the hard shadow, the desk and its halftone dots."
 	^Named ifNil: [
 		Named := IdentityDictionary new.
 		Named
 			at: #black put: (self hex: 16r000000);
 			at: #white put: (self hex: 16rFFFFFF);
+			at: #ink put: (self hex: 16r000000);
+			at: #paper put: (self hex: 16rFFFFFF);
+			at: #shadow put: (self hex: 16r000000);
+			at: #desk put: (self hex: 16rFFFFFF);
+			at: #deskDots put: (self hex: 16r000000);
 			at: #transparent put: (self r: 0 g: 0 b: 0 a: 0);
 			at: #ultramarine put: (self hex: 16r1B3A8C);
 			at: #hair put: (self hex: 16rC9C9C9);
@@ -155,7 +160,27 @@ transparent
 	^self named: #transparent
 !
 ultramarine
+	"The accent: the Blue Book's ultramarine, or the current theme's accent."
 	^self named: #ultramarine
+!
+ink
+	"Text, rules, frames and inverted selection: black, or the current theme's foreground."
+	^self named: #ink
+!
+paper
+	"What ink is drawn on: white, or the current theme's background."
+	^self named: #paper
+!
+shadow
+	"The windows' hard shadow."
+	^self named: #shadow
+!
+desk
+	"The desk behind the windows; deskDots its halftone."
+	^self named: #desk
+!
+deskDots
+	^self named: #deskDots
 !
 red
 	^self named: #red

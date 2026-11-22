@@ -14,7 +14,7 @@ initialize
 	opacity := 1.
 	needsRender := true.
 	animations := OrderedCollection new.
-	clearColor := Color white
+	clearColor := nil
 ! !
 
 !Layer methodsFor: 'accessing'!
@@ -145,7 +145,7 @@ renderExtent: aPoint scale: aNumber renderer: aRenderer commandBuffer: aCommandB
 	pixels := (aPoint x * aNumber) ceiling @ (aPoint y * aNumber) ceiling.
 	self ensureSurface: pixels scale: aNumber.
 	list := contentList ifNil: [(Canvas extent: aPoint scale: aNumber) displayList].
-	aRenderer render: list into: surface texture clear: clearColor commandBuffer: aCommandBuffer.
+	aRenderer render: list into: surface texture clear: (clearColor ifNil: [Color paper]) commandBuffer: aCommandBuffer.
 	chromeList isNil ifFalse: [
 		aRenderer render: chromeList into: surface texture clear: nil commandBuffer: aCommandBuffer].
 	pixelExtent := pixels.

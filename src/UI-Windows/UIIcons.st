@@ -43,9 +43,11 @@ orbScale: aNumber
 
 !UIIcons class methodsFor: 'rasterizing'!
 cached: aSymbol scale: aNumber ifAbsent: aBlock
+	"Kept per scale and per the theme colors icons are drawn in (the accent, the greys): a theme switch draws them anew."
+	| key |
 	Cache isNil ifTrue: [Cache := Dictionary new].
-	^Cache at: (Array with: aSymbol with: aNumber) ifAbsent: [
-		Cache at: (Array with: aSymbol with: aNumber) put: aBlock value]
+	key := Array with: aSymbol with: aNumber with: Color ultramarine hex with: (Color named: #ink3) hex.
+	^Cache at: key ifAbsent: [Cache at: key put: aBlock value]
 !
 form: pointExtent scale: aNumber sampler: aBlock
 	"A Form of pointExtent × aNumber pixels; aBlock maps a Point (points) to a Color or nil, sampled 4×4 per pixel."

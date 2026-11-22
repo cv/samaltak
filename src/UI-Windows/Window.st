@@ -539,7 +539,7 @@ retainedDrawingMismatchAfter: aBlock
 		^'quad ', difference first printString, ' replayed ', (difference at: 2) printString, ', drawn anew ', (difference at: 3) printString].
 	pixels := world compositor sync: [lists collect: [:each | | surface bytes string |
 		surface := Surface extent: each extent scale: each scale.
-		surface render: each clear: Color white.
+		surface render: each clear: Color paper.
 		bytes := surface readbackBytes.
 		surface release.
 		string := String new: bytes size.
@@ -550,9 +550,9 @@ retainedDrawingMismatchAfter: aBlock
 drawErrorOn: aCanvas in: aRectangle
 	| box |
 	box := aRectangle origin + (8 @ 8) extent: (aRectangle width - 16 min: 420) @ 40.
-	aCanvas fillRect: box color: Color black.
-	aCanvas drawString: 'Error while drawing' at: box origin + (8 @ 3) font: Font uiBold color: Color white.
-	aCanvas drawString: drawError asString at: box origin + (8 @ 20) font: Font smallItalic color: Color white
+	aCanvas fillRect: box color: Color ink.
+	aCanvas drawString: 'Error while drawing' at: box origin + (8 @ 3) font: Font uiBold color: Color paper.
+	aCanvas drawString: drawError asString at: box origin + (8 @ 20) font: Font smallItalic color: Color paper
 ! !
 
 !Window methodsFor: 'event dispatch'!
@@ -678,10 +678,10 @@ drawChromeOn: c
 	| w h bar |
 	w := bounds width.
 	h := bounds height.
-	c strokeRect: (0 @ 0 extent: w @ h) color: Color black width: 1.
+	c strokeRect: (0 @ 0 extent: w @ h) color: Color ink width: 1.
 	bar := 1 @ 1 extent: (w - 2) @ self titleBarHeight.
-	c fillRect: bar color: Color white.
-	c fillRect: (1 @ (bar bottom) extent: (w - 2) @ 1) color: Color black.
+	c fillRect: bar color: Color paper.
+	c fillRect: (1 @ (bar bottom) extent: (w - 2) @ 1) color: Color ink.
 	self drawTitleOn: c in: bar.
 	self drawBoxesOn: c.
 	collapsed ifFalse: [self drawGripOn: c]
@@ -700,21 +700,21 @@ drawTitleOn: c in: bar
 		c alpha: f during: [
 			c pattern: #stripes in: (leftEnd @ (bar top + 5) corner: (tab left - 5) @ (bar top + 16)).
 			c pattern: #stripes in: ((tab right + 5) @ (bar top + 5) corner: rightStart @ (bar top + 16)).
-			c fillRect: tab color: Color black]].
-	c drawString: label at: (tab left + 8) @ (bar top + 3) font: titleFont color: ((Color named: #ink3) mixed: f with: Color white)
+			c fillRect: tab color: Color ink]].
+	c drawString: label at: (tab left + 8) @ (bar top + 3) font: titleFont color: ((Color named: #ink3) mixed: f with: Color paper)
 !
 drawBoxesOn: c
 	"The close and collapse boxes and the chip's dot, over the stripes."
 	| f ink chip |
 	f := focusAmount.
-	ink := (Color named: #ink4) mixed: f with: Color black.
+	ink := (Color named: #ink4) mixed: f with: Color ink.
 	{self closeBoxRect. self collapseBoxRect} do: [:box |
-		c fillRect: (box outsetBy: 2) color: (Color white alpha: f).
-		c fillRect: box color: Color white.
+		c fillRect: (box outsetBy: 2) color: (Color paper alpha: f).
+		c fillRect: box color: Color paper.
 		c strokeRect: box color: ink width: 1].
 	chip := self chipRectStatic.
-	c fillRect: (chip outsetBy: 2) color: (Color white alpha: f).
-	c fillRect: chip color: Color white.
+	c fillRect: (chip outsetBy: 2) color: (Color paper alpha: f).
+	c fillRect: chip color: Color paper.
 	c strokeRect: self dotRect color: ink width: 1
 !
 chipRectStatic
@@ -732,7 +732,7 @@ drawGripOn: c
 	#(0.495 0.705 0.915) do: [:f |
 		| d |
 		d := 18 * f - 9.
-		c line: (g left + d) @ g bottom to: g right @ (g top + d) color: Color black width: 0.9]
+		c line: (g left + d) @ g bottom to: g right @ (g top + d) color: Color ink width: 0.9]
 !
 chromeDisplayListScale: aNumber
 	| canvas |
@@ -745,7 +745,7 @@ drawDecorationsOn: c time: ms
 	| label |
 	label := self chipLabel.
 	label isNil ifTrue: [
-		(ms - lastInputTime) < 160 ifTrue: [c fillRect: self dotRect color: Color black].
+		(ms - lastInputTime) < 160 ifTrue: [c fillRect: self dotRect color: Color ink].
 		^self].
 	label = 'suspended'
 		ifTrue: [self drawSuspendedChip: label on: c]
@@ -754,10 +754,10 @@ drawDecorationsOn: c time: ms
 drawSuspendedChip: label on: c
 	| chip |
 	chip := self chipRect.
-	c fillRect: (chip outsetBy: 2) color: Color white.
-	c fillRect: chip color: Color black.
-	c fillRect: ((chip left + 5) @ (chip top + 5) extent: 5 @ 5) color: Color white.
-	c drawString: label at: (chip left + 15) @ (chip top - 1) font: Font smallItalic color: Color white
+	c fillRect: (chip outsetBy: 2) color: Color paper.
+	c fillRect: chip color: Color ink.
+	c fillRect: ((chip left + 5) @ (chip top + 5) extent: 5 @ 5) color: Color paper.
+	c drawString: label at: (chip left + 15) @ (chip top - 1) font: Font smallItalic color: Color paper
 !
 drawBusy: label on: c time: ms
 	"The stripe moving under the title bar and the spinning chip."
@@ -767,7 +767,7 @@ drawBusy: label on: c time: ms
 			x := (ms / 400.0 * 8) \\ 8.
 			c pattern: #diagonalStripes in: ((1 - 8 + x) @ self contentTop extent: (bounds width + 8) @ 2) color: Color ultramarine]].
 	chip := self chipRect.
-	c fillRect: (chip outsetBy: 2) color: Color white.
+	c fillRect: (chip outsetBy: 2) color: Color paper.
 	x := chip left + 9.5.
 	y := chip top + 7.5.
 	angle := ms / 700.0 * 2 * Float pi.

@@ -66,10 +66,10 @@ drawOn: c at: aPoint
 	ext := self extent.
 	box := (aPoint x - (ext x / 2)) rounded @ (aPoint y + offset) extent: ext.
 	c alpha: opacity during: [
-		c fillRect: (box translateBy: 3 @ 3) color: Color black.
-		c fillRect: (box translateBy: 2 @ 2) color: Color white.
-		c fillRect: box color: Color black.
-		c drawString: text at: box origin + (13 @ 7) font: self font color: Color white]
+		c fillRect: (box translateBy: 3 @ 3) color: Color shadow.
+		c fillRect: (box translateBy: 2 @ 2) color: Color paper.
+		c fillRect: box color: Color ink.
+		c drawString: text at: box origin + (13 @ 7) font: self font color: Color paper]
 ! !
 
 !WorldToast methodsFor: 'remote control'!

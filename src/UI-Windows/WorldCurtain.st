@@ -40,11 +40,11 @@ drawOn: aCanvas
 			aCanvas fillRect: world bounds color: Color black]].
 	world drawDeskOn: aCanvas.
 	box := (world extent - (360 @ 118) / 2) rounded extent: 360 @ 118.
-	aCanvas fillRect: (box translateBy: 4 @ 4) color: Color black.
-	aCanvas fillRect: box color: Color white.
-	aCanvas strokeRect: box color: Color black width: 1.
-	aCanvas drawString: 'Samaltak' at: box origin + (20 @ 16) font: Font uiBold color: Color black.
-	aCanvas drawString: 'restarting ', world imageName at: box origin + (20 @ 40) font: Font ui color: Color black.
+	aCanvas fillRect: (box translateBy: 4 @ 4) color: Color shadow.
+	aCanvas fillRect: box color: Color paper.
+	aCanvas strokeRect: box color: Color ink width: 1.
+	aCanvas drawString: 'Samaltak' at: box origin + (20 @ 16) font: Font uiBold color: Color ink.
+	aCanvas drawString: 'restarting ', world imageName at: box origin + (20 @ 40) font: Font ui color: Color ink.
 	done := self composited.
 	bar := box origin + (20 @ 72) extent: box width - 40 @ 12.
 	aCanvas clip: bar during: [
@@ -52,8 +52,8 @@ drawOn: aCanvas
 			aCanvas pattern: #diagonalStripes in: (bar origin - (8 @ 0) extent: bar width + 8 @ bar height) color: Color ultramarine]].
 	world windows isEmpty ifFalse: [
 		aCanvas fillRect: (bar origin extent: (bar width * done / world windows size) rounded @ bar height) color: Color ultramarine].
-	aCanvas strokeRect: bar color: Color black width: 1.
-	aCanvas drawString: done printString, ' of ', world windows size printString, ' windows' at: bar bottomLeft + (0 @ 6) font: Font small color: Color black
+	aCanvas strokeRect: bar color: Color ink width: 1.
+	aCanvas drawString: done printString, ' of ', world windows size printString, ' windows' at: bar bottomLeft + (0 @ 6) font: Font small color: Color ink
 ! !
 
 !WorldCurtain class methodsFor: 'instance creation'!

@@ -24,7 +24,7 @@ presentsContinuously
 !AppWorld methodsFor: 'accessing'!
 deskColor
 	"What shows where no window is (before the first frame, or while my window redraws after a resize)."
-	^deskColor ifNil: [Color white]
+	^deskColor ifNil: [Color paper]
 !
 deskColor: aColor
 	deskColor := aColor.

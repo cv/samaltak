@@ -299,8 +299,8 @@ drawSelectionOn: aCanvas
 	x0 := ((self xOf: range first) max: left) min: right.
 	x1 := ((self xOf: range last) max: left) min: right.
 	bottom := (g at: 5) + (g at: 7) + 2.
-	aCanvas fillRect: (left @ 0 corner: x0 @ bottom) color: (Color white alpha: 0.7).
-	aCanvas fillRect: (x1 @ 0 corner: right @ bottom) color: (Color white alpha: 0.7).
+	aCanvas fillRect: (left @ 0 corner: x0 @ bottom) color: ((Theme current color: #paper) alpha: 0.7).
+	aCanvas fillRect: (x1 @ 0 corner: right @ bottom) color: ((Theme current color: #paper) alpha: 0.7).
 	aCanvas fillRect: (x0 @ 0 corner: x1 @ bottom) color: (self theme color: #busySoft).
 	aCanvas fillRect: ((x0 rounded - 0.5) @ 0 extent: 1.5 @ bottom) color: self theme ultramarine.
 	aCanvas fillRect: ((x1 rounded - 1) @ 0 extent: 1.5 @ bottom) color: self theme ultramarine
@@ -446,7 +446,7 @@ otherColor
 	^Theme current color: #ink4
 !
 drawColor
-	^Color black
+	^Theme current color: #ink
 !
 rasterColor
 	^Theme current color: #ink3

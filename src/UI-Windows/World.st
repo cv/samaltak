@@ -349,9 +349,9 @@ cursor: aSymbol
 
 !World methodsFor: 'drawing'!
 drawDeskOn: aCanvas
-	"The desk behind the windows, drawn by the compositor every frame: the Blue Book halftone, one black dot in every 2×2-point cell."
-	aCanvas fillRect: self bounds color: Color white.
-	aCanvas pattern: #halftone in: self bounds color: Color black
+	"The desk behind the windows, drawn by the compositor every frame: the Blue Book halftone, one dot in every 2×2-point cell (Color desk and deskDots: white and black, or the theme's)."
+	aCanvas fillRect: self bounds color: Color desk.
+	aCanvas pattern: #halftone in: self bounds color: Color deskDots
 ! !
 
 !World methodsFor: 'frames'!
