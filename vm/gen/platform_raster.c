@@ -200,6 +200,7 @@ void blit_pixels(uint8_t *src, int64_t src_w, int64_t src_h, int32_t src_fmt, in
     }
 }
 
+#if defined(__x86_64__)
 /* PlatformRaster>>convert:format:from:format:count: */
 static void convert(uint8_t *d, int32_t df, uint8_t *s, int32_t sf, int64_t n)
 {
@@ -209,7 +210,80 @@ static void convert(uint8_t *d, int32_t df, uint8_t *s, int32_t sf, int64_t n)
     int64_t i_2;
     int64_t i_3;
     int64_t i_4;
+    int64_t r_swap;
     int64_t i_5;
+    uint32_t *p;
+    uint32_t *p_2;
+    __m128i v;
+    __m128i r_swapped;
+    __m128i m;
+    __m128i v_2;
+    int64_t i_6;
+    uint32_t v_3;
+    if (sf == df) {
+        memcpy(d, s, (uint64_t)(n * (int64_t)pixel_bytes(sf)));
+        return;
+    }
+    d4 = (uint32_t *)d;
+    s4 = (uint32_t *)s;
+    if (sf == PF_TEX_R8) {
+        if (df == PF_TEX_BGRA8) {
+            for (i = 0; i <= n - 1; i++) {
+                d4[i] = (uint32_t)(((uint64_t)s[i]) << 16) + 0xFF000000LL;
+            }
+        } else {
+            for (i_2 = 0; i_2 <= n - 1; i_2++) {
+                d4[i_2] = (uint32_t)s[i_2] + 0xFF000000LL;
+            }
+        }
+        return;
+    }
+    if (df == PF_TEX_R8) {
+        if (sf == PF_TEX_BGRA8) {
+            for (i_3 = 0; i_3 <= n - 1; i_3++) {
+                d[i_3] = s[i_3 * 4 + 2];
+            }
+        } else {
+            for (i_4 = 0; i_4 <= n - 1; i_4++) {
+                d[i_4] = s[i_4 * 4];
+            }
+        }
+        return;
+    }
+    for (i_6 = ({
+    i_5 = 0;
+    while (i_5 + 4 <= n) {
+        p = d4 + i_5;
+        p_2 = s4 + i_5;
+        v = _mm_loadu_si128((__m128i *)p_2);
+        v_2 = ({
+    m = _mm_set1_epi32(255);
+    r_swapped = _mm_or_si128(_mm_and_si128(v, _mm_set1_epi32(-16711936)), _mm_or_si128(_mm_and_si128(_mm_srli_epi32(v, 16), m), _mm_slli_epi32(_mm_and_si128(v, m), 16)));
+    r_swapped; });
+        _mm_storeu_si128((__m128i *)p, v_2);
+        i_5 = i_5 + 4;
+    }
+    r_swap = i_5;
+    r_swap; }); i_6 <= n - 1; i_6++) {
+        v_3 = s4[i_6];
+        d4[i_6] = (uint32_t)((v_3 & 0xFF00FF00LL) | ((v_3 >> 16) & 0xFF) | (((uint64_t)(v_3 & 0xFF)) << 16));
+    }
+}
+
+#else
+/* PlatformRaster>>convert:format:from:format:count: */
+static void convert(uint8_t *d, int32_t df, uint8_t *s, int32_t sf, int64_t n)
+{
+    uint32_t *d4;
+    uint32_t *s4;
+    int64_t i;
+    int64_t i_2;
+    int64_t i_3;
+    int64_t i_4;
+    int64_t r_swap;
+    uint8x16_t ix;
+    int64_t i_5;
+    int64_t i_6;
     uint32_t v;
     if (sf == df) {
         memcpy(d, s, (uint64_t)(n * (int64_t)pixel_bytes(sf)));
@@ -241,12 +315,22 @@ static void convert(uint8_t *d, int32_t df, uint8_t *s, int32_t sf, int64_t n)
         }
         return;
     }
-    for (i_5 = 0; i_5 <= n - 1; i_5++) {
-        v = s4[i_5];
-        d4[i_5] = (uint32_t)((v & 0xFF00FF00LL) | ((v >> 16) & 0xFF) | (((uint64_t)(v & 0xFF)) << 16));
+    for (i_6 = ({
+    ix = vcombine_u8(vcreate_u8(0x704050603000102LL), vcreate_u8(0xF0C0D0E0B08090ALL));
+    i_5 = 0;
+    while (i_5 + 4 <= n) {
+        vst1q_u8((uint8_t *)(d4 + i_5), vqtbl1q_u8(vld1q_u8((uint8_t *)(s4 + i_5)), ix));
+        i_5 = i_5 + 4;
+    }
+    r_swap = i_5;
+    r_swap; }); i_6 <= n - 1; i_6++) {
+        v = s4[i_6];
+        d4[i_6] = (uint32_t)((v & 0xFF00FF00LL) | ((v >> 16) & 0xFF) | (((uint64_t)(v & 0xFF)) << 16));
     }
 }
 
+#endif
+#if defined(__x86_64__)
 /* PlatformRaster>>copy:stride:from:stride:width:height:bytesPerPixel:mode: */
 void copy(uint8_t *dst, int64_t dst_stride, uint8_t *src, int64_t src_stride, int64_t w, int64_t h, int64_t bpp, int64_t mode)
 {
@@ -256,7 +340,16 @@ void copy(uint8_t *dst, int64_t dst_stride, uint8_t *src, int64_t src_stride, in
     int64_t y_2;
     uint32_t *d;
     uint32_t *s;
+    int64_t i0;
+    int64_t r_swap;
     int64_t i;
+    uint32_t *p;
+    uint32_t *p_2;
+    __m128i v_2;
+    __m128i r_swapped;
+    __m128i m;
+    __m128i v_3;
+    int64_t i_2;
     uint32_t v;
     if ((bpp == 1) || (mode == 0)) {
         for (y = 0; y <= h - 1; y++) {
@@ -269,15 +362,82 @@ void copy(uint8_t *dst, int64_t dst_stride, uint8_t *src, int64_t src_stride, in
     for (y_2 = 0; y_2 <= h - 1; y_2++) {
         d = (uint32_t *)(dst + y_2 * dst_stride);
         s = (uint32_t *)(src + y_2 * src_stride);
-        for (i = 0; i <= w - 1; i++) {
-            v = s[i];
+        i0 = 0;
+        if (swap && (!keyed)) {
+            i0 = ({
+    i = 0;
+    while (i + 4 <= w) {
+        p = d + i;
+        p_2 = s + i;
+        v_2 = _mm_loadu_si128((__m128i *)p_2);
+        v_3 = ({
+    m = _mm_set1_epi32(255);
+    r_swapped = _mm_or_si128(_mm_and_si128(v_2, _mm_set1_epi32(-16711936)), _mm_or_si128(_mm_and_si128(_mm_srli_epi32(v_2, 16), m), _mm_slli_epi32(_mm_and_si128(v_2, m), 16)));
+    r_swapped; });
+        _mm_storeu_si128((__m128i *)p, v_3);
+        i = i + 4;
+    }
+    r_swap = i;
+    r_swap; });
+        }
+        for (i_2 = i0; i_2 <= w - 1; i_2++) {
+            v = s[i_2];
             if ((!keyed) || ((v >> 24) != 0)) {
-                d[i] = swap ? (uint32_t)((v & 0xFF00FF00LL) | ((v >> 16) & 0xFF) | (((uint64_t)(v & 0xFF)) << 16)) : v;
+                d[i_2] = swap ? (uint32_t)((v & 0xFF00FF00LL) | ((v >> 16) & 0xFF) | (((uint64_t)(v & 0xFF)) << 16)) : v;
             }
         }
     }
 }
 
+#else
+/* PlatformRaster>>copy:stride:from:stride:width:height:bytesPerPixel:mode: */
+void copy(uint8_t *dst, int64_t dst_stride, uint8_t *src, int64_t src_stride, int64_t w, int64_t h, int64_t bpp, int64_t mode)
+{
+    int64_t y;
+    bool swap;
+    bool keyed;
+    int64_t y_2;
+    uint32_t *d;
+    uint32_t *s;
+    int64_t i0;
+    int64_t r_swap;
+    uint8x16_t ix;
+    int64_t i;
+    int64_t i_2;
+    uint32_t v;
+    if ((bpp == 1) || (mode == 0)) {
+        for (y = 0; y <= h - 1; y++) {
+            memcpy(dst + y * dst_stride, src + y * src_stride, (uint64_t)(w * bpp));
+        }
+        return;
+    }
+    swap = (mode & 1) != 0;
+    keyed = (mode & 2) != 0;
+    for (y_2 = 0; y_2 <= h - 1; y_2++) {
+        d = (uint32_t *)(dst + y_2 * dst_stride);
+        s = (uint32_t *)(src + y_2 * src_stride);
+        i0 = 0;
+        if (swap && (!keyed)) {
+            i0 = ({
+    ix = vcombine_u8(vcreate_u8(0x704050603000102LL), vcreate_u8(0xF0C0D0E0B08090ALL));
+    i = 0;
+    while (i + 4 <= w) {
+        vst1q_u8((uint8_t *)(d + i), vqtbl1q_u8(vld1q_u8((uint8_t *)(s + i)), ix));
+        i = i + 4;
+    }
+    r_swap = i;
+    r_swap; });
+        }
+        for (i_2 = i0; i_2 <= w - 1; i_2++) {
+            v = s[i_2];
+            if ((!keyed) || ((v >> 24) != 0)) {
+                d[i_2] = swap ? (uint32_t)((v & 0xFF00FF00LL) | ((v >> 16) & 0xFF) | (((uint64_t)(v & 0xFF)) << 16)) : v;
+            }
+        }
+    }
+}
+
+#endif
 /* PlatformRaster>>drawQuad: */
 static void draw_quad(uint8_t *v)
 {
@@ -584,21 +744,85 @@ static uint32_t fetch(uint8_t *r, int64_t tx, int64_t conv)
     return ((uint32_t)(((uint64_t)r[tx]) << 16)) | 0xFF000000LL;
 }
 
+#if defined(__x86_64__)
 /* PlatformRaster>>fill:count:bytesPerPixel:value: */
 void platform_raster_fill(uint8_t *pixels, int64_t n, int bpp, uint32_t v)
 {
     uint32_t *p;
+    int64_t r_fill;
+    __m128i x;
     int64_t i;
+    uint32_t *p_2;
+    uint32_t *p_3;
+    uint32_t *p_4;
+    uint32_t *p_5;
+    uint32_t *p_6;
+    int64_t i_2;
     if (bpp == 1) {
         memset(pixels, (int32_t)(v & 255), (uint64_t)n);
         return;
     }
     p = (uint32_t *)pixels;
-    for (i = 0; i <= n - 1; i++) {
-        p[i] = v;
+    for (i_2 = ({
+    x = _mm_set1_epi32((int32_t)v);
+    i = 0;
+    while (i + 16 <= n) {
+        p_2 = p + i;
+        _mm_storeu_si128((__m128i *)p_2, x);
+        p_3 = p + i + 4;
+        _mm_storeu_si128((__m128i *)p_3, x);
+        p_4 = p + i + 8;
+        _mm_storeu_si128((__m128i *)p_4, x);
+        p_5 = p + i + 12;
+        _mm_storeu_si128((__m128i *)p_5, x);
+        i = i + 16;
+    }
+    while (i + 4 <= n) {
+        p_6 = p + i;
+        _mm_storeu_si128((__m128i *)p_6, x);
+        i = i + 4;
+    }
+    r_fill = i;
+    r_fill; }); i_2 <= n - 1; i_2++) {
+        p[i_2] = v;
     }
 }
 
+#else
+/* PlatformRaster>>fill:count:bytesPerPixel:value: */
+void platform_raster_fill(uint8_t *pixels, int64_t n, int bpp, uint32_t v)
+{
+    uint32_t *p;
+    int64_t r_fill;
+    uint32x4_t x;
+    int64_t i;
+    int64_t i_2;
+    if (bpp == 1) {
+        memset(pixels, (int32_t)(v & 255), (uint64_t)n);
+        return;
+    }
+    p = (uint32_t *)pixels;
+    for (i_2 = ({
+    x = vdupq_n_u32(v);
+    i = 0;
+    while (i + 16 <= n) {
+        vst1q_u32(p + i, x);
+        vst1q_u32(p + i + 4, x);
+        vst1q_u32(p + i + 8, x);
+        vst1q_u32(p + i + 12, x);
+        i = i + 16;
+    }
+    while (i + 4 <= n) {
+        vst1q_u32(p + i, x);
+        i = i + 4;
+    }
+    r_fill = i;
+    r_fill; }); i_2 <= n - 1; i_2++) {
+        p[i_2] = v;
+    }
+}
+
+#endif
 /* PlatformRaster>>floorDiv:by: */
 static int64_t floor_div(int64_t a, int64_t b)
 {
@@ -696,6 +920,7 @@ static void glyph_row(uint32_t *d, uint8_t *cov, int64_t step, int64_t n)
     }
 }
 
+#if defined(__x86_64__)
 /* PlatformRaster>>imageRow:texels:count: */
 static void image_row(uint32_t *d, uint8_t *src, int64_t n)
 {
@@ -710,27 +935,71 @@ static void image_row(uint32_t *d, uint8_t *src, int64_t n)
     int64_t ch;
     uint32_t *s;
     bool swap;
+    int64_t r_over_2;
+    __m128i z;
     int64_t i_2;
+    uint32_t *p;
+    __m128i t_2;
+    __m128i r_swapped;
+    __m128i m;
+    uint32_t *p_2;
+    uint32_t *p_3;
+    __m128i dv;
+    __m128i pair;
+    __m128i ia_low;
+    __m128i pair_2;
+    __m128i ia_high;
+    __m128i r_over_3;
+    __m128i z_2;
+    __m128i dv_2;
+    __m128i r_half;
+    __m128i t_3;
+    __m128i dv_3;
+    __m128i r_half_2;
+    __m128i t_4;
+    __m128i v;
+    int64_t i_3;
     uint32_t t;
     uint32_t d_3;
     uint32_t c_2;
-    uint32_t r_over_2;
+    uint32_t r_over_4;
     int64_t ia_2;
-    int64_t t_2;
+    int64_t t_5;
     int64_t rb;
     int64_t ag;
     int64_t ov;
-    int64_t i_3;
+    int64_t r_over_5;
+    __m128i z_3;
+    int64_t i_4;
+    uint32_t *p_4;
+    __m128i t_6;
+    uint32_t *p_5;
+    uint32_t *p_6;
+    __m128i dv_4;
+    __m128i pair_3;
+    __m128i ia_low_2;
+    __m128i pair_4;
+    __m128i ia_high_2;
+    __m128i r_over_6;
+    __m128i z_4;
+    __m128i dv_5;
+    __m128i r_half_3;
+    __m128i t_7;
+    __m128i dv_6;
+    __m128i r_half_4;
+    __m128i t_8;
+    __m128i v_2;
+    int64_t i_5;
     uint32_t d_4;
-    uint32_t r_over_3;
+    uint32_t r_over_7;
     int64_t ia_3;
-    int64_t t_3;
+    int64_t t_9;
     int64_t rb_2;
     int64_t ag_2;
     int64_t ov_2;
-    int64_t i_4;
+    int64_t i_6;
     uint32_t d_5;
-    uint32_t r_over_4;
+    uint32_t r_over_8;
     int64_t ia_4;
     int64_t r_2;
     int s_3;
@@ -762,59 +1031,121 @@ static void image_row(uint32_t *d, uint8_t *src, int64_t n)
     swap = rs_tex_fmt != rs_fmt;
     if (ca == 255) {
         if (swap) {
-            for (i_2 = 0; i_2 <= n - 1; i_2++) {
-                t = s[i_2];
+            for (i_3 = ({
+    z = _mm_setzero_si128();
+    i_2 = 0;
+    while (i_2 + 4 <= n) {
+        p = s + i_2;
+        t_2 = _mm_loadu_si128((__m128i *)p);
+        t_2 = ({
+    m = _mm_set1_epi32(255);
+    r_swapped = _mm_or_si128(_mm_and_si128(t_2, _mm_set1_epi32(-16711936)), _mm_or_si128(_mm_and_si128(_mm_srli_epi32(t_2, 16), m), _mm_slli_epi32(_mm_and_si128(t_2, m), 16)));
+    r_swapped; });
+        p_2 = d + i_2;
+        p_3 = d + i_2;
+        dv = _mm_loadu_si128((__m128i *)p_3);
+        pair = _mm_unpacklo_epi8(t_2, z);
+        ia_low = _mm_sub_epi16(_mm_set1_epi16(255), _mm_shufflehi_epi16(_mm_shufflelo_epi16(pair, 0xFF), 0xFF));
+        pair_2 = _mm_unpackhi_epi8(t_2, z);
+        ia_high = _mm_sub_epi16(_mm_set1_epi16(255), _mm_shufflehi_epi16(_mm_shufflelo_epi16(pair_2, 0xFF), 0xFF));
+        v = ({
+    z_2 = _mm_setzero_si128();
+    dv_2 = _mm_unpacklo_epi8(dv, z_2);
+    dv_3 = _mm_unpackhi_epi8(dv, z_2);
+    r_over_3 = _mm_adds_epu8(_mm_packus_epi16(({
+    t_3 = _mm_add_epi16(_mm_mullo_epi16(dv_2, ia_low), _mm_set1_epi16(128));
+    r_half = _mm_srli_epi16(_mm_add_epi16(t_3, _mm_srli_epi16(t_3, 8)), 8);
+    r_half; }), ({
+    t_4 = _mm_add_epi16(_mm_mullo_epi16(dv_3, ia_high), _mm_set1_epi16(128));
+    r_half_2 = _mm_srli_epi16(_mm_add_epi16(t_4, _mm_srli_epi16(t_4, 8)), 8);
+    r_half_2; })), t_2);
+    r_over_3; });
+        _mm_storeu_si128((__m128i *)p_2, v);
+        i_2 = i_2 + 4;
+    }
+    r_over_2 = i_2;
+    r_over_2; }); i_3 <= n - 1; i_3++) {
+                t = s[i_3];
                 if ((t >> 24) == 255) {
-                    d[i_2] = (uint32_t)((t & 0xFF00FF00LL) | ((t >> 16) & 0xFF) | (((uint64_t)(t & 0xFF)) << 16));
+                    d[i_3] = (uint32_t)((t & 0xFF00FF00LL) | ((t >> 16) & 0xFF) | (((uint64_t)(t & 0xFF)) << 16));
                 } else if (t != 0) {
-                    d_3 = d[i_2];
+                    d_3 = d[i_3];
                     c_2 = (uint32_t)((t & 0xFF00FF00LL) | ((t >> 16) & 0xFF) | (((uint64_t)(t & 0xFF)) << 16));
-                    d[i_2] = ({
+                    d[i_3] = ({
     ia_2 = 255 - (int64_t)(c_2 >> 24);
-    t_2 = (((int64_t)d_3) & 0xFF00FF) * ia_2 + 0x800080;
-    rb = (((t_2 + ((t_2 >> 8) & 0xFF00FF)) >> 8) & 0xFF00FF) + (((int64_t)c_2) & 0xFF00FF);
-    t_2 = ((((int64_t)d_3) >> 8) & 0xFF00FF) * ia_2 + 0x800080;
-    ag = (((t_2 + ((t_2 >> 8) & 0xFF00FF)) >> 8) & 0xFF00FF) + ((((int64_t)c_2) >> 8) & 0xFF00FF);
+    t_5 = (((int64_t)d_3) & 0xFF00FF) * ia_2 + 0x800080;
+    rb = (((t_5 + ((t_5 >> 8) & 0xFF00FF)) >> 8) & 0xFF00FF) + (((int64_t)c_2) & 0xFF00FF);
+    t_5 = ((((int64_t)d_3) >> 8) & 0xFF00FF) * ia_2 + 0x800080;
+    ag = (((t_5 + ((t_5 >> 8) & 0xFF00FF)) >> 8) & 0xFF00FF) + ((((int64_t)c_2) >> 8) & 0xFF00FF);
     ov = rb & 0x1000100;
     rb = (rb | (ov - (ov >> 8))) & 0xFF00FF;
     ov = ag & 0x1000100;
     ag = (ag | (ov - (ov >> 8))) & 0xFF00FF;
-    r_over_2 = (uint32_t)(rb | (ag << 8));
-    r_over_2; });
+    r_over_4 = (uint32_t)(rb | (ag << 8));
+    r_over_4; });
                 }
             }
         } else {
-            for (i_3 = 0; i_3 <= n - 1; i_3++) {
-                t = s[i_3];
+            for (i_5 = ({
+    z_3 = _mm_setzero_si128();
+    i_4 = 0;
+    while (i_4 + 4 <= n) {
+        p_4 = s + i_4;
+        t_6 = _mm_loadu_si128((__m128i *)p_4);
+        p_5 = d + i_4;
+        p_6 = d + i_4;
+        dv_4 = _mm_loadu_si128((__m128i *)p_6);
+        pair_3 = _mm_unpacklo_epi8(t_6, z_3);
+        ia_low_2 = _mm_sub_epi16(_mm_set1_epi16(255), _mm_shufflehi_epi16(_mm_shufflelo_epi16(pair_3, 0xFF), 0xFF));
+        pair_4 = _mm_unpackhi_epi8(t_6, z_3);
+        ia_high_2 = _mm_sub_epi16(_mm_set1_epi16(255), _mm_shufflehi_epi16(_mm_shufflelo_epi16(pair_4, 0xFF), 0xFF));
+        v_2 = ({
+    z_4 = _mm_setzero_si128();
+    dv_5 = _mm_unpacklo_epi8(dv_4, z_4);
+    dv_6 = _mm_unpackhi_epi8(dv_4, z_4);
+    r_over_6 = _mm_adds_epu8(_mm_packus_epi16(({
+    t_7 = _mm_add_epi16(_mm_mullo_epi16(dv_5, ia_low_2), _mm_set1_epi16(128));
+    r_half_3 = _mm_srli_epi16(_mm_add_epi16(t_7, _mm_srli_epi16(t_7, 8)), 8);
+    r_half_3; }), ({
+    t_8 = _mm_add_epi16(_mm_mullo_epi16(dv_6, ia_high_2), _mm_set1_epi16(128));
+    r_half_4 = _mm_srli_epi16(_mm_add_epi16(t_8, _mm_srli_epi16(t_8, 8)), 8);
+    r_half_4; })), t_6);
+    r_over_6; });
+        _mm_storeu_si128((__m128i *)p_5, v_2);
+        i_4 = i_4 + 4;
+    }
+    r_over_5 = i_4;
+    r_over_5; }); i_5 <= n - 1; i_5++) {
+                t = s[i_5];
                 if ((t >> 24) == 255) {
-                    d[i_3] = t;
+                    d[i_5] = t;
                 } else if (t != 0) {
-                    d_4 = d[i_3];
-                    d[i_3] = ({
+                    d_4 = d[i_5];
+                    d[i_5] = ({
     ia_3 = 255 - (int64_t)(t >> 24);
-    t_3 = (((int64_t)d_4) & 0xFF00FF) * ia_3 + 0x800080;
-    rb_2 = (((t_3 + ((t_3 >> 8) & 0xFF00FF)) >> 8) & 0xFF00FF) + (((int64_t)t) & 0xFF00FF);
-    t_3 = ((((int64_t)d_4) >> 8) & 0xFF00FF) * ia_3 + 0x800080;
-    ag_2 = (((t_3 + ((t_3 >> 8) & 0xFF00FF)) >> 8) & 0xFF00FF) + ((((int64_t)t) >> 8) & 0xFF00FF);
+    t_9 = (((int64_t)d_4) & 0xFF00FF) * ia_3 + 0x800080;
+    rb_2 = (((t_9 + ((t_9 >> 8) & 0xFF00FF)) >> 8) & 0xFF00FF) + (((int64_t)t) & 0xFF00FF);
+    t_9 = ((((int64_t)d_4) >> 8) & 0xFF00FF) * ia_3 + 0x800080;
+    ag_2 = (((t_9 + ((t_9 >> 8) & 0xFF00FF)) >> 8) & 0xFF00FF) + ((((int64_t)t) >> 8) & 0xFF00FF);
     ov_2 = rb_2 & 0x1000100;
     rb_2 = (rb_2 | (ov_2 - (ov_2 >> 8))) & 0xFF00FF;
     ov_2 = ag_2 & 0x1000100;
     ag_2 = (ag_2 | (ov_2 - (ov_2 >> 8))) & 0xFF00FF;
-    r_over_3 = (uint32_t)(rb_2 | (ag_2 << 8));
-    r_over_3; });
+    r_over_7 = (uint32_t)(rb_2 | (ag_2 << 8));
+    r_over_7; });
                 }
             }
         }
         return;
     }
-    for (i_4 = 0; i_4 <= n - 1; i_4++) {
-        t = s[i_4];
+    for (i_6 = 0; i_6 <= n - 1; i_6++) {
+        t = s[i_6];
         if (swap) {
             t = (uint32_t)((t & 0xFF00FF00LL) | ((t >> 16) & 0xFF) | (((uint64_t)(t & 0xFF)) << 16));
         }
         if (t != 0) {
-            d_5 = d[i_4];
-            d[i_4] = ({
+            d_5 = d[i_6];
+            d[i_6] = ({
     ia_4 = 65025 - (int64_t)(t >> 24) * ca;
     r_2 = 0;
     for (s_3 = 0; s_3 <= 24; s_3 += 8) {
@@ -824,12 +1155,205 @@ static void image_row(uint32_t *d, uint8_t *src, int64_t n)
         }
         r_2 = r_2 | (ch_2 << s_3);
     }
-    r_over_4 = (uint32_t)r_2;
-    r_over_4; });
+    r_over_8 = (uint32_t)r_2;
+    r_over_8; });
         }
     }
 }
 
+#else
+/* PlatformRaster>>imageRow:texels:count: */
+static void image_row(uint32_t *d, uint8_t *src, int64_t n)
+{
+    int64_t ca;
+    int64_t i;
+    uint32_t d_2;
+    uint32_t c;
+    uint32_t r_over;
+    int64_t ia;
+    int64_t r;
+    int s_2;
+    int64_t ch;
+    uint32_t *s;
+    bool swap;
+    int64_t r_over_2;
+    uint8x16_t ax;
+    int64_t i_2;
+    uint8x16_t t_2;
+    uint8_t *p;
+    uint8x16_t dv;
+    uint8x16_t ia_2;
+    uint8x16_t r_over_3;
+    uint16x8_t lo;
+    uint16x8_t hi;
+    int64_t i_3;
+    uint32_t t;
+    uint32_t d_3;
+    uint32_t c_2;
+    uint32_t r_over_4;
+    int64_t ia_3;
+    int64_t t_3;
+    int64_t rb;
+    int64_t ag;
+    int64_t ov;
+    int64_t r_over_5;
+    uint8x16_t ax_2;
+    int64_t i_4;
+    uint8x16_t t_4;
+    uint8_t *p_2;
+    uint8x16_t dv_2;
+    uint8x16_t ia_4;
+    uint8x16_t r_over_6;
+    uint16x8_t lo_2;
+    uint16x8_t hi_2;
+    int64_t i_5;
+    uint32_t d_4;
+    uint32_t r_over_7;
+    int64_t ia_5;
+    int64_t t_5;
+    int64_t rb_2;
+    int64_t ag_2;
+    int64_t ov_2;
+    int64_t i_6;
+    uint32_t d_5;
+    uint32_t r_over_8;
+    int64_t ia_6;
+    int64_t r_2;
+    int s_3;
+    int64_t ch_2;
+    ca = (int64_t)(rs_color >> 24);
+    if (ca == 0) {
+        return;
+    }
+    if (rs_tex_fmt == PF_TEX_R8) {
+        for (i = 0; i <= n - 1; i++) {
+            d_2 = d[i];
+            c = texel_of((uint32_t)src[i]);
+            d[i] = ({
+    ia = 65025 - (int64_t)(c >> 24) * ca;
+    r = 0;
+    for (s_2 = 0; s_2 <= 24; s_2 += 8) {
+        ch = ((int64_t)((c >> s_2) & 255) * ca * 255 + (int64_t)((d_2 >> s_2) & 255) * ia + 32512) / 65025;
+        if (ch > 255) {
+            ch = 255;
+        }
+        r = r | (ch << s_2);
+    }
+    r_over = (uint32_t)r;
+    r_over; });
+        }
+        return;
+    }
+    s = (uint32_t *)src;
+    swap = rs_tex_fmt != rs_fmt;
+    if (ca == 255) {
+        if (swap) {
+            for (i_3 = ({
+    ax = vcombine_u8(vcreate_u8(0x707070703030303LL), vcreate_u8(0xF0F0F0F0B0B0B0BLL));
+    i_2 = 0;
+    while (i_2 + 4 <= n) {
+        t_2 = vld1q_u8((uint8_t *)(s + i_2));
+        t_2 = vqtbl1q_u8(t_2, vcombine_u8(vcreate_u8(0x704050603000102LL), vcreate_u8(0xF0C0D0E0B08090ALL)));
+        p = (uint8_t *)(d + i_2);
+        dv = vld1q_u8(p);
+        ia_2 = vmvnq_u8(vqtbl1q_u8(t_2, ax));
+        vst1q_u8(p, ({
+    lo = vmull_u8(vget_low_u8(dv), vget_low_u8(ia_2));
+    hi = vmull_high_u8(dv, ia_2);
+    lo = vrsraq_n_u16(lo, lo, 8);
+    hi = vrsraq_n_u16(hi, hi, 8);
+    r_over_3 = vqaddq_u8(vrshrn_high_n_u16(vrshrn_n_u16(lo, 8), hi, 8), t_2);
+    r_over_3; }));
+        i_2 = i_2 + 4;
+    }
+    r_over_2 = i_2;
+    r_over_2; }); i_3 <= n - 1; i_3++) {
+                t = s[i_3];
+                if ((t >> 24) == 255) {
+                    d[i_3] = (uint32_t)((t & 0xFF00FF00LL) | ((t >> 16) & 0xFF) | (((uint64_t)(t & 0xFF)) << 16));
+                } else if (t != 0) {
+                    d_3 = d[i_3];
+                    c_2 = (uint32_t)((t & 0xFF00FF00LL) | ((t >> 16) & 0xFF) | (((uint64_t)(t & 0xFF)) << 16));
+                    d[i_3] = ({
+    ia_3 = 255 - (int64_t)(c_2 >> 24);
+    t_3 = (((int64_t)d_3) & 0xFF00FF) * ia_3 + 0x800080;
+    rb = (((t_3 + ((t_3 >> 8) & 0xFF00FF)) >> 8) & 0xFF00FF) + (((int64_t)c_2) & 0xFF00FF);
+    t_3 = ((((int64_t)d_3) >> 8) & 0xFF00FF) * ia_3 + 0x800080;
+    ag = (((t_3 + ((t_3 >> 8) & 0xFF00FF)) >> 8) & 0xFF00FF) + ((((int64_t)c_2) >> 8) & 0xFF00FF);
+    ov = rb & 0x1000100;
+    rb = (rb | (ov - (ov >> 8))) & 0xFF00FF;
+    ov = ag & 0x1000100;
+    ag = (ag | (ov - (ov >> 8))) & 0xFF00FF;
+    r_over_4 = (uint32_t)(rb | (ag << 8));
+    r_over_4; });
+                }
+            }
+        } else {
+            for (i_5 = ({
+    ax_2 = vcombine_u8(vcreate_u8(0x707070703030303LL), vcreate_u8(0xF0F0F0F0B0B0B0BLL));
+    i_4 = 0;
+    while (i_4 + 4 <= n) {
+        t_4 = vld1q_u8((uint8_t *)(s + i_4));
+        p_2 = (uint8_t *)(d + i_4);
+        dv_2 = vld1q_u8(p_2);
+        ia_4 = vmvnq_u8(vqtbl1q_u8(t_4, ax_2));
+        vst1q_u8(p_2, ({
+    lo_2 = vmull_u8(vget_low_u8(dv_2), vget_low_u8(ia_4));
+    hi_2 = vmull_high_u8(dv_2, ia_4);
+    lo_2 = vrsraq_n_u16(lo_2, lo_2, 8);
+    hi_2 = vrsraq_n_u16(hi_2, hi_2, 8);
+    r_over_6 = vqaddq_u8(vrshrn_high_n_u16(vrshrn_n_u16(lo_2, 8), hi_2, 8), t_4);
+    r_over_6; }));
+        i_4 = i_4 + 4;
+    }
+    r_over_5 = i_4;
+    r_over_5; }); i_5 <= n - 1; i_5++) {
+                t = s[i_5];
+                if ((t >> 24) == 255) {
+                    d[i_5] = t;
+                } else if (t != 0) {
+                    d_4 = d[i_5];
+                    d[i_5] = ({
+    ia_5 = 255 - (int64_t)(t >> 24);
+    t_5 = (((int64_t)d_4) & 0xFF00FF) * ia_5 + 0x800080;
+    rb_2 = (((t_5 + ((t_5 >> 8) & 0xFF00FF)) >> 8) & 0xFF00FF) + (((int64_t)t) & 0xFF00FF);
+    t_5 = ((((int64_t)d_4) >> 8) & 0xFF00FF) * ia_5 + 0x800080;
+    ag_2 = (((t_5 + ((t_5 >> 8) & 0xFF00FF)) >> 8) & 0xFF00FF) + ((((int64_t)t) >> 8) & 0xFF00FF);
+    ov_2 = rb_2 & 0x1000100;
+    rb_2 = (rb_2 | (ov_2 - (ov_2 >> 8))) & 0xFF00FF;
+    ov_2 = ag_2 & 0x1000100;
+    ag_2 = (ag_2 | (ov_2 - (ov_2 >> 8))) & 0xFF00FF;
+    r_over_7 = (uint32_t)(rb_2 | (ag_2 << 8));
+    r_over_7; });
+                }
+            }
+        }
+        return;
+    }
+    for (i_6 = 0; i_6 <= n - 1; i_6++) {
+        t = s[i_6];
+        if (swap) {
+            t = (uint32_t)((t & 0xFF00FF00LL) | ((t >> 16) & 0xFF) | (((uint64_t)(t & 0xFF)) << 16));
+        }
+        if (t != 0) {
+            d_5 = d[i_6];
+            d[i_6] = ({
+    ia_6 = 65025 - (int64_t)(t >> 24) * ca;
+    r_2 = 0;
+    for (s_3 = 0; s_3 <= 24; s_3 += 8) {
+        ch_2 = ((int64_t)((t >> s_3) & 255) * ca * 255 + (int64_t)((d_5 >> s_3) & 255) * ia_6 + 32512) / 65025;
+        if (ch_2 > 255) {
+            ch_2 = 255;
+        }
+        r_2 = r_2 | (ch_2 << s_3);
+    }
+    r_over_8 = (uint32_t)r_2;
+    r_over_8; });
+        }
+    }
+}
+
+#endif
 /* PlatformRaster>>isQuad: */
 static bool is_quad(uint8_t *v)
 {
@@ -847,6 +1371,7 @@ static bool is_quad(uint8_t *v)
     return true;
 }
 
+#if defined(__x86_64__)
 /* PlatformRaster>>patternX:y:width:height: */
 static void pattern_x(int64_t x, int64_t y, int64_t w, int64_t h)
 {
@@ -863,23 +1388,76 @@ static void pattern_x(int64_t x, int64_t y, int64_t w, int64_t h)
     int64_t want;
     bool row_on;
     int64_t i;
+    int64_t r_fill;
+    __m128i x_2;
     int64_t i_2;
+    uint32_t *p;
+    uint32_t *p_2;
+    uint32_t *p_3;
+    uint32_t *p_4;
+    uint32_t *p_5;
+    int64_t i_3;
+    int64_t r_over;
+    __m128i cv;
+    __m128i ia;
+    int64_t i_4;
+    uint32_t *p_6;
+    uint32_t *p_7;
+    __m128i dv;
+    __m128i r_over_2;
+    __m128i z;
+    __m128i dv_2;
+    __m128i r_half;
+    __m128i t;
+    __m128i dv_3;
+    __m128i r_half_2;
+    __m128i t_2;
+    __m128i v;
+    int64_t i_5;
     uint32_t d_2;
-    uint32_t r_over;
-    int64_t ia;
-    int64_t t_2;
+    uint32_t r_over_3;
+    int64_t ia_2;
+    int64_t t_3;
     int64_t rb;
     int64_t ag;
     int64_t ov;
     int64_t t0;
-    int64_t t;
     int64_t q;
-    int64_t r;
-    int64_t i_3;
-    uint32_t d_3;
-    uint32_t r_over_2;
-    int64_t ia_2;
-    int64_t t_3;
+    int64_t e;
+    int64_t s;
+    uint32_t *d_3;
+    int64_t n;
+    int64_t i_6;
+    int64_t r_fill_2;
+    __m128i x_3;
+    int64_t i_7;
+    uint32_t *p_8;
+    uint32_t *p_9;
+    uint32_t *p_10;
+    uint32_t *p_11;
+    uint32_t *p_12;
+    int64_t i_8;
+    int64_t r_over_4;
+    __m128i cv_2;
+    __m128i ia_3;
+    int64_t i_9;
+    uint32_t *p_13;
+    uint32_t *p_14;
+    __m128i dv_4;
+    __m128i r_over_5;
+    __m128i z_2;
+    __m128i dv_5;
+    __m128i r_half_3;
+    __m128i t_4;
+    __m128i dv_6;
+    __m128i r_half_4;
+    __m128i t_5;
+    __m128i v_2;
+    int64_t i_10;
+    uint32_t d_4;
+    uint32_t r_over_6;
+    int64_t ia_4;
+    int64_t t_6;
     int64_t rb_2;
     int64_t ag_2;
     int64_t ov_2;
@@ -923,62 +1501,411 @@ static void pattern_x(int64_t x, int64_t y, int64_t w, int64_t h)
         if (kind == 0) {
             if (row_on) {
                 if ((c >> 24) == 255) {
-                    for (i = 0; i <= w - 1; i++) {
-                        d[i] = c;
+                    if (w < 4) {
+                        for (i = 0; i <= w - 1; i++) {
+                            d[i] = c;
+                        }
+                    } else {
+                        for (i_3 = ({
+    x_2 = _mm_set1_epi32((int32_t)c);
+    i_2 = 0;
+    while (i_2 + 16 <= w) {
+        p = d + i_2;
+        _mm_storeu_si128((__m128i *)p, x_2);
+        p_2 = d + i_2 + 4;
+        _mm_storeu_si128((__m128i *)p_2, x_2);
+        p_3 = d + i_2 + 8;
+        _mm_storeu_si128((__m128i *)p_3, x_2);
+        p_4 = d + i_2 + 12;
+        _mm_storeu_si128((__m128i *)p_4, x_2);
+        i_2 = i_2 + 16;
+    }
+    while (i_2 + 4 <= w) {
+        p_5 = d + i_2;
+        _mm_storeu_si128((__m128i *)p_5, x_2);
+        i_2 = i_2 + 4;
+    }
+    r_fill = i_2;
+    r_fill; }); i_3 <= w - 1; i_3++) {
+                            d[i_3] = c;
+                        }
                     }
                 } else {
-                    for (i_2 = 0; i_2 <= w - 1; i_2++) {
-                        d_2 = d[i_2];
-                        d[i_2] = ({
-    ia = 255 - (int64_t)(c >> 24);
-    t_2 = (((int64_t)d_2) & 0xFF00FF) * ia + 0x800080;
-    rb = (((t_2 + ((t_2 >> 8) & 0xFF00FF)) >> 8) & 0xFF00FF) + (((int64_t)c) & 0xFF00FF);
-    t_2 = ((((int64_t)d_2) >> 8) & 0xFF00FF) * ia + 0x800080;
-    ag = (((t_2 + ((t_2 >> 8) & 0xFF00FF)) >> 8) & 0xFF00FF) + ((((int64_t)c) >> 8) & 0xFF00FF);
+                    for (i_5 = ({
+    cv = _mm_set1_epi32((int32_t)c);
+    ia = _mm_set1_epi16((int16_t)(255 - (c >> 24)));
+    i_4 = 0;
+    while (i_4 + 4 <= w) {
+        p_6 = d + i_4;
+        p_7 = d + i_4;
+        dv = _mm_loadu_si128((__m128i *)p_7);
+        v = ({
+    z = _mm_setzero_si128();
+    dv_2 = _mm_unpacklo_epi8(dv, z);
+    dv_3 = _mm_unpackhi_epi8(dv, z);
+    r_over_2 = _mm_adds_epu8(_mm_packus_epi16(({
+    t = _mm_add_epi16(_mm_mullo_epi16(dv_2, ia), _mm_set1_epi16(128));
+    r_half = _mm_srli_epi16(_mm_add_epi16(t, _mm_srli_epi16(t, 8)), 8);
+    r_half; }), ({
+    t_2 = _mm_add_epi16(_mm_mullo_epi16(dv_3, ia), _mm_set1_epi16(128));
+    r_half_2 = _mm_srli_epi16(_mm_add_epi16(t_2, _mm_srli_epi16(t_2, 8)), 8);
+    r_half_2; })), cv);
+    r_over_2; });
+        _mm_storeu_si128((__m128i *)p_6, v);
+        i_4 = i_4 + 4;
+    }
+    r_over = i_4;
+    r_over; }); i_5 <= w - 1; i_5++) {
+                        d_2 = d[i_5];
+                        d[i_5] = ({
+    ia_2 = 255 - (int64_t)(c >> 24);
+    t_3 = (((int64_t)d_2) & 0xFF00FF) * ia_2 + 0x800080;
+    rb = (((t_3 + ((t_3 >> 8) & 0xFF00FF)) >> 8) & 0xFF00FF) + (((int64_t)c) & 0xFF00FF);
+    t_3 = ((((int64_t)d_2) >> 8) & 0xFF00FF) * ia_2 + 0x800080;
+    ag = (((t_3 + ((t_3 >> 8) & 0xFF00FF)) >> 8) & 0xFF00FF) + ((((int64_t)c) >> 8) & 0xFF00FF);
     ov = rb & 0x1000100;
     rb = (rb | (ov - (ov >> 8))) & 0xFF00FF;
     ov = ag & 0x1000100;
     ag = (ag | (ov - (ov >> 8))) & 0xFF00FF;
-    r_over = (uint32_t)(rb | (ag << 8));
-    r_over; });
+    r_over_3 = (uint32_t)(rb | (ag << 8));
+    r_over_3; });
                     }
                 }
             }
         } else {
             t0 = kind == 1 ? dx : dx + dy;
-            t = t0 > 0 ? t0 : 0;
-            q = t / cell;
-            r = t % cell;
-            t = t0;
-            for (i_3 = 0; i_3 <= w - 1; i_3++) {
-                if ((q & 1) == want) {
-                    d_3 = d[i_3];
-                    d[i_3] = ({
-    ia_2 = 255 - (int64_t)(c >> 24);
-    t_3 = (((int64_t)d_3) & 0xFF00FF) * ia_2 + 0x800080;
-    rb_2 = (((t_3 + ((t_3 >> 8) & 0xFF00FF)) >> 8) & 0xFF00FF) + (((int64_t)c) & 0xFF00FF);
-    t_3 = ((((int64_t)d_3) >> 8) & 0xFF00FF) * ia_2 + 0x800080;
-    ag_2 = (((t_3 + ((t_3 >> 8) & 0xFF00FF)) >> 8) & 0xFF00FF) + ((((int64_t)c) >> 8) & 0xFF00FF);
+            q = (t0 > 0 ? t0 : 0) / cell;
+            e = (q + 1) * cell - t0;
+            s = 0;
+            if (!((q & 1) == want)) {
+                s = e;
+                e = s + cell;
+            }
+            while (s < w) {
+                d_3 = d + s;
+                n = (e < w ? e : w) - s;
+                if ((c >> 24) == 255) {
+                    if (n < 4) {
+                        for (i_6 = 0; i_6 <= n - 1; i_6++) {
+                            d_3[i_6] = c;
+                        }
+                    } else {
+                        for (i_8 = ({
+    x_3 = _mm_set1_epi32((int32_t)c);
+    i_7 = 0;
+    while (i_7 + 16 <= n) {
+        p_8 = d_3 + i_7;
+        _mm_storeu_si128((__m128i *)p_8, x_3);
+        p_9 = d_3 + i_7 + 4;
+        _mm_storeu_si128((__m128i *)p_9, x_3);
+        p_10 = d_3 + i_7 + 8;
+        _mm_storeu_si128((__m128i *)p_10, x_3);
+        p_11 = d_3 + i_7 + 12;
+        _mm_storeu_si128((__m128i *)p_11, x_3);
+        i_7 = i_7 + 16;
+    }
+    while (i_7 + 4 <= n) {
+        p_12 = d_3 + i_7;
+        _mm_storeu_si128((__m128i *)p_12, x_3);
+        i_7 = i_7 + 4;
+    }
+    r_fill_2 = i_7;
+    r_fill_2; }); i_8 <= n - 1; i_8++) {
+                            d_3[i_8] = c;
+                        }
+                    }
+                } else {
+                    for (i_10 = ({
+    cv_2 = _mm_set1_epi32((int32_t)c);
+    ia_3 = _mm_set1_epi16((int16_t)(255 - (c >> 24)));
+    i_9 = 0;
+    while (i_9 + 4 <= n) {
+        p_13 = d_3 + i_9;
+        p_14 = d_3 + i_9;
+        dv_4 = _mm_loadu_si128((__m128i *)p_14);
+        v_2 = ({
+    z_2 = _mm_setzero_si128();
+    dv_5 = _mm_unpacklo_epi8(dv_4, z_2);
+    dv_6 = _mm_unpackhi_epi8(dv_4, z_2);
+    r_over_5 = _mm_adds_epu8(_mm_packus_epi16(({
+    t_4 = _mm_add_epi16(_mm_mullo_epi16(dv_5, ia_3), _mm_set1_epi16(128));
+    r_half_3 = _mm_srli_epi16(_mm_add_epi16(t_4, _mm_srli_epi16(t_4, 8)), 8);
+    r_half_3; }), ({
+    t_5 = _mm_add_epi16(_mm_mullo_epi16(dv_6, ia_3), _mm_set1_epi16(128));
+    r_half_4 = _mm_srli_epi16(_mm_add_epi16(t_5, _mm_srli_epi16(t_5, 8)), 8);
+    r_half_4; })), cv_2);
+    r_over_5; });
+        _mm_storeu_si128((__m128i *)p_13, v_2);
+        i_9 = i_9 + 4;
+    }
+    r_over_4 = i_9;
+    r_over_4; }); i_10 <= n - 1; i_10++) {
+                        d_4 = d_3[i_10];
+                        d_3[i_10] = ({
+    ia_4 = 255 - (int64_t)(c >> 24);
+    t_6 = (((int64_t)d_4) & 0xFF00FF) * ia_4 + 0x800080;
+    rb_2 = (((t_6 + ((t_6 >> 8) & 0xFF00FF)) >> 8) & 0xFF00FF) + (((int64_t)c) & 0xFF00FF);
+    t_6 = ((((int64_t)d_4) >> 8) & 0xFF00FF) * ia_4 + 0x800080;
+    ag_2 = (((t_6 + ((t_6 >> 8) & 0xFF00FF)) >> 8) & 0xFF00FF) + ((((int64_t)c) >> 8) & 0xFF00FF);
     ov_2 = rb_2 & 0x1000100;
     rb_2 = (rb_2 | (ov_2 - (ov_2 >> 8))) & 0xFF00FF;
     ov_2 = ag_2 & 0x1000100;
     ag_2 = (ag_2 | (ov_2 - (ov_2 >> 8))) & 0xFF00FF;
-    r_over_2 = (uint32_t)(rb_2 | (ag_2 << 8));
-    r_over_2; });
-                }
-                t = t + 1;
-                if (t > 0) {
-                    r = r + 1;
-                    if (r == cell) {
-                        r = 0;
-                        q = q + 1;
+    r_over_6 = (uint32_t)(rb_2 | (ag_2 << 8));
+    r_over_6; });
                     }
                 }
+                s = e + cell;
+                e = s + cell;
             }
         }
     }
 }
 
+#else
+/* PlatformRaster>>patternX:y:width:height: */
+static void pattern_x(int64_t x, int64_t y, int64_t w, int64_t h)
+{
+    uint32_t m;
+    uint32_t cell;
+    uint32_t variant;
+    uint32_t c;
+    int64_t dx;
+    int64_t py;
+    uint32_t *d;
+    int64_t dy;
+    int64_t iy;
+    int64_t kind;
+    int64_t want;
+    bool row_on;
+    int64_t i;
+    int64_t r_fill;
+    uint32x4_t x_2;
+    int64_t i_2;
+    int64_t i_3;
+    int64_t r_over;
+    uint8x16_t cv;
+    uint8x16_t ia;
+    int64_t i_4;
+    uint8_t *p;
+    uint8x16_t dv;
+    uint8x16_t r_over_2;
+    uint16x8_t lo;
+    uint16x8_t hi;
+    int64_t i_5;
+    uint32_t d_2;
+    uint32_t r_over_3;
+    int64_t ia_2;
+    int64_t t;
+    int64_t rb;
+    int64_t ag;
+    int64_t ov;
+    int64_t t0;
+    int64_t q;
+    int64_t e;
+    int64_t s;
+    uint32_t *d_3;
+    int64_t n;
+    int64_t i_6;
+    int64_t r_fill_2;
+    uint32x4_t x_3;
+    int64_t i_7;
+    int64_t i_8;
+    int64_t r_over_4;
+    uint8x16_t cv_2;
+    uint8x16_t ia_3;
+    int64_t i_9;
+    uint8_t *p_2;
+    uint8x16_t dv_2;
+    uint8x16_t r_over_5;
+    uint16x8_t lo_2;
+    uint16x8_t hi_2;
+    int64_t i_10;
+    uint32_t d_4;
+    uint32_t r_over_6;
+    int64_t ia_4;
+    int64_t t_2;
+    int64_t rb_2;
+    int64_t ag_2;
+    int64_t ov_2;
+    if (!(rs_blend == PF_BLEND_PREMULTIPLIED)) {
+        shade_x(x, y, w, h, 0.0, 0.0, 0.0, 0.0);
+        return;
+    }
+    m = rs_mode & 255;
+    cell = (rs_mode >> 8) & 255;
+    if (cell == 0) {
+        cell = 1;
+    }
+    variant = (rs_mode >> 16) & 255;
+    c = rs_color;
+    if (c == 0) {
+        return;
+    }
+    dx = floor_of((double)x + 0.5 - rs_org_x);
+    for (py = y; py <= y + h - 1; py++) {
+        d = platform_raster_row(py, x);
+        dy = floor_of((double)py + 0.5 - rs_org_y);
+        iy = (dy > 0 ? dy : 0) / cell;
+        kind = 0;
+        want = 0;
+        row_on = false;
+        if (m == 3) {
+            if (variant == 1) {
+                kind = 1;
+                want = iy & 1;
+            } else if ((iy & 1) == 1) {
+                kind = 1;
+                want = 1;
+            }
+        } else if (variant == 1) {
+            kind = 1;
+        } else if (variant == 2) {
+            kind = 2;
+        } else {
+            row_on = (iy & 1) == 0;
+        }
+        if (kind == 0) {
+            if (row_on) {
+                if ((c >> 24) == 255) {
+                    if (w < 4) {
+                        for (i = 0; i <= w - 1; i++) {
+                            d[i] = c;
+                        }
+                    } else {
+                        for (i_3 = ({
+    x_2 = vdupq_n_u32(c);
+    i_2 = 0;
+    while (i_2 + 16 <= w) {
+        vst1q_u32(d + i_2, x_2);
+        vst1q_u32(d + i_2 + 4, x_2);
+        vst1q_u32(d + i_2 + 8, x_2);
+        vst1q_u32(d + i_2 + 12, x_2);
+        i_2 = i_2 + 16;
+    }
+    while (i_2 + 4 <= w) {
+        vst1q_u32(d + i_2, x_2);
+        i_2 = i_2 + 4;
+    }
+    r_fill = i_2;
+    r_fill; }); i_3 <= w - 1; i_3++) {
+                            d[i_3] = c;
+                        }
+                    }
+                } else {
+                    for (i_5 = ({
+    cv = vreinterpretq_u8_u32(vdupq_n_u32(c));
+    ia = vdupq_n_u8((uint8_t)(255 - (c >> 24)));
+    i_4 = 0;
+    while (i_4 + 4 <= w) {
+        p = (uint8_t *)(d + i_4);
+        dv = vld1q_u8(p);
+        vst1q_u8(p, ({
+    lo = vmull_u8(vget_low_u8(dv), vget_low_u8(ia));
+    hi = vmull_high_u8(dv, ia);
+    lo = vrsraq_n_u16(lo, lo, 8);
+    hi = vrsraq_n_u16(hi, hi, 8);
+    r_over_2 = vqaddq_u8(vrshrn_high_n_u16(vrshrn_n_u16(lo, 8), hi, 8), cv);
+    r_over_2; }));
+        i_4 = i_4 + 4;
+    }
+    r_over = i_4;
+    r_over; }); i_5 <= w - 1; i_5++) {
+                        d_2 = d[i_5];
+                        d[i_5] = ({
+    ia_2 = 255 - (int64_t)(c >> 24);
+    t = (((int64_t)d_2) & 0xFF00FF) * ia_2 + 0x800080;
+    rb = (((t + ((t >> 8) & 0xFF00FF)) >> 8) & 0xFF00FF) + (((int64_t)c) & 0xFF00FF);
+    t = ((((int64_t)d_2) >> 8) & 0xFF00FF) * ia_2 + 0x800080;
+    ag = (((t + ((t >> 8) & 0xFF00FF)) >> 8) & 0xFF00FF) + ((((int64_t)c) >> 8) & 0xFF00FF);
+    ov = rb & 0x1000100;
+    rb = (rb | (ov - (ov >> 8))) & 0xFF00FF;
+    ov = ag & 0x1000100;
+    ag = (ag | (ov - (ov >> 8))) & 0xFF00FF;
+    r_over_3 = (uint32_t)(rb | (ag << 8));
+    r_over_3; });
+                    }
+                }
+            }
+        } else {
+            t0 = kind == 1 ? dx : dx + dy;
+            q = (t0 > 0 ? t0 : 0) / cell;
+            e = (q + 1) * cell - t0;
+            s = 0;
+            if (!((q & 1) == want)) {
+                s = e;
+                e = s + cell;
+            }
+            while (s < w) {
+                d_3 = d + s;
+                n = (e < w ? e : w) - s;
+                if ((c >> 24) == 255) {
+                    if (n < 4) {
+                        for (i_6 = 0; i_6 <= n - 1; i_6++) {
+                            d_3[i_6] = c;
+                        }
+                    } else {
+                        for (i_8 = ({
+    x_3 = vdupq_n_u32(c);
+    i_7 = 0;
+    while (i_7 + 16 <= n) {
+        vst1q_u32(d_3 + i_7, x_3);
+        vst1q_u32(d_3 + i_7 + 4, x_3);
+        vst1q_u32(d_3 + i_7 + 8, x_3);
+        vst1q_u32(d_3 + i_7 + 12, x_3);
+        i_7 = i_7 + 16;
+    }
+    while (i_7 + 4 <= n) {
+        vst1q_u32(d_3 + i_7, x_3);
+        i_7 = i_7 + 4;
+    }
+    r_fill_2 = i_7;
+    r_fill_2; }); i_8 <= n - 1; i_8++) {
+                            d_3[i_8] = c;
+                        }
+                    }
+                } else {
+                    for (i_10 = ({
+    cv_2 = vreinterpretq_u8_u32(vdupq_n_u32(c));
+    ia_3 = vdupq_n_u8((uint8_t)(255 - (c >> 24)));
+    i_9 = 0;
+    while (i_9 + 4 <= n) {
+        p_2 = (uint8_t *)(d_3 + i_9);
+        dv_2 = vld1q_u8(p_2);
+        vst1q_u8(p_2, ({
+    lo_2 = vmull_u8(vget_low_u8(dv_2), vget_low_u8(ia_3));
+    hi_2 = vmull_high_u8(dv_2, ia_3);
+    lo_2 = vrsraq_n_u16(lo_2, lo_2, 8);
+    hi_2 = vrsraq_n_u16(hi_2, hi_2, 8);
+    r_over_5 = vqaddq_u8(vrshrn_high_n_u16(vrshrn_n_u16(lo_2, 8), hi_2, 8), cv_2);
+    r_over_5; }));
+        i_9 = i_9 + 4;
+    }
+    r_over_4 = i_9;
+    r_over_4; }); i_10 <= n - 1; i_10++) {
+                        d_4 = d_3[i_10];
+                        d_3[i_10] = ({
+    ia_4 = 255 - (int64_t)(c >> 24);
+    t_2 = (((int64_t)d_4) & 0xFF00FF) * ia_4 + 0x800080;
+    rb_2 = (((t_2 + ((t_2 >> 8) & 0xFF00FF)) >> 8) & 0xFF00FF) + (((int64_t)c) & 0xFF00FF);
+    t_2 = ((((int64_t)d_4) >> 8) & 0xFF00FF) * ia_4 + 0x800080;
+    ag_2 = (((t_2 + ((t_2 >> 8) & 0xFF00FF)) >> 8) & 0xFF00FF) + ((((int64_t)c) >> 8) & 0xFF00FF);
+    ov_2 = rb_2 & 0x1000100;
+    rb_2 = (rb_2 | (ov_2 - (ov_2 >> 8))) & 0xFF00FF;
+    ov_2 = ag_2 & 0x1000100;
+    ag_2 = (ag_2 | (ov_2 - (ov_2 >> 8))) & 0xFF00FF;
+    r_over_6 = (uint32_t)(rb_2 | (ag_2 << 8));
+    r_over_6; });
+                    }
+                }
+                s = e + cell;
+                e = s + cell;
+            }
+        }
+    }
+}
+
+#endif
 /* PlatformRaster>>pixelBytes: */
 static int pixel_bytes(int32_t format)
 {
@@ -1353,6 +2280,7 @@ static int64_t snap(double x)
     return floor_of(c * 256.0 + 0.5);
 }
 
+#if defined(__x86_64__)
 /* PlatformRaster>>solidX:y:width:height: */
 static void solid_x(int64_t x, int64_t y, int64_t w, int64_t h)
 {
@@ -1360,15 +2288,39 @@ static void solid_x(int64_t x, int64_t y, int64_t w, int64_t h)
     uint32_t ca;
     int64_t py;
     uint32_t *d;
+    int64_t r_fill;
+    __m128i x_2;
     int64_t i;
-    int64_t py_2;
+    uint32_t *p;
+    uint32_t *p_2;
+    uint32_t *p_3;
+    uint32_t *p_4;
+    uint32_t *p_5;
     int64_t i_2;
-    int64_t py_3;
+    int64_t py_2;
     int64_t i_3;
+    int64_t py_3;
+    int64_t r_over;
+    __m128i cv;
+    __m128i ia;
+    int64_t i_4;
+    uint32_t *p_6;
+    uint32_t *p_7;
+    __m128i dv;
+    __m128i r_over_2;
+    __m128i z;
+    __m128i dv_2;
+    __m128i r_half;
+    __m128i t;
+    __m128i dv_3;
+    __m128i r_half_2;
+    __m128i t_2;
+    __m128i v;
+    int64_t i_5;
     uint32_t d_2;
-    uint32_t r_over;
-    int64_t ia;
-    int64_t t;
+    uint32_t r_over_3;
+    int64_t ia_2;
+    int64_t t_3;
     int64_t rb;
     int64_t ag;
     int64_t ov;
@@ -1377,8 +2329,28 @@ static void solid_x(int64_t x, int64_t y, int64_t w, int64_t h)
     if ((rs_blend == PF_BLEND_NONE) || (ca == 255)) {
         for (py = y; py <= y + h - 1; py++) {
             d = platform_raster_row(py, x);
-            for (i = 0; i <= w - 1; i++) {
-                d[i] = c;
+            for (i_2 = ({
+    x_2 = _mm_set1_epi32((int32_t)c);
+    i = 0;
+    while (i + 16 <= w) {
+        p = d + i;
+        _mm_storeu_si128((__m128i *)p, x_2);
+        p_2 = d + i + 4;
+        _mm_storeu_si128((__m128i *)p_2, x_2);
+        p_3 = d + i + 8;
+        _mm_storeu_si128((__m128i *)p_3, x_2);
+        p_4 = d + i + 12;
+        _mm_storeu_si128((__m128i *)p_4, x_2);
+        i = i + 16;
+    }
+    while (i + 4 <= w) {
+        p_5 = d + i;
+        _mm_storeu_si128((__m128i *)p_5, x_2);
+        i = i + 4;
+    }
+    r_fill = i;
+    r_fill; }); i_2 <= w - 1; i_2++) {
+                d[i_2] = c;
             }
         }
         return;
@@ -1386,8 +2358,8 @@ static void solid_x(int64_t x, int64_t y, int64_t w, int64_t h)
     if (!(rs_blend == PF_BLEND_PREMULTIPLIED)) {
         for (py_2 = y; py_2 <= y + h - 1; py_2++) {
             d = platform_raster_row(py_2, x);
-            for (i_2 = 0; i_2 <= w - 1; i_2++) {
-                d[i_2] = platform_raster_blend(d[i_2], c, 255);
+            for (i_3 = 0; i_3 <= w - 1; i_3++) {
+                d[i_3] = platform_raster_blend(d[i_3], c, 255);
             }
         }
         return;
@@ -1397,24 +2369,156 @@ static void solid_x(int64_t x, int64_t y, int64_t w, int64_t h)
     }
     for (py_3 = y; py_3 <= y + h - 1; py_3++) {
         d = platform_raster_row(py_3, x);
-        for (i_3 = 0; i_3 <= w - 1; i_3++) {
-            d_2 = d[i_3];
-            d[i_3] = ({
-    ia = 255 - (int64_t)(c >> 24);
-    t = (((int64_t)d_2) & 0xFF00FF) * ia + 0x800080;
+        for (i_5 = ({
+    cv = _mm_set1_epi32((int32_t)c);
+    ia = _mm_set1_epi16((int16_t)(255 - (c >> 24)));
+    i_4 = 0;
+    while (i_4 + 4 <= w) {
+        p_6 = d + i_4;
+        p_7 = d + i_4;
+        dv = _mm_loadu_si128((__m128i *)p_7);
+        v = ({
+    z = _mm_setzero_si128();
+    dv_2 = _mm_unpacklo_epi8(dv, z);
+    dv_3 = _mm_unpackhi_epi8(dv, z);
+    r_over_2 = _mm_adds_epu8(_mm_packus_epi16(({
+    t = _mm_add_epi16(_mm_mullo_epi16(dv_2, ia), _mm_set1_epi16(128));
+    r_half = _mm_srli_epi16(_mm_add_epi16(t, _mm_srli_epi16(t, 8)), 8);
+    r_half; }), ({
+    t_2 = _mm_add_epi16(_mm_mullo_epi16(dv_3, ia), _mm_set1_epi16(128));
+    r_half_2 = _mm_srli_epi16(_mm_add_epi16(t_2, _mm_srli_epi16(t_2, 8)), 8);
+    r_half_2; })), cv);
+    r_over_2; });
+        _mm_storeu_si128((__m128i *)p_6, v);
+        i_4 = i_4 + 4;
+    }
+    r_over = i_4;
+    r_over; }); i_5 <= w - 1; i_5++) {
+            d_2 = d[i_5];
+            d[i_5] = ({
+    ia_2 = 255 - (int64_t)(c >> 24);
+    t_3 = (((int64_t)d_2) & 0xFF00FF) * ia_2 + 0x800080;
+    rb = (((t_3 + ((t_3 >> 8) & 0xFF00FF)) >> 8) & 0xFF00FF) + (((int64_t)c) & 0xFF00FF);
+    t_3 = ((((int64_t)d_2) >> 8) & 0xFF00FF) * ia_2 + 0x800080;
+    ag = (((t_3 + ((t_3 >> 8) & 0xFF00FF)) >> 8) & 0xFF00FF) + ((((int64_t)c) >> 8) & 0xFF00FF);
+    ov = rb & 0x1000100;
+    rb = (rb | (ov - (ov >> 8))) & 0xFF00FF;
+    ov = ag & 0x1000100;
+    ag = (ag | (ov - (ov >> 8))) & 0xFF00FF;
+    r_over_3 = (uint32_t)(rb | (ag << 8));
+    r_over_3; });
+        }
+    }
+}
+
+#else
+/* PlatformRaster>>solidX:y:width:height: */
+static void solid_x(int64_t x, int64_t y, int64_t w, int64_t h)
+{
+    uint32_t c;
+    uint32_t ca;
+    int64_t py;
+    uint32_t *d;
+    int64_t r_fill;
+    uint32x4_t x_2;
+    int64_t i;
+    int64_t i_2;
+    int64_t py_2;
+    int64_t i_3;
+    int64_t py_3;
+    int64_t r_over;
+    uint8x16_t cv;
+    uint8x16_t ia;
+    int64_t i_4;
+    uint8_t *p;
+    uint8x16_t dv;
+    uint8x16_t r_over_2;
+    uint16x8_t lo;
+    uint16x8_t hi;
+    int64_t i_5;
+    uint32_t d_2;
+    uint32_t r_over_3;
+    int64_t ia_2;
+    int64_t t;
+    int64_t rb;
+    int64_t ag;
+    int64_t ov;
+    c = rs_color;
+    ca = c >> 24;
+    if ((rs_blend == PF_BLEND_NONE) || (ca == 255)) {
+        for (py = y; py <= y + h - 1; py++) {
+            d = platform_raster_row(py, x);
+            for (i_2 = ({
+    x_2 = vdupq_n_u32(c);
+    i = 0;
+    while (i + 16 <= w) {
+        vst1q_u32(d + i, x_2);
+        vst1q_u32(d + i + 4, x_2);
+        vst1q_u32(d + i + 8, x_2);
+        vst1q_u32(d + i + 12, x_2);
+        i = i + 16;
+    }
+    while (i + 4 <= w) {
+        vst1q_u32(d + i, x_2);
+        i = i + 4;
+    }
+    r_fill = i;
+    r_fill; }); i_2 <= w - 1; i_2++) {
+                d[i_2] = c;
+            }
+        }
+        return;
+    }
+    if (!(rs_blend == PF_BLEND_PREMULTIPLIED)) {
+        for (py_2 = y; py_2 <= y + h - 1; py_2++) {
+            d = platform_raster_row(py_2, x);
+            for (i_3 = 0; i_3 <= w - 1; i_3++) {
+                d[i_3] = platform_raster_blend(d[i_3], c, 255);
+            }
+        }
+        return;
+    }
+    if (c == 0) {
+        return;
+    }
+    for (py_3 = y; py_3 <= y + h - 1; py_3++) {
+        d = platform_raster_row(py_3, x);
+        for (i_5 = ({
+    cv = vreinterpretq_u8_u32(vdupq_n_u32(c));
+    ia = vdupq_n_u8((uint8_t)(255 - (c >> 24)));
+    i_4 = 0;
+    while (i_4 + 4 <= w) {
+        p = (uint8_t *)(d + i_4);
+        dv = vld1q_u8(p);
+        vst1q_u8(p, ({
+    lo = vmull_u8(vget_low_u8(dv), vget_low_u8(ia));
+    hi = vmull_high_u8(dv, ia);
+    lo = vrsraq_n_u16(lo, lo, 8);
+    hi = vrsraq_n_u16(hi, hi, 8);
+    r_over_2 = vqaddq_u8(vrshrn_high_n_u16(vrshrn_n_u16(lo, 8), hi, 8), cv);
+    r_over_2; }));
+        i_4 = i_4 + 4;
+    }
+    r_over = i_4;
+    r_over; }); i_5 <= w - 1; i_5++) {
+            d_2 = d[i_5];
+            d[i_5] = ({
+    ia_2 = 255 - (int64_t)(c >> 24);
+    t = (((int64_t)d_2) & 0xFF00FF) * ia_2 + 0x800080;
     rb = (((t + ((t >> 8) & 0xFF00FF)) >> 8) & 0xFF00FF) + (((int64_t)c) & 0xFF00FF);
-    t = ((((int64_t)d_2) >> 8) & 0xFF00FF) * ia + 0x800080;
+    t = ((((int64_t)d_2) >> 8) & 0xFF00FF) * ia_2 + 0x800080;
     ag = (((t + ((t >> 8) & 0xFF00FF)) >> 8) & 0xFF00FF) + ((((int64_t)c) >> 8) & 0xFF00FF);
     ov = rb & 0x1000100;
     rb = (rb | (ov - (ov >> 8))) & 0xFF00FF;
     ov = ag & 0x1000100;
     ag = (ag | (ov - (ov >> 8))) & 0xFF00FF;
-    r_over = (uint32_t)(rb | (ag << 8));
-    r_over; });
+    r_over_3 = (uint32_t)(rb | (ag << 8));
+    r_over_3; });
         }
     }
 }
 
+#endif
 /* PlatformRaster>>targetColor: */
 static uint32_t target_color(uint32_t rgba)
 {

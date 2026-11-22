@@ -1,11 +1,13 @@
 VMPlatformModule subclass: #PlatformRaster
-	instanceVariableNames: 'rsPixels rsW rsH rsFmt rsClipX0 rsClipY0 rsClipX1 rsClipY1 rsBlend rsTex rsTexW rsTexH rsTexFmt rsLinear rsRepeat rsOx rsOy rsSx rsSy rsTx rsTy rsMode rsColor rsOrgX rsOrgY'
+	instanceVariableNames: 'rsPixels rsW rsH rsFmt rsClipX0 rsClipY0 rsClipX1 rsClipY1 rsBlend rsTex rsTexW rsTexH rsTexFmt rsLinear rsRepeat rsOx rsOy rsSx rsSy rsTx rsTy rsMode rsColor rsOrgX rsOrgY rows'
 	classVariableNames: 'RS_MAX_COORD RS_STRIDE'
 	package: 'VM-Platform'!
 
 PlatformRaster comment: 'The pixel work of a software GPU (the raster primitives; the image''s SoftwareGPU is the device): the Renderer''s uber-shader (Renderer class>>glslShaderSource) run on a batch of its vertices into a pixel buffer, fills, blits, and copies of pixel rectangles. Pure computation on memory the caller owns: pixels are rows of R8, RGBA8 or BGRA8, tightly packed.
 
 A draw runs the vertex stage as the shader does (the uniforms: viewport size, translation; the viewport transform) and rasterizes like a GPU: positions snapped to 1/256 pixel, pixel centres at +0.5, the top-left fill rule (adjacent quads neither overlap nor leave gaps), attributes interpolated at pixel centres, round to nearest into unorm8, blending exact up to that rounding. A quad (six equal vertices without bit 31 of mode, at a vertex index divisible by six) is an axis-aligned rectangle and takes a path over pixel rows: solid fills, glyph coverage, 1:1 images (nearest, or linear at texel centres) and the patterns without per-pixel arithmetic beyond the blend; other quads (scaled images, line coverage) shade per pixel, and the triangles of bit-31 vertices go through a general triangle rasterizer (per-row spans from the edge functions). Sampling is textureLod(tex, uv / size): nearest takes texel floor(uv), linear is bilinear with texel centres at +0.5 and 8-bit weights; clamp to edge, or repeat.
+
+Fills, opaque and premultiplied solid rows, the rows of a pattern, 1:1 premultiplied images and red/blue swaps go 4 pixels at a time through rows (PixelRows: NEON on arm64, SSE2 on x86-64), the rest of a row one by one, with the same results to the bit.
 
 The raster state of the draw or blit being executed is in the rs variables (target, clip, blend, texture, sampler, the vertex transform, the primitive''s flat attributes).'!
 
@@ -15,7 +17,8 @@ declarations
 		(rsClipX0 int64_t) (rsClipY0 int64_t) (rsClipX1 int64_t) (rsClipY1 int64_t) (rsBlend int32_t)
 		(rsTex 'uint8_t *') (rsTexW int64_t) (rsTexH int64_t) (rsTexFmt int32_t) (rsLinear bool) (rsRepeat bool)
 		(rsOx double) (rsOy double) (rsSx double) (rsSy double) (rsTx double) (rsTy double)
-		(rsMode uint32_t) (rsColor uint32_t) (rsOrgX double) (rsOrgY double))
+		(rsMode uint32_t) (rsColor uint32_t) (rsOrgX double) (rsOrgY double)
+		(rows PixelRows))
 !
 initialize
 	"The Renderer's vertex; vertex positions are clamped to RS_MAX_COORD pixels from the origin."
@@ -140,7 +143,7 @@ fill: pixels count: n bytesPerPixel: bpp value: v
 		libc memset: pixels value: (v bitAnd: 255) asInt32 size: n asUInt64.
 		^self].
 	p := self cCoerce: pixels to: 'uint32_t *'.
-	0 to: n - 1 do: [:i | p at: i put: v]
+	(rows fill: p count: n value: v) to: n - 1 do: [:i | p at: i put: v]
 !
 copy: dst stride: dstStride from: src stride: srcStride width: w height: h bytesPerPixel: bpp mode: mode
 	"Rows of w pixels of bpp bytes (1 or 4); 4-byte pixels with mode bit 1 swap red and blue, with bit 2 only those whose alpha is not 0 are copied."
@@ -153,7 +156,7 @@ copy: dst stride: dstStride from: src stride: srcStride width: w height: h bytes
 	<var: #h type: 'int64_t'>
 	<var: #bpp type: 'int64_t'>
 	<var: #mode type: 'int64_t'>
-	| d s v swap keyed |
+	| d s v swap keyed i0 |
 	(bpp = 1 or: [mode = 0]) ifTrue: [
 		0 to: h - 1 do: [:y | libc memcpy: dst + (y * dstStride) from: src + (y * srcStride) size: (w * bpp) asUInt64].
 		^self].
@@ -162,7 +165,9 @@ copy: dst stride: dstStride from: src stride: srcStride width: w height: h bytes
 	0 to: h - 1 do: [:y |
 		d := self cCoerce: dst + (y * dstStride) to: 'uint32_t *'.
 		s := self cCoerce: src + (y * srcStride) to: 'uint32_t *'.
-		0 to: w - 1 do: [:i |
+		i0 := 0.
+		(swap and: [keyed not]) ifTrue: [i0 := rows swap: d from: s count: w].
+		i0 to: w - 1 do: [:i |
 			v := s at: i.
 			(keyed not or: [(v >> 24) ~= 0]) ifTrue: [d at: i put: (swap ifTrue: [(self swapRB: v) asUInt32] ifFalse: [v])]]]
 ! !
@@ -336,7 +341,7 @@ solidX: x y: y width: w height: h
 	(rsBlend = PF_BLEND_NONE or: [ca = 255]) ifTrue: [
 		y to: y + h - 1 do: [:py |
 			d := self row: py x: x.
-			0 to: w - 1 do: [:i | d at: i put: c]].
+			(rows fill: d count: w value: c) to: w - 1 do: [:i | d at: i put: c]].
 		^self].
 	rsBlend = PF_BLEND_PREMULTIPLIED ifFalse: [
 		y to: y + h - 1 do: [:py |
@@ -346,7 +351,7 @@ solidX: x y: y width: w height: h
 	c = 0 ifTrue: [^self].
 	y to: y + h - 1 do: [:py |
 		d := self row: py x: x.
-		0 to: w - 1 do: [:i | d at: i put: (self over: (d at: i) color: c)]]
+		(rows over: d color: c count: w) to: w - 1 do: [:i | d at: i put: (self over: (d at: i) color: c)]]
 !
 patternX: x y: y width: w height: h
 	"Modes 3 (halftone) and 4 (stripes; every other mode but 5 is drawn as stripes, as by the shader): on pixels get the color, off ones nothing."
@@ -355,7 +360,7 @@ patternX: x y: y width: w height: h
 	<var: #y type: 'int64_t'>
 	<var: #w type: 'int64_t'>
 	<var: #h type: 'int64_t'>
-	| m cell variant c d dx dy iy kind want t0 t q r rowOn |
+	| m cell variant c d dx dy iy kind want t0 q s e rowOn |
 	rsBlend = PF_BLEND_PREMULTIPLIED ifFalse: [^self shadeX: x y: y width: w height: h u: 0.0 v: 0.0 du: 0.0 dv: 0.0].
 	m := rsMode bitAnd: 255.
 	cell := (rsMode >> 8) bitAnd: 255.
@@ -390,25 +395,29 @@ patternX: x y: y width: w height: h
 							ifTrue: [kind := 2]
 							ifFalse: [rowOn := (iy bitAnd: 1) = 0]]].
 		kind = 0
-			ifTrue: [
-				rowOn ifTrue: [
-					(c >> 24) = 255
-						ifTrue: [0 to: w - 1 do: [:i | d at: i put: c]]
-						ifFalse: [0 to: w - 1 do: [:i | d at: i put: (self over: (d at: i) color: c)]]]]
+			ifTrue: [rowOn ifTrue: [self patternRun: d count: w color: c]]
 			ifFalse: [
+				"pixel i is in cell max(t0 + i, 0) // cell, on if the cell's parity is want: runs of cell pixels from [s, e), the run of pixel 0 or the one after it"
 				t0 := kind = 1 ifTrue: [dx] ifFalse: [dx + dy].
-				t := t0 max: 0.
-				q := t quo: cell.
-				r := t rem: cell.
-				t := t0.
-				0 to: w - 1 do: [:i |
-					(q bitAnd: 1) = want ifTrue: [d at: i put: (self over: (d at: i) color: c)].
-					t := t + 1.
-					t > 0 ifTrue: [
-						r := r + 1.
-						r = cell ifTrue: [
-							r := 0.
-							q := q + 1]]]]]
+				q := (t0 max: 0) quo: cell.
+				e := ((q + 1) * cell) - t0.
+				s := 0.
+				(q bitAnd: 1) = want ifFalse: [
+					s := e.
+					e := s + cell].
+				[s < w] whileTrue: [
+					self patternRun: d + s count: (e min: w) - s color: c.
+					s := e + cell.
+					e := s + cell]]]
+!
+patternRun: d count: n color: c
+	"The n pixels at d on in a pattern of the color c: c over each, which for an opaque c is c."
+	(c >> 24) = 255
+		ifTrue: [
+			n < 4
+				ifTrue: [0 to: n - 1 do: [:i | d at: i put: c]]
+				ifFalse: [(rows fill: d count: n value: c) to: n - 1 do: [:i | d at: i put: c]]]
+		ifFalse: [(rows over: d color: c count: n) to: n - 1 do: [:i | d at: i put: (self over: (d at: i) color: c)]]
 !
 texturedX: x y: y width: w height: h u: u0 v: v0 du: du dv: dv
 	"Modes 1 and 2 where the pixels map 1:1 on texels inside the texture (u, v at the first pixel centre): copy texel rows (premultiplied blending only). Answer whether done."
@@ -604,13 +613,13 @@ imageRow: d texels: src count: n
 	ca = 255 ifTrue: [
 		swap
 			ifTrue: [
-				0 to: n - 1 do: [:i |
+				(rows over: d texels: s count: n swap: true) to: n - 1 do: [:i |
 					t := s at: i.
 					(t >> 24) = 255
 						ifTrue: [d at: i put: (self swapRB: t) asUInt32]
 						ifFalse: [t ~= 0 ifTrue: [d at: i put: (self over: (d at: i) color: (self swapRB: t) asUInt32)]]]]
 			ifFalse: [
-				0 to: n - 1 do: [:i |
+				(rows over: d texels: s count: n swap: false) to: n - 1 do: [:i |
 					t := s at: i.
 					(t >> 24) = 255
 						ifTrue: [d at: i put: t]
@@ -977,7 +986,7 @@ convert: d format: df from: s format: sf count: n
 			ifTrue: [0 to: n - 1 do: [:i | d at: i put: (s at: (i * 4) + 2)]]
 			ifFalse: [0 to: n - 1 do: [:i | d at: i put: (s at: i * 4)]].
 		^self].
-	0 to: n - 1 do: [:i | d4 at: i put: (self swapRB: (s4 at: i)) asUInt32]
+	(rows swap: d4 from: s4 count: n) to: n - 1 do: [:i | d4 at: i put: (self swapRB: (s4 at: i)) asUInt32]
 ! !
 
 VMStruct subclass: #RasterState

@@ -299,32 +299,41 @@ primStringHash
 primStringCompare
 	<vmPrimitive: 103 name: 'stringCompare'>
 	<leaf>
-	| a b na nb n x y |
+	| a b na nb n x y k wa wb |
 	a := self receiver.
 	b := self arg0.
 	((self isStringLike: a) and: [self isStringLike: b]) ifFalse: [^self fail].
 	na := memory stringSize: a.
 	nb := memory stringSize: b.
 	n := na < nb ifTrue: [na] ifFalse: [nb].
-	0 to: n asInt64 - 1 do: [:i |
-		x := memory stringCharAt: a index: i asUInt64.
-		y := memory stringCharAt: b index: i asUInt64.
-		x ~= y ifTrue: [^self answer: (self intOop: (x < y ifTrue: [-1] ifFalse: [1]))]].
+	((self formatOf: a) >= F_BYTES and: [(self formatOf: b) >= F_BYTES])
+		ifTrue: [
+			k := search mismatchOf: (self bytesOf: a) with: (self bytesOf: b) from: 0 size: n asInt64.
+			k < n asInt64 ifTrue: [^self answer: (self intOop: (((self bytesOf: a) at: k) < ((self bytesOf: b) at: k) ifTrue: [-1] ifFalse: [1]))]]
+		ifFalse: [
+			((self formatOf: a) < F_BYTES and: [(self formatOf: b) < F_BYTES])
+				ifTrue: [
+					wa := self words32Of: a.
+					wb := self words32Of: b.
+					0 to: n asInt64 - 1 do: [:i |
+						(wa at: i) ~= (wb at: i) ifTrue: [^self answer: (self intOop: ((wa at: i) < (wb at: i) ifTrue: [-1] ifFalse: [1]))]]]
+				ifFalse: [
+					0 to: n asInt64 - 1 do: [:i |
+						x := memory stringCharAt: a index: i asUInt64.
+						y := memory stringCharAt: b index: i asUInt64.
+						x ~= y ifTrue: [^self answer: (self intOop: (x < y ifTrue: [-1] ifFalse: [1]))]]]].
 	self answer: (self intOop: (na < nb ifTrue: [-1] ifFalse: [na > nb ifTrue: [1] ifFalse: [0]]))
 !
 isByteString: o
 	"A ByteString or ByteSymbol."
 	^(self isPtr: o) and: [(self rawClass: o) = memory clsBytestring or: [(self rawClass: o) = (memory special: SO_BYTESYMBOL)]]
 !
-lowercase: c
-	"Character>>asLowercase of the byte c: A-Z and À-Þ but × go up 32."
-	^((c >= 65 and: [c <= 90]) or: [c >= 192 and: [c <= 222 and: [c ~= 215]]]) ifTrue: [c + 32] ifFalse: [c]
-!
+
 primStringCaseInsensitiveCompare
 	"stringCompare of the characters' asLowercase, for ByteStrings and ByteSymbols (String>>caseInsensitiveCompare: loops for wide ones)."
 	<vmPrimitive: 116 name: 'stringCaseInsensitiveCompare'>
 	<leaf>
-	| a b na nb pa pb x y |
+	| a b na nb pa pb x y n i |
 	a := self receiver.
 	b := self arg0.
 	((self isByteString: a) and: [self isByteString: b]) ifFalse: [^self fail].
@@ -332,38 +341,26 @@ primStringCaseInsensitiveCompare
 	nb := memory byteSize: b.
 	pa := self bytesOf: a.
 	pb := self bytesOf: b.
-	0 to: (na < nb ifTrue: [na] ifFalse: [nb]) asInt64 - 1 do: [:i |
-		x := (pa at: i) asInt32.
-		y := (pb at: i) asInt32.
-		x ~= y ifTrue: [
-			x := self lowercase: x.
-			y := self lowercase: y.
-			x ~= y ifTrue: [^self answer: (self intOop: (x < y ifTrue: [-1] ifFalse: [1]))]]].
+	n := (na < nb ifTrue: [na] ifFalse: [nb]) asInt64.
+	i := search mismatchOf: pa with: pb from: 0 size: n.
+	[i < n] whileTrue: [
+		x := search lowercase: (pa at: i) asInt32.
+		y := search lowercase: (pb at: i) asInt32.
+		x ~= y ifTrue: [^self answer: (self intOop: (x < y ifTrue: [-1] ifFalse: [1]))].
+		i := search mismatchOf: pa with: pb from: i + 1 size: n].
 	self answer: (self intOop: (na < nb ifTrue: [-1] ifFalse: [na > nb ifTrue: [1] ifFalse: [0]]))
 !
-uppercase: c
-	"Character>>asUppercase of the byte c (not ÿ, whose uppercase is wide): a-z and à-þ but ÷ go down 32."
-	^((c >= 97 and: [c <= 122]) or: [c >= 224 and: [c <= 254 and: [c ~= 247]]]) ifTrue: [c - 32] ifFalse: [c]
-!
+
 convertCase: upper
 	"asUppercase (upper) or asLowercase of a ByteString or ByteSymbol: a new ByteString. Fails for others and for ÿ going up."
 	<function>
-	| r n s a b c |
+	| r n s |
 	r := self receiver.
 	(self isByteString: r) ifFalse: [^self fail].
 	n := memory byteSize: r.
 	s := memory allocBytes: memory clsBytestring count: n.
 	r := self receiver.
-	a := self bytesOf: r.
-	b := self bytesOf: s.
-	0 to: n asInt64 - 1 do: [:i |
-		c := (a at: i) asInt32.
-		upper
-			ifTrue: [
-				c = 255 ifTrue: [^self fail].
-				c := self uppercase: c]
-			ifFalse: [c := self lowercase: c].
-		b at: i put: c asUInt8].
+	(search convertCase: (self bytesOf: r) into: (self bytesOf: s) size: n asInt64 upper: upper) ifFalse: [^self fail].
 	self answer: s
 !
 primStringAsUppercase

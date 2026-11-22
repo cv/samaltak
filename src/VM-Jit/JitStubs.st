@@ -442,24 +442,13 @@ generateBaselineX64
 	self emitCopyStub
 !
 emitCopyStub
-	"memmove of x16 := the destination, x17 := the source and the count register's bytes (not 0; copyCountRegister, copyTempRegister): x16, x17, those two, the flags and the d registers C does not keep change, nothing else. Up to 16 bytes with two loads (the first and the last 8, 4, 2 bytes, overlapping), then two stores; up to 64 bytes in words (32 bytes a turn while they last), then the rest, from the end down if the destination overlaps the source from above; longer copies call memmove (its callers are primitives, entered by sends, and optimized code's calls, whose doubles are loaded again after it: on x86-64 xmm8-xmm15 are not kept either)."
-	| c t back long fwd32 fwd bwd32 bwd fwdTail backTail f2 f1 b2 b1 done medium |
+	"memmove of x16 := the destination, x17 := the source and the count register's bytes (not 0; copyCountRegister, copyTempRegister): x16, x17, those two, the flags and the d registers C does not keep change (d0-d7), nothing else. Up to 16 bytes with two loads (the first and the last 8, 4, 2 bytes, overlapping), then two stores; up to 32 the first and the last 16, up to 64 the first and the last 32, in pairs of d registers (ldp/stp of d0-d7; on x86-64 movsd of xmm0-xmm7), all loaded before any is stored, so whatever the overlap; longer copies call memmove (its callers are primitives, entered by sends, and optimized code's calls, whose doubles are loaded again after it: on x86-64 xmm8-xmm15 are not kept either)."
+	| c t long medium upTo64 |
 	c := self copyCountRegister.
 	t := self copyTempRegister.
 	medium := asm newLabel.
-	back := asm newLabel.
 	long := asm newLabel.
-	fwd32 := asm newLabel.
-	fwd := asm newLabel.
-	bwd32 := asm newLabel.
-	bwd := asm newLabel.
-	fwdTail := asm newLabel.
-	backTail := asm newLabel.
-	f2 := asm newLabel.
-	f1 := asm newLabel.
-	b2 := asm newLabel.
-	b1 := asm newLabel.
-	done := asm newLabel.
+	upTo64 := asm newLabel.
 	blCopy := self symbol: 'copy'.
 	asm cmp: c imm: 16.
 	asm b: medium if: COND_HI.
@@ -467,79 +456,25 @@ emitCopyStub
 	asm bind: medium.
 	asm cmp: c imm: 64.
 	asm b: long if: COND_HI.
-	asm sub: t with: X16 with: X17.
-	asm cmp: t with: c.
-	asm b: back if: COND_LO.
-	asm add: c with: X17 with: c.
-	asm bind: fwd32.
-	asm sub: t with: c with: X17.
-	asm cmp: t imm: 32.
-	asm b: fwd if: COND_LO.
-	0 to: 3 do: [:i |
-		asm ldr: t base: X17 offset: 8 * i.
-		asm str: t base: X16 offset: 8 * i].
-	asm add: X17 with: X17 imm: 32.
-	asm add: X16 with: X16 imm: 32.
-	asm b: fwd32.
-	asm bind: fwd.
-	asm sub: t with: c with: X17.
-	asm cmp: t imm: 8.
-	asm b: fwdTail if: COND_LO.
-	asm ldr: t base: X17 postIndex: 8.
-	asm str: t base: X16 postIndex: 8.
-	asm b: fwd.
-	asm bind: fwdTail.
-	asm tbz: t bit: 2 to: f2.
-	asm ldr: (c bitOr: REG_W) base: X17 postIndex: 4.
-	asm str: (c bitOr: REG_W) base: X16 postIndex: 4.
-	asm bind: f2.
-	asm tbz: t bit: 1 to: f1.
-	asm ldrh: (c bitOr: REG_W) base: X17 offset: 0.
-	asm strh: (c bitOr: REG_W) base: X16 offset: 0.
-	asm add: X17 with: X17 imm: 2.
-	asm add: X16 with: X16 imm: 2.
-	asm bind: f1.
-	asm tbz: t bit: 0 to: done.
-	asm ldrb: (c bitOr: REG_W) base: X17 offset: 0.
-	asm strb: (c bitOr: REG_W) base: X16 offset: 0.
-	asm b: done.
-	asm bind: back.
-	asm mov: t with: X17.
-	asm add: X17 with: X17 with: c.
-	asm add: X16 with: X16 with: c.
-	asm mov: c with: t.
-	asm bind: bwd32.
-	asm sub: t with: X17 with: c.
-	asm cmp: t imm: 32.
-	asm b: bwd if: COND_LO.
-	1 to: 4 do: [:i |
-		asm ldr: t base: X17 offset: -8 * i.
-		asm str: t base: X16 offset: -8 * i].
-	asm sub: X17 with: X17 imm: 32.
-	asm sub: X16 with: X16 imm: 32.
-	asm b: bwd32.
-	asm bind: bwd.
-	asm sub: t with: X17 with: c.
-	asm cmp: t imm: 8.
-	asm b: backTail if: COND_LO.
-	asm ldr: t base: X17 preIndex: -8.
-	asm str: t base: X16 preIndex: -8.
-	asm b: bwd.
-	asm bind: backTail.
-	asm tbz: t bit: 2 to: b2.
-	asm ldr: (c bitOr: REG_W) base: X17 preIndex: -4.
-	asm str: (c bitOr: REG_W) base: X16 preIndex: -4.
-	asm bind: b2.
-	asm tbz: t bit: 1 to: b1.
-	asm sub: X17 with: X17 imm: 2.
-	asm sub: X16 with: X16 imm: 2.
-	asm ldrh: (c bitOr: REG_W) base: X17 offset: 0.
-	asm strh: (c bitOr: REG_W) base: X16 offset: 0.
-	asm bind: b1.
-	asm tbz: t bit: 0 to: done.
-	asm ldurb: (c bitOr: REG_W) base: X17 offset: -1.
-	asm sturb: (c bitOr: REG_W) base: X16 offset: -1.
-	asm bind: done.
+	asm add: t with: X17 with: c.
+	asm cmp: c imm: 32.
+	asm b: upTo64 if: COND_HI.
+	asm ldp: D0 with: D1 base: X17 offset: 0.
+	asm ldp: D2 with: D3 base: t offset: -16.
+	asm add: t with: X16 with: c.
+	asm stp: D0 with: D1 base: X16 offset: 0.
+	asm stp: D2 with: D3 base: t offset: -16.
+	asm ret.
+	asm bind: upTo64.
+	asm ldp: D0 with: D1 base: X17 offset: 0.
+	asm ldp: D2 with: D3 base: X17 offset: 16.
+	asm ldp: D4 with: D5 base: t offset: -32.
+	asm ldp: D6 with: D7 base: t offset: -16.
+	asm add: t with: X16 with: c.
+	asm stp: D0 with: D1 base: X16 offset: 0.
+	asm stp: D2 with: D3 base: X16 offset: 16.
+	asm stp: D4 with: D5 base: t offset: -32.
+	asm stp: D6 with: D7 base: t offset: -16.
 	asm ret.
 	asm bind: long.
 	asm isX64

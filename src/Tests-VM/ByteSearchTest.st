@@ -3,7 +3,7 @@ TestCase subclass: #ByteSearchTest
 	classVariableNames: ''
 	package: 'Tests-VM'!
 
-ByteSearchTest comment: 'ByteSearch, run as Smalltalk (VMSimulation) with the blocks of each CPU (both run here), answers what a naive search answers and reads nothing outside the bytes it searches: each lies in simulated memory with nothing mapped after it.'!
+ByteSearchTest comment: 'ByteSearch, run as Smalltalk (VMSimulation) with the blocks of each CPU (both run here), answers what a naive search, comparison or case conversion answers and reads nothing outside the bytes it is given: each lies in simulated memory with nothing mapped after it.'!
 
 !ByteSearchTest methodsFor: 'running'!
 timeLimitMilliseconds
@@ -74,6 +74,57 @@ searchWith: aBlocksClass
 testSse2Blocks
 	self searchWith: Sse2ByteBlocks
 !
-testSwarBlocks
-	self searchWith: SwarByteBlocks
+testNeonBlocks
+	self searchWith: NeonByteBlocks
+!
+testNeonMismatchAndCase
+	self compareWith: NeonByteBlocks
+!
+testSse2MismatchAndCase
+	self compareWith: Sse2ByteBlocks
+! !
+
+!ByteSearchTest methodsFor: 'helpers'!
+compareWith: aBlocksClass
+	"mismatchOf:with:from:size: of runs that differ at each place (or nowhere) from each start; convertCase:into:size:upper: of every byte at a random place of runs around the block size, against ByteSearch's own uppercase: and lowercase: (Character's asUppercase and asLowercase of the byte, but µ's, which is wide). The runs of one size share their simulated memory."
+	| sim search random |
+	sim := VMSimulation modules: {ByteSearch. aBlocksClass}.
+	search := sim module: ByteSearch.
+	random := Random seed: 99.
+	#(0 1 7 15 16 17 31 32 33 47) do: [:n |
+		| a aa ab pa pb |
+		a := ((1 to: n) collect: [:i | (random nextInt: 256) - 1]) asByteArray.
+		aa := self place: a in: sim.
+		ab := self place: a in: sim.
+		pa := self pointerAt: aa in: sim.
+		pb := self pointerAt: ab in: sim.
+		(0 to: n) do: [:at |
+			| b |
+			b := a copy.
+			at < n ifTrue: [b at: at + 1 put: (b at: at + 1) + 1 + (random nextInt: 254) \\ 256].
+			sim memory bytesAt: (sim memory addressOf: pb) put: b.
+			(0 to: n) do: [:s |
+				self
+					assert: (search mismatchOf: pa with: pb from: s size: n)
+					equals: (s <= at ifTrue: [at] ifFalse: [n])]].
+		sim memory free: aa; free: ab].
+	#(1 15 16 17 32 33) do: [:n |
+		| aa ab pa pb |
+		aa := self place: (ByteArray new: n) in: sim.
+		ab := self place: (ByteArray new: n) in: sim.
+		pa := self pointerAt: aa in: sim.
+		pb := self pointerAt: ab in: sim.
+		0 to: 255 do: [:c |
+			| a ok |
+			a := ((1 to: n) collect: [:i | (random nextInt: 256) - 1]) asByteArray.
+			a at: (random nextInt: n) put: c.
+			sim memory bytesAt: (sim memory addressOf: pa) put: a.
+			#(true false) do: [:upper |
+				ok := search convertCase: pa into: pb size: n upper: upper.
+				self assert: ok equals: (upper not or: [(a includes: 255) not]).
+				ok ifTrue: [
+					self
+						assert: (sim memory bytesAt: (sim memory addressOf: pb) count: n)
+						equals: (a collect: [:x | upper ifTrue: [ByteSearch basicNew uppercase: x] ifFalse: [ByteSearch basicNew lowercase: x]])]]].
+		sim memory free: aa; free: ab]
 ! !

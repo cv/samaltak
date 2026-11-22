@@ -6,19 +6,15 @@ static oop instances_class;
 static size_t instances_count;
 static oop instances_result;
 
-static void convert_case(bool upper);
+static void object_primitives_convert_case(bool upper);
 static void count_instance(uint64_t o, void *d);
 
 /* ObjectPrimitives>>convertCase: */
-static void convert_case(bool upper)
+static void object_primitives_convert_case(bool upper)
 {
     oop r;
     size_t n;
     uint64_t s;
-    uint8_t *a;
-    uint8_t *b;
-    int64_t i;
-    int32_t c;
     r = prim_base[0];
     if (!(((r & 7) == 0) && ((*(uint64_t *)(r + 8) == cls_bytestring) || (*(uint64_t *)(r + 8) == object_memory_special(SO_BYTESYMBOL))))) {
         prim_status = PS_FAIL;
@@ -28,21 +24,10 @@ static void convert_case(bool upper)
     n = byte_size(r);
     s = alloc_bytes(cls_bytestring, n);
     r = prim_base[0];
-    a = (uint8_t *)(r + 16);
-    b = (uint8_t *)(s + 16);
-    for (i = 0; i <= (int64_t)n - 1; i++) {
-        c = (int32_t)a[i];
-        if (upper) {
-            if (c == 255) {
-                prim_status = PS_FAIL;
-                prim_error_code = -1;
-                return;
-            }
-            c = ((c >= 97) && (c <= 122)) || ((c >= 224) && ((c <= 254) && (c != 247))) ? c - 32 : c;
-        } else {
-            c = ((c >= 65) && (c <= 90)) || ((c >= 192) && ((c <= 222) && (c != 215))) ? c + 32 : c;
-        }
-        b[i] = (uint8_t)c;
+    if (!byte_search_convert_case((uint8_t *)(r + 16), (uint8_t *)(s + 16), (int64_t)n, upper)) {
+        prim_status = PS_FAIL;
+        prim_error_code = -1;
+        return;
     }
     prim_result = s;
     prim_status = PS_OK;
@@ -1420,13 +1405,13 @@ void prim_special_objects_array(void)
 /* ObjectPrimitives>>primStringAsLowercase */
 void prim_string_as_lowercase(void)
 {
-    convert_case(false);
+    object_primitives_convert_case(false);
 }
 
 /* ObjectPrimitives>>primStringAsUppercase */
 void prim_string_as_uppercase(void)
 {
-    convert_case(true);
+    object_primitives_convert_case(true);
 }
 
 /* ObjectPrimitives>>primStringAt */
@@ -1545,8 +1530,11 @@ void prim_string_case_insensitive_compare(void)
     size_t nb;
     uint8_t *pa;
     uint8_t *pb;
+    int64_t n;
     int64_t i;
+    int32_t c;
     int32_t x;
+    int32_t c_2;
     int32_t y;
     int v;
     uint64_t v_2;
@@ -1563,20 +1551,21 @@ void prim_string_case_insensitive_compare(void)
     nb = byte_size(b);
     pa = (uint8_t *)(a + 16);
     pb = (uint8_t *)(b + 16);
-    for (i = 0; i <= (int64_t)(na < nb ? na : nb) - 1; i++) {
-        x = (int32_t)pa[i];
-        y = (int32_t)pb[i];
+    n = (int64_t)(na < nb ? na : nb);
+    i = mismatch_of(pa, pb, 0, n);
+    while (i < n) {
+        c = (int32_t)pa[i];
+        x = ((c >= 65) && (c <= 90)) || ((c >= 192) && ((c <= 222) && (c != 215))) ? c + 32 : c;
+        c_2 = (int32_t)pb[i];
+        y = ((c_2 >= 65) && (c_2 <= 90)) || ((c_2 >= 192) && ((c_2 <= 222) && (c_2 != 215))) ? c_2 + 32 : c_2;
         if (x != y) {
-            x = ((x >= 65) && (x <= 90)) || ((x >= 192) && ((x <= 222) && (x != 215))) ? x + 32 : x;
-            y = ((y >= 65) && (y <= 90)) || ((y >= 192) && ((y <= 222) && (y != 215))) ? y + 32 : y;
-            if (x != y) {
-                v = x < y ? -1 : 1;
-                v_2 = (uint64_t)((((int64_t)v) << 1) | 1);
-                prim_result = v_2;
-                prim_status = PS_OK;
-                return;
-            }
+            v = x < y ? -1 : 1;
+            v_2 = (uint64_t)((((int64_t)v) << 1) | 1);
+            prim_result = v_2;
+            prim_status = PS_OK;
+            return;
         }
+        i = mismatch_of(pa, pb, i + 1, n);
     }
     v_3 = na < nb ? -1 : na > nb ? 1 : 0;
     v_4 = (uint64_t)((((int64_t)v_3) << 1) | 1);
@@ -1596,13 +1585,21 @@ void prim_string_compare(void)
     size_t na;
     size_t nb;
     size_t n;
-    int64_t i;
-    uint32_t x;
-    uint32_t y;
+    int64_t k;
     int v;
     uint64_t v_2;
+    uint32_t *wa;
+    uint32_t *wb;
+    int64_t i;
     int v_3;
     uint64_t v_4;
+    int64_t i_2;
+    uint32_t x;
+    uint32_t y;
+    int v_5;
+    uint64_t v_6;
+    int v_7;
+    uint64_t v_8;
     a = prim_base[0];
     b = prim_nargs > 0 ? prim_base[1] : nil_oop;
     if (!(({
@@ -1629,20 +1626,43 @@ exit_is_string_like_2:;
     na = string_size(a);
     nb = string_size(b);
     n = na < nb ? na : nb;
-    for (i = 0; i <= (int64_t)n - 1; i++) {
-        x = string_char_at(a, (uint64_t)i);
-        y = string_char_at(b, (uint64_t)i);
-        if (x != y) {
-            v = x < y ? -1 : 1;
+    if (((int32_t)(((*(uint64_t *)a) >> H_FMT_SHIFT) & H_FMT_MASK) >= F_BYTES) && ((int32_t)(((*(uint64_t *)b) >> H_FMT_SHIFT) & H_FMT_MASK) >= F_BYTES)) {
+        k = mismatch_of((uint8_t *)(a + 16), (uint8_t *)(b + 16), 0, (int64_t)n);
+        if (k < (int64_t)n) {
+            v = ((uint8_t *)(a + 16))[k] < ((uint8_t *)(b + 16))[k] ? -1 : 1;
             v_2 = (uint64_t)((((int64_t)v) << 1) | 1);
             prim_result = v_2;
             prim_status = PS_OK;
             return;
         }
+    } else if (((int32_t)(((*(uint64_t *)a) >> H_FMT_SHIFT) & H_FMT_MASK) < F_BYTES) && ((int32_t)(((*(uint64_t *)b) >> H_FMT_SHIFT) & H_FMT_MASK) < F_BYTES)) {
+        wa = (uint32_t *)(a + 16);
+        wb = (uint32_t *)(b + 16);
+        for (i = 0; i <= (int64_t)n - 1; i++) {
+            if (wa[i] != wb[i]) {
+                v_3 = wa[i] < wb[i] ? -1 : 1;
+                v_4 = (uint64_t)((((int64_t)v_3) << 1) | 1);
+                prim_result = v_4;
+                prim_status = PS_OK;
+                return;
+            }
+        }
+    } else {
+        for (i_2 = 0; i_2 <= (int64_t)n - 1; i_2++) {
+            x = string_char_at(a, (uint64_t)i_2);
+            y = string_char_at(b, (uint64_t)i_2);
+            if (x != y) {
+                v_5 = x < y ? -1 : 1;
+                v_6 = (uint64_t)((((int64_t)v_5) << 1) | 1);
+                prim_result = v_6;
+                prim_status = PS_OK;
+                return;
+            }
+        }
     }
-    v_3 = na < nb ? -1 : na > nb ? 1 : 0;
-    v_4 = (uint64_t)((((int64_t)v_3) << 1) | 1);
-    prim_result = v_4;
+    v_7 = na < nb ? -1 : na > nb ? 1 : 0;
+    v_8 = (uint64_t)((((int64_t)v_7) << 1) | 1);
+    prim_result = v_8;
     prim_status = PS_OK;
 }
 

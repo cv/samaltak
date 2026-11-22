@@ -3,6 +3,119 @@
 #include "samaltak.h"
 
 #if defined(__x86_64__)
+/* ByteSearch>>convertCase:into:size:upper: */
+bool byte_search_convert_case(uint8_t *a, uint8_t *b, int64_t n, bool upper)
+{
+    int64_t i;
+    uint8_t *p;
+    uint8_t *q;
+    bool r_case_;
+    __m128i x;
+    __m128i r_byte;
+    __m128i y;
+    __m128i r_byte_2;
+    __m128i y_2;
+    __m128i m;
+    __m128i r_byte_3;
+    __m128i y_3;
+    __m128i r_byte_4;
+    __m128i y_4;
+    int32_t c;
+    i = 0;
+    while (i + 16 <= n) {
+        p = a + i;
+        q = b + i;
+        if (!({
+    x = _mm_loadu_si128((__m128i *)p);
+    if (upper) {
+        m = _mm_or_si128(({
+    y = _mm_sub_epi8(x, _mm_set1_epi8(97));
+    r_byte = _mm_cmpeq_epi8(_mm_min_epu8(y, _mm_set1_epi8(25)), y);
+    r_byte; }), _mm_andnot_si128(_mm_cmpeq_epi8(x, _mm_set1_epi8(-9)), ({
+    y_2 = _mm_sub_epi8(x, _mm_set1_epi8(-32));
+    r_byte_2 = _mm_cmpeq_epi8(_mm_min_epu8(y_2, _mm_set1_epi8(30)), y_2);
+    r_byte_2; })));
+        _mm_storeu_si128((__m128i *)q, _mm_sub_epi8(x, _mm_and_si128(m, _mm_set1_epi8(32))));
+    } else {
+        m = _mm_or_si128(({
+    y_3 = _mm_sub_epi8(x, _mm_set1_epi8(65));
+    r_byte_3 = _mm_cmpeq_epi8(_mm_min_epu8(y_3, _mm_set1_epi8(25)), y_3);
+    r_byte_3; }), _mm_andnot_si128(_mm_cmpeq_epi8(x, _mm_set1_epi8(-41)), ({
+    y_4 = _mm_sub_epi8(x, _mm_set1_epi8(-64));
+    r_byte_4 = _mm_cmpeq_epi8(_mm_min_epu8(y_4, _mm_set1_epi8(30)), y_4);
+    r_byte_4; })));
+        _mm_storeu_si128((__m128i *)q, _mm_add_epi8(x, _mm_and_si128(m, _mm_set1_epi8(32))));
+    }
+    r_case_ = (!upper) || (_mm_movemask_epi8(_mm_cmpeq_epi8(x, _mm_set1_epi8(-1))) == 0);
+    r_case_; })) {
+            return false;
+        }
+        i = i + 16;
+    }
+    while (i < n) {
+        c = (int32_t)a[i];
+        if (upper) {
+            if (c == 255) {
+                return false;
+            }
+            c = ((c >= 97) && (c <= 122)) || ((c >= 224) && ((c <= 254) && (c != 247))) ? c - 32 : c;
+        } else {
+            c = ((c >= 65) && (c <= 90)) || ((c >= 192) && ((c <= 222) && (c != 215))) ? c + 32 : c;
+        }
+        b[i] = (uint8_t)c;
+        i = i + 1;
+    }
+    return true;
+}
+
+#else
+/* ByteSearch>>convertCase:into:size:upper: */
+bool byte_search_convert_case(uint8_t *a, uint8_t *b, int64_t n, bool upper)
+{
+    int64_t i;
+    uint8_t *p;
+    uint8_t *q;
+    bool r_case_;
+    uint8x16_t x;
+    uint8x16_t m;
+    int32_t c;
+    i = 0;
+    while (i + 16 <= n) {
+        p = a + i;
+        q = b + i;
+        if (!({
+    x = vld1q_u8(p);
+    if (upper) {
+        m = vorrq_u8(vcltq_u8(vsubq_u8(x, vdupq_n_u8(97)), vdupq_n_u8(26)), vbicq_u8(vcltq_u8(vsubq_u8(x, vdupq_n_u8(224)), vdupq_n_u8(31)), vceqq_u8(x, vdupq_n_u8(247))));
+        vst1q_u8(q, vsubq_u8(x, vandq_u8(m, vdupq_n_u8(32))));
+    } else {
+        m = vorrq_u8(vcltq_u8(vsubq_u8(x, vdupq_n_u8(65)), vdupq_n_u8(26)), vbicq_u8(vcltq_u8(vsubq_u8(x, vdupq_n_u8(192)), vdupq_n_u8(31)), vceqq_u8(x, vdupq_n_u8(215))));
+        vst1q_u8(q, vaddq_u8(x, vandq_u8(m, vdupq_n_u8(32))));
+    }
+    r_case_ = (!upper) || (vmaxvq_u8(x) < 255);
+    r_case_; })) {
+            return false;
+        }
+        i = i + 16;
+    }
+    while (i < n) {
+        c = (int32_t)a[i];
+        if (upper) {
+            if (c == 255) {
+                return false;
+            }
+            c = ((c >= 97) && (c <= 122)) || ((c >= 224) && ((c <= 254) && (c != 247))) ? c - 32 : c;
+        } else {
+            c = ((c >= 65) && (c <= 90)) || ((c >= 192) && ((c <= 222) && (c != 215))) ? c + 32 : c;
+        }
+        b[i] = (uint8_t)c;
+        i = i + 1;
+    }
+    return true;
+}
+
+#endif
+#if defined(__x86_64__)
 /* ByteSearch>>indexOfBytes:size:in:size:from: */
 int64_t index_of_bytes(uint8_t *b, int64_t m, uint8_t *a, int64_t n, int64_t start)
 {
@@ -21,24 +134,26 @@ int64_t index_of_bytes(uint8_t *b, int64_t m, uint8_t *a, int64_t n, int64_t sta
     int64_t i;
     uint8_t *p_4;
     int64_t d;
+    uint8_t *p_5;
     uint32_t a_mask;
     int64_t r_candidates;
     uint32_t mask;
     int64_t j_2;
-    uint8_t *p_5;
+    uint8_t *p_6;
     bool r_match_at_2;
     int64_t k_3;
     int64_t j;
     int64_t k;
     int64_t n_2;
-    uint8_t *p_6;
+    uint8_t *p_7;
     int64_t d_2;
+    uint8_t *p_8;
     uint32_t mask_2;
     uint32_t a_mask_2;
     int64_t r_candidates_2;
     uint32_t mask_3;
     int64_t j_3;
-    uint8_t *p_7;
+    uint8_t *p_9;
     bool r_match_at_3;
     int64_t k_4;
     last = n - m;
@@ -90,11 +205,171 @@ exit_match_at:;
     while (i + 16 - 1 <= last) {
         p_4 = a + i;
         d = m - 1;
-        a_mask = (uint32_t)_mm_movemask_epi8(_mm_and_si128(_mm_cmpeq_epi8(_mm_loadu_si128((__m128i *)p_4), f), _mm_cmpeq_epi8(_mm_loadu_si128((__m128i *)(p_4 + d)), l)));
+        p_5 = p_4 + d;
+        a_mask = (uint32_t)_mm_movemask_epi8(_mm_and_si128(_mm_cmpeq_epi8(_mm_loadu_si128((__m128i *)p_4), f), _mm_cmpeq_epi8(_mm_loadu_si128((__m128i *)p_5), l)));
         j = ({
     mask = a_mask;
     while (mask != 0) {
         j_2 = i + __builtin_ctz(mask);
+        p_6 = a + j_2;
+        if (({
+    if (m > 18) {
+        r_match_at_2 = memcmp(p_6 + 1, b + 1, (uint64_t)(m - 2)) == 0;
+        goto exit_match_at_2;
+    }
+    k_3 = 1;
+    while ((k_3 < m - 1) && (p_6[k_3] == b[k_3])) {
+        k_3 = k_3 + 1;
+    }
+    r_match_at_2 = k_3 >= m - 1;
+exit_match_at_2:;
+    r_match_at_2; })) {
+            r_candidates = j_2;
+            goto exit_candidates;
+        }
+        mask = mask & (mask - 1);
+    }
+    r_candidates = -1;
+exit_candidates:;
+    r_candidates; });
+        if (j >= 0) {
+            return j;
+        }
+        i = i + 16;
+    }
+    if (i > last) {
+        return -1;
+    }
+    k = last - 16 + 1;
+    n_2 = i - k;
+    p_7 = a + k;
+    d_2 = m - 1;
+    p_8 = p_7 + d_2;
+    mask_2 = (uint32_t)_mm_movemask_epi8(_mm_and_si128(_mm_cmpeq_epi8(_mm_loadu_si128((__m128i *)p_7), f), _mm_cmpeq_epi8(_mm_loadu_si128((__m128i *)p_8), l)));
+    a_mask_2 = mask_2 >> n_2;
+    return ({
+    mask_3 = a_mask_2;
+    while (mask_3 != 0) {
+        j_3 = i + __builtin_ctz(mask_3);
+        p_9 = a + j_3;
+        if (({
+    if (m > 18) {
+        r_match_at_3 = memcmp(p_9 + 1, b + 1, (uint64_t)(m - 2)) == 0;
+        goto exit_match_at_3;
+    }
+    k_4 = 1;
+    while ((k_4 < m - 1) && (p_9[k_4] == b[k_4])) {
+        k_4 = k_4 + 1;
+    }
+    r_match_at_3 = k_4 >= m - 1;
+exit_match_at_3:;
+    r_match_at_3; })) {
+            r_candidates_2 = j_3;
+            goto exit_candidates_2;
+        }
+        mask_3 = mask_3 & (mask_3 - 1);
+    }
+    r_candidates_2 = -1;
+exit_candidates_2:;
+    r_candidates_2; });
+}
+
+#else
+/* ByteSearch>>indexOfBytes:size:in:size:from: */
+int64_t index_of_bytes(uint8_t *b, int64_t m, uint8_t *a, int64_t n, int64_t start)
+{
+    int64_t last;
+    uint8_t c;
+    int64_t r_index_of_byte;
+    void *p;
+    int64_t p_2;
+    uint8_t *p_3;
+    bool r_match_at;
+    int64_t k_2;
+    uint8_t a_byte;
+    uint8x16_t f;
+    uint8_t a_byte_2;
+    uint8x16_t l;
+    int64_t i;
+    uint8_t *p_4;
+    int64_t d;
+    uint8x16_t v;
+    uint64_t a_mask;
+    int64_t r_candidates;
+    uint64_t mask;
+    int64_t j_2;
+    uint8_t *p_5;
+    bool r_match_at_2;
+    int64_t k_3;
+    int64_t j;
+    int64_t k;
+    int64_t n_2;
+    uint8_t *p_6;
+    int64_t d_2;
+    uint8x16_t v_2;
+    uint64_t mask_2;
+    uint64_t a_mask_2;
+    int64_t r_candidates_2;
+    uint64_t mask_3;
+    int64_t j_3;
+    uint8_t *p_7;
+    bool r_match_at_3;
+    int64_t k_4;
+    last = n - m;
+    if (start > last) {
+        return -1;
+    }
+    if (m == 1) {
+        c = b[0];
+        return ({
+    if (start >= n) {
+        r_index_of_byte = -1;
+        goto exit_index_of_byte;
+    }
+    p = memchr(a + start, c, (uint64_t)(n - start));
+    if (p == NULL) {
+        r_index_of_byte = -1;
+        goto exit_index_of_byte;
+    }
+    r_index_of_byte = (uint8_t *)p - a;
+exit_index_of_byte:;
+    r_index_of_byte; });
+    }
+    if (last < 15) {
+        for (p_2 = start; p_2 <= last; p_2++) {
+            if ((a[p_2] == b[0]) && ((a[p_2 + m - 1] == b[m - 1]) && ({
+    p_3 = a + p_2;
+    ({
+    if (m > 18) {
+        r_match_at = memcmp(p_3 + 1, b + 1, (uint64_t)(m - 2)) == 0;
+        goto exit_match_at;
+    }
+    k_2 = 1;
+    while ((k_2 < m - 1) && (p_3[k_2] == b[k_2])) {
+        k_2 = k_2 + 1;
+    }
+    r_match_at = k_2 >= m - 1;
+exit_match_at:;
+    r_match_at; }); }))) {
+                return p_2;
+            }
+        }
+        return -1;
+    }
+    a_byte = b[0];
+    f = vdupq_n_u8(a_byte);
+    a_byte_2 = b[m - 1];
+    l = vdupq_n_u8(a_byte_2);
+    i = start;
+    while (i + 16 - 1 <= last) {
+        p_4 = a + i;
+        d = m - 1;
+        v = vandq_u8(vceqq_u8(vld1q_u8(p_4), f), vceqq_u8(vld1q_u8(p_4 + d), l));
+        a_mask = vget_lane_u64(vreinterpret_u64_u8(vshrn_n_u16(vreinterpretq_u16_u8(v), 4)), 0) & 0x8888888888888888ULL;
+        j = ({
+    mask = a_mask;
+    while (mask != 0) {
+        j_2 = i + (__builtin_ctzll(mask) >> 2);
         p_5 = a + j_2;
         if (({
     if (m > 18) {
@@ -128,12 +403,13 @@ exit_candidates:;
     n_2 = i - k;
     p_6 = a + k;
     d_2 = m - 1;
-    mask_2 = (uint32_t)_mm_movemask_epi8(_mm_and_si128(_mm_cmpeq_epi8(_mm_loadu_si128((__m128i *)p_6), f), _mm_cmpeq_epi8(_mm_loadu_si128((__m128i *)(p_6 + d_2)), l)));
-    a_mask_2 = mask_2 >> n_2;
+    v_2 = vandq_u8(vceqq_u8(vld1q_u8(p_6), f), vceqq_u8(vld1q_u8(p_6 + d_2), l));
+    mask_2 = vget_lane_u64(vreinterpret_u64_u8(vshrn_n_u16(vreinterpretq_u16_u8(v_2), 4)), 0) & 0x8888888888888888ULL;
+    a_mask_2 = mask_2 >> (n_2 * 4);
     return ({
     mask_3 = a_mask_2;
     while (mask_3 != 0) {
-        j_3 = i + __builtin_ctz(mask_3);
+        j_3 = i + (__builtin_ctzll(mask_3) >> 2);
         p_7 = a + j_3;
         if (({
     if (m > 18) {
@@ -157,169 +433,61 @@ exit_candidates_2:;
     r_candidates_2; });
 }
 
-#else
-/* ByteSearch>>indexOfBytes:size:in:size:from: */
-int64_t index_of_bytes(uint8_t *b, int64_t m, uint8_t *a, int64_t n, int64_t start)
+#endif
+#if defined(__x86_64__)
+/* ByteSearch>>mismatchOf:with:from:size: */
+int64_t mismatch_of(uint8_t *a, uint8_t *b, int64_t start, int64_t n)
 {
-    int64_t last;
-    uint8_t c;
-    int64_t r_index_of_byte;
-    void *p;
-    int64_t p_2;
-    uint8_t *p_3;
-    bool r_match_at;
-    int64_t k_2;
-    uint8_t a_byte;
-    uint64_t f;
-    uint8_t a_byte_2;
-    uint64_t l;
     int64_t i;
-    uint8_t *p_4;
-    int64_t d;
-    uint64_t r_candidates_at;
-    uint64_t z;
-    uint64_t a_mask;
-    int64_t r_candidates;
-    uint64_t mask;
-    int64_t j_2;
-    uint8_t *p_5;
-    bool r_match_at_2;
-    int64_t k_3;
-    int64_t j;
-    int64_t k;
-    int64_t n_2;
-    uint8_t *p_6;
-    int64_t d_2;
-    uint64_t r_candidates_at_2;
-    uint64_t z_2;
-    uint64_t mask_2;
-    uint64_t a_mask_2;
-    int64_t r_candidates_2;
-    uint64_t mask_3;
-    int64_t j_3;
-    uint8_t *p_7;
-    bool r_match_at_3;
-    int64_t k_4;
-    last = n - m;
-    if (start > last) {
-        return -1;
-    }
-    if (m == 1) {
-        c = b[0];
-        return ({
-    if (start >= n) {
-        r_index_of_byte = -1;
-        goto exit_index_of_byte;
-    }
-    p = memchr(a + start, c, (uint64_t)(n - start));
-    if (p == NULL) {
-        r_index_of_byte = -1;
-        goto exit_index_of_byte;
-    }
-    r_index_of_byte = (uint8_t *)p - a;
-exit_index_of_byte:;
-    r_index_of_byte; });
-    }
-    if (last < 7) {
-        for (p_2 = start; p_2 <= last; p_2++) {
-            if ((a[p_2] == b[0]) && ((a[p_2 + m - 1] == b[m - 1]) && ({
-    p_3 = a + p_2;
-    ({
-    if (m > 18) {
-        r_match_at = memcmp(p_3 + 1, b + 1, (uint64_t)(m - 2)) == 0;
-        goto exit_match_at;
-    }
-    k_2 = 1;
-    while ((k_2 < m - 1) && (p_3[k_2] == b[k_2])) {
-        k_2 = k_2 + 1;
-    }
-    r_match_at = k_2 >= m - 1;
-exit_match_at:;
-    r_match_at; }); }))) {
-                return p_2;
-            }
-        }
-        return -1;
-    }
-    a_byte = b[0];
-    f = (uint64_t)a_byte * 0x101010101010101LL;
-    a_byte_2 = b[m - 1];
-    l = (uint64_t)a_byte_2 * 0x101010101010101LL;
+    uint8_t *p;
+    uint8_t *q;
+    uint32_t mask;
     i = start;
-    while (i + 8 - 1 <= last) {
-        p_4 = a + i;
-        d = m - 1;
-        a_mask = ({
-    z = ((*(uint64_t *)p_4) ^ f) | ((*(uint64_t *)(p_4 + d)) ^ l);
-    r_candidates_at = (~(((z & 0x7F7F7F7F7F7F7F7FLL) + 0x7F7F7F7F7F7F7F7FLL) | z)) & 0x8080808080808080ULL;
-    r_candidates_at; });
-        j = ({
-    mask = a_mask;
-    while (mask != 0) {
-        j_2 = i + (__builtin_ctzll(mask) >> 3);
-        p_5 = a + j_2;
-        if (({
-    if (m > 18) {
-        r_match_at_2 = memcmp(p_5 + 1, b + 1, (uint64_t)(m - 2)) == 0;
-        goto exit_match_at_2;
-    }
-    k_3 = 1;
-    while ((k_3 < m - 1) && (p_5[k_3] == b[k_3])) {
-        k_3 = k_3 + 1;
-    }
-    r_match_at_2 = k_3 >= m - 1;
-exit_match_at_2:;
-    r_match_at_2; })) {
-            r_candidates = j_2;
-            goto exit_candidates;
+    while (i + 16 <= n) {
+        p = a + i;
+        q = b + i;
+        mask = (uint32_t)(_mm_movemask_epi8(_mm_cmpeq_epi8(_mm_loadu_si128((__m128i *)p), _mm_loadu_si128((__m128i *)q))) ^ 0xFFFF);
+        if (mask != 0) {
+            return i + __builtin_ctz(mask);
         }
-        mask = mask & (mask - 1);
+        i = i + 16;
     }
-    r_candidates = -1;
-exit_candidates:;
-    r_candidates; });
-        if (j >= 0) {
-            return j;
+    while (i < n) {
+        if (!(a[i] == b[i])) {
+            return i;
         }
-        i = i + 8;
+        i = i + 1;
     }
-    if (i > last) {
-        return -1;
-    }
-    k = last - 8 + 1;
-    n_2 = i - k;
-    p_6 = a + k;
-    d_2 = m - 1;
-    mask_2 = ({
-    z_2 = ((*(uint64_t *)p_6) ^ f) | ((*(uint64_t *)(p_6 + d_2)) ^ l);
-    r_candidates_at_2 = (~(((z_2 & 0x7F7F7F7F7F7F7F7FLL) + 0x7F7F7F7F7F7F7F7FLL) | z_2)) & 0x8080808080808080ULL;
-    r_candidates_at_2; });
-    a_mask_2 = mask_2 >> (n_2 * 8);
-    return ({
-    mask_3 = a_mask_2;
-    while (mask_3 != 0) {
-        j_3 = i + (__builtin_ctzll(mask_3) >> 3);
-        p_7 = a + j_3;
-        if (({
-    if (m > 18) {
-        r_match_at_3 = memcmp(p_7 + 1, b + 1, (uint64_t)(m - 2)) == 0;
-        goto exit_match_at_3;
-    }
-    k_4 = 1;
-    while ((k_4 < m - 1) && (p_7[k_4] == b[k_4])) {
-        k_4 = k_4 + 1;
-    }
-    r_match_at_3 = k_4 >= m - 1;
-exit_match_at_3:;
-    r_match_at_3; })) {
-            r_candidates_2 = j_3;
-            goto exit_candidates_2;
+    return n;
+}
+
+#else
+/* ByteSearch>>mismatchOf:with:from:size: */
+int64_t mismatch_of(uint8_t *a, uint8_t *b, int64_t start, int64_t n)
+{
+    int64_t i;
+    uint8_t *p;
+    uint8_t *q;
+    uint8x16_t v;
+    uint64_t mask;
+    i = start;
+    while (i + 16 <= n) {
+        p = a + i;
+        q = b + i;
+        v = vmvnq_u8(vceqq_u8(vld1q_u8(p), vld1q_u8(q)));
+        mask = vget_lane_u64(vreinterpret_u64_u8(vshrn_n_u16(vreinterpretq_u16_u8(v), 4)), 0);
+        if (mask != 0) {
+            return i + (__builtin_ctzll(mask) >> 2);
         }
-        mask_3 = mask_3 & (mask_3 - 1);
+        i = i + 16;
     }
-    r_candidates_2 = -1;
-exit_candidates_2:;
-    r_candidates_2; });
+    while (i < n) {
+        if (!(a[i] == b[i])) {
+            return i;
+        }
+        i = i + 1;
+    }
+    return n;
 }
 
 #endif
