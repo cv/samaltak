@@ -3,7 +3,7 @@ TestCase subclass: #Base64Test
 	classVariableNames: ''
 	package: 'Tests-Net'!
 
-Base64Test comment: 'Tests Base64 decoding: both alphabets, padding or none.'!
+Base64Test comment: 'Tests Base64 decoding and encoding: both alphabets, padding or none.'!
 
 !Base64Test methodsFor: 'tests'!
 testDecode
