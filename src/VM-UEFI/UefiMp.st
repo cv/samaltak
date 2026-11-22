@@ -1,20 +1,20 @@
 UefiModule subclass: #UefiMp
-	instanceVariableNames: 'cpu atomics posix sharedLine mpAps mpTls mpSlots mpWorkers mpHow mpHotTicks mpEl mpHvc'
-	classVariableNames: 'MP_AP_BYTES MP_HOT_MS MP_MAX_CPUS MP_NONE MP_PART_MASK MP_PSCI MP_SERVICES MP_STACK_BYTES MP_TLS_BYTES'
+	instanceVariableNames: 'cpu atomics posix sharedLine mpAps mpTls mpSlots mpWorkers mpHow mpHotTicks mpNapTicks mpEl mpHvc'
+	classVariableNames: 'MP_AP_BYTES MP_HOT_MS MP_MAX_CPUS MP_NAP_MS MP_NONE MP_PART_MASK MP_PSCI MP_SERVICES MP_STACK_BYTES MP_TLS_BYTES'
 	package: 'VM-UEFI'!
 
 UefiMp comment: 'The application processors: the CPUs besides the boot CPU, running only the VM''s C (no heap, no allocation, no firmware services: UEFI allows them on the boot CPU alone), for CpuWorkers (UefiCpuWorkers: PlatformRaster''s bands) and the JIT''s helper thread (UefiJitPlatform: background optimizing compilation). docs/uefi.md, More than one CPU.
 
 Starting them (start, on the boot CPU at start): with the firmware''s EFI_MP_SERVICES_PROTOCOL where it has one (OVMF; edk2''s CpuDxe, ArmPsciMpServicesDxe), StartupThisAP of apStart: on each enabled one, non-blocking, never returning; else on arm64 PSCI CPU_ON of each enabled CPU of the ACPI MADT, by HVC or SMC as the FADT says (QEMU''s AAVMF; firmware following Arm''s SBBR), at UefiArm64Cpu''s entry stub, which sets up the MMU as the boot CPU''s from the MpAp it gets. Each runs apMain: on a stack of its own (MP_STACK_BYTES) with its own block of _Thread_local variables (MP_TLS_BYTES; VMModule class>>threadLocalVariables), the boot CPU too.
 
-Work: a parallel job (parallel:context:count:) is a function, its context and a number of parts, published in one word of MpShared (seq << 40 | count << 20 | next part); the boot CPU and any application processor take the next part by a compare-and-swap of that word, run it and count it done; the boot CPU returns once all are. A part taken by a CPU that compiles meanwhile is simply taken by another. Waiting: on the job word''s cache line (UefiCpu>>waitWord:old:: WFE on the exclusive monitor, WFET; MONITOR/MWAIT) while work came in the last MP_HOT_MS ms, then in naps (WFIT: the hypervisor''s vCPU sleeps), so idle application processors cost nothing much; the boot CPU waits only for the last parts of its own job. Atomics are C11''s (UefiAtomics), acquire and release where the protocol needs them.
+Work: a parallel job (parallel:context:count:) is a function, its context and a number of parts, published in one word of MpShared (seq << 40 | count << 20 | next part); the boot CPU and any application processor take the next part by a compare-and-swap of that word, run it and count it done; the boot CPU returns once all are. A part taken by a CPU that compiles meanwhile is simply taken by another. Waiting: on the job word''s cache line (UefiCpu>>waitWord:old:: WFE on the exclusive monitor, WFET; MONITOR/MWAIT) while work came in the last MP_HOT_MS ms, then asleep (UefiCpu>>sleepOn:old:until:) for a sixteenth of the time idle, at most MP_NAP_MS ms: arm64 at EL2 in WFET, which the boot CPU''s SEV ends; under a hypervisor (EL1) in WFIT, whose vCPU sleeps to the deadline (KVM''s WFE trap only yields, and halt polling spins through naps shorter than its window: 0.5 ms naps cost a quarter of a host core each); x86-64 in HLT, which wake''s IPI ends. Idle application processors cost the host next to nothing; the boot CPU waits only for the last parts of its own job. Atomics are C11''s (UefiAtomics), acquire and release where the protocol needs them.
 
 The JIT''s helper: startJit: gives its thread function to the last application processor online; its lock is a spin lock, its condition a counter it waits on as above, taking parts of parallel jobs meanwhile.'!
 
 !UefiMp class methodsFor: 'declaring'!
 declarations
 	^#((cpu UefiCpu) (atomics UefiAtomics) (posix UefiPosix) (sharedLine 'MpShared *') (mpAps 'MpAp *') (mpTls 'uint8_t *')
-		(mpSlots int64_t) (mpWorkers int64_t) (mpHow int32_t) (mpHotTicks uint64_t) (mpEl int64_t) (mpHvc bool))
+		(mpSlots int64_t) (mpWorkers int64_t) (mpHow int32_t) (mpHotTicks uint64_t) (mpNapTicks uint64_t) (mpEl int64_t) (mpHvc bool))
 !
 cPreamble
 	^'static inline unsigned long long uefi_load_acquire(void *p) { return __atomic_load_n((unsigned long long *)p, __ATOMIC_ACQUIRE); }
@@ -29,7 +29,8 @@ initialize
 	MP_AP_BYTES := 128.
 	MP_TLS_BYTES := 8192.
 	MP_STACK_BYTES := 4 * 1024 * 1024.
-	MP_HOT_MS := 50.
+	MP_HOT_MS := 2.
+	MP_NAP_MS := 10.
 	MP_PART_MASK := 16rFFFFF.
 	MP_NONE := 0.
 	MP_SERVICES := 1.
@@ -56,6 +57,7 @@ start
 	mpTls := p + 4096 + (MP_MAX_CPUS * MP_AP_BYTES).
 	cpu setThreadBlock: mpTls size: MP_TLS_BYTES.
 	mpHotTicks := posix ticksPerUs * 1000 * MP_HOT_MS.
+	mpNapTicks := posix ticksPerUs * 1000 * MP_NAP_MS.
 	sharedLine jitAp: -1.
 	self startWithServices ifFalse: [self startWithPsci].
 	mpHow = MP_PSCI
@@ -230,10 +232,15 @@ work: index
 			self idle: seen value since: last]] repeat
 !
 idle: seen since: last
-	"Wait for work: on the job word's line (seen: its value last looked at) while work came in the last MP_HOT_MS ms, else a nap."
-	(cpu cycles - last) < mpHotTicks
-		ifTrue: [cpu waitWord: (sharedLine fieldAddress: #job) old: seen]
-		ifFalse: [cpu nap]
+	"Wait for work: on the job word's line (seen: its value last looked at) while work came in the last MP_HOT_MS ms, else asleep for a sixteenth of the time since, at most MP_NAP_MS ms (UefiCpu>>sleepOn:old:until:)."
+	| now nap |
+	now := cpu cycles.
+	(now - last) < mpHotTicks ifTrue: [
+		cpu waitWord: (sharedLine fieldAddress: #job) old: seen.
+		^self].
+	nap := (now - last) >> 4.
+	nap > mpNapTicks ifTrue: [nap := mpNapTicks].
+	cpu sleepOn: (sharedLine fieldAddress: #job) old: seen until: now + nap
 !
 helpOnce: seen
 	"Take the parallel job's next part if one is left and run it; answer whether there was one (seen: the job word looked at)."

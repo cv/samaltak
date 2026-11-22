@@ -252,12 +252,12 @@ waitWord: p old: v
 	"Wait a little if the word at p is v: until something stores to its cache line or wake runs (arm64: WFE on the exclusive monitor, WFET for at most 1 ms; x86-64: MONITOR/MWAIT where the CPU has it, else pauses); answer the word."
 	self subclassResponsibility
 !
-nap
-	"Wait without a wake-up by stores, as long as some 0.5 ms (arm64 with FEAT_WFxT: WFIT, which a hypervisor turns into a sleep), at least a few pauses."
+sleepOn: p old: v until: deadline
+	"An application processor's longer wait, if the word at p is v: asleep (for a hypervisor too) until wake or the cycle counter's deadline. arm64 with FEAT_WFxT: at EL2 WFET (SEV and stores to the line wake it), at EL1 WFIT (a hypervisor's vCPU sleeps; nothing wakes it before the deadline); without it WFE. x86-64: HLT with an IDT of its own and its local APIC's timer for the deadline, woken by wake's IPI (else pauses)."
 	self subclassResponsibility
 !
 wake
-	"Wake the CPUs in waitWord:old: or a WFE (arm64: SEV; nothing on x86-64)."
+	"Wake the CPUs in waitWord:old: or sleepOn:old:until: (arm64: SEV; x86-64: an IPI to those asleep)."
 	self subclassResponsibility
 !
 mpidr
@@ -286,7 +286,7 @@ UefiCpu subclass: #UefiX64Cpu
 	classVariableNames: ''
 	package: 'VM-UEFI'!
 
-UefiX64Cpu comment: 'x86-64: the time-stamp counter; the instruction cache follows stores by itself.'!
+UefiX64Cpu comment: 'x86-64: the time-stamp counter; the instruction cache follows stores by itself. An application processor sleeps with HLT (sleepOn:old:until:): its own IDT, whose interrupt gates only end the interrupt (EOI), and its local APIC''s one-shot timer for the deadline; wake sends those asleep an IPI.'!
 
 !UefiX64Cpu class methodsFor: 'declaring'!
 declarations
@@ -325,9 +325,124 @@ static inline unsigned long long uefi_wait_word(void *p, unsigned long long old)
 	}
 	return *w;
 }
-static inline void uefi_nap(void)
+/* Sleeping (an application processor): HLT with interrupts on, an IDT of its own (the firmware''s exception gates, every
+   interrupt an EOI), its local APIC''s one-shot timer as the deadline; uefi_x64_wake sends the CPUs asleep an IPI. */
+#define UEFI_X64_VECTOR 0xE1
+unsigned long long uefi_x64_eoi;
+void uefi_x64_irq(void);
+__asm__(".text\n\t.p2align 4\n\t.globl uefi_x64_irq\nuefi_x64_irq:\n\t"
+	"pushq %rax\n\tpushq %rcx\n\tpushq %rdx\n\tmovq uefi_x64_eoi(%rip), %rax\n\ttestq %rax, %rax\n\tjz 1f\n\tmovl $0, (%rax)\n\tjmp 2f\n"
+	"1:\n\tmovl $0x80b, %ecx\n\txorl %eax, %eax\n\txorl %edx, %edx\n\twrmsr\n"
+	"2:\n\tpopq %rdx\n\tpopq %rcx\n\tpopq %rax\n\tiretq\n");
+static unsigned long long uefi_x64_idt[512] __attribute__((aligned(16)));
+static int uefi_x64_idt_state;
+static unsigned long long uefi_x64_apic;
+static unsigned uefi_x64_apic_ids[64];
+static unsigned long long uefi_x64_sleepers;
+static int uefi_x64_slots;
+static _Thread_local int uefi_x64_me;
+static _Thread_local unsigned long long uefi_x64_timer_per_1k;
+static inline unsigned long long uefi_rdmsr(unsigned m)
 {
-	for (int i = 0; i < 2000; i++) __builtin_ia32_pause();
+	unsigned a, d;
+	__asm__ volatile("rdmsr" : "=a"(a), "=d"(d) : "c"(m));
+	return ((unsigned long long)d << 32) | a;
+}
+static inline void uefi_wrmsr(unsigned m, unsigned long long v)
+{
+	__asm__ volatile("wrmsr" : : "c"(m), "a"((unsigned)v), "d"((unsigned)(v >> 32)) : "memory");
+}
+static inline unsigned uefi_apic_get(unsigned r)
+{
+	return uefi_x64_apic ? *(volatile unsigned *)(uefi_x64_apic + r) : (unsigned)uefi_rdmsr(0x800 + (r >> 4));
+}
+static inline void uefi_apic_put(unsigned r, unsigned v)
+{
+	if (uefi_x64_apic) *(volatile unsigned *)(uefi_x64_apic + r) = v;
+	else uefi_wrmsr(0x800 + (r >> 4), v);
+}
+/* This CPU''s slot + 1 among the sleepers, -1 if it cannot sleep so (the boot CPU, no local APIC, no timer). */
+static int uefi_x64_sleep_setup(void)
+{
+	unsigned long long b = uefi_rdmsr(0x1B), t0, h, n, idtBase;
+	unsigned char d[10];
+	unsigned short cs;
+	int s, i, none = 0;
+	struct __attribute__((packed)) { unsigned short limit; unsigned long long base; } r;
+	if ((b & (1ull << 8)) || !!(b & (1ull << 11))) return -1;
+	if (b & (1ull << 10)) { uefi_x64_apic = 0; uefi_x64_eoi = 0; }
+	else { uefi_x64_apic = b & 0xFFFFFF000ull; uefi_x64_eoi = uefi_x64_apic + 0xB0; }
+	s = __atomic_fetch_add(&uefi_x64_slots, 1, __ATOMIC_SEQ_CST);
+	if (s >= 64) return -1;
+	uefi_x64_apic_ids[s] = uefi_x64_apic ? uefi_apic_get(0x20) >> 24 : uefi_apic_get(0x20);
+	if (__atomic_compare_exchange_n(&uefi_x64_idt_state, &none, 1, 0, __ATOMIC_SEQ_CST, __ATOMIC_SEQ_CST)) {
+		__asm__ volatile("sidt %0" : "=m"(d));
+		__builtin_memcpy(&idtBase, d + 2, 8);
+		for (i = 0; i < 64 && (unsigned)(i * 8 + 7) <= (unsigned)(d[0] | (d[1] << 8)); i++) uefi_x64_idt[i] = ((volatile unsigned long long *)idtBase)[i];
+		__asm__ volatile("mov %%cs, %0" : "=r"(cs));
+		h = (unsigned long long)uefi_x64_irq;
+		for (i = 32; i < 256; i++) {
+			uefi_x64_idt[2 * i] = (h & 0xFFFF) | ((unsigned long long)cs << 16) | (0x8Eull << 40) | (((h >> 16) & 0xFFFF) << 48);
+			uefi_x64_idt[2 * i + 1] = h >> 32;
+		}
+		__atomic_store_n(&uefi_x64_idt_state, 2, __ATOMIC_RELEASE);
+	}
+	while (__atomic_load_n(&uefi_x64_idt_state, __ATOMIC_ACQUIRE) !!= 2) __builtin_ia32_pause();
+	r.limit = 4095;
+	r.base = (unsigned long long)uefi_x64_idt;
+	__asm__ volatile("lidt %0" : : "m"(r) : "memory");
+	uefi_apic_put(0xF0, uefi_apic_get(0xF0) | 0x100);
+	uefi_apic_put(0x3E0, 0xB);
+	uefi_apic_put(0x320, (1u << 16) | UEFI_X64_VECTOR);
+	uefi_apic_put(0x380, 0xFFFFFFFFu);
+	t0 = __builtin_ia32_rdtsc();
+	while (__builtin_ia32_rdtsc() - t0 < (1ull << 20)) __builtin_ia32_pause();
+	n = 0xFFFFFFFFu - uefi_apic_get(0x390);
+	uefi_apic_put(0x380, 0);
+	uefi_x64_timer_per_1k = n >> 10;
+	if (uefi_x64_timer_per_1k == 0) return -1;
+	uefi_apic_put(0x320, UEFI_X64_VECTOR);
+	return s + 1;
+}
+static inline void uefi_sleep_until(void *p, unsigned long long old, unsigned long long deadline)
+{
+	volatile unsigned long long *w = (volatile unsigned long long *)p;
+	unsigned long long now, bit, n;
+	if (*w !!= old) return;
+	if (uefi_x64_me == 0) uefi_x64_me = uefi_x64_sleep_setup();
+	now = __builtin_ia32_rdtsc();
+	if (deadline <= now) return;
+	if (uefi_x64_me < 0) {
+		for (int i = 0; i < 2000 && *w == old; i++) __builtin_ia32_pause();
+		return;
+	}
+	bit = 1ull << (uefi_x64_me - 1);
+	__atomic_fetch_or(&uefi_x64_sleepers, bit, __ATOMIC_SEQ_CST);
+	if (*w == old) {
+		n = ((deadline - now) >> 10) * uefi_x64_timer_per_1k;
+		if (n > 0xFFFFFFFFu) n = 0xFFFFFFFFu;
+		if (n == 0) n = 1;
+		uefi_apic_put(0x380, (unsigned)n);
+		__asm__ volatile("sti\n\thlt\n\tcli" : : : "memory");
+		uefi_apic_put(0x380, 0);
+	}
+	__atomic_fetch_and(&uefi_x64_sleepers, ~bit, __ATOMIC_SEQ_CST);
+}
+static inline void uefi_x64_wake(void)
+{
+	unsigned long long m;
+	__atomic_thread_fence(__ATOMIC_SEQ_CST);
+	m = __atomic_load_n(&uefi_x64_sleepers, __ATOMIC_SEQ_CST);
+	while (m) {
+		unsigned id = uefi_x64_apic_ids[__builtin_ctzll(m)];
+		m &= m - 1;
+		if (uefi_x64_apic) {
+			while (uefi_apic_get(0x300) & (1u << 12)) __builtin_ia32_pause();
+			uefi_apic_put(0x310, id << 24);
+			uefi_apic_put(0x300, 0x4000 | UEFI_X64_VECTOR);
+		} else
+			uefi_wrmsr(0x830, ((unsigned long long)id << 32) | 0x4000 | UEFI_X64_VECTOR);
+	}
 }'
 ! !
 
@@ -367,11 +482,16 @@ waitWord: p old: v
 	<returns: 'uint64_t'>
 	^instructions waitWord: p old: v
 !
-nap
+sleepOn: p old: v until: deadline
 	<function>
-	instructions nap
+	<var: #p type: 'void *'>
+	<var: #v type: 'uint64_t'>
+	<var: #deadline type: 'uint64_t'>
+	instructions sleepOn: p old: v until: deadline
 !
 wake
+	<function>
+	instructions wake
 !
 mpidr
 	^0
@@ -455,13 +575,33 @@ static inline unsigned long long uefi_wait_word(void *p, unsigned long long old)
 		__asm__ volatile("clrex" : : : "memory");
 	return v;
 }
-static inline void uefi_nap(void)
+static int uefi_el = -1;
+static inline int uefi_at_el2(void)
 {
-	if (uefi_has_wfxt()) {
-		register unsigned long long t __asm__("x9") = uefi_cntvct() + uefi_cntfrq() / 2000;
-		__asm__ volatile(".inst 0xd5031029" : : "r"(t) : "memory");
-	} else
+	unsigned long long el;
+	if (uefi_el < 0) {
+		__asm__ volatile("mrs %0, CurrentEL" : "=r"(el));
+		uefi_el = (int)((el >> 2) & 3);
+	}
+	return uefi_el == 2;
+}
+/* At EL2 the CPU is ours: WFET, which SEV and stores to the line wake. At EL1 a hypervisor runs us: its WFE trap only
+   yields (the vCPU spins), so WFIT, which sleeps the vCPU to the deadline (SEV cannot wake it). */
+static inline void uefi_sleep_until(void *p, unsigned long long old, unsigned long long deadline)
+{
+	unsigned long long v;
+	__asm__ volatile("ldaxr %0, [%1]" : "=r"(v) : "r"(p) : "memory");
+	if (v !!= old) {
+		__asm__ volatile("clrex" : : : "memory");
+		return;
+	}
+	if (!!uefi_has_wfxt()) {
 		__asm__ volatile("wfe" : : : "memory");
+		return;
+	}
+	register unsigned long long t __asm__("x9") = deadline;
+	if (uefi_at_el2()) __asm__ volatile(".inst 0xd5031009" : : "r"(t) : "memory");
+	else __asm__ volatile(".inst 0xd5031029" : : "r"(t) : "memory");
 }
 static inline void uefi_sev(void)
 {
@@ -577,9 +717,12 @@ waitWord: p old: v
 	<returns: 'uint64_t'>
 	^instructions waitWord: p old: v
 !
-nap
+sleepOn: p old: v until: deadline
 	<function>
-	instructions nap
+	<var: #p type: 'void *'>
+	<var: #v type: 'uint64_t'>
+	<var: #deadline type: 'uint64_t'>
+	instructions sleepOn: p old: v until: deadline
 !
 wake
 	<function>
@@ -650,8 +793,12 @@ waitWord: p old: v
 	<c: 'unsigned long long uefi_wait_word(void *p, unsigned long long old)'>
 	^self error: 'not simulated'
 !
-nap
-	<c: 'void uefi_nap(void)'>
+sleepOn: p old: v until: deadline
+	<c: 'void uefi_sleep_until(void *p, unsigned long long old, unsigned long long deadline)'>
+	^self error: 'not simulated'
+!
+wake
+	<c: 'void uefi_x64_wake(void)'>
 	^self error: 'not simulated'
 ! !
 
@@ -692,8 +839,8 @@ waitWord: p old: v
 	<c: 'unsigned long long uefi_wait_word(void *p, unsigned long long old)'>
 	^self error: 'not simulated'
 !
-nap
-	<c: 'void uefi_nap(void)'>
+sleepOn: p old: v until: deadline
+	<c: 'void uefi_sleep_until(void *p, unsigned long long old, unsigned long long deadline)'>
 	^self error: 'not simulated'
 !
 sev
