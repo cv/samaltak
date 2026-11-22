@@ -1,5 +1,5 @@
 VMPrimitiveModule subclass: #ObjectPrimitives
-	instanceVariableNames: 'instancesClass instancesResult instancesCount search png deflate'
+	instanceVariableNames: 'instancesClass instancesResult instancesCount search png deflate coder'
 	classVariableNames: ''
 	package: 'VM-Core'!
 
@@ -7,7 +7,7 @@ ObjectPrimitives comment: 'Object, string and byte-access primitives. Indices ar
 
 !ObjectPrimitives class methodsFor: 'declaring'!
 declarations
-	^#((instancesClass oop) (instancesResult oop) (instancesCount size_t) (search ByteSearch) (png PngFilter) (deflate DeflateMatcher))
+	^#((instancesClass oop) (instancesResult oop) (instancesCount size_t) (search ByteSearch) (png PngFilter) (deflate DeflateMatcher) (coder DeflateCoder))
 ! !
 
 !ObjectPrimitives methodsFor: 'object'!
@@ -646,4 +646,60 @@ primZlibAdler32
 	o := self arg: 0.
 	((self isPtr: o) and: [(self formatOf: o) >= F_BYTES and: [(self formatOf: o) < (F_BYTES + 8)]]) ifFalse: [^self fail].
 	self answer: (self intOop: (deflate adler32: (self bytesOf: o) size: (memory byteSize: o) asInt64) asInt64)
+! !
+
+!ObjectPrimitives methodsFor: 'images'!
+primZlibWriteTokens
+	"(literals, distances, count, table, output, size, bits, bitCount): the Huffman coding of count tokens (ZLib>>writeTokens:distances:count:literals:distances:, DeflateCoder) and the end-of-block code into the byte object output after its first size bytes and the bitCount (0 to 7) bits pending; answers the bytes written in all times 8 plus the bits left over, which are in the byte after them. literals and distances 65535 uint16 each, table 316 uint32 (codes and lengths); output must have room for 6 bytes a token and 8 more. Fails on an invalid token (having written some of output)."
+	<vmPrimitive: 210 name: 'zlibWriteTokens'>
+	<leaf>
+	| lits dists count table out size bits bitCount r |
+	self argCount = 8 ifFalse: [^self fail].
+	((self isInt: (self arg: 2)) and: [(self isInt: (self arg: 5)) and: [(self isInt: (self arg: 6)) and: [self isInt: (self arg: 7)]]]) ifFalse: [^self fail].
+	count := self intVal: (self arg: 2).
+	size := self intVal: (self arg: 5).
+	bits := self intVal: (self arg: 6).
+	bitCount := self intVal: (self arg: 7).
+	((count >= 0 and: [count <= 65535]) and: [(size >= 0) and: [(bitCount >= 0 and: [bitCount <= 7]) and: [bits >= 0 and: [bits < (1 << bitCount)]]]]) ifFalse: [^self fail].
+	lits := self arg: 0.
+	dists := self arg: 1.
+	table := self arg: 3.
+	out := self arg: 4.
+	((self isBytes: lits size: 131070) and: [(self isBytes: dists size: 131070) and: [self isBytes: table size: 1264]]) ifFalse: [^self fail].
+	((self isPtr: out) and: [(self formatOf: out) >= F_BYTES and: [(self formatOf: out) < (F_BYTES + 8) and: [(self isImmutable: out) not]]]) ifFalse: [^self fail].
+	size + (6 * count) + 8 <= (memory byteSize: out) asInt64 ifFalse: [^self fail].
+	r := coder
+		write: (self cCoerce: (self bytesOf: lits) to: 'uint16_t *')
+		distances: (self cCoerce: (self bytesOf: dists) to: 'uint16_t *')
+		count: count
+		table: (self words32Of: table)
+		into: (self bytesOf: out)
+		at: size
+		bits: bits asUInt64
+		count: bitCount.
+	r < 0 ifTrue: [^self fail].
+	self answer: (self intOop: r)
+! !
+
+!ObjectPrimitives methodsFor: 'images'!
+primZlibTokenCounts
+	"(literals, distances, count, freqs): adds the codes of count tokens (as zlibWriteTokens codes them) to freqs, 286 literal/length then 30 distance uint32 counters; answers the extra bits the tokens need. Fails on an invalid token (having counted some)."
+	<vmPrimitive: 211 name: 'zlibTokenCounts'>
+	<leaf>
+	| lits dists count freqs r |
+	self argCount = 4 ifFalse: [^self fail].
+	(self isInt: (self arg: 2)) ifFalse: [^self fail].
+	count := self intVal: (self arg: 2).
+	(count >= 0 and: [count <= 65535]) ifFalse: [^self fail].
+	lits := self arg: 0.
+	dists := self arg: 1.
+	freqs := self arg: 3.
+	((self isBytes: lits size: 131070) and: [(self isBytes: dists size: 131070) and: [self isMutableBytes: freqs size: 1264]]) ifFalse: [^self fail].
+	r := coder
+		count: (self cCoerce: (self bytesOf: lits) to: 'uint16_t *')
+		distances: (self cCoerce: (self bytesOf: dists) to: 'uint16_t *')
+		count: count
+		into: (self words32Of: freqs).
+	r < 0 ifTrue: [^self fail].
+	self answer: (self intOop: r)
 ! !

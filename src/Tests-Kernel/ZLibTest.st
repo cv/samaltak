@@ -80,6 +80,49 @@ testMatchesPrimitiveRefusesBadArguments
 	self assert: (ZLib primMatches: #[1 2 3] from: 1 head: head prev: prev literals: (ByteArray new: 100) distances: dists chain: 16) isNil.
 	self assert: (ZLib primMatches: #(1 2 3) from: 1 head: head prev: prev literals: lits distances: dists chain: 16) isNil
 !
+testTokenPrimitivesMatchSmalltalk
+	"The VM's token coding (zlibWriteTokens) and counting (zlibTokenCounts) are ZLib's Smalltalk's, bit for bit: blocks of literals, short and long matches at every distance code, after 0 to 7 pending bits, with fixed and with skewed dynamic codes."
+	| random data z head prev lits dists r count dynamic |
+	random := Random seed: 17.
+	data := ((1 to: 120000) collect: [:i | i \\ 3000 < 1500 ifTrue: [(random nextInt: 256) - 1] ifFalse: [i \\ 3000 < 2200 ifTrue: [i \\ 5] ifFalse: [i \\ 251]]]) asByteArray.
+	1 to: 30000 do: [:i | data at: 90000 + i put: (data at: 90000 + i - (i \\ 7 * 4500 + 1))].
+	head := ByteArray new: 131072.
+	prev := ByteArray new: 131072.
+	lits := ByteArray new: 131070.
+	dists := ByteArray new: 131070.
+	z := ZLib new.
+	z instVarNamed: 'input' put: data.
+	r := z matchesInSmalltalkFrom: 1 head: head prev: prev literals: lits distances: dists.
+	count := r bitAnd: 65535.
+	self assert: count = 65535.
+	self assert: ((0 to: count - 1) count: [:i | (lits uint16At: i * 2 + 1) > 256]) > 1000.
+	self assertCountsOf: lits distances: dists count: count.
+	self assertCountsOf: lits distances: dists count: 0.
+	dynamic := (1 to: 286) collect: [:i | i <= 144 ifTrue: [i \\ 7 + 8] ifFalse: [i \\ 5 + 3]].
+	0 to: 7 do: [:pending |
+		self assertCodingOf: lits distances: dists count: count literals: (ZLib classPool at: #FixedLiteralLengths) distances: (ZLib classPool at: #FixedDistanceLengths) pending: pending.
+		self assertCodingOf: lits distances: dists count: 1000 + pending literals: dynamic distances: ((1 to: 30) collect: [:i | i \\ 4 + 5]) pending: pending]
+!
+testTokenPrimitivesRefuseBadArguments
+	| lits dists table counts |
+	lits := ByteArray new: 131070.
+	dists := ByteArray new: 131070.
+	table := ByteArray new: 1264.
+	counts := ByteArray new: 1264.
+	self assert: (ZLib primWriteTokens: lits distances: dists count: 10 table: table into: (ByteArray new: 68) size: 0 bits: 0 count: 0) notNil.
+	self assert: (ZLib primWriteTokens: lits distances: dists count: 10 table: table into: (ByteArray new: 67) size: 0 bits: 0 count: 0) isNil.
+	self assert: (ZLib primWriteTokens: lits distances: dists count: 10 table: table into: (ByteArray new: 100) size: 0 bits: 4 count: 2) isNil.
+	table uint32At: 5 put: 16r100000.
+	self assert: (ZLib primWriteTokens: lits distances: dists count: 10 table: table into: (ByteArray new: 100) size: 0 bits: 0 count: 0) isNil.
+	self assert: (ZLib primCount: lits distances: dists count: 10 into: counts) equals: 0.
+	self assert: (counts uint32At: 1) equals: 10.
+	lits uint16At: 3 put: 257.
+	self assert: (ZLib primCount: lits distances: dists count: 10 into: counts) isNil.
+	lits uint16At: 3 put: 300.
+	self assert: (ZLib primCount: lits distances: dists count: 10 into: counts) isNil.
+	dists uint16At: 3 put: 44.
+	self assert: (ZLib primCount: lits distances: dists count: 10 into: counts) equals: 3 + 4
+!
 testAdler32Primitive
 	"The VM's Adler-32 is the Smalltalk one's, across its 5552-byte reductions."
 	#(0 1 3 4 5 5551 5552 5553 11104 100001) do: [:n | | data |
@@ -98,6 +141,31 @@ testCorruptStreamsAreRefused
 ! !
 
 !ZLibTest methodsFor: 'support'!
+assertCountsOf: lits distances: dists count: count
+	| counts litFreq distFreq extra |
+	counts := ByteArray new: 1264.
+	litFreq := Array new: 286 withAll: 0.
+	distFreq := Array new: 30 withAll: 0.
+	extra := ZLib new countTokens: lits distances: dists count: count literals: litFreq distances: distFreq.
+	self assert: (ZLib primCount: lits distances: dists count: count into: counts) equals: extra.
+	self assert: ((0 to: 285) collect: [:i | counts uint32At: i * 4 + 1]) equals: litFreq.
+	self assert: ((0 to: 29) collect: [:i | counts uint32At: i * 4 + 1145]) equals: distFreq
+!
+assertCodingOf: lits distances: dists count: count literals: litLengths distances: distLengths pending: pending
+	"writeTokens: (the primitive) and writeTokensInSmalltalk: give the same bytes and pending bits after pending bits 1, 0, 1, ..."
+	| coders |
+	coders := (1 to: 2) collect: [:k | | c |
+		c := ZLib new.
+		c instVarNamed: 'output' put: (ByteArray new: 16).
+		1 to: pending do: [:i | c writeBits: (i \\ 2) count: 1].
+		c].
+	(coders at: 1) writeTokens: lits distances: dists count: count literals: litLengths distances: distLengths.
+	(coders at: 2) writeTokensInSmalltalk: lits distances: dists count: count literals: litLengths distances: distLengths.
+	#('size' 'bits' 'bitCount') do: [:name |
+		self assert: ((coders at: 1) instVarNamed: name) equals: ((coders at: 2) instVarNamed: name)].
+	self assert: (((coders at: 1) instVarNamed: 'output') copyFrom: 1 to: ((coders at: 1) instVarNamed: 'size'))
+		equals: (((coders at: 2) instVarNamed: 'output') copyFrom: 1 to: ((coders at: 2) instVarNamed: 'size'))
+!
 matchesOf: data from: start chain: chain garbage: garbage primitive: aBoolean
 	"{the answer. head. prev. literals. distances} of a block of tokens of data from start, the chains first filled with a pattern (garbage) or empty."
 	| z head prev lits dists r |

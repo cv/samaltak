@@ -2065,3 +2065,192 @@ exit_is_bytes_4:;
     prim_status = PS_OK;
 }
 
+/* ObjectPrimitives>>primZlibTokenCounts */
+void prim_zlib_token_counts(void)
+{
+    oop o;
+    oop o_2;
+    int64_t count;
+    oop lits;
+    oop dists;
+    oop freqs;
+    bool r_is_bytes;
+    int32_t f;
+    bool r_is_bytes_2;
+    int32_t f_2;
+    bool r_is_bytes_3;
+    int32_t f_3;
+    int64_t r;
+    uint64_t v;
+    if (!(prim_nargs == 4)) {
+        prim_status = PS_FAIL;
+        prim_error_code = -1;
+        return;
+    }
+    o = prim_base[3];
+    if (!((o & 1) != 0)) {
+        prim_status = PS_FAIL;
+        prim_error_code = -1;
+        return;
+    }
+    o_2 = prim_base[3];
+    count = ((int64_t)o_2) >> 1;
+    if (!((count >= 0) && (count <= 65535))) {
+        prim_status = PS_FAIL;
+        prim_error_code = -1;
+        return;
+    }
+    lits = prim_base[1];
+    dists = prim_base[2];
+    freqs = prim_base[4];
+    if (!(({
+    if (!((lits & 7) == 0)) {
+        r_is_bytes = false;
+        goto exit_is_bytes;
+    }
+    f = (int32_t)(((*(uint64_t *)lits) >> H_FMT_SHIFT) & H_FMT_MASK);
+    r_is_bytes = (f >= F_BYTES) && ((f < 24) && (byte_size(lits) == 131070ULL));
+exit_is_bytes:;
+    r_is_bytes; }) && (({
+    if (!((dists & 7) == 0)) {
+        r_is_bytes_2 = false;
+        goto exit_is_bytes_2;
+    }
+    f_2 = (int32_t)(((*(uint64_t *)dists) >> H_FMT_SHIFT) & H_FMT_MASK);
+    r_is_bytes_2 = (f_2 >= F_BYTES) && ((f_2 < 24) && (byte_size(dists) == 131070ULL));
+exit_is_bytes_2:;
+    r_is_bytes_2; }) && (({
+    if (!((freqs & 7) == 0)) {
+        r_is_bytes_3 = false;
+        goto exit_is_bytes_3;
+    }
+    f_3 = (int32_t)(((*(uint64_t *)freqs) >> H_FMT_SHIFT) & H_FMT_MASK);
+    r_is_bytes_3 = (f_3 >= F_BYTES) && ((f_3 < 24) && (byte_size(freqs) == 1264ULL));
+exit_is_bytes_3:;
+    r_is_bytes_3; }) && (!(((*(uint64_t *)freqs) & H_IMMUTABLE) != 0)))))) {
+        prim_status = PS_FAIL;
+        prim_error_code = -1;
+        return;
+    }
+    r = deflate_coder_count((uint16_t *)(uint8_t *)(lits + 16), (uint16_t *)(uint8_t *)(dists + 16), count, (uint32_t *)(freqs + 16));
+    if (r < 0) {
+        prim_status = PS_FAIL;
+        prim_error_code = -1;
+        return;
+    }
+    v = (uint64_t)((r << 1) | 1);
+    prim_result = v;
+    prim_status = PS_OK;
+}
+
+/* ObjectPrimitives>>primZlibWriteTokens */
+void prim_zlib_write_tokens(void)
+{
+    oop o;
+    oop o_2;
+    oop o_3;
+    oop o_4;
+    oop o_5;
+    int64_t count;
+    oop o_6;
+    int64_t size;
+    oop o_7;
+    int64_t bits;
+    oop o_8;
+    int64_t bit_count;
+    oop lits;
+    oop dists;
+    oop table;
+    oop out;
+    bool r_is_bytes;
+    int32_t f;
+    bool r_is_bytes_2;
+    int32_t f_2;
+    bool r_is_bytes_3;
+    int32_t f_3;
+    int64_t r;
+    uint64_t v;
+    if (!(prim_nargs == 8)) {
+        prim_status = PS_FAIL;
+        prim_error_code = -1;
+        return;
+    }
+    o = prim_base[3];
+    if (!(((o & 1) != 0) && ({
+    o_2 = prim_base[6];
+    ((o_2 & 1) != 0) && ({
+    o_3 = prim_base[7];
+    ((o_3 & 1) != 0) && ({
+    o_4 = prim_base[8];
+    (o_4 & 1) != 0; }); }); }))) {
+        prim_status = PS_FAIL;
+        prim_error_code = -1;
+        return;
+    }
+    o_5 = prim_base[3];
+    count = ((int64_t)o_5) >> 1;
+    o_6 = prim_base[6];
+    size = ((int64_t)o_6) >> 1;
+    o_7 = prim_base[7];
+    bits = ((int64_t)o_7) >> 1;
+    o_8 = prim_base[8];
+    bit_count = ((int64_t)o_8) >> 1;
+    if (!((count >= 0) && (count <= 65535) && ((size >= 0) && ((bit_count >= 0) && (bit_count <= 7) && ((bits >= 0) && (bits < (1LL << bit_count))))))) {
+        prim_status = PS_FAIL;
+        prim_error_code = -1;
+        return;
+    }
+    lits = prim_base[1];
+    dists = prim_base[2];
+    table = prim_base[4];
+    out = prim_base[5];
+    if (!(({
+    if (!((lits & 7) == 0)) {
+        r_is_bytes = false;
+        goto exit_is_bytes;
+    }
+    f = (int32_t)(((*(uint64_t *)lits) >> H_FMT_SHIFT) & H_FMT_MASK);
+    r_is_bytes = (f >= F_BYTES) && ((f < 24) && (byte_size(lits) == 131070ULL));
+exit_is_bytes:;
+    r_is_bytes; }) && (({
+    if (!((dists & 7) == 0)) {
+        r_is_bytes_2 = false;
+        goto exit_is_bytes_2;
+    }
+    f_2 = (int32_t)(((*(uint64_t *)dists) >> H_FMT_SHIFT) & H_FMT_MASK);
+    r_is_bytes_2 = (f_2 >= F_BYTES) && ((f_2 < 24) && (byte_size(dists) == 131070ULL));
+exit_is_bytes_2:;
+    r_is_bytes_2; }) && ({
+    if (!((table & 7) == 0)) {
+        r_is_bytes_3 = false;
+        goto exit_is_bytes_3;
+    }
+    f_3 = (int32_t)(((*(uint64_t *)table) >> H_FMT_SHIFT) & H_FMT_MASK);
+    r_is_bytes_3 = (f_3 >= F_BYTES) && ((f_3 < 24) && (byte_size(table) == 1264ULL));
+exit_is_bytes_3:;
+    r_is_bytes_3; })))) {
+        prim_status = PS_FAIL;
+        prim_error_code = -1;
+        return;
+    }
+    if (!(((out & 7) == 0) && (((int32_t)(((*(uint64_t *)out) >> H_FMT_SHIFT) & H_FMT_MASK) >= F_BYTES) && (((int32_t)(((*(uint64_t *)out) >> H_FMT_SHIFT) & H_FMT_MASK) < 24) && (!(((*(uint64_t *)out) & H_IMMUTABLE) != 0)))))) {
+        prim_status = PS_FAIL;
+        prim_error_code = -1;
+        return;
+    }
+    if (!(size + 6 * count + 8 <= (int64_t)byte_size(out))) {
+        prim_status = PS_FAIL;
+        prim_error_code = -1;
+        return;
+    }
+    r = deflate_coder_write((uint16_t *)(uint8_t *)(lits + 16), (uint16_t *)(uint8_t *)(dists + 16), count, (uint32_t *)(table + 16), (uint8_t *)(out + 16), size, (uint64_t)bits, bit_count);
+    if (r < 0) {
+        prim_status = PS_FAIL;
+        prim_error_code = -1;
+        return;
+    }
+    v = (uint64_t)((r << 1) | 1);
+    prim_result = v;
+    prim_status = PS_OK;
+}
+

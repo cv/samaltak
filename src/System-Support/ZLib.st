@@ -53,6 +53,16 @@ primAdler32Of: bytes
 	<primitive: 'zlibAdler32'>
 	^nil
 !
+primCount: litLens distances: distances count: count into: counts
+	"ZLib>>countTokens:distances:count:literals:distances: in the VM: counts (286 literal/length then 30 distance uint32) += the tokens' codes; answers their extra bits; nil if it cannot."
+	<primitive: 'zlibTokenCounts'>
+	^nil
+!
+primWriteTokens: litLens distances: distances count: count table: table into: output size: size bits: bits count: bitCount
+	"ZLib>>writeTokens:distances:count:literals:distances: in the VM: answers the output's new size times 8 plus the bits pending, which are in the byte after it; nil if it cannot (an older VM, a token out of range)."
+	<primitive: 'zlibWriteTokens'>
+	^nil
+!
 primMatches: input from: start head: head prev: prev literals: litLens distances: distances chain: maxChain
 	"ZLib>>matchesFrom:head:prev:literals:distances: in the VM; nil if it cannot (an older VM, maxChain beyond 1 to 4096)."
 	<primitive: 'zlibMatches'>
@@ -266,20 +276,17 @@ hashAt: p
 !
 writeBlock: litLens distances: distances count: count from: start to: stop final: final
 	"Write count tokens (input bytes start to stop) as the shortest of a dynamic, fixed or stored block."
-	| litFreq distFreq extraBits litLengths distLengths header dynamicBits fixedBits storedBits |
-	litFreq := Array new: 286 withAll: 0.
-	distFreq := Array new: 30 withAll: 0.
-	extraBits := 0.
-	1 to: count do: [:i | | v c d |
-		v := litLens uint16At: 2 * i - 1.
-		v < 256
-			ifTrue: [litFreq at: v + 1 put: (litFreq at: v + 1) + 1]
-			ifFalse: [
-				c := LengthCodes at: v - 256.
-				litFreq at: c + 258 put: (litFreq at: c + 258) + 1.
-				d := DistanceCodes at: (distances uint16At: 2 * i - 1).
-				distFreq at: d + 1 put: (distFreq at: d + 1) + 1.
-				extraBits := extraBits + (LengthExtra at: c + 1) + (DistanceExtra at: d + 1)]].
+	| litFreq distFreq extraBits litLengths distLengths header dynamicBits fixedBits storedBits counts |
+	counts := ByteArray new: 1264.
+	extraBits := self class primCount: litLens distances: distances count: count into: counts.
+	extraBits isNil
+		ifTrue: [
+			litFreq := Array new: 286 withAll: 0.
+			distFreq := Array new: 30 withAll: 0.
+			extraBits := self countTokens: litLens distances: distances count: count literals: litFreq distances: distFreq]
+		ifFalse: [
+			litFreq := (0 to: 285) collect: [:i | counts uint32At: i * 4 + 1].
+			distFreq := (0 to: 29) collect: [:i | counts uint32At: i * 4 + 1145]].
 	litFreq at: 257 put: 1.
 	litLengths := self class lengthsFor: litFreq limit: 15.
 	distLengths := self class lengthsFor: distFreq limit: 15.
@@ -297,6 +304,22 @@ writeBlock: litLens distances: distances count: count from: start to: stop final
 			self writeBits: 2 count: 2.
 			self writeHeader: header.
 			self writeTokens: litLens distances: distances count: count literals: litLengths distances: distLengths]
+!
+countTokens: litLens distances: distances count: count literals: litFreq distances: distFreq
+	"litFreq and distFreq += the codes of count tokens; answer the extra bits they need. The fallback of the VM's zlibTokenCounts."
+	| extraBits |
+	extraBits := 0.
+	1 to: count do: [:i | | v c d |
+		v := litLens uint16At: 2 * i - 1.
+		v < 256
+			ifTrue: [litFreq at: v + 1 put: (litFreq at: v + 1) + 1]
+			ifFalse: [
+				c := LengthCodes at: v - 256.
+				litFreq at: c + 258 put: (litFreq at: c + 258) + 1.
+				d := DistanceCodes at: (distances uint16At: 2 * i - 1).
+				distFreq at: d + 1 put: (distFreq at: d + 1) + 1.
+				extraBits := extraBits + (LengthExtra at: c + 1) + (DistanceExtra at: d + 1)]].
+	^extraBits
 !
 cost: freqs lengths: lengths
 	| sum |
@@ -357,6 +380,21 @@ writeHeader: header
 		s = 18 ifTrue: [self writeBits: (symbols at: k + 1) count: 7]]
 !
 writeTokens: litLens distances: distances count: count literals: litLengths distances: distLengths
+	"The tokens' codes and the end of the block: the VM's primitive (DeflateCoder), else writeTokensInSmalltalk:distances:count:literals:distances:."
+	| litCodes distCodes table r |
+	litCodes := self class codesFor: litLengths.
+	distCodes := self class codesFor: distLengths.
+	table := ByteArray new: 1264.
+	0 to: 285 do: [:i | table uint32At: i * 4 + 1 put: (litCodes at: i + 1) + ((litLengths at: i + 1) bitShift: 16)].
+	0 to: 29 do: [:i | table uint32At: i * 4 + 1145 put: (distCodes at: i + 1) + ((distLengths at: i + 1) bitShift: 16)].
+	self ensure: count * 6 + 8.
+	r := self class primWriteTokens: litLens distances: distances count: count table: table into: output size: size bits: bits count: bitCount.
+	r isNil ifTrue: [^self writeTokensInSmalltalk: litLens distances: distances count: count literals: litLengths distances: distLengths].
+	size := r bitShift: -3.
+	bitCount := r bitAnd: 7.
+	bits := (output at: size + 1) bitAnd: (1 bitShift: bitCount) - 1
+!
+writeTokensInSmalltalk: litLens distances: distances count: count literals: litLengths distances: distLengths
 	| litCodes distCodes |
 	litCodes := self class codesFor: litLengths.
 	distCodes := self class codesFor: distLengths.
