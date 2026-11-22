@@ -11,6 +11,9 @@ int32_t ps_loop_outer[2048];
 #else
 static int32_t ps_loop_outer[2048];
 #endif
+static int32_t ps_mem_end[2048];
+static uint8_t ps_mem_kill[2048];
+static int32_t ps_mem_mark[2048];
 int32_t ps_order[2048];
 int32_t ps_order_count;
 static int32_t ps_post[2048];
@@ -34,9 +37,11 @@ static void forward_unboxes(void);
 static void head_bounds_out_of(int32_t h, int64_t entry, int64_t index);
 static void hoist_guards(void);
 static void hoist_out_of(int32_t h);
+static void hoist_receiver_guards(int32_t entry);
 static bool is_invariant_field_load(int32_t n, int32_t h);
 static bool opt_passes_loop_changes_outer_temp(int32_t h, int64_t i);
 static int64_t opt_passes_loop_reaches_sp(int32_t h, int32_t b, int64_t sp);
+static bool memory_kept_from(int32_t d, int32_t b, int32_t k);
 static void mutability_out_of(int32_t h, int64_t entry, int64_t index);
 static void outer_slots_out_of(int32_t h, int64_t entry);
 static void promote_outer_temps_of(int32_t h, int64_t entry, int64_t index, int64_t latch);
@@ -367,6 +372,9 @@ void cleanup(int32_t entry)
     compute_order(entry);
     if (((jit_flags & JIT_FLAG_GVN) != 0) || ((jit_flags & JIT_FLAG_HOIST) != 0)) {
         dominators(entry);
+    }
+    if ((jit_flags & JIT_FLAG_HOIST) != 0) {
+        hoist_receiver_guards(entry);
     }
     if ((jit_flags & JIT_FLAG_GVN) != 0) {
         value_numbers();
@@ -1487,6 +1495,68 @@ exit_is_closure_load:;
     mutability_out_of(h, entry, index);
 }
 
+/* OptPasses>>hoistReceiverGuards: */
+static void hoist_receiver_guards(int32_t entry)
+{
+    int32_t a;
+    int32_t rcv;
+    int64_t st;
+    int32_t n;
+    int64_t cls;
+    int32_t m;
+    opt_node *nd;
+    int32_t a_2;
+    int32_t m_2;
+    a = (opt_blocks + entry)->act;
+    rcv = (opt_acts + a)->receiver;
+    if (rcv < 0) {
+        return;
+    }
+    rcv = opt_ir_resolve(rcv);
+    if (!((int32_t)(opt_nodes + rcv)->op == O_PARAM)) {
+        return;
+    }
+    st = -1;
+    n = (opt_blocks + entry)->first;
+    while (n >= 0) {
+        if (((int32_t)(opt_nodes + n)->op == O_CHECKINT) && (st < 0)) {
+            st = (opt_nodes + n)->state;
+        }
+        n = (opt_nodes + n)->next;
+    }
+    if ((st < 0) || ((opt_blocks + entry)->last < 0)) {
+        return;
+    }
+    cls = 0;
+    for (m = 0; m <= opt_node_count - 1; m++) {
+        nd = opt_nodes + m;
+        if (((int32_t)nd->op == O_GUARDCLASS) && ((nd->block >= 0) && ((nd->block != entry) && (opt_ir_resolve(nd->a) == rcv)))) {
+            a_2 = nd->bcact;
+            if ((flags_at((opt_acts + a_2)->method, nd->bcpc) & FB_DEOPT_HOISTED) != 0) {
+                return;
+            }
+            if ((cls != 0) && (cls != nd->aux)) {
+                return;
+            }
+            cls = nd->aux;
+        }
+    }
+    if (cls == 0) {
+        return;
+    }
+    for (m_2 = 0; m_2 <= opt_node_count - 1; m_2++) {
+        nd = opt_nodes + m_2;
+        if (((int32_t)nd->op == O_GUARDCLASS) && ((nd->block >= 0) && ((nd->block != entry) && (opt_ir_resolve(nd->a) == rcv)))) {
+            opt_ir_unlink(m_2);
+            insert(m_2, (opt_blocks + entry)->last);
+            nd = opt_nodes + m_2;
+            nd->a = rcv;
+            nd->state = st;
+            nd->flags = nd->flags | NF_HOISTED;
+        }
+    }
+}
+
 /* OptPasses>>isInvariantFieldLoad:of: */
 static bool is_invariant_field_load(int32_t n, int32_t h)
 {
@@ -1687,6 +1757,44 @@ static int64_t opt_passes_loop_reaches_sp(int32_t h, int32_t b, int64_t sp)
     ps_loop_outer[x] = h;
     ps_heads[sp] = x;
     return sp + 1;
+}
+
+/* OptPasses>>memoryKeptFrom:to:mark: */
+static bool memory_kept_from(int32_t d, int32_t b, int32_t k)
+{
+    int64_t sp;
+    int32_t e;
+    int32_t x;
+    sp = 0;
+    e = (opt_blocks + b)->preds;
+    while (e >= 0) {
+        x = (opt_edges + e)->from;
+        if ((x != d) && (ps_mem_mark[x] != k)) {
+            ps_mem_mark[x] = k;
+            ps_work_list[sp] = x;
+            sp = sp + 1;
+        }
+        e = (opt_edges + e)->next;
+    }
+    while (sp > 0) {
+        sp = sp - 1;
+        x = ps_work_list[sp];
+        if (ps_mem_kill[x] != 0) {
+            return false;
+        }
+        e = (opt_blocks + x)->preds;
+        while (e >= 0) {
+            if ((opt_edges + e)->from != d) {
+                if ((ps_mem_mark[(opt_edges + e)->from] != k) && (sp < OPT_MAX_NODES)) {
+                    ps_mem_mark[(opt_edges + e)->from] = k;
+                    ps_work_list[sp] = (opt_edges + e)->from;
+                    sp = sp + 1;
+                }
+            }
+            e = (opt_edges + e)->next;
+        }
+    }
+    return true;
 }
 
 /* OptPasses>>mutabilityOutOf:entry:index: */
@@ -3277,17 +3385,23 @@ static void value_numbers(void)
     int32_t local_2[64];
     int32_t *stores;
     int i_2;
-    int64_t stamp;
     int32_t i_3;
-    int32_t b;
-    int32_t e;
-    int64_t mem;
     int32_t n;
-    opt_node *nd;
+    opt_node *nd_2;
     bool r_changes_memory;
     int32_t op;
-    bool r_is_numbered;
+    int64_t stamp;
+    int32_t i_4;
+    int32_t b;
+    int32_t e;
+    int32_t d;
+    int64_t mem;
+    int f;
+    opt_node *nd;
+    bool r_changes_memory_2;
     int32_t op_2;
+    bool r_is_numbered;
+    int32_t op_3;
     uint64_t h;
     int64_t found;
     int32_t n_2;
@@ -3304,15 +3418,43 @@ static void value_numbers(void)
     stores = local_2;
     for (i_2 = 0; i_2 <= 63; i_2++) {
         fields[i_2] = 0;
+        stores[i_2] = -1;
+    }
+    for (i_3 = 0; i_3 <= opt_block_count - 1; i_3++) {
+        ps_mem_mark[i_3] = -1;
+        ps_mem_kill[i_3] = 0;
+        n = (opt_blocks + i_3)->first;
+        while (n >= 0) {
+            nd_2 = opt_nodes + n;
+            if (({
+    op = (int32_t)nd_2->op;
+    r_changes_memory = (op == O_STOREFIELD) || ((op == O_INDEXSTORE) || ((op == O_OUTERSTORE) || ((op == O_SEND) || ((op == O_CALL) || ((op == O_CHECKINT) || (op == O_MKARRAY))))));
+    r_changes_memory; }) && ((int32_t)(opt_nodes + n)->op != O_INDEXSTORE)) {
+                ps_mem_kill[i_3] = 1;
+            }
+            n = (opt_nodes + n)->next;
+        }
     }
     stamp = 0;
-    for (i_3 = 0; i_3 <= ps_order_count - 1; i_3++) {
-        b = ps_order[i_3];
-        if (!(((opt_blocks + b)->npreds == 1) && ((i_3 > 0) && ({
+    for (i_4 = 0; i_4 <= ps_order_count - 1; i_4++) {
+        b = ps_order[i_4];
+        if (!(((opt_blocks + b)->npreds == 1) && ((i_4 > 0) && ({
     e = (opt_blocks + b)->preds;
-    (opt_edges + e)->from == ps_order[i_3 - 1]; })))) {
-            stamp = stamp + 1;
-            mem = stamp;
+    (opt_edges + e)->from == ps_order[i_4 - 1]; })))) {
+            d = ps_idom[b];
+            if ((d >= 0) && ((d != b) && memory_kept_from(d, b, i_4))) {
+                mem = (int64_t)ps_mem_end[d];
+                for (f = 0; f <= 63; f++) {
+                    if (fields[f] > mem) {
+                        stamp = stamp + 1;
+                        fields[f] = stamp;
+                        stores[f] = -1;
+                    }
+                }
+            } else {
+                stamp = stamp + 1;
+                mem = stamp;
+            }
         }
         n = (opt_blocks + b)->first;
         while (n >= 0) {
@@ -3324,9 +3466,9 @@ static void value_numbers(void)
                 nd->b = opt_ir_resolve(nd->b);
             }
             if (({
-    op = (int32_t)nd->op;
-    r_changes_memory = (op == O_STOREFIELD) || ((op == O_INDEXSTORE) || ((op == O_OUTERSTORE) || ((op == O_SEND) || ((op == O_CALL) || ((op == O_CHECKINT) || (op == O_MKARRAY))))));
-    r_changes_memory; })) {
+    op_2 = (int32_t)nd->op;
+    r_changes_memory_2 = (op_2 == O_STOREFIELD) || ((op_2 == O_INDEXSTORE) || ((op_2 == O_OUTERSTORE) || ((op_2 == O_SEND) || ((op_2 == O_CALL) || ((op_2 == O_CHECKINT) || (op_2 == O_MKARRAY))))));
+    r_changes_memory_2; }) && ((int32_t)nd->op != O_INDEXSTORE)) {
                 stamp = stamp + 1;
                 if (((int32_t)nd->op == O_STOREFIELD) && ((nd->aux >= 0) && (nd->aux < 64))) {
                     fields[nd->aux] = stamp;
@@ -3336,12 +3478,12 @@ static void value_numbers(void)
                 }
             }
             if (({
-    op_2 = (int32_t)nd->op;
+    op_3 = (int32_t)nd->op;
     if (!((int32_t)nd->nargs == 0)) {
         r_is_numbered = false;
         goto exit_is_numbered;
     }
-    r_is_numbered = (op_2 == O_CONST) || ((op_2 == O_IADD) || ((op_2 == O_ISUB) || ((op_2 == O_IMUL) || ((op_2 == O_ICMP) || ((op_2 == O_IAND) || ((op_2 == O_IOR) || ((op_2 == O_EQ) || ((op_2 == O_NE) || ((op_2 == O_CLASSOF) || ((op_2 == O_CLASSIS) || ((op_2 == O_BOTHINT) || ((op_2 == O_FARITH) || ((op_2 == O_FCMP) || ((op_2 == O_FSQRT) || ((op_2 == O_BOXF) || ((op_2 == O_UNBOXF) || ((op_2 == O_GUARDINT) || ((op_2 == O_GUARDCLASS) || ((op_2 == O_GUARDCLOSURE) || ((op_2 == O_GUARDEQ) || ((op_2 == O_CAST) || ((op_2 == O_SIZE) || ((op_2 == O_LOADFIELD) || ((op_2 == O_IMOD) || ((op_2 == O_IDIV) || ((op_2 == O_ISHIFT) || ((op_2 == O_IXOR) || ((op_2 == O_NOTINTS) || (op_2 == O_CHARCONV)))))))))))))))))))))))))))));
+    r_is_numbered = (op_3 == O_CONST) || ((op_3 == O_IADD) || ((op_3 == O_ISUB) || ((op_3 == O_IMUL) || ((op_3 == O_ICMP) || ((op_3 == O_IAND) || ((op_3 == O_IOR) || ((op_3 == O_EQ) || ((op_3 == O_NE) || ((op_3 == O_CLASSOF) || ((op_3 == O_CLASSIS) || ((op_3 == O_BOTHINT) || ((op_3 == O_FARITH) || ((op_3 == O_FCMP) || ((op_3 == O_FSQRT) || ((op_3 == O_BOXF) || ((op_3 == O_UNBOXF) || ((op_3 == O_GUARDINT) || ((op_3 == O_GUARDCLASS) || ((op_3 == O_GUARDCLOSURE) || ((op_3 == O_GUARDEQ) || ((op_3 == O_CAST) || ((op_3 == O_SIZE) || ((op_3 == O_LOADFIELD) || ((op_3 == O_IMOD) || ((op_3 == O_IDIV) || ((op_3 == O_ISHIFT) || ((op_3 == O_IXOR) || ((op_3 == O_NOTINTS) || (op_3 == O_CHARCONV)))))))))))))))))))))))))))));
 exit_is_numbered:;
     r_is_numbered; })) {
                 if ((int32_t)nd->op == O_LOADFIELD) {
@@ -3349,7 +3491,7 @@ exit_is_numbered:;
                 }
                 h = (((uint64_t)((((((int64_t)nd->op * 31 + nd->a) * 31 + nd->b) * 31 + nd->aux) * 31 + nd->aux2) * 31 + (int64_t)nd->tcls)) >> 3) & 4095;
                 found = -1;
-                if (((int32_t)nd->op == O_LOADFIELD) && ((nd->aux >= 0) && ((nd->aux < 64) && (fields[nd->aux] > mem)))) {
+                if (((int32_t)nd->op == O_LOADFIELD) && ((nd->aux >= 0) && ((nd->aux < 64) && ((fields[nd->aux] > mem) && (stores[nd->aux] >= 0))))) {
                     n_2 = stores[nd->aux];
                     st = opt_nodes + n_2;
                     if (opt_ir_resolve(st->a) == opt_ir_resolve(nd->a)) {
@@ -3380,6 +3522,7 @@ exit_is_numbered:;
                 n = nd->next;
             }
         }
+        ps_mem_end[b] = (int32_t)mem;
     }
 }
 

@@ -1,5 +1,5 @@
 OptModule subclass: #OptPasses
-	instanceVariableNames: 'ir psOrder psOrderCount psVisitMark psWorkList psIdom psPre psPost psChild psSibling psHeads psChain psUnboxOff psUnboxed psTwin psLoopOuter'
+	instanceVariableNames: 'ir psOrder psOrderCount psVisitMark psWorkList psIdom psPre psPost psChild psSibling psHeads psChain psUnboxOff psUnboxed psTwin psLoopOuter psMemEnd psMemMark psMemKill'
 	classVariableNames: ''
 	package: 'VM-Jit'!
 
@@ -10,7 +10,7 @@ declarations
 	^#((ir OptIR) (psOrder 'int32_t[OPT_MAX_BLOCKS]') (psOrderCount int32_t) (psVisitMark 'uint8_t[OPT_MAX_BLOCKS]') (psWorkList 'int32_t[OPT_MAX_NODES]')
 		(psIdom 'int32_t[OPT_MAX_BLOCKS]') (psPre 'int32_t[OPT_MAX_BLOCKS]') (psPost 'int32_t[OPT_MAX_BLOCKS]') (psChild 'int32_t[OPT_MAX_BLOCKS]') (psSibling 'int32_t[OPT_MAX_BLOCKS]')
 		(psHeads 'int32_t[4096]') (psChain 'int32_t[OPT_MAX_NODES]') (psUnboxOff bool) (psUnboxed bool)
-		(psTwin 'int32_t[OPT_MAX_NODES]') (psLoopOuter 'int32_t[OPT_MAX_BLOCKS]'))
+		(psTwin 'int32_t[OPT_MAX_NODES]') (psLoopOuter 'int32_t[OPT_MAX_BLOCKS]') (psMemEnd 'int32_t[OPT_MAX_BLOCKS]') (psMemMark 'int32_t[OPT_MAX_BLOCKS]') (psMemKill 'uint8_t[OPT_MAX_BLOCKS]'))
 ! !
 
 !OptPasses methodsFor: 'accessing'!
@@ -58,6 +58,7 @@ cleanup: entry
 	ir full ifTrue: [^self].
 	self computeOrder: entry.
 	((runtime flag: runtime gvnFlag) or: [runtime flag: runtime hoistFlag]) ifTrue: [self dominators: entry].
+	(runtime flag: runtime hoistFlag) ifTrue: [self hoistReceiverGuards: entry].
 	(runtime flag: runtime gvnFlag) ifTrue: [
 		self valueNumbers.
 		"a load forwarded to the SmallInteger stored: its guard goes"
@@ -684,26 +685,46 @@ dominates: x block: y
 	^(psPre at: x) <= (psPre at: y) and: [(psPost at: y) <= (psPost at: x)]
 !
 valueNumbers
-	"Global value numbering over the dominator tree: a deterministic node (arithmetic, comparisons, guards, conversions, constants) with the same operation and operands as one in a dominating position is that one; a field load only within its block, or blocks in a line, with no safepoint between, nor a store but into another field (the first 64)."
+	"Global value numbering over the dominator tree: a deterministic node (arithmetic, comparisons, guards, conversions, constants) with the same operation and operands as one in a dominating position is that one; a field load as one in a dominating position with no safepoint on any path between, nor a store but into another field (the first 64; stores into indexed slots never write a named field)."
 	<function>
-	| b n nd h m md mem found stamp fields stores st |
+	| b n nd h m md mem found stamp fields stores st d |
 	0 to: 4095 do: [:i | psHeads at: i put: -1].
 	fields := self local: 'int32_t[64]'.
 	stores := self local: 'int32_t[64]'.
-	0 to: 63 do: [:i | fields at: i put: 0].
+	0 to: 63 do: [:i |
+		fields at: i put: 0.
+		stores at: i put: -1].
+	0 to: ir blockCount - 1 do: [:i |
+		psMemMark at: i put: -1.
+		psMemKill at: i put: 0.
+		n := (ir block: i) first.
+		[n >= 0] whileTrue: [
+			((self changesMemory: (ir node: n)) and: [(ir node: n) op asInt32 ~= O_INDEXSTORE]) ifTrue: [psMemKill at: i put: 1].
+			n := (ir node: n) next]].
 	stamp := 0.
 	0 to: psOrderCount - 1 do: [:i |
 		b := psOrder at: i.
 		"what the block before left holds on if only it leads here (an inlined method's blocks)"
 		((ir block: b) npreds = 1 and: [i > 0 and: [(ir edge: (ir block: b) preds) from = (psOrder at: i - 1)]]) ifFalse: [
-			stamp := stamp + 1.
-			mem := stamp].
+			d := psIdom at: b.
+			(d >= 0 and: [d ~= b and: [self memoryKeptFrom: d to: b mark: i]])
+				ifTrue: [
+					"nothing on the way from the dominator writes memory: its loads hold, but fields a store wrote since (in it, or in blocks not on the way) are loaded again"
+					mem := (psMemEnd at: d) asInt64.
+					0 to: 63 do: [:f |
+						(fields at: f) > mem ifTrue: [
+							stamp := stamp + 1.
+							fields at: f put: stamp.
+							stores at: f put: -1]]]
+				ifFalse: [
+					stamp := stamp + 1.
+					mem := stamp]].
 		n := (ir block: b) first.
 		[n >= 0] whileTrue: [
 			nd := ir node: n.
 			nd a >= 0 ifTrue: [nd a: (ir resolve: nd a)].
 			nd b >= 0 ifTrue: [nd b: (ir resolve: nd b)].
-			(self changesMemory: nd) ifTrue: [
+			((self changesMemory: nd) and: [nd op asInt32 ~= O_INDEXSTORE]) ifTrue: [
 				stamp := stamp + 1.
 				"a store into a field leaves the other fields (of any object) as they are"
 				(nd op asInt32 = O_STOREFIELD and: [nd aux >= 0 and: [nd aux < 64]])
@@ -718,7 +739,7 @@ valueNumbers
 				h := self hashOf: nd.
 				found := -1.
 				"a load of the field the last store wrote, into the same object, nothing that may write it between: the value stored"
-				(nd op asInt32 = O_LOADFIELD and: [nd aux >= 0 and: [nd aux < 64 and: [(fields at: nd aux) > mem]]]) ifTrue: [
+				(nd op asInt32 = O_LOADFIELD and: [nd aux >= 0 and: [nd aux < 64 and: [(fields at: nd aux) > mem and: [(stores at: nd aux) >= 0]]]]) ifTrue: [
 					st := ir node: (stores at: nd aux).
 					(ir resolve: st a) = (ir resolve: nd a) ifTrue: [found := ir resolve: st b]].
 				m := psHeads at: h.
@@ -736,7 +757,67 @@ valueNumbers
 						psChain at: n put: (psHeads at: h).
 						psHeads at: h put: n.
 						n := nd next]]
-				ifFalse: [n := nd next]]]
+				ifFalse: [n := nd next]].
+		psMemEnd at: b put: mem asInt32]
+!
+memoryKeptFrom: d to: b mark: k
+	"No block on a path from d to b (d dominates b; b too if a path comes back to it) writes memory or may run anything (psMemKill): walked backward from b, marked k."
+	<function>
+	| sp x e |
+	sp := 0.
+	e := (ir block: b) preds.
+	[e >= 0] whileTrue: [
+		x := (ir edge: e) from.
+		(x ~= d and: [(psMemMark at: x) ~= k]) ifTrue: [
+			psMemMark at: x put: k.
+			psWorkList at: sp put: x.
+			sp := sp + 1].
+		e := (ir edge: e) next].
+	[sp > 0] whileTrue: [
+		sp := sp - 1.
+		x := psWorkList at: sp.
+		(psMemKill at: x) ~= 0 ifTrue: [^false].
+		e := (ir block: x) preds.
+		[e >= 0] whileTrue: [
+			(ir edge: e) from ~= d ifTrue: [
+				((psMemMark at: (ir edge: e) from) ~= k and: [sp < OPT_MAX_NODES]) ifTrue: [
+					psMemMark at: (ir edge: e) from put: k.
+					psWorkList at: sp put: (ir edge: e) from.
+					sp := sp + 1]].
+			e := (ir edge: e) next]].
+	^true
+!
+hoistReceiverGuards: entry
+	"A method's or a block's unit: the guards of the class of its receiver (which no activation changes), wherever they are, run once, at the entry (after its interrupt check, deoptimizing to the unit's start), where value numbering makes them one: the receiver is checked once per activation, not again in every branch and loop that sends to it. Not if they guard different classes; a site whose hoisted guard failed (deoptHoisted) keeps its guard where it is."
+	<function>
+	| rcv st cls n nd |
+	rcv := (ir act: (ir block: entry) act) receiver.
+	rcv < 0 ifTrue: [^self].
+	rcv := ir resolve: rcv.
+	(ir node: rcv) op asInt32 = O_PARAM ifFalse: [^self].
+	st := -1.
+	n := (ir block: entry) first.
+	[n >= 0] whileTrue: [
+		((ir node: n) op asInt32 = O_CHECKINT and: [st < 0]) ifTrue: [st := (ir node: n) state].
+		n := (ir node: n) next].
+	(st < 0 or: [(ir block: entry) last < 0]) ifTrue: [^self].
+	cls := 0.
+	0 to: ir nodeCount - 1 do: [:m |
+		nd := ir node: m.
+		(nd op asInt32 = O_GUARDCLASS and: [nd block >= 0 and: [nd block ~= entry and: [(ir resolve: nd a) = rcv]]]) ifTrue: [
+			((feedback flagsAt: (ir act: nd bcact) method pc: nd bcpc) bitAnd: feedback deoptHoisted) ~= 0 ifTrue: [^self].
+			(cls ~= 0 and: [cls ~= nd aux]) ifTrue: [^self].
+			cls := nd aux]].
+	cls = 0 ifTrue: [^self].
+	0 to: ir nodeCount - 1 do: [:m |
+		nd := ir node: m.
+		(nd op asInt32 = O_GUARDCLASS and: [nd block >= 0 and: [nd block ~= entry and: [(ir resolve: nd a) = rcv]]]) ifTrue: [
+			ir unlink: m.
+			ir insert: m before: (ir block: entry) last.
+			nd := ir node: m.
+			nd a: rcv.
+			nd state: st.
+			nd flags: (nd flags bitOr: NF_HOISTED)]]
 !
 hoistGuards
 	"Innermost loops first: a guard that leaves a loop may leave the one around it too."
