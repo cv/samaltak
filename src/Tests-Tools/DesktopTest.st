@@ -99,16 +99,21 @@ testProcessBrowserShowsTheMandelbrotRunning
 		ensure: [looked := true]
 !
 testMandelbrotQueuesClicksWhileBusy
+	"The rendering waits after its first row until both clicks are in the window's queue: on a loaded machine it could
+	 otherwise end before they arrive, or count them and handle them between two looks."
 	| mb view point iterations |
-	mb := self open: [MandelbrotView openIn: (900 @ 500 extent: 324 @ 306) delay: 1].
+	mb := self open: [GatedMandelbrotView openIn: (900 @ 500 extent: 324 @ 306) delay: 1].
 	view := mb content.
-	self assert: (self waitFor: [view isRendering]).
+	self assert: (self waitFor: [view isRendering and: [view isAtGate]]) description: 'the rendering did not start'.
 	iterations := view maxIterations.
 	point := (mb content widgetNamed: 'view') localToScreen: 100 @ 100.
 	self click: point.
 	self click: point + (10 @ 10).
-	self assert: (self waitFor: [view queuedClicks = 2] timeout: 4000) description: 'the two clicks are not counted as queued'.
+	self assert: (self waitFor: [(mb queue countItemsSatisfying: [:e | (e respondsTo: #isPointer) and: [e isPointer and: [e type == #down]]]) = 2] timeout: 4000)
+		description: 'the two clicks do not wait in the busy window''s queue'.
+	view openGate.
 	self assert: (self waitFor: [view maxIterations = (iterations + 180)] timeout: 30000) description: 'both queued clicks zoom'.
+	self assert: view mostQueued equals: 2.
 	self assert: view zoomFactor equals: 9
 !
 testUserInterruptStopsTheBusyProcess
