@@ -11,6 +11,15 @@
 #include <unistd.h>
 
 static int failures, checks;
+
+/* PlatformGPU>>createShader:source:entry:stage:samplers:uniformBuffers:storageBuffers:storageTextures: (the source in the
+   device's language, GLSL compiled by the host); its C name is long since createShader:spirv:size:... sits beside it. */
+static int32_t create_shader(int32_t dev, const char *source, char *entry, int32_t stage, int32_t samplers,
+    int32_t uniform_buffers, int32_t storage_buffers, int32_t storage_textures)
+{
+    return platform_gpu_create_shader_source_entry_stage_samplers_uniform_buffers_storage_buffers_storage_textures(
+        dev, (void *)source, entry, stage, samplers, uniform_buffers, storage_buffers, storage_textures);
+}
 #define CHECK(c, ...)                                                        \
     do {                                                                     \
         checks++;                                                            \
