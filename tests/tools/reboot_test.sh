@@ -22,6 +22,8 @@ cp "$IMAGE" "$SCRATCH/reboot.image"
 cp -R src "$SCRATCH/src"
 $CTL open --hidden --image "$SCRATCH/reboot.image" --source-dir "$SCRATCH/src" >/dev/null 2>&1 || { echo "FAIL open"; exit 1; }
 i=0; until $CTL wait '@w6' 10000 >/dev/null 2>&1 || [ $i -ge 100 ]; do i=$((i + 1)); sleep 0.1; done
+# the System Browser's title names its class once its own Process has selected it: compare the windows after that
+$CTL wait 'System Browser: Window' 10000 >/dev/null
 pid=$(sed -n 's/.*"pid": \([0-9]*\).*/\1/p' "${TMPDIR:-/tmp}/samaltak-ctl/$SAMALTAK_SESSION.json")
 windows() { $CTL snapshot --depth 1 | grep '^window' | grep -v 'VM Rebuild' | sed 's/ focused//; s/ process=.*//'; }
 before=$(windows)
