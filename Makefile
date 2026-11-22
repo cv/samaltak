@@ -180,6 +180,13 @@ UEFI_VGA = $(if $(filter x86_64,$(UEFI_ARCH)),$(if $(UEFI_GPU),,-vga std))
 # UEFI_CPUS: QEMU's CPUs; the VM runs on the first and starts the others for its raster's bands and background compilation
 # (docs/uefi.md, More than one CPU). 1: one CPU, as on firmware without MP services or PSCI.
 UEFI_CPUS ?= 4
+# UEFI_AFFINITY: the host CPUs QEMU runs on (tools/qemu-pin.sh; docs/uefi.md, Pinning): big, the cores of the highest
+# maximum frequency where there is more than one kind (Linux; the DGX Spark's X925s, where an A725 is half as fast),
+# each vCPU on one of its own and no more vCPUs than cores; a taskset list (5-9,15-19); empty or none, anywhere. The
+# World (uefi-ui, uefi-control, so samaltak-ctl open --uefi) runs on big unless it is set; uefi-run, uefi-boot and the
+# tests anywhere, as gates run at once.
+UEFI_PIN = $(UEFI_AFFINITY)
+uefi-ui uefi-control: UEFI_PIN = $(if $(filter undefined,$(origin UEFI_AFFINITY)),big,$(UEFI_AFFINITY))
 QEMU_UEFI = $(QEMU_UEFI_MACHINE) -smp $(UEFI_CPUS) -m $(UEFI_MEM) -no-reboot \
 	-nic user,model=$(UEFI_NIC)$(if $(UEFI_CONTROL_PORT),$(comma)hostfwd=tcp:127.0.0.1:$(UEFI_CONTROL_PORT)-:7341) -global $(UEFI_NIC).romfile= \
 	-device virtio-rng-pci -drive if=pflash,format=raw,readonly=on,file=$(OVMF_CODE) -drive if=pflash,format=raw,file=$(UEFI)/vars.fd \
@@ -219,16 +226,16 @@ uefi-run: uefi
 uefi-boot:
 	printf '%s\n' --max-heap $(UEFI_HEAP) disk: $(UEFI_ARGS) > $(UEFI)/esp/samaltak.args
 	cp $(OVMF_VARS) $(UEFI)/vars.fd
-	$(QEMU_UEFI) -nographic | tee $(UEFI)/console.log
+	tools/qemu-pin.sh '$(UEFI_PIN)' $(QEMU_UEFI) -nographic | tee $(UEFI)/console.log
 	@grep -q 'samaltak: exit 0' $(UEFI)/console.log
 uefi-ui: uefi
 	printf '%s\n' --max-heap $(UEFI_HEAP) disk: --window-size $(UEFI_SCREEN) > $(UEFI)/esp/samaltak.args
 	cp $(OVMF_VARS) $(UEFI)/vars.fd
-	$(if $(UEFI_VNC),,$(UEFI_WINDOW)) $(QEMU_UEFI) $(if $(UEFI_VNC),$(UEFI_VNC_DISPLAY),$(UEFI_DISPLAY)) $(UEFI_VGA) -device qemu-xhci -device usb-kbd -device virtio-tablet-pci -serial stdio
+	$(if $(UEFI_VNC),,$(UEFI_WINDOW)) tools/qemu-pin.sh '$(UEFI_PIN)' $(QEMU_UEFI) $(if $(UEFI_VNC),$(UEFI_VNC_DISPLAY),$(UEFI_DISPLAY)) $(UEFI_VGA) -device qemu-xhci -device usb-kbd -device virtio-tablet-pci -serial stdio
 uefi-control: uefi
 	printf '%s\n' --max-heap $(UEFI_HEAP) disk: --control --control-host 0.0.0.0 --control-port 7341 $(UEFI_CONTROL_ARGS) > $(UEFI)/esp/samaltak.args
 	cp $(OVMF_VARS) $(UEFI)/vars.fd
-	$(QEMU_UEFI) $(if $(UEFI_VNC),$(UEFI_VNC_DISPLAY),-display none) $(UEFI_VGA) -device qemu-xhci -device usb-kbd -device virtio-tablet-pci -serial stdio
+	tools/qemu-pin.sh '$(UEFI_PIN)' $(QEMU_UEFI) $(if $(UEFI_VNC),$(UEFI_VNC_DISPLAY),-display none) $(UEFI_VGA) -device qemu-xhci -device usb-kbd -device virtio-tablet-pci -serial stdio
 UEFI_TESTS := CompilerTest ParserTest ScannerTest ClassTest CollectionTest ContextTest ExceptionTest FloatTest FractionTest \
 	HashingTest ImmutabilityTest IntegerTest LazyContextTest MarriedContextTest MessageNotUnderstoodTest ObjectTest ProcessTest \
 	StackOverflowTest StreamTest StringSearchTest StringTest SymbolTest SystemChangesTest SystemTest UnicodeTest WorkClockTest \
@@ -262,7 +269,7 @@ test-uefi:
 	$(MAKE) $(UEFI_EXT4_DISK) $(UEFI_EXT4_GPT_DISK)
 	$(MAKE) uefi-boot UEFI_DISKS="$(UEFI_EXT4_DISK)@nvme $(UEFI_EXT4_GPT_DISK)@virtio-blk-pci" UEFI_ARGS="--headless --eval \"$(UEFI_FILES)\""
 	while read -r line; do grep -qF "$$line" $(UEFI)/console.log || { echo "test-uefi: files: no line: $$line"; exit 1; }; done < tests/uefi/files.expected
-	OUT=$(OUT) tools/samaltak-ctl --session uefi-test open --uefi --headless
+	UEFI_AFFINITY=$(UEFI_AFFINITY) OUT=$(OUT) tools/samaltak-ctl --session uefi-test open --uefi --headless
 	P=$$(sed -n 's/.*"port": \([0-9]*\).*/\1/p' $${TMPDIR:-/tmp}/samaltak-ctl/uefi-test.json); \
 	TP=$$(python3 -c 'import socket; s = socket.socket(); s.bind(("127.0.0.1", 0)); print(s.getsockname()[1])'); \
 	tools/samaltak-ctl --session uefi-test eval "$(UEFI_NET_DRIVER)" > $(UEFI)/net.log; ok=$$?; \
@@ -280,7 +287,7 @@ test-uefi:
 	grep -q "'resumed 42'" $(UEFI)/console.log
 	rm $(UEFI)/image.disk
 test-uefi-nic:
-	UEFI_NIC=$(UEFI_NIC) OUT=$(OUT) tools/samaltak-ctl --session uefi-test open --uefi --headless
+	UEFI_NIC=$(UEFI_NIC) UEFI_AFFINITY=$(UEFI_AFFINITY) OUT=$(OUT) tools/samaltak-ctl --session uefi-test open --uefi --headless
 	P=$$(sed -n 's/.*"port": \([0-9]*\).*/\1/p' $${TMPDIR:-/tmp}/samaltak-ctl/uefi-test.json); \
 	tools/samaltak-ctl --session uefi-test eval "$(UEFI_NET_DRIVER)" > $(UEFI)/net.log; ok=$$?; \
 	[ $$ok = 0 ] && { tools/samaltak-ctl --session uefi-test eval "$(UEFI_NET)" >> $(UEFI)/net.log; ok=$$?; }; \

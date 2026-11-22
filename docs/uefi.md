@@ -12,6 +12,7 @@ The VM runs as a UEFI application on x86-64 and arm64, with its UI on the firmwa
     make usb-image USB_DIAG=1                       # the same, booting into FirmwareDiagnostics first, then the World
     make test-usb-image                             # boots such a file in QEMU as a USB stick and as NVMe
     make uefi-run UEFI_CPUS=1                       # on one CPU (QEMU's -smp; 4 by default)
+    make uefi-control UEFI_AFFINITY=5-8             # QEMU on these host CPUs (the World's default: big; Pinning)
 
 `UEFI_ARCH` is `x86_64` or `arm64`, this machine's by default. Needs clang, ld.lld, `qemu-system-x86_64` or `qemu-system-aarch64` and the firmware for it, OVMF or AAVMF (`.agents/setup` installs x86-64's; Homebrew's `qemu` has both). For this machine's CPU QEMU runs the VM on it, with KVM where `/dev/kvm` is there, else on macOS with Hypervisor.framework (QEMU 11.0 fails at its start on macOS 26; 11.1 works); for another CPU it emulates (TCG), and the VM still boots in about 5 s.
 
@@ -40,6 +41,14 @@ The VM runs on the boot CPU; the others, the application processors (APs), run o
 - **Background compilation.** `UefiJitPlatform`'s helper thread is the last AP online (`UefiMp>>startJit:`), its mutex a spin lock and its condition a counter (docs/jit.md, Background compilation); while it waits it takes parts of parallel jobs. The back end it runs uses the optimizer's static arrays, no allocator (`UefiLibC`'s `malloc` is the firmware's pool, the boot CPU's alone).
 - **Measured** (arm64 under KVM on the DGX Spark, 4 CPUs against 1, `UEFI_GPU=virtio-gpu-pci` at 1920x1080, the idle World re-rendering every layer each frame, medians after warm-up): a frame 4.0 ms to 2.85 ms, the raster primitives in it 2.1 ms to 1.1 ms (draws 0.93 to 0.37, blits 0.45 to 0.27, copies 0.52 to 0.29, fills 0.19 to 0.16: memory bandwidth), the rest Smalltalk and the firmware's `Blt`. Richards' first iteration (compiling) 5.3 ms to 2.6 ms, its first five 12.0 to 7.2 ms.
 - **Bare metal** (a DGX Spark, any Arm SBBR machine): its firmware runs at EL2 and has the ACPI MADT and FADT; PSCI by SMC at EL2 is what `make uefi-run QEMU_UEFI_MACHINE="qemu-system-aarch64 -machine virt,virtualization=on -cpu max -device ramfb"` runs. If the firmware has MP services, they are used instead.
+
+## Pinning
+
+On a machine with two kinds of core QEMU should run on the fast ones. The DGX Spark has ten Cortex-X925 (3.9 GHz: CPUs 5-9 and 15-19) and ten Cortex-A725 (2.8 GHz, about half as fast for the VM); Linux places a thread by how busy it has been, so the vCPU of an idle World wakes on an A725 for each burst of work (a frame, a key, an evaluation) and only a long computation moves it to an X925.
+
+`UEFI_AFFINITY` says where QEMU runs (`tools/qemu-pin.sh`): `big`, the cores of the highest `cpuinfo_max_freq` (Linux, where there is more than one kind; elsewhere unpinned), a `taskset` list such as `5-9,15-19`, or empty or `none`, anywhere. Pinned, QEMU runs under `taskset -c` with its threads named (`-name samaltak,debug-threads=on`), `-smp` is cut to the cores of the list, and each vCPU thread (`CPU n/KVM`) is pinned to a core of its own, the least busy of the list as QEMU starts; the other threads (the main loop, which does virtio-gpu's transfers, I/O) stay on the list. Its log line says where: `qemu-pin: QEMU on CPUs 5,6,7,8,9,15,16,17,18,19; vCPU 0 on 6, vCPU 1 on 7, ...`. The World (`uefi-ui`, `uefi-control`, so `samaltak-ctl open --uefi`, which also takes `--affinity` and `--cpus`) runs on `big` unless `UEFI_AFFINITY` is set; `uefi-run`, `uefi-boot` and the tests stay unpinned, as gates run at once and would crowd onto the same few cores. `samaltak.vncWorld` opens the operator's World with `big` and 4 vCPUs.
+
+Measured (the World at 1920x1080 on `virtio-gpu-pci`, 4 vCPUs, the machine shared with other agents, load about 2): 25 times fib(25) after 150 ms idle, as a click or a key does, 0.90 ms pinned against 0.93 to 1.5 ms unpinned (the median of a run: an A725); a re-rendered frame 3.5 to 3.7 ms pinned, 3.3 to 5.2 ms unpinned; on the A725s alone (`UEFI_AFFINITY=0-3`) fib(32) under the JIT 44 to 51 ms against 27, and a frame 5 ms. A long computation unpinned soon runs on an X925 (fib(32) 27 to 29 ms either way).
 
 ## Limits
 

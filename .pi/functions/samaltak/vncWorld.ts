@@ -1,4 +1,4 @@
-/** The UEFI World on a VNC server for the operator's screen sharing (a samaltak-ctl --uefi session with UEFI_VNC): status (VM alive, VNC port, why it died), restart (keep the old log, close, build, open at 1920x1080 on virtio-gpu, send the agent and GitHub configs, optionally open Screen Sharing on the viewer's Mac), or close; dryRun shows the plan. */
+/** The UEFI World on a VNC server for the operator's screen sharing (a samaltak-ctl --uefi session with UEFI_VNC): status (VM alive, VNC port, why it died), restart (keep the old log, close, build, open at 1920x1080 on virtio-gpu with 4 vCPUs pinned to the big cores, send the agent and GitHub configs, optionally open Screen Sharing on the viewer's Mac), or close; dryRun shows the plan. */
 async function vncWorld(
   { shell: { exec }, samaltak: { build, ctlSession, crashLog } },
   input: {
@@ -7,6 +7,8 @@ async function vncWorld(
     display?: number;
     gpu?: string;
     windowSize?: string;
+    affinity?: string;
+    cpus?: number;
     configs?: Array<"agent" | "github">;
     build?: boolean;
     viewerHost?: string;
@@ -17,7 +19,10 @@ async function vncWorld(
   // UEFI_VNC=<display> (QEMU's VNC server on 127.0.0.1:5900+display, password file ~/.samaltak-vnc, UEFI_VNC_PASSWORD)
   // and UEFI_GPU=<gpu> (virtio-gpu-pci: 1920x1080; ramfb stops at 1024x768); docs/uefi.md. It runs from the current
   // directory's build (the operator's is the main checkout, session "vnc", display 1). Defaults: session "vnc", display 1,
-  // gpu virtio-gpu-pci, windowSize 1920x1080, configs ["agent", "github"], build true.
+  // gpu virtio-gpu-pci, windowSize 1920x1080, affinity "big", cpus 4, configs ["agent", "github"], build true.
+  // affinity: QEMU's host CPUs (UEFI_AFFINITY, tools/qemu-pin.sh): "big" the cores of the highest maximum frequency (on
+  // the DGX Spark the X925s; unpinned, the idle World's vCPU wakes on an A725, about half as fast), each vCPU on one of
+  // its own; a taskset list; "none" anywhere. cpus: the guest's CPUs (UEFI_CPUS; at most as many as affinity's cores).
   // status (default): alive (the session's VM), listening (the VNC port), and for a dead VM the crash triage of its log
   // (samaltak.crashLog: fatal line, exit status, collapsed stack). restart: copies the session's log aside
   // ($TMPDIR/samaltak-ctl/<session>-<time>.log; opening overwrites it), closes the session, builds (samaltak.build all),
@@ -37,6 +42,10 @@ async function vncWorld(
   const windowSize = input.windowSize ?? "1920x1080";
   if (!/^[A-Za-z0-9_-]+$/.test(gpu) || !/^\d+x\d+$/.test(windowSize))
     throw new Error("vncWorld: bad gpu or windowSize");
+  const affinity = input.affinity ?? "big";
+  const cpus = input.cpus ?? 4;
+  if (!/^(big|none|[0-9]+(-[0-9]+)?(,[0-9]+(-[0-9]+)?)*)$/.test(affinity) || !Number.isInteger(cpus) || cpus < 1 || cpus > 64)
+    throw new Error("vncWorld: affinity is big, none or a CPU list; cpus 1-64");
   const configs = input.configs ?? ["agent", "github"];
   if (input.viewerHost && !/^[A-Za-z0-9_.@-]+$/.test(input.viewerHost))
     throw new Error("vncWorld: bad viewerHost");
@@ -93,7 +102,7 @@ async function vncWorld(
         ...(action === "restart"
           ? [
               ...((input.build ?? true) ? ['samaltak.build({ target: "all" })'] : []),
-              `UEFI_VNC=${display} UEFI_GPU=${gpu} tools/samaltak-ctl --session ${session} open --uefi --window-size ${windowSize}`,
+              `UEFI_VNC=${display} UEFI_GPU=${gpu} UEFI_AFFINITY=${affinity} UEFI_CPUS=${cpus} tools/samaltak-ctl --session ${session} open --uefi --window-size ${windowSize}`,
               ...steps.map((s) => s.join(" ")),
               `check 127.0.0.1:${port} listens`,
               ...(input.viewerHost
@@ -135,7 +144,7 @@ async function vncWorld(
   const s = await ctlSession({
     session,
     open: ["--uefi", "--window-size", windowSize],
-    env: { UEFI_VNC: String(display), UEFI_GPU: gpu },
+    env: { UEFI_VNC: String(display), UEFI_GPU: gpu, UEFI_AFFINITY: affinity, UEFI_CPUS: String(cpus) },
     keepOpen: true,
     continueOnError: true,
     openTimeoutS: 280,
@@ -152,6 +161,13 @@ async function vncWorld(
     );
     viewer = v.stdout.trim().split("\n").pop();
   }
+  // tools/qemu-pin.sh's line: the host CPUs QEMU runs on and each vCPU's.
+  const pinned =
+    (
+      await exec(
+        `grep -a -o 'qemu-pin: .*' "\${TMPDIR:-/tmp}/samaltak-ctl/${session}.log" 2>/dev/null | tail -2`,
+      )
+    ).stdout.trim() || undefined;
   return {
     action,
     ok: s.ok && up,
@@ -165,6 +181,7 @@ async function vncWorld(
         `${r.step.join(" ")}: ${r.code === 0 ? "ok" : `exit ${r.code}`} ${r.code === 0 ? r.out.slice(0, 80) : r.out.slice(-200)}${r.hint ? ` (${r.hint})` : ""}`,
     ),
     viewer,
+    pinned,
     hint: up
       ? undefined
       : "the VNC port does not listen: samaltak.crashLog({ session }) shows why the VM stopped",
