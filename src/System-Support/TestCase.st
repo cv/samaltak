@@ -201,6 +201,11 @@ printOn: aStream
 isAbstract
 	"Abstract test classes are not run; override on the class side."
 	^self == TestCase
+!
+runsByDefault
+	"Does runAll (--test without names) run me? Tests that need hardware the default run cannot assume (an NVIDIA GPU:
+	NvGpuTest) answer false; they run only when named, from a make target of their own (make test-nv)."
+	^true
 ! !
 
 !TestCase class methodsFor: 'instance creation'!
@@ -241,8 +246,8 @@ run
 	^TestResult new runClasses: (Array with: self); yourself
 !
 runAll
-	"Run all tests, print failures, errors and a summary, and answer the TestResult."
-	^TestResult new runClasses: self allTestClasses asArray; yourself
+	"Run all tests that run by default (runsByDefault), print failures, errors and a summary, and answer the TestResult."
+	^TestResult new runClasses: (self allTestClasses select: [:c | c runsByDefault]) asArray; yourself
 !
 runNamed: names
 	"Run the test classes named in names, and those of the packages named in names."
