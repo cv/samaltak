@@ -20,6 +20,12 @@ run: aCallDictionary in: anAgentConversation
 	^self subclassResponsibility
 ! !
 
+!AgentTool class methodsFor: 'live update'!
+initializesAddedInstanceVariables
+	"A live update that gives a tool a new instance variable sets it in the conversations' tools as initialize sets it in a new one (Behavior>>initializeAddedInstanceVariables:in:): a tool's initialize only sets its settings."
+	^true
+! !
+
 !AgentTool class methodsFor: 'instances'!
 all
 	"A fresh instance of every tool (a conversation owns its tools)."

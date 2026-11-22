@@ -178,7 +178,7 @@ userBlocksOf: aUserMessage
 		(type = 'input_text' and: [(part at: 'text' ifAbsent: ['']) notEmpty]) ifTrue: [blocks add: (self textBlock: (part at: 'text'))].
 		type = 'input_image' ifTrue: [ | block |
 			block := self imageBlock: (part at: 'image_url' ifAbsent: ['']).
-			imageSources ifNotNil: [imageSources at: (block at: 'source') put: part].
+			imageSources at: (block at: 'source') put: part.
 			blocks add: block]].
 	^blocks asArray
 !

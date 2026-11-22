@@ -34,7 +34,7 @@ timeout: seconds
 !
 limit
 	"The most characters of a printString the output shows."
-	^limit ifNil: [10000]
+	^limit
 !
 limit: characters
 	limit := characters

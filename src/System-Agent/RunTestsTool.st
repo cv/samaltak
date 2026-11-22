@@ -26,7 +26,7 @@ timeout: seconds
 !
 limit
 	"The most characters the output shows."
-	^limit ifNil: [10000]
+	^limit
 !
 limit: characters
 	limit := characters
