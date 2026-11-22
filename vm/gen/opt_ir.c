@@ -296,6 +296,15 @@ static void print_node(int32_t n)
     fputc(10, stderr);
 }
 
+/* OptIR>>release */
+void opt_ir_release(void)
+{
+    release_pages(opt_nodes, sizeof(opt_node) * OPT_MAX_NODES);
+    release_pages(opt_blocks, sizeof(opt_block) * OPT_MAX_BLOCKS);
+    release_pages(opt_edges, sizeof(opt_edge) * OPT_MAX_EDGES);
+    release_pages(opt_operands, 524288);
+}
+
 /* OptIR>>replacePred:with:in: */
 void replace_pred(int32_t old, int32_t new, int32_t b)
 {

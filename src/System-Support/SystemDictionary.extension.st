@@ -9,6 +9,7 @@ bootstrapStartUp
 	self initializeClassesInLoadOrder.
 	self installTranscript.
 	self addToStartUpList: Delay.
+	self addToStartUpList: ProcessorScheduler.
 	self addFirstToStartUpList: WeakRegistry.
 	self addToShutDownList: WeakRegistry.
 	self addToShutDownList: Delay.
@@ -37,7 +38,9 @@ processCommandLine
 	"Act on the command line: --stage2 <out>; else first file in the sources of --load <path>... and --app <directory>, then --test [names], --eval <expression>, or run the main action. Never returns."
 	| value |
 	value := self argumentAfter: '--stage2'.
-	value isNil ifFalse: [^self stage2: value].
+	value isNil ifFalse: [
+		Runtime := self vm arguments includes: '--runtime'.
+		^self stage2: value].
 	self loadCommandLineSources.
 	(self vm arguments includes: '--test') ifTrue: [^self runTestsAndQuit].
 	value := self argumentAfter: '--eval'.
@@ -101,6 +104,10 @@ argumentsAfterEach: aString
 			ifTrue: [taking := each = aString]
 			ifFalse: [taking ifTrue: [result add: each]]].
 	^result
+!
+isRuntimeImage
+	"Whether I am the runtime image applications run on (src/runtime.txt, stage 2 with --runtime): lean on fonts (fallback faces read from fonts/ when first needed, nothing pre-rasterized)."
+	^Runtime == true
 !
 isHeadless
 	"Answer whether the VM was started without a display."

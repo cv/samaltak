@@ -61,6 +61,9 @@ release: aHandle
 createShader: dev source: msl entry: entryName stage: stage samplers: samplers uniformBuffers: uniforms storageBuffers: storageBuffers storageTextures: storageTextures
 	^self device createShader: dev source: msl entry: entryName stage: stage samplers: samplers uniformBuffers: uniforms storageBuffers: storageBuffers storageTextures: storageTextures
 !
+compileShader: glsl stage: stage
+	^self device compileShader: glsl stage: stage
+!
 createPipeline: dev vertex: vs fragment: fs stride: stride attributes: attributes primitive: primitiveType blend: blend format: targetFormat
 	^self device createPipeline: dev vertex: vs fragment: fs stride: stride attributes: attributes primitive: primitiveType blend: blend format: targetFormat
 !

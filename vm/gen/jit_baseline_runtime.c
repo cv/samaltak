@@ -2042,6 +2042,13 @@ void register_slot(uint64_t a)
     }
 }
 
+/* JitBaselineRuntime>>release */
+void jit_baseline_runtime_release(void)
+{
+    release_pages(oop_slots, 2097152);
+    release_pages(young_slots, 131072);
+}
+
 /* JitBaselineRuntime>>retIndexOf:at: */
 static int64_t ret_index_of(jit_method *h, uint64_t ret)
 {

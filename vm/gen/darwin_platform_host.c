@@ -57,7 +57,7 @@ SDL_Keymod cmd_keymod(void)
 }
 
 /* DarwinPlatformHost>>compileShader:stage:size: */
-void *compile_shader(char *source, int32_t stage, size_t *size_out)
+void *platform_host_compile_shader(char *source, int32_t stage, size_t *size_out)
 {
     set_error("GLSL is compiled only on Linux (SDL_GPU on Vulkan); on Metal shaders are MSL");
     return NULL;

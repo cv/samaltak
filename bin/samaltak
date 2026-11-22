@@ -7,17 +7,17 @@
 #   samaltak test <app dir> [name...]  run the app's tests headless (default: all of its package)
 #   samaltak install <app dir>       add the app to the desktop's launcher (an XDG .desktop entry)
 #
-# The base image is build/samaltak.image next to this script (make builds it), or $SAMALTAK_IMAGE; the VM
-# vm/build/samaltak, or $SAMALTAK_VM. An app's Wayland app_id (Hyprland's window class) is org.samaltak.<name>
+# Apps run on the runtime image build/runtime.image next to this script (make runtime builds it: the packages of
+# src/runtime.txt), or $SAMALTAK_IMAGE; the desktop on build/samaltak.image. The VM is vm/build/samaltak, or $SAMALTAK_VM. An app's Wayland app_id (Hyprland's window class) is org.samaltak.<name>
 # (SDL_APP_ID). This script may be symlinked, e.g. into ~/.local/bin.
 set -eu
 root=$(cd "$(dirname "$(readlink -f "$0")")/.." && pwd)
 vm=${SAMALTAK_VM:-$root/vm/build/samaltak}
-image=${SAMALTAK_IMAGE:-$root/build/samaltak.image}
+desktop=${SAMALTAK_IMAGE:-$root/build/samaltak.image}
+runtime=${SAMALTAK_IMAGE:-$root/build/runtime.image}
 
 die() { echo "samaltak: $*" >&2; exit 1; }
 [ -x "$vm" ] || die "no VM at $vm (run make in $root)"
-[ -f "$image" ] || die "no image at $image (run make in $root)"
 
 app_dir() {
 	[ $# -ge 1 ] || die "usage: samaltak $cmd <app dir>"
@@ -33,16 +33,19 @@ cmd=${1:-}
 [ $# -gt 0 ] && shift
 case "$cmd" in
 '')
-	exec "$vm" "$image" ;;
+	[ -f "$desktop" ] || die "no image at $desktop (run make in $root)"
+	exec "$vm" "$desktop" ;;
 run)
 	dir=$(app_dir "$@"); shift
+	[ -f "$runtime" ] || die "no runtime image at $runtime (run make runtime in $root)"
 	SDL_APP_ID=${SDL_APP_ID:-$(app_id "$dir")}
 	export SDL_APP_ID
-	exec "$vm" "$image" --app "$dir" "$@" ;;
+	exec "$vm" "$runtime" --app "$dir" "$@" ;;
 test)
 	dir=$(app_dir "$@"); shift
+	[ -f "$runtime" ] || die "no runtime image at $runtime (run make runtime in $root)"
 	[ $# -gt 0 ] || set -- "$(app_name "$dir")"
-	exec "$vm" "$image" --headless --load "$dir" --test "$@" ;;
+	exec "$vm" "$runtime" --headless --load "$dir" --test "$@" ;;
 install)
 	dir=$(app_dir "$@")
 	name=$(app_name "$dir")

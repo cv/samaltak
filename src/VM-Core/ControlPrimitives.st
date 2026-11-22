@@ -159,6 +159,13 @@ primProcessorRelinquish
 	scheduler relinquish: (self intVal: us).
 	self answer: self receiver
 !
+primTimeSlice
+	"microseconds -> receiver: equal-priority Processes take turns every so many microseconds while more than one is ready (0: never). The slice's timer runs only while they compete (Scheduler)."
+	<vmPrimitive: 146 name: 'timeSlice'>
+	(self argCount < 1 or: [(self isInt: (self arg: 0)) not or: [(self intVal: (self arg: 0)) < 0]]) ifTrue: [^self fail].
+	scheduler setTimeSlice: (self intVal: (self arg: 0)).
+	self answer: self receiver
+!
 primSignalAtMilliseconds
 	<vmPrimitive: 137 name: 'signalAtMilliseconds'>
 	| s |

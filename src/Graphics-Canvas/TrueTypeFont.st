@@ -575,5 +575,10 @@ named: aString bytes: aByteArray
 	^self new setName: aString data: aByteArray
 !
 fromFile: aPath
+	"The face in the .ttf file at aPath, its bytes read as they are needed (FileBytes): a face of thousands of glyphs costs the pages of those drawn."
+	^self named: (aPath copyAfterLast: $/) bytes: (FileBytes on: aPath)
+!
+readFile: aPath
+	"The face in the .ttf file at aPath, read whole: for a face the image keeps (stage 2), which must not depend on the file."
 	^self named: (aPath copyAfterLast: $/) bytes: (File readBytes: aPath)
 ! !

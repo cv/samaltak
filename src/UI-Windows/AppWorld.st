@@ -1,5 +1,5 @@
 World subclass: #AppWorld
-	instanceVariableNames: 'deskColor'
+	instanceVariableNames: 'deskColor idleWatcher releasedAtFrame'
 	classVariableNames: ''
 	package: 'UI-Windows'!
 
@@ -8,6 +8,8 @@ AppWorld comment: 'I am the World of an application that runs as a window of the
 	| world |
 	world := AppWorld openExtent: 480 @ 200 title: ''Weather''.
 	(AppWindow new title: ''Weather''; content: aView) openIn: world
+
+When no frame was presented for idleSeconds (2), I give back to the system the memory the burst before held: eden''s pages, the machine code and the JIT''s scratch areas (VirtualMachine>>releaseMemory), once per burst; an application that wakes up every quarter of an hour to redraw holds only what it keeps.
 
 The host window has a fixed size (the content''s), so a tiling window manager such as Hyprland floats it. On Linux the Wayland app_id comes from SDL_APP_ID (bin/samaltak sets it).'!
 
@@ -62,6 +64,46 @@ hostResized: aPoint
 	extent := displayWindow extent.
 	windows do: [:w | w bounds: self bounds].
 	self changed
+! !
+
+!AppWorld methodsFor: 'starting and stopping'!
+start
+	super start.
+	(idleWatcher notNil and: [idleWatcher isTerminated not]) ifTrue: [^self].
+	idleWatcher := [self watchIdle] newProcess.
+	idleWatcher priority: Processor userBackgroundPriority; name: 'idle memory release'.
+	idleWatcher resume
+!
+stop
+	idleWatcher isNil ifFalse: [idleWatcher terminate. idleWatcher := nil].
+	super stop
+! !
+
+!AppWorld methodsFor: 'idle'!
+idleSeconds
+	"How long no frame was presented before I give memory back."
+	^2
+!
+watchIdle
+	"Once a second: if no frame was presented for idleSeconds since the last release, release memory (VirtualMachine>>releaseMemory)."
+	| frames since |
+	frames := -1.
+	since := Time millisecondClockValue.
+	[running] whileTrue: [
+		(Delay forSeconds: 1) wait.
+		compositor isNil ifFalse: [
+			compositor frameCount = frames
+				ifTrue: [
+					(releasedAtFrame ~= frames and: [Time millisecondClockValue - since >= (self idleSeconds * 1000)]) ifTrue: [
+						releasedAtFrame := frames.
+						Smalltalk vm releaseMemory]]
+				ifFalse: [
+					frames := compositor frameCount.
+					since := Time millisecondClockValue]]]
+!
+releasedAtFrame
+	"The frame count at my last release of memory (nil before the first)."
+	^releasedAtFrame
 ! !
 
 !AppWorld methodsFor: 'drawing'!

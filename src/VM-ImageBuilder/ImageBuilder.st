@@ -14,6 +14,10 @@ buildFrom: aSourceDirectory to: anImagePath
 	"Build and write the image; answer a one-line summary. Signals ImageBuildError with every error found."
 	^self new buildFrom: aSourceDirectory to: anImagePath
 !
+buildFrom: aSourceDirectory packages: aListPath to: anImagePath
+	"The same with only the packages aListPath names (one a line, # comments; nil or '': all), e.g. src/runtime.txt."
+	^self new buildFrom: aSourceDirectory packages: aListPath to: anImagePath
+!
 requiredClasses
 	^#('Object' 'Behavior' 'ClassDescription' 'Class' 'Metaclass' 'UndefinedObject' 'True' 'False' 'SmallInteger' 'Character' 'SmallFloat64' 'BoxedFloat64' 'Array' 'ByteArray' 'ByteString' 'ByteSymbol' 'WideString' 'WideSymbol' 'CompiledMethod' 'Context' 'BlockClosure' 'Process' 'ProcessorScheduler' 'LinkedList' 'Semaphore' 'Association' 'Message' 'Point' 'LargePositiveInteger' 'LargeNegativeInteger' 'MethodDictionary' 'SystemDictionary' 'Dictionary')
 !
@@ -43,8 +47,14 @@ specialSelectors
 
 !ImageBuilder methodsFor: 'building'!
 buildFrom: aSourceDirectory to: anImagePath
+	^self buildFrom: aSourceDirectory packages: nil to: anImagePath
+!
+buildFrom: aSourceDirectory packages: aListPath to: anImagePath
 	| bytes |
 	source := ImageSource on: aSourceDirectory.
+	(aListPath isNil or: [aListPath isEmpty]) ifFalse: [
+		source only: (((File readText: aListPath) lines collect: [:each | each trimBoth])
+			reject: [:each | each isEmpty or: [each first = $#]])].
 	source read.
 	classes := source classes.
 	classes do: [:c | c builder: self].

@@ -202,6 +202,16 @@ scavenge
 	"Collect the young generation; answer the free eden bytes."
 	<primitive: 'scavenge'>
 	^0
+!
+timeSliceMicroseconds: anInteger
+	"Equal-priority Processes take turns every anInteger µs while more than one is ready (0: never); answer whether the VM slices. It arms the slice only while they compete, so a program whose Processes idle or do not compete has no timer for it. A VM without the primitive does not slice (equal-priority Processes take turns when one waits or yields)."
+	<primitive: 'timeSlice'>
+	^false
+!
+releaseMemory
+	"Give back to the system what I hold only because I was busy before: eden's pages (after a scavenge) and all machine code with its type feedback and the JIT's scratch areas (what runs again is compiled again). For a program that has gone idle: AppWorld calls it when nothing happened for a while."
+	<primitive: 'releaseMemory'>
+	^self
 ! !
 
 !VirtualMachine methodsFor: 'method cache'!

@@ -444,3 +444,13 @@ fields
 		(varBase int32_t) (nslots int32_t) (numArgs int32_t) (numTemps int32_t) (startpc int32_t) (endpc int32_t)
 		(ana int32_t) (pcb int32_t) (retBlock int32_t) (retVar int32_t) (sendPc int32_t) (sendArgc int32_t) (depth int32_t) (rcvClass uint64_t))
 ! !
+
+!OptIR methodsFor: 'memory'!
+release
+	"Give back the pages of my node, block, edge and operand arrays (each compile starts them anew)."
+	<function>
+	gc releasePages: optNodes size: (self sizeof: 'OptNode') * OPT_MAX_NODES.
+	gc releasePages: optBlocks size: (self sizeof: 'OptBlock') * OPT_MAX_BLOCKS.
+	gc releasePages: optEdges size: (self sizeof: 'OptEdge') * OPT_MAX_EDGES.
+	gc releasePages: optOperands size: 4 * OPT_MAX_OPERANDS
+! !

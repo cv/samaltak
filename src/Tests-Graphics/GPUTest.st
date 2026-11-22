@@ -43,7 +43,8 @@ testShaderErrorCarriesPlatformMessage
 	| shader |
 	shader := GPUDevice default shaderSource: 'this is not metal' entry: 'vmain' stage: #vertex samplers: 0 uniformBuffers: 0.
 	self should: [shader handle] raise: GPUError withExceptionDo: [:e |
-		self assert: e operation equals: 'gpuCreateShader'.
+		"GLSL fails compiling to SPIR-V (GPUShader keeps the SPIR-V), MSL when the device makes the shader"
+		self assert: e operation equals: (GPUDevice default shaderLanguage == #glsl ifTrue: ['gpuCompileShader'] ifFalse: ['gpuCreateShader']).
 		self assert: e platformLastError notEmpty.
 		self assert: (e messageText includesSubstring: e platformLastError)]
 !

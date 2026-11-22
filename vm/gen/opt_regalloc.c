@@ -1921,6 +1921,15 @@ exit_is_value_8:;
     return ra_safe_list_count < RA_MAX_SAFELIST;
 }
 
+/* OptRegalloc>>release */
+void opt_regalloc_release(void)
+{
+    release_pages(ra_live_arena, 8388608);
+    release_pages(ra_sorted, 65536);
+    release_pages(ra_bucket, 65536);
+    release_pages(ra_bucket_next, 65536);
+}
+
 /* OptRegalloc>>transfer:out:into: */
 static void transfer(int32_t b, int32_t out, int32_t in)
 {

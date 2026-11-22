@@ -47,6 +47,11 @@ createShader: device source: msl entry: entryName stage: stage samplers: sampler
 	<primitive: 'gpuCreateShader'>
 	^self fail: 'gpuCreateShader'
 !
+compileShader: glsl stage: stage
+	"GLSL source -> the SPIR-V ByteArray it compiles to (stage 0 vertex, 1 fragment); fails where GLSL is not compiled (macOS)."
+	<primitive: 'gpuCompileShader'>
+	^self fail: 'gpuCompileShader'
+!
 createPipeline: device vertex: vs fragment: fs stride: stride attributes: attributes primitive: primitiveType blend: blend format: targetFormat
 	<primitive: 'gpuCreatePipeline'>
 	^self fail: 'gpuCreatePipeline'

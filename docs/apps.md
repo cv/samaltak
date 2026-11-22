@@ -11,9 +11,9 @@ A Samaltak application is a package directory of Smalltalk source that runs as a
 
 - **The Window stays the unit.** An app's window is a `Window` (`AppWindow`) with its own Process, retained drawing, Widgets, events and animations. What differs is where it is placed: in an `AppWorld`, a World whose host window shows that one window, chromeless and filling it. The window manager decorates, places and closes it. The Compositor, InputDispatcher and Canvas are the World's own.
 - **The platform does mechanism, the image does policy.** Nothing in the VM changed. The Wayland `app_id` comes from SDL (`SDL_APP_ID`, set by `bin/samaltak` to `org.samaltak.<name>`). The window has a fixed size, so Hyprland floats it. Omarchy, TOML and XDG are Smalltalk.
-- **Source is the truth.** An app directory has the format of `src/<package>/`: a class per file, plus `Class.extension.st` for methods on other packages' classes. `Compiler fileInPackage:` evaluates every class definition first (superclasses first, whatever the file names), then the rest of each file, then the class-side `initialize` methods. The base image is `build/samaltak.image`; filing in the weather app (about 600 lines) adds about 85 ms to the VM's 20 ms start.
+- **Source is the truth.** An app directory has the format of `src/<package>/`: a class per file, plus `Class.extension.st` for methods on other packages' classes. `Compiler fileInPackage:` evaluates every class definition first (superclasses first, whatever the file names), then the rest of each file, then the class-side `initialize` methods. The base image is the runtime image, `build/runtime.image` (`make runtime`, the packages of `src/runtime.txt`); filing in the weather app (about 600 lines) adds about 85 ms to the VM's 20 ms start.
 - **Linux citizenship.** The app uses the XDG base directories (`XDG`), an `app_id` and a `.desktop` entry, and reads Omarchy's own files for its look (`OmarchyTheme`).
-- **Idle costs (almost) nothing.** An AppWorld presents a frame only when something changed. Applications pause the always-on sampling profiler (`--profile` keeps it), because it woke the VM every millisecond. An idle app now uses about 0.1–0.3 % of a core; see the follow-ups.
+- **Idle costs (almost) nothing, and holds little.** An AppWorld presents a frame only when something changed. The VM wakes only for real timers: time slicing arms its timer only while equal-priority Processes compete, and the idle Process sleeps until something is due (about 5 wakeups a second remain, the app's own timers). Applications pause the always-on sampling profiler (`--profile` keeps it). When no frame was presented for 2 s the AppWorld gives the memory of the burst before back to the system (`VirtualMachine>>releaseMemory`): eden's pages, the machine code, the JIT's type feedback and scratch areas.
 
 ## The pieces
 
@@ -28,11 +28,30 @@ A Samaltak application is a package directory of Smalltalk source that runs as a
 | `OmarchyTheme` (UI-Omarchy) | Reads `~/.local/state/omarchy/current/theme/{colors,shell}.toml`, the user's `~/.config/omarchy/shell.toml` and fontconfig's `monospace`, and resolves surface colors the way the shell's `Color.qml` does (roles, references to other keys, `-alpha` companions). Its type scale is `#caption` … `#displayLarge` from `[font] base-size`, and `space:` is `Style.space`. `install` makes it current and checks the files once a second. After `omarchy theme set`, `omarchy font set` or an edit of `shell.toml`, every window restyles. Standard widgets map onto it (`#ink` is foreground, `#paper` background, `#ultramarine` accent). |
 | `apps/Weather` | `WeatherService` is a Process that reads `~/.local/state/omarchy/settings/weather.json`, detects the place through geo.omarchy.org or looks up a bare name with Open-Meteo's geocoding, and fetches Open-Meteo's forecast every 15 minutes (a minute after a failure). It checks the wall clock every 2 s, so suspend can't stall it. `WeatherReport` and `WeatherDay` hold the forecast, `WeatherIcons` holds the shell's Nerd Font glyphs, and `WeatherCard` draws the card's layout. A click opens the bar's weather panel, a middle click fetches again. |
 
+## Memory
+
+The weather app, measured on Asahi (16 KB pages) 8 s after it started, idle, against the same app in C (`tools/weather-c`: SDL3's GPU renderer on the same Vulkan driver, FreeType, libcurl) and the QML card it reproduces, alone in a quickshell:
+
+| | RSS | private dirty |
+|---|---|---|
+| samaltak (runtime image, idle) | 58 MB | 32 MB |
+| samaltak right after its startup burst | 71 MB | 47 MB |
+| C | 46 MB | 13 MB |
+| QML card in quickshell | 156 MB | 49 MB |
+
+What made the difference (from 200 MB RSS, 168 MB private, on the desktop image; another 7 MB is glslang's static tables, see the follow-ups):
+
+- **No shader compiler at run time** (‑71 MB): glslang keeps its symbol tables and pools for the life of a process that compiled once. Stage 2 compiles the shaders to SPIR-V, which the image keeps (`GPUShader`); `gpuCompileShader` still serves changed shader source.
+- **The runtime image** (‑25 MB): `make runtime` builds `build/runtime.image` from the packages of `src/runtime.txt` (7.7 MB, the desktop image 50 MB); it keeps no font faces, nothing pre-rasterized, and smaller glyph atlas pages (1 MB).
+- **Font files read as needed**: a face read at run time (`TrueTypeFont fromFile:`, the Omarchy fonts fontconfig names) reads its file 4 KB at a time (`FileBytes`), as a C program maps it: of the 2.5 MB JetBrainsMono Nerd Font the card reads 86 KB.
+- **Memory given back when idle** (‑20 MB): after the startup burst (filing in, compiling, fetching, drawing) eden's touched pages, 9 MB of machine code, the type feedback table and the optimizer's arenas are released.
+
+What remains beyond C is mostly the object memory (the image and the app, 8 MB, and eden's live part) and the JIT's tables.
+
 ## Follow-ups
 
-- **The time slicer wakes an idle VM.** Its 10 ms slice deadline is armed even when nothing but the idle Process can run: about 100 wakeups a second, which is most of an idle app's cost.
-- **inotify** (`fileWatch`): a file descriptor in the socket table that signals a Semaphore. It would replace the once-a-second checks of the theme and the weather settings.
+- **inotify** (`fileWatch`): a file descriptor in the socket table that signals a Semaphore. It would replace the once-a-second checks of the theme and the weather settings, most of the remaining wakeups.
+- **shaderc out of the VM**: linked, glslang's static constructors fill about 7 MB in every process, compiling or not. Loading it when first needed (dlopen) does not work where only static libraries are usable (Debian bookworm, CI); compiling with the `glslc` tool, run by the image, would take it out of the VM altogether.
 - **wlr-layer-shell**, to sit on the desktop below the windows as the QML card does. This needs an SDL window with a custom Wayland role and `zwlr_layer_shell_v1` through libwayland-client in `PlatformWayland`, a Linux-only Lowtalk module.
 - **More than one host window per image.** A debugger or a second app window would get a host window of its own; today a Notifier opens inside the app's window.
-- **A slim runtime image** (no Tools, Tests or VM-* packages), or an app image cached per source hash, if start time or memory make it worth it. The app's RSS is about 200 MB with the full image.
 - **`--watch`**: file in an app's source again when it is saved, so the running window changes as you edit.

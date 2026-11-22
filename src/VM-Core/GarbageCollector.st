@@ -129,6 +129,23 @@ reserve: n
 	p = posix MAP_FAILED ifTrue: [self fatal: 'cannot reserve %zu bytes' with: n].
 	^self cCoerce: p to: 'uint64_t'
 !
+releasePages: address size: n
+	"Tell the system the whole pages in [address, address + n) are not needed: their memory goes back to it until they are touched again. Their contents are undefined afterwards (zeroes on Linux, kept on macOS and UEFI): only for memory whose contents do not matter."
+	<export>
+	<var: #address type: 'void *'>
+	<var: #n type: 'uint64_t'>
+	| lo hi |
+	lo := ((self cCoerce: address to: 'uint64_t') + 16383) bitClear: 16383.
+	hi := ((self cCoerce: address to: 'uint64_t') + n) bitClear: 16383.
+	hi > lo ifTrue: [posix madvise: (self ptr: lo) length: hi - lo advice: posix MADV_DONTNEED]
+!
+releaseFreeMemory
+	"Scavenge, then give back the pages of eden and of the empty survivor space: what an idle program holds only because it once allocated. They are touched again as it allocates."
+	<export>
+	self scavenge.
+	self releasePages: (self ptr: edenLo) size: edenHi - edenLo.
+	self releasePages: (self ptr: survOtherLo) size: survOtherHi - survOtherLo
+!
 discard: p size: n
 	"Give the pages back (a fresh anonymous mapping over them)."
 	<function>

@@ -65,8 +65,8 @@ space: points
 	^points
 !
 cardPadding
-	self omarchy ifNotNil: [:t | ^t metric: #panelPadding].
-	^18
+	"The desktop card's padding (Style.spacing.panelPadding, 18) less its 2-point border, which the window manager's border replaces: Hyprland draws its border outside the window, the card inside its padding."
+	^(self omarchy ifNil: [18] ifNotNil: [:t | t metric: #panelPadding]) - (self space: 2)
 !
 background
 	self omarchy ifNotNil: [:t | ^t color: #popupBackground].
@@ -124,8 +124,12 @@ statusFont
 
 !WeatherCard methodsFor: 'layout'!
 contentWidth
-	"The card's width without its padding: a third of a 1512-point screen, less the gaps and padding (desktop-cards)."
-	^440
+	"The card's width without its padding: a column of desktop-cards on a 1512-point screen less the card's padding. desktop-cards (Layout.js) makes a column floor((1512 - 2 gaps - 2 gaps) / 3) wide, the gap 10 points: 490."
+	^490 - (2 * (self space: 18))
+!
+widthOf: aString in: aFont
+	"The width a Qt Text gives aString: its natural width (ink past the last advance included), in whole points."
+	^(aFont naturalWidthOf: aString) ceiling
 !
 heroHeight
 	^self heroLeftHeight max: self heroRightHeight
@@ -172,11 +176,11 @@ drawHeroOn: c
 	unitFont := self unitFont.
 	x := self space: 16.
 	c drawString: report icon at: x @ ((h - iconFont lineHeight) / 2 + 5) font: iconFont color: self foreground.
-	x := x + (iconFont widthOf: report icon) + (self space: 16).
+	x := x + (self widthOf: report icon in: iconFont) + (self space: 16).
 	temp := WeatherReport temperature: report temperature imperial: imperial.
 	tempY := (h - tempFont lineHeight) / 2.
 	c drawString: temp at: x @ tempY font: tempFont color: self foreground.
-	x := x + (tempFont widthOf: temp) + (self space: 2).
+	x := x + (self widthOf: temp in: tempFont) + (self space: 2).
 	c drawString: self unitText at: x @ (tempY + (self space: 10)) font: unitFont color: self foreground.
 	stats := self stats.
 	w := self statsWidth: stats.
@@ -196,7 +200,7 @@ drawPlaceOn: c at: aPoint width: w
 	marker := WeatherIcons mapMarker.
 	font := self placeFont.
 	c drawString: marker at: aPoint font: self markerFont color: self dim.
-	x := aPoint x + (self markerFont widthOf: marker) + (self space: 6).
+	x := aPoint x + (self widthOf: marker in: self markerFont) + (self space: 6).
 	name := self class truncate: location name asUppercase to: w - (x - aPoint x) font: font.
 	c drawString: name at: x @ aPoint y font: font color: self dim
 !
@@ -218,20 +222,20 @@ drawDay: aDay on: c at: left
 	nameFont := self dayNameFont.
 	tempFont := self dayTemperatureFont.
 	c drawString: aDay icon at: left @ ((h - iconFont lineHeight) / 2) font: iconFont color: self foreground.
-	x := left + (iconFont widthOf: aDay icon) + (self space: 10).
+	x := left + (self widthOf: aDay icon in: iconFont) + (self space: 10).
 	y := (h - (nameFont lineHeight + (self space: 2) + tempFont lineHeight)) / 2.
 	c drawString: aDay dayName asUppercase at: x @ y font: nameFont color: self dim.
 	y := y + nameFont lineHeight + (self space: 2).
 	high := self degrees: aDay high.
 	low := self degrees: aDay low.
 	c drawString: high at: x @ y font: tempFont color: self foreground.
-	c drawString: low at: (x + (tempFont widthOf: high) + (self space: 6)) @ y font: tempFont color: self dimmer
+	c drawString: low at: (x + (self widthOf: high in: tempFont) + (self space: 6)) @ y font: tempFont color: self dimmer
 !
 cellWidthOf: aDay
 	| tempFont temps |
 	tempFont := self dayTemperatureFont.
-	temps := (tempFont widthOf: (self degrees: aDay high)) + (self space: 6) + (tempFont widthOf: (self degrees: aDay low)).
-	^(self dayIconFont widthOf: aDay icon) + (self space: 10) + ((self dayNameFont widthOf: aDay dayName asUppercase) max: temps)
+	temps := (self widthOf: (self degrees: aDay high) in: tempFont) + (self space: 6) + (self widthOf: (self degrees: aDay low) in: tempFont).
+	^(self widthOf: aDay icon in: self dayIconFont) + (self space: 10) + ((self widthOf: aDay dayName asUppercase in: self dayNameFont) max: temps)
 !
 stats
 	"{label. value} for FEELS, WIND and HUMID."
@@ -241,7 +245,7 @@ stats
 		with: (Array with: 'HUMID' with: (report humidity isNil ifTrue: [''] ifFalse: [(WeatherReport round: report humidity) printString, '%']))
 !
 statWidth: aPair
-	^(self statLabelFont widthOf: aPair first) max: (self statValueFont widthOf: aPair last)
+	^(self widthOf: aPair first in: self statLabelFont) max: (self widthOf: aPair last in: self statValueFont)
 !
 statsWidth: stats
 	^(stats inject: 0 into: [:sum :each | sum + (self statWidth: each)]) + ((stats size - 1) * (self space: 36))
@@ -284,8 +288,8 @@ remoteState
 truncate: aString to: width font: aFont
 	"aString, cut with an ellipsis to fit width points."
 	| s |
-	(aFont widthOf: aString) <= width ifTrue: [^aString].
+	(aFont naturalWidthOf: aString) <= width ifTrue: [^aString].
 	s := aString.
-	[s notEmpty and: [(aFont widthOf: s, '…') > width]] whileTrue: [s := s allButLast].
+	[s notEmpty and: [(aFont naturalWidthOf: s, '…') > width]] whileTrue: [s := s allButLast].
 	^s, '…'
 ! !

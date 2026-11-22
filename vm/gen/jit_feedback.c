@@ -89,6 +89,14 @@ void note_send(oop m, int64_t pc, oop cls)
     s->flags = s->flags | FB_MEGA;
 }
 
+/* JitFeedback>>release */
+void jit_feedback_release(void)
+{
+    jit_feedback_clear();
+    release_pages(fb_sites, sizeof(feedback_site) * FB_MAX);
+    release_pages(fb_floats, FB_FLOAT_BITS);
+}
+
 /* JitFeedback>>siteAt:pc: */
 feedback_site *site_at(oop m, int64_t pc)
 {

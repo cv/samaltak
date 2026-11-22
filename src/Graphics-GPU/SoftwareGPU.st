@@ -144,6 +144,10 @@ releaseDevice: dev
 ! !
 
 !SoftwareGPU methodsFor: 'resources'!
+compileShader: glsl stage: stage
+	"No shaders are compiled here (shaderLanguage: 'software')."
+	^GPUError new operation: 'gpuCompileShader'; platformLastError: 'the software GPU compiles no shaders'; signal
+!
 createShader: dev source: source entry: entryName stage: stage samplers: samplers uniformBuffers: uniforms storageBuffers: storageBuffers storageTextures: storageTextures
 	"The source is not compiled: a shader is its stage."
 	self device: dev for: 'gpuCreateShader'.

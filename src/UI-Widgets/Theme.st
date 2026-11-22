@@ -204,7 +204,7 @@ blueBook
 initialize
 	Smalltalk addStage2Step: [
 		Current := nil.
-		self current prepareFonts] named: 'Widget fonts'.
+		Smalltalk isRuntimeImage ifFalse: [self current prepareFonts]] named: 'Widget fonts'.
 	SystemChanges subscribe: #Theme do: [:change |
 		((change affects: Theme) or: [change affects: Color]) ifTrue: [self themeChanged]]
 ! !

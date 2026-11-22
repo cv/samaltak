@@ -26,7 +26,7 @@ SDL_Keymod cmd_keymod(void)
 }
 
 /* LinuxPlatformHost>>compileShader:stage:size: */
-void *compile_shader(char *source, int32_t stage, size_t *size_out)
+void *platform_host_compile_shader(char *source, int32_t stage, size_t *size_out)
 {
     shaderc_compile_options_t r_options_defining;
     shaderc_compile_options_t o;

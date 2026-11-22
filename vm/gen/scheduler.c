@@ -27,6 +27,9 @@ static int64_t sampler_interval_us;
 static int64_t sampler_next_us;
 static int32_t sampler_sema;
 bool sampler_tick_unread;
+static int64_t slice_due_us;
+static int64_t slice_priority;
+static int64_t slice_us;
 static int64_t start_us;
 uint64_t stat_process_switches;
 static int64_t tick_armed_deadline = 9223372036854775807LL;
@@ -53,6 +56,7 @@ static int64_t priority_of(oop p);
 static int64_t raw_now_us(void);
 static oop remove_first_link(oop list);
 static void signal_index(int32_t index);
+static void slice_check(void);
 static void tick_set_idle(bool a_boolean);
 static void tick_update(void);
 static void transfer_to(oop a_process);
@@ -170,6 +174,18 @@ void handle_interrupts(void)
         frame_next_us = frame_origin_us + (frame_index * 1000 + frame_fps - 1) / frame_fps * 1000;
         signal_index(frame_sema);
     }
+    if ((slice_due_us != 0) && ((!in_idle) && (now >= slice_due_us))) {
+        if (priority_of(active_process()) == slice_priority) {
+            slice_due_us = 0;
+            processor_yield();
+            if (slice_due_us == 0) {
+                tick_update();
+            }
+        } else {
+            slice_due_us = now + slice_us;
+            tick_update();
+        }
+    }
     if (finalization_pending) {
         finalization_pending = false;
         s = object_memory_special(SO_FINALIZATION_SEMAPHORE);
@@ -211,6 +227,7 @@ static void idle_wait(void)
     int64_t now;
     int64_t wait;
     in_idle = true;
+    slice_due_us = 0;
     if ((pending_ext_n == 0) && (!alloc_sample_pending)) {
         if (work_clock_on) {
             now_2 = ({
@@ -253,6 +270,9 @@ exit_work_clock_thread_cycles:;
     if ((frame_sema != 0) && (frame_next_us < due_3)) {
         due_3 = frame_next_us;
     }
+    if ((slice_due_us != 0) && (slice_due_us < due_3)) {
+        due_3 = slice_due_us;
+    }
     r_work_clock_deadline = due_3;
     r_work_clock_deadline; });
         if (next > due_2) {
@@ -281,6 +301,9 @@ exit_work_clock_sync:;
     }
     if ((frame_sema != 0) && (frame_next_us < due_4)) {
         due_4 = frame_next_us;
+    }
+    if ((slice_due_us != 0) && (slice_due_us < due_4)) {
+        due_4 = slice_due_us;
     }
     r_work_clock_deadline_2 = due_4;
     r_work_clock_deadline_2; });
@@ -411,6 +434,9 @@ exit_work_clock_thread_cycles:;
     }
     if ((frame_sema != 0) && (frame_next_us < due_2)) {
         due_2 = frame_next_us;
+    }
+    if ((slice_due_us != 0) && (slice_due_us < due_2)) {
+        due_2 = slice_due_us;
     }
     r_work_clock_deadline = due_2;
     r_work_clock_deadline; });
@@ -558,6 +584,9 @@ exit_work_clock_thread_cycles:;
     if ((frame_sema != 0) && (frame_next_us < due_3)) {
         due_3 = frame_next_us;
     }
+    if ((slice_due_us != 0) && (slice_due_us < due_3)) {
+        due_3 = slice_due_us;
+    }
     r_work_clock_deadline = due_3;
     r_work_clock_deadline; });
         if (next > due_2) {
@@ -586,6 +615,9 @@ exit_work_clock_sync:;
     }
     if ((frame_sema != 0) && (frame_next_us < due_4)) {
         due_4 = frame_next_us;
+    }
+    if ((slice_due_us != 0) && (slice_due_us < due_4)) {
+        due_4 = slice_due_us;
     }
     r_work_clock_deadline_2 = due_4;
     r_work_clock_deadline_2; });
@@ -769,6 +801,9 @@ void resume_process(oop proc)
         o_6 = *(uint64_t *)(o_5 + 16 + 0);
         i_3 = pri_3 - 1;
         add_last_link(proc, *(uint64_t *)(o_6 + 16 + 8 * i_3));
+        if ((!in_idle) && (priority_of(proc) == priority_of(active))) {
+            slice_check();
+        }
     }
 }
 
@@ -820,6 +855,15 @@ void set_sampler(int64_t interval_us, int32_t sema)
     tick_update();
 }
 
+/* Scheduler>>setTimeSlice: */
+void set_time_slice(int64_t us)
+{
+    slice_us = us;
+    slice_due_us = 0;
+    slice_check();
+    tick_update();
+}
+
 /* Scheduler>>setTimer: */
 void set_timer(int64_t ms)
 {
@@ -861,6 +905,40 @@ static void signal_index(int32_t index)
     f = (int32_t)(((*(uint64_t *)s) >> H_FMT_SHIFT) & H_FMT_MASK);
     (f >= 1) && (f <= 4) && ((uint32_t)*(uint64_t *)s > SEM_EXCESS); }))) {
         scheduler_semaphore_signal(s);
+    }
+}
+
+/* Scheduler>>sliceCheck */
+static void slice_check(void)
+{
+    int64_t pri;
+    oop o;
+    uint64_t o_2;
+    int64_t i;
+    uint64_t o_3;
+    bool contended;
+    if (slice_us == 0) {
+        return;
+    }
+    pri = priority_of(active_process());
+    if ((slice_due_us != 0) && (pri > slice_priority)) {
+        return;
+    }
+    contended = (!in_idle) && ({
+    o = object_memory_special(SO_PROCESSOR);
+    o_2 = *(uint64_t *)(o + 16 + 0);
+    i = pri - 1;
+    o_3 = *(uint64_t *)(o_2 + 16 + 8 * i);
+    *(uint64_t *)(o_3 + 16 + 0) != nil_oop; });
+    if (contended) {
+        if ((slice_due_us == 0) || (slice_priority != pri)) {
+            slice_due_us = now_us() + slice_us;
+            slice_priority = pri;
+            tick_update();
+        }
+    } else if (slice_due_us != 0) {
+        slice_due_us = 0;
+        tick_update();
     }
 }
 
@@ -934,6 +1012,9 @@ static void tick_update(void)
         }
         if ((sampler_interval_us > 0) && (sampler_next_us < due)) {
             due = sampler_next_us;
+        }
+        if ((slice_due_us != 0) && (slice_due_us < due)) {
+            due = slice_due_us;
         }
     }
     if (atomic_exchange(&tick_deadline_fired, false) || (due != tick_armed_deadline)) {
@@ -1011,6 +1092,7 @@ static void transfer_to(oop a_process)
         remember(ctx);
     }
     stat_process_switches = stat_process_switches + 1;
+    slice_check();
 }
 
 /* Scheduler>>transferToHighest */
@@ -1132,6 +1214,9 @@ exit_work_clock_thread_cycles:;
     if ((frame_sema != 0) && (frame_next_us < due_2)) {
         due_2 = frame_next_us;
     }
+    if ((slice_due_us != 0) && (slice_due_us < due_2)) {
+        due_2 = slice_due_us;
+    }
     r_work_clock_deadline = due_2;
     r_work_clock_deadline; });
         if (next > due) {
@@ -1231,6 +1316,9 @@ exit_work_clock_thread_cycles:;
     }
     if ((frame_sema != 0) && (frame_next_us < due_2)) {
         due_2 = frame_next_us;
+    }
+    if ((slice_due_us != 0) && (slice_due_us < due_2)) {
+        due_2 = slice_due_us;
     }
     r_work_clock_deadline = due_2;
     r_work_clock_deadline; });
@@ -1369,6 +1457,9 @@ exit_work_clock_thread_cycles:;
     if ((frame_sema != 0) && (frame_next_us < due_2)) {
         due_2 = frame_next_us;
     }
+    if ((slice_due_us != 0) && (slice_due_us < due_2)) {
+        due_2 = slice_due_us;
+    }
     r_work_clock_deadline = due_2;
     r_work_clock_deadline; });
                 if (next > due) {
@@ -1504,6 +1595,9 @@ exit_work_clock_thread_cycles_2:;
     if ((frame_sema != 0) && (frame_next_us < due_2)) {
         due_2 = frame_next_us;
     }
+    if ((slice_due_us != 0) && (slice_due_us < due_2)) {
+        due_2 = slice_due_us;
+    }
     r_work_clock_deadline = due_2;
     r_work_clock_deadline; });
         if (next > due) {
@@ -1582,6 +1676,9 @@ exit_work_clock_thread_cycles:;
     }
     if ((frame_sema != 0) && (frame_next_us < due_2)) {
         due_2 = frame_next_us;
+    }
+    if ((slice_due_us != 0) && (slice_due_us < due_2)) {
+        due_2 = slice_due_us;
     }
     r_work_clock_deadline = due_2;
     r_work_clock_deadline; });

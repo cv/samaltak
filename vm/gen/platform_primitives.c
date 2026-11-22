@@ -1478,6 +1478,49 @@ void prim_gpu_claim_window(void)
     }
 }
 
+/* PlatformPrimitives>>primGpuCompileShader */
+void prim_gpu_compile_shader(void)
+{
+    bool r_args;
+    char *src;
+    int64_t stage;
+    size_t local;
+    size_t *size;
+    void *spirv;
+    uint64_t result;
+    if (!({
+    bad = false;
+    r_args = prim_nargs == 2;
+    r_args; })) {
+        prim_status = PS_FAIL;
+        prim_error_code = -1;
+        return;
+    }
+    src = string_arg(0);
+    stage = int_arg(1);
+    if (bad) {
+        free(src);
+        prim_status = PS_FAIL;
+        prim_error_code = -1;
+        return;
+    }
+    memset(&local, 0, sizeof local);
+    size = &local;
+    *size = 0;
+    spirv = platform_gpu_compile_shader(src, (int32_t)stage, size);
+    free(src);
+    if (spirv == NULL) {
+        prim_status = PS_FAIL;
+        prim_error_code = -1;
+        return;
+    }
+    result = alloc_bytes(cls_bytearray, *size);
+    memcpy((uint8_t *)(result + 16), spirv, *size);
+    free(spirv);
+    prim_result = result;
+    prim_status = PS_OK;
+}
+
 /* PlatformPrimitives>>primGpuCreateBuffer */
 void prim_gpu_create_buffer(void)
 {
@@ -1672,7 +1715,11 @@ void prim_gpu_create_shader(void)
     int64_t nu;
     int64_t nsb;
     int64_t nst;
-    char *src;
+    oop o;
+    void *code;
+    void *src;
+    size_t local;
+    size_t *len;
     char *entry;
     int32_t h;
     uint64_t v;
@@ -1690,9 +1737,21 @@ void prim_gpu_create_shader(void)
     nu = int_arg(5);
     nsb = int_arg(6);
     nst = int_arg(7);
-    src = string_arg(1);
+    o = prim_base[2];
+    code = NULL;
+    src = NULL;
+    memset(&local, 0, sizeof local);
+    len = &local;
+    if (((o & 7) == 0) && (class_of(o) == cls_bytearray)) {
+        code = bytes_of(o, len, false);
+        if (code == NULL) {
+            bad = true;
+        }
+    } else {
+        src = string_arg(1);
+    }
     entry = string_arg(2);
-    h = bad ? 0 : create_shader((int32_t)d, src, entry, (int32_t)stage, (int32_t)ns, (int32_t)nu, (int32_t)nsb, (int32_t)nst);
+    h = bad ? 0 : code == NULL ? platform_gpu_create_shader_source_entry_stage_samplers_uniform_buffers_storage_buffers_storage_textures((int32_t)d, src, entry, (int32_t)stage, (int32_t)ns, (int32_t)nu, (int32_t)nsb, (int32_t)nst) : platform_gpu_create_shader_spirv_size_entry_stage_samplers_uniform_buffers_storage_buffers_storage_textures((int32_t)d, (const uint8_t *)code, *len, entry, (int32_t)stage, (int32_t)ns, (int32_t)nu, (int32_t)nsb, (int32_t)nst);
     free(src);
     free(entry);
     if (bad) {

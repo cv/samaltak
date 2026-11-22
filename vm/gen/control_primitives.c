@@ -587,6 +587,29 @@ void prim_terminate_to(void)
     prim_status = PS_OK;
 }
 
+/* ControlPrimitives>>primTimeSlice */
+void prim_time_slice(void)
+{
+    oop o;
+    oop o_2;
+    oop o_3;
+    oop v;
+    if ((prim_nargs < 1) || ({
+    o = prim_base[1];
+    (!((o & 1) != 0)) || ({
+    o_2 = prim_base[1];
+    (((int64_t)o_2) >> 1) < 0; }); })) {
+        prim_status = PS_FAIL;
+        prim_error_code = -1;
+        return;
+    }
+    o_3 = prim_base[1];
+    set_time_slice(((int64_t)o_3) >> 1);
+    v = prim_base[0];
+    prim_result = v;
+    prim_status = PS_OK;
+}
+
 /* ControlPrimitives>>primTryPrimitive */
 void prim_try_primitive(void)
 {
