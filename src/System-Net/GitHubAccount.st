@@ -5,7 +5,7 @@ Object subclass: #GitHubAccount
 
 GitHubAccount comment: 'I am the GitHub repository the image sends its source changes to (SourceFiler''s GitHub store, docs/github.md) and the token it uses: the repository (''owner/name''), the base branch pull requests go into (''main''), the prefix of the branches the image may create and update (''agent/''; never the base branch or any other ref), the REST API''s URL (''https://api.github.com'') and the token.
 
-The token lives in memory only: I never print it, and it is overwritten and dropped before every snapshot and quit (I am on the shutdown list), so no image file contains it; the rest of my configuration is saved with the image. The host sends it over the control connection with samaltak-ctl github-config --from-gh (or --token-command ''cmd''), which is the github-config command I register with RemoteControl:
+The token lives in memory only: I never print it, and it is overwritten and dropped before every snapshot and quit (I am on the shutdown list), so no image file contains it; the rest of my configuration is saved with the image. The World''s Accounts window (AccountsPanel, Tools-Agent) sets it and my settings, or the host sends it over the control connection with samaltak-ctl github-config --from-gh (or --token-command ''cmd''), which is the github-config command I register with RemoteControl:
 
 	{"cmd": "github-config", "repository": "cv/samaltak", "baseBranch": "main", "branchPrefix": "agent/", "token": "..."}
 	{"cmd": "github-config"}   "the configuration"
@@ -44,7 +44,7 @@ apiURL
 !
 token
 	"The token. An Error saying how to set it when there is none."
-	token isNil ifTrue: [^Error signal: 'No GitHub token: on the host, run samaltak-ctl github-config --from-gh'].
+	token isNil ifTrue: [^Error signal: 'No GitHub token: paste it in Accounts (World menu), or on the host run samaltak-ctl github-config --from-gh'].
 	^token
 !
 hasToken

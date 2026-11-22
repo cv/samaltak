@@ -407,7 +407,7 @@ refusal: aResponse
 	| text |
 	text := self serviceName, ' refused the request: ', (self describe: aResponse).
 	(#(401 403) includes: aResponse status) ifTrue: [
-		text := text, '. Set the key again: on the host, run samaltak-ctl agent-config --from-pi'].
+		text := text, '. Set the key again: in Accounts (World menu), or on the host run samaltak-ctl agent-config --from-pi'].
 	^text
 !
 describe: aResponse

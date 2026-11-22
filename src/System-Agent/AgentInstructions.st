@@ -45,9 +45,9 @@ sourceState
 	filer := (Smalltalk at: #SourceFiler ifAbsent: [nil]) ifNotNil: [:class | class default].
 	(filer notNil and: [filer isEnabled and: [filer usesGitHub]]) ifTrue: [
 		account hasToken ifFalse: [
-			^'changes collect for GitHub, ', (account repository ifNil: ['no repository']), ', but there is no token, so commit: fails: tell the user to run samaltak-ctl github-config --from-gh on the host (docs/github.md).'].
+			^'changes collect for GitHub, ', (account repository ifNil: ['no repository']), ', but there is no token, so commit: fails: tell the user to paste a token in Accounts (World menu) or run samaltak-ctl github-config --from-gh on the host (docs/github.md).'].
 		^'changes go to GitHub, ', account repository, ': commit: opens a pull request from a new branch ', account branchPrefix, '... into ', account baseBranch, '.'].
 	(filer notNil and: [filer isEnabled and: [filer hasWritableSourceDirectory]]) ifTrue: [
 		^'changes are written to the local checkout ', filer sourceDirectory, '; the user commits them with git (commit: is for GitHub: SourceFiler default useGitHub: true after samaltak-ctl github-config).'].
-	^'changes cannot be saved: no writable source directory and no GitHub account. Tell the user to run samaltak-ctl github-config --from-gh on the host (docs/github.md).'
+	^'changes cannot be saved: no writable source directory and no GitHub account. Tell the user to set one in Accounts (World menu) or run samaltak-ctl github-config --from-gh on the host (docs/github.md).'
 ! !

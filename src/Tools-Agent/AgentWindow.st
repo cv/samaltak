@@ -3,14 +3,14 @@ ToolPane subclass: #AgentWindow
 	classVariableNames: 'Account'
 	package: 'Tools-Agent'!
 
-AgentWindow comment: 'I am the Agent window (docs/agent.md, prototypes/5-agent/6-chosen.html): a view of an AgentConversation. ⌘J in a tool (Tools open: #agent with: aTool) opens me on a conversation with the tool''s agentContext, or brings back the one already open for that tool. Top to bottom: the context strip (what the tool bound), the transcript (AgentTranscript in a ScrollPane, following the end), the ASK editor (Return sends, Shift-Return is a new line) with Send and Stop, and the status bar (model, account or provider, tokens of the last response, working…) with Sign out. The account is ApiKeyAccount default while it isConfigured (the conversation then talks to an AnthropicProvider), else OpenAIAccount default, chosen at each update. Signed out, the login card (AgentLoginCard) replaces the transcript: for an API-key account it says how the host sets the key (samaltak-ctl agent-config --from-pi), and I update when the key arrives; for the OpenAI account the device login runs in a Process of its own.
+AgentWindow comment: 'I am the Agent window (docs/agent.md, prototypes/5-agent/6-chosen.html): a view of an AgentConversation. ⌘J in a tool (Tools open: #agent with: aTool) opens me on a conversation with the tool''s agentContext, or brings back the one already open for that tool. Top to bottom: the context strip (what the tool bound), the transcript (AgentTranscript in a ScrollPane, following the end), the ASK editor (Return sends, Shift-Return is a new line) with Send and Stop, and the status bar (model, account or provider, tokens of the last response, working…) with Sign out. The account is ApiKeyAccount default while it isConfigured (the conversation then talks to an AnthropicProvider), else OpenAIAccount default, chosen at each update. Signed out, the login card (AgentLoginCard) replaces the transcript: for an API-key account it says how to set the key: its Accounts… button opens the Accounts window (AccountsPanel) on my API-key account, or the host runs samaltak-ctl agent-config --from-pi; I update when the key arrives (Use an API key… beside Sign in with ChatGPT opens the Accounts window too); for the OpenAI account the device login runs in a Process of its own.
 
 The conversation notifies me in its turn''s Process; I redraw in my window''s Process, at most one update queued at a time. The account and the provider block on the network: I call them from other Processes only. Closing me stops a running turn and cancels a pending login.
 
 	AgentWindow openFor: aWorkspace
 	AgentWindow account: anAccountDouble   "tests: for the windows opened afterwards; nil: ApiKeyAccount default if configured, else OpenAIAccount default (defaultAccount)"
 
-Remote names: transcript (items user-3, code-4, show-5 with its inspect button …), login (sign-in url code copy message), ask, send, stop, status, sign-out.'!
+Remote names: transcript (items user-3, code-4, show-5 with its inspect button …), login (sign-in use-api-key url code copy accounts message), ask, send, stop, status, sign-out.'!
 
 !AgentWindow methodsFor: 'initialization'!
 setConversation: anAgentConversation origin: aToolOrNil account: anAccount
@@ -21,6 +21,7 @@ setConversation: anAgentConversation origin: aToolOrNil account: anAccount
 	pane := ScrollPane new content: transcript; yourself.
 	card := AgentLoginCard new name: 'login'; yourself.
 	card signInButton action: [self signIn].
+	card onAccounts: [self openAccounts].
 	askEditor := AgentInputEditor new name: 'ask'; title: 'ask'; highlighting: false; font: #ui; yourself.
 	askEditor onKey: [:event | self askKey: event].
 	sendButton := (Button label: 'Send' action: [self send]) name: 'send'; beDefault; fixed: 26; yourself.
@@ -180,6 +181,10 @@ runLogin
 	self inWindowDo: [
 		card showButton: (ok == true ifTrue: [nil] ifFalse: [ok == false ifTrue: ['The code expired or the sign-in was cancelled.'] ifFalse: [ok]]).
 		self update]
+!
+openAccounts
+	"The Accounts window on my API-key account, near me."
+	^AccountsPanel openNear: self window keyAccount: keyAccount
 !
 focusOrigin
 	(origin notNil and: [origin window notNil]) ifTrue: [origin window focus]

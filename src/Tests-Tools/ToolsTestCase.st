@@ -85,6 +85,10 @@ key: aKey modifiers: mods
 	self inject: 5 at: 0 @ 0 button: code count: false modifiers: mods.
 	self inject: 6 at: 0 @ 0 button: code count: false modifiers: mods
 !
+type: aString
+	"Type aString (a text event) into the active window's focus."
+	DisplayWindow injectEvent: {7. nil. 0. 0. 0. 0. aString. world displayWindow windowId}
+!
 commandModifier
 	"The platform's command modifier bit (⌘ on macOS)."
 	^8

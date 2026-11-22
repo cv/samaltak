@@ -5,7 +5,7 @@ Object subclass: #ApiKeyAccount
 
 ApiKeyAccount comment: 'I am an API-key account for a model behind the Anthropic Messages API, which AnthropicProvider talks to: the provider''s name (a label, e.g. ''nvidia-internal''), the base URL (requests go to baseURL, ''/v1/messages''), the model id, the thinking effort (''low'' ''medium'' ''high'' ''xhigh'' ''max''; nil turns thinking off), the max_tokens of a response, the model''s context window in tokens (nil when unknown; another model forgets it), and the API key.
 
-The key lives in memory only: I never print it, and it is forgotten before every snapshot and quit (I am on the shutdown list), so no image file contains it; the rest of my configuration is saved with the image. After Save image or Rebuild & reboot the key is set again. The host sends it over the control connection with samaltak-ctl agent-config --from-pi (docs/agent.md), which is the agent-config command I register with RemoteControl:
+The key lives in memory only: I never print it, and it is forgotten before every snapshot and quit (I am on the shutdown list), so no image file contains it; the rest of my configuration is saved with the image. After Save image or Rebuild & reboot the key is set again: in the World''s Accounts window (AccountsPanel, Tools-Agent), or from the host, which sends it over the control connection with samaltak-ctl agent-config --from-pi (docs/agent.md), which is the agent-config command I register with RemoteControl:
 
 	{"cmd": "agent-config", "provider": "nvidia-internal", "baseUrl": "https://inference-api.nvidia.com", "model": "azure/anthropic/claude-opus-5-5", "thinking": "high", "maxTokens": 128000, "contextWindow": 200000, "apiKey": "..."}
 	{"cmd": "agent-config"}   "the configuration"
@@ -41,7 +41,7 @@ maxTokens
 !
 apiKey
 	"The key. AgentError when there is none."
-	apiKey isNil ifTrue: [^AgentError signal: 'No API key: on the host, run samaltak-ctl agent-config --from-pi'].
+	apiKey isNil ifTrue: [^AgentError signal: 'No API key: paste it in Accounts (World menu), or on the host run samaltak-ctl agent-config --from-pi'].
 	^apiKey
 !
 isConfigured

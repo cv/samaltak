@@ -36,7 +36,7 @@ testDefaults
 	self assert: account branchPrefix equals: 'agent/'.
 	self assert: account apiURL equals: 'https://api.github.com'.
 	self should: [account token] raise: Error.
-	self assert: ([account token] on: Error do: [:e | e messageText]) equals: 'No GitHub token: on the host, run samaltak-ctl github-config --from-gh'.
+	self assert: ([account token] on: Error do: [:e | e messageText]) equals: 'No GitHub token: paste it in Accounts (World menu), or on the host run samaltak-ctl github-config --from-gh'.
 	self assert: account printString equals: 'a GitHubAccount (not configured)'
 !
 testGithubConfigCommand
