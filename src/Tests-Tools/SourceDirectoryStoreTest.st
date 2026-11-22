@@ -31,4 +31,14 @@ testLocalDirectory
 	self assert: (File readText: path) equals: self extensionText.
 	self assert: (local removeMethod: #fixtureOld class: ToolsTestFixture category: '*Tests-Net') equals: path.
 	self deny: (File exists: path)
+!
+testDocs
+	| dir local |
+	dir := self scratchDirectory.
+	Directory create: dir, '/src'; create: dir, '/docs'.
+	File writeText: '# guide' to: dir, '/docs/guide.md'.
+	local := SourceFiler new sourceDirectory: dir, '/src'; useGitHub: false; yourself.
+	self assert: local docs equals: #('guide.md').
+	self assert: (local doc: 'guide') equals: '# guide'.
+	self assert: (local doc: 'missing') isNil
 ! !

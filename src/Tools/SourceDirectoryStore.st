@@ -5,7 +5,7 @@ Object subclass: #SourceDirectoryStore
 
 SourceDirectoryStore comment: 'I am SourceFiler''s store for a local source directory (root, the src/ that holds packages.txt): paths are file paths under it, written at once. git keeps the change set, so I have none: commit and discard are git''s.
 
-The store protocol (GitHubSourceStore has it too): root, textAt: (nil when there is no file), at:putText:, removeFileAt:, noteChange: (a description of what changed: ''Integer>>gcd:''), pendingChanges, discardChanges, commit:pullRequest:.'!
+The store protocol (GitHubSourceStore has it too): root, textAt: (nil when there is no file), fileNamesIn: (the names of the files in a directory), at:putText:, removeFileAt:, noteChange: (a description of what changed: ''Integer>>gcd:''), pendingChanges, discardChanges, commit:pullRequest:.'!
 
 !SourceDirectoryStore methodsFor: 'initialization'!
 setRoot: aPath
@@ -30,6 +30,12 @@ removeFileAt: aPath
 !
 noteChange: aString
 	"git shows what changed."
+!
+fileNamesIn: aPath
+	"The names of the files directly in the directory aPath, sorted."
+	^(File isDirectory: aPath)
+		ifTrue: [(Directory fileNames: aPath) asSortedCollection asArray]
+		ifFalse: [#()]
 ! !
 
 !SourceDirectoryStore methodsFor: 'changes'!
