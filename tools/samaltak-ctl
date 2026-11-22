@@ -34,6 +34,8 @@ const USAGE = `usage: samaltak-ctl [--session name] <command> [args]
   state
   agent-config --from-pi [--provider p] [--model id] [--thinking level]   the agent's model and API key from pi's models.json and settings.json (the key is resolved here and never printed)
   agent-config [--clear]                   the agent's configuration (hasKey, never the key), or forget it
+  github-config [--from-gh | --token-command 'cmd'] [--repo owner/name] [--base main] [--prefix agent/]   the GitHub repository and token the image commits through (docs/github.md): the token from gh auth token or cmd's stdout, never printed; repo: origin's, by default
+  github-config [--clear]                  the GitHub configuration (hasToken, never the token), or forget it
   close
 session: --session, $SAMALTAK_SESSION, default "samaltak"
 input commands wait until the image settles (at most 2 s); --settle ms changes that (0: return at once)
@@ -46,8 +48,8 @@ const pos = [];
 for (let i = 0; i < argv.length; i++) {
   const a = argv[i];
   if (a === '--session') session = argv[++i];
-  else if (/^--(depth|mods|timeout|image|port|scale|size|fps|window-size|settle|delay|source-dir|at|provider|model|thinking)$/.test(a)) flags[a.slice(2)] = argv[++i];
-  else if (/^--(headless|hidden|work-clock|raw|headed|bounds|right|end|start|replace|json|pointer|preedit|uefi|from-pi|clear)$/.test(a)) flags[a.slice(2)] = true;
+  else if (/^--(depth|mods|timeout|image|port|scale|size|fps|window-size|settle|delay|source-dir|at|provider|model|thinking|token-command|repo|base|prefix)$/.test(a)) flags[a.slice(2)] = argv[++i];
+  else if (/^--(headless|hidden|work-clock|raw|headed|bounds|right|end|start|replace|json|pointer|preedit|uefi|from-pi|from-gh|clear)$/.test(a)) flags[a.slice(2)] = true;
   else if (a === '-h' || a === '--help') { console.log(USAGE); process.exit(0); }
   else pos.push(a);
 }
@@ -354,6 +356,46 @@ async function agentConfig() {
   return print(await call({ cmd: 'agent-config', ...piConfig() }));
 }
 
+// github-config: the GitHub repository and token the image's SourceFiler commits through (GitHubAccount, docs/github.md).
+// The token is read here on the host, from gh auth token (--from-gh) or a command's stdout (--token-command, under
+// /bin/sh), and travels only in the request's JSON over the control connection: never in an argv, never printed.
+function originRepository() {
+  let url;
+  try { url = require('child_process').execFileSync('git', ['remote', 'get-url', 'origin'], { stdio: ['ignore', 'pipe', 'ignore'], encoding: 'utf8' }).trim(); }
+  catch (_) { die('github-config: no origin remote here; name the repository with --repo owner/name'); }
+  const m = url.match(/github\.com[:/]+([A-Za-z0-9_.-]+)\/([A-Za-z0-9_.-]+?)(?:\.git)?\/?$/);
+  if (!m) die(`github-config: origin (${url}) is not a GitHub repository; name one with --repo owner/name`);
+  return `${m[1]}/${m[2]}`;
+}
+
+function githubToken() {
+  const [program, argv, what] = flags['from-gh']
+    ? ['gh', ['auth', 'token'], 'gh auth token']
+    : ['/bin/sh', ['-c', flags['token-command']], 'the token command'];
+  let out;
+  try { out = require('child_process').execFileSync(program, argv, { stdio: ['ignore', 'pipe', 'inherit'], encoding: 'utf8', maxBuffer: 1 << 20 }); }
+  catch (e) { die(`github-config: ${what} failed (exit ${e.status ?? e.signal ?? e.code ?? '?'})`); }
+  const token = out.trim();
+  if (!token) die(`github-config: ${what} printed nothing`);
+  if (/\s/.test(token)) die(`github-config: ${what} printed more than one word`);
+  return token;
+}
+
+async function githubConfig() {
+  if (flags.clear) return print(await call({ cmd: 'github-config', clear: true }));
+  if (flags['from-gh'] && flags['token-command']) die('github-config: --from-gh or --token-command, not both');
+  const fromHost = flags['from-gh'] || flags['token-command'];
+  if (!fromHost && !flags.repo && !flags.base && !flags.prefix) return print(await call({ cmd: 'github-config' }));
+  if (!readSession()) die(`no Samaltak in session ${session} (run: samaltak-ctl open)`);
+  const repository = flags.repo || originRepository();
+  const req = { cmd: 'github-config', repository, baseBranch: flags.base || 'main', branchPrefix: flags.prefix || 'agent/' };
+  if (fromHost) req.token = githubToken();
+  if (flags['from-gh'])
+    process.stderr.write(`samaltak-ctl: note: gh's token reaches every repository your gh login can; prefer a fine-grained token for ${repository} only (contents and pull requests: write) with --token-command (docs/github.md)\n`);
+  // The answer is the image's configuration with hasToken, never the token.
+  return print(await call(req));
+}
+
 async function main() {
   switch (cmd) {
     case 'open': return open();
@@ -435,6 +477,7 @@ async function main() {
     }
     case 'record': return record();
     case 'agent-config': return agentConfig();
+    case 'github-config': return githubConfig();
     case undefined: console.log(USAGE); process.exit(1); break;
     default: die(`unknown command ${JSON.stringify(cmd)}\n${USAGE}`);
   }

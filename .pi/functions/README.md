@@ -37,4 +37,6 @@ Check with `context.get().projectFunctions`.
   OUT is up, and on a timeout kills only the QEMU it started. Never `pkill -f` a pattern: it can match your own shell.
 - `agent-config --from-pi` resolves pi's API key, through 1Password's `op` where pi's config says so; that can wait
   for the operator's approval (`authorization timeout`). `ctlSession` notifies the operator first. Never print a key.
+- `github-config --from-gh` sends `gh auth token` (no approval needed) as the image's GitHub token (docs/github.md);
+  `ctlSession` redacts GitHub tokens (`ghp_`, `gho_`, `ghu_`, `ghs_`, `ghr_`, `github_pat_`) as it does API keys.
 - AgentItems: print `item text`, not `printString` (cut short).

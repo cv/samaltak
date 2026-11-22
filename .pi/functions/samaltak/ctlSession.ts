@@ -29,8 +29,9 @@ async function ctlSession(
   // session (UEFI_DISKS): "FILE@DEVICE" (nvme, virtio-blk-pci, usb-storage) or { dir, label?, sizeMB?, device? }, an
   // ext4 file system of dir's contents made with mkfs.ext4 -d, at /mnt/<label> on UEFI (label: default dir's name).
   // agent-config --from-pi resolves pi's API key, through 1Password's op when pi's config says so, which may wait for
-  // the operator's approval: the operator is notified first, and a failure comes back with a hint. Output that looks
-  // like an API key is redacted. In evals, print an AgentItem's text (item text), not its printString (cut short).
+  // the operator's approval: the operator is notified first, and a failure comes back with a hint. github-config --from-gh (gh auth token)
+  // needs no approval. Output that looks like an API key or a GitHub token (ghp_, gho_, ghu_, ghs_, ghr_, github_pat_) is
+  // redacted. In evals, print an AgentItem's text (item text), not its printString (cut short).
   const session = input.session ?? `pit-${Date.now().toString(36)}`;
   if (!/^[A-Za-z0-9_-]+$/.test(session)) throw new Error("bad session name");
   const stepTimeoutS = Math.min(Math.max(input.stepTimeoutS ?? 60, 5), 280);
@@ -78,8 +79,8 @@ async function ctlSession(
   }
   const redact = (s: string) =>
     s
-      .replace(/\b(sk-[A-Za-z0-9_-]{16,}|nvapi-[A-Za-z0-9_-]{16,})/g, "<redacted>")
-      .replace(/("?(api[_-]?key|authorization|x-api-key)"?\s*[:=]\s*"?)(Bearer )?[^\s",}]{12,}/gi, "$1<redacted>");
+      .replace(/\b(sk-[A-Za-z0-9_-]{16,}|nvapi-[A-Za-z0-9_-]{16,}|gh[pousr]_[A-Za-z0-9]{16,}|github_pat_[A-Za-z0-9_]{16,})/g, "<redacted>")
+      .replace(/("?(api[_-]?key|authorization|x-api-key|token)"?\s*[:=]\s*"?)(Bearer )?[^\s",}]{12,}/gi, "$1<redacted>");
   let display = "";
   let xvfbPid = "";
   const results: Array<{ step: string[]; code: number | null; out: string; hint?: string }> = [];
