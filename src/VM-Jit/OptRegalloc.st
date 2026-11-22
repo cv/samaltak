@@ -1,5 +1,5 @@
 OptModule subclass: #OptRegalloc
-	instanceVariableNames: 'ir passes builtins raLiveWords raLiveIn raLiveOut raLiveArena raSorted raSortCount raBucket raBucketNext raActive raActiveCount raFreeRegs raSafePos raSafeCall raSafeCount raSlotTop raSlotFree raSlotFreeCount raSlotBase raRawTop raRawFree raRawFreeCount raRawBase raValidSlots raMaxPos raSafeList raSafeListCount raCost'
+	instanceVariableNames: 'ir passes builtins raLiveWords raLiveIn raLiveOut raLiveArena raSorted raSortCount raBucket raBucketNext raActive raActiveCount raFreeRegs raSafePos raSafeCall raSafeCount raSlotTop raSlotFree raSlotFreeCount raSlotBase raRawTop raRawFree raRawFreeCount raRawBase raValidSlots raMaxPos raSafeList raSafeListCount raCost raCross'
 	classVariableNames: 'RA_ARENA RA_MAX_ACTIVE RA_MAX_SAFE RA_MAX_SAFELIST RA_MAX_SLOTS RA_NREGS'
 	package: 'VM-Jit'!
 
@@ -11,7 +11,7 @@ declarations
 		(raSorted 'int32_t[OPT_MAX_NODES]') (raSortCount int32_t) (raBucket 'int32_t[OPT_MAX_NODES]') (raBucketNext 'int32_t[OPT_MAX_NODES]')
 		(raActive 'int32_t[RA_MAX_ACTIVE]') (raActiveCount int32_t) (raFreeRegs 'int32_t[RA_NREGS]')
 		(raSafePos 'int32_t[RA_MAX_SAFE]') (raSafeCall 'uint8_t[RA_MAX_SAFE]') (raSafeCount int32_t)
-		(raSlotTop int32_t) (raSlotFree 'int32_t[RA_MAX_SLOTS]') (raSlotFreeCount int32_t) (raSlotBase int32_t) (raRawTop int32_t) (raRawFree 'int32_t[RA_MAX_SLOTS]') (raRawFreeCount int32_t) (raRawBase int32_t) (raCost 'int32_t[OPT_MAX_NODES]') (raValidSlots int32_t) (raMaxPos int32_t) (raSafeList 'int32_t[RA_MAX_SAFELIST]') (raSafeListCount int32_t))
+		(raSlotTop int32_t) (raSlotFree 'int32_t[RA_MAX_SLOTS]') (raSlotFreeCount int32_t) (raSlotBase int32_t) (raRawTop int32_t) (raRawFree 'int32_t[RA_MAX_SLOTS]') (raRawFreeCount int32_t) (raRawBase int32_t) (raCost 'int32_t[OPT_MAX_NODES]') (raValidSlots int32_t) (raMaxPos int32_t) (raSafeList 'int32_t[RA_MAX_SAFELIST]') (raSafeListCount int32_t) (raCross 'uint8_t[OPT_MAX_NODES]'))
 !
 initialize
 	RA_ARENA := 1048576.
@@ -61,6 +61,7 @@ allocate: numArgs valid: n
 	(self recordSafepointLiveness) ifFalse: [^false].
 	self buildIntervals.
 	(self linearScan) ifFalse: [^false].
+	self coalescePhis.
 	raSlotBase := numArgs.
 	raValidSlots := n.
 	^self assignSlots
@@ -173,8 +174,9 @@ transfer: b out: out into: in
 recordSafepointLiveness
 	"For each safepoint, the values live after it (its frame state's among them): saved before it, reloaded after it."
 	<function>
-	| b n nd st s set sv bits v |
+	| b n nd st s set sv bits v cross |
 	raSafeListCount := 0.
+	0 to: ir nodeCount - 1 do: [:i | raCross at: i put: 0].
 	set := 2 * ir blockCount * raLiveWords.
 	0 to: passes orderCount - 1 do: [:i |
 		b := passes orderAt: i.
@@ -202,7 +204,10 @@ recordSafepointLiveness
 							raSafeList at: raSafeListCount put: sv.
 							raSafeListCount := raSafeListCount + 1]].
 					s := st parent].
-				nd nlive: raSafeListCount - nd live].
+				nd nlive: raSafeListCount - nd live.
+				"what crosses it: 1, a call (not an interrupt check nor an Array the runtime makes) 2 too"
+				cross := (nd op asInt32 = O_CHECKINT or: [nd op asInt32 = O_MKARRAY]) ifTrue: [1] ifFalse: [3].
+				nd live to: raSafeListCount - 1 do: [:j | raCross at: (raSafeList at: j) put: ((raCross at: (raSafeList at: j)) bitOr: cross)]].
 			self clear: n in: set.
 			nd op asInt32 ~= O_PHI ifTrue: [self usesOf: n into: set].
 			n := nd prev]].
@@ -461,18 +466,63 @@ shareSlotOf: v
 		(owner slot = nd slot and: [owner lend < nd lend and: [owner rep = nd rep]]) ifTrue: [raActive at: j put: v]]
 !
 crossesSafepoint: v
-	"v is live after a safepoint inside its interval."
+	"v is live after a safepoint (in its live set, recordSafepointLiveness: not merely inside its interval, which may cover code where v is dead, as an inner loop's values over the outer loop's code placed between its blocks), or is a safepoint's result used later."
 	| nd |
+	((raCross at: v) bitAnd: 1) ~= 0 ifTrue: [^true].
 	nd := ir node: v.
-	0 to: raSafeCount - 1 do: [:i | ((raSafePos at: i) >= nd lstart and: [(raSafePos at: i) < nd lend]) ifTrue: [^true]].
-	^false
+	^(self isSafepoint: v) and: [nd lend > nd pos]
 !
 crossesCall: v
-	"v is live after a send or call inside its interval (a safepoint that is not an interrupt check)."
+	"v is live after a send or call (a safepoint that is not an interrupt check), or is one's result used later."
 	| nd |
+	((raCross at: v) bitAnd: 2) ~= 0 ifTrue: [^true].
 	nd := ir node: v.
-	0 to: raSafeCount - 1 do: [:i | ((raSafeCall at: i) ~= 0 and: [(raSafePos at: i) >= nd lstart and: [(raSafePos at: i) < nd lend]]) ifTrue: [^true]].
-	^false
+	^(self isSafepoint: v) and: [nd lend > nd pos and: [nd op asInt32 ~= O_CHECKINT and: [nd op asInt32 ~= O_MKARRAY]]]
+!
+coalescePhis
+	"A phi's operand defined within the phi's interval (a loop's value made on its back edge), in a register of the same kind, takes the phi's register if the phi is dead from where the operand is defined on and no other value has that register over the operand's interval: no move on that edge. One operand per phi."
+	<function>
+	| p v pd vd |
+	0 to: ir nodeCount - 1 do: [:n |
+		pd := ir node: n.
+		(pd op asInt32 = O_PHI and: [(self isValue: n) and: [pd reg >= 0]]) ifTrue: [
+			v := -1.
+			0 to: pd nargs asInt32 - 1 do: [:k |
+				p := ir operand: pd args + k.
+				(v < 0 and: [(self isValue: p) and: [p ~= n]]) ifTrue: [
+					vd := ir node: p.
+					(vd op asInt32 ~= O_PHI and: [vd reg >= 0 and: [vd reg ~= pd reg and: [vd rep = pd rep and: [
+						vd lstart >= pd lstart and: [(self is: n liveAfter: p) not and: [(self reg: pd reg asInt32 isFreeFor: p but: n)]]]]]]) ifTrue: [v := p]]].
+			v >= 0 ifTrue: [(ir node: v) reg: pd reg]]]
+!
+writesLast: v
+	"v's code reads its inputs (and leaves by its guard) before it writes its result."
+	| op |
+	op := (ir node: v) op asInt32.
+	^op = O_IADD or: [op = O_ISUB or: [op = O_FARITH or: [op = O_FSQRT]]]
+!
+reg: r isFreeFor: v but: p
+	"No value but p (and v) has register r over v's interval."
+	| nd vd |
+	vd := ir node: v.
+	0 to: ir nodeCount - 1 do: [:w |
+		nd := ir node: w.
+		(w ~= v and: [w ~= p and: [nd reg asInt32 = r and: [(self isValue: w) and: [nd lend >= 0 and: [nd lstart <= vd lend and: [nd lend >= vd lstart]]]]]]) ifTrue: [^false]].
+	^true
+!
+is: p liveAfter: v
+	"Value p is live right after v's definition or is one of its inputs (frame states' uses count: code generators may write a result before they read every input; SmallInteger sums and differences and arithmetic on doubles write it last)."
+	| b set m |
+	b := (ir node: v) block asInt32.
+	set := 2 * ir blockCount * raLiveWords.
+	0 to: raLiveWords - 1 do: [:w | raLiveArena at: set + w put: (raLiveArena at: raLiveOut + (b * raLiveWords) + w)].
+	m := (ir block: b) last.
+	[m >= 0 and: [m ~= v]] whileTrue: [
+		self clear: m in: set.
+		(ir node: m) op asInt32 ~= O_PHI ifTrue: [self usesOf: m into: set].
+		m := (ir node: m) prev].
+	(m >= 0 and: [(self writesLast: m) not]) ifTrue: [self usesOf: m into: set].
+	^self isSet: p in: set
 !
 assignSlots
 	"Home slots for spilled values and values live across safepoints, reused when intervals no longer overlap; doubles' are raw slots, numbered apart, after the others and the frame's valid slots."

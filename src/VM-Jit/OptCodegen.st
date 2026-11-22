@@ -2274,7 +2274,9 @@ emitDoubleMovesFrom: k to: s
 				blocked := false.
 				0 to: cgMoveCount - 1 do: [:j | (j ~= i and: [(cgMoveLoc at: j) = d]) ifTrue: [blocked := true]].
 				blocked ifFalse: [
-					(cgMoveLoc at: i) ~= d ifTrue: [self moveDouble: (cgMoveDst at: i) from: (cgMoveLoc at: i)].
+					(cgMoveLoc at: i) ~= d
+						ifTrue: [self moveDouble: (cgMoveDst at: i) from: (cgMoveLoc at: i)]
+						ifFalse: [(d < 1000 and: [(cgMoveSrc at: i) ~= (cgMoveDst at: i)]) ifTrue: [self ddef: (cgMoveDst at: i) from: d]].
 					cgMoveLoc at: i put: -2.
 					progress := true]]].
 		progress ifFalse: [
@@ -2322,9 +2324,13 @@ sequentializeMoves
 			(cgMoveLoc at: k) >= 0 ifTrue: [
 				0 to: cgMoveCount - 1 do: [:j | (j ~= k and: [(cgMoveLoc at: j) = d]) ifTrue: [blocked := true]]].
 			((cgMoveLoc at: k) < 0 or: [blocked]) ifTrue: [k := k + 1] ifFalse: [
-				(cgMoveLoc at: k) ~= d ifTrue: [
-					self moveLoc: (cgMoveLoc at: k) toReg: X17 unless: d.
-					self moveRegTo: (cgMoveDst at: k) from: ((cgMoveLoc at: k) < 1000 ifTrue: [cgMoveLoc at: k] ifFalse: [X17])].
+				(cgMoveLoc at: k) ~= d
+					ifTrue: [
+						self moveLoc: (cgMoveLoc at: k) toReg: X17 unless: d.
+						self moveRegTo: (cgMoveDst at: k) from: ((cgMoveLoc at: k) < 1000 ifTrue: [cgMoveLoc at: k] ifFalse: [X17])]
+					ifFalse: [
+						"the operand is in the phi's register (OptRegalloc>>coalescePhis): only its home slot, if it is stored on every edge"
+						(d < 1000 and: [(cgMoveSrc at: k) ~= (cgMoveDst at: k)]) ifTrue: [self moveRegTo: (cgMoveDst at: k) from: d]].
 				self removeMove: k.
 				progress := true]].
 		progress ifFalse: [
