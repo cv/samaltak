@@ -418,6 +418,7 @@ def: n from: r
 	(nd slot >= 0 and: [(nd flags bitAnd: NF_LAZY) = 0]) ifTrue: [self store: r slot: nd slot asInt32]
 !
 loadConstant: v into: r
+	<function>
 	| i |
 	(self isInt: v) ifTrue: [
 		(v asInt64 between: -16r80000000 and: 16r7FFFFFFF) ifTrue: [^asm mov: r imm: v asInt64].
@@ -431,6 +432,7 @@ loadConstant: v into: r
 !
 loadTableEntry: i into: r
 	"r := the JitState's oopTable entry i (one load from x22): nothing if r holds it since the last label, a move if another register does."
+	<function>
 	| key h |
 	key := 16r60000000 + i.
 	self catchUp.
@@ -444,6 +446,7 @@ loadTableEntry: i into: r
 !
 loadPoolEntry: i into: r
 	"r := the pool's entry i: nothing if r holds it since the last label, a move if another register does (on arm64), else a pc-relative load."
+	<function>
 	| key h |
 	key := self poolKey: i.
 	self catchUp.
@@ -678,6 +681,7 @@ headerFlagsOffset
 !
 emitDeadCheck: s
 	"Branch to s if this code has been invalidated (its header's JM_DEAD): the flags word loaded pc-relative, its bit tested."
+	<function>
 	asm ldr: W16 label: cgFlagsLabel.
 	asm tbnz: W16 bit: 1 to: s
 ! !
@@ -1184,6 +1188,7 @@ emitIndexStore: n
 !
 emitClassTest: x class: cls
 	"Flags EQ if x's class is cls (no branch: a tagged x reads a word of the JitState instead of a class)."
+	<function>
 	cls = memory clsSmallint ifTrue: [
 		asm and: X16 with: x imm: 1.
 		^asm cmp: X16 imm: 1].
@@ -1206,6 +1211,7 @@ emitClassTest: x class: cls
 !
 compareX16WithClass: cls
 	"Flags EQ if X16 is cls: a class from the JitState's oopTable (one load from x22; on x86 a compare with the word), else from the pool."
+	<function>
 	| i key |
 	i := self oopSlotOf: cls.
 	i < 0 ifTrue: [
