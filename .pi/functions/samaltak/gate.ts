@@ -12,8 +12,9 @@ async function gate(
 ) {
   // The push gate (AGENTS.md) as CI runs it: Xvfb + software Vulkan (lavapipe), in the background, for the current
   // directory's HEAD. start: begin a run of targets (default ["test-core"]; add "test-uefi", "test-jit-baseline",
-  // "test-jit-opt" as AGENTS.md requires, "test-nv" on a machine with an NVIDIA GPU; test-core takes ~6.5 min, with
-  // test-uefi ~7.5 min, plus ~30 s to build; or ["auto"]: test-core, plus test-uefi when src/, vm/, boot/, the Makefile,
+  // "test-jit-opt" as AGENTS.md requires, "test-nv" on a machine with an NVIDIA GPU; the targets run at once after one
+  // build (tests/stages.sh), each suite sharded over test VMs: all five stages take ~3.5 min, test-core alone ~2.5;
+  // concurrent gates share the machine's test slots and take longer; or ["auto"]: test-core, plus test-uefi when src/, vm/, boot/, the Makefile,
   // tests/uefi or tools/samaltak-ctl changed, the JIT stages when src/VM-* or vm/ (not vm/tests/bench) changed, and
   // test-nv when System-NV, Graphics-NV, gpu/nv or tests/nv changed and /dev/nvidiactl exists; the result says why) and
   // record HEAD, its tree and its base on origin/main in build/gate-runs/<id>.json; samaltak.push accepts a passed run
@@ -60,12 +61,11 @@ async function gate(
     );
     const [hits, tail] = s.stdout.split("@@\n");
     const targets: string[] = rec.targets.split(" ");
+    // stages run at once (tests/stages.sh): the build, then about the slowest stage, plus some for sharing the slots
+    const stageS = (t: string) =>
+      t === "test-core" ? 160 : t === "test-uefi" ? 90 : t === "test-tools" ? 130 : t.startsWith("test-jit-") ? 150 : 120;
     const expectedS =
-      30 +
-      (targets.includes("test-core") ? 390 : 0) +
-      (targets.includes("test-uefi") ? 90 : 0) +
-      (targets.includes("test-nv") ? 120 : 0) +
-      targets.filter((t) => t.startsWith("test-jit-")).length * 240;
+      40 + Math.max(0, ...targets.map(stageS)) + 15 * Math.max(0, targets.filter((t) => t !== "test-uefi").length - 1);
     return {
       ...rec,
       elapsedS: Math.round((rec.finished ?? Date.now() / 1000) - rec.started),
