@@ -107,6 +107,8 @@ for: anAgentItem
 		at: #code put: AgentCodeView;
 		at: #tests put: AgentCodeView;
 		at: #show put: AgentShowView;
+		at: #note put: AgentMessageView;
+		at: #notice put: AgentMessageView;
 		yourself.
 	^(class at: anAgentItem kind ifAbsent: [^nil]) new item: anAgentItem; yourself
 ! !

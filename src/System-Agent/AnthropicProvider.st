@@ -145,12 +145,12 @@ add: anItem to: messages
 	(type isString and: [type endsWith: '_output']) ifTrue: [^self addUser: (Array with: (self toolResultOf: anItem)) to: messages]
 !
 addAssistant: blockArray of: anItem to: messages
-	"Blocks of one response go to one assistant message, also a call after the result of an earlier call of that response."
+	"Blocks of one response go to one assistant message, also a call after the result of an earlier call of that response; so do consecutive assistant blocks (a summary the agent wrote, then what followed it)."
 	| id last previous |
 	blockArray isEmpty ifTrue: [^self].
 	id := anItem at: 'response' ifAbsent: [nil].
 	last := messages isEmpty ifFalse: [messages last].
-	(last notNil and: [last first = 'assistant' and: [(last at: 3) = id]]) ifTrue: [^(last at: 2) addAll: blockArray].
+	(last notNil and: [last first = 'assistant']) ifTrue: [^(last at: 2) addAll: blockArray].
 	previous := messages size >= 2 ifTrue: [messages at: messages size - 1].
 	(id notNil and: [previous notNil and: [last first = 'user' and: [previous first = 'assistant' and: [(previous at: 3) = id
 		and: [(last at: 2) allSatisfy: [:each | (each at: 'type') = 'tool_result']]]]]])

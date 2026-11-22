@@ -292,6 +292,14 @@ testRunTestsItemIsShownAsACell
 	self assert: (view isKindOf: AgentCodeView).
 	self assert: view title equals: 'Run-tests'.
 	self assert: (AgentItemView for: (AgentItem kind: #code text: '3')) title equals: 'Code-mode'
+!
+testEditedItemsAndNotesAreShown
+	| item |
+	item := AgentItem kind: #code text: '3'.
+	item edit: 'elided'.
+	self assert: (AgentItemView for: item) title equals: 'Code-mode · elided'.
+	self assert: ((AgentItemView for: (AgentItem kind: #note text: 'Note plan: x')) isKindOf: AgentMessageView).
+	self assert: ((AgentItemView for: (AgentItem kind: #notice text: 'Context: 50%')) isKindOf: AgentMessageView)
 ! !
 
 !AgentWindowTest methodsFor: 'tests - contexts'!
