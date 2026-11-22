@@ -67,6 +67,7 @@ test-core: image test-vm
 	tests/boot/layering_test.sh
 	tests/st_suite.sh $(OUT)/samaltak.image
 	SAMALTAK_VERIFY_GC=1 tests/st_suite.sh $(OUT)/samaltak.image --eden 1 -- Tests-Kernel Tests-Compiler
+	tests/st_suite.sh $(OUT)/samaltak.image --max-heap 128 -- LowSpaceTest StackOverflowTest
 	tests/st_suite.sh $(OUT)/samaltak.image -- Weather --load apps/Weather
 # System-NV on a real NVIDIA GPU (hosted Linux, /dev/nvidiactl; the GB10): not part of make test, which runs where
 # there is none. Fails, saying so, without a GPU. NvGpuMeasure reports launch latency and copy bandwidth. Then the
@@ -100,7 +101,7 @@ nv-kernels:
 # 0.0.0.0 in the guest) forwarded from 127.0.0.1:UEFI_CONTROL_PORT, UEFI_CONTROL_ARGS after it (samaltak-ctl open --uefi).
 # The guest's network is QEMU's user network (NAT, DHCP, DNS) on a UEFI_NIC without its option ROM, which the image
 # drives: e1000e on x86-64 (q35's default), virtio-net-pci on arm64 (virt's); a virtio-rng, so that the firmware offers EFI_RNG_PROTOCOL (SecureRandom's entropy). test-uefi runs the tests there that need no platform layer (no files, processes
-# or ptys from Smalltalk), opens the World on the firmware's screen and moves its pointer by remote input, drives the VM with
+# or ptys from Smalltalk), LowSpaceTest and StackOverflowTest in a 128 MB heap, opens the World on the firmware's screen and moves its pointer by remote input, drives the VM with
 # samaltak-ctl and has it connect to itself through the host (10.0.2.2: QEMU's host), once to ping, once to move a megabyte
 # each way, gets https://10.0.2.2 from tools/tls-test-server.sh with its test CA (docs/tls.md) (test-uefi-nic: on a virtio-net-pci too
 # if UEFI_NIC is another, once to ping), snapshots and resumes.
@@ -109,7 +110,18 @@ UEFI_HOST_ARCH := $(if $(filter x86_64 amd64,$(shell uname -m)),x86_64,arm64)
 UEFI_ARCH ?= $(UEFI_HOST_ARCH)
 UEFI := $(OUT)/uefi-$(UEFI_ARCH)
 UEFI_ARGS ?= --headless --eval 'Smalltalk vmBanner'
-UEFI_HEAP_MB ?= 256
+# The VM's --max-heap and QEMU's RAM, in MB: uefi-run, uefi-boot and test-uefi boot with 256 in 2048 (UEFI_HEAP_MB,
+# UEFI_RAM_MB if set); the World (uefi-ui, uefi-control) with UEFI_WORLD_HEAP_MB in UEFI_WORLD_RAM_MB, a quarter of
+# it: the heap takes twice its limit (docs/uefi.md, Memory), the rest is for the firmware, the VM and the memory the
+# image keeps outside the heap (textures, the back buffer, drivers' buffers).
+UEFI_HEAP_MB ?=
+UEFI_RAM_MB ?=
+UEFI_WORLD_RAM_MB ?= 4096
+UEFI_WORLD_HEAP_MB ?= $(shell expr $(UEFI_WORLD_RAM_MB) / 4)
+UEFI_HEAP = $(or $(UEFI_HEAP_MB),256)
+UEFI_MEM = $(or $(UEFI_RAM_MB),2048)
+uefi-ui uefi-control: UEFI_HEAP = $(or $(UEFI_HEAP_MB),$(UEFI_WORLD_HEAP_MB))
+uefi-ui uefi-control: UEFI_MEM = $(or $(UEFI_RAM_MB),$(UEFI_WORLD_RAM_MB))
 UEFI_SCREEN ?= 1024x768
 # UEFI_VNC=N: uefi-ui and uefi-control show the screen on a VNC server on 127.0.0.1:590N instead of a window (from another
 # machine: ssh -L 590N:127.0.0.1:590N, then vnc://localhost:590N), its password the file UEFI_VNC_PASSWORD (at most 8 characters).
@@ -143,7 +155,7 @@ QEMU_UEFI_MACHINE := qemu-system-x86_64 -machine q35 $(UEFI_ACCEL) $(if $(UEFI_G
 UEFI_NIC ?= e1000e
 endif
 UEFI_VGA = $(if $(filter x86_64,$(UEFI_ARCH)),$(if $(UEFI_GPU),,-vga std))
-QEMU_UEFI = $(QEMU_UEFI_MACHINE) -m 2048 -no-reboot \
+QEMU_UEFI = $(QEMU_UEFI_MACHINE) -m $(UEFI_MEM) -no-reboot \
 	-nic user,model=$(UEFI_NIC)$(if $(UEFI_CONTROL_PORT),$(comma)hostfwd=tcp:127.0.0.1:$(UEFI_CONTROL_PORT)-:7341) -global $(UEFI_NIC).romfile= \
 	-device virtio-rng-pci -drive if=pflash,format=raw,readonly=on,file=$(OVMF_CODE) -drive if=pflash,format=raw,file=$(UEFI)/vars.fd \
 	-drive format=raw,file=fat:rw:$(UEFI)/esp -drive format=raw,file=$(UEFI)/image.disk \
@@ -180,16 +192,16 @@ $(UEFI)/image.disk: $(OUT)/samaltak.image
 uefi-run: uefi
 	$(MAKE) uefi-boot
 uefi-boot:
-	printf '%s\n' --max-heap $(UEFI_HEAP_MB) disk: $(UEFI_ARGS) > $(UEFI)/esp/samaltak.args
+	printf '%s\n' --max-heap $(UEFI_HEAP) disk: $(UEFI_ARGS) > $(UEFI)/esp/samaltak.args
 	cp $(OVMF_VARS) $(UEFI)/vars.fd
 	$(QEMU_UEFI) -nographic | tee $(UEFI)/console.log
 	@grep -q 'samaltak: exit 0' $(UEFI)/console.log
 uefi-ui: uefi
-	printf '%s\n' --max-heap $(UEFI_HEAP_MB) disk: --window-size $(UEFI_SCREEN) > $(UEFI)/esp/samaltak.args
+	printf '%s\n' --max-heap $(UEFI_HEAP) disk: --window-size $(UEFI_SCREEN) > $(UEFI)/esp/samaltak.args
 	cp $(OVMF_VARS) $(UEFI)/vars.fd
 	$(if $(UEFI_VNC),,$(UEFI_WINDOW)) $(QEMU_UEFI) $(if $(UEFI_VNC),$(UEFI_VNC_DISPLAY),$(UEFI_DISPLAY)) $(UEFI_VGA) -device qemu-xhci -device usb-kbd -device virtio-tablet-pci -serial stdio
 uefi-control: uefi
-	printf '%s\n' --max-heap $(UEFI_HEAP_MB) disk: --control --control-host 0.0.0.0 --control-port 7341 $(UEFI_CONTROL_ARGS) > $(UEFI)/esp/samaltak.args
+	printf '%s\n' --max-heap $(UEFI_HEAP) disk: --control --control-host 0.0.0.0 --control-port 7341 $(UEFI_CONTROL_ARGS) > $(UEFI)/esp/samaltak.args
 	cp $(OVMF_VARS) $(UEFI)/vars.fd
 	$(QEMU_UEFI) $(if $(UEFI_VNC),$(UEFI_VNC_DISPLAY),-display none) $(UEFI_VGA) -device qemu-xhci -device usb-kbd -device virtio-tablet-pci -serial stdio
 UEFI_TESTS := CompilerTest ParserTest ScannerTest ClassTest CollectionTest ContextTest ExceptionTest FloatTest FractionTest \
@@ -210,6 +222,7 @@ UEFI_SNAPSHOT := Smalltalk at: 'UefiMark' asSymbol put: 42. (Smalltalk snapshot:
 test-uefi:
 	rm -f $(UEFI)/image.disk
 	$(MAKE) uefi-run UEFI_ARGS='--headless --test $(UEFI_TESTS)'
+	$(MAKE) uefi-boot UEFI_HEAP_MB=128 UEFI_ARGS='--headless --test LowSpaceTest StackOverflowTest'
 	$(MAKE) uefi-boot UEFI_ARGS="--eval \"$(UEFI_WORLD)\""
 	grep -qE "^world [0-9]+@[0-9]+ true 123@45" $(UEFI)/console.log
 	$(MAKE) uefi-boot UEFI_GPU=virtio-gpu-pci UEFI_ARGS="--window-size 1920x1080 --eval \"$(UEFI_WORLD)\""
