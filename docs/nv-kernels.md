@@ -29,8 +29,8 @@ contraction.
 ## Kernels
 
 Each takes one struct by value (`raster_abi.h`); in the cubin the parameters are in constant bank 0 at 0x380 (the ABI's
-`paramOffset`), `paramBytes` long. No kernel uses local memory (frame and stack sizes 0: NvCompute cannot launch one that
-does yet, docs/nv-gpu.md; `raster_batch_tiles` is held to 128 registers so it does not spill), globals or device-side calls;
+`paramOffset`), `paramBytes` long. No kernel uses local memory (frame and stack sizes 0; NvCompute gives a kernel with a frame the local memory it needs,
+docs/nv-gpu.md; `raster_batch_tiles` is held to 128 registers so it does not spill), globals or device-side calls;
 `raster_tiles` has 40 bytes of constants the compiler placed in constant bank 2 (`.nv.constant2.raster_tiles`, the
 ABI's `constantBank2`: bind them as bank 2 when launching it). Every kernel loops over its work with grid strides, so any
 grid is correct and the one below covers the work in one pass. Blocks are 256 threads (x).

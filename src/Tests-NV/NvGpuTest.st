@@ -67,6 +67,21 @@ testChannelFence
 	c sync.
 	self assert: c completedValue equals: 102
 !
+testLocalMemory
+	"local1k has a 1 KB stack frame: the threads' local memory grows to hold it (beyond the 16r240 bytes they start with), each thread sees its own, and a kernel without a frame still runs after it."
+	| k p n |
+	k := self kernel: 'local1k'.
+	self assert: k frameSize >= 1024.
+	n := 3000.
+	p := gpu allocate: n * 4.
+	self compute run: k grid: n + 255 // 256 block: 256 arguments: (Array with: p gpuAddress with: n).
+	self assert: self compute localPerThread >= (16r240 + 1024).
+	0 to: n - 1 do: [:i |
+		(p uint32At: i * 4) = (768 * i + 32640 bitAnd: 16rFFFFFFFF)
+			ifFalse: [^self assert: false description: 'thread ', i printString, ': ', (p uint32At: i * 4) printString]].
+	self compute run: (self kernel: 'fill') grid: 1 block: 256 arguments: (Array with: p gpuAddress with: 7 with: 1).
+	self assert: (p uint32At: 0) equals: 7
+!
 testFill
 	| m |
 	m := gpu allocate: 4096 * 4.

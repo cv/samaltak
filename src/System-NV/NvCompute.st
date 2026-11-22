@@ -1,5 +1,5 @@
 Object subclass: #NvCompute
-	instanceVariableNames: 'channel device localMemory localPerTpc qmds slotFences nextSlot programs launchWords qmdWord payloadOffset'
+	instanceVariableNames: 'channel device localMemory localPerTpc localPerThread qmds slotFences nextSlot programs launchWords qmdWord payloadOffset'
 	classVariableNames: 'LaunchFields'
 	package: 'System-NV'!
 
@@ -18,24 +18,19 @@ close frees my memory and the channel (or leave it to NvDevice close).'!
 
 !NvCompute methodsFor: 'initialization'!
 channel: anNvChannel
-	| slm pb |
+	| pb |
 	channel := anNvChannel.
 	device := channel device.
 	programs := IdentityDictionary new.
 	[qmds := device allocate: 64 * 16r1000.
 	slotFences := Array new: 64 withAll: 0.
 	nextSlot := 0.
-	"Local memory: 16r240 bytes per thread for every warp an SM can hold, as CUDA sizes it at least."
-	slm := 16r240.
-	localPerTpc := self roundUp: (self roundUp: slm * 32 to: 16r200) * device maxWarpsPerSm * device smsPerTpc to: 16r8000.
-	localMemory := device allocate: (self roundUp: localPerTpc * device tpcsPerGpc * device gpcCount to: 16r20000).
 	pb := NvPushBuffer new.
 	pb method: 0 subchannel: 1 value: channel computeClass.
 	pb method: 16r7B0 subchannel: 1 address: self class localWindow.
 	pb method: 16r2A0 subchannel: 1 address: self class sharedWindow.
-	pb method: 16r790 subchannel: 1 address: localMemory gpuAddress.
-	pb method: 16r2E4 subchannel: 1 data: (Array with: (localPerTpc bitShift: -32) with: (localPerTpc bitAnd: 16rFFFFFFFF) with: 16rFF).
 	channel submitAndWait: pb.
+	self localMemoryPerThread: 16r240.
 	"A launch's pushbuffer: send the QMD (its address >> 8 at qmdWord), schedule it, then the fence (its payload at
 	payloadOffset; no interrupt: waits poll). The shader caches are invalidated when a kernel's code arrives
 	(programFor:), the QMD invalidates constant bank 0."
@@ -52,6 +47,10 @@ channel: anNvChannel
 !NvCompute methodsFor: 'accessing'!
 channel
 	^channel
+!
+localPerThread
+	"The local memory each thread has (bytes): what the kernels launched so far need, at least 16r240."
+	^localPerThread
 !
 device
 	^device
@@ -115,7 +114,7 @@ qmd: q grid: g block: b bank0: address
 programFor: aKernel
 	"(code memory, bank index -> memory, QMD template, constant bank 0 template) of aKernel, made on first use; a
 	launch copies the templates and fills in its grid, block, parameters and constant bank 0 address."
-	^programs at: aKernel ifAbsentPut: [| code banks shared bank0 cbuf smemConfig q pb |
+	^programs at: aKernel ifAbsentPut: [| code banks shared bank0 cbuf smemConfig q pb slm |
 		code := device allocate: aKernel code size + 16r1000.
 		code bytesAt: 0 put: aKernel code.
 		banks := Dictionary new.
@@ -134,6 +133,10 @@ programFor: aKernel
 		cbuf uint32At: 16r2F4 + 1 put: (self class sharedWindow bitShift: -32).
 		cbuf uint32At: 16r2F8 + 1 put: (self class localWindow bitAnd: 16rFFFFFFFF).
 		cbuf uint32At: 16r2FC + 1 put: (self class localWindow bitShift: -32).
+		"The stack starts 16r240 below the top of a thread's local window and grows down into its frame: the
+		thread's local memory must hold both (shader_local_memory_high_size)."
+		slm := self localMemoryFor: aKernel.
+		slm > localPerThread ifTrue: [self localMemoryPerThread: slm].
 		cbuf uint32At: 16r37C + 1 put: 16rFFFDC0.
 		smemConfig := ((#(32 64 100) detect: [:kb | kb * 1024 >= shared] ifNone: [^self error: 'too much shared memory']) * 1024) // 4096 + 1.
 		q := NvQmd new.
@@ -145,7 +148,7 @@ programFor: aKernel
 			at: 'shared_memory_size_shifted7' put: shared // 128;
 			at: 'min_sm_config_shared_mem_size' put: smemConfig; at: 'target_sm_config_shared_mem_size' put: smemConfig;
 			at: 'max_sm_config_shared_mem_size' put: 16r1A;
-			at: 'shader_local_memory_high_size_shifted4' put: 16r240 // 16;
+			at: 'shader_local_memory_high_size_shifted4' put: slm // 16;
 			at: 'program_prefetch_size' put: (aKernel code size // 256 min: 16r1FF);
 			at: 'constant_buffer_invalidate_0' put: 1.
 		pb := NvPushBuffer new.
@@ -156,6 +159,25 @@ programFor: aKernel
 		banks keysAndValuesDo: [:index :memory |
 			q constantBuffer: index address: memory gpuAddress size: (aKernel constantBanks at: index) size].
 		Array with: code with: banks with: q bytes with: cbuf]
+!
+localMemoryFor: aKernel
+	"A thread's local memory for aKernel: the 16r240 bytes above the stack pointer and its stack frame, in 32s."
+	^self roundUp: 16r240 + (aKernel frameSize max: aKernel minStackSize) to: 32
+!
+localMemoryPerThread: bytes
+	"Give every thread bytes of local memory (sized as CUDA does: bytes for each thread of every warp an SM can hold).
+	The memory there was goes once the GPU has run all the work submitted: what was launched may use it."
+	| perTpc memory pb |
+	perTpc := self roundUp: (self roundUp: bytes * 32 to: 16r200) * device maxWarpsPerSm * device smsPerTpc to: 16r8000.
+	memory := device allocate: (self roundUp: perTpc * device tpcsPerGpc * device gpcCount to: 16r20000).
+	pb := NvPushBuffer new.
+	pb method: 16r790 subchannel: 1 address: memory gpuAddress.
+	pb method: 16r2E4 subchannel: 1 data: (Array with: (perTpc bitShift: -32) with: (perTpc bitAnd: 16rFFFFFFFF) with: 16rFF).
+	channel submitAndWait: pb.
+	localMemory isNil ifFalse: [localMemory free].
+	localMemory := memory.
+	localPerTpc := perTpc.
+	localPerThread := bytes
 !
 triple: anIntegerOrArray
 	| t |

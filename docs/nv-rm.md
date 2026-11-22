@@ -69,7 +69,8 @@ semaphore never goes back.
 
 Setup on the compute subchannel: `SET_OBJECT` (the compute class), local and shared memory windows (16r7B0, 16r2A0:
 16r729300000000, 16r729400000000), local memory (16r790 address, 16r2E4 size per TPC: 16r240 bytes per thread for
-every warp of a TPC's SMs).
+every warp of a TPC's SMs, more once a kernel's frame needs it: its QMD's local size is 16r240 plus its frame, rounded
+to 32, the stack pointer starting 16r240 below the top of the window and growing down; `localMemoryPerThread:`).
 
 Per kernel, on first launch: its code (plus 4 KB of slack: the GPU prefetches past the end) and its constant banks
 other than 0 (`__constant__` data: bank 3) are uploaded, and a QMD template and a constant bank 0 template made.
@@ -114,5 +115,4 @@ best of a few runs:
 | queued launches (1000, then one wait) | 2.8 µs each, about 355,000 per second |
 | copy16, 64 MB (read + write) | 547 µs, 245 GB/s |
 
-Not done yet: relocations, dynamic shared memory, per-launch local memory sizing beyond 16r240 bytes per thread,
-interrupts (waits poll), error notifier decoding, the copy engine.
+Not done yet: relocations, dynamic shared memory, interrupts (waits poll), error notifier decoding, the copy engine.

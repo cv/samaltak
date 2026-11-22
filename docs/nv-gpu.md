@@ -79,9 +79,12 @@ and drains first (`testFencesAcrossWrapsAndDrains`); no stall in 25 starts since
 error notifier's status. `Machine barrier` is `dmb osh` on arm64 (Linux's dma_mb: the devices' domain), no longer
 `__sync_synchronize`'s `dmb ish`.
 
-**Stack frames.** A kernel that needs local memory (a spill: `raster_batch_tiles` at 64 registers had a 24-byte frame)
-hung under NvCompute: its local memory window is not right yet. `raster_batch_tiles` is built with `__maxnreg__(128)`
-(98 registers, no frame); `tools/nv-kernels.py abi` shows each kernel's frame.
+**Stack frames.** A kernel's stack starts 16r240 bytes below the top of a thread's local window and grows down into its
+frame, so a thread's local memory must be 16r240 plus the frame. NvCompute gave every kernel 16r240: a kernel with a
+frame wrote past it (`raster_batch_tiles` with 24 bytes of spills hung; `local1k`, 1 KB, got 3000 wrong sums of 3000).
+NvCompute now sizes the QMD's local memory per kernel and grows the channel's when a kernel needs more
+(`localMemoryPerThread:`, `NvGpuTest>>testLocalMemory`). `raster_batch_tiles` stays at `__maxnreg__(128)`: no spills
+is faster.
 
 ## Tests
 

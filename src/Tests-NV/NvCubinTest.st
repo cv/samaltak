@@ -12,7 +12,7 @@ setUp
 
 !NvCubinTest methodsFor: 'tests'!
 testKernels
-	self assert: cubin kernelNames equals: #('copy16' 'dims' 'fill' 'lookup' 'reverse256' 'vadd').
+	self assert: cubin kernelNames equals: #('copy16' 'dims' 'fill' 'local1k' 'lookup' 'reverse256' 'vadd').
 	self assert: cubin smVersion equals: 121.
 	self should: [cubin kernelNamed: 'nothing'] raise: Error
 !

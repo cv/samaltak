@@ -35,6 +35,17 @@ extern "C" __global__ void __launch_bounds__(256) reverse256(unsigned *p) {
   p[base + threadIdx.x] = s[255 - threadIdx.x];
 }
 
+// p[i] = the sum of a 256-word local array filled from i, read in an order that depends on i (j := 5j + 1 mod 256
+// visits every index): a 1 KB stack frame, local memory beyond the 16r240 bytes every thread has.
+extern "C" __global__ void __launch_bounds__(256) local1k(unsigned *p, unsigned n) {
+  unsigned a[256];
+  unsigned i = blockIdx.x * blockDim.x + threadIdx.x;
+  for (int k = 0; k < 256; k++) a[k] = i * 3u + (unsigned)k;
+  unsigned s = 0, j = i & 255;
+  for (int k = 0; k < 256; k++) { s += a[j]; j = (j * 5 + 1) & 255; }
+  if (i < n) p[i] = s;
+}
+
 __constant__ unsigned table[4] = {0x11111111u, 0x22222222u, 0x33333333u, 0x44444444u};
 
 // p[i] = table[i % 4] + i for i < n: a constant bank other than 0.
