@@ -18,6 +18,9 @@ openWindow: w height: h title: aString flags: flags
 !
 closeWindow: window
 !
+keepsWindowOpen: window
+	^true
+!
 windowSize: window
 	^{width. height}
 !

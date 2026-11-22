@@ -161,8 +161,9 @@ openWindow: w height: h title: title flags: flags
 	^self display openWindow: w height: h title: title flags: flags
 !
 closeWindow: window
+	"The device lets go of the window, unless the display keeps it open: the firmware's screen is every window (a UI test's in a live World), and the World still draws on it."
 	self display closeWindow: window.
-	self device windowClosed: window
+	(self display keepsWindowOpen: window) ifFalse: [self device windowClosed: window]
 !
 windowSize: window
 	^self display windowSize: window

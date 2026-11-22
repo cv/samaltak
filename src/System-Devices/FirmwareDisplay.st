@@ -73,6 +73,10 @@ closeWindow: window
 	"The screen stays."
 	self check: window
 !
+keepsWindowOpen: window
+	"Closing the screen leaves it open: every window is it."
+	^true
+!
 windowSize: window
 	"Points: one a pixel."
 	self check: window.
