@@ -484,13 +484,16 @@ testNotes
 	| first second |
 	self assert: (conversation note: #plan put: 'step 1') equals: 'note plan: added'.
 	first := conversation items last.
+	self assert: ((first wire first at: 'content') first at: 'text') equals: '<note key="plan" by="you, not the user">
+step 1
+</note>'.
 	self assert: first kind equals: #note.
 	self assert: conversation notes equals: (Dictionary new at: 'plan' put: 'step 1'; yourself).
 	conversation note: #plan put: 'step 2'.
 	second := conversation items last.
 	self assert: first edit equals: 'superseded'.
 	self deny: first wire isEmpty.
-	self assert: (((second wire first at: 'content') first at: 'text') beginsWith: '<note key="plan" version="2" replaces="earlier">').
+	self assert: (((second wire first at: 'content') first at: 'text') beginsWith: '<note key="plan" by="you, not the user" version="2" replaces="earlier">').
 	self assert: conversation notes equals: (Dictionary new at: 'plan' put: 'step 2'; yourself).
 	conversation dropNotes: true.
 	self assert: first wire isEmpty.
@@ -507,6 +510,7 @@ testPressureNotice
 	conversation ask: 'one'; wait.
 	self assert: (conversation items collect: [:each | each kind]) asArray equals: #(#user #assistant #notice).
 	self assert: (conversation items last text beginsWith: 'Context: 66% of the 0K-token window (100 tokens).').
+	self assert: (((conversation items last wire first at: 'content') first at: 'text') beginsWith: '[Notice from Samaltak, not the user: Context: 66%').
 	self assert: conversation lastText equals: 'One.'.
 	provider reply: (Array with: (self message: 'Two.')).
 	conversation ask: 'two'; wait.

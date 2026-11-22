@@ -487,7 +487,7 @@ stage: edits doing: aString
 	^aString, ': ~', before printString, ' → ~', after printString, ' tokens, applied'
 !
 note: aKey put: aStringOrNil
-	"Stage a working note under aKey, sent at the end of the context as <note key=…>; a later one under the same key replaces it, nil removes it. Answer a receipt."
+	"Stage a working note under aKey, sent at the end of the context as <note key=…> marked as yours, not the user's (it travels in a user message); a later one under the same key replaces it, nil removes it. Answer a receipt."
 	| key version text item |
 	key := aKey asString.
 	(key notEmpty and: [key size <= 64 and: [key allSatisfy: [:ch | ch isLetter or: [ch isDigit or: ['._-' includes: ch]]]]])
@@ -498,8 +498,8 @@ note: aKey put: aStringOrNil
 	version := (items select: [:each | each kind == #note and: [each key = key]]) size
 		+ (self stagedEdits select: [:each | each first kind == #note and: [each first key = key]]) size + 1.
 	text := aStringOrNil isNil
-		ifTrue: ['<note key="', key, '" removed="true"/>']
-		ifFalse: ['<note key="', key, '"', (version > 1 ifTrue: [' version="', version printString, '" replaces="earlier"'] ifFalse: ['']), '>', String lf, aStringOrNil, String lf, '</note>'].
+		ifTrue: ['<note key="', key, '" by="you, not the user" removed="true"/>']
+		ifFalse: ['<note key="', key, '"', ' by="you, not the user"', (version > 1 ifTrue: [' version="', version printString, '" replaces="earlier"'] ifFalse: ['']), '>', String lf, aStringOrNil, String lf, '</note>'].
 	item := (AgentItem kind: #note text: 'Note ', key, ': ', (aStringOrNil ifNil: ['removed']))
 		wire: (Array with: (AgentItem message: 'user' text: text)); yourself.
 	item key: key; object: aStringOrNil.
@@ -579,5 +579,5 @@ noticePressure
 	(noticed notNil and: [noticed >= threshold]) ifTrue: [^self].
 	noticed := threshold.
 	text := 'Context: ', (tokens * 100 // window) printString, '% of the ', (window // 1000) printString, 'K-token window (', tokens printString, ' tokens). thisConversation outline lists the items by size; elide:reason:, summarize:to:as: and note:put: shrink what is sent.'.
-	self add: ((AgentItem kind: #notice text: text) wire: (Array with: (AgentItem message: 'user' text: '[', text, ']')); yourself)
+	self add: ((AgentItem kind: #notice text: text) wire: (Array with: (AgentItem message: 'user' text: '[Notice from Samaltak, not the user: ', text, ']')); yourself)
 ! !
