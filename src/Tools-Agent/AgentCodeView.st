@@ -53,7 +53,7 @@ drawSelfOn: aCanvas
 	aCanvas fillRect: box color: self theme paper.
 	aCanvas strokeRect: box color: self theme ink width: 1.
 	x := box left + 8.
-	aCanvas drawString: 'Code-mode' at: x @ 4 font: (self theme font: #header) color: self theme ink.
+	aCanvas drawString: self title at: x @ 4 font: (self theme font: #header) color: self theme ink.
 	aCanvas fillRect: (box left @ (self headerHeight - 1) extent: box width @ 1) color: self theme rule.
 	aCanvas clip: (box insetBy: 1) during: [
 		y := self drawSourceAt: x @ (self headerHeight + 3) on: aCanvas.
@@ -93,4 +93,8 @@ drawResultAt: aPoint on: aCanvas
 	self resultLines do: [:line |
 		aCanvas drawString: line at: x @ y font: (item result isNil ifTrue: [self theme font: #smallItalic] ifFalse: [font]) color: self theme ink.
 		y := y + font lineHeight]
+!
+title
+	"The header: the tool that ran me."
+	^item kind == #tests ifTrue: ['Run-tests'] ifFalse: ['Code-mode']
 ! !

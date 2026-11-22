@@ -23,5 +23,5 @@ run: aCallDictionary in: anAgentConversation
 !AgentTool class methodsFor: 'instances'!
 all
 	"A fresh instance of every tool (a conversation owns its tools)."
-	^Array with: CodeModeTool new with: ShowObjectTool new
+	^Array with: CodeModeTool new with: ShowObjectTool new with: RunTestsTool new
 ! !
