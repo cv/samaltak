@@ -41,6 +41,10 @@ windowDisplayScale: window
 !
 presentWindow: window pixels: address width: w height: h
 	frames add: {window. w. h. Machine bytesAt: address count: w * h * 4}
+!
+presentWindow: window pixels: address width: w height: h rects: anArray
+	"Damage-limited: the frame and the rectangles that changed."
+	frames add: {window. w. h. Machine bytesAt: address count: w * h * 4. anArray}
 ! !
 
 TestCase subclass: #SoftwareGPUTest
@@ -565,6 +569,30 @@ testClearAndAFence
 	self assert: (self pixelsOf: t) equals: (Array new: 4 withAll: (self word: 255 g: 128 b: 0 a: 255)).
 	gpu release: f.
 	self failure: [gpu fenceDone: f] is: 'bad fence handle ' , f printString
+!
+testPresentDamageKeepsTheBackBuffer
+	"The back buffer keeps the last frame: a frame that blits and presents only its damage hands the display those rectangles."
+	| cmd sw tex |
+	gpu claim: dev window: 1.
+	self assert: (gpu swapchainKeepsContents: dev window: 1).
+	tex := gpu createTexture: dev width: 6 height: 4 format: 2 usage: 3.
+	gpu uploadTexture: tex bytes: (ByteArray new: 96 withAll: 200) x: 0 y: 0 width: 6 height: 4 bytesPerRow: 24.
+	cmd := gpu acquireCommandBuffer: dev.
+	sw := gpu acquireSwapchain: cmd window: 1.
+	gpu blit: cmd source: tex rect: #(0 0 6 4) destination: sw first rect: #(0 0 6 4) linear: false.
+	gpu submit: cmd fence: false.
+	self assert: display frames last size equals: 4.
+	gpu uploadTexture: tex bytes: (ByteArray new: 4 withAll: 9) x: 2 y: 1 width: 1 height: 1 bytesPerRow: 4.
+	cmd := gpu acquireCommandBuffer: dev.
+	sw := gpu acquireSwapchain: cmd window: 1.
+	gpu blit: cmd source: tex rect: #(2 1 1 1) destination: sw first rect: #(2 1 1 1) linear: false.
+	gpu presentDamage: cmd rects: #(#(2 1 1 1)).
+	gpu submit: cmd fence: false.
+	self assert: display frames size equals: 2.
+	self assert: display frames last last equals: #(#(2 1 1 1)).
+	"the pixel blitted, the rest kept from the first frame"
+	self assert: ((display frames last at: 4) copyFrom: 1 * 24 + 9 to: 1 * 24 + 12) equals: #[9 9 9 9].
+	self assert: ((display frames last at: 4) copyFrom: 1 to: 4) equals: #[200 200 200 200]
 !
 testTheSwapchainIsPresentedOnSubmit
 	| cmd sw pass buf frame |

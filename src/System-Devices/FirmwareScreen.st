@@ -3,7 +3,7 @@ Object subclass: #FirmwareScreen
 	classVariableNames: 'Arrow'
 	package: 'System-Devices'!
 
-FirmwareScreen comment: 'I am the screen: the firmware''s graphics output (EFI_GRAPHICS_OUTPUT_PROTOCOL, UEFI 2.10, 12.9) in its mode of the size the window is opened with, else the mode it booted with, written straight into its linear framebuffer, or, where the mode has none (PixelBltOnly, as edk2''s VirtioGpuDxe on QEMU''s virtio-gpu, which has the large modes such as 1920x1080), through the protocol''s Blt (EfiBltBufferToVideo) from the shadow copy. present:width:height: takes a whole frame (BGRA8 rows), keeps it in a shadow copy and draws the pointer, an arrow, over it; moving the pointer restores what was under it from the shadow copy, so it moves without a new frame. Once I draw, the firmware''s text console is silenced (its OutputString is its TestString): it would draw over me.'!
+FirmwareScreen comment: 'I am the screen: the firmware''s graphics output (EFI_GRAPHICS_OUTPUT_PROTOCOL, UEFI 2.10, 12.9) in its mode of the size the window is opened with, else the mode it booted with, written straight into its linear framebuffer, or, where the mode has none (PixelBltOnly, as edk2''s VirtioGpuDxe on QEMU''s virtio-gpu, which has the large modes such as 1920x1080), through the protocol''s Blt (EfiBltBufferToVideo) from the shadow copy. present:width:height: takes a whole frame (BGRA8 rows), keeps it in a shadow copy and draws the pointer, an arrow, over it (present:width:height:rects: only the rectangles that changed since the last frame: copies them into the shadow copy and Blts each, the firmware then transfers only them); moving the pointer restores what was under it from the shadow copy, so it moves without a new frame. Once I draw, the firmware''s text console is silenced (its OutputString is its TestString): it would draw over me.'!
 
 !FirmwareScreen methodsFor: 'starting'!
 setFirmware: aFirmware
@@ -81,6 +81,29 @@ present: pixels width: w height: h
 		self copyToScreen: (0 @ 0 extent: width @ height).
 		s isNil ifFalse: [s add: #'screen.blt' since: t bytes: width * height * 4].
 		self drawCursor]
+!
+present: pixels width: w height: h rects: anArray
+	"Only the rectangles anArray ({x. y. width. height} pixels) of the frame at pixels changed since the last one presented: copy them into the shadow copy and onto the screen, the pointer again over them where it was."
+	| s t area rects |
+	width isNil ifTrue: [^self].
+	s := StageTimes current.
+	lock critical: [
+		s isNil ifFalse: [t := Time microsecondClockValue].
+		area := 0.
+		rects := OrderedCollection new.
+		anArray do: [:each | | r |
+			r := ((each at: 1) @ (each at: 2) extent: (each at: 3) @ (each at: 4)) intersect: (0 @ 0 extent: (w min: width) @ (h min: height)).
+			(r width > 0 and: [r height > 0]) ifTrue: [
+				SoftwareRaster
+					copy: shadow + ((r top * width + r left) * 4) stride: width * 4
+					from: pixels + ((r top * w + r left) * 4) stride: w * 4
+					width: r width height: r height bytesPerPixel: 4 mode: 0.
+				area := area + r area.
+				rects add: r]].
+		s isNil ifFalse: [t := s add: #'screen.shadow' since: t bytes: area * 4].
+		rects do: [:r | self copyToScreen: r].
+		s isNil ifFalse: [s add: #'screen.blt' since: t bytes: area * 4].
+		(rects anySatisfy: [:r | r intersects: (cursor extent: Arrow first size @ Arrow size)]) ifTrue: [self drawCursor]]
 !
 copyToScreen: aRectangle
 	"Shadow pixels of aRectangle (clipped) to the screen."

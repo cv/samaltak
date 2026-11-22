@@ -112,6 +112,11 @@ presentWindow: window pixels: address width: w height: h
 	self check: window.
 	screen present: address width: w height: h
 !
+presentWindow: window pixels: address width: w height: h rects: anArray
+	"A frame of the window of which only the rectangles anArray ({x. y. width. height}) changed since the last one presented."
+	self check: window.
+	screen present: address width: w height: h rects: anArray
+!
 setCursor: kind
 	"The arrow whatever the kind."
 	^self
