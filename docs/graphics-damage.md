@@ -40,13 +40,13 @@ before it ("today" there means then); this one says what changed and measures th
 | Stage | Now |
 | --- | --- |
 | Damage | A `DamageRegion` (Graphics-Canvas): device-pixel rectangles clipped to the target, merged when they overlap or lie within 16 px and their union wastes at most a quarter of itself (a typed word joins, a dragged window keeps its old and new rectangle), at most 8 (the cheapest pair merges), full past half the target. |
-| Where damage comes from | From the display lists, not from `View>>invalidate`: `DisplayListDiff` compares a new list with the one drawn (64-quad byte compares through the `stringCompare` primitive, `ByteArray>>compareBytes:`; equal prefix and suffix skipped; equal counts compared place by place) and damages the old and new bounds of the quads that differ, with their batch's move and clip. A `Form` changed in place damages its image and glyph quads (`Form>>contentVersion`); a `Surface` in a content list always damages its quads. Every vertex byte is now written (solid, pattern and line quads left some), so equal drawings in a reused buffer compare equal. About 55 µs for a 1,500-quad list with one change. |
+| Where damage comes from | From the display lists, not from `View>>invalidate`: `DisplayListDiff` compares a new list with the one drawn (byte ranges compared in place by the `bytesMismatch` primitives, see Refinements; equal prefix and suffix skipped; equal counts compared place by place) and damages the old and new bounds of the quads that differ, with their batch's move and clip. A `Form` changed in place damages its image and glyph quads (`Form>>contentVersion`); a `Surface` in a content list always damages its quads. Every vertex byte is now written (solid, pattern and line quads left some), so equal drawings in a reused buffer compare equal. About 55 µs for a 1,500-quad list with one change at first, 12–17 µs since the refinements. |
 | Layer render | The surface is kept; a changed layer fills only the damage with its clear color and draws its lists scissored to it (`Renderer>>render:into:clear:commandBuffer:within:`, `fill:color:into:commandBuffer:`), pixel-identical to drawing everything. Whole after `markNeedsRender` (new pipeline), at a new size, on a new surface, with a clear color that is not opaque, or past half. `Layer>>lastDamage` says what it changed. |
 | Composite | The compositor notes each item it draws (desk, every window with its shadow and decorations, top bar, overlays, toasts, tooltip, curtain, pointer) and diffs it with the same item of the previous frame; a layer rendered in part adds its damage where it lands (1:1, a pixel around), else the window's bounds; items whose order changed damage both bounds. The composite list goes into two buffers in turn, so the previous frame's stays to compare. |
 | When to present | Only frames with damage (`Compositor>>presentedCount`; `frameCount` counts every frame composed, for `World>>waitForFrames:`). `World presentsContinuously: true` presents every tick again (measurements). The top bar's readout and sparkline refresh at most twice a second, and a frame made only for them is not counted in them, so they settle. |
 | DisplayWindow>>show:clear:damage: | The surface keeps the last frame; the damage is filled and rendered scissored. SDL_GPU's swapchain does not keep its images: the whole surface is blitted (on the GPU). A software GPU's back buffer does (`GPUSwapchain>>keepsContents`): only the rectangles are blitted and `GPUCommandBuffer>>presentDamage:` hands them to the present. |
 | NV | Composite and blit only the damage (raster kernels); `HostFramePresenter` uploads only the rectangles into the texture that holds the last frame. |
-| UEFI | SoftwareGPU renders and blits only the damage; `FirmwareScreen>>present:width:height:rects:` copies only the rectangles into the shadow copy and Blts each. |
+| UEFI | SoftwareGPU renders and blits only the damage; `FirmwareScreen>>present:width:height:rects:` copies only the rectangles into the shadow copy and Blts each (at most four since the refinements). |
 | Vertex buffer | The Renderer's vertex buffer is a ring (4 MB): uploads into ranges a submitted command buffer still reads raced on the GB10's Vulkan (whole frames hid it; kept pixels do not). |
 
 **Correctness.** `DamageCheck start` (UI-Windows) renders every frame drawn in part whole into a scratch surface and
@@ -135,11 +135,133 @@ instead of 8.1 MB; the present path's CPU per second drops 2.5–6x (SDL_GPU) an
 CPU in `layer.render` hosted: 85–690 µs a frame instead of 10–150, the display list diffs in Smalltalk and drawing in
 pieces, where the GPU would have drawn the whole layer for less; on UEFI the two balance.
 
-**Left.** A primitive comparing byte ranges in place (the diff copies 64-quad chunks into scratch ByteArrays to compare
-them); damage from the views themselves (Window>>redraw knows which views drew anew) instead of diffing whole lists;
-culling the batches outside a damage rectangle on the CPU before encoding them once per rectangle; fewer, larger Blts on
-UEFI (merge to ≈ 4); subtracting opaque windows above a damaged one; SDL_GPU offers no partial present
-(VK_KHR_incremental_present), so its blit stays whole.
+**Left.** Done since (next section): comparing byte ranges in place, fewer and larger Blts on UEFI, subtracting
+opaque windows above a damaged item, culling batches outside a damage rectangle on the CPU. Still left: damage from the
+views themselves (see the next section's end); SDL_GPU offers no partial present (VK_KHR_incremental_present), so its
+blit stays whole.
+
+## Refinements: diffs in place, fewer Blts, occlusion, culling
+
+| Change | What |
+| --- | --- |
+| Diffs in place | Two VM primitives, `bytesMismatch` and `bytesLastMismatch` (`ByteArray>>indexOfMismatchAt:with:at:size:`, `lastIndexOfMismatchAt:with:at:size:`): where two ranges of byte or word objects first or last differ, 16 bytes at a time through ByteSearch's NEON/SSE2 blocks (`mismatchOf:with:from:size:`, and `lastMismatchOf:with:size:`, new, with `lastOf:` on the blocks). `DisplayListDiff` finds the first or last differing quad of a whole run with one call instead of copying 64-quad chunks into scratch ByteArrays and halving. It also joins the bounds of quads damaged one after another while their union wastes little (DamageRegion's rule) before they reach the region (whose `insert:` was a third of the diff), finds a run's batches by halves (a composite item is a few of the list's many batches) and hands the batches it already knows to the quads it damages. |
+| Stage times | `layer.diff` (inside `layer.render`) and `composite.diff` (`Compositor>>damageOf:items:rendered:`). |
+| UEFI Blts | `FirmwareScreen class>>mergeBlts:`: a frame's rectangles go as at most four Blts; two whose union adds fewer than 40,000 pixels (≈ the 44 µs a call costs, at 0.6 ns a pixel and the shadow copy) always go as one, beyond four the pair that wastes least merges. Exact: the back buffer holds the whole frame. |
+| Occlusion | `Compositor>>occludersIn:old:`: windows drawn 1:1 at opacity 1 whose surface is cleared with an opaque color (premultiplied blending keeps it opaque), present in the last frame too, inset by a pixel. An item's damage (its diff and its layer's damage) is collected apart and loses what the occluders above it in every frame it is in cover (`damageInto:using:below:old:occluders:during:`): such a pixel shows that window before and after, and what changes in it is that window's own damage. |
+| Culling | `DisplayList>>boundsOfBatch:` (kept per list) from a third primitive, `rasterQuadBounds` (PlatformRaster: 3 µs for 1,300 quads, 150 µs in Smalltalk); `Renderer>>render:into:clear:commandBuffer:within:` draws a batch for a damage rectangle only if its quads reach it, with its clip cut to them, on every GPU (NvComputeGPU and SoftwareGPU skip the draws, the kernels and rasterizers see smaller clips). |
+
+**Correctness.** DisplayListDiffTest, DamageRegionTest and DamageCompositionTest (with a new test: lines streamed under
+an opaque window present nothing; it fails with occlusion switched off) pass with no mismatch on SDL_GPU,
+`--gpu software` and `--gpu nv`; the UEFI World at 1920x1080 on virtio-gpu (typing, scrolling, dragging, an Agent
+window streaming over the others, typing under it) checked by DamageCheck: 490 frames, 301 layer renders, 490 presents,
+no mismatch. Known flakes on the GB10 hosted, the same before these changes: the NV host texture or a Surface read
+back stale once in a few runs (DamageCompositionTest's presents, DisplayListDiffTest's whole-render comparison), and
+CompositorTest>>testFocusedTitleBarHasStripesAndTab, testFrameRecordsAreRecorded, SlowMotionTest under load (they pass
+on lavapipe). `make test-nv` links its C reference again (it had not since the multi-CPU raster).
+
+**The diff's CPU.** The scenarios' wall-clock stage times move by more than the diff's cost from run to run on the
+shared machine (load 4–38), so the diffs were also replayed: the layer list pairs the compositor diffed during the
+scenarios, recorded (Layer>>damageFor: patched in the running image) and diffed again 20 times each in the same image,
+before (origin/main e95b8a4 with the two stage counters) and after:
+
+| phase | diffs | quads (new list) | µs a diff before → after |
+| --- | --- | --- | --- |
+| idle-caret | 16 | 425 | 29.6 → 11.7 |
+| typing | 107–109 | 180 | 15.4 → 5.5 |
+| scroll-list | 25–27 | 790 | 135.6 → 75.7 |
+| hover | 32 | 733 | 102.1 → 63.3 |
+| agent-open | 15 | 431 | 12.0 → 6.1 |
+| agent-stream | 203–205 | 574 | 15.3 → 10.5 |
+
+A 1,297-quad list of 36 text rows: equal 27 → 12 µs, one glyph changed 24 → 17, text appended 21 → 10, six rows
+recolored (270 glyphs damaged) 192 → 76. What is left in scrolling and hovering is the damaged quads themselves (most
+of the list's quads move). The scenarios, hosted SDL_GPU, both images at once on the same machine, µs a presented frame
+(wall clock, indicative):
+
+| scenario | frames/ticks | layer.diff µs | layer.render µs | composite.diff µs |
+| --- | --- | --- | --- | --- |
+| idle-caret | 48/188 → 50/185 | 76 → 54 | 131 → 115 | 141 → 124 |
+| typing | 99/284 → 100/286 | 58 → 72 | 191 → 245 | 174 → 144 |
+| idle-after | 12/68 → 11/67 | 57 → 38 | 138 → 100 | 162 → 224 |
+| scroll-list | 32/72 → 33/83 | 204 → 205 | 314 → 348 | 148 → 156 |
+| hover | 34/113 → 34/111 | 223 → 179 | 357 → 288 | 139 → 97 |
+| drag-window | 86/90 → 88/90 | 11 → 7 | 26 → 19 | 163 → 111 |
+| agent-open | 24/105 → 23/103 | 60 → 72 | 243 → 217 | 131 → 156 |
+| agent-stream | 200/394 → 199/389 | 63 → 53 | 155 → 133 | 73 → 55 |
+| idle-end | 18/126 → 19/127 | 71 → 62 | 158 → 165 | 110 → 103 |
+
+**Occlusion, Blts and culling, A/B.** The same build, each feature switched off for A by recompiling
+`occludersIn:old:`, `FirmwareScreen class>>mergeBlts:` and `DisplayList>>boundsOfBatch:` in the running image (B: as
+built); hosted A and B ran at once. The hosted World has six windows besides the scenario's (Transcript, Process
+Browser, Mandelbrot, an Inspector, a second browser), some updating under the scenario's windows: that is what occlusion
+removes. µs and KB a presented frame.
+
+(a) SDL_GPU (composite.render is encoding; its KB the pixels drawn):
+
+| scenario | frames/ticks | composite.diff µs | composite.render µs | composite.render KB |
+| --- | --- | --- | --- | --- |
+| idle-caret | 52/187 → 50/186 | 142 → 213 | 100 → 182 | 168 → 31 |
+| typing | 99/287 → 101/286 | 227 → 311 | 122 → 137 | 124 → 27 |
+| idle-after | 12/66 → 12/67 | 234 → 174 | 124 → 101 | 205 → 29 |
+| scroll-list | 33/81 → 38/90 | 298 → 216 | 229 → 95 | 182 → 84 |
+| hover | 34/110 → 34/110 | 107 → 159 | 85 → 90 | 285 → 142 |
+| drag-window | 90/94 → 92/96 | 118 → 148 | 117 → 115 | 1212 → 1153 |
+| agent-open | 21/108 → 23/106 | 131 → 196 | 86 → 188 | 1045 → 826 |
+| agent-stream | 204/394 → 206/394 | 84 → 87 | 76 → 63 | 169 → 115 |
+| idle-end | 17/128 → 19/129 | 118 → 137 | 82 → 101 | 75 → 3 |
+
+Over the run: composite KB a frame 375 → 287, composite.render 104 → 105 µs a frame, composite.diff 94 → 113 µs a call.
+
+(b) NV:
+
+| scenario | frames/ticks | composite.diff µs | composite.render µs | nv.wait µs | host.upload µs | host.upload KB |
+| --- | --- | --- | --- | --- | --- | --- |
+| idle-caret | 53/188 → 52/188 | 156 → 176 | 349 → 327 | 65 → 39 | 52 → 42 | 148 → 30 |
+| typing | 96/284 → 100/284 | 188 → 321 | 200 → 287 | 81 → 56 | 53 → 43 | 155 → 25 |
+| idle-after | 11/68 → 11/70 | 187 → 369 | 468 → 285 | 67 → 48 | 53 → 42 | 226 → 31 |
+| scroll-list | 31/102 → 35/86 | 235 → 232 | 262 → 471 | 78 → 49 | 67 → 54 | 232 → 82 |
+| hover | 32/129 → 33/125 | 128 → 169 | 239 → 218 | 69 → 50 | 101 → 75 | 333 → 128 |
+| drag-window | 95/99 → 95/99 | 167 → 176 | 423 → 407 | 123 → 119 | 201 → 190 | 1186 → 1120 |
+| agent-open | 22/107 → 23/109 | 249 → 146 | 290 → 337 | 122 → 106 | 185 → 148 | 1053 → 811 |
+| agent-stream | 207/394 → 205/397 | 97 → 118 | 214 → 208 | 53 → 45 | 63 → 55 | 165 → 122 |
+| idle-end | 18/129 → 18/128 | 162 → 134 | 229 → 236 | 67 → 50 | 62 → 50 | 138 → 39 |
+
+Over the run: composite and upload KB a frame 390 → 290, nv.wait 76 → 62 µs, host.upload 90 → 78 µs, composite.render
+(encoding the draws) 272 → 291 µs, composite.diff 96 → 126 µs a call.
+
+(c) UEFI, virtio-gpu 1920x1080, KVM (A and B one after the other):
+
+| scenario | frames/ticks | composite.diff µs | composite.render µs | screen.blt µs | screen.blt KB |
+| --- | --- | --- | --- | --- | --- |
+| idle-caret | 32/189 → 49/188 | 103 → 241 | 107 → 85 | 393 → 646 | 87 → 19 |
+| typing | 103/411 → 119/412 | 184 → 191 | 173 → 87 | 574 → 314 | 132 → 15 |
+| idle-after | 10/65 → 11/69 | 83 → 101 | 109 → 71 | 423 → 417 | 126 → 24 |
+| scroll-list | 285/1733 → 268/1570 | 99 → 137 | 134 → 96 | 452 → 308 | 140 → 49 |
+| hover | 301/1921 → 193/1055 | 74 → 110 | 135 → 79 | 432 → 461 | 145 → 58 |
+| drag-window | 128/360 → 102/142 | 98 → 117 | 424 → 490 | 520 → 487 | 879 → 1043 |
+| agent-open | 22/108 → 22/111 | 81 → 128 | 1021 → 950 | 508 → 1125 | 907 → 757 |
+| agent-stream | 245/631 → 248/633 | 61 → 81 | 118 → 79 | 329 → 468 | 162 → 100 |
+| idle-end | 17/129 → 19/128 | 83 → 107 | 88 → 79 | 256 → 256 | 73 → 59 |
+
+Over the run: composite KB a frame 244 → 166, composite.render 182 → 144 µs, composite.blit 47 → 43, screen.shadow
+26 → 25, composite.diff 65 → 89 µs a call. screen.blt a frame is dominated by the latency of the calls, which varied by
+half between runs (B once 316 µs a frame, once 426, against A's 434): Blt bytes fell 244 → 174 KB a frame.
+
+**In short.** A layer's diff costs 1.5–2.8x less CPU (typing 5.5 µs, a streamed delta in the 720x700 Agent window
+10.5 µs). Occlusion takes a quarter to a third of the composited pixels away when windows update under others; on UEFI
+the composite costs a fifth less, on NV the GPU wait and upload an eighth to a sixth less. The price is in
+composite.diff: 20–30 µs a frame of bookkeeping (occluders, the items' damage collected apart). Culling pays on the
+software and NV rasterizers only with its primitive (in Smalltalk the bounds cost more than the draws they skip).
+
+**Damage from the views (not done).** After the above, diffing a big window is cheap where little changes (5–11 µs a
+typed character or a streamed delta for 180–575 quads) and where much changes the damaged quads are the cost, which
+damage from the views would not avoid (a scrolled list's view redraws all its rows). So the layer diff stays.
+Damage from the views would need: Window>>redraw to publish, with the list, the union of the bounds of the views drawn
+anew and of the replayed segments that moved (Canvas>>replay: knows them), the Layer to accumulate it until rendered,
+and care where it is not enough (a Form changed in place, a view drawing outside its bounds, clips that change). What
+costs more now is composite.diff, 65–125 µs a frame: the composite list is new each frame and every item is diffed
+(runs found and allocated, damage regions per occluded item); keeping the items' runs and comparing only items whose
+bytes moved would be the next step.
 
 
 ## What is damage-limited today, and what is not
