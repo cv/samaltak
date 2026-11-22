@@ -11,11 +11,15 @@ timeLimitMilliseconds
 ! !
 
 !ByteSearchTest methodsFor: 'helpers'!
-pointerTo: aByteArray in: aSimulation
+place: aByteArray in: aSimulation
+	"Its address in aSimulation's memory, a segment of its own (a 64 KB page: free it after use, or thousands of them fill a small heap)."
 	| a |
 	a := aSimulation memory allocate: aByteArray size.
 	aSimulation memory bytesAt: a put: aByteArray.
-	^aSimulation memory pointerTo: (CTypeRegistry default at: 'uint8_t') at: a
+	^a
+!
+pointerAt: anAddress in: aSimulation
+	^aSimulation memory pointerTo: (CTypeRegistry default at: 'uint8_t') at: anAddress
 !
 naiveIndexOf: needle in: haystack from: start
 	start to: haystack size - needle size do: [:i |
@@ -30,9 +34,10 @@ searchWith: aBlocksClass
 	random := Random seed: 1234.
 	#(0 1 2 7 8 9 15 16 17 18 23 24 31 32 33 40 47 48 49 70) do: [:n |
 		#(1 2 3 256) do: [:k |
-			| haystack a |
+			| haystack address a |
 			haystack := ((1 to: n) collect: [:i | 253 + (random nextInt: k) \\ 256]) asByteArray.
-			a := self pointerTo: haystack in: sim.
+			address := self place: haystack in: sim.
+			a := self pointerAt: address in: sim.
 			((#(1 2 3 8 9 16 17 19 20) , {n - 1. n. n + 1}) select: [:m | m between: 1 and: n + 1]) asSet do: [:m |
 				| last needles |
 				last := n - m.
@@ -48,8 +53,9 @@ searchWith: aBlocksClass
 							needle at: j put: (needle at: j) + 1 \\ 256.
 							needles add: needle]]].
 				needles do: [:needle |
-					| b |
-					b := self pointerTo: needle in: sim.
+					| needleAddress b |
+					needleAddress := self place: needle in: sim.
+					b := self pointerAt: needleAddress in: sim.
 					({0. 1. random nextInt: n + 1. last. last + 1. n + 1} select: [:s | s >= 0]) asSet do: [:s |
 						self
 							assert: (search indexOfBytes: b size: m in: a size: n from: s)
@@ -59,7 +65,9 @@ searchWith: aBlocksClass
 							s >= 0 ifTrue: [
 								self
 									assert: (search indexOfByte: needle first in: a size: n from: s)
-									equals: (self naiveIndexOf: needle in: haystack from: s)]]]]]]]
+									equals: (self naiveIndexOf: needle in: haystack from: s)]]].
+					sim memory free: needleAddress]].
+			sim memory free: address]]
 ! !
 
 !ByteSearchTest methodsFor: 'tests'!
