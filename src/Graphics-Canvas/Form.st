@@ -32,6 +32,10 @@ version
 changed
 	"Note that bits were modified directly."
 	version := version + 1
+!
+contentVersion
+	"What changes whenever the pixels I show do (DisplayListDiff's stamp for my quads): my version; a Form showing another's pixels answers that one's."
+	^version
 ! !
 
 !Form methodsFor: 'pixels'!

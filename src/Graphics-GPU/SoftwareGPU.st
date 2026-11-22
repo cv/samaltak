@@ -1,5 +1,5 @@
 Object subclass: #SoftwareGPU
-	instanceVariableNames: 'display objects free claims'
+	instanceVariableNames: 'display objects free claims damage'
 	classVariableNames: 'RendererAttributes'
 	package: 'Graphics-GPU'!
 
@@ -14,7 +14,8 @@ setDisplay: aDisplay
 	display := aDisplay.
 	objects := OrderedCollection new.
 	free := OrderedCollection new.
-	claims := Dictionary new
+	claims := Dictionary new.
+	damage := Dictionary new
 ! !
 
 !SoftwareGPU methodsFor: 'private'!
@@ -117,6 +118,11 @@ swapchainFormat: dev window: window
 !
 waitIdle: dev
 	self device: dev for: 'gpuWaitIdle'
+!
+swapchainKeepsContents: dev window: window
+	"A back buffer keeps its pixels from frame to frame (until the window's size changes)."
+	self device: dev for: 'gpuSwapchainKeepsContents'.
+	^true
 !
 windowClosed: window
 	"Release window from the device that claimed it, and its back buffer; tell my display."
@@ -334,19 +340,25 @@ blit: cmd source: src rect: srcRect destination: dst rect: dstRect linear: aBool
 	self charge: cmd since: t0
 !
 submit: cmd fence: wantFence
-	"Present the swapchain textures cmd acquired; a fence (done already: the µs cmd's work took), or nil."
-	| c busy |
+	"Present the swapchain textures cmd acquired (only the rectangles presentDamage:rects: gave, if it was sent); a fence (done already: the µs cmd's work took), or nil."
+	| c busy rects |
 	c := self at: cmd kind: #commandBuffer for: 'gpuSubmit'.
 	busy := c size.
+	rects := damage removeKey: cmd ifAbsent: [nil].
 	c owned do: [:each | | o |
 		o := each value.
 		((objects at: each key) == o and: [o kind == #swapchain]) ifTrue: [
 			(claims at: o extra ifAbsent: [nil]) ifNotNil: [:claim |
-				claim address = o address ifTrue: [self present: o]]]].
+				claim address = o address ifTrue: [self present: o rects: rects]]]].
 	self dropPassesOf: cmd.
 	self drop: cmd.
 	wantFence ifFalse: [^nil].
 	^self add: ((SoftwareGPUObject kind: #fence) device: c device; size: busy; yourself)
+!
+presentDamage: cmd rects: anArray
+	"Present only these rectangles ({x. y. width. height}) of the back buffers cmd acquired: the rest is as the last frame left it."
+	self at: cmd kind: #commandBuffer for: 'gpuPresentDamage'.
+	damage at: cmd put: anArray
 !
 waitFence: fence
 	self at: fence kind: #fence for: 'gpuWaitFence'
@@ -391,6 +403,12 @@ blit: sourceSurface rect: sourceRect to: destinationSurface rect: destinationRec
 !
 present: aSwapchainTexture
 	"Show the back buffer aSwapchainTexture (a #swapchain object) on my display."
+	self present: aSwapchainTexture rects: nil
+!
+present: aSwapchainTexture rects: scissorsOrNil
+	"Show the back buffer aSwapchainTexture (a #swapchain object) on my display: only the rectangles scissorsOrNil changed, if my display can present those alone (presentWindow:pixels:width:height:rects:)."
+	(scissorsOrNil notNil and: [display respondsTo: #presentWindow:pixels:width:height:rects:]) ifTrue: [
+		^display presentWindow: aSwapchainTexture extra pixels: aSwapchainTexture address width: aSwapchainTexture width height: aSwapchainTexture height rects: scissorsOrNil].
 	display presentWindow: aSwapchainTexture extra pixels: aSwapchainTexture address width: aSwapchainTexture width height: aSwapchainTexture height
 ! !
 

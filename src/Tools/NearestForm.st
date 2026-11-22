@@ -19,6 +19,9 @@ textureOn: aDevice
 	version := source version.
 	^super textureOn: aDevice
 !
+contentVersion
+	^source version
+!
 isLinearFiltered
 	^false
 ! !

@@ -1,6 +1,6 @@
 Object subclass: #World
 	instanceVariableNames: 'displayWindow extent scale windows overlays activeWindow compositor dispatcher topBar toasts tooltip lock windowCounter closingWindows needsFrame remotePointer hidden imageName clipboardText running curtain closingFrontWindows'
-	classVariableNames: 'Current HelpHandler UserInterruptHandler WorldMenuBuilder QuitHandler'
+	classVariableNames: 'Current HelpHandler UserInterruptHandler WorldMenuBuilder QuitHandler PresentsContinuously'
 	package: 'UI-Windows'!
 
 World comment: 'I am the desktop: the host window (a DisplayWindow), the halftone desk, the windows (z-order, front to back), the active window, the top bar, and the overlays (menus, toasts, the tooltip, the remote pointer). The Compositor (priority 70, vsync) draws me; the InputDispatcher (priority 60) routes input and moves and resizes windows. World current is the running one.
@@ -118,8 +118,8 @@ showsTopBar
 	^true
 !
 presentsContinuously
-	"Whether the compositor presents on every tick, changed or not: on screen, so the top bar's frame times stay live and a frame is always in flight. An AppWorld presents only what changed."
-	^hidden not
+	"Whether the compositor presents on every tick, changed or not: on screen when asked to (World presentsContinuously: true, to measure the present path); by default it presents only frames that change the screen. An AppWorld presents only what changed."
+	^hidden not and: [PresentsContinuously == true]
 ! !
 
 !World methodsFor: 'windows'!
@@ -515,6 +515,10 @@ printOn: aStream
 ! !
 
 !World class methodsFor: 'accessing'!
+presentsContinuously: aBoolean
+	"true: the compositors of Worlds on screen present every tick, whether anything changed or not (measurements); false (the default): only frames that change the screen."
+	PresentsContinuously := aBoolean
+!
 current
 	^Current
 !

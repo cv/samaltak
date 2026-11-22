@@ -325,7 +325,7 @@ region: aDamageRegion
 !DisplayListDiff class methodsFor: 'stamps'!
 stampOf: aTexture
 	"What a quad's texture shows besides its identity: a Form's version (it changes in place); nil for the rest."
-	(aTexture notNil and: [aTexture isKindOf: Form]) ifTrue: [^aTexture version].
+	(aTexture notNil and: [aTexture isKindOf: Form]) ifTrue: [^aTexture contentVersion].
 	^nil
 !
 stampsOf: aDisplayListOrNil

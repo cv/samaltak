@@ -1,9 +1,9 @@
 Object subclass: #TopBar
-	instanceVariableNames: 'world costs ends index count msText fpsText processCount procText lastUpdate fonts tagState'
+	instanceVariableNames: 'world costs ends index count msText fpsText processCount procText lastUpdate fonts tagState sparkCosts sparkIndex sparkCount'
 	classVariableNames: ''
 	package: 'UI-Windows'!
 
-TopBar comment: 'I am the menu bar at the top of the World (Blue Book: white, a 1-point rule): the brand, the image name, the VM''s banner (Smalltalk vm banner), the hint "Click the desktop for the World menu", at the right the ? button (World helpHandler) and the REMOTE tag once a remote session acted on the image (it flashes at each command), the SLOW tag while animations run slowed down (Animation timeScale), and the compositor''s statistics — a sparkline of the last 64 frame times (ms between presented frames, the 16.7 ms budget as a hairline: a stutter shows as a spike), the mean frame time of the last 32 frames, the frames presented in the last second and the number of Processes. The Compositor feeds me FrameRecords-worth of numbers (noteFrame:end:) and draws me every frame.'!
+TopBar comment: 'I am the menu bar at the top of the World (Blue Book: white, a 1-point rule): the brand, the image name, the VM''s banner (Smalltalk vm banner), the hint "Click the desktop for the World menu", at the right the ? button (World helpHandler) and the REMOTE tag once a remote session acted on the image (it flashes at each command), the SLOW tag while animations run slowed down (Animation timeScale), and the compositor''s statistics — a sparkline of the last 64 frame times (ms between presented frames, the 16.7 ms budget as a hairline: a stutter shows as a spike), the mean frame time of the last 32 frames, the frames presented in the last second and the number of Processes. The Compositor feeds me FrameRecords-worth of numbers (noteFrame:end:) and draws me every frame; the readout (texts and sparkline) is refreshed at most twice a second (updateAt:), so between refreshes it draws the same and damages nothing.'!
 
 !TopBar methodsFor: 'initialization'!
 setWorld: aWorld
@@ -66,7 +66,9 @@ forgetFrames
 	ends := Array new: 64 withAll: 0.
 	index := 0.
 	count := 0.
-	lastUpdate := 0
+	lastUpdate := 0.
+	sparkCosts := costs copy.
+	sparkIndex := sparkCount := 0
 !
 updateAt: nowMicros
 	"Refresh the texts at most twice a second; answer whether they changed."
@@ -84,7 +86,11 @@ updateAt: nowMicros
 	msText := n = 0 ifTrue: ['– ms'] ifFalse: [((sum / n) printShowingDecimalPlaces: 1), ' ms'].
 	fpsText := fps printString, ' fps'.
 	procText := processCount printString, ' processes'.
-	^old ~= self statsText and: [world showsTopBar]
+	(old = self statsText and: [sparkCount = count]) ifTrue: [^false].
+	sparkCosts := costs copy.
+	sparkIndex := index.
+	sparkCount := count.
+	^world showsTopBar
 ! !
 
 !TopBar methodsFor: 'drawing'!
@@ -185,12 +191,13 @@ drawSparkOn: c in: r
 	| yOf prev n |
 	"0 … 33.4 ms (two frame budgets) bottom to top; a frame over 20 ms (a missed vsync) gets a dot"
 	yOf := [:v | r top + 15 - ((v min: 33.4) / 33.4 * 14)].
-	n := count min: 64.
+	sparkCosts isNil ifTrue: [^self].
+	n := sparkCount min: 64.
 	n < 2 ifTrue: [^self].
 	prev := nil.
 	n - 1 to: 0 by: -1 do: [:age |
 		| v p |
-		v := costs at: (index - age - 1) \\ 64 + 1.
+		v := sparkCosts at: (sparkIndex - age - 1) \\ 64 + 1.
 		p := (r right - age) @ (yOf value: v).
 		prev isNil ifFalse: [c line: prev to: p color: Color ultramarine width: 1].
 		v > 20 ifTrue: [c fillRect: (p - (1.5 @ 1.5) extent: 3 @ 3) color: Color ultramarine].

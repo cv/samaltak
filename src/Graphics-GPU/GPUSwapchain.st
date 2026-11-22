@@ -21,6 +21,10 @@ window
 !
 format
 	^GPUDevice textureFormatFromCode: (GPUPlatform swapchainFormat: device handle window: self handle)
+!
+keepsContents
+	"Whether my texture keeps the last frame presented, so that a frame may blit and present only its damage (GPUCommandBuffer>>presentDamage:): a software GPU's back buffer, not SDL_GPU's swapchain."
+	^GPUPlatform swapchainKeepsContents: device handle window: self handle
 ! !
 
 !GPUSwapchain methodsFor: 'releasing'!

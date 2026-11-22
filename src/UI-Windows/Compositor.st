@@ -1,11 +1,13 @@
 Object subclass: #Compositor
-	instanceVariableNames: 'world displayWindow renderer process running vsync vsyncIndex wake sleeping skip tickTimeout lastTick idleFrames frameCount presenting requests recorder lastFrameWork onWorkClock ownsWorkClock gpuTimer clock knownProcesses lastCpu lastScan lastRecord lastError lastErrorTime pipelineVersion standIn tickCount compositeBytes restMs'
+	instanceVariableNames: 'world displayWindow renderer process running vsync vsyncIndex wake sleeping skip tickTimeout lastTick idleFrames frameCount presenting requests recorder lastFrameWork onWorkClock ownsWorkClock gpuTimer clock knownProcesses lastCpu lastScan lastRecord lastError lastErrorTime pipelineVersion standIn tickCount compositeBytes restMs differ items previousList previousStamps previousItems fullNext presentedCount countsFrame lastDamage'
 	classVariableNames: 'Probe Running'
 	package: 'UI-Windows'!
 
 Compositor comment: 'I am the compositor: a Process at priority 70 woken by the platform''s vsync semaphore, presenting at 60 Hz (every second refresh on a 120 Hz display). Each frame I step the layer animations (window open/close, focus cross-fades, menus), toasts and the remote pointer, post frame ticks to windows with animations, render every Layer whose DisplayList or chrome changed into its Surface, composite all layers (offset, scale about the center, opacity, hard shadows) over the halftone desk with the top bar and overlays onto the DisplayWindow, and record a FrameRecord (Profiler recordFrame:). I never wait for a window''s Process: a busy window keeps its last frame.
 
-While the World is on screen I present every tick (continuous composition: the screen always shows the current state of every layer, at a steady frame rate). A hidden World (tests), and any World on a device that renders in software (UEFI: continuous composition would take all of its CPU), presents only when something changed, and after each frame rests as long as the frame took, so that the other Processes keep at least half of the CPU: after 20 ticks without a change I stop the vsync semaphore and sleep until World>>changed wakes me (or 500 ms pass, for the top bar''s statistics). Each tick I also poll the GPUTimer for finished frames'' GPU times; while maxFramesInFlight frames are unfinished on the GPU I skip the tick (except when recording, which waits for each frame''s readback, and while a request waits: its caller is blocked until I ran it).
+Composition is damage-limited (docs/graphics-damage.md): I keep the screen surface between frames and draw a frame only where it differs from the last one presented, the damage (a DamageRegion): the composite list is drawn item by item (the desk, each window, the top bar, overlays, toasts, tooltip, curtain, pointer), each compared with the same item of the last frame (DisplayListDiff: a window moved damages its old and new rectangle, the top bar its readout), plus what each layer rendered again changed inside its window (Layer>>lastDamage), plus the items whose order changed. A frame without damage is not presented at all; DisplayWindow>>show:clear:damage: renders and presents only the damage where the path allows. DamageCheck verifies it, and DamageCheck forcesFull turns it off.
+
+I present when something changed (World>>changed, animations, requests), and with World presentsContinuously: true (measurements) every tick. The top bar''s readout refreshes at most twice a second and only rides along: a frame presented only because the readout changed is not counted in it, so it settles instead of measuring the frames it makes. On a device that renders in software (UEFI) I rest after each frame as long as the frame took, so that the other Processes keep at least half of the CPU: after 20 ticks without a change I stop the vsync semaphore and sleep until World>>changed wakes me (or 500 ms pass, for the top bar''s statistics). Each tick I also poll the GPUTimer for finished frames'' GPU times; while maxFramesInFlight frames are unfinished on the GPU I skip the tick (except when recording, which waits for each frame''s readback, and while a request waits: its caller is blocked until I ran it).
 
 GPU work of other Processes (screenshots, recording) runs in my Process between frames: do: aBlock / sync: aBlock.'!
 
@@ -21,6 +23,9 @@ setWorld: aWorld
 	frameCount := 0.
 	tickCount := 0.
 	presenting := false.
+	presentedCount := 0.
+	countsFrame := true.
+	fullNext := true.
 	requests := SharedQueue new.
 	lastCpu := IdentityDictionary new.
 	knownProcesses := #().
@@ -36,7 +41,20 @@ process
 	^process
 !
 frameCount
+	"Frames composed: presented, or not needed because nothing on the screen changed (World>>waitForFrames:)."
 	^frameCount
+!
+presentedCount
+	"Frames presented (damaged)."
+	^presentedCount
+!
+lastDamage
+	"The damage of the last frame composed (a DamageRegion of device pixels; empty: it was not presented)."
+	^lastDamage
+!
+redrawAll
+	"Draw and present the whole screen at the next frame (my Process, or between frames)."
+	fullNext := true
 !
 tickCount
 	"How many ticks I took, presenting or not."
@@ -236,9 +254,11 @@ frame
 	clock := now.
 	animating := self stepAt: now.
 	t0 - lastScan > 1000000 ifTrue: [self scanProcesses: t0].
-	needs := world consumeNeedsFrame.
-	needs := (world topBar updateAt: t0) | needs | animating | requests isEmpty not
+	needs := world consumeNeedsFrame | animating | requests isEmpty not
 		| (world presentsContinuously and: [renderer device isSoftware not]) | recorder notNil.
+	"A frame for the readout alone does not count in it: otherwise it would measure, and keep making, its own frames."
+	countsFrame := needs.
+	needs := (world topBar updateAt: t0) | needs.
 	needs ifFalse: [
 		idleFrames := idleFrames + 1.
 		^self].
@@ -283,9 +303,10 @@ stepAt: now
 
 !Compositor methodsFor: 'compositing'!
 drawWindow: aWindow on: c time: now
-	| layer rect s shadow |
+	| layer rect s shadow q |
 	layer := aWindow layer.
 	(layer isRendered and: [(layer isWaitingAt: now) not]) ifFalse: [^self].
+	q := c quadCount.
 	rect := aWindow bounds origin extent: layer renderedExtent.
 	s := layer scale.
 	s = 1 ifFalse: [rect := (rect center - (rect extent * s / 2)) extent: rect extent * s].
@@ -296,7 +317,12 @@ drawWindow: aWindow on: c time: now
 		c image: layer surface from: (0 @ 0 extent: layer pixelExtent) in: rect.
 		(s = 1 and: [aWindow isOpen and: [aWindow needsDecorations: now]]) ifTrue: [
 			c translateBy: rect origin during: [
-				c clip: (0 @ 0 extent: rect extent) during: [aWindow drawDecorationsOn: c time: now]]]]
+				c clip: (0 @ 0 extent: rect extent) during: [aWindow drawDecorationsOn: c time: now]]]].
+	"Where the layer's pixels land, for its damage: unscaled only (scaled, all of it is damaged)."
+	items isNil ifFalse: [items add: (Array with: aWindow with: q with: c quadCount - q with: (s = 1 ifTrue: [c deviceRectOf: rect]) with: layer)]
+!
+noteItem: aKey from: firstQuad on: c
+	items isNil ifFalse: [items add: (Array with: aKey with: firstQuad with: c quadCount - firstQuad with: nil with: nil)]
 !
 drawToastsOn: c
 	| y |
@@ -436,7 +462,7 @@ recordFrameStart: t0 end: t1 draw: drawUs raster: rasterUs gcCount: n gcMicros: 
 	record := FrameRecord start: t0 end: t1 processTimes: (self processTimes: t1 - t0)
 		draw: drawUs raster: rasterUs gpu: 0 gcCount: n gcMicros: gcUs dropped: aBoolean.
 	[Profiler recordFrame: record] on: Error do: [:e | e return: nil].
-	world topBar noteFrame: t1 - t0 end: t1.
+	countsFrame ifTrue: [world topBar noteFrame: t1 - t0 end: t1].
 	lastRecord := record
 !
 reportError: anException
@@ -484,16 +510,29 @@ world: aWorld
 
 !Compositor methodsFor: 'drawing'!
 compositeOn: c pointer: showPointer time: now
-	"The whole screen as a DisplayList."
+	"The whole screen as a DisplayList (while items is a collection, each thing drawn noted in it: {key. first quad. quads. device rectangle of a window's layer. layer})."
+	| q |
+	q := c quadCount.
 	world drawDeskOn: c.
+	self noteItem: #desk from: q on: c.
 	world windowsInPaintOrder do: [:w | self drawWindow: w on: c time: now].
+	q := c quadCount.
 	world topBar drawOn: c.
+	self noteItem: #topBar from: q on: c.
 	world overlays do: [:w | self drawWindow: w on: c time: now].
 	world closingWindows do: [:w | w isOverlay ifTrue: [self drawWindow: w on: c time: now]].
+	q := c quadCount.
 	self drawToastsOn: c.
+	self noteItem: #toasts from: q on: c.
+	q := c quadCount.
 	world tooltip isNil ifFalse: [world tooltip drawOn: c].
+	self noteItem: #tooltip from: q on: c.
+	q := c quadCount.
 	world curtain isNil ifFalse: [world curtain drawOn: c].
+	self noteItem: #curtain from: q on: c.
+	q := c quadCount.
 	showPointer ifTrue: [world remotePointer drawOn: c time: now].
+	self noteItem: #pointer from: q on: c.
 	^c displayList
 !
 compositeListScale: aNumber pointer: showPointer time: now
@@ -501,15 +540,71 @@ compositeListScale: aNumber pointer: showPointer time: now
 	^self compositeOn: (Canvas extent: world extent scale: aNumber) pointer: showPointer time: now
 ! !
 
+!Compositor methodsFor: 'damage'!
+damageOf: aDisplayList items: newItems rendered: toRender
+	"What aDisplayList (the screen, drawn item by item: newItems) changes of the last frame presented: a DamageRegion of device pixels (full when there is no last frame to compare with, at a new size, after redrawAll, and with DamageCheck forcesFull)."
+	| region old newKeys common oldCommon |
+	region := DamageRegion extent: aDisplayList pixelExtent.
+	(fullNext or: [previousList isNil or: [DamageCheck forcesFull
+		or: [previousList pixelExtent ~= aDisplayList pixelExtent or: [displayWindow needsFullFrame]]]])
+			ifTrue: [region beFull. ^region].
+	differ region: region; stableSurfaces: true.
+	old := IdentityDictionary new.
+	previousItems do: [:each | old at: each first put: each].
+	newKeys := IdentitySet new.
+	newItems do: [:each | | o |
+		newKeys add: each first.
+		o := old at: each first ifAbsent: [nil].
+		o isNil
+			ifTrue: [differ damageAll: aDisplayList stamps: nil from: (each at: 2) count: (each at: 3)]
+			ifFalse: [
+				differ diff: previousList stamps: previousStamps from: (o at: 2) count: (o at: 3)
+					to: aDisplayList stamps: nil from: (each at: 2) count: (each at: 3)].
+		(each at: 5) isNil ifFalse: [self addLayerDamageOf: each in: aDisplayList rendered: toRender]].
+	previousItems do: [:o |
+		(newKeys includes: o first) ifFalse: [differ damageAll: previousList stamps: previousStamps from: (o at: 2) count: (o at: 3)]].
+	"Raised or lowered: an item whose place among the others changed damages its old and its new bounds (any two that changed order overlap only inside one of them)."
+	common := newItems select: [:each | old includesKey: each first].
+	oldCommon := previousItems select: [:each | newKeys includes: each first].
+	common with: oldCommon do: [:n :o |
+		n first == o first ifFalse: [
+			differ damageAll: aDisplayList stamps: nil from: (n at: 2) count: (n at: 3).
+			differ damageAll: previousList stamps: previousStamps from: (o at: 2) count: (o at: 3)]].
+	^region
+!
+addLayerDamageOf: anItem in: aDisplayList rendered: toRender
+	"A window's layer rendered this frame damages the screen where its changed pixels land: moved by where it is drawn when drawn 1:1 (with a pixel around, for filtering), else everywhere it is drawn."
+	| layer rect damage |
+	(toRender identityIncludes: anItem first) ifFalse: [^self].
+	layer := anItem at: 5.
+	rect := anItem at: 4.
+	damage := layer lastDamage.
+	rect isNil ifTrue: [^differ damageAll: aDisplayList stamps: nil from: (anItem at: 2) count: (anItem at: 3)].
+	(damage isNil or: [rect extent ~= layer pixelExtent]) ifTrue: [^differ region add: rect].
+	damage rects do: [:r |
+		differ region addLeft: r left + rect left - 1 top: r top + rect top - 1 right: r right + rect left + 1 bottom: r bottom + rect top + 1]
+!
+checkDamage: aDamageRegion list: aDisplayList previous: olderList rendered: toRender
+	"DamageCheck runs: compare what was drawn in part with drawing it whole."
+	| check |
+	check := DamageCheck current.
+	renderer device waitIdle.
+	aDamageRegion isFull ifFalse: [
+		check checkFrame: aDisplayList previous: olderList surface: displayWindow surface clear: Color desk renderer: renderer damage: aDamageRegion].
+	toRender do: [:w |
+		w layer lastDamage isNil ifFalse: [check checkLayer: w layer named: w printString renderer: renderer]]
+! !
+
 !Compositor methodsFor: 'private'!
 present: t0 now: now
-	| scale toRender drawUs rasterUs t cmd list stats0 stats1 t1 shown gpuStart fence fenceAt probe before layerUs showUs |
+	| scale toRender drawUs rasterUs t cmd list stats0 stats1 t1 shown gpuStart fence fenceAt probe before layerUs showUs newItems damage older |
 	scale := world displayScale.
 	stats0 := Smalltalk vm statistics.
 	t := self frameClock.
 	renderer updatePipeline.
 	pipelineVersion = renderer pipelineVersion ifFalse: [
 		pipelineVersion := renderer pipelineVersion.
+		fullNext := true.
 		(world windows, world closingWindows, world overlays) do: [:w | w layer markNeedsRender]].
 	toRender := OrderedCollection new.
 	(world windows, world closingWindows, world overlays) do: [:w |
@@ -522,29 +617,46 @@ present: t0 now: now
 	probe isNil ifFalse: [before := probe beforeRender: toRender].
 	drawUs := self frameClock - t.
 	t := self frameClock.
+	differ isNil ifTrue: [differ := DisplayListDiff region: (DamageRegion extent: 1 @ 1)].
 	toRender isEmpty ifFalse: [
 		cmd := renderer device commandBuffer.
-		toRender do: [:w | w layer renderExtent: w extent scale: scale renderer: renderer commandBuffer: cmd].
+		toRender do: [:w | w layer renderExtent: w extent scale: scale renderer: renderer commandBuffer: cmd differ: differ].
 		gpuStart := self frameClock.
 		cmd submit].
 	rasterUs := self frameClock - t.
 	layerUs := rasterUs.
 	t := self frameClock.
 	compositeBytes isNil ifTrue: [compositeBytes := ByteArray new: 32768].
-	list := self compositeOn: (Canvas extent: world extent scale: scale buffer: compositeBytes) pointer: true time: now.
+	items := OrderedCollection new.
+	list := [self compositeOn: (Canvas extent: world extent scale: scale buffer: compositeBytes) pointer: true time: now]
+		ensure: [newItems := items. items := nil].
+	damage := self damageOf: list items: newItems rendered: toRender.
+	lastDamage := damage.
 	drawUs := drawUs + (self frameClock - t).
+	(damage isEmpty and: [recorder isNil and: [world presentsContinuously not]]) ifTrue: [
+		"Nothing on the screen changed: no frame to present (the next one draws into the same bytes)."
+		self runRequests.
+		frameCount := frameCount + 1.
+		^self].
 	t := self frameClock.
 	gpuStart isNil ifTrue: [gpuStart := t].
-	shown := displayWindow show: list clear: Color desk.
+	shown := displayWindow show: list clear: Color desk damage: damage.
 	showUs := self frameClock - t.
-	"The upload has copied these bytes; screenshots use independently owned lists."
-	compositeBytes := list vertices.
+	"The upload has copied these bytes; the next frame draws into the other buffer: these stay to compare it with (screenshots use independently owned lists)."
+	compositeBytes := previousList isNil ifFalse: [previousList vertices].
+	older := previousList.
+	previousList := list.
+	previousStamps := DisplayListDiff stampsOf: list.
+	previousItems := newItems.
+	fullNext := false.
 	fenceAt := self frameClock.
 	fence := renderer device commandBuffer submitWithFence.
 	rasterUs := rasterUs + (self frameClock - t).
+	DamageCheck current isNil ifFalse: [self checkDamage: damage list: list previous: older rendered: toRender].
 	recorder isNil ifFalse: [recorder captureFrom: displayWindow surface compositor: self].
 	self runRequests.
 	frameCount := frameCount + 1.
+	presentedCount := presentedCount + 1.
 	t1 := self frameClock.
 	stats1 := Smalltalk vm statistics.
 	self recordFrameStart: t0 end: t1 draw: drawUs raster: rasterUs

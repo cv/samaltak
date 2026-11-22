@@ -34,6 +34,10 @@ blit: sourceTexture rect: srcArray to: destinationTexture rect: dstArray linear:
 	"Rects are {x. y. w. h} in pixels."
 	GPUPlatform blit: handle source: sourceTexture handle rect: srcArray destination: destinationTexture handle rect: dstArray linear: aBoolean
 !
+presentDamage: scissors
+	"Present only the rectangles scissors ({x. y. width. height} pixels) of the swapchain texture I acquired, where the path keeps the rest from the last frame (GPUSwapchain>>keepsContents): the firmware's screen, an uploaded frame."
+	GPUPlatform presentDamage: handle rects: scissors
+!
 pushVertexUniforms: bytes slot: slot
 	GPUPlatform pushUniforms: handle stage: 0 slot: slot bytes: bytes
 !

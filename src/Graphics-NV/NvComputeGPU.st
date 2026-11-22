@@ -349,14 +349,14 @@ blit: s rect: sr to: d rect: dr linear: aBoolean
 	self launch: 'raster_blit' grid: (Array with: (d at: 2) + 255 // 256 with: ((d at: 3) min: 65535)) parameters: p
 		using: (Array with: s first with: d first)
 !
-present: aSwapchainTexture
+present: aSwapchainTexture rects: scissorsOrNil
 	"Once the GPU has drawn it (the wait counts as nv.wait while StageTimes measures)."
 	| s t |
 	s := StageTimes current.
 	s isNil ifFalse: [t := Time microsecondClockValue].
 	self touch: aSwapchainTexture address.
 	s isNil ifFalse: [s add: #'nv.wait' since: t bytes: 0].
-	super present: aSwapchainTexture
+	super present: aSwapchainTexture rects: scissorsOrNil
 ! !
 
 !NvComputeGPU class methodsFor: 'testing'!

@@ -1,9 +1,11 @@
 Object subclass: #Layer
-	instanceVariableNames: 'surface contentList chromeList renderedContent renderedChrome pixelExtent offset scale opacity animations needsRender clearColor chromeKey renderedExtent waitingSince'
+	instanceVariableNames: 'surface contentList chromeList renderedContent renderedChrome pixelExtent offset scale opacity animations needsRender clearColor chromeKey renderedExtent waitingSince contentStamps chromeStamps lastDamage'
 	classVariableNames: ''
 	package: 'UI-Windows'!
 
 Layer comment: 'I am one composited layer: an offscreen Surface (RGBA8, premultiplied) with the latest frozen DisplayList of my owner (contentList, published atomically by the owner''s Process) and an optional chromeList drawn over it (window frames, by the Compositor). The Compositor renders me when either list changed and composites my surface onto the screen with my offset (points), scale (about my center) and opacity. My surface is allocated with slack, so live resizing rarely reallocates it.
+
+Rendering is damage-limited: my surface keeps the last frame, and when a list changed I draw again only where the new lists draw differently from the ones I show (DisplayListDiff: a line of streamed text, a blinking caret), filled with my clear color first, so the pixels are those of drawing everything. I render whole after markNeedsRender (a new pipeline, restyling), at a new size or scale, on a new surface, and when the damage is more than half of me; lastDamage says what the last render changed (nil: everything), for the Compositor''s own damage.
 
 Layer properties animate in the Compositor (animate:to:duration:easing:), never involving the owner''s Process.'!
 
@@ -25,16 +27,14 @@ contentList
 	^contentList
 !
 contentList: aDisplayList
-	"Publish a new frozen DisplayList (any Process)."
-	contentList := aDisplayList.
-	needsRender := true
+	"Publish a new frozen DisplayList (any Process); the Compositor renders what it changed (needsRender)."
+	contentList := aDisplayList
 !
 chromeList
 	^chromeList
 !
 chromeList: aDisplayListOrNil
-	chromeList := aDisplayListOrNil.
-	needsRender := true
+	chromeList := aDisplayListOrNil
 !
 pixelExtent
 	"The device pixels of my surface that hold the last rendered frame."
@@ -59,7 +59,12 @@ opacity: aNumber
 	opacity := aNumber
 !
 clearColor: aColor
-	clearColor := aColor
+	clearColor := aColor.
+	needsRender := true
+!
+lastDamage
+	"What my last render changed: a DamageRegion of my surface's pixels, nil if it rendered everything."
+	^lastDamage
 !
 chromeKey
 	^chromeKey
@@ -99,6 +104,7 @@ needsRender
 	^needsRender or: [renderedContent ~~ contentList or: [renderedChrome ~~ chromeList]]
 !
 markNeedsRender
+	"Render everything again at the next frame, not only what my lists changed."
 	needsRender := true
 ! !
 
@@ -147,22 +153,59 @@ finishAnimations
 
 !Layer methodsFor: 'rendering'!
 renderExtent: aPoint scale: aNumber renderer: aRenderer commandBuffer: aCommandBuffer
-	"Render my lists for a frame of aPoint points at aNumber device pixels per point (layer.render while StageTimes measures)."
-	| pixels list s t |
+	"Render all of my lists for a frame of aPoint points at aNumber device pixels per point."
+	^self renderExtent: aPoint scale: aNumber renderer: aRenderer commandBuffer: aCommandBuffer differ: nil
+!
+renderExtent: aPoint scale: aNumber renderer: aRenderer commandBuffer: aCommandBuffer differ: aDisplayListDiffOrNil
+	"Render my lists for a frame of aPoint points at aNumber device pixels per point: only what they changed when aDisplayListDiffOrNil (the Compositor's, with its scratch buffers) finds that little, else all of them. Answer lastDamage (layer.render while StageTimes measures, with the bytes drawn)."
+	| pixels list s t old region scissors |
 	s := StageTimes current.
 	s isNil ifFalse: [t := Time microsecondClockValue].
 	pixels := (aPoint x * aNumber) ceiling @ (aPoint y * aNumber) ceiling.
+	old := surface.
 	self ensureSurface: pixels scale: aNumber.
 	list := contentList ifNil: [(Canvas extent: aPoint scale: aNumber) displayList].
-	aRenderer render: list into: surface texture clear: (clearColor ifNil: [Color paper]) commandBuffer: aCommandBuffer.
-	chromeList isNil ifFalse: [
-		aRenderer render: chromeList into: surface texture clear: nil commandBuffer: aCommandBuffer].
+	region := (aDisplayListDiffOrNil isNil or: [old ~~ surface]) ifFalse: [self damageFor: list pixels: pixels differ: aDisplayListDiffOrNil].
+	region isNil
+		ifTrue: [
+			aRenderer render: list into: surface texture clear: self clearColorOrPaper commandBuffer: aCommandBuffer.
+			chromeList isNil ifFalse: [
+				aRenderer render: chromeList into: surface texture clear: nil commandBuffer: aCommandBuffer]]
+		ifFalse: [
+			region isEmpty ifFalse: [
+				scissors := region scissors.
+				aRenderer fill: scissors color: self clearColorOrPaper into: surface texture commandBuffer: aCommandBuffer.
+				aRenderer render: list into: surface texture clear: nil commandBuffer: aCommandBuffer within: scissors.
+				chromeList isNil ifFalse: [
+					aRenderer render: chromeList into: surface texture clear: nil commandBuffer: aCommandBuffer within: scissors]]].
+	contentStamps := DisplayListDiff stampsOf: list.
+	chromeStamps := DisplayListDiff stampsOf: chromeList.
+	lastDamage := region.
 	pixelExtent := pixels.
 	renderedExtent := aPoint.
 	renderedContent := contentList.
 	renderedChrome := chromeList.
 	needsRender := false.
-	s isNil ifFalse: [s add: #'layer.render' since: t bytes: pixels x * pixels y * 4]
+	s isNil ifFalse: [s add: #'layer.render' since: t bytes: (region isNil ifTrue: [pixels x * pixels y] ifFalse: [region area]) * 4].
+	^region
+!
+damageFor: list pixels: pixels differ: aDisplayListDiff
+	"What list and my chrome list change of what my surface shows (a DamageRegion), or nil to render everything: when asked to (markNeedsRender, DamageCheck forcesFull), at another size, without a previous frame, with a clear color that is not opaque (a fill would not replace what it covers), or when more than half of me changed."
+	| region |
+	(needsRender or: [pixelExtent ~= pixels or: [renderedContent isNil or: [contentList isNil or: [DamageCheck forcesFull]]]]) ifTrue: [^nil].
+	self clearColorOrPaper alpha < 1 ifTrue: [^nil].
+	renderedChrome isNil = chromeList isNil ifFalse: [^nil].
+	region := DamageRegion extent: pixels.
+	aDisplayListDiff region: region.
+	renderedContent == list ifFalse: [
+		aDisplayListDiff diff: renderedContent stamps: contentStamps to: list stamps: (DisplayListDiff stampsOf: list)].
+	(renderedChrome == chromeList or: [region isFull]) ifFalse: [
+		aDisplayListDiff diff: renderedChrome stamps: chromeStamps to: chromeList stamps: (DisplayListDiff stampsOf: chromeList)].
+	region isFull ifTrue: [^nil].
+	^region
+!
+clearColorOrPaper
+	^clearColor ifNil: [Color paper]
 !
 ensureSurface: pixels scale: aNumber
 	| w h |

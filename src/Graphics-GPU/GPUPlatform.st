@@ -69,6 +69,11 @@ claim: dev window: window
 swapchainFormat: dev window: window
 	^self device swapchainFormat: dev window: window
 !
+swapchainKeepsContents: dev window: window
+	"Whether the window's swapchain texture keeps the last frame (GPUSwapchain>>keepsContents)."
+	(self device respondsTo: #swapchainKeepsContents:window:) ifFalse: [^false].
+	^self device swapchainKeepsContents: dev window: window
+!
 waitIdle: dev
 	^self device waitIdle: dev
 !
@@ -148,6 +153,11 @@ blit: commandBuffer source: src rect: srcRect destination: dst rect: dstRect lin
 !
 submit: commandBuffer fence: wantFence
 	^self device submit: commandBuffer fence: wantFence
+!
+presentDamage: commandBuffer rects: anArray
+	"Only these rectangles of the swapchain texture commandBuffer acquired changed (GPUCommandBuffer>>presentDamage:); a device that cannot use that presents all of it."
+	(self device respondsTo: #presentDamage:rects:) ifFalse: [^nil].
+	^self device presentDamage: commandBuffer rects: anArray
 !
 waitFence: fence
 	^self device waitFence: fence
