@@ -208,6 +208,9 @@ void prim_jit_code(void)
     top = cache_top;
     if (scratch) {
         h = ({
+    if (md == JIT_OPT) {
+        bg_quiesce();
+    }
     copying = true;
     h_2 = jit_runtime_compile(m, md, true);
     copying = false;
@@ -244,21 +247,24 @@ void prim_jit_parameters(void)
     oop o_5;
     uint64_t v_3;
     oop o_6;
-    oop v_4;
+    oop o_7;
+    int64_t v_4;
+    uint64_t v_5;
+    oop v_6;
     oop old;
-    uint64_t o_7;
     uint64_t o_8;
+    uint64_t o_9;
     int32_t m;
     char *p;
     uint32_t saved;
-    uint64_t o_9;
-    int64_t n;
     uint64_t o_10;
+    int64_t n;
+    uint64_t o_11;
     int64_t n_2;
-    oop v_5;
+    oop v_7;
     memset(&local, 0, sizeof local);
     r = &local;
-    *r = alloc_obj(cls_array, F_VAR, 6);
+    *r = alloc_obj(cls_array, F_VAR, 7);
     push_root(r);
     s = string_from(mode_name(jit_mode));
     o = *r;
@@ -296,10 +302,17 @@ void prim_jit_parameters(void)
     if (((s & 7) == 0) && ((s - young_lo < young_hi - young_lo) && ((!((uint64_t)(o_6 - young_lo) < young_hi - young_lo)) && (((*(uint64_t *)o_6) & H_REMEMBERED) == 0)))) {
         remember(o_6);
     }
+    o_7 = *r;
+    v_4 = background_state();
+    v_5 = (uint64_t)((v_4 << 1) | 1);
+    *(uint64_t *)(o_7 + 16 + 48) = v_5;
+    if (((v_5 & 7) == 0) && ((v_5 - young_lo < young_hi - young_lo) && ((!((uint64_t)(o_7 - young_lo) < young_hi - young_lo)) && (((*(uint64_t *)o_7) & H_REMEMBERED) == 0)))) {
+        remember(o_7);
+    }
     pop_root();
     if (prim_nargs == 0) {
-        v_4 = *r;
-        prim_result = v_4;
+        v_6 = *r;
+        prim_result = v_6;
         prim_status = PS_OK;
         return;
     }
@@ -310,15 +323,15 @@ void prim_jit_parameters(void)
         return;
     }
     if ((*(uint64_t *)(old + 16 + 16) != nil_oop) && ({
-    o_7 = *(uint64_t *)(old + 16 + 16);
-    !((o_7 & 1) != 0); })) {
+    o_8 = *(uint64_t *)(old + 16 + 16);
+    !((o_8 & 1) != 0); })) {
         prim_status = PS_FAIL;
         prim_error_code = -1;
         return;
     }
     if ((*(uint64_t *)(old + 16 + 24) != nil_oop) && ({
-    o_8 = *(uint64_t *)(old + 16 + 24);
-    !((o_8 & 1) != 0); })) {
+    o_9 = *(uint64_t *)(old + 16 + 24);
+    !((o_9 & 1) != 0); })) {
         prim_status = PS_FAIL;
         prim_error_code = -1;
         return;
@@ -375,17 +388,25 @@ void prim_jit_parameters(void)
         }
     }
     if (*(uint64_t *)(old + 16 + 16) != nil_oop) {
-        o_9 = *(uint64_t *)(old + 16 + 16);
-        n = ((int64_t)o_9) >> 1;
+        o_10 = *(uint64_t *)(old + 16 + 16);
+        n = ((int64_t)o_10) >> 1;
         jit_threshold = n;
     }
     if (*(uint64_t *)(old + 16 + 24) != nil_oop) {
-        o_10 = *(uint64_t *)(old + 16 + 24);
-        n_2 = ((int64_t)o_10) >> 1;
+        o_11 = *(uint64_t *)(old + 16 + 24);
+        n_2 = ((int64_t)o_11) >> 1;
         jit_osr_threshold = n_2;
     }
-    v_5 = *r;
-    prim_result = v_5;
+    if ((uint32_t)*(uint64_t *)old >= 5) {
+        if (*(uint64_t *)(old + 16 + 32) == true_oop) {
+            background_hold(true);
+        }
+        if (*(uint64_t *)(old + 16 + 32) == false_oop) {
+            background_hold(false);
+        }
+    }
+    v_7 = *r;
+    prim_result = v_7;
     prim_status = PS_OK;
 }
 
@@ -405,21 +426,24 @@ void prim_jit_parameters(void)
     oop o_5;
     uint64_t v_3;
     oop o_6;
-    oop v_4;
+    oop o_7;
+    int64_t v_4;
+    uint64_t v_5;
+    oop v_6;
     oop old;
-    uint64_t o_7;
     uint64_t o_8;
+    uint64_t o_9;
     int32_t m;
     char *p;
     uint32_t saved;
-    uint64_t o_9;
-    int64_t n;
     uint64_t o_10;
+    int64_t n;
+    uint64_t o_11;
     int64_t n_2;
-    oop v_5;
+    oop v_7;
     memset(&local, 0, sizeof local);
     r = &local;
-    *r = alloc_obj(cls_array, F_VAR, 6);
+    *r = alloc_obj(cls_array, F_VAR, 7);
     push_root(r);
     s = string_from(mode_name(jit_mode));
     o = *r;
@@ -457,10 +481,17 @@ void prim_jit_parameters(void)
     if (((s & 7) == 0) && ((s - young_lo < young_hi - young_lo) && ((!((uint64_t)(o_6 - young_lo) < young_hi - young_lo)) && (((*(uint64_t *)o_6) & H_REMEMBERED) == 0)))) {
         remember(o_6);
     }
+    o_7 = *r;
+    v_4 = background_state();
+    v_5 = (uint64_t)((v_4 << 1) | 1);
+    *(uint64_t *)(o_7 + 16 + 48) = v_5;
+    if (((v_5 & 7) == 0) && ((v_5 - young_lo < young_hi - young_lo) && ((!((uint64_t)(o_7 - young_lo) < young_hi - young_lo)) && (((*(uint64_t *)o_7) & H_REMEMBERED) == 0)))) {
+        remember(o_7);
+    }
     pop_root();
     if (prim_nargs == 0) {
-        v_4 = *r;
-        prim_result = v_4;
+        v_6 = *r;
+        prim_result = v_6;
         prim_status = PS_OK;
         return;
     }
@@ -471,15 +502,15 @@ void prim_jit_parameters(void)
         return;
     }
     if ((*(uint64_t *)(old + 16 + 16) != nil_oop) && ({
-    o_7 = *(uint64_t *)(old + 16 + 16);
-    !((o_7 & 1) != 0); })) {
+    o_8 = *(uint64_t *)(old + 16 + 16);
+    !((o_8 & 1) != 0); })) {
         prim_status = PS_FAIL;
         prim_error_code = -1;
         return;
     }
     if ((*(uint64_t *)(old + 16 + 24) != nil_oop) && ({
-    o_8 = *(uint64_t *)(old + 16 + 24);
-    !((o_8 & 1) != 0); })) {
+    o_9 = *(uint64_t *)(old + 16 + 24);
+    !((o_9 & 1) != 0); })) {
         prim_status = PS_FAIL;
         prim_error_code = -1;
         return;
@@ -536,17 +567,25 @@ void prim_jit_parameters(void)
         }
     }
     if (*(uint64_t *)(old + 16 + 16) != nil_oop) {
-        o_9 = *(uint64_t *)(old + 16 + 16);
-        n = ((int64_t)o_9) >> 1;
+        o_10 = *(uint64_t *)(old + 16 + 16);
+        n = ((int64_t)o_10) >> 1;
         jit_threshold = n;
     }
     if (*(uint64_t *)(old + 16 + 24) != nil_oop) {
-        o_10 = *(uint64_t *)(old + 16 + 24);
-        n_2 = ((int64_t)o_10) >> 1;
+        o_11 = *(uint64_t *)(old + 16 + 24);
+        n_2 = ((int64_t)o_11) >> 1;
         jit_osr_threshold = n_2;
     }
-    v_5 = *r;
-    prim_result = v_5;
+    if ((uint32_t)*(uint64_t *)old >= 5) {
+        if (*(uint64_t *)(old + 16 + 32) == true_oop) {
+            background_hold(true);
+        }
+        if (*(uint64_t *)(old + 16 + 32) == false_oop) {
+            background_hold(false);
+        }
+    }
+    v_7 = *r;
+    prim_result = v_7;
     prim_status = PS_OK;
 }
 

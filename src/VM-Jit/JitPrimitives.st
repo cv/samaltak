@@ -7,11 +7,11 @@ JitPrimitives comment: 'The JIT seen from the image: its parameters (jitParamete
 
 !JitPrimitives methodsFor: 'parameters'!
 primJitParameters
-	"Smalltalk vm jitParameters [: anArray]: {mode. flags. threshold. osr. cache MB. CPU}, mode, flags and CPU as Strings ('baseline', 'arith,fuse,barrier', 'arm64'). With anArray {mode. flags. threshold. osr} (nil keeps one; flags are changes, as --jit-flags) set them; answer the parameters before. A new mode or new flags drop all machine code."
+	"Smalltalk vm jitParameters [: anArray]: {mode. flags. threshold. osr. cache MB. CPU. background}, mode, flags and CPU as Strings ('baseline', 'arith,fuse,barrier', 'arm64'), background the optimizing tier's helper thread (-1 none: it compiles on the VM's thread; 0 idle, 1 working, 2 its job waiting to be installed). With anArray {mode. flags. threshold. osr} (a fifth element true or false: hold background jobs, for tests) (nil keeps one; flags are changes, as --jit-flags) set them; answer the parameters before. A new mode or new flags drop all machine code."
 	<vmPrimitive: 180 name: 'jitParameters'>
 	| r old p m saved s |
 	r := self local: 'oop'.
-	r value: (memory allocObj: memory clsArray format: F_VAR slots: 6).
+	r value: (memory allocObj: memory clsArray format: F_VAR slots: 7).
 	memory pushRoot: r.
 	"Allocating the strings may collect: r value only after them."
 	s := self stringFrom: (jit modeName: jit mode).
@@ -23,6 +23,7 @@ primJitParameters
 	self storeRef: r value at: 4 put: (self intOop: jit cacheMB).
 	s := self stringFrom: (jit isX64 ifTrue: ['x86_64'] ifFalse: ['arm64']).
 	self storeRef: r value at: 5 put: s.
+	self storeRef: r value at: 6 put: (self intOop: jit backgroundState).
 	memory popRoot.
 	self argCount = 0 ifTrue: [^self answer: r value].
 	old := self arg: 0.
@@ -51,6 +52,9 @@ primJitParameters
 	m ~= jit mode ifTrue: [(jit setMode: m) ifFalse: [^self fail]].
 	(self loadRef: old at: 2) ~= memory nilOop ifTrue: [jit threshold: (self intVal: (self loadRef: old at: 2))].
 	(self loadRef: old at: 3) ~= memory nilOop ifTrue: [jit osrThreshold: (self intVal: (self loadRef: old at: 3))].
+	(self numSlots: old) >= 5 ifTrue: [
+		(self loadRef: old at: 4) = memory trueOop ifTrue: [jit backgroundHold: true].
+		(self loadRef: old at: 4) = memory falseOop ifTrue: [jit backgroundHold: false]].
 	self answer: r value
 !
 stringFrom: s

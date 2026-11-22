@@ -16,7 +16,7 @@ setUp
 tearDown
 	| on flags |
 	on := (saved at: 2) substrings: ','.
-	flags := #('arith' 'fuse' 'barrier' 'notes') inject: '' into: [:all :each |
+	flags := #('arith' 'fuse' 'barrier' 'notes' 'bg') inject: '' into: [:all :each |
 		(all isEmpty ifTrue: [''] ifFalse: [all , ',']) , ((on includes: each) ifTrue: [each] ifFalse: ['-' , each])].
 	Smalltalk vm jitParameters: {saved at: 1. flags. saved at: 3. saved at: 4}.
 	JitRuntimeTestSubject selectors do: [:each | JitRuntimeTestSubject removeSelector: each].

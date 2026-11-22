@@ -461,3 +461,27 @@ mapForPerf: path
 	<export>
 	<var: #path type: 'const char *'>
 ! !
+
+!UefiJitPlatform methodsFor: 'helper thread'!
+jitThreadsAvailable
+	"No threads: the optimizing tier compiles on the VM's thread."
+	<export>
+	^false
+!
+jitStartThread: fn
+	<export>
+	<var: #fn type: 'void *(*)(void *)'>
+	^false
+!
+jitWorkerLock
+	<export>
+!
+jitWorkerUnlock
+	<export>
+!
+jitWorkerWait
+	<export>
+!
+jitWorkerWake
+	<export>
+! !

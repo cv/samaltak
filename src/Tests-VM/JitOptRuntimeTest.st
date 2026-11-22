@@ -10,7 +10,8 @@ mode
 	^'opt'
 !
 setUp
-	saved := Smalltalk vm jitParameters: {self mode. 'eager'. 0. 5}
+	"compiled on the VM's thread: these tests look at the code right after the tier-up that makes it (the background tests turn bg on)"
+	saved := Smalltalk vm jitParameters: {self mode. 'eager,-bg'. 0. 5}
 !
 tearDown
 	Smalltalk vm jitParameters: #(nil '-eager' nil nil).
@@ -24,6 +25,120 @@ disassemblyNotes
 stressed
 	"--jit-flags deopt: optimized code deoptimizes every so often anyway."
 	^((Smalltalk vm jitParameters at: 2) substrings: ',') includes: 'deopt'
+! !
+
+!JitOptRuntimeTest methodsFor: 'background compilation'!
+background
+	"Background compilation on (docs/jit.md, Background compilation); answer whether a helper thread does it (none on UEFI or on one CPU: then the VM's thread compiles, and these tests check only results)."
+	Smalltalk vm jitParameters: #(nil 'bg' nil nil).
+	^(Smalltalk vm jitParameters at: 7) >= 0
+!
+waitForBackground
+	"Until the helper is done with its job, if it has one (at most two seconds)."
+	| t |
+	t := Time millisecondClockValue.
+	[(Smalltalk vm jitParameters at: 7) = 1 and: [Time millisecondClockValue - t < 2000]] whileTrue: [(Delay forMilliseconds: 1) wait]
+!
+defineBackgroundSum
+	self define: 'bgPlus: x ^x + 3'.
+	self define: 'bgSum: n | s | s := 0. 1 to: n do: [:i | s := s + (self bgPlus: i)]. ^s'
+!
+heldJob: aBlock
+	"Run aBlock while finished background jobs are held (not installed), after a tier-up has given the helper a job and it finished it."
+	| o |
+	o := JitRuntimeTestSubject new.
+	Smalltalk vm jitParameters: #(nil nil nil nil true).
+	[self assert: (o bgSum: 100) equals: 5350.
+	 self waitForBackground.
+	 self assert: (Smalltalk vm jitParameters at: 7) equals: 2.
+	 aBlock value] ensure: [Smalltalk vm jitParameters: #(nil nil nil nil false)]
+! !
+
+!JitOptRuntimeTest methodsFor: 'tests: background compilation'!
+testBackgroundCompilationInstallsCode
+	"The helper cleans up and allocates the IR of a unit a tier-up built; a later tier-up generates and installs its code."
+	| o before n |
+	self background ifFalse: [^self].
+	self defineBackgroundSum.
+	o := JitRuntimeTestSubject new.
+	before := self statistics.
+	n := 0.
+	[n < 500 and: [(self statistics - before) optMethodsCompiled = 0 or: [(self statistics - before) optBackgroundJobs = 0]]] whileTrue: [
+		self assert: (o bgSum: 100) equals: 5350.
+		self waitForBackground.
+		n := n + 1].
+	self assert: (self statistics - before) optBackgroundJobs > 0.
+	self assert: (self statistics - before) optMethodsCompiled > 0.
+	self assert: (o bgSum: 100) equals: 5350
+!
+testBackgroundJobDroppedWhenAMethodChanges
+	"A method changes while a background job waits to be installed (it may have inlined it): the job is dropped, and the code compiled later runs the new method."
+	| o before |
+	self background ifFalse: [^self].
+	self defineBackgroundSum.
+	o := JitRuntimeTestSubject new.
+	before := self statistics.
+	self heldJob: [self define: 'bgPlus: x ^x + 4'].
+	self assert: (o bgSum: 100) equals: 5450.
+	self assert: (self statistics - before) optBackgroundDiscarded > 0.
+	10 timesRepeat: [
+		self assert: (o bgSum: 100) equals: 5450.
+		self waitForBackground]
+!
+testBackgroundJobDroppedByAFullGC
+	"A full GC may move what a waiting job names: the job is dropped (its unit is compiled on the VM's thread at its next tier-up)."
+	| o before |
+	self background ifFalse: [^self].
+	self defineBackgroundSum.
+	o := JitRuntimeTestSubject new.
+	before := self statistics.
+	self heldJob: [Smalltalk vm garbageCollect].
+	self assert: (o bgSum: 100) equals: 5350.
+	self assert: (self statistics - before) optBackgroundDiscarded > 0.
+	10 timesRepeat: [
+		self assert: (o bgSum: 100) equals: 5350.
+		self waitForBackground]
+!
+testBackgroundJobDroppedByAFlush
+	"Changing the JIT's flags flushes the code cache: a waiting job (its lower-tier code gone) is dropped."
+	| o before |
+	self background ifFalse: [^self].
+	self defineBackgroundSum.
+	o := JitRuntimeTestSubject new.
+	before := self statistics.
+	self heldJob: [Smalltalk vm jitParameters: #(nil 'bg' nil nil)].
+	self assert: (o bgSum: 100) equals: 5350.
+	self assert: (self statistics - before) optBackgroundDiscarded > 0
+!
+testBackgroundDeoptimization
+	"Code compiled in the background speculates as any other: a Float deoptimizes it, and the code compiled again (in the background) takes Floats too."
+	| o before n |
+	self background ifFalse: [^self].
+	self define: 'twice: x ^x + x'.
+	self define: 'sumTwice: n | s | s := 0. 1 to: n do: [:i | s := s + (self twice: i)]. ^s'.
+	o := JitRuntimeTestSubject new.
+	before := self statistics.
+	n := 0.
+	[n < 500 and: [(self statistics - before) optMethodsCompiled < 2]] whileTrue: [
+		self assert: (o sumTwice: 100) equals: 10100.
+		self waitForBackground.
+		n := n + 1].
+	50 timesRepeat: [
+		self assert: (o twice: 1.5) equals: 3.0.
+		self assert: (o twice: 1/2) equals: 1.
+		self assert: (o sumTwice: 100) equals: 10100.
+		self waitForBackground].
+	self assert: (self statistics - before) optDeoptimizations + (self statistics - before) optMethodsCompiled > 0
+!
+testBackgroundLoopUnit
+	"A long loop's unit is compiled in the background while the loop goes on in baseline code; a later backward jump enters it (on-stack replacement)."
+	| o before |
+	self background ifFalse: [^self].
+	self define: 'bgLoop: n | s | s := 0. 1 to: n do: [:i | s := s + (i \\ 7)]. ^s'.
+	o := JitRuntimeTestSubject new.
+	before := self statistics.
+	self assert: (o bgLoop: 7000000) equals: 21000000.
+	self assert: (self statistics - before) optOsrEntries > 0
 ! !
 
 !JitOptRuntimeTest methodsFor: 'tests'!

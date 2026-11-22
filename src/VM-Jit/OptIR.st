@@ -1,6 +1,6 @@
 OptModule subclass: #OptIR
-	instanceVariableNames: 'optNodes optNodeCount optBlocks optBlockCount optEdges optEdgeCount optOperands optOperandCount optStates optStateCount optActs optActCount optFull optCurAct optCurPc optOsrEntry optOsrState optOsrNumbers optOsrFloats optOsrInts'
-	classVariableNames: ''
+	instanceVariableNames: 'optNodes optNodeCount optBlocks optBlockCount optEdges optEdgeCount optOperands optOperandCount optStates optStateCount optActs optActCount optFull optCurAct optCurPc optOsrEntry optOsrState optOsrNumbers optOsrFloats optOsrInts optFbKeys optFbVals optFbStamps optFbStamp optFbCount optConstCls optSnapNodes optClsSmallint optClsChar optClsSmallfloat'
+	classVariableNames: 'OPT_FB_SNAP'
 	package: 'VM-Jit'!
 
 OptIR comment: 'The optimizing tier''s IR (OptModule): nodes, blocks, predecessor edges, the operand array (phi inputs, send arguments, frame state values), frame states and inlined activations, all in fixed arrays reset for each compilation. A node belongs to a block''s doubly linked list; a block ends with a control node (O_GOTO, O_BRANCH, O_RETURN, O_DEOPT). Running out of room sets full: the compilation is abandoned.'!
@@ -13,7 +13,80 @@ declarations
 		(optOperands 'int32_t[OPT_MAX_OPERANDS]') (optOperandCount int32_t)
 		(optStates 'OptState[OPT_MAX_STATES]') (optStateCount int32_t)
 		(optActs 'OptAct[OPT_MAX_ACTS]') (optActCount int32_t)
-		(optFull bool) (optCurAct int32_t) (optCurPc int32_t) (optOsrEntry int32_t) (optOsrState int32_t) (optOsrNumbers uint64_t) (optOsrFloats uint64_t) (optOsrInts uint64_t))
+		(optFull bool) (optCurAct int32_t) (optCurPc int32_t) (optOsrEntry int32_t) (optOsrState int32_t) (optOsrNumbers uint64_t) (optOsrFloats uint64_t) (optOsrInts uint64_t)
+		(optFbKeys 'int64_t[OPT_FB_SNAP]') (optFbVals 'uint32_t[OPT_FB_SNAP]') (optFbStamps 'uint32_t[OPT_FB_SNAP]') (optFbStamp uint32_t) (optFbCount int32_t)
+		(optConstCls 'oop[OPT_MAX_NODES]') (optSnapNodes int32_t) (optClsSmallint oop) (optClsChar oop) (optClsSmallfloat oop))
+!
+initialize
+	OPT_FB_SNAP := 16384
+! !
+
+!OptIR methodsFor: 'snapshot'!
+snapshot
+	"What the passes read of the heap and of the type feedback, read now, after building (OptRuntime>>frontEnd:): the profile bits at the bytecode of every node and frame state, the class of every constant, the immediates' classes. The passes and the register allocator then touch nothing but the IR, so they may run on the helper thread (docs/jit.md, Background compilation)."
+	<function>
+	| nd st |
+	optClsSmallint := memory clsSmallint.
+	optClsChar := memory clsChar.
+	optClsSmallfloat := memory clsSmallfloat.
+	"a new stamp empties the table"
+	optFbStamp := optFbStamp + 1.
+	optFbStamp = 0 ifTrue: [
+		libc memset: optFbStamps value: 0 size: 4 * OPT_FB_SNAP.
+		optFbStamp := 1].
+	optFbCount := 0.
+	0 to: optNodeCount - 1 do: [:n |
+		nd := optNodes + n.
+		optConstCls at: n put: ((nd op asInt32 = O_CONST and: [nd rep asInt32 = R_OOP]) ifTrue: [self classOf: nd aux asUInt64] ifFalse: [0]).
+		(nd bcact >= 0 and: [nd bcact < optActCount]) ifTrue: [self snapFlags: nd bcact pc: nd bcpc]].
+	0 to: optStateCount - 1 do: [:s |
+		st := optStates + s.
+		(st act >= 0 and: [st act < optActCount]) ifTrue: [self snapFlags: st act pc: st pc]].
+	optSnapNodes := optNodeCount
+!
+fbKey: a pc: pc
+	^((a asInt64 << 32) bitOr: (pc asInt64 bitAnd: 16rFFFFFFFF)) + 1
+!
+fbSlot: key
+	"The slot of key in the snapshot's table, or the free one where it goes."
+	| i |
+	i := ((key asUInt64 * 16r5851F42D4C957F2D asUInt64) >> 50) asInt32 bitAnd: OPT_FB_SNAP - 1.
+	[(optFbStamps at: i) = optFbStamp and: [(optFbKeys at: i) ~= key]] whileTrue: [i := (i + 1) bitAnd: OPT_FB_SNAP - 1].
+	^i
+!
+snapFlags: a pc: pc
+	| key i |
+	key := self fbKey: a pc: pc.
+	i := self fbSlot: key.
+	(optFbStamps at: i) = optFbStamp ifTrue: [^self].
+	optFbCount >= ((OPT_FB_SNAP quo: 4) * 3) ifTrue: [^self].
+	optFbStamps at: i put: optFbStamp.
+	optFbKeys at: i put: key.
+	optFbVals at: i put: (feedback flagsAt: (optActs + a) method pc: pc).
+	optFbCount := optFbCount + 1
+!
+flagsAtAct: a pc: pc
+	"The type feedback's profile bits (JitFeedback>>flagsAt:pc:) at act a's pc when the IR was built; every bit (assume nothing) if the snapshot has none."
+	<returns: 'uint32_t'>
+	| i |
+	i := self fbSlot: (self fbKey: a pc: pc).
+	(optFbStamps at: i) = optFbStamp ifTrue: [^optFbVals at: i].
+	^16rFFFFFFFF asUInt32
+!
+constClassOf: n
+	"The class of constant n (an object), as the snapshot has it; for a constant the passes made since, an immediate's, else 0 (unknown)."
+	<returns: 'oop'>
+	| v |
+	n < optSnapNodes ifTrue: [^optConstCls at: n].
+	v := (optNodes + n) aux asUInt64.
+	(optNodes + n) rep asInt32 = R_OOP ifFalse: [^0].
+	(v bitAnd: 1) ~= 0 ifTrue: [^optClsSmallint].
+	(v bitAnd: 7) = 2 ifTrue: [^optClsChar].
+	(v bitAnd: 7) = 4 ifTrue: [^optClsSmallfloat].
+	^0
+!
+smallFloatClass
+	^optClsSmallfloat
 ! !
 
 !OptIR methodsFor: 'accessing'!

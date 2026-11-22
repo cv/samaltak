@@ -6,10 +6,19 @@ int32_t opt_act_count;
 opt_act opt_acts[512];
 int32_t opt_block_count;
 opt_block opt_blocks[2048];
+oop opt_cls_char;
+oop opt_cls_smallfloat;
+oop opt_cls_smallint;
+oop opt_const_cls[16384];
 int32_t opt_cur_act;
 int32_t opt_cur_pc;
 static int32_t opt_edge_count;
 opt_edge opt_edges[8192];
+static int32_t opt_fb_count;
+int64_t opt_fb_keys[16384];
+uint32_t opt_fb_stamp;
+uint32_t opt_fb_stamps[16384];
+uint32_t opt_fb_vals[16384];
 bool opt_full;
 int32_t opt_node_count;
 opt_node opt_nodes[16384];
@@ -20,6 +29,7 @@ uint64_t opt_osr_floats;
 uint64_t opt_osr_ints;
 uint64_t opt_osr_numbers;
 int32_t opt_osr_state;
+int32_t opt_snap_nodes;
 int32_t opt_state_count;
 opt_state opt_states[16384];
 
@@ -349,6 +359,119 @@ int32_t opt_ir_resolve(int32_t n)
         m = (opt_nodes + m)->fwd;
     }
     return m;
+}
+
+/* OptIR>>snapshot */
+void snapshot(void)
+{
+    int32_t n;
+    opt_node *nd;
+    uint64_t o;
+    oop r_class_of;
+    oop v;
+    int32_t a;
+    int32_t pc;
+    int64_t key;
+    int32_t r_fb_slot;
+    int32_t i_2;
+    int32_t i;
+    int32_t s;
+    opt_state *st;
+    int32_t a_2;
+    int32_t pc_2;
+    int64_t key_2;
+    int32_t r_fb_slot_2;
+    int32_t i_4;
+    int32_t i_3;
+    opt_cls_smallint = cls_smallint;
+    opt_cls_char = cls_char;
+    opt_cls_smallfloat = cls_smallfloat;
+    opt_fb_stamp = opt_fb_stamp + 1;
+    if (opt_fb_stamp == 0) {
+        memset(opt_fb_stamps, 0, 65536);
+        opt_fb_stamp = 1;
+    }
+    opt_fb_count = 0;
+    for (n = 0; n <= opt_node_count - 1; n++) {
+        nd = opt_nodes + n;
+        opt_const_cls[n] = ({
+    if (((int32_t)nd->op == O_CONST) && ((int32_t)nd->rep == R_OOP)) {
+        o = (uint64_t)nd->aux;
+        v = ({
+    if ((o & 1) != 0) {
+        r_class_of = cls_smallint;
+        goto exit_class_of;
+    }
+    if ((o & 7) == 0) {
+        r_class_of = *(uint64_t *)(o + 8);
+        goto exit_class_of;
+    }
+    if ((o & 7) == 2) {
+        r_class_of = cls_char;
+        goto exit_class_of;
+    }
+    if ((o & 7) == 4) {
+        r_class_of = cls_smallfloat;
+        goto exit_class_of;
+    }
+    r_class_of = nil_oop;
+exit_class_of:;
+    r_class_of; });
+    } else {
+        v = 0;
+    }
+    v; });
+        if ((nd->bcact >= 0) && (nd->bcact < opt_act_count)) {
+            a = nd->bcact;
+            pc = nd->bcpc;
+            key = ((((int64_t)a) << 32) | (((int64_t)pc) & 0xFFFFFFFFLL)) + 1;
+            i = ({
+    i_2 = ((int32_t)(((uint64_t)key * 6364136223846793005ULL) >> 50)) & 16383;
+    while ((opt_fb_stamps[i_2] == opt_fb_stamp) && (opt_fb_keys[i_2] != key)) {
+        i_2 = (i_2 + 1) & 16383;
+    }
+    r_fb_slot = i_2;
+    r_fb_slot; });
+            if (opt_fb_stamps[i] == opt_fb_stamp) {
+                goto exit_snap_flags;
+            }
+            if (opt_fb_count >= 12288) {
+                goto exit_snap_flags;
+            }
+            opt_fb_stamps[i] = opt_fb_stamp;
+            opt_fb_keys[i] = key;
+            opt_fb_vals[i] = flags_at((opt_acts + a)->method, pc);
+            opt_fb_count = opt_fb_count + 1;
+        exit_snap_flags:;
+        }
+    }
+    for (s = 0; s <= opt_state_count - 1; s++) {
+        st = opt_states + s;
+        if ((st->act >= 0) && (st->act < opt_act_count)) {
+            a_2 = st->act;
+            pc_2 = st->pc;
+            key_2 = ((((int64_t)a_2) << 32) | (((int64_t)pc_2) & 0xFFFFFFFFLL)) + 1;
+            i_3 = ({
+    i_4 = ((int32_t)(((uint64_t)key_2 * 6364136223846793005ULL) >> 50)) & 16383;
+    while ((opt_fb_stamps[i_4] == opt_fb_stamp) && (opt_fb_keys[i_4] != key_2)) {
+        i_4 = (i_4 + 1) & 16383;
+    }
+    r_fb_slot_2 = i_4;
+    r_fb_slot_2; });
+            if (opt_fb_stamps[i_3] == opt_fb_stamp) {
+                goto exit_snap_flags_2;
+            }
+            if (opt_fb_count >= 12288) {
+                goto exit_snap_flags_2;
+            }
+            opt_fb_stamps[i_3] = opt_fb_stamp;
+            opt_fb_keys[i_3] = key_2;
+            opt_fb_vals[i_3] = flags_at((opt_acts + a_2)->method, pc_2);
+            opt_fb_count = opt_fb_count + 1;
+        exit_snap_flags_2:;
+        }
+    }
+    opt_snap_nodes = opt_node_count;
 }
 
 /* OptIR>>unlink: */

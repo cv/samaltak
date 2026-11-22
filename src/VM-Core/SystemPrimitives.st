@@ -134,7 +134,7 @@ primReleaseMemory
 primVMStats
 	<vmPrimitive: 164 name: 'vmStats'>
 	| v a |
-	v := self local: 'int64_t[43]'.
+	v := self local: 'int64_t[47]'.
 	v at: 0 put: gc statScavenges asInt64.
 	v at: 1 put: gc statFullGcs asInt64.
 	v at: 2 put: gc statScavengeUs asInt64.
@@ -164,8 +164,9 @@ primVMStats
 	v at: 40 put: gc tenureAge asInt64.
 	v at: 41 put: gc maxHeapBytes asInt64.
 	v at: 42 put: gc heapReserve asInt64.
-	a := memory allocObj: memory clsArray format: F_VAR slots: 43.
-	0 to: 42 do: [:i | (self slotsOf: a) at: i put: (self intOop: (v at: i))].
+	0 to: 3 do: [:i | v at: 43 + i put: (jit optStat: 9 + i asInt32)].
+	a := memory allocObj: memory clsArray format: F_VAR slots: 47.
+	0 to: 46 do: [:i | (self slotsOf: a) at: i put: (self intOop: (v at: i))].
 	self answer: a
 !
 primFlushMethodCache

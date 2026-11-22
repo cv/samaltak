@@ -58,6 +58,22 @@ heapReserve
 	"The part of the heap limit that large allocations leave free, so that handlers and the UI can run when a program fills the heap (GarbageCollector)."
 	^self counterAt: 43
 !
+optBackgroundJobs
+	"Optimized compilations whose IR the helper thread cleaned up and allocated (docs/jit.md, Background compilation)."
+	^self counterAt: 44
+!
+optBackgroundDiscarded
+	"Background jobs dropped before they were installed: a GC moved what they name, code was invalidated or flushed, or the unit got other code."
+	^self counterAt: 45
+!
+optBackgroundMicroseconds
+	"Time the helper thread spent on background jobs (not part of optCompileMicroseconds, which is the VM thread's)."
+	^self counterAt: 46
+!
+optBackgroundDeferred
+	"Tier-ups put off because the helper was busy."
+	^self counterAt: 47
+!
 weakSlotsCleared
 	^self counterAt: 12
 !
@@ -192,5 +208,5 @@ counters: anArray
 !VMStatistics class methodsFor: 'accessing'!
 counterNames
 	"Answer my counter accessors in vmStats order."
-	^#(#scavenges #fullGCs #scavengeMicroseconds #fullGCMicroseconds #oldBytesUsed #oldBudget #edenBytes #bytesAllocated #rememberedSetSize #processSwitches #bytesTenured #weakSlotsCleared #contextsMaterialized #frameFlushes #jitMethodsCompiled #jitBytecodesCompiled #jitCompileMicroseconds #jitCodeBytes #jitCacheFlushes #jitEntries #jitExits #jitResumes #jitOsrEntries #jitCompileFailures #jitInlineCacheMisses #jitInlineCacheLinks #jitPolymorphicCaches #jitMegamorphicSites #jitBlockCacheMisses #jitPrimitiveCalls #jitFrameWalks #optMethodsCompiled #optBytecodesCompiled #optCompileMicroseconds #optCodeBytes #optDeoptimizations #optOsrEntries #optInvalidations #optCompileFailures #optRuntimeSends #tenureAge #maxHeapBytes #heapReserve)
+	^#(#scavenges #fullGCs #scavengeMicroseconds #fullGCMicroseconds #oldBytesUsed #oldBudget #edenBytes #bytesAllocated #rememberedSetSize #processSwitches #bytesTenured #weakSlotsCleared #contextsMaterialized #frameFlushes #jitMethodsCompiled #jitBytecodesCompiled #jitCompileMicroseconds #jitCodeBytes #jitCacheFlushes #jitEntries #jitExits #jitResumes #jitOsrEntries #jitCompileFailures #jitInlineCacheMisses #jitInlineCacheLinks #jitPolymorphicCaches #jitMegamorphicSites #jitBlockCacheMisses #jitPrimitiveCalls #jitFrameWalks #optMethodsCompiled #optBytecodesCompiled #optCompileMicroseconds #optCodeBytes #optDeoptimizations #optOsrEntries #optInvalidations #optCompileFailures #optRuntimeSends #tenureAge #maxHeapBytes #heapReserve #optBackgroundJobs #optBackgroundDiscarded #optBackgroundMicroseconds #optBackgroundDeferred)
 ! !

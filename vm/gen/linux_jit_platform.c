@@ -4,6 +4,9 @@
 
 #ifdef __linux__
 
+static pthread_cond_t worker_cond[1];
+static pthread_mutex_t worker_mutex[1];
+
 /* LinuxJitPlatform>>beginWriting */
 void begin_writing(void)
 {
@@ -24,6 +27,67 @@ void end_writing(void)
 void invalidate(void *start, uint64_t size)
 {
     __builtin___clear_cache(start, (char *)start + size);
+}
+
+/* LinuxJitPlatform>>jitStartThread: */
+bool jit_start_thread(void *(*fn)(void *))
+{
+    pthread_t local;
+    pthread_t *t;
+    pthread_mutex_init(worker_mutex, (const pthread_mutexattr_t *)NULL);
+    pthread_cond_init(worker_cond, (const pthread_condattr_t *)NULL);
+    memset(&local, 0, sizeof local);
+    t = &local;
+    if (pthread_create(t, (const pthread_attr_t *)NULL, fn, NULL) != 0) {
+        return false;
+    }
+    pthread_detach(*t);
+    return true;
+}
+
+/* LinuxJitPlatform>>jitThreadsAvailable */
+bool jit_threads_available(void)
+{
+    uint64_t local[16];
+    uint64_t *set;
+    long got;
+    int64_t n;
+    long i;
+    memset(&local, 0, sizeof local);
+    set = local;
+    got = syscall(SYS_sched_getaffinity, 0, 128, set);
+    if (got <= 0) {
+        return true;
+    }
+    n = 0;
+    for (i = 0; i <= got / 8 - 1; i++) {
+        n = n + __builtin_popcountll(set[i]);
+    }
+    return n > 1;
+}
+
+/* LinuxJitPlatform>>jitWorkerLock */
+void jit_worker_lock(void)
+{
+    pthread_mutex_lock(worker_mutex);
+}
+
+/* LinuxJitPlatform>>jitWorkerUnlock */
+void jit_worker_unlock(void)
+{
+    pthread_mutex_unlock(worker_mutex);
+}
+
+/* LinuxJitPlatform>>jitWorkerWait */
+void jit_worker_wait(void)
+{
+    pthread_cond_wait(worker_cond, worker_mutex);
+}
+
+/* LinuxJitPlatform>>jitWorkerWake */
+void jit_worker_wake(void)
+{
+    pthread_cond_signal(worker_cond);
 }
 
 /* LinuxJitPlatform>>map:size: */

@@ -4,6 +4,9 @@
 
 #ifdef __APPLE__
 
+static pthread_cond_t worker_cond[1];
+static pthread_mutex_t worker_mutex[1];
+
 /* DarwinJitPlatform>>beginWriting */
 void begin_writing(void)
 {
@@ -26,6 +29,52 @@ void end_writing(void)
 void invalidate(void *start, uint64_t size)
 {
     sys_icache_invalidate(start, size);
+}
+
+/* DarwinJitPlatform>>jitStartThread: */
+bool jit_start_thread(void *(*fn)(void *))
+{
+    pthread_t local;
+    pthread_t *t;
+    pthread_mutex_init(worker_mutex, (const pthread_mutexattr_t *)NULL);
+    pthread_cond_init(worker_cond, (const pthread_condattr_t *)NULL);
+    memset(&local, 0, sizeof local);
+    t = &local;
+    if (pthread_create(t, (const pthread_attr_t *)NULL, fn, NULL) != 0) {
+        return false;
+    }
+    pthread_detach(*t);
+    return true;
+}
+
+/* DarwinJitPlatform>>jitThreadsAvailable */
+bool jit_threads_available(void)
+{
+    return can_run_code();
+}
+
+/* DarwinJitPlatform>>jitWorkerLock */
+void jit_worker_lock(void)
+{
+    pthread_mutex_lock(worker_mutex);
+}
+
+/* DarwinJitPlatform>>jitWorkerUnlock */
+void jit_worker_unlock(void)
+{
+    pthread_mutex_unlock(worker_mutex);
+}
+
+/* DarwinJitPlatform>>jitWorkerWait */
+void jit_worker_wait(void)
+{
+    pthread_cond_wait(worker_cond, worker_mutex);
+}
+
+/* DarwinJitPlatform>>jitWorkerWake */
+void jit_worker_wake(void)
+{
+    pthread_cond_signal(worker_cond);
 }
 
 /* DarwinJitPlatform>>map:size: */

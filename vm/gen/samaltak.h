@@ -42,6 +42,7 @@
 #endif
 #ifdef __linux__
 #include <fcntl.h>
+#include <sys/syscall.h>
 #include <sys/timerfd.h>
 #endif
 #ifndef SAMALTAK_NO_PLATFORM
@@ -139,6 +140,9 @@ typedef void (*prim_fn)(void);
 #define BF_LIVE 8
 #define BF_LOOP 2
 #define BF_SEALED 1
+#define BG_DONE 2
+#define BG_IDLE 0
+#define BG_QUEUED 1
 #define BL_BLOCK_CACHE 1024
 #define BL_BLOCK_WORDS 4096
 #define BL_LOOP_WORDS 5
@@ -299,6 +303,7 @@ typedef void (*prim_fn)(void);
 #define JIT_FLAG_ALLOC 1024
 #define JIT_FLAG_ARITH 1
 #define JIT_FLAG_BARRIER 4
+#define JIT_FLAG_BG 4194304
 #define JIT_FLAG_BLOCKS 4096
 #define JIT_FLAG_CALLS 65536
 #define JIT_FLAG_DEOPT 524288
@@ -309,7 +314,7 @@ typedef void (*prim_fn)(void);
 #define JIT_FLAG_HOIST 1048576
 #define JIT_FLAG_IC 16
 #define JIT_FLAG_INLINE 16384
-#define JIT_FLAG_LAST 2097152
+#define JIT_FLAG_LAST 4194304
 #define JIT_FLAG_LIVE 2097152
 #define JIT_FLAG_MEGA 64
 #define JIT_FLAG_NOTES 8
@@ -411,6 +416,7 @@ typedef void (*prim_fn)(void);
 #define OPK_STRINGATPUT 5
 #define OPT_ANA_MAX 65536
 #define OPT_DEF_SIZE 131072
+#define OPT_FB_SNAP 16384
 #define OPT_INLINE_BUDGET 3000
 #define OPT_INLINE_DEPTH 8
 #define OPT_INLINE_SIZE 200
@@ -1443,13 +1449,20 @@ extern int32_t root_count;
 extern oop *root_stack[1024];
 extern oop specials_oop;
 extern oop true_oop;
+extern int32_t ob_ana_count;
+extern oop ob_ana_methods[256];
 extern int32_t ob_dep_count;
 extern oop ob_deps[256];
 extern int32_t ob_entry_block;
 extern bool ob_foreign;
+extern oop ob_foreign_m[8];
 extern frame *ob_frame;
+extern oop ob_no_foreign_m[8];
+extern oop ob_no_inline[8];
+extern int32_t ob_no_inline_count;
 extern int32_t ob_osr_pc;
 extern int32_t ob_param_slots;
+extern oop ob_root_method;
 extern int32_t ob_unit_start;
 extern int32_t ob_valid_slots;
 extern uint64_t cg_code_start;
@@ -1476,9 +1489,17 @@ extern int32_t opt_act_count;
 extern opt_act opt_acts[512];
 extern int32_t opt_block_count;
 extern opt_block opt_blocks[2048];
+extern oop opt_cls_char;
+extern oop opt_cls_smallfloat;
+extern oop opt_cls_smallint;
+extern oop opt_const_cls[16384];
 extern int32_t opt_cur_act;
 extern int32_t opt_cur_pc;
 extern opt_edge opt_edges[8192];
+extern int64_t opt_fb_keys[16384];
+extern uint32_t opt_fb_stamp;
+extern uint32_t opt_fb_stamps[16384];
+extern uint32_t opt_fb_vals[16384];
 extern bool opt_full;
 extern int32_t opt_node_count;
 extern opt_node opt_nodes[16384];
@@ -1488,6 +1509,7 @@ extern uint64_t opt_osr_floats;
 extern uint64_t opt_osr_ints;
 extern uint64_t opt_osr_numbers;
 extern int32_t opt_osr_state;
+extern int32_t opt_snap_nodes;
 extern int32_t opt_state_count;
 extern opt_state opt_states[16384];
 #if defined(__x86_64__)
@@ -1503,6 +1525,12 @@ extern int32_t ra_safe_list[262144];
 extern int32_t ra_slot_top;
 extern jit_method *rt_all[16384];
 extern int32_t rt_all_count;
+extern bool rt_bg_hold;
+extern atomic_int rt_bg_state;
+extern uint64_t rt_stat_bg_deferred;
+extern uint64_t rt_stat_bg_discarded;
+extern uint64_t rt_stat_bg_jobs;
+extern uint64_t rt_stat_bg_us;
 extern uint64_t rt_stat_deopts;
 extern uint64_t rt_stat_invalidations;
 extern uint64_t rt_stat_opt_bytecodes;
@@ -1799,6 +1827,8 @@ uint64_t address_for(frame *f);
 void jit_runtime_after_gc(void);
 void jit_runtime_all_roots(void (*fn)(oop *));
 void jit_runtime_back_jump(frame *f);
+void background_hold(bool a_boolean);
+int64_t background_state(void);
 uint64_t baseline_stat(int32_t i);
 void become_method(oop from);
 uint64_t jit_runtime_block_code_for(oop m);
@@ -1995,11 +2025,14 @@ void opt_ir_release(void);
 void replace_pred(int32_t old, int32_t new, int32_t b);
 void reset(void);
 int32_t opt_ir_resolve(int32_t n);
+void snapshot(void);
 void opt_ir_unlink(int32_t n);
 void cleanup(int32_t entry);
 bool opt_regalloc_allocate(int32_t num_args, int32_t n);
 void opt_regalloc_release(void);
 void opt_runtime_all_roots(void (*fn)(oop *));
+bool background(void);
+void bg_quiesce(void);
 uint64_t opt_runtime_block_code_for(uint64_t m, int32_t s);
 bool opt_runtime_compile(oop m);
 uint64_t deopt_guard(frame *f, int64_t k);
@@ -2095,6 +2128,12 @@ void begin_writing(void);
 bool can_run_code(void);
 void end_writing(void);
 void invalidate(void *start, uint64_t size);
+bool jit_start_thread(void *(*fn)(void *));
+bool jit_threads_available(void);
+void jit_worker_lock(void);
+void jit_worker_unlock(void);
+void jit_worker_wait(void);
+void jit_worker_wake(void);
 void *map(void *near, uint64_t size);
 void map_for_perf(const char *path);
 void arm(int ident, int64_t us, bool periodic);
@@ -2106,6 +2145,12 @@ void begin_writing(void);
 bool can_run_code(void);
 void end_writing(void);
 void invalidate(void *start, uint64_t size);
+bool jit_start_thread(void *(*fn)(void *));
+bool jit_threads_available(void);
+void jit_worker_lock(void);
+void jit_worker_unlock(void);
+void jit_worker_wait(void);
+void jit_worker_wake(void);
 void *map(void *near, uint64_t size);
 void map_for_perf(const char *path);
 void arm(int ident, int64_t us, bool periodic);

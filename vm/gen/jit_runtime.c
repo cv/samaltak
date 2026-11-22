@@ -380,6 +380,29 @@ void jit_runtime_back_jump(frame *f)
 exit_run:;
 }
 
+/* JitRuntime>>backgroundHold: */
+void background_hold(bool a_boolean)
+{
+    rt_bg_hold = a_boolean;
+}
+
+/* JitRuntime>>backgroundState */
+int64_t background_state(void)
+{
+    int64_t r_bg_state;
+    if (!(jit_mode == JIT_OPT)) {
+        return -1;
+    }
+    return ({
+    if (!background()) {
+        r_bg_state = -1;
+        goto exit_bg_state;
+    }
+    r_bg_state = (int64_t)atomic_load_explicit(&rt_bg_state, memory_order_relaxed);
+exit_bg_state:;
+    r_bg_state; });
+}
+
 /* JitRuntime>>baselineStat: */
 uint64_t baseline_stat(int32_t i)
 {
@@ -859,7 +882,7 @@ uint64_t jit_runtime_context_field(frame *f)
 void defaults(void)
 {
     jit_mode = JIT_OPT;
-    jit_flags = 3407863U;
+    jit_flags = 7602167U;
 }
 
 #if defined(__x86_64__)
@@ -1832,6 +1855,9 @@ char *flag_name(uint32_t bit)
     if (bit == JIT_FLAG_EAGER) {
         return "eager";
     }
+    if (bit == JIT_FLAG_BG) {
+        return "bg";
+    }
     return "deopt";
 }
 
@@ -2272,6 +2298,22 @@ int64_t opt_stat(int32_t i)
 {
     int64_t r_stat;
     return ({
+    if (i == 12) {
+        r_stat = (int64_t)rt_stat_bg_deferred;
+        goto exit_stat;
+    }
+    if (i == 11) {
+        r_stat = (int64_t)rt_stat_bg_us;
+        goto exit_stat;
+    }
+    if (i == 10) {
+        r_stat = (int64_t)rt_stat_bg_discarded;
+        goto exit_stat;
+    }
+    if (i == 9) {
+        r_stat = (int64_t)rt_stat_bg_jobs;
+        goto exit_stat;
+    }
     if (i == 8) {
         r_stat = (int64_t)rt_stat_sends;
         goto exit_stat;
@@ -2418,6 +2460,10 @@ bool parse_flags(char *s)
     }
     if ((strlen("deopt") == (uint64_t)n) && (memcmp(name, "deopt", (uint64_t)n) == 0)) {
         r_flag_named = JIT_FLAG_DEOPT;
+        goto exit_flag_named;
+    }
+    if ((strlen("bg") == (uint64_t)n) && (memcmp(name, "bg", (uint64_t)n) == 0)) {
+        r_flag_named = JIT_FLAG_BG;
         goto exit_flag_named;
     }
     r_flag_named = 0;

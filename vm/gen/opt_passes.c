@@ -99,6 +99,12 @@ static void bounds_out_of(int32_t h, int64_t entry, int64_t index)
     bool r_is_before_3;
     int32_t b_3;
     int32_t a;
+    int32_t pc;
+    uint32_t r_flags_at_act;
+    int64_t key;
+    int32_t r_fb_slot;
+    int32_t i_4;
+    int32_t i_3;
     int32_t g;
     int32_t g_2;
     int32_t size;
@@ -214,7 +220,23 @@ exit_reverse_index_of:;
 exit_is_before_3:;
     r_is_before_3; }) && (((int32_t)(opt_nodes + x)->tkind == T_OBJ) && ({
     a = nd->bcact;
-    (flags_at((opt_acts + a)->method, nd->bcpc) & FB_DEOPT_HOISTED) == 0; }))) {
+    pc = nd->bcpc;
+    (({
+    key = ((((int64_t)a) << 32) | (((int64_t)pc) & 0xFFFFFFFFLL)) + 1;
+    i_3 = ({
+    i_4 = ((int32_t)(((uint64_t)key * 6364136223846793005ULL) >> 50)) & 16383;
+    while ((opt_fb_stamps[i_4] == opt_fb_stamp) && (opt_fb_keys[i_4] != key)) {
+        i_4 = (i_4 + 1) & 16383;
+    }
+    r_fb_slot = i_4;
+    r_fb_slot; });
+    if (opt_fb_stamps[i_3] == opt_fb_stamp) {
+        r_flags_at_act = opt_fb_vals[i_3];
+        goto exit_flags_at_act;
+    }
+    r_flags_at_act = 4294967295LL;
+exit_flags_at_act:;
+    r_flags_at_act; }) & FB_DEOPT_HOISTED) == 0; }))) {
                 if (s < 0) {
                     s = opt_passes_state(hb->entry_state, index, h);
                     if (opt_full) {
@@ -1105,6 +1127,12 @@ static void head_bounds_out_of(int32_t h, int64_t entry, int64_t index)
     bool r_is_before_2;
     int32_t b_2;
     int32_t a;
+    int32_t pc;
+    uint32_t r_flags_at_act;
+    int64_t key;
+    int32_t r_fb_slot;
+    int32_t i_4;
+    int32_t i_3;
     int32_t g;
     int32_t size;
     int32_t g_2;
@@ -1224,7 +1252,23 @@ exit_is_phi:;
 exit_is_before_2:;
     r_is_before_2; }) && (((int32_t)(opt_nodes + x)->tkind == T_OBJ) && ({
     a = nd->bcact;
-    (flags_at((opt_acts + a)->method, nd->bcpc) & FB_DEOPT_HOISTED) == 0; }))) {
+    pc = nd->bcpc;
+    (({
+    key = ((((int64_t)a) << 32) | (((int64_t)pc) & 0xFFFFFFFFLL)) + 1;
+    i_3 = ({
+    i_4 = ((int32_t)(((uint64_t)key * 6364136223846793005ULL) >> 50)) & 16383;
+    while ((opt_fb_stamps[i_4] == opt_fb_stamp) && (opt_fb_keys[i_4] != key)) {
+        i_4 = (i_4 + 1) & 16383;
+    }
+    r_fb_slot = i_4;
+    r_fb_slot; });
+    if (opt_fb_stamps[i_3] == opt_fb_stamp) {
+        r_flags_at_act = opt_fb_vals[i_3];
+        goto exit_flags_at_act;
+    }
+    r_flags_at_act = 4294967295LL;
+exit_flags_at_act:;
+    r_flags_at_act; }) & FB_DEOPT_HOISTED) == 0; }))) {
                 if (s < 0) {
                     s = opt_passes_state(hb->entry_state, index, h);
                     if (opt_full) {
@@ -1325,6 +1369,12 @@ static void hoist_out_of(int32_t h)
     int32_t n_2;
     int32_t b_3;
     int32_t a;
+    int32_t pc;
+    uint32_t r_flags_at_act;
+    int64_t key;
+    int32_t r_fb_slot;
+    int32_t i_3;
+    int32_t i_2;
     bool r_is_invariant_outer_load;
     opt_node *nd_2;
     int32_t n_3;
@@ -1428,7 +1478,23 @@ exit_is_before_2:;
         }
     }
     a = nd->bcact;
-    r_is_hoistable = (flags_at((opt_acts + a)->method, nd->bcpc) & FB_DEOPT_HOISTED) == 0;
+    pc = nd->bcpc;
+    r_is_hoistable = (({
+    key = ((((int64_t)a) << 32) | (((int64_t)pc) & 0xFFFFFFFFLL)) + 1;
+    i_2 = ({
+    i_3 = ((int32_t)(((uint64_t)key * 6364136223846793005ULL) >> 50)) & 16383;
+    while ((opt_fb_stamps[i_3] == opt_fb_stamp) && (opt_fb_keys[i_3] != key)) {
+        i_3 = (i_3 + 1) & 16383;
+    }
+    r_fb_slot = i_3;
+    r_fb_slot; });
+    if (opt_fb_stamps[i_2] == opt_fb_stamp) {
+        r_flags_at_act = opt_fb_vals[i_2];
+        goto exit_flags_at_act;
+    }
+    r_flags_at_act = 4294967295LL;
+exit_flags_at_act:;
+    r_flags_at_act; }) & FB_DEOPT_HOISTED) == 0;
 exit_is_hoistable:;
     r_is_hoistable; })) {
                 if (s < 0) {
@@ -1576,13 +1642,13 @@ static bool is_invariant_field_load(int32_t n, int32_t h)
     bool r_may_be_same;
     oop r_known_class_of;
     opt_node *nd_2;
-    uint64_t o;
-    oop r_class_of;
+    oop r_const_class_of;
+    uint64_t v_2;
     oop cx;
     oop r_known_class_of_2;
     opt_node *nd_3;
-    uint64_t o_2;
-    oop r_class_of_2;
+    oop r_const_class_of_2;
+    uint64_t v_3;
     oop cy;
     nd = opt_nodes + n;
     if (!(((int32_t)nd->op == O_LOADFIELD) && ({
@@ -1623,27 +1689,31 @@ exit_block:;
     cx = ({
     nd_2 = opt_nodes + x;
     if ((int32_t)nd_2->op == O_CONST) {
-        o = (uint64_t)nd_2->aux;
         r_known_class_of = ({
-    if ((o & 1) != 0) {
-        r_class_of = cls_smallint;
-        goto exit_class_of;
+    if (x < opt_snap_nodes) {
+        r_const_class_of = opt_const_cls[x];
+        goto exit_const_class_of;
     }
-    if ((o & 7) == 0) {
-        r_class_of = *(uint64_t *)(o + 8);
-        goto exit_class_of;
+    v_2 = (uint64_t)(opt_nodes + x)->aux;
+    if (!((int32_t)(opt_nodes + x)->rep == R_OOP)) {
+        r_const_class_of = 0;
+        goto exit_const_class_of;
     }
-    if ((o & 7) == 2) {
-        r_class_of = cls_char;
-        goto exit_class_of;
+    if ((v_2 & 1) != 0) {
+        r_const_class_of = opt_cls_smallint;
+        goto exit_const_class_of;
     }
-    if ((o & 7) == 4) {
-        r_class_of = cls_smallfloat;
-        goto exit_class_of;
+    if ((v_2 & 7) == 2) {
+        r_const_class_of = opt_cls_char;
+        goto exit_const_class_of;
     }
-    r_class_of = nil_oop;
-exit_class_of:;
-    r_class_of; });
+    if ((v_2 & 7) == 4) {
+        r_const_class_of = opt_cls_smallfloat;
+        goto exit_const_class_of;
+    }
+    r_const_class_of = 0;
+exit_const_class_of:;
+    r_const_class_of; });
         goto exit_known_class_of;
     }
     if (((int32_t)nd_2->tkind == T_OBJ) && (nd_2->tcls != 0)) {
@@ -1656,27 +1726,31 @@ exit_known_class_of:;
     cy = ({
     nd_3 = opt_nodes + y;
     if ((int32_t)nd_3->op == O_CONST) {
-        o_2 = (uint64_t)nd_3->aux;
         r_known_class_of_2 = ({
-    if ((o_2 & 1) != 0) {
-        r_class_of_2 = cls_smallint;
-        goto exit_class_of_2;
+    if (y < opt_snap_nodes) {
+        r_const_class_of_2 = opt_const_cls[y];
+        goto exit_const_class_of_2;
     }
-    if ((o_2 & 7) == 0) {
-        r_class_of_2 = *(uint64_t *)(o_2 + 8);
-        goto exit_class_of_2;
+    v_3 = (uint64_t)(opt_nodes + y)->aux;
+    if (!((int32_t)(opt_nodes + y)->rep == R_OOP)) {
+        r_const_class_of_2 = 0;
+        goto exit_const_class_of_2;
     }
-    if ((o_2 & 7) == 2) {
-        r_class_of_2 = cls_char;
-        goto exit_class_of_2;
+    if ((v_3 & 1) != 0) {
+        r_const_class_of_2 = opt_cls_smallint;
+        goto exit_const_class_of_2;
     }
-    if ((o_2 & 7) == 4) {
-        r_class_of_2 = cls_smallfloat;
-        goto exit_class_of_2;
+    if ((v_3 & 7) == 2) {
+        r_const_class_of_2 = opt_cls_char;
+        goto exit_const_class_of_2;
     }
-    r_class_of_2 = nil_oop;
-exit_class_of_2:;
-    r_class_of_2; });
+    if ((v_3 & 7) == 4) {
+        r_const_class_of_2 = opt_cls_smallfloat;
+        goto exit_const_class_of_2;
+    }
+    r_const_class_of_2 = 0;
+exit_const_class_of_2:;
+    r_const_class_of_2; });
         goto exit_known_class_of_2;
     }
     if (((int32_t)nd_3->tkind == T_OBJ) && (nd_3->tcls != 0)) {
@@ -1813,6 +1887,12 @@ static void mutability_out_of(int32_t h, int64_t entry, int64_t index)
     bool r_block;
     int32_t l;
     int32_t a;
+    int32_t pc;
+    uint32_t r_flags_at_act;
+    int64_t key;
+    int32_t r_fb_slot;
+    int32_t i_2;
+    int32_t i;
     int32_t x;
     bool r_is_before;
     int32_t b_2;
@@ -1845,7 +1925,23 @@ static void mutability_out_of(int32_t h, int64_t entry, int64_t index)
 exit_block:;
     r_block; }) && ({
     a = nd->bcact;
-    (flags_at((opt_acts + a)->method, nd->bcpc) & FB_DEOPT_HOISTED) == 0; }); }))) {
+    pc = nd->bcpc;
+    (({
+    key = ((((int64_t)a) << 32) | (((int64_t)pc) & 0xFFFFFFFFLL)) + 1;
+    i = ({
+    i_2 = ((int32_t)(((uint64_t)key * 6364136223846793005ULL) >> 50)) & 16383;
+    while ((opt_fb_stamps[i_2] == opt_fb_stamp) && (opt_fb_keys[i_2] != key)) {
+        i_2 = (i_2 + 1) & 16383;
+    }
+    r_fb_slot = i_2;
+    r_fb_slot; });
+    if (opt_fb_stamps[i] == opt_fb_stamp) {
+        r_flags_at_act = opt_fb_vals[i];
+        goto exit_flags_at_act;
+    }
+    r_flags_at_act = 4294967295LL;
+exit_flags_at_act:;
+    r_flags_at_act; }) & FB_DEOPT_HOISTED) == 0; }); }))) {
             x = opt_ir_resolve(nd->a);
             if (({
     if ((int32_t)(opt_nodes + x)->op == O_CONST) {
@@ -2018,12 +2114,18 @@ static void promote_outer_temps_of(int32_t h, int64_t entry, int64_t index, int6
     bool r_block_2;
     int32_t l_2;
     int32_t a;
+    int32_t pc;
+    uint32_t r_flags_at_act;
+    int64_t key;
+    int32_t r_fb_slot;
+    int32_t i_2;
+    int32_t i;
     int32_t e;
     int32_t n;
     int32_t g;
     int32_t p;
-    int64_t i;
-    int64_t i_2;
+    int64_t i_3;
+    int64_t i_4;
     int32_t v_2;
     int32_t j_3;
     opt_node *st_2;
@@ -2157,7 +2259,23 @@ exit_block_2:;
             }
             if (ok && ((ld >= 0) && ({
     a = (opt_nodes + ld)->bcact;
-    (flags_at((opt_acts + a)->method, (opt_nodes + ld)->bcpc) & FB_DEOPT_HOISTED) == 0; }))) {
+    pc = (opt_nodes + ld)->bcpc;
+    (({
+    key = ((((int64_t)a) << 32) | (((int64_t)pc) & 0xFFFFFFFFLL)) + 1;
+    i = ({
+    i_2 = ((int32_t)(((uint64_t)key * 6364136223846793005ULL) >> 50)) & 16383;
+    while ((opt_fb_stamps[i_2] == opt_fb_stamp) && (opt_fb_keys[i_2] != key)) {
+        i_2 = (i_2 + 1) & 16383;
+    }
+    r_fb_slot = i_2;
+    r_fb_slot; });
+    if (opt_fb_stamps[i] == opt_fb_stamp) {
+        r_flags_at_act = opt_fb_vals[i];
+        goto exit_flags_at_act;
+    }
+    r_flags_at_act = 4294967295LL;
+exit_flags_at_act:;
+    r_flags_at_act; }) & FB_DEOPT_HOISTED) == 0; }))) {
                 if (s < 0) {
                     s = opt_passes_state((opt_blocks + h)->entry_state, index, h);
                     if (opt_full) {
@@ -2206,11 +2324,11 @@ exit_block_2:;
                 (opt_nodes + p)->tkind = (opt_nodes + e)->tkind;
                 (opt_nodes + p)->bcact = (opt_nodes + ld)->bcact;
                 (opt_nodes + p)->bcpc = (opt_nodes + ld)->bcpc;
-                i = (opt_nodes + p)->args + index;
-                opt_operands[i] = e;
-                i_2 = (opt_nodes + p)->args + (1 - index);
+                i_3 = (opt_nodes + p)->args + index;
+                opt_operands[i_3] = e;
+                i_4 = (opt_nodes + p)->args + (1 - index);
                 v_2 = opt_ir_resolve((opt_nodes + st)->b);
-                opt_operands[i_2] = v_2;
+                opt_operands[i_4] = v_2;
                 insert(p, (opt_blocks + h)->first);
                 for (j_3 = 0; j_3 <= opt_node_count - 1; j_3++) {
                     u = opt_nodes + j_3;
@@ -2264,6 +2382,12 @@ static void range_bounds_out_of(int32_t h, int64_t entry, int64_t index)
     bool r_is_before;
     int32_t b_2;
     int32_t a;
+    int32_t pc;
+    uint32_t r_flags_at_act;
+    int64_t key;
+    int32_t r_fb_slot;
+    int32_t i_3;
+    int32_t i_2;
     int32_t size;
     int32_t n_2;
     int64_t k;
@@ -2298,7 +2422,23 @@ exit_block:;
 exit_is_before:;
     r_is_before; }) && (((int32_t)(opt_nodes + x)->tkind == T_OBJ) && ({
     a = nd->bcact;
-    (flags_at((opt_acts + a)->method, nd->bcpc) & FB_DEOPT_HOISTED) == 0; }))))) {
+    pc = nd->bcpc;
+    (({
+    key = ((((int64_t)a) << 32) | (((int64_t)pc) & 0xFFFFFFFFLL)) + 1;
+    i_2 = ({
+    i_3 = ((int32_t)(((uint64_t)key * 6364136223846793005ULL) >> 50)) & 16383;
+    while ((opt_fb_stamps[i_3] == opt_fb_stamp) && (opt_fb_keys[i_3] != key)) {
+        i_3 = (i_3 + 1) & 16383;
+    }
+    r_fb_slot = i_3;
+    r_fb_slot; });
+    if (opt_fb_stamps[i_2] == opt_fb_stamp) {
+        r_flags_at_act = opt_fb_vals[i_2];
+        goto exit_flags_at_act;
+    }
+    r_flags_at_act = 4294967295LL;
+exit_flags_at_act:;
+    r_flags_at_act; }) & FB_DEOPT_HOISTED) == 0; }))))) {
                 if (s < 0) {
                     s = opt_passes_state((opt_blocks + h)->entry_state, index, h);
                     if (opt_full) {
@@ -2658,6 +2798,12 @@ static bool sinks(int32_t p, int32_t n, int i)
     int32_t s;
     opt_state *st;
     int32_t a;
+    int32_t pc;
+    uint32_t r_flags_at_act;
+    int64_t key;
+    int32_t r_fb_slot;
+    int32_t i_3;
+    int32_t i_2;
     int32_t b;
     int32_t h;
     int32_t b_2;
@@ -2676,7 +2822,23 @@ static bool sinks(int32_t p, int32_t n, int i)
         return false;
     }
     a = st->act;
-    if (!((flags_at((opt_acts + a)->method, st->pc) & FB_DEOPT_OTHER) == 0)) {
+    pc = st->pc;
+    if (!((({
+    key = ((((int64_t)a) << 32) | (((int64_t)pc) & 0xFFFFFFFFLL)) + 1;
+    i_2 = ({
+    i_3 = ((int32_t)(((uint64_t)key * 6364136223846793005ULL) >> 50)) & 16383;
+    while ((opt_fb_stamps[i_3] == opt_fb_stamp) && (opt_fb_keys[i_3] != key)) {
+        i_3 = (i_3 + 1) & 16383;
+    }
+    r_fb_slot = i_3;
+    r_fb_slot; });
+    if (opt_fb_stamps[i_2] == opt_fb_stamp) {
+        r_flags_at_act = opt_fb_vals[i_2];
+        goto exit_flags_at_act;
+    }
+    r_flags_at_act = 4294967295LL;
+exit_flags_at_act:;
+    r_flags_at_act; }) & FB_DEOPT_OTHER) == 0)) {
         return false;
     }
     b = (opt_nodes + p)->block;
@@ -2983,7 +3145,7 @@ static void type_float_phis(void)
                     v = ({
     n_4 = (opt_blocks + opt_osr_entry)->first;
     while (n_4 >= 0) {
-        if (((int32_t)(opt_nodes + n_4)->op == O_GUARDCLASS) && (((opt_nodes + n_4)->a == v) && ((opt_nodes + n_4)->aux == (int64_t)cls_smallfloat))) {
+        if (((int32_t)(opt_nodes + n_4)->op == O_GUARDCLASS) && (((opt_nodes + n_4)->a == v) && ((opt_nodes + n_4)->aux == (int64_t)opt_cls_smallfloat))) {
             r_float_guard_of = n_4;
             goto exit_float_guard_of;
         }
@@ -2995,7 +3157,7 @@ static void type_float_phis(void)
         goto exit_float_guard_of;
     }
     (opt_nodes + g)->a = v;
-    (opt_nodes + g)->aux = (int64_t)cls_smallfloat;
+    (opt_nodes + g)->aux = (int64_t)opt_cls_smallfloat;
     (opt_nodes + g)->state = opt_osr_state;
     (opt_nodes + g)->flags = NF_GUARD;
     (opt_nodes + g)->tkind = T_FLOAT;

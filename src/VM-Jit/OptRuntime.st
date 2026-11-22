@@ -1,6 +1,6 @@
 OptModule subclass: #OptRuntime
-	instanceVariableNames: 'ir builder passes regalloc codegen rtDeoptVals rtDeoptCount rtActMethod rtActClosure rtActRcv rtActPc rtActDepth rtActVals rtActCount rtOptYoung rtOptYoungCount rtOptYoungOverflow rtStatOptCompiled rtStatOptFailed rtStatOptBytecodes rtStatOptUs rtStatOptBytes rtStatDeopts rtStatOptOsr rtStatInvalidations rtAll rtAllCount rtSunkAct rtSunkStart rtSunkInfo rtSunkOrder rtSunkCount rtSunkUseVal rtSunkUseId rtSunkUseCount rtFloatVal rtFloatLoc rtFloatBits rtFloatCount rtWritten rtUnitStart rtUnitOsr rtUnitDepth rtUnits rtUnitCount rtVariantCount rtFailed rtTrace rtTraceSends rtStamp rtStatSends rtUnitFrame rtUnitSignature rtSigCtx rtSigCount'
-	classVariableNames: 'OPT_MAX_UNITS OPT_MAX_VARIANT_UNITS OPT_MAX_VARIANTS OPT_MAX_GENERATIONS OPT_MAX_DEOPTS OPT_MAX_DEOPT_ACTS OPT_MAX_DEOPT_VALS OPT_MAX_HEADERS OPT_MAX_YOUNG'
+	instanceVariableNames: 'ir builder passes regalloc codegen rtDeoptVals rtDeoptCount rtActMethod rtActClosure rtActRcv rtActPc rtActDepth rtActVals rtActCount rtOptYoung rtOptYoungCount rtOptYoungOverflow rtStatOptCompiled rtStatOptFailed rtStatOptBytecodes rtStatOptUs rtStatOptBytes rtStatDeopts rtStatOptOsr rtStatInvalidations rtAll rtAllCount rtSunkAct rtSunkStart rtSunkInfo rtSunkOrder rtSunkCount rtSunkUseVal rtSunkUseId rtSunkUseCount rtFloatVal rtFloatLoc rtFloatBits rtFloatCount rtWritten rtUnitStart rtUnitOsr rtUnitDepth rtUnits rtUnitCount rtVariantCount rtFailed rtTrace rtTraceSends rtStamp rtStatSends rtUnitFrame rtUnitSignature rtSigCtx rtSigCount threads rtBgThread rtBgState rtBgOk rtBgUnboxed rtBgWorkerUs rtBgInstalling rtBgHold rtBgStale rtBgGcStale rtBgFlushed rtBgYoung rtBgMethod rtBgLower rtBgPrev rtBgStart rtBgOsr rtBgDepth rtBgSignature rtBgStamp rtBgKey rtBgRedoKey rtStatBgJobs rtStatBgDiscarded rtStatBgUs rtStatBgDeferred'
+	classVariableNames: 'BG_DONE BG_IDLE BG_QUEUED OPT_MAX_UNITS OPT_MAX_VARIANT_UNITS OPT_MAX_VARIANTS OPT_MAX_GENERATIONS OPT_MAX_DEOPTS OPT_MAX_DEOPT_ACTS OPT_MAX_DEOPT_VALS OPT_MAX_HEADERS OPT_MAX_YOUNG'
 	package: 'VM-Jit'!
 
 OptRuntime comment: 'The optimizing tier''s side of the runtime (docs/jit.md, Optimizing tier): when to optimize (tierUp:), compiling (OptBuilder, OptPasses, OptRegalloc, OptCodegen), sends from optimized code, deoptimization (a guard failed: the registers are in the JitState; after a send: everything is in slots), rebuilding an optimized frame''s activations as frames (deoptimization) or Contexts (materializeAll), resuming an optimized frame the interpreter returns into, the GC roots of optimized code (its method and oop pool).
@@ -20,7 +20,11 @@ declarations
 		(rtSunkAct 'int32_t[64]') (rtSunkStart 'int32_t[64]') (rtSunkInfo 'int32_t[64]') (rtSunkOrder 'int32_t[64]') (rtSunkCount int32_t)
 		(rtSunkUseVal 'int32_t[OPT_MAX_DEOPT_VALS]') (rtSunkUseId 'int32_t[OPT_MAX_DEOPT_VALS]') (rtSunkUseCount int32_t)
 		(rtFloatVal 'int32_t[OPT_MAX_DEOPT_VALS]') (rtFloatLoc 'int32_t[OPT_MAX_DEOPT_VALS]') (rtFloatBits 'uint64_t[OPT_MAX_DEOPT_VALS]') (rtFloatCount int32_t) (rtWritten int32_t)
-		(rtUnitStart int32_t) (rtUnitOsr int32_t) (rtUnitDepth int32_t) (rtUnits 'JitMethod *[OPT_MAX_UNITS]') (rtUnitCount int32_t) (rtVariantCount int32_t) (rtFailed 'uint64_t[OPT_MAX_UNITS]') (rtTrace bool) (rtTraceSends bool) (rtStamp uint32_t) (rtStatSends uint64_t) (rtUnitFrame 'Frame *') (rtUnitSignature uint32_t) (rtSigCtx 'oop[8]') (rtSigCount int32_t))
+		(rtUnitStart int32_t) (rtUnitOsr int32_t) (rtUnitDepth int32_t) (rtUnits 'JitMethod *[OPT_MAX_UNITS]') (rtUnitCount int32_t) (rtVariantCount int32_t) (rtFailed 'uint64_t[OPT_MAX_UNITS]') (rtTrace bool) (rtTraceSends bool) (rtStamp uint32_t) (rtStatSends uint64_t) (rtUnitFrame 'Frame *') (rtUnitSignature uint32_t) (rtSigCtx 'oop[8]') (rtSigCount int32_t)
+		(threads JitPlatform) (rtBgThread int32_t) (rtBgState atomic_int) (rtBgOk bool) (rtBgUnboxed bool) (rtBgWorkerUs uint64_t) (rtBgInstalling bool) (rtBgHold bool)
+		(rtBgStale bool) (rtBgGcStale bool) (rtBgFlushed bool) (rtBgYoung bool) (rtBgMethod oop) (rtBgLower 'JitMethod *') (rtBgPrev 'JitMethod *')
+		(rtBgStart int32_t) (rtBgOsr int32_t) (rtBgDepth int32_t) (rtBgSignature uint32_t) (rtBgStamp uint32_t) (rtBgKey uint64_t) (rtBgRedoKey uint64_t)
+		(rtStatBgJobs uint64_t) (rtStatBgDiscarded uint64_t) (rtStatBgUs uint64_t) (rtStatBgDeferred uint64_t))
 !
 initialize
 	OPT_MAX_DEOPT_VALS := 8192.
@@ -31,7 +35,205 @@ initialize
 	OPT_MAX_GENERATIONS := 32.
 	OPT_MAX_VARIANTS := 16.
 	OPT_MAX_VARIANT_UNITS := 2048.
-	OPT_MAX_UNITS := 8192
+	OPT_MAX_UNITS := 8192.
+	"background compilation: the helper waits, works on a job, or its result waits for the VM's thread"
+	BG_IDLE := 0.
+	BG_QUEUED := 1.
+	BG_DONE := 2
+! !
+
+!OptRuntime methodsFor: 'background compilation'!
+background
+	"Whether the unit a tier-up asks for is compiled in the background (docs/jit.md, Background compilation): the flag bg, no SAMALTAK_OPT_TRACE, and a helper thread, started the first time (none on UEFI, nor when the VM may run on one CPU only: then, as with -bg, the VM's thread compiles)."
+	<function>
+	(runtime flag: runtime bgFlag) ifFalse: [^false].
+	rtBgThread = 0 ifTrue: [
+		rtBgThread := 2.
+		((libc getenv: 'SAMALTAK_OPT_TRACE') isNull and: [threads jitThreadsAvailable and: [threads jitStartThread: (self functionPointer: #bgRun:)]]) ifTrue: [rtBgThread := 1]].
+	^rtBgThread = 1
+!
+bgRun: unused
+	"The helper thread: wait for a job, run the back end on its IR (backEnd:: passes and register allocation, nothing of the heap), hand the result back."
+	<function>
+	| ok t0 |
+	[threads jitWorkerLock.
+	 [(self atomicLoad: #rtBgState) = BG_QUEUED] whileFalse: [threads jitWorkerWait].
+	 threads jitWorkerUnlock.
+	 t0 := runtime nowUs.
+	 ok := self backEnd: false.
+	 threads jitWorkerLock.
+	 rtBgOk := ok.
+	 rtBgUnboxed := passes unboxed.
+	 rtBgWorkerUs := (runtime nowUs - t0) asUInt64.
+	 self atomicStore: #rtBgState value: BG_DONE.
+	 "bgDrain may wait for it"
+	 threads jitWorkerWake.
+	 threads jitWorkerUnlock] repeat.
+	^self null
+!
+bgRetryCount: m
+	"The count after which a tier-up deferred (the helper busy, or its job not installed yet) asks again."
+	| n |
+	n := self initialCount: m.
+	^n min: 64
+!
+bgOptimize: m start: s osr: t depth: d lower: h previous: p
+	"Compile m's unit s/t (see optimizeUnit:start:osr:depth:lower:previous:; s and t 0: the method) in the background: build its IR here (frontEnd:), have the helper clean it up and allocate it, and install it at a later tier-up (bgPoll). If the helper is busy the tier-up is deferred."
+	<function>
+	| t0 ok |
+	(self atomicLoad: #rtBgState) = BG_IDLE ifFalse: [
+		rtStatBgDeferred := rtStatBgDeferred + 1.
+		runtime counterFor: m put: (self bgRetryCount: m).
+		^self].
+	((s ~= 0 or: [t ~= 0]) and: [self unitsFull]) ifTrue: [^self].
+	self overLimit ifTrue: [^self].
+	t0 := runtime nowUs.
+	rtUnitStart := s.
+	rtUnitOsr := t.
+	rtUnitDepth := d.
+	ok := self frontEnd: m.
+	rtUnitStart := 0.
+	rtUnitOsr := 0.
+	rtStatOptUs := rtStatOptUs + (runtime nowUs - t0) asUInt64.
+	ok ifFalse: [
+		(libc getenv: 'SAMALTAK_OPT_BG_TRACE') notNull ifTrue: [libc fprintf: libc stderr format: 'opt bg: build failed (block %d, loop %d)
+' with: s with: t].
+		rtStatOptFailed := rtStatOptFailed + 1.
+		^self noteFailed: m start: s osr: t].
+	rtBgMethod := m.
+	rtBgLower := h.
+	rtBgPrev := p.
+	rtBgStart := s.
+	rtBgOsr := t.
+	rtBgDepth := d.
+	rtBgSignature := rtUnitSignature.
+	rtBgStamp := rtStamp.
+	rtBgKey := self failedKey: m start: s osr: t.
+	rtBgStale := false.
+	rtBgGcStale := false.
+	rtBgFlushed := false.
+	rtBgYoung := self bgMentionsYoung.
+	rtStatBgJobs := rtStatBgJobs + 1.
+	passes unboxOff: false.
+	"come back soon: the code may be ready"
+	runtime counterFor: m put: (self bgRetryCount: m).
+	"SAMALTAK_OPT_BG_INLINE: the back end here, the install deferred as in the background (debugging)"
+	(libc getenv: 'SAMALTAK_OPT_BG_INLINE') notNull ifTrue: [
+		rtBgOk := self backEnd: false.
+		rtBgUnboxed := passes unboxed.
+		rtBgWorkerUs := 0.
+		^self atomicStore: #rtBgState value: BG_DONE].
+	threads jitWorkerLock.
+	self atomicStore: #rtBgState value: BG_QUEUED.
+	threads jitWorkerWake.
+	threads jitWorkerUnlock
+!
+bgMentionsYoung
+	"The job's IR or builder results name a young object (a scavenge would move it: the job is dropped then)."
+	| nd a |
+	(self isYoung: rtBgMethod) ifTrue: [^true].
+	0 to: ir nodeCount - 1 do: [:n |
+		nd := ir node: n.
+		((self isYoung: nd aux asUInt64) or: [(self isYoung: nd aux2 asUInt64) or: [self isYoung: nd tcls]]) ifTrue: [^true]].
+	0 to: ir actCount - 1 do: [:i |
+		a := ir act: i.
+		((self isYoung: a method) or: [self isYoung: a rcvClass]) ifTrue: [^true]].
+	^builder mentionsYoung
+!
+bgRedo: m start: s osr: t
+	"A background job of this unit was dropped after a GC, or failed where compiling it here would try again (twins on doubles): compile it on the VM's thread this once."
+	rtBgRedoKey = 0 ifTrue: [^false].
+	rtBgRedoKey = (self failedKey: m start: s osr: t) ifFalse: [^false].
+	"not while the helper has a job: the tier-up is deferred, and this unit compiled here later"
+	(self atomicLoad: #rtBgState) = BG_IDLE ifFalse: [^false].
+	rtBgRedoKey := 0.
+	^true
+!
+bgPoll
+	"At a tier-up: if the helper finished a job, install its code if what it was built on still holds (no GC moved what it names, no method or class change invalidated code, no flush; m's lower-tier code is still m's, and no other code took the unit's place), else drop it."
+	<function>
+	| ok |
+	(self atomicLoad: #rtBgState) = BG_DONE ifFalse: [^self].
+	rtBgHold ifTrue: [^self].
+	threads jitWorkerLock.
+	ok := rtBgOk.
+	rtStatBgUs := rtStatBgUs + rtBgWorkerUs.
+	threads jitWorkerUnlock.
+	rtBgFlushed ifTrue: [^self bgDrop].
+	ok ifFalse: [
+		(libc getenv: 'SAMALTAK_OPT_BG_TRACE') notNull ifTrue: [libc fprintf: libc stderr format: 'opt bg: back end failed (block %d, loop %d, unboxed %d)
+' with: rtBgStart with: rtBgOsr with: (rtBgUnboxed ifTrue: [1] ifFalse: [0])].
+		rtBgUnboxed
+			ifTrue: [rtBgRedoKey := rtBgKey]
+			ifFalse: [
+				rtStatOptFailed := rtStatOptFailed + 1.
+				self noteFailedKey: rtBgKey].
+		^self bgIdle].
+	rtBgStale ifTrue: [
+		rtBgGcStale ifTrue: [rtBgRedoKey := rtBgKey].
+		^self bgDrop].
+	self bgValid ifFalse: [^self bgDrop].
+	self bgInstall.
+	self bgIdle
+!
+bgIdle
+	self atomicStore: #rtBgState value: BG_IDLE
+!
+bgDrop
+	rtStatBgDiscarded := rtStatBgDiscarded + 1.
+	self bgIdle
+!
+bgValid
+	"The job's method still has the lower-tier code it was built for, and its unit is still to be compiled."
+	| h |
+	h := runtime lookup: rtBgMethod.
+	(h isNull or: [h ~= rtBgLower or: [(runtime hasCode: h) not]]) ifTrue: [^false].
+	(rtBgStart = 0 and: [rtBgOsr = 0]) ifTrue: [^h opt = 0].
+	self unitsFull ifTrue: [^false].
+	^(self unitOf: rtBgMethod start: rtBgStart osr: rtBgOsr) = rtBgPrev
+!
+bgInstall
+	"Generate the job's code from its allocated IR and install it as a synchronous compilation would (optimize:lower:, optimizeUnit:start:osr:depth:lower:previous:)."
+	| o |
+	(libc getenv: 'SAMALTAK_OPT_BG_TRACE') notNull ifTrue: [
+		libc fprintf: libc stderr format: 'opt bg: install (block %d, loop %d) ' with: rtBgStart with: rtBgOsr.
+		interpreter printActivation: rtBgMethod receiver: memory nilOop closure: memory nilOop on: libc stderr].
+	rtUnitSignature := rtBgSignature.
+	rtBgInstalling := true.
+	(rtBgStart = 0 and: [rtBgOsr = 0])
+		ifTrue: [
+			o := self optimize: rtBgMethod lower: rtBgLower.
+			o isNull ifTrue: [self noteFailedKey: rtBgKey]]
+		ifFalse: [
+			o := self optimizeUnit: rtBgMethod start: rtBgStart osr: rtBgOsr depth: rtBgDepth lower: rtBgLower previous: rtBgPrev.
+			o isNull ifTrue: [self noteFailedKey: rtBgKey]].
+	rtBgInstalling := false.
+	rtUnitSignature := 0.
+	((libc getenv: 'SAMALTAK_OPT_BG_TRACE') notNull and: [o isNull or: [(runtime hasCode: o) not]]) ifTrue: [libc fputs: 'opt bg: install failed
+' to: libc stderr]
+!
+bgStale
+	"What a job not installed yet was built on may no longer hold (a method or class change, become, a mode or flag change)."
+	(self atomicLoad: #rtBgState) = BG_IDLE ifFalse: [rtBgStale := true]
+!
+bgQuiesce
+	"Before a compilation on this thread other than a job's install (it builds over the helper's IR): wait for the helper, and drop its job if it has one."
+	<function>
+	rtBgThread = 1 ifFalse: [^self].
+	(self atomicLoad: #rtBgState) = BG_IDLE ifTrue: [^self].
+	threads jitWorkerLock.
+	[(self atomicLoad: #rtBgState) = BG_QUEUED] whileTrue: [threads jitWorkerWait].
+	threads jitWorkerUnlock.
+	self bgDrop
+!
+bgState
+	"For jitParameters: -1 no background compilation (bg off, or no helper thread: it is started now if it can be), else the helper's state (BG_IDLE, BG_QUEUED, BG_DONE)."
+	self background ifFalse: [^-1].
+	^(self atomicLoad: #rtBgState) asInt64
+!
+bgHold: aBoolean
+	"Tests: while held, a finished job is not installed (nor dropped) at tier-ups."
+	rtBgHold := aBoolean
 ! !
 
 !OptRuntime methodsFor: 'statistics'!
@@ -60,7 +262,11 @@ statInvalidations
 	^rtStatInvalidations
 !
 stat: i
-	"vmStats' order: optimized, bytecodes, µs, code bytes, deoptimizations, OSR entries, invalidations, failures, sends through the runtime."
+	"vmStats' order: optimized, bytecodes, µs, code bytes, deoptimizations, OSR entries, invalidations, failures, sends through the runtime; background jobs, jobs dropped, µs on the helper thread, tier-ups deferred while it was busy."
+	i = 12 ifTrue: [^rtStatBgDeferred asInt64].
+	i = 11 ifTrue: [^rtStatBgUs asInt64].
+	i = 10 ifTrue: [^rtStatBgDiscarded asInt64].
+	i = 9 ifTrue: [^rtStatBgJobs asInt64].
 	i = 8 ifTrue: [^rtStatSends asInt64].
 	i = 0 ifTrue: [^rtStatOptCompiled asInt64].
 	i = 1 ifTrue: [^rtStatOptBytecodes asInt64].
@@ -135,12 +341,16 @@ tierUp: f loop: loop
 	m := f method.
 	"the count's slot is shared by methods whose hashes meet there, and more units of m may follow (its blocks, its loops, frames resumed in the lower tier): it starts over whatever happens; failures are remembered per unit"
 	runtime counterFor: m put: (self initialCount: m).
+	"a job the helper finished: its code first"
+	self bgPoll.
 	h := runtime lookup: m.
 	(runtime hasCode: h) ifFalse: [^0].
 	f code = (self cCoerce: h to: 'uint64_t') ifFalse: [^0].
 	s := f closure = memory nilOop ifTrue: [0] ifFalse: [(self intVal: (self loadRef: f closure at: BC_STARTPC)) asInt32].
 	(s = 0 and: [h opt = 0 and: [(self failed: m start: 0 osr: 0) not]]) ifTrue: [
-		(self optimize: m lower: h) isNull ifTrue: [self noteFailed: m start: 0 osr: 0]].
+		(self background and: [(self bgRedo: m start: 0 osr: 0) not])
+			ifTrue: [self bgOptimize: m start: 0 osr: 0 depth: 0 lower: h previous: self null]
+			ifFalse: [(self optimize: m lower: h) isNull ifTrue: [self noteFailed: m start: 0 osr: 0]]].
 	k := loop = 0 ifTrue: [0] ifFalse: [f pc + 1].
 	"a married frame's temps may change through its Context (blocks it made): a unit of its own keeps those in the frame"
 	(k ~= 0 and: [f ctx ~= memory nilOop and: [self makesClosures: m start: s]]) ifTrue: [k := k + 16r10000].
@@ -154,9 +364,12 @@ tierUp: f loop: loop
 			((o isNull or: [(runtime hasCode: o) and: [(self isAlive: o) not and: [o generation < OPT_MAX_GENERATIONS]]]) and: [(self failed: m start: s osr: k) not]) ifTrue: [
 				"a loop's unit may inline closures this frame made"
 				k ~= 0 ifTrue: [rtUnitFrame := f].
-				o := self optimizeUnit: m start: s osr: k depth: f sp lower: h previous: o.
-				rtUnitFrame := self null.
-				o isNull ifTrue: [self noteFailed: m start: s osr: k]]].
+				(self background and: [(self bgRedo: m start: s osr: k) not])
+					ifTrue: [self bgOptimize: m start: s osr: k depth: f sp lower: h previous: o]
+					ifFalse: [
+						o := self optimizeUnit: m start: s osr: k depth: f sp lower: h previous: o.
+						o isNull ifTrue: [self noteFailed: m start: s osr: k]].
+				rtUnitFrame := self null]].
 	rtUnitSignature := 0.
 	(o isNull or: [(self isAlive: o) not]) ifTrue: [^0].
 	k ~= 0 ifTrue: [rtStatOptOsr := rtStatOptOsr + 1].
@@ -322,8 +535,11 @@ failed: m start: s osr: t
 	^false
 !
 noteFailed: m start: s osr: t
+	self noteFailedKey: (self failedKey: m start: s osr: t)
+!
+noteFailedKey: k
 	| key i n |
-	key := (self failedKey: m start: s osr: t) bitOr: 1 << 63.
+	key := k bitOr: 1 << 63.
 	i := ((key bitXor: key >> 29) bitAnd: OPT_MAX_UNITS - 1) asInt32.
 	n := 0.
 	[(rtFailed at: i) ~= 0] whileTrue: [
@@ -349,6 +565,7 @@ optimizeUnit: m start: s osr: t depth: d lower: h previous: p
 	<function>
 	| o t0 i |
 	self unitsFull ifTrue: [^self null].
+	rtBgInstalling ifFalse: [self bgQuiesce].
 	rtUnitStart := s.
 	rtUnitOsr := t.
 	rtUnitDepth := d.
@@ -367,7 +584,7 @@ optimizeUnit: m start: s osr: t depth: d lower: h previous: p
 	o lower: (self cCoerce: h to: 'uint64_t').
 	o blockStart: s asUInt32.
 	o osrPc: t asUInt32.
-	o stamp: rtStamp.
+	o stamp: self compileStamp.
 	p notNull ifTrue: [o generation: p generation + 1].
 	o methodHash: (self hashOf: m) asUInt32.
 	o signature: rtUnitSignature.
@@ -400,6 +617,7 @@ optimize: m lower: h
 	"Compile m with the optimizer, link it to its lower-tier header h and install it; null if it could not."
 	<function>
 	| o t0 |
+	rtBgInstalling ifFalse: [self bgQuiesce].
 	t0 := runtime nowUs.
 	o := runtime compile: m mode: runtime optMode notes: runtime notes.
 	rtStatOptUs := rtStatOptUs + (runtime nowUs - t0) asUInt64.
@@ -412,27 +630,40 @@ optimize: m lower: h
 	cache beginWriting.
 	h opt: (self cCoerce: o to: 'uint64_t').
 	o lower: (self cCoerce: h to: 'uint64_t').
-	o stamp: rtStamp.
+	o stamp: self compileStamp.
 	cache endWriting.
 	self noteYoung: o.
 	(runtime hasCode: o) ifFalse: [^self null].
 	runtime codeChanged: m.
 	^o
 !
+compileStamp
+	"What the feedback had seen when the code being installed was built: now, or when its background job was made."
+	rtBgInstalling ifTrue: [^rtBgStamp].
+	^rtStamp
+!
+overLimit
+	"SAMALTAK_OPT_LIMIT=n: no more than n optimized compilations (to bisect)."
+	| limit |
+	limit := libc getenv: 'SAMALTAK_OPT_LIMIT'.
+	^limit notNull and: [rtStatOptCompiled >= (libc atol: limit) asUInt64]
+!
 compile: m
-	"Emit optimized code for m at the assembler's pc (JitRuntime>>compile:mode:notes:); answer whether it could."
+	"Emit optimized code for m at the assembler's pc (JitRuntime>>compile:mode:notes:); answer whether it could. Installing a background job (bgInstall): its IR is built and allocated already, only the code is generated."
 	<function>
-	| ok trace limit |
+	| ok trace |
+	rtBgInstalling ifTrue: [
+		ok := codegen generate: m act: 0.
+		analysis analyze: m.
+		ok ifFalse: [rtStatOptFailed := rtStatOptFailed + 1].
+		^ok].
 	trace := (libc getenv: 'SAMALTAK_OPT_TRACE') notNull.
 	rtTrace := trace.
 	rtTraceSends := (libc getenv: 'SAMALTAK_OPT_SENDS') notNull.
-	limit := libc getenv: 'SAMALTAK_OPT_LIMIT'.
-	(limit notNull and: [rtStatOptCompiled >= (libc atol: limit) asUInt64]) ifTrue: [^false].
+	self overLimit ifTrue: [^false].
 	trace ifTrue: [
 		libc fprintf: libc stderr format: 'opt: (block %d, loop %d) ' with: rtUnitStart with: rtUnitOsr.
 		interpreter printActivation: m receiver: memory nilOop closure: memory nilOop on: libc stderr].
-	builder frame: rtUnitFrame.
-	builder foreign: rtUnitSignature ~= 0.
 	passes unboxOff: false.
 	ok := self buildAndAllocate: m trace: trace.
 	"twins on doubles that make the compilation fail: again without them"
@@ -455,10 +686,23 @@ compile: m
 !
 buildAndAllocate: m trace: trace
 	"The unit's IR built, cleaned up and allocated; answer whether it could be."
-	^(builder build: m start: rtUnitStart osr: (rtUnitOsr bitAnd: 16rFFFF) - 1 depth: rtUnitDepth resident: (rtUnitOsr bitAnd: 16r10000) ~= 0) and: [
-		passes cleanup: builder entryBlock.
-		trace ifTrue: [ir print].
-		ir full not and: [regalloc allocate: builder paramSlots valid: builder validSlots]]
+	^(self frontEnd: m) and: [self backEnd: trace]
+!
+frontEnd: m
+	"The unit's IR built, on the VM's thread (the builder reads methods, classes, the type feedback, a loop unit's frame), with what the passes would read of them taken (OptIR>>snapshot); answer whether it could be."
+	<function>
+	builder frame: rtUnitFrame.
+	builder foreign: rtUnitSignature ~= 0.
+	(builder build: m start: rtUnitStart osr: (rtUnitOsr bitAnd: 16rFFFF) - 1 depth: rtUnitDepth resident: (rtUnitOsr bitAnd: 16r10000) ~= 0) ifFalse: [^false].
+	ir snapshot.
+	^true
+!
+backEnd: trace
+	"The IR cleaned up (OptPasses) and allocated (OptRegalloc); answer whether it could be. Reads and writes the IR, the passes' and the allocator's arrays and the builder's results, nothing else: the helper thread runs it for a background job."
+	<function>
+	passes cleanup: builder entryBlock.
+	trace ifTrue: [ir print].
+	^ir full not and: [regalloc allocate: builder paramSlots valid: builder validSlots]
 !
 extraBytes
 	"What the optimized code's header needs after its notes: the safepoint table, the records, the dependencies, the inline caches and the return map."
@@ -1149,6 +1393,10 @@ resume: f
 youngRoots: fn
 	<function>
 	| n o |
+	"a scavenge moves the young objects a background job may name"
+	(rtBgYoung and: [(self atomicLoad: #rtBgState) ~= BG_IDLE]) ifTrue: [
+		rtBgStale := true.
+		rtBgGcStale := true].
 	self decodedRoots: fn.
 	rtOptYoungOverflow ifTrue: [^self allPools: fn].
 	rtOptYoungCount = 0 ifTrue: [^self].
@@ -1176,6 +1424,10 @@ stillYoung: o
 !
 allRoots: fn
 	<function>
+	"a full GC or become may move any object a background job names"
+	(self atomicLoad: #rtBgState) = BG_IDLE ifFalse: [
+		rtBgStale := true.
+		rtBgGcStale := true].
 	self decodedRoots: fn.
 	self allPools: fn
 !
@@ -1210,6 +1462,11 @@ roots: o fn: fn
 flushed
 	"The code cache was flushed."
 	<function>
+	"a background job's lower-tier header is gone"
+	(self atomicLoad: #rtBgState) = BG_IDLE ifFalse: [
+		rtBgStale := true.
+		rtBgFlushed := true].
+	rtBgRedoKey := 0.
 	rtOptYoungCount := 0.
 	rtOptYoungOverflow := false.
 	rtAllCount := 0.
@@ -1244,11 +1501,13 @@ invalidateSelector: sel
 	"A method for sel was added or removed: optimized code that inlined or speculated on a send of sel."
 	<function>
 	| o |
+	self bgStale.
 	0 to: rtAllCount - 1 do: [:i |
 		o := rtAll at: i.
 		0 to: o depCount asInt64 - 1 do: [:k | (self poolAt: (o deps at: k) of: o) = sel ifTrue: [self invalidate: o]]]
 !
 invalidateAll
 	<function>
+	self bgStale.
 	0 to: rtAllCount - 1 do: [:i | self invalidate: (rtAll at: i)]
 !

@@ -468,6 +468,15 @@ paramSlots
 	"The frame's slots the code reads at its entry and keeps (home slots follow)."
 	^obParamSlots
 !
+mentionsYoung
+	"The objects the last build keeps for code generation (dependencies, methods analyzed, the root method) include a young one (OptRuntime>>bgMentionsYoung)."
+	(self isYoung: obRootMethod) ifTrue: [^true].
+	0 to: obDepCount - 1 do: [:i | (self isYoung: (obDeps at: i)) ifTrue: [^true]].
+	0 to: obAnaCount - 1 do: [:i | (self isYoung: (obAnaMethods at: i)) ifTrue: [^true]].
+	0 to: obNoInlineCount - 1 do: [:i | (self isYoung: (obNoInline at: i)) ifTrue: [^true]].
+	0 to: 7 do: [:i | ((self isYoung: (obForeignM at: i)) or: [self isYoung: (obNoForeignM at: i)]) ifTrue: [^true]].
+	^false
+!
 validSlots
 	"The frame's slots that hold values at its entry (the others are made nil)."
 	^obValidSlots
