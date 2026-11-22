@@ -19,6 +19,11 @@ for tool in mke2fs debugfs e2fsck perl; do
         exit 2
     }
 done
+# Concurrent callers (test shards, gate stages at once) build them once: one at a time, under a lock beside OUTDIR.
+if [ -z "${EXT4_FIXTURES_LOCKED:-}" ] && command -v flock >/dev/null 2>&1; then
+    mkdir -p "$(dirname "$OUT")"
+    EXT4_FIXTURES_LOCKED=1 exec flock "$OUT.lock" "$SCRIPT" "$@"
+fi
 if [ -f "$OUT/variants.txt" ] && [ "$OUT/variants.txt" -nt "$SCRIPT" ]; then exit 0; fi
 rm -rf "$OUT"
 mkdir -p "$OUT"
