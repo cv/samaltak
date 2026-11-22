@@ -1,5 +1,5 @@
 Object subclass: #RfbConnection
-	instanceVariableNames: 'server socket source inBuffer inStart inEnd deadline version running closed reader writer lock sendLock wake format pendingFormat encodings encoding supports request damage moves resizePending cursorPending clientExtent lastSentAt lastCostMs firstDamageAt wakeAt input zrle shared lastError updates bytesSent rectsSent'
+	instanceVariableNames: 'server socket source inBuffer inStart inEnd deadline version running closed reader writer lock sendLock wake format pendingFormat encodings encoding supports request damage moves resizePending cursorPending clientExtent lastSentAt lastCostMs firstDamageAt wakeAt input zrle shared lastError pendingCutText updates bytesSent rectsSent'
 	classVariableNames: ''
 	package: 'System-Remote'!
 
@@ -7,7 +7,7 @@ RfbConnection comment: 'I am one RFB client of an RfbServer (RFC 6143): the hand
 
 Handshake: I offer RFB 3.8 and speak what the client answers: 3.3 (the server picks the security type, a 32-bit word: VNC authentication, as macOS Screen Sharing needs), 3.7 or 3.8 (a list: VeNCrypt-Plain with the session token, VNC authentication, never None unless the server offersNone). Then ClientInit (shared = 0 disconnects the others) and ServerInit: the screen''s size, the native pixel format (RfbPixelFormat native: BGRX, 32 bits little-endian, shifts 16/8/0) and the desktop''s name. The handshake must be done within handshakeTimeoutMs; nothing but it is accepted before authentication.
 
-Client messages: SetPixelFormat (any true colour), SetEncodings (at most 1024 read, 256 kept), FramebufferUpdateRequest (incremental: what changed since; not: the whole rectangle), and KeyEvent, PointerEvent and ClientCutText (at most 1 MB), which go to my input (nil: ignored), an object understanding key: keysym down: aBoolean, pointer: buttonMask at: aPoint, cutText: aString (Latin-1) and connectionClosed: RfbInput forConnection: me if that class exists (D5). sendCutText: and sendBell go the other way.
+Client messages: SetPixelFormat (any true colour), SetEncodings (at most 1024 read, 256 kept), FramebufferUpdateRequest (incremental: what changed since; not: the whole rectangle), and KeyEvent, PointerEvent and ClientCutText (at most 1 MB), which go to my input (nil: ignored): an RfbInput (forImage, told the screen''s extent and scale), which understands key: keysym down: aBoolean, pointerAt: aPoint buttons: aMask, cutText: aByteArrayOrString (Latin-1) and close, and hands me the image''s clipboard when it changes (clipboardBlock:), which my writer sends as ServerCutText. sendCutText: and sendBell go the other way at once.
 
 Updates: my frame source tells me what changed (damaged:, damagedAll, moved:to:, resized:, cursorChanged, from the Process that presents, doing only O(rectangles) work: an RfbDamage under my lock and a signal) and my writer Process sends a FramebufferUpdate only when the client has asked for one, something changed and the socket takes it (sendAll: waits on the socket, never the World): at most server maxRate a second, at least as long apart as the last update took to make (so encoding takes at most about half the CPU), and coalesceMs after the first change so that a typed word is one update. A slow client so gets fewer, larger updates; frames are never queued. Rectangles go out in the client''s first choice of ZRLE (16, RfbZrleEncoder) or Raw (0); moves as CopyRect (1) if the client has it; pseudo-encodings DesktopSize (-223) when the screen changes size, Cursor (-239: the pointer''s shape, sent once and when it changes) and LastRect (-224: then rectangles are sent as they are encoded).
 
@@ -78,7 +78,7 @@ close
 	socket close.
 	wake signal.
 	server removeConnection: self.
-	input isNil ifFalse: [[input connectionClosed] on: Error do: [:e | e return: nil]]
+	input isNil ifFalse: [[input close] on: Error do: [:e | e return: nil]]
 !
 abandon
 	closed ifTrue: [^self].
@@ -151,6 +151,7 @@ handshake
 	self send: 'RFB 003.008' asByteArray, #[10].
 	version := self parseVersion: (self next: 12).
 	server isFull ifTrue: [^self refuse: 'too many clients (', server maxClients printString, ')'].
+	source extent isNil ifTrue: [^self refuse: 'no screen to serve yet'].
 	self authenticate ifFalse: [^false].
 	shared := self nextByte ~= 0.
 	shared ifFalse: [server disconnectOthers: self].
@@ -311,7 +312,7 @@ readPointerEvent
 	mask := self nextByte.
 	x := self nextU16.
 	y := self nextU16.
-	self toInput: [:i | i pointer: mask at: x @ y]
+	self toInput: [:i | i pointerAt: x @ y buttons: mask]
 !
 readCutText
 	| size text |
@@ -331,6 +332,15 @@ toInput: aBlock
 ! !
 
 !RfbConnection methodsFor: 'server messages'!
+setUpInput: anRfbInput
+	"Pointer coordinates in my screen's pixels; the image's clipboard queued for my writer (the block runs in whatever Process changed it)."
+	| e |
+	e := source extent.
+	e isNil ifFalse: [anRfbInput extent: e scale: source pointScale].
+	anRfbInput clipboardBlock: [:latin1 |
+		lock critical: [pendingCutText := latin1].
+		wake signal]
+!
 sendCutText: aString
 	"ServerCutText (Latin-1: other characters become ?), to an authenticated client only."
 	| bytes |
@@ -344,6 +354,24 @@ sendBell
 ! !
 
 !RfbConnection methodsFor: 'frame source events'!
+wakeSemaphore
+	"Signalled when there is something for my writer to look at (a frame source that is polled signals it, then answers collectFor:)."
+	^wake
+!
+damageExtent
+	^damage isNil ifTrue: [nil] ifFalse: [damage bounds extent]
+!
+takeDamage: rects full: isFull extent: anExtent
+	"From a polled frame source, in my writer: like resized:, damagedAll and damaged:, without waking it again."
+	damage isNil ifTrue: [^self].
+	lock critical: [
+		damage bounds extent = anExtent ifFalse: [
+			damage bounds: (0 @ 0 extent: anExtent).
+			moves := OrderedCollection new.
+			resizePending := true].
+		isFull ifTrue: [damage beFull] ifFalse: [damage addAll: rects].
+		self noteDamage]
+!
 damaged: aCollectionOfRectangles
 	damage isNil ifTrue: [^self].
 	lock critical: [
@@ -391,8 +419,11 @@ hasUpdate
 	^request notNil and: [damage notEmpty or: [moves notEmpty or: [resizePending or: [cursorPending]]]]
 !
 serviceUpdate
-	"Send an update if one is due; else, if one will be, have the writer woken then."
-	| now due |
+	"Send the clipboard if it changed, and an update if one is due; else, if one will be, have the writer woken then."
+	| now due text |
+	text := lock critical: [| t | t := pendingCutText. pendingCutText := nil. t].
+	text isNil ifFalse: [self send: #[3 0 0 0], (self u32: text size), text].
+	source collectFor: self.
 	(lock critical: [self hasUpdate]) ifFalse: [^self].
 	now := Time millisecondClockValue.
 	due := self dueAt.
@@ -560,6 +591,9 @@ server: anRfbServer socket: aSocket
 	^self new setServer: anRfbServer socket: aSocket
 !
 newInputFor: aConnection
-	"The input handler (D5's RfbInput, when it is in the image), or nil."
-	^(Smalltalk at: #RfbInput ifAbsent: [nil]) ifNotNil: [:c | c forConnection: aConnection]
+	"The image's input from aConnection's client (an RfbInput, where the image has one), or nil."
+	| input |
+	input := (Smalltalk at: #RfbInput ifAbsent: [^nil]) forImage.
+	aConnection setUpInput: input.
+	^input
 ! !

@@ -26,6 +26,13 @@ bgraOf: aRectangle
 !
 cursor
 	^RfbCursor arrow
+!
+pointScale
+	"Pixels a point of the image's input coordinates (RfbInput>>extent:scale:)."
+	^1
+!
+collectFor: aListener
+	"A source that is polled hands aListener what changed (RfbConnection>>takeDamage:full:extent:), in its writer; one that tells at once does nothing."
 ! !
 
 !RfbFrameSource methodsFor: 'listeners'!

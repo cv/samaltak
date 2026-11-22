@@ -1,6 +1,6 @@
 Object subclass: #RfbServer
 	instanceVariableNames: 'socket port host process connections lock source token password allowNone maxClients authLock failures blockedUntil backoffMs desktopName maxRate'
-	classVariableNames: 'Current'
+	classVariableNames: 'Current MadePassword'
 	package: 'System-Remote'!
 
 RfbServer comment: 'I am the remote display: an RFB (VNC) server (RFC 6143) serving the screen of a frame source (RfbFrameSource) to viewers such as macOS Screen Sharing and TigerVNC, one RfbConnection each. docs/remote.md: bound to 127.0.0.1 by default like the control service; through an SSH tunnel or on a trusted network, since nothing is encrypted.
@@ -220,18 +220,16 @@ shutDown: quitting
 	quitting ifTrue: [self stop]
 !
 startFromCommandLine
-	| server file h p pw |
+	| server file h p |
 	server := [
 		h := self configuredHost.
 		p := self configuredPort.
 		server := self new.
 		server token: self configuredToken.
-		(Smalltalk vm arguments includes: '--display-vnc-auth') ifTrue: [
-			pw := self configuredPassword.
-			server password: (pw ifNil: [self newPassword])].
+		(Smalltalk vm arguments includes: '--display-vnc-auth') ifTrue: [server password: self displayPassword].
 		server allowNone: (Smalltalk vm arguments includes: '--display-allow-none').
 		(Smalltalk argumentAfter: '--display-rate') ifNotNil: [:r | server maxRate: (Integer readFrom: r ifFail: [60])].
-		server startOn: p host: h source: RfbWorldSource new] on: Error do: [:e |
+		server startOn: p host: h source: self defaultSource] on: Error do: [:e |
 			Smalltalk vm stderrWrite: 'display: ', e messageText, (String with: Character lf).
 			e return: nil].
 	server isNil ifTrue: [^self].
@@ -239,7 +237,20 @@ startFromCommandLine
 	file := Smalltalk argumentAfter: '--display-port-file'.
 	file isNil ifFalse: [server writePortTo: file].
 	Smalltalk vm stdoutWrite: 'display: listening on ', h, ':', server port printString, ' (RFB)', (String with: Character lf).
-	(pw isNil and: [Smalltalk vm arguments includes: '--display-vnc-auth']) ifTrue: [self announcePassword: server vncPassword]
+	(Smalltalk vm arguments includes: '--display-vnc-auth') ifTrue: [self announcePasswordIfMade: server vncPassword]
+!
+defaultSource
+	"On UEFI the frame tap's screen (the firmware screen's shadow and damage); hosted, for now, the World's through screenshots: the compositor's tap reads back its window's surface, which does not hold the composed frame."
+	^(Machine hasFirmware and: [Smalltalk includesKey: #FrameTap]) ifTrue: [RfbTapSource new] ifFalse: [RfbWorldSource new]
+!
+displayPassword
+	"The session's display password (SessionToken's), else --display-password-file's, else a new one."
+	(Smalltalk at: #SessionToken ifAbsent: [nil]) ifNotNil: [:c | ^c displayPassword].
+	^self configuredPassword ifNil: [MadePassword := self newPassword]
+!
+announcePasswordIfMade: aString
+	(Smalltalk at: #SessionToken ifAbsent: [nil]) ifNotNil: [:c | ^c announceDisplayPassword].
+	aString = MadePassword ifTrue: [self announcePassword: aString]
 !
 configuredHost
 	^(Smalltalk argumentAfter: '--display-host') ifNil: ['127.0.0.1']
@@ -254,7 +265,8 @@ defaultPort
 	^5900
 !
 configuredToken
-	"The control service's token: the running one, else the one its options give (ControlServer configuredToken)."
+	"The session's token (SessionToken), else the control service's: the running one, else the one its options give."
+	(Smalltalk at: #SessionToken ifAbsent: [nil]) ifNotNil: [:c | ^c current value].
 	ControlServer current isNil ifFalse: [^ControlServer current token].
 	^[ControlServer configuredToken] on: Error do: [:e | e return: nil]
 !

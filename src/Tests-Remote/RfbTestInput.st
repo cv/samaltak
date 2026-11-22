@@ -14,12 +14,12 @@ events: aCollection
 key: keysym down: aBoolean
 	events add: (Array with: #key with: keysym with: aBoolean)
 !
-pointer: mask at: aPoint
+pointerAt: aPoint buttons: mask
 	events add: (Array with: #pointer with: mask with: aPoint)
 !
 cutText: aString
 	events add: (Array with: #cut with: aString)
 !
-connectionClosed
+close
 	events add: #(#closed)
 ! !

@@ -49,6 +49,9 @@ swapRedBlue: bytes
 		bytes at: i * 4 + 1 put: (bytes at: i * 4 + 3).
 		bytes at: i * 4 + 3 put: r].
 	^bytes
+!
+pointScale
+	^self world ifNil: [1] ifNotNil: [:w | w displayScale]
 ! !
 
 !RfbWorldSource methodsFor: 'watching'!
