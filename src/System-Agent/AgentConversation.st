@@ -3,15 +3,21 @@ Object subclass: #AgentConversation
 	classVariableNames: ''
 	package: 'System-Agent'!
 
-AgentConversation comment: 'I am a conversation with the coding agent (docs/agent.md): my items (AgentItems, the transcript), my object table (objects by identity: the id ''o3'' is the third, kept strongly, an object keeps its id), my AgentContext and my tools.
+AgentConversation comment: 'I am a conversation with the coding agent (docs/agent.md): my items (AgentItems, the transcript), my object table (objects by identity: the id ''o3'' is the third, kept strongly, an object keeps its id), my AgentContext and my tools. Pictures are the exception: only the newest keptPictures objects that are isAgentPicture (Forms larger than a thumbnail; a 1920x1080 screenshot takes 8 MB) are kept strongly, older ones weakly (AgentReleasedObject), and the items that showed them keep the thumbnail (releasePictures).
 
 	(AgentConversation new ask: ''how many classes are in UI-Widgets?'') wait
 
-Images (docs/agent.md, Images): what is sent stays within AgentImage''s limits. Before each request an image over the per-image budget is encoded again smaller, or replaced by a placeholder, in its item for good; images beyond the newest ten or 10 MB are sent as placeholders. When the API still refuses a request for an image''s or the request''s size (AgentImageRefused), the images it names become placeholders and the request is sent once more.
+Images (docs/agent.md, Images): what is sent stays within AgentImage''s limits. Before each request an image over the per-image budget is encoded again smaller, or replaced by a placeholder, in its item for good; images beyond the newest ten or 10 MB are sent as placeholders, and replaced by them in their items for good (they would only take memory). When the API still refuses a request for an image''s or the request''s size (AgentImageRefused), the images it names become placeholders and the request is sent once more.
 
 ask: runs a turn in a Process of its own (''agent turn''): send the developer instructions and every item''s wire to the provider, show the streamed text, record the completed output items in order and run each tool call; while there were tool calls, send again. Any error ends the turn with an #error item. ask: while a turn runs is an error; I am busy (isBusy) from before the turn''s user message is among my items. stop ends a turn from another Process: the provider is cancelled, the turn''s Process and its running cell terminated, every tool call left without output answered ''error: stopped by the user'', so the next request is valid.
 
 The provider (provider:, else a default one: an AnthropicProvider while ApiKeyAccount default isConfigured, else a CodexProvider, chosen again when that changes) answers send:tools:onText:onItem: (blocking; the usage Dictionary or nil; AgentError on failure), cancel and modelName. My onChange: block is evaluated after every visible change: an item added, streaming text grown, a turn begun or ended.'!
+
+!AgentConversation class methodsFor: 'limits'!
+keptPictures
+	"Pictures (isAgentPicture) the object table keeps strongly: the newest."
+	^4
+! !
 
 !AgentConversation methodsFor: 'initialization'!
 initialize
@@ -81,16 +87,49 @@ canRetry
 !AgentConversation methodsFor: 'objects'!
 idFor: anObject
 	"anObject's id, registering it if it has none."
-	objects doWithIndex: [:each :i | each == anObject ifTrue: [^'o', i printString]].
+	objects doWithIndex: [:each :i | (each == anObject or: [(self valueOf: each) == anObject and: [anObject notNil]]) ifTrue: [^'o', i printString]].
 	objects add: anObject.
+	self releasePictures.
 	^'o', objects size printString
 !
 objectAt: anId ifAbsent: aBlock
-	| index |
+	"The object of id anId, or aBlock's value if there is none or it was a picture released and collected since (releasePictures)."
+	| index object |
 	(anId isString and: [anId size > 1 and: [anId first = $o]]) ifFalse: [^aBlock value].
 	index := Integer readFrom: anId allButFirst ifFail: [^aBlock value].
 	(index between: 1 and: objects size) ifFalse: [^aBlock value].
-	^objects at: index
+	object := self valueOf: (objects at: index).
+	(object isNil and: [(objects at: index) isKindOf: AgentReleasedObject]) ifTrue: [^aBlock value].
+	^object
+!
+isReleased: anId
+	"Whether anId is a picture this conversation no longer keeps (releasePictures)."
+	| index |
+	(anId isString and: [anId size > 1 and: [anId first = $o]]) ifFalse: [^false].
+	index := Integer readFrom: anId allButFirst ifFail: [^false].
+	^(index between: 1 and: objects size) and: [(objects at: index) isKindOf: AgentReleasedObject]
+!
+valueOf: anEntry
+	^(anEntry isKindOf: AgentReleasedObject) ifTrue: [anEntry value] ifFalse: [anEntry]
+!
+releasePictures
+	"Keep the newest keptPictures pictures (objects with an agentThumbnail) strongly; hold older ones weakly, and let the items that show them keep their thumbnail instead."
+	| count |
+	count := 0.
+	objects size to: 1 by: -1 do: [:i | | each thumbnail |
+		each := objects at: i.
+		((each isKindOf: AgentReleasedObject) not and: [each isAgentPicture]) ifTrue: [
+			count := count + 1.
+			count > self class keptPictures ifTrue: [
+				thumbnail := each agentThumbnail.
+				objects at: i put: (AgentReleasedObject on: each).
+				items do: [:item | item object == each ifTrue: [item object: thumbnail]]]]]
+!
+describeMissing: anId
+	"Why there is no object anId."
+	^(self isReleased: anId)
+		ifTrue: ['no object ', anId, ': a picture older than the newest ', self class keptPictures printString, ', which are all this conversation keeps; capture it again']
+		ifFalse: ['no object ', anId]
 !
 objectAt: anId
 	^self objectAt: anId ifAbsent: [nil]
@@ -101,7 +140,7 @@ objectBindings
 	bindings := Dictionary new.
 	objects doWithIndex: [:each :i | | name |
 		name := ('o', i printString) asSymbol.
-		bindings at: name put: name -> each].
+		bindings at: name put: name -> (self valueOf: each)].
 	^bindings
 ! !
 
@@ -265,7 +304,16 @@ input
 	items do: [:each |
 		each mapImages: [:part | AgentImage fit: part].
 		input addAll: each wire].
-	^AgentImage limit: input asArray
+	input := AgentImage limit: input asArray.
+	self releaseImagesNotIn: input.
+	^input
+!
+releaseImagesNotIn: inputItems
+	"Replace the images inputItems no longer send (AgentImage limit:) in their items, for good, by the placeholder sent instead: once beyond the newest, an image stays so, and it would only take memory."
+	| sent |
+	sent := AgentImage imagesIn: inputItems.
+	items do: [:each |
+		each mapImages: [:part | (sent anySatisfy: [:s | s == part]) ifTrue: [part] ifFalse: [AgentImage olderImage]]]
 ! !
 
 !AgentConversation methodsFor: 'actions'!

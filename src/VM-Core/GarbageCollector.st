@@ -1,16 +1,18 @@
 VMCoreModule subclass: #GarbageCollector
-	instanceVariableNames: 'youngLo youngHi edenLo edenHi edenBox survLo survTop survHi survOtherLo survOtherHi oldLo oldTop oldHi oldAltLo oldAltHi oldBudget maxHeapBytes oldReserve gcEpoch statScavenges statFullGcs statScavengeUs statFullUs statAllocated statTenured remset remsetCount remsetCap startBits vlo verify toLo toTop toHi weakList weakCount weakCap finalizationPending statWeakCleared ftTop becomeFrom becomeTo'
+	instanceVariableNames: 'youngLo youngHi edenLo edenHi edenBox survLo survTop survHi survOtherLo survOtherHi oldLo oldTop oldHi oldAltLo oldAltHi oldBudget maxHeapBytes heapReserve lowSpaceLevel lowSpacePending oldReserve gcEpoch statScavenges statFullGcs statScavengeUs statFullUs statAllocated statTenured remset remsetCount remsetCap startBits vlo verify toLo toTop toHi weakList weakCount weakCap finalizationPending statWeakCleared ftTop becomeFrom becomeTo'
 	classVariableNames: 'MIN_BUDGET TENURE_AGE'
 	package: 'VM-Core'!
 
-GarbageCollector comment: 'Generational GC: eden and two survivor spaces scavenged with a remembered set, copying full GC between two old-space reservations. Weak objects (format 4) have their indexable slots cleared when their referents die. Addresses of the spaces are plain integers.'!
+GarbageCollector comment: 'Generational GC: eden and two survivor spaces scavenged with a remembered set, copying full GC between two old-space reservations. Weak objects (format 4) have their indexable slots cleared when their referents die. Addresses of the spaces are plain integers.
+
+The heap limit (maxHeapBytes) keeps back a reserve (heapReserve, an eighth of it, at most 128 MB) so that a program that fills the heap gets a catchable error and its handlers and the UI can still run: allocations Smalltalk asks for in old space (large objects: oldAllocTry:limit: with softLimit) fail with PRIM_ERR_NO_MEMORY beyond maxHeapBytes - heapReserve; small objects and Contexts may use the reserve. A full GC that leaves more than that live raises lowSpaceLevel to 1, more than maxHeapBytes - heapReserve / 4 to 2, and sets lowSpacePending: the interpreter''s next safepoint signals it in the active process (Interpreter>>interruptSafepoint). The old space''s budget stops at the next level''s limit, so a full GC notices each level; one that leaves no more than softLimit live re-arms them. Only a full GC with more than maxHeapBytes live is fatal.'!
 
 !GarbageCollector class methodsFor: 'declaring'!
 declarations
 	^#((youngLo uint64_t) (youngHi uint64_t) (edenLo uint64_t) (edenHi uint64_t) (edenBox 'uint64_t[2]')
 		(survLo uint64_t) (survTop uint64_t) (survHi uint64_t) (survOtherLo uint64_t) (survOtherHi uint64_t)
 		(oldLo uint64_t) (oldTop uint64_t) (oldHi uint64_t) (oldAltLo uint64_t) (oldAltHi uint64_t)
-		(oldBudget size_t) (maxHeapBytes size_t) (oldReserve size_t) (gcEpoch uint64_t)
+		(oldBudget size_t) (maxHeapBytes size_t) (heapReserve size_t) (lowSpaceLevel int32_t) (lowSpacePending bool) (oldReserve size_t) (gcEpoch uint64_t)
 		(statScavenges uint64_t) (statFullGcs uint64_t) (statScavengeUs uint64_t) (statFullUs uint64_t) (statAllocated uint64_t) (statTenured uint64_t)
 		(remset 'oop *') (remsetCount size_t) (remsetCap size_t)
 		(startBits 'uint8_t *') (vlo uint64_t) (verify int32_t -1)
@@ -78,6 +80,29 @@ oldBudget: n
 !
 maxHeapBytes
 	^maxHeapBytes
+!
+heapReserve
+	^heapReserve
+!
+softLimit
+	"Old space that Smalltalk's large allocations may fill: the heap limit less the reserve."
+	^maxHeapBytes - heapReserve
+!
+lowSpaceLimit: level
+	"The live bytes beyond which a full GC raises lowSpaceLevel past level."
+	<function>
+	level = 0 ifTrue: [^maxHeapBytes - heapReserve].
+	level = 1 ifTrue: [^maxHeapBytes - (heapReserve quo: 4)].
+	^maxHeapBytes
+!
+lowSpacePending
+	^lowSpacePending
+!
+lowSpacePending: aBoolean
+	lowSpacePending := aBoolean
+!
+lowSpaceLevel
+	^lowSpaceLevel
 !
 gcEpoch
 	^gcEpoch
@@ -171,6 +196,9 @@ init: edenBytes maxHeap: maxHeap
 	survOtherLo := survHi.
 	survOtherHi := survOtherLo + surv.
 	maxHeapBytes := maxHeap.
+	heapReserve := (maxHeap quo: 8) < (128 << 20) ifTrue: [maxHeap quo: 8] ifFalse: [128 << 20].
+	lowSpaceLevel := 0.
+	lowSpacePending := false.
 	oldReserve := maxHeap + young + (1 << 20).
 	oldLo := oldTop := self reserve: oldReserve.
 	oldHi := oldLo + oldReserve.
@@ -505,8 +533,9 @@ fullGC
 	survTop := survLo.
 	remsetCount := 0.
 	live := oldTop - oldLo.
+	self noteLive: live.
 	oldBudget := live * 2 > MIN_BUDGET ifTrue: [live * 2] ifFalse: [MIN_BUDGET].
-	oldBudget > maxHeapBytes ifTrue: [oldBudget := maxHeapBytes].
+	oldBudget > (self lowSpaceLimit: lowSpaceLevel) ifTrue: [oldBudget := self lowSpaceLimit: lowSpaceLevel].
 	self rememberIfOld: interpreter activeCtx.
 	self afterGC.
 	statFullUs := statFullUs + (scheduler workClockHeldUs - t0) asUInt64.
@@ -524,16 +553,29 @@ collectGarbage: need
 			self scavenge.
 			oldTop - oldLo > oldBudget ifTrue: [self fullGC]]
 !
-oldAllocTry: bytes
-	"May full GC; 0 if it cannot fit in the heap limit."
+noteLive: live
+	"After a full GC: raise lowSpaceLevel past each limit live exceeds (then a safepoint signals it), or re-arm."
+	<function>
+	live <= (self lowSpaceLimit: 0)
+		ifTrue: [
+			lowSpaceLevel := 0.
+			lowSpacePending := false]
+		ifFalse: [
+			[lowSpaceLevel < 2 and: [live > (self lowSpaceLimit: lowSpaceLevel)]] whileTrue: [
+				lowSpaceLevel := lowSpaceLevel + 1.
+				lowSpacePending := true].
+			lowSpacePending ifTrue: [scheduler requestInterruptCheck]]
+!
+oldAllocTry: bytes limit: limit
+	"May full GC; 0 if it cannot fit within limit (the heap limit, or softLimit for Smalltalk's allocations)."
 	<function>
 	| want p |
-	bytes > maxHeapBytes ifTrue: [^0].
+	bytes > limit ifTrue: [^0].
 	(oldTop - oldLo) + bytes > oldBudget ifTrue: [
 		self fullGC.
 		want := 2 * ((oldTop - oldLo) + bytes).
-		want > oldBudget ifTrue: [oldBudget := want < maxHeapBytes ifTrue: [want] ifFalse: [maxHeapBytes]]].
-	(oldTop - oldLo) + bytes > maxHeapBytes ifTrue: [^0].
+		want > oldBudget ifTrue: [oldBudget := want < limit ifTrue: [want] ifFalse: [limit]]].
+	(oldTop - oldLo) + bytes > limit ifTrue: [^0].
 	p := oldTop.
 	oldTop := oldTop + bytes.
 	^p

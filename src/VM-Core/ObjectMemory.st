@@ -266,12 +266,17 @@ allocSlow: cls bytes: bytes
 	^p
 !
 allocOldTry: cls format: fmt slots: n
+	"For Smalltalk: within the heap limit less its reserve (GarbageCollector softLimit), 0 if it does not fit."
+	<function>
+	^self allocOld: cls format: fmt slots: n limit: gc softLimit
+!
+allocOld: cls format: fmt slots: n limit: limit
 	<function>
 	| p clsRoot |
 	clsRoot := self local: 'oop'.
 	clsRoot value: cls.
 	self pushRoot: clsRoot.
-	p := gc oldAllocTry: 16 + (8 * n asUInt64).
+	p := gc oldAllocTry: 16 + (8 * n asUInt64) limit: limit.
 	self popRoot.
 	p = 0 ifTrue: [^0].
 	self initObjectAt: p class: clsRoot value format: fmt slots: n.
@@ -283,7 +288,7 @@ allocOld: cls format: fmt slots: n
 	"Directly in old space."
 	<function>
 	| o |
-	o := self allocOldTry: cls format: fmt slots: n.
+	o := self allocOld: cls format: fmt slots: n limit: gc maxHeapBytes.
 	o = 0 ifTrue: [self fatal: 'out of memory allocating %llu bytes' with: 16 + (8 * n asUInt64)].
 	^o
 !

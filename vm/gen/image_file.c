@@ -77,7 +77,7 @@ void load_image(char *path)
     hash_box[0] = an_integer;
     budget = 2 * h->heap_bytes;
     if (budget > old_budget) {
-        n = budget < max_heap_bytes ? budget : max_heap_bytes;
+        n = budget < max_heap_bytes - heap_reserve ? budget : max_heap_bytes - heap_reserve;
         old_budget = n;
     }
     image_path = realpath(path, (char *)NULL);

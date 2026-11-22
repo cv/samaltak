@@ -23,6 +23,12 @@ frames
 openWindow: w height: h title: aString flags: flags
 	^1
 !
+closeWindow: window
+!
+keepsWindowOpen: window
+	"Like the firmware's screen: every window is window 1."
+	^true
+!
 windowSize: window
 	window = 1 ifFalse: [^self error: 'no such window'].
 	^{width. height}
@@ -589,6 +595,17 @@ testTheSwapchainIsPresentedOnSubmit
 	self assert: (gpu acquireSwapchain: cmd window: 1) isNil.
 	gpu windowClosed: 1.
 	self failure: [gpu acquireSwapchain: cmd window: 1] is: 'the window is not claimed'
+!
+testClosingASharedWindowKeepsTheClaim
+	"On the firmware's screen every window is window 1: one closing (a UI test's in a live World) leaves the World's claim."
+	| old cmd |
+	old := GPUPlatform display: display device: gpu.
+	[gpu claim: dev window: 1.
+	 GPUPlatform closeWindow: (GPUPlatform openWindow: 6 height: 4 title: 'test' flags: 0).
+	 cmd := gpu acquireCommandBuffer: dev.
+	 self assert: (gpu acquireSwapchain: cmd window: 1) notNil.
+	 gpu submit: cmd fence: false]
+		ensure: [GPUPlatform display: old first device: old last]
 !
 testOnlyTheRenderersPipeline
 	| vs fs |

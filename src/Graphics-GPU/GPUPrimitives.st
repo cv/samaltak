@@ -161,6 +161,10 @@ closeWindow: window
 	<primitive: 'windowClose'>
 	^self fail: 'windowClose'
 !
+keepsWindowOpen: window
+	"Whether closing window leaves it open: no, a window of the operating system closes."
+	^false
+!
 windowSize: window
 	<primitive: 'windowSize'>
 	^self fail: 'windowSize'

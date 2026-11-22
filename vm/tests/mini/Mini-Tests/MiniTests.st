@@ -466,20 +466,20 @@ testGC
 
 !MiniTests methodsFor: 'gc'!
 testOutOfMemory
-	"Run with --max-heap 64: requests that can never fit fail with error code 1 (PRIM_ERR_NO_MEMORY)."
+	"Run with --max-heap 64: requests that can never fit fail with error code 1 (PRIM_ERR_NO_MEMORY), and so do large ones beyond the heap limit less its reserve (an eighth: 56 MB)."
 	| keep big |
 	(Array basicNew: 1099511627776) printNl.
 	(ByteArray basicNew: 1180591620717411303424) printNl.
 	(Array basicNew: 10000000) printNl.
 	(Point basicNew: 1) printNl.
 	(Array basicNew: -1) printNl.
-	keep := Array with: (ByteArray basicNew: 30000000) with: nil.
+	keep := Array with: (ByteArray basicNew: 25000000) with: nil.
 	(ByteArray basicNew: 40000000) printNl.
 	(keep at: 1) shallowCopy size printNl.
 	keep at: 2 put: (ByteArray basicNew: 20000000).
 	(keep at: 1) shallowCopy printNl.
 	keep at: 1 put: nil.
-	big := ByteArray basicNew: 40000000.
+	big := ByteArray basicNew: 30000000.
 	big size printNl.
 	1 to: 200000 do: [:i | keep at: 1 put: (Array with: i)].
 	((keep at: 1) at: 1) printNl

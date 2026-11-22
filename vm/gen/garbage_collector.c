@@ -10,6 +10,9 @@ uint64_t eden_lo;
 bool finalization_pending;
 static uint64_t ft_top;
 uint64_t gc_epoch;
+size_t heap_reserve;
+static int32_t low_space_level;
+bool low_space_pending;
 size_t max_heap_bytes;
 static uint64_t old_alt_hi;
 static uint64_t old_alt_lo;
@@ -54,7 +57,9 @@ static uint64_t full_copy(oop o);
 static bool full_dead(oop *v);
 static void full_root(oop *p);
 static bool garbage_collector_is_context(oop o);
+static size_t low_space_limit(int32_t level);
 static void mark_starts_from(uint64_t lo, uint64_t hi);
+static void note_live(uint64_t live);
 static bool refers_to_young(oop o);
 static uint64_t reserve(size_t n);
 static uint64_t scav_copy(oop o);
@@ -318,9 +323,10 @@ void full_gc(void)
     surv_top = surv_lo;
     remset_count = 0;
     live = old_top - old_lo;
+    note_live(live);
     old_budget = live * 2 > MIN_BUDGET ? live * 2 : MIN_BUDGET;
-    if (old_budget > max_heap_bytes) {
-        old_budget = max_heap_bytes;
+    if (old_budget > low_space_limit(low_space_level)) {
+        old_budget = low_space_limit(low_space_level);
     }
     if (((active_ctx & 7) == 0) && ((!((uint64_t)(active_ctx - young_lo) < young_hi - young_lo)) && (((*(uint64_t *)active_ctx) & H_REMEMBERED) == 0))) {
         remember(active_ctx);
@@ -364,6 +370,9 @@ void garbage_collector_init(uint64_t eden_bytes, uint64_t max_heap)
     surv_other_lo = surv_hi;
     surv_other_hi = surv_other_lo + surv;
     max_heap_bytes = max_heap;
+    heap_reserve = max_heap / 8 < 134217728 ? max_heap / 8 : 134217728;
+    low_space_level = 0;
+    low_space_pending = false;
     old_reserve = max_heap + young + 1048576;
     old_lo = old_top = reserve(old_reserve);
     old_hi = old_lo + old_reserve;
@@ -382,6 +391,18 @@ static bool garbage_collector_is_context(oop o)
     return (c == ctx) || ((((*(uint64_t *)ctx) & H_FORWARDED) != 0) && (c == *(uint64_t *)(ctx + 8)));
 }
 
+/* GarbageCollector>>lowSpaceLimit: */
+static size_t low_space_limit(int32_t level)
+{
+    if (level == 0) {
+        return max_heap_bytes - heap_reserve;
+    }
+    if (level == 1) {
+        return max_heap_bytes - heap_reserve / 4;
+    }
+    return max_heap_bytes;
+}
+
 /* GarbageCollector>>markStartsFrom:to: */
 static void mark_starts_from(uint64_t lo, uint64_t hi)
 {
@@ -395,22 +416,39 @@ static void mark_starts_from(uint64_t lo, uint64_t hi)
     }
 }
 
-/* GarbageCollector>>oldAllocTry: */
-uint64_t old_alloc_try(uint64_t bytes)
+/* GarbageCollector>>noteLive: */
+static void note_live(uint64_t live)
+{
+    if (live <= low_space_limit(0)) {
+        low_space_level = 0;
+        low_space_pending = false;
+    } else {
+        while ((low_space_level < 2) && (live > low_space_limit(low_space_level))) {
+            low_space_level = low_space_level + 1;
+            low_space_pending = true;
+        }
+        if (low_space_pending) {
+            request_interrupt_check();
+        }
+    }
+}
+
+/* GarbageCollector>>oldAllocTry:limit: */
+uint64_t old_alloc_try(uint64_t bytes, size_t limit)
 {
     uint64_t want;
     uint64_t p;
-    if (bytes > max_heap_bytes) {
+    if (bytes > limit) {
         return 0;
     }
     if (old_top - old_lo + bytes > old_budget) {
         full_gc();
         want = 2 * (old_top - old_lo + bytes);
         if (want > old_budget) {
-            old_budget = want < max_heap_bytes ? want : max_heap_bytes;
+            old_budget = want < limit ? want : limit;
         }
     }
-    if (old_top - old_lo + bytes > max_heap_bytes) {
+    if (old_top - old_lo + bytes > limit) {
         return 0;
     }
     p = old_top;

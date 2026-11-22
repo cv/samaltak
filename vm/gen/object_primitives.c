@@ -74,7 +74,7 @@ void prim_all_instances(void)
     instances_result = 0;
     instances_count = 0;
     walk_old_space(count_instance, NULL);
-    a = alloc_old(cls_array, F_VAR, (uint32_t)instances_count);
+    a = object_memory_alloc_old_format_slots(cls_array, F_VAR, (uint32_t)instances_count);
     instances_class = prim_base[0];
     instances_result = a;
     instances_count = 0;

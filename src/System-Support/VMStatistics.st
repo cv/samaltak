@@ -50,6 +50,14 @@ tenureAge
 	"The scavenges an object survives before it is promoted (the running VM's GarbageCollector TENURE_AGE)."
 	^self counterAt: 41
 !
+maxHeapBytes
+	"The heap limit (--max-heap)."
+	^self counterAt: 42
+!
+heapReserve
+	"The part of the heap limit that large allocations leave free, so that handlers and the UI can run when a program fills the heap (GarbageCollector)."
+	^self counterAt: 43
+!
 weakSlotsCleared
 	^self counterAt: 12
 !
@@ -184,5 +192,5 @@ counters: anArray
 !VMStatistics class methodsFor: 'accessing'!
 counterNames
 	"Answer my counter accessors in vmStats order."
-	^#(#scavenges #fullGCs #scavengeMicroseconds #fullGCMicroseconds #oldBytesUsed #oldBudget #edenBytes #bytesAllocated #rememberedSetSize #processSwitches #bytesTenured #weakSlotsCleared #contextsMaterialized #frameFlushes #jitMethodsCompiled #jitBytecodesCompiled #jitCompileMicroseconds #jitCodeBytes #jitCacheFlushes #jitEntries #jitExits #jitResumes #jitOsrEntries #jitCompileFailures #jitInlineCacheMisses #jitInlineCacheLinks #jitPolymorphicCaches #jitMegamorphicSites #jitBlockCacheMisses #jitPrimitiveCalls #jitFrameWalks #optMethodsCompiled #optBytecodesCompiled #optCompileMicroseconds #optCodeBytes #optDeoptimizations #optOsrEntries #optInvalidations #optCompileFailures #optRuntimeSends #tenureAge)
+	^#(#scavenges #fullGCs #scavengeMicroseconds #fullGCMicroseconds #oldBytesUsed #oldBudget #edenBytes #bytesAllocated #rememberedSetSize #processSwitches #bytesTenured #weakSlotsCleared #contextsMaterialized #frameFlushes #jitMethodsCompiled #jitBytecodesCompiled #jitCompileMicroseconds #jitCodeBytes #jitCacheFlushes #jitEntries #jitExits #jitResumes #jitOsrEntries #jitCompileFailures #jitInlineCacheMisses #jitInlineCacheLinks #jitPolymorphicCaches #jitMegamorphicSites #jitBlockCacheMisses #jitPrimitiveCalls #jitFrameWalks #optMethodsCompiled #optBytecodesCompiled #optCompileMicroseconds #optCodeBytes #optDeoptimizations #optOsrEntries #optInvalidations #optCompileFailures #optRuntimeSends #tenureAge #maxHeapBytes #heapReserve)
 ! !

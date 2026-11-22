@@ -28,6 +28,14 @@ run: sourceStrings
 	self assert: (conversation ask: 'go'; wait) equals: 'done'.
 	^(conversation items select: [:each | each kind == #code]) asArray collect: [:each | each result]
 !
+showPictures: n
+	"Register n ScriptedPictures, each shown in an item; answer the items."
+	^(1 to: n) asArray collect: [:i | | picture item |
+		picture := ScriptedPicture new.
+		item := AgentItem kind: #show text: 'shown'.
+		item object: picture; objectId: (conversation idFor: picture).
+		conversation add: item]
+!
 itemsOfKind: aSymbol
 	^(conversation items select: [:each | each kind == aSymbol]) asArray
 !
@@ -244,6 +252,45 @@ testOnChange
 	self assert: (texts includes: 'Hello').
 	self assert: busy first.
 	self deny: busy last
+!
+testOnlyTheNewestPicturesAreKept
+	| items kept |
+	items := self showPictures: AgentConversation keptPictures + 2.
+	kept := (3 to: items size) collect: [:i | (items at: i) object].
+	3 to: items size do: [:i |
+		self assert: ((items at: i) object isKindOf: ScriptedPicture).
+		self assert: (conversation objectAt: 'o', i printString) == (items at: i) object.
+		self deny: (conversation isReleased: 'o', i printString)].
+	1 to: 2 do: [:i |
+		self assert: (items at: i) object equals: 'thumbnail'.
+		self assert: (conversation isReleased: 'o', i printString)].
+	Smalltalk vm garbageCollect.
+	self assert: (conversation objectAt: 'o1') isNil.
+	self assert: (conversation objectAt: 'o1' ifAbsent: [#absent]) equals: #absent.
+	self assert: ((conversation describeMissing: 'o1') includesSubstring: 'capture it again').
+	self assert: (conversation describeMissing: 'o9') equals: 'no object o9'.
+	self assert: (conversation objectAt: 'o3') == kept first.
+	self assert: (conversation objectBindings at: #o1) value isNil.
+	self assert: (conversation idFor: nil) equals: 'o', (items size + 1) printString
+!
+testAReleasedPictureKeepsItsId
+	| picture |
+	picture := ScriptedPicture new.
+	self assert: (conversation idFor: picture) equals: 'o1'.
+	self showPictures: AgentConversation keptPictures.
+	self assert: (conversation isReleased: 'o1').
+	self assert: (conversation objectAt: 'o1') == picture.
+	self assert: (conversation idFor: picture) equals: 'o1'
+!
+testImagesNoLongerSentAreReleased
+	| types |
+	(AgentImage maxImages + 2) timesRepeat: [
+		conversation add: (AgentItem user: 'shot' images: {AgentImage imagePart: 'data:image/png;base64,AQID'})].
+	conversation input.
+	types := conversation items asArray collect: [:each | ((each wire first at: 'content') last) at: 'type'].
+	self assert: (types first: 2) equals: #('input_text' 'input_text').
+	self assert: ((types allButFirst: 2) allSatisfy: [:each | each = 'input_image']).
+	self assert: (((conversation items first wire first at: 'content') last) at: 'text') equals: '[image omitted: an older image, no longer sent; show it again to see it]'
 !
 testShowFormSendsImage
 	| message image |
