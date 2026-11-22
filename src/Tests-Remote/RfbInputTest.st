@@ -162,18 +162,28 @@ testForwardsThroughARemoteInputDevice
 	self assert: device pointer isNil.
 	self assert: queue isEmpty
 !
+testAConnectionsCalls
+	"RfbConnection's calls: pointer:at:, key:down:, cutText:, connectionClosed (which releases what is held)."
+	input clipboardSetter: [:s | ].
+	input pointer: 1 at: 5 @ 6.
+	input key: 16r61 down: true.
+	input cutText: 'x'.
+	input connectionClosed.
+	self assert: (self events collect: [:e | {e first. e at: 5}]) equals: #(#(1 0) #(2 1) #(5 97) #(7 0) #(6 97) #(3 1))
+!
 testCutTextBothWays
-	"ClientCutText (Latin-1) sets the clipboard; the image's clipboard goes to the client as Latin-1 bytes, ? for what Latin-1 lacks, but not what the client sent."
+	"ClientCutText (Latin-1) sets the clipboard; the image's clipboard goes to the client (as Latin-1 bytes, ? for what Latin-1 lacks), but not what the client sent."
 	| set sent |
 	set := OrderedCollection new.
 	sent := OrderedCollection new.
 	input clipboardSetter: [:s | set add: s. RemoteClipboard changed: s].
 	input clipboardBlock: [:bytes | sent add: bytes].
-	input cutText: #[104 233 10 120] asByteArray.
+	input cutText: #[104 233 10 120].
 	self assert: set asArray equals: {'h', (Character value: 233) asString, (String with: Character lf), 'x'}.
 	self assert: sent isEmpty.
 	RemoteClipboard changed: 'a', (Character value: 16r20AC) asString, (Character value: 233) asString.
-	self assert: sent asArray equals: {#[97 63 233]}.
+	self assert: sent size equals: 1.
+	self assert: (RfbInput latin1BytesOf: sent first) equals: #[97 63 233].
 	input clipboardBlock: nil.
 	RemoteClipboard changed: 'b'.
 	self assert: sent size equals: 1.

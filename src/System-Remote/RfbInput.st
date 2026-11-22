@@ -11,7 +11,9 @@ The pointer: pointerAt:buttons: with the RFB mask (1 left, 2 middle, 4 right; a 
 
 Where events go: on UEFI the firmware display (display:; its pointer moves the arrow), on an operating system an InputQueue that forwards to a RemoteInputDevice (device:), which injects them with deliver: (the agent''s drawn pointer stays put), or any InputQueue (queue:, tests). forImage picks the first two.
 
-Clipboard (Latin-1 both ways): cutText: sets the image''s clipboard (RemoteClipboard set:); once clipboardBlock: is set I watch the image''s clipboard and hand each change, as Latin-1 bytes (other characters become ?), to the block for a ServerCutText; it runs in the Process that changed the clipboard, so it must only queue and signal. Text a client sent is not echoed back to it. Cut text is never logged. close releases what is held and stops watching.'!
+Clipboard (Latin-1 both ways): cutText: sets the image''s clipboard (RemoteClipboard set:); once clipboardBlock: is set I watch the image''s clipboard and hand each change to the block for a ServerCutText (which sends it as Latin-1: other characters become ?, latin1BytesOf:); it runs in the Process that changed the clipboard, so it must not wait long. Text a client sent is not echoed back to it. Cut text is never logged. close releases what is held and stops watching.
+
+For an RfbConnection (forConnection:, after authentication): key:down:, pointer:at:, cutText: and connectionClosed are its calls; the image''s clipboard goes to its sendCutText:.'!
 
 !RfbInput methodsFor: 'initialization'!
 setQueue: anInputQueue display: aDisplayOrNil owns: aBoolean
@@ -119,7 +121,7 @@ clipboardSetter: aBlock
 	clipboardSetter := aBlock
 !
 clipboardBlock: aBlockOrNil
-	"Hand the image's clipboard, when it changes, as Latin-1 bytes to aBlock (nil: stop watching)."
+	"Hand the image's clipboard, when it changes, to aBlock (value: aString; nil: stop watching)."
 	clipboardBlock := aBlockOrNil.
 	aBlockOrNil isNil
 		ifTrue: [RemoteClipboard unwatch: self]
@@ -131,7 +133,17 @@ clipboardChanged: aString
 	block := clipboardBlock.
 	(block isNil or: [aString = lastClipboard]) ifTrue: [^self].
 	lastClipboard := aString.
-	block value: (self class latin1BytesOf: aString)
+	block value: aString
+! !
+
+!RfbInput methodsFor: 'connection'!
+pointer: mask at: aPoint
+	"RfbConnection's PointerEvent."
+	self pointerAt: aPoint buttons: mask
+!
+connectionClosed
+	"The RfbConnection closed."
+	self close
 ! !
 
 !RfbInput methodsFor: 'closing'!
@@ -227,14 +239,22 @@ device: aRemoteInputDevice
 	"Events made by an InputQueue of my own, injected by aRemoteInputDevice (deliver:) into its window (windowId)."
 	| q |
 	q := InputQueue new.
+	q extent: 65536 @ 65536.
 	q forwardTo: [:e |
 		aRemoteInputDevice windowId ifNotNil: [:id | e at: 8 put: id].
 		aRemoteInputDevice deliver: e].
 	^self new setQueue: q display: nil owns: true
 !
 forImage
-	"The firmware display's input on UEFI, else injection by the default RemoteInputDevice."
-	^FirmwareDisplay current
-		ifNil: [self device: RemoteInputDevice default]
-		ifNotNil: [:d | self display: d]
+	"The firmware display's input on UEFI, else injection by the default RemoteInputDevice into the World's window (its points: the screen's pixels / its display scale)."
+	| world input |
+	FirmwareDisplay current ifNotNil: [:d | ^self display: d].
+	input := self device: RemoteInputDevice default.
+	world := (Smalltalk at: #World ifAbsent: [nil]) ifNotNil: [:c | c current].
+	world isNil ifFalse: [input extent: world extent * world displayScale scale: world displayScale].
+	^input
+!
+forConnection: anRfbConnection
+	"The input of an authenticated RfbConnection: into the image (forImage); the image's clipboard to its client."
+	^self forImage clipboardBlock: [:s | anRfbConnection sendCutText: s]; yourself
 ! !
