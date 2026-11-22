@@ -170,4 +170,14 @@ testMethodsContaining
 	self assert: (found includes: Object >> #printOn:).
 	self deny: (found includes: Point >> #x).
 	self assert: (Smalltalk methodsContaining: 'no method contains this ', 'string') isEmpty
+!
+testOverview
+	| text |
+	text := Point overview.
+	self assert: (text beginsWith: 'Point (superclass: Object, package: Kernel-Objects)').
+	self assert: (text includesSubstring: 'instance variables: x y').
+	self assert: (text includesSubstring: Point comment).
+	self assert: (text includesSubstring: '  accessing: setX:setY: x x: y y:').
+	self assert: (text includesSubstring: 'class side:').
+	self assert: (text includesSubstring: 'x:y:')
 ! !
