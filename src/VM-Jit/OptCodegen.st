@@ -1182,8 +1182,8 @@ emitAddSub: n
 	self def: n from: X16
 !
 emitDivShift: n
-	"SmallInteger modulo and division (floored, aux 1 truncated: rem: quo:, aux 2 exact: /, a remainder deoptimizes; a zero divisor deoptimizes) and bitShift: (a result that does not fit deoptimizes)."
-	| nd s op neg done d k r |
+	"SmallInteger modulo and division (floored, aux 1 truncated: rem: quo:, aux 2 exact: /, a remainder deoptimizes; a zero divisor deoptimizes; \\ by a divisor that turns out a positive power of two: a mask) and bitShift: (a result that does not fit deoptimizes)."
+	| nd s op neg done d k r general |
 	nd := ir node: n.
 	op := nd op asInt32.
 	d := self constantDivisorOf: n.
@@ -1231,6 +1231,17 @@ emitDivShift: n
 		asm orr: self scratchB with: self scratchB imm: 1.
 		^self def: n from: self scratchB].
 	asm cbz: X17 to: s.
+	(op = O_IMOD and: [nd aux = 0]) ifTrue: [
+		"a hashed collection's capacity, a ring buffer's size: a positive power of two masks"
+		general := asm newLabel.
+		asm comment: 'modulo a power of two: a mask'.
+		asm tbnz: X17 bit: 63 to: general.
+		asm sub: self scratchB with: X17 imm: 1.
+		asm tst: X17 with: self scratchB.
+		asm b: general if: COND_NE.
+		asm and: self scratchA with: X16 with: self scratchB.
+		asm b: done.
+		asm bind: general].
 	asm sdiv: self scratchB with: X16 with: X17.
 	asm msub: self scratchA with: self scratchB with: X17 sub: X16.
 	self emitDivTail: n done: done floored: false
