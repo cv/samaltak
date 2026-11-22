@@ -14,7 +14,9 @@ async function gate(
   // directory's HEAD. start: begin a run of targets (default ["test-core"]; add "test-uefi", "test-jit-baseline",
   // "test-jit-opt" as AGENTS.md requires, "test-nv" on a machine with an NVIDIA GPU; the targets run at once after one
   // build (tests/stages.sh), each suite sharded over test VMs: all five stages take ~3.5 min, test-core alone ~2.5;
-  // concurrent gates share the machine's test slots and take longer; or ["auto"]: test-core, plus test-uefi when src/, vm/, boot/, the Makefile,
+  // concurrent gates share the machine's test slots and take longer; results end with a line per stage, "stage
+  // <target>: passed|FAILED (exit N) in N s", and "stages: ..."; or ["auto"]: test-core, plus test-uefi when src/,
+  // vm/, boot/, the Makefile,
   // tests/uefi or tools/samaltak-ctl changed, the JIT stages when src/VM-* or vm/ (not vm/tests/bench) changed, and
   // test-nv when System-NV, Graphics-NV, gpu/nv or tests/nv changed and /dev/nvidiactl exists; the result says why) and
   // record HEAD, its tree and its base on origin/main in build/gate-runs/<id>.json; samaltak.push accepts a passed run
@@ -57,7 +59,7 @@ async function gate(
   const summarize = async (rec: any) => {
     const log = `${dir}/${rec.id}.log`;
     const s = await exec(
-      `grep -a -E '^[0-9]+ run, |^st_suite: |^(FAIL |ERROR )|: all passed|passed, [0-9]+ failed|make(\\[[0-9]+\\])?: \\*\\*\\*|^make test: FAILED|^make test-nv: |^replay: |^fuzz: |^test-uefi: |^qemu-system[^ ]*: |^stage test-[^ ]*: (passed|FAILED)|^stages: (all passed|FAILED)' ${log} 2>/dev/null | tr -d '\\r' | tail -25; echo "@@"; tail -n 4 ${log} 2>/dev/null | tr -d '\\r'`,
+      `grep -a -E '^[0-9]+ run, |^st_suite: |^(FAIL |ERROR )|: all passed|passed, [0-9]+ failed|make(\\[[0-9]+\\])?: \\*\\*\\*|^make test: FAILED|^make test-nv: |^replay: |^fuzz: |^test-uefi: |^qemu-system[^ ]*: ' ${log} 2>/dev/null | tr -d '\\r' | tail -25; grep -a -E '^stage [^ ]+: (passed|FAILED)|^stages: (all passed|FAILED)' ${log} 2>/dev/null | tr -d '\\r'; echo "@@"; tail -n 4 ${log} 2>/dev/null | tr -d '\\r'`,
     );
     const [hits, tail] = s.stdout.split("@@\n");
     const targets: string[] = rec.targets.split(" ");
