@@ -235,23 +235,50 @@ waitIdle: dev
 createShader: dev source: source entry: entry stage: stage samplers: samplers uniformBuffers: uniformBuffers storageBuffers: storageBuffers storageTextures: storageTextures
 	"source is in the device's shaderLanguage: MSL, or GLSL compiled to SPIR-V by the host (entry is then main)."
 	<export>
-	| d ci s spirv size |
+	| d spirv size h |
 	d := self device: dev.
 	d isNull ifTrue: [^0].
+	((sdlGpu shaderFormats: d dev) bitAnd: sdlGpu SDL_GPU_SHADERFORMAT_MSL) ~= 0 ifTrue: [
+		^self createShader: d handle: dev code: (self cCoerce: source to: 'Uint8 *') size: (libc strlen: source)
+			format: sdlGpu SDL_GPU_SHADERFORMAT_MSL entry: entry stage: stage samplers: samplers
+			uniformBuffers: uniformBuffers storageBuffers: storageBuffers storageTextures: storageTextures].
+	size := self local: 'size_t'.
+	spirv := host compileShader: source stage: stage size: size.
+	spirv isNull ifTrue: [^0].
+	h := self createShader: d handle: dev code: spirv size: size value format: sdlGpu SDL_GPU_SHADERFORMAT_SPIRV
+		entry: entry stage: stage samplers: samplers
+		uniformBuffers: uniformBuffers storageBuffers: storageBuffers storageTextures: storageTextures.
+	libc free: spirv.
+	^h
+!
+createShader: dev spirv: code size: n entry: entry stage: stage samplers: samplers uniformBuffers: uniformBuffers storageBuffers: storageBuffers storageTextures: storageTextures
+	"A shader from SPIR-V already compiled (compileShader:stage:size:), on a device that takes SPIR-V; no compiler runs."
+	<export>
+	<var: #code type: 'const uint8_t *'>
+	| d |
+	d := self device: dev.
+	d isNull ifTrue: [^0].
+	((sdlGpu shaderFormats: d dev) bitAnd: sdlGpu SDL_GPU_SHADERFORMAT_SPIRV) = 0 ifTrue: [
+		common setError: 'the device does not take SPIR-V'.
+		^0].
+	^self createShader: d handle: dev code: (self cCoerce: code to: 'Uint8 *') size: n format: sdlGpu SDL_GPU_SHADERFORMAT_SPIRV
+		entry: entry stage: stage samplers: samplers
+		uniformBuffers: uniformBuffers storageBuffers: storageBuffers storageTextures: storageTextures
+!
+compileShader: source stage: stage size: sizeOut
+	"SPIR-V compiled from GLSL source by the host (malloc'd, its size in sizeOut), to keep and give createShader:spirv:...; NULL with the compiler's log as the error, or where GLSL is not compiled (macOS)."
+	<export>
+	^host compileShader: source stage: stage size: sizeOut
+!
+createShader: d handle: dev code: code size: n format: format entry: entry stage: stage samplers: samplers uniformBuffers: uniformBuffers storageBuffers: storageBuffers storageTextures: storageTextures
+	<var: #d type: 'gpu_dev *'>
+	<var: #code type: 'Uint8 *'>
+	<var: #format type: 'SDL_GPUShaderFormat'>
+	| ci s |
 	ci := self local: 'SDL_GPUShaderCreateInfo'.
-	spirv := self null.
-	((sdlGpu shaderFormats: d dev) bitAnd: sdlGpu SDL_GPU_SHADERFORMAT_MSL) ~= 0
-		ifTrue: [
-			ci code_size: (libc strlen: source).
-			ci code: (self cCoerce: source to: 'Uint8 *').
-			ci format: sdlGpu SDL_GPU_SHADERFORMAT_MSL]
-		ifFalse: [
-			size := self local: 'size_t'.
-			spirv := host compileShader: source stage: stage size: size.
-			spirv isNull ifTrue: [^0].
-			ci code_size: size value.
-			ci code: (self cCoerce: spirv to: 'Uint8 *').
-			ci format: sdlGpu SDL_GPU_SHADERFORMAT_SPIRV].
+	ci code_size: n.
+	ci code: code.
+	ci format: format.
 	ci entrypoint: entry.
 	ci stage: (stage = PF_STAGE_FRAGMENT ifTrue: [sdlGpu SDL_GPU_SHADERSTAGE_FRAGMENT] ifFalse: [sdlGpu SDL_GPU_SHADERSTAGE_VERTEX]).
 	ci num_samplers: samplers.
@@ -261,7 +288,6 @@ createShader: dev source: source entry: entry stage: stage samplers: samplers un
 	sdl clearError.
 	logError at: 0 put: 0.
 	s := sdlGpu createShader: d dev info: ci.
-	libc free: spirv.
 	s isNull ifTrue: [^self sdlFail: 'SDL_CreateGPUShader'].
 	^self add: K_SHADER pointer: s device: dev
 !

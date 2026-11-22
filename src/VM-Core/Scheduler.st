@@ -1,9 +1,11 @@
 VMCoreModule subclass: #Scheduler
-	instanceVariableNames: 'interruptPending lastPreempted lastPreemptedAtEntry allocSampleClass allocSampleSize allocSampleInterval allocSampleCountdown allocSampleSema statProcessSwitches allocSamplePending inIdle preemptToFront allocSampleUnread samplerTickUnread timerMs samplerIntervalUs samplerNextUs lastSwitchUs startUs samplerSema pendingExt pendingExtN pendingExtCap tickIdle tickPollUs tickArmedPoll tickArmedDeadline tickDeadlineFired ticker workClockOn workClockRunning workClockPaced workClockUsesCycles workClockUs workClockCycles workClockRaw workClockHeld workClockHoldCycles workClockQuerying frameSema frameFps frameOriginUs frameIndex frameNextUs'
+	instanceVariableNames: 'interruptPending lastPreempted lastPreemptedAtEntry allocSampleClass allocSampleSize allocSampleInterval allocSampleCountdown allocSampleSema statProcessSwitches allocSamplePending inIdle preemptToFront allocSampleUnread samplerTickUnread timerMs samplerIntervalUs samplerNextUs lastSwitchUs startUs samplerSema pendingExt pendingExtN pendingExtCap tickIdle tickPollUs tickArmedPoll tickArmedDeadline tickDeadlineFired ticker workClockOn workClockRunning workClockPaced workClockUsesCycles workClockUs workClockCycles workClockRaw workClockHeld workClockHoldCycles workClockQuerying frameSema frameFps frameOriginUs frameIndex frameNextUs sliceUs sliceDueUs slicePriority'
 	classVariableNames: 'TICK_DEADLINE TICK_POLL WORK_CLOCK_FLOOR WORK_CLOCK_POLL_US WORK_CYCLES_PER_US'
 	package: 'VM-Core'!
 
-Scheduler comment: 'Process scheduler, semaphores and interrupts: the timer, the CPU and allocation samplers, external semaphore signals.
+Scheduler comment: 'Process scheduler, semaphores and interrupts: the timer, the CPU and allocation samplers, external semaphore signals, time slices.
+
+Time slicing (setTimeSlice:): while another Process of the active one''s priority is ready, the active one runs at most sliceUs before it goes to the back of its run list, so equal-priority Processes take turns. The slice''s deadline is armed only under that contention (a Process made ready at the active priority, a switch to a Process with peers waiting): a program whose Processes do not compete, or that idles, has no timer for it.
 
 While Smalltalk runs, a timer of the Ticker (its thread calls tickFired:) requests an interrupt check when the timer or the CPU sampler is due, and a periodic one every tickPollUs if the platform asked for polls (requestPeriodicPoll:). While the VM waits in the platform''s wait both are disarmed: the wait''s timeout covers the timer and the sampler, and the platform wakes it for events. tickUpdate (VM thread) re-arms after any change.
 
@@ -20,7 +22,8 @@ declarations
 		(tickDeadlineFired atomic_bool) (ticker Ticker)
 		(workClockOn bool) (workClockRunning bool) (workClockPaced bool) (workClockUsesCycles bool)
 		(workClockUs int64_t) (workClockCycles int64_t) (workClockRaw int64_t) (workClockHeld bool) (workClockHoldCycles int64_t) (workClockQuerying bool)
-		(frameSema int32_t) (frameFps int64_t) (frameOriginUs int64_t) (frameIndex int64_t) (frameNextUs int64_t))
+		(frameSema int32_t) (frameFps int64_t) (frameOriginUs int64_t) (frameIndex int64_t) (frameNextUs int64_t)
+		(sliceUs int64_t) (sliceDueUs int64_t) (slicePriority int64_t))
 !
 initialize
 	TICK_DEADLINE := 1.
@@ -256,6 +259,7 @@ workClockDeadline
 	(timerMs >= 0 and: [timerMs < (16r7FFFFFFFFFFFFFFF quo: 1000)]) ifTrue: [due := timerMs * 1000].
 	(samplerIntervalUs > 0 and: [samplerNextUs < due]) ifTrue: [due := samplerNextUs].
 	(frameSema ~= 0 and: [frameNextUs < due]) ifTrue: [due := frameNextUs].
+	(sliceDueUs ~= 0 and: [sliceDueUs < due]) ifTrue: [due := sliceDueUs].
 	^due
 !
 workClockSync
@@ -331,7 +335,8 @@ tickUpdate
 	now := self nowUs.
 	(tickIdle or: [workClockOn]) ifFalse: [
 		(timerMs >= 0 and: [timerMs < (16r7FFFFFFFFFFFFFFF quo: 1000)]) ifTrue: [due := timerMs * 1000].
-		(samplerIntervalUs > 0 and: [samplerNextUs < due]) ifTrue: [due := samplerNextUs]].
+		(samplerIntervalUs > 0 and: [samplerNextUs < due]) ifTrue: [due := samplerNextUs].
+		(sliceDueUs ~= 0 and: [sliceDueUs < due]) ifTrue: [due := sliceDueUs]].
 	((self atomicExchange: #tickDeadlineFired value: false) or: [due ~= tickArmedDeadline]) ifTrue: [
 		due <= now ifTrue: [self requestInterruptCheck].
 		ticker arm: TICK_DEADLINE microseconds: ((due = 16r7FFFFFFFFFFFFFFF or: [due <= now]) ifTrue: [-1] ifFalse: [due - now]) periodic: false.
@@ -451,12 +456,14 @@ transferTo: aProcess
 	self storeRef: proc value at: PROC_SUSPENDED put: memory nilOop.
 	interpreter activeCtx: ctx.
 	gc rememberIfOld: ctx.
-	statProcessSwitches := statProcessSwitches + 1
+	statProcessSwitches := statProcessSwitches + 1.
+	self sliceCheck
 !
 idleWait
 	<function>
 	| now wait |
 	inIdle := true.
+	sliceDueUs := 0.
 	(pendingExtN = 0 and: [allocSamplePending not]) ifTrue: [
 		workClockOn ifTrue: [^self workClockIdleWait].
 		now := self nowUs.
@@ -496,7 +503,9 @@ resumeProcess: proc
 			lastPreempted := active.
 			lastPreemptedAtEntry := interpreter safepointAtEntry.
 			self transferTo: proc]
-		ifFalse: [self addLastLink: proc to: (self runList: (self priorityOf: proc))]
+		ifFalse: [
+			self addLastLink: proc to: (self runList: (self priorityOf: proc)).
+			(inIdle not and: [(self priorityOf: proc) = (self priorityOf: active)]) ifTrue: [self sliceCheck]]
 !
 suspendActive
 	<function>
@@ -565,6 +574,16 @@ handleInterrupts
 		self signalIndex: allocSampleSema].
 	preemptToFront := false.
 	(frameSema ~= 0 and: [now >= frameNextUs]) ifTrue: [self workClockFrameDue].
+	(sliceDueUs ~= 0 and: [inIdle not and: [now >= sliceDueUs]]) ifTrue: [
+		"The slice is over: the active Process goes to the back of its run list if one of its priority waits; the switch starts the next one's slice. Over while a higher Process interrupted the slice's: that one's slice starts again."
+		(self priorityOf: self activeProcess) = slicePriority
+			ifTrue: [
+				sliceDueUs := 0.
+				self processorYield.
+				sliceDueUs = 0 ifTrue: [self tickUpdate]]
+			ifFalse: [
+				sliceDueUs := now + sliceUs.
+				self tickUpdate]].
 	gc finalizationPending ifTrue: [
 		gc finalizationPending: false.
 		s := memory special: SO_FINALIZATION_SEMAPHORE.
@@ -577,6 +596,33 @@ setTimer: ms
 	<function>
 	timerMs := ms.
 	self tickUpdate
+!
+setTimeSlice: us
+	"Equal-priority Processes take turns every us microseconds while more than one is ready (0: they do not)."
+	<function>
+	sliceUs := us.
+	sliceDueUs := 0.
+	self sliceCheck.
+	self tickUpdate
+!
+sliceCheck
+	"After a switch, or a Process made ready at the active one's priority: the slice runs while another Process of the active one's priority is ready (it starts when none ran, or for another priority), and stops when none is; a Process of higher priority interrupting leaves it running."
+	<function>
+	| pri contended |
+	sliceUs = 0 ifTrue: [^self].
+	pri := self priorityOf: self activeProcess.
+	(sliceDueUs ~= 0 and: [pri > slicePriority]) ifTrue: [^self].
+	contended := inIdle not and: [(self loadRef: (self runList: pri) at: LL_FIRST) ~= memory nilOop].
+	contended
+		ifTrue: [
+			(sliceDueUs = 0 or: [slicePriority ~= pri]) ifTrue: [
+				sliceDueUs := self nowUs + sliceUs.
+				slicePriority := pri.
+				self tickUpdate]]
+		ifFalse: [
+			sliceDueUs ~= 0 ifTrue: [
+				sliceDueUs := 0.
+				self tickUpdate]]
 !
 processCpuTimeUs: proc
 	"cpuTime, including the running slice if active."

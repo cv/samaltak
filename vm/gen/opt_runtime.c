@@ -1839,6 +1839,13 @@ exit_note_young:;
     return o;
 }
 
+/* OptRuntime>>release */
+void opt_runtime_release(void)
+{
+    opt_ir_release();
+    opt_regalloc_release();
+}
+
 /* OptRuntime>>resume: */
 uint64_t opt_runtime_resume(frame *f)
 {

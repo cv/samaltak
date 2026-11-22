@@ -46,7 +46,8 @@ pageSize: anInteger
 
 !GlyphAtlas class methodsFor: 'accessing'!
 default
-	^Default ifNil: [Default := self pageSize: 2048]
+	"The runtime image's applications draw a few fonts: smaller pages (1 MB, not 4)."
+	^Default ifNil: [Default := self pageSize: (Smalltalk isRuntimeImage ifTrue: [1024] ifFalse: [2048])]
 !
 reset
 	"Forget all glyphs (fonts must drop their caches too: see Font class>>resetGlyphs)."

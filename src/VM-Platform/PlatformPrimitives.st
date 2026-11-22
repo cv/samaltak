@@ -516,9 +516,9 @@ primGpuShaderLanguage
 	self answer: (memory stringFromUtf8: l size: (libc strlen: l))
 !
 primGpuCreateShader
-	"dev source (in the device's shaderLanguage) entry stage samplers uniformBuffers storageBuffers storageTextures -> shader"
+	"dev source entry stage samplers uniformBuffers storageBuffers storageTextures -> shader. source is a String in the device's shaderLanguage, or a ByteArray of SPIR-V (gpuCompileShader) for a device that takes it."
 	<vmPrimitive: 433 name: 'gpuCreateShader'>
-	| d stage ns nu nsb nst src entry h |
+	| d stage ns nu nsb nst o code len src entry h |
 	(self args: 8) ifFalse: [^self fail].
 	d := self intArg: 0.
 	stage := self intArg: 3.
@@ -526,16 +526,47 @@ primGpuCreateShader
 	nu := self intArg: 5.
 	nsb := self intArg: 6.
 	nst := self intArg: 7.
-	src := self stringArg: 1.
+	o := self arg: 1.
+	code := self null.
+	src := self null.
+	len := self local: 'size_t'.
+	((self isPtr: o) and: [(memory classOf: o) = memory clsBytearray])
+		ifTrue: [
+			code := self bytesOf: o size: len writable: false.
+			code isNull ifTrue: [bad := true]]
+		ifFalse: [src := self stringArg: 1].
 	entry := self stringArg: 2.
 	h := bad
 		ifTrue: [0]
-		ifFalse: [gpu createShader: d asInt32 source: src entry: entry stage: stage asInt32 samplers: ns asInt32
-			uniformBuffers: nu asInt32 storageBuffers: nsb asInt32 storageTextures: nst asInt32].
+		ifFalse: [code isNull
+			ifTrue: [gpu createShader: d asInt32 source: src entry: entry stage: stage asInt32 samplers: ns asInt32
+				uniformBuffers: nu asInt32 storageBuffers: nsb asInt32 storageTextures: nst asInt32]
+			ifFalse: [gpu createShader: d asInt32 spirv: code size: len value entry: entry stage: stage asInt32 samplers: ns asInt32
+				uniformBuffers: nu asInt32 storageBuffers: nsb asInt32 storageTextures: nst asInt32]].
 	libc free: src.
 	libc free: entry.
 	bad ifTrue: [^self fail].
 	self answerHandle: h
+!
+primGpuCompileShader
+	"GLSL source, stage -> the SPIR-V it compiles to (a ByteArray), for gpuCreateShader: an image keeps it, so it compiles no shaders when it starts. Fails with the compiler's log, or where GLSL is not compiled (macOS)."
+	<vmPrimitive: 461 name: 'gpuCompileShader'>
+	| src stage size spirv result |
+	(self args: 2) ifFalse: [^self fail].
+	src := self stringArg: 0.
+	stage := self intArg: 1.
+	bad ifTrue: [
+		libc free: src.
+		^self fail].
+	size := self local: 'size_t'.
+	size value: 0.
+	spirv := gpu compileShader: src stage: stage asInt32 size: size.
+	libc free: src.
+	spirv isNull ifTrue: [^self fail].
+	result := memory allocBytes: memory clsBytearray count: size value.
+	libc memcpy: (self bytesOf: result) from: spirv size: size value.
+	libc free: spirv.
+	self answer: result
 !
 primGpuCreatePipeline
 	"dev vs fs stride attrs {fmt. off. ...} primitive blend targetFormat -> pipeline"

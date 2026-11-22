@@ -1,5 +1,5 @@
 Object subclass: #ImageSource
-	instanceVariableNames: 'directory packages layers uses exports classes classOrder globalDecls methodChunks'
+	instanceVariableNames: 'directory packages layers uses exports classes classOrder globalDecls methodChunks only'
 	classVariableNames: ''
 	package: 'VM-ImageBuilder'!
 
@@ -43,6 +43,10 @@ setDirectory: aDirectory
 !ImageSource methodsFor: 'accessing'!
 directory
 	^directory
+!
+only: aCollectionOrNil
+	"Read only these packages (names), in packages.txt's order and on its layers; nil: all."
+	only := aCollectionOrNil
 !
 packages
 	"{name. layer} in load order."
@@ -99,7 +103,8 @@ readPackages
 					(parts size >= 2 and: [((parts at: 2) allSatisfy: [:c | (c between: $0 and: $9) or: [c = $-]]) and: [
 						parts size = 2 or: [(parts at: 3) = 'uses' and: [parts size > 3]]]])
 						ifFalse: [self error: 'expected "Name layer [uses Package...]" or "export Package layer Global..."' file: path line: lineNumber].
-					packages add: (Array with: parts first with: (parts at: 2) asNumber).
+					(only isNil or: [only includes: parts first]) ifTrue: [
+						packages add: (Array with: parts first with: (parts at: 2) asNumber)].
 					layers at: parts first put: (parts at: 2) asNumber.
 					uses at: parts first put: (parts size > 3 ifTrue: [(parts allButFirst: 3) asArray] ifFalse: [#()])]]].
 	(uses values inject: Set new into: [:all :each | all addAll: each; yourself]) , (exports keys collect: [:k | k substrings first]) do: [:p |

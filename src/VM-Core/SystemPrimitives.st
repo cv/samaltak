@@ -123,6 +123,13 @@ primScavenge
 	gc scavenge.
 	self answer: (self intOop: (gc edenHi - gc edenTop) asInt64)
 !
+primReleaseMemory
+	"Give back to the system the memory an idle program holds only because it was busy before: eden's and the empty survivor space's pages (after a scavenge), and all machine code with its feedback and the JIT's scratch areas (dropped before Smalltalk goes on; what runs again is compiled again). Answers the receiver."
+	<vmPrimitive: 174 name: 'releaseMemory'>
+	gc releaseFreeMemory.
+	jit releaseMemory.
+	self answer: self receiver
+!
 primVMStats
 	<vmPrimitive: 164 name: 'vmStats'>
 	| v a |

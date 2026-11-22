@@ -19,7 +19,7 @@ static void *fence_watcher(void *unused);
 static pf_obj *get(int32_t h, int kind, char *what);
 static int64_t mono_us(void);
 static SDL_GPURenderPass *platform_gpu_pass(int32_t h);
-static void release(int32_t h);
+static void platform_gpu_release(int32_t h);
 static void release_device(int32_t dh);
 static int sdl_fail(char *what);
 static SDL_GPUTextureFormat sdl_format(int f);
@@ -302,6 +302,12 @@ bool claim_window(int32_t dev, int32_t win)
     return true;
 }
 
+/* PlatformGPU>>compileShader:stage:size: */
+void *platform_gpu_compile_shader(char *source, int32_t stage, size_t *size_out)
+{
+    return platform_host_compile_shader(source, stage, size_out);
+}
+
 /* PlatformGPU>>createBuffer:usage:size: */
 int32_t create_buffer(int32_t dev, int32_t usage, uint32_t size)
 {
@@ -513,39 +519,44 @@ int32_t create_sampler(int32_t dev, bool linear, bool repeat)
 }
 
 /* PlatformGPU>>createShader:source:entry:stage:samplers:uniformBuffers:storageBuffers:storageTextures: */
-int32_t create_shader(int32_t dev, char *source, char *entry, int32_t stage, int32_t samplers, int32_t uniform_buffers, int32_t storage_buffers, int32_t storage_textures)
+int32_t platform_gpu_create_shader_source_entry_stage_samplers_uniform_buffers_storage_buffers_storage_textures(int32_t dev, void *source, char *entry, int32_t stage, int32_t samplers, int32_t uniform_buffers, int32_t storage_buffers, int32_t storage_textures)
 {
     gpu_dev *d;
+    Uint8 *code;
+    size_t n;
+    SDL_GPUShaderFormat format;
+    int r_create_shader;
     SDL_GPUShaderCreateInfo local;
     SDL_GPUShaderCreateInfo *ci;
-    void *spirv;
-    size_t local_2;
-    size_t *size;
     SDL_GPUShader *s;
     int32_t r_add;
-    int32_t h;
+    int32_t h_2;
+    size_t local_2;
+    size_t *size;
+    void *spirv;
+    size_t n_2;
+    SDL_GPUShaderFormat format_2;
+    int r_create_shader_2;
+    SDL_GPUShaderCreateInfo local_3;
+    SDL_GPUShaderCreateInfo *ci_2;
+    SDL_GPUShader *s_2;
+    int32_t r_add_2;
+    int32_t h_3;
+    int h;
     d = device(dev);
     if (d == NULL) {
         return 0;
     }
+    if ((SDL_GetGPUShaderFormats(d->dev) & SDL_GPU_SHADERFORMAT_MSL) != 0) {
+        code = (Uint8 *)source;
+        n = strlen((const char *)source);
+        format = SDL_GPU_SHADERFORMAT_MSL;
+        return ({
     memset(&local, 0, sizeof local);
     ci = &local;
-    spirv = NULL;
-    if ((SDL_GetGPUShaderFormats(d->dev) & SDL_GPU_SHADERFORMAT_MSL) != 0) {
-        ci->code_size = strlen(source);
-        ci->code = (Uint8 *)source;
-        ci->format = SDL_GPU_SHADERFORMAT_MSL;
-    } else {
-        memset(&local_2, 0, sizeof local_2);
-        size = &local_2;
-        spirv = compile_shader(source, stage, size);
-        if (spirv == NULL) {
-            return 0;
-        }
-        ci->code_size = *size;
-        ci->code = (Uint8 *)spirv;
-        ci->format = SDL_GPU_SHADERFORMAT_SPIRV;
-    }
+    ci->code_size = n;
+    ci->code = code;
+    ci->format = format;
     ci->entrypoint = entry;
     ci->stage = stage == PF_STAGE_FRAGMENT ? SDL_GPU_SHADERSTAGE_FRAGMENT : SDL_GPU_SHADERSTAGE_VERTEX;
     ci->num_samplers = samplers;
@@ -555,15 +566,104 @@ int32_t create_shader(int32_t dev, char *source, char *entry, int32_t stage, int
     SDL_ClearError();
     log_error[0] = 0;
     s = SDL_CreateGPUShader(d->dev, ci);
-    free(spirv);
     if (s == NULL) {
-        return sdl_fail("SDL_CreateGPUShader");
+        r_create_shader = sdl_fail("SDL_CreateGPUShader");
+        goto exit_create_shader;
     }
+    r_create_shader = ({
+    h_2 = platform_common_table_add_pointer(objs, K_SHADER, s);
+    (objs->v + h_2)->dev = dev;
+    r_add = h_2;
+    r_add; });
+exit_create_shader:;
+    r_create_shader; });
+    }
+    memset(&local_2, 0, sizeof local_2);
+    size = &local_2;
+    spirv = platform_host_compile_shader((char *)source, stage, size);
+    if (spirv == NULL) {
+        return 0;
+    }
+    n_2 = *size;
+    format_2 = SDL_GPU_SHADERFORMAT_SPIRV;
+    h = ({
+    memset(&local_3, 0, sizeof local_3);
+    ci_2 = &local_3;
+    ci_2->code_size = n_2;
+    ci_2->code = (const Uint8 *)spirv;
+    ci_2->format = format_2;
+    ci_2->entrypoint = entry;
+    ci_2->stage = stage == PF_STAGE_FRAGMENT ? SDL_GPU_SHADERSTAGE_FRAGMENT : SDL_GPU_SHADERSTAGE_VERTEX;
+    ci_2->num_samplers = samplers;
+    ci_2->num_storage_textures = storage_textures;
+    ci_2->num_storage_buffers = storage_buffers;
+    ci_2->num_uniform_buffers = uniform_buffers;
+    SDL_ClearError();
+    log_error[0] = 0;
+    s_2 = SDL_CreateGPUShader(d->dev, ci_2);
+    if (s_2 == NULL) {
+        r_create_shader_2 = sdl_fail("SDL_CreateGPUShader");
+        goto exit_create_shader_2;
+    }
+    r_create_shader_2 = ({
+    h_3 = platform_common_table_add_pointer(objs, K_SHADER, s_2);
+    (objs->v + h_3)->dev = dev;
+    r_add_2 = h_3;
+    r_add_2; });
+exit_create_shader_2:;
+    r_create_shader_2; });
+    free(spirv);
+    return h;
+}
+
+/* PlatformGPU>>createShader:spirv:size:entry:stage:samplers:uniformBuffers:storageBuffers:storageTextures: */
+int32_t platform_gpu_create_shader_spirv_size_entry_stage_samplers_uniform_buffers_storage_buffers_storage_textures(int32_t dev, const uint8_t *code, size_t n, char *entry, int32_t stage, int32_t samplers, int32_t uniform_buffers, int32_t storage_buffers, int32_t storage_textures)
+{
+    gpu_dev *d;
+    Uint8 *code_2;
+    SDL_GPUShaderFormat format;
+    int r_create_shader;
+    SDL_GPUShaderCreateInfo local;
+    SDL_GPUShaderCreateInfo *ci;
+    SDL_GPUShader *s;
+    int32_t r_add;
+    int32_t h;
+    d = device(dev);
+    if (d == NULL) {
+        return 0;
+    }
+    if ((SDL_GetGPUShaderFormats(d->dev) & SDL_GPU_SHADERFORMAT_SPIRV) == 0) {
+        set_error("the device does not take SPIR-V");
+        return 0;
+    }
+    code_2 = (Uint8 *)code;
+    format = SDL_GPU_SHADERFORMAT_SPIRV;
     return ({
+    memset(&local, 0, sizeof local);
+    ci = &local;
+    ci->code_size = n;
+    ci->code = code_2;
+    ci->format = format;
+    ci->entrypoint = entry;
+    ci->stage = stage == PF_STAGE_FRAGMENT ? SDL_GPU_SHADERSTAGE_FRAGMENT : SDL_GPU_SHADERSTAGE_VERTEX;
+    ci->num_samplers = samplers;
+    ci->num_storage_textures = storage_textures;
+    ci->num_storage_buffers = storage_buffers;
+    ci->num_uniform_buffers = uniform_buffers;
+    SDL_ClearError();
+    log_error[0] = 0;
+    s = SDL_CreateGPUShader(d->dev, ci);
+    if (s == NULL) {
+        r_create_shader = sdl_fail("SDL_CreateGPUShader");
+        goto exit_create_shader;
+    }
+    r_create_shader = ({
     h = platform_common_table_add_pointer(objs, K_SHADER, s);
     (objs->v + h)->dev = dev;
     r_add = h;
     r_add; });
+exit_create_shader:;
+    r_create_shader; });
 }
 
 /* PlatformGPU>>createTexture:width:height:format:usage: */
@@ -879,7 +979,7 @@ bool push_uniforms(int32_t cmd_or_pass, int32_t stage, int32_t slot, const void 
 }
 
 /* PlatformGPU>>release: */
-static void release(int32_t h)
+static void platform_gpu_release(int32_t h)
 {
     pf_obj *o;
     SDL_GPUDevice *dv;
@@ -931,7 +1031,7 @@ static void release_device(int32_t dh)
     SDL_WaitForGPUIdle(d->dev);
     for (h = 1; h <= objs->n - 1; h++) {
         if ((h != dh) && (((objs->v + h)->kind != 0) && ((objs->v + h)->dev == dh))) {
-            release(h);
+            platform_gpu_release(h);
         }
     }
     for (i = 0; i <= 15; i++) {
@@ -966,7 +1066,7 @@ bool release_handle(int32_t h)
     if (o->kind == K_DEV) {
         release_device(h);
     } else {
-        release(h);
+        platform_gpu_release(h);
     }
     return true;
 }

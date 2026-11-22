@@ -125,16 +125,35 @@ compileShader: source stage: stage size: sizeOut
 ! !
 
 PlatformHost subclass: #LinuxPlatformHost
-	instanceVariableNames: 'linux shaderc compiler vertexOptions fragmentOptions vsyncOn vsyncPeriodUs vsyncStarted'
+	instanceVariableNames: 'linux shaderc dl shadercLib compilerInitialize optionsInitialize setOptimization addMacro compileIntoSpv resultStatus resultErrorMessage resultLength resultBytes resultRelease compiler vertexOptions fragmentOptions vsyncOn vsyncPeriodUs vsyncStarted'
 	classVariableNames: ''
 	package: 'VM-Platform'!
 
-LinuxPlatformHost comment: 'The platform layer on Linux: a thread that wakes at the display''s refresh rate (absolute CLOCK_MONOTONIC deadlines) for the refreshes, environ, SIGPIPE ignored (there is no SO_NOSIGPIPE), the alt key as cmd and the super key as alt (the window manager keeps most super combinations), GLSL compiled to SPIR-V with shaderc (SDL_GPU on Vulkan).'!
+LinuxPlatformHost comment: 'The platform layer on Linux: a thread that wakes at the display''s refresh rate (absolute CLOCK_MONOTONIC deadlines) for the refreshes, environ, SIGPIPE ignored (there is no SO_NOSIGPIPE), the alt key as cmd and the super key as alt (the window manager keeps most super combinations), GLSL compiled to SPIR-V with shaderc (SDL_GPU on Vulkan).
+
+shaderc is loaded (dlopen) when the first shader is compiled, not linked: glslang''s static tables take about 7 MB as the library loads, which a process that compiles no shader (an image that keeps its SPIR-V, GPUShader) would pay for nothing.'!
 
 !LinuxPlatformHost class methodsFor: 'declaring'!
 declarations
-	^#((linux LinuxPlatform) (shaderc Shaderc) (compiler shaderc_compiler_t) (vertexOptions shaderc_compile_options_t)
-		(fragmentOptions shaderc_compile_options_t) (vsyncOn atomic_bool) (vsyncPeriodUs atomic_int) (vsyncStarted bool))
+	^#((linux LinuxPlatform) (shaderc Shaderc) (dl DynamicLinker) (shadercLib 'void *')
+		(compilerInitialize ShadercCompilerInitializeFn) (optionsInitialize ShadercOptionsInitializeFn)
+		(setOptimization ShadercSetOptimizationFn) (addMacro ShadercAddMacroFn) (compileIntoSpv ShadercCompileFn)
+		(resultStatus ShadercResultStatusFn) (resultErrorMessage ShadercResultBytesFn) (resultLength ShadercResultLengthFn)
+		(resultBytes ShadercResultBytesFn) (resultRelease ShadercResultReleaseFn)
+		(compiler 'void *') (vertexOptions 'void *')
+		(fragmentOptions 'void *') (vsyncOn atomic_bool) (vsyncPeriodUs atomic_int) (vsyncStarted bool))
+!
+typedefs
+	"shaderc's functions, called through the pointers dlsym answers (its handles are void *)."
+	^#((ShadercCompilerInitializeFn 'void *(*)(void)')
+		(ShadercOptionsInitializeFn 'void *(*)(void)')
+		(ShadercSetOptimizationFn 'void (*)(void *, int32_t)')
+		(ShadercAddMacroFn 'void (*)(void *, const char *, size_t, const char *, size_t)')
+		(ShadercCompileFn 'void *(*)(void *, const char *, size_t, int32_t, const char *, const char *, void *)')
+		(ShadercResultStatusFn 'int32_t (*)(void *)')
+		(ShadercResultLengthFn 'size_t (*)(void *)')
+		(ShadercResultBytesFn 'const char *(*)(void *)')
+		(ShadercResultReleaseFn 'void (*)(void *)'))
 !
 targetOS
 	^#linux
@@ -215,41 +234,67 @@ compileShader: source stage: stage size: sizeOut
 	<export>
 	| fragment r n code |
 	compiler isNull ifTrue: [
-		compiler := shaderc compilerInitialize.
+		self loadShaderc ifFalse: [^self null].
+		compiler := compilerInitialize call.
 		vertexOptions := self optionsDefining: 'SAMALTAK_VERTEX'.
 		fragmentOptions := self optionsDefining: 'SAMALTAK_FRAGMENT'].
 	(compiler isNull or: [vertexOptions isNull or: [fragmentOptions isNull]]) ifTrue: [
 		common setError: 'cannot initialize shaderc'.
 		^self null].
 	fragment := stage = PF_STAGE_FRAGMENT.
-	r := shaderc compile: compiler source: source size: (libc strlen: source)
-		kind: (fragment ifTrue: [shaderc shaderc_fragment_shader] ifFalse: [shaderc shaderc_vertex_shader])
-		file: (fragment ifTrue: ['fragment'] ifFalse: ['vertex']) entry: 'main'
-		options: (fragment ifTrue: [fragmentOptions] ifFalse: [vertexOptions]).
+	r := compileIntoSpv call: compiler with: source with: (libc strlen: source)
+		with: (fragment ifTrue: [shaderc shaderc_fragment_shader] ifFalse: [shaderc shaderc_vertex_shader])
+		with: (fragment ifTrue: ['fragment'] ifFalse: ['vertex']) with: 'main'
+		with: (fragment ifTrue: [fragmentOptions] ifFalse: [vertexOptions]).
 	r isNull ifTrue: [
 		common setError: 'shaderc: out of memory'.
 		^self null].
-	(shaderc resultStatus: r) ~= shaderc shaderc_compilation_status_success ifTrue: [
-		common setError: (shaderc resultErrorMessage: r).
-		shaderc resultRelease: r.
+	(resultStatus call: r) ~= shaderc shaderc_compilation_status_success ifTrue: [
+		common setError: (resultErrorMessage call: r).
+		resultRelease call: r.
 		^self null].
-	n := shaderc resultLength: r.
+	n := resultLength call: r.
 	code := libc malloc: n.
 	code isNull
 		ifTrue: [common setError: 'out of memory']
 		ifFalse: [
-			libc memcpy: code from: (shaderc resultBytes: r) size: n.
+			libc memcpy: code from: (resultBytes call: r) size: n.
 			sizeOut value: n].
-	shaderc resultRelease: r.
+	resultRelease call: r.
 	^code
+!
+loadShaderc
+	"Load libshaderc_shared and look up the functions compileShader: calls; answer whether that worked (else the error is set)."
+	shadercLib notNull ifTrue: [^true].
+	shadercLib := dl open: 'libshaderc_shared.so.1' flags: dl RTLD_NOW.
+	shadercLib isNull ifTrue: [shadercLib := dl open: 'libshaderc_shared.so' flags: dl RTLD_NOW].
+	shadercLib isNull ifTrue: [
+		common setError: 'cannot load shaderc: %s' with: dl error.
+		^false].
+	compilerInitialize := self cCoerce: (dl symbolIn: shadercLib named: 'shaderc_compiler_initialize') to: 'ShadercCompilerInitializeFn'.
+	optionsInitialize := self cCoerce: (dl symbolIn: shadercLib named: 'shaderc_compile_options_initialize') to: 'ShadercOptionsInitializeFn'.
+	setOptimization := self cCoerce: (dl symbolIn: shadercLib named: 'shaderc_compile_options_set_optimization_level') to: 'ShadercSetOptimizationFn'.
+	addMacro := self cCoerce: (dl symbolIn: shadercLib named: 'shaderc_compile_options_add_macro_definition') to: 'ShadercAddMacroFn'.
+	compileIntoSpv := self cCoerce: (dl symbolIn: shadercLib named: 'shaderc_compile_into_spv') to: 'ShadercCompileFn'.
+	resultStatus := self cCoerce: (dl symbolIn: shadercLib named: 'shaderc_result_get_compilation_status') to: 'ShadercResultStatusFn'.
+	resultErrorMessage := self cCoerce: (dl symbolIn: shadercLib named: 'shaderc_result_get_error_message') to: 'ShadercResultBytesFn'.
+	resultLength := self cCoerce: (dl symbolIn: shadercLib named: 'shaderc_result_get_length') to: 'ShadercResultLengthFn'.
+	resultBytes := self cCoerce: (dl symbolIn: shadercLib named: 'shaderc_result_get_bytes') to: 'ShadercResultBytesFn'.
+	resultRelease := self cCoerce: (dl symbolIn: shadercLib named: 'shaderc_result_release') to: 'ShadercResultReleaseFn'.
+	(compilerInitialize isNull or: [optionsInitialize isNull or: [setOptimization isNull or: [addMacro isNull or: [compileIntoSpv isNull
+		or: [resultStatus isNull or: [resultErrorMessage isNull or: [resultLength isNull or: [resultBytes isNull or: [resultRelease isNull]]]]]]]]]) ifTrue: [
+			common setError: 'cannot load shaderc: a function is missing'.
+			shadercLib := self null.
+			^false].
+	^true
 !
 optionsDefining: macro
 	"Compile options for Vulkan: optimized, with macro defined (to 1)."
 	| o |
-	o := shaderc optionsInitialize.
+	o := optionsInitialize call.
 	o notNull ifTrue: [
-		shaderc options: o optimization: shaderc shaderc_optimization_level_performance.
-		shaderc options: o define: macro length: (libc strlen: macro) value: '1' length: 1].
+		setOptimization call: o with: shaderc shaderc_optimization_level_performance.
+		addMacro call: o with: macro with: (libc strlen: macro) with: '1' with: 1].
 	^o
 ! !
 
@@ -309,7 +354,7 @@ CLibrary subclass: #Shaderc
 	classVariableNames: ''
 	package: 'VM-Platform'!
 
-Shaderc comment: 'The shaderc C API (libshaderc_shared): GLSL to SPIR-V for LinuxPlatformHost. Not simulated.'!
+Shaderc comment: 'The constants of the shaderc C API (libshaderc_shared, GLSL to SPIR-V): LinuxPlatformHost loads the library itself when it first compiles a shader and calls its functions through pointers. Not simulated.'!
 
 !Shaderc class methodsFor: 'declaring'!
 headers
@@ -328,47 +373,7 @@ notSimulated
 	^self error: 'shaderc is not simulated'
 ! !
 
-!Shaderc methodsFor: 'compiling'!
-compilerInitialize
-	<c: 'shaderc_compiler_t shaderc_compiler_initialize(void)'>
-	^self notSimulated
-!
-optionsInitialize
-	<c: 'shaderc_compile_options_t shaderc_compile_options_initialize(void)'>
-	^self notSimulated
-!
-options: options optimization: level
-	<c: 'void shaderc_compile_options_set_optimization_level(shaderc_compile_options_t options, shaderc_optimization_level level)'>
-	^self notSimulated
-!
-options: options define: name length: nameLength value: value length: valueLength
-	<c: 'void shaderc_compile_options_add_macro_definition(shaderc_compile_options_t options, const char *name, size_t name_length, const char *value, size_t value_length)'>
-	^self notSimulated
-!
-compile: compiler source: source size: size kind: kind file: fileName entry: entryName options: options
-	<c: 'shaderc_compilation_result_t shaderc_compile_into_spv(shaderc_compiler_t compiler, const char *source, size_t size, shaderc_shader_kind kind, const char *file_name, const char *entry_name, shaderc_compile_options_t options)'>
-	^self notSimulated
-!
-resultStatus: result
-	<c: 'shaderc_compilation_status shaderc_result_get_compilation_status(shaderc_compilation_result_t result)'>
-	^self notSimulated
-!
-resultLength: result
-	<c: 'size_t shaderc_result_get_length(shaderc_compilation_result_t result)'>
-	^self notSimulated
-!
-resultBytes: result
-	<c: 'const char *shaderc_result_get_bytes(shaderc_compilation_result_t result)'>
-	^self notSimulated
-!
-resultErrorMessage: result
-	<c: 'const char *shaderc_result_get_error_message(shaderc_compilation_result_t result)'>
-	^self notSimulated
-!
-resultRelease: result
-	<c: 'void shaderc_result_release(shaderc_compilation_result_t result)'>
-	^self notSimulated
-!
+!Shaderc methodsFor: 'constants'!
 shaderc_vertex_shader
 	<cMacro: 'shaderc_shader_kind shaderc_vertex_shader'>
 	^0
@@ -432,4 +437,42 @@ static void samaltak_install_paste(void)
 installPaste
 	<c: 'void samaltak_install_paste(void)'>
 	^self error: 'not simulated'
+! !
+
+CLibrary subclass: #DynamicLinker
+	instanceVariableNames: ''
+	classVariableNames: ''
+	package: 'VM-Platform'!
+
+DynamicLinker comment: 'dlopen and dlsym: a library loaded when it is first needed (shaderc, LinuxPlatformHost). Not simulated.'!
+
+!DynamicLinker class methodsFor: 'declaring'!
+headers
+	^#('<dlfcn.h>')
+!
+targetOS
+	^#linux
+! !
+
+!DynamicLinker methodsFor: 'simulation'!
+notSimulated
+	^self error: 'dlopen is not simulated'
+! !
+
+!DynamicLinker methodsFor: 'loading'!
+open: path flags: flags
+	<c: 'void *dlopen(const char *path, int flags)'>
+	^self notSimulated
+!
+symbolIn: handle named: name
+	<c: 'void *dlsym(void *handle, const char *name)'>
+	^self notSimulated
+!
+error
+	<c: 'char *dlerror(void)'>
+	^self notSimulated
+!
+RTLD_NOW
+	<cMacro: 'int RTLD_NOW'>
+	^2
 ! !

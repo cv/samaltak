@@ -6,3 +6,4 @@ build/
 vm/build/
 vm/platform/build/
 __pycache__/
+tools/weather-c/weather

@@ -118,6 +118,7 @@ primitive_entry vm_primitive_table[] = {
     {143, 2, "allocationSampleTake", prim_allocation_sample_take},
     {144, 2, "samplerTickTake", prim_sampler_tick_take},
     {145, 2, "stackLimit", prim_stack_limit},
+    {146, 2, "timeSlice", prim_time_slice},
     {150, 2, "millisecondClock", prim_millisecond_clock},
     {151, 2, "microsecondClock", prim_microsecond_clock},
     {152, 2, "utcMicroseconds", prim_utc_microseconds},
@@ -136,6 +137,7 @@ primitive_entry vm_primitive_table[] = {
     {171, 2, "primitiveNames", prim_primitive_names},
     {172, 2, "getenv", prim_getenv},
     {173, 2, "vmBanner", prim_vm_banner},
+    {174, 2, "releaseMemory", prim_release_memory},
     {180, 2, "jitParameters", prim_jit_parameters},
     {181, 2, "jitCode", prim_jit_code},
     {182, 2, "jitSendSites", prim_jit_send_sites},
@@ -306,6 +308,9 @@ primitive_entry vm_primitive_table[] = {
 #endif
 #ifndef SAMALTAK_NO_PLATFORM
     {460, 2, "gpuShaderLanguage", prim_gpu_shader_language},
+#endif
+#ifndef SAMALTAK_NO_PLATFORM
+    {461, 2, "gpuCompileShader", prim_gpu_compile_shader},
 #endif
 #ifndef SAMALTAK_NO_PLATFORM
     {470, 2, "machineSystemTable", prim_machine_system_table},

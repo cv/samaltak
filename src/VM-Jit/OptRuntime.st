@@ -1213,6 +1213,12 @@ flushed
 	libc memset: rtFailed value: 0 size: 8 * OPT_MAX_UNITS.
 	rtUnitCount := 0.
 	rtVariantCount := 0
+!
+release
+	"All code was dropped (flushed): give back the pages of the optimizer's scratch areas; each compile starts them anew."
+	<function>
+	ir release.
+	regalloc release
 ! !
 
 !OptRuntime methodsFor: 'invalidation'!

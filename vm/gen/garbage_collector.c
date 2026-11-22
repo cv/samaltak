@@ -437,6 +437,26 @@ static bool refers_to_young(oop o)
     return false;
 }
 
+/* GarbageCollector>>releaseFreeMemory */
+void release_free_memory(void)
+{
+    scavenge();
+    release_pages((void *)eden_lo, eden_hi - eden_lo);
+    release_pages((void *)surv_other_lo, surv_other_hi - surv_other_lo);
+}
+
+/* GarbageCollector>>releasePages:size: */
+void release_pages(void *address, uint64_t n)
+{
+    uint64_t lo;
+    uint64_t hi;
+    lo = ((uint64_t)address + 16383) & 18446744073709535232ULL;
+    hi = ((uint64_t)address + n) & 18446744073709535232ULL;
+    if (hi > lo) {
+        madvise((void *)lo, hi - lo, MADV_DONTNEED);
+    }
+}
+
 /* GarbageCollector>>remember: */
 void remember(oop o)
 {

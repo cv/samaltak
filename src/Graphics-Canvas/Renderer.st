@@ -147,7 +147,9 @@ default
 !Renderer class methodsFor: 'class initialization'!
 initialize
 	SystemChanges subscribe: #Renderer do: [:change |
-		(change affects: Renderer) ifTrue: [self shaderSourceChanged]]
+		(change affects: Renderer) ifTrue: [self shaderSourceChanged]].
+	"The image keeps the uber-shader's SPIR-V, so it starts without compiling it (GPUShader)."
+	Smalltalk addStage2Step: [GPUShader forgetCompiled; precompile: self glslShaderSource] named: 'Shaders'
 ! !
 
 !Renderer class methodsFor: 'shader changes'!

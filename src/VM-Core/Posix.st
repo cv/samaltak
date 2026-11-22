@@ -37,6 +37,15 @@ munmap: addr length: n
 	<c: 'int munmap(void *addr, size_t n)'>
 	^0
 !
+madvise: addr length: n advice: advice
+	"Simulated: nothing to give back."
+	<c: 'int madvise(void *addr, size_t n, int advice)'>
+	^0
+!
+MADV_DONTNEED
+	<cMacro: 'int MADV_DONTNEED'>
+	^4
+!
 MAP_PRIVATE
 	<cMacro: 'int MAP_PRIVATE'>
 	^2

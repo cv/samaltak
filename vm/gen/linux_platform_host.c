@@ -4,9 +4,20 @@
 
 #ifdef __linux__
 
-static shaderc_compiler_t compiler;
-static shaderc_compile_options_t fragment_options;
-static shaderc_compile_options_t vertex_options;
+static ShadercAddMacroFn add_macro;
+static ShadercCompileFn compile_into_spv;
+static void *compiler;
+static ShadercCompilerInitializeFn compiler_initialize;
+static void *fragment_options;
+static ShadercOptionsInitializeFn options_initialize;
+static ShadercResultBytesFn result_bytes;
+static ShadercResultBytesFn result_error_message;
+static ShadercResultLengthFn result_length;
+static ShadercResultReleaseFn result_release;
+static ShadercResultStatusFn result_status;
+static ShadercSetOptimizationFn set_optimization;
+static void *shaderc_lib;
+static void *vertex_options;
 static atomic_bool vsync_on;
 static atomic_int vsync_period_us;
 static bool vsync_started;
@@ -26,31 +37,69 @@ SDL_Keymod cmd_keymod(void)
 }
 
 /* LinuxPlatformHost>>compileShader:stage:size: */
-void *compile_shader(char *source, int32_t stage, size_t *size_out)
+void *platform_host_compile_shader(char *source, int32_t stage, size_t *size_out)
 {
-    shaderc_compile_options_t r_options_defining;
-    shaderc_compile_options_t o;
-    shaderc_compile_options_t r_options_defining_2;
-    shaderc_compile_options_t o_2;
+    bool r_load_shaderc;
+    char *a;
+    void *r_options_defining;
+    void *o;
+    void *r_options_defining_2;
+    void *o_2;
     bool fragment;
-    shaderc_compilation_result_t r;
+    void *r;
     size_t n;
     void *code;
     if (compiler == NULL) {
-        compiler = shaderc_compiler_initialize();
+        if (!({
+    if (shaderc_lib != NULL) {
+        r_load_shaderc = true;
+        goto exit_load_shaderc;
+    }
+    shaderc_lib = dlopen("libshaderc_shared.so.1", RTLD_NOW);
+    if (shaderc_lib == NULL) {
+        shaderc_lib = dlopen("libshaderc_shared.so", RTLD_NOW);
+    }
+    if (shaderc_lib == NULL) {
+        a = dlerror();
+        snprintf(last_error, LAST_ERROR_SIZE, "cannot load shaderc: %s", a);
+        r_load_shaderc = false;
+        goto exit_load_shaderc;
+    }
+    compiler_initialize = (ShadercCompilerInitializeFn)dlsym(shaderc_lib, "shaderc_compiler_initialize");
+    options_initialize = (ShadercOptionsInitializeFn)dlsym(shaderc_lib, "shaderc_compile_options_initialize");
+    set_optimization = (ShadercSetOptimizationFn)dlsym(shaderc_lib, "shaderc_compile_options_set_optimization_level");
+    add_macro = (ShadercAddMacroFn)dlsym(shaderc_lib, "shaderc_compile_options_add_macro_definition");
+    compile_into_spv = (ShadercCompileFn)dlsym(shaderc_lib, "shaderc_compile_into_spv");
+    result_status = (ShadercResultStatusFn)dlsym(shaderc_lib, "shaderc_result_get_compilation_status");
+    result_error_message = (ShadercResultBytesFn)dlsym(shaderc_lib, "shaderc_result_get_error_message");
+    result_length = (ShadercResultLengthFn)dlsym(shaderc_lib, "shaderc_result_get_length");
+    result_bytes = (ShadercResultBytesFn)dlsym(shaderc_lib, "shaderc_result_get_bytes");
+    result_release = (ShadercResultReleaseFn)dlsym(shaderc_lib, "shaderc_result_release");
+    if ((compiler_initialize == NULL) || ((options_initialize == NULL) || ((set_optimization == NULL) || ((add_macro == NULL) || ((compile_into_spv == NULL) || ((result_status == NULL) || ((result_error_message == NULL) || ((result_length == NULL) || ((result_bytes == NULL) || (result_release == NULL)))))))))) {
+        set_error("cannot load shaderc: a function is missing");
+        shaderc_lib = NULL;
+        r_load_shaderc = false;
+        goto exit_load_shaderc;
+    }
+    r_load_shaderc = true;
+exit_load_shaderc:;
+    r_load_shaderc; })) {
+            return NULL;
+        }
+        compiler = compiler_initialize();
         vertex_options = ({
-    o = shaderc_compile_options_initialize();
+    o = options_initialize();
     if (o != NULL) {
-        shaderc_compile_options_set_optimization_level(o, shaderc_optimization_level_performance);
-        shaderc_compile_options_add_macro_definition(o, "SAMALTAK_VERTEX", strlen("SAMALTAK_VERTEX"), "1", 1);
+        set_optimization(o, shaderc_optimization_level_performance);
+        add_macro(o, "SAMALTAK_VERTEX", strlen("SAMALTAK_VERTEX"), "1", 1);
     }
     r_options_defining = o;
     r_options_defining; });
         fragment_options = ({
-    o_2 = shaderc_compile_options_initialize();
+    o_2 = options_initialize();
     if (o_2 != NULL) {
-        shaderc_compile_options_set_optimization_level(o_2, shaderc_optimization_level_performance);
-        shaderc_compile_options_add_macro_definition(o_2, "SAMALTAK_FRAGMENT", strlen("SAMALTAK_FRAGMENT"), "1", 1);
+        set_optimization(o_2, shaderc_optimization_level_performance);
+        add_macro(o_2, "SAMALTAK_FRAGMENT", strlen("SAMALTAK_FRAGMENT"), "1", 1);
     }
     r_options_defining_2 = o_2;
     r_options_defining_2; });
@@ -60,25 +109,25 @@ void *compile_shader(char *source, int32_t stage, size_t *size_out)
         return NULL;
     }
     fragment = stage == PF_STAGE_FRAGMENT;
-    r = shaderc_compile_into_spv(compiler, source, strlen(source), fragment ? shaderc_fragment_shader : shaderc_vertex_shader, fragment ? "fragment" : "vertex", "main", fragment ? fragment_options : vertex_options);
+    r = compile_into_spv(compiler, source, strlen(source), fragment ? shaderc_fragment_shader : shaderc_vertex_shader, fragment ? "fragment" : "vertex", "main", fragment ? fragment_options : vertex_options);
     if (r == NULL) {
         set_error("shaderc: out of memory");
         return NULL;
     }
-    if (shaderc_result_get_compilation_status(r) != shaderc_compilation_status_success) {
-        set_error(shaderc_result_get_error_message(r));
-        shaderc_result_release(r);
+    if (result_status(r) != shaderc_compilation_status_success) {
+        set_error(result_error_message(r));
+        result_release(r);
         return NULL;
     }
-    n = shaderc_result_get_length(r);
+    n = result_length(r);
     code = malloc(n);
     if (code == NULL) {
         set_error("out of memory");
     } else {
-        memcpy(code, shaderc_result_get_bytes(r), n);
+        memcpy(code, result_bytes(r), n);
         *size_out = n;
     }
-    shaderc_result_release(r);
+    result_release(r);
     return code;
 }
 

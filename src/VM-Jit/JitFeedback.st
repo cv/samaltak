@@ -143,6 +143,13 @@ clear
 	libc memset: fbSites value: 0 size: (self sizeof: 'FeedbackSite') * FB_MAX.
 	fbCount := 0.
 	fbYoung := false
+!
+release
+	"All code was dropped (JitRuntime>>releaseMemory): forget the feedback and give back its pages (a hash table: even a few sites touch all of them)."
+	<function>
+	self clear.
+	gc releasePages: fbSites size: (self sizeof: 'FeedbackSite') * FB_MAX.
+	gc releasePages: fbFloats size: FB_FLOAT_BITS
 ! !
 
 !JitFeedback methodsFor: 'garbage collection'!

@@ -1,11 +1,11 @@
 Object subclass: #Delay
 	instanceVariableNames: 'delayDuration resumptionTime delaySemaphore'
-	classVariableNames: 'AccessProtect PendingRequests SampleHook SavedDelays SliceDue SliceMilliseconds SuspendedDelays TimerProcess TimingSemaphore'
+	classVariableNames: 'AccessProtect PendingRequests SampleHook SavedDelays SuspendedDelays TimerProcess TimingSemaphore'
 	package: 'Kernel-Processes'!
 
 Delay comment: 'I suspend the active process for delayDuration milliseconds: (Delay forMilliseconds: 100) wait.
 
-Waiting delays are kept, sorted by resumptionTime (millisecond clock), in SuspendedDelays, which only the timer process (''timer interrupt watcher'', priority 80) touches; it also time-slices (timeSliceMilliseconds:) and runs the profiler''s sampleHook after each wakeup. A waiting process queues a request (under AccessProtect) and signals TimingSemaphore; the timer process applies the requests, signals the delays that are due, and asks the VM (primitive signalAtMilliseconds) to signal TimingSemaphore when the next one is due. Across snapshots the remaining times are saved and the timer is re-armed (shutDown / startUp).'!
+Waiting delays are kept, sorted by resumptionTime (millisecond clock), in SuspendedDelays, which only the timer process (''timer interrupt watcher'', priority 80) touches; it also runs the profiler''s sampleHook after each wakeup. (Time slicing is the VM''s: ProcessorScheduler>>startTimeSlicer.) A waiting process queues a request (under AccessProtect) and signals TimingSemaphore; the timer process applies the requests, signals the delays that are due, and asks the VM (primitive signalAtMilliseconds) to signal TimingSemaphore when the next one is due. Across snapshots the remaining times are saved and the timer is re-armed (shutDown / startUp).'!
 
 !Delay methodsFor: 'initialization'!
 setDelay: milliseconds
@@ -95,14 +95,6 @@ startTimerEventLoop
 	TimerProcess priority: Processor timingPriority; name: 'timer interrupt watcher'.
 	TimerProcess resume
 !
-timeSliceMilliseconds: anIntegerOrNil
-	"Also wake the timer process at least every anIntegerOrNil ms (nil: only for delays). Each wakeup preempts the running process to the back of its run queue, so processes of equal priority take turns: the timer process is the time slicer too."
-	SliceMilliseconds := anIntegerOrNil.
-	TimingSemaphore signal
-!
-timeSliceMilliseconds
-	^SliceMilliseconds
-!
 timingSemaphore
 	"The Semaphore my process waits on (the VM's timer semaphore). The profiler has the VM signal it for sampler ticks too."
 	^TimingSemaphore
@@ -122,7 +114,7 @@ request: aSymbol for: aDelay
 	TimingSemaphore signal
 !
 handleTimerEvent
-	"Run in the timer process: apply pending requests, signal due delays, re-arm the VM timer (for the next delay, or the next time slice if sooner)."
+	"Run in the timer process: apply pending requests, signal due delays, re-arm the VM timer for the next delay."
 	| requests now next |
 	requests := PendingRequests isEmpty ifTrue: [#()] ifFalse: [
 		AccessProtect critical: [
@@ -138,10 +130,6 @@ handleTimerEvent
 	[SuspendedDelays notEmpty and: [SuspendedDelays first resumptionTime <= now]]
 		whileTrue: [SuspendedDelays removeFirst signalWaitingProcess].
 	next := SuspendedDelays isEmpty ifTrue: [nil] ifFalse: [SuspendedDelays first resumptionTime].
-	SliceMilliseconds isNil ifFalse: [
-		"The slice deadline only moves when it is reached (other wakeups, e.g. sampler ticks, must not postpone it)."
-		(SliceDue isNil or: [now >= SliceDue or: [SliceDue - now > SliceMilliseconds]]) ifTrue: [SliceDue := now + SliceMilliseconds].
-		next := next isNil ifTrue: [SliceDue] ifFalse: [next min: SliceDue]].
 	next isNil ifFalse: [self primSignal: TimingSemaphore atMilliseconds: next]
 !
 primSignal: aSemaphore atMilliseconds: millisecondClockValue

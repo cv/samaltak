@@ -1,5 +1,5 @@
 VMCoreModule subclass: #JitRuntime
-	instanceVariableNames: 'stubs baseline brt cache asm analysis jitMode jitFlags jitThreshold jitOsrThreshold jitCacheMB cacheOpened flushPending invalidations stateBlock methodTable tableCount methodCounts youngMethods youngCount youngOverflow mapPcs mapOffsets mapCount sendPushed performFn performArgsFn statCompiled statFailed statBytecodes statCompileUs statCodeBytes statCacheFlushes statEntries statExits statResumes statOsr feedback optimizer jitOptThreshold optCounts copying bottomReturned perfMap'
+	instanceVariableNames: 'stubs baseline brt cache asm analysis jitMode jitFlags jitThreshold jitOsrThreshold jitCacheMB cacheOpened flushPending releasePending invalidations stateBlock methodTable tableCount methodCounts youngMethods youngCount youngOverflow mapPcs mapOffsets mapCount sendPushed performFn performArgsFn statCompiled statFailed statBytecodes statCompileUs statCodeBytes statCacheFlushes statEntries statExits statResumes statOsr feedback optimizer jitOptThreshold optCounts copying bottomReturned perfMap'
 	classVariableNames: 'JIT_BASELINE JIT_FLAG_ACCESS JIT_FLAG_ALLOC JIT_FLAG_ARITH JIT_FLAG_BARRIER JIT_FLAG_BLOCKS JIT_FLAG_CALLS JIT_FLAG_DEOPT JIT_FLAG_EAGER JIT_FLAG_FLOAT JIT_FLAG_FUSE JIT_FLAG_GVN JIT_FLAG_HOIST JIT_FLAG_IC JIT_FLAG_INLINE JIT_FLAG_LAST JIT_FLAG_LIVE JIT_FLAG_MEGA JIT_FLAG_NOTES JIT_FLAG_PIC JIT_FLAG_PRIMS JIT_FLAG_QUICK JIT_FLAG_REGS JIT_FLAG_UNBOX JIT_MAX_COUNT JIT_MAX_MAP JIT_MAX_YOUNG JIT_NONE JIT_OPT JIT_PROLOGUE_BYTES JIT_PROLOGUE_BYTES_X64 JIT_TABLE_SIZE JM_DEAD JM_ENTRY JM_FAILED JM_NOTES JM_OSR'
 	package: 'VM-Jit'!
 
@@ -12,7 +12,7 @@ declarations
 	^#((stubs JitStubs) (baseline JitBaselineCompiler) (brt JitBaselineRuntime) (cache CodeCache) (asm JitAssembler) (analysis BytecodeAnalysis)
 		(feedback JitFeedback) (optimizer OptRuntime)
 		(jitMode int32_t) (jitFlags uint32_t) (jitThreshold int64_t 2) (jitOsrThreshold int64_t 50) (jitOptThreshold int64_t 1000) (jitCacheMB int64_t 64)
-		(cacheOpened bool) (flushPending bool) (invalidations uint64_t)
+		(cacheOpened bool) (flushPending bool) (releasePending bool) (invalidations uint64_t)
 		(stateBlock 'JitState[1]')
 		(methodTable 'JitMethod *[JIT_TABLE_SIZE]') (tableCount int64_t) (methodCounts 'uint16_t[JIT_TABLE_SIZE]')
 		(youngMethods 'JitMethod *[JIT_MAX_YOUNG]') (youngCount int32_t) (youngOverflow bool) (optCounts 'int32_t[JIT_TABLE_SIZE]')
@@ -911,9 +911,18 @@ dropAllCode
 	flushPending := true.
 	invalidations := invalidations + 1
 !
+releaseMemory
+	"Drop all machine code and give back the memory it took: the code, the type feedback it was compiled from, the optimizer's scratch areas. At the next flush (prepare), when no machine code runs. For an idle program: what runs again is compiled again."
+	<export>
+	cacheOpened ifFalse: [^self].
+	releasePending := true.
+	self dropAllCode
+!
 flushCode
 	"Drop all machine code (none is on the native stack): frames continue in the interpreter."
 	<function>
+	| used |
+	used := cacheOpened ifTrue: [cache top] ifFalse: [0].
 	0 to: interpreter nframes - 1 do: [:i | (interpreter frames + i) code: (jitMode = JIT_NONE ifTrue: [0] ifFalse: [1])].
 	libc memset: methodTable value: 0 size: 8 * JIT_TABLE_SIZE.
 	libc memset: methodCounts value: 0 size: 2 * JIT_TABLE_SIZE.
@@ -925,7 +934,13 @@ flushCode
 	brt flushed.
 	interpreter flushMethodCache.
 	flushPending := false.
-	statCacheFlushes := statCacheFlushes + 1
+	statCacheFlushes := statCacheFlushes + 1.
+	releasePending ifTrue: [
+		releasePending := false.
+		cacheOpened ifTrue: [gc releasePages: (self cCoerce: cache top to: 'void *') size: used - cache top].
+		feedback release.
+		brt release.
+		optimizer release]
 !
 prepare
 	"Interpreter side, no machine code on the native stack: apply a pending flush (not while optimized frames wait for callees: their metadata is in the cache)."

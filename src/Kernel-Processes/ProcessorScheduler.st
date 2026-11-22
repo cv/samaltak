@@ -38,7 +38,7 @@ idleProcess
 	^IdleProcess
 !
 timeSlicer
-	"The process that time-slices: the timer process."
+	"The timer process (Delay): a system Process (time slicing itself is the VM's, startTimeSlicer)."
 	^Delay timerProcess
 ! !
 
@@ -102,24 +102,29 @@ relinquishProcessorForMicroseconds: anInteger
 
 !ProcessorScheduler methodsFor: 'background processes'!
 startIdleProcess
-	"Start the priority-1 process that sleeps when nothing else runs."
+	"Start the priority-1 process that sleeps when nothing else runs: until a timer is due or an event, socket or other thread wakes the VM (the VM bounds the wait by its next deadline), so an idle VM does not wake for nothing. The hour is only an upper bound."
 	(IdleProcess notNil and: [IdleProcess isTerminated not]) ifTrue: [^IdleProcess].
-	IdleProcess := [[true] whileTrue: [self relinquishProcessorForMicroseconds: 20000]] newProcess.
+	IdleProcess := [[true] whileTrue: [self relinquishProcessorForMicroseconds: 3600000000]] newProcess.
 	IdleProcess priority: self lowestPriority; name: 'idle'.
 	^IdleProcess resume
 !
 startTimeSlicer
-	"Time slicing: the timer process (Delay) wakes every few milliseconds; each wakeup sends the interrupted process to the back of its run queue, so equal-priority processes take turns."
+	"Time slicing: while more than one Process of the running one's priority is ready, the VM sends the running one to the back of its run queue every TimeSliceMilliseconds (10), so equal-priority processes take turns. Its timer runs only while they compete."
 	TimeSliceMilliseconds isNil ifTrue: [TimeSliceMilliseconds := 10].
-	Delay timeSliceMilliseconds: TimeSliceMilliseconds.
-	^self timeSlicer
+	Smalltalk vm timeSliceMicroseconds: TimeSliceMilliseconds * 1000
 !
 stopTimeSlicer
-	Delay timeSliceMilliseconds: nil
+	Smalltalk vm timeSliceMicroseconds: 0
 !
 timeSliceMilliseconds: anInteger
 	TimeSliceMilliseconds := anInteger.
-	Delay timeSliceMilliseconds isNil ifFalse: [Delay timeSliceMilliseconds: anInteger]
+	Smalltalk vm timeSliceMicroseconds: anInteger * 1000
+! !
+
+!ProcessorScheduler class methodsFor: 'system startup'!
+startUp: resuming
+	"The VM does not keep the time slice across a snapshot: give it again."
+	TimeSliceMilliseconds isNil ifFalse: [Smalltalk vm timeSliceMicroseconds: TimeSliceMilliseconds * 1000]
 ! !
 
 !ProcessorScheduler methodsFor: 'printing'!

@@ -3,7 +3,7 @@
 # the top level regenerates them); gen/sources.mk says which files make the core and which the platform layer, and
 # which of them are for one OS only (VM_CORE_SOURCES_LINUX ...: this build adds those of its uname -s) or for one CPU
 # (VM_CORE_SOURCES_X86_64: this build adds those of its uname -m, arm64's on any CPU but x86-64).
-# macOS: Homebrew sdl3 and openssl@3, clang. Linux: sdl3, shaderc (GLSL → SPIR-V for SDL_GPU on Vulkan) and OpenSSL 3, gcc
+# macOS: Homebrew sdl3 and openssl@3, clang. Linux: sdl3, shaderc (GLSL → SPIR-V for SDL_GPU on Vulkan; loaded at run time) and OpenSSL 3, gcc
 # or clang.
 # Profile-guided: pgo.profdata (if present) steers optimization; `make pgo IMAGE=...` retrains it. NO_PGO=1 skips it.
 # BRIEF=1 prints one line per file instead of the commands.
@@ -28,7 +28,8 @@ ifeq ($(UNAME_S),Darwin)
 else
   # The VM was written for Darwin's arm64 ABI, where char is signed; Linux's makes it unsigned.
   CFLAGS += -D_GNU_SOURCE -fsigned-char
-  OS_PLATFORM_LIBS := $(shell pkg-config --libs shaderc 2>/dev/null || echo -lshaderc_shared)
+  # shaderc is loaded when the first shader is compiled (LinuxPlatformHost), not linked: only its header is needed here.
+  OS_PLATFORM_LIBS :=
 endif
 LDLIBS += -lm -lpthread
 

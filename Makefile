@@ -4,7 +4,7 @@ OUT ?= build
 
 VM := vm/build/samaltak
 
-all: vm seed image
+all: vm seed image runtime
 
 vm:
 	$(MAKE) -C vm
@@ -14,6 +14,14 @@ seed: vm
 
 image: vm seed
 	$(VM) $(OUT)/seed.image --headless --stage2 $(OUT)/samaltak.image
+
+# The runtime image applications run on (bin/samaltak run, docs/apps.md): the packages of src/runtime.txt, lean on fonts.
+runtime: vm
+	PACKAGES=src/runtime.txt boot/build-image.sh src $(OUT)/runtime-seed.image
+	$(VM) $(OUT)/runtime-seed.image --headless --stage2 $(OUT)/runtime.image --runtime
+
+fresh-runtime: vm
+	@[ -f $(OUT)/runtime.image ] && [ -z "$$(find src boot $(VM) -newer $(OUT)/runtime.image | head -1)" ] || $(MAKE) runtime
 
 # The image, rebuilt only if src/, boot/ or the VM are newer, so an image saved from the World menu stays.
 fresh-image: vm
@@ -67,7 +75,8 @@ test-core: image test-vm
 	tests/boot/layering_test.sh
 	tests/st_suite.sh $(OUT)/samaltak.image
 	SAMALTAK_VERIFY_GC=1 tests/st_suite.sh $(OUT)/samaltak.image --eden 1 -- Tests-Kernel Tests-Compiler
-	tests/st_suite.sh $(OUT)/samaltak.image -- Weather --load apps/Weather
+	$(MAKE) fresh-runtime
+	tests/st_suite.sh $(OUT)/runtime.image -- Weather --load apps/Weather
 test-tools: image
 	$(PLATFORM_CHECK)
 	$(MAKE) -C vm/platform test st-test

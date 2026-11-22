@@ -82,6 +82,18 @@ munmap: addr length: n
 	<returns: 'int'>
 	^0
 !
+madvise: addr length: n advice: advice
+	"Pages stay allocated (their contents too)."
+	<function>
+	<var: #addr type: 'void *'>
+	<var: #n type: 'size_t'>
+	<var: #advice type: 'int'>
+	<returns: 'int'>
+	^0
+!
+MADV_DONTNEED
+	^4
+!
 PROT_READ
 	^1
 !

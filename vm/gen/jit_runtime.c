@@ -22,6 +22,7 @@ int32_t opt_counts[65536];
 static FILE *perf_map;
 prim_fn perform_args_fn;
 prim_fn perform_fn;
+static bool release_pending;
 int32_t send_pushed;
 uint64_t stat_bytecodes;
 uint64_t stat_cache_flushes;
@@ -1826,7 +1827,9 @@ char *flag_name(uint32_t bit)
 /* JitRuntime>>flushCode */
 static void flush_code(void)
 {
+    uint64_t used;
     int32_t i;
+    used = cache_opened ? cache_top : 0;
     for (i = 0; i <= nframes - 1; i++) {
         (frames + i)->code = jit_mode == JIT_NONE ? 0 : 1;
     }
@@ -1843,6 +1846,15 @@ static void flush_code(void)
     flush_method_cache();
     flush_pending = false;
     stat_cache_flushes = stat_cache_flushes + 1;
+    if (release_pending) {
+        release_pending = false;
+        if (cache_opened) {
+            release_pages((void *)cache_top, used - cache_top);
+        }
+        jit_feedback_release();
+        jit_baseline_runtime_release();
+        opt_runtime_release();
+    }
 }
 
 /* JitRuntime>>headersValid: */
@@ -2433,6 +2445,17 @@ static void refresh_state(void)
     if (state_block->stress <= 0) {
         state_block->stress = 37;
     }
+}
+
+/* JitRuntime>>releaseMemory */
+void release_memory(void)
+{
+    if (!cache_opened) {
+        return;
+    }
+    release_pending = true;
+    flush_pending = true;
+    invalidations = invalidations + 1;
 }
 
 /* JitRuntime>>resume: */

@@ -117,6 +117,17 @@ void prim_quit(void)
     exit((c & 1) != 0 ? (int32_t)(((int64_t)c) >> 1) : 0);
 }
 
+/* SystemPrimitives>>primReleaseMemory */
+void prim_release_memory(void)
+{
+    oop v;
+    release_free_memory();
+    release_memory();
+    v = prim_base[0];
+    prim_result = v;
+    prim_status = PS_OK;
+}
+
 /* SystemPrimitives>>primScavenge */
 void prim_scavenge(void)
 {

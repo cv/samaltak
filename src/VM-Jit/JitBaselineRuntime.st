@@ -642,6 +642,12 @@ unlinkSitesOf: h selector: sel
 clearCaches
 	libc memset: megaTable value: 0 size: 8 * BL_MEGA_WORDS.
 	libc memset: blockTable value: 0 size: 8 * BL_BLOCK_WORDS
+!
+release
+	"All code was dropped (flushed): give back the pages of the code's object slots (none is in use now)."
+	<function>
+	gc releasePages: oopSlots size: 8 * BL_MAX_OOP_SLOTS.
+	gc releasePages: youngSlots size: 8 * BL_MAX_YOUNG_SLOTS
 ! !
 
 !JitBaselineRuntime methodsFor: 'type feedback'!

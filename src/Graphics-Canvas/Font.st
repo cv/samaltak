@@ -142,6 +142,19 @@ widthOf: aString
 	"Answer the width of aString in points (with letter spacing after each character, as CSS)."
 	^self widthOf: aString from: 1 to: aString size
 !
+naturalWidthOf: aString
+	"The width of aString as a layout engine such as Qt's sizes a line of text: its advances (widthOf:), and, if the last glyph's ink reaches past its advance (an icon of a Nerd Font, an italic f), as far as that ink."
+	| cp f glyph bounds overhang |
+	aString isEmpty ifTrue: [^0].
+	cp := (uppercase ifTrue: [aString last asUppercase] ifFalse: [aString last]) value.
+	f := self faceFor: cp.
+	f isNil ifTrue: [^self widthOf: aString].
+	glyph := f glyphIndexFor: cp.
+	bounds := f boundsOf: glyph.
+	bounds isNil ifTrue: [^self widthOf: aString].
+	overhang := bounds right - (f advanceWidthOf: glyph).
+	^(self widthOf: aString) + ((overhang max: 0) * size / f unitsPerEm)
+!
 widthOf: aString from: start to: stop
 	"Below U+203C character by character; from the character before the first one beyond, cluster by cluster (color emoji)."
 	| sum last string cp |
@@ -371,7 +384,7 @@ emoji
 	"Answer the ColorEmoji of the Twemoji face in the image, or nil without it. Not a fallback face: it maps digits, joiners and tags to empty glyphs."
 	Emoji isNil ifTrue: [
 		self rasterizing: [
-			Emoji isNil ifTrue: [Emoji := (self imageFaceNamed: self emojiFaceName) ifNil: [false] ifNotNil: [:f | ColorEmoji face: f]]]].
+			Emoji isNil ifTrue: [Emoji := (self fallbackFaceNamed: self emojiFaceName) ifNil: [false] ifNotNil: [:f | ColorEmoji face: f]]]].
 	^Emoji == false ifTrue: [nil] ifFalse: [Emoji]
 !
 fontsDirectory
@@ -386,7 +399,7 @@ fontsDirectory: aPath
 	FontsDirectory := aPath
 !
 faceNamed: aString
-	"Answer the TrueTypeFont of fonts/<aString>.ttf: the one in the image, else read from the file once (the faces of imageFaceNames are in the image)."
+	"Answer the TrueTypeFont of fonts/<aString>.ttf: the one in the image, else the file's, read as it is needed (the faces of imageFaceNames are in the image; the runtime image has none)."
 	Faces isNil ifTrue: [Faces := Dictionary new].
 	^Faces at: aString ifAbsent: [
 		Faces at: aString put: (TrueTypeFont fromFile: self fontsDirectory , '/' , aString , '.ttf')]
@@ -395,7 +408,7 @@ faces
 	^Faces ifNil: [Dictionary new]
 !
 faceFromFile: aPath
-	"A face read from a .ttf file outside fonts/, e.g. a system font fontconfig names (not kept in faces)."
+	"A face from a .ttf file outside fonts/, e.g. a system font fontconfig names, read as it is needed (not kept in faces)."
 	^TrueTypeFont fromFile: aPath
 !
 fallbackFaceNames
@@ -408,14 +421,21 @@ fallbackFaceFor: codePoint
 	^Fallbacks at: codePoint ifAbsent: [
 		self rasterizing: [
 			Fallbacks at: codePoint put: (self fallbackFaceNames inject: nil into: [:found :each |
-				found ifNil: [(self imageFaceNamed: each) ifNotNil: [:f | (f includesCodePoint: codePoint) ifTrue: [f]]]])]]
+				found ifNil: [(self fallbackFaceNamed: each) ifNotNil: [:f | (f includesCodePoint: codePoint) ifTrue: [f]]]])]]
+!
+fallbackFaceNamed: aString
+	"The fallback face aString: the image's; in the runtime image, which has none, read from fonts/ when first needed (nil without the file)."
+	(self imageFaceNamed: aString) ifNotNil: [:face | ^face].
+	(Smalltalk isRuntimeImage and: [File exists: self fontsDirectory , '/' , aString , '.ttf']) ifFalse: [^nil].
+	^[self faceNamed: aString] on: Error do: [:e | e return: nil]
 !
 emojiFaceName
 	^'Twemoji'
 !
 imageFaceNames
-	"The faces stage 2 loads into the image: the standard faces, the fallback faces and the color emoji face."
+	"The faces stage 2 loads into the image: the standard faces, the fallback faces and the color emoji face. The runtime image keeps none: its applications read the faces they draw from their files, as they need them."
 	| names |
+	Smalltalk isRuntimeImage ifTrue: [^#()].
 	names := OrderedCollection new.
 	self standardSpecs do: [:spec | (names includes: (spec at: 2)) ifFalse: [names add: (spec at: 2)]].
 	self fallbackFaceNames do: [:each | (names includes: each) ifFalse: [names add: each]].
@@ -548,13 +568,15 @@ buildFonts
 	Emoji := nil.
 	Standard := nil.
 	GlyphAtlas reset.
+	Faces := Dictionary new.
 	self imageFaceNames do: [:each |
 		((self isOptionalFace: each) not or: [File exists: self fontsDirectory , '/' , each , '.ttf'])
-			ifTrue: [self faceNamed: each]].
+			ifTrue: [Faces at: each put: (TrueTypeFont readFile: self fontsDirectory , '/' , each , '.ttf')]].
 	Faces do: [:each | each colorBaseGlyphCount = 0 ifTrue: [each compact]].
-	chars := self prerasterizedCharacters.
-	fonts := self standardFonts.
-	fonts do: [:font | font prerasterize: chars].
+	Smalltalk isRuntimeImage ifFalse: [
+		chars := self prerasterizedCharacters.
+		fonts := self standardFonts.
+		fonts do: [:font | font prerasterize: chars]].
 	Transcript show: ' '; show: Faces size printString; show: ' faces, '; show: (GlyphAtlas default pages size) printString; show: ' atlas page(s)'
 ! !
 

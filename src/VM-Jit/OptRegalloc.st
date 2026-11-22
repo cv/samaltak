@@ -505,3 +505,13 @@ assignSlots
 		(nd rep asInt32 = R_DBL and: [nd slot >= 0]) ifTrue: [nd slot: (nd slot + raRawBase) asInt16]].
 	^true
 ! !
+
+!OptRegalloc methodsFor: 'memory'!
+release
+	"Give back the pages of my liveness arena and node arrays (each allocation starts them anew)."
+	<function>
+	gc releasePages: raLiveArena size: 8 * RA_ARENA.
+	gc releasePages: raSorted size: 4 * OPT_MAX_NODES.
+	gc releasePages: raBucket size: 4 * OPT_MAX_NODES.
+	gc releasePages: raBucketNext size: 4 * OPT_MAX_NODES
+! !
