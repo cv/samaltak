@@ -135,9 +135,9 @@ memoryAttrNoncontiguousPci
 	"NVOS32 attr: physicality allow-noncontiguous (3 << 27), location PCI (1 << 25), page size 4 KB (1 << 23)."
 	^((3 bitShift: 27) bitOr: (1 bitShift: 25)) bitOr: (1 bitShift: 23)
 !
-memoryAttr2Cached
-	"NVOS32 attr2: GPU cacheable yes (1 << 2), prefer no ZBC (1)."
-	^(1 bitShift: 2) bitOr: 1
+memoryAttr2Uncached
+	"NVOS32 attr2: GPU cacheable no (2 << 2), prefer no ZBC (1)."
+	^(2 bitShift: 2) bitOr: 1
 !
 memoryAllocFlags
 	"NVOS32 alloc flags: map not required, alignment force, ignore bank placement."
@@ -268,10 +268,10 @@ memoryVirtualParams: limit vaSpace: hVASpace
 !
 memoryParams: size owner: hOwner type: type alignment: alignment
 	"NV_MEMORY_ALLOCATION_PARAMS for NV01_MEMORY_SYSTEM, 128 bytes: size bytes of noncontiguous system memory the GPU
-	caches. RM writes the size it allocated at 64."
+	does not cache. RM writes the size it allocated at 64."
 	^(NvStruct new: 128)
 		u32At: 0 put: hOwner; u32At: 4 put: type; u32At: 8 put: self memoryAllocFlags;
-		u32At: 24 put: self memoryAttrNoncontiguousPci; u32At: 28 put: self memoryAttr2Cached; u32At: 32 put: 6;
+		u32At: 24 put: self memoryAttrNoncontiguousPci; u32At: 28 put: self memoryAttr2Uncached; u32At: 32 put: 6;
 		u64At: 64 put: size; u64At: 72 put: alignment; u64At: 88 put: size - 1; yourself
 !
 channelGroupParams: engineType

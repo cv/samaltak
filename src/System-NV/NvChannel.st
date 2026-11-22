@@ -1,0 +1,154 @@
+Object subclass: #NvChannel
+	instanceVariableNames: 'device group contextShare gpfifo computeObject computeClass ring errors pushBuffer semaphore token entries put pbOffset fenceValue'
+	classVariableNames: ''
+	package: 'System-NV'!
+
+NvChannel comment: 'I am a GPU channel: a channel group with one GPFIFO channel in the device''s VA space, the compute class bound to it, and what feeds it:
+- ring: the GPFIFO (entries 8-byte entries, each pointing at pushbuffer words) and, at 16r2000 in the same memory, the channel''s USERD, where GPPut (16r8C) tells the GPU how far the ring is filled and GPGet (16r88) how far it has fetched;
+- pushBuffer: 64 KB the pushbuffers I submit are copied into, used as a ring;
+- semaphore: a 64-bit word the channel writes fence values to;
+- token: the work submit token; writing it to the device''s doorbell (16r90 in the usermode page) makes the GPU look at GPPut.
+
+	c := gpu newChannel.
+	pb := NvPushBuffer new.
+	pb method: 0 subchannel: 1 value: c computeClass.
+	c submit: pb.
+	c wait: c fence             "returns once the GPU has run all of it"
+
+submit: is asynchronous; fence submits a semaphore release and answers its value, wait: polls for it (an error after a timeout names GPGet and GPPut), sync is both. close waits for the work submitted, then frees the channel''s RM objects and memory (NvDevice close does it for channels left open).'!
+
+!NvChannel methodsFor: 'initialization'!
+device: anNvDevice
+	device := anNvDevice.
+	entries := 1024.
+	put := 0.
+	pbOffset := 0.
+	fenceValue := 0.
+	[ring := device allocate: 16r3000.
+	errors := device allocate: 16r1000.
+	pushBuffer := device allocate: 16r10000.
+	semaphore := device allocate: 16r1000.
+	group := device alloc: NvRm classChannelGroup parent: device device params: (NvRm channelGroupParams: 1).
+	contextShare := device alloc: NvRm classContextShare parent: group params: (NvRm contextShareParams: device vaSpace).
+	gpfifo := device alloc: (device classFrom: NvRm gpfifoClasses) parent: group
+		params: (NvRm gpfifoParams: entries ringAddress: ring gpuAddress ringMemory: ring handle userdMemory: ring handle
+			userdOffset: self userdOffset errorNotifier: errors handle contextShare: contextShare).
+	computeClass := device classFrom: NvRm computeClasses.
+	computeObject := device alloc: computeClass parent: gpfifo params: nil.
+	token := (device control: NvRm cmdGpfifoGetWorkSubmitToken object: gpfifo params: NvRm workSubmitTokenParams) u32At: 0.
+	device control: NvRm cmdChannelGroupSchedule object: group params: (NvRm scheduleParams: true)]
+		ifCurtailed: [self close]
+! !
+
+!NvChannel methodsFor: 'accessing'!
+device
+	^device
+!
+computeClass
+	^computeClass
+!
+token
+	^token
+!
+userdOffset
+	^16r2000
+!
+gpGet
+	^ring uint32At: self userdOffset + 16r88
+!
+gpPut
+	^ring uint32At: self userdOffset + 16r8C
+!
+completedValue
+	"The last fence value the GPU wrote."
+	^semaphore uint64At: 0
+!
+lastFence
+	^fenceValue
+!
+isOpen
+	^gpfifo notNil
+! !
+
+!NvChannel methodsFor: 'submitting'!
+submit: anNvPushBuffer
+	"Queue anNvPushBuffer''s words for the GPU and ring the doorbell; returns at once."
+	| bytes |
+	anNvPushBuffer isEmpty ifTrue: [^self].
+	bytes := anNvPushBuffer bytes.
+	bytes size + 64 > pushBuffer size ifTrue: [^self error: 'pushbuffer of ', bytes size printString, ' bytes too big'].
+	pbOffset + bytes size + 64 > pushBuffer size ifTrue: [self wrapPushBuffer].
+	self push: bytes
+!
+push: bytes
+	"Copy bytes into the pushbuffer at pbOffset and queue a GPFIFO entry for them."
+	| deadline |
+	gpfifo isNil ifTrue: [^self error: 'closed channel'].
+	deadline := Time millisecondClockValue + 5000.
+	[(put + 1) \\ entries = self gpGet] whileTrue: [
+		Time millisecondClockValue > deadline ifTrue: [^self error: 'GPFIFO full: GPGet ', self gpGet printString, ', GPPut ', self gpPut printString]].
+	pushBuffer bytesAt: pbOffset put: bytes.
+	ring uint64At: put \\ entries * 8 put: (NvPushBuffer gpfifoEntry: pushBuffer gpuAddress + pbOffset words: bytes size // 4).
+	put := put + 1.
+	pbOffset := pbOffset + bytes size + 7 // 8 * 8.
+	Machine barrier.
+	ring uint32At: self userdOffset + 16r8C put: put \\ entries.
+	Machine barrier.
+	Machine uint32At: device doorbell + 16r90 put: token
+!
+wrapPushBuffer
+	"Wait until the GPU has run everything in the pushbuffer, then start again at its beginning."
+	| pb |
+	pb := NvPushBuffer new.
+	fenceValue := fenceValue + 1.
+	pb semaphoreRelease: semaphore gpuAddress payload: fenceValue.
+	self push: pb bytes.
+	self wait: fenceValue.
+	pbOffset := 0
+!
+fence
+	"Submit a semaphore release after the work submitted so far; answer the value it writes."
+	| pb |
+	pb := NvPushBuffer new.
+	fenceValue := fenceValue + 1.
+	pb semaphoreRelease: semaphore gpuAddress payload: fenceValue.
+	self submit: pb.
+	^fenceValue
+!
+wait: value
+	self wait: value timeoutMilliseconds: 5000
+!
+wait: value timeoutMilliseconds: ms
+	"Return once the GPU has written a fence value of at least value; error after ms."
+	| deadline n |
+	(semaphore uint64At: 0) >= value ifTrue: [^self].
+	deadline := Time millisecondClockValue + ms.
+	n := 0.
+	[(semaphore uint64At: 0) >= value] whileFalse: [
+		n := n + 1.
+		(n \\ 256 = 0 and: [Time millisecondClockValue > deadline]) ifTrue: [
+			^self error: 'GPU timeout waiting for fence ', value printString, ' (at ', self completedValue printString,
+				'; GPGet ', self gpGet printString, ', GPPut ', self gpPut printString, ')']]
+!
+sync
+	"Return once the GPU has run all the work submitted."
+	self wait: self fence
+!
+submitAndWait: anNvPushBuffer
+	self submit: anNvPushBuffer.
+	self sync
+! !
+
+!NvChannel methodsFor: 'closing'!
+close
+	"Wait (briefly) for the work submitted, then free my RM objects and memory. Safe to call twice."
+	group isNil ifTrue: [^self].
+	[(gpfifo notNil and: [fenceValue > 0]) ifTrue: [[self wait: fenceValue timeoutMilliseconds: 2000] on: Error do: [:e | ]]]
+		ensure: [
+			gpfifo notNil ifTrue: [[device free: gpfifo parent: group] on: Error do: [:e | ]].
+			contextShare notNil ifTrue: [[device free: contextShare parent: group] on: Error do: [:e | ]].
+			[device free: group parent: device device] on: Error do: [:e | ].
+			gpfifo := contextShare := group := computeObject := nil.
+			{semaphore. pushBuffer. errors. ring} do: [:m | m notNil ifTrue: [[m free] on: Error do: [:e | ]]].
+			device forgetChannel: self]
+! !
