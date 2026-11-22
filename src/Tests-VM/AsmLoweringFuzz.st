@@ -204,6 +204,15 @@ emitExit
 	asm ldp: X29 with: X30 base: SP postIndex: 16.
 	asm ret
 !
+nzcv: n
+	"One of the flags a subtraction gives (0 2 3 6 8 9 10), by n."
+	| j |
+	j := n rem: 7.
+	j = 0 ifTrue: [^0].
+	j < 3 ifTrue: [^j + 1].
+	j = 3 ifTrue: [^6].
+	^j + 4
+!
 emitFlagSetter
 	"An instruction that sets the flags (random values drawn first: C does not order a call's arguments)."
 	<function>
@@ -229,7 +238,7 @@ emitInstruction
 	"One instruction (or a short pattern) from the code generators' repertoire; every random value is drawn first, in order."
 	<function>
 	| k a b c e wa w v i i12 m mw s s32 lsb width cond d d1 d2 off boff two lbl |
-	k := self below: 46.
+	k := self below: 47.
 	kind := k asInt32.
 	a := self reg.
 	b := self reg.
@@ -334,6 +343,15 @@ emitInstruction
 	k = 44 ifTrue: [
 		two = 0 ifTrue: [^asm fmul: d with: d1 with: d2].
 		^asm fdiv: d with: d1 with: d2].
+	k = 45 ifTrue: [
+		"a conditional compare (ccmp, ccmn; a register or an immediate) on another's flags, nzcv one a subtraction gives, then a select on its flags"
+		self emitFlagSetter.
+		asm failed ifFalse: [kind := k asInt32].
+		(s bitAnd: 3) = 0 ifTrue: [asm ccmp: b with: c nzcv: (self nzcv: i) cond: cond].
+		(s bitAnd: 3) = 1 ifTrue: [asm ccmn: b with: c nzcv: (self nzcv: i) cond: cond].
+		(s bitAnd: 3) = 2 ifTrue: [asm ccmp: b imm: ((i >> 3) rem: 63) asInt64 - 31 nzcv: (self nzcv: i) cond: cond].
+		(s bitAnd: 3) = 3 ifTrue: [asm ccmn: b imm: ((i >> 3) rem: 63) asInt64 - 31 nzcv: (self nzcv: i) cond: cond].
+		^asm cset: a cond: (lsb rem: 14) asInt32].
 	"a floating point compare and a select or branch on it"
 	two = 0
 		ifTrue: [asm fcmp: d with: d1]

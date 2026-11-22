@@ -105,6 +105,7 @@ DISASM_CLASSES = [
     '0 0 0 11110 01 1 xxxxxxxx 100 00000 xxxxx',  # FP immediate, double
     'x 0 x 11110 xx 1 xx xxx 000000 xxxxx xxxxx',  # FP <-> integer
     'x 0 0 11110 01 1 xx xxx 000000 xxxxx xxxxx',  # FP <-> integer, double
+    'x x 1 11010010 xxxxx xxxx x 0 xxxxx 0 xxxx',  # conditional compare (last: the classes before keep their sample)
 ]
 
 # Field values that select aliases, set with some probability where the class leaves the field random: (lsb, width, value).
@@ -112,7 +113,7 @@ DISASM_FIELDS = [(0, 5, 31), (5, 5, 31), (16, 5, 31), (10, 5, 31), (10, 6, 63), 
                  (16, 6, 0), (5, 16, 0), (5, 16, 0xFFFF), (12, 4, 15)]
 
 DISASM_MNEMONICS = set('''add sub adds subs cmp cmn neg negs mov and orr eor ands bic bics orn eon tst mvn movz movk movn
-    lsl lsr asr ror mul madd msub mneg smulh umulh sdiv udiv csel csinc csinv csneg cset csetm cinc cinv cneg
+    lsl lsr asr ror mul madd msub mneg smulh umulh sdiv udiv csel csinc csinv csneg cset csetm cinc cinv cneg ccmp ccmn
     ubfx sbfx ubfiz sbfiz bfi bfxil sxtb sxth sxtw uxtb uxth extr clz
     ldr str ldrb strb ldrh strh ldrsb ldrsh ldrsw ldur stur ldurb sturb ldurh sturh ldursb ldursh ldursw ldp stp
     adr adrp b bl cbz cbnz tbz tbnz br blr ret nop brk dmb dsb isb ssbb pssbb dfb

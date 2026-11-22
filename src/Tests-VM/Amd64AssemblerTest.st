@@ -296,6 +296,10 @@ testErrors
 	self assert: (self assemble: [asm cmp: x0 with: x1. asm lsl: x0 with: x0 imm: 3. asm cset: x1 cond: (self cond: 'EQ')]) equals: 6.
 	self assert: (self assemble: [asm add: x0 with: x0 with: x1. asm b: (asm labelAt: buffer) if: (self cond: 'EQ')]) asArray equals: #(16r48 16r8D 16r3C 16r37 16r74 16rFA).
 	self assert: (self assemble: [asm adds: x0 with: x0 with: x1. asm lsl: x1 with: x1 imm: 1. asm b: (asm labelAt: buffer) if: (self cond: 'EQ')]) equals: 6.
+	"ccmp's nzcv: flags no subtraction gives (Z without C), none an addition gives (N with Z); a condition of flags destroyed"
+	self assert: (self assemble: [asm cmp: x0 with: x1. asm ccmp: x0 with: x1 nzcv: 4 cond: (self cond: 'EQ')]) equals: 5.
+	self assert: (self assemble: [asm cmp: x0 with: x1. asm ccmn: x0 with: x1 nzcv: 12 cond: (self cond: 'EQ')]) equals: 5.
+	self assert: (self assemble: [asm cmp: x0 with: x1. asm lsl: x0 with: x0 imm: 3. asm ccmp: x0 with: x1 nzcv: 0 cond: (self cond: 'EQ')]) equals: 6.
 	asm beginAt: buffer limit: buffer + 16.
 	9 timesRepeat: [asm nop].
 	self deny: asm failed.

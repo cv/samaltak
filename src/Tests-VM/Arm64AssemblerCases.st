@@ -225,6 +225,15 @@ conditional
 	self case: 'cset x3, mi' emit: [asm cset: X3 cond: COND_MI].
 	self case: 'csetm x0, ne' emit: [asm csetm: X0 cond: COND_NE].
 	self case: 'csetm w0, ge' emit: [asm csetm: W0 cond: COND_GE].
+	self case: 'ccmp x0, x1, #0, eq' emit: [asm ccmp: X0 with: X1 nzcv: 0 cond: COND_EQ].
+	self case: 'ccmp w3, w30, #15, ne' emit: [asm ccmp: W3 with: W30 nzcv: 15 cond: COND_NE].
+	self case: 'ccmp x30, xzr, #6, hs' emit: [asm ccmp: X30 with: XZR nzcv: 6 cond: COND_HS].
+	self case: 'ccmn x2, x3, #4, lt' emit: [asm ccmn: X2 with: X3 nzcv: 4 cond: COND_LT].
+	self case: 'ccmp x4, #31, #2, gt' emit: [asm ccmp: X4 imm: 31 nzcv: 2 cond: COND_GT].
+	self case: 'ccmp w5, #0, #8, al' emit: [asm ccmp: W5 imm: 0 nzcv: 8 cond: COND_AL].
+	self case: 'ccmn x6, #7, #0, ls' emit: [asm ccmp: X6 imm: -7 nzcv: 0 cond: COND_LS].
+	self case: 'ccmn w7, #1, #10, mi' emit: [asm ccmn: W7 imm: 1 nzcv: 10 cond: COND_MI].
+	self case: 'ccmp x8, #3, #9, vs' emit: [asm ccmn: X8 imm: -3 nzcv: 9 cond: COND_VS].
 	self case: 'cneg x0, x1, mi' emit: [asm cneg: X0 with: X1 cond: COND_MI].
 	self case: 'cneg w0, w1, ls' emit: [asm cneg: W0 with: W1 cond: COND_LS].
 	self case: 'cinc x0, x1, pl' emit: [asm cinc: X0 with: X1 cond: COND_PL].

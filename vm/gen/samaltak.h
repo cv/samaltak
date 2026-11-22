@@ -1553,6 +1553,7 @@ void amd64_assembler_cmp_any_with(int64_t rn, int64_t rm);
 void amd64_assembler_cmp_any_with_shift_amount(int64_t rn, int64_t rm, int64_t type, int64_t n);
 void compare_zero(int64_t rt);
 void cond_branch(int64_t c, int32_t a_label);
+void cond_compare(int64_t rn, int64_t rm, int64_t imm, int32_t form, int64_t f, int64_t c);
 void csel(int64_t rd, int64_t rn, int64_t rm, int64_t c);
 void csel_by_branch(int64_t rd, int64_t rn, int64_t rm, int64_t c);
 void cset(int64_t rd, int64_t c);

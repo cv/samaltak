@@ -658,6 +658,31 @@ cneg: rd with: rn cond: c
 	self select: 16r40000400 rd: rd rn: rn rm: rn cond: (c bitXor: 1)
 ! !
 
+!Arm64Assembler methodsFor: 'conditional compare'!
+condCompare: op rn: rn rm: rm imm: isImm nzcv: f cond: c
+	"op: 16r40000000 ccmp, 0 ccmn; rm a register, or with isImm a 5-bit immediate. f: N 8, Z 4, C 2, V 1."
+	(f between: 0 and: 15) ifFalse: [^self fail: ASM_ERR_OPERAND].
+	self emit: ((((16r3A400000 bitOr: (self sf: rn)) bitOr: op) bitOr: (((rm bitAnd: 31) asUInt64 << 16) bitOr: ((c bitAnd: 15) asUInt64 << 12)))
+		bitOr: (((isImm ifTrue: [16r800] ifFalse: [0]) bitOr: ((rn bitAnd: 31) asUInt64 << 5)) bitOr: f asUInt64))
+!
+ccmp: rn with: rm nzcv: f cond: c
+	"The flags of rn - rm if c holds, else nzcv f (N 8, Z 4, C 2, V 1): cmp a, b; ccmp c, d, #0, eq; b.eq both equal. On x86 f must be what a subtraction can give: 0, 2, 3, 6 (not 4: Z with C), 8, 9 or 10."
+	self condCompare: 16r40000000 rn: rn rm: rm imm: false nzcv: f cond: c
+!
+ccmn: rn with: rm nzcv: f cond: c
+	"The flags of rn + rm if c holds, else nzcv f. On x86 f must be what an addition can give: 0, 2, 3, 4, 6, 8, 9 or 10."
+	self condCompare: 0 rn: rn rm: rm imm: false nzcv: f cond: c
+!
+ccmp: rn imm: imm nzcv: f cond: c
+	"The flags of rn - imm (-31 to 31: a negative one is ccmn's) if c holds, else nzcv f."
+	(imm between: 0 and: 31) ifTrue: [^self condCompare: 16r40000000 rn: rn rm: imm imm: true nzcv: f cond: c].
+	(imm between: -31 and: -1) ifTrue: [^self condCompare: 0 rn: rn rm: imm negated imm: true nzcv: f cond: c].
+	self fail: ASM_ERR_IMMEDIATE
+!
+ccmn: rn imm: imm nzcv: f cond: c
+	"The flags of rn + imm (-31 to 31) if c holds, else nzcv f."
+	self ccmp: rn imm: imm negated nzcv: f cond: c
+! !
 
 !Arm64Assembler methodsFor: 'loads and stores'!
 loadStore: bits rt: rt base: rn offset: off scale: s
