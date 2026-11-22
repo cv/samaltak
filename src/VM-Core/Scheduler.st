@@ -1,5 +1,5 @@
 VMCoreModule subclass: #Scheduler
-	instanceVariableNames: 'interruptPending lastPreempted lastPreemptedAtEntry allocSampleClass allocSampleSize allocSampleInterval allocSampleCountdown allocSampleSema statProcessSwitches allocSamplePending inIdle preemptToFront allocSampleUnread samplerTickUnread timerMs samplerIntervalUs samplerNextUs lastSwitchUs startUs samplerSema pendingExt pendingExtN pendingExtCap tickIdle tickPollUs tickArmedPoll tickArmedDeadline tickDeadlineFired ticker workClockOn workClockRunning workClockPaced workClockUsesCycles workClockUs workClockCycles workClockRaw workClockHeld workClockHoldCycles workClockQuerying frameSema frameFps frameOriginUs frameIndex frameNextUs sliceUs sliceDueUs slicePriority'
+	instanceVariableNames: 'interruptPending lastPreempted lastPreemptedAtEntry allocSampleClass allocSampleSize allocSampleInterval allocSampleCountdown allocSampleSema statProcessSwitches allocSamplePending inIdle preemptToFront allocSampleUnread samplerTickUnread timerMs samplerIntervalUs samplerNextUs lastSwitchUs startUs samplerSema pendingExt pendingExtN pendingExtCap tickIdle tickPollUs tickArmedPoll tickArmedDeadline tickDeadlineFired ticker workClockOn workClockRunning workClockPaced workClockUsesCycles workClockUs workClockCycles workClockRaw workClockHeld workClockHoldCycles workClockQuerying frameSema frameFps frameOriginUs frameIndex frameNextUs sliceUs sliceDueUs slicePriority sliceExpired'
 	classVariableNames: 'TICK_DEADLINE TICK_POLL WORK_CLOCK_FLOOR WORK_CLOCK_POLL_US WORK_CYCLES_PER_US'
 	package: 'VM-Core'!
 
@@ -23,7 +23,7 @@ declarations
 		(workClockOn bool) (workClockRunning bool) (workClockPaced bool) (workClockUsesCycles bool)
 		(workClockUs int64_t) (workClockCycles int64_t) (workClockRaw int64_t) (workClockHeld bool) (workClockHoldCycles int64_t) (workClockQuerying bool)
 		(frameSema int32_t) (frameFps int64_t) (frameOriginUs int64_t) (frameIndex int64_t) (frameNextUs int64_t)
-		(sliceUs int64_t) (sliceDueUs int64_t) (slicePriority int64_t))
+		(sliceUs int64_t) (sliceDueUs int64_t) (slicePriority int64_t) (sliceExpired bool))
 !
 initialize
 	TICK_DEADLINE := 1.
@@ -464,6 +464,7 @@ idleWait
 	| now wait |
 	inIdle := true.
 	sliceDueUs := 0.
+	sliceExpired := false.
 	(pendingExtN = 0 and: [allocSamplePending not]) ifTrue: [
 		workClockOn ifTrue: [^self workClockIdleWait].
 		now := self nowUs.
@@ -575,15 +576,14 @@ handleInterrupts
 	preemptToFront := false.
 	(frameSema ~= 0 and: [now >= frameNextUs]) ifTrue: [self workClockFrameDue].
 	(sliceDueUs ~= 0 and: [inIdle not and: [now >= sliceDueUs]]) ifTrue: [
-		"The slice is over: the active Process goes to the back of its run list if one of its priority waits; the switch starts the next one's slice. Over while a higher Process interrupted the slice's: that one's slice starts again."
+		"The slice is over: the active Process goes to the back of its run list if one of its priority waits; the switch starts the next one's slice. Over while a higher Process interrupted the slice's (the profiler's timer Process, woken in this same check): it stays over, and that Process goes to the back as soon as its priority runs again (sliceCheck)."
+		sliceDueUs := 0.
 		(self priorityOf: self activeProcess) = slicePriority
 			ifTrue: [
-				sliceDueUs := 0.
-				self processorYield.
-				sliceDueUs = 0 ifTrue: [self tickUpdate]]
-			ifFalse: [
-				sliceDueUs := now + sliceUs.
-				self tickUpdate]].
+				sliceExpired := false.
+				self processorYield]
+			ifFalse: [sliceExpired := true].
+		sliceDueUs = 0 ifTrue: [self tickUpdate]].
 	gc finalizationPending ifTrue: [
 		gc finalizationPending: false.
 		s := memory special: SO_FINALIZATION_SEMAPHORE.
@@ -602,6 +602,7 @@ setTimeSlice: us
 	<function>
 	sliceUs := us.
 	sliceDueUs := 0.
+	sliceExpired := false.
 	self sliceCheck.
 	self tickUpdate
 !
@@ -611,15 +612,24 @@ sliceCheck
 	| pri contended |
 	sliceUs = 0 ifTrue: [^self].
 	pri := self priorityOf: self activeProcess.
-	(sliceDueUs ~= 0 and: [pri > slicePriority]) ifTrue: [^self].
+	((sliceDueUs ~= 0 or: [sliceExpired]) and: [pri > slicePriority]) ifTrue: [^self].
 	contended := inIdle not and: [(self loadRef: (self runList: pri) at: LL_FIRST) ~= memory nilOop].
 	contended
 		ifTrue: [
-			(sliceDueUs = 0 or: [slicePriority ~= pri]) ifTrue: [
-				sliceDueUs := self nowUs + sliceUs.
-				slicePriority := pri.
-				self tickUpdate]]
+			(sliceExpired and: [pri = slicePriority])
+				ifTrue: [
+					"its slice ran out while a higher Process ran: due now"
+					sliceExpired := false.
+					sliceDueUs := self nowUs.
+					self tickUpdate]
+				ifFalse: [
+					(sliceDueUs = 0 or: [slicePriority ~= pri]) ifTrue: [
+						sliceExpired := false.
+						sliceDueUs := self nowUs + sliceUs.
+						slicePriority := pri.
+						self tickUpdate]]]
 		ifFalse: [
+			sliceExpired := false.
 			sliceDueUs ~= 0 ifTrue: [
 				sliceDueUs := 0.
 				self tickUpdate]]

@@ -28,6 +28,7 @@ static int64_t sampler_next_us;
 static int32_t sampler_sema;
 bool sampler_tick_unread;
 static int64_t slice_due_us;
+static bool slice_expired;
 static int64_t slice_priority;
 static int64_t slice_us;
 static int64_t start_us;
@@ -175,14 +176,14 @@ void handle_interrupts(void)
         signal_index(frame_sema);
     }
     if ((slice_due_us != 0) && ((!in_idle) && (now >= slice_due_us))) {
+        slice_due_us = 0;
         if (priority_of(active_process()) == slice_priority) {
-            slice_due_us = 0;
+            slice_expired = false;
             processor_yield();
-            if (slice_due_us == 0) {
-                tick_update();
-            }
         } else {
-            slice_due_us = now + slice_us;
+            slice_expired = true;
+        }
+        if (slice_due_us == 0) {
             tick_update();
         }
     }
@@ -228,6 +229,7 @@ static void idle_wait(void)
     int64_t wait;
     in_idle = true;
     slice_due_us = 0;
+    slice_expired = false;
     if ((pending_ext_n == 0) && (!alloc_sample_pending)) {
         if (work_clock_on) {
             now_2 = ({
@@ -860,6 +862,7 @@ void set_time_slice(int64_t us)
 {
     slice_us = us;
     slice_due_us = 0;
+    slice_expired = false;
     slice_check();
     tick_update();
 }
@@ -921,7 +924,7 @@ static void slice_check(void)
         return;
     }
     pri = priority_of(active_process());
-    if ((slice_due_us != 0) && (pri > slice_priority)) {
+    if (((slice_due_us != 0) || slice_expired) && (pri > slice_priority)) {
         return;
     }
     contended = (!in_idle) && ({
@@ -931,14 +934,22 @@ static void slice_check(void)
     o_3 = *(uint64_t *)(o_2 + 16 + 8 * i);
     *(uint64_t *)(o_3 + 16 + 0) != nil_oop; });
     if (contended) {
-        if ((slice_due_us == 0) || (slice_priority != pri)) {
+        if (slice_expired && (pri == slice_priority)) {
+            slice_expired = false;
+            slice_due_us = now_us();
+            tick_update();
+        } else if ((slice_due_us == 0) || (slice_priority != pri)) {
+            slice_expired = false;
             slice_due_us = now_us() + slice_us;
             slice_priority = pri;
             tick_update();
         }
-    } else if (slice_due_us != 0) {
-        slice_due_us = 0;
-        tick_update();
+    } else {
+        slice_expired = false;
+        if (slice_due_us != 0) {
+            slice_due_us = 0;
+            tick_update();
+        }
     }
 }
 
