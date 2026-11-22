@@ -3,7 +3,7 @@ Object subclass: #FirmwareVolumes
 	classVariableNames: 'Problems'
 	package: 'System-Storage'!
 
-FirmwareVolumes comment: 'I give File, FileStream and Directory the machine''s ext4 volumes on UEFI, which has no files of its own: at each start there I install a MountTable that covers every path (File mountTable:), read-only, and on its first use look for the volumes: every disk and partition of the firmware (FirmwareBlockDevice all, so never the disk with the image) whose superblock has ext4''s magic is an Ext4Volume.
+FirmwareVolumes comment: 'I give File, FileStream and Directory the machine''s ext4 volumes on UEFI, which has no files of its own: at each start there I install a MountTable that covers every path (File mountTable:), read-only, and on its first use look for the volumes: every disk and partition of the firmware (FirmwareBlockDevice all, so never the image store or its disk) whose superblock has ext4''s magic is an Ext4Volume.
 
 Layout: each volume at /mnt/<name>, in the firmware''s order of its devices, and the first one also at / (so /etc/hostname is the first volume''s and /mnt lists them all). <name> is the volume''s label, else its GPT partition''s name, else volume<n> (n counting the volumes from 1); a / or control character becomes _, and a name taken already gets -2, -3, .... On an operating system I install nothing (and drop a table from UEFI that a snapshot brought along).
 

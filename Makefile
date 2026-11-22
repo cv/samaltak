@@ -271,6 +271,87 @@ test-uefi-nic:
 	tools/samaltak-ctl --session uefi-test close; cat $(UEFI)/net.log; [ $$ok = 0 ] && grep -q pong $(UEFI)/net.log \
 		&& grep -q "'driver $(call UEFI_DRIVER,$(UEFI_NIC))'" $(UEFI)/net.log
 
+# A boot disk for real hardware (docs/uefi.md, Real hardware): USB_IMAGE, one file to write onto a USB stick (dd) or to boot
+# in QEMU, a GPT disk of three partitions: 1 the EFI system partition (FAT32 of USB_ESP_MB: EFI/BOOT/$(UEFI_BOOT) and
+# samaltak.args), 2 the image store (UefiImageDisk: 1 MB and two slots of USB_SLOT_FACTOR times the image), 3 if USB_FILES
+# (a directory, by default test-uefi's ext4 fixture) an ext4 volume of it, USB_FILES_MB, labelled USB_FILES_LABEL. Made
+# without root: sgdisk on the file, mformat, mmd and mcopy (mtools), mkfs.ext4 -d, dd into the partitions' offsets.
+# samaltak.args: --max-heap USB_HEAP_MB disk: USB_ARGS, the World by default (USB_SCREEN its --window-size, else the
+# firmware's mode). USB_DIAG=1 first runs FirmwareDiagnostics (firmware, SMBIOS, ACPI and CPUs, memory map and protection,
+# timer, RNG, GOP modes, PCI, disks, volumes, NICs, DHCP: on the console and in samaltak-diag.txt on the stick's ESP), then
+# the World after a key or 30 s; USB_DIAG=key powers off after a key instead, USB_DIAG=quit at once. usb-run boots
+# USB_IMAGE in QEMU as USB_DEVICE (usb-storage on xHCI, or nvme), its console on stdio (UEFI_VNC=N: its screen on VNC).
+# test-usb-image makes one (usb-test.img) and boots that very file as a USB stick and as NVMe: the diagnostics (the
+# store, the ext4 volume, DHCP, the file on the ESP), then a snapshot into the stick's store and its resume.
+USB_IMAGE ?= $(UEFI)/usb.img
+USB_HEAP_MB ?= 2048
+USB_ESP_MB ?= 64
+USB_SLOT_FACTOR ?= 3
+USB_FILES ?= $(UEFI)/ext4-root
+USB_FILES_MB ?= 32
+USB_FILES_LABEL ?= usb-files
+USB_SCREEN ?=
+USB_DIAG ?=
+USB_DIAG_RUN = $(if $(filter key,$(USB_DIAG)),runThenWaitForKey,$(if $(filter quit,$(USB_DIAG)),runThenQuit,runThenWorld))
+USB_ARGS ?= $(if $(USB_SCREEN),--window-size $(USB_SCREEN)) $(if $(USB_DIAG),--eval 'FirmwareDiagnostics $(USB_DIAG_RUN)')
+USB_DEVICE ?= usb-storage
+USB_STORE_TYPE := 5aa3a57f-0f7e-4c2b-9b5e-53414d53544f
+USB_PARTS = $(USB_IMAGE).parts
+MTOOLS := MTOOLS_SKIP_CHECK=1
+QEMU_USB = $(QEMU_UEFI_MACHINE) -m $(or $(UEFI_RAM_MB),$(USB_RAM_MB),2048) -no-reboot -nic user,model=$(UEFI_NIC) -global $(UEFI_NIC).romfile= \
+	-device virtio-rng-pci -drive if=pflash,format=raw,readonly=on,file=$(OVMF_CODE) -drive if=pflash,format=raw,file=$(UEFI)/usb-vars.fd \
+	-device qemu-xhci -drive if=none,id=stick,format=raw,file=$(USB_IMAGE) \
+	$(if $(filter nvme,$(USB_DEVICE)),-device nvme$(comma)serial=stick$(comma)drive=stick,-device usb-storage$(comma)drive=stick)
+usb-image: uefi
+	$(MAKE) usb-disk
+usb-disk: $(filter $(UEFI)/ext4-root,$(USB_FILES))
+	rm -rf $(USB_IMAGE) $(USB_PARTS) && mkdir -p $(USB_PARTS)
+	printf '%s\n' --max-heap $(USB_HEAP_MB) disk: $(USB_ARGS) > $(USB_PARTS)/samaltak.args
+	truncate -s $(USB_ESP_MB)M $(USB_PARTS)/esp && $(MTOOLS) mformat -i $(USB_PARTS)/esp -F -v SAMALTAK :: \
+		&& $(MTOOLS) mmd -i $(USB_PARTS)/esp ::/EFI ::/EFI/BOOT && $(MTOOLS) mcopy -i $(USB_PARTS)/esp $(UEFI)/esp/EFI/BOOT/$(UEFI_BOOT) ::/EFI/BOOT/ \
+		&& $(MTOOLS) mcopy -i $(USB_PARTS)/esp $(USB_PARTS)/samaltak.args ::/
+	$(VM) $(OUT)/samaltak.image --headless --eval "UefiImageDisk new write: '$(OUT)/samaltak.image' to: '$(USB_PARTS)/store'"
+	truncate -s $$(( 1 + 2 * $(USB_SLOT_FACTOR) * (($$(wc -c < $(OUT)/samaltak.image) + 1048575) / 1048576) ))M $(USB_PARTS)/store
+	$(if $(USB_FILES),truncate -s $(USB_FILES_MB)M $(USB_PARTS)/files && PATH=$$PATH:/sbin:/usr/sbin && mkfs.ext4 -q -F -L $(USB_FILES_LABEL) -d $(USB_FILES) $(USB_PARTS)/files)
+	E=$(USB_ESP_MB); S=$$(( $$(wc -c < $(USB_PARTS)/store) / 1048576 )); F=$(if $(USB_FILES),$(USB_FILES_MB),0); \
+	truncate -s $$(( 2 + E + S + F ))M $(USB_IMAGE) \
+		&& sgdisk -n 1:2048:+$${E}M -t 1:ef00 -c 1:EFI -n 2:$$(( (1 + E) * 2048 )):+$${S}M -t 2:$(USB_STORE_TYPE) -c 2:samaltak-image \
+			$(if $(USB_FILES),-n 3:$$(( (1 + E + S) * 2048 )):+$${F}M -t 3:8300 -c 3:$(USB_FILES_LABEL)) $(USB_IMAGE) > /dev/null \
+		&& dd if=$(USB_PARTS)/esp of=$(USB_IMAGE) bs=1M seek=1 conv=notrunc status=none \
+		&& dd if=$(USB_PARTS)/store of=$(USB_IMAGE) bs=1M seek=$$(( 1 + E )) conv=notrunc status=none \
+		$(if $(USB_FILES),&& dd if=$(USB_PARTS)/files of=$(USB_IMAGE) bs=1M seek=$$(( 1 + E + S )) conv=notrunc status=none)
+	@echo "$(USB_IMAGE): $$(( $$(wc -c < $(USB_IMAGE)) / 1048576 )) MB, samaltak.args: $$(tr '\n' ' ' < $(USB_PARTS)/samaltak.args)"
+	rm -rf $(USB_PARTS)
+usb-run: USB_RAM_MB = $(shell expr $(USB_HEAP_MB) \* 4)
+usb-run:
+	cp $(OVMF_VARS) $(UEFI)/usb-vars.fd
+	$(QEMU_USB) $(if $(UEFI_VNC),$(UEFI_VNC_DISPLAY) -device usb-kbd -device virtio-tablet-pci -serial stdio,-nographic) | tee $(UEFI)/usb-console.log
+usb-boot:
+	cp $(OVMF_VARS) $(UEFI)/usb-vars.fd
+	$(QEMU_USB) -nographic | tee $(UEFI)/usb-console.log
+	@grep -q 'samaltak: exit 0' $(UEFI)/usb-console.log
+USB_TEST := $(UEFI)/usb-test.img
+USB_TEST_ARGS = printf '%s\n' --max-heap 256 disk: $(1) > $(UEFI)/usb-test.args && $(MTOOLS) mcopy -o -i $(USB_TEST)@@1M $(UEFI)/usb-test.args ::/samaltak.args
+USB_TEST_DIAG = for p in 'the image store' 'volumes: .*/mnt/usb-files' 'gop 1 modes: ' 'mp services: ' 'memory map [0-9]* descriptors' 'dhcp: 10\.0\.2\.15' '^diag done'; do \
+		grep -q "$$p" $(UEFI)/usb-console.log || { echo "test-usb-image: $(1): no line $$p"; exit 1; }; done; \
+	rm -f $(UEFI)/usb-diag.txt && $(MTOOLS) mcopy -i $(USB_TEST)@@1M ::/samaltak-diag.txt $(UEFI)/usb-diag.txt && grep -q '^diag done' $(UEFI)/usb-diag.txt \
+		&& $(MTOOLS) mdel -i $(USB_TEST)@@1M ::/samaltak-diag.txt || { echo "test-usb-image: $(1): no samaltak-diag.txt on the ESP"; exit 1; }
+test-usb-image: uefi
+	$(MAKE) usb-disk USB_IMAGE=$(USB_TEST)
+	$(call USB_TEST_ARGS,--headless --eval 'FirmwareDiagnostics runThenQuit')
+	$(MAKE) usb-boot USB_IMAGE=$(USB_TEST) USB_DEVICE=usb-storage
+	$(call USB_TEST_DIAG,usb-storage)
+	$(MAKE) usb-boot USB_IMAGE=$(USB_TEST) USB_DEVICE=nvme
+	$(call USB_TEST_DIAG,nvme)
+	$(call USB_TEST_ARGS,--headless --eval "$(UEFI_SNAPSHOT)")
+	$(MAKE) usb-boot USB_IMAGE=$(USB_TEST) USB_DEVICE=usb-storage
+	grep -q "'saved'" $(UEFI)/usb-console.log
+	$(call USB_TEST_ARGS,--headless)
+	$(MAKE) usb-boot USB_IMAGE=$(USB_TEST) USB_DEVICE=usb-storage
+	grep -q "'resumed 42'" $(UEFI)/usb-console.log
+	rm $(USB_TEST)
+
+
 # The narrated walkthrough on the real system, from a copy of the image named nuuk.image like the prototype's (a visible window; needs ffmpeg, agent-browser for the captions and
 # ELEVENLABS_API_KEY in .env unless the clips in $(VIDEO)/narration are cached).
 VIDEO ?= .context/video-real
@@ -308,4 +389,4 @@ clean:
 	$(MAKE) -C vm clean
 	rm -rf build
 
-.PHONY: all vm seed image fresh-image run translate uefi uefi-run uefi-boot uefi-ui uefi-control test-uefi test-uefi-nic test-vm test-jit test-jit-none test-jit-baseline test-jit-opt test-jit-deopt test-jit-cache test-core test-tools test-nv nv-kernels test video mindblown-video jit-video clean
+.PHONY: all vm seed image fresh-image run translate uefi uefi-run uefi-boot uefi-ui uefi-control test-uefi test-uefi-nic usb-image usb-disk usb-run usb-boot test-usb-image test-vm test-jit test-jit-none test-jit-baseline test-jit-opt test-jit-deopt test-jit-cache test-core test-tools test-nv nv-kernels test video mindblown-video jit-video clean

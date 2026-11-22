@@ -5,7 +5,7 @@ BlockDevice subclass: #FirmwareBlockDevice
 
 FirmwareBlockDevice comment: 'I am a disk or a partition of the machine on UEFI, read through the firmware''s Block I/O protocol (UEFI 2.10, 13.9): the firmware has a handle for each disk its drivers (NVMe, virtio, USB mass storage, AHCI) found, and a child handle for each GPT or MBR partition on one (isLogicalPartition). I only read: a read goes through a buffer outside the object heap aligned to the medium''s IoAlign, at most bufferBytes at a time. The medium (blockSize, blockCount, isReadOnly, isRemovable, mediaId) is read from the firmware at each use, so a changed medium shows. A partition''s table entry comes from its EFI_PARTITION_INFO_PROTOCOL (partitionType #gpt, #mbr or #other, partitionName and partitionTypeGuid of a GPT entry, mbrType of an MBR one), its number from its device path (partitionNumber); description is the firmware''s text of the device path, e.g. PciRoot(0x0)/Pci(0x2,0x0)/NVMe(0x1,...)/HD(1,GPT,...).
 
-FirmwareBlockDevice all answers every disk and partition with a medium except those of the disk that holds the image (UefiImageStore: a disk or partition that starts with SAMSTORE), which nothing here reads past its first block. On an operating system there are none. Read errors signal FileError. My memory and handles are the firmware''s: they do not survive a snapshot (FirmwareVolumes mounts afresh at each start).
+FirmwareBlockDevice all answers every disk and partition with a medium except the image store (UefiImageStore: a disk or partition that starts with SAMSTORE), the disk it is a partition of, and the partitions of a whole disk that is one: nothing here reads past their first block. The other partitions of a store''s disk are there (make usb-image puts an ext4 volume next to the store on the boot stick). On an operating system there are none. Read errors signal FileError. My memory and handles are the firmware''s: they do not survive a snapshot (FirmwareVolumes mounts afresh at each start).
 
 	FirmwareBlockDevice all collect: [:d | d printString]'!
 
@@ -29,15 +29,22 @@ devicePathToTextGuid
 
 !FirmwareBlockDevice class methodsFor: 'finding'!
 all
-	"The firmware's disks and partitions with a medium, in its order, but those of the disk with the image store; none without a firmware."
-	| firmware devices stores |
+	"The firmware's disks and partitions with a medium, in its order, but the image store, the disk it is on and, if it is a whole disk, its partitions; none without a firmware."
+	| firmware devices |
 	firmware := Firmware current.
 	firmware isNil ifTrue: [^#()].
 	devices := (firmware handlesSupporting: self blockIoGuid)
 		collect: [:h | self firmware: firmware handle: h].
 	devices := devices select: [:d | d notNil and: [d isMediaPresent and: [d blockSize > 0]]].
-	stores := (devices select: [:d | d isImageStore]) collect: [:d | d diskPath].
-	^(devices reject: [:d | stores includes: d diskPath]) asArray
+	^self withoutImageStores: devices
+!
+withoutImageStores: devices
+	"devices without the image stores among them, the disks a store is a partition of, and the partitions of a disk that is a store."
+	| stores hidden |
+	stores := devices select: [:d | d isImageStore].
+	hidden := OrderedCollection new.
+	stores do: [:d | hidden add: d devicePath; add: d diskPath].
+	^(devices reject: [:d | (hidden includes: d devicePath) or: [stores anySatisfy: [:s | s isLogicalPartition not and: [s devicePath = d diskPath]]]]) asArray
 !
 firmware: aFirmware handle: aHandle
 	"The device behind aHandle, or nil if it has no Block I/O."
