@@ -273,6 +273,7 @@ test-uefi:
 	$(MAKE) $(UEFI_EXT4_DISK) $(UEFI_EXT4_GPT_DISK)
 	$(MAKE) uefi-boot UEFI_DISKS="$(UEFI_EXT4_DISK)@nvme $(UEFI_EXT4_GPT_DISK)@virtio-blk-pci" UEFI_ARGS="--headless --eval \"$(UEFI_FILES)\""
 	while read -r line; do grep -qF "$$line" $(UEFI)/console.log || { echo "test-uefi: files: no line: $$line"; exit 1; }; done < tests/uefi/files.expected
+	$(MAKE) test-uefi-fat
 	UEFI_AFFINITY=$(UEFI_AFFINITY) OUT=$(OUT) tools/samaltak-ctl --session uefi-test open --uefi --headless
 	P=$$(sed -n 's/.*"port": \([0-9]*\).*/\1/p' $${TMPDIR:-/tmp}/samaltak-ctl/uefi-test.json); \
 	TP=$$(python3 -c 'import socket; s = socket.socket(); s.bind(("127.0.0.1", 0)); print(s.getsockname()[1])'); \
@@ -291,6 +292,12 @@ test-uefi:
 	$(MAKE) uefi-boot UEFI_ARGS=--headless
 	grep -q "'resumed 42'" $(UEFI)/console.log
 	rm $(UEFI)/image.disk
+# test-uefi-fat: writable FAT volumes and crash reports (tests/uefi/fat.sh): the VM booted from a FAT32 EFI system
+# partition image (QEMU's fat:rw: directory loses writes) with FAT disks to write, read-only and nearly full, what it
+# wrote checked with mtools and fsck.fat; then a forced fatal error: its report on the ESP, the panel, a key, the reset.
+UEFI_ESP_DRIVE := -drive format=raw,file=fat:rw:$(UEFI)/esp
+test-uefi-fat: $(UEFI_EXT4_DISK)
+	QEMU='$(subst $(UEFI_ESP_DRIVE),,$(QEMU_UEFI))' UEFI=$(UEFI) VARS=$(OVMF_VARS) BOOT=$(UEFI_BOOT) EXT4=$(UEFI_EXT4_DISK) sh tests/uefi/fat.sh
 test-uefi-nic:
 	UEFI_NIC=$(UEFI_NIC) UEFI_AFFINITY=$(UEFI_AFFINITY) OUT=$(OUT) tools/samaltak-ctl --session uefi-test open --uefi --headless
 	P=$$(sed -n 's/.*"port": \([0-9]*\).*/\1/p' $${TMPDIR:-/tmp}/samaltak-ctl/uefi-test.json); \
@@ -427,4 +434,4 @@ clean:
 	$(MAKE) -C vm clean
 	rm -rf build
 
-.PHONY: all vm seed image fresh-image run translate uefi uefi-run uefi-boot uefi-ui uefi-control test-uefi test-uefi-nic usb-image usb-disk usb-run usb-boot test-usb-image test-vm test-jit test-jit-none test-jit-baseline test-jit-opt test-jit-deopt test-jit-cache test-core test-tools test-nv nv-kernels test video mindblown-video jit-video clean
+.PHONY: all vm seed image fresh-image run translate uefi uefi-run uefi-boot uefi-ui uefi-control test-uefi test-uefi-fat test-uefi-nic usb-image usb-disk usb-run usb-boot test-usb-image test-vm test-jit test-jit-none test-jit-baseline test-jit-opt test-jit-deopt test-jit-cache test-core test-tools test-nv nv-kernels test video mindblown-video jit-video clean

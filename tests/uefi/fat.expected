@@ -1,0 +1,23 @@
+fat mounts #('/' '/esp' '/mnt/FATDATA' '/mnt/FATFULL' '/mnt/FATRO' '/mnt/fixture')
+fat problems an OrderedCollection()
+fat labels #('FATDATA' 'FATFULL' 'FATRO' 'SAMALTAK')
+fat esp data 100000 true
+fat hello Hello from FAT
+fat notes #('FIRST line' 'second line')
+fat short short 5
+fat entries #('A long file name.text' 'hello.txt' 'notes.txt' 'short.txt' 'sub')
+fat sub #('new.txt') move me
+fat mtime true
+fat not empty FileError Directory not empty: /mnt/FATDATA/sub
+fat exists FileExists File exists: /mnt/FATDATA/sub
+fat missing FileDoesNotExist No such file or directory: /mnt/FATDATA/missing.txt
+fat no directory FileDoesNotExist No such file or directory: /mnt/FATDATA/nodir/x.txt
+fat other volume FileError Cannot move to another volume: /mnt/FATDATA/sub/new.txt to /esp/new.txt
+fat read-only write FileError Read-only file system: /mnt/FATRO/x.txt
+fat read-only delete FileError Read-only file system: /mnt/FATRO/ro.txt
+fat read-only mkdir FileError Read-only file system: /mnt/FATRO/d
+fat read-only read read only
+fat full FileError No space left on device: /mnt/FATFULL/big.bin
+fat ext4 FileError Read-only file system: /mnt/fixture/x
+fat report /esp/samaltak-crash-1.txt
+fat done
