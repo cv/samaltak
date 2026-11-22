@@ -39,7 +39,8 @@ Check with `context.get().projectFunctions`.
 - Rebase conflicts usually come from shared lists (README's docs list, `src/packages.txt`, the Makefile's UEFI_TESTS):
   keep both sides, then gate again. `push` refuses conflict markers and whitespace errors.
 - QEMU: one QEMU per build directory; `uefiEval` refuses while a `ctlSession --uefi` (or another run) of the same
-  OUT is up, and on a timeout kills only the QEMU it started. Never `pkill -f` a pattern: it can match your own shell.
+  OUT is up, and on a timeout kills only the QEMU it started. Never `pkill -f` a pattern: it can match your own shell, and other agents' VMs (`pkill -f 'samaltak.image --headless --test'`
+  ended three gates' test runs at once: a VM with a display quits on SIGTERM, with status 143 and a line naming the sender).
 - `agent-config --from-pi` resolves pi's API key, through 1Password's `op` where pi's config says so; that can wait
   for the operator's approval (`authorization timeout`). `ctlSession` notifies the operator first. Never print a key.
 - `github-config --from-gh` sends `gh auth token` (no approval needed) as the image's GitHub token (docs/github.md);

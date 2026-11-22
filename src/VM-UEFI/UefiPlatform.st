@@ -38,4 +38,10 @@ wait: timeoutUs
 !
 shutdown
 	<export>
+!
+quitStatus: code
+	<export>
+	<var: #code type: 'int'>
+	<returns: 'int'>
+	^code
 ! !

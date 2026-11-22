@@ -29,6 +29,10 @@ wait: timeoutUs
 shutdown
 	"At quit."
 	self subclassResponsibility
+!
+quitStatus: code
+	"At quit, before shutdown: the status the VM exits with when the image quits with code."
+	self subclassResponsibility
 ! !
 
 PlatformInterface subclass: #HeadlessPlatform
@@ -52,4 +56,10 @@ wait: timeoutUs
 !
 shutdown
 	<export>
+!
+quitStatus: code
+	<export>
+	<var: #code type: 'int'>
+	<returns: 'int'>
+	^code
 ! !

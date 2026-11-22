@@ -93,6 +93,7 @@ test-tools: image
 	tests/tools/desktop_test.sh $(OUT)/samaltak.image
 	tests/tools/snapshot_test.sh $(OUT)/samaltak.image
 	tests/tools/reboot_test.sh $(OUT)/samaltak.image
+	tests/tools/quit_signal_test.sh $(OUT)/samaltak.image
 
 # The Renderer's raster work as CUDA kernels for the NVIDIA GB10 (gpu/nv, docs/nv-kernels.md): rebuild the cubin with
 # nvcc and regenerate src/System-Devices/NvRasterKernels.st. Not part of test or CI.
